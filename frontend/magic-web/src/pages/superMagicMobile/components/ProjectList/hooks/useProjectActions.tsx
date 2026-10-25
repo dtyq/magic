@@ -1,3 +1,7 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { useBoolean, useMemoizedFn, useMount } from "ahooks"
 import { useEffect, useMemo, useState } from "react"
 import { ActionsPopup } from "../../ActionsPopup/types"
@@ -52,6 +56,12 @@ import {
 	sortFilteredProjectActions,
 } from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
 import { mergeProjectListItemWithStoreCache } from "@/pages/superMagicMobile/utils/mergeProjectListItemWithStoreCache"
+import {
+	MAX_PROJECT_NAME_LENGTH,
+	clampProjectName,
+	isProjectNameAtLimit,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
@@ -62,6 +72,10 @@ interface UseProjectListActionsOptions {
 	actionContext?: "default" | "project-detail" | "shell-recent"
 	deleteSelectedProjectBehavior?: "switch-next" | "navigate-home"
 	visibleActionKeys?: ProjectActionKey[]
+	/** Actions removed for this caller on top of the other rules (e.g. "move" for AI canvas). */
+	hiddenActionKeys?: ProjectActionKey[]
+	/** Keeps "pin" in the project-detail menu, where it is normally left out (AI canvas). */
+	showPinInProjectDetail?: boolean
 }
 
 export type ProjectActionKey =
@@ -84,6 +98,8 @@ export function useProjectListActions({
 	actionContext = "default",
 	deleteSelectedProjectBehavior = "switch-next",
 	visibleActionKeys,
+	hiddenActionKeys,
+	showPinInProjectDetail = false,
 }: UseProjectListActionsOptions = {}) {
 	const { t } = useTranslation("super")
 	const navigate = useNavigate()
@@ -355,7 +371,7 @@ export function useProjectListActions({
 					closeActionsPopup()
 				},
 				variant: "default",
-				visible: !isProjectDetailActionContext,
+				visible: !isProjectDetailActionContext || showPinInProjectDetail,
 				"data-testid": "project-actions-pin-project",
 			},
 			{
@@ -479,6 +495,7 @@ export function useProjectListActions({
 			: null
 		const filtered = actions.filter((action) => {
 			if (!action.visible) return false
+			if (hiddenActionKeys?.includes(action.key)) return false
 			if (simplifiedActionKeySet) {
 				return simplifiedActionKeySet.has(action.key as SharedProjectVisibleActionKey)
 			}
@@ -506,6 +523,8 @@ export function useProjectListActions({
 		isChatMode,
 		shouldShowSaveAsProject,
 		visibleActionKeys,
+		hiddenActionKeys,
+		showPinInProjectDetail,
 		sharedProjectActionPolicy,
 		isProjectDetailActionContext,
 		isShellRecentActionContext,
@@ -517,6 +536,7 @@ export function useProjectListActions({
 		const deleteWorkspaceId = isOtherCollaborationProject(deletedProject)
 			? SHARE_WORKSPACE_ID
 			: (selectedWorkspace?.id ?? deletedProject.workspace_id)
+		if (!canDeleteRecordingProjects([deletedProject.id])) return
 		const shouldExitProjectDetailPage = shouldExitDetailPageAfterDelete({
 			deletedProjectId: deletedProject.id,
 			selectedProjectId: projectStore.selectedProject?.id,
@@ -577,7 +597,8 @@ export function useProjectListActions({
 			}
 			await onProjectChanged?.()
 			setDeleteModalVisible(false)
-		} catch {
+		} catch (error) {
+			handleRecordingProjectDeletionError(error)
 			// Keep the confirm sheet open so the user can retry after a failed delete.
 		}
 	})
@@ -662,6 +683,11 @@ export function useProjectListActions({
 		isChatMode ? "chat.deleteChatDescription" : "ui.deleteProjectDescriptionWithoutName",
 	)
 
+	const renameProjectName = currentActionItem?.project_name ?? ""
+	const renameNameLength = renameProjectName.length
+	const isRenameNameOverLimit = isProjectNameOverLimit(renameProjectName)
+	const isRenameNameAtLimit = isProjectNameAtLimit(renameProjectName)
+
 	const projectActionComponents = (
 		<>
 			<MagicPopup
@@ -706,19 +732,25 @@ export function useProjectListActions({
 					icon: <IconX />,
 					ariaLabel: t("common.cancel"),
 					onClick: () => setRenameModalVisible(false),
+					testId: isChatMode ? "chat-rename-popup-close" : "project-rename-popup-close",
 				}}
 				headerTrailingAction={{
 					icon: <Check />,
 					ariaLabel: t("common.confirm"),
 					onClick: () => {
+						const trimmedName = clampProjectName(renameProjectName)
+						if (!trimmedName || isProjectNameOverLimit(trimmedName)) return
 						void handleRenameProject({
 							projectId: currentActionItem?.id || "",
-							projectName: currentActionItem?.project_name || "",
+							projectName: trimmedName,
 						})
 						setRenameModalVisible(false)
 					},
-					disabled: !currentActionItem?.project_name?.trim(),
+					disabled: !renameProjectName.trim() || isRenameNameOverLimit,
 					tone: "primary",
+					testId: isChatMode
+						? "chat-rename-popup-confirm"
+						: "project-rename-popup-confirm",
 				}}
 				bodyClassName="max-h-[80dvh] p-0"
 			>
@@ -739,6 +771,7 @@ export function useProjectListActions({
 									? "chat.inputChatName"
 									: "hierarchicalWorkspacePopup.inputProjectName",
 							)}
+							maxLength={MAX_PROJECT_NAME_LENGTH}
 							value={currentActionItem?.project_name}
 							onChange={(e) => {
 								if (!currentActionItem) return
@@ -754,6 +787,34 @@ export function useProjectListActions({
 									: "project-rename-popup-input"
 							}
 						/>
+						{/* Character counter and limit reminder */}
+						<div className="flex items-center justify-between text-xs text-muted-foreground">
+							{isRenameNameOverLimit ? (
+								<span className="text-destructive">
+									{t("chat.nameMaxLengthTip", {
+										maxLength: MAX_PROJECT_NAME_LENGTH,
+									})}
+								</span>
+							) : isRenameNameAtLimit ? (
+								<span>
+									{t("chat.nameMaxLengthTip", {
+										maxLength: MAX_PROJECT_NAME_LENGTH,
+									})}
+								</span>
+							) : (
+								<span />
+							)}
+							<span
+								className={isRenameNameOverLimit ? "text-destructive" : ""}
+								data-testid={
+									isChatMode
+										? "chat-rename-popup-char-count"
+										: "project-rename-popup-char-count"
+								}
+							>
+								{renameNameLength}/{MAX_PROJECT_NAME_LENGTH}
+							</span>
+						</div>
 					</div>
 				</div>
 			</MagicPopup>

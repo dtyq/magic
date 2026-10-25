@@ -9,7 +9,7 @@
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	DropdownMenu,
 	DropdownMenuTrigger,

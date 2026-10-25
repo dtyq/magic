@@ -1,6 +1,6 @@
 import { memo, useCallback, useState } from "react"
 import { motion } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import AICardIframe from "./AICardIframe"
 import type { AICardEntry } from "../types"

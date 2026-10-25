@@ -7,7 +7,13 @@ import type { SlideConfig } from "../src/api/options"
 import { drawImage } from "../src/drawer/drawImage"
 import type { ElementNode } from "../src/ir/dom"
 import type { PPTImageNode, PPTNodeBase } from "../src/ir/node"
+import { createMediaSourceDescriptor } from "../src/media/source-descriptor"
 import { parseImage } from "../src/parsers/parseImage"
+import {
+	asStreamingPptxPresentation,
+	concatPptxChunks,
+	createCollectingPptxDestination,
+} from "./streaming-test-utils"
 
 const config: SlideConfig = {
 	htmlWidth: 1920,
@@ -53,20 +59,47 @@ describe("image sizing", () => {
 			w: 16,
 			h: 9,
 			zOrder: 1,
-			src: transparentPng,
+			source: createMediaSourceDescriptor(transparentPng, { key: "sizing-image" }),
 			sizing: "cover",
 			intrinsicSize: { width: 4, height: 3 },
 		}
 
 		drawImage(slide, node)
 
-		const output = await pptx.write({ outputType: "arraybuffer" })
-		const zip = await JSZip.loadAsync(output as ArrayBuffer)
+		const { destination, chunks } = createCollectingPptxDestination()
+		await asStreamingPptxPresentation(pptx).writeTo({ destination })
+		const zip = await JSZip.loadAsync(concatPptxChunks(chunks))
 		const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string")
 		if (!slideXml) throw new Error("slide1.xml is required")
 
 		expect(slideXml).toContain('<a:srcRect l="0" r="0" t="12500" b="12500"/>')
 		expect(slideXml).toContain('<a:ext cx="14630400" cy="8229600"/>')
+	})
+
+	it("maps top object-position to a bottom-only crop", async () => {
+		const pptx = new PptxGenJS()
+		const slide = pptx.addSlide()
+		document.body.innerHTML = `<img src="${transparentPng}">`
+		const image = document.body.firstElementChild as HTMLImageElement
+		Object.defineProperty(image, "naturalWidth", { configurable: true, value: 400 })
+		Object.defineProperty(image, "naturalHeight", { configurable: true, value: 800 })
+		const parsed = parseImage(
+			createImageElementNode(image, "cover", "top"),
+			createBaseNode(20, 11.25),
+			config,
+			window,
+		)
+		expect(parsed?.objectPosition).toEqual({ x: 0.5, y: 0 })
+
+		if (!parsed) throw new Error("parsed image is required")
+		parsed.w = 4
+		parsed.h = 2
+		drawImage(slide, parsed)
+		const { destination, chunks } = createCollectingPptxDestination()
+		await asStreamingPptxPresentation(pptx).writeTo({ destination })
+		const zip = await JSZip.loadAsync(concatPptxChunks(chunks))
+		const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string")
+		expect(slideXml).toContain('<a:srcRect l="0" r="0" t="0" b="75000"/>')
 	})
 })
 
@@ -74,7 +107,11 @@ function createBaseNode(w: number, h: number): PPTNodeBase {
 	return { type: "", x: 0, y: 0, w, h, zOrder: 1 }
 }
 
-function createImageElementNode(image: HTMLImageElement, objectFit: string): ElementNode {
+function createImageElementNode(
+	image: HTMLImageElement,
+	objectFit: string,
+	objectPosition = "50% 50%",
+): ElementNode {
 	return {
 		id: "test-image",
 		tagName: "IMG",
@@ -90,6 +127,7 @@ function createImageElementNode(image: HTMLImageElement, objectFit: string): Ele
 			rotate: "none",
 			scale: "none",
 			objectFit,
+			objectPosition,
 		} as ElementNode["style"],
 		textContent: null,
 		children: [],

@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useFloatingUI } from "../../providers/FloatingUIProvider"
 import { useCanvas } from "../../providers/CanvasProvider"
+import { isCanvasZoomWheel } from "../../../runtime/interaction/viewport/ViewportWheelPolicy"
 
 const OVERFLOW_SCROLL_VALUES = new Set(["auto", "scroll", "overlay"])
 const POINTER_INTERACTIVE_SELECTOR = [
@@ -13,9 +14,49 @@ const POINTER_INTERACTIVE_SELECTOR = [
 	"[contenteditable='true']",
 	"[data-floating-pan-trap='true']",
 ].join(",")
+const POINTER_PAN_THROUGH_SELECTOR = "[data-floating-pan-through='true']"
+const DYNAMIC_SCROLL_TRAP_SELECTOR = "[data-floating-scroll-trap='dynamic']"
+const SCROLL_AREA_VIEWPORT_SELECTOR = "[data-slot='scroll-area-viewport']"
 
 function isAxisScrollable(overflow: string, scrollSize: number, clientSize: number): boolean {
 	return OVERFLOW_SCROLL_VALUES.has(overflow) && scrollSize > clientSize + 1
+}
+
+function getComposedElementPath(container: HTMLElement, e: Event): HTMLElement[] {
+	const path = typeof e.composedPath === "function" ? (e.composedPath() as EventTarget[]) : []
+	const elements: HTMLElement[] = []
+	for (const node of path) {
+		if (!(node instanceof HTMLElement)) continue
+		elements.push(node)
+		if (node === container) break
+	}
+	return elements
+}
+
+/** A scrollbar only owns canvas navigation while it can actually scroll content. */
+function hasVisibleScrollbar(element: HTMLElement): boolean {
+	const style = getComputedStyle(element)
+	return (
+		isAxisScrollable(style.overflowY, element.scrollHeight, element.clientHeight) ||
+		isAxisScrollable(style.overflowX, element.scrollWidth, element.clientWidth)
+	)
+}
+
+/**
+ * Dynamic scroll traps preserve native scrollbar interaction only when content overflows.
+ * Without overflow the event keeps following the surface's normal canvas pass-through path.
+ */
+function scrollTrapHasVisibleScrollbar(container: HTMLElement, e: Event): boolean {
+	const path = getComposedElementPath(container, e)
+	const trapIndex = path.findIndex((node) => node.matches(DYNAMIC_SCROLL_TRAP_SELECTOR))
+	if (trapIndex < 0) return false
+
+	const trapRoot = path[trapIndex]
+	const candidates = new Set(path.slice(0, trapIndex + 1))
+	trapRoot.querySelectorAll<HTMLElement>(SCROLL_AREA_VIEWPORT_SELECTOR).forEach((node) => {
+		candidates.add(node)
+	})
+	return Array.from(candidates).some(hasVisibleScrollbar)
 }
 
 /**
@@ -47,43 +88,38 @@ function elementShouldConsumeWheel(el: HTMLElement, e: WheelEvent): boolean {
 
 /** 显式标记：滚轮始终留在 DOM 内、顶/底也不穿透（见 MessageHistory 展开提示词） */
 function wheelInsideHardTrapRegion(container: HTMLElement, e: WheelEvent): boolean {
-	const path = typeof e.composedPath === "function" ? (e.composedPath() as EventTarget[]) : []
-	for (const node of path) {
-		if (!(node instanceof HTMLElement)) continue
+	for (const node of getComposedElementPath(container, e)) {
 		if (node.dataset.wheelTrap === "hard") {
 			return true
-		}
-		if (node === container) {
-			break
 		}
 	}
 	return false
 }
 
 function wheelShouldDeferToDomScroll(container: HTMLElement, e: WheelEvent): boolean {
-	const path = typeof e.composedPath === "function" ? (e.composedPath() as EventTarget[]) : []
-	for (const node of path) {
-		if (!(node instanceof HTMLElement)) continue
+	for (const node of getComposedElementPath(container, e)) {
 		if (elementShouldConsumeWheel(node, e)) {
 			return true
-		}
-		if (node === container) {
-			break
 		}
 	}
 	return false
 }
 
 function pointerShouldDeferToDomInteraction(container: HTMLElement, e: PointerEvent): boolean {
-	const path = typeof e.composedPath === "function" ? (e.composedPath() as EventTarget[]) : []
-	for (const node of path) {
-		if (!(node instanceof HTMLElement)) continue
-		if (node.matches(POINTER_INTERACTIVE_SELECTOR)) {
+	for (const node of getComposedElementPath(container, e)) {
+		if (
+			node.matches(POINTER_INTERACTIVE_SELECTOR) &&
+			!node.matches(POINTER_PAN_THROUGH_SELECTOR)
+		) {
 			return true
 		}
-		if (node === container) {
-			break
-		}
+	}
+	return false
+}
+
+function pointerAllowsPanThrough(container: HTMLElement, e: PointerEvent): boolean {
+	for (const node of getComposedElementPath(container, e)) {
+		if (node.matches(POINTER_PAN_THROUGH_SELECTOR)) return true
 	}
 	return false
 }
@@ -91,6 +127,8 @@ function pointerShouldDeferToDomInteraction(container: HTMLElement, e: PointerEv
 interface UseFloatingComponentOptions {
 	// 组件唯一标识
 	id: string
+	// 是否在 pointer hover 时临时提升层级
+	interactive?: boolean
 	// 是否启用 wheel 事件转发（默认 true）
 	enableWheelForwarding?: boolean
 	// 是否启用 PanTool 下的拖拽平移转发（默认 false）
@@ -102,8 +140,20 @@ interface UseFloatingComponentOptions {
  * 自动注册组件并处理 wheel 事件转发
  */
 export function useFloatingComponent(options: UseFloatingComponentOptions) {
-	const { id, enableWheelForwarding = true, enablePointerPanForwarding = false } = options
-	const { registerFloatingComponent, unregisterFloatingComponent, handleWheel } = useFloatingUI()
+	const {
+		id,
+		interactive = false,
+		enableWheelForwarding = true,
+		enablePointerPanForwarding = false,
+	} = options
+	const {
+		registerFloatingComponent,
+		unregisterFloatingComponent,
+		activateFloatingComponent,
+		deactivateFloatingComponent,
+		registerFloatingRelatedElement,
+		handleWheel,
+	} = useFloatingUI()
 	const { canvas } = useCanvas()
 
 	const containerRef = useRef<HTMLDivElement | null>(null)
@@ -128,11 +178,35 @@ export function useFloatingComponent(options: UseFloatingComponentOptions) {
 		if (!container) return
 
 		// 注册组件
-		registerFloatingComponent(id, container)
+		registerFloatingComponent(id, container, { interactive })
+		container.dataset.floatingSurfaceId = id
+
+		const pointerEnterHandler = () => {
+			if (interactive) activateFloatingComponent(id)
+		}
+		const pointerLeaveHandler = (event: PointerEvent) => {
+			if (interactive) deactivateFloatingComponent(id, event.relatedTarget)
+		}
+		if (interactive) {
+			container.addEventListener("pointerenter", pointerEnterHandler)
+			container.addEventListener("pointerleave", pointerLeaveHandler)
+		}
 
 		// 如果启用 wheel 转发，添加事件监听
 		if (enableWheelForwarding) {
 			const wheelHandler = (e: WheelEvent) => {
+				// An active scrollbar owns both scrolling and zoom gestures until its content fits.
+				if (scrollTrapHasVisibleScrollbar(container, e)) {
+					if (isCanvasZoomWheel(e)) e.preventDefault()
+					e.stopPropagation()
+					return
+				}
+				// Trackpad pinch is represented as ctrl/meta + wheel. It must always
+				// belong to the canvas viewport, even inside scrollable popovers.
+				if (isCanvasZoomWheel(e)) {
+					handleWheel(e)
+					return
+				}
 				if (wheelInsideHardTrapRegion(container, e)) {
 					e.stopPropagation()
 					return
@@ -154,12 +228,15 @@ export function useFloatingComponent(options: UseFloatingComponentOptions) {
 				e.button !== 0 ||
 				!canvas.stage.draggable() ||
 				pointerPanMoveHandlerRef.current ||
+				scrollTrapHasVisibleScrollbar(container, e) ||
 				pointerShouldDeferToDomInteraction(container, e)
 			) {
 				return
 			}
 
-			e.preventDefault()
+			const panThrough = pointerAllowsPanThrough(container, e)
+			if (!panThrough) e.preventDefault()
+			let moved = false
 
 			const stage = canvas.stage
 			const startClient = { x: e.clientX, y: e.clientY }
@@ -167,6 +244,12 @@ export function useFloatingComponent(options: UseFloatingComponentOptions) {
 
 			pointerPanMoveHandlerRef.current = (ev: PointerEvent) => {
 				if (ev.pointerId !== e.pointerId) return
+				if (
+					Math.abs(ev.clientX - startClient.x) > 3 ||
+					Math.abs(ev.clientY - startClient.y) > 3
+				) {
+					moved = true
+				}
 				stage.setPointersPositions(ev)
 				const position = {
 					x: stageStart.x + ev.clientX - startClient.x,
@@ -179,6 +262,19 @@ export function useFloatingComponent(options: UseFloatingComponentOptions) {
 
 			pointerPanUpHandlerRef.current = (ev: PointerEvent) => {
 				if (ev.pointerId !== e.pointerId) return
+				if (moved) {
+					const suppressClick = (clickEvent: MouseEvent) => {
+						clickEvent.preventDefault()
+						clickEvent.stopPropagation()
+					}
+					container.addEventListener("click", suppressClick, {
+						capture: true,
+						once: true,
+					})
+					window.setTimeout(() => {
+						container.removeEventListener("click", suppressClick, { capture: true })
+					}, 0)
+				}
 				clearPointerPanSession()
 			}
 
@@ -194,6 +290,7 @@ export function useFloatingComponent(options: UseFloatingComponentOptions) {
 		return () => {
 			// 注销组件
 			unregisterFloatingComponent(id)
+			delete container.dataset.floatingSurfaceId
 			clearPointerPanSession()
 
 			// 移除事件监听
@@ -204,18 +301,34 @@ export function useFloatingComponent(options: UseFloatingComponentOptions) {
 			if (enablePointerPanForwarding) {
 				container.removeEventListener("pointerdown", pointerPanDownHandler)
 			}
+			if (interactive) {
+				container.removeEventListener("pointerenter", pointerEnterHandler)
+				container.removeEventListener("pointerleave", pointerLeaveHandler)
+			}
 		}
 	}, [
 		canvas,
 		id,
+		interactive,
 		enableWheelForwarding,
 		enablePointerPanForwarding,
 		registerFloatingComponent,
 		unregisterFloatingComponent,
 		handleWheel,
+		activateFloatingComponent,
+		deactivateFloatingComponent,
 	])
+
+	const registerRelatedElement = useCallback(
+		(element: HTMLElement | null) => {
+			if (!element || !interactive) return () => undefined
+			return registerFloatingRelatedElement(id, element)
+		},
+		[id, interactive, registerFloatingRelatedElement],
+	)
 
 	return {
 		containerRef,
+		registerRelatedElement,
 	}
 }

@@ -31,27 +31,27 @@ from app.tools.shell_exec_utils.bg_task_models import PROMPT_QUIET_SECS, PROMPT_
 
 logger = get_logger(__name__)
 
-# ── 输出截断常量（防止超大输出打爆 LLM 上下文）─────────────────────────────
-# 返回给 LLM 的最大字符数
-_LLM_OUTPUT_MAX_CHARS: int = 20_000
+# ── 终端展示预览（模型正文由工具执行器统一文件化，不在此裁剪）─────────────
+# 返回给终端详情的最大字符数
+_DISPLAY_OUTPUT_MAX_CHARS: int = 20_000
 # 超限时头部保留字符数
-_LLM_OUTPUT_HEAD_CHARS: int = 5_000
+_DISPLAY_OUTPUT_HEAD_CHARS: int = 5_000
 # 超限时尾部保留字符数（尾部更重要：最新输出 / 交互式 prompt 在末尾）
-_LLM_OUTPUT_TAIL_CHARS: int = 13_000
+_DISPLAY_OUTPUT_TAIL_CHARS: int = 13_000
 
 
-def truncate_output_for_llm(text: str, max_chars: int = _LLM_OUTPUT_MAX_CHARS) -> str:
+def truncate_output_for_display(text: str, max_chars: int = _DISPLAY_OUTPUT_MAX_CHARS) -> str:
     """
-    对发往 LLM 的输出文本做头尾截断。
+    仅对终端详情的展示副本做头尾截断。
 
-    超过 max_chars 时，保留头部 _LLM_OUTPUT_HEAD_CHARS + 尾部 _LLM_OUTPUT_TAIL_CHARS，
-    中间插入截断标记。不截断 extra_info / 前端展示用的 stdout 字段。
+    extra_info 中的 stdout/stderr 和 ToolDetail 可以使用此预览；模型 content 必须保留
+    完整正文交给全局文件化，否则提前丢弃的中段无法通过读取结果文件恢复。
     """
     if len(text) <= max_chars:
         return text
-    removed = len(text) - _LLM_OUTPUT_HEAD_CHARS - _LLM_OUTPUT_TAIL_CHARS
+    removed = len(text) - _DISPLAY_OUTPUT_HEAD_CHARS - _DISPLAY_OUTPUT_TAIL_CHARS
     marker = f"\n... [{removed} chars truncated, showing head and tail] ...\n"
-    return text[:_LLM_OUTPUT_HEAD_CHARS] + marker + text[-_LLM_OUTPUT_TAIL_CHARS:]
+    return text[:_DISPLAY_OUTPUT_HEAD_CHARS] + marker + text[-_DISPLAY_OUTPUT_TAIL_CHARS:]
 
 
 class ProcessExecutor:
@@ -122,6 +122,13 @@ class ProcessExecutor:
             logger.warning(f"加载用户持久化环境变量失败: {e}")
 
         CliManagerService.apply_path_to_env(env_vars)
+
+        # 平台值，始终覆盖：Agent 把构建缓存、编译中间产物等可重建的碎文件指到这里。
+        box_dir = PathManager.get_box_dir()
+        env_vars["MAGIC_BOX_DIR"] = str(box_dir)
+        # Python 默认把字节码写进源码旁的 __pycache__/，在 .workspace 运行时会在网络盘上生成碎文件；
+        # 设置后统一写到 .box/pycache 下的镜像路径，运行结果不变。用户自行设置时不覆盖。
+        env_vars.setdefault("PYTHONPYCACHEPREFIX", str(box_dir / "pycache"))
 
         return env_vars
 
@@ -305,15 +312,15 @@ class ProcessExecutor:
                 content = stderr_str
             else:
                 content = "No output"
-            return truncate_output_for_llm(content), True
+            return content, True
         else:
-            # 失败情况 - 提供清晰的错误信息
-            content = f"Execution failed (exit code: {exit_code})"
+            # 非零退出码只说明整条 shell 命令的返回值；调用方需结合输出判断目标是否失败。
+            content = f"Command exited with nonzero status (exit code: {exit_code})"
             if stderr_str:
                 content += f"\n\nError details:\n{stderr_str}"
             if stdout_str:
                 content += f"\n\nStandard output:\n{stdout_str}"
-            return truncate_output_for_llm(content), False
+            return content, False
 
     @staticmethod
     async def _terminate_process_gracefully(process: asyncio.subprocess.Process) -> None:
@@ -436,7 +443,7 @@ class ProcessExecutor:
             if sr.outcome == "prompt":
                 sr.readers_task.cancel()
                 await ProcessExecutor._terminate_process_gracefully(sr.process)
-                partial_out = truncate_output_for_llm(sr.buf_all())
+                partial_out = sr.buf_all()
                 content = f"Interactive prompt detected.\n\nOutput before prompt:\n{partial_out}" if partial_out else "Interactive prompt detected."
                 # ok=True：prompt 检测提前退出是预期行为，不是工具失败，避免触发"工具逻辑执行失败"告警
                 result = TerminalToolResult(command=original_command, content=content, ok=True)
@@ -450,8 +457,8 @@ class ProcessExecutor:
                 result.extra_info = {
                     "command": original_command,
                     "cwd": str(cwd) if cwd else "",
-                    "stdout": truncate_output_for_llm(sr.buf_stdout()),
-                    "stderr": truncate_output_for_llm(sr.buf_stderr()),
+                    "stdout": truncate_output_for_display(sr.buf_stdout()),
+                    "stderr": truncate_output_for_display(sr.buf_stderr()),
                     "exit_code": -1,
                 }
                 return result
@@ -459,7 +466,7 @@ class ProcessExecutor:
             if sr.outcome == "timeout":
                 sr.readers_task.cancel()
                 await ProcessExecutor._terminate_process_gracefully(sr.process)
-                partial_out = truncate_output_for_llm(sr.buf_all())
+                partial_out = sr.buf_all()
                 content = f"Command timed out ({timeout}s).\n\nOutput before timeout:\n{partial_out}" if partial_out else f"Command timed out ({timeout}s)."
                 result = TerminalToolResult(command=original_command, content=content, ok=False)
                 result.horizon_hint = (
@@ -471,8 +478,8 @@ class ProcessExecutor:
                 result.extra_info = {
                     "command": original_command,
                     "cwd": str(cwd) if cwd else "",
-                    "stdout": truncate_output_for_llm(sr.buf_stdout()),
-                    "stderr": truncate_output_for_llm(sr.buf_stderr()),
+                    "stdout": truncate_output_for_display(sr.buf_stdout()),
+                    "stderr": truncate_output_for_display(sr.buf_stderr()),
                     "exit_code": -1,
                     "execution_time": timeout,
                     "timed_out": True,
@@ -490,8 +497,8 @@ class ProcessExecutor:
             result.extra_info = {
                 "command": original_command,
                 "cwd": str(cwd) if cwd else "",
-                "stdout": truncate_output_for_llm(stdout_str),
-                "stderr": truncate_output_for_llm(stderr_str),
+                "stdout": truncate_output_for_display(stdout_str),
+                "stderr": truncate_output_for_display(stderr_str),
                 "exit_code": sr.exit_code,
                 "execution_time": timeout,
             }
@@ -591,8 +598,8 @@ class ProcessExecutor:
         result.extra_info = {
             "command": original_command,
             "cwd": str(cwd) if cwd else "",
-            "stdout": truncate_output_for_llm(stdout_str),
-            "stderr": truncate_output_for_llm(stderr_str),
+            "stdout": truncate_output_for_display(stdout_str),
+            "stderr": truncate_output_for_display(stderr_str),
             "exit_code": sr.exit_code,
             "execution_time": timeout,
         }

@@ -2,7 +2,7 @@ import { type CSSProperties, useCallback, useMemo, useRef, useState } from "reac
 import { flushSync } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useUserInfo } from "@/models/user/hooks/useUserInfo"
 import type { ScheduledTask } from "@/types/scheduledTask"

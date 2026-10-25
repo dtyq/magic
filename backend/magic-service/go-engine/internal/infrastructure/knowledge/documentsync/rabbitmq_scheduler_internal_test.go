@@ -2,7 +2,9 @@ package documentsync
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 )
 
 func TestDecodeRabbitMQTaskDeliveryRejectsLegacyWakeup(t *testing.T) {
@@ -23,6 +25,28 @@ func TestDecodeRabbitMQTaskDeliveryRejectsLegacyWakeup(t *testing.T) {
 	}
 	if reason != "legacy_wakeup_message" {
 		t.Fatalf("expected legacy_wakeup_message, got %q", reason)
+	}
+}
+
+func TestUnexpectedEOFBackoffDelayExponentialAndCapped(t *testing.T) {
+	t.Parallel()
+
+	want := []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute, 5 * time.Minute}
+	for retryCount, expected := range want {
+		if got := unexpectedEOFBackoffDelay(retryCount+1, time.Minute, 5*time.Minute); got != expected {
+			t.Fatalf("retry %d: expected %s, got %s", retryCount+1, expected, got)
+		}
+	}
+}
+
+func TestIsUnexpectedEOFError(t *testing.T) {
+	t.Parallel()
+
+	if !isUnexpectedEOFError(fmt.Errorf("read source: unexpected EOF")) {
+		t.Fatal("expected unexpected EOF to be classified")
+	}
+	if isUnexpectedEOFError(nil) {
+		t.Fatal("nil error must not be classified")
 	}
 }
 

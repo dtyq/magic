@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.vite/
+
+# TypeScript cache and generated declarations
+*.tsbuildinfo
+vite.config.d.ts
+tailwind.config.d.ts
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local HTTPS certificates
+certs/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store

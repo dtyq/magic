@@ -20,7 +20,7 @@ import {
 import { Separator } from "@/components/shadcn-ui/separator"
 import { CardFooterBadge } from "@/pages/superMagic/components/CardFooterBadge"
 import { CardFooterLabel } from "@/pages/superMagic/components/CardFooterLabel"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
 import { MyCrewCardMainSection } from "./MyCrewCardMainSection"

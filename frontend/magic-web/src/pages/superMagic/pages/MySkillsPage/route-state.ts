@@ -6,6 +6,7 @@ export const MY_SKILLS_PUBLISH_SKILL_CODE_QUERY_KEY = "publishSkillCode"
 
 export const MY_SKILLS_TAB_VALUES = {
 	createdByMe: "created-by-me",
+	collaborated: "collaborated",
 	sharedByTeam: "shared-by-team",
 	fromSkillsLibrary: "from-skills-library",
 } as const
@@ -19,6 +20,7 @@ const MY_SKILLS_PERSONAL_TAB_VALUES: MySkillsTabValue[] = [
 
 export const MY_SKILLS_TAB_SCOPE_MAP: Record<MySkillsTabValue, UserSkillsListScope> = {
 	[MY_SKILLS_TAB_VALUES.createdByMe]: "created",
+	[MY_SKILLS_TAB_VALUES.collaborated]: "collaborated",
 	[MY_SKILLS_TAB_VALUES.sharedByTeam]: "team-shared",
 	[MY_SKILLS_TAB_VALUES.fromSkillsLibrary]: "market-installed",
 }

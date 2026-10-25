@@ -3,7 +3,7 @@
  * AudioBufferManager 单元测试
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { AudioBufferManager } from "../managers/AudioBufferManager"
 import type { RecorderCoreConfig, AudioChunkData } from "../types/RecorderTypes"
 import type { LoggerInterface } from "../types/RecorderDependencies"
@@ -14,6 +14,7 @@ describe("AudioBufferManager", () => {
 	let mockEvents: {
 		onChunkReady?: (chunkData: AudioChunkData) => void
 		onProgress?: (duration: number, totalSamples: number) => void
+		onChunkTimeout?: (expectedTime: number, actualTime: number, chunkIndex: number) => void
 	}
 
 	beforeEach(() => {
@@ -21,6 +22,7 @@ describe("AudioBufferManager", () => {
 			log: vi.fn(),
 			warn: vi.fn(),
 			error: vi.fn(),
+			report: vi.fn(),
 		}
 
 		mockConfig = {
@@ -34,7 +36,12 @@ describe("AudioBufferManager", () => {
 		mockEvents = {
 			onChunkReady: vi.fn(),
 			onProgress: vi.fn(),
+			onChunkTimeout: vi.fn(),
 		}
+	})
+
+	afterEach(() => {
+		vi.useRealTimers()
 	})
 
 	it("should initialize with empty buffer", () => {
@@ -53,6 +60,43 @@ describe("AudioBufferManager", () => {
 		expect(manager.getDuration()).toBe(0.5)
 		expect(manager.hasData()).toBe(true)
 		expect(mockEvents.onProgress).toHaveBeenCalledWith(0.5, 8000)
+	})
+
+	it("should expose chunk production diagnostics", () => {
+		const manager = new AudioBufferManager(mockConfig, mockEvents, mockLogger)
+
+		manager.addData(new Int16Array(8000), mockConfig.sampleRate)
+
+		const diagnostics = manager.getDiagnostics()
+
+		expect(diagnostics.addDataCalls).toBe(1)
+		expect(diagnostics.emptyDataCalls).toBe(0)
+		expect(diagnostics.lastDataSamples).toBe(8000)
+		expect(diagnostics.lastDataSampleRate).toBe(mockConfig.sampleRate)
+		expect(diagnostics.bufferSamples).toBe(8000)
+		expect(diagnostics.bufferDuration).toBe(0.5)
+	})
+
+	it("should throttle repeated chunk timeout diagnostics", () => {
+		vi.useFakeTimers()
+		const manager = new AudioBufferManager(mockConfig, mockEvents, mockLogger)
+
+		vi.advanceTimersByTime(3000)
+		expect(mockLogger.error).toHaveBeenCalledTimes(1)
+		expect(mockLogger.report).toHaveBeenCalledTimes(1)
+		expect(mockEvents.onChunkTimeout).toHaveBeenCalledTimes(1)
+
+		vi.advanceTimersByTime(59000)
+		expect(mockLogger.error).toHaveBeenCalledTimes(1)
+		expect(mockLogger.report).toHaveBeenCalledTimes(1)
+		expect(mockEvents.onChunkTimeout).toHaveBeenCalledTimes(1)
+
+		vi.advanceTimersByTime(1000)
+		expect(mockLogger.error).toHaveBeenCalledTimes(2)
+		expect(mockLogger.report).toHaveBeenCalledTimes(2)
+		expect(mockEvents.onChunkTimeout).toHaveBeenCalledTimes(2)
+
+		manager.clear()
 	})
 
 	it("should trigger chunk when duration exceeds threshold", () => {
@@ -91,6 +135,16 @@ describe("AudioBufferManager", () => {
 		manager.forceFlush(mockConfig.sampleRate)
 
 		expect(mockEvents.onChunkReady).toHaveBeenCalledTimes(1)
+	})
+
+	it("uses the last actual sample rate when force flushing without an override", () => {
+		const manager = new AudioBufferManager(mockConfig, mockEvents, mockLogger)
+		manager.addData(new Int16Array(24_000), 48_000)
+
+		manager.forceFlush()
+
+		const chunkData = (mockEvents.onChunkReady as ReturnType<typeof vi.fn>).mock.calls[0][0]
+		expect(chunkData.sampleRate).toBe(48_000)
 	})
 
 	it("should clear all data", () => {

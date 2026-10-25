@@ -20,8 +20,14 @@ final class SkillMention extends AbstractMention
             return '';
         }
 
-        $skillName = $data->getPackageName() !== '' ? $data->getPackageName() : ($data->getName() ?? '');
-        return sprintf('[@skill:%s]', $skillName);
+        $packageName = $data->getPackageName();
+        $skillName = $data->getName() ?? $packageName;
+        if ($packageName === '' || $skillName === '') {
+            return '';
+        }
+
+        $label = str_replace(['\\', '[', ']'], ['\\\\', '\[', '\]'], $skillName);
+        return sprintf('[%s](skill://%s)', $label, rawurlencode($packageName));
     }
 
     /**

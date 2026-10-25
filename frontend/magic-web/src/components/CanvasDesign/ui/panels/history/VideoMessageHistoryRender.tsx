@@ -1,21 +1,23 @@
-import { ElementTypeEnum, type VideoElement } from "../../../runtime/document/types"
+import { type VideoElement, type VideoElementContent } from "../../../runtime/document/types"
 import styles from "./index.module.css"
 import IconButton from "../../primitives/custom/IconButton/index"
 import { Copy, ImagePlus, X } from "lucide-react"
 import { useMemo, useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
-import useElementPositionEffect from "../../../app/hooks/layout/useElementPositionEffect"
-import { useCanvasPanelUI, useCanvasSelectionUI } from "../../../app/providers/CanvasUIProvider"
+import useCanvasSelectionFloatingPanel from "../../../app/hooks/layout/useCanvasSelectionFloatingPanel"
+import { useCanvasPanelUI } from "../../../app/providers/CanvasUIProvider"
 import { useMagic } from "../../../app/providers/MagicProvider"
 import ReferenceImageItem from "./ReferenceImageItem"
-import { useFloatingComponent } from "../../../app/hooks/layout/useFloatingComponent"
 import { useCanvasDesignI18n } from "../../../app/providers/I18nProvider"
 import type { MediaResourceFullscreenPreviewItem } from "../../fullscreen/media-resource/index"
 import { resolvePromptPlaceholderTokenConfig } from "../../editors/message/reference-assets/promptPlaceholderTokenConfig"
+import { copyHistoryPromptToClipboard } from "./historyPromptClipboard"
 import { MessageHistoryCollapsiblePrompt } from "./MessageHistoryCollapsiblePrompt"
 import { PromptPlaceholderPreviewText } from "./PromptPlaceholderPreviewText"
 import { GenerationStatus, type VideoGenerationInfo } from "../../../public/magic-types"
 import { useGenerationRuntime } from "../../../app/hooks/canvas"
+import { useCanvas } from "../../../app/providers/CanvasProvider"
+import { getActiveContent } from "../../../runtime/document/elementContent"
 
 interface VideoMessageHistoryRenderProps {
 	videoElement: VideoElement
@@ -31,61 +33,35 @@ interface MessageHistoryInfoRow {
 /** 右侧浮层：展示选中视频元素最近一次生成请求的摘要 */
 export default function VideoMessageHistoryRender(props: VideoMessageHistoryRenderProps) {
 	const { videoElement, onPreviewMediaResource } = props
-	const { selectedElements } = useCanvasSelectionUI()
-	const { setMessageHistoryElementId } = useCanvasPanelUI()
-	const { videoModelList } = useMagic()
+	const { canvas } = useCanvas()
+	const { closeMessageHistory } = useCanvasPanelUI()
+	const { videoModelList, methods } = useMagic()
 	const { t } = useCanvasDesignI18n()
 	const generationRuntime = useGenerationRuntime(videoElement.id)
+	const videoContent =
+		(canvas?.getEffectiveContent(videoElement.id) as
+			ReturnType<typeof getActiveContent> | undefined) ?? getActiveContent(videoElement)
 	const promptPlaceholderTokenConfig = useMemo(() => resolvePromptPlaceholderTokenConfig(t), [t])
 
-	const request = generationRuntime?.generateVideoRequest || videoElement.generateVideoRequest
-	const resultMeta = videoElement.videoGenerationResultMeta
+	const request = generationRuntime?.generateVideoRequest || videoContent?.generateVideoRequest
+	const resultMeta = videoContent?.videoGenerationResultMeta
 	const runtime = resultMeta?.runtime
 	const isGenerationRunning = isVideoGenerationRunning({
-		status: videoElement.status,
-		hasSource: Boolean(videoElement.src),
+		status: videoContent?.status,
+		hasSource: Boolean(videoContent?.src),
 		hasVideoId: Boolean(request?.video_id),
 	})
 	const [nowMs, setNowMs] = useState(() => Date.now())
 
-	const { containerRef: positionRef } = useElementPositionEffect({
-		position: "right",
-		offset: 8,
-		verticalAlign: "top",
-		shouldShow: () => {
-			return selectedElements.some((element) => element?.type === ElementTypeEnum.Video)
-		},
-	})
-
-	const { containerRef: floatingRef } = useFloatingComponent({
-		id: "video-message-history",
-		enableWheelForwarding: true,
-		enablePointerPanForwarding: true,
-	})
-
-	const setRefs = useCallback(
-		(node: HTMLDivElement | null) => {
-			positionRef.current = node
-			floatingRef.current = node
-		},
-		[positionRef, floatingRef],
-	)
-
 	const handleClose = useCallback(() => {
-		setMessageHistoryElementId(null)
-	}, [setMessageHistoryElementId])
+		closeMessageHistory()
+	}, [closeMessageHistory])
+	const { setRefs } = useCanvasSelectionFloatingPanel({
+		id: "video-message-history",
+		elementId: videoElement.id,
+	})
 
 	const promptText = request?.prompt?.trim() ?? ""
-
-	const handleCopyPrompt = useCallback(() => {
-		if (!promptText) return
-		void navigator.clipboard
-			.writeText(promptText)
-			.then(() => {
-				toast.success(t("menu.copySuccess", "复制成功"))
-			})
-			.catch(() => undefined)
-	}, [promptText, t])
 
 	const modelInfo = useMemo(() => {
 		if (!request?.model_id) return undefined
@@ -116,6 +92,28 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 		}),
 		[referenceAudios, referenceImages, referenceVideos],
 	)
+
+	const handleCopyPrompt = useCallback(() => {
+		if (!promptText) return
+		void copyHistoryPromptToClipboard({
+			text: request?.prompt ?? "",
+			tokenConfig: promptPlaceholderTokenConfig,
+			placeholderPaths: promptPlaceholderPaths,
+			resolveResourceReference: methods?.resolveResourceReference,
+		})
+			.then(() => {
+				toast.success(t("menu.copySuccess", "复制成功"))
+			})
+			.catch(() => undefined)
+	}, [
+		methods?.resolveResourceReference,
+		promptPlaceholderPaths,
+		promptPlaceholderTokenConfig,
+		promptText,
+		request?.prompt,
+		t,
+	])
+
 	const generationInfoRows = useMemo(
 		() =>
 			buildGenerationInfoRows({
@@ -131,12 +129,12 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 			buildRuntimeRows({
 				runtime: runtime ?? null,
 				isRunning: isGenerationRunning,
-				status: videoElement.status,
-				hasSource: Boolean(videoElement.src),
+				status: videoContent?.status,
+				hasSource: Boolean(videoContent?.src),
 				nowMs,
 				t,
 			}),
-		[runtime, isGenerationRunning, videoElement.status, videoElement.src, nowMs, t],
+		[runtime, isGenerationRunning, videoContent?.status, videoContent?.src, nowMs, t],
 	)
 
 	useEffect(() => {
@@ -182,6 +180,8 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 									tokenConfig={promptPlaceholderTokenConfig}
 									placeholderPaths={promptPlaceholderPaths}
 									onPreviewMediaResource={onPreviewMediaResource}
+									resolveResourceReference={methods?.resolveResourceReference}
+									deletedSuffix={t("messageHistory.deletedSuffix", "（已删除）")}
 								/>
 							}
 							emptyLabel={t("messageHistory.noPrompt", "暂无提示词")}
@@ -199,7 +199,9 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 							<div className={styles.imageContent}>
 								<ReferenceImageItem
 									path={startFrame.uri}
+									mediaType="image"
 									onPreviewMediaResource={onPreviewMediaResource}
+									resolveResourceReference={methods?.resolveResourceReference}
 								/>
 							</div>
 						</div>
@@ -215,7 +217,9 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 							<div className={styles.imageContent}>
 								<ReferenceImageItem
 									path={endFrame.uri}
+									mediaType="image"
 									onPreviewMediaResource={onPreviewMediaResource}
+									resolveResourceReference={methods?.resolveResourceReference}
 								/>
 							</div>
 						</div>
@@ -233,7 +237,9 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 									<ReferenceImageItem
 										key={`${item.uri}-${index}`}
 										path={item.uri}
+										mediaType="image"
 										onPreviewMediaResource={onPreviewMediaResource}
+										resolveResourceReference={methods?.resolveResourceReference}
 									/>
 								))}
 							</div>
@@ -252,7 +258,9 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 									<ReferenceImageItem
 										key={`${item.uri}-${index}`}
 										path={item.uri}
+										mediaType="video"
 										onPreviewMediaResource={onPreviewMediaResource}
+										resolveResourceReference={methods?.resolveResourceReference}
 									/>
 								))}
 							</div>
@@ -271,7 +279,9 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 									<ReferenceImageItem
 										key={`${item.uri}-${index}`}
 										path={item.uri}
+										mediaType="audio"
 										onPreviewMediaResource={onPreviewMediaResource}
+										resolveResourceReference={methods?.resolveResourceReference}
 									/>
 								))}
 							</div>
@@ -314,7 +324,7 @@ export default function VideoMessageHistoryRender(props: VideoMessageHistoryRend
 function buildGenerationInfoRows(params: {
 	billingPoints?: number | null
 	generationInfo: VideoGenerationInfo | null
-	request: VideoElement["generateVideoRequest"]
+	request: VideoElementContent["generateVideoRequest"]
 	t: ReturnType<typeof useCanvasDesignI18n>["t"]
 }): MessageHistoryInfoRow[] {
 	const { billingPoints, generationInfo, request, t } = params
@@ -336,7 +346,7 @@ function buildGenerationInfoRows(params: {
 	if (inputModeLabel) {
 		rows.push({
 			key: "generationMode",
-			label: t("messageHistory.generationMode", "生成模式"),
+			label: t("messageHistory.generationMode", "生成方式"),
 			value: inputModeLabel,
 		})
 	}
@@ -362,9 +372,9 @@ function buildGenerationInfoRows(params: {
 }
 
 function buildRuntimeRows(params: {
-	runtime: NonNullable<VideoElement["videoGenerationResultMeta"]>["runtime"] | null
+	runtime: NonNullable<VideoElementContent["videoGenerationResultMeta"]>["runtime"] | null
 	isRunning: boolean
-	status?: VideoElement["status"]
+	status?: VideoElementContent["status"]
 	hasSource: boolean
 	nowMs: number
 	t: ReturnType<typeof useCanvasDesignI18n>["t"]
@@ -422,7 +432,7 @@ function buildRuntimeRows(params: {
 }
 
 function isVideoGenerationRunning(params: {
-	status?: VideoElement["status"]
+	status?: VideoElementContent["status"]
 	hasSource: boolean
 	hasVideoId: boolean
 }): boolean {
@@ -447,6 +457,7 @@ function resolveVideoInputModeLabel(
 		image_reference: t("messageHistory.videoInputModes.imageReference", "参考图"),
 		keyframe_guided: t("messageHistory.videoInputModes.keyframeGuided", "首尾帧"),
 		video_edit: t("messageHistory.videoInputModes.videoEdit", "视频编辑"),
+		draft_task: t("messageHistory.videoInputModes.draftTask", "样片成片"),
 	}
 	return labels[inputMode] || inputMode
 }

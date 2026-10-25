@@ -1,5 +1,5 @@
 import { appStore } from "@/stores/app"
-import { logger } from "@/utils/log"
+import { logger } from "@/infrastructure/logger"
 import { withTimeout } from "@/utils/promise"
 
 const waitLogger = logger.createLogger("waitPublicConfigInit")

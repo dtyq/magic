@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Infrastructure\Util\Middleware\CorsMiddleware;
-use App\Infrastructure\Util\Middleware\HttpCompressionMiddleware;
+// use App\Infrastructure\Util\Middleware\HttpCompressionMiddleware;
 use App\Infrastructure\Util\Middleware\LocaleMiddleware;
 use App\Infrastructure\Util\Middleware\RequestIdMiddleware;
 use App\Infrastructure\Util\Middleware\ResponseMiddleware;
@@ -15,7 +15,7 @@ return [
         LocaleMiddleware::class,
         RequestIdMiddleware::class,
         CorsMiddleware::class,
-        HttpCompressionMiddleware::class,
+        // HttpCompressionMiddleware::class, 应该由 ingress 处理压缩
         ResponseMiddleware::class,
     ],
     'socket-io' => [

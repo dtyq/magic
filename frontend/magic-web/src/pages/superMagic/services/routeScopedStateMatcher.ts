@@ -6,6 +6,7 @@ const superWorkspaceRouteNames = new Set<RouteName>([
 	RouteName.SuperChatProjectState,
 	RouteName.SuperWorkspaceProjectState,
 	RouteName.SuperWorkspaceProjectTopicState,
+	RouteName.AiCanvasProjectState,
 ])
 
 export function isSuperWorkspaceRouteName(

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { replaceExistQuickInstruction, transformQuickInstruction } from "../index"
 import { ExtensionName } from "../../extension/constants"
 

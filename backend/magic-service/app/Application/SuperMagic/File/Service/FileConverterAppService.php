@@ -12,6 +12,7 @@ use App\Application\File\Service\FileCleanupAppService;
 use App\Application\SuperMagic\Common\Service\AbstractAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\Domain\SuperMagic\Agent\Service\MagicClawRuntimePolicyDomainService;
 use App\Domain\SuperMagic\File\Constant\ConvertStatusEnum;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
@@ -85,10 +86,7 @@ class FileConverterAppService extends AbstractAppService
         // forwards the same User-Authorization header. The token is sourced
         // from the magic_tokens stable user-token table, NOT from the inbound
         // HTTP header - same pattern as AsrFileAppService.
-        $dataIsolation = DataIsolation::create(
-            $userAuthorization->getOrganizationCode(),
-            $userId
-        );
+        $dataIsolation = $this->createContactDataIsolationByUser($userAuthorization->getOrganizationCode(), $userId);
 
         $this->logger->info('Received request to convert files', [
             'user_id' => $userId,
@@ -154,10 +152,7 @@ class FileConverterAppService extends AbstractAppService
         // Build the per-call DataIsolation once at the entry point so the
         // downstream fileConverterService->queryConvertResult forwards the
         // User-Authorization header to the in-pod agent's AuthMiddleware.
-        $dataIsolation = DataIsolation::create(
-            $userAuthorization->getOrganizationCode(),
-            $userId
-        );
+        $dataIsolation = $this->createContactDataIsolationByUser($userAuthorization->getOrganizationCode(), $userId);
 
         // Verify user permissions
         if (! $this->fileConvertStatusManager->verifyUserPermission($taskKey, $userId)) {
@@ -286,18 +281,19 @@ class FileConverterAppService extends AbstractAppService
             $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir(), $projectEntity->getUserOrganizationCode());
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, count($fileKeys) - 1, count($fileKeys), 'Converting files');
+            $topicId = ! empty($validFiles) && $validFiles[0]->getTopicId() > 0
+                ? (int) $validFiles[0]->getTopicId()
+                : 0;
+            // 文件转换属于工具执行场景，不挂载 .topic 话题目录（topicSpaceRootFileId 传空）
             // Ensure sandbox is running via domain service (App layer orchestration).
             $actualSandboxId = $this->agentDomainService->ensureSandboxRunning(
                 $dataIsolation,
                 $sandboxId,
                 $projectId,
-                $fullWorkdir
+                $fullWorkdir,
+                $rootFileId,
+                ''
             );
-
-            // 从第一个文件中获取 topic_id
-            $topicId = ! empty($validFiles) && $validFiles[0]->getTopicId() > 0
-                ? (string) $validFiles[0]->getTopicId()
-                : '';
 
             // Create file conversion request
             $fileRequest = new FileConverterRequest(
@@ -309,7 +305,7 @@ class FileConverterAppService extends AbstractAppService
                 $taskKey,
                 $userId,
                 $userAuthorization->getOrganizationCode(),
-                $topicId,
+                (string) $topicId,
                 $rootFileId,
                 $authorization
             );
@@ -321,6 +317,7 @@ class FileConverterAppService extends AbstractAppService
                 CoContext::setRequestId($requestId);
                 $convertType = $fileRequest->getConvertType();
                 try {
+                    di(MagicClawRuntimePolicyDomainService::class)->assertProject((int) $projectId);
                     $response = $this->fileConverterService->convert($dataIsolation, $actualSandboxId, $projectId, $fileRequest, $fullWorkdir);
 
                     if (! $response->isSuccess()) {

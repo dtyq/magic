@@ -8,8 +8,12 @@ import { detectFolderConflictsForMove } from "../utils/folderConflictHandler"
 import { useMoveOrCopyDuplicateHandler } from "./useMoveOrCopyDuplicateHandler"
 import { useFolderConflictHandler } from "./useFolderConflictHandler"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { getFileReferenceIdentityKey } from "../../../services/userFileReferenceResolver"
+import type { ConfirmFileOperation } from "./types"
 
 interface UseImportFromOtherProjectOptions {
+	isCurrent?: () => boolean
+	confirmOperation?: ConfirmFileOperation
 	projectId?: string
 	selectedWorkspace: Workspace | null
 	selectedProject: ProjectListItem | null
@@ -19,7 +23,7 @@ interface UseImportFromOtherProjectOptions {
 }
 
 export function useImportFromOtherProject(options: UseImportFromOtherProjectOptions) {
-	const { projectId, attachments, onSuccess } = options
+	const { projectId, attachments, onSuccess, confirmOperation } = options
 	const { t } = useTranslation("super")
 
 	const [visible, setVisible] = useState(false)
@@ -112,6 +116,10 @@ export function useImportFromOtherProject(options: UseImportFromOtherProjectOpti
 			}>
 		}) => {
 			if (!projectId || data.filesByProject.length === 0) return
+			const identity = getFileReferenceIdentityKey()
+			const isCurrent = () =>
+				!confirmOperation ||
+				(identity === getFileReferenceIdentityKey() && (options.isCurrent?.() ?? true))
 
 			setIsOperating(true)
 			setOperationProgress(0)
@@ -123,6 +131,30 @@ export function useImportFromOtherProject(options: UseImportFromOtherProjectOpti
 				const totalProjects = data.filesByProject.length
 				let completedProjects = 0
 				const batchKeys: string[] = []
+				const prepared: Array<{
+					group: (typeof data.filesByProject)[number]
+					keepBothIds: string[]
+				}> = []
+				const copyGroup = async (
+					projectGroup: (typeof data.filesByProject)[number],
+					keepBothIds: string[],
+				) => {
+					if (!isCurrent()) throw new DOMException("Import cancelled", "AbortError")
+					const result = await SuperMagicApi.copyFiles({
+						file_ids: projectGroup.selectedFileIds,
+						project_id: projectGroup.sourceProjectId,
+						target_project_id: projectId,
+						target_parent_id: targetParentId,
+						pre_file_id: "",
+						keep_both_file_ids: keepBothIds,
+					})
+					if (result.status === "processing" && result.batch_key)
+						batchKeys.push(result.batch_key)
+					else if (result.status === "success") {
+						completedProjects++
+						setOperationProgress(Math.floor((completedProjects / totalProjects) * 100))
+					}
+				}
 
 				// 按项目分组处理
 				for (const projectGroup of data.filesByProject) {
@@ -134,7 +166,8 @@ export function useImportFromOtherProject(options: UseImportFromOtherProjectOpti
 						targetPath,
 					)
 					if (folderConflicts.size > 0) {
-						const folderChoice = await folderConflictHandler.checkConflicts(folderConflicts)
+						const folderChoice =
+							await folderConflictHandler.checkConflicts(folderConflicts)
 						if (!folderChoice.shouldProceed) {
 							setIsOperating(false)
 							setOperationProgress(0)
@@ -165,21 +198,26 @@ export function useImportFromOtherProject(options: UseImportFromOtherProjectOpti
 					}
 
 					// 2. Call the batch-copy API.
-					const result = await SuperMagicApi.copyFiles({
-						file_ids: projectGroup.selectedFileIds,
-						project_id: projectGroup.sourceProjectId,
-						target_project_id: projectId,
-						target_parent_id: targetParentId,
-						pre_file_id: "",
-						keep_both_file_ids: keepBothIds,
-					})
-
-					if (result.status === "processing" && result.batch_key) {
-						batchKeys.push(result.batch_key)
-					} else if (result.status === "success") {
-						completedProjects++
-						setOperationProgress(Math.floor((completedProjects / totalProjects) * 100))
+					if (confirmOperation) prepared.push({ group: projectGroup, keepBothIds })
+					else await copyGroup(projectGroup, keepBothIds)
+				}
+				// 管理器先准备全部来源，再确认一次；取消时任何来源都尚未写入。
+				if (confirmOperation) {
+					if (
+						!(await confirmOperation({
+							operation: "import",
+							fileIds: prepared.flatMap(({ group }) => group.selectedFileIds),
+							sourceAttachments: prepared.flatMap(({ group }) => group.selectedFiles),
+							sourceName: t("fileManager.confirmation.importSource"),
+							targetPath,
+						}))
+					) {
+						setIsOperating(false)
+						setOperationProgress(0)
+						return
 					}
+					for (const { group, keepBothIds } of prepared)
+						await copyGroup(group, keepBothIds)
 				}
 
 				// 4. 轮询检查所有批量操作状态
@@ -196,6 +234,10 @@ export function useImportFromOtherProject(options: UseImportFromOtherProjectOpti
 					}, 500)
 				}
 			} catch (error) {
+				if (!isCurrent()) {
+					setIsOperating(false)
+					return
+				}
 				console.error("导入文件失败:", error)
 				magicToast.error(t("topicFiles.error.importFileFailed"))
 				setIsOperating(false)
@@ -204,6 +246,8 @@ export function useImportFromOtherProject(options: UseImportFromOtherProjectOpti
 		},
 		[
 			projectId,
+			options.isCurrent,
+			confirmOperation,
 			attachments,
 			targetPath,
 			closeModal,

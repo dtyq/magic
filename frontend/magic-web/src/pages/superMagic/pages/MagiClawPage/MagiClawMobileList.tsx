@@ -1,7 +1,7 @@
 import { CirclePlus, Loader2 } from "lucide-react"
 import type { MagicClawItem } from "@/apis"
+import clawLogo from "@/assets/resources/magi-claw/claw-logo.svg"
 import { Button } from "@/components/shadcn-ui/button"
-import { DefaultMagiClawAvatar } from "./components/DefaultMagiClawAvatar"
 import { shouldShowMagiClawUpgradeBadge } from "./MagiClawUpgradeBadge"
 import { MagiClawMobileListItem, resolveMagiClawMobileDisplayName } from "./MagiClawMobileListItem"
 import { getMagiClawRowId } from "./useMagiClawMobilePage"
@@ -80,17 +80,16 @@ export function MagiClawMobileList({
 
 	if (claws.length === 0) {
 		return (
-			<div className="flex flex-col gap-3.5" data-testid="magi-claw-mobile-list-empty">
-				<p className="px-0.5 text-[18px] font-medium leading-tight text-foreground">
-					{t("superLobster.getStarted")}
-				</p>
+			<div className="flex flex-col" data-testid="magi-claw-mobile-list-empty">
 				<div
 					className="flex flex-col items-center gap-4 rounded-2xl bg-card px-5 py-6 shadow-[0px_2px_12px_0px_rgba(0,0,0,0.06)]"
 					data-testid="magi-claw-mobile-get-started-card"
 				>
-					<div className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border border-border bg-background shadow-[0px_4px_20px_0px_rgba(0,0,0,0.08)]">
-						<DefaultMagiClawAvatar />
-					</div>
+					<img
+						className="size-[120px] shrink-0 object-contain"
+						src={clawLogo}
+						alt={t("superLobster.title", clawBrandValues)}
+					/>
 					<div className="flex flex-col items-center gap-1 text-center">
 						<p className="text-[17px] font-medium leading-snug text-foreground">
 							{t("superLobster.card.title", clawBrandValues)}

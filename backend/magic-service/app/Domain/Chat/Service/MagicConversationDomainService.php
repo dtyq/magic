@@ -27,15 +27,20 @@ use App\Domain\Chat\Event\ConversationCreatedEvent;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Group\Entity\MagicGroupEntity;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\Exception\TransactionCommitOutcomeUnknownException;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Hyperf\Codec\Json;
+use Hyperf\Database\Connection;
+use Hyperf\DbConnection\Connection as PooledConnection;
 use Hyperf\DbConnection\Db;
+use PDOException;
 use Throwable;
 
 use function Hyperf\Coroutine\co;
@@ -390,7 +395,7 @@ class MagicConversationDomainService extends AbstractDomainService
         if ($conversationEntity === null) {
             if (in_array($conversationDTO->getReceiveType(), [ConversationType::User, ConversationType::Ai], true)) {
                 # 创建会话窗口
-                $conversationDTO = $this->parsePrivateChatConversationReceiveType($conversationDTO);
+                $conversationDTO = $this->preparePrivateConversation($conversationDTO->getUserId(), $conversationDTO->getReceiveId());
                 # 准备生成一个会话窗口
                 $conversationEntity = $this->magicConversationRepository->addConversation($conversationDTO);
 
@@ -404,6 +409,93 @@ class MagicConversationDomainService extends AbstractDomainService
             ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
         }
         return $conversationEntity;
+    }
+
+    /**
+     * Commit both identities before any caller starts its business transaction.
+     * @return array{sender_conversation_id: string, receiver_conversation_id: string}
+     */
+    public function getOrCreateConversationPair(DataIsolation $dataIsolation, string $receiveId): array
+    {
+        if (Db::connection()->transactionLevel() !== 0) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话身份创建不能嵌套业务事务');
+        }
+        $sender = $this->preparePrivateConversation($dataIsolation->getCurrentUserId(), $receiveId);
+        $receiver = $this->preparePrivateConversation($receiveId, $dataIsolation->getCurrentUserId());
+        if ($sender->getUserOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()
+            || $sender->getReceiveOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()
+            || $sender->getReceiveType() !== ConversationType::Ai
+            || $receiver->getReceiveType() !== ConversationType::User) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话身份与当前用户组织不匹配');
+        }
+        $identities = ['sender' => $sender, 'receiver' => $receiver];
+        uasort($identities, static fn (MagicConversationEntity $left, MagicConversationEntity $right): int => [
+            $left->getUserId(), $left->getReceiveId(), $left->getReceiveType()->value,
+            $left->getUserOrganizationCode(), $left->getReceiveOrganizationCode(),
+        ] <=> [
+            $right->getUserId(), $right->getReceiveId(), $right->getReceiveType()->value,
+            $right->getUserOrganizationCode(), $right->getReceiveOrganizationCode(),
+        ]);
+        for ($attempt = 0;; ++$attempt) {
+            $conversations = [];
+            $createdSender = null;
+            Db::beginTransaction();
+            try {
+                foreach ($identities as $side => $identity) {
+                    $existing = $this->magicConversationRepository->getConversationByIdentity($identity, true);
+                    if ($existing !== null && $existing->getDeletedAt() !== null) {
+                        ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话身份已被删除，无法重新创建');
+                    }
+                    $conversations[$side] = $existing ?? $this->magicConversationRepository->addConversation($identity);
+                    if ($side === 'sender' && $existing === null) {
+                        $createdSender = $conversations[$side];
+                    }
+                }
+            } catch (Throwable $exception) {
+                $this->rollbackIdentityTransaction($exception);
+                if ($attempt < 2 && $this->isRetryableIdentityConflict($exception)) {
+                    continue;
+                }
+                throw $exception;
+            }
+            // A commit error has an unknown outcome. Never replay identity creation on it.
+            try {
+                Db::commit();
+            } catch (Throwable $exception) {
+                $this->logger->error('会话身份提交结果未知', [
+                    'user_id' => $dataIsolation->getCurrentUserId(),
+                    'receive_id' => $receiveId,
+                    'conversation_ids' => array_map(static fn (MagicConversationEntity $item): string => $item->getId(), $conversations),
+                    'error' => $exception->getMessage(),
+                ]);
+                // This only resets the connection state; it does not establish whether commit succeeded.
+                try {
+                    try {
+                        Db::rollBack();
+                    } catch (Throwable) {
+                        $connection = Db::connection();
+                        if ($connection instanceof PooledConnection) {
+                            // The same wrapper remains in the request context; restore its inner connection.
+                            $connection->reconnect();
+                        } elseif ($connection instanceof Connection) {
+                            $connection->disconnect();
+                        }
+                    }
+                } catch (Throwable $cleanupException) {
+                    $this->logger->error('会话身份提交失败后的连接清理失败', ['error' => $cleanupException->getMessage()]);
+                } finally {
+                    // Cleanup failures must never replace the original unknown commit outcome.
+                    throw new TransactionCommitOutcomeUnknownException($exception);
+                }
+            }
+            if ($createdSender !== null) {
+                event_dispatch(new ConversationCreatedEvent($createdSender));
+            }
+            return [
+                'sender_conversation_id' => $conversations['sender']->getId(),
+                'receiver_conversation_id' => $conversations['receiver']->getId(),
+            ];
+        }
     }
 
     public function getConversationByUserIdAndReceiveId(MagicConversationEntity $conversation): ?MagicConversationEntity
@@ -459,5 +551,46 @@ class MagicConversationDomainService extends AbstractDomainService
         }
 
         return $conversationMap;
+    }
+
+    private function preparePrivateConversation(string $senderUserId, string $receiveId): MagicConversationEntity
+    {
+        $identity = new MagicConversationEntity();
+        $identity->setUserId($senderUserId);
+        $identity->setReceiveId($receiveId);
+        return $this->parsePrivateChatConversationReceiveType($identity);
+    }
+
+    private function rollbackIdentityTransaction(Throwable $cause): void
+    {
+        $connection = Db::connection();
+        if ($cause instanceof PDOException && (int) ($cause->errorInfo[1] ?? 0) === 1213
+            && ($connection instanceof Connection || $connection instanceof PooledConnection)) {
+            $pdo = $connection->getPdo();
+            if (! $pdo->inTransaction()) {
+                // InnoDB has already rolled back the deadlock victim. Hyperf still counts one level.
+                if ($connection instanceof PooledConnection) {
+                    $connection->reconnect();
+                } else {
+                    $connection->setPdo($pdo);
+                }
+                return;
+            }
+        }
+        // Any other rollback failure propagates without retrying an unconfirmed transaction.
+        Db::rollBack();
+    }
+
+    private function isRetryableIdentityConflict(Throwable $exception): bool
+    {
+        if (! $exception instanceof PDOException) {
+            return false;
+        }
+        $errorNumber = (int) ($exception->errorInfo[1] ?? 0);
+        if ($errorNumber === 1213) {
+            return true;
+        }
+        // Match the named key only, not unrelated duplicate keys or arbitrary SQL text.
+        return $errorNumber === 1062 && preg_match("/for key ['`](?:[^'`]+\\.)?unq_user_conversation['`]/i", (string) ($exception->errorInfo[2] ?? '')) === 1;
     }
 }

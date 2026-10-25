@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import superMagicTopicModelService from "../SuperMagicTopicModelService"
-import topicModelStore from "@/opensource/stores/superMagic/topicModelStore"
-import type { ModelItem } from "@/opensource/pages/superMagic/components/MessageEditor/types"
+import topicModelStore from "@/stores/superMagic/topicModelStore"
+import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
 
 // Mock dependencies
 vi.mock("@/apis", () => ({
@@ -13,10 +13,13 @@ vi.mock("@/apis", () => ({
 
 vi.mock("../SuperMagicTopicModelCacheService", () => ({
 	default: {
+		getDefaultModel: vi.fn(),
+		getModeDefaultModel: vi.fn(),
 		getTopicModel: vi.fn(),
 		getProjectModel: vi.fn(),
 		saveTopicModel: vi.fn(),
 		saveProjectModel: vi.fn(),
+		saveModeDefaultModel: vi.fn(),
 	},
 }))
 
@@ -24,12 +27,18 @@ vi.mock("../../SuperMagicModeService", () => ({
 	default: {
 		getModelListByMode: vi.fn(() => []),
 		getImageModelListByMode: vi.fn(() => []),
+		getVideoModelListByMode: vi.fn(() => []),
 		resolveLanguageModelByMode: vi.fn(async () => null),
 		resolveImageModelByMode: vi.fn(async () => null),
+		resolveVideoModelByMode: vi.fn(async () => null),
+		// The cascade only waits for the crew list while its availability is unknown.
+		isModeAvailabilityResolved: true,
 	},
+	resolveModeMapKey: (topicMode: string, agentCode?: string | null) =>
+		topicMode === "custom_agent" && agentCode ? agentCode : topicMode,
 }))
 
-import { SuperMagicApi } from "@/opensource/apis"
+import { SuperMagicApi } from "@/apis"
 import superMagicTopicModelCacheService from "../SuperMagicTopicModelCacheService"
 import superMagicModeService from "../../SuperMagicModeService"
 
@@ -88,8 +97,13 @@ describe("SuperMagicTopicModelService - Cascade & Backfill", () => {
 		)
 
 		// Setup default mock behaviors
+		vi.mocked(superMagicTopicModelCacheService.getDefaultModel).mockResolvedValue(null)
+		vi.mocked(superMagicTopicModelCacheService.getModeDefaultModel).mockResolvedValue(null)
 		vi.mocked(superMagicTopicModelCacheService.saveTopicModel).mockResolvedValue(undefined)
 		vi.mocked(superMagicTopicModelCacheService.saveProjectModel).mockResolvedValue(undefined)
+		vi.mocked(superMagicTopicModelCacheService.saveModeDefaultModel).mockResolvedValue(
+			undefined,
+		)
 		vi.mocked(SuperMagicApi.saveSuperMagicTopicModel).mockResolvedValue({} as any)
 	})
 
@@ -97,7 +111,7 @@ describe("SuperMagicTopicModelService - Cascade & Backfill", () => {
 		superMagicTopicModelService.destroy()
 	})
 
-	describe("Three-level cascade: Topic -> Project -> Global", () => {
+	describe("Four-level cascade: Topic -> Project -> ModeDefault -> Global", () => {
 		it("should use Topic level data when available and valid", async () => {
 			const topicId = "topic-1"
 			const projectId = "project-1"
@@ -159,17 +173,18 @@ describe("SuperMagicTopicModelService - Cascade & Backfill", () => {
 			expect(SuperMagicApi.getSuperMagicTopicModel).toHaveBeenCalledTimes(2)
 		})
 
-		it("should fallback to Global level when both Topic and Project fail", async () => {
+		it("should fallback to Global level when Topic, Project and ModeDefault fail", async () => {
 			const topicId = "topic-1"
 			const projectId = "project-1"
 
-			// Mock Topic and Project have no data
+			// Mock Topic, Project and ModeDefault have no data
 			vi.mocked(superMagicTopicModelCacheService.getTopicModel).mockResolvedValue(null)
 			vi.mocked(superMagicTopicModelCacheService.getProjectModel).mockResolvedValue(null)
 
 			vi.mocked(SuperMagicApi.getSuperMagicTopicModel)
 				.mockResolvedValueOnce({ model: {}, image_model: {} } as any) // Topic: no valid data
 				.mockResolvedValueOnce({ model: {}, image_model: {} } as any) // Project: no valid data
+				.mockResolvedValueOnce({ model: {}, image_model: {} } as any) // ModeDefault: no valid data
 				.mockResolvedValueOnce({
 					// Global: has valid data
 					model: { model_id: "gpt-4" },
@@ -183,9 +198,12 @@ describe("SuperMagicTopicModelService - Cascade & Backfill", () => {
 			expect(topicModelStore.selectedLanguageModel?.model_id).toBe("gpt-4")
 			expect(topicModelStore.selectedImageModel?.model_id).toBe("dall-e-3")
 
-			// Should call Topic, Project, and Global level APIs
-			expect(SuperMagicApi.getSuperMagicTopicModel).toHaveBeenCalledTimes(3)
+			// Should call Topic, Project, ModeDefault and Global level APIs
+			expect(SuperMagicApi.getSuperMagicTopicModel).toHaveBeenCalledTimes(4)
 			expect(SuperMagicApi.getSuperMagicTopicModel).toHaveBeenNthCalledWith(3, {
+				topic_id: "default_general",
+			})
+			expect(SuperMagicApi.getSuperMagicTopicModel).toHaveBeenNthCalledWith(4, {
 				topic_id: "default",
 			})
 		})
@@ -325,6 +343,51 @@ describe("SuperMagicTopicModelService - Cascade & Backfill", () => {
 			// Should backfill Topic remote (from local or from Global/Project)
 			// In this case, will use local cache data
 			expect(topicModelStore.selectedLanguageModel?.model_id).toBe("gpt-4")
+		})
+
+		it("retries Topic remote backfill after a previous write failure", async () => {
+			const topicId = "topic-1"
+			const projectId = "project-1"
+			let topicCache: {
+				languageModelId?: string
+				imageModelId?: string
+				timestamp: number
+			} | null = null
+
+			vi.mocked(superMagicTopicModelCacheService.getTopicModel).mockImplementation(
+				async () => topicCache,
+			)
+			vi.mocked(superMagicTopicModelCacheService.saveTopicModel).mockImplementation(
+				async (_topicId, data) => {
+					topicCache = data
+				},
+			)
+			vi.mocked(superMagicTopicModelCacheService.getProjectModel).mockResolvedValue({
+				languageModelId: "gpt-4",
+				imageModelId: "dall-e-3",
+				timestamp: Date.now(),
+			})
+			vi.mocked(SuperMagicApi.getSuperMagicTopicModel).mockImplementation(({ topic_id }) => {
+				if (topic_id === "project_id_project-1") {
+					return Promise.resolve({
+						model: { model_id: "gpt-4" },
+						image_model: { model_id: "dall-e-3" },
+					} as never)
+				}
+				return Promise.resolve({ model: {}, image_model: {} } as never)
+			})
+			vi.mocked(SuperMagicApi.saveSuperMagicTopicModel)
+				.mockRejectedValueOnce(new Error("offline"))
+				.mockResolvedValue({ model: { model_id: "gpt-4" } } as never)
+
+			topicModelStore.setCurrentContext(topicId, projectId, "general")
+			await superMagicTopicModelService.fetchTopicModel(topicId, projectId, "general")
+			await superMagicTopicModelService.fetchTopicModel(topicId, projectId, "general")
+
+			const topicBackfills = vi
+				.mocked(SuperMagicApi.saveSuperMagicTopicModel)
+				.mock.calls.filter(([params]) => params.cache_id === topicId)
+			expect(topicBackfills).toHaveLength(2)
 		})
 	})
 

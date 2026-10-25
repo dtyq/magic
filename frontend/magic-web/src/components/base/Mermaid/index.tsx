@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react"
-import { loadMermaid } from "@/lib/mermaid"
+import { loadMermaid } from "@/infrastructure/vendors/mermaid"
 
 import type { Config } from "./types"
 import { cx, useTheme } from "antd-style"

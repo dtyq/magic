@@ -14,7 +14,7 @@ final readonly class SandboxInfoDTO
         private string $status,
         private string $currentVersion,
         private string $latestVersion,
-        private bool $needsUpdate,
+        private ?bool $needsUpdate,
     ) {
     }
 
@@ -38,13 +38,13 @@ final readonly class SandboxInfoDTO
         return $this->latestVersion;
     }
 
-    public function getNeedsUpdate(): bool
+    public function getNeedsUpdate(): ?bool
     {
         return $this->needsUpdate;
     }
 
     /**
-     * @return array{sandbox_id: string, status: string, current_version: string, latest_version: string, needs_update: bool}
+     * @return array{sandbox_id: string, status: string, current_version: string, latest_version: string, needs_update: null|bool}
      */
     public function toArray(): array
     {

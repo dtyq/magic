@@ -216,9 +216,9 @@ export default function LLMParametersV1() {
 								shouldUpdate={(prevValues, currentValues) => {
 									return (
 										prevValues.model_config?.vision !==
-										currentValues.model_config?.vision ||
+											currentValues.model_config?.vision ||
 										prevValues.model_config?.model !==
-										currentValues.model_config?.model
+											currentValues.model_config?.model
 									)
 								}}
 							>
@@ -259,7 +259,11 @@ export default function LLMParametersV1() {
 	})
 
 	return (
-		<Form.Item name={["model"]} className={styles.formItem} label="模型">
+		<Form.Item
+			name={["model"]}
+			className={styles.formItem}
+			label={t("common.model", { ns: "flow" })}
+		>
 			<LLMSelect
 				className={styles.LLMParameters}
 				options={options}

@@ -6,6 +6,8 @@ import { useTopicMessages } from "../useTopicMessages"
 const mockState = vi.hoisted(() => ({
 	nextSyncGeneration: 1,
 	getMessagesByConversationIdMock: vi.fn(),
+	getTopicsStatusMock: vi.fn(),
+	acknowledgeTopicSyncMock: vi.fn(),
 	registerStreamRecoveryOwnerMock: vi.fn(),
 	requestTopicRecoveryMock: vi.fn(),
 	getTopicRecoveryStatusMock: vi.fn(() => ({
@@ -81,6 +83,7 @@ const mockState = vi.hoisted(() => ({
 		),
 		setActiveTopicId: vi.fn(),
 		isTopicStreaming: vi.fn(() => false),
+		hasPendingTopicExecution: vi.fn(() => false),
 	},
 	activeRevokedAnchor: undefined as { seq_id: string } | undefined,
 	optimisticStatuses: new Map<string, string>(),
@@ -91,12 +94,27 @@ const mockState = vi.hoisted(() => ({
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		getMessagesByConversationId: mockState.getMessagesByConversationIdMock,
+		getTopicsStatus: mockState.getTopicsStatusMock,
 	},
 }))
+
+vi.mock("@/pages/superMagic/stores/core/topic", async () => {
+	const actual = await vi.importActual<typeof import("@/pages/superMagic/stores/core/topic")>(
+		"@/pages/superMagic/stores/core/topic",
+	)
+	return {
+		...actual,
+		default: {
+			mergeTopic: vi.fn(),
+		},
+	}
+})
 
 vi.mock("@/pages/superMagic/stores", () => ({
 	superMagicStore: mockState.superMagicStoreMock,
 }))
+
+import defaultTopicStore from "@/pages/superMagic/stores/core/topic"
 
 vi.mock("@/pages/superMagic/stores/optimisticMessageStore", () => ({
 	optimisticMessageStore: {
@@ -109,6 +127,7 @@ vi.mock("@/pages/superMagic/stores/optimisticMessageStore", () => ({
 }))
 
 vi.mock("@/pages/superMagic/services/streamRecoveryCoordinator", () => ({
+	acknowledgeTopicSync: mockState.acknowledgeTopicSyncMock,
 	getTopicRecoveryStatus: mockState.getTopicRecoveryStatusMock,
 	registerStreamRecoveryOwner: mockState.registerStreamRecoveryOwnerMock,
 	requestTopicRecovery: mockState.requestTopicRecoveryMock,
@@ -137,6 +156,9 @@ describe("useTopicMessages", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockState.getMessagesByConversationIdMock.mockReset()
+		mockState.getTopicsStatusMock.mockReset()
+		mockState.getTopicsStatusMock.mockResolvedValue({ list: [] })
+		mockState.acknowledgeTopicSyncMock.mockReset()
 		mockState.registerStreamRecoveryOwnerMock.mockReset()
 		mockState.requestTopicRecoveryMock.mockReset()
 		mockState.getTopicRecoveryStatusMock.mockReset()
@@ -156,11 +178,13 @@ describe("useTopicMessages", () => {
 		mockState.superMagicStoreMock.buffer = new Map()
 		mockState.superMagicStoreMock.topicMeta = new Map()
 		mockState.superMagicStoreMock.isTopicStreaming.mockReturnValue(false)
+		mockState.superMagicStoreMock.hasPendingTopicExecution.mockReturnValue(false)
 		mockState.superMagicStoreMock.authorizeImStatusRestore.mockReset()
 		mockState.activeRevokedAnchor = undefined
 		mockState.optimisticStatuses.clear()
 		mockState.clearActiveRevokedAnchor.mockReset()
 		mockState.clearHiddenRevokedOptimisticMessageIds.mockReset()
+		vi.mocked(defaultTopicStore.mergeTopic).mockReset()
 		mockState.pubsubHandlers.clear()
 		mockState.recoveryOwner = undefined
 		mockState.recoveryTimers.forEach((timer) => clearTimeout(timer))
@@ -474,6 +498,44 @@ describe("useTopicMessages", () => {
 		expect(mockState.getMessagesByConversationIdMock).toHaveBeenCalledTimes(2)
 		expect(consoleErrorSpy).toHaveBeenCalled()
 		consoleErrorSpy.mockRestore()
+	})
+
+	it("does not start finished polling while a new local execution is pending", async () => {
+		vi.useFakeTimers()
+		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
+			items: [],
+			has_more: false,
+			page_token: "",
+		})
+
+		const { rerender } = renderHook(
+			({ selectedTopic }: { selectedTopic: Topic }) => useTopicMessages({ selectedTopic }),
+			{
+				initialProps: {
+					selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }),
+				},
+			},
+		)
+
+		await act(async () => {
+			await Promise.resolve()
+			await Promise.resolve()
+		})
+
+		mockState.getMessagesByConversationIdMock.mockClear()
+		mockState.superMagicStoreMock.beginTopicSync.mockClear()
+		mockState.superMagicStoreMock.completeTopicSync.mockClear()
+		mockState.superMagicStoreMock.hasPendingTopicExecution.mockReturnValue(true)
+
+		rerender({ selectedTopic: createTopic({ task_status: TaskStatus.FINISHED }) })
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(20_000)
+		})
+
+		expect(mockState.getMessagesByConversationIdMock).not.toHaveBeenCalled()
+		expect(mockState.superMagicStoreMock.beginTopicSync).not.toHaveBeenCalled()
+		expect(mockState.superMagicStoreMock.completeTopicSync).not.toHaveBeenCalled()
 	})
 
 	it("P1 contract: continues bounded polling pages until the local anchor is reached", async () => {
@@ -1585,6 +1647,65 @@ describe("useTopicMessages", () => {
 			}),
 		)
 		expect(mockState.superMagicStoreMock.beginTopicSync).not.toHaveBeenCalled()
+		expect(mockState.getTopicsStatusMock).not.toHaveBeenCalled()
+	})
+
+	it("syncs topic status after foreground reconciliation when local status is still running", async () => {
+		mockState.getMessagesByConversationIdMock.mockResolvedValue({
+			items: [],
+			has_more: false,
+			page_token: "",
+		})
+		mockState.getTopicsStatusMock.mockResolvedValue({
+			list: [
+				{
+					id: "topic-1",
+					status: "finished",
+					has_unread: false,
+				},
+			],
+		})
+		renderHook(() =>
+			useTopicMessages({ selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }) }),
+		)
+		await act(async () => {
+			await Promise.resolve()
+			await Promise.resolve()
+		})
+
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "hidden",
+		})
+		document.dispatchEvent(new Event("visibilitychange"))
+		mockState.getMessagesByConversationIdMock.mockClear()
+		mockState.getTopicsStatusMock.mockClear()
+		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
+			items: [],
+			has_more: false,
+			page_token: "",
+		})
+
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "visible",
+		})
+		await act(async () => {
+			document.dispatchEvent(new Event("visibilitychange"))
+			await Promise.resolve()
+			await Promise.resolve()
+		})
+
+		expect(mockState.getTopicsStatusMock).toHaveBeenCalledWith({
+			topic_ids: ["topic-1"],
+		})
+		expect(defaultTopicStore.mergeTopic).toHaveBeenCalledWith(
+			"topic-1",
+			expect.objectContaining({
+				task_status: TaskStatus.FINISHED,
+				status: TaskStatus.FINISHED,
+			}),
+		)
 	})
 
 	it("resumes a scheduled checkpoint recovery instead of starting foreground pagination", async () => {
@@ -2165,7 +2286,7 @@ describe("useTopicMessages", () => {
 		)
 	})
 
-	it("pulls fixed 100-message pages until the fifth page reaches the durable anchor", async () => {
+	it("stops foreground recovery after two bounded pages when the durable anchor is not reached", async () => {
 		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
 			items: [],
 			has_more: false,
@@ -2197,13 +2318,6 @@ describe("useTopicMessages", () => {
 		const pageItems = [
 			[createMessageEnvelope("message-500", "500")],
 			[createMessageEnvelope("message-400", "400")],
-			[createMessageEnvelope("message-300", "300")],
-			[createMessageEnvelope("message-200", "200")],
-			[
-				createMessageEnvelope("message-100", "100"),
-				createMessageEnvelope("foreground-anchor", "2"),
-				createMessageEnvelope("older-than-anchor", "1"),
-			],
 		]
 		mockState.getMessagesByConversationIdMock.mockReset()
 		pageItems.forEach((items, index) => {
@@ -2222,38 +2336,224 @@ describe("useTopicMessages", () => {
 		await act(async () => {
 			document.dispatchEvent(new Event("visibilitychange"))
 			await Promise.resolve()
+		})
+
+		expect(mockState.getMessagesByConversationIdMock).toHaveBeenCalledTimes(2)
+		expect(mockState.getMessagesByConversationIdMock).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ limit: 200, page_token: "" }),
+		)
+		expect(mockState.getMessagesByConversationIdMock).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ limit: 400, page_token: "page-2" }),
+		)
+		expect(mockState.superMagicStoreMock.initializeMessages).toHaveBeenCalledWith(
+			"chat-topic-1",
+			pageItems.flat(),
+			expect.objectContaining({
+				assistantSnapshotPolicy: "progress_snapshot",
+				mode: "merge",
+				toolProjectionPolicy: "preserve_live",
+			}),
+		)
+	})
+
+	it("matches a foreground anchor when the HTTP envelope omits type", async () => {
+		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
+			items: [],
+			has_more: false,
+			page_token: "",
+		})
+		renderHook(() =>
+			useTopicMessages({
+				selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }),
+			}),
+		)
+		await act(async () => {
 			await Promise.resolve()
+			await Promise.resolve()
+		})
+
+		mockState.superMagicStoreMock.messages.set("chat-topic-1", [
+			{
+				app_message_id: "assistant-old-revision",
+				role: "assistant",
+				super_message_id: "assistant-logical-anchor",
+				seq_id: "10",
+			},
+		])
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "hidden",
+		})
+		document.dispatchEvent(new Event("visibilitychange"))
+
+		const envelope = createMessageEnvelope("assistant-new-revision", "20")
+		const message = envelope.seq.message as Record<string, unknown>
+		message.general_agent_card = message.super_magic_message
+		;(message.general_agent_card as Record<string, unknown>).super_message_id =
+			"assistant-logical-anchor"
+		delete message.type
+		delete message.super_magic_message
+		mockState.getMessagesByConversationIdMock.mockReset()
+		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
+			items: [envelope],
+			has_more: true,
+			page_token: "page-2-must-not-be-requested",
+		})
+		mockState.superMagicStoreMock.initializeMessages.mockClear()
+
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "visible",
+		})
+		await act(async () => {
+			document.dispatchEvent(new Event("visibilitychange"))
 			await Promise.resolve()
 			await Promise.resolve()
 			await Promise.resolve()
 		})
 
-		expect(mockState.getMessagesByConversationIdMock).toHaveBeenCalledTimes(5)
-		for (let index = 0; index < 5; index += 1) {
-			expect(mockState.getMessagesByConversationIdMock).toHaveBeenNthCalledWith(
-				index + 1,
-				expect.objectContaining({
-					limit: 100,
-					page_token: index === 0 ? "" : `page-${index + 1}`,
-				}),
-			)
-		}
+		expect(mockState.getMessagesByConversationIdMock).toHaveBeenCalledTimes(1)
 		expect(mockState.superMagicStoreMock.initializeMessages).toHaveBeenCalledWith(
 			"chat-topic-1",
-			[
-				...pageItems[0],
-				...pageItems[1],
-				...pageItems[2],
-				...pageItems[3],
-				pageItems[4][0],
-				pageItems[4][1],
-			],
+			[envelope],
 			expect.objectContaining({
-				assistantSnapshotPolicy: "progress_snapshot",
 				mode: "replace_tail",
-				anchorSuperMessageId: "foreground-anchor",
+				anchorSuperMessageId: "assistant-logical-anchor",
 			}),
 		)
+	})
+
+	it("does not scan beyond the two-page foreground budget when the anchor is absent", async () => {
+		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
+			items: [],
+			has_more: false,
+			page_token: "",
+		})
+		renderHook(() =>
+			useTopicMessages({
+				selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }),
+			}),
+		)
+		await act(async () => {
+			await Promise.resolve()
+			await Promise.resolve()
+		})
+
+		mockState.superMagicStoreMock.messages.set("chat-topic-1", [
+			{
+				app_message_id: "unreached-anchor",
+				super_message_id: "unreached-anchor",
+				seq_id: "1",
+			},
+		])
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "hidden",
+		})
+		document.dispatchEvent(new Event("visibilitychange"))
+
+		mockState.getMessagesByConversationIdMock.mockReset()
+		mockState.getMessagesByConversationIdMock
+			.mockResolvedValueOnce({
+				items: [createMessageEnvelope("page-message-1", "10")],
+				has_more: true,
+				page_token: "page-2",
+			})
+			.mockResolvedValueOnce({
+				items: [createMessageEnvelope("page-message-2", "9")],
+				has_more: true,
+				page_token: "page-3",
+			})
+		mockState.superMagicStoreMock.initializeMessages.mockClear()
+
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "visible",
+		})
+		await act(async () => {
+			document.dispatchEvent(new Event("visibilitychange"))
+			for (let index = 0; index < 8; index += 1) await Promise.resolve()
+		})
+
+		expect(mockState.getMessagesByConversationIdMock).toHaveBeenCalledTimes(2)
+		expect(mockState.superMagicStoreMock.initializeMessages).toHaveBeenCalledWith(
+			"chat-topic-1",
+			[expect.anything(), expect.anything()],
+			expect.objectContaining({ mode: "merge" }),
+		)
+	})
+
+	it("does not start resident polling while foreground recovery is in flight", async () => {
+		vi.useFakeTimers()
+		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
+			items: [],
+			has_more: false,
+			page_token: "",
+		})
+		renderHook(() =>
+			useTopicMessages({
+				selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }),
+			}),
+		)
+		await act(async () => {
+			await Promise.resolve()
+			await Promise.resolve()
+		})
+
+		mockState.superMagicStoreMock.messages.set("chat-topic-1", [
+			{
+				app_message_id: "foreground-anchor",
+				super_message_id: "foreground-anchor",
+				seq_id: "1",
+			},
+		])
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "hidden",
+		})
+		document.dispatchEvent(new Event("visibilitychange"))
+
+		let resolveForeground!: (value: {
+			items: unknown[]
+			has_more: boolean
+			page_token: string
+		}) => void
+		const foregroundRequest = new Promise<{
+			items: unknown[]
+			has_more: boolean
+			page_token: string
+		}>((resolve) => {
+			resolveForeground = resolve
+		})
+		mockState.getMessagesByConversationIdMock.mockReset()
+		mockState.getMessagesByConversationIdMock.mockReturnValue(foregroundRequest)
+
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "visible",
+		})
+		await act(async () => {
+			document.dispatchEvent(new Event("visibilitychange"))
+			await Promise.resolve()
+		})
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(20_000)
+		})
+		expect(mockState.getMessagesByConversationIdMock).toHaveBeenCalledTimes(1)
+
+		resolveForeground({
+			items: [createMessageEnvelope("foreground-anchor", "1")],
+			has_more: false,
+			page_token: "",
+		})
+		await act(async () => {
+			await Promise.resolve()
+			await Promise.resolve()
+		})
+		vi.useRealTimers()
 	})
 
 	it.each([
@@ -2377,65 +2677,6 @@ describe("useTopicMessages", () => {
 		)
 	})
 
-	it("does not commit a foreground snapshot after the 50-page recovery budget is exhausted", async () => {
-		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
-			items: [],
-			has_more: false,
-			page_token: "",
-		})
-		renderHook(() =>
-			useTopicMessages({
-				selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }),
-			}),
-		)
-		await act(async () => {
-			await Promise.resolve()
-			await Promise.resolve()
-		})
-
-		mockState.superMagicStoreMock.messages.set("chat-topic-1", [
-			{
-				app_message_id: "unreached-anchor",
-				super_message_id: "unreached-anchor",
-				seq_id: "1",
-			},
-		])
-		Object.defineProperty(document, "visibilityState", {
-			configurable: true,
-			value: "hidden",
-		})
-		document.dispatchEvent(new Event("visibilitychange"))
-
-		mockState.getMessagesByConversationIdMock.mockReset()
-		for (let index = 0; index < 50; index += 1) {
-			mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
-				items: [createMessageEnvelope(`page-message-${index}`, String(10_000 - index))],
-				has_more: true,
-				page_token: `page-${index + 2}`,
-			})
-		}
-		mockState.superMagicStoreMock.initializeMessages.mockClear()
-		mockState.superMagicStoreMock.completeTopicSync.mockClear()
-
-		Object.defineProperty(document, "visibilityState", {
-			configurable: true,
-			value: "visible",
-		})
-		await act(async () => {
-			document.dispatchEvent(new Event("visibilitychange"))
-			for (let index = 0; index < 55; index += 1) await Promise.resolve()
-		})
-
-		const generation = mockState.superMagicStoreMock.beginTopicSync.mock.results.at(-1)?.value
-		expect(mockState.getMessagesByConversationIdMock).toHaveBeenCalledTimes(50)
-		expect(mockState.superMagicStoreMock.initializeMessages).not.toHaveBeenCalled()
-		expect(mockState.superMagicStoreMock.completeTopicSync).toHaveBeenCalledWith(
-			"chat-topic-1",
-			generation,
-			expect.objectContaining({ succeeded: false }),
-		)
-	})
-
 	it("fails foreground recovery without committing the first page when the second page fails", async () => {
 		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
 		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
@@ -2503,6 +2744,8 @@ describe("useTopicMessages", () => {
 	it.each([
 		{
 			label: "the first incomplete page has no continuation token",
+			expectedMode: undefined,
+			expectedSucceeded: false,
 			responses: [
 				{
 					items: [createMessageEnvelope("partial", "2")],
@@ -2513,6 +2756,8 @@ describe("useTopicMessages", () => {
 		},
 		{
 			label: "the second page is still incomplete and has not reached the anchor",
+			expectedMode: "merge",
+			expectedSucceeded: true,
 			responses: [
 				{
 					items: [createMessageEnvelope("partial-2", "3")],
@@ -2528,6 +2773,8 @@ describe("useTopicMessages", () => {
 		},
 		{
 			label: "the continuation token repeats before the anchor is reached",
+			expectedMode: undefined,
+			expectedSucceeded: false,
 			responses: [
 				{
 					items: [createMessageEnvelope("partial-2", "3")],
@@ -2541,62 +2788,73 @@ describe("useTopicMessages", () => {
 				},
 			],
 		},
-	])("does not commit foreground recovery when $label", async ({ responses }) => {
-		mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
-			items: [],
-			has_more: false,
-			page_token: "",
-		})
-		renderHook(() =>
-			useTopicMessages({
-				selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }),
-			}),
-		)
-		await act(async () => {
-			await Promise.resolve()
-			await Promise.resolve()
-		})
+	])(
+		"preserves safety semantics for incomplete foreground recovery when $label",
+		async ({ responses, expectedMode, expectedSucceeded }) => {
+			mockState.getMessagesByConversationIdMock.mockResolvedValueOnce({
+				items: [],
+				has_more: false,
+				page_token: "",
+			})
+			renderHook(() =>
+				useTopicMessages({
+					selectedTopic: createTopic({ task_status: TaskStatus.RUNNING }),
+				}),
+			)
+			await act(async () => {
+				await Promise.resolve()
+				await Promise.resolve()
+			})
 
-		mockState.superMagicStoreMock.messages.set("chat-topic-1", [
-			{ app_message_id: "foreground-anchor" },
-		])
-		Object.defineProperty(document, "visibilityState", {
-			configurable: true,
-			value: "hidden",
-		})
-		document.dispatchEvent(new Event("visibilitychange"))
-
-		mockState.getMessagesByConversationIdMock.mockReset()
-		responses.forEach((response) => {
-			mockState.getMessagesByConversationIdMock.mockResolvedValueOnce(response)
-		})
-		mockState.superMagicStoreMock.beginTopicSync.mockClear()
-		mockState.superMagicStoreMock.initializeMessages.mockClear()
-		mockState.superMagicStoreMock.completeTopicSync.mockClear()
-
-		Object.defineProperty(document, "visibilityState", {
-			configurable: true,
-			value: "visible",
-		})
-		await act(async () => {
+			mockState.superMagicStoreMock.messages.set("chat-topic-1", [
+				{ app_message_id: "foreground-anchor" },
+			])
+			Object.defineProperty(document, "visibilityState", {
+				configurable: true,
+				value: "hidden",
+			})
 			document.dispatchEvent(new Event("visibilitychange"))
-			await Promise.resolve()
-			await Promise.resolve()
-			await Promise.resolve()
-		})
 
-		const generation = mockState.superMagicStoreMock.beginTopicSync.mock.results[0]?.value
-		expect(mockState.superMagicStoreMock.initializeMessages).not.toHaveBeenCalled()
-		expect(mockState.superMagicStoreMock.completeTopicSync).toHaveBeenCalledWith(
-			"chat-topic-1",
-			generation,
-			expect.objectContaining({
-				succeeded: false,
-				taskStatus: TaskStatus.RUNNING,
-				renderStrategy: "foreground-instant",
-			}),
-		)
-	})
+			mockState.getMessagesByConversationIdMock.mockReset()
+			responses.forEach((response) => {
+				mockState.getMessagesByConversationIdMock.mockResolvedValueOnce(response)
+			})
+			mockState.superMagicStoreMock.beginTopicSync.mockClear()
+			mockState.superMagicStoreMock.initializeMessages.mockClear()
+			mockState.superMagicStoreMock.completeTopicSync.mockClear()
+
+			Object.defineProperty(document, "visibilityState", {
+				configurable: true,
+				value: "visible",
+			})
+			await act(async () => {
+				document.dispatchEvent(new Event("visibilitychange"))
+				await Promise.resolve()
+				await Promise.resolve()
+				await Promise.resolve()
+			})
+
+			const generation = mockState.superMagicStoreMock.beginTopicSync.mock.results[0]?.value
+			if (expectedMode === "merge") {
+				expect(mockState.superMagicStoreMock.initializeMessages).toHaveBeenCalledWith(
+					"chat-topic-1",
+					responses.flatMap((response) => response.items),
+					expect.objectContaining({ mode: "merge" }),
+				)
+			} else {
+				expect(mockState.superMagicStoreMock.initializeMessages).not.toHaveBeenCalled()
+			}
+			expect(mockState.superMagicStoreMock.completeTopicSync).toHaveBeenCalledWith(
+				"chat-topic-1",
+				generation,
+				expect.objectContaining({
+					succeeded: expectedSucceeded,
+					taskStatus: TaskStatus.RUNNING,
+					renderStrategy: "foreground-instant",
+				}),
+			)
+		},
+	)
 })
 
 async function prepareFinishedPollingAnchorContract(anchorAppMessageId = "local-anchor") {

@@ -6,7 +6,7 @@ import { memo } from "react"
 import MobileButton from "../MobileButton"
 import { useStyles } from "./styles"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export interface PreviewDetail<T extends keyof DetailData = any> {
 	type: T

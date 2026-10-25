@@ -61,6 +61,9 @@ class ImageGenerateRequest
     // 参考图片列表
     protected array $referImages = [];
 
+    // 透传给服务商接口的附加参数（目前仅 Azure OpenAI 使用）
+    protected ?array $extra = null;
+
     public function __construct(
         string $width = '',
         string $height = '',
@@ -243,5 +246,15 @@ class ImageGenerateRequest
     public function setOutputFormat(string $outputFormat): void
     {
         $this->outputFormat = $outputFormat;
+    }
+
+    public function getExtra(): ?array
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(?array $extra): void
+    {
+        $this->extra = $extra;
     }
 }

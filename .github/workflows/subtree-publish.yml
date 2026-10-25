@@ -12,7 +12,6 @@ on:
       - 'backend/flow-expr-engine/**'
       - 'backend/rule-engine-core/**'
       - 'backend/sdk-base/**'
-      - 'backend/super-magic-module/**'
       - 'backend/task-scheduler/**'
       - 'thirdparty/PHPSandbox/**'
       - 'thirdparty/tiptap/**'

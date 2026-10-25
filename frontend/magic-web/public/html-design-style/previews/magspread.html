@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAGSPREAD — High Fashion &amp; Atelier Design Spread</title>
+  <style>
+    :root {
+      --primary: #134e4a;
+      --secondary: #e11d48;
+      --surface-base: #fdf2e9;
+      --surface-pure: #ffffff;
+      --border-stone: #e7e5e4;
+      --text-main: #134e4a;
+      --text-muted: #57534e;
+      --text-cream: #fdf2e9;
+      
+      --font-display: "Playfair Display", "Didot", "Bodoni MT", Georgia, serif;
+      --font-body: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "Source Code Pro", "SF Mono", "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
+    body {
+      background-color: var(--surface-base);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Top Folio Header Bar */
+    .folio-top-bar {
+      border-bottom: 2px solid var(--primary);
+      padding: 10px 40px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface-base);
+    }
+    .folio-accent-tag {
+      background: var(--secondary);
+      color: #ffffff;
+      padding: 3px 10px;
+      font-weight: 700;
+    }
+
+    /* Magazine Navigation & Brand Header */
+    .mag-header {
+      padding: 24px 40px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 1px solid var(--border-stone);
+      background: var(--surface-base);
+    }
+    .mag-title {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 5.5vw, 68px);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 0.85;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+    .mag-title span { color: var(--secondary); font-style: italic; }
+    .mag-meta-box {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+    }
+
+    /* Shell */
+    .shell {
+      max-width: 1420px;
+      margin: 0 auto;
+      padding: 32px 40px 64px;
+    }
+
+    /* Double-Page Spread Simulation Container */
+    .double-page-spread {
+      background: #ffffff;
+      border: 1px solid var(--border-stone);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      position: relative;
+      min-height: 820px;
+    }
+
+    /* Central Book Spine / Fold Gutter Shadow */
+    .double-page-spread::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 32px;
+      transform: translateX(-50%);
+      background: linear-gradient(to right, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 40%, rgba(0,0,0,0.01) 60%, rgba(0,0,0,0.06) 100%);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Left Page (Page 84) - Visual & Oversized Display */
+    .page-left {
+      padding: 44px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 1px solid var(--border-stone);
+      background: #fff;
+    }
+    .left-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2.2px;
+      color: var(--secondary);
+      margin-bottom: 12px;
+    }
+    .oversized-display-title {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 4.6vw, 62px);
+      font-weight: 900;
+      line-height: 0.98;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 24px;
+    }
+
+    /* High-Fashion Atelier SVG Graphic Box */
+    .fashion-visual-box {
+      width: 100%;
+      height: 380px;
+      background: var(--surface-base);
+      border: 2px solid var(--primary);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .fashion-svg { width: 100%; height: 100%; position: absolute; }
+
+    /* Art Critique Caption Box */
+    .art-critique-caption {
+      border-left: 3px solid var(--secondary);
+      padding: 12px 18px;
+      background: var(--surface-base);
+    }
+    .caption-fig-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--secondary);
+      margin-bottom: 4px;
+    }
+    .caption-text {
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-muted);
+    }
+
+    /* Right Page (Page 85) - Asymmetric Editorial Columns */
+    .page-right {
+      padding: 44px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: #fff;
+    }
+    .right-page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-stone);
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.6px;
+      color: var(--text-muted);
+    }
+    .author-critique-byline {
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    /* Asymmetric Column Layout */
+    .asymmetric-columns {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: 32px;
+      align-items: start;
+    }
+    
+    /* Left Sub-Column: Curator Critique Commentary */
+    .critique-subcol {
+      border-right: 1px solid var(--border-stone);
+      padding-right: 20px;
+    }
+    .subcol-kicker {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .subcol-text {
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .palette-swatches {
+      display: flex;
+      gap: 6px;
+      margin-top: 14px;
+    }
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--border-stone);
+    }
+
+    /* Right Sub-Column: Main Feature Body */
+    .narrative-subcol {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .drop-cap-paragraph {
+      font-size: 16px;
+      line-height: 1.75;
+      color: var(--text-main);
+    }
+    .drop-cap-paragraph::first-letter {
+      float: left;
+      font-family: var(--font-display);
+      font-size: 72px;
+      line-height: 0.8;
+      padding: 4px 10px 2px 0;
+      color: var(--secondary);
+      font-weight: 900;
+    }
+    .narrative-paragraph {
+      font-size: 15px;
+      line-height: 1.72;
+      color: var(--text-main);
+    }
+
+    /* High-Fashion Pull Quote Banner */
+    .fashion-pullquote {
+      border-top: 2px solid var(--primary);
+      border-bottom: 2px solid var(--primary);
+      padding: 24px 20px;
+      margin-top: 20px;
+      background: var(--surface-base);
+    }
+    .pullquote-quote {
+      font-family: var(--font-display);
+      font-size: clamp(22px, 2.3vw, 28px);
+      font-weight: 700;
+      font-style: italic;
+      line-height: 1.25;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .pullquote-attr {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--secondary);
+      font-weight: 700;
+    }
+
+    /* Spread Folio Footers */
+    .page-folio-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border-stone);
+      padding-top: 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.6px;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 960px) {
+      .double-page-spread { grid-template-columns: 1fr; }
+      .double-page-spread::before { display: none; }
+      .asymmetric-columns { grid-template-columns: 1fr; }
+      .critique-subcol { border-right: none; padding-right: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Folio Header Bar -->
+  <aside class="folio-top-bar">
+    <div>VOGUE ATELIER &amp; HAUTE DESIGN // INTERNATIONAL EDITION</div>
+    <div>ISSUE NO. 114 · <span class="folio-accent-tag">DOUBLE-PAGE SPREAD</span> · AUTUMN 2026</div>
+  </aside>
+
+  <!-- Magazine Masthead -->
+  <header class="mag-header">
+    <h1 class="mag-title">MAG<span>SPREAD</span></h1>
+    <div class="mag-meta-box">
+      <div>CURATED BY THE MILAN DESIGN TRIENNALE</div>
+      <div>SPECIAL FOLIO INSERT: PAGES 84–85</div>
+    </div>
+  </header>
+
+  <!-- Main Shell -->
+  <main class="shell">
+
+    <!-- Double-Page Spread -->
+    <article class="double-page-spread">
+
+      <!-- Left Page (Page 84) -->
+      <section class="page-left">
+        <div>
+          <div class="left-eyebrow">HAUTE COUTURE // SCULPTURAL FORM</div>
+          <h2 class="oversized-display-title">AVANT-GARDE &amp; THE ATELIER: SCULPTING IN SILK &amp; CARBON</h2>
+        </div>
+
+        <!-- High-Fashion Atelier SVG Graphic -->
+        <div class="fashion-visual-box">
+          <svg class="fashion-svg" viewBox="0 0 600 380" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#fdf2e9"/>
+
+            <!-- Geometric Grid & Editorial Lines -->
+            <line x1="50" y1="20" x2="50" y2="360" stroke="#134e4a" stroke-width="0.75" opacity="0.3"/>
+            <line x1="550" y1="20" x2="550" y2="360" stroke="#134e4a" stroke-width="0.75" opacity="0.3"/>
+            <line x1="50" y1="190" x2="550" y2="190" stroke="#134e4a" stroke-width="0.75" opacity="0.2"/>
+
+            <!-- Sculptural Garment Silhouette Geometry -->
+            <path d="M 300 40 C 260 90, 230 160, 200 240 C 180 290, 140 330, 110 350 L 490 350 C 460 330, 420 290, 400 240 C 370 160, 340 90, 300 40 Z" fill="#134e4a" opacity="0.9"/>
+            
+            <!-- Contrasting Rose Pleats & Carbon Ribs -->
+            <path d="M 300 40 Q 320 180 380 350" stroke="#e11d48" stroke-width="3" fill="none"/>
+            <path d="M 300 40 Q 280 180 220 350" stroke="#e11d48" stroke-width="3" fill="none"/>
+            <path d="M 300 80 Q 360 210 440 350" stroke="#e11d48" stroke-width="2" stroke-dasharray="4 2" fill="none"/>
+            <path d="M 300 80 Q 240 210 160 350" stroke="#e11d48" stroke-width="2" stroke-dasharray="4 2" fill="none"/>
+
+            <!-- Golden Ratio Ring -->
+            <circle cx="300" cy="190" r="110" stroke="#134e4a" stroke-width="1.2" stroke-dasharray="6 4"/>
+            <circle cx="300" cy="80" r="18" fill="#e11d48"/>
+
+            <!-- Atelier Technical Coordinates -->
+            <text x="70" y="55" fill="#134e4a" font-family="'Source Code Pro', monospace" font-size="10" letter-spacing="1">PATTERN CUT: A-84 // 14 BIAS DARTS</text>
+            <text x="70" y="70" fill="#e11d48" font-family="'Source Code Pro', monospace" font-size="10" letter-spacing="1">TENSILE LOAD: 420 MPA</text>
+          </svg>
+        </div>
+
+        <!-- Art Critique Caption -->
+        <div class="art-critique-caption">
+          <div class="caption-fig-label">FIG. 04 — SCULPTURAL DRAPERY IN RAW SILK &amp; CARBON FIBER</div>
+          <p class="caption-text">
+            Exhibited at the Milan Triennale, the garment merges aerospace-grade carbon prepreg filament with 18-momme mulberry habotai silk, questioning the boundary between protection and bodily adornment.
+          </p>
+        </div>
+
+        <!-- Page 84 Folio -->
+        <div class="page-folio-footer">
+          <span>MAGSPREAD EDITORIAL</span>
+          <span>PAGE 84</span>
+        </div>
+      </section>
+
+      <!-- Right Page (Page 85) -->
+      <section class="page-right">
+        <div>
+          <div class="right-page-header">
+            <span>DISCOURSE // TEXTILE PHILOSOPHY</span>
+            <span class="author-critique-byline">ESSAY BY VALENTINA MORI</span>
+          </div>
+
+          <!-- Asymmetric Editorial Columns -->
+          <div class="asymmetric-columns">
+
+            <!-- Narrow Left Sub-Column: Critique Notes -->
+            <div class="critique-subcol">
+              <div class="subcol-kicker">CURATOR’S MARGINALIA</div>
+              <p class="subcol-text">
+                The tension between structural rigidity and fluid motion reflects our wider cultural anxiety concerning technological prosthetics.
+              </p>
+              <div class="subcol-kicker">CHROMATIC PALETTE</div>
+              <div class="palette-swatches">
+                <div class="swatch" style="background:#134e4a;" title="Teal Primary"></div>
+                <div class="swatch" style="background:#e11d48;" title="Rose Secondary"></div>
+                <div class="swatch" style="background:#fdf2e9;" title="Warm Cream Base"></div>
+                <div class="swatch" style="background:#262626;" title="Obsidian Shadow"></div>
+              </div>
+            </div>
+
+            <!-- Wider Right Sub-Column: Main Essay Narrative -->
+            <div class="narrative-subcol">
+              <p class="drop-cap-paragraph">
+                Fashion has long ceased to function merely as covering. In the hands of contemporary atelier sculptors, garment construction has transformed into an aggressive architectural argument regarding space, volume, and bodily containment.
+              </p>
+              <p class="narrative-paragraph">
+                Where 20th-century couture sought to flatter or drape, the post-digital atelier builds cantilevered scaffolds. The silhouette no longer concedes to the anatomy; instead, the body is reconfigured as an internal armature supporting an autonomous kinetic sculpture.
+              </p>
+            </div>
+
+          </div>
+
+          <!-- Fashion Pull Quote Banner -->
+          <div class="fashion-pullquote">
+            <div class="pullquote-quote">
+              “True haute couture does not decorate the body; it constructs a new monument upon it.”
+            </div>
+            <div class="pullquote-attr">— VALENTINA MORI, CURATOR OF APPLIED ARTS</div>
+          </div>
+        </div>
+
+        <!-- Page 85 Folio -->
+        <div class="page-folio-footer">
+          <span>AUTUMN 2026 // ISSUE 114</span>
+          <span>PAGE 85</span>
+        </div>
+      </section>
+
+    </article>
+
+  </main>
+
+</body>
+</html>

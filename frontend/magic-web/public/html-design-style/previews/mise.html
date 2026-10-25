@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mise — Culinary Kitchen Display System (KDS) &amp; Expeditor Board</title>
+  <style>
+    :root {
+      --bg: #FDF6EC;
+      --surface: #F8EFE0;
+      --surface-elevated: #FFFFFF;
+      --surface-sunken: #F0E5D2;
+      --paprika: #C2410C;
+      --paprika-deep: #9A3412;
+      --paprika-soft: #FBE5D3;
+      --olive: #65A30D;
+      --olive-deep: #4D7C0F;
+      --ink: #1C1410;
+      --ink-muted: #5C4E45;
+      --ink-subtle: #8E8276;
+      --ink-faint: #BEB3A5;
+      --outline: #E5D9C3;
+      --outline-strong: #C9B89A;
+      --warning: #D97706;
+      --danger: #B91C1C;
+      --font-serif: Georgia, "Source Serif 4", "GT Sectra", serif;
+      --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", Menlo, Consolas, monospace;
+      --radius-card: 12px;
+      --radius-pill: 999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 30px;
+    }
+
+    .kds-header { height: 54px; background: var(--surface); border-bottom: 2px solid var(--outline); padding: 0 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .station-cluster { display: flex; align-items: center; gap: 12px; }
+    .chef-badge { width: 34px; height: 34px; background: var(--paprika); color: #FFF; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: var(--font-serif); font-size: 18px; font-weight: 700; }
+    .station-title { font-family: var(--font-serif); font-size: 17px; font-weight: 700; color: var(--ink); }
+    .station-subtitle { font-size: 11px; color: var(--ink-muted); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .service-clock { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink); background: var(--surface-sunken); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--outline); }
+    .btn-bell-alert { background: var(--paprika); color: #FFF; border: none; border-radius: var(--radius-pill); padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .container { max-width: 1320px; margin: 16px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
+    .tickets-section-head { display: flex; justify-content: space-between; align-items: center; }
+    .section-title { font-family: var(--font-serif); font-size: 17px; font-weight: 700; color: var(--ink); }
+    .tickets-meta { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-muted); }
+    .tickets-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .ticket-card { background: var(--surface-elevated); border: 2px solid var(--outline); border-radius: var(--radius-card); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 4px 14px rgba(28, 20, 16, 0.05); }
+    .ticket-card.urgent { border-color: var(--paprika); box-shadow: 0 4px 18px rgba(194, 65, 12, 0.15); }
+    .ticket-card.in-progress { border-color: var(--olive); }
+    .ticket-header { background: var(--surface); border-bottom: 1px solid var(--outline); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
+    .ticket-id { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--ink); }
+    .ticket-table { font-family: var(--font-serif); font-size: 13px; font-weight: 700; color: var(--paprika-deep); }
+    .ticket-timer-pill { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--radius-pill); display: flex; align-items: center; gap: 4px; }
+    .pill-late { background: var(--paprika-soft); color: var(--paprika-deep); border: 1px solid var(--paprika); }
+    .pill-fire { background: #EAF3DC; color: var(--olive-deep); border: 1px solid var(--olive); }
+    .pill-new { background: var(--surface-sunken); color: var(--ink-muted); }
+    .ticket-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .order-item-row { display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; border-bottom: 1px dashed var(--outline); }
+    .order-item-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .item-main-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .item-qty-name { display: flex; align-items: baseline; gap: 6px; }
+    .item-qty { font-family: var(--font-mono); font-weight: 700; font-size: 13.5px; color: var(--paprika); }
+    .item-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+    .course-tag { font-size: 9.5px; font-family: var(--font-mono); text-transform: uppercase; background: var(--surface-sunken); padding: 1px 5px; border-radius: 3px; color: var(--ink-subtle); }
+    .item-notes { font-size: 11px; color: var(--ink-muted); padding-left: 18px; }
+    .item-allergy { font-size: 10.5px; font-weight: 700; color: var(--danger); background: #FEE2E2; padding: 1px 5px; border-radius: 3px; display: inline-block; margin-top: 2px; margin-left: 18px; }
+    .ticket-footer { background: var(--surface); border-top: 1px solid var(--outline); padding: 8px 10px; display: flex; gap: 6px; }
+    .btn-bump { flex: 1; background: var(--paprika); color: #FFF; border: none; border-radius: 6px; padding: 7px; font-size: 11.5px; font-weight: 700; cursor: pointer; text-align: center; }
+    .btn-hold { background: var(--surface-sunken); border: 1px solid var(--outline); color: var(--ink-muted); border-radius: 6px; padding: 7px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+    .kds-lower-split { display: grid; grid-template-columns: 7fr 5fr; gap: 14px; }
+    .prep-card { background: var(--surface-elevated); border: 1.5px solid var(--outline); border-radius: var(--radius-card); padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .prep-header { display: flex; justify-content: space-between; align-items: center; }
+    .prep-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .prep-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-subtle); border-bottom: 1px solid var(--outline); padding: 6px 8px; }
+    .prep-table td { padding: 7px 8px; border-bottom: 1px solid var(--outline); }
+    .prep-table tr.completed td { color: var(--ink-faint); text-decoration: line-through; }
+    .prep-check-box { width: 16px; height: 16px; border-radius: 3px; border: 1.5px solid var(--outline-strong); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; }
+    .prep-check-box.checked { background: var(--olive); border-color: var(--olive); color: #FFF; }
+    .expeditor-panel { background: var(--surface); border: 1.5px solid var(--outline); border-radius: var(--radius-card); padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .expeditor-alert-banner { background: var(--paprika-soft); border-left: 4px solid var(--paprika); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+    .alert-banner-title { font-size: 12px; font-weight: 700; color: var(--paprika-deep); display: flex; align-items: center; gap: 5px; }
+    .alert-banner-text { font-size: 11.5px; color: var(--ink); }
+    .pacing-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .pacing-box { background: var(--surface-sunken); border: 1px solid var(--outline); border-radius: 6px; padding: 8px 10px; }
+    .pacing-num { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--ink); }
+    .pacing-lbl { font-size: 10.5px; color: var(--ink-subtle); text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+  <!-- Top KDS Pass Header -->
+  <header class="kds-header">
+    <div class="station-cluster">
+      <div class="chef-badge">M</div>
+      <div>
+        <div class="station-title">Mise &mdash; Sauté &amp; Rotisserie Line</div>
+        <div class="station-subtitle">Pass Station 01 &bull; Service Shift: Dinner</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="service-clock">19:42:18 &bull; DINNER RUSH</div>
+      <button class="btn-bell-alert">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        RING EXPEDITOR BELL
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Active Line Ticket Board (First 500px High Impact) -->
+    <div class="tickets-section-head">
+      <div class="section-title">Active Order Line Tickets</div>
+      <div class="tickets-meta">3 Tickets on Rail &bull; Avg Wait: 11m &bull; Longest: 14m (Table 8)</div>
+    </div>
+
+    <div class="tickets-grid">
+
+      <!-- Ticket #42 (Urgent / 14m Elapsed) -->
+      <div class="ticket-card urgent">
+        <div class="ticket-header">
+          <div>
+            <span class="ticket-id">Ticket #42</span>
+            <span class="ticket-table"> &bull; Table 8</span>
+          </div>
+          <div class="ticket-timer-pill pill-late">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            14m elapsed
+          </div>
+        </div>
+
+        <div class="ticket-body">
+          <div class="order-item-row">
+            <div class="item-main-row">
+              <div class="item-qty-name">
+                <span class="item-qty">2x</span>
+                <span class="item-name">Pan-Roasted Duck Breast</span>
+              </div>
+              <span class="course-tag">PLATS</span>
+            </div>
+            <div class="item-notes">Confit shallot puree, charred broccolini, duck jus.</div>
+            <span class="item-allergy">! NUT ALLERGY — DO NOT GARNISH</span>
+          </div>
+
+          <div class="order-item-row">
+            <div class="item-main-row">
+              <div class="item-qty-name">
+                <span class="item-qty">1x</span>
+                <span class="item-name">Ribeye 12oz (Dry-Aged)</span>
+              </div>
+              <span class="course-tag">GRILL</span>
+            </div>
+            <div class="item-notes">Medium-rare, marrow bone butter, bone marrow frites.</div>
+          </div>
+        </div>
+
+        <div class="ticket-footer">
+          <button class="btn-bump">BUMP TICKET &gt;</button>
+          <button class="btn-hold">HOLD</button>
+        </div>
+      </div>
+
+      <!-- Ticket #45 (In Progress / 8m Elapsed) -->
+      <div class="ticket-card in-progress">
+        <div class="ticket-header">
+          <div>
+            <span class="ticket-id">Ticket #45</span>
+            <span class="ticket-table"> &bull; Table 12</span>
+          </div>
+          <div class="ticket-timer-pill pill-fire">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            8m elapsed
+          </div>
+        </div>
+
+        <div class="ticket-body">
+          <div class="order-item-row">
+            <div class="item-main-row">
+              <div class="item-qty-name">
+                <span class="item-qty">1x</span>
+                <span class="item-name">Hand-Cut Pappardelle</span>
+              </div>
+              <span class="course-tag">PASTA</span>
+            </div>
+            <div class="item-notes">Slow-braised wild boar ragu, shaved pecorino.</div>
+          </div>
+
+          <div class="order-item-row">
+            <div class="item-main-row">
+              <div class="item-qty-name">
+                <span class="item-qty">2x</span>
+                <span class="item-name">Pan-Seared Dayboat Scallops</span>
+              </div>
+              <span class="course-tag">FISH</span>
+            </div>
+            <div class="item-notes">Sweet corn velouté, crispy pancetta lardons.</div>
+          </div>
+        </div>
+
+        <div class="ticket-footer">
+          <button class="btn-bump" style="background: var(--olive);">BUMP TICKET &gt;</button>
+          <button class="btn-hold">HOLD</button>
+        </div>
+      </div>
+
+      <!-- Ticket #46 (New / 3m Elapsed) -->
+      <div class="ticket-card">
+        <div class="ticket-header">
+          <div>
+            <span class="ticket-id">Ticket #46</span>
+            <span class="ticket-table"> &bull; Table 3</span>
+          </div>
+          <div class="ticket-timer-pill pill-new">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            3m elapsed
+          </div>
+        </div>
+
+        <div class="ticket-body">
+          <div class="order-item-row">
+            <div class="item-main-row">
+              <div class="item-qty-name">
+                <span class="item-qty">1x</span>
+                <span class="item-name">Crispy Skin Halibut</span>
+              </div>
+              <span class="course-tag">FISH</span>
+            </div>
+            <div class="item-notes">Saffron fumet, fennel pollen, fingerling chips.</div>
+          </div>
+
+          <div class="order-item-row">
+            <div class="item-main-row">
+              <div class="item-qty-name">
+                <span class="item-qty">1x</span>
+                <span class="item-name">Heirloom Tomato Salad</span>
+              </div>
+              <span class="course-tag">GARDE</span>
+            </div>
+            <div class="item-notes">Whipped goat cheese, basil oil, aged balsamic.</div>
+          </div>
+        </div>
+
+        <div class="ticket-footer">
+          <button class="btn-bump">START FIRE</button>
+          <button class="btn-hold">HOLD</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Lower Section: Ingredient Prep Checklist & Expeditor Sync -->
+    <div class="kds-lower-split">
+
+      <!-- Ingredient Prep Checklist (Mise en Place Station Board) -->
+      <section class="prep-card">
+        <div class="prep-header">
+          <div class="section-title">Mise en Place &mdash; Station Prep Checklist</div>
+          <span style="font-family: var(--font-mono); font-size: 11.5px; color: var(--olive-deep); font-weight: 700;">85% PREPPED</span>
+        </div>
+
+        <table class="prep-table">
+          <thead>
+            <tr>
+              <th style="width: 36px;"></th>
+              <th>Ingredient Component</th>
+              <th>Station</th>
+              <th>Par Level</th>
+              <th>Quantity Remaining</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="completed">
+              <td><div class="prep-check-box checked">&#10003;</div></td>
+              <td><strong>Duck Jus Reduction (Thyme &amp; Shallot)</strong></td>
+              <td>Sauce</td>
+              <td>2.0 L</td>
+              <td style="font-family: var(--font-mono);">1.8 L</td>
+            </tr>
+            <tr class="completed">
+              <td><div class="prep-check-box checked">&#10003;</div></td>
+              <td><strong>Slow-Confit Baby Shallots</strong></td>
+              <td>Sauté</td>
+              <td>40 pcs</td>
+              <td style="font-family: var(--font-mono);">34 pcs</td>
+            </tr>
+            <tr>
+              <td><div class="prep-check-box"></div></td>
+              <td><strong>Hand-Cut Pappardelle Portions</strong></td>
+              <td>Pasta</td>
+              <td>24 portions</td>
+              <td style="font-family: var(--font-mono); font-weight: 700; color: var(--paprika);">6 portions (LOW)</td>
+            </tr>
+            <tr>
+              <td><div class="prep-check-box"></div></td>
+              <td><strong>Dayboat Scallops Cleaned &amp; Dried</strong></td>
+              <td>Fish</td>
+              <td>30 pcs</td>
+              <td style="font-family: var(--font-mono);">18 pcs</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Expeditor Coordination & Pacing Panel -->
+      <aside class="expeditor-panel">
+        <div class="prep-header">
+          <div class="section-title">Expeditor Line Coordination</div>
+          <span style="font-family: var(--font-mono); font-size: 11.5px; color: var(--paprika); font-weight: 700;">PASS SYNCED</span>
+        </div>
+
+        <div class="expeditor-alert-banner">
+          <div class="alert-banner-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Expeditor Alert: Table 8 Duck Plate Late
+          </div>
+          <div class="alert-banner-text">
+            Line Chef: Please prioritize Table 8 Duck. Guest wine pairing has been poured.
+          </div>
+        </div>
+
+        <div class="pacing-stats-grid">
+          <div class="pacing-box">
+            <div class="pacing-num">12m 45s</div>
+            <div class="pacing-lbl">Average Ticket Time</div>
+          </div>
+          <div class="pacing-box">
+            <div class="pacing-num">98.2%</div>
+            <div class="pacing-lbl">Order Accuracy Rate</div>
+          </div>
+        </div>
+
+        <button class="btn-bump" style="width: 100%; padding: 10px; font-size: 13px;">
+          Call Server to Pass (Table 8 Ready)
+        </button>
+      </aside>
+
+    </div>
+
+  </main>
+
+</body>
+</html>

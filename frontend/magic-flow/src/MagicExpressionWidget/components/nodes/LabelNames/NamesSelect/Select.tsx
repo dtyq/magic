@@ -1,4 +1,4 @@
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import React, { useMemo, useRef } from "react"
 import Options from "./Options"
 
@@ -36,7 +36,7 @@ function NamesSelect({
 	const { currentNode } = useCurrentNode()
 
 	const displayValue = useMemo(() => {
-		return _.cloneDeep(value)
+		return cloneDeep(value)
 	}, [value, edges, currentNode])
 
 	const itemClick = useMemoizedFn((val: Names) => {

@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { AnimatePresence } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicSpin from "@/components/base/MagicSpin"
 import { Flex } from "antd"
 import { ScheduledTaskApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { projectStore } from "@/pages/superMagic/stores/core"
 import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { shouldWaitForShareAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import AICardConfigPanel from "./components/AICardConfigPanel"
 import AICardDashboard from "./components/AICardDashboard"
 import AICardDetail from "./components/AICardDetail"
@@ -46,8 +49,7 @@ function resolveAICardAttachmentSource({
 	attachments,
 	attachmentList,
 }: Pick<AICardRootRenderProps, "data" | "attachments" | "attachmentList">):
-	| AICardRootRenderProps["attachments"]
-	| undefined {
+	AICardRootRenderProps["attachments"] | undefined {
 	const folderFileId = data?.file_id
 	const attachmentTree = attachments as AICardAttachmentNode[] | undefined
 	const flatAttachments = attachmentList as AICardAttachmentNode[] | undefined
@@ -70,6 +72,20 @@ function resolveAICardAttachmentSource({
  * between dashboard tiles and the detail view.
  */
 function AICardRootRender(props: AICardRootRenderProps) {
+	const fileAccess = useFileAccess()
+	if (shouldWaitForShareAccess(fileAccess)) {
+		return (
+			<Flex className="h-full w-full items-center justify-center">
+				<MagicSpin />
+			</Flex>
+		)
+	}
+	return <AICardRootRenderReady {...props} />
+}
+
+const AICardRootRenderReady = observer(function AICardRootRenderReady(
+	props: AICardRootRenderProps,
+) {
 	const { data, attachments, attachmentList, className } = props
 	const { t } = useTranslation("super")
 
@@ -82,7 +98,10 @@ function AICardRootRender(props: AICardRootRenderProps) {
 	)
 
 	// Create store instance per mount
-	const [store] = useState(() => new AICardStore())
+	const fileApi = useFileApi()
+	// Inject the access-bound file client at this React boundary: AI Card previews are
+	// mounted on share pages where the unbound leaves fail closed for magic.project.js.
+	const store = useMemo(() => new AICardStore(fileApi), [fileApi])
 	const [isRunNowLoading, setIsRunNowLoading] = useState(false)
 	const selectedProject =
 		props.selectedProject ??
@@ -237,6 +256,6 @@ function AICardRootRender(props: AICardRootRenderProps) {
 			</AnimatePresence>
 		</div>
 	)
-}
+})
 
-export default observer(AICardRootRender)
+export default AICardRootRender

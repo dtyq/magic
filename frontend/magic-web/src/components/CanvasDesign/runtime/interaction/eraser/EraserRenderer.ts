@@ -10,7 +10,10 @@ export interface EraserPoint {
 	y: number
 }
 
+export type EraserStrokeMode = "erase" | "restore"
+
 export interface EraserStroke {
+	mode: EraserStrokeMode
 	radius: number
 	points: EraserPoint[]
 }
@@ -60,12 +63,20 @@ export class EraserRenderer {
 	private brushSurfaceKey = ""
 
 	private sessionUpdateHandler?: (event: {
-		data: { elementId: string; radius: number; strokeCount: number; canUndo: boolean }
+		data: {
+			elementId: string
+			radius: number
+			strokeCount: number
+			canUndo: boolean
+			canRedo: boolean
+		}
 	}) => void
 
 	private elementBounds: { width: number; height: number } | null = null
 	private isDrawing = false
 	private currentStrokePoints: EraserPoint[] = []
+	/** 一笔开始后锁定模式，避免按键在拖动途中改变已绘制路径的语义。 */
+	private currentStrokeMode: EraserStrokeMode | null = null
 	private brushVisualRafId = 0
 	/** pushStroke 与 finishStroke 同栈时由 session 回调刷新笔迹，避免重复 batchDraw */
 	private suppressSessionBatchDraw = false
@@ -206,6 +217,7 @@ export class EraserRenderer {
 
 		this.isDrawing = true
 		this.currentStrokePoints = [point]
+		this.currentStrokeMode = this.manager.getMode()
 		this.cancelBrushVisualRefresh()
 		const snapshot = this.captureBrushSnapshot()
 		if (this.ensureBrushSurfaces(snapshot)) {
@@ -250,17 +262,19 @@ export class EraserRenderer {
 		this.cancelBrushVisualRefresh()
 
 		const radius = this.manager.getRadius()
+		const mode = this.currentStrokeMode ?? this.manager.getMode()
 		const pointsToCommit =
 			commit && this.currentStrokePoints.length > 0
 				? this.currentStrokePoints.map((point) => ({ ...point }))
 				: []
 
 		this.currentStrokePoints = []
+		this.currentStrokeMode = null
 
 		if (pointsToCommit.length > 0) {
 			this.suppressSessionBatchDraw = true
 			try {
-				this.manager.pushStroke({ radius, points: pointsToCommit })
+				this.manager.pushStroke({ mode, radius, points: pointsToCommit })
 			} finally {
 				this.suppressSessionBatchDraw = false
 			}
@@ -378,6 +392,8 @@ export class EraserRenderer {
 		this.applySharedBrushStrokeStyle(ctx)
 		for (let i = 0; i < committedStrokes.length; i += 1) {
 			const stroke = committedStrokes[i]
+			ctx.globalCompositeOperation =
+				stroke.mode === "restore" ? "destination-out" : "source-over"
 			ctx.lineWidth = stroke.radius * 2
 			this.strokePolylinePath(ctx, stroke.points)
 		}
@@ -406,6 +422,8 @@ export class EraserRenderer {
 			dctx.scale(previewPr, previewPr)
 			dctx.translate(pad, pad)
 			this.applySharedBrushStrokeStyle(dctx)
+			dctx.globalCompositeOperation =
+				this.currentStrokeMode === "restore" ? "destination-out" : "source-over"
 			dctx.lineWidth = previewRadius * 2
 			this.strokePolylinePath(dctx, this.currentStrokePoints)
 			dctx.restore()

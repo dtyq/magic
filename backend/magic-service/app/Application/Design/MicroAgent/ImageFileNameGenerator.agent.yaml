@@ -1,5 +1,5 @@
 ---
-model_id: deepseek-v3.2
+model_id: deepseek-v4-flash
 ai_ability_code: smart_rename
 temperature: 0.6
 max_tokens: 50
@@ -21,6 +21,9 @@ system: |
   5. 英文文件名使用小写字母，单词间用下划线连接
   6. 只返回文件名本身，不要返回任何解释或其他文字
   7. 不要添加扩展名（.jpg/.png等）
+  8. [图片1]、[视频1]、[音频1]、[image1]、[video1]、[audio1]、{{image_1}}、{{video_1}}、{{audio_1}}、@图片1、@视频1 等都是提示词中的素材引用占位符，不是文件名内容。
+  9. 文件名中禁止出现任何素材引用占位符；只提取真实的主体、场景或设计语义。
+  10. 如果提示词只有素材引用而没有可提取的语义，返回空值。
   
   示例：
   - 提示词："生成一只可爱的小火龙，站在草地上" -> "小火龙"
@@ -28,5 +31,4 @@ system: |
   - 提示词："画一幅日落时分的海边风景" -> "日落海景"
   - 提示词："modern office interior design" -> "office_interior"
   - 提示词："科技感的未来城市，赛博朋克风格" -> "未来城市"
-
 

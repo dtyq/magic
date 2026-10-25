@@ -201,7 +201,7 @@ export function buildProjectActionMenuItems<T extends ProjectItemLike>({
 			),
 			visible:
 				isWorkspaceShortcutProjectStatus &&
-				(inCollaborationPanel ? hasBoundWorkspace : true) &&
+				hasBoundWorkspace &&
 				!!onCancelWorkspaceShortcut,
 		},
 		{

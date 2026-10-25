@@ -3,5 +3,8 @@ import type { MentionPanelCatalogPlugin } from "../../registry-types"
 
 export const mcpCatalogPlugin: MentionPanelCatalogPlugin = {
 	catalogId: MentionPanelCatalogId.MCP_EXTENSIONS,
-	resolveCatalog: ({ store }) => store.mcpStore.getItems(),
+	resolveCatalog: async ({ store }) => {
+		await store.mcpStore.fetchItems()
+		return store.mcpStore.getItems()
+	},
 }

@@ -10,7 +10,7 @@ import { BrowserProvider } from "@/providers/BrowserProvider"
 import type { ClusterLoginSession } from "@/layouts/ClusterLayout/cluster-login"
 import { i18nStore } from "@/models/config/stores/i18n.store"
 
-import { service } from "./service"
+import { createService } from "./service"
 import { withLoginService } from "../../../layouts/SSOLayout/providers/LoginServiceProvider"
 
 const AccountModal = lazy(() => import("./AccountModal"))
@@ -26,43 +26,47 @@ export interface AccountModalParams {
 
 let activeModal: ClusterLoginSession | null = null
 
-const Account = withLoginService(
-	(props: { onClose: () => void } & AccountModalParams) => {
-		const [open, setOpen] = useState(false)
+const AccountView = (props: { onClose: () => void } & AccountModalParams) => {
+	const [open, setOpen] = useState(false)
 
-		useEffect(() => {
-			setTimeout(() => {
-				setOpen(true)
-			}, 300)
-		}, [])
+	useEffect(() => {
+		setTimeout(() => {
+			setOpen(true)
+		}, 300)
+	}, [])
 
-		return (
-			<BrowserRouter>
-				<LoadingFallback>
-					<AppearanceProvider>
-						<GlobalErrorBoundary>
-							<AntdApp>
-								<AccountModal
-									onClose={props?.onClose}
-									open={open}
-									clusterCode={props?.clusterCode}
-									onClusterChange={props?.onClusterChange}
-									zIndex={props?.zIndex}
-								/>
-							</AntdApp>
-						</GlobalErrorBoundary>
-					</AppearanceProvider>
-				</LoadingFallback>
-			</BrowserRouter>
-		)
-	},
-	{ service, syncFromGlobalClusterCode: false },
-)
+	return (
+		<BrowserRouter>
+			<LoadingFallback>
+				<AppearanceProvider>
+					<GlobalErrorBoundary>
+						<AntdApp>
+							<AccountModal
+								onClose={props?.onClose}
+								open={open}
+								clusterCode={props?.clusterCode}
+								onClusterChange={props?.onClusterChange}
+								zIndex={props?.zIndex}
+							/>
+						</AntdApp>
+					</GlobalErrorBoundary>
+				</AppearanceProvider>
+			</LoadingFallback>
+		</BrowserRouter>
+	)
+}
 
 export default function openAccountModal(params?: AccountModalParams): ClusterLoginSession {
 	if (activeModal) {
 		return activeModal
 	}
+
+	const ownedService = createService()
+	const Account = withLoginService(AccountView, {
+		service: ownedService.service,
+		syncFromGlobalClusterCode: false,
+		syncClusterConfig: false,
+	})
 
 	const root = document.createElement("div")
 	document.body.appendChild(root)
@@ -72,6 +76,7 @@ export default function openAccountModal(params?: AccountModalParams): ClusterLo
 	const onClose = () => {
 		if (isClosed) return
 		isClosed = true
+		ownedService.dispose()
 		dom.unmount()
 		root.parentNode?.removeChild(root)
 		activeModal = null

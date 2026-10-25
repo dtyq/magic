@@ -20,7 +20,7 @@ interface UseDragUploadOptions {
 	debug?: boolean
 	attachments?: AttachmentItem[]
 	duplicateFileHandler?: ReturnType<typeof useDuplicateFileHandler>
-	onUpdateAttachments?: () => void
+	onUpdateAttachments?: (sourceProjectId?: string) => void
 }
 
 interface UseDragUploadReturn {
@@ -56,12 +56,13 @@ export function useDragUpload({
 
 	// 实际上传处理函数（用于单个文件上传）
 	const processFilesUpload = useCallback(
-		async (files: File[], parentId?: string) => {
+		async (files: File[], parentId?: string, parentIdOverride?: string) => {
+			const resolvedParentId = parentIdOverride ?? parentId
 			const refreshCoordinator = createUploadRefreshCoordinator({
 				uploadType: "file",
 				projectFiles: attachments,
 				uploadFileCount: files.length,
-				onUpdateAttachments,
+				onUpdateAttachments: () => onUpdateAttachments?.(projectId),
 			})
 
 			let firstError: unknown
@@ -69,7 +70,7 @@ export function useDragUpload({
 			// File upload: create one task per file sequentially to avoid Promise spikes.
 			for (const file of files) {
 				try {
-					await multiFolderUploadStore.createUploadTask([file], parentId, {
+					await multiFolderUploadStore.createUploadTask([file], resolvedParentId, {
 						projectId: projectId || "",
 						fileScope,
 						workspaceId,
@@ -109,9 +110,15 @@ export function useDragUpload({
 							})
 						},
 					})
-					refreshCoordinator.markTaskCreated({ fileName: file.name, parentId })
+					refreshCoordinator.markTaskCreated({
+						fileName: file.name,
+						parentId: resolvedParentId,
+					})
 				} catch (error) {
-					refreshCoordinator.markTaskCreateFailed({ fileName: file.name, parentId })
+					refreshCoordinator.markTaskCreateFailed({
+						fileName: file.name,
+						parentId: resolvedParentId,
+					})
 					firstError = firstError || error
 				}
 			}
@@ -135,17 +142,23 @@ export function useDragUpload({
 
 	// 实际上传处理函数（用于文件夹上传）
 	const processFolderUpload = useCallback(
-		async (files: File[], parentId?: string) => {
+		async (
+			files: File[],
+			parentId?: string,
+			parentIdOverride?: string,
+			displayName?: string,
+		) => {
+			const resolvedParentId = parentIdOverride ?? parentId
 			const refreshCoordinator = createUploadRefreshCoordinator({
 				uploadType: "folder",
 				projectFiles: attachments,
 				uploadFileCount: files.length,
-				onUpdateAttachments,
+				onUpdateAttachments: () => onUpdateAttachments?.(projectId),
 			})
 
 			if (debug) {
 				console.log("📁 [processFolderUpload] 开始上传文件夹:")
-				console.log("  ↳ parentId:", parentId)
+				console.log("  ↳ parentId:", resolvedParentId)
 				console.log("  ↳ files 详情:")
 				files.forEach((file) => {
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,7 +169,7 @@ export function useDragUpload({
 
 			// 文件夹上传：所有文件作为一个上传任务
 			try {
-				await multiFolderUploadStore.createUploadTask(files, parentId, {
+				await multiFolderUploadStore.createUploadTask(files, resolvedParentId, {
 					projectId: projectId || "",
 					fileScope,
 					workspaceId,
@@ -165,6 +178,7 @@ export function useDragUpload({
 					taskId: "",
 					storageType: "workspace",
 					source: UploadSource.ProjectFile,
+					displayName,
 					onComplete: (taskId: string) => {
 						if (debug) {
 							console.log(`📁 文件夹上传任务 ${taskId} 完成`)
@@ -190,9 +204,15 @@ export function useDragUpload({
 						refreshCoordinator.handleBatchSaveComplete(batchSaveInfo)
 					},
 				})
-				refreshCoordinator.markTaskCreated({ filesCount: files.length, parentId })
+				refreshCoordinator.markTaskCreated({
+					filesCount: files.length,
+					parentId: resolvedParentId,
+				})
 			} catch (error) {
-				refreshCoordinator.markTaskCreateFailed({ filesCount: files.length, parentId })
+				refreshCoordinator.markTaskCreateFailed({
+					filesCount: files.length,
+					parentId: resolvedParentId,
+				})
 				throw error
 			}
 		},

@@ -30,6 +30,8 @@ use Throwable;
  */
 class ClientMessageAppService extends AbstractAppService
 {
+    public const string USER_TOOL_CALL_RECOVERY_FAILED_EVENT = 'user_tool_call_recovery_failed';
+
     protected LoggerInterface $logger;
 
     public function __construct(
@@ -250,7 +252,8 @@ class ClientMessageAppService extends AbstractAppService
         string $chatConversationId,
         string $remind = '',
         string $remindEvent = '',
-        ?array $dynamicParams = null
+        ?array $dynamicParams = null,
+        ?array $data = null
     ): void {
         try {
             $messageId = IdGenerator::getSnowId();
@@ -263,6 +266,7 @@ class ClientMessageAppService extends AbstractAppService
                     $chatConversationId,
                     $remind,
                     TaskStatus::Suspended->value,
+                    $data,
                 );
             } else {
                 $message = $this->createSuperAgentMessage(
@@ -305,6 +309,40 @@ class ClientMessageAppService extends AbstractAppService
     }
 
     /**
+     * 发送用户工具回答的恢复提示。
+     *
+     * 这条消息只作为前端 Tip 的事件载体，不进入消息列表，也不会把任务标记为错误。
+     */
+    public function sendUserToolCallRecoveryTipToClient(
+        int $topicId,
+        string $taskId,
+        string $chatTopicId,
+        string $chatConversationId,
+        string $toolCallId,
+    ): void {
+        try {
+            $messageId = IdGenerator::getSnowId();
+            $this->sendV2StatusMessage(
+                messageId: $messageId,
+                topicId: $topicId,
+                taskId: $taskId,
+                chatTopicId: $chatTopicId,
+                chatConversationId: $chatConversationId,
+                content: '',
+                status: TaskStatus::WAITING_FOR_USER->value,
+                event: self::USER_TOOL_CALL_RECOVERY_FAILED_EVENT,
+                toolCallId: $toolCallId,
+            );
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to send user tool call recovery tip to client: %s, Task ID: %s',
+                $e->getMessage(),
+                $taskId
+            ));
+        }
+    }
+
+    /**
      * 根据动态参数判断消息结构版本，未指定时默认使用 v2。
      */
     private function shouldUseV2Message(?array $dynamicParams): bool
@@ -328,18 +366,32 @@ class ClientMessageAppService extends AbstractAppService
         string $chatTopicId,
         string $chatConversationId,
         string $content,
-        string $status
+        string $status,
+        ?array $data = null,
+        string $event = '',
+        string $toolCallId = '',
     ): void {
+        $innerMessage = [
+            'message_id' => (string) $messageId,
+            'topic_id' => (string) $topicId,
+            'task_id' => $taskId,
+            'role' => 'assistant',
+            'content' => $content,
+            'status' => $status,
+        ];
+        if ($data !== null) {
+            $innerMessage['data'] = $data;
+        }
+        if ($event !== '') {
+            $innerMessage['event'] = $event;
+        }
+        if ($toolCallId !== '') {
+            $innerMessage['tool_call_id'] = $toolCallId;
+        }
+
         $rawContent = [
             'type' => ChatMessageType::SuperMagicMessage->value,
-            'super_magic_message' => [
-                'message_id' => (string) $messageId,
-                'topic_id' => (string) $topicId,
-                'task_id' => $taskId,
-                'role' => 'assistant',
-                'content' => $content,
-                'status' => $status,
-            ],
+            'super_magic_message' => $innerMessage,
         ];
 
         $this->sendMessageToClient(

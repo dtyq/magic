@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TeamSync — Enterprise Team Standup &amp; Async Hub</title>
+<style>
+  :root {
+    --primary: #7C3AED;
+    --primary-hover: #6D28D9;
+    --primary-light: #F5F3FF;
+    --secondary: #F43F5E;
+    --secondary-light: #FFF1F2;
+    --lime: #84CC16;
+    --lime-light: #F7FEE7;
+    --canvas: #FAFAF9;
+    --surface: #FFFFFF;
+    --border: #E7E5E4;
+    --border-subtle: #F5F5F4;
+    --text-primary: #1C1917;
+    --text-secondary: #57534E;
+    --text-muted: #A8A29E;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--canvas); color: var(--text-primary);
+    font-family: var(--font-ui); overflow: hidden; -webkit-font-smoothing: antialiased; line-height: 1.4;
+  }
+  .app-frame {
+    display: flex; flex-direction: column; height: 100vh; min-height: 520px; width: 100vw; background: var(--canvas);
+  }
+
+  /* Top Navigation Bar */
+  .top-navbar {
+    height: 56px; background: #FFFFFF; border-bottom: 1px solid var(--border);
+    padding: 0 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 10;
+  }
+  .nav-brand-group { display: flex; align-items: center; gap: 14px; }
+  .logo-box {
+    width: 32px; height: 32px; border-radius: 8px; background: var(--primary); color: #FFF;
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
+    box-shadow: 0 3px 8px rgba(124,58,237,0.3);
+  }
+  .workspace-selector {
+    display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--text-primary);
+    background: var(--canvas); padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;
+  }
+  .sprint-tag { font-size: 11px; font-weight: 600; color: var(--primary); background: var(--primary-light); padding: 2px 8px; border-radius: 9999px; }
+
+  .nav-tabs { display: flex; align-items: center; gap: 4px; }
+  .tab-btn {
+    padding: 8px 14px; font-size: 13.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; border-radius: 6px; transition: all 0.1s;
+  }
+  .tab-btn:hover { background: var(--border-subtle); color: var(--text-primary); }
+  .tab-btn.active { color: var(--primary); background: var(--primary-light); font-weight: 700; }
+
+  .nav-user-actions { display: flex; align-items: center; gap: 12px; }
+  .avatar-stack { display: flex; align-items: center; }
+  .stack-avatar {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid #FFF; margin-left: -8px;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #FFF;
+  }
+  .btn-submit-standup {
+    background: var(--primary); color: #FFF; border: none; padding: 7px 16px; border-radius: 8px;
+    font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 2px 6px rgba(124,58,237,0.25);
+  }
+
+  /* Main Hub Body */
+  .hub-body {
+    flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; max-width: 1280px; width: 100%; margin: 0 auto;
+  }
+
+  /* Executive Metrics & Mood Grid (Top 500px hero) */
+  .metrics-dashboard-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex-shrink: 0;
+  }
+
+  /* Sprint Burndown Miniature Card */
+  .burndown-card {
+    background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .card-top-row { display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+  .status-pill-green { font-size: 11px; font-weight: 700; color: #15803D; background: #DCFCE7; padding: 2px 8px; border-radius: 9999px; }
+
+  .burndown-svg-wrap { height: 75px; position: relative; width: 100%; }
+  .chart-footer { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+
+  /* Team Mood & Pulse Poll Card */
+  .mood-card {
+    background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .mood-options-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .mood-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px;
+    background: var(--canvas); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.1s;
+  }
+  .mood-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+  .mood-btn.selected { border-color: var(--primary); background: var(--primary-light); }
+  .mood-emoji { font-size: 20px; }
+  .mood-lbl { font-size: 11px; font-weight: 700; color: var(--text-primary); }
+  .mood-pct { font-size: 10px; color: var(--text-secondary); font-weight: 600; }
+
+  /* Standup Feed Layout */
+  .standup-layout { display: flex; gap: 18px; flex: 1; min-height: 0; }
+
+  .standup-stream { flex: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .stream-filter-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+  .filter-pills { display: flex; gap: 6px; }
+  .fpill {
+    font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 9999px; background: #FFFFFF;
+    border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer;
+  }
+  .fpill.active { background: var(--primary); color: #FFFFFF; border-color: var(--primary); }
+
+  /* Standup Update Card */
+  .update-card {
+    background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+    display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }
+  .user-header-row { display: flex; align-items: center; justify-content: space-between; }
+  .user-meta-group { display: flex; align-items: center; gap: 10px; }
+  .author-avatar {
+    width: 38px; height: 38px; border-radius: 50%; color: #FFF; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 14px; position: relative;
+  }
+  .presence-dot {
+    position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; border-radius: 50%;
+    background: #22C55E; border: 2px solid #FFF;
+  }
+  .presence-dot.busy { background: var(--secondary); }
+
+  .user-titles { display: flex; flex-direction: column; line-height: 1.25; }
+  .user-fullname { font-size: 14.5px; font-weight: 700; color: var(--text-primary); }
+  .user-subline { font-size: 11.5px; color: var(--text-secondary); }
+  .submission-time { font-size: 12px; color: var(--text-muted); }
+
+  /* Sections: Yesterday / Today / Blockers */
+  .section-row { display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+  .section-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
+  .section-text { color: var(--text-primary); line-height: 1.45; }
+
+  /* Blocker Highlight Callout */
+  .blocker-box {
+    background: var(--secondary-light); border: 1px solid rgba(244,63,94,0.3); border-left: 4px solid var(--secondary);
+    border-radius: 6px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; color: #9F1239;
+  }
+  .blocker-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  .card-actions-footer {
+    display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-subtle);
+    padding-top: 10px; margin-top: 2px;
+  }
+  .reaction-cluster { display: flex; align-items: center; gap: 6px; }
+  .rx-tag {
+    background: var(--canvas); border: 1px solid var(--border); border-radius: 9999px; padding: 3px 8px;
+    font-size: 12px; display: flex; align-items: center; gap: 4px; color: var(--text-secondary); cursor: pointer;
+  }
+  .btn-resolve-help {
+    font-size: 12px; font-weight: 700; color: var(--secondary); background: transparent; border: 1px solid rgba(244,63,94,0.4);
+    padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  }
+
+  /* Right Sidebar: Team Status (280px) */
+  .standup-side { width: 280px; display: flex; flex-direction: column; gap: 14px; flex-shrink: 0; }
+  .side-card {
+    background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .side-title { font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .completion-track { height: 8px; background: var(--canvas); border-radius: 4px; overflow: hidden; }
+  .completion-fill { height: 100%; width: 88%; background: var(--primary); border-radius: 4px; }
+
+  .member-list-item { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+  .m-name { display: flex; align-items: center; gap: 8px; }
+  .m-status-icon { font-size: 12px; }
+
+  @media (max-width: 960px) {
+    .metrics-dashboard-grid { grid-template-columns: 1fr; }
+    .standup-side { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app-frame">
+  <!-- Top Navbar -->
+  <div class="top-navbar">
+    <div class="nav-brand-group">
+      <div class="logo-box">✦</div>
+      <div class="workspace-selector">
+        <span>Acme Engineering</span>
+        <span style="color:var(--text-muted); font-size:11px;">▼</span>
+      </div>
+      <span class="sprint-tag">Sprint 34 • Day 6 of 10</span>
+    </div>
+
+    <div class="nav-tabs">
+      <div class="tab-btn active">Daily Standups</div>
+      <div class="tab-btn">Sprint Burndown</div>
+      <div class="tab-btn">Team Pulse</div>
+      <div class="tab-btn">Retrospectives</div>
+    </div>
+
+    <div class="nav-user-actions">
+      <div class="avatar-stack">
+        <div class="stack-avatar" style="background:#7C3AED;">MV</div>
+        <div class="stack-avatar" style="background:#F43F5E;">SL</div>
+        <div class="stack-avatar" style="background:#059669;">AR</div>
+        <div class="stack-avatar" style="background:#D97706;">+11</div>
+      </div>
+      <button class="btn-submit-standup">+ Submit Standup</button>
+    </div>
+  </div>
+
+  <!-- Hub Body -->
+  <div class="hub-body">
+    <!-- Executive Miniature Metrics Row (Burndown + Mood Poll) -->
+    <div class="metrics-dashboard-grid">
+      <!-- 1. Sprint Burndown Miniature -->
+      <div class="burndown-card">
+        <div class="card-top-row">
+          <div class="card-title">
+            <span>📉</span>
+            <span>Sprint 34 Velocity Burndown</span>
+          </div>
+          <span class="status-pill-green">84% On Track</span>
+        </div>
+
+        <!-- SVG Burndown Chart -->
+        <div class="burndown-svg-wrap">
+          <svg width="100%" height="100%" viewBox="0 0 420 75" fill="none">
+            <!-- Grid lines -->
+            <line x1="0" y1="20" x2="420" y2="20" stroke="#F5F5F4" stroke-width="1"/>
+            <line x1="0" y1="45" x2="420" y2="45" stroke="#F5F5F4" stroke-width="1"/>
+            <line x1="0" y1="70" x2="420" y2="70" stroke="#F5F5F4" stroke-width="1"/>
+            <!-- Ideal trend line (dashed) -->
+            <line x1="20" y1="10" x2="400" y2="65" stroke="#A8A29E" stroke-width="2" stroke-dasharray="4 4"/>
+            <!-- Actual velocity line (solid violet) -->
+            <polyline points="20,10 90,18 160,22 230,34 300,42 340,48" stroke="#7C3AED" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Current day node dot -->
+            <circle cx="340" cy="48" r="5" fill="#7C3AED" stroke="#FFF" stroke-width="2"/>
+          </svg>
+        </div>
+
+        <div class="chart-footer">
+          <span>Remaining: <strong>18 pts</strong> (Ideal: 20 pts)</span>
+          <span style="color:var(--primary); font-weight:600;">Pace: 5.2 pts/day</span>
+        </div>
+      </div>
+
+      <!-- 2. Team Mood & Sentiment Poll -->
+      <div class="mood-card">
+        <div class="card-top-row">
+          <div class="card-title">
+            <span>⚡️</span>
+            <span>Team Pulse &amp; Sentiment (Today)</span>
+          </div>
+          <span style="font-size:11.5px; color:var(--text-muted);">14 check-ins</span>
+        </div>
+
+        <div class="mood-options-row">
+          <div class="mood-btn selected">
+            <span class="mood-emoji">🚀</span>
+            <span class="mood-lbl">Energized</span>
+            <span class="mood-pct">42%</span>
+          </div>
+          <div class="mood-btn">
+            <span class="mood-emoji">😊</span>
+            <span class="mood-lbl">Focused</span>
+            <span class="mood-pct">36%</span>
+          </div>
+          <div class="mood-btn">
+            <span class="mood-emoji">☕️</span>
+            <span class="mood-lbl">Tired</span>
+            <span class="mood-pct">14%</span>
+          </div>
+          <div class="mood-btn">
+            <span class="mood-emoji">🤯</span>
+            <span class="mood-lbl">Blocked</span>
+            <span class="mood-pct">8%</span>
+          </div>
+        </div>
+
+        <div style="font-size:12px; color:var(--text-secondary);">
+          "High focus on payment gateway idempotency and distributed tracing rollout."
+        </div>
+      </div>
+    </div>
+
+    <!-- Standup Stream & Side Status -->
+    <div class="standup-layout">
+      <!-- Stream Column -->
+      <div class="standup-stream">
+        <div class="stream-filter-bar">
+          <div class="filter-pills">
+            <span class="fpill active">All Updates (14)</span>
+            <span class="fpill" style="color:var(--secondary); font-weight:700;">⚠️ Blockers (2)</span>
+            <span class="fpill">Core Platform</span>
+            <span class="fpill">Frontend Pod</span>
+          </div>
+          <span style="font-size:12px; color:var(--text-muted);">Sorted by Latest</span>
+        </div>
+
+        <!-- Update Card 1: Has Blocker -->
+        <div class="update-card">
+          <div class="user-header-row">
+            <div class="user-meta-group">
+              <div class="author-avatar" style="background: #7C3AED;">MV
+                <div class="presence-dot busy"></div>
+              </div>
+              <div class="user-titles">
+                <span class="user-fullname">Marcus Vance</span>
+                <span class="user-subline">Senior Staff Architect • Core Platform</span>
+              </div>
+            </div>
+            <span class="submission-time">Today at 9:15 AM</span>
+          </div>
+
+          <div class="section-row">
+            <span class="section-tag">What did you do yesterday?</span>
+            <span class="section-text">Merged PR #842 for the distributed caching layer and ran concurrency stress tests up to 50k QPS without key eviction.</span>
+          </div>
+
+          <div class="section-row">
+            <span class="section-tag">What are you working on today?</span>
+            <span class="section-text">Finalizing failover replication edge cases and pairing with Sarah on the webhook retry queue.</span>
+          </div>
+
+          <!-- Blocker Alert Callout -->
+          <div class="blocker-box">
+            <span class="blocker-icon">⚠️</span>
+            <div>
+              <strong>Blocker:</strong> Staging cluster redis-03 memory limit reached; awaiting quota elevation from CloudOps before load test run.
+            </div>
+          </div>
+
+          <div class="card-actions-footer">
+            <div class="reaction-cluster">
+              <div class="rx-tag">👍 <span>6</span></div>
+              <div class="rx-tag">💬 <span>3 comments</span></div>
+            </div>
+            <button class="btn-resolve-help">Resolve Blocker</button>
+          </div>
+        </div>
+
+        <!-- Update Card 2: Smooth Progress (Lime) -->
+        <div class="update-card">
+          <div class="user-header-row">
+            <div class="user-meta-group">
+              <div class="author-avatar" style="background: #F43F5E;">SL
+                <div class="presence-dot"></div>
+              </div>
+              <div class="user-titles">
+                <span class="user-fullname">Sarah Lin</span>
+                <span class="user-subline">Product Design Lead • Design Systems</span>
+              </div>
+            </div>
+            <span class="submission-time">Today at 9:32 AM</span>
+          </div>
+
+          <div class="section-row">
+            <span class="section-tag">What did you do yesterday?</span>
+            <span class="section-text">Finalized accessibility review on high-contrast tokens and exported SVG assets for the web client.</span>
+          </div>
+
+          <div class="section-row">
+            <span class="section-tag">What are you working on today?</span>
+            <span class="section-text">Integrating the async standup component tokens and interactive preview screens.</span>
+          </div>
+
+          <div class="section-row">
+            <span class="section-tag">Blockers</span>
+            <span class="section-text" style="color:var(--lime); font-weight:600;">✓ None! Smooth sailing toward the release cut.</span>
+          </div>
+
+          <div class="card-actions-footer">
+            <div class="reaction-cluster">
+              <div class="rx-tag">❤️ <span>5</span></div>
+              <div class="rx-tag">🚀 <span>8</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Sidebar -->
+      <div class="standup-side">
+        <div class="side-card">
+          <div class="side-title">Standup Participation</div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700;">
+            <span>14 of 16 submitted</span>
+            <span style="color:var(--primary);">88%</span>
+          </div>
+          <div class="completion-track">
+            <div class="completion-fill"></div>
+          </div>
+          <div style="font-size:11.5px; color:var(--text-muted);">2 members pending standup submission today.</div>
+        </div>
+
+        <div class="side-card">
+          <div class="side-title">Active Sprint Blockers</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="padding:8px 10px; background:var(--secondary-light); border-radius:6px; font-size:12px; color:#9F1239;">
+              <strong>Cluster Quota</strong> • Assigned to @devops
+            </div>
+            <div style="padding:8px 10px; background:var(--secondary-light); border-radius:6px; font-size:12px; color:#9F1239;">
+              <strong>Stripe Webhook Signature</strong> • Assigned to @marcus
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

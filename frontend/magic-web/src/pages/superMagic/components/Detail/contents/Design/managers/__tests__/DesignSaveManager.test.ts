@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SuperMagicApi } from "@/apis"
 import { DesignSaveManager, type DesignSaveLifecycleHandlers } from "../DesignSaveManager"
-import type { DesignProjectManagerOptions, DesignProjectStateBag } from "../types"
+import {
+	getDesignRequestIdentity,
+	type DesignProjectManagerOptions,
+	type DesignProjectStateBag,
+} from "../types"
 import type { DesignData } from "../../types"
 import { hashDesignDataComparable } from "../../utils/designContentHash"
 import type {
@@ -9,14 +13,25 @@ import type {
 	CanvasDocument,
 	LayerElement,
 } from "@/components/CanvasDesign/runtime/document/types"
+import type { CanvasAccessMode } from "@/components/CanvasDesign/public/props"
 import { parseMagicProjectConfigContent } from "@/pages/superMagic/utils/magicProjectConfigParser"
 import { decompressCanvasData, isCompressedCanvas } from "../../utils/magicProjectCompression"
+import {
+	getElementDetailsSidecarStatus,
+	writeUserElementDetails,
+} from "../../utils/elementDetailsIo"
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		getFileInfo: vi.fn(),
 		saveFileContent: vi.fn(),
 	},
+}))
+
+vi.mock("../../utils/elementDetailsIo", () => ({
+	getElementDetailsSidecarStatus: vi.fn(),
+	getHydratedElementDetailsProvenance: vi.fn(() => ({})),
+	writeUserElementDetails: vi.fn(),
 }))
 
 function createDesignData(
@@ -38,23 +53,18 @@ function createSaveManager(
 ) {
 	let designData = initialData
 	let magicProjectJsFileId: string | null = "file-1"
-	let magicProjectJsVersion: number | null = 2
-	let prevDesignDataFingerprint = "base-fingerprint"
-	let isReadOnly = false
+	let prevDesignDataFingerprint = hashDesignDataComparable(initialData)
+	let accessMode: CanvasAccessMode = "edit"
 
 	const stateBag: DesignProjectStateBag = {
 		getDesignData: () => designData,
 		getConflictState: () => null,
 		getMagicProjectJsFileId: () => magicProjectJsFileId,
-		getMagicProjectJsVersion: () => magicProjectJsVersion,
-		setMagicProjectJsVersion: (v) => {
-			magicProjectJsVersion = v
-		},
 		getPrevDesignDataFingerprint: () => prevDesignDataFingerprint,
 		setPrevDesignDataFingerprint: (v) => {
 			prevDesignDataFingerprint = v
 		},
-		getIsReadOnly: () => isReadOnly,
+		getAccessMode: () => accessMode,
 		setters: {
 			setMagicProjectJsFileId: vi.fn((v: string | null) => {
 				magicProjectJsFileId = v
@@ -64,8 +74,8 @@ function createSaveManager(
 			}),
 			setIsInitialLoading: vi.fn(),
 			setIsSaving: vi.fn(),
-			setIsReadOnly: vi.fn((v: boolean) => {
-				isReadOnly = v
+			setAccessMode: vi.fn((v: CanvasAccessMode) => {
+				accessMode = v
 			}),
 			setFileVersionsList: vi.fn(),
 			setFileVersion: vi.fn(),
@@ -87,20 +97,63 @@ function createSaveManager(
 		flatAttachments: [],
 	}
 
-	return new DesignSaveManager(stateBag, options, vi.fn().mockResolvedValue([]), handlers)
+	return new DesignSaveManager(
+		stateBag,
+		options,
+		vi.fn().mockResolvedValue([]),
+		async (fileId, requestOptions) => ({
+			fileId,
+			accessIdentity: getDesignRequestIdentity(requestOptions),
+			data: initialData,
+		}),
+		{
+			...handlers,
+			onSaveCommitted: (result) => {
+				if (prevDesignDataFingerprint === result.baseFingerprint && result.fullyPersisted)
+					prevDesignDataFingerprint = result.savedFingerprint
+				handlers?.onSaveCommitted?.(result)
+			},
+		},
+	)
 }
 
 describe("DesignSaveManager remote checks", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		vi.mocked(SuperMagicApi.saveFileContent).mockResolvedValue({} as never)
+		vi.mocked(SuperMagicApi.saveFileContent).mockResolvedValue({
+			success_files: [
+				{ file_id: "file-1", data: { version: 3, updated_at: "2026-10-12 00:00:00 UTC" } },
+			],
+			error_files: [],
+		} as never)
+		vi.mocked(getElementDetailsSidecarStatus).mockResolvedValue("missing")
+		vi.mocked(writeUserElementDetails).mockResolvedValue("skipped")
+	})
+
+	it("blocks the main file save when the current sidecar is unsupported", async () => {
+		const data = createDesignData("unsupported")
+		data.version = "3.0.0"
+		const saveManager = createSaveManager(data)
+		vi.spyOn(saveManager, "checkRemoteUpdate").mockResolvedValue({
+			hasUpdate: false,
+			currentFingerprint: null,
+			isCheckReliable: true,
+		})
+		vi.mocked(getElementDetailsSidecarStatus).mockResolvedValue("unsupported")
+
+		await expect(saveManager.commitSave()).resolves.toEqual({
+			ok: false,
+			reason: "unsupported-sidecar",
+		})
+		expect(SuperMagicApi.saveFileContent).not.toHaveBeenCalled()
+		expect(writeUserElementDetails).not.toHaveBeenCalled()
 	})
 
 	it("stops before writing when the remote version has advanced", async () => {
 		const saveManager = createSaveManager()
 		vi.spyOn(saveManager, "checkRemoteUpdate").mockResolvedValue({
 			hasUpdate: true,
-			currentVersion: 3,
+			currentFingerprint: null,
 			isCheckReliable: true,
 		})
 
@@ -109,40 +162,18 @@ describe("DesignSaveManager remote checks", () => {
 		expect(result).toEqual({
 			ok: false,
 			reason: "remote-updated",
-			remoteVersion: 3,
+			currentFile: undefined,
 			isCheckReliable: true,
 		})
 		expect(SuperMagicApi.saveFileContent).not.toHaveBeenCalled()
 		expect(saveManager.hasRemoteConflict()).toBe(true)
 	})
 
-	it("skips the remote version check only when explicitly requested", async () => {
-		const saveManager = createSaveManager()
-		const checkRemoteUpdate = vi.spyOn(saveManager, "checkRemoteUpdate").mockResolvedValue({
-			hasUpdate: true,
-			currentVersion: 3,
-			isCheckReliable: true,
-		})
-		vi.mocked(SuperMagicApi.getFileInfo).mockResolvedValue({ version: 4 } as never)
-
-		const result = await saveManager.commitSave({ skipRemoteUpdateCheck: true })
-
-		expect(result).toEqual(
-			expect.objectContaining({
-				ok: true,
-				savedVersion: 4,
-			}),
-		)
-		expect(checkRemoteUpdate).not.toHaveBeenCalled()
-		expect(SuperMagicApi.saveFileContent).toHaveBeenCalledTimes(1)
-		expect(saveManager.hasRemoteConflict()).toBe(false)
-	})
-
 	it("stops before writing when the remote version check is unreliable", async () => {
 		const saveManager = createSaveManager()
 		vi.spyOn(saveManager, "checkRemoteUpdate").mockResolvedValue({
 			hasUpdate: false,
-			currentVersion: 3,
+			currentFingerprint: null,
 			isCheckReliable: false,
 		})
 
@@ -151,7 +182,6 @@ describe("DesignSaveManager remote checks", () => {
 		expect(result).toEqual({
 			ok: false,
 			reason: "remote-check-unreliable",
-			remoteVersion: 3,
 			isCheckReliable: false,
 		})
 		expect(SuperMagicApi.saveFileContent).not.toHaveBeenCalled()
@@ -166,7 +196,7 @@ describe("DesignSaveManager remote checks", () => {
 		const stateBag = (saveManager as unknown as { stateBag: DesignProjectStateBag }).stateBag
 		vi.spyOn(saveManager, "checkRemoteUpdate").mockResolvedValue({
 			hasUpdate: false,
-			currentVersion: 2,
+			currentFingerprint: null,
 			isCheckReliable: true,
 		})
 		vi.mocked(SuperMagicApi.getFileInfo).mockResolvedValue({ version: 3 } as never)
@@ -195,6 +225,9 @@ describe("DesignSaveManager remote checks", () => {
 		const sourceElement: LayerElement = {
 			id: "source",
 			type: "text",
+			activeContentId: "source-content-1",
+			mainContentId: "source-content-1",
+			contents: [{ contentId: "source-content-1" }],
 			x: 0,
 			y: 0,
 			width: 100,
@@ -203,6 +236,9 @@ describe("DesignSaveManager remote checks", () => {
 		const targetElement: LayerElement = {
 			id: "target",
 			type: "text",
+			activeContentId: "target-content-1",
+			mainContentId: "target-content-1",
+			contents: [{ contentId: "target-content-1" }],
 			x: 200,
 			y: 0,
 			width: 100,
@@ -218,7 +254,7 @@ describe("DesignSaveManager remote checks", () => {
 		)
 		vi.spyOn(saveManager, "checkRemoteUpdate").mockResolvedValue({
 			hasUpdate: false,
-			currentVersion: 2,
+			currentFingerprint: null,
 			isCheckReliable: true,
 		})
 
@@ -244,7 +280,7 @@ describe("DesignSaveManager remote checks", () => {
 		})
 		vi.spyOn(saveManager, "checkRemoteUpdate").mockResolvedValue({
 			hasUpdate: false,
-			currentVersion: 2,
+			currentFingerprint: null,
 			isCheckReliable: true,
 		})
 
@@ -261,7 +297,6 @@ describe("DesignSaveManager remote checks", () => {
 				beforeElementCount: 2,
 				nextElementCount: 0,
 				deletedElementIds: ["a"],
-				magicProjectJsVersion: 2,
 				fromDraft: true,
 			}),
 		)

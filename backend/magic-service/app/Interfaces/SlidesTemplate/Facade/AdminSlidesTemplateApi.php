@@ -14,6 +14,7 @@ use App\Infrastructure\Core\AbstractApi;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\SlidesTemplate\Assembler\SlidesTemplateAssembler;
 use App\Interfaces\SlidesTemplate\DTO\Request\AdminQuerySlidesTemplateRequest;
+use App\Interfaces\SlidesTemplate\DTO\Request\ReindexVectorIndexRequest;
 use App\Interfaces\SlidesTemplate\DTO\Request\SaveSlidesTemplateRequest;
 use App\Interfaces\SlidesTemplate\DTO\Request\UpdateSlidesTemplateSortRequest;
 use App\Interfaces\SlidesTemplate\DTO\Request\UpdateSlidesTemplateStatusRequest;
@@ -39,7 +40,6 @@ class AdminSlidesTemplateApi extends AbstractApi
             $result['page'],
             $result['total'],
             true,
-            false,
             $result['categories']
         )->toArray();
     }
@@ -100,5 +100,21 @@ class AdminSlidesTemplateApi extends AbstractApi
     {
         $this->adminSlidesTemplateAppService->delete($this->getAuthorization(), $id);
         return [];
+    }
+
+    /**
+     * 重建幻灯片模板向量索引.
+     *
+     * 可选参数 force_re_embedding：为 true 时，若向量集合维度与模型实际输出维度不一致，会删除集合并按实际维度重建后全量重灌。
+     */
+    #[CheckPermission([MagicResourceEnum::PLATFORM_SLIDES_TEMPLATE], MagicOperationEnum::EDIT)]
+    public function reindexVectorIndex(ReindexVectorIndexRequest $request): array
+    {
+        $request->validated();
+
+        return $this->adminSlidesTemplateAppService->reindexVectorIndex(
+            $this->getAuthorization(),
+            $request->getForceReEmbedding(),
+        );
     }
 }

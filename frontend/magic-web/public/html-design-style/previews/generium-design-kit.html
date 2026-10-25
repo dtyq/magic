@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generium Enterprise UI Kit — Биотехнологический комплекс</title>
+  <style>
+    :root {
+      --primary-teal: #52BBB1;
+      --primary-dark-teal: #006D7C;
+      --primary-light-teal: #B8E2DE;
+      --accent-pink: #B7128D;
+      --color-black: #000000;
+      --color-white: #FFFFFF;
+      --gray-500: #878787;
+      --gray-300: #C7C7C7;
+      --gray-100: #E5E5E5;
+      --gray-50: #F8FAFC;
+      --font-family-din: 'PF DinText Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-family-mono: 'JetBrains Mono', 'SF Mono', monospace;
+      --border-crisp: 1px solid var(--gray-100);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--gray-50); color: var(--color-black);
+      font-family: var(--font-family-din); font-size: 13px; line-height: 1.45;
+      -webkit-font-smoothing: antialiased; padding-bottom: 20px;
+    }
+    .top-subnav {
+      background: #FFFFFF; border-bottom: 1px solid var(--gray-100);
+      padding: 0 20px; height: 30px; display: flex;
+      align-items: center; justify-content: space-between; font-size: 11px; color: var(--gray-500);
+    }
+    .top-subnav a { color: var(--gray-500); text-decoration: none; margin-right: 12px; }
+    .top-subnav a:hover { color: var(--primary-dark-teal); }
+    .lang-switcher { font-weight: 700; color: var(--color-black); }
+    .main-header {
+      background: #FFFFFF; border-bottom: 2px solid var(--primary-teal);
+      padding: 0 20px; height: 50px; display: flex;
+      align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    }
+    .brand-logo-block { display: flex; align-items: center; gap: 8px; }
+    .brand-symbol-circle {
+      width: 24px; height: 24px; background: var(--primary-teal);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: 13px;
+    }
+    .brand-title-text { font-size: 14px; font-weight: 700; letter-spacing: 1.2px; color: var(--color-black); }
+    .numbered-nav { display: flex; align-items: center; gap: 14px; }
+    .nav-item {
+      display: flex; align-items: baseline; gap: 3px; font-size: 11.5px;
+      text-decoration: none; color: var(--color-black); padding: 5px 0;
+    }
+    .nav-num { font-family: var(--font-family-mono); font-size: 9.5px; color: var(--gray-500); font-weight: 600; }
+    .nav-item.active { color: var(--primary-dark-teal); font-weight: 700; border-bottom: 2px solid var(--primary-teal); }
+    .viewport-container {
+      max-width: 1340px; margin: 14px auto 0; padding: 0 20px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .controls-showcase-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; }
+    .ui-panel { background: var(--color-white); border: var(--border-crisp); padding: 16px 18px; }
+    .panel-headline {
+      font-size: 13px; font-weight: 700; color: var(--color-black);
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--gray-100); padding-bottom: 6px;
+    }
+    .panel-spec-tag {
+      font-family: var(--font-family-mono); font-size: 9.5px;
+      color: var(--primary-dark-teal); background: var(--primary-light-teal);
+      padding: 2px 5px; font-weight: 600;
+    }
+    .form-group-stack { display: flex; flex-direction: column; gap: 10px; }
+    .field-row { display: flex; flex-direction: column; gap: 3px; }
+    .field-label { font-size: 11px; font-weight: 600; color: var(--color-black); display: flex; justify-content: space-between; }
+    .multiselect-box {
+      border: 1px solid var(--gray-300); background: #FFFFFF;
+      min-height: 36px; padding: 3px 6px; display: flex;
+      flex-wrap: wrap; align-items: center; gap: 4px; cursor: pointer;
+    }
+    .chip-tag {
+      background: var(--primary-light-teal); color: var(--primary-dark-teal);
+      font-size: 10px; font-weight: 600; padding: 2px 5px;
+      display: inline-flex; align-items: center; gap: 3px;
+    }
+    .daterange-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .input-crisp {
+      height: 34px; border: 1px solid var(--gray-300); padding: 0 8px;
+      font-family: var(--font-family-din); font-size: 11.5px; color: var(--color-black); outline: none;
+    }
+    .input-crisp:focus { border-color: var(--primary-teal); box-shadow: 0 0 0 1px var(--primary-teal); }
+    .date-preset-pills { display: flex; gap: 5px; margin-top: 3px; }
+    .preset-pill {
+      font-size: 9.5px; background: var(--gray-100); border: none;
+      padding: 2px 7px; cursor: pointer; color: var(--gray-500); font-weight: 600;
+    }
+    .preset-pill.active { background: var(--primary-teal); color: #fff; }
+    .toggles-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 8px; background: var(--gray-50); border: 1px solid var(--gray-100); margin-top: 2px;
+    }
+    .toggle-unit { display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; }
+    .switch-ui {
+      width: 32px; height: 18px; background: var(--gray-300);
+      position: relative; transition: background 0.2s ease;
+    }
+    .switch-ui::after {
+      content: ""; width: 14px; height: 14px; background: #FFFFFF;
+      position: absolute; top: 2px; left: 2px; transition: transform 0.2s ease;
+    }
+    .switch-ui.on { background: var(--primary-teal); }
+    .switch-ui.on::after { transform: translateX(14px); }
+    .btn-teal {
+      background: var(--primary-teal); color: #FFFFFF; border: none;
+      padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .btn-teal:hover { background: var(--primary-dark-teal); }
+    .btn-outline {
+      background: transparent; color: var(--color-black); border: 1px solid var(--color-black);
+      padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .modal-card-preview {
+      background: #FFFFFF; border: 2px solid var(--color-black);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .modal-head {
+      background: var(--primary-dark-teal); color: #FFFFFF;
+      padding: 8px 12px; display: flex; align-items: center;
+      justify-content: space-between; font-size: 12px; font-weight: 700;
+    }
+    .modal-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .clinical-meta-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+      background: var(--gray-50); padding: 8px; border: 1px solid var(--gray-100); font-size: 10.5px;
+    }
+    .meta-lbl { color: var(--gray-500); }
+    .meta-val { font-weight: 700; color: var(--color-black); }
+    .protocol-text {
+      font-size: 11px; color: var(--gray-500); line-height: 1.4;
+      border-left: 2px solid var(--primary-teal); padding-left: 6px;
+    }
+    .modal-foot {
+      padding: 8px 12px; background: var(--gray-50); border-top: 1px solid var(--gray-100);
+      display: flex; justify-content: flex-end; gap: 6px;
+    }
+    .pipeline-section { background: #FFFFFF; border: var(--border-crisp); padding: 16px 18px; }
+    .pipeline-table { width: 100%; border-collapse: collapse; font-size: 11.5px; text-align: left; }
+    .pipeline-table th {
+      padding: 6px 8px; background: var(--gray-50); font-weight: 700;
+      border-bottom: 1px solid var(--gray-100); color: var(--gray-500); font-size: 10.5px;
+    }
+    .pipeline-table td { padding: 8px 8px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+    .drug-name-bold { font-size: 12px; font-weight: 700; color: var(--color-black); }
+    .drug-mnn { font-size: 10.5px; color: var(--gray-500); }
+    .pipeline-bar-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; height: 13px; }
+    .pipeline-phase-step {
+      background: var(--gray-100); height: 100%; display: flex;
+      align-items: center; justify-content: center; font-size: 8.5px;
+      color: var(--gray-500); font-weight: 700;
+    }
+    .pipeline-phase-step.teal-done { background: var(--primary-teal); color: #fff; }
+    .pipeline-phase-step.pink-active { background: var(--accent-pink); color: #fff; }
+    .stats-ribbon { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .stat-box { background: #FFFFFF; border: var(--border-crisp); padding: 12px; text-align: center; }
+    .stat-num { font-size: 22px; font-weight: 800; color: var(--color-black); line-height: 1; margin-bottom: 2px; }
+    .stat-desc { font-size: 10.5px; color: var(--gray-500); }
+  </style>
+</head>
+<body>
+  <div class="top-subnav">
+    <div>
+      <a href="#company">О компании</a>
+      <a href="#rd">R&amp;D Парк</a>
+      <a href="#pharma">Фармаконадзор</a>
+      <a href="#suppliers">Поставщикам</a>
+    </div>
+    <div class="lang-switcher"><span>RU</span> / <span style="color: var(--gray-300);">EN</span></div>
+  </div>
+
+  <header class="main-header">
+    <div class="brand-logo-block">
+      <div class="brand-symbol-circle">Г</div>
+      <div class="brand-title-text">GENERIUM</div>
+      <span style="font-size: 10.5px; color: var(--gray-500); margin-left: 4px;">БИОТЕХ</span>
+    </div>
+
+    <nav class="numbered-nav">
+      <a href="#01" class="nav-item"><span class="nav-num">01</span><span>Компания</span></a>
+      <a href="#02" class="nav-item"><span class="nav-num">02</span><span>Наука</span></a>
+      <a href="#03" class="nav-item"><span class="nav-num">03</span><span>Производство</span></a>
+      <a href="#04" class="nav-item"><span class="nav-num">04</span><span>Препараты (30)</span></a>
+      <a href="#05" class="nav-item active"><span class="nav-num">05</span><span>Пайплайн</span></a>
+    </nav>
+  </header>
+
+  <main class="viewport-container">
+    <div class="controls-showcase-grid">
+      <section class="ui-panel">
+        <div class="panel-headline">
+          <span>Enterprise UI Controls // Реестр ЛС</span>
+          <span class="panel-spec-tag">SPEC_FORM_V3</span>
+        </div>
+
+        <div class="form-group-stack">
+          <div class="field-row">
+            <label class="field-label"><span>Нозологические группы (Multi-Select)</span><span style="color: var(--accent-pink);">*</span></label>
+            <div class="multiselect-box">
+              <div class="chip-tag"><span>Орфанные метаболические</span></div>
+              <div class="chip-tag"><span>Онкогематология</span></div>
+              <div class="chip-tag"><span>Пульмонология</span></div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label"><span>Период валидации серии (Date Range)</span></label>
+            <div class="daterange-group">
+              <input type="text" class="input-crisp" value="01.09.2026">
+              <input type="text" class="input-crisp" value="19.09.2026">
+            </div>
+            <div class="date-preset-pills">
+              <button class="preset-pill active">30 дней</button>
+              <button class="preset-pill">Q3 2026</button>
+              <button class="preset-pill">Фаза II</button>
+            </div>
+          </div>
+
+          <div class="toggles-row">
+            <div class="toggle-unit" onclick="toggleSwitch(this)">
+              <div class="switch-ui on"></div>
+              <span>GMP Сертификат</span>
+            </div>
+            <div class="toggle-unit" onclick="toggleSwitch(this)">
+              <div class="switch-ui on"></div>
+              <span>ЭЦП Утверждена</span>
+            </div>
+            <div class="toggle-unit" onclick="toggleSwitch(this)">
+              <div class="switch-ui"></div>
+              <span>Архив</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="modal-card-preview">
+        <div class="modal-head">
+          <span>ВАЛИДАЦИЯ СЕРИИ: МОДАЛЬНОЕ ОКНО</span>
+          <span>&times;</span>
+        </div>
+
+        <div class="modal-body">
+          <div class="clinical-meta-grid">
+            <div><div class="meta-lbl">Препарат:</div><div class="meta-val">Диаскинтест&reg;</div></div>
+            <div><div class="meta-lbl">Серия / Партия:</div><div class="meta-val">#GN-2026-904B</div></div>
+            <div><div class="meta-lbl">Объем:</div><div class="meta-val">120 000 доз</div></div>
+            <div><div class="meta-lbl">Статус:</div><div class="meta-val" style="color: var(--primary-dark-teal);">ФСП Соответствует</div></div>
+          </div>
+          <p class="protocol-text">
+            Протокол аналитического контроля завершен без отклонений. Подтверждена специфическая активность рекомбинантного белка.
+          </p>
+        </div>
+
+        <div class="modal-foot">
+          <button class="btn-outline">Отклонить</button>
+          <button class="btn-teal">Подписать ЭЦП</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="pipeline-section">
+      <div class="panel-headline">
+        <span>Стадии клинических исследований (Research Pipeline)</span>
+        <span style="font-size: 10px; color: var(--gray-500);">30 ПРЕПАРАТОВ В РАЗРАБОТКЕ</span>
+      </div>
+
+      <table class="pipeline-table">
+        <thead>
+          <tr>
+            <th style="width: 230px;">ПРЕПАРАТ И МНН</th>
+            <th style="width: 170px;">НАПРАВЛЕНИЕ</th>
+            <th>СТАДИЯ РАЗРАБОТКИ</th>
+            <th style="width: 100px; text-align: right;">ДЕЙСТВИЕ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="drug-name-bold">Глуразим&reg;</div>
+              <div class="drug-mnn">Имиглюцераза (Болезнь Гоше)</div>
+            </td>
+            <td>Орфанные метаболические</td>
+            <td>
+              <div class="pipeline-bar-track">
+                <div class="pipeline-phase-step teal-done">ДКИ</div>
+                <div class="pipeline-phase-step teal-done">КИ I</div>
+                <div class="pipeline-phase-step teal-done">КИ II-III</div>
+                <div class="pipeline-phase-step teal-done">Регистрация</div>
+              </div>
+            </td>
+            <td style="text-align: right;">
+              <a href="#view" style="color: var(--primary-dark-teal); font-weight: 700; text-decoration: none;">Подробнее &rarr;</a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="drug-name-bold">GN-CAR-014</div>
+              <div class="drug-mnn">CAR-T клеточная терапия CD19/CD22</div>
+            </td>
+            <td>Онкогематология</td>
+            <td>
+              <div class="pipeline-bar-track">
+                <div class="pipeline-phase-step teal-done">ДКИ</div>
+                <div class="pipeline-phase-step teal-done">КИ I</div>
+                <div class="pipeline-phase-step pink-active">КИ II-III</div>
+                <div class="pipeline-phase-step">Регистрация</div>
+              </div>
+            </td>
+            <td style="text-align: right;">
+              <a href="#view" style="color: var(--primary-dark-teal); font-weight: 700; text-decoration: none;">Подробнее &rarr;</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="stats-ribbon">
+      <div class="stat-box"><div class="stat-num">30</div><div class="stat-desc">Зарегистрированных препаратов</div></div>
+      <div class="stat-box"><div class="stat-num">8 000 м&sup2;</div><div class="stat-desc">Лабораторных R&amp;D площадей</div></div>
+      <div class="stat-box"><div class="stat-num">61 000 м&sup2;</div><div class="stat-desc">Производственный комплекс</div></div>
+      <div class="stat-box"><div class="stat-num">1 900+</div><div class="stat-desc">Сотрудников и ученых</div></div>
+    </div>
+  </main>
+
+  <script>
+    function toggleSwitch(elem) {
+      const sw = elem.querySelector('.switch-ui');
+      sw.classList.toggle('on');
+    }
+  </script>
+</body>
+</html>

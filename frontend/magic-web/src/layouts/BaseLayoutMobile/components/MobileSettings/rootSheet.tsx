@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
 import {
@@ -6,6 +6,7 @@ import {
 	BarChart3,
 	Building2,
 	CircleUserRound,
+	Gauge,
 	Info,
 	Laptop,
 	LogOut,
@@ -25,7 +26,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import MagicAvatar from "@/components/base/MagicAvatar"
 import { useUserInfo } from "@/models/user/hooks"
 import { userStore } from "@/models/user"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { isMagicApp } from "@/utils/devices"
 import { toAboutUs } from "@/layouts/BaseLayoutMobile/utils/url"
 import GlobalSidebarStore from "@/stores/display/GlobalSidebarStore"
@@ -40,50 +41,34 @@ import { MobileSettingsSheetContainer } from "./components/SheetContainer"
 import type {
 	MobileSettingsMenuItemConfig,
 	MobileSettingsMenuSectionConfig,
-	MobileSettingsRootItemAction,
 	MobileSettingsRootItemKey,
 } from "./types"
-import { openMobileSettingsSubscriptionUpgrade } from "./utils"
+import {
+	getMobileSettingsPointsOverview,
+	openMobileSettingsSubscriptionUpgrade,
+	refreshMobileSettingsPoints,
+} from "./utils"
 import { isPrivateDeployment } from "@/utils/env"
 
-/**
- * 根菜单 item key 统一解析到共享行为类型，入口文件只消费解析结果做状态调度。
- */
-export function getMobileSettingsRootItemAction(
-	itemKey: MobileSettingsRootItemKey,
-): MobileSettingsRootItemAction {
-	switch (itemKey) {
-		case "pointsPurchase":
-			return { type: "panel", panel: "pointsPurchase" }
-		case "pointsDetail":
-			return { type: "panel", panel: "pointsDetail" }
-		case "orderHistory":
-			return { type: "panel", panel: "orderHistory" }
-		case "profile":
-			return { type: "panel", panel: "profile" }
-		case "accountSecurity":
-			return { type: "panel", panel: "accountSecurity" }
-		case "loginDevices":
-			return { type: "panel", panel: "loginDevices" }
-		case "appSettings":
-			return { type: "panel", panel: "appSettings" }
-		case "feedback":
-			return { type: "panel", panel: "feedback" }
-		case "logout":
-			return { type: "effect", effect: "logout" }
-	}
-}
+export { getMobileSettingsRootItemAction } from "./actions"
 
 /**
  * 菜单配置只保留 key；渲染层负责补足图标、文案和值，避免动态数据污染配置文件。
  */
 function buildMenuItemConfig(params: {
 	itemKey: MobileSettingsRootItemKey
-	pointsValue: string
+	pointsOverview: ReturnType<typeof getMobileSettingsPointsOverview>
 	onSelectItem: (itemKey: MobileSettingsRootItemKey) => void
 	t: (key: string) => string
 }): MobileSettingsMenuItemConfig {
-	const { itemKey, onSelectItem, pointsValue, t } = params
+	const { itemKey, onSelectItem, pointsOverview, t } = params
+	const pointsValue =
+		pointsOverview.primaryPoints == null
+			? "--"
+			: new Intl.NumberFormat().format(pointsOverview.primaryPoints)
+	const quotaValue = pointsOverview.personalQuota
+		? `${new Intl.NumberFormat().format(pointsOverview.personalQuota.used)}/${new Intl.NumberFormat().format(pointsOverview.personalQuota.total)}`
+		: "--"
 
 	const handleClick = () => onSelectItem(itemKey)
 
@@ -91,10 +76,29 @@ function buildMenuItemConfig(params: {
 		case "pointsPurchase":
 			return {
 				icon: <Sparkles className="h-5 w-5" />,
-				label: t("bonusPointsModal.bonusPoints"),
+				label:
+					pointsOverview.role === "teamAdmin"
+						? t("setting.teamPoints")
+						: t("bonusPointsModal.bonusPoints"),
 				value: pointsValue,
 				onClick: handleClick,
 				dataTestId: "mobile-settings-menu-points",
+			}
+		case "teamPoints":
+			return {
+				icon: <Building2 className="h-5 w-5" />,
+				label: t("setting.teamPoints"),
+				value: pointsValue,
+				onClick: handleClick,
+				dataTestId: "mobile-settings-menu-team-points",
+			}
+		case "personalQuota":
+			return {
+				icon: <Gauge className="h-5 w-5" />,
+				label: t("setting.personalQuota"),
+				value: quotaValue,
+				onClick: handleClick,
+				dataTestId: "mobile-settings-menu-personal-quota",
 			}
 		case "pointsDetail":
 			return {
@@ -161,11 +165,11 @@ function buildMenuItemConfig(params: {
  * 根面板只读取配置中声明过的入口，保持页面结构与能力清单来自同一份声明。
  */
 function buildMenuSections(params: {
-	pointsValue: string
+	pointsOverview: ReturnType<typeof getMobileSettingsPointsOverview>
 	onSelectItem: (itemKey: MobileSettingsRootItemKey) => void
 	t: (key: string) => string
 }): MobileSettingsMenuSectionConfig[] {
-	const { onSelectItem, pointsValue, t } = params
+	const { onSelectItem, pointsOverview, t } = params
 
 	return getMobileSettingsConfig().sections.map((section) => ({
 		key: section.key,
@@ -173,7 +177,7 @@ function buildMenuSections(params: {
 			buildMenuItemConfig({
 				itemKey,
 				onSelectItem,
-				pointsValue,
+				pointsOverview,
 				t,
 			}),
 		),
@@ -195,12 +199,22 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 		? `${userInfo.country_code || ""} ${userInfo.phone}`.trim()
 		: ""
 	const emailLine = userInfo?.email || ""
-	const pointsValue = new Intl.NumberFormat().format(userStore.user.organizationPoints || 0)
+	const pointsOverview = getMobileSettingsPointsOverview()
+	const pointsValue =
+		pointsOverview.primaryPoints == null
+			? "--"
+			: new Intl.NumberFormat().format(pointsOverview.primaryPoints)
 	const subscriptionInfo = userStore.user.organizationSubscriptionInfo
 	const isPaidPlan = Boolean(subscriptionInfo?.is_paid_plan)
 	const currentOrganization = userStore.user.getOrganization()
 	const isPersonalOrganization = userStore.user.isPersonalOrganization
 	const isAdmin = userStore.user.isAdmin
+
+	/** Refresh points when settings opens while preserving cached values during the request. */
+	useEffect(() => {
+		if (!open) return
+		void refreshMobileSettingsPoints()
+	}, [open])
 
 	/** 购买入口缺少实现时统一回退到占位提示，避免调用方再关心细节。 */
 	const handleComingSoon = useMemoizedFn(() => {
@@ -231,12 +245,21 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 		() =>
 			buildMenuSections({
 				onSelectItem,
-				pointsValue,
+				pointsOverview,
 				t,
 			}),
 		// isAdmin and isPersonalOrganization drive dynamic config (enterprise overlay conditionally includes menu items)
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[onSelectItem, pointsValue, t, isAdmin, isPersonalOrganization],
+		[
+			onSelectItem,
+			pointsValue,
+			pointsOverview.role,
+			pointsOverview.personalQuota?.used,
+			pointsOverview.personalQuota?.total,
+			t,
+			isAdmin,
+			isPersonalOrganization,
+		],
 	)
 
 	return (
@@ -269,7 +292,7 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 			contentClassName="gap-2 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-0"
 			scrollEdgeFade={{
 				fadeColor: "muted",
-				contentDeps: [menuSections.length, isPaidPlan, pointsValue],
+				contentDeps: [menuSections.length, isPaidPlan, pointsValue, pointsOverview.role],
 			}}
 			dataTestId="mobile-settings-root-sheet"
 		>
@@ -277,7 +300,8 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 				<MagicAvatar
 					src={userInfo?.avatar}
 					size={80}
-					style={{ borderRadius: 9999 }}
+					shape="circle"
+					imgClassName="!rounded-full"
 					className="shadow-sm"
 				>
 					{displayName}

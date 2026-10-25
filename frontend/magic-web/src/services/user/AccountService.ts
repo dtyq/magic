@@ -2,7 +2,7 @@ import { AccountRepository } from "@/models/user/repositories/AccountRepository"
 import { userStore } from "@/models/user"
 import { getHtmlPermissionGrantStore } from "@/pages/superMagic/components/Detail/contents/HTML/iframe-api/services/IndexedDbHtmlPermissionGrantStore"
 import type { User } from "@/types/user"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { BroadcastChannelSender } from "@/broadcastChannel"
 import type * as apis from "@/apis"
 import type { Container } from "@/services/ServiceContainer"
@@ -11,6 +11,7 @@ import type { LoginService } from "./LoginService/LoginService"
 import type { ConfigService } from "../config/ConfigService"
 import { UserRepository } from "@/models/user/repositories/UserRepository"
 import MessageService from "@/services/chat/message/MessageService"
+import { clearNotificationCenterUserCache } from "@/components/business/NotificationCenter/store"
 import { OrganizationService } from "./OrganizationService"
 import { isEmpty, keyBy } from "lodash-es"
 import { toJS } from "mobx"
@@ -21,7 +22,7 @@ export class AccountService {
 	private readonly service: Container
 	private readonly authApi: typeof apis.AuthApi
 
-	constructor(dependencies: typeof apis, service: Container) {
+	constructor(dependencies: Pick<typeof apis, "AuthApi">, service: Container) {
 		this.authApi = dependencies.AuthApi
 		this.service = service
 	}
@@ -45,13 +46,17 @@ export class AccountService {
 	setAccount(userAccount: User.UserAccount) {
 		// 数据持久化同步
 		const account = new AccountRepository()
-		account.addAccount(userAccount).catch(logger.error)
+		const persistence = account.addAccount(userAccount)
+		void persistence.catch(logger.error)
 
 		// 内存状态同步
 		userStore.account.setAccount(userAccount)
 
 		// 广播添加账号
 		BroadcastChannelSender.addAccount(userAccount)
+
+		// Bootstrap callers must wait for disk as well as memory before reporting success.
+		return persistence
 	}
 
 	/**
@@ -104,6 +109,7 @@ export class AccountService {
 					.setMagicOrganizationCode(magicOrganizationCode)
 
 				// Step 3: 同步用户信息
+				clearNotificationCenterUserCache()
 				await this.service.get<UserService>("userService").fetchUserInfo()
 				const magicOrganizationMap = await this.service
 					.get<LoginService>("loginService")
@@ -138,6 +144,46 @@ export class AccountService {
 	 * @description 账号移除
 	 * @param unionId
 	 */
+	invalidateSession = async ({ accountId }: { accountId?: string } = {}) => {
+		const currentAccountId = userStore.user.userInfo?.magic_id
+		const targetAccountId = accountId ?? currentAccountId
+		const accountRepository = new AccountRepository()
+		let cleanupStatus: "completed" | "partial" = "completed"
+		// Authentication has already failed on the server. This path only removes
+		// local session state and deliberately does not call remote logout or abort
+		// shared HTTP clients, so the auth event can always reach navigation.
+		try {
+			await getHtmlPermissionGrantStore().clear()
+		} catch (error) {
+			cleanupStatus = "partial"
+			logger.error({
+				eventKey: "clear_html_permission_grants_failed",
+				errorKind: "storage",
+				error,
+				message: "Failed to clear HTML permission grants during session invalidation",
+			})
+		}
+
+		if (targetAccountId) {
+			await accountRepository.deleteAccount(targetAccountId)
+			userStore.account.deleteAccount(targetAccountId)
+		}
+
+		if (targetAccountId !== currentAccountId && currentAccountId) return { cleanupStatus }
+
+		const user = new UserRepository()
+		await user.setAuthorization("")
+		userStore.user.setAuthorization(null)
+		userStore.user.setUserInfo(null)
+		this.service.get<UserService>("userService").setUserInfo(null)
+		this.service.get<UserService>("userService").removeOrganization()
+		await this.service.get<ConfigService>("configService").setClusterCode("")
+		MessageService.destroy()
+		clearNotificationCenterUserCache()
+
+		return { cleanupStatus }
+	}
+
 	deleteAccount = async (unionId?: string) => {
 		logger.report("deleteAccount", new Error())
 		// Account removal is a security lifecycle event. Clear the shared consent cache even
@@ -155,6 +201,7 @@ export class AccountService {
 		}
 		const allClean = async () => {
 			MessageService.destroy()
+			clearNotificationCenterUserCache()
 
 			// 移除当前token
 			const user = new UserRepository()

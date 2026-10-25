@@ -3,7 +3,7 @@ import { useMemo, type ReactNode, type FC } from "react"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Button } from "@/components/shadcn-ui/button"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { convertButtonProps } from "./utils"
 
 // Footer function type for compatibility with Ant Design Modal

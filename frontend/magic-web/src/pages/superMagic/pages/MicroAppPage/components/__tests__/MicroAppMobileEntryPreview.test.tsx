@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import MicroAppEntryPreview from "../MicroAppEntryPreview"
@@ -32,7 +32,6 @@ describe("MicroAppMobileEntryPreview", () => {
 	})
 
 	it("renders the entry html directly without file viewer chrome", async () => {
-		const onOpenFile = vi.fn()
 		render(
 			<MicroAppMobileEntryPreview
 				entryFile={{
@@ -41,10 +40,19 @@ describe("MicroAppMobileEntryPreview", () => {
 					updated_at: "2026-07-20T06:00:00Z",
 				}}
 				attachments={[]}
-				attachmentList={[]}
+				attachmentList={[
+					{
+						file_id: "entry-1",
+						file_name: "index.html",
+						relative_file_path: "index.html",
+						updated_at: "2026-07-20T06:00:00Z",
+					},
+				]}
+				projectId="project-1"
+				microAppId="app-1"
+				microAppName="App One"
 				selectedProject={null}
 				allowEdit
-				onOpenFile={onOpenFile}
 			/>,
 		)
 
@@ -52,13 +60,16 @@ describe("MicroAppMobileEntryPreview", () => {
 		expect(htmlPreviewMocks.props).toEqual(
 			expect.objectContaining({
 				activeFileId: "entry-1",
+				projectId: "project-1",
+				microAppId: "app-1",
+				microAppName: "App One",
 				virtualStorageMarkerId: "entry-1",
 				updatedAt: "2026-07-20T06:00:00Z",
 				allowEdit: true,
 				showFileHeader: false,
 				showFooter: false,
 				viewMode: "desktop",
-				openFileTab: onOpenFile,
+				openFileTab: expect.any(Function),
 				data: expect.objectContaining({
 					file_id: "entry-1",
 					file_name: "index.html",
@@ -76,7 +87,6 @@ describe("MicroAppMobileEntryPreview", () => {
 				attachmentList={[]}
 				selectedProject={null}
 				allowEdit={false}
-				onOpenFile={vi.fn()}
 			/>,
 		)
 
@@ -93,7 +103,6 @@ describe("MicroAppMobileEntryPreview", () => {
 				attachmentList={[]}
 				selectedProject={null}
 				allowEdit={false}
-				onOpenFile={vi.fn()}
 				isBuilding
 			/>,
 		)
@@ -118,7 +127,6 @@ describe("MicroAppMobileEntryPreview", () => {
 				]}
 				selectedProject={null}
 				allowEdit={false}
-				onOpenFile={vi.fn()}
 				isBuilding
 			/>,
 		)
@@ -152,4 +160,76 @@ describe("MicroAppMobileEntryPreview", () => {
 			}),
 		)
 	})
+})
+
+it.each([true, false])(
+	"uses preview tabs for iframe navigation (allowEdit=%s)",
+	async (allowEdit) => {
+		const entry = { file_id: "home", file_name: "index.html", relative_file_path: "index.html" }
+		const detail = {
+			file_id: "detail",
+			file_name: "detail.html",
+			relative_file_path: "detail.html",
+		}
+		render(
+			<MicroAppMobileEntryPreview
+				entryFile={entry}
+				attachments={[]}
+				attachmentList={[entry, detail]}
+				selectedProject={null}
+				allowEdit={allowEdit}
+				microAppId="app"
+			/>,
+		)
+		await screen.findByTestId("mobile-entry-html-preview")
+		const navigate = htmlPreviewMocks.props?.openFileTab as (file: unknown) => void
+		act(() =>
+			navigate({
+				...detail,
+				htmlNavigation: {
+					filePath: "detail.html",
+					search: "?id=7",
+					hash: "",
+					anchor: "",
+					target: "_blank",
+				},
+			}),
+		)
+		expect(screen.getAllByRole("tab")).toHaveLength(2)
+		expect(htmlPreviewMocks.props?.activeFileId).toBe("detail")
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+		// The original iframe remains mounted when its child browsing context opens.
+		expect(screen.getAllByTestId("mobile-entry-html-preview")).toHaveLength(2)
+		const navigateCurrent = htmlPreviewMocks.props?.openFileTab as (file: unknown) => void
+		act(() =>
+			navigateCurrent({
+				...entry,
+				htmlNavigation: {
+					filePath: "index.html",
+					search: "",
+					hash: "",
+					anchor: "",
+					target: "_self",
+				},
+			}),
+		)
+		expect(screen.getAllByRole("tab")).toHaveLength(2)
+		expect(htmlPreviewMocks.props?.activeFileId).toBe("home")
+	},
+)
+
+it.each([true, false])("only shows the add-page action in development (enabled=%s)", (enabled) => {
+	render(
+		<MicroAppMobileEntryPreview
+			entryFile={null}
+			attachments={[]}
+			attachmentList={[]}
+			selectedProject={null}
+			allowEdit={false}
+			showOpenPageMenu={enabled}
+		/>,
+	)
+	const button = screen.queryByRole("button", { name: "microAppPage.previewToolbar.openPage" })
+	if (enabled) expect(button).toBeDisabled()
+	else expect(button).not.toBeInTheDocument()
 })

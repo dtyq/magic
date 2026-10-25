@@ -7,6 +7,7 @@ import {
 	type Topic,
 	type Workspace,
 } from "@/pages/superMagic/pages/Workspace/types"
+import { superMagicStore } from "@/pages/superMagic/stores"
 import projectStore from "@/pages/superMagic/stores/core/project"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import workspaceStore from "@/pages/superMagic/stores/core/workspace"
@@ -14,6 +15,40 @@ import {
 	isTopicTerminalTaskStatus,
 	type TopicReadProgressPayload,
 } from "./topicReadProgressService"
+
+const TERMINAL_TOPIC_TASK_STATUSES = new Set<TaskStatus>([
+	TaskStatus.FINISHED,
+	TaskStatus.ERROR,
+	TaskStatus.SUSPENDED,
+])
+
+function resolveTopicTaskStatus(topic?: Pick<Topic, "task_status"> | null) {
+	return topic?.task_status || (topic as Topic & { status?: TaskStatus })?.status
+}
+
+function isExplicitNonTerminalTopicTaskStatus(status?: TaskStatus) {
+	return (
+		status === TaskStatus.RUNNING ||
+		status === TaskStatus.WAITING ||
+		status === TaskStatus.WAITING_FOR_USER
+	)
+}
+
+function isTerminalTopicTaskStatus(status?: TaskStatus) {
+	return Boolean(status && TERMINAL_TOPIC_TASK_STATUSES.has(status))
+}
+
+function hasActiveTopicExecution(chatTopicId: string) {
+	const topicMeta = superMagicStore.topicMeta.get(chatTopicId)
+	const hasBufferedMessages = (superMagicStore.buffer.get(chatTopicId)?.messages?.length ?? 0) > 0
+	return (
+		hasBufferedMessages ||
+		superMagicStore.hasPendingTopicExecution?.(chatTopicId) ||
+		superMagicStore.isTopicStreaming?.(chatTopicId) ||
+		Boolean(topicMeta?.isStream) ||
+		Boolean(topicMeta?.isStreamLoading)
+	)
+}
 
 interface OptimisticTopicRunningStateParams {
 	topicStore: TopicStore
@@ -43,9 +78,11 @@ interface ArrivedTopicStatusChangeParams {
 export async function syncTopicStatusPatch({
 	topicStore,
 	topicId,
+	localTaskStatus,
 }: {
 	topicStore: TopicStore
 	topicId: string
+	localTaskStatus?: TaskStatus
 }) {
 	if (!topicId) return
 
@@ -53,10 +90,63 @@ export async function syncTopicStatusPatch({
 	const statusItem = statusResponse.topics?.[0] || statusResponse.list?.[0]
 	if (!statusItem) return
 
+	const nextStatus = statusItem.status as TaskStatus
+	const latestLocalStatus = localTaskStatus ?? resolveTopicTaskStatus(topicStore.selectedTopic)
+	if (latestLocalStatus === TaskStatus.RUNNING && nextStatus === TaskStatus.WAITING) return
+
 	topicStore.mergeTopic(topicId, {
-		task_status: statusItem.status as TaskStatus,
-		status: statusItem.status as TaskStatus,
+		task_status: nextStatus,
+		status: nextStatus,
 		has_unread: statusItem.has_unread,
+	})
+}
+
+/**
+ * 判断前台消息 HTTP 对账后是否需要补拉话题状态。
+ * 消息层与 topicStore.task_status 解耦，Tab 切回时常见“消息已终态、UI 仍 RUNNING”。
+ */
+export function shouldSyncTopicStatusAfterForegroundMessageReconciliation({
+	chatTopicId,
+	localTaskStatus,
+}: {
+	chatTopicId?: string
+	localTaskStatus?: TaskStatus
+}) {
+	if (!chatTopicId || (typeof document !== "undefined" && document.visibilityState !== "visible"))
+		return false
+
+	if (isExplicitNonTerminalTopicTaskStatus(localTaskStatus)) return true
+
+	if (!localTaskStatus || isTerminalTopicTaskStatus(localTaskStatus)) return false
+
+	return !hasActiveTopicExecution(chatTopicId)
+}
+
+/** 前台消息对账完成后，用服务端话题状态补丁收敛本地 stale task_status。 */
+export async function syncTopicStatusAfterForegroundMessageReconciliation({
+	topicStore,
+	topicId,
+	chatTopicId,
+	localTaskStatus,
+}: {
+	topicStore: TopicStore
+	topicId?: string
+	chatTopicId?: string
+	localTaskStatus?: TaskStatus
+}) {
+	if (!topicId || !chatTopicId) return
+	if (
+		!shouldSyncTopicStatusAfterForegroundMessageReconciliation({
+			chatTopicId,
+			localTaskStatus,
+		})
+	)
+		return
+
+	await syncTopicStatusPatch({
+		topicStore,
+		topicId,
+		localTaskStatus,
 	})
 }
 

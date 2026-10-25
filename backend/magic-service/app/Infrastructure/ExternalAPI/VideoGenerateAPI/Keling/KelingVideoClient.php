@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling;
 
+use App\ErrorCode\VideoGenerateErrorCode;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
+use App\Infrastructure\Util\Log\PayloadLogSanitizer;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Codec\Json;
@@ -33,12 +35,12 @@ readonly class KelingVideoClient
     {
         $normalizedBaseUrl = rtrim($baseUrl, '/');
         $normalizedPath = '/' . ltrim($path, '/');
-        $sanitizedLogContext = $this->sanitizeForLog($logContext);
+        $sanitizedLogContext = PayloadLogSanitizer::sanitizeValue($logContext);
         $this->logger->info('keling video post request', [
             'base_url' => $normalizedBaseUrl,
             'path' => $normalizedPath,
             'context' => $sanitizedLogContext,
-            'payload' => $this->sanitizeForLog($payload),
+            'payload' => PayloadLogSanitizer::sanitizeValue($payload),
         ]);
 
         try {
@@ -69,7 +71,7 @@ readonly class KelingVideoClient
             'base_url' => $normalizedBaseUrl,
             'path' => $normalizedPath,
             'context' => $sanitizedLogContext,
-            'response' => $this->sanitizeForLog($data),
+            'response' => PayloadLogSanitizer::sanitizeValue($data),
         ]);
 
         return $data;
@@ -79,7 +81,7 @@ readonly class KelingVideoClient
     {
         $normalizedBaseUrl = rtrim($baseUrl, '/');
         $normalizedPath = '/' . ltrim($path, '/');
-        $sanitizedLogContext = $this->sanitizeForLog($logContext);
+        $sanitizedLogContext = PayloadLogSanitizer::sanitizeValue($logContext);
         $this->logger->info('keling video get request', [
             'base_url' => $normalizedBaseUrl,
             'path' => $normalizedPath,
@@ -113,7 +115,7 @@ readonly class KelingVideoClient
             'base_url' => $normalizedBaseUrl,
             'path' => $normalizedPath,
             'context' => $sanitizedLogContext,
-            'response' => $this->sanitizeForLog($data),
+            'response' => PayloadLogSanitizer::sanitizeValue($data),
         ]);
 
         return $data;
@@ -132,87 +134,15 @@ readonly class KelingVideoClient
         try {
             $data = $request();
         } catch (RequestException $exception) {
-            throw new ProviderVideoException($this->formatRequestExceptionMessage($exception, $action), $exception);
+            throw new ProviderVideoException(VideoGenerateErrorCode::GENERAL_ERROR, VideoGenerateErrorCode::GENERAL_ERROR->getMessage(), $exception);
         } catch (Throwable $throwable) {
-            throw new ProviderVideoException(sprintf('keling video %s failed: %s', $action, $throwable->getMessage()), $throwable);
+            throw new ProviderVideoException(VideoGenerateErrorCode::GENERAL_ERROR, VideoGenerateErrorCode::GENERAL_ERROR->getMessage(), $throwable);
         }
 
         if (! is_array($data)) {
-            throw new ProviderVideoException(sprintf('keling video %s returned invalid json', $action));
+            throw new ProviderVideoException(VideoGenerateErrorCode::GENERAL_ERROR, VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
         }
 
         return $data;
-    }
-
-    private function formatRequestExceptionMessage(RequestException $exception, string $action): string
-    {
-        if (! $exception->hasResponse()) {
-            return sprintf('keling video %s failed: %s', $action, $exception->getMessage());
-        }
-
-        $response = $exception->getResponse();
-        $statusCode = $response?->getStatusCode() ?? 0;
-        $reason = $response?->getReasonPhrase() ?? 'unknown';
-        $body = trim((string) $response?->getBody());
-
-        if ($body === '') {
-            return sprintf('keling video %s failed: HTTP %d %s', $action, $statusCode, $reason);
-        }
-
-        $providerMessage = $this->extractProviderMessageFromBody($body);
-        return $providerMessage ?? sprintf(
-            'keling video %s failed: HTTP %d %s: %s',
-            $action,
-            $statusCode,
-            $reason,
-            $this->sanitizeResponseBody($body),
-        );
-    }
-
-    private function extractProviderMessageFromBody(string $body): ?string
-    {
-        try {
-            $decoded = Json::decode($body);
-        } catch (Throwable) {
-            return null;
-        }
-
-        if (! is_array($decoded)) {
-            return null;
-        }
-
-        foreach ([
-            is_array($decoded['error'] ?? null) ? ($decoded['error']['message'] ?? null) : null,
-            $decoded['message'] ?? null,
-            $decoded['msg'] ?? null,
-            is_array($decoded['data'] ?? null) ? ($decoded['data']['message'] ?? null) : null,
-            is_array($decoded['data']['error'] ?? null) ? ($decoded['data']['error']['message'] ?? null) : null,
-            is_array($decoded['data'] ?? null) ? ($decoded['data']['task_status_msg'] ?? null) : null,
-        ] as $candidate) {
-            if (is_string($candidate) && trim($candidate) !== '') {
-                return trim($candidate);
-            }
-        }
-
-        return null;
-    }
-
-    private function sanitizeForLog(mixed $value): mixed
-    {
-        if (! is_array($value)) {
-            return $value;
-        }
-
-        $sanitized = [];
-        foreach ($value as $key => $item) {
-            $sanitized[$key] = is_array($item) ? $this->sanitizeForLog($item) : $item;
-        }
-
-        return $sanitized;
-    }
-
-    private function sanitizeResponseBody(string $body): string
-    {
-        return strlen($body) > 1024 ? substr($body, 0, 1024) . '...(truncated)' : $body;
     }
 }

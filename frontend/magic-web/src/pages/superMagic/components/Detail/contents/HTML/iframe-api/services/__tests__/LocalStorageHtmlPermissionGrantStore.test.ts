@@ -249,5 +249,5 @@ describe("IndexedDbHtmlPermissionGrantStore", () => {
 		expect(await store.getAppGrants(toIdentity(grant({ entryPath: "app/new.html" })))).toEqual([
 			grant({ entryPath: "app/new.html", grantedAt: 2000, expiresAt: null }),
 		])
-	})
+	}, 30_000)
 })

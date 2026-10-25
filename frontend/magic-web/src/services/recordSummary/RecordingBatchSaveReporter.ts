@@ -1,3 +1,9 @@
+import {
+	createTaskEndError,
+	getBusinessErrorCode,
+	isTaskEndError,
+	defaultErrorManager,
+} from "./RecordingErrorManager"
 import { SuperMagicApi } from "@/apis"
 import { UploadSource } from "@/pages/superMagic/components/MessageEditor/hooks/useFileUpload"
 import { recordingLogger } from "./utils/RecordingLogger"
@@ -8,6 +14,7 @@ interface RecordingBatchSaveFile {
 	sessionId: string
 	projectId: string
 	topicId: string
+	taskId: string
 	parentId?: string
 	fileKey: string
 	fileName: string
@@ -89,7 +96,7 @@ export class RecordingBatchSaveReporter {
 					{
 						project_id: file.projectId,
 						topic_id: file.topicId,
-						task_id: file.sessionId,
+						task_id: file.taskId,
 						file_key: file.fileKey,
 						file_name: file.fileName,
 						file_size: file.fileSize,
@@ -127,6 +134,11 @@ export class RecordingBatchSaveReporter {
 					fileName: file.fileName,
 				},
 			})
+			if (isTaskEndError(error)) {
+				void defaultErrorManager.handleTaskEnd(
+					createTaskEndError(file.sessionId, getBusinessErrorCode(error)),
+				)
+			}
 			if (throwOnError) {
 				throw error
 			}

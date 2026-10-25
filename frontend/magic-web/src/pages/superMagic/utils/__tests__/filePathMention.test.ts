@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+	createCanonicalWorkspaceHref,
 	extractFilePathMentions,
 	parseFilePathMentionAt,
 	replaceFilePathMentions,
@@ -160,5 +161,14 @@ describe("filePathMention", () => {
 			unclosedBracketPath,
 			bareClosingBracketPath,
 		])
+	})
+})
+
+describe("createCanonicalWorkspaceHref", () => {
+	it("serializes workspace-relative and root-prefixed paths as ./ hrefs", () => {
+		expect(createCanonicalWorkspaceHref("77/images/cat.png")).toBe("./77/images/cat.png")
+		expect(createCanonicalWorkspaceHref("./77/images/cat.png")).toBe("./77/images/cat.png")
+		expect(createCanonicalWorkspaceHref("/77/images/cat.png")).toBe("./77/images/cat.png")
+		expect(createCanonicalWorkspaceHref("asset://virtual-id")).toBeNull()
 	})
 })

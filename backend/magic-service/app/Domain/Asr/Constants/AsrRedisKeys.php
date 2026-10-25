@@ -33,13 +33,13 @@ class AsrRedisKeys
 
     /**
      * MQ 总结任务重试计数 Key 格式.
-     * 实际使用时会 MD5(user_id:task_key).
+     * 实际使用时会 MD5(user_id:task_key:mode).
      */
     public const string SUMMARY_MQ_RETRY = 'asr:summary:mq_retry:%s';
 
     /**
      * MQ 总结任务重试锁 Key 格式.
-     * 实际使用时会 MD5(user_id:task_key).
+     * 实际使用时会 MD5(user_id:task_key:mode).
      */
     public const string SUMMARY_MQ_RETRY_LOCK = 'asr:summary:mq_retry_lock:%s';
 
@@ -48,6 +48,12 @@ class AsrRedisKeys
      * 实际使用时会 MD5(user_id:task_key).
      */
     public const string SUMMARY_CHAT_DEDUP = 'asr:summary:chat_dedup:%s';
+
+    /**
+     * file_id 总结场景的标题缓存 Key 格式。
+     * 实际使用时会 MD5(user_id:task_key)。
+     */
+    public const string SUMMARY_TITLE = 'asr:summary:title:%s';
 
     /**
      * 完成录音任务锁 Key 格式.

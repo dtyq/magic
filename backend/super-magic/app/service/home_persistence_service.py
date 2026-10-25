@@ -1,6 +1,7 @@
 """Initialize user HOME symlinks after the INIT message is available."""
 
 import os
+import stat
 from pathlib import Path
 
 from agentlang.logger import get_logger
@@ -8,7 +9,10 @@ from app.utils.async_file_utils import (
     async_exists,
     async_is_dir,
     async_is_symlink,
+    async_lstat,
     async_mkdir,
+    async_readlink,
+    async_realpath,
     async_rmtree,
     async_symlink,
     async_unlink,
@@ -143,25 +147,51 @@ class HomePersistenceService:
 
     @classmethod
     async def _ensure_symlink(cls, link: Path, target: Path) -> None:
-        """Ensure link points to target, preferring USER_HOME_DIR data."""
-        if link.resolve(strict=False) == target.resolve(strict=False):
-            await async_mkdir(target, parents=True, exist_ok=True)
+        """Ensure link points to target, preferring USER_HOME_DIR data.
+
+        link 通常位于 AGFS 挂载下（例如 /app/.user -> /magicfs/user），在那里每次
+        存在性探测都是一次远端往返。因此这里用一次 lstat 判定全部状态，而不是
+        分别做 resolve / islink / exists 三次探测：
+
+        | lstat 结果              | 处理                            |
+        |------------------------|---------------------------------|
+        | FileNotFoundError      | 直接创建软链                     |
+        | S_ISLNK                | 已指向 target 则保留，否则重建     |
+        | 其它（真实文件/目录占用） | 先移除本地路径，再创建软链         |
+        """
+        if link == target:
+            # HOME 与 USER_HOME_DIR 指向同一位置时无需建链（例如 USER_HOME_DIR=/root）。
+            # 此时 link 是承载数据的真实目录，继续往下会把数据当成本地残留删掉。
             return
 
-        await async_mkdir(target, parents=True, exist_ok=True)
-        await async_mkdir(link.parent, parents=True, exist_ok=True)
+        try:
+            link_stat = await async_lstat(link)
+        except FileNotFoundError:
+            link_stat = None
 
-        if await async_is_symlink(link):
-            if link.resolve(strict=False) == target.resolve(strict=False):
+        await async_mkdir(target, parents=True, exist_ok=True)
+
+        if link_stat is None:
+            await async_mkdir(link.parent, parents=True, exist_ok=True)
+            await async_symlink(target, link)
+            logger.info(f"[HomePersistence] 已创建软链: {link} -> {target}")
+            return
+
+        if stat.S_ISLNK(link_stat.st_mode):
+            if await async_readlink(link) == str(target):
                 return
             await async_unlink(link)
             await async_symlink(target, link)
             logger.info(f"[HomePersistence] 已更新软链: {link} -> {target}")
             return
 
-        if await async_exists(link):
-            await cls._discard_local_path(link)
+        if await async_realpath(link) == await async_realpath(target):
+            # link 与 target 经软链解析后是同一实体（HOME 与 USER_HOME_DIR 以不同
+            # 写法指向同一位置）。此时 link 就是持久化数据本身，不能当本地残留清理。
+            # 只在确实要走清理分支时做这一步解析，常规路径不必多付探测。
+            return
 
+        await cls._discard_local_path(link)
         await async_symlink(target, link)
         logger.info(f"[HomePersistence] 已创建软链: {link} -> {target}")
 

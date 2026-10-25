@@ -139,6 +139,7 @@ describe("useSlidesTemplateCatalogState", () => {
 
 		await waitFor(() => expect(result.current.total).toBe(68))
 		expect(SuperMagicApi.getSlidesTemplateCount).toHaveBeenCalledWith({
+			scope: "official",
 			page: 1,
 			page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 		})
@@ -188,7 +189,7 @@ describe("useSlidesTemplateCatalogState", () => {
 
 		await waitFor(() => expect(result.current.isLoadingMore).toBe(false))
 		expect(SuperMagicApi.getSlidesTemplates).toHaveBeenLastCalledWith(
-			{ page: 2, page_size: 1 },
+			{ scope: "official", page: 2, page_size: 1 },
 			slidesTemplateImageOptions,
 		)
 		expect(result.current.hasMore).toBe(false)
@@ -320,6 +321,7 @@ describe("useSlidesTemplateCatalogState", () => {
 
 		expect(SuperMagicApi.getSlidesTemplates).toHaveBeenCalledWith(
 			{
+				scope: "official",
 				page: 1,
 				page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 			},
@@ -350,6 +352,7 @@ describe("useSlidesTemplateCatalogState", () => {
 		await waitFor(() =>
 			expect(SuperMagicApi.getSlidesTemplates).toHaveBeenLastCalledWith(
 				{
+					scope: "official",
 					page: 1,
 					page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 					tag_codes: [businessStyleTag.code],
@@ -488,6 +491,7 @@ describe("useSlidesTemplateCatalogState", () => {
 		)
 		expect(SuperMagicApi.getSlidesTemplates).toHaveBeenLastCalledWith(
 			{
+				scope: "official",
 				page: 1,
 				page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 				category_code: businessCategory.code,
@@ -508,6 +512,7 @@ describe("useSlidesTemplateCatalogState", () => {
 			() =>
 				expect(SuperMagicApi.getSlidesTemplates).toHaveBeenLastCalledWith(
 					{
+						scope: "official",
 						page: 1,
 						page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 						category_code: businessCategory.code,
@@ -530,6 +535,7 @@ describe("useSlidesTemplateCatalogState", () => {
 		await waitFor(() =>
 			expect(SuperMagicApi.getSlidesTemplates).toHaveBeenLastCalledWith(
 				{
+					scope: "official",
 					page: 1,
 					page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 					category_code: businessCategory.code,
@@ -576,6 +582,7 @@ describe("useSlidesTemplateCatalogState", () => {
 		await waitFor(() =>
 			expect(SuperMagicApi.getSlidesTemplates).toHaveBeenLastCalledWith(
 				{
+					scope: "official",
 					page: 1,
 					page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 					tag_codes: [featuredTag.code],
@@ -592,6 +599,7 @@ describe("useSlidesTemplateCatalogState", () => {
 		await waitFor(() =>
 			expect(SuperMagicApi.getSlidesTemplates).toHaveBeenLastCalledWith(
 				{
+					scope: "official",
 					page: 1,
 					page_size: SLIDES_TEMPLATE_PAGE_SIZE,
 					tag_codes: [featuredTag.code, businessStyleTag.code],

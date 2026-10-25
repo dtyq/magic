@@ -1,3 +1,7 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDebounce, useMemoizedFn, useRequest } from "ahooks"
 import { runInAction } from "mobx"
@@ -276,9 +280,10 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 
 	/**
 	 * 新建项目时仅刷新当前工作区列表，让用户继续停留在当前页完成后续操作。
+	 * Bind create to the route workspace so this page does not inherit a stale store selection.
 	 */
 	const handleCreateProject = useMemoizedFn(async (projectName: string) => {
-		if (!selectedWorkspace) return
+		if (!activeWorkspaceId) return
 		const normalizedProjectName = projectName.trim()
 		if (!normalizedProjectName) return
 
@@ -287,6 +292,7 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 				projectMode: TopicMode.Empty,
 				isAutoSelect: false,
 				projectName: normalizedProjectName,
+				workspaceId: activeWorkspaceId,
 			})
 
 			if (!result?.project) {
@@ -382,6 +388,7 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 		mode: "default",
 		onProjectChanged: () => handleRefreshProjects({ silent: true }),
 		onDeleteProjectConfirmed: async (project) => {
+			if (!canDeleteRecordingProjects([project.id])) return
 			try {
 				setIsReplacingFirstProjectPage(true)
 				setPendingRemoveIds((prev) => new Set([...prev, project.id]))
@@ -390,7 +397,8 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 					lastUsedWorkspaceId: selectedWorkspace?.id,
 				})
 				await handleRefreshProjects({ silent: true })
-			} catch {
+			} catch (error) {
+				if (handleRecordingProjectDeletionError(error)) return
 				await handleRefreshProjects({ silent: true })
 				magicToast.error(t("project.deleteProjectFailed"))
 				throw new Error("delete project failed")

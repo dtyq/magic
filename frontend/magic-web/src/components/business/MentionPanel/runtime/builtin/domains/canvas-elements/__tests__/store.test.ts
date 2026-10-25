@@ -8,9 +8,18 @@ import {
 import { FolderIcon } from "@/components/CanvasDesign/ui/primitives/icons"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { I18nTexts } from "../../../../../i18n/types"
-import { MentionItemType, type MentionItem } from "../../../../../types"
+import {
+	MentionItemType,
+	type MentionItem,
+	type ProjectFileMentionData,
+} from "../../../../../types"
 import { workspaceFilesRendererEntries } from "../../workspace-files/renderer"
-import { getCanvasElementMentionItemId, MentionPanelCanvasElementsStore } from "../store"
+import {
+	CANVAS_SELECTION_PENDING_MENTION_LIMIT,
+	collectCanvasElementMentionItems,
+	getCanvasElementMentionItemId,
+	MentionPanelCanvasElementsStore,
+} from "../store"
 
 const files: FileItem[] = [
 	{
@@ -29,57 +38,95 @@ const files: FileItem[] = [
 	},
 ]
 
+function content(contentId: string, fields: Record<string, unknown> = {}) {
+	return { contentId, ...fields }
+}
+
+function contentElement(
+	element: Record<string, unknown>,
+	contentId: string,
+	contentFields: Record<string, unknown> = {},
+) {
+	return {
+		...element,
+		contents: [content(contentId, contentFields)],
+		activeContentId: contentId,
+		mainContentId: contentId,
+	}
+}
+
 const canvasDocument: CanvasDocument = {
 	elements: [
-		{
-			id: "shape",
-			type: ElementTypeEnum.Rectangle,
-			name: "Background Shape",
-			zIndex: 1,
-		},
-		{
-			id: "frame",
-			type: ElementTypeEnum.Frame,
-			name: "Main Frame",
-			zIndex: 3,
-			children: [
-				{
-					id: "hero",
-					type: ElementTypeEnum.Image,
-					name: "Hero Layer",
-					src: "./images/hero.png",
-					zIndex: 2,
-				},
-				{
-					id: "caption",
-					type: ElementTypeEnum.Text,
-					name: "Caption Text",
-					zIndex: 1,
-				},
-				{
-					id: "missing",
-					type: ElementTypeEnum.Image,
-					name: "Missing Media",
-					src: "./images/missing.png",
-					zIndex: 0,
-				},
-				{
-					id: "group",
-					type: ElementTypeEnum.Group,
-					name: "Nested Group",
-					zIndex: 4,
-					children: [
+		contentElement(
+			{
+				id: "shape",
+				type: ElementTypeEnum.Rectangle,
+				name: "Background Shape",
+				zIndex: 1,
+			},
+			"shape-content",
+		),
+		contentElement(
+			{
+				id: "frame",
+				type: ElementTypeEnum.Frame,
+				name: "Main Frame",
+				zIndex: 3,
+				children: [
+					contentElement(
 						{
-							id: "clip",
-							type: ElementTypeEnum.Video,
-							name: "Clip Layer",
-							src: "./videos/clip.mp4",
+							id: "hero",
+							type: ElementTypeEnum.Image,
+							name: "Hero Layer",
+							zIndex: 2,
+						},
+						"hero-content",
+						{ src: "./images/hero.png" },
+					),
+					contentElement(
+						{
+							id: "caption",
+							type: ElementTypeEnum.Text,
+							name: "Caption Text",
 							zIndex: 1,
 						},
-					],
-				},
-			],
-		},
+						"caption-content",
+					),
+					contentElement(
+						{
+							id: "missing",
+							type: ElementTypeEnum.Image,
+							name: "Missing Media",
+							zIndex: 0,
+						},
+						"missing-content",
+						{ src: "./images/missing.png" },
+					),
+					contentElement(
+						{
+							id: "group",
+							type: ElementTypeEnum.Group,
+							name: "Nested Group",
+							zIndex: 4,
+							children: [
+								contentElement(
+									{
+										id: "clip",
+										type: ElementTypeEnum.Video,
+										name: "Clip Layer",
+										zIndex: 1,
+									},
+									"clip-content",
+									{ src: "./videos/clip.mp4" },
+								),
+							],
+						},
+						"group-content",
+					),
+				],
+			},
+			"frame-content",
+		),
 	],
 }
 
@@ -193,13 +240,16 @@ describe("MentionPanelCanvasElementsStore", () => {
 	it("rebuilds the snapshot after cache invalidation", () => {
 		const nextDocument: CanvasDocument = {
 			elements: [
-				{
-					id: "clip",
-					type: ElementTypeEnum.Video,
-					name: "Fresh Clip",
-					src: "./videos/clip.mp4",
-					zIndex: 1,
-				},
+				contentElement(
+					{
+						id: "clip",
+						type: ElementTypeEnum.Video,
+						name: "Fresh Clip",
+						zIndex: 1,
+					},
+					"fresh-clip-content",
+					{ src: "./videos/clip.mp4" },
+				),
 			],
 		}
 		let currentDocument = canvasDocument
@@ -307,13 +357,16 @@ describe("MentionPanelCanvasElementsStore", () => {
 			canvasName: "Pink Design",
 			getCanvasDocument: () => ({
 				elements: [
-					{
-						id: "clip",
-						type: ElementTypeEnum.Video,
-						name: "Clip Layer",
-						src: "./videos/clip.mp4",
-						zIndex: 1,
-					},
+					contentElement(
+						{
+							id: "clip",
+							type: ElementTypeEnum.Video,
+							name: "Clip Layer",
+							zIndex: 1,
+						},
+						"clip-content",
+						{ src: "./videos/clip.mp4" },
+					),
 				],
 			}),
 			resolveFileBySrc: () => ({
@@ -372,5 +425,142 @@ describe("MentionPanelCanvasElementsStore", () => {
 
 		expect(groupResults).toEqual([])
 		expect(frameResults.map((item) => item.name)).toEqual(["Hero Layer"])
+	})
+
+	it("collects selected nested image, video and audio media with main-image and resource dedupe", () => {
+		const selectedDocument: CanvasDocument = {
+			elements: [
+				{
+					id: "frame",
+					type: ElementTypeEnum.Frame,
+					zIndex: 1,
+					children: [
+						{
+							id: "image-main-version",
+							type: ElementTypeEnum.Image,
+							zIndex: 3,
+							contents: [
+								{ contentId: "active", src: "./images/older-version.png" },
+								{ contentId: "main", src: "./images/hero.png" },
+							],
+							activeContentId: "active",
+							mainContentId: "main",
+						},
+						contentElement(
+							{
+								id: "duplicate-image",
+								type: ElementTypeEnum.Image,
+								zIndex: 2,
+							},
+							"duplicate-image-content",
+							{ src: "./images/hero.png" },
+						),
+						{
+							id: "nested-group",
+							type: ElementTypeEnum.Group,
+							zIndex: 1,
+							children: [
+								contentElement(
+									{
+										id: "video",
+										type: ElementTypeEnum.Video,
+										zIndex: 2,
+									},
+									"video-content",
+									{ src: "./videos/clip.mp4" },
+								),
+								contentElement(
+									{
+										id: "audio",
+										type: ElementTypeEnum.Audio,
+										zIndex: 1,
+									},
+									"audio-content",
+									{ src: "./audio/voice.mp3" },
+								),
+							],
+						},
+					],
+				},
+			],
+		}
+
+		const items = collectCanvasElementMentionItems({
+			document: selectedDocument,
+			selectedElementIds: ["frame", "image-main-version"],
+			designProjectId: "design-id",
+			resolveFileBySrc: (src) => {
+				if (src === "./images/hero.png") return files[0]
+				if (src === "./videos/clip.mp4") return files[1]
+				if (src === "./audio/voice.mp3") {
+					return {
+						file_id: "file-audio",
+						file_name: "voice.mp3",
+						file_extension: "mp3",
+						relative_file_path: "/design/audio/voice.mp3",
+					}
+				}
+				return null
+			},
+		})
+
+		expect(items).toHaveLength(3)
+		expect(
+			items.map((item) =>
+				item.type === MentionItemType.PROJECT_FILE
+					? (item.data as ProjectFileMentionData).file_id
+					: undefined,
+			),
+		).toEqual(["file-hero", "file-clip", "file-audio"])
+		expect(items[0]?.sourcePreview).toMatchObject({
+			mediaType: "image",
+			src: "./images/hero.png",
+		})
+		expect(items[2]?.sourcePreview).toMatchObject({ mediaType: "audio" })
+	})
+
+	it("silently stops collecting after maxItems unique files", () => {
+		const selectedDocument = {
+			elements: Array.from({ length: 25 }, (_, index) =>
+				contentElement(
+					{
+						id: `image-${index}`,
+						type: ElementTypeEnum.Image,
+						zIndex: 25 - index,
+					},
+					`content-${index}`,
+					{ src: `./images/file-${index}.png` },
+				),
+			),
+		} as unknown as CanvasDocument
+
+		const resolveCalls: string[] = []
+		const items = collectCanvasElementMentionItems({
+			document: selectedDocument,
+			selectedElementIds: selectedDocument.elements.map((element) => element.id),
+			designProjectId: "design-id",
+			maxItems: 20,
+			resolveFileBySrc: (src) => {
+				resolveCalls.push(src)
+				const index = src.match(/file-(\d+)/)?.[1]
+				if (index == null) return null
+				return {
+					file_id: `file-${index}`,
+					file_name: `file-${index}.png`,
+					file_extension: "png",
+					relative_file_path: `/design/images/file-${index}.png`,
+				}
+			},
+		})
+
+		expect(items).toHaveLength(20)
+		expect(resolveCalls).toHaveLength(20)
+		expect(
+			items.map((item) =>
+				item.type === MentionItemType.PROJECT_FILE
+					? (item.data as ProjectFileMentionData).file_id
+					: undefined,
+			),
+		).toEqual(Array.from({ length: 20 }, (_, index) => `file-${index}`))
 	})
 })

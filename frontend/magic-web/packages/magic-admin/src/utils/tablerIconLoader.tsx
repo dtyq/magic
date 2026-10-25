@@ -3,7 +3,7 @@ import type { IconProps } from "@tabler/icons-react"
 
 const iconCache = new Map<string, React.ComponentType<IconProps>>()
 
-export async function loadTablerIconComponent(name?: string) {
+async function loadTablerIconComponent(name?: string) {
 	if (!name) return null
 	if (iconCache.has(name)) return iconCache.get(name) || null
 

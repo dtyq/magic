@@ -1,6 +1,6 @@
 import { prefix } from "@/MagicFlow/constants"
 import SearchInput from "@/common/BaseUI/DropdownRenderer/SearchInput"
-import { IconSearch } from "@douyinfe/semi-icons"
+import { IconSearch } from "@tabler/icons-react"
 import { Tabs } from "antd"
 import clsx from "clsx"
 import i18next from "i18next"
@@ -61,7 +61,7 @@ function FlowPopup({ source, target, edgeId, sourceHandle, nodeId }: FlowPopupPr
 			<div className={clsx(styles.flowPopup, `${prefix}flow-popup`)}>
 				<div className={clsx(styles.searchWrapper, `${prefix}search-wrapper`)}>
 					<SearchInput
-						prefix={<IconSearch />}
+						prefix={<IconSearch size={18} stroke={1.8} />}
 						placeholder={i18next.t("flow.searchNodes", { ns: "magicFlow" })}
 						value={keyword}
 						onChange={(e: any) => setKeyword(e.target.value)}

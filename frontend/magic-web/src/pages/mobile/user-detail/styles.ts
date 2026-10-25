@@ -1,5 +1,5 @@
 import { createStyles } from "antd-style"
-import bg from "./bg.png"
+import bg from "./bg.webp"
 
 export const useUserDetailStyles = createStyles(({ css, token, prefixCls }) => ({
 	container: css`

@@ -4,7 +4,7 @@
 import { DefaultOptionType } from "antd/lib/select"
 import { IconCheck } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { castArray } from "lodash-es"
 import React from "react"
 import SearchInput from "../SearchInput"
 import { RendererWrapper } from "./style"
@@ -39,7 +39,7 @@ export default function BaseDropdownRenderer({
 	})
 
 	const onSelectItem = useMemoizedFn((val: any) => {
-		const cloneValue = _.castArray(value).filter((v) => !!v)
+		const cloneValue = castArray(value).filter((v) => !!v)
 		/** 处理多选 */
 		if (multiple) {
 			if (cloneValue?.includes?.(val)) {

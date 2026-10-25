@@ -155,6 +155,8 @@ export enum ProjectStatus {
 export interface Workspace {
 	id: string
 	name: string
+	/** 用户自定义侧栏排序，数值越小越靠前。 */
+	sort_order?: number
 	is_archived: 0 | 1 // 0: 未归档，1: 已归档
 	is_pinned?: boolean
 	pinned_at?: string | null
@@ -164,7 +166,7 @@ export interface Workspace {
 	cooperate_project_count?: number
 	project_count: number
 	status?: "waiting" | "running" | "finished" | "error" // 其实没有这个字段，但是为了兼容旧数据，所以加了这个字段
-	workspace_type: "chat" | "default"
+	workspace_type: "chat" | "default" | "micro-app" | "ai-canvas"
 }
 
 // 话题
@@ -193,6 +195,16 @@ export interface Topic {
 	 * 自定义 agent 对应的 code
 	 */
 	agent_code?: string
+}
+
+/** Whether a topic is paused while the agent waits for a user response. */
+export function isTopicWaitingForUser(topic?: Pick<Topic, "task_status"> | null): boolean {
+	return topic?.task_status === TaskStatus.WAITING_FOR_USER
+}
+
+/** Topic 状态仍为 running 时，即使消息流 loading 短暂归零，也不能把新消息直接发给当前任务。 */
+export function isTopicTaskRunning(topic?: Pick<Topic, "task_status" | "status"> | null): boolean {
+	return (topic?.task_status || topic?.status) === TaskStatus.RUNNING
 }
 
 // 消息相关类型
@@ -275,6 +287,8 @@ export interface TaskData {
 // 项目列表Item
 export interface ProjectListItem {
 	id: string
+	/** 工作区内用户自定义侧栏排序，数值越小越靠前。 */
+	sort_order?: number
 	project_status: ProjectStatus
 	project_mode: TopicMode | ""
 	project_description?: string // 协作项目才有
@@ -297,6 +311,8 @@ export interface ProjectListItem {
 	tag: "collaboration" | "" // 用于标识是否是协作项目
 	is_pinned?: boolean // 协作项目才有
 	last_active_at?: string // 协作项目才有
+	claw_code?: string
+	micro_app_id?: string
 	user_role?: CollaboratorPermission
 	is_bind_workspace?: boolean // 协作项目才有
 	bind_workspace_id?: string // 协作项目才有
@@ -399,6 +415,7 @@ export interface FileInfo {
 	file_name: string
 	version: number
 	organization_code: string
+	relative_file_path: string
 }
 
 /** 下载图片模式 高清+无水印 */

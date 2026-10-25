@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { type Editor, type JSONContent } from "@tiptap/react"
+import { type Editor, type JSONContent } from "@/infrastructure/editors/tiptap/react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { isEmptyJSONContent } from "../utils"
 import AiCompletionService from "@/services/chat/editor/AiCompletionService"

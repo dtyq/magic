@@ -116,14 +116,20 @@
     height: 24px;
     width: 24px;
     margin-right: 8px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 3px;
     color: #fff;
+    line-height: 0;
+    vertical-align: middle;
 
     svg {
+        display: block;
         width: 18px;
         height: 18px;
+        margin: 0;
+        line-height: 1;
+        transform: translateY(-1px);
     }
 }

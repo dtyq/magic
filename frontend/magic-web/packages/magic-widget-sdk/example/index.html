@@ -1,0 +1,1626 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Magic Widget SDK E2E Example</title>
+		<style>
+			:root {
+				color-scheme: light;
+				font-family:
+					Inter,
+					ui-sans-serif,
+					system-ui,
+					-apple-system,
+					BlinkMacSystemFont,
+					"Segoe UI",
+					sans-serif;
+				background: #f5f7fb;
+				color: #172033;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				min-width: 320px;
+				min-height: 100vh;
+				margin: 0;
+				padding: 24px;
+				background: linear-gradient(135deg, #f8fafc 0%, #eef3fb 100%);
+			}
+
+			button,
+			select,
+			input,
+			textarea {
+				font: inherit;
+			}
+
+			button {
+				border: 1px solid #cbd5e1;
+				border-radius: 7px;
+				padding: 7px 10px;
+				background: #ffffff;
+				color: #1e293b;
+				cursor: pointer;
+				transition:
+					border-color 120ms ease,
+					background 120ms ease,
+					box-shadow 120ms ease;
+			}
+
+			button:hover {
+				border-color: #64748b;
+				background: #f8fafc;
+			}
+
+			button:focus-visible,
+			select:focus-visible,
+			input:focus-visible,
+			textarea:focus-visible {
+				outline: 3px solid rgb(59 130 246 / 24%);
+				outline-offset: 1px;
+			}
+
+			.agent-header {
+				max-width: 1800px;
+				margin: 0 auto 18px;
+			}
+
+			.agent-eyebrow {
+				margin: 0 0 6px;
+				color: #2563eb;
+				font-size: 12px;
+				font-weight: 700;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+
+			.agent-header h1 {
+				margin: 0;
+				font-size: clamp(22px, 3vw, 32px);
+				letter-spacing: -0.03em;
+			}
+
+			.agent-header p {
+				margin: 6px 0 0;
+				color: #64748b;
+				font-size: 14px;
+			}
+
+			.agent-layout {
+				display: grid;
+				grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+				gap: 18px;
+				align-items: start;
+				max-width: 1800px;
+				min-height: calc(100vh - 122px);
+				margin: 0 auto;
+			}
+
+			.agent-sidebar,
+			.agent-preview {
+				border: 1px solid #dbe3ef;
+				border-radius: 14px;
+				background: rgb(255 255 255 / 88%);
+				box-shadow: 0 12px 32px rgb(30 41 59 / 7%);
+			}
+
+			.agent-sidebar {
+				position: sticky;
+				top: 16px;
+				max-height: calc(100vh - 32px);
+				overflow: auto;
+				padding: 14px;
+			}
+
+			.agent-sidebar > section + section {
+				margin-top: 14px;
+				padding-top: 14px;
+				border-top: 1px solid #e2e8f0;
+			}
+
+			.control-section {
+				padding: 12px;
+				border: 1px solid #e2e8f0;
+				border-radius: 10px;
+				background: #fbfdff;
+			}
+
+			.control-section h2,
+			.preview-header h2 {
+				margin: 0;
+				font-size: 14px;
+				font-weight: 700;
+			}
+
+			.control-section > p,
+			.preview-header p {
+				margin: 5px 0 10px;
+				color: #64748b;
+				font-size: 12px;
+				line-height: 1.5;
+			}
+
+			.control-group + .control-group {
+				margin-top: 11px;
+				padding-top: 10px;
+				border-top: 1px solid #edf1f6;
+			}
+
+			.control-group-title {
+				margin: 0 0 6px;
+				color: #475569;
+				font-size: 11px;
+				font-weight: 700;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+			}
+
+			.control-group-actions {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 6px;
+			}
+
+			.control-group-actions button {
+				min-width: 0;
+				font-size: 12px;
+			}
+
+			#e2e-status {
+				display: block;
+				margin-top: 10px;
+				padding: 8px;
+				border-radius: 7px;
+				background: #eff6ff;
+				color: #1d4ed8;
+				font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+				font-size: 11px;
+				line-height: 1.45;
+				word-break: break-word;
+			}
+
+			#e2e-ui-config {
+				display: grid;
+				grid-template-columns: 1fr;
+				gap: 10px;
+			}
+
+			#e2e-ui-config fieldset {
+				min-width: 0;
+				margin: 0;
+				border: 1px solid #dbe3ef;
+				border-radius: 9px;
+				padding: 8px 10px 10px;
+			}
+
+			#e2e-ui-config legend {
+				padding: 0 4px;
+				color: #334155;
+				font-size: 12px;
+				font-weight: 700;
+			}
+
+			#e2e-ui-config label,
+			.e2e-capability {
+				display: flex;
+				gap: 6px;
+				align-items: center;
+				margin: 5px 0;
+				font-size: 12px;
+				line-height: 1.35;
+			}
+
+			#e2e-ui-config select,
+			#e2e-ui-config input[type="text"] {
+				min-width: 0;
+				max-width: 100%;
+				font: inherit;
+			}
+
+			#e2e-ui-config input[type="text"] {
+				width: min(220px, 100%);
+			}
+
+			.e2e-ui-config-actions {
+				margin: 0;
+			}
+
+			#e2e-apply-ui-config,
+			#e2e-update-config,
+			#e2e-reinitialize {
+				width: 100%;
+				border-color: #2563eb;
+				background: #2563eb;
+				color: #ffffff;
+			}
+
+			#e2e-options-editor {
+				width: 100%;
+				height: 220px;
+				box-sizing: border-box;
+				border: 1px solid #cbd5e1;
+				border-radius: 8px;
+				padding: 8px;
+				background: #0f172a;
+				color: #e2e8f0;
+				font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+				font-size: 11px;
+				line-height: 1.45;
+			}
+
+			.agent-preview {
+				min-width: 0;
+				min-height: calc(100vh - 122px);
+				padding: 16px;
+			}
+
+			.preview-header {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				gap: 12px;
+				margin-bottom: 12px;
+			}
+
+			.preview-header p {
+				margin-bottom: 0;
+			}
+
+			.preview-badge {
+				flex: 0 0 auto;
+				border-radius: 999px;
+				padding: 4px 8px;
+				background: #ecfdf5;
+				color: #047857;
+				font-size: 11px;
+				font-weight: 700;
+			}
+
+			/* Keep the inline widget usable while allowing free horizontal and vertical resizing. */
+			#e2e-inline-target {
+				width: 100%;
+				height: calc(100vh - 210px);
+				min-width: 240px;
+				min-height: 520px;
+				overflow: auto;
+				resize: both;
+				border: 1px solid #cbd5e1;
+				border-radius: 10px;
+				background: #ffffff;
+				box-shadow: inset 0 0 0 1px rgb(255 255 255 / 60%);
+			}
+
+			@media (max-width: 980px) {
+				body {
+					padding: 16px;
+				}
+
+				.agent-layout {
+					grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+					gap: 12px;
+				}
+
+				.agent-preview {
+					padding: 12px;
+				}
+			}
+
+			@media (max-width: 760px) {
+				.agent-layout {
+					grid-template-columns: 1fr;
+				}
+
+				.agent-sidebar {
+					position: static;
+					max-height: none;
+				}
+
+				.agent-preview {
+					min-height: 640px;
+				}
+
+				#e2e-inline-target {
+					height: 640px;
+				}
+			}
+
+			/* Native fullscreen owns the browser viewport; this class is the CSS fallback when postMessage loses activation. */
+			.agent-preview.is-fullscreen-fallback {
+				position: fixed;
+				inset: 0;
+				z-index: 100;
+				min-height: 100vh;
+				border-radius: 0;
+				padding: 20px;
+				background: #f8fafc;
+			}
+
+			.agent-preview.is-fullscreen-fallback #e2e-inline-target {
+				height: calc(100vh - 128px);
+			}
+
+			/* Pinning keeps the preview visible as a host-owned floating surface without affecting the iframe. */
+			.agent-preview.is-pinned {
+				position: fixed;
+				top: 16px;
+				right: 16px;
+				bottom: 16px;
+				left: max(420px, calc(100vw - 720px));
+				z-index: 90;
+				min-height: 0;
+				background: #ffffff;
+			}
+
+			.agent-preview.is-pinned #e2e-inline-target {
+				height: calc(100vh - 128px);
+			}
+
+			.agent-preview.is-fullscreen-fallback.is-pinned {
+				inset: 0;
+			}
+
+			@media (max-width: 760px) {
+				.agent-preview.is-pinned {
+					top: 8px;
+					right: 8px;
+					bottom: 8px;
+					left: 8px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<header class="agent-header">
+			<p class="agent-eyebrow">Magic Widget SDK · Agent harness</p>
+			<h1>Widget config & live preview</h1>
+			<p>
+				Control lifecycle, commands, and UI config on the left; observe the real Widget
+				state inside the iframe on the right.
+			</p>
+		</header>
+		<main class="agent-layout">
+			<aside class="agent-sidebar" aria-label="Widget control panel">
+				<section class="control-section" id="e2e-controls">
+					<h2>Console</h2>
+					<p>Actions apply directly to the current Widget instance.</p>
+					<div class="control-group">
+						<h3 class="control-group-title">Lifecycle</h3>
+						<div class="control-group-actions">
+							<button id="e2e-mount-floating" type="button">Mount floating</button>
+							<button id="e2e-mount-inline" type="button">Mount inline</button>
+							<button id="e2e-open" type="button">Open widget</button>
+							<button id="e2e-close" type="button">Close widget</button>
+							<button id="e2e-reload-iframe" type="button">Reload iframe</button>
+							<button id="e2e-destroy" type="button">Destroy widget</button>
+						</div>
+					</div>
+					<div class="control-group">
+						<h3 class="control-group-title">Close callback</h3>
+						<div class="control-group-actions">
+							<button id="e2e-close-callback-off" type="button">Callback off</button>
+							<button id="e2e-close-callback-success" type="button">
+								Callback success
+							</button>
+							<button id="e2e-close-callback-failure" type="button">
+								Callback failure
+							</button>
+						</div>
+					</div>
+					<div class="control-group">
+						<h3 class="control-group-title">Layout presets</h3>
+						<div class="control-group-actions">
+							<button id="e2e-config-desktop-focused" type="button">
+								Desktop focused
+							</button>
+							<button id="e2e-config-mobile" type="button">Mobile layout</button>
+							<button id="e2e-config-desktop-restored" type="button">
+								Desktop restored
+							</button>
+							<button id="e2e-resize-wide" type="button">Resize wide</button>
+							<button id="e2e-resize-narrow" type="button">Resize narrow</button>
+						</div>
+					</div>
+					<div class="control-group">
+						<h3 class="control-group-title">Input & messages</h3>
+						<div class="control-group-actions">
+							<button id="e2e-set-input" type="button">Set mock input</button>
+							<button id="e2e-append-input" type="button">Append mock input</button>
+							<button id="e2e-set-skill-mcp-input" type="button">
+								Set skill MCP Mentions
+							</button>
+							<button id="e2e-set-weather-skill-input" type="button">
+								Set Weather skill Mention
+							</button>
+							<button id="e2e-set-text-mention-input" type="button">
+								Set text Mention
+							</button>
+							<button id="e2e-clear-input" type="button">Clear input</button>
+							<button id="e2e-get-input" type="button">Get input</button>
+							<button id="e2e-send-message" type="button">Send mock message</button>
+							<button id="e2e-send-current-input" type="button">
+								Send current input
+							</button>
+							<button id="e2e-new-conversation" type="button">
+								New conversation
+							</button>
+							<button id="e2e-new-conversation-set-send" type="button">
+								New conversation + set + send
+							</button>
+						</div>
+					</div>
+					<output id="e2e-status" aria-live="polite">idle</output>
+				</section>
+				<section class="control-section">
+					<h2>Dynamic custom Mention search</h2>
+					<p>
+						Static groups provide the initial list. Global search: try
+						<code>revenue</code>, <code>active users</code>, or
+						<code>dynamic report</code>. Inside Business charts: try
+						<code>quarter</code>, <code>north region</code>, or
+						<code>dynamic chart</code>. To watch a slow request being cancelled,
+						type <code>slow report</code> and quickly replace it with
+						<code>dynamic report</code>.
+					</p>
+					<output id="e2e-mention-search-status" aria-live="polite">idle</output>
+				</section>
+				<section class="control-section">
+					<h2>UI config</h2>
+					<p>
+						Edit, then click Update config; changes sync only through the runtime
+						channel and do not reload the iframe.
+					</p>
+					<form id="e2e-ui-config">
+						<fieldset>
+							<legend>Layout</legend>
+							<label>
+								Layout
+								<select name="layout">
+									<option value="desktop">Desktop</option>
+									<option value="mobile">Mobile</option>
+								</select>
+							</label>
+							<label>
+								Mobile detection
+								<select name="responsive.mobileDetection">
+									<option value="viewport">Viewport only</option>
+									<option value="device-and-viewport">Device + viewport</option>
+								</select>
+							</label>
+							<label>
+								Preview
+								<select name="conversation.previewMode">
+									<option value="split">Split</option>
+									<option value="fullscreen">Fullscreen</option>
+									<option value="switchable">Switchable</option>
+								</select>
+							</label>
+						</fieldset>
+						<fieldset>
+							<legend>Shell & conversation</legend>
+							<label
+								><input name="shell.appSidebar" type="checkbox" />App sidebar</label
+							>
+							<label
+								><input name="conversation.projectFiles" type="checkbox" />Project
+								files</label
+							>
+							<label
+								><input name="conversation.topicHistory" type="checkbox" />Topic
+								history</label
+							>
+							<label
+								><input name="conversation.autoHire" type="checkbox" />Auto
+								hire</label
+							>
+						</fieldset>
+						<fieldset>
+							<legend>Header</legend>
+							<label
+								><input name="header.visible" type="checkbox" />Show header</label
+							>
+							<label>
+								Title
+								<select name="header.title.mode">
+									<option value="static">Static text</option>
+									<option value="hidden">Hidden</option>
+								</select>
+							</label>
+							<label>
+								Static title
+								<input
+									name="header.title.text"
+									type="text"
+									placeholder="Leave empty to keep the current title"
+								/>
+							</label>
+							<label>
+								Topic name
+								<select name="header.topicName.mode">
+									<option value="current">Current topic</option>
+									<option value="hidden">Hidden</option>
+									<option value="static">Static text</option>
+								</select>
+							</label>
+							<label>
+								Static topic name
+								<input
+									name="header.topicName.text"
+									type="text"
+									placeholder="Required in static mode"
+								/>
+							</label>
+							<label
+								><input
+									name="header.actions.fullscreen"
+									type="checkbox"
+								/>Fullscreen</label
+							>
+							<label
+								><input name="header.actions.pin" type="checkbox" />Pin
+								window</label
+							>
+							<label
+								><input name="header.actions.newTopic" type="checkbox" />New
+								topic</label
+							>
+							<label
+								><input
+									name="header.actions.history"
+									type="checkbox"
+								/>History</label
+							>
+							<label
+								><input name="header.actions.share" type="checkbox" />Share</label
+							>
+							<label><input name="header.actions.more" type="checkbox" />More</label>
+							<label
+								><input name="header.actions.close" type="checkbox" />Close</label
+							>
+						</fieldset>
+						<fieldset>
+							<legend>Panel</legend>
+							<label
+								><input name="panel.projectFiles" type="checkbox" />Current project
+								files</label
+							>
+							<label
+								><input name="panel.uploadFiles" type="checkbox" />Upload
+								files</label
+							>
+							<label
+								><input name="panel.otherProjectFiles" type="checkbox" />Other
+								projects/files</label
+							>
+							<label
+								><input name="panel.digitalEmployees" type="checkbox" />Digital
+								employees</label
+							>
+							<label
+								><input name="panel.microApps" type="checkbox" />Micro apps</label
+							>
+							<label><input name="panel.workflows" type="checkbox" />Workflows</label>
+							<label
+								><input name="panel.connectors" type="checkbox" />Connectors</label
+							>
+							<label><input name="panel.skills" type="checkbox" />Skills</label>
+							<label
+								><input name="panel.canvasElements" type="checkbox" />Canvas
+								elements</label
+							>
+						</fieldset>
+						<fieldset>
+							<legend>Bottom capabilities</legend>
+							<div class="e2e-capability">
+								<span>Internet search</span>
+								<label
+									><input
+										name="bottom.internetSearch.enabled"
+										type="checkbox"
+									/>Enabled</label
+								>
+								<label
+									><input
+										name="bottom.internetSearch.buttonVisible"
+										type="checkbox"
+									/>Show button</label
+								>
+							</div>
+							<div class="e2e-capability">
+								<span>Plugin</span>
+								<label
+									><input
+										name="bottom.plugin.enabled"
+										type="checkbox"
+									/>Enabled</label
+								>
+								<label
+									><input
+										name="bottom.plugin.buttonVisible"
+										type="checkbox"
+									/>Show button</label
+								>
+							</div>
+							<div class="e2e-capability">
+								<span>Upload</span>
+								<label
+									><input
+										name="bottom.upload.enabled"
+										type="checkbox"
+									/>Enabled</label
+								>
+								<label
+									><input
+										name="bottom.upload.buttonVisible"
+										type="checkbox"
+									/>Show button</label
+								>
+							</div>
+							<div class="e2e-capability">
+								<span>Voice</span>
+								<label
+									><input
+										name="bottom.voice.enabled"
+										type="checkbox"
+									/>Enabled</label
+								>
+								<label
+									><input name="bottom.voice.buttonVisible" type="checkbox" />Show
+									button</label
+								>
+							</div>
+							<label
+								><input name="bottom.model.buttonVisible" type="checkbox" />Model
+								picker</label
+							>
+						</fieldset>
+						<fieldset>
+							<legend>Window</legend>
+							<label
+								><input name="window.closable" type="checkbox" />Close button inside
+								iframe</label
+							>
+						</fieldset>
+						<p class="e2e-ui-config-actions">
+							<button id="e2e-apply-ui-config" type="button">Update config</button>
+						</p>
+					</form>
+				</section>
+				<section class="control-section">
+					<h2>Advanced</h2>
+					<p>
+						Edit the full createWidgetOptions directly; useful for invalid configs and
+						remounting.
+					</p>
+					<label for="e2e-options-editor">createWidgetOptions JSON</label>
+					<textarea id="e2e-options-editor" spellcheck="false"></textarea>
+					<p class="control-group-actions">
+						<button id="e2e-reinitialize" type="button">Reinitialize agent</button>
+						<button id="e2e-update-config" type="button">Update config</button>
+					</p>
+				</section>
+			</aside>
+			<section class="agent-preview" aria-label="Widget iframe preview">
+				<div class="preview-header">
+					<div>
+						<h2>Widget iframe preview</h2>
+						<p>
+							The right area keeps a resizable inline target; floating mode detaches
+							from this area.
+						</p>
+					</div>
+					<span id="e2e-preview-badge" class="preview-badge">Live iframe</span>
+				</div>
+				<div id="e2e-inline-target"></div>
+			</section>
+		</main>
+		<script>
+			// Exposes server-injected connection config to the page script; values come from WIDGET_EXAMPLE_* env vars.
+			window.__MAGIC_WIDGET_EXAMPLE_ENV__ = {{EXAMPLE_ENV_JSON}};
+		</script>
+		<script src="{{SDK_URL}}"></script>
+		<script>
+			const statusOutput = document.querySelector("#e2e-status")
+			const mentionSearchStatus = document.querySelector("#e2e-mention-search-status")
+			const inlineTarget = document.querySelector("#e2e-inline-target")
+			const previewPanel = document.querySelector(".agent-preview")
+			const previewBadge = document.querySelector("#e2e-preview-badge")
+			const optionsEditor = document.querySelector("#e2e-options-editor")
+			// Connection config comes from server-injected env, not hard-coded values.
+			const env = window.__MAGIC_WIDGET_EXAMPLE_ENV__
+			const defaultWidgetOptions = {
+				page: {
+					type: "crew",
+					crewId: env.crewId,
+				},
+				auth: {
+					loginStrategy: env.loginStrategy,
+					...(env.deploymentCode ? { deploymentCode: env.deploymentCode } : {}),
+					...(env.organizationCode ? { organizationCode: env.organizationCode } : {}),
+				},
+				config: {
+					layout: "desktop",
+					shell: { appSidebar: false },
+					conversation: {
+						projectFiles: false,
+						topicHistory: true,
+					},
+					header: {
+						visible: true,
+						title: { mode: "static", text: "E2E Magic Assistant" },
+						topicName: { mode: "current" },
+						actions: {
+							fullscreen: true,
+							pin: true,
+							newTopic: true,
+							history: true,
+							share: true,
+							more: true,
+							close: true,
+						},
+					},
+					panel: {
+						projectFiles: true,
+						uploadFiles: true,
+						otherProjectFiles: true,
+						digitalEmployees: true,
+						microApps: true,
+						workflows: true,
+						connectors: true,
+						skills: true,
+						canvasElements: true,
+						customGroups: [
+							{
+								id: "demo-business-charts",
+								label: "Business charts",
+								placement: "start",
+								icon: "ts-doc-file",
+								iconUrl: "https://example.com/icons/business-charts.png",
+								items: [
+									{
+										id: "demo-chart-a",
+										type: "chart",
+										text: "Business chart 'Chart A'; period: sample quarter; metric: mock revenue; current value: 1.24M; previous value: 1.10M; change: +12.7% quarter-over-quarter; strongest segment: North region; recommended action: investigate the retained-user funnel.",
+										title: "Chart A",
+										description:
+											"Quarterly revenue trend with segment and action context",
+										icon: "ts-api",
+										iconUrl: "https://example.com/icons/chart-a.png",
+										data: {
+											source: "demo",
+											objectType: "business-chart",
+											period: "sample-quarter",
+											metric: "mock-revenue",
+											value: 1240000,
+											previousValue: 1100000,
+											changePercent: 12.7,
+											strongestSegment: "North region",
+											tags: ["revenue", "quarter", "trend"],
+										},
+									},
+								],
+							},
+							{
+								id: "demo-business-reports",
+								label: "Business reports",
+								icon: "ts-attachment",
+								items: [
+									{
+										id: "demo-report-a",
+										type: "report",
+										text: "Business report 'Report A'; period: sample month; metric: mock active users; current value: 84.2K; previous value: 79.6K; change: +5.8%; cohort: returning users; recommendation: compare activation by acquisition channel.",
+										title: "Report A",
+										description:
+											"Monthly active-user report with cohort context",
+										icon: "ts-doc-file",
+										data: {
+											source: "demo",
+											objectType: "business-report",
+											period: "sample-month",
+											metric: "mock-active-users",
+											value: 84200,
+											previousValue: 79600,
+											changePercent: 5.8,
+											cohort: "returning users",
+											tags: ["active users", "monthly", "cohort"],
+										},
+									},
+								],
+							},
+						],
+					},
+					bottom: {
+						internetSearch: { enabled: true, buttonVisible: true },
+						plugin: { enabled: true, buttonVisible: true },
+						upload: { enabled: true, buttonVisible: true },
+						voice: { enabled: true, buttonVisible: true },
+						model: { buttonVisible: true },
+					},
+					window: { closable: true },
+				},
+				modal: {
+					title: "Magic Assistant",
+					width: 480,
+					height: 680,
+				},
+			}
+
+			/** Searches a fictional host catalog and returns rich, group-owned Mention data. */
+			const customMentionSearch = async ({ query, scope, signal }) => {
+				const normalizedQuery = query.trim().toLowerCase()
+				// Simulates a slow host API so the superseded-request behavior can be checked by hand:
+				// typing "slow ..." keeps this request in flight while the next query cancels it.
+				if (normalizedQuery.startsWith("slow")) {
+					await new Promise((resolve, reject) => {
+						const timer = setTimeout(resolve, 1500)
+						// A real request forwarding `signal` settles as AbortError instead of resolving.
+						signal.addEventListener(
+							"abort",
+							() => {
+								clearTimeout(timer)
+								reject(new DOMException("Mention search aborted", "AbortError"))
+							},
+							{ once: true },
+						)
+					})
+				}
+				const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
+				const catalog = [
+					{
+						groupId: "demo-business-charts",
+						searchText: "dynamic chart revenue quarter north region trend",
+						item: {
+							id: "demo-dynamic-chart",
+							type: "chart",
+							title: "Dynamic Chart",
+							text: "Dynamic chart returned by the host callback; period: sample quarter; metric: mock revenue; change: +12.7%; strongest segment: North region.",
+							description: "Fresh chart data from the host search service",
+							icon: "ts-api",
+							iconUrl: "https://example.com/icons/dynamic-chart.png",
+							data: {
+								source: "callback",
+								objectType: "business-chart",
+								period: "sample-quarter",
+								metric: "mock-revenue",
+								value: 1240000,
+								previousValue: 1100000,
+								changePercent: 12.7,
+								strongestSegment: "North region",
+								tags: ["dynamic", "revenue", "quarter"],
+							},
+						},
+					},
+					{
+						groupId: "demo-business-reports",
+						searchText: "dynamic report active users monthly cohort returning users",
+						item: {
+							id: "demo-dynamic-report",
+							type: "report",
+							title: "Dynamic Report",
+							text: "Dynamic report returned by the host callback; period: sample month; metric: mock active users; current value: 84.2K; change: +5.8%; cohort: returning users.",
+							description: "Fresh report data from the host search service",
+							data: {
+								source: "callback",
+								objectType: "business-report",
+								period: "sample-month",
+								metric: "mock-active-users",
+								value: 84200,
+								previousValue: 79600,
+								changePercent: 5.8,
+								cohort: "returning users",
+								tags: ["dynamic", "active users", "monthly"],
+							},
+						},
+					},
+				]
+				// Exposes the delayed query's result so a late response is observable during manual checks.
+				catalog.push({
+					groupId: "demo-business-reports",
+					searchText: "slow report simulated latency",
+					item: {
+						id: "demo-slow-report",
+						type: "report",
+						title: "Slow Report",
+						text: "Slow report returned after a simulated 1.5s delay; it must never replace a newer search result.",
+						description: "Simulated slow response for manual cancellation checks",
+						data: {
+							source: "callback",
+							objectType: "business-report",
+							simulatedLatencyMs: 1500,
+						},
+					},
+				})
+				const results = catalog
+					.filter((entry) => scope.type === "global" || entry.groupId === scope.groupId)
+					.filter((entry) => tokens.every((token) => entry.searchText.includes(token)))
+					.reduce((groups, entry) => {
+						const group = groups.find((result) => result.groupId === entry.groupId)
+						if (group) group.items.push(entry.item)
+						else groups.push({ groupId: entry.groupId, items: [entry.item] })
+						return groups
+					}, [])
+
+				if (signal.aborted) throw new DOMException("Mention search aborted", "AbortError")
+				const count = results.reduce((total, result) => total + result.items.length, 0)
+				mentionSearchStatus.textContent = `query=${query}; scope=${scope.type}${scope.type === "group" ? `:${scope.groupId}` : ""}; results=${count}`
+				return results
+			}
+			const HEADER_ACTION_NAMES = [
+				"fullscreen",
+				"pin",
+				"newTopic",
+				"history",
+				"share",
+				"more",
+				"close",
+			]
+			const PANEL_NAMES = [
+				"projectFiles",
+				"uploadFiles",
+				"otherProjectFiles",
+				"digitalEmployees",
+				"microApps",
+				"workflows",
+				"connectors",
+				"skills",
+				"canvasElements",
+			]
+			const BOTTOM_NAMES = ["internetSearch", "plugin", "upload", "voice"]
+			const uiConfigForm = document.querySelector("#e2e-ui-config")
+			/** Remembers the last config shown in the form, including defaults the JSON example omits. */
+			let appliedConfig = {
+				...structuredClone(defaultWidgetOptions.config),
+				conversation: {
+					autoHire: true,
+					previewMode: "switchable",
+					...structuredClone(defaultWidgetOptions.config.conversation),
+				},
+				responsive: {
+					mobileDetection: "viewport",
+					...(defaultWidgetOptions.config.responsive ?? {}),
+				},
+			}
+			let agentReadyCount = 0
+			let activeMountMode = "floating"
+			let previewPinned = false
+			let previewFullscreenFallback = false
+			// Start with a successful close callback so every header action is observable immediately.
+			let closeCallbackMode = "success"
+
+			/** Reflects host-owned window state in the preview shell and stable automation attributes. */
+			const syncPreviewWindowState = () => {
+				const nativeFullscreen = document.fullscreenElement === previewPanel
+				const fullscreen = nativeFullscreen || previewFullscreenFallback
+				previewPanel.classList.toggle("is-pinned", previewPinned)
+				previewPanel.classList.toggle("is-fullscreen-fallback", previewFullscreenFallback)
+				previewPanel.dataset.pinned = String(previewPinned)
+				previewPanel.dataset.fullscreen = String(fullscreen)
+				previewBadge.textContent = fullscreen
+					? "Fullscreen"
+					: previewPinned
+						? "Pinned"
+						: "Live iframe"
+			}
+
+			/** Toggles host fullscreen, with an in-page fallback for browsers that lose user activation across postMessage. */
+			const togglePreviewFullscreen = async () => {
+				if (document.fullscreenElement === previewPanel) {
+					await document.exitFullscreen()
+					return false
+				}
+				if (previewFullscreenFallback) {
+					previewFullscreenFallback = false
+					syncPreviewWindowState()
+					return false
+				}
+
+				try {
+					await previewPanel.requestFullscreen()
+					return true
+				} catch {
+					// Header actions cross iframe boundaries, so some browsers no longer expose user activation here.
+					previewFullscreenFallback = true
+					syncPreviewWindowState()
+					return true
+				}
+			}
+
+			/** Pins or unpins the host preview without remounting the SDK iframe. */
+			const togglePreviewPinned = () => {
+				previewPinned = !previewPinned
+				syncPreviewWindowState()
+				return previewPinned
+			}
+
+			document.addEventListener("fullscreenchange", () => {
+				if (document.fullscreenElement === previewPanel) previewFullscreenFallback = false
+				syncPreviewWindowState()
+			})
+			syncPreviewWindowState()
+
+			/** Parses the browser-edited configuration and injects the non-serializable inline target when needed. */
+			const createWidgetOptions = (target) => {
+				const options = JSON.parse(optionsEditor.value)
+				if (!options || Array.isArray(options) || typeof options !== "object") {
+					throw new Error("createWidgetOptions must be a JSON object")
+				}
+
+				return {
+					...options,
+					...(target ? { target } : {}),
+					customMentionSearch,
+					headerActions: {
+						/** Records window actions so browser automation can verify the cross-frame callback bridge. */
+						fullscreen: async ({ topicId }) => {
+							document.body.dataset.lastHeaderAction = `fullscreen:${topicId ?? "no-topic"}`
+							const fullscreen = await togglePreviewFullscreen()
+							statusOutput.textContent = `header-fullscreen: ${fullscreen ? "on" : "off"}`
+						},
+						pin: ({ topicId }) => {
+							document.body.dataset.lastHeaderAction = `pin:${topicId ?? "no-topic"}`
+							const pinned = togglePreviewPinned()
+							statusOutput.textContent = `header-pin: ${pinned ? "on" : "off"}`
+						},
+						newTopic: ({ topicId }) => {
+							document.body.dataset.lastHeaderAction = `newTopic:${topicId ?? "no-topic"}`
+						},
+						history: ({ topicId }) => {
+							document.body.dataset.lastHeaderAction = `history:${topicId ?? "no-topic"}`
+						},
+						share: ({ topicId }) => {
+							document.body.dataset.lastHeaderAction = `share:${topicId ?? "no-topic"}`
+						},
+						more: ({ topicId }) => {
+							document.body.dataset.lastHeaderAction = `more:${topicId ?? "no-topic"}`
+						},
+						...(closeCallbackMode === "off"
+							? {}
+							: {
+									/** Records close callback order and optionally rejects for failure-path acceptance. */
+									close: async ({ topicId }) => {
+										document.body.dataset.lastCloseCallback = closeCallbackMode
+										statusOutput.textContent = `header-close-callback: ${closeCallbackMode}: ${topicId ?? "no-topic"}`
+										if (closeCallbackMode === "failure") {
+											throw new Error("Mock close callback failure")
+										}
+									},
+								}),
+					},
+				}
+			}
+
+			/** Mounts the widget using the current editor value and remembers its display mode for reinitialization. */
+			const mountWidget = (mode) => {
+				const target = mode === "inline" ? inlineTarget : undefined
+				window.MagicWidget.mount(createWidgetOptions(target))
+				activeMountMode = mode
+			}
+
+			/** Recreates the SDK instance through mount, which validates options before replacing the current instance. */
+			const reinitializeAgent = () => {
+				const target = activeMountMode === "inline" ? inlineTarget : undefined
+				window.MagicWidget.mount(createWidgetOptions(target))
+			}
+
+			/** Reads one checkbox without treating a missing control as enabled. */
+			const isChecked = (name) => {
+				const control = uiConfigForm.elements.namedItem(name)
+				return control instanceof HTMLInputElement && control.checked
+			}
+
+			/** Reads a select or text control from the deferred UI form. */
+			const readControlValue = (name) => {
+				const control = uiConfigForm.elements.namedItem(name)
+				return control && "value" in control ? String(control.value) : ""
+			}
+
+			/** Writes a checkbox from the last applied config, using the visible-by-default product fallback. */
+			const setChecked = (name, value, fallback = true) => {
+				const control = uiConfigForm.elements.namedItem(name)
+				if (control instanceof HTMLInputElement) control.checked = value ?? fallback
+			}
+
+			/** Writes a select or text control after a successful config update. */
+			const setControlValue = (name, value) => {
+				const control = uiConfigForm.elements.namedItem(name)
+				if (control && "value" in control) control.value = value ?? ""
+			}
+
+			/** Maps a string title or a static/hidden title object back onto the example form. */
+			const readTitleFormValue = (title) => {
+				if (title && typeof title === "object") {
+					return {
+						mode: title.mode === "hidden" ? "hidden" : "static",
+						text: title.mode === "hidden" ? "" : (title.text ?? ""),
+					}
+				}
+				return { mode: "static", text: typeof title === "string" ? title : "" }
+			}
+
+			/** Builds the full UI snapshot the update button will send. Checkboxes are not applied live. */
+			const readUiConfigFromForm = () => {
+				const titleMode = readControlValue("header.title.mode")
+				const titleText = readControlValue("header.title.text").trim()
+				const topicMode = readControlValue("header.topicName.mode")
+				const topicText = readControlValue("header.topicName.text").trim()
+				if (topicMode === "static" && !topicText) {
+					throw new Error("Static topic name cannot be empty")
+				}
+				// Hidden omits the first line. An empty static field keeps the title already applied.
+				const title =
+					titleMode === "hidden"
+						? { mode: "hidden" }
+						: titleText
+							? { mode: "static", text: titleText }
+							: undefined
+
+				return {
+					layout: readControlValue("layout"),
+					shell: { appSidebar: isChecked("shell.appSidebar") },
+					conversation: {
+						projectFiles: isChecked("conversation.projectFiles"),
+						topicHistory: isChecked("conversation.topicHistory"),
+						autoHire: isChecked("conversation.autoHire"),
+						previewMode: readControlValue("conversation.previewMode"),
+					},
+					responsive: { mobileDetection: readControlValue("responsive.mobileDetection") },
+					header: {
+						visible: isChecked("header.visible"),
+						...(title ? { title } : {}),
+						topicName: {
+							mode: topicMode,
+							...(topicText ? { text: topicText } : {}),
+						},
+						actions: Object.fromEntries(
+							HEADER_ACTION_NAMES.map((action) => [
+								action,
+								isChecked(`header.actions.${action}`),
+							]),
+						),
+					},
+					panel: Object.fromEntries(
+						PANEL_NAMES.map((name) => [name, isChecked(`panel.${name}`)]),
+					),
+					bottom: {
+						...Object.fromEntries(
+							BOTTOM_NAMES.map((name) => [
+								name,
+								{
+									enabled: isChecked(`bottom.${name}.enabled`),
+									buttonVisible: isChecked(`bottom.${name}.buttonVisible`),
+								},
+							]),
+						),
+						model: { buttonVisible: isChecked("bottom.model.buttonVisible") },
+					},
+					window: { closable: isChecked("window.closable") },
+				}
+			}
+
+			/** Copies a successful runtime update back into the form so preset buttons stay in sync. */
+			const syncUiForm = (config) => {
+				setControlValue("layout", config.layout ?? "desktop")
+				setControlValue(
+					"responsive.mobileDetection",
+					config.responsive?.mobileDetection ?? "viewport",
+				)
+				setChecked("shell.appSidebar", config.shell?.appSidebar)
+				setChecked("conversation.projectFiles", config.conversation?.projectFiles)
+				setChecked("conversation.topicHistory", config.conversation?.topicHistory)
+				setChecked("conversation.autoHire", config.conversation?.autoHire)
+				setControlValue(
+					"conversation.previewMode",
+					config.conversation?.previewMode ?? "switchable",
+				)
+				setChecked("header.visible", config.header?.visible)
+				const titleForm = readTitleFormValue(config.header?.title)
+				setControlValue("header.title.mode", titleForm.mode)
+				setControlValue("header.title.text", titleForm.text)
+				setControlValue(
+					"header.topicName.mode",
+					config.header?.topicName?.mode ?? "current",
+				)
+				setControlValue("header.topicName.text", config.header?.topicName?.text ?? "")
+				for (const action of HEADER_ACTION_NAMES) {
+					setChecked(`header.actions.${action}`, config.header?.actions?.[action])
+				}
+				for (const name of PANEL_NAMES) {
+					setChecked(`panel.${name}`, config.panel?.[name])
+				}
+				for (const name of BOTTOM_NAMES) {
+					setChecked(`bottom.${name}.enabled`, config.bottom?.[name]?.enabled)
+					setChecked(`bottom.${name}.buttonVisible`, config.bottom?.[name]?.buttonVisible)
+				}
+				setChecked("bottom.model.buttonVisible", config.bottom?.model?.buttonVisible)
+				setChecked("window.closable", config.window?.closable)
+			}
+
+			/** Folds a partial update into the form snapshot without dropping untouched sections. */
+			const mergeAppliedConfig = (update) => {
+				const mergeSection = (key) =>
+					update[key] ? { [key]: { ...appliedConfig[key], ...update[key] } } : {}
+				const bottom = { ...appliedConfig.bottom }
+				if (update.bottom) {
+					for (const key of Object.keys(update.bottom)) {
+						bottom[key] = { ...bottom[key], ...update.bottom[key] }
+					}
+				}
+				appliedConfig = {
+					...appliedConfig,
+					...update,
+					...mergeSection("shell"),
+					...mergeSection("conversation"),
+					...mergeSection("responsive"),
+					...mergeSection("panel"),
+					...mergeSection("window"),
+					...(update.bottom ? { bottom } : {}),
+					...(update.header
+						? {
+								header: {
+									...appliedConfig.header,
+									...update.header,
+									...(update.header.topicName
+										? {
+												topicName: {
+													...appliedConfig.header?.topicName,
+													...update.header.topicName,
+												},
+											}
+										: {}),
+									...(update.header.actions
+										? {
+												actions: {
+													...appliedConfig.header?.actions,
+													...update.header.actions,
+												},
+											}
+										: {}),
+								},
+							}
+						: {}),
+				}
+			}
+
+			/** Keeps the JSON editor aligned with the config that was just applied. */
+			const writeConfigIntoEditor = (config) => {
+				const options = JSON.parse(optionsEditor.value)
+				if (!options || Array.isArray(options) || typeof options !== "object") {
+					throw new Error("createWidgetOptions must be a JSON object")
+				}
+				options.config = config
+				optionsEditor.value = JSON.stringify(options, null, 2)
+			}
+
+			/** Reads the editable config field without remounting or applying unrelated mount options. */
+			const getEditedWidgetConfig = () => {
+				const options = createWidgetOptions()
+				const config = options.config ?? {}
+				if (Array.isArray(config) || typeof config !== "object") {
+					throw new Error("createWidgetOptions.config must be an object")
+				}
+				return config
+			}
+
+			/** Exposes command completion or error details to browser automation. */
+			const runCommand = async (label, command) => {
+				statusOutput.textContent = `${label}: pending`
+				try {
+					const result = await command()
+					statusOutput.textContent = `${label}: success${typeof result === "string" ? `: ${result}` : ""}`
+				} catch (error) {
+					statusOutput.textContent = `${label}: ${error.code ?? "ERROR"}: ${error.message}`
+				}
+			}
+
+			/** Finds the current SDK-owned iframe inside its isolated Shadow Root. */
+			const getWidgetIframe = () =>
+				document
+					.querySelector("[data-magic-widget-root]")
+					?.shadowRoot?.querySelector("iframe")
+
+			/** Applies one partial configuration and records that runtime updates keep the iframe URL stable. */
+			const updateWidgetConfig = (label, config) => {
+				void runCommand(label, async () => {
+					const iframe = getWidgetIframe()
+					const beforeSrc = iframe?.src
+					await window.MagicWidget.updateConfig(config)
+					const afterSrc = iframe?.src
+					if (beforeSrc !== afterSrc) {
+						throw new Error("Runtime configuration changed iframe.src")
+					}
+					mergeAppliedConfig(config)
+					syncUiForm(appliedConfig)
+					writeConfigIntoEditor(appliedConfig)
+					return `iframe.src stable: ${String(beforeSrc === afterSrc)}`
+				})
+			}
+
+			/** Restores the legacy floating widget mode. */
+			document.querySelector("#e2e-mount-floating").addEventListener("click", () => {
+				try {
+					mountWidget("floating")
+					statusOutput.textContent = "mount-floating: success"
+				} catch (error) {
+					statusOutput.textContent = `mount-floating: ${error.message}`
+				}
+			})
+
+			/** Mounts the iframe directly inside the explicit host container. */
+			document.querySelector("#e2e-mount-inline").addEventListener("click", () => {
+				try {
+					mountWidget("inline")
+					statusOutput.textContent = "mount-inline: success"
+				} catch (error) {
+					statusOutput.textContent = `mount-inline: ${error.message}`
+				}
+			})
+
+			/** Applies the edited createWidgetOptions JSON through the SDK-safe reinitialization flow. */
+			document.querySelector("#e2e-reinitialize").addEventListener("click", () => {
+				try {
+					reinitializeAgent()
+					statusOutput.textContent = `reinitialize-${activeMountMode}: success`
+				} catch (error) {
+					statusOutput.textContent = `reinitialize: ${error.message}`
+				}
+			})
+
+			/** Applies the checkbox form only after an explicit click, then keeps the JSON editor in sync. */
+			document.querySelector("#e2e-apply-ui-config").addEventListener("click", () => {
+				try {
+					updateWidgetConfig("ui-config", readUiConfigFromForm())
+				} catch (error) {
+					statusOutput.textContent = `ui-config: ${error.message}`
+				}
+			})
+
+			/** Ignores implicit form submission so changing a select does not apply the config. */
+			uiConfigForm.addEventListener("submit", (event) => {
+				event.preventDefault()
+			})
+
+			/** Applies the editor's config field through the runtime API without remounting the iframe. */
+			document.querySelector("#e2e-update-config").addEventListener("click", () => {
+				try {
+					updateWidgetConfig("editor-config", getEditedWidgetConfig())
+				} catch (error) {
+					statusOutput.textContent = `editor-config: ${error.message}`
+				}
+			})
+
+			/** Verifies the existing open lifecycle API. */
+			document.querySelector("#e2e-open").addEventListener("click", () => {
+				window.MagicWidget.open()
+				statusOutput.textContent = "open: success"
+			})
+
+			/** Verifies the existing close lifecycle API. */
+			document.querySelector("#e2e-close").addEventListener("click", () => {
+				window.MagicWidget.close()
+				statusOutput.textContent = "close: success"
+			})
+
+			/** Selects whether the next mount uses no close callback, a successful callback, or a rejected callback. */
+			for (const mode of ["off", "success", "failure"]) {
+				document
+					.querySelector(`#e2e-close-callback-${mode}`)
+					.addEventListener("click", () => {
+						closeCallbackMode = mode
+						statusOutput.textContent = `close-callback-mode: ${mode}`
+					})
+			}
+
+			/** Switches to the requested PC conversation-only presentation. */
+			document.querySelector("#e2e-config-desktop-focused").addEventListener("click", () => {
+				updateWidgetConfig("desktop-focused", {
+					layout: "desktop",
+					shell: { appSidebar: false },
+					conversation: { projectFiles: false, topicHistory: true },
+				})
+			})
+
+			/** Verifies that PC-only visibility fields do not replace the mobile Crew interaction. */
+			document.querySelector("#e2e-config-mobile").addEventListener("click", () => {
+				updateWidgetConfig("mobile-layout", { layout: "mobile" })
+			})
+
+			/** Restores the desktop application and project sidebars while disabling topic history. */
+			document.querySelector("#e2e-config-desktop-restored").addEventListener("click", () => {
+				updateWidgetConfig("desktop-restored", {
+					layout: "desktop",
+					shell: { appSidebar: true },
+					conversation: { projectFiles: true, topicHistory: false },
+				})
+			})
+
+			/** Expands the inline iframe host beyond the responsive mobile breakpoint. */
+			document.querySelector("#e2e-resize-wide").addEventListener("click", () => {
+				inlineTarget.style.width = "1000px"
+				statusOutput.textContent = "resize-wide: success"
+			})
+
+			/** Shrinks the inline iframe host below the responsive mobile breakpoint. */
+			document.querySelector("#e2e-resize-narrow").addEventListener("click", () => {
+				inlineTarget.style.width = "480px"
+				statusOutput.textContent = "resize-narrow: success"
+			})
+
+			/** Reloads only the iframe document so the SDK reload synchronization can be verified. */
+			document.querySelector("#e2e-reload-iframe").addEventListener("click", () => {
+				const iframe = getWidgetIframe()
+				if (!iframe?.contentWindow) {
+					statusOutput.textContent = "reload-iframe: iframe unavailable"
+					return
+				}
+				iframe.contentWindow.location.reload()
+				statusOutput.textContent = "reload-iframe: requested"
+			})
+
+			/** Sends a fictional input-only command through the widget bridge. */
+			document.querySelector("#e2e-set-input").addEventListener("click", () => {
+				void runCommand("setInput", () =>
+					window.MagicWidget.setInput("Mock widget input only"),
+				)
+			})
+
+			/** Appends fictional text to the current editor value. */
+			document.querySelector("#e2e-append-input").addEventListener("click", () => {
+				void runCommand("appendInput", () =>
+					window.MagicWidget.appendInput(" + mock suffix"),
+				)
+			})
+
+			/** Sends existing skill and MCP Mention types through the SDK for display and echo verification. */
+			document.querySelector("#e2e-set-skill-mcp-input").addEventListener("click", () => {
+				void runCommand("setSkillMcpInput", () =>
+					window.MagicWidget.setInput({
+						blocks: [
+							{ type: "text", text: "Please use " },
+							{
+								type: "mention",
+								mention: {
+									type: "skill",
+									data: {
+										id: "mock-skill-acceptance-001",
+										name: "Mock skill",
+										icon: "mock-skill-icon",
+										description: "Mock skill description",
+										mention_source: "system",
+									},
+								},
+							},
+							{ type: "text", text: " connect " },
+							{
+								type: "mention",
+								mention: {
+									type: "mcp",
+									data: {
+										id: "mock-mcp-acceptance-001",
+										name: "Mock MCP service",
+										icon: "mock-mcp-icon",
+										description: "Mock MCP service description",
+										require_fields: [],
+										check_require_fields: false,
+										check_auth: false,
+									},
+								},
+							},
+							{ type: "text", text: " complete the check" },
+						],
+					}),
+				)
+			})
+
+			/** Sends the provided Weather skill payload to verify compatibility with real Mention data. */
+			document.querySelector("#e2e-set-weather-skill-input").addEventListener("click", () => {
+				void runCommand("setWeatherSkillInput", () =>
+					window.MagicWidget.setInput({
+						blocks: [
+							{
+								type: "mention",
+								mention: {
+									type: "skill",
+									data: {
+										id: "SKILL-6a04750d524465-43170947",
+										name: "Weather query",
+										icon: "",
+										description:
+											"Provides real-time weather queries; use when a user needs a city's weather, temperature, conditions, or forecast",
+										mention_source: "mine",
+										package_name: "weather-query",
+									},
+								},
+							},
+							{ type: "text", text: " What's the weather in Shenzhen today?" },
+						],
+					}),
+				)
+			})
+
+			/** Sends a fictional text Mention to verify label rendering and text serialization. */
+			document.querySelector("#e2e-set-text-mention-input").addEventListener("click", () => {
+				void runCommand("setTextMentionInput", () =>
+					window.MagicWidget.setInput({
+						blocks: [
+							{ type: "text", text: "Please interpret " },
+							{
+								type: "mention",
+								mention: {
+									type: "text",
+									data: {
+										id: "mock-text-mention-001",
+										label: "Mock chart",
+										text: "Chart id: mock-chart-001; time range: mock range",
+									},
+								},
+							},
+						],
+					}),
+				)
+			})
+
+			/** Clears the current editor value without sending a message. */
+			document.querySelector("#e2e-clear-input").addEventListener("click", () => {
+				void runCommand("clearInput", () => window.MagicWidget.clearInput())
+			})
+
+			/** Reads the current editor value as plain text. */
+			document.querySelector("#e2e-get-input").addEventListener("click", () => {
+				void runCommand("getInput", () => window.MagicWidget.getInput())
+			})
+
+			/** Sends one fictional message through the existing Agent message flow. */
+			document.querySelector("#e2e-send-message").addEventListener("click", () => {
+				void runCommand("sendMessage", () =>
+					window.MagicWidget.sendMessage("Reply with MOCK_E2E_OK only"),
+				)
+			})
+
+			/** Sends the current editor snapshot so skill and MCP Mention echo behavior is exercised. */
+			document.querySelector("#e2e-send-current-input").addEventListener("click", () => {
+				void runCommand("sendCurrentInput", () => window.MagicWidget.sendMessage())
+			})
+
+			/** Creates a new conversation and waits until its editor can accept input. */
+			document.querySelector("#e2e-new-conversation").addEventListener("click", () => {
+				void runCommand("newConversation", () => window.MagicWidget.newConversation())
+			})
+
+			/** Verifies the complete new-conversation, input confirmation, and send sequence. */
+			document
+				.querySelector("#e2e-new-conversation-set-send")
+				.addEventListener("click", () => {
+					void runCommand("newConversationSetSend", async () => {
+						const content = "Reply with MOCK_NEW_CONVERSATION_OK only"
+						await window.MagicWidget.newConversation()
+						await window.MagicWidget.setInput(content)
+						const currentInput = await window.MagicWidget.getInput()
+						if (currentInput !== content) {
+							throw new Error("Mock input confirmation failed")
+						}
+						await window.MagicWidget.sendMessage(content)
+					})
+				})
+
+			/** Verifies that the widget can clean up its current instance. */
+			document.querySelector("#e2e-destroy").addEventListener("click", () => {
+				window.MagicWidget.destroy()
+				statusOutput.textContent = "destroy: success"
+			})
+
+			/** Records every editor-ready transition exposed by the SDK. */
+			window.MagicWidget.on("agent_ready", () => {
+				agentReadyCount += 1
+				statusOutput.textContent = `agent_ready: ${agentReadyCount}`
+			})
+
+			// Keep the editable text and the initial real integration configuration in sync.
+			optionsEditor.value = JSON.stringify(defaultWidgetOptions, null, 2)
+			syncUiForm(appliedConfig)
+			mountWidget("inline")
+		</script>
+	</body>
+</html>

@@ -1,0 +1,518 @@
+{
+    "completed": {
+        "zh_CN": "操作已完成。",
+        "en_US": "The operation is complete."
+    },
+    "pending": {
+        "zh_CN": "请求已提交，仍需确认最终状态，当前不能视为已完成。",
+        "en_US": "The request has been submitted. Check the final status before treating it as complete."
+    },
+    "records": {
+        "zh_CN": "本页返回 {{count}} 条记录。",
+        "en_US": "This page contains {{count}} records."
+    },
+    "messages": {
+        "zh_CN": "本页包含 {{count}} 条可读消息。",
+        "en_US": "This page contains {{count}} readable messages."
+    },
+    "empty": {
+        "zh_CN": "没有找到匹配的记录。",
+        "en_US": "No matching records were found."
+    },
+    "empty_messages": {
+        "zh_CN": "本页没有可展示的消息正文。",
+        "en_US": "This page has no message text to display."
+    },
+    "record": {
+        "zh_CN": "第 {{number}} 条记录",
+        "en_US": "Record {{number}}"
+    },
+    "truncated": {
+        "zh_CN": "详情仅展示部分内容。",
+        "en_US": "Only part of the content is shown in this detail."
+    },
+    "omitted": {
+        "zh_CN": "已过滤 {{count}} 条无正文或不可展示的消息。",
+        "en_US": "{{count}} messages with no text or hidden content were filtered out."
+    },
+    "task_result": {
+        "zh_CN": "任务结果摘要",
+        "en_US": "Task result summary"
+    },
+    "partial_success": {
+        "zh_CN": "部分文件处理失败，请查看各文件状态。",
+        "en_US": "Some files could not be processed. Check each file’s status."
+    },
+    "page": {
+        "zh_CN": "当前第 {{page}} 页。",
+        "en_US": "Current page: {{page}}."
+    },
+    "more": {
+        "zh_CN": "还有更多记录，本页不代表全部内容。",
+        "en_US": "More records are available. This page does not contain all content."
+    },
+    "no_more": {
+        "zh_CN": "当前查询已无更多记录。",
+        "en_US": "No more records are reported for this query."
+    },
+    "yes": {
+        "zh_CN": "是",
+        "en_US": "Yes"
+    },
+    "no": {
+        "zh_CN": "否",
+        "en_US": "No"
+    },
+    "role.user": {
+        "zh_CN": "用户",
+        "en_US": "User"
+    },
+    "role.assistant": {
+        "zh_CN": "助手",
+        "en_US": "Assistant"
+    },
+    "role.unknown": {
+        "zh_CN": "消息",
+        "en_US": "Message"
+    },
+    "error.default": {
+        "zh_CN": "操作未完成，请检查权限或稍后重试。",
+        "en_US": "The operation could not be completed. Check your access or try again later."
+    },
+    "error.authorization_required": {
+        "zh_CN": "当前会话缺少身份信息，请重新打开会话后重试。",
+        "en_US": "Identity information is missing from this session. Reopen the session and try again."
+    },
+    "error.authorization_failed": {
+        "zh_CN": "当前账号无权访问此内容。",
+        "en_US": "Your account does not have access to this content."
+    },
+    "error.service_rejected": {
+        "zh_CN": "服务未接受本次操作，请检查目标内容与操作权限。",
+        "en_US": "The service did not accept this operation. Check the target content and your access."
+    },
+    "error.network_error": {
+        "zh_CN": "暂时无法连接服务，请稍后重试。",
+        "en_US": "The service is temporarily unavailable. Please try again later."
+    },
+    "error.outcome_unknown": {
+        "zh_CN": "尚无法确认操作是否生效，请先查询当前状态，避免重复提交。",
+        "en_US": "The outcome could not be confirmed. Check the current status before submitting again."
+    },
+    "error.invalid_input_or_response": {
+        "zh_CN": "操作参数或返回内容不符合要求，请核对后重试。",
+        "en_US": "The request or response was invalid. Check the information and try again."
+    },
+    "error.confirmation_required": {
+        "zh_CN": "本次操作尚未取得有效确认，请检查确认卡片的状态。",
+        "en_US": "This operation has no valid approval yet. Check the confirmation card's status."
+    },
+    "error.confirmation_mismatch": {
+        "zh_CN": "确认与本次操作不匹配，请检查对应的确认记录。",
+        "en_US": "The confirmation does not match this operation. Check the corresponding confirmation."
+    },
+    "error.confirmation_expired": {
+        "zh_CN": "本次确认已过期，请重新准备并确认。",
+        "en_US": "This confirmation has expired. Prepare and confirm the operation again."
+    },
+    "error.confirmation_pending": {
+        "zh_CN": "本次操作已有关联的确认，请先处理原确认卡片。",
+        "en_US": "This operation already has a confirmation. Resolve the original card first."
+    },
+    "error.confirmation_unavailable": {
+        "zh_CN": "当前无法发起确认，请在交互话题中继续操作。",
+        "en_US": "Confirmation is unavailable here. Continue in an interactive topic."
+    },
+    "error.confirmation_stale": {
+        "zh_CN": "内容或版本已变更，请重新准备并确认。",
+        "en_US": "The content or version has changed. Prepare and confirm the operation again."
+    },
+    "error.unexpected_error": {
+        "zh_CN": "操作遇到问题，请稍后重试。",
+        "en_US": "The operation encountered a problem. Please try again later."
+    },
+    "error.resource_files_unavailable": {
+        "zh_CN": "无法读取所需的项目文件，请检查项目访问权限和文件挂载后重试。",
+        "en_US": "The required project files are unavailable. Check project access and the file mount before retrying."
+    },
+    "error.duplicate_file_id": {
+        "zh_CN": "选择的文件存在重复，请移除重复项后重试。",
+        "en_US": "The selected files contain duplicates. Remove them and try again."
+    },
+    "field.name": {
+        "zh_CN": "名称",
+        "en_US": "Name"
+    },
+    "field.job_title": {
+        "zh_CN": "职位",
+        "en_US": "Job title"
+    },
+    "field.departments": {
+        "zh_CN": "所属部门",
+        "en_US": "Departments"
+    },
+    "field.department_path": {
+        "zh_CN": "部门层级",
+        "en_US": "Department path"
+    },
+    "field.project_name": {
+        "zh_CN": "项目名称",
+        "en_US": "Project name"
+    },
+    "field.topic_name": {
+        "zh_CN": "话题名称",
+        "en_US": "Topic name"
+    },
+    "field.file_name": {
+        "zh_CN": "文件名称",
+        "en_US": "File name"
+    },
+    "field.project_description": {
+        "zh_CN": "项目说明",
+        "en_US": "Project description"
+    },
+    "field.workspace_name": {
+        "zh_CN": "所属工作区",
+        "en_US": "Workspace"
+    },
+    "field.relative_file_path": {
+        "zh_CN": "文件位置",
+        "en_US": "File location"
+    },
+    "field.project_count": {
+        "zh_CN": "项目数量",
+        "en_US": "Project count"
+    },
+    "field.topic_count": {
+        "zh_CN": "话题数量",
+        "en_US": "Topic count"
+    },
+    "field.file_size": {
+        "zh_CN": "文件大小（字节）",
+        "en_US": "File size (bytes)"
+    },
+    "field.version": {
+        "zh_CN": "版本",
+        "en_US": "Version"
+    },
+    "field.count": {
+        "zh_CN": "处理数量",
+        "en_US": "Processed count"
+    },
+    "field.current": {
+        "zh_CN": "当前进度",
+        "en_US": "Current progress"
+    },
+    "field.total": {
+        "zh_CN": "总数",
+        "en_US": "Total"
+    },
+    "field.status": {
+        "zh_CN": "状态",
+        "en_US": "Status"
+    },
+    "field.archived": {
+        "zh_CN": "已归档",
+        "en_US": "Archived"
+    },
+    "field.is_archived": {
+        "zh_CN": "已归档",
+        "en_US": "Archived"
+    },
+    "field.is_directory": {
+        "zh_CN": "文件夹",
+        "en_US": "Directory"
+    },
+    "field.created_at": {
+        "zh_CN": "创建时间",
+        "en_US": "Created"
+    },
+    "field.updated_at": {
+        "zh_CN": "更新时间",
+        "en_US": "Updated"
+    },
+    "field.last_active_at": {
+        "zh_CN": "最近活跃时间",
+        "en_US": "Last active"
+    },
+    "field.expires_at": {
+        "zh_CN": "可用截止时间",
+        "en_US": "Available until"
+    },
+    "status.accepted": {
+        "zh_CN": "已提交",
+        "en_US": "Submitted"
+    },
+    "status.queued": {
+        "zh_CN": "排队中",
+        "en_US": "Queued"
+    },
+    "status.waiting": {
+        "zh_CN": "等待中",
+        "en_US": "Waiting"
+    },
+    "status.processing": {
+        "zh_CN": "处理中",
+        "en_US": "Processing"
+    },
+    "status.running": {
+        "zh_CN": "执行中",
+        "en_US": "Running"
+    },
+    "status.finished": {
+        "zh_CN": "已完成",
+        "en_US": "Finished"
+    },
+    "status.success": {
+        "zh_CN": "成功",
+        "en_US": "Succeeded"
+    },
+    "status.failed": {
+        "zh_CN": "失败",
+        "en_US": "Failed"
+    },
+    "status.not_found": {
+        "zh_CN": "未找到",
+        "en_US": "Not found"
+    },
+    "status.prepared": {
+        "zh_CN": "已准备好",
+        "en_US": "Prepared"
+    },
+    "status.cancel_requested": {
+        "zh_CN": "已申请取消",
+        "en_US": "Cancellation requested"
+    },
+    "status.delete_requested": {
+        "zh_CN": "已申请移除",
+        "en_US": "Removal requested"
+    },
+    "status.cancelled": {
+        "zh_CN": "已取消",
+        "en_US": "Cancelled"
+    },
+    "status.canceled": {
+        "zh_CN": "已取消",
+        "en_US": "Cancelled"
+    },
+    "status.stopped": {
+        "zh_CN": "已停止",
+        "en_US": "Stopped"
+    },
+    "status.pending": {
+        "zh_CN": "等待中",
+        "en_US": "Pending"
+    },
+    "status.suspended": {
+        "zh_CN": "已暂停",
+        "en_US": "Suspended"
+    },
+    "status.unknown": {
+        "zh_CN": "暂未确认",
+        "en_US": "Unconfirmed"
+    },
+    "status.partial_success": {
+        "zh_CN": "部分成功",
+        "en_US": "Partially succeeded"
+    },
+    "summary.records": {
+        "zh_CN": "{{count}} 条记录",
+        "en_US": "{{count}} records"
+    },
+    "summary.messages": {
+        "zh_CN": "{{count}} 条消息",
+        "en_US": "{{count}} messages"
+    },
+    "summary.files": {
+        "zh_CN": "{{count}} 个文件",
+        "en_US": "{{count}} files"
+    },
+    "summary.keyword": {
+        "zh_CN": "搜索：{{keyword}}",
+        "en_US": "Search: {{keyword}}"
+    },
+    "subject.workspace": {
+        "zh_CN": "指定工作区",
+        "en_US": "Selected workspace"
+    },
+    "subject.project": {
+        "zh_CN": "指定项目",
+        "en_US": "Selected project"
+    },
+    "subject.topic": {
+        "zh_CN": "指定话题",
+        "en_US": "Selected topic"
+    },
+    "subject.file": {
+        "zh_CN": "选定文件",
+        "en_US": "Selected files"
+    },
+    "subject.task": {
+        "zh_CN": "指定任务",
+        "en_US": "Selected task"
+    },
+    "subject.batch": {
+        "zh_CN": "文件处理批次",
+        "en_US": "File operation batch"
+    },
+    "subject.queue": {
+        "zh_CN": "排队消息",
+        "en_US": "Queued message"
+    },
+    "field.keyword": {
+        "zh_CN": "搜索条件",
+        "en_US": "Search"
+    },
+    "field.progress": {
+        "zh_CN": "处理进度",
+        "en_US": "Progress"
+    },
+    "field.force_interrupt": {
+        "zh_CN": "替换正在执行的任务",
+        "en_US": "Replace active task"
+    },
+    "field.default_topic": {
+        "zh_CN": "自动创建的话题",
+        "en_US": "Automatically created topic"
+    },
+    "field.target_workspace": {
+        "zh_CN": "目标工作区",
+        "en_US": "Destination workspace"
+    },
+    "field.target_project": {
+        "zh_CN": "目标项目",
+        "en_US": "Destination project"
+    },
+    "coverage_limit": {
+        "zh_CN": "查询最多返回 {{count}} 条记录，不能据此认定已覆盖全部。",
+        "en_US": "This search returns at most {{count}} records; complete coverage is not established."
+    },
+    "error.execution_config_unavailable": {
+        "zh_CN": "无法取得可用的任务配置，请检查话题或员工设置。",
+        "en_US": "Usable task configuration is unavailable. Check topic or Agent settings."
+    },
+    "field.bytes": {
+        "zh_CN": "文件大小（字节）",
+        "en_US": "File size (bytes)"
+    },
+    "task_failed": {
+        "zh_CN": "任务执行未完成，请查看话题中的消息或调整任务后重试。",
+        "en_US": "The task did not complete. Check its topic messages or revise the task before retrying."
+    },
+    "field.content": {
+        "zh_CN": "发送内容",
+        "en_US": "Submitted instruction"
+    },
+    "field.purpose": {
+        "zh_CN": "文件用途",
+        "en_US": "File purpose"
+    },
+    "field.selected_count": {
+        "zh_CN": "选中文件数量",
+        "en_US": "Selected file count"
+    },
+    "status.delivered": {
+        "zh_CN": "已投递（不代表任务完成）",
+        "en_US": "Delivered (task completion unconfirmed)"
+    },
+    "field.location": {
+        "zh_CN": "位置",
+        "en_US": "Location"
+    },
+    "search.matches": {
+        "zh_CN": "找到 {{count}} 个匹配文件",
+        "en_US": "{{count}} matching files"
+    },
+    "search.scopes": {
+        "zh_CN": "搜索 {{count}} 个项目目录范围",
+        "en_US": "{{count}} project directory scopes"
+    },
+    "search.project": {
+        "zh_CN": "项目 {{number}}",
+        "en_US": "Project {{number}}"
+    },
+    "search.scope.pending": {
+        "zh_CN": "尚未搜索完",
+        "en_US": "Search incomplete"
+    },
+    "search.scope.complete": {
+        "zh_CN": "所选范围已搜索完",
+        "en_US": "Selected scope searched"
+    },
+    "search.scope.failed": {
+        "zh_CN": "查询失败",
+        "en_US": "Search failed"
+    },
+    "search.incomplete_short": {
+        "zh_CN": "部分范围未完成",
+        "en_US": "Incomplete coverage"
+    },
+    "search.incomplete": {
+        "zh_CN": "部分项目或目录尚未搜索完，当前结果不代表全部文件。",
+        "en_US": "Some project or directory scopes remain unsearched. These results do not cover all files."
+    },
+    "search.truncated": {
+        "zh_CN": "部分匹配文件未展示，请缩小关键词或目录范围；继续下一页无法找回本页省略的匹配项。",
+        "en_US": "Some matches were omitted. Narrow the keywords or directory scope; continuing the next page will not recover omitted matches."
+    },
+    "search.names_only": {
+        "zh_CN": "按文件名和路径匹配，未搜索文件正文；内容和年份需要打开文件确认。",
+        "en_US": "Matched file names and paths, not file contents. Open selected files to verify their subject and year."
+    },
+    "error.search_unavailable": {
+        "zh_CN": "此次搜索未能读取任何文件列表，请检查项目访问权限或稍后重试。",
+        "en_US": "No file lists could be read. Check project access or retry later."
+    },
+    "subject.skill": {
+        "zh_CN": "技能",
+        "en_US": "Skill"
+    },
+    "subject.person": {
+        "zh_CN": "用户",
+        "en_US": "Person"
+    },
+    "subject.department": {
+        "zh_CN": "部门",
+        "en_US": "Department"
+    },
+    "contact.bounded": {
+        "zh_CN": "部门搜索最多检查 100 条匹配记录，结果可能不完整。",
+        "en_US": "Department search checks at most 100 matches; results may be incomplete."
+    },
+    "status.published": {
+        "zh_CN": "已发布",
+        "en_US": "Published"
+    },
+    "status.under_review": {
+        "zh_CN": "已提交审核",
+        "en_US": "Submitted for review"
+    },
+    "status.ready": {
+        "zh_CN": "待确认发布",
+        "en_US": "Ready for confirmation"
+    },
+    "status.draft": {
+        "zh_CN": "私有草稿",
+        "en_US": "Private draft"
+    },
+    "skill.confirm": {
+        "zh_CN": "是否发布技能「{{name}}」？\n描述：{{description}}\n版本：{{version}}\n范围：{{audience}}（当前生效范围：{{previous}}）\n共 {{count}} 个文件。\n组织及市场发布需要审核；改为私有会撤下已有市场发布。",
+        "en_US": "Publish skill “{{name}}”?\nDescription: {{description}}\nVersion: {{version}}\nAudience: {{audience}} (current audience: {{previous}})\n{{count}} files.\nOrganization and market submissions require review; changing to private withdraws existing market distribution."
+    },
+    "skill.audience.PRIVATE": {
+        "zh_CN": "私有",
+        "en_US": "Private"
+    },
+    "skill.audience.ORGANIZATION": {
+        "zh_CN": "全组织",
+        "en_US": "Organization"
+    },
+    "skill.audience.MARKET": {
+        "zh_CN": "技能市场",
+        "en_US": "Skill market"
+    },
+    "skill.audience.none": {
+        "zh_CN": "尚未发布",
+        "en_US": "No published version"
+    }
+}

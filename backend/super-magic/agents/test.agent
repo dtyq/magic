@@ -5,9 +5,9 @@ tools:
   - read_files
   - write_file
   - edit_file
-  - edit_file_range
+  - edit_file_ranges
+  - find_file_ranges
   - multi_edit_file
-  - multi_edit_file_range
   - delete_files
   - file_search
   - ask_user

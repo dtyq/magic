@@ -1,5 +1,5 @@
 import { computed, makeAutoObservable } from "mobx"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { cloneDeep, isObject, omit } from "lodash-es"
 import type {
 	SelectorQuickInstruction,
@@ -302,8 +302,7 @@ class ConversationBotDataService {
 					.reverse()
 					.forEach(([instructId, value]) => {
 						const ins = instructMap?.find((i) => i.id === instructId) as
-							| Exclude<QuickInstruction, SystemInstruct>
-							| undefined
+							Exclude<QuickInstruction, SystemInstruct> | undefined
 
 						// 如果指令不存在,则不插入
 						if (!ins) return
@@ -482,7 +481,11 @@ class ConversationBotDataService {
 		}
 
 		// 替换存在指令
-		const jsonContent = runActiveEditor(this.editorRef?.editor, (editor) => editor.getJSON(), {})
+		const jsonContent = runActiveEditor(
+			this.editorRef?.editor,
+			(editor) => editor.getJSON(),
+			{},
+		)
 		const replaceStatus = replaceExistQuickInstruction(
 			jsonContent,
 			(attrs) => {

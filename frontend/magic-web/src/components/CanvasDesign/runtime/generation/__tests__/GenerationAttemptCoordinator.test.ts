@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest"
 import type { Canvas } from "../../core/Canvas"
-import { ElementTypeEnum, type LayerElement } from "../../document/types"
+import {
+	ElementTypeEnum,
+	type ElementUpdatePatch,
+	type ImageElement,
+	type LayerElement,
+	type VideoElement,
+} from "../../document/types"
+import { getActiveContent, updateContent } from "../../document/elementContent"
 import { GenerationAttemptCoordinator } from "../GenerationAttemptCoordinator"
 import { GenerationRuntimeManager } from "../GenerationRuntimeManager"
 
@@ -9,7 +16,7 @@ function createHarness(initialElements: LayerElement[], temporaryElementIds: str
 	const temporaryElements = new Set(temporaryElementIds)
 	const generationRuntimeManager = new GenerationRuntimeManager()
 	const commitGenerationTargets = vi.fn(
-		(targets: Array<{ elementId: string; persistedPatch: Partial<LayerElement> }>) => {
+		(targets: Array<{ elementId: string; persistedPatch: ElementUpdatePatch }>) => {
 			for (const target of targets) {
 				const element = elements.get(target.elementId)
 				if (!element) throw new Error(`Element ${target.elementId} not found`)
@@ -57,7 +64,7 @@ function createHarness(initialElements: LayerElement[], temporaryElementIds: str
 	}
 }
 
-function imageElement(id: string): LayerElement {
+function imageElement(id: string): ImageElement {
 	return {
 		id,
 		type: ElementTypeEnum.Image,
@@ -66,10 +73,13 @@ function imageElement(id: string): LayerElement {
 		width: 100,
 		height: 100,
 		zIndex: 1,
-	} as LayerElement
+		contents: [{ contentId: `${id}-content-1` }],
+		activeContentId: `${id}-content-1`,
+		mainContentId: `${id}-content-1`,
+	}
 }
 
-function videoElement(id: string): LayerElement {
+function videoElement(id: string): VideoElement {
 	return {
 		id,
 		type: ElementTypeEnum.Video,
@@ -78,12 +88,40 @@ function videoElement(id: string): LayerElement {
 		width: 100,
 		height: 100,
 		zIndex: 1,
-	} as LayerElement
+		contents: [{ contentId: `${id}-content-1` }],
+		activeContentId: `${id}-content-1`,
+		mainContentId: `${id}-content-1`,
+	}
 }
 
 describe("GenerationAttemptCoordinator", () => {
+	it("rejects a confirmation that targets a different Content on the same element", () => {
+		const element = imageElement("image-1")
+		element.contents.push({ contentId: "image-1-content-2" })
+		const { canvas, coordinator, commitGenerationTargets } = createHarness([element])
+		const attemptId = canvas.generationRuntimeManager.beginAttempt({
+			operation: "image-generate",
+			failurePolicy: "restore-existing",
+			targets: [{ elementId: element.id, contentId: "image-1-content-1" }],
+		})
+
+		expect(
+			coordinator.confirmAttempt(attemptId, [
+				{
+					elementId: element.id,
+					contentId: "image-1-content-2",
+					persistedPatch: { contents: element.contents },
+				},
+			]),
+		).toBe(false)
+		expect(commitGenerationTargets).not.toHaveBeenCalled()
+		expect(canvas.generationRuntimeManager.getAttempt(attemptId)).not.toBeNull()
+	})
+
 	it("clears a failed existing-element attempt without mutating the element", () => {
-		const element = { ...imageElement("image-1"), src: "./images/original.png" } as LayerElement
+		const element = updateContent<ImageElement>(imageElement("image-1"), "image-1-content-1", {
+			src: "./images/original.png",
+		})
 		const { canvas, coordinator, elements, commitGenerationTargets, batchDelete } =
 			createHarness([element])
 		const attemptId = canvas.generationRuntimeManager.beginAttempt({
@@ -102,38 +140,49 @@ describe("GenerationAttemptCoordinator", () => {
 		expect(canvas.generationRuntimeManager.getTargetState(element.id)).toBeNull()
 	})
 
-	it.each([
-		[imageElement("image-1"), "generateImageRequest", "imageGenerationTaskMeta"],
-		[videoElement("video-1"), "generateVideoRequest", "videoGenerationResultMeta"],
-	] as const)("promotes a failed %s placeholder to a task-free formal element", (element) => {
-		const elementWithTask = {
-			...element,
-			status: "processing",
-			generateImageRequest: { image_id: "invalid-image" },
-			generateVideoRequest: { video_id: "invalid-video" },
-		} as LayerElement
-		const { canvas, coordinator, elements, temporaryElements } = createHarness(
-			[elementWithTask],
-			[element.id],
-		)
-		const attemptId = canvas.generationRuntimeManager.beginAttempt({
-			operation: element.type === ElementTypeEnum.Image ? "image-generate" : "video-generate",
-			failurePolicy: "promote-empty",
-			targets: [{ elementId: element.id }],
-		})
+	it.each([imageElement("image-1"), videoElement("video-1")] as const)(
+		"promotes a failed %s placeholder to a task-free formal element",
+		(element) => {
+			const elementWithTask: ImageElement | VideoElement =
+				element.type === ElementTypeEnum.Image
+					? updateContent<ImageElement>(element, element.activeContentId ?? undefined, {
+							status: "processing",
+							generateImageRequest: { image_id: "invalid-image" },
+						})
+					: updateContent<VideoElement>(element, element.activeContentId ?? undefined, {
+							status: "processing",
+							generateVideoRequest: { video_id: "invalid-video" },
+						})
+			const { canvas, coordinator, elements, temporaryElements } = createHarness(
+				[elementWithTask],
+				[element.id],
+			)
+			const attemptId = canvas.generationRuntimeManager.beginAttempt({
+				operation:
+					element.type === ElementTypeEnum.Image ? "image-generate" : "video-generate",
+				failurePolicy: "promote-empty",
+				targets: [{ elementId: element.id }],
+			})
 
-		expect(coordinator.rejectAttempt(attemptId).resolution).toBe("promoted-empty")
-		expect(temporaryElements.has(element.id)).toBe(false)
-		const promoted = elements.get(element.id) as Record<string, unknown>
-		expect(promoted.status).toBeUndefined()
-		if (element.type === ElementTypeEnum.Image) {
-			expect(promoted.generateImageRequest).toBeUndefined()
-			expect(promoted.imageGenerationTaskMeta).toBeUndefined()
-		} else {
-			expect(promoted.generateVideoRequest).toBeUndefined()
-			expect(promoted.videoGenerationResultMeta).toBeUndefined()
-		}
-	})
+			expect(coordinator.rejectAttempt(attemptId).resolution).toBe("promoted-empty")
+			expect(temporaryElements.has(element.id)).toBe(false)
+			const promoted = elements.get(element.id)
+			if (!promoted) throw new Error("Expected promoted element")
+			if (promoted.type === ElementTypeEnum.Image) {
+				const promotedContent = getActiveContent(promoted)
+				expect(promotedContent?.status).toBeUndefined()
+				expect(promotedContent?.generateImageRequest).toBeUndefined()
+				expect(promotedContent?.imageGenerationTaskMeta).toBeUndefined()
+			} else {
+				if (promoted.type !== ElementTypeEnum.Video)
+					throw new Error("Expected media element")
+				const promotedContent = getActiveContent(promoted)
+				expect(promotedContent?.status).toBeUndefined()
+				expect(promotedContent?.generateVideoRequest).toBeUndefined()
+				expect(promotedContent?.videoGenerationResultMeta).toBeUndefined()
+			}
+		},
+	)
 
 	it("removes only runtime placeholders still owned by the failed batch", () => {
 		const { canvas, coordinator, elements, batchDelete } = createHarness(
@@ -277,15 +326,17 @@ describe("GenerationAttemptCoordinator", () => {
 				{
 					elementId: element.id,
 					persistedPatch: {
-						generateImageRequest: { image_id: "confirmed" },
+						contents: updateContent(element, element.activeContentId ?? undefined, {
+							generateImageRequest: { image_id: "confirmed" },
+						}).contents,
 					},
 				},
 			]),
 		).toBe(true)
 		expect(commitGenerationTargets).toHaveBeenCalledOnce()
-		expect((elements.get(element.id) as Record<string, unknown>).generateImageRequest).toEqual({
-			image_id: "confirmed",
-		})
+		expect(
+			getActiveContent(elements.get(element.id) as ImageElement)?.generateImageRequest,
+		).toEqual({ image_id: "confirmed" })
 		expect(canvas.generationRuntimeManager.getTargetState(element.id)).toBeNull()
 	})
 })

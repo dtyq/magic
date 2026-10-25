@@ -1,5 +1,5 @@
 import { useMemoizedFn } from "ahooks"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import type { SendMessageByContentPayload } from "../types"
 
 /** TipTap JSON for /compact command in current topic */

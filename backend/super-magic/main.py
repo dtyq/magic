@@ -1,8 +1,17 @@
-# AI警告: 环境变量加载必须放在所有导入之前
-from dotenv import load_dotenv
-load_dotenv(override=True)
-
 import os
+
+# AI警告: 环境变量加载必须放在业务导入之前。默认保持原有 .env 覆盖行为，
+# workspace 端口包装器通过显式开关保留当前槽位注入的地址。
+from dotenv import load_dotenv
+
+_preserve_external_env = os.getenv("SUPER_MAGIC_PRESERVE_EXTERNAL_ENV", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+load_dotenv(override=not _preserve_external_env)
+
 import sys
 from pathlib import Path
 import multiprocessing

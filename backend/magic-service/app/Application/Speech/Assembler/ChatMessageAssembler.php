@@ -64,16 +64,12 @@ readonly class ChatMessageAssembler
 
     /**
      * 构建聊天请求对象用于重新总结任务.
-     *
-     * @param array<int,string> $specifiedAnalysisTypes
      */
     public function buildResummaryMessage(
         ProcessSummaryTaskDTO $dto,
         AsrFileDataDTO $audioFileData,
         ?AsrFileDataDTO $noteFileData = null,
         ?AsrFileDataDTO $markerFileData = null,
-        string $analysisScope = 'template_analysis_files',
-        array $specifiedAnalysisTypes = [],
         ?array $dynamicParams = null
     ): ChatRequest {
         $translator = di(TranslatorInterface::class);
@@ -84,8 +80,6 @@ readonly class ChatMessageAssembler
             $audioFileData,
             $noteFileData,
             $markerFileData,
-            $analysisScope,
-            $specifiedAnalysisTypes,
             $dynamicParams
         );
 
@@ -185,6 +179,101 @@ readonly class ChatMessageAssembler
             ];
         }
 
+        return $this->buildSuperAgentContent($messageContent, $modelId, $fileData, $noteData, $dynamicParams);
+    }
+
+    /**
+     * 构建重新总结 rich_text 消息内容.
+     *
+     * 与正常总结的关键差异在文案：明确告知 agent 这是重新总结任务，
+     * 需忽略旧的总结结果并重新生成总结产物（命中 audio.agent 的重新分析场景）。
+     */
+    public function buildResummaryMessageContent(
+        string $modelId,
+        AsrFileDataDTO $fileData,
+        ?AsrFileDataDTO $noteData = null,
+        ?AsrFileDataDTO $markerData = null,
+        ?array $dynamicParams = null
+    ): array {
+        // 在协程环境中，使用 di() 获取 translator 实例以确保协程上下文正确
+        $translator = di(TranslatorInterface::class);
+        $translator->setLocale(CoContext::getLanguage());
+        // 注意：markerData 参数接收但暂不在消息中显示（标记文件对用户隐藏）
+        if ($noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath)) {
+            // 有笔记时的消息内容：同时提到录音文件和笔记文件
+            $messageContent = [
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.resummary_prefix_with_note'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $fileData->toArray(),
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.resummary_middle_with_note'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $noteData->toArray(),
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.resummary_suffix_with_note'),
+                ],
+            ];
+        } else {
+            // 无笔记时的消息内容：只提到录音文件
+            $messageContent = [
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.resummary_prefix'),
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'id' => null,
+                        'label' => null,
+                        'mentionSuggestionChar' => '@',
+                        'type' => 'project_file',
+                        'data' => $fileData->toArray(),
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $translator->trans('asr.messages.resummary_suffix'),
+                ],
+            ];
+        }
+
+        return $this->buildSuperAgentContent($messageContent, $modelId, $fileData, $noteData, $dynamicParams);
+    }
+
+    /**
+     * 将消息段落组装为带 super_agent extra 的 rich_text 内容.
+     *
+     * @param array $messageContent 消息段落（text/mention 节点数组）
+     * @param string $modelId 模型ID
+     * @param AsrFileDataDTO $fileData 录音文件数据，用于构建 mentions 列表
+     * @param null|AsrFileDataDTO $noteData 笔记文件数据，用于构建 mentions 列表
+     * @param null|array $dynamicParams 话题动态参数（如 message_version），可选
+     * @return array 消息内容数组
+     */
+    private function buildSuperAgentContent(array $messageContent, string $modelId, AsrFileDataDTO $fileData, ?AsrFileDataDTO $noteData = null, ?array $dynamicParams = null): array
+    {
         $superAgentExtra = [
             'mentions' => $noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath) ? [
                 [
@@ -222,133 +311,6 @@ readonly class ChatMessageAssembler
         ];
 
         // 将话题动态参数合并到 super_agent.dynamic_params 中，使其随 dynamic_config 下发到 super-magic
-        if (! empty($dynamicParams)) {
-            $superAgentExtra['dynamic_params'] = array_merge($superAgentExtra['dynamic_params'], $dynamicParams);
-        }
-
-        return [
-            'content' => Json::encode([
-                'type' => 'doc',
-                'content' => [
-                    [
-                        'type' => 'paragraph',
-                        'attrs' => ['suggestion' => ''],
-                        'content' => $messageContent,
-                    ],
-                ],
-            ]),
-            'instructs' => [
-                ['value' => 'plan'],
-            ],
-            'attachments' => [],
-            'extra' => [
-                'super_agent' => $superAgentExtra,
-            ],
-        ];
-    }
-
-    /**
-     * 构建重新总结 rich_text 消息内容.
-     *
-     * @param array<int,string> $specifiedAnalysisTypes
-     */
-    public function buildResummaryMessageContent(
-        string $modelId,
-        AsrFileDataDTO $fileData,
-        ?AsrFileDataDTO $noteData = null,
-        ?AsrFileDataDTO $markerData = null,
-        string $analysisScope = 'template_analysis_files',
-        array $specifiedAnalysisTypes = [],
-        ?array $dynamicParams = null
-    ): array {
-        $translator = di(TranslatorInterface::class);
-        $translator->setLocale(CoContext::getLanguage());
-
-        $targetInstruction = $specifiedAnalysisTypes === []
-            ? $translator->trans('asr.messages.resummary_scope_instruction', [
-                'analysis_scope' => $analysisScope,
-            ])
-            : $translator->trans('asr.messages.resummary_specified_instruction', [
-                'specified_analysis_types' => Json::encode(array_values($specifiedAnalysisTypes)),
-            ]);
-
-        $messageContent = [
-            [
-                'type' => 'text',
-                'text' => $translator->trans('asr.messages.resummary_prefix'),
-            ],
-            [
-                'type' => 'mention',
-                'attrs' => [
-                    'id' => null,
-                    'label' => null,
-                    'mentionSuggestionChar' => '@',
-                    'type' => 'project_file',
-                    'data' => $fileData->toArray(),
-                ],
-            ],
-        ];
-
-        if ($noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath)) {
-            $messageContent[] = [
-                'type' => 'text',
-                'text' => $translator->trans('asr.messages.resummary_note_middle'),
-            ];
-            $messageContent[] = [
-                'type' => 'mention',
-                'attrs' => [
-                    'id' => null,
-                    'label' => null,
-                    'mentionSuggestionChar' => '@',
-                    'type' => 'project_file',
-                    'data' => $noteData->toArray(),
-                ],
-            ];
-        }
-
-        $messageContent[] = [
-            'type' => 'text',
-            'text' => $translator->trans('asr.messages.resummary_base_instruction') . ' ' . $targetInstruction,
-        ];
-
-        $mentions = [
-            [
-                'type' => 'mention',
-                'attrs' => [
-                    'type' => 'project_file',
-                    'data' => $fileData->toArray(),
-                ],
-            ],
-        ];
-        if ($noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath)) {
-            $mentions[] = [
-                'type' => 'mention',
-                'attrs' => [
-                    'type' => 'project_file',
-                    'data' => $noteData->toArray(),
-                ],
-            ];
-        }
-
-        $superAgentExtra = [
-            'mentions' => $mentions,
-            'input_mode' => 'plan',
-            'chat_mode' => 'normal',
-            'topic_pattern' => 'summary',
-            'model' => [
-                'model_id' => $modelId,
-            ],
-            'dynamic_params' => [
-                'summary_task' => true,
-                're_summary_task' => true,
-                'analysis_scope' => $analysisScope,
-            ],
-        ];
-
-        if ($specifiedAnalysisTypes !== []) {
-            $superAgentExtra['dynamic_params']['specified_analysis_types'] = $specifiedAnalysisTypes;
-        }
-
         if (! empty($dynamicParams)) {
             $superAgentExtra['dynamic_params'] = array_merge($superAgentExtra['dynamic_params'], $dynamicParams);
         }

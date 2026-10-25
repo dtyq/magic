@@ -56,6 +56,22 @@ enum MCPErrorCode: int
     #[ErrorMessage(message: 'mcp.oauth2.missing_access_token')]
     case OAuth2MissingAccessToken = 51535; // OAuth2响应中缺少访问令牌
 
+    // MCP 2026-07-28 Authorization 相关错误码
+    #[ErrorMessage(message: 'mcp.authorization.discovery_failed')]
+    case MCPAuthorizationDiscoveryFailed = 51570; // MCP授权发现失败
+
+    #[ErrorMessage(message: 'mcp.authorization.issuer_mismatch')]
+    case MCPAuthorizationIssuerMismatch = 51571; // 授权服务器Issuer不匹配
+
+    #[ErrorMessage(message: 'mcp.authorization.state_invalid')]
+    case MCPAuthorizationStateInvalid = 51572; // MCP授权状态无效
+
+    #[ErrorMessage(message: 'mcp.authorization.token_exchange_failed')]
+    case MCPAuthorizationTokenExchangeFailed = 51573; // MCP授权Token交换失败
+
+    #[ErrorMessage(message: 'mcp.authorization.not_configured')]
+    case MCPAuthorizationNotConfigured = 51574; // MCP授权未配置
+
     // OAuth2绑定验证相关错误码
     #[ErrorMessage(message: 'mcp.oauth2.binding.code_empty')]
     case OAuth2BindingCodeEmpty = 51540; // OAuth2绑定授权码为空

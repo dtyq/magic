@@ -8,6 +8,7 @@ import {
 	WIDGET_QUERY_HOST_ORIGIN,
 	WIDGET_QUERY_INSTANCE_ID,
 	WIDGET_QUERY_PROTOCOL_VERSION,
+	WIDGET_QUERY_RENDER_MODE,
 } from "./protocol"
 
 export const LOGIN_STRATEGY_QUERY_KEY = "login-strategy"
@@ -19,6 +20,7 @@ export interface BuildWidgetIframeUrlContext {
 	fallbackAppOrigin?: string | null
 	instanceId?: string
 	hostOrigin?: string
+	renderMode?: "inline" | "floating"
 }
 
 function normalizeScriptOrigin(scriptOrigin: string | null | undefined) {
@@ -173,6 +175,7 @@ export function buildWidgetIframeUrl(
 		url.searchParams.set(WIDGET_QUERY_INSTANCE_ID, context.instanceId)
 		url.searchParams.set(WIDGET_QUERY_PROTOCOL_VERSION, String(WIDGET_PROTOCOL_VERSION))
 		if (context.hostOrigin) url.searchParams.set(WIDGET_QUERY_HOST_ORIGIN, context.hostOrigin)
+		if (context.renderMode) url.searchParams.set(WIDGET_QUERY_RENDER_MODE, context.renderMode)
 		url.searchParams.set(WIDGET_QUERY_CONFIG, serializeWidgetConfig(options.config ?? {}))
 	}
 

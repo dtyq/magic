@@ -39,6 +39,12 @@ class CreateTaskRequestDTO extends AbstractRequestDTO
      */
     public bool $forceInterrupt = false;
 
+    public static function fromValidatedArray(array $data): self
+    {
+        self::checkParams($data);
+        return new self($data);
+    }
+
     public function getProjectId(): string
     {
         return $this->projectId;
@@ -62,6 +68,11 @@ class CreateTaskRequestDTO extends AbstractRequestDTO
     public function isForceInterrupt(): bool
     {
         return $this->forceInterrupt;
+    }
+
+    public function setForceInterrupt(null|bool|int|string $forceInterrupt): void
+    {
+        $this->forceInterrupt = in_array($forceInterrupt, [true, 1, '1'], true);
     }
 
     protected static function getHyperfValidationRules(): array

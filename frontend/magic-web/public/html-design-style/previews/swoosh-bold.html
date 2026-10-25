@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SWOOSH BOLD // Kinetic Athletic High-Speed Typography & Telemetry</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,700;0,900;1,700;1,900&family=Inter:wght@500;700;800&family=JetBrains+Mono:wght@700;800&display=swap');
+
+    :root {
+      --swoosh-black: #111111;
+      --swoosh-dark: #000000;
+      --swoosh-surface: #1a1a1a;
+      --swoosh-surface-elevated: #242424;
+      --swoosh-volt: #cdfc41;
+      --swoosh-orange: #fa5400;
+      --swoosh-white: #ffffff;
+      --swoosh-gray: #707072;
+      --swoosh-border: #333333;
+      --font-display: 'Jost', system-ui, sans-serif;
+      --font-body: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--swoosh-dark);
+      color: var(--swoosh-white);
+      font-family: var(--font-body);
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+      padding: 0 0 44px;
+      overflow-x: hidden;
+    }
+
+    /* Top Strip */
+    .top-telemetry-ticker {
+      background: var(--swoosh-volt);
+      color: var(--swoosh-black);
+      padding: 5px 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Header Nav */
+    header.speed-nav {
+      background: var(--swoosh-black);
+      border-bottom: 2px solid var(--swoosh-border);
+      padding: 0 28px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-mark {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: -0.04em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .speed-chevron {
+      width: 28px;
+      height: 24px;
+      transform: skewX(-20deg);
+      background: var(--swoosh-volt);
+      clip-path: polygon(0 0, 70% 0, 100% 100%, 30% 100%);
+    }
+    .brand-mark span.volt-text { color: var(--swoosh-volt); }
+    .speed-nav-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .speed-nav-links a {
+      color: var(--swoosh-gray);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .speed-nav-links a:hover, .speed-nav-links a.active {
+      color: var(--swoosh-volt);
+    }
+    .btn-speed-cta {
+      background: var(--swoosh-white);
+      color: var(--swoosh-black);
+      border: none;
+      border-radius: 9999px;
+      padding: 9px 24px;
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-speed-cta:hover {
+      background: var(--swoosh-volt);
+      transform: skewX(-8deg);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 24px 20px 0;
+    }
+
+    /* High-Velocity Hero Banner (Top 500px focal impact) */
+    .hero-velocity-block {
+      background: linear-gradient(135deg, #161616 0%, #0d0d0d 100%);
+      border: 1px solid var(--swoosh-border);
+      position: relative;
+      overflow: hidden;
+      padding: 32px 36px 28px;
+      margin-bottom: 24px;
+    }
+
+    /* Diagonal Velocity Racing Stripes Backdrop */
+    .velocity-stripes-bg {
+      position: absolute;
+      top: -40px;
+      right: -20px;
+      width: 440px;
+      height: 380px;
+      transform: skewX(-24deg);
+      display: flex;
+      gap: 16px;
+      pointer-events: none;
+      opacity: 0.85;
+    }
+    .stripe-bar { height: 100%; border-radius: 4px; }
+    .stripe-volt { width: 42px; background: var(--swoosh-volt); box-shadow: 0 0 30px rgba(205,252,65,0.4); }
+    .stripe-orange { width: 22px; background: var(--swoosh-orange); }
+    .stripe-white { width: 14px; background: rgba(255,255,255,0.25); }
+    .stripe-dim { width: 8px; background: rgba(255,255,255,0.1); }
+
+    /* Ultra-Bold Italic Display Typography */
+    .campaign-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      color: var(--swoosh-volt);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .campaign-hero-headline {
+      font-family: var(--font-display);
+      font-size: 56px;
+      font-weight: 900;
+      font-style: italic;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      max-width: 780px;
+    }
+    .campaign-hero-headline span.orange-txt { color: var(--swoosh-orange); }
+    .campaign-hero-headline span.volt-txt { color: var(--swoosh-volt); }
+
+    .sub-hero-desc {
+      font-size: 14.5px;
+      color: var(--swoosh-gray);
+      max-width: 580px;
+      margin-bottom: 24px;
+    }
+
+    /* Running Race Telemetry HUD Cards Grid (First 500px) */
+    .telemetry-hud-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr 1.1fr;
+      gap: 14px;
+      position: relative;
+      z-index: 10;
+    }
+    .hud-card {
+      background: rgba(26, 26, 26, 0.9);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--swoosh-border);
+      border-radius: 4px;
+      padding: 16px 18px;
+      position: relative;
+      transform: skewX(-4deg);
+      transition: border-color 0.2s;
+    }
+    .hud-card:hover {
+      border-color: var(--swoosh-volt);
+    }
+    .hud-card.active-highlight {
+      border-left: 4px solid var(--swoosh-volt);
+      background: rgba(36, 36, 36, 0.95);
+    }
+    .hud-header-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--swoosh-gray);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .hud-val-pace {
+      font-family: var(--font-display);
+      font-size: 34px;
+      font-weight: 900;
+      font-style: italic;
+      color: var(--swoosh-volt);
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    .hud-val-primary {
+      font-family: var(--font-display);
+      font-size: 30px;
+      font-weight: 900;
+      font-style: italic;
+      color: var(--swoosh-white);
+      line-height: 1;
+    }
+    .hud-sub-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--swoosh-gray);
+      margin-top: 6px;
+    }
+
+    /* Heart Rate Cardio Zone Chart Section */
+    .race-biometrics-row {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    .biometric-panel {
+      background: var(--swoosh-surface);
+      border: 1px solid var(--swoosh-border);
+      border-radius: 4px;
+      padding: 20px 24px;
+    }
+    .panel-headline-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--swoosh-border);
+      padding-bottom: 8px;
+    }
+    .panel-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .hr-zone-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--swoosh-orange);
+    }
+    .hr-waveform-box {
+      width: 100%;
+      height: 150px;
+      position: relative;
+    }
+
+    /* Heart Rate Zones Breakdown Bar */
+    .zone-breakdown-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 14px;
+      gap: 2px;
+    }
+    .z-seg { height: 100%; }
+    .z-seg.z5 { width: 38%; background: var(--swoosh-orange); }
+    .z-seg.z4 { width: 50%; background: var(--swoosh-volt); }
+    .z-seg.z3 { width: 12%; background: #444; }
+
+    /* Product Gear Spotlight Card */
+    .gear-card {
+      background: var(--swoosh-surface);
+      border: 1px solid var(--swoosh-border);
+      border-radius: 4px;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+    .gear-title {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+    .gear-specs {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--swoosh-gray);
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+    .btn-buy-gear {
+      width: 100%;
+      background: var(--swoosh-volt);
+      color: var(--swoosh-black);
+      border: none;
+      border-radius: 9999px;
+      padding: 12px;
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 900;
+      font-style: italic;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(205,252,65,0.3);
+      transition: all 0.15s;
+    }
+    .btn-buy-gear:hover {
+      background: #e3ff70;
+      transform: skewX(-6deg);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Real-Time Telemetry Ticker -->
+  <div class="top-telemetry-ticker">
+    <div>● LIVE ATHLETE TELEMETRY FEED // RUNNER #042 • ELITE SUB-2 WAVE A</div>
+    <div>BERLIN MARATHON SPLIT: 21.097 KM • OFFICIAL TARGET: 1:59:40</div>
+  </div>
+
+  <!-- Athletic Header Navigation -->
+  <header class="speed-nav">
+    <div class="brand-mark">
+      <div class="speed-chevron"></div>
+      <div>SWOOSH <span class="volt-text">BOLD</span></div>
+    </div>
+
+    <ul class="speed-nav-links">
+      <li><a href="#" class="active">Race Telemetry</a></li>
+      <li><a href="#">Sub-2 Protocol</a></li>
+      <li><a href="#">Footwear Lab</a></li>
+      <li><a href="#">Speedwear</a></li>
+    </ul>
+
+    <button class="btn-speed-cta">SECURE GEAR →</button>
+  </header>
+
+  <main class="container">
+
+    <!-- High-Velocity Hero Banner (Top 500px focal impact) -->
+    <section class="hero-velocity-block">
+      <!-- Angled Velocity Racing Stripes Vector Backdrop -->
+      <div class="velocity-stripes-bg">
+        <div class="stripe-bar stripe-volt"></div>
+        <div class="stripe-bar stripe-orange"></div>
+        <div class="stripe-bar stripe-white"></div>
+        <div class="stripe-bar stripe-dim"></div>
+      </div>
+
+      <div class="campaign-eyebrow">HIGH-SPEED KINETIC TYPOGRAPHY // SPEED MATRIX</div>
+      <h1 class="campaign-hero-headline">
+        FASTER THAN EVER.<br>
+        <span class="volt-txt">BREAK</span> THE <span class="orange-txt">BARRIER.</span>
+      </h1>
+      <p class="sub-hero-desc">
+        Engineered for relentless cadence, maximal energy return, and sub-2 marathon velocity. High-frequency telemetry synchronized in real time.
+      </p>
+
+      <!-- 4 Race Telemetry HUD Metric Cards Grid -->
+      <div class="telemetry-hud-grid">
+        
+        <!-- Metric 1: Pace -->
+        <div class="hud-card active-highlight">
+          <div class="hud-header-row">
+            <span>SPLIT PACE</span>
+            <span style="color:var(--swoosh-volt);">LIVE GPS</span>
+          </div>
+          <div class="hud-val-pace">3'45" <span style="font-size:16px;font-family:var(--font-mono);">/km</span></div>
+          <div class="hud-sub-label">TARGET: 3'48"/KM (-3s DELTA)</div>
+        </div>
+
+        <!-- Metric 2: Distance & Cadence -->
+        <div class="hud-card">
+          <div class="hud-header-row">
+            <span>RACE DISTANCE</span>
+            <span>HALF</span>
+          </div>
+          <div class="hud-val-primary">21.097 <span style="font-size:16px;font-family:var(--font-mono);color:var(--swoosh-gray);">KM</span></div>
+          <div class="hud-sub-label">CADENCE: 188 STEPS/MIN</div>
+        </div>
+
+        <!-- Metric 3: Heart Rate -->
+        <div class="hud-card">
+          <div class="hud-header-row">
+            <span>HEART RATE</span>
+            <span style="color:var(--swoosh-orange);">ZONE 5</span>
+          </div>
+          <div class="hud-val-primary" style="color:var(--swoosh-orange);">184 <span style="font-size:16px;font-family:var(--font-mono);">BPM</span></div>
+          <div class="hud-sub-label">MAX THRESHOLD: 94% VO2</div>
+        </div>
+
+        <!-- Metric 4: Elapsed Time -->
+        <div class="hud-card">
+          <div class="hud-header-row">
+            <span>ELAPSED SPLIT</span>
+            <span style="color:var(--swoosh-volt);">SUB-2 ON</span>
+          </div>
+          <div class="hud-val-primary">1:19:07</div>
+          <div class="hud-sub-label">EST FINISH: 1:59:12 [PR]</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Biometrics & Cardio Zone Chart Row -->
+    <section class="race-biometrics-row">
+      
+      <!-- Heart Rate Cardio Zone SVG Waveform -->
+      <div class="biometric-panel">
+        <div class="panel-headline-row">
+          <div class="panel-title">CARDIAC TELEMETRY // REAL-TIME ZONE GRAPH</div>
+          <div class="hr-zone-tag">ZONE 5 ANAEROBIC MAX [184 BPM]</div>
+        </div>
+
+        <div class="hr-waveform-box">
+          <svg viewBox="0 0 620 150" width="100%" height="100%" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fa5400" stop-opacity="0.5"/>
+                <stop offset="60%" stop-color="#cdfc41" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#111111" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Horizontal Zone Baseline Thresholds -->
+            <line x1="20" y1="35" x2="600" y2="35" stroke="rgba(250,84,0,0.4)" stroke-dasharray="4,4"/>
+            <text x="530" y="30" fill="#fa5400" font-family="JetBrains Mono" font-size="9" font-weight="bold">ZONE 5: 180+ BPM</text>
+
+            <line x1="20" y1="80" x2="600" y2="80" stroke="rgba(205,252,65,0.3)" stroke-dasharray="4,4"/>
+            <text x="515" y="75" fill="#cdfc41" font-family="JetBrains Mono" font-size="9" font-weight="bold">ZONE 4: 165-179 BPM</text>
+
+            <!-- Cardio Waveform Area Fill -->
+            <path d="M 20 110 L 60 100 L 100 115 L 140 85 L 180 90 L 220 70 L 260 75 L 300 55 L 340 60 L 380 40 L 420 45 L 460 30 L 500 35 L 540 28 L 580 32 L 600 25 L 600 145 L 20 145 Z" fill="url(#hrGrad)"/>
+
+            <!-- Sharp Neon Volt/Orange Cardio Line -->
+            <path d="M 20 110 L 60 100 L 100 115 L 140 85 L 180 90 L 220 70 L 260 75 L 300 55 L 340 60 L 380 40 L 420 45 L 460 30 L 500 35 L 540 28 L 580 32 L 600 25" fill="none" stroke="#cdfc41" stroke-width="3" stroke-linecap="round"/>
+
+            <!-- Current Peak Heart Pulse Marker -->
+            <circle cx="600" cy="25" r="5" fill="#fa5400" stroke="#ffffff" stroke-width="2"/>
+          </svg>
+        </div>
+
+        <div class="zone-breakdown-bar">
+          <div class="z-seg z5" title="Zone 5 Anaerobic (38%)"></div>
+          <div class="z-seg z4" title="Zone 4 Threshold (50%)"></div>
+          <div class="z-seg z3" title="Zone 3 Aerobic (12%)"></div>
+        </div>
+      </div>
+
+      <!-- Gear Spotlight Card -->
+      <div class="gear-card">
+        <div>
+          <div style="font-family:var(--font-mono); font-size:10px; color:var(--swoosh-volt); font-weight:800; letter-spacing:0.1em; text-transform:uppercase;">
+            RACE WEAPON // FOOTWEAR
+          </div>
+          <h2 class="gear-title">ZOOM ALPHA SPEED FLY 3</h2>
+          <div class="gear-specs">
+            • DUAL FULL-LENGTH CARBO-FLYPLATE<br>
+            • REVOLUTIONARY ZOOMX ULTRALIGHT FOAM<br>
+            • RACE-DAY WEIGHT: 182 GRAMS (SIZE 10)<br>
+            • 85% ENERGY RETURN EFFICIENCY
+          </div>
+        </div>
+
+        <!-- Mini Shoe Silhouette SVG Frame -->
+        <div style="height:70px; display:flex; align-items:center; justify-content:center; margin-bottom:12px;">
+          <svg viewBox="0 0 160 60" width="140" height="50">
+            <path d="M 15 45 C 35 45, 60 52, 145 42 C 148 40, 142 25, 120 20 C 95 18, 70 24, 45 28 C 30 30, 15 35, 15 45 Z" fill="#1e1e1e" stroke="#cdfc41" stroke-width="2"/>
+            <path d="M 40 45 L 140 40" stroke="#fa5400" stroke-width="3"/>
+          </svg>
+        </div>
+
+        <button class="btn-buy-gear">SECURE RACE GEAR →</button>
+      </div>
+
+    </section>
+
+  </main>
+
+</body>
+</html>

@@ -15,7 +15,7 @@ import SingleSelect from "@/MagicExpressionWidget/components/nodes/LabelSelect/S
 import { SnowflakeId } from "@/MagicExpressionWidget/helpers"
 import { LabelTypeMap, RenderConfig, VALUE_TYPE } from "@/MagicExpressionWidget/types"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { omit } from "lodash-es"
 import React, { useMemo } from "react"
 import { ReferenceCascaderOnChange } from ".."
 import useDepartmentModal from "./useDepartmentModal"
@@ -89,7 +89,7 @@ export default function useRender({
 				)
 			case LabelTypeMap.LabelDepartmentNames:
 				const RenderComp = renderConfig!.props?.editComponent || (() => <div></div>)
-				const resetProps = _.omit(renderConfig!.props, ["editComponent"])
+				const resetProps = omit(renderConfig!.props, ["editComponent"])
 				return (
 					<RenderComp
 						isOpen={departmentOpen}

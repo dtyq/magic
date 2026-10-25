@@ -3,7 +3,7 @@ import { memo } from "react"
 import useStyles from "./style"
 
 const Fallback = memo(() => {
-	const { t } = useTranslation("interface")
+	const { t } = useTranslation("message")
 	const { styles } = useStyles({})
 
 	return <div className={styles.text}>{t("chat.NotSupport")}</div>

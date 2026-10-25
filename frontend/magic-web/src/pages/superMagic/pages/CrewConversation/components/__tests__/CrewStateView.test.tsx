@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
+	emit: vi.fn(),
 }))
 
 vi.mock("react-i18next", () => ({
@@ -23,20 +24,12 @@ vi.mock("@/routes/hooks/useNavigate", () => ({
 	default: () => mocks.navigate,
 }))
 
-vi.mock("@/pages/login/constants", () => ({
-	LoginValueKey: { REDIRECT_URL: "redirect" },
+vi.mock("@/services/auth/AuthEventBus", () => ({
+	authEventBus: { emit: mocks.emit },
 }))
 
-vi.mock("@/pages/login/utils/loginRedirect", () => ({
-	buildLoginRedirectSearchParams: () => new URLSearchParams("redirect=crew-page-mock"),
-}))
-
-vi.mock("@/routes/constants", () => ({
-	RouteName: { Login: "Login" },
-}))
-
-vi.mock("@/routes/history/helpers", () => ({
-	convertSearchParams: () => ({ redirect: "crew-page-mock" }),
+vi.mock("@/services/auth/AuthEvents", () => ({
+	AuthEventName: { RequestLogin: "auth/request-login" },
 }))
 
 import CrewStateView from "../CrewStateView"
@@ -52,13 +45,12 @@ describe("CrewStateView", () => {
 		expect(screen.getByText("Load Failed Mock")).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Relogin Mock" }))
 
-		expect(mocks.navigate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				name: "Login",
-				query: { redirect: "crew-page-mock" },
-				replace: true,
-			}),
-		)
+		expect(mocks.emit).toHaveBeenCalledWith("auth/request-login", {
+			reason: "manual",
+			source: "crew",
+			returnTo: window.location.href,
+			preserveQuery: true,
+		})
 	})
 
 	it("does not offer login recovery for an invalid Crew code", () => {

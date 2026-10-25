@@ -11,7 +11,9 @@ use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Provider\DTO\AiAbilityDetailDTO;
 use App\Application\Provider\DTO\AiAbilityListDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
+use App\Domain\Provider\Event\KnowledgeBaseEmbeddingModelUpdatedEvent;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
@@ -20,6 +22,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\AiAbilityAssembler;
 use App\Interfaces\Provider\DTO\UpdateAiAbilityRequest;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\Contract\TranslatorInterface;
 use Throwable;
 
@@ -100,10 +103,52 @@ class AiAbilityAppService extends AbstractKernelAppService
         } catch (Throwable $e) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::AI_ABILITY_NOT_FOUND);
         }
-        if ($code === AiAbilityCode::KnowledgeBaseEmbeddingModel) {
-            return $this->knowledgeBaseEmbeddingModelAbilityAppService->update($authorization, $request);
+        $oldEntity = $this->aiAbilityDomainService->getByCode($dataIsolation, $code);
+        if ($oldEntity === null) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::AI_ABILITY_NOT_FOUND);
         }
 
+        if ($code === AiAbilityCode::KnowledgeBaseEmbeddingModel) {
+            $updated = $this->knowledgeBaseEmbeddingModelAbilityAppService->update($authorization, $request);
+        } else {
+            $updated = $this->updateGenericAbility($dataIsolation, $code, $request);
+        }
+
+        if (! $updated) {
+            return false;
+        }
+
+        if ($code === AiAbilityCode::KnowledgeBaseEmbeddingModel) {
+            $newEntity = $this->aiAbilityDomainService->getByCode($dataIsolation, $code);
+            if ($newEntity !== null) {
+                AsyncEventUtil::dispatch(new KnowledgeBaseEmbeddingModelUpdatedEvent($oldEntity, $newEntity));
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 初始化AI能力数据（从配置文件同步到数据库）.
+     *
+     * @param MagicUserAuthorization $authorization 用户授权信息
+     * @return int 初始化的数量
+     */
+    public function initializeAbilities(MagicUserAuthorization $authorization): int
+    {
+        $dataIsolation = $this->createProviderDataIsolation($authorization);
+
+        return $this->aiAbilityDomainService->initializeAbilities(
+            $dataIsolation,
+            $this->aiAbilityInitializationConfigService->getAbilitiesForInitialization()
+        );
+    }
+
+    private function updateGenericAbility(
+        ProviderDataIsolation $dataIsolation,
+        AiAbilityCode $code,
+        UpdateAiAbilityRequest $request,
+    ): bool {
         // 构建更新数据（支持选择性更新）
         $updateData = [];
         if ($request->hasStatus()) {
@@ -126,22 +171,6 @@ class AiAbilityAppService extends AbstractKernelAppService
 
         // 通过 DomainService 更新
         return $this->aiAbilityDomainService->updateByCode($dataIsolation, $code, $updateData);
-    }
-
-    /**
-     * 初始化AI能力数据（从配置文件同步到数据库）.
-     *
-     * @param MagicUserAuthorization $authorization 用户授权信息
-     * @return int 初始化的数量
-     */
-    public function initializeAbilities(MagicUserAuthorization $authorization): int
-    {
-        $dataIsolation = $this->createProviderDataIsolation($authorization);
-
-        return $this->aiAbilityDomainService->initializeAbilities(
-            $dataIsolation,
-            $this->aiAbilityInitializationConfigService->getAbilitiesForInitialization()
-        );
     }
 
     private function validateKnowledgeBaseVisualUnderstandingConfig(AiAbilityCode $code, array $config): void

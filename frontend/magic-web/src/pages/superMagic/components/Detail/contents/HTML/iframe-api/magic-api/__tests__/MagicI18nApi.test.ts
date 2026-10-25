@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { MagicI18nApi } from "../MagicI18nApi"
-import { runtimeLoggerHub, type RuntimeLogRecord } from "@dtyq/html-sandbox/runtime"
+import { runtimeLoggerHub, type RuntimeLogRecord } from "@dtyq/html-sandbox"
 
 describe("MagicI18nApi", () => {
 	let postMessageSpy: ReturnType<typeof vi.spyOn>
@@ -53,7 +53,7 @@ describe("MagicI18nApi", () => {
 		expect(postMessageSpy).toHaveBeenCalledOnce()
 		const [message, origin] = postMessageSpy.mock.calls[0]
 		expect(message.type).toBe("MAGIC_I18N_LANG_SUBSCRIBE")
-		expect(origin).toBe("*")
+		expect(origin).toBe(window.location.origin)
 	})
 
 	it("subscribe() 返回取消订阅函数", () => {
@@ -100,6 +100,7 @@ describe("MagicI18nApi", () => {
 					results: { lang: "en-US" },
 				},
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 
@@ -121,6 +122,7 @@ describe("MagicI18nApi", () => {
 					results: { lang: "en-US" },
 				},
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 
@@ -142,6 +144,7 @@ describe("MagicI18nApi", () => {
 					results: { lang: "en-US" },
 				},
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 
@@ -158,6 +161,7 @@ describe("MagicI18nApi", () => {
 			new MessageEvent("message", {
 				data: { type: "OTHER_MESSAGE", success: true, results: { lang: "en-US" } },
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 
@@ -180,6 +184,7 @@ describe("MagicI18nApi", () => {
 					results: { lang: "en-US" },
 				},
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 
@@ -200,6 +205,7 @@ describe("MagicI18nApi", () => {
 					results: { lang: "en-US" },
 				},
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 

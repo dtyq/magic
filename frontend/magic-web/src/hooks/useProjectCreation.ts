@@ -10,6 +10,7 @@ import {
 } from "@/pages/superMagic/pages/Workspace/types"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { SuperMagicApi } from "@/apis"
+import { analyticsService } from "@/services/analytics"
 
 interface UseProjectCreationOptions {
 	/** Selected workspace for creating project */
@@ -81,6 +82,10 @@ export function useProjectCreation({
 
 			try {
 				setIsCreatingProjectLoading(true)
+				analyticsService.report("project_create_attempted", {
+					workspaceId: selectedWorkspace.id,
+					mode: projectMode,
+				})
 				const res = await SuperMagicApi.createProject({
 					workspace_id: selectedWorkspace.id,
 					project_name: projectName,

@@ -3,5 +3,8 @@ import type { MentionPanelValidationPlugin } from "../../registry-types"
 
 export const agentsValidationPlugin: MentionPanelValidationPlugin = {
 	itemType: MentionItemType.AGENT,
-	validate: ({ store, data }) => store.agentsStore.hasItem((data as AgentMentionData).agent_id),
+	validate: ({ store, data }) => {
+		const agentId = (data as AgentMentionData).agent_id
+		return store.agentsStore.hasItem(agentId) || store.digitalEmployeesStore.hasItem(agentId)
+	},
 }

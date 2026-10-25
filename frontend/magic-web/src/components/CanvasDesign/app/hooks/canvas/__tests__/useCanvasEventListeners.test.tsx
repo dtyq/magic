@@ -7,6 +7,7 @@ import { EventEmitter } from "../../../../runtime/core/EventEmitter"
 import type { Canvas } from "../../../../runtime/core/Canvas"
 import type { CanvasConnection, CanvasDocument } from "../../../../runtime/document/types"
 import type { CanvasDesignDataPatch } from "../../../../public/props"
+import type { TemporaryElementMetadata } from "../../../../runtime/elements/core/ElementManager"
 
 const connection: CanvasConnection = {
 	id: "connection-1",
@@ -33,12 +34,13 @@ function createCanvasStub() {
 	}
 	const elementManager = {
 		exportDocumentPatch: vi.fn(),
-		getTemporaryElementMetadata: vi.fn((elementId: string) => {
+		getTemporaryElementMetadata: vi.fn((elementId: string): TemporaryElementMetadata | null => {
 			void elementId
 			return null
 		}),
 	}
 	const canvas = {
+		permissionManager: { can: vi.fn(() => true) },
 		eventEmitter,
 		connectionManager,
 		elementManager,
@@ -230,5 +232,65 @@ describe("useCanvasEventListeners connection changes", () => {
 			{ elements: [], connections: [connection] },
 			expect.objectContaining({ source: "document:restored" }),
 		)
+	})
+
+	it("does not downgrade a restored document to an element patch", async () => {
+		const { canvas, elementManager, eventEmitter } = createCanvasStub()
+		const onPatch = vi.fn()
+		const onChange = vi.fn()
+
+		render(
+			<CanvasProvider>
+				<TestListener canvas={canvas} onPatch={onPatch} onChange={onChange} />
+			</CanvasProvider>,
+		)
+
+		await waitFor(() => {
+			expect(eventEmitter.listenerCount("document:restored")).toBe(1)
+		})
+
+		vi.useFakeTimers()
+		act(() => {
+			eventEmitter.emit({
+				type: "element:change",
+				data: { elementIds: ["element-1"], phase: "commit" },
+			})
+			eventEmitter.emit({ type: "document:restored", data: undefined })
+			vi.advanceTimersByTime(121)
+		})
+
+		expect(elementManager.exportDocumentPatch).not.toHaveBeenCalled()
+		expect(onPatch).not.toHaveBeenCalled()
+		expect(onChange).toHaveBeenCalledWith(
+			{ elements: [], connections: [connection] },
+			expect.objectContaining({ source: "document:restored" }),
+		)
+	})
+
+	it("does not flush a destroyed canvas during cleanup", async () => {
+		const { canvas, eventEmitter } = createCanvasStub()
+		const onPatch = vi.fn()
+		const onChange = vi.fn()
+		const rendered = render(
+			<CanvasProvider>
+				<TestListener canvas={canvas} onPatch={onPatch} onChange={onChange} />
+			</CanvasProvider>,
+		)
+
+		await waitFor(() => {
+			expect(eventEmitter.listenerCount("element:change")).toBe(1)
+		})
+
+		act(() => {
+			eventEmitter.emit({
+				type: "element:change",
+				data: { elementIds: ["element-1"], phase: "commit" },
+			})
+		})
+		;(canvas as unknown as { isDestroyed: boolean }).isDestroyed = true
+		rendered.unmount()
+
+		expect(onPatch).not.toHaveBeenCalled()
+		expect(onChange).not.toHaveBeenCalled()
 	})
 })

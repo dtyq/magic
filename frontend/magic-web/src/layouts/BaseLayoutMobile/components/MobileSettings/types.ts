@@ -6,6 +6,8 @@ export interface PointsRecordItem {
 	amount: number
 	label: string
 	description: string
+	/** 备注说明；历史数据可能缺失，空值时不展示备注区域。 */
+	remark: string
 	createdAt: string
 	updatedAt: string
 }
@@ -24,6 +26,8 @@ export type MobileSettingsSectionKey = "points" | "account" | "application" | "l
 
 export type MobileSettingsRootItemKey =
 	| "pointsPurchase"
+	| "teamPoints"
+	| "personalQuota"
 	| "pointsDetail"
 	| "orderHistory"
 	| "profile"
@@ -35,6 +39,8 @@ export type MobileSettingsRootItemKey =
 
 export type MobileSettingsPanelKey =
 	| "pointsPurchase"
+	| "teamPoints"
+	| "personalQuota"
 	| "pointsDetail"
 	| "orderHistory"
 	| "profile"
@@ -54,6 +60,21 @@ export interface MobileSettingsConfigSection {
 
 export interface MobileSettingsConfig {
 	sections: MobileSettingsConfigSection[]
+}
+
+export type MobileSettingsPointsRole = "personal" | "teamAdmin" | "teamMember"
+
+export interface MobileSettingsPersonalQuota {
+	used: number
+	total: number
+	percent: number
+}
+
+export interface MobileSettingsPointsOverview {
+	role: MobileSettingsPointsRole
+	primaryPoints: number | null
+	personalQuota: MobileSettingsPersonalQuota | null
+	hasLoadedData: boolean
 }
 
 export interface MobileSettingsMenuItemConfig {

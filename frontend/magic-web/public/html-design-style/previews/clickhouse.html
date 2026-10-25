@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ClickHouse — High-performance columnar database interface built on pitch-black canvas with electric yellow brand voltage.">
+  <title>ClickHouse — Fast Open-Source Columnar Database</title>
+  <style>
+    :root {
+      --primary: #faff69;
+      --primary-active: #e6eb52;
+      --primary-dim: rgba(250, 255, 105, 0.15);
+      --canvas: #090a0d;
+      --canvas-pure: #000000;
+      --surface-1: #111318;
+      --surface-2: #191b22;
+      --border: #232731;
+      --border-strong: #373d4d;
+      --ink: #ffffff;
+      --ink-muted: #9aa1b2;
+      --ink-dim: #636b7e;
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", "Fira Code", monospace;
+      --radius-sm: 2px;
+      --radius-md: 4px;
+      --shell: 1220px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: var(--canvas); color: var(--ink); scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin: 0 auto; }
+
+    /* Topbar */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(9, 10, 13, 0.92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 66px;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 12px; }
+    .brand-bars { display: flex; gap: 3px; align-items: flex-end; height: 20px; }
+    .brand-bar { width: 4px; background: var(--primary); }
+    .brand-bar:nth-child(1) { height: 14px; }
+    .brand-bar:nth-child(2) { height: 20px; }
+    .brand-bar:nth-child(3) { height: 10px; }
+    .brand-name {
+      font-family: var(--font-sans); font-size: 18px; font-weight: 800;
+      letter-spacing: -0.03em; color: var(--ink);
+    }
+    .nav-links { display: flex; align-items: center; gap: 28px; font-size: 13px; font-weight: 600; color: var(--ink-muted); }
+    .nav-links a:hover { color: var(--primary); }
+    .nav-actions { display: flex; align-items: center; gap: 14px; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 20px; font-size: 12px; font-weight: 700;
+      border-radius: var(--radius-sm); cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.2s ease;
+      font-family: var(--font-mono); border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--primary); color: #000000; border-color: var(--primary);
+      box-shadow: 0 0 16px rgba(250, 255, 105, 0.35);
+    }
+    .btn-primary:hover { background: var(--primary-active); box-shadow: 0 0 24px rgba(250, 255, 105, 0.5); }
+    .btn-outline {
+      background: transparent; color: var(--ink); border-color: var(--border-strong);
+    }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* Hero Section - Optimized for 16:10 Cover at 0.35 scale */
+    .hero {
+      position: relative; padding: clamp(48px, 6vw, 76px) 0 36px;
+      background: radial-gradient(ellipse 70% 45% at 50% 0%, rgba(250, 255, 105, 0.12), transparent 70%);
+      text-align: center;
+    }
+    .hero-kicker {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 12px; background: var(--primary-dim);
+      border: 1px solid rgba(250, 255, 105, 0.3); border-radius: var(--radius-sm);
+      color: var(--primary); font-family: var(--font-mono); font-size: 11px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 20px;
+    }
+    .hero-title {
+      font-size: clamp(38px, 6vw, 76px); font-weight: 900;
+      line-height: 1.0; letter-spacing: -0.04em; max-width: 900px;
+      margin: 0 auto 18px; text-transform: uppercase;
+    }
+    .hero-title span { color: var(--primary); }
+    .hero-sub {
+      font-size: clamp(16px, 1.8vw, 20px); color: var(--ink-muted);
+      max-width: 660px; margin: 0 auto 32px; line-height: 1.5;
+    }
+    .hero-actions { display: flex; justify-content: center; gap: 14px; margin-bottom: 44px; }
+
+    /* SQL Console Mockup */
+    .sql-window {
+      max-width: 1040px; margin: 0 auto; text-align: left;
+      background: var(--canvas-pure); border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md); overflow: hidden;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.8), 0 0 0 1px rgba(250, 255, 105, 0.15);
+    }
+    .sql-bar {
+      background: #0d0f14; padding: 10px 16px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-mono); font-size: 11px;
+    }
+    .sql-tab { color: var(--primary); display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    .sql-status { color: #22c55e; display: flex; align-items: center; gap: 6px; }
+    .sql-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+    
+    .sql-editor {
+      padding: 18px 20px; font-family: var(--font-mono); font-size: 13px;
+      line-height: 1.6; background: #07080a; border-bottom: 1px solid var(--border);
+    }
+    .kw { color: var(--primary); font-weight: 700; }
+    .fn { color: #38bdf8; }
+    .str { color: #4ade80; }
+    .tbl { color: #f472b6; }
+    .cm { color: var(--ink-dim); font-style: italic; }
+
+    /* Live Execution Result Banner */
+    .result-banner {
+      background: #0c1511; border-bottom: 1px solid #1a3826;
+      padding: 8px 16px; font-family: var(--font-mono); font-size: 11px;
+      color: #4ade80; display: flex; justify-content: space-between;
+    }
+
+    /* Result Table */
+    .table-wrap { overflow-x: auto; background: var(--canvas-pure); }
+    .sql-table {
+      width: 100%; border-collapse: collapse; font-family: var(--font-mono);
+      font-size: 12px; text-align: left;
+    }
+    .sql-table th {
+      background: #0f1116; color: var(--ink-muted); padding: 8px 16px;
+      border-bottom: 1px solid var(--border); font-weight: 600; text-transform: uppercase; font-size: 10px;
+    }
+    .sql-table td {
+      padding: 9px 16px; border-bottom: 1px solid #14171f; color: var(--ink);
+    }
+    .sql-table tr:hover td { background: rgba(250, 255, 105, 0.04); }
+
+    /* Performance HUD Metrics */
+    .metrics-section { padding: 48px 0; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .metric-card {
+      background: var(--surface-1); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 24px;
+      position: relative; overflow: hidden;
+    }
+    .metric-card::before {
+      content: ""; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+      background: var(--primary);
+    }
+    .metric-val {
+      font-family: var(--font-mono); font-size: clamp(32px, 4vw, 48px);
+      font-weight: 800; color: var(--primary); line-height: 1; margin-bottom: 8px;
+    }
+    .metric-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
+    .metric-desc { font-size: 12px; color: var(--ink-muted); line-height: 1.4; }
+
+    /* Tokens Bar */
+    .spec-tokens-bar {
+      margin-top: 40px; padding: 18px 24px; background: #000;
+      border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px; font-family: var(--font-mono); font-size: 11px;
+    }
+    .tokens-group { display: flex; align-items: center; gap: 16px; }
+    .token-chip { display: flex; align-items: center; gap: 8px; }
+    .token-color { width: 12px; height: 12px; border-radius: 2px; }
+
+    /* Footer */
+    footer { padding: 44px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--ink-dim); }
+    .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .nav-links { display: none; }
+      .metrics-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <div class="brand-wrap">
+        <div class="brand-bars">
+          <div class="brand-bar"></div>
+          <div class="brand-bar"></div>
+          <div class="brand-bar"></div>
+        </div>
+        <span class="brand-name">ClickHouse</span>
+      </div>
+      <nav class="nav-links" aria-label="Database navigation">
+        <a href="#console">SQL Console</a>
+        <a href="#performance">Benchmarks</a>
+        <a href="#cloud">ClickHouse Cloud</a>
+        <a href="#docs">Documentation</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="#console" class="btn btn-outline">Docs</a>
+        <a href="#console" class="btn btn-primary">Start Free Cloud</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- HERO SECTION -->
+    <section class="hero" id="top">
+      <div class="hero-kicker">High-Performance Analytical DB</div>
+      <h1 class="hero-title">Real-Time Analytics at <span>True Scale</span>.</h1>
+      <p class="hero-sub">
+        The fastest open-source columnar database management system on earth. Query billions of rows in milliseconds.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#console">Run Interactive SQL Query</a>
+        <a class="btn btn-outline" href="#performance">View 1B Row Benchmark ↗</a>
+      </div>
+
+      <!-- SQL CONSOLE MOCKUP -->
+      <div class="sql-window" id="console">
+        <div class="sql-bar">
+          <span class="sql-tab">⚡ query_analytics.sql</span>
+          <span class="sql-status">CLUSTER HEALTHY (8 NODES)</span>
+        </div>
+        <div class="sql-editor">
+          <span class="cm">-- Aggregate 420M user interaction telemetry records in milliseconds</span><br>
+          <span class="kw">SELECT</span><br>
+          &nbsp;&nbsp;event_category,<br>
+          &nbsp;&nbsp;<span class="fn">count</span>(*) <span class="kw">AS</span> total_events,<br>
+          &nbsp;&nbsp;<span class="fn">quantile</span>(0.99)(query_duration_ms) <span class="kw">AS</span> p99_latency_ms<br>
+          <span class="kw">FROM</span> <span class="tbl">telemetry.event_stream</span><br>
+          <span class="kw">WHERE</span> event_date = <span class="fn">today</span>()<br>
+          <span class="kw">GROUP BY</span> event_category<br>
+          <span class="kw">ORDER BY</span> total_events <span class="kw">DESC</span> <span class="kw">LIMIT</span> 3;
+        </div>
+
+        <div class="result-banner">
+          <span>✓ 3 rows in set. Elapsed: 0.038 sec. Processed 420.84 million rows (11.07 billion rows/s).</span>
+          <span>RAM: 142.6 MB</span>
+        </div>
+
+        <div class="table-wrap">
+          <table class="sql-table">
+            <thead>
+              <tr>
+                <th>event_category</th>
+                <th>total_events</th>
+                <th>p99_latency_ms</th>
+                <th>status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="color:var(--primary); font-weight:700;">api_gateway_stream</td>
+                <td>284,912,410</td>
+                <td>1.42 ms</td>
+                <td style="color:#22c55e;">STREAMING</td>
+              </tr>
+              <tr>
+                <td style="color:var(--primary); font-weight:700;">search_query_index</td>
+                <td>98,140,210</td>
+                <td>3.18 ms</td>
+                <td style="color:#22c55e;">STREAMING</td>
+              </tr>
+              <tr>
+                <td style="color:var(--primary); font-weight:700;">billing_ledger_sync</td>
+                <td>37,787,380</td>
+                <td>0.89 ms</td>
+                <td style="color:#22c55e;">STREAMING</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- METRICS SECTION -->
+    <section class="metrics-section" id="performance">
+      <div class="metrics-grid">
+        <article class="metric-card">
+          <div class="metric-val">11.07 B</div>
+          <h3 class="metric-title">Rows Processed / Sec</h3>
+          <p class="metric-desc">Vectorized SIMD query execution operates directly on compressed L3 cache blocks without serialization overhead.</p>
+        </article>
+
+        <article class="metric-card">
+          <div class="metric-val">14.2×</div>
+          <h3 class="metric-title">Columnar Compression</h3>
+          <p class="metric-desc">Specialized codec algorithms including DoubleDelta, Gorilla, and T64 shrink petabyte data storage footprints drastically.</p>
+        </article>
+
+        <article class="metric-card">
+          <div class="metric-val">0.038 s</div>
+          <h3 class="metric-title">P99 Query Response</h3>
+          <p class="metric-desc">Sub-second query turnaround on distributed petabyte shards unlocks true real-time user-facing dashboards.</p>
+        </article>
+      </div>
+
+      <!-- DESIGN TOKENS SPEC BAR -->
+      <div class="spec-tokens-bar">
+        <div class="tokens-group">
+          <span style="color:var(--ink-dim);">CLICKHOUSE TOKENS:</span>
+          <div class="token-chip"><div class="token-color" style="background:#faff69;"></div><span>Electric Yellow #faff69</span></div>
+          <div class="token-chip"><div class="token-color" style="background:#090a0d;"></div><span>Canvas #090a0d</span></div>
+          <div class="token-chip"><div class="token-color" style="background:#111318;"></div><span>Surface #111318</span></div>
+        </div>
+        <div>
+          <span>HIGH-CONTRAST SANS · JETBRAINS MONO</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <span>ClickHouse, Inc. · The Open Source Analytical Database</span>
+      <span>Official Design Style Reference 2026</span>
+    </div>
+  </footer>
+</body>
+</html>

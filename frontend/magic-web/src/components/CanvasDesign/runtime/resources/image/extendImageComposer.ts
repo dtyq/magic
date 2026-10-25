@@ -1,4 +1,4 @@
-import type { ImageElement } from "../../document/types"
+import type { CropConfig } from "../../document/types"
 import { getNormalizedImageProcessCrop } from "./imageCropUtils"
 import { generateUUID } from "../../shared/ids"
 
@@ -10,7 +10,7 @@ interface Rect {
 }
 
 interface CreateExtendImageFilesParams {
-	element: Pick<ImageElement, "width" | "height" | "crop">
+	element: { width?: number; height?: number; crop?: CropConfig }
 	image: CanvasImageSource
 	naturalWidth: number
 	naturalHeight: number

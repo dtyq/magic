@@ -1,11 +1,15 @@
 ---
 name: sandbox-manager
-description: Inspect, upgrade, or restart the sandbox this Agent is running in. Use when the user asks about this Agent's sandbox status or Agent image version, or explicitly asks to upgrade or restart its current environment.
+description: Inspect, upgrade, or restart the sandbox this Agent is running in. Use when the user asks about this Agent's sandbox or virtual machine status, Agent image version, or explicitly asks to upgrade or restart its current environment.
 ---
 
 # Sandbox Manager
 
 This skill manages the execution environment hosting the current Agent. “Current sandbox” means the environment running this Agent process, not an arbitrary sandbox selected by the user.
+
+## User terminology
+
+In this product, “virtual machine”, “VM”, and “virtual machine environment” are user-facing names for the current sandbox hosting this Agent. Treat requests to inspect, upgrade, or restart that virtual machine as requests for the corresponding sandbox operation. Do not interpret them as requests to manage the host machine or another sandbox.
 
 These are Code Mode tools. Execute every example through `run_sdk_snippet` with `sdk.tool.call(...)`; do not invent or pass a sandbox ID.
 
@@ -98,7 +102,7 @@ When an update is needed, the tool schedules the existing rebuild API and return
 The current sandbox upgrade has been scheduled. The sandbox is scheduled to be rebuilt in 10 seconds. Reply to the user now and do not call more tools. This confirms scheduling, not completion; after the sandbox is available again, use get_sandbox_info to verify the new image version.
 ```
 
-Typical scheduled `result.data`:
+Typical requested `result.data`:
 
 ```json
 {
@@ -128,7 +132,7 @@ If the image is already current, the result is:
 
 ## Restart the current sandbox
 
-Call `restart_sandbox` only after the user explicitly asks to restart this sandbox, regardless of its image version.
+Call `restart_sandbox` only from the interactive main Agent after the user explicitly asks to restart this sandbox, regardless of its image version. Sub-agents must return the request to the main Agent.
 
 ```python
 run_sdk_snippet(python_code="""
@@ -143,15 +147,15 @@ print(result.content)
 print(result.data)
 
 data = result.data
-if data["operation"] == "restart_scheduled":
-    print("Restart accepted; delay:", data["delay_seconds"], "seconds")
+if data["operation"] == "restart_requested":
+    print("Restart requested; it will be sent after this Agent run is finalized")
 """)
 ```
 
 Typical `result.content`:
 
 ```text
-The unconditional restart of the current sandbox has been scheduled. The sandbox is scheduled to be rebuilt in 10 seconds. Reply to the user now and do not call more tools. This confirms scheduling, not completion; after the sandbox is available again, use get_sandbox_info to verify its status.
+The unconditional restart of the current sandbox has been requested. After your final reply, other Agent tasks will be interrupted and the existing archive will be attempted before the restart request is sent. No fixed duration is promised. Reply to the user now and do not call more tools. A new user message or interruption before API dispatch will cancel the pending restart. After the sandbox is available again, the runtime will automatically resume this conversation and use get_sandbox_info to verify its status.
 ```
 
 Typical `result.data`:
@@ -159,17 +163,17 @@ Typical `result.data`:
 ```json
 {
   "sandbox_id": "sandbox_example",
-  "operation": "restart_scheduled",
-  "delay_seconds": 10
+  "operation": "restart_requested"
 }
 ```
 
-For a scheduled restart, `sandbox_id` is the ID of the sandbox being replaced. It is not a promise that the rebuilt sandbox will have the same ID. The delayed request is held by the current Agent process, so a process crash or a new run that cancels the pending action can prevent it from executing. Send the user a short final response immediately and do not call another tool in the same run. After recovery, use `get_sandbox_info` to inspect the new sandbox.
+For a requested restart, `sandbox_id` is the ID of the sandbox being replaced. It is not a promise that the rebuilt sandbox will have the same ID. The request is held until the main Agent finishes its reply, other Agent tasks receive interruption, and the existing archive is attempted. Cleanup timeout or archive failure does not prevent restarting. A new user message or interruption before API dispatch can cancel the pending request. Send the user a short final response immediately and do not call another tool in the same run. After recovery, the runtime resumes the conversation and calls `get_sandbox_info`; report the current availability without assuming the earlier restart request succeeded.
 
 ## Safety and persistence
 
 - Never upgrade or restart merely because `needs_update` is true; both operations require explicit user intent.
 - Save required work in `.workspace` before a rebuild. Files there persist across sandbox rebuilds; processes, temporary VM state, and files outside `.workspace` do not.
-- The tool waits 10 seconds after scheduling before it sends the rebuild request. This gives the Agent time to send its final response, but the delay is intentionally in-process: a process crash or deployment can lose the pending request.
-- A new user message or interruption before the rebuild request completes cancels the pending task.
+- Restart waits for the main Agent's final reply, bounded interruption of other Agent tasks, and a best-effort archive. A process crash before dispatch can lose the pending request.
+- The tool stores a resumption before registering the deferred restart. After the new runtime is ready, it resumes this conversation and checks the current sandbox status before replying.
+- A new user message or interruption before API dispatch cancels the pending restart. Once dispatch begins, no new Agent work starts in the old runtime. A failed API request is not automatically retried.
 - Do not automatically retry a failed or interrupted upgrade/restart. Inspect the returned error, and after recovery use `get_sandbox_info` before deciding what to do next.

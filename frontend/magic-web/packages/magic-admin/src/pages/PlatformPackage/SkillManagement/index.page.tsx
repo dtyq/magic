@@ -2,21 +2,19 @@ import { lazy, useMemo, useRef, useState } from "react"
 import { createStyles } from "antd-style"
 import { debounce } from "lodash-es"
 import { IconReload } from "@tabler/icons-react"
-import type { SearchItem, TableButton } from "@admin-components"
+import type { SearchItem, TableButton, TimeRangeValue } from "@admin-components"
 import {
 	getSyncedTimeFilterValue,
 	SearchItemType,
 	StatusTag,
 	TableWithFilters,
 	MobileList,
-	type TimeRangeValue,
 } from "@admin-components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { Button, Flex, Modal, Select, Tooltip, message, type TableProps } from "antd"
 import { usePagination } from "@admin/hooks/usePagination"
 import { useApis } from "@admin/apis"
-import { useAdminStore } from "@admin/stores/admin"
 import type { PlatformPackage } from "@admin/types/platformPackage"
 import { useIsMobile } from "@admin/hooks/useIsMobile"
 import useRights from "@admin/hooks/useRights"
@@ -42,8 +40,6 @@ function SkillManagementPage() {
 	const { t: tCommon } = useTranslation("admin/common")
 	const { styles } = useStyles()
 	const { PlatformPackageApi } = useApis()
-	const { isOfficialOrg } = useAdminStore()
-	const isOfficialOrganization = isOfficialOrg
 
 	const [data, setData] = useState<DataType[]>([])
 	const [total, setTotal] = useState(0)
@@ -193,7 +189,7 @@ function SkillManagementPage() {
 
 	const openApproveModal = useMemoizedFn((record: DataType) => {
 		setCurrentReviewRecord(record)
-		setPublisherType(isOfficialOrganization ? "OFFICIAL" : "USER")
+		setPublisherType("USER")
 		setApproveModalOpen(true)
 	})
 

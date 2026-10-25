@@ -188,7 +188,8 @@ class UserSearchNodeRunner extends AbstractSearchNodeRunner
         }
         $db = Db::table('magic_contact_department_users')
             ->select(['user_id'])
-            ->where('organization_code', '=', $operator->getOrganizationCode());
+            ->where('organization_code', '=', $operator->getOrganizationCode())
+            ->whereNull('deleted_at');
         switch ($operatorType) {
             case OperatorType::Equals:
                 $db->where('employee_no', '=', $workNumber);
@@ -224,7 +225,8 @@ class UserSearchNodeRunner extends AbstractSearchNodeRunner
         }
         $db = Db::table('magic_contact_department_users')
             ->select(['user_id'])
-            ->where('organization_code', '=', $operator->getOrganizationCode());
+            ->where('organization_code', '=', $operator->getOrganizationCode())
+            ->whereNull('deleted_at');
         switch ($operatorType) {
             case OperatorType::Equals:
                 $db->where('job_title', '=', $position);
@@ -396,7 +398,8 @@ class UserSearchNodeRunner extends AbstractSearchNodeRunner
         $userDB = Db::table('magic_contact_department_users')
             ->select(['user_id'])
             ->whereIn('department_id', $departmentIds)
-            ->where('organization_code', '=', $operator->getOrganizationCode());
+            ->where('organization_code', '=', $operator->getOrganizationCode())
+            ->whereNull('deleted_at');
         if (! empty($filterUserIds)) {
             $userDB->whereIn('user_id', $filterUserIds);
         }

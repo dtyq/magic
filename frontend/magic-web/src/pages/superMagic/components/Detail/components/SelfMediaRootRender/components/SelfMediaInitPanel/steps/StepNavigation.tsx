@@ -1,6 +1,6 @@
 import { useId } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { motion, useReducedMotion } from "framer-motion"
 import MagicTooltip from "@/components/base/MagicTooltip"
 import { Button } from "@/components/shadcn-ui/button"

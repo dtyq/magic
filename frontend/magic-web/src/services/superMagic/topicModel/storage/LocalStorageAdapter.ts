@@ -1,81 +1,64 @@
 import { IStorageAdapter } from "./IStorageAdapter"
-import { logger as Logger } from "@/utils/log"
-
-const logger = Logger.createLogger("LocalStorageAdapter")
+import { reportCaughtStorageFailure } from "@/app/services/storage/storageFailure"
 
 /**
- * LocalStorage adapter for Web platform
- * Wraps synchronous localStorage API into async interface
+ * LocalStorage adapter for Web platform.
+ * Wraps the synchronous localStorage API into an async interface and never rethrows.
  */
 export class LocalStorageAdapter implements IStorageAdapter {
-	/**
-	 * Get item from localStorage
-	 */
+	/** Read one key; missing or blocked storage returns null. */
 	async getItem(key: string): Promise<string | null> {
 		try {
 			return window.localStorage.getItem(key)
 		} catch (error) {
-			logger.error({
+			reportCaughtStorageFailure({
 				eventKey: "get_item_local_storage_failed",
-				errorKind: "storage",
-				error: error,
+				error,
 				message: "Failed to get item from localStorage",
-				context: { key },
+				key,
 			})
 			return null
 		}
 	}
 
-	/**
-	 * Set item in localStorage
-	 */
+	/** Write one key; quota and private-mode failures stay inside the adapter. */
 	async setItem(key: string, value: string): Promise<void> {
 		try {
 			window.localStorage.setItem(key, value)
 		} catch (error) {
-			logger.error({
+			reportCaughtStorageFailure({
 				eventKey: "set_item_local_storage_failed",
-				errorKind: "storage",
-				error: error,
+				error,
 				message: "Failed to set item in localStorage",
-				context: { key },
+				key,
 			})
-			throw error
 		}
 	}
 
-	/**
-	 * Remove item from localStorage
-	 */
+	/** Delete one key without surfacing storage exceptions to callers. */
 	async removeItem(key: string): Promise<void> {
 		try {
 			window.localStorage.removeItem(key)
 		} catch (error) {
-			logger.error({
+			reportCaughtStorageFailure({
 				eventKey: "remove_item_local_storage_failed",
-				errorKind: "storage",
-				error: error,
+				error,
 				message: "Failed to remove item from localStorage",
-				context: { key },
+				key,
 			})
-			throw error
 		}
 	}
 
-	/**
-	 * Clear all items from localStorage
-	 */
+	/** Clear all keys without surfacing storage exceptions to callers. */
 	async clear(): Promise<void> {
 		try {
 			window.localStorage.clear()
 		} catch (error) {
-			logger.error({
+			reportCaughtStorageFailure({
 				eventKey: "clear_local_storage_failed",
-				errorKind: "storage",
-				error: error,
+				error,
 				message: "Failed to clear localStorage",
 			})
-			throw error
 		}
 	}
 }

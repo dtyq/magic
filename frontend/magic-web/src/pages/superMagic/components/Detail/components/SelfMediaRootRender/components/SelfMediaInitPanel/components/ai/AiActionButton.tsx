@@ -8,7 +8,7 @@
 
 import { useId, type ReactNode } from "react"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import ModelSelector from "../picker/ModelSelector"
 
 interface AiActionButtonProps {

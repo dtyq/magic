@@ -74,6 +74,8 @@ readonly class SuperMagicAgentRpcService
                 $userId,
                 $agentCodes,
             );
+            // Go expects a JSON object for this map, including when no agents are accessible.
+            $data['agent_organizations'] = (object) $data['agent_organizations'];
 
             return [
                 'code' => 0,

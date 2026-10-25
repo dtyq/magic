@@ -1,12 +1,14 @@
 import { OrgAiModelProviderApi } from "@/apis"
 import {
+	MODEL_CATEGORY_BY_TYPE,
 	MODEL_TYPE_IMAGE,
 	MODEL_TYPE_LLM,
+	MODEL_TYPE_VIDEO,
 	ServiceProviderModel,
 } from "@/apis/modules/org-ai-model-provider"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("SuperMagicCustomModelService")
 
@@ -16,7 +18,7 @@ interface LoadMyModelsOptions {
 
 interface FindMyModelOptions extends LoadMyModelsOptions {
 	modelId: string
-	modelType: typeof MODEL_TYPE_LLM | typeof MODEL_TYPE_IMAGE
+	modelType: typeof MODEL_TYPE_LLM | typeof MODEL_TYPE_IMAGE | typeof MODEL_TYPE_VIDEO
 }
 
 export function serviceProviderModelToModelItem(model: ServiceProviderModel): ModelItem {
@@ -30,6 +32,9 @@ export function serviceProviderModelToModelItem(model: ServiceProviderModel): Mo
 		model_icon: model.icon ?? "",
 		model_status: ModelStatusEnum.Normal,
 		sort: 0,
+		...(model.video_generation_config
+			? { video_generation_config: model.video_generation_config }
+			: {}),
 	}
 }
 
@@ -67,11 +72,13 @@ class SuperMagicCustomModelService {
 	}
 
 	async getMyModelsByType(
-		modelType: typeof MODEL_TYPE_LLM | typeof MODEL_TYPE_IMAGE,
+		modelType: typeof MODEL_TYPE_LLM | typeof MODEL_TYPE_IMAGE | typeof MODEL_TYPE_VIDEO,
 		options?: LoadMyModelsOptions,
 	): Promise<ServiceProviderModel[]> {
 		const models = await this.getMyModels(options)
-		return models.filter((model) => model.model_type === modelType)
+		// 按 category 归类，model_type 不可靠；入参仍沿用 MODEL_TYPE_*，调用方不用改。
+		const category = MODEL_CATEGORY_BY_TYPE[modelType]
+		return models.filter((model) => model.category === category)
 	}
 
 	async findMyModelById({

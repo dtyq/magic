@@ -16,7 +16,7 @@ const CHAT_WORKSPACE_ID = "chat-workspace-123"
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
-		getProjects: (...args: unknown[]) => getProjectsMock(...args),
+		getProjectsWithCollaboration: (...args: unknown[]) => getProjectsMock(...args),
 	},
 }))
 
@@ -221,7 +221,7 @@ describe("useRecentProjectsForMenu", () => {
 		expect(result.current.recentItems[3]?.isLinked).toBe(false)
 	})
 
-	it("requests recent projects from queries API ordered by updated_at desc", async () => {
+	it("requests recent projects like the web sidebar (last visit, collaboration, special)", async () => {
 		renderHook(() => useRecentProjectsForMenu())
 
 		await waitFor(() => {
@@ -231,8 +231,9 @@ describe("useRecentProjectsForMenu", () => {
 		expect(getProjectsMock).toHaveBeenCalledWith({
 			page: 1,
 			page_size: 20,
-			order_by: "updated_at",
-			sort: "desc",
+			show_collaboration: 1,
+			sort_mode: "recent",
+			include_special: 1,
 		})
 	})
 
@@ -297,8 +298,9 @@ describe("useRecentProjectsForMenu", () => {
 		expect(getProjectsMock).toHaveBeenCalledWith({
 			page: 2,
 			page_size: 20,
-			order_by: "updated_at",
-			sort: "desc",
+			show_collaboration: 1,
+			sort_mode: "recent",
+			include_special: 1,
 		})
 
 		const ids = result.current.recentItems.map((item) => item.id)
@@ -492,8 +494,9 @@ describe("useRecentProjectsForMenu", () => {
 		expect(getProjectsMock).toHaveBeenLastCalledWith({
 			page: 1,
 			page_size: 20,
-			order_by: "updated_at",
-			sort: "desc",
+			show_collaboration: 1,
+			sort_mode: "recent",
+			include_special: 1,
 		})
 	})
 })

@@ -17,6 +17,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\SuperMagic\Message\Entity\MessageQueueEntity;
 use App\Domain\SuperMagic\Message\Entity\ValueObject\MessageQueueStatus;
+use App\Domain\SuperMagic\Message\Event\MessageQueueConsumedEvent;
 use App\Domain\SuperMagic\Message\Service\MessageQueueDomainService;
 use App\Domain\SuperMagic\Task\Constant\AgentConstant;
 use App\Domain\SuperMagic\Topic\Service\TopicDomainService;
@@ -25,6 +26,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Carbon\Carbon;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -54,6 +56,7 @@ class MessageQueueCompensationAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly MagicUserDomainService $userDomainService,
         private readonly LockerInterface $locker,
+        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -220,10 +223,9 @@ class MessageQueueCompensationAppService extends AbstractAppService
             );
 
             // 2.5 Update status to in progress (Application layer → Domain layer → Repository layer)
-            $this->messageQueueDomainService->updateStatus(
-                $message->getId(),
-                MessageQueueStatus::IN_PROGRESS
-            );
+            if (! $this->messageQueueDomainService->tryStartProcessing($message->getId())) {
+                return 'skipped';
+            }
 
             // 2.6 Call send interface (Application layer → Application layer)
             $sendResult = $this->sendMessageToAgent($topicEntity->getChatTopicId(), $message, $messageStruct);
@@ -243,6 +245,15 @@ class MessageQueueCompensationAppService extends AbstractAppService
                 'error_message' => $sendResult['error_message'],
                 'final_status' => $finalStatus->value,
             ]);
+
+            // Keep compensation delivery observable by the same client notification path as normal delivery.
+            $this->eventDispatcher->dispatch(
+                new MessageQueueConsumedEvent(
+                    $message,
+                    $topicEntity,
+                    $sendResult['success']
+                )
+            );
 
             return $sendResult['success'] ? 'success' : 'failed';
         } catch (Throwable $e) {

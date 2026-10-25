@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import type { NodeProps } from "../types"
 import { defaultOpen } from "../ToolCall/config"
@@ -32,7 +32,8 @@ export default memo(function AgentThink(props: NodeProps) {
 	const isProgrammaticScrollRef = useRef(false)
 
 	const node = superMagicStore.getMessageNode(props?.node?.super_message_id) as
-		Record<string, unknown> | undefined
+		| Record<string, unknown>
+		| undefined
 	const nodeEvent = typeof node?.event === "string" ? node.event : ""
 
 	useEffect(() => {
@@ -124,7 +125,8 @@ export default memo(function AgentThink(props: NodeProps) {
 				return false
 			}
 			const replyNode = superMagicStore.messageMap.get(lastMessageNode?.app_message_id) as
-				Record<string, unknown> | undefined
+				| Record<string, unknown>
+				| undefined
 			return typeof replyNode?.content === "string" ? replyNode.content : ""
 		}, handleStreamingScroll)
 

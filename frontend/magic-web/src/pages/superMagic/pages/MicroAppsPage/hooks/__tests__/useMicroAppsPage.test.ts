@@ -1,12 +1,19 @@
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { normalizeMicroAppListResponse, useMicroAppsPage } from "../useMicroAppsPage"
+import {
+	getMicroAppAvailableScopes,
+	normalizeMicroAppListResponse,
+	normalizeMicroAppListScope,
+	shouldOpenPublishedShare,
+	useMicroAppsPage,
+} from "../useMicroAppsPage"
 
 const mocks = vi.hoisted(() => ({
 	getMicroAppWorkspace: vi.fn(),
 	getMicroApps: vi.fn(),
 	updateMicroApp: vi.fn(),
 	deleteMicroApp: vi.fn(),
+	user: { isPersonalOrganization: false },
 }))
 
 vi.mock("@/apis", () => ({
@@ -18,14 +25,21 @@ vi.mock("@/apis", () => ({
 	},
 }))
 
+vi.mock("@/models/user", () => ({
+	userStore: {
+		user: mocks.user,
+	},
+}))
+
 describe("useMicroAppsPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		mocks.user.isPersonalOrganization = false
 		mocks.getMicroAppWorkspace.mockResolvedValue({ id: "workspace-1", name: "Micro Apps" })
 		mocks.getMicroApps.mockResolvedValue({
 			list: [
 				{
-					app_id: "933138305533177857",
+					app_id: "100000000000009001",
 					app_name: "客户跟进助手",
 					app_description: "客户跟进与提醒工具",
 					creator_id: "user-1",
@@ -39,15 +53,57 @@ describe("useMicroAppsPage", () => {
 			page_size: 20,
 		})
 		mocks.updateMicroApp.mockResolvedValue({
-			app_id: "933138305533177857",
+			app_id: "100000000000009001",
 			app_name: "更新后的应用",
 			updated_at: "2026-08-04 12:00:00",
 		})
 		mocks.deleteMicroApp.mockResolvedValue({
-			app_id: "933138305533177857",
-			project_id: "933138305533177858",
+			app_id: "100000000000009001",
+			project_id: "100000000000009002",
 			deleted: true,
 		})
+	})
+
+	it("keeps panel scopes independent while sharing search and one workspace request", async () => {
+		const { result, rerender } = renderHook(
+			({ keyword }) => ({
+				development: useMicroAppsPage({ initialScope: "created", keyword }),
+				access: useMicroAppsPage({ initialScope: "recent", loadWorkspace: false, keyword }),
+			}),
+			{ initialProps: { keyword: "" } },
+		)
+		await waitFor(() => expect(result.current.access.loading).toBe(false))
+		expect(mocks.getMicroAppWorkspace).toHaveBeenCalledTimes(1)
+		expect(result.current.development.scope).toBe("created")
+		act(() => result.current.access.setScope("accessible"))
+		expect(result.current.access.loading).toBe(true)
+		expect(result.current.development.scope).toBe("created")
+		rerender({ keyword: "客户" })
+		await waitFor(() => expect(result.current.access.loading).toBe(false))
+		expect(mocks.getMicroApps).toHaveBeenCalledWith(
+			expect.objectContaining({ scope: "accessible", keyword: "客户" }),
+		)
+		expect(mocks.getMicroApps).toHaveBeenCalledWith(
+			expect.objectContaining({ scope: "created", keyword: "客户" }),
+		)
+	})
+
+	it("ignores an older panel response after changing scope", async () => {
+		let resolveOld!: (value: unknown) => void
+		mocks.getMicroApps.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveOld = resolve
+				}),
+		)
+		const { result } = renderHook(() =>
+			useMicroAppsPage({ initialScope: "recent", loadWorkspace: false }),
+		)
+		await waitFor(() => expect(mocks.getMicroApps).toHaveBeenCalledTimes(1))
+		act(() => result.current.setScope("accessible"))
+		await waitFor(() => expect(result.current.loading).toBe(false))
+		await act(async () => resolveOld({ list: [{ app_id: "stale" }], total: 1, page: 1 }))
+		expect(result.current.apps[0].app_id).toBe("100000000000009001")
 	})
 
 	it("loads the new app list with the default scope", async () => {
@@ -62,7 +118,7 @@ describe("useMicroAppsPage", () => {
 			scope: "all",
 		})
 		expect(result.current.apps).toHaveLength(1)
-		expect(result.current.apps[0].app_id).toBe("933138305533177857")
+		expect(result.current.apps[0].app_id).toBe("100000000000009001")
 		expect(result.current.apps[0].can_delete).toBe(true)
 		expect(result.current.hasMore).toBe(true)
 	})
@@ -138,7 +194,7 @@ describe("useMicroAppsPage", () => {
 				data: {
 					list: [
 						{
-							app_id: "933138305533177857",
+							app_id: "100000000000009001",
 							app_name: "App",
 							can_delete: false,
 						},
@@ -151,7 +207,8 @@ describe("useMicroAppsPage", () => {
 		).toEqual({
 			list: [
 				{
-					app_id: "933138305533177857",
+					app_id: "100000000000009001",
+					project_id: "",
 					app_name: "App",
 					app_description: "",
 					creator_id: "",
@@ -159,6 +216,7 @@ describe("useMicroAppsPage", () => {
 					publish_status: "unpublished",
 					updated_at: null,
 					can_delete: false,
+					user_role: undefined,
 				},
 			],
 			total: 1,
@@ -188,7 +246,7 @@ describe("useMicroAppsPage", () => {
 			.mockResolvedValueOnce({
 				list: [
 					{
-						app_id: "933138305533177857",
+						app_id: "100000000000009001",
 						app_name: "客户跟进助手",
 						app_description: "客户跟进与提醒工具",
 						creator_id: "user-1",
@@ -206,26 +264,91 @@ describe("useMicroAppsPage", () => {
 		await waitFor(() => expect(result.current.loading).toBe(false))
 
 		await act(async () => {
-			await result.current.renameApp("933138305533177857", "更新后的应用")
+			await result.current.renameApp("100000000000009001", "更新后的应用")
 		})
 
-		expect(mocks.updateMicroApp).toHaveBeenCalledWith("933138305533177857", {
+		expect(mocks.updateMicroApp).toHaveBeenCalledWith("100000000000009001", {
 			app_name: "更新后的应用",
 		})
 		expect(result.current.apps[0]).toMatchObject({
-			app_id: "933138305533177857",
+			app_id: "100000000000009001",
 			app_name: "更新后的应用",
 			updated_at: "2026-08-04 12:00:00",
 		})
 
 		await act(async () => {
-			await result.current.deleteApp("933138305533177857")
+			await result.current.deleteApp("100000000000009001")
 		})
 
-		expect(mocks.deleteMicroApp).toHaveBeenCalledWith("933138305533177857")
+		expect(mocks.deleteMicroApp).toHaveBeenCalledWith("100000000000009001")
 		await waitFor(() => expect(mocks.getMicroApps).toHaveBeenCalledTimes(2))
 		await waitFor(() => expect(result.current.loading).toBe(false))
 		expect(result.current.apps).toEqual([])
 		expect(result.current.hasMore).toBe(false)
+	})
+
+	it("opens published share pages according to scope and publish status", () => {
+		expect(shouldOpenPublishedShare("recent", "published")).toBe(true)
+		expect(shouldOpenPublishedShare("recent", "unpublished")).toBe(false)
+		expect(shouldOpenPublishedShare("accessible", "unpublished")).toBe(true)
+		expect(shouldOpenPublishedShare("all", "published")).toBe(false)
+		expect(shouldOpenPublishedShare("created", "published")).toBe(false)
+	})
+
+	it("hides collaborated from personal organization scopes", () => {
+		expect(getMicroAppAvailableScopes(true)).toEqual(["all", "created", "accessible", "recent"])
+		expect(getMicroAppAvailableScopes(false)).toContain("collaborated")
+		expect(normalizeMicroAppListScope("collaborated", true)).toBe("all")
+		expect(normalizeMicroAppListScope("collaborated", false)).toBe("collaborated")
+	})
+
+	it("ignores collaborated scope in a personal organization", async () => {
+		mocks.user.isPersonalOrganization = true
+		const { result } = renderHook(() => useMicroAppsPage())
+		await waitFor(() => expect(result.current.loading).toBe(false))
+
+		act(() => {
+			result.current.setScope("collaborated")
+		})
+
+		expect(result.current.scope).toBe("all")
+		expect(result.current.availableScopes).not.toContain("collaborated")
+		expect(mocks.getMicroApps).toHaveBeenLastCalledWith({
+			page: 1,
+			page_size: 20,
+			keyword: "",
+			scope: "all",
+		})
+	})
+
+	it("falls back from collaborated when switching to a personal organization", async () => {
+		const { result, rerender } = renderHook(() => useMicroAppsPage())
+		await waitFor(() => expect(result.current.loading).toBe(false))
+
+		act(() => {
+			result.current.setScope("collaborated")
+		})
+		await waitFor(() =>
+			expect(mocks.getMicroApps).toHaveBeenLastCalledWith({
+				page: 1,
+				page_size: 20,
+				keyword: "",
+				scope: "collaborated",
+			}),
+		)
+
+		mocks.user.isPersonalOrganization = true
+		rerender()
+
+		expect(result.current.scope).toBe("all")
+		expect(result.current.availableScopes).not.toContain("collaborated")
+		await waitFor(() =>
+			expect(mocks.getMicroApps).toHaveBeenLastCalledWith({
+				page: 1,
+				page_size: 20,
+				keyword: "",
+				scope: "all",
+			}),
+		)
 	})
 })

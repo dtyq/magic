@@ -1,18 +1,23 @@
 import { useEffect, useState } from "react"
-import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
+import { cn } from "@/utils/cn"
 import type { SelfMediaOpsOverview } from "../services/selfMediaOpsOverview"
 
 const PROGRESS_ANIMATION_MS = 620
 
-const completionItems: Array<{
+const completionItemKeys: Array<{
 	key: keyof SelfMediaOpsOverview["completion"]
-	label: string
+	labelKey:
+		| "selfMedia.opsPublished"
+		| "selfMedia.opsSynced"
+		| "selfMedia.opsCommentsHandled"
+		| "selfMedia.opsReviewDone"
 	tone: string
 }> = [
-	{ key: "source", label: "已发布", tone: "bg-[#ff776c]" },
-	{ key: "metrics", label: "已同步", tone: "bg-[#ffd637]" },
-	{ key: "comments", label: "评论已处理", tone: "bg-[#59b981]" },
-	{ key: "review", label: "复盘已完成", tone: "bg-[#18181b]" },
+	{ key: "source", labelKey: "selfMedia.opsPublished", tone: "bg-[#ff776c]" },
+	{ key: "metrics", labelKey: "selfMedia.opsSynced", tone: "bg-[#ffd637]" },
+	{ key: "comments", labelKey: "selfMedia.opsCommentsHandled", tone: "bg-[#59b981]" },
+	{ key: "review", labelKey: "selfMedia.opsReviewDone", tone: "bg-[#18181b]" },
 ]
 
 interface SelfMediaOpsCompletionProgressProps {
@@ -24,7 +29,8 @@ function SelfMediaOpsCompletionProgress({
 	completion,
 	dense = false,
 }: SelfMediaOpsCompletionProgressProps) {
-	const completed = completionItems.every((item) => {
+	const { t } = useTranslation("super")
+	const completed = completionItemKeys.every((item) => {
 		const value = completion[item.key]
 		return value.done >= value.total
 	})
@@ -41,18 +47,20 @@ function SelfMediaOpsCompletionProgress({
 			<div
 				className={cn("flex items-center justify-between gap-3", dense ? "mb-2.5" : "mb-4")}
 			>
-				<span className="text-[13px] font-[800] text-[#18181b]">运营链路进度</span>
+				<span className="text-[13px] font-[800] text-[#18181b]">
+					{t("selfMedia.opsProgressTitle")}
+				</span>
 				<span className="text-[11px] font-[680] text-[#71717a]">
-					发布 / 数据 / 评论 / 复盘
+					{t("selfMedia.opsProgressHint")}
 				</span>
 			</div>
 			<div className={cn(dense ? "grid grid-cols-2 gap-x-4 gap-y-2" : "space-y-3")}>
-				{completionItems.map((item) => {
+				{completionItemKeys.map((item) => {
 					const value = completion[item.key]
 					return (
 						<CompletionProgressRow
 							key={item.key}
-							item={item}
+							item={{ ...item, label: t(item.labelKey) }}
 							done={value.done}
 							total={value.total}
 							dense={dense}
@@ -70,7 +78,11 @@ function CompletionProgressRow({
 	total,
 	dense,
 }: {
-	item: (typeof completionItems)[number]
+	item: {
+		key: keyof SelfMediaOpsOverview["completion"]
+		label: string
+		tone: string
+	}
 	done: number
 	total: number
 	dense: boolean

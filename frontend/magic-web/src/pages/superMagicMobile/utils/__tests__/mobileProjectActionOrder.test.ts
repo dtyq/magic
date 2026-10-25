@@ -86,4 +86,26 @@ describe("mobileProjectActionOrder", () => {
 			["delete"],
 		])
 	})
+
+	it("buildMobileProjectActionGroups keeps the AI canvas menu in web order", () => {
+		const actions = [
+			action("pinProject"),
+			action("rename"),
+			action("copyCollaborationLink"),
+			action("setCollaborators"),
+			action("transfer"),
+			action("delete"),
+		]
+
+		const groups = buildMobileProjectActionGroups(actions, { shouldShowSaveAsProject: false })
+
+		expect(groups.map((group) => group.map((item) => item.key))).toEqual([
+			["pinProject"],
+			["rename"],
+			["setCollaborators"],
+			["copyCollaborationLink"],
+			["transfer"],
+			["delete"],
+		])
+	})
 })

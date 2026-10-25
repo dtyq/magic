@@ -1,0 +1,6 @@
+{
+  "id": "project-boundary",
+  "prompt": "The user asks the Agent to inspect or migrate an unsupported Canvas project format directly.",
+  "expected_behavior": "Explain that the Canvas business tools are the only supported project boundary and ask the application owner to provide a compatible project.",
+  "forbidden_behavior": ["Read or modify the project file directly.", "Attempt a silent migration.", "Expose storage protocol details to the user."]
+}

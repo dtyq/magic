@@ -1,4 +1,4 @@
-import { loadExcelJS } from "@/lib/exceljs"
+import { loadExcelJS } from "@/infrastructure/vendors/exceljs"
 import type { exportImportMode } from "./types"
 
 export async function jsonToBufferInExcel(snapshot: any): Promise<ArrayBuffer> {

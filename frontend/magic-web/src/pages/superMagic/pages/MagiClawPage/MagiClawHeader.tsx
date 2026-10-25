@@ -1,8 +1,7 @@
 import { Flex, theme } from "antd"
 import { observer } from "mobx-react-lite"
-import GlobalServiceStatus from "@/layouts/BaseLayout/components/Header/components/GlobalServiceStatus"
 import GlobalVersionStatus from "@/layouts/BaseLayout/components/Header/components/GlobalVersionStatus"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import HeaderExtraSlot from "../AgentsPage/components/HeaderExtraSlot"
 
 /**
@@ -28,7 +27,6 @@ export const MagiClawHeader = observer(function MagiClawHeader({
 			align="center"
 		>
 			<Flex className="mr-auto w-auto items-center" gap={10} align="center">
-				<GlobalServiceStatus />
 				<GlobalVersionStatus />
 			</Flex>
 			<Flex align="center" gap={10} className="ml-auto w-auto">

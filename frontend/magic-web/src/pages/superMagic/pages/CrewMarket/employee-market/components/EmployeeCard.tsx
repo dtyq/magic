@@ -4,9 +4,10 @@ import { useTranslation } from "react-i18next"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { CardFooterLabel } from "@/pages/superMagic/components/CardFooterLabel"
 import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
+import { HomeOnboardingAnchor } from "@/pages/superMagic/components/LazyGuideTour"
 import type { StoreAgentView } from "@/services/crew/CrewService"
 import {
 	formatVersionBadge,
@@ -148,6 +149,12 @@ function EmployeeCard({
 											stopCardClick(e)
 											onDetails?.(employee.id)
 										}}
+										// One control with two faces — "详情" until the employee is
+										// hired, "对话" afterwards — so the two onboarding steps
+										// that highlight it share this single anchor.
+										data-guide-anchor={
+											HomeOnboardingAnchor.CrewMarketCardDetails
+										}
 										data-testid="employee-card-details-button"
 									>
 										{employee.isAdded ? (
@@ -198,6 +205,12 @@ function EmployeeCard({
 											stopCardClick(e)
 											onDetails?.(employee.id)
 										}}
+										// One control with two faces — "详情" until the employee is
+										// hired, "对话" afterwards — so the two onboarding steps
+										// that highlight it share this single anchor.
+										data-guide-anchor={
+											HomeOnboardingAnchor.CrewMarketCardDetails
+										}
 										data-testid="employee-card-details-button"
 									>
 										{employee.isAdded ? (
@@ -220,6 +233,9 @@ function EmployeeCard({
 											disabled={
 												actionPending ||
 												isEmployeeMarketPrimaryActionDisabled(employee)
+											}
+											data-guide-anchor={
+												HomeOnboardingAnchor.CrewMarketCardHire
 											}
 											data-testid="employee-card-hire-button"
 										>

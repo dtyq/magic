@@ -781,6 +781,7 @@ class RecycleBinRestoreDomainService
             }
 
             // 4. Resolve target parent (use file.parent_id directly, no extra_data)
+            $oldParentId = $file->getParentId();
             $targetParentId = $this->resolveTargetParentId($file->getParentId(), $file->getProjectId(), $resolution);
 
             // 5. Check name conflict at resolved target location
@@ -806,7 +807,9 @@ class RecycleBinRestoreDomainService
             }
 
             // 6. Restore the file record
-            $this->taskFileRepository->restoreFile($fileId);
+            // The following update carries one precise restore event; avoid
+            // publishing an intermediate event with the old parent/name.
+            $this->taskFileRepository->restoreFile($fileId, false);
             $restored = $this->taskFileRepository->getById($fileId);
             if ($restored === null) {
                 throw new RuntimeException(trans('recycle_bin.restore.file_failed'));
@@ -820,12 +823,21 @@ class RecycleBinRestoreDomainService
             );
             $restored->setDeletedAt(null);
             $restored->setUpdatedAt(date('Y-m-d H:i:s'));
-            $this->taskFileRepository->updateById($restored);
+            $this->taskFileRepository->updateById($restored, 'restore', false);
 
-            // 8. Bump parent metadata version
-            if ($targetParentId !== null && $targetParentId > 0) {
-                $this->taskFileRepository->incrementMetadataVersionByIds([$targetParentId]);
-            }
+            // 8. Move the restored row's version (the final restore snapshot
+            // is appended below and must carry the post-bump value) plus both
+            // directory listings that the restore changed.
+            $this->taskFileRepository->bumpMetadataVersions(array_values(array_filter([
+                $fileId,
+                $oldParentId,
+                $targetParentId,
+            ], static fn (?int $id): bool => $id !== null && $id > 0)));
+
+            // Publish exactly one restore event after the parent revision bump
+            // so the snapshot is the final committed representation.
+            $final = $this->taskFileRepository->getById($fileId);
+            $this->taskFileRepository->appendFileTreeMutation($file, $final, 'restore');
 
             $this->logger->info('File restored successfully', [
                 'file_id' => $fileId,

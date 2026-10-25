@@ -23,6 +23,7 @@ type AttachmentPathFields = AttachmentItem & {
 export interface IdentityMarkdownData {
 	name: string
 	description: string
+	icon?: string
 	nameCn?: string
 	nameEn?: string
 	role?: string
@@ -130,6 +131,7 @@ export function parseIdentityMarkdown(content: string): IdentityMarkdownData {
 	const role = cleanInlineValue(getAttributeValue(attributes, ["role"]))
 	const roleCn = cleanInlineValue(getAttributeValue(attributes, ["role-cn", "role_cn"]))
 	const roleEn = cleanInlineValue(getAttributeValue(attributes, ["role-en", "role_en"]))
+	const icon = cleanInlineValue(getAttributeValue(attributes, ["icon", "avatar", "logo"]))
 
 	const description =
 		cleanFrontmatterValue({
@@ -151,6 +153,7 @@ export function parseIdentityMarkdown(content: string): IdentityMarkdownData {
 	return {
 		name,
 		description,
+		icon: icon || undefined,
 		nameCn,
 		nameEn,
 		role,
@@ -166,6 +169,7 @@ export function parseIdentityMarkdown(content: string): IdentityMarkdownData {
 export function buildIdentityMarkdown({
 	name,
 	description,
+	icon,
 	nameCn,
 	nameEn,
 	role,
@@ -188,6 +192,7 @@ export function buildIdentityMarkdown({
 			["description", description],
 			["description-cn", descriptionCn],
 			["description-en", descriptionEn],
+			["icon", icon],
 		]),
 		"---",
 	]

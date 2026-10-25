@@ -1,4 +1,4 @@
-import { MessageEditorLayoutConfig, ToolbarButton } from "../../../MessageEditor"
+import { type MessageEditorLayoutConfig, ToolbarButton } from "../../../MessageEditor/types"
 
 // 移动端布局配置
 export const MOBILE_LAYOUT_CONFIG: MessageEditorLayoutConfig = {

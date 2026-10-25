@@ -63,8 +63,6 @@ export function useTokenRefreshPolling({
 
 			// 如果需要密码但没有提供密码，抛出错误
 			if (result?.has_password && !password) throw new Error("Password required for refresh")
-			;(window as Window & { temporary_token?: string }).temporary_token =
-				result.temporary_token
 			lastRefreshedAtRef.current = Date.now()
 			onTokenRefreshed?.(result)
 		} catch (error) {
@@ -112,8 +110,17 @@ export function useTokenRefreshPolling({
 		}
 	}, [interval, refreshToken])
 
+	// Freshly loaded share data already has a valid token; start the refresh clock
+	// from load time so the first modal/focus does not immediately rotate the token.
 	useEffect(() => {
-		// 初始立即刷新一次
+		if (!isEmpty(data) && lastRefreshedAtRef.current === 0) {
+			lastRefreshedAtRef.current = Date.now()
+		}
+	}, [data])
+
+	useEffect(() => {
+		// Start the heartbeat interval; the refresh clock is seeded when share
+		// data first becomes available (see effect above).
 		startPolling()
 		return () => {
 			refreshSequenceRef.current += 1

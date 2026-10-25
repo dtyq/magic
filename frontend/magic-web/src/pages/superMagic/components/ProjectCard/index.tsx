@@ -1,24 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowLeft, Ellipsis, ChevronsUpDown } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { Check, ChevronDown, Ellipsis, Layers, PanelLeftClose, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ProjectCardProps, SeparatorProps } from "./types"
 import { IconShare3 } from "@tabler/icons-react"
 import { Button } from "@/components/shadcn-ui/button"
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/shadcn-ui/dropdown-menu"
+import IconShareCog from "@/enhance/tabler/icons-react/icons/iconShareCog"
 import PinnedTag from "../EmptyWorkspacePanel/components/ProjectItem/components/PinnedTag"
 import CollaborationProjectTag from "../CollaborationProjectTag"
 import { isCollaborationProject } from "../../constants"
 import { canManageProject, isReadOnlyProject } from "../../utils/permission"
-import ProjectCardDropdown from "./components/ProjectCardDropdown"
 import ProjectCardShareSection from "./components/ProjectCardShareSection"
+import ProjectCardInviteButton from "./components/ProjectCardInviteButton"
+import { isAiCanvasProject } from "../../utils/isAiCanvasProject"
+import MagicFileIcon from "@/components/base/MagicFileIcon"
 import IconWorkspaceProjectFolder from "@/enhance/tabler/icons-react/icons/IconWorkspaceProjectFolder"
 import ProjectActionsDropdown from "../ProjectActionsDropdown"
 import useProjectItemActionProps from "../EmptyWorkspacePanel/hooks/useProjectItemActionProps"
 import useProjectRename from "../../hooks/useProjectRename"
-import SidebarCreateInput from "@/layouts/BaseLayout/components/MagicSidebar/components/SidebarCreateInput"
-import { useNavigateToSuperHome } from "@/layouts/BaseLayout/components/MagicSidebar/hooks/useNavigateToSuperHome"
+import { Input } from "@/components/shadcn-ui/input"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
 import { openProjectInNewTab } from "../../utils/project"
 import type { CollaborationProjectListItem, ProjectListItem } from "../../pages/Workspace/types"
+
+const ProjectShareManagementDialog = lazy(
+	() => import("../ShareManagement/ProjectShareManagementDialog"),
+)
 
 /**
  * Separator component for dividing sections
@@ -43,37 +56,33 @@ function ProjectCard({
 	project: selectedProject,
 	workspaceName,
 	collaborators: collaboratorText,
-	onWorkspaceHomeClick,
+	onWorkspaceProjectsOpen,
+	onCollapse,
+	isPanelVisible = true,
 	onShareClick,
-	onDropdownClick,
 	onInviteClick,
-	projectOptions = [],
-	showCreateProject = true,
-	enableWorkspaceNavigation = false,
-	onProjectMenuOpenChange,
 	actionWorkspace,
 	className,
+	variant = "default",
 }: ProjectCardProps) {
+	const isCompact = variant === "compact"
 	const { t } = useTranslation("super")
+	const [menuOpen, setMenuOpen] = useState(false)
+	// Compact card only: this project's share manager (like the recording detail's).
+	const [shareManagementOpen, setShareManagementOpen] = useState(false)
+	useEffect(() => {
+		if (!isPanelVisible) setMenuOpen(false)
+	}, [isPanelVisible])
 	const collaboratorContent = collaboratorText ?? t("collaborators.empty")
-	const projectMenuContentRef = useRef<HTMLDivElement>(null)
-	const [isExpanded, setIsExpanded] = useState(false)
-	const [isWorkspaceHomeHovered, setIsWorkspaceHomeHovered] = useState(false)
-	const suppressProjectSelectorClickRef = useRef(false)
-
 	const isCollaborationProjectStatus = isCollaborationProject(selectedProject)
 	const canShare = !isReadOnlyProject(selectedProject?.user_role)
 	const canManage = canManageProject(selectedProject?.user_role)
-	const { superRouteUrl } = useNavigateToSuperHome()
 	const projectName = selectedProject.project_name || t("project.unnamedProject")
-	const projectTitle = isWorkspaceHomeHovered ? t("assistant.backToWorkspace") : projectName
 
 	const {
-		handleProjectClick,
 		handleMoveProject,
 		handleTransferProject,
 		handleDeleteProjectConfirm,
-		handleTogglePinProject,
 		handlePinProject,
 		onAddCollaborators,
 		handleCopyCollaborationLink,
@@ -97,12 +106,24 @@ function ProjectCard({
 		onRenameProject: canRename ? handleRenameProject : undefined,
 	})
 
-	const blockSelectorClickTemporarily = useCallback(() => {
-		suppressProjectSelectorClickRef.current = true
-		setTimeout(() => {
-			suppressProjectSelectorClickRef.current = false
-		}, 0)
-	}, [])
+	const renameFinishedRef = useRef(false)
+	useEffect(() => {
+		if (isEditing) renameFinishedRef.current = false
+	}, [isEditing])
+	// Enter 会连带触发 blur；同一次编辑只提交一次，Esc 的 blur 也不能保存。
+	const finishRename = async (cancel = false) => {
+		if (renameFinishedRef.current) return
+		renameFinishedRef.current = true
+		if (cancel) {
+			setIsEditing(false)
+			return
+		}
+		try {
+			await handleProjectNameBlur()
+		} finally {
+			setIsEditing(false)
+		}
+	}
 
 	const handleRenameStart = useCallback(() => {
 		if (!canRename) return
@@ -123,82 +144,102 @@ function ProjectCard({
 			}
 		: undefined
 
-	useEffect(() => {
-		onProjectMenuOpenChange?.(isExpanded)
-	}, [isExpanded, onProjectMenuOpenChange])
+	// AI canvas projects stay in their dedicated workspace: no "move to".
+	const canMoveProject = !isAiCanvasProject(selectedProject)
 
-	const handleDropdownClose = useCallback(() => {
-		setIsExpanded(false)
-		onDropdownClick?.()
-	}, [onDropdownClick])
-
-	const handleToggleExpand = useCallback(
-		(e: React.MouseEvent) => {
-			e.stopPropagation()
-			setIsExpanded((prev) => !prev)
-			onDropdownClick?.()
-		},
-		[onDropdownClick],
+	const shareIconButton = (
+		<Button
+			variant="ghost"
+			size="icon"
+			className="h-7 w-7 text-muted-foreground"
+			onClick={isCompact ? undefined : onShareClick}
+			aria-label={t("common.share")}
+			title={t("common.share")}
+			data-testid="share-button"
+		>
+			<IconShare3 size={16} className="text-foreground" />
+		</Button>
 	)
 
-	const handleWorkspaceHomeMouseEnter = useCallback(() => {
-		setIsWorkspaceHomeHovered(true)
-	}, [])
+	// Share and more actions: on the workspace row by default, beside the name when compact.
+	const actionButtons = (
+		<div className="flex shrink-0 items-center gap-1">
+			{isCompact && canManage ? (
+				<ProjectCardInviteButton onInviteClick={onInviteClick} />
+			) : null}
+			{/* Share: a plain button on the workspace row. The compact card floats where the project
+			    sidebar (and its share tab) is missing, so, like the recording detail, its button
+			    opens "create share" and "manage shares" (this project's shares only). */}
+			{canShare &&
+				(isCompact ? (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>{shareIconButton}</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="min-w-[140px]">
+							<DropdownMenuItem
+								onSelect={() => onShareClick?.()}
+								data-testid="project-card-share-menu-share"
+							>
+								<IconShare3 size={16} />
+								{t("project.createShare")}
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onSelect={() => setShareManagementOpen(true)}
+								data-testid="project-card-share-menu-management"
+							>
+								<IconShareCog size={16} color="currentColor" />
+								{t("project.manageShare")}
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				) : (
+					shareIconButton
+				))}
 
-	const handleWorkspaceHomeMouseLeave = useCallback(() => {
-		setIsWorkspaceHomeHovered(false)
-	}, [])
-
-	const handleProjectSelectorClick = useCallback(
-		(event: React.MouseEvent<HTMLAnchorElement>) => {
-			event.preventDefault()
-			if (suppressProjectSelectorClickRef.current || isEditing) return
-			onWorkspaceHomeClick?.()
-		},
-		[isEditing, onWorkspaceHomeClick],
-	)
-
-	if (isEditing) {
-		return (
-			<div
-				className={cn(
-					"relative flex w-full flex-col items-center rounded-lg border border-border bg-background transition-all duration-300",
-					className,
-				)}
-				data-testid="project-card"
+			<ProjectActionsDropdown
+				open={isPanelVisible && menuOpen}
+				onOpenChange={setMenuOpen}
+				item={selectedProject}
+				inCollaborationPanel={false}
+				trigger={["click"]}
+				placement="bottomRight"
+				// The compact card floats over the open project, so "open in new window" lives on
+				// the canvas list's menu instead.
+				onOpenInNewWindow={isCompact ? undefined : openProjectInNewTab}
+				onPinProject={handlePinProject}
+				onCopyCollaborationLink={handleCopyCollaborationLink}
+				onTransferProject={handleTransferProject}
+				onMoveProject={canMoveProject ? handleMoveProject : undefined}
+				onAddCollaborators={onAddCollaborators}
+				onCancelWorkspaceShortcut={handleCancelWorkspaceShortcutForMenu}
+				onDeleteProject={handleDeleteProjectConfirm}
+				onRenameStart={canRename ? handleRenameStart : undefined}
+				onRenameProject={canRename ? handleRenameProject : undefined}
 			>
-				<div className="w-full p-2" data-testid="project-card-rename">
-					<SidebarCreateInput
-						value={editingProjectName}
-						onValueChange={(v) =>
-							handleProjectNameChange({
-								target: { value: v },
-							} as React.ChangeEvent<HTMLInputElement>)
-						}
-						onSubmit={async () => {
-							await handleProjectNameBlur()
-						}}
-						onCancel={() => setIsEditing(false)}
-						placeholder={t("project.unnamedProject")}
-						inputTestId="project-card-rename-input"
-						submitButtonTestId="project-card-rename-submit"
-						cancelButtonTestId="project-card-rename-cancel"
-						submitButtonAriaLabel={t("common.confirm")}
-						cancelButtonAriaLabel={t("common.cancel")}
-						stopKeyboardPropagation
-					/>
-				</div>
-				{projectModals}
-			</div>
-		)
-	}
+				<span>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="h-7 w-7 text-muted-foreground"
+						aria-label={t("common.moreActions")}
+						title={t("common.moreActions")}
+						data-testid="project-card-more-button"
+					>
+						<Ellipsis size={16} className="text-foreground" />
+					</Button>
+				</span>
+			</ProjectActionsDropdown>
+		</div>
+	)
 
 	return (
 		<div
 			className={cn(
 				"relative flex w-full flex-col items-center rounded-lg border border-border bg-background transition-all duration-300",
-				!isExpanded && "overflow-hidden",
-				isExpanded && "z-20",
+				// Compact reads as a pill (the one-row card is ~42px tall, so 24px fully rounds it);
+				// while renaming it grows a second row and eases to 16px. Both are pixel values, as
+				// rounded-full (9999px) would make the radius transition snap instead of animate.
+				isCompact && (isEditing ? "rounded-2xl" : "rounded-[24px]"),
 				className,
 			)}
 			data-testid="project-card"
@@ -206,139 +247,163 @@ function ProjectCard({
 			{/* Project Selector Section */}
 			<div
 				className={cn(
-					"flex w-full shrink-0 items-center gap-2 overflow-hidden p-2",
-					isExpanded && "relative z-50 mb-1 rounded-lg bg-background",
+					"flex w-full shrink-0 flex-col gap-0.5",
+					isCompact ? "py-1.5 pl-4 pr-2" : "px-3 pb-2 pt-2.5",
 				)}
+				onBlur={(event) => {
+					if (!isEditing) return
+					// Tab 移到保存／取消按钮仍在编辑区内，离开整个区域才沿用失焦保存。
+					if (
+						event.relatedTarget instanceof HTMLElement &&
+						event.relatedTarget.hasAttribute("data-project-rename-control") &&
+						event.currentTarget.contains(event.relatedTarget)
+					)
+						return
+					void finishRename()
+				}}
+				onKeyDown={(event) => {
+					if (isEditing && event.key === "Escape" && !event.nativeEvent.isComposing) {
+						event.preventDefault()
+						event.stopPropagation()
+						void finishRename(true)
+					}
+				}}
 			>
-				<a
-					href={superRouteUrl}
-					className="flex min-w-0 grow items-center gap-2 overflow-hidden rounded-md p-0 text-left"
-					onClick={handleProjectSelectorClick}
-					onMouseEnter={handleWorkspaceHomeMouseEnter}
-					onMouseLeave={handleWorkspaceHomeMouseLeave}
-					onFocus={handleWorkspaceHomeMouseEnter}
-					onBlur={handleWorkspaceHomeMouseLeave}
-					data-testid="project-selector"
-				>
-					<div
-						className={cn(
-							"flex size-8 shrink-0 items-center justify-center rounded-lg p-2.5 transition-colors",
-							isWorkspaceHomeHovered
-								? "bg-secondary text-foreground"
-								: "bg-yellow-300/20",
-						)}
-					>
-						{isWorkspaceHomeHovered ? (
-							<ArrowLeft size={16} className="shrink-0" />
-						) : (
-							<IconWorkspaceProjectFolder size={16} isHovered={false} />
-						)}
-					</div>
-
-					<div className="flex min-w-0 grow flex-col items-start justify-center gap-0.5 rounded-md transition-colors">
-						<div className="flex w-full items-center gap-1">
-							<p className="truncate text-sm font-medium leading-5 text-foreground">
-								{projectTitle}
-							</p>
-							{!isWorkspaceHomeHovered && selectedProject.is_pinned && <PinnedTag />}
-							{!isWorkspaceHomeHovered && (
-								<CollaborationProjectTag
-									visible={isCollaborationProjectStatus}
-									project={selectedProject}
-									showText={false}
-								/>
-							)}
-						</div>
-
-						<p className="truncate text-xs leading-4 text-muted-foreground">
-							{workspaceName}
-						</p>
-					</div>
-				</a>
-
-				{/* Action Icons */}
-				<div className="flex shrink-0 items-center gap-1">
-					<Button
-						variant="outline"
-						size="icon"
-						className="h-7 w-7 shadow-xs"
-						onClick={handleToggleExpand}
-						data-testid="dropdown-button"
-					>
-						<ChevronsUpDown size={16} className="text-foreground" />
-					</Button>
-
-					{/* Share Icon */}
-					{canShare && (
+				{/* 两行共用 16px 图标列和 6px 间距；工作区入口不再单独缩进。 */}
+				<div className="flex h-7 min-w-0 items-center gap-1.5">
+					{isEditing ? (
+						<Input
+							autoFocus
+							className="h-7 min-w-0 flex-1 px-1.5 text-sm"
+							value={editingProjectName}
+							onChange={handleProjectNameChange}
+							onFocus={(event) => event.currentTarget.select()}
+							onKeyDown={(event) => {
+								if (event.nativeEvent.isComposing) return
+								if (event.key === "Enter" || event.key === "Escape") {
+									event.preventDefault()
+									event.stopPropagation()
+									void finishRename(event.key === "Escape")
+								}
+							}}
+							aria-label={t("project.unnamedProject")}
+							data-testid="project-card-rename-input"
+							data-project-rename-control
+						/>
+					) : (
+						<>
+							<span className="flex size-4 shrink-0 items-center justify-center">
+								{/* An AI canvas project is its canvas: show the canvas file icon. */}
+								{isAiCanvasProject(selectedProject) ? (
+									<MagicFileIcon type="design" size={16} />
+								) : (
+									<IconWorkspaceProjectFolder size={16} isHovered={false} />
+								)}
+							</span>
+							<button
+								type="button"
+								className="min-w-0 truncate rounded p-0 text-left text-sm font-medium leading-5 hover:bg-fill disabled:cursor-default disabled:hover:bg-transparent"
+								disabled={!canRename}
+								title={projectName}
+								onClick={() => setIsEditing(true)}
+								data-testid="project-card-name"
+							>
+								{projectName}
+							</button>
+							{selectedProject.is_pinned && <PinnedTag />}
+							<CollaborationProjectTag
+								visible={isCollaborationProjectStatus}
+								project={selectedProject}
+								showText={false}
+							/>
+						</>
+					)}
+					{isCompact && !isEditing && (
+						<>
+							<span className="min-w-2 flex-1" />
+							{actionButtons}
+						</>
+					)}
+					{onCollapse && !isCompact && (
 						<Button
-							variant="outline"
+							variant="ghost"
 							size="icon"
-							className="h-7 w-7 shadow-xs"
-							onClick={onShareClick}
-							data-testid="share-button"
+							className="ml-auto h-7 w-7 shrink-0 text-muted-foreground"
+							// 编辑时 Tab 先到保存／取消；收起入口仍可点击，离开编辑区时保存。
+							tabIndex={isEditing ? -1 : undefined}
+							onClick={onCollapse}
+							aria-label={t("sidebarPanels.collapseFiles")}
+							title={t("sidebarPanels.collapseFiles")}
+							data-testid="project-card-collapse"
 						>
-							<IconShare3 size={16} className="text-foreground" />
+							<PanelLeftClose size={16} />
 						</Button>
 					)}
-
-					<ProjectActionsDropdown
-						item={selectedProject}
-						inCollaborationPanel={false}
-						trigger={["click"]}
-						placement="bottomRight"
-						onOpenChange={(open) => {
-							if (open) blockSelectorClickTemporarily()
-						}}
-						onBeforeAction={blockSelectorClickTemporarily}
-						onOpenInNewWindow={openProjectInNewTab}
-						onPinProject={handlePinProject}
-						onCopyCollaborationLink={handleCopyCollaborationLink}
-						onTransferProject={handleTransferProject}
-						onMoveProject={handleMoveProject}
-						onAddCollaborators={onAddCollaborators}
-						onCancelWorkspaceShortcut={handleCancelWorkspaceShortcutForMenu}
-						onDeleteProject={handleDeleteProjectConfirm}
-						onRenameStart={canRename ? handleRenameStart : undefined}
-						onRenameProject={canRename ? handleRenameProject : undefined}
-					>
-						<span>
-							<Button
-								type="button"
-								variant="outline"
-								size="icon"
-								className="h-7 w-7 shadow-xs"
-								aria-label={t("common.moreActions")}
-								data-testid="project-card-more-button"
-							>
-								<Ellipsis size={16} className="text-foreground" />
-							</Button>
-						</span>
-					</ProjectActionsDropdown>
 				</div>
+				{/* The compact card has no workspace row; it only shows while renaming. */}
+				{(!isCompact || isEditing) && (
+					<div className="flex h-7 min-w-0 items-center gap-1.5">
+						{isEditing ? (
+							<>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											type="button"
+											variant="ghost"
+											className="h-[26px] gap-1 px-1.5 text-xs"
+											onPointerDown={(event) => event.preventDefault()}
+											onClick={() => void finishRename()}
+											data-testid="project-card-rename-save"
+											data-project-rename-control
+										>
+											<Check size={16} />
+											{t("common.save")}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>{t("sidebarPanels.renameSave")}</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											type="button"
+											variant="ghost"
+											className="h-[26px] gap-1 px-1.5 text-xs text-muted-foreground"
+											onPointerDown={(event) => event.preventDefault()}
+											onClick={() => void finishRename(true)}
+											data-testid="project-card-rename-cancel"
+											data-project-rename-control
+										>
+											<X size={16} />
+											{t("common.cancel")}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>
+										{t("sidebarPanels.renameCancel")}
+									</TooltipContent>
+								</Tooltip>
+							</>
+						) : (
+							<>
+								<button
+									type="button"
+									className="-ml-1.5 flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0 text-left text-xs leading-4 text-muted-foreground hover:bg-fill"
+									title={workspaceName}
+									onClick={onWorkspaceProjectsOpen}
+									data-testid="project-card-workspace"
+								>
+									<Layers size={16} className="shrink-0" />
+									<span className="truncate">{workspaceName}</span>
+									<ChevronDown size={16} className="shrink-0" />
+								</button>
+								<span className="flex-1" />
+								{actionButtons}
+							</>
+						)}
+					</div>
+				)}
 			</div>
 
-			<ProjectCardDropdown
-				isExpanded={isExpanded}
-				enableWorkspaceNavigation={enableWorkspaceNavigation}
-				onClose={handleDropdownClose}
-				selectedProject={selectedProject}
-				projectOptions={projectOptions}
-				showCreateProject={showCreateProject}
-				actionWorkspace={actionWorkspace}
-				projectMenuContentRef={projectMenuContentRef}
-				onOpenInNewWindow={openProjectInNewTab}
-				onPinProject={handleTogglePinProject}
-				onCopyCollaborationLink={handleCopyCollaborationLink}
-				onTransferProject={handleTransferProject}
-				onMoveProject={handleMoveProject}
-				onAddCollaborators={onAddCollaborators}
-				onCancelWorkspaceShortcut={handleCancelWorkspaceShortcutByProject}
-				onDeleteProject={handleDeleteProjectConfirm}
-				onRenameProject={handleRenameProject}
-				handleProjectClick={handleProjectClick}
-			/>
-
-			{canManage && !isExpanded && (
+			{canManage && !isCompact && (
 				<ProjectCardShareSection
 					collaboratorContent={collaboratorContent}
 					onInviteClick={onInviteClick}
@@ -346,6 +411,15 @@ function ProjectCard({
 			)}
 
 			{projectModals}
+			{shareManagementOpen ? (
+				<Suspense fallback={null}>
+					<ProjectShareManagementDialog
+						open={shareManagementOpen}
+						projectId={selectedProject.id}
+						onClose={() => setShareManagementOpen(false)}
+					/>
+				</Suspense>
+			) : null}
 		</div>
 	)
 }

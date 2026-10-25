@@ -14,7 +14,7 @@ import { Input } from "@/components/shadcn-ui/input"
 import { Textarea } from "@/components/shadcn-ui/textarea"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Spinner } from "@/components/shadcn-ui/spinner"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useAddModelStore } from "./context"
 import type { ProviderFieldConfig } from "./types"
 import { validateProviderFieldValue } from "./providerFieldConfigs"
@@ -119,7 +119,7 @@ const ProviderItem = observer(function ProviderItem({
 											className={cn(
 												"min-h-20 text-sm",
 												hasError &&
-												"border-destructive focus-visible:ring-destructive/20",
+													"border-destructive focus-visible:ring-destructive/20",
 											)}
 											placeholder={field.placeholder}
 											value={store.providerFields[field.key] ?? ""}
@@ -134,7 +134,7 @@ const ProviderItem = observer(function ProviderItem({
 											className={cn(
 												"h-9 text-sm",
 												hasError &&
-												"border-destructive focus-visible:ring-destructive/20",
+													"border-destructive focus-visible:ring-destructive/20",
 											)}
 											type={
 												field.inputType === "password" ? "password" : "text"
@@ -196,7 +196,7 @@ function AddProviderDialog() {
 	return (
 		<Dialog open={store.isAddProviderOpen} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="h-full max-h-[80vh] !max-w-[702px] gap-0 overflow-hidden p-0"
+				className="max-h-[80vh] !max-w-[702px] gap-0 overflow-hidden p-0"
 				data-testid="add-provider-dialog"
 			>
 				<DialogHeader className="gap-0 border-b border-border p-3">
@@ -208,7 +208,7 @@ function AddProviderDialog() {
 
 				<AddProviderNotice />
 
-				<div className="scrollbar-y-thin flex max-h-[60vh] flex-col gap-2.5 overflow-y-auto p-4">
+				<div className="scrollbar-y-thin flex max-h-[60vh] min-h-0 flex-col gap-2.5 overflow-y-auto p-4">
 					{store.isLoadingTemplates ? (
 						<div
 							className="flex items-center justify-center py-8"

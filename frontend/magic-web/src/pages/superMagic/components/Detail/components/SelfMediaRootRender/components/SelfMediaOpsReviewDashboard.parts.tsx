@@ -15,7 +15,7 @@ import { Line, LineChart, XAxis, YAxis } from "recharts"
 import { Button } from "@/components/shadcn-ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/shadcn-ui/chart"
 import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import IsolatedHTMLRenderer from "@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer"
 import type { SelfMediaPlatformPostItem } from "../stores/SelfMediaStore"
 import type {
@@ -164,7 +164,7 @@ export function CaseSummary({
 						{t("detail.selfMedia.opsReview.summaryTitle")}
 					</div>
 					<p className="mt-2 max-w-[42rem] text-[13px] leading-relaxed text-[#71717a]">
-						用真实阅读、互动和评论信号，判断这篇文章下一步该放大、修正还是沉淀。
+						{t("selfMedia.opsReviewIntro")}
 					</p>
 				</div>
 				<DeltaBadge delta={readsDelta} />

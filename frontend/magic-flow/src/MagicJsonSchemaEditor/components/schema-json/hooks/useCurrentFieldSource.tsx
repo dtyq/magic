@@ -2,7 +2,7 @@
  * 当前字段的数据源状态管理
  */
 import i18next from "i18next"
-import _ from "lodash"
+import { get } from "lodash-es"
 import { useContext, useMemo } from "react"
 import { useGlobal } from "../../../context/GlobalContext/useGlobal"
 import { EditorContext } from "../../editor"
@@ -30,7 +30,7 @@ export default function useCurrentFieldSource({ curFieldKeys }: CurrentFieldSour
 			...expressionSource,
 		]
 		if (!allowSourceInjectBySelf) return result
-		const currentFieldInnerSource = _.get(innerExpressionSourceMap, curFieldKeys.join("."), [])
+		const currentFieldInnerSource = get(innerExpressionSourceMap, curFieldKeys.join("."), [])
 		// console.log(curFieldKeys.join('.'), innerExpressionSourceMap);
 		if (currentFieldInnerSource.length === 0) return result
 		// result.unshift({

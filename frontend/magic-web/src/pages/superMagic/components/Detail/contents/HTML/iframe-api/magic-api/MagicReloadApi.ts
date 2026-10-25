@@ -5,8 +5,7 @@
  * 调用后通过 postMessage 通知父窗口重新加载当前 HTML 内容。
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
-import { getParentOrigin } from "@dtyq/html-sandbox/utils/parentOrigin"
+import { BaseRuntimeBridgeApiPlugin, getParentOrigin } from "@dtyq/html-sandbox"
 
 export class MagicReloadApi extends BaseRuntimeBridgeApiPlugin {
 	constructor() {
@@ -15,10 +14,10 @@ export class MagicReloadApi extends BaseRuntimeBridgeApiPlugin {
 
 	install(): void {
 		if (!window.Magic) window.Magic = {}
-		if (window.Magic.reload) return
+		if (window.Magic.reload && (window as any).reload) return
 		this.logger.info("install")
 
-		window.Magic.reload = () => {
+		const reload = () => {
 			this.logger.info("reload")
 			window.parent.postMessage(
 				{
@@ -28,5 +27,8 @@ export class MagicReloadApi extends BaseRuntimeBridgeApiPlugin {
 				getParentOrigin(),
 			)
 		}
+
+		window.Magic.reload = reload
+		;(window as any).reload = reload
 	}
 }

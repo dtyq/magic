@@ -9,8 +9,10 @@ import { useLocalStorageState } from "ahooks"
  */
 const useViewTogglePersistValue = ({
 	localStorageKey = "view_toggle_value",
+	defaultValue = ViewMode.GRID,
 }: {
 	localStorageKey?: string
+	defaultValue?: ViewMode
 } = {}) => {
 	const { userInfo } = useUserInfo()
 
@@ -19,7 +21,7 @@ const useViewTogglePersistValue = ({
 			`super_magic/${localStorageKey}/${userInfo?.organization_code}/${userInfo?.user_id}`,
 		),
 		{
-			defaultValue: ViewMode.GRID,
+			defaultValue,
 		},
 	)
 

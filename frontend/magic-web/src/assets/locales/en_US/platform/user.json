@@ -88,6 +88,7 @@
 		"orderNotFound": "Order Not Found",
 		"orderPending": "Order Pending",
 		"orderRefunded": "Order Refunded",
+		"paymentFailed": "Payment failed",
 		"paymentLoading": "Payment Loading",
 		"paymentSuccess": "Payment Success",
 		"rechargeAmount": "Recharge Amount",

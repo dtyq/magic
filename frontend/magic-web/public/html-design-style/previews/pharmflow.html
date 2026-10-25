@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PharmFlow — Automated Pill Dispensation &amp; Verification System</title>
+  <style>
+  :root {
+  --primary: #0d9488;
+  --primary-dark: #0f766e;
+  --primary-subtle: #f0fdfa;
+  --blue: #2563eb;
+  --blue-subtle: #eff6ff;
+  --amber: #d97706;
+  --amber-subtle: #fffbeb;
+  --amber-border: #fcd34d;
+  --red: #dc2626;
+  --red-subtle: #fef2f2;
+  --green: #059669;
+  --green-subtle: #ecfdf5;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-subtle: #f1f5f9;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
+  --shadow-md: 0 4px 12px -2px rgba(15,23,42,0.08);
+  --font: 'Work Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  }
+  
+  .terminal-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  }
+  .term-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  }
+  .term-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--primary) 0%, #0284c7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  }
+  .term-title {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  }
+  .term-title span { color: var(--primary); }
+  .term-station-badge {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  }
+  .term-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  }
+  .laser-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--green-subtle);
+  border: 1px solid rgba(5,150,105,0.25);
+  color: var(--green);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  }
+  .laser-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px rgba(5,150,105,0.3);
+  }
+  .pharmacist-pill {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  }
+  .rph-badge {
+  background: var(--primary);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  }
+  
+  .terminal-container {
+  max-width: 1240px;
+  margin: 16px auto;
+  padding: 0 20px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  }
+  
+  .fda-alert-box {
+  background: var(--amber-subtle);
+  border: 1.5px solid var(--amber);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  }
+  .fda-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: #fef3c7;
+  border: 1px solid var(--amber-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amber);
+  }
+  .fda-content h3 {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 800;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  }
+  .fda-warning-pill {
+  background: var(--red);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  }
+  .fda-desc {
+  font-size: 12.5px;
+  color: #78350f;
+  margin-top: 3px;
+  }
+  .fda-desc strong { color: #451a03; }
+  .fda-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  }
+  .btn-override {
+  background: var(--amber);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(217,119,6,0.25);
+  }
+  .btn-hold {
+  background: white;
+  color: var(--red);
+  border: 1px solid rgba(220,38,38,0.3);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  }
+  
+  .barcode-verify-strip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 18px;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+  }
+  .barcode-visual {
+  background: #ffffff;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  }
+  .barcode-svg {
+  width: 140px;
+  height: 38px;
+  }
+  .barcode-caption {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text);
+  font-weight: 600;
+  }
+  .verify-details h4 {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  }
+  .badge-match {
+  background: var(--green-subtle);
+  color: var(--green);
+  border: 1px solid rgba(5,150,105,0.2);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  }
+  .verify-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  }
+  .verify-meta strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  }
+  .station-telemetry {
+  display: flex;
+  gap: 10px;
+  }
+  .telemetry-item {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  text-align: right;
+  }
+  .telem-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+  .telem-val { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--primary-dark); }
+  
+  .queue-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  }
+  .queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--surface-subtle);
+  padding-bottom: 8px;
+  }
+  .queue-title {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  }
+  .queue-filter {
+  display: flex;
+  gap: 6px;
+  }
+  .filter-btn {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  }
+  .filter-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  }
+  
+  .dispense-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  }
+  .dispense-table th {
+  background: var(--surface-subtle);
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+  }
+  .dispense-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  }
+  .dispense-table tr:hover td {
+  background: #fafcfe;
+  }
+  .tr-alert td {
+  background: #fffdfa;
+  }
+  .rx-num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--blue);
+  }
+  .drug-name-cell {
+  display: flex;
+  flex-direction: column;
+  }
+  .drug-name-bold {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 13px;
+  }
+  .drug-specs {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  }
+  .dosage-mono {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  }
+  .count-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  }
+  .count-bar {
+  width: 48px;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  }
+  .count-fill {
+  height: 100%;
+  background: var(--primary);
+  }
+  .status-pill-queue {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  }
+  .status-ready { background: var(--green-subtle); color: var(--green); }
+  .status-counting { background: var(--blue-subtle); color: var(--blue); }
+  .status-warning { background: var(--amber-subtle); color: var(--amber); }
+  .status-queued { background: var(--surface-subtle); color: var(--text-muted); }
+  
+  .controls-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 12px;
+  }
+  .btn-dispense-batch {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  font-family: var(--font);
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(13,148,136,0.25);
+  }
+  .footer-pharm {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  }
+  </style>
+</head>
+<body>
+  
+  <header class="terminal-header">
+  <div class="term-brand">
+  <div class="term-logo">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+  <rect width="18" height="18" x="3" y="3" rx="2"/>
+  <line x1="12" y1="8" x2="12" y2="16"/>
+  <line x1="8" y1="12" x2="16" y2="12"/>
+  </svg>
+  </div>
+  <div class="term-title">Pharm<span>Flow</span></div>
+  <span class="term-station-badge">ROBO-CELL 04 &bull; ST. JUDE CENTRAL RX</span>
+  </div>
+  <div class="term-meta">
+  <div class="laser-status">
+  <span class="laser-dot"></span>
+  Optical Scanner Calibrated
+  </div>
+  <div class="pharmacist-pill">
+  <span class="rph-badge">RPh</span>
+  <span>Dr. Arthur Pendelton, PharmD (RPh-94182)</span>
+  </div>
+  </div>
+  </header>
+
+  <main class="terminal-container">
+  
+  <section class="fda-alert-box">
+  <div class="fda-icon-wrap">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+  <line x1="12" y1="9" x2="12" y2="13"/>
+  <line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+  </div>
+  <div class="fda-content">
+  <h3>
+  <span>Critical Drug Interaction Warning</span>
+  <span class="fda-warning-pill">FDA High Urgency</span>
+  </h3>
+  <div class="fda-desc">
+  <strong>Warfarin Sodium (5mg)</strong> co-administered with <strong>Clopidogrel Bisulfate (75mg)</strong> induces severe synergistic anticoagulation and hemorrhagic risk via CYP2C9 metabolic inhibition. Pharmacist electronic override signature required.
+  </div>
+  </div>
+  <div class="fda-actions">
+  <button class="btn-override">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  Authorize Override
+  </button>
+  <button class="btn-hold">Hold for Prescriber</button>
+  </div>
+  </section>
+
+  
+  <section class="barcode-verify-strip">
+  <div class="barcode-visual">
+  
+  <svg class="barcode-svg" viewBox="0 0 140 38" fill="#0f172a">
+  <rect x="0" y="0" width="3" height="38"/>
+  <rect x="5" y="0" width="1" height="38"/>
+  <rect x="8" y="0" width="4" height="38"/>
+  <rect x="15" y="0" width="2" height="38"/>
+  <rect x="20" y="0" width="1" height="38"/>
+  <rect x="24" y="0" width="3" height="38"/>
+  <rect x="30" y="0" width="5" height="38"/>
+  <rect x="38" y="0" width="2" height="38"/>
+  <rect x="42" y="0" width="1" height="38"/>
+  <rect x="46" y="0" width="4" height="38"/>
+  <rect x="53" y="0" width="2" height="38"/>
+  <rect x="58" y="0" width="6" height="38"/>
+  <rect x="67" y="0" width="1" height="38"/>
+  <rect x="71" y="0" width="3" height="38"/>
+  <rect x="77" y="0" width="4" height="38"/>
+  <rect x="84" y="0" width="2" height="38"/>
+  <rect x="88" y="0" width="1" height="38"/>
+  <rect x="92" y="0" width="5" height="38"/>
+  <rect x="100" y="0" width="2" height="38"/>
+  <rect x="105" y="0" width="3" height="38"/>
+  <rect x="111" y="0" width="1" height="38"/>
+  <rect x="114" y="0" width="4" height="38"/>
+  <rect x="121" y="0" width="2" height="38"/>
+  <rect x="125" y="0" width="3" height="38"/>
+  <rect x="131" y="0" width="1" height="38"/>
+  <rect x="135" y="0" width="5" height="38"/>
+  </svg>
+  <div class="barcode-caption">NDC 00591-0405-01</div>
+  </div>
+
+  <div class="verify-details">
+  <h4>
+  Optical Scan Verification
+  <span class="badge-match">&#10003; 100% Match Confirmed</span>
+  </h4>
+  <div class="verify-meta">
+  <span>Target Lot: <strong>#WF-9042A</strong></span>
+  <span>Manufacturer: <strong>Watson Pharma Inc.</strong></span>
+  <span>Expiration: <strong>11/2028</strong></span>
+  <span>Optical Latency: <strong>14 ms</strong></span>
+  </div>
+  </div>
+
+  <div class="station-telemetry">
+  <div class="telemetry-item">
+  <div class="telem-label">Dispenser Cell</div>
+  <div class="telem-val">CAN-14</div>
+  </div>
+  <div class="telemetry-item">
+  <div class="telem-label">Canister Feed</div>
+  <div class="telem-val">98.4 PSI</div>
+  </div>
+  </div>
+  </section>
+
+  
+  <section class="queue-section">
+  <div class="queue-header">
+  <div class="queue-title">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+  </svg>
+  Automated Pill Dispensation Queue
+  </div>
+  <div class="queue-filter">
+  <button class="filter-btn active">All Active (4)</button>
+  <button class="filter-btn">Pending Verification (1)</button>
+  <button class="filter-btn">Verified (2)</button>
+  </div>
+  </div>
+
+  <table class="dispense-table">
+  <thead>
+  <tr>
+  <th>Rx ID</th>
+  <th>Patient</th>
+  <th>Medication &amp; Strength</th>
+  <th>Dosage / Form</th>
+  <th>Pill Count</th>
+  <th>Safety Status</th>
+  <th>Robo Action</th>
+  </tr>
+  </thead>
+  <tbody>
+  
+  <tr class="tr-alert">
+  <td class="rx-num">#RX-88419</td>
+  <td><strong>Robert Chen</strong> (58M)</td>
+  <td>
+  <div class="drug-name-cell">
+  <span class="drug-name-bold" style="color: #92400e;">Warfarin Sodium Tablets</span>
+  <span class="drug-specs">NDC 00591-0405-01 &bull; Lot #WF-9042A</span>
+  </div>
+  </td>
+  <td class="dosage-mono">5.0 mg</td>
+  <td>
+  <div class="count-indicator">
+  <div class="count-bar"><div class="count-fill" style="width: 100%; background: var(--amber);"></div></div>
+  <span>60/60</span>
+  </div>
+  </td>
+  <td>
+  <span class="status-pill-queue status-warning">
+  &#9888; Override Req
+  </span>
+  </td>
+  <td>
+  <button style="background: var(--amber); color: white; border: none; padding: 4px 8px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 700; cursor: pointer;">
+  Review Rx
+  </button>
+  </td>
+  </tr>
+
+  
+  <tr>
+  <td class="rx-num">#RX-88420</td>
+  <td><strong>Robert Chen</strong> (58M)</td>
+  <td>
+  <div class="drug-name-cell">
+  <span class="drug-name-bold">Clopidogrel Bisulfate</span>
+  <span class="drug-specs">NDC 0093-7221-56 &bull; Lot #CP-2210B</span>
+  </div>
+  </td>
+  <td class="dosage-mono">75 mg</td>
+  <td>
+  <div class="count-indicator">
+  <div class="count-bar"><div class="count-fill" style="width: 100%; background: var(--green);"></div></div>
+  <span>30/30</span>
+  </div>
+  </td>
+  <td>
+  <span class="status-pill-queue status-ready">
+  &#10003; Verified
+  </span>
+  </td>
+  <td>
+  <button style="background: var(--surface-subtle); border: 1px solid var(--border); padding: 4px 8px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; cursor: pointer;">
+  Hold Tray
+  </button>
+  </td>
+  </tr>
+
+  
+  <tr>
+  <td class="rx-num">#RX-88421</td>
+  <td><strong>Sarah Ahmed</strong> (34F)</td>
+  <td>
+  <div class="drug-name-cell">
+  <span class="drug-name-bold">Amoxicillin Trihydrate</span>
+  <span class="drug-specs">NDC 0781-2613-05 &bull; Lot #AM-8812</span>
+  </div>
+  </td>
+  <td class="dosage-mono">500 mg</td>
+  <td>
+  <div class="count-indicator">
+  <div class="count-bar"><div class="count-fill" style="width: 60%;"></div></div>
+  <span style="color: var(--blue);">24/40</span>
+  </div>
+  </td>
+  <td>
+  <span class="status-pill-queue status-counting">
+  Robo Dispensing
+  </span>
+  </td>
+  <td>
+  <span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Cell #08 Active</span>
+  </td>
+  </tr>
+
+  
+  <tr>
+  <td class="rx-num">#RX-88422</td>
+  <td><strong>James Wilson</strong> (67M)</td>
+  <td>
+  <div class="drug-name-cell">
+  <span class="drug-name-bold">Levothyroxine Sodium</span>
+  <span class="drug-specs">NDC 0074-6594-11 &bull; Lot #LV-1109</span>
+  </div>
+  </td>
+  <td class="dosage-mono">100 mcg</td>
+  <td>
+  <div class="count-indicator">
+  <div class="count-bar"><div class="count-fill" style="width: 0%;"></div></div>
+  <span>0/90</span>
+  </div>
+  </td>
+  <td>
+  <span class="status-pill-queue status-queued">
+  In Buffer
+  </span>
+  </td>
+  <td>
+  <span style="font-size: 11px; color: var(--text-muted);">Queued Next</span>
+  </td>
+  </tr>
+  </tbody>
+  </table>
+  </section>
+
+  
+  <div class="controls-strip">
+  <div style="display: flex; align-items: center; gap: 12px;">
+  <span><strong>Batch Tray 12:</strong> 4 Vials Sealed &bull; Thermal Label Printer Ready</span>
+  <span style="color: var(--primary); font-family: var(--font-mono); font-weight: 600;">Pills Dispensed Today: 4,892</span>
+  </div>
+  <button class="btn-dispense-batch">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  Release Verified Trays to Packing
+  </button>
+  </div>
+
+  <footer class="footer-pharm">
+  <span>PharmFlow Dispensation Engine v5.9 &bull; 21 CFR Part 11 Audit Trail Enabled</span>
+  <span style="font-family: var(--font-mono);">Optical Signature: SIG-OPT-9481-SHA256 &bull; Certified FDA DSCSA</span>
+  </footer>
+  </main>
+</body>
+</html>

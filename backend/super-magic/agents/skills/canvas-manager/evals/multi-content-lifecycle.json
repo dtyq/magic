@@ -1,0 +1,6 @@
+{
+  "id": "multi-content-lifecycle",
+  "prompt": "Add another candidate to an existing Element without replacing its current Content, then select a user-confirmed main Content.",
+  "expected_tools": ["add_canvas_contents", "select_canvas_main_content"],
+  "forbidden_tools": ["add_canvas_elements", "edit_canvas_nodes"]
+}

@@ -1,10 +1,8 @@
 import type { Canvas } from "../../../runtime/core/Canvas"
 import { AttachmentSource } from "../../../public/magic-types"
 import { getSelectedFileElements, getSelectedImageElements } from "../../../runtime/shared/ids"
-import {
-	getCanvasResourceFileName,
-	toCanonicalCanvasResourcePath,
-} from "../../../runtime/shared/path/canvasResourcePath"
+import { getCanvasResourceFileName } from "../../../runtime/shared/path/canvasResourcePath"
+import { getActiveImageContent } from "../../../runtime/document/elementContent"
 
 /**
  * 画布下载菜单判定「图片」扩展名（语义与宿主 Topic isImage 对齐；枚举值见 types.magic 的 AttachmentSource）。
@@ -26,7 +24,7 @@ const DOWNLOAD_MENU_IMAGE_EXTENSIONS: readonly string[] = [
 export interface CanvasDownloadMenuContext {
 	/** 与 Topic 单文件一致：仅一张图片，且附件元信息表明它是 AI 图片。 */
 	useAiImageSubmenu: boolean
-	selectionKind: "video-only" | "mixed" | "image-only" | "none"
+	selectionKind: "video-only" | "audio-only" | "mixed" | "image-only" | "none"
 }
 
 function extensionFromFileNameOrPath(fileName: string, path?: string): string {
@@ -66,14 +64,17 @@ export async function resolveCanvasDownloadMenuContext(
 
 	const hasVideo = selectedMedia.some((e) => e.type === "video")
 	const hasImage = selectedMedia.some((e) => e.type === "image")
+	const hasAudio = selectedMedia.some((e) => e.type === "audio")
+	const selectedTypeCount = Number(hasVideo) + Number(hasImage) + Number(hasAudio)
 
 	let selectionKind: CanvasDownloadMenuContext["selectionKind"]
-	if (hasVideo && hasImage) selectionKind = "mixed"
+	if (selectedTypeCount > 1) selectionKind = "mixed"
 	else if (hasVideo) selectionKind = "video-only"
+	else if (hasAudio) selectionKind = "audio-only"
 	else if (hasImage) selectionKind = "image-only"
 	else selectionKind = "none"
 
-	if (!hasImage || hasVideo) {
+	if (!hasImage || hasVideo || hasAudio) {
 		return {
 			useAiImageSubmenu: false,
 			selectionKind,
@@ -89,21 +90,22 @@ export async function resolveCanvasDownloadMenuContext(
 		}
 	}
 
-	const resolveAbs = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
 	const getFileResourceMeta = canvas.magicConfigManager.config?.methods?.getFileResourceMeta
 	const flags = await Promise.all(
 		imageElements.map(async (img) => {
-			if (!img.src) return false
+			const src =
+				(typeof canvas.getEffectiveContent === "function"
+					? (canvas.getEffectiveContent(img.id) as { src?: string } | undefined)
+					: undefined
+				)?.src ?? getActiveImageContent(img).src
+			if (!src) return false
 			const meta = getFileResourceMeta
-				? await getFileResourceMeta(img.src).catch(() => null)
+				? await getFileResourceMeta(src).catch(() => null)
 				: null
 			const entry =
-				meta?.status === "exists"
-					? meta
-					: await canvas.imageResourceManager.getEntry(img.src)
+				meta?.status === "exists" ? meta : await canvas.imageResourceManager.getEntry(src)
 			if (!entry?.fileName) return false
-			const normalizedSrc = toCanonicalCanvasResourcePath(img.src, resolveAbs)
-			const isImage = isRasterImageFile(entry.fileName, normalizedSrc)
+			const isImage = isRasterImageFile(entry.fileName, src)
 			const isAi = entry.source === AttachmentSource.AI
 			return isImage && isAi
 		}),

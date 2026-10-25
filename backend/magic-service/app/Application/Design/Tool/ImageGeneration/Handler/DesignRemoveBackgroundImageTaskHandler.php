@@ -49,7 +49,7 @@ final class DesignRemoveBackgroundImageTaskHandler extends AbstractDesignImageGe
             'output_format' => 'webp',
         ]);
         $this->applyMagicAccessToken($dto);
-        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation));
+        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation, $entity->getProjectId()));
         // 通过画布模式-去背景，默认不加水印
         $dto->closeVisibleWatermark();
         $dto->valid();

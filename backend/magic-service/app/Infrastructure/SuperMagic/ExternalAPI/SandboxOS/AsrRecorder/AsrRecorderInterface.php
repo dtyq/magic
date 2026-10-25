@@ -62,6 +62,7 @@ interface AsrRecorderInterface
      * @param null|AsrNoteFileConfig $noteFileConfig 笔记文件配置对象
      * @param null|AsrTranscriptFileConfig $transcriptFileConfig 流式识别配置对象
      * @param null|AsrMarkerFileConfig $markerFileConfig 标记文件配置对象
+     * @param bool $forceReset 是否强制重置沙箱侧重试计数（手动重新合并场景）
      * @return AsrRecorderResponse 响应结果
      */
     public function finishTask(
@@ -72,7 +73,8 @@ interface AsrRecorderInterface
         AsrAudioConfig $audioConfig,
         ?AsrNoteFileConfig $noteFileConfig = null,
         ?AsrTranscriptFileConfig $transcriptFileConfig = null,
-        ?AsrMarkerFileConfig $markerFileConfig = null
+        ?AsrMarkerFileConfig $markerFileConfig = null,
+        bool $forceReset = false
     ): AsrRecorderResponse;
 
     /**

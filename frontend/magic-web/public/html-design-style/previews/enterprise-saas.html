@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise SaaS — Multi-Tenant Administration, SOC 2 Audit & SAML SSO</title>
+  <style>
+    :root {
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-dark: #1E40AF;
+      --primary-light: #EFF6FF;
+      --bg: #FAFAFA;
+      --surface: #FFFFFF;
+      --surface-secondary: #F5F5F5;
+      --border: #E5E7EB;
+      --border-strong: #D1D5DB;
+      --text-primary: #111827;
+      --text-secondary: #4B5563;
+      --text-muted: #9CA3AF;
+      --success: #059669;
+      --success-light: #ECFDF5;
+      --warning: #D97706;
+      --warning-light: #FFFBEB;
+      --error: #DC2626;
+      --error-light: #FEF2F2;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, Menlo, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text-primary);
+      font-family: var(--font-sans); font-size: 13.5px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Top Utility / Tenant Header */
+    .saas-header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      height: 56px; padding: 0 28px; display: flex; align-items: center;
+      justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .org-switcher {
+      display: flex; align-items: center; gap: 10px; padding: 6px 10px;
+      background: var(--surface-secondary); border: 1px solid var(--border);
+      border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .org-avatar { width: 22px; height: 22px; background: var(--primary); color: #fff; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+    .nav-items { display: flex; gap: 18px; list-style: none; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+    .nav-item.active { color: var(--primary); font-weight: 600; }
+
+    /* Buttons */
+    .btn-ent {
+      font-size: 12.5px; font-weight: 600; padding: 7px 14px;
+      border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s;
+    }
+    .btn-ent-primary { background: var(--primary); color: #fff; }
+    .btn-ent-primary:hover { background: var(--primary-hover); }
+    .btn-ent-secondary { background: var(--surface); color: var(--text-primary); border-color: var(--border-strong); }
+    .btn-ent-secondary:hover { background: var(--surface-secondary); }
+
+    .badge-status {
+      font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius-sm);
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .badge-active { background: var(--success-light); color: var(--success); border: 1px solid rgba(5,150,105,0.2); }
+    .badge-soc2 { background: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
+
+    /* Hero / Tenant Status (Dense First 500px) */
+    .portal-main { max-width: 1340px; margin: 24px auto; padding: 0 28px; }
+    .portal-banner {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 22px; margin-bottom: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .banner-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .banner-title { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 4px; }
+    .banner-desc { font-size: 13px; color: var(--text-secondary); }
+
+    /* 4-Stat Metric Row */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .kpi-box {
+      background: var(--surface-secondary); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 12px 14px;
+    }
+    .kpi-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    .kpi-val { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+    .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* 2-Column: SAML SSO Providers & RBAC Matrix */
+    .two-col { display: grid; grid-template-columns: 1fr 1.15fr; gap: 20px; margin-bottom: 24px; }
+    .card-panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .card-title { font-size: 15px; font-weight: 700; }
+
+    /* SSO Provider Blocks */
+    .sso-list { display: flex; flex-direction: column; gap: 12px; }
+    .sso-card {
+      border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px;
+      display: flex; justify-content: space-between; align-items: center; background: var(--surface);
+    }
+    .sso-info { display: flex; align-items: center; gap: 12px; }
+    .sso-icon { width: 34px; height: 34px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+    .icon-okta { background: #007dc1; color: #fff; }
+    .icon-azure { background: #0078d4; color: #fff; }
+    .sso-name { font-weight: 600; font-size: 13.5px; }
+    .sso-sub { font-size: 11.5px; color: var(--text-secondary); }
+
+    /* RBAC Matrix Grid */
+    .rbac-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .rbac-table th { text-align: left; padding: 8px 10px; background: var(--surface-secondary); color: var(--text-secondary); font-size: 11px; font-weight: 600; border-bottom: 1px solid var(--border); }
+    .rbac-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+    .chk-yes { color: var(--success); font-weight: 700; }
+    .chk-no { color: var(--text-muted); }
+
+    /* SOC 2 Audit Trail Table */
+    .audit-panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-bottom: 24px;
+    }
+    .audit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .audit-table th { text-align: left; padding: 9px 12px; background: var(--surface-secondary); color: var(--text-muted); font-size: 10.5px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    .audit-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-family: var(--font-mono); }
+    .audit-table tr:hover { background: #fafafa; }
+    .hash-text { color: var(--text-muted); font-size: 10.5px; }
+
+    /* Footer */
+    .portal-footer {
+      border-top: 1px solid var(--border); padding: 20px 28px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary);
+    }
+
+    @media (max-width: 960px) {
+      .kpi-row { grid-template-columns: repeat(2, 1fr); }
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="saas-header">
+    <div class="header-left">
+      <div class="org-switcher">
+        <div class="org-avatar">A</div>
+        <div>
+          <span>Acme Global Corporation</span>
+          <span style="font-size: 10.5px; color: var(--text-muted); font-weight: normal; margin-left: 4px;">(Dedicated VPC)</span>
+        </div>
+      </div>
+      <ul class="nav-items">
+        <li class="nav-item active">Tenant Administration</li>
+        <li class="nav-item">SAML & Identity</li>
+        <li class="nav-item">SOC 2 Audit Trail</li>
+        <li class="nav-item">Access Matrix</li>
+        <li class="nav-item">KMS Key Vault</li>
+      </ul>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span class="badge-status badge-soc2">SOC 2 Type II Certified</span>
+      <button class="btn-ent btn-ent-secondary">Export Compliance Zip</button>
+      <button class="btn-ent btn-ent-primary">+ New Tenant Admin</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <!-- Top Tenant Status Banner (First 500px) -->
+    <div class="portal-banner">
+      <div class="banner-top">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <h1 class="banner-title">Multi-Tenant Management Console</h1>
+            <span class="badge-status badge-active">● Active-Active Redundancy</span>
+          </div>
+          <p class="banner-desc">
+            Governing enterprise multi-tenant boundaries, verifiable audit hashing, and federated SSO identity providers.
+          </p>
+        </div>
+        <div style="text-align: right; font-family: var(--font-mono); font-size: 11px;">
+          <div>TENANT ID: <strong>org_8829104_acme</strong></div>
+          <div style="color: var(--text-muted);">PRIMARY: us-east-1 · REPLICA: eu-central-1</div>
+        </div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi-box">
+          <div class="kpi-title">Provisioned Seats</div>
+          <div class="kpi-val">4,829 / 5,000</div>
+          <div class="kpi-sub">SCIM JIT Provisioning Active</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title">Audit Log Integrity</div>
+          <div class="kpi-val" style="color: var(--success);">100% Immutable</div>
+          <div class="kpi-sub">SHA-256 Verifiable Blockchain Hash</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title">SSO Authentication Rate</div>
+          <div class="kpi-val">99.98%</div>
+          <div class="kpi-sub">Okta & Azure AD Connected</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-title">Security Posture</div>
+          <div class="kpi-val" style="color: var(--primary);">SOC 2 Type II</div>
+          <div class="kpi-sub">ISO 27001 / HIPAA Compliant</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2-Column: SAML SSO Providers & RBAC Matrix -->
+    <div class="two-col">
+      <!-- SAML SSO Provider Status Card -->
+      <div class="card-panel">
+        <div class="card-head">
+          <div class="card-title">SAML 2.0 & OIDC Identity Providers</div>
+          <span class="badge-status badge-active">All Active</span>
+        </div>
+
+        <div class="sso-list">
+          <div class="sso-card">
+            <div class="sso-info">
+              <div class="sso-icon icon-okta">O</div>
+              <div>
+                <div class="sso-name">Okta Enterprise SSO</div>
+                <div class="sso-sub">Entity ID: <code>http://www.okta.com/exk92014acme</code></div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <span class="badge-status badge-active">Synced (3,240 Users)</span>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">Cert Exp: 2028-11</div>
+            </div>
+          </div>
+
+          <div class="sso-card">
+            <div class="sso-info">
+              <div class="sso-icon icon-azure">A</div>
+              <div>
+                <div class="sso-name">Microsoft Azure AD (Entra ID)</div>
+                <div class="sso-sub">Tenant: <code>c48201fa-8921-49b0-acme</code></div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <span class="badge-status badge-active">Synced (1,589 Users)</span>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">Duo MFA Enforced</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px;">
+          <span>Automatic Session Revocation on IdP Logout</span>
+          <button class="btn-ent btn-ent-secondary" style="padding: 4px 10px;">Test SAML Assertions</button>
+        </div>
+      </div>
+
+      <!-- Role-Based Access Control (RBAC) Matrix -->
+      <div class="card-panel">
+        <div class="card-head">
+          <div class="card-title">Role-Based Access Control (RBAC) Matrix</div>
+          <button class="btn-ent btn-ent-secondary" style="padding: 4px 8px; font-size: 11.5px;">Edit Roles</button>
+        </div>
+
+        <table class="rbac-table">
+          <thead>
+            <tr>
+              <th>Permission Domain</th>
+              <th>Super Admin</th>
+              <th>Security Lead</th>
+              <th>DevOps Lead</th>
+              <th>Auditor</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>IAM & Tenant Provisioning</td>
+              <td class="chk-yes">✓ Full</td>
+              <td class="chk-yes">✓ Edit</td>
+              <td class="chk-no">—</td>
+              <td class="chk-no">View Only</td>
+            </tr>
+            <tr>
+              <td>SOC 2 Audit Export & Logs</td>
+              <td class="chk-yes">✓ Full</td>
+              <td class="chk-yes">✓ Full</td>
+              <td class="chk-no">View Only</td>
+              <td class="chk-yes">✓ Full</td>
+            </tr>
+            <tr>
+              <td>KMS Decryption & Key Rotate</td>
+              <td class="chk-yes">✓ Full</td>
+              <td class="chk-yes">✓ Sign</td>
+              <td class="chk-no">—</td>
+              <td class="chk-no">—</td>
+            </tr>
+            <tr>
+              <td>Multi-Region VPC Failover</td>
+              <td class="chk-yes">✓ Exec</td>
+              <td class="chk-no">Approve</td>
+              <td class="chk-yes">✓ Exec</td>
+              <td class="chk-no">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SOC 2 Type II Verifiable Audit Trail Table -->
+    <div class="audit-panel">
+      <div class="card-head">
+        <div>
+          <div class="card-title">SOC 2 Type II Immutable Audit Trail</div>
+          <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+            Cryptographically signed event ledger with tamper-evident SHA-256 verification.
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-ent btn-ent-secondary">Filter by Actor</button>
+          <button class="btn-ent btn-ent-primary">Download Signed JSON</button>
+        </div>
+      </div>
+
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Event ID</th>
+            <th>Timestamp (UTC)</th>
+            <th>Actor (Identity)</th>
+            <th>Action</th>
+            <th>Resource</th>
+            <th>Origin IP</th>
+            <th>SHA-256 Hash</th>
+            <th>Verif</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>EVT-90412</code></td>
+            <td>2026-09-19 08:42:15</td>
+            <td style="font-family: var(--font-sans);"><strong>demo.person16@example.com</strong> <span class="badge-status badge-active">2FA</span></td>
+            <td><code>KMS_ROTATE_KEY</code></td>
+            <td><code>arn:aws:kms:us-east-1:acme-key-99</code></td>
+            <td><code>198.51.100.42</code></td>
+            <td><span class="hash-text">sha256:7f9a...c021</span></td>
+            <td><span class="badge-status badge-active">Valid</span></td>
+          </tr>
+          <tr>
+            <td><code>EVT-90411</code></td>
+            <td>2026-09-19 08:31:02</td>
+            <td style="font-family: var(--font-sans);"><strong>okta.scim.service</strong> <span class="badge-status badge-soc2">Service</span></td>
+            <td><code>USER_JIT_PROVISION</code></td>
+            <td><code>usr_98102 (demo.person02@example.com)</code></td>
+            <td><code>203.0.113.19</code></td>
+            <td><span class="hash-text">sha256:4d12...89ee</span></td>
+            <td><span class="badge-status badge-active">Valid</span></td>
+          </tr>
+          <tr>
+            <td><code>EVT-90410</code></td>
+            <td>2026-09-19 08:14:48</td>
+            <td style="font-family: var(--font-sans);"><strong>demo.person08@example.com</strong> <span class="badge-status badge-active">2FA</span></td>
+            <td><code>TENANT_VPC_PEERING</code></td>
+            <td><code>vpc-089104bce9 (eu-central-1)</code></td>
+            <td><code>198.51.100.88</code></td>
+            <td><span class="hash-text">sha256:a821...33f2</span></td>
+            <td><span class="badge-status badge-active">Valid</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer class="portal-footer">
+    <div>
+      ACME GLOBAL ENTERPRISE · DEDICATED CLOUD PORTAL · CONTINUOUS COMPLIANCE AUDITED
+    </div>
+    <div style="display: flex; gap: 16px;">
+      <span>SAML CERTIFICATE: <strong>VALID</strong></span>
+      <span>AUDIT ENCRYPTION: <strong>AES-256-GCM</strong></span>
+    </div>
+  </footer>
+
+</body>
+</html>

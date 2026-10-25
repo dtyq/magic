@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
-import type { JSONContent } from "@tiptap/react"
+import { useLayoutEffect, useMemo, useState } from "react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { useMemoizedFn } from "ahooks"
 import { merge } from "lodash-es"
 import { observer } from "mobx-react-lite"
@@ -15,6 +15,7 @@ import MobileComposerModeSelector from "@/pages/superMagicMobile/pages/ChatPage/
 import MessageHeader, {
 	type MessageHeaderTopicActions,
 } from "@/pages/superMagic/components/MessageHeader"
+import WidgetMessageHeader from "./WidgetMessageHeader"
 import type {
 	SceneEditorContext,
 	SceneEditorNodes,
@@ -33,18 +34,32 @@ import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { createMessageSendService } from "@/pages/superMagic/services/messageSendFlowService"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
-import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import {
+	isTopicTaskRunning,
+	isTopicWaitingForUser,
+	TaskStatus,
+} from "@/pages/superMagic/pages/Workspace/types"
 import { userStore } from "@/models/user"
 import { Button } from "@/components/shadcn-ui/button"
 import { DEFAULT_LAYOUT_CONFIG } from "@/pages/superMagic/components/MessageEditor/constants/constant"
 import { MOBILE_LAYOUT_CONFIG } from "@/pages/superMagic/components/MainInputContainer/components/editors/constant"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useCrewConversationStore } from "../context"
 import { useMagicWidgetBridge } from "../hooks/useMagicWidgetBridge"
+import { useMagicWidgetConfig } from "@/providers/MagicWidgetProvider"
 import CrewAvatar from "./CrewAvatar"
+import type { MagicWidgetConfig } from "@/providers/MagicWidgetProvider/types"
+import {
+	resolveCrewWidgetEditorCustomization,
+	resolveCrewWidgetSendOverrides,
+} from "../utils/editorCustomization"
 
 interface CrewConversationPanelProps {
-	widgetContext?: { instanceId: string; hostOrigin: string } | null
+	widgetContext?: {
+		instanceId: string
+		hostOrigin: string
+		renderMode?: "inline" | "floating"
+	} | null
 	variant: "desktop" | "mobile"
 	detailPanelVisible?: boolean
 	isConversationPanelCollapsed?: boolean
@@ -57,6 +72,7 @@ interface CrewConversationPanelProps {
 	onOpenTopics?: () => void
 	topicActions?: MessageHeaderTopicActions
 	onFileClick?: (fileItem?: unknown) => void
+	widgetConfig?: MagicWidgetConfig
 }
 
 function CrewConversationPanel({
@@ -73,20 +89,62 @@ function CrewConversationPanel({
 	topicActions,
 	onFileClick,
 	widgetContext = null,
+	widgetConfig = {},
 }: CrewConversationPanelProps) {
 	const { t } = useTranslation(["crew/market", "super"])
 	const store = useCrewConversationStore()
+	const { embedContext, requestCustomMentionSearch } = useMagicWidgetConfig()
 	const selectedProject = store.selectedProject
 	const selectedTopic = store.selectedTopic
 	const agentCode = store.agentCode
 	const topicStore = store.topicStore
 	const isMobile = variant === "mobile"
 	const [stopEventLoading, setStopEventLoading] = useState(false)
-	const { notifyAgentReady } = useMagicWidgetBridge({
+	const { notifyAgentReady, requestHeaderAction } = useMagicWidgetBridge({
 		// Keep the protocol listener alive before a topic exists so early commands receive an explicit response.
 		context: widgetContext,
 		createNewConversation: store.createAndSelectNewTopic,
 	})
+	const widgetEditorCustomization = useMemo(
+		() => (widgetContext ? resolveCrewWidgetEditorCustomization(widgetConfig) : null),
+		[widgetConfig, widgetContext],
+	)
+	const widgetSendOverrides = useMemo(
+		() => (widgetContext ? resolveCrewWidgetSendOverrides(widgetConfig) : {}),
+		[widgetConfig, widgetContext],
+	)
+
+	useLayoutEffect(() => {
+		if (!widgetContext) return
+		store.mentionPanelStore.setBuiltinVisibility(widgetConfig.panel)
+	}, [store.mentionPanelStore, widgetConfig.panel, widgetContext])
+
+	useLayoutEffect(() => {
+		// Host-owned Mention groups are intentionally limited to the desktop inline Widget surface.
+		const groups =
+			widgetContext?.renderMode === "inline" && !isMobile && widgetConfig.layout === "desktop"
+				? (widgetConfig.panel?.customGroups ?? [])
+				: []
+		store.mentionPanelStore.setCustomMentionGroups(groups)
+	}, [
+		isMobile,
+		store.mentionPanelStore,
+		widgetConfig.panel?.customGroups,
+		widgetConfig.panel,
+		widgetConfig.layout,
+		widgetContext,
+	])
+
+	useLayoutEffect(() => {
+		if (!widgetContext || !embedContext || isMobile || widgetContext.renderMode !== "inline") {
+			store.mentionPanelStore.setCustomMentionSearch(undefined)
+			return
+		}
+		store.mentionPanelStore.setCustomMentionSearch((query, scope, signal) =>
+			requestCustomMentionSearch(query, scope, signal),
+		)
+		return () => store.mentionPanelStore.setCustomMentionSearch(undefined)
+	}, [embedContext, isMobile, requestCustomMentionSearch, store.mentionPanelStore, widgetContext])
 
 	const scopedMessageSendService = useMemo(
 		() =>
@@ -105,8 +163,9 @@ function CrewConversationPanel({
 			}
 		},
 	})
+	const isTaskRunning = showLoading || isTopicTaskRunning(selectedTopic)
 	const canInterruptTask =
-		showLoading || selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
+		isTaskRunning || selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
 
 	const { handlePullMoreMessage, isMessagesInitialLoading } = useTopicMessages({
 		selectedTopic,
@@ -116,7 +175,8 @@ function CrewConversationPanel({
 		projectId: selectedProject?.id,
 		topicId: selectedTopic?.id,
 		agentCode,
-		isTaskRunning: showLoading,
+		isTaskRunning,
+		isWaitingForUser: isTopicWaitingForUser(selectedTopic),
 		isEmptyStatus: false,
 		isShowLoadingInit: isMessagesInitialLoading,
 	})
@@ -137,11 +197,18 @@ function CrewConversationPanel({
 		canInterrupt: canInterruptTask,
 	})
 
+	/** Sends editor or programmatic content, forcing widget internet-search off when configured. */
 	const handleSendMsg = useMemoizedFn(
 		(content: JSONContent | string, options?: SendMessageOptions) => {
+			const sendOptions =
+				widgetSendOverrides.enableWebSearch === false
+					? merge({}, options, {
+							extra: { super_agent: { enable_web_search: false } },
+						})
+					: options
 			scopedMessageSendService.sendContent({
 				content,
-				options,
+				options: sendOptions,
 				showLoading: messages.length > 1 && showLoading,
 				context: resolveMessageSendContext({
 					selectedProject,
@@ -170,30 +237,26 @@ function CrewConversationPanel({
 				<div className="mb-2">
 					<MessageQueue
 						queue={messageQueue.queue}
+						editorRef={messageQueue.editorRef}
 						queueStats={messageQueue.queueStats}
-						editingQueueItem={messageQueue.editingQueueItem}
 						onRemoveMessage={messageQueue.removeFromQueue}
 						onSendMessage={messageQueue.sendQueuedMessage}
 						onStartEdit={messageQueue.startEditQueueItem}
-						onCancelEdit={messageQueue.cancelEditQueueItem}
+						onWithdraw={messageQueue.withdrawQueueItem}
+						onMove={messageQueue.moveQueueItem}
+						isOperationPending={messageQueue.isQueueOperationPending}
 						variant={isMobile ? "mobile" : "default"}
 					/>
 				</div>
 			) : null
 
 		return { messageQueueNode }
-	}, [
-		messageQueue.queue,
-		messageQueue.queueStats,
-		messageQueue.editingQueueItem,
-		messageQueue.removeFromQueue,
-		messageQueue.sendQueuedMessage,
-		messageQueue.startEditQueueItem,
-		messageQueue.cancelEditQueueItem,
-		isMobile,
-	])
+	}, [messageQueue, isMobile])
 
 	const editorContext = useMemo<SceneEditorContext>(() => {
+		const layoutConfig =
+			widgetEditorCustomization?.layoutConfig ??
+			(isMobile ? MOBILE_LAYOUT_CONFIG : DEFAULT_LAYOUT_CONFIG)
 		return {
 			draftKey: createMessageEditorDraftKey({
 				selectedProject,
@@ -208,7 +271,10 @@ function CrewConversationPanel({
 			topicMode: TopicMode.CustomAgent,
 			agentCode,
 			topicStore,
-			layoutConfig: isMobile ? MOBILE_LAYOUT_CONFIG : DEFAULT_LAYOUT_CONFIG,
+			layoutConfig,
+			...(widgetEditorCustomization && !isMobile
+				? { modules: widgetEditorCustomization.modules }
+				: {}),
 			placeholder: t("super:messageEditor.placeholderLoading"),
 			showLoading,
 			isTaskRunning: canInterruptTask,
@@ -234,14 +300,15 @@ function CrewConversationPanel({
 						super_agent: {
 							topic_pattern: TopicMode.CustomAgent,
 							agent_code: agentCode,
+							// Spread last in buildSendOptions so this wins over the topic-local search toggle.
+							...(widgetSendOverrides.enableWebSearch === false
+								? { enable_web_search: false }
+								: {}),
 						},
 					},
 				}),
-			queueContext: {
-				editingQueueItem: messageQueue.editingQueueItem,
-				addToQueue: messageQueue.addToQueue,
-				finishEditQueueItem: messageQueue.finishEditQueueItem,
-			},
+			editorRef: messageQueue.editorRef,
+			queueContext: messageQueue,
 			size: isMobile ? "mobile" : detailPanelVisible ? "small" : "default",
 		}
 	}, [
@@ -249,9 +316,7 @@ function CrewConversationPanel({
 		detailPanelVisible,
 		handleInterrupt,
 		isMobile,
-		messageQueue.addToQueue,
-		messageQueue.editingQueueItem,
-		messageQueue.finishEditQueueItem,
+		messageQueue,
 		messages.length,
 		selectedProject,
 		selectedTopic,
@@ -268,6 +333,8 @@ function CrewConversationPanel({
 		t,
 		topicModelStore,
 		topicStore,
+		widgetEditorCustomization,
+		widgetSendOverrides,
 	])
 
 	const messageListProviderValue = useMemo<MessageListContextState>(
@@ -300,6 +367,18 @@ function CrewConversationPanel({
 		store.agent?.description || store.agent?.role || t("crew/market:crewConversation.emptyHint")
 
 	if (!isMobile) {
+		const messageHeaderProps = {
+			isConversationPanelCollapsed,
+			onToggleConversationPanel,
+			onExpandConversationPanel,
+			detailPanelVisible,
+			selectedProject,
+			topicStore,
+			historyTriggerMode,
+			isHistoryPanelOpen,
+			onToggleHistoryPanel,
+			showTopicHistory,
+		}
 		return (
 			<div
 				className={cn(
@@ -311,30 +390,31 @@ function CrewConversationPanel({
 				data-testid="crew-conversation-panel"
 			>
 				{topicActions ? (
-					<MessageHeader
-						isConversationPanelCollapsed={isConversationPanelCollapsed}
-						onToggleConversationPanel={onToggleConversationPanel}
-						onExpandConversationPanel={onExpandConversationPanel}
-						detailPanelVisible={detailPanelVisible}
-						selectedProject={selectedProject}
-						topicStore={topicStore}
-						topicActions={topicActions}
-						historyTriggerMode={historyTriggerMode}
-						isHistoryPanelOpen={isHistoryPanelOpen}
-						onToggleHistoryPanel={onToggleHistoryPanel}
-						showTopicHistory={showTopicHistory}
-					/>
+					// Embedded sessions map host header config here. Other pages keep MessageHeader unchanged.
+					widgetContext ? (
+						<WidgetMessageHeader
+							header={widgetConfig.header}
+							windowClosable={widgetConfig.window?.closable}
+							onHeaderAction={requestHeaderAction}
+							{...messageHeaderProps}
+							topicActions={topicActions}
+						/>
+					) : (
+						<MessageHeader {...messageHeaderProps} topicActions={topicActions} />
+					)
 				) : null}
 				{/* Keep the scroll viewport in layout so native scroll anchoring preserves the reading position. */}
 				{selectedTopic ? (
 					<div
 						className={cn(
-							"flex h-full w-full flex-col",
+							"flex min-h-0 w-full flex-1 flex-col",
 							isConversationPanelCollapsed && "invisible",
 						)}
 					>
 						<MessageListProvider value={messageListProviderValue}>
 							<MessageList
+								className="[--message-list-surface:rgb(var(--sidebar-rgb))]"
+								classNames={{ content: "pl-2 pt-[10px]" }}
 								data={messages as SuperMagicMessageItem[]}
 								setSelectedDetail={onFileClick}
 								selectedTopic={selectedTopic}

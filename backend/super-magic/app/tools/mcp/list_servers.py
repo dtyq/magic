@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
-from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.entity.message.server_message import ToolDetail
 from app.i18n import i18n
 from app.tools.core import BaseToolParams, tool
 from app.tools.mcp._base import BaseMcpTool
@@ -34,11 +34,10 @@ class McpListServers(BaseMcpTool[McpListServersParams]):
     async def get_tool_detail(
         self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
     ) -> Optional[ToolDetail]:
-        if not result.content or not result.ok:
-            return None
-        return ToolDetail(
-            type=DisplayType.MD,
-            data=FileContent(file_name="mcp_servers.md", content=result.content),
+        return self._build_mcp_tool_detail(
+            result,
+            file_name="mcp_servers.md",
+            error_title="MCP server listing failed",
         )
 
     async def execute(

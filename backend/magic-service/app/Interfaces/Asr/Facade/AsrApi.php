@@ -16,12 +16,16 @@ use App\Application\Speech\DTO\SummaryRequestDTO;
 use App\Application\Speech\Enum\AsrRecordingStatusEnum;
 use App\Application\Speech\Enum\AsrRecordingTypeEnum;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
+use App\Application\Speech\Enum\AsrTopicModeEnum;
 use App\Application\Speech\Service\AsrDirectoryService;
 use App\Application\Speech\Service\AsrFileAppService;
 use App\Application\Speech\Service\AsrPresetFileService;
 use App\Application\Speech\Service\AsrTitleGeneratorService;
 use App\Application\SuperMagic\Topic\Service\TopicAppService;
 use App\Domain\Asr\ValueObject\AsrDirectoryRoleEnum;
+use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\SuperMagic\Task\Service\TaskDomainService;
+use App\Domain\SuperMagic\Topic\Service\TopicDomainService;
 use App\ErrorCode\AsrErrorCode;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -56,6 +60,8 @@ class AsrApi extends AbstractApi
         protected AsrDirectoryService $directoryService,
         protected AsrPresetFileService $presetFileService,
         protected TopicAppService $topicAppService,
+        protected TopicDomainService $topicDomainService,
+        protected TaskDomainService $taskDomainService,
         protected LockerInterface $locker,
         LoggerFactory $loggerFactory,
         RequestInterface $request,
@@ -125,6 +131,23 @@ class AsrApi extends AbstractApi
         $userAuthorization = $this->getAuthorization();
         $userId = $userAuthorization->getId();
         $summaryRequest = $this->validateAndBuildSummaryRequest($request, $userAuthorization);
+
+        // MQ 只携带任务标识；本次请求补传的 ASR/笔记内容先写入 Redis。
+        $this->asrFileAppService->persistSummaryRequestContext(
+            $summaryRequest,
+            $userId,
+            CoContext::getLanguage()
+        );
+
+        // 新客户端可声明最终分片数；保存到任务状态后会同步写入 audio_project.extra
+        if (! $summaryRequest->hasFileId() && ! empty($summaryRequest->taskKey)) {
+            $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($summaryRequest->taskKey, $userId);
+            $fileShardCount = $this->parseFileShardCount($request->input('file_shard_count'));
+            if ($fileShardCount !== null && ! $taskStatus->isEmpty()) {
+                $this->applyFileShardCount($taskStatus, $fileShardCount);
+                $this->asrFileAppService->saveTaskStatusToRedis($taskStatus);
+            }
+        }
 
         // 状态检查：如果不是通过 file_id 发起的总结，需要检查任务状态
         if (! $summaryRequest->hasFileId()) {
@@ -281,6 +304,19 @@ class AsrApi extends AbstractApi
             $sandboxTopicId = $this->ensureSandboxHiddenTopic($userAuthorization, $projectId, $taskStatus->sandboxTopicId);
             $taskStatus->sandboxTopicId = $sandboxTopicId;
 
+            $sandboxTopic = $this->topicDomainService->getTopicById($sandboxTopicId);
+            if ($sandboxTopic !== null) {
+                $dataIsolation = new DataIsolation();
+                $dataIsolation->setCurrentUserId($userId);
+                $dataIsolation->setCurrentOrganizationCode($organizationCode);
+                $sandboxTask = $this->taskDomainService->initAsrTask(
+                    $dataIsolation,
+                    $sandboxTopic,
+                    (string) $projectId
+                );
+                $taskStatus->sandboxTaskId = $sandboxTask->getId();
+            }
+
             // 确保 generatedTitle 被设置到 taskStatus 中
             if (! empty($generatedTitle) && empty($taskStatus->uploadGeneratedTitle)) {
                 $taskStatus->uploadGeneratedTitle = $generatedTitle;
@@ -366,6 +402,7 @@ class AsrApi extends AbstractApi
         $asrStreamContent = $request->input('asr_stream_content', '');
         $noteData = $request->input('note');
         $markerData = $request->input('marker');
+        $fileShardCount = null;
 
         // 获取语种
         $language = CoContext::getLanguage();
@@ -392,6 +429,12 @@ class AsrApi extends AbstractApi
 
         // 状态检查：获取当前任务状态
         $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userId);
+        if ($statusEnum === AsrRecordingStatusEnum::STOPPED) {
+            $fileShardCount = $this->parseFileShardCount($request->input('file_shard_count'));
+            if ($fileShardCount !== null && ! $taskStatus->isEmpty()) {
+                $this->applyFileShardCount($taskStatus, $fileShardCount);
+            }
+        }
         if (! $taskStatus->isEmpty()) {
             if ($taskStatus->hasServerSummaryLock()) {
                 $this->logger->info('reportStatus 服务端总结进行中，拒绝状态上报', [
@@ -450,7 +493,8 @@ class AsrApi extends AbstractApi
             $markerContent,
             $language,
             $userId,
-            $organizationCode
+            $organizationCode,
+            $fileShardCount
         );
 
         return ['success' => $success];
@@ -480,6 +524,7 @@ class AsrApi extends AbstractApi
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
         $generatedTitle = $this->request->input('generated_title');
+        $fileShardCount = $this->parseFileShardCount($this->request->input('file_shard_count'));
         $asrStreamContent = $this->request->input('asr_stream_content', '');
         $asrStreamContent = is_string($asrStreamContent) ? $asrStreamContent : '';
         if (! empty($asrStreamContent)) {
@@ -498,7 +543,11 @@ class AsrApi extends AbstractApi
             ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCanceled);
         }
 
-        $shouldSaveTaskStatus = false;
+        if ($fileShardCount !== null) {
+            $this->applyFileShardCount($taskStatus, $fileShardCount);
+        }
+
+        $shouldSaveTaskStatus = $fileShardCount !== null;
         $shouldDeleteHeartbeat = false;
         if (! empty($asrStreamContent)) {
             $taskStatus->asrStreamContent = $asrStreamContent;
@@ -606,16 +655,9 @@ class AsrApi extends AbstractApi
         $userAuthorization = $this->getAuthorization();
 
         $modelId = $this->request->input('model_id');
-        $analysisScope = (string) $this->request->input('analysis_scope', 'template_analysis_files');
-        $specifiedAnalysisTypes = $this->normalizeSpecifiedAnalysisTypes(
-            $this->request->input('specified_analysis_types', [])
-        );
-
         return $this->asrFileAppService->triggerResummary(
             $task_key,
             $modelId,
-            $analysisScope,
-            $specifiedAnalysisTypes,
             $userAuthorization
         );
     }
@@ -772,30 +814,19 @@ class AsrApi extends AbstractApi
         // 处理笔记
         $note = $this->parseNoteData($noteData);
 
-        // 生成标题：优先从 Redis 中复用 upload-tokens 生成的标题
+        // 标题只复用已有结果；新的标题生成下沉到 Consumer。
         $generatedTitle = null;
 
         // 1. 尝试从 Redis 中获取已生成的标题（文件直传场景）
         if (! empty($taskKey)) {
             $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($taskKey, $userAuthorization->getId());
-            if (! empty($taskStatus->uploadGeneratedTitle) && ! $taskStatus->isEmpty()) {
-                $generatedTitle = $taskStatus->uploadGeneratedTitle;
-                $this->logger->info('复用 upload-tokens 生成的标题', [
+            if (! $taskStatus->isEmpty()) {
+                $generatedTitle = $taskStatus->summaryGeneratedTitle ?: $taskStatus->uploadGeneratedTitle;
+                $this->logger->info('复用已有 ASR 标题', [
                     'task_key' => $taskKey,
                     'title' => $generatedTitle,
                 ]);
             }
-        }
-
-        // 2. 如果没有从 Redis 获取到标题，则重新生成（前端录音或旧逻辑）
-        if (empty($generatedTitle)) {
-            $generatedTitle = $this->titleGeneratorService->generateTitleForScenario(
-                $userAuthorization,
-                $asrStreamContent,
-                $fileId,
-                $note,
-                $taskKey
-            );
         }
 
         return new SummaryRequestDTO($taskKey, $projectId, $topicId, $resolvedModelId, $fileId, $note, $asrStreamContent ?: null, $generatedTitle);
@@ -1103,7 +1134,8 @@ class AsrApi extends AbstractApi
             'task_key' => $taskKey,
             'expires_in' => 60 * 60,
             'directories' => $directories,
-            'sandbox_topic_id' => $taskStatus->sandboxTopicId,
+            'sandbox_topic_id' => $taskStatus->sandboxTopicId === null ? null : (string) $taskStatus->sandboxTopicId,
+            'sandbox_task_id' => $taskStatus->sandboxTaskId === null ? null : (string) $taskStatus->sandboxTaskId,
         ];
 
         // 只有当预设文件存在时才添加到返回中
@@ -1198,11 +1230,22 @@ class AsrApi extends AbstractApi
     {
         // 已有记录直接使用
         if ($existingSandboxTopicId !== null) {
-            return $existingSandboxTopicId;
+            $existingTopic = $this->topicDomainService->getTopicById($existingSandboxTopicId);
+            if ($existingTopic !== null
+                && $existingTopic->isHidden()
+                && $existingTopic->getProjectId() === (int) $projectId
+                && $existingTopic->getUserId() === $userAuthorization->getId()
+                && $existingTopic->getTopicMode() === AsrTopicModeEnum::AUDIO_MERGE->value) {
+                return $existingSandboxTopicId;
+            }
         }
 
         // 查询已有隐藏话题
-        $hiddenTopic = $this->topicAppService->findHiddenTopicByProjectAndUser((int) $projectId, $userAuthorization->getId());
+        $hiddenTopic = $this->topicDomainService->findHiddenTopicByProjectUserAndMode(
+            (int) $projectId,
+            $userAuthorization->getId(),
+            AsrTopicModeEnum::AUDIO_MERGE->value
+        );
         if ($hiddenTopic !== null) {
             return $hiddenTopic->getId();
         }
@@ -1214,7 +1257,7 @@ class AsrApi extends AbstractApi
         $requestDto->setWorkspaceId((string) $projectEntity->getWorkspaceId());
         $requestDto->setProjectId((string) $projectEntity->getId());
         $requestDto->setTopicName('');
-        $requestDto->setTopicMode('');
+        $requestDto->setTopicMode(AsrTopicModeEnum::AUDIO_MERGE->value);
         $requestDto->setIsHidden(true);
 
         $requestContext = new RequestContext();
@@ -1229,32 +1272,29 @@ class AsrApi extends AbstractApi
         return (int) $topicItem->getId();
     }
 
-    /**
-     * Normalize specified re-analysis types from array or comma-separated string.
-     *
-     * @return array<int,string>
-     */
-    private function normalizeSpecifiedAnalysisTypes(mixed $rawTypes): array
+    private function parseFileShardCount(mixed $rawCount): ?int
     {
-        if ($rawTypes === null || $rawTypes === '') {
-            return [];
+        if ($rawCount === null || $rawCount === '') {
+            return null;
         }
 
-        if (is_string($rawTypes)) {
-            $rawTypes = explode(',', $rawTypes);
-        }
-
-        if (! is_array($rawTypes)) {
+        $isInteger = is_int($rawCount)
+            || (is_string($rawCount) && preg_match('/^[0-9]+$/', $rawCount) === 1);
+        if (! $isInteger || (int) $rawCount <= 0) {
             ExceptionBuilder::throw(
                 GenericErrorCode::ParameterValidationFailed,
-                'specified_analysis_types must be an array or comma-separated string'
+                'file_shard_count must be a positive integer'
             );
         }
 
-        $types = array_map(static fn ($type) => trim((string) $type), $rawTypes);
-        $types = array_filter($types, static fn (string $type) => $type !== '');
+        return (int) $rawCount;
+    }
 
-        return array_values(array_unique($types));
+    private function applyFileShardCount(AsrTaskStatusDTO $taskStatus, int $fileShardCount): void
+    {
+        // 分片数的唯一业务来源是客户端请求；服务端已有值不作为冲突约束。
+        // 这样可以兼容历史任务中的空值/0值，也允许客户端重试时纠正数量。
+        $taskStatus->fileShardCount = $fileShardCount;
     }
 
     /**

@@ -1,5 +1,5 @@
 import { ReportFileUploadsResponse } from "@/apis/modules/file"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 
 /** APIs */
 import { ChatApi } from "@/apis"

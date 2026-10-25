@@ -7,7 +7,6 @@ import { useStyles } from "./styles"
 import MicrophoneIcon from "@/components/business/RecordingSummary/components/StartRecordingButton/MicrophoneIcon"
 import { useTranslation } from "react-i18next"
 import { IconFileUpload, IconKeyboard, IconMusicUp } from "@tabler/icons-react"
-import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour/GuideTourManager"
 import { RecordingSummaryEditorMode } from "@/pages/superMagic/components/MessagePanel/const/recordSummary"
 
 export const SummaryGuideDOMId = {
@@ -17,7 +16,7 @@ export const SummaryGuideDOMId = {
 	SwitchActionButton: "recording-guide-switch-action-button",
 	SwitchRecordingActionButton: "recording-guide-switch-recording-action-button",
 	SwitchEditingActionButton: "recording-guide-switch-editing-action-button",
-	UploadAttachmentButton: GuideTourElementId.UploadFileButton,
+	UploadAttachmentButton: "upload-file",
 	MessageEditorContent: "recording-guide-message-editor-content",
 }
 
@@ -55,6 +54,13 @@ interface GuideConfig {
 	onActivate?: () => void
 	/** 在镂空区域显示的内容 */
 	highlightContent?: () => React.ReactNode
+}
+
+function getGuideTargetElement(targetId: string) {
+	if (targetId === SummaryGuideDOMId.UploadAttachmentButton) {
+		return document.querySelector<HTMLElement>('[data-guide-action="upload-file"]')
+	}
+	return document.getElementById(targetId)
 }
 
 function SummaryGuide({ type, onClose, onFinish }: SummaryGuideProps) {
@@ -223,7 +229,7 @@ function SummaryGuide({ type, onClose, onFinish }: SummaryGuideProps) {
 	const updateTargetRect = useMemoizedFn(() => {
 		if (!config) return
 
-		const targetElement = document.getElementById(config.targetId)
+		const targetElement = getGuideTargetElement(config.targetId)
 		if (targetElement) {
 			const rect = targetElement.getBoundingClientRect()
 			setTargetRect({
@@ -294,7 +300,7 @@ function SummaryGuide({ type, onClose, onFinish }: SummaryGuideProps) {
 
 		setTimeout(() => {
 			// 获取新的目标元素位置
-			const targetElement = document.getElementById(config.targetId)
+			const targetElement = getGuideTargetElement(config.targetId)
 			if (targetElement) {
 				const rect = targetElement.getBoundingClientRect()
 				setTargetRect({

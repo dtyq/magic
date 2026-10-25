@@ -22,11 +22,45 @@ vi.mock("@/pages/superMagic/components/TopicFilesButton/components/CustomFolderM
 	CustomFolderMagicIcon: () => <span data-testid="custom-folder-icon" />,
 }))
 
+vi.mock(
+	"@/pages/superMagic/components/TopicFilesButton/components/SlidesTemplateFolderIcon",
+	() => ({
+		SlidesTemplateFolderIcon: () => <span data-testid="slides-template-icon" />,
+	}),
+)
+
 vi.mock("@/pages/superMagic/components/MessageList/components/MessageAttachment/utils", () => ({
 	getFileTreeIconType: vi.fn(() => ""),
 }))
 
 describe("MentionPanelFileImageIcon", () => {
+	it("uses the dedicated icon for slide-template files", () => {
+		const { queryByTestId } = render(
+			<MentionPanelFileImageIcon
+				context={{
+					item: {
+						id: "template-1",
+						type: MentionItemType.PROJECT_FILE,
+						name: "PPT-soft-pink-midyear-review",
+						displayConfig: { type: "slide-template" },
+						icon: "slide-template",
+						data: {
+							file_id: "template-1",
+							file_name: "PPT-soft-pink-midyear-review",
+							file_path: "PPT-soft-pink-midyear-review",
+							file_extension: "",
+						},
+					},
+					t: {} as I18nTexts,
+					platform: "desktop",
+				}}
+			/>,
+		)
+
+		expect(queryByTestId("slides-template-icon")).not.toBeNull()
+		expect(queryByTestId("magic-file-icon")).toBeNull()
+	})
+
 	it("keeps loaded image previews inside a fixed desktop icon box", async () => {
 		const { container } = render(
 			<MentionPanelFileImageIcon

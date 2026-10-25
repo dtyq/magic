@@ -32,6 +32,7 @@ use App\Domain\Flow\Entity\ValueObject\Type;
 use App\Domain\Flow\Event\MagicFlowChangeEnabledEvent;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Port\KnowledgeBaseGateway;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\ErrorCode\FlowErrorCode;
@@ -92,7 +93,7 @@ class MagicFlowAppService extends AbstractFlowAppService
         );
 
         $operator = $this->createExecutionOperator($authorization);
-        $operator->setSourceId('single_debug');
+        $operator->setSourceId(SourceId::SINGLE_DEBUG);
         $conversationId = ConversationId::SingleDebugNode->gen($authorization->getId() . '_' . $node->getNodeId());
         $executionData = new ExecutionData(
             flowDataIsolation: $this->createFlowDataIsolation($authorization),

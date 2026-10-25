@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import { throttle } from "lodash-es"
 import { Coins, Sparkles } from "lucide-react"
+import { observer } from "mobx-react-lite"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
@@ -15,9 +16,11 @@ import { MOBILE_SETTINGS_CARD_CLASSNAME, MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME 
 import { MobileSettingsPointsRecordDetailSheet } from "./components/PointsRecordDetailSheet"
 import { MobileSettingsPointsRecordRow } from "./components/PointsRecordRow"
 import { MobileSettingsSheetContainer } from "./components/SheetContainer"
+import { getMobileSettingsPointsSheetTitleKey } from "./pointsRecords"
 import type { PointsRecordItem } from "./types"
 import {
 	getMobileSettingsPaidPackageContainerId,
+	getMobileSettingsPointsOverview,
 	getMobileSettingsPointsPurchaseState,
 	groupPointsRecords,
 	loadMobileSettingsOrderHistoryPanel,
@@ -31,13 +34,20 @@ const MobileSettingsOrderHistoryPanelContent = lazy(loadMobileSettingsOrderHisto
 const POINTS_RECORDS_PAGE_SIZE = 20
 
 /** 积分购买页只负责承载共享 UI，具体充值实现通过能力注入层接入。 */
-export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () => void }) {
+export const MobileSettingsPointsSheet = observer(function MobileSettingsPointsSheet(props: {
+	open: boolean
+	onClose: () => void
+}) {
 	const { open, onClose } = props
 	const { t } = useTranslation("interface")
 	const { points, canRecharge } = getMobileSettingsPointsPurchaseState()
+	const pointsOverview = getMobileSettingsPointsOverview()
 	const { isAdmin, isPersonalOrganization } = userStore.user
 	const canOperate = isAdmin || isPersonalOrganization
 	const privateDeploy = isPrivateDeployment()
+	const sheetTitle = t(
+		getMobileSettingsPointsSheetTitleKey({ privateDeploy, role: pointsOverview.role }),
+	)
 
 	/** 充值按钮统一委托给能力注入层，缺少实现时回退到占位提示。 */
 	const handleOpenRecharge = useMemoizedFn(() => {
@@ -62,7 +72,7 @@ export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () =>
 	return (
 		<MobileSettingsSheetContainer
 			open={open}
-			title={t("bonusPointsModal.purchasePoints")}
+			title={sheetTitle}
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) onClose()
 			}}
@@ -100,13 +110,13 @@ export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () =>
 						<span>{t("bonusPointsModal.availablePoints")}</span>
 					</div>
 					<div className="mt-1 text-3xl font-semibold leading-none text-foreground">
-						{new Intl.NumberFormat().format(points)}
+						{points == null ? "--" : new Intl.NumberFormat().format(points)}
 					</div>
 				</div>
 			</div>
 		</MobileSettingsSheetContainer>
 	)
-}
+})
 
 /** 积分明细页继续复用现有数据 helper，保持列表展示和数据装配职责分离。 */
 export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose: () => void }) {

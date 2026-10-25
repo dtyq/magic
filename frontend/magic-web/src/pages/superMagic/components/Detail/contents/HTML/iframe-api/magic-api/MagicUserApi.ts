@@ -7,7 +7,7 @@
  * 所有操作通过 postMessage 委托给主站（parent window）处理。
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
+import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox"
 
 export interface MagicUserInfo {
 	/** 展示用名称 */
@@ -38,7 +38,6 @@ export interface MagicUserInfoOptions {
 }
 
 export class MagicUserApi extends BaseRuntimeBridgeApiPlugin {
-
 	constructor() {
 		super("MagicUserApi")
 	}
@@ -50,6 +49,8 @@ export class MagicUserApi extends BaseRuntimeBridgeApiPlugin {
 	}
 
 	private installGetInfo(): void {
+		if (window.Magic.user?.getInfo) return
+
 		const getInfoFn = (options: MagicUserInfoOptions = {}): Promise<MagicUserInfo> => {
 			this.logger.info("MagicUserApi", "getInfo:start")
 			const payload: Record<string, unknown> = {}

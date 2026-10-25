@@ -2,11 +2,9 @@
 	"addSheet": {
 		"actions": {
 			"mention": "Mention",
-			"plugin": "Plugin",
-			"skills": "Skills",
+			"plugin": "Connector",
 			"webSearch": "Web Search"
 		},
-		"addButton": "Add",
 		"closeAriaLabel": "Close add to chat dialog",
 		"media": {
 			"camera": "Camera",
@@ -15,11 +13,13 @@
 		},
 		"title": "Add to Chat"
 	},
-	"analyzeData": {
-		"placeholder": "Describe the website you want to create.\nPress Enter to send ; Shift + Enter for a new line"
-	},
 	"attachments": {
 		"removeAriaLabel": "Remove {{fileName}}"
+	},
+	"chatHome": {
+		"placeholder": "Describe what you need or upload a file, and we'll find the answer together.\nEnter to send; Shift + Enter for a new line",
+		"subtitle": "Think it through with AI",
+		"title": "What's on your mind today?"
 	},
 	"chatInput": {
 		"helpText": "Press Enter to send ; Shift + Enter for a new line",
@@ -32,19 +32,28 @@
 		"title": "Chat Settings"
 	},
 	"crewSelectModal": {
-		"empty": {
-			"all": "No crews available",
-			"my": "No crews in My Crew yet",
-			"official": "No official crews available"
-		},
 		"tab": {
 			"my": "My Crew",
 			"official": "Official"
 		},
 		"title": "Select Your Crew"
 	},
-	"pluginTips": {
-		"connectTools": "Connect your tools"
+	"homeMode": {
+		"chat": "Chat",
+		"label": "Switch between chat and task",
+		"task": "Task"
+	},
+	"mobileHome": {
+		"chatPlaceholder": "Describe what you need or upload a file, and we'll find the answer together.",
+		"chooseWorkspace": "Choose a workspace",
+		"createWorkspace": "New workspace",
+		"destination": "Create in: {{name}}",
+		"loadMore": "Load more",
+		"loading": "Loading…",
+		"noWorkspaces": "No workspaces found",
+		"retry": "Retry",
+		"searchWorkspaces": "Search workspaces",
+		"workspaceUnavailable": "Workspace unavailable. Choose another."
 	},
 	"promotionalBanner": {
 		"upgradeMessage": "Upgrade for a year of unlimited Premium AI."

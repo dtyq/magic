@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { toast } from "sonner"
-import type { LayerElement } from "../../../document/types"
+import {
+	ElementTypeEnum,
+	type AudioElement,
+	type ImageElement,
+	type LayerElement,
+	type VideoElement,
+} from "../../../document/types"
 import type { Canvas } from "../../../core/Canvas"
 import { DropOverlayManager } from "../DropOverlayManager"
 
@@ -39,6 +45,7 @@ function createDragEvent(type: string, dataTransfer?: Partial<DataTransfer>): Dr
 
 function createDropHarness(options: {
 	getFileInfo: ReturnType<typeof vi.fn>
+	getAssetResource?: ReturnType<typeof vi.fn>
 	imageDimensions?: { width: number; height: number }
 	videoDimensions?: { width: number; height: number }
 }) {
@@ -66,16 +73,25 @@ function createDropHarness(options: {
 		primeCache: vi.fn(),
 		loadResource: vi.fn(),
 	}
+	const audioResourceManager = {
+		primeCache: vi.fn(),
+	}
+	const assetResourceManager = {
+		getResource: options.getAssetResource ?? vi.fn(),
+	}
 	const overlayHost = document.createElement("div")
 	const canvasContainer = document.createElement("div")
 	overlayHost.appendChild(canvasContainer)
 	const canvas = {
+		permissionManager: { can: vi.fn(() => true) },
 		container: canvasContainer,
 		elementManager,
 		historyManager,
 		selectionManager,
 		imageResourceManager,
 		videoResourceManager,
+		audioResourceManager,
+		assetResourceManager,
 		magicConfigManager: {
 			config: {
 				methods: {
@@ -148,16 +164,20 @@ describe("DropOverlayManager custom attachment drops", () => {
 
 		const elements = Array.from(harness.elements.values())
 		expect(elements).toHaveLength(2)
+		const imageElement = elements[0]
+		const videoElement = elements[1]
+		if (imageElement?.type !== ElementTypeEnum.Image) throw new Error("Expected image")
+		if (videoElement?.type !== ElementTypeEnum.Video) throw new Error("Expected video")
 		expect(elements[0]).toMatchObject({
 			width: 400,
 			height: 200,
-			src: "/outside/photo.png",
 		})
+		expect((imageElement as ImageElement).contents[0]?.src).toBe("/outside/photo.png")
 		expect(elements[1]).toMatchObject({
 			width: 1920,
 			height: 1080,
-			src: "/outside/clip.mp4",
 		})
+		expect((videoElement as VideoElement).contents[0]?.src).toBe("/outside/clip.mp4")
 		expect(harness.selectionManager.selectMultiple).toHaveBeenCalledWith(
 			elements.map(({ id }) => id),
 		)
@@ -186,6 +206,75 @@ describe("DropOverlayManager custom attachment drops", () => {
 		const [element] = harness.elements.values()
 		expect(element).toMatchObject({ width: 1024, height: 1024 })
 		expect(toast.dismiss).toHaveBeenCalledWith("drop-toast-id")
+	})
+
+	it("creates project audio directly at the fixed card size", async () => {
+		const harness = createDropHarness({
+			getFileInfo: vi.fn(async () => ({
+				src: "https://example.test/voice.mp3",
+				fileName: "voice.mp3",
+			})),
+		})
+
+		await harness.manager.handleCustomDragData(["./audios/voice.mp3"], {
+			x: 100,
+			y: 200,
+		})
+
+		const [element] = harness.elements.values()
+		if (element?.type !== ElementTypeEnum.Audio) throw new Error("Expected audio")
+		expect(element).toMatchObject({
+			type: "audio",
+			width: 1280,
+			height: 720,
+		})
+		expect(element).not.toHaveProperty("name")
+		expect((element as AudioElement).contents[0]?.src).toBe("./audios/voice.mp3")
+		expect(harness.canvas.audioResourceManager.primeCache).toHaveBeenCalledTimes(1)
+		expect(harness.canvas.imageResourceManager.loadResource).not.toHaveBeenCalled()
+		expect(harness.canvas.videoResourceManager.loadResource).not.toHaveBeenCalled()
+	})
+
+	it("uses asset metadata to create a video without workspace lookup or URL cache priming", async () => {
+		const getFileInfo = vi.fn()
+		const getAssetResource = vi.fn(async () => ({
+			assetId: "asset-video-1",
+			mediaType: "video",
+			fileUrl: "https://assets.test/video-1",
+			fileName: "library-video.mp4",
+		}))
+		const harness = createDropHarness({ getFileInfo, getAssetResource })
+
+		await harness.manager.handleCustomDragData([" asset://asset-video-1 "], {
+			x: 100,
+			y: 200,
+		})
+
+		const [element] = harness.elements.values()
+		if (element?.type !== ElementTypeEnum.Video) throw new Error("Expected video")
+		expect((element as VideoElement).contents[0]?.src).toBe("asset://asset-video-1")
+		expect(getAssetResource).toHaveBeenCalledWith("asset-video-1")
+		expect(getFileInfo).not.toHaveBeenCalled()
+		expect(harness.canvas.videoResourceManager.primeCache).not.toHaveBeenCalled()
+		expect(harness.canvas.videoResourceManager.loadResource).toHaveBeenCalledWith(
+			"asset://asset-video-1",
+		)
+	})
+
+	it("rejects a malformed asset scheme before workspace lookup", async () => {
+		const getFileInfo = vi.fn()
+		const harness = createDropHarness({ getFileInfo })
+
+		await harness.manager.handleCustomDragData(["asset://asset-video-1/child"], {
+			x: 100,
+			y: 200,
+		})
+
+		expect(harness.elements.size).toBe(0)
+		expect(getFileInfo).not.toHaveBeenCalled()
+		expect(toast.error).toHaveBeenCalledWith("媒体文件加载失败，请重试", {
+			id: "drop-toast-id",
+		})
 	})
 
 	it("shows an error toast and creates nothing when preload fails", async () => {
@@ -223,8 +312,9 @@ describe("DropOverlayManager custom attachment drops", () => {
 
 		const manager = new DropOverlayManager({
 			canvas: {
+				permissionManager: { can: vi.fn(() => true) },
 				container: canvasContainer,
-				readonly: false,
+				can: vi.fn(() => true),
 				viewportController: {
 					getResolvedDefaultViewportPadding: vi.fn(() => ({
 						left: 0,
@@ -265,8 +355,9 @@ describe("DropOverlayManager custom attachment drops", () => {
 
 		const manager = new DropOverlayManager({
 			canvas: {
+				permissionManager: { can: vi.fn(() => true) },
 				container: canvasContainer,
-				readonly: false,
+				can: vi.fn(() => true),
 				magicConfigManager: {
 					config: { methods: { getDataTransferFileInfo } },
 				},
@@ -293,8 +384,9 @@ describe("DropOverlayManager custom attachment drops", () => {
 
 		const manager = new DropOverlayManager({
 			canvas: {
+				permissionManager: { can: vi.fn(() => true) },
 				container: canvasContainer,
-				readonly: false,
+				can: vi.fn(() => true),
 				viewportController: {
 					getResolvedDefaultViewportPadding: vi.fn(() => ({
 						left: 0,

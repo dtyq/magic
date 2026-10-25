@@ -106,4 +106,8 @@ return [
     'create_group_user_not_exist' => 'Creator user not found',
     'create_group_user_account_not_exist' => 'Creator user account not found',
     'get_third_platform_user_id_failed' => 'Failed to get third-party platform user ID',
+    'initialize_error' => 'Operation failed',
+    'instruct_type_chat' => 'Instruct type chat',
+    'instruct_type_flow' => 'Instruct type flow',
+    'invalid_visibility_type' => 'Invalid value',
 ];

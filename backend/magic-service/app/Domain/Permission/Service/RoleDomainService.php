@@ -92,6 +92,15 @@ readonly class RoleDomainService
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission.error.invalid_permission_key', ['key' => $permissionKey]);
             }
 
+            // A role editor may only delegate permissions that the editor
+            // already has.  Validity of a permission key is not an authority
+            // check: without this guard a sub-admin could add
+            // admin.safe.admin.edit (or an equivalent permission group) to a
+            // role and then use the newly-created authority immediately.
+            if (! $this->hasPermission($dataIsolation, $dataIsolation->getCurrentUserId(), $permissionKey)) {
+                ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'permission.error.access_denied');
+            }
+
             // 跳过权限组常量，无需参与标签提取
             if (
                 $permissionKey === MagicPermission::ALL_PERMISSIONS
@@ -253,6 +262,17 @@ readonly class RoleDomainService
     }
 
     /**
+     * 获取 v1 版本的权限资源树结构。
+     *
+     * @param bool $isPlatformOrganization 是否平台组织
+     */
+    public function getPermissionTreeV1(bool $isPlatformOrganization = false): array
+    {
+        $permissionEnum = di(MagicPermissionInterface::class);
+        return $permissionEnum->getPermissionTreeV1($isPlatformOrganization);
+    }
+
+    /**
      * 为指定用户创建或维护“组织管理员”角色（按组织类型写入对应权限组）。
      *
      * 逻辑：
@@ -358,6 +378,16 @@ readonly class RoleDomainService
         if ($organization && $organization->isPersonal()) {
             if ($organization->isOwnedBy($userId) && ! in_array(MagicPermission::PERSON_PERMISSIONS, $permissions, true)) {
                 $permissions[] = MagicPermission::PERSON_PERMISSIONS;
+            }
+            return array_values(array_unique($permissions));
+        }
+
+        // 创建人身份以 magic_organizations.creator_id 为准。管理员镜像尚未补齐时，
+        // 也必须能够获得组织管理员权限，避免 isOrganizationAdmin() 与 RBAC 结果不一致。
+        if ($organization?->isOwnedBy($userId)) {
+            $fallbackPermission = $this->resolveOrganizationAdminPermissionKey($organizationCode);
+            if (! in_array($fallbackPermission, $permissions, true)) {
+                $permissions[] = $fallbackPermission;
             }
             return array_values(array_unique($permissions));
         }

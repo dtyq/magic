@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\CloudFile\Kernel\Driver\FileService;
 
 use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
+use Dtyq\CloudFile\Kernel\Utils\ResultFormatter;
 use Dtyq\SdkBase\Kernel\Constant\RequestMethod;
 use Dtyq\SdkBase\SdkBase;
 use GuzzleHttp\RequestOptions;
@@ -147,10 +148,13 @@ class FileServiceApi
         return $data['platform_path'] ?? $toPath;
     }
 
+    /**
+     * 为本次操作生成随机请求标识，并向文件服务发送请求。
+     */
     private function post(string $path, array $body, array $options): array
     {
         $headers = [
-            'request-id' => uniqid($this->sdkContainer->getConfig()->getSdkName() . '_'),
+            'request-id' => $this->sdkContainer->getConfig()->getSdkName() . '_' . bin2hex(random_bytes(16)),
         ];
         $token = $options['token'] ?? '';
         if (empty($token)) {
@@ -169,7 +173,8 @@ class FileServiceApi
             $this->sdkContainer->getExceptionBuilder()->throw(500, 'Response data parse error');
         }
         if (! isset($result['code']) || $result['code'] !== 1000) {
-            $this->sdkContainer->getExceptionBuilder()->throw((int) $result['code'], $result['message'] ?? 'Unknown error');
+            $message = ($result['message'] ?? 'Unknown error') . '，result: ' . ResultFormatter::format($result);
+            $this->sdkContainer->getExceptionBuilder()->throw((int) ($result['code'] ?? 500), $message);
         }
 
         return $result['data'] ?? [];

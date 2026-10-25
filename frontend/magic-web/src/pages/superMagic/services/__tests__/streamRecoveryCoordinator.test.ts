@@ -22,7 +22,8 @@ function createDeferred<T>(): Deferred<T> {
 
 function createStoreHarness() {
 	let recoveryListener:
-		((payload: { topicId: string; correlationId: string }) => void) | undefined
+		| ((payload: { topicId: string; correlationId: string }) => void)
+		| undefined
 	let nextGeneration = 7
 	const store = {
 		registerOnStreamRecoveryRequested: vi.fn(
@@ -139,6 +140,31 @@ describe("StreamRecoveryCoordinator", () => {
 
 		expect(harness.store.beginTopicSync).toHaveBeenCalledTimes(1)
 		expect(owner.recover).toHaveBeenCalledTimes(1)
+	})
+
+	it("clears a queued recovery when a foreground sync covers its watermark", () => {
+		const harness = createStoreHarness()
+		const coordinator = new StreamRecoveryCoordinator(harness.store)
+		coordinator.requestRecovery({
+			topicId: "topic-1",
+			conversationId: "conversation-1",
+			correlationId: "foreground-watermark",
+			reason: "persistent_message",
+			requiredSeqId: "100",
+		})
+
+		expect(coordinator.getTopicRecoveryStatus("topic-1")).toMatchObject({
+			hasScheduled: true,
+			hasInFlight: false,
+		})
+
+		coordinator.acknowledgeTopicSync("topic-1", "100")
+
+		expect(coordinator.getTopicRecoveryStatus("topic-1")).toEqual({
+			hasScheduled: false,
+			hasInFlight: false,
+			reason: undefined,
+		})
 	})
 
 	it("reports HTTP failure to Store without retrying in the coordinator", async () => {

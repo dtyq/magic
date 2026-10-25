@@ -4,7 +4,12 @@ import workspaceStore from "../stores/core/workspace"
 import projectStore from "../stores/core/project"
 import { type Workspace } from "../pages/Workspace/types"
 import { SHARE_WORKSPACE_ID } from "../constants"
-import { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
+import { getInsertIndexByAnchors, isSameOrder } from "./orderUtils"
+import { createOrderRequestOptions, reportOrderApiError } from "./orderErrorReporter"
+import { invalidateWorkspaceSearchResults } from "./workspaceListSearchInvalidation"
+import { analyticsService } from "@/services/analytics"
+import type { ProjectInitializationScope } from "./projectStateInitialization"
 
 export interface FetchWorkspacesParams {
 	isAutoSelect?: boolean
@@ -28,18 +33,22 @@ export interface DeleteWorkspaceOptions {
 }
 
 class WorkspaceService {
-	fetchWorkspaces = async ({
-		isAutoSelect = true,
-		isSelectLast = true,
-		page,
-		pageSize = 20,
-		append = false,
-	}: FetchWorkspacesParams): Promise<Workspace[]> => {
-		runInAction(() => {
-			workspaceStore.beginWorkspaceListFetch()
-		})
+	fetchWorkspaces = async (
+		{
+			isAutoSelect = true,
+			isSelectLast = true,
+			page,
+			pageSize = 20,
+			append = false,
+		}: FetchWorkspacesParams,
+		_options?: Omit<RequestConfig, "url">,
+		scope?: ProjectInitializationScope,
+	): Promise<Workspace[]> => {
+		if (scope && !scope.isCurrent()) return []
+		const generation = workspaceStore.beginWorkspaceListFetch()
 		try {
 			const res = await SuperMagicApi.getWorkspaces({ page, page_size: pageSize })
+			if (scope && !scope.isCurrent()) return []
 			if (res) {
 				runInAction(() => {
 					const nextWorkspaces = append
@@ -77,16 +86,18 @@ class WorkspaceService {
 			return []
 		} finally {
 			runInAction(() => {
-				workspaceStore.endWorkspaceListFetch()
+				workspaceStore.endWorkspaceListFetch(generation)
 			})
 		}
 	}
 
 	createWorkspace = async (name: string = ""): Promise<Workspace | null> => {
+		analyticsService.report("workspace_create_attempted")
 		const res = await SuperMagicApi.createWorkspace({
 			workspace_name: name,
 		})
-		if (res?.id) {
+		const workspaceId = res?.id?.trim()
+		if (workspaceId) {
 			return res
 		}
 		return null
@@ -140,8 +151,71 @@ class WorkspaceService {
 					}
 				})
 			}
+			invalidateWorkspaceSearchResults()
 		} catch (error) {
 			console.log("重命名工作区失败，失败原因：", error)
+			throw error
+		}
+	}
+
+	moveWorkspace = async (
+		workspaceId: string,
+		preWorkspaceId: string | null,
+		nextWorkspaceId: string | null,
+	): Promise<void> => {
+		const previousWorkspaceIds = workspaceStore.workspaces.map((workspace) => workspace.id)
+		const sourceIndex = previousWorkspaceIds.indexOf(workspaceId)
+		if (sourceIndex === -1) return
+		const nextWorkspaceIds = previousWorkspaceIds.filter((id) => id !== workspaceId)
+		const insertIndex = getInsertIndexByAnchors(
+			nextWorkspaceIds,
+			preWorkspaceId,
+			nextWorkspaceId,
+		)
+		if (insertIndex === null) return
+		nextWorkspaceIds.splice(Math.max(0, insertIndex), 0, workspaceId)
+		const optimisticWorkspaceIds = [...nextWorkspaceIds]
+		runInAction(() => {
+			workspaceStore.reorderWorkspaces(nextWorkspaceIds)
+		})
+
+		const { requestId, options } = createOrderRequestOptions()
+		let orderingRequestCompleted = false
+		try {
+			await SuperMagicApi.moveWorkspace(
+				{
+					id: workspaceId,
+					pre_workspace_id: preWorkspaceId,
+					next_workspace_id: nextWorkspaceId,
+				},
+				options,
+			)
+			orderingRequestCompleted = true
+			await this.fetchWorkspaces({
+				page: 1,
+				pageSize: Math.max(20, previousWorkspaceIds.length),
+				isAutoSelect: false,
+				isSelectLast: false,
+			})
+			invalidateWorkspaceSearchResults()
+		} catch (error) {
+			if (!orderingRequestCompleted)
+				reportOrderApiError({
+					endpoint: `/api/v1/super-agent/workspaces/${workspaceId}`,
+					params: {
+						id: workspaceId,
+						pre_workspace_id: preWorkspaceId,
+						next_workspace_id: nextWorkspaceId,
+					},
+					requestId,
+					error,
+				})
+			const currentWorkspaceIds = workspaceStore.workspaces.map((workspace) => workspace.id)
+			if (isSameOrder(currentWorkspaceIds, optimisticWorkspaceIds)) {
+				runInAction(() => {
+					workspaceStore.reorderWorkspaces(previousWorkspaceIds)
+				})
+			}
 			throw error
 		}
 	}
@@ -201,6 +275,7 @@ class WorkspaceService {
 	): Promise<Workspace | null> => {
 		try {
 			await SuperMagicApi.deleteWorkspace({ id })
+			invalidateWorkspaceSearchResults()
 
 			const workspaces = workspaceStore.workspaces
 			if (workspaces.length === 1) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+	appendSharedWorkspacePage,
 	createInitialTabState,
 	createInitialTabStateMap,
 	resolveSharedWorkspaceHasMore,
@@ -65,5 +66,35 @@ describe("resolveSharedWorkspaceHasMore", () => {
 				hasActiveSearchOrFilter: false,
 			}),
 		).toBe(true)
+	})
+})
+
+describe("appendSharedWorkspacePage", () => {
+	it("terminates pagination on an empty page by collapsing total to the loaded count", () => {
+		const current = {
+			...createInitialTabState(),
+			projects: [{ id: "a" } as never],
+			currentPage: 2,
+			isLoadingMore: true,
+		}
+
+		const next = appendSharedWorkspacePage(current, [], 999)
+
+		expect(next.projects).toEqual(current.projects)
+		expect(next.currentPage).toBe(2)
+		expect(next.total).toBe(current.projects.length)
+		expect(next.isLoadingMore).toBe(false)
+	})
+
+	it("appends a non-empty page and advances pagination", () => {
+		const current = createInitialTabState()
+		const list = [{ id: "b" } as never, { id: "c" } as never]
+
+		const next = appendSharedWorkspacePage(current, list, 100)
+
+		expect(next.projects).toEqual([...current.projects, ...list])
+		expect(next.currentPage).toBe(current.currentPage + 1)
+		expect(next.total).toBe(100)
+		expect(next.isLoadingMore).toBe(false)
 	})
 })

@@ -3,19 +3,26 @@ import imageBackgroundLoading from "../../../assets/image/image-background-loadi
 import imageBackgroundUnselected from "../../../assets/image/image-background-unselected.jpg"
 import imageIconError from "../../../assets/image/image-icon-error.png"
 import { VIDEO_CONFIG, VIDEO_PLACEHOLDER } from "./VideoElement.config"
+import { LAYOUT, resolveImageControlCanvasOffset } from "../image/ImageElement.config"
 import { layoutLucideSolidPlayPath } from "./videoPlayIconPath"
 import { RenderUtils } from "../../shared/render/RenderUtils"
+import {
+	applyPlaceholderTextLayout,
+	createPlaceholderTextNode,
+} from "../../shared/render/placeholderTextLayout"
 import { ImageStaticLoader } from "../../resources/image/ImageStaticLoader"
 import type { Canvas } from "../../core/Canvas"
-import type {
-	LoadedVideoMetadata,
-	VideoPosterSource,
+import {
+	isUsableVideoPosterSource,
+	type LoadedVideoMetadata,
+	type VideoPosterSource,
 } from "../../resources/video/VideoResourceManager"
 import { VideoMediaState } from "./VideoMediaState"
 import { VideoPlaybackController } from "./VideoPlaybackController"
 
 interface CreatePlayerNodeOptions {
 	showLoadingOverlay?: boolean
+	showDraftTag?: boolean
 	onPlayButtonClick?: () => void
 	onContentDoubleClick?: () => void
 }
@@ -35,6 +42,9 @@ interface PlayerNodeRefs {
 	progressGroup: Konva.Group
 	progressBackground: Konva.Rect
 	progressText: Konva.Text
+	draftTagGroup?: Konva.Group
+	draftTagBackground?: Konva.Rect
+	draftTagText?: Konva.Text
 	isHovering: boolean
 	bufferingOverlay: Konva.Group
 	bufferingSpinnerRoot: Konva.Group
@@ -58,7 +68,10 @@ export class VideoRenderer {
 	private previewMetadata?: LoadedVideoMetadata
 	private placeholderContentGroup?: Konva.Group
 	private placeholderLayout?: {
+		text: string
+		textColor: string
 		textWidth: number
+		nodeWidth: number
 		textHeight: number
 		backgroundWidth: number
 		backgroundHeight: number
@@ -68,6 +81,9 @@ export class VideoRenderer {
 	private renderToken = 0
 	private forceLoadingOverlay = false
 	private touchControlsHideTimer?: ReturnType<typeof setTimeout>
+	private renderVisibilityEnabled = true
+	private playerRafCancel?: () => void
+	private playerRafStart?: () => void
 
 	public destroy(): void {
 		this.clearPlayerUiSubscription()
@@ -94,6 +110,20 @@ export class VideoRenderer {
 		this.playback.detach()
 		this.previewVideo = undefined
 		this.forceLoadingOverlay = false
+	}
+
+	/**
+	 * Visibility culling hides the Konva node but does not stop an already scheduled player RAF.
+	 * Keep the playback resource intact while cancelling only the render loop for far elements.
+	 */
+	public setRenderVisibility(enabled: boolean): void {
+		if (this.renderVisibilityEnabled === enabled) return
+		this.renderVisibilityEnabled = enabled
+		if (enabled) {
+			this.playerRafStart?.()
+		} else {
+			this.playerRafCancel?.()
+		}
 	}
 
 	private clearPlayerUiSubscription(): void {
@@ -126,11 +156,23 @@ export class VideoRenderer {
 	}
 
 	public hasPreview(): boolean {
-		return !!this.previewVideo || !!this.posterSource
+		return !!this.previewVideo || !!this.getUsablePosterSource()
 	}
 
 	public getPreviewSource(): CanvasImageSource | undefined {
-		return this.previewVideo ?? this.posterSource
+		return this.previewVideo ?? this.getUsablePosterSource()
+	}
+
+	private getUsablePosterSource(): VideoPosterSource | undefined {
+		if (!this.posterSource) return undefined
+		if (!isUsableVideoPosterSource(this.posterSource)) {
+			// A released poster can remain in renderer state until the next rerender.
+			// Clear it at the read boundary so no caller can hand it back to Konva.
+			this.posterSource = undefined
+			this.previewMetadata = undefined
+			return undefined
+		}
+		return this.posterSource
 	}
 
 	public play(): void {
@@ -141,11 +183,16 @@ export class VideoRenderer {
 		this.playback.pause()
 	}
 
+	public isPaused(): boolean {
+		return this.playback.paused
+	}
+
 	public toggle(): void {
 		this.playback.toggle()
 	}
 
 	public loadPoster(poster: VideoPosterSource, metadata: LoadedVideoMetadata): void {
+		if (!isUsableVideoPosterSource(poster)) return
 		this.posterSource = poster
 		this.previewMetadata = metadata
 	}
@@ -178,7 +225,7 @@ export class VideoRenderer {
 		canvas: Canvas,
 		options?: CreatePlayerNodeOptions,
 	): Konva.Group | null {
-		const imageSource = this.previewVideo ?? this.posterSource
+		const imageSource = this.getPreviewSource()
 		if (!imageSource) {
 			return null
 		}
@@ -340,6 +387,34 @@ export class VideoRenderer {
 
 		controlsGroup.add(progressGroup)
 
+		const draftTagGroup = options?.showDraftTag
+			? new Konva.Group({
+					listening: false,
+					name: "video-player-draft-tag",
+				})
+			: undefined
+		const draftTagBackground = draftTagGroup
+			? new Konva.Rect({
+					fill: VIDEO_CONFIG.CONTROL_TEXT_BG,
+					cornerRadius: VIDEO_CONFIG.CORNER_RADIUS,
+					listening: false,
+				})
+			: undefined
+		const draftTagText = draftTagGroup
+			? new Konva.Text({
+					text: canvas.t?.("video.sampleTag", { defaultValue: "样片" }) ?? "样片",
+					fontSize: VIDEO_CONFIG.CONTROL_TEXT_FONT_SIZE,
+					fontFamily: VIDEO_CONFIG.CONTROL_TEXT_FONT_FAMILY,
+					fill: VIDEO_CONFIG.CONTROL_TEXT_COLOR,
+					listening: false,
+				})
+			: undefined
+		if (draftTagGroup && draftTagBackground && draftTagText) {
+			draftTagGroup.add(draftTagBackground)
+			draftTagGroup.add(draftTagText)
+			controlsGroup.add(draftTagGroup)
+		}
+
 		const showControls = () => {
 			if (!this.playerRefs || !canvas.permissionManager.canShowTransientElementAffordance()) {
 				return
@@ -469,6 +544,9 @@ export class VideoRenderer {
 			progressGroup,
 			progressBackground,
 			progressText,
+			draftTagGroup,
+			draftTagBackground,
+			draftTagText,
 			isHovering: false,
 			bufferingOverlay,
 			bufferingSpinnerRoot,
@@ -489,6 +567,10 @@ export class VideoRenderer {
 		}
 		const periodMs = VIDEO_CONFIG.BUFFER_SPINNER_PERIOD_MS
 		const rafLoop = (ts: number) => {
+			if (!this.renderVisibilityEnabled) {
+				stopRaf()
+				return
+			}
 			const snap = this.mediaState.getSnapshot()
 			const showLoadingOverlay = snap.isBuffering || this.forceLoadingOverlay
 			if (showLoadingOverlay && this.playerRefs?.bufferingSpinnerRoot) {
@@ -505,12 +587,25 @@ export class VideoRenderer {
 
 			draw()
 			const v = this.previewVideo
-			if (this.forceLoadingOverlay || (v && !v.paused && !v.ended)) {
+			if (
+				this.renderVisibilityEnabled &&
+				(this.forceLoadingOverlay || (v && !v.paused && !v.ended))
+			) {
 				rafId = requestAnimationFrame(rafLoop)
 			} else {
 				rafId = 0
 			}
 		}
+		const startRaf = () => {
+			if (!this.renderVisibilityEnabled || rafId !== 0) return
+			const snap = this.mediaState.getSnapshot()
+			const playing = !snap.paused && !snap.ended
+			if (this.forceLoadingOverlay || playing) {
+				rafId = requestAnimationFrame(rafLoop)
+			}
+		}
+		this.playerRafCancel = stopRaf
+		this.playerRafStart = startRaf
 
 		let unsubMedia: (() => void) | undefined
 		if (video) {
@@ -518,10 +613,8 @@ export class VideoRenderer {
 				this.updatePlayerUi(snapshot)
 
 				const playing = !snapshot.paused && !snapshot.ended
-				if (this.forceLoadingOverlay || playing) {
-					if (rafId === 0) {
-						rafId = requestAnimationFrame(rafLoop)
-					}
+				if (this.renderVisibilityEnabled && (this.forceLoadingOverlay || playing)) {
+					startRaf()
 				} else {
 					stopRaf()
 				}
@@ -539,12 +632,14 @@ export class VideoRenderer {
 			})
 		}
 
-		if (this.forceLoadingOverlay && rafId === 0) {
-			rafId = requestAnimationFrame(rafLoop)
+		if (this.renderVisibilityEnabled && this.forceLoadingOverlay && rafId === 0) {
+			startRaf()
 		}
 
 		this.playerUnsub = () => {
 			stopRaf()
+			if (this.playerRafCancel === stopRaf) this.playerRafCancel = undefined
+			if (this.playerRafStart === startRaf) this.playerRafStart = undefined
 			unsubMedia?.()
 			video?.removeEventListener("loadeddata", nudgeLayerDraw)
 			video?.removeEventListener("seeked", nudgeLayerDraw)
@@ -610,8 +705,9 @@ export class VideoRenderer {
 		playButtonBg.radius(this.getPlayButtonRadius(iconSize))
 		layoutLucideSolidPlayPath(playTriangle, 0, 0, iconSize)
 		this.updatePauseBarsLayout(pauseBarLeft, pauseBarRight, iconSize)
-		const paddingX = VIDEO_CONFIG.CONTROL_PADDING * inverseScale.x
-		const paddingY = VIDEO_CONFIG.CONTROL_PADDING * inverseScale.y
+		const absoluteScale = parentGroup.getAbsoluteScale()
+		const paddingX = resolveImageControlCanvasOffset(Math.abs(absoluteScale.x))
+		const paddingY = resolveImageControlCanvasOffset(Math.abs(absoluteScale.y))
 
 		progressGroup.scale(inverseScale)
 		const progressHeight = progressBackground.height() * inverseScale.y
@@ -619,6 +715,37 @@ export class VideoRenderer {
 			x: paddingX,
 			y: height - progressHeight - paddingY,
 		})
+		this.updateDraftTagLayout()
+	}
+
+	/**
+	 * 更新视口缩放会影响的播放器属性。
+	 * 宽高、图标路径和圆角在元素尺寸变化时才需要重算，连续缩放只需调整反向缩放和进度条位置。
+	 */
+	public updatePlayerViewportScaleLayout(parentGroup: Konva.Group): void {
+		if (!this.playerRefs) return
+
+		const { group, bufferingOverlay, playButtonGroup, progressGroup, progressBackground } =
+			this.playerRefs
+		const inverseScale = RenderUtils.getInverseScale(parentGroup)
+		const width = group.width()
+		const height = group.height()
+
+		bufferingOverlay.position({ x: width / 2, y: height / 2 })
+		bufferingOverlay.scale(inverseScale)
+		playButtonGroup.position({ x: width / 2, y: height / 2 })
+		playButtonGroup.scale(inverseScale)
+
+		const absoluteScale = parentGroup.getAbsoluteScale()
+		const paddingX = resolveImageControlCanvasOffset(Math.abs(absoluteScale.x))
+		const paddingY = resolveImageControlCanvasOffset(Math.abs(absoluteScale.y))
+		progressGroup.scale(inverseScale)
+		const progressHeight = progressBackground.height() * inverseScale.y
+		progressGroup.position({
+			x: paddingX,
+			y: height - progressHeight - paddingY,
+		})
+		this.updateDraftTagLayout()
 	}
 
 	private updatePlayerUi(snapshot: ReturnType<VideoMediaState["getSnapshot"]>): void {
@@ -645,11 +772,38 @@ export class VideoRenderer {
 		})
 		progressBackground.width(progressText.width() + VIDEO_CONFIG.CONTROL_TEXT_PADDING_X * 2)
 		progressBackground.height(progressText.height() + VIDEO_CONFIG.CONTROL_TEXT_PADDING_Y * 2)
+		if (this.playerRefs.draftTagBackground && this.playerRefs.draftTagText) {
+			const { draftTagBackground, draftTagText } = this.playerRefs
+			draftTagText.position({
+				x: VIDEO_CONFIG.CONTROL_TEXT_PADDING_X,
+				y: VIDEO_CONFIG.CONTROL_TEXT_PADDING_Y,
+			})
+			draftTagBackground.width(draftTagText.width() + VIDEO_CONFIG.CONTROL_TEXT_PADDING_X * 2)
+			draftTagBackground.height(
+				draftTagText.height() + VIDEO_CONFIG.CONTROL_TEXT_PADDING_Y * 2,
+			)
+		}
+		this.updateDraftTagLayout()
 
 		const parentGroup = group.getParent()
 		if (parentGroup instanceof Konva.Group) {
 			this.updatePlayerLayout(parentGroup, group.width(), group.height())
 		}
+	}
+
+	/** 将样片标签与时间标签保持同一缩放、底边和横向间距。 */
+	private updateDraftTagLayout(): void {
+		const refs = this.playerRefs
+		if (!refs?.draftTagGroup || !refs.draftTagBackground) return
+		const inverseScale = refs.progressGroup.scale()
+		refs.draftTagGroup.scale(inverseScale)
+		refs.draftTagGroup.position({
+			x:
+				refs.progressGroup.x() +
+				refs.progressBackground.width() * inverseScale.x +
+				VIDEO_CONFIG.CONTROL_GAP * inverseScale.x,
+			y: refs.progressGroup.y(),
+		})
 	}
 
 	private updateControlsVisibility(snapshot: ReturnType<VideoMediaState["getSnapshot"]>): void {
@@ -658,7 +812,8 @@ export class VideoRenderer {
 		}
 
 		const { playButtonGroup, controlsGroup, bufferingOverlay, isHovering } = this.playerRefs
-		const shouldShowControls = isHovering
+		// 暂停/结束态保留播放按钮和时长；播放中仍由 hover 控制暂停按钮和进度。
+		const shouldShowControls = isHovering || snapshot.paused || snapshot.ended
 		const showBuffering = snapshot.isBuffering || this.forceLoadingOverlay
 		bufferingOverlay.visible(showBuffering)
 		playButtonGroup.visible(shouldShowControls && !showBuffering)
@@ -840,10 +995,8 @@ export class VideoRenderer {
 		}
 
 		const inverseScale = RenderUtils.getInverseScale(parentGroup)
-		const { textWidth, textHeight, backgroundWidth, backgroundHeight, withBackground } =
-			this.placeholderLayout
+		const { text, textColor, withBackground } = this.placeholderLayout
 		const iconSize = VIDEO_CONFIG.PLACEHOLDER_PLAY_ICON_SIZE
-		const textBlockHeight = withBackground ? backgroundHeight : textHeight
 		const { iconTextSpacing } = VIDEO_PLACEHOLDER.layout
 		const textNode = this.placeholderContentGroup.findOne<Konva.Text>(".video-placeholder-text")
 		const backgroundNode = this.placeholderContentGroup.findOne<Konva.Rect>(
@@ -854,38 +1007,103 @@ export class VideoRenderer {
 			return
 		}
 
-		const scaledBackgroundWidth = backgroundWidth * inverseScale.x
-		const scaledIconHeight = iconSize * inverseScale.y
-		const scaledTextBlockHeight = textBlockHeight * inverseScale.y
-		const scaledSpacing = iconTextSpacing * inverseScale.y
+		let textResult = createPlaceholderTextNode({
+			text,
+			availableWidth: width,
+			inverseScaleX: inverseScale.x,
+			fontSize: VIDEO_PLACEHOLDER.layout.textFontSize,
+			fontFamily: VIDEO_PLACEHOLDER.layout.textFontFamily,
+			paddingX: withBackground ? VIDEO_PLACEHOLDER.layout.textPaddingX : 0,
+			paddingY: withBackground ? VIDEO_PLACEHOLDER.layout.textPaddingY : 0,
+			fill: textColor,
+			name: "video-placeholder-text",
+		})
+		const getTextBlockHeight = (): number =>
+			withBackground ? textResult.layout.backgroundHeight : textResult.layout.textHeight
+		const totalContentHeight = (): number => iconSize + iconTextSpacing + getTextBlockHeight()
+		const availableHeight = Math.max(1, height - 32)
+		const resolveFitScale = (contentHeight: number): number => {
+			const scaledHeight = contentHeight * inverseScale.y
+			if (scaledHeight <= availableHeight) return 1
+			return Math.max(LAYOUT.MIN_CONTENT_SCALE, availableHeight / scaledHeight)
+		}
+		let fitScale = resolveFitScale(totalContentHeight())
+		if (
+			fitScale === LAYOUT.MIN_CONTENT_SCALE &&
+			totalContentHeight() * inverseScale.y > availableHeight
+		) {
+			const occupiedHeight = iconSize + iconTextSpacing
+			const maxTextHeight = Math.max(
+				1,
+				availableHeight / (inverseScale.y * LAYOUT.MIN_CONTENT_SCALE) -
+					occupiedHeight -
+					(withBackground ? VIDEO_PLACEHOLDER.layout.textPaddingY * 2 : 0),
+			)
+			textResult = createPlaceholderTextNode({
+				text,
+				availableWidth: width,
+				inverseScaleX: inverseScale.x,
+				fontSize: VIDEO_PLACEHOLDER.layout.textFontSize,
+				fontFamily: VIDEO_PLACEHOLDER.layout.textFontFamily,
+				maxHeight: maxTextHeight,
+				paddingX: withBackground ? VIDEO_PLACEHOLDER.layout.textPaddingX : 0,
+				paddingY: withBackground ? VIDEO_PLACEHOLDER.layout.textPaddingY : 0,
+				fill: textColor,
+				name: "video-placeholder-text",
+			})
+			fitScale = resolveFitScale(totalContentHeight())
+		}
+
+		const effectiveScale = {
+			x: inverseScale.x * fitScale,
+			y: inverseScale.y * fitScale,
+		}
+		const backgroundWidth = textResult.layout.backgroundWidth
+		const backgroundHeight = textResult.layout.backgroundHeight
+		const scaledBackgroundWidth = backgroundWidth * effectiveScale.x
+		const scaledIconHeight = iconSize * effectiveScale.y
+		const scaledTextBlockHeight = getTextBlockHeight() * effectiveScale.y
+		const scaledSpacing = iconTextSpacing * effectiveScale.y
 		const totalHeight = scaledIconHeight + scaledSpacing + scaledTextBlockHeight
 		const topY = height / 2 - totalHeight / 2
 		layoutLucideSolidPlayPath(this.placeholderTriangleNode, 0, 0, iconSize)
-		this.placeholderTriangleGroup.scale(inverseScale)
+		this.placeholderTriangleGroup.scale(effectiveScale)
 		this.placeholderTriangleGroup.position({
 			x: width / 2,
 			y: topY + scaledIconHeight / 2,
 		})
 
 		if (backgroundNode) {
+			backgroundNode.width(backgroundWidth)
+			backgroundNode.height(backgroundHeight)
 			backgroundNode.position({
 				x: 0,
 				y: 0,
 			})
 		}
 
+		applyPlaceholderTextLayout(textNode, textResult)
 		textNode.position({
 			x: backgroundNode
-				? VIDEO_PLACEHOLDER.layout.textPaddingX
-				: (backgroundWidth - textWidth) / 2,
+				? VIDEO_PLACEHOLDER.layout.textPaddingX +
+					(textResult.layout.textWidth - textResult.layout.nodeWidth) / 2
+				: (textResult.layout.textWidth - textResult.layout.nodeWidth) / 2,
 			y: withBackground ? VIDEO_PLACEHOLDER.layout.textPaddingY : 0,
 		})
 
-		this.placeholderContentGroup.scale(inverseScale)
+		this.placeholderContentGroup.scale(effectiveScale)
 		this.placeholderContentGroup.position({
 			x: width / 2 - scaledBackgroundWidth / 2,
 			y: topY + scaledIconHeight + scaledSpacing,
 		})
+		this.placeholderLayout = {
+			...this.placeholderLayout,
+			textWidth: textResult.layout.textWidth,
+			nodeWidth: textResult.layout.nodeWidth,
+			textHeight: textResult.layout.textHeight,
+			backgroundWidth,
+			backgroundHeight,
+		}
 	}
 
 	private createPlaceholderContent(
@@ -897,7 +1115,6 @@ export class VideoRenderer {
 	): Konva.Group {
 		void width
 		void height
-
 		const { layout, colors, textBackgroundCornerRadius } = VIDEO_PLACEHOLDER
 		const textMeasureNode = new Konva.Text({
 			text,
@@ -915,7 +1132,10 @@ export class VideoRenderer {
 			: textHeight
 
 		this.placeholderLayout = {
+			text,
+			textColor,
 			textWidth,
+			nodeWidth: textWidth,
 			textHeight,
 			backgroundWidth,
 			backgroundHeight,
@@ -946,6 +1166,8 @@ export class VideoRenderer {
 				text,
 				fontSize: layout.textFontSize,
 				fontFamily: layout.textFontFamily,
+				wrap: "char",
+				align: "center",
 				fill: textColor,
 				listening: false,
 				name: "video-placeholder-text",

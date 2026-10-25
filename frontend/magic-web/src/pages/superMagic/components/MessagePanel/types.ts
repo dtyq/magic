@@ -8,7 +8,7 @@ import { AttachmentItem } from "../TopicFilesButton/hooks"
 export interface TopicModeLogic {
 	topicMode: TopicMode
 	setTopicMode: (topicMode: TopicMode) => void
-	recoverTopicMode: (topicMode: TopicMode) => void
+	recoverTopicMode: (topicMode: TopicMode, agentCode?: string | null) => void
 }
 
 export interface SendMessageOptions {

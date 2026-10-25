@@ -1,4 +1,4 @@
-import type { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 
 export interface ThirdPartyLoginStrategy {
 	getAuthCode(

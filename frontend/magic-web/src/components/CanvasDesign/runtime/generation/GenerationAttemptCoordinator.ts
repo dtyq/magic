@@ -1,5 +1,12 @@
 import type { Canvas } from "../core/Canvas"
-import { ElementTypeEnum, type LayerElement } from "../document/types"
+import {
+	ElementTypeEnum,
+	type ElementUpdatePatch,
+	type ImageElement,
+	type LayerElement,
+	type VideoElement,
+} from "../document/types"
+import { updateContent, getImageContents, updateImageContent } from "../document/elementContent"
 import type { CommitGenerationTarget } from "../elements/core/ElementManager"
 import type { GenerationAttempt, GenerationFailurePolicy } from "./GenerationRuntimeManager"
 
@@ -20,18 +27,50 @@ export interface GenerationAttemptFailureResult {
 export class GenerationAttemptCoordinator {
 	constructor(private readonly canvas: Canvas) {}
 
-	/** 后端确认成功后，提交正式字段并结束 Runtime attempt。 */
+	/** 提交结果收口后，提交正式字段并结束 Runtime attempt。 */
 	public confirmAttempt(attemptId: string, targets: CommitGenerationTarget[]): boolean {
 		const attempt = this.canvas.generationRuntimeManager.getAttempt(attemptId)
 		if (!attempt) return false
 
-		const currentTargetIds = this.getCurrentTargetIds(attempt)
-		const submittedTargetIds = targets.map((target) => target.elementId)
-		if (!this.isSameTargetSet(currentTargetIds, submittedTargetIds)) {
+		const currentTargetKeys = attempt.targets
+			.filter((target) =>
+				this.canvas.generationRuntimeManager.isCurrent(
+					attempt.attemptId,
+					target.elementId,
+					target.contentId,
+				),
+			)
+			.map((target) => this.getTargetKey(target.elementId, target.contentId))
+		const submittedTargetKeys = targets.map((target) =>
+			this.getTargetKey(target.elementId, target.contentId),
+		)
+		if (!this.isSameTargetSet(currentTargetKeys, submittedTargetKeys)) {
 			return false
 		}
 
-		this.canvas.elementManager.commitGenerationTargets(targets)
+		// 确认提交时保留实际提交开始时间；批量和图片编辑工具也走同一出口。
+		const timedTargets = targets.map((target) => {
+			const element = this.canvas.elementManager.getElementData(target.elementId)
+			if (element?.type !== ElementTypeEnum.Image) return target
+			const committed = { ...element, ...target.persistedPatch } as ImageElement
+			const contentId = target.contentId ?? committed.activeContentId
+			if (!contentId) return target
+			const content = getImageContents(committed).find(
+				(entry) => entry.contentId === contentId,
+			)
+			if (!content) return target
+			const imageId =
+				content.generateImageRequest?.image_id ?? content.imageGenerationTaskMeta?.image_id
+			if (!imageId) return target
+			const next = updateImageContent(committed, contentId, {
+				generationTiming: { startedAt: attempt.startedAt, imageId, source: "submitted" },
+			})
+			return {
+				...target,
+				persistedPatch: { ...target.persistedPatch, contents: next.contents },
+			}
+		})
+		this.canvas.elementManager.commitGenerationTargets(timedTargets)
 		this.canvas.generationRuntimeManager.completeAttempt(attemptId)
 		return true
 	}
@@ -109,18 +148,26 @@ export class GenerationAttemptCoordinator {
 	private getCurrentTargetIds(attempt: GenerationAttempt): string[] {
 		return attempt.targets
 			.filter((target) =>
-				this.canvas.generationRuntimeManager.isCurrent(attempt.attemptId, target.elementId),
+				this.canvas.generationRuntimeManager.isCurrent(
+					attempt.attemptId,
+					target.elementId,
+					target.contentId,
+				),
 			)
 			.map((target) => target.elementId)
 	}
 
-	private isSameTargetSet(currentTargetIds: string[], submittedTargetIds: string[]): boolean {
-		if (currentTargetIds.length !== submittedTargetIds.length) return false
-		const submitted = new Set(submittedTargetIds)
+	private isSameTargetSet(currentTargetKeys: string[], submittedTargetKeys: string[]): boolean {
+		if (currentTargetKeys.length !== submittedTargetKeys.length) return false
+		const submitted = new Set(submittedTargetKeys)
 		return (
-			submitted.size === submittedTargetIds.length &&
-			currentTargetIds.every((id) => submitted.has(id))
+			submitted.size === submittedTargetKeys.length &&
+			currentTargetKeys.every((key) => submitted.has(key))
 		)
+	}
+
+	private getTargetKey(elementId: string, contentId?: string): string {
+		return `${elementId}\u0000${contentId ?? ""}`
 	}
 
 	private getResolutionForPolicy(
@@ -162,22 +209,42 @@ export class GenerationAttemptCoordinator {
 		}
 	}
 
-	private buildEmptyElementPatch(element: LayerElement): Partial<LayerElement> | null {
+	private buildEmptyElementPatch(element: LayerElement): ElementUpdatePatch | null {
 		switch (element.type) {
-			case ElementTypeEnum.Image:
+			case ElementTypeEnum.Image: {
+				const next = updateContent<ImageElement>(
+					element,
+					element.activeContentId ?? undefined,
+					{
+						generateImageRequest: undefined,
+						imageGenerationTaskMeta: undefined,
+						status: undefined,
+						errorMessage: undefined,
+					},
+				)
 				return {
-					generateImageRequest: undefined,
-					imageGenerationTaskMeta: undefined,
-					status: undefined,
-					errorMessage: undefined,
-				} as Partial<LayerElement>
-			case ElementTypeEnum.Video:
+					contents: next.contents,
+					activeContentId: next.activeContentId,
+					mainContentId: next.mainContentId,
+				}
+			}
+			case ElementTypeEnum.Video: {
+				const next = updateContent<VideoElement>(
+					element,
+					element.activeContentId ?? undefined,
+					{
+						generateVideoRequest: undefined,
+						videoGenerationResultMeta: undefined,
+						status: undefined,
+						errorMessage: undefined,
+					},
+				)
 				return {
-					generateVideoRequest: undefined,
-					videoGenerationResultMeta: undefined,
-					status: undefined,
-					errorMessage: undefined,
-				} as Partial<LayerElement>
+					contents: next.contents,
+					activeContentId: next.activeContentId,
+					mainContentId: next.mainContentId,
+				}
+			}
 			default:
 				return null
 		}

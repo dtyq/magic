@@ -1,11 +1,11 @@
 import { IconLayoutKanbanFilled } from "@tabler/icons-react"
 import type { GlobalSearch } from "@/types/search"
-import { createStyles } from "antd-style"
 import { useMemoizedFn } from "ahooks"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useMagicSearchStore } from "../../store"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 import HighlightText from "../HighlightText"
 import { history } from "@/routes/history"
 import { RouteName } from "@/routes/constants"
@@ -14,47 +14,19 @@ interface SearchItemTaskProps {
 	item: GlobalSearch.TaskItem
 }
 
-const useStyles = createStyles(({ token }) => {
-	return {
-		flex: {
-			gap: "4px",
-			display: "flex",
-		},
-		tag: {
-			display: "inline-flex",
-			padding: 4,
-			height: 20,
-			justifyContent: "center",
-			alignItems: "center",
-			gap: 10,
-			borderRadius: 4,
-			fontSize: 10,
-			fontWeight: 400,
-		},
-		grey: {
-			backgroundColor: token.magicColorUsages.fill[0],
-			color: token.magicColorScales.grey[5],
-		},
-		blue: {
-			backgroundColor: token.magicColorScales.brand[0],
-			color: token.magicColorScales.brand[5],
-		},
-		green: {
-			backgroundColor: token.magicColorScales.green[0],
-			color: token.magicColorScales.green[7],
-		},
-		icon: {
-			backgroundColor: "rgba(0, 191, 154, 1)",
-		},
-	}
-})
+const taskStyles = {
+	flex: "flex gap-1",
+	tag: "inline-flex h-5 items-center justify-center gap-2.5 rounded p-1 text-[10px] font-normal",
+	grey: "bg-neutral-100 text-neutral-500 dark:bg-white/10 dark:text-neutral-400",
+	blue: "bg-neutral-50 text-primary dark:bg-black",
+	green: "bg-green-50 text-green-700 dark:bg-green-900 dark:text-green-200",
+	icon: "bg-[#00bf9a]",
+}
 
 function Task(props: SearchItemTaskProps) {
 	const { item } = props
 
 	const { t } = useTranslation("search")
-	const { styles: taskStyles } = useStyles()
-	const { styles, cx } = useSearchItemCommonStyles()
 	const closePanel = useMagicSearchStore((store) => store.closePanel)
 
 	const onClick = useMemoizedFn(() => {
@@ -127,12 +99,9 @@ function Task(props: SearchItemTaskProps) {
 					</div>
 				)}
 				{item?.assignees?.length > 0 && (
-					<div
-						className={cx(styles.desc, styles.text2)}
-						style={{ height: "auto", display: "flex" }}
-					>
+					<div className={cx(styles.desc, styles.text2, "flex h-auto")}>
 						{t("quickSearch.label.executor")}：
-						<span style={{ whiteSpace: "break-spaces" }}>
+						<span className="whitespace-break-spaces">
 							<HighlightText text={items?.join(",")} />
 						</span>
 					</div>

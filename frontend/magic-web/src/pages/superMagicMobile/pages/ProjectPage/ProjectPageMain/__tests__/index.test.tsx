@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { TaskStatus, type Topic } from "@/pages/superMagic/pages/Workspace/types"
 import ProjectPageMain from ".."
 import ProjectTopicListView from "../ProjectTopicListView"
+import SuperMagicService from "@/pages/superMagic/services"
 
 const { mockNavigate, topicStoreMock } = vi.hoisted(() => ({
 	mockNavigate: vi.fn(),
@@ -100,6 +101,10 @@ vi.mock("@/pages/superMagic/services", () => ({
 	default: {
 		topic: {
 			fetchTopics: vi.fn(),
+			getSidebarTopicsByProjectId: vi.fn(async () => ({
+				list: topicStoreMock.topics,
+				total: topicStoreMock.topics.length,
+			})),
 		},
 	},
 }))
@@ -107,6 +112,7 @@ vi.mock("@/pages/superMagic/services", () => ({
 function createTopic(overrides: Partial<Topic> = {}): Topic {
 	return {
 		id: overrides.id ?? "topic-1",
+		project_id: "project-1",
 		topic_name: overrides.topic_name ?? "Topic One",
 		task_status: overrides.task_status ?? "waiting",
 		updated_at: overrides.updated_at ?? "2026-05-12 10:00:00",
@@ -118,18 +124,19 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
 describe("ProjectPageMain", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		window.sessionStorage.clear()
 		topicStoreMock.isFetchList = false
 		topicStoreMock.topics = [createTopic()]
 	})
 
-	it("renders topics empty state when the topic list is empty", () => {
+	it("renders topics empty state when the topic list is empty", async () => {
 		topicStoreMock.topics = []
 
 		render(
 			<ProjectPageMain onTopicMore={vi.fn()} onTopicPin={vi.fn()} onTopicDelete={vi.fn()} />,
 		)
 
-		const emptyState = screen.getByTestId("project-topics-empty-state")
+		const emptyState = await screen.findByTestId("project-topics-empty-state")
 		expect(emptyState).toHaveTextContent("暂无话题")
 		expect(emptyState).toHaveTextContent("在下方输入区创建新话题。")
 	})
@@ -290,4 +297,21 @@ describe("ProjectPageMain", () => {
 			),
 		).toBeInTheDocument()
 	})
+})
+
+it("passes mobile filter changes to the list API without selecting a conversation", async () => {
+	vi.clearAllMocks()
+	window.sessionStorage.clear()
+	topicStoreMock.topics = [createTopic()]
+	const { rerender } = render(<ProjectPageMain topicType="scheduled_task" />)
+	await act(async () => Promise.resolve())
+	expect(SuperMagicService.topic.getSidebarTopicsByProjectId).toHaveBeenLastCalledWith(
+		expect.objectContaining({ topicType: "scheduled_task" }),
+	)
+	rerender(<ProjectPageMain topicType="topic" />)
+	await act(async () => Promise.resolve())
+	expect(SuperMagicService.topic.getSidebarTopicsByProjectId).toHaveBeenLastCalledWith(
+		expect.objectContaining({ topicType: "topic" }),
+	)
+	expect(topicStoreMock.setSelectedTopic).not.toHaveBeenCalled()
 })

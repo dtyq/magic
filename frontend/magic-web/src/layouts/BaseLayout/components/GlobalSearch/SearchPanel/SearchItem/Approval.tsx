@@ -1,78 +1,17 @@
-import { createStyles } from "antd-style"
 import type { GlobalSearch } from "@/types/search"
 import HighlightText from "../HighlightText"
 
-const useApprovalStyles = createStyles(({ token }) => {
-	return {
-		item: {
-			width: "100%",
-			height: "auto",
-			padding: "8px 12px 8px 12px",
-			display: "flex",
-			alignItems: "flex-start",
-			justifyItems: "center",
-			flexDirection: "column",
-			gap: 4,
-			borderBottom: `1px solid ${token.magicColorUsages.border}`,
-			cursor: "pointer",
-
-			"&:hover": {
-				backgroundColor: "rgba(46, 50, 56, 0.05)",
-			},
-
-			"&:active": {
-				backgroundColor: "rgba(46, 50, 56, 0.09)",
-			},
-		},
-		header: {
-			display: "flex",
-			gap: 6,
-			width: "100%",
-			height: 20,
-			alignItems: "center",
-			justifyContent: "space-between",
-		},
-		icon: {
-			width: 20,
-			height: 20,
-			borderRadius: 4,
-		},
-		title: {
-			fontSize: "14px",
-			fontWeight: 600,
-			lineHeight: "20px",
-			marginRight: "auto",
-			color: token.magicColorUsages.text[0],
-		},
-		time: {
-			fontSize: "12px",
-			fontWeight: 400,
-			lineHeight: "16px",
-			color: token.magicColorUsages.text[2],
-		},
-		wrapper: {
-			height: "fix-content",
-			display: "flex",
-			flexDirection: "column",
-			gap: 4,
-		},
-		wrapperItem: {
-			fontSize: "12px",
-			fontWeight: 400,
-			lineHeight: "16px",
-			color: token.magicColorUsages.text[2],
-		},
-		footer: {
-			width: "100%",
-		},
-		status: {
-			float: "right",
-			fontSize: "12px",
-			fontWeight: 400,
-			lineHeight: "16px",
-		},
-	}
-})
+const styles = {
+	item: "flex h-auto w-full cursor-pointer flex-col items-start gap-1 border-b border-border px-3 py-2 hover:bg-[rgba(46,50,56,0.05)] active:bg-[rgba(46,50,56,0.09)]",
+	header: "flex h-5 w-full items-center justify-between gap-1.5",
+	icon: "size-5 rounded",
+	title: "mr-auto text-sm font-semibold leading-5 text-foreground",
+	time: "text-xs font-normal leading-4 text-foreground/60",
+	wrapper: "flex h-fit flex-col gap-1",
+	wrapperItem: "text-xs font-normal leading-4 text-foreground/60",
+	footer: "w-full",
+	status: "float-right text-xs font-normal leading-4",
+}
 
 interface SearchItemApprovalProps {
 	item: GlobalSearch.ApprovalItem
@@ -80,13 +19,12 @@ interface SearchItemApprovalProps {
 
 function Approval(props: SearchItemApprovalProps) {
 	const { item } = props
-	const { styles } = useApprovalStyles()
 
 	return (
 		<div className={styles.item}>
 			<div className={styles.header}>
 				<div className={styles.icon}>
-					<div style={{ height: "100%", backgroundColor: "#ddd" }} />
+					<div className="h-full bg-[#ddd]" />
 				</div>
 				<div className={styles.title}>
 					<HighlightText text={item?.title} />

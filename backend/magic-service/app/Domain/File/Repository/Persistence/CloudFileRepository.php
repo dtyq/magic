@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\File\Repository\Persistence;
 
+use App\Domain\File\Entity\ValueObject\FileDataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\Domain\File\ValueObject\FileStoragePath;
 use App\Infrastructure\Core\CloudFile\ImageProcessFactory;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\CloudFile\CloudFile;
@@ -57,19 +59,18 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 
         if ($bucketType === null) {
             // If no storage bucket, perform automatic classification
-            $publicStorageKey = md5(StorageBucketType::Public->value);
             $publicFilePaths = [];
-
-            $privateStorageKey = md5(StorageBucketType::Private->value);
             $privateFilePaths = [];
             foreach ($filePaths as $filePath) {
                 /* @phpstan-ignore-next-line */
                 if (empty($filePath)) {
                     continue;
                 }
-                if (Str::contains($filePath, $publicStorageKey)) {
+                if (FileStoragePath::matches($filePath, $organizationCode, StorageBucketType::Public)
+                    || FileStoragePath::matchesLegacy($filePath, $organizationCode, StorageBucketType::Public)) {
                     $publicFilePaths[] = $filePath;
-                } elseif (Str::contains($filePath, $privateStorageKey)) {
+                } elseif (FileStoragePath::matches($filePath, $organizationCode, StorageBucketType::Private)
+                    || FileStoragePath::matchesLegacy($filePath, $organizationCode, StorageBucketType::Private)) {
                     $privateFilePaths[] = $filePath;
                 } else {
                     // Fallback to private bucket
@@ -132,7 +133,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'sts' => false,
             'role_session_name' => 'magic',
             // Use configuration name in file path for automatic recognition when getting links later
-            'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
+            'dir' => $autoDir ? $this->getFullPrefix($organizationCode) . md5($storage->value) : '',
             'content_type' => $contentType,
         ]);
         $uploadOptions = ($options['internal_endpoint'] ?? false) === true
@@ -157,7 +158,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'sts' => true,  // Use STS mode for chunk upload
             'role_session_name' => 'magic',
             // Use organization code + storage hash in path for automatic link recognition
-            'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
+            'dir' => $autoDir ? $this->getFullPrefix($organizationCode) . md5($storage->value) : '',
             'expires' => 3600, // STS credential valid for 1 hour, sufficient for chunk upload
         ]);
 
@@ -242,14 +243,15 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         $filesystem->upload($uploadFile, $this->getOptions($organizationCode));
     }
 
-    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, bool $sts = false): array
+    public function getSimpleUploadTemporaryCredential(FileDataIsolation $dataIsolation, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, bool $sts = false): array
     {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $filesystem = $this->getFilesystem($storage->value);
         $credentialPolicy = new CredentialPolicy([
             'sts' => $sts,
             'role_session_name' => 'magic',
-            // Use configuration name in file path for automatic recognition when getting links later
-            'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
+            // 使用短 marker 和用户作用域目录隔离同组织成员的文件。
+            'dir' => $autoDir ? $this->getAutoDirectory($dataIsolation, $storage, true) : '',
             'content_type' => $contentType,
         ]);
         return $filesystem->getUploadTemporaryCredential($credentialPolicy, $this->getOptions($organizationCode));
@@ -273,12 +275,24 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 
         $dir = $this->formatPrefix($dir, $organizationCode);
 
-        $credentialPolicy = new CredentialPolicy([
+        $policyConfig = [
             'sts' => true,
             'role_session_name' => 'magic',
             'dir' => $dir,
             'expires' => $expires,
-        ]);
+        ];
+        // 组合权限（如 upload_objects|del_objects）依赖 cloudfile v0.1.43 的 StsPolicyBuilder；
+        // 旧版本会命中 default 分支静默退化为仅上传权限，这里显式失败，避免下游出现难排查的 403
+        $stsType = (string) ($options['sts_type'] ?? '');
+        unset($options['sts_type']);
+        if ($stsType !== '') {
+            if (str_contains($stsType, '|') && ! in_array('addStsType', get_class_methods(CredentialPolicy::class), true)) {
+                throw new RuntimeException('Combined sts_type requires dtyq/cloudfile >= v0.1.43, please upgrade the dependency');
+            }
+            $policyConfig['sts_type'] = $stsType;
+        }
+        $credentialPolicy = new CredentialPolicy($policyConfig);
+
         $useInternalEndpoint = ($options['internal_endpoint'] ?? false) === true;
         $credentialOptions = $useInternalEndpoint
             ? $this->getInternalEndpointOptions($organizationCode, $options)
@@ -342,7 +356,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
 
     public function getFullPrefix(string $organizationCode): string
     {
-        $appId = 'open';
+        $appId = $this->getStorageAppId();
         return "{$organizationCode}/{$appId}/";
     }
 
@@ -844,6 +858,75 @@ class CloudFileRepository implements CloudFileRepositoryInterface
     }
 
     /**
+     * Generate multiple pre-signed URLs with one temporary credential request.
+     *
+     * @param array<int, array{object_key:string, options?:array}> $items
+     * @return array<string, string> URLs indexed by object key
+     */
+    public function getPreSignedUrlsByCredential(
+        string $organizationCode,
+        array $items,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        int $credentialExpires = 7200,
+        array $options = []
+    ): array {
+        $validItems = [];
+        foreach ($items as $item) {
+            $objectKey = $item['object_key'] ?? '';
+            if (! is_string($objectKey) || $objectKey === '') {
+                continue;
+            }
+            if (! Str::startsWith($objectKey, $organizationCode)) {
+                $this->logger->warning('Batch pre-signed URL skipped: object key does not belong to specified organization', [
+                    'organization_code' => $organizationCode,
+                    'object_key' => $objectKey,
+                ]);
+                continue;
+            }
+
+            $itemOptions = $item['options'] ?? [];
+            $itemOptions['method'] ??= 'GET';
+            $validItems[] = [
+                'object_key' => $objectKey,
+                'options' => $itemOptions,
+            ];
+        }
+
+        if ($validItems === []) {
+            return [];
+        }
+
+        $imageProcess = ImageProcessFactory::getByHeader();
+        if ($imageProcess) {
+            $options['image'] = $imageProcess;
+        }
+
+        $credentialPolicy = new CredentialPolicy([
+            'sts' => true,
+            'role_session_name' => 'magic',
+            'dir' => '',
+            'expires' => $credentialExpires,
+        ]);
+
+        try {
+            return $this->getFilesystem($bucketType->value)->getPreSignedUrlsByCredential(
+                $credentialPolicy,
+                $validItems,
+                $this->getOptions($organizationCode, $options)
+            );
+        } catch (Throwable $exception) {
+            $this->logger->error('get_presigned_urls_by_credential_failed', [
+                'organization_code' => $organizationCode,
+                'bucket_type' => $bucketType->value,
+                'item_count' => count($validItems),
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+            throw $exception;
+        }
+    }
+
+    /**
      * Delete multiple objects by credential.
      *
      * @param string $prefix Prefix for data isolation
@@ -1063,6 +1146,27 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             $storage = StorageBucketType::Private->value;
         }
         return $this->cloudFile->get($storage);
+    }
+
+    /**
+     * 返回自动上传目录，凭证目录绑定到用户作用域。
+     */
+    protected function getAutoDirectory(FileDataIsolation $dataIsolation, StorageBucketType $storage, bool $requireUserScope = false): string
+    {
+        $path = new FileStoragePath(
+            $dataIsolation,
+            $storage,
+            $this->getStorageAppId()
+        );
+        return $path->directory($requireUserScope);
+    }
+
+    /**
+     * 返回当前文件服务使用的应用标识，允许子类按需覆写。
+     */
+    protected function getStorageAppId(): string
+    {
+        return 'open';
     }
 
     private function formatPrefix(string $prefix, string $organizationCode): string

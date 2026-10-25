@@ -103,7 +103,6 @@ export function AudioRecordingCopyDialog({ controller }: AudioRecordingCopyDialo
 							progress={controller.operationProgress}
 							text={t("super:topicFiles.copying")}
 							position="top"
-							width={280}
 							showPercentage
 							progressHeight={4}
 							zIndex={99999}

@@ -2,7 +2,7 @@ import { ChevronDown, Loader2, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { MetricsFormValues } from "./SelfMediaOpsMetricsDialog.helpers"
 import { METRIC_FIELDS } from "./SelfMediaOpsMetricsDialog.helpers"
 

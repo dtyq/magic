@@ -19,6 +19,25 @@ function createLayerGroups() {
 	return { root, contentLayer, controlsLayer, markersLayer }
 }
 
+type TestEvent = { data: { elementId?: string; image?: object } }
+
+function createTestEventEmitter() {
+	const handlers = new Map<string, Set<(event: TestEvent) => void>>()
+	return {
+		handlers,
+		eventEmitter: {
+			on: vi.fn((type: string, handler: (event: TestEvent) => void) => {
+				const listeners = handlers.get(type) ?? new Set()
+				listeners.add(handler)
+				handlers.set(type, listeners)
+			}),
+			off: vi.fn((type: string, handler: (event: TestEvent) => void) => {
+				handlers.get(type)?.delete(handler)
+			}),
+		},
+	}
+}
+
 beforeEach(() => {
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
 		clearRect: vi.fn(),
@@ -126,6 +145,49 @@ describe("image editing infrastructure", () => {
 		session.destroy()
 		expect(sourceNode.visible()).toBe(true)
 		expect(session.getProxyGroup()).toBeNull()
+	})
+
+	it("detaches and rebinds the editing proxy around a bitmap close", async () => {
+		const { contentLayer, controlsLayer, markersLayer } = createLayerGroups()
+		const sourceImage = document.createElement("canvas") as unknown as ImageBitmap
+		const sourceNode = new Konva.Group({ width: 160, height: 100, visible: true })
+		const sourceImageNode = new Konva.Image({
+			x: 0,
+			y: 0,
+			width: 160,
+			height: 100,
+			image: sourceImage,
+		})
+		sourceNode.add(sourceImageNode)
+		contentLayer.add(sourceNode)
+
+		const { eventEmitter, handlers } = createTestEventEmitter()
+		const canvas = {
+			contentLayer,
+			controlsLayer,
+			markersLayer,
+			eventEmitter,
+			elementManager: {
+				getElementData: vi.fn(() => ({ id: "image-1", type: "image" })),
+				getElementInstance: vi.fn(() => ({ getNode: () => sourceNode })),
+			},
+		} as unknown as Canvas
+
+		const session = new ImageEditingSession({ canvas, elementId: "image-1" })
+		expect(session.mount()).toBe(true)
+		const proxyImage = session.getProxyGroup()?.findOne("Image") as Konva.Image
+		expect(proxyImage.image()).toBe(sourceImage)
+
+		handlers
+			.get("resource:image:will-close")
+			?.forEach((handler) => handler({ data: { image: sourceImage } }))
+
+		expect(proxyImage.image()).toBeUndefined()
+		const replacementImage = document.createElement("canvas") as unknown as ImageBitmap
+		sourceImageNode.image(replacementImage)
+		await Promise.resolve()
+		expect(proxyImage.image()).toBe(replacementImage)
+		session.destroy()
 	})
 
 	it("keeps the source visible when a proxy cannot be mounted", () => {

@@ -1,4 +1,3 @@
-import { isValidUrl } from "@/utils/http"
 import { useEffect, useMemo, useState } from "react"
 
 type ImageInfo = {
@@ -15,7 +14,7 @@ const useImageSize = (url?: string) => {
 	})
 
 	useEffect(() => {
-		if (url && isValidUrl(url)) {
+		if (url && /^https?:\/\//.test(url)) {
 			if (cache.has(url)) {
 				setSize(cache.get(url)!)
 				return

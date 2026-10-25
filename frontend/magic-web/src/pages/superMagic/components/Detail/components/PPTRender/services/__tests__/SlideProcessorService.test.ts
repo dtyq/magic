@@ -15,6 +15,13 @@ describe("SlideProcessorService", () => {
 		mainFileId: "main-file-id",
 		mainFileName: "main.html",
 		displayConfig: { type: "ppt" },
+		fileApi: {
+			identityKey: "share:test",
+			getTemporaryDownloadUrl: vi.fn(),
+			getFileContentById: vi.fn(),
+			getFileContentsByIds: vi.fn(),
+			requestSharedMediaUrls: vi.fn(),
+		},
 	}
 
 	beforeEach(() => {
@@ -41,7 +48,7 @@ describe("SlideProcessorService", () => {
 
 			const result = await service.processSlide(rawContent, 0, "/slides/")
 
-			expect(result).toBe(processedContent)
+			expect(result.content).toBe(processedContent)
 			expect(htmlProcessor.processHtmlContent).toHaveBeenCalledWith({
 				content: rawContent,
 				attachments: mockConfig.attachments,
@@ -50,6 +57,7 @@ describe("SlideProcessorService", () => {
 				attachmentList: mockConfig.attachmentList,
 				html_relative_path: "/slides/",
 				displayConfig: mockConfig.displayConfig,
+				fileApi: mockConfig.fileApi,
 				xMagicImageProcess: HTML_PREVIEW_IMAGE_PROCESS,
 				// metadata: mockConfig.metadata, // Not passed in processSlide method
 			})
@@ -58,7 +66,7 @@ describe("SlideProcessorService", () => {
 		it("should return empty string for empty content", async () => {
 			const result = await service.processSlide("", 0)
 
-			expect(result).toBe("")
+			expect(result.content).toBe("")
 			expect(htmlProcessor.processHtmlContent).not.toHaveBeenCalled()
 		})
 
@@ -70,7 +78,7 @@ describe("SlideProcessorService", () => {
 
 			const result = await service.processSlide(rawContent, 0)
 
-			expect(result).toBe(rawContent)
+			expect(result.content).toBe(rawContent)
 		})
 
 		it("should use custom file name when provided in config", async () => {
@@ -96,6 +104,34 @@ describe("SlideProcessorService", () => {
 			expect(htmlProcessor.processHtmlContent).toHaveBeenCalledWith(
 				expect.objectContaining({
 					fileName: "custom.html",
+				}),
+			)
+		})
+	})
+
+	describe("processSlideWithUrlMapping", () => {
+		it("passes the bound file API with the preloaded URL mapping", async () => {
+			vi.mocked(htmlProcessor.processHtmlContent).mockResolvedValue({
+				processedContent: "processed",
+				hasSlides: false,
+				filePathMapping: new Map(),
+				slidesMap: new Map(),
+				originalSlidesPaths: [],
+			})
+			const urlMapping = new Map([["image-file", "https://oss.example.com/image.png"]])
+
+			await service.processSlideWithUrlMapping(
+				'<img src="image.png">',
+				1,
+				"deck/",
+				urlMapping,
+			)
+
+			expect(htmlProcessor.processHtmlContent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					fileApi: mockConfig.fileApi,
+					preloadedUrlMapping: urlMapping,
+					xMagicImageProcess: HTML_PREVIEW_IMAGE_PROCESS,
 				}),
 			)
 		})

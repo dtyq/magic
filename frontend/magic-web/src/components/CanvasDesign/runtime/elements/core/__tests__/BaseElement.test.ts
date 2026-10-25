@@ -17,6 +17,12 @@ class TestElement extends BaseElement<LayerElement> {
 	}
 }
 
+class FixedSizeTestElement extends TestElement {
+	public override getTransformConstraints() {
+		return { enabledAnchors: [] }
+	}
+}
+
 function createElement(options: { active?: boolean; transforming?: boolean } = {}) {
 	const handlers = new Map<string, () => void>()
 	const canvas = {
@@ -51,6 +57,20 @@ function createElement(options: { active?: boolean; transforming?: boolean } = {
 
 afterEach(() => {
 	vi.unstubAllGlobals()
+})
+
+describe("BaseElement size editing capability", () => {
+	it("uses the default Transformer anchors as editable size support", () => {
+		const { element } = createElement()
+
+		expect(element.supportsSizeEditing()).toBe(true)
+	})
+
+	it("treats an explicit empty anchor list as fixed size", () => {
+		const element = Object.create(FixedSizeTestElement.prototype) as FixedSizeTestElement
+
+		expect(element.supportsSizeEditing()).toBe(false)
+	})
 })
 
 describe("BaseElement transform-idle rerender", () => {

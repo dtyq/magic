@@ -34,6 +34,12 @@ export const useStyles = createStyles(({ css, prefixCls, token }) => {
 			color: ${token.magicColorUsages.text[1]};
 			background-color: ${token.magicColorScales.grey[0]};
 			padding: 8px 10px;
+			border-radius: 8px;
+			transition: background-color 0.2s ease;
+			&:hover,
+			&:focus-visible {
+				background-color: ${token.magicColorScales.grey[0]} !important;
+			}
 		`,
 	}
 })

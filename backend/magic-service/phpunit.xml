@@ -19,6 +19,10 @@
   <testsuites>
     <testsuite name="大模型网关测试">
       <directory suffix="Test.php">test/Cases/Api/ModelGateway</directory>
+      <file>test/Cases/Infrastructure/ExternalAPI/Search/DeepSeekSearchAdapterTest.php</file>
+      <file>test/Cases/Infrastructure/ExternalAPI/Search/DeepSeekSearchTest.php</file>
+      <file>test/Cases/Infrastructure/ExternalAPI/WebScrape/DeepSeekWebScrapeTest.php</file>
+      <file>test/Cases/Domain/Provider/Entity/AiAbilityEntityTest.php</file>
     </testsuite>
     <testsuite name="登录测试">
       <directory suffix="Test.php">test/Cases/Api/Login</directory>
@@ -43,6 +47,46 @@
     </testsuite>
     <testsuite name="管理后台测试">
       <directory suffix="Test.php">test/Cases/Api/Admin</directory>
+    </testsuite>
+    <testsuite name="超级麦吉文件测试">
+      <file>test/Cases/Application/SuperMagic/Skill/SkillPreparedPublishTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Skill/SkillPackageParserTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Project/Service/ProjectCreationTransactionTest.php</file>
+      <directory suffix="Test.php">test/Cases/Domain/SuperMagic</directory>
+      <directory suffix="Test.php">test/Cases/Interfaces/SuperMagic/File</directory>
+      <!--
+        test/Cases/Application/SuperMagic 不在任何 testsuite 里（历史遗留：该目录下
+        既有的 MagicFSFileAppServicePublishedAccessTest 同样从未被执行过）。把整个目录
+        收进这个 suite 会顺带改变一批与本改动无关的测试的执行状态，那是另一个决定；
+        所以这里按文件精确登记新增的变更投递单测，让它们真的跑起来，同时把结构性缺口
+        留在明面上。
+      -->
+      <file>test/Cases/Application/SuperMagic/File/Service/MagicFSChangePublisherTest.php</file>
+      <file>test/Cases/Application/SuperMagic/File/Service/MagicFSFileAppServiceChangeFeedBatchTest.php</file>
+      <!--
+        沙箱全量重启（sandbox:restart-all）：计划生成、编排、CLI 契约。按文件精确登记，
+        原因同上——整个 Application/SuperMagic 目录不在任何 suite 里。
+      -->
+      <file>test/Cases/Unit/SuperMagic/SandboxRestart/SandboxImageVersionTest.php</file>
+      <file>test/Cases/Unit/SuperMagic/SandboxRestart/SandboxRestartPlannerTest.php</file>
+      <file>test/Cases/Unit/SuperMagic/SandboxRestart/SandboxRestartAppServiceTest.php</file>
+      <file>test/Cases/Unit/SuperMagic/SandboxRestart/SandboxRestartBatchRunnerTest.php</file>
+      <file>test/Cases/Unit/SuperMagic/SandboxRestart/RestartAllSandboxCommandTest.php</file>
+      <file>test/Cases/Domain/SuperMagic/Task/Service/AgentDomainServiceEnsureSandboxInitializedTest.php</file>
+      <file>test/Cases/Domain/SuperAgent/Service/SandboxVersionDomainServiceTest.php</file>
+      <file>test/Cases/Application/SuperAgent/Service/AgentAppServiceVersionCheckTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Agent/AgentAppServiceLifecycleTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Agent/ClawPermissionReconciliationSubscriberTest.php</file>
+      <file>test/Cases/Interfaces/SuperMagic/Task/DTO/Request/CreateOpenTaskRequestDTOTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Message/Assembler/UserMessageDTOAssemblerTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Message/Service/HandleUserMessageDispatchTest.php</file>
+      <file>test/Cases/Interfaces/SuperMagic/Task/Assembler/OpenTaskMessageAssemblerTest.php</file>
+      <file>test/Cases/Application/SuperMagic/File/Service/OpenFileUploadTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Task/Service/TopicTaskHttpMessageTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Task/Service/TopicTaskAppServiceHiringTest.php</file>
+      <file>test/Cases/Application/SuperMagic/Task/Service/TopicTaskAppServiceAutoHireTest.php</file>
+      <file>test/Cases/Infrastructure/SuperMagic/ExternalAPI/SandboxOS/SandboxListGatewayTest.php</file>
+      <file>test/Cases/Infrastructure/SuperMagic/ExternalAPI/SandboxOS/Gateway/Result/SandboxListResultTest.php</file>
     </testsuite>
   </testsuites>
 

@@ -1,4 +1,4 @@
-import type { MermaidConfig } from "mermaid"
+import type { MermaidConfig } from "@/infrastructure/vendors/mermaid"
 
 /**
  * mdx-mermaid config

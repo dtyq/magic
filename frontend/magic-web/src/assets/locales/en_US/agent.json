@@ -26,16 +26,11 @@
 			"title": "Authorization Access"
 		},
 		"settings": {
-			"contact": "Contact Us",
 			"func": "Functions",
-			"mcp": "MCP Plugin",
-			"tasks": "Scheduled Tasks",
-			"title": "Settings",
-			"usage": "Usage Preferences"
+			"mcp": "MCP Plugin"
 		},
 		"tool": {
 			"addTool": "Add Tool",
-			"addToolFailed": "Failed to add tool",
 			"addToolSuccess": "Tool added successfully",
 			"cancel": "Cancel",
 			"card": {
@@ -44,6 +39,7 @@
 				"createAt": "Published on",
 				"groupTitle": "Contains {{count}} tools",
 				"noQuote": "Not referenced",
+				"remove": "Remove",
 				"toolsCount": "{{count}} tools"
 			},
 			"confirm": "Confirm",
@@ -66,7 +62,6 @@
 			},
 			"import": "Import Tool",
 			"importExistingTools": "Import Existing Tools",
-			"importTools": "Import Tool",
 			"importToolsCount": "Import Tools ({{count}})",
 			"menu": {
 				"onlyShowOfficial": "Show Official Tools Only",
@@ -89,9 +84,11 @@
 	},
 	"mcp": {
 		"button": {
-			"create": "Add MCP Plugin",
-			"text": "Plugin",
-			"title": "Configure MCP Plugin"
+			"addMoreConnectors": "Add more connectors",
+			"addedConnectors": "Installed connectors",
+			"emptyConnectors": "No connectors available",
+			"text": "Connector",
+			"toggleConnector": "Enable {{name}}"
 		},
 		"card": {
 			"creatAt": "Created on",
@@ -99,8 +96,6 @@
 			"deleteTool": "Delete Tool",
 			"desc": "No description available",
 			"editTool": "Edit Tool",
-			"noQuote": "Not referenced",
-			"quoteAgent": "Referenced by {{count}} assistants",
 			"status": "Enable Status",
 			"toolsCount": "Contains {{count}} tools"
 		},
@@ -117,19 +112,21 @@
 			"argsPlaceholder": "Please enter arguments, e.g., -y @modelcontextprotocol/server-sequential-thinking",
 			"auth": "Account Authorization",
 			"authMethod": "Authorization Method",
-			"authToFail": "Account authorization required, click Authorize",
-			"authToSuccess": "Account authorization completed, click Cancel",
+			"authToFail": "Account authorization required\nClick Authorize",
+			"authToFailAction": "Connect",
+			"authToFailTitle": "Account authorization required",
+			"authToSuccess": "Account authorization completed\nClick Cancel",
+			"authToSuccessAction": "Disconnect",
+			"authToSuccessTitle": "Account authorization completed",
+			"authorizationUrlInvalid": "Invalid authorization URL",
 			"cancel": "Cancel",
 			"command": "Command",
 			"commandPlaceholder": "Please enter command, e.g., npx",
 			"confirm": "Add",
-			"custom": "Custom MCP Plugin",
 			"delete": "Delete",
 			"desc": "Description",
 			"env": "Environment Variables",
-			"headers": "Request Headers",
-			"import": "Import",
-			"importTool": "Import Existing Tool",
+			"icon": "Icon",
 			"map": "Custom Parameters",
 			"mapPlaceholder": "Enter custom parameters",
 			"name": "MCP Plugin Name",
@@ -176,7 +173,6 @@
 			"title": "MCP Plugin",
 			"update": {
 				"confirm": "Update",
-				"content": "Current version is {{version}}, latest version is {{latestVersion}}",
 				"success": "Updated successfully",
 				"title": "Confirm update {{name}} version?"
 			}
@@ -189,17 +185,15 @@
 			"desc": "Extend $t(common:platform.name) capabilities using Model Context Protocol (MCP Plugin)",
 			"editTitle": "Edit MCP Plugin Service",
 			"empty": "No Plugins Available",
-			"noAuth": "No authorization required",
+			"manageAuth": "Manage Authorization",
 			"official": "Official Plugin",
 			"openForm": "Create MCP Plugin",
-			"required": "Please enter {{name}}",
 			"searchPlaceholder": "Search MCP Plugin",
 			"settings": "Settings",
 			"status": "Query MCP Plugin Status",
 			"title": "MCP Plugin",
 			"tool": "Load Tools",
-			"url": "Modify MCP Plugin Service URL",
-			"manageAuth": "Manage Authorization"
+			"url": "Modify MCP Plugin Service URL"
 		}
 	}
 }

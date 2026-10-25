@@ -18,17 +18,21 @@ describe("ElementDetailsRuntimeManager", () => {
 		const manager = new ElementDetailsRuntimeManager()
 		manager.replace({
 			"image-1": {
-				generateImageRequest: {
-					valueSource: "agent",
-					imageId: "agent-file-1",
-					imageIdSource: "agent",
+				contentDetails: {
+					"content-1": {
+						generateImageRequest: {
+							valueSource: "agent",
+							imageId: "agent-file-1",
+							imageIdSource: "agent",
+						},
+					},
 				},
 			},
 		})
 
-		expect(manager.getGenerateImageRequestImageIdSource("image-1", "agent-file-1")).toBe(
-			"agent",
-		)
+		expect(
+			manager.getGenerateImageRequestImageIdSource("image-1", "agent-file-1", "content-1"),
+		).toBe("agent")
 		expect(manager.getGenerateImageRequestImageIdSource("image-1", "new-task")).toBe("unknown")
 	})
 
@@ -36,15 +40,22 @@ describe("ElementDetailsRuntimeManager", () => {
 		const onChange = vi.fn()
 		const manager = new ElementDetailsRuntimeManager({ onChange })
 
-		manager.markGenerateImageRequestAsUser("image-1", "user-task-1")
+		manager.markGenerateImageRequestAsUser("image-1", "user-task-1", "content-1")
 
-		expect(manager.getGenerateImageRequestImageIdSource("image-1", "user-task-1")).toBe("user")
+		expect(
+			manager.getGenerateImageRequestImageIdSource("image-1", "user-task-1", "content-1"),
+		).toBe("user")
 		expect(onChange).toHaveBeenCalledWith({
 			"image-1": {
-				generateImageRequest: {
-					valueSource: "user",
-					imageId: "user-task-1",
-					imageIdSource: "user",
+				contentDetails: {
+					"content-1": {
+						sidecarSource: "user",
+						generateImageRequest: {
+							valueSource: "user",
+							imageId: "user-task-1",
+							imageIdSource: "user",
+						},
+					},
 				},
 			},
 		})

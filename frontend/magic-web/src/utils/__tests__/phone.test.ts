@@ -25,4 +25,14 @@ describe("validatePhone", () => {
 		expect(validatePhone("123", "+86")).toBe(false)
 		expect(validatePhone("abcdefghijk", "+86")).toBe(false)
 	})
+
+	it("should ignore leading/trailing whitespace before validating", () => {
+		expect(validatePhone(" 13800138000", "+86")).toBe(true)
+		expect(validatePhone("13800138000 ", "+86")).toBe(true)
+		expect(validatePhone("  13800138000  ", "+86")).toBe(true)
+	})
+
+	it("should still reject internal whitespace", () => {
+		expect(validatePhone("138 0013 8000", "+86")).toBe(false)
+	})
 })

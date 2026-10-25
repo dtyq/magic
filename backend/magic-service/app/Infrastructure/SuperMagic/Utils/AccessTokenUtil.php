@@ -7,8 +7,12 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\SuperMagic\Utils;
 
+use App\Domain\SuperMagic\Common\Share\Constant\ShareAccessType;
+use App\Domain\SuperMagic\Common\Share\Entity\ResourceShareEntity;
+use App\Domain\SuperMagic\Common\Share\Service\ResourceShareDomainService;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Redis\Redis;
+use InvalidArgumentException;
 
 /**
  * 临时访问令牌工具类.
@@ -38,11 +42,32 @@ class AccessTokenUtil
      */
     public static function generate(string $shareId, string $organizationCode = '', string $scope = 'read', ?int $ttl = null, ?array $metadata = null): string
     {
+        $metadata ??= [];
+        if (array_key_exists('share_security_fingerprint', $metadata)) {
+            // The caller already authorized this exact share snapshot; reloading it here would introduce a race.
+            $fingerprint = $metadata['share_security_fingerprint'];
+            if (! is_string($fingerprint) || preg_match('/^[a-f0-9]{64}$/D', $fingerprint) !== 1) {
+                throw new InvalidArgumentException('Invalid share security fingerprint.');
+            }
+        } else {
+            $share = ApplicationContext::getContainer()->get(ResourceShareDomainService::class)
+                ->getValidShareById($shareId);
+            if ($share === null || ! $share->getIsEnabled()
+                || ShareAccessType::tryFrom($share->getShareType()) === null) {
+                throw new InvalidArgumentException('Cannot generate an access token for an invalid share.');
+            }
+            if ($organizationCode !== '' && $organizationCode !== $share->getOrganizationCode()) {
+                throw new InvalidArgumentException('Share organization does not match the token organization.');
+            }
+            $organizationCode = $share->getOrganizationCode();
+            $metadata['share_security_fingerprint'] = self::shareSecurityFingerprint($share);
+        }
+
         $redis = self::getRedis();
         $actualTtl = $ttl ?? self::$defaultTtl;
 
-        // 基于分享ID和作用域生成确定性的令牌 + php时间戳获取
-        $token = md5($shareId . ':' . $scope . ':' . $organizationCode . ':' . time());
+        // A share token is a bearer credential, so identifiers and time cannot supply its entropy.
+        $token = bin2hex(random_bytes(32));
 
         // 构建令牌数据
         $tokenData = [
@@ -50,7 +75,7 @@ class AccessTokenUtil
             'scope' => $scope,
             'created_at' => time(),
             'expires_at' => time() + $actualTtl,
-            'metadata' => $metadata ?? [],
+            'metadata' => $metadata,
             'organization_code' => $organizationCode,
         ];
 
@@ -60,6 +85,28 @@ class AccessTokenUtil
         $redis->expire($key, $actualTtl);
 
         return $token;
+    }
+
+    /**
+     * Bind the token to the exact share configuration whose access/password was checked.
+     */
+    public static function generateForShare(ResourceShareEntity $share): string
+    {
+        return self::generate((string) $share->getId(), $share->getOrganizationCode(), metadata: [
+            'share_security_fingerprint' => self::shareSecurityFingerprint($share),
+        ]);
+    }
+
+    public static function shareSecurityFingerprint(ResourceShareEntity $share): string
+    {
+        return hash('sha256', json_encode([
+            $share->getId(), $share->getOrganizationCode(), $share->getCreatedUid(),
+            $share->getResourceType(), $share->getResourceId(), $share->getProjectId(),
+            $share->getShareCode(), $share->getShareType(), $share->getPassword(),
+            $share->getIsPasswordEnabled(), $share->getIsEnabled(), $share->getExpireAt(),
+            $share->getShareRange(), $share->getTargetIds(), $share->isShareProject(),
+            $share->getExtra(),
+        ], JSON_THROW_ON_ERROR));
     }
 
     /**
@@ -89,6 +136,21 @@ class AccessTokenUtil
             return false;
         }
 
+        // Fail closed for legacy tokens and security changes across every token consumer.
+        $fingerprint = $data['metadata']['share_security_fingerprint'] ?? null;
+        if (! is_string($fingerprint) || ! is_string($data['share_id'] ?? null)) {
+            self::revoke($token);
+            return false;
+        }
+        $share = ApplicationContext::getContainer()->get(ResourceShareDomainService::class)
+            ->getValidShareById($data['share_id']);
+        if ($share === null || ! $share->getIsEnabled()
+            || ShareAccessType::tryFrom($share->getShareType()) === null
+            || ! hash_equals($fingerprint, self::shareSecurityFingerprint($share))) {
+            self::revoke($token);
+            return false;
+        }
+
         return true;
     }
 
@@ -114,6 +176,9 @@ class AccessTokenUtil
      */
     public static function refresh(string $token, ?int $ttl = null): bool
     {
+        if (! self::validate($token)) {
+            return false;
+        }
         $data = self::getTokenData($token);
         if (! $data) {
             return false;

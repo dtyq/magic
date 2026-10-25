@@ -1,4 +1,4 @@
-import { CheckOutlined } from "@ant-design/icons"
+import { IconCheck } from "@tabler/icons-react"
 import React, { useMemo } from "react"
 import { Names, NamesOption } from "../../../types"
 import NamesBlock from "./NamesBlock"
@@ -40,7 +40,7 @@ export default function NamesItem({
 		>
 			<NamesBlock item={item} onDelete={onDelete} suffix={suffix} />
 			{showCheck && value?.find?.((v) => v.id === item.id) && (
-				<CheckOutlined className="icon" color={closeColor || "#1C1D2359"} />
+				<IconCheck className="icon" color={closeColor || "#1C1D2359"} />
 			)}
 		</div>
 	)

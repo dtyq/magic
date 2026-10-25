@@ -62,6 +62,7 @@ export default function SlidesTemplateSelectionPreview({
 				<div className="flex aspect-video w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/[0.08] ring-1 ring-inset ring-white/[0.12] transition-colors group-hover:ring-white/[0.24]">
 					{coverUrl ? (
 						<img
+							crossOrigin="anonymous"
 							src={coverUrl}
 							alt={templateName}
 							className="size-full object-contain"

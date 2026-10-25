@@ -43,7 +43,11 @@ class MagicUserOpenApi extends AbstractApi
         $query->setQueryType(UserQueryType::User);
         $query->setFilterAgent(true);
 
-        $result = $this->magicUserContactAppService->searchDepartmentUser($query, $this->getUserAuthorization());
+        $result = $this->magicUserContactAppService->searchDepartmentUser(
+            $query,
+            $this->getUserAuthorization(),
+            includeEmployeeNo: true
+        );
 
         return OpenUserSearchAssembler::createPageResponse($result);
     }

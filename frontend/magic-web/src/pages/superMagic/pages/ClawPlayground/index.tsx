@@ -1,3 +1,4 @@
+import { FileAccessProvider } from "@/pages/superMagic/providers/FileAccessProvider"
 import { lazy, Suspense } from "react"
 import { observer } from "mobx-react-lite"
 import { Loader2 } from "lucide-react"
@@ -25,4 +26,12 @@ function ClawPlaygroundPage() {
 	)
 }
 
-export default observer(ClawPlaygroundPage)
+const ObservedPage = observer(ClawPlaygroundPage)
+
+export default function FileAccessPage() {
+	return (
+		<FileAccessProvider>
+			<ObservedPage />
+		</FileAccessProvider>
+	)
+}

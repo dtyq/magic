@@ -8,7 +8,7 @@ const mockFileHandlerConfigure = vi.hoisted(() => vi.fn().mockReturnValue({}))
 const mockImageConfigure = vi.hoisted(() => vi.fn().mockReturnValue({}))
 
 // 模拟依赖
-vi.mock("@tiptap/react", () => {
+vi.mock("@/infrastructure/editors/tiptap/react", () => {
 	return {
 		useEditor: vi.fn().mockReturnValue({
 			commands: {

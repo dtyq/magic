@@ -5,7 +5,7 @@
 import { generateSnowFlake } from "@/common/utils/snowflake"
 import { useAsyncEffect, useEventEmitter, useMemoizedFn, useUpdateEffect } from "ahooks"
 import i18next from "i18next"
-import _ from "lodash"
+import { castArray, cloneDeep, debounce, isEqual } from "lodash-es"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Connection, Edge, addEdge, applyEdgeChanges, applyNodeChanges } from "reactflow"
@@ -217,7 +217,7 @@ export default function useBaseFlow({ currentFlow, paramsName }: UseBaseFlowProp
 		})
 
 		// 边的渲染需要在节点渲染完毕之后
-		setEdges(_.cloneDeep(renderEdges))
+		setEdges(cloneDeep(renderEdges))
 
 		setNodeConfig(cacheConfig)
 		setFlow({
@@ -255,12 +255,12 @@ export default function useBaseFlow({ currentFlow, paramsName }: UseBaseFlowProp
 
 	// 更新位置信息
 	const updateNodesPosition = useMemoizedFn(
-		_.debounce((nodeIds, positionMap) => {
+		debounce((nodeIds, positionMap) => {
 			if (!flow) return
 			const foundNode = nodes.find((n) => nodeIds.includes(n.node_id))
 			if (!foundNode) return
 
-			if (_.isEqual(foundNode.meta.position, positionMap[foundNode.node_id])) return
+			if (isEqual(foundNode.meta.position, positionMap[foundNode.node_id])) return
 			foundNode.meta.position = positionMap[foundNode.node_id]
 			foundNode.position = positionMap[foundNode.node_id]
 		}, 100),
@@ -329,7 +329,7 @@ export default function useBaseFlow({ currentFlow, paramsName }: UseBaseFlowProp
 	const updateNextNodeIdsByConnect = useMemoizedFn((newEdge: Edge) => {
 		const { source, sourceHandle, target } = newEdge
 		const node = nodeConfig[source]
-		const updatedNode = _.cloneDeep(node)
+		const updatedNode = cloneDeep(node)
 
 		// 当从分支源点连接线到其他节点时
 		// 当源节点为分支节点，则更新content.branches，source分支节点id，相当于sourceHandle相当于分支id
@@ -375,7 +375,7 @@ export default function useBaseFlow({ currentFlow, paramsName }: UseBaseFlowProp
 		// 当源节点为分支节点，source分支节点id，相当于sourceHandle相当于分支id
 		const { source, sourceHandle, target } = connection
 		const node = nodeConfig[source]
-		const updatedNode = _.cloneDeep(node)
+		const updatedNode = cloneDeep(node)
 		if (!updatedNode) return
 
 		// 分支节点，向分支的下一节点列表删除数据
@@ -454,8 +454,8 @@ export default function useBaseFlow({ currentFlow, paramsName }: UseBaseFlowProp
 
 	const addNode = useMemoizedFn(
 		(newNode: MagicFlow.Node | MagicFlow.Node[], newEdges?: Edge[]) => {
-			const newNodes = _.castArray(newNode)
-			const cloneNodes = _.cloneDeep(newNodes)
+			const newNodes = castArray(newNode)
+			const cloneNodes = cloneDeep(newNodes)
 			cloneNodes.forEach((cloneNode) => {
 				const i = getNewNodeIndex()
 				handleRenderProps(cloneNode, i, paramsName)

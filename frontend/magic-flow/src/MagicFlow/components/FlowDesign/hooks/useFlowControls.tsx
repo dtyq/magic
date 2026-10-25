@@ -33,7 +33,7 @@ import {
 import { useDebounceFn, useMemoizedFn, useResetState, useUpdateEffect } from "ahooks"
 import { Flex, Popover, message } from "antd"
 import i18next from "i18next"
-import _ from "lodash"
+import { cloneDeep, isEqual, set } from "lodash-es"
 import React, { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Edge, useReactFlow, useStoreApi } from "reactflow"
@@ -97,8 +97,8 @@ export default function useFlowLayout({ setShowParamsComp, flowInstance }: FlowL
 	const updateConfigPosition = useMemoizedFn((layoutNodes: MagicFlow.Node[]) => {
 		layoutNodes.forEach((n) => {
 			const curNodeConfig = nodeConfig[n.node_id]
-			_.set(curNodeConfig, ["meta", "position"], n.position)
-			_.set(curNodeConfig, ["position"], n.position)
+			set(curNodeConfig, ["meta", "position"], n.position)
+			set(curNodeConfig, ["position"], n.position)
 		})
 	})
 
@@ -116,11 +116,11 @@ export default function useFlowLayout({ setShowParamsComp, flowInstance }: FlowL
 			setCanLayout(true)
 			return lastLayoutData.nodes
 		} else {
-			const beforeNodes = _.cloneDeep(nodes)
+			const beforeNodes = cloneDeep(nodes)
 			const beforeLayoutData = {
 				undoable: true,
 				nodes: beforeNodes,
-				edges: _.cloneDeep(edges),
+				edges: cloneDeep(edges),
 			}
 
 			const { nodes: layoutNodes, edges: layoutEdges } = getLayoutElements(
@@ -130,7 +130,7 @@ export default function useFlowLayout({ setShowParamsComp, flowInstance }: FlowL
 				paramsName,
 			)
 
-			if (_.isEqual(layoutNodes, beforeNodes)) {
+			if (isEqual(layoutNodes, beforeNodes)) {
 				setCanLayout(false)
 				return nodes
 			}

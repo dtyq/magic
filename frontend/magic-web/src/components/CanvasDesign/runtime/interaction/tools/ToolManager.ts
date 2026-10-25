@@ -8,6 +8,7 @@ import { TextTool } from "./TextTool"
 import { MarkerTool } from "./MarkerTool"
 import { ImageGeneratorTool } from "./ImageGeneratorTool"
 import { VideoGeneratorTool } from "./VideoGeneratorTool"
+import { AudioGeneratorTool } from "./AudioGeneratorTool"
 import type { Canvas } from "../../core/Canvas"
 
 /**
@@ -24,6 +25,7 @@ export class ToolManager {
 	private activeTool: BaseTool | null = null
 	private previousTool: BaseTool | null = null // 记录切换工具前的工具
 	private toolActivationSource: ToolActivationSource = null // 记录工具激活来源
+	private permissionChangedUnsubscribe?: () => void
 
 	// 工具实例
 	private selectionTool: SelectionTool
@@ -37,6 +39,7 @@ export class ToolManager {
 	private markerTool: MarkerTool
 	private imageGeneratorTool: ImageGeneratorTool
 	private videoGeneratorTool: VideoGeneratorTool
+	private audioGeneratorTool: AudioGeneratorTool
 
 	/**
 	 * 构造函数
@@ -95,17 +98,24 @@ export class ToolManager {
 			canvas,
 		})
 
-		// 监听只读状态变化
-		this.canvas.eventEmitter.on("canvas:readonly", () => {
-			// 如果切换到只读模式，强制切换到选择工具
-			if (
-				this.canvas.readonly &&
-				this.activeTool !== this.selectionTool &&
-				this.activeTool !== this.panTool
-			) {
-				this.setActiveTool(this.selectionTool)
-			}
+		this.audioGeneratorTool = new AudioGeneratorTool({
+			canvas,
 		})
+
+		// 监听访问能力变化
+		this.permissionChangedUnsubscribe = this.canvas.eventEmitter.on(
+			"permission:changed",
+			() => {
+				// 如果失去文档写能力，强制切换到选择工具
+				if (
+					!this.canvas.permissionManager.can("document.write") &&
+					this.activeTool !== this.selectionTool &&
+					this.activeTool !== this.panTool
+				) {
+					this.setActiveTool(this.selectionTool)
+				}
+			},
+		)
 
 		// 激活默认工具
 		const defaultToolType = ToolTypeEnum.Select
@@ -141,6 +151,8 @@ export class ToolManager {
 				return this.imageGeneratorTool
 			case ToolTypeEnum.VideoGenerator:
 				return this.videoGeneratorTool
+			case ToolTypeEnum.AudioGenerator:
+				return this.audioGeneratorTool
 			default:
 				return null
 		}
@@ -158,7 +170,11 @@ export class ToolManager {
 		this.canvas.inputManager.cancelLongPress()
 
 		// 使用 PermissionManager 统一判断：只读模式下只允许选择工具和平移工具
-		if (this.canvas.readonly && tool !== this.selectionTool && tool !== this.panTool) {
+		if (
+			!this.canvas.permissionManager.can("document.write") &&
+			tool !== this.selectionTool &&
+			tool !== this.panTool
+		) {
 			return
 		}
 
@@ -267,6 +283,8 @@ export class ToolManager {
 			toolType = ToolTypeEnum.ImageGenerator
 		} else if (this.activeTool === this.videoGeneratorTool) {
 			toolType = ToolTypeEnum.VideoGenerator
+		} else if (this.activeTool === this.audioGeneratorTool) {
+			toolType = ToolTypeEnum.AudioGenerator
 		}
 
 		this.canvas.eventEmitter.emit({ type: "tool:change", data: { tool: toolType } })
@@ -349,6 +367,13 @@ export class ToolManager {
 		return this.videoGeneratorTool
 	}
 
+	/**
+	 * 获取音频生成工具
+	 */
+	public getAudioGeneratorTool(): AudioGeneratorTool {
+		return this.audioGeneratorTool
+	}
+
 	/** Magic 配置或语言变化时，避免工具内仍使用旧的模型列表缓存 */
 	public invalidateMagicModelListCaches(): void {
 		this.imageGeneratorTool.clearModelListCache()
@@ -386,8 +411,8 @@ export class ToolManager {
 	 * 销毁管理器
 	 */
 	public destroy(): void {
-		// 移除事件监听器
-		this.canvas.eventEmitter.off("canvas:readonly")
+		this.permissionChangedUnsubscribe?.()
+		this.permissionChangedUnsubscribe = undefined
 
 		if (this.activeTool) {
 			this.activeTool.deactivate()
@@ -408,5 +433,6 @@ export class ToolManager {
 		this.markerTool.destroy()
 		this.imageGeneratorTool.destroy()
 		this.videoGeneratorTool.destroy()
+		this.audioGeneratorTool.destroy()
 	}
 }

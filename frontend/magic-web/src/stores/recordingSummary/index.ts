@@ -15,6 +15,7 @@ import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { resolveIsOtherTabRecording } from "./resolveIsOtherTabRecording"
+import type { AudioProcessingMode } from "@/services/recordSummary/MediaRecorderService/types/RecorderTypes"
 
 /**
  * 录音纪要状态管理
@@ -47,6 +48,13 @@ class RecordingSummaryStore {
 	 * 是否正在录音
 	 */
 	status: RecordingStatus = "init"
+
+	/** 实际使用的音频处理模式，用于在录音面板展示兼容模式提示。 */
+	processingMode: AudioProcessingMode | null = null
+
+	setProcessingMode(processingMode: AudioProcessingMode | undefined) {
+		this.processingMode = processingMode ?? null
+	}
 
 	/**
 	 * 是否正在等待总结
@@ -225,11 +233,18 @@ class RecordingSummaryStore {
 	 */
 	setIsPaused(isPaused: boolean) {
 		this.status = isPaused ? "paused" : "recording"
+		if (isPaused) this.markLastMessageDefinite()
+	}
+
+	/** Marks the current trailing transcript as complete when realtime ASR stops. */
+	markLastMessageDefinite() {
 		const lastMessage = last(this.message)
-		// 如果暂停了，且最后一条消息不是确定的，则将最后一条消息的definite设置为true
-		if (isPaused && lastMessage && !lastMessage?.definite) {
-			lastMessage.definite = true
-			this.message[this.message.length - 1].definite = true
+		if (lastMessage && !lastMessage.definite) {
+			// Replace the item so observers receive the update even when the array itself is reused.
+			this.message[this.message.length - 1] = {
+				...lastMessage,
+				definite: true,
+			}
 		}
 	}
 
@@ -493,6 +508,7 @@ class RecordingSummaryStore {
 		userId,
 		audioSource,
 		transcriptionEnabled = true,
+		processingMode,
 	}: {
 		workspace: Workspace | null
 		model: ModelItem
@@ -502,6 +518,7 @@ class RecordingSummaryStore {
 		chatTopic?: Topic | null
 		audioSource?: AudioSourceConfig
 		transcriptionEnabled?: boolean
+		processingMode?: AudioProcessingMode
 	}) {
 		this.businessData = {
 			workspace,
@@ -515,6 +532,7 @@ class RecordingSummaryStore {
 		}
 		this.isVisible = true
 		this.status = "recording"
+		this.processingMode = processingMode ?? null
 		this.isPausing = false
 		this.isContinuing = false
 		this.message = []
@@ -651,6 +669,7 @@ class RecordingSummaryStore {
 		this.isVisible = false
 		this.floatPanel.setExternallyHidden(false)
 		this.status = "init"
+		this.processingMode = null
 		this.isPausing = false
 		this.isContinuing = false
 		this.businessData.workspace = null

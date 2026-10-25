@@ -5,7 +5,7 @@ import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/M
 import MagicFileIcon from "@/components/base/MagicFileIcon"
 import { DocumentSyncStatusBadge } from "../../../DocumentSyncStatusBadge"
 import { CrewKnowledge } from "@/types/crew-knowledge"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export type ProcessingDocumentRowIconVariant = "file" | "project" | "document"
 

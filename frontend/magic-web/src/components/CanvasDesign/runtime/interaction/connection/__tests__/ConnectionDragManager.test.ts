@@ -26,10 +26,10 @@ beforeAll(() => {
 
 function createCanvasStub() {
 	const state = {
-		readonly: false,
 		selectionToolActive: true,
 		transformActive: false,
 		dragging: false,
+		selectedIds: [] as string[],
 		transformerElementIds: new Set<string>(),
 		existingConnections: [] as Array<{ sourceElementId: string; targetElementId: string }>,
 		visibleIds: new Set(["origin", "target", "other"]),
@@ -54,7 +54,7 @@ function createCanvasStub() {
 		if (!state.bounds.has(elementId)) return undefined
 		const bounds = state.bounds.get(elementId)
 		if (!bounds) return undefined
-		return {
+		const baseElement = {
 			id: elementId,
 			type: state.elementTypes.get(elementId) ?? ElementTypeEnum.Text,
 			x: bounds.x,
@@ -66,9 +66,25 @@ function createCanvasStub() {
 				? { connectable: false }
 				: undefined,
 		}
+		if (
+			baseElement.type === ElementTypeEnum.Video ||
+			baseElement.type === ElementTypeEnum.Audio
+		) {
+			return {
+				...baseElement,
+				activeContentId: `${elementId}-content`,
+				mainContentId: `${elementId}-content`,
+				contents: [{ contentId: `${elementId}-content`, src: `/${elementId}.media` }],
+			} as LayerElement
+		}
+		return baseElement as LayerElement
 	})
 	const connectionManager = {
 		connectElements: vi.fn(() => ({ status: "created", connectionId: "connection-1" })),
+		connectElementsBatch: vi.fn(() => ({
+			status: "created" as const,
+			connectionIds: ["connection-1", "connection-2"],
+		})),
 		hasConnection: vi.fn((sourceElementId: string, targetElementId: string) =>
 			state.existingConnections.some(
 				(connection) =>
@@ -94,11 +110,10 @@ function createCanvasStub() {
 	}
 	const selectionManager = {
 		deselectAll: vi.fn(),
+		getSelectedIds: vi.fn(() => state.selectedIds),
 	}
 	const canvas = {
-		get readonly() {
-			return state.readonly
-		},
+		can: vi.fn(() => true),
 		stage,
 		controlsLayer,
 		eventEmitter: new EventEmitter(),
@@ -118,6 +133,7 @@ function createCanvasStub() {
 			requestLayerDraw: vi.fn(),
 		},
 		permissionManager: {
+			can: vi.fn(() => true),
 			canUseSelectionToolAffordance: () => state.selectionToolActive,
 			canHover: (element: LayerElement | undefined) =>
 				!!element && state.visibleIds.has(element.id),
@@ -146,7 +162,12 @@ function createCanvasStub() {
 		elementManager: {
 			hasElement: (elementId: string) => state.bounds.has(elementId),
 			getElementData,
+			getAllElements: () =>
+				Array.from(state.bounds.keys())
+					.map((elementId) => getElementData(elementId))
+					.filter((element): element is LayerElement => !!element),
 			isElementVisibleInDataTree: (elementId: string) => state.visibleIds.has(elementId),
+			canParticipateInDocumentRelations: () => true,
 			getElementInstance: (elementId: string) => {
 				const node = elementNodes.get(elementId)
 				return node ? { getNode: () => node } : undefined
@@ -240,6 +261,251 @@ function getTargetFeedbackRect(controlsLayer: Konva.Container): Konva.Rect | nul
 }
 
 describe("ConnectionDragManager", () => {
+	it("creates all root-to-target edges for a right-side selection drag", () => {
+		const { connectionManager, emitInput, getElementNode, manager, stage } = createCanvasStub()
+
+		expect(
+			manager.startFromHandle({
+				origin: {
+					kind: "selection",
+					elementIds: ["origin", "other"],
+					side: "right",
+					boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+					selectionRevision: "origin\u0000other",
+				},
+				client: { x: 110, y: 40 },
+				canvasPoint: { x: 110, y: 40 },
+				pointerId: 1,
+				pointerType: "mouse",
+			}),
+		).toBe(true)
+
+		emitInput(
+			"move",
+			createInput("move", {
+				client: { x: 230, y: 40 },
+				canvas: { x: 230, y: 40 },
+				target: getElementNode("target"),
+			}),
+		)
+		emitInput(
+			"up",
+			createInput("up", {
+				client: { x: 230, y: 40 },
+				canvas: { x: 230, y: 40 },
+				target: getElementNode("target"),
+			}),
+		)
+
+		expect(connectionManager.connectElementsBatch).toHaveBeenCalledWith({
+			edges: [
+				{ sourceElementId: "origin", targetElementId: "target" },
+				{ sourceElementId: "other", targetElementId: "target" },
+			],
+		})
+		expect(stage.isDragging()).toBe(false)
+	})
+
+	it("creates target-to-all-root edges for a left-side selection drag", () => {
+		const { connectionManager, emitInput, getElementNode, manager } = createCanvasStub()
+		manager.startFromHandle({
+			origin: {
+				kind: "selection",
+				elementIds: ["origin", "other"],
+				side: "left",
+				boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+				selectionRevision: "origin\u0000other",
+			},
+			client: { x: 10, y: 40 },
+			canvasPoint: { x: 10, y: 40 },
+			pointerId: 1,
+			pointerType: "mouse",
+		})
+
+		emitInput(
+			"move",
+			createInput("move", {
+				client: { x: 230, y: 40 },
+				canvas: { x: 230, y: 40 },
+				target: getElementNode("target"),
+			}),
+		)
+		emitInput(
+			"up",
+			createInput("up", {
+				client: { x: 230, y: 40 },
+				canvas: { x: 230, y: 40 },
+				target: getElementNode("target"),
+			}),
+		)
+
+		expect(connectionManager.connectElementsBatch).toHaveBeenCalledWith({
+			edges: [
+				{ sourceElementId: "target", targetElementId: "origin" },
+				{ sourceElementId: "target", targetElementId: "other" },
+			],
+		})
+	})
+
+	it("does not create any selection edge when one root pair fails preflight", () => {
+		const { connectionManager, emitInput, getElementNode, manager, state } = createCanvasStub()
+		state.existingConnections.push({ sourceElementId: "origin", targetElementId: "target" })
+		manager.startFromHandle({
+			origin: {
+				kind: "selection",
+				elementIds: ["origin", "other"],
+				side: "right",
+				boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+				selectionRevision: "origin\u0000other",
+			},
+			client: { x: 110, y: 40 },
+			canvasPoint: { x: 110, y: 40 },
+			pointerId: 1,
+			pointerType: "mouse",
+		})
+
+		emitInput(
+			"move",
+			createInput("move", {
+				client: { x: 230, y: 40 },
+				canvas: { x: 230, y: 40 },
+				target: getElementNode("target"),
+			}),
+		)
+		emitInput(
+			"up",
+			createInput("up", {
+				client: { x: 230, y: 40 },
+				canvas: { x: 230, y: 40 },
+				target: getElementNode("target"),
+			}),
+		)
+
+		expect(connectionManager.connectElementsBatch).not.toHaveBeenCalled()
+		expect(connectionManager.connectElements).not.toHaveBeenCalled()
+	})
+
+	it("invalidates a pending selection drag when the selected roots change", () => {
+		const { canvas, manager, state } = createCanvasStub()
+		state.selectedIds = ["origin", "other"]
+		const origin = {
+			kind: "selection" as const,
+			elementIds: ["origin", "other"],
+			side: "right" as const,
+			boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+			selectionRevision: "origin\u0000other",
+		}
+
+		expect(
+			manager.startFromHandle({
+				origin,
+				client: { x: 110, y: 40 },
+				canvasPoint: { x: 110, y: 40 },
+				pointerId: 1,
+				pointerType: "mouse",
+			}),
+		).toBe(true)
+
+		state.selectedIds = ["origin", "target"]
+		canvas.eventEmitter.emit({
+			type: "element:select",
+			data: { elementIds: ["origin", "target"] },
+		})
+
+		expect(manager.isDraggingConnection()).toBe(false)
+	})
+
+	it.each(["left", "right"] as const)(
+		"opens the shared selection creation menu from the %s handle",
+		(side) => {
+			const { canvas, manager, state } = createCanvasStub()
+			state.selectedIds = ["origin", "other"]
+			const onMenuOpen = vi.fn()
+			canvas.eventEmitter.on("connection:menu:open", onMenuOpen)
+
+			manager.startFromHandle({
+				origin: {
+					kind: "selection",
+					elementIds: ["origin", "other"],
+					side,
+					boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+					selectionRevision: "origin\u0000other",
+				},
+				client: { x: side === "left" ? 10 : 520, y: 40 },
+				canvasPoint: { x: side === "left" ? 10 : 520, y: 40 },
+				pointerId: 1,
+				pointerType: "mouse",
+			})
+			manager.releasePendingHandleInteraction()
+			expect(onMenuOpen).toHaveBeenCalledWith({
+				type: "connection:menu:open",
+				data: expect.objectContaining({
+					origin: {
+						kind: "selection",
+						elementIds: ["origin", "other"],
+						side,
+						boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+						selectionRevision: "origin\u0000other",
+					},
+				}),
+			})
+		},
+	)
+
+	it.each(["left", "right"] as const)(
+		"opens the shared selection creation menu after a %s-side drag to blank space",
+		(side) => {
+			const { canvas, emitInput, manager, stage, state } = createCanvasStub()
+			state.selectedIds = ["origin", "other"]
+			const onMenuOpen = vi.fn()
+			canvas.eventEmitter.on("connection:menu:open", onMenuOpen)
+
+			manager.startFromHandle({
+				origin: {
+					kind: "selection",
+					elementIds: ["origin", "other"],
+					side,
+					boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+					selectionRevision: "origin\u0000other",
+				},
+				client: { x: side === "left" ? 10 : 520, y: 40 },
+				canvasPoint: { x: side === "left" ? 10 : 520, y: 40 },
+				pointerId: 1,
+				pointerType: "mouse",
+			})
+			emitInput(
+				"move",
+				createInput("move", {
+					client: { x: 700, y: 300 },
+					canvas: { x: 700, y: 300 },
+					target: stage,
+				}),
+			)
+			emitInput(
+				"up",
+				createInput("up", {
+					client: { x: 700, y: 300 },
+					canvas: { x: 700, y: 300 },
+					target: stage,
+				}),
+			)
+
+			expect(onMenuOpen).toHaveBeenCalledWith({
+				type: "connection:menu:open",
+				data: expect.objectContaining({
+					origin: {
+						kind: "selection",
+						elementIds: ["origin", "other"],
+						side,
+						boundingRect: { x: 10, y: 20, width: 510, height: 40 },
+						selectionRevision: "origin\u0000other",
+					},
+					source: "drag-empty",
+				}),
+			})
+		},
+	)
+
 	it("creates origin-to-target connections from the right handle", () => {
 		const {
 			connectionHandleOverlayManager,
@@ -253,8 +519,7 @@ describe("ConnectionDragManager", () => {
 
 		expect(
 			manager.startFromHandle({
-				elementId: "origin",
-				side: "right",
+				origin: { kind: "element", elementId: "origin", side: "right" },
 				client: { x: 100, y: 40 },
 				canvasPoint: { x: 110, y: 40 },
 				pointerId: 1,
@@ -298,8 +563,7 @@ describe("ConnectionDragManager", () => {
 		const { connectionManager, emitInput, getElementNode, manager, stage } = createCanvasStub()
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "left",
+			origin: { kind: "element", elementId: "origin", side: "left" },
 			client: { x: 10, y: 40 },
 			canvasPoint: { x: 10, y: 40 },
 			pointerId: 1,
@@ -333,8 +597,7 @@ describe("ConnectionDragManager", () => {
 		const { controlsLayer, cursorManager, emitInput, manager, stage } = createCanvasStub()
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -382,8 +645,7 @@ describe("ConnectionDragManager", () => {
 		state.nonConnectableIds.add("target")
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -431,8 +693,7 @@ describe("ConnectionDragManager", () => {
 		state.nonConnectableIds.add("origin")
 		expect(
 			manager.startFromHandle({
-				elementId: "origin",
-				side: "right",
+				origin: { kind: "element", elementId: "origin", side: "right" },
 				client: { x: 100, y: 40 },
 				canvasPoint: { x: 110, y: 40 },
 				pointerId: 1,
@@ -448,8 +709,7 @@ describe("ConnectionDragManager", () => {
 		state.elementTypes.set("origin", ElementTypeEnum.Frame)
 		expect(
 			manager.startFromHandle({
-				elementId: "origin",
-				side: "right",
+				origin: { kind: "element", elementId: "origin", side: "right" },
 				client: { x: 100, y: 40 },
 				canvasPoint: { x: 110, y: 40 },
 				pointerId: 1,
@@ -472,8 +732,7 @@ describe("ConnectionDragManager", () => {
 		state.elementTypes.set("target", elementType)
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -516,8 +775,7 @@ describe("ConnectionDragManager", () => {
 		state.bounds.set("other", { x: 220, y: 20, width: 100, height: 40 })
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -560,8 +818,7 @@ describe("ConnectionDragManager", () => {
 		state.transformerElementIds.add("target")
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -614,8 +871,7 @@ describe("ConnectionDragManager", () => {
 		})
 
 		manager.startFromHandle({
-			elementId: "target",
-			side: "left",
+			origin: { kind: "element", elementId: "target", side: "left" },
 			client: { x: 220, y: 40 },
 			canvasPoint: { x: 220, y: 40 },
 			pointerId: 1,
@@ -673,8 +929,7 @@ describe("ConnectionDragManager", () => {
 		})
 
 		manager.startFromHandle({
-			elementId: "target",
-			side: "right",
+			origin: { kind: "element", elementId: "target", side: "right" },
 			client: { x: 320, y: 40 },
 			canvasPoint: { x: 320, y: 40 },
 			pointerId: 1,
@@ -720,8 +975,7 @@ describe("ConnectionDragManager", () => {
 		const { connectionManager, cursorManager, emitInput, manager, stage } = createCanvasStub()
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -754,8 +1008,7 @@ describe("ConnectionDragManager", () => {
 		const emitSpy = vi.spyOn(canvas.eventEmitter, "emit")
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -766,8 +1019,7 @@ describe("ConnectionDragManager", () => {
 		expect(emitSpy).toHaveBeenCalledWith({
 			type: "connection:menu:open",
 			data: {
-				originElementId: "origin",
-				originSide: "right",
+				origin: { kind: "element", elementId: "origin", side: "right" },
 				x: 100,
 				y: 40,
 				canvasX: 110,
@@ -782,8 +1034,7 @@ describe("ConnectionDragManager", () => {
 		const { emitInput, manager, selectionManager, stage } = createCanvasStub()
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -818,8 +1069,7 @@ describe("ConnectionDragManager", () => {
 		const emitSpy = vi.spyOn(canvas.eventEmitter, "emit")
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -849,8 +1099,7 @@ describe("ConnectionDragManager", () => {
 		expect(emitSpy).toHaveBeenCalledWith({
 			type: "connection:menu:open",
 			data: {
-				originElementId: "origin",
-				originSide: "right",
+				origin: { kind: "element", elementId: "origin", side: "right" },
 				x: 120,
 				y: 40,
 				canvasX: 160,
@@ -865,8 +1114,7 @@ describe("ConnectionDragManager", () => {
 		canvas.eventEmitter.emit({
 			type: "connection:menu:close",
 			data: {
-				originElementId: "origin",
-				originSide: "right",
+				origin: { kind: "element", elementId: "origin", side: "right" },
 				source: "drag-empty",
 			},
 		})
@@ -889,8 +1137,7 @@ describe("ConnectionDragManager", () => {
 		} = createCanvasStub()
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,
@@ -933,8 +1180,7 @@ describe("ConnectionDragManager", () => {
 		const { connectionManager, emitInput, manager, stage } = createCanvasStub()
 
 		manager.startFromHandle({
-			elementId: "origin",
-			side: "right",
+			origin: { kind: "element", elementId: "origin", side: "right" },
 			client: { x: 100, y: 40 },
 			canvasPoint: { x: 110, y: 40 },
 			pointerId: 1,

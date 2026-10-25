@@ -1,7 +1,7 @@
 import { Moon, Sun } from "lucide-react"
 
 import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export interface MobileShellThemeToggleProps {
 	disabled: boolean

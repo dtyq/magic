@@ -1,14 +1,16 @@
 import { useMemo, type MouseEvent } from "react"
 import MarkdownComponent from "../../../Text/components/Markdown"
 import { CitationCard } from "../../../Citations"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { extractCitations, trimIncompleteCitationTag } from "@/pages/superMagic/utils/citations"
 import { hasKnowledgeBaseTabTarget } from "@/pages/superMagic/events/openFileTab"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useMessageViewState } from "@/pages/superMagic/components/MessageList/view-state/MessageViewStateContext"
+import { getModelRecoveryMessage } from "@/pages/superMagic/utils/model-error-recovery"
+import { ModelErrorRecovery } from "../../../Card/components/ModelErrorRecovery"
 
 export const messageMarkdownBaseClassName = cn(
-	"my-2 w-full break-words leading-relaxed text-foreground",
+	"w-full break-words leading-relaxed text-foreground",
 	"[&_h1]:mb-2.5 [&_h1]:mt-2.5 [&_h1]:pb-1.5 [&_h1]:text-[2em] [&_h1]:font-semibold [&_h1]:leading-tight",
 	"[&_h2]:mb-2.5 [&_h2]:mt-2.5 [&_h2]:pb-1.5 [&_h2]:text-[1.5em] [&_h2]:font-semibold [&_h2]:leading-tight",
 	"[&_h3]:mb-2.5 [&_h3]:mt-2.5 [&_h3]:text-[1.25em] [&_h3]:font-semibold [&_h3]:leading-tight",
@@ -20,7 +22,7 @@ export const messageMarkdownBaseClassName = cn(
 	"[&_ol]:m-0 [&_ol]:list-outside [&_ol]:p-0 [&_ol]:pl-5",
 	"[&>ul]:!mb-1 [&>ul]:!mt-1",
 	"[&>ol]:!mb-1 [&>ol]:!mt-1",
-	"[&_li]:!m-0 [&_li]:p-0 [&_li]:pl-1 [&_li]:align-top [&_li]:!leading-[2em] [&_li]:leading-normal",
+	"[&_li]:!m-0 [&_li]:p-0 [&_li]:pl-1 [&_li]:align-top [&_li]:!leading-[1.6em] [&_li]:leading-normal",
 	"[&_li_ul]:m-0 [&_li_ul]:p-0 [&_li_ul]:pl-5",
 	"[&_li_ol]:m-0 [&_li_ol]:p-0 [&_li_ol]:pl-5",
 	"[&_table]:mt-0 [&_table]:block [&_table]:w-full [&_table]:border-collapse [&_table]:border-spacing-0 [&_table]:overflow-auto",
@@ -66,10 +68,16 @@ export function ContentSection({
 
 	if (!hasContent) return null
 
-	return (
+	// Markdown 原样保留内容；恢复提示统一为 12px，其他消息继续使用原阅读字号。
+	const recovery = getModelRecoveryMessage(node)
+	const content = (
 		<>
 			<MarkdownComponent
-				className={messageMarkdownBaseClassName}
+				enableNoSend={node?.role === "assistant"}
+				className={cn(
+					messageMarkdownBaseClassName,
+					recovery && "!text-xs !leading-5 ![--font-size:12px]",
+				)}
 				isStreaming={isContentStreaming}
 				content={displayContent}
 				citations={citations}
@@ -105,5 +113,10 @@ export function ContentSection({
 				/>
 			)}
 		</>
+	)
+	return recovery ? (
+		<ModelErrorRecovery message={recovery}>{content}</ModelErrorRecovery>
+	) : (
+		content
 	)
 }

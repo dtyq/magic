@@ -1,10 +1,10 @@
 import { useMemo } from "react"
-import type { AnyExtension } from "@tiptap/react"
+import type { AnyExtension } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 import { ImageStorageDatabase } from "@/services/tiptap-image-storage"
 import { SaveImageToStorageExtension } from "@/components/tiptap-node/storage-image-node/save-image-to-storage-extension"
 import { StorageImageNode } from "@/components/tiptap-node/storage-image-node"
-import { MAX_FILE_SIZE } from "@/lib/tiptap-utils"
+import { MAX_FILE_SIZE } from "@/infrastructure/editors/tiptap/utils"
 import ProjectImageNode from "@/components/tiptap-node/project-image-node/project-image-node-extension"
 import magicToast from "@/components/base/MagicToaster/utils"
 

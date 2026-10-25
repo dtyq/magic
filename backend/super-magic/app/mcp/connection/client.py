@@ -9,20 +9,34 @@
 
 import asyncio
 import random
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
+import httpx
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.types import JSONRPCError
 
 from agentlang.logger import get_logger
 
 from ..config.env_resolver import redact_config_values
 from ..config.models import MCPServerConfig, MCPServerType
+from .response_normalizer import MCPResponseNormalizer
 
 logger = get_logger(__name__)
 
 # 断开连接时等待后台 task 退出的最长时间（秒）
 CONNECTION_CLEANUP_TIMEOUT = 5.0
+
+# 单次工具调用（call_tool）的硬超时（秒）。MCP SDK 的 streamable HTTP 传输默认
+# sse_read_timeout = 300s，超时后 ReadTimeout 会中断连接，但 SDK 不会取消/失败
+# 正在进行中的 call_tool，导致调用无限期挂起。这里用「连接生命周期 task 完成」
+# 作为断连信号 + 一个硬超时，保证 in-flight 调用一定能被及时终止。
+DEFAULT_TOOL_CALL_TIMEOUT = 300.0
+
+# SSE 读超时（秒）。对应 httpx.Timeout(..., read=sse_read_timeout)，
+# 与 streamablehttp_client 的默认值 60*5 保持一致。
+DEFAULT_SSE_READ_TIMEOUT = 300.0
 
 
 async def _read_error_body_hook(response) -> None:
@@ -57,7 +71,79 @@ def _mcp_http_client_factory_with_error_body(
         kwargs["headers"] = headers
     if auth is not None:
         kwargs["auth"] = auth
-    return _httpx.AsyncClient(**kwargs)
+    return _MCPNormalizingAsyncClient(**kwargs)
+
+
+class _MCPNormalizingAsyncClient(httpx.AsyncClient):
+    """在 MCP SDK 解析前，将 HTTP 非标准响应转换为 JSON-RPC error。"""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._response_normalizer = MCPResponseNormalizer()
+
+    @asynccontextmanager
+    async def stream(self, method: str, url: str, **kwargs: Any):
+        """只缓存普通 HTTP 响应，保留 SSE 和协议回退控制路径。"""
+        request_payload = kwargs.get("json")
+        async with super().stream(method, url, **kwargs) as response:
+            if self._should_normalize(response):
+                original_status = response.status_code
+                body = await response.aread()
+                request_id = self._extract_request_id(request_payload)
+                normalized = self._response_normalizer.normalize_payload(
+                    body,
+                    request_id=request_id,
+                    http_status=original_status,
+                    content_type=response.headers.get("content-type"),
+                )
+                response._content = normalized
+                response.headers["content-type"] = "application/json"
+                response.headers["content-length"] = str(len(normalized))
+                if original_status >= 400:
+                    response.status_code = 200
+            yield response
+
+    @staticmethod
+    def _should_normalize(response: httpx.Response) -> bool:
+        """判断响应是否属于可安全缓存的普通成功响应。"""
+        if response.status_code in (202, 404, 405):
+            return False
+        return not response.headers.get("content-type", "").lower().startswith("text/event-stream")
+
+    @staticmethod
+    def _extract_request_id(payload: Any) -> str | int | None:
+        """从 SDK 发出的 JSON-RPC 请求中提取关联 ID。"""
+        if isinstance(payload, dict):
+            request_id = payload.get("id")
+            if isinstance(request_id, (str, int)) or request_id is None:
+                return request_id
+        return None
+
+
+class _MCPClientSession(ClientSession):
+    """将 SDK 内部未关联请求的解析异常桥接为 JSON-RPC error。"""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        self._response_normalizer = MCPResponseNormalizer()
+        super().__init__(*args, **kwargs)
+
+    async def _handle_incoming(self, req: Any) -> None:
+        """唤醒当前待处理请求，避免 SDK 解析异常导致无限等待。"""
+        if isinstance(req, Exception):
+            request_id = next(iter(self._response_streams), None)
+            if request_id is not None:
+                stream = self._response_streams.get(request_id)
+                if stream is not None:
+                    error = self._response_normalizer.normalize_exception(req, request_id)
+                    await stream.send(
+                        JSONRPCError(
+                            jsonrpc="2.0",
+                            id=request_id,
+                            error=error,
+                        )
+                    )
+                    return
+        await super()._handle_incoming(req)
 
 
 class MCPClient:
@@ -82,6 +168,14 @@ class MCPClient:
         self._init_event: Optional[asyncio.Event] = None
         self._disconnect_event: Optional[asyncio.Event] = None
         self._init_error: Optional[BaseException] = None
+
+        # 超时配置：优先从 server_options 读取，缺失时回退到模块级默认值
+        self.tool_call_timeout = self._resolve_timeout_option(
+            "tool_call_timeout", DEFAULT_TOOL_CALL_TIMEOUT
+        )
+        self.sse_read_timeout = self._resolve_timeout_option(
+            "sse_read_timeout", DEFAULT_SSE_READ_TIMEOUT
+        )
 
         logger.debug(f"初始化 MCP 客户端: {config.name} ({config.type.value}), 最大重试次数: {max_retries}")
 
@@ -157,7 +251,17 @@ class MCPClient:
             raise
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """调用工具（连接失效时自动重连）"""
+        """调用工具（连接失效时自动重连，带硬超时与断连传播）。
+
+        背景：MCP SDK 在 SSE 读超时（ReadTimeout）后会中断连接，但不会取消/失败
+        正在进行中的 call_tool，导致调用无限期挂起（曾导致 mcp_call_tool 卡死
+        25 分钟直到被外层 run_sdk_snippet 的 1500s 命令超时强制杀掉）。
+
+        这里把「连接生命周期 task 完成」当作断连信号，与实际调用一起竞争：
+        - 调用先完成 → 正常返回结果
+        - 连接先断开 → 立即取消 in-flight 调用并返回失败
+        - 两者都未在 tool_call_timeout 内完成 → 取消调用并返回超时
+        """
         if not self.session or not await self.ping():
             logger.warning(f"MCP 服务器 '{self.config.name}' 连接失效，尝试重连")
             await self.disconnect()
@@ -169,13 +273,54 @@ class MCPClient:
 
             logger.info(f"成功重连到 MCP 服务器 '{self.config.name}'")
 
+        # 捕获当前连接生命周期 task 与 session 引用，避免与重连/断开竞争
+        conn_task = self._conn_task
+        session = self.session
+        timeout = self.tool_call_timeout
+
+        call_task = asyncio.ensure_future(session.call_tool(name, arguments))
         try:
-            result = await self.session.call_tool(name, arguments)
-            return {
-                "content": result.content if hasattr(result, 'content') else [],
-                "isError": result.isError if hasattr(result, 'isError') else False
-            }
+            awaitables = {call_task}
+            if conn_task is not None and not conn_task.done():
+                awaitables.add(conn_task)
+
+            done, _ = await asyncio.wait(
+                awaitables,
+                timeout=timeout,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            if call_task in done:
+                # 正常完成（成功或抛出 SDK 异常），由下方 except 兜底 SDK 异常
+                result = call_task.result()
+                return {
+                    "content": result.content if hasattr(result, 'content') else [],
+                    "isError": result.isError if hasattr(result, 'isError') else False
+                }
+
+            # 未在超时内完成：取消 in-flight 调用，避免泄漏挂起任务
+            call_task.cancel()
+            try:
+                await call_task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+            if conn_task is not None and conn_task in done:
+                error_msg = (
+                    f"MCP 服务器 '{self.config.name}' 连接中断，"
+                    f"工具调用 '{name}' 已中止"
+                )
+                logger.warning(error_msg)
+                return {"content": [{"type": "text", "text": error_msg}], "isError": True}
+
+            error_msg = f"调用 MCP 工具 '{name}' 超时（{timeout:.0f}s）"
+            logger.warning(f"MCP 服务器 '{self.config.name}' {error_msg}")
+            return {"content": [{"type": "text", "text": error_msg}], "isError": True}
+        except asyncio.CancelledError:
+            call_task.cancel()
+            raise
         except Exception as e:
+            call_task.cancel()
             error_text = self._redact_error_text(str(e))
             logger.warning(f"调用 MCP 工具 '{name}' 失败: {error_text}")
             return {"content": [{"type": "text", "text": error_text}], "isError": True}
@@ -282,6 +427,7 @@ class MCPClient:
         streamable_cm = self._create_transport_cm(
             streamablehttp_client, headers,
             httpx_client_factory=_mcp_http_client_factory_with_error_body,
+            sse_read_timeout=self.sse_read_timeout,
         )
 
         try:
@@ -332,7 +478,11 @@ class MCPClient:
         async with streamablehttp_client 边界将真实的 McpError 重新抛出，
         而不是停留在 CancelledError，从而让调用方获得准确的错误信息。
         """
-        async with ClientSession(read_stream, write_stream) as session:
+        # stdio 服务器可能把启动日志写入 stdout。原生 ClientSession 会忽略这类
+        # 非 JSON-RPC 行并继续处理后续消息；HTTP 连接仍使用自定义会话，将解析异常
+        # 转换为可返回给调用方的 JSON-RPC 错误。
+        session_cls = ClientSession if self.config.type == MCPServerType.STDIO else _MCPClientSession
+        async with session_cls(read_stream, write_stream) as session:
             await session.initialize()
             self.session = session
             logger.debug(f"MCP 服务器 '{self.config.name}' 连接成功")
@@ -410,6 +560,28 @@ class MCPClient:
 
     def _redact_error_text(self, text: str) -> str:
         return redact_config_values(self.config, text)
+
+    def _resolve_timeout_option(self, key: str, default: float) -> float:
+        """从 server_options 读取超时配置，非法/缺失时回退到默认值。"""
+        options = self.config.server_options or {}
+        raw = options.get(key)
+        if raw is None:
+            return default
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                f"MCP 服务器 '{self.config.name}' 的超时配置 {key}={raw!r} 非法，"
+                f"使用默认值 {default:.0f}s"
+            )
+            return default
+        if value <= 0:
+            logger.warning(
+                f"MCP 服务器 '{self.config.name}' 的超时配置 {key}={raw!r} 非正数，"
+                f"使用默认值 {default:.0f}s"
+            )
+            return default
+        return value
 
     def _prepare_headers(self) -> Dict[str, str]:
         """准备 HTTP 认证头，token 优先级高于自定义 headers"""

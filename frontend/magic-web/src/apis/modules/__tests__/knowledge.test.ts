@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { HttpClient } from "../../core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import { generateKnowledgeApi } from "../knowledge"
 
 describe("generateKnowledgeApi", () => {
@@ -16,7 +16,7 @@ describe("generateKnowledgeApi", () => {
 		const post = vi.fn().mockResolvedValue({ data: sourceLink })
 		const knowledgeApi = generateKnowledgeApi({
 			post,
-		} as unknown as HttpClient)
+		} as unknown as ServiceHttpClient)
 
 		const result = await knowledgeApi.getKnowledgeSourceFileLink({
 			knowledgeBaseCode: "KNOWLEDGE-1",

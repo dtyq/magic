@@ -33,6 +33,8 @@ export enum PowerCode {
 	WEB_SCRAPE = "web_scrape",
 	/** 图片转换高清 */
 	IMAGE_CONVERT_HIGH = "image_convert_high",
+	/** 火山方舟素材服务 */
+	VOLCENGINE_ARK_ASSETS = "volcengine_ark_assets",
 	/** 扩图 */
 	IMAGE_EXPAND = "image_expand",
 	/** 去背景 */
@@ -93,6 +95,10 @@ export interface ProviderConfig {
 	sk?: string
 	cx?: string
 	region?: string
+	version?: string
+	service?: string
+	endpoint?: string
+	project_name?: string
 	// OCR 字段
 	access_key?: string
 	secret_key?: string

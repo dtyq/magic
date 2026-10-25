@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRFlow — Modern People Operations & Onboarding</title>
+<style>
+:root {
+--primary-purple: #7C3AED;
+--purple-hover: #6D28D9;
+--purple-light: #F5F3FF;
+--purple-border: #DDD6FE;
+--coral-accent: #F97316;
+--coral-warm: #FB7185;
+--coral-light: #FFF7ED;
+--coral-border: #FFEDD5;
+--teal-secondary: #0D9488;
+--teal-light: #CCFBF1;
+--bg: #FAFAFA;
+--surface: #FFFFFF;
+--border: #E5E7EB;
+--text-main: #111827;
+--text-muted: #4B5563;
+--text-light: #6B7280;
+--success-green: #059669;
+--warning-amber: #D97706;
+--font-head: 'Lexend', -apple-system, sans-serif;
+--font-body: 'DM Sans', -apple-system, sans-serif;
+--font-mono: 'Roboto Mono', 'Courier New', monospace;
+--radius-sm: 4px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--radius-pill: 9999px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background-color: var(--bg);
+color: var(--text-main);
+font-family: var(--font-body);
+font-size: 13px;
+line-height: 1.45;
+-webkit-font-smoothing: antialiased;
+}
+/* Top People Ops Header */
+.top-header {
+height: 54px;
+background: #FFFFFF;
+border-bottom: 1px solid var(--border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 0 24px;
+}
+.brand-wrap {
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.brand-logo {
+width: 28px;
+height: 28px;
+background: linear-gradient(135deg, var(--primary-purple) 0%, var(--coral-accent) 100%);
+border-radius: var(--radius-sm);
+display: flex;
+align-items: center;
+justify-content: center;
+color: #fff;
+font-weight: 800;
+font-family: var(--font-head);
+font-size: 14px;
+}
+.brand-name {
+font-family: var(--font-head);
+font-size: 16px;
+font-weight: 700;
+color: var(--text-main);
+}
+.brand-name span { color: var(--primary-purple); }
+.org-badge {
+display: flex;
+align-items: center;
+gap: 6px;
+font-size: 12px;
+color: var(--text-muted);
+}
+.org-chip {
+background: var(--purple-light);
+color: var(--primary-purple);
+border: 1px solid var(--purple-border);
+padding: 2px 8px;
+border-radius: var(--radius-pill);
+font-weight: 600;
+font-size: 11px;
+}
+.main-container {
+max-width: 1400px;
+margin: 0 auto;
+padding: 16px 20px;
+display: flex;
+flex-direction: column;
+gap: 14px;
+}
+/* Time-Off Request Approval Pill */
+.approval-banner-pill {
+background: linear-gradient(90deg, #FFF7ED 0%, #FAF5FF 100%);
+border: 1px solid var(--coral-border);
+border-radius: var(--radius-pill);
+padding: 8px 18px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+box-shadow: 0 2px 6px rgba(249, 115, 22, 0.06);
+}
+.pill-left {
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.pill-avatar {
+width: 26px;
+height: 26px;
+border-radius: 50%;
+background: var(--coral-accent);
+color: #fff;
+font-weight: 700;
+font-size: 10px;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.pill-text {
+font-size: 12px;
+color: var(--text-main);
+}
+.pill-text strong {
+font-weight: 700;
+color: #9A3412;
+}
+.pill-text .meta {
+color: var(--text-muted);
+font-size: 11px;
+margin-left: 6px;
+}
+.pill-actions {
+display: flex;
+gap: 8px;
+align-items: center;
+}
+.btn-approve {
+background: var(--success-green);
+color: #fff;
+border: none;
+padding: 4px 12px;
+border-radius: var(--radius-pill);
+font-size: 11px;
+font-weight: 600;
+cursor: pointer;
+display: inline-flex;
+align-items: center;
+gap: 4px;
+}
+.btn-review {
+background: #FFFFFF;
+border: 1px solid var(--border);
+color: var(--text-muted);
+padding: 4px 10px;
+border-radius: var(--radius-pill);
+font-size: 11px;
+font-weight: 500;
+cursor: pointer;
+}
+/* First 500px Focal Grid: Onboarding Kanban & Comp Benchmark */
+.hero-people-grid {
+display: grid;
+grid-template-columns: 1.6fr 1fr;
+gap: 16px;
+align-items: stretch;
+}
+.card {
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: var(--radius-md);
+box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+display: flex;
+flex-direction: column;
+}
+.card-header {
+padding: 10px 14px;
+border-bottom: 1px solid var(--border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+background: #FAFBFD;
+}
+.card-title {
+font-family: var(--font-head);
+font-size: 13px;
+font-weight: 700;
+color: var(--text-main);
+display: flex;
+align-items: center;
+gap: 6px;
+}
+.card-body {
+padding: 12px;
+flex: 1;
+}
+/* Talent Onboarding Pipeline Kanban Board */
+.kanban-board {
+display: grid;
+grid-template-columns: repeat(4, 1fr);
+gap: 8px;
+height: 100%;
+}
+.kanban-col {
+background: #F9FAFB;
+border: 1px solid var(--border);
+border-radius: var(--radius-sm);
+display: flex;
+flex-direction: column;
+}
+.col-header {
+padding: 8px 10px;
+border-bottom: 1px solid var(--border);
+font-size: 11px;
+font-weight: 700;
+display: flex;
+justify-content: space-between;
+align-items: center;
+background: #FFFFFF;
+}
+.col-count {
+background: var(--purple-light);
+color: var(--primary-purple);
+font-size: 10px;
+padding: 1px 6px;
+border-radius: var(--radius-pill);
+font-family: var(--font-mono);
+}
+.col-cards {
+padding: 8px;
+display: flex;
+flex-direction: column;
+gap: 8px;
+flex: 1;
+}
+.candidate-card {
+background: #FFFFFF;
+border: 1px solid var(--border);
+border-radius: var(--radius-sm);
+padding: 8px;
+box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+cursor: pointer;
+}
+.candidate-card:hover {
+border-color: var(--purple-border);
+box-shadow: 0 2px 6px rgba(124, 58, 237, 0.08);
+}
+.candidate-top {
+display: flex;
+align-items: center;
+gap: 6px;
+margin-bottom: 4px;
+}
+.candidate-avatar {
+width: 22px;
+height: 22px;
+border-radius: 50%;
+background: var(--purple-light);
+color: var(--primary-purple);
+font-weight: 700;
+font-size: 9px;
+display: flex;
+align-items: center;
+justify-content: center;
+border: 1px solid var(--purple-border);
+}
+.candidate-name {
+font-weight: 700;
+font-size: 11px;
+color: var(--text-main);
+}
+.candidate-role {
+font-size: 10px;
+color: var(--text-muted);
+margin-bottom: 6px;
+}
+.candidate-progress {
+height: 4px;
+background: #F3F4F6;
+border-radius: 2px;
+overflow: hidden;
+margin-bottom: 4px;
+}
+.prog-fill {
+height: 100%;
+background: var(--teal-secondary);
+}
+.candidate-footer {
+display: flex;
+justify-content: space-between;
+font-size: 9px;
+color: var(--text-light);
+font-family: var(--font-mono);
+}
+/* Compensation Benchmark Graph */
+.comp-panel {
+display: flex;
+flex-direction: column;
+gap: 10px;
+}
+.role-badge-box {
+background: #FFFFFF;
+border: 1px solid var(--purple-border);
+border-radius: var(--radius-sm);
+padding: 8px 12px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.role-title {
+font-family: var(--font-head);
+font-size: 12px;
+font-weight: 700;
+color: var(--primary-purple);
+}
+.role-sub {
+font-size: 10px;
+color: var(--text-muted);
+}
+.comp-ratio {
+font-family: var(--font-mono);
+font-weight: 700;
+color: var(--success-green);
+font-size: 12px;
+}
+/* SVG Benchmark Curve */
+.comp-svg-wrap {
+background: #FFFFFF;
+border: 1px solid var(--border);
+border-radius: var(--radius-sm);
+padding: 8px;
+}
+.comp-chart-svg {
+width: 100%;
+height: 140px;
+}
+.comp-metric-tiles {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 6px;
+}
+.tile {
+background: #F9FAFB;
+border: 1px solid var(--border);
+border-radius: var(--radius-sm);
+padding: 6px 8px;
+text-align: center;
+}
+.tile .lbl {
+font-size: 9px;
+color: var(--text-light);
+text-transform: uppercase;
+display: block;
+}
+.tile .val {
+font-family: var(--font-mono);
+font-weight: 700;
+color: var(--text-main);
+font-size: 12px;
+}
+/* Lower Section: Team Pulse & Metrics */
+.metrics-bottom-row {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 14px;
+}
+.metric-card {
+background: #FFFFFF;
+border: 1px solid var(--border);
+border-radius: var(--radius-md);
+padding: 12px 14px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.m-title {
+font-size: 11px;
+font-weight: 600;
+color: var(--text-muted);
+}
+.m-val {
+font-family: var(--font-head);
+font-size: 20px;
+font-weight: 800;
+color: var(--primary-purple);
+}
+.m-badge {
+font-size: 10px;
+font-weight: 600;
+padding: 2px 6px;
+border-radius: var(--radius-pill);
+background: #ECFDF5;
+color: var(--success-green);
+}
+</style>
+</head>
+<body>
+<!-- Top People Ops Navigation -->
+<header class="top-header">
+<div class="brand-wrap">
+<div class="brand-logo">HF</div>
+<div class="brand-name">HR<span>FLOW</span> <span style="font-size: 11px; font-weight: normal; color: var(--text-light);">| PEOPLE OPERATIONS</span></div>
+<div class="org-badge">
+<span>/</span>
+<span class="org-chip">Acme Global (428 Team Members)</span>
+</div>
+</div>
+<div style="display: flex; gap: 12px; align-items: center;">
+<span style="font-size: 11px; color: var(--text-muted);">Q4 Retention: <strong>96.4%</strong></span>
+<span style="background: var(--purple-light); color: var(--primary-purple); font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px;">eNPS +68</span>
+</div>
+</header>
+<main class="main-container">
+<!-- Time-Off Request Approval Pill (Interactive Highlight) -->
+<div class="approval-banner-pill">
+<div class="pill-left">
+<div class="pill-avatar">EV</div>
+<div class="pill-text">
+<span>🏖️ <strong>Vacation Request:</strong> Elena Vance (Senior Staff Systems Engineer)</span>
+<span class="meta">&bull; Oct 21 – Oct 25 (5 Days) &bull; PTO Balance: 18 Days</span>
+</div>
+</div>
+<div class="pill-actions">
+<button class="btn-approve">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+<polyline points="20 6 9 17 4 12"></polyline>
+</svg>
+APPROVE REQUEST
+</button>
+<button class="btn-review">Review Schedule</button>
+</div>
+</div>
+<!-- First 500px Focal Grid: Onboarding Kanban & Comp Benchmark -->
+<div class="hero-people-grid">
+<!-- Left Card: Talent Onboarding Pipeline Kanban Board -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+<line x1="9" y1="3" x2="9" y2="21"></line>
+<line x1="15" y1="3" x2="15" y2="21"></line>
+</svg>
+TALENT ONBOARDING PIPELINE
+</div>
+<span style="font-size: 11px; color: var(--teal-secondary); font-weight: 600;">7 ACTIVE COHORTS</span>
+</div>
+<div class="card-body">
+<div class="kanban-board">
+<!-- Col 1: Offer Accepted -->
+<div class="kanban-col">
+<div class="col-header">
+<span>OFFER ACCEPTED</span>
+<span class="col-count">2</span>
+</div>
+<div class="col-cards">
+<div class="candidate-card">
+<div class="candidate-top">
+<div class="candidate-avatar">ML</div>
+<div class="candidate-name">Maya Lin</div>
+</div>
+<div class="candidate-role">Principal Product Designer</div>
+<div class="candidate-progress"><div class="prog-fill" style="width: 25%;"></div></div>
+<div class="candidate-footer"><span>Starts Oct 28</span><span>Docs Sent</span></div>
+</div>
+<div class="candidate-card">
+<div class="candidate-top">
+<div class="candidate-avatar" style="background:#FFF7ED; color:#EA580C; border-color:#FED7AA;">MS</div>
+<div class="candidate-name">Marcus Sterling</div>
+</div>
+<div class="candidate-role">Staff Distributed Architect</div>
+<div class="candidate-progress"><div class="prog-fill" style="width: 25%;"></div></div>
+<div class="candidate-footer"><span>Starts Nov 04</span><span>Background OK</span></div>
+</div>
+</div>
+</div>
+<!-- Col 2: Hardware & IT Setup -->
+<div class="kanban-col">
+<div class="col-header">
+<span>IT &amp; HARDWARE</span>
+<span class="col-count">2</span>
+</div>
+<div class="col-cards">
+<div class="candidate-card">
+<div class="candidate-top">
+<div class="candidate-avatar" style="background:#ECFDF5; color:#059669; border-color:#A7F3D0;">DP</div>
+<div class="candidate-name">Devendra Patel</div>
+</div>
+<div class="candidate-role">Sr Frontend Engineer</div>
+<div class="candidate-progress"><div class="prog-fill" style="width: 55%; background: var(--primary-purple);"></div></div>
+<div class="candidate-footer"><span>M4 Max Shipped</span><span>Okta Synced</span></div>
+</div>
+<div class="candidate-card">
+<div class="candidate-top">
+<div class="candidate-avatar">SJ</div>
+<div class="candidate-name">Sarah Jenkins</div>
+</div>
+<div class="candidate-role">Director of Total Rewards</div>
+<div class="candidate-progress"><div class="prog-fill" style="width: 55%; background: var(--primary-purple);"></div></div>
+<div class="candidate-footer"><span>Hardware Ready</span><span>YubiKey Config</span></div>
+</div>
+</div>
+</div>
+<!-- Col 3: Orientation Week 1 -->
+<div class="kanban-col">
+<div class="col-header">
+<span>ORIENTATION WK 1</span>
+<span class="col-count">2</span>
+</div>
+<div class="col-cards">
+<div class="candidate-card">
+<div class="candidate-top">
+<div class="candidate-avatar">KT</div>
+<div class="candidate-name">Kai Thorne</div>
+</div>
+<div class="candidate-role">Infrastructure SecOps</div>
+<div class="candidate-progress"><div class="prog-fill" style="width: 75%; background: var(--teal-secondary);"></div></div>
+<div class="candidate-footer"><span>Buddy Paired</span><span>Day 3 Complete</span></div>
+</div>
+<div class="candidate-card">
+<div class="candidate-top">
+<div class="candidate-avatar" style="background:#FFF7ED; color:#EA580C; border-color:#FED7AA;">CD</div>
+<div class="candidate-name">Chloe Dubois</div>
+</div>
+<div class="candidate-role">Staff ML Scientist</div>
+<div class="candidate-progress"><div class="prog-fill" style="width: 75%; background: var(--teal-secondary);"></div></div>
+<div class="candidate-footer"><span>1:1 Scheduled</span><span>Env Setup</span></div>
+</div>
+</div>
+</div>
+<!-- Col 4: Day 30 Review -->
+<div class="kanban-col">
+<div class="col-header">
+<span>DAY 30 REVIEW</span>
+<span class="col-count">1</span>
+</div>
+<div class="col-cards">
+<div class="candidate-card">
+<div class="candidate-top">
+<div class="candidate-avatar" style="background:#ECFDF5; color:#059669; border-color:#A7F3D0;">AW</div>
+<div class="candidate-name">Alexander Wu</div>
+</div>
+<div class="candidate-role">Lead Platform Architect</div>
+<div class="candidate-progress"><div class="prog-fill" style="width: 92%; background: var(--success-green);"></div></div>
+<div class="candidate-footer"><span>92% Milestones</span><span>Manager Sync</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Card: Employee Compensation Benchmark Graph -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<line x1="18" y1="20" x2="18" y2="10"></line>
+<line x1="12" y1="20" x2="12" y2="4"></line>
+<line x1="6" y1="20" x2="6" y2="14"></line>
+</svg>
+COMPENSATION BENCHMARK
+</div>
+<span style="font-size: 10px; color: var(--text-light); font-family: var(--font-mono);">RADFORD &bull; P90</span>
+</div>
+<div class="card-body comp-panel">
+<div class="role-badge-box">
+<div>
+<div class="role-title">Staff Infrastructure Engineer (L6)</div>
+<div class="role-sub">US Remote Tier 1 &bull; Base + Equity Analysis</div>
+</div>
+<span class="comp-ratio">1.08x MEDIAN</span>
+</div>
+<!-- SVG Benchmark Curve -->
+<div class="comp-svg-wrap">
+<svg class="comp-chart-svg" viewBox="0 0 360 140">
+<!-- Grid lines -->
+<line x1="30" y1="25" x2="340" y2="25" stroke="#F3F4F6" stroke-width="1" />
+<line x1="30" y1="65" x2="340" y2="65" stroke="#F3F4F6" stroke-width="1" />
+<line x1="30" y1="105" x2="340" y2="105" stroke="#F3F4F6" stroke-width="1" />
+<!-- Bell Curve Background Fill -->
+<path d="M 40 105 C 100 105, 140 30, 185 30 C 230 30, 270 105, 330 105 Z" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.5" />
+<!-- Benchmark Markers -->
+<!-- 25th Percentile -->
+<line x1="110" y1="75" x2="110" y2="105" stroke="#9CA3AF" stroke-width="1" stroke-dasharray="2 2" />
+<text x="110" y="118" font-size="8" fill="#6B7280" font-family="monospace" text-anchor="middle">P25 $210k</text>
+<!-- 50th Percentile (Median) -->
+<line x1="185" y1="30" x2="185" y2="105" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="3 2" />
+<text x="185" y="118" font-size="8" fill="#7C3AED" font-weight="bold" font-family="monospace" text-anchor="middle">P50 $245k</text>
+<!-- Current Candidate Offer Marker (P72 - $275k) -->
+<line x1="250" y1="45" x2="250" y2="105" stroke="#F97316" stroke-width="2" />
+<circle cx="250" cy="45" r="4" fill="#F97316" />
+<text x="250" y="38" font-size="8" fill="#EA580C" font-weight="bold" font-family="sans-serif" text-anchor="middle">OFFER $275K</text>
+<text x="250" y="118" font-size="8" fill="#EA580C" font-weight="bold" font-family="monospace" text-anchor="middle">P72</text>
+<!-- 90th Percentile -->
+<line x1="295" y1="80" x2="295" y2="105" stroke="#9CA3AF" stroke-width="1" stroke-dasharray="2 2" />
+<text x="295" y="118" font-size="8" fill="#6B7280" font-family="monospace" text-anchor="middle">P90 $320k</text>
+</svg>
+</div>
+<div class="comp-metric-tiles">
+<div class="tile">
+<span class="lbl">CANDIDATE BASE</span>
+<span class="val" style="color: var(--coral-accent);">$275,000</span>
+</div>
+<div class="tile">
+<span class="lbl">ANNUAL EQUITY</span>
+<span class="val">$120,000</span>
+</div>
+<div class="tile">
+<span class="lbl">TOTAL PACKAGE</span>
+<span class="val" style="color: var(--primary-purple);">$395,000</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Lower Section: People Analytics & Pulse Metrics -->
+<div class="metrics-bottom-row">
+<div class="metric-card">
+<div>
+<div class="m-title">EMPLOYEE RETENTION RATE</div>
+<div class="m-val">96.4%</div>
+</div>
+<span class="m-badge">+3.1% YoY</span>
+</div>
+<div class="metric-card">
+<div>
+<div class="m-title">AVG ONBOARDING VELOCITY</div>
+<div class="m-val" style="color: var(--teal-secondary);">14.2 DAYS</div>
+</div>
+<span class="m-badge" style="background: var(--teal-light); color: var(--teal-secondary);">FAST TRACK</span>
+</div>
+<div class="metric-card">
+<div>
+<div class="m-title">ANNUAL PEOPLE PULSE (eNPS)</div>
+<div class="m-val" style="color: var(--coral-accent);">+68 PTS</div>
+</div>
+<span class="m-badge" style="background: #FFF7ED; color: #EA580C;">TOP 5% TECH</span>
+</div>
+</div>
+</main>
+</body>
+</html>

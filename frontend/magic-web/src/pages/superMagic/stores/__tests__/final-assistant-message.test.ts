@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { autorun } from "mobx"
 import { SeqRecordType, type SeqRecord } from "@/apis/modules/chat/types"
 import {
 	getMessageNodeKey,
@@ -406,6 +407,55 @@ describe("SuperMagicStore / 最终 Assistant Message", () => {
 		expect(store.getStreamState(TOPIC_ID, CORRELATION_ID)).toBeUndefined()
 	})
 
+	it("本地 execution marker 在首个 canonical Final 前保护 finished polling，并由活动流 Final 消费", () => {
+		const store = createStore()
+
+		store.beginTopicExecution(TOPIC_ID)
+		expect(store.hasPendingTopicExecution(TOPIC_ID)).toBe(true)
+
+		store.receiveChunk(createChunk({ content: "draft" }))
+		store.enqueueMessage(TOPIC_ID, createFinalEnvelope({ content: "draft answer" }))
+
+		expect(store.hasPendingTopicExecution(TOPIC_ID)).toBe(false)
+		expect(store.getStreamState(TOPIC_ID, CORRELATION_ID)).toBeUndefined()
+	})
+
+	it("历史 HTTP Final 没有活动流时不得消费新发送任务的 execution marker", () => {
+		const store = createStore()
+
+		store.beginTopicExecution(TOPIC_ID)
+		store.initializeMessages(TOPIC_ID, [createFinalEnvelope({ content: "historical final" })])
+
+		expect(store.hasPendingTopicExecution(TOPIC_ID)).toBe(true)
+		expect(getNode(store, SUPER_MESSAGE_ID)?.content).toBe("historical final")
+	})
+
+	it("多个本地发送按计数消费，且孤立 marker 超时后允许 HTTP recovery", () => {
+		const store = createStore()
+
+		store.beginTopicExecution(TOPIC_ID)
+		store.beginTopicExecution(TOPIC_ID)
+		expect(store.topicMeta.get(TOPIC_ID)?.pendingExecutionCount).toBe(2)
+
+		store.completePendingTopicExecution(TOPIC_ID)
+		expect(store.hasPendingTopicExecution(TOPIC_ID)).toBe(true)
+		expect(store.topicMeta.get(TOPIC_ID)?.pendingExecutionCount).toBe(1)
+
+		vi.advanceTimersByTime(30_001)
+		expect(store.hasPendingTopicExecution(TOPIC_ID)).toBe(false)
+		expect(store.topicMeta.get(TOPIC_ID)?.pendingExecutionCount).toBe(0)
+	})
+
+	it("旧 TopicMeta 缺少新字段时会先归一化再登记 execution", () => {
+		const store = createStore()
+		store.topicMeta.set(TOPIC_ID, {} as never)
+
+		store.beginTopicExecution(TOPIC_ID)
+
+		expect(store.topicMeta.get(TOPIC_ID)?.pendingExecutionCount).toBe(1)
+		expect(store.hasPendingTopicExecution(TOPIC_ID)).toBe(true)
+	})
+
 	it("最终 assistant message 先于 finish_reason 到达。", () => {
 		const store = createStore()
 
@@ -446,6 +496,156 @@ describe("SuperMagicStore / 最终 Assistant Message", () => {
 		expect(getNode(store, SUPER_MESSAGE_ID)?.app_message_id).toBe("final-app-1")
 		expect(getAssistantCards(store)).toHaveLength(1)
 		arrivals.unsubscribe()
+	})
+
+	it("Final 结算后仍暴露独立的视觉追平阶段", () => {
+		const store = createStore()
+
+		store.receiveChunk(createChunk({ content: "draft" }))
+		advanceRendering(32)
+		store.enqueueMessage(
+			TOPIC_ID,
+			createFinalEnvelope({
+				content: "draft plus the complete canonical answer",
+				seqId: "100",
+			}),
+		)
+
+		expect(store.getStreamState(TOPIC_ID, CORRELATION_ID)).toBeUndefined()
+		expect(store.getAssistantRenderPhase(TOPIC_ID, SUPER_MESSAGE_ID, CORRELATION_ID)).toBe(
+			"content",
+		)
+		const rendered = store.getRenderedMessageNode(SUPER_MESSAGE_ID, TOPIC_ID) as ProjectedNode
+		expect(rendered.content).not.toBe("draft plus the complete canonical answer")
+
+		advanceRendering(2_000)
+		expect(
+			store.getAssistantRenderPhase(TOPIC_ID, SUPER_MESSAGE_ID, CORRELATION_ID),
+		).toBeUndefined()
+		expect(
+			(store.getRenderedMessageNode(SUPER_MESSAGE_ID, TOPIC_ID) as ProjectedNode).content,
+		).toBe("draft plus the complete canonical answer")
+	})
+
+	it("Final 视觉追平只唤醒同一 Topic + SuperMessage 的 observer", () => {
+		const store = createStore()
+		const otherSuperMessageId = "super-message-final-b"
+
+		store.receiveChunk(createChunk({ content: "draft" }))
+		advanceRendering(32)
+		store.enqueueMessage(
+			TOPIC_ID,
+			createFinalEnvelope({ content: "draft canonical answer", seqId: "100" }),
+		)
+		// The second message has no render-only sidecar; it still subscribes to its own keyed Map entry.
+		store.enqueueMessage(
+			TOPIC_ID,
+			createFinalEnvelope({
+				superMessageId: otherSuperMessageId,
+				correlationId: "correlation-final-b",
+				appMessageId: "final-app-b",
+				content: "other canonical",
+				seqId: "101",
+			}),
+		)
+
+		let firstRuns = 0
+		let secondRuns = 0
+		const disposeFirst = autorun(() => {
+			firstRuns += 1
+			store.getRenderedMessageNode(SUPER_MESSAGE_ID, TOPIC_ID)
+		})
+		const disposeSecond = autorun(() => {
+			secondRuns += 1
+			store.getRenderedMessageNode(otherSuperMessageId, TOPIC_ID)
+		})
+		const initialFirstRuns = firstRuns
+		const initialSecondRuns = secondRuns
+
+		vi.advanceTimersByTime(16)
+
+		expect(firstRuns).toBeGreaterThan(initialFirstRuns)
+		expect(secondRuns).toBe(initialSecondRuns)
+		disposeFirst()
+		disposeSecond()
+	})
+
+	it("相同 seq 的重复 Final 不会打断正在进行的视觉追平", () => {
+		const store = createStore()
+		const finalMessage = createFinalEnvelope({
+			content: "draft plus the complete canonical answer",
+			seqId: "100",
+		})
+
+		store.receiveChunk(createChunk({ content: "draft" }))
+		advanceRendering(32)
+		store.enqueueMessage(TOPIC_ID, finalMessage)
+		const beforeDuplicate = store.getRenderedMessageNode(
+			SUPER_MESSAGE_ID,
+			TOPIC_ID,
+		) as ProjectedNode
+		expect(beforeDuplicate.content).not.toBe("draft plus the complete canonical answer")
+
+		store.enqueueMessage(TOPIC_ID, cloneEnvelope(finalMessage))
+		const afterDuplicate = store.getRenderedMessageNode(
+			SUPER_MESSAGE_ID,
+			TOPIC_ID,
+		) as ProjectedNode
+		expect(afterDuplicate.content).toBe(beforeDuplicate.content)
+		expect(store.getAssistantRenderPhase(TOPIC_ID, SUPER_MESSAGE_ID, CORRELATION_ID)).toBe(
+			"content",
+		)
+	})
+
+	it("Final transport 插在 chunk 中间时保留尾部流，finish 后再固定 canonical", () => {
+		const store = createStore()
+		const prefixLength = 1541
+		const suffixLength = 823
+		const canonicalContent = "d".repeat(prefixLength) + "t".repeat(suffixLength)
+
+		for (let i = 0; i < prefixLength; i += 1) {
+			store.receiveChunk(createChunk({ i, content: "d" }))
+		}
+
+		store.enqueueMessage(
+			TOPIC_ID,
+			createFinalEnvelope({ content: canonicalContent, seqId: "953723091053199360" }),
+		)
+		advanceRendering(32)
+
+		expect(store.getStreamState(TOPIC_ID, CORRELATION_ID)).toBeDefined()
+		expect(store.getStreamState(TOPIC_ID, CORRELATION_ID)?.content).toBe(
+			"d".repeat(prefixLength),
+		)
+
+		for (let i = prefixLength; i < prefixLength + suffixLength; i += 1) {
+			store.receiveChunk(
+				createChunk({
+					i,
+					content: "t",
+					...(i === prefixLength + suffixLength - 1 ? { finishReason: "stop" } : {}),
+				}),
+			)
+		}
+		expect(getNode(store, SUPER_MESSAGE_ID)?.content).toBe(canonicalContent)
+		expect(store.getStreamState(TOPIC_ID, CORRELATION_ID)).toBeUndefined()
+	})
+
+	it("Final 屏障在接收入口最前面生效，不让迟到 chunk 重写 correlation sidecar", () => {
+		const store = createStore()
+		store.enqueueMessage(TOPIC_ID, createFinalEnvelope({ content: "canonical" }))
+
+		store.receiveChunk(
+			createChunk({
+				correlationId: "late-correlation",
+				content: "late mutation",
+			}),
+		)
+
+		const streamCorrelationIds = (
+			store as unknown as { streamCorrelationIds: Map<string, string> }
+		).streamCorrelationIds
+		expect(streamCorrelationIds.size).toBe(0)
 	})
 
 	it("同一个 correlation 收到两个不同的最终 assistant message。", () => {

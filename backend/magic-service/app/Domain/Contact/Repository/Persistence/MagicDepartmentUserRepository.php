@@ -10,10 +10,14 @@ namespace App\Domain\Contact\Repository\Persistence;
 use App\Domain\Chat\DTO\PageResponseDTO\DepartmentUsersPageResponseDTO;
 use App\Domain\Contact\Entity\MagicDepartmentUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Event\DepartmentMembershipChanged;
 use App\Domain\Contact\Repository\Facade\MagicDepartmentUserRepositoryInterface;
 use App\Domain\Contact\Repository\Persistence\Model\DepartmentModel;
 use App\Domain\Contact\Repository\Persistence\Model\DepartmentUserModel;
+use Hyperf\Context\Context;
+use Hyperf\Coroutine\Coroutine;
 use Hyperf\DbConnection\Db;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\SimpleCache\CacheInterface;
 
 class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInterface
@@ -57,17 +61,16 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
             return [];
         }
         $query = $this->departmentUserModel->newQuery()
-            ->from('magic_contact_department_users as du')
-            ->select('du.*')
+            ->select('magic_contact_department_users.*')
             ->join('magic_contact_departments as d', function ($join) {
-                $join->on('d.department_id', '=', 'du.department_id')
-                    ->on('d.organization_code', '=', 'du.organization_code')
+                $join->on('d.department_id', '=', 'magic_contact_department_users.department_id')
+                    ->on('d.organization_code', '=', 'magic_contact_department_users.organization_code')
                     ->whereNull('d.deleted_at');
             })
-            ->whereIn('du.user_id', $userIds)
-            ->whereNull('du.deleted_at');
+            ->whereIn('magic_contact_department_users.user_id', $userIds)
+            ->whereNull('magic_contact_department_users.deleted_at');
         if ($organizationCode !== null && $organizationCode !== '') {
-            $query->where('du.organization_code', $organizationCode);
+            $query->where('magic_contact_department_users.organization_code', $organizationCode);
         }
         $departmentUsers = Db::select($query->toSql(), $query->getBindings());
         return $this->getDepartmentUserEntities($departmentUsers);
@@ -100,16 +103,17 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
             ->select($fields)
             ->whereIn('department_id', $departmentIds)
             ->where('organization_code', $organizationCode)
+            ->whereNull('deleted_at')
             ->limit($limit);
         $departmentUsers = Db::select($query->toSql(), $query->getBindings());
         return $this->getDepartmentUserEntities($departmentUsers);
     }
 
-    public function getDepartmentIdsByUserIds(DataIsolation $dataIsolation, array $userIds, bool $withAllParentIds = false): array
+    public function getDepartmentIdsByUserIds(DataIsolation $dataIsolation, array $userIds, bool $withAllParentIds = false, bool $useCache = true): array
     {
         $cache = di(CacheInterface::class);
         $key = 'MagicDepartmentUser:' . md5('department_ids_by_user_ids_' . implode('_', $userIds) . '_' . $dataIsolation->getCurrentOrganizationCode() . '_' . ($withAllParentIds ? 'all' : 'direct'));
-        if ($cache->has($key)) {
+        if ($useCache && $cache->has($key)) {
             return (array) $cache->get($key);
         }
         $builder = DepartmentUserModel::query();
@@ -139,42 +143,70 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
             }
         }
 
-        $cache->set($key, $list, 60);
+        if ($useCache) {
+            $cache->set($key, $list, 60);
+        }
 
         return $list;
     }
 
     public function createDepartmentUsers(array $createDepartmentUserDTOs): bool
     {
-        return $this->departmentUserModel->newQuery()->insert($createDepartmentUserDTOs);
+        return Db::transaction(function () use ($createDepartmentUserDTOs): bool {
+            $result = $this->departmentUserModel->newQuery()->insert($createDepartmentUserDTOs);
+            foreach (array_unique(array_column($createDepartmentUserDTOs, 'organization_code')) as $organization) {
+                $this->membershipChanged((string) $organization);
+            }
+            return $result;
+        });
     }
 
     public function updateDepartmentUser(string $magicDepartmentUserPrimaryId, array $updateData): int
     {
-        $updateData['updated_at'] = date('Y-m-d H:i:s');
-        return $this->departmentUserModel->newQuery()
-            ->where('id', $magicDepartmentUserPrimaryId)
-            ->update($updateData);
+        return Db::transaction(function () use ($magicDepartmentUserPrimaryId, $updateData): int {
+            $old = $this->departmentUserModel->newQuery()->where('id', $magicDepartmentUserPrimaryId)->first();
+            $updateData['updated_at'] = date('Y-m-d H:i:s');
+            $result = $this->departmentUserModel->newQuery()->where('id', $magicDepartmentUserPrimaryId)->update($updateData);
+            if ($old !== null) {
+                foreach (['department_id', 'organization_code', 'user_id', 'deleted_at'] as $field) {
+                    if (array_key_exists($field, $updateData) && (string) $old->getAttribute($field) !== (string) $updateData[$field]) {
+                        foreach (array_unique([(string) $old->getAttribute('organization_code'), (string) ($updateData['organization_code'] ?? $old->getAttribute('organization_code'))]) as $organization) {
+                            $this->membershipChanged($organization);
+                        }
+                        break;
+                    }
+                }
+            }
+            return $result;
+        });
     }
 
     public function deleteDepartmentUsersByMagicIds(array $magicIds, string $departmentId, string $magicOrganizationCode): int
     {
-        return (int) $this->departmentUserModel->newQuery()
-            ->where('organization_code', $magicOrganizationCode)
-            ->whereIn('magic_id', $magicIds)
-            ->where('department_id', $departmentId)
-            ->delete();
+        return Db::transaction(function () use ($magicIds, $departmentId, $magicOrganizationCode): int {
+            $result = (int) $this->departmentUserModel->newQuery()
+                ->where('organization_code', $magicOrganizationCode)->whereIn('magic_id', $magicIds)
+                ->where('department_id', $departmentId)->delete();
+            if ($result > 0) {
+                $this->membershipChanged($magicOrganizationCode);
+            }
+            return $result;
+        });
     }
 
     public function deleteDepartmentUsersByDepartmentIds(array $departmentIds, string $magicOrganizationCode): int
     {
-        if (empty($departmentIds)) {
+        if ($departmentIds === []) {
             return 0;
         }
-        return (int) $this->departmentUserModel->newQuery()
-            ->where('organization_code', $magicOrganizationCode)
-            ->whereIn('department_id', $departmentIds)
-            ->delete();
+        return Db::transaction(function () use ($departmentIds, $magicOrganizationCode): int {
+            $result = (int) $this->departmentUserModel->newQuery()->where('organization_code', $magicOrganizationCode)
+                ->whereIn('department_id', $departmentIds)->delete();
+            if ($result > 0) {
+                $this->membershipChanged($magicOrganizationCode);
+            }
+            return $result;
+        });
     }
 
     public function getMagicIdsByDepartmentIds(array $departmentIds, string $organizationCode): array
@@ -194,6 +226,22 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
     /**
      * @return MagicDepartmentUserEntity[]
      */
+    public function searchDepartmentUsersByEmployeeNo(string $employeeNo, string $organizationCode): array
+    {
+        $departmentUsers = $this->departmentUserModel::query()
+            ->select(['user_id'])
+            ->where('employee_no', '=', $employeeNo)
+            ->where('organization_code', $organizationCode)
+            ->distinct()
+            ->get()
+            ->toArray();
+
+        return $this->getDepartmentUserEntities($departmentUsers);
+    }
+
+    /**
+     * @return MagicDepartmentUserEntity[]
+     */
     public function searchDepartmentUsersByJobTitle(string $keyword, string $magicOrganizationCode): array
     {
         $res = $this->departmentUserModel::query()
@@ -202,6 +250,17 @@ class MagicDepartmentUserRepository implements MagicDepartmentUserRepositoryInte
             ->get()
             ->toArray();
         return array_map(fn ($item) => new MagicDepartmentUserEntity($item), $res);
+    }
+
+    private function membershipChanged(string $organization): void
+    {
+        // Bulk directory syncs notify once per organization in the originating coroutine.
+        $key = 'department_membership_changed:' . Coroutine::id() . ':' . $organization;
+        if (Context::get($key, false)) {
+            return;
+        }
+        di(EventDispatcherInterface::class)->dispatch(new DepartmentMembershipChanged($organization));
+        Context::set($key, true);
     }
 
     /**

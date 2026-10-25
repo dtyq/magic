@@ -15,7 +15,8 @@
 	overflow-x: hidden;
 	background: var(--base-background, #fff);
 	border-radius: var(--border-radius-rounded-md, 8px);
-	box-shadow: var(--shadow-md-1-offset-x, 0) var(--shadow-md-1-offset-y, 4px)
+	box-shadow:
+		var(--shadow-md-1-offset-x, 0) var(--shadow-md-1-offset-y, 4px)
 			var(--shadow-md-1-blur-radius, 6px) var(--shadow-md-1-spread-radius, -1px)
 			var(--shadow-md-1-color, rgb(0 0 0 / 10%)),
 		var(--shadow-md-2-offset-x, 0) var(--shadow-md-2-offset-y, 2px)
@@ -211,14 +212,14 @@
 	color: var(--base-muted-foreground, #737373);
 }
 
-/* SelectContent 需要比消息框更高的 z-index */
+/* 编辑器内部 Portal 浮层需要高于编辑器容器和 History */
 .select-content {
-	z-index: 2 !important;
+	z-index: 4 !important;
 }
 
 /* 参考图按钮和列表 */
 .reference-image-popover {
-	z-index: 2 !important;
+	z-index: 4 !important;
 }
 
 /* 移除 PopoverTrigger 的 focus outline */
@@ -380,20 +381,6 @@
 
 .reference-image-delete:hover {
 	background: var(--base-sidebar-accent, #f5f5f5);
-}
-
-.reference-image-tooltip {
-	z-index: 2 !important;
-	padding: 0 !important;
-	overflow: hidden;
-	border-radius: var(--border-radius-rounded-sm, 6px);
-}
-
-.reference-image-tooltip-preview {
-	display: block;
-	width: auto;
-	height: auto;
-	object-fit: contain;
 }
 
 .second-edit-button {

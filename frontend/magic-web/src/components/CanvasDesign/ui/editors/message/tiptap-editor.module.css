@@ -72,35 +72,58 @@
 	pointer-events: none;
 }
 
-/* magic-mention 样式 - 使用 inline 避免遮挡光标 */
+/* 与 SuperMagic 桌面端文件 mention 共享的基础视觉契约。 */
 .tiptapEditor :global(.ProseMirror .magic-mention) {
-	display: inline;
 	margin: 0 2px;
-	padding: 1px 4px;
-	overflow: hidden;
-
-	/* color: rgb(59 130 246); */
-	font-weight: 400;
-	font-size: 12px;
-	font-style: normal;
-	line-height: 20px;
-	text-overflow: ellipsis;
-	vertical-align: top;
-	background: rgb(219 234 254);
+	color: inherit;
+	vertical-align: baseline;
+	background: transparent;
 	border-radius: 4px;
 	cursor: pointer;
 }
 
-/* 内置 @ 扩展（imageFileMention） */
-.tiptapEditor :global(.ProseMirror .canvas-image-file-mention) {
-	display: inline;
-	margin: 0 2px;
-	padding: 2px 6px;
-	font-size: 13px;
-	white-space: nowrap;
-	vertical-align: top;
-	background: var(--base-hover, #f0f0f0);
-	border-radius: 4px;
+/*
+ * File mentions render a shared inner visual chip. Keep the NodeView host
+ * transparent so legacy .magic-mention padding/background do not double-paint.
+ */
+.tiptapEditor :global(.ProseMirror .magic-message-file-mention.magic-mention) {
+	display: inline-flex;
+	max-width: 100%;
+	padding: 0;
+	overflow: visible;
+	line-height: inherit;
+	vertical-align: middle;
+	background: transparent;
+	border-radius: 0;
+}
+
+.tiptapEditor :global(.ProseMirror .magic-message-file-mention-visual) {
+	vertical-align: middle;
+}
+
+.tiptapEditor :global(.ProseMirror .canvas-project-file-mention[data-deleted="true"]) {
+	cursor: default;
+}
+
+.tiptapEditor
+	:global(
+		.ProseMirror
+			.canvas-project-file-mention[data-deleted="true"]
+			.magic-message-file-mention-visual
+	) {
+	color: rgb(220 38 38);
+	background: rgb(254 226 226);
+}
+
+.tiptapEditor
+	:global(
+		.ProseMirror
+			.canvas-project-file-mention[data-deleted="true"]
+			.magic-message-file-mention-visual
+	) {
+	color: rgb(220 38 38);
+	background: rgb(254 226 226);
+	cursor: default;
 }
 
 /* 恢复自动补全提醒样式 */

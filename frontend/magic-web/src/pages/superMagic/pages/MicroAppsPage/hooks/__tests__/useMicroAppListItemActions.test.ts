@@ -20,13 +20,14 @@ vi.mock("@/components/base/MagicToaster/utils", () => ({
 }))
 
 const app: MicroAppListItem = {
-	app_id: "935675292441014273",
+	app_id: "100000000000009003",
 	app_name: "客户跟进助手",
 	app_description: "",
 	creator_id: "user-1",
 	cover_url: "",
 	publish_status: "unpublished",
 	updated_at: null,
+	user_role: "owner",
 }
 
 describe("useMicroAppListItemActions", () => {
@@ -35,7 +36,7 @@ describe("useMicroAppListItemActions", () => {
 		window.history.replaceState({}, "", "/cluster-a/super/micro-apps/list")
 	})
 
-	it("opens the same internal app route in a new window", () => {
+	it("opens the published app route in a new window", () => {
 		const openSpy = vi.spyOn(window, "open").mockImplementation(() => null)
 		const { result } = renderHook(() =>
 			useMicroAppListItemActions({ renameApp: vi.fn(), deleteApp: vi.fn() }),
@@ -44,7 +45,7 @@ describe("useMicroAppListItemActions", () => {
 		act(() => result.current.openInNewWindow(app))
 
 		expect(openSpy).toHaveBeenCalledWith(
-			"/cluster-a/super/micro-app/935675292441014273",
+			"/micro-app/100000000000009003",
 			"_blank",
 			"noopener,noreferrer",
 		)
@@ -65,5 +66,15 @@ describe("useMicroAppListItemActions", () => {
 		await act(async () => result.current.confirmDelete())
 		expect(deleteApp).toHaveBeenCalledWith(app.app_id)
 		await waitFor(() => expect(result.current.deleteTarget).toBeNull())
+	})
+
+	it("does not open rename for an app without an edit role", () => {
+		const { result } = renderHook(() =>
+			useMicroAppListItemActions({ renameApp: vi.fn(), deleteApp: vi.fn() }),
+		)
+
+		act(() => result.current.openRename({ ...app, user_role: undefined }))
+
+		expect(result.current.renameTarget).toBeNull()
 	})
 })

@@ -124,7 +124,7 @@ export interface PPTTableCell {
 		rowspan?: number
 		/** Margin in inches (TRBL), consistent with the default PptxGenJS branch */
 		margin?: number | [number, number, number, number]
-		/** false requires the patched pptxgenjs table-cell bodyPr wrap=none path; otherwise the library ignores it */
+		/** false emits table-cell bodyPr wrap="none" through the native PptxGenJS v5 runtime */
 		wrap?: boolean
 		border?:
 			| PPTTableCellBorder

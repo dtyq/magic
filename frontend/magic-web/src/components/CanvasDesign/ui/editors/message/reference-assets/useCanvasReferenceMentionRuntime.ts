@@ -9,6 +9,7 @@ import type {
 	ReferenceResourcePanelInitialLoadOptions,
 	ReferenceResourcePanelLimitInfo,
 	ReferenceResourcePanelNavigationItem,
+	ReferenceResourcePanelSelectionSummary,
 	ReferenceResourcePanelSelectableItem,
 } from "../../../../public/props"
 import type {
@@ -17,6 +18,10 @@ import type {
 	ReferenceResourceFileInfo,
 	ReferenceResourceTypeFilter,
 } from "./reference-resource.types"
+import {
+	classifyReferenceAssetFile,
+	isReferenceResourceCurrentlySelected,
+} from "./referenceResourceSelection"
 import {
 	CANVAS_REFERENCE_MENTION_ITEM_TYPE,
 	CANVAS_REFERENCE_MENTION_PANEL_STATE,
@@ -35,7 +40,9 @@ interface UseCanvasReferenceMentionRuntimeOptions {
 export function canSelectCanvasReferenceMentionItem(
 	item: ReferenceResourcePanelSelectableItem,
 ): boolean {
-	return item.type !== CANVAS_REFERENCE_MENTION_ITEM_TYPE.folder
+	// Treat either signal as authoritative so a partially normalized folder row
+	// cannot be staged when the data service omits or changes its item type.
+	return item.type !== CANVAS_REFERENCE_MENTION_ITEM_TYPE.folder && item.isFolder !== true
 }
 
 export const canvasReferenceMentionCatalogBehavior: ReferenceResourcePanelCatalogBehavior = {
@@ -65,6 +72,9 @@ export function useCanvasReferenceMentionRuntime(
 	dataService?: MentionDataServicePort
 	projectAttachmentMentionTree: ProjectAttachmentMentionNode[]
 	projectFilesPathPrefix: string
+	selectionSummary?: ReferenceResourcePanelSelectionSummary
+	/** Stable resource scope for a single Canvas project-selection session. */
+	selectionScopeId?: string
 	mentionFileSubtitleParentPrefix?: string
 	initialLoadOptions?: ReferenceResourcePanelInitialLoadOptions
 	initialNavigationStack?: ReferenceResourcePanelNavigationItem[]
@@ -78,6 +88,7 @@ export function useCanvasReferenceMentionRuntime(
 		defaultProjectAttachmentFolderId,
 		defaultProjectAttachmentFolderName,
 		mentionDataServiceCtor,
+		methods,
 	} = useMagic()
 	const canvas = useOptionalCanvas()
 	const { t } = useCanvasDesignI18n()
@@ -93,6 +104,91 @@ export function useCanvasReferenceMentionRuntime(
 
 	const projectFilesPathPrefix = t("referenceAssets.projectFilesRoot", "当前项目文件")
 	const mentionFileSubtitleParentPrefix = defaultProjectAttachmentFolderName?.trim() || undefined
+	// Keep a stable session boundary even while the attachment tree is still loading.
+	// Include Canvas identity so equal relative folder paths from different projects
+	// cannot reuse a stale selection session.
+	const selectionScopeParts = [canvas?.id, defaultProjectAttachmentFolderId].filter(
+		(value): value is string => Boolean(value),
+	)
+	const selectionScopeId = selectionScopeParts.length ? selectionScopeParts.join(":") : undefined
+	// Keep the count snapshot and duplicate identity check next to the same limit
+	// inputs used by DataService, so the breadcrumb cannot drift from selection rules.
+	const selectionSummary = useMemo<ReferenceResourcePanelSelectionSummary | undefined>(() => {
+		if (!assetLimits || !currentAssetCounts) {
+			// Image generation exposes a single type limit instead of the video editor's
+			// per-type limit object. Preserve the same summary contract for its @ panel.
+			if (
+				typeof maxReferenceFiles !== "number" ||
+				!Number.isFinite(maxReferenceFiles) ||
+				maxReferenceFiles <= 0 ||
+				typeof referenceResourceType !== "string" ||
+				!(["image", "video", "audio"] as const).includes(referenceResourceType)
+			)
+				return undefined
+
+			const type = referenceResourceType
+			return {
+				currentCounts: {
+					image: type === "image" ? currentReferenceFiles.length : 0,
+					video: type === "video" ? currentReferenceFiles.length : 0,
+					audio: type === "audio" ? currentReferenceFiles.length : 0,
+				},
+				limits: {
+					[type]: maxReferenceFiles,
+				},
+				totalLimit: maxReferenceFiles,
+				getItemAssetType: (item) => {
+					const fileClass = classifyReferenceAssetFile({
+						filePath: item.data.file_path,
+						fileName: item.data.file_name,
+						fileExtension: item.data.file_extension,
+					})
+					return fileClass === "unknown" ? undefined : fileClass
+				},
+				isItemAlreadySelected: (item) =>
+					isReferenceResourceCurrentlySelected(
+						[item.data.file_path, item.data.file_id, item.data.file_name],
+						currentReferenceFiles,
+						methods?.resolveResourceReference,
+					),
+			}
+		}
+
+		return {
+			currentCounts: {
+				image: currentAssetCounts.images,
+				video: currentAssetCounts.videos,
+				audio: currentAssetCounts.audios,
+			},
+			limits: {
+				image: assetLimits.reference_images.max,
+				video: assetLimits.reference_videos.max,
+				audio: assetLimits.reference_audios.max,
+			},
+			totalLimit: assetLimits.total.max,
+			getItemAssetType: (item) => {
+				const fileClass = classifyReferenceAssetFile({
+					filePath: item.data.file_path,
+					fileName: item.data.file_name,
+					fileExtension: item.data.file_extension,
+				})
+				return fileClass === "unknown" ? undefined : fileClass
+			},
+			isItemAlreadySelected: (item) =>
+				isReferenceResourceCurrentlySelected(
+					[item.data.file_path, item.data.file_id, item.data.file_name],
+					currentReferenceFiles,
+					methods?.resolveResourceReference,
+				),
+		}
+	}, [
+		assetLimits,
+		currentAssetCounts,
+		currentReferenceFiles,
+		maxReferenceFiles,
+		methods?.resolveResourceReference,
+		referenceResourceType,
+	])
 
 	const limitInfoRef = useRef<ReferenceResourcePanelLimitInfo>({
 		maxReferenceFiles,
@@ -102,6 +198,7 @@ export function useCanvasReferenceMentionRuntime(
 		referenceFileInfos,
 		assetLimits,
 		currentAssetCounts,
+		resolveResourceReference: methods?.resolveResourceReference,
 		projectFilesPathPrefix,
 		mentionFileSubtitleParentPrefix,
 	})
@@ -114,6 +211,7 @@ export function useCanvasReferenceMentionRuntime(
 		referenceFileInfos,
 		assetLimits,
 		currentAssetCounts,
+		resolveResourceReference: methods?.resolveResourceReference,
 		projectFilesPathPrefix,
 		mentionFileSubtitleParentPrefix,
 	}
@@ -193,6 +291,7 @@ export function useCanvasReferenceMentionRuntime(
 		referenceFileInfos,
 		assetLimits,
 		currentAssetCounts,
+		methods?.resolveResourceReference,
 		projectFilesPathPrefix,
 		mentionFileSubtitleParentPrefix,
 		defaultProjectAttachmentFolderId,
@@ -230,6 +329,8 @@ export function useCanvasReferenceMentionRuntime(
 		dataService,
 		projectAttachmentMentionTree,
 		projectFilesPathPrefix,
+		selectionSummary,
+		selectionScopeId,
 		mentionFileSubtitleParentPrefix,
 		initialLoadOptions,
 		initialNavigationStack,

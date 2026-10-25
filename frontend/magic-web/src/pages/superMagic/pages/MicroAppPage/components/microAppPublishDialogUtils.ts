@@ -7,6 +7,10 @@ import type {
 } from "@/apis/modules/superMagic"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
 import { generateSharePassword } from "@/pages/superMagic/components/Share/utils"
+import {
+	DEFAULT_NEW_ORGANIZATION_SHARE_RANGE,
+	isOrganizationDesignatedShareIncomplete,
+} from "@/pages/superMagic/components/Share/utils/organizationShareGuards"
 
 export interface MicroAppPublishFormState {
 	appName: string
@@ -17,10 +21,15 @@ export interface MicroAppPublishFormState {
 	coverFileKey?: string | null
 	coverUrl: string
 	fullScreen: boolean
+	shareExpiry: number | null
+	defaultOpenFileId: string | null
 }
 
 export type MicroAppPublishValidationError =
-	"projectNameRequired" | "projectNameTooLong" | "passwordInvalid"
+	| "projectNameRequired"
+	| "projectNameTooLong"
+	| "passwordInvalid"
+	| "organizationDesignatedMembersRequired"
 
 export function normalizeMicroAppPublishShareType(
 	shareType: MicroAppPublishShareType,
@@ -31,22 +40,36 @@ export function normalizeMicroAppPublishShareType(
 		: shareType
 }
 
+/**
+ * Share type used when nothing has been published yet. Team sharing is unavailable to a personal
+ * organization and to a free-plan organization alike, so both fall back to public access.
+ *
+ * This only decides the *initial* value: an already published micro app keeps its own share type
+ * (see `createFormStateFromPublishedItem`) so loading the dialog never rewrites a live share.
+ */
+export function resolveDefaultMicroAppPublishShareType(
+	isPersonalOrganization = false,
+	isFreePlan = false,
+): MicroAppPublishShareType {
+	return isPersonalOrganization || isFreePlan ? ShareType.Public : ShareType.Organization
+}
+
 export function createDefaultMicroAppPublishFormState(
 	appName = "",
 	isPersonalOrganization = false,
+	isFreePlan = false,
 ): MicroAppPublishFormState {
 	return {
 		appName,
-		shareType: normalizeMicroAppPublishShareType(
-			ShareType.Organization,
-			isPersonalOrganization,
-		),
-		shareRange: "all",
+		shareType: resolveDefaultMicroAppPublishShareType(isPersonalOrganization, isFreePlan),
+		shareRange: DEFAULT_NEW_ORGANIZATION_SHARE_RANGE,
 		targets: [],
 		password: generateSharePassword(),
 		coverFileKey: undefined,
 		coverUrl: "",
 		fullScreen: false,
+		shareExpiry: null,
+		defaultOpenFileId: null,
 	}
 }
 
@@ -64,6 +87,12 @@ export function buildMicroAppPublishPayload(
 		payload.cover_file_key = formState.coverFileKey
 	}
 	payload.extra = { pure_mode: formState.fullScreen }
+	if (formState.shareExpiry !== null) {
+		payload.expire_days = formState.shareExpiry
+	}
+	if (formState.defaultOpenFileId !== null) {
+		payload.default_open_file_id = formState.defaultOpenFileId
+	}
 
 	if (shareType === ShareType.Organization) {
 		payload.share_range = formState.shareRange
@@ -94,6 +123,16 @@ export function getMicroAppPublishValidationError(
 		if (passwordLength < 4 || passwordLength > 32) return "passwordInvalid"
 	}
 
+	if (
+		isOrganizationDesignatedShareIncomplete(
+			formState.shareType,
+			formState.shareRange,
+			formState.targets.length,
+		)
+	) {
+		return "organizationDesignatedMembersRequired"
+	}
+
 	return null
 }
 
@@ -108,14 +147,16 @@ export function createFormStateFromPublishedItem(
 	item: PublishedMicroAppProjectItem | null,
 	appName?: string,
 	isPersonalOrganization = false,
+	isFreePlan = false,
 ): MicroAppPublishFormState {
 	return {
 		appName: item?.app_name || appName || "",
 		shareType: normalizeMicroAppPublishShareType(
-			item?.share_type || ShareType.Organization,
+			item?.share_type ||
+				resolveDefaultMicroAppPublishShareType(isPersonalOrganization, isFreePlan),
 			isPersonalOrganization,
 		),
-		shareRange: item?.share_range || "all",
+		shareRange: item?.share_range ?? (item ? "all" : DEFAULT_NEW_ORGANIZATION_SHARE_RANGE),
 		targets: item?.target_ids || [],
 		// 只有后端明确标记为已发布时才保留空密码，未发布的密码分享需要可直接编辑的初始密码。
 		password:
@@ -123,6 +164,8 @@ export function createFormStateFromPublishedItem(
 		coverFileKey: item?.cover_file_key ?? undefined,
 		coverUrl: item?.cover_url || "",
 		fullScreen: item?.extra?.pure_mode === true,
+		shareExpiry: item?.expire_days ?? null,
+		defaultOpenFileId: item?.default_open_file_id ?? null,
 	}
 }
 
@@ -142,6 +185,9 @@ export function hasMicroAppPublishFormChanged(
 	if ((formState.coverFileKey ?? null) !== (publishedFormState.coverFileKey ?? null)) return true
 	if (formState.coverUrl.trim() !== publishedFormState.coverUrl.trim()) return true
 	if (formState.fullScreen !== publishedFormState.fullScreen) return true
+	if ((formState.shareExpiry ?? null) !== (publishedFormState.shareExpiry ?? null)) return true
+	if ((formState.defaultOpenFileId ?? null) !== (publishedFormState.defaultOpenFileId ?? null))
+		return true
 
 	if (formState.shareType === ShareType.Organization) {
 		if (formState.shareRange !== publishedFormState.shareRange) return true

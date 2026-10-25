@@ -1,9 +1,11 @@
 import { PubSubEvents } from "./pubsub"
+import type { NotificationUpdate } from "@/apis/modules/notifications"
 import type {
 	SuperMagicChangePreviewFileVersionArgs,
 	SuperMagicEnterEditModeArgs,
 	SuperMagicInsertDragDataToEditorArgs,
 	SuperMagicLocateFileInTreeArgs,
+	SuperMagicProjectAttachmentsReconciledPayload,
 	SuperMagicRefreshClawScheduledTasksArgs,
 	SuperMagicUpdateActiveFileIdArgs,
 	SuperMagicUpdateAttachmentsArgs,
@@ -24,6 +26,7 @@ import type {
 import type {
 	SuperMagicAddContentToChatPayload,
 	SuperMagicAddFileToChatPayload,
+	SuperMagicCanvasSelectionMentionsPayload,
 	SuperMagicInsertMarkerToChatPayload,
 	SuperMagicMessageRegisterProgrammaticScrollArgs,
 	SuperMagicMessageScrollToBottomArgs,
@@ -36,14 +39,21 @@ import type {
 	SuperMagicSetContentWhenSlideAddedArgs,
 	SuperMagicSetDemoTextToInputArgs,
 	SuperMagicSetInputMessageArgs,
+	SuperMagicPptxExportIssuesPayload,
 	SuperMagicStreamMessageArgs,
 	SuperMagicSyncMarkersToChatPayload,
 	SuperMagicWidgetEditorCommandPayload,
 } from "@/pages/superMagic/events/message"
 import type {
+	HtmlInspectorScreenshotUpdate,
+	HtmlMultiSelectionRequest,
+	HtmlScreenshotUploadRequest,
+} from "@/components/business/ElementInspector"
+import type {
 	SuperMagicOpenFileTabPayload,
 	SuperMagicOpenFileTabByPathPayload,
 	SuperMagicOpenKnowledgeBaseTabPayload,
+	SuperMagicOpenMicroAppTabPayload,
 } from "@/pages/superMagic/events/openFileTab"
 import type { SuperMagicOpenPlaybackTabPayload } from "@/pages/superMagic/events/openPlaybackTab"
 import type {
@@ -70,6 +80,7 @@ import type {
 	SuperMagicCheckpointRollbackMessage,
 	SuperMagicFileChangeMessage,
 } from "@/types/chat/intermediate_message"
+import type { PersonalPreferencesValue } from "@/utils/personalPreferencesCache"
 
 /**
  * 全局事件名 → 参数类型映射。
@@ -81,6 +92,7 @@ import type {
  * 4. 映射值既可以是单 payload，也可以是参数元组
  */
 export interface PubSubTypedPayloadMap {
+	[PubSubEvents.Notification_Updated]: NotificationUpdate
 	/** 展示快捷键列表：无参数，只约束为零参事件。 */
 	[PubSubEvents.Show_Shortcut_Keys]: []
 	/** 打开 MCP 配置弹窗：无参数。 */
@@ -127,6 +139,8 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Open_File_Tab_By_Path]: SuperMagicOpenFileTabByPathPayload
 	/** 打开知识库文件预览 tab：由引用点击触发，携带知识库 ID 与文档 code 或文件 key。 */
 	[PubSubEvents.Open_Knowledge_Base_Tab]: SuperMagicOpenKnowledgeBaseTabPayload
+	/** Open a micro-app preview tab from a mention click. */
+	[PubSubEvents.Open_Micro_App_Tab]: SuperMagicOpenMicroAppTabPayload
 	/** 打开 playback tab：当前保留历史透传 payload。 */
 	[PubSubEvents.Open_Playback_Tab]: SuperMagicOpenPlaybackTabPayload
 	/** 展开话题对话面板：无参数。 */
@@ -138,6 +152,9 @@ export interface PubSubTypedPayloadMap {
 	/** Intermediate 文件变更：传入完整 seq，订阅方自行解析。 */
 	[PubSubEvents.Super_Magic_File_Change_Intermediate]: [
 		payload: SeqResponse<SuperMagicFileChangeMessage>,
+	]
+	[PubSubEvents.Super_Magic_Project_Attachments_Reconciled]: [
+		payload: SuperMagicProjectAttachmentsReconciledPayload,
 	]
 	/** Intermediate 检查点事件：保留完整 seq，外层 seq_id 只作为领域事件 ID。 */
 	[PubSubEvents.Super_Magic_Checkpoint_Rollback]: [
@@ -167,6 +184,8 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Receive_RecordSummary_Audio_File]: SuperMagicReceiveRecordSummaryAudioFileArgs
 	/** 设置输入框文本：传入字符串消息。 */
 	[PubSubEvents.Set_Input_Message]: SuperMagicSetInputMessageArgs
+	/** PPT 导出问题：供商业化层展示并触发 AI 修复。 */
+	[PubSubEvents.Pptx_Export_Issues]: SuperMagicPptxExportIssuesPayload
 	/** Executes Widget-only append, clear, or read operations against the active editor. */
 	[PubSubEvents.Magic_Widget_Editor_Command]: SuperMagicWidgetEditorCommandPayload
 	/** 添加内容到聊天框：传入可选内容与额外信息。 */
@@ -196,11 +215,19 @@ export interface PubSubTypedPayloadMap {
 	/** 详情页刷新：无参数。 */
 	[PubSubEvents.Super_Magic_Detail_Refresh]: []
 	/** 追加 JSONContent 到输入框末尾（不覆盖已有内容）：传入 JSONContent。 */
-	[PubSubEvents.Append_Content_To_Editor]: [content: import("@tiptap/react").JSONContent]
+	[PubSubEvents.Append_Content_To_Editor]: [
+		content: import("@/infrastructure/editors/tiptap/react").JSONContent,
+	]
 	/** 追加建议内容到输入框末尾：传入文本字符串或 JSONContent。 */
 	[PubSubEvents.Append_Suggestion_To_Editor]: [
-		content: string | import("@tiptap/core").JSONContent,
+		content: string | import("@/infrastructure/editors/tiptap/core").JSONContent,
 	]
+	/** Submit structured HTML targets to the active conversation editor. */
+	[PubSubEvents.Submit_Html_Multi_Selection]: [request: HtmlMultiSelectionRequest]
+	/** Upload an HTML screenshot after target confirmation. */
+	[PubSubEvents.Prepare_Html_Screenshot]: [request: HtmlScreenshotUploadRequest]
+	/** Update the screenshot mention on an already inserted HTML inspector node. */
+	[PubSubEvents.Update_Html_Inspector_Screenshot]: [update: HtmlInspectorScreenshotUpdate]
 	/** 幻灯片添加后设置编辑器内容。 */
 	[PubSubEvents.Set_Content_When_Slide_Added]: SuperMagicSetContentWhenSlideAddedArgs
 	/** 设置 demo 文本到输入框：传入字符串文本。 */
@@ -211,8 +238,12 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Trigger_Document_List_Polling]: []
 	/** 添加文件到聊天输入框：传入标准文件 mention payload。 */
 	[PubSubEvents.Add_File_To_Chat]: SuperMagicAddFileToChatPayload
+	/** 画布选择 mentions：传入画布选择 payload。 */
+	[PubSubEvents.Super_Magic_Canvas_Selection_Mentions]: SuperMagicCanvasSelectionMentionsPayload
 	/** 发送打断消息：可选回调，打断完成后执行。 */
 	[PubSubEvents.Send_Interrupt_Message]: SuperMagicSendInterruptMessageArgs
+	/** 终止任务后收敛画布生成中图片节点：零参数。 */
+	[PubSubEvents.Terminate_Generating_Images]: []
 	/** 触发创建新话题：零参数。 */
 	[PubSubEvents.Trigger_Create_Topic]: []
 	/** 添加话题到列表：传入新建的话题对象。 */
@@ -235,4 +266,9 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Playback_End]: SuperMagicPlaybackEndPayload
 	/** 外部/原生层将拖拽数据投入消息编辑器：传入拖拽数据，消费方自行收窄。 */
 	[PubSubEvents.Insert_Drag_Data_To_Editor]: SuperMagicInsertDragDataToEditorArgs
+	/** 当前用户完整个人偏好更新：携带用户隔离键和服务端确认后的完整值。 */
+	[PubSubEvents.Personal_Preferences_Updated]: {
+		userKey: string
+		value: PersonalPreferencesValue
+	}
 }

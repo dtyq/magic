@@ -41,6 +41,9 @@ class PlaywrightContextLease:
     def reserve_page(self) -> str | None:
         return self._host.reserve_page(self.lease_id)
 
+    def ensure_page_capacity(self) -> None:
+        self._host.ensure_page_capacity(self.lease_id)
+
     def release_page(self) -> None:
         self._host.release_page(self.lease_id)
 

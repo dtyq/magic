@@ -1,7 +1,7 @@
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconSitemap } from "@tabler/icons-react"
 import type { GlobalSearch } from "@/types/search"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
 import HighlightText from "../HighlightText"
 
 interface SearchItemDepartmentProps {
@@ -11,15 +11,13 @@ interface SearchItemDepartmentProps {
 function Department(props: SearchItemDepartmentProps) {
 	const { item } = props
 
-	const { styles } = useSearchItemCommonStyles()
-
 	return (
-		<div className={styles.item} style={{ alignItems: "center" }}>
-			<div className={styles.icon} style={{ backgroundColor: "#315CEC" }}>
+		<div className={`${styles.item} !items-center`}>
+			<div className={`${styles.icon} !bg-[#315cec]`}>
 				<MagicIcon
 					size={20}
 					component={IconSitemap}
-					style={{ flex: "none" }}
+					className="flex-none"
 					color="#FFFFFF"
 				/>
 			</div>

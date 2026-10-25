@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { useEffect, useRef } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { formatNumber } from "@/utils/format"
 
 interface AnimatedNumberTextProps {

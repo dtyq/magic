@@ -11,9 +11,8 @@
  * MagicWorkspaceApi 负责，安装到 window.Magic.uploadFiles 等方法上。
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
+import { BaseRuntimeBridgeApiPlugin, getParentOrigin } from "@dtyq/html-sandbox"
 import { getPreludeVersion, isStaleDocument } from "./prelude-runtime-context"
-import { getParentOrigin } from "@dtyq/html-sandbox/utils/parentOrigin"
 
 function isSingleFileName(name: string): boolean {
 	return (
@@ -198,7 +197,7 @@ export class MagicFSApi extends BaseRuntimeBridgeApiPlugin {
 				const handler = (
 					event: MessageEvent<{ type?: string; path?: string; timestamp?: number }>,
 				) => {
-					if (isStaleDocument(installedVersion)) return
+					if (!this.isHostMessage(event) || isStaleDocument(installedVersion)) return
 					if (!event.data || event.data.type !== "MAGIC_FS_FILE_CHANGED") return
 					if (event.data.path !== path) return
 					try {
@@ -246,7 +245,7 @@ export class MagicFSApi extends BaseRuntimeBridgeApiPlugin {
 						maxEntryCount?: number
 					}>,
 				) => {
-					if (isStaleDocument(installedVersion)) return
+					if (!this.isHostMessage(event) || isStaleDocument(installedVersion)) return
 					if (
 						!event.data ||
 						(event.data.type !== "MAGIC_FS_DIR_CHANGED" &&

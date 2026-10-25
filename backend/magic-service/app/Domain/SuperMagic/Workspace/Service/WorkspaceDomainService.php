@@ -9,7 +9,6 @@ namespace App\Domain\SuperMagic\Workspace\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\SuperMagic\File\Repository\Facade\TaskFileRepositoryInterface;
-use App\Domain\SuperMagic\Task\Constant\AgentConstant;
 use App\Domain\SuperMagic\Task\Entity\TaskEntity;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskStatus;
 use App\Domain\SuperMagic\Task\Repository\Facade\TaskRepositoryInterface;
@@ -17,7 +16,6 @@ use App\Domain\SuperMagic\Task\Service\TaskDomainService;
 use App\Domain\SuperMagic\Topic\Entity\TopicEntity;
 use App\Domain\SuperMagic\Topic\Repository\Facade\TopicRepositoryInterface;
 use App\Domain\SuperMagic\Workspace\Entity\ValueObject\WorkspaceArchiveStatus;
-use App\Domain\SuperMagic\Workspace\Entity\ValueObject\WorkspaceCreationParams;
 use App\Domain\SuperMagic\Workspace\Entity\ValueObject\WorkspaceStatus;
 use App\Domain\SuperMagic\Workspace\Entity\ValueObject\WorkspaceType;
 use App\Domain\SuperMagic\Workspace\Entity\WorkspaceEntity;
@@ -31,6 +29,7 @@ use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\SandboxGatewayIn
 use App\Infrastructure\SuperMagic\Utils\WorkDirectoryUtil;
 use App\Infrastructure\Util\Context\RequestContext;
 use Exception;
+use Hyperf\DbConnection\Db;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
@@ -107,77 +106,6 @@ class WorkspaceDomainService
     }
 
     /**
-     * 创建工作区. 默认会初始化一个话题 (DEPRECATED - use createWorkspace + TopicDomainService::createTopic)
-     * 遵循DDD风格，领域服务负责处理业务逻辑.
-     * @return array 包含工作区实体和话题实体的数组 ['workspace' => WorkspaceEntity, 'topic' => TopicEntity|null]
-     * @deprecated Use createWorkspace() and TopicDomainService::createTopic() separately
-     */
-    public function createWorkspaceWithTopic(DataIsolation $dataIsolation, WorkspaceCreationParams $creationParams): array
-    {
-        // 从DataIsolation获取当前用户ID作为创建者ID
-        $currentUserId = $dataIsolation->getCurrentUserId();
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
-        // 创建工作区实体
-        $currentTime = date('Y-m-d H:i:s');
-        $workspaceEntity = new WorkspaceEntity();
-        $workspaceEntity->setUserId($currentUserId); // 使用当前用户ID
-        $workspaceEntity->setUserOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $workspaceEntity->setChatConversationId($creationParams->getChatConversationId());
-        $workspaceEntity->setName($creationParams->getWorkspaceName());
-        $workspaceEntity->setArchiveStatus(WorkspaceArchiveStatus::NotArchived); // 默认未归档
-        $workspaceEntity->setWorkspaceStatus(WorkspaceStatus::Normal); // 默认状态：正常
-        $workspaceEntity->setCreatedUid($currentUserId); // 从DataIsolation获取
-        $workspaceEntity->setUpdatedUid($currentUserId); // 创建时更新者与创建者相同
-        $workspaceEntity->setCreatedAt($currentTime);
-        $workspaceEntity->setUpdatedAt($currentTime);
-
-        // 使用事务保证工作区和话题同时创建成功
-        $topicEntity = null;
-        // 调用仓储层保存工作区
-        $savedWorkspaceEntity = $this->workspaceRepository->createWorkspace($workspaceEntity);
-
-        // 创建话题
-        if ($savedWorkspaceEntity->getId() && ! empty($creationParams->getChatConversationTopicId())) {
-            // 创建话题实体
-            $topicEntity = new TopicEntity();
-            $topicEntity->setUserId($currentUserId);
-            $topicEntity->setUserOrganizationCode($organizationCode);
-            $topicEntity->setWorkspaceId($savedWorkspaceEntity->getId());
-            $topicEntity->setChatTopicId($creationParams->getChatConversationTopicId());
-            $topicEntity->setChatConversationId($creationParams->getChatConversationId());
-            $topicEntity->setSandboxId(''); // 初始为空
-            $topicEntity->setWorkDir(''); // 初始为空
-            $topicEntity->setCurrentTaskId(0);
-            $topicEntity->setTopicName($creationParams->getTopicName());
-            $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING); // 默认状态：等待中
-            $topicEntity->setCreatedUid($currentUserId); // 设置创建者用户ID
-            $topicEntity->setUpdatedUid($currentUserId); // 设置更新者用户ID
-
-            // 使用 topicRepository 保存话题
-            $savedTopicEntity = $this->topicRepository->createTopic($topicEntity);
-
-            if ($savedTopicEntity->getId()) {
-                // 设置工作区的当前话题ID为新创建的话题ID
-                $savedWorkspaceEntity->setCurrentTopicId($savedTopicEntity->getId());
-                // 更新工作区
-                $this->workspaceRepository->save($savedWorkspaceEntity);
-                // 更新工作目录
-                $topicEntity->setWorkDir($this->generateWorkDir($currentUserId, $savedTopicEntity->getId()));
-                $this->topicRepository->updateTopic($topicEntity);
-            }
-
-            $topicEntity = $savedTopicEntity;
-        }
-
-        $result = $savedWorkspaceEntity;
-        return [
-            'workspace' => $result,
-            'topic' => $topicEntity,
-        ];
-    }
-
-    /**
      * 更新工作区.
      * 遵循DDD风格，领域服务负责处理业务逻辑.
      * @param DataIsolation $dataIsolation 数据隔离对象
@@ -222,10 +150,91 @@ class WorkspaceDomainService
     }
 
     /**
+     * Move a workspace before or after another workspace without touching
+     * updated_at. `pre` wins when both relative-position IDs are supplied.
+     */
+    public function moveWorkspace(
+        DataIsolation $dataIsolation,
+        int $workspaceId,
+        ?int $preWorkspaceId,
+        ?int $nextWorkspaceId = null
+    ): bool {
+        return Db::transaction(function () use ($dataIsolation, $workspaceId, $preWorkspaceId, $nextWorkspaceId): bool {
+            $workspace = $this->workspaceRepository->getWorkspaceById($workspaceId);
+            if (! $workspace
+                || $workspace->getUserId() !== $dataIsolation->getCurrentUserId()
+                || $workspace->getIsArchived() !== 0
+            ) {
+                throw new RuntimeException('Workspace not found or access denied');
+            }
+
+            $targetWorkspaceId = $preWorkspaceId ?? $nextWorkspaceId;
+            $insertAfter = $preWorkspaceId !== null;
+            if ($targetWorkspaceId === null) {
+                // Legacy explicit-null behavior: move to the first manual position.
+                $rows = $this->workspaceRepository->getUserWorkspaceSortOrders(
+                    $dataIsolation->getCurrentUserId(),
+                    $workspaceId
+                );
+                $orderedIds = array_map(static fn (array $row): int => $row['id'], $rows);
+                array_unshift($orderedIds, $workspaceId);
+            } else {
+                $targetWorkspace = $this->workspaceRepository->getWorkspaceById($targetWorkspaceId);
+                if (! $targetWorkspace
+                    || $targetWorkspace->getUserId() !== $dataIsolation->getCurrentUserId()
+                    || $targetWorkspace->getIsArchived() !== 0
+                    || $targetWorkspace->getId() === $workspaceId
+                ) {
+                    throw new RuntimeException('Invalid relative workspace');
+                }
+
+                $rows = $this->workspaceRepository->getUserWorkspaceSortOrders(
+                    $dataIsolation->getCurrentUserId(),
+                    $workspaceId
+                );
+                $orderedIds = array_map(static fn (array $row): int => $row['id'], $rows);
+                $index = array_search($targetWorkspaceId, $orderedIds, true);
+                if ($index === false) {
+                    throw new RuntimeException('Relative workspace is not in the current list');
+                }
+                array_splice($orderedIds, $insertAfter ? $index + 1 : $index, 0, [$workspaceId]);
+            }
+
+            $allHaveSortOrder = $rows !== [] && array_reduce(
+                $rows,
+                static fn (bool $carry, array $row): bool => $carry && $row['sort_order'] !== null,
+                true
+            );
+            if (! $allHaveSortOrder) {
+                $initialSortOrders = [];
+                $rank = 1_000_000;
+                foreach (array_values(array_diff($orderedIds, [$workspaceId])) as $id) {
+                    $initialSortOrders[$id] = $rank;
+                    $rank += 1_000_000;
+                }
+                $this->workspaceRepository->batchUpdateSortOrders($initialSortOrders);
+            }
+
+            $sortOrders = [];
+            $rank = 1_000_000;
+            foreach ($orderedIds as $id) {
+                $sortOrders[$id] = $rank;
+                $rank += 1_000_000;
+            }
+
+            return $this->workspaceRepository->batchUpdateSortOrders($sortOrders) > 0;
+        });
+    }
+
+    /**
      * 获取工作区详情.
      */
-    public function getWorkspaceDetail(int $workspaceId): ?WorkspaceEntity
+    public function getWorkspaceDetail(?int $workspaceId): ?WorkspaceEntity
     {
+        if ($workspaceId === null) {
+            return null;
+        }
+
         return $this->workspaceRepository->getWorkspaceById($workspaceId);
     }
 
@@ -281,6 +290,9 @@ class WorkspaceDomainService
 
     /**
      * 根据条件获取工作区列表.
+     *
+     * @param bool $enableManualOrdering 是否启用侧边栏手工排序
+     * @param bool $pinPriority 是否将置顶工作区排在前面
      */
     public function getWorkspacesByConditions(
         array $conditions,
@@ -288,18 +300,34 @@ class WorkspaceDomainService
         int $pageSize,
         string $orderBy,
         string $orderDirection,
-        DataIsolation $dataIsolation
+        DataIsolation $dataIsolation,
+        bool $enableManualOrdering = true,
+        bool $pinPriority = false
     ): array {
         // 应用数据隔离
         $conditions = $this->applyDataIsolation($conditions, $dataIsolation);
 
         // 调用仓储层获取数据
+        if ($enableManualOrdering) {
+            return $this->workspaceRepository->getWorkspacesByConditions(
+                $conditions,
+                $page,
+                $pageSize,
+                $orderBy,
+                $orderDirection,
+                true,
+                $pinPriority
+            );
+        }
+
         return $this->workspaceRepository->getWorkspacesByConditions(
             $conditions,
             $page,
             $pageSize,
             $orderBy,
-            $orderDirection
+            $orderDirection,
+            false,
+            $pinPriority
         );
     }
 
@@ -365,69 +393,6 @@ class WorkspaceDomainService
         // 调用TaskFileRepository获取文件列表
         return $this->taskFileRepository->getByTaskId($taskId, $page, $pageSize);
         // 直接返回实体对象列表，让应用层处理URL获取
-    }
-
-    /**
-     * 创建话题.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离对象
-     * @param int $workspaceId 工作区ID
-     * @param string $chatTopicId 会话的话题ID，存储在topic_id字段中
-     * @param string $topicName 话题名称
-     * @return TopicEntity 创建的话题实体
-     * @throws Exception 如果创建失败
-     */
-    public function createTopic(DataIsolation $dataIsolation, int $workspaceId, string $chatTopicId, string $topicName): TopicEntity
-    {
-        // 获取当前用户ID
-        $userId = $dataIsolation->getCurrentUserId();
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
-        // 获取工作区详情，检查工作区是否存在
-        $workspaceEntity = $this->workspaceRepository->getWorkspaceById($workspaceId);
-        if (! $workspaceEntity) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.not_found');
-        }
-
-        // 检查工作区是否已归档
-        if ($workspaceEntity->getArchiveStatus() === WorkspaceArchiveStatus::Archived) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'workspace.archived');
-        }
-
-        // 获取会话ID
-        $chatConversationId = $workspaceEntity->getChatConversationId();
-        if (empty($chatConversationId)) {
-            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'workspace.conversation_id_not_found');
-        }
-
-        // 如果话题ID为空，抛出异常
-        if (empty($chatTopicId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic.id_required');
-        }
-
-        // 创建话题实体
-        $topicEntity = new TopicEntity();
-        $topicEntity->setUserId($userId);
-        $topicEntity->setUserOrganizationCode($organizationCode);
-        $topicEntity->setWorkspaceId($workspaceId);
-        $topicEntity->setChatTopicId($chatTopicId);
-        $topicEntity->setChatConversationId($chatConversationId);
-        $topicEntity->setTopicName($topicName);
-        $topicEntity->setSandboxId(''); // 初始为空
-        $topicEntity->setWorkDir(''); // 初始为空
-        $topicEntity->setCurrentTaskId(0);
-        $topicEntity->setCurrentTaskStatus(TaskStatus::WAITING); // 默认状态：等待中
-        $topicEntity->setCreatedUid($userId); // 设置创建者用户ID
-        $topicEntity->setUpdatedUid($userId); // 设置更新者用户ID
-
-        // 保存话题
-        $topicEntity = $this->topicRepository->createTopic($topicEntity);
-        // 更新工作区
-        if ($topicEntity->getId()) {
-            $topicEntity->setWorkDir($this->generateWorkDir($userId, $topicEntity->getId()));
-            $this->topicRepository->updateTopic($topicEntity);
-        }
-        return $topicEntity;
     }
 
     /**
@@ -874,13 +839,5 @@ class WorkspaceDomainService
         $conditions['user_id'] = $dataIsolation->getCurrentUserId();
         $conditions['user_organization_code'] = $dataIsolation->getCurrentOrganizationCode();
         return $conditions;
-    }
-
-    /**
-     * 生成工作目录.
-     */
-    private function generateWorkDir(string $userId, int $topicId): string
-    {
-        return sprintf('/%s/%s/topic_%d', AgentConstant::SUPER_MAGIC_CODE, $userId, $topicId);
     }
 }

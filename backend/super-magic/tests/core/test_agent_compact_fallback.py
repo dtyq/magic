@@ -32,7 +32,7 @@ def _make_compact_request_tracker(pending: bool = False) -> CompactRequestTracke
 class _FakeCompactAgent:
     _PROVIDER_RATE_LIMIT_STATUS_CODES = Agent._PROVIDER_RATE_LIMIT_STATUS_CODES
     _NON_RETRYABLE_STATUS_CODES = Agent._NON_RETRYABLE_STATUS_CODES
-    _PROGRESSIVE_RECOVERY_PROMPTS = Agent._PROGRESSIVE_RECOVERY_PROMPTS
+    _GENERATION_SPLIT_RECOVERY_PROMPT = Agent._GENERATION_SPLIT_RECOVERY_PROMPT
     _call_llm_with_retry = Agent._call_llm_with_retry
     _try_fallback_compact_model_once = Agent._try_fallback_compact_model_once
     _restore_pre_compact_model = Agent._restore_pre_compact_model
@@ -40,6 +40,7 @@ class _FakeCompactAgent:
     _fallback_compact_request_to_main_model = Agent._fallback_compact_request_to_main_model
     _finish_compact_request = Agent._finish_compact_request
     _require_current_text_model_id = Agent._require_current_text_model_id
+    _reset_generation_failure_streak = staticmethod(Agent._reset_generation_failure_streak)
 
     def __init__(self, failures: list[Exception]):
         model_context = AgentModelContext()
@@ -79,6 +80,17 @@ class _FakeCompactAgent:
         return None
 
     def _log_compaction_event(self, event_type: str, message: str) -> None:
+        return None
+
+    async def _dispatch_before_llm_retry_event(self, **kwargs):
+        return SimpleNamespace(
+            allow_retry=None,
+            disable_streaming=False,
+            skip_backoff=False,
+            reason="",
+        )
+
+    async def _dispatch_llm_request_succeeded_event(self, **kwargs):
         return None
 
 

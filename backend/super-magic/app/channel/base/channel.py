@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from html import escape
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -48,7 +49,22 @@ class BaseChannel(ABC):
 
     def build_agent_context_fragment(self, message: "ChatClientMessage | None") -> str:
         """把渠道专属的请求上下文转成给模型读的 prompt 片段，追加在用户消息后。"""
-        return f'<im source="{self.source_name}" />'
+        context = message.channel_context if message else None
+        context = context or {}
+        media = context.get("channel_media", context.get("wechat_media", []))
+        source = escape(self.source_name, quote=True)
+        if not media:
+            return f'<im source="{source}" />'
+        lines = [f'<im source="{source}">', "  <media>"]
+        for item in media:
+            attrs = " ".join(
+                f'{name}="{escape(str(item.get(key, "")), quote=True)}"'
+                for name, key in (("type", "media_type"), ("mime", "mime_type"), ("path", "relative_path"))
+            )
+            quoted = ' from="quoted"' if item.get("from_quote") else ""
+            lines.append(f"    <file {attrs}{quoted} />")
+        lines.extend(["  </media>", "</im>"])
+        return "\n".join(lines)
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
         """返回面向状态面板的展示文案。"""

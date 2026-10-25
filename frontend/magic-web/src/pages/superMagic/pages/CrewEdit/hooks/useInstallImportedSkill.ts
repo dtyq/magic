@@ -29,8 +29,16 @@ export function useInstallImportedSkill() {
 
 					skills.addSkill({
 						skill_code: skillCode,
-						name_i18n: detail.name_i18n ?? buildCrewI18nText(""),
-						description_i18n: detail.description_i18n ?? buildCrewI18nText(""),
+						// Detail metadata is already localized; build the legacy crew
+						// payload from it when the compatibility i18n maps are absent.
+						name_i18n:
+							detail.name_i18n ??
+							buildCrewI18nText(detail.name?.trim() || detail.package_name || ""),
+						description_i18n:
+							detail.description_i18n ??
+							buildCrewI18nText(
+								detail.description?.trim() || detail.package_description || "",
+							),
 						logo: detail.logo || null,
 					})
 

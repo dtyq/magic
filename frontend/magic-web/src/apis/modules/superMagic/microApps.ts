@@ -1,10 +1,10 @@
-import type { HttpClient } from "@/apis/core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import type { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
-import { genRequestUrl } from "@/utils/http"
+import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
 
 export type MicroAppPublishShareType = 2 | 4 | 5
 export type MicroAppPublishShareRange = "all" | "designated"
-export type MicroAppListScope = "all" | "created" | "collaborated"
+export type MicroAppListScope = "all" | "created" | "collaborated" | "accessible" | "recent"
 
 export interface MicroAppShareExtra {
 	pure_mode?: boolean
@@ -22,6 +22,8 @@ export interface PublishMicroAppProjectBody {
 	target_ids?: MicroAppPublishTarget[]
 	password?: string
 	cover_file_key?: string | null
+	expire_days?: number | null
+	default_open_file_id?: string | null
 	extra?: MicroAppShareExtra
 }
 
@@ -40,6 +42,9 @@ export interface PublishedMicroAppProjectItem {
 	published_at?: string
 	password?: string
 	cover_file_key?: string | null
+	expire_days?: number | null
+	expire_at?: string | null
+	default_open_file_id?: string | null
 	cover_url?: string
 	extra?: MicroAppShareExtra
 	publish_status?: "published" | "unpublished" | string
@@ -47,12 +52,16 @@ export interface PublishedMicroAppProjectItem {
 
 export interface MicroAppListItem {
 	app_id: string
+	/** Project id used by collaboration APIs when the list contract provides it. */
+	project_id?: string
 	app_name: string
 	app_description: string
 	creator_id: string
 	cover_url: string
 	publish_status: "published" | "unpublished" | string
 	updated_at: string | null
+	/** Current user's effective role in the underlying project. */
+	user_role?: CollaboratorPermission
 }
 
 export interface MicroAppListResponse {
@@ -107,6 +116,7 @@ export interface PublishedMicroAppProjectsResponse {
 export interface MicroAppProjectDetail {
 	app_id: string
 	project_id: string
+	organization_code: string
 	project?: ProjectListItem
 	publish?: PublishedMicroAppProjectItem
 }
@@ -117,15 +127,31 @@ export interface CreateMicroAppProjectResponse {
 	topic: Topic
 }
 
+export type MicroAppRuntimeProject = Pick<ProjectListItem, "id"> &
+	Partial<Omit<ProjectListItem, "id" | "user_role">> &
+	Pick<ProjectListItem, "user_role">
+
+export interface MicroAppRuntimeProjectResponse {
+	exists: boolean
+	project: MicroAppRuntimeProject | null
+}
+
+export interface EnsureMicroAppRuntimeProjectResponse {
+	project: MicroAppRuntimeProject
+	is_existing: boolean
+}
+
 export interface ResolvedPublishedMicroApp {
 	app_id: string
 	resource_id: string
 	share_code: string
+	organization_code: string
 	cover_url?: string
+	default_open_file_id?: string | null
 	extra?: MicroAppShareExtra
 }
 
-export const generateMicroAppApi = (fetch: HttpClient) => ({
+export const generateMicroAppApi = (fetch: ServiceHttpClient) => ({
 	getMicroAppWorkspace() {
 		return fetch.get<Workspace>("/api/v1/super-agent/workspaces/app/micro-app")
 	},
@@ -162,71 +188,92 @@ export const generateMicroAppApi = (fetch: HttpClient) => ({
 		} = {},
 	) {
 		const { page = 1, page_size = 20, keyword = "", scope = "all" } = params
-		return fetch.get<MicroAppListResponse>(
-			genRequestUrl(
-				"/api/v1/super-agent/micro-apps/queries",
-				{},
-				{ page, page_size, keyword, scope },
-			),
-			{ parseJsonLargeIntAsString: true },
+		return fetch.get<MicroAppListResponse>("/api/v1/super-agent/micro-apps/queries", {
+			params: { page, page_size, keyword, scope },
+			parseJsonLargeIntAsString: true,
+		})
+	},
+
+	getMentionMicroApps(
+		params: {
+			page?: number
+			page_size?: number
+			keyword?: string
+		} = {},
+	) {
+		const { page = 1, page_size = 100, keyword = "" } = params
+		return fetch.get<MicroAppListResponse>("/api/v1/super-agent/micro-apps/mention", {
+			params: { page, page_size, keyword },
+			parseJsonLargeIntAsString: true,
+		})
+	},
+
+	recordMicroAppVisit(appId: string) {
+		return fetch.post<{ recorded: boolean }>(
+			`/api/v1/super-agent/micro-apps/${appId}/visit`,
+			undefined,
 		)
 	},
 
 	updateMicroApp(appId: string, body: UpdateMicroAppBody) {
-		return fetch.put<MicroAppMetadata>(
-			genRequestUrl("/api/v1/super-agent/micro-apps/${appId}", { appId }),
-			body,
-			{ parseJsonLargeIntAsString: true },
-		)
+		return fetch.put<MicroAppMetadata>(`/api/v1/super-agent/micro-apps/${appId}`, body, {
+			parseJsonLargeIntAsString: true,
+		})
 	},
 
 	deleteMicroApp(appId: string) {
 		return fetch.delete<DeleteMicroAppResponse>(
-			genRequestUrl("/api/v1/super-agent/micro-apps/${appId}", { appId }),
+			`/api/v1/super-agent/micro-apps/${appId}`,
 			undefined,
 			{ parseJsonLargeIntAsString: true },
 		)
 	},
 
 	getMicroAppProject(appId: string, options?: { enableErrorMessagePrompt?: boolean }) {
-		return fetch.get<MicroAppProjectDetail>(
-			genRequestUrl("/api/v1/super-agent/micro-app-projects/${appId}", { appId }),
-			{ parseJsonLargeIntAsString: true, ...options },
-		)
+		return fetch.get<MicroAppProjectDetail>(`/api/v1/super-agent/micro-app-projects/${appId}`, {
+			parseJsonLargeIntAsString: true,
+			...options,
+		})
 	},
 
 	getMicroAppProjectByProjectId(projectId: string) {
 		return fetch.get<MicroAppProjectDetail>(
-			genRequestUrl("/api/v1/super-agent/micro-app-projects/by-project/${projectId}", {
-				projectId,
-			}),
+			`/api/v1/super-agent/micro-app-projects/by-project/${projectId}`,
+			{ parseJsonLargeIntAsString: true },
+		)
+	},
+
+	getMicroAppRuntimeProject(appId: string, options?: { enableErrorMessagePrompt?: boolean }) {
+		return fetch.get<MicroAppRuntimeProjectResponse>(
+			`/api/v1/super-agent/micro-app-projects/${appId}/runtime-project`,
+			{ parseJsonLargeIntAsString: true, ...options },
+		)
+	},
+
+	ensureMicroAppRuntimeProject(appId: string) {
+		return fetch.post<EnsureMicroAppRuntimeProjectResponse>(
+			`/api/v1/super-agent/micro-app-projects/${appId}/runtime-project`,
+			undefined,
 			{ parseJsonLargeIntAsString: true },
 		)
 	},
 
 	resolvePublishedMicroApp(appId: string) {
-		return fetch.get<ResolvedPublishedMicroApp>(
-			genRequestUrl("/api/v1/share/micro-apps/${appId}", { appId }),
-			{ parseJsonLargeIntAsString: true },
-		)
+		return fetch.get<ResolvedPublishedMicroApp>(`/api/v1/share/micro-apps/${appId}`, {
+			parseJsonLargeIntAsString: true,
+		})
 	},
 
 	publishMicroAppProject(appId: string, body: PublishMicroAppProjectBody) {
 		return fetch.post<PublishedMicroAppProjectItem>(
-			genRequestUrl("/api/v1/super-agent/micro-app-projects/${appId}/publish", {
-				appId,
-			}),
+			`/api/v1/super-agent/micro-app-projects/${appId}/publish`,
 			body,
 			{ parseJsonLargeIntAsString: true },
 		)
 	},
 
 	unpublishMicroAppProject(appId: string) {
-		return fetch.delete<unknown>(
-			genRequestUrl("/api/v1/super-agent/micro-app-projects/${appId}/publish", {
-				appId,
-			}),
-		)
+		return fetch.delete<unknown>(`/api/v1/super-agent/micro-app-projects/${appId}/publish`)
 	},
 
 	getPublishedMicroAppProjects(
@@ -238,12 +285,8 @@ export const generateMicroAppApi = (fetch: HttpClient) => ({
 	) {
 		const { page = 1, page_size = 20, keyword = "" } = params
 		return fetch.get<PublishedMicroAppProjectsResponse>(
-			genRequestUrl(
-				"/api/v1/super-agent/micro-app-projects/published/queries",
-				{},
-				{ page, page_size, keyword },
-			),
-			{ parseJsonLargeIntAsString: true },
+			"/api/v1/super-agent/micro-app-projects/published/queries",
+			{ params: { page, page_size, keyword }, parseJsonLargeIntAsString: true },
 		)
 	},
 })

@@ -55,11 +55,6 @@ interface OrganizationAdminRepositoryInterface
     public function revoke(DataIsolation $dataIsolation, string $userId): void;
 
     /**
-     * 获取组织创建人.
-     */
-    public function getOrganizationCreator(DataIsolation $dataIsolation): ?OrganizationAdminEntity;
-
-    /**
      * 获取组织下所有组织管理员.
      */
     public function getAllOrganizationAdmins(DataIsolation $dataIsolation): array;

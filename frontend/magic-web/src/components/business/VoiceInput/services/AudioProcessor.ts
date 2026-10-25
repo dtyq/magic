@@ -9,7 +9,7 @@
  */
 
 import { MicrophonePermissionService } from "@/services/MicrophonePermissionService"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 export interface AudioConfig {
 	sampleRate: number

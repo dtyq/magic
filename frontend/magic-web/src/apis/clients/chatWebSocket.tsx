@@ -7,13 +7,15 @@ import { WebSocketReadyState } from "@/types/websocket"
 import { env } from "@/utils/env"
 import { decodeSocketIoMessage } from "@/utils/socketio"
 import { isString, isUndefined } from "lodash-es"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import EventBus from "@/utils/eventBus"
 import { interfaceStore } from "@/stores/interface"
 import { UrlUtils } from "../utils"
 import { VisibilityListener } from "./chatWebSocket/VisibilityListener"
 import { NetworkListener } from "./chatWebSocket/NetworkListener"
 import { AppActiveListener } from "./chatWebSocket/AppActiveListener"
+import { authEventBus } from "@/services/auth/AuthEventBus"
+import { AuthEventName } from "@/services/auth/AuthEvents"
 
 const logger = Logger.createLogger("chatWebSocket")
 
@@ -91,6 +93,9 @@ export class ChatWebSocket extends EventBus {
 	// 递增 ACK 计数器，保证未传入 ackId 时能够生成唯一 ID
 	private ackCounter = Date.now()
 
+	/** Prevents the transport from re-authenticating with a known-invalid session. */
+	private reconnectSuppressed = false
+
 	/**
 	 * 初始化WebSocket连接
 	 * @param url WebSocket服务端地址
@@ -103,6 +108,10 @@ export class ChatWebSocket extends EventBus {
 		this.visibilityListener = new VisibilityListener()
 		this.networkListener = new NetworkListener()
 		this.appActiveListener = new AppActiveListener()
+		authEventBus.on(AuthEventName.LoginRequired, () => {
+			this.reconnectSuppressed = true
+			this.close({ suppressReconnect: true })
+		})
 
 		// 设置页面可见性变化回调
 		this.visibilityListener.onVisibleChange((visible) => {
@@ -210,6 +219,8 @@ export class ChatWebSocket extends EventBus {
 	 * 连接失败时触发重连机制
 	 */
 	public connect(options?: { showLoading?: boolean }) {
+		// A later explicit connection attempt represents a new login/session lifecycle.
+		this.reconnectSuppressed = false
 		const { showLoading = true } = options ?? {}
 		// 懒加载初始化页面可见性、网络状态和 App 活跃状态监听器（只在第一次 connect 时初始化）
 		this.visibilityListener.init()
@@ -228,7 +239,6 @@ export class ChatWebSocket extends EventBus {
 		// 创建新的连接 Promise 并缓存
 		this.connectingPromise = new Promise<WebSocket | null>((resolve) => {
 			if (showLoading) interfaceStore.setIsConnecting(true)
-			interfaceStore.setShowReloadButton(false)
 
 			let connectTimer: NodeJS.Timeout | null = null
 
@@ -389,6 +399,10 @@ export class ChatWebSocket extends EventBus {
 			reconnectAttempts: this.reconnectAttempts,
 		})
 		this.emit("close", event)
+		if (this.reconnectSuppressed) {
+			logger.log("认证会话已失效，跳过 WebSocket 自动重连")
+			return
+		}
 		this.reconnect()
 	}
 
@@ -569,6 +583,11 @@ export class ChatWebSocket extends EventBus {
 	private reconnect(options?: { immediate?: boolean }) {
 		const { immediate = false } = options ?? {}
 		return new Promise<WebSocket | null>((resolve) => {
+			if (this.reconnectSuppressed) {
+				logger.log("认证会话已失效，忽略 WebSocket 重连请求")
+				resolve(null)
+				return
+			}
 			// 如果已经在连接中，直接返回连接 Promise
 			if (this.connectingPromise) {
 				logger.log("已有连接正在进行，跳过重连")
@@ -797,7 +816,8 @@ export class ChatWebSocket extends EventBus {
 	 * 清理所有定时器资源并终止WebSocket连接
 	 * 用于页面卸载或用户主动断开场景
 	 */
-	public close() {
+	public close(options?: { suppressReconnect?: boolean }) {
+		if (options?.suppressReconnect) this.reconnectSuppressed = true
 		// 1. 停止心跳
 		this.stopHeartbeat()
 

@@ -33,7 +33,7 @@ return [
     // 超级麦吉AIGC隐式标识配置
     'aigc_metadata' => [
         'label' => env('AIGC_LABEL', '1'), // AIGC标签
-        'content_producer' => env('AIGC_CONTENT_PRODUCER', '001191440300MA5HTEC8X100000'), // 内容生产者统一社会信用代码
+        'content_producer' => env('AIGC_CONTENT_PRODUCER', ''), // 内容生产者标识由部署环境显式配置
     ],
     // 图片文件定时清除
     'file_cleanup' => [

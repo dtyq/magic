@@ -15,16 +15,17 @@ import asyncio
 import json
 import threading
 import uuid
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
-from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
-from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.channel.base.third_party_message import dispatch_third_party_message
+from app.channel.config import IMChannelDisplay, IMChannelsConfig
+from app.channel.lark.aggregation import LarkInboundBatch, LarkInboundEvent, LarkMessageAggregator
 from app.channel.lark.stream import LarkStream
 from app.channel.lark.streaming_driver import LarkStreamingDriver
-from app.channel.config import IMChannelsConfig, IMChannelDisplay
+from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
+from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.core.keepalive_registry import KeepaliveRegistry
 from app.utils.time_utils import now_ms
 
@@ -76,6 +77,7 @@ class LarkChannel(BaseChannel):
         self._display = IMChannelDisplay()
         # 缓存最后一次活跃的 chat_id，供 cron 主动推送复用会话上下文
         self._last_chat_id: Optional[str] = None
+        self._message_aggregator = LarkMessageAggregator(self._process_aggregated_message)
 
     @classmethod
     def get_instance(cls) -> "LarkChannel":
@@ -112,6 +114,7 @@ class LarkChannel(BaseChannel):
 
     async def disconnect(self) -> None:
         """停止保活并清理本地连接引用。"""
+        await self._message_aggregator.flush()
         KeepaliveRegistry.get_instance().reset_source(self.key)
         if self._ws_thread is not None and self._ws_thread.is_alive():
             # SDK 线程是阻塞式 start()，当前只能停止保活，避免误报成已彻底断开。
@@ -207,7 +210,56 @@ class LarkChannel(BaseChannel):
         )
 
     async def _on_message(self, data: object) -> None:
-        """主事件循环中异步处理飞书消息。"""
+        """主事件循环中提取原始事件，先聚合再执行耗时的资源准备。"""
+        event_data = getattr(data, "event", None)
+        msg = getattr(event_data, "message", None) if event_data else None
+        if not msg:
+            return
+
+        try:
+            content_obj = json.loads(getattr(msg, "content", "{}") or "{}")
+            if not isinstance(content_obj, dict):
+                content_obj = {}
+        except (ValueError, TypeError):
+            content_obj = {}
+
+        current_message_at_ms = now_ms()
+        self._last_message_at_ms = current_message_at_ms
+        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
+        sender = getattr(event_data, "sender", None)
+        sender_id_obj = getattr(sender, "sender_id", None) if sender else None
+        event = LarkInboundEvent(
+            message_type=getattr(msg, "message_type", "") or "",
+            message_id=getattr(msg, "message_id", "") or "",
+            chat_id=getattr(msg, "chat_id", "") or "",
+            sender_id=getattr(sender_id_obj, "open_id", None) or "lark_user",
+            create_time=str(getattr(msg, "create_time", "") or ""),
+            root_id=getattr(msg, "root_id", "") or "",
+            parent_id=getattr(msg, "parent_id", "") or "",
+            thread_id=getattr(msg, "thread_id", "") or "",
+            content=content_obj,
+        )
+
+        from app.channel.lark.aggregation import lark_event_diagnostics
+        from app.channel.lark.media import _lark_content_structure
+
+        content_structure = _lark_content_structure(
+            event.message_type,
+            content_obj,
+        )
+        logger.info(
+            "[LarkChannel] 收到消息: "
+            f"message_type={event.message_type!r}, "
+            f"message_fields={sorted(vars(msg)) if hasattr(msg, '__dict__') else []}, "
+            f"content_fields={sorted(content_obj)}, "
+            f"event_ids={lark_event_diagnostics(event)!r}, "
+            f"content_structure={content_structure!r}"
+        )
+        await self._message_aggregator.submit(event)
+
+    async def _process_aggregated_message(self, batch: LarkInboundBatch) -> None:
+        """把一个已聚合的 Lark 逻辑消息准备、回复并分发一次。"""
+        from app.channel.lark.media import prepare_lark_batch
         from app.service.agent_dispatcher import AgentDispatcher
 
         dispatcher = AgentDispatcher.get_instance()
@@ -215,34 +267,14 @@ class LarkChannel(BaseChannel):
             logger.error("[LarkChannel] agent_context 未初始化，忽略消息")
             return
 
-        # 提取事件数据
-        event_data = getattr(data, "event", None)
-        msg = getattr(event_data, "message", None) if event_data else None
-        if not msg:
+        canonical = batch.canonical_event
+        prepared = await prepare_lark_batch(batch, self._app_id or "", self._app_secret or "")
+        text = prepared.text
+        if not text and not prepared.media:
             return
-
-        # 只处理文本消息
-        if getattr(msg, "message_type", None) != "text":
-            logger.debug(f"[LarkChannel] 忽略非文本消息类型: {getattr(msg, 'message_type', 'unknown')}")
-            return
-
-        try:
-            content_obj = json.loads(getattr(msg, "content", "{}") or "{}")
-            text = (content_obj.get("text") or "").strip()
-        except Exception:
-            text = ""
-
-        if not text:
-            return
-
-        current_message_at_ms = now_ms()
-        self._last_message_at_ms = current_message_at_ms
-        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
-        sender = getattr(event_data, "sender", None)
-        sender_id_obj = getattr(sender, "sender_id", None) if sender else None
-        user_id = getattr(sender_id_obj, "open_id", None) or "lark_user"
-        message_id = getattr(msg, "message_id", None) or ""
-        chat_id = getattr(msg, "chat_id", None) or ""
+        user_id = canonical.sender_id
+        message_id = canonical.message_id
+        chat_id = canonical.chat_id
 
         # 缓存 chat_id，供 cron 主动推送复用，并持久化供重启后使用
         if chat_id:
@@ -252,7 +284,7 @@ class LarkChannel(BaseChannel):
             await save_runtime_state(
                 LarkRuntimeState(
                     last_chat_id=self._last_chat_id or "",
-                    last_message_at_ms=current_message_at_ms,
+                    last_message_at_ms=self._last_message_at_ms,
                 )
             )
         except Exception as e:
@@ -286,6 +318,7 @@ class LarkChannel(BaseChannel):
         chat_msg = ChatClientMessage(
             message_id=local_id,
             prompt=text,
+            channel_context={"channel_media": [item.model_dump(mode="json") for item in prepared.media]},
             metadata=Metadata(agent_user_id=user_id, channel_name=self.key),
             dynamic_config={
                 EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY: SuperMagicExecutionSource.THIRD_PARTY_IM.value,

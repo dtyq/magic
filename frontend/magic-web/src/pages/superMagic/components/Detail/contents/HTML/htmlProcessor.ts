@@ -1,9 +1,9 @@
 import type { ImageProcessOptions } from "@/utils/image-processing"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	extractSlidesFromScript,
 	flattenAttachments,
 	handleHtCdnUrl,
-	removeRootHtmlXhtmlNamespace,
 	SLIDE_BRIDGE_PLACEHOLDER_COMMENT,
 } from "./utils"
 import { injectAtPolyfillScript } from "./utils/polyfill"
@@ -14,8 +14,13 @@ import {
 	type HtmlPreviewBundledTemplateKind,
 } from "./html-preview-bundled-shell"
 import { parseMagicProjectJsContent } from "./utils/magicProjectParser"
-import { collectHtmlResourcePlan } from "./utils/htmlResourceCollector"
+import {
+	collectHtmlResourcePlan,
+	resolveExternalCssResources,
+	type ExternalCssResource,
+} from "./utils/htmlResourceCollector"
 import { replaceHtmlResourceUrls } from "./utils/htmlResourceReplacement"
+import { serializeHtmlDocument } from "./utils/serializeHtmlDocument"
 
 export type { HtmlPreviewBundledTemplateKind }
 
@@ -62,32 +67,15 @@ function mergePreviewBundledMetadata(
  * @returns 处理后的 HTML 内容
  */
 function replaceLocationReload(htmlContent: string): string {
-	// 匹配 window.location.reload() 的各种写法
-	// 包括：window.location.reload()、window.location.reload(true)、window.location.reload(false)
-	// 以及可能的空格变体
+	// 匹配 window.reload() 和 window.location.reload() 的各种写法
+	// 包括 reload()、reload(true)、reload(false) 以及可能的空格变体
 	return htmlContent.replace(
-		/window\.location\.reload\s*\(\s*(?:true|false)?\s*\)/gi,
-		(match) => {
+		/(^|[^\w$.])window(?:\.location)?\.reload\s*\(\s*(?:true|false)?\s*\)/gi,
+		(match, prefix: string) => {
+			const originalReload = match.slice(prefix.length)
 			// 保存原始代码到注释中，以便保存时恢复
-			return `/*__ORIGINAL_RELOAD__:${match}__*/window.Magic.reload()`
+			return `${prefix}/*__ORIGINAL_RELOAD__:${originalReload}__*/window.Magic.reload()`
 		},
-	)
-}
-
-function restoreSerializedEntities(html: string): string {
-	/** 匹配 HTML 实体（命名或数字），用 DOM 解码，不维护映射表且支持 &#123; / &#x7B; */
-	const ENTITY_PATTERN = /&(?:[a-z0-9]+|#\d+|#x[0-9a-f]+);/gi
-	const el = document.createElement("div")
-	return html.replace(ENTITY_PATTERN, (entity) => {
-		el.innerHTML = entity
-		return el.textContent ?? entity
-	})
-}
-
-/** 将 Document 序列化为 HTML 字符串并还原实体，保证输出格式与 DOM 语义一致 */
-function serializeDocToHtml(doc: Document): string {
-	return removeRootHtmlXhtmlNamespace(
-		restoreSerializedEntities(new XMLSerializer().serializeToString(doc)),
 	)
 }
 
@@ -135,6 +123,9 @@ export interface ProcessHtmlContentInput {
 	htmlPreviewBundledTemplate?: HtmlPreviewBundledTemplateKind
 	/** 图片处理参数，用于对资源图片进行压缩/缩放（通过 X-Magic-Image-Process 请求头） */
 	xMagicImageProcess?: ImageProcessOptions
+	access?: import("@/pages/superMagic/fileAccess/fileAccessContext").FileAccessContext | null
+	/** Bound file client for callers outside the main HTML preview tree. */
+	fileApi?: FileApi
 }
 
 // 输出结果接口
@@ -149,6 +140,8 @@ export interface ProcessHtmlContentOutput {
 	slidesMap: Map<string, string>
 	/** 原始幻灯片路径数组 */
 	originalSlidesPaths: string[]
+	/** 稳定的引用资源版本；null 表示本次资源不足以支持跨刷新缓存。 */
+	resourceVersionSignature?: string | null
 }
 
 /**
@@ -222,6 +215,7 @@ export async function processHtmlContent(
 		filePathMapping: new Map<string, string>(),
 		slidesMap: new Map<string, string>(),
 		originalSlidesPaths: [],
+		resourceVersionSignature: null,
 	}
 
 	// 如果没有内容，直接返回
@@ -278,8 +272,8 @@ export async function processHtmlContent(
 
 	const htmlDoc = handleHtCdnUrl(contentWithMarker)
 
-	// 将 Document 转成字符串（并还原序列化产生的实体），供后续 URL 替换、脚本注入等使用。
-	const modifiedHtmlContent = serializeDocToHtml(htmlDoc)
+	// 保留文本／属性实体及 script/style 原始内容，供后续 URL 替换、脚本注入等使用。
+	const modifiedHtmlContent = serializeHtmlDocument(htmlDoc)
 
 	// 创建新的解析器和文档对象，使用修改后的内容继续处理
 	const newParser = new DOMParser()
@@ -290,9 +284,18 @@ export async function processHtmlContent(
 	// 从已扁平化的 allFiles 构建文件 ID 到更新时间的映射，用于 URL 缓存判断
 	// 复用已扁平化的结果，避免重复扁平化 attachmentList
 	const fileUpdatedAtMap = new Map<string, string>()
+	const fileVersionMap = new Map<string, string>()
 	for (const file of allFiles) {
 		if (file.file_id && file.updated_at) {
 			fileUpdatedAtMap.set(file.file_id, file.updated_at)
+		}
+		const version: unknown = (file as { file_version?: unknown }).file_version
+		if (file.file_id) {
+			if (typeof version === "number" && Number.isFinite(version) && version > 0) {
+				fileVersionMap.set(file.file_id, `version:${version}`)
+			} else if (file.updated_at) {
+				fileVersionMap.set(file.file_id, `updated:${file.updated_at}`)
+			}
 		}
 	}
 
@@ -326,12 +329,42 @@ export async function processHtmlContent(
 		filePathMap,
 		slidesMap,
 		imageFileIds,
+		imageProcessingFileIds,
 	} = collectHtmlResourcePlan(newHtmlDoc, allFiles, relativeFolderPath, processingMetadata)
+	const resourcePlan = {
+		fileIdsToFetch: collectedFileIds,
+		urlMap,
+		filePathMap,
+		slidesMap,
+		imageFileIds,
+		imageProcessingFileIds,
+	}
+	const externalCssResources: ExternalCssResource[] = await resolveExternalCssResources({
+		plan: resourcePlan,
+		allFiles,
+		access: input.access,
+		fileApi: input.fileApi,
+	})
 
 	let fileIdsToFetch = collectedFileIds
 	if (previewKind === "dashboard") {
 		fileIdsToFetch = omitDashboardShellFromFetchPlan(fileIdsToFetch, urlMap)
 	}
+
+	// 复用已解析的资源计划，只纳入本页依赖；页序和临时签名不代表图片内容变化。
+	const resourceVersions: string[][] = []
+	let hasResourceVersions = true
+	for (const id of [...new Set(fileIdsToFetch)].sort()) {
+		if (urlMap.get(id)?.attr === "slides") continue
+		const version = input.resourceFileVersions?.[id]
+		const resourceVersion =
+			typeof version === "number" && Number.isFinite(version) && version > 0
+				? `version:${version}`
+				: fileVersionMap.get(id)
+		if (!resourceVersion) hasResourceVersions = false
+		else resourceVersions.push([id, resourceVersion])
+	}
+	const resourceVersionSignature = hasResourceVersions ? JSON.stringify(resourceVersions) : null
 
 	// If there are resources to replace, fetch their temporary URLs
 	if (fileIdsToFetch.length > 0) {
@@ -342,6 +375,7 @@ export async function processHtmlContent(
 				preloadedUrlMapping: input.preloadedUrlMapping,
 				imageProcessOptions: input.xMagicImageProcess,
 				imageFileIds,
+				imageProcessingFileIds,
 				fileUpdatedAtMap,
 				htmlContent: modifiedHtmlContent,
 				urlMap,
@@ -349,6 +383,9 @@ export async function processHtmlContent(
 				processingMetadata,
 				allFiles,
 				relativeFolderPath,
+				access: input.access,
+				fileApi: input.fileApi,
+				externalCssResources,
 			})
 
 			// 替换 window.location.reload 为 window.Magic.reload
@@ -358,6 +395,9 @@ export async function processHtmlContent(
 
 			result.processedContent = applyPreviewShell(updatedContent)
 			result.filePathMapping = replacedResources.filePathMapping
+			if (replacedResources.resourcesResolved) {
+				result.resourceVersionSignature = resourceVersionSignature
+			}
 		} catch (error) {
 			console.error("Error fetching resource URLs:", error)
 			// 即使出错，也要替换脚本
@@ -368,6 +408,7 @@ export async function processHtmlContent(
 		}
 	} else {
 		// 没有需要替换的资源，但仍需要替换脚本
+		result.resourceVersionSignature = resourceVersionSignature
 		let processedContent = replaceLocationReload(modifiedHtmlContent)
 		// 注入 at() polyfill 脚本
 		processedContent = injectAtPolyfillScript(processedContent)

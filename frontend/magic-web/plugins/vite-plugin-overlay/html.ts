@@ -11,6 +11,7 @@ export interface HtmlOverlayLayerOption {
 export interface HtmlOverlayPlan {
 	config: UserConfig
 	htmlOverrides: Map<string, string>
+	htmlEntryNames: Set<string>
 }
 
 export interface VitePluginHtmlOverlayOptions {
@@ -22,6 +23,8 @@ export interface VitePluginHtmlOverlayOptions {
 	 * the project root regardless of which layer wins a given file.
 	 */
 	htmlOverrides: Map<string, string>
+	/** Root-level HTML entry names that may also be addressed without `.html`. */
+	htmlEntryNames: ReadonlySet<string>
 }
 
 /**
@@ -37,7 +40,7 @@ export function createHtmlOverlayPlan({
 	layers: HtmlOverlayLayerOption[]
 }): HtmlOverlayPlan {
 	if (layers.length === 0) {
-		return { config: {}, htmlOverrides: new Map() }
+		return { config: {}, htmlOverrides: new Map(), htmlEntryNames: new Set() }
 	}
 
 	// Baseline -> most-specific iteration: later layers overwrite earlier files.
@@ -49,7 +52,7 @@ export function createHtmlOverlayPlan({
 	}
 
 	if (entryPathByFileName.size === 0) {
-		return { config: {}, htmlOverrides: new Map() }
+		return { config: {}, htmlOverrides: new Map(), htmlEntryNames: new Set() }
 	}
 
 	// HTML entries are projected onto virtual project-root paths so the dev URL
@@ -69,7 +72,23 @@ export function createHtmlOverlayPlan({
 			optimizeDeps: { entries: Array.from(entryPathByFileName.values()) },
 		},
 		htmlOverrides,
+		htmlEntryNames: new Set(entryPathByFileName.keys()),
 	}
+}
+
+/**
+ * Resolve only declared root-level HTML entries from extensionless requests.
+ * Unknown paths must remain available to Vite's normal SPA fallback.
+ */
+export function resolveExtensionlessHtmlEntry(
+	pathname: string,
+	htmlEntryNames: ReadonlySet<string>,
+): string | null {
+	const fileName = pathname.replace(/^\/+/, "")
+	if (!fileName || fileName.includes("/") || fileName.endsWith(HTML_EXT)) return null
+
+	const candidate = `${fileName}${HTML_EXT}`
+	return htmlEntryNames.has(candidate) ? candidate : null
 }
 
 /** Top-level `*.html` regular files of a layer root; `[]` when the dir is absent. */
@@ -105,6 +124,7 @@ function listRootHtmlFiles(rootPath: string): string[] {
  */
 export default function vitePluginHtmlOverlay({
 	htmlOverrides,
+	htmlEntryNames,
 }: VitePluginHtmlOverlayOptions): Plugin {
 	function readOverlayHtml(virtualPath: string): string | null {
 		const realPath = htmlOverrides.get(path.normalize(virtualPath))
@@ -155,21 +175,39 @@ export default function vitePluginHtmlOverlay({
 
 				const url = req.url ?? "/"
 				const [pathname] = url.split(/[?#]/, 1)
-				const fileName = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "")
-				// Only root-level `*.html` files participate in the overlay contract.
-				if (fileName.includes("/") || !fileName.endsWith(".html")) return next()
+				const requestedFileName =
+					pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "")
+				const isHtmlRequest = requestedFileName.endsWith(HTML_EXT)
+				const fileName = isHtmlRequest
+					? requestedFileName
+					: resolveExtensionlessHtmlEntry(pathname, htmlEntryNames)
+				if (!fileName || fileName.includes("/")) return next()
 
-				const overlayHtml = readOverlayHtml(path.resolve(server.config.root, fileName))
-				if (overlayHtml === null) return next()
+				const virtualPath = path.resolve(server.config.root, fileName)
+				const overlayHtml = readOverlayHtml(virtualPath)
+				const html = overlayHtml ?? (isHtmlRequest ? null : readFileIfExists(virtualPath))
+				if (html === null) return next()
 
 				try {
-					const html = await server.transformIndexHtml(url, overlayHtml, req.originalUrl)
+					const transformedHtml = await server.transformIndexHtml(
+						url,
+						html,
+						req.originalUrl,
+					)
 					res.setHeader("Content-Type", "text/html")
-					res.end(html)
+					res.end(transformedHtml)
 				} catch (error) {
 					next(error)
 				}
 			})
 		},
+	}
+}
+
+function readFileIfExists(filePath: string): string | null {
+	try {
+		return readFileSync(filePath, "utf8")
+	} catch {
+		return null
 	}
 }

@@ -21,7 +21,7 @@ export interface IframeAgentConfig {
 	postToIframe: (message: object) => void
 	/** 获取当前 Agent 列表的函数 */
 	getAgentList: () => AgentInfo[]
-	/** 创建话题并发送消息 */
+	/** 发送消息。单话题宿主发到当前话题，并忽略 agentId。 */
 	createTopicAndSend: (params: {
 		message: string | TiptapJSONContent
 		agentId?: string
@@ -35,6 +35,10 @@ export interface IframeAgentConfig {
 	 * 需显式开启才允许 iframe 触发创建话题和发送消息等敏感操作。
 	 */
 	enableWriteOperations?: boolean
+	/** 当前项目 ID；缺失时项目相关写操作不可用。 */
+	projectId?: string
+	/** 项目上下文不可用时返回给 iframe 的语义化错误。 */
+	projectContextUnavailableError?: string
 	/** 执行高风险能力前的授权检查。未提供时保持旧行为。 */
 	authorizePermission?: (scope: HtmlPermissionScope) => Promise<boolean>
 }
@@ -63,7 +67,13 @@ export class IframeAgentService {
 					)
 					return true
 				}
-				if (!(await this.ensurePermission("project.message.write"))) {
+				const createPermissionResult = await this.ensurePermissionSafely(
+					"project.message.write",
+					AGENT_MESSAGE_TYPES.CREATE_TOPIC_AND_SEND_RESPONSE,
+					(payload as AgentCreateTopicAndSendRequest).requestId,
+				)
+				if (createPermissionResult === "error") return true
+				if (!createPermissionResult) {
 					this.rejectPermissionDenied(
 						AGENT_MESSAGE_TYPES.CREATE_TOPIC_AND_SEND_RESPONSE,
 						(payload as AgentCreateTopicAndSendRequest).requestId,
@@ -80,7 +90,13 @@ export class IframeAgentService {
 					)
 					return true
 				}
-				if (!(await this.ensurePermission("project.message.write"))) {
+				const sendPermissionResult = await this.ensurePermissionSafely(
+					"project.message.write",
+					AGENT_MESSAGE_TYPES.SEND_MESSAGE_RESPONSE,
+					(payload as AgentSendMessageRequest).requestId,
+				)
+				if (sendPermissionResult === "error") return true
+				if (!sendPermissionResult) {
 					this.rejectPermissionDenied(
 						AGENT_MESSAGE_TYPES.SEND_MESSAGE_RESPONSE,
 						(payload as AgentSendMessageRequest).requestId,
@@ -116,8 +132,29 @@ export class IframeAgentService {
 	}
 
 	private async ensurePermission(scope: HtmlPermissionScope): Promise<boolean> {
+		if (scope.startsWith("project.") && !this.cfg.projectId) {
+			throw new Error(this.cfg.projectContextUnavailableError || "No project selected")
+		}
 		if (!this.cfg.authorizePermission) return true
 		return this.cfg.authorizePermission(scope)
+	}
+
+	private async ensurePermissionSafely(
+		scope: HtmlPermissionScope,
+		responseType: string,
+		requestId?: string,
+	): Promise<boolean | "error"> {
+		try {
+			return await this.ensurePermission(scope)
+		} catch (error) {
+			this.cfg.postToIframe({
+				type: responseType,
+				requestId,
+				success: false,
+				error: error instanceof Error ? error.message : String(error),
+			})
+			return "error"
+		}
 	}
 
 	private async handleGetAgents(req: AgentGetAgentsRequest): Promise<void> {

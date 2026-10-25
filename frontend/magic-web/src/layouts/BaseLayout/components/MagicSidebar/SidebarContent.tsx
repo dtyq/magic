@@ -1,9 +1,8 @@
-import { Suspense, lazy, useState, type MouseEvent } from "react"
+import { useEffect, useState, type MouseEvent } from "react"
 import { useLocation } from "react-router"
-import { ChevronRight, Home, LayoutGrid, MessageCircle, UsersRound } from "lucide-react"
+import { ChevronRight, LayoutGrid, SquarePen } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { WorkspaceList } from "./WorkspaceList"
-import CollapsedWorkspaceMenu from "./CollapsedWorkspaceMenu"
+import ProjectNavigation from "./ProjectNavigation"
 import { MicroAppsSidebarMenuItem } from "./MicroAppsSidebarMenuItem"
 import { SidebarMarketMenuItem } from "./SidebarMarketMenuItem"
 import type { SidebarContentProps } from "./types"
@@ -14,15 +13,11 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 } from "@/components/shadcn-ui/sidebar"
-import workspaceStore from "@/pages/superMagic/stores/core/workspace"
-import { isCollaborationWorkspace } from "@/pages/superMagic/constants"
-import SuperMagicService from "@/pages/superMagic/services"
 import AppsSubMenu from "./AppsSubMenu"
-import ChatsSubMenu from "./ChatsSubMenu"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
-import { routesPathMatch } from "@/routes/history/helpers"
-import Divider from "@/components/other/Divider"
+import { routesMatch, routesPathMatch } from "@/routes/history/helpers"
+import SidebarContentLayout from "./SidebarContentLayout"
 import { useSidebarMarketMenuItems } from "./hooks/useSidebarMarketMenuItems"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
 import { observer } from "mobx-react-lite"
@@ -30,24 +25,41 @@ import useResourceStatusPolling from "@/pages/superMagic/hooks/useResourceStatus
 import { useNavigateToSuperHome } from "./hooks/useNavigateToSuperHome"
 import { isMagicApp } from "@/utils/devices"
 import { openAudioRecordingsInMagicApp } from "@/layouts/BaseLayout/utils/magicAppNavigation"
+import NewChatSidebarMenuItem from "./NewChatSidebarMenuItem"
 
-const CollaborationProjectsPanel = lazy(
-	() =>
-		import("@/pages/superMagic/components/WorkspacesMenu/components/CollaborationProjectsPanel"),
-)
-
-function SidebarContent({ collapsed }: SidebarContentProps) {
+function SidebarContent({ collapsed, onBusyChange, onSelect }: SidebarContentProps) {
 	const { t } = useTranslation(["sidebar", "super"])
 	useResourceStatusPolling()
 	const clawBrandValues = getClawBrandTranslationValues()
-	const [shareProjectsPanelOpen, setShareProjectsPanelOpen] = useState(false)
 	const location = useLocation()
-	const workspaces = workspaceStore.workspaces
-	const selectedWorkspace = workspaceStore.selectedWorkspace
-	const isShareWorkspaceActive = isCollaborationWorkspace(selectedWorkspace)
 	const navigate = useNavigate()
 	const sidebarMarketMenuItems = useSidebarMarketMenuItems()
 	const { superRouteUrl, handleNavigateToSuperHome } = useNavigateToSuperHome()
+	const [projectBusy, setProjectBusy] = useState(false)
+	const [appsOpen, setAppsOpen] = useState(false)
+	const busy = projectBusy || appsOpen
+	const currentRouteName = routesMatch(location.pathname)?.route?.name
+	const isSidebarMarketRouteActive = sidebarMarketMenuItems.some((item) =>
+		(item.activeRouteNames ?? [item.routeName]).some((routeName) =>
+			routesPathMatch(routeName, location.pathname),
+		),
+	)
+	const isMicroAppRouteActive = [
+		RouteName.MicroApps,
+		RouteName.MicroAppsList,
+		RouteName.MicroApp,
+	].some((routeName) => routesPathMatch(routeName, location.pathname))
+	// The "new task" entry only represents the task home / workspace views. Project and topic
+	// detail pages (/super/:projectId[/:topicId]) belong to an existing project, so they must not
+	// keep this entry selected; chat routes are likewise excluded.
+	const isNewTaskActive =
+		[RouteName.Super, RouteName.SuperWorkspaceState].includes(currentRouteName as RouteName) &&
+		!isSidebarMarketRouteActive &&
+		!isMicroAppRouteActive
+	useEffect(() => {
+		onBusyChange?.(busy)
+	}, [busy, onBusyChange])
+	useEffect(() => () => onBusyChange?.(false), [onBusyChange])
 	function shouldHandleAnchorClick(event: MouseEvent<HTMLAnchorElement>) {
 		return (
 			event.button === 0 &&
@@ -73,116 +85,88 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 	}
 
 	return (
-		<div
-			className="no-scrollbar flex min-h-0 w-full flex-1 touch-pan-y flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]"
-			data-testid="sidebar-content-root"
-		>
-			<SidebarGroup className="w-full shrink-0 p-2" data-testid="sidebar-content-apps-group">
-				<SidebarGroupContent>
-					<SidebarMenu>
-						<SidebarMenuItem key={RouteName.Super}>
-							<SidebarMenuButton
-								asChild
-								tooltip={collapsed ? t("sidebar:home.title") : undefined}
-								data-testid="sidebar-content-home-button"
-								className="text-sidebar-foreground"
+		<SidebarContentLayout
+			home={
+				<>
+					<SidebarMenuItem key={RouteName.Super}>
+						<SidebarMenuButton
+							asChild
+							tooltip={collapsed ? t("sidebar:home.title") : undefined}
+							data-testid="sidebar-content-home-button"
+							className="text-sidebar-foreground"
+							isActive={isNewTaskActive}
+						>
+							<a
+								href={superRouteUrl}
+								onClick={handleNavigateToSuperHome}
+								className="text-current no-underline"
 							>
-								<a
-									href={superRouteUrl}
-									onClick={handleNavigateToSuperHome}
-									className="text-current no-underline"
-								>
-									<Home className="h-4 w-4 shrink-0" />
-									<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
-										{t("sidebar:home.title")}
-									</span>
-								</a>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-						<SidebarMenuItem>
-							<ChatsSubMenu>
-								<SidebarMenuButton
-									tooltip={collapsed ? t("sidebar:chats.title") : undefined}
-									data-testid="sidebar-content-chats-button"
-									className="text-sidebar-foreground"
-								>
-									<MessageCircle className="h-4 w-4 shrink-0" />
-									<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
-										{t("sidebar:chats.title")}
-									</span>
-									{!collapsed && (
-										<ChevronRight className="h-4 w-4 shrink-0 text-sidebar-foreground" />
-									)}
-								</SidebarMenuButton>
-							</ChatsSubMenu>
-						</SidebarMenuItem>
-						{sidebarMarketMenuItems.map((item) => {
-							const title =
-								item.titleKey === "sidebar:superLobster.title"
-									? t(item.titleKey, clawBrandValues)
-									: t(item.titleKey)
-
-							return (
-								<SidebarMarketMenuItem
-									key={item.routeName}
-									item={item}
-									title={title}
-									collapsed={collapsed}
-									onNavigate={handleNavigateToRoute}
-								/>
-							)
-						})}
-						<SidebarMenuItem>
-							<AppsSubMenu>
-								<SidebarMenuButton
-									tooltip={collapsed ? t("appsMenu.apps") : undefined}
-									data-testid="sidebar-content-apps-button"
-									className="text-sidebar-foreground"
-								>
-									<LayoutGrid className="h-4 w-4 shrink-0" />
-									<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
-										{t("appsMenu.apps")}
-									</span>
-									{!collapsed && (
-										<ChevronRight className="h-4 w-4 shrink-0 text-sidebar-foreground" />
-									)}
-								</SidebarMenuButton>
-							</AppsSubMenu>
-						</SidebarMenuItem>
-						<MicroAppsSidebarMenuItem collapsed={collapsed} />
-					</SidebarMenu>
-				</SidebarGroupContent>
-			</SidebarGroup>
-
-			<Divider direction="horizontal" className="mx-auto !w-[calc(100%-16px)] shrink-0" />
-
-			{collapsed ? (
-				<CollapsedWorkspaceMenu />
-			) : (
-				<div className="flex min-h-40 flex-1 flex-col gap-1">
-					<WorkspaceList
-						beforeItems={
-							<SidebarMenuItem
-								className="mb-1"
-								data-testid="sidebar-content-share-workspace-group"
-							>
-								<SidebarMenuButton
-									isActive={isShareWorkspaceActive}
-									onClick={() => setShareProjectsPanelOpen(true)}
-									data-testid="sidebar-content-share-workspace-button"
-									className="text-sidebar-foreground"
-								>
-									<UsersRound className="ml-6 h-4 w-4 shrink-0" />
-									<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
-										{t("super:workspace.shareWorkspaceName")}
-									</span>
-									<ChevronRight className="h-4 w-4 shrink-0 text-sidebar-foreground" />
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						}
+								<SquarePen className="h-4 w-4 shrink-0" />
+								<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
+									{t("sidebar:home.title")}
+								</span>
+							</a>
+						</SidebarMenuButton>
+					</SidebarMenuItem>
+					<NewChatSidebarMenuItem
+						collapsed={collapsed}
+						isActive={currentRouteName === RouteName.SuperChatHome}
+						onSelect={onSelect}
 					/>
-				</div>
-			)}
+				</>
+			}
+		>
+			<ProjectNavigation
+				apps={
+					<SidebarGroup
+						className="w-full shrink-0 px-2 pb-1 pt-1"
+						data-testid="sidebar-content-apps-group"
+						data-guide-anchor="workspace-sidebar"
+					>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{sidebarMarketMenuItems.map((item) => {
+									const title =
+										item.titleKey === "sidebar:superLobster.title"
+											? t(item.titleKey, clawBrandValues)
+											: t(item.titleKey)
+
+									return (
+										<SidebarMarketMenuItem
+											key={item.routeName}
+											item={item}
+											title={title}
+											collapsed={collapsed}
+											onNavigate={handleNavigateToRoute}
+										/>
+									)
+								})}
+								<MicroAppsSidebarMenuItem collapsed={collapsed} />
+								<SidebarMenuItem>
+									<AppsSubMenu onOpenChange={setAppsOpen}>
+										<SidebarMenuButton
+											tooltip={collapsed ? t("appsMenu.more") : undefined}
+											data-testid="sidebar-content-apps-button"
+											className="text-sidebar-foreground"
+										>
+											<LayoutGrid className="h-4 w-4 shrink-0" />
+											<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
+												{t("appsMenu.more")}
+											</span>
+											{!collapsed && (
+												<ChevronRight className="h-4 w-4 shrink-0 text-sidebar-foreground" />
+											)}
+										</SidebarMenuButton>
+									</AppsSubMenu>
+								</SidebarMenuItem>
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				}
+				collapsed={collapsed}
+				onBusyChange={setProjectBusy}
+				onSelect={onSelect}
+			/>
 
 			{/* <SidebarGroup className="w-full px-2 py-0">
 				<SidebarGroupContent>
@@ -198,25 +182,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 					</SidebarMenu>
 				</SidebarGroupContent>
 			</SidebarGroup> */}
-
-			{shareProjectsPanelOpen && (
-				<Suspense fallback={null}>
-					<CollaborationProjectsPanel
-						open={shareProjectsPanelOpen}
-						onClose={() => setShareProjectsPanelOpen(false)}
-						onCollaborationProjectClick={(project) =>
-							SuperMagicService.switchProjectInDesktop(project)
-						}
-						workspaces={workspaces}
-						selectedWorkspace={selectedWorkspace}
-						fetchProjects={(params) => SuperMagicService.project.fetchProjects(params)}
-						fetchWorkspaces={(params) =>
-							SuperMagicService.workspace.fetchWorkspaces(params)
-						}
-					/>
-				</Suspense>
-			)}
-		</div>
+		</SidebarContentLayout>
 	)
 }
 

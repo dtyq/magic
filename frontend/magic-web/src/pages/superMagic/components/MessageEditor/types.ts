@@ -1,4 +1,4 @@
-import { JSONContent, Editor } from "@tiptap/react"
+import { JSONContent, Editor } from "@/infrastructure/editors/tiptap/react"
 import { ReportFileUploadsResponse } from "@/apis/modules/file"
 import { UploadResponse } from "@/hooks/useUploadFiles/types"
 import { ProjectListItem, Topic, Workspace } from "../../pages/Workspace/types"
@@ -50,6 +50,8 @@ export interface FileData {
 	parentId?: string // 记录文件的父目录ID
 	defaultRelativePath?: string // 默认相对路径（当 parentId 为空时使用）
 	isHidden?: boolean
+	/** Canvas clipboard assets stay upload mentions and are never promoted to project mentions. */
+	isCanvasClipboard?: boolean
 }
 
 /**
@@ -77,6 +79,7 @@ export interface SerializableFileData {
 	saveResult?: any // SaveUploadFileToProjectResponse
 	result?: any // UploadResponse
 	reportResult?: any // ReportFileUploadsResponse
+	isCanvasClipboard?: boolean
 }
 
 // Component size
@@ -122,6 +125,8 @@ export interface MessageEditorProps {
 	className?: string
 	/** Container class name */
 	containerClassName?: string
+	/** 输入框内头部与正文之间的状态内容，不占用工具按钮的布局配置。 */
+	headerContent?: React.ReactNode
 	/** Send callback */
 	onSend?: (content: {
 		value: JSONContent | undefined
@@ -132,7 +137,8 @@ export interface MessageEditorProps {
 		selectedVideoModel?: ModelItem | null
 		shouldClearEditorAfterSend?: boolean
 		extra?: Record<string, unknown>
-	}) => void
+		targetTopic?: Topic | null
+	}) => void | boolean | Promise<void | boolean>
 	/** Placeholder */
 	placeholder?: string
 	/** Rotating prompt examples shown while the editor is empty */
@@ -157,6 +163,8 @@ export interface MessageEditorProps {
 	topicMode?: TopicMode
 	/** Model catalog mode. Defaults to topicMode when not specified. */
 	modelTopicMode?: TopicMode
+	/** Composer employee used for model selection; overrides the historical topic employee. */
+	agentCode?: string | null
 	/** Component size */
 	size?: MessageEditorSize
 	/** Module capability configuration */
@@ -213,6 +221,10 @@ export interface MessageEditorProps {
 }
 
 export interface SendMessageByContentPayload {
+	/** Optional scoped request acknowledgement; transport failures remain in message history. */
+	targetProjectId?: string
+	tryClaim?: () => boolean
+	onHandled?: (accepted: boolean) => void
 	jsonContent: JSONContent
 	mentionItems?: MentionListItem[]
 	topicMode?: TopicMode
@@ -221,10 +233,23 @@ export interface SendMessageByContentPayload {
 	selectedVideoModel?: ModelItem | null
 	shouldClearEditorAfterSend?: boolean
 	extra?: Record<string, unknown>
+	targetTopic?: Topic | null
 }
 
 // Component Ref
 export interface MessageEditorRef {
+	getDraftKey: () => DraftKey | null
+	beginDraftSwitch: () => Promise<boolean>
+	endDraftSwitch: () => void
+	prepareQueueDraft: (draft: QueueDraftSnapshot) => Promise<void>
+	restoreQueueDraft: (
+		draft: QueueDraftSnapshot,
+		activate?: boolean,
+	) => Promise<"activated" | "saved">
+	getQueueDraft: () => QueueDraftSnapshot | null
+	subscribeQueueDraft: (listener: (draft: QueueDraftSnapshot | null) => void) => () => void
+	keepQueueDraft: () => Promise<void>
+	completeQueueDraft: (syncId: string, submittedValue?: JSONContent) => Promise<boolean>
 	editor: Editor | null
 	/** Whether can send message (has content and all files uploaded) */
 	canSendMessage: boolean
@@ -254,8 +279,45 @@ export interface MessageEditorRef {
 	}) => void
 }
 
+// 队列的提交内容与编辑器草稿共用类型，避免恢复时漏掉模型或场景参数。
+export interface QueueMessageInput {
+	content: JSONContent
+	mentionItems: MentionListItem[]
+	dynamicParams?: Record<string, unknown>
+	selectedModel?: ModelItem | null
+	selectedImageModel?: ModelItem | null
+	selectedVideoModel?: ModelItem | null
+	topicMode?: TopicMode
+	agentCode?: string | null
+}
+
+export interface QueueDraftMetadata extends Omit<QueueMessageInput, "content" | "mentionItems"> {
+	sourceId: string
+	userId: string
+	organizationCode: string
+	returnPosition: "original" | "tail"
+	beforeId: string | null
+	afterId: string | null
+	originalIndex: number
+	phase: "removing" | "detached" | "submitting" | "unconfirmed"
+	clientSyncId: string
+	expectedSyncId: string
+	localSource: boolean
+	// 请求结果未知时重试同一份提交；编辑器正文可以继续变化，不能替换已发出的请求。
+	submission?: QueueMessageInput
+}
+
+export interface QueueDraftSnapshot extends DraftKey {
+	value?: JSONContent
+	mentionItems: MentionListItem[]
+	queueDraft: QueueDraftMetadata
+}
+
 // Draft functionality types
 export interface DraftKey {
+	/** 固定异步保存的账户归属，省略时沿用当前账户。 */
+	userId?: string
+	organizationCode?: string
 	/** Workspace id to scope drafts per workspace */
 	workspaceId: string
 	/** Project id to scope drafts per project */
@@ -265,6 +327,9 @@ export interface DraftKey {
 }
 
 export interface DraftData {
+	/** 当前输入快照；无此标记的旧记录仍按历史版本恢复。 */
+	isCurrentSnapshot?: boolean
+	queueDraft?: QueueDraftMetadata
 	/** Workspace id to scope drafts per workspace */
 	workspaceId: string
 	/** Project id to scope drafts per project */
@@ -368,6 +433,7 @@ export interface DraftServiceInterface {
 export enum ToolbarButton {
 	DRAFT_BOX = "draftBox",
 	AT = "at",
+	SLASH_COMMAND = "slashCommand",
 	MODEL_SWITCH = "modelSwitch",
 	INTERNET_SEARCH = "internetSearch",
 	MCP = "mcp",

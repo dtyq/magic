@@ -1,4 +1,4 @@
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 
 /** Locale-aware date for flow cards; en uses "March 24, 2026". */
 export function formatFlowCardCreatedAt(

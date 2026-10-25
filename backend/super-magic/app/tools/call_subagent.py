@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from pydantic import Field, field_validator, model_validator
 
+from agentlang.agent.models import AgentRunRequest
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
@@ -59,6 +60,17 @@ class AgentTargetResolution:
     warning: Optional[str] = None
 
 
+def _requested_target_name(params: "CallSubagentParams") -> str:
+    """Return the runtime target while rejecting ambiguous target aliases."""
+    agent_name = (params.agent_name or "").strip()
+    agent_code = (params.agent_code or "").strip()
+    if agent_name and agent_code and agent_name != agent_code:
+        raise ValueError(
+            "agent_name and agent_code identify different runtime targets; provide only one"
+        )
+    return agent_code or agent_name
+
+
 def _localize_agent_name(agent_name: str) -> str:
     """将 agent_name 翻译为当前语言的展示名称（如 magic → 通用智能体），未命中时原样返回。"""
     return i18n.translate(agent_name, category="tool.agent_names")
@@ -79,14 +91,15 @@ def _resolve_agent_target(
     warning 告知名称被忽略。上下文快照负责复制内容，AgentTarget 负责保留运行身份，
     两者缺一不可。
     """
+    requested_target_name = _requested_target_name(params)
     if not params.fork or parent is None:
-        return AgentTargetResolution(target=AgentTarget.from_name(params.agent_name))
+        return AgentTargetResolution(target=AgentTarget.from_name(requested_target_name))
 
     parent_target = parent.get_agent_target()
     if parent_target is None:
         parent_target = AgentTarget.from_name(parent.agent_name)
 
-    requested_name = params.agent_name.strip()
+    requested_name = requested_target_name
     if not requested_name or requested_name == parent_target.agent_name:
         return AgentTargetResolution(target=parent_target)
 
@@ -100,7 +113,7 @@ def _resolve_agent_target(
 
     warning = (
         f"Warning: fork=true uses the current agent `{parent_target.agent_name}`; "
-        f"requested agent_name `{requested_name}` was ignored."
+        f"requested target `{requested_name}` was ignored."
     )
     return AgentTargetResolution(target=parent_target, warning=warning)
 
@@ -113,12 +126,16 @@ def _append_warning(content: str, warning: Optional[str]) -> str:
 
 class CallSubagentParams(BaseToolParams):
     agent_name: str = Field(
-        ...,
-        description="Agent name or marketplace code. Leave empty only when fork=true to inherit the current Agent."
+        "",
+        description="Runtime Agent name or marketplace code. Leave empty when agent_code identifies the target or fork=true inherits the current Agent.",
     )
-    agent_id: str = Field(
-        ...,
-        description="Human-readable base ID for a new session, or the exact final ID returned earlier when resuming.",
+    agent_code: Optional[str] = Field(
+        None,
+        description="Optional stable Agent code from an Agent mention. It selects the runtime target and is not a session ID.",
+    )
+    session_id: Optional[str] = Field(
+        None,
+        description="Optional human-readable base ID for a new session, or the exact final session ID when resuming. If omitted, the runtime generates one.",
     )
     task_label: str = Field(
         ...,
@@ -134,7 +151,7 @@ class CallSubagentParams(BaseToolParams):
     )
     background: bool = Field(
         False,
-        description="Run in the background and return immediately. Wait using the returned final agent_id."
+        description="Run in the background and return immediately. Wait using the returned final session ID."
     )
     fork: bool = Field(
         False,
@@ -142,13 +159,17 @@ class CallSubagentParams(BaseToolParams):
     )
     resume: bool = Field(
         False,
-        description="Continue an existing session by its exact returned final agent_id. False creates a new session.",
+        description="Continue an existing session by its exact returned final session ID. False creates a new session.",
     )
 
     @model_validator(mode="after")
     def validate_lifecycle_intent(self) -> "CallSubagentParams":
         if self.fork and self.resume:
             raise ValueError("fork and resume cannot both be true")
+        if self.resume and not self.session_id:
+            raise ValueError("session_id is required when resume=true")
+        if not self.agent_name and not self.agent_code and not self.fork:
+            raise ValueError("agent_name or agent_code is required")
         return self
 
     @field_validator("task_label")
@@ -161,15 +182,29 @@ class CallSubagentParams(BaseToolParams):
             raise ValueError("task_label must be a single line")
         return label
 
-    @field_validator("agent_id")
+    @field_validator("session_id")
     @classmethod
-    def validate_agent_id(cls, value: str) -> str:
-        agent_id = value.strip()
-        if not agent_id:
-            raise ValueError("agent_id must not be empty")
-        if "\n" in agent_id or "\r" in agent_id:
-            raise ValueError("agent_id must be a single line")
-        return agent_id
+    def validate_session_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        session_id = value.strip()
+        if not session_id:
+            return None
+        if "\n" in session_id or "\r" in session_id:
+            raise ValueError("session_id must be a single line")
+        return session_id
+
+    @field_validator("agent_code")
+    @classmethod
+    def validate_agent_code(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        agent_code = value.strip()
+        if not agent_code:
+            return None
+        if "\n" in agent_code or "\r" in agent_code:
+            raise ValueError("agent_code must be a single line")
+        return agent_code
 
 
 # Full model-facing usage guidance: agents/skills/subagents/SKILL.md
@@ -209,6 +244,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
             target = target_resolution.target
             target_warning = target_resolution.warning
             params.agent_name = target.agent_name
+            resolved_agent_code = (params.agent_code or target.agent_name).strip()
 
             # 深度检查：子 Agent 不允许再派发子 Agent
             current_depth = parent.get_subagent_depth() if parent else 0
@@ -222,11 +258,11 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                     target_warning,
                 ))
 
-            requested_agent_id = params.agent_id
+            requested_session_id = params.session_id
 
             # 生命周期决策表：
             #
-            #   fork  resume  输入 agent_id        实际行为
+            #   fork  resume  输入 session_id      实际行为
             #   ----  ------  ------------------  ------------------------------
             #   false false   基础名称/任意名称    新建空白会话，分配新的最终 ID
             #   true  false   基础名称              fork 当前完整上下文，分配新的最终 ID
@@ -240,32 +276,43 @@ class CallSubagent(BaseTool[CallSubagentParams]):
             if params.resume:
                 if not await AgentSessionIdService.session_exists(
                     params.agent_name,
-                    requested_agent_id,
+                    requested_session_id or "",
                 ):
                     return ToolResult.error(_append_warning(
                         (
-                            f"Cannot resume Agent session {params.agent_name}<{requested_agent_id}> "
+                            f"Cannot resume Agent session {params.agent_name}<{requested_session_id}> "
                             "because it does not exist. Use resume=false to create a new session."
                         ),
                         target_warning,
                     ))
-                params.agent_id = requested_agent_id
+                session_agent_id = requested_session_id
             else:
-                params.agent_id = await AgentSessionIdService.allocate(
+                session_agent_id = await AgentSessionIdService.allocate(
                     params.agent_name,
-                    requested_agent_id,
+                    requested_session_id or params.task_label,
                     request_id=tool_call_id or None,
                 )
 
-            handle = await subagent_session_manager.get_handle(params.agent_name, params.agent_id)
+            handle = await subagent_session_manager.get_handle(params.agent_name, session_agent_id)
             async with handle.lock:
                 prompt_digest = _digest_prompt(params.prompt)
-                state = await SubagentRuntimeStore.load_state(params.agent_name, params.agent_id)
+                state = await SubagentRuntimeStore.load_state(params.agent_name, session_agent_id)
+                if (
+                    params.resume
+                    and state.agent_code
+                    and state.agent_code != resolved_agent_code
+                ):
+                    raise ValueError(
+                        "session_id belongs to a different runtime target; "
+                        "resume the original Agent session or create a new session"
+                    )
                 state.agent_name = params.agent_name
-                state.agent_id = params.agent_id
+                state.agent_code = resolved_agent_code
+                state.agent_id = session_agent_id
                 state.parent_agent_name = parent.agent_name if parent is not None else None
                 state.parent_agent_id = parent.get_agent_id() if parent is not None else None
-                state.requested_agent_id = requested_agent_id
+                state.requested_agent_id = requested_session_id or params.task_label
+                state.requested_session_id = requested_session_id or params.task_label
                 state.resumed = params.resume
                 state.task_label = params.task_label
                 state.warning = target_resolution.warning
@@ -286,7 +333,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                 if handle.is_running():
                     interrupted = await subagent_session_manager.interrupt_run(
                         params.agent_name,
-                        params.agent_id,
+                        session_agent_id,
                         reason="同一子 Agent 会话收到新消息，终止当前执行后继续",
                         timeout=10.0,
                     )
@@ -300,16 +347,16 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                             error="interrupt_timeout",
                             resume_hint=(
                                 "Wait for the current sub-agent run to stop, then call call_subagent again "
-                                "with this exact agent_id and resume=true."
+                                "with this exact session_id and resume=true."
                             ),
                         ))
 
                 target_session = AgentSessionRef(
                     target=target,
-                    agent_id=params.agent_id,
+                    agent_id=session_agent_id,
                     chat_history_dir=PathManager.get_subagent_chat_history_dir(
                         target.agent_name,
-                        params.agent_id,
+                        session_agent_id,
                     ),
                 )
                 if params.fork:
@@ -323,13 +370,14 @@ class CallSubagent(BaseTool[CallSubagentParams]):
 
                 new_agent_context = AgentContext(isolated=True)
                 _inherit_parent_context(new_agent_context, parent, depth=current_depth + 1)
+                new_agent_context.set_subagent_forked(params.fork)
                 new_agent_context.set_chat_history_dir(str(target_session.chat_history_dir))
 
                 agent = await AgentRuntime.get_instance().acquire(
                     target=target,
                     lifetime=AgentLifetime.TRANSIENT,
                     context=new_agent_context,
-                    agent_id=params.agent_id,
+                    agent_id=session_agent_id,
                 )
                 if target.provider_type == AgentProviderType.CREW:
                     profile_name = new_agent_context.get_agent_profile().name.strip()
@@ -369,19 +417,19 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                     child_ref = await subagent_session_manager.register_child_run(
                         parent_context_id,
                         params.agent_name,
-                        params.agent_id,
+                        session_agent_id,
                     )
 
                     async def _interrupt_child_on_parent_stop() -> None:
                         await subagent_session_manager.interrupt_run(
                             params.agent_name,
-                            params.agent_id,
+                            session_agent_id,
                             reason=parent.get_interruption_reason() or "parent agent stopped",
                             timeout=10.0,
                         )
 
                     parent.register_run_cleanup(
-                        f"subagent:{params.agent_name}:{params.agent_id}",
+                        f"subagent:{params.agent_name}:{session_agent_id}",
                         _interrupt_child_on_parent_stop,
                     )
 
@@ -399,7 +447,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                     mode=SubagentExecutionMode.BACKGROUND,
                     resume_hint=(
                         "Sub-agent is running in background. Use wait_for_subagents(agent_ids) to block until it finishes. "
-                        "For a later turn, pass this exact agent_id with resume=true."
+                        "For a later turn, pass this exact session_id with resume=true."
                     ),
                 ))
 
@@ -407,7 +455,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
             return _success_result(_build_payload(
                 state=result_state,
                 mode=SubagentExecutionMode.SYNC,
-                resume_hint="Pass this exact agent_id with resume=true to continue this conversation.",
+                resume_hint="Pass this exact session_id with resume=true to continue this conversation.",
             ))
 
         except asyncio.CancelledError:
@@ -423,13 +471,15 @@ class CallSubagent(BaseTool[CallSubagentParams]):
             else:
                 error_text = _build_call_subagent_error_text(
                     agent_name=params.agent_name,
-                    agent_id=params.agent_id,
+                    agent_id=session_agent_id if 'session_agent_id' in locals() else (params.session_id or ""),
                 )
             return ToolResult.error(
                 _append_warning(error_text, target_warning),
                 extra_info={
                     "agent_name": params.agent_name,
-                    "agent_id": params.agent_id,
+                    "agent_code": params.agent_code,
+                    "session_id": session_agent_id if 'session_agent_id' in locals() else (params.session_id or ""),
+                    "agent_id": session_agent_id if 'session_agent_id' in locals() else (params.session_id or ""),
                     "error": str(e),
                 },
             )
@@ -439,7 +489,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
     ) -> Dict:
         args = arguments or {}
         agent_name = args.get("agent_name", "")
-        agent_id = args.get("agent_id", "")
+        agent_id = args.get("session_id", "")
         task_label = args.get("task_label", "")
         subject = _resolve_display_subject(agent_name)
         action = _build_subagent_action(subject)
@@ -451,7 +501,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
     ) -> Optional[ToolDetail]:
         args = arguments or {}
         agent_name = args.get("agent_name", "")
-        agent_id = args.get("agent_id", "")
+        agent_id = args.get("session_id", "")
         task_label = args.get("task_label", "")
         prompt = args.get("prompt", "")
         background = args.get("background", False)
@@ -490,7 +540,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
     ) -> Optional[ToolDetail]:
         args = arguments or {}
         agent_name = args.get("agent_name", "")
-        agent_id = args.get("agent_id", "")
+        agent_id = args.get("session_id", "")
         task_label = args.get("task_label", "")
 
         if result.ok:
@@ -536,7 +586,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
     ) -> Dict:
         args = arguments or {}
         agent_name = args.get("agent_name", "")
-        agent_id = args.get("agent_id", "")
+        agent_id = args.get("session_id", "")
         task_label = args.get("task_label", "")
         payload = result.data if result.ok and isinstance(result.data, dict) else None
         subject = _resolve_display_subject(agent_name, payload=payload)
@@ -628,7 +678,7 @@ def _restore_if_same_tool_call(
         return _build_payload(
             state=state,
             mode=_mode_from_background(background),
-            resume_hint="This tool call is already in progress for the same agent_id.",
+            resume_hint="This tool call is already in progress for the same session_id.",
         )
     if (
         state.last_tool_call_id == tool_call_id
@@ -646,7 +696,7 @@ def _restore_if_same_tool_call(
             state=state,
             mode=_mode_from_background(background),
             resume_hint=(
-                "The previous sub-agent run was interrupted. Send a new prompt with this exact agent_id "
+                "The previous sub-agent run was interrupted. Send a new prompt with this exact session_id "
                 "and resume=true to continue the conversation."
             ),
         )
@@ -664,7 +714,10 @@ def _build_payload(
         agent_id=state.agent_id,
         status=state.status,
         mode=mode,
+        agent_code=state.agent_code,
+        session_id=state.agent_id,
         requested_agent_id=state.requested_agent_id,
+        requested_session_id=state.requested_session_id,
         resumed=state.resumed,
         task_label=state.task_label,
         display_name=state.display_name,
@@ -683,20 +736,19 @@ def _success_result(payload: SubagentPayload) -> ToolResult:
 
 
 def _build_payload_text(payload: SubagentPayload) -> str:
-    # 基础 ID 只是请求名，最终 ID 才是下一次 wait/resume 使用的真实地址。
-    # 同时输出两者，是为了处理 `research` 被系统分配为 `research-3` 的场景。
+    # session_id 是下一次 wait/resume 使用的真实地址；agent_id 只作为旧消费者兼容字段返回。
     if payload.resumed:
         identity_line = (
-            f"Resumed sub-agent `{payload.agent_name}` with agent_id `{payload.agent_id}`. "
+            f"Resumed sub-agent `{payload.agent_name}` with session_id `{payload.session_id or payload.agent_id}`. "
             "This is the existing session requested by the call."
         )
     else:
-        requested_id = payload.requested_agent_id or payload.agent_id
+        requested_id = payload.requested_session_id or payload.requested_agent_id or payload.session_id or payload.agent_id
         identity_line = (
             f"Created a new sub-agent session for `{payload.agent_name}`. "
-            f"Requested agent_id base: `{requested_id}`. "
-            f"Assigned final agent_id: `{payload.agent_id}`. "
-            f"Use this exact final ID with resume=true for any later continuation."
+            f"Requested session_id base: `{requested_id}`. "
+            f"Assigned final session_id: `{payload.session_id or payload.agent_id}`. "
+            f"Use this exact final session_id with resume=true for any later continuation."
         )
 
     lines = [
@@ -718,7 +770,7 @@ def _build_payload_text(payload: SubagentPayload) -> str:
 
 def _build_call_subagent_error_text(agent_name: str, agent_id: str) -> str:
     return (
-        f"Unable to assign the task to sub-agent `{agent_name}` with agent_id `{agent_id}`. "
+        f"Unable to assign the task to sub-agent `{agent_name}` with session_id `{agent_id}`. "
         "Check the agent configuration and runtime state, then try again."
     )
 
@@ -747,7 +799,7 @@ async def _run_subagent(
     current_task = asyncio.current_task()
 
     try:
-        result = await agent.run(prompt)
+        result = await agent.run(AgentRunRequest(query=prompt))
         _mark_done(
             state=state,
             result=result or "",
@@ -813,7 +865,7 @@ def _mark_done(
     state.cached_tool_result = _build_payload(
         state=state,
         mode=mode,
-        resume_hint="Pass this exact agent_id with resume=true to continue this conversation.",
+        resume_hint="Pass this exact session_id with resume=true to continue this conversation.",
     )
 
 
@@ -837,7 +889,7 @@ def _mark_cancelled(
     resume_hint = (
         "This sub-agent was stopped by user request. Do not call call_subagent again automatically — wait for the user's next instruction."
         if is_user_cancel
-        else "Send a new prompt with this exact agent_id and resume=true to continue the conversation."
+        else "Send a new prompt with this exact session_id and resume=true to continue the conversation."
     )
     state.cached_tool_result = _build_payload(
         state=state,
@@ -860,7 +912,7 @@ def _mark_failed(
     state.cached_tool_result = _build_payload(
         state=state,
         mode=mode,
-        resume_hint="Inspect the error and use this exact agent_id with resume=true if the same session should continue.",
+        resume_hint="Inspect the error and use this exact session_id with resume=true if the same session should continue.",
     )
 
 
@@ -870,7 +922,7 @@ def _build_status_remark(
     agent_id: str,
     status_text: str,
 ) -> str:
-    """拼接 remark：任务标签优先，其次展示名和 agent_id。"""
+    """拼接 remark：任务标签优先，其次展示名和 session_id。"""
     label = (task_label or "").strip()
     subject = (subject_name or "").strip()
     fallback = label or subject or agent_id

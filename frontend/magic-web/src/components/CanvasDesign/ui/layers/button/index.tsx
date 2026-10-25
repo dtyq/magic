@@ -18,7 +18,7 @@ export default function LayersButton() {
 	}
 
 	return (
-		<Tooltip>
+		<Tooltip delayDuration={0}>
 			<TooltipTrigger asChild>
 				<div className={styles.layersButtonContainer} data-canvas-ui-component>
 					<IconButton className={styles.layersButton} onClick={() => setCollapsed(false)}>

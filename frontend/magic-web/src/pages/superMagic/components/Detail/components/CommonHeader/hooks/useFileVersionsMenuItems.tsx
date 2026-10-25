@@ -3,7 +3,7 @@ import { Flex } from "antd"
 import { IconHistory, IconCheck } from "@tabler/icons-react"
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
 import { ItemType } from "antd/es/menu/interface"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface UseFileVersionsMenuItemsParams {
 	/** File versions list */

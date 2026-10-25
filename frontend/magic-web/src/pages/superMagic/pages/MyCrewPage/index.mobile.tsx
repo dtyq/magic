@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ListFilter, MessageCircle, MessageCircleOff, Plus, Trash2 } from "lucide-react"
+import { Copy, ListFilter, MessageCircle, MessageCircleOff, Plus, Trash2 } from "lucide-react"
 import { MobileCrewCardSkeletonGrid } from "@/pages/superMagicMobile/components/skeletons"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
@@ -33,6 +33,8 @@ import {
 	type MyCrewMobileFilterState,
 } from "./components/my-crew-mobile-shared"
 import { MyCrewMobileStore } from "./stores/my-crew-mobile"
+import magicToast from "@/components/base/MagicToaster/utils"
+import { copyCrewUsageLink } from "./utils/crewUsageLink"
 
 /**
  * Mobile My Crew page panel.
@@ -85,6 +87,19 @@ function MyCrewPageMobilePanelBase() {
 		navigate({ name: RouteName.CrewMarket })
 	}, [navigate])
 
+	/** Copies a published created crew link and reports the action result to the user. */
+	const handleCopyUsageLink = useCallback(
+		async (agentCode: string) => {
+			try {
+				await copyCrewUsageLink(agentCode)
+				magicToast.success(t("myCrewPage.copyUsageLinkSuccess"))
+			} catch {
+				magicToast.error(t("myCrewPage.copyUsageLinkFailed"))
+			}
+		},
+		[t],
+	)
+
 	/** Card tap opens detail sheet. */
 	const handleOpenDetails = useCallback(
 		(agentCode: string) => {
@@ -132,10 +147,32 @@ function MyCrewPageMobilePanelBase() {
 			return {
 				primaryAction: {
 					label: t("myCrewPage.detailSheet.unpublishedAction"),
-					onClick: () => {},
+					onClick: () => undefined,
 					icon: <MessageCircleOff className="h-5 w-5 text-white" />,
 					testId: "my-crew-detail-sheet-unpublished-button",
 					disabled: true,
+				},
+			}
+		}
+		if (selectedAgent.scope === "created" && selectedAgent.latestPublishedAt?.trim()) {
+			const agentCode = selectedAgent.agentCode
+			return {
+				primaryAction: {
+					label: t("myCrewPage.detailSheet.startChat"),
+					icon: <MessageCircle className="h-5 w-5 text-white" />,
+					testId: "my-crew-detail-sheet-chat-button",
+					onClick: () => {
+						setSelectedAgent(null)
+						void handleOpenConversation(agentCode)
+					},
+				},
+				secondaryAction: {
+					label: t("myCrewPage.copyUsageLink"),
+					icon: <Copy className="h-4 w-4" />,
+					testId: "my-crew-detail-sheet-copy-usage-link-button",
+					onClick: () => {
+						void handleCopyUsageLink(agentCode)
+					},
 				},
 			}
 		}
@@ -161,7 +198,7 @@ function MyCrewPageMobilePanelBase() {
 			}
 		}
 		return {}
-	}, [selectedAgent, handleDismissAgent, handleOpenConversation, t])
+	}, [selectedAgent, handleCopyUsageLink, handleDismissAgent, handleOpenConversation, t])
 
 	// Whether the current filter matches defaults — drives crew vs search empty-state copy
 	const isDefaultFilter =

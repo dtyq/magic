@@ -99,6 +99,14 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         return $this->toEntity($model->toArray());
     }
 
+    public function findByIdForUpdate(SuperMagicAgentDataIsolation $dataIsolation, int $id): ?AgentVersionEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
+        /** @var null|AgentVersionModel $model */
+        $model = $builder->where('id', $id)->whereNull('deleted_at')->lockForUpdate()->first();
+        return $model ? $this->toEntity($model->toArray()) : null;
+    }
+
     public function findCurrentOrLatestByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array
     {
         $codes = array_values(array_unique(array_filter($codes)));
@@ -139,6 +147,38 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             ->whereIn('code', $codes)
             ->where('publish_status', PublishStatus::PUBLISHED->value)
             ->where('is_current_version', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('code')
+            ->get();
+
+        $result = [];
+        /** @var AgentVersionModel $model */
+        foreach ($models as $model) {
+            $code = (string) $model->code;
+            if (isset($result[$code])) {
+                continue;
+            }
+            $result[$code] = $this->toEntity($model->toArray());
+        }
+
+        return $result;
+    }
+
+    public function findLatestPublishedByCodesWithoutOrganizationFilter(array $codes): array
+    {
+        $codes = array_values(array_unique(array_filter($codes)));
+        if ($codes === []) {
+            return [];
+        }
+
+        $models = $this->agentVersionModel::query()
+            ->whereIn('code', $codes)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_current_version', 1)
+            ->whereIn('publish_target_type', [
+                PublishTargetType::ORGANIZATION->value,
+                PublishTargetType::MARKET->value,
+            ])
             ->whereNull('deleted_at')
             ->orderBy('code')
             ->get();
@@ -386,11 +426,16 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         string $code,
         ?PublishTargetType $publishTargetType = null,
         ?ReviewStatus $reviewStatus = null,
-        Page $page = new Page()
+        Page $page = new Page(),
+        bool $includePublishing = false
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query())
             ->where('code', $code)
             ->whereNull('deleted_at');
+
+        if (! $includePublishing) {
+            $builder->where('publish_status', '<>', PublishStatus::PUBLISHING->value);
+        }
 
         if ($publishTargetType !== null) {
             $builder->where('publish_target_type', $publishTargetType->value);
@@ -592,7 +637,6 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $entity->setReviewRemark($data['review_remark'] ?? null);
         $entity->setPublishTargetType($data['publish_target_type'] ?? PublishTargetType::MARKET->value);
         $entity->setPublishTargetValue(PublishTargetValue::fromArray($publishTargetValue));
-        $entity->setCategoryId($data['category_id'] ?? null);
         $entity->setVersionDescriptionI18n($versionDescriptionI18n);
         $entity->setPublisherUserId($data['publisher_user_id'] ?? null);
         $entity->setPublishedAt(isset($data['published_at']) ? (is_string($data['published_at']) ? $data['published_at'] : $data['published_at']?->format('Y-m-d H:i:s')) : null);
@@ -641,7 +685,6 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             'review_remark' => $entity->getReviewRemark(),
             'publish_target_type' => $entity->getPublishTargetType()->value,
             'publish_target_value' => $entity->getPublishTargetValue()?->toArray(),
-            'category_id' => $entity->getCategoryId(),
             'version_description_i18n' => $entity->getVersionDescriptionI18n(),
             'publisher_user_id' => $entity->getPublisherUserId(),
             'published_at' => $entity->getPublishedAt(),

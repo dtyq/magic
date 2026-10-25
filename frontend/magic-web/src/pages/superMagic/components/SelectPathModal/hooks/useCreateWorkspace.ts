@@ -5,6 +5,7 @@ import { SuperMagicApi } from "@/apis"
 import { validateFilename } from "@/utils/filename-validator"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { analyticsService } from "@/services/analytics"
 
 interface UseCreateWorkspaceOptions {
 	workspaces: Workspace[]
@@ -63,6 +64,7 @@ export function useCreateWorkspace(options: UseCreateWorkspaceOptions) {
 		setLoading(true)
 
 		try {
+			analyticsService.report("workspace_create_attempted")
 			const response = await SuperMagicApi.createWorkspace({
 				workspace_name: normalizedName,
 			})

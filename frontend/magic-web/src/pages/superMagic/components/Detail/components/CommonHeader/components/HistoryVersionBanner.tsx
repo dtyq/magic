@@ -2,6 +2,8 @@ import { Button } from "@/components/shadcn-ui/button"
 import { History } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
+import type { BeforeAction } from "../../../utils/actionGuard"
+import { runGuardedAction } from "../../../utils/actionGuard"
 
 /**
  * 历史版本横幅布局高度（px）。
@@ -15,11 +17,19 @@ interface HistoryVersionBannerProps {
 	onReturnLatest: () => void
 	onRollback?: (version?: number) => void
 	allowEdit?: boolean
+	beforeAction?: BeforeAction
 	"data-testid"?: string
 }
 
 export function HistoryVersionBanner(props: HistoryVersionBannerProps) {
-	const { fileVersionsList, fileVersion, onReturnLatest, onRollback, allowEdit = true } = props
+	const {
+		fileVersionsList,
+		fileVersion,
+		onReturnLatest,
+		onRollback,
+		allowEdit = true,
+		beforeAction,
+	} = props
 	const { t } = useTranslation("super")
 
 	if (!fileVersionsList || fileVersionsList.length === 0) {
@@ -43,7 +53,7 @@ export function HistoryVersionBanner(props: HistoryVersionBannerProps) {
 						variant="ghost"
 						size="sm"
 						className="h-6 rounded-md px-2.5 text-xs text-[#111827] hover:text-[#111827]"
-						onClick={onReturnLatest}
+						onClick={() => void runGuardedAction(beforeAction, onReturnLatest)}
 						data-testid="detail-header-history-return-latest"
 					>
 						{t("common.returnLatest")}
@@ -54,7 +64,9 @@ export function HistoryVersionBanner(props: HistoryVersionBannerProps) {
 						type="button"
 						size="sm"
 						className="h-6 rounded-md px-2.5 text-xs"
-						onClick={() => onRollback(fileVersion)}
+						onClick={() =>
+							void runGuardedAction(beforeAction, () => onRollback(fileVersion))
+						}
 						data-testid="detail-header-history-rollback"
 					>
 						{t("common.rollbackToVersion")}

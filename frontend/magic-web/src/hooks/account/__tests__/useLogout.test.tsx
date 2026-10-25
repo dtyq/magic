@@ -90,7 +90,7 @@ vi.mock("@/routes/helpers", () => ({
 	defaultClusterCode: "default-cluster",
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			error: vi.fn(),

@@ -53,6 +53,8 @@ class ImageGenerationEntity extends AbstractEntity
 
     protected ?array $imageGenerationConfig = null;
 
+    protected ?array $extra = null;
+
     protected int $generateNum = 1;
 
     protected ?array $outputImages = null;
@@ -262,6 +264,16 @@ class ImageGenerationEntity extends AbstractEntity
     public function setImageGenerationConfig(?array $imageGenerationConfig): void
     {
         $this->imageGenerationConfig = $imageGenerationConfig;
+    }
+
+    public function getExtra(): ?array
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(?array $extra): void
+    {
+        $this->extra = $extra;
     }
 
     public function getGenerateNum(): int

@@ -48,6 +48,10 @@ class SampleDocumentContentParams(BaseToolParams):
         None,
         description="Optional range expression, such as pages or slides `1-3,8`."
     )
+    goal: str = Field(
+        "",
+        description="Optional user goal used to recommend the document asset extraction strategy."
+    )
 
 
 @tool(code_mode_only=True)
@@ -77,6 +81,7 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
                 ranges=params.ranges,
                 max_units=DEFAULT_SAMPLE_MAX_UNITS,
                 include_images=True,
+                goal=params.goal,
             )
 
             if tool_context:
@@ -94,6 +99,10 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
             f"- Sample range: {result['sample_range']}",
             f"- Has extractable text: {signal['has_extractable_text']}",
             f"- Image dominant: {signal['image_dominant']}",
+            f"- Recommended asset strategy: {result['strategy_context']['recommended_strategy']}",
+            f"- Strategy confidence: {result['strategy_context'].get('confidence', 'unknown')}",
+            f"- Strategy decision: {result['strategy_context'].get('decision_mode', 'automatic')}",
+            f"- Score margin: {result['strategy_context'].get('score_margin', 0)}",
             f"- Recommended next actions: {'; '.join(result['recommendations'])}",
             f"- Reading state: `{output_dir}/document.reading_state.json`",
         ])
@@ -104,6 +113,7 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
                 "sample_path": result["sample_path"],
                 "sample_range": result["sample_range"],
                 "text_signal": signal,
+                "strategy_context": result["strategy_context"],
                 "recommendations": result["recommendations"],
                 "state": result["state"],
             },

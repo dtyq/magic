@@ -1,13 +1,18 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
-import { ShareMode } from "@/pages/superMagic/components/Share/types"
+import { ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import DefaultOpenFilePicker from "../components/DefaultOpenFilePicker"
 import ProjectShareSheet from "../index"
 import type { ProjectShareSheetView } from "../types"
 
 const { mockViewRef } = vi.hoisted(() => ({
 	mockViewRef: { current: "manage" as ProjectShareSheetView },
+}))
+
+/** Lets a single test force the controller into the "no share method granted" state. */
+const { mockPermittedShareTypesRef } = vi.hoisted(() => ({
+	mockPermittedShareTypesRef: { current: undefined as ShareType[] | undefined },
 }))
 
 const { mockCandidateTreeRef } = vi.hoisted(() => ({
@@ -56,11 +61,18 @@ vi.hoisted(() => {
 	})
 })
 
+/** Matches ProjectShareSheet max-height: viewport minus safe-area and the drawer handle. */
+const SHARE_SHEET_MAX_HEIGHT =
+	"calc(100dvh - var(--safe-area-inset-top) - var(--safe-area-inset-bottom) - 44px)"
+/** Manage/edit min-height stays stable but cannot exceed the safe max-height. */
+const SHARE_SHEET_STABLE_MIN_HEIGHT = `min(72dvh, 640px, ${SHARE_SHEET_MAX_HEIGHT})`
+
 interface MockCommonPopupProps {
 	children: ReactNode
 	wrapperStyle?: {
 		height?: string
-		minHeight?: string
+		minHeight?: string | number
+		maxHeight?: string
 	}
 	popupProps?: {
 		visible?: boolean
@@ -69,7 +81,8 @@ interface MockCommonPopupProps {
 		bodyStyle?: {
 			background?: string
 			height?: string
-			minHeight?: string
+			minHeight?: string | number
+			maxHeight?: string
 		}
 	}
 }
@@ -84,8 +97,10 @@ vi.mock("@/pages/superMagicMobile/components/CommonPopup", () => ({
 				data-popup-background={popupProps.bodyStyle?.background}
 				data-popup-height={popupProps.bodyStyle?.height}
 				data-popup-min-height={popupProps.bodyStyle?.minHeight}
+				data-popup-max-height={popupProps.bodyStyle?.maxHeight}
 				data-popup-wrapper-height={wrapperStyle?.height}
 				data-popup-wrapper-min-height={wrapperStyle?.minHeight}
+				data-popup-wrapper-max-height={wrapperStyle?.maxHeight}
 			>
 				<div
 					className="h-1 w-20 rounded-full"
@@ -190,6 +205,11 @@ vi.mock("../hooks/useProjectShareSheet", () => ({
 		saving: false,
 		isCheckingShare: false,
 		advancedOpen: false,
+		permittedShareTypes: mockPermittedShareTypesRef.current,
+		isSelectedShareTypePermitted:
+			mockPermittedShareTypesRef.current === undefined
+				? undefined
+				: mockPermittedShareTypesRef.current.length > 0,
 		defaultSelectedFileIds: ["file-1"],
 		selectedFileIds: ["file-1"],
 		groupedShareItems: [],
@@ -304,6 +324,7 @@ describe("ProjectShareSheet", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockViewRef.current = "manage"
+		mockPermittedShareTypesRef.current = undefined
 		mockCandidateTreeRef.current = [
 			{
 				file_id: "file-1",
@@ -354,7 +375,11 @@ describe("ProjectShareSheet", () => {
 		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute("data-popup-height", "auto")
 		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
 			"data-popup-min-height",
-			"min(72dvh, 640px)",
+			SHARE_SHEET_STABLE_MIN_HEIGHT,
+		)
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-max-height",
+			SHARE_SHEET_MAX_HEIGHT,
 		)
 		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
 			"data-popup-wrapper-height",
@@ -362,10 +387,15 @@ describe("ProjectShareSheet", () => {
 		)
 		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
 			"data-popup-wrapper-min-height",
-			"min(72dvh, 640px)",
+			SHARE_SHEET_STABLE_MIN_HEIGHT,
+		)
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-wrapper-max-height",
+			SHARE_SHEET_MAX_HEIGHT,
 		)
 		expect(screen.getByTestId("project-share-sheet-root")).toHaveStyle({
-			minHeight: "min(72dvh, 640px)",
+			minHeight: SHARE_SHEET_STABLE_MIN_HEIGHT,
+			maxHeight: SHARE_SHEET_MAX_HEIGHT,
 		})
 		expect(screen.getByTestId("project-share-sheet-manage-empty")).toHaveTextContent(
 			"还没有分享链接",
@@ -376,13 +406,70 @@ describe("ProjectShareSheet", () => {
 		mockViewRef.current = "linkDetail"
 		renderProjectShareSheet()
 
-		expect(screen.getByTestId("mock-common-popup")).not.toHaveAttribute("data-popup-min-height")
-		expect(screen.getByTestId("mock-common-popup")).not.toHaveAttribute(
-			"data-popup-wrapper-min-height",
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-min-height",
+			"0",
 		)
-		expect(screen.getByTestId("project-share-sheet-root")).not.toHaveStyle({
-			minHeight: "min(72dvh, 640px)",
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-wrapper-min-height",
+			"0",
+		)
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-max-height",
+			SHARE_SHEET_MAX_HEIGHT,
+		)
+		expect(screen.getByTestId("project-share-sheet-root")).toHaveStyle({
+			maxHeight: SHARE_SHEET_MAX_HEIGHT,
 		})
+		expect(screen.getByTestId("project-share-sheet-root").getAttribute("style")).toContain(
+			"min-height: 0",
+		)
+	})
+
+	it("编辑页在全部分享方式被管控时不再预留表单最小高度，避免弹层底部留白", () => {
+		mockViewRef.current = "edit"
+		mockPermittedShareTypesRef.current = []
+		renderProjectShareSheet()
+
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-min-height",
+			"0",
+		)
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-wrapper-min-height",
+			"0",
+		)
+	})
+
+	it("编辑页在有可用分享方式时仍保留表单最小高度", () => {
+		mockViewRef.current = "edit"
+		mockPermittedShareTypesRef.current = [ShareType.Public]
+		renderProjectShareSheet()
+
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-min-height",
+			SHARE_SHEET_STABLE_MIN_HEIGHT,
+		)
+	})
+
+	it("创建页使用 minHeight 0 和扣除安全区的 maxHeight，避免长表单把底栏顶出可视区", () => {
+		mockViewRef.current = "create"
+		renderProjectShareSheet()
+
+		const sheetPopup = screen
+			.getByTestId("project-share-sheet-root")
+			.closest("[data-testid='mock-common-popup']")
+
+		expect(sheetPopup).toHaveAttribute("data-popup-min-height", "0")
+		expect(sheetPopup).toHaveAttribute("data-popup-wrapper-min-height", "0")
+		expect(sheetPopup).toHaveAttribute("data-popup-max-height", SHARE_SHEET_MAX_HEIGHT)
+		expect(sheetPopup).not.toHaveAttribute("data-popup-max-height", "92dvh")
+		expect(screen.getByTestId("project-share-sheet-root").getAttribute("style")).toContain(
+			"min-height: 0",
+		)
+		expect(screen.getByTestId("project-share-sheet-root").getAttribute("style")).toContain(
+			SHARE_SHEET_MAX_HEIGHT,
+		)
 	})
 
 	it("默认文件选择器打开时展示候选并支持选择其他文件", () => {

@@ -6,6 +6,8 @@ Shared request header handling for MagicBase APIs hosted by Magic Service.
 
 from typing import Any, Dict, Optional
 
+from agentlang.utils.metadata import MetadataUtil
+
 from ..kernel.magic_service_parameter import MagicServiceAbstractParameter
 
 
@@ -56,6 +58,7 @@ class MagicBaseBaseParameter(MagicServiceAbstractParameter):
             headers["organization-code"] = self.organization_code
         if self._request_id:
             headers["request-id"] = self._request_id
+        MetadataUtil.add_sandbox_id_header(headers)
         return headers
 
     def validate(self) -> None:

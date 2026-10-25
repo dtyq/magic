@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pinterest - Discover recipes, home ideas, style inspiration</title>
+  <style>
+    :root {
+      --primary: #e60023;
+      --primary-pressed: #cc001f;
+      --ink: #000000;
+      --ink-soft: #211922;
+      --body: #33332e;
+      --mute: #62625b;
+      --ash: #91918c;
+      --canvas: #ffffff;
+      --surface-soft: #fbfbf9;
+      --surface-card: #f6f6f3;
+      --secondary-bg: #e5e5e0;
+      --hairline: #dadad3;
+      --font-stack: "Pin Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--font-stack);
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 40px;
+    }
+    /* Sticky Clean Nav Bar */
+    .nav-bar {
+      background: var(--canvas);
+      height: 68px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--ink);
+    }
+    /* Pinterest Red 'P' Round Logo SVG */
+    .p-logo-svg {
+      width: 32px;
+      height: 32px;
+    }
+    .brand-word {
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+    }
+    .nav-tab-explore {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      padding: 10px 16px;
+      border-radius: 9999px;
+      text-decoration: none;
+    }
+    .nav-tab-explore:hover { background: var(--surface-card); }
+    /* Fully-Rounded Search Bar */
+    .search-bar-wrap {
+      flex: 1;
+      max-width: 820px;
+      height: 48px;
+      background: var(--surface-card);
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+    }
+    .search-icon {
+      color: var(--mute);
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .search-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      width: 100%;
+      font-size: 15px;
+      color: var(--ink);
+      font-family: inherit;
+    }
+    .search-input::placeholder { color: var(--mute); }
+    /* Nav Buttons Cluster */
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-login {
+      background: var(--secondary-bg);
+      color: var(--ink);
+      border: none;
+      border-radius: 16px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-signup {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 16px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 2px 8px rgba(230,0,35,0.25);
+    }
+    /* Filter & Tag Chips Bar */
+    .chips-bar-wrapper {
+      padding: 14px 24px;
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .filter-chip {
+      background: var(--surface-card);
+      color: var(--ink);
+      border-radius: 9999px;
+      padding: 9px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      border: none;
+    }
+    .filter-chip.active {
+      background: var(--ink);
+      color: #ffffff;
+    }
+    /* Main Masonry Container */
+    .masonry-container {
+      max-width: 1380px;
+      margin: 18px auto 0;
+      padding: 0 20px;
+    }
+    /* CSS Columns Masonry */
+    .masonry-columns {
+      column-count: 4;
+      column-gap: 16px;
+    }
+    /* Pin Tile (16px Radius, Varied Heights) */
+    .pin-tile {
+      break-inside: avoid;
+      margin-bottom: 18px;
+      display: inline-block;
+      width: 100%;
+    }
+    .pin-card-surface {
+      background: var(--surface-card);
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      display: block;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      transition: opacity 0.2s;
+    }
+    .pin-image-wrapper {
+      width: 100%;
+      display: block;
+      position: relative;
+    }
+    /* Hover Overlays & Buttons */
+    .save-button-pill {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 9999px;
+      padding: 8px 16px;
+      font-size: 13.5px;
+      font-weight: 700;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+      z-index: 5;
+    }
+    .visual-lens-btn {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      width: 34px;
+      height: 34px;
+      background: rgba(255,255,255,0.92);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      z-index: 5;
+      color: var(--ink);
+    }
+    .pin-overlay-tag {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: rgba(255,255,255,0.92);
+      color: var(--ink);
+      border-radius: 9999px;
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    /* Pin Details Below Artwork */
+    .pin-meta-box {
+      padding: 8px 4px 2px;
+    }
+    .pin-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+    .pin-creator-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .creator-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #dfdfdf;
+      color: #333;
+      font-size: 10px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .creator-name {
+      font-size: 11.5px;
+      color: var(--mute);
+    }
+    /* Sticky Bottom Floating Sign Up Banner */
+    .bottom-discovery-pill {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: #fff;
+      border-radius: 9999px;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 8px 26px rgba(0,0,0,0.35);
+      z-index: 999;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .btn-pill-explore-red {
+      background: var(--primary);
+      color: #fff;
+      border-radius: 9999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    @media (max-width: 1100px) { .masonry-columns { column-count: 3; } }
+    @media (max-width: 750px) { .masonry-columns { column-count: 2; } .brand-word { display: none; } }
+    @media (max-width: 480px) { .masonry-columns { column-count: 1; } }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Top Primary Navigation -->
+  <header class="nav-bar">
+    <a href="#" class="brand-group">
+      <!-- Pinterest Red 'P' Round Logo SVG -->
+      <svg class="p-logo-svg" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="24" fill="#e60023" />
+        <path d="M24 10 C16.3 10 12 15.2 12 21.3 C12 24.8 13.8 27.5 16 28.5 C16.5 28.7 16.8 28.5 17 27.9 C17.1 27.4 17.5 25.8 17.7 25 C17.8 24.6 17.7 24.3 17.4 23.9 C16.6 22.9 16 21.6 16 19.8 C16 14.8 20 12.3 23.8 12.3 C27.1 12.3 29.5 14.3 29.5 17.7 C29.5 21.4 27.8 25.4 25 25.4 C23.5 25.4 22.4 24.2 22.8 22.8 L24 17.8 C24.4 16.2 23.5 14.9 22 14.9 C20.3 14.9 18.9 16.8 18.9 19.3 C18.9 20.8 19.4 21.9 19.4 21.9 L17 32.2 C16.3 35.2 16.8 38.6 16.9 39 C17 39.2 17.3 39.3 17.4 39.1 C17.6 38.8 19.5 35.8 20.2 33.2 L21.1 29.7 C21.8 31 23.4 32.2 25.5 32.2 C31.3 32.2 35 26.6 35 19.8 C35 14.2 30.2 10 24 10 Z" fill="#ffffff" />
+      </svg>
+      <span class="brand-word">Pinterest</span>
+    </a>
+
+    <a href="#explore" class="nav-tab-explore">Explore</a>
+
+    <!-- Rounded Search Pill -->
+    <div class="search-bar-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" />
+      </svg>
+      <input type="text" class="search-input" value="cozy modern living room interior" />
+    </div>
+
+    <!-- Nav Buttons -->
+    <div class="nav-actions">
+      <a href="#login" class="btn-login">Log in</a>
+      <a href="#signup" class="btn-signup">Sign up</a>
+    </div>
+  </header>
+
+  <!-- Tag & Filter Chips Bar -->
+  <div class="chips-bar-wrapper">
+    <button class="filter-chip active">All Pins</button>
+    <button class="filter-chip">Cozy Interiors</button>
+    <button class="filter-chip">Autumn Outfit</button>
+    <button class="filter-chip">Artisan Ceramics</button>
+    <button class="filter-chip">Minimal Architecture</button>
+    <button class="filter-chip">Botanical Studio</button>
+    <button class="filter-chip">Gourmet Pasta</button>
+  </div>
+
+  <!-- Masonry Pinboard Layout -->
+  <main class="masonry-container">
+    <div class="masonry-columns">
+      
+      <!-- Pin 1: Tall 2:3 - Scandinavian Living Room -->
+      <div class="pin-tile">
+        <div class="pin-card-surface">
+          <div class="pin-image-wrapper">
+            <svg width="100%" height="360" viewBox="0 0 300 360" preserveAspectRatio="xMidYMid slice">
+              <rect width="300" height="360" fill="#ede8e1" />
+              <!-- Cozy Minimalist Room Vector Art -->
+              <rect x="20" y="30" width="160" height="180" rx="8" fill="#d9d0c3" />
+              <rect x="30" y="40" width="140" height="160" rx="4" fill="#c4baa9" />
+              <!-- Window sunlight rays -->
+              <polygon points="170,40 300,100 300,280 170,200" fill="#fff8ee" opacity="0.6" />
+              <!-- Modern Sofa -->
+              <rect x="40" y="220" width="220" height="60" rx="14" fill="#a49787" />
+              <rect x="55" y="200" width="190" height="40" rx="10" fill="#b9ac9d" />
+              <circle cx="90" cy="215" r="14" fill="#e27d60" />
+              <circle cx="210" cy="215" r="16" fill="#85a392" />
+              <!-- Coffee Table -->
+              <ellipse cx="150" cy="295" rx="55" ry="16" fill="#695b4e" />
+              <!-- Potted Monstera Plant -->
+              <rect x="235" y="160" width="28" height="34" rx="4" fill="#c27d53" />
+              <circle cx="249" cy="140" r="22" fill="#416b50" />
+              <circle cx="260" cy="130" r="16" fill="#2d523a" />
+            </svg>
+            <button class="save-button-pill">Save</button>
+            <div class="pin-overlay-tag">Earthy space inspo</div>
+            <div class="visual-lens-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="11" cy="11" r="6" /><line x1="15.5" y1="15.5" x2="20" y2="20" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="pin-meta-box">
+          <div class="pin-title">Warm Minimalist Scandinavian Living Room Inspo</div>
+          <div class="pin-creator-row">
+            <div class="creator-avatar">N</div>
+            <span class="creator-name">Nordic Dwelling Co.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pin 2: Square 1:1 - Artisan Ceramic Mug -->
+      <div class="pin-tile">
+        <div class="pin-card-surface">
+          <div class="pin-image-wrapper">
+            <svg width="100%" height="280" viewBox="0 0 300 280">
+              <rect width="300" height="280" fill="#f4ece1" />
+              <!-- Ceramic Plate & Mug Vector Art -->
+              <circle cx="150" cy="140" r="95" fill="#e3d5c5" stroke="#cebca8" stroke-width="3" />
+              <ellipse cx="140" cy="135" rx="42" ry="52" fill="#a2704f" />
+              <path d="M182 110 C204 110 204 155 182 155" fill="none" stroke="#a2704f" stroke-width="12" stroke-linecap="round" />
+              <ellipse cx="140" cy="98" rx="38" ry="15" fill="#5c3822" />
+              <!-- Latte Art Heart -->
+              <path d="M140 92 C134 86 124 92 128 100 L140 108 L152 100 C156 92 146 86 140 92 Z" fill="#fff5ea" />
+            </svg>
+            <button class="save-button-pill">Save</button>
+            <div class="visual-lens-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="11" cy="11" r="6" /><line x1="15.5" y1="15.5" x2="20" y2="20" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="pin-meta-box">
+          <div class="pin-title">Hand-thrown stoneware coffee cup with oat glaze</div>
+          <div class="pin-creator-row">
+            <div class="creator-avatar">C</div>
+            <span class="creator-name">Clay &amp; Fire Pottery</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pin 3: Portrait 3:4 - Autumn Trench Outfit -->
+      <div class="pin-tile">
+        <div class="pin-card-surface">
+          <div class="pin-image-wrapper">
+            <svg width="100%" height="380" viewBox="0 0 300 380">
+              <rect width="300" height="380" fill="#e8dfd8" />
+              <!-- Autumn Outfit Silhouette Art -->
+              <!-- Parisian Street Background subtle -->
+              <rect x="30" y="30" width="80" height="180" fill="#dad0c8" />
+              <rect x="190" y="40" width="80" height="170" fill="#dad0c8" />
+              <!-- Coat -->
+              <path d="M110 70 L190 70 L215 300 L85 300 Z" fill="#bfa07d" />
+              <polygon points="110,70 150,140 130,70" fill="#9e8061" />
+              <polygon points="190,70 150,140 170,70" fill="#9e8061" />
+              <!-- Belt -->
+              <rect x="100" y="170" width="100" height="12" fill="#523924" />
+              <rect x="142" y="166" width="16" height="20" rx="3" fill="#d4af37" />
+              <!-- Leather Bag -->
+              <rect x="65" y="180" width="40" height="48" rx="8" fill="#422517" />
+              <path d="M75 180 C75 145 95 145 95 180" fill="none" stroke="#422517" stroke-width="4" />
+              <!-- Scarf -->
+              <path d="M130 68 Q150 95 170 68 Q160 130 150 160 Q140 130 130 68" fill="#8c2d2d" />
+            </svg>
+            <button class="save-button-pill">Save</button>
+            <div class="pin-overlay-tag">Fall Capsule Wardrobe</div>
+            <div class="visual-lens-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="11" cy="11" r="6" /><line x1="15.5" y1="15.5" x2="20" y2="20" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="pin-meta-box">
+          <div class="pin-title">Classic camel trench coat layered with burgundy knitwear</div>
+          <div class="pin-creator-row">
+            <div class="creator-avatar">M</div>
+            <span class="creator-name">Mode Editorial</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pin 4: Tall 2:3 - Botanical Greenhouse -->
+      <div class="pin-tile">
+        <div class="pin-card-surface">
+          <div class="pin-image-wrapper">
+            <svg width="100%" height="340" viewBox="0 0 300 340">
+              <rect width="300" height="340" fill="#dce6df" />
+              <!-- Victorian Greenhouse Architecture -->
+              <path d="M30 120 Q150 40 270 120 L270 340 L30 340 Z" fill="#b0c9b8" opacity="0.5" />
+              <line x1="150" y1="40" x2="150" y2="340" stroke="#375541" stroke-width="4" />
+              <line x1="90" y1="70" x2="90" y2="340" stroke="#375541" stroke-width="3" />
+              <line x1="210" y1="70" x2="210" y2="340" stroke="#375541" stroke-width="3" />
+              <!-- Plants & Ferns -->
+              <circle cx="70" cy="280" r="50" fill="#2d6a4f" />
+              <circle cx="150" cy="260" r="65" fill="#40916c" />
+              <circle cx="230" cy="280" r="52" fill="#1b4332" />
+              <circle cx="110" cy="230" r="35" fill="#74c69d" opacity="0.85" />
+              <circle cx="190" cy="225" r="38" fill="#52b788" opacity="0.85" />
+            </svg>
+            <button class="save-button-pill">Save</button>
+            <div class="pin-overlay-tag">Greenhouse Haven</div>
+            <div class="visual-lens-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="11" cy="11" r="6" /><line x1="15.5" y1="15.5" x2="20" y2="20" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="pin-meta-box">
+          <div class="pin-title">Lush tropical botanical garden conservatory glasshouse</div>
+          <div class="pin-creator-row">
+            <div class="creator-avatar">B</div>
+            <span class="creator-name">Botanica Magazine</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Sticky Bottom Pill -->
+  <div class="bottom-discovery-pill">
+    <span>Sign up to discover endless creative inspiration</span>
+    <a href="#explore-more" class="btn-pill-explore-red">Join Free</a>
+  </div>
+
+</body>
+</html>

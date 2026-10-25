@@ -9,7 +9,7 @@ import { cacheKey, type PlatformSlice } from "../services/selfMediaHelpers"
 import type { SelfMediaPost, SelfMediaPostEntry } from "../types"
 import type { SelfMediaPlatform } from "../../../types"
 
-vi.mock("@/utils/log", () => {
+vi.mock("@/infrastructure/logger", () => {
 	const noop = () => undefined
 	return {
 		logger: {

@@ -67,6 +67,12 @@ const useStyles = createStyles(({ css, prefixCls, token }) => ({
 	`,
 	slider: css`
 		width: 140px;
+
+		/* Keep the complete toolbar within narrow mobile viewports. */
+		@media (max-width: 768px) {
+			width: 3.75rem;
+		}
+
 		--${prefixCls}-slider-track-bg: rgba(255, 255, 255, 0.5) !important;
 		--${prefixCls}-slider-track-hover-bg: rgba(255, 255, 255, 0.5) !important;
 		--${prefixCls}-slider-handle-color: ${token.colorWhite} !important;

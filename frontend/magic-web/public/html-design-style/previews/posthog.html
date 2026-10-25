@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PostHog — Product Analytics for Developers</title>
+<style>
+:root {
+  --canvas: #eeefe9;
+  --surface-card: #ffffff;
+  --surface-soft: #e5e7e0;
+  --surface-doc: #fcfcfa;
+  --surface-dark: #23251d;
+  --hairline: #bfc1b7;
+  --hairline-soft: #dcdfd2;
+  --primary: #f7a501;
+  --primary-pressed: #dd9001;
+  --on-primary: #23251d;
+  --ink: #23251d;
+  --body: #4d4f46;
+  --charcoal: #33342d;
+  --mute: #6c6e63;
+  --ash: #9b9c92;
+  --link-teal: #1078a3;
+  --accent-blue-soft: #dceaf6;
+  --accent-green: #2c8c66;
+  --accent-green-soft: #d9eddf;
+  --accent-red: #cd4239;
+  --accent-red-soft: #f7d6d3;
+  --accent-purple: #7c44a6;
+  --accent-purple-soft: #e7d8ee;
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'ui-monospace', 'Source Code Pro', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--canvas);
+  color: var(--body);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+/* Sticky Nav */
+header {
+  position: sticky; top: 0; z-index: 50; background: rgba(238, 239, 233, 0.94);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--hairline); height: 56px;
+}
+.header-inner {
+  max-width: 1240px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between; height: 100%;
+}
+.brand-group { display: flex; align-items: center; gap: 10px; }
+.brand-logo-wrap { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; color: var(--ink); }
+.nav-menu { display: flex; align-items: center; gap: 20px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.nav-menu a:hover { color: var(--link-teal); }
+.header-actions { display: flex; align-items: center; gap: 14px; }
+.btn-login { font-size: 13px; font-weight: 600; color: var(--ink); }
+.btn-primary {
+  background: var(--primary); color: var(--on-primary); font-size: 13px; font-weight: 700;
+  padding: 8px 16px; border-radius: var(--radius-md); border: none; cursor: pointer; transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--primary-pressed); }
+
+/* Main Container */
+.container { max-width: 1240px; margin: 0 auto; padding: 24px 24px 50px; }
+
+/* Hero Strip */
+.hero-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
+}
+.hero-left h1 {
+  font-size: clamp(28px, 3.6vw, 42px); font-weight: 800; color: var(--ink);
+  line-height: 1.15; letter-spacing: -0.8px; margin-bottom: 6px;
+}
+.hero-left p { font-size: 15px; color: var(--body); max-width: 580px; }
+.hero-mascot-box {
+  display: flex; align-items: center; gap: 12px; background: var(--surface-card);
+  border: 1px solid var(--hairline); border-radius: var(--radius-lg); padding: 8px 14px;
+}
+.speech-bubble { font-size: 12px; color: var(--charcoal); font-weight: 500; }
+
+/* 2-Column Analytics Layout */
+.dashboard-grid {
+  display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 20px; margin-bottom: 24px;
+}
+.dash-card {
+  background: var(--surface-card); border: 1px solid var(--hairline);
+  border-radius: var(--radius-md); padding: 20px 22px; display: flex; flex-direction: column;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.card-title-group h3 {
+  font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em;
+}
+.card-title-group span { font-size: 12px; color: var(--mute); }
+.badge-tag {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  padding: 3px 8px; border-radius: var(--radius-sm); letter-spacing: 0.04em;
+}
+.badge-funnel { background: var(--accent-blue-soft); color: #1d4ed8; }
+.badge-replay { background: var(--accent-red-soft); color: #cd4239; }
+
+/* Conversion Funnel */
+.funnel-overview {
+  display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px;
+}
+.big-rate { font-size: 32px; font-weight: 800; color: var(--ink); }
+.rate-delta {
+  font-size: 12.5px; font-weight: 700; color: var(--accent-green);
+  background: var(--accent-green-soft); padding: 2px 7px; border-radius: var(--radius-sm);
+}
+.funnel-steps { display: flex; flex-direction: column; gap: 14px; }
+.step-item { display: flex; flex-direction: column; gap: 6px; }
+.step-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px; font-weight: 600; color: var(--ink);
+}
+.step-counts { font-size: 12px; color: var(--mute); font-family: var(--font-mono); }
+.bar-track {
+  height: 26px; background: var(--surface-soft); border-radius: var(--radius-sm);
+  overflow: hidden; display: flex; align-items: center; padding: 0 10px; position: relative;
+}
+.bar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--radius-sm);
+  transition: width 0.3s ease;
+}
+.fill-step1 { width: 100%; background: #2c84e0; }
+.fill-step2 { width: 42.8%; background: #3b82f6; }
+.fill-step3 { width: 24.3%; background: #10b981; }
+.bar-label {
+  position: relative; z-index: 2; font-size: 11.5px; font-weight: 700;
+  color: #ffffff; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.dropoff-pill {
+  font-size: 11px; font-family: var(--font-mono); color: var(--accent-red);
+  background: var(--accent-red-soft); padding: 2px 6px; border-radius: 3px; align-self: flex-start;
+  margin-left: 12px; margin-top: -2px;
+}
+
+/* Session Recording Box */
+.replay-container {
+  background: #141716; border-radius: var(--radius-md); overflow: hidden;
+  border: 1px solid var(--hairline); display: flex; flex-direction: column; flex: 1;
+}
+.replay-screen {
+  background: #1e2221; height: 160px; position: relative;
+  display: flex; flex-direction: column; padding: 14px;
+}
+.mock-browser-bar {
+  display: flex; align-items: center; gap: 8px; background: #141716;
+  padding: 4px 10px; border-radius: 4px; font-size: 11px; color: #9ca3af;
+  margin-bottom: 12px;
+}
+.mock-wireframe {
+  display: flex; gap: 12px; flex: 1;
+}
+.mock-sidebar { width: 48px; background: #2a2e2d; border-radius: 4px; }
+.mock-body {
+  flex: 1; display: flex; flex-direction: column; gap: 6px;
+}
+.mock-line { height: 8px; background: #363b39; border-radius: 2px; }
+.mock-btn { width: 60px; height: 16px; background: #f7a501; border-radius: 3px; margin-top: auto; }
+.simulated-cursor {
+  position: absolute; top: 92px; left: 140px; width: 14px; height: 14px;
+  pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+.rageclick-alert {
+  position: absolute; top: 78px; left: 160px; background: #cd4239;
+  color: #ffffff; font-size: 10px; font-weight: 700; padding: 2px 6px;
+  border-radius: 3px; box-shadow: 0 2px 8px rgba(205,66,57,0.4);
+}
+
+/* Playback Control Bar */
+.playback-bar {
+  background: #1c201f; padding: 12px 14px; border-top: 1px solid #2d3331;
+}
+.timeline-track-wrap {
+  position: relative; height: 18px; margin-bottom: 8px; cursor: pointer;
+  display: flex; align-items: center;
+}
+.timeline-track {
+  width: 100%; height: 5px; background: #333836; border-radius: 3px; position: relative;
+}
+.timeline-progress {
+  width: 44%; height: 100%; background: var(--primary); border-radius: 3px;
+}
+.playhead {
+  position: absolute; left: 44%; top: 50%; transform: translate(-50%, -50%);
+  width: 11px; height: 11px; background: #ffffff; border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 10;
+}
+/* Event Markers */
+.event-marker {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 7px; height: 7px; border-radius: 50%; z-index: 5;
+}
+.marker-pageview { left: 10%; background: #38bdf8; }
+.marker-click { left: 28%; background: #4ade80; }
+.marker-rage { left: 44%; background: #ef4444; width: 9px; height: 9px; }
+.marker-goal { left: 85%; background: #f7a501; }
+
+.playback-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11.5px; color: #9ca3af;
+}
+.play-btn-group { display: flex; align-items: center; gap: 10px; }
+.btn-play-icon {
+  width: 24px; height: 24px; background: var(--primary); color: #23251d;
+  border-radius: 4px; display: grid; place-items: center; border: none; cursor: pointer;
+}
+.speed-badge {
+  background: #2a2f2d; padding: 2px 6px; border-radius: 3px; color: #e5e7eb; font-weight: 600;
+}
+.skip-toggle {
+  display: flex; align-items: center; gap: 6px; color: #10b981; font-weight: 600; font-size: 11px;
+}
+
+/* Bottom Callout & Tip Banner */
+.bottom-banner-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+.tip-banner {
+  background: var(--accent-blue-soft); border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md); padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+}
+.tip-banner-green {
+  background: var(--accent-green-soft); border-color: #bbf7d0;
+}
+.tip-icon { font-size: 18px; flex-shrink: 0; }
+.tip-body { font-size: 13px; color: var(--ink); line-height: 1.45; }
+.tip-body strong { color: var(--charcoal); }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="header-inner">
+    <div class="brand-group">
+      <div class="brand-logo-wrap">
+        <!-- Hedgehog Icon SVG Motif -->
+        <svg width="26" height="24" viewBox="0 0 32 30" fill="none">
+          <ellipse cx="14" cy="18" rx="12" ry="9" fill="#f7a501"/>
+          <!-- Spikes -->
+          <path d="M4 14L1 8L7 11L7 4L12 9L15 2L17 9L22 4L21 11L27 9L24 15" stroke="#23251d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Eye & Snout -->
+          <circle cx="21" cy="17" r="2" fill="#23251d"/>
+          <path d="M25 18L29 19L26 21Z" fill="#23251d"/>
+          <path d="M10 27L12 24M18 27L19 24" stroke="#23251d" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <span>PostHog</span>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <a href="#">Product</a>
+      <a href="#">Docs</a>
+      <a href="#">Community</a>
+      <a href="#">Pricing</a>
+      <a href="#">Blog</a>
+    </nav>
+
+    <div class="header-actions">
+      <a class="btn-login" href="#">Log in</a>
+      <button class="btn-primary">Get started — free</button>
+    </div>
+  </div>
+</header>
+
+<!-- Main Container -->
+<div class="container">
+  <!-- Hero Strip -->
+  <div class="hero-header">
+    <div class="hero-left">
+      <h1>Product analytics for developers.</h1>
+      <p>Everything engineer teams need to understand product adoption, session recordings, and event funnels.</p>
+    </div>
+    <div class="hero-mascot-box">
+      <!-- Mini Mascot Lab Hedgehog -->
+      <svg width="34" height="30" viewBox="0 0 32 30" fill="none">
+        <ellipse cx="14" cy="18" rx="12" ry="9" fill="#f7a501"/>
+        <path d="M4 14L1 8L7 11L7 4L12 9L15 2L17 9L22 4L21 11L27 9L24 15" stroke="#23251d" stroke-width="2" stroke-linecap="round"/>
+        <!-- Glasses -->
+        <rect x="18" y="14" width="5" height="5" rx="1" stroke="#23251d" stroke-width="1.5" fill="#ffffff"/>
+        <line x1="17" y1="16" x2="18" y2="16" stroke="#23251d" stroke-width="1.5"/>
+        <circle cx="28" cy="18" r="1.5" fill="#23251d"/>
+      </svg>
+      <div class="speech-bubble">
+        <strong>Dr. Hog:</strong> "Funnel conversion increased +3.4% today!"
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard 2-Column Grid -->
+  <div class="dashboard-grid">
+    <!-- Card 1: Product Event Funnel -->
+    <div class="dash-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h3>User Onboarding Funnel</h3>
+          <span>Last 14 days &bull; Unique visitors</span>
+        </div>
+        <span class="badge-tag badge-funnel">Conversion Funnel</span>
+      </div>
+
+      <div class="funnel-overview">
+        <div class="big-rate">24.3%</div>
+        <div class="rate-delta">&uarr; +3.4% vs last week</div>
+        <div style="font-size: 12px; color: var(--mute); margin-left: auto;">Median time: 4m 12s</div>
+      </div>
+
+      <div class="funnel-steps">
+        <!-- Step 1 -->
+        <div class="step-item">
+          <div class="step-meta">
+            <span>1. Visit Landing Page</span>
+            <span class="step-counts">48,250 users (100%)</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill fill-step1"></div>
+            <span class="bar-label">48,250 visitors</span>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-item">
+          <div class="step-meta">
+            <span>2. Sign Up / Auth</span>
+            <span class="step-counts">20,651 users (42.8%)</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill fill-step2"></div>
+            <span class="bar-label">20,651 completed auth</span>
+          </div>
+          <div class="dropoff-pill">&darr; 57.2% drop-off (27,599 dropped)</div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-item">
+          <div class="step-meta">
+            <span>3. Create First Project</span>
+            <span class="step-counts">11,724 users (24.3%)</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill fill-step3"></div>
+            <span class="bar-label">11,724 activated</span>
+          </div>
+          <div class="dropoff-pill">&darr; 43.2% drop-off (8,927 dropped)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Live Session Recording Playback -->
+    <div class="dash-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h3>Session Recording #9821</h3>
+          <span>User: usr_alex99 &bull; Chrome on macOS</span>
+        </div>
+        <span class="badge-tag badge-replay">Live Replay</span>
+      </div>
+
+      <div class="replay-container">
+        <!-- Screen Simulation -->
+        <div class="replay-screen">
+          <div class="mock-browser-bar">
+            <span>https://app.posthog.com/project/new</span>
+          </div>
+          <div class="mock-wireframe">
+            <div class="mock-sidebar"></div>
+            <div class="mock-body">
+              <div class="mock-line" style="width: 70%;"></div>
+              <div class="mock-line" style="width: 45%;"></div>
+              <div class="mock-line" style="width: 85%;"></div>
+              <div class="mock-btn"></div>
+            </div>
+          </div>
+
+          <!-- Mouse Cursor & Rageclick Indicator -->
+          <svg class="simulated-cursor" viewBox="0 0 24 24" fill="#ffffff" stroke="#000000" stroke-width="1.5">
+            <path d="M3 3l7 18 3-7 7-3L3 3z"/>
+          </svg>
+          <div class="rageclick-alert">⚠️ Rageclick (5x)</div>
+        </div>
+
+        <!-- Scrubber Timeline & Event Markers -->
+        <div class="playback-bar">
+          <div class="timeline-track-wrap">
+            <div class="timeline-track">
+              <div class="timeline-progress"></div>
+              <div class="playhead"></div>
+              <!-- Event Markers -->
+              <div class="event-marker marker-pageview" title="$pageview: /pricing"></div>
+              <div class="event-marker marker-click" title="Click: #signup"></div>
+              <div class="event-marker marker-rage" title="Rageclick on Org input"></div>
+              <div class="event-marker marker-goal" title="Created Project"></div>
+            </div>
+          </div>
+
+          <div class="playback-controls">
+            <div class="play-btn-group">
+              <button class="btn-play-icon">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
+              <span style="font-family: var(--font-mono); font-size: 11px; color: #d1d5db;">01:18 / 03:45</span>
+              <span class="speed-badge">1.0x</span>
+            </div>
+            <div class="skip-toggle">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Skip Inactivity
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Tip Banners -->
+  <div class="bottom-banner-row">
+    <div class="tip-banner">
+      <div class="tip-icon">💡</div>
+      <div class="tip-body">
+        <strong>Correlation Insight:</strong> Users who experience rageclicks on the project form have an 82% lower chance of completing onboarding.
+      </div>
+    </div>
+    <div class="tip-banner tip-banner-green">
+      <div class="tip-icon">✅</div>
+      <div class="tip-body">
+        <strong>Feature Flag Active:</strong> Test variant <em>"Simple-Auth-Modal-v2"</em> showed a +14.2% lift in Step 2 completion.
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

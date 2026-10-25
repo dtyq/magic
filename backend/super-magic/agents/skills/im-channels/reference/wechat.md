@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Use the latest iOS version of WeChat. ClawBot is currently available on iOS only.
+- Use a current WeChat mobile client on iOS or Android with ClawBot access. QR login and delivery depend on the installed client version and account availability.
 - No bot ID or secret is required. Login is completed fully through QR confirmation.
 
 ## Flow
@@ -37,20 +37,91 @@ Handle the wait result:
 
 ## Reply Format After Connection
 
-Write your reply in **Markdown** (GitHub-Flavored). Do not call any tool to send the reply.
+Final replies from WeChat conversations and scheduled main-agent notifications are sent to WeChat automatically. Web replies stay on Web unless you explicitly use the sending tool below. Markdown is converted to readable text on delivery; do not assume HTML or Markdown renders as rich text in the client.
+
+### Send messages through Code Mode
+
+The main agent in Claw mode can use this tool while WeChat is connected, whether
+the run starts from WeChat, Web, or a scheduled-task completion notification.
+Ordinary projects, sub-agents, and disconnected WeChat channels cannot use it.
+Scheduled-task agents return results to the main agent; they do not send directly.
+Decide whether, when, and what to send from the user's request and notification
+preferences. The channel supplies the recipient; arbitrary recipients are not accepted.
+If no conversation is available yet, ask the user to send a message in WeChat to
+establish it. Read the actual result; tool permission does not guarantee delivery.
+
+```python
+from sdk.tool import tool
+
+result = tool.call("send_wechat_message", {
+    "items": [
+        {"kind": "text", "text": "The report is ready."},
+        {"kind": "file", "path": "reports/report.html"},
+        {"kind": "file", "path": "reports/notes.md"},
+        {"kind": "text_file", "path": "reports/summary.txt", "format": "plain"},
+    ]
+})
+print(result.content)
+```
+
+- `text`: one message from `text`.
+- `file`: one workspace attachment from `path`, with optional `filename`. Markdown and HTML files can be sent as attachments without rewriting their contents. Files need a synchronized MagicFS identity so the same attachment can appear on Web.
+- `text_file`: read the entire UTF-8 file as one message. It does not attach the file; use a separate `file` item when the original file is needed.
+- `text` and `text_file` accept `format`: `plain` (default), `markdown` (converted to readable text), or `html` (tags removed, entities decoded, scripts/styles excluded). The converted text is also used for the Web mirror.
+- Paths must stay inside the current workspace and cannot traverse symbolic links. Remote URLs are not accepted by this tool.
+- Items are sent in order. Read `result.content`: it identifies sent, failed, unknown, and unattempted items. Do not repeat confirmed sends or automatically retry unknown delivery.
+
+Choose message boundaries yourself: make multiple calls or provide multiple
+`text` items. The default local budget is 4,000 UTF-8 bytes per message (roughly
+1,300 Chinese characters or 4,000 ASCII characters); mixed text and emoji vary.
+This is a conservative local policy, not a verified server limit. If
+`text_too_long` is returned, use the reported budget to divide the complete
+content. The delivery layer never automatically splits or truncates it.
+
+Tool messages are delivered immediately and mirrored to Web. If Web mirroring fails after WeChat succeeds, do not resend the WeChat message to repair the Web record.
+
+### Final reply delivery
+
+When the current run has automatic WeChat final delivery, <no_send>...</no_send> keeps enclosed content visible on Web without sending it to WeChat; outside content is sent normally. Wrap the whole reply to send nothing. This controls delivery, not whether the user should reply. Explicit tool sends from a Web conversation do not enable automatic WeChat final delivery.
+
+Use it for confirmed delivery recaps or checks that do not meet the user's notification condition; no prior tool send is required for a quiet check. Keep answers or updates the user requested or is waiting for, questions, and actionable failures outside. A progress update alone does not deliver the final result. Tags in code or quotations are literal.
+
+Report and explanation confirmed sent by tool:
+```text
+<no_send>Report delivered.</no_send>
+```
+
+User requested failure alerts only; check found no failure:
+```text
+<no_send>No failures found.</no_send>
+```
+
+Report sent; a requested 20% over-budget alert is still undelivered:
+```text
+<no_send>Report delivered.</no_send> Spending is 20% over budget.
+```
 
 ### Splitting into multiple messages
 
-Use `<split delay="N" />` anywhere in your reply to send subsequent content as a separate message, with an N-second pause between sends. This makes the reply feel more like a person typing in bursts.
+Use `<split>` between meaningful sections of a final reply to send separate messages. Prefer placing it on its own line. Use `<split delay="1">` only when a specific pause is useful. The same length budget applies to each section.
 
 ```
-Hey, just checked~<split delay="1" />Looks like everything's working fine on my end.<split delay="1.5" />Let me know if you need anything else.
+The first part of the result.
+
+<split>
+
+The second part of the result.
+
+<split delay="1">
+
+The remaining details.
 ```
 
 - `delay` is in seconds (float); omitting it defaults to 0.5s; recommended range is 0.5–1.5s
 - Each segment is sent as an independent WeChat message
 - Keep segments meaningful in size — avoid splitting too finely or using long delays, as this makes the overall reply feel slow
-- Only use this when your persona or the conversation calls for a more human-like rhythm; do not use it by default
+- Use splitting for long content or deliberate message boundaries; short answers normally need no split.
+- Tags in code examples, inline code, or quoted text are literal content and do not control delivery.
 
 To send media, embed the corresponding tag directly in your reply:
 

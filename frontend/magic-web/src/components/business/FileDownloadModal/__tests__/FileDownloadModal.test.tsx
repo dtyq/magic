@@ -70,6 +70,7 @@ describe("FileDownloadModal", () => {
 	it("renders the modal when open is true", () => {
 		render(<FileDownloadModal {...defaultProps} />)
 
+		expect(screen.getByTestId("file-download-modal")).toBeInTheDocument()
 		expect(screen.getByText("文件下载中...")).toBeInTheDocument()
 		expect(screen.getByText("如果您的下载没有自动开始，请点击按钮进行下载")).toBeInTheDocument()
 		expect(screen.getByText("test-file.pdf")).toBeInTheDocument()
@@ -78,7 +79,7 @@ describe("FileDownloadModal", () => {
 	it("calls onDownload without closing when download button is clicked", async () => {
 		render(<FileDownloadModal {...defaultProps} />)
 
-		const downloadButton = screen.getByRole("button", { name: /下载文件/ })
+		const downloadButton = screen.getByTestId("file-download-modal-download-button")
 		fireEvent.click(downloadButton)
 
 		await waitFor(() => {
@@ -87,10 +88,38 @@ describe("FileDownloadModal", () => {
 		})
 	})
 
+	it("renders the manual retry as a native link in a new tab", () => {
+		render(<FileDownloadModal {...defaultProps} nativeDownload downloadTarget="_blank" />)
+
+		const downloadLink = screen.getByTestId("file-download-modal-download-button")
+		expect(downloadLink).toHaveAttribute("href", "https://example.com/test-file.pdf")
+		expect(downloadLink).toHaveAttribute("target", "_blank")
+		expect(downloadLink).toHaveAttribute("rel", "noopener noreferrer")
+		expect(downloadLink).not.toHaveAttribute("download")
+
+		fireEvent.click(downloadLink)
+		expect(mockOnDownload).not.toHaveBeenCalled()
+	})
+
+	it("keeps the filename hint for native blob downloads", () => {
+		render(
+			<FileDownloadModal
+				{...defaultProps}
+				downloadUrl="blob:generated-zip"
+				fileName="folder.zip"
+				nativeDownload
+			/>,
+		)
+
+		const downloadLink = screen.getByTestId("file-download-modal-download-button")
+		expect(downloadLink).toHaveAttribute("href", "blob:generated-zip")
+		expect(downloadLink).toHaveAttribute("download", "folder.zip")
+	})
+
 	it("calls onCopyLink without closing when copy link button is clicked", async () => {
 		render(<FileDownloadModal {...defaultProps} />)
 
-		const copyButton = screen.getByRole("button", { name: /复制链接/ })
+		const copyButton = screen.getByTestId("file-download-modal-copy-link-button")
 		fireEvent.click(copyButton)
 
 		await waitFor(() => {
@@ -114,7 +143,7 @@ describe("FileDownloadModal", () => {
 	it("applies optional desktop modal z-index to the dialog content", () => {
 		render(<FileDownloadModal {...defaultProps} modalZIndex={1300} />)
 
-		const dialogContent = document.querySelector('[data-slot="dialog-content"]')
+		const dialogContent = screen.getByTestId("file-download-modal")
 		expect(dialogContent).toHaveStyle({ zIndex: "1300" })
 	})
 
@@ -122,7 +151,7 @@ describe("FileDownloadModal", () => {
 		vi.useFakeTimers()
 		render(<FileDownloadModal {...defaultProps} />)
 
-		const [closeButton] = screen.getAllByRole("button", { name: "Close" })
+		const closeButton = screen.getByTestId("file-download-modal-close-button")
 		fireEvent.click(closeButton)
 		fireEvent.click(closeButton)
 		await vi.advanceTimersByTimeAsync(200)

@@ -1,5 +1,6 @@
 import { observer } from "mobx-react-lite"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
+import { HostConversationProvider } from "@/pages/superMagic/contexts/HostConversationContext"
 import { ChatProjectMessagePanel } from "./ChatProjectMessagePanel"
 import { useConversationFeedbackSheet } from "@/pages/superMagicMobile/hooks/useConversationFeedbackSheet"
 import { MobileSettingsFeedbackSheet } from "@/layouts/BaseLayoutMobile/components/MobileSettings/components/FeedbackSheet"
@@ -64,7 +65,7 @@ function ChatProjectDetailLayoutComponent() {
 	})
 
 	return (
-		<>
+		<HostConversationProvider selectedProject={selectedProject} topicStore={topicStore}>
 			<div
 				className="flex h-full min-h-0 w-full flex-col bg-mobile-background"
 				data-testid="chat-project-detail-layout"
@@ -98,7 +99,7 @@ function ChatProjectDetailLayoutComponent() {
 				projectId={selectedProject?.id}
 				refreshAttachments={refreshProjectAttachments}
 			/>
-		</>
+		</HostConversationProvider>
 	)
 }
 

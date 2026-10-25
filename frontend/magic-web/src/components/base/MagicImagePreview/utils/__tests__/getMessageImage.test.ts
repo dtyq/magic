@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { describe, expect, it } from "vitest"
 import { collectMarkdownImages, collectRichTextNodes } from "../getMessageImage"
 

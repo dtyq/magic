@@ -3,6 +3,7 @@ import type { DesignData } from "../../types"
 import {
 	buildDesignDraftKey,
 	deleteDesignDraft,
+	deleteDesignDraftIfMatches,
 	readDesignDraft,
 	writeDesignDraft,
 	type DesignDraftIdentity,
@@ -76,10 +77,37 @@ describe("designDraftStorage fallback", () => {
 		expect(await writePromise).toEqual({ target: "localStorage", durable: true })
 	})
 
+	it("does not retain an emergency heap copy after localStorage succeeds", async () => {
+		vi.stubGlobal("indexedDB", undefined)
+
+		await writeDesignDraft(draftInput("pagehide-durable", 225, "pagehide"), {
+			emergency: true,
+		})
+		localStorage.removeItem(`MAGIC:supermagic-design:draft:${buildDesignDraftKey(identity)}`)
+
+		expect(await readDesignDraft(identity)).toBeNull()
+	})
+
+	it("keeps the in-memory emergency fallback when durable storage is unavailable", async () => {
+		vi.stubGlobal("indexedDB", undefined)
+		const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new Error("quota exceeded")
+		})
+
+		const result = await writeDesignDraft(draftInput("pagehide-memory", 230, "pagehide"), {
+			emergency: true,
+		})
+		setItemSpy.mockRestore()
+
+		expect(result).toEqual({ target: "memory", durable: false })
+		expect((await readDesignDraft(identity))?.designData.name).toBe("pagehide-memory")
+	})
+
 	it("strips base remote data when emergency localStorage draft is too large", async () => {
 		vi.stubGlobal("indexedDB", undefined)
 		const originalSetItem = Storage.prototype.setItem
 		vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItemFallback(
+			this: Storage,
 			key,
 			value,
 		) {
@@ -128,5 +156,22 @@ describe("designDraftStorage fallback", () => {
 		})
 
 		expect(result).toEqual({ target: "none", durable: false })
+	})
+
+	it("keeps a newer draft when an older save response is acknowledged", async () => {
+		await writeDesignDraft(draftInput("saved", 500))
+		await writeDesignDraft(draftInput("newer", 600))
+
+		await deleteDesignDraftIfMatches(identity, "local-fp-saved")
+
+		expect((await readDesignDraft(identity))?.designData.name).toBe("newer")
+	})
+
+	it("clears the acknowledged draft when no newer revision exists", async () => {
+		await writeDesignDraft(draftInput("saved", 500))
+
+		await deleteDesignDraftIfMatches(identity, "local-fp-saved")
+
+		expect(await readDesignDraft(identity)).toBeNull()
 	})
 })

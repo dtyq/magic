@@ -2,7 +2,11 @@ import { animate as animateMotion, useMotionValue, useTransform } from "framer-m
 import { useEffect, useRef, useState } from "react"
 import type { OptionItem } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import { SLIDES_TEMPLATE_CANVAS_STEP_Y, type TemplateCanvasItem } from "./canvasLayout"
-import { EAGER_TEMPLATE_COVER_COUNT, type SlidesTemplateCanvasTile } from "./canvasInteraction"
+import {
+	EAGER_TEMPLATE_COVER_COUNT,
+	getTemplateKey,
+	type SlidesTemplateCanvasTile,
+} from "./canvasInteraction"
 import SlidesTemplateCanvasTileItem from "./SlidesTemplateCanvasTileItem"
 import type { SlidesTemplateCanvasIdleLoop } from "./canvasIdleLoop"
 import { resolveSlidesTemplateCanvasLoopItems } from "./canvasIdleLoop"
@@ -14,6 +18,7 @@ export interface SlidesTemplateCanvasColumnItem {
 
 interface SlidesTemplateCanvasLoopColumnProps {
 	allItems: Array<TemplateCanvasItem<SlidesTemplateCanvasTile>>
+	favoritePendingCodes?: ReadonlySet<string>
 	focusedAnchorTileId: string
 	idleLoop: SlidesTemplateCanvasIdleLoop | null
 	isCanvasFocusSettling: boolean
@@ -22,6 +27,8 @@ interface SlidesTemplateCanvasLoopColumnProps {
 	keepIdleLoopMountedWhenPaused?: boolean
 	items: SlidesTemplateCanvasColumnItem[]
 	onFindSimilarColors?: (template: OptionItem) => void
+	onFavoriteToggle?: (template: OptionItem) => void
+	onOpenProject?: (template: OptionItem) => void
 	onPreviewClick: (anchorTileId: string, tile: SlidesTemplateCanvasTile) => void
 	onPreviewIntent?: (template: OptionItem) => void
 	onTemplateSelect: (template: OptionItem) => void
@@ -32,6 +39,7 @@ interface SlidesTemplateCanvasLoopColumnProps {
 
 export default function SlidesTemplateCanvasLoopColumn({
 	allItems,
+	favoritePendingCodes,
 	focusedAnchorTileId,
 	idleLoop,
 	isCanvasFocusSettling,
@@ -40,6 +48,8 @@ export default function SlidesTemplateCanvasLoopColumn({
 	keepIdleLoopMountedWhenPaused = true,
 	items,
 	onFindSimilarColors,
+	onFavoriteToggle,
+	onOpenProject,
 	onPreviewClick,
 	onPreviewIntent,
 	onTemplateSelect,
@@ -176,11 +186,14 @@ export default function SlidesTemplateCanvasLoopColumn({
 				size={size}
 				imageLoading={visibleIndex < EAGER_TEMPLATE_COVER_COUNT ? "eager" : "lazy"}
 				focusedAnchorTileId={focusedAnchorTileId}
+				favoritePending={favoritePendingCodes?.has(getTemplateKey(tile.template))}
 				isCanvasFocusSettling={isCanvasFocusSettling}
 				isCanvasMoving={isCanvasMoving}
 				loopState={loopState}
 				selectedTemplateValue={selectedTemplateValue}
 				onFindSimilarColors={onFindSimilarColors}
+				onFavoriteToggle={onFavoriteToggle}
+				onOpenProject={onOpenProject}
 				onTemplateSelect={onTemplateSelect}
 				onPreviewIntent={onPreviewIntent}
 				onPreviewClick={onPreviewClick}

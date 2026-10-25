@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import MagicDatePicker from "@/components/base/MagicDatePicker"
 import MagicModal from "@/components/base/MagicModal"
 import MagicTimePicker from "@/components/base/MagicTimePicker"
@@ -36,12 +36,16 @@ import {
 	type ClawCronTaskDraft,
 	type ClawCronTaskRecord,
 	createClawCronJobId,
+	getClawCronNextRuns,
 	getDefaultClawCronRecurringCycle,
 	getDefaultClawCronScheduleType,
 	getDefaultClawCronTimezone,
 	intervalPartsToMs,
+	isValidClawCronExpression,
+	resolveCronExpression,
 	toClawCronIsoString,
 } from "./claw-cron-task-file"
+import { ClawRecurringScheduleFields } from "./ClawRecurringScheduleFields"
 
 interface ClawScheduledTaskModalProps {
 	open: boolean
@@ -129,25 +133,9 @@ function getMinimumTimeConfig(minTimeValue?: string) {
 	})
 }
 
-function getFirstRecurringExecution(params: {
-	startDate: string
-	startTime: string
-	recurringCycle: ClawCronRecurringCycle
-	recurringTime: string
-}) {
-	const { startDate, startTime, recurringCycle, recurringTime } = params
-	const startAt = createDateTimeValue(startDate, startTime)
-	if (!startAt.isValid()) return null
-
-	const recurringDate = createDateTimeValue(startDate, recurringTime)
-	if (!recurringDate.isValid()) return null
-
-	if (recurringCycle === CLAW_CRON_RECURRING_CYCLE.Daily) {
-		if (recurringDate.isBefore(startAt)) return recurringDate.add(1, "day")
-		return recurringDate
-	}
-
-	return recurringDate
+function isSameCronText(left: string, right?: string | null) {
+	if (!right) return false
+	return left.trim().split(/\s+/).join(" ") === right.trim().split(/\s+/).join(" ")
 }
 
 interface DateTimeFieldsProps {
@@ -255,6 +243,9 @@ export function ClawScheduledTaskModal({
 		getDefaultClawCronRecurringCycle(),
 	)
 	const [recurringTime, setRecurringTime] = useState(getDefaultStartDateTime().format("HH:mm"))
+	const [recurringWeekdays, setRecurringWeekdays] = useState<number[]>([])
+	const [recurringMonthDays, setRecurringMonthDays] = useState<number[]>([])
+	const [recurringExpr, setRecurringExpr] = useState("")
 	const [isEndTimeEnabled, setIsEndTimeEnabled] = useState(false)
 	const [endDate, setEndDate] = useState(getDefaultEndDateTime().format("YYYY-MM-DD"))
 	const [endTime, setEndTime] = useState(getDefaultEndDateTime().format("HH:mm"))
@@ -298,6 +289,48 @@ export function ClawScheduledTaskModal({
 	const minimumStartDate = minimumStartAt.format("YYYY-MM-DD")
 	const minimumStartTime =
 		startDate === minimumStartDate ? minimumStartAt.format("HH:mm") : undefined
+	const browserTimezone = getDefaultClawCronTimezone()
+	// An existing cron task keeps its own time zone; rewriting it with the browser zone
+	// would silently move every run for users in another region.
+	const recurringTimezone =
+		initialTask?.scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring
+			? initialTask.timezone
+			: browserTimezone
+	const recurringSourceExpr =
+		initialTask?.scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring
+			? initialTask.recurringSourceExpr || null
+			: null
+	const recurringExpression = resolveCronExpression(
+		{
+			cycle: recurringCycle,
+			time: recurringTime,
+			weekdays: recurringWeekdays,
+			monthDays: recurringMonthDays,
+			expr: recurringExpr,
+		},
+		recurringSourceExpr,
+	)
+	const recurringStartAt = createDateTimeValue(startDate, startTime)
+	const recurringStartAtIso = recurringStartAt.isValid() ? recurringStartAt.toISOString() : null
+	const recurringRuns = useMemo(() => {
+		if (scheduleType !== CLAW_CRON_SCHEDULE_TYPE.Recurring || !recurringStartAtIso) return null
+		return getClawCronNextRuns({
+			expr: recurringExpression,
+			timezone: recurringTimezone,
+			startAt: recurringStartAtIso,
+			count: 3,
+		})
+	}, [recurringExpression, recurringStartAtIso, recurringTimezone, scheduleType])
+	// A custom expression read from the file stays savable even when croner cannot evaluate it
+	// (for example six-field expressions), because the backend scheduler is the source of truth.
+	const isRecurringExprUntouched = isSameCronText(recurringExpression, recurringSourceExpr)
+	const recurringExprError =
+		recurringCycle === CLAW_CRON_RECURRING_CYCLE.Custom &&
+		recurringExpr.trim() &&
+		!isRecurringExprUntouched &&
+		!isValidClawCronExpression(recurringExpr, recurringTimezone)
+			? t("accountPanel.timedTasks.clawCronExpressionInvalid")
+			: ""
 	const previewExecutionTimes = useMemo(() => {
 		if (!startDate || !startTime) return []
 
@@ -319,22 +352,11 @@ export function ClawScheduledTaskModal({
 			)
 		}
 
-		const firstRecurringExecution = getFirstRecurringExecution({
-			startDate,
-			startTime,
-			recurringCycle,
-			recurringTime,
-		})
-		if (!firstRecurringExecution?.isValid()) return []
-
-		if (recurringCycle === CLAW_CRON_RECURRING_CYCLE.Daily) {
-			return [0, 1, 2].map((step) =>
-				formatPreviewTime(firstRecurringExecution.add(step, "day")),
-			)
-		}
-
-		return [formatPreviewTime(firstRecurringExecution)]
-	}, [interval, recurringCycle, recurringTime, scheduleType, startDate, startTime])
+		// Cron runs are shown in the task time zone so they line up with the picked clock time.
+		return (recurringRuns || []).map((run) =>
+			dayjs(run).tz(recurringTimezone).format(previewTimeFormat),
+		)
+	}, [interval, recurringRuns, recurringTimezone, scheduleType, startDate, startTime])
 
 	useEffect(() => {
 		return () => {
@@ -373,6 +395,18 @@ export function ClawScheduledTaskModal({
 			setRecurringTime(
 				normalizeMinutePrecisionTime(initialTask?.recurringTime || startAt.format("HH:mm")),
 			)
+			// Weekly / monthly default to the start day so switching cycles never starts empty.
+			setRecurringWeekdays(
+				initialTask?.recurringWeekdays?.length
+					? initialTask.recurringWeekdays
+					: [startAt.day()],
+			)
+			setRecurringMonthDays(
+				initialTask?.recurringMonthDays?.length
+					? initialTask.recurringMonthDays
+					: [startAt.date()],
+			)
+			setRecurringExpr(initialTask?.recurringExpr || "")
 
 			const endAt = initialTask?.endAt ? dayjs(initialTask.endAt) : defaultEndAt
 			setEndDate(endAt.format("YYYY-MM-DD"))
@@ -441,12 +475,7 @@ export function ClawScheduledTaskModal({
 		const nextIntervalMs = intervalPartsToMs(interval)
 		const nextStartAt = createDateTimeValue(startDate, startTime)
 		const nextEndAt = createDateTimeValue(endDate, endTime)
-		const nextRecurringFirstExecution = getFirstRecurringExecution({
-			startDate,
-			startTime,
-			recurringCycle,
-			recurringTime,
-		})
+		const nextRecurringFirstRun = recurringRuns?.[0] ? dayjs(recurringRuns[0]) : null
 		const nextNameError = taskName.trim()
 			? ""
 			: t("accountPanel.timedTasks.pleaseInputName", {
@@ -491,17 +520,30 @@ export function ClawScheduledTaskModal({
 			return
 		}
 
-		if (
-			scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring &&
-			!nextRecurringFirstExecution?.isValid()
-		) {
-			magicToast.error(t("accountPanel.timedTasks.planRequired"))
-			return
+		if (scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring) {
+			if (recurringCycle === CLAW_CRON_RECURRING_CYCLE.Weekly && !recurringWeekdays.length) {
+				magicToast.error(t("accountPanel.timedTasks.clawWeekdaysRequired"))
+				return
+			}
+
+			if (
+				recurringCycle === CLAW_CRON_RECURRING_CYCLE.Monthly &&
+				!recurringMonthDays.length
+			) {
+				magicToast.error(t("accountPanel.timedTasks.clawMonthDaysRequired"))
+				return
+			}
+
+			if (!nextRecurringFirstRun && !isRecurringExprUntouched) {
+				magicToast.error(t("accountPanel.timedTasks.clawCronExpressionInvalid"))
+				return
+			}
 		}
 
+		// Unpreviewable cron kept from the file has no computed first run; compare with start time.
 		const endTimeCompareTarget =
 			scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring
-				? nextRecurringFirstExecution
+				? nextRecurringFirstRun || nextStartAt
 				: nextStartAt
 		if (
 			scheduleType !== CLAW_CRON_SCHEDULE_TYPE.OneTime &&
@@ -520,14 +562,26 @@ export function ClawScheduledTaskModal({
 				taskName: taskName.trim(),
 				prompt,
 				enabled: isEnabled,
-				timezone: getDefaultClawCronTimezone(),
+				timezone:
+					scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring
+						? recurringTimezone
+						: getDefaultClawCronTimezone(),
 				scheduleType,
 				startAt: toClawCronIsoString(nextStartAt),
 				interval: scheduleType === CLAW_CRON_SCHEDULE_TYPE.IntervalLoop ? interval : null,
-				recurringCycle:
-					scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring ? recurringCycle : null,
-				recurringTime:
-					scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring ? recurringTime : null,
+				...(scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring
+					? {
+							recurringCycle,
+							recurringTime,
+							recurringWeekdays,
+							recurringMonthDays,
+							recurringExpr,
+							recurringSourceExpr,
+						}
+					: {
+							recurringCycle: null,
+							recurringTime: null,
+						}),
 				endAt:
 					scheduleType !== CLAW_CRON_SCHEDULE_TYPE.OneTime && isEndTimeEnabled
 						? toClawCronIsoString(nextEndAt)
@@ -549,6 +603,16 @@ export function ClawScheduledTaskModal({
 			setIsSubmitting(false)
 		}
 	})
+
+	function handleRecurringCycleChange(nextCycle: ClawCronRecurringCycle) {
+		// Switching to custom starts from the schedule currently shown instead of an empty input.
+		if (
+			nextCycle === CLAW_CRON_RECURRING_CYCLE.Custom &&
+			recurringCycle !== CLAW_CRON_RECURRING_CYCLE.Custom
+		)
+			setRecurringExpr(recurringExpression)
+		setRecurringCycle(nextCycle)
+	}
 
 	function handleIntervalChange(key: keyof ClawCronIntervalParts, value: string) {
 		const parsedValue = Number(value.replace(/[^\d]/g, ""))
@@ -772,56 +836,30 @@ export function ClawScheduledTaskModal({
 														"accountPanel.timedTasks.scheduleCycleLabel",
 													)}
 												</div>
-												<div className="flex gap-2">
-													<Select
-														value={recurringCycle}
-														onValueChange={(value) =>
-															setRecurringCycle(
-																value as ClawCronRecurringCycle,
-															)
-														}
-													>
-														<SelectTrigger
-															className="h-9 flex-1"
-															data-testid="claw-scheduled-task-recurring-cycle-select"
-														>
-															<SelectValue />
-														</SelectTrigger>
-														<SelectContent>
-															<SelectItem
-																value={
-																	CLAW_CRON_RECURRING_CYCLE.Daily
-																}
-															>
-																{t(
-																	"accountPanel.timedTasks.dailyCycleLabel",
-																)}
-															</SelectItem>
-														</SelectContent>
-													</Select>
-													<div
-														className="flex-1"
-														data-testid="claw-scheduled-task-recurring-time-input"
-													>
-														<MagicTimePicker
-															classNames={pickerClassNames}
-															value={
-																getPickerTimeValue(recurringTime) ||
-																undefined
-															}
-															onChange={(time) => {
-																if (!time) return
-																setRecurringTime(
-																	time.format("HH:mm"),
-																)
-															}}
-															format="HH:mm"
-															needConfirm={false}
-															changeOnScroll={true}
-															className="w-full"
-														/>
+												<ClawRecurringScheduleFields
+													cycle={recurringCycle}
+													time={recurringTime}
+													weekdays={recurringWeekdays}
+													monthDays={recurringMonthDays}
+													expr={recurringExpr}
+													exprError={recurringExprError}
+													timePickerClassNames={pickerClassNames}
+													onCycleChange={handleRecurringCycleChange}
+													onTimeChange={setRecurringTime}
+													onWeekdaysChange={setRecurringWeekdays}
+													onMonthDaysChange={setRecurringMonthDays}
+													onExprChange={setRecurringExpr}
+												/>
+												{recurringTimezone !== browserTimezone ? (
+													<div className={helperTextClassName}>
+														{t(
+															"accountPanel.timedTasks.clawTimezoneHint",
+															{
+																timezone: recurringTimezone,
+															},
+														)}
 													</div>
-												</div>
+												) : null}
 											</div>
 										</>
 									) : null}
@@ -902,12 +940,42 @@ export function ClawScheduledTaskModal({
 														<div>...</div>
 													) : null}
 												</>
+											) : scheduleType ===
+													CLAW_CRON_SCHEDULE_TYPE.Recurring &&
+											  isRecurringExprUntouched ? (
+												<>
+													<div>
+														{t(
+															"accountPanel.timedTasks.clawCronPreviewCycle",
+															{
+																cycle: t(
+																	"accountPanel.timedTasks.clawRecurringCustom",
+																),
+															},
+														)}
+													</div>
+													<div className="break-all">
+														{t(
+															"accountPanel.timedTasks.clawCronPreviewExpression",
+															{
+																expr: recurringExpression,
+															},
+														)}
+													</div>
+												</>
 											) : (
 												<div>
 													{t("accountPanel.timedTasks.planRequired")}
 												</div>
 											)}
 										</div>
+										{scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring ? (
+											<div className="mt-1.5 text-xs text-muted-foreground">
+												{t(
+													"accountPanel.timedTasks.clawStartAtReferenceHint",
+												)}
+											</div>
+										) : null}
 									</div>
 								</div>
 							</div>

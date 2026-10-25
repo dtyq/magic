@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import type { ShareScopeInfo } from "@/pages/superMagic/components/ShareManagement/types"
 import { formatOrganizationShareScopeSummary } from "@/pages/superMagic/components/ShareManagement/utils/shareScopeSummary"

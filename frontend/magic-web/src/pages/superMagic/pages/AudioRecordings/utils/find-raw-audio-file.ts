@@ -1,7 +1,18 @@
 import type { AudioAttachmentNode } from "./find-audio-entry-file"
 
 /** Audio extensions supported by Detail AudioPreview (aligned with getFileType) */
-const RAW_AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg", "m4a", "aac", "flac"])
+/** Lists browser-playable source formats used by imported recordings. */
+const RAW_AUDIO_EXTENSIONS = new Set([
+	"raw",
+	"mp3",
+	"wav",
+	"ogg",
+	"webm",
+	"m4a",
+	"aac",
+	"flac",
+	"opus",
+])
 
 /** Returns true when the attachment node is a visible, playable audio file */
 function isPlayableRawAudioFile(item: AudioAttachmentNode): boolean {

@@ -691,6 +691,28 @@ class LocalStorage(AbstractStorage, BaseFileProcessor):
             return False
 
     @with_refreshed_credentials
+    async def delete(
+        self,
+        key: str,
+        options: Optional[Options] = None
+    ) -> bool:
+        """
+        异步删除本地存储上的指定文件。
+
+        本地存储平台为开发环境代理，不提供删除能力，直接降级为成功不删除。
+        调用方不应依赖删除结果，删除失败不影响主流程。
+
+        Args:
+            key: 文件名/路径
+            options: 可选配置
+
+        Returns:
+            bool: 恒为True，本地平台删除为空操作
+        """
+        logger.warning(f"本地存储平台不支持删除，跳过: {key}")
+        return True
+
+    @with_refreshed_credentials
     async def generate_presigned_url(
         self,
         key: str,

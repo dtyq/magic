@@ -283,10 +283,88 @@ describe("ImageManager", () => {
 		)
 		expect(insertedImage).toBeInstanceOf(HTMLImageElement)
 		expect(insertedImage?.getAttribute("src")).toBe("data:image/png;base64,inserted")
+		expect(insertedImage?.hasAttribute("data-magic-source-node")).toBe(true)
 		expect((insertedImage as HTMLImageElement).style.position).toBe("absolute")
 		expect((insertedImage as HTMLImageElement).style.width).toBe("240px")
 		expect(commandHistory.getUndoStackSize()).toBe(1)
 		expect(mockElementSelector.selectElement).toHaveBeenCalledWith(insertedImage)
+	})
+
+	it("should size inserted document images to their parent width", async () => {
+		container.innerHTML = `<section id="image-parent"><p>Content</p></section>`
+
+		const runPromise = imageManager.runImageAction({
+			action: "insert-image-node",
+			parentSelector: "#image-parent",
+		})
+		const [messagePayload] = postMessageSpy.mock.calls[0] as [
+			{ type: string; data: ImageUploadRequestPayload },
+			string,
+		]
+
+		imageManager.handleUploadResult({
+			requestId: messagePayload.data.requestId,
+			action: "insert-image-node",
+			selector: "#image-parent",
+			success: true,
+			previewUrl: "data:image/png;base64,inserted",
+			relativeFilePath: "images/inserted.png",
+		})
+
+		await runPromise
+
+		const insertedImage = container.querySelector(
+			"img[data-original-path='images/inserted.png']",
+		) as HTMLImageElement | null
+		expect(insertedImage).toBeInstanceOf(HTMLImageElement)
+		expect(insertedImage?.style.width).toBe("100%")
+		expect(insertedImage?.style.height).toBe("auto")
+		expect(insertedImage?.style.maxWidth).toBe("100%")
+	})
+
+	it("should use the parent box width when the container is content-sized", async () => {
+		container.innerHTML = `<section id="image-parent" style="width: fit-content;"><p>Content</p></section>`
+		const parent = container.querySelector("#image-parent") as HTMLElement
+		Object.defineProperty(parent, "offsetWidth", {
+			configurable: true,
+			get() {
+				return parent.style.width === "100%" ? 800 : 180
+			},
+		})
+		Object.defineProperty(parent, "clientWidth", {
+			configurable: true,
+			get() {
+				return 180
+			},
+		})
+
+		const runPromise = imageManager.runImageAction({
+			action: "insert-image-node",
+			parentSelector: "#image-parent",
+		})
+		const [messagePayload] = postMessageSpy.mock.calls[0] as [
+			{ type: string; data: ImageUploadRequestPayload },
+			string,
+		]
+
+		imageManager.handleUploadResult({
+			requestId: messagePayload.data.requestId,
+			action: "insert-image-node",
+			selector: "#image-parent",
+			success: true,
+			previewUrl: "data:image/png;base64,inserted",
+			relativeFilePath: "images/inserted.png",
+		})
+
+		await runPromise
+
+		const insertedImage = container.querySelector(
+			"img[data-original-path='images/inserted.png']",
+		) as HTMLImageElement | null
+		expect(insertedImage).toBeInstanceOf(HTMLImageElement)
+		expect(insertedImage?.style.width).toBe("180px")
+		expect(insertedImage?.style.height).toBe("auto")
+		expect(insertedImage?.style.maxWidth).toBe("100%")
 	})
 
 	it("should support undo and redo for inserted floating image", async () => {

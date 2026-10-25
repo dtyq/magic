@@ -1,5 +1,4 @@
-import type { HttpClient } from "@/apis/core/HttpClient"
-import { genRequestUrl } from "@/utils/http"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import type { QueryAudioProjectsParams, QueryAudioProjectsResponse } from "@/types/audioProject"
 import type { CreatedProject } from "@/pages/superMagic/pages/Workspace/types"
 
@@ -42,14 +41,14 @@ export interface ImportAudioProjectFilesResponse {
 }
 
 /** Builds REST helpers for PC audio recording project list queries */
-export const generateAudioProjectsApi = (fetch: HttpClient) => ({
+export const generateAudioProjectsApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * Query audio/summary projects for the recordings list page.
 	 * Endpoint: POST /api/v1/super-agent/audio-projects/queries
 	 */
 	queryAudioProjects(params: QueryAudioProjectsParams) {
 		return fetch.post<QueryAudioProjectsResponse>(
-			genRequestUrl("/api/v1/super-agent/audio-projects/queries"),
+			"/api/v1/super-agent/audio-projects/queries",
 			params,
 			// TODO: remove this config after backend handle it
 			{ parseJsonLargeIntAsString: true },
@@ -58,14 +57,12 @@ export const generateAudioProjectsApi = (fetch: HttpClient) => ({
 
 	/** Reads the number of audio projects without a workspace group */
 	getUngroupedAudioProjectsCount() {
-		return fetch.get<{ count: number }>(
-			genRequestUrl("/api/v1/super-agent/audio-projects/ungrouped/count"),
-		)
+		return fetch.get<{ count: number }>("/api/v1/super-agent/audio-projects/ungrouped/count")
 	},
 
 	/** Moves audio projects to another workspace group in one backend request */
 	batchMoveProjects(params: BatchMoveProjectsParams) {
-		return fetch.post<void>(genRequestUrl("/api/v1/super-agent/projects/batch-move"), params)
+		return fetch.post<void>("/api/v1/super-agent/projects/batch-move", params)
 	},
 
 	/**
@@ -73,16 +70,13 @@ export const generateAudioProjectsApi = (fetch: HttpClient) => ({
 	 * Endpoint: POST /api/v1/super-agent/audio-projects
 	 */
 	createAudioProject(params: CreateAudioProjectParams) {
-		return fetch.post<CreatedProject>(
-			genRequestUrl("/api/v1/super-agent/audio-projects"),
-			params,
-		)
+		return fetch.post<CreatedProject>("/api/v1/super-agent/audio-projects", params)
 	},
 
 	/** Imports uploaded raw audio objects into an audio project so backend can hydrate audio_file_id. */
 	importAudioProjectFiles(params: ImportAudioProjectFilesParams) {
 		return fetch.post<ImportAudioProjectFilesResponse>(
-			genRequestUrl("/api/v1/super-agent/audio-projects/import-files"),
+			"/api/v1/super-agent/audio-projects/import-files",
 			params,
 		)
 	},

@@ -4,6 +4,7 @@ import { getWidgetScriptOrigin } from "./scriptOrigin"
 import { buildWidgetIframeUrl, validateWidgetMountOptions } from "./url"
 import { WidgetBridge, createWidgetCommandError, createWidgetId } from "./bridge"
 import { mergeWidgetConfig, resolveInitialWidgetConfig } from "./config"
+import { isWidgetInputContent } from "./protocol"
 
 const ROOT_ATTRIBUTE = "data-magic-widget-root"
 const TRIGGER_ATTRIBUTE = "data-magic-widget-trigger"
@@ -199,6 +200,7 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 	>()
 	const toolCallSettledListeners = new Set<MagicWidget.RuntimeEventListener<"toolCall.settled">>()
 	const taskCompletedListeners = new Set<MagicWidget.RuntimeEventListener<"task.completed">>()
+	const configWarningListeners = new Set<MagicWidget.ConfigWarningEventListener>()
 
 	/** Notifies host subscribers whenever the current iframe editor becomes usable. */
 	const notifyAgentReady = () => {
@@ -239,6 +241,18 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 				listener(event)
 			} catch (error) {
 				console.error("Magic widget task.completed listener failed", error)
+			}
+		})
+	}
+
+	/** Surfaces one non-fatal config adjustment without allowing host listeners to stop rendering. */
+	const notifyConfigWarning = (warning: MagicWidget.ConfigWarning) => {
+		console.warn(`Magic widget: ${warning.message}`, warning.details)
+		configWarningListeners.forEach((listener) => {
+			try {
+				listener(warning)
+			} catch (error) {
+				console.error("Magic widget config.warning listener failed", error)
 			}
 		})
 	}
@@ -570,6 +584,7 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 				fallbackAppOrigin: appOrigin,
 				instanceId: instanceId ?? undefined,
 				hostOrigin: window.location.origin,
+				renderMode: inlineMode ? "inline" : "floating",
 			}).toString()
 		}
 		if (inlineMode) {
@@ -620,19 +635,27 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 		configUpdateQueue = Promise.resolve()
 	}
 
-	/** Validates public text commands before data crosses into the iframe. */
-	const normalizeCommandContent = (content: unknown): string => {
-		if (typeof content !== "string" || !content.trim()) {
+	/** Validates public command content before it crosses into the iframe. */
+	const normalizeCommandContent = (content: unknown): string | MagicWidget.InputContent => {
+		if (typeof content === "string") {
+			if (content.trim()) return content
 			throw createWidgetCommandError(
 				"INVALID_INPUT",
 				"Magic widget command content must be a non-empty string",
 			)
 		}
+		if (!isWidgetInputContent(content)) {
+			throw createWidgetCommandError(
+				"INVALID_INPUT",
+				"Magic widget command content must use valid text and mention blocks",
+			)
+		}
+
 		return content
 	}
 
-	/** Opens a floating widget when necessary and forwards one public text command. */
-	const sendTextCommand = async (
+	/** Opens a floating widget when necessary and forwards one public content command. */
+	const sendContentCommand = async (
 		command: "setInput" | "appendInput" | "sendMessage",
 		content: unknown,
 	): Promise<void> => {
@@ -646,7 +669,7 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 
 	/** Sends a command that does not carry text while preserving the shared readiness wait. */
 	const sendNoPayloadCommand = async (
-		command: "clearInput" | "getInput" | "newConversation",
+		command: "clearInput" | "getInput" | "sendMessage" | "newConversation",
 	): Promise<{ content?: string } | undefined> => {
 		if (!options || !bridge || !iframe) {
 			throw createWidgetCommandError("NOT_MOUNTED", "Magic widget must be mounted first")
@@ -661,6 +684,7 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 		listener:
 			| MagicWidget.AgentReadyEventListener
 			| MagicWidget.PreviewFullscreenEventListener
+			| MagicWidget.ConfigWarningEventListener
 			| MagicWidget.RuntimeEventListener<"message.stream.started">
 			| MagicWidget.RuntimeEventListener<"toolCall.settled">
 			| MagicWidget.RuntimeEventListener<"task.completed">,
@@ -680,6 +704,11 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 			// Replay the current preview state synchronously so hosts can apply layout before the next paint.
 			previewListener(previewFullscreen)
 			return () => previewFullscreenListeners.delete(previewListener)
+		}
+		if (event === "config.warning") {
+			const warningListener = listener as MagicWidget.ConfigWarningEventListener
+			configWarningListeners.add(warningListener)
+			return () => configWarningListeners.delete(warningListener)
 		}
 		if (event === "message.stream.started") {
 			const runtimeListener =
@@ -715,22 +744,28 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 				throw createWidgetCommandError("DESTROYED", "Magic widget was destroyed")
 			}
 
-			const nextConfig = mergeWidgetConfig(currentConfig, update)
+			let configWarning: MagicWidget.ConfigWarning | undefined
+			const nextConfig = mergeWidgetConfig(currentConfig, update, (warning) => {
+				configWarning = warning
+			})
 			currentConfig = nextConfig
 			options = { ...options, config: nextConfig }
 
 			// A closed or still-loading iframe consumes the latest snapshot from its initial URL or load sync.
 			if (!bridge.isIframeLoaded()) {
 				confirmedConfig = nextConfig
+				if (configWarning) notifyConfigWarning(configWarning)
 				return
 			}
 
 			try {
-				await bridge.sendConfig(nextConfig)
+				const providerWarning = await bridge.sendConfig(nextConfig)
 				if (lifecycleId !== updateLifecycleId) {
 					throw createWidgetCommandError("DESTROYED", "Magic widget was destroyed")
 				}
 				confirmedConfig = nextConfig
+				if (configWarning) notifyConfigWarning(configWarning)
+				if (providerWarning) notifyConfigWarning(providerWarning)
 			} catch (error) {
 				if (lifecycleId === updateLifecycleId && options) {
 					currentConfig = confirmedConfig
@@ -748,7 +783,10 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 	const mount = (nextOptions: MagicWidget.MountOptions) => {
 		requireDocument()
 		validateWidgetMountOptions(nextOptions)
-		const initialConfig = resolveInitialWidgetConfig(nextOptions.config)
+		let initialConfigWarning: MagicWidget.ConfigWarning | undefined
+		const initialConfig = resolveInitialWidgetConfig(nextOptions.config, (warning) => {
+			initialConfigWarning = warning
+		})
 		destroy()
 		if (
 			nextOptions.target &&
@@ -836,6 +874,7 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 
 		const closeButton = document.createElement("button")
 		closeButton.type = "button"
+		// window.closable only hides the iframe header button. This shell control stays in floating mode.
 		closeButton.className = "magic-widget-close"
 		closeButton.setAttribute("aria-label", "Close Magic")
 		closeButton.append(createCloseIcon())
@@ -870,7 +909,22 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 		else shadowRoot.append(style, modal)
 		// Mount the widget root directly into the host target; fullscreen layout is controlled by the host.
 		;(nextOptions.target ?? document.body).append(root)
-		bridge = new WidgetBridge(iframe, appOrigin, instanceId)
+		const configuredHeaderActions = nextOptions.headerActions ?? {}
+		const headerActions = {
+			...configuredHeaderActions,
+			// Dismiss first, then notify. A callback failure must not keep the widget open.
+			close: async (context: MagicWidget.HeaderActionContext) => {
+				close()
+				await configuredHeaderActions.close?.(context)
+			},
+		}
+		bridge = new WidgetBridge(
+			iframe,
+			appOrigin,
+			instanceId,
+			headerActions,
+			nextOptions.customMentionSearch,
+		)
 		bridge.onAgentReady(notifyAgentReady)
 		bridge.onPreviewFullscreenChange(setPreviewFullscreen)
 		bridge.onRuntimeEvent(notifyRuntimeEvent)
@@ -881,14 +935,16 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 			// The initial query covers first paint; the explicit handshake avoids racing the Provider listener.
 			void bridge
 				.sendConfig(snapshot)
-				.then(() => {
+				.then((providerWarning) => {
 					if (lifecycleId === loadLifecycleId && currentConfig === snapshot) {
 						confirmedConfig = snapshot
 					}
+					if (providerWarning) notifyConfigWarning(providerWarning)
 				})
 				.catch(() => undefined)
 		})
 		if (inlineMode) open()
+		if (initialConfigWarning) notifyConfigWarning(initialConfigWarning)
 	}
 
 	return {
@@ -897,8 +953,8 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 		close,
 		destroy,
 		on,
-		setInput: (content) => sendTextCommand("setInput", content),
-		appendInput: (content) => sendTextCommand("appendInput", content),
+		setInput: (content) => sendContentCommand("setInput", content),
+		appendInput: (content) => sendContentCommand("appendInput", content),
 		clearInput: async () => {
 			await sendNoPayloadCommand("clearInput")
 		},
@@ -912,7 +968,13 @@ export function createMagicWidgetController(): MagicWidget.Controller {
 			}
 			return result.content
 		},
-		sendMessage: (content) => sendTextCommand("sendMessage", content),
+		sendMessage: async (content) => {
+			if (content === undefined) {
+				await sendNoPayloadCommand("sendMessage")
+				return
+			}
+			await sendContentCommand("sendMessage", content)
+		},
 		newConversation: async () => {
 			await sendNoPayloadCommand("newConversation")
 		},

@@ -39,7 +39,16 @@ describe("MagicReloadApi", () => {
 		expect(typeof message.timestamp).toBe("number")
 		expect(message.timestamp).toBeGreaterThanOrEqual(before)
 		expect(message.timestamp).toBeLessThanOrEqual(after)
-		expect(origin).toBe("*")
+		expect(origin).toBe(window.location.origin)
+	})
+
+	it("调用 window.reload() 使用同一个宿主刷新桥接", () => {
+		api.install()
+		;(window as any).reload()
+
+		expect(postMessageSpy).toHaveBeenCalledOnce()
+		expect(postMessageSpy.mock.calls[0][0].type).toBe("MAGIC_RELOAD_REQUEST")
+		expect((window as any).reload).toBe((window as any).Magic.reload)
 	})
 
 	it("install() 幂等：多次调用不重复注册（reload 引用不变）", () => {

@@ -137,7 +137,9 @@ function isDefaultModeContextReady() {
 export function useDefaultModeModelListRefreshOnMount() {
 	useEffect(() => {
 		const fireForceRefresh = () => {
-			void superMagicModeService.fetchDefaultModeModelList({ force: true })
+			void superMagicModeService
+				.fetchDefaultModeModelList({ force: true })
+				.catch(() => undefined)
 		}
 
 		if (isDefaultModeContextReady()) {

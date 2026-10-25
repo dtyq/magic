@@ -1,6 +1,23 @@
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { GripVertical, Plus, Trash2 } from "lucide-react"
+import {
+	DndContext,
+	KeyboardSensor,
+	PointerSensor,
+	closestCenter,
+	useSensor,
+	useSensors,
+	type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+	SortableContext,
+	arrayMove,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import { Button } from "@/components/shadcn-ui/button"
 import { Switch } from "@/components/shadcn-ui/switch"
 import {
@@ -26,6 +43,17 @@ function genKey() {
 // Stable internal key for tracking identity, decoupled from editable `value`
 interface FormOptionItem extends OptionItem {
 	_key: string
+}
+
+export function reorderOptionItems<T extends { _key: string }>(
+	options: readonly T[],
+	activeKey: string,
+	overKey: string,
+): T[] {
+	const oldIndex = options.findIndex((option) => option._key === activeKey)
+	const newIndex = options.findIndex((option) => option._key === overKey)
+	if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return [...options]
+	return arrayMove([...options], oldIndex, newIndex)
 }
 
 interface PresetItemFormState {
@@ -100,6 +128,15 @@ export function PresetItemEditDialog({
 	const isEditing = !!item
 	const [form, setForm] = useState<PresetItemFormState>(EMPTY_FORM)
 	const [errors, setErrors] = useState<FormErrors>({})
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			// Keep clicks on inputs and controls intact; dragging starts after a short move.
+			activationConstraint: { distance: 8 },
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	)
 
 	useEffect(() => {
 		if (open) {
@@ -132,6 +169,15 @@ export function PresetItemEditDialog({
 
 	function handleSetDefault(optKey: string, isDefault: boolean) {
 		setForm((prev) => ({ ...prev, default_key: isDefault ? optKey : "" }))
+	}
+
+	function handleOptionDragEnd(event: DragEndEvent) {
+		const { active, over } = event
+		if (!over || active.id === over.id) return
+		setForm((prev) => ({
+			...prev,
+			options: reorderOptionItems(prev.options, String(active.id), String(over.id)),
+		}))
 	}
 
 	function handleLabelChange(v: LocaleText) {
@@ -220,53 +266,72 @@ export function PresetItemEditDialog({
 						</p>
 
 						{form.options.length > 0 && (
-							<table
-								className="w-full table-fixed border-separate border-spacing-x-0 border-spacing-y-2"
-								role="grid"
-								aria-label={t("playbook.edit.presets.form.optional")}
-								data-testid="preset-options-table"
+							<DndContext
+								sensors={sensors}
+								collisionDetection={closestCenter}
+								onDragEnd={handleOptionDragEnd}
 							>
-								<thead>
-									<tr data-testid="preset-item-edit-dialog-row">
-										<th className="w-[5rem] pb-2 text-left" scope="col" />
-										<th className="w-24 min-w-[6rem] text-left" scope="col">
-											<span className="text-xs text-muted-foreground">
-												{t("playbook.edit.presets.form.setAsDefault")}
-											</span>
-										</th>
-										<th className="min-w-[10rem] pr-2 text-left" scope="col">
-											<span className="text-xs text-muted-foreground">
-												{t("playbook.edit.presets.form.displayName")}
-											</span>
-										</th>
-										<th className="min-w-[10rem] pr-2 text-left" scope="col">
-											<span className="text-xs text-muted-foreground">
-												{t("playbook.edit.presets.form.presetValue")}
-											</span>
-										</th>
-										<th className="w-20 min-w-[5rem] text-left" scope="col">
-											<span className="text-xs text-muted-foreground">
-												{t("playbook.edit.presets.form.actions")}
-											</span>
-										</th>
-									</tr>
-								</thead>
-								<tbody>
-									{form.options.map((opt, idx) => (
-										<OptionRow
-											key={opt._key}
-											idx={idx}
-											option={opt}
-											isDefault={form.default_key === opt._key}
-											onUpdate={(patch) => handleUpdateOption(idx, patch)}
-											onDelete={() => handleDeleteOption(idx)}
-											onSetDefault={(isDefault) =>
-												handleSetDefault(opt._key, isDefault)
-											}
-										/>
-									))}
-								</tbody>
-							</table>
+								<table
+									className="w-full table-fixed border-separate border-spacing-x-0 border-spacing-y-2"
+									role="grid"
+									aria-label={t("playbook.edit.presets.form.optional")}
+									data-testid="preset-options-table"
+								>
+									<thead>
+										<tr data-testid="preset-item-edit-dialog-row">
+											<th className="w-[5rem] pb-2 text-left" scope="col" />
+											<th className="w-24 min-w-[6rem] text-left" scope="col">
+												<span className="text-xs text-muted-foreground">
+													{t("playbook.edit.presets.form.setAsDefault")}
+												</span>
+											</th>
+											<th
+												className="min-w-[10rem] pr-2 text-left"
+												scope="col"
+											>
+												<span className="text-xs text-muted-foreground">
+													{t("playbook.edit.presets.form.displayName")}
+												</span>
+											</th>
+											<th
+												className="min-w-[10rem] pr-2 text-left"
+												scope="col"
+											>
+												<span className="text-xs text-muted-foreground">
+													{t("playbook.edit.presets.form.presetValue")}
+												</span>
+											</th>
+											<th className="w-20 min-w-[5rem] text-left" scope="col">
+												<span className="text-xs text-muted-foreground">
+													{t("playbook.edit.presets.form.actions")}
+												</span>
+											</th>
+										</tr>
+									</thead>
+									<SortableContext
+										items={form.options.map((option) => option._key)}
+										strategy={verticalListSortingStrategy}
+									>
+										<tbody>
+											{form.options.map((opt, idx) => (
+												<OptionRow
+													key={opt._key}
+													idx={idx}
+													option={opt}
+													isDefault={form.default_key === opt._key}
+													onUpdate={(patch) =>
+														handleUpdateOption(idx, patch)
+													}
+													onDelete={() => handleDeleteOption(idx)}
+													onSetDefault={(isDefault) =>
+														handleSetDefault(opt._key, isDefault)
+													}
+												/>
+											))}
+										</tbody>
+									</SortableContext>
+								</table>
+							</DndContext>
 						)}
 
 						<button
@@ -353,17 +418,40 @@ interface OptionRowProps {
 
 function OptionRow({ idx, option, isDefault, onUpdate, onDelete, onSetDefault }: OptionRowProps) {
 	const { t } = useTranslation("crew/create")
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		setActivatorNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: option._key })
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+	}
+	const dragLabel = t("playbook.edit.presets.form.optionLabel", { number: idx + 1 })
+
 	return (
-		<tr className="align-top" data-testid={`preset-option-row-${option._key}`}>
+		<tr
+			ref={setNodeRef}
+			style={style}
+			className={`align-top ${isDragging ? "relative z-10 opacity-50" : ""}`}
+			data-testid={`preset-option-row-${option._key}`}
+		>
 			<td className="w-[5rem] pr-2 align-middle">
 				<button
+					ref={setActivatorNodeRef}
 					type="button"
 					className="flex cursor-grab touch-none items-center gap-1 text-muted-foreground active:cursor-grabbing"
-					aria-hidden="true"
-					data-testid="preset-option-drag-handle-button"
+					aria-label={dragLabel}
+					data-testid={`preset-option-drag-handle-button-${option._key}`}
+					{...attributes}
+					{...listeners}
 				>
 					<GripVertical className="h-4 w-4" />
-					{t("playbook.edit.presets.form.optionLabel", { number: idx + 1 })}
+					{dragLabel}
 				</button>
 			</td>
 			<td className="w-24 min-w-[6rem] pr-2 align-middle">

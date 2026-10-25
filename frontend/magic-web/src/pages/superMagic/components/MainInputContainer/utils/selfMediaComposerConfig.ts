@@ -1,20 +1,22 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import type { SelfMediaPlatform } from "@/pages/superMagic/components/Detail/types"
 import {
 	getDefaultCardCount,
 	getVisualPresetsForPlatform,
 } from "@/pages/superMagic/components/Detail/components/SelfMediaRootRender/components/SelfMediaInitPanel/types"
 import { ScenePanelVariant } from "../components/LazyScenePanel/types"
+import { SPECIALIZED_COMPOSER_MIN_INPUT_HEIGHT } from "../../ConversationInputResize/constants"
 
 export const SELF_MEDIA_COMPOSER_TOPIC_PATTERN = "ip-manager"
+/** Reserve enough vertical space for the editor and the self-media configuration trigger. */
+export const SELF_MEDIA_COMPOSER_MIN_INPUT_HEIGHT = SPECIALIZED_COMPOSER_MIN_INPUT_HEIGHT
 export const SELF_MEDIA_CARD_COUNT_PRESETS = [3, 6, 9, 12] as const
 export const SELF_MEDIA_CUSTOM_CARD_COUNT = "custom"
 export const SELF_MEDIA_CARD_COUNT_MIN = 1
 export const SELF_MEDIA_CARD_COUNT_MAX = 20
 
 export type SelfMediaCardCountMode =
-	| `${(typeof SELF_MEDIA_CARD_COUNT_PRESETS)[number]}`
-	| typeof SELF_MEDIA_CUSTOM_CARD_COUNT
+	`${(typeof SELF_MEDIA_CARD_COUNT_PRESETS)[number]}` | typeof SELF_MEDIA_CUSTOM_CARD_COUNT
 
 export interface SelfMediaComposerConfigValue {
 	platform?: SelfMediaPlatform

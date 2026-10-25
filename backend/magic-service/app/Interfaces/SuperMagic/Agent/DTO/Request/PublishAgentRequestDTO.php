@@ -9,6 +9,7 @@ namespace App\Interfaces\SuperMagic\Agent\DTO\Request;
 
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublishTargetValue;
 use App\Infrastructure\Core\AbstractRequestDTO;
+use App\Infrastructure\Util\VersionUtil;
 use Hyperf\Validation\Rule;
 
 use function Hyperf\Translation\__;
@@ -22,8 +23,6 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
     public string $publishTargetType = 'PRIVATE';
 
     public ?array $publishTargetValue = null;
-
-    public ?int $categoryId = null;
 
     /** @var null|array<int, null|int|string> */
     public ?array $categoryIds = null;
@@ -48,11 +47,6 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
         return $this->publishTargetValue;
     }
 
-    public function getCategoryId(): ?int
-    {
-        return $this->categoryId;
-    }
-
     /** @return int[] */
     public function getCategoryIds(): array
     {
@@ -60,23 +54,12 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
             return $this->normalizeCategoryIds($this->categoryIds);
         }
 
-        return $this->categoryId === null ? [] : [$this->categoryId];
-    }
-
-    public function getPrimaryCategoryId(): ?int
-    {
-        return $this->getCategoryIds()[0] ?? null;
-    }
-
-    public function setCategoryId(null|int|string $categoryId): void
-    {
-        $this->categoryId = $categoryId === null ? null : (int) $categoryId;
+        return [];
     }
 
     public function setCategoryIds(?array $categoryIds): void
     {
         $this->categoryIds = $categoryIds;
-        $this->categoryId = $this->getPrimaryCategoryId();
     }
 
     public function toPublishTargetValue(): ?PublishTargetValue
@@ -103,7 +86,7 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'version' => 'required|string|max:32',
+            'version' => ['required', 'string', 'max:32', VersionUtil::getValidationRule()],
             'version_description_i18n' => 'required|array',
             'version_description_i18n.zh_CN' => 'nullable|string|max:1000',
             'version_description_i18n.en_US' => 'nullable|string|max:1000',
@@ -113,7 +96,6 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
             'publish_target_value.user_ids.*' => 'string|max:64',
             'publish_target_value.department_ids' => 'nullable|array',
             'publish_target_value.department_ids.*' => 'string|max:64',
-            'category_id' => 'exclude_unless:publish_target_type,MARKET|nullable|integer|min:1',
             'category_ids' => 'exclude_unless:publish_target_type,MARKET|nullable|array|max:100',
             'category_ids.*' => 'integer|min:1',
         ];
@@ -125,6 +107,7 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
             'version.required' => __('common.parameter_required', ['label' => 'version']),
             'version.string' => __('validation.string', ['attribute' => 'version']),
             'version.max' => __('validation.max.string', ['attribute' => 'version', 'max' => 32]),
+            'version.regex' => __('super_magic.agent.invalid_version_format'),
             'version_description_i18n.required' => __('common.parameter_required', ['label' => 'version_description_i18n']),
             'version_description_i18n.array' => __('validation.array', ['attribute' => 'version_description_i18n']),
             'version_description_i18n.zh_CN.string' => __('validation.string', ['attribute' => 'version_description_i18n.zh_CN']),
@@ -141,8 +124,6 @@ class PublishAgentRequestDTO extends AbstractRequestDTO
             'publish_target_value.department_ids.array' => __('validation.array', ['attribute' => 'publish_target_value.department_ids']),
             'publish_target_value.department_ids.*.string' => __('validation.string', ['attribute' => 'publish_target_value.department_ids']),
             'publish_target_value.department_ids.*.max' => __('validation.max.string', ['attribute' => 'publish_target_value.department_ids', 'max' => 64]),
-            'category_id.integer' => __('super_magic.agent.category_id_must_be_integer'),
-            'category_id.min' => __('super_magic.agent.category_id_must_be_greater_than_zero'),
             'category_ids.array' => __('validation.array', ['attribute' => 'category_ids']),
             'category_ids.max' => __('validation.max.array', ['attribute' => 'category_ids', 'max' => 100]),
             'category_ids.*.integer' => __('super_magic.agent.category_id_must_be_integer'),

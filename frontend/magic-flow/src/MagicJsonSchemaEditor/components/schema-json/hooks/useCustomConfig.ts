@@ -6,7 +6,7 @@ import React, { useContext, useMemo } from 'react'
 import { getDefaultBooleanConstantSource } from '../schema-item/constants'
 import { useGlobal } from '@/MagicJsonSchemaEditor/context/GlobalContext/useGlobal'
 import { EditorContext } from '../../editor'
-import _ from 'lodash'
+import { get, has } from 'lodash-es'
 import { SchemaValueSplitor } from '@/MagicJsonSchemaEditor/constants'
 
 type CustomConfigProps = {
@@ -35,28 +35,28 @@ export default function useCustomConfig({ value, name, type }: CustomConfigProps
 
 	const _onlyExpression = useMemo(() => {
 		const result = value?.type === FormItemType.Boolean || onlyExpression
-		if (!customFieldsConfig || !_.has(customFieldsConfig, [name, "onlyExpression"]))
+		if (!customFieldsConfig || !has(customFieldsConfig, [name, "onlyExpression"]))
 			return result
-		return _.get(customFieldsConfig, [name, "onlyExpression"])
+		return get(customFieldsConfig, [name, "onlyExpression"])
 	}, [value, customFieldsConfig])
 
 	const _allowOperation = useMemo(() => {
-		if (!customFieldsConfig || !_.has(customFieldsConfig, [name, "allowOperation"]))
+		if (!customFieldsConfig || !has(customFieldsConfig, [name, "allowOperation"]))
 			return allowOperation
-		return _.get(customFieldsConfig, [name, "allowOperation"])
+		return get(customFieldsConfig, [name, "allowOperation"])
 	}, [allowOperation, customFieldsConfig])
 
 	
 	const _allowAdd = useMemo(() => {
-		if (!customFieldsConfig || !_.has(customFieldsConfig, [name, "allowAdd"]))
+		if (!customFieldsConfig || !has(customFieldsConfig, [name, "allowAdd"]))
 			return allowAdd
-		return _.get(customFieldsConfig, [name, "allowAdd"])
+		return get(customFieldsConfig, [name, "allowAdd"])
 	}, [allowAdd, customFieldsConfig])
 
 
 	const _constantDataSource = useMemo(() => {
-		if (_.has(customFieldsConfig, [name, "constantsDataSource"])) {
-			return _.get(customFieldsConfig, [name, "constantsDataSource"])
+		if (has(customFieldsConfig, [name, "constantsDataSource"])) {
+			return get(customFieldsConfig, [name, "constantsDataSource"])
 		}
 		return []
 	}, [customFieldsConfig])

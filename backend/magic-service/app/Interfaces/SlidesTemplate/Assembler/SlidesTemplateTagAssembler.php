@@ -9,6 +9,7 @@ namespace App\Interfaces\SlidesTemplate\Assembler;
 
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateTagEntity;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\SlidesTemplate\DTO\Response\AdminSlidesTemplateTagItemDTO;
 use App\Interfaces\SlidesTemplate\DTO\Response\I18nTextDTO;
@@ -46,6 +47,7 @@ class SlidesTemplateTagAssembler
         $dto = new SlidesTemplateSimpleTagItemDTO();
         $dto->setId($tag->getId());
         $dto->setCode($tag->getCode());
+        $dto->setName($tag->getI18nName(CoContext::getLanguage()));
         $dto->setNameI18n(I18nTextDTO::fromArray($tag->getNameI18n()));
         $dto->setSort($tag->getSort());
         return $dto;
@@ -60,6 +62,7 @@ class SlidesTemplateTagAssembler
             $dto = new SlidesTemplateTagGroupItemDTO();
             $dto->setId($group->getId());
             $dto->setCode($group->getCode());
+            $dto->setName($group->getI18nName(CoContext::getLanguage()));
             $dto->setNameI18n(I18nTextDTO::fromArray($group->getNameI18n()));
             $dto->setSort($group->getSort());
             $dto->setTags(array_map(
@@ -67,7 +70,14 @@ class SlidesTemplateTagAssembler
                 $group->getChildren()
             ));
 
-            return $dto->toArray();
+            $item = $dto->toArray();
+            unset($item['name_i18n']);
+            foreach ($item['tags'] as &$tag) {
+                unset($tag['name_i18n']);
+            }
+            unset($tag);
+
+            return $item;
         }, $groups);
     }
 
@@ -109,6 +119,7 @@ class SlidesTemplateTagAssembler
     {
         $dto->setId($tag->getId());
         $dto->setCode($tag->getCode());
+        $dto->setName($tag->getI18nName(CoContext::getLanguage()));
         $dto->setNameI18n(I18nTextDTO::fromArray($tag->getNameI18n()));
         $dto->setParentId($tag->getParentId());
         $dto->setNodeType($tag->getNodeType()->value);

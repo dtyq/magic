@@ -29,6 +29,7 @@ enum MagicResourceEnum: string
 
     // ===== 二级：模块 =====
     case ADMIN_AI = 'admin.ai'; # 组织管理后台-AI管理
+    case ADMIN_SETTING = 'admin.setting'; # 组织管理后台-系统设置
     case ADMIN_SAFE = 'admin.safe'; # 安全管控
     case ADMIN_SAFE_FUNCTION_PERMISSION = 'admin.safe.function_permission'; # 安全管控-功能权限
     case PLATFORM_AI = 'platform.ai'; # 平台管理后台-AI管理
@@ -44,6 +45,7 @@ enum MagicResourceEnum: string
     case PLATFORM_MODEL_TEXT = 'platform.model.text'; # 平台管理-平台模型-文本大模型
     case PLATFORM_MODEL_IMAGE = 'platform.model.image'; # 平台管理-平台模型-生图大模型
     case PLATFORM_MODEL_VIDEO = 'platform.model.video'; # 平台管理-平台模型-视频大模型
+    case PLATFORM_AI_MODEL_MULTIPLIER = 'platform.ai.model_multiplier'; # 平台管理-模型倍率
     case PLATFORM_AI_MODEL = 'platform.ai.model_management'; # 平台管理-AI管理-模型管理
     case PLATFORM_AI_IMAGE = 'platform.ai.image_generation'; # 平台管理-AI管理-智能绘图管理
     case PLATFORM_AI_MODEL_AUDIT_LOG = 'platform.ai.model_audit_log'; # 平台管理-AI管理-模型调用审计
@@ -58,6 +60,7 @@ enum MagicResourceEnum: string
     case ADMIN_AI_MODE = 'platform.ai.mode_management'; # AI管理-模式管理管理
     case ADMIN_AI_ABILITY = 'platform.ai.ability'; # AI管理-能力管理
     case ADMIN_AI_APPLICATION_MENU = 'admin.ai.application.menu'; # AI管理-应用菜单
+    case ADMIN_SETTING_IDENTITY_WATERMARK = 'admin.setting.identity_watermark'; # 系统设置-页面身份水印
     case ADMIN_AI_MODEL_ACCESS_ROLE = 'admin.ai.model_access_role'; # AI管理-自定义大模型-模型访问权限
     case SAFE_ADMIN = 'admin.safe.admin';  # 安全管控-组织管理员
     case SAFE_SUB_ADMIN = 'admin.safe.sub_admin';  # 组织管理后台-安全管控-子管理员
@@ -73,6 +76,7 @@ enum MagicResourceEnum: string
     case PLATFORM_SETTING_MAINTENANCE = 'platform.setting.maintenance'; # 平台管理 - 系统信息 - 维护管理
     case PLATFORM_SETTING_APPLICATION = 'platform.setting.application'; # 平台管理 - 系统设置 - 应用菜单
     case PLATFORM_SLIDES_TEMPLATE = 'platform.setting.slides_template'; # 平台管理 - 系统设置 - 幻灯片模板
+    case PLATFORM_ASSET = 'platform.setting.asset'; # 平台管理 - 系统设置 - 素材库
     case PLATFORM_ORGANIZATION_LIST = 'platform.organization.list'; # 平台管理 - 组织管理 - 组织列表
     case PLATFORM_USER_LIST = 'platform.organization.user_list'; # 平台管理 - 组织管理 - 平台用户列表
     case WORKSPACE_ADMIN_AI_AGENT = 'workspace.ai.agent_management'; # AI管理-数字员工
@@ -87,6 +91,7 @@ enum MagicResourceEnum: string
             self::ADMIN => 'permission.resource.admin',
             self::WORKSPACE => 'permission.resource.workspace',
             self::ADMIN_AI => 'permission.resource.admin_ai',
+            self::ADMIN_SETTING => 'permission.resource.admin_setting',
             self::ADMIN_SAFE => 'permission.resource.admin_safe', # 安全与权限
             self::ADMIN_SAFE_FUNCTION_PERMISSION => 'permission.resource.safe_function_permission',
             self::PLATFORM_AGENT => 'permission.resource.platform_agent',
@@ -95,6 +100,7 @@ enum MagicResourceEnum: string
             self::PLATFORM_MODEL_TEXT => 'permission.resource.platform_model_text',
             self::PLATFORM_MODEL_IMAGE => 'permission.resource.platform_model_image',
             self::PLATFORM_MODEL_VIDEO => 'permission.resource.platform_model_video',
+            self::PLATFORM_AI_MODEL_MULTIPLIER => 'permission.resource.model_multiplier',
             self::PLATFORM_AI_MODEL => 'permission.resource.ai_model',
             self::WORKSPACE_MODEL => 'permission.resource.workspace_model',
             self::WORKSPACE_MODEL_TEXT => 'permission.resource.workspace_model_text',
@@ -110,6 +116,7 @@ enum MagicResourceEnum: string
             self::ADMIN_AI_MODE => 'permission.resource.ai_mode',
             self::ADMIN_AI_ABILITY => 'permission.resource.ai_ability',
             self::ADMIN_AI_APPLICATION_MENU => 'permission.resource.ai_application',
+            self::ADMIN_SETTING_IDENTITY_WATERMARK => 'permission.resource.admin_setting_identity_watermark',
             self::WORKSPACE_ADMIN_AI_AGENT => 'permission.resource.admin_ai_agent',
             self::WORKSPACE_ADMIN_AI_SKILL => 'permission.resource.admin_ai_skill',
             self::ADMIN_AI_MODEL_ACCESS_ROLE => 'permission.resource.admin_ai_model_access_role',
@@ -131,6 +138,7 @@ enum MagicResourceEnum: string
             self::PLATFORM_SETTING_MAINTENANCE => 'permission.resource.platform_setting_maintenance',
             self::PLATFORM_SETTING_APPLICATION => 'permission.resource.platform_setting_application',
             self::PLATFORM_SLIDES_TEMPLATE => 'permission.resource.platform_slides_template',
+            self::PLATFORM_ASSET => 'permission.resource.platform_asset',
             self::PLATFORM_ORGANIZATION => 'permission.resource.platform_organization',
             self::PLATFORM_ORGANIZATION_LIST => 'permission.resource.platform_organization_list',
             self::PLATFORM_USER_LIST => 'permission.resource.platform_user_list',
@@ -158,12 +166,14 @@ enum MagicResourceEnum: string
             self::WORKSPACE_AI => self::WORKSPACE,
             self::WORKSPACE_MODEL => self::WORKSPACE,
             self::ADMIN_AI,
+            self::ADMIN_SETTING,
             self::ADMIN_SAFE => self::ADMIN,
             self::ADMIN_SAFE_FUNCTION_PERMISSION => self::ADMIN_SAFE,
             // 操作资源
             self::PLATFORM_MODEL_TEXT,
             self::PLATFORM_MODEL_IMAGE,
             self::PLATFORM_MODEL_VIDEO => self::PLATFORM_MODEL,
+            self::PLATFORM_AI_MODEL_MULTIPLIER,
             self::PLATFORM_AI_MODEL,
             self::PLATFORM_AI_IMAGE,
             self::PLATFORM_AI_MODEL_AUDIT_LOG,
@@ -178,6 +188,7 @@ enum MagicResourceEnum: string
             self::WORKSPACE_AI_MODEL_AUDIT_STATISTICS => self::WORKSPACE_AI,
             self::ADMIN_AI_ABILITY,
             self::ADMIN_AI_APPLICATION_MENU,
+            self::ADMIN_SETTING_IDENTITY_WATERMARK => self::ADMIN_SETTING,
             self::WORKSPACE_ADMIN_AI_AGENT,
             self::WORKSPACE_ADMIN_AI_SKILL,
             self::ADMIN_AI_MODEL_ACCESS_ROLE => self::ADMIN_AI,
@@ -195,6 +206,7 @@ enum MagicResourceEnum: string
             self::PLATFORM_SETTING_MAINTENANCE => self::PLATFORM_SETTING,
             self::PLATFORM_SETTING_APPLICATION => self::PLATFORM_SETTING,
             self::PLATFORM_SLIDES_TEMPLATE => self::PLATFORM_SETTING,
+            self::PLATFORM_ASSET => self::PLATFORM_SETTING,
             self::PLATFORM_ORGANIZATION_LIST => self::PLATFORM_ORGANIZATION,
             self::PLATFORM_USER_LIST => self::PLATFORM_ORGANIZATION,
         };

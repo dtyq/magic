@@ -1,4 +1,4 @@
-import type { Editor, JSONContent } from "@tiptap/react"
+import type { Editor, JSONContent } from "@/infrastructure/editors/tiptap/react"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import {
@@ -15,7 +15,7 @@ import {
 } from "../utils/mention"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 import { INSPECTOR_DETAIL_TYPE } from "../extensions/inspector-detail/const"
-import type { StructuredErrorInput } from "@/utils/log/errorReport"
+import type { StructuredErrorInput } from "@/infrastructure/logger"
 
 interface LoggerLike {
 	error: (input: StructuredErrorInput) => void
@@ -38,15 +38,17 @@ export function collectMentionItemsFromContent(content?: JSONContent): MentionLi
 	const walk = (node?: JSONContent) => {
 		if (!node) return
 		if (node.type === "mention" && node.attrs) {
-			items.push({
-				type: "mention",
-				attrs: node.attrs as TiptapMentionAttributes,
-			})
-		} else if (node.type === INSPECTOR_DETAIL_TYPE && node.attrs?.fileMention) {
-			items.push({
-				type: "mention",
-				attrs: node.attrs.fileMention as TiptapMentionAttributes,
-			})
+			const attrs = node.attrs as TiptapMentionAttributes
+			if (!attrs.pending) {
+				items.push({ type: "mention", attrs })
+			}
+		} else if (node.type === INSPECTOR_DETAIL_TYPE) {
+			if (node.attrs?.fileMention) {
+				items.push({
+					type: "mention",
+					attrs: node.attrs.fileMention as TiptapMentionAttributes,
+				})
+			}
 		}
 		if (Array.isArray(node.content)) {
 			node.content.forEach((child) => walk(child as JSONContent))
@@ -63,15 +65,17 @@ export function collectMentionItemsFromEditor(editor: Editor | null): MentionLis
 	const items: MentionListItem[] = []
 	editor.state.doc.descendants((node) => {
 		if (node.type.name === "mention") {
-			items.push({
-				type: "mention",
-				attrs: node.attrs as TiptapMentionAttributes,
-			})
-		} else if (node.type.name === INSPECTOR_DETAIL_TYPE && node.attrs.fileMention) {
-			items.push({
-				type: "mention",
-				attrs: node.attrs.fileMention as TiptapMentionAttributes,
-			})
+			const attrs = node.attrs as TiptapMentionAttributes
+			if (!attrs.pending) {
+				items.push({ type: "mention", attrs })
+			}
+		} else if (node.type.name === INSPECTOR_DETAIL_TYPE) {
+			if (node.attrs.fileMention) {
+				items.push({
+					type: "mention",
+					attrs: node.attrs.fileMention as TiptapMentionAttributes,
+				})
+			}
 		}
 		return true
 	})
@@ -125,7 +129,7 @@ export function replaceUploadMentionNode({
 		const uploadData = attrs.data as UploadFileMentionData
 		if (uploadData.file_id !== fileId) return true
 
-		if (isProjectContext && saveResult) {
+		if (isProjectContext && saveResult && !uploadData.is_canvas_clipboard) {
 			tr.setNodeMarkup(pos, undefined, {
 				type: MentionItemType.PROJECT_FILE,
 				data: transformUploadFileToProjectFile(uploadData, saveResult),
@@ -145,6 +149,7 @@ export function replaceUploadMentionNode({
 					file: uploadData.file,
 					relative_file_path: uploadData.relative_file_path,
 					is_hidden: uploadData.is_hidden,
+					is_canvas_clipboard: uploadData.is_canvas_clipboard,
 					upload_progress: 100,
 					upload_status: "done",
 					upload_error: undefined,

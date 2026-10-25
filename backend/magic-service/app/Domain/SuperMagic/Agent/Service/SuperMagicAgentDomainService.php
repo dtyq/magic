@@ -70,6 +70,17 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * 跨组织按 code 查询 Agent。仅供已经通过公开访问校验的资源上下文解析使用。
+     *
+     * @param array<string> $codes
+     * @return array<string, SuperMagicAgentEntity>
+     */
+    public function findByCodesWithoutOrganizationFilter(array $codes): array
+    {
+        return $this->superMagicAgentRepository->findByCodesWithoutOrganizationFilter($codes);
+    }
+
+    /**
      * @return array{total: int, list: array<SuperMagicAgentEntity>}
      */
     public function queries(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentQuery $query, Page $page): array
@@ -397,7 +408,10 @@ readonly class SuperMagicAgentDomainService
         int $projectId,
         string $fullWorkdir,
         string $sandboxId,
-        ?string $sourcePath = null
+        DataIsolation $contactDataIsolation,
+        ?string $sourcePath = null,
+        array $excludePaths = [],
+        ?string $skillsMdHash = null
     ): array {
         // Build upload_config: STS credentials for private bucket, matches sandbox API contract
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
@@ -408,15 +422,7 @@ readonly class SuperMagicAgentDomainService
         );
 
         // Call sandbox workspace export API via proxy request
-        $request = new ExportWorkspaceRequest(ProjectMode::AGENT_CREATOR->value, $code, $uploadConfig, $sourcePath);
-        // SuperMagicAgentDataIsolation is the Agent-domain isolation VO
-        // (BaseDataIsolation derivative), NOT the Contact-side DataIsolation
-        // used by the sandbox gateway. Adapt it to Contact\DataIsolation
-        // here so the export path can forward the per-user token uniformly.
-        $contactDataIsolation = DataIsolation::create(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId()
-        );
+        $request = new ExportWorkspaceRequest(ProjectMode::AGENT_CREATOR->value, $code, $uploadConfig, $sourcePath, excludePaths: $excludePaths, skillsMdHash: $skillsMdHash);
         $response = $this->workspaceExporter->export($contactDataIsolation, $sandboxId, $request);
 
         if (! $response->isSuccess()) {
@@ -424,6 +430,47 @@ readonly class SuperMagicAgentDomainService
         }
 
         return $response->toArray();
+    }
+
+    /** 创建异步 Agent 工作区导出任务。 */
+    public function createAgentWorkspaceExportAsync(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        string $sandboxId,
+        string $sourcePath,
+        string $fileName,
+        string $taskKey,
+        DataIsolation $contactDataIsolation,
+        array $excludePaths = [],
+        ?string $skillsMdHash = null
+    ): array {
+        $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
+            $dataIsolation->getCurrentOrganizationCode(),
+            StorageBucketType::Private,
+            '/agent_export',
+            options: ['internal_endpoint' => true]
+        );
+        $request = new ExportWorkspaceRequest(
+            ProjectMode::AGENT_CREATOR->value,
+            $code,
+            $uploadConfig,
+            $sourcePath,
+            $code,
+            $fileName,
+            excludePaths: $excludePaths,
+            skillsMdHash: $skillsMdHash,
+        );
+        return $this->workspaceExporter->createAsync($contactDataIsolation, $sandboxId, $request, $taskKey)->toArray();
+    }
+
+    /** 查询异步 Agent 工作区导出任务。 */
+    public function checkAgentWorkspaceExportAsync(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $sandboxId,
+        string $taskKey,
+        DataIsolation $contactDataIsolation
+    ): array {
+        return $this->workspaceExporter->checkAsync($contactDataIsolation, $sandboxId, $taskKey)->toArray();
     }
 
     /**

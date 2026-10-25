@@ -22,19 +22,22 @@ import { loadProjectAttachments } from "@/pages/superMagic/services"
 import {
 	normalizeUpdateAttachmentsPayload,
 	releaseAttachmentsRefreshWaitersWithoutFetch,
+	resolveAttachmentsRefreshWaitersForProject,
 	type SuperMagicUpdateAttachmentsRequest,
 	withAttachmentsRefreshWaitersResolved,
 } from "@/pages/superMagic/services/attachmentsTopicSync"
 import { useTopicFiles } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicFiles"
+import { MY_AGENTS_WORKSPACE_DATA } from "@/pages/superMagic/constants"
 import {
 	TOPIC_HISTORY_PANEL_OPEN_STORAGE_KEYS,
 	useTopicHistoryLayoutState,
 } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicHistoryLayoutState"
 import {
-	FileActionVisibilityProvider,
-	HIDE_COPY_MOVE_SHARE_FILE_AND_TOPIC_ACTIONS,
-	VIEWER_FILE_ACTIONS,
-} from "@/pages/superMagic/providers/file-action-visibility-provider"
+	FileAccessProvider,
+	EDITOR_FILE_CONFIG,
+	VIEWER_FILE_CONFIG,
+} from "@/pages/superMagic/providers/FileAccessProvider"
+import { HostConversationProvider } from "@/pages/superMagic/contexts/HostConversationContext"
 import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
 import { convertSearchParams } from "@/routes/history/helpers"
 import { RouteName } from "@/routes/constants"
@@ -192,6 +195,7 @@ function applyRoutePanelToStore({
 function CrewEditInner({ crewId }: { crewId: string }) {
 	const { t: tCrewCreate } = useTranslation("crew/create")
 	const { t: tSuper } = useTranslation("super")
+	const agentsWorkspace = useMemo(() => MY_AGENTS_WORKSPACE_DATA(tSuper), [tSuper])
 	const store = useCrewEditStore()
 	const { layout, conversation, identity, playbook } = store
 	const navigate = useNavigate()
@@ -203,6 +207,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	const [userSelectDetail, setUserSelectDetail] = useState<unknown>()
 	const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false)
 	const [isInitialAttachmentsLoaded, setIsInitialAttachmentsLoaded] = useState(false)
+	const [isInitialAttachmentsLoadFailed, setIsInitialAttachmentsLoadFailed] = useState(false)
 	const selectedProject = conversation.selectedProject
 	const isViewer = isReadOnlyProject(selectedProject?.user_role)
 	const selectedTopic = conversation.topicStore.selectedTopic
@@ -265,12 +270,11 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			if (!projectId) {
 				store.projectFilesStore.setWorkspaceFileTree([])
 				releaseAttachmentsRefreshWaitersWithoutFetch()
+				setIsInitialAttachmentsLoadFailed(false)
 				callback?.(false)
 				return
 			}
 
-			const temporaryToken =
-				(window as Window & { temporary_token?: string }).temporary_token || ""
 			let didLoad = false
 
 			pubsub.publish(PubSubEvents.Update_Attachments_Loading, true)
@@ -278,18 +282,24 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 				projectId,
 				loadProjectAttachments({
 					projectId,
-					temporaryToken,
 				})
 					.then((res) => {
 						store.projectFilesStore.setWorkspaceFileTree(res.tree)
 						store.mentionPanelStore.finishLoadAttachmentsPromise(projectId)
+						if (selectedProject?.id === projectId) {
+							setIsInitialAttachmentsLoadFailed(false)
+						}
 						didLoad = true
 					})
 					.catch((error) => {
 						console.error("Failed to fetch crew attachments:", error)
 						store.projectFilesStore.setWorkspaceFileTree([])
+						if (selectedProject?.id === projectId) {
+							setIsInitialAttachmentsLoadFailed(true)
+						}
 					})
 					.finally(() => {
+						resolveAttachmentsRefreshWaitersForProject(projectId, didLoad)
 						pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
 						callback?.(didLoad)
 					}),
@@ -300,7 +310,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 
 	const { activeFileId, handleFileClick, topicFilesProps, setActiveFileId } = useTopicFiles({
 		selectedProject,
-		selectedWorkspace: undefined,
+		selectedWorkspace: agentsWorkspace,
 		selectedTopic,
 		projects: [],
 		workspaces: [],
@@ -311,22 +321,46 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		isReadOnly: isViewer,
 	})
 
-	/** 知识库详情占用了右侧 StepDetailPanel 时 Detail 未挂载，需先清 URL 再打开文件预览 */
-	const handleFileClickWithKnowledgeRouteReset = useMemoizedFn((fileItem?: unknown) => {
-		if (!isCrewEditKnowledgeDetailSearch(location.search)) {
-			handleFileClick(fileItem)
+	/** 右侧被步骤/知识库占用时 Detail 未挂载，打开预览前先关掉步骤面板 */
+	const closeStepPanelForFilePreview = useMemoizedFn((payload?: unknown) => {
+		if (
+			payload &&
+			typeof payload === "object" &&
+			"action" in payload &&
+			(payload as { action?: string }).action === "download"
+		) {
 			return
 		}
+		if (layout.activeDetailKey !== null) layout.setActiveStep(null)
+		if (!isCrewEditKnowledgeDetailSearch(location.search)) return
 		navigate({
 			name: RouteName.CrewEdit,
 			params: { id: crewId },
 			query: buildCrewEditQueryAfterLeavingKnowledgeDetail(location.search),
 			replace: true,
 		})
-		window.setTimeout(() => {
-			handleFileClick(fileItem)
-		}, 120)
 	})
+
+	const handleFileClickWithPreviewPanel = useMemoizedFn((fileItem?: unknown) => {
+		const wasKnowledgeDetail = isCrewEditKnowledgeDetailSearch(location.search)
+		closeStepPanelForFilePreview()
+		if (!wasKnowledgeDetail) {
+			handleFileClick(fileItem)
+			return
+		}
+		window.setTimeout(() => handleFileClick(fileItem), 120)
+	})
+
+	useEffect(() => {
+		pubsub.subscribe(PubSubEvents.Open_File_Tab, closeStepPanelForFilePreview)
+		pubsub.subscribe(PubSubEvents.Open_Playback_Tab, closeStepPanelForFilePreview)
+		pubsub.subscribe(PubSubEvents.Open_File_Tab_By_Path, closeStepPanelForFilePreview)
+		return () => {
+			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, closeStepPanelForFilePreview)
+			pubsub.unsubscribe(PubSubEvents.Open_Playback_Tab, closeStepPanelForFilePreview)
+			pubsub.unsubscribe(PubSubEvents.Open_File_Tab_By_Path, closeStepPanelForFilePreview)
+		}
+	}, [closeStepPanelForFilePreview])
 
 	const { shouldShowDetailPanel, topicFilesPropsWithPanel, handleActiveDetailTabChange } =
 		useCompositeDetailPanelController({
@@ -334,7 +368,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			isReadOnly: isViewer,
 			activeFileId,
 			setActiveFileId,
-			handleFileClick: handleFileClickWithKnowledgeRouteReset,
+			handleFileClick: handleFileClickWithPreviewPanel,
 			topicFilesProps,
 			extraPanelVisible: shouldShowStepDetailPanel,
 			resetDeps: [selectedProject?.id],
@@ -342,6 +376,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 				setUserSelectDetail(undefined)
 				setIsDetailPanelFullscreen(false)
 			},
+			attachmentList,
 		})
 
 	const { onFileTabsCacheLoaded } = useDeferUntilFileTabsCacheLoaded(selectedProject?.id)
@@ -433,6 +468,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			({ tree, list }: { tree: AttachmentItem[]; list: AttachmentItem[] }) => {
 				const processedData = AttachmentDataProcessor.processAttachmentData({ tree, list })
 				store.projectFilesStore.setWorkspaceFileTree(processedData.tree)
+				setIsInitialAttachmentsLoadFailed(false)
 				setIsInitialAttachmentsLoaded(true)
 			},
 			[store.projectFilesStore],
@@ -445,11 +481,10 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	useProjectAttachmentsChangeRealtime({
 		projectId: selectedProject?.id,
 		store: store.projectFilesStore,
-		onAttachmentsChange: useCallback(() => {
-			setIsInitialAttachmentsLoaded(true)
-		}, []),
+		onAttachmentsChange: undefined,
 		onFallbackError: useMemoizedFn((error: unknown) => {
 			console.error("Failed to refresh realtime crew attachments:", error)
+			setIsInitialAttachmentsLoadFailed(true)
 		}),
 	})
 
@@ -457,15 +492,18 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		const projectId = selectedProject?.id
 		if (!projectId) {
 			setIsInitialAttachmentsLoaded(false)
+			setIsInitialAttachmentsLoadFailed(false)
 			return
 		}
 
 		let isActive = true
 		setIsInitialAttachmentsLoaded(false)
+		setIsInitialAttachmentsLoadFailed(false)
 
 		store.mentionPanelStore.initLoadAttachments(projectId)
 		updateAttachments(projectId, (didLoad) => {
 			if (!isActive || !didLoad) return
+			setIsInitialAttachmentsLoadFailed(false)
 			setIsInitialAttachmentsLoaded(true)
 		})
 
@@ -525,6 +563,11 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		<StepDetailPanel />
 	) : (
 		<Detail
+			fileHelpContext={
+				selectedProject?.id
+					? { kind: "crew", projectId: String(selectedProject.id) }
+					: { kind: "unknown" }
+			}
 			ref={detailRef}
 			disPlayDetail={userSelectDetail}
 			userSelectDetail={userSelectDetail}
@@ -559,7 +602,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 				className="flex h-full w-full items-center justify-center"
 				data-testid="crew-edit-loading"
 			>
-				<Loader2 className="size-8 animate-spin text-muted-foreground" />
+				<Loader2 className="size-4 animate-spin text-muted-foreground" />
 			</div>
 		)
 	}
@@ -574,86 +617,107 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	}
 
 	return (
-		<FileActionVisibilityProvider
-			value={isViewer ? VIEWER_FILE_ACTIONS : HIDE_COPY_MOVE_SHARE_FILE_AND_TOPIC_ACTIONS}
+		<HostConversationProvider
+			selectedProject={selectedProject}
+			topicStore={conversation.topicStore}
 		>
-			<div className="flex h-full w-full overflow-hidden" data-testid="crew-edit-page">
-				<CrewEditPanels
-					sidebarWidthPx={sidebarWidthPx}
-					messagePanelWidthPx={messagePanelWidthPx}
-					showDetailPanel={shouldShowDetailPanel}
-					isDetailPanelFullscreen={isDetailPanelFullscreen}
-					isConversationPanelCollapsed={layout.isConversationPanelCollapsed}
-					hideMessagePanel={shouldHideMessagePanel}
-					keepDetailMountedWhenHidden
-					historyLayout={
-						isViewer
-							? undefined
-							: {
-									isOpen: isTopicHistoryPanelOpen,
-									onClose: closeTopicHistoryPanel,
-									onToggle: toggleTopicHistoryPanel,
-									renderPanel: ({
-										isConversationPanelCollapsed,
-										onExpandConversationPanel,
-										onClose,
-										closeButtonRef,
-									}) => (
-										<MessageHeaderTopicHistoryPanel
-											selectedProject={selectedProject}
-											topicStore={conversation.topicStore}
-											topicActions={topicActions}
-											isConversationPanelCollapsed={
-												isConversationPanelCollapsed
-											}
-											onExpandConversationPanel={onExpandConversationPanel}
-											hideTopicListModeIcon
-											onClose={onClose}
-											closeButtonRef={closeButtonRef}
-										/>
-									),
+			<FileAccessProvider {...(isViewer ? VIEWER_FILE_CONFIG : EDITOR_FILE_CONFIG)}>
+				<div className="flex h-full w-full overflow-hidden" data-testid="crew-edit-page">
+					<CrewEditPanels
+						sidebarWidthPx={sidebarWidthPx}
+						messagePanelWidthPx={messagePanelWidthPx}
+						showDetailPanel={shouldShowDetailPanel}
+						isDetailPanelFullscreen={isDetailPanelFullscreen}
+						isConversationPanelCollapsed={layout.isConversationPanelCollapsed}
+						hideMessagePanel={shouldHideMessagePanel}
+						keepDetailMountedWhenHidden
+						historyLayout={
+							isViewer
+								? undefined
+								: {
+										isOpen: isTopicHistoryPanelOpen,
+										onClose: closeTopicHistoryPanel,
+										onToggle: toggleTopicHistoryPanel,
+										renderPanel: ({
+											isConversationPanelCollapsed,
+											onExpandConversationPanel,
+											onClose,
+											closeButtonRef,
+										}) => (
+											<MessageHeaderTopicHistoryPanel
+												selectedProject={selectedProject}
+												topicStore={conversation.topicStore}
+												topicActions={topicActions}
+												isConversationPanelCollapsed={
+													isConversationPanelCollapsed
+												}
+												onExpandConversationPanel={
+													onExpandConversationPanel
+												}
+												hideTopicListModeIcon
+												hideTopicTypeFilter
+												onClose={onClose}
+												closeButtonRef={closeButtonRef}
+											/>
+										),
+									}
+						}
+						onSidebarResizeStart={onSidebarResizeStart}
+						onMessagePanelResizeStart={onMessagePanelResizeStart}
+						isDraggingSidebar={isDraggingSidebar}
+						isDraggingMessagePanel={isDraggingMessagePanel}
+						sidebar={
+							<ConfigStepsPanel
+								onBack={handleBack}
+								isAttachmentsLoaded={isInitialAttachmentsLoaded}
+								isAttachmentsLoadFailed={isInitialAttachmentsLoadFailed}
+								filesContent={
+									<TopicFilesButton
+										{...topicFilesPropsWithPanel}
+										fileHelpContext={
+											selectedProject?.id
+												? {
+														kind: "crew",
+														projectId: String(selectedProject.id),
+													}
+												: { kind: "unknown" }
+										}
+										className="h-full"
+										title={tSuper("topicFiles.fileTitle")}
+									/>
 								}
-					}
-					onSidebarResizeStart={onSidebarResizeStart}
-					onMessagePanelResizeStart={onMessagePanelResizeStart}
-					isDraggingSidebar={isDraggingSidebar}
-					isDraggingMessagePanel={isDraggingMessagePanel}
-					sidebar={
-						<ConfigStepsPanel
-							onBack={handleBack}
-							filesContent={
-								<TopicFilesButton
-									{...topicFilesPropsWithPanel}
-									className="h-full"
-									title={tSuper("topicFiles.fileTitle")}
-								/>
-							}
-						/>
-					}
-					detailPanel={detailPanel}
-					messagePanel={
-						isViewer ? null : (
-							<CrewTopicPanel
-								selectedProject={selectedProject}
-								topicStore={conversation.topicStore}
-								mentionPanelStore={store.mentionPanelStore}
-								projectFilesStore={store.projectFilesStore}
-								onTerminalTopicStatusChange={checkAttachmentsNowDebounced}
-								isConversationPanelCollapsed={
-									shouldShowDetailPanel
-										? layout.isConversationPanelCollapsed
-										: false
-								}
-								onToggleConversationPanel={() => layout.toggleConversationPanel()}
-								onExpandConversationPanel={() => layout.expandConversationPanel()}
-								detailPanelVisible={shouldShowDetailPanel}
-								crewId={crewId}
 							/>
-						)
-					}
-				/>
-			</div>
-		</FileActionVisibilityProvider>
+						}
+						detailPanel={detailPanel}
+						messagePanel={
+							isViewer ? null : (
+								<CrewTopicPanel
+									selectedProject={selectedProject}
+									topicStore={conversation.topicStore}
+									mentionPanelStore={store.mentionPanelStore}
+									projectFilesStore={store.projectFilesStore}
+									setSelectedDetail={handleUserSelectDetail}
+									onTerminalTopicStatusChange={checkAttachmentsNowDebounced}
+									isConversationPanelCollapsed={
+										shouldShowDetailPanel
+											? layout.isConversationPanelCollapsed
+											: false
+									}
+									onToggleConversationPanel={() =>
+										layout.toggleConversationPanel()
+									}
+									onExpandConversationPanel={() =>
+										layout.expandConversationPanel()
+									}
+									detailPanelVisible={shouldShowDetailPanel}
+									crewId={crewId}
+								/>
+							)
+						}
+					/>
+				</div>
+			</FileAccessProvider>
+		</HostConversationProvider>
 	)
 }
 
@@ -709,4 +773,10 @@ function CrewEditPage() {
 	)
 }
 
-export default CrewEditPage
+export default function FileAccessPage() {
+	return (
+		<FileAccessProvider>
+			<CrewEditPage />
+		</FileAccessProvider>
+	)
+}

@@ -88,7 +88,7 @@ class StdoutHandler extends AbstractProcessingHandler
                 $parts[] = "[{$coroutineId}]";
             }
             if (! empty($traceId)) {
-                $parts[] = "[{$traceId}]";
+                $parts[] = "[trace_id:{$traceId}]";
             }
         }
 

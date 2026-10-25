@@ -567,6 +567,49 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
             return False
 
     @with_refreshed_credentials
+    async def delete(self, key: str, options: Optional[Options] = None) -> bool:
+        """
+        异步删除TOS上的指定文件。
+
+        Args:
+            key: 文件名/路径
+            options: 可选配置
+
+        Returns:
+            bool: 删除成功为True，失败为False（删除不存在的对象视为成功）
+        """
+        if not self.credentials:
+            raise ValueError("未设置凭证")
+
+        if not isinstance(self.credentials, VolcEngineCredentials):
+            raise ValueError("凭证类型错误")
+
+        credentials: VolcEngineCredentials = self.credentials
+        if options is None:
+            options = {}
+
+        try:
+            tc = credentials.temporary_credential
+            tos_client = self._get_tos_client()
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: tos_client.delete_object(bucket=tc.bucket, key=key),
+            )
+            logger.info(f"删除TOS对象成功: {key}")
+            return True
+        except TosServerError as e:
+            # 404 表示对象本就不存在，按幂等语义视为成功
+            if e.status_code == 404:
+                logger.debug(f"删除不存在的TOS对象，按成功处理 (404): {key}")
+                return True
+            logger.error(f"删除TOS对象失败: {key} - {type(e).__name__} - {e}")
+            return False
+        except Exception as e:
+            logger.error(f"删除TOS对象失败: {key} - {type(e).__name__} - {e}")
+            return False
+
+    @with_refreshed_credentials
     async def generate_presigned_url(self, key: str, expires_in: int = 3600, options: Optional[Options] = None) -> str:
         """
         生成预签名URL，用于直接访问文件。

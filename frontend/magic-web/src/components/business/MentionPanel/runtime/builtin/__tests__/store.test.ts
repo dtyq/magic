@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import mentionPanelStore from "../store"
 import projectFilesStore from "@/stores/projectFiles"
 import { MentionItemType, MentionItem } from "../../../types"
@@ -47,6 +47,10 @@ vi.mock("@/apis", () => ({
 	},
 	GlobalApi: {
 		getSettingsGlobalData: vi.fn(),
+	},
+	SuperMagicApi: {
+		getCrewList: vi.fn().mockResolvedValue({ list: [] }),
+		getMentionMicroApps: vi.fn().mockResolvedValue({ list: [] }),
 	},
 }))
 
@@ -112,6 +116,16 @@ async function searchItems(query: string): Promise<MentionItem[]> {
 	const result = await mentionPanelStore.dispatch({
 		kind: "search",
 		query,
+	})
+	return result.items ?? []
+}
+
+/** Searches the current custom group through the same scoped request used by the panel. */
+async function searchItemsInGroup(query: string, scopeFolderId: string): Promise<MentionItem[]> {
+	const result = await mentionPanelStore.dispatch({
+		kind: "search",
+		query,
+		scopeFolderId,
 	})
 	return result.items ?? []
 }
@@ -302,6 +316,10 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 		store.skillsStore.currentSkillQueryKey = "__default__"
 		mentionPanelStore.setCurrentTabs([])
 		mentionPanelStore.clearActiveCanvasElementsContext()
+		mentionPanelStore.setPinnedCurrentMicroApp(null)
+		mentionPanelStore.setBuiltinVisibility({})
+		mentionPanelStore.setCustomMentionGroups([])
+		mentionPanelStore.setPinnedSceneCatalog(null)
 
 		vi.mocked(CrewApi.getMentionSkills).mockResolvedValue([])
 
@@ -334,6 +352,198 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 	})
 
 	describe("default root items", () => {
+		it("exposes named custom groups as directories and text mentions", async () => {
+			mentionPanelStore.setCustomMentionGroups([
+				{
+					id: "custom-group-fixture",
+					label: "Fixture group",
+					items: [
+						{
+							id: "custom-item-fixture",
+							type: "card",
+							text: "Fixture content",
+							title: "Fixture card",
+							data: { source: "fixture" },
+						},
+					],
+				},
+			])
+
+			const rootItems = await getDefaultItems()
+			expect(rootItems.at(-1)).toMatchObject({
+				id: "custom-group-fixture",
+				name: "Fixture group",
+				hasChildren: true,
+			})
+			const contentItems = await mentionPanelStore.dispatch({
+				kind: "children",
+				id: "custom-group-fixture",
+			})
+			expect(contentItems.items).toEqual([
+				expect.objectContaining({
+					id: "custom-item-fixture",
+					name: "Fixture card",
+					type: MentionItemType.TEXT,
+					metadata: { customMention: true, customMentionGroupId: "custom-group-fixture" },
+					data: expect.objectContaining({
+						groupId: "custom-group-fixture",
+						id: "custom-item-fixture",
+						label: "Fixture card",
+						text: "Fixture content",
+						type: "card",
+						source: "fixture",
+					}),
+				}),
+			])
+		})
+
+		it("falls back to semantic text when a custom item has no usable title", async () => {
+			mentionPanelStore.setCustomMentionGroups([
+				{
+					id: "fallback-group-fixture",
+					label: "Fallback group",
+					items: [
+						{
+							id: "fallback-item-fixture",
+							type: "card",
+							text: "Fallback semantic text",
+							title: "   ",
+						},
+					],
+				},
+			])
+
+			const result = await mentionPanelStore.dispatch({
+				kind: "children",
+				id: "fallback-group-fixture",
+			})
+			expect(result.items?.[0]).toMatchObject({
+				name: "Fallback semantic text",
+				data: {
+					label: "Fallback semantic text",
+					text: "Fallback semantic text",
+				},
+			})
+		})
+
+		it("resolves valid tokens and HTTPS iconUrls for custom groups and items", async () => {
+			mentionPanelStore.setCustomMentionGroups([
+				{
+					id: "icon-group",
+					label: "Icon Group",
+					icon: "ts-doc-file",
+					iconUrl: "https://example.com/group-icon.png",
+					items: [
+						{
+							id: "icon-item-valid",
+							type: "card",
+							text: "Card With Icon",
+							icon: "ts-api",
+							iconUrl: "https://example.com/item-icon.png",
+						},
+						{
+							id: "icon-item-fallback",
+							type: "card",
+							text: "Card With Fallback",
+							icon: "invalid-token-name",
+							iconUrl: "http://insecure.com/rejected.png",
+						},
+					],
+				},
+			])
+
+			const rootItems = await getDefaultItems()
+			const customGroupItem = rootItems.find((item) => item.id === "icon-group")
+			expect(customGroupItem).toMatchObject({
+				id: "icon-group",
+				icon: "ts-doc-file",
+				iconUrl: "https://example.com/group-icon.png",
+				metadata: expect.objectContaining({
+					customMentionGroup: true,
+					iconUrl: "https://example.com/group-icon.png",
+				}),
+			})
+
+			const contentItems = await mentionPanelStore.dispatch({
+				kind: "children",
+				id: "icon-group",
+			})
+			expect(contentItems.items).toHaveLength(2)
+
+			// Valid item
+			expect(contentItems.items?.[0]).toMatchObject({
+				id: "icon-item-valid",
+				icon: "ts-api",
+				iconUrl: "https://example.com/item-icon.png",
+				metadata: expect.objectContaining({
+					customMention: true,
+					iconUrl: "https://example.com/item-icon.png",
+				}),
+			})
+
+			// Fallback item: invalid token falls back to ts-doc-file, insecure http URL is stripped
+			expect(contentItems.items?.[1]).toMatchObject({
+				id: "icon-item-fallback",
+				icon: "ts-doc-file",
+				iconUrl: undefined,
+				metadata: expect.objectContaining({
+					customMention: true,
+				}),
+			})
+			expect(contentItems.items?.[1]?.iconUrl).toBeUndefined()
+		})
+
+		it("orders custom groups according to placement in root items", async () => {
+			mentionPanelStore.setCustomMentionGroups([
+				{
+					id: "start-group-1",
+					label: "Start Group 1",
+					placement: "start",
+					items: [{ id: "item-s1", type: "card", text: "S1" }],
+				},
+				{
+					id: "start-group-2",
+					label: "Start Group 2",
+					placement: "start",
+					items: [{ id: "item-s2", type: "card", text: "S2" }],
+				},
+				{
+					id: "end-group-1",
+					label: "End Group 1",
+					placement: "end",
+					items: [{ id: "item-e1", type: "card", text: "E1" }],
+				},
+				{
+					id: "default-group-1",
+					label: "Default Group 1",
+					items: [{ id: "item-d1", type: "card", text: "D1" }],
+				},
+			])
+
+			const rootItems = await getDefaultItems()
+			const startGroup1Index = rootItems.findIndex((item) => item.id === "start-group-1")
+			const startGroup2Index = rootItems.findIndex((item) => item.id === "start-group-2")
+			const endGroup1Index = rootItems.findIndex((item) => item.id === "end-group-1")
+			const defaultGroup1Index = rootItems.findIndex((item) => item.id === "default-group-1")
+
+			// Start groups appear at the beginning of the list
+			expect(startGroup1Index).toBe(0)
+			expect(startGroup2Index).toBe(1)
+
+			// Built-in categories appear after start groups
+			const builtinSkillsIndex = rootItems.findIndex(
+				(item) => item.id === MentionItemType.SKILL,
+			)
+			if (builtinSkillsIndex !== -1) {
+				expect(builtinSkillsIndex).toBeGreaterThan(startGroup2Index)
+				expect(builtinSkillsIndex).toBeLessThan(endGroup1Index)
+			}
+
+			// End groups appear after built-ins in configured order
+			expect(endGroup1Index).toBeLessThan(defaultGroup1Index)
+			expect(defaultGroup1Index).toBe(rootItems.length - 1)
+		})
+
 		it("should show other project files without a current project", async () => {
 			projectFilesStore.setSelectedProject(null)
 
@@ -346,6 +556,333 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 			expect(items.some((item) => item.id === "project-files")).toBe(false)
 			expect(uploadFilesIndex).toBe(0)
 			expect(otherProjectFilesIndex).toBe(1)
+		})
+
+		it("puts the pinned current micro app at the start of the root list", async () => {
+			projectFilesStore.setSelectedProject(createTestProject("test-project"))
+			mentionPanelStore.setPinnedCurrentMicroApp({
+				appId: "app-1",
+				appName: "Todo App",
+			})
+
+			const items = await getDefaultItems()
+			expect(items[0]).toMatchObject({
+				id: "app-1",
+				type: MentionItemType.MICRO_APP,
+				name: "Todo App",
+				data: { app_id: "app-1", app_name: "Todo App" },
+			})
+		})
+
+		it("filters disabled business roots and pinned micro apps", async () => {
+			projectFilesStore.setSelectedProject(createTestProject("test-project"))
+			mentionPanelStore.setPinnedCurrentMicroApp({
+				appId: "app-hidden",
+				appName: "Hidden App",
+			})
+			mentionPanelStore.setBuiltinVisibility({
+				projectFiles: false,
+				uploadFiles: false,
+				otherProjectFiles: false,
+				digitalEmployees: false,
+				microApps: false,
+				connectors: false,
+				workflows: false,
+				skills: false,
+				canvasElements: false,
+			})
+
+			const items = await getDefaultItems()
+			expect(items.some((item) => item.id === "app-hidden")).toBe(false)
+			expect(items.some((item) => item.id === "project-files")).toBe(false)
+			expect(items.some((item) => item.id === "other-project-files")).toBe(false)
+			expect(items.some((item) => item.id === "upload-files")).toBe(false)
+			expect(items.some((item) => item.id === "mcp-extensions")).toBe(false)
+			expect(items.some((item) => item.id === "digital-employees")).toBe(false)
+			expect(items.some((item) => item.id === "flows")).toBe(false)
+			expect(items.some((item) => item.id === "skills")).toBe(false)
+
+			const connectorItems = await mentionPanelStore.dispatch({
+				kind: "catalog",
+				catalogId: MentionPanelCatalogId.MCP_EXTENSIONS,
+			})
+			expect(connectorItems.items).toEqual([])
+		})
+
+		it("keeps flow child rows outside the root visibility configuration", async () => {
+			mentionPanelStore.setBuiltinVisibility({ digitalEmployees: false })
+
+			const items = await getDefaultItems()
+			expect(items.some((item) => item.id === "digital-employees")).toBe(false)
+
+			const flowItems = await mentionPanelStore.dispatch({
+				kind: "catalog",
+				catalogId: MentionPanelCatalogId.FLOWS,
+			})
+			expect(flowItems.items?.map((item) => item.id)).toEqual(["agents", "tools"])
+		})
+	})
+
+	describe("custom group search", () => {
+		beforeEach(() => {
+			mentionPanelStore.setCustomMentionSearch(undefined)
+			mentionPanelStore.setCustomMentionGroups([
+				{
+					id: "fixture-charts",
+					label: "Charts",
+					items: [
+						{
+							id: "fixture-chart-a",
+							type: "chart",
+							title: "Chart A",
+							text: "Mock revenue for a sample quarter",
+							description: "Fixture chart description",
+						},
+					],
+				},
+				{
+					id: "fixture-reports",
+					label: "Reports",
+					items: [
+						{
+							id: "fixture-report-a",
+							type: "report",
+							title: "Report A",
+							text: "Mock revenue for a different period",
+							description: "Fixture report description",
+						},
+					],
+				},
+			])
+		})
+
+		it("merges dynamic global results while preserving their group identity", async () => {
+			const search = vi.fn().mockResolvedValue([
+				{
+					groupId: "fixture-reports",
+					items: [
+						{
+							id: "dynamic-report",
+							type: "report",
+							title: "Dynamic Report",
+							text: "Dynamic report result",
+						},
+					],
+				},
+			])
+			mentionPanelStore.setCustomMentionSearch(search)
+
+			const results = await searchItems("dynamic")
+			expect(search).toHaveBeenCalledWith(
+				"dynamic",
+				{ type: "global" },
+				expect.any(AbortSignal),
+			)
+			expect(results.filter((item) => item.metadata?.customMention)).toMatchObject([
+				{
+					id: "dynamic-report",
+					data: { groupId: "fixture-reports", text: "Dynamic report result" },
+				},
+			])
+		})
+
+		it("merges only the active group's static and dynamic search results", async () => {
+			const search = vi.fn().mockResolvedValue([
+				{
+					groupId: "fixture-reports",
+					items: [{ id: "wrong-group", type: "report", text: "Wrong group" }],
+				},
+				{
+					groupId: "fixture-charts",
+					items: [{ id: "dynamic-chart", type: "chart", text: "Dynamic chart" }],
+				},
+			])
+			mentionPanelStore.setCustomMentionSearch(search)
+
+			const results = await searchItemsInGroup("dynamic", "fixture-charts")
+			expect(search).toHaveBeenCalledWith(
+				"dynamic",
+				{ type: "group", groupId: "fixture-charts" },
+				expect.any(AbortSignal),
+			)
+			expect(results.map((item) => item.id)).toEqual(["dynamic-chart"])
+		})
+
+		it("merges static and dynamic results and lets the callback replace duplicate identities", async () => {
+			const search = vi.fn().mockResolvedValue([
+				{
+					groupId: "fixture-charts",
+					items: [
+						{
+							id: "fixture-chart-a",
+							type: "chart",
+							title: "Chart A refreshed",
+							text: "Fresh chart result",
+						},
+						{
+							id: "dynamic-chart",
+							type: "chart",
+							text: "Additional dynamic chart",
+						},
+					],
+				},
+			])
+			mentionPanelStore.setCustomMentionSearch(search)
+
+			const results = await searchItems("mock revenue")
+			const customResults = results.filter((item) => item.metadata?.customMention)
+			expect(customResults.map((item) => item.id)).toEqual([
+				"fixture-chart-a",
+				"fixture-report-a",
+				"dynamic-chart",
+			])
+			expect(customResults.find((item) => item.id === "fixture-chart-a")).toMatchObject({
+				name: "Chart A refreshed",
+				data: { text: "Fresh chart result" },
+			})
+		})
+
+		it("finds custom items globally by title and semantic text", async () => {
+			const byTitle = await searchItems("Chart A")
+			expect(byTitle.filter((item) => item.metadata?.customMention)).toMatchObject([
+				{ id: "fixture-chart-a", name: "Chart A" },
+			])
+
+			const byText = await searchItems("sample quarter")
+			expect(byText.filter((item) => item.metadata?.customMention)).toMatchObject([
+				{
+					id: "fixture-chart-a",
+					data: { groupId: "fixture-charts", text: "Mock revenue for a sample quarter" },
+				},
+			])
+
+			const acrossGroups = await searchItems("mock revenue")
+			expect(
+				acrossGroups
+					.filter((item) => item.metadata?.customMention)
+					.map((item) => item.data?.groupId),
+			).toEqual(["fixture-charts", "fixture-reports"])
+		})
+
+		it("limits a scoped search to its group and matches descriptions", async () => {
+			const byText = await searchItemsInGroup("mock revenue", "fixture-charts")
+			expect(byText).toMatchObject([{ id: "fixture-chart-a", name: "Chart A" }])
+
+			const byDescription = await searchItemsInGroup("chart description", "fixture-charts")
+			expect(byDescription).toMatchObject([{ id: "fixture-chart-a" }])
+			expect(await searchItemsInGroup("report description", "fixture-charts")).toEqual([])
+		})
+	})
+
+	describe("scene catalog", () => {
+		const reportItem: MentionItem = {
+			id: "f-report",
+			type: MentionItemType.PROJECT_FILE,
+			name: "report.html",
+			icon: "html",
+			data: {
+				file_id: "f-report",
+				file_name: "report.html",
+				file_path: "studies/s1/report.html",
+				file_extension: "html",
+			},
+		}
+		const personaItem: MentionItem = {
+			id: "f-wang",
+			type: MentionItemType.PROJECT_FILE,
+			name: "王浩",
+			description: "通勤咖啡重度用户",
+			icon: "json",
+			data: {
+				file_id: "f-wang",
+				file_name: "王浩",
+				file_path: "personas/p-wang.json",
+				file_extension: "json",
+			},
+		}
+
+		function pinStudy(groups: { personas?: MentionItem[]; outputs?: MentionItem[] }) {
+			mentionPanelStore.setPinnedSceneCatalog({
+				name: "本次研究",
+				groups: [
+					{ id: "personas", title: "受访人设", items: groups.personas ?? [] },
+					{ id: "outputs", title: "研究产物", items: groups.outputs ?? [] },
+				],
+			})
+		}
+
+		it("pins the entry first, above the pinned micro app", async () => {
+			projectFilesStore.setSelectedProject(createTestProject("test-project"))
+			mentionPanelStore.setPinnedCurrentMicroApp({ appId: "app-1", appName: "Todo App" })
+			pinStudy({ personas: [personaItem] })
+
+			const items = await getDefaultItems()
+			expect(items[0]).toMatchObject({
+				id: "scene-catalog",
+				type: "scene_catalog",
+				name: "本次研究",
+				hasChildren: true,
+			})
+			expect(items[1]).toMatchObject({ id: "app-1" })
+		})
+
+		it("hides the entry when every group is empty", async () => {
+			pinStudy({})
+
+			const items = await getDefaultItems()
+			expect(items.some((item) => item.id === "scene-catalog")).toBe(false)
+		})
+
+		it("lists a title row per group when there are several", async () => {
+			pinStudy({ personas: [personaItem], outputs: [reportItem] })
+
+			const result = await mentionPanelStore.dispatch({
+				kind: "catalog",
+				catalogId: MentionPanelCatalogId.SCENE_CATALOG,
+			})
+			expect(result.items?.map((item) => [item.type, item.name])).toEqual([
+				[MentionItemType.TITLE, "受访人设"],
+				[MentionItemType.PROJECT_FILE, "王浩"],
+				[MentionItemType.TITLE, "研究产物"],
+				[MentionItemType.PROJECT_FILE, "report.html"],
+			])
+			expect(result.items?.[3]?.tags).toContain("scene-catalog")
+		})
+
+		it("omits the title of a lone group, the breadcrumb already names the catalog", async () => {
+			pinStudy({ outputs: [reportItem] })
+
+			const result = await mentionPanelStore.dispatch({
+				kind: "catalog",
+				catalogId: MentionPanelCatalogId.SCENE_CATALOG,
+			})
+			expect(result.items?.map((item) => [item.type, item.name])).toEqual([
+				[MentionItemType.PROJECT_FILE, "report.html"],
+			])
+		})
+
+		it("searches names and taglines, keeping one row per file", async () => {
+			projectFilesStore.setSelectedProject(createTestProject("test-project"))
+			projectFilesStore.setWorkspaceFileTree([
+				{
+					type: "file",
+					file_id: "f-report",
+					file_name: "report.html",
+					file_extension: "html",
+					relative_file_path: "/studies/s1/report.html",
+					project_id: "test-project",
+					source: AttachmentSource.PROJECT_DIRECTORY,
+					children: [],
+				},
+			])
+			pinStudy({ personas: [personaItem], outputs: [reportItem] })
+
+			const reports = (await searchItems("report")).filter((item) => item.id === "f-report")
+			expect(reports).toHaveLength(1)
+			expect(reports[0]?.tags).toContain("scene-catalog")
+
+			expect((await searchItems("王浩")).map((item) => item.id)).toContain("f-wang")
+			expect((await searchItems("通勤咖啡")).map((item) => item.id)).toContain("f-wang")
 		})
 	})
 
@@ -440,6 +977,45 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 
 			expect(skillMatch).toBeDefined()
 			expect(skillMatch?.type).toBe(MentionItemType.SKILL)
+		})
+
+		it("should prefer the skill identifier over unrelated description matches", async () => {
+			vi.mocked(CrewApi.getMentionSkills).mockResolvedValue([
+				{
+					id: "creating-slides",
+					code: "creating-slides",
+					name: "Create Slides",
+					description:
+						"Slide/PPT creation skill that provides complete slide creation capabilities. CRITICAL - When user message contains [@slide_project:...] mention, load this skill first.",
+					logo: null,
+					mention_source: "system",
+					package_name: "creating-slides",
+				},
+				{
+					id: "canvas-designer",
+					code: "canvas-designer",
+					name: "Canvas Designer",
+					description:
+						"Core canvas design skill covering project management. CRITICAL - When user message contains [@design_canvas_project:...] mention, load this skill first.",
+					logo: null,
+					mention_source: "system",
+					package_name: "canvas-designer",
+				},
+				{
+					id: "skill-creator",
+					code: "skill-creator",
+					name: "Skill Creator",
+					description: "Create and evaluate skills.",
+					logo: null,
+					mention_source: "system",
+					package_name: "skill-creator",
+				},
+			])
+
+			await mentionPanelStore.preLoadList()
+			const results = await searchItems("skill-cre")
+
+			expect(results.map((item) => item.name)).toEqual(["Skill Creator"])
 		})
 
 		it("should prioritize exact matches after HTML priority", async () => {
@@ -831,8 +1407,10 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 							id: "hero",
 							type: ElementTypeEnum.Image,
 							name: "Hero Layer",
-							src: "./images/hero.png",
 							zIndex: 1,
+							contents: [{ contentId: "main", src: "./images/hero.png" }],
+							activeContentId: "main",
+							mainContentId: "main",
 						},
 					],
 				}),
@@ -1188,6 +1766,110 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 
 			expect(results.find((item) => item.name === "Alpha Skill")).toBeDefined()
 			expect(results.find((item) => item.name === "General Skill")).toBeUndefined()
+		})
+	})
+
+	describe("project file display resolver", () => {
+		const tree = () => [
+			{
+				type: "directory" as const,
+				file_id: "d-templates",
+				file_name: "templates",
+				relative_file_path: "/templates/",
+				project_id: "test-project",
+				source: AttachmentSource.PROJECT_DIRECTORY,
+				children: [
+					{
+						type: "file" as const,
+						file_id: "f-voices",
+						file_name: "voices.html",
+						file_extension: "html",
+						relative_file_path: "/templates/voices.html",
+						project_id: "test-project",
+						source: AttachmentSource.PROJECT_DIRECTORY,
+						children: [],
+					},
+				],
+			},
+			{
+				type: "directory" as const,
+				file_id: "d-chats",
+				file_name: "template-chats",
+				relative_file_path: "/template-chats/",
+				project_id: "test-project",
+				source: AttachmentSource.PROJECT_DIRECTORY,
+				children: [],
+			},
+		]
+
+		function resolver({ path, isDirectory }: { path: string; isDirectory: boolean }) {
+			if (path.startsWith("template-chats")) return { hidden: true }
+			if (isDirectory && path.replace(/\/$/, "") === "templates") return { name: "报告模板" }
+			if (path === "templates/voices.html") return { name: "人声（默认）" }
+			return null
+		}
+
+		async function listProjectFiles() {
+			const result = await mentionPanelStore.dispatch({
+				kind: "children",
+				id: "project-files",
+			})
+			return result.items ?? []
+		}
+
+		beforeEach(() => {
+			projectFilesStore.setSelectedProject(createTestProject("test-project"))
+			projectFilesStore.setWorkspaceFileTree(tree() as never)
+			mentionPanelStore.setProjectFileDisplayResolver(resolver)
+		})
+
+		afterEach(() => {
+			mentionPanelStore.setProjectFileDisplayResolver(null)
+		})
+
+		it("relabels and hides folders while keeping their real path", async () => {
+			const items = await listProjectFiles()
+
+			expect(items.map((item) => item.name)).toEqual(["报告模板"])
+			expect(items[0]).toMatchObject({
+				id: "/templates/",
+				data: { directory_name: "templates", directory_path: "templates/" },
+			})
+		})
+
+		it("labels a file like a template mention: real path, label as file_name", async () => {
+			const result = await mentionPanelStore.dispatch({
+				kind: "children",
+				id: "/templates/",
+			})
+
+			expect(result.items?.[0]).toMatchObject({
+				id: "f-voices",
+				type: MentionItemType.PROJECT_FILE,
+				name: "人声（默认）",
+				description: "voices.html",
+				data: {
+					file_id: "f-voices",
+					file_name: "人声（默认）",
+					file_path: "templates/voices.html",
+					file_extension: "html",
+					project_id: "test-project",
+				},
+			})
+		})
+
+		it("finds a relabelled file by its label or its real name", async () => {
+			expect((await searchItems("人声")).map((item) => item.id)).toContain("f-voices")
+			expect((await searchItems("voices")).map((item) => item.id)).toContain("f-voices")
+		})
+
+		it("leaves plain projects untouched once the resolver is cleared", async () => {
+			mentionPanelStore.setProjectFileDisplayResolver(null)
+
+			expect((await listProjectFiles()).map((item) => item.name)).toEqual([
+				"templates",
+				"template-chats",
+			])
 		})
 	})
 })

@@ -1,0 +1,7 @@
+{
+  "id": "media-reference-routing",
+  "prompt": "Generate an image candidate from a user-provided reference image.",
+  "expected_reference": "references/image-generation.md",
+  "expected_tools": ["add_canvas_contents"],
+  "constraints": ["Load only the image-generation reference for this request.", "Append a new Content version without replacing the existing Content."]
+}

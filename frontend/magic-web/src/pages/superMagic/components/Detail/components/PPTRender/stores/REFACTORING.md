@@ -208,17 +208,13 @@ stores/
 ├── PPTLoadingManager.ts        # 加载管理
 ├── PPTViewStateManager.ts      # 视图状态管理
 ├── PPTScreenshotManager.ts     # 截图管理
-├── PPTStore.old.ts            # 旧版本备份
 ├── index.ts                    # 导出
 └── REFACTORING.md             # 本文档
 ```
 
-## 备份说明
+## 版本恢复说明
 
-旧的 PPTStore 已备份为 `PPTStore.old.ts`，如需回退可以：
-```bash
-mv stores/PPTStore.old.ts stores/PPTStore.ts
-```
+旧实现备份已从工作树移除。需要审阅或恢复历史版本时，请从 Git 历史或迁移前 tag 恢复，不要在工作树中保留旧 Store 副本。
 
 ## 总结
 

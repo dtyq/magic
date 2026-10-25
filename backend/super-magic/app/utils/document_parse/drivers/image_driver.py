@@ -14,6 +14,7 @@ from app.utils.async_file_utils import async_copy2, async_read_bytes, async_stat
 
 from ..constants import IMAGE_EXTENSIONS
 from ..models import DocumentAsset, DocumentChunk, DocumentNode, DocumentProfile, ExtractionResult, stable_document_id
+from ..service.asset_strategy import AssetStrategyResolver
 from ..structure.asset_store import AssetStore
 from ..structure.chunk_store import ChunkStore
 from ..structure.image_feature_analyzer import ImageFeatureAnalyzer
@@ -62,6 +63,7 @@ class ImageDocumentDriver(DocumentDriver):
     ) -> ExtractionResult:
         metadata = await asyncio.to_thread(self._read_image_metadata, path)
         image_bytes = await async_read_bytes(path)
+        file_stat = await async_stat(path)
         features = ImageFeatureAnalyzer.analyze_bytes(image_bytes)
         image_record = {
             "path": str(path),
@@ -72,7 +74,27 @@ class ImageDocumentDriver(DocumentDriver):
             "source_range": "image:1",
             "features": features,
         }
-        kept_images, skipped_images = ImageWatermarkDetector.split_images([image_record])
+        asset_options = AssetStrategyResolver.resolve(
+            kwargs.get("asset_strategy"),
+            profile=DocumentProfile(
+                source_path=str(path),
+                file_name=path.name,
+                file_type=self.file_type,
+                file_extension=path.suffix.lower(),
+                file_size=file_stat.st_size,
+                unit_type=self.unit_type,
+                total_units=1,
+                title=path.name,
+                metadata=metadata,
+            ),
+        )
+        if asset_options.resolved_strategy in {"page_visual", "full_fidelity"}:
+            kept_images, skipped_images = [image_record], []
+        else:
+            kept_images, skipped_images = ImageWatermarkDetector.split_images([image_record])
+        if not asset_options.extract_embedded_images and asset_options.resolved_strategy != "page_visual":
+            kept_images = []
+            skipped_images = [{**image_record, "reason": "asset strategy disabled embedded images"}]
         assets: list[DocumentAsset] = []
         asset: DocumentAsset | None = None
         if kept_images:
@@ -97,7 +119,7 @@ class ImageDocumentDriver(DocumentDriver):
             parent_node_id="image_1",
             metadata={"asset_ids": [item.asset_id for item in assets], "skipped_images": skipped_images, **metadata},
         )
-        chunks = await ChunkStore.write_chunks(output_dir, [chunk])
+        chunks = await ChunkStore.write_chunks(output_dir, [chunk], [item.path for item in assets])
         node = DocumentNode(
             node_id="image_1",
             title=path.name,
@@ -115,7 +137,7 @@ class ImageDocumentDriver(DocumentDriver):
             nodes=[node],
             pages_processed=1,
             total_units=1,
-            metadata={"mode": mode, "skipped_images": skipped_images, **metadata},
+            metadata={"mode": mode, "skipped_images": skipped_images, "asset_strategy": asset_options.to_dict(), **metadata},
         )
 
     @staticmethod

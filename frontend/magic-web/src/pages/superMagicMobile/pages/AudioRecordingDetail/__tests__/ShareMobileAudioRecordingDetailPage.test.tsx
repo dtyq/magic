@@ -25,6 +25,7 @@ function createShareDetailData() {
 			notes: { file_id: "notes-share-001", file_name: "share-notes.md" },
 			summaryFiles: [{ type: "summary", file: { file_id: "summary-share-001" } }],
 			magicProjectConfig: {
+				files: { notes: "notes/share-notes.md" },
 				metadata: {
 					speakers: { "Speaker-1": "Speaker A" },
 				},
@@ -51,6 +52,8 @@ vi.mock("react-i18next", () => ({
 				"detail.tabs.source": "Source",
 				"detail.tabs.summaryRoot": "Summary",
 				"card.moreActions": "More actions",
+				"share.copyProject": "Copy project",
+				"share.login": "Log in",
 			}
 			return labels[key] ?? key
 		},
@@ -87,6 +90,12 @@ vi.mock("@/pages/superMagic/pages/AudioRecordings/utils/download-recording-audio
 	downloadRecordingAudioFile: vi.fn(),
 }))
 
+vi.mock("@/layouts/BaseLayout/components/Header/components/Logo", () => ({
+	default: ({ className }: { className?: string }) => (
+		<div data-testid="share-mobile-logo" className={className} />
+	),
+}))
+
 vi.mock("../components/MobileRecordingSourcePanel", () => ({
 	MobileRecordingSourcePanel: (props: unknown) => {
 		sourcePanelPropsMock(props)
@@ -102,8 +111,17 @@ vi.mock("../components/MobileRecordingSummaryPanel", () => ({
 }))
 
 vi.mock("../components/MobileRecordingAudioPlayer", () => ({
-	MobileRecordingAudioPlayer: ({ hidden }: { hidden?: boolean }) => (
+	MobileRecordingAudioPlayer: ({
+		hidden,
+		onExpandedChange,
+	}: {
+		hidden?: boolean
+		onExpandedChange?: (expanded: boolean) => void
+	}) => (
 		<div data-testid="mock-audio-player" data-hidden={hidden ? "true" : "false"}>
+			<button type="button" onClick={() => onExpandedChange?.(true)}>
+				Expand player
+			</button>
 			Player
 		</div>
 	),
@@ -114,8 +132,14 @@ vi.mock("../components/MobileRecordingShareExportSheet", () => ({
 		open: boolean
 		showShareSection?: boolean
 		allowDownload?: boolean
+		showCopyProject?: boolean
+		copyProjectLabel?: string
+		showLogin?: boolean
+		loginLabel?: string
 		onOpenChange: (open: boolean) => void
 		onSearch?: () => void
+		onCopyProject?: () => void
+		onLogin?: () => void
 	}) => {
 		sheetPropsMock(props)
 		if (!props.open) return null
@@ -131,6 +155,16 @@ vi.mock("../components/MobileRecordingShareExportSheet", () => ({
 						Search content
 					</button>
 				) : null}
+				{props.showCopyProject ? (
+					<button type="button" onClick={props.onCopyProject}>
+						{props.copyProjectLabel}
+					</button>
+				) : null}
+				{props.showLogin ? (
+					<button type="button" onClick={props.onLogin}>
+						{props.loginLabel}
+					</button>
+				) : null}
 			</div>
 		)
 	},
@@ -142,7 +176,40 @@ describe("ShareMobileAudioRecordingDetailPage", () => {
 		useShareRecordingDetailDataMock.mockReturnValue(createShareDetailData())
 	})
 
-	it("renders the readonly share header without a direct export button", () => {
+	it("requires both config declaration and an authorized notes attachment", () => {
+		const configuredDetail = createShareDetailData()
+		useShareRecordingDetailDataMock.mockReturnValue(configuredDetail)
+		const { rerender } = render(
+			<ShareMobileAudioRecordingDetailPage
+				projectId="project-share-001"
+				resourceName="Mock resource"
+				allowDownloadProjectFile
+				attachments={{ tree: [], list: [] }}
+			/>,
+		)
+		fireEvent.click(screen.getByText("Source"))
+		expect(sourcePanelPropsMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({ showNotesTab: true }),
+		)
+
+		useShareRecordingDetailDataMock.mockReturnValue({
+			...configuredDetail,
+			fileMap: { ...configuredDetail.fileMap, notes: undefined },
+		})
+		rerender(
+			<ShareMobileAudioRecordingDetailPage
+				projectId="project-share-002"
+				resourceName="Mock resource"
+				allowDownloadProjectFile
+				attachments={{ tree: [], list: [] }}
+			/>,
+		)
+		expect(sourcePanelPropsMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({ showNotesTab: false }),
+		)
+	})
+
+	it("renders the readonly share header with the brand logo and no direct export button", () => {
 		render(
 			<ShareMobileAudioRecordingDetailPage
 				projectId="project-share-001"
@@ -154,28 +221,32 @@ describe("ShareMobileAudioRecordingDetailPage", () => {
 
 		expect(screen.getByText("Source")).toBeInTheDocument()
 		expect(screen.getByText("Summary")).toBeInTheDocument()
+		expect(screen.getByTestId("share-mobile-logo")).toBeInTheDocument()
 		expect(screen.getByText("Mock Share Recording")).toBeInTheDocument()
 		expect(screen.getByLabelText("More actions")).toBeInTheDocument()
 		expect(screen.queryByLabelText("detail.exportSection")).not.toBeInTheDocument()
+		expect(screen.getByTestId("mock-summary-panel").parentElement).toHaveClass(
+			"flex",
+			"min-h-0",
+			"flex-1",
+			"overflow-hidden",
+		)
 	})
 
-	it("applies the external share topbar offset to the page root and sticky header", () => {
+	it("does not reserve space for the removed outer share header", () => {
 		render(
 			<ShareMobileAudioRecordingDetailPage
 				projectId="project-share-001"
 				resourceName="Mock resource"
 				allowDownloadProjectFile
-				topbarOffset="calc(52px + var(--safe-area-inset-top,0px))"
 				attachments={{ tree: [], list: [] }}
 			/>,
 		)
 
-		expect(screen.getByTestId("mobile-recording-share-page")).toHaveStyle({
+		expect(screen.getByTestId("mobile-recording-share-page")).not.toHaveStyle({
 			paddingTop: "calc(52px + var(--safe-area-inset-top,0px))",
 		})
-		expect(screen.getByTestId("mobile-recording-share-sticky-header")).toHaveStyle({
-			top: "calc(52px + var(--safe-area-inset-top,0px))",
-		})
+		expect(screen.getByTestId("mobile-recording-share-sticky-header")).toHaveClass("top-0")
 	})
 
 	it("opens the export sheet from the more button and keeps share actions hidden", () => {
@@ -201,6 +272,33 @@ describe("ShareMobileAudioRecordingDetailPage", () => {
 		)
 	})
 
+	it("passes copy and login actions into the more menu", () => {
+		const onCopyProject = vi.fn()
+		const onLogin = vi.fn()
+		render(
+			<ShareMobileAudioRecordingDetailPage
+				projectId="project-share-001"
+				resourceName="Mock resource"
+				allowDownloadProjectFile
+				showCopyProject
+				copyProjectLabel="Copy project"
+				showLogin
+				loginLabel="Log in"
+				onCopyProject={onCopyProject}
+				onLogin={onLogin}
+				attachments={{ tree: [], list: [] }}
+			/>,
+		)
+
+		fireEvent.click(screen.getByLabelText("More actions"))
+		fireEvent.click(screen.getByRole("button", { name: "Copy project" }))
+		expect(onCopyProject).toHaveBeenCalledOnce()
+
+		fireEvent.click(screen.getByLabelText("More actions"))
+		fireEvent.click(screen.getByRole("button", { name: "Log in" }))
+		expect(onLogin).toHaveBeenCalledOnce()
+	})
+
 	it("adds extra bottom reading room on top of the floating player offset", () => {
 		render(
 			<ShareMobileAudioRecordingDetailPage
@@ -213,7 +311,8 @@ describe("ShareMobileAudioRecordingDetailPage", () => {
 
 		expect(summaryPanelPropsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				scrollPaddingBottom: 96,
+				scrollPaddingBottom:
+					"calc(max(24px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) + 40px + 44px)",
 			}),
 		)
 
@@ -221,9 +320,27 @@ describe("ShareMobileAudioRecordingDetailPage", () => {
 
 		expect(sourcePanelPropsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				scrollPaddingBottom: 96,
+				scrollPaddingBottom:
+					"calc(max(24px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) + 40px + 44px)",
 			}),
 		)
+	})
+
+	it("forwards player expansion to the outer share shell", () => {
+		const onPlayerExpandedChange = vi.fn()
+		render(
+			<ShareMobileAudioRecordingDetailPage
+				projectId="project-share-001"
+				resourceName="Mock resource"
+				allowDownloadProjectFile
+				onPlayerExpandedChange={onPlayerExpandedChange}
+				attachments={{ tree: [], list: [] }}
+			/>,
+		)
+
+		fireEvent.click(screen.getByRole("button", { name: "Expand player" }))
+
+		expect(onPlayerExpandedChange).toHaveBeenCalledWith(true)
 	})
 
 	it("switches between source and summary tabs without changing readonly behavior", () => {
@@ -263,23 +380,5 @@ describe("ShareMobileAudioRecordingDetailPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Search content" }))
 		expect(screen.getByTestId("mobile-recording-share-content-search-root")).toBeInTheDocument()
 		expect(screen.getByTestId("mock-audio-player")).toHaveAttribute("data-hidden", "true")
-	})
-
-	it("falls back to a zero offset when the outer share header is hidden", () => {
-		render(
-			<ShareMobileAudioRecordingDetailPage
-				projectId="project-share-001"
-				resourceName="Mock resource"
-				allowDownloadProjectFile
-				attachments={{ tree: [], list: [] }}
-			/>,
-		)
-
-		expect(screen.getByTestId("mobile-recording-share-page")).toHaveStyle({
-			paddingTop: "0px",
-		})
-		expect(screen.getByTestId("mobile-recording-share-sticky-header")).toHaveStyle({
-			top: "0px",
-		})
 	})
 })

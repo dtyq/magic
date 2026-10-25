@@ -2,6 +2,7 @@ import { useId } from "react"
 import { cn } from "../../../runtime/shared/lib/utils"
 import { MinimapButton, MinimapPanel, useCachedMinimapOpen } from "../minimap"
 import Zoom from "../zoom"
+import MediaLabelsSettings from "./MediaLabelsSettings"
 
 interface ViewportControlsProps {
 	/** 与 CanvasDesignProps.shareHostBottomChrome 一致，由宿主注入。 */
@@ -24,6 +25,7 @@ export default function ViewportControls({ shareHostBottomChrome = false }: View
 			{isMinimapOpen ? <MinimapPanel id={minimapPanelId} /> : null}
 			<div className="flex items-center gap-2">
 				<Zoom />
+				<MediaLabelsSettings />
 				<MinimapButton
 					active={isMinimapOpen}
 					panelId={minimapPanelId}

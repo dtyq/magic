@@ -128,16 +128,19 @@ export default function PublishFlowButton({
 
 			<MagicModal
 				className={antdStyles.antdModal}
-				title="填写版本信息"
+				title={t("publish.fillVersionInfo", { ns: "flow" })}
 				open={open}
 				onOk={handleOk}
 				onCancel={handleCancel}
 			>
 				<Form form={form} className={styles.form} initialValues={initialValues}>
-					<Form.Item name="name" label="版本名称">
+					<Form.Item name="name" label={t("publish.versionName", { ns: "flow" })}>
 						<MagicInput />
 					</Form.Item>
-					<Form.Item name="description" label="版本描述">
+					<Form.Item
+						name="description"
+						label={t("publish.versionDescription", { ns: "flow" })}
+					>
 						<MagicInput.TextArea />
 					</Form.Item>
 				</Form>

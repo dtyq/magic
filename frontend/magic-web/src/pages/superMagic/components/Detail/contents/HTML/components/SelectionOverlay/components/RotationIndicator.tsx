@@ -12,7 +12,7 @@ export function RotationIndicator({ rotation }: RotationIndicatorProps) {
 
 	return (
 		<div
-			className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground shadow-sm"
+			className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-[2px] bg-primary px-1.5 py-0.5 font-mono text-[10px] font-medium tabular-nums tracking-[0.14em] text-primary-foreground"
 			style={{
 				top: -24,
 			}}

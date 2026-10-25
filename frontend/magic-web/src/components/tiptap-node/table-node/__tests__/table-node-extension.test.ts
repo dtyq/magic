@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { Editor } from "@tiptap/core"
-import { StarterKit } from "@tiptap/starter-kit"
-import { TableCell, TableHeader, TableRow } from "@tiptap/extension-table"
+import { Editor } from "@/infrastructure/editors/tiptap/core"
+import { StarterKit } from "@/infrastructure/editors/tiptap/starter-kit"
+import { TableCell, TableHeader, TableRow } from "@/infrastructure/editors/tiptap/extension-table"
 import { TableWithWrapper } from "../table-node-extension"
 
 type JsonNode = {

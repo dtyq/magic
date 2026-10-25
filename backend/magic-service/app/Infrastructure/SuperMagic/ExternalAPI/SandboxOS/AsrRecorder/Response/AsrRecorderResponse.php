@@ -126,6 +126,31 @@ class AsrRecorderResponse
     }
 
     /**
+     * Get the task audio format from the sandbox response.
+     *
+     * The explicit field is preferred; completed file paths are a compatibility fallback.
+     */
+    public function getAudioFormat(): ?string
+    {
+        $format = $this->data['audio_format']
+            ?? $this->data['files']['audio_file']['audio_format']
+            ?? $this->data['files']['audio_file']['format']
+            ?? null;
+
+        if (! is_string($format) || trim($format) === '') {
+            $path = $this->getFilePath();
+            $format = is_string($path) ? pathinfo($path, PATHINFO_EXTENSION) : null;
+        }
+
+        if (! is_string($format)) {
+            return null;
+        }
+
+        $format = strtolower(ltrim(trim($format), '.'));
+        return in_array($format, ['wav', 'opus'], true) ? $format : null;
+    }
+
+    /**
      * 获取错误信息.
      */
     public function getErrorMessage(): ?string

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /** TipTap / ProseMirror editor surface + mention / suggestion styling */
 export const messageEditorEditorBase = cn(

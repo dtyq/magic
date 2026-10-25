@@ -1,37 +1,48 @@
 .modalWrap {
-    :global {
-        .magic-modal-body {
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-        .ant-input-affix-wrapper {
-            width: auto;
-        }
-    }
-    .header {
-        margin-bottom: 8px;
-        :global {
-
-            .magic-input-affix-wrapper {
-                width: 250px;
-            }
-        }
-        .sortWrap {
-            :global {
-                .magic-select-selection-item {
-                    color: #315CEC;
-                }
-            }
-            .sortBy {
-                width: 104px;
-            }
-            
-        }
-
-    }
-    .emptyTips {
-        font-size: 14px;
-        font-weight: 400;
-        color: rgba(28, 29, 35, 0.6);
-    }
+	:global {
+		.magic-modal-body {
+			display: flex;
+			flex-direction: column;
+			max-height: 60vh;
+			overflow: hidden;
+		}
+		.ant-input-affix-wrapper {
+			width: auto;
+		}
+	}
+	.header {
+		flex-shrink: 0;
+		margin-bottom: 8px;
+		:global {
+			.magic-input-affix-wrapper {
+				width: 250px;
+			}
+		}
+		.sortWrap {
+			:global {
+				.magic-select-selection-item {
+					color: #315cec;
+				}
+			}
+			.sortBy {
+				width: 104px;
+			}
+		}
+	}
+	.list {
+		display: grid;
+		min-height: 0;
+	}
+	.viewport {
+		height: auto;
+		min-height: 0;
+		> div {
+			display: block !important;
+		}
+	}
+	.emptyTips {
+		font-size: 14px;
+		font-weight: 400;
+		color: rgba(28, 29, 35, 0.6);
+	}
 }

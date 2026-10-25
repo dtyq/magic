@@ -16,6 +16,8 @@ const DEFAULT_ECHARTS_STABLE_MS = 500
 const DEFAULT_ECHARTS_SOURCE_DISCOVERY_MS = 1_000
 const READINESS_POLL_MS = 50
 const FRAME_FALLBACK_MS = 250
+const EXPORT_READY_ATTRIBUTE = "data-magic-export-ready"
+const LEGACY_READY_ATTRIBUTE = "data-render-ready"
 
 interface EChartsAnimationLike {
 	isFinished?: () => boolean
@@ -97,8 +99,8 @@ export function detectRenderReadinessCapabilities(html: string): RenderReadiness
 	).join("\n")
 	const echartsSourceHint = hasDirectEChartsInitSourceHint(inlineScripts)
 	const expectsExplicitRenderReady =
-		/<(?:html|body)\b[^>]*\bdata-render-ready\s*=/i.test(html) ||
-		/(?:setAttribute\s*\(\s*["']data-render-ready["']|dataset\s*\.\s*renderReady\s*=)/i.test(
+		/<(?:html|body)\b[^>]*\bdata-(?:render-ready|magic-export-ready)\s*=/i.test(html) ||
+		/(?:setAttribute\s*\(\s*["'](?:data-render-ready|data-magic-export-ready)["']|dataset\s*\.\s*(?:renderReady|magicExportReady)\s*=)/i.test(
 			inlineScripts,
 		)
 	return {
@@ -724,16 +726,37 @@ function toEChartsFidelityError(error: unknown): Error {
 }
 
 function throwIfExplicitRenderReadyFailed(iframeDocument: Document): void {
-	const value = iframeDocument.documentElement
-		?.getAttribute("data-render-ready")
-		?.trim()
-		.toLowerCase()
-	if (value === "error" || value === "failed") {
-		throw new ExportFidelityError(
-			`[Sandbox] page reported data-render-ready=${value}`,
-			"script",
-		)
+	for (const element of getExplicitRenderReadyElements(iframeDocument)) {
+		for (const attribute of [EXPORT_READY_ATTRIBUTE, LEGACY_READY_ATTRIBUTE]) {
+			const value = element.getAttribute(attribute)?.trim().toLowerCase()
+			if (value === "error" || value === "failed") {
+				throw new ExportFidelityError(`[Sandbox] page reported ${attribute}=${value}`, "script")
+			}
+		}
 	}
+}
+
+function getExplicitRenderReadyElements(iframeDocument: Document): HTMLElement[] {
+	// Pages may own either root element; keep HTML precedence so a root marker cannot be
+	// accidentally overridden by a stale body marker while still supporting body-only pages.
+	const elements: HTMLElement[] = []
+	if (iframeDocument.documentElement) elements.push(iframeDocument.documentElement)
+	if (iframeDocument.body && iframeDocument.body !== iframeDocument.documentElement) {
+		elements.push(iframeDocument.body)
+	}
+	return elements
+}
+
+function readExplicitRenderReadyMarker(
+	iframeDocument: Document,
+): { attribute: string; value: string } | undefined {
+	for (const element of getExplicitRenderReadyElements(iframeDocument)) {
+		for (const attribute of [EXPORT_READY_ATTRIBUTE, LEGACY_READY_ATTRIBUTE]) {
+			const value = element.getAttribute(attribute)?.trim().toLowerCase()
+			if (value) return { attribute, value }
+		}
+	}
+	return undefined
 }
 
 async function waitForExplicitRenderReady({
@@ -755,10 +778,7 @@ async function waitForExplicitRenderReady({
 		signal,
 		timeoutMs,
 		read: () => {
-			const value = iframeDocument.documentElement
-				?.getAttribute("data-render-ready")
-				?.trim()
-				.toLowerCase()
+			const value = readExplicitRenderReadyMarker(iframeDocument)?.value
 			throwIfExplicitRenderReadyFailed(iframeDocument)
 			if (value === "true" || value === "ready" || value === "complete" || value === "1") {
 				return true
@@ -766,13 +786,15 @@ async function waitForExplicitRenderReady({
 			return undefined
 		},
 		onTimeout: () => {
+			const attribute =
+				readExplicitRenderReadyMarker(iframeDocument)?.attribute ?? LEGACY_READY_ATTRIBUTE
 			reportResourceError(onResourceError, {
-				url: "document://render-ready",
+				url: `document://${attribute}`,
 				kind: "render",
 				reason: "timeout",
 			})
 			return new ExportFidelityError(
-				`[Sandbox] data-render-ready was not reached within ${timeoutMs}ms`,
+				`[Sandbox] ${attribute} was not reached within ${timeoutMs}ms`,
 				"render-timeout",
 			)
 		},

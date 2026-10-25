@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
-import dayjs from "@/lib/dayjs"
+import { useIsMobile } from "@/hooks/useIsMobile"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { MagicDatePicker, MagicSelect, MagicTimePicker } from "@/components/base"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { ScheduledTask } from "@/types/scheduledTask"
@@ -12,6 +13,7 @@ import { configToFormValues, formValuesToConfig, validateScheduleConfig } from "
 
 export function ScheduledItem({ value, onChange, disabled }: ScheduledItemProps) {
 	const { t } = useTranslation("interface")
+	const isMobile = useIsMobile()
 	const { styles } = useScheduledItemStyles()
 	const [formValues, setFormValues] = useState<ScheduleFormValues>(() => {
 		if (value) return configToFormValues(value)
@@ -79,7 +81,8 @@ export function ScheduledItem({ value, onChange, disabled }: ScheduledItemProps)
 
 	return (
 		<div className={styles.container}>
-			<div className="w-24">
+			{/* Mobile needs extra width so "不重复" plus the arrow stay readable without crowding. */}
+			<div className={isMobile ? "w-[108px] shrink-0" : "w-24"}>
 				<MagicSelect
 					value={formValues.scheduleType}
 					onChange={handleScheduleTypeChange}
@@ -88,7 +91,7 @@ export function ScheduledItem({ value, onChange, disabled }: ScheduledItemProps)
 					options={SCHEDULE_OPTIONS}
 				/>
 			</div>
-			<div className={styles.column}>
+			<div className={isMobile ? "min-w-0 flex-[1.35]" : styles.column}>
 				{formValues.scheduleType === ScheduledTask.ScheduleType.Once ? (
 					<MagicDatePicker
 						classNames={{
@@ -131,7 +134,7 @@ export function ScheduledItem({ value, onChange, disabled }: ScheduledItemProps)
 					/>
 				) : null}
 			</div>
-			<div className={styles.column}>
+			<div className={isMobile ? "min-w-0 flex-[0.82]" : styles.column}>
 				{formValues.scheduleType === ScheduledTask.ScheduleType.Daily
 					? null
 					: renderTimeSelector()}

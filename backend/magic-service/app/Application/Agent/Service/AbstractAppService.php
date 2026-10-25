@@ -24,7 +24,6 @@ use App\Domain\Flow\Service\MagicFlowVersionDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
-use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Util\Locker\RedisLocker;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
@@ -32,8 +31,6 @@ use Psr\Log\LoggerInterface;
 
 abstract class AbstractAppService extends AbstractKernelAppService
 {
-    use DataIsolationTrait;
-
     protected LoggerInterface $logger;
 
     public function __construct(

@@ -10,6 +10,9 @@ interface FileMenuDropdownProps {
 	onAddSelfMedia?: () => void
 	onAddAICard?: () => void
 	onAddFolder?: () => void
+	getPopupContainer?: () => HTMLElement
+	disabled?: boolean
+	overlayClassName?: string
 	children: ReactNode
 }
 
@@ -24,6 +27,9 @@ function FileMenuDropdown({
 	onAddAICard: onAddAICardProp,
 	onAddFolder: onAddFolderProp,
 	children,
+	getPopupContainer,
+	disabled,
+	overlayClassName,
 }: FileMenuDropdownProps) {
 	/**
 	 * 避免点击菜单项后焦点被转移到菜单项上
@@ -61,14 +67,21 @@ function FileMenuDropdown({
 
 	const fileMenuItems = useFileMenuItems({
 		onAddFile,
-		onAddDesign,
+		onAddDesign: onAddDesignProp ? onAddDesign : undefined,
 		onAddSelfMedia: onAddSelfMediaProp ? onAddSelfMedia : undefined,
 		onAddAICard: onAddAICardProp ? onAddAICard : undefined,
 		onAddFolder: onAddFolderProp ? onAddFolder : undefined,
 	})
 
 	return (
-		<MagicDropdown menu={{ items: fileMenuItems }} trigger={["click"]} placement="bottomLeft">
+		<MagicDropdown
+			overlayClassName={overlayClassName}
+			disabled={disabled}
+			getPopupContainer={getPopupContainer}
+			menu={{ items: fileMenuItems }}
+			trigger={["click"]}
+			placement="bottomLeft"
+		>
 			{children}
 		</MagicDropdown>
 	)

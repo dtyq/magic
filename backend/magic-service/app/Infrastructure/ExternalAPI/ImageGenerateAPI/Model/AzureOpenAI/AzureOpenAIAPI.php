@@ -12,7 +12,11 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\File\ImageBase64DataUriParser;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
+use Exception;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
+use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
@@ -80,8 +84,13 @@ class AzureOpenAIAPI
 
     /**
      * Image edit API call with OSS URL support - supports multiple images.
+     *
+     * @param array<int, string> $imageUrls 参考图（URL 或 base64 data URI）
+     * @param array<string, mixed> $fields 官方 images/edits 字段，键即线上字段名：prompt / size / n /
+     *                                     quality / background / output_format / mask / extra
+     *                                     （extra 为网关自定义透传，非官方字段）；值为 null 或 '' 的项不发送
      */
-    public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1, ?string $quality = null): array
+    public function editImage(string $model, array $imageUrls, array $fields): array
     {
         $url = $this->buildUrl($model, 'images/edits');
 
@@ -98,27 +107,27 @@ class AzureOpenAIAPI
                 $multipartData[] = $this->createImageMultipartPart($imageKey, $imageUrl, $index);
             }
 
-            if ($maskUrl !== null) {
-                $multipartData[] = $this->createImageMultipartPart('mask', $maskUrl, 0, 'mask');
+            if (! empty($fields['mask'])) {
+                $multipartData[] = $this->createImageMultipartPart('mask', (string) $fields['mask'], 0, 'mask');
             }
 
             $multipartData[] = ['name' => 'model', 'contents' => $model];
-            $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
-            $multipartData[] = ['name' => 'size', 'contents' => $size];
-            $multipartData[] = ['name' => 'n', 'contents' => (string) $n];
-            if ($quality !== null) {
-                $multipartData[] = ['name' => 'quality', 'contents' => $quality];
+
+            foreach ($fields as $name => $value) {
+                if ($name === 'mask' || $value === null || $value === '') {
+                    continue;
+                }
+                $multipartData[] = [
+                    'name' => $name,
+                    'contents' => $name === 'extra' ? Json::encode($value) : (string) $value,
+                ];
             }
 
             $this->logger->info('Azure OpenAI API 请求', [
                 'url' => $url,
                 'payload' => $this->sanitizePayloadForLog([
                     'imageUrls' => $imageUrls,
-                    'maskUrl' => $maskUrl,
-                    'prompt' => $prompt,
-                    'size' => $size,
-                    'n' => $n,
-                    'quality' => $quality,
+                    'fields' => $fields,
                 ]),
             ]);
 
@@ -222,11 +231,12 @@ class AzureOpenAIAPI
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Invalid JSON response');
         }
 
+        $this->logger->info('Azure OpenAI API 请求结果', [
+            'response' => $this->sanitizePayloadForLog($data),
+        ]);
+
         if (isset($data['error'])) {
-            ExceptionBuilder::throw(
-                ImageGenerateErrorCode::GENERAL_ERROR,
-                'Azure OpenAI API Error: ' . $data['error']['message']
-            );
+            $this->throwProviderError($data);
         }
 
         return $data;
@@ -237,16 +247,79 @@ class AzureOpenAIAPI
      */
     private function handleException(RequestException $e): void
     {
-        $message = 'Azure OpenAI API request failed: ' . $e->getMessage();
+        $result = [
+            'error' => [
+                'message' => $e->getMessage(),
+            ],
+        ];
 
         if ($e->hasResponse()) {
-            $body = $e->getResponse()->getBody()->getContents();
+            $response = $e->getResponse();
+            $bodyStream = $response->getBody();
+            $body = (string) $bodyStream;
+            if ($bodyStream->isSeekable()) {
+                $bodyStream->rewind();
+            }
             $data = json_decode($body, true);
-            if (isset($data['error']['message'])) {
-                $message = 'Azure OpenAI API Error: ' . $data['error']['message'];
+            if (is_array($data)) {
+                $result = $data;
+            } elseif ($body !== '') {
+                $result = ['error' => ['message' => $body]];
+            }
+
+            $this->logger->info('Azure OpenAI API 请求结果', [
+                'response' => $this->sanitizePayloadForLog($result),
+            ]);
+        }
+
+        $this->throwProviderError($result, $e);
+    }
+
+    private function throwProviderError(array $result, ?RequestException $requestException = null): never
+    {
+        $providerError = is_array($result['error'] ?? null) ? $result['error'] : [];
+        $providerErrorCode = (string) ($providerError['code'] ?? '');
+        $providerErrorMessage = (string) ($providerError['message'] ?? '');
+        $errorCode = $this->resolveProviderErrorCode($providerErrorCode, $providerErrorMessage);
+
+        $throwable = $requestException ?? new Exception(
+            json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR)
+                ?: 'Invalid Azure OpenAI response.'
+        );
+
+        ExceptionBuilder::throw($errorCode, throwable: $throwable);
+    }
+
+    private function resolveProviderErrorCode(string $providerErrorCode, string $providerErrorMessage): ImageGenerateErrorCode
+    {
+        $normalizedMessage = strtolower($providerErrorMessage);
+        $errorRules = [
+            ImageGenerateErrorCode::OUTPUT_IMAGE_AUDIT_FAILED->value => [
+                'provider_codes' => ['contentFilter', 'content_filter', 'content_policy_violation'],
+                'keywords' => ['safety', '安全'],
+            ],
+            ImageGenerateErrorCode::INVALID_ASPECT_RATIO->value => [
+                'provider_codes' => [],
+                'keywords' => ['aspect ratio', '宽高比', '尺寸比例'],
+            ],
+            ImageGenerateErrorCode::UNSUPPORTED_IMAGE_SIZE->value => [
+                'provider_codes' => [],
+                'keywords' => ['invalid size', 'unsupported size', '尺寸'],
+            ],
+        ];
+
+        foreach ($errorRules as $errorCode => $rule) {
+            if (in_array($providerErrorCode, $rule['provider_codes'], true)) {
+                return ImageGenerateErrorCode::from($errorCode);
+            }
+
+            foreach ($rule['keywords'] as $keyword) {
+                if (str_contains($normalizedMessage, strtolower($keyword))) {
+                    return ImageGenerateErrorCode::from($errorCode);
+                }
             }
         }
 
-        ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $message);
+        return ImageGenerateErrorCode::GENERAL_ERROR;
     }
 }

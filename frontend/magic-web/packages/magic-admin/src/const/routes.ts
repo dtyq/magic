@@ -4,27 +4,6 @@ export enum RoutePath {
 	AdminNoAuthorized = "/admin/no-authorized",
 	AdminApplicationManager = "/admin/application/management",
 
-	// AI Management paths
-	AI = "/admin/ai",
-	AICustomModel = "/admin/ai/custom",
-	AIModel = "/admin/ai/custom/llm",
-	AIModelDetail = "/admin/ai/custom/llm/:id",
-	AIDrawing = "/admin/ai/custom/vlm",
-	AIDrawingDetail = "/admin/ai/custom/vlm/:id",
-	AIVideo = "/admin/ai/custom/video",
-	AIVideoDetail = "/admin/ai/custom/video/:id",
-	AIInternalEmployeeSkill = "/admin/ai/internal-employee-skill",
-	AIEmployeeReview = "/admin/ai/internal-employee-skill/employee-review",
-	AISkillReview = "/admin/ai/internal-employee-skill/skill-review",
-	AIDataStatistics = "/admin/ai/statistics",
-	AIDataDashboardMemberAnalysis = "/admin/ai/statistics/member-analysis",
-	AIDataDashboardOrganizationAnalysis = "/admin/ai/statistics/organization-analysis",
-	AIDataDashboardDigitalEmployeeAnalysis = "/admin/ai/statistics/digital-employee-analysis",
-	AIDataDashboardConsumptionAnalysis = "/admin/ai/statistics/consumption-analysis",
-	AIDataDashboardDataDictionary = "/admin/ai/statistics/data-dictionary",
-	AIManage = "/admin/ai/manage",
-	AIAppMenu = "/admin/ai/manage/app-menu",
-
 	// Platform Package paths
 	Platform = "/admin/platform",
 	PlatformModel = "/admin/platform/model",
@@ -45,9 +24,7 @@ export enum RoutePath {
 	PlatformSlidesTemplate = "/admin/platform/agent/slides-template",
 	PlatformManage = "/admin/platform/manage",
 	PlatformInfoManagement = "/admin/platform/manage/platform-info",
-	PlatformProviderAccess = "/admin/platform/manage/provider-access",
 	PlatformAppMenu = "/admin/platform/manage/app-menu",
-	PlatformMaintenance = "/admin/platform/manage/maintenance",
 }
 
 export enum RouteName {
@@ -56,46 +33,6 @@ export enum RouteName {
 	AdminHome = "AdminHome",
 	AdminApplicationManager = "AdminApplicationManager",
 	AdminKeewood = "AdminKeewood",
-
-	/** ====== AI 管理模块 ====== */
-	/** AI 管理布局 */
-	AdminAILayout = "AdminAILayout",
-	/** 自定义大模型 */
-	AdminAICustomModel = "AdminAICustomModel",
-	/** 自定义大模型 - 文本大模型 */
-	AdminAIModel = "AdminAIModel",
-	/** 自定义大模型 - 生图大模型 */
-	AdminAIDrawing = "AdminAIDrawing",
-	/** 自定义大模型 - 文本大模型详情 */
-	AdminAIModelDetails = "AdminAIModelDetails",
-	/** 自定义大模型 - 生图大模型详情 */
-	AdminAIDrawingDetails = "AdminAIDrawingDetails",
-	/** 自定义大模型 - 视频大模型 */
-	AdminAIVideo = "AdminAIVideo",
-	/** 自定义大模型 - 视频大模型详情 */
-	AdminAIVideoDetails = "AdminAIVideoDetails",
-	/** 内部员工及技能 */
-	AdminAIInternalEmployeeSkill = "AdminAIInternalEmployeeSkill",
-	/** 内部员工及技能 - 员工发布审核 */
-	AdminAIEmployeeReview = "AdminAIEmployeeReview",
-	/** 内部员工及技能 - 技能发布审核 */
-	AdminAISkillReview = "AdminAISkillReview",
-	/** 数据看板 */
-	AdminAIDataStatistics = "AdminAIDataStatistics",
-	/** 数据看板 - 成员分析 */
-	AdminAIDataDashboardMemberAnalysis = "AdminAIDataDashboardMemberAnalysis",
-	/** 数据看板 - 组织分析 */
-	AdminAIDataDashboardOrganizationAnalysis = "AdminAIDataDashboardOrganizationAnalysis",
-	/** 数据看板 - 数字员工分析 */
-	AdminAIDataDashboardDigitalEmployeeAnalysis = "AdminAIDataDashboardDigitalEmployeeAnalysis",
-	/** 数据看板 - 消耗分析 */
-	AdminAIDataDashboardConsumptionAnalysis = "AdminAIDataDashboardConsumptionAnalysis",
-	/** 数据看板 - 指标说明 */
-	AdminAIDataDashboardDataDictionary = "AdminAIDataDashboardDataDictionary",
-	/** 平台管理 - 应用菜单 */
-	AdminAIManage = "AdminAIManage",
-	/** 应用菜单 */
-	AdminAIAppMenu = "AdminAIAppMenu",
 
 	/** ====== 平台管理模块 ====== */
 	/** 平台套餐布局 */
@@ -137,12 +74,8 @@ export enum RouteName {
 
 	/** 平台管理 */
 	AdminPlatformManage = "AdminPlatformManage",
-	/** 平台管理 - 平台维护 */
-	AdminPlatformMaintenance = "AdminPlatformMaintenance",
 	/** 平台管理 - 平台信息 */
 	AdminPlatformInfoManagement = "AdminPlatformInfoManagement",
-	/** 平台管理 - 运营管控 */
-	AdminPlatformProviderAccess = "AdminPlatformProviderAccess",
 	/** 平台管理 - 应用菜单 */
 	AdminAppMenu = "AdminAppMenu",
 }

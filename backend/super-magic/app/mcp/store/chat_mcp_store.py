@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from agentlang.logger import get_logger
-
 from app.mcp.config.models import MCPConfigSource, MCPServerConfig, MCPServerType
 from app.path_manager import PathManager
 from app.utils.async_file_utils import async_try_read_json, async_write_json
@@ -31,7 +30,20 @@ logger = get_logger(__name__)
 _STORE_VERSION = 1
 
 # 参与 diff 判断的字段。与 app/mcp/config/loader._is_config_changed 保持一致。
-_DIFF_FIELDS = ("type", "command", "args", "env", "url", "headers", "token", "server_options", "description", "allowed_tools")
+_DIFF_FIELDS = (
+    "type",
+    "command",
+    "args",
+    "env",
+    "url",
+    "headers",
+    "token",
+    "auth_type",
+    "mcp_server_code",
+    "server_options",
+    "description",
+    "allowed_tools",
+)
 
 
 class UpsertChangeType(StrEnum):
@@ -84,7 +96,7 @@ class ChatMcpStoreEntry:
                 added_at=str(meta_raw.get("added_at") or _now_iso()),
                 updated_at=str(meta_raw.get("updated_at") or _now_iso()),
             )
-        except Exception as e:  # noqa: BLE001 - 反序列化失败容忍，打日志并丢弃单条
+        except Exception as e:
             logger.warning(f"ChatMcpStore: 反序列化记录失败，丢弃: {e}")
             return None
 

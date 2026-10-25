@@ -52,6 +52,14 @@ class ProcessorManager:
         if processor_config is None:
             processor_config = ProcessorConfig.create_default()
 
+        # 最终请求已完成消息规范化和模型工具筛选；仅生成本次请求的局部快照。
+        input_breakdown = None
+        if processor_config.context_usage_estimator is not None:
+            try:
+                input_breakdown = processor_config.context_usage_estimator(request_params)
+            except Exception as estimate_error:
+                logger.warning(f"Context usage estimate unavailable: {type(estimate_error).__name__}")
+
         use_stream_mode = processor_config.use_stream_mode
 
         # 获取或生成 correlation_id
@@ -85,6 +93,7 @@ class ProcessorManager:
                 client=client,
                 llm_config=llm_config,
                 request_params=request_params,
+                input_breakdown=input_breakdown,
                 model_id=model_id,
                 processor_config=processor_config,
                 agent_context=agent_context,
@@ -105,6 +114,7 @@ class ProcessorManager:
                 client=client,
                 llm_config=llm_config,
                 request_params=request_params,
+                input_breakdown=input_breakdown,
                 model_id=model_id,
                 agent_context=agent_context,
                 request_id=request_id,

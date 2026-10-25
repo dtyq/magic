@@ -1,5 +1,5 @@
 import { isMagicApp } from "@/utils/devices"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { getNativePort } from "@/platform/native"
 
 const logger = Logger.createLogger("app active listener")

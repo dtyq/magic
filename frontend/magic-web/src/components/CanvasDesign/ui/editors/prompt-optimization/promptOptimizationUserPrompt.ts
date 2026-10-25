@@ -140,6 +140,21 @@ function buildReferenceSection(
 		)
 		lines.push(["# 参考素材", ...referenceInstructions].join("\n"))
 	}
+	// 生成模型会直接看参考图；提示词复述外观时，看错或说重的细节会压过参考图本身，
+	// 所以只让优化结果说明每张图的角色。不带方括号的“图片1”不会触发编辑器的占位符绑定。
+	const hasVisualImageReference = availableReferences.some(
+		(reference) => reference.kind === "image" && reference.isVisualInput,
+	)
+	if (hasVisualImageReference) {
+		lines.push(
+			[
+				"# 参考图写法",
+				"写清每张参考图负责什么、保持到什么程度，不要复述参考图里已有的外观（肤色、胡子、眼镜、服装细节等）；完整描述参考图提供不了的新场景、动作、镜头、光线和要改动的内容。",
+				"指代参考图时：当前输入已有占位符就用占位符；没有占位符时按顺序写“图片1、图片2”（英文写 Image 1、Image 2），不要加方括号。",
+				"需要强调时可以强调：用户提到的特征、正在修改的部分、容易丢失的小细节（logo、痣、包装文字），或需要区分多个主体时，指向参考图里的位置来写，不要重新描述它的样子。",
+			].join("\n"),
+		)
+	}
 	return lines.join("\n\n")
 }
 
@@ -182,7 +197,7 @@ function buildReferenceInstruction(
 	if (reference.kind === "image") {
 		return `${prefix}：${fileNameText}${visualReferenceText}${roleText}${
 			reference.isVisualInput
-				? "，可用于理解主体、风格、构图、光线、颜色、材质或背景关系"
+				? "，用于判断它在画面中负责什么（如人物形象、服装、产品外形、构图、配色、光线或风格）"
 				: "，只作为文件占位符"
 		}。`
 	}
@@ -216,7 +231,7 @@ function buildOptimizationInstruction(target: PromptOptimizationTarget): string 
 	const targetRule =
 		target === "video"
 			? "补充真正服务视频生成的视觉信息：主体动作、场景变化、镜头运动、构图、光线、色彩、材质、节奏和画面连续性。"
-			: "补充真正服务图片生成的视觉信息：主体状态、场景、背景、构图、光线方向与软硬、色彩关系、材质质感、镜头或画幅。"
+			: "补充真正服务图片生成的视觉信息：主体状态（参考图已提供的外观交给参考图）、场景、背景、构图、光线方向与软硬、色彩关系、材质质感、镜头或画幅。"
 	return ["# 优化要求", ...sharedRules, targetRule].join("\n")
 }
 

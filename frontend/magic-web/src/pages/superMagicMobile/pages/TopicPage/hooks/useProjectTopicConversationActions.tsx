@@ -8,6 +8,7 @@ import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { topicStore } from "@/pages/superMagic/stores/core"
 import { isCollaborationProject } from "@/pages/superMagic/constants"
+import { isPrivateDeployment } from "@/utils/env"
 import { buildSuperMobileNavigationState } from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
 import { resolveSuperMobileProjectDetailBackFallback } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 
@@ -26,6 +27,7 @@ export function useProjectTopicConversationActions({
 }: UseProjectTopicConversationActionsParams) {
 	const { t } = useTranslation("super")
 	const navigate = useNavigate()
+	const isPrivateDeploymentEnv = isPrivateDeployment()
 	const [actionSheetVisible, { setTrue: showActionSheet, setFalse: hideActionSheet }] =
 		useBoolean(false)
 	const [filesDrawerOpen, setFilesDrawerOpen] = useState(false)
@@ -157,7 +159,11 @@ export function useProjectTopicConversationActions({
 					},
 				],
 			},
-			{
+		]
+
+		// Private deployments do not expose conversation feedback, so omit the action group entirely.
+		if (!isPrivateDeploymentEnv) {
+			groups.push({
 				actions: [
 					{
 						key: "feedback-conversation",
@@ -166,8 +172,8 @@ export function useProjectTopicConversationActions({
 						disabled: !selectedTopic || !selectedProject || !onOpenConversationFeedback,
 					},
 				],
-			},
-		]
+			})
+		}
 
 		if (topics.length > 1) {
 			groups.push({
@@ -198,6 +204,7 @@ export function useProjectTopicConversationActions({
 		toggleConversationTopicPin,
 		topicActionMap,
 		topics.length,
+		isPrivateDeploymentEnv,
 	])
 
 	const conversationActionPopupTitle = useMemo(() => {

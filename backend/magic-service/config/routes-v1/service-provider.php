@@ -5,11 +5,17 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
+use App\Interfaces\Provider\Facade\AiAbilityApi;
 use App\Interfaces\Provider\Facade\Open\ServiceProviderOpenApi;
 use Hyperf\HttpServer\Router\Router;
 
 // 不校验管理员权限的路由组
 Router::addGroup('/api/v1', static function () {
+    // AI 能力可用性（不校验管理员权限）
+    Router::addGroup('/ai-abilities', static function () {
+        Router::get('/availability', [AiAbilityApi::class, 'availability']);
+    });
+
     Router::addGroup('/service-providers', static function () {
         // 获取可用的模型列表（不校验管理员权限）
         Router::post('/available-models', [ServiceProviderOpenApi::class, 'getAvailableModels']);

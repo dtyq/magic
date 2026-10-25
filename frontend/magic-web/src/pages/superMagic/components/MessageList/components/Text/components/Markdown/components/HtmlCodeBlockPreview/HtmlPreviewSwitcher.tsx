@@ -4,6 +4,7 @@ import { StreamingHtmlPreview } from "./StreamingHtmlPreview"
 interface HtmlPreviewSwitcherProps {
 	isStreaming: boolean
 	isSuspended?: boolean
+	isPreviewActive?: boolean
 	resolvedCode: string
 	isPreviewLoading: boolean
 	onPreviewRenderReady: () => void
@@ -18,6 +19,7 @@ export function HtmlPreviewSwitcher(props: HtmlPreviewSwitcherProps) {
 	const {
 		isStreaming,
 		isSuspended = false,
+		isPreviewActive = true,
 		resolvedCode,
 		isPreviewLoading,
 		onPreviewRenderReady,
@@ -33,6 +35,7 @@ export function HtmlPreviewSwitcher(props: HtmlPreviewSwitcherProps) {
 			<StreamingHtmlPreview
 				content={resolvedCode}
 				isSuspended={isSuspended}
+				isPreviewActive={isPreviewActive}
 				onCommittedContentChange={onCommittedContentChange}
 				previewLayout={previewLayout}
 				availableWidth={availableWidth}

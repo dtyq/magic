@@ -17,6 +17,7 @@ use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Service\ModeDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
@@ -217,11 +218,11 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
         $apiChatDTO->setParams($arguments);
         $apiChatDTO->setFlowCode($toolFlow->getCode());
         $apiChatDTO->setFlowVersionCode($toolFlow->getVersionCode());
-        $apiChatDTO->setMessage('super_magic_tool_call');
+        $apiChatDTO->setMessage(SourceId::SUPER_MAGIC_TOOL_CALL);
         return di(MagicFlowExecuteAppService::class)->apiParamCallByRemoteTool(
             $flowDataIsolation,
             $apiChatDTO,
-            'super_magic_tool_call'
+            SourceId::SUPER_MAGIC_TOOL_CALL
         );
     }
 
@@ -233,10 +234,21 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
      */
     public function executeAgent(Authenticatable $authorization, array $params): array
     {
-        $agentId = (string) ($params['agent_id'] ?? '');
+        return $this->executeAssistant($authorization, $params);
+    }
+
+    /**
+     * Legacy business assistant execution endpoint.
+     *
+     * The underlying domain object remains an Agent for backward compatibility,
+     * but the public integration contract uses Assistant terminology.
+     */
+    public function executeAssistant(Authenticatable $authorization, array $params): array
+    {
+        $agentId = (string) ($params['assistant_id'] ?? ($params['agent_id'] ?? ''));
         $message = (string) ($params['message'] ?? '');
         if ($agentId === '') {
-            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'agent_id']);
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'assistant_id']);
         }
         if ($message === '') {
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'message']);

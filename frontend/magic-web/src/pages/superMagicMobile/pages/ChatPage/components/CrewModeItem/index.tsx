@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { CrewItem } from "@/pages/superMagic/pages/Workspace/types"
 import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 import { useTranslation } from "react-i18next"

@@ -65,23 +65,30 @@ describe("htmlPermissionPolicy", () => {
 
 	it.each<{
 		scope: HtmlPermissionScope
-		options: number[]
+		options: Array<number | null>
 		defaultTtl: number
 	}>([
-		{ scope: "llm.use", options: [HOUR, 8 * HOUR, DAY], defaultTtl: HOUR },
-		{ scope: "project.message.write", options: [0, HOUR, 8 * HOUR], defaultTtl: 0 },
-		{ scope: "project.files.upload", options: [HOUR, 8 * HOUR, DAY], defaultTtl: HOUR },
-		{ scope: "project.files.download", options: [HOUR, 8 * HOUR, DAY], defaultTtl: HOUR },
-		{ scope: "fs.project.read", options: [HOUR, 8 * HOUR, DAY], defaultTtl: HOUR },
-		{ scope: "fs.project.write", options: [0, HOUR, 8 * HOUR], defaultTtl: 0 },
-		{ scope: "user.profile.name", options: [HOUR, 8 * HOUR, DAY], defaultTtl: HOUR },
-		{ scope: "user.profile.identity", options: [HOUR, 8 * HOUR, DAY], defaultTtl: HOUR },
-		{ scope: "user.profile.organization", options: [HOUR, 8 * HOUR, DAY], defaultTtl: HOUR },
-	])("defines bounded legacy durations for $scope", ({ scope, options, defaultTtl }) => {
-		const ttlOptions = getSharedHtmlPermissionTtlOptions([scope], "legacy")
-		expect(ttlOptions.map((option) => option.ttlMs)).toEqual(options)
-		expect(getDefaultHtmlPermissionTtl([scope], "legacy", ttlOptions)).toBe(defaultTtl)
-	})
+		{ scope: "llm.use", options: [HOUR, 8 * HOUR, DAY, null], defaultTtl: HOUR },
+		{ scope: "project.message.write", options: [0, HOUR, 8 * HOUR, null], defaultTtl: 0 },
+		{ scope: "project.files.upload", options: [HOUR, 8 * HOUR, DAY, null], defaultTtl: HOUR },
+		{ scope: "project.files.download", options: [HOUR, 8 * HOUR, DAY, null], defaultTtl: HOUR },
+		{ scope: "fs.project.read", options: [HOUR, 8 * HOUR, DAY, null], defaultTtl: HOUR },
+		{ scope: "fs.project.write", options: [0, HOUR, 8 * HOUR, null], defaultTtl: 0 },
+		{ scope: "user.profile.name", options: [HOUR, 8 * HOUR, DAY, null], defaultTtl: HOUR },
+		{ scope: "user.profile.identity", options: [HOUR, 8 * HOUR, DAY, null], defaultTtl: HOUR },
+		{
+			scope: "user.profile.organization",
+			options: [HOUR, 8 * HOUR, DAY, null],
+			defaultTtl: HOUR,
+		},
+	])(
+		"defines legacy durations including permanent access for $scope",
+		({ scope, options, defaultTtl }) => {
+			const ttlOptions = getSharedHtmlPermissionTtlOptions([scope], "legacy")
+			expect(ttlOptions.map((option) => option.ttlMs)).toEqual(options)
+			expect(getDefaultHtmlPermissionTtl([scope], "legacy", ttlOptions)).toBe(defaultTtl)
+		},
+	)
 
 	it("calculates multi-scope options and defaults independently of scope order", () => {
 		const firstOrder = ["fs.project.read", "project.message.write"] as HtmlPermissionScope[]

@@ -25,6 +25,10 @@ export interface HtmlCodeBlockPreviewProps extends HTMLAttributes<HTMLPreElement
 	fullCode?: string
 	// 多个预览实例之间共享的滚动状态 ref（hook 会更新 .current.hasUserInteracted）。
 	streamingScrollStateRef: MutableRefObject<HtmlCodeBlockPreviewStreamingScrollState>
+	// Markdown 代码块的统一换行偏好。
+	isCodeWrapped: boolean
+	// 切换 Markdown 代码块的换行偏好。
+	onToggleCodeWrap: () => void
 }
 
 // 从标准的 `<pre><code /></pre>` 结构中抽出的代码块信息。

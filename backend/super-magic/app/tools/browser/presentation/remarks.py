@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
 from app.tools.browser.presentation.common import (
+    script_preview,
+    script_text,
     snapshot_counts,
     string,
     target_text,
@@ -14,6 +16,11 @@ from app.tools.browser.presentation.common import (
 )
 from magic_use.errors import BrowserErrorCode
 from magic_use.models import ActionTarget
+
+_SCRIPT_ARGUMENT_KEYS: Mapping[str, str] = {
+    "browser_evaluate": "expression",
+    "browser_add_init_script": "source",
+}
 
 
 class BrowserRemarkBuilder:
@@ -27,6 +34,17 @@ class BrowserRemarkBuilder:
         target: ActionTarget | None,
     ) -> dict[str, str]:
         subject = cls._argument_subject(tool_name, arguments, target)
+        if subject and tool_name in _SCRIPT_ARGUMENT_KEYS:
+            remark_key = (
+                "browser.remark.running_init_script"
+                if tool_name == "browser_add_init_script"
+                else "browser.remark.running_script"
+            )
+            return {
+                "tool_name": tool_name,
+                "action": action,
+                "remark": cls._message(remark_key, action=action, script=subject),
+            }
         remark = (
             cls._message("browser.remark.running_target", action=action, target=subject)
             if subject
@@ -48,6 +66,18 @@ class BrowserRemarkBuilder:
                 "tool_name": tool_name,
                 "action": action,
                 "remark": cls._message("browser.remark.recovering_navigation"),
+            }
+        script = cls._script_preview(tool_name, arguments)
+        if result.ok and script:
+            remark_key = (
+                "browser.remark.completed_init_script"
+                if tool_name == "browser_add_init_script"
+                else "browser.remark.completed_script"
+            )
+            return {
+                "tool_name": tool_name,
+                "action": action,
+                "remark": cls._message(remark_key, script=script),
             }
         return {
             "tool_name": tool_name,
@@ -133,6 +163,8 @@ class BrowserRemarkBuilder:
             value = arguments.get("value")
             return value.strip() if isinstance(value, str) else ""
         key_by_tool = {
+            "browser_evaluate": "expression",
+            "browser_add_init_script": "source",
             "browser_press": "key",
             "browser_select": "value",
             "browser_screenshot": "output_path",
@@ -140,9 +172,14 @@ class BrowserRemarkBuilder:
             "browser_find_visual": "target",
         }
         argument_key = key_by_tool.get(tool_name)
-        argument_value = arguments.get(argument_key) if argument_key else None
-        if isinstance(argument_value, str) and argument_value.strip():
-            return argument_value.strip()
+        if argument_key:
+            argument_value = script_text(arguments, argument_key)
+            if argument_value:
+                return (
+                    cls._script_preview(tool_name, arguments)
+                    if tool_name in _SCRIPT_ARGUMENT_KEYS
+                    else argument_value
+                )
         if target is not None:
             for value in (target.name, target.text, target.role):
                 if value.strip():
@@ -152,6 +189,13 @@ class BrowserRemarkBuilder:
             if isinstance(value, str) and value.strip():
                 return value.strip()
         return ""
+
+    @staticmethod
+    def _script_preview(tool_name: str, arguments: Mapping[str, object]) -> str:
+        argument_key = _SCRIPT_ARGUMENT_KEYS.get(tool_name)
+        if argument_key is None:
+            return ""
+        return script_preview(script_text(arguments, argument_key))
 
     @staticmethod
     def _message(key: str, **kwargs: object) -> str:

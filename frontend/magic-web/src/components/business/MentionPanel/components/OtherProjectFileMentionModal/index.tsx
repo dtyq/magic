@@ -1,5 +1,6 @@
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
+import { useEffect, useRef, useState } from "react"
 
 import workspaceStore from "@/pages/superMagic/stores/core/workspace"
 import ProjectResourceSelectorModal from "@/pages/superMagic/components/SelectPathModal/components/ProjectResourceSelectorModal"
@@ -27,6 +28,22 @@ function OtherProjectFileMentionModal({
 	onSelect,
 }: OtherProjectFileMentionModalProps) {
 	const { t } = useTranslation("super")
+	const requestId = useRef(0)
+	const pending = useRef(false)
+	const [submitting, setSubmitting] = useState(false)
+	const cancel = () => {
+		requestId.current += 1
+		pending.current = false
+		setSubmitting(false)
+		onClose()
+	}
+	useEffect(() => {
+		pending.current = false
+		setSubmitting(false)
+		return () => {
+			requestId.current += 1
+		}
+	}, [visible])
 
 	return (
 		<ProjectResourceSelectorModal
@@ -34,6 +51,7 @@ function OtherProjectFileMentionModal({
 			title={t("selectPathModal.mentionOtherProjectFiles")}
 			operationType="copy"
 			selectionMode="mention"
+			submitting={submitting}
 			workspaces={workspaceStore.workspaces}
 			fileIds={[]}
 			sourceAttachments={[]}
@@ -42,10 +60,14 @@ function OtherProjectFileMentionModal({
 			excludeProjectIds={currentProject?.id ? [currentProject.id] : []}
 			emptyDirectoryDescription={t("selectPathModal.mentionEmptyProject")}
 			emptyDirectoryActionLabel={null}
-			onClose={onClose}
+			onClose={cancel}
 			onSubmit={async (data) => {
 				const selections = data.selections || (data.selection ? [data.selection] : [])
 				if (selections.length === 0) return
+				if (pending.current || !visible) return
+				pending.current = true
+				setSubmitting(true)
+				const currentRequestId = ++requestId.current
 				try {
 					const projectsById = new Map<string, ProjectListItem>()
 					await Promise.all(
@@ -64,6 +86,8 @@ function OtherProjectFileMentionModal({
 						}),
 					)
 
+					// 关闭或重新打开后，旧请求不能向编辑器插入引用。
+					if (currentRequestId !== requestId.current) return
 					onSelect(
 						selections.map((selection) => ({
 							...selection,
@@ -71,8 +95,14 @@ function OtherProjectFileMentionModal({
 						})),
 					)
 				} catch (error) {
+					if (currentRequestId !== requestId.current) return
 					console.error("Failed to resolve mentioned project:", error)
 					magicToast.error(t("selectPathModal.fetchProjectsFailed"))
+				} finally {
+					if (currentRequestId === requestId.current) {
+						pending.current = false
+						setSubmitting(false)
+					}
 				}
 			}}
 		/>

@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+ <title>Cal.com — Open Scheduling Infrastructure</title>
+ <style>
+ :root {
+ --primary: #111111;
+ --ink: #111111;
+ --body: #374151;
+ --muted: #6b7280;
+ --hairline: #e5e7eb;
+ --canvas: #ffffff;
+ --surface-soft: #f8f9fa;
+ --surface-card: #f5f5f5;
+ --surface-dark: #101010;
+ --on-dark-soft: #a1a1aa;
+ --brand-accent: #3b82f6;
+ --success: #10b981;
+ --font-display: "Cal Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+ --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+ --radius-md: 8px;
+ --radius-lg: 12px;
+ --radius-xl: 16px;
+ --radius-pill: 9999px;
+ --shadow-xl: 0 20px 40px -15px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06);
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; }
+ body { font-family: var(--font-sans); background: var(--canvas); color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+ a { color: inherit; text-decoration: none; }
+ button { font-family: inherit; border: none; background: none; cursor: pointer; }
+ .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
+ /* Top Nav */
+ .top-nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.96); backdrop-filter: blur(8px); border-bottom: 1px solid var(--hairline); height: 58px; }
+ .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 100%; }
+ .brand-wrap { display: flex; align-items: center; gap: 18px; }
+ .brand-logo { display: flex; align-items: center; gap: 7px; font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -0.5px; }
+ .brand-mark { width: 20px; height: 20px; background: var(--primary); border-radius: 5px; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
+ .nav-pill-group { display: flex; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: var(--radius-pill); padding: 2px; }
+ .nav-pill { padding: 4px 10px; font-size: 12px; font-weight: 500; border-radius: var(--radius-pill); color: var(--muted); }
+ .nav-pill.active { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+ .nav-links { display: flex; align-items: center; gap: 18px; font-size: 13px; font-weight: 500; color: var(--body); }
+ .nav-links a:hover { color: var(--ink); }
+ .btn-primary { background: var(--primary); color: #fff; font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: var(--radius-md); }
+ /* Hero */
+ .hero-section { padding: 28px 0 20px; text-align: center; }
+ .eyebrow-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; margin-bottom: 10px; }
+ .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+ .hero-title { font-family: var(--font-display); font-size: clamp(28px, 3.8vw, 44px); font-weight: 600; line-height: 1.12; letter-spacing: -1.2px; margin-bottom: 8px; }
+ .hero-subtitle { font-size: 15px; color: var(--muted); max-width: 540px; margin: 0 auto 24px; }
+ /* Booking Widget */
+ .booking-card-wrapper { max-width: 980px; margin: 0 auto 32px; background: #fff; border-radius: var(--radius-xl); border: 1px solid var(--hairline); box-shadow: var(--shadow-xl); overflow: hidden; }
+ .booking-grid { display: grid; grid-template-columns: 280px 1fr 240px; min-height: 420px; }
+ /* Col 1: Host & Durations */
+ .col-host { padding: 20px; border-right: 1px solid var(--hairline); background: #fafafa; display: flex; flex-direction: column; justify-content: space-between; }
+ .host-profile { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+ .host-avatar { width: 38px; height: 38px; border-radius: 50%; background: #111; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; position: relative; }
+ .verified-badge { position: absolute; bottom: -2px; right: -2px; width: 14px; height: 14px; background: var(--brand-accent); border-radius: 50%; border: 2px solid #fff; display: grid; place-items: center; color: #fff; font-size: 8px; }
+ .host-meta h3 { font-size: 14px; font-weight: 600; line-height: 1.2; }
+ .host-meta p { font-size: 12px; color: var(--muted); }
+ .meeting-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 6px; line-height: 1.25; }
+ .meeting-desc { font-size: 12px; color: var(--body); margin-bottom: 14px; line-height: 1.45; }
+ .duration-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+ .duration-pills { display: flex; gap: 6px; margin-bottom: 16px; }
+ .duration-pill { flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 600; border: 1px solid var(--hairline); border-radius: var(--radius-md); background: #fff; color: var(--ink); }
+ .duration-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+ .meeting-specs { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--body); }
+ .spec-item { display: flex; align-items: center; gap: 8px; }
+ .tz-select { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px 10px; background: #fff; border: 1px solid var(--hairline); border-radius: var(--radius-md); font-size: 11px; font-weight: 500; margin-top: 14px; }
+ /* Col 2: Calendar */
+ .col-calendar { padding: 20px; border-right: 1px solid var(--hairline); }
+ .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+ .cal-month-title { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+ .cal-nav-buttons { display: flex; gap: 4px; }
+ .cal-nav-btn { width: 28px; height: 28px; border-radius: var(--radius-md); border: 1px solid var(--hairline); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+ .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+ .cal-days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+ .cal-day-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; border-radius: var(--radius-md); background: var(--surface-soft); color: var(--ink); position: relative; }
+ .cal-day-cell.disabled { background: transparent; color: #d1d5db; }
+ .cal-day-cell.active { background: var(--primary); color: #fff; font-weight: 600; }
+ .avail-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--primary); position: absolute; bottom: 3px; }
+ .cal-day-cell.active .avail-dot { background: #fff; }
+ /* Col 3: Time Slots */
+ .col-slots { padding: 20px 16px; background: #fff; display: flex; flex-direction: column; }
+ .slots-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+ .slots-date-title { font-size: 13px; font-weight: 600; }
+ .slot-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 290px; }
+ .slot-btn { width: 100%; padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--hairline); background: #fff; font-size: 12px; font-weight: 600; text-align: center; }
+ .slot-btn:hover { border-color: var(--primary); }
+ .slot-btn.selected-group { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border: none; padding: 0; }
+ .btn-time { background: #f1f3f5; border: 1px solid var(--hairline); border-radius: var(--radius-md); padding: 8px; font-size: 12px; font-weight: 600; }
+ .btn-confirm { background: var(--primary); color: #fff; border-radius: var(--radius-md); padding: 8px; font-size: 12px; font-weight: 600; }
+ /* Features Grid */
+ .features-section { padding: 8px 0 32px; }
+ .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+ .feature-card { background: var(--surface-card); border-radius: var(--radius-lg); padding: 18px; }
+ .feature-card h4 { font-size: 14px; font-weight: 600; margin: 6px 0 4px; }
+ .feature-card p { font-size: 12px; color: var(--muted); line-height: 1.4; }
+ /* Token Strip */
+ .token-bar {
+ margin-bottom: 28px; background: var(--surface-soft); border: 1px solid var(--hairline);
+ border-radius: var(--radius-md); padding: 10px 16px; display: flex; align-items: center;
+ justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 11px;
+ }
+ .tokens-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+ .token-chip { display: flex; align-items: center; gap: 5px; font-family: monospace; }
+ .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.12); }
+ /* Footer */
+ .site-footer { background: var(--surface-dark); color: var(--on-dark-soft); padding: 32px 0 24px; }
+ .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+ .footer-brand { font-family: var(--font-display); font-size: 16px; color: #fff; margin-bottom: 6px; }
+ .footer-col h5 { font-size: 11px; font-weight: 600; color: #fff; margin-bottom: 6px; text-transform: uppercase; }
+ .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+ .footer-bottom { border-top: 1px solid #222; padding-top: 14px; display: flex; justify-content: space-between; font-size: 11px; }
+ @media (max-width: 860px) {
+ .booking-grid { grid-template-columns: 1fr; }
+ .col-host, .col-calendar { border-right: none; border-bottom: 1px solid var(--hairline); }
+ .features-grid { grid-template-columns: 1fr; }
+ .footer-grid { grid-template-columns: 1fr 1fr; }
+ }
+ </style>
+</head>
+<body>
+ <!-- Top Navigation -->
+ <header class="top-nav">
+ <div class="shell nav-inner">
+ <div class="brand-wrap">
+ <a href="#" class="brand-logo">
+ <div class="brand-mark">C</div>
+ <span>Cal.com</span>
+ </a>
+ <div class="nav-pill-group">
+ <button class="nav-pill active">Personal</button>
+ <button class="nav-pill">Teams</button>
+ <button class="nav-pill">Platform</button>
+ </div>
+ </div>
+ <nav class="nav-links">
+ <a href="#features">Features</a>
+ <a href="#routing">Routing</a>
+ <a href="#enterprise">Enterprise</a>
+ <a href="#pricing">Pricing</a>
+ </nav>
+ <div class="nav-right">
+ <button class="btn-primary">Get started</button>
+ </div>
+ </div>
+ </header>
+ <main class="shell">
+ <section class="hero-section">
+ <div class="eyebrow-pill">
+ <span class="eyebrow-dot"></span>
+ <span>Open Scheduling Infrastructure</span>
+ </div>
+ <h1 class="hero-title">Meet without the friction.</h1>
+ <p class="hero-subtitle">Cal.com unifies calendars, routing workflows, and video links into an open scheduling standard.</p>
+ </section>
+ <!-- Centerpiece: Realistic Cal.com Interactive Booking Widget -->
+ <div class="booking-card-wrapper" id="booking">
+ <div class="booking-grid">
+ <!-- Column 1: Host & Durations -->
+ <aside class="col-host">
+ <div>
+ <div class="host-profile">
+ <div class="host-avatar">
+ <span>PR</span>
+ <span class="verified-badge">✓</span>
+ </div>
+ <div class="host-meta">
+ <h3>Peer Richelsen</h3>
+ <p>cal.com/peer</p>
+ </div>
+ </div>
+ <h2 class="meeting-title">Product Architecture & API Review</h2>
+ <p class="meeting-desc">Deep-dive on webhooks, routing forms, and multi-host availability.</p>
+ <div class="duration-label">Duration</div>
+ <div class="duration-pills">
+ <button class="duration-pill">15m</button>
+ <button class="duration-pill active">30m</button>
+ <button class="duration-pill">60m</button>
+ </div>
+ <div class="meeting-specs">
+ <div class="spec-item">
+ <span>⏱ 30 Min Video Call</span>
+ </div>
+ <div class="spec-item">
+ <span>📹 Cal Video (WebRTC HD)</span>
+ </div>
+ <div class="spec-item">
+ <span>📅 Google Cal & Outlook Sync</span>
+ </div>
+ </div>
+ </div>
+ <div>
+ <button class="tz-select">
+ <span>🌐 Europe/London (11:45am)</span>
+ <span>▾</span>
+ </button>
+ </div>
+ </aside>
+ <!-- Column 2: Date Picker Calendar Grid -->
+ <section class="col-calendar">
+ <div class="cal-header">
+ <h3 class="cal-month-title">October 2026</h3>
+ <div class="cal-nav-buttons">
+ <button class="cal-nav-btn" aria-label="Previous">‹</button>
+ <button class="cal-nav-btn" aria-label="Next">›</button>
+ </div>
+ </div>
+ <div class="cal-weekdays">
+ <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+ </div>
+ <div class="cal-days-grid">
+ <div class="cal-day-cell disabled">28</div>
+ <div class="cal-day-cell disabled">29</div>
+ <div class="cal-day-cell disabled">30</div>
+ <div class="cal-day-cell">1<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">2<span class="avail-dot"></span></div>
+ <div class="cal-day-cell disabled">3</div>
+ <div class="cal-day-cell disabled">4</div>
+ <div class="cal-day-cell">5<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">6<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">7<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">8<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">9<span class="avail-dot"></span></div>
+ <div class="cal-day-cell disabled">10</div>
+ <div class="cal-day-cell disabled">11</div>
+ <div class="cal-day-cell">12<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">13<span class="avail-dot"></span></div>
+ <div class="cal-day-cell active">14<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">15<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">16<span class="avail-dot"></span></div>
+ <div class="cal-day-cell disabled">17</div>
+ <div class="cal-day-cell disabled">18</div>
+ <div class="cal-day-cell">19<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">20<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">21<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">22<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">23<span class="avail-dot"></span></div>
+ <div class="cal-day-cell disabled">24</div>
+ <div class="cal-day-cell disabled">25</div>
+ <div class="cal-day-cell">26<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">27<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">28<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">29<span class="avail-dot"></span></div>
+ <div class="cal-day-cell">30<span class="avail-dot"></span></div>
+ <div class="cal-day-cell disabled">31</div>
+ <div class="cal-day-cell disabled">1</div>
+ </div>
+ </section>
+ <!-- Column 3: Time Slot Selector List -->
+ <section class="col-slots">
+ <div class="slots-header">
+ <span class="slots-date-title">Wed, Oct 14</span>
+ <span style="font-size:11px; color:var(--muted);">8 slots</span>
+ </div>
+ <div class="slot-list">
+ <button class="slot-btn">09:00 AM</button>
+ <button class="slot-btn">09:30 AM</button>
+ <div class="slot-btn selected-group">
+ <button class="btn-time">10:00 AM</button>
+ <button class="btn-confirm">Confirm</button>
+ </div>
+ <button class="slot-btn">11:00 AM</button>
+ <button class="slot-btn">01:30 PM</button>
+ <button class="slot-btn">02:00 PM</button>
+ <button class="slot-btn">03:30 PM</button>
+ <button class="slot-btn">04:15 PM</button>
+ </div>
+ </section>
+ </div>
+ </div>
+ <!-- 3-Up Feature Highlights -->
+ <section class="features-section">
+ <div class="features-grid">
+ <div class="feature-card">
+ <div style="font-size:18px;">⚡</div>
+ <h4>Automated Workflows</h4>
+ <p>Trigger instant SMS reminders, email confirmations, and automated webhook payloads on booking changes.</p>
+ </div>
+ <div class="feature-card">
+ <div style="font-size:18px;">🔄</div>
+ <h4>Round-Robin Routing</h4>
+ <p>Distribute inbound sales demos across account executives based on territory and real-time availability.</p>
+ </div>
+ <div class="feature-card">
+ <div style="font-size:18px;">🔒</div>
+ <h4>Enterprise Self-Hosted</h4>
+ <p>Run Cal.com on your own VPC with SOC2 Type II, HIPAA, and GDPR compliance with complete data privacy.</p>
+ </div>
+ </div>
+ </section>
+ <!-- Token Strip -->
+ <div class="token-bar">
+ <div class="tokens-group">
+ <strong>CAL DESIGN TOKENS:</strong>
+ <div class="token-chip"><div class="swatch" style="background:#111111;"></div><span>#111111 primary</span></div>
+ <div class="token-chip"><div class="swatch" style="background:#ffffff; border-color:#ccc;"></div><span>#ffffff canvas</span></div>
+ <div class="token-chip"><div class="swatch" style="background:#f5f5f5;"></div><span>#f5f5f5 surface</span></div>
+ <div class="token-chip"><div class="swatch" style="background:#3b82f6;"></div><span>#3b82f6 accent</span></div>
+ </div>
+ <div>
+ <span>CAL SANS + INTER · RADIUS: 8PX / 12PX</span>
+ </div>
+ </div>
+ </main>
+ <!-- Signature Cal.com Dark Footer -->
+ <footer class="site-footer">
+ <div class="shell">
+ <div class="footer-grid">
+ <div>
+ <div class="footer-brand">Cal.com</div>
+ <p style="font-size:12px; max-width:260px; line-height:1.5;">Commercial open-source scheduling platform built for modern teams worldwide.</p>
+ </div>
+ <div class="footer-col">
+ <h5>Product</h5>
+ <ul>
+ <li><a href="#">Routing Forms</a></li>
+ <li><a href="#">Workflows</a></li>
+ <li><a href="#">App Store</a></li>
+ </ul>
+ </div>
+ <div class="footer-col">
+ <h5>Developers</h5>
+ <ul>
+ <li><a href="#">API Reference</a></li>
+ <li><a href="#">GitHub Repo</a></li>
+ <li><a href="#">Self-Hosting</a></li>
+ </ul>
+ </div>
+ <div class="footer-col">
+ <h5>Company</h5>
+ <ul>
+ <li><a href="#">Security & Trust</a></li>
+ <li><a href="#">Changelog</a></li>
+ <li><a href="#">Privacy Policy</a></li>
+ </ul>
+ </div>
+ </div>
+ <div class="footer-bottom">
+ <span>© 2026 Cal.com, Inc.</span>
+ <span>Peer-to-Peer Scheduling Infrastructure</span>
+ </div>
+ </div>
+ </footer>
+</body>
+</html>

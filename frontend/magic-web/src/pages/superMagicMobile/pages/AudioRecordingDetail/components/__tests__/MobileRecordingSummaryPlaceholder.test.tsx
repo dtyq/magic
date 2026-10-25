@@ -6,8 +6,8 @@ vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
 		t: (key: string) => {
 			const labels: Record<string, string> = {
-				"detail.summarizing": "Generating summary...",
-				"detail.summarizingHint": "All summary views will appear when it is ready.",
+				"detail.summarizingHint":
+					"Summarizing now. It will appear automatically when ready.",
 				"detail.notSummarized": "No summary yet",
 				"detail.notSummarizedHint": "Generate a summary to preview it here",
 				"detail.empty.summaryFailed": "Summary failed",
@@ -64,7 +64,9 @@ describe("MobileRecordingSummaryPlaceholder", () => {
 			/>,
 		)
 
-		expect(screen.getByText("Generating summary...")).toBeInTheDocument()
+		expect(
+			screen.getByText("Summarizing now. It will appear automatically when ready."),
+		).toBeInTheDocument()
 		expect(screen.queryByRole("button")).toBeNull()
 	})
 })

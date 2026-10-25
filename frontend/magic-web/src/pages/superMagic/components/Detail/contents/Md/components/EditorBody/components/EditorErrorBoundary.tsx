@@ -3,7 +3,7 @@ import { ErrorBoundary } from "react-error-boundary"
 import type { PropsWithChildren } from "react"
 import { Alert, Button, Flex } from "antd"
 import { createStyles } from "antd-style"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { IconBug, IconReload } from "@tabler/icons-react"
 
 const logger = Logger.createLogger("EditorErrorBoundary")

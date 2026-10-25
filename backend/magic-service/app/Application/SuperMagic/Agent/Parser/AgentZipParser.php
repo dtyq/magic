@@ -68,6 +68,17 @@ class AgentZipParser
         $data->agentDirName = $agentDirName;
         $data->tools = $tools;
         $data->skills = $skills;
+        $skillsFile = $agentDir . '/SKILLS.md';
+        $frontmatter = file_exists($skillsFile) ? $this->parseFrontmatter((string) file_get_contents($skillsFile)) : [];
+        $entries = $frontmatter['market_skills'] ?? [];
+        if (is_array($entries)) {
+            foreach ($entries as $entry) {
+                if (is_array($entry) && is_string($entry['name'] ?? null) && is_string($entry['code'] ?? null)
+                    && $entry['name'] !== '' && $entry['code'] !== '') {
+                    $data->marketSkills[] = ['name' => $entry['name'], 'code' => $entry['code'], 'description' => is_string($entry['description'] ?? null) ? $entry['description'] : ''];
+                }
+            }
+        }
 
         // Build i18n arrays – 'default' key stores the primary (English) name
         $data->nameI18n = $this->buildI18n($identity, 'name');

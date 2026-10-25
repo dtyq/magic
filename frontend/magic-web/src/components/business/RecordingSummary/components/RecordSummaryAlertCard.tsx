@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from "react"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export type RecordSummaryAlertTone = "neutral" | "success" | "danger"
 export type RecordSummaryAlertActionAppearance = "primary" | "secondary" | "danger"

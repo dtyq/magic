@@ -1,6 +1,6 @@
 import { NodeTestConfig } from "@/MagicFlow/context/NodeTesingContext/Context";
 import { TestingResultRow } from "./useTesting";
-import _ from "lodash";
+import { isObject } from "lodash-es"
 
 
 /** 转化成列表 */
@@ -21,7 +21,7 @@ export const transformToList = (testConfig: NodeTestConfig, key = 'output' as ke
 		Object.entries(testConfig?.[key] || {}).map(([key, value]) => {
 			return {
 				key,
-				value: `${_.isObject(value) ? JSON.stringify(value) : value}`,
+				value: `${isObject(value) ? JSON.stringify(value) : value}`,
 			}
 		}) || []
 	)
@@ -33,7 +33,7 @@ export const generateDebugLogList = (testConfig: NodeTestConfig): TestingResultR
 		Object.entries(testConfig?.debug_log || {}).map(([key, value]) => {
 			return {
 				key,
-				value: `${_.isObject(value) ? JSON.stringify(value) : value}`,
+				value: `${isObject(value) ? JSON.stringify(value) : value}`,
 			}
 		}) || []
 	)

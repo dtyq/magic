@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from "react"
 import { useMemoizedFn } from "ahooks"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { getServiceInstance } from "@/services/recordSummary/serviceInstance"
 
 interface RealtimeWaveformProps {

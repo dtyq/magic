@@ -11,7 +11,6 @@ use App\Application\ModelGateway\Processor\WatermarkProcessor;
 use App\Application\ModelGateway\Struct\ImagePostProcessOptions;
 use App\Application\ModelGateway\Struct\ImageProcessContext;
 use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
-use App\Infrastructure\ExternalAPI\Image\ImageAsset;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -33,8 +32,9 @@ class WatermarkProcessorTest extends TestCase
         $processor = new WatermarkProcessor($watermarkProcessor);
 
         $context = new ImageProcessContext(
-            asset: ImageAsset::fromLocalFile('/tmp/provider-result.png', 'image/png', 'official_proxy'),
             localFilePath: '/tmp/provider-result.png',
+            mimeType: 'image/png',
+            provider: 'official_proxy',
         );
         $options = new ImagePostProcessOptions();
         $options->setImplicitWatermark(new ImplicitWatermark());

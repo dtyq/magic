@@ -9,14 +9,18 @@ namespace App\Interfaces\SuperMagic\Agent\Facade\Sandbox;
 
 use App\Application\SuperMagic\Skill\Service\SkillAppService;
 use App\Application\SuperMagic\Skill\Service\SkillMarketAppService;
+use App\Domain\SuperMagic\Skill\Entity\ValueObject\Query\SkillListScope;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\Query\SkillQuery;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\SkillSourceType;
 use App\ErrorCode\SkillErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\SuperMagic\Skill\Assembler\SkillAssembler;
+use App\Interfaces\SuperMagic\Skill\DTO\Request\CreateSkillDraftRequestDTO;
 use App\Interfaces\SuperMagic\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use App\Interfaces\SuperMagic\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
+use App\Interfaces\SuperMagic\Skill\DTO\Request\PrepareSkillPublishRequestDTO;
+use App\Interfaces\SuperMagic\Skill\DTO\Request\QuerySkillVersionsRequestDTO;
 use App\Interfaces\SuperMagic\Skill\FormRequest\SkillQueryFormRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
@@ -72,14 +76,84 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
         $query = new SkillQuery($requestData);
         $page = $this->createPage();
 
-        $result = $this->userSkillAppService->queries($requestContext, $query, $page);
+        $result = $this->userSkillAppService->queriesByScope($requestContext, $query, $page, SkillListScope::from($requestData['scope'] ?? 'all'));
 
         return SkillAssembler::createListResponseDTO(
             skillEntities: $result['list'],
             page: $page->getPage(),
             pageSize: $page->getPageNum(),
-            total: $result['total']
+            total: $result['total'],
+            includeI18n: true,
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? [],
+            skillOperations: $result['skill_operations'] ?? [],
         );
+    }
+
+    public function create(RequestContext $context): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        return $this->userSkillAppService->createDraft($context, CreateSkillDraftRequestDTO::fromRequest($this->request));
+    }
+
+    public function detail(RequestContext $context, string $code): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        return $this->userSkillAppService->getSkillDetail($context, $code)->jsonSerialize();
+    }
+
+    public function byProject(RequestContext $context, string $projectId): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        if (! ctype_digit($projectId) || (string) (int) $projectId !== $projectId || (int) $projectId <= 0) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_NOT_FOUND);
+        }
+        return $this->userSkillAppService->getSkillByProject($context, (int) $projectId)->jsonSerialize();
+    }
+
+    public function prefill(RequestContext $context, string $code): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        return $this->userSkillAppService->getPublishPrefill($context, $code)->toArray();
+    }
+
+    public function prepare(RequestContext $context, string $code): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        return $this->preparationResponse($this->userSkillAppService->prepareSkillPublish($context, $code, PrepareSkillPublishRequestDTO::fromRequest($this->request)));
+    }
+
+    public function checkPreparation(RequestContext $context, string $code): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        return $this->preparationResponse($this->userSkillAppService->checkSkillPreparation($context, $code, $this->preparationToken()));
+    }
+
+    public function publish(RequestContext $context, string $code): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        return $this->userSkillAppService->publishSkillPreparation($context, $code, $this->preparationToken());
+    }
+
+    public function checkPublish(RequestContext $context, string $code): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        return $this->userSkillAppService->getPreparedSkillPublishResult($context, $code, $this->preparationToken());
+    }
+
+    public function versions(RequestContext $context, string $code): array
+    {
+        $context->setUserAuthorization($this->getAuthorization());
+        $result = $this->userSkillAppService->queryVersions($context, $code, QuerySkillVersionsRequestDTO::fromRequest($this->request));
+        return SkillAssembler::createQuerySkillVersionsResponseDTO(
+            versions: $result['list'],
+            userMap: $result['user_map'] ?? [],
+            page: $result['page'],
+            pageSize: $result['page_size'],
+            total: $result['total'],
+            memberDepartmentMap: $result['member_department_map'] ?? [],
+            categoryMap: $result['category_map'] ?? [],
+        )->toArray();
     }
 
     /**
@@ -90,7 +164,7 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         $requestDTO = GetLatestPublishedSkillVersionsRequestDTO::fromRequest($this->request);
-        $result = $this->userSkillAppService->getLatestPublishedVersionsByCodes($requestContext, $requestDTO);
+        $result = $this->userSkillAppService->getLatestPublishedSkillVersions($requestContext, $requestDTO);
 
         return SkillAssembler::createLatestPublishedVersionsResponseDTO(
             $result['list'],
@@ -162,5 +236,23 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
 
         // 调用应用服务层处理业务逻辑
         return $this->userSkillAppService->importSkillFromAgent($requestContext, $tempFile, $skillSource, $nameI18n, $descriptionI18n);
+    }
+
+    private function preparationToken(): string
+    {
+        $token = $this->request->input('prepare_token');
+        if (! is_string($token) || preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) {
+            ExceptionBuilder::throw(SkillErrorCode::PUBLISH_PREPARATION_STALE);
+        }
+        return $token;
+    }
+
+    private function preparationResponse(array $record): array
+    {
+        return array_intersect_key($record, array_flip([
+            'prepare_token', 'publish_task_id', 'status', 'skill_code', 'project_id', 'name', 'description',
+            'version', 'publish_target_type', 'current_publish_target_type', 'skill_dir', 'manifest',
+            'package_sha256', 'expires_at',
+        ]));
     }
 }

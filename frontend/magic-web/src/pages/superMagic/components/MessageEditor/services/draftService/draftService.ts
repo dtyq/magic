@@ -104,7 +104,7 @@ export class DraftService implements DraftServiceInterface {
 		force?: boolean,
 	): Promise<void> {
 		return this.getStorage().then((storage) => {
-			storage.saveDraftVersion(key, data, force)
+			return storage.saveDraftVersion(key, data, force)
 		})
 	}
 
@@ -137,7 +137,7 @@ export class DraftService implements DraftServiceInterface {
 		data: Omit<DraftData, "createdAt" | "updatedAt">,
 	): Promise<void> {
 		const storage = await this.getStorage()
-		return storage.saveDraftVersion(key, data)
+		return storage.saveDraft(key, data)
 	}
 
 	async loadDraft(key: DraftKey): Promise<DraftData | null> {

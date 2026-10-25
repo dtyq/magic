@@ -1,9 +1,10 @@
 import { EXPRESSION_VALUE, InputExpressionValue } from "@/MagicExpressionWidget/types"
 import { DataSourceOption } from "@/common/BaseUI/DropdownRenderer/Reference"
 import ErrorContent from "@/common/BaseUI/ErrorComponent/ErrorComponent"
+import TablerIconGlobalStyle from "@/common/BaseUI/TablerIconGlobalStyle"
 import { ConfigProvider, message } from "antd"
 import i18next from "i18next"
-import _, { get, isEmpty, isPlainObject, set } from "lodash"
+import { assignIn, cloneDeep, get, isEmpty, isEqual, isPlainObject, set } from "lodash-es"
 import React, {
 	forwardRef,
 	useCallback,
@@ -95,7 +96,7 @@ const indexToArray = (pathStr: string) => `${pathStr}`.split("-").map((n) => +n)
 const getSpaceCondition = (children: Expression.Condition[]) => {
 	const result = {
 		ops: RELATION_LOGICS_MAP.AND,
-		children: _.cloneDeep(children) || [],
+		children: cloneDeep(children) || [],
 	} as Expression.LogicNode
 
 	return result
@@ -152,10 +153,10 @@ function CustomConditionContainer(
 
 	const checkIsEmptyCondition = useCallback((condition: typeof DEFAULT_CONDITION_DATA) => {
 		// 跟默认值相同，直接返回true
-		if (_.isEqual(DEFAULT_CONDITION_DATA, condition)) return true
+		if (isEqual(DEFAULT_CONDITION_DATA, condition)) return true
 
 		const isEmptyExpression = (expression: InputExpressionValue) => {
-			const cloneExpression = _.cloneDeep(expression)
+			const cloneExpression = cloneDeep(expression)
 			cloneExpression.const_value = (cloneExpression.const_value || []).filter(
 				(val: EXPRESSION_VALUE) => {
 					const cloneValue = { ...val }
@@ -221,10 +222,10 @@ function CustomConditionContainer(
 	const ComponentChange = useCallback(
 		async (data: any, updateImmediately = true) => {
 			// console.log("isFrozen,", Object.isFrozen(data))
-			_.assignIn(conditionData, data)
+			assignIn(conditionData, data)
 			onChange(data)
 			if (updateImmediately) {
-				setConditionData(_.cloneDeep(data))
+				setConditionData(cloneDeep(data))
 
 				// 如果当前值等于默认值
 				const empty = isEmptyCondition(data)
@@ -250,8 +251,8 @@ function CustomConditionContainer(
 	 */
 	const addConditionItem = useCallback(
 		(pos: string) => {
-			const tempConditionData = _.cloneDeep(conditionData)
-			const defaultData = _.cloneDeep(defaultConditionField)
+			const tempConditionData = cloneDeep(conditionData)
+			const defaultData = cloneDeep(defaultConditionField)
 			let currentConditionByPos = null
 			if (pos === "") {
 				// 根节点
@@ -279,8 +280,8 @@ function CustomConditionContainer(
 			const currentPath = path.join(".children.")
 			const itemIndex = path.pop() as number // 需要拿到当前节点的父节点
 			const parentPath = path.join(".children.")
-			const tempConditionData = _.cloneDeep(conditionData)
-			const defaultData = _.cloneDeep(defaultConditionField)
+			const tempConditionData = cloneDeep(conditionData)
+			const defaultData = cloneDeep(defaultConditionField)
 			const currentCondition = get(tempConditionData.children, currentPath)
 			const newCondition = {
 				ops: RELATION_LOGICS_MAP.AND,
@@ -316,7 +317,7 @@ function CustomConditionContainer(
 			if (!readonlyCheck()) return
 			if (!pos) return
 			const path = indexToArray(pos)
-			const tempConditionData = _.cloneDeep(conditionData)
+			const tempConditionData = cloneDeep(conditionData)
 			const itemIndex = path.pop() as number // 需要拿到当前节点的父节点
 			const parentPath = path.join(".children.")
 			if (parentPath === "") {
@@ -355,7 +356,7 @@ function CustomConditionContainer(
 		(pos: string) => {
 			if (!readonlyCheck()) return
 			if (pos === "") return // 根节点
-			const tempConditionData = _.cloneDeep(conditionData)
+			const tempConditionData = cloneDeep(conditionData)
 			const path = indexToArray(pos).join(".children.")
 			const currentConditionByPos = get(tempConditionData.children, path)
 
@@ -364,7 +365,7 @@ function CustomConditionContainer(
 			set(
 				tempConditionData.children,
 				path,
-				isDefault ? _.cloneDeep(defaultConvertField) : _.cloneDeep(defaultConditionField),
+				isDefault ? cloneDeep(defaultConvertField) : cloneDeep(defaultConditionField),
 			)
 
 			ComponentChange(tempConditionData)
@@ -382,7 +383,7 @@ function CustomConditionContainer(
 	const updateConditionData: ChangeRef["updateConditionData"] = useCallback(
 		(pos, val, updateImmediately = true) => {
 			if (!readonlyCheck()) return
-			const tempConditionData = _.cloneDeep(conditionData)
+			const tempConditionData = cloneDeep(conditionData)
 			const path = indexToArray(pos).join(".children.")
 			set(tempConditionData.children, path, val)
 			ComponentChange(tempConditionData, updateImmediately)
@@ -396,7 +397,7 @@ function CustomConditionContainer(
 	const switchConditionItemLogic = useCallback(
 		(pos: string) => {
 			if (!readonlyCheck()) return
-			const tempConditionData = _.cloneDeep(conditionData)
+			const tempConditionData = cloneDeep(conditionData)
 
 			if (pos === "") {
 				// 根节点
@@ -431,7 +432,7 @@ function CustomConditionContainer(
 	 */
 	const resetConditionData = useCallback(() => {
 		// TODO 默认值应该长什么样
-		const defaultData = _.cloneDeep(defaultConditionField)
+		const defaultData = cloneDeep(defaultConditionField)
 		const tempConditionData = getSpaceCondition([defaultData as any])
 		ComponentChange(tempConditionData)
 	}, [ComponentChange, defaultConditionField])
@@ -449,7 +450,7 @@ function CustomConditionContainer(
 
 	useEffect(() => {
 		if (isPlainObject(value) && !isEmpty(value)) {
-			setConditionData(_.cloneDeep(value) as Expression.LogicNode)
+			setConditionData(cloneDeep(value) as Expression.LogicNode)
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
@@ -515,6 +516,7 @@ function CustomConditionContainer(
 				return <ErrorContent />
 			}}
 		>
+			<TablerIconGlobalStyle />
 			<ConfigProvider prefixCls={CLASSNAME_PREFIX}>
 				<CustomConditionContainerStyle>
 					<GlobalProvider

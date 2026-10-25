@@ -16,12 +16,33 @@ import os
 import signal
 import subprocess
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, List
 
 
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerProcessSnapshot:
+    """退出诊断使用的受管进程摘要，不包含命令和业务参数。"""
+
+    name: str
+    pid: Optional[int]
+    alive: bool
+    exit_code: Optional[int]
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerProcessSnapshotResult:
+    """受管进程总数、摘要，以及是否省略了超过条目上限的进程。"""
+
+    total: int
+    workers: tuple[WorkerProcessSnapshot, ...]
+    truncated: bool
+
 
 class WorkerProcess:
     """工作进程包装类，用于管理单个子进程"""
@@ -327,6 +348,34 @@ class ProcessManager:
             return {}
 
         return {name: worker.get_info() for name, worker in self.workers.items()}
+
+    def snapshot_workers(self, limit: int = 20) -> WorkerProcessSnapshotResult:
+        """返回受管进程的数量和状态，进程摘要最多包含 limit 条。"""
+        if limit < 0:
+            raise ValueError("limit must be non-negative")
+
+        worker_items = sorted(self.workers.items())
+        snapshots: list[WorkerProcessSnapshot] = []
+        for name, worker in worker_items[:limit]:
+            process = worker.process
+            alive = worker.is_alive()
+            snapshots.append(
+                WorkerProcessSnapshot(
+                    name=name,
+                    pid=process.pid if process is not None else None,
+                    alive=alive,
+                    exit_code=(
+                        process.exitcode
+                        if process is not None and not alive
+                        else None
+                    ),
+                )
+            )
+        return WorkerProcessSnapshotResult(
+            total=len(worker_items),
+            workers=tuple(snapshots),
+            truncated=len(worker_items) > limit,
+        )
 
     async def _monitor_workers(self) -> None:
         """

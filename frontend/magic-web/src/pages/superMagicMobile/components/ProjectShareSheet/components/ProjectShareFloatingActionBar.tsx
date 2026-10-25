@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /** Tailwind arbitrary value: single primary button (48px) + top padding (8px) + safe bottom. */
 const SINGLE_ACTION_SCROLL_SPACER = "calc(3.5rem+max(var(--safe-area-inset-bottom),16px))"

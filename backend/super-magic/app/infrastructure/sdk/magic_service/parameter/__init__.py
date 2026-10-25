@@ -8,10 +8,12 @@ Parameter classes for Magic Service API requests.
 
 from .ai_ability_runtime_config_parameter import AiAbilityRuntimeConfigParameter
 from .get_agent_details_parameter import GetAgentDetailsParameter
+from .get_user_info_parameter import GetUserInfoParameter
 from .message_schedule_parameter import MessageScheduleParameter, TimeConfig
 from .oauth2_callback_relay_parameter import OAuth2CallbackRelayParameter
+from .mcp_authorization_credential_parameter import MCPAuthorizationCredentialParameter
 from .get_agent_openapi_parameter import GetAgentOpenApiParameter
-from .update_agent_parameter import UpdateAgentParameter
+from .update_crew_parameter import UpdateCrewParameter
 from .get_skill_file_urls_parameter import GetSkillFileUrlsParameter
 from .import_skill_from_agent_parameter import ImportSkillFromAgentParameter
 from .add_agent_skills_parameter import AddAgentSkillsParameter
@@ -23,6 +25,7 @@ from .cancel_share_parameter import CancelShareParameter
 from .get_share_parameter import GetShareParameter
 from .list_share_parameter import ListShareParameter
 from .get_latest_published_skill_versions_parameter import GetLatestPublishedSkillVersionsParameter
+from .get_html_design_style_source_parameter import GetHtmlDesignStyleSourceParameter
 from .ingest_third_party_message_parameter import IngestThirdPartyMessageParameter
 from .scan_wav_parameter import ScanWavParameter  # TEMP: scan-wav workaround, remove when MagicFS auto-refreshes
 from .search_knowledge_parameter import SearchKnowledgeParameter
@@ -40,18 +43,22 @@ from .magicbase_row_parameter import (
     BatchDeleteMagicBaseRowsParameter,
     CreateMagicBaseRowParameter,
     DeleteMagicBaseRowParameter,
+    GetMagicBaseRowParameter,
     QueryMagicBaseRowsParameter,
+    UpdateMagicBaseRowParameter,
 )
 
 
 __all__ = [  # noqa: RUF022 - 保留既有分组和导出顺序
+    'GetUserInfoParameter',
     'AiAbilityRuntimeConfigParameter',
     'GetAgentDetailsParameter',
     'MessageScheduleParameter',
     'TimeConfig',
     'OAuth2CallbackRelayParameter',
+    'MCPAuthorizationCredentialParameter',
     'GetAgentOpenApiParameter',
-    'UpdateAgentParameter',
+    'UpdateCrewParameter',
     'GetSkillFileUrlsParameter',
     'ImportSkillFromAgentParameter',
     'AddAgentSkillsParameter',
@@ -65,6 +72,7 @@ __all__ = [  # noqa: RUF022 - 保留既有分组和导出顺序
     'GetShareParameter',
     'ListShareParameter',
     'GetLatestPublishedSkillVersionsParameter',
+    'GetHtmlDesignStyleSourceParameter',
     'IngestThirdPartyMessageParameter',
     'ScanWavParameter',
     'SearchKnowledgeParameter',
@@ -82,5 +90,7 @@ __all__ = [  # noqa: RUF022 - 保留既有分组和导出顺序
     'BatchDeleteMagicBaseRowsParameter',
     'CreateMagicBaseRowParameter',
     'DeleteMagicBaseRowParameter',
+    'GetMagicBaseRowParameter',
     'QueryMagicBaseRowsParameter',
+    'UpdateMagicBaseRowParameter',
 ]

@@ -91,6 +91,68 @@ class CreateMagicBaseRowParameter(MagicBaseTableRowsParameter):
             raise ValueError("data must be an object")
 
 
+class GetMagicBaseRowParameter(MagicBaseTableRowsParameter):
+    def __init__(
+        self,
+        project_id: str,
+        table_id: str,
+        record_id: str,
+        select: Optional[List[str]] = None,
+        authorization: Optional[str] = None,
+        organization_code: Optional[str] = None,
+    ):
+        super().__init__(project_id, table_id, authorization, organization_code)
+        self.record_id = str(record_id).strip() if record_id is not None else ""
+        self.select = select or []
+
+    def to_query_params(self) -> Dict[str, Any]:
+        # GET 单行接口从 query string 读取 select，需要传逗号分隔字符串。
+        if not self.select:
+            return {}
+        return {"select": ",".join(self.select)}
+
+    def validate(self) -> None:
+        super().validate()
+        if not self.record_id:
+            raise ValueError("record_id is required")
+        if not self.record_id.isdigit():
+            raise ValueError("record_id must be a numeric string")
+
+
+class UpdateMagicBaseRowParameter(MagicBaseTableRowsParameter):
+    def __init__(
+        self,
+        project_id: str,
+        table_id: str,
+        record_id: str,
+        data: Dict[str, Any],
+        select: Optional[List[str]] = None,
+        authorization: Optional[str] = None,
+        organization_code: Optional[str] = None,
+    ):
+        super().__init__(project_id, table_id, authorization, organization_code)
+        self.record_id = str(record_id).strip() if record_id is not None else ""
+        self.data = data
+        self.select = select or []
+
+    def to_body(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {"data": self.data}
+        if self.select:
+            body["select"] = self.select
+        return body
+
+    def validate(self) -> None:
+        super().validate()
+        if not self.record_id:
+            raise ValueError("record_id is required")
+        if not self.record_id.isdigit():
+            raise ValueError("record_id must be a numeric string")
+        if not isinstance(self.data, dict):
+            raise ValueError("data must be an object")
+        if not self.data:
+            raise ValueError("data must contain at least one column to update")
+
+
 class BatchCreateMagicBaseRowsParameter(MagicBaseTableRowsParameter):
     def __init__(
         self,

@@ -34,6 +34,7 @@ export class BorderDecorator {
 	private backgroundNode?: Konva.Image
 	private currentBackgroundType?: "selected" | "unselected"
 	private backgroundSwitchRequestId = 0
+	private renderVisibilityEnabled = true
 
 	constructor(group: Konva.Group, width: number, height: number, config: BorderDecoratorConfig) {
 		this.group = group
@@ -54,12 +55,14 @@ export class BorderDecorator {
 			this.borderRect = undefined
 		}
 
-		// 获取 stage 以计算缩放
 		const stage = this.group.getStage()
 		if (!stage) return
-
-		// 计算边框宽度
-		const strokeWidth = this.calculateStrokeWidth(stage)
+		// Konva draws a non-scaling stroke in canvas pixel space, so static borders keep a
+		// constant screen width without recalculating their stroke on every viewport scale.
+		const usesScreenSpaceStroke = !this.config.isAnimated
+		const strokeWidth = usesScreenSpaceStroke
+			? DECORATOR_CONFIG.BORDER_WIDTH
+			: this.calculateStrokeWidth(stage)
 
 		// 创建边框矩形
 		const borderRect = new Konva.Rect({
@@ -67,7 +70,8 @@ export class BorderDecorator {
 			y: 0,
 			width: this.width,
 			height: this.height,
-			strokeWidth: strokeWidth,
+			strokeWidth,
+			...(usesScreenSpaceStroke ? { strokeScaleEnabled: false } : {}),
 			listening: false,
 			name: "decorator-border",
 		})
@@ -104,7 +108,7 @@ export class BorderDecorator {
 		this.borderRect = borderRect
 
 		// 如果是动画状态，启动旋转动画
-		if (this.config.isAnimated) {
+		if (this.config.isAnimated && this.renderVisibilityEnabled) {
 			this.startAnimation()
 		}
 
@@ -118,8 +122,7 @@ export class BorderDecorator {
 	public update(): void {
 		if (!this.borderRect) return
 
-		const stage = this.borderRect.getStage()
-		if (!stage) return
+		if (!this.borderRect.getStage()) return
 
 		// 检查元素是否被选中
 		const isSelected = this.config.canvas.selectionManager.isSelected(this.config.elementId)
@@ -135,11 +138,9 @@ export class BorderDecorator {
 			}
 		} else {
 			this.borderRect.visible(true)
-			// 更新边框宽度
-			const strokeWidth = this.calculateStrokeWidth(stage)
-			this.borderRect.strokeWidth(strokeWidth)
+			if (this.config.isAnimated) this.updateStrokeWidth()
 			// 如果是动画状态且动画未运行，启动动画
-			if (this.config.isAnimated && !this.borderAnimation) {
+			if (this.config.isAnimated && this.renderVisibilityEnabled && !this.borderAnimation) {
 				this.startAnimation()
 			}
 			// 切换到未选中状态背景
@@ -159,11 +160,9 @@ export class BorderDecorator {
 		this.height = height
 
 		if (this.borderRect) {
-			const stage = this.borderRect.getStage()
-			if (stage) {
-				// 重新计算边框宽度
-				const strokeWidth = this.calculateStrokeWidth(stage)
-				this.borderRect.strokeWidth(strokeWidth)
+			if (this.config.isAnimated) {
+				const stage = this.borderRect.getStage()
+				if (stage) this.borderRect.strokeWidth(this.calculateStrokeWidth(stage))
 			}
 
 			this.borderRect.width(width)
@@ -189,6 +188,27 @@ export class BorderDecorator {
 	}
 
 	/**
+	 * Far elements remain mounted in the Konva tree, so visibility culling must also stop their
+	 * element-local animation. The owning element reapplies this state after each rerender.
+	 */
+	public setRenderVisibility(enabled: boolean): void {
+		if (this.renderVisibilityEnabled === enabled) return
+		this.renderVisibilityEnabled = enabled
+		if (!enabled) {
+			this.stopAnimation()
+			return
+		}
+
+		if (
+			this.config.isAnimated &&
+			this.borderRect &&
+			!this.config.canvas.selectionManager.isSelected(this.config.elementId)
+		) {
+			this.startAnimation()
+		}
+	}
+
+	/**
 	 * 将边框移动到最上层
 	 * 确保边框始终显示在所有子元素之上
 	 */
@@ -200,17 +220,36 @@ export class BorderDecorator {
 	}
 
 	/**
-	 * 计算边框宽度
+	 * 计算动画边框宽度
 	 * 根据 stage 缩放和元素缩放计算边框宽度
 	 */
 	private calculateStrokeWidth(stage: Konva.Stage): number {
-		// 获取元素的缩放比例
 		const elementScaleX = this.group.scaleX()
 		const elementScaleY = this.group.scaleY()
 		const avgScale = (elementScaleX + elementScaleY) / 2
-
-		// 计算边框宽度
 		return DECORATOR_CONFIG.BORDER_WIDTH / (stage.scaleX() * avgScale)
+	}
+
+	/** 动画边框仍使用渐变描边，需在 viewport 缩放时更新其局部线宽。 */
+	private updateStrokeWidth(): void {
+		if (!this.borderRect?.visible()) return
+		const stage = this.borderRect.getStage()
+		if (!stage) return
+
+		const strokeWidth = this.calculateStrokeWidth(stage)
+		if (this.borderRect.strokeWidth() !== strokeWidth) {
+			this.borderRect.strokeWidth(strokeWidth)
+		}
+	}
+
+	/**
+	 * 更新动画边框的视口缩放布局。
+	 * 媒体元素会把它和自身内容布局合并到同一个 scheduler callback，避免一个元素注册多个
+	 * 等待同一 viewport:scale 事件的 callback。
+	 */
+	public updateViewportScaleLayout(): void {
+		if (!this.config.isAnimated) return
+		this.updateStrokeWidth()
 	}
 
 	/**
@@ -274,18 +313,13 @@ export class BorderDecorator {
 		backgroundNode.getLayer()?.batchDraw()
 	}
 
-	/**
-	 * 设置边框更新事件监听
-	 */
+	/** 设置边框选中状态和元素变换监听。 */
 	private setupUpdateListener(): void {
 		if (this.borderUpdateHandler) return
 
 		this.borderUpdateHandler = () => {
 			this.update()
 		}
-
-		// 监听 viewport 缩放事件
-		this.config.canvas.eventEmitter.on("viewport:scale", this.borderUpdateHandler)
 		// 监听选中/取消选中事件
 		this.config.canvas.eventEmitter.on("element:select", this.borderUpdateHandler)
 		this.config.canvas.eventEmitter.on("element:deselect", this.borderUpdateHandler)
@@ -305,7 +339,7 @@ export class BorderDecorator {
 		this.stopAnimation()
 
 		const layer = this.group.getLayer()
-		if (!layer || !this.borderRect) return
+		if (!layer || !this.borderRect || !this.renderVisibilityEnabled) return
 
 		// 创建渐变旋转动画（让渐变色围绕边框流动）
 		this.borderAnimation = new Konva.Animation((frame) => {
@@ -352,9 +386,9 @@ export class BorderDecorator {
 	public destroy(): void {
 		// 移除事件监听
 		if (this.borderUpdateHandler) {
-			this.config.canvas.eventEmitter.off("viewport:scale", this.borderUpdateHandler)
 			this.config.canvas.eventEmitter.off("element:select", this.borderUpdateHandler)
 			this.config.canvas.eventEmitter.off("element:deselect", this.borderUpdateHandler)
+			this.group.off("transform", this.borderUpdateHandler)
 			this.borderUpdateHandler = undefined
 		}
 

@@ -106,7 +106,7 @@ vi.mock("ahooks", () => ({
 	useMemoizedFn: <T extends (...args: never[]) => unknown>(fn: T) => fn,
 }))
 
-vi.mock("@/lib/utils", () => ({
+vi.mock("@/utils/cn", () => ({
 	cn: (...classNames: Array<string | false | null | undefined>) =>
 		classNames.filter(Boolean).join(" "),
 }))

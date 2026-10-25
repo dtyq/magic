@@ -5,35 +5,52 @@ import { useTranslation } from "react-i18next"
 import { MagicDropdown } from "@/components/base"
 import { Button } from "@/components/shadcn-ui/button"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { serviceProviderModelToModelItem } from "@/services/superMagic/SuperMagicCustomModelService"
-import { Ellipsis, Pencil, Trash2 } from "lucide-react"
-import type { ModelItem } from "../../types"
+import { Check, Ellipsis, Pencil, Trash2, TriangleAlert } from "lucide-react"
+import type { ModelItem, ModelSelectionState } from "../../types"
+import { ModelInfoHoverCard } from "../ModelInfoHoverCard"
+import ModelIcon from "../ModelIcon"
+import ModelName from "../ModelName"
 import { ProviderTypeIcon } from "../ProviderTypeIcon"
 import type { MyModelGroup, MyModelProviderEntry } from "./utils"
 import { userStore } from "@/models/user"
 
 interface MyModelRowProps {
+	allowModelManagement?: boolean
 	group: MyModelGroup
 	isSelected?: boolean
 	onSelect?: (model: ModelItem) => void
+	getModelState?: (model: ModelItem) => ModelSelectionState | undefined
 	selectedItemRef?: React.RefObject<HTMLDivElement>
 	onEdit: (model: MyModelProviderEntry["model"]) => void
 	onDelete: (modelId: string) => void
+	/**
+	 * 桌面紧凑行：与平台模型行同一套尺寸、图标和勾选列，不缩进，描述收进悬停信息卡。
+	 * 移动端弹层不传，保留两行描述与复选框的原布局。
+	 */
+	compact?: boolean
 }
 
 export function MyModelRow({
 	group,
 	isSelected = false,
 	onSelect,
+	getModelState,
 	selectedItemRef,
 	onEdit,
 	onDelete,
+	compact = false,
+	allowModelManagement = true,
 }: MyModelRowProps) {
 	const { t } = useTranslation("super")
 	const isActionMenuOpenRef = useRef(false)
 	const shouldSkipNextSelectRef = useRef(false)
 	const { representativeModel, providerEntries } = group
+	const model = serviceProviderModelToModelItem(representativeModel)
+	const modelState = getModelState?.(model)
+	const isSelectionDisabled = modelState?.disabled ?? false
+	const isCandidateSelected = isSelected && !isSelectionDisabled
 	const hasMultipleProviders = providerEntries.length > 1
 	const primaryProviderEntry = providerEntries[0]
 	const primaryProviderName = primaryProviderEntry
@@ -42,10 +59,13 @@ export function MyModelRow({
 	const extraProviderEntries = providerEntries.slice(1)
 	const moreProviderCount = extraProviderEntries.length
 
-	const { isPersonalOrganization, isAdmin } = userStore.user
-	const canManageModels = isPersonalOrganization || isAdmin
+	// 企业组织的模型由管理后台维护，模型选择器只允许个人组织用户管理自定义模型。
+	const { isPersonalOrganization } = userStore.user
+	const canManageModels = isPersonalOrganization && allowModelManagement
 
-	const handleSelect = () => onSelect?.(serviceProviderModelToModelItem(representativeModel))
+	const handleSelect = () => {
+		if (!isSelectionDisabled) onSelect?.(serviceProviderModelToModelItem(representativeModel))
+	}
 
 	const handleItemClick = (event: React.MouseEvent<HTMLDivElement>) => {
 		const target = event.target as HTMLElement | null
@@ -93,31 +113,170 @@ export function MyModelRow({
 				onDelete,
 			})
 
+	const renderActionMenu = (trigger: React.ReactNode) => (
+		<MagicDropdown
+			placement="bottomRight"
+			onOpenChange={handleActionMenuOpenChange}
+			overlayClassName={cn(
+				"min-w-[200px] rounded-lg shadow-md",
+				"[&_[data-slot=dropdown-menu-label]]:p-0",
+				"[&_[data-slot=dropdown-menu-item]]:rounded-md",
+				"[&_[data-slot=dropdown-menu-item]]:px-2",
+				"[&_[data-slot=dropdown-menu-item]]:py-1.5",
+				"[&_[data-slot=dropdown-menu-sub-trigger]]:rounded-md",
+				"[&_[data-slot=dropdown-menu-sub-trigger]]:px-2",
+				"[&_[data-slot=dropdown-menu-sub-trigger]]:py-1.5",
+				"[&_[data-slot=dropdown-menu-sub-content]]:min-w-[160px]",
+			)}
+			menu={{ items: actionMenuItems }}
+		>
+			<span
+				className="flex items-center justify-center"
+				data-stop-model-select="true"
+				onPointerDown={handleActionTriggerPointerDown}
+			>
+				{trigger}
+			</span>
+		</MagicDropdown>
+	)
+
+	if (compact && !getModelState) {
+		const modelItem = serviceProviderModelToModelItem(representativeModel)
+		const row = (
+			<div
+				ref={isSelected ? selectedItemRef : null}
+				className={cn(
+					"group flex h-8 items-center gap-2 rounded-lg px-2",
+					"cursor-pointer transition-colors duration-100",
+					// 与平台模型行一致：选中底色比悬停深一档。
+					isSelected
+						? "bg-muted"
+						: "[@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted/60",
+					"outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				)}
+				role="button"
+				tabIndex={isSelectionDisabled ? -1 : 0}
+				aria-pressed={isSelected}
+				aria-label={[representativeModel.name, modelState?.label, modelState?.reason]
+					.filter(Boolean)
+					.join("，")}
+				aria-disabled={isSelectionDisabled || undefined}
+				title={modelState?.reason}
+				data-testid={`my-model-item-${representativeModel.id}`}
+				data-model-id={representativeModel.model_id}
+				data-selected={isSelected}
+				data-provider-count={providerEntries.length}
+				onClick={handleItemClick}
+				onKeyDown={(event) => {
+					if (event.target !== event.currentTarget) return
+					if (event.key !== "Enter" && event.key !== " ") return
+					event.preventDefault()
+					handleSelect()
+				}}
+			>
+				{/* 与平台模型行一致，行首显示模型自己的图标。 */}
+				<ModelIcon model={modelItem} size={16} className="shrink-0 rounded" />
+				<span
+					className={cn(
+						"min-w-0 flex-1 truncate text-[13px] leading-5",
+						isSelected
+							? "font-semibold text-foreground"
+							: "font-normal text-foreground/80",
+					)}
+				>
+					{representativeModel.name}
+				</span>
+				{/* 自定义模型没有倍率，个人组织在倍率的位置显示服务商，多服务商只给数量。 */}
+				{canManageModels && primaryProviderName ? (
+					<span
+						className="max-w-[40%] shrink-0 truncate text-[11px] leading-4 text-muted-foreground"
+						data-testid={`my-model-provider-badge-${representativeModel.id}`}
+					>
+						{hasMultipleProviders
+							? `${primaryProviderName} +${moreProviderCount}`
+							: primaryProviderName}
+					</span>
+				) : null}
+				{/* 管理入口平时隐藏，悬停或键盘聚焦到行内时出现，不占用默认视觉。 */}
+				{canManageModels
+					? renderActionMenu(
+							<Button
+								variant="ghost"
+								size="sm"
+								className={cn(
+									"h-5 w-5 shrink-0 p-0 text-muted-foreground shadow-none",
+									"invisible group-focus-within:visible",
+									"[@media(hover:hover)_and_(pointer:fine)]:group-hover:visible",
+								)}
+								data-stop-model-select="true"
+								onPointerDown={handleActionTriggerPointerDown}
+								data-testid={`my-model-actions-${representativeModel.id}`}
+							>
+								<Ellipsis size={16} />
+							</Button>,
+						)
+					: null}
+				{/* 固定勾选列，与供应商分组的行保持同一条右侧基线。 */}
+				<span
+					className="flex size-5 shrink-0 items-center justify-center"
+					aria-hidden="true"
+				>
+					{isSelected ? (
+						<Check className="size-4 text-foreground" strokeWidth={2} />
+					) : null}
+				</span>
+			</div>
+		)
+		return (
+			<ModelInfoHoverCard model={modelItem} description={modelItem.model_description}>
+				{row}
+			</ModelInfoHoverCard>
+		)
+	}
+
 	return (
 		<div
 			ref={isSelected ? selectedItemRef : null}
 			className={cn(
 				"group flex cursor-pointer items-center gap-2.5 rounded px-3 py-2",
 				"[@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent",
+				isSelectionDisabled && "cursor-not-allowed",
 			)}
 			data-testid={`my-model-item-${representativeModel.id}`}
 			data-model-id={representativeModel.model_id}
-			data-selected={isSelected}
+			data-selected={isCandidateSelected}
+			aria-disabled={isSelectionDisabled || undefined}
 			data-provider-count={providerEntries.length}
 			onClick={handleItemClick}
 		>
 			<div className="min-w-0 flex-1">
-				<div>
-					<p className="text-sm font-medium leading-5 text-foreground">
-						{representativeModel.name}
-					</p>
+				<div className={cn(getModelState && "flex flex-col gap-1")}>
+					<div className="flex min-w-0 items-center gap-2">
+						{getModelState ? (
+							<ModelName
+								model={model}
+								isSelected={false}
+								className="w-fit max-w-full"
+							/>
+						) : (
+							<p className="min-w-0 text-sm font-medium leading-5 text-foreground">
+								{representativeModel.name}
+							</p>
+						)}
+						{modelState && (
+							<span className="inline-flex shrink-0 items-center gap-1 text-xs font-normal leading-4 text-amber-600 dark:text-amber-400">
+								<TriangleAlert className="size-4 shrink-0" aria-hidden />
+								{modelState.label}
+							</span>
+						)}
+					</div>
 					<p
 						className={cn(
 							"line-clamp-2 text-xs leading-4 text-muted-foreground",
 							"empty:hidden",
 						)}
 					>
-						{representativeModel.description}
+						{modelState?.reason ?? representativeModel.description}
 					</p>
 				</div>
 				{canManageModels && (
@@ -172,54 +331,35 @@ export function MyModelRow({
 								</div>
 							)}
 						</div>
-						<MagicDropdown
-							placement="bottomRight"
-							onOpenChange={handleActionMenuOpenChange}
-							overlayClassName={cn(
-								"min-w-[200px] rounded-lg shadow-md",
-								"[&_[data-slot=dropdown-menu-label]]:p-0",
-								"[&_[data-slot=dropdown-menu-item]]:rounded-md",
-								"[&_[data-slot=dropdown-menu-item]]:px-2",
-								"[&_[data-slot=dropdown-menu-item]]:py-1.5",
-								"[&_[data-slot=dropdown-menu-sub-trigger]]:rounded-md",
-								"[&_[data-slot=dropdown-menu-sub-trigger]]:px-2",
-								"[&_[data-slot=dropdown-menu-sub-trigger]]:py-1.5",
-								"[&_[data-slot=dropdown-menu-sub-content]]:min-w-[160px]",
-							)}
-							menu={{ items: actionMenuItems }}
-						>
-							<span
-								className="flex items-center justify-center"
+						{renderActionMenu(
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-5 w-5 shrink-0 border p-0 shadow-none"
 								data-stop-model-select="true"
 								onPointerDown={handleActionTriggerPointerDown}
+								data-testid={`my-model-actions-${representativeModel.id}`}
 							>
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-5 w-5 shrink-0 border p-0 shadow-none"
-									data-stop-model-select="true"
-									onPointerDown={handleActionTriggerPointerDown}
-									data-testid={`my-model-actions-${representativeModel.id}`}
-								>
-									<Ellipsis size={16} />
-								</Button>
-							</span>
-						</MagicDropdown>
+								<Ellipsis size={16} />
+							</Button>,
+						)}
 					</div>
 				)}
 			</div>
-			<Checkbox
-				checked={isSelected}
-				onCheckedChange={handleSelect}
-				onClick={(event) => event.stopPropagation()}
-				className={cn(
-					"shrink-0",
-					"invisible opacity-0 transition-opacity",
-					"[@media(hover:hover)_and_(pointer:fine)]:group-hover:visible",
-					"[@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100",
-					isSelected && "visible opacity-100",
-				)}
-			/>
+			{!isSelectionDisabled && (
+				<Checkbox
+					checked={isCandidateSelected}
+					onCheckedChange={handleSelect}
+					onClick={(event) => event.stopPropagation()}
+					className={cn(
+						"shrink-0",
+						"invisible opacity-0 transition-opacity",
+						"[@media(hover:hover)_and_(pointer:fine)]:group-hover:visible",
+						"[@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100",
+						isCandidateSelected && "visible opacity-100",
+					)}
+				/>
+			)}
 		</div>
 	)
 }

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import InlineVoiceButton from "../ui/InlineVoiceButton"
 import type { MaterialItem } from "../../types"
 

@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import StrEnum
 
+from agentlang.chat_history.chat_history_models import ContextSource
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
@@ -133,6 +134,21 @@ class SdkCallRegistry:
     ) -> tuple[SdkCallSummary, ...]:
         summaries = self._summaries.get((agent_context_id, sdk_execution_id), {})
         return tuple(sorted(summaries.values(), key=lambda item: item.started_at))
+
+    def context_source(self, agent_context_id: str, sdk_execution_id: str) -> ContextSource:
+        """只判定本次可见脚本输出的来源，不累加内部结果。
+
+        全部 MCP / 全部技能读取 -> 可归类；混合、空或达到摘要上限 -> 不猜测。
+        上限处早期摘要可能已被淘汰，剩余工具一致不能证明整次执行来源一致。
+        """
+        calls = self.snapshot_execution(agent_context_id, sdk_execution_id)
+        if not calls or len(calls) >= _MAX_CALLS_PER_EXECUTION:
+            return ContextSource.MIXED
+        if all(call.tool_name.startswith("mcp_") for call in calls):
+            return ContextSource.MCP
+        if all(call.tool_name == "read_skills" for call in calls):
+            return ContextSource.SKILLS
+        return ContextSource.MIXED
 
     def clear_execution(self, agent_context_id: str, sdk_execution_id: str) -> None:
         execution_key = (agent_context_id, sdk_execution_id)

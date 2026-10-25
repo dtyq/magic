@@ -1,12 +1,12 @@
 import * as React from "react"
-import type { ChainedCommands, Editor } from "@tiptap/react"
+import type { ChainedCommands, Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 
 // --- Lib ---
-import { isExtensionAvailable, isNodeTypeSelected } from "@/lib/tiptap-utils"
+import { isExtensionAvailable, isNodeTypeSelected } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Icons ---
 import { AlignCenterIcon } from "@/components/tiptap-icons/align-center-icon"
@@ -66,16 +66,20 @@ export const textAlignLabels: Record<TextAlign, string> = {
  */
 export function canSetTextAlign(editor: Editor | null, align: TextAlign): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (
-				!isExtensionAvailable(activeEditor, "textAlign") ||
-				isNodeTypeSelected(activeEditor, ["image"])
-			)
-				return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (
+					!isExtensionAvailable(activeEditor, "textAlign") ||
+					isNodeTypeSelected(activeEditor, ["image"])
+				)
+					return false
 
-			return activeEditor.can().setTextAlign(align)
-		}, false) ?? false
+				return activeEditor.can().setTextAlign(align)
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -90,10 +94,14 @@ export function hasSetTextAlign(commands: ChainedCommands): commands is ChainedC
  */
 export function isTextAlignActive(editor: Editor | null, align: TextAlign): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			return activeEditor.isActive({ textAlign: align })
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				return activeEditor.isActive({ textAlign: align })
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -104,14 +112,18 @@ export function setTextAlign(editor: Editor | null, align: TextAlign): boolean {
 	if (!canSetTextAlign(editor, align)) return false
 
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			const chain = activeEditor.chain().focus()
-			if (hasSetTextAlign(chain)) {
-				return chain.setTextAlign(align).run()
-			}
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				const chain = activeEditor.chain().focus()
+				if (hasSetTextAlign(chain)) {
+					return chain.setTextAlign(align).run()
+				}
 
-			return false
-		}, false) ?? false
+				return false
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -126,16 +138,20 @@ export function shouldShowButton(props: {
 	const { editor, hideWhenUnavailable, align } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isExtensionAvailable(activeEditor, "textAlign")) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!isExtensionAvailable(activeEditor, "textAlign")) return false
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canSetTextAlign(activeEditor, align)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canSetTextAlign(activeEditor, align)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }

@@ -4,6 +4,7 @@ import { useMemoizedFn } from "ahooks"
 import {
 	ChevronLeft,
 	ChevronsUpDown,
+	Gauge,
 	ImageIcon,
 	MessageSquareText,
 	Search,
@@ -11,13 +12,20 @@ import {
 	X,
 } from "lucide-react"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import { Trans, useTranslation } from "react-i18next"
 import { useFeaturedModeListRefreshOnFirstOpen } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
 import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 import ModelIcon from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelIcon"
 import { ModelListContent } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelListContent"
+import { resolveReasoningFooterModel } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelReasoningFooter"
+import { ReasoningEffortSheet } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ReasoningEffortSheet"
+import { useReasoningEffortLabels } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/hooks/useReasoningEffortLabels"
+import {
+	getModelDisplayedReasoningEffort,
+	getSelectableReasoningLevels,
+} from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/utils"
 import { ModelTabSwitcher } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelTabSwitcher"
 import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
 import { useOptionalMessageEditorStore } from "@/pages/superMagic/components/MessageEditor/stores"
@@ -28,6 +36,7 @@ import type {
 	ModelTabType,
 } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import type { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 import type { CrewItem, ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
@@ -126,6 +135,9 @@ function MobileComposerModeSelectorComponent({
 		mode: null,
 	})
 	const [activeModelRow, setActiveModelRow] = useState<ModelRowData | null>(null)
+	// 思考强度的底部弹层，独立于模型选择页。
+	const [reasoningSheetOpen, setReasoningSheetOpen] = useState(false)
+	const reasoningLabels = useReasoningEffortLabels()
 	const [activeModelTab, setActiveModelTab] = useState<ModelTabType>("language")
 	const [modelSearchKeyword, setModelSearchKeyword] = useState("")
 	const modelScrollContainerRef = useRef<HTMLDivElement>(null)
@@ -134,10 +146,10 @@ function MobileComposerModeSelectorComponent({
 
 	useFeaturedModeListRefreshOnFirstOpen(open)
 
-	const currentMode = useMemo(() => {
-		if (!topicMode) return null
-		return superMagicModeService.getModeConfigWithLegacy(topicMode, undefined, false, agentCode)
-	}, [agentCode, topicMode])
+	// Resolve during each observed render so an asynchronously loaded mode list can restore the avatar.
+	const currentMode = topicMode
+		? superMagicModeService.getModeConfigWithLegacy(topicMode, undefined, false, agentCode)
+		: null
 	const allowChangeMode = (messagesLength ?? 0) > 0 ? false : true
 	const selectedModeIdentifier = topicMode === "custom_agent" && agentCode ? agentCode : topicMode
 
@@ -257,6 +269,10 @@ function MobileComposerModeSelectorComponent({
 		setModelSearchKeyword("")
 	})
 
+	const handleReasoningEffortChange = useMemoizedFn((model: ModelItem) => {
+		setSelectedModel(model)
+	})
+
 	const getModelDescription = useMemoizedFn((model: ModelItem) => {
 		return model.model_description
 	})
@@ -323,6 +339,20 @@ function MobileComposerModeSelectorComponent({
 	const isCurrentTabEmpty =
 		(activeModelTab === "image" && !hasImageModels) ||
 		(activeModelTab === "video" && !hasVideoModels)
+	// 外层「思考强度」行只看当前选中的语言模型，与模型选择页当前停在哪个 Tab 无关。
+	const reasoningModel = resolveReasoningFooterModel({
+		activeTab: "language",
+		selectedModel: resolvedTopicModelStore.selectedLanguageModel,
+		groups: modelList,
+	})
+	const canSelectReasoning =
+		!!reasoningModel && getSelectableReasoningLevels(reasoningModel).length > 0
+	const reasoningValue = reasoningModel
+		? getModelDisplayedReasoningEffort(reasoningModel)
+		: undefined
+	const reasoningValueLabel = reasoningValue
+		? reasoningLabels.labels[reasoningValue]
+		: reasoningLabels.defaultLabel
 
 	const clawStackModels = useMemo(() => {
 		const candidates = [
@@ -470,32 +500,39 @@ function MobileComposerModeSelectorComponent({
 							/>
 						</div>
 
-						<div
-							ref={modelScrollContainerRef}
-							className="scrollbar-y-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto rounded-lg px-6 py-3"
-							data-testid="mobile-composer-mode-selector-model-list"
+						<ScrollArea
+							viewportRef={modelScrollContainerRef}
+							className="min-h-0 flex-1"
+							viewportClassName="h-full [&>div]:!block"
+							viewportProps={{
+								"data-testid": "mobile-composer-mode-selector-model-list",
+							}}
 						>
-							{isCurrentTabEmpty ? (
-								<DataEmptyState
-									variant="model"
-									compact
-									className="min-h-0 py-8"
-									testId="mobile-composer-mode-selector-model-empty"
-								/>
-							) : (
-								<ModelListContent
-									modelList={currentModelList}
-									selectedModel={currentSelectedModel || null}
-									searchKeyword={modelSearchKeyword}
-									size="mobile"
-									onModelClick={handleModelSelect}
-									selectedItemRef={selectedModelItemRef}
-									getModelDescription={getModelDescription}
-									modelKey={currentModelKey}
-									onModelsLoaded={validateSelectedModels}
-								/>
-							)}
-						</div>
+							<div className="flex min-w-0 flex-col gap-1 px-3 py-2">
+								{isCurrentTabEmpty ? (
+									<DataEmptyState
+										variant="model"
+										compact
+										className="min-h-0 py-8"
+										testId="mobile-composer-mode-selector-model-empty"
+									/>
+								) : (
+									<ModelListContent
+										modelList={currentModelList}
+										selectedModel={currentSelectedModel || null}
+										searchKeyword={modelSearchKeyword}
+										size="mobile"
+										onModelClick={handleModelSelect}
+										onReasoningEffortChange={handleReasoningEffortChange}
+										selectedItemRef={selectedModelItemRef}
+										getModelDescription={getModelDescription}
+										modelKey={currentModelKey}
+										onModelsLoaded={validateSelectedModels}
+										showModelInfo={false}
+									/>
+								)}
+							</div>
+						</ScrollArea>
 
 						<div className="shrink-0 px-2.5 pb-[max(var(--safe-area-inset-bottom),10px)] pt-2">
 							<div className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 shadow-xs">
@@ -623,12 +660,52 @@ function MobileComposerModeSelectorComponent({
 											<ChevronsUpDown className="h-4 w-4 shrink-0 text-foreground" />
 										</div>
 									</button>
+									{row.defaultTab === "language" ? (
+										// 思考强度做成和模型行一样的一行，不再用胶囊与分割线把语言模型单独隔开。
+										<button
+											type="button"
+											disabled={!canSelectReasoning}
+											onClick={() => setReasoningSheetOpen(true)}
+											className="flex h-12 w-full items-center gap-2.5 overflow-hidden transition-opacity active:opacity-60 disabled:active:opacity-100"
+											aria-haspopup="dialog"
+											data-testid="mobile-composer-reasoning-trigger-button"
+										>
+											<div className="flex min-w-0 flex-1 items-center gap-2">
+												<div className="flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
+													<Gauge size={20} className="shrink-0" />
+												</div>
+												<span className="whitespace-nowrap text-base leading-none text-foreground">
+													{reasoningLabels.title}
+												</span>
+											</div>
+											<div className="flex shrink-0 items-center justify-end gap-1">
+												<span
+													className="text-right text-base text-foreground"
+													data-testid="mobile-composer-reasoning-value"
+												>
+													{reasoningValueLabel}
+												</span>
+												{canSelectReasoning ? (
+													<ChevronsUpDown className="h-4 w-4 shrink-0 text-foreground" />
+												) : null}
+											</div>
+										</button>
+									) : null}
 								</div>
 							))}
 						</div>
 					</div>
 				)}
 			</MagicPopup>
+
+			{reasoningModel ? (
+				<ReasoningEffortSheet
+					visible={reasoningSheetOpen}
+					onClose={() => setReasoningSheetOpen(false)}
+					model={reasoningModel}
+					onReasoningEffortChange={handleReasoningEffortChange}
+				/>
+			) : null}
 
 			<MagicPopup
 				visible={showNewTopicModal.visible}

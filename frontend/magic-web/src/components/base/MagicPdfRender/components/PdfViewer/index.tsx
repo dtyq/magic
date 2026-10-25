@@ -1,8 +1,9 @@
-import { Document, Page } from "react-pdf"
 import { useTranslation } from "react-i18next"
 import { useEffect, useMemo, useState } from "react"
 import type { FC } from "react"
 import MagicSpin from "@/components/base/MagicSpin"
+import { loadReactPdf } from "@/infrastructure/vendors/react-pdf"
+import { getPackageAssetUrl } from "@/utils/packageAsset"
 
 interface PageDimensions {
 	width: number
@@ -46,17 +47,32 @@ function PdfViewer({
 }: PdfViewerProps): JSX.Element {
 	const { t } = useTranslation("component")
 	const [loadProgress, setLoadProgress] = useState(0)
+	const [reactPdf, setReactPdf] = useState<Awaited<ReturnType<typeof loadReactPdf>> | null>(null)
 
 	useEffect(() => {
 		setLoadProgress(0)
 	}, [reloadKey])
 
+	useEffect(() => {
+		let isMounted = true
+
+		loadReactPdf().then((module) => {
+			if (isMounted) {
+				setReactPdf(module)
+			}
+		})
+
+		return () => {
+			isMounted = false
+		}
+	}, [])
+
 	// Memoize PDF.js options to prevent unnecessary reloads
 	const pdfOptions = useMemo(
 		() => ({
-			cMapUrl: "/packages/pdfjs/cmaps/",
+			cMapUrl: `${getPackageAssetUrl("pdfjs/cmaps")}/`,
 			cMapPacked: true,
-			standardFontDataUrl: "/packages/pdfjs/",
+			standardFontDataUrl: `${getPackageAssetUrl("pdfjs")}/`,
 		}),
 		[],
 	)
@@ -95,6 +111,20 @@ function PdfViewer({
 			</div>
 		)
 	}
+
+	if (!reactPdf) {
+		return (
+			<div className={styles.loading}>
+				<div className="loading-content">
+					<MagicSpin spinning size="large" />
+					<div className="loading-text">{t("magicPdfRender.status.loading")}</div>
+				</div>
+			</div>
+		)
+	}
+
+	const Document = reactPdf.Document
+	const Page = reactPdf.Page
 
 	return (
 		<Document

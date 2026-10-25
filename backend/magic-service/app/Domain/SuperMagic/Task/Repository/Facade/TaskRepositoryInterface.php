@@ -25,10 +25,8 @@ interface TaskRepositoryInterface
      */
     public function getTaskById(int $id): ?TaskEntity;
 
-    /**
-     * 通过任务ID(沙箱服务返回的taskId)获取任务
-     */
-    public function getTaskByTaskId(string $taskId): ?TaskEntity;
+    /** @param int[] $ids @return array<int, TaskEntity> */
+    public function getTasksByIds(array $ids): array;
 
     /**
      * 通过话题ID获取任务列表.
@@ -80,53 +78,10 @@ interface TaskRepositoryInterface
     public function deleteTasksByTopicId(int $topicId): int;
 
     /**
-     * 通过用户ID和任务ID(沙箱服务返回的taskId)获取任务
-     */
-    public function getTaskByUserIdAndTaskId(string $userId, string $taskId): ?TaskEntity;
-
-    /**
-     * 通过沙箱ID获取任务
-     */
-    public function getTaskBySandboxId(string $sandboxId): ?TaskEntity;
-
-    /**
-     * 根据用户ID获取任务列表.
+     * 获取开始时间早于指定阈值且状态为 running/waiting 的任务列表（超时任务扫描）.
+     * 索引契约与实现约束见 TaskRepository::getRunningTasksExceedingCreatedTime。
      *
-     * @param string $userId 用户ID
-     * @param array $conditions 条件数组，如 ['task_status' => 'running']
-     * @return array 任务列表
-     */
-    public function getTasksByUserId(string $userId, array $conditions = []): array;
-
-    /**
-     * 更新长时间处于运行状态的任务为错误状态
-     *
-     * @param string $timeThreshold 时间阈值，早于此时间的运行中任务将被标记为错误
-     * @return int 更新的任务数量
-     */
-    public function updateStaleRunningTasks(string $timeThreshold): int;
-
-    /**
-     * 获取指定状态的任务列表.
-     *
-     * @param TaskStatus $status 任务状态
-     * @return array<TaskEntity> 任务实体列表
-     */
-    public function getTasksByStatus(TaskStatus $status): array;
-
-    /**
-     * 获取最近更新时间超过指定时间的任务列表.
-     *
-     * @param string $timeThreshold 时间阈值，如果任务的更新时间早于此时间，则会被包含在结果中
-     * @param int $limit 返回结果的最大数量
-     * @return array<TaskEntity> 任务实体列表
-     */
-    public function getTasksExceedingUpdateTime(string $timeThreshold, int $limit = 100): array;
-
-    /**
-     * 获取创建时间超过指定时间且状态为运行中的任务列表.
-     *
-     * @param string $timeThreshold 时间阈值，如果任务的创建时间早于此时间，则会被包含在结果中
+     * @param string $timeThreshold 时间阈值，开始时间早于此时间的任务会被包含在结果中
      * @param int $limit 返回结果的最大数量
      * @return array<TaskEntity> 任务实体列表
      */
@@ -138,36 +93,23 @@ interface TaskRepositoryInterface
     public function getTaskCountByTopicId(int $topicId): int;
 
     /**
-     * 根据项目ID获取任务列表.
-     */
-    public function getTasksByProjectId(int $projectId, string $userId): array;
-
-    /**
-     * Update task status by sandbox IDs.
+     * Update task status by topic IDs.
      *
-     * @param array $sandboxIds Sandbox IDs to filter
+     * @param array $topicIds Topic IDs to filter
      * @param string $status New status value
      * @param string $errMsg Error message
      * @param null|string $finishedTime Finished time
      * @param array $fromStatuses Only update tasks with these statuses (empty means no filter)
      */
-    public function updateTaskStatusBySandboxIds(array $sandboxIds, string $status, string $errMsg = '', ?string $finishedTime = null, array $fromStatuses = []): int;
+    public function updateTaskStatusByTopicIds(array $topicIds, string $status, string $errMsg = '', ?string $finishedTime = null, array $fromStatuses = []): int;
 
     /**
-     * 统计项目下的任务数量.
+     * 按条件批量更新任务.
+     * 条件值为数组时走 whereIn，标量走 where。
+     * 仅允许包含 id 或 topic_id 的条件（实现层有运行时守卫，违规抛 InvalidArgumentException）；
+     * 项目/用户维度请先经 topics 表转换为 topic_id 后再更新。
      */
-    public function countTasksByProjectId(int $projectId): int;
-
     public function updateTaskByCondition(array $condition, array $data): bool;
-
-    /**
-     * 根据话题ID和任务ID列表获取任务实体列表.
-     *
-     * @param int $topicId 话题ID
-     * @param array $taskIds 任务ID列表
-     * @return TaskEntity[] 任务实体数组
-     */
-    public function getTasksByTopicIdAndTaskIds(int $topicId, array $taskIds): array;
 
     /**
      * 批量创建任务

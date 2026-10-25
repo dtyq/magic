@@ -27,7 +27,7 @@ import {
 import { Button } from "@/components/shadcn-ui/button"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { Plus, Ellipsis, Check, Pencil, Trash2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useAddModelStore } from "./context"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { ServiceIcon } from "@dtyq/magic-admin"

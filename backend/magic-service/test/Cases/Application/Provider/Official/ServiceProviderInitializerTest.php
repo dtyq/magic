@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\Provider\Official;
 
-use App\Application\Provider\Official\ServiceProviderInitializer;
+use App\Application\Provider\Initializer\ServiceProviderInitializer;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\DbConnection\Db;
@@ -30,6 +30,9 @@ class ServiceProviderInitializerTest extends TestCase
         [ProviderCode::Official, 'vlm'],
         [ProviderCode::Keling, 'vgm'],
         [ProviderCode::VolcengineArk, 'vgm'],
+        [ProviderCode::MiniMax, 'vgm'],
+        [ProviderCode::DashScope, 'vgm'],
+        [ProviderCode::Gemini, 'vgm'],
     ];
 
     private mixed $originalOfficialOrganization;

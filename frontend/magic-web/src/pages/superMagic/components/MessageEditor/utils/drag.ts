@@ -5,13 +5,17 @@ import {
 import { TabItem } from "../../Detail/components/FilesViewer/types"
 import { AttachmentItem } from "../../TopicFilesButton/hooks"
 import projectFilesStore from "@/stores/projectFiles"
+import { getFileReferenceIdentityKey } from "@/pages/superMagic/services/userFileReferenceResolver"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
+import { createProjectFileMentionData } from "@/components/business/MentionPanel/utils/projectReferenceMention"
 import {
-	createDirectoryMentionData,
-	createProjectFileMentionData,
-	resolveFolderWorkspaceEntryFromProjectFile,
-	resolveFolderWorkspaceEntryFromTab,
-} from "@/components/business/MentionPanel/utils/projectReferenceMention"
+	createFileReferenceMention,
+	normalizeFileReferenceMention,
+	type FileReferenceSource,
+} from "@/components/business/MentionPanel/utils/fileReferenceMention"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
+import magicToast from "@/components/base/MagicToaster/utils"
+import i18n from "i18next"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { dragLogger } from "./dragLogger"
 import { runActiveEditor, type MaybeEditor } from "./editorLifecycle"
@@ -345,36 +349,18 @@ export function handleAttachmentDragEnd(e: React.DragEvent) {
 	dragLogger.logDragEnd()
 }
 
-function getFolderEntryFromProjectFile(item: AttachmentItem) {
-	return resolveFolderWorkspaceEntryFromProjectFile(item, {
+async function resolveDroppedMention(
+	file: FileReferenceSource,
+	mention?: TiptapMentionAttributes | null,
+): Promise<TiptapMentionAttributes | null> {
+	if (mention) return normalizeFileReferenceMention(mention)
+	return createFileReferenceMention(file, {
 		getFolderData: (parentId) => projectFilesStore.getFolderData(parentId),
 		workspaceFilesList: projectFilesStore.workspaceFilesList,
 	})
 }
 
-function createMentionContentFromProjectFile(item: AttachmentItem) {
-	const folderData = getFolderEntryFromProjectFile(item)
-
-	if (folderData) {
-		return {
-			type: "mention",
-			attrs: {
-				type: MentionItemType.FOLDER,
-				data: createDirectoryMentionData(folderData),
-			},
-		}
-	}
-
-	return {
-		type: "mention",
-		attrs: {
-			type: MentionItemType.PROJECT_FILE,
-			data: createProjectFileMentionData(item),
-		},
-	}
-}
-
-export function insertMentionFromDroppedData({
+export async function insertMentionFromDroppedData({
 	editor,
 	data,
 }: {
@@ -385,203 +371,97 @@ export function insertMentionFromDroppedData({
 		| MultipleFilesDragData
 		| PPTSlideDragData
 		| SelfMediaCardDragData
-}) {
+}): Promise<void> {
 	// 📋 日志记录：检查编辑器状态
 	const hasEditor = !!editor
 	const isDestroyed = hasEditor && (editor as { isDestroyed?: unknown }).isDestroyed === true
 	const canExecuteCommands = hasEditor && !isDestroyed
-
-	dragLogger.logEditorCheck({
-		hasEditor,
-		isDestroyed,
-		canExecuteCommands,
-	})
-
-	if (!editor) {
-		dragLogger.logError("insertMention", new Error("Editor is null"))
-		return
-	}
+	dragLogger.logEditorCheck({ hasEditor, isDestroyed, canExecuteCommands })
+	if (!canExecuteCommands) return
+	const identity = getFileReferenceIdentityKey()
+	const project = projectFilesStore.currentSelectedProject?.id
 
 	try {
+		let mentions: Array<TiptapMentionAttributes | null>
+		let files: FileReferenceSource[]
+		switch (data.type) {
+			case DRAG_TYPE.Tab: {
+				const tab = data.data
+				files = [
+					{
+						...tab.fileData,
+						file_id: tab.fileData.file_id || tab.id,
+						file_name: tab.fileData.file_name || tab.title,
+						relative_file_path: tab.fileData.relative_file_path || tab.filePath,
+						parent_id:
+							tab.fileData.parent_id == null
+								? undefined
+								: String(tab.fileData.parent_id),
+					},
+				]
+				mentions = [await resolveDroppedMention(files[0])]
+				break
+			}
+			case DRAG_TYPE.ProjectFile:
+			case DRAG_TYPE.ProjectDirectory:
+				files = [data.data]
+				mentions = [await resolveDroppedMention(data.data, data.mention)]
+				break
+			case DRAG_TYPE.MultipleFiles:
+				files = data.data
+				mentions = await Promise.all(
+					files.map((file, index) => resolveDroppedMention(file, data.mentions?.[index])),
+				)
+				break
+			case DRAG_TYPE.PPTSlide:
+			case DRAG_TYPE.SelfMediaCard:
+				files = [data.data]
+				mentions = [
+					{
+						type: MentionItemType.PROJECT_FILE,
+						data: createProjectFileMentionData(data.data),
+					},
+				]
+				break
+			default:
+				return
+		}
+
+		if (
+			identity !== getFileReferenceIdentityKey() ||
+			project !== projectFilesStore.currentSelectedProject?.id
+		)
+			return
+		const content: JSONContent[] = mentions.map((attrs, index) =>
+			attrs
+				? { type: "mention", attrs }
+				: {
+						type: "text",
+						text: String(
+							files[index].file_name ||
+								files[index].name ||
+								files[index].relative_file_path ||
+								"",
+						),
+					},
+		)
+		if (mentions.some((mention) => mention === null))
+			magicToast.error(i18n.t("super:common.fileNotFoundOrLoadFailed"))
+
+		// 查询完成时重新检查编辑器，离开页面后的响应不能写入新的输入框。
 		let didInsert = false
 		runActiveEditor(editor as MaybeEditor, (activeEditor) => {
+			activeEditor.commands.insertContent(content)
+			activeEditor.commands.focus()
 			didInsert = true
-			switch (data.type) {
-				case DRAG_TYPE.Tab: {
-					const folderData = resolveFolderWorkspaceEntryFromTab(data.data, {
-						getFolderData: (parentId) => projectFilesStore.getFolderData(parentId),
-						workspaceFilesList: projectFilesStore.workspaceFilesList,
-					})
-
-					if (folderData) {
-						activeEditor.commands.insertContent({
-							type: "mention",
-							attrs: {
-								type: MentionItemType.FOLDER,
-								data: createDirectoryMentionData(folderData),
-							},
-						})
-						activeEditor.commands.focus()
-
-						dragLogger.logMentionInsert({
-							success: true,
-							mentionType: MentionItemType.FOLDER,
-							mentionData: {
-								directory_name: folderData.file_name,
-							},
-						})
-						return
-					}
-
-					activeEditor.commands.insertContent({
-						type: "mention",
-						attrs: {
-							type: MentionItemType.PROJECT_FILE,
-							data: createProjectFileMentionData(data.data.fileData, {
-								fileId: data.data.id,
-								fileName: data.data.title,
-								filePath: data.data.filePath,
-							}),
-						},
-					})
-					activeEditor.commands.focus()
-
-					// 📋 日志记录：Mention 插入成功
-					dragLogger.logMentionInsert({
-						success: true,
-						mentionType: MentionItemType.PROJECT_FILE,
-						mentionData: {
-							file_name: data.data.fileData.file_name,
-						},
-					})
-					return
-				}
-				case DRAG_TYPE.ProjectFile: {
-					const mentionContent = data.mention
-						? { type: "mention", attrs: data.mention }
-						: createMentionContentFromProjectFile(data.data)
-					activeEditor.commands.insertContent(mentionContent)
-					activeEditor.commands.focus()
-
-					// 📋 日志记录：Mention 插入成功
-					dragLogger.logMentionInsert({
-						success: true,
-						mentionType: mentionContent.attrs.type,
-						mentionData: {
-							file_name: data.data.file_name,
-						},
-					})
-					return
-				}
-				case DRAG_TYPE.ProjectDirectory: {
-					const mention =
-						data.mention ||
-						({
-							type: MentionItemType.FOLDER,
-							data: createDirectoryMentionData(data.data),
-						} satisfies TiptapMentionAttributes)
-					activeEditor.commands.insertContent({ type: "mention", attrs: mention })
-					activeEditor.commands.focus()
-
-					// 📋 日志记录：Mention 插入成功
-					dragLogger.logMentionInsert({
-						success: true,
-						mentionType: mention.type,
-						mentionData: {
-							directory_name: data.data.file_name,
-						},
-					})
-					return
-				}
-				case DRAG_TYPE.MultipleFiles: {
-					// 处理多文件拖拽，为每个文件创建一个mention
-					const mentions = data.data.map((item, index) => {
-						const customMention = data.mentions?.[index]
-						if (customMention) return { type: "mention", attrs: customMention }
-
-						if (item.is_directory) {
-							return {
-								type: "mention",
-								attrs: {
-									type: MentionItemType.FOLDER,
-									data: createDirectoryMentionData(item),
-								},
-							}
-						}
-
-						return createMentionContentFromProjectFile(item)
-					})
-
-					activeEditor.commands.insertContent(mentions)
-					activeEditor.commands.focus()
-
-					// 📋 日志记录：Mention 插入成功
-					dragLogger.logMentionInsert({
-						success: true,
-						mentionType: "multiple",
-						itemsCount: data.data.length,
-						mentionData: data.data.map((item) => item.file_name),
-					})
-
-					return
-				}
-				case DRAG_TYPE.PPTSlide: {
-					// 处理 PPT slide 拖拽，插入为 PROJECT_FILE mention
-					activeEditor.commands.insertContent({
-						type: "mention",
-						attrs: {
-							type: MentionItemType.PROJECT_FILE,
-							data: createProjectFileMentionData(data.data),
-						},
-					})
-					activeEditor.commands.focus()
-
-					// 📋 日志记录：Mention 插入成功
-					dragLogger.logMentionInsert({
-						success: true,
-						mentionType: MentionItemType.PROJECT_FILE,
-						mentionData: {
-							file_name: data.data.file_name,
-							slide_index: data.data.slide_index,
-						},
-					})
-					return
-				}
-				case DRAG_TYPE.SelfMediaCard: {
-					// Self-media card: insert as PROJECT_FILE mention
-					activeEditor.commands.insertContent({
-						type: "mention",
-						attrs: {
-							type: MentionItemType.PROJECT_FILE,
-							data: createProjectFileMentionData(data.data),
-						},
-					})
-					activeEditor.commands.focus()
-					dragLogger.logMentionInsert({
-						success: true,
-						mentionType: MentionItemType.PROJECT_FILE,
-						mentionData: { file_name: data.data.file_name },
-					})
-					return
-				}
-				default: {
-					dragLogger.logError("insertMention", new Error("Unknown drag type"), {
-						dragType: (data as { type?: string }).type,
-					})
-					return
-				}
-			}
 		})
-
-		if (!didInsert) {
-			dragLogger.logError("insertMention", new Error("Editor is not active"))
-		}
-	} catch (error) {
 		dragLogger.logMentionInsert({
-			success: false,
-			error,
-			mentionData: data,
+			success: didInsert,
+			mentionType: mentions.length > 1 ? "multiple" : mentions[0]?.type,
+			itemsCount: files.length,
 		})
-		throw error
+	} catch (error) {
+		dragLogger.logMentionInsert({ success: false, error, mentionData: data })
+		magicToast.error(i18n.t("super:common.fileNotFoundOrLoadFailed"))
 	}
 }

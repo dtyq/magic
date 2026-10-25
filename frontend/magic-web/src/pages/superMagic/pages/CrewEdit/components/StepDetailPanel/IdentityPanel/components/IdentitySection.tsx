@@ -6,6 +6,7 @@ import { IdentityNameField } from "./IdentityNameField"
 import { IdentityRoleField } from "./IdentityRoleField"
 import { useCrewEditStore } from "../../../../context"
 import { useMemberDisplay } from "../../../../hooks/useMemberDisplay"
+import { useCrewAvatarUrl } from "../../../../hooks/useCrewAvatarUrl"
 import { RoleIcon } from "../../../common/RoleIcon"
 import { useUpload } from "@/hooks/useUploadFiles"
 
@@ -17,7 +18,7 @@ interface IdentitySectionProps {
 function IdentitySectionInner({ disabled = false, onOpenLocalize }: IdentitySectionProps) {
 	const store = useCrewEditStore()
 	const { identity, skills } = store
-	const { name, avatarUrl } = useMemberDisplay({
+	const { name } = useMemberDisplay({
 		name_i18n: identity.name_i18n,
 		role_i18n: identity.role_i18n,
 		description_i18n: identity.description_i18n,
@@ -25,6 +26,7 @@ function IdentitySectionInner({ disabled = false, onOpenLocalize }: IdentitySect
 		prompt: identity.prompt,
 		skills: skills.skills,
 	})
+	const avatarUrl = useCrewAvatarUrl(identity.icon, store.projectFilesStore.workspaceFilesList)
 
 	const { uploadAndGetFileUrl, uploading: avatarUploading } = useUpload({
 		storageType: "public",

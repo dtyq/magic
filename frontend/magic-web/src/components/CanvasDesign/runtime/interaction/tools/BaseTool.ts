@@ -75,6 +75,18 @@ export abstract class BaseTool {
 	}
 
 	/**
+	 * 复用画布统一的元素定位动作，确保创建后的元素可见。
+	 * 图层列表定位和工具创建后的自动定位都应走同一套视口逻辑。
+	 */
+	protected ensureElementVisible(elementId: string): void {
+		requestAnimationFrame(() => {
+			void this.canvas.userActionRegistry.execute("view.focus-element", {
+				elementIds: [elementId],
+			})
+		})
+	}
+
+	/**
 	 * 获取工具元数据
 	 * 子类应该重写此方法提供工具的描述信息
 	 */

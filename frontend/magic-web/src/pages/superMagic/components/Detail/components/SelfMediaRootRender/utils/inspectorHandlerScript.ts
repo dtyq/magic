@@ -1,3 +1,5 @@
+import { INSPECTABLE_TEXT_CONTENT_SCRIPT } from "@dtyq/html-sandbox"
+
 /**
  * Minimal ElementInspectorHandler script for injection into CardFrame iframes.
  *
@@ -5,7 +7,7 @@
  * when stopped. It listens for MAGIC_INSPECTOR_START/STOP messages and reports
  * HOVER/SELECT/HOVER_END back to the parent window.
  *
- * The script is self-contained — no external dependencies.
+ * The script is self-contained — helpers are inlined, not imported at runtime.
  */
 
 export const INSPECTOR_HANDLER_SCRIPT = `
@@ -49,6 +51,7 @@ export const INSPECTOR_HANDLER_SCRIPT = `
   var RESOURCE_ATTRIBUTES = ["src", "href", "poster", "srcset", "data-src", "data-href", "data-url", "data-original"];
   var SENSITIVE_ATTRIBUTE_PATTERN = /(authorization|credential|api[-_]?key|token|secret|signature)/i;
   var VOID_TAGS = ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"];
+  ${INSPECTABLE_TEXT_CONTENT_SCRIPT}
 
   function normalizeResource(value) {
     if (!value) return "";
@@ -100,7 +103,7 @@ export const INSPECTOR_HANDLER_SCRIPT = `
       ? element.className.trim().split(/\\s+/).filter(Boolean).slice(0, 2).map(function(c) { return "." + c; }).join("")
       : "";
     var resource = getElementResource(element);
-    var text = (element.textContent || "").trim().replace(/\\s+/g, " ").slice(0, 48);
+    var text = getInspectableTextContent(element).replace(/\\s+/g, " ").slice(0, 48);
     return tag + id + className + (resource ? " resource=" + resource : "") + (text ? " text=" + text : "");
   }
 
@@ -117,7 +120,7 @@ export const INSPECTOR_HANDLER_SCRIPT = `
       }
     });
     if (VOID_TAGS.indexOf(element.tagName.toLowerCase()) === -1) {
-      clone.textContent = (element.textContent || "").trim().replace(/\\s+/g, " ").slice(0, 120);
+      clone.textContent = getInspectableTextContent(element).replace(/\\s+/g, " ").slice(0, 120);
     }
     return clone.outerHTML.slice(0, MAX_HTML_LENGTH);
   }
@@ -209,7 +212,7 @@ export const INSPECTOR_HANDLER_SCRIPT = `
       }
     }
 
-    var rawText = (el.textContent || "").trim();
+    var rawText = getInspectableTextContent(el);
     var textContent = rawText.length > 120 ? rawText.slice(0,120) + "…" : rawText;
 
     var classList = [];

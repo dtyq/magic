@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { buildScheduleMessageJSONContent, getPromptPlainText } from "../aiCardScheduleMessage"
 
 function textFromJSONContent(node: JSONContent | undefined): string {

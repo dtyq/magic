@@ -2,7 +2,7 @@ import SearchInput from "@/common/BaseUI/DropdownRenderer/SearchInput"
 import { InputRef } from "antd"
 import { useMemoizedFn } from "ahooks"
 import i18next from "i18next"
-import _ from "lodash"
+import { trim } from "lodash-es"
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Multiple } from "../types"
@@ -59,7 +59,7 @@ const SelectOptions = forwardRef<SelectOptionRef, SelectOptionsProps>((props, re
 		setInputValue(val)
 
 		if (timer.current) clearTimeout(timer.current)
-		const value = _.trim(val)
+		const value = trim(val)
 		timer.current = setTimeout(() => {
 			const filterOptions = copyOptions.filter((item) => item.label.indexOf(value) > -1)
 			setDisplayOptions(filterOptions)

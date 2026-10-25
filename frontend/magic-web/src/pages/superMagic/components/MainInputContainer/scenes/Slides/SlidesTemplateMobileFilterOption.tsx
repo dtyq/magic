@@ -1,5 +1,5 @@
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface SlidesTemplateMobileFilterOptionProps {
 	label: string

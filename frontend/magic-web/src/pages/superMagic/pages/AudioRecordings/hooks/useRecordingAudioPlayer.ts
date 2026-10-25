@@ -58,7 +58,16 @@ export function useRecordingAudioPlayer(audioUrl: string) {
 			}
 		}
 
+		/**
+		 * Syncs React state from seeked events to ensure paused seeks update state immediately.
+		 */
+		function handleSeeked() {
+			const nextTime = audio?.currentTime ?? 0
+			setCurrentTime(nextTime)
+		}
+
 		audio.addEventListener("timeupdate", handleTimeUpdate)
+		audio.addEventListener("seeked", handleSeeked)
 		audio.addEventListener("loadedmetadata", handleLoadedMetadata)
 		audio.addEventListener("play", handlePlayState)
 		audio.addEventListener("play", handlePlay)
@@ -67,6 +76,7 @@ export function useRecordingAudioPlayer(audioUrl: string) {
 
 		return () => {
 			audio.removeEventListener("timeupdate", handleTimeUpdate)
+			audio.removeEventListener("seeked", handleSeeked)
 			audio.removeEventListener("loadedmetadata", handleLoadedMetadata)
 			audio.removeEventListener("play", handlePlayState)
 			audio.removeEventListener("play", handlePlay)
@@ -92,7 +102,9 @@ export function useRecordingAudioPlayer(audioUrl: string) {
 	const seekTo = useCallback((seconds: number, options: { autoplay?: boolean } = {}) => {
 		const audio = audioRef.current
 		if (!audio) return
-		audio.currentTime = Math.max(0, seconds)
+		const target = Math.max(0, seconds)
+		audio.currentTime = target
+		setCurrentTime(target)
 		segmentEndRef.current = undefined
 		if (options.autoplay) void audio.play()
 	}, [])
@@ -100,7 +112,9 @@ export function useRecordingAudioPlayer(audioUrl: string) {
 	const playSegment = useCallback((range: SegmentRange) => {
 		const audio = audioRef.current
 		if (!audio) return
-		audio.currentTime = Math.max(0, range.start)
+		const target = Math.max(0, range.start)
+		audio.currentTime = target
+		setCurrentTime(target)
 		segmentEndRef.current = range.end
 		void audio.play()
 	}, [])

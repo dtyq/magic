@@ -152,6 +152,34 @@ class SandboxApi extends AbstractApi
         return ['sandbox_id' => $sandboxId];
     }
 
+    /**
+     * 重启普通项目话题绑定的沙盒。
+     *
+     * 普通项目沿用升级服务的完整重建流程：镜像已是最新时保留当前沙盒，
+     * 需要更新时执行删除、初始化和工作区就绪等待。
+     */
+    #[ApiResponse('low_code')]
+    public function restartSandbox(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
+
+        $authorization = $this->getAuthorization();
+        $dataIsolation = DataIsolation::create($authorization->getOrganizationCode(), $authorization->getId());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setUserType(UserType::Human);
+
+        $sandboxId = $this->agentAppService->upgradeSandbox($dataIsolation, (int) $topicId);
+
+        return ['sandbox_id' => $sandboxId];
+    }
+
     protected function initSandbox(RequestContext $requestContext, InitSandboxRequestDTO $requestDTO, MagicUserAuthorization $magicUserAuthorization): array
     {
         // 判断工作区是否存在，不存在则初始化工作区

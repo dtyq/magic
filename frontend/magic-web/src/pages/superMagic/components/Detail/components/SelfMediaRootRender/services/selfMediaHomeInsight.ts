@@ -209,6 +209,7 @@ export function buildFallbackSelfMediaHomeDailyInsight({
 			title: "复用高互动结构",
 			description: `${bestPost.title} 已拿到 ${formatSelfMediaCompactNumber(
 				bestPost.engagement,
+				"zh-CN",
 			)} 次互动，适合拆成下一篇的开头和结构模板。`,
 			cta: "看样本",
 			kind: "repurpose-best-post",

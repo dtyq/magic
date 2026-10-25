@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/upload-sdk",
-	"version": "0.0.6",
+	"version": "0.0.12",
 	"description": "Browser upload SDK for multipart file uploads across cloud object storage providers.",
 	"keywords": [
 		"upload",
@@ -68,7 +68,6 @@
 		"buffer": "^6.0.3",
 		"crypto-js": "^3.1.1",
 		"esdk-obs-browserjs": "^3.23.5",
-		"lodash-es": "~4.17.21",
 		"mime": "^3.0.0",
 		"process": "^0.11.10"
 	},
@@ -82,7 +81,7 @@
 		"@semantic-release/npm": "^9.0.1",
 		"@semantic-release/release-notes-generator": "^10.0.3",
 		"@types/crypto-js": "^4.1.1",
-		"@types/lodash-es": "~4.17.12",
+		"@types/lodash-es": "^4.17.12",
 		"@types/mime": "^3.0.1",
 		"@types/node": "^20.17.9",
 		"@types/qs": "^6.9.7",
@@ -116,7 +115,11 @@
 		"typedoc": "^0.27.5",
 		"typescript": "^5.7.2",
 		"url": "^0.11.0",
-		"vitest": "^3.2.4"
+		"vitest": "^3.2.4",
+		"lodash-es": "^4.17.21"
+	},
+	"peerDependencies": {
+		"lodash-es": "^4.17.21"
 	},
 	"engines": {
 		"node": ">=18.0.0"

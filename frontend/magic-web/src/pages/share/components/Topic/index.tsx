@@ -8,7 +8,11 @@ import TaskList from "../TaskList"
 import ReplayLogo from "@/pages/share/assets/icon/replay_logo.svg"
 import PreviewDetailPopup from "@/pages/superMagicMobile/components/PreviewDetailPopup/index"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
-import { getAppEntryFile } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import {
+	getAppEntryFile,
+	isMagicProjectConfigFile,
+	resolveMagicProjectAttachment,
+} from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import { detectContentTypeRender } from "@/pages/superMagic/components/Detail/components/FilesViewer/utils/preview"
 import { IconFolder, IconLayoutGrid, IconLogin, IconPlayerPlayFilled } from "@tabler/icons-react"
 import { MagicTooltip } from "@/components/base"
@@ -33,11 +37,14 @@ import { getBaseUrl } from "@/pages/superMagicMobile/utils/mobile"
 import { useTranslation } from "react-i18next"
 import ProjectSider from "@/pages/superMagic/components/ProjectSider"
 import BackToLatestButton from "@/pages/superMagic/components/MessageList/components/BackToLatestButton"
-import { filterClickableMessage } from "@/pages/superMagic/utils/handleMessage"
+import type { MessageListScrollAdapter } from "@/pages/superMagic/components/MessageList/message-list-scroll-adapter"
+import { filterPanelMessage } from "@/pages/superMagic/utils/handleMessage"
 import { history } from "@/routes/history"
 import { RouteName } from "@/routes/constants"
 import { messagesTransformer } from "../MessageList/utils"
 import { observer } from "mobx-react-lite"
+import { authEventBus } from "@/services/auth/AuthEventBus"
+import { AuthEventName } from "@/services/auth/AuthEvents"
 import FooterLogo from "./components/FooterLogo"
 import useResizablePanel from "@/pages/superMagic/hooks/useResizablePanel"
 import ResizableDivider from "@/pages/superMagic/components/ResizableDivider"
@@ -48,12 +55,13 @@ import {
 	DEFAULT_MAX_WIDTH,
 	DEFAULT_WIDTH,
 } from "@/pages/superMagic/constants/resizablePanel"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { ProjectFilesStore } from "@/stores/projectFiles"
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
 import { calculateDefaultOpenFileId } from "@/pages/superMagic/components/Share/FileSelector/utils"
 import { useShareMenuFilters } from "../../hooks"
+import type { CrossProjectOperationSuccessResult } from "@/pages/superMagic/components/TopicFilesButton/hooks/useCrossProjectFileOperation"
 
 const SHARE_MESSAGE_TOP_MASK_CLASS_NAME =
 	"pointer-events-none absolute inset-x-0 top-0 z-10 h-2.5 bg-white dark:bg-card"
@@ -71,10 +79,14 @@ function Topic({
 	isImmersiveFullscreen,
 	topicId,
 	projectId,
+	shareCode,
+	sharePassword,
+	onCopySharedFilesComplete,
 	showAllProjectFiles,
 	viewFileList,
 	showCreatedByBadge,
 	allowDownloadProjectFile,
+	allowCopyProjectFiles = false,
 	forceFullscreenMode,
 	documentFlowFullscreen,
 	hidePreviewHeader,
@@ -94,11 +106,19 @@ function Topic({
 	isImmersiveFullscreen?: boolean
 	topicId?: string
 	projectId?: string
+	shareCode?: string
+	sharePassword?: string
+	onCopySharedFilesComplete?: (info: {
+		projectId: string
+		workspaceId: string
+		projectName?: string
+	}) => void
 	showAllProjectFiles?: boolean
 	isProjectShare?: boolean
 	viewFileList?: boolean
 	showCreatedByBadge?: boolean
 	allowDownloadProjectFile?: boolean
+	allowCopyProjectFiles?: boolean
 	forceFullscreenMode?: boolean
 	documentFlowFullscreen?: boolean
 	hidePreviewHeader?: boolean
@@ -153,9 +173,28 @@ function Topic({
 	const shouldRenderFullscreenFileOnly = isFullscreenMode && Boolean(isFileShare) && !isMobile
 
 	// 使用分享页面菜单过滤 Hook
+	const allowCopySharedFiles = isLogined && allowCopyProjectFiles
 	const { filterShareMenuItems, filterBatchDownloadLayerMenuItems } = useShareMenuFilters({
 		allowDownloadProjectFile,
+		allowCopyProjectFile: allowCopySharedFiles,
 	})
+	const handleCrossProjectOperationSuccess = useMemoizedFn(
+		(result: CrossProjectOperationSuccessResult) => {
+			if (
+				result.operationType !== "copy" ||
+				!result.targetProjectId ||
+				!result.targetWorkspaceId
+			) {
+				return
+			}
+
+			onCopySharedFilesComplete?.({
+				projectId: result.targetProjectId,
+				workspaceId: result.targetWorkspaceId,
+				projectName: result.targetProjectName,
+			})
+		},
+	)
 
 	// 判断是否需要调整 BackToLatestButton 的位置
 	// BackToLatestButton 只在话题分享场景显示，当 Badge 也显示时，需要上移按钮避免遮挡
@@ -169,7 +208,7 @@ function Topic({
 	const {
 		width: projectSiderWidth,
 		isDragging: isProjectSiderDragging,
-		handleMouseDown: handleProjectSiderMouseDown,
+		handleResizeStart: handleProjectSiderResizeStart,
 	} = useResizablePanel({
 		minWidth: DEFAULT_MIN_WIDTH.PROJECT_SIDER,
 		maxWidth: DEFAULT_MAX_WIDTH.PROJECT_SIDER,
@@ -182,7 +221,7 @@ function Topic({
 	const {
 		width: messagePanelWidth,
 		isDragging: isMessagePanelDragging,
-		handleMouseDown: handleMessagePanelMouseDown,
+		handleResizeStart: handleMessagePanelResizeStart,
 	} = useResizablePanel({
 		minWidth: DEFAULT_MIN_WIDTH.MESSAGE_PANEL,
 		maxWidth: DEFAULT_MAX_WIDTH.MESSAGE_PANEL,
@@ -250,14 +289,14 @@ function Topic({
 
 			const lastDetailMessage = [...targetMessages]
 				.reverse()
-				.find((msg) => filterClickableMessage(msg))
-			if (filterClickableMessage(lastDetailMessage))
+				.find((msg) => filterPanelMessage(msg))
+			if (filterPanelMessage(lastDetailMessage))
 				setAutoDetail({
 					...lastDetailMessage.tool.detail,
 					id: lastDetailMessage.tool.id,
 					name: lastDetailMessage.tool.name,
 				})
-			if (isMobile) {
+			if (isMobile && filterPanelMessage(lastDetailMessage)) {
 				handlePreviewDetail({
 					...lastDetailMessage.tool.detail,
 					id: lastDetailMessage.tool.id,
@@ -310,7 +349,7 @@ function Topic({
 		timerRef.current.timer = setInterval(() => {
 			if (currentIndex < messagesWithoutRevoked.length) {
 				const newMessage = messagesWithoutRevoked[currentIndex]
-				if (filterClickableMessage(newMessage)) {
+				if (filterPanelMessage(newMessage)) {
 					setAutoDetail?.({
 						...newMessage?.tool?.detail,
 						id: newMessage?.tool?.id,
@@ -382,7 +421,7 @@ function Topic({
 		timerRef.current.timer = setInterval(() => {
 			if (currentIndex < messagesWithoutRevoked.length) {
 				const newMessage = messagesWithoutRevoked[currentIndex]
-				if (filterClickableMessage(newMessage)) {
+				if (filterPanelMessage(newMessage)) {
 					setAutoDetail?.({
 						...newMessage?.tool?.detail,
 						id: newMessage?.tool?.id,
@@ -448,17 +487,6 @@ function Topic({
 			}
 		}
 	}, [messagesWithoutRevoked, hasStarted, startShowingMessages, messageList])
-
-	// 滚动到消息列表的合适位置，确保初始消息可见
-	useEffect(() => {
-		if (messageList.length > 0 && !hasStarted) {
-			const container = messageContainerRef.current
-			if (container) {
-				// 滚动到50%高度位置，让上半部分消息可见
-				container.scrollTop = container.scrollHeight * 0.3
-			}
-		}
-	}, [messageList, hasStarted])
 
 	// 分享话题里的消息预览也要复用统一打开文件事件；桌面走 Detail，移动端走预览弹层。
 	useEffect(() => {
@@ -528,7 +556,7 @@ function Topic({
 		// 确保消息列表已加载且不是文件分享场景
 		if (!isFileShare && messageList.length > 0 && detailRef.current) {
 			// 检查是否有工具调用消息
-			const hasToolMessages = messageList.some((msg) => filterClickableMessage(msg))
+			const hasToolMessages = messageList.some((msg) => filterPanelMessage(msg))
 			if (hasToolMessages) {
 				// 延迟打开，确保Detail组件已完全初始化
 				// 使用默认行为：如果没有激活的文件tab则激活playbackTab
@@ -557,44 +585,109 @@ function Topic({
 		setActiveFileId(null)
 	}, [projectId])
 
-	// 同步 attachments.tree 到 projectFilesStore，确保 ToolCall 组件能正确获取 fileTree
+	// Sync attachments into projectFilesStore so ToolCall and TopicFilesCore can reuse the
+	// store list path instead of re-flattening the full tree on every incremental commit.
 	useEffect(() => {
 		if (attachments?.tree && attachments.tree.length > 0) {
-			projectFilesStore.setWorkspaceFileTree(attachments.tree)
+			projectFilesStore.setWorkspaceFileTree(attachments.tree, {
+				list: attachments.list,
+				source: "ShareTopic.attachments",
+			})
 		} else {
 			projectFilesStore.setWorkspaceFileTree([])
 		}
-	}, [attachments?.tree])
+	}, [attachments?.tree, attachments?.list])
 
 	const isAtBottomRef = useRef(true) // 👈 用 ref 保存旧的 isAtBottom 状态
+	const virtualizerRef = useRef<MessageListScrollAdapter | null>(null)
+
+	/**
+	 * Ask the virtualizer for the scroll end rather than writing `scrollHeight` ourselves. That
+	 * height only covers the rows virtua has measured; the rest of its canvas is an estimate that
+	 * keeps growing, so a raw write lands short and nothing follows up. `scrollToIndex` re-derives
+	 * the target from the measurement cache on every measurement pass until the sizes settle.
+	 */
+	const scrollToLatest = useMemoizedFn(() => {
+		const virtualizer = virtualizerRef.current
+		const lastIndex = virtualizer ? virtualizer.itemCount - 1 : -1
+		if (virtualizer && lastIndex >= 0) {
+			virtualizer.scrollToIndex(lastIndex, { align: "end" })
+			return
+		}
+		// Before the virtualizer mounts there is nothing to address, and the canvas is still
+		// whatever the shell rendered itself.
+		messageContainerRef.current?.scrollTo({ top: messageContainerRef.current.scrollHeight })
+	})
+
+	/**
+	 * The list mounts one render after this shell, because its virtualizer needs the scroll
+	 * element that only exists once we have committed. Every scroll issued before that reaches an
+	 * empty canvas, and no state change follows to retry it, so re-issue from the canvas itself:
+	 * this fires when the virtualizer first renders rows and again as their measurements land.
+	 */
+	const handleVirtualizerChange = useMemoizedFn(() => {
+		if (isAtBottomRef.current) scrollToLatest()
+	})
+
+	const releaseFollow = useMemoizedFn(() => {
+		if (!isAtBottomRef.current) return
+		isAtBottomRef.current = false
+		setShowBackToLatest(true)
+	})
 
 	useEffect(() => {
 		const el = messageContainerRef.current
-		if (!el) return
+		if (!el) return undefined
 
+		/**
+		 * Re-arm only. Distance from the bottom also grows when virtua measures a row taller than
+		 * it estimated, and treating that as "the reader left the bottom" latches the follow off
+		 * for the rest of the playback.
+		 */
 		const handleScroll = () => {
 			const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-			isAtBottomRef.current = distanceFromBottom < 30
-			setShowBackToLatest(!isAtBottomRef.current)
+			if (distanceFromBottom >= 30) return
+			isAtBottomRef.current = true
+			setShowBackToLatest(false)
 		}
 
-		el.addEventListener("scroll", handleScroll)
-		return () => el.removeEventListener("scroll", handleScroll)
-	}, [hasStarted])
+		// Leaving the bottom is a decision, so take it from the gesture that made it.
+		const handleWheel = (event: WheelEvent) => {
+			if (event.deltaY < 0) releaseFollow()
+		}
+		let touchY = 0
+		const handleTouchStart = (event: TouchEvent) => {
+			touchY = event.touches[0]?.clientY ?? 0
+		}
+		const handleTouchMove = (event: TouchEvent) => {
+			const y = event.touches[0]?.clientY ?? 0
+			if (y > touchY) releaseFollow()
+			touchY = y
+		}
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home") {
+				releaseFollow()
+			}
+		}
+
+		el.addEventListener("scroll", handleScroll, { passive: true })
+		el.addEventListener("wheel", handleWheel, { passive: true })
+		el.addEventListener("touchstart", handleTouchStart, { passive: true })
+		el.addEventListener("touchmove", handleTouchMove, { passive: true })
+		el.addEventListener("keydown", handleKeyDown)
+		return () => {
+			el.removeEventListener("scroll", handleScroll)
+			el.removeEventListener("wheel", handleWheel)
+			el.removeEventListener("touchstart", handleTouchStart)
+			el.removeEventListener("touchmove", handleTouchMove)
+			el.removeEventListener("keydown", handleKeyDown)
+		}
+	}, [hasStarted, releaseFollow])
 
 	// 👇 2. 在 DOM 完成渲染后再判断要不要滚到底部
 	useLayoutEffect(() => {
-		const el = messageContainerRef.current
-		if (!el) return
-
-		if (isAtBottomRef.current) {
-			requestAnimationFrame(() => {
-				el.scrollTo({
-					top: el.scrollHeight,
-				})
-			})
-		}
-	}, [messageList]) // 👈 注意：这里不能再判断 isScrolledToBottom，而是用之前记录的 isAtBottomRef
+		if (isAtBottomRef.current) scrollToLatest()
+	}, [messageList, scrollToLatest]) // 👈 注意：这里不能再判断 isScrolledToBottom，而是用之前记录的 isAtBottomRef
 
 	useEffect(() => {
 		if (messageList.length === messagesWithoutRevoked?.length) {
@@ -646,14 +739,11 @@ function Topic({
 		}
 	}, [messageList])
 
-	const scrollToBottom = useCallback(() => {
-		const container = messageContainerRef.current
-		if (container) {
-			container.scrollTo({
-				top: container.scrollHeight,
-			})
-		}
-	}, [])
+	const scrollToBottom = useMemoizedFn(() => {
+		isAtBottomRef.current = true
+		setShowBackToLatest(false)
+		scrollToLatest()
+	})
 
 	// 直接显示结果的处理：立即加载所有消息，停止倒计时
 	const handleShowResult = useMemoizedFn(() => {
@@ -663,7 +753,7 @@ function Topic({
 		// 查找所有消息中带有详情的最后一条
 		const lastDetailItem = [...messagesWithoutRevoked]
 			.reverse()
-			.find((item) => filterClickableMessage(item))
+			.find((item) => filterPanelMessage(item))
 		if (lastDetailItem && !isFileShare) {
 			setAutoDetail({
 				...lastDetailItem.tool.detail,
@@ -743,14 +833,26 @@ function Topic({
 
 			const targetFile = findFileInAttachments(attachments.tree)
 			if (targetFile) {
+				const targetFileName =
+					targetFile.display_filename || targetFile.file_name || targetFile.filename
+				const magicProjectResolution = isMagicProjectConfigFile(targetFileName)
+					? resolveMagicProjectAttachment(
+							targetFile,
+							attachments.list || [],
+							attachments.tree || [],
+						)
+					: undefined
+				const resolvedProjectDirectory = magicProjectResolution?.projectDirectory
 				// 检查是否是文件夹且有 metadata.type
 				const isFolder =
+					resolvedProjectDirectory?.is_directory ||
+					resolvedProjectDirectory?.children?.length ||
 					targetFile.is_directory ||
 					(targetFile.children && targetFile.children.length > 0)
-				let fileToOpen = targetFile
+				let fileToOpen = resolvedProjectDirectory || targetFile
 
 				// 如果是文件夹且有 metadata.type，获取入口文件
-				if (isFolder && targetFile.display_config?.type) {
+				if (!resolvedProjectDirectory && isFolder && targetFile.display_config?.type) {
 					const entryFile = getAppEntryFile(
 						targetFile.children || [],
 						targetFile.display_config,
@@ -925,11 +1027,12 @@ function Topic({
 
 	return (
 		<>
+			{/* Anchor the absolute resize dividers to this share viewport. */}
 			<div
 				className={cn(
 					documentFlowFullscreen
-						? "flex min-h-dvh w-full flex-row justify-center overflow-visible bg-transparent"
-						: "flex h-full w-full flex-row justify-center overflow-hidden bg-transparent",
+						? "relative flex min-h-dvh w-full flex-row justify-center overflow-visible bg-transparent"
+						: "relative flex h-full w-full flex-row justify-center overflow-hidden bg-transparent",
 				)}
 			>
 				{isMobile ? (
@@ -984,6 +1087,7 @@ function Topic({
 									onPreviewFullscreenChange?.(false)
 								}}
 								isFileShare={false}
+								projectId={projectId}
 								allowDownload={allowDownloadProjectFile}
 								hideHeader={hidePreviewHeader}
 								showFileHeader={showFileHeader}
@@ -1009,11 +1113,17 @@ function Topic({
 											title: t("topicFiles.title"),
 											content: (
 												<TopicFilesButton
+													showRefresh={false}
 													attachments={attachments.tree}
 													setUserSelectDetail={(detail: any) => {
 														setUserDetail(detail)
 													}}
 													projectId={projectId}
+													shareCode={shareCode}
+													sharePassword={sharePassword}
+													onCrossProjectOperationSuccess={
+														handleCrossProjectOperationSuccess
+													}
 													className="left-0"
 													onFileClick={(fileItem: any) => {
 														setUserDetail(null)
@@ -1024,6 +1134,7 @@ function Topic({
 													}}
 													activeFileId={activeFileId}
 													allowEdit={false}
+													allowCopyTo={allowCopySharedFiles}
 													filterMenuItems={filterShareMenuItems}
 													filterBatchDownloadLayerMenuItems={
 														filterBatchDownloadLayerMenuItems
@@ -1037,7 +1148,7 @@ function Topic({
 								<ResizableDivider
 									position="right"
 									offsetLeft={projectSiderWidth}
-									onMouseDown={handleProjectSiderMouseDown}
+									onResizeStart={handleProjectSiderResizeStart}
 									onHoverChange={setIsProjectSiderHovering}
 								/>
 							</>
@@ -1100,8 +1211,8 @@ function Topic({
 					<>
 						<ResizableDivider
 							position="left"
-							offsetLeft={messagePanelWidth + 5}
-							onMouseDown={handleMessagePanelMouseDown}
+							offsetLeft={messagePanelWidth + 2}
+							onResizeStart={handleMessagePanelResizeStart}
 							onHoverChange={setIsMessagePanelHovering}
 						/>
 						<div className={cn("p-2", isMobile ? "w-full" : "")}>
@@ -1143,6 +1254,7 @@ function Topic({
 										viewportRef={messageContainerRef}
 									>
 										<MessageList
+											allowDownload={allowDownloadProjectFile === true}
 											topicId={topicId || data?.project_id || ""}
 											messageList={messageList}
 											onSelectDetail={(detail) => {
@@ -1154,9 +1266,11 @@ function Topic({
 											currentTopicStatus={
 												isLoadAll ? TaskStatus.FINISHED : TaskStatus.RUNNING
 											}
-											stickyMessageClassName="[--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)] top-0"
+											stickyMessageClassName="[--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 											projectFilesStore={projectFilesStore}
 											scrollContainerRef={messageContainerRef}
+											virtualizerRef={virtualizerRef}
+											onVirtualizerChange={handleVirtualizerChange}
 										/>
 										{!taskIsEnd && messageList?.length > 0 && !hasStarted && (
 											<LoadingMessage />
@@ -1314,6 +1428,7 @@ function Topic({
 									className="h-full w-full overflow-y-auto overflow-x-hidden p-2.5"
 								>
 									<MessageList
+										allowDownload={allowDownloadProjectFile === true}
 										topicId={topicId || data?.project_id || ""}
 										messageList={messageList}
 										onSelectDetail={(detail) => {
@@ -1325,9 +1440,11 @@ function Topic({
 										currentTopicStatus={
 											isLoadAll ? TaskStatus.FINISHED : TaskStatus.RUNNING
 										}
-										stickyMessageClassName="z-1 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)] top-0"
+										stickyMessageClassName="z-1 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 										projectFilesStore={projectFilesStore}
 										scrollContainerRef={messageContainerRef}
+										virtualizerRef={virtualizerRef}
+										onVirtualizerChange={handleVirtualizerChange}
 									/>
 									{!taskIsEnd && messageList?.length > 0 && !hasStarted && (
 										<LoadingMessage />
@@ -1402,7 +1519,14 @@ function Topic({
 					{!isLogined ? (
 						<div
 							className="flex h-10 cursor-pointer items-center gap-1 rounded-lg p-2.5 text-sm text-foreground"
-							onClick={() => history.replace({ name: RouteName.Login })}
+							onClick={() =>
+								authEventBus.emit(AuthEventName.RequestLogin, {
+									reason: "manual",
+									source: "share",
+									returnTo: window.location.href,
+									preserveQuery: true,
+								})
+							}
 							data-testid="share-navigation-login-item"
 						>
 							<IconLogin className="size-5" />
@@ -1480,10 +1604,14 @@ function Topic({
 							}
 						}}
 						projectId={projectId}
+						shareCode={shareCode}
+						sharePassword={sharePassword}
+						onCrossProjectOperationSuccess={handleCrossProjectOperationSuccess}
 						handleDownloadAll={handleDownloadAll}
 						allLoading={allLoading}
 						activeFileId={activeFileId}
 						allowEdit={false}
+						allowCopyTo={allowCopySharedFiles}
 						filterMenuItems={filterShareMenuItems}
 						filterBatchDownloadLayerMenuItems={filterBatchDownloadLayerMenuItems}
 						allowDownload={allowDownloadProjectFile}

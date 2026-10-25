@@ -7,6 +7,12 @@ describe("resolveModelTopicMode", () => {
 		expect(resolveModelTopicMode(TopicMode.MicroApp, TopicMode.Default)).toBe(TopicMode.Default)
 	})
 
+	it("uses the default catalog for the crew creator business mode", () => {
+		expect(resolveModelTopicMode(TopicMode.CrewCreator, TopicMode.Default)).toBe(
+			TopicMode.Default,
+		)
+	})
+
 	it("falls back to the business mode when no model catalog mode is provided", () => {
 		expect(resolveModelTopicMode(TopicMode.General)).toBe(TopicMode.General)
 	})

@@ -169,7 +169,7 @@ describe("SuperMagicTopicModelCacheService", () => {
 			}
 
 			await service.saveTopicModel("topic-1", modelData)
-			await service.clearCache("topic-1")
+			await service.clearCache("topic:topic-1")
 
 			const result = await service.getTopicModel("topic-1")
 

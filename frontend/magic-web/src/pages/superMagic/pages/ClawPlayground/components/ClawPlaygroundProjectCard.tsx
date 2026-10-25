@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react"
 import type { MagicClawItem } from "@/apis"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
 import { CircleArrowUp, Loader2, PencilLine } from "lucide-react"
 import { useTranslation } from "react-i18next"

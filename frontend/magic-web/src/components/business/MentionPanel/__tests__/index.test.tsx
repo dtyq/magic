@@ -157,6 +157,12 @@ vi.mock("../hooks/useI18n", () => ({
 			enter: "多选",
 			complete: "完成",
 		},
+		selectionSummary: {
+			selected: "已选",
+			image: "图片",
+			video: "视频",
+			audio: "音频",
+		},
 		ariaLabels: {
 			panel: "Mention panel",
 			retryButton: "Retry loading",
@@ -703,6 +709,116 @@ describe("MentionPanel", () => {
 		expect(screen.getByTestId("menu-item-checkbox")).toHaveAttribute("data-checked", "false")
 	})
 
+	it("should show live asset counts below the list in multi-select mode", async () => {
+		const image: MentionItem = {
+			id: "image-1",
+			name: "Image 1",
+			type: MentionItemType.PROJECT_FILE,
+			data: {
+				file_id: "image-1",
+				file_name: "Image 1.png",
+				file_path: "Image 1.png",
+				file_extension: "png",
+			},
+		}
+		const video: MentionItem = {
+			id: "video-1",
+			name: "Video 1",
+			type: MentionItemType.PROJECT_FILE,
+			data: {
+				file_id: "video-1",
+				file_name: "Video 1.mp4",
+				file_path: "Video 1.mp4",
+				file_extension: "mp4",
+			},
+		}
+		setCatalogState([image, video])
+
+		render(
+			<MentionPanel
+				visible={true}
+				selectionSummary={{
+					currentCounts: { image: 0, video: 0, audio: 0 },
+					limits: { image: 15, video: 1, audio: Infinity },
+					getItemAssetType: (item) => (item.id === "image-1" ? "image" : "video"),
+				}}
+				catalogBehavior={defaultMentionPanelCatalogBehavior}
+			/>,
+		)
+
+		expect(screen.queryByTestId("mention-panel-selection-summary")).not.toBeInTheDocument()
+		enterMultiSelectMode()
+		const selectionSummary = screen.getByTestId("mention-panel-selection-summary")
+		expect(selectionSummary).toHaveTextContent("已选 0")
+		expect(screen.getByRole("listbox").nextElementSibling).toBe(selectionSummary)
+
+		fireEvent.click(screen.getAllByTestId("menu-item")[0])
+		await waitFor(() => {
+			expect(screen.getByTestId("mention-panel-selection-summary")).toHaveTextContent(
+				/已选 1.*图片 1\/15.*视频 0\/1/,
+			)
+		})
+
+		fireEvent.click(screen.getAllByTestId("menu-item")[1])
+		await waitFor(() => {
+			expect(screen.getByTestId("mention-panel-selection-summary")).toHaveTextContent(
+				/已选 2.*图片 1\/15.*视频 1\/1/,
+			)
+		})
+
+		fireEvent.click(screen.getAllByTestId("menu-item")[0])
+		await waitFor(() => {
+			expect(screen.getByTestId("mention-panel-selection-summary")).toHaveTextContent(
+				/已选 1.*图片 0\/15.*视频 1\/1/,
+			)
+		})
+		expect(screen.getByTestId("mention-panel-selected-item")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByTestId("mention-panel-selected-item-remove"))
+		await waitFor(() => {
+			expect(screen.getByTestId("mention-panel-selection-summary")).toHaveTextContent(
+				"已选 0",
+			)
+		})
+		expect(screen.queryByTestId("mention-panel-selected-items")).not.toBeInTheDocument()
+	})
+
+	it("should not count a resource that is already referenced", async () => {
+		const image: MentionItem = {
+			id: "image-1",
+			name: "Image 1",
+			type: MentionItemType.PROJECT_FILE,
+			data: {
+				file_id: "image-1",
+				file_name: "Image 1.png",
+				file_path: "Image 1.png",
+				file_extension: "png",
+			},
+		}
+		setCatalogState([image])
+
+		render(
+			<MentionPanel
+				visible={true}
+				selectionSummary={{
+					currentCounts: { image: 1, video: 0, audio: 0 },
+					limits: { image: 15 },
+					getItemAssetType: () => "image",
+					isItemAlreadySelected: () => true,
+				}}
+				catalogBehavior={defaultMentionPanelCatalogBehavior}
+			/>,
+		)
+
+		enterMultiSelectMode()
+		fireEvent.click(screen.getByTestId("menu-item"))
+		await waitFor(() => {
+			expect(screen.getByTestId("mention-panel-selection-summary")).toHaveTextContent(
+				/已选 1.*图片 1\/15/,
+			)
+		})
+	})
+
 	it("should enter multi-select mode with keyboard meta enter", () => {
 		setCatalogState([
 			{
@@ -872,6 +988,57 @@ describe("MentionPanel", () => {
 		}
 	})
 
+	it("should enter a navigation-only folder on Enter in multi-select mode", () => {
+		vi.useFakeTimers()
+		try {
+			setCatalogState([
+				{
+					id: "folder-1",
+					name: "Folder 1",
+					type: MentionItemType.FOLDER,
+					hasChildren: true,
+					isFolder: true,
+				},
+				{
+					id: "file-1",
+					name: "File 1",
+					type: MentionItemType.PROJECT_FILE,
+				},
+			])
+			const canvasLikeCatalogBehavior: MentionPanelCatalogBehavior = {
+				shouldEnterFolderDirectly: ({ selectedItem, enterFolder }) =>
+					!enterFolder && selectedItem.type === MentionItemType.FOLDER,
+				getDynamicTransition: ({ selectedItem, enterFolder }) =>
+					selectedItem.type === MentionItemType.FOLDER &&
+					selectedItem.isFolder === true &&
+					enterFolder
+						? { state: PanelState.FOLDER }
+						: null,
+			}
+
+			render(
+				<MentionPanel
+					visible={true}
+					catalogBehavior={canvasLikeCatalogBehavior}
+					canToggleMultiSelectItem={(item) => item.type === MentionItemType.PROJECT_FILE}
+				/>,
+			)
+
+			enterMultiSelectMode()
+			act(() => {
+				expect(latestUseMentionPanelProps?.onKeyboardConfirm?.()).toBe(true)
+			})
+			vi.runAllTimers()
+
+			expect(mockConfirmSelection).toHaveBeenCalledWith({ enterFolder: true })
+			expect(
+				within(screen.getAllByTestId("menu-item")[0]).queryByTestId("menu-item-checkbox"),
+			).not.toBeInTheDocument()
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
 	it("should toggle highlighted item with ArrowRight while in multi-select mode", async () => {
 		setCatalogState([
 			{
@@ -955,6 +1122,101 @@ describe("MentionPanel", () => {
 				"false",
 			)
 		})
+	})
+
+	it("should preserve pending items across directories when navigation policy is preserve", async () => {
+		const onSelect = vi.fn()
+		const fileOne: MentionItem = {
+			id: "file-1",
+			name: "File 1",
+			type: MentionItemType.PROJECT_FILE,
+		}
+		const folder: MentionItem = {
+			id: "folder-1",
+			name: "Folder 1",
+			type: MentionItemType.FOLDER,
+			hasChildren: true,
+			isFolder: true,
+		}
+		const fileTwo: MentionItem = {
+			id: "file-2",
+			name: "File 2",
+			type: MentionItemType.PROJECT_FILE,
+		}
+
+		setCatalogState([fileOne, folder])
+		const { rerender } = render(
+			<MentionPanel
+				visible={true}
+				onSelect={onSelect}
+				multiSelectNavigationPolicy="preserve"
+				selectionScopeId="canvas-root"
+				catalogBehavior={defaultMentionPanelCatalogBehavior}
+			/>,
+		)
+
+		enterMultiSelectMode()
+		fireEvent.click(screen.getAllByTestId("menu-item")[0])
+		await waitFor(() => {
+			expect(screen.getAllByTestId("menu-item-checkbox")[0]).toHaveAttribute(
+				"data-checked",
+				"true",
+			)
+		})
+
+		fireEvent.click(screen.getAllByTestId("menu-item-arrow-icon")[1])
+		await waitFor(() => {
+			expect(mockConfirmSelection).toHaveBeenCalledWith({ enterFolder: true })
+		})
+
+		mockState.currentState = PanelState.FOLDER
+		mockState.navigationStack = [
+			...mockState.navigationStack,
+			{ id: "folder-1", name: "Folder 1", state: PanelState.CATALOG },
+		]
+		mockState.items = [fileTwo]
+		mockState.selectedIndex = 0
+		rerender(
+			<MentionPanel
+				visible={true}
+				className="folder-navigation"
+				onSelect={onSelect}
+				multiSelectNavigationPolicy="preserve"
+				selectionScopeId="canvas-root"
+				catalogBehavior={defaultMentionPanelCatalogBehavior}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("menu-item"))
+		await waitFor(() => {
+			expect(screen.getByTestId("menu-item-checkbox")).toHaveAttribute("data-checked", "true")
+		})
+
+		mockState.currentState = PanelState.CATALOG
+		mockState.navigationStack = [
+			{ id: "project-files", name: "Project", state: PanelState.DEFAULT },
+		]
+		mockState.items = [fileOne]
+		rerender(
+			<MentionPanel
+				visible={true}
+				className="parent-navigation"
+				onSelect={onSelect}
+				multiSelectNavigationPolicy="preserve"
+				selectionScopeId="canvas-root"
+				catalogBehavior={defaultMentionPanelCatalogBehavior}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(screen.getByTestId("menu-item-checkbox")).toHaveAttribute("data-checked", "true")
+		})
+
+		act(() => {
+			latestUseMentionPanelProps?.onKeyboardMetaEnter?.()
+		})
+		await waitFor(() => expect(onSelect).toHaveBeenCalledTimes(2))
+		expect(onSelect.mock.calls.map(([item]) => item.id)).toEqual(["file-1", "file-2"])
 	})
 
 	it("should submit checked items as a batch when completing with keyboard", async () => {

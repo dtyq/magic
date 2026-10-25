@@ -1,0 +1,55 @@
+{
+  "skill_name": "slide-template-replacement",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "把当前 HTML PPT 整本换成模板 code PPT-TPL-ABC123。",
+      "expected_output": "Load slide-template-replacement, install the exact template code, then ask whether to create a sibling PPT (default) or modify the current PPT. Preserve the existing text and images unless the user adds another instruction, and keep the original page canvas instead of forcing 1920x1080."
+    },
+    {
+      "id": 2,
+      "prompt": "把当前 PPT 的第 3 页换成模板 code PPT-TPL-ABC123，其他页面不要动。",
+      "expected_output": "Load slide-template-replacement, do not ask the whole-deck save-mode question, and modify only the referenced third slide. Isolate the new theme on that page. Do not rewrite shared theme.css, fonts, index.html, magic.project.js, slide-bridge.js, or other slides."
+    },
+    {
+      "id": 3,
+      "prompt": "使用模板 code PPT-TPL-ABC123，当前 PPT 和所属文件夹已经通过 @ 节点带入。",
+      "expected_output": "Use the structured @ mentions to resolve the current PPT and folder; do not ask the user to choose those nodes again and do not infer the template code from a display name."
+    },
+    {
+      "id": 4,
+      "prompt": "整本换模板，新增一个 PPT，模板展示名是商务蓝，并要求标题文字也改成更短的版本。",
+      "expected_output": "Use the new sibling-PPT save mode, name it as 原文件名-商务蓝, and if that file exists use 原文件名-商务蓝-2. Treat the explicit note as an authorized content change while preserving unspecified content and images."
+    },
+    {
+      "id": 5,
+      "prompt": "把原生季度汇报.pptx 直接换成平台模板。",
+      "expected_output": "Refuse native PPTX editing. Do not load slide-template-maker or convert the file; explain that only existing HTML slide projects are supported."
+    },
+    {
+      "id": 6,
+      "prompt": "直接修改当前 PPT，换模板失败时也先覆盖文件。",
+      "expected_output": "Refuse the unsafe overwrite behavior: preserve a recoverable history version and do not silently overwrite original content when installation, parsing, rendering, or saving fails."
+    },
+    {
+      "id": 7,
+      "prompt": "当前 PPT 已经是模板 PPT-TPL-ABC123，再换一次同一个模板。",
+      "expected_output": "Report that no replacement is needed because the exact template_code is already in use. Do not install the template or rewrite files."
+    },
+    {
+      "id": 8,
+      "prompt": "把第 3 到 5 页换成模板 code PPT-TPL-ABC123。",
+      "expected_output": "Treat this as an explicit page-range request. Do not ask the whole-deck save-mode question. Modify only pages 3-5 in place, isolate styles on those pages, and leave every other page unchanged."
+    },
+    {
+      "id": 9,
+      "prompt": "换模板 code PPT-TPL-ABC123，但消息里没有当前 PPT 的 @ 节点，文件夹和目标页已经带入。",
+      "expected_output": "Ask only for the missing current PPT mention. Do not ask the user to reselect the folder or target slide that are already present."
+    },
+    {
+      "id": 10,
+      "prompt": "当前 PPT 是 1080x1920。换成模板 code PPT-TPL-ABC123，不要改内容。",
+      "expected_output": "Keep the original 1080x1920 canvas. Do not force 1920x1080 or resize the deck to the template canvas. Change visual styling only and do not copy template sample logos, fake people, fake data, or QR codes into user content."
+    }
+  ]
+}

@@ -2234,6 +2234,75 @@ describe("SuperMagicStore / Tool response 与执行状态", () => {
 		).toBe("response_missing")
 	})
 
+	it("历史 generation_progress 即使 correlation_id 采用工具上下文值也应保留详情", () => {
+		const store = createStore()
+		store.initializeMessages(TOPIC_ID, [
+			createAssistantEnvelope({
+				correlationId: "outer-correlation",
+				toolCalls: [
+					createToolCall({ id: "generation-tool", name: "generate_canvas_images" }),
+				],
+			}),
+			createToolEnvelope({
+				appMessageId: "generation-pending",
+				toolId: "generation-tool",
+				correlationId: "tool-context-correlation",
+				status: "running",
+				nodeStatus: "running",
+				detail: {
+					type: "generation_progress",
+					data: {
+						task_id: "IGT-history",
+						started_at: "2026-01-01T00:00:00Z",
+						expected_finished_at: "2026-01-01T00:01:30Z",
+					},
+				},
+			}),
+		])
+
+		expect(getCanonicalToolState(store, "generation-tool")).toMatchObject({
+			status: "running",
+			detail: { type: "generation_progress" },
+		})
+	})
+
+	it("legacy general_agent_card 的 progress tool 也能在刷新后恢复", () => {
+		const store = createStore()
+		const pending = createToolEnvelope({
+			appMessageId: "legacy-generation-pending",
+			toolId: "legacy-generation-tool",
+			correlationId: CORRELATION_ID,
+			status: "running",
+			nodeStatus: "running",
+			detail: {
+				type: "generation_progress",
+				data: {
+					task_id: "IGT-legacy-history",
+					started_at: "2026-01-01T00:00:00Z",
+					expected_finished_at: "2026-01-01T00:01:30Z",
+				},
+			},
+		})
+		const message = pending.seq.message as Record<string, unknown>
+		const node = message.super_magic_message as Record<string, unknown>
+		node.role = "assistant"
+		message.type = "general_agent_card"
+		message.general_agent_card = node
+		delete message.super_magic_message
+
+		store.initializeMessages(TOPIC_ID, [
+			createAssistantEnvelope({
+				toolCalls: [createToolCall({ id: "legacy-generation-tool" })],
+			}),
+			pending,
+		])
+
+		expect(getCanonicalToolState(store, "legacy-generation-tool")).toMatchObject({
+			status: "running",
+			detail: { type: "generation_progress" },
+		})
+	})
+
 	it("Topic error 终态也会结束没有 role=tool 响应的工具 loading。", () => {
 		const store = createStore()
 		const correlationId = "vm-init-correlation"

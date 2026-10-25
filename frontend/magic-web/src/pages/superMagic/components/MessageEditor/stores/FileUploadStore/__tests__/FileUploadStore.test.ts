@@ -15,7 +15,7 @@ const uploadServiceMocks = vi.hoisted(() => ({
 	upload: vi.fn(),
 }))
 
-vi.mock("@/opensource/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			error: vi.fn(),
@@ -67,6 +67,7 @@ vi.mock("../../../services/UploadTokenService", () => ({
 }))
 
 import { FileUploadStore } from "../index"
+import type { UploadTokenService } from "../../../services/UploadTokenService"
 import type { FileData } from "../../../types"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 
@@ -81,6 +82,14 @@ function createMockFileData(id: string): FileData {
 }
 
 describe("FileUploadStore", () => {
+	it("uses the injected home upload scope when preparing a new project", () => {
+		const consume = vi.fn(() => "task-home-files")
+		const scopedStore = new FileUploadStore({
+			uploadTokenService: { getLastWorkDir: consume } as unknown as UploadTokenService,
+		})
+		expect(scopedStore.getTemporaryWorkdir()).toBe("task-home-files")
+		expect(consume).toHaveBeenCalledOnce()
+	})
 	let store: FileUploadStore
 	let onFileRemoved: ReturnType<typeof vi.fn>
 	let onFileUpload: ReturnType<typeof vi.fn>
@@ -305,7 +314,13 @@ describe("FileUploadStore", () => {
 				parentId: "tmp-dir-id",
 				nextParentIds: undefined,
 				pageSize: 1000,
-				fileType: ["user_upload", "process", "system_auto_upload", "directory"],
+				fileType: [
+					"user_upload",
+					"user_create",
+					"process",
+					"system_auto_upload",
+					"directory",
+				],
 			})
 			expect(addedFiles?.[0]).toMatchObject({
 				name: "pasted.txt",
@@ -565,6 +580,30 @@ describe("FileUploadStore", () => {
 			})
 			expect(store.isCurrentSessionUploadFile("completed-upload-1")).toBe(true)
 			expect(store.getUploadMentionItems()).toHaveLength(1)
+		})
+
+		it("preserves the canvas clipboard marker when restoring a pasted upload mention", () => {
+			store.restorePastedUploadFileReferences([
+				{
+					type: MentionItemType.UPLOAD_FILE,
+					data: {
+						file_id: "canvas-upload",
+						file_name: "canvas.png",
+						file_path: "uploads/canvas.png",
+						file_extension: "png",
+						file_size: 12,
+						upload_status: "done",
+						upload_progress: 100,
+						is_canvas_clipboard: true,
+					},
+				},
+			])
+
+			expect(store.files).toHaveLength(1)
+			expect(store.files[0]).toMatchObject({
+				id: "canvas-upload",
+				isCanvasClipboard: true,
+			})
 		})
 
 		it("should only track pasted upload references accepted by the file limit", () => {

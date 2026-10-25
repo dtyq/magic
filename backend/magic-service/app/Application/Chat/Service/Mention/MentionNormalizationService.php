@@ -8,7 +8,10 @@ declare(strict_types=1);
 namespace App\Application\Chat\Service\Mention;
 
 use App\Application\Chat\Service\Mention\Normalizer\AgentMentionNormalizer;
+use App\Application\Chat\Service\Mention\Normalizer\AssistantMentionNormalizer;
+use App\Application\Chat\Service\Mention\Normalizer\FileMentionNormalizer;
 use App\Application\Chat\Service\Mention\Normalizer\McpMentionNormalizer;
+use App\Application\Chat\Service\Mention\Normalizer\MicroAppMentionNormalizer;
 use App\Application\Chat\Service\Mention\Normalizer\PassthroughMentionNormalizer;
 use App\Application\Chat\Service\Mention\Normalizer\ToolMentionNormalizer;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
@@ -39,7 +42,10 @@ class MentionNormalizationService
     public function __construct(
         ToolMentionNormalizer $toolNormalizer,
         AgentMentionNormalizer $agentNormalizer,
+        AssistantMentionNormalizer $assistantNormalizer,
         McpMentionNormalizer $mcpNormalizer,
+        MicroAppMentionNormalizer $microAppNormalizer,
+        private readonly FileMentionNormalizer $fileNormalizer,
         private readonly PassthroughMentionNormalizer $passthroughNormalizer,
         LoggerFactory $loggerFactory,
     ) {
@@ -47,7 +53,15 @@ class MentionNormalizationService
         $this->normalizers = [
             MentionType::TOOL->value => $toolNormalizer,
             MentionType::AGENT->value => $agentNormalizer,
+            MentionType::ASSISTANT->value => $assistantNormalizer,
             MentionType::MCP->value => $mcpNormalizer,
+            MentionType::MICRO_APP->value => $microAppNormalizer,
+            MentionType::PROJECT_FILE->value => $fileNormalizer,
+            MentionType::PROJECT_DIRECTORY->value => $fileNormalizer,
+            MentionType::USER_FILE->value => $fileNormalizer,
+            MentionType::USER_DIRECTORY->value => $fileNormalizer,
+            MentionType::MEMORY_FILE->value => $fileNormalizer,
+            MentionType::MEMORY_DIRECTORY->value => $fileNormalizer,
         ];
     }
 
@@ -59,8 +73,19 @@ class MentionNormalizationService
      */
     public function normalize(array $mentions, BaseDataIsolation $dataIsolation): array
     {
+        $fileItems = [];
+        foreach ($mentions as $index => $item) {
+            if (is_array($item) && ($this->normalizers[$item['type'] ?? ''] ?? null) === $this->fileNormalizer) {
+                $fileItems[$index] = $item;
+            }
+        }
+        $fileItems = $this->fileNormalizer->normalizeMany($fileItems, $dataIsolation);
         $out = [];
-        foreach ($mentions as $item) {
+        foreach ($mentions as $index => $item) {
+            if (isset($fileItems[$index])) {
+                $out[] = $fileItems[$index];
+                continue;
+            }
             if (! is_array($item) || empty($item['type'])) {
                 $out[] = $item;
                 continue;

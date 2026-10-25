@@ -7,25 +7,136 @@ import {
 	PRESERVE_TEXT_EDITOR_FOCUS_ATTR,
 	useShouldPreserveTextEditorFocus,
 } from "../../../runtime/shared/dom/preserveTextEditorFocus"
+import { useFloatingSurfaceId } from "./floatingSurfaceContext"
+import { useFloatingBoundary } from "../../../app/providers/FloatingUIProvider"
+export { FloatingSurfaceScope } from "./floatingSurfaceContext"
 
-const Popover = PopoverPrimitive.Root
+interface PopoverContextValue {
+	setAnchorElement: (element: HTMLElement | null) => void
+}
 
-const PopoverTrigger = PopoverPrimitive.Trigger
+const PopoverContext = React.createContext<PopoverContextValue | null>(null)
+
+function hasIntersection(left: DOMRect, right: DOMRect): boolean {
+	return (
+		left.right > right.left &&
+		left.left < right.right &&
+		left.bottom > right.top &&
+		left.top < right.bottom
+	)
+}
+
+function Popover(props: React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Root>) {
+	const { onOpenChange } = props
+	const floatingBoundary = useFloatingBoundary()
+	const [uncontrolledOpen, setUncontrolledOpen] = React.useState(props.defaultOpen ?? false)
+	const isControlled = props.open !== undefined
+	const isOpen = isControlled ? props.open === true : uncontrolledOpen
+	const triggerElementRef = React.useRef<HTMLElement | null>(null)
+	const setAnchorElement = React.useCallback((element: HTMLElement | null) => {
+		triggerElementRef.current = element
+	}, [])
+	const handleOpenChange = React.useCallback(
+		(nextOpen: boolean) => {
+			if (!isControlled) setUncontrolledOpen(nextOpen)
+			onOpenChange?.(nextOpen)
+		},
+		[isControlled, onOpenChange],
+	)
+
+	React.useEffect(() => {
+		if (!floatingBoundary || !isOpen) return
+
+		let frameId: number | null = null
+		let disposed = false
+		const checkTriggerVisibility = () => {
+			if (disposed) return
+			const triggerElement = triggerElementRef.current
+			if (
+				triggerElement &&
+				!hasIntersection(
+					triggerElement.getBoundingClientRect(),
+					floatingBoundary.getBoundingClientRect(),
+				)
+			) {
+				handleOpenChange(false)
+				return
+			}
+			frameId = window.requestAnimationFrame(checkTriggerVisibility)
+		}
+		frameId = window.requestAnimationFrame(checkTriggerVisibility)
+
+		return () => {
+			disposed = true
+			if (frameId !== null) window.cancelAnimationFrame(frameId)
+		}
+	}, [floatingBoundary, handleOpenChange, isOpen])
+
+	return (
+		<PopoverContext.Provider value={{ setAnchorElement }}>
+			<PopoverPrimitive.Root {...props} onOpenChange={handleOpenChange} />
+		</PopoverContext.Provider>
+	)
+}
+
+function assignForwardedRef<T>(ref: React.ForwardedRef<T>, value: T | null) {
+	if (typeof ref === "function") {
+		ref(value)
+		return
+	}
+	if (ref) {
+		;(ref as React.MutableRefObject<T | null>).current = value
+	}
+}
+
+function useAnchorRef<T extends HTMLElement>(ref: React.ForwardedRef<T>) {
+	const context = React.useContext(PopoverContext)
+	return React.useCallback(
+		(element: T | null) => {
+			context?.setAnchorElement(element)
+			assignForwardedRef(ref, element)
+		},
+		[context, ref],
+	)
+}
+
+const PopoverTrigger = React.forwardRef<
+	HTMLButtonElement,
+	React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Trigger>
+>((props, ref) => {
+	const setRefs = useAnchorRef(ref)
+	return <PopoverPrimitive.Trigger ref={setRefs} {...props} />
+})
+
+const PopoverAnchor = React.forwardRef<
+	HTMLDivElement,
+	React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Anchor>
+>((props, ref) => {
+	const setRefs = useAnchorRef(ref)
+	return <PopoverPrimitive.Anchor ref={setRefs} {...props} />
+})
 
 const PopoverContent = React.forwardRef<
 	React.ElementRef<typeof PopoverPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => {
+>(({ className, align = "center", sideOffset = 4, collisionBoundary, ...props }, ref) => {
 	const container = usePortalContainer()
 	const shouldPreserveTextEditorFocus = useShouldPreserveTextEditorFocus()
+	const floatingSurfaceId = useFloatingSurfaceId()
+	const floatingBoundary = useFloatingBoundary()
 	return (
 		<PopoverPrimitive.Portal container={container || undefined}>
 			<PopoverPrimitive.Content
 				ref={ref}
 				align={align}
 				sideOffset={sideOffset}
+				data-floating-surface-popover={floatingSurfaceId ? "" : undefined}
+				data-floating-surface-owner={floatingSurfaceId ?? undefined}
 				/** 与 SelectContent 一致：避免 Canvas 全局点击取消选中时把 Portal 内点击当成「画布外」 */
 				data-canvas-ui-component
+				collisionBoundary={
+					collisionBoundary ?? (floatingBoundary ? [floatingBoundary] : undefined)
+				}
 				{...(shouldPreserveTextEditorFocus
 					? { [PRESERVE_TEXT_EDITOR_FOCUS_ATTR]: "" }
 					: {})}
@@ -38,6 +149,5 @@ const PopoverContent = React.forwardRef<
 		</PopoverPrimitive.Portal>
 	)
 })
-PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
-export { Popover, PopoverTrigger, PopoverContent }
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent }

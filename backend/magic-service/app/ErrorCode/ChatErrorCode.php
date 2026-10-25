@@ -204,6 +204,10 @@ enum ChatErrorCode: int
     #[ErrorMessage('chat.authorization.invalid')]
     case AUTHORIZATION_INVALID = 3103;
 
+    // 账号已被禁用
+    #[ErrorMessage('chat.account.disabled')]
+    case ACCOUNT_DISABLED = 3109;
+
     // STREAM_SEQUENCE_ID_NOT_FOUND
     #[ErrorMessage('chat.stream.sequence_id_not_found')]
     case STREAM_SEQUENCE_ID_NOT_FOUND = 3104;

@@ -1,5 +1,8 @@
+import { userStore } from "@/models/user"
 import { RouteName } from "@/routes/constants"
 import { routesMatch } from "@/routes/history/helpers"
+import { topicStore } from "../stores/core"
+import { ProjectTopicMapCache } from "./superMagicCache"
 
 export interface SuperPopRefreshParams {
 	workspaceId?: string
@@ -39,6 +42,24 @@ export function resolveSuperPopRefreshParams(pathname: string): SuperPopRefreshP
 			return {
 				projectId: params.projectId,
 			}
+		case RouteName.AiCanvasProjectState: {
+			// Canvas addresses carry no topic. Keep the project's open topic, else its last one, so
+			// restoring a canvas never treats the selected topic as stale or opens another one.
+			const projectId = params.projectId
+			const openTopicId =
+				topicStore.selectedTopic?.project_id === projectId
+					? topicStore.selectedTopic?.id
+					: undefined
+			return {
+				projectId,
+				topicId:
+					openTopicId ??
+					(projectId
+						? (ProjectTopicMapCache.get(userStore.user.userInfo, projectId) ??
+							undefined)
+						: undefined),
+			}
+		}
 		case RouteName.SuperWorkspaceState:
 			return {
 				workspaceId: params.workspaceId,

@@ -17,10 +17,322 @@
 		"description": "With just an @ symbol, instantly connect to any resource within your project! @ a file to analyze it directly, @ an agent for collaborative work, @ a plugin to extend capabilities, and @ a tool for efficient execution. Make all resources serve your task.",
 		"title": "@ Instantly Call Anything with a Single Key"
 	},
+	"homeOnboarding": {
+		"actions": {
+			"next": "Next",
+			"previous": "Previous",
+			"replayDone": "This tour is already completed, so points are not granted again",
+			"replayFinish": "Finish review",
+			"skip": "Exit guide",
+			"standaloneFinish": "Finish tour"
+		},
+		"aiPpt": {
+			"actions": {
+				"finish": "Finish the tour and claim 50 points"
+			},
+			"steps": {
+				"featured": {
+					"description": "The library is sorted by use, industry and visual style. On a first run, start from a featured template rather than building from a blank page.",
+					"title": "Find the PPT template that suits you"
+				},
+				"pick": {
+					"action": "Meet the request box",
+					"description": "Once the style looks right, pick it as the starting point for this deck. The template decides the layout; your request decides the content.",
+					"title": "Pick a template you like and start"
+				},
+				"prompt": {
+					"description": "In the request box, spell out the topic, the page count and the key points, then press send. This only shows you where the send entry is and how it works — nothing is really generated.",
+					"title": "Write your content, then send"
+				},
+				"search": {
+					"action": "See the picks",
+					"description": "When the topic is clear you can search straight away, or narrow things down through the categories. Next, take a look through a recommended set of templates.",
+					"title": "Narrow things down with search and categories"
+				}
+			}
+		},
+		"audioRecording": {
+			"actions": {
+				"finish": "Finish the tour and claim 50 points"
+			},
+			"demo": {
+				"notes": "· Confirm this week's release scope\n· Transcript and minutes within 10 minutes of the meeting\n· Report back on the recording tour next time",
+				"recordingTitle": "Product weekly sync",
+				"summary": "This recording runs 42 seconds and covers the transcript and minutes flow.\n\nAgreed in the meeting: transcription appears live while recording, and the notes on the right join the audio when the summary is generated. After stopping, choosing \"Summarise\" turns the audio, the transcript and the notes into structured minutes.\n\nFollow-up: produce the minutes within ten minutes of the meeting and share them with the team.",
+				"transcript": "Speaker 1　00:00:03\nLet's walk the whole flow from recording to minutes this time.\n\nSpeaker 1　00:00:11\nThe transcript shows up live on the left; I'll keep the key points in the notes on the right."
+			},
+			"steps": {
+				"export": {
+					"action": "See how to share",
+					"description": "Once the minutes exist you can summarise again, or export the audio, the transcript, the notes, the summary or everything at once.",
+					"title": "Summarise again or export the meeting"
+				},
+				"finish": {
+					"action": "See the minutes",
+					"description": "After you stop, choose \"Summarise\". The system turns the audio, the transcript and your notes into structured minutes.",
+					"title": "End the recording and write the minutes"
+				},
+				"import": {
+					"action": "Try a live recording",
+					"description": "If you already have a recording, import it and get a transcript and summary without recording again. Next, walk through a live recording.",
+					"title": "Or import an existing audio file"
+				},
+				"share": {
+					"description": "After sharing, teammates can read the transcript and the minutes; existing shares are managed from here as well.",
+					"title": "Share with your team and keep going"
+				},
+				"start": {
+					"action": "See how to import",
+					"description": "When the meeting begins, click \"Start recording\". The system captures the audio, produces a live transcript, and writes up the minutes once the meeting ends.",
+					"title": "Start an AI recording"
+				},
+				"status": {
+					"action": "See the live transcript",
+					"description": "The bar at the top pauses, stops or restarts the recording, and switches between the microphone and the system audio.",
+					"title": "Control the recording while it runs"
+				},
+				"transcript": {
+					"action": "End the recording",
+					"description": "The transcript keeps appearing on the left while you take notes on the right. When the meeting ends, all of it feeds into the minutes.",
+					"title": "Speech becomes text as you talk"
+				}
+			}
+		},
+		"claim": {
+			"broken": "Your task progress looks broken. Refresh the page, or contact support.",
+			"expired": "This task has expired, so its reward can no longer be claimed",
+			"granted": "Tour complete — {{points}} points earned",
+			"retry": "We couldn't grant the points. Run the task again to retry.",
+			"unavailable": "This task can't be claimed right now"
+		},
+		"claw": {
+			"actions": {
+				"finish": "Finish the tour and claim 50 points"
+			},
+			"steps": {
+				"create": {
+					"description": "Click \"Create\", pick a role and fill in the details to start deploying your own {{clawBrand}}.",
+					"title": "Create your AI assistant"
+				},
+				"features": {
+					"description": "Once created, you can keep configuring long-term memory, run status and platform connections so it keeps working across WeChat, Feishu and more.",
+					"title": "Explore what it can do"
+				},
+				"hero": {
+					"description": "{{clawBrand}} is a dedicated AI assistant that stays online, remembers across sessions and connects to outside platforms.",
+					"title": "Meet {{clawBrand}}"
+				}
+			}
+		},
+		"deliverable": {
+			"actions": {
+				"finish": "Finish the tour"
+			},
+			"attachment": {
+				"description": "This is the visual file Super Magic delivered for you — preview or download it right here. If anything needs adjusting, say so in the input box.",
+				"title": "Your task result is ready"
+			},
+			"saved": {
+				"description": "Files AI produces are filed in the \"project files\" area automatically, so they stay easy to find and manage.",
+				"title": "Saved automatically"
+			}
+		},
+		"employee": {
+			"actions": {
+				"finish": "Finish the tour and claim 50 points"
+			},
+			"steps": {
+				"category": {
+					"action": "Pick an employee",
+					"description": "Use categories such as office collaboration, product growth or data analysis to narrow the list down further.",
+					"title": "Filter by business area"
+				},
+				"chat": {
+					"description": "Once hired, the card shows \"Chat\". Click it to open a dedicated conversation and assign work to your digital employee directly.",
+					"title": "Chat with it after hiring"
+				},
+				"details": {
+					"action": "Ready to hire",
+					"description": "Click \"Details\" first to see the employee's role, strengths and best-fit scenarios, and confirm it solves your problem.",
+					"title": "Open an employee's details"
+				},
+				"hire": {
+					"action": "See the result",
+					"description": "Once it fits, click \"Hire\" on the employee card. After hiring, the employee shows up in your employee list.",
+					"title": "Click \"Hire\" to start using it"
+				},
+				"search": {
+					"action": "Browse categories",
+					"description": "Describe the role, the work scenario or what you need, and quickly find the digital employees that can take it on.",
+					"title": "Search for the employee you need"
+				}
+			}
+		},
+		"featured": {
+			"case1": {
+				"prompt": "Turn these notes into a weekly report. Notes: held 3 meetings, met 10 clients and closed 4 deals, and pushed the AI office assistant project forward.",
+				"title": "Project weekly report"
+			},
+			"case2": {
+				"prompt": "Research how much Chinese creators earn from AI comic dramas in 2026, and deliver a standard short-form report in 3 minutes.",
+				"title": "Industry research report"
+			},
+			"case3": {
+				"prompt": "Around 「how AI makes work easier for workplace newcomers」, write 5 titles, one Xiaohongshu post under 500 characters, and a practical-tip style.",
+				"title": "Bulk original copywriting"
+			},
+			"description": "You can normally enter any request here. For your first task, start with a stable example and experience the complete AI workflow.",
+			"footer": "The prompt will be filled into the input after you choose an example",
+			"kicker": "First task",
+			"send": {
+				"button": "View send button",
+				"cue": "Click here",
+				"description": "The example prompt is ready. Review it, edit if needed, then click send.",
+				"hint": "Click the send button in the lower-right corner to continue",
+				"title": "Click send to start"
+			},
+			"title": "Choose a featured example"
+		},
+		"firstWork": {
+			"actions": {
+				"later": "Not now, I'll look around",
+				"start": "Start a new task"
+			},
+			"card": {
+				"description": "You can start a new task, or pick up more from the task entries.",
+				"title": "First AI work completed"
+			},
+			"close": "Close",
+			"points": "+{{points}} points",
+			"title": "Congratulations on your first AI work"
+		},
+		"microApp": {
+			"actions": {
+				"finish": "Finish the tour and claim 50 points"
+			},
+			"steps": {
+				"manage": {
+					"description": "Once created, an app goes to \"App Space\", where you can keep finding and managing it through search and the \"created by me\" and \"collaborated\" categories.",
+					"title": "Manage every app in one place"
+				},
+				"prompt": {
+					"description": "Describe the problem to solve, the main users and the core features; Super Magic plans and creates the micro app from it.",
+					"title": "Describe your app in one sentence"
+				},
+				"tools": {
+					"description": "At the bottom of the input you can pick a model, call tools or add attachments; press Enter when you are ready to create.",
+					"title": "Add a model and tools"
+				}
+			}
+		},
+		"processing": {
+			"description": "Use the wait time to spend 15 seconds getting familiar with the project page. Your files, tasks, and extensions are all here.",
+			"skip": "Not now",
+			"start": "Start exploring",
+			"title": "Your task is processing"
+		},
+		"project": {
+			"actions": { "finish": "Finish tour", "next": "Next" },
+			"at": {
+				"description": "Type @ to call files, agents, plugins, and tools so project resources can work for your task.",
+				"title": "Use everything with @"
+			},
+			"composer": {
+				"description": "Add requirements, refine results, or start another task here.",
+				"title": "Request input area"
+			},
+			"file": {
+				"description": "Upload, view, and manage project materials. AI-generated results are saved here too.",
+				"title": "Project files, clear at a glance"
+			},
+			"result": {
+				"description": "Task progress, AI responses, and generated content appear here.",
+				"title": "Conversation and results"
+			},
+			"topic": {
+				"description": "Create a new topic to work on different tasks in parallel without interference.",
+				"title": "Parallel conversations"
+			}
+		},
+		"skill": {
+			"actions": {
+				"finish": "Finish the tour and claim 50 points"
+			},
+			"steps": {
+				"add": {
+					"description": "Once a skill fits, click \"Add to My Skills\" at the bottom of its card. It then joins your own collection of skills.",
+					"title": "Add it to \"My Skills\""
+				},
+				"card": {
+					"description": "Every card tells you the skill's name, the scenarios it fits, its version and when it was last updated. Check that it solves your problem before adding it.",
+					"title": "Read the skill card first"
+				},
+				"create": {
+					"description": "When you need something bespoke, click \"Create skill\" in the top right to build one through a conversation or import an existing .skill or .zip file.",
+					"title": "You can create your own too"
+				},
+				"created": {
+					"description": "\"Created by me\" lists the skills you maintain yourself — handy for iterating on your team's own way of working.",
+					"title": "See the skills you created"
+				},
+				"library": {
+					"description": "Switch to \"From the skill library\" to see the official skills you just added and keep using or managing them.",
+					"title": "See the skills you added"
+				},
+				"mySkills": {
+					"description": "Once you have added some, click \"My Skills\" to review and manage everything you created or took from the library in one place.",
+					"title": "Open \"My Skills\" to manage them"
+				},
+				"search": {
+					"description": "Start with a keyword or a description of the job — \"document processing\", \"research\", \"data analysis\" — to quickly find the skills that fit the work at hand.",
+					"title": "Search for the skill you need"
+				}
+			}
+		},
+		"stepLabel": "{{current}} / {{total}}",
+		"steps": {
+			"composer": {
+				"description": "Describe the work you need done here — upload files, choose plugins, pick a model, or use voice input.",
+				"title": "Request input and tools"
+			},
+			"experts": {
+				"description": "Different digital employees are good at different tasks. When unsure, start with the default Super Magic agent.",
+				"title": "AI digital employees"
+			},
+			"sidebar": {
+				"description": "This is where you access the main capabilities. Use it to explore other AI features.",
+				"title": "Main navigation"
+			},
+			"workspace": {
+				"description": "Your tasks, conversations, and generated results are saved here so you can continue later.",
+				"title": "Workspace"
+			}
+		},
+		"waiting": "Preparing your guide…",
+		"welcome": {
+			"badge": "Your first AI task",
+			"close": "Close onboarding guide",
+			"goals": {
+				"result": {
+					"title": "View your task result"
+				},
+				"send": {
+					"title": "Send it and wait for the task"
+				},
+				"task": {
+					"title": "Pick a featured example"
+				}
+			},
+			"skip": "Skip for now",
+			"start": "Start exploring",
+			"subtitle": "One minute end to end: run one AI task and earn 100 points when you finish.",
+			"title": "Complete your first AI task"
+		}
+	},
 	"html": {
 		"aiOptimization": {
-			"description": "I've already prepared a few one-click optimization options for you. Just choose any one, and I'll generate the corresponding command for you in the chatbox.",
-			"title": "✨ Need some help to quickly optimize this file?"
+			"description": "Open More to edit multiple selections, check facts, translate content, or correct data. Choosing an action adds its instructions to the chat.",
+			"title": "More AI editing actions"
 		},
 		"export": {
 			"description": "Effortlessly use your results anywhere. Choose to download the source file or directly export to common PDF and PPTX formats, ready for presentation, sharing, or archiving without any manual conversion.",
@@ -42,6 +354,83 @@
 	"multiThread": {
 		"description": "Start multiple conversation threads within the same project, with each thread focused on a different task. Want to work on copywriting and data analysis at the same time? No problem! Handle multiple topics in parallel and double your efficiency.",
 		"title": "💬 Multi-Threaded Conversations, Parallel Processing"
+	},
+	"newUserBenefits": {
+		"dialog": {
+			"close": "Close new user benefits",
+			"description": "View onboarding progress, available capabilities, and completed tasks.",
+			"maxReward": "Earn up to <strong>{{points}} points</strong> from feature tours",
+			"title": "New User Benefits"
+		},
+		"entry": {
+			"ariaLabel": "Open new user benefits to view feature tour progress",
+			"badge": "New user benefits",
+			"badgeDone": "Benefits complete",
+			"collapse": "Collapse new user benefits",
+			"earnedReward": "{{points}} points earned",
+			"expand": "Expand new user benefits",
+			"meta": "{{completed}} completed, {{remaining}} left to explore",
+			"metaDone": "All {{total}} core capabilities completed",
+			"pillReward": "{{points}} points",
+			"remainingReward": "+{{points}} points",
+			"title": "Keep exploring core capabilities",
+			"titleDone": "New user benefits completed",
+			"titleFresh": "<line1>Explore {{total}} core capabilities,</line1><line2>claim {{points}} points</line2>"
+		},
+		"section": {
+			"complete": "Completed tasks",
+			"incomplete": "Tasks to explore"
+		},
+		"summary": {
+			"description": "First AI task: +100 points; each other task: +50 points; all tasks: extra +50 points.",
+			"progress": "{{completed}} / {{total}} completed",
+			"title": "Explore {{total}} core capabilities and earn {{points}} points"
+		},
+		"task": {
+			"actionAria": "{{action}}: {{title}}",
+			"claimRetry": "Claim again",
+			"done": "Completed",
+			"duration": "About 1–2 min",
+			"expired": "Expired",
+			"recommended": "Recommended",
+			"replay": "Review",
+			"reward": "+{{points}} points",
+			"start": "Start"
+		},
+		"tasks": {
+			"aiPpt": {
+				"description": "Choose a template - add requirements - create - revise the full flow",
+				"title": "Learn how to use AI PPT"
+			},
+			"employees": {
+				"description": "Learn to search, hire, use, and create your own digital employees",
+				"title": "Learn how to hire and use digital employees"
+			},
+			"firstAiWork": {
+				"description": "Experience a complete AI task from start to finish",
+				"title": "Complete your first AI task"
+			},
+			"microapps": {
+				"description": "Learn how to create your own app with one sentence",
+				"title": "Learn the micro-app creation flow"
+			},
+			"recording": {
+				"description": "Watch recording - live transcription - summary generation - export and share",
+				"title": "Learn the AI recording flow"
+			},
+			"skills": {
+				"description": "Learn how to search, add, use, and manage skills",
+				"title": "Learn how to add and manage skills"
+			},
+			"superLobster": {
+				"description": "Learn about creation, long-term memory, runtime status, and platform connections.",
+				"title": "Learn how to use Super Lobster"
+			},
+			"workbench": {
+				"description": "Get familiar with the Super Magic workspace and start using it with confidence",
+				"title": "Learn the Super Magic workspace"
+			}
+		}
 	},
 	"projectFile": {
 		"description": "A clear directory structure gives every file its place, enabling quick access and smart management to keep your project materials perfectly organized. Boost your work efficiency instantly.",

@@ -5,11 +5,12 @@ import { Loader2 } from "lucide-react"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import MagicSelect from "@/components/base/MagicSelect"
 import magicToast from "@/components/base/MagicToaster/utils"
 import IconMessageTopic from "@/components/icons/IconMessageTopic"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
 import IconProject from "@/pages/superMagic/components/icons/IconProject"
 import IconWorkspace from "@/pages/superMagic/components/icons/IconWorkspace"
@@ -27,6 +28,7 @@ interface SelectItemProps {
 	workspaceId?: string
 	projectId?: string
 	value?: string
+	autoSelectFirstOption?: boolean
 	onChange?: (value: string) => void
 	onSelect?: (value: OptionItem | undefined) => void
 }
@@ -55,7 +57,16 @@ const TYPE_CONFIG = {
 	},
 } as const
 
-function SelectItem({ type, workspaceId, projectId, value, onChange, onSelect }: SelectItemProps) {
+/** Renders a task context selector and optionally preselects the first mobile topic. */
+function SelectItem({
+	type,
+	workspaceId,
+	projectId,
+	value,
+	autoSelectFirstOption = false,
+	onChange,
+	onSelect,
+}: SelectItemProps) {
 	const { t } = useTranslation("interface")
 	const isMobile = useIsMobile()
 	const { workspaceOptions, handleAddWorkspace } = useWorkspace()
@@ -74,6 +85,7 @@ function SelectItem({ type, workspaceId, projectId, value, onChange, onSelect }:
 	}>()
 	const creatingRef = useRef(false)
 	const createInputRef = useRef<InputRef>(null)
+	const autoSelectedContextRef = useRef<string>()
 
 	const sourceOptions = useMemo(() => {
 		if (type === "workspace") return workspaceOptions
@@ -206,11 +218,36 @@ function SelectItem({ type, workspaceId, projectId, value, onChange, onSelect }:
 
 	const currentLabel = options.find((option) => option.value === value)?.label
 
+	useEffect(() => {
+		if (
+			!autoSelectFirstOption ||
+			type !== "topic" ||
+			!workspaceId ||
+			!projectId ||
+			value ||
+			options.length === 0
+		)
+			return
+
+		const contextKey = `${workspaceId}:${projectId}`
+		if (autoSelectedContextRef.current === contextKey) return
+
+		// Prefill only new mobile task forms when no topic was provided by the route.
+		const firstOption = options[0]
+		autoSelectedContextRef.current = contextKey
+		onChange?.(firstOption.value)
+		onSelect?.(firstOption)
+	}, [autoSelectFirstOption, onChange, onSelect, options, projectId, type, value, workspaceId])
+
 	return (
 		<MagicSelect
 			key={selectInstanceKey}
 			value={value}
 			className="w-full"
+			// Prevent the mobile shell from scrolling when its fixed create input receives focus.
+			classNames={{
+				popup: { root: isMobile ? "supports-[overflow:clip]:overflow-clip" : undefined },
+			}}
 			placeholder={t(config.labelKey)}
 			options={options}
 			labelInValue={false}
@@ -219,7 +256,8 @@ function SelectItem({ type, workspaceId, projectId, value, onChange, onSelect }:
 			onOpenChange={handleOpenChange}
 			showSearch={false}
 			popupRender={() => (
-				<div className="-m-1 flex flex-col pb-safe-bottom">
+				// Only desktop SelectContent adds an inset; mobile popups already span the screen.
+				<div className={cn("flex flex-col pb-safe-bottom", !isMobile && "-m-1")}>
 					<div className="relative">
 						<IconSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
@@ -240,7 +278,8 @@ function SelectItem({ type, workspaceId, projectId, value, onChange, onSelect }:
 							</button>
 						) : null}
 					</div>
-					<div className="flex max-h-[250px] flex-col gap-1 overflow-y-auto overflow-x-hidden p-2">
+					{/* Keep search and creation controls outside the content-sized options viewport. */}
+					<ScrollArea viewportClassName="h-auto max-h-[250px] p-2 [&>div]:!flex [&>div]:flex-col [&>div]:gap-1">
 						{filteredOptions.length > 0 ? (
 							filteredOptions.map((option) => {
 								const isSelected = option.value === value
@@ -271,7 +310,7 @@ function SelectItem({ type, workspaceId, projectId, value, onChange, onSelect }:
 						) : (
 							<Empty />
 						)}
-					</div>
+					</ScrollArea>
 					<div className="border-t p-2">
 						{viewMode === "create" ? (
 							<div className="flex items-center gap-1.5">

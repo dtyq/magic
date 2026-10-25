@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useControllableValue } from "ahooks"
 import { Button, DatePicker, Empty, Popover, Segmented, Select, Space, Typography } from "antd"
-import dayjs, { type Dayjs } from "dayjs"
+import dayjs, { type Dayjs } from "@admin/infrastructure/vendors/dayjs"
 import { IconCalendarClock, IconTrash, IconX } from "@tabler/icons-react"
 import { useAdminComponents } from "../AdminComponentsProvider"
 import MagicButton from "../MagicButton"
@@ -66,6 +66,8 @@ export interface TimeFilterPanelProps {
 	value?: TimeRangeValue | null
 	/* 是否可清除 */
 	clearable?: boolean
+	/* 可选择的最大自然日 */
+	maxDate?: Dayjs
 	/* 变化回调 */
 	onChange?: (value: TimeRangeValue | null) => void
 }
@@ -76,6 +78,7 @@ function TimeFilterPanel({
 	prefix,
 	value,
 	clearable = true,
+	maxDate,
 	onChange,
 }: TimeFilterPanelProps) {
 	const { styles, cx } = useStyles()
@@ -109,8 +112,20 @@ function TimeFilterPanel({
 	const [customUnit, setCustomUnit] = useState<RelativeUnit>(defaultRelativeUnit)
 	const [absoluteRange, setAbsoluteRange] = useState<[Dayjs | null, Dayjs | null]>([null, null])
 	const [history, setHistory] = useState<TimeFilterHistoryItem[]>([])
+	const maxDateValue = maxDate?.valueOf()
+	const maxDateEnd = useMemo(
+		() => (maxDateValue === undefined ? undefined : dayjs(maxDateValue).endOf("day")),
+		[maxDateValue],
+	)
+	const monthReferenceDate = useMemo(
+		() => (maxDateValue === undefined ? dayjs() : dayjs(maxDateValue)),
+		[maxDateValue],
+	)
 
-	const monthKeys = useMemo(() => getRecentMonthKeys(dayjs(), 12), [])
+	const monthKeys = useMemo(
+		() => getRecentMonthKeys(monthReferenceDate, 12),
+		[monthReferenceDate],
+	)
 	const unitOptions = useMemo(
 		() =>
 			relativeUnits.map((unit) => ({
@@ -121,12 +136,20 @@ function TimeFilterPanel({
 	)
 	const absolutePresets = useMemo(
 		() =>
-			getCommonAbsolutePresetRanges(dayjs()).map((item) => ({
+			getCommonAbsolutePresetRanges(monthReferenceDate).map((item) => ({
 				label: getAbsolutePresetLabel(locale, item.key),
 				value: item.value,
 			})),
-		[locale],
+		[locale, monthReferenceDate],
 	)
+	const availableStandardPresetOptions = useMemo(() => {
+		if (!maxDate) return STANDARD_PRESET_OPTIONS
+
+		return STANDARD_PRESET_OPTIONS.filter((option) => {
+			const [start] = getRangeByPreset(option.key, dayjs(), false, precision)
+			return !maxDateEnd || !start.isAfter(maxDateEnd, "day")
+		})
+	}, [maxDate, maxDateEnd, precision])
 	const displayedRelativeUnit = relativeUnits.includes(activeRelativeUnit)
 		? activeRelativeUnit
 		: defaultActiveRelativeUnit
@@ -170,10 +193,13 @@ function TimeFilterPanel({
 				tab,
 				precision,
 			)
+			if (maxDateEnd && normalizedStart.isAfter(maxDateEnd)) return
+			const boundedEnd =
+				maxDateEnd && normalizedEnd.isAfter(maxDateEnd) ? maxDateEnd : normalizedEnd
 			const format = getRangeValueFormat(tab, precision)
 			const nextValue: TimeRangeValue = {
 				startDate: normalizedStart.format(format),
-				endDate: normalizedEnd.format(format),
+				endDate: boundedEnd.format(format),
 				label,
 				tab,
 				mode,
@@ -190,14 +216,14 @@ function TimeFilterPanel({
 				setOpen(false)
 			}
 		},
-		[historyStorageKey, precision, setTimeRangeValue],
+		[historyStorageKey, maxDateEnd, precision, setTimeRangeValue],
 	)
 
 	const reapplyRelativeRangeForAlign = useCallback(
 		(nextAlignToUnit: boolean) => {
 			if (!timeRangeValue || timeRangeValue.tab !== TimeFilterTab.relative) return
 
-			const now = dayjs()
+			const now = maxDate ?? dayjs()
 			let start: Dayjs
 			let end: Dayjs
 			let label = timeRangeValue.label
@@ -246,6 +272,7 @@ function TimeFilterPanel({
 			precision,
 			selectedPresetKey,
 			timeRangeValue,
+			maxDate,
 		],
 	)
 
@@ -328,7 +355,13 @@ function TimeFilterPanel({
 			(item) => item.key === defaultPresetKey,
 		)
 
-		const [start, end] = getRangeByPreset(defaultPresetKey, dayjs(), false, precision)
+		const presetReferenceDate = maxDate && isDayOnly ? maxDate : dayjs()
+		const [start, end] = getRangeByPreset(
+			defaultPresetKey,
+			presetReferenceDate,
+			false,
+			precision,
+		)
 		setAbsoluteRange([start, end])
 		applyRange({
 			start,
@@ -342,7 +375,16 @@ function TimeFilterPanel({
 			persist: false,
 		})
 		setSelectedPresetKey(defaultPresetKey)
-	}, [allQuickPresetOptions, applyRange, defaultPresetKey, isControlled, locale, precision])
+	}, [
+		allQuickPresetOptions,
+		applyRange,
+		defaultPresetKey,
+		isControlled,
+		isDayOnly,
+		locale,
+		maxDate,
+		precision,
+	])
 
 	const handlePresetApply = (presetKey: TimePresetKey) => {
 		setRelativeMode(RelativeMode.preset)
@@ -350,7 +392,13 @@ function TimeFilterPanel({
 		const option = [...allQuickPresetOptions, ...STANDARD_PRESET_OPTIONS].find(
 			(item) => item.key === presetKey,
 		)
-		const [nextStart, nextEnd] = getRangeByPreset(presetKey, dayjs(), alignToUnit, precision)
+		const presetReferenceDate = maxDate && isDayOnly ? maxDate : dayjs()
+		const [nextStart, nextEnd] = getRangeByPreset(
+			presetKey,
+			presetReferenceDate,
+			alignToUnit,
+			precision,
+		)
 
 		applyRange({
 			start: nextStart,
@@ -375,7 +423,7 @@ function TimeFilterPanel({
 
 	const handleCustomRelativeApply = () => {
 		const [start, end] = buildCustomRelativeRange({
-			now: dayjs(),
+			now: maxDate ?? dayjs(),
 			value: customValue,
 			unit: customUnit,
 			alignToUnit,
@@ -396,7 +444,7 @@ function TimeFilterPanel({
 	}
 
 	const handleMonthApply = (monthKey: string) => {
-		const [start, end] = getMonthRange(monthKey)
+		const [start, end] = getMonthRange(monthKey, monthReferenceDate)
 		setRelativeMode(RelativeMode.monthly)
 		applyRange({
 			start,
@@ -594,7 +642,7 @@ function TimeFilterPanel({
 												{locale.standardPreset}
 											</div>
 											<div className={styles.standardPresetGrid}>
-												{STANDARD_PRESET_OPTIONS.map((option) => (
+												{availableStandardPresetOptions.map((option) => (
 													<Button
 														key={option.key}
 														type="text"
@@ -669,6 +717,9 @@ function TimeFilterPanel({
 										needConfirm={false}
 										popupClassName={styles.absolutePickerDropdown}
 										value={absoluteRange}
+										disabledDate={(current) =>
+											Boolean(maxDate && current.isAfter(maxDate, "day"))
+										}
 										format={DATE_FORMAT}
 										presets={absolutePresets}
 										onChange={(value) =>

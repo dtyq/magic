@@ -1418,10 +1418,13 @@ export function getEditingScript(): string {
 
 					// 计算位置
 					const buttonRect = button.getBoundingClientRect();
+					const viewportWidth = window.innerWidth;
 					const viewportHeight = window.innerHeight;
+					const dropdownWidth = 560; // 预估宽度，按视觉缩放后的宽度定位
 					const dropdownHeight = 240; // 预估高度
 					
-					// 计算缩放后的实际高度
+					// 计算缩放后的实际尺寸，并让菜单右边缘对齐按钮右边缘，向左展开
+					const scaledDropdownWidth = dropdownWidth * inverseScale;
 					const scaledDropdownHeight = dropdownHeight * inverseScale;
 
 					let top = buttonRect.bottom + 8;
@@ -1429,7 +1432,12 @@ export function getEditingScript(): string {
 						top = buttonRect.top - scaledDropdownHeight - 8;
 					}
 
-					dropdown.style.left = buttonRect.left + 'px';
+					const maxLeft = Math.max(8, viewportWidth - scaledDropdownWidth - 8);
+					const left = Math.min(
+						maxLeft,
+						Math.max(8, buttonRect.right - scaledDropdownWidth),
+					);
+					dropdown.style.left = left + 'px';
 					dropdown.style.top = top + 'px';
 
 					document.body.appendChild(dropdown);

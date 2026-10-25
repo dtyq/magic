@@ -45,6 +45,28 @@ describe("MagicPopup z-index", () => {
 		})
 	})
 
+	test("zIndexManaged=false 时更高的 zIndex 会更新 content 的 inline 层级", async () => {
+		const { rerender } = render(
+			<MagicPopup visible title="preview" zIndex={1000} zIndexManaged={false}>
+				<div data-testid="preview-popup">preview</div>
+			</MagicPopup>,
+		)
+
+		await waitFor(() => {
+			expect(getDrawerContentByText("preview-popup").style.zIndex).toBe("1001")
+		})
+
+		rerender(
+			<MagicPopup visible title="preview" zIndex={1020} zIndexManaged={false}>
+				<div data-testid="preview-popup">preview</div>
+			</MagicPopup>,
+		)
+
+		await waitFor(() => {
+			expect(getDrawerContentByText("preview-popup").style.zIndex).toBe("1021")
+		})
+	})
+
 	test("zIndexManaged=false 不影响后续 MagicPopup 分配", async () => {
 		render(
 			<>

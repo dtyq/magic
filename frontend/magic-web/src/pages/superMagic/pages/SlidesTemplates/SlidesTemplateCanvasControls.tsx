@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, ChevronUp, Minus, RotateCcw, Plus } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { TemplateCanvasDirection } from "./canvasLayout"
 import { SLIDES_TEMPLATE_CANVAS_DEFAULT_SCALE } from "./canvasZoom"
 

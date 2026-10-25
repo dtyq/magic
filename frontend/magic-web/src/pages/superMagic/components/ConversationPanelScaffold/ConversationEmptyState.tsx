@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { cloneElement, isValidElement, memo, type ReactElement, type ReactNode } from "react"
 
 interface AnimatedIconProps {

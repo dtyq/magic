@@ -25,6 +25,7 @@ class MagicUserInfoAppService extends AbstractAppService
         protected readonly MagicAccountDomainService $accountDomainService,
         protected readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         protected readonly MagicDepartmentDomainService $departmentDomainService,
+        protected readonly ThirdPlatformUserIdAppService $thirdPlatformUserIdAppService,
     ) {
     }
 
@@ -66,6 +67,7 @@ class MagicUserInfoAppService extends AbstractAppService
 
         return [
             'id' => $userId,
+            'third_platform_id' => $this->thirdPlatformUserIdAppService->resolveUserId($userEntity, $dataIsolation->getCurrentOrganizationCode()),
             'nickname' => $userEntity->getNickname() ?? '',
             'real_name' => $accountEntity?->getRealName() ?? '',
             'avatar_url' => $userEntity->getAvatarUrl() ?? '',
@@ -174,6 +176,7 @@ class MagicUserInfoAppService extends AbstractAppService
     {
         return [
             'id' => $userId,
+            'third_platform_id' => '',
             'nickname' => '',
             'real_name' => '',
             'work_number' => '',

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus Converter — Single-Purpose Utilitarian Converter</title>
+  <style>
+    :root {
+      --primary: #151412;
+      --secondary: #68655F;
+      --tertiary: #A39F98;
+      --text-ghost: #C5C1BA;
+      --bg: #F5F4F0;
+      --bg-deep: #ECEAE3;
+      --surface: #FFFFFF;
+      --border: #EAE8E2;
+      --border-mid: #DFDDD7;
+      --border-strong: #CFCDC7;
+      --accent: #2750D6;
+      --accent-hover: #3460E8;
+      --accent-light: #EBF0FD;
+      --accent-text: #1A38A0;
+      --green: #137E44;
+      --green-light: #E3F4EC;
+      --amber: #905300;
+      --amber-light: #FDF0DC;
+      --red: #BA2B2B;
+      --red-light: #FAEBEB;
+      --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+      --radius-sm: 7px;
+      --radius-input: 11px;
+      --radius-btn: 13px;
+      --radius-card: 14px;
+      --radius-hero: 20px;
+      --radius-full: 9999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--primary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 24px;
+    }
+
+    /* Minimalist Utilitarian Header */
+    .util-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      height: 48px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .focus-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: var(--radius-full);
+      box-shadow: 0 0 10px rgba(39, 80, 214, 0.4);
+    }
+
+    .brand-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--primary);
+    }
+
+    .mode-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--bg-deep);
+      color: var(--secondary);
+      padding: 2px 7px;
+      border-radius: var(--radius-sm);
+    }
+
+    .kbd-shortcut-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--secondary);
+      background: var(--bg);
+      border: 1px solid var(--border-mid);
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* Viewport Container */
+    .viewport-container {
+      max-width: 1320px;
+      margin: 16px auto 0;
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Category Mode Selector Tabs */
+    .category-tabs-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .tabs-group {
+      display: flex;
+      gap: 6px;
+      background: var(--bg-deep);
+      padding: 3px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border);
+    }
+
+    .cat-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--secondary);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cat-tab-btn.active {
+      background: var(--primary);
+      color: var(--surface);
+    }
+
+    .rate-telemetry {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-indicator-green {
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+    }
+
+    /* First 500px Impact: Instant Converter Display & Matrix */
+    .calc-split-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 14px;
+    }
+
+    /* Hero Input Display Card */
+    .hero-calc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-hero);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 2px 8px rgba(21, 20, 18, 0.04);
+    }
+
+    .calc-input-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-input);
+      padding: 8px 14px;
+      transition: border-color 0.15s ease;
+    }
+    .calc-input-row:focus-within {
+      border-color: var(--accent);
+      background: var(--surface);
+      box-shadow: 0 0 0 2px var(--accent-light);
+    }
+
+    .main-number-input {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 600;
+      color: var(--primary);
+      background: transparent;
+      border: none;
+      outline: none;
+      width: 100%;
+      letter-spacing: -1px;
+    }
+
+    .unit-select-pill {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-full);
+      padding: 6px 12px;
+      font-family: var(--font-ui);
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    /* Quick Calculator Modifiers Bar */
+    .modifiers-strip {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mod-btn {
+      background: var(--bg);
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-btn);
+      padding: 7px 12px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .mod-btn:hover {
+      background: var(--primary);
+      color: var(--surface);
+    }
+    .mod-btn.accent-mod {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      color: var(--accent-text);
+    }
+
+    /* Unit Conversion Matrix Grid */
+    .matrix-display-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-hero);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(21, 20, 18, 0.04);
+    }
+
+    .panel-header-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .matrix-cards-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .matrix-unit-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .matrix-unit-card:hover {
+      border-color: var(--accent);
+      background: var(--surface);
+    }
+
+    .unit-card-sym {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .unit-card-val {
+      font-family: var(--font-mono);
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+    }
+
+    .unit-card-sub {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: var(--tertiary);
+    }
+
+    /* History Strip (Recent Conversions Tape) */
+    .history-tape-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 12px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .history-items-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .history-pill-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .history-pill-box:hover {
+      background: var(--bg-deep);
+      border-color: var(--border-strong);
+    }
+
+    .hist-time {
+      font-size: 9.5px;
+      color: var(--tertiary);
+    }
+
+    @media (max-width: 900px) {
+      .calc-split-grid { grid-template-columns: 1fr; }
+      .history-items-row { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Minimal Utilitarian Header -->
+  <header class="util-header">
+    <div class="brand-section">
+      <div class="focus-dot"></div>
+      <span class="brand-title">FOCUS CONVERTER</span>
+      <span class="mode-badge">PRECISION UTILITY</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="kbd-shortcut-pill">⌘ + K Quick Switch</div>
+      <span style="font-family: var(--font-mono); font-size: 11px; color: var(--tertiary);">LATENCY: 0.12 MS</span>
+    </div>
+  </header>
+
+  <main class="viewport-container">
+    
+    <!-- Category Tabs -->
+    <div class="category-tabs-row">
+      <div class="tabs-group">
+        <button class="cat-tab-btn active" onclick="switchCategory('currency', this)">Currency</button>
+        <button class="cat-tab-btn" onclick="switchCategory('crypto', this)">Crypto</button>
+        <button class="cat-tab-btn" onclick="switchCategory('data', this)">Data Units</button>
+      </div>
+
+      <div class="rate-telemetry">
+        <span class="status-indicator-green"></span>
+        <span>REAL-TIME RATES SYNCED (2S AGO)</span>
+      </div>
+    </div>
+
+    <!-- First 500px Impact: Instant Input & Conversion Matrix -->
+    <div class="calc-split-grid">
+      
+      <!-- Primary Input Display -->
+      <section class="hero-calc-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.5px;">Input Amount</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--accent);">AUTO-CALC ACTIVE</span>
+        </div>
+
+        <div class="calc-input-row">
+          <input type="text" class="main-number-input" value="1,250.00" id="numInput" oninput="recalc(this.value)">
+          <div class="unit-select-pill">
+            <span>USD ($)</span>
+            <span style="font-size: 9px; color: var(--secondary);">&blacktriangledown;</span>
+          </div>
+        </div>
+
+        <!-- Quick Numerical Modifiers -->
+        <div class="modifiers-strip">
+          <button class="mod-btn" onclick="applyMod(0.9)">-10%</button>
+          <button class="mod-btn" onclick="applyMod(1.1)">+10%</button>
+          <button class="mod-btn" onclick="applyMod(2)">&times;2</button>
+          <button class="mod-btn" onclick="applyMod(0.5)">&frac12;</button>
+          <button class="mod-btn accent-mod" onclick="resetVal()">Reset (1.0)</button>
+        </div>
+
+        <!-- Inline Telemetry Note -->
+        <div style="font-size: 11.5px; color: var(--secondary); border-top: 1px solid var(--border); padding-top: 8px;">
+          Baseline reference: <strong>1 USD = 0.924 EUR = 0.771 GBP = 148.50 JPY</strong>
+        </div>
+      </section>
+
+      <!-- Unit Conversion Matrix -->
+      <section class="matrix-display-panel">
+        <div class="panel-header-label">
+          <span>Target Cross-Conversion Matrix</span>
+          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--accent);">6 UNITS</span>
+        </div>
+
+        <div class="matrix-cards-grid">
+          <!-- EUR -->
+          <div class="matrix-unit-card">
+            <div class="unit-card-sym">
+              <span>Euro (EUR)</span>
+              <span>&euro;</span>
+            </div>
+            <div class="unit-card-val" id="valEUR">1,155.00</div>
+            <div class="unit-card-sub">Rate: 0.9240</div>
+          </div>
+
+          <!-- GBP -->
+          <div class="matrix-unit-card">
+            <div class="unit-card-sym">
+              <span>British Pound (GBP)</span>
+              <span>&pound;</span>
+            </div>
+            <div class="unit-card-val" id="valGBP">963.75</div>
+            <div class="unit-card-sub">Rate: 0.7710</div>
+          </div>
+
+          <!-- JPY -->
+          <div class="matrix-unit-card">
+            <div class="unit-card-sym">
+              <span>Japanese Yen (JPY)</span>
+              <span>&yen;</span>
+            </div>
+            <div class="unit-card-val" id="valJPY">185,625</div>
+            <div class="unit-card-sub">Rate: 148.50</div>
+          </div>
+
+          <!-- CHF -->
+          <div class="matrix-unit-card">
+            <div class="unit-card-sym">
+              <span>Swiss Franc (CHF)</span>
+              <span>Fr</span>
+            </div>
+            <div class="unit-card-val" id="valCHF">1,093.75</div>
+            <div class="unit-card-sub">Rate: 0.8750</div>
+          </div>
+
+          <!-- CAD -->
+          <div class="matrix-unit-card">
+            <div class="unit-card-sym">
+              <span>Canadian Dollar (CAD)</span>
+              <span>C$</span>
+            </div>
+            <div class="unit-card-val" id="valCAD">1,687.50</div>
+            <div class="unit-card-sub">Rate: 1.3500</div>
+          </div>
+
+          <!-- AUD -->
+          <div class="matrix-unit-card">
+            <div class="unit-card-sym">
+              <span>Australian Dollar (AUD)</span>
+              <span>A$</span>
+            </div>
+            <div class="unit-card-val" id="valAUD">1,875.00</div>
+            <div class="unit-card-sub">Rate: 1.5000</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- History Strip: Tape of Recent Conversions -->
+    <section class="history-tape-section">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11px; font-weight: 700; color: var(--secondary); text-transform: uppercase;">Recent Conversion History</span>
+        <span style="font-size: 10px; color: var(--accent); font-family: var(--font-mono); cursor: pointer;">Clear Tape</span>
+      </div>
+
+      <div class="history-items-row">
+        <div class="history-pill-box">
+          <div>1,250 USD &rarr; 1,155 EUR</div>
+          <span class="hist-time">17:11:02 &bull; Rate 0.924</span>
+        </div>
+        <div class="history-pill-box">
+          <div>0.245 BTC &rarr; 14,820 USD</div>
+          <span class="hist-time">17:09:44 &bull; Rate 60,490</span>
+        </div>
+        <div class="history-pill-box">
+          <div>16,384 MB &rarr; 16.0 GB</div>
+          <span class="hist-time">17:05:12 &bull; Binary 1024</span>
+        </div>
+        <div class="history-pill-box">
+          <div>50,000 JPY &rarr; 336.70 USD</div>
+          <span class="hist-time">16:58:30 &bull; Rate 0.0067</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    function recalc(valStr) {
+      const clean = parseFloat(valStr.replace(/,/g, '')) || 0;
+      document.getElementById('valEUR').innerText = (clean * 0.924).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('valGBP').innerText = (clean * 0.771).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('valJPY').innerText = Math.round(clean * 148.5).toLocaleString('en-US');
+      document.getElementById('valCHF').innerText = (clean * 0.875).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('valCAD').innerText = (clean * 1.35).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('valAUD').innerText = (clean * 1.50).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function applyMod(factor) {
+      const input = document.getElementById('numInput');
+      const clean = parseFloat(input.value.replace(/,/g, '')) || 0;
+      const next = clean * factor;
+      input.value = next.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      recalc(input.value);
+    }
+
+    function resetVal() {
+      const input = document.getElementById('numInput');
+      input.value = "1.00";
+      recalc("1.00");
+    }
+
+    function switchCategory(cat, btn) {
+      document.querySelectorAll('.cat-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+  </script>
+</body>
+</html>

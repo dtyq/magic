@@ -30,6 +30,7 @@ use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use App\Interfaces\Kernel\DTO\PageDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Request\CreateAgentRequestDTO;
+use App\Interfaces\SuperMagic\Agent\DTO\Request\UpdateAgentInfoRequestDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Response\AgentListItemDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Response\AgentVersionListItemDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Response\CategoryInfoDTO;
@@ -52,7 +53,7 @@ class SuperMagicAgentAssembler
         $DTO->setId($superMagicAgentEntity->getCode());
         $DTO->setCode($superMagicAgentEntity->getCode());
         $DTO->setName($superMagicAgentEntity->getI18nName($language));
-        $DTO->setDescription($superMagicAgentEntity->getI18nName($language));
+        $DTO->setDescription($superMagicAgentEntity->getI18nDescription($language));
         $DTO->setIcon($superMagicAgentEntity->getIcon());
         $DTO->setIconType($superMagicAgentEntity->getIconType());
         $DTO->setPrompt($superMagicAgentEntity->getPrompt());
@@ -102,10 +103,11 @@ class SuperMagicAgentAssembler
 
     public static function createListDTO(SuperMagicAgentEntity $superMagicAgentEntity): SuperMagicAgentListDTO
     {
+        $language = CoContext::getLanguage();
         $DTO = new SuperMagicAgentListDTO();
         $DTO->setId($superMagicAgentEntity->getCode());
-        $DTO->setName($superMagicAgentEntity->getName());
-        $DTO->setDescription($superMagicAgentEntity->getDescription());
+        $DTO->setName($superMagicAgentEntity->getI18nName($language));
+        $DTO->setDescription($superMagicAgentEntity->getI18nDescription($language));
         $DTO->setIcon($superMagicAgentEntity->getIcon());
         $DTO->setIconType($superMagicAgentEntity->getIconType());
         $DTO->setType($superMagicAgentEntity->getType()->value);
@@ -175,6 +177,18 @@ class SuperMagicAgentAssembler
         $entity->setEnabled(true);
         $entity->setVisibilityConfig($requestDTO->getVisibilityConfig());
         $entity->setFileKey($requestDTO->getFileKey());
+
+        if ($requestDTO instanceof UpdateAgentInfoRequestDTO) {
+            $entity->setProvidedFields([
+                'name_i18n' => $requestDTO->hasField('name_i18n'),
+                'role_i18n' => $requestDTO->hasField('role_i18n'),
+                'description_i18n' => $requestDTO->hasField('description_i18n'),
+                'icon' => $requestDTO->hasField('icon'),
+                'icon_type' => $requestDTO->hasField('icon_type'),
+                'prompt_shadow' => $requestDTO->hasField('prompt_shadow'),
+                'file_key' => $requestDTO->hasField('file_key'),
+            ]);
+        }
 
         return $entity;
     }
@@ -286,7 +300,6 @@ class SuperMagicAgentAssembler
             publishTargetType: $version->getPublishTargetType()->value,
             isCurrentVersion: $version->isCurrentVersion(),
             publishedAt: $version->getPublishedAt(),
-            categoryId: $version->getCategoryId() ? (string) $version->getCategoryId() : null,
             categoryIds: $version->getCategoryIds(),
         );
     }
@@ -329,6 +342,8 @@ class SuperMagicAgentAssembler
                     $officialAgentCodeMap,
                     $marketSourceMap
                 ),
+                // Created-list cards still need an explicit role; installation alone is not ownership.
+                userOperation: $agent->getCreator() === $currentUserId ? Operation::Owner : null,
                 scope: AgentListScope::CREATED->value,
                 organizationInfo: $organizationInfoMap[$agent->getOrganizationCode()] ?? null,
             );
@@ -426,8 +441,8 @@ class SuperMagicAgentAssembler
                 publishedAt: $version->getPublishedAt(),
                 isCurrentVersion: $version->isCurrentVersion(),
                 versionDescriptionI18n: $version->getVersionDescriptionI18n(),
+                versionDescription: $version->getI18nVersionDescription(CoContext::getLanguage()),
                 publishTargetValue: $enrichedPublishTargetValue,
-                category: self::buildCategoryInfoDTO($version, $categoryMap),
                 categories: self::buildCategoryInfoDTOs($version, $categoryMap),
             );
         }
@@ -474,27 +489,6 @@ class SuperMagicAgentAssembler
             'users' => $users,
             'departments' => $departments,
         ];
-    }
-
-    /**
-     * @param array<int, AgentCategoryEntity> $categoryMap
-     */
-    private static function buildCategoryInfoDTO(AgentVersionEntity $version, array $categoryMap): ?CategoryInfoDTO
-    {
-        $categoryId = $version->getCategoryId();
-        if ($categoryId === null) {
-            return null;
-        }
-
-        $category = $categoryMap[$categoryId] ?? null;
-        if ($category === null) {
-            return null;
-        }
-
-        return new CategoryInfoDTO(
-            id: (string) $categoryId,
-            name: $category->getI18nName(CoContext::getLanguage()),
-        );
     }
 
     /**
@@ -557,6 +551,7 @@ class SuperMagicAgentAssembler
         return new AgentListItemDTO(
             id: $agent->getId(),
             code: $agent->getCode(),
+            projectId: $agent->getProjectId() === null ? null : (string) $agent->getProjectId(),
             nameI18n: $agent->getNameI18n() ?? [],
             roleI18n: $agent->getRoleI18n() ?? [],
             descriptionI18n: $agent->getDescriptionI18n() ?? [],
@@ -564,6 +559,8 @@ class SuperMagicAgentAssembler
             iconType: $agent->getIconType(),
             playbooks: $features,
             sourceType: $agent->getSourceType()->value,
+            // `source` is the scalar replacement for the removed source_i18n field; keep source_type for compatibility.
+            source: $agent->getSourceType()->value,
             enabled: $agent->getEnabled() ?? false,
             isStoreOffline: false,
             latestVersionCode: $latestVersionCode,

@@ -21,7 +21,7 @@ import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/h
 import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 
@@ -132,11 +132,8 @@ const Editor: FC<EditorProps> = ({
 					pubsub.publish(PubSubEvents.Message_Scroll_To_Bottom)
 				}, 200)
 			},
-			queueContext: {
-				editingQueueItem: messageQueue.editingQueueItem,
-				addToQueue: messageQueue.addToQueue,
-				finishEditQueueItem: messageQueue.finishEditQueueItem,
-			},
+			editorRef: messageQueue.editorRef,
+			queueContext: messageQueue,
 		}
 	}, [
 		selectedWorkspace,
@@ -149,9 +146,7 @@ const Editor: FC<EditorProps> = ({
 		mentionPanelStore,
 		projectFilesStore,
 		topicModelStore,
-		messageQueue.editingQueueItem,
-		messageQueue.addToQueue,
-		messageQueue.finishEditQueueItem,
+		messageQueue,
 		recordSummaryService,
 	])
 
@@ -163,14 +158,18 @@ const Editor: FC<EditorProps> = ({
 
 	const messageQueueNode = messageQueue.queue.length > 0 && (
 		<div className="mb-2">
+			{/* Desktop overlay queue is a sibling of the input, so add the same border-border token other sessions inherit from their input card. Skip mobile to keep the existing unbordered overlay queue. */}
 			<MessageQueue
+				className={cn(!isMobile && "border border-border")}
 				queue={messageQueue.queue}
+				editorRef={messageQueue.editorRef}
 				queueStats={messageQueue.queueStats}
-				editingQueueItem={messageQueue.editingQueueItem}
 				onRemoveMessage={messageQueue.removeFromQueue}
 				onSendMessage={messageQueue.sendQueuedMessage}
 				onStartEdit={messageQueue.startEditQueueItem}
-				onCancelEdit={messageQueue.cancelEditQueueItem}
+				onWithdraw={messageQueue.withdrawQueueItem}
+				onMove={messageQueue.moveQueueItem}
+				isOperationPending={messageQueue.isQueueOperationPending}
 			/>
 		</div>
 	)

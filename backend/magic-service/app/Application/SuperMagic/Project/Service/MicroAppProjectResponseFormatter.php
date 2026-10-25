@@ -29,6 +29,9 @@ class MicroAppProjectResponseFormatter
         MicroAppEntity $record,
         ?string $projectName = null,
         ?array $extra = null,
+        ?int $expireDays = null,
+        ?string $expireAt = null,
+        ?string $defaultOpenFileId = null,
     ): array {
         return [
             'app_id' => (string) $record->getId(),
@@ -42,6 +45,9 @@ class MicroAppProjectResponseFormatter
             'target_ids' => $record->getTargetIds(),
             'cover_file_key' => $record->getCoverFileKey(),
             'extra' => $this->shareConfig->formatResponseExtra($extra),
+            'expire_days' => $expireDays,
+            'expire_at' => $expireAt,
+            'default_open_file_id' => $defaultOpenFileId,
             'publish_status' => $record->getPublishStatus(),
             'access_url' => $this->shareUrlBuilder->buildMicroAppShareUrl((string) $record->getId()) ?? $record->getAccessUrl(),
             'published_at' => $record->getPublishedAt(),
@@ -56,11 +62,15 @@ class MicroAppProjectResponseFormatter
         return [
             'app_id' => (string) $record->getId(),
             'project_id' => (string) $record->getProjectId(),
+            'organization_code' => $project->getUserOrganizationCode(),
             'project' => $this->formatProject($project),
             'publish' => $this->formatPublishRecord(
                 $record,
                 $project->getProjectName(),
                 $shareEntity?->getExtra(),
+                $shareEntity?->getExpireDays(),
+                $shareEntity?->getExpireAt(),
+                $shareEntity?->getDefaultOpenFileId() !== null ? (string) $shareEntity->getDefaultOpenFileId() : null,
             ),
         ];
     }
@@ -68,12 +78,12 @@ class MicroAppProjectResponseFormatter
     public function formatProject(ProjectEntity $project): array
     {
         return [
-            'id' => $project->getId(),
-            'workspace_id' => $project->getWorkspaceId(),
+            'id' => (string) $project->getId(),
+            'workspace_id' => $project->getWorkspaceId() !== null ? (string) $project->getWorkspaceId() : null,
             'project_name' => $project->getProjectName(),
             'project_description' => $project->getProjectDescription(),
             'project_mode' => $project->getProjectMode(),
-            'current_topic_id' => $project->getCurrentTopicId(),
+            'current_topic_id' => $project->getCurrentTopicId() !== null ? (string) $project->getCurrentTopicId() : null,
             'current_topic_status' => $project->getCurrentTopicStatus(),
             'created_at' => $project->getCreatedAt(),
             'updated_at' => $project->getUpdatedAt(),
@@ -110,10 +120,12 @@ class MicroAppProjectResponseFormatter
 
         return [
             'app_id' => (string) $record->getId(),
+            'organization_code' => $record->getOrganizationCode(),
             'resource_id' => $record->getResourceId(),
             'share_code' => $shareEntity->getShareCode(),
             'cover_url' => $coverUrls[$this->coverUrlMapKey($coverRow, $coverKey)] ?? '',
             'extra' => $this->shareConfig->formatResponseExtra($shareEntity->getExtra()),
+            'default_open_file_id' => $shareEntity->getDefaultOpenFileId() !== null ? (string) $shareEntity->getDefaultOpenFileId() : null,
         ];
     }
 

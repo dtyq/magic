@@ -10,7 +10,7 @@ import type {
 import MagicAvatar from "@/components/base/MagicAvatar"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { ScrollArea, ScrollBar } from "@/components/shadcn-ui/scroll-area"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { STATIC_DATABASE_PERMISSIONS_ENABLED } from "../databasePermissionFeatures"
 import DynamicPermissionPanel from "./DynamicPermissionPanel"
 

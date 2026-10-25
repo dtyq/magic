@@ -5,5 +5,5 @@ interface HeaderTrailingActionProps {
 }
 
 export default function HeaderTrailingAction({ children }: HeaderTrailingActionProps) {
-	return <div className="absolute right-1 top-0 flex h-8 shrink-0 items-center">{children}</div>
+	return <div className="flex shrink-0 items-center gap-1">{children}</div>
 }

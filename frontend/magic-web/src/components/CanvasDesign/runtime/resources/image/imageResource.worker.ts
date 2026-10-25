@@ -1,4 +1,6 @@
-import { parseImageDimensionsFromBlobHeader } from "./imageHeaderDimensions"
+import { parseImageMetadataFromBlobHeader } from "./imageHeaderDimensions"
+import { createOrientedImageBitmapFromBlob } from "./imageSourceUtils"
+import type { ImageExifOrientation, ImageOrientationMetadata } from "./imageOrientation"
 
 export type ImageResourceDecodeVariant = "low" | "preview" | "full"
 export type ImageResourceWorkerRequestType =
@@ -50,6 +52,9 @@ export interface ImageResourceWorkerResponse {
 	imageInfo?: {
 		naturalWidth: number
 		naturalHeight: number
+		orientation?: ImageExifOrientation
+		encodedWidth?: number
+		encodedHeight?: number
 		fileSize: number
 		mimeType: string
 		filename: string
@@ -210,17 +215,20 @@ async function getImageMetadata(options: {
 	const filename =
 		passedFilename || extractedFilename || `image.${getFileExtensionFromMimeType(contentType)}`
 
-	let dimensions = await parseImageDimensionsFromBlobHeader(blob)
+	let metadata = await parseImageMetadataFromBlobHeader(blob)
 
-	if (!dimensions && supportsImageBitmap) {
+	if (!metadata && supportsImageBitmap) {
 		// 支持 ImageBitmap：创建用于获取尺寸信息的 bitmap（稍后关闭）
-		const sizeBitmap = await createImageBitmap(blob)
-		dimensions = {
+		const sizeBitmap = await createOrientedImageBitmapFromBlob(blob)
+		metadata = {
 			width: sizeBitmap.width,
 			height: sizeBitmap.height,
+			orientation: 1,
+			encodedWidth: sizeBitmap.width,
+			encodedHeight: sizeBitmap.height,
 		}
 		sizeBitmap.close()
-	} else if (!dimensions) {
+	} else if (!metadata) {
 		// 不支持 ImageBitmap：使用 HTMLImageElement 获取尺寸（降级方案）
 		const img = await new Promise<HTMLImageElement>((resolve, reject) => {
 			const image = new Image()
@@ -228,22 +236,28 @@ async function getImageMetadata(options: {
 			image.onerror = reject
 			image.src = URL.createObjectURL(blob)
 		})
-		dimensions = {
+		metadata = {
 			width: img.naturalWidth,
 			height: img.naturalHeight,
+			orientation: 1,
+			encodedWidth: img.naturalWidth,
+			encodedHeight: img.naturalHeight,
 		}
 		URL.revokeObjectURL(img.src)
 	}
-	if (!dimensions) {
+	if (!metadata) {
 		throw new Error("Unable to read image dimensions")
 	}
 
-	const naturalWidth = dimensions.width
-	const naturalHeight = dimensions.height
+	const naturalWidth = metadata.width
+	const naturalHeight = metadata.height
 	return {
 		imageInfo: {
 			naturalWidth,
 			naturalHeight,
+			orientation: metadata.orientation,
+			encodedWidth: metadata.encodedWidth,
+			encodedHeight: metadata.encodedHeight,
 			fileSize,
 			mimeType: contentType,
 			filename,
@@ -264,6 +278,16 @@ async function createImageBitmapForVariant(options: {
 	targetHeight: number
 }> {
 	const { blob, imageInfo, variant, maxEdge } = options
+	const orientationMetadata: ImageOrientationMetadata | undefined =
+		imageInfo.orientation && imageInfo.encodedWidth && imageInfo.encodedHeight
+			? {
+					width: imageInfo.naturalWidth,
+					height: imageInfo.naturalHeight,
+					orientation: imageInfo.orientation,
+					encodedWidth: imageInfo.encodedWidth,
+					encodedHeight: imageInfo.encodedHeight,
+				}
+			: undefined
 	const resize = getResizeDimensions({
 		width: imageInfo.naturalWidth,
 		height: imageInfo.naturalHeight,
@@ -271,7 +295,7 @@ async function createImageBitmapForVariant(options: {
 	})
 
 	if (!resize.resized) {
-		const imageBitmap = await createImageBitmap(blob)
+		const imageBitmap = await createOrientedImageBitmapFromBlob(blob, {}, orientationMetadata)
 		return {
 			imageBitmap,
 			resized: false,
@@ -280,11 +304,24 @@ async function createImageBitmapForVariant(options: {
 		}
 	}
 
-	const imageBitmap = await createImageBitmap(blob, {
-		resizeWidth: resize.width,
-		resizeHeight: resize.height,
-		resizeQuality: "high",
-	})
+	let imageBitmap = await createOrientedImageBitmapFromBlob(
+		blob,
+		{
+			resizeWidth: resize.width,
+			resizeHeight: resize.height,
+			resizeQuality: "high",
+		},
+		orientationMetadata,
+	)
+	if (imageBitmap.width !== resize.width || imageBitmap.height !== resize.height) {
+		const resizedBitmap = await createImageBitmap(imageBitmap, {
+			resizeWidth: resize.width,
+			resizeHeight: resize.height,
+			resizeQuality: "high",
+		})
+		imageBitmap.close()
+		imageBitmap = resizedBitmap
+	}
 	return {
 		imageBitmap,
 		resized: true,

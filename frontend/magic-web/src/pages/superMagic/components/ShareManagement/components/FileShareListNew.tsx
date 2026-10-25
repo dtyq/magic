@@ -19,7 +19,7 @@ import {
 	convertFileShareItemToShareItem,
 	getShareDisplayName,
 } from "../utils/shareTypeHelpers"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
 import { useShareItemActions } from "../hooks/useShareItemActions"
 import { useShareSuccessModal } from "../hooks/useShareSuccessModal"

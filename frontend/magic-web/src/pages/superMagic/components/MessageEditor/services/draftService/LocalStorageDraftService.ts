@@ -24,10 +24,13 @@ export class LocalStorageDraftService implements DraftServiceInterface {
 		data: Omit<DraftData, "createdAt" | "updatedAt">,
 	): Promise<void> {
 		try {
-			const latestDraft = await this.loadLatestDraftVersion(key)
+			const latestDraft = await this.loadDraft(key)
 
 			// 如果数据没有变化，则不保存
-			if (isEqualData(data, latestDraft)) {
+			if (
+				isEqualData(data, latestDraft) &&
+				data.isCurrentSnapshot === latestDraft?.isCurrentSnapshot
+			) {
 				return
 			}
 
@@ -72,13 +75,18 @@ export class LocalStorageDraftService implements DraftServiceInterface {
 
 			const latestDraft = await this.loadFirstDifferentTimeVersion(key, now)
 
-			if (!latestDraft && !hasMeaningfulData(data)) {
+			if (!latestDraft && !hasMeaningfulData(data) && !force) {
 				return
 			}
 
 			let deleteVersionId: string | null = null
 
-			if (isEqualData(data, latestDraft) && latestDraft?.versionId) {
+			if (
+				!force &&
+				isEqualData(data, latestDraft) &&
+				latestDraft?.versionId &&
+				latestDraft.versionId !== versionData.versionId
+			) {
 				deleteVersionId = latestDraft?.versionId
 			}
 
@@ -166,7 +174,7 @@ export class LocalStorageDraftService implements DraftServiceInterface {
 		try {
 			const versions: DraftVersionInfo[] = []
 			const baseKey = generateKey(key)
-			const versionsBaseKey = baseKey.replace(this.keyPrefix, this.versionsKeyPrefix)
+			const versionsBaseKey = `${baseKey}:`
 
 			// Find all keys that match our versions prefix
 			for (let i = 0; i < localStorage.length; i++) {
@@ -214,7 +222,7 @@ export class LocalStorageDraftService implements DraftServiceInterface {
 	): Promise<DraftVersionInfo[]> {
 		try {
 			const versions: DraftVersionInfo[] = []
-			const projectPrefix = `${this.versionsKeyPrefix}:${key.workspaceId}:${key.projectId}:`
+			const projectPrefix = generateKey({ ...key, topicId: "" })
 
 			// Find all keys that match our project prefix
 			for (let i = 0; i < localStorage.length; i++) {
@@ -224,7 +232,16 @@ export class LocalStorageDraftService implements DraftServiceInterface {
 					if (data) {
 						try {
 							const draftData = JSON.parse(data) as DraftData
-							if (draftData.versionId && draftData.versionTimestamp) {
+							if (
+								draftData.versionId &&
+								draftData.versionTimestamp &&
+								draftData.topicId &&
+								storageKey ===
+									generateVersionKey(
+										{ ...key, topicId: draftData.topicId },
+										draftData.versionId,
+									)
+							) {
 								versions.push({
 									versionId: draftData.versionId,
 									versionTimestamp: draftData.versionTimestamp,
@@ -304,8 +321,8 @@ export class LocalStorageDraftService implements DraftServiceInterface {
 
 	async deleteDraftVersions(key: DraftKey): Promise<void> {
 		try {
-			const versionsBaseKey = generateKey(key).replace(this.keyPrefix, this.versionsKeyPrefix)
-			for (let i = 0; i < localStorage.length; i++) {
+			const versionsBaseKey = `${generateKey(key)}:`
+			for (let i = localStorage.length - 1; i >= 0; i--) {
 				const storageKey = localStorage.key(i)
 				if (storageKey && storageKey.startsWith(versionsBaseKey)) {
 					localStorage.removeItem(storageKey)

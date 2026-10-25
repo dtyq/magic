@@ -1,4 +1,6 @@
-import { useMemo } from "react"
+import magicToast from "@/components/base/MagicToaster/utils"
+import { useCallback, useEffect, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { messagesConverter } from "@/pages/superMagic/components/MessageList/helpers"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import {
@@ -9,6 +11,7 @@ import {
 	type AskUserCardData,
 	type AskUserQuestionData,
 	getAskUserNode,
+	isAskUserTaskSuspended,
 	parseAskUserAnswerContent,
 	parseAskUserContent,
 } from "@/pages/superMagic/components/MessageList/utils/askUser"
@@ -185,11 +188,11 @@ export function useAskUserViewModel({
 	node,
 	selectedTopic,
 }: Pick<NodeProps, "node" | "selectedTopic">) {
+	const { t } = useTranslation("super")
 	const askUserNode = getAskUserNode(node as typeof node)
 	const parsedContent = parseAskUserContent(askUserNode?.content)
 	const askUserTool = askUserNode?.tool as
-		| { status?: string; detail?: { data?: Record<string, unknown> } }
-		| undefined
+		{ status?: string; detail?: { data?: Record<string, unknown> } } | undefined
 	const detailData =
 		(askUserTool?.detail?.data as Record<string, unknown> | undefined) || askUserEmptyDetailData
 	const detailStatus = typeof detailData.status === "string" ? detailData.status : ""
@@ -248,17 +251,51 @@ export function useAskUserViewModel({
 		(hasNewerAskUserCard || hasNewerUserMessage)
 	const effectiveAskUser = isStalePendingCard
 		? { ...resolvedAskUser, status: ASK_USER_CARD_STATUS.cancelled }
-		: resolvedAskUser
+		: isPending && isAskUserTaskSuspended(selectedTopic)
+			? { ...resolvedAskUser, status: ASK_USER_CARD_STATUS.cancelled }
+			: resolvedAskUser
 	const resolvedErrorState = errorState
 	const hasMultipleQuestions = effectiveAskUser.questions.length > 1
-	const { isExpiredLocal, remainingText } = useAskUserCountdown({
+	// 只有后端明确返回零值才无期限；解析失败／缺字段产生的默认零值仍按原逻辑过期。
+	const hasNoDeadline = detailData.expires_at === 0 || parsedContent?.expires_at === 0
+	const { isExpiredLocal: countdownExpired, remainingText } = useAskUserCountdown({
 		expiresAt: effectiveAskUser.expiresAt,
 		isActive: effectiveAskUser.status === ASK_USER_CARD_STATUS.pending,
 	})
+	const isExpiredLocal = !hasNoDeadline && countdownExpired
 	const shouldDisableInteraction =
 		Boolean(resolvedErrorState) ||
 		effectiveAskUser.status !== ASK_USER_CARD_STATUS.pending ||
 		isExpiredLocal
+	const expiryToastKey = `ask-user-expiry-${
+		selectedTopic?.chat_topic_id || "topic"
+	}-${resolvedAskUser.questionId || "question"}`
+	const showExpiryTip = useCallback(() => {
+		magicToast.warning({
+			key: expiryToastKey,
+			content: t("askUser.status.expiredPending"),
+			duration: 0,
+		})
+	}, [expiryToastKey, t])
+	const showClosedTip = useCallback(() => {
+		magicToast.warning({
+			key: expiryToastKey,
+			content: t("askUser.status.alreadyProcessed"),
+			duration: 4000,
+		})
+	}, [expiryToastKey, t])
+	const clearExpiryTip = useCallback(() => {
+		magicToast.destroy(expiryToastKey)
+	}, [expiryToastKey])
+
+	useEffect(() => {
+		if (resolvedErrorState || effectiveAskUser.status !== ASK_USER_CARD_STATUS.pending) {
+			clearExpiryTip()
+		} else if (isExpiredLocal) {
+			showExpiryTip()
+		}
+		return clearExpiryTip
+	}, [clearExpiryTip, effectiveAskUser.status, isExpiredLocal, resolvedErrorState, showExpiryTip])
 	const shouldRender = Boolean(askUserFromNode || parsedContent || hasDetailQuestions)
 	const askUserToolId =
 		typeof (askUserNode?.tool as { id?: unknown } | undefined)?.id === "string"
@@ -281,6 +318,8 @@ export function useAskUserViewModel({
 				"",
 		},
 		isDisabled: shouldDisableInteraction,
+		onExpiredInteraction: showExpiryTip,
+		onTerminalError: showClosedTip,
 	})
 	const answeredQuestionCount = getAnsweredQuestionCount({
 		askUser: effectiveAskUser,
@@ -292,6 +331,7 @@ export function useAskUserViewModel({
 		askUserFromNode,
 		errorState: resolvedErrorState,
 		hasMultipleQuestions,
+		hasNoDeadline,
 		isExpiredLocal,
 		remainingText,
 		resolvedAskUser: effectiveAskUser,

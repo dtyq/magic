@@ -10,6 +10,7 @@ import type { CommandRecord } from "../core/types"
 import type { ElementSelector } from "../features/ElementSelector"
 import { EditorLogger } from "../utils/EditorLogger"
 import { getElementSelector } from "../utils/dom"
+import { markSourceNode } from "../utils/sourceNodes"
 
 interface InsertedImageState {
     /** Selector of the parent element */
@@ -129,6 +130,7 @@ export class DragDropManager {
         } else {
             parent.insertBefore(img, referenceElement.nextSibling)
         }
+        markSourceNode(img)
 
         // Record for undo
         const imgSelector = getElementSelector(img)
@@ -207,6 +209,7 @@ export class DragDropManager {
             } else {
                 parent.insertBefore(img, children[state.siblingIndex])
             }
+            markSourceNode(img)
             return true
         } catch (error) {
             EditorLogger.warn("DragDropManager: Failed to redo image insertion", error)

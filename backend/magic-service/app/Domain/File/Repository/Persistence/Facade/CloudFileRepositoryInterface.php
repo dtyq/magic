@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\File\Repository\Persistence\Facade;
 
+use App\Domain\File\Entity\ValueObject\FileDataIsolation;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
@@ -34,7 +35,7 @@ interface CloudFileRepositoryInterface
 
     public function upload(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true): void;
 
-    public function getSimpleUploadTemporaryCredential(string $organizationCode, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, bool $sts = false): array;
+    public function getSimpleUploadTemporaryCredential(FileDataIsolation $dataIsolation, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, bool $sts = false): array;
 
     /**
      * Download file using chunk download.
@@ -242,6 +243,20 @@ interface CloudFileRepositoryInterface
         StorageBucketType $bucketType = StorageBucketType::Private,
         array $options = []
     ): string;
+
+    /**
+     * Generate multiple pre-signed URLs with one temporary credential request.
+     *
+     * @param array<int, array{object_key:string, options?:array}> $items
+     * @return array<string, string> URLs indexed by object key
+     */
+    public function getPreSignedUrlsByCredential(
+        string $organizationCode,
+        array $items,
+        StorageBucketType $bucketType = StorageBucketType::Private,
+        int $credentialExpires = 7200,
+        array $options = []
+    ): array;
 
     /**
      * Delete multiple objects by credential.

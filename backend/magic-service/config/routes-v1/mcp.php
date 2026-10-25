@@ -4,11 +4,13 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
+use App\Interfaces\MCP\Facade\Admin\MCPAuthorizationCapabilityAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPOAuth2BindingApi;
 use App\Interfaces\MCP\Facade\Admin\MCPServerAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPServerToolAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPSuperMagicProjectSettingAdminApi;
 use App\Interfaces\MCP\Facade\Admin\MCPUserSettingAdminApi;
+use App\Interfaces\MCP\Facade\Public\MCPAuthorizationCallbackPublicApi;
 use Dtyq\PhpMcp\Server\Framework\Hyperf\HyperfMcpServer;
 use Hyperf\HttpServer\Router\Router;
 
@@ -41,6 +43,12 @@ Router::addGroup('/api/v1/mcp', static function () {
     Router::addGroup('/oauth2', static function () {
         Router::post('/bind', [MCPOAuth2BindingApi::class, 'bind']);
         Router::post('/unbind', [MCPOAuth2BindingApi::class, 'unbind']);
+    });
+
+    Router::addGroup('/authorization', static function () {
+        Router::post('/capabilities', [MCPAuthorizationCapabilityAdminApi::class, 'analyze']);
+        // 授权服务器回调不携带 Magic 登录态，由 state 恢复用户和组织上下文。
+        Router::get('/callback', [MCPAuthorizationCallbackPublicApi::class, 'callback']);
     });
 
     Router::addGroup('/sse', static function () {

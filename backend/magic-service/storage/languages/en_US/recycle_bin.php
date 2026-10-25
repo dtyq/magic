@@ -5,6 +5,20 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'preview' => [
+        'unavailable' => 'This recycle bin file is unavailable or you no longer have access.',
+        'expired' => 'This recycle bin file has expired.',
+        'directory' => 'Recycle bin folders cannot be previewed.',
+    ],
+    'query' => [
+        'project_invalid' => 'The project could not be determined. Reopen its recycle bin.',
+        'time_required' => 'Select a deletion time range before searching by name.',
+        'time_invalid' => 'The deletion time is invalid. Select it again.',
+        'time_range_invalid' => 'The end must follow the start and the range must stay within the allowed duration.',
+        'mode_invalid' => 'The project recycle bin query is invalid. Search again.',
+        'cursor_invalid' => 'The query changed or the page cursor is invalid. Search again.',
+        'count_keyword_invalid' => 'Search for file names using a deletion time range.',
+    ],
     'resource_type' => [
         'workspace' => 'Workspace',
         'project' => 'Project',

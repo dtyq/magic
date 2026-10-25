@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BMW — Sheer Driving Pleasure | The All-Electric i7 & i4</title>
+  <style>
+    :root {
+      --canvas: #ffffff; --surface-soft: #f7f7f7; --surface-card: #fafafa;
+      --surface-dark: #1a2129; --surface-dark-elevated: #262e38;
+      --primary: #1c69d4; --primary-active: #0653b6; --ink: #262626; --body: #3c3c3c;
+      --muted: #6b6b6b; --hairline: #e6e6e6; --hairline-strong: #cccccc;
+      --on-primary: #ffffff; --on-dark: #ffffff; --on-dark-soft: #bbbbbb;
+      --eco-green: #10b981; --sport-red: #e22718;
+      --font-bmw: "BMW Type Next Latin", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--canvas); color: var(--body);
+      font-family: var(--font-bmw); font-weight: 300; line-height: 1.55;
+      -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    .bmw-nav {
+      position: sticky; top: 0; z-index: 100;
+      height: 64px; background: #ffffff; border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 48px;
+    }
+    .nav-left { display: flex; align-items: center; gap: 36px; }
+    .bmw-roundel { width: 38px; height: 38px; }
+    .nav-menu { display: flex; gap: 24px; list-style: none; }
+    .nav-item { font-size: 14px; font-weight: 400; color: var(--ink); letter-spacing: 0.3px; }
+    .nav-item.active { color: var(--primary); font-weight: 700; }
+    .nav-right { font-size: 13px; font-weight: 700; }
+    .nav-cta-link { color: var(--primary); letter-spacing: 1px; text-transform: uppercase; display: inline-flex; align-items: center; gap: 4px; }
+
+    /* Hero Navy Band - First 500px Viewport */
+    .hero-navy-band {
+      background-color: var(--surface-dark); color: var(--on-dark);
+      padding: 40px 48px 44px; border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .hero-inner { max-width: 1320px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.2fr; gap: 36px; align-items: center; }
+    .hero-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--primary); margin-bottom: 10px; }
+    .hero-headline { font-size: clamp(32px, 4vw, 50px); font-weight: 700; line-height: 1.05; color: var(--on-dark); margin-bottom: 14px; }
+    .hero-lead { font-size: 15px; font-weight: 300; line-height: 1.6; color: var(--on-dark-soft); margin-bottom: 22px; }
+    .hero-cta-group { display: flex; gap: 14px; align-items: center; }
+
+    /* Strict 0px Rectangular Buttons */
+    .btn-bmw-primary {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 48px; padding: 0 30px; background: var(--primary); color: var(--on-primary);
+      font-size: 14px; font-weight: 700; letter-spacing: 0.5px; border-radius: 0; border: none; cursor: pointer;
+    }
+    .btn-bmw-secondary-dark {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 48px; padding: 0 28px; background: transparent; color: var(--on-dark);
+      font-size: 14px; font-weight: 700; letter-spacing: 0.5px; border-radius: 0;
+      border: 1px solid var(--on-dark); cursor: pointer;
+    }
+
+    .cockpit-preview-card { background: var(--surface-dark-elevated); border: 1px solid rgba(255,255,255,0.15); border-radius: 0; padding: 16px; }
+    .cockpit-title-bar { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--on-dark-soft); margin-bottom: 10px; }
+    .curved-display-svg { width: 100%; height: 210px; }
+
+    /* Dynamic Driving Modes Strip */
+    .modes-strip-section { background: var(--surface-soft); padding: 36px 48px; border-bottom: 1px solid var(--hairline); }
+    .modes-container { max-width: 1320px; margin: 0 auto; }
+    .modes-title { font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .modes-subtitle { font-size: 13.5px; color: var(--muted); font-weight: 300; margin-bottom: 20px; }
+    .driving-modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mode-card { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 0; padding: 20px; cursor: pointer; }
+    .mode-card.active-mode { border: 2px solid var(--primary); }
+    .mode-accent-bar { height: 3px; width: 100%; margin-bottom: 14px; }
+    .bar-sport { background: var(--sport-red); }
+    .bar-comfort { background: var(--primary); }
+    .bar-eco { background: var(--eco-green); }
+    .mode-name { font-size: 16px; font-weight: 700; color: var(--ink); text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .mode-badge { font-size: 10.5px; font-weight: 700; padding: 2px 6px; background: var(--surface-soft); color: var(--muted); }
+    .mode-desc { font-size: 13px; font-weight: 300; color: var(--body); line-height: 1.5; margin-bottom: 14px; }
+    .mode-telemetry-row { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 700; padding-top: 10px; border-top: 1px solid var(--hairline); }
+
+    /* Model Showcase Grid */
+    .showcase-section { max-width: 1320px; margin: 0 auto; padding: 60px 48px; }
+    .section-head { margin-bottom: 30px; }
+    .section-tag { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--primary); margin-bottom: 6px; }
+    .section-heading { font-size: 28px; font-weight: 700; color: var(--ink); }
+    .model-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .bmw-model-card { background: var(--canvas); border: 1px solid var(--hairline); padding: 20px; display: flex; flex-direction: column; }
+    .model-photo-plate { background: var(--surface-card); height: 140px; margin: -20px -20px 16px -20px; display: flex; align-items: center; justify-content: center; }
+    .model-name { font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .model-tagline { font-size: 13px; font-weight: 300; color: var(--muted); margin-bottom: 14px; }
+    .spec-table-compact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+    .spec-item-val { font-size: 15px; font-weight: 700; color: var(--ink); }
+    .spec-item-lbl { font-size: 10.5px; color: var(--muted); }
+    .bmw-text-link { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink); display: inline-flex; align-items: center; gap: 4px; margin-top: auto; }
+    .bmw-text-link:hover { color: var(--primary); }
+    .bmw-footer { background: var(--surface-soft); border-top: 1px solid var(--hairline); padding: 44px 48px 32px; color: var(--body); }
+    .footer-inner { max-width: 1320px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-bottom: 28px; }
+    .footer-col-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+    .footer-col-links { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+    .footer-legal-bar { border-top: 1px solid var(--hairline-strong); padding-top: 18px; display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+
+    @media (max-width: 900px) {
+      .bmw-nav { padding: 0 20px; }
+      .hero-inner, .driving-modes-grid, .model-card-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="bmw-nav">
+    <div class="nav-left">
+      <svg class="bmw-roundel" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="19" stroke="#262626" stroke-width="1.8" fill="#ffffff"/>
+        <circle cx="20" cy="20" r="14" fill="#262626"/>
+        <path d="M20 20 L20 6 A14 14 0 0 1 34 20 Z" fill="#0066b1"/>
+        <path d="M20 20 L34 20 A14 14 0 0 1 20 34 Z" fill="#ffffff"/>
+        <path d="M20 20 L20 34 A14 14 0 0 1 6 20 Z" fill="#0066b1"/>
+        <path d="M20 20 L6 20 A14 14 0 0 1 20 6 Z" fill="#ffffff"/>
+        <circle cx="20" cy="20" r="14" stroke="#ffffff" stroke-width="0.8" fill="none"/>
+        <text x="20" y="4.5" font-family="'BMW Type Next Latin', sans-serif" font-size="3.5" font-weight="700" fill="#262626" text-anchor="middle">BMW</text>
+      </svg>
+      <ul class="nav-menu">
+        <li><a href="#" class="nav-item active">Models</a></li>
+        <li><a href="#" class="nav-item">Electric i</a></li>
+        <li><a href="#" class="nav-item">Cockpit Tech</a></li>
+      </ul>
+    </div>
+    <div class="nav-right">
+      <a href="#" class="nav-cta-link">
+        <span>Build Your BMW</span>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <path d="M2 6H10M10 6L6 2M10 6L6 10" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <section class="hero-navy-band">
+    <div class="hero-inner">
+      <div class="hero-content">
+        <div class="hero-eyebrow">Bavarian Electric Luxury</div>
+        <h1 class="hero-headline">The New BMW i7 & i4 eDrive</h1>
+        <p class="hero-lead">
+          Pioneering electric mobility defined by whisper-quiet performance, the revolutionary BMW Curved Display, and intelligent dynamic drive modes.
+        </p>
+        <div class="hero-cta-group">
+          <button class="btn-bmw-primary">Explore The i7</button>
+          <button class="btn-bmw-secondary-dark">Configure Yours</button>
+        </div>
+      </div>
+
+      <!-- Curved Display Instrument Cluster SVG -->
+      <div class="cockpit-preview-card">
+        <div class="cockpit-title-bar">
+          <span>BMW Curved Display · OS 8.5</span>
+          <span style="color: #1c69d4;">eDrive Active</span>
+        </div>
+        <svg class="curved-display-svg" viewBox="0 0 520 215" fill="none">
+          <defs>
+            <linearGradient id="dispGlass" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#0a1017"/>
+              <stop offset="50%" stop-color="#141d28"/>
+              <stop offset="100%" stop-color="#0e1722"/>
+            </linearGradient>
+            <linearGradient id="ambBar" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#1c69d4" stop-opacity="0.8"/>
+              <stop offset="50%" stop-color="#4393ff" stop-opacity="1"/>
+              <stop offset="100%" stop-color="#1c69d4" stop-opacity="0.8"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Outer Display Housing -->
+          <path d="M12 20 Q260 8 508 20 L502 188 Q260 200 18 188 Z" fill="url(#dispGlass)" stroke="#2f3b48" stroke-width="1.8"/>
+
+          <!-- 12.3" Instrument Cluster (Left) -->
+          <path d="M55 150 A60 60 0 1 1 150 150" stroke="#253242" stroke-width="6" fill="none"/>
+          <path d="M55 150 A60 60 0 0 1 115 42" stroke="#1c69d4" stroke-width="6" fill="none" stroke-linecap="round"/>
+          <text x="102" y="108" font-family="'BMW Type Next Latin', sans-serif" font-size="30" font-weight="700" fill="#ffffff" text-anchor="middle">128</text>
+          <text x="102" y="126" font-family="'BMW Type Next Latin', sans-serif" font-size="10" font-weight="400" fill="#889bb0" text-anchor="middle">KM / H</text>
+          <text x="102" y="152" font-family="'BMW Type Next Latin', sans-serif" font-size="9.5" font-weight="700" fill="#10b981" text-anchor="middle">READY · D</text>
+
+          <line x1="205" y1="30" x2="205" y2="180" stroke="#1f2c3a" stroke-width="1.2" stroke-dasharray="2 3"/>
+
+          <!-- 14.9" Central Control Display (Right) -->
+          <rect x="225" y="40" width="255" height="125" fill="#101822" stroke="#1f2c3a" stroke-width="1"/>
+          <path d="M240 135 C270 110, 310 145, 350 95 C390 65, 430 85, 465 60" stroke="#1c69d4" stroke-width="2.2" fill="none"/>
+          <text x="240" y="62" font-family="'BMW Type Next Latin', sans-serif" font-size="11" font-weight="700" fill="#ffffff">Navigation · Munich Atelier</text>
+          <text x="240" y="78" font-family="'BMW Type Next Latin', sans-serif" font-size="9.5" font-weight="300" fill="#889bb0">480 km remaining · Clean Flow</text>
+
+          <rect x="240" y="95" width="95" height="24" fill="#182533" stroke="#253549" stroke-width="1"/>
+          <text x="248" y="111" font-family="'BMW Type Next Latin', sans-serif" font-size="10" font-weight="700" fill="#ffffff">92% SOC</text>
+          <text x="305" y="111" font-family="'BMW Type Next Latin', sans-serif" font-size="8.5" font-weight="400" fill="#10b981">+195kW</text>
+
+          <!-- Interaction Bar Ambient Strip -->
+          <path d="M18 192 Q260 204 502 192" stroke="url(#ambBar)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="modes-strip-section">
+    <div class="modes-container">
+      <h2 class="modes-title">My Modes: Dynamic Bavarian Control</h2>
+      <p class="modes-subtitle">Harmonizing chassis dynamics, steering resistance, and acoustic drive response.</p>
+
+      <div class="driving-modes-grid">
+        <div class="mode-card">
+          <div class="mode-accent-bar bar-sport"></div>
+          <div class="mode-name">
+            <span>Sport Mode</span>
+            <span class="mode-badge">Dynamic</span>
+          </div>
+          <p class="mode-desc">Stiffened adaptive M suspension, spontaneous throttle response, and Hans Zimmer IconicSounds.</p>
+          <div class="mode-telemetry-row">
+            <span>Dampers: Stiffened</span>
+            <span style="color:var(--ink);">0-100: 3.9s</span>
+          </div>
+        </div>
+
+        <div class="mode-card active-mode">
+          <div class="mode-accent-bar bar-comfort"></div>
+          <div class="mode-name">
+            <span>Comfort Mode</span>
+            <span class="mode-badge" style="color:var(--primary);">Active</span>
+          </div>
+          <p class="mode-desc">Bavarian touring balance with adaptive two-axle air suspension gliding over road undulations.</p>
+          <div class="mode-telemetry-row">
+            <span>Acoustics: Quiet</span>
+            <span style="color:var(--ink);">Regen: Balanced</span>
+          </div>
+        </div>
+
+        <div class="mode-card">
+          <div class="mode-accent-bar bar-eco"></div>
+          <div class="mode-name">
+            <span>Eco Pro Mode</span>
+            <span class="mode-badge">Efficiency</span>
+          </div>
+          <p class="mode-desc">Intelligent predictive coasting and thermal management adding up to 25% electric range.</p>
+          <div class="mode-telemetry-row">
+            <span>Range Bonus: +65 km</span>
+            <span style="color:var(--ink);">Limit: 130 km/h</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Model Showcase Cards -->
+  <section class="showcase-section">
+    <div class="section-head">
+      <div class="section-tag">Pure Electric Fleet</div>
+      <h2 class="section-heading">Bavarian Precision. Three Statements.</h2>
+    </div>
+
+    <div class="model-card-grid">
+      <!-- BMW i7 -->
+      <div class="bmw-model-card">
+        <div class="model-photo-plate">
+          <svg width="180" height="70" viewBox="0 0 180 70" fill="none">
+            <path d="M15 50 Q38 47 58 38 L90 24 Q125 22 145 34 L170 50 Z" stroke="#1c69d4" stroke-width="1.8"/>
+            <circle cx="48" cy="50" r="10" stroke="#262626" stroke-width="2" fill="#fff"/>
+            <circle cx="135" cy="50" r="10" stroke="#262626" stroke-width="2" fill="#fff"/>
+            <text x="90" y="64" font-family="'BMW Type Next Latin', sans-serif" font-size="8.5" font-weight="700" fill="#1c69d4" text-anchor="middle">BMW i7 SEDAN</text>
+          </svg>
+        </div>
+        <h3 class="model-name">BMW i7 xDrive60</h3>
+        <p class="model-tagline">Flagship luxury electric sedan with 31.3" 8K Theater Screen.</p>
+        <div class="spec-table-compact">
+          <div><div class="spec-item-val">544 HP</div><div class="spec-item-lbl">Power</div></div>
+          <div><div class="spec-item-val">625 KM</div><div class="spec-item-lbl">Range</div></div>
+          <div><div class="spec-item-val">4.7 S</div><div class="spec-item-lbl">0-100</div></div>
+        </div>
+        <a href="#" class="bmw-text-link">Learn More ›</a>
+      </div>
+
+      <!-- BMW i4 M50 -->
+      <div class="bmw-model-card">
+        <div class="model-photo-plate">
+          <svg width="180" height="70" viewBox="0 0 180 70" fill="none">
+            <path d="M18 50 Q40 46 60 36 L94 23 Q120 22 140 34 L165 50 Z" stroke="#262626" stroke-width="1.8"/>
+            <circle cx="50" cy="50" r="10" stroke="#262626" stroke-width="2" fill="#fff"/>
+            <circle cx="132" cy="50" r="10" stroke="#262626" stroke-width="2" fill="#fff"/>
+            <text x="90" y="64" font-family="'BMW Type Next Latin', sans-serif" font-size="8.5" font-weight="700" fill="#262626" text-anchor="middle">BMW i4 M50 COUPÉ</text>
+          </svg>
+        </div>
+        <h3 class="model-name">BMW i4 M50</h3>
+        <p class="model-tagline">Dual-motor all-wheel drive performance with precision M tuning.</p>
+        <div class="spec-table-compact">
+          <div><div class="spec-item-val">544 HP</div><div class="spec-item-lbl">Power</div></div>
+          <div><div class="spec-item-val">520 KM</div><div class="spec-item-lbl">Range</div></div>
+          <div><div class="spec-item-val">3.9 S</div><div class="spec-item-lbl">0-100</div></div>
+        </div>
+        <a href="#" class="bmw-text-link">Learn More ›</a>
+      </div>
+
+      <!-- BMW iX xDrive50 -->
+      <div class="bmw-model-card">
+        <div class="model-photo-plate">
+          <svg width="180" height="70" viewBox="0 0 180 70" fill="none">
+            <path d="M16 50 Q36 42 54 32 L82 22 Q128 20 144 32 L168 50 Z" stroke="#262626" stroke-width="1.8"/>
+            <circle cx="46" cy="50" r="10" stroke="#262626" stroke-width="2" fill="#fff"/>
+            <circle cx="136" cy="50" r="10" stroke="#262626" stroke-width="2" fill="#fff"/>
+            <text x="90" y="64" font-family="'BMW Type Next Latin', sans-serif" font-size="8.5" font-weight="700" fill="#262626" text-anchor="middle">BMW iX SAV</text>
+          </svg>
+        </div>
+        <h3 class="model-name">BMW iX xDrive50</h3>
+        <p class="model-tagline">Visionary Sports Activity Vehicle with Carbon Cage architecture.</p>
+        <div class="spec-table-compact">
+          <div><div class="spec-item-val">523 HP</div><div class="spec-item-lbl">Power</div></div>
+          <div><div class="spec-item-val">630 KM</div><div class="spec-item-lbl">Range</div></div>
+          <div><div class="spec-item-val">4.6 S</div><div class="spec-item-lbl">0-100</div></div>
+        </div>
+        <a href="#" class="bmw-text-link">Learn More ›</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bavarian Footer -->
+  <footer class="bmw-footer">
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-col-title">Models</div>
+          <ul class="footer-col-links">
+            <li><a href="#">Electric i Models</a></li>
+            <li><a href="#">Sedans & Coupés</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Electric Life</div>
+          <ul class="footer-col-links">
+            <li><a href="#">Charging Solutions</a></li>
+            <li><a href="#">Range Calculator</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Services</div>
+          <ul class="footer-col-links">
+            <li><a href="#">Book Test Drive</a></li>
+            <li><a href="#">Financial Services</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Innovation</div>
+          <ul class="footer-col-links">
+            <li><a href="#">OS 8.5 Curved Display</a></li>
+            <li><a href="#">Bavarian Engineering</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-legal-bar">
+        <span>© BMW AG, Munich, Germany 2026.</span>
+        <span>WLTP: 18.2–21.4 kWh/100 km · 0 g/km CO2</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -183,6 +183,19 @@ describe("SlidesTemplateInlinePreview", () => {
 		).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"])
 	})
 
+	it("keeps the focused page after normalizing preview image URLs", () => {
+		renderPreview({
+			focus: {
+				...focus,
+				tile: { ...focus.tile, imageUrl: template.preview_image_urls?.[2] },
+			},
+		})
+
+		expect(screen.getByTestId("slides-template-inline-preview-page-index")).toHaveTextContent(
+			"3 / 8",
+		)
+	})
+
 	it("centers the active thumbnail after switching pages", () => {
 		renderPreview()
 		const thumbnailRail = screen.getByTestId("slides-template-inline-preview-thumbnail-rail")

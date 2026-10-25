@@ -36,6 +36,7 @@ class GenerateImageFormRequest extends FormRequest
             'reference_image_options.*.path' => 'nullable|string|max:512',
             'reference_image_options.*.crop' => 'nullable|array',
             'image_generation_config' => 'nullable|array',
+            'extra' => 'nullable|array',
         ];
     }
 
@@ -53,6 +54,7 @@ class GenerateImageFormRequest extends FormRequest
             'reference_images' => trans('design.attributes.reference_images'),
             'reference_images.*' => trans('design.attributes.reference_image'),
             'image_generation_config' => trans('design.attributes.image_generation_config'),
+            'extra' => trans('design.attributes.extra'),
         ];
     }
 

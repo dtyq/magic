@@ -20,9 +20,44 @@ const SUMMARY_TYPE_ORDER: RecordingSummaryType[] = [
 
 const EXCLUDED_DYNAMIC_TYPES = new Set(["audio", "notes", "transcript", "magic_project"])
 
+/** Lists audio extensions accepted by the upload flow and browser player. */
+export const RECORDING_AUDIO_EXTENSIONS = [
+	"raw",
+	"wav",
+	"mp3",
+	"ogg",
+	"webm",
+	"m4a",
+	"aac",
+	"flac",
+	"opus",
+] as const
+
 /** Returns the most stable display filename available on an attachment item. */
 export function getAttachmentFileName(file: AttachmentItem | undefined): string {
 	return file?.file_name || file?.filename || file?.display_filename || file?.name || ""
+}
+
+/** Checks whether the recording bundle explicitly declares a non-empty file path. */
+export function hasConfiguredRecordingFile(
+	fileMap: RecordingDetailFileMap | null | undefined,
+	type: string,
+): boolean {
+	const configuredPath = fileMap?.magicProjectConfig?.files?.[type]
+	return typeof configuredPath === "string" && configuredPath.trim().length > 0
+}
+
+/**
+ * Reports whether the right panel will render a tab strip (and therefore an expand entry).
+ * A missing tab strip would strand a collapsed transcript column, so callers disable collapsing.
+ */
+export function hasRecordingDetailTabStrip(
+	fileMap: RecordingDetailFileMap | null | undefined,
+	showNotesTab = true,
+): boolean {
+	if (fileMap?.summaryFiles.length) return true
+	if (showNotesTab && hasConfiguredRecordingFile(fileMap, "notes")) return true
+	return false
 }
 
 /** Flattens tree/list attachment data into one deduplicated file list for lookup. */
@@ -54,10 +89,12 @@ export function buildRecordingDetailFileMap(input: {
 	list: AttachmentItem[]
 	magicProjectConfig?: MagicProjectConfig | null
 	bundleRootPath?: string
+	preferredAudioFileId?: string
 }): RecordingDetailFileMap {
 	const files = flattenRecordingAttachments(input.tree, input.list)
 	const scopedFiles = scopeFilesToBundle(files, input.bundleRootPath)
 	const magicProject = scopedFiles.find(isMagicProjectFile) || files.find(isMagicProjectFile)
+	const bundleRootPath = input.bundleRootPath ?? resolveIndexHtmlBundleRoot(input, magicProject)
 	const indexHtml = findIndexHtmlInBundle(files, resolveIndexHtmlBundleRoot(input, magicProject))
 	const configFiles = input.magicProjectConfig?.files ?? {}
 
@@ -67,14 +104,23 @@ export function buildRecordingDetailFileMap(input: {
 		return findFileByName(scopedFiles, configuredName)
 	}
 
+	const preferredAudio = input.preferredAudioFileId
+		? files.find((file) => file.file_id === input.preferredAudioFileId && !file.is_directory)
+		: undefined
 	const audio =
-		findByConfiguredName("audio") ?? findFileByExtension(scopedFiles, ["wav", "mp3", "m4a"])
+		preferredAudio ??
+		findByConfiguredName("audio") ??
+		findFileByExtension(scopedFiles, [...RECORDING_AUDIO_EXTENSIONS])
 	const transcript =
-		findByConfiguredName("transcript") ?? findByNameHint(scopedFiles, ["transcript", "文字稿"])
+		findByConfiguredName("transcript") ??
+		findByNameHint(scopedFiles, ["transcript", "文字稿", "流式识别"])
 	const notes =
-		findByConfiguredName("notes") ?? findByNameHint(scopedFiles, ["notes", "笔记", "流式识别"])
+		findByConfiguredName("notes") ??
+		findByFileType(scopedFiles, "note") ??
+		findByNameHint(scopedFiles, ["notes", "笔记"])
 
 	return {
+		bundleRootPath,
 		audio,
 		transcript,
 		notes,
@@ -97,8 +143,7 @@ function resolveSummaryFiles(
 		if (added.has(type)) return
 		const configuredName = configFiles[type]
 		if (!configuredName) return
-		const file = findFileByName(files, configuredName)
-		if (!file) return
+		const file = findFileByName(files, configuredName) ?? buildPendingFile(configuredName)
 		result.push({ type, fileName: configuredName, file })
 		added.add(type)
 	}
@@ -107,10 +152,27 @@ function resolveSummaryFiles(
 
 	Object.keys(configFiles).forEach((type) => {
 		if (EXCLUDED_DYNAMIC_TYPES.has(type) || added.has(type)) return
-		return
+		addType(type)
 	})
 
 	return result
+}
+
+/** Creates a file-shaped placeholder so configured tabs exist before their files arrive. */
+function buildPendingFile(fileName: string): AttachmentItem {
+	const normalizedName = fileName.replace(/\\/g, "/")
+	const lastSlashIndex = normalizedName.lastIndexOf("/")
+	const baseName = lastSlashIndex >= 0 ? normalizedName.slice(lastSlashIndex + 1) : normalizedName
+	const extension = baseName.includes(".") ? baseName.split(".").pop() : undefined
+
+	return {
+		file_name: baseName,
+		filename: baseName,
+		file_extension: extension,
+		path: normalizedName,
+		relative_file_path: normalizedName,
+		is_directory: false,
+	}
 }
 
 /** Finds a file by exact filename or relative path suffix from magic.project.js. */
@@ -135,6 +197,17 @@ function findByNameHint(files: AttachmentItem[], hints: string[]): AttachmentIte
 		const name = normalizeFileLookupText(getAttachmentFileName(file))
 		return hints.some((hint) => name.includes(normalizeFileLookupText(hint)))
 	})
+}
+
+/** Finds backend-managed recording source files by their semantic type before using filename hints. */
+function findByFileType(files: AttachmentItem[], expectedType: string): AttachmentItem | undefined {
+	const normalizedExpectedType = expectedType.toLowerCase()
+	return files.find((file) =>
+		[file.file_type, file.type, file.data_type, file.dataType].some(
+			(type) =>
+				type !== undefined && String(type).trim().toLowerCase() === normalizedExpectedType,
+		),
+	)
 }
 
 /** Finds a likely audio file by extension for non-summarized preview fallback. */

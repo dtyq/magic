@@ -21,7 +21,7 @@ import { interfaceStore } from "@/stores/interface"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import UserHeader from "../chatMobile/components/UserHeader"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const CheckBadgeIcon = memo(({ className }: { className?: string }) => (
 	<svg className={className} width="12" height="12" viewBox="0 0 12 12" fill="none">

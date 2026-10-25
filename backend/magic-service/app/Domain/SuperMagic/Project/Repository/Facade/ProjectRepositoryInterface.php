@@ -216,6 +216,9 @@ interface ProjectRepositoryInterface
      */
     public function findByIdWithTrashed(int $id): ?ProjectEntity;
 
+    /** @return ProjectEntity[] */
+    public function findByWorkspaceIdForDeletion(int $workspaceId): array;
+
     /**
      * 恢复单个项目.
      *

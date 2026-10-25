@@ -1,7 +1,20 @@
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import type { MenuProps } from "antd"
-import type { TabItem } from "../types"
+import {
+	ArrowLeftToLine,
+	ArrowRightToLine,
+	Copy,
+	Folder,
+	Info,
+	ListX,
+	LocateFixed,
+	RefreshCw,
+	Square,
+	Star,
+	X,
+} from "lucide-react"
+import type { TabFileContext, TabItem } from "../types"
 import FlexBox from "@/components/base/FlexBox"
 import { isWebsiteTab } from "../utils/websiteTabs"
 
@@ -14,18 +27,24 @@ export interface TabContextMenuState {
 export interface TabContextMenuActions {
 	closeFileTab: (tabId: string) => void
 	closeOtherTabs: (tabId: string) => void
+	closeTabsToLeft?: (tabId: string) => void
 	closeTabsToRight: (tabId: string) => void
 	clearAllTabs: () => void
 	refreshTab: (tabId: string) => void
 	addWebsiteToCommon?: (tab: TabItem) => void
+	showFileInfo?: (tabId: string) => void
+	copyFileName?: (tabId: string) => void
+	copyFilePath?: (tabId: string) => void
+	locateFile?: (tabId: string) => void
 }
 
 export interface UseTabContextMenuProps {
 	tabs: TabItem[]
 	actions: TabContextMenuActions
+	getFileContext?: (tabId: string) => TabFileContext | undefined
 }
 
-export function useTabContextMenu({ tabs, actions }: UseTabContextMenuProps) {
+export function useTabContextMenu({ tabs, actions, getFileContext }: UseTabContextMenuProps) {
 	const { t } = useTranslation("super")
 	const [contextMenuState, setContextMenuState] = useState<TabContextMenuState>({
 		visible: false,
@@ -80,7 +99,47 @@ export function useTabContextMenu({ tabs, actions }: UseTabContextMenuProps) {
 	const getContextMenuItems = (tabId: string): MenuProps["items"] => {
 		const tabIndex = tabs.findIndex((tab) => tab.id === tabId)
 		const tab = tabs[tabIndex]
+		if (!tab) return []
+		const fileContext = getFileContext?.(tabId)
+		const fileItems: MenuProps["items"] = fileContext
+			? [
+					{ type: "divider" },
+					{
+						key: "fileInfo",
+						label: t("fileViewer.tabs.fileInfo"),
+						icon: <Info size={16} />,
+						disabled: !fileContext.canShowInfo || !actions.showFileInfo,
+						onClick: () => {
+							hideContextMenu()
+							actions.showFileInfo?.(tabId)
+						},
+					},
+					{
+						key: "copyFileName",
+						label: t("fileViewer.tabs.copyFileName"),
+						icon: <Copy size={16} />,
+						disabled: !fileContext.fileName || !actions.copyFileName,
+						onClick: () => {
+							hideContextMenu()
+							actions.copyFileName?.(tabId)
+						},
+					},
+					{
+						key: "copyFilePath",
+						label: t("fileViewer.tabs.copyFilePath"),
+						icon: <Folder size={16} />,
+						disabled: !fileContext.canCopyPath || !actions.copyFilePath,
+						onClick: () => {
+							hideContextMenu()
+							actions.copyFilePath?.(tabId)
+						},
+					},
+				]
+			: []
 		const hasCloseableTabs = tabs.some((item) => item.closeable !== false)
+		const hasCloseableTabsToLeft = tabs
+			.slice(0, tabIndex)
+			.some((item) => item.closeable !== false)
 		const hasCloseableTabsToRight = tabs
 			.slice(tabIndex + 1)
 			.some((item) => item.closeable !== false)
@@ -94,6 +153,7 @@ export function useTabContextMenu({ tabs, actions }: UseTabContextMenuProps) {
 						{
 							key: "addWebsiteToCommon",
 							label: t("fileViewer.tabs.addWebsiteToCommon"),
+							icon: <Star size={16} />,
 							onClick: () => {
 								actions.addWebsiteToCommon?.(tab)
 								hideContextMenu()
@@ -103,18 +163,39 @@ export function useTabContextMenu({ tabs, actions }: UseTabContextMenuProps) {
 				: []
 
 		return [
-			{
-				key: "refresh",
-				label: t("fileViewer.tabs.refresh"),
-				onClick: () => {
-					actions.refreshTab(tabId)
-					hideContextMenu()
-				},
-			},
+			...(tab?.type !== "file_manager"
+				? [
+						{
+							key: "refresh",
+							label: t("fileViewer.tabs.refresh"),
+							icon: <RefreshCw size={16} />,
+							onClick: () => {
+								actions.refreshTab(tabId)
+								hideContextMenu()
+							},
+						},
+					]
+				: []),
 			...websiteCommonItems,
+			...(fileContext?.canLocate && actions.locateFile
+				? [
+						{
+							key: "locateFile",
+							label: t("fileViewer.locateFile"),
+							icon: <LocateFixed size={16} />,
+							onClick: () => {
+								hideContextMenu()
+								actions.locateFile?.(tabId)
+							},
+						},
+					]
+				: []),
+			...fileItems,
+			{ type: "divider" },
 			{
 				key: "close",
 				label: t("fileViewer.tabs.close"),
+				icon: <X size={16} />,
 				disabled: !canCloseTab,
 				onClick: () => {
 					actions.closeFileTab(tabId)
@@ -123,6 +204,7 @@ export function useTabContextMenu({ tabs, actions }: UseTabContextMenuProps) {
 			},
 			{
 				key: "closeOthers",
+				icon: <Square size={16} />,
 				label: (
 					<FlexBox align="center" justify="space-between" className="min-w-[160px]">
 						<span>{t("fileViewer.tabs.closeOthers")}</span>
@@ -139,8 +221,19 @@ export function useTabContextMenu({ tabs, actions }: UseTabContextMenuProps) {
 				},
 			},
 			{
+				key: "closeToLeft",
+				label: t("fileViewer.tabs.closeToLeft"),
+				icon: <ArrowLeftToLine size={16} />,
+				disabled: !hasCloseableTabsToLeft || !actions.closeTabsToLeft,
+				onClick: () => {
+					actions.closeTabsToLeft?.(tabId)
+					hideContextMenu()
+				},
+			},
+			{
 				key: "closeToRight",
 				label: t("fileViewer.tabs.closeToRight"),
+				icon: <ArrowRightToLine size={16} />,
 				disabled: !hasCloseableTabsToRight,
 				onClick: () => {
 					actions.closeTabsToRight(tabId)
@@ -150,6 +243,7 @@ export function useTabContextMenu({ tabs, actions }: UseTabContextMenuProps) {
 			{
 				key: "closeAll",
 				label: t("fileViewer.tabs.closeAll"),
+				icon: <ListX size={16} />,
 				disabled: !hasCloseableTabs,
 				onClick: () => {
 					actions.clearAllTabs()

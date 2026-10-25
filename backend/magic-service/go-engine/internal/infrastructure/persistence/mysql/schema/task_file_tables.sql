@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS magic_super_agent_task_files (
     file_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    source_file_id BIGINT UNSIGNED NULL,
     user_id VARCHAR(128) NOT NULL DEFAULT '',
     organization_code VARCHAR(64) NOT NULL DEFAULT '',
     project_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -26,5 +27,6 @@ CREATE TABLE IF NOT EXISTS magic_super_agent_task_files (
     source TINYINT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at DATETIME NULL
+    deleted_at DATETIME NULL,
+    INDEX idx_task_files_source_file_id (source_file_id)
 );

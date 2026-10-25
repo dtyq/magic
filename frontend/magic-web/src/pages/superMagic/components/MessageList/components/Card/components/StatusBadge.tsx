@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { IconBan } from "@tabler/icons-react"
 import { Hand, Check } from "lucide-react"
 import BaseRichText from "@/pages/superMagic/components/MessageList/components/Text/components/RichText"

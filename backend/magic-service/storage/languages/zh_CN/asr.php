@@ -134,6 +134,7 @@ return [
 
     // 文件名相关
     'file_names' => [
+        'recording_at' => ':time 的录音',
         'recording_prefix' => '录音',
         'merged_audio_prefix' => '录音文件',
         'original_recording' => '原始录音文件',
@@ -169,11 +170,17 @@ return [
         'summary_middle_with_note' => ' 录音内容和 ',
         'summary_suffix_with_note' => ' 我的笔记内容转化为一份超级产物',
         // 重新总结消息国际化
-        'resummary_prefix' => '请重新总结这个已有录音项目：',
+        'resummary_prefix' => '请重新总结 ',
         'resummary_note_middle' => '。请参考这个已有笔记/上下文文件：',
         'resummary_base_instruction' => '。只读取 magic.project.js、录音文字稿和笔记作为一手信息。不要重新转写音频，不要拆分音频，也不要修改 audio、transcript 或 notes。不要读取旧的纪要、章节主题、洞察、金句、待办、意图、权力动态、关键数据或思维导图等派生文件。',
         'resummary_scope_instruction' => '调用 analyze_audio_project，analysis_scope 传 ":analysis_scope"，不要传 specified_analysis_types。',
         'resummary_specified_instruction' => '调用 analyze_audio_project，specified_analysis_types 传 :specified_analysis_types。',
+        // 重新总结前后缀国际化（无笔记）
+        'resummary_suffix' => ' 的录音内容。请忽略旧的总结产物，重新分析并生成一份全新的超级产物，无需重新转写音频。',
+        // 重新总结前后缀国际化（有笔记）
+        'resummary_prefix_with_note' => '请重新总结 ',
+        'resummary_middle_with_note' => ' 的录音内容和 ',
+        'resummary_suffix_with_note' => ' 我的笔记内容。请忽略旧的总结产物，结合录音与笔记重新分析，生成一份全新的超级产物，无需重新转写音频。',
     ],
 
     // 异常信息国际化
@@ -237,5 +244,10 @@ return [
         'upload_not_allowed' => '当前任务状态不允许上传文件',
         'status_report_not_allowed' => '当前任务状态不允许报告状态',
         'summary_not_allowed' => '当前任务状态不允许发起总结',
+    ],
+    'sts_token' => [
+        'missing_jwt_token' => '请求处理失败',
+        'parse_response_failed' => '操作失败',
+        'request_failed' => '操作失败',
     ],
 ];

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="test/bootstrap.unit.php" colors="true" cacheDirectory=".phpunit.unit.cache">
+    <testsuites>
+        <testsuite name="Socket.IO维护">
+            <file>test/Cases/Unit/RedisAdapterV3MaintenanceTest.php</file>
+        </testsuite>
+        <!--
+          沙箱镜像发布相关的纯单测：不启动应用、不连数据库，可在任何环境跑。
+          加在这里（而不只是 phpunit.xml 的超级麦吉套件）是因为这些用例的全部依赖
+          都用 PHPUnit 替身构造，没有容器也能执行，适合放进最快的反馈回路。
+        -->
+        <testsuite name="沙箱重启">
+            <directory suffix="Test.php">test/Cases/Unit/SuperMagic/SandboxRestart</directory>
+            <file>test/Cases/Infrastructure/SuperMagic/ExternalAPI/SandboxOS/Gateway/Result/SandboxListResultTest.php</file>
+            <file>test/Cases/Infrastructure/SuperMagic/ExternalAPI/SandboxOS/SandboxListGatewayTest.php</file>
+            <file>test/Cases/Infrastructure/SuperMagic/ExternalAPI/SandboxOS/SandboxCreateGatewayTest.php</file>
+            <file>test/Cases/Domain/SuperAgent/Service/SandboxVersionDomainServiceTest.php</file>
+            <file>test/Cases/Domain/SuperMagic/Task/Service/AgentDomainServiceEnsureSandboxInitializedTest.php</file>
+            <file>test/Cases/Application/SuperAgent/Service/AgentAppServiceVersionCheckTest.php</file>
+        </testsuite>
+        <!--
+          沙箱重启的跨层集成用例：真实的网关客户端 / 计划器 / 编排服务 + 内存假集群。
+          同样不需要数据库与应用容器，所以放在最快的反馈回路里；单独成套是为了让
+          "这是集成"这件事在测试报告里可见。
+        -->
+        <testsuite name="沙箱重启集成">
+            <directory suffix="Test.php">test/Cases/Integration/SuperMagic</directory>
+        </testsuite>
+        <!-- 模型网关收尾测试与主线套件共存，不启动应用或真实模型。 -->
+        <testsuite name="模型请求SSE收尾">
+            <file>test/Cases/Interfaces/ModelGateway/Assembler/LLMAssemblerStreamTest.php</file>
+            <file>test/Cases/Infrastructure/ModelGateway/ModelGatewayEventStreamTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

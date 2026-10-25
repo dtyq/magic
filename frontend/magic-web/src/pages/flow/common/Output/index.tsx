@@ -2,6 +2,7 @@ import type Schema from "@dtyq/magic-flow/dist/MagicJsonSchemaEditor/types/Schem
 import DropdownCard from "@dtyq/magic-flow/dist/common/BaseUI/DropdownCard"
 import JSONSchemaRenderer from "@/pages/flow/components/JSONSchemaRenderer"
 import { cx } from "antd-style"
+import { useTranslation } from "react-i18next"
 import styles from "./index.module.less"
 
 export type WidgetValue = {
@@ -18,10 +19,11 @@ export type WidgetValue = {
 	wrapperClassName?: string
 }
 
-export default function Output({ value, title = "输出", wrapperClassName }: WidgetValue) {
+export default function Output({ value, title, wrapperClassName }: WidgetValue) {
+	const { t } = useTranslation()
 	return (
 		<div className={cx(styles.output, wrapperClassName)}>
-			<DropdownCard title={title}>
+			<DropdownCard title={title ?? t("common.output", { ns: "flow" })}>
 				{/* @ts-ignore */}
 				<JSONSchemaRenderer form={value?.form?.structure} />
 			</DropdownCard>

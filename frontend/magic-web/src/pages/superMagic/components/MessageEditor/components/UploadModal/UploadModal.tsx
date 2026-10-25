@@ -135,7 +135,11 @@ const UploadModal = forwardRef<UploadModalRef, UploadModalProps>(function Upload
 	 * so users can only browse folders inside the current project attachment tree.
 	 */
 	const handleMobileSubmit = useMemoizedFn((params: SelectDirectorySubmitParams) => {
-		onSubmit?.({ path: params.path, files: fileList.map((item) => item.file) })
+		onSubmit?.({
+			path: params.path,
+			files: fileList.map((item) => item.file),
+			originalFiles: fileList.map((item) => item.originalFile),
+		})
 	})
 
 	const breadcrumbItems = useMemo(() => {
@@ -144,7 +148,11 @@ const UploadModal = forwardRef<UploadModalRef, UploadModalProps>(function Upload
 
 	// Event handlers
 	const submit = useMemoizedFn(() => {
-		onSubmit && onSubmit({ path, files: fileList.map((item) => item.file) })
+		onSubmit?.({
+			path,
+			files: fileList.map((item) => item.file),
+			originalFiles: fileList.map((item) => item.originalFile),
+		})
 		onClose && onClose()
 	})
 
@@ -255,6 +263,7 @@ const UploadModal = forwardRef<UploadModalRef, UploadModalProps>(function Upload
 							className={styles.createDirectoryButton}
 							type="text"
 							onClick={showCreateDirectory}
+							data-testid="upload-modal-create-folder-button"
 						>
 							{t("selectPathModal.newSubfolder")}
 						</Button>
@@ -315,6 +324,7 @@ const UploadModal = forwardRef<UploadModalRef, UploadModalProps>(function Upload
 			footer={footerConfig}
 			onClose={onClose}
 			width={modalWidth}
+			testId="upload-modal"
 			customModalProps={{
 				maskClosable: false,
 			}}

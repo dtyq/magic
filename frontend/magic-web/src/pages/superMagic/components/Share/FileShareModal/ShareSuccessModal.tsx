@@ -34,7 +34,7 @@ import { userStore } from "@/models/user"
 import { downloadFileWithAnchor } from "../../../utils/handleFIle"
 import { useFileDisplayConfig } from "../hooks/useFileDisplayConfig"
 import { generateShareMessageText } from "../utils/generateShareMessageText"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ShareSuccessModalProps {
 	open: boolean

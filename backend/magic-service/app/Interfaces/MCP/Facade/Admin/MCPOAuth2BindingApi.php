@@ -14,9 +14,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 
 /**
- * MCP OAuth2 Binding API.
- *
- * Handles OAuth2 service binding and unbinding requests from frontend
+ * MCP 鉴权绑定接口，兼容旧 OAuth2 和 MCP Authorization 两种模式。
  */
 #[ApiResponse(version: 'low_code')]
 class MCPOAuth2BindingApi extends AbstractMCPAdminApi
@@ -49,7 +47,7 @@ class MCPOAuth2BindingApi extends AbstractMCPAdminApi
     }
 
     /**
-     * Unbind OAuth2 service for the user.
+     * 解除用户与 MCP Server 的鉴权绑定。
      */
     public function unbind(): array
     {

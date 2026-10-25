@@ -7,6 +7,7 @@ import type {
 	ProcessHtmlContentInput,
 	ProcessHtmlContentOutput,
 } from "@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 /**
  * Configuration for processing slides
@@ -17,6 +18,14 @@ export interface SlideProcessorConfig {
 	mainFileId?: string
 	mainFileName?: string
 	displayConfig?: any
+	/** File client bound to the current host/share access context. */
+	fileApi?: FileApi
+}
+
+/** 内容与资源摘要必须来自同一次处理，不能把编辑后的内容与旧摘要配对。 */
+export interface ProcessedSlideResult {
+	content: string
+	resourceVersionSignature: string | null
 }
 
 /**
@@ -41,9 +50,9 @@ export class SlideProcessorService {
 		content: string,
 		slideIndex: number,
 		relativeFilePath?: string,
-	): Promise<string> {
+	): Promise<ProcessedSlideResult> {
 		if (!content) {
-			return ""
+			return { content: "", resourceVersionSignature: null }
 		}
 
 		try {
@@ -55,14 +64,18 @@ export class SlideProcessorService {
 				attachmentList: this.config.attachmentList,
 				html_relative_path: relativeFilePath,
 				displayConfig: this.config.displayConfig,
+				fileApi: this.config.fileApi,
 				xMagicImageProcess: HTML_PREVIEW_IMAGE_PROCESS,
 			}
 
 			const result: ProcessHtmlContentOutput = await processHtmlContent(input)
-			return result.processedContent
+			return {
+				content: result.processedContent,
+				resourceVersionSignature: result.resourceVersionSignature ?? null,
+			}
 		} catch (error) {
 			console.error(`Failed to process slide at index ${slideIndex}:`, error)
-			return content // Return original content on error
+			return { content, resourceVersionSignature: null } // Return original content on error
 		}
 	}
 
@@ -110,9 +123,9 @@ export class SlideProcessorService {
 		slideIndex: number,
 		relativeFilePath: string | undefined,
 		urlMapping: Map<string, string>,
-	): Promise<string> {
+	): Promise<ProcessedSlideResult> {
 		if (!content) {
-			return ""
+			return { content: "", resourceVersionSignature: null }
 		}
 
 		try {
@@ -125,14 +138,18 @@ export class SlideProcessorService {
 				html_relative_path: relativeFilePath,
 				displayConfig: this.config.displayConfig,
 				preloadedUrlMapping: urlMapping, // Pass the pre-fetched URL mapping
+				fileApi: this.config.fileApi,
 				xMagicImageProcess: HTML_PREVIEW_IMAGE_PROCESS,
 			}
 
 			const result: ProcessHtmlContentOutput = await processHtmlContent(input)
-			return result.processedContent
+			return {
+				content: result.processedContent,
+				resourceVersionSignature: result.resourceVersionSignature ?? null,
+			}
 		} catch (error) {
 			console.error(`Failed to process slide at index ${slideIndex}:`, error)
-			return content // Return original content on error
+			return { content, resourceVersionSignature: null } // Return original content on error
 		}
 	}
 

@@ -1109,7 +1109,7 @@ eventFactory.on(
 // 国际化语言切换
 eventFactory.on(EVENTS.SWITCH_LANGUAGE, (data: Config.LanguageValue) => {
 	service.get<ConfigService>("configService").setLanguage(data)
-	import("@/lib/dayjs").then((module) => {
+	import("@/infrastructure/vendors/dayjs").then((module) => {
 		module.switchLanguage?.(data)
 	})
 })

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
 import type { ArticleDetail } from "../components/SelfMediaInitPanel/types"
@@ -33,6 +33,10 @@ describe("StepTopicAndDetail style shell", () => {
 		)
 		expect(screen.getByLabelText("收起看板")).toBeInTheDocument()
 		expect(screen.getByLabelText("添加选题")).toBeInTheDocument()
+		expect(screen.getByLabelText("收起看板")).toHaveClass("flex")
+		expect(within(screen.getByLabelText("添加选题")).getByText("添加选题")).toHaveClass(
+			"inline",
+		)
 		expect(screen.getByLabelText("上一篇")).toBeDisabled()
 		expect(screen.getByLabelText("下一篇")).toBeDisabled()
 		const removeButton = screen.getByLabelText("删除小红书选题")
@@ -42,8 +46,8 @@ describe("StepTopicAndDetail style shell", () => {
 			"data-show-folder-field",
 			"false",
 		)
-		expect(screen.getByTestId("self-media-topic-navigator-panel")).toHaveClass("lg:top-6")
-		expect(screen.getByTestId("self-media-topic-workspace-header")).toHaveClass("lg:top-6")
+		expect(screen.getByTestId("self-media-topic-navigator-panel")).toHaveClass("rounded-[28px]")
+		expect(screen.getByTestId("self-media-topic-workspace-header")).toHaveClass("sticky")
 		const consoleErrors = consoleErrorSpy.mock.calls.flat().join("\n")
 		expect(consoleErrors).not.toContain("validateDOMNesting")
 		consoleErrorSpy.mockRestore()

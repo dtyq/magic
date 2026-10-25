@@ -5,6 +5,7 @@ import type {
 } from "../../../../public/props"
 import ReferenceResourcePopover from "./ReferenceResourcePopover"
 import type {
+	ReferenceAssetFileClass,
 	ReferenceAssetPerTypeLimits,
 	ReferenceAssetTypeCounts,
 	ReferenceResourceFileInfo,
@@ -25,6 +26,7 @@ interface ReferenceResourceSlotPopoverProps {
 	onMouseEnter: () => void
 	onMouseLeave: () => void
 	onSelectSource: (source: ReferenceResourceSourceType) => void
+	includeAssetsSource?: boolean
 	maxReferenceFiles?: number
 	currentReferenceFiles?: string[]
 	isReferenceFileLimitReached?: boolean
@@ -32,10 +34,15 @@ interface ReferenceResourceSlotPopoverProps {
 	referenceFileInfos: ReferenceResourceFileInfo[]
 	assetLimits?: ReferenceAssetPerTypeLimits
 	currentAssetCounts?: ReferenceAssetTypeCounts
+	canAcceptNextAsset?: (
+		fileClass: ReferenceAssetFileClass,
+		currentAssetCounts: ReferenceAssetTypeCounts,
+	) => boolean
 	onProjectSelect?: (
 		item: ReferenceResourcePanelItem,
 		context?: ReferenceResourcePanelSelectContext,
 	) => void
+	beforeSourceActions?: ReactNode
 	onProjectSelectPanelOpenChange?: (open: boolean) => void
 	enableProjectSelectMultiSelect?: boolean
 	maxProjectSelectBatchCount?: number
@@ -55,6 +62,7 @@ export default function ReferenceResourceSlotPopover(props: ReferenceResourceSlo
 		onMouseEnter,
 		onMouseLeave,
 		onSelectSource,
+		includeAssetsSource,
 		maxReferenceFiles,
 		currentReferenceFiles,
 		isReferenceFileLimitReached,
@@ -62,7 +70,9 @@ export default function ReferenceResourceSlotPopover(props: ReferenceResourceSlo
 		referenceFileInfos,
 		assetLimits,
 		currentAssetCounts,
+		canAcceptNextAsset,
 		onProjectSelect,
+		beforeSourceActions,
 		onProjectSelectPanelOpenChange,
 		enableProjectSelectMultiSelect,
 		maxProjectSelectBatchCount,
@@ -80,6 +90,7 @@ export default function ReferenceResourceSlotPopover(props: ReferenceResourceSlo
 			onMouseEnter={onMouseEnter}
 			onMouseLeave={onMouseLeave}
 			onSelectSource={onSelectSource}
+			includeAssetsSource={includeAssetsSource}
 			maxReferenceFiles={maxReferenceFiles}
 			currentReferenceFiles={currentReferenceFiles}
 			isReferenceFileLimitReached={isReferenceFileLimitReached}
@@ -87,7 +98,9 @@ export default function ReferenceResourceSlotPopover(props: ReferenceResourceSlo
 			referenceFileInfos={referenceFileInfos}
 			assetLimits={assetLimits}
 			currentAssetCounts={currentAssetCounts}
+			canAcceptNextAsset={canAcceptNextAsset}
 			onProjectSelect={onProjectSelect}
+			beforeSourceActions={beforeSourceActions}
 			onProjectSelectPanelOpenChange={onProjectSelectPanelOpenChange}
 			enableProjectSelectMultiSelect={enableProjectSelectMultiSelect}
 			maxProjectSelectBatchCount={maxProjectSelectBatchCount}

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UrbanLoft — Architectural Loft &amp; Interior Materials Showcase</title>
+  <style>
+    :root {
+      --charcoal-bg: #141312;
+      --charcoal-surface: #1E1C1A;
+      --charcoal-border: #383531;
+      --travertine-stone: #EFECE6;
+      --brass-gold: #C5A059;
+      --oak-smoked: #382820;
+      --concrete-gray: #9CA3AF;
+      --font-display: 'Space Grotesk', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0C0B0A; color: var(--travertine-stone);
+      font-family: var(--font-body); line-height: 1.45; -webkit-font-smoothing: antialiased;
+      display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 18px;
+    }
+    .showcase-frame {
+      width: 100%; max-width: 1120px; aspect-ratio: 16 / 10;
+      background: var(--charcoal-bg); border: 1px solid var(--charcoal-border);
+      border-radius: 4px; box-shadow: 0 30px 60px rgba(0,0,0,0.85);
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+    }
+    .studio-bar {
+      height: 50px; padding: 0 24px; background: #11100F;
+      border-bottom: 1px solid var(--charcoal-border); display: flex;
+      align-items: center; justify-content: space-between;
+    }
+    .studio-brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark {
+      width: 22px; height: 22px; border: 1.5px solid var(--brass-gold);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 700; font-size: 11px; color: var(--brass-gold);
+    }
+    .brand-title {
+      font-family: var(--font-display); font-size: 13px; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase; color: #FFFFFF;
+    }
+    .residence-crumb {
+      font-size: 10.5px; color: var(--concrete-gray); letter-spacing: 0.05em;
+      border-left: 1px solid var(--charcoal-border); padding-left: 10px;
+    }
+    .studio-cta-btn {
+      font-family: var(--font-display); font-size: 10.5px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase; background: var(--brass-gold);
+      color: #11100F; border: none; padding: 6px 14px; border-radius: 2px; cursor: pointer;
+    }
+    .showcase-body {
+      flex: 1; padding: 14px 20px; display: grid; grid-template-columns: 1.15fr 1fr;
+      gap: 16px; overflow: hidden;
+    }
+    .left-panel {
+      background: var(--charcoal-surface); border: 1px solid var(--charcoal-border);
+      border-radius: 4px; padding: 12px; display: flex; flex-direction: column;
+    }
+    .panel-meta-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+    .lot-tag { font-family: var(--font-mono); font-size: 9px; color: var(--brass-gold); text-transform: uppercase; letter-spacing: 0.1em; }
+    .panel-headline { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.01em; }
+    .panel-dim-tag {
+      font-family: var(--font-mono); font-size: 9.5px; color: var(--concrete-gray);
+      background: #141312; border: 1px solid var(--charcoal-border); padding: 2px 6px; border-radius: 2px;
+    }
+    .silhouette-stage {
+      flex: 1; background: #0A0908; border: 1px solid var(--charcoal-border);
+      border-radius: 2px; overflow: hidden; position: relative; margin: 4px 0 8px;
+    }
+    .silhouette-svg { width: 100%; height: 100%; }
+    .specs-ribbon { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .spec-item { background: #141312; border: 1px solid var(--charcoal-border); padding: 5px 6px; border-radius: 2px; }
+    .spec-lbl { font-family: var(--font-mono); font-size: 8px; color: var(--concrete-gray); text-transform: uppercase; }
+    .spec-val { font-family: var(--font-display); font-size: 12px; font-weight: 700; color: var(--travertine-stone); }
+    .right-panel { display: flex; flex-direction: column; gap: 10px; }
+    .materials-box {
+      background: var(--charcoal-surface); border: 1px solid var(--charcoal-border);
+      border-radius: 4px; padding: 12px;
+    }
+    .mat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .mat-title {
+      font-family: var(--font-display); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--brass-gold);
+    }
+    .mat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .swatch-card { background: #141312; border: 1px solid var(--charcoal-border); border-radius: 3px; overflow: hidden; }
+    .swatch-tile { height: 50px; border-bottom: 1px solid var(--charcoal-border); }
+    .tile-brass {
+      background: linear-gradient(135deg, #A88434 0%, #D4AF37 25%, #FFF0BD 45%, #C5A059 65%, #8A6820 100%);
+    }
+    .tile-oak {
+      background: repeating-linear-gradient(90deg, #2A1D16 0px, #2A1D16 3px, #382820 3px, #382820 8px, #1E140F 8px, #1E140F 12px);
+    }
+    .tile-travertine {
+      background: linear-gradient(120deg, #E6E0D5 0%, #D9D2C5 30%, #EFEBE4 50%, #CFC7B8 80%, #DED8CC 100%);
+      position: relative;
+    }
+    .swatch-info { padding: 5px 6px; }
+    .swatch-name { font-family: var(--font-display); font-size: 10.5px; font-weight: 700; color: #FFFFFF; }
+    .swatch-detail { font-size: 8px; color: var(--concrete-gray); margin-top: 1px; }
+    .schedule-box {
+      background: var(--charcoal-surface); border: 1px solid var(--charcoal-border);
+      border-radius: 4px; padding: 10px 12px; flex: 1; display: flex;
+      flex-direction: column; justify-content: space-between;
+    }
+    .schedule-title {
+      font-family: var(--font-display); font-size: 10.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em; color: #FFFFFF; margin-bottom: 6px;
+    }
+    .arch-table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: left; }
+    .arch-table th {
+      font-family: var(--font-mono); font-size: 8px; color: var(--concrete-gray);
+      text-transform: uppercase; padding: 4px 5px; border-bottom: 1px solid var(--charcoal-border);
+    }
+    .arch-table td { padding: 4px 5px; border-bottom: 1px solid rgba(56, 53, 49, 0.4); color: var(--travertine-stone); }
+    .num-mono { font-family: var(--font-mono); color: var(--brass-gold); }
+    .eco-badge-row {
+      display: flex; justify-content: space-between; align-items: center; background: #141312;
+      border: 1px solid var(--charcoal-border); padding: 5px 8px; border-radius: 2px; margin-top: 4px; font-size: 8.5px;
+    }
+    .showcase-footer {
+      height: 32px; padding: 0 24px; background: #11100F;
+      border-top: 1px solid var(--charcoal-border); display: flex;
+      align-items: center; justify-content: space-between; font-size: 9.5px;
+      color: var(--concrete-gray); font-family: var(--font-mono);
+    }
+  </style>
+</head>
+<body>
+  <div class="showcase-frame">
+    <header class="studio-bar">
+      <div class="studio-brand">
+        <div class="brand-mark">UL</div>
+        <span class="brand-title">Atelier UrbanLoft</span>
+        <span class="residence-crumb">Project 402: <strong>The Foundry Penthouse</strong></span>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:10px; color:var(--concrete-gray); font-family:var(--font-mono);">ZURICH WEST • SCHIFFBAU</span>
+        <button class="studio-cta-btn">Acquisition Dossier</button>
+      </div>
+    </header>
+
+    <main class="showcase-body">
+      <!-- Left: Window Silhouette -->
+      <section class="left-panel">
+        <div class="panel-meta-header">
+          <div>
+            <span class="lot-tag">Double-Height Elevation</span>
+            <h1 class="panel-headline">Cathedral Glazing &amp; Brutalist Monolith</h1>
+          </div>
+          <span class="panel-dim-tag">6.20M CLEAR</span>
+        </div>
+
+        <div class="silhouette-stage">
+          <svg class="silhouette-svg" viewBox="0 0 480 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="sunBeam" x1="180" y1="0" x2="380" y2="220" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFDF7" stop-opacity="0.3" />
+                <stop offset="50%" stop-color="#EFECE6" stop-opacity="0.1" />
+                <stop offset="100%" stop-color="#141312" stop-opacity="0.0" />
+              </linearGradient>
+              <linearGradient id="glassSky" x1="0" y1="0" x2="0" y2="220">
+                <stop offset="0%" stop-color="#334155" stop-opacity="0.5" />
+                <stop offset="100%" stop-color="#0F172A" stop-opacity="0.75" />
+              </linearGradient>
+            </defs>
+
+            <rect x="60" y="0" width="300" height="180" fill="url(#glassSky)" />
+            <path d="M60 150 L100 142 L120 148 L160 130 L190 140 L230 125 L270 138 L310 132 L360 148 L360 180 L60 180 Z" fill="#111827" fill-opacity="0.5" />
+            <polygon points="120,0 280,0 450,220 200,220" fill="url(#sunBeam)" />
+
+            <!-- Steel Mullions Grid -->
+            <rect x="60" y="0" width="8" height="180" fill="#1C1917" />
+            <rect x="352" y="0" width="8" height="180" fill="#1C1917" />
+            <rect x="132" y="0" width="5" height="180" fill="#181614" />
+            <rect x="206" y="0" width="5" height="180" fill="#181614" />
+            <rect x="278" y="0" width="5" height="180" fill="#181614" />
+            <rect x="60" y="42" width="300" height="4" fill="#181614" />
+            <rect x="60" y="90" width="300" height="4" fill="#181614" />
+            <rect x="60" y="138" width="300" height="5" fill="#1C1917" />
+
+            <!-- Concrete Screed Floor -->
+            <rect x="0" y="180" width="480" height="40" fill="#1E1C1A" />
+            <line x1="0" y1="180" x2="480" y2="180" stroke="#383531" stroke-width="1.2" />
+            <line x1="150" y1="180" x2="110" y2="220" stroke="#2A2724" stroke-width="1" />
+            <line x1="310" y1="180" x2="350" y2="220" stroke="#2A2724" stroke-width="1" />
+
+            <rect x="0" y="0" width="60" height="220" fill="#141312" />
+            <line x1="60" y1="0" x2="60" y2="220" stroke="#383531" stroke-width="1.2" />
+
+            <!-- Cantilevered Staircase -->
+            <g fill="#0D0C0B" stroke="#22201D" stroke-width="1">
+              <polygon points="360,90 435,90 435,98 360,98" />
+              <polygon points="370,104 415,104 415,110 370,110" />
+              <polygon points="380,118 425,118 425,124 380,124" />
+              <polygon points="390,132 435,132 435,138 390,138" />
+              <polygon points="400,148 445,148 445,154 400,154" />
+              <line x1="370" y1="76" x2="435" y2="76" stroke="#C5A059" stroke-width="1.2" />
+            </g>
+
+            <!-- Bauhaus Chair Silhouette -->
+            <g transform="translate(180, 148)">
+              <path d="M10 24 C24 24, 42 27, 52 21 L55 25 C42 32, 24 31, 10 31 Z" fill="#0A0908" />
+              <path d="M10 24 C8 14, 6 5, 2 0 L6 -1 C11 5, 14 14, 16 25 Z" fill="#0A0908" />
+              <path d="M4 2 C12 17 16 27 20 34 L12 34" stroke="#C5A059" stroke-width="1.2" stroke-linecap="round" />
+            </g>
+            <ellipse cx="235" cy="195" rx="75" ry="6" fill="#FFFDF7" fill-opacity="0.05" />
+          </svg>
+        </div>
+
+        <div class="specs-ribbon">
+          <div class="spec-item"><div class="spec-lbl">Gross Area</div><div class="spec-val">340 m²</div></div>
+          <div class="spec-item"><div class="spec-lbl">Glaze Span</div><div class="spec-val">8.40 m</div></div>
+          <div class="spec-item"><div class="spec-lbl">Acoustic</div><div class="spec-val">Rw 52 dB</div></div>
+          <div class="spec-item"><div class="spec-lbl">Orientation</div><div class="spec-val">South-West</div></div>
+        </div>
+      </section>
+
+      <!-- Right: Materials & Schedule -->
+      <section class="right-panel">
+        <div class="materials-box">
+          <div class="mat-header">
+            <span class="mat-title">Bespoke Specimen Palette</span>
+            <span style="font-family:var(--font-mono); font-size:8.5px; color:var(--concrete-gray);">SPEC-2026</span>
+          </div>
+          <div class="mat-grid">
+            <div class="swatch-card">
+              <div class="swatch-tile tile-brass"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Brushed Brass</div>
+                <div class="swatch-detail">240-grit unlacquered patina</div>
+              </div>
+            </div>
+            <div class="swatch-card">
+              <div class="swatch-tile tile-oak"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Smoked Oak</div>
+                <div class="swatch-detail">Deep fumed alpine matte oil</div>
+              </div>
+            </div>
+            <div class="swatch-card">
+              <div class="swatch-tile tile-travertine"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Travertine</div>
+                <div class="swatch-detail">Tivoli cross-cut honed stone</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="schedule-box">
+          <div class="schedule-title">Space Allocation &amp; Volume</div>
+          <table class="arch-table">
+            <thead>
+              <tr><th>Zone</th><th>Area</th><th>Ceiling</th><th>Finish</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Great Room &amp; Gallery</td><td><span class="num-mono">142.5 m²</span></td><td><span class="num-mono">6.20 m</span></td><td>Concrete Screed</td></tr>
+              <tr><td>Mezzanine Master</td><td><span class="num-mono">68.0 m²</span></td><td><span class="num-mono">3.10 m</span></td><td>Smoked Oak</td></tr>
+              <tr><td>Hearth &amp; Culinary</td><td><span class="num-mono">48.2 m²</span></td><td><span class="num-mono">3.10 m</span></td><td>Honed Travertine</td></tr>
+              <tr><td>Cantilevered Loggia</td><td><span class="num-mono">36.4 m²</span></td><td><span class="num-mono">Open</span></td><td>Blackened Steel</td></tr>
+            </tbody>
+          </table>
+          <div class="eco-badge-row">
+            <div><span style="color:var(--brass-gold); font-weight:700;">MINERGIE-P-ECO</span><span style="color:var(--concrete-gray); margin-left:5px;">Ug = 0.52 W/m²K</span></div>
+            <div style="font-family:var(--font-mono); color:var(--travertine-stone);">GEOTHERMAL</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="showcase-footer">
+      <div>ATELIER URBANLOFT ARCHITECTURAL ARCHIVE • SPECIFICATIONS CERTIFIED</div>
+      <div>REF: UL-2026-CH-402</div>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,10 +1,10 @@
 from app.i18n import i18n
+from app.utils.context_usage import ContextUsageEstimator, ToolSchemaEstimate
 import asyncio
 import ctypes
 import gc
 import html
 import json
-import os
 import platform
 import random
 import string
@@ -20,16 +20,24 @@ from typing import Any, Dict, List, Optional
 
 from agentlang.agent.base import BaseAgent
 from agentlang.agent.loader import AgentLoader
+from agentlang.agent.models import AgentRunRequest
 from agentlang.agent.state import AgentState
+from app.core.horizon.models import HorizonInjectionPoint
+from app.service.user_context_service import UserContextService
 from agentlang.chat_history import AssistantMessage, CompactionConfig, SystemMessage, ToolCall
 from agentlang.chat_history.chat_history import ChatHistory
-from agentlang.chat_history.chat_history_models import UserMessage
+from agentlang.chat_history.chat_history_models import UserMessage, ToolMessage, ContextSource
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import (
+    AfterAgentLoopEventData,
     AfterAgentReplyEventData,
+    AfterLlmRequestSucceededEventData,
     AfterMainAgentRunEventData,
+    AgentLoopOutcome,
+    BeforeLlmRetryEventData,
     BeforeMainAgentRunEventData,
     ErrorEventData,
+    resolve_completed_loop_outcome,
 )
 from agentlang.event.event import EventType
 from agentlang.config.config import config
@@ -54,10 +62,11 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatComplet
 from app.core.ai_abilities import get_compact_model_id
 from app.core.agent_definition_normalizer import normalize_agent_definition
 from app.core.context.agent_context import AgentContext
-from app.core.horizon.workspace_tree_display import (
-    WORKSPACE_FILES_DISPLAY_MAX_CHARS,
-    WORKSPACE_TREE_SCAN_DEPTH,
-    build_workspace_tree_display_text,
+from app.core.horizon.memory_directory import scan_memory_directory
+from app.core.horizon.models import MemoryDirectorySnapshot
+from app.core.horizon.workspace_entry_index import (
+    BaselineMaintenance,
+    WorkspaceEntryIndex,
 )
 from app.magic.background_compact import (
     BackgroundCompactState,
@@ -68,40 +77,187 @@ from app.magic.background_compact import (
 from app.magic.compact_user_input_references import (
     format_user_input_reference_block,
 )
+from app.magic.compact_result import CompactResult
 from app.magic.compact_request_tracker import CompactRequestTracker
 from app.magic.security_guardrails import build_security_guardrails_prompt
 from app.core.entity.final_task_state import (
     FinalTaskState,
     FinalTaskStateCode,
+    ModelError,
+    ModelErrorCode,
     build_final_task_state,
 )
 from app.core.entity.message.server_message import TaskStatus
+from app.core.entity.todo import TodoItem, TodoStatus
 
 # 多语言支持
 from app.magic.user_command_handler import Commands
 from app.path_manager import PathManager
 from app.service.auto_read_file_service import AutoReadFileService
+from app.service.agent_event.native_visual_disable_listener_service import NativeVisualDisableListenerService
+from app.service.browser.browser_screenshot_artifact import BrowserScreenshotArtifactStore
+from app.service.native_visual_message_builder import NativeVisualMessageBuilder
 from app.service.todo_service import TodoService
 from app.tools.core import AutoMount
-from app.tools.core.app_tool_validator import AppToolValidator, app_tool_validator
+from app.tools.core.app_tool_validator import AppToolValidator
 from app.tools.core.tool_factory import tool_factory
-from app.tools.list_dir import ListDir
+from app.tools.subagent_session_manager import SubagentRunRef, subagent_session_manager
 from app.utils.file_utils import (
     WorkspaceSnapshot,
-    extract_workspace_entries,
+    calculate_file_hash,
+    get_fresh_file_stat,
 )
+from app.infrastructure.changefeed.change_ledger_client import (
+    ChangeLedgerClient,
+    ChangeLedgerUnavailable,
+    LedgerPage,
+)
+from app.infrastructure.changefeed.workspace_path_changes import (
+    WorkspaceChangeSet,
+    map_ledger_changes_to_workspace_paths,
+)
+from app.utils.agfs_mount_path import get_agfs_fuse_mount_root
 from agentlang.environment import Environment
 from app.core.skill_manager import generate_skills_prompt
+from app.core.skill_utils.prompt import PreloadedSkillFile
+from app.core.skill_utils.runtime_policy import resolve_runtime_skills
+from app.service.memory.policies.memory_skill_policy import is_auto_memory_enabled, is_memory_skill_available
+from app.service.memory.policies.memory_scope import MemoryScopeKind, build_memory_runtime_context, resolve_memory_scopes
 from app.core.skill_utils.skill_sources import get_system_skills_dir, get_workspace_skills_dir
-from agentlang.agent.define import AgentDefine, SkillsConfig, SystemSkillEntry
+from agentlang.agent.define import AgentDefine, SkillsConfig
 from app.core.models.agent_model_context import TextModelState
 from app.core.models.agent_runtime import AgentProviderType
+from app.service.multimodal_message_renderer import LLMMessageRenderer, LLMMessageRenderResult
+from app.service.native_visual_overflow_hint_builder import (
+    NativeVisualOverflowHintBuilder,
+)
 
 logger = get_logger(__name__)
 
 
-# Agent Loop Context Objects for clean parameter passing and state management
-@dataclass
+class _WorkspaceChangeSkip(str, Enum):
+    """这一轮账本为什么没能提供变更清单。每一种处置不同，日志里必须分开。"""
+
+    PRIMING = "priming"          # 第一次读取：只对齐起点，历史不属于"刚发生的变化"
+    EXPIRED = "expired"          # 窗口挤掉了游标，这段时间的变更读不到了
+    REGRESSION = "regression"    # revision 回退：agfs 重启过或文件树被重置
+    UNRESOLVED = "unresolved"    # 有变更说不出是哪个路径，条目集合必然缺项
+    NO_FEED = "no_feed"          # 账本在，但这个挂载没在听（版本同步被关掉了）
+    UNAVAILABLE = "unavailable"  # 账本读不到：没配、没起来、或者令牌过期
+
+
+# 账本自报缺口的那几种跳过：变更清单已经不可信，模型的工作区认知要整份重新对齐。
+_WORKSPACE_GAP_SKIPS = frozenset(
+    {
+        _WorkspaceChangeSkip.EXPIRED,
+        _WorkspaceChangeSkip.REGRESSION,
+        _WorkspaceChangeSkip.UNRESOLVED,
+    }
+)
+
+
+@dataclass(frozen=True)
+class _WorkspaceChangeDelivery:
+    """一次账本读取的结论：游标推进到哪、报出哪些变化、条目集合靠什么维护。"""
+
+    cursor: int
+    changes: WorkspaceChangeSet
+    maintenance: BaselineMaintenance
+    skipped: Optional[_WorkspaceChangeSkip] = None
+
+    @property
+    def is_gap(self) -> bool:
+        """账本是否自报缺口。缺口意味着模型的工作区认知需要整份重新对齐。"""
+        return self.skipped in _WORKSPACE_GAP_SKIPS
+
+
+def _unmaintained_delivery(cursor: int, skip: _WorkspaceChangeSkip) -> _WorkspaceChangeDelivery:
+    """账本不参与时的投递计划。
+
+    游标原地不动是刻意的：账本恢复后要从同一个位置接着读，跳过一段就等于把那段时间
+    里的远端变更永久丢掉。集合改由重新观测保持新鲜——那是**目录索引**的新鲜度，不是
+    变更的兜底来源，两者对模型的含义完全不同。
+    """
+    return _WorkspaceChangeDelivery(
+        cursor=cursor,
+        changes=WorkspaceChangeSet(),
+        maintenance=BaselineMaintenance.OBSERVATION,
+        skipped=skip,
+    )
+
+
+def _plan_workspace_change_delivery(
+    page: LedgerPage,
+    cursor: int,
+    *,
+    primed: bool,
+) -> _WorkspaceChangeDelivery:
+    """决定一次账本读取该怎么处理：游标推进到哪、报什么、集合靠什么维护。
+
+    纯函数——取数和上报留给调用方——因为这里几个判断都不需要网络或运行时就能测，
+    而它们一旦错了，模型会拿到一个可以被证伪的工作区事实：
+
+    1. **首次读取只对齐起点。** 账本里可能存着这个沙箱更早的历史（会话恢复、Claw 长
+       生命周期、agent 进程重启）。把这些历史当成"刚发生的变化"报出去，模型会把一条
+       早已过期、文件甚至已被重建的 `delete` 读成"这个文件刚被删了"。起点之前的状态
+       由 `<workspace_files>` 全量注入负责，账本只负责之后发生的增量。
+    2. **没在听就不算数。** `feed_attached=false` 的挂载照样有账本、照样回 200、
+       revision 永远是 0，和"什么都没变"长得一模一样。这种部署下变更清单是空的，
+       但集合仍要有人维护，所以退回重新观测。
+    3. **连续性判断。** 窗口挤掉了游标、或者 revision 回退，都说明这段时间的变更读不到
+       了：此时既不能报变更，也不能相信现有的集合，只能重新观测一次。
+    4. **缺口判断。** 有变更解析不出路径时，条目集合必然缺项；已经解析出来的那部分
+       仍然是事实，照常上报，同时把集合标记为需要重新观测。
+    5. **路径换算。** 见 `map_ledger_changes_to_workspace_paths` 的规则表。
+
+    例：首次读取 revision=900 → 对齐到 900、不报、此后由事件负责；
+        cursor=900、page.revision=937 → 报出该页变化、游标推进到 937；
+        cursor=900、page.revision=40 → 回落到 40、改为重新观测。
+    """
+    if not primed:
+        return _WorkspaceChangeDelivery(
+            cursor=page.revision,
+            changes=WorkspaceChangeSet(),
+            maintenance=BaselineMaintenance.EVENTS,
+            skipped=_WorkspaceChangeSkip.PRIMING,
+        )
+    if page.cursor_expired:
+        return _WorkspaceChangeDelivery(
+            cursor=page.revision,
+            changes=WorkspaceChangeSet(),
+            maintenance=BaselineMaintenance.STALE,
+            skipped=_WorkspaceChangeSkip.EXPIRED,
+        )
+    if page.revision < cursor:
+        return _WorkspaceChangeDelivery(
+            cursor=page.revision,
+            changes=WorkspaceChangeSet(),
+            maintenance=BaselineMaintenance.STALE,
+            skipped=_WorkspaceChangeSkip.REGRESSION,
+        )
+    if not page.feed_attached:
+        return _WorkspaceChangeDelivery(
+            cursor=page.revision,
+            changes=WorkspaceChangeSet(),
+            maintenance=BaselineMaintenance.OBSERVATION,
+            skipped=_WorkspaceChangeSkip.NO_FEED,
+        )
+
+    changes = map_ledger_changes_to_workspace_paths(page.changes)
+    if changes.unresolved:
+        return _WorkspaceChangeDelivery(
+            cursor=page.revision,
+            changes=changes,
+            maintenance=BaselineMaintenance.STALE,
+            skipped=_WorkspaceChangeSkip.UNRESOLVED,
+        )
+    return _WorkspaceChangeDelivery(
+        cursor=page.revision,
+        changes=changes,
+        maintenance=BaselineMaintenance.EVENTS,
+    )
+
+
 class LLMRetryState:
     """LLM 两阶梯重试状态"""
     # 当前是否已降级到非流式模式（第一阶梯失败后置 True，后续调用不再尝试流式）
@@ -110,6 +266,10 @@ class LLMRetryState:
     backoff_retry_count: int = 0
     # 总退避等待时间（用于日志）
     total_backoff_wait_time: float = 0.0
+    # 当前失败链中可能丢失的生成输出状态
+    consecutive_generation_failures: int = 0
+    max_lost_output_chars_in_streak: int = 0
+    split_recovery_hint_injected: bool = False
 
 
 @dataclass
@@ -121,10 +281,15 @@ class AgentLoopState:
     last_llm_message: Optional[ChatCompletionMessage] = None
     should_continue: bool = True
     output_recovery_count: int = 0
+    # Todo 与子 Agent 共用本次运行的提醒次数；工具调用、重试和压缩都不重置。
+    completion_reminder_count: int = 0
     # reactive compact：context_window_exceeded 时自动压缩一次后重试
     reactive_compact_attempted: bool = False
     # LLM 两阶梯重试状态
     retry_state: LLMRetryState = field(default_factory=LLMRetryState)
+    # 当前 run 内的循环序号和正常有效轮数，只用于轮次事件
+    loop_index: int = 0
+    effective_loop_count: int = 0
 
 
 @dataclass
@@ -185,6 +350,8 @@ class ToolExecutionResult:
     inject_horizon_after_tools: bool = True
     # 检测到某个工具因超长参数导致校验失败（参数有效但缺字段，通常是模型输出过长导致）
     has_long_args_failure: bool = False
+    # 本轮执行了历史压缩，不计入正常有效轮
+    has_compact_history: bool = False
 
 
 @dataclass
@@ -202,6 +369,13 @@ class LLMCallRequestException(Exception):
         self.original_exception = original_exception
 
 
+@dataclass(frozen=True)
+class ModelCallFailure:
+    """保留真实调用的错误与模型身份，终态不能借用之后的模型选择。"""
+    exception: Exception
+    error: ModelError
+
+
 @dataclass
 class SessionPrepResult:
     """Session preparation result after handling pending tool calls and user query"""
@@ -211,10 +385,13 @@ class SessionPrepResult:
 
 
 class Agent(BaseAgent):
-    """绑定 Context、ChatHistory 与 Horizon 的可运行 Agent 实例。
+    """
+    绑定 Context、ChatHistory 与 Horizon 的可运行 Agent 实例。
 
     Agent 管理自身运行状态；定义来源、编译准备、缓存和动态初始化时机由
     AgentRuntime 统一决定。
+
+    被动压缩仍使用原专用正文缓存；默认挂载规则由应用 YAML 声明。
     """
 
     def _setup_agent_context(self, agent_context: Optional[AgentContext] = None) -> AgentContext:
@@ -243,6 +420,7 @@ class Agent(BaseAgent):
             agent_context.chat_history_dir = PathManager.get_chat_history_dir()
             logger.warning(f"AgentContext 中未设置 chat_history_dir，使用默认值: {PathManager.get_chat_history_dir()}")
 
+        NativeVisualDisableListenerService.register_standard_listeners(agent_context)
         return agent_context
 
     def _initialize_configured_text_model(self) -> None:
@@ -258,14 +436,40 @@ class Agent(BaseAgent):
 
     def __init__(self, agent_name: str, agent_context: AgentContext = None, agent_id: str = None):
         self.agent_name = agent_name
+        self._context_usage_estimator = ContextUsageEstimator()
         self._closed = False
         self._context_registered = False
         self._active_run_task: asyncio.Task[object] | None = None
         self._tool_preflight_failures: Dict[str, str] = {}
+        # 最近一次观测到的工作区快照。条目集合本身由索引持有（见 _workspace_entry_index），
+        # 这里保留一份是为了让同一轮里的其它使用方（如嵌套规则文件的发现）拿到同一份事实，
+        # 而不是各自再问一次。
         self._workspace_snapshot: WorkspaceSnapshot | None = None
+        self._workspace_entry_index_instance: WorkspaceEntryIndex | None = None
+
+        # 工作区变更账本：游标属于本进程（只有我们知道模型的视图从哪一刻开始），
+        # 客户端懒建，`_change_ledger_disabled` 表示这个部署根本没开这个能力。
+        self._change_ledger_client: ChangeLedgerClient | None = None
+        self._change_ledger_cursor: int = 0
+        self._change_ledger_disabled: bool = False
+        # 首次读取只对齐起点：账本里的历史不属于"刚发生的变化"，见投递计划的说明。
+        self._change_ledger_primed: bool = False
+        # 当前最近一次真实 LLM 请求是否包含原生图片输入。
+        self._last_llm_request_contains_native_images = False
+        self._last_model_call_failure: ModelCallFailure | None = None
+        # 同一轮只注入一次相同的原生视觉 Horizon 状态，避免工具循环重复提示。
+        self._native_visual_horizon_context_signature: tuple[str, ...] | None = None
+        self._native_visual_horizon_render_hint: str | None = None
 
         # 设置Agent上下文
         self.agent_context = self._setup_agent_context(agent_context)
+        self._message_renderer = LLMMessageRenderer(
+            workspace_dir=self.agent_context.get_workspace_dir(),
+            browser_artifact_store=BrowserScreenshotArtifactStore(self.agent_context),
+        )
+        self._native_visual_message_builder = NativeVisualMessageBuilder(
+            self.agent_context.get_workspace_dir()
+        )
         self._initialize_configured_text_model()
         agents_dir = Path(PathManager.get_project_root() / "agents")
         agent_target = self.agent_context.get_agent_target()
@@ -282,13 +486,9 @@ class Agent(BaseAgent):
         )
 
         # 设置工具验证器，用于过滤无效工具
-        self._tool_validator = (
-            AppToolValidator(
-                ignore_invalid_declarations=True,
-                agent_name=self.agent_name,
-            )
-            if is_user_agent
-            else app_tool_validator
+        self._tool_validator = AppToolValidator(
+            ignore_invalid_declarations=True,
+            agent_name=self.agent_name,
         )
 
         # 存储加载的 skills 列表（必须在 _initialize_agent 之前初始化）
@@ -328,7 +528,7 @@ class Agent(BaseAgent):
         # 后台压缩状态（双阈值机制：early_compact_threshold 触发后台，compaction_threshold_tokens 硬限制）
         self._bg_compact_state = BackgroundCompactState()
         self.capture_compact_history_result: bool = False
-        self.captured_compact_summary: Optional[str] = None
+        self.captured_compact_result: CompactResult | None = None
 
         # 初始化 ChatHistory 实例
         self.chat_history = ChatHistory(
@@ -337,6 +537,8 @@ class Agent(BaseAgent):
             self.agent_context.chat_history_dir,
             self.agent_context.get_event_dispatcher(),  # 传递事件分发器
         )
+        # 轮次监听器从上下文读取当前历史，避免再查全局消息。
+        self.agent_context.chat_history = self.chat_history
 
         # Token usage 文件必须跟随当前 Agent 的聊天历史目录，不能复用全局 mutable prefix。
         token_usage_report_manager = TokenUsageReport.for_session(
@@ -359,12 +561,12 @@ class Agent(BaseAgent):
         logger.info(f"Agent context 已注册: {self.agent_context.get_agent_session_label()}")
 
     def enable_compact_history_capture(self) -> None:
-        """让当前 Agent 只捕获 compact_chat_history 的 summary 参数，不重写自身历史。"""
+        """让当前 Agent 只捕获压缩摘要与 Skill 建议，不重写自身历史。"""
         self.capture_compact_history_result = True
-        self.captured_compact_summary = None
+        self.captured_compact_result = None
 
-    def get_captured_compact_summary(self) -> Optional[str]:
-        return self.captured_compact_summary
+    def get_captured_compact_result(self) -> CompactResult | None:
+        return self.captured_compact_result
 
     def print_token_usage(self) -> None:
         """
@@ -397,6 +599,7 @@ class Agent(BaseAgent):
             return
         self._closed = True
         self._clear_stream_fallback_correlation()
+        self._context_usage_estimator.clear()
         self._bg_compact_state.reset()
 
         if self._context_registered:
@@ -408,6 +611,7 @@ class Agent(BaseAgent):
     def _clear_stream_fallback_correlation(self) -> None:
         """清理当前上下文未消费的流式降级标记。"""
         from agentlang.event import get_correlation_manager
+
         get_correlation_manager().set_stream_fallback_cid(None, self.agent_context.context_id)
 
     def has_active_run(self) -> bool:
@@ -417,6 +621,9 @@ class Agent(BaseAgent):
 
     def _claim_run(self) -> asyncio.Task[object]:
         """登记当前 run 的 Task 身份，阻止同一 Agent 被并发执行。"""
+        from app.service.sandbox_restart_coordinator import sandbox_restart_coordinator
+
+        sandbox_restart_coordinator.ensure_accepting_runs()
         current_task = asyncio.current_task()
         if current_task is None:
             raise RuntimeError("Agent.run() must execute inside an asyncio Task")
@@ -426,6 +633,7 @@ class Agent(BaseAgent):
             raise RuntimeError(f"Agent {self.agent_name} is already running")
 
         self._active_run_task = current_task
+        self.agent_context.horizon.begin_im_progress()
         return current_task
 
     def _set_run_terminal_state(
@@ -444,6 +652,7 @@ class Agent(BaseAgent):
         # 取消或终态错误可能跳过非流式 fallback，不能把标记留给后续 run。
         self._clear_stream_fallback_correlation()
         self._active_run_task = None
+        self.agent_context.horizon.end_im_progress()
 
     def dispose(self) -> None:
         """兼容性别名，语义等同于 close()。"""
@@ -470,36 +679,39 @@ class Agent(BaseAgent):
             raise ValueError("Text model id is not configured")
         return model_id
 
-    # compact-chat-history skill 永久挂载，无需在 .agent 文件中声明
-    _ALWAYS_MOUNT_SKILL = "compact-chat-history"
+    _COMPACT_SKILL_NAME = "compact-chat-history"
 
     def _initialize_agent(self):
         """初始化 agent"""
         # 从 .agent 文件中加载 agent 配置
         agent_define = self.load_agent_config(self.agent_name)
-        self._mount_runtime_tools(agent_define)
+        """
+        先合并应用默认 Skill，再选择对应运行工具；否则 .agent 未列 memory 时会漏掉预加载底座。
+        这里只决定需要加载哪些能力，真正可用的 Skill 要等下方正文生成完成后登记。
+        """
+        runtime_skills = resolve_runtime_skills(self._agent_loader.get_skills_config(self.agent_name))
+        skills_config = runtime_skills.skills_config
+        self._mount_runtime_tools(agent_define, skills_config)
 
         # 缓存 compact skill 内容，供被动触发时直接注入（避免运行时读文件）
         self._compact_skill_content = self._load_compact_skill_content()
 
-        # 生成 skills prompt；若 .agent 未配置任何 skills，也需确保 compact skill 永久挂载
-        skills_prompt_content = None
-        skills_config = self._agent_loader.get_skills_config(self.agent_name)
-        if not skills_config or skills_config.is_empty():
-            # 无 skills 配置时，构造仅含 compact skill 的最小配置
-            skills_config = SkillsConfig(
-                system_skills=[SystemSkillEntry(name=self._ALWAYS_MOUNT_SKILL)]
-            )
-        system_skill_names = skills_config.get_system_skill_names()
-        self.loaded_skills = system_skill_names
-        self.agent_context.set_loaded_skills(system_skill_names)
-        self.agent_context.set_excluded_skills(skills_config.excluded_skills)
-        skills_prompt_content = generate_skills_prompt(
+        """
+        声明合并不等于正文已加载。只有实际生成的 Skill 进入 loaded_skills；
+        必需预加载失败写入原有 excluded_skills，使日常入口和 after-run 使用同一状态。
+        """
+        skill_result = generate_skills_prompt(
             skills_config,
             agent_name=self.agent_name,
+            required_preloads=runtime_skills.required_preloads,
         )
+        skills_prompt_content = skill_result.content
+        self.loaded_skills = skill_result.loaded_names
+        self.agent_context.set_loaded_skills(skill_result.loaded_names)
+        self.agent_context.set_excluded_skills(list(dict.fromkeys([*skills_config.excluded_skills, *skill_result.disabled_names])))
+        self._preloaded_file_contents: tuple[PreloadedSkillFile, ...] = skill_result.preloaded_file_contents
         if skills_prompt_content:
-            logger.info(f"为 agent {self.agent_name} 生成了 skills prompt，包含 {len(system_skill_names)} 个 system skills")
+            logger.info(f"为 agent {self.agent_name} 生成了 skills prompt，包含 {len(skill_result.loaded_names)} 个 skills")
         else:
             logger.warning(f"尝试生成 skills prompt 失败，skills_config: {skills_config}")
 
@@ -528,19 +740,36 @@ class Agent(BaseAgent):
 
         # 准备静态变量并应用到 system_prompt
         static_vars = self._prepare_prompt_static_variables()
+        self._context_usage_estimator.set_skill_blocks((
+            self._agent_loader.set_variables(skills_prompt_content, static_vars) if skills_prompt_content else "",
+            skill_result.preloaded_content,
+        ))
         self.system_prompt = self._agent_loader.set_variables(self.system_prompt, static_vars)
+
+        # Skill 是文件原文，须避开模板处理，保留注释及其中的模板示例。
+        if skill_result.preloaded_content:
+            self.system_prompt += "\n\n---\n\n" + skill_result.preloaded_content
+
+        # 在安全规则之前追加平台级全局系统提示词。
+        global_system_prompt = self.agent_context.get_global_system_prompt()
+        if global_system_prompt.strip():
+            self.system_prompt += (
+                "\n\n---\n\n<global_system_prompt>\n"
+                + global_system_prompt
+                + "\n</global_system_prompt>"
+            )
 
         # 在完整 system prompt 末尾统一注入安全规则；大陆环境额外追加内容合规规则
         self.system_prompt += "\n\n---\n\n" + build_security_guardrails_prompt(
             is_mainland=Environment.is_mainland(),
         )
 
-    def _mount_runtime_tools(self, agent_define: AgentDefine) -> None:
+    def _mount_runtime_tools(self, agent_define: AgentDefine, skills_config: SkillsConfig) -> None:
         """根据工具声明和 Agent 能力配置挂载运行时基础工具。"""
         mount_types = [AutoMount.ALWAYS]
         if agent_define.code_execution:
             mount_types.append(AutoMount.CODE_EXECUTION)
-        if agent_define.skills_config and not agent_define.skills_config.is_empty():
+        if not skills_config.is_empty():
             mount_types.append(AutoMount.SKILLS)
 
         candidates = {
@@ -565,7 +794,7 @@ class Agent(BaseAgent):
         import concurrent.futures
         from app.utils.async_file_utils import async_read_text
 
-        skill_file = get_system_skills_dir() / self._ALWAYS_MOUNT_SKILL / "SKILL.md"
+        skill_file = get_system_skills_dir() / self._COMPACT_SKILL_NAME / "SKILL.md"
 
         async def _read():
             return await async_read_text(skill_file)
@@ -632,7 +861,7 @@ class Agent(BaseAgent):
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
             "project_root": str(PathManager.get_project_root()),
             "memory_root": str(PathManager.get_memory_root_dir()),
-            "agfs_fuse_mount_path": os.getenv("AGFS_FUSE_MOUNT_PATH", "/mnt/agfs"),
+            "agfs_fuse_mount_path": str(get_agfs_fuse_mount_root()),
             "cwd": self.agent_context._workspace_dir,
             "python_version": sys.version,
             "nodejs_version": subprocess.check_output(["node", "--version"]).decode("utf-8").strip(),
@@ -641,38 +870,159 @@ class Agent(BaseAgent):
             "managed_agent_code": managed_agent_code,
         }
 
+        # 提示词语法没有条件分支，按当前运行环境选择 sandbox / local 之一的说明，
+        # 用同一套变量预先渲染成正文；static_context 用 @variable 引用它，变量值不会被二次解析。
+        runtime_environment = PathManager.get_runtime_environment()
+        variables["runtime_environment"] = runtime_environment.value
+        variables["runtime_environment_prompt"] = self._agent_loader.set_variables(
+            f'{{{{ @include(path="./prompts/runtime_environment/{runtime_environment.value}.prompt") }}}}',
+            variables,
+        ).strip()
+
         return variables
 
-    async def _get_workspace_snapshot(self) -> WorkspaceSnapshot:
-        """扫描工作区文件树并生成快照。"""
-        logger.info("扫描工作区文件树")
-        list_dir_tool = ListDir()
-        content = await list_dir_tool.get_file_tree_async(
-            relative_workspace_path=".",
-            level=WORKSPACE_TREE_SCAN_DEPTH,
-            filter_binary=False,
+    def _workspace_entry_index(self) -> WorkspaceEntryIndex:
+        """惰性创建条目集合。
+
+        工作区根在会话内固定，所以可以按 Agent 实例缓存；惰性创建是为了让不碰工作区的
+        路径（例如只跑一个纯文本任务）完全不付这份开销。
+        """
+        if self._workspace_entry_index_instance is None:
+            self._workspace_entry_index_instance = WorkspaceEntryIndex(
+                Path(self.agent_context._workspace_dir)
+            )
+        return self._workspace_entry_index_instance
+
+    async def _get_memory_directory_snapshot(self) -> MemoryDirectorySnapshot | None:
+        """
+        获取当前普通项目的记忆目录快照，不读取笔记正文。
+
+        只自动观察本次普通项目的记忆根；全局 notes 和其它项目不会因为本轮对话被顺带扫描。
+        Claw 自有记忆已属于它的工作区，由原工作区入口处理，不再追加普通项目目录。
+        """
+        if not (is_auto_memory_enabled(self.agent_context) and is_memory_skill_available(self.agent_context)):
+            return None
+        scope = next(
+            (scope for scope in resolve_memory_scopes(self.agent_context) if scope.kind == MemoryScopeKind.PROJECT),
+            None,
         )
-        entries = extract_workspace_entries(content.tree)
-        display = build_workspace_tree_display_text(
-            entries,
-            max_chars=WORKSPACE_FILES_DISPLAY_MAX_CHARS,
-            scan_depth=WORKSPACE_TREE_SCAN_DEPTH,
+        if scope is None:
+            return None
+        return await scan_memory_directory(scope.root, self.agent_context)
+
+    async def _refresh_directory_snapshots(self) -> None:
+        """
+        每轮上下文准备时统一刷新目录；单个目录失败不阻止另一目录更新。
+
+        例：第一轮工具创建了文件，第二轮即使没有新用户消息，也应能看到它。
+        Workspace 与项目记忆各自扫描，在同一个上下文准备时机交给 Horizon 比较变化。
+        不把目录发现误作全文读取，模型仍按当前任务判断是否打开新笔记。
+
+        顺序是刻意的：**先问账本这一轮谁在维护条目集合，再按那个状态刷新**。反过来的话，
+        事件模式下会先付一次不必要的遍历。
+        """
+        horizon = self.agent_context.horizon
+
+        delivery = await self._poll_workspace_changes()
+        try:
+            snapshot = await self._workspace_entry_index().observe(
+                maintenance=delivery.maintenance, events=delivery.changes
+            )
+            await horizon.set_workspace_snapshot(snapshot)
+            self._workspace_snapshot = snapshot
+        except Exception as error:
+            # 刷新失败不阻止另一目录更新，也不阻止已经拿到的事件交付：事件是已经发生
+            # 的事实，不该因为一次遍历失败而一起丢掉。
+            logger.warning(f"刷新工作区文件树失败: {error}")
+        if not delivery.changes.empty:
+            horizon.add_workspace_changes(delivery.changes)
+        if delivery.is_gap:
+            # 账本自己说这段时间的变更读不到了：逐条列举无从谈起，只能把当前这份
+            # 观测整份交给模型。此时集合刚被重新观测过，所以列表是新的。
+            horizon.request_workspace_files_refresh()
+
+        await horizon.set_memory_directory_snapshot(await self._get_memory_directory_snapshot())
+
+    async def _poll_workspace_changes(self) -> _WorkspaceChangeDelivery:
+        """读一次变更账本，得出游标推进到哪、报出哪些变化、条目集合靠什么维护。
+
+        这条链路存在的理由：目录遍历是有预算的，而"有预算的观测"证明不了删除——大
+        项目上它要么什么都不说，要么说错。账本里的变更不依赖观测完整性：一条
+        create/delete 本身就是结论，而且它覆盖不是本沙箱写的东西（浏览器上传、
+        别的会话改动）。
+
+        它**不产生 magic-service 请求**：账本的权威数据是 agfs-server 用一条进程级订阅
+        拉进沙箱的，这里只是把它读出来。
+
+        读不到时返回"集合改由重新观测维护"——它不会把"读不到"当成"没有变化"（那种
+        错误完全无声），也不会拿目录遍历当变更来源（那会给出一个可以被证伪的清单）。
+        """
+        if self._change_ledger_disabled:
+            return _unmaintained_delivery(
+                self._change_ledger_cursor, _WorkspaceChangeSkip.UNAVAILABLE
+            )
+        if self._change_ledger_client is None:
+            self._change_ledger_client = ChangeLedgerClient()
+
+        try:
+            page = await self._change_ledger_client.fetch(self._change_ledger_cursor)
+        except ChangeLedgerUnavailable as error:
+            if error.permanent and not self._change_ledger_disabled:
+                # 这个部署没给挂载配账本，重试一辈子也不会有结果；记一次就停。
+                logger.warning(
+                    f"工作区变更账本不可用，本会话不再尝试（变更通知将缺席）: {error}"
+                )
+                self._change_ledger_disabled = True
+            else:
+                logger.debug(f"读取工作区变更账本失败（下一轮重试）: {error}")
+            return _unmaintained_delivery(
+                self._change_ledger_cursor, _WorkspaceChangeSkip.UNAVAILABLE
+            )
+        except Exception as error:
+            logger.warning(f"读取工作区变更账本时发生未预期错误（下一轮重试）: {error}")
+            return _unmaintained_delivery(
+                self._change_ledger_cursor, _WorkspaceChangeSkip.UNAVAILABLE
+            )
+
+        plan = _plan_workspace_change_delivery(
+            page, self._change_ledger_cursor, primed=self._change_ledger_primed
         )
-        snapshot = WorkspaceSnapshot(display=display, entries=entries)
-        self._workspace_snapshot = snapshot
-        return snapshot
+        self._change_ledger_cursor = plan.cursor
+        self._change_ledger_primed = True
+        self._log_workspace_change_delivery(plan)
+        return plan
+
+    @staticmethod
+    def _log_workspace_change_delivery(plan: _WorkspaceChangeDelivery) -> None:
+        """把投递结论写进日志。
+
+        `priming` 是正常冷启动，用 info；其余跳过都是"账本这一轮没给出清单"，用
+        warning——它们出现得频繁就说明变更链路在退化，而这个退化除了这里没有别的地方
+        会表现出来（模型那边只会安静地收不到通知）。
+        """
+        if plan.skipped is _WorkspaceChangeSkip.PRIMING:
+            logger.info(f"[ChangeLedger] 对齐工作区变更起点: revision={plan.cursor}")
+        elif plan.skipped is not None:
+            logger.warning(
+                f"[ChangeLedger] 账本本轮未提供变更清单（{plan.skipped.value}），"
+                f"条目集合改用重新观测维护: revision={plan.cursor}"
+            )
+
+        changes = plan.changes
+        if changes.empty and not changes.unresolved:
+            return
+        logger.info(
+            f"[ChangeLedger] 工作区变化: +{len(changes.added)} -{len(changes.removed)} "
+            f"unresolved={changes.unresolved} revision={plan.cursor}"
+        )
 
     async def async_complete_dynamic_init(self) -> None:
-        """异步完成动态初始化，将 workspace 文件树和用户语言同步到 AgentHorizon。
+        """初始化用户语言与 Claw 读取状态，目录在每轮上下文准备时统一刷新。
 
         此方法由 AgentRuntime 在 Agent 构造完成后、首次运行前按策略调用。
         Horizon 首次 build_context_update 时会将这些内容注入 LLM 的 initial_context。
         """
         horizon = self.agent_context.horizon
-
-        # ── workspace 文件树（异步扫描）──────────────────────────────────────
-        snapshot = await self._get_workspace_snapshot()
-        await horizon.set_workspace_snapshot(snapshot)
 
         # ── 用户偏好语言 ─────────────────────────────────────────────────────
         if not i18n.is_language_manually_set():
@@ -687,15 +1037,7 @@ class Agent(BaseAgent):
             from app.path_manager import PathManager
             await self.agent_context.horizon.restore_magiclaw_startup(PathManager.get_magic_dir())
 
-        logger.info("async_complete_dynamic_init 完成：workspace files、language 已同步到 horizon")
-
-    async def refresh_workspace_files(self) -> None:
-        """每次用户消息前调用，刷新工作区文件树并更新 horizon。
-
-        horizon 内部比对路径集合变化，有 diff 时会在下次 system_injected_context 中报告。
-        """
-        snapshot = await self._get_workspace_snapshot()
-        await self.agent_context.horizon.set_workspace_snapshot(snapshot)
+        logger.info("async_complete_dynamic_init 完成：language 已同步到 horizon")
 
     def _generate_agent_id(self) -> str:
         """生成符合规范的 Agent ID"""
@@ -709,6 +1051,7 @@ class Agent(BaseAgent):
     def _apply_final_task_state(self, final_task_state: FinalTaskState) -> None:
         """应用最终任务终态并同步 Agent 状态。"""
         self.agent_context.set_final_task_state(final_task_state)
+        self._last_model_call_failure = None
         self.agent_context.set_final_response(None)
         if final_task_state.task_status == TaskStatus.SUSPENDED:
             self.set_agent_state(AgentState.SUSPENDED)
@@ -808,50 +1151,62 @@ class Agent(BaseAgent):
             return build_final_task_state(
                 FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
                 vendor_message=str(exception),
-                custom_message=self._build_user_friendly_custom_message(exception, is_llm_path=True),
+                model_error=self._resolve_model_error(exception),
             )
 
         return None
 
-    def _classify_llm_exception_for_user(self, exception: Exception) -> str | None:
-        """根据 LLM 异常类型返回用户友好的 i18n key，返回 None 则使用默认文案。"""
+    def _classify_llm_exception_for_user(self, exception: Exception) -> ModelErrorCode | None:
+        """仅分类已确认的模型调用异常；文案与动作由终态定义统一维护。"""
         from openai import APITimeoutError, APIConnectionError, APIStatusError
 
         if is_non_retryable_model_config_error(exception):
-            return "messages.llm_provider_config_error"
+            return ModelErrorCode.CONFIG_ERROR
 
-        if isinstance(exception, (StreamChunkTimeoutError, StreamInterruptedError, asyncio.TimeoutError, APITimeoutError)):
-            return "messages.llm_provider_timeout"
-
-        if isinstance(exception, APIConnectionError):
-            return "messages.llm_provider_connection_failed"
-
-        if isinstance(exception, APIStatusError) and exception.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
-            return "messages.llm_provider_rate_limited"
-
-        if isinstance(exception, APIStatusError) and exception.status_code in self._NON_RETRYABLE_STATUS_CODES:
-            # 400/401/403/404/405：配置错误、权限问题或消息序列损坏，重试无意义，需要人工介入
-            return "messages.llm_provider_config_error"
-
-        if isinstance(exception, APIStatusError):
-            return "messages.llm_provider_error"
-
-        if isinstance(exception, (ConnectionError, OSError)):
-            return "messages.llm_provider_connection_failed"
+        for current in self._iter_exception_chain(exception):
+            if isinstance(current, (StreamChunkTimeoutError, StreamInterruptedError, asyncio.TimeoutError, APITimeoutError)):
+                return ModelErrorCode.TIMEOUT
+            if isinstance(current, APIConnectionError):
+                return ModelErrorCode.CONNECTION_FAILED
+            if isinstance(current, APIStatusError):
+                if current.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
+                    return ModelErrorCode.RATE_LIMITED
+                if current.status_code in self._NON_RETRYABLE_STATUS_CODES:
+                    # 400/401/403/404/405：配置错误、权限问题或消息序列损坏，重试无意义，需要人工介入
+                    return (
+                        ModelErrorCode.REQUEST_REJECTED
+                        if current.status_code in (400, 405)
+                        else ModelErrorCode.CONFIG_ERROR
+                    )
+                return ModelErrorCode.SERVICE_ERROR
+            if isinstance(current, (ConnectionError, OSError)):
+                return ModelErrorCode.CONNECTION_FAILED
 
         return None
 
-    def _build_user_friendly_custom_message(self, exception: Exception, is_llm_path: bool) -> str | None:
-        """为终态构建用户友好的 custom_message。非 LLM 路径或无法分类时返回 None。"""
-        if not is_llm_path:
-            return None
-        i18n_key = self._classify_llm_exception_for_user(exception)
-        if not i18n_key:
-            return None
-        return i18n.translate(i18n_key, category="common.messages")
+    def _create_model_error(self, code: ModelErrorCode, model_name: str | None = None) -> ModelError:
+        model_context = self.agent_context.model_context
+        can_switch = (
+            self.agent_context.is_interactive_main_agent_context()
+            and not model_context.has_active_compact_text_model()
+        )
+        return ModelError(
+            code,
+            model_context.current_text_model_id if can_switch else None,
+            model_name if can_switch else None,
+        )
 
-    async def run_main_agent(self, query: str):
-        """运行主 agent"""
+    def _resolve_model_error(self, exception: Exception) -> ModelError | None:
+        failure = self._last_model_call_failure
+        if failure and any(current is failure.exception for current in self._iter_exception_chain(exception)):
+            return failure.error
+        if is_non_retryable_model_config_error(exception):
+            return ModelError(ModelErrorCode.CONFIG_ERROR)
+        return None
+
+    async def run_main_agent(self, request: AgentRunRequest):
+        """运行主 agent。"""
+        query = request.query
         try:
             # 触发主 agent 运行前事件
             await self.agent_context.dispatch_event(EventType.BEFORE_MAIN_AGENT_RUN, BeforeMainAgentRunEventData(
@@ -860,7 +1215,7 @@ class Agent(BaseAgent):
                 query=query
             ))
 
-            await self.run(query)
+            await self.run(request)
 
             # 触发主 agent 运行后事件
             logger.info(f"run_main_agent: 准备发送 AFTER_MAIN_AGENT_RUN 事件，agent_state = {self.agent_state.value}")
@@ -904,11 +1259,11 @@ class Agent(BaseAgent):
         except Exception:
             pass
 
-    async def run(self, query: str):
-        """运行 agent"""
+    async def run(self, request: AgentRunRequest):
+        """运行 agent。"""
         run_task = self._claim_run()
         try:
-            result = await self._run_once(query)
+            result = await self._run_once(request)
         except asyncio.CancelledError:
             self._set_run_terminal_state(run_task, AgentState.SUSPENDED)
             raise
@@ -919,17 +1274,46 @@ class Agent(BaseAgent):
             self._set_run_terminal_state(run_task, AgentState.FINISHED)
             return result
         finally:
+            resumption_id = self.agent_context.get_resumption_id()
+            if resumption_id:
+                try:
+                    # MOCK DEMO：如果 run 在 Horizon 注入前被取消，
+                    # 这条 assigned 事项仍未被消费，必须释放回 pending。
+                    await self.agent_context.horizon.release_resumption(
+                        resumption_id,
+                        "Agent run ended before the resumption was injected",
+                    )
+                except Exception as release_error:
+                    logger.warning(
+                        "释放未完成 Agent resumption 失败: resumption_id=%s error=%s",
+                        resumption_id,
+                        release_error,
+                    )
+            self.agent_context.set_resumption_context(None, None)
             self._release_run(run_task)
 
-    async def _run_once(self, query: str):
+    def _push_web_search_runtime_context(self) -> None:
+        """每次运行及压缩后提供当前搜索偏好；旧协议未声明时不生成相反的默认提示。"""
+        enabled = self.agent_context.get_web_search_enabled()
+        if enabled is None:
+            return
+        content = (
+            "Web search is enabled for this run. Use internet search tools when needed; searching is not required."
+            if enabled else
+            "Web search is disabled for this run. Use workspace content and do not call internet search tools."
+        )
+        self.agent_context.horizon.push_notification("web_search", content)
+
+    async def _run_once(self, request: AgentRunRequest):
         """执行单轮 Agent 业务逻辑；run() 统一管理执行身份。"""
+        query = request.query
         self.agent_context.set_final_task_state(None)
         self.agent_context.set_final_response(None)
 
         # 异步加载聊天记录（幂等：首次加载从磁盘读取并修复序列，后续调用跳过）
         await self.chat_history.load()
 
-        session_prep_result = await self._prepare_run_session(query)
+        session_prep_result = await self._prepare_run_session(request)
 
         if session_prep_result.direct_response is not None:
             await self._dispatch_direct_command_response(session_prep_result.direct_response)
@@ -937,41 +1321,75 @@ class Agent(BaseAgent):
             self.set_agent_state(AgentState.FINISHED)
             return session_prep_result.direct_response
 
-        # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
-        # set_output_token_budget 只在首次设置时生效，_handle_agent_loop 里的调用会成为幂等 no-op
-        budget = self._get_runtime_output_budget()
-        self.agent_context.horizon.set_output_token_budget(budget)
+        """
+        同一 Agent 会跨 CHAT 复用：每个 run 提供当前设置，避免模型沿用初始化时的旧开关。
+        关闭自动记忆仍保留 Skill 与目录知识；不在每次工具调用后重复发送。
+        例：上一条 CHAT 自动开启，这条关闭；重新发当前事实即可，不必重建 Agent 或删 Skill。
+        """
+        self.agent_context.horizon.push_notification("memory", build_memory_runtime_context(self.agent_context))
+        self._push_web_search_runtime_context()
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
         # 若历史末尾存在未完成的 tool call 序列，跳过注入避免破坏序列完整性
+        # MOCK DEMO：/resume 不会追加可见用户消息；这里只把 Horizon 的恢复事项
+        # 作为隐藏上下文写入 ChatHistory，供 LLM 继续调用 get_sandbox_info。
+        resumption_id = self.agent_context.get_resumption_id()
+        resumption_injected = False
+        try:
+            await UserContextService.refresh(self.agent_context, first_only=True)
+        except Exception as error:
+            logger.warning(f"Initial user profile preparation failed: {type(error).__name__}")
         try:
             if self.chat_history._is_tool_call_sequence_complete():
                 ctx_update = await self._build_horizon_context_update_safely(
-                    injection_point="before_first_llm",
+                    injection_point=HorizonInjectionPoint.BEFORE_FIRST_LLM,
                     log_context="注入点1",
                 )
                 if ctx_update:
                     await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                    resumption_injected = bool(resumption_id)
+                    if resumption_id:
+                        # 上下文已经送进 Agent 后立即消费事项，不等待最终回答，
+                        # 避免工具失败或模型中断造成重复自动恢复。
+                        await self.agent_context.horizon.complete_resumption(resumption_id)
                     logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
             else:
                 logger.warning("[AgentHorizon] 注入点1 跳过：历史末尾存在未完成的 tool call 序列，避免消息序列错误")
         except Exception as _horizon_err:
+            if resumption_id and not resumption_injected:
+                await self.agent_context.horizon.release_resumption(
+                    resumption_id,
+                    f"Horizon resumption injection failed: {_horizon_err}",
+                )
             logger.warning(f"[AgentHorizon] 注入点1 注入失败: {_horizon_err}")
 
         self.set_agent_state(AgentState.RUNNING)
-        logger.info(f"开始运行 agent: {self.agent_name}, id: {self.id}, query: {query}")
+        # 后台任务可能携带完整 Skill；日志只保留单行预览，模型与历史仍使用完整 query。
+        query_preview_limit: int = 100
+        query_preview: str = repr(query[:query_preview_limit])
+        if len(query) > query_preview_limit:
+            query_preview += "..."
+        logger.info(
+            f"开始运行 agent: {self.agent_name}, id: {self.id}, "
+            f"query_length: {len(query)}, query_preview: {query_preview}"
+        )
 
         # 根据 stream_mode 选择不同的 Agent Loop 方式
         try:
             if self.stream_mode:
                 return await self._handle_agent_loop_stream()
             else:
-                return await self._handle_agent_loop(session_prep_result)
+                result = await self._handle_agent_loop(session_prep_result)
+                await self._refresh_user_context_after_main_run()
+                return result
         finally:
             # 任务被用户终止时，agent 协程会被 cancel 异常强制挂掉，需要在这里关闭所有资源
             await self.agent_context.close_all_resources()
 
-    async def _prepare_run_session(self, query: str) -> SessionPrepResult:
+    async def _prepare_run_session(
+        self,
+        request: AgentRunRequest,
+    ) -> SessionPrepResult:
         """准备本轮运行需要的会话状态，并保证 prepare 段完整收尾。"""
         prepare_blocker_acquired = False
         try:
@@ -985,37 +1403,31 @@ class Agent(BaseAgent):
             if not self.chat_history.messages:
                 logger.info("聊天记录为空，添加主 System Prompt")
                 await self.chat_history.append_system_message(self.system_prompt)
-
-                if self.agent_context.get_subagent_depth() > 0:
-                    parent_agent_name = self.agent_context.get_subagent_parent_agent_name() or "the parent agent"
-                    subagent_context_message = (
-                        "Sub-agent execution context:\n"
-                        f"- You are running as a sub-agent invoked by {parent_agent_name}.\n"
-                        "- The next visible user message is the delegated task from the parent agent, not a direct end-user chat.\n"
-                        "- Focus on completing the delegated task for the parent agent.\n"
-                        "- When you finish, include the paths of key deliverable files (if any) in your final reply — only files the user would care about, not temporary or intermediate ones."
-                    )
-                    await self.chat_history.append_user_message(subagent_context_message, show_in_ui=False)
             else:
                 # 聊天记录存在时，更新第一条 system message 为最新的 system_prompt
                 # 因为代码会更新，聊天记录不会更新，需要在 agent 每次运行时更新最新的 system prompt
                 await self.chat_history.update_first_system_prompt(self.system_prompt)
 
-            return await self._prepare_session_for_new_query(query)
+            return await self._prepare_session_for_new_query(request)
         finally:
             if prepare_blocker_acquired:
                 self.agent_context.decrement_cancel_blocker()
 
-    async def _prepare_session_for_new_query(self, query: str) -> SessionPrepResult:
+    async def _prepare_session_for_new_query(
+        self,
+        request: AgentRunRequest,
+    ) -> SessionPrepResult:
         """
         准备会话：处理pending工具调用和用户查询
 
         Args:
-            query: 用户输入的查询
+            request: Agent 运行请求
 
         Returns:
             SessionPrepResult: 会话准备结果
         """
+        query = request.query
+
         # 检测用户命令（/compact、/new 等），命令处理后 query 替换为命令执行结果
         command_match = Commands.get(query)
         is_continue_request = command_match and command_match.command.name == "continue"
@@ -1028,11 +1440,11 @@ class Agent(BaseAgent):
                     user_message_added=False,
                     direct_response=command_result.direct_response or "",
                 )
-            query = command_result.query or ""
+            request = request.with_query(command_result.query or "")
 
         # 如果没有聊天历史，直接添加用户消息
         if not self.chat_history.messages:
-            await self.chat_history.append_user_message(query)
+            await self._append_user_query(request)
             return SessionPrepResult(user_message_added=True)
 
         # 查找pending工具调用
@@ -1054,7 +1466,7 @@ class Agent(BaseAgent):
                     assistant_with_pending_tools,
                     reason=self._build_pending_tool_interruption_message(assistant_with_pending_tools),
                 )
-                await self.chat_history.append_user_message(query)
+                await self._append_user_query(request)
                 return SessionPrepResult(user_message_added=True)
         else:
             # /resume 是系统内部信号（由 ask_user 等工具的 resume 流程发出）：
@@ -1064,18 +1476,45 @@ class Agent(BaseAgent):
                 return SessionPrepResult(user_message_added=False)
 
             # 没有pending工具调用，正常添加用户消息
-            await self.chat_history.append_user_message(query)
+            await self._append_user_query(request)
             return SessionPrepResult(user_message_added=True)
+
+    async def _append_user_query(self, request: AgentRunRequest) -> None:
+        """写入用户消息，并重置本轮原生视觉 Horizon 去重状态。"""
+        self._native_visual_horizon_context_signature = None
+        self._native_visual_horizon_render_hint = None
+        if not request.image_refs:
+            await self.chat_history.append_user_query(request)
+            return
+
+        image_refs = list(dict.fromkeys(request.image_refs))
+        native_image_refs = self._message_renderer.limit_chat_native_image_refs(image_refs)
+        message = await self._native_visual_message_builder.build_user_message(
+            request.query,
+            native_image_refs,
+        )
+        await self.chat_history.add_message(message)
+        overflow_hint = NativeVisualOverflowHintBuilder.build(
+            image_refs,
+            self._message_renderer.max_native_image_refs,
+            supports_multimodal=(
+                self._resolve_current_text_model().config.supports_multimodal
+            ),
+        )
+        if overflow_hint:
+            self.agent_context.horizon.push_notification(
+                "native_visual_overflow",
+                overflow_hint,
+            )
 
     async def _handle_agent_loop(self, session_prep_result: SessionPrepResult) -> None:
         """处理 agent 循环 - 使用Context对象简化参数传递和状态管理"""
         loop_state = AgentLoopState()
 
-        # 初始输出预算：直接使用运行时模型配置的 max_output_tokens，只设置一次
-        initial_budget = self._get_runtime_output_budget()
-        self.agent_context.horizon.set_output_token_budget(initial_budget)
-
         while loop_state.should_continue:
+            loop_state.loop_index += 1
+            round_outcome = AgentLoopOutcome.ERROR
+            round_restored = False
             # 更新活动时间，用于活动追踪
             self.agent_context.update_activity_time()
 
@@ -1110,6 +1549,7 @@ class Agent(BaseAgent):
                         break
 
                     loop_state.last_llm_message = restored_context.llm_response  # 也更新last_llm_message
+                    round_restored = True
 
                     # 创建LLM上下文用于后续处理
                     llm_context = LLMResponseContext(
@@ -1164,16 +1604,16 @@ class Agent(BaseAgent):
                         if llm_context.has_tool_calls:
                             await self._synthesize_error_tool_results(
                                 llm_context.tool_calls,
-                                "Tool call was truncated due to output token limit. "
-                                "Do NOT retry this call. Break the work into smaller pieces.",
+                                "Tool call was not executed because the response ended with "
+                                f"finish_reason='{llm_context.finish_reason}' and may be incomplete.",
                             )
                         await self._try_inject_output_recovery_message(
                             loop_state,
-                            "Output token limit hit. Resume directly — no apology, no recap. "
-                            "Pick up mid-thought if that is where the cut happened. "
-                            "Break remaining work into smaller pieces.",
+                            f"The response ended with finish_reason='{llm_context.finish_reason}'. "
+                            "The output may be incomplete. Any tool calls in that response were not executed.",
                             source="max_output_tokens_recovery",
                         )
+                        round_outcome = AgentLoopOutcome.MAINTENANCE
                         continue
 
                     # 预处理工具参数：修复畸形 JSON、检测截断
@@ -1193,17 +1633,18 @@ class Agent(BaseAgent):
                             await self._add_tool_calls_to_history(llm_context)
                             await self._synthesize_error_tool_results(
                                 llm_context.tool_calls,
-                                "Tool call arguments were truncated due to output token limit. "
-                                "Do NOT retry this call. Break the work into smaller pieces.",
+                                "Tool calls were not executed because one or more argument payloads "
+                                "could not be parsed as a JSON object.",
                             )
                             await self._try_inject_output_recovery_message(
                                 loop_state,
-                                "One or more tool calls above failed because their arguments were "
-                                "truncated — the content was too long. "
-                                "Do NOT retry with the same approach. "
-                                "Break the work into smaller pieces.",
+                                "Tool argument preprocessing failed for: "
+                                f"{', '.join(preprocess_result.truncated_tool_names)}. "
+                                "Their arguments could not be parsed as JSON objects. "
+                                "No tool calls from that response were executed.",
                                 source="tool_args_truncation_recovery",
                             )
+                            round_outcome = AgentLoopOutcome.MAINTENANCE
                             continue
                         for candidate in preprocess_result.json_repair_candidates:
                             validation = await tool_argument_json_repair_validation_service.validate(
@@ -1251,16 +1692,23 @@ class Agent(BaseAgent):
                         self.set_agent_state(AgentState.RUNNING)
                         loop_state.agent_loop_retry_count = 0
                         # 重置 LLM 重试状态（成功恢复后重新开始）
-                        loop_state.retry_state = LLMRetryState()
+                        split_hint_injected = loop_state.retry_state.split_recovery_hint_injected
+                        loop_state.retry_state = LLMRetryState(
+                            split_recovery_hint_injected=split_hint_injected,
+                        )
 
                     # 处理无工具调用的情况
                     if not llm_context.has_tool_calls and llm_context.message.role == "assistant":
                         await self._handle_no_tool_calls(llm_context, loop_state)
                         if not loop_state.should_continue:
                             # todo都完成了，退出循环
+                            round_outcome = AgentLoopOutcome.NORMAL
+                            # 没有追加提醒，按模型本次结束意图退出，不代表所有事项都已完成。
                             break
                         else:
                             # 还有未完成的todo，继续循环让大模型继续处理
+                            round_outcome = AgentLoopOutcome.NORMAL
+                            # 提醒已进入上下文，继续调用模型，由模型处理未完成事项。
                             continue
 
                     # Reset no_tool_call_count when tools are called successfully
@@ -1277,7 +1725,10 @@ class Agent(BaseAgent):
                     logger.info(f"从 ERROR 状态恢复为 RUNNING（会话恢复路径）{retry_info}")
                     self.set_agent_state(AgentState.RUNNING)
                     loop_state.agent_loop_retry_count = 0
-                    loop_state.retry_state = LLMRetryState()
+                    split_hint_injected = loop_state.retry_state.split_recovery_hint_injected
+                    loop_state.retry_state = LLMRetryState(
+                        split_recovery_hint_injected=split_hint_injected,
+                    )
 
                 # 执行工具调用并处理结果
                 tool_result = await self._execute_and_process_tool_calls(llm_context)
@@ -1287,7 +1738,7 @@ class Agent(BaseAgent):
                 try:
                     if tool_result.inject_horizon_after_tools:
                         ctx_update = await self._build_horizon_context_update_safely(
-                            injection_point="after_tool_result",
+                            injection_point=HorizonInjectionPoint.AFTER_TOOL_RESULT,
                             log_context="tool result 后",
                         )
                         if ctx_update:
@@ -1302,18 +1753,24 @@ class Agent(BaseAgent):
                 if tool_result.has_long_args_failure:
                     await self._try_inject_output_recovery_message(
                         loop_state,
-                        "One or more tool calls above failed because their arguments were "
-                        "truncated or incomplete — the content was too long. "
-                        "Do NOT retry with the same approach. "
-                        "Break the work into smaller pieces.",
+                        "One or more failed tool calls had arguments longer than "
+                        f"{self._LONG_ARGS_THRESHOLD} characters. "
+                        "Their tool results contain the reported errors; "
+                        "argument length alone does not establish why the calls failed.",
                         source="tool_args_truncation_recovery",
                     )
 
+                round_outcome = resolve_completed_loop_outcome(
+                    restored=round_restored,
+                    waiting_for_user=self.agent_state == AgentState.WAITING_FOR_USER,
+                    maintenance=tool_result.has_long_args_failure or tool_result.has_compact_history,
+                )
                 if tool_result.should_exit:
                     loop_state.final_response = tool_result.final_response
                     break
 
             except Exception as e:
+                round_outcome = AgentLoopOutcome.ERROR
                 # 处理非 LLM 异常（工具执行失败等）
                 exception_result = await self._handle_agent_loop_exception(
                     e,
@@ -1323,9 +1780,31 @@ class Agent(BaseAgent):
                     loop_state.final_response = exception_result.final_response
                 if not exception_result.should_continue:
                     break
+            finally:
+                await self._emit_after_agent_loop(loop_state, round_outcome)
 
         # 完成循环后的清理工作
         return await self._finalize_agent_loop(loop_state)
+
+    async def _emit_after_agent_loop(self, loop_state: AgentLoopState, outcome: AgentLoopOutcome) -> None:
+        """发出本轮结束事件。取消时不投递，避免拖延退出；投递失败不回到主循环重试。"""
+        if isinstance(sys.exc_info()[1], asyncio.CancelledError):
+            return
+        if outcome == AgentLoopOutcome.NORMAL:
+            loop_state.effective_loop_count += 1
+        try:
+            await self.agent_context.dispatch_event(
+                EventType.AFTER_AGENT_LOOP,
+                AfterAgentLoopEventData(
+                    agent_context=self.agent_context,
+                    agent_name=self.agent_name,
+                    loop_index=loop_state.loop_index,
+                    effective_loop_count=loop_state.effective_loop_count,
+                    outcome=outcome,
+                ),
+            )
+        except Exception as error:
+            logger.warning(f"派发循环结束事件失败: {error.__class__.__name__}")
 
     async def _check_and_restore_session(self) -> SessionRestoreContext:
         """
@@ -1614,6 +2093,7 @@ class Agent(BaseAgent):
             bool: True if compaction was triggered, False otherwise
         """
         if not self.compaction_config.enable_compaction:
+            self.agent_context.set_compaction_threshold_tokens(0)
             return False
 
         token_count = await self.chat_history.tokens_count()
@@ -1649,6 +2129,8 @@ class Agent(BaseAgent):
             threshold_matched_rule = None
             threshold_used_default = False
 
+        # 展示自动整理的硬阈值；后台提前准备仍沿用原逻辑，不另算前端比例。
+        self.agent_context.set_compaction_threshold_tokens(compaction_threshold_tokens)
         early_threshold = self.compaction_config.early_compact_threshold
         message_threshold = self.compaction_config.max_conversation_rounds
         background_failed_this_snapshot = False
@@ -1673,12 +2155,12 @@ class Agent(BaseAgent):
 
         # ── 阶段 1：后台压缩已完成，立即应用 ──
         if self._bg_compact_state.is_completed:
-            summary = self._bg_compact_state.get_summary()
-            if summary:
+            compact_result = self._bg_compact_state.get_result()
+            if compact_result is not None:
                 logger.info(
                     f"后台压缩已完成 (耗时 {self._bg_compact_state.elapsed_seconds:.1f}s)，应用结果"
                 )
-                if await self._apply_background_compact(summary):
+                if await self._apply_background_compact(compact_result):
                     return True
                 logger.warning("后台压缩结果未应用，继续执行阈值判断")
             else:
@@ -1704,9 +2186,9 @@ class Agent(BaseAgent):
                     f"到达硬阈值 (tokens={token_count}/{compaction_threshold_tokens})，"
                     f"等待后台压缩完成 (已运行 {self._bg_compact_state.elapsed_seconds:.1f}s)"
                 )
-                summary = await self._wait_for_background_compact()
-                if summary:
-                    if await self._apply_background_compact(summary):
+                compact_result = await self._wait_for_background_compact()
+                if compact_result is not None:
+                    if await self._apply_background_compact(compact_result):
                         return True
                     logger.warning("后台压缩结果未应用，回退到前台压缩")
                 else:
@@ -1930,9 +2412,9 @@ class Agent(BaseAgent):
         """
         # 后台压缩已完成 → 直接应用（比重新走前台快）
         if self._bg_compact_state.is_completed:
-            summary = self._bg_compact_state.get_summary()
-            if summary:
-                if await self._apply_background_compact(summary):
+            compact_result = self._bg_compact_state.get_result()
+            if compact_result is not None:
+                if await self._apply_background_compact(compact_result):
                     return True
                 logger.warning("Force compact: 后台压缩结果未应用，回退到前台注入")
             else:
@@ -1945,9 +2427,9 @@ class Agent(BaseAgent):
                 f"Force compact: 后台压缩运行中 "
                 f"(已运行 {self._bg_compact_state.elapsed_seconds:.1f}s)，等待完成"
             )
-            summary = await self._wait_for_background_compact()
-            if summary:
-                if await self._apply_background_compact(summary):
+            compact_result = await self._wait_for_background_compact()
+            if compact_result is not None:
+                if await self._apply_background_compact(compact_result):
                     return True
                 logger.warning("Force compact: 后台压缩结果未应用，回退到前台注入")
             # 超时仍未完成 → 取消后台，走前台注入
@@ -1999,17 +2481,18 @@ class Agent(BaseAgent):
             model_id=compact_model_id,
         )
 
-    async def _wait_for_background_compact(self) -> Optional[str]:
-        """等待后台压缩完成（带超时），返回摘要或 None"""
-        if not self._bg_compact_state.is_running:
-            return self._bg_compact_state.get_summary()
+    async def _wait_for_background_compact(self) -> CompactResult | None:
+        """等待后台压缩完成（带超时），返回摘要与建议或 None。"""
+        task = self._bg_compact_state._task
+        if task is None or task.done():
+            return self._bg_compact_state.get_result()
 
         try:
             await asyncio.wait_for(
-                asyncio.shield(self._bg_compact_state._task),
+                asyncio.shield(task),
                 timeout=BACKGROUND_COMPACT_WAIT_TIMEOUT,
             )
-            return self._bg_compact_state.get_summary()
+            return self._bg_compact_state.get_result()
         except asyncio.TimeoutError:
             logger.warning(
                 f"后台压缩等待超时 ({BACKGROUND_COMPACT_WAIT_TIMEOUT}s)，"
@@ -2028,13 +2511,12 @@ class Agent(BaseAgent):
 
 ---
 You were interrupted by context compaction. The above contains a summary of your previous thinking and work. Resume in this order:
-1. If the summary lists skills needed to resume, call `read_skills()` to reload them first — they provide the methodology and workflow constraints for your task
-2. Read the files listed in the key files section as needed for the next action — do not reread every file by default
-3. Review external references and reference files as needed for background context
-4. Follow the task status and next action in the summary: continue only if the task is incomplete; if it is complete, do not invent follow-up work
+1. Read the files listed in the key files section as needed for the next action — do not reread every file by default
+2. Review external references and reference files as needed for background context
+3. Follow the task status and next action in the summary: continue only if the task is incomplete; if it is complete, do not invent follow-up work
 Since your subsequent output will be merged with pre-interruption content and displayed together in the frontend, maintain conversational continuity."""
 
-    async def _apply_background_compact(self, summary: str) -> bool:
+    async def _apply_background_compact(self, result: CompactResult) -> bool:
         """应用后台压缩结果，保留快照后新增的消息。
 
         后台压缩只处理启动时的历史前缀，不处理它运行期间产生的新消息：
@@ -2067,7 +2549,7 @@ Since your subsequent output will be merged with pre-interruption content and di
                 return False
 
             new_messages = list(current_messages[snapshot_count:])
-            compressed_content = self._build_compacted_summary_message(summary)
+            compressed_content = self._build_compacted_summary_message(result.summary)
             replacement_messages = [
                 SystemMessage(content=self.system_prompt, show_in_ui=False),
                 UserMessage(content=compressed_content, show_in_ui=True, source="compact_summary"),
@@ -2090,6 +2572,13 @@ Since your subsequent output will be merged with pre-interruption content and di
 
             await self.agent_context.horizon.on_context_reset()
             await self._rehydrate_media_models_after_context_reset()
+            # 后台压缩替换了旧窗口中的通知，按当前状态重新提供记忆模式和准确路径。
+            self.agent_context.horizon.push_notification("memory", build_memory_runtime_context(self.agent_context))
+            self._push_web_search_runtime_context()
+            await self.agent_context.horizon.suggest_skills(
+                result.skill_suggestions,
+                source="context_compaction",
+            )
             return True
 
         except Exception as e:
@@ -2240,23 +2729,10 @@ Since your subsequent output will be merged with pre-interruption content and di
     # 兼容各家不同的 finish_reason 值（"输出被截断"）
     _OUTPUT_TRUNCATED_FINISH_REASONS = {"length", "max_tokens"}
 
-    # 递进式恢复提示词（逐级加严）
-    _PROGRESSIVE_RECOVERY_PROMPTS = [
-        # 第 1 次（含流式降级）
-        "Your previous response was interrupted. "
-        "Break remaining work into smaller pieces and generate shorter responses.",
-        # 第 2 次
-        "Your response was interrupted again. You MUST generate shorter responses. "
-        "Limit each response to ONE focused step.",
-        # 第 3 次
-        "CRITICAL: Your responses keep getting interrupted. "
-        "Each response MUST be under 5000 characters. "
-        "Generate only ONE small, focused action per response.",
-        # 第 4~5 次
-        "FINAL WARNING: Output is still too long. "
-        "Respond with ONLY a single tool call with minimal arguments. "
-        "Do NOT include explanations or commentary. Maximum 2000 characters.",
-    ]
+    _GENERATION_SPLIT_RECOVERY_PROMPT = (
+        "A substantial model response was lost after repeated generation failures. "
+        "That response is unavailable in the current context."
+    )
 
     def _extract_chunk_count(self, exception: Exception) -> int:
         """从异常链中提取已收到的 chunk 数量（仅用于日志）"""
@@ -2264,6 +2740,87 @@ Since your subsequent output will be merged with pre-interruption content and di
             if isinstance(exc, (StreamInterruptedError, StreamChunkTimeoutError)):
                 return exc.chunk_count
         return 0
+
+    def _extract_emitted_text_chars(self, exception: Exception) -> int:
+        """从异常链提取流式失败前已经输出的 reasoning 和 content 字符数。"""
+        for exc in self._iter_exception_chain(exception):
+            if isinstance(exc, (StreamInterruptedError, StreamChunkTimeoutError)):
+                return exc.emitted_text_chars
+        return 0
+
+    def _record_generation_failure(self, loop_state: AgentLoopState, exception: Exception) -> bool:
+        """记录一次可能丢失生成内容的失败，并判断是否达到拆分提示门槛。"""
+        retry_state = loop_state.retry_state
+        retry_state.consecutive_generation_failures += 1
+        retry_state.max_lost_output_chars_in_streak = max(
+            retry_state.max_lost_output_chars_in_streak,
+            self._extract_emitted_text_chars(exception),
+        )
+        return (
+            retry_state.consecutive_generation_failures >= 2
+            and retry_state.max_lost_output_chars_in_streak >= 5000
+            and not retry_state.split_recovery_hint_injected
+        )
+
+    @staticmethod
+    def _reset_generation_failure_streak(loop_state: AgentLoopState) -> None:
+        retry_state = loop_state.retry_state
+        retry_state.consecutive_generation_failures = 0
+        retry_state.max_lost_output_chars_in_streak = 0
+
+    def _extract_api_status_code(self, exception: Exception) -> Optional[int]:
+        """从异常链中提取 HTTP 状态码。"""
+        from openai import APIStatusError
+
+        for exc in self._iter_exception_chain(exception):
+            if isinstance(exc, APIStatusError):
+                return exc.status_code
+        return None
+
+    async def _dispatch_before_llm_retry_event(
+        self,
+        *,
+        exception: Exception,
+        loop_state: AgentLoopState,
+        use_stream: bool,
+    ) -> BeforeLlmRetryEventData:
+        """请求失败后、进入重试决策前抛出重试前事件。"""
+        model_id = ""
+        supports_multimodal = False
+        try:
+            model_state = self.agent_context.model_context.resolve_text_model()
+            model_id = model_state.model_id
+            supports_multimodal = bool(model_state.config.supports_multimodal)
+        except Exception:
+            model_id = self.agent_context.model_context.current_text_model_id or ""
+
+        event_data = BeforeLlmRetryEventData(
+            agent_context=self.agent_context,
+            exception=exception,
+            status_code=self._extract_api_status_code(exception),
+            model_id=model_id,
+            use_stream=use_stream,
+            backoff_retry_count=loop_state.retry_state.backoff_retry_count,
+            streaming_disabled=loop_state.retry_state.streaming_disabled,
+            request_contains_native_images=bool(
+                getattr(self, "_last_llm_request_contains_native_images", False)
+            ),
+            supports_multimodal=supports_multimodal,
+            is_context_window_exceeded=bool(self._find_context_window_error(exception)),
+        )
+        event = await self.agent_context.dispatch_event(EventType.BEFORE_LLM_RETRY, event_data)
+        return event.data
+
+    async def _dispatch_llm_request_succeeded_event(self, *, use_stream: bool) -> None:
+        """请求成功后抛出成功事件，供监听器清理失败计数。"""
+        await self.agent_context.dispatch_event(
+            EventType.AFTER_LLM_REQUEST_SUCCEEDED,
+            AfterLlmRequestSucceededEventData(
+                agent_context=self.agent_context,
+                model_id=self.agent_context.model_context.current_text_model_id or "",
+                use_stream=use_stream,
+            ),
+        )
 
     def _find_context_window_error(self, exception: Exception) -> Optional[LLMErrorSnapshot]:
         """在异常链中查找上下文超长错误，返回对应的 snapshot 或 None"""
@@ -2348,20 +2905,36 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 第一阶梯：流式尝试（仅在未降级时）
         if not loop_state.retry_state.streaming_disabled:
             try:
-                return await self._prepare_and_call_llm(
+                response = await self._prepare_and_call_llm(
                     use_stream=True,
                     first_chunk_timeout=config.get("llm.stream_first_chunk_timeout_seconds", 60),
                     chunk_timeout=config.get("llm.stream_chunk_timeout_seconds", 60),
                 )
+                self._reset_generation_failure_streak(loop_state)
+                await self._dispatch_llm_request_succeeded_event(use_stream=True)
+                return response
             except ResourceLimitExceededException:
                 raise  # 平台业务限制（积分/并发），直接终止
             except Exception as e:
                 compact_fallback = await self._try_fallback_compact_model_once(e)
                 if compact_fallback is not None:
+                    self._reset_generation_failure_streak(loop_state)
+                    await self._dispatch_llm_request_succeeded_event(use_stream=False)
                     return compact_fallback
                 if self._find_context_window_error(e):
                     raise  # 上下文超长走 compact 路径
-                if is_non_retryable_model_config_error(e):
+                retry_decision = await self._dispatch_before_llm_retry_event(
+                    exception=e,
+                    loop_state=loop_state,
+                    use_stream=True,
+                )
+                if retry_decision.allow_retry:
+                    if retry_decision.disable_streaming:
+                        loop_state.retry_state.streaming_disabled = True
+                    logger.warning(
+                        f"流式请求失败，监听器要求重试: reason={retry_decision.reason}, error={e}"
+                    )
+                elif is_non_retryable_model_config_error(e):
                     logger.warning(f"流式请求遇到模型配置错误，不降级不重试，直接抛出: {e}")
                     raise
                 # 确定性错误：不降级非流式，也不重试。
@@ -2369,12 +2942,15 @@ Since your subsequent output will be merged with pre-interruption content and di
                 # 必须先检查此条件再走降级分支，否则会白白浪费一轮非流式请求。
                 # 注意：上下文超长（同样是 400）已在前面被 _find_context_window_error 拦截并 raise，
                 # 走到这里的 400 一定是消息序列/格式问题，无法通过重试自愈。
-                if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
+                elif (
+                    isinstance(e, APIStatusError)
+                    and e.status_code in self._NON_RETRYABLE_STATUS_CODES
+                ):
                     logger.warning(
                         f"流式请求遇到确定性错误 HTTP {e.status_code}，不降级不重试，直接抛出: {e}"
                     )
                     raise
-                if isinstance(e, APIStatusError) and e.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
+                elif isinstance(e, APIStatusError) and e.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
                     # 供应商限流/过载，等待后降级到非流式。
                     # 不计入 backoff_retry_count — 流式阶段的 429 等待仅用于降级过渡，
                     # 进入第二阶梯后应拥有完整的重试预算。
@@ -2386,12 +2962,15 @@ Since your subsequent output will be merged with pre-interruption content and di
                     # 流式失败 → 降级非流式
                     loop_state.retry_state.streaming_disabled = True
                     received_chunks = self._extract_chunk_count(e)
-                    # 无论是否收到过 chunk，都注入恢复提示词（保成功率优先）
-                    await self._try_inject_output_recovery_message(
-                        loop_state,
-                        self._PROGRESSIVE_RECOVERY_PROMPTS[0],
-                        source="stream_interruption_recovery",
-                    )
+                    should_inject_split_hint = self._record_generation_failure(loop_state, e)
+                    if should_inject_split_hint:
+                        injected = await self._try_inject_output_recovery_message(
+                            loop_state,
+                            self._GENERATION_SPLIT_RECOVERY_PROMPT,
+                            source="generation_split_recovery",
+                        )
+                        if injected:
+                            loop_state.retry_state.split_recovery_hint_injected = True
                     logger.warning(f"流式请求失败（chunks={received_chunks}），降级非流式: {e}")
                 # 落入第二阶梯
 
@@ -2401,10 +2980,13 @@ Since your subsequent output will be merged with pre-interruption content and di
 
         while True:
             try:
-                return await self._prepare_and_call_llm(
+                response = await self._prepare_and_call_llm(
                     use_stream=False,
                     non_stream_timeout=timeout,
                 )
+                self._reset_generation_failure_streak(loop_state)
+                await self._dispatch_llm_request_succeeded_event(use_stream=False)
+                return response
             except ResourceLimitExceededException:
                 raise  # 平台业务限制，直接终止
             except Exception as e:
@@ -2413,6 +2995,8 @@ Since your subsequent output will be merged with pre-interruption content and di
                     non_stream_timeout=timeout,
                 )
                 if compact_fallback is not None:
+                    self._reset_generation_failure_streak(loop_state)
+                    await self._dispatch_llm_request_succeeded_event(use_stream=False)
                     return compact_fallback
                 if self._find_context_window_error(e):
                     if not loop_state.reactive_compact_attempted:
@@ -2423,14 +3007,23 @@ Since your subsequent output will be merged with pre-interruption content and di
                             continue
                     raise
 
+                retry_decision = await self._dispatch_before_llm_retry_event(
+                    exception=e,
+                    loop_state=loop_state,
+                    use_stream=False,
+                )
+                if retry_decision.allow_retry and retry_decision.skip_backoff:
+                    continue
+
                 # 确定性错误：重试必然失败，直接抛出由上层走终态逻辑。
                 # 400 消息序列损坏时，每次重试还会额外注入 recovery user 消息，
                 # 反而让序列更乱，形成死亡螺旋，必须在退避重试逻辑之前先拦截。
-                if is_non_retryable_model_config_error(e):
-                    logger.warning(f"非流式请求遇到模型配置错误，不重试，直接抛出: {e}")
-                    raise
-                if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
-                    raise
+                if not retry_decision.allow_retry:
+                    if is_non_retryable_model_config_error(e):
+                        logger.warning(f"非流式请求遇到模型配置错误，不重试，直接抛出: {e}")
+                        raise
+                    if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
+                        raise
 
                 # 供应商 429/529：等待后重试，不注入恢复提示词，纳入重试计数
                 if isinstance(e, APIStatusError) and e.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
@@ -2446,18 +3039,15 @@ Since your subsequent output will be merged with pre-interruption content and di
                 if loop_state.retry_state.backoff_retry_count >= max_retries:
                     raise  # 重试预算耗尽
 
-                # 递进式恢复提示词：backoff_retry_count=1 时取 prompt[1]（第二级）。
-                # prompt[0] 已在流式降级时注入；若从 429 降级（未注入 prompt[0]），
-                # 直接从 prompt[1] 开始也合理——429 不是输出截断问题，不需要最温和的提示。
-                prompt_idx = min(
-                    loop_state.retry_state.backoff_retry_count,
-                    len(self._PROGRESSIVE_RECOVERY_PROMPTS) - 1
-                )
-                await self._try_inject_output_recovery_message(
-                    loop_state,
-                    self._PROGRESSIVE_RECOVERY_PROMPTS[prompt_idx],
-                    source="backoff_retry_recovery",
-                )
+                should_inject_split_hint = self._record_generation_failure(loop_state, e)
+                if should_inject_split_hint:
+                    injected = await self._try_inject_output_recovery_message(
+                        loop_state,
+                        self._GENERATION_SPLIT_RECOVERY_PROMPT,
+                        source="generation_split_recovery",
+                    )
+                    if injected:
+                        loop_state.retry_state.split_recovery_hint_injected = True
 
                 # 指数退避 + jitter（base=10s, max=60s）
                 base_wait = min(10 * (2 ** (loop_state.retry_state.backoff_retry_count - 1)), 60)
@@ -2471,6 +3061,40 @@ Since your subsequent output will be merged with pre-interruption content and di
                     f"wait={wait_time:.1f}s): {e}"
                 )
                 await self._interruptible_sleep(wait_time)
+
+    async def _push_native_visual_horizon_notifications(
+        self,
+        render_result: LLMMessageRenderResult,
+    ) -> bool:
+        """把本轮新增的原生视觉状态登记到 Horizon，并避免重复提示。"""
+        notification_pushed = False
+        context_signature = render_result.native_image_paths or None
+        if (
+            context_signature is not None
+            and context_signature != self._native_visual_horizon_context_signature
+        ):
+            native_visual_hint = await self._native_visual_message_builder.build_horizon_hint(
+                list(context_signature)
+            )
+            self.agent_context.horizon.push_notification(
+                "native_visual_context",
+                native_visual_hint,
+            )
+            self._native_visual_horizon_context_signature = context_signature
+            notification_pushed = True
+
+        if (
+            render_result.horizon_hint is not None
+            and render_result.horizon_hint != self._native_visual_horizon_render_hint
+        ):
+            self.agent_context.horizon.push_notification(
+                "native_visual_render",
+                render_result.horizon_hint,
+            )
+            self._native_visual_horizon_render_hint = render_result.horizon_hint
+            notification_pushed = True
+
+        return notification_pushed
 
     async def _prepare_and_call_llm(
         self,
@@ -2491,9 +3115,21 @@ Since your subsequent output will be merged with pre-interruption content and di
         Returns:
             LLMResponseContext: 包含LLM响应的所有相关数据
         """
+        self._last_model_call_failure = None
         # 压缩判断必须使用压缩前的业务模型；若触发压缩，后续会切换到 compact 专属模型。
         threshold_model_id = self._require_current_text_model_id()
         await self._try_compact_chat_history(threshold_model_id=threshold_model_id)
+
+        # 压缩会清空文件跟踪；preload 仍在 system prompt，沿原登记和通知入口恢复。
+        await self._ensure_preloaded_files_tracked()
+        # 先处理已读文件的变化，再决定 AutoRead；完整 diff 已交付时无需重复全文。
+        if self.chat_history._is_tool_call_sequence_complete():
+            preload_context = await self._build_horizon_context_update_safely(
+                injection_point=HorizonInjectionPoint.BEFORE_LLM_PRELOADED_SKILLS,
+                log_context="AutoRead 前刷新文件版本",
+            )
+            if preload_context:
+                await self.chat_history.append_user_message(preload_context, show_in_ui=False, source="horizon")
 
         # 自动规则文件统一在真实模型调用前发现和读取；压缩或 /new 后会根据当前 ChatHistory 自动重建交付状态。
         await AutoReadFileService.prepare_before_llm(
@@ -2506,15 +3142,64 @@ Since your subsequent output will be merged with pre-interruption content and di
             ),
         )
 
-        # 使用ChatHistory获取格式化后的消息列表
-        messages_for_llm = self.chat_history.get_messages_for_llm()
+        # 压缩可能切换到专属模型，调用前重新解析一次当前文本模型。
+        text_model_state = self._resolve_current_text_model()
+
+        # 历史加当前合计超过上限时，先关掉历史原生视觉消息，再基于快照渲染请求。
+        await self.chat_history.disable_historical_native_visual_if_over_limit(
+            self._message_renderer.max_history_image_refs,
+        )
+        message_snapshot = self.chat_history.get_message_snapshot()
+        render_result = await self._message_renderer.render_messages_with_horizon_hint(
+            message_snapshot,
+            supports_multimodal=text_model_state.config.supports_multimodal,
+        )
+        rendered_messages = render_result.messages
+        has_native_visual_notification = await self._push_native_visual_horizon_notifications(
+            render_result
+        )
+        if has_native_visual_notification:
+            native_visual_context = await self._build_horizon_context_update_safely(
+                injection_point=HorizonInjectionPoint.BEFORE_LLM_NATIVE_VISUAL,
+                log_context="原生视觉请求前注入",
+            )
+            if native_visual_context:
+                await self.chat_history.append_user_message(
+                    native_visual_context,
+                    show_in_ui=False,
+                    source="horizon",
+                )
+                rendered_messages.append(
+                    {"role": "user", "content": native_visual_context}
+                )
+        messages_for_llm = self.chat_history.normalize_messages_for_llm(rendered_messages)
+        image_ref_count = sum(
+            1
+            for message in message_snapshot
+            if isinstance(message, UserMessage)
+            for part in (message.content_parts or [])
+            if part.type == "image_ref"
+        )
+        native_image_count = sum(
+            1
+            for message in messages_for_llm
+            if isinstance(message, dict) and isinstance(message.get("content"), list)
+            for part in message["content"]
+            if part.get("type") == "image_url"
+        )
+        self._last_llm_request_contains_native_images = native_image_count > 0
+        logger.info(
+            "LLM 请求多模态渲染状态: "
+            f"model_id={text_model_state.display_model_id} "
+            f"model_name={text_model_state.model_name} "
+            f"supports_multimodal={text_model_state.config.supports_multimodal} "
+            f"history_image_ref_count={image_ref_count} "
+            f"request_native_image_count={native_image_count}"
+        )
         if not messages_for_llm:
             logger.error("无法获取用于LLM调用的消息列表(可能历史记录为空或只有内部消息)")
             self.set_agent_state(AgentState.ERROR)
             raise ValueError("无法准备与LLM的对话。")
-
-        # 压缩可能切换到专属模型，调用前重新解析一次当前文本模型。
-        text_model_state = self._resolve_current_text_model()
 
         # _call_llm 的异常全部透传给 _call_llm_with_retry 做分类处理
         llm_start_time = time.time()
@@ -2594,7 +3279,14 @@ Since your subsequent output will be merged with pre-interruption content and di
 
     def _resolve_current_text_model(self) -> TextModelState:
         """解析当前运行时文本模型。"""
-        return self.agent_context.model_context.resolve_text_model()
+        try:
+            return self.agent_context.model_context.resolve_text_model()
+        except ValueError as exception:
+            if is_non_retryable_model_config_error(exception):
+                self._last_model_call_failure = ModelCallFailure(
+                    exception, self._create_model_error(ModelErrorCode.CONFIG_ERROR),
+                )
+            raise
 
     def _resolve_current_max_context_tokens(self, text_model_state: TextModelState) -> int:
         """返回当前用于展示、压缩判断和 Horizon 入参的上下文上限。"""
@@ -2604,9 +3296,9 @@ Since your subsequent output will be merged with pre-interruption content and di
         )
 
         # Hard 是模型配置允许的物理最大上下文，可能达到 1M；Soft 是 Super Magic 当前
-        # 实际采用的产品上下文，默认是 200K，也可以来自用户手动设置或模型专属档位。
-        # 例如 Hard=1,048,576 且使用默认 Soft 时，这里返回 200,000，主动压缩阈值为
-        # 180,000（200K × 90%），而不是等到接近 1M 时才压缩。
+        # 实际采用的产品上下文，默认是 300K，也可以来自用户手动设置、旧型号或成本例外。
+        # 例如 Hard=1,048,576 且使用默认 Soft 时，这里返回 300,000，主动压缩阈值为
+        # 270,000（300K × 90%），而不是等到接近 1M 时才压缩；自动窗口不超过 Hard。
         # 同一个 current_max_context_tokens 会用于前端、Horizon 和压缩判断，避免三处口径不同。
         model_key = (text_model_state.resolved_model_id or text_model_state.model_id).strip()
         user_manual_max_context_tokens = self.agent_context.horizon.get_user_manual_max_context_tokens(
@@ -2624,16 +3316,9 @@ Since your subsequent output will be merged with pre-interruption content and di
             text_model_state.model_id,
             resolved_model_id=text_model_state.resolved_model_id,
             model_name=text_model_state.model_name,
+            max_context_tokens=text_model_state.max_context_tokens,
         )
         return user_facing_max_context_tokens or text_model_state.max_context_tokens
-
-    def _get_runtime_output_budget(self) -> int:
-        """获取当前运行时模型的输出预算；解析失败时保守使用默认值。"""
-        try:
-            return self._resolve_current_text_model().max_output_tokens
-        except Exception as e:
-            logger.warning(f"获取运行时模型输出预算失败，使用默认值 4096: {e}")
-            return 4096
 
     def _build_horizon_llm_model_info(
         self,
@@ -2658,17 +3343,70 @@ Since your subsequent output will be merged with pre-interruption content and di
             description=description,
         )
 
+    async def _refresh_user_context_after_main_run(self) -> None:
+        """完整主 Loop 正常结束后刷新一次；仍持有 run，且尚未关闭资源。"""
+        if (
+            not self.agent_context.is_main_agent
+            or self.agent_state != AgentState.FINISHED
+            or self.agent_context.is_interruption_requested()
+        ):
+            return
+        try:
+            await UserContextService.refresh(self.agent_context)
+            if not self.chat_history._is_tool_call_sequence_complete():
+                return
+            update = await self._build_horizon_context_update_safely(
+                HorizonInjectionPoint.AFTER_MAIN_AGENT_RUN, "主 Loop 结束",
+            )
+            if update:
+                await self.chat_history.append_user_message(update, show_in_ui=False, source="horizon")
+        except Exception as error:
+            # 资料失败不改写已经完成的回答；CancelledError 保持向上传播。
+            logger.warning(f"User context end-of-run refresh failed: {type(error).__name__}")
+
+    async def _ensure_preloaded_files_tracked(self) -> bool:
+        """仅为缺失的 preload 路径登记文件，不覆盖已有记录或维护另一套恢复状态。"""
+        registered = False
+        horizon = self.agent_context.horizon
+        for preloaded_file in self._preloaded_file_contents:
+            file_path = preloaded_file.path
+            try:
+                if await horizon.is_file_tracked(file_path):
+                    continue
+                stat = await get_fresh_file_stat(file_path)
+                await horizon.record_file_read(
+                    path=file_path,
+                    file_hash=await calculate_file_hash(file_path),
+                    mtime_ms=stat.mtime * 1000,
+                    size=stat.size,
+                    truncated=False,
+                    tool_name="skill_preload",
+                    ranges=[(0, -1)],
+                    source_content=preloaded_file.source_content,
+                )
+                registered = await horizon.is_file_tracked(file_path) or registered
+            except Exception as error:
+                logger.warning(f"[AgentHorizon] preload 文件登记失败 {file_path}: {error}")
+        return registered
+
     async def _build_horizon_context_update_safely(
         self,
-        injection_point: str,
+        injection_point: HorizonInjectionPoint,
         log_context: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """构建 Horizon 注入内容，模型配置错误时静默跳过。"""
         try:
+            if injection_point == HorizonInjectionPoint.AFTER_MAIN_AGENT_RUN:
+                return await self.agent_context.horizon.build_context_update(injection_point)
+            await self._ensure_preloaded_files_tracked()
+            await self.agent_context.horizon.flush_pending_user_messages()
             self._sync_horizon_llm_model_info()
-            return await self.agent_context.horizon.build_context_update(
-                injection_point=injection_point
-            )
+            """
+            每轮先刷新再生成通知：首轮、工具后的下一轮、未完成 TODO 驱动的续轮都经过这里。
+            模型传输重试复用已准备的消息，不因为重试重新触发一轮目录扫描。
+            """
+            await self._refresh_directory_snapshots()
+            return await self.agent_context.horizon.build_context_update(injection_point)
         except Exception as horizon_err:
             if is_non_retryable_model_config_error(horizon_err):
                 logger.debug(f"[AgentHorizon] {log_context} 跳过：模型配置错误: {horizon_err}")
@@ -2728,31 +3466,92 @@ Since your subsequent output will be merged with pre-interruption content and di
             except Exception as e:
                 logger.warning(f"合成 error tool_result 失败: tool={tool_name}, error={e}")
 
+    _MAX_COMPLETION_REMINDERS = 2
+
     async def _handle_no_tool_calls(self, llm_context: LLMResponseContext, loop_state: AgentLoopState) -> None:
+        """结束前提供有限提醒，不代替模型等待、停止子 Agent 或更新 Todo。
+
+        例：第一次只提醒 Todo，第二次同时提醒 Todo 和子 Agent，共用两次机会。
+        模型再次选择结束时不再提醒；次数用完也不终止它主动继续调用工具的工作。
         """
-        处理LLM响应中没有工具调用的情况
+        loop_state.should_continue = False
+        if loop_state.completion_reminder_count >= self._MAX_COMPLETION_REMINDERS:
+            return
 
-        逻辑流程:
-        1. 检查是否存在未完成的todo任务
-        2. 如果有未完成任务，通知大模型继续处理
-        3. 如果todo都完成了，直接退出循环
+        incomplete_todos = await self._check_incomplete_todos()
+        running_subagents: list[SubagentRunRef] = []
+        try:
+            running_subagents = await subagent_session_manager.list_running_child_runs(
+                self.agent_context.context_id,
+            )
+        except Exception as error:
+            logger.warning(f"读取运行中子 Agent 失败: {error}")
 
-        Args:
-            llm_context: LLM响应上下文
-            loop_state: 循环状态，会被直接修改
-        """
-        # 检查是否存在未完成的todo任务
-        has_incomplete_todos, todo_message = await self._check_incomplete_todos()
+        if not incomplete_todos and not running_subagents:
+            return
 
-        if has_incomplete_todos:
-            # 有未完成的任务，将提示消息添加到聊天历史
-            logger.info("检测到未完成的todo任务，提示大模型继续完成任务")
-            await self.chat_history.append_user_message(todo_message, show_in_ui=False)
+        reminder = self._build_completion_reminder(incomplete_todos, running_subagents)
+        # 先占用机会，写入失败不无限重试；次数和容忍结束的边界不发送给模型。
+        loop_state.completion_reminder_count += 1
+        try:
+            # 本轮没有工具结果，不会经过通常的注入点；继续推理前仍需要最新目录。
+            ctx_update = await self._build_horizon_context_update_safely(
+                injection_point=HorizonInjectionPoint.BEFORE_CONTINUATION_LLM, log_context="继续未完成任务",
+            )
+            if ctx_update:
+                await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+            # 直接写入当前上下文，不放入可能因预算超限而延期消费的 Horizon 通知队列。
+            await self.chat_history.append_user_message(
+                reminder, show_in_ui=False, source="completion_reminder",
+            )
             loop_state.should_continue = True
-        else:
-            # All tasks completed, exit the loop directly
-            logger.info("所有任务已完成，退出 agent 循环")
-            loop_state.should_continue = False
+            logger.info(
+                f"已追加结束提醒 #{loop_state.completion_reminder_count}/{self._MAX_COMPLETION_REMINDERS}，"
+                f"未完成 Todo={len(incomplete_todos)}，运行中子 Agent={len(running_subagents)}"
+            )
+        except Exception as error:
+            logger.warning(f"结束提醒写入失败，沿用正常结束流程: {error}")
+
+    @staticmethod
+    def _build_completion_reminder(
+        incomplete_todos: list[TodoItem],
+        running_subagents: list[SubagentRunRef],
+    ) -> str:
+        """按实际存在的事项生成提醒；运行上限不是模型可选择的工作方式。"""
+        lines = [
+            "Runtime reminder, not a new user instruction.",
+            "There is unfinished work to resolve before completing this task.",
+        ]
+        if running_subagents:
+            lines.extend(["", "Sub-agents still running:"])
+            lines.extend(f"- {ref.agent_name} / {ref.agent_id}" for ref in running_subagents)
+            lines.extend([
+                "",
+                "Before finishing, wait for the running sub-agents to complete and collect their results.",
+                "Call wait_for_subagents with these exact final session IDs:",
+                json.dumps([ref.agent_id for ref in running_subagents], ensure_ascii=False),
+                "A timeout or progress message does not mean the sub-agent has completed. "
+                "Keep waiting and process the final results before completing this task.",
+                "If a delegated task is no longer needed, explicitly stop that sub-agent "
+                "instead of leaving it running.",
+            ])
+        if incomplete_todos:
+            lines.extend(["", "Todo items still incomplete:"])
+            lines.extend(
+                f"- [{todo.status.value}] {todo.id}: {todo.content}"
+                for todo in incomplete_todos
+            )
+            lines.extend([
+                "",
+                "Resolve the incomplete Todo items. Use todo_update to mark an item completed "
+                "only when its work is done, or cancelled only when it is no longer needed.",
+            ])
+        content = html.escape("\n".join(lines), quote=False)
+        return (
+            '<system_injected_context>\n<notifications>\n'
+            f'<notification source="completion_reminder">\n{content}\n</notification>\n'
+            '</notifications>\n</system_injected_context>'
+        )
 
     async def _execute_and_process_tool_calls(self, llm_context: LLMResponseContext) -> ToolExecutionResult:
         """
@@ -2791,6 +3590,10 @@ Since your subsequent output will be merged with pre-interruption content and di
             final_response=final_response,
             inject_horizon_after_tools=inject_horizon_after_tools,
             has_long_args_failure=has_long_args_failure,
+            has_compact_history=any(
+                result is not None and result.system == "COMPACT_HISTORY"
+                for result in tool_call_results
+            ),
         )
 
     # 工具参数长度阈值：超过此值的失败工具调用被视为"超长参数导致的校验失败"
@@ -2865,39 +3668,47 @@ Since your subsequent output will be merged with pre-interruption content and di
                     tool_call_id=result.tool_call_id,
                     system=result.system,
                     duration_ms=tool_duration_ms,
+                    context_source=(
+                        ContextSource.SKILLS if result.name == "read_skills"
+                        else ContextSource.MCP if bool(result.name and result.name.startswith("mcp_"))
+                        else ContextSource.from_value(result.extra_info.get("context_source"))
+                    ),
                 )
 
                 # 检查其他特殊工具调用
                 if result.system == "COMPACT_HISTORY":
-                    summary = None
-                    if result.extra_info and "summary" in result.extra_info:
-                        summary = result.extra_info["summary"]
+                    raw_compact_result: object = (result.extra_info or {}).get("compact_result")
+                    compact_result = (
+                        raw_compact_result
+                        if isinstance(raw_compact_result, CompactResult) and raw_compact_result.summary.strip()
+                        else None
+                    )
                     logger.info("检测到 COMPACT_HISTORY 工具调用，执行聊天历史压缩")
                     self._log_compaction_event(
                         "tool_result_received",
                         "收到压缩工具结果："
-                        f"是否有摘要={isinstance(summary, str) and bool(summary.strip())}，"
+                        f"是否有有效压缩结果={compact_result is not None}，"
                         f"工具调用ID={result.tool_call_id}",
                     )
 
                     if self.capture_compact_history_result:
-                        if isinstance(summary, str) and summary.strip():
-                            self.captured_compact_summary = summary
+                        if compact_result is not None:
+                            self.captured_compact_result = compact_result
                             should_exit = True
                             final_response = None
                             inject_horizon_after_tools = False
-                            logger.info("已捕获 compact_chat_history summary，结束压缩子 Agent")
+                            logger.info("已捕获 compact_chat_history 摘要与 Skill 建议，结束压缩子 Agent")
                         else:
-                            logger.error("compact capture 模式下缺少有效 summary")
+                            logger.error("compact capture 模式下缺少有效压缩结果")
                             should_exit = True
                             final_response = None
                             inject_horizon_after_tools = False
                         break
 
-                    if isinstance(summary, str) and summary.strip():
-                        await self._execute_history_compact(summary)
+                    if compact_result is not None:
+                        await self._execute_history_compact(compact_result)
                     else:
-                        logger.error("COMPACT_HISTORY tool result missing summary in extra_info")
+                        logger.error("COMPACT_HISTORY tool result missing valid compact_result in extra_info")
                         self._finish_compact_request(reason="压缩工具返回空摘要")
                     # Continue the agent loop after compact
                     continue
@@ -2912,65 +3723,28 @@ Since your subsequent output will be merged with pre-interruption content and di
 
         return should_exit, final_response, inject_horizon_after_tools
 
-    async def _check_incomplete_todos(self) -> tuple[bool, Optional[str]]:
-        """
-        检查是否存在未完成的任务
-
-        Returns:
-            tuple[bool, Optional[str]]: (是否有未完成任务, 提示消息)
-        """
+    async def _check_incomplete_todos(self) -> list[TodoItem]:
+        """读取未完成 Todo；保留原有读取失败不阻止结束的行为。"""
         try:
             # 加载待办任务列表
             todos = await TodoService.load_todos()
-
-            # 如果没有任务,直接返回
-            if not todos:
-                logger.debug("没有找到任何待办任务")
-                return False, None
-
             # 过滤出未完成的任务(状态为pending或in_progress)
-            incomplete_todos = [
+            return [
                 todo for todo in todos
-                if todo.status in ["pending", "in_progress"]
+                if todo.status in (TodoStatus.PENDING, TodoStatus.IN_PROGRESS)
             ]
-
-            # 如果没有未完成任务,返回False
-            if not incomplete_todos:
-                logger.info("所有任务都已完成")
-                return False, None
-
-            # 构造提示消息
-            logger.info(f"发现 {len(incomplete_todos)} 个未完成的任务")
-
-            formatted_todos = TodoService.format_todos_simple(incomplete_todos)
-
-            # 构造详细的提示消息
-            message_lines = [
-                "我发现有任务处于未完成的状态，以下是所有任务的列表",
-                "",
-                formatted_todos,
-                "",
-                "你需要自行确认(不需要问我)这些任务是否已经完成了，如果已经完成了，请使用 todo_update 工具将其标记为 completed；如果不需要完成，请使用 todo_update 工具将其标记为 cancelled。",
-                "",
-                "如果存在没有完成的任务，请立马开始处理它们"
-            ]
-
-            prompt_message = "\n".join(message_lines)
-
-            return True, prompt_message
-
         except Exception as e:
             logger.error(f"检查未完成任务时发生错误: {e}", exc_info=True)
-            # 出错时返回False,不阻止任务完成
-            return False, None
+            return []
 
-    async def _execute_history_compact(self, summary: str) -> None:
+    async def _execute_history_compact(self, result: CompactResult) -> None:
         """
-        Execute chat history compact with the provided summary
+        应用前台压缩结果，历史替换成功后再提供 Skill 建议。
 
         Args:
-            summary: The detailed summary from compact_chat_history tool
+            result: 已恢复所选用户原文的摘要，以及压缩模型选出的 Skill 建议。
         """
+        summary = result.summary
         # 前台压缩已就绪（summary 已生成），取消正在进行的后台压缩以避免冲突
         self._bg_compact_state.reset()
 
@@ -3024,6 +3798,13 @@ Since your subsequent output will be merged with pre-interruption content and di
 
             await self.agent_context.horizon.on_context_reset()
             await self._rehydrate_media_models_after_context_reset()
+            # 主动压缩同样需要恢复当前记忆事实，不能指望摘要完整保留旧开关通知。
+            self.agent_context.horizon.push_notification("memory", build_memory_runtime_context(self.agent_context))
+            self._push_web_search_runtime_context()
+            await self.agent_context.horizon.suggest_skills(
+                result.skill_suggestions,
+                source="context_compaction",
+            )
 
         except Exception as e:
             self._log_compaction_event(
@@ -3071,6 +3852,7 @@ Since your subsequent output will be merged with pre-interruption content and di
 
             await self._rehydrate_media_models_after_context_reset()
 
+            self._context_usage_estimator.clear()
             logger.info("Chat history reset for new session via /new")
 
         except Exception as e:
@@ -3164,8 +3946,6 @@ Since your subsequent output will be merged with pre-interruption content and di
         Returns:
             ExceptionHandlingResult: 异常处理结果
         """
-        from openai import APIError as _openai_APIError
-
         self._log_agent_loop_exception(exception)
 
         # 处理中断的工具调用
@@ -3255,14 +4035,7 @@ Since your subsequent output will be merged with pre-interruption content and di
             self._apply_final_task_state(build_final_task_state(
                 FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
                 vendor_message=str(exception),
-                custom_message=self._build_user_friendly_custom_message(
-                    exception,
-                    is_llm_path=isinstance(exception, LLMCallRequestException)
-                    or any(
-                        isinstance(exc, _openai_APIError)
-                        for exc in self._iter_exception_chain(exception)
-                    ),
-                ),
+                model_error=self._resolve_model_error(exception),
             ))
             loop_state.last_llm_message = None
             return ExceptionHandlingResult(should_continue=False, final_response=None)
@@ -3389,9 +4162,20 @@ Since your subsequent output will be merged with pre-interruption content and di
         try:
             tool_instance = tool_factory.get_tool_instance(tool_name)
         except Exception:
-            logger.warning(f"工具 {tool_name} 实例化失败，跳过添加。", exc_info=True)
+            logger.opt(exception=True).warning(f"工具 {tool_name} 实例化失败，跳过添加。")
             return False
         return tool_instance.is_visible_in_context(self.agent_context)
+
+    @staticmethod
+    def _validate_llm_response(response: ChatCompletion) -> None:
+        """错误 envelope 不包含 choices，先保留上游错误语义，再读取消息。"""
+        extra = response.model_extra or {}
+        code = extra.get("code")
+        if code is not None and code != 1000:
+            message = extra.get("message") or "Model service returned an error"
+            raise RuntimeError(f"Model request failed: code={code}, message={message}")
+        if not response.choices or response.choices[0].message is None:
+            raise RuntimeError("Model service returned no response choices/message.")
 
     async def _call_llm(
         self,
@@ -3474,6 +4258,31 @@ Since your subsequent output will be merged with pre-interruption content and di
         if non_stream_timeout is not None:
             processor_config.non_stream_timeout_seconds = non_stream_timeout
 
+        if self.agent_context.is_main_agent and self.agent_context.get_message_version() == "v2":
+            sources: dict[str, ContextSource | None] = {}
+            for message in self.chat_history.messages:
+                if isinstance(message, AssistantMessage):
+                    for call in message.tool_calls or []:
+                        if call.function is None:
+                            continue
+                        name = call.function.name
+                        sources[call.id] = (
+                            ContextSource.SKILLS if name == "read_skills"
+                            else ContextSource.MCP if name.startswith("mcp_")
+                            else ContextSource.MIXED if name == "run_sdk_snippet"
+                            else None
+                        )
+                elif isinstance(message, ToolMessage) and message.context_source is not None:
+                    sources[message.tool_call_id] = message.context_source
+            schema_estimates: dict[int, ToolSchemaEstimate] = {}
+            for tool_param in tools_list:
+                estimate = tool_factory.get_context_usage_schema_estimate(tool_param["function"]["name"])
+                if estimate is not None:
+                    schema_estimates[id(estimate.schema)] = estimate
+            processor_config.context_usage_estimator = lambda request: self._context_usage_estimator.estimate(
+                request, sources, schema_estimates,
+            )
+
         processor_config.model_id = text_model_state.model_id
         processor_config.model_name = text_model_state.model_name
 
@@ -3487,17 +4296,21 @@ Since your subsequent output will be merged with pre-interruption content and di
                 processor_config=processor_config,
                 enable_llm_response_events=True,
                 llm_config=text_model_state.config,
+                extra_body=self.agent_context.get_reasoning_extra_body(),
             )
         except ResourceLimitExceededException:
             raise
+        except Exception as exception:
+            # 在真实调用边界记住身份并原样抛出；不改变重试分类、时机或取消行为。
+            code = self._classify_llm_exception_for_user(exception)
+            if code is not None:
+                # 保存失败请求的名称；之后切换模型或恢复压缩模型不改变历史错误身份。
+                self._last_model_call_failure = ModelCallFailure(
+                    exception, self._create_model_error(code, text_model_state.model_name),
+                )
+            raise
 
-        # 检查 model_extra 中的响应状态码
-        if hasattr(llm_response, 'model_extra') and llm_response.model_extra:
-            code = llm_response.model_extra.get('code')
-            if code is not None and code != 1000:
-                message = llm_response.model_extra.get('message', '')
-                logger.error(f"LLM响应异常状态: code={code}, message={message}")
-
+        self._validate_llm_response(llm_response)
         llm_response_message = llm_response.choices[0].message
         request_time = time.time() - start_time
         # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ 调用 LLM 结束 ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ #

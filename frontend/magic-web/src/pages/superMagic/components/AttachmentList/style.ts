@@ -201,9 +201,6 @@ const useStyles = createStyles(({ token }) => ({
 		flex: "auto",
 		overflow: "auto",
 	},
-	showDownloadAll: {
-		marginBottom: "32px",
-	},
 	// 新建话题按钮样式
 	newTopicButton: {
 		display: "flex",
@@ -255,41 +252,6 @@ const useStyles = createStyles(({ token }) => ({
 		justifyContent: "center",
 		alignItems: "center",
 		flex: "none",
-	},
-
-	// Batch download layer
-	batchDownloadLayer: {
-		position: "absolute",
-		bottom: 0,
-		left: 0,
-		right: 0,
-		backgroundColor: "#FFFFFF",
-		borderTop: "1px solid rgba(28, 29, 35, 0.08)",
-		borderRadius: "0 0 8px 8px",
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		padding: "10px 0",
-		animation: "slideUp 0.2s ease-out",
-		height: "32px",
-	},
-	batchDownloadButton: {
-		display: "flex",
-		alignItems: "center",
-		gap: "4px",
-		padding: "4px 8px",
-		backgroundColor: "transparent",
-		border: "none",
-		fontSize: "12px",
-		lineHeight: "16px",
-		fontFamily: "PingFang SC, sans-serif",
-		color: "rgba(28, 29, 35, 0.8)",
-		cursor: "pointer",
-		borderRadius: "6px",
-		transition: "background-color 0.2s ease",
-		"&:hover": {
-			backgroundColor: "rgba(46, 47, 56, 0.08)",
-		},
 	},
 }))
 

@@ -46,7 +46,10 @@ function UpdateSkillDialog({ open, onOpenChange, parseResult, onSuccess }: Updat
 	const [identity, setIdentity] = useState<SkillIdentityData>(INITIAL_IDENTITY)
 	const [isSubmitting, setIsSubmitting] = useState(false)
 
-	const { upload: uploadPublic } = useUpload({ storageType: "public" })
+	const { upload: uploadPublic } = useUpload({
+		storageType: "public",
+		businessCode: "skill",
+	})
 
 	// Sync identity from parseResult whenever dialog opens with new data
 	useEffect(() => {

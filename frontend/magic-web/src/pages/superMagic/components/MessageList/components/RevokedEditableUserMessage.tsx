@@ -1,6 +1,6 @@
 import { useMemoizedFn } from "ahooks"
 import { memo, useMemo, useState, type ReactNode } from "react"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { observer } from "mobx-react-lite"
 import DefaultMessageEditorContainer from "@/pages/superMagic/components/MainInputContainer/components/editors/DefaultMessageEditorContainer"
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
@@ -20,7 +20,6 @@ import { superMagicStore } from "@/pages/superMagic/stores"
 import { optimisticMessageStore } from "@/pages/superMagic/stores/optimisticMessageStore"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import type { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
-import projectFilesStore from "@/stores/projectFiles"
 import { UserMessageCollapsibleRichText } from "@/pages/superMagic/components/MessageList/components/UserMessageCollapsibleRichText"
 import MentionList from "@/pages/superMagic/components/MessageEditor/components/MentionList"
 import { handleProjectFileMention } from "@/pages/superMagic/components/MessageEditor/utils"
@@ -62,9 +61,7 @@ function RevokedEditableUserMessage({
 }: RevokedEditableUserMessageProps) {
 	const { projectFilesStore: messageListProjectFilesStore } = useMessageListContext()
 	const resolvedProjectFilesStore =
-		editorContextOverride?.projectFilesStore ??
-		messageListProjectFilesStore ??
-		projectFilesStore
+		editorContextOverride?.projectFilesStore ?? messageListProjectFilesStore
 	const resolvedSelectedProject =
 		editorContextOverride?.selectedProject !== undefined
 			? editorContextOverride.selectedProject
@@ -208,7 +205,7 @@ function RevokedEditableUserMessage({
 			initialContent,
 			autoFocus: true,
 			onFileClick,
-			attachments: resolvedProjectFilesStore.workspaceFileTree,
+			attachments: resolvedProjectFilesStore?.workspaceFileTree ?? [],
 			projectFilesStore: resolvedProjectFilesStore,
 			isAllowedMention,
 			onSendStart: ({ content, mentionItems }) => {

@@ -23,6 +23,7 @@ use App\Domain\Permission\Service\ModelAccessRoleDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Service\ProviderModelDomainService;
+use App\Infrastructure\Core\Exception\BusinessException;
 use HyperfTest\HttpTestCase;
 
 /**
@@ -101,6 +102,85 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
 
         $this->assertSame(9, $result->getId());
         $this->assertTrue($result->isAllUsers());
+    }
+
+    public function testUpdateRoleAllowsKeepingExistingUnavailableDeniedModel(): void
+    {
+        $repository = $this->createMock(ModelAccessRoleRepository::class);
+        $providerModelDomainService = $this->createMock(ProviderModelDomainService::class);
+        $cacheService = $this->createMock(ModelAccessContextRequestCacheService::class);
+        $existing = $this->makeRole(id: 9, name: '旧角色');
+
+        $repository->method('getById')
+            ->with('ORG_UPDATE', 9)
+            ->willReturn($existing);
+        $repository->method('getRoleBindingMap')
+            ->with('ORG_UPDATE', [9])
+            ->willReturn([]);
+        $repository->method('getRoleDeniedModelMap')
+            ->with('ORG_UPDATE', [9])
+            ->willReturn([9 => ['retired-model']]);
+        $repository->expects($this->once())
+            ->method('getByName')
+            ->with('ORG_UPDATE', '新角色')
+            ->willReturn(null);
+        $repository->expects($this->once())
+            ->method('save')
+            ->willReturnCallback(static fn (ModelAccessRoleEntity $entity): ModelAccessRoleEntity => $entity);
+        $repository->expects($this->once())
+            ->method('replaceDeniedModels')
+            ->with('ORG_UPDATE', 9, ['retired-model'], 'operator');
+        $repository->expects($this->once())
+            ->method('replaceBindings')
+            ->with('ORG_UPDATE', 9, [], [], [], [], false, 'operator');
+        $providerModelDomainService->method('getEnableModels')->willReturn([]);
+        $providerModelDomainService->method('queries')->willReturn(['total' => 0, 'list' => []]);
+        $cacheService->expects($this->once())
+            ->method('bumpOrganizationVersion')
+            ->with('ORG_UPDATE');
+
+        $service = $this->createService(
+            repository: $repository,
+            providerModelDomainService: $providerModelDomainService,
+            cacheService: $cacheService,
+        );
+        $entity = $this->makeRole(name: '新角色');
+        $entity->setDeniedModelIds(['retired-model']);
+
+        $service->updateRole(PermissionDataIsolation::create('ORG_UPDATE', 'operator'), 9, $entity);
+
+        $this->assertSame(['retired-model'], $entity->getDeniedModelIds());
+    }
+
+    public function testUpdateRoleRejectsNewUnavailableDeniedModel(): void
+    {
+        $repository = $this->createMock(ModelAccessRoleRepository::class);
+        $providerModelDomainService = $this->createMock(ProviderModelDomainService::class);
+        $existing = $this->makeRole(id: 9, name: '旧角色');
+
+        $repository->method('getById')
+            ->with('ORG_UPDATE', 9)
+            ->willReturn($existing);
+        $repository->method('getRoleBindingMap')
+            ->with('ORG_UPDATE', [9])
+            ->willReturn([]);
+        $repository->method('getRoleDeniedModelMap')
+            ->with('ORG_UPDATE', [9])
+            ->willReturn([9 => ['retired-model']]);
+        $providerModelDomainService->method('getEnableModels')->willReturn([]);
+        $providerModelDomainService->method('queries')->willReturn(['total' => 0, 'list' => []]);
+
+        $service = $this->createService(
+            repository: $repository,
+            providerModelDomainService: $providerModelDomainService,
+        );
+        $entity = $this->makeRole(name: '新角色');
+        $entity->setDeniedModelIds(['retired-model', 'new-retired-model']);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('some models are not available in organization');
+
+        $service->updateRole(PermissionDataIsolation::create('ORG_UPDATE', 'operator'), 9, $entity);
     }
 
     public function testCountAssignedUsersSubtractsExcludedUsersAndDepartments(): void

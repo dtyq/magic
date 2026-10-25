@@ -9,11 +9,13 @@ namespace App\Application\SuperMagic\Project\Event\Subscribe;
 
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentDomainService;
+use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
 use App\Domain\SuperMagic\File\Event\DirectoryDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FileContentSavedEvent;
 use App\Domain\SuperMagic\File\Event\FileDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FilesBatchDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FileUploadedEvent;
+use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectMode;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
@@ -37,7 +39,7 @@ use Throwable;
  * - #[Listener] 将该类注册为 Hyperf 事件监听器；
  * - #[AsyncListener] 使事件以异步方式处理，避免阻塞主业务请求。
  */
-#[AsyncListener]
+#[AsyncListener(driver: 'coroutine')]
 #[Listener]
 class ProjectAssetUpdatedAtSubscriber implements ListenerInterface
 {
@@ -47,6 +49,7 @@ class ProjectAssetUpdatedAtSubscriber implements ListenerInterface
         private readonly ProjectDomainService $projectDomainService,
         private readonly SuperMagicAgentDomainService $superMagicAgentDomainService,
         private readonly SkillDomainService $skillDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -133,6 +136,17 @@ class ProjectAssetUpdatedAtSubscriber implements ListenerInterface
      */
     private function resolveProjectContext(object $event): ?array
     {
+        if ($event instanceof FilesBatchDeletedEvent) {
+            $hasProjectFile = $this->taskFileDomainService->filterProjectSpaceFiles($event->getAllEntities());
+            if ($hasProjectFile === []) {
+                return null;
+            }
+        } elseif ($fileEntity = $this->getFileEntity($event)) {
+            if (! $this->taskFileDomainService->isProjectSpaceFile($fileEntity)) {
+                return null;
+            }
+        }
+
         return match (true) {
             $event instanceof FileUploadedEvent,
             $event instanceof FileContentSavedEvent,
@@ -151,6 +165,17 @@ class ProjectAssetUpdatedAtSubscriber implements ListenerInterface
                 'user_id' => $event->getUserAuthorization()->getId(),
                 'organization_code' => $event->getUserAuthorization()->getOrganizationCode(),
             ],
+            default => null,
+        };
+    }
+
+    private function getFileEntity(object $event): ?TaskFileEntity
+    {
+        return match (true) {
+            $event instanceof FileUploadedEvent,
+            $event instanceof FileContentSavedEvent,
+            $event instanceof FileDeletedEvent => $event->getFileEntity(),
+            $event instanceof DirectoryDeletedEvent => $event->getDirectoryEntity(),
             default => null,
         };
     }

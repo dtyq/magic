@@ -5,7 +5,7 @@ import {
 	ConversationMessageStatus,
 	SendStatus,
 } from "@/types/chat/conversation_message"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("MessageStore")
 

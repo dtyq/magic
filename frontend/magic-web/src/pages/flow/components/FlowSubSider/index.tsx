@@ -7,12 +7,11 @@ import { IconMagicBots } from "@/enhance/tabler/icons-react"
 import { FlowRouteType } from "@/types/flow"
 import { createStyles } from "antd-style"
 import { useTranslation } from "react-i18next"
-import IconMcp from "@/assets/logos/mcp.png"
 import { RouteName } from "@/routes/constants"
 import { baseHistory } from "@/routes/history"
 import { getRoutePath } from "@/routes/history/helpers"
 import type { MagicListItemData as MagicListItemItemType } from "@/components/MagicList/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const useStyles = createStyles(({ css }) => {
 	return {
@@ -88,19 +87,6 @@ function FlowSubSider() {
 						background: "#32C436",
 						padding: 6,
 					},
-				},
-				extra: <MagicIcon component={IconChevronRight} />,
-			},
-			{
-				id: getRoutePath({
-					name: RouteName.MCP,
-					params: {
-						type: FlowRouteType.VectorKnowledge,
-					},
-				}) as string,
-				title: "MCP",
-				avatar: {
-					src: <img src={IconMcp} alt="" />,
 				},
 				extra: <MagicIcon component={IconChevronRight} />,
 			},

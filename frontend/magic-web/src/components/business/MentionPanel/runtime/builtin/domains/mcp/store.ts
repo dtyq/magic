@@ -2,6 +2,7 @@ import { makeAutoObservable } from "mobx"
 import { FlowApi } from "@/apis"
 import { MentionItemType, type McpMentionData, type MentionItem } from "../../../../types"
 import type { McpDomainItem } from "./types"
+import { getMCPAccess } from "@/components/Agent/MCP/store/mcp-access"
 
 function mapMcpToMention(item: McpDomainItem): MentionItem {
 	return {
@@ -26,6 +27,7 @@ function mapMcpToMention(item: McpDomainItem): MentionItem {
 
 export class MentionPanelMcpStore {
 	items: MentionItem[] = []
+	private readonly addedMCPAccess = getMCPAccess({ storageKey: "__added__" })
 
 	constructor() {
 		makeAutoObservable(this, {}, { autoBind: true })
@@ -35,10 +37,21 @@ export class MentionPanelMcpStore {
 		this.items = list.map(mapMcpToMention)
 	}
 
-	fetchItems() {
-		return FlowApi.getAvailableMCP([]).then((res) => {
-			this.items = res.list.map(mapMcpToMention)
-		})
+	async fetchItems() {
+		// The global MCP preload may already have loaded this shared store (the
+		// input toolbar uses the same __added__ storage). Reuse that result so
+		// opening the mention catalog does not issue a duplicate request.
+		if (this.addedMCPAccess.initialized) {
+			this.items = this.addedMCPAccess.mcpList.map(mapMcpToMention)
+			return
+		}
+
+		// Keep lightweight test/custom runtimes that do not expose project MCP
+		// storage compatible with the existing preloaded data.
+		if (typeof FlowApi.getMCPFromProject !== "function") return
+
+		await this.addedMCPAccess.load()
+		this.items = this.addedMCPAccess.mcpList.map(mapMcpToMention)
 	}
 
 	getItems() {

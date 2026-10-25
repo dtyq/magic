@@ -13,7 +13,7 @@ import { useGlobalLanguage } from "@/models/config/hooks"
 import { useMemo } from "react"
 import { computed } from "mobx"
 import SmartTooltip from "@/components/other/SmartTooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const conversationRowClassName = cn(
 	"mb-0.5 flex h-[60px] cursor-pointer items-center gap-2 rounded-md p-2.5",

@@ -1,5 +1,0 @@
-file	reason
-app/Application/SuperMagic/Agent/Service/SuperMagicAgentAiOptimizeAppService.php	replace SUPER_MAGIC_MODULE_PATH with the main application path for AgentOptimizer.agent.yaml
-app/Application/SuperMagic/Project/Service/ProjectAppService.php	replace SUPER_MAGIC_MODULE_PATH with the main storage path and align the template directory with the existing magic_claw resource directory
-app/Domain/SuperMagic/Project/Repository/Facade/MicroAppRepositoryInterface.php	declare findByProjectIdWithTrashed already called by MagicBaseAccessControl
-app/Domain/SuperMagic/Project/Repository/Persistence/MicroAppRepository.php	implement findByProjectIdWithTrashed so the repository contract matches its existing caller

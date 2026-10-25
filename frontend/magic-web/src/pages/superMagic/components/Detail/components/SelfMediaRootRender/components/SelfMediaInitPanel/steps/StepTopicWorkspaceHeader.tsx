@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, FileDown } from "lucide-react"
 import { useEffect, useId, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicTooltip from "@/components/base/MagicTooltip"
 import type { ArticleDetail } from "../types"
 import InlineVoiceButton from "../components/ui/InlineVoiceButton"
@@ -95,7 +95,8 @@ export default function StepTopicWorkspaceHeader({
 	return (
 		<div
 			data-testid="self-media-topic-workspace-header"
-			className="sticky top-0 z-20 flex shrink-0 select-none flex-col gap-3 rounded-[28px] bg-white/95 p-4 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_18px_44px_rgba(47,43,36,0.08)] backdrop-blur-sm sm:flex-row sm:items-start sm:justify-between lg:top-6"
+			className="sticky top-0 z-20 flex shrink-0 select-none flex-col gap-3 rounded-[28px] bg-white/95 p-4 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_18px_44px_rgba(47,43,36,0.08)] backdrop-blur-sm sm:flex-row sm:items-start sm:justify-between"
+			data-self-media-topic-workspace-header
 		>
 			<div className="flex min-w-0 flex-1 items-start gap-3">
 				<div className="mt-0.5 flex h-11 shrink-0 items-center rounded-full bg-[#18181b] px-4 text-sm font-[800] text-white shadow-[0_12px_24px_rgba(24,24,27,0.14)]">

@@ -278,6 +278,30 @@ class AbstractStorage(ABC):
         raise NotImplementedError("子类必须实现此方法")
 
     @abstractmethod
+    async def delete(
+        self,
+        key: str,
+        options: Optional[Options] = None
+    ) -> bool:
+        """
+        异步删除存储平台上的指定文件。
+
+        调用方按业务语义决定删除时机；删除不存在的对象应视为成功（幂等）。
+
+        Args:
+            key: 文件名/路径
+            options: 可选配置
+
+        Returns:
+            bool: 删除成功为True，失败为False
+
+        Raises:
+            InitException: 如果初始化参数缺失
+            ValueError: 如果凭证类型错误或未设置元数据
+        """
+        raise NotImplementedError("子类必须实现此方法")
+
+    @abstractmethod
     async def generate_presigned_url(
         self,
         key: str,

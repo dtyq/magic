@@ -9,7 +9,7 @@ import {
 	TooltipTrigger,
 } from "@/components/shadcn-ui/tooltip"
 import { Send, ChevronRight, ArrowRight } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { NetworkEntry } from "./types"
 
 // ─── Shared sub-components ───────────────────────────────────────────────────

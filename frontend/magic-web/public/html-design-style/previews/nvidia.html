@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NVIDIA GB200 NVL72 — Blackwell Architecture &amp; DGX Cloud Telemetry</title>
+  <style>
+    :root {
+      --primary: #76b900;
+      --primary-dark: #5a8d00;
+      --on-primary: #000000;
+      --canvas: #ffffff;
+      --surface-dark: #000000;
+      --surface-soft: #f7f7f7;
+      --hairline: #cccccc;
+      --hairline-dark: #262626;
+      --ink: #000000;
+      --mute: #757575;
+      --on-dark: #ffffff;
+      --on-dark-mute: rgba(255, 255, 255, 0.7);
+      --link-blue: #0046a4;
+      --radius-sm: 2px;
+      --font-sans: "NVIDIA-EMEA", Inter, system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--surface-dark);
+      color: var(--on-dark);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .utility-bar {
+      background: #080808; height: 30px; border-bottom: 1px solid #1a1a1a;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; font-size: 11px; color: var(--on-dark-mute);
+    }
+    .status-dot { width: 6px; height: 6px; background: var(--primary); border-radius: 50%; display: inline-block; box-shadow: 0 0 6px var(--primary); }
+    .primary-nav {
+      height: 56px; background: var(--surface-dark); border-bottom: 1px solid var(--hairline-dark);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 24px; }
+    .nvidia-logo { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: #fff; text-decoration: none; }
+    .nav-links { display: flex; gap: 16px; }
+    .nav-links a { color: var(--on-dark-mute); text-decoration: none; text-transform: uppercase; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
+    .nav-links a:hover, .nav-links a.active { color: var(--primary); }
+    .btn-primary {
+      background: var(--primary); color: var(--on-primary); font-family: var(--font-sans);
+      font-size: 12px; font-weight: 700; padding: 7px 16px; border: 1px solid var(--primary);
+      border-radius: var(--radius-sm); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline-dark {
+      background: transparent; color: var(--on-dark); font-family: var(--font-sans);
+      font-size: 12px; font-weight: 700; padding: 7px 14px; border: 1px solid #444;
+      border-radius: var(--radius-sm); cursor: pointer; text-decoration: none;
+    }
+    .hero-chapter {
+      background: radial-gradient(circle at 85% 30%, #152203 0%, #000000 70%);
+      padding: 28px 24px 22px; border-bottom: 1px solid var(--hairline-dark);
+    }
+    .hero-container {
+      max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 6px; background: #0f1606; border: 1px solid #2f4509;
+      color: var(--primary); font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      padding: 3px 8px; border-radius: var(--radius-sm); text-transform: uppercase; margin-bottom: 10px;
+    }
+    .hero-title { font-size: clamp(26px, 3.2vw, 40px); font-weight: 800; line-height: 1.1; letter-spacing: -0.8px; color: #fff; margin-bottom: 10px; }
+    .hero-title span { color: var(--primary); }
+    .hero-sub { font-size: 13.5px; line-height: 1.45; color: var(--on-dark-mute); margin-bottom: 16px; }
+    .spec-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+    .spec-pill { background: #0a0a0a; border: 1px solid #222; border-radius: var(--radius-sm); padding: 8px 10px; position: relative; }
+    .spec-pill .corner-sq { position: absolute; top: 0; left: 0; width: 6px; height: 6px; background: var(--primary); }
+    .spec-val { font-size: 15px; font-weight: 800; color: #fff; font-family: var(--font-mono); }
+    .spec-lbl { font-size: 9px; color: #888; text-transform: uppercase; margin-top: 2px; }
+    .tensor-card { background: #090909; border: 1px solid #242424; border-radius: var(--radius-sm); padding: 12px; position: relative; }
+    .corner-square { position: absolute; top: -1px; left: -1px; width: 10px; height: 10px; background: var(--primary); z-index: 5; }
+    .vis-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #202020; padding-bottom: 6px; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; }
+    .telemetry-band {
+      background: #0a0e05; border-top: 1px solid #1a2908; border-bottom: 1px solid #1a2908;
+      padding: 8px 24px; display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10.5px;
+    }
+    .telem-group { display: flex; gap: 18px; align-items: center; }
+    .telem-label { color: #6f8c47; font-size: 9px; text-transform: uppercase; }
+    .telem-val { color: #fff; font-weight: 700; }
+    .telem-val.green { color: var(--primary); }
+    .light-section { background: var(--canvas); color: var(--ink); padding: 32px 24px; }
+    .shell { max-width: 1280px; margin: 0 auto; }
+    .sec-kicker { font-size: 10px; font-weight: 800; color: var(--primary-dark); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 4px; }
+    .sec-title { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 18px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .card { background: #fff; border: 1px solid var(--hairline); border-radius: var(--radius-sm); padding: 16px; position: relative; }
+    .card h3 { font-size: 14px; font-weight: 700; margin: 6px 0 4px; }
+    .card p { font-size: 12px; color: #444; line-height: 1.4; margin-bottom: 8px; }
+    .ghost-link { font-size: 11.5px; font-weight: 700; color: var(--link-blue); text-decoration: none; }
+    .cuda-dock { margin-top: 20px; background: #0c0c0c; border: 1px solid #222; border-radius: var(--radius-sm); overflow: hidden; }
+    .dock-bar { background: #151515; padding: 6px 12px; display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: #888; }
+    .dock-code { padding: 10px 12px; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: #d1d5db; overflow-x: auto; }
+    .kw { color: #ff7b72; font-weight: 700; } .fn { color: #79c0ff; } .type { color: var(--primary); } .num { color: #a5d6ff; } .comm { color: #8b949e; }
+    footer { background: #000; border-top: 1px solid #222; padding: 24px 24px 16px; font-size: 11px; color: var(--on-dark-mute); }
+    .footer-grid { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 20px; padding-bottom: 16px; border-bottom: 1px solid #1a1a1a; }
+    .footer-col h4 { color: #fff; font-size: 11.5px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .footer-col a { color: #888; text-decoration: none; }
+    .footer-col a:hover { color: var(--primary); }
+    .footer-bottom { max-width: 1280px; margin: 12px auto 0; display: flex; justify-content: space-between; color: #555; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <div class="utility-bar">
+    <div><span class="status-dot"></span> DGX SUPERPOD US-WEST-4 • 72/72 NVLINK FABRIC ACTIVE</div>
+    <div style="display: flex; gap: 14px;">
+      <span>CUDA 12.8</span>
+      <span>DGX Cloud OS</span>
+      <span>NVIDIA AI Enterprise</span>
+    </div>
+  </div>
+  <header class="primary-nav">
+    <div class="brand-wrap">
+      <a href="#nvidia" class="nvidia-logo">
+        <svg width="20" height="16" viewBox="0 0 24 20" fill="#76b900"><path d="M12 0C6 0 1.2 4.2 0 10c1.2 5.8 6 10 12 10s10.8-4.2 12-10C22.8 4.2 18 0 12 0zm0 16c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6zm0-9.5c-1.9 0-3.5 1.6-3.5 3.5s1.6 3.5 3.5 3.5 3.5-1.6 3.5-3.5-1.6-3.5-3.5-3.5z"/></svg>
+        <span>NVIDIA</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#blackwell" class="active">GB200 NVL72</a>
+        <a href="#architecture">CUDA Tensor Cores</a>
+        <a href="#dgx-cloud">DGX Cloud</a>
+        <a href="#specs">Specifications</a>
+      </nav>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn-outline-dark">Whitepaper</button>
+      <button class="btn-primary">Deploy Cluster →</button>
+    </div>
+  </header>
+  <section class="hero-chapter" id="blackwell">
+    <div class="hero-container">
+      <div>
+        <div class="hero-badge"><span class="status-dot"></span> Blackwell Architecture</div>
+        <h1 class="hero-title">GB200 NVL72.<br><span>The Exascale Engine</span> for Frontier AI.</h1>
+        <p class="hero-sub">Liquid-cooled rack-scale supercomputing connecting 72 Blackwell GPUs and 36 Grace CPUs into a unified 1.4 exaflops NVLink domain for trillion-parameter LLM inference.</p>
+        <div class="spec-pills">
+          <div class="spec-pill"><div class="corner-sq"></div><div class="spec-val">1.44 EF</div><div class="spec-lbl">FP4 Compute</div></div>
+          <div class="spec-pill"><div class="corner-sq"></div><div class="spec-val">130 TB/s</div><div class="spec-lbl">NVLink Bisection</div></div>
+          <div class="spec-pill"><div class="corner-sq"></div><div class="spec-val">30 TB</div><div class="spec-lbl">Fast HBM3e</div></div>
+          <div class="spec-pill"><div class="corner-sq"></div><div class="spec-val">100% DTC</div><div class="spec-lbl">Liquid Cooling</div></div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-primary">Order DGX GB200</button>
+          <button class="btn-outline-dark">Explore Architecture</button>
+        </div>
+      </div>
+      <div class="tensor-card" id="architecture">
+        <div class="corner-square"></div>
+        <div class="vis-head">
+          <span style="color:var(--primary); font-weight:700;">5th Gen Tensor Core • Transformer Engine</span>
+          <span style="color:#777;">CUDA SM 100 • FP4 Matrix</span>
+        </div>
+        <svg viewBox="0 0 500 240" width="100%" height="auto">
+          <rect width="500" height="240" fill="#0b0e14" rx="2"/>
+          <rect x="10" y="20" width="36" height="200" fill="#1e293b" stroke="#334155" rx="2"/>
+          <text x="28" y="120" fill="#76b900" font-family="monospace" font-size="8.5" font-weight="700" transform="rotate(-90 28 120)" text-anchor="middle">HBM3e 8.0 TB/s</text>
+          <rect x="454" y="20" width="36" height="200" fill="#1e293b" stroke="#334155" rx="2"/>
+          <text x="472" y="120" fill="#76b900" font-family="monospace" font-size="8.5" font-weight="700" transform="rotate(90 472 120)" text-anchor="middle">HBM3e 8.0 TB/s</text>
+          <line x1="46" y1="80" x2="66" y2="80" stroke="#76b900" stroke-width="1.5" stroke-dasharray="3"/>
+          <line x1="46" y1="140" x2="66" y2="140" stroke="#76b900" stroke-width="1.5" stroke-dasharray="3"/>
+          <line x1="434" y1="80" x2="454" y2="80" stroke="#76b900" stroke-width="1.5" stroke-dasharray="3"/>
+          <line x1="434" y1="140" x2="454" y2="140" stroke="#76b900" stroke-width="1.5" stroke-dasharray="3"/>
+          <rect x="66" y="16" width="368" height="208" fill="#11161d" stroke="#76b900" stroke-width="1.2" rx="2"/>
+          <text x="74" y="30" fill="#888" font-family="monospace" font-size="8" font-weight="700">BLACKWELL B200 DUAL-DIE (10 TB/s NV-HBI)</text>
+          <rect x="74" y="38" width="170" height="150" fill="#161f2c" stroke="#253549" rx="2"/>
+          <text x="82" y="52" fill="#76b900" font-family="monospace" font-size="8" font-weight="700">DIE 0 • 80 TPC / 160 SM</text>
+          <g id="die0-cores"><rect x="82" y="58" width="74" height="34" fill="#1f2c3d" stroke="#76b900" stroke-width="0.8" rx="2"/>
+          <text x="86" y="72" fill="#fff" font-family="monospace" font-size="7.5" font-weight="700">FP4 Tensor</text>
+          <text x="86" y="84" fill="#76b900" font-family="monospace" font-size="7">2,250 TFLOPS</text>
+          <rect x="162" y="58" width="74" height="34" fill="#1f2c3d" stroke="#384c64" stroke-width="0.8" rx="2"/>
+          <text x="166" y="72" fill="#fff" font-family="monospace" font-size="7.5" font-weight="700">FP8 Tensor</text>
+          <text x="166" y="84" fill="#93c5fd" font-family="monospace" font-size="7">1,125 TFLOPS</text>
+          <rect x="82" y="98" width="154" height="38" fill="#0f172a" stroke="#475569" stroke-width="0.8" rx="2"/>
+          <text x="88" y="112" fill="#76b900" font-family="monospace" font-size="7.5" font-weight="700">SHARED L2 CACHE • 64MB</text>
+          <text x="88" y="124" fill="#94a3b8" font-family="monospace" font-size="7">16 TB/s Crossbar</text></g>
+          <rect x="248" y="38" width="4" height="150" fill="#76b900"/>
+          <rect x="256" y="38" width="170" height="150" fill="#161f2c" stroke="#253549" rx="2"/>
+          <text x="264" y="52" fill="#76b900" font-family="monospace" font-size="8" font-weight="700">DIE 1 • 80 TPC / 160 SM</text>
+          <use href="#die0-cores" x="182" y="0"/>
+          <rect x="74" y="194" width="352" height="24" fill="#06090f" stroke="#76b900" rx="2"/>
+          <text x="84" y="210" fill="#fff" font-family="monospace" font-size="8" font-weight="700">NVLINK 5.0 INTERCONNECT • 1,800 GB/s BIDIRECTIONAL PER GPU</text>
+        </svg>
+        <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:9px; color:#888; margin-top:6px;">
+          <span>208B Transistors</span>
+          <span style="color:var(--primary);">POWER: 1,180W</span>
+          <span>COOLANT INLET: 24.5°C</span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="telemetry-band" id="dgx-cloud">
+    <div class="telem-group">
+      <span><span class="telem-label">CLUSTER:</span> <span class="telem-val green">OPTIMAL (100% HEALTH)</span></span>
+      <span><span class="telem-label">ACTIVE RACKS:</span> <span class="telem-val">18 × GB200 NVL72</span></span>
+      <span><span class="telem-label">TOTAL ACCELERATORS:</span> <span class="telem-val">1,296 GPUs</span></span>
+    </div>
+    <div class="telem-group">
+      <span><span class="telem-label">NVLINK FABRIC:</span> <span class="telem-val green">0.82 µs</span></span>
+      <span><span class="telem-label">MEMORY:</span> <span class="telem-val">248.8 TB HBM3e</span></span>
+      <span><span class="telem-label">COOLING PUMP:</span> <span class="telem-val">42.8 L/min</span></span>
+    </div>
+  </div>
+  <section class="light-section" id="specs">
+    <div class="shell">
+      <div class="sec-kicker">Enterprise Data Center Architecture</div>
+      <h2 class="sec-title">GB200 NVL72 Full-Stack Supercomputing System</h2>
+      <div class="grid-4">
+        <div class="card">
+          <div class="corner-square"></div>
+          <div style="font-family:var(--font-mono); font-size:9.5px; color:var(--mute);">SUBSYSTEM 01</div>
+          <h3>Compute Trays</h3>
+          <p>18 compute trays housing 36 Grace CPUs and 72 Blackwell GPUs linked via quick-disconnect manifold valves.</p>
+          <a href="#compute" class="ghost-link">View Tray Schematics →</a>
+        </div>
+        <div class="card">
+          <div class="corner-square"></div>
+          <div style="font-family:var(--font-mono); font-size:9.5px; color:var(--mute);">SUBSYSTEM 02</div>
+          <h3>NVLink Switch Trays</h3>
+          <p>9 switch trays delivering 130 TB/s all-to-all bisection bandwidth across the entire chassis domain.</p>
+          <a href="#switch" class="ghost-link">Switch Architecture →</a>
+        </div>
+        <div class="card">
+          <div class="corner-square"></div>
+          <div style="font-family:var(--font-mono); font-size:9.5px; color:var(--mute);">SUBSYSTEM 03</div>
+          <h3>Direct Liquid Cooling</h3>
+          <p>100% direct-to-chip liquid cooling handles 120 kW per rack with zero chilled-water requirement.</p>
+          <a href="#cooling" class="ghost-link">Cooling Specifications →</a>
+        </div>
+        <div class="card">
+          <div class="corner-square"></div>
+          <div style="font-family:var(--font-mono); font-size:9.5px; color:var(--mute);">SUBSYSTEM 04</div>
+          <h3>DGX Cloud OS</h3>
+          <p>Turnkey orchestration with Slurm, Kubernetes, NeMo Megatron, and automated node recovery.</p>
+          <a href="#dgx-os" class="ghost-link">Deploy on DGX Cloud →</a>
+        </div>
+      </div>
+      <div class="cuda-dock">
+        <div class="dock-bar">
+          <span>kernel_moe_gemm_fp4.cu — CUDA 12.8 TensorRT-LLM Blackwell Optimized Kernel</span>
+          <span style="color:var(--primary);">30.2× SPEEDUP vs H100 FP8</span>
+        </div>
+        <pre class="dock-code"><code><span class="comm">// Warp-Specialized Tensor Core GEMM Pipeline for Native FP4 Matrix Math</span>
+<span class="kw">#include</span> <span class="type">&lt;cuda/barrier&gt;</span>
+<span class="kw">#include</span> <span class="type">&lt;cute/tensor.hpp&gt;</span>
+<span class="kw">__global__ void</span> <span class="fn">blackwell_fp4_gemm_kernel</span>(<span class="kw">const</span> <span class="type">__nv_fp4_e2m1*</span> A, <span class="kw">const</span> <span class="type">__nv_fp4_e2m1*</span> B, <span class="type">__nv_bfloat16*</span> C) {
+    <span class="kw">__shared__ alignas</span>(<span class="num">1024</span>) <span class="type">uint8_t</span> smem_a[<span class="num">32</span> * <span class="num">1024</span>], smem_b[<span class="num">32</span> * <span class="num">1024</span>];
+    <span class="fn">cute::warpgroup_arrive</span>();
+    <span class="fn">cute::wgmma_sm100_fp4_mma</span>(smem_a, smem_b, C);
+    <span class="fn">cute::warpgroup_commit_batch</span>();
+    <span class="fn">cute::warpgroup_wait</span>&lt;<span class="num">0</span>&gt;();
+}</code></pre>
+      </div>
+    </div>
+  </section>
+  <footer>
+    <div class="footer-grid">
+      <div>
+        <div style="display:flex; align-items:center; gap:6px; font-weight:800; font-size:14px; color:#fff; margin-bottom:8px;">
+          <svg width="16" height="12" viewBox="0 0 24 20" fill="#76b900"><path d="M12 0C6 0 1.2 4.2 0 10c1.2 5.8 6 10 12 10s10.8-4.2 12-10C22.8 4.2 18 0 12 0zm0 16c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z"/></svg>
+          <span>NVIDIA AI INFRASTRUCTURE</span>
+        </div>
+        <p style="font-size:11px; line-height:1.45; color:#888;">Pioneering accelerated computing to solve problems that cannot be tackled by any other means.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Hardware</h4>
+        <ul>
+          <li><a href="#gb200">GB200 NVL72</a></li>
+          <li><a href="#b200">Blackwell B200</a></li>
+          <li><a href="#nvlink">NVLink 5.0</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Software</h4>
+        <ul>
+          <li><a href="#cuda">CUDA 12.8</a></li>
+          <li><a href="#tensorrt">TensorRT-LLM</a></li>
+          <li><a href="#nemo">NVIDIA NeMo</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Cloud</h4>
+        <ul>
+          <li><a href="#dgx">DGX Cloud</a></li>
+          <li><a href="#base">Base Command</a></li>
+          <li><a href="#omni">Omniverse</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Corporate</h4>
+        <ul>
+          <li><a href="#ir">Investors</a></li>
+          <li><a href="#research">Research</a></li>
+          <li><a href="#contact">Contact Sales</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 NVIDIA Corporation. All rights reserved.</span>
+      <span>Privacy Policy | Legal Information | Status</span>
+    </div>
+  </footer>
+</body>
+</html>

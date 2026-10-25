@@ -66,6 +66,8 @@ export interface PlatformConfig {
 	title_i18n: Record<SupportLocales, string>
 	keywords_i18n: Record<SupportLocales, string>
 	description_i18n: Record<SupportLocales, string>
+	/** Organization watermark settings returned by the platform settings API. */
+	watermark?: PlatformWatermarkConfig
 	footer: {
 		/* 版权文案 */
 		copyright_i18n: Record<SupportLocales, string>
@@ -78,6 +80,18 @@ export interface PlatformConfig {
 			link: string
 		}
 	}
+}
+
+/** Fields that can be rendered in an organization watermark. */
+export type PlatformWatermarkField =
+	"real_name" | "employee_no" | "visit_time" | "department" | "phone" | "email"
+
+/** Platform watermark configuration. The id is optional on public bootstrap responses. */
+export interface PlatformWatermarkConfig {
+	id?: string
+	enabled: boolean
+	fields: PlatformWatermarkField[]
+	depth: "light" | "standard" | "strong"
 }
 
 export interface SettingsAll {

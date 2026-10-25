@@ -3,11 +3,11 @@ import type { TabItem } from "../../types"
 import { TabActionType } from "../../types"
 import { tabReducer } from "../tabReducer"
 
-function tab(id: string, closeable: boolean, active = false): TabItem {
+function tab(id: string, closeable: boolean, active = false, fileData = {}): TabItem {
 	return {
 		id,
 		title: id,
-		fileData: { file_id: id, file_name: `${id}.html` },
+		fileData: { file_id: id, file_name: `${id}.html`, ...fileData },
 		active,
 		closeable,
 		create_at: Number(id.replace(/\D/g, "")) || 1,
@@ -68,5 +68,36 @@ describe("FilesViewer protected tabs", () => {
 			active_at: 100,
 			closeable: false,
 		})
+	})
+
+	it("updates and clears HTML navigation context when reopening the same file", () => {
+		vi.spyOn(Date, "now").mockReturnValue(100)
+		const oldNavigation = {
+			filePath: "detail.html",
+			search: "?mode=old",
+			hash: "#old",
+			anchor: "old",
+		}
+		const newNavigation = {
+			filePath: "detail.html",
+			search: "?mode=new",
+			hash: "#new",
+			anchor: "new",
+		}
+
+		const withNewNavigation = tabReducer(
+			[tab("detail", true, true, { htmlNavigation: oldNavigation })],
+			{
+				type: TabActionType.ADD_TAB,
+				payload: { tab: tab("detail", true, true, { htmlNavigation: newNavigation }) },
+			},
+		)
+		expect(withNewNavigation[0].fileData.htmlNavigation).toEqual(newNavigation)
+
+		const withoutNavigation = tabReducer(withNewNavigation, {
+			type: TabActionType.ADD_TAB,
+			payload: { tab: tab("detail", true, true) },
+		})
+		expect(withoutNavigation[0].fileData.htmlNavigation).toBeUndefined()
 	})
 })

@@ -8,6 +8,7 @@ import type { CommandHistory } from "../core/CommandHistory"
 import type { StyleManager } from "../managers/StyleManager"
 import type { TextStyleManager } from "../managers/TextStyleManager"
 import type { ElementSelector } from "../features/ElementSelector"
+import type { DomStructureManager } from "../managers/DomStructureManager"
 import { ContentCleaner } from "../utils/ContentCleaner"
 import { EditorLogger } from "../utils/EditorLogger"
 import { findElement } from "../utils/ElementSelector"
@@ -18,6 +19,7 @@ interface RequestHandlersConfig {
 	styleManager: StyleManager
 	textStyleManager: TextStyleManager
 	elementSelector: ElementSelector
+	domStructureManager: DomStructureManager
 	onEditModeChange: (isEditMode: boolean) => void
 	onSelectionModeChange: (isSelectionMode: boolean) => void
 }
@@ -29,6 +31,7 @@ export function registerRequestHandlers(config: RequestHandlersConfig): void {
 		styleManager,
 		textStyleManager,
 		elementSelector,
+		domStructureManager,
 		onEditModeChange,
 		onSelectionModeChange,
 	} = config
@@ -229,6 +232,46 @@ export function registerRequestHandlers(config: RequestHandlersConfig): void {
 	bridge.onRequest("CLEAR_LOGS", async () => {
 		EditorLogger.clearLogs()
 		EditorLogger.info("Logs cleared")
+		return { success: true }
+	})
+
+	bridge.onRequest("GET_DOM_TREE", async () => {
+		const tree = domStructureManager.getTree()
+		EditorLogger.debug("Get DOM tree", { root: tree.root.tagName })
+		return tree
+	})
+
+	bridge.onRequest("SELECT_ELEMENT", async (payload: unknown) => {
+		const { nodeId, selector } = (payload as { nodeId?: string; selector?: string }) || {}
+		if (nodeId) domStructureManager.selectNode(nodeId)
+		else if (selector) elementSelector.selectElement(findElement(selector))
+		else throw new Error("Missing DOM node identifier")
+		return { success: true }
+	})
+
+	bridge.onRequest("HOVER_ELEMENT", async (payload: unknown) => {
+		const { nodeId } = (payload as { nodeId?: string }) || {}
+		if (!nodeId) throw new Error("Missing DOM node identifier")
+		domStructureManager.hoverNode(nodeId)
+		return { success: true }
+	})
+
+	bridge.onRequest("CLEAR_HOVER_ELEMENT", async () => {
+		domStructureManager.clearHoveredNode()
+		return { success: true }
+	})
+
+	bridge.onRequest("SCROLL_TO_ELEMENT", async (payload: unknown) => {
+		const { nodeId, selector } = (payload as { nodeId?: string; selector?: string }) || {}
+		if (nodeId) domStructureManager.scrollToNode(nodeId)
+		else if (selector) findElement(selector).scrollIntoView({ block: "nearest" })
+		else throw new Error("Missing DOM node identifier")
+		return { success: true }
+	})
+
+	bridge.onRequest("COPY_DOM_NODE", async (payload: unknown) => {
+		const { nodeId } = payload as { nodeId: string }
+		domStructureManager.copyNode(nodeId)
 		return { success: true }
 	})
 }

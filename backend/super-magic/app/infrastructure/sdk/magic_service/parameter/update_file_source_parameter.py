@@ -7,6 +7,8 @@ Parameter class for the update-file-source API endpoint.
 from enum import IntEnum
 from typing import Any, Dict, Optional
 
+from agentlang.utils.metadata import MetadataUtil
+
 from ..kernel.magic_service_parameter import MagicServiceAbstractParameter
 
 
@@ -82,6 +84,7 @@ class UpdateFileSourceParameter(MagicServiceAbstractParameter):
             headers["Authorization"] = self.user_authorization
         if self.organization_code:
             headers["organization-code"] = self.organization_code
+        MetadataUtil.add_sandbox_id_header(headers)
         return headers
 
     def validate(self) -> None:

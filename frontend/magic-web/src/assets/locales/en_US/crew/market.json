@@ -14,6 +14,115 @@
 		"starCrew": "Star Crew",
 		"techDev": "Tech & Dev"
 	},
+	"connectors": {
+		"add": "Add",
+		"added": "Added",
+		"addedList": "Installed",
+		"available": "Available",
+		"category": "Connector category",
+		"close": "Close connector panel",
+		"collapseDescription": "Collapse",
+		"create": "Create Connector",
+		"createForm": {
+			"addParameter": "Add parameter",
+			"close": "Close",
+			"descriptionPlaceholder": "e.g., Access an external service",
+			"editTitle": "Edit MCP Connector",
+			"env": "Environment variables",
+			"headersLabel": "Headers",
+			"iconHint": "PNG/JPG, recommended size 100×100",
+			"importToolsRequired": "Imported tools cannot be empty",
+			"jsonHint": "JSON MCP configuration",
+			"key": "Key",
+			"loadFailed": "Failed to load connector configuration",
+			"loading": "Loading…",
+			"mcpAuthorization": "OAuth 2.0 (MCP Service Authorization)",
+			"mcpAuthorizationLabels": {
+				"additionalParams": "Additional Authorization Parameters",
+				"applicationType": "Application Type",
+				"authorizationEndpoint": "Authorization Endpoint",
+				"authorizationServerUrl": "Authorization Server URL",
+				"clientId": "Client ID",
+				"clientMetadataUrl": "Client Metadata URL",
+				"clientSecret": "Client Secret",
+				"registrationEndpoint": "Client Registration Endpoint",
+				"registrationMode": "Client Registration Mode",
+				"resource": "Protected Resource URL (Resource)",
+				"resourceMetadataUrl": "Resource Metadata URL",
+				"scope": "Authorization Scope (Scope)",
+				"tokenEndpoint": "Token Endpoint",
+				"tokenEndpointAuthMethod": "Token Endpoint Authentication Method"
+			},
+			"name": "Name",
+			"namePlaceholder": "e.g., My Connector",
+			"oauthLabels": {
+				"authorizationContentType": "Authorization Content Type",
+				"authorizationMethod": "Token Request Method",
+				"authorizationUrl": "Authorization URL",
+				"clientId": "Client ID",
+				"clientSecret": "Client Secret",
+				"clientUrl": "Client URL",
+				"scope": "Scope"
+			},
+			"oauthRequired": "Enter {{name}}",
+			"registrationModes": {
+				"auto": "Auto Discovery",
+				"cimd": "Client Metadata (CIMD)",
+				"dcr": "Dynamic Registration (DCR)",
+				"pre_registered": "Pre-registered"
+			},
+			"removeRow": "Remove parameter",
+			"saveFailed": "Failed to save",
+			"saving": "Saving…",
+			"title": "Create MCP Connector",
+			"type": "Type",
+			"uploadIcon": "Upload icon",
+			"uploading": "Uploading…",
+			"url": "Service URL (URL)",
+			"urlPlaceholder": "e.g., https://example.com"
+		},
+		"createMcp": "Create MCP Connector",
+		"createSuccess": "Connector created successfully",
+		"delete": "Delete",
+		"deleteConfirm": {
+			"confirm": "Delete",
+			"description": "This action cannot be undone.",
+			"title": "Delete \"{{name}}\"?"
+		},
+		"deleteFailed": "Failed to delete connector",
+		"deleteSuccess": "Connector deleted successfully",
+		"description": "Description",
+		"descriptionFallback": "No description available",
+		"disable": "Disable",
+		"disabled": "Disabled",
+		"edit": "Edit",
+		"editConfig": "Edit Configuration",
+		"editSuccess": "Connector updated successfully",
+		"empty": "No connectors available",
+		"enable": "Enable",
+		"enabled": "Enabled",
+		"expandDescription": "Expand",
+		"install": "Install connector",
+		"installShort": "Install",
+		"loadFailed": "Failed to load connectors. Please try again.",
+		"mine": "My Connectors",
+		"moreActionsAria": "More actions",
+		"official": "Official Connectors",
+		"offline": "Offline",
+		"remove": "Remove",
+		"retry": "Retry",
+		"saveAndAdd": "Save and Add",
+		"saveConfig": "Save Configuration",
+		"searchAria": "Search connectors",
+		"searchPlaceholder": "Search connectors",
+		"searchSheetTitle": "Search connectors",
+		"status": "Status",
+		"statusUpdateFailed": "Failed to update status",
+		"subtitle": "Explore and manage available AI connectors",
+		"title": "Connectors",
+		"updatedAt": "Updated on {{dateTime}}",
+		"updatedAtLabel": "Updated"
+	},
 	"conversation": "Conversation",
 	"createCrew": "Create Crew",
 	"crewConversation": {
@@ -85,6 +194,7 @@
 		"publisherVerified": "Verified creator"
 	},
 	"hire": "Hire",
+	"hireMoreCrew": "Hire more crew",
 	"importSkill": {
 		"buttons": {
 			"back": "Back",
@@ -151,6 +261,7 @@
 		"runSearch": "Search",
 		"searchSheetTitle": "Search crew"
 	},
+	"moreCrewTooltip": "More crew",
 	"myCrew": "My Crew",
 	"myCrewPage": {
 		"addSheet": {
@@ -168,6 +279,9 @@
 			"title": "Add Crew"
 		},
 		"badgeUpdated": "Updated",
+		"copyUsageLink": "Copy usage link",
+		"copyUsageLinkFailed": "Failed to copy usage link",
+		"copyUsageLinkSuccess": "Usage link copied",
 		"crewType": {
 			"ariaLabel": "Crew type",
 			"collaborated": "Collaborated",
@@ -312,6 +426,7 @@
 		"subscribe": "Subscribe",
 		"subtitle": "Your personalized collection of specialized professional expertise.",
 		"tabs": {
+			"collaborated": "Collaborated",
 			"createdByMe": "Created by Me",
 			"fromSkillsLibrary": "From Skills Library",
 			"sharedByTeam": "Shared by Team"
@@ -325,9 +440,93 @@
 	},
 	"noMoreData": "You've seen everything!",
 	"noResults": "No results found.",
+	"officialSkillImport": {
+		"adminOnly": "Admin",
+		"buttons": {
+			"cancel": "Cancel",
+			"changeFile": "Change file",
+			"confirm": "Upload",
+			"importNow": "Import now",
+			"next": "Next"
+		},
+		"close": "Close official Skill import",
+		"createNew": "Create",
+		"defaultSource": "Official",
+		"description": "Publish official Skills to the library. Complete one Skill manually or import existing file keys in a batch.",
+		"direct": {
+			"failed": "{{count}} failed",
+			"fileKeysHint": "One file_key per line, or separate keys with commas. All files use the same metadata and are imported sequentially.",
+			"fileKeysLabel": "File keys",
+			"fileKeysPlaceholder": "organization/.../skills/example.zip",
+			"progress": "Processed {{done}} / {{total}}",
+			"warningDescription": "Direct import skips parsing and preview. Make sure each file_key exists in private object storage and the metadata below applies to the selected Skills.",
+			"warningTitle": "For batch import with existing file keys"
+		},
+		"errors": {
+			"categoriesFailed": "Failed to load categories. Please try again.",
+			"fileKeysRequired": "Enter at least one file_key.",
+			"fileTooLarge": "The Skill archive cannot exceed 100 MB.",
+			"importFailed": "Failed to import the official Skill. Please try again.",
+			"invalidFile": "Only .zip or .skill files are supported.",
+			"parseFailed": "Failed to parse the official Skill. Check that the archive contains a valid SKILL.md.",
+			"requiredFields": "Complete the version, English name, and English description."
+		},
+		"fields": {
+			"category": "Categories",
+			"categoryHint": "Multiple allowed",
+			"descriptionPlaceholder": "Enter the official Skill description",
+			"featured": "Featured",
+			"featuredHint": "Show in the featured section",
+			"hidden": "Hidden",
+			"hiddenHint": "Hide from the Skill library",
+			"loadingCategories": "Loading categories...",
+			"namePlaceholder": "Enter the official Skill name",
+			"noCategories": "No categories available",
+			"offline": "Offline",
+			"published": "Publish now",
+			"sortOrder": "Sort order",
+			"sourcePlaceholder": "For example: Magi Official",
+			"status": "Market status",
+			"version": "Version"
+		},
+		"footerHint": "You can continue maintaining market metadata after import",
+		"modes": {
+			"direct": "Direct import",
+			"manual": "Manual upload"
+		},
+		"steps": {
+			"completeInfo": "Complete information",
+			"selectFile": "Select file"
+		},
+		"success": {
+			"batch": "Successfully imported {{count}} official Skills.",
+			"created": "Official Skill created successfully.",
+			"partial": "Imported {{success}} successfully; {{failed}} failed.",
+			"updated": "Official Skill updated successfully."
+		},
+		"title": "Upload official Skill",
+		"updateExisting": "Update",
+		"upload": {
+			"browse": "Choose archive",
+			"dropHint": "Only .zip or .skill files up to 100 MB are supported",
+			"dropTitle": "Drop an official Skill archive here",
+			"remove": "Remove file"
+		}
+	},
 	"pptEmployee": {
 		"delivered": "{{marker}} slides delivered",
 		"deliveredPrivate": "{{marker}} decks delivered"
+	},
+	"publishScopeNotice": {
+		"attachmentsLoadFailed": "Project files are still loading, so the publish scope cannot be confirmed. Please try again.",
+		"cancel": "Cancel",
+		"confirm": "Confirm that the files you need are inside this directory.",
+		"continue": "Continue publishing",
+		"intro": "This project contains files outside the publish scope.",
+		"morePaths": "{{count}} more paths not shown",
+		"outsidePathsLabel": "Paths outside the publish scope",
+		"scopeLabel": "Publish scope",
+		"title": "Confirm the publish file scope"
 	},
 	"skillDetailDialog": {
 		"collapse": "Collapse",
@@ -380,7 +579,9 @@
 		"publishPanel": {
 			"actions": {
 				"cancel": "Cancel",
-				"publish": "Publish"
+				"publish": "Publish",
+				"publishing": "Publishing…",
+				"publishingWithProgress": "Publishing {{progress}}%"
 			},
 			"create": {
 				"channelChangeConfirm": {
@@ -513,44 +714,68 @@
 				"ensureSkillConfigFailed": "Could not create skill_config.yaml. Please try again.",
 				"noValidSkillForPublish": "No valid skill found. Add .magic/skills/<name>/SKILL.md before publishing.",
 				"publishFailed": "Publish failed. Please try again.",
+				"publishInProgress": "A publish task is still in progress. Wait for it to finish before submitting different publish settings.",
 				"publishNeedsProject": "No project workspace linked. Publishing is unavailable.",
-				"publishSuccess": "Published successfully"
+				"publishSuccess": "Published successfully",
+				"publishTaskExpired": "The publish task expired or was not found. Please publish again.",
+				"publishTimeout": "Publish is taking longer than expected. Check the version list later, or try publishing again."
 			}
 		},
 		"untitledSkill": "Untitled Skill"
 	},
 	"skillsLibrary": {
+		"actionFailed": "The skill action failed. Please try again.",
+		"addFailed": "Failed to add the skill. Please try again.",
 		"addToMySkills": "Add to My Skills",
 		"added": "Added",
-		"aiSearchPlaceholder": "Enter keywords or describe the skills you need",
+		"adding": "Adding",
+		"aiSearchPlaceholder": "Search skills, capabilities, or use cases",
+		"allSkills": "All Skills",
 		"authorFallback": "Username",
+		"categoriesLoadFailed": "Failed to load categories",
+		"category": "Category",
+		"community": "Community",
 		"createMenu": {
 			"createViaChat": "Create via Chat",
 			"createViaChatDesc": "Build amazing skills through conversation",
 			"createViaChatFailed": "Failed to create skill. Please try again.",
 			"importFromGithub": "Import from Github",
 			"importFromGithubDesc": "Import skills directly from public GitHub repositories",
+			"importOfficialSkill": "Upload official Skill",
+			"importOfficialSkillDesc": "Admin-only official Skill maintenance",
 			"importSkill": "Import Skill",
 			"importSkillDesc": "Upload .Skill, .Zip or folder"
 		},
 		"createSkill": "Create Skill",
 		"featured": "Featured",
+		"featuredLoadFailed": "Failed to load featured skills. Please try again.",
+		"featuredSkills": "Featured Skills",
+		"installCount": "{{formattedCount}} installs",
+		"installCountLabel": "Installs",
+		"loadFailed": "Failed to load skills. Please try again.",
 		"mySkills": "My Skills",
 		"noMoreData": "You've seen everything!",
 		"official": "Official",
+		"refreshFeatured": "Change",
 		"removeFromMySkills": "Remove from My Skills",
+		"retryFeatured": "Retry",
+		"retrySkills": "Retry",
 		"searchAria": "Search skills",
 		"searchSheetTitle": "Search skills",
-		"subtitle": "Discover new capabilities and equip your digital crew.",
-		"title": "Skills Library",
+		"subtitle": "Explore and install the right AI skills for you.",
+		"title": "Skills",
 		"updatedAt": "Updated on {{dateTime}}",
-		"upgrade": "Upgrade"
+		"updatedAtLabel": "Updated",
+		"upgrade": "Upgrade",
+		"uploadOfficialSkill": "Upload official Skill"
 	},
 	"subtitle": "Discover and hire your exclusive digital crew.",
 	"tabs": {
+		"connectors": "Connectors",
 		"crewMarket": "Crew Market",
+		"digitalEmployees": "Digital Crew",
 		"organizationShared": "Organization Shared",
-		"skillsLibrary": "Skills Library"
+		"skillsLibrary": "Skills"
 	},
 	"title": "Crew Market",
 	"updateSkill": {

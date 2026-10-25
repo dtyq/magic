@@ -11,6 +11,9 @@ function rect(id: string, zIndex = 1): LayerElement {
 		width: 100,
 		height: 100,
 		zIndex,
+		activeContentId: `${id}-content`,
+		mainContentId: `${id}-content`,
+		contents: [{ contentId: `${id}-content` }],
 	}
 }
 
@@ -22,6 +25,9 @@ function frame(id: string, children: LayerElement[] = []): LayerElement {
 		y: 0,
 		width: 300,
 		height: 200,
+		activeContentId: `${id}-content`,
+		mainContentId: `${id}-content`,
+		contents: [{ contentId: `${id}-content` }],
 		children,
 	}
 }

@@ -288,7 +288,7 @@ const STYLE_TYPE_DEFINITIONS = [
 
 function createInitialState() {
 	return {
-		prototypeImage: null,
+		prototypeImages: [],
 		designType: DESIGN_TYPE.INSPIRATION,
 		inspirationImage: null,
 		garmentCategory: GARMENT_CATEGORY.DOWN_JACKET,
@@ -303,15 +303,15 @@ function getMaxReferenceImages(state, helpers) {
 	return helpers.getSelectedModel(state)?.image_size_config?.max_reference_images ?? 5
 }
 
-function getReferenceImages(state) {
-	if (state.designType === DESIGN_TYPE.INSPIRATION) {
-		return [state.prototypeImage, state.inspirationImage].filter(Boolean)
-	}
-	return state.prototypeImage ? [state.prototypeImage] : []
+function getPrototypeImages(state) {
+	return Array.isArray(state.prototypeImages) ? state.prototypeImages : []
 }
 
-function countReferenceImages(state) {
-	return getReferenceImages(state).length
+function getReferenceImages(state, prototypeImage = getPrototypeImages(state)[0]) {
+	if (state.designType === DESIGN_TYPE.INSPIRATION) {
+		return [prototypeImage, state.inspirationImage].filter(Boolean)
+	}
+	return prototypeImage ? [prototypeImage] : []
 }
 
 function buildDesignTypeOptions(t) {
@@ -407,7 +407,7 @@ function hasValidBestsellerCategory(state) {
 }
 
 function isGenerateDisabled(state) {
-	if (!state.prototypeImage) return true
+	if (!getPrototypeImages(state).length) return true
 	if (state.designType === DESIGN_TYPE.INSPIRATION) return !state.inspirationImage
 	if (state.designType === DESIGN_TYPE.BESTSELLER) return !hasValidBestsellerCategory(state)
 	if (state.designType === DESIGN_TYPE.SERIES) return !state.seriesTheme.trim()
@@ -552,24 +552,19 @@ registerMagicCanvasPlugin({
 			},
 			sections: [
 				{
-					id: "prototypeImage",
-					kind: "image-slot",
-					stateKey: "prototypeImage",
+					id: "prototypeImages",
+					kind: "image-grid",
+					stateKey: "prototypeImages",
 					title: t("section.prototypeImage", "原型图"),
 					required: true,
-					uploadLabel: t("upload.prototypeImage", "点击上传原型图"),
+					addLabel: "+",
 					alt: t("section.prototypeImage", "原型图"),
 					help: t(
 						"upload.prototypeImage.help",
-						"上传参考廓形的原型图，作为廓形、比例与关键结构线的锚点。",
+						"可上传多张原型图，每张原型图将分别与灵感图配对生成。",
 					),
 					deps: ["designType", "inspirationImage", "modelId", "modelOptions"],
-					beforePick: ({ state, helpers }) => {
-						if (countReferenceImages(state) >= getMaxReferenceImages(state, helpers)) {
-							return t("error.referenceLimit", "参考图数量已达当前模型上限")
-						}
-						return null
-					},
+					maxCount: ({ state, helpers }) => getMaxReferenceImages(state, helpers),
 				},
 				{
 					id: "designType",
@@ -595,10 +590,10 @@ registerMagicCanvasPlugin({
 										"upload.inspirationImage.help",
 										"上传 1 张灵感图，AI 将借鉴其配色、工艺、辅料与装饰语言，同时严格保持原型图的廓形。",
 									),
-									deps: ["prototypeImage", "modelId", "modelOptions"],
+									deps: ["prototypeImages", "modelId", "modelOptions"],
 									beforePick: ({ state, helpers }) => {
 										if (
-											countReferenceImages(state) >=
+											getReferenceImages(state).length >=
 											getMaxReferenceImages(state, helpers)
 										) {
 											return t(
@@ -662,9 +657,10 @@ registerMagicCanvasPlugin({
 									aiGenerate: {
 										label: t("button.aiPlaceholder", "AI 生成"),
 										loadingLabel: t("button.generating", "生成中…"),
-										disabled: ({ state }) => !state.prototypeImage,
+										disabled: ({ state }) => !getPrototypeImages(state).length,
 										completeImagePrompt: {
-											referenceImages: ({ state }) => [state.prototypeImage],
+											referenceImages: ({ state }) =>
+												getPrototypeImages(state),
 											referencesMessage: t(
 												"error.extraReferences",
 												"请先上传原型图",
@@ -695,9 +691,10 @@ registerMagicCanvasPlugin({
 									aiGenerate: {
 										label: t("button.aiPlaceholder", "AI 生成"),
 										loadingLabel: t("button.generating", "生成中…"),
-										disabled: ({ state }) => !state.prototypeImage,
+										disabled: ({ state }) => !getPrototypeImages(state).length,
 										completeImagePrompt: {
-											referenceImages: ({ state }) => [state.prototypeImage],
+											referenceImages: ({ state }) =>
+												getPrototypeImages(state),
 											referencesMessage: t(
 												"error.extraReferences",
 												"请先上传原型图",
@@ -749,7 +746,7 @@ registerMagicCanvasPlugin({
 				buttonLabel: `✨ ${t("button.generate", "生成款式设计")}`,
 				loadingLabel: t("button.generating", "生成中…"),
 				getIdleHint: ({ state }) => {
-					if (!state.prototypeImage) {
+					if (!getPrototypeImages(state).length) {
 						return t("empty.prototypeImage", "请先上传原型图")
 					}
 					if (state.designType === DESIGN_TYPE.INSPIRATION && !state.inspirationImage) {
@@ -772,15 +769,19 @@ registerMagicCanvasPlugin({
 				},
 				isDisabled: ({ state }) => isGenerateDisabled(state),
 				validate: ({ state, helpers }) => {
-					const referenceImages = getReferenceImages(state)
-					if (referenceImages.length > getMaxReferenceImages(state, helpers)) {
-						return t("error.referenceLimit", "参考图数量已达当前模型上限")
-					}
-					if (
-						helpers.collectReferenceIds(referenceImages).length !==
-						referenceImages.length
-					) {
-						return t("error.references", "图片缺少可用于生成的资源标识")
+					const prototypeImages = getPrototypeImages(state)
+					const maxReferenceImages = getMaxReferenceImages(state, helpers)
+					for (const prototypeImage of prototypeImages) {
+						const referenceImages = getReferenceImages(state, prototypeImage)
+						if (referenceImages.length > maxReferenceImages) {
+							return t("error.referenceLimit", "参考图数量已达当前模型上限")
+						}
+						if (
+							helpers.collectReferenceIds(referenceImages).length !==
+							referenceImages.length
+						) {
+							return t("error.references", "图片缺少可用于生成的资源标识")
+						}
 					}
 					const selectedSize = helpers.getSelectedSize(state)
 					if (!selectedSize?.genW || !selectedSize?.genH) {
@@ -788,25 +789,34 @@ registerMagicCanvasPlugin({
 					}
 					return null
 				},
-				buildRequest: ({ state, helpers }) => {
-					const selectedSize = helpers.getSelectedSize(state)
-					const width = selectedSize.genW
-					const height = selectedSize.genH
+				execute: async ({ state, helpers, generateAndPlace }) => {
+					const requests = getPrototypeImages(state).map((prototypeImage) => {
+						const selectedSize = helpers.getSelectedSize(state)
+						const width = selectedSize.genW
+						const height = selectedSize.genH
 
-					return {
-						model_id: state.modelId,
-						prompt: buildGarmentStyleDesignPrompt({
-							state,
-							locale: promptLocale,
-						}),
-						reference_images: helpers.collectReferenceIds(getReferenceImages(state)),
-						size: `${width}x${height}`,
-						resolution: state.scale || undefined,
-						width,
-						height,
-						count: state.genCount,
-						select: false,
-					}
+						return {
+							model_id: state.modelId,
+							prompt: buildGarmentStyleDesignPrompt({
+								state,
+								locale: promptLocale,
+							}),
+							reference_images: helpers.collectReferenceIds(
+								getReferenceImages(state, prototypeImage),
+							),
+							size: `${width}x${height}`,
+							resolution: state.scale || undefined,
+							width,
+							height,
+							count: state.genCount,
+							select: false,
+						}
+					})
+
+					const results = await Promise.all(
+						requests.map((request) => generateAndPlace(request)),
+					)
+					return results.length === 1 ? results[0] : results
 				},
 			},
 		})

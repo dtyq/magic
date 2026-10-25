@@ -1,29 +1,15 @@
 {
 	"bootstrap": {
 		"initFailed": "加载失败",
-		"initializing": "加载中...",
-		"retry": "重试",
-		"retryHint": "请稍后重试"
-	},
-	"freePointsReward": {
-		"description": "奖励的积分在今日内有效，明天登录还能领取新的积分哦！",
-		"pointsCredited": "积分到账",
-		"title": "每日登录奖励",
-		"useNow": "马上去使用"
+		"retry": "重试"
 	},
 	"magicDatePicker": {
 		"selectDate": "选择日期"
 	},
 	"magicDocxRender": {
-		"actions": {
-			"download": "下载文件",
-			"fullscreen": "全屏显示",
-			"reload": "重新加载"
-		},
 		"dropdown": {
 			"download": "下载",
 			"fullscreen": "全屏",
-			"navigation": "导航",
 			"nextSection": "下一节",
 			"prevSection": "上一节",
 			"reload": "重新加载",
@@ -32,44 +18,31 @@
 			"zoomScale": "缩放:"
 		},
 		"error": {
-			"failedToLoad": "加载 DOCX 文件失败",
-			"networkError": "网络错误",
-			"renderError": "渲染错误",
-			"unknown": "未知错误"
+			"failedToLoad": "加载 DOCX 文件失败"
 		},
 		"navigation": {
 			"nextSection": "下一节",
-			"prevSection": "上一节",
-			"sectionInfo": "第 {{current}} 节 / 共 {{total}} 节",
-			"sectionInput": "节码输入"
+			"prevSection": "上一节"
 		},
 		"status": {
-			"downloadUnavailable": "无法下载该文档",
-			"fileTooLarge": "文件过大，最大支持 50MB",
-			"invalidFileType": "文件格式不正确，仅支持 .docx 文件",
-			"loadFailed": "加载失败，请重试",
 			"loading": "正在加载 DOCX 文件...",
-			"loadingProgress": "加载进度",
-			"noFile": "请选择要预览的 DOCX 文件",
-			"retry": "重试",
-			"sectionLoadFailed": "章节加载失败"
+			"retry": "重试"
 		},
 		"toolbar": {
 			"download": "下载",
 			"fullscreen": "全屏 (F11)",
 			"moreActions": "更多操作",
-			"nextSection": "下一节 (→)",
-			"prevSection": "上一节 (←)",
-			"reload": "重新加载",
-			"zoomIn": "放大 (+)",
-			"zoomOut": "缩小 (-)"
+			"reload": "重新加载"
 		},
 		"zoom": {
-			"scaleInput": "缩放输入",
 			"zoomIn": "放大",
-			"zoomOut": "缩小",
-			"zoomScale": "缩放比例"
+			"zoomOut": "缩小"
 		}
+	},
+	"magicMarpit": {
+		"firstPage": "回到第一页",
+		"nextPage": "下一页",
+		"prevPage": "上一页"
 	},
 	"magicPdfRender": {
 		"dropdown": {
@@ -82,12 +55,6 @@
 			"zoom": "缩放:",
 			"zoomIn": "放大",
 			"zoomOut": "缩小"
-		},
-		"pageInfo": {
-			"currentPage": "第 {{current}} 页",
-			"pageNumber": "页码",
-			"scale": "缩放",
-			"totalPages": "共 {{total}} 页"
 		},
 		"placeholders": {
 			"pageNumber": "页面 {{number}}",

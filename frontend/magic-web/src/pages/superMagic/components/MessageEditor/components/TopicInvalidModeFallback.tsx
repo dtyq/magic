@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { IconMessageCirclePlus } from "@tabler/icons-react"
 import { Button } from "@/components/shadcn-ui/button"
-import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { EDITOR_ICON_SIZE_MAP } from "../constants/constant"
 
 export interface InvalidModeFallbackProps {
@@ -10,8 +10,10 @@ export interface InvalidModeFallbackProps {
 
 export function TopicInvalidModeFallback({ onCreateTopic }: InvalidModeFallbackProps) {
 	const { t } = useTranslation("super")
-	const { hideCreateNewTopic } = useFileActionVisibility()
-	const shouldHideTopicEntry = hideCreateNewTopic
+	const {
+		options: { createNewTopic },
+	} = useFileAccess()
+	const shouldHideTopicEntry = !createNewTopic
 
 	return (
 		<div className="mx-2 flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-xl px-4 py-3">

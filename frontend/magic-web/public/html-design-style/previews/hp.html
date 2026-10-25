@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HP Enterprise — Fleet Management & Workstation Telemetry</title>
+<style>
+:root{--primary:#0096d6;--primary-deep:#024ad8;--ink:#1a1a1a;--canvas:#ffffff;--cloud:#f7f7f7;--fog:#e8e8e8;--steel:#c2c2c2;--graphite:#636363;--charcoal:#3d3d3d;--font-hp:'Forma DJR Micro','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}*{box-sizing:border-box;margin:0;padding:0;}body{background:var(--canvas);color:var(--ink);font-family:var(--font-hp);font-size:13.5px;line-height:1.4;-webkit-font-smoothing:antialiased;}a{color:inherit;text-decoration:none;}.hp-utility{background:var(--ink);color:#dedede;height:32px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:500;}.status-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(0,150,214,0.25);color:#64cbf7;padding:2px 7px;border-radius:4px;font-size:10px;}.pulse-dot{width:6px;height:6px;border-radius:50%;background:#00d26a;box-shadow:0 0 6px #00d26a;}.hp-nav{height:56px;background:var(--canvas);border-bottom:1px solid var(--fog);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:100;}.nav-brand{display:flex;align-items:center;gap:20px;}.hp-logo-svg{width:34px;height:34px;flex-shrink:0;}.nav-links{display:flex;gap:18px;list-style:none;font-size:13px;font-weight:500;}.nav-link.active{color:var(--primary-deep);font-weight:600;border-bottom:2px solid var(--primary-deep);padding-bottom:2px;}.nav-actions{display:flex;align-items:center;gap:8px;}.btn-hp-primary{background:var(--primary-deep);color:#fff;font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;padding:7px 14px;border-radius:4px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;}.btn-hp-outline{background:transparent;color:var(--ink);font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;padding:6px 12px;border-radius:4px;border:1px solid var(--steel);cursor:pointer;}.hero-container{position:relative;background:var(--cloud);border-bottom:1px solid var(--fog);padding:18px 24px;overflow:hidden;}.hero-flank-slash{position:absolute;width:28px;height:140px;background:linear-gradient(135deg,var(--primary-deep),var(--primary));transform:skewX(-26deg);opacity:0.85;pointer-events:none;}.hero-flank-slash.left{top:-20px;left:-8px;}.hero-flank-slash.right{bottom:-20px;right:-8px;}.hero-card{max-width:1200px;margin:0 auto;background:var(--canvas);border-radius:16px;box-shadow:0 4px 16px rgba(0,0,0,0.05);border:1px solid var(--fog);display:grid;grid-template-columns:1.15fr 1.25fr;padding:18px 22px;gap:20px;align-items:center;position:relative;z-index:2;}.hero-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--primary-deep);margin-bottom:4px;}.hero-badge-sale{background:#ff5050;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;}.hero-title{font-size:26px;font-weight:500;line-height:1.1;color:var(--ink);margin-bottom:6px;}.hero-title span{color:var(--primary-deep);}.hero-lead{font-size:12.5px;color:var(--charcoal);line-height:1.4;margin-bottom:10px;}.hero-specs-row{display:flex;gap:12px;padding:6px 0;border-top:1px solid var(--fog);border-bottom:1px solid var(--fog);margin-bottom:12px;}.spec-point .val{font-size:13px;font-weight:600;color:var(--ink);}.spec-point .lbl{font-size:9px;color:var(--graphite);text-transform:uppercase;}.hero-visual{background:linear-gradient(135deg,#0d1626,#142136);border-radius:10px;padding:12px;color:#fff;}.visual-top-bar{display:flex;justify-content:space-between;font-size:9.5px;text-transform:uppercase;color:#8ebdce;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:8px;}.workstation-render-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}.device-preview-box{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px;text-align:center;}.device-name{font-size:10.5px;font-weight:600;color:#fff;margin-top:2px;}.device-sub{font-size:9px;color:#8ebdce;}.hero-telemetry-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;background:rgba(0,0,0,0.4);border-radius:6px;padding:6px 8px;border:1px solid rgba(0,150,214,0.25);}.telemetry-item .label{font-size:8.5px;text-transform:uppercase;color:#8ebdce;}.telemetry-item .num{font-size:11.5px;font-weight:600;color:#fff;}.telemetry-item .num.good{color:#2ecc71;}.telemetry-bar-mini{height:3px;background:rgba(255,255,255,0.15);border-radius:2px;margin-top:2px;}.telemetry-bar-mini .fill{height:100%;background:#0096d6;border-radius:2px;}.dashboard-section{max-width:1200px;margin:20px auto;padding:0 24px;}.section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;}.section-title{font-size:18px;font-weight:500;color:var(--ink);}.section-desc{font-size:12px;color:var(--graphite);}.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}.stat-card{background:var(--canvas);border:1px solid var(--fog);border-radius:12px;padding:10px 12px;}.stat-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}.stat-card-top .title{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--graphite);}.stat-badge{font-size:8.5px;font-weight:700;padding:1px 4px;border-radius:3px;}.badge-ok{background:#e6f7ec;color:#0e7039;}.stat-val{font-size:19px;font-weight:600;color:var(--ink);}.stat-footnote{font-size:10px;color:var(--charcoal);margin-top:2px;}.telemetry-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:14px;margin-bottom:18px;}.panel-card{background:var(--canvas);border:1px solid var(--fog);border-radius:12px;padding:12px;}.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}.panel-title{font-size:13.5px;font-weight:600;color:var(--ink);}.hp-table{width:100%;border-collapse:collapse;font-size:11px;}.hp-table th{text-align:left;padding:6px;background:var(--cloud);color:var(--graphite);font-weight:600;font-size:9.5px;text-transform:uppercase;}.hp-table td{padding:6px;border-bottom:1px solid var(--fog);}.thermal-tag{font-weight:600;font-size:9.5px;padding:1px 4px;border-radius:3px;background:#eaf6fc;color:#024ad8;}.showcase-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:18px;}.product-card{background:var(--canvas);border:1px solid var(--fog);border-radius:12px;padding:12px;display:flex;flex-direction:column;}.product-thumb{height:80px;background:var(--cloud);border-radius:6px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;position:relative;}.product-tag{position:absolute;top:5px;left:5px;background:var(--ink);color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:2px;text-transform:uppercase;}.product-name{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px;}.product-desc{font-size:11px;color:var(--charcoal);margin-bottom:6px;line-height:1.35;}.product-specs{display:flex;flex-direction:column;gap:2px;font-size:10px;color:var(--graphite);margin-bottom:8px;border-top:1px solid var(--fog);padding-top:4px;}.product-price-row{margin-top:auto;display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px solid var(--fog);}.price-wrap .price{font-size:14px;font-weight:600;color:var(--ink);}.hp-dark-slab{background:var(--ink);color:#fff;padding:20px 24px;border-top:1px solid #333;}.dark-slab-inner{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;}
+</style>
+</head>
+<body>
+<div class="hp-utility">
+<div style="display:flex; gap:12px; align-items:center;">
+<span>HP Enterprise Fleet Cloud</span>
+<span class="status-pill"><span class="pulse-dot"></span> Telemetry Engine: Active</span>
+<span>14,820 Nodes</span>
+</div>
+<div style="display:flex; gap:12px;">
+<a href="#support">Priority Support 24/7</a>
+<a href="#portal">Device Portal</a>
+</div>
+</div>
+<header class="hp-nav">
+<div class="nav-brand">
+<svg class="hp-logo-svg" viewBox="0 0 100 100" fill="none">
+<circle cx="50" cy="50" r="48" fill="#0096d6"/>
+<g transform="rotate(-25 50 50)">
+<line x1="33" y1="18" x2="33" y2="76" stroke="#fff" stroke-width="6.5" stroke-linecap="round"/>
+<line x1="44" y1="36" x2="44" y2="82" stroke="#fff" stroke-width="6.5" stroke-linecap="round"/>
+<line x1="56" y1="24" x2="56" y2="70" stroke="#fff" stroke-width="6.5" stroke-linecap="round"/>
+<line x1="67" y1="36" x2="67" y2="82" stroke="#fff" stroke-width="6.5" stroke-linecap="round"/>
+</g>
+</svg>
+<ul class="nav-links">
+<li><a href="#workstations" class="nav-link active">Workstations</a></li>
+<li><a href="#spectre" class="nav-link">Spectre x360</a></li>
+<li><a href="#fleet" class="nav-link">Fleet Telemetry</a></li>
+<li><a href="#security" class="nav-link">Wolf Pro Security</a></li>
+</ul>
+</div>
+<div class="nav-actions">
+<button class="btn-hp-outline">Docs</button>
+<button class="btn-hp-primary">Admin Console</button>
+</div>
+</header>
+<section class="hero-container">
+<div class="hero-flank-slash left"></div>
+<div class="hero-flank-slash right"></div>
+<div class="hero-card">
+<div>
+<div class="hero-eyebrow">
+<span>Enterprise Fleet Architecture</span>
+<span class="hero-badge-sale">ZBook Fury Ready</span>
+</div>
+<h1 class="hero-title">Workstation Power.<br><span>Zero-Trust</span> Fleet Telemetry.</h1>
+<p class="hero-lead">
+Deploy and orchestrate mobile workstations at enterprise scale. Continuous battery longevity analytics, dual-fan thermal orchestration, and hardware-enforced HP Wolf Security.
+</p>
+<div class="hero-specs-row">
+<div class="spec-point"><div class="val">Core i9-14900HX</div><div class="lbl">24-Core 5.8GHz</div></div>
+<div class="spec-point"><div class="val">RTX 5000 Ada</div><div class="lbl">16GB ECC VRAM</div></div>
+<div class="spec-point"><div class="val">98.4% Nominal</div><div class="lbl">Battery Health</div></div>
+</div>
+<div style="display:flex; gap:8px;">
+<button class="btn-hp-primary">Deploy Policy</button>
+<button class="btn-hp-outline">Telemetry Specs</button>
+</div>
+</div>
+<div class="hero-visual">
+<div class="visual-top-bar">
+<span>Node Telemetry · HP-ZBK-US-4892</span>
+<span style="color:#00d26a; display:flex; align-items:center; gap:4px;"><span class="pulse-dot"></span> LIVE 60Hz</span>
+</div>
+<div class="workstation-render-wrap">
+<div class="device-preview-box">
+<svg viewBox="0 0 160 80" width="100%" height="55">
+<rect x="20" y="4" width="120" height="58" rx="2" fill="#1b2535" stroke="#486581"/>
+<rect x="24" y="8" width="112" height="50" rx="1" fill="#090f19"/>
+<path d="M28 40 Q 50 16, 70 36 T 110 32 T 130 24" fill="none" stroke="#0096d6" stroke-width="1.8"/>
+<text x="28" y="18" fill="#8ebdce" font-size="6.5">HP DREAMCOLOR OLED</text>
+<polygon points="10,66 150,66 140,76 20,76" fill="#243b53"/>
+</svg>
+<div class="device-name">ZBook Fury 16 G11</div>
+<div class="device-sub">Active · 54°C / 2400 RPM</div>
+</div>
+<div class="device-preview-box">
+<svg viewBox="0 0 160 80" width="100%" height="55">
+<rect x="24" y="5" width="112" height="56" rx="3" fill="#1b2535" stroke="#7fadbe"/>
+<rect x="28" y="9" width="104" height="48" rx="1" fill="#0c1322"/>
+<text x="32" y="22" fill="#0096d6" font-size="7" font-weight="bold">SPECTRE x360 14</text>
+<rect x="32" y="32" width="40" height="5" rx="1" fill="#243b53"/>
+<rect x="32" y="32" width="36" height="5" rx="1" fill="#00d26a"/>
+<text x="76" y="37" fill="#fff" font-size="6.5">90% · 14h</text>
+<polygon points="12,65 148,65 138,75 22,75" fill="#1f2d3d"/>
+</svg>
+<div class="device-name">Spectre x360 14</div>
+<div class="device-sub">Standby · 44°C / Silent</div>
+</div>
+</div>
+<div class="hero-telemetry-strip">
+<div class="telemetry-item">
+<div class="label">Battery Health</div>
+<div class="num good">98.4% Nominal</div>
+<div class="telemetry-bar-mini"><div class="fill" style="width:98%;"></div></div>
+</div>
+<div class="telemetry-item">
+<div class="label">Package Temp</div>
+<div class="num">48.2°C Whisper</div>
+<div class="telemetry-bar-mini"><div class="fill" style="width:48%;"></div></div>
+</div>
+<div class="telemetry-item">
+<div class="label">Fan Acoustic</div>
+<div class="num">21.4 dB</div>
+<div class="telemetry-bar-mini"><div class="fill" style="width:35%; background:#8ebdce;"></div></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<main class="dashboard-section">
+<div class="section-head">
+<div>
+<h2 class="section-title">Fleet Telemetry & Thermal Health</h2>
+<p class="section-desc">Continuous monitoring and automated lifecycle orchestration across 14,820 enterprise devices.</p>
+</div>
+<button class="btn-hp-primary">+ Provision Node</button>
+</div>
+<div class="stats-row">
+<div class="stat-card">
+<div class="stat-card-top"><span class="title">Active Endpoints</span><span class="stat-badge badge-ok">99.8% Online</span></div>
+<div class="stat-val">14,820</div>
+<div class="stat-footnote">+240 nodes this month</div>
+</div>
+<div class="stat-card">
+<div class="stat-card-top"><span class="title">Battery Health</span><span class="stat-badge badge-ok">Nominal</span></div>
+<div class="stat-val">97.6%</div>
+<div class="stat-footnote">Adaptive Charge Active</div>
+</div>
+<div class="stat-card">
+<div class="stat-card-top"><span class="title">Package Temp</span><span class="stat-badge badge-ok">Cool Zone</span></div>
+<div class="stat-val">52.4°C</div>
+<div class="stat-footnote">Thermal margin: +24°C</div>
+</div>
+<div class="stat-card">
+<div class="stat-card-top"><span class="title">Wolf Security</span><span class="stat-badge badge-ok">Zero Breaches</span></div>
+<div class="stat-val">0 / 14,820</div>
+<div class="stat-footnote">Sure Start Gen9 Active</div>
+</div>
+</div>
+<div class="telemetry-grid">
+<div class="panel-card">
+<div class="panel-head">
+<div class="panel-title">Fleet Telemetry Ledger</div>
+<span style="font-size:10.5px; color:var(--graphite);">Updated 10s ago</span>
+</div>
+<table class="hp-table">
+<thead>
+<tr>
+<th>Device / Serial</th>
+<th>Department</th>
+<th>Battery Health</th>
+<th>Thermal State</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ZBook Fury 16 G11</strong><br><span style="font-size:9px; color:#888;">8CG2410Z99</span></td>
+<td>AI Infrastructure Lab</td>
+<td><span style="font-weight:600; color:#024ad8;">99%</span> (420c)</td>
+<td><span class="thermal-tag">54°C / 2400 RPM</span></td>
+<td><span class="stat-badge badge-ok">Optimal</span></td>
+</tr>
+<tr>
+<td><strong>Spectre x360 14</strong><br><span style="font-size:9px; color:#888;">5CD3128K44</span></td>
+<td>Executive Leadership</td>
+<td><span style="font-weight:600; color:#024ad8;">95%</span> (210c)</td>
+<td><span class="thermal-tag" style="background:#e6f7ec; color:#0e7039;">44°C / Silent</span></td>
+<td><span class="stat-badge badge-ok">Optimal</span></td>
+</tr>
+<tr>
+<td><strong>ZBook Studio 16 G10</strong><br><span style="font-size:9px; color:#888;">8CG1992X10</span></td>
+<td>CAD & Architecture</td>
+<td><span style="font-weight:600; color:#024ad8;">92%</span> (580c)</td>
+<td><span class="thermal-tag">58°C / 3100 RPM</span></td>
+<td><span class="stat-badge badge-ok">Optimal</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="panel-card">
+<div class="panel-head">
+<div class="panel-title">Thermal Curve & Acoustics</div>
+<span style="font-size:10px; color:var(--graphite);">ZBook Fury 16</span>
+</div>
+<svg viewBox="0 0 300 110" width="100%" height="100" style="background:var(--cloud); border-radius:6px; padding:4px;">
+<line x1="25" y1="20" x2="290" y2="20" stroke="#e0e0e0" stroke-dasharray="3,3"/>
+<line x1="25" y1="50" x2="290" y2="50" stroke="#e0e0e0" stroke-dasharray="3,3"/>
+<line x1="25" y1="80" x2="290" y2="80" stroke="#e0e0e0" stroke-dasharray="3,3"/>
+<text x="5" y="23" font-size="7.5" fill="#888">80°C</text>
+<text x="5" y="53" font-size="7.5" fill="#888">60°C</text>
+<text x="5" y="83" font-size="7.5" fill="#888">40°C</text>
+<defs>
+<linearGradient id="hpGrad" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#0096d6" stop-opacity="0.3"/>
+<stop offset="100%" stop-color="#0096d6" stop-opacity="0"/>
+</linearGradient>
+</defs>
+<path d="M 25 90 Q 65 95, 105 70 T 170 52 T 235 60 T 290 45 L 290 105 L 25 105 Z" fill="url(#hpGrad)"/>
+<path d="M 25 90 Q 65 95, 105 70 T 170 52 T 235 60 T 290 45" fill="none" stroke="#0096d6" stroke-width="2"/>
+<circle cx="170" cy="52" r="3" fill="#024ad8" stroke="#fff" stroke-width="1.5"/>
+<text x="156" y="44" font-size="8.5" font-weight="bold" fill="#024ad8">54.2°C</text>
+</svg>
+<div style="display:flex; justify-content:space-between; margin-top:6px; font-size:10px; color:var(--charcoal);">
+<span>CPU Temp: <strong style="color:#0096d6;">54.2°C</strong></span>
+<span>Acoustic: <strong style="color:#107c41;">21.4 dB</strong></span>
+</div>
+</div>
+</div>
+<div class="showcase-grid">
+<div class="product-card">
+<div class="product-thumb">
+<span class="product-tag">Flagship Workstation</span>
+<svg viewBox="0 0 80 40" width="60" height="30">
+<rect x="10" y="4" width="60" height="26" rx="2" fill="#243b53" stroke="#0096d6"/>
+<polygon points="4,32 76,32 68,37 12,37" fill="#102a43"/>
+</svg>
+</div>
+<div class="product-name">HP ZBook Fury 16 G11</div>
+<div class="product-desc">Desktop-caliber mobile power. Intel Core i9 HX, RTX 5000 Ada 16GB, ISV CAD certs.</div>
+<div class="product-price-row">
+<div class="price-wrap"><div class="price">$89 /mo</div></div>
+<button class="btn-hp-primary">Configure</button>
+</div>
+</div>
+<div class="product-card">
+<div class="product-thumb">
+<span class="product-tag" style="background:#024ad8;">Executive Convertible</span>
+<svg viewBox="0 0 80 40" width="60" height="30">
+<rect x="15" y="5" width="50" height="25" rx="2" fill="#334e68" stroke="#7fadbe"/>
+<polygon points="8,32 72,32 66,37 14,37" fill="#1b2535"/>
+</svg>
+</div>
+<div class="product-name">HP Spectre x360 14</div>
+<div class="product-desc">Precision 2-in-1 convertible. 2.8K OLED touch display, 17-hr battery, CNC gem-cut.</div>
+<div class="product-price-row">
+<div class="price-wrap"><div class="price">$1,499</div></div>
+<button class="btn-hp-outline">Explore</button>
+</div>
+</div>
+</div>
+</main>
+<footer class="hp-dark-slab">
+<div class="dark-slab-inner">
+<div>
+<div style="font-size:14px; font-weight:600; margin-bottom:2px;">HP Wolf Security & Enterprise Assurance</div>
+<div style="font-size:11px; color:#a0a0a0;">Hardware-enforced isolation and self-healing BIOS firmware across global fleets.</div>
+</div>
+<div style="display:flex; gap:8px;">
+<button class="btn-hp-outline" style="color:#fff; border-color:rgba(255,255,255,0.3);">Fleet Demo</button>
+<button class="btn-hp-primary">Contact Sales</button>
+</div>
+</div>
+</footer>
+</body>
+</html>

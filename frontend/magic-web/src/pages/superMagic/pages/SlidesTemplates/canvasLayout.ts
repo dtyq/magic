@@ -32,6 +32,14 @@ export interface TemplateCanvasBounds {
 	maxY: number
 }
 
+/**
+ * Where the whole-card highlight of an onboarding run sits, in the canvas's own coordinates. The
+ * canvas publishes one for the card it has centred for the tour, and the layer renders it as the
+ * `data-guide-anchor` marker that the tour measures — measuring the card itself would mean reading
+ * a box that the canvas transform, the layout and the idle loop each keep moving.
+ */
+export interface TemplateCanvasGuideAnchor extends TemplateCanvasPoint, TemplateCanvasSize {}
+
 export interface TemplateCanvasInsets {
 	top: number
 	right: number

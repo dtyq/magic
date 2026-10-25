@@ -1,6 +1,6 @@
 import { Loader2, Sparkles } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { DetailSummaryVisualStatus } from "@/pages/superMagic/pages/AudioRecordings/utils/summary-action-utils"
 
 interface MobileRecordingSummaryPlaceholderProps {
@@ -21,12 +21,12 @@ export function MobileRecordingSummaryPlaceholder({
 	const generating = status === "generating"
 	const failed = status === "failed"
 	const title = generating
-		? t("detail.summarizing")
+		? t("detail.summarizingHint")
 		: failed
 			? t("detail.empty.summaryFailed")
 			: t("detail.notSummarized")
 	const description = generating
-		? t("detail.summarizingHint")
+		? ""
 		: failed
 			? t("detail.empty.summaryFailedHint")
 			: t("detail.notSummarizedHint")

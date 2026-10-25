@@ -1,8 +1,8 @@
-import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react"
+import { NodeViewWrapper, type ReactNodeViewProps } from "@/infrastructure/editors/tiptap/react"
 import { X } from "lucide-react"
 import { useCallback, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const PRESET_TOKEN_CLASS_NAME =
 	"inline-flex h-5 items-center gap-1 rounded-md border border-foreground-indigo bg-background px-2 align-baseline text-xs font-medium text-foreground-indigo"

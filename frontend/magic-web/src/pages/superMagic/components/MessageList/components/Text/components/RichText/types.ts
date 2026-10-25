@@ -1,6 +1,7 @@
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { MarkerClickScene } from "@/pages/superMagic/components/MessageEditor/hooks/useMarkerClickHandler"
+import type { FileMentionRenderConfig } from "@/pages/superMagic/components/MessageEditor/components/MentionMedia/fileMentionRenderConfig"
 
 // Mention node structure for ProseMirror
 export interface MentionNode {
@@ -25,4 +26,6 @@ export interface RichTextProps {
 	mentions?: Array<{ attrs: TiptapMentionAttributes }>
 	/** Marker 点击场景（用于决定点击行为） */
 	markerClickScene?: MarkerClickScene
+	/** 文件 Mention 的 Icon 与 Tooltip 展示配置。 */
+	fileMentionRenderConfig?: FileMentionRenderConfig
 }

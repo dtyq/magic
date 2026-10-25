@@ -87,6 +87,7 @@ debug/
 plan.md
 trigger_ci.txt
 config/tool_definitions.json
+.topic/
 .chat_history/
 .checkpoints/
 .client_message/

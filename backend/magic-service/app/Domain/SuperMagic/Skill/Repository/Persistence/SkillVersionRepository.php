@@ -54,6 +54,14 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         return $this->toEntity($model->toArray());
     }
 
+    public function findByIdForUpdate(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
+        /** @var null|SkillVersionModel $model */
+        $model = $builder->where('id', $id)->whereNull('deleted_at')->lockForUpdate()->first();
+        return $model ? $this->toEntity($model->toArray()) : null;
+    }
+
     /**
      * 根据 ID 查找 Skill 版本（不进行组织过滤，用于查询公开的商店技能版本）.
      */
@@ -142,6 +150,19 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         }
 
         return $this->toEntity($model->toArray());
+    }
+
+    public function findLatestMarketByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
+        $model = $builder
+            ->where('code', $code)
+            ->where('publish_target_type', PublishTargetType::MARKET->value)
+            ->whereNull('deleted_at')
+            ->orderBy('created_at', 'DESC')
+            ->first();
+
+        return $model === null ? null : $this->toEntity($model->toArray());
     }
 
     public function findCurrentOrLatestByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity
@@ -255,15 +276,24 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         return $result;
     }
 
-    public function existsByCodeAndVersion(SkillDataIsolation $dataIsolation, string $code, string $version): bool
-    {
+    public function existsByCodeAndVersion(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        string $version,
+        ?int $excludedId = null
+    ): bool {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query());
 
-        return $builder
+        $builder = $builder
             ->where('code', $code)
             ->where('version', $version)
-            ->whereNull('deleted_at')
-            ->exists();
+            ->whereNull('deleted_at');
+
+        if ($excludedId !== null) {
+            $builder->where('id', '<>', $excludedId);
+        }
+
+        return $builder->exists();
     }
 
     /**
@@ -420,11 +450,16 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         string $code,
         ?PublishTargetType $publishTargetType = null,
         ?ReviewStatus $reviewStatus = null,
-        Page $page = new Page()
+        Page $page = new Page(),
+        bool $includePublishing = false
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
             ->where('code', $code)
             ->whereNull('deleted_at');
+
+        if (! $includePublishing) {
+            $builder->where('publish_status', '<>', PublishStatus::PUBLISHING->value);
+        }
 
         if ($publishTargetType !== null) {
             $builder->where('publish_target_type', $publishTargetType->value);

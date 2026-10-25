@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { MacMenu } from "../Header/components/DesktopMenu/MacMenu"
 import { WindowMenu } from "../Header/components/DesktopMenu/WindowMenu"
 import { useDesktopVersionCheck } from "../Header/components/DesktopMenu"

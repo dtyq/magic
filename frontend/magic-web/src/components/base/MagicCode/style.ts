@@ -1,12 +1,9 @@
 import { createStyles, cx, css } from "antd-style"
 
 export const useStyles = createStyles(({ isDarkMode, prefixCls, token }) => {
-	const copy = cx(css`
+	const action = cx(css`
 		padding: 6px 8px;
 		height: 28px;
-		position: absolute;
-		right: 6px;
-		top: 6px;
 		border: 1px solid ${token.magicColorUsages.border};
 		border-radius: 6px;
 		background: ${isDarkMode ? token.magicColorScales.grey[3] : token.magicColorUsages.white};
@@ -69,6 +66,15 @@ export const useStyles = createStyles(({ isDarkMode, prefixCls, token }) => {
 				display: none;
 			}
 		`,
+		actions: css`
+			position: absolute;
+			top: 6px;
+			right: 6px;
+			z-index: 10;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+		`,
 		inner: {
 			"> pre": {
 				background: "transparent !important",
@@ -76,12 +82,38 @@ export const useStyles = createStyles(({ isDarkMode, prefixCls, token }) => {
 				margin: 0,
 			},
 		},
+		codeWrapped: css`
+			&,
+			> pre,
+			> pre code {
+				white-space: pre-wrap !important;
+				overflow-wrap: anywhere;
+				word-break: break-word;
+			}
+
+			> pre {
+				overflow-x: hidden;
+			}
+		`,
+		codeUnwrapped: css`
+			&,
+			> pre,
+			> pre code {
+				white-space: pre !important;
+				overflow-wrap: normal;
+				word-break: normal;
+			}
+
+			> pre {
+				overflow-x: auto;
+			}
+		`,
 		raw: css`
 			background: transparent !important;
 			border: none !important;
 			color: ${token.colorText};
 			margin: 10px;
 		`,
-		copy,
+		action,
 	}
 })

@@ -1,7 +1,7 @@
 import { CSSProperties, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle, FileQuestion, Link2Off } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface PPTSlideErrorProps {
 	index: number
@@ -62,8 +62,6 @@ function PPTSlideError({ className, style, index, error, isActive }: PPTSlideErr
 		switch (errorType) {
 			case "not_found":
 				return t("ppt.error.fileNotFound")
-			case "no_url":
-				return t("ppt.error.noUrl")
 			case "network":
 				return t("ppt.error.network")
 			case "timeout":
@@ -80,8 +78,6 @@ function PPTSlideError({ className, style, index, error, isActive }: PPTSlideErr
 		switch (errorType) {
 			case "not_found":
 				return t("ppt.error.fileNotFoundDesc", { index: index + 1 })
-			case "no_url":
-				return t("ppt.error.noUrlDesc", { index: index + 1 })
 			case "network":
 				return t("ppt.error.networkDesc", { index: index + 1 })
 			case "timeout":

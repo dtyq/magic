@@ -31,6 +31,18 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
     ) {
     }
 
+    public function lockByCode(SkillDataIsolation $dataIsolation, string $code): void
+    {
+        $this->createBuilder($dataIsolation, $this->skillModel::query())->where('code', $code)->lockForUpdate()->first();
+    }
+
+    public function findByProjectId(SkillDataIsolation $dataIsolation, int $projectId): array
+    {
+        $models = $this->createBuilder($dataIsolation, $this->skillModel::query())
+            ->where('project_id', $projectId)->limit(2)->get();
+        return array_map(fn (array $row) => $this->toEntity($row), $models->toArray());
+    }
+
     /**
      * 根据 code 查找 Skill.
      */
@@ -75,6 +87,22 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         }
 
         return $result;
+    }
+
+    /**
+     * 查询当前用户创建的技能 code。
+     *
+     * @return array<string>
+     */
+    public function findCodesByCreator(SkillDataIsolation $dataIsolation): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
+
+        return $builder
+            ->where('creator_id', $dataIsolation->getCurrentUserId())
+            ->pluck('code')
+            ->map(static fn ($code): string => (string) $code)
+            ->all();
     }
 
     /**
@@ -421,6 +449,58 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         }
 
         return $result;
+    }
+
+    public function findLocalUploadSkillsForI18nCleanup(
+        SkillDataIsolation $dataIsolation,
+        ?string $skillCode,
+        int $page,
+        int $pageSize
+    ): array {
+        $builder = $this->createBuilder($dataIsolation, $this->skillModel::query())
+            ->where('source_type', SkillSourceType::LOCAL_UPLOAD->value);
+
+        if ($skillCode !== null && $skillCode !== '') {
+            $builder->where('code', $skillCode);
+        }
+
+        $total = (clone $builder)->count();
+        $models = $builder
+            ->orderBy('id')
+            ->forPage(max(1, $page), max(1, $pageSize))
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = $this->toEntity($model->toArray());
+        }
+
+        return [
+            'total' => $total,
+            'list' => $entities,
+        ];
+    }
+
+    public function updateNameAndDescriptionI18n(
+        SkillDataIsolation $dataIsolation,
+        string $skillCode,
+        array $nameI18n,
+        ?array $descriptionI18n
+    ): bool {
+        $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
+        /** @var null|SkillModel $model */
+        $model = $builder
+            ->where('code', $skillCode)
+            ->where('source_type', SkillSourceType::LOCAL_UPLOAD->value)
+            ->first();
+
+        if (! $model) {
+            return false;
+        }
+
+        $model->name_i18n = $nameI18n;
+        $model->description_i18n = $descriptionI18n;
+        return $model->save();
     }
 
     /**

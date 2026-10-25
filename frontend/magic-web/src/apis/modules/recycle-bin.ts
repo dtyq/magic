@@ -1,5 +1,4 @@
-import { genRequestUrl } from "@/utils/http"
-import type { HttpClient } from "@/apis/core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 /** 业务层共用的回收站类型，通过 namespace 统一导出 */
 export namespace RecycleBin {
 	export interface DeletedByUser {
@@ -24,10 +23,12 @@ export namespace RecycleBin {
 		remaining_days?: number
 		parent_id: string
 		extra_data?: {
+			space_type?: "user" | "project"
 			workspace_name?: string
 			project_name?: string
 			relative_file_path?: string
 			is_directory?: boolean
+			original_parent_id?: string | number | null
 			parent_info?: {
 				workspace_id?: number
 				workspace_name?: string
@@ -47,6 +48,30 @@ export namespace RecycleBin {
 
 	export interface CountsParams {
 		keyword?: string
+		project_id?: string
+	}
+
+	export interface ProjectListParams {
+		project_id: string
+		resource_type: 4
+		include_total: false
+		keyword?: string
+		deleted_from?: string
+		deleted_to?: string
+		cursor?: string
+		page_size: number
+	}
+
+	export interface SearchLimits {
+		max_hours: number
+		max_results: number
+	}
+
+	export interface ProjectListResult {
+		list: ListItem[]
+		has_more: boolean
+		next_cursor: string | null
+		search_limits: SearchLimits
 	}
 
 	export interface CountItem {
@@ -63,6 +88,7 @@ export namespace RecycleBin {
 		resource_name: string
 		parent_id: string | null
 		is_directory?: boolean
+		space_type?: "user" | "project"
 		conflict?: {
 			type?: "parent_missing" | "name_conflict" | string
 			existing_file_id?: string
@@ -112,16 +138,47 @@ export namespace RecycleBin {
 	}
 }
 
-export const generateRecycleBinApi = (fetch: HttpClient) => ({
+export interface RecycleBinFilePreview {
+	recycle_bin_id: string
+	file_id: string
+	file_name: string
+	file_extension: string
+	file_size: number
+	is_directory: false
+	space_type: "user" | "project"
+	project_id: string
+	relative_file_path: string
+	updated_at: string
+	url: string
+	expires_at: string
+}
+
+export const generateRecycleBinApi = (fetch: ServiceHttpClient) => ({
+	previewFile(id: string, projectId?: string, signal?: AbortSignal) {
+		return fetch.get<RecycleBinFilePreview>(`/api/v1/recycle-bin/${id}/preview`, {
+			params: projectId ? { project_id: projectId } : undefined,
+			signal,
+			enableErrorMessagePrompt: false,
+		})
+	},
+	getProjectRecycleBinList(params: RecycleBin.ProjectListParams, signal?: AbortSignal) {
+		return fetch.get<RecycleBin.ProjectListResult>("/api/v1/recycle-bin/list", {
+			params: { ...params },
+			signal,
+			enableErrorMessagePrompt: false,
+		})
+	},
 	getRecycleBinList(params: RecycleBin.ListParams) {
 		return fetch.get<{ total: number; list: RecycleBin.ListItem[] }>(
-			genRequestUrl("/api/v1/recycle-bin/list", {}, params),
+			"/api/v1/recycle-bin/list",
+			{ params: { ...params } },
 		)
 	},
-	getRecycleBinCounts(params?: RecycleBin.CountsParams) {
-		return fetch.get<RecycleBin.CountItem[]>(
-			genRequestUrl("/api/v1/recycle-bin/counts", {}, params),
-		)
+	getRecycleBinCounts(params?: RecycleBin.CountsParams, signal?: AbortSignal) {
+		return fetch.get<RecycleBin.CountItem[]>("/api/v1/recycle-bin/counts", {
+			params: { ...params },
+			...(signal ? { signal, enableErrorMessagePrompt: false } : {}),
+		})
 	},
 	checkRecycleBinParent(params: RecycleBin.CheckParams) {
 		return fetch.post<{
@@ -133,7 +190,7 @@ export const generateRecycleBinApi = (fetch: HttpClient) => ({
 			items_with_conflict?: RecycleBin.CheckItem[]
 			/** 新版无冲突结构 */
 			items_no_conflict?: RecycleBin.CheckItem[]
-		}>(genRequestUrl("/api/v1/recycle-bin/check"), params)
+		}>("/api/v1/recycle-bin/check", params)
 	},
 	restoreRecycleBinResources(params: RecycleBin.RestoreParams) {
 		return fetch.post<{
@@ -147,13 +204,10 @@ export const generateRecycleBinApi = (fetch: HttpClient) => ({
 				success: boolean
 				error_message?: string
 			}>
-		}>(genRequestUrl("/api/v1/recycle-bin/restore"), params)
+		}>("/api/v1/recycle-bin/restore", params)
 	},
 	moveRecycleBinProject(params: RecycleBin.MoveProjectParams) {
-		return fetch.post<{ success: boolean }>(
-			genRequestUrl("/api/v1/recycle-bin/move-project"),
-			params,
-		)
+		return fetch.post<{ success: boolean }>("/api/v1/recycle-bin/move-project", params)
 	},
 	batchMoveRecycleBinProject(params: RecycleBin.BatchMoveProjectParams) {
 		return fetch.post<{
@@ -161,11 +215,11 @@ export const generateRecycleBinApi = (fetch: HttpClient) => ({
 			success: number
 			failed: number
 			results: Array<{ project_id: string; success: boolean; message: string }>
-		}>(genRequestUrl("/api/v1/recycle-bin/batch-move-project"), params)
+		}>("/api/v1/recycle-bin/batch-move-project", params)
 	},
 	moveRecycleBinTopic(params: RecycleBin.MoveTopicParams) {
 		return fetch.post<{ success: boolean; topic_id: string; message: string }>(
-			genRequestUrl("/api/v1/recycle-bin/move-topic"),
+			"/api/v1/recycle-bin/move-topic",
 			params,
 		)
 	},
@@ -175,7 +229,7 @@ export const generateRecycleBinApi = (fetch: HttpClient) => ({
 			success: number
 			failed: number
 			results: Array<{ topic_id: string; success: boolean; message: string }>
-		}>(genRequestUrl("/api/v1/recycle-bin/batch-move-topic"), params)
+		}>("/api/v1/recycle-bin/batch-move-topic", params)
 	},
 	permanentDeleteRecycleBin(params: RecycleBin.PermanentDeleteParams) {
 		return fetch.post<{
@@ -185,6 +239,6 @@ export const generateRecycleBinApi = (fetch: HttpClient) => ({
 				resource_id: string
 				resource_name: string
 			}>
-		}>(genRequestUrl("/api/v1/recycle-bin/permanent-delete"), params)
+		}>("/api/v1/recycle-bin/permanent-delete", params)
 	},
 })

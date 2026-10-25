@@ -14,6 +14,7 @@ use App\Application\ModelGateway\Event\Message\VideoOperationPollMessage;
 use App\Application\ModelGateway\Event\Publish\VideoOperationPollDelayPublisher;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Service\Video\VideoInputMediaMetadataResolver;
+use App\Application\ModelGateway\Support\InvocationDetailInfo;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Domain\ModelGateway\Contract\VideoMediaProbeInterface;
@@ -25,6 +26,7 @@ use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoMediaMetadata;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Domain\ModelGateway\Event\VideoGeneratedEvent;
 use App\Domain\ModelGateway\Event\VideoGenerateFailedEvent;
@@ -32,20 +34,25 @@ use App\Domain\ModelGateway\Service\QueueOperationExecutionDomainService;
 use App\Domain\ModelGateway\Service\VideoBillingDetailsResolver;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
+use App\Domain\Operation\Event\OperationUsageFinishedEvent;
+use App\Domain\Operation\Event\OperationUsageWillStartEvent;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Gemini\GeminiVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
-use App\Infrastructure\Util\SSRF\SSRFUtil;
+use App\Infrastructure\Util\Log\PayloadLogSanitizer;
 use DateTime;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\CloudFile\Kernel\Utils\SafeRemoteFileDownloader;
 use Hyperf\Amqp\Producer;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 use Throwable;
 use Throwable as BaseThrowable;
@@ -64,10 +71,6 @@ readonly class VideoOperationAppService
 
     private const string INTERNAL_PROBE_RESULT_KEY = '__video_media_probe_result';
 
-    private const int PROBE_DOWNLOAD_MAX_BYTES = 104857600;
-
-    private const int STREAM_BUFFER_BYTES = 8192;
-
     private const string AUDIT_STATUS_SUCCESS = 'SUCCESS';
 
     private const string AUDIT_STATUS_FAIL = 'FAIL';
@@ -75,6 +78,10 @@ readonly class VideoOperationAppService
     private const string SYNC_LOCK_PREFIX = 'model_gateway_video_operation_sync:';
 
     private const int PRE_SUBMIT_ACTIVE_OPERATION_GRACE_SECONDS = 120;
+
+    private const string OPERATION_NAME_VIDEO_GENERATE = 'model_gateway.video.generate';
+
+    private const string EXECUTION_KEY_VIDEO_PREFIX = 'video_operation:';
 
     public function __construct(
         private LLMAppService $llmAppService,
@@ -86,6 +93,8 @@ readonly class VideoOperationAppService
         private FileDomainService $fileDomainService,
         private VideoBillingDetailsResolver $videoBillingDetailsResolver,
         private VideoMediaProbeInterface $videoMediaProbe,
+        private GeminiVideoClient $geminiVideoClient,
+        private SafeRemoteFileDownloader $remoteFileDownloader,
         private VideoInputMediaMetadataResolver $videoInputMediaMetadataResolver,
         private Producer $producer,
         private LockerInterface $locker,
@@ -141,7 +150,7 @@ readonly class VideoOperationAppService
     public function enqueue(string $accessToken, CreateVideoDTO $requestDTO): VideoOperationResponseDTO
     {
         $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $requestDTO->getBusinessParams());
-        $this->pointComponent->checkPointsSufficient($requestDTO, $dataIsolation);
+        //        $this->pointComponent->checkPointsSufficient($requestDTO, $dataIsolation); TODO: 下面已经做了积分预冻结，所以这里不需要检查积分是否充足，后续看看如何统一两者
         $videoModelEntry = $this->modelGatewayMapper->getOrganizationVideoModel($dataIsolation, $requestDTO->getModel());
         $videoModel = $videoModelEntry?->getVideoModel();
         if ($videoModel === null) {
@@ -182,14 +191,32 @@ readonly class VideoOperationAppService
         // 占用新槽位前主动同步当前用户运行中的旧任务，释放已完成但调用方未轮询的残留槽位。
         $this->recoverUserActiveOperationsBeforeClaim($operation);
 
+        $operationUsageEventDispatched = false;
         try {
             // 提交 provider 前先按套餐占用个人视频运行槽位
             $this->videoQueueDomainService->claimUserActiveOperation(
                 $operation,
                 $personalVideoGenerationConcurrencyLimit,
             );
+            $this->videoQueueDomainService->saveOperation($operation);
 
             $config = $this->queueOperationExecutionDomainService->getConfig($operation);
+
+            $this->dispatchOperationUsageWillStart(
+                $dataIsolation,
+                $operation,
+                $this->buildVideoPointEstimateRequest(
+                    $dataIsolation,
+                    $requestDTO,
+                    $videoModel->getProviderCode(),
+                    $videoModel->getModelVersion(),
+                    $videoModel->getProviderModelId(),
+                    $videoGenerationConfig,
+                ),
+                $requestDTO->getBusinessParams(),
+            );
+            $operationUsageEventDispatched = true;
+
             $providerTaskId = $this->queueOperationExecutionDomainService->submit($operation, $config);
         } catch (ProviderVideoException $throwable) {
             $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
@@ -199,12 +226,16 @@ readonly class VideoOperationAppService
                 $dataIsolation,
                 $operation,
                 $requestDTO->getBusinessParams(),
+                $throwable
             );
             $this->videoQueueDomainService->deleteOperation($operation);
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, $throwable->getMessage(), throwable: $throwable);
+            ExceptionBuilder::throw($throwable->getVideoErrorCode(), $throwable->getMessage(), throwable: $throwable);
         } catch (Throwable $throwable) {
             // 非业务异常会中断提交流程，释放槽位避免残留运行态阻塞后续提交。
             $this->videoQueueDomainService->releaseUserActiveOperation($operation);
+            if ($operationUsageEventDispatched) {
+                $this->dispatchOperationUsageFinished($operation, OperationUsageFinishedEvent::STATUS_FAILED);
+            }
             $this->videoQueueDomainService->deleteOperation($operation);
             throw $throwable;
         }
@@ -239,7 +270,7 @@ readonly class VideoOperationAppService
 
     public function getOperation(string $accessToken, string $operationId, array $businessParams = []): VideoOperationResponseDTO
     {
-        $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
+        $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams, enforceRuntimePermission: false);
         $this->videoQueueDomainService->getOperation(
             $operationId,
             $dataIsolation->getCurrentOrganizationCode(),
@@ -267,6 +298,27 @@ readonly class VideoOperationAppService
         return $response;
     }
 
+    /**
+     * 按 provider 规则把远程媒体下载到本地文件，供计费探测和归档上传共用。
+     */
+    public function downloadOperationMediaToLocalFile(string $operationId, string $url): string
+    {
+        $operation = $this->videoQueueDomainService->findOperation($operationId);
+        if ($operation === null) {
+            throw new RuntimeException('video operation not found');
+        }
+
+        $executorConfig = $this->queueOperationExecutionDomainService->getConfig($operation);
+        if ($operation->getProviderCode() === ProviderCode::Gemini->value) {
+            return $this->geminiVideoClient->downloadMediaToLocalFile(
+                $executorConfig,
+                $url,
+            );
+        }
+
+        return $this->remoteFileDownloader->download($url)->getRealPath();
+    }
+
     public function pollOperationById(string $operationId, array $businessParams = []): bool
     {
         $operation = $this->videoQueueDomainService->findOperation($operationId);
@@ -282,7 +334,6 @@ readonly class VideoOperationAppService
             $dataIsolation,
             $operationId,
             $businessParams,
-            failOnProviderQueryException: false,
         );
         if ($operation === null) {
             return true;
@@ -343,7 +394,6 @@ readonly class VideoOperationAppService
                         [],
                         $newOperation->getOrganizationCode(),
                         $newOperation->getUserId(),
-                        false,
                     );
                 } catch (Throwable $throwable) {
                     $this->logger->warning('video active operation recovery query failed', [
@@ -408,7 +458,6 @@ readonly class VideoOperationAppService
         array $businessParams = [],
         ?string $organizationCode = null,
         ?string $userId = null,
-        bool $failOnProviderQueryException = true,
     ): ?VideoQueueOperationEntity {
         return $this->withOperationLock($operationId, function () use (
             $dataIsolation,
@@ -416,7 +465,6 @@ readonly class VideoOperationAppService
             $businessParams,
             $organizationCode,
             $userId,
-            $failOnProviderQueryException,
         ): ?VideoQueueOperationEntity {
             $operation = $this->videoQueueDomainService->findOperation($operationId);
             if ($operation === null) {
@@ -429,7 +477,7 @@ readonly class VideoOperationAppService
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'video task not found');
             }
 
-            $this->syncOperationFromProvider($dataIsolation, $operation, $businessParams, $failOnProviderQueryException);
+            $this->syncOperationFromProvider($dataIsolation, $operation, $businessParams);
             return $operation;
         });
     }
@@ -438,7 +486,6 @@ readonly class VideoOperationAppService
         ModelGatewayDataIsolation $dataIsolation,
         VideoQueueOperationEntity $operation,
         array $businessParams = [],
-        bool $failOnProviderQueryException = true,
     ): void {
         $providerTaskId = $operation->getProviderTaskId();
         if (! is_string($providerTaskId) || $providerTaskId === '' || $operation->getStatus()->isDone()) {
@@ -489,7 +536,7 @@ readonly class VideoOperationAppService
                 $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
             }
         } catch (ProviderVideoException $throwable) {
-            if (! $failOnProviderQueryException) {
+            if ($throwable->isRetry()) {
                 throw $throwable;
             }
             $this->logger->warning('video provider query failed', [
@@ -500,9 +547,12 @@ readonly class VideoOperationAppService
                 'error' => $throwable->getMessage(),
             ]);
             $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
-            $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
-            $this->videoQueueDomainService->saveOperation($operation);
-            $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+            try {
+                $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams, $throwable);
+            } finally {
+                $this->videoQueueDomainService->saveOperation($operation);
+                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+            }
         }
     }
 
@@ -579,11 +629,15 @@ readonly class VideoOperationAppService
             $providerCode,
             $videoGenerationConfig
         );
-        $outputDetails = $this->videoBillingDetailsResolver->resolveFromRequest($normalizedRequest, $videoGenerationConfig);
-        $referenceVideos = is_array($normalizedRequest['inputs']['reference_videos'] ?? null)
-            ? $normalizedRequest['inputs']['reference_videos']
-            : [];
+        $referenceVideos = is_array($normalizedRequest['inputs']['reference_videos'] ?? null) ? $normalizedRequest['inputs']['reference_videos'] : [];
+        $inputMedia = is_array($normalizedRequest['inputs'] ?? null) ? $normalizedRequest['inputs'] : [];
+
         $inputMetadata = $this->resolveEstimateInputMetadata($dataIsolation, $requestDTO, $referenceVideos);
+        if ($requestDTO->getTask() === VideoTaskType::Edit->value) {
+            $normalizedRequest['generation']['duration_seconds'] = (int) $inputMetadata['total_duration_seconds'];
+        }
+
+        $outputDetails = $this->videoBillingDetailsResolver->resolveFromRequest($normalizedRequest, $videoGenerationConfig);
         $hasAudioOutput = $this->videoGenerationConfigDomainService->resolveHasAudioOutput(
             $modelVersion,
             $requestDTO->getModel(),
@@ -602,7 +656,87 @@ readonly class VideoOperationAppService
             (int) $inputMetadata['reference_video_count'] > 0,
             $requestDTO->getBusinessParams(),
             $hasAudioOutput,
+            $inputMedia,
+            $providerCode->value,
         );
+    }
+
+    private function dispatchOperationUsageWillStart(
+        ModelGatewayDataIsolation $dataIsolation,
+        VideoQueueOperationEntity $operation,
+        VideoPointEstimateRequest $estimateRequest,
+        array $requestBusinessParams
+    ): void {
+        $event = new OperationUsageWillStartEvent(
+            executionKey: $this->buildOperationUsageExecutionKey($operation),
+            operationName: self::OPERATION_NAME_VIDEO_GENERATE,
+            organizationCode: $operation->getOrganizationCode(),
+            userId: $operation->getUserId(),
+            sourceId: $operation->getSourceId() ?: $dataIsolation->getSourceId(),
+            usage: $this->buildVideoOperationUsage($dataIsolation, $operation, $estimateRequest),
+            businessParams: $this->buildManagedPollBusinessParams($dataIsolation, $requestBusinessParams),
+        );
+
+        di(EventDispatcherInterface::class)->dispatch($event);
+        $this->logger->info('OperationUsageWillStartEventDispatched', [
+            'execution_key' => $event->getExecutionKey(),
+            'operation_name' => $event->getOperationName(),
+            'organization_code' => $event->getOrganizationCode(),
+            'user_id' => $event->getUserId(),
+        ]);
+    }
+
+    private function dispatchOperationUsageFinished(VideoQueueOperationEntity $operation, string $status): void
+    {
+        $event = new OperationUsageFinishedEvent(
+            executionKey: $this->buildOperationUsageExecutionKey($operation),
+            status: $status,
+            organizationCode: $operation->getOrganizationCode(),
+            userId: $operation->getUserId(),
+            sourceId: $operation->getSourceId(),
+            failureCode: $status === OperationUsageFinishedEvent::STATUS_FAILED ? $operation->getErrorCode() : null,
+            failureReason: $status === OperationUsageFinishedEvent::STATUS_FAILED ? $operation->getErrorMessage() : null,
+        );
+
+        AsyncEventUtil::dispatch($event);
+        $this->logger->info('OperationUsageFinishedEventDispatched', [
+            'execution_key' => $event->getExecutionKey(),
+            'status' => $event->getStatus(),
+            'organization_code' => $event->getOrganizationCode(),
+            'user_id' => $event->getUserId(),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildVideoOperationUsage(ModelGatewayDataIsolation $dataIsolation, VideoQueueOperationEntity $operation, VideoPointEstimateRequest $estimateRequest): array
+    {
+        $referenceMaterial = $this->resolveVideoReferenceMaterialContext($dataIsolation, $operation);
+
+        return [
+            'model' => $estimateRequest->getModelId(),
+            'provider_model_id' => $estimateRequest->getProviderModelId(),
+            'provider_code' => $estimateRequest->getProviderCode(),
+            'resolution' => $estimateRequest->getResolution(),
+            'output_duration_seconds' => $estimateRequest->getOutputDurationSeconds(),
+            'output_width' => $estimateRequest->getOutputWidth(),
+            'output_height' => $estimateRequest->getOutputHeight(),
+            'input_video_duration_seconds' => $estimateRequest->getInputVideoDurationSeconds(),
+            'has_reference_video' => $estimateRequest->hasReferenceVideo(),
+            'has_audio_output' => $estimateRequest->hasAudioOutput(),
+            'input_media' => $estimateRequest->getInputMedia(),
+            'reference_material' => $referenceMaterial,
+            'topic_id' => $operation->getTopicId(),
+            'task_id' => $operation->getTaskId(),
+            'project_id' => $operation->getProjectId(),
+            'original_model_id' => $operation->getModel(),
+        ];
+    }
+
+    private function buildOperationUsageExecutionKey(VideoQueueOperationEntity $operation): string
+    {
+        return self::EXECUTION_KEY_VIDEO_PREFIX . $operation->getId();
     }
 
     /**
@@ -652,12 +786,18 @@ readonly class VideoOperationAppService
             $operation,
             $requestBusinessParams,
         );
-        $referenceMaterial = $this->resolveVideoReferenceMaterialContext($operation);
+        $referenceMaterial = $this->resolveVideoReferenceMaterialContext($dataIsolation, $operation);
         if ($usageTokens['completion_tokens'] !== null) {
             $businessParams['completion_tokens'] = $usageTokens['completion_tokens'];
         }
         if ($usageTokens['total_tokens'] !== null) {
             $businessParams['total_tokens'] = $usageTokens['total_tokens'];
+        }
+        if ($usageTokens['thought_tokens'] !== null) {
+            $businessParams['thought_tokens'] = $usageTokens['thought_tokens'];
+        }
+        if ($usageTokens['billing_token_usage'] !== null) {
+            $businessParams['billing_token_usage'] = $usageTokens['billing_token_usage'];
         }
 
         $event->setOrganizationCode($operation->getOrganizationCode());
@@ -684,8 +824,11 @@ readonly class VideoOperationAppService
         // 与 businessParams 中字段一致，便于 billing-manager 读事件对象直接扣费
         $event->setCompletionTokens($usageTokens['completion_tokens']);
         $event->setTotalTokens($usageTokens['total_tokens']);
+        $event->setThoughtTokens($usageTokens['thought_tokens']);
+        $event->setBillingTokenUsage($usageTokens['billing_token_usage']);
 
         AsyncEventUtil::dispatch($event);
+        $this->dispatchOperationUsageFinished($operation, OperationUsageFinishedEvent::STATUS_SUCCESS);
         $this->logger->info('VideoGeneratedEventDispatched', [
             'operation_id' => $operation->getId(),
             'organization_code' => $event->getOrganizationCode(),
@@ -728,7 +871,8 @@ readonly class VideoOperationAppService
     private function dispatchVideoGenerateFailedEvent(
         ModelGatewayDataIsolation $dataIsolation,
         VideoQueueOperationEntity $operation,
-        array $requestBusinessParams = []
+        array $requestBusinessParams = [],
+        ?ProviderVideoException $throwable = null
     ): void {
         $event = new VideoGenerateFailedEvent();
         $businessParams = $this->buildVideoAuditBusinessParams(
@@ -738,6 +882,13 @@ readonly class VideoOperationAppService
             self::AUDIT_STATUS_FAIL,
         );
 
+        if ($throwable instanceof Throwable) {
+            $previousExceptions = InvocationDetailInfo::extractPreviousExceptions($throwable);
+            if ($previousExceptions !== []) {
+                $businessParams['previous_exceptions'] = $previousExceptions;
+            }
+        }
+
         $event->setOrganizationCode($operation->getOrganizationCode());
         $event->setUserId($operation->getUserId());
         $event->setModel($operation->getModel());
@@ -746,6 +897,7 @@ readonly class VideoOperationAppService
         $event->setBusinessParams($businessParams);
 
         AsyncEventUtil::dispatch($event);
+        $this->dispatchOperationUsageFinished($operation, OperationUsageFinishedEvent::STATUS_FAILED);
         $this->logger->info('VideoGenerateFailedEventDispatched', [
             'operation_id' => $operation->getId(),
             'organization_code' => $event->getOrganizationCode(),
@@ -778,6 +930,8 @@ readonly class VideoOperationAppService
 
         $params = [
             'event_id' => (string) IdGenerator::getSnowId(),
+            'operation_id' => $operation->getId(),
+            'operation_usage_execution_key' => $this->buildOperationUsageExecutionKey($operation),
             'model_id' => $operation->getModel(),
             'model_version' => $operation->getModelVersion(),
             'provider_model_id' => $operation->getProviderModelId(),
@@ -809,27 +963,63 @@ readonly class VideoOperationAppService
     }
 
     /**
-     * 解析视频任务 provider 回包中的 token 用量（如火山方舟 succeeded 时的 usage.completion_tokens）。
-     * 无字段或非法结构时返回 null，计费侧可回退到按时长等规则。
+     * 按服务商解析视频任务回包中的 token 用量。
      *
-     * @return array{completion_tokens: ?int, total_tokens: ?int}
+     * @return array{completion_tokens: ?int, total_tokens: ?int, thought_tokens: int, billing_token_usage: ?array{input_tokens: int, output_text_tokens: int, output_video_tokens: int}}
      */
     private function resolveVideoProviderUsageTokens(VideoQueueOperationEntity $operation): array
     {
         $providerResult = $operation->getProviderResult();
-        if (! is_array($providerResult)) {
-            return ['completion_tokens' => null, 'total_tokens' => null];
-        }
-        $usage = $providerResult['usage'] ?? null;
+        $usage = is_array($providerResult) ? ($providerResult['usage'] ?? null) : null;
         if (! is_array($usage)) {
-            return ['completion_tokens' => null, 'total_tokens' => null];
+            return ['completion_tokens' => null, 'total_tokens' => null, 'thought_tokens' => 0, 'billing_token_usage' => null];
         }
-        $completion = $usage['completion_tokens'] ?? null;
-        $total = $usage['total_tokens'] ?? null;
+
+        if ($operation->getProviderCode() === ProviderCode::Gemini->value) {
+            return $this->resolveGeminiVideoUsageTokens($usage);
+        }
 
         return [
-            'completion_tokens' => $completion !== null ? max(0, (int) $completion) : null,
-            'total_tokens' => $total !== null ? max(0, (int) $total) : null,
+            'completion_tokens' => isset($usage['completion_tokens']) ? max(0, (int) $usage['completion_tokens']) : null,
+            'total_tokens' => isset($usage['total_tokens']) ? max(0, (int) $usage['total_tokens']) : null,
+            'thought_tokens' => 0,
+            'billing_token_usage' => null,
+        ];
+    }
+
+    /**
+     * 解析 Gemini 视频模型的四类 token 用量。
+     *
+     * @param array<string, mixed> $usage
+     * @return array{completion_tokens: int, total_tokens: int, thought_tokens: int, billing_token_usage: array{input_tokens: int, output_text_tokens: int, output_video_tokens: int}}
+     */
+    private function resolveGeminiVideoUsageTokens(array $usage): array
+    {
+        $modalityTokens = array_column($usage['output_tokens_by_modality'] ?? [], 'tokens', 'modality');
+        $thoughtTokens = (int) ($usage['total_thought_tokens'] ?? 0);
+
+        $billingTokenUsage = [
+            'input_tokens' => (int) ($usage['total_input_tokens'] ?? 0),
+            'output_text_tokens' => (int) ($modalityTokens['text'] ?? 0),
+            'output_video_tokens' => (int) ($modalityTokens['video'] ?? 0),
+        ];
+
+        $completionTokens = isset($usage['total_output_tokens'])
+            ? (int) $usage['total_output_tokens']
+            : (int) ($usage['completion_tokens'] ?? (
+                $billingTokenUsage['output_text_tokens']
+                + $billingTokenUsage['output_video_tokens']
+                + $thoughtTokens
+            ));
+        $totalTokens = isset($usage['total_tokens'])
+            ? (int) $usage['total_tokens']
+            : $billingTokenUsage['input_tokens'] + $completionTokens;
+
+        return [
+            'completion_tokens' => $completionTokens,
+            'total_tokens' => $totalTokens,
+            'thought_tokens' => $thoughtTokens,
+            'billing_token_usage' => $billingTokenUsage,
         ];
     }
 
@@ -905,7 +1095,9 @@ readonly class VideoOperationAppService
             return $result;
         }
 
-        $result['provider_result'] = $this->stripProviderVideoBytes($providerResult);
+        $result['provider_result'] = PayloadLogSanitizer::sanitizeValue(
+            $this->stripProviderVideoBytes($providerResult),
+        );
         $output = is_array($result['output'] ?? null) ? $result['output'] : [];
         if (trim((string) ($output['video_url'] ?? '')) !== '') {
             return $result;
@@ -1051,21 +1243,9 @@ readonly class VideoOperationAppService
      */
     private function probeVideoFromUrl(VideoQueueOperationEntity $operation, string $url, string $probeSource): ?array
     {
-        $tempPath = tempnam(sys_get_temp_dir(), 'video-probe-');
-        if ($tempPath === false) {
-            $this->logger->warning('video billing probe failed', [
-                'operation_id' => $operation->getId(),
-                'organization_code' => $operation->getOrganizationCode(),
-                'probe_source' => $probeSource,
-                'fallback_used' => false,
-                'error' => 'create temporary probe file failed',
-            ]);
-
-            return null;
-        }
-
+        $tempPath = null;
         try {
-            $this->downloadProbeSourceToTempFile($url, $tempPath);
+            $tempPath = $this->downloadOperationMediaToLocalFile($operation->getId(), $url);
             return $this->probeVideoFromFile($operation, $tempPath, $probeSource);
         } catch (Throwable $throwable) {
             $this->logger->warning('video billing probe failed', [
@@ -1078,56 +1258,9 @@ readonly class VideoOperationAppService
 
             return null;
         } finally {
-            @unlink($tempPath);
-        }
-    }
-
-    private function downloadProbeSourceToTempFile(string $url, string $tempPath): void
-    {
-        // Probe sources come from provider execution results; keep the URL safety checks,
-        // but skip the extra redirect probe so we do not depend on live network behavior here.
-        $safeUrl = SSRFUtil::getSafeUrl($url, replaceIp: false, allowRedirect: true);
-        $context = stream_context_create([
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-            ],
-        ]);
-        $remoteStream = fopen($safeUrl, 'rb', false, $context);
-        $localStream = fopen($tempPath, 'wb');
-        if (! is_resource($remoteStream) || ! is_resource($localStream)) {
-            if (is_resource($remoteStream)) {
-                fclose($remoteStream);
+            if (is_string($tempPath)) {
+                @unlink($tempPath);
             }
-            if (is_resource($localStream)) {
-                fclose($localStream);
-            }
-            throw new RuntimeException('open video probe stream failed');
-        }
-
-        try {
-            $downloadedBytes = 0;
-            while (! feof($remoteStream)) {
-                $buffer = fread($remoteStream, self::STREAM_BUFFER_BYTES);
-                if ($buffer === false) {
-                    throw new RuntimeException('read video probe stream failed');
-                }
-                if ($buffer === '') {
-                    continue;
-                }
-
-                $downloadedBytes += strlen($buffer);
-                if ($downloadedBytes > self::PROBE_DOWNLOAD_MAX_BYTES) {
-                    throw new RuntimeException('video probe file exceeds max size');
-                }
-
-                if (fwrite($localStream, $buffer) === false) {
-                    throw new RuntimeException('write video probe temp file failed');
-                }
-            }
-        } finally {
-            fclose($remoteStream);
-            fclose($localStream);
         }
     }
 
@@ -1367,11 +1500,14 @@ readonly class VideoOperationAppService
      *     input_mode: ?string,
      *     reference_image_count: int,
      *     reference_video_count: int,
-     *     reference_audio_count: int
+     *     reference_audio_count: int,
+     *     input_video_duration_seconds: int
      * }
      */
-    private function resolveVideoReferenceMaterialContext(VideoQueueOperationEntity $operation): array
-    {
+    private function resolveVideoReferenceMaterialContext(
+        ModelGatewayDataIsolation $dataIsolation,
+        VideoQueueOperationEntity $operation
+    ): array {
         $raw = $operation->getRawRequest();
         $inputs = is_array($raw['inputs'] ?? null) ? $raw['inputs'] : [];
         $inputMode = isset($raw['input_mode']) ? trim((string) $raw['input_mode']) : '';
@@ -1379,12 +1515,22 @@ readonly class VideoOperationAppService
         $images = is_array($inputs['reference_images'] ?? null) ? $inputs['reference_images'] : [];
         $videos = is_array($inputs['reference_videos'] ?? null) ? $inputs['reference_videos'] : [];
         $audios = is_array($inputs['reference_audios'] ?? null) ? $inputs['reference_audios'] : [];
+        $inputVideoDurationSeconds = 0;
+        if ($videos !== []) {
+            $metadata = $this->videoInputMediaMetadataResolver->resolve(
+                $dataIsolation,
+                $operation->getProjectId(),
+                $videos,
+            );
+            $inputVideoDurationSeconds = (int) ($metadata['total_duration_seconds'] ?? 0);
+        }
 
         return [
             'input_mode' => $inputMode === '' ? null : $inputMode,
             'reference_image_count' => count($images),
             'reference_video_count' => count($videos),
             'reference_audio_count' => count($audios),
+            'input_video_duration_seconds' => $inputVideoDurationSeconds,
         ];
     }
 }

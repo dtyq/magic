@@ -1,8 +1,8 @@
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { userStore } from "@/models/user"
 
 import type { Admin } from "@/types/admin"
-import type { PointsRecordGroup, PointsRecordItem } from "./types"
+import type { MobileSettingsPointsRole, PointsRecordGroup, PointsRecordItem } from "./types"
 
 const POINTS_GROUP_ORDER = ["today", "yesterday", "thisWeek", "earlier"] as const
 type PointsRecordSourceItem = Admin.OrganizationPointsChangeListItem | Record<string, unknown>
@@ -17,6 +17,14 @@ type PointsRecordsResponse =
 	| Array<Record<string, unknown>>
 	| undefined
 
+/** 归一化 remark，兼容 null/undefined 及历史缺失字段。 */
+export function normalizePointsRecordRemark(value: unknown): string {
+	if (value == null) return ""
+
+	const trimmedRemark = String(value).trim()
+	return trimmedRemark
+}
+
 /** 兼容不同积分明细接口包装层，并统一转成设置页视图可消费的数据结构。 */
 export function normalizePointsRecords(response: PointsRecordsResponse, fallbackLabel: string) {
 	const rawList: PointsRecordSourceItem[] = Array.isArray(response)
@@ -27,38 +35,35 @@ export function normalizePointsRecords(response: PointsRecordsResponse, fallback
 				? response.data.list
 				: []
 
-	return rawList.map(
-		(item: PointsRecordSourceItem, index: number): PointsRecordItem => ({
-			id: String(item.id ?? index),
-			amount: Number(
-				item.amount ??
-					(item as Record<string, unknown>)["point_amount"] ??
-					(item as Record<string, unknown>)["points"] ??
-					0,
-			),
-			label: String(
-				item.label ??
-					(item as Record<string, unknown>)["title"] ??
-					(item as Record<string, unknown>)["reason"] ??
-					fallbackLabel,
-			),
-			description: String(
-				item.description ?? (item as Record<string, unknown>)["remark"] ?? "",
-			),
-			// 缺失时间时保留空串，让后续分组逻辑统一落入更早分组，避免误归到今天。
-			createdAt: String(
-				item.created_at ?? (item as Record<string, unknown>)["createdAt"] ?? "",
-			),
-			// 详情态优先展示服务端返回的更新时间，没有时回退到创建时间。
-			updatedAt: String(
-				item.updated_at ??
-					(item as Record<string, unknown>)["updatedAt"] ??
-					item.created_at ??
-					(item as Record<string, unknown>)["createdAt"] ??
-					"",
-			),
-		}),
-	)
+	return rawList.map((item: PointsRecordSourceItem, index: number): PointsRecordItem => ({
+		id: String(item.id ?? index),
+		amount: Number(
+			item.amount ??
+				(item as Record<string, unknown>)["point_amount"] ??
+				(item as Record<string, unknown>)["points"] ??
+				0,
+		),
+		label: String(
+			item.label ??
+				(item as Record<string, unknown>)["title"] ??
+				(item as Record<string, unknown>)["reason"] ??
+				fallbackLabel,
+		),
+		description: String(item.description ?? ""),
+		remark: normalizePointsRecordRemark(
+			item.remark ?? (item as Record<string, unknown>)["remark"],
+		),
+		// 缺失时间时保留空串，让后续分组逻辑统一落入更早分组，避免误归到今天。
+		createdAt: String(item.created_at ?? (item as Record<string, unknown>)["createdAt"] ?? ""),
+		// 详情态优先展示服务端返回的更新时间，没有时回退到创建时间。
+		updatedAt: String(
+			item.updated_at ??
+				(item as Record<string, unknown>)["updatedAt"] ??
+				item.created_at ??
+				(item as Record<string, unknown>)["createdAt"] ??
+				"",
+		),
+	}))
 }
 
 /** 从分页接口响应中读取 total；非标准分页结构时返回 null 供 hasMore 走 list 长度兜底。 */
@@ -90,10 +95,19 @@ export function getMobileSettingsPointsPurchaseState() {
 	const subscriptionInfo = userStore.user.organizationSubscriptionInfo
 
 	return {
-		points: userStore.user.organizationPoints || 0,
+		points: userStore.user.organizationPointsInfo ? userStore.user.organizationPoints : null,
 		isPaidPlan: Boolean(subscriptionInfo?.is_paid_plan),
 		canRecharge: Boolean(subscriptionInfo?.is_recharge_points),
 	}
+}
+
+/** Choose a non-commercial title in private deployments while preserving the existing purchase title elsewhere. */
+export function getMobileSettingsPointsSheetTitleKey(params: {
+	privateDeploy: boolean
+	role: MobileSettingsPointsRole
+}) {
+	if (!params.privateDeploy) return "bonusPointsModal.purchasePoints"
+	return params.role === "teamAdmin" ? "setting.teamPoints" : "bonusPointsModal.bonusPoints"
 }
 
 /** 统一把积分记录解析成用户时区下的时间对象，非法时间返回 null 供调用方兜底。 */

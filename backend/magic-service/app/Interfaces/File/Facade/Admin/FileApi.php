@@ -10,6 +10,7 @@ namespace App\Interfaces\File\Facade\Admin;
 use App\Application\File\Service\FileAppService;
 use App\Domain\File\Constant\DefaultFileBusinessType;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Interfaces\File\DTO\Request\BusinessUploadTokenRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -37,6 +38,18 @@ class FileApi extends AbstractAdminApi
             $this->request->input('content_type'),
             $sts
         );
+    }
+
+    public function getPublicUploadToken(): array
+    {
+        $dto = BusinessUploadTokenRequestDTO::fromRequest($this->request);
+        return $this->fileAppService->getPublicUploadToken($this->getAuthorization(), $dto->getBusinessCode(), $dto->getExpires());
+    }
+
+    public function getPrivateUploadToken(): array
+    {
+        $dto = BusinessUploadTokenRequestDTO::fromRequest($this->request);
+        return $this->fileAppService->getPrivateUploadToken($this->getAuthorization(), $dto->getBusinessCode(), $dto->getExpires());
     }
 
     public function fileUpload()

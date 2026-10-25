@@ -16,4 +16,6 @@ export interface ProjectSiderProps {
 	// Controlled tab state
 	value?: string
 	onValueChange?: (value: string) => void
+	/** Rendered to the right of the tab bar (e.g. the sidebar collapse button). Ignored with a single item. */
+	headerTrailingAction?: React.ReactNode
 }

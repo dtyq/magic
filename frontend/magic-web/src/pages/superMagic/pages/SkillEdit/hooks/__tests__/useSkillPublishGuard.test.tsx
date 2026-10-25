@@ -78,10 +78,42 @@ describe("useSkillPublishGuard", () => {
 				projectId: "project-1",
 				getWorkspaceFilesList: expect.any(Function),
 				getWorkspaceFileTree: expect.any(Function),
+				getSkillName: expect.any(Function),
 				t: expect.any(Function),
 			})
 			expect(onPublishReady).toHaveBeenCalledTimes(1)
 		})
 		expect(result.current.isPublishIdentityDialogOpen).toBe(false)
+	})
+
+	it("waits for the publish-ready action to finish", async () => {
+		ensureSkillConfigYamlForPublishMock.mockResolvedValueOnce(true)
+		let resolvePublishReady: (() => void) | undefined
+		const onPublishReady = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolvePublishReady = resolve
+				}),
+		)
+		const { result } = renderHook(() =>
+			useSkillPublishGuard({
+				store: createStoreMock() as unknown as PublishGuardParams["store"],
+				t: ((key: string) => key) as PublishGuardParams["t"],
+				onPublishReady,
+			}),
+		)
+
+		let preparePromise: Promise<void> | undefined
+		act(() => {
+			preparePromise = result.current.handleOpenPublishPanel()
+		})
+		await waitFor(() => expect(onPublishReady).toHaveBeenCalledTimes(1))
+		expect(result.current.isEnsuringSkillConfigForPublish).toBe(true)
+
+		resolvePublishReady?.()
+		await act(async () => {
+			await preparePromise
+		})
+		expect(result.current.isEnsuringSkillConfigForPublish).toBe(false)
 	})
 })

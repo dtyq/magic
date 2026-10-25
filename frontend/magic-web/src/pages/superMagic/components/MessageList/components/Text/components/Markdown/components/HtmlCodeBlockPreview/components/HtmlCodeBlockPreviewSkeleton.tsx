@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export function HtmlCodeBlockPreviewSkeleton() {
 	return (

@@ -49,7 +49,7 @@ export function getMicroAppPreviewPath(item: AttachmentItem | null): string {
 	const relativePath = item.relative_file_path || fileName
 	const normalizedPath = relativePath.replace(/^\/+/, "")
 
-	return /^index\.html?$/i.test(normalizedPath) ? "/" : `/${normalizedPath}`
+	return normalizedPath ? `/${normalizedPath}` : "/index.html"
 }
 
 export function isHtmlFile(item: AttachmentItem): boolean {
@@ -60,7 +60,20 @@ export function isHtmlFile(item: AttachmentItem): boolean {
 }
 
 export function collectHtmlFiles(items: AttachmentItem[]): AttachmentItem[] {
-	return items.filter(isHtmlFile)
+	const result: AttachmentItem[] = []
+	const seen = new Set<string>()
+	// Attachment sources can contain both tree children and flattened copies.
+	function visit(entries: AttachmentItem[]): void {
+		for (const item of entries) {
+			if (isHtmlFile(item) && !seen.has(String(getAttachmentId(item)))) {
+				seen.add(String(getAttachmentId(item)))
+				result.push(item)
+			}
+			if (item.children) visit(item.children)
+		}
+	}
+	visit(items)
+	return result
 }
 
 export function isRootHtmlFile(item: AttachmentItem): boolean {
@@ -97,13 +110,15 @@ export function resolveSelectedHtmlEntry({
 	items: AttachmentItem[]
 	selectedFileId: string | null
 }): AttachmentItem | null {
-	const rootHtmlFiles = collectRootHtmlFiles(items)
-	if (rootHtmlFiles.length === 0) return null
+	const htmlFiles = collectHtmlFiles(items)
+	if (htmlFiles.length === 0) return null
 
 	if (selectedFileId) {
-		const selected = rootHtmlFiles.find((item) => getAttachmentId(item) === selectedFileId)
+		const selected = htmlFiles.find(
+			(item) => String(getAttachmentId(item)) === String(selectedFileId),
+		)
 		if (selected) return selected
 	}
 
-	return resolveDefaultHtmlEntry(rootHtmlFiles)
+	return resolveDefaultHtmlEntry(htmlFiles)
 }

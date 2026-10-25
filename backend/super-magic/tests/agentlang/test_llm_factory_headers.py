@@ -121,3 +121,41 @@ def test_llm_factory_keeps_metadata_and_custom_headers_for_official_providers(mo
     headers = LLMFactory._build_default_headers("https://api.deepseek.com/v1")
 
     assert headers == {"Magic-Task-Id": "task-1", "X-Custom": "1"}
+
+
+@pytest.mark.parametrize("token", ["x" * 64, "x" * 19, "Bearer arbitrary-valid-token"])
+def test_auth_diagnostics_preserve_credentials_and_only_log_lengths(monkeypatch, token):
+    from agentlang.utils.metadata import MetadataUtil
+
+    messages = []
+    monkeypatch.setattr("agentlang.utils.metadata.logger.info", messages.append)
+    monkeypatch.setattr(MetadataUtil, "get_user_authorization", classmethod(lambda cls: token))
+    monkeypatch.setattr(MetadataUtil, "get_magic_authorization", classmethod(lambda cls: "gateway-secret"))
+    original_forward = config.get("sandbox.forward_user_authorization")
+    config.set("sandbox.forward_user_authorization", "true")
+    try:
+        headers = {}
+        MetadataUtil.add_magic_and_user_authorization_headers(headers, "gateway-secret")
+        before = headers.copy()
+        MetadataUtil.log_authorization_header_diagnostics(headers, "test")
+        assert headers == before == {"Magic-Authorization": "gateway-secret", "User-Authorization": token}
+        assert any(f"user_length={len(token)}" in message for message in messages)
+        assert all(token not in message and "gateway-secret" not in message for message in messages)
+    finally:
+        config.set("sandbox.forward_user_authorization", original_forward)
+
+
+def test_final_custom_auth_headers_are_preserved_and_diagnosed(monkeypatch):
+    from agentlang.utils.metadata import MetadataUtil
+
+    config.set("llm.auth_header_base_urls", ["magic.example.test"])
+    _patch_header_sources(monkeypatch)
+    custom = {"User-Authorization": "custom-token", "X-Custom": "value"}
+    monkeypatch.setattr(LLMFactory, "_parse_custom_headers", classmethod(lambda cls: custom))
+    diagnostics = []
+    monkeypatch.setattr(MetadataUtil, "log_authorization_header_diagnostics",
+                        classmethod(lambda cls, headers, source: diagnostics.append((headers.copy(), source))))
+    headers = LLMFactory._build_default_headers("https://magic.example.test/v1")
+    assert headers["User-Authorization"] == "custom-token"
+    assert custom == {"User-Authorization": "custom-token", "X-Custom": "value"}
+    assert diagnostics == [(headers, "custom_headers")]

@@ -9,10 +9,12 @@ import { ScheduledTask } from "@/types/scheduledTask"
 interface SiderTaskItemProps extends DropdownDelegateProps<ScheduledTask.Task> {
 	data: ScheduledTask.Task
 	onSwitchChange?: (enabled: boolean) => void
+	onEdit: () => void
 }
 
 export default function SiderTaskItem({
 	data,
+	onEdit,
 	onSwitchChange,
 	onDropdownActionClick,
 	onDropdownContextMenuClick,
@@ -20,6 +22,7 @@ export default function SiderTaskItem({
 	const { cx, styles } = useStyles()
 
 	const handleActionClick = (event: React.MouseEvent<HTMLDivElement>) => {
+		event.stopPropagation()
 		if (onDropdownActionClick) {
 			onDropdownActionClick(event, data)
 		}
@@ -38,9 +41,26 @@ export default function SiderTaskItem({
 	}
 
 	return (
-		<div className={cx(styles.item)} onContextMenu={handleContextMenuClick} data-testid="handle-context-menu-click">
-			<div className={styles.arrowIcon}></div>
-			<Switch size="small" checked={data?.enabled === 1} onChange={handleSwitchChange} />
+		<div
+			className={cx(styles.item)}
+			onContextMenu={handleContextMenuClick}
+			data-testid="handle-context-menu-click"
+			onClick={onEdit}
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => {
+				if (
+					event.target === event.currentTarget &&
+					(event.key === "Enter" || event.key === " ")
+				) {
+					event.preventDefault()
+					onEdit()
+				}
+			}}
+		>
+			<span className={styles.switchWrapper} onClick={(event) => event.stopPropagation()}>
+				<Switch size="small" checked={data?.enabled === 1} onChange={handleSwitchChange} />
+			</span>
 			<div className={styles.name}>{data?.task_name || "-"}</div>
 			<div className={styles.moreActionButton}>
 				<ActionButton size={20} onClick={handleActionClick}>

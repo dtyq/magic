@@ -6,11 +6,13 @@ import type { MediaResourceFullscreenPreviewItem } from "./types"
 
 interface VideoPreviewContentProps {
 	resource: MediaResourceFullscreenPreviewItem
+	/** 是否允许当前 Canvas 会话执行播放控制；无权限时仍加载静态视频预览。 */
+	playbackEnabled?: boolean
 	onClose: () => void
 }
 
 export default function VideoPreviewContent(props: VideoPreviewContentProps) {
-	const { resource, onClose } = props
+	const { resource, playbackEnabled = true, onClose } = props
 	const { t } = useCanvasDesignI18n()
 	const { canvas } = useCanvas()
 	const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
@@ -89,7 +91,7 @@ export default function VideoPreviewContent(props: VideoPreviewContentProps) {
 		setIsLoading(true)
 		setHasError(false)
 
-		void acquirePlayback({ autoPlay: true })
+		void acquirePlayback({ autoPlay: playbackEnabled })
 			.then((session) => {
 				if (cancelled) {
 					session?.video.pause()
@@ -119,7 +121,7 @@ export default function VideoPreviewContent(props: VideoPreviewContentProps) {
 			canvas.videoPlaybackManager.release(consumerId)
 			setIsRefreshing(false)
 		}
-	}, [acquirePlayback, canvas, resource.path])
+	}, [acquirePlayback, canvas, playbackEnabled, resource.path])
 
 	useEffect(() => {
 		if (!canvas) {
@@ -134,18 +136,20 @@ export default function VideoPreviewContent(props: VideoPreviewContentProps) {
 	}, [canvas])
 
 	const handlePlayRequest = useCallback(async () => {
+		if (!playbackEnabled) return false
 		setHasError(false)
 		const session = await acquirePlayback({ autoPlay: true }).catch(() => null)
 		setVideoElement(session?.video ?? null)
 		setHasError(!session?.video)
 		return !!session?.video
-	}, [acquirePlayback])
+	}, [acquirePlayback, playbackEnabled])
 
 	return (
 		<VideoFullscreenPlayerOverlay
 			videoElement={videoElement}
 			onPlayRequest={handlePlayRequest}
 			isOpen
+			playbackEnabled={playbackEnabled}
 			onClose={handleClose}
 			intrinsicSizeHint={intrinsicSizeHint}
 			isLoading={isLoading || isRefreshing}

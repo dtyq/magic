@@ -5,7 +5,7 @@
  * 作为 HTML sandbox 聚合入口的一部分编译，不单独构建。
  */
 
-import type { RuntimePluginClass } from "@dtyq/html-sandbox/runtime"
+import type { RuntimePluginClass } from "@dtyq/html-sandbox"
 import { MagicFSApi } from "./MagicFSApi"
 import { MagicLLMApi } from "./MagicLLMApi"
 import { MagicReloadApi } from "./MagicReloadApi"

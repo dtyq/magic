@@ -8,11 +8,11 @@ export const useCollapsedHeaderStyles = createStyles(({ token, css, prefixCls })
 		padding: 8px 12px;
 		background: ${token.colorBgContainer};
 		border: 1px solid ${token.colorBorder};
-		border-radius: ${token.borderRadius}px;
+		border-radius: 12px;
 		box-shadow: ${token.boxShadowSecondary};
 		cursor: grab;
 		width: max-content;
-		max-width: 400px;
+		max-width: calc(100vw - 24px);
 		user-select: none;
 
 		&:active {
@@ -36,13 +36,21 @@ export const useCollapsedHeaderStyles = createStyles(({ token, css, prefixCls })
 		justify-content: center;
 		flex-shrink: 0;
 	`,
+	progressIcon: css`
+		color: ${token.colorPrimary};
+		display: flex;
+	`,
+	pausedIcon: css`
+		color: ${token.colorTextSecondary};
+		display: flex;
+	`,
 
 	successIcon: css`
 		color: ${token.colorSuccess};
 	`,
 
 	warningIcon: css`
-		color: #ff7d00;
+		color: ${token.colorWarning};
 	`,
 
 	errorIcon: css`
@@ -51,23 +59,22 @@ export const useCollapsedHeaderStyles = createStyles(({ token, css, prefixCls })
 
 	statusContent: css`
 		flex: 1;
-		gap: 2px;
+		flex-wrap: wrap;
 		min-width: 0;
 	`,
 
 	statusText: css`
-		font-size: 12px;
+		font-size: 13px;
 		color: ${token.magicColorUsages.text[1]};
-		line-height: 16px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		line-height: 20px;
+		overflow-wrap: anywhere;
 	`,
 
 	progressText: css`
 		font-size: 12px;
 		color: ${token.magicColorUsages.text[1]};
 		line-height: 16px;
+		font-variant-numeric: tabular-nums;
 	`,
 
 	progressBar: css`
@@ -77,10 +84,17 @@ export const useCollapsedHeaderStyles = createStyles(({ token, css, prefixCls })
 
 		.${prefixCls}-progress-bg {
 			height: 4px !important;
+			background: ${token.colorPrimary};
 		}
 
 		.${prefixCls}-progress-inner {
 			height: 4px !important;
+			background: ${token.colorFillSecondary};
+		}
+	`,
+	pausedProgress: css`
+		.${prefixCls}-progress-bg {
+			background: ${token.colorTextSecondary};
 		}
 	`,
 
@@ -103,13 +117,13 @@ export const useCollapsedHeaderStyles = createStyles(({ token, css, prefixCls })
 	`,
 
 	retryButton: css`
-		color: #ff7d00;
+		color: ${token.colorWarning};
 		font-size: ${token.fontSizeSM}px;
 		height: 18px;
 		padding: 0 8px;
 		border-radius: ${token.borderRadiusSM}px;
 		transition: all ${token.motionDurationFast};
-		background-color: #fff8eb;
+		background-color: ${token.colorWarningBg};
 
 		&:hover {
 			opacity: 0.8;
@@ -133,6 +147,11 @@ export const useCollapsedHeaderStyles = createStyles(({ token, css, prefixCls })
 
 		&:active {
 			color: ${token.colorText};
+		}
+
+		@media (pointer: coarse) {
+			width: 44px;
+			height: 44px;
 		}
 	`,
 }))

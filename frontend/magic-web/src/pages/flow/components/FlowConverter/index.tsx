@@ -9,6 +9,7 @@ import {
 	convertYAMLToJSONString,
 } from "../../utils/api/flowConverter"
 import styles from "./index.module.less"
+import { useTranslation } from "react-i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 
 const { TextArea } = Input
@@ -20,6 +21,7 @@ const { TabPane } = Tabs
  * 提供YAML和JSON之间互相转换的UI界面
  */
 const FlowConverter: React.FC = () => {
+	const { t } = useTranslation("flow")
 	const [sourceText, setSourceText] = useState<string>("")
 	const [resultText, setResultText] = useState<string>("")
 	const [conversionType, setConversionType] = useState<string>("yaml2json")
@@ -42,7 +44,7 @@ const FlowConverter: React.FC = () => {
 	// 下载结果
 	const handleDownload = () => {
 		if (!resultText) {
-			magicToast.warning("没有可下载的内容")
+			magicToast.warning(t("converter.noDownloadableContent"))
 			return
 		}
 
@@ -59,7 +61,7 @@ const FlowConverter: React.FC = () => {
 	// 执行转换
 	const handleConvert = () => {
 		if (!sourceText) {
-			magicToast.warning("请输入需要转换的内容")
+			magicToast.warning(t("converter.pleaseEnterContent"))
 			return
 		}
 
@@ -80,13 +82,13 @@ const FlowConverter: React.FC = () => {
 
 			if (result) {
 				setResultText(result)
-				magicToast.success("转换成功")
+				magicToast.success(t("converter.success"))
 			} else {
-				magicToast.error("转换失败")
+				magicToast.error(t("converter.failed"))
 			}
 		} catch (error) {
 			console.error("转换错误:", error)
-			magicToast.error(`转换失败: ${error.message}`)
+			magicToast.error(t("converter.failedWithReason", { message: error.message }))
 		} finally {
 			setLoading(false)
 		}
@@ -101,18 +103,18 @@ const FlowConverter: React.FC = () => {
 	return (
 		<div className={styles.flowConverter}>
 			<Tabs activeKey={activeTab} onChange={setActiveTab}>
-				<TabPane tab="Flow转换器" key="converter">
+				<TabPane tab={t("converter.tabTitle")} key="converter">
 					<Card>
-						<Title level={4}>Flow YAML和JSON格式互转</Title>
-						<Text>将Flow工作流YAML格式和JSON格式互相转换</Text>
+						<Title level={4}>{t("converter.flowTitle")}</Title>
+						<Text>{t("converter.flowDesc")}</Text>
 
 						<div className={styles.conversionTypeSelector}>
 							<Select
 								value={conversionType}
 								onChange={setConversionType}
 								options={[
-									{ value: "yaml2json", label: "YAML转JSON" },
-									{ value: "json2yaml", label: "JSON转YAML" },
+									{ value: "yaml2json", label: t("converter.yamlToJson") },
+									{ value: "json2yaml", label: t("converter.jsonToYaml") },
 								]}
 								style={{ width: 200 }}
 							/>
@@ -120,14 +122,14 @@ const FlowConverter: React.FC = () => {
 
 						<div className={styles.converterContainer}>
 							<div className={styles.sourceContainer}>
-								<Card title="源文件" bordered={false}>
+								<Card title={t("converter.sourceFile")} bordered={false}>
 									<TextArea
 										value={sourceText}
 										onChange={(e) => setSourceText(e.target.value)}
 										placeholder={
 											conversionType === "yaml2json"
-												? "请输入YAML格式的Flow"
-												: "请输入JSON格式的Flow"
+												? t("converter.yamlPlaceholder")
+												: t("converter.jsonPlaceholder")
 										}
 										rows={20}
 									/>
@@ -149,9 +151,11 @@ const FlowConverter: React.FC = () => {
 													document.getElementById("file-upload")?.click()
 												}
 											>
-												上传文件
+												{t("converter.uploadFile")}
 											</Button>
-											<Button onClick={handleClear}>清空</Button>
+											<Button onClick={handleClear}>
+												{t("converter.clear")}
+											</Button>
 										</Space>
 									</div>
 								</Card>
@@ -164,12 +168,12 @@ const FlowConverter: React.FC = () => {
 									onClick={handleConvert}
 									loading={loading}
 								>
-									转换
+									{t("converter.convert")}
 								</Button>
 							</div>
 
 							<div className={styles.resultContainer}>
-								<Card title="转换结果" bordered={false}>
+								<Card title={t("converter.result")} bordered={false}>
 									<Spin spinning={loading}>
 										<TextArea value={resultText} readOnly rows={20} />
 									</Spin>
@@ -179,7 +183,7 @@ const FlowConverter: React.FC = () => {
 											onClick={handleDownload}
 											disabled={!resultText}
 										>
-											下载
+											{t("converter.download")}
 										</Button>
 									</div>
 								</Card>
@@ -188,30 +192,30 @@ const FlowConverter: React.FC = () => {
 					</Card>
 				</TabPane>
 
-				<TabPane tab="帮助文档" key="help">
+				<TabPane tab={t("converter.helpTab")} key="help">
 					<Card>
-						<Title level={4}>Flow转换器使用说明</Title>
-						<Title level={5}>YAML转JSON</Title>
+						<Title level={4}>{t("converter.helpTitle")}</Title>
+						<Title level={5}>{t("converter.yamlToJsonHelpTitle")}</Title>
 						<Text>
-							将Flow格式的工作流YAML转换为JSON格式。
+							{t("converter.yamlToJsonHelp")}
 							<ul>
-								<li>在源文件区域粘贴YAML格式的内容，或者上传YAML文件</li>
-								<li>点击&quot;转换&quot;按钮执行转换</li>
-								<li>转换完成后，可以下载结果或复制结果</li>
+								<li>{t("converter.helpPasteYaml")}</li>
+								<li>{t("converter.helpClickConvert")}</li>
+								<li>{t("converter.helpDownloadOrCopy")}</li>
 							</ul>
 						</Text>
 
-						<Title level={5}>JSON转YAML</Title>
+						<Title level={5}>{t("converter.jsonToYamlHelpTitle")}</Title>
 						<Text>
-							将Flow JSON格式转换为YAML格式。
+							{t("converter.jsonToYamlHelp")}
 							<ul>
-								<li>在源文件区域粘贴JSON格式的内容，或者上传JSON文件</li>
-								<li>点击&quot;转换&quot;按钮执行转换</li>
-								<li>转换完成后，可以下载结果或复制结果</li>
+								<li>{t("converter.helpPasteJson")}</li>
+								<li>{t("converter.helpClickConvert")}</li>
+								<li>{t("converter.helpDownloadOrCopy")}</li>
 							</ul>
 						</Text>
 
-						<Title level={5}>YAML格式说明</Title>
+						<Title level={5}>{t("converter.yamlFormatTitle")}</Title>
 						<Text>
 							<pre
 								style={{

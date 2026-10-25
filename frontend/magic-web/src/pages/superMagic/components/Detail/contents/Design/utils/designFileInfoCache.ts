@@ -5,21 +5,23 @@ import type {
 } from "@/components/CanvasDesign/public/magic-types"
 import {
 	parseExpiresAt,
-	isOssExpired,
+	isOssExpiring,
 } from "@/components/CanvasDesign/runtime/resources/offline-cache/ossExpiryUtils"
+import {
+	normalizePathSeparators,
+	stripPathEdgeSlashes,
+} from "@/components/CanvasDesign/runtime/shared/path/canvasResourcePath"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import type { GetTemporaryDownloadUrlItem } from "@/pages/superMagic/utils/api"
 import {
-	getTemporaryDownloadUrl,
-	type GetTemporaryDownloadUrlItem,
-} from "@/pages/superMagic/utils/api"
+	clearSharedMediaUrlCache,
+	getCachedSharedMediaUrls,
+	invalidateSharedMediaUrl,
+	requestSharedMediaUrls,
+} from "@/pages/superMagic/services/sharedMediaUrlCache"
 import projectFilesStore from "@/stores/projectFiles"
-import { normalizePath } from "./utils"
-import {
-	getResolvedPathCandidates,
-	resolveDesignPathForOperation,
-	resolveDesignAttachmentFromCandidates,
-	resolveDesignAttachmentForNormalizedPath,
-} from "./designPath"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { resolveDesignCanvasResourceReference } from "./designResourceReferenceResolver"
 import { GetFileInfoResponseWithFileId } from "./uploadCallbacks"
 import { getPreviewFileUrlWatermarkSignature } from "@/utils/aiWatermarkPreviewFileUrlMode"
 import type { ImageProcessOptions } from "@/utils/image-processing"
@@ -27,54 +29,32 @@ import {
 	buildAttachmentsSnapshotKeyFromFlatFiles,
 	type DesignAttachmentIndex,
 } from "./designAttachmentIndex"
-import {
-	clearDesignFileInfoIndexedDbCache,
-	cancelPendingDesignFileInfoCacheReads,
-	deleteDesignFileInfoCacheEntries,
-	flushDesignFileInfoIndexedDbCacheWrites,
-	readDesignFileInfoCacheEntry,
-	writeDesignFileInfoCacheEntries,
-	type DesignFileInfoIndexedDbEntry,
-} from "./designFileInfoIndexedDbCache"
-
 const IMAGE_PROCESS_OPTIONS: { xMagicImageProcess?: ImageProcessOptions } = {
 	xMagicImageProcess: {
+		autoOrient: 1,
 		format: "webp",
 	},
 }
+const IMAGE_PROCESS_CACHE_SIGNATURE = "auto-orient-v1"
 
 // 图片处理大小限制 50MB
 const IMAGE_PROCESS_SIZE_LIMIT = 50971420
 // get-file-url 单次请求上限，避免超大画布一次性提交过大的 file_ids payload
 const MAX_GET_FILE_URL_BATCH_SIZE = 100
 // identity 级 URL 结果仅保留最近使用的一段工作集，避免跨画布导航后长期累积。
-const MAX_FILE_URL_RESULT_CACHE_SIZE = 2048
-const MAX_FILE_URL_GENERATION_ENTRIES = 4096
 const MAX_FILE_INFO_MEMORY_CACHE_SIZE = 2048
-const MAX_PATH_CACHE_GENERATION_ENTRIES = 4096
-const MAX_INVALIDATED_PATH_CACHE_KEYS = 4096
 // 默认缓存时间 15 分钟
 const DEFAULT_TTL_MS = 15 * 60 * 1000
 // 上传已保存但附件树尚未刷回时的短期桥接窗口。
 const OPTIMISTIC_UPLOAD_CACHE_TTL_MS = 15 * 1000
-// 旧 localStorage 存储 key：仅用于一次性迁移到 IndexedDB，后续不再写入这个大 JSON。
-const FILE_INFO_STORAGE_KEY = "MAGIC:supermagic-design:file-info-cache:v3"
-const LEGACY_FILE_INFO_STORAGE_KEY = "MAGIC:supermagic-design:file-info-cache"
-const FILE_INFO_CACHE_PAYLOAD_VERSION = 3 as const
 
-/** 是否启用换链结果缓存：为 false 时不读内存命中、不写内存/持久化，可用于强制每次拉新 URL */
+/** 是否启用换链结果缓存：为 false 时不读写内存命中，可用于强制每次拉新 URL */
 let cacheEnabled = true
-/** 旧 localStorage 冷启动数据是否已尝试迁移：只执行一次，避免每次 getFileInfo 都解析持久化 JSON */
-let storageCacheLoaded = false
-/** IndexedDB 持续异常时停止读持久化缓存，避免失效墓碑集合无限增长。 */
-let indexedDbCacheReadsDisabled = false
 
 interface CacheEntry {
 	fileInfo: GetFileInfoResponse
 	/** 写入时 getTemporaryDownloadUrl 自动 download_mode 水印语义，与 getPreviewFileUrlWatermarkSignature() 一致 */
 	previewWatermarkSignature: string
-	/** 当前 designProject 附件列表快照；目录移动时即使 file_id 不变，也要让旧 URL 整批失效 */
-	attachmentsSnapshotKey?: string
 	// 当接口未返回 expires_at 时，使用写入时间 + DEFAULT_TTL_MS 兜底过期
 	cachedAt?: number
 	// 记录当前 path 在最近一次解析时对应的 file_id，用于识别“同路径文件被替换”
@@ -86,32 +66,29 @@ interface CacheEntry {
 	optimisticMissingAttachmentAllowedUntil?: number
 }
 
-interface PersistedFileInfoCachePayload {
-	version: typeof FILE_INFO_CACHE_PAYLOAD_VERSION
-	entries: Record<string, CacheEntry>
-}
-
 type FileUrlRendition = "raw" | "image-process"
 
+function getRenditionCacheIdentity(rendition: FileUrlRendition): string {
+	return rendition === "image-process"
+		? `${rendition}:${IMAGE_PROCESS_CACHE_SIGNATURE}`
+		: rendition
+}
+
 interface FileUrlRequestGroup {
-	identityKey: string
 	baseIdentityKey: string
-	generation: number
 	fileId: string
 	rendition: FileUrlRendition
+	designProjectId?: string
 	priority: FileUrlRequestPriority
+	forceRefresh: boolean
+	resourceVersion?: string
+	/** Identity captured at the request boundary; never batched across share/session. */
+	fileApi?: FileApi
 	status: "queued" | "admitted" | "in-flight"
 	promise: Promise<GetTemporaryDownloadUrlItem & { url: string }>
 	resolve: (value: GetTemporaryDownloadUrlItem & { url: string }) => void
 	reject: (error: Error) => void
 	settled: boolean
-	resultCacheKeys: Set<string>
-}
-
-interface FileUrlResultEntry {
-	urlItem: GetTemporaryDownloadUrlItem & { url: string }
-	cachedAt: number
-	previewWatermarkSignature: string
 }
 
 interface PendingFileInfoRequest {
@@ -122,17 +99,24 @@ interface PendingFileInfoRequest {
 	resourceVersion?: string
 }
 
+interface ResolvedFileInfoCacheTarget {
+	normalizedPath: string
+	fileItem: FileItem | null
+}
+
+type FileInfoCacheTargetResolution =
+	| { status: "resolved"; target: ResolvedFileInfoCacheTarget }
+	| {
+			status: "ambiguous" | "not-found" | "attachments-pending" | "invalid"
+			candidates: string[]
+	  }
+
 // 主缓存：key = designProjectId + normalizedRelativePath
 const fileInfoRequestCache = new Map<string, PendingFileInfoRequest>()
 const fileInfoCache = new Map<string, CacheEntry>()
-const invalidatedPathCacheKeys = new Set<string>()
-const pathCacheGenerationByKey = new Map<string, number>()
-const pendingPathCacheReads = new Set<string>()
 // URL 请求只按项目、file_id 与实际 rendition 去重；path 仅作为结果订阅方保留自己的元数据缓存。
 const fileUrlRequestGroups = new Map<string, FileUrlRequestGroup>()
 const activeFileUrlRequestGroups = new Set<FileUrlRequestGroup>()
-const fileUrlGenerationByIdentity = new Map<string, number>()
-const fileUrlResultCache = new Map<string, FileUrlResultEntry>()
 const forceRefreshRequestTokens = new Map<string, symbol>()
 let fileUrlFlushTimer: ReturnType<typeof setTimeout> | null = null
 let fileUrlFlushAt: number | null = null
@@ -145,18 +129,60 @@ function shouldUseImageProcess(fileSize?: number): boolean {
 	return fileSize < IMAGE_PROCESS_SIZE_LIMIT
 }
 
-function getCacheStorage(): Storage | null {
-	if (typeof window === "undefined") return null
-
-	try {
-		return window.localStorage
-	} catch {
-		return null
-	}
-}
-
 function getStoreFiles(filesList?: FileItem[]): FileItem[] {
 	return (filesList || projectFilesStore.workspaceFilesList || []) as FileItem[]
+}
+
+function resolveHasAttachmentSnapshot(
+	files: readonly FileItem[],
+	explicitSnapshotState?: boolean,
+): boolean {
+	return explicitSnapshotState ?? files.length > 0
+}
+
+function resolveFileInfoCacheTarget(
+	path: string,
+	options: {
+		designProjectBasePath?: string
+		flatAttachments: FileItem[]
+		attachmentIndex?: DesignAttachmentIndex | null
+		attachmentsReady?: boolean
+	},
+): FileInfoCacheTargetResolution {
+	const resolution = resolveDesignCanvasResourceReference(path, options)
+	if (
+		resolution.status !== "resolved" ||
+		resolution.resourceKind !== "workspace-file" ||
+		!resolution.workspacePath
+	) {
+		return {
+			status: resolution.status === "resolved" ? "invalid" : resolution.status,
+			candidates: resolution.candidates,
+		}
+	}
+
+	const normalizedPath = stripPathEdgeSlashes(normalizePathSeparators(resolution.workspacePath))
+	if (!normalizedPath) return { status: "invalid", candidates: resolution.candidates }
+
+	const indexedFileItem = resolution.attachmentId
+		? options.attachmentIndex?.byFileId.get(resolution.attachmentId)
+		: undefined
+	const fileItem =
+		indexedFileItem && !indexedFileItem.is_directory
+			? indexedFileItem
+			: resolution.attachmentId
+				? options.flatAttachments.find(
+						(item) => !item.is_directory && item.file_id === resolution.attachmentId,
+					)
+				: undefined
+
+	return {
+		status: "resolved",
+		target: {
+			normalizedPath,
+			fileItem: fileItem ?? null,
+		},
+	}
 }
 
 // 画布内只认相对路径；缓存额外按项目和实际 rendition 隔离，避免 raw/WebP URL 互相覆盖。
@@ -164,13 +190,10 @@ function buildScopedPathKey(
 	normalizedPath: string,
 	designProjectId?: string,
 	rendition: FileUrlRendition = "raw",
+	identityKey = "none",
 ): string {
 	const namespace = designProjectId || "__global__"
-	return `${namespace}\0${normalizedPath}\0${rendition}`
-}
-
-function hasScopedPathRendition(cacheKey: string): boolean {
-	return cacheKey.endsWith("\0raw") || cacheKey.endsWith("\0image-process")
+	return `${namespace}\0${normalizedPath}\0${identityKey}\0${getRenditionCacheIdentity(rendition)}`
 }
 
 function resolveFileUrlRendition(
@@ -219,18 +242,28 @@ function parseScopedPathKey(scopedPathKey: string): {
 		}
 	}
 	const possibleRendition = parts.at(-1)
-	const hasRendition = possibleRendition === "raw" || possibleRendition === "image-process"
+	const currentImageProcessIdentity = getRenditionCacheIdentity("image-process")
+	const hasRendition =
+		possibleRendition === "raw" ||
+		possibleRendition === "image-process" ||
+		possibleRendition === currentImageProcessIdentity
 	return {
 		namespace: parts[0] || "__global__",
-		normalizedPath: parts.slice(1, hasRendition ? -1 : undefined).join("\0"),
-		rendition: hasRendition ? possibleRendition : "raw",
+		normalizedPath: parts
+			.slice(1, hasRendition ? (parts.length >= 4 ? -2 : -1) : undefined)
+			.join("\0"),
+		rendition:
+			possibleRendition === "image-process" ||
+			possibleRendition === currentImageProcessIdentity
+				? "image-process"
+				: "raw",
 	}
 }
 
 function isCachedFileInfoExpired(entry: CacheEntry): boolean {
 	const expiresAtTs = parseExpiresAt(entry.fileInfo.expires_at)
 	if (expiresAtTs !== null) {
-		return isOssExpired(expiresAtTs)
+		return isOssExpiring(entry.fileInfo.expires_at)
 	}
 	if (entry.cachedAt === undefined) {
 		return false
@@ -268,7 +301,6 @@ function setMemoryCache(
 	fileInfo: GetFileInfoResponse,
 	resolvedFileId?: string,
 	previewWatermarkSignature: string = getPreviewFileUrlWatermarkSignature(),
-	attachmentsSnapshotKey?: string,
 	options?: { allowMissingAttachment?: boolean },
 ): void {
 	const now = Date.now()
@@ -277,7 +309,6 @@ function setMemoryCache(
 	fileInfoCache.set(cacheKey, {
 		fileInfo,
 		previewWatermarkSignature,
-		attachmentsSnapshotKey,
 		resolvedFileId,
 		...(fileInfo.resource_version
 			? { resolvedResourceVersion: fileInfo.resource_version }
@@ -288,47 +319,14 @@ function setMemoryCache(
 					optimisticMissingAttachmentAllowedUntil: now + OPTIMISTIC_UPLOAD_CACHE_TTL_MS,
 				}
 			: {}),
-		...(fileInfo.expires_at ? {} : { cachedAt: now }),
+		cachedAt: now,
 	})
-	invalidatedPathCacheKeys.delete(cacheKey)
 	trimFileInfoMemoryCache()
-	trimPathCacheGenerations()
 }
 
 function deleteMemoryCache(cacheKey: string): void {
-	const generation = (pathCacheGenerationByKey.get(cacheKey) ?? 0) + 1
-	pathCacheGenerationByKey.delete(cacheKey)
-	pathCacheGenerationByKey.set(cacheKey, generation)
-	if (!indexedDbCacheReadsDisabled) {
-		invalidatedPathCacheKeys.add(cacheKey)
-		if (invalidatedPathCacheKeys.size > MAX_INVALIDATED_PATH_CACHE_KEYS) {
-			indexedDbCacheReadsDisabled = true
-			cancelPendingDesignFileInfoCacheReads()
-			invalidatedPathCacheKeys.clear()
-			pathCacheGenerationByKey.clear()
-			void clearDesignFileInfoIndexedDbCache().then(
-				() => {
-					indexedDbCacheReadsDisabled = false
-				},
-				() => undefined,
-			)
-		}
-	}
 	fileInfoCache.delete(cacheKey)
 	deletePathRequestCache(cacheKey)
-	void deleteDesignFileInfoCacheEntries([cacheKey]).then(
-		() => {
-			if (
-				pathCacheGenerationByKey.get(cacheKey) === generation &&
-				!fileInfoCache.has(cacheKey)
-			) {
-				invalidatedPathCacheKeys.delete(cacheKey)
-				trimPathCacheGenerations()
-			}
-		},
-		() => undefined,
-	)
-	trimPathCacheGenerations()
 }
 
 function trimFileInfoMemoryCache(): void {
@@ -336,176 +334,6 @@ function trimFileInfoMemoryCache(): void {
 		const oldestKey = fileInfoCache.keys().next().value
 		if (typeof oldestKey !== "string") break
 		fileInfoCache.delete(oldestKey)
-	}
-}
-
-function trimPathCacheGenerations(): void {
-	if (pathCacheGenerationByKey.size <= MAX_PATH_CACHE_GENERATION_ENTRIES) return
-	for (const cacheKey of pathCacheGenerationByKey.keys()) {
-		if (pathCacheGenerationByKey.size <= MAX_PATH_CACHE_GENERATION_ENTRIES) break
-		if (pendingPathCacheReads.has(cacheKey) || invalidatedPathCacheKeys.has(cacheKey)) continue
-		pathCacheGenerationByKey.delete(cacheKey)
-	}
-}
-
-function buildIndexedDbEntry(cacheKey: string, entry: CacheEntry): DesignFileInfoIndexedDbEntry {
-	const { namespace, normalizedPath } = parseScopedPathKey(cacheKey)
-	const now = Date.now()
-	return {
-		cacheKey,
-		namespace,
-		normalizedPath,
-		fileInfo: entry.fileInfo,
-		previewWatermarkSignature: entry.previewWatermarkSignature,
-		...(entry.attachmentsSnapshotKey
-			? { attachmentsSnapshotKey: entry.attachmentsSnapshotKey }
-			: {}),
-		...(entry.cachedAt !== undefined ? { cachedAt: entry.cachedAt } : {}),
-		...(entry.resolvedFileId ? { resolvedFileId: entry.resolvedFileId } : {}),
-		...(entry.resolvedResourceVersion
-			? { resolvedResourceVersion: entry.resolvedResourceVersion }
-			: {}),
-		updatedAt: now,
-		lastAccessedAt: now,
-	}
-}
-
-function toMemoryCacheEntry(entry: DesignFileInfoIndexedDbEntry): CacheEntry {
-	return {
-		fileInfo: entry.fileInfo,
-		previewWatermarkSignature: entry.previewWatermarkSignature,
-		...(entry.attachmentsSnapshotKey
-			? { attachmentsSnapshotKey: entry.attachmentsSnapshotKey }
-			: {}),
-		...(entry.cachedAt !== undefined ? { cachedAt: entry.cachedAt } : {}),
-		...(entry.resolvedFileId ? { resolvedFileId: entry.resolvedFileId } : {}),
-		...(entry.resolvedResourceVersion
-			? { resolvedResourceVersion: entry.resolvedResourceVersion }
-			: {}),
-	}
-}
-
-function persistCacheEntriesToStorage(cacheKeys: string[]): void {
-	const seenCacheKeys = new Set<string>()
-	const uniqueCacheKeys: string[] = []
-	cacheKeys.forEach((cacheKey) => {
-		if (seenCacheKeys.has(cacheKey)) return
-		seenCacheKeys.add(cacheKey)
-		uniqueCacheKeys.push(cacheKey)
-	})
-	const entries = uniqueCacheKeys
-		.map((cacheKey) => {
-			const entry = fileInfoCache.get(cacheKey)
-			return entry ? buildIndexedDbEntry(cacheKey, entry) : null
-		})
-		.filter((entry): entry is DesignFileInfoIndexedDbEntry => Boolean(entry))
-	if (entries.length === 0) return
-
-	writeDesignFileInfoCacheEntries(entries)
-		.then(() => undefined)
-		.catch(() => undefined)
-}
-
-function clearLegacyPersistedCache(): void {
-	const storage = getCacheStorage()
-	if (!storage) return
-
-	try {
-		storage.removeItem(FILE_INFO_STORAGE_KEY)
-		storage.removeItem(LEGACY_FILE_INFO_STORAGE_KEY)
-	} catch {
-		// ignore storage cleanup failures
-	}
-}
-
-function clearPersistedCache(): void {
-	clearLegacyPersistedCache()
-	clearDesignFileInfoIndexedDbCache()
-		.then(() => {
-			indexedDbCacheReadsDisabled = false
-		})
-		.catch(() => undefined)
-}
-
-function ensureStorageCacheLoaded(): void {
-	if (storageCacheLoaded) return
-
-	storageCacheLoaded = true
-	const storage = getCacheStorage()
-	if (!storage) {
-		return
-	}
-
-	try {
-		try {
-			storage.removeItem(LEGACY_FILE_INFO_STORAGE_KEY)
-		} catch {
-			//
-		}
-
-		const raw = storage.getItem(FILE_INFO_STORAGE_KEY)
-		if (!raw) {
-			return
-		}
-
-		const parsed = JSON.parse(raw) as Partial<PersistedFileInfoCachePayload> | null
-		if (!parsed || typeof parsed !== "object") {
-			clearPersistedCache()
-			return
-		}
-
-		if (parsed.version !== FILE_INFO_CACHE_PAYLOAD_VERSION) {
-			clearPersistedCache()
-			return
-		}
-
-		let shouldSyncStorage = false
-		const restoredCacheKeys: string[] = []
-		for (const [cacheKey, entry] of Object.entries(parsed.entries ?? {})) {
-			if (!entry?.fileInfo?.src) {
-				shouldSyncStorage = true
-				continue
-			}
-
-			if (!entry.previewWatermarkSignature) {
-				shouldSyncStorage = true
-				continue
-			}
-
-			if (!entry.attachmentsSnapshotKey) {
-				shouldSyncStorage = true
-				continue
-			}
-
-			if (!entry.fileInfo.expires_at && entry.cachedAt === undefined) {
-				shouldSyncStorage = true
-				continue
-			}
-
-			if (!hasScopedPathRendition(cacheKey)) {
-				// 旧 key 无法证明 URL 属于 raw 还是 image-process；丢弃后由统一批处理冷启动回填。
-				shouldSyncStorage = true
-				continue
-			}
-			fileInfoCache.set(cacheKey, entry as CacheEntry)
-			if (isCachedFileInfoExpired(entry as CacheEntry)) {
-				deleteMemoryCache(cacheKey)
-				shouldSyncStorage = true
-			} else {
-				restoredCacheKeys.push(cacheKey)
-			}
-		}
-
-		if (restoredCacheKeys.length > 0) {
-			persistCacheEntriesToStorage(restoredCacheKeys)
-		}
-		if (shouldSyncStorage || restoredCacheKeys.length > 0) {
-			clearLegacyPersistedCache()
-		}
-		trimFileInfoMemoryCache()
-		trimPathCacheGenerations()
-	} catch {
-		clearPersistedCache()
 	}
 }
 
@@ -562,36 +390,32 @@ function buildFileResourceMeta(fileItem: FileItem): CanvasFileResourceMeta {
 }
 
 function getOptimisticFileResourceMeta(
-	candidates: ReturnType<typeof getResolvedPathCandidates>,
+	normalizedPath: string,
 	designProjectId?: string,
 ): CanvasFileResourceMeta | null {
-	for (const candidate of candidates) {
-		const cacheKey = buildScopedPathKey(candidate.normalizedPath, designProjectId)
-		const entry = fileInfoCache.get(cacheKey)
-		if (!entry) continue
-		if (
-			isOptimisticMissingAttachmentExpired(entry, null) ||
-			isCachedFileInfoExpired(entry) ||
-			isPreviewWatermarkSignatureStale(entry)
-		) {
-			deleteMemoryCache(cacheKey)
-			continue
-		}
-		if (!isOptimisticMissingAttachmentAllowed(entry)) continue
-
-		fileInfoCache.delete(cacheKey)
-		fileInfoCache.set(cacheKey, entry)
-		return {
-			status: "exists",
-			fileName: entry.fileInfo.fileName,
-			...(entry.fileInfo.source !== undefined ? { source: entry.fileInfo.source } : {}),
-			resourceVersion: entry.fileInfo.resource_version ?? null,
-			updatedAt: entry.fileInfo.updated_at ?? null,
-			contentLength: entry.fileInfo.content_length ?? null,
-		}
+	const cacheKey = buildScopedPathKey(normalizedPath, designProjectId)
+	const entry = fileInfoCache.get(cacheKey)
+	if (!entry) return null
+	if (
+		isOptimisticMissingAttachmentExpired(entry, null) ||
+		isCachedFileInfoExpired(entry) ||
+		isPreviewWatermarkSignatureStale(entry)
+	) {
+		deleteMemoryCache(cacheKey)
+		return null
 	}
+	if (!isOptimisticMissingAttachmentAllowed(entry)) return null
 
-	return null
+	fileInfoCache.delete(cacheKey)
+	fileInfoCache.set(cacheKey, entry)
+	return {
+		status: "exists",
+		fileName: entry.fileInfo.fileName,
+		...(entry.fileInfo.source !== undefined ? { source: entry.fileInfo.source } : {}),
+		resourceVersion: entry.fileInfo.resource_version ?? null,
+		updatedAt: entry.fileInfo.updated_at ?? null,
+		contentLength: entry.fileInfo.content_length ?? null,
+	}
 }
 
 function mergeFileItemMetaIntoFileInfo(
@@ -666,69 +490,36 @@ function buildFileUrlIdentityKey(
 	fileId: string,
 	rendition: FileUrlRendition,
 	designProjectId?: string,
+	resourceVersion?: string,
+	fileApi?: FileApi,
 ): string {
-	return `${buildNamespaceKey(designProjectId)}\0${fileId}\0${rendition}`
-}
-
-function normalizeFileUrlResourceVersionKey(resourceVersion?: string): string {
-	return normalizeStrongResourceVersion(resourceVersion) ?? "__unversioned__"
-}
-
-function buildFileUrlResultCacheKey(identityKey: string, resourceVersion?: string): string {
-	return `${identityKey}\0${normalizeFileUrlResourceVersionKey(resourceVersion)}`
-}
-
-function invalidateFileUrlResultCache(identityKey: string): void {
-	const prefix = `${identityKey}\0`
-	fileUrlResultCache.forEach((_, cacheKey) => {
-		if (cacheKey.startsWith(prefix)) fileUrlResultCache.delete(cacheKey)
-	})
+	// The identity suffix keeps share and host-session in-flight groups apart so a
+	// batch never mixes file requests bound to different tokens.
+	return `${buildNamespaceKey(designProjectId)}\0${fileId}\0${getRenditionCacheIdentity(rendition)}\0${resourceVersion ?? ""}\0${fileApi?.identityKey ?? "none"}`
 }
 
 function invalidateFileUrlResultsForFileId(fileId: string, designProjectId?: string): void {
-	if (!fileId) return
-	invalidateFileUrlResultCache(buildFileUrlIdentityKey(fileId, "raw", designProjectId))
-	invalidateFileUrlResultCache(buildFileUrlIdentityKey(fileId, "image-process", designProjectId))
+	supersedeFileUrlRequestsForFileId(fileId, designProjectId)
 }
 
 function supersedeFileUrlRequestsForFileId(fileId: string, designProjectId?: string): void {
 	if (!fileId) return
-	;(["raw", "image-process"] as FileUrlRendition[]).forEach((rendition) => {
-		const identityKey = buildFileUrlIdentityKey(fileId, rendition, designProjectId)
-		const nextGeneration = (fileUrlGenerationByIdentity.get(identityKey) ?? 0) + 1
-		setFileUrlGeneration(identityKey, nextGeneration)
-		invalidateFileUrlResultCache(identityKey)
-		const group = fileUrlRequestGroups.get(identityKey)
-		if (!group) return
-		group.resultCacheKeys.clear()
-		if (group.status !== "in-flight") {
-			// 请求尚未发出，可沿用这一批，但其结果不再代表 prime 前的 path cache generation。
-			group.generation = nextGeneration
+	invalidateSharedMediaUrl(fileId)
+	const namespace = buildNamespaceKey(designProjectId)
+	activeFileUrlRequestGroups.forEach((group) => {
+		if (group.fileId !== fileId || buildNamespaceKey(group.designProjectId) !== namespace) {
 			return
 		}
-		// 已发出的旧请求继续服务原调用方，但不能再被新调用方加入或写 completed cache。
-		fileUrlRequestGroups.delete(identityKey)
-	})
-}
-
-function setFileUrlGeneration(identityKey: string, generation: number): void {
-	fileUrlGenerationByIdentity.delete(identityKey)
-	fileUrlGenerationByIdentity.set(identityKey, generation)
-	while (fileUrlGenerationByIdentity.size > MAX_FILE_URL_GENERATION_ENTRIES) {
-		let removableKey: string | undefined
-		for (const key of fileUrlGenerationByIdentity.keys()) {
-			if (fileUrlRequestGroups.has(key)) continue
-			removableKey = key
-			break
+		// 旧请求继续服务原调用方，但从 canonical map 脱钩，后续调用必须创建新代际。
+		if (fileUrlRequestGroups.get(group.baseIdentityKey) === group) {
+			fileUrlRequestGroups.delete(group.baseIdentityKey)
 		}
-		if (!removableKey) break
-		fileUrlGenerationByIdentity.delete(removableKey)
-	}
+	})
 }
 
 function getHighestQueuedFileUrlPriority(): FileUrlRequestPriority | null {
 	let highestPriority: FileUrlRequestPriority | null = null
-	fileUrlRequestGroups.forEach((group) => {
+	activeFileUrlRequestGroups.forEach((group) => {
 		if (group.status !== "queued") return
 		if (
 			!highestPriority ||
@@ -790,24 +581,6 @@ function settleFileUrlRequestGroup(
 	if (result instanceof Error) {
 		group.reject(result)
 	} else {
-		if (
-			cacheEnabled &&
-			fileUrlGenerationByIdentity.get(group.baseIdentityKey) === group.generation
-		) {
-			group.resultCacheKeys.forEach((cacheKey) => {
-				fileUrlResultCache.delete(cacheKey)
-				fileUrlResultCache.set(cacheKey, {
-					urlItem: result,
-					cachedAt: Date.now(),
-					previewWatermarkSignature: getPreviewFileUrlWatermarkSignature(),
-				})
-			})
-			while (fileUrlResultCache.size > MAX_FILE_URL_RESULT_CACHE_SIZE) {
-				const oldestKey = fileUrlResultCache.keys().next().value
-				if (typeof oldestKey !== "string") break
-				fileUrlResultCache.delete(oldestKey)
-			}
-		}
 		group.resolve(result)
 	}
 }
@@ -817,10 +590,23 @@ async function requestFileUrlChunk(
 	rendition: FileUrlRendition,
 ): Promise<void> {
 	try {
-		const downloadUrls = await getTemporaryDownloadUrl({
-			file_ids: [...new Set(groups.map((group) => group.fileId))],
-			...(rendition === "image-process" ? { options: IMAGE_PROCESS_OPTIONS } : {}),
-			enableErrorMessagePrompt: false,
+		const fileResourceVersionMap = new Map<string, string>()
+		groups.forEach((group) => {
+			if (group.resourceVersion !== undefined) {
+				fileResourceVersionMap.set(group.fileId, group.resourceVersion)
+			}
+		})
+		const requestUrls = groups[0]?.fileApi?.requestSharedMediaUrls ?? requestSharedMediaUrls
+		const downloadUrls = await requestUrls([...new Set(groups.map((group) => group.fileId))], {
+			imageProcess:
+				rendition === "image-process"
+					? IMAGE_PROCESS_OPTIONS.xMagicImageProcess
+					: undefined,
+			forceRefresh: !cacheEnabled || groups.some((group) => group.forceRefresh),
+			fileResourceVersionMap,
+			// Every group in a chunk shares one identity (see requestFileUrlGroups),
+			// so the bound access is unambiguous.
+			identityKey: groups[0]?.fileApi?.identityKey,
 		})
 		const urlItemByFileId = new Map<string, GetTemporaryDownloadUrlItem & { url: string }>()
 		downloadUrls?.forEach((urlItem) => {
@@ -857,16 +643,25 @@ async function requestFileUrlGroups(
 
 		const currentChunk: FileUrlRequestGroup[] = []
 		const chunkFileIds = new Set<string>()
+		const chunkResourceVersionByFileId = new Map<string, string>()
+		const chunkForceRefresh = orderedGroups[0]?.forceRefresh ?? false
+		// Never batch groups bound to different identities, or a share request
+		// could ride the host session's token and vice versa.
+		const chunkAccessKey = orderedGroups[0]?.fileApi?.identityKey ?? "none"
 		orderedGroups.forEach((group) => {
-			if (
-				!chunkFileIds.has(group.fileId) &&
-				chunkFileIds.size >= MAX_GET_FILE_URL_BATCH_SIZE
-			) {
+			if (group.forceRefresh !== chunkForceRefresh) return
+			if ((group.fileApi?.identityKey ?? "none") !== chunkAccessKey) return
+			const resourceVersionKey = group.resourceVersion ?? ""
+			if (chunkFileIds.has(group.fileId)) {
+				if (chunkResourceVersionByFileId.get(group.fileId) !== resourceVersionKey) return
+			} else if (chunkFileIds.size >= MAX_GET_FILE_URL_BATCH_SIZE) {
 				return
 			}
 			currentChunk.push(group)
 			chunkFileIds.add(group.fileId)
+			chunkResourceVersionByFileId.set(group.fileId, resourceVersionKey)
 		})
+		if (currentChunk.length === 0) return
 		currentChunk.forEach((group) => {
 			remainingGroups.delete(group)
 			group.status = "in-flight"
@@ -877,7 +672,7 @@ async function requestFileUrlGroups(
 
 async function executeFileUrlBatch(): Promise<void> {
 	clearFileUrlFlushSchedule()
-	const queuedGroups = [...fileUrlRequestGroups.values()]
+	const queuedGroups = [...activeFileUrlRequestGroups]
 		.filter((group) => group.status === "queued")
 		.sort(
 			(left, right) =>
@@ -905,9 +700,11 @@ function promoteFileUrlRequest(
 	rendition: FileUrlRendition,
 	priority: FileUrlRequestPriority,
 	designProjectId?: string,
+	resourceVersion?: string,
+	fileApi?: FileApi,
 ): void {
 	const group = fileUrlRequestGroups.get(
-		buildFileUrlIdentityKey(fileId, rendition, designProjectId),
+		buildFileUrlIdentityKey(fileId, rendition, designProjectId, resourceVersion, fileApi),
 	)
 	if (!group || group.status === "in-flight") return
 	if (FILE_URL_PRIORITY_RANK[priority] >= FILE_URL_PRIORITY_RANK[group.priority]) return
@@ -922,63 +719,53 @@ function requestFileUrl(options: {
 	designProjectId?: string
 	forceRefresh?: boolean
 	resourceVersion?: string
+	fileApi?: FileApi
 }): Promise<GetTemporaryDownloadUrlItem & { url: string }> {
 	const priority = options.priority ?? "visible"
 	const baseIdentityKey = buildFileUrlIdentityKey(
 		options.fileId,
 		options.rendition,
 		options.designProjectId,
+		options.resourceVersion,
+		options.fileApi,
 	)
-	const resultCacheKey = buildFileUrlResultCacheKey(baseIdentityKey, options.resourceVersion)
-	let generation = fileUrlGenerationByIdentity.get(baseIdentityKey) ?? 0
 	const existingGroup = fileUrlRequestGroups.get(baseIdentityKey)
 
 	if (options.forceRefresh) {
-		generation += 1
-		setFileUrlGeneration(baseIdentityKey, generation)
-		invalidateFileUrlResultCache(baseIdentityKey)
-		if (existingGroup && existingGroup.status !== "in-flight") {
-			existingGroup.generation = generation
-			existingGroup.resultCacheKeys.clear()
-			existingGroup.resultCacheKeys.add(resultCacheKey)
-			promoteFileUrlRequest(
-				options.fileId,
-				options.rendition,
-				priority,
-				options.designProjectId,
-			)
-			return existingGroup.promise
-		}
+		invalidateSharedMediaUrl(options.fileId)
+		// A queued/admitted group belongs to the previous refresh generation too.
+		// Leave it alive for its original callers, but let this caller create a new group.
 	} else if (existingGroup) {
-		existingGroup.resultCacheKeys.add(resultCacheKey)
-		promoteFileUrlRequest(options.fileId, options.rendition, priority, options.designProjectId)
+		promoteFileUrlRequest(
+			options.fileId,
+			options.rendition,
+			priority,
+			options.designProjectId,
+			options.resourceVersion,
+			options.fileApi,
+		)
 		return existingGroup.promise
 	}
 
 	if (!options.forceRefresh && cacheEnabled) {
-		const cachedResultKey = resultCacheKey
-		const cachedResult = fileUrlResultCache.get(resultCacheKey)
-		if (cachedResult) {
-			const expiresAt = parseExpiresAt(cachedResult.urlItem.expires_at)
-			const expired =
-				expiresAt !== null
-					? isOssExpired(expiresAt)
-					: Date.now() - cachedResult.cachedAt >= DEFAULT_TTL_MS
-			if (
-				!expired &&
-				cachedResult.previewWatermarkSignature === getPreviewFileUrlWatermarkSignature()
-			) {
-				fileUrlResultCache.delete(cachedResultKey)
-				fileUrlResultCache.set(cachedResultKey, cachedResult)
-				return Promise.resolve(cachedResult.urlItem)
-			}
-			fileUrlResultCache.delete(cachedResultKey)
+		const cachedResult = getCachedSharedMediaUrls({
+			fileIds: [options.fileId],
+			options: {
+				imageProcess:
+					options.rendition === "image-process"
+						? IMAGE_PROCESS_OPTIONS.xMagicImageProcess
+						: undefined,
+				fileResourceVersionMap:
+					options.resourceVersion === undefined
+						? undefined
+						: { [options.fileId]: options.resourceVersion },
+				identityKey: options.fileApi?.identityKey,
+			},
+		}).cached.find((item) => item.file_id === options.fileId && item.url)
+		if (cachedResult?.url) {
+			return Promise.resolve({ ...cachedResult, url: cachedResult.url })
 		}
 	}
-	if (!fileUrlGenerationByIdentity.has(baseIdentityKey)) {
-		setFileUrlGeneration(baseIdentityKey, generation)
-	}
-
 	let resolveRequest!: (value: GetTemporaryDownloadUrlItem & { url: string }) => void
 	let rejectRequest!: (error: Error) => void
 	const promise = new Promise<GetTemporaryDownloadUrlItem & { url: string }>(
@@ -987,20 +774,20 @@ function requestFileUrl(options: {
 			rejectRequest = reject
 		},
 	)
-	const identityKey = `${baseIdentityKey}\0generation:${generation}`
 	const group: FileUrlRequestGroup = {
-		identityKey,
 		baseIdentityKey,
-		generation,
 		fileId: options.fileId,
 		rendition: options.rendition,
+		designProjectId: options.designProjectId,
 		priority,
+		forceRefresh: options.forceRefresh === true,
+		resourceVersion: options.resourceVersion,
+		fileApi: options.fileApi,
 		status: "queued",
 		promise,
 		resolve: resolveRequest,
 		reject: rejectRequest,
 		settled: false,
-		resultCacheKeys: new Set([resultCacheKey]),
 	}
 	fileUrlRequestGroups.set(baseIdentityKey, group)
 	activeFileUrlRequestGroups.add(group)
@@ -1020,35 +807,25 @@ export async function getFileInfoByPath(
 		attachmentsSnapshotKeyOverride?: string
 		hasAttachmentSnapshot?: boolean
 		priority?: FileUrlRequestPriority
+		/** Request identity bound at the React boundary; part of the in-flight key. */
+		fileApi?: FileApi
 	},
 ): Promise<GetFileInfoResponse | null> {
-	ensureStorageCacheLoaded()
-
-	const operationResolution = resolveDesignPathForOperation(filePath, {
-		designProjectBasePath: options?.designProjectBasePath,
-		flatAttachments: getStoreFiles(filesList),
-		attachmentIndex: options?.attachmentIndex,
-		attachmentsReady: options?.hasAttachmentSnapshot === true,
-	})
-	// 历史裸路径同时命中工作区根和当前画布时，不能命中任一侧的缓存或发请求。
-	if (operationResolution.status === "ambiguous") return null
-	const candidates =
-		operationResolution.status === "found"
-			? [
-					{
-						resolvedPath: operationResolution.resolvedPath,
-						normalizedPath: operationResolution.normalizedPath,
-					},
-				]
-			: operationResolution.candidates
-	const fallbackCandidate = candidates[0]
-	if (!fallbackCandidate) {
-		return null
-	}
-
 	const storeFiles = getStoreFiles(filesList)
-	const hasFilesContext = storeFiles.length > 0
-	const hasAttachmentSnapshot = hasFilesContext || options?.hasAttachmentSnapshot === true
+	const hasAttachmentSnapshot = resolveHasAttachmentSnapshot(
+		storeFiles,
+		options?.hasAttachmentSnapshot,
+	)
+	const targetResolution = resolveFileInfoCacheTarget(filePath, {
+		designProjectBasePath: options?.designProjectBasePath,
+		flatAttachments: storeFiles,
+		attachmentIndex: options?.attachmentIndex,
+		attachmentsReady: hasAttachmentSnapshot,
+	})
+	// 路径歧义、历史附件尚未就绪或非法输入都不能读取任一候选缓存。
+	if (targetResolution.status !== "resolved") return null
+	const target = targetResolution.target
+
 	const attachmentsSnapshotKey = hasAttachmentSnapshot
 		? (options?.attachmentsSnapshotKeyOverride ?? buildAttachmentsSnapshotKey(filesList))
 		: undefined
@@ -1064,59 +841,43 @@ export async function getFileInfoByPath(
 		})
 	}
 	if (forceRefreshToken) {
-		candidates.forEach((candidate) => {
-			const currentFileItem = resolveDesignAttachmentForNormalizedPath(
-				candidate.normalizedPath,
-				filePath,
-				{
-					flatAttachments: storeFiles,
-					attachmentIndex: options?.attachmentIndex,
-				},
+		const renditions: FileUrlRendition[] = target.fileItem
+			? [resolveFileUrlRendition(options?.useImageProcess, target.fileItem.file_size)]
+			: ["raw", "image-process"]
+		renditions.forEach((rendition) => {
+			const cacheKey = buildScopedPathKey(
+				target.normalizedPath,
+				options?.designProjectId,
+				rendition,
+				options?.fileApi?.identityKey,
 			)
-			const renditions: FileUrlRendition[] = currentFileItem
-				? [resolveFileUrlRendition(options?.useImageProcess, currentFileItem.file_size)]
-				: ["raw", "image-process"]
-			renditions.forEach((rendition) => {
-				const cacheKey = buildScopedPathKey(
-					candidate.normalizedPath,
+			const cachedEntry = fileInfoCache.get(cacheKey)
+			if (cachedEntry?.resolvedFileId) {
+				invalidateFileUrlResultsForFileId(
+					cachedEntry.resolvedFileId,
 					options?.designProjectId,
-					rendition,
 				)
-				const cachedEntry = fileInfoCache.get(cacheKey)
-				if (cachedEntry?.resolvedFileId) {
-					invalidateFileUrlResultsForFileId(
-						cachedEntry.resolvedFileId,
-						options?.designProjectId,
-					)
-				}
-				forceRefreshRequestTokens.set(cacheKey, forceRefreshToken)
-				forceRefreshCacheKeys.add(cacheKey)
-				deleteMemoryCache(cacheKey)
-			})
+			}
+			forceRefreshRequestTokens.set(cacheKey, forceRefreshToken)
+			forceRefreshCacheKeys.add(cacheKey)
+			deleteMemoryCache(cacheKey)
 		})
 	}
 
 	if (!shouldBypassCache && cacheEnabled) {
-		for (const candidate of candidates) {
-			const cachedFileItem = resolveDesignAttachmentForNormalizedPath(
-				candidate.normalizedPath,
-				filePath,
-				{
-					flatAttachments: getStoreFiles(filesList),
-					attachmentIndex: options?.attachmentIndex,
-				},
-			)
-			const rendition = resolveFileUrlRendition(
-				options?.useImageProcess,
-				cachedFileItem?.file_size,
-			)
-			const cacheKey = buildScopedPathKey(
-				candidate.normalizedPath,
-				options?.designProjectId,
-				rendition,
-			)
-			const cachedEntry = fileInfoCache.get(cacheKey)
-			if (!cachedEntry) continue
+		const cachedFileItem = target.fileItem
+		const rendition = resolveFileUrlRendition(
+			options?.useImageProcess,
+			cachedFileItem?.file_size,
+		)
+		const cacheKey = buildScopedPathKey(
+			target.normalizedPath,
+			options?.designProjectId,
+			rendition,
+			options?.fileApi?.identityKey,
+		)
+		const cachedEntry = fileInfoCache.get(cacheKey)
+		if (cachedEntry) {
 			const staleReasons = getCachedEntryStaleReasons(
 				cachedEntry,
 				cachedFileItem,
@@ -1128,137 +889,63 @@ export async function getFileInfoByPath(
 					options?.designProjectId,
 				)
 				deleteMemoryCache(cacheKey)
-				continue
+			} else {
+				fileInfoCache.delete(cacheKey)
+				fileInfoCache.set(cacheKey, cachedEntry)
+				return mergeFileItemMetaIntoFileInfo(cachedEntry.fileInfo, cachedFileItem)
 			}
-
-			fileInfoCache.delete(cacheKey)
-			fileInfoCache.set(cacheKey, cachedEntry)
-			return mergeFileItemMetaIntoFileInfo(cachedEntry.fileInfo, cachedFileItem)
 		}
 	}
 
 	if (!shouldBypassCache) {
-		for (const candidate of candidates) {
-			const currentFileItem = resolveDesignAttachmentForNormalizedPath(
-				candidate.normalizedPath,
-				filePath,
-				{
-					flatAttachments: getStoreFiles(filesList),
-					attachmentIndex: options?.attachmentIndex,
-				},
-			)
-			const rendition = resolveFileUrlRendition(
-				options?.useImageProcess,
-				currentFileItem?.file_size,
-			)
-			const cacheKey = buildScopedPathKey(
-				candidate.normalizedPath,
-				options?.designProjectId,
-				rendition,
-			)
-			const requestCacheKey = buildRequestCacheKey(cacheKey, rendition)
-			const cachedRequest = fileInfoRequestCache.get(requestCacheKey)
-			if (!cachedRequest) continue
+		const currentFileItem = target.fileItem
+		const rendition = resolveFileUrlRendition(
+			options?.useImageProcess,
+			currentFileItem?.file_size,
+		)
+		const cacheKey = buildScopedPathKey(
+			target.normalizedPath,
+			options?.designProjectId,
+			rendition,
+			options?.fileApi?.identityKey,
+		)
+		const requestCacheKey = buildRequestCacheKey(cacheKey, rendition)
+		const cachedRequest = fileInfoRequestCache.get(requestCacheKey)
+		if (cachedRequest) {
 			if (hasAttachmentSnapshot && !currentFileItem) {
 				fileInfoRequestCache.delete(requestCacheKey)
-				continue
-			}
-			if (currentFileItem && cachedRequest.fileId !== currentFileItem.file_id) {
+			} else if (currentFileItem && cachedRequest.fileId !== currentFileItem.file_id) {
 				fileInfoRequestCache.delete(requestCacheKey)
-				continue
-			}
-			if (
+			} else if (
 				currentFileItem &&
 				cachedRequest.resourceVersion &&
 				cachedRequest.resourceVersion !== buildFileResourceVersion(currentFileItem)
 			) {
 				fileInfoRequestCache.delete(requestCacheKey)
-				continue
-			}
-			promoteFileUrlRequest(
-				cachedRequest.fileId,
-				cachedRequest.rendition,
-				options?.priority ?? "visible",
-				options?.designProjectId,
-			)
-
-			return cachedRequest.promise.then((result) =>
-				mergeFileItemMetaIntoFileInfo(result, currentFileItem),
-			)
-		}
-	}
-
-	if (!shouldBypassCache && cacheEnabled && !indexedDbCacheReadsDisabled) {
-		const persistedCandidates = candidates
-			.map((candidate) => {
-				const cachedFileItem = resolveDesignAttachmentForNormalizedPath(
-					candidate.normalizedPath,
-					filePath,
-					{
-						flatAttachments: getStoreFiles(filesList),
-						attachmentIndex: options?.attachmentIndex,
-					},
-				)
-				const rendition = resolveFileUrlRendition(
-					options?.useImageProcess,
-					cachedFileItem?.file_size,
-				)
-				const cacheKey = buildScopedPathKey(
-					candidate.normalizedPath,
+			} else {
+				promoteFileUrlRequest(
+					cachedRequest.fileId,
+					cachedRequest.rendition,
+					options?.priority ?? "visible",
 					options?.designProjectId,
-					rendition,
+					cachedRequest.resourceVersion,
+					options?.fileApi,
 				)
-				return {
-					cachedFileItem,
-					cacheGeneration: pathCacheGenerationByKey.get(cacheKey) ?? 0,
-					cacheKey,
-				}
-			})
-			.filter(({ cacheKey }) => !invalidatedPathCacheKeys.has(cacheKey))
-		try {
-			persistedCandidates.forEach(({ cacheKey }) => pendingPathCacheReads.add(cacheKey))
-			const persistedEntries = await Promise.all(
-				persistedCandidates.map(({ cacheKey }) => readDesignFileInfoCacheEntry(cacheKey)),
-			)
-			for (let index = 0; index < persistedCandidates.length; index += 1) {
-				const persistedEntry = persistedEntries[index]
-				if (!persistedEntry) continue
-				const { cacheKey, cachedFileItem, cacheGeneration } = persistedCandidates[index]
-				if ((pathCacheGenerationByKey.get(cacheKey) ?? 0) !== cacheGeneration) {
-					continue
-				}
-				const cachedEntry = toMemoryCacheEntry(persistedEntry)
-				fileInfoCache.set(cacheKey, cachedEntry)
-				trimFileInfoMemoryCache()
-				const staleReasons = getCachedEntryStaleReasons(
-					cachedEntry,
-					cachedFileItem,
-					hasAttachmentSnapshot,
-				)
-				if (staleReasons.length > 0) {
-					invalidateFileUrlResultsForFileId(
-						cachedEntry.resolvedFileId ?? "",
-						options?.designProjectId,
-					)
-					deleteMemoryCache(cacheKey)
-					continue
-				}
 
-				return mergeFileItemMetaIntoFileInfo(cachedEntry.fileInfo, cachedFileItem)
+				return cachedRequest.promise.then((result) =>
+					mergeFileItemMetaIntoFileInfo(result, currentFileItem),
+				)
 			}
-		} catch {
-			// IndexedDB 不可用或读取已被清理操作取消时，继续走附件解析与 URL 请求。
-		} finally {
-			persistedCandidates.forEach(({ cacheKey }) => pendingPathCacheReads.delete(cacheKey))
-			trimPathCacheGenerations()
 		}
 	}
 
-	let lookupResult = resolveDesignAttachmentFromCandidates(candidates, filePath, {
-		flatAttachments: getStoreFiles(filesList),
-		attachmentIndex: options?.attachmentIndex,
-	})
-	if (!lookupResult) {
+	let resolvedTarget = target.fileItem
+		? {
+				normalizedPath: target.normalizedPath,
+				fileItem: target.fileItem,
+			}
+		: null
+	if (!resolvedTarget) {
 		if (hasAttachmentSnapshot) {
 			const latestStoreFiles = getStoreFiles(undefined)
 			const latestHasFilesContext = latestStoreFiles.length > 0
@@ -1266,36 +953,61 @@ export async function getFileInfoByPath(
 				? buildAttachmentsSnapshotKey(latestStoreFiles)
 				: undefined
 			if (latestHasFilesContext && latestSnapshotKey !== attachmentsSnapshotKey) {
-				lookupResult = resolveDesignAttachmentFromCandidates(candidates, filePath, {
+				const latestResolution = resolveFileInfoCacheTarget(filePath, {
+					designProjectBasePath: options?.designProjectBasePath,
 					flatAttachments: latestStoreFiles,
-					attachmentIndex: options?.attachmentIndex,
+					attachmentsReady: true,
 				})
+				if (latestResolution.status === "resolved" && latestResolution.target.fileItem) {
+					resolvedTarget = {
+						normalizedPath: latestResolution.target.normalizedPath,
+						fileItem: latestResolution.target.fileItem,
+					}
+				}
 			}
-			if (!lookupResult) {
+			if (!resolvedTarget) {
 				// 附件列表已有快照：当前 path 在列表中不存在即视为不存在，不再阻塞等待
 				clearForceRefreshTokens()
 				return null
 			}
 		}
 
-		// 列表尚未就绪（本地仍为空）：上传/重命名与 workspaceFilesList 填充存在时序，仅在此场景重试
-		for (let i = 0; i < 2; i++) {
-			await new Promise((resolve) => setTimeout(resolve, 3000))
-			lookupResult = resolveDesignAttachmentFromCandidates(candidates, filePath, {
-				flatAttachments: getStoreFiles(undefined),
-				attachmentIndex: options?.attachmentIndex,
-			})
-			if (lookupResult) break
-		}
-		if (!lookupResult) {
-			clearForceRefreshTokens()
-			return null
+		if (!resolvedTarget) {
+			// 附件快照尚未就绪：上传/重命名与 workspaceFilesList 填充存在时序，仅在此场景重试
+			for (let i = 0; i < 2; i++) {
+				await new Promise((resolve) => setTimeout(resolve, 3000))
+				const latestStoreFiles = getStoreFiles(undefined)
+				const latestResolution = resolveFileInfoCacheTarget(filePath, {
+					designProjectBasePath: options?.designProjectBasePath,
+					flatAttachments: latestStoreFiles,
+					attachmentsReady: resolveHasAttachmentSnapshot(
+						latestStoreFiles,
+						options?.hasAttachmentSnapshot,
+					),
+				})
+				if (latestResolution.status === "resolved" && latestResolution.target.fileItem) {
+					resolvedTarget = {
+						normalizedPath: latestResolution.target.normalizedPath,
+						fileItem: latestResolution.target.fileItem,
+					}
+					break
+				}
+			}
+			if (!resolvedTarget) {
+				clearForceRefreshTokens()
+				return null
+			}
 		}
 	}
 
-	const { fileItem, normalizedPath } = lookupResult
+	const { fileItem, normalizedPath } = resolvedTarget
 	const rendition = resolveFileUrlRendition(options?.useImageProcess, fileItem.file_size)
-	const cacheKey = buildScopedPathKey(normalizedPath, options?.designProjectId, rendition)
+	const cacheKey = buildScopedPathKey(
+		normalizedPath,
+		options?.designProjectId,
+		rendition,
+		options?.fileApi?.identityKey,
+	)
 	const requestCacheKey = buildRequestCacheKey(cacheKey, rendition)
 	const requestToken = forceRefreshToken ?? Symbol(requestCacheKey)
 	if (forceRefreshToken && !forceRefreshCacheKeys.has(cacheKey)) {
@@ -1311,6 +1023,7 @@ export async function getFileInfoByPath(
 		designProjectId: options?.designProjectId,
 		forceRefresh: shouldBypassCache,
 		resourceVersion,
+		fileApi: options?.fileApi,
 	}).then(
 		(urlItem): GetFileInfoResponse => {
 			const result: GetFileInfoResponse = {
@@ -1341,9 +1054,7 @@ export async function getFileInfoByPath(
 					result,
 					fileItem.file_id,
 					getPreviewFileUrlWatermarkSignature(),
-					attachmentsSnapshotKey,
 				)
-				persistCacheEntriesToStorage([cacheKey])
 			}
 			if (!shouldBypassCache) {
 				clearPendingPathRequest(requestCacheKey, requestToken)
@@ -1384,51 +1095,56 @@ export async function getFileResourceMetaByPath(
 		hasAttachmentSnapshot?: boolean
 	},
 ): Promise<CanvasFileResourceMeta> {
-	ensureStorageCacheLoaded()
-	const operationResolution = resolveDesignPathForOperation(filePath, {
-		designProjectBasePath: options?.designProjectBasePath,
-		flatAttachments: getStoreFiles(filesList),
-		attachmentIndex: options?.attachmentIndex,
-		attachmentsReady: options?.hasAttachmentSnapshot === true,
-	})
-	if (operationResolution.status === "ambiguous") return { status: "unknown" }
-	const candidates =
-		operationResolution.status === "found"
-			? [
-					{
-						resolvedPath: operationResolution.resolvedPath,
-						normalizedPath: operationResolution.normalizedPath,
-					},
-				]
-			: operationResolution.candidates
-	if (candidates.length === 0) return { status: "unknown" }
-
 	const storeFiles = getStoreFiles(filesList)
-	const hasFilesContext = storeFiles.length > 0
-	const hasAttachmentSnapshot = hasFilesContext || options?.hasAttachmentSnapshot === true
-	let lookupResult = resolveDesignAttachmentFromCandidates(candidates, filePath, {
+	const hasAttachmentSnapshot = resolveHasAttachmentSnapshot(
+		storeFiles,
+		options?.hasAttachmentSnapshot,
+	)
+	const targetResolution = resolveFileInfoCacheTarget(filePath, {
+		designProjectBasePath: options?.designProjectBasePath,
 		flatAttachments: storeFiles,
 		attachmentIndex: options?.attachmentIndex,
+		attachmentsReady: hasAttachmentSnapshot,
 	})
+	if (targetResolution.status !== "resolved") {
+		return targetResolution.status === "not-found" &&
+			hasAttachmentSnapshot &&
+			targetResolution.candidates.length === 1
+			? { status: "deleted" }
+			: { status: "unknown" }
+	}
+	const target = targetResolution.target
 
-	if (!lookupResult && hasAttachmentSnapshot) {
+	let fileItem = target.fileItem
+
+	if (!fileItem && hasAttachmentSnapshot) {
 		const latestStoreFiles = getStoreFiles(undefined)
 		const latestHasFilesContext = latestStoreFiles.length > 0
 		if (latestHasFilesContext && latestStoreFiles !== storeFiles) {
-			lookupResult = resolveDesignAttachmentFromCandidates(candidates, filePath, {
+			const latestResolution = resolveFileInfoCacheTarget(filePath, {
+				designProjectBasePath: options?.designProjectBasePath,
 				flatAttachments: latestStoreFiles,
-				attachmentIndex: options?.attachmentIndex,
+				attachmentsReady: true,
 			})
+			if (latestResolution.status === "resolved") {
+				fileItem = latestResolution.target.fileItem
+			}
 		}
 	}
 
-	if (!lookupResult) {
-		const optimisticMeta = getOptimisticFileResourceMeta(candidates, options?.designProjectId)
+	if (!fileItem) {
+		const optimisticMeta = getOptimisticFileResourceMeta(
+			target.normalizedPath,
+			options?.designProjectId,
+		)
 		if (optimisticMeta) return optimisticMeta
-		return hasAttachmentSnapshot ? { status: "deleted" } : { status: "unknown" }
+		const result = hasAttachmentSnapshot
+			? { status: "deleted" as const }
+			: { status: "unknown" as const }
+		return result
 	}
 
-	return buildFileResourceMeta(lookupResult.fileItem)
+	return buildFileResourceMeta(fileItem)
 }
 
 export function setFileInfoCache(
@@ -1438,30 +1154,35 @@ export function setFileInfoCache(
 	designProjectBasePath?: string,
 	designProjectId?: string,
 	attachmentIndex?: DesignAttachmentIndex | null,
-	options?: { allowMissingAttachment?: boolean },
+	options?: { allowMissingAttachment?: boolean; hasAttachmentSnapshot?: boolean },
 ): void {
-	ensureStorageCacheLoaded()
 	if (!cacheEnabled) return
 
-	const candidates = getResolvedPathCandidates(path, designProjectBasePath)
-	const lookupResult = resolveDesignAttachmentFromCandidates(candidates, path, {
-		flatAttachments: getStoreFiles(filesList),
+	const storeFiles = getStoreFiles(filesList)
+	const hasAttachmentSnapshot = resolveHasAttachmentSnapshot(
+		storeFiles,
+		options?.hasAttachmentSnapshot,
+	)
+	const targetResolution = resolveFileInfoCacheTarget(path, {
+		designProjectBasePath,
+		flatAttachments: storeFiles,
 		attachmentIndex,
+		attachmentsReady: hasAttachmentSnapshot,
 	})
-	const targetCandidate = lookupResult ?? candidates[0]
-	if (!targetCandidate) return
+	if (targetResolution.status !== "resolved") return
+	const targetCandidate = targetResolution.target
 
 	const cacheKey = buildScopedPathKey(targetCandidate.normalizedPath, designProjectId)
 	const fileInfoFileId = (fileInfo as { file_id?: unknown }).file_id
 	const resolvedFileId =
-		lookupResult?.fileItem.file_id ??
+		targetCandidate.fileItem?.file_id ??
 		(typeof fileInfoFileId === "string"
 			? fileInfoFileId
 			: typeof fileInfoFileId === "number"
 				? String(fileInfoFileId)
 				: undefined)
 	// 手动 prime 代表当前 path 的新一代结果；先使两个 rendition 的旧 path 请求、
-	// completed identity URL 和持久化条目失效，避免旧 in-flight response 回写覆盖新 URL。
+	// completed identity URL 失效，避免旧 in-flight response 回写覆盖新 URL。
 	;(["raw", "image-process"] as FileUrlRendition[]).forEach((rendition) => {
 		const renditionCacheKey = buildScopedPathKey(
 			targetCandidate.normalizedPath,
@@ -1475,66 +1196,13 @@ export function setFileInfoCache(
 		)
 		deleteMemoryCache(renditionCacheKey)
 	})
-	const attachmentsSnapshotKey =
-		filesList && getStoreFiles(filesList).length > 0
-			? (attachmentIndex?.attachmentsSnapshotKey ?? buildAttachmentsSnapshotKey(filesList))
-			: undefined
 	setMemoryCache(
 		cacheKey,
-		mergeFileItemMetaIntoFileInfo(fileInfo, lookupResult?.fileItem ?? null),
+		mergeFileItemMetaIntoFileInfo(fileInfo, targetCandidate.fileItem),
 		resolvedFileId,
 		getPreviewFileUrlWatermarkSignature(),
-		attachmentsSnapshotKey,
 		{ allowMissingAttachment: options?.allowMissingAttachment },
 	)
-	if (!options?.allowMissingAttachment) {
-		persistCacheEntriesToStorage([cacheKey])
-	}
-}
-
-export function getFileInfoCache(
-	path: string,
-	designProjectBasePath?: string,
-	designProjectId?: string,
-): GetFileInfoResponse | undefined {
-	ensureStorageCacheLoaded()
-
-	const candidates = getResolvedPathCandidates(path, designProjectBasePath)
-
-	for (const candidate of candidates) {
-		const cacheKey = buildScopedPathKey(candidate.normalizedPath, designProjectId)
-		const entry = fileInfoCache.get(cacheKey)
-		if (!entry) continue
-
-		if (isCachedFileInfoExpired(entry) || isPreviewWatermarkSignatureStale(entry)) {
-			deleteMemoryCache(cacheKey)
-			continue
-		}
-
-		fileInfoCache.delete(cacheKey)
-		fileInfoCache.set(cacheKey, entry)
-		return entry.fileInfo
-	}
-
-	return undefined
-}
-
-export function clearFileInfoCache(
-	path: string,
-	designProjectBasePath?: string,
-	designProjectId?: string,
-): void {
-	ensureStorageCacheLoaded()
-
-	const candidates = getResolvedPathCandidates(path, designProjectBasePath)
-	if (candidates.length === 0) return
-
-	candidates.forEach((candidate) => {
-		deleteMemoryCache(buildScopedPathKey(candidate.normalizedPath, designProjectId, "raw"))
-		deleteMemoryCache(
-			buildScopedPathKey(candidate.normalizedPath, designProjectId, "image-process"),
-		)
-	})
 }
 
 export async function getFileInfoById(
@@ -1546,6 +1214,8 @@ export async function getFileInfoById(
 		filesList?: FileItem[]
 		priority?: FileUrlRequestPriority
 		designProjectId?: string
+		/** Request identity bound at the React boundary; part of the in-flight key. */
+		fileApi?: FileApi
 	},
 ): Promise<GetFileInfoResponseWithFileId> {
 	if (!fileId) {
@@ -1566,6 +1236,7 @@ export async function getFileInfoById(
 		priority: options?.priority ?? "critical",
 		designProjectId: options?.designProjectId,
 		resourceVersion,
+		fileApi: options?.fileApi,
 	})
 	const result: GetFileInfoResponse = mergeFileItemMetaIntoFileInfo(
 		{
@@ -1596,29 +1267,17 @@ export async function getFileInfoById(
 }
 
 export function clearAllFileInfoCache(): void {
-	ensureStorageCacheLoaded()
+	clearSharedMediaUrlCache()
 
-	cancelPendingDesignFileInfoCacheReads()
 	fileInfoCache.clear()
-	invalidatedPathCacheKeys.clear()
-	pathCacheGenerationByKey.clear()
-	pendingPathCacheReads.clear()
 	fileInfoRequestCache.clear()
-	fileUrlResultCache.clear()
-	fileUrlGenerationByIdentity.clear()
 	forceRefreshRequestTokens.clear()
-	indexedDbCacheReadsDisabled = true
 	clearFileUrlFlushSchedule()
 	activeFileUrlRequestGroups.forEach((group) => {
 		settleFileUrlRequestGroup(group, new Error("File URL request cancelled"))
 	})
 	fileUrlRequestGroups.clear()
 	activeFileUrlRequestGroups.clear()
-	clearPersistedCache()
-}
-
-export async function flushFileInfoCachePersistenceForTests(): Promise<void> {
-	await flushDesignFileInfoIndexedDbCacheWrites()
 }
 
 export function setCacheEnabled(enabled: boolean): void {
@@ -1634,10 +1293,11 @@ export function cleanupFileInfoCache(
 	designProjectId?: string,
 	options?: { hasAttachmentSnapshot?: boolean },
 ): void {
-	ensureStorageCacheLoaded()
-
 	const storeFiles = getStoreFiles(filesList)
-	const hasAttachmentSnapshot = storeFiles.length > 0 || options?.hasAttachmentSnapshot === true
+	const hasAttachmentSnapshot = resolveHasAttachmentSnapshot(
+		storeFiles,
+		options?.hasAttachmentSnapshot,
+	)
 	if (!hasAttachmentSnapshot) {
 		return
 	}
@@ -1650,7 +1310,9 @@ export function cleanupFileInfoCache(
 
 	storeFiles.forEach((item) => {
 		if (!item.is_directory && item.relative_file_path) {
-			const normalizedPath = normalizePath(item.relative_file_path)
+			const normalizedPath = stripPathEdgeSlashes(
+				normalizePathSeparators(item.relative_file_path),
+			)
 			if (normalizedPath) {
 				currentFilePaths.add(normalizedPath)
 				if (item.file_id) {

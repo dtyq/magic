@@ -12,6 +12,8 @@ use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Image\V1\ImageGenerateNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Infrastructure\Core\Collector\ExecuteManager\Annotation\FlowNodeDefine;
 use App\Infrastructure\Core\Dag\VertexResult;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -74,6 +76,10 @@ class ImageGenerateNodeRunner extends NodeRunner
         $magicUserAuthorization = new MagicUserAuthorization();
         $magicUserAuthorization->setOrganizationCode($flowDataIsolation->getCurrentOrganizationCode());
         $magicUserAuthorization->setId($flowDataIsolation->getCurrentUserId());
+        $data['source_type'] = ImageGenerateSourceEnum::FLOW_NODE;
+        $data['source_id'] = $executionData->getOperator()->getSourceId() ?: SourceId::SK_FLOW;
+        $data['business_id'] = $executionData->getAgentId();
+        $data['flow_code'] = $executionData->getFlowCode();
         $images = $this->llmAppService->imageGenerate($magicUserAuthorization, '', $modelId, $data);
 
         // 这里可能是 url、base64，均记录到流程执行附件中（此时会进行上传到云服务端）。上传失败的文件会直接跳过

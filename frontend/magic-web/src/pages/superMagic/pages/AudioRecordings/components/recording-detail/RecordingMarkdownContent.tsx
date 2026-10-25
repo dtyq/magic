@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { useLatest } from "ahooks"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { AttachmentFile } from "@/pages/superMagic/utils/image-url-resolver"
 import { createRecordingMarkdownRemarkPlugin } from "../../utils/markdown-time-links"
 import {

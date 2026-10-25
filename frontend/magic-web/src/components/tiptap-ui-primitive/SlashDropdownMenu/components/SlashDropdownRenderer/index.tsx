@@ -1,8 +1,8 @@
 import { useEffect, useImperativeHandle, forwardRef, useMemo, useRef } from "react"
 import { createStyles } from "antd-style"
 import { createPortal } from "react-dom"
-import type { SuggestionKeyDownProps } from "@tiptap/suggestion"
-import type { Editor, Range } from "@tiptap/react"
+import type { SuggestionKeyDownProps } from "@/infrastructure/editors/tiptap/suggestion"
+import type { Editor, Range } from "@/infrastructure/editors/tiptap/react"
 
 import type { SuggestionItem, SlashMenuConfig } from "../../types"
 import { useSlashDropdownMenu } from "../../hooks/useSlashDropdownMenu"

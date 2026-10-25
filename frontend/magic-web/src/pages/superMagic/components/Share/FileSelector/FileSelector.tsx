@@ -5,11 +5,15 @@ import { useTranslation } from "react-i18next"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import MagicIcon from "@/components/base/MagicIcon"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
+import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
 import { CustomFolderMagicIcon } from "@/pages/superMagic/components/TopicFilesButton/components/CustomFolderMagicIcon"
+import { SlidesTemplateFolderIcon } from "@/pages/superMagic/components/TopicFilesButton/components/SlidesTemplateFolderIcon"
+import { isSlidesTemplateFolder } from "@/pages/superMagic/components/TopicFilesButton/utils/slides-template-folder"
 import FoldIcon from "@/pages/superMagic/assets/svg/file-folder.svg"
 import useStyles from "./style"
 import type { FileSelectorProps } from "./types"
 import { CheckboxState } from "./types"
+import { isMicroAppDisplayType } from "@/constants/microApp"
 import { useAttachmentIndex } from "@/pages/superMagic/components/TopicFilesButton/hooks/useAttachmentIndex"
 import { useVisibleTreeRows } from "@/pages/superMagic/components/TopicFilesButton/hooks/useVisibleTreeRows"
 import CustomTree from "@/pages/superMagic/components/TopicFilesButton/components/CustomTree/CustomTree"
@@ -60,7 +64,12 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 
 		const lowerSearch = searchValue.toLowerCase()
 		return attachments.filter((file) => {
-			const name = file.name || file.file_name || file.display_filename || ""
+			const name =
+				file.share_display_name ||
+				file.name ||
+				file.file_name ||
+				file.display_filename ||
+				""
 			return name.toLowerCase().includes(lowerSearch)
 		})
 	}, [attachments, searchValue])
@@ -433,6 +442,7 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 		(node: TreeNodeData) => {
 			const item = node.item || {}
 			const itemId = node.key
+			const isSlidesTemplate = isSlidesTemplateFolder(item)
 			const hasChildren = !node.isLeaf
 			const isExpanded = expandedKeySet.has(String(node.key))
 			const indentWidth = node.level * 10
@@ -614,7 +624,9 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 
 						{/* File/Folder icon */}
 						<div className={cx(styles.iconWrapper, !fileSupported && "opacity-50")}>
-							{item?.is_directory && !item?.display_config?.type ? (
+							{isSlidesTemplate ? (
+								<SlidesTemplateFolderIcon size={16} />
+							) : item?.is_directory && !item?.display_config?.type ? (
 								<img
 									src={FoldIcon as unknown as string}
 									alt="folder"
@@ -623,7 +635,8 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 									data-testid="file-selector-image"
 								/>
 							) : item?.metadata?.type === "custom" ||
-							  (item?.metadata?.type === "micro-app" && item?.is_directory) ? (
+							  (isMicroAppDisplayType(item?.metadata?.type) &&
+									item?.is_directory) ? (
 								<CustomFolderMagicIcon
 									displayConfig={item?.display_config}
 									childrenItems={getChildrenForCustomMetadataIconPath(
@@ -651,16 +664,21 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 							)}
 						</div>
 
-						{/* File name */}
-						<div
+						{/* File name: show full name on hover when ellipsis truncates (PC) */}
+						<MagicEllipseWithTooltip
+							text={
+								item?.share_display_name ||
+								item?.name ||
+								item?.file_name ||
+								item?.display_filename
+							}
 							className={cx(
 								styles.fileName,
 								isMobile && styles.mobileFileName,
 								!fileSupported && "text-muted-foreground/50",
 							)}
-						>
-							{item?.name || item?.file_name}
-						</div>
+							placement="topLeft"
+						/>
 
 						{/* Default open file icon */}
 						{renderDefaultOpenIcon()}

@@ -3,7 +3,7 @@ import { useCurrentNode } from "@/MagicFlow/nodes/common/context/CurrentNode/use
 import DropdownCard from "@/common/BaseUI/DropdownCard"
 import { useMemoizedFn } from "ahooks"
 import { Form } from "antd"
-import _ from "lodash"
+import { set } from "lodash-es"
 import React from "react"
 import MagicExpression from "../../../common/Expression"
 import Output from "../../../common/Output"
@@ -29,12 +29,12 @@ export default function LLMV0() {
 		// 特殊处理llm字段
 		if (changeValues.llm) {
 			const { model, ...rest } = changeValues.llm
-			_.set(currentNode, ["params", "model"], model)
+			set(currentNode, ["params", "model"], model)
 			if (rest && Object.keys(rest).length)
-				_.set(currentNode, ["params", "model_config"], rest)
+				set(currentNode, ["params", "model_config"], rest)
 		} else {
 			Object.entries(changeValues).forEach(([changeKey, changeValue]) => {
-				_.set(currentNode, ["params", changeKey], changeValue)
+				set(currentNode, ["params", changeKey], changeValue)
 			})
 		}
 

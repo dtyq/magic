@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ImageProcessOptions } from "@/utils/image-processing"
 import type { PlatformComponentProps, SelfMediaPost } from "../../types"
 import { useCoverImageUrl } from "./useCoverImageUrl"

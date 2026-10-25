@@ -43,3 +43,29 @@ export function SkipForward15Icon({ className }: { className?: string }) {
 		</svg>
 	)
 }
+
+/**
+ * 20px expand glyph for the PC collapsed transport row.
+ * Uses the same canvas and stroke as the skip icons so it stays sharp, with extra inset so it does not dominate them.
+ */
+export function ExpandPlayerIcon({ className }: { className?: string }) {
+	return (
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			width={20}
+			height={20}
+			viewBox="0 0 20 20"
+			fill="none"
+			className={className}
+			aria-hidden
+		>
+			<path
+				d="M11.667 4.167H15.833V8.333M8.333 15.833H4.167V11.667M15.833 4.167L11.667 8.333M4.167 15.833L8.333 11.667"
+				stroke="currentColor"
+				strokeWidth={1.25}
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			/>
+		</svg>
+	)
+}

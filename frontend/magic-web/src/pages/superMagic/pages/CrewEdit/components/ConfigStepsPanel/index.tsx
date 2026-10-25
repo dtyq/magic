@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
+import { useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import {
@@ -24,7 +25,7 @@ import { Separator } from "@/components/shadcn-ui/separator"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import { MagicDropdown } from "@/components/base/MagicDropdown"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import type { ImportSkillResponse } from "@/apis/modules/skills"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
@@ -47,7 +48,7 @@ import { useMemberDisplay } from "../../hooks/useMemberDisplay"
 import SkillAddDropdown from "../SkillAddDropdown"
 import EditCrewDialog from "./EditCrewDialog"
 import CrewCollaboratorsEntry from "./CrewCollaboratorsEntry"
-import { SidebarRow } from "./SidebarRow"
+import { SidebarRow, SidebarExpandableItem } from "@/pages/superMagic/components/SidebarSection"
 import { useBuiltinSkills } from "./BuiltinSkillsPanel"
 import { RoleIcon } from "../common/RoleIcon"
 import { resolveLocalText } from "../StepDetailPanel/PlaybookPanel/components/SceneEditPanel/utils"
@@ -60,77 +61,13 @@ import KnowledgeCard from "../StepDetailPanel/KnowledgeDetailView/components/Kno
 import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { getSceneThemePreviewStyle } from "../common/sceneThemePreview"
 import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
+import { usePublishScopeNotice } from "@/pages/superMagic/hooks/usePublishScopeNotice"
 
 interface ConfigStepsPanelProps {
 	onBack: () => void
 	filesContent: ReactNode
-}
-
-function SidebarExpandableItem({
-	label,
-	onClick,
-	isActive = false,
-	isExpanded = false,
-	leading,
-	trailing,
-	testId,
-	className,
-	contentClassName,
-	childrenClassName,
-	children,
-}: {
-	label: string
-	onClick: () => void
-	isActive?: boolean
-	isExpanded?: boolean
-	leading?: ReactNode
-	trailing?: ReactNode
-	testId: string
-	className?: string
-	contentClassName?: string
-	childrenClassName?: string
-	children: ReactNode
-}) {
-	return (
-		<div className={className} data-testid={`${testId}-section`}>
-			<SidebarRow
-				label={label}
-				onClick={onClick}
-				isActive={isActive}
-				isExpanded={isExpanded}
-				leading={leading}
-				trailing={trailing}
-				testId={testId}
-			/>
-			<div
-				className={cn(
-					"grid overflow-hidden transition-all duration-200 ease-out",
-					isExpanded
-						? "grid-rows-[minmax(0,1fr)] opacity-100"
-						: "pointer-events-none grid-rows-[0fr] opacity-0",
-					contentClassName,
-				)}
-				data-testid={`${testId}-content`}
-			>
-				<div
-					className={cn(
-						"min-h-0 overflow-hidden bg-muted/20 transition-[transform,opacity] duration-200 ease-out",
-						isExpanded ? "translate-y-0" : "-translate-y-1",
-					)}
-				>
-					<div
-						className={cn(
-							"duration-200",
-							isExpanded && "animate-in fade-in slide-in-from-top-1",
-							childrenClassName,
-						)}
-					>
-						{children}
-					</div>
-				</div>
-			</div>
-		</div>
-	)
+	isAttachmentsLoaded: boolean
+	isAttachmentsLoadFailed: boolean
 }
 
 const SidebarKnowledgeList = observer(function SidebarKnowledgeList({
@@ -660,7 +597,12 @@ function SidebarSection({
 	)
 }
 
-function ConfigStepsPanel({ onBack, filesContent }: ConfigStepsPanelProps) {
+function ConfigStepsPanel({
+	onBack,
+	filesContent,
+	isAttachmentsLoaded,
+	isAttachmentsLoadFailed,
+}: ConfigStepsPanelProps) {
 	const store = useCrewEditStore()
 	const { identity, skills, layout, playbook, conversation, initLoading, crewCode } = store
 	const { t } = useTranslation("crew/create")
@@ -684,6 +626,23 @@ function ConfigStepsPanel({ onBack, filesContent }: ConfigStepsPanelProps) {
 	const crewDisplayName = identity.name_i18n.default?.trim()
 	const { skills: builtinSkills } = useBuiltinSkills()
 	const installImportedSkill = useInstallImportedSkill()
+	const { checkBeforeContinue, noticeDialog } = usePublishScopeNotice({
+		projectId: conversation.selectedProject?.id,
+		getAttachmentsStatus: () => ({
+			isLoaded: isAttachmentsLoaded,
+			hasError: isAttachmentsLoadFailed,
+		}),
+		getAttachments: () => store.projectFilesStore.workspaceFilesList,
+		publishPath: ".magic",
+	})
+	const openPublishingStep = useMemoizedFn(() => {
+		if (layout.activeDetailKey === CREW_EDIT_STEP.Publishing) {
+			handleAdvancedStep(CREW_EDIT_STEP.Publishing)
+			return
+		}
+
+		return checkBeforeContinue(() => handleAdvancedStep(CREW_EDIT_STEP.Publishing))
+	})
 	const {
 		isPublishIdentityDialogOpen,
 		isPublishingPending,
@@ -696,7 +655,7 @@ function ConfigStepsPanel({ onBack, filesContent }: ConfigStepsPanelProps) {
 		isInitializing: crewCode == null || initLoading,
 		readOnly: isViewer,
 		projectId: conversation.selectedProject?.id,
-		openPublishingStep: () => handleAdvancedStep(CREW_EDIT_STEP.Publishing),
+		openPublishingStep,
 	})
 	const isCrewIdentityDialogOpen = isEditCrewDialogOpen || isPublishIdentityDialogOpen
 
@@ -1094,6 +1053,7 @@ function ConfigStepsPanel({ onBack, filesContent }: ConfigStepsPanelProps) {
 				defaultNameRequiredMessage={t("publishNameDialog.required")}
 				readOnly={isViewer}
 			/>
+			{noticeDialog}
 		</div>
 	)
 }

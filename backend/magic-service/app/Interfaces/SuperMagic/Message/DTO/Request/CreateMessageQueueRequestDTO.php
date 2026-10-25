@@ -35,6 +35,9 @@ class CreateMessageQueueRequestDTO extends AbstractRequestDTO
      */
     public string $messageType = '';
 
+    // 普通入队沿用原调度；队列草稿重发可请求立即检查队首，仍遵守活动任务保护。
+    public bool $processImmediately = false;
+
     /**
      * Get project ID.
      */
@@ -77,6 +80,7 @@ class CreateMessageQueueRequestDTO extends AbstractRequestDTO
             'topic_id' => 'required|string',
             'message_content' => 'required|array',
             'message_type' => 'required|string',
+            'process_immediately' => 'sometimes|boolean',
         ];
     }
 

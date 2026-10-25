@@ -1,9 +1,9 @@
-import Mention from "@tiptap/extension-mention"
-import type { Editor } from "@tiptap/core"
-import { ReactNodeViewRenderer } from "@tiptap/react"
-import { Suggestion } from "@tiptap/suggestion"
-import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state"
-import { logger as Logger } from "@/utils/log"
+import Mention from "@/infrastructure/editors/tiptap/extension-mention"
+import type { Editor } from "@/infrastructure/editors/tiptap/core"
+import { ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
+import { Suggestion } from "@/infrastructure/editors/tiptap/suggestion"
+import { Plugin, PluginKey, type Transaction } from "@/infrastructure/editors/tiptap/pm-state"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("MentionExtension")
 
@@ -32,6 +32,38 @@ export const mentionDeletionInputKey = new PluginKey<MentionDeletionInput | unde
 )
 
 const MENTION_CARET_GUARD_TEXT = "\u200b"
+
+/** Renders trusted SDK/draft mentions without React portals during restore transactions. */
+class TrustedMentionNodeView {
+	dom: HTMLSpanElement
+
+	constructor(private node: { attrs: TiptapMentionAttributes }) {
+		this.dom = document.createElement("span")
+		this.dom.contentEditable = "false"
+		this.dom.className =
+			"magic-mention inline-flex cursor-grab select-none px-0.5 align-middle active:cursor-grabbing"
+		this.dom.draggable = false
+		this.dom.dataset.magicEditorNode = ""
+		this.render()
+	}
+
+	private render() {
+		const attrs = this.node.attrs
+		this.dom.dataset.type = attrs.type
+		this.dom.dataset.data = JSON.stringify(attrs.data || {})
+		this.dom.textContent = `@${getMentionDisplayName(attrs)}`
+	}
+
+	update(node: { attrs: TiptapMentionAttributes }) {
+		this.node = node
+		this.render()
+		return true
+	}
+
+	destroy() {
+		this.dom.remove()
+	}
+}
 
 function getDeletionInputFromTransactions(
 	transactions: readonly Transaction[],
@@ -154,6 +186,8 @@ export function deleteNextTextCharAfterMention(
  */
 export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 	name: "mention",
+	// Custom Pointer Events dragging avoids the browser's system drag layer.
+	draggable: false,
 
 	priority: 1000, // Higher priority to override default mention
 
@@ -174,14 +208,26 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 			disableKeyboardShortcuts: false,
 			isAllowedMention: undefined,
 			dataService: undefined,
+			canToggleMultiSelectItem: undefined,
 			nodeViewRenderers: undefined,
 			shouldSkipInsertSync: undefined,
+			shouldSkipMentionValidation: undefined,
+			isTrustedMention: undefined,
 			shouldSkipRemoveSync: undefined,
 		}
 	},
 
 	addNodeView() {
-		return ReactNodeViewRenderer(MentionNodeView)
+		return (props) => {
+			const attrs = props.node.attrs as TiptapMentionAttributes
+			const hasCustomRenderer = Boolean(
+				this.options.nodeViewRenderers?.[attrs.type as MentionItemType],
+			)
+			if (this.options.isTrustedMention?.(attrs) && !hasCustomRenderer) {
+				return new TrustedMentionNodeView({ attrs })
+			}
+			return ReactNodeViewRenderer(MentionNodeView)(props)
+		}
 	},
 
 	addStorage() {
@@ -236,6 +282,14 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 				renderHTML: (attributes) => ({
 					"data-data": JSON.stringify(attributes.data || {}),
 				}),
+			},
+			pending: {
+				default: false,
+				rendered: false,
+			},
+			pendingId: {
+				default: null,
+				rendered: false,
 			},
 		}
 	},
@@ -447,6 +501,7 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					oldState.doc.descendants((node, pos) => {
 						if (node.type.name === "mention") {
 							const attrs = node.attrs as TiptapMentionAttributes
+							if (attrs.pending) return true
 							const uniqueId = getMentionUniqueId(attrs)
 							oldMentions.set(`${pos}-${uniqueId}`, {
 								item: {
@@ -463,14 +518,19 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					newState.doc.descendants((node, pos) => {
 						if (node.type.name === "mention") {
 							const attrs = node.attrs as TiptapMentionAttributes
+							if (attrs.pending) return true
 							const uniqueId = getMentionUniqueId(attrs)
 
-							const isAllowed = this.options.dataService
-								? (this.options.isAllowedMention?.(
-										attrs,
-										this.options.dataService,
-									) ?? true)
-								: true
+							const shouldSkipValidation =
+								(this.options.shouldSkipMentionValidation?.() ?? false) ||
+								(this.options.isTrustedMention?.(attrs) ?? false)
+							const isAllowed =
+								shouldSkipValidation || !this.options.dataService
+									? true
+									: (this.options.isAllowedMention?.(
+											attrs,
+											this.options.dataService,
+										) ?? true)
 
 							if (!isAllowed) {
 								tr.delete(pos, pos + node.nodeSize)
@@ -506,21 +566,26 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					}
 
 					if (uniqueInsertedMentions.length > 0) {
-						const mentionItems = uniqueInsertedMentions.map((mention) => ({
-							id: getMentionUniqueId(mention),
-							type: mention.type,
-							name: getMentionDisplayName(mention),
-							icon: getMentionIcon(mention),
-							description: getMentionDescription(mention),
-							data: mention.data,
-						}))
+						// Text mentions are editor-only SDK nodes and must not enter mention history metadata.
+						const mentionItems = uniqueInsertedMentions
+							.filter((mention) => mention.type !== MentionItemType.TEXT)
+							.map((mention) => ({
+								id: getMentionUniqueId(mention),
+								type: mention.type,
+								name: getMentionDisplayName(mention),
+								icon: getMentionIcon(mention),
+								description: getMentionDescription(mention),
+								data: mention.data,
+							}))
 
-						// 优先使用 onInsertItems 批量处理
-						if (onInsertItems) {
-							onInsertItems(mentionItems)
-						} else if (onInsert) {
-							// onInsert 现在只处理单个 mention
-							mentionItems.forEach((item) => onInsert(item))
+						if (mentionItems.length > 0) {
+							// 优先使用 onInsertItems 批量处理
+							if (onInsertItems) {
+								onInsertItems(mentionItems)
+							} else if (onInsert) {
+								// onInsert 现在只处理单个 mention
+								mentionItems.forEach((item) => onInsert(item))
+							}
 						}
 					}
 
@@ -562,6 +627,7 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					oldState.doc.descendants((node, pos) => {
 						if (node.type.name === "mention") {
 							const attrs = node.attrs as TiptapMentionAttributes
+							if (attrs.pending) return true
 							const uniqueId = getMentionUniqueId(attrs)
 							oldMentions.set(`${pos}-${uniqueId}`, {
 								item: {
@@ -578,6 +644,7 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					newState.doc.descendants((node, pos) => {
 						if (node.type.name === "mention") {
 							const attrs = node.attrs as TiptapMentionAttributes
+							if (attrs.pending) return true
 							const uniqueId = getMentionUniqueId(attrs)
 							newMentions.set(`${pos}-${uniqueId}`, {
 								type: attrs.type,
@@ -779,6 +846,7 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 
 		if (
 			attrs.type === MentionItemType.FOLDER ||
+			attrs.type === MentionItemType.USER_DIRECTORY ||
 			attrs.type === MentionItemType.MEMORY_DIRECTORY
 		) {
 			displayName = `${displayName}/`

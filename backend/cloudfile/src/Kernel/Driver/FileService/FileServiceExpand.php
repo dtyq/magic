@@ -15,6 +15,7 @@ use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\ImageProcessOptions;
+use Dtyq\CloudFile\Kernel\Utils\RetryExecutor;
 use League\Flysystem\FileAttributes;
 
 class FileServiceExpand implements ExpandInterface
@@ -26,9 +27,14 @@ class FileServiceExpand implements ExpandInterface
         $this->fileServiceApi = $fileServiceApi;
     }
 
+    /**
+     * 获取上传凭证，发生异常时最多重试两次.
+     */
     public function getUploadCredential(CredentialPolicy $credentialPolicy, array $options = []): array
     {
-        return $this->fileServiceApi->getTemporaryCredential($credentialPolicy, $options);
+        return RetryExecutor::execute(
+            fn () => $this->fileServiceApi->getTemporaryCredential($credentialPolicy, $options)
+        );
     }
 
     /**

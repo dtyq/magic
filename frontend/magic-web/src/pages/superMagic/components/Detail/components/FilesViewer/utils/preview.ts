@@ -1,3 +1,4 @@
+import { getMagicProjectType, type MagicProjectPreviewKind } from "@/constants/magicProjectTypes"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import {
 	DetailType,
@@ -7,6 +8,8 @@ import {
 import type { FileItem } from "../types"
 import { isMagicProjectConfigFile } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import { normalizeAttachmentPath } from "../hooks/previewPolicy"
+import { isAudioFolderRootRenderEnabled } from "../../../utils/file"
+import { shouldPreserveLegacyToolContentDetail } from "./legacyToolDetailCompatibility"
 
 /** 易被误标为文本、进而拉取/序列化大资源导致卡顿的 detail 类型 */
 const TEXT_LIKE_DETAIL_TYPES: string[] = [DetailType.Text, DetailType.Md, DetailType.Code]
@@ -56,6 +59,8 @@ function resolveHistoricalFileDetail(
 	if (detail.type === DetailType.Browser) return detail
 	// 工具消息正文和临时截图不属于项目附件树。
 	if (isNonWorkspaceFile(detail.data)) return detail
+	// 仅保留旧版工具内容详情；这是历史协议兼容，不参与正常文件判断。
+	if (shouldPreserveLegacyToolContentDetail(detail)) return detail
 
 	const fileName = resolveDetailFileName(detail.data)
 	if (!fileName) return detail
@@ -208,6 +213,34 @@ function slideDataTransformer(item: FileItem) {
 	}
 }
 
+/** Audio bundle transformer keeps the folder or legacy HTML entry metadata for AudioRootRender. */
+function audioDataTransformer(item: FileItem) {
+	const fileName = item.display_filename || item.file_name || item.filename
+	return {
+		file_name: fileName,
+		name: fileName,
+		is_directory: item.is_directory,
+		children: item.children,
+		...(item.relative_file_path !== undefined
+			? { relative_file_path: item.relative_file_path }
+			: {}),
+		...(item.parent_id !== undefined ? { parent_id: item.parent_id } : {}),
+		display_config: item.display_config,
+	}
+}
+
+function slidesTemplateDataTransformer(item: FileItem) {
+	return {
+		file_name: item.display_filename || item.file_name || item.filename,
+		name: item.display_filename || item.file_name || item.filename,
+		is_directory: true,
+		children: item.children,
+		relative_file_path: item.relative_file_path,
+		parent_id: item.parent_id,
+		display_config: item.display_config,
+	}
+}
+
 /**
  * Self-media folder transformer. Platforms are now expressed as keys
  * under the top-level `self-media` map (e.g. `rednote`, `instagram`),
@@ -247,38 +280,53 @@ function aiCardDataTransformer(item: FileItem) {
  * 内容类型渲染配置列表
  * 这些内容类型不依赖文件内容，有自己的 detail render content
  */
-const contentTypeRenderConfigs: ContentTypeRenderConfig[] = [
-	{
+const contentTypeRenderConfigs = {
+	audio: {
+		displayConfigType: "audio",
+		detailType: DetailType.Html,
+		dataTransformer: audioDataTransformer,
+		priority: 10,
+	},
+	slide: {
 		displayConfigType: "slide",
 		detailType: DetailType.Html,
 		dataTransformer: slideDataTransformer,
 		priority: 10,
 	},
-	{
+	"slide-template": {
+		displayConfigType: "slide-template",
+		detailType: DetailType.SlidesTemplate,
+		dataTransformer: slidesTemplateDataTransformer,
+		priority: 20,
+	},
+	design: {
 		displayConfigType: "design",
 		detailType: DetailType.Design,
 		dataTransformer: designDataTransformer,
 		priority: 10,
 	},
-	{
+	"self-media": {
 		displayConfigType: "self-media",
 		detailType: DetailType.SelfMedia,
 		dataTransformer: selfMediaDataTransformer,
 		priority: 10,
 	},
-	{
+	"ai-card": {
 		displayConfigType: "ai-card",
 		detailType: DetailType.AICard,
 		dataTransformer: aiCardDataTransformer,
 		priority: 10,
 	},
-]
+} satisfies Record<MagicProjectPreviewKind, ContentTypeRenderConfig>
 
 /**
  * 检测文件/文件夹是否应该使用内容类型渲染
  * 这种渲染不依赖文件内容，有自己的 detail render content
  */
 export function detectContentTypeRender(item: FileItem): ContentTypeRenderConfig | null {
+	if (item.display_config?.type === "audio" && !isAudioFolderRootRenderEnabled()) {
+		return null
+	}
 	if (!item.display_config?.type) {
 		return null
 	}
@@ -289,14 +337,8 @@ export function detectContentTypeRender(item: FileItem): ContentTypeRenderConfig
 		return null
 	}
 
-	const displayConfigType = item.display_config.type
-
-	// 查找匹配的配置，按优先级排序
-	const matchedConfigs = contentTypeRenderConfigs
-		.filter((config) => config.displayConfigType === displayConfigType)
-		.sort((a, b) => (b.priority || 0) - (a.priority || 0))
-
-	return matchedConfigs[0] || null
+	const previewKind = getMagicProjectType(item.display_config.type)?.previewKind
+	return previewKind ? contentTypeRenderConfigs[previewKind] : null
 }
 
 /**

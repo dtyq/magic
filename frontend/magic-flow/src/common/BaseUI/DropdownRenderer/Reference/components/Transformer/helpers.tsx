@@ -11,7 +11,7 @@ import {
 	IconToggleLeftFilled,
 } from "@tabler/icons-react"
 import i18next from "i18next"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import React from "react"
 import { StepOption } from "."
 
@@ -153,7 +153,7 @@ const getAllMethodMap: () => Record<FormItemType, StepOption[]> = () => ({
 
 /** 根据字段类型生成可以转换的函数 */
 export const generateStepOptions = (type: string): StepOption[] => {
-	return _.cloneDeep(getAllMethodMap()[type as FormItemType])
+	return cloneDeep(getAllMethodMap()[type as FormItemType])
 }
 
 function getUniqueOptions(allMethodMap: Record<FormItemType, StepOption[]>): StepOption[] {

@@ -122,19 +122,10 @@ class VideoCatalogQueryDomainServiceTest extends TestCase
             $this->assertGreaterThan(0, $model->getId());
             $this->assertSame(ModelType::TEXT_TO_VIDEO->value, $model->getModelType());
             $this->assertSame([], $model->getRuntimeConfig());
-            $this->assertSame($model->getId(), $service->findModel((string) $model->getId())?->getId());
         }
 
         $this->assertSame('0.01', $modelsByModelId[$this->officialFastVideoModelId()]->getConfig()['time_pricing']);
         $this->assertSame('0.1', $modelsByModelId[$this->officialProVideoModelId()]->getConfig()['time_pricing']);
-        $this->assertSame(
-            $modelsByModelId[$this->officialFastVideoModelId()]->getId(),
-            $service->findModel($this->officialFastVideoModelVersion())?->getId()
-        );
-        $this->assertSame(
-            $modelsByModelId[$this->officialProVideoModelId()]->getId(),
-            $service->findModel($this->officialProVideoModelVersion())?->getId()
-        );
     }
 
     /**

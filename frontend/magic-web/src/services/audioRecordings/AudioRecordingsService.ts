@@ -1,3 +1,4 @@
+import { assertProjectDeletionAllowed } from "@/services/recordSummary/projectDeletionRecordingGuard"
 import { SuperMagicApi } from "@/apis"
 import type { RecoverFinishRecordingTaskResponse } from "@/apis/modules/superMagic/recordSummary"
 import type {
@@ -70,6 +71,7 @@ export class AudioRecordingsService {
 
 	/** Deletes multiple audio projects in one batch request */
 	async batchDeleteProjects(projectIds: string[]): Promise<void> {
+		assertProjectDeletionAllowed(projectIds)
 		await SuperMagicApi.batchDeleteProjects({ project_ids: projectIds })
 	}
 

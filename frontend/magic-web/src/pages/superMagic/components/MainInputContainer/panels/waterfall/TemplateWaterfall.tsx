@@ -5,7 +5,7 @@ import WaterfallCard from "./WaterfallCard"
 import { useWaterfallColumns } from "./useWaterfallColumns"
 import type { OptionItem } from "../types"
 import { getOptionValue } from "../utils"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface TemplateWaterfallProps {
 	selectedTemplate?: OptionItem

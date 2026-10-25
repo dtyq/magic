@@ -1,4 +1,4 @@
-import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
+import { NodeViewWrapper, type NodeViewProps } from "@/infrastructure/editors/tiptap/react"
 import { cx } from "antd-style"
 import type { FC, SyntheticEvent } from "react"
 import { useCallback, useRef, useState } from "react"

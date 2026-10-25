@@ -56,6 +56,8 @@ describe("PPTIncrementalUpdateService", () => {
 		notifyServerUpdate?: (fileId: string, content: string) => void
 		generateSlideScreenshot?: (index: number, targetContent?: string) => Promise<void>
 		ensureSlideScreenshot?: (index: number) => Promise<void>
+		matchesLocalSave?: (fileId: string, content: string) => boolean
+		hasPendingSave?: (fileId: string) => boolean
 		slides?: SlideItem[]
 	}) {
 		return {
@@ -82,6 +84,8 @@ describe("PPTIncrementalUpdateService", () => {
 			clearManualSaveMark: input?.clearManualSaveMark,
 			getSlideEditingState: input?.getSlideEditingState,
 			notifyServerUpdate: input?.notifyServerUpdate,
+			matchesLocalSave: input?.matchesLocalSave,
+			hasPendingSave: input?.hasPendingSave,
 		}
 	}
 
@@ -133,6 +137,141 @@ describe("PPTIncrementalUpdateService", () => {
 		expect(clearManualSaveMark).toHaveBeenCalledWith("file-1")
 		expect(notifyServerUpdate).toHaveBeenCalledWith("file-1", "<div>server-new-content</div>")
 		expect(generateSlideScreenshot).toHaveBeenCalledWith(0, "<div>server-new-content</div>")
+	})
+
+	it("skips reload and thumbnail reset for a notes save echo outside edit mode", async () => {
+		const clearManualSaveMark = vi.fn()
+		const generateSlideScreenshot = vi.fn(async () => undefined)
+		const context = createContext({
+			isSlideManuallySaved: () => true,
+			getSlideEditingState: () => false,
+			clearManualSaveMark,
+			generateSlideScreenshot,
+			slides: [
+				{
+					id: "slide-1",
+					path: "slide-1.html",
+					url: "https://example.com/old-slide-1",
+					index: 0,
+					content: "<div>saved-content</div>",
+					rawContent: "<div>saved-content</div>",
+					thumbnailUrl: "blob:existing-thumb",
+					loadingState: "loaded",
+					lastLoadedAt: 100,
+				},
+			],
+		})
+
+		await incrementalUpdateService.applyIncrementalUpdates(
+			{ hasChanges: false, added: [], removed: [], reordered: false },
+			new Set(["file-1"]),
+			["slide-1.html"],
+			context,
+		)
+
+		expect(context.loadSlideContent).not.toHaveBeenCalled()
+		expect(generateSlideScreenshot).not.toHaveBeenCalled()
+		expect(screenshotService.clearCache).not.toHaveBeenCalled()
+		expect(clearManualSaveMark).toHaveBeenCalledWith("file-1")
+		expect(context.slides[0].thumbnailUrl).toBe("blob:existing-thumb")
+		expect(context.slides[0].lastLoadedAt).toBe(100)
+	})
+
+	it("skips auto-reload while a queued save is still pending", async () => {
+		const notifyServerUpdate = vi.fn()
+		const context = createContext({
+			hasPendingSave: () => true,
+			matchesLocalSave: () => true,
+			notifyServerUpdate,
+			slides: [
+				{
+					id: "slide-1",
+					path: "slide-1.html",
+					url: "https://example.com/old-slide-1",
+					index: 0,
+					content: "<div>local-draft</div>",
+					rawContent: "<div>local-draft</div>",
+					thumbnailUrl: "blob:existing-thumb",
+					loadingState: "loaded",
+				},
+			],
+		})
+
+		await incrementalUpdateService.applyIncrementalUpdates(
+			{ hasChanges: false, added: [], removed: [], reordered: false },
+			new Set(["file-1"]),
+			["slide-1.html"],
+			context,
+		)
+
+		expect(context.loadSlideContent).not.toHaveBeenCalled()
+		expect(notifyServerUpdate).not.toHaveBeenCalled()
+		expect(context.slides[0].content).toBe("<div>local-draft</div>")
+	})
+
+	it("surfaces a foreign remote change while an edited slide still has a pending save", async () => {
+		const notifyServerUpdate = vi.fn()
+		const context = createContext({
+			getSlideEditingState: () => true,
+			hasPendingSave: () => true,
+			matchesLocalSave: () => false,
+			loadSlideContentSilently: async () => "<div>remote-change</div>",
+			notifyServerUpdate,
+			slides: [
+				{
+					id: "slide-1",
+					path: "slide-1.html",
+					url: "https://example.com/old-slide-1",
+					index: 0,
+					content: "<div>local-draft</div>",
+					rawContent: "<div>local-draft</div>",
+					loadingState: "loaded",
+				},
+			],
+		})
+
+		await incrementalUpdateService.applyIncrementalUpdates(
+			{ hasChanges: false, added: [], removed: [], reordered: false },
+			new Set(["file-1"]),
+			["slide-1.html"],
+			context,
+		)
+
+		expect(notifyServerUpdate).toHaveBeenCalledWith("file-1", "<div>remote-change</div>")
+	})
+
+	it("applies a staged remote update once the save queue is idle", async () => {
+		let pending = true
+		const context = createContext({
+			hasPendingSave: () => pending,
+			slides: [
+				{
+					id: "slide-1",
+					path: "slide-1.html",
+					url: "https://example.com/old-slide-1",
+					index: 0,
+					content: "<div>local-draft</div>",
+					rawContent: "<div>local-draft</div>",
+					loadingState: "loaded",
+				},
+			],
+		})
+
+		await incrementalUpdateService.applyIncrementalUpdates(
+			{ hasChanges: false, added: [], removed: [], reordered: false },
+			new Set(["file-1"]),
+			["slide-1.html"],
+			context,
+		)
+		await incrementalUpdateService.flushStagedRemoteUpdates(context)
+		expect(context.loadSlideContent).not.toHaveBeenCalled()
+
+		pending = false
+		await incrementalUpdateService.flushStagedRemoteUpdates(context)
+		expect(context.loadSlideContent).toHaveBeenCalledTimes(1)
+
+		await incrementalUpdateService.flushStagedRemoteUpdates(context)
+		expect(context.loadSlideContent).toHaveBeenCalledTimes(1)
 	})
 
 	it("keeps added slides idle until active or sidebar demand loads them", async () => {
@@ -253,5 +392,30 @@ describe("PPTIncrementalUpdateService", () => {
 		expect(updatedFileIds.has("file-2")).toBe(true)
 		expect(updatedFileIds.has("outside-file")).toBe(false)
 		expect(updatedFileIds.has("folder-1")).toBe(false)
+	})
+
+	it("does not treat the whole project as updated when the folder index is empty", () => {
+		pathMappingService.getPPTFolderFileIds.mockReturnValue(new Set())
+
+		const updatedFileIds = incrementalUpdateService.detectUpdatedFiles(
+			[
+				{
+					file_id: "other-folder",
+					file_name: "SLIDE-other",
+					updated_at: "1",
+					children: [{ file_id: "other-slide", updated_at: "1" }],
+				},
+			] as never,
+			[
+				{
+					file_id: "other-folder",
+					file_name: "SLIDE-other",
+					updated_at: "2",
+					children: [{ file_id: "other-slide", updated_at: "2" }],
+				},
+			] as never,
+		)
+
+		expect(updatedFileIds.size).toBe(0)
 	})
 })

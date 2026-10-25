@@ -11,7 +11,7 @@ use App\Interfaces\MagicBase\DTO\AbstractMagicBaseDTO;
 
 class MagicBaseTableResponseDTO extends AbstractMagicBaseDTO
 {
-    protected int|string $id = '';
+    protected string $id = '';
 
     protected int|string $projectId = '';
 
@@ -32,4 +32,9 @@ class MagicBaseTableResponseDTO extends AbstractMagicBaseDTO
     protected ?string $updatedAt = null;
 
     protected array $columns = [];
+
+    public function setId(null|int|string $value): void
+    {
+        $this->id = $value === null ? '' : (string) $value;
+    }
 }

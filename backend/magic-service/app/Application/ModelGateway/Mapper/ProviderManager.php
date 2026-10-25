@@ -99,10 +99,13 @@ readonly class ProviderManager
      * @param ProviderDataIsolation $providerDataIsolation 数据隔离对象
      * @return array<string, array<string>> 按模型类型分组的模型ID数组，格式: [modelType => [model_id, model_id]]
      */
-    public function getModelIdsGroupByType(ProviderDataIsolation $providerDataIsolation): array
+    public function getModelIdsGroupByType(ProviderDataIsolation $providerDataIsolation, array $modelTypes = []): array
     {
         $query = new ProviderModelQuery();
         $query->setStatus(Status::Enabled);
+        if (! empty($modelTypes)) {
+            $query->setModelTypes($modelTypes);
+        }
         $query->setOrder(['model_id' => 'asc']);
 
         return $this->providerModelDomainService->getModelIdsGroupByType($providerDataIsolation, $query);

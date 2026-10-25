@@ -9,6 +9,10 @@ namespace App\Application\Speech\Event;
 
 class AsrSummaryMessage
 {
+    public const string MODE_RECORDING = 'recording';
+
+    public const string MODE_TITLE_ONLY = 'title_only';
+
     public function __construct(
         public string $taskKey,
         public string $projectId,
@@ -20,7 +24,8 @@ class AsrSummaryMessage
         public string $organizationCode,
         public string $language,
         public string $requestId,
-        public int $retryCount = 0
+        public int $retryCount = 0,
+        public string $mode = self::MODE_RECORDING
     ) {
     }
 
@@ -38,11 +43,17 @@ class AsrSummaryMessage
             'language' => $this->language,
             'request_id' => $this->requestId,
             'retry_count' => $this->retryCount,
+            'mode' => $this->mode,
         ];
     }
 
     public static function fromArray(array $data): self
     {
+        $mode = (string) ($data['mode'] ?? self::MODE_RECORDING);
+        if (! in_array($mode, [self::MODE_RECORDING, self::MODE_TITLE_ONLY], true)) {
+            $mode = self::MODE_RECORDING;
+        }
+
         return new self(
             (string) ($data['task_key'] ?? ''),
             (string) ($data['project_id'] ?? ''),
@@ -54,7 +65,8 @@ class AsrSummaryMessage
             (string) ($data['organization_code'] ?? ''),
             (string) ($data['language'] ?? 'zh_CN'),
             (string) ($data['request_id'] ?? ''),
-            (int) ($data['retry_count'] ?? 0)
+            (int) ($data['retry_count'] ?? 0),
+            $mode
         );
     }
 }

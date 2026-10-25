@@ -12,6 +12,7 @@ import { withAttachmentsRefreshWaitersResolved } from "../../services/attachment
 import { projectAttachmentsChangeLog } from "./changeLogReporter"
 import { parseProjectAttachmentsChangeEvent } from "./changeEventParser"
 import { getAttachmentName, normalizeAttachmentId, normalizeAttachmentItem } from "./treeUtils"
+import { getSharedMediaResourceScope } from "../../services/sharedMediaResourceScope"
 
 export { getProjectAttachmentsChangeDedupeKey } from "./changeEventParser"
 
@@ -20,7 +21,7 @@ export const DEFAULT_PROJECT_ATTACHMENTS_PARENT_REFRESH_WINDOW_MS = 1000
 
 const DEDUPE_TTL_MS = 60_000
 const PROJECT_ATTACHMENTS_PARENT_REFRESH_PAGE_SIZE = 1000
-const FILE_TYPES = ["user_upload", "process", "system_auto_upload", "directory"]
+const FILE_TYPES = ["user_upload", "user_create", "process", "system_auto_upload", "directory"]
 // Dedupe state follows each store instance so pages/popups do not swallow each other.
 const appliedSeqKeysByStore = new WeakMap<ProjectFilesStore, Map<string, number>>()
 // Full-refresh fallback can have many triggers; keep one in-flight request per project.
@@ -30,8 +31,7 @@ const fallbackRefreshByProject = new Map<
 >()
 
 function getTemporaryToken() {
-	if (typeof window === "undefined") return ""
-	return (window as Window & { temporary_token?: string }).temporary_token || ""
+	return ""
 }
 
 export function getProjectAttachmentsChangeDedupeMap(store: ProjectFilesStore) {
@@ -124,7 +124,9 @@ export function resolveProjectAttachmentsChangeEvent(params: {
 }
 
 export function loadProjectAttachmentsSingleflight(projectId: string) {
-	const existing = fallbackRefreshByProject.get(projectId)
+	// 同项目只合并同一账户／组织的读取，不能复用切换身份前仍在途的请求。
+	const requestKey = `${getSharedMediaResourceScope()}\0${projectId}`
+	const existing = fallbackRefreshByProject.get(requestKey)
 	if (existing) return existing
 
 	// Unsafe reducer states such as missing parents fall back to full refresh.
@@ -138,10 +140,10 @@ export function loadProjectAttachmentsSingleflight(projectId: string) {
 			list: res.list || [],
 		})),
 	).finally(() => {
-		fallbackRefreshByProject.delete(projectId)
+		fallbackRefreshByProject.delete(requestKey)
 	})
 
-	fallbackRefreshByProject.set(projectId, request)
+	fallbackRefreshByProject.set(requestKey, request)
 	return request
 }
 
@@ -179,6 +181,16 @@ interface LoadRefreshParentChildrenSubtreeFromV2Params {
 interface ApplyRefreshParentChildrenSubtreeParams {
 	projectId: string
 	parentIds: string[]
+	serverItems: AttachmentItem[]
+	store: ProjectFilesStore
+	trace?: ProjectAttachmentParentRefreshTrace
+}
+
+interface ApplyMergedParentRefreshParams {
+	projectId: string
+	parentItemIds: string[]
+	parentFileItems: AttachmentItem[]
+	childrenParentIds: string[]
 	serverItems: AttachmentItem[]
 	store: ProjectFilesStore
 	trace?: ProjectAttachmentParentRefreshTrace
@@ -251,6 +263,124 @@ export function collectFileChangeParentRefreshIds(
 		if (parentId) parentIds.push(parentId)
 	}
 	return normalizeRefreshParentIds(parentIds)
+}
+
+// WS already carries explicit non-directory file payloads; subtree reconcile is redundant.
+export function shouldSkipParentChildrenReconcileAfterWsApply(changes: SuperMagicFileChangeItem[]) {
+	if (changes.length === 0) return true
+
+	return changes.every((change) => {
+		if (change.operation === "delete") return false
+		const incoming = change.file ? normalizeAttachmentItem(change.file as AttachmentItem) : null
+		return Boolean(incoming && !incoming.is_directory)
+	})
+}
+
+function buildParentItemRefreshChanges(
+	parentFileItems: AttachmentItem[],
+	localItemById: Map<string, AttachmentItem>,
+) {
+	const changes: SuperMagicFileChangeItem[] = []
+	for (const parent of parentFileItems) {
+		const fileId = normalizeAttachmentId(parent.file_id)
+		if (!fileId) continue
+
+		const localItem = localItemById.get(fileId)
+		if (
+			localItem &&
+			getParentItemRefreshSignature(localItem) === getParentItemRefreshSignature(parent)
+		) {
+			continue
+		}
+
+		changes.push({
+			operation: "update",
+			file_id: fileId,
+			file: parent as SuperMagicFileChangeItem["file"],
+		})
+	}
+	return changes
+}
+
+function buildParentChildrenReconcileChanges(params: {
+	parentIds: string[]
+	serverItems: AttachmentItem[]
+	store: ProjectFilesStore
+}) {
+	const parentIds = normalizeRefreshParentIds(params.parentIds)
+	if (parentIds.length === 0) return []
+
+	const localItemById = createAttachmentLookup(params.store.workspaceFilesList)
+	const serverItems = withResolvedSubtreePaths(params.serverItems, localItemById)
+	const localParentItems = parentIds
+		.map((parentId) => localItemById.get(parentId))
+		.filter((item): item is AttachmentItem => Boolean(item))
+	const localItems = [
+		...localParentItems,
+		...collectLocalDescendants(params.store.workspaceFilesList, parentIds),
+	]
+
+	return createParentChildrenReconcileChanges({
+		parentIds,
+		serverItems,
+		localItems,
+	})
+}
+
+export function buildMergedParentRefreshChanges(params: {
+	projectId: string
+	parentItemIds: string[]
+	parentFileItems: AttachmentItem[]
+	childrenParentIds: string[]
+	serverItems: AttachmentItem[]
+	store: ProjectFilesStore
+	trace?: ProjectAttachmentParentRefreshTrace
+}) {
+	const parentItemIds = normalizeRefreshParentIds(params.parentItemIds)
+	const childrenParentIds = normalizeRefreshParentIds(params.childrenParentIds)
+	const localItemById = createAttachmentLookup(params.store.workspaceFilesList)
+	const changes: SuperMagicFileChangeItem[] = []
+
+	if (parentItemIds.length > 0 && params.parentFileItems.length > 0) {
+		const refreshedParentIds = new Set(
+			params.parentFileItems
+				.map((item) => normalizeAttachmentId(item.file_id))
+				.filter(Boolean),
+		)
+		const missingParentIds = parentItemIds.filter(
+			(parentId) => !refreshedParentIds.has(parentId),
+		)
+		if (missingParentIds.length > 0) {
+			projectAttachmentsChangeLog.refreshParentIdsSkipped({
+				projectId: params.projectId,
+				parentIds: missingParentIds,
+				reason: "parent_not_found",
+				traceId: params.trace?.traceId,
+			})
+		}
+		const parentChanges = buildParentItemRefreshChanges(params.parentFileItems, localItemById)
+		if (parentChanges.length === 0 && params.parentFileItems.length > 0) {
+			projectAttachmentsChangeLog.refreshParentIdsSkipped({
+				projectId: params.projectId,
+				parentIds: parentItemIds,
+				reason: "no_diff",
+				traceId: params.trace?.traceId,
+			})
+		}
+		changes.push(...parentChanges)
+	}
+
+	if (childrenParentIds.length > 0) {
+		changes.push(
+			...buildParentChildrenReconcileChanges({
+				parentIds: childrenParentIds,
+				serverItems: params.serverItems,
+				store: params.store,
+			}),
+		)
+	}
+
+	return changes
 }
 
 // Extracts the requested parent folder item from a v2 response page.
@@ -359,6 +489,23 @@ function getReconcileSignature(item: AttachmentItem) {
 	].join("|")
 }
 
+// Parent folder refresh often only bumps updated_at/sort; skip those for no-op detection.
+function getParentItemRefreshSignature(item: AttachmentItem) {
+	return [
+		normalizeAttachmentId(item.parent_id),
+		getAttachmentName(item),
+		String(Boolean(item.is_directory)),
+		String(item.file_type || ""),
+		String(item.file_extension || ""),
+		String(item.file_key || ""),
+		String(item.file_size ?? ""),
+		String(item.file_url || ""),
+		String(item.source ?? ""),
+		createConfigSignature(item.display_config),
+		createConfigSignature(item.metadata),
+	].join("|")
+}
+
 // Serializes display metadata only for reconcile comparisons.
 function createConfigSignature(value: unknown) {
 	if (value === null || value === undefined) return ""
@@ -410,7 +557,10 @@ function createParentChildrenReconcileChanges(params: {
 	for (const serverParentItem of serverParentItems) {
 		const fileId = normalizeAttachmentId(serverParentItem.file_id)
 		const localParentItem = localById.get(fileId)
-		if (localParentItem && getReconcileSignature(localParentItem) === getReconcileSignature(serverParentItem)) {
+		if (
+			localParentItem &&
+			getReconcileSignature(localParentItem) === getReconcileSignature(serverParentItem)
+		) {
 			continue
 		}
 		changes.push({
@@ -550,35 +700,25 @@ export function applyRefreshParentFileItems(params: ApplyRefreshParentFileItemsP
 	const parentFileItems = params.parentFileItems
 	if (parentIds.length === 0) return null
 
-	const refreshedParentIds = new Set(
-		parentFileItems.map((item) => normalizeAttachmentId(item.file_id)).filter(Boolean),
-	)
-	const missingParentIds = parentIds.filter((parentId) => !refreshedParentIds.has(parentId))
-	if (missingParentIds.length > 0) {
-		projectAttachmentsChangeLog.refreshParentIdsSkipped({
+	const changes = buildMergedParentRefreshChanges({
+		projectId: params.projectId,
+		parentItemIds: parentIds,
+		parentFileItems,
+		childrenParentIds: [],
+		serverItems: [],
+		store: params.store,
+		trace: params.trace,
+	})
+	if (changes.length === 0) return null
+
+	const result = params.store.applyFileChanges(changes, {
+		applySource: "refresh_parent_ids",
+		trace: {
+			...params.trace,
 			projectId: params.projectId,
-			parentIds: missingParentIds,
-			reason: "parent_not_found",
-			traceId: params.trace?.traceId,
-		})
-	}
-
-	if (parentFileItems.length === 0) return null
-
-	const result = params.store.applyFileChanges(
-		parentFileItems.map((parent) => ({
-			operation: "update",
-			file_id: normalizeAttachmentId(parent.file_id),
-			file: parent as SuperMagicFileChangeItem["file"],
-		})),
-		{
-			trace: {
-				...params.trace,
-				projectId: params.projectId,
-				batchSize: parentFileItems.length,
-			},
+			batchSize: changes.length,
 		},
-	)
+	})
 
 	if (result.fallbackRequired) {
 		projectAttachmentsChangeLog.refreshParentIdsSkipped({
@@ -592,7 +732,9 @@ export function applyRefreshParentFileItems(params: ApplyRefreshParentFileItemsP
 
 	projectAttachmentsChangeLog.refreshParentIdsSuccess({
 		projectId: params.projectId,
-		parentIds: Array.from(refreshedParentIds),
+		parentIds: parentFileItems
+			.map((item) => normalizeAttachmentId(item.file_id))
+			.filter(Boolean),
 		treeCount: result.tree.length,
 		listCount: result.list.length,
 		traceId: params.trace?.traceId,
@@ -601,26 +743,90 @@ export function applyRefreshParentFileItems(params: ApplyRefreshParentFileItemsP
 	return result
 }
 
+// Applies parent item refresh and children reconcile in one reducer pass.
+export function applyMergedParentRefresh(params: ApplyMergedParentRefreshParams) {
+	const parentItemIds = normalizeRefreshParentIds(params.parentItemIds)
+	const childrenParentIds = normalizeRefreshParentIds(params.childrenParentIds)
+	if (parentItemIds.length === 0 && childrenParentIds.length === 0) return null
+
+	const changes = buildMergedParentRefreshChanges({
+		projectId: params.projectId,
+		parentItemIds,
+		parentFileItems: params.parentFileItems,
+		childrenParentIds,
+		serverItems: params.serverItems,
+		store: params.store,
+		trace: params.trace,
+	})
+	if (changes.length === 0) {
+		if (childrenParentIds.length > 0) {
+			projectAttachmentsChangeLog.refreshParentChildrenSkipped({
+				projectId: params.projectId,
+				parentIds: childrenParentIds,
+				reason: "no_diff",
+				traceId: params.trace?.traceId,
+			})
+		}
+		return null
+	}
+
+	const result = params.store.applyFileChanges(changes, {
+		applySource: "refresh_parent_merged",
+		trace: {
+			...params.trace,
+			projectId: params.projectId,
+			batchSize: changes.length,
+		},
+	})
+
+	if (result.fallbackRequired) {
+		projectAttachmentsChangeLog.refreshParentIdsSkipped({
+			projectId: params.projectId,
+			parentIds: [...parentItemIds, ...childrenParentIds],
+			reason: result.fallbackReason || "apply_fallback_required",
+			traceId: params.trace?.traceId,
+		})
+		return null
+	}
+
+	if (parentItemIds.length > 0) {
+		projectAttachmentsChangeLog.refreshParentIdsSuccess({
+			projectId: params.projectId,
+			parentIds: params.parentFileItems
+				.map((item) => normalizeAttachmentId(item.file_id))
+				.filter(Boolean),
+			treeCount: result.tree.length,
+			listCount: result.list.length,
+			traceId: params.trace?.traceId,
+		})
+	}
+	if (childrenParentIds.length > 0) {
+		projectAttachmentsChangeLog.refreshParentChildrenSuccess({
+			projectId: params.projectId,
+			parentIds: childrenParentIds,
+			changeCount: changes.length,
+			treeCount: result.tree.length,
+			listCount: result.list.length,
+			traceId: params.trace?.traceId,
+		})
+	}
+
+	return result
+}
+
 // Applies reconciled subtree changes for parent children consistency.
-export function applyRefreshParentChildrenSubtree(
-	params: ApplyRefreshParentChildrenSubtreeParams,
-) {
+export function applyRefreshParentChildrenSubtree(params: ApplyRefreshParentChildrenSubtreeParams) {
 	const parentIds = normalizeRefreshParentIds(params.parentIds)
 	if (parentIds.length === 0) return null
 
-	const localItemById = createAttachmentLookup(params.store.workspaceFilesList)
-	const serverItems = withResolvedSubtreePaths(params.serverItems, localItemById)
-	const localParentItems = parentIds
-		.map((parentId) => localItemById.get(parentId))
-		.filter((item): item is AttachmentItem => Boolean(item))
-	const localItems = [
-		...localParentItems,
-		...collectLocalDescendants(params.store.workspaceFilesList, parentIds),
-	]
-	const changes = createParentChildrenReconcileChanges({
-		parentIds,
-		serverItems,
-		localItems,
+	const changes = buildMergedParentRefreshChanges({
+		projectId: params.projectId,
+		parentItemIds: [],
+		parentFileItems: [],
+		childrenParentIds: parentIds,
+		serverItems: params.serverItems,
+		store: params.store,
+		trace: params.trace,
 	})
 
 	if (changes.length === 0) {
@@ -634,6 +840,7 @@ export function applyRefreshParentChildrenSubtree(
 	}
 
 	const result = params.store.applyFileChanges(changes, {
+		applySource: "refresh_parent_children",
 		trace: {
 			...params.trace,
 			projectId: params.projectId,

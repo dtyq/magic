@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Vault — Secure Secret &amp; API Key Lifecycle Manager</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --primary-soft: #EEF2FF;
+      --secondary: #059669;
+      --secondary-soft: #ECFDF5;
+      --tertiary: #EA580C;
+      --tertiary-soft: #FFF7ED;
+      --danger: #DC2626;
+      --danger-soft: #FEF2F2;
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --border-focus: #CBD5E1;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --font-mono: "IBM Plex Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: var(--bg); color: var(--text-main); font-family: var(--font-body); font-size: 13.5px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    
+    /* Top Navigation */
+    .top-nav { height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; }
+    .brand-area { display: flex; align-items: center; gap: 12px; }
+    .brand-logo { font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; letter-spacing: -0.5px; }
+    .nav-links { display: flex; gap: 20px; font-size: 13px; font-weight: 500; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; }
+    .nav-links a.active { color: var(--primary); font-weight: 600; }
+
+    .top-actions { display: flex; align-items: center; gap: 12px; }
+    .badge-hsm { background: var(--secondary-soft); border: 1px solid rgba(5, 150, 105, 0.3); color: var(--secondary); font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px; }
+    .btn-create { background: var(--primary); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+
+    /* Main Container */
+    .container { max-width: 1280px; margin: 18px auto; padding: 0 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Hero Metrics Banner (First 500px High Impact) */
+    .hero-grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px; }
+    
+    /* Rate Limit Gauge Card */
+    .gauge-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); }
+    .gauge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .card-title { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text-main); }
+    .gauge-body { display: flex; align-items: center; gap: 18px; }
+    .gauge-svg-wrap { position: relative; width: 104px; height: 104px; flex-shrink: 0; }
+    .gauge-svg { width: 104px; height: 104px; transform: rotate(-90deg); }
+    .gauge-circle-bg { fill: none; stroke: #E2E8F0; stroke-width: 9; }
+    .gauge-circle-val { fill: none; stroke: var(--tertiary); stroke-width: 9; stroke-dasharray: 251; stroke-dashoffset: 40; stroke-linecap: round; }
+    .gauge-center-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-mono); }
+    .gauge-pct { font-size: 20px; font-weight: 700; color: var(--tertiary); line-height: 1; }
+    .gauge-sub { font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-top: 2px; }
+    
+    .gauge-stats { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+    .stat-row { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--border); padding-bottom: 3px; }
+    .stat-val { font-family: var(--font-mono); font-weight: 600; color: var(--text-main); }
+
+    /* Encryption & Secret Posture Card */
+    .posture-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); }
+    .posture-head { display: flex; justify-content: space-between; align-items: center; }
+    .sec-badge { background: var(--secondary-soft); color: var(--secondary); font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px; border: 1px solid rgba(5, 150, 105, 0.2); }
+    .banner-content { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+    .metric-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
+    .metric-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    .metric-num { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--text-main); }
+    .metric-note { font-size: 11px; color: var(--secondary); margin-top: 2px; }
+    
+    .emergency-strip { background: var(--danger-soft); border: 1px solid rgba(220, 38, 38, 0.2); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+    .btn-revoke-instant { background: var(--danger); color: #fff; border: none; border-radius: 4px; padding: 5px 12px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+
+    /* Main Table & Endpoints Workspace */
+    .table-container { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); overflow: hidden; }
+    .table-toolbar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: #FAFAFC; }
+    .filter-pills { display: flex; gap: 8px; }
+    .pill { font-size: 11.5px; font-weight: 500; padding: 3px 10px; border-radius: 9999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; }
+    .pill.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); font-weight: 600; }
+    
+    .table-keys { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    .table-keys th { background: #FAFAFC; padding: 10px 16px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    .table-keys td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .table-keys tr:last-child td { border-bottom: none; }
+    .table-keys tr:hover td { background: #F8FAFC; }
+
+    .key-info { display: flex; flex-direction: column; gap: 2px; }
+    .key-name { font-weight: 600; color: var(--text-main); }
+    .key-id { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+    
+    .secret-pill { font-family: var(--font-mono); font-size: 11.5px; background: #F1F5F9; border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 6px; }
+    .copy-btn { color: var(--primary); cursor: pointer; font-size: 11px; font-weight: 600; }
+    
+    .method-chip { font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+    .m-get { background: var(--secondary-soft); color: var(--secondary); }
+    .m-post { background: var(--primary-soft); color: var(--primary); }
+    .m-put { background: var(--tertiary-soft); color: var(--tertiary); }
+    .m-del { background: var(--danger-soft); color: var(--danger); }
+
+    .status-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 4px; }
+    .tag-active { background: var(--secondary-soft); color: var(--secondary); }
+    .tag-expiring { background: var(--tertiary-soft); color: var(--tertiary); }
+
+    .action-group { display: flex; align-items: center; gap: 8px; }
+    .btn-action { background: transparent; border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 11.5px; color: var(--text-muted); cursor: pointer; }
+    .btn-action.danger { color: var(--danger); border-color: rgba(220, 38, 38, 0.3); }
+
+    /* Bottom API Endpoint Spec Snippet */
+    .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .spec-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); }
+    .spec-title { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 10px; display: flex; justify-content: space-between; }
+    .code-box { background: #0F172A; color: #E2E8F0; border-radius: 4px; padding: 10px 14px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; overflow-x: auto; }
+    .c-hl { color: #38BDF8; }
+    .c-str { color: #4ADE80; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="top-nav">
+    <div class="brand-area">
+      <div class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>APIVAULT</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#credentials" class="active">API Keys &amp; Secrets</a>
+        <a href="#quotas">Rate Quotas</a>
+        <a href="#rotation">Auto Rotation</a>
+        <a href="#audit">Access Audit</a>
+      </nav>
+    </div>
+
+    <div class="top-actions">
+      <div class="badge-hsm">
+        <span>🔒</span>
+        <span>AES-256 GCM SEALED</span>
+      </div>
+      <button class="btn-create">
+        <span>+ Generate New Token</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Hero Metrics: Rate Limit Gauge & Vault Posture -->
+    <div class="hero-grid">
+      
+      <!-- Quota Gauge Card -->
+      <div class="gauge-card">
+        <div class="gauge-header">
+          <span class="card-title">MONTHLY RATE QUOTA</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--tertiary); font-weight:600;">84% USED</span>
+        </div>
+        <div class="gauge-body">
+          <div class="gauge-svg-wrap">
+            <svg class="gauge-svg" viewBox="0 0 100 100">
+              <circle class="gauge-circle-bg" cx="50" cy="50" r="40" />
+              <circle class="gauge-circle-val" cx="50" cy="50" r="40" />
+            </svg>
+            <div class="gauge-center-text">
+              <span class="gauge-pct">84%</span>
+              <span class="gauge-sub">10M Cap</span>
+            </div>
+          </div>
+          <div class="gauge-stats">
+            <div class="stat-row">
+              <span style="color:var(--text-muted)">Consumed:</span>
+              <span class="stat-val">8,412,904</span>
+            </div>
+            <div class="stat-row">
+              <span style="color:var(--text-muted)">Remaining:</span>
+              <span class="stat-val">1,587,096</span>
+            </div>
+            <div class="stat-row">
+              <span style="color:var(--text-muted)">Reset Cycle:</span>
+              <span class="stat-val">11 Days</span>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px; color:var(--tertiary); margin-top:8px; font-weight:500;">
+          ⚠️ Traffic spike detected on endpoint <code>/v2/payment/intents</code>
+        </div>
+      </div>
+
+      <!-- Vault Posture Card with Instant Revocation -->
+      <div class="posture-card">
+        <div class="posture-head">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="card-title">HARDWARE HSM ENCLAVE POSTURE</span>
+            <span class="sec-badge">FIPS 140-2 Level 3</span>
+          </div>
+          <span style="font-size:12px; color:var(--text-muted)">Sync Latency: <strong>1.4ms</strong></span>
+        </div>
+
+        <div class="banner-content">
+          <div class="metric-box">
+            <div class="metric-label">Active Secret Tokens</div>
+            <div class="metric-num">142 Keys</div>
+            <div class="metric-note">100% Zero-Downtime</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Automated Rotations</div>
+            <div class="metric-num">38 Rotated</div>
+            <div class="metric-note">Next in 4 hours</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Leaked Secret Scans</div>
+            <div class="metric-num">0 Compromised</div>
+            <div class="metric-note">Public git monitors clean</div>
+          </div>
+        </div>
+
+        <div class="emergency-strip">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="color:var(--danger); font-weight:700;">EMERGENCY KILLSWITCH:</span>
+            <span>Instant revocation invalidates cached secrets across all edge gateways in &lt; 200ms.</span>
+          </div>
+          <button class="btn-revoke-instant">
+            <span>✕ Revoke All Stale Tokens</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Active Secret Keys Table -->
+    <div class="table-container">
+      <div class="table-toolbar">
+        <div class="filter-pills">
+          <span class="pill active">All Keys (142)</span>
+          <span class="pill">Production (38)</span>
+          <span class="pill">Staging (64)</span>
+          <span class="pill">Rotation Scheduled (8)</span>
+        </div>
+        <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--text-muted);">
+          Master Key Hash: <code style="color:var(--text-main)">sha256:4a8b...99e1</code>
+        </div>
+      </div>
+
+      <table class="table-keys">
+        <thead>
+          <tr>
+            <th>Key Alias &amp; Environment</th>
+            <th>Encrypted Token Secret</th>
+            <th>Scope Permissions</th>
+            <th>Last Rotated</th>
+            <th>Lifecycle Status</th>
+            <th style="text-align:right">Revocation Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="key-info">
+                <span class="key-name">stripe-live-charge-worker</span>
+                <span class="key-id">id: key_prod_89a12c40 &bull; eu-central</span>
+              </div>
+            </td>
+            <td>
+              <div class="secret-pill">
+                <span>vault_live_9f82••••••••3b1d</span>
+                <span class="copy-btn">Copy</span>
+              </div>
+            </td>
+            <td>
+              <span class="method-chip m-post">POST</span>
+              <span class="method-chip m-get">GET</span>
+              <span style="font-size:11px; color:var(--text-muted)">charges.*</span>
+            </td>
+            <td style="font-family:var(--font-mono); font-size:12px;">14 mins ago</td>
+            <td>
+              <span class="status-tag tag-active">● Active / Valid</span>
+            </td>
+            <td style="text-align:right">
+              <div class="action-group" style="justify-content:flex-end">
+                <button class="btn-action">Rotate</button>
+                <button class="btn-action danger">Revoke Token</button>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="key-info">
+                <span class="key-name">vector-db-pinecone-indexer</span>
+                <span class="key-id">id: key_prod_440ef21b &bull; us-east-1</span>
+              </div>
+            </td>
+            <td>
+              <div class="secret-pill">
+                <span>vault_live_b720••••••••619a</span>
+                <span class="copy-btn">Copy</span>
+              </div>
+            </td>
+            <td>
+              <span class="method-chip m-put">PUT</span>
+              <span class="method-chip m-get">GET</span>
+              <span style="font-size:11px; color:var(--text-muted)">vectors.upsert</span>
+            </td>
+            <td style="font-family:var(--font-mono); font-size:12px;">2 days ago</td>
+            <td>
+              <span class="status-tag tag-active">● Active / Valid</span>
+            </td>
+            <td style="text-align:right">
+              <div class="action-group" style="justify-content:flex-end">
+                <button class="btn-action">Rotate</button>
+                <button class="btn-action danger">Revoke Token</button>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="key-info">
+                <span class="key-name">legacy-webhook-dispatcher</span>
+                <span class="key-id">id: key_stag_77b31189 &bull; ap-northeast</span>
+              </div>
+            </td>
+            <td>
+              <div class="secret-pill">
+                <span>vault_stag_33e1••••••••99c4</span>
+                <span class="copy-btn">Copy</span>
+              </div>
+            </td>
+            <td>
+              <span class="method-chip m-del">DEL</span>
+              <span style="font-size:11px; color:var(--text-muted)">events.purge</span>
+            </td>
+            <td style="font-family:var(--font-mono); font-size:12px;">88 days ago</td>
+            <td>
+              <span class="status-tag tag-expiring">⚠️ Expiring in 48h</span>
+            </td>
+            <td style="text-align:right">
+              <div class="action-group" style="justify-content:flex-end">
+                <button class="btn-action">Rotate</button>
+                <button class="btn-action danger" style="background:var(--danger-soft)">Instant Revoke</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Endpoint Curl Spec & Verification -->
+    <div class="spec-grid">
+      <div class="spec-card">
+        <div class="spec-title">
+          <span>ZERO-TRUST SECRETS RETRIEVAL (CURL)</span>
+          <span>AES-GCM DECRYPTED IN-MEMORY</span>
+        </div>
+        <div class="code-box">
+curl -X POST https://api.apivault.dev/v1/secrets/unwrap \<br>
+&nbsp;&nbsp;-H <span class="c-str">"Authorization: Bearer vault_live_9f82..."</span> \<br>
+&nbsp;&nbsp;-H <span class="c-str">"X-Vault-Client-Enclave: hsm-sgx-01"</span> \<br>
+&nbsp;&nbsp;-d <span class="c-str">'{"secret_name": "STRIPE_SECRET_KEY"}'</span>
+        </div>
+      </div>
+
+      <div class="spec-card">
+        <div class="spec-title">
+          <span>AUTHENTICATED RESPONSE PAYLOAD</span>
+          <span style="color:var(--secondary)">HTTP 200 OK</span>
+        </div>
+        <div class="code-box">
+{<br>
+&nbsp;&nbsp;<span class="c-hl">"algorithm"</span>: <span class="c-str">"AES-256-GCM"</span>,<br>
+&nbsp;&nbsp;<span class="c-hl">"key_version"</span>: 4,<br>
+&nbsp;&nbsp;<span class="c-hl">"rotation_epoch"</span>: 1726742040,<br>
+&nbsp;&nbsp;<span class="c-hl">"secret_plaintext"</span>: <span class="c-str">"sk_live_51M..."</span><br>
+}
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+</body>
+</html>

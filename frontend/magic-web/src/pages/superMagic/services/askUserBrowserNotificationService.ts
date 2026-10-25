@@ -1,8 +1,5 @@
 import i18n from "i18next"
-import {
-	browserNotificationPreference,
-	browserNotificationService,
-} from "@/services/browserNotification"
+import { browserNotificationService } from "@/services/browserNotification"
 import {
 	ASK_USER_CARD_STATUS,
 	ASK_USER_TOOL,
@@ -18,7 +15,6 @@ import type {
 } from "@/pages/superMagic/stores/types"
 
 const notifiedAskUserKeys = new Set<string>()
-const seenAskUserKeys = new Set<string>()
 const activeAskUserNotifications = new Map<string, Notification>()
 const askUserExpireTimers = new Map<string, ReturnType<typeof window.setTimeout>>()
 const pendingAskUserNotifications = new Map<
@@ -46,38 +42,60 @@ function getDetailQuestionLabel(questions: unknown) {
 	if (!Array.isArray(questions)) return ""
 
 	for (const question of questions) {
-		const label = (question as { question?: unknown } | undefined)?.question
+		const record = question as { question?: unknown; label?: unknown } | undefined
+		const label = record?.question ?? record?.label
 		if (typeof label === "string" && label.trim()) return label.trim()
 	}
 
 	return ""
 }
 
-function normalizeAskUserStatus(status: unknown) {
-	if (status === ASK_USER_CARD_STATUS.answered) return ASK_USER_CARD_STATUS.answered
-	if (status === ASK_USER_CARD_STATUS.skipped) return ASK_USER_CARD_STATUS.skipped
-	if (status === ASK_USER_CARD_STATUS.timeout) return ASK_USER_CARD_STATUS.timeout
-	if (status === ASK_USER_CARD_STATUS.cancelled) return ASK_USER_CARD_STATUS.cancelled
-	return ASK_USER_CARD_STATUS.pending
+function isAskUserCardTerminalStatus(status: unknown) {
+	return (
+		status === ASK_USER_CARD_STATUS.answered ||
+		status === ASK_USER_CARD_STATUS.skipped ||
+		status === ASK_USER_CARD_STATUS.timeout ||
+		status === ASK_USER_CARD_STATUS.cancelled
+	)
 }
 
 function getQuestionsXml(toolCall: ToolCall, tool?: ToolResponseState) {
 	const rawArguments = toolCall.function?.arguments || ""
 	const questionsFromArguments = extractQuestionsField(rawArguments)
+	if (questionsFromArguments) return questionsFromArguments
+	if (rawArguments.includes("<question")) return rawArguments
+
 	const detailQuestions = tool?.detail?.data?.questions
 	const questionsFromDetail = typeof detailQuestions === "string" ? detailQuestions : ""
 
-	return questionsFromArguments || questionsFromDetail
+	return questionsFromDetail
+}
+
+function markdownToPlainText(markdown: string) {
+	return markdown
+		.replace(/```[\s\S]*?```/g, " ")
+		.replace(/`([^`]+)`/g, "$1")
+		.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+		.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+		.replace(/[*_~]+/g, "")
+		.replace(/^#{1,6}\s+/gm, "")
+		.replace(/\s+/g, " ")
+		.trim()
 }
 
 function getAskUserNotificationBody(toolCall: ToolCall, tool?: ToolResponseState) {
 	const detailQuestionLabel = getDetailQuestionLabel(tool?.detail?.data?.questions)
-	if (detailQuestionLabel) return detailQuestionLabel
+	if (detailQuestionLabel) {
+		return markdownToPlainText(detailQuestionLabel) || detailQuestionLabel
+	}
 
 	const questions = parseQuestionsXml(getQuestionsXml(toolCall, tool))
-	if (questions.length === 0 || questions.some((question) => !question.isComplete)) return null
+	const completeQuestion = questions.find(
+		(question) => question.isComplete && question.label.trim(),
+	)
+	if (!completeQuestion) return null
 
-	return questions.find((question) => question.label)?.label
+	return markdownToPlainText(completeQuestion.label) || completeQuestion.label
 }
 
 function getAskUserNotificationKey(toolCall: ToolCall, tool?: ToolResponseState) {
@@ -118,6 +136,10 @@ function normalizeMessageSendTimeToMs(value: unknown): number | null {
 }
 
 function isNewMessage(messageSendTime: unknown) {
+	// 流式 tool_calls 往往还没有 IM send_time；缺省视为当前实时到达，避免刷新历史误弹。
+	if (messageSendTime === undefined || messageSendTime === null || messageSendTime === "") {
+		return true
+	}
 	const sendTimeMs = normalizeMessageSendTimeToMs(messageSendTime)
 	if (!sendTimeMs) return false
 	return sendTimeMs >= serviceStartedAtMs - 60 * 1000
@@ -128,7 +150,8 @@ function buildScopedNotificationKey(topicId: string, notificationKey: string) {
 }
 
 function isPageNotActive() {
-	return document.visibilityState === "hidden" || !document.hasFocus()
+	if (typeof document === "undefined") return false
+	return document.hidden || document.visibilityState !== "visible" || !document.hasFocus()
 }
 
 function clearAskUserNotification(notificationKey: string) {
@@ -139,7 +162,6 @@ function clearAskUserNotification(notificationKey: string) {
 	}
 
 	pendingAskUserNotifications.delete(notificationKey)
-	seenAskUserKeys.delete(notificationKey)
 	notifiedAskUserKeys.delete(notificationKey)
 
 	const activeNotification = activeAskUserNotifications.get(notificationKey)
@@ -171,17 +193,43 @@ export function clearAskUserV2BrowserNotification({
 	clearAskUserNotification(buildScopedNotificationKey(topicId, notificationKey))
 }
 
+const suspendedAskUserTopicIds = new Set<string>()
+
+function getAskUserNotificationKeysForTopic(topicId: string) {
+	const prefix = `${topicId}:`
+	const keys = new Set<string>()
+	pendingAskUserNotifications.forEach((_, key) => {
+		if (key.startsWith(prefix)) keys.add(key)
+	})
+	activeAskUserNotifications.forEach((_, key) => {
+		if (key.startsWith(prefix)) keys.add(key)
+	})
+	askUserExpireTimers.forEach((_, key) => {
+		if (key.startsWith(prefix)) keys.add(key)
+	})
+	notifiedAskUserKeys.forEach((key) => {
+		if (key.startsWith(prefix)) keys.add(key)
+	})
+	return keys
+}
+
+export function setAskUserTopicSuspended(topicId: string, suspended: boolean) {
+	if (!topicId) return
+	if (suspended) {
+		suspendedAskUserTopicIds.add(topicId)
+		getAskUserNotificationKeysForTopic(topicId).forEach((key) => {
+			clearAskUserNotification(key)
+		})
+		return
+	}
+	suspendedAskUserTopicIds.delete(topicId)
+}
+
 function tryNotifyAskUser(notificationKey: string) {
 	const pendingNotification = pendingAskUserNotifications.get(notificationKey)
 	if (!pendingNotification) return
 	if (!isPageNotActive()) return
-	if (!browserNotificationPreference.getEnabled()) return
 	if (notifiedAskUserKeys.has(notificationKey)) return
-
-	if (!browserNotificationService.canNotify()) {
-		browserNotificationPreference.setEnabled(false)
-		return
-	}
 
 	const notification = browserNotificationService.show({
 		title: pendingNotification.title,
@@ -203,22 +251,23 @@ function tryNotifyAskUser(notificationKey: string) {
 	}
 }
 
+function tryNotifyAllPendingAskUsers() {
+	if (!isPageNotActive()) return
+	pendingAskUserNotifications.forEach((_, notificationKey) => {
+		tryNotifyAskUser(notificationKey)
+	})
+}
+
 function ensureVisibilityListener() {
 	if (visibilityListenerInitialized || typeof document === "undefined") return
 	visibilityListenerInitialized = true
 
-	const notifyPendingAskUsers = () => {
-		if (!isPageNotActive()) return
-		pendingAskUserNotifications.forEach((_, notificationKey) => {
-			tryNotifyAskUser(notificationKey)
-		})
-	}
-
-	document.addEventListener("visibilitychange", notifyPendingAskUsers)
-	window.addEventListener("blur", notifyPendingAskUsers)
+	document.addEventListener("visibilitychange", tryNotifyAllPendingAskUsers)
+	window.addEventListener("blur", tryNotifyAllPendingAskUsers)
 }
 
 function notifyAskUserToolCall(topicId: string, toolCall: ToolCall) {
+	if (suspendedAskUserTopicIds.has(topicId)) return
 	const tool = toolCall.tool
 	const toolName = tool?.name || toolCall.function?.name
 	if (toolName !== ASK_USER_TOOL.name) return
@@ -227,31 +276,39 @@ function notifyAskUserToolCall(topicId: string, toolCall: ToolCall) {
 	if (!rawNotificationKey) return
 
 	const notificationKey = buildScopedNotificationKey(topicId, rawNotificationKey)
-
-	const status = normalizeAskUserStatus(tool?.status || tool?.detail?.data?.status)
+	const cardStatus = tool?.detail?.data?.status
 	const expiresAt = getAskUserExpiresAt(tool)
-	if (status !== ASK_USER_CARD_STATUS.pending || isAskUserExpired(tool)) {
+	if (isAskUserCardTerminalStatus(cardStatus) || isAskUserExpired(tool)) {
 		clearAskUserNotification(notificationKey)
 		return
 	}
-	if (notifiedAskUserKeys.has(notificationKey) || seenAskUserKeys.has(notificationKey)) return
+	if (notifiedAskUserKeys.has(notificationKey)) return
 
 	const notificationBody = getAskUserNotificationBody(toolCall, tool)
 	if (notificationBody === null) return
-
-	if (!isPageNotActive()) {
-		seenAskUserKeys.add(notificationKey)
-		pendingAskUserNotifications.delete(notificationKey)
-		return
-	}
 
 	pendingAskUserNotifications.set(notificationKey, {
 		title: i18n.t("askUser.title", { ns: "super" }),
 		body: notificationBody,
 	})
 	scheduleAskUserExpireCleanup(notificationKey, expiresAt)
-
 	tryNotifyAskUser(notificationKey)
+}
+
+export function notifyAskUserV2BrowserNotificationFromToolCalls({
+	topicId,
+	toolCalls,
+	messageSendTime,
+}: {
+	topicId: string
+	toolCalls: ToolCall[] | undefined
+	messageSendTime?: number
+}) {
+	notifyAskUserV2BrowserNotificationFromMessageNode({
+		topicId,
+		messageNode: { tool_calls: toolCalls } as RawSuperMagicMessageNode,
+		messageSendTime,
+	})
 }
 
 export function notifyAskUserV2BrowserNotificationFromMessageNode({

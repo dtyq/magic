@@ -7,6 +7,7 @@ import LoadingFallback from "@/components/fallback/LoadingFallback"
 import AppearanceProvider from "./providers/AppearanceProvider"
 import MaintenanceGuard from "@/components/global/MaintenanceGuard"
 import MagicToaster from "./components/base/MagicToaster"
+import NetworkTip from "@/components/other/NetworkTip"
 
 function App() {
 	return (
@@ -19,6 +20,7 @@ function App() {
 								<MaintenanceGuard />
 								<AppRoutes />
 								<MagicToaster />
+								<NetworkTip />
 							</BrowserRouter>
 						</ClusterProvider>
 					</GlobalErrorBoundary>

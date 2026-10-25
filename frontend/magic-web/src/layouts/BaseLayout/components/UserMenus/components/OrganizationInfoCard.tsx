@@ -4,7 +4,7 @@ import { observer } from "mobx-react-lite"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import OrganizationList from "@/layouts/BaseLayout/components/Sider/components/OrganizationSwitch/OrganizationList"
 import { userStore } from "@/models/user"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import OrganizationAvatarRender from "@/components/business/OrganizationAvatarRender"
 import OrganizationRender from "@/components/business/OrganizationRender"
 

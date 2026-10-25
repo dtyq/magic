@@ -1,18 +1,18 @@
 import { useMemoizedFn } from "ahooks"
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import RichTextComponent from "../Text/components/RichText"
 import type { RichTextProps } from "../Text/components/RichText/types"
 
 /** Expanded body: max height then scroll */
 const USER_MESSAGE_EXPANDED_MAX = "max-h-[min(70vh,28rem)] overflow-y-auto overflow-x-hidden pr-0.5"
-const USER_MESSAGE_FADE_H = "h-12"
+const USER_MESSAGE_FADE_H = "h-8"
 /**
- * ~4 lines at RichText [&_p]:leading-[22px] (4 * 22px). Avoid line-clamp here:
+ * Two lines at RichText [&_p]:leading-[22px] (2 * 22px). Avoid line-clamp here:
  * PM mounts inside a flex root; line-clamp on parent is unreliable.
  */
-const USER_MESSAGE_COLLAPSED_MAX_PX = 88
-const USER_MESSAGE_COLLAPSED_CAP = "min-h-0 max-h-[5.5rem] overflow-hidden"
+const USER_MESSAGE_COLLAPSED_MAX_PX = 44
+const USER_MESSAGE_COLLAPSED_CAP = "min-h-0 max-h-[44px] overflow-hidden"
 
 export interface UserMessageCollapsibleRichTextProps extends RichTextProps {
 	/** Bottom fade gradient "from" (match parent bubble bg). */
@@ -144,15 +144,15 @@ export const UserMessageCollapsibleRichText = memo(function UserMessageCollapsib
 						!isExpanded && USER_MESSAGE_COLLAPSED_CAP,
 						isExpanded && USER_MESSAGE_EXPANDED_MAX,
 						isTruncatable &&
-						!isExpanded &&
-						cn(
-							"cursor-grab outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing",
-							"[&>div]:!cursor-grab [&_a]:cursor-pointer [&_button]:cursor-pointer",
-							"[&_.magic-mention]:cursor-pointer [&_.mention-node-view]:cursor-pointer",
-						),
+							!isExpanded &&
+							cn(
+								"cursor-grab outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing",
+								"[&>div]:!cursor-grab [&_a]:cursor-pointer [&_button]:cursor-pointer",
+								"[&_.magic-mention]:cursor-pointer [&_.mention-node-view]:cursor-pointer",
+							),
 						isTruncatable &&
-						isExpanded &&
-						"outline-none focus-visible:ring-1 focus-visible:ring-ring",
+							isExpanded &&
+							"outline-none focus-visible:ring-1 focus-visible:ring-ring",
 					)}
 					data-testid="user-message-collapsible-text"
 					onClick={handleClick}

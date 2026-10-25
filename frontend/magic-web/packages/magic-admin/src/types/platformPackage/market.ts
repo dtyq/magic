@@ -56,6 +56,7 @@ export interface GetSkillMarketListParams extends Required<PageParams> {
 	name_i18n?: string
 	publisher_type?: SkillPublisherType
 	skill_code?: string
+	category_ids?: string[]
 	order_by?: "asc" | "desc"
 	start_time?: string
 	end_time?: string
@@ -79,7 +80,7 @@ export interface SkillMarketItem {
 	logo?: string | null
 	publisher_id?: string
 	publisher_type?: SkillPublisherType
-	category_id?: string | null
+	category_ids?: string[]
 	publish_status: string
 	install_count?: number
 	sort_order?: number
@@ -96,6 +97,106 @@ export interface UpdateSkillMarketInfoParams {
 	is_featured?: boolean
 	is_hidden?: boolean
 	sort_order?: number
+	category_ids?: string[]
+}
+
+/** 官方 Skill 导入第一阶段的解析结果 */
+export interface ParseOfficialSkillResponse {
+	import_token: string
+	package_name: string
+	code: string
+	package_description: string
+	is_update: boolean
+	id?: string | null
+	publisher_type?: SkillPublisherType
+	version?: string
+	is_featured?: boolean
+	is_hidden?: boolean
+	sort_order?: number
+	categories?: Array<{
+		id: string
+		name: string
+	}>
+	name_i18n?: NameI18N
+	description_i18n?: NameI18N
+	source_i18n?: NameI18N
+	logo?: string
+	market_id?: string | number | null
+}
+
+/** 官方 Skill 导入第二阶段的公共字段 */
+export interface OfficialSkillImportFields {
+	version: string
+	name_i18n: NameI18N
+	description_i18n: NameI18N
+	source_i18n?: NameI18N
+	logo?: string
+	category_ids?: string[]
+	publish_status?: "OFFLINE" | "PUBLISHED"
+	is_hidden?: boolean
+	is_featured?: boolean
+	sort_order?: number
+}
+
+export interface ImportOfficialSkillParams extends OfficialSkillImportFields {
+	import_token: string
+}
+
+export interface ImportOfficialSkillResponse {
+	code: string
+	version: string
+	action: "created" | "updated"
+	market_id?: string | number | null
+	version_id?: string | number | null
+}
+
+export const SkillMarketCategoryStatusMap = {
+	hidden: 0,
+	visible: 1,
+} as const
+export type SkillMarketCategoryStatus =
+	(typeof SkillMarketCategoryStatusMap)[keyof typeof SkillMarketCategoryStatusMap]
+
+/** Skill 市场分类 - 查询参数 */
+export interface GetSkillMarketCategoryListParams {
+	status?: SkillMarketCategoryStatus | null
+	keyword?: string | null
+}
+
+/** Skill 市场分类 - 查询响应 */
+export interface SkillMarketCategoryListResponse {
+	list: SkillMarketCategoryItem[]
+}
+
+export interface SkillMarketCategoryOperator {
+	user_id: string
+	nickname: string
+}
+
+/** Skill 市场分类 */
+export interface SkillMarketCategoryItem {
+	id: string
+	organization_code?: string
+	name?: string
+	name_i18n?: NameI18N
+	logo?: string | null
+	sort_order?: number
+	status?: SkillMarketCategoryStatus
+	skill_count?: number
+	creator_id?: string | null
+	modifier_id?: string | null
+	creator?: SkillMarketCategoryOperator
+	modifier?: SkillMarketCategoryOperator
+	created_at?: string
+	updated_at?: string
+}
+
+/** Skill 市场分类 - 创建/更新参数 */
+export interface SaveSkillMarketCategoryParams {
+	name_i18n?: NameI18N
+	logo?: string | null
+	sort_order?: number
+	status?: SkillMarketCategoryStatus
 }
 
 /** 员工市场 - 查询参数 */

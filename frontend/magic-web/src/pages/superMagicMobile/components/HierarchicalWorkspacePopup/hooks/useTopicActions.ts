@@ -10,6 +10,7 @@ import { FetchTopicsParams } from "@/pages/superMagic/hooks/useTopics"
 import { SuperMagicApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { renameTopicWithChatSync } from "@/pages/superMagic/services"
+import { analyticsService } from "@/services/analytics"
 
 interface UseTopicActionsParams {
 	currentTopics?: Topic[]
@@ -121,6 +122,11 @@ export function useTopicActions({
 		const loadingMessage = magicToast.loading({ content: "处理中...", duration: 0 })
 		try {
 			const defaultTopicName = ""
+			analyticsService.report("topic_create_attempted", {
+				projectId,
+				workspaceId: workspace,
+				mode: selectedProject?.project_mode,
+			})
 			const res = await SuperMagicApi.createTopic({
 				topic_name: defaultTopicName,
 				// workspace_id: workspace,

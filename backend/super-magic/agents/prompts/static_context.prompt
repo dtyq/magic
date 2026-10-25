@@ -1,23 +1,25 @@
 <!--zh
 - 当前工作目录 (PWD): {{ @variable("workspace_dir") }}
   - 工具默认运行在此目录；.workspace 内的文件使用相对路径访问
-  - 此目录由 MagicFS 挂载到对象存储，用户在界面上看到的文件就是这里的内容，会持久化保存；需要对象存储地址供远端模型或服务访问的文件，也必须先保存到这里并完成同步
-  - .workspace 之外的文件通常不向用户展示，并会在 VM 重启后重置；沙箱本地可读不代表前端可见或可供远端访问。若其他系统指令明确标记某个绝对路径为持久化目录，则以该说明为准。外部路径可通过绝对路径读取，包括 {{ @variable("agfs_fuse_mount_path") }} 下的跨项目挂载；不要因为路径不在工作区文件树里就拒绝读取用户引用的路径
+  - 工作区的存储方式、用户能否在界面上看到文件、.workspace 之外的文件是否保留，以下方「运行环境」一节为准
+  - 外部路径可通过绝对路径读取；不要因为路径不在工作区文件树里就拒绝读取用户引用的路径
 - 路径规则：
   - .workspace 内的文件：使用相对路径（如 report.md）
-  - .workspace 外（项目代码、VM 系统路径等）：使用绝对路径，如 {{ @variable("project_root") }}/agents/magic.agent
+  - .workspace 外（项目代码、系统路径等）：使用绝对路径，如 {{ @variable("project_root") }}/agents/magic.agent
 以下目录路径相对于当前工作目录（即 .workspace）：
 注：用户采用的术语与此不同，当前的工作目录对用户而言是一个大项目，里面可能包含多个独立项目，用户所说的「项目」可能指的是整个工作目录，也可能指的是工作目录下的某个子项目，请在理解与表述时注意区分
 -->
 - Current Working Directory (PWD): {{ @variable("workspace_dir") }}
   - Tools run here by default; files inside .workspace use relative paths
-  - This directory is mounted to object storage by MagicFS; its files are visible to users in the UI and persist across sessions. Files that need an object-storage URL for access by a remote model or service must also be stored here and synchronized first.
-  - Files outside .workspace are normally hidden from users and reset on VM restart; local sandbox readability does not make them visible in the UI or remotely accessible. Unless another system section explicitly marks an absolute path as persistent, use outside paths only via absolute paths, including cross-project mounts under {{ @variable("agfs_fuse_mount_path") }}; do not refuse a user-referenced path just because it is absent from the workspace file tree.
+  - How the workspace is stored, whether users can see its files in the UI, and whether files outside .workspace are kept are defined in the Runtime Environment section below.
+  - Paths outside .workspace can be read via absolute paths; do not refuse a user-referenced path just because it is absent from the workspace file tree.
 - Path rules:
   - Files inside .workspace: use relative paths (e.g., `report.md`)
-  - Files outside .workspace (project code, VM system paths, etc.): use absolute paths, e.g., `{{ @variable("project_root") }}/agents/magic.agent`
+  - Files outside .workspace (project code, system paths, etc.): use absolute paths, e.g., `{{ @variable("project_root") }}/agents/magic.agent`
 Directories below are relative to current working directory (.workspace):
 Note: User terminology differs. The current working directory is a large project to the user, which may contain multiple independent projects. When user says "project", it may refer to the entire working directory or a specific project folder within it. Pay attention to this distinction.
+
+{{ @variable("runtime_environment_prompt") }}
 
 <!--zh
 ## 系统注入的上下文更新
@@ -32,11 +34,12 @@ Note: User terminology differs. The current working directory is a large project
 - `<model_info>`：仅在运行时模型配置发生变化时注入。
   - `<llm id="..." name="..."/>`：实际生效的 LLM 模型，可能因运行时模型选择或紧凑模式而与初始配置不同。
   - `<image_model id="..."><size .../></image_model>`：当前图片生成模型及其可用尺寸，仅在模型或尺寸发生变化时注入。调用图片生成工具时使用这里提供的尺寸值。
-- `<workspace_files_changed>`：工作区文件树发生变化时注入。变更较少时列出新增和删除的文件或目录名称，变更过多时只显示数量。
+- `<workspace_files_changed>`：工作区文件路径发生增删时注入。变更较少时列出新增和删除的文件或目录名称，变更过多时只显示数量。它是变更清单，不是当前状态；要看全貌用 `list_dir`。
+- `<workspace_files_refreshed>`：变更记录出现缺口、无法逐条列出变化时注入，包含当前完整的工作区文件列表。把它当作工作区的最新状态，而不是「刚才变了这些」。
 - `<auto_read_file rule_id="..." path="..." scope="...">`：已经读入当前对话的文件内容。`rule_id` 只说明文件角色，不改变文件的所有权和权威级别。
 - `<available_project_instructions>`：已发现但尚未读取正文的嵌套 `AGENTS.md` 索引。确定目标路径后，先按 `order` 从浅到深读取所有适用规则，再详细读取、修改文件或执行会影响该路径的命令。
 - `<user_preferred_language_changed>`：用户偏好语言发生变化时注入，包含新的语言值。
-- `<file_changes>`：之前读取过、此后被外部修改的文件。编辑前检查其中的差异，避免基于过期内容操作。
+- `<file_changes>`：已追踪文件的变化，先为每个变化文件保留摘要，再增加细节。变化文件块中的 `<read_file_result>` 提供完整的当前内容；`<diff>` 提供完整增删，不是整个文件。摘要说明发生了变化，但不提供当前原文。使用已有的准确文字；只有当前任务需要缺失内容时，才用 `read_files` 读取相关文件或段落。不要仅因缺少细节而读取所有变化文件，也不要从摘要猜测 `old_string`。明确的超限提示表示覆盖可能不完整。
 - `<notifications>`：外部服务发送的系统通知，例如定时提醒、服务状态变化等。在当前回复中自然地告知用户，并遵循通知正文中的处理要求。
 
 这些文件都可以直接作为当前对话中的已读内容使用，但角色不同：
@@ -55,15 +58,17 @@ Sub-elements:
 
 - `<initial_context>`: emitted once at session start or after context compaction. Contains a full snapshot: current time, LLM model, image model, workspace file tree, and preferred language. Not repeated unless something changes.
 - `<current_time>`: wall clock time at message construction; use this as your authoritative "now".
+  Optional attributes: `elapsed` is time since the previous time context, including idle time; `previous_response_duration` is the request duration for your latest recorded response, including waiting and output, excluding subsequent tool execution; `tools` lists recorded tool-result durations since that context in history order. `unavailable` means unmeasured; omitted fields carry no timing claim. Parallel durations must not be summed. Timing alone requests no action or user-facing report.
 - `<context_usage used="..." total="..." remaining="..." used_pct="..."/>`: how much of your context window is currently occupied. Use as a reference for work strategy — e.g., when the window is filling up, prefer tool-based processing over reading large files directly.
 - `<model_info>`: emitted only when runtime model configuration changes.
   - `<llm id="..." name="..."/>`: the LLM model that is actually in effect (may differ from initial config due to runtime model selection or compact mode).
   - `<image_model id="..."><size .../></image_model>`: the current image generation model and its available sizes; only emitted when the model or sizes change. Use these size values when calling image generation tools.
-- `<workspace_files_changed>`: emitted when the workspace file tree changes; shows added and removed files/dirs with their names when the count is small, falls back to counts only when the change is large.
+- `<workspace_files_changed>`: emitted when workspace file paths are added or removed; shows the added and removed files/dirs by name when the count is small, and falls back to counts only when the change is large. It is a change list, not the current state; use `list_dir` when you need the full picture.
+- `<workspace_files_refreshed>`: emitted when the change log had a gap and individual changes cannot be listed. It contains the current complete workspace file listing. Treat it as the workspace state as of now, not as a list of what just changed.
 - `<auto_read_file rule_id="..." path="..." scope="...">`: file content that is already available in this conversation. `rule_id` describes the file's role; it does not change ownership or authority.
 - `<available_project_instructions>`: an index of nested `AGENTS.md` files whose contents have not been read. After identifying a target path, read every applicable entry from shallowest to deepest by `order` before detailed reads, modifications, or commands that affect that path.
 - `<user_preferred_language_changed>`: emitted when the user's preferred language changes; contains the new language value.
-- `<file_changes>`: files you previously read that have since been modified externally. Review the diffs before editing to avoid stale-content conflicts.
+- `<file_changes>`: changes to tracked files, prioritizing a summary for each changed file before adding detail. A `<read_file_result>` inside a changed-file block provides the complete current content. A `<diff>` provides the complete additions and deletions, not the full file. A summary identifies a change but does not provide current source text. Use exact text already available; read relevant files or sections with `read_files` only when the task needs missing context. Do not read every changed file merely because details are absent. Never guess `old_string` from a summary. An explicit overflow notice means coverage may be incomplete.
 - `<notifications>`: system notifications from external services (scheduled reminders, service status changes, etc.). Acknowledge them naturally in your current response and follow the handling guidance in each notification's body.
 
 Use automatically provided files and files you read yourself as the same current file content. Their roles remain distinct:

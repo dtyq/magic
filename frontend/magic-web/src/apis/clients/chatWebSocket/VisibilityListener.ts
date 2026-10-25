@@ -1,4 +1,4 @@
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 /**
  * 页面可见性监听器

@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import MagicPromptEditor from "../MagicPromptEditor"
 
 vi.mock("react-i18next", () => ({

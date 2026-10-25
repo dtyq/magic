@@ -7,7 +7,7 @@ import {
 	ConversationMessageType,
 	AggregateAISearchCardV2Status,
 } from "@/types/chat/conversation_message"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import type {
 	AIImagesMessage,
 	FileConversationMessage,
@@ -33,7 +33,7 @@ import type { User } from "@/types/user"
 import userInfoStore from "@/stores/userInfo"
 import { StreamStatus, type SeqResponse } from "@/types/request"
 import type { SeenMessage } from "@/types/chat/seen_message"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import type { ApplyMessageOptions, FullMessage, MessagePage } from "@/types/chat/message"
 import MessageReferStore from "@/stores/chatNew/messageUI/Reply"
 import { ChatApi } from "@/apis"
@@ -49,7 +49,7 @@ import { userStore } from "@/models/user"
 import { UpdateSpec } from "dexie"
 import { getStringSizeInBytes } from "@/utils/size"
 import MessageFileService from "./MessageFileService"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import MessageEditService from "./MessageEditService"
 import ChatFileService from "../file/ChatFileService"
 import { BroadcastChannelSender } from "@/broadcastChannel"

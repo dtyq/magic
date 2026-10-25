@@ -47,24 +47,6 @@ export const PERMISSION_KEY_MAP: Record<string, string> = {
 	/** AI管理 - 视频大模型-编辑 */
 	VIDEO_MODEL_EDIT: "workspace.model.video.edit",
 
-	/** AI管理 - 员工发布审核-菜单 */
-	AGENT_REVIEW_MENU: "menu.ai_management.internal_employee_and_skill.agent",
-	/** AI管理 - 员工发布审核-查询 */
-	AGENT_REVIEW_QUERY: "workspace.ai.agent_management.query",
-	/** AI管理 - 员工发布审核-编辑 */
-	AGENT_REVIEW_EDIT: "workspace.ai.agent_management.edit",
-	/** AI管理 - 技能发布审核-菜单 */
-	SKILL_REVIEW_MENU: "menu.ai_management.internal_employee_and_skill.skill",
-	/** AI管理 - 技能发布审核-查询 */
-	SKILL_REVIEW_QUERY: "workspace.ai.skill_management.query",
-	/** AI管理 - 技能发布审核-编辑 */
-	SKILL_REVIEW_EDIT: "workspace.ai.skill_management.edit",
-
-	/** AI管理 - 应用菜单-查询 */
-	AI_APP_MENU_QUERY: "admin.ai.application.menu.query",
-	/** AI管理 - 应用菜单-编辑 */
-	AI_APP_MENU_EDIT: "admin.ai.application.edit",
-
 	/* -- 平台管理 -- */
 	/** 平台管理 - 模型管理-查询 */
 	PLATFORM_MODEL_MANAGEMENT_QUERY: "platform.model.text.query",
@@ -107,10 +89,6 @@ export const PERMISSION_KEY_MAP: Record<string, string> = {
 	/** 平台管理 - skill市场 - 编辑 */
 	PLATFORM_SKILL_MARKET_EDIT: "platform.skill.market.edit",
 
-	/** 平台维护-查询 */
-	INFO_MANAGEMENT_QUERY: "platform.setting.maintenance.query",
-	/** 平台维护-编辑 */
-	INFO_MANAGEMENT_EDIT: "platform.setting.maintenance.edit",
 	/** 平台信息-查询 */
 	PLATFORM_INFO_MANAGEMENT_QUERY: "platform.setting.platform_info.query",
 	/** 平台信息-编辑 */
@@ -153,8 +131,6 @@ export const PLATFORM_AGENT_MANAGEMENT = [
 
 /** 平台管理 - 平台管理配置 */
 export const PLATFORM_SYSTEM_SETTING = [
-	PERMISSION_KEY_MAP.INFO_MANAGEMENT_QUERY,
-	PERMISSION_KEY_MAP.INFO_MANAGEMENT_EDIT,
 	PERMISSION_KEY_MAP.PLATFORM_INFO_MANAGEMENT_QUERY,
 	PERMISSION_KEY_MAP.PLATFORM_INFO_MANAGEMENT_EDIT,
 	PERMISSION_KEY_MAP.APP_MENU_QUERY,
@@ -170,55 +146,7 @@ export const PLATFORM_INFO_MANAGEMENT = [
 /** 平台管理 - 总权限 */
 export const PLATFORM_MANAGEMENT = [
 	PERMISSION_KEY_MAP.MAGIC_PLATFORM_PERMISSIONS,
+	...PLATFORM_MODEL_MANAGEMENT,
 	...PLATFORM_AGENT_MANAGEMENT,
 	...PLATFORM_SYSTEM_SETTING,
-]
-
-/** AI管理 - 自定义大模型 */
-export const AI_CUSTOM_MODEL = [
-	PERMISSION_KEY_MAP.MODEL_MANAGEMENT_QUERY,
-	PERMISSION_KEY_MAP.MODEL_MANAGEMENT_EDIT,
-	PERMISSION_KEY_MAP.INTELLIGENT_DRAWING_QUERY,
-	PERMISSION_KEY_MAP.INTELLIGENT_DRAWING_EDIT,
-	PERMISSION_KEY_MAP.VIDEO_MODEL_QUERY,
-	PERMISSION_KEY_MAP.VIDEO_MODEL_EDIT,
-]
-
-/** AI管理 - 员工发布审核 */
-export const AI_EMPLOYEE_REVIEW = [
-	PERMISSION_KEY_MAP.AGENT_REVIEW_MENU,
-	PERMISSION_KEY_MAP.AGENT_REVIEW_QUERY,
-	PERMISSION_KEY_MAP.AGENT_REVIEW_EDIT,
-]
-
-/** AI管理 - 技能发布审核 */
-export const AI_SKILL_REVIEW = [
-	PERMISSION_KEY_MAP.SKILL_REVIEW_MENU,
-	PERMISSION_KEY_MAP.SKILL_REVIEW_QUERY,
-	PERMISSION_KEY_MAP.SKILL_REVIEW_EDIT,
-]
-
-/** AI管理 - 内部员工及技能 */
-export const AI_INTERNAL_EMPLOYEE_SKILL = [...AI_EMPLOYEE_REVIEW, ...AI_SKILL_REVIEW]
-
-/** AI管理 - 应用菜单 */
-export const AI_APP_MENU = [
-	PERMISSION_KEY_MAP.AI_APP_MENU_QUERY,
-	PERMISSION_KEY_MAP.AI_APP_MENU_EDIT,
-]
-
-/** AI管理 - 数据看板 */
-// export const AI_DATA_DASHBOARD = [
-// 	PERMISSION_KEY_MAP.AI_DATA_DASHBOARD_QUERY,
-// 	PERMISSION_KEY_MAP.AI_DATA_DASHBOARD_EDIT,
-// ]
-
-/** AI管理 - 总权限 */
-export const AI_MANAGEMENT = [
-	PERMISSION_KEY_MAP.MAGIC_PLATFORM_PERMISSIONS,
-	PERMISSION_KEY_MAP.MAGIC_ALL_PERMISSIONS,
-	PERMISSION_KEY_MAP.MAGIC_PERSON_PERMISSIONS,
-	...AI_CUSTOM_MODEL,
-	...AI_INTERNAL_EMPLOYEE_SKILL,
-	...AI_APP_MENU,
 ]

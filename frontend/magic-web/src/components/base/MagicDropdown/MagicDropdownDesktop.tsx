@@ -16,7 +16,7 @@ import {
 	getOverlayInteractionScopeBoundaryAttributes,
 	isInteractionWithinOverlayScope,
 } from "@/components/shadcn-ui/overlay-interaction-scope"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { convertMenuItemsToComponents, convertPlacement } from "./utils"
 import type { MagicDropdownProps } from "./types"
 import { isUndefined } from "lodash-es"

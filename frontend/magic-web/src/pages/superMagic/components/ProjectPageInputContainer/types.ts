@@ -48,6 +48,10 @@ export interface ProjectPageInputContainerProps {
 	topicModeLogic?: TopicModeLogic
 	/** 模型选择器使用的模式目录，不改变实际发送时的话题模式。 */
 	modelTopicMode?: SceneEditorContext["modelTopicMode"]
+	/** 覆盖编辑器发送和场景配置使用的员工；用于锁定对话详情的默认员工。 */
+	agentCode?: string | null
+	/** 输入框提示文案覆盖，用于让移动端对话详情与对话首页保持一致。 */
+	placeholder?: SceneEditorContext["placeholder"]
 	/**
 	 * 是否启用通过内容发送消息
 	 */
@@ -85,4 +89,7 @@ export interface ProjectPageInputContainerProps {
 	}) => void
 	/** Optional override for send-time topic creation (e.g. project entry with detail backfill). */
 	createTopic?: SceneEditorContext["createTopic"]
+	/** Mentions bound to every sent message, e.g. the AI canvas folder. */
+	getImplicitMentionItems?: SceneEditorContext["getImplicitMentionItems"]
+	editorRef?: SceneEditorContext["editorRef"]
 }

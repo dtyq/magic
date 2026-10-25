@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 import { ImageResourceManager, type ImageResourceVariant } from "../image/ImageResourceManager"
 import { createImageResourceDiagnostics } from "../diagnostics/CanvasResourceDiagnostics"
-import {
-	DEFAULT_MEDIA_DECODE_CONCURRENT_PIXEL_BUDGET,
-	MediaDecodePixelBudgetGate,
-} from "../offline-cache/MediaDecodePixelBudget"
 import { MediaResourceBodyCache } from "../offline-cache/MediaResourceBodyCache"
 import type { DecodedImageRetentionHint } from "../visibility/CanvasVisibilityManager"
+import { createTestResourceReferenceResolver } from "../../../public/__tests__/testResourceReferenceResolver"
+import type { ResolveCanvasResourceReference } from "../../../public/resource-reference"
+import { getCanvasResourceReferenceIdentity } from "../../shared/path/canvasResourcePath"
 
 interface TestImageResource {
 	ossSrc: string
@@ -67,6 +66,10 @@ function createImageResource(
 
 function createEntry(overrides: Record<string, unknown> = {}) {
 	return {
+		resourceStateGeneration: 0,
+		awaitingResolverAvailability: false,
+		referencePath: "./images/test.png",
+		resourceIdentity: "unresolved:./images/test.png",
 		ossSrc: null,
 		ossSrcFromCachedFallback: false,
 		sourceUrl: null,
@@ -103,6 +106,7 @@ function createEntry(overrides: Record<string, unknown> = {}) {
 function createManager() {
 	const eventEmitter = { emit: vi.fn() }
 	const canvasFileUploadManager = { shouldDeferRemoteResourceLoad: vi.fn(() => false) }
+	const mediaResourceOfflineCacheManager = { removeCachedResource: vi.fn() }
 	const visibilityManager = {
 		getDecodedImageRetentionSnapshot: vi.fn<() => DecodedImageRetentionHint[]>(() => []),
 		invalidateImageLoadRequest: vi.fn(),
@@ -123,9 +127,13 @@ function createManager() {
 			visibilityManager: typeof visibilityManager
 			magicConfigManager: {
 				config?: {
-					methods?: { getImageProcessCacheSignature?: () => string }
+					methods?: {
+						getImageProcessCacheSignature?: () => string
+						resolveResourceReference?: ResolveCanvasResourceReference
+					}
 				}
 			}
+			mediaResourceOfflineCacheManager: typeof mediaResourceOfflineCacheManager
 			resourceScheduler: typeof resourceScheduler
 		}
 		managerInstanceId: number
@@ -133,7 +141,6 @@ function createManager() {
 		entries: Map<string, ReturnType<typeof createEntry>>
 		previewLoadQueue: unknown[]
 		activePreviewLoadPipelineCount: number
-		decodePixelBudgetGate: MediaDecodePixelBudgetGate
 		lastSuccessfulDecodeIdentityByPathVariant: Map<string, string>
 		bodyCache: MediaResourceBodyCache<ReturnType<typeof createEntry>>
 		displayVariantPersistentCache: {
@@ -150,12 +157,23 @@ function createManager() {
 		persistentLowWriteTimestamp: number
 		persistentLowWriteSequence: number
 		diagnostics: ReturnType<typeof createImageResourceDiagnostics>
-		imageResourceLoadFailedHandlersByPath: Map<string, Set<unknown>>
-		imageResourceWillCloseHandlersByPath: Map<string, Set<unknown>>
+		imageResourceLoadFailedHandlersByIdentity: Map<string, Set<unknown>>
+		imageResourceRecoveryStartedHandlersByIdentity: Map<string, Set<unknown>>
+		imageResourceWillCloseHandlersByIdentity: Map<string, Set<unknown>>
 		urlLifecycle: {
-			canonicalResourcePath: (path: string) => string
+			getResourceIdentity: (path: string) => string
 			clearExpiredOssSrc: (entry: ReturnType<typeof createEntry>) => boolean
 			applyVirtualResourceBypass: () => void
+			primeCache: (
+				path: string,
+				entry: ReturnType<typeof createEntry>,
+				fileInfo: {
+					src: string
+					resource_version?: string
+					updated_at?: string
+					content_length?: number
+				},
+			) => void
 		}
 		loadResource: (path: string, options?: Record<string, unknown>) => void
 		getSnapshot: () => ReturnType<ImageResourceManager["getSnapshot"]>
@@ -172,6 +190,7 @@ function createManager() {
 		canvasFileUploadManager,
 		visibilityManager,
 		magicConfigManager: { config: undefined },
+		mediaResourceOfflineCacheManager,
 		resourceScheduler,
 	}
 	manager.managerInstanceId = 1
@@ -179,9 +198,6 @@ function createManager() {
 	manager.entries = new Map()
 	manager.previewLoadQueue = []
 	manager.activePreviewLoadPipelineCount = 0
-	manager.decodePixelBudgetGate = new MediaDecodePixelBudgetGate(
-		DEFAULT_MEDIA_DECODE_CONCURRENT_PIXEL_BUDGET,
-	)
 	manager.lastSuccessfulDecodeIdentityByPathVariant = new Map()
 	manager.bodyCache = new MediaResourceBodyCache({ ttlMs: 120_000, maxBytes: 256 * 1024 * 1024 })
 	manager.displayVariantPersistentCache = {
@@ -198,14 +214,23 @@ function createManager() {
 	manager.persistentLowWriteTimestamp = 0
 	manager.persistentLowWriteSequence = 0
 	manager.diagnostics = createImageResourceDiagnostics()
-	manager.imageResourceLoadFailedHandlersByPath = new Map()
-	manager.imageResourceWillCloseHandlersByPath = new Map()
+	manager.imageResourceLoadFailedHandlersByIdentity = new Map()
+	manager.imageResourceRecoveryStartedHandlersByIdentity = new Map()
+	manager.imageResourceWillCloseHandlersByIdentity = new Map()
 	manager.urlLifecycle = {
-		canonicalResourcePath: (path: string) => path,
+		getResourceIdentity: (path: string) => path,
 		clearExpiredOssSrc: vi.fn(() => false),
 		applyVirtualResourceBypass: vi.fn(),
+		primeCache: vi.fn((_path, entry, fileInfo) => {
+			entry.exchangePromise = null
+			entry.ossSrc = fileInfo.src
+			entry.sourceUrl = fileInfo.src
+			entry.resourceVersion = fileInfo.resource_version ?? null
+			entry.sourceUpdatedAt = fileInfo.updated_at ?? null
+			entry.contentLength = fileInfo.content_length ?? null
+		}),
 	}
-	return { manager, eventEmitter, visibilityManager }
+	return { manager, eventEmitter, visibilityManager, mediaResourceOfflineCacheManager }
 }
 
 type EnforceDecodedBitmapBudget = (options: {
@@ -385,13 +410,10 @@ describe("ImageResourceManager image resources", () => {
 		expect(manager.getSnapshot().staleRequestDropCount).toBe(1)
 	})
 
-	it("passes the pipeline signal to the decode pixel budget gate", async () => {
+	it("passes decode priority, pixel cost and signal to the worker client", async () => {
 		const { manager } = createManager()
 		const controller = new AbortController()
-		const release = vi.fn()
-		const acquire = vi
-			.spyOn(manager.decodePixelBudgetGate, "acquire")
-			.mockResolvedValue(release)
+		const sendToWorker = vi.fn(async () => null)
 		const entry = createEntry()
 		const loadImageResource = (
 			manager as unknown as {
@@ -417,7 +439,11 @@ describe("ImageResourceManager image resources", () => {
 		;(
 			manager as unknown as { estimateImageDecodePixelCost: ReturnType<typeof vi.fn> }
 		).estimateImageDecodePixelCost = vi.fn(async () => 1)
-		;(manager.canvas.resourceScheduler.run as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+		;(manager as unknown as { sendToWorker: typeof sendToWorker }).sendToWorker = sendToWorker
+		;(manager.canvas.resourceScheduler.run as ReturnType<typeof vi.fn>).mockImplementation(
+			async (_kind: string, task: (signal: AbortSignal) => Promise<unknown>) =>
+				task(controller.signal),
+		)
 		manager.lastSuccessfulDecodeIdentityByPathVariant.set(
 			"images/decode-signal.png\u0000preview",
 			"images/decode-signal.png\u0000decode-signal\u0000preview",
@@ -435,8 +461,11 @@ describe("ImageResourceManager image resources", () => {
 		)
 
 		expect(result).toBeNull()
-		expect(acquire).toHaveBeenCalledWith(1, "visible", controller.signal)
-		expect(release).toHaveBeenCalledTimes(1)
+		expect(sendToWorker).toHaveBeenCalledWith(expect.objectContaining({ variant: "preview" }), {
+			signal: controller.signal,
+			priority: "visible",
+			pixelCost: 1,
+		})
 		expect(manager.getSnapshot().decodeRepeatAttemptCount).toBe(1)
 	})
 
@@ -444,7 +473,6 @@ describe("ImageResourceManager image resources", () => {
 		const { manager } = createManager()
 		const controller = new AbortController()
 		const close = vi.fn()
-		const release = vi.fn()
 		;(
 			manager.canvas as unknown as {
 				resourceScheduler: {
@@ -471,9 +499,6 @@ describe("ImageResourceManager image resources", () => {
 		;(
 			manager as unknown as { estimateImageDecodePixelCost: ReturnType<typeof vi.fn> }
 		).estimateImageDecodePixelCost = vi.fn(async () => 1)
-		;(
-			manager as unknown as { acquireImageDecodePermit: ReturnType<typeof vi.fn> }
-		).acquireImageDecodePermit = vi.fn(async () => release)
 		;(manager as unknown as { sendToWorker: ReturnType<typeof vi.fn> }).sendToWorker = vi.fn(
 			async () => ({
 				imageSource: { width: 10, height: 10, close } as unknown as ImageBitmap,
@@ -513,7 +538,6 @@ describe("ImageResourceManager image resources", () => {
 
 		expect(result).toBeNull()
 		expect(close).toHaveBeenCalledTimes(1)
-		expect(release).toHaveBeenCalledTimes(1)
 		expect(entry.displaySlots.preview.resource).toBeNull()
 		expect(manager.getSnapshot().staleRequestDropCount).toBe(1)
 	})
@@ -522,7 +546,6 @@ describe("ImageResourceManager image resources", () => {
 		const { manager } = createManager()
 		const path = "images/decode-generation.png"
 		const close = vi.fn()
-		const release = vi.fn()
 		;(
 			manager.canvas as unknown as {
 				resourceScheduler: { run: ReturnType<typeof vi.fn> }
@@ -548,9 +571,6 @@ describe("ImageResourceManager image resources", () => {
 		;(
 			manager as unknown as { estimateImageDecodePixelCost: ReturnType<typeof vi.fn> }
 		).estimateImageDecodePixelCost = vi.fn(async () => 1)
-		;(
-			manager as unknown as { acquireImageDecodePermit: ReturnType<typeof vi.fn> }
-		).acquireImageDecodePermit = vi.fn(async () => release)
 		;(manager as unknown as { sendToWorker: ReturnType<typeof vi.fn> }).sendToWorker = vi.fn(
 			async () => ({
 				imageSource: { width: 10, height: 10, close } as unknown as ImageBitmap,
@@ -585,7 +605,6 @@ describe("ImageResourceManager image resources", () => {
 
 		expect(result).toBeNull()
 		expect(close).toHaveBeenCalledOnce()
-		expect(release).toHaveBeenCalledOnce()
 		expect(entry.displaySlots.preview.resource).toBeNull()
 	})
 
@@ -655,6 +674,300 @@ describe("ImageResourceManager image resources", () => {
 		await lowBootstrap.promise
 	})
 
+	it("rejects decoded and persistent caches after the attachment snapshot confirms deletion", async () => {
+		const { manager, eventEmitter, mediaResourceOfflineCacheManager } = createManager()
+		const path = "./images/deleted.png"
+		manager.canvas.magicConfigManager.config = {
+			methods: {
+				resolveResourceReference: createTestResourceReferenceResolver({
+					attachmentsReady: true,
+				}),
+			},
+		}
+		const loadPersistentDisplayResource = vi.fn(async () => createImageResource("low"))
+		const managerInternals = manager as unknown as {
+			loadPersistentDisplayResource: typeof loadPersistentDisplayResource
+			loadImageInternal: (
+				path: string,
+				options: { variant: ImageResourceVariant },
+			) => Promise<TestImageResource | null>
+		}
+		managerInternals.loadPersistentDisplayResource = loadPersistentDisplayResource
+
+		const result = await managerInternals.loadImageInternal(path, { variant: "low" })
+
+		expect(result).toBeNull()
+		expect(loadPersistentDisplayResource).not.toHaveBeenCalled()
+		expect(mediaResourceOfflineCacheManager.removeCachedResource).toHaveBeenCalledWith({
+			path,
+			mediaType: "image",
+		})
+		expect(eventEmitter.emit).toHaveBeenCalledWith({
+			type: "resource:image:load-failed",
+			data: { path, reason: "not-found" },
+		})
+	})
+
+	it("keeps a primed upload authoritative until the resolver acknowledges it as available", async () => {
+		const { manager, eventEmitter } = createManager()
+		const path = "./images/reuploaded.png"
+		manager.canvas.magicConfigManager.config = {
+			methods: {
+				resolveResourceReference: createTestResourceReferenceResolver({
+					attachmentsReady: true,
+				}),
+			},
+		}
+		const previewResource = createImageResource("preview")
+		const managerInternals = manager as unknown as {
+			primeCache: (
+				path: string,
+				fileInfo: { src: string; fileName: string; resource_version: string },
+			) => void
+			loadImageResourcePipeline: ReturnType<typeof vi.fn>
+			loadImageInternal: (
+				path: string,
+				options: { variant: ImageResourceVariant; bypassQueue: boolean },
+			) => Promise<TestImageResource | null>
+			handleResourceReferenceResolverChanged: () => void
+		}
+		managerInternals.loadImageResourcePipeline = vi.fn(async () => previewResource)
+
+		managerInternals.primeCache(path, {
+			src: "https://oss.example/reuploaded.png",
+			fileName: "reuploaded.png",
+			resource_version: "v2",
+		})
+		const loaded = await managerInternals.loadImageInternal(path, {
+			variant: "preview",
+			bypassQueue: true,
+		})
+
+		expect(loaded).toBe(previewResource)
+		expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "resource:image:load-failed" }),
+		)
+
+		managerInternals.handleResourceReferenceResolverChanged()
+
+		const entry = manager.entries.get(path)
+		expect(entry?.ossSrc).toBe("https://oss.example/reuploaded.png")
+		expect(entry?.resourceVersion).toBe("v2")
+		expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "resource:image:load-failed" }),
+		)
+
+		manager.canvas.magicConfigManager.config = {
+			methods: {
+				resolveResourceReference: createTestResourceReferenceResolver({
+					attachmentsReady: true,
+					attachmentPathsByFileId: { "file-1": path },
+				}),
+			},
+		}
+		managerInternals.handleResourceReferenceResolverChanged()
+		expect(entry?.awaitingResolverAvailability).toBe(false)
+
+		manager.canvas.magicConfigManager.config = {
+			methods: {
+				resolveResourceReference: createTestResourceReferenceResolver({
+					attachmentsReady: true,
+				}),
+			},
+		}
+		managerInternals.handleResourceReferenceResolverChanged()
+
+		expect(entry?.ossSrc).toBeNull()
+		expect(entry?.resourceVersion).toBeNull()
+		expect(eventEmitter.emit).toHaveBeenCalledWith({
+			type: "resource:image:load-failed",
+			data: { path, reason: "not-found" },
+		})
+	})
+
+	it("notifies every same-identity subscriber when an uploaded resource is primed", () => {
+		const { manager } = createManager()
+		const path = "./images/reuploaded.png"
+		const firstHandler = vi.fn()
+		const secondHandler = vi.fn()
+		const otherPathHandler = vi.fn()
+		const managerInternals = manager as unknown as {
+			onImageResourceRecoveryStarted: (
+				path: string,
+				handler: (event: { data: { path: string; ossSrc: string } }) => void,
+			) => () => void
+			primeCache: (
+				path: string,
+				fileInfo: { src: string; fileName: string; resource_version: string },
+			) => void
+		}
+		const cleanups = [
+			managerInternals.onImageResourceRecoveryStarted(path, firstHandler),
+			managerInternals.onImageResourceRecoveryStarted(path, secondHandler),
+			managerInternals.onImageResourceRecoveryStarted("./images/other.png", otherPathHandler),
+		]
+
+		managerInternals.primeCache(path, {
+			src: "https://oss.example/reuploaded.png",
+			fileName: "reuploaded.png",
+			resource_version: "v2",
+		})
+
+		const expectedEvent = {
+			data: {
+				path,
+				ossSrc: "https://oss.example/reuploaded.png",
+			},
+		}
+		expect(firstHandler).toHaveBeenCalledOnce()
+		expect(firstHandler).toHaveBeenCalledWith(expectedEvent)
+		expect(secondHandler).toHaveBeenCalledOnce()
+		expect(secondHandler).toHaveBeenCalledWith(expectedEvent)
+		expect(otherPathHandler).not.toHaveBeenCalled()
+
+		cleanups.forEach((cleanup) => cleanup())
+	})
+
+	it("does not broadcast a failure when a primed upload supersedes an in-flight refresh", async () => {
+		const { manager, eventEmitter } = createManager()
+		const path = "./images/reuploaded.png"
+		const entry = createEntry({ referencePath: path, resourceIdentity: path })
+		manager.entries.set(path, entry)
+		const exchangeResult = deferred<string | null>()
+		const exchangeOssSrc = vi.fn(() => exchangeResult.promise)
+		const managerInternals = manager as unknown as {
+			exchangeOssSrc: typeof exchangeOssSrc
+			primeCache: (
+				path: string,
+				fileInfo: { src: string; fileName: string; resource_version: string },
+			) => void
+		}
+		managerInternals.exchangeOssSrc = exchangeOssSrc
+
+		const refresh = manager.refreshResource(path)
+		await vi.waitFor(() => expect(exchangeOssSrc).toHaveBeenCalledTimes(1))
+		managerInternals.primeCache(path, {
+			src: "https://oss.example/reuploaded.png",
+			fileName: "reuploaded.png",
+			resource_version: "v2",
+		})
+		exchangeResult.resolve(null)
+
+		await expect(refresh).resolves.toBe(false)
+		expect(entry.ossSrc).toBe("https://oss.example/reuploaded.png")
+		expect(entry.resourceVersion).toBe("v2")
+		expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "resource:image:load-failed" }),
+		)
+	})
+
+	it("does not fence a primed upload that the current resolver already sees as available", () => {
+		const { manager, eventEmitter } = createManager()
+		const path = "./images/reuploaded.png"
+		manager.canvas.magicConfigManager.config = {
+			methods: {
+				resolveResourceReference: createTestResourceReferenceResolver({
+					attachmentsReady: true,
+					attachmentPathsByFileId: { "file-1": path },
+				}),
+			},
+		}
+		const managerInternals = manager as unknown as {
+			primeCache: (
+				path: string,
+				fileInfo: { src: string; fileName: string; resource_version: string },
+			) => void
+			handleResourceReferenceResolverChanged: () => void
+		}
+
+		managerInternals.primeCache(path, {
+			src: "https://oss.example/reuploaded.png",
+			fileName: "reuploaded.png",
+			resource_version: "v2",
+		})
+		const entry = manager.entries.get(path)
+		expect(entry?.awaitingResolverAvailability).toBe(false)
+
+		manager.canvas.magicConfigManager.config = {
+			methods: {
+				resolveResourceReference: createTestResourceReferenceResolver({
+					attachmentsReady: true,
+				}),
+			},
+		}
+		managerInternals.handleResourceReferenceResolverChanged()
+
+		expect(entry?.ossSrc).toBeNull()
+		expect(eventEmitter.emit).toHaveBeenCalledWith({
+			type: "resource:image:load-failed",
+			data: { path, reason: "not-found" },
+		})
+	})
+
+	it("does not broadcast load-error when a primed upload supersedes an in-flight preview", async () => {
+		const { manager, eventEmitter } = createManager()
+		const path = "./images/reuploaded.png"
+		const previewResult = deferred<TestImageResource | null>()
+		const loadImageResourcePipeline = vi.fn(() => previewResult.promise)
+		const managerInternals = manager as unknown as {
+			loadImageResourcePipeline: typeof loadImageResourcePipeline
+			loadImageInternal: (
+				path: string,
+				options: { variant: ImageResourceVariant; bypassQueue: boolean },
+			) => Promise<TestImageResource | null>
+			primeCache: (
+				path: string,
+				fileInfo: { src: string; fileName: string; resource_version: string },
+			) => void
+		}
+		managerInternals.loadImageResourcePipeline = loadImageResourcePipeline
+
+		const load = managerInternals.loadImageInternal(path, {
+			variant: "preview",
+			bypassQueue: true,
+		})
+		await vi.waitFor(() => expect(loadImageResourcePipeline).toHaveBeenCalledTimes(1))
+		managerInternals.primeCache(path, {
+			src: "https://oss.example/reuploaded.png",
+			fileName: "reuploaded.png",
+			resource_version: "v2",
+		})
+		previewResult.resolve(null)
+
+		await expect(load).resolves.toBeNull()
+		expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "resource:image:load-failed" }),
+		)
+	})
+
+	it("allows persistent cache bootstrap while attachments are still pending", async () => {
+		const { manager } = createManager()
+		manager.canvas.magicConfigManager.config = {
+			methods: {
+				resolveResourceReference: createTestResourceReferenceResolver({
+					attachmentsReady: false,
+				}),
+			},
+		}
+		const lowResource = createImageResource("low")
+		const loadPersistentDisplayResource = vi.fn(async () => lowResource)
+		const managerInternals = manager as unknown as {
+			loadPersistentDisplayResource: typeof loadPersistentDisplayResource
+			loadImageInternal: (
+				path: string,
+				options: { variant: ImageResourceVariant },
+			) => Promise<TestImageResource | null>
+		}
+		managerInternals.loadPersistentDisplayResource = loadPersistentDisplayResource
+
+		const result = await managerInternals.loadImageInternal("./images/pending.png", {
+			variant: "low",
+		})
+
+		expect(result).toBe(lowResource)
+		expect(loadPersistentDisplayResource).toHaveBeenCalledTimes(1)
+	})
+
 	it("enables persistent low bootstrap only for fire-and-forget display loads", async () => {
 		const { manager } = createManager()
 		const previewResource = createImageResource("preview")
@@ -665,6 +978,8 @@ describe("ImageResourceManager image resources", () => {
 		manager.loadResource("images/display.png", { variant: "preview" })
 		await Promise.resolve()
 		await manager.getResource("images/export.png", { variant: "preview" })
+		manager.loadResource("images/full-display.png", { variant: "full" })
+		await Promise.resolve()
 
 		expect(loadImageInternal).toHaveBeenNthCalledWith(1, "images/display.png", {
 			variant: "preview",
@@ -672,6 +987,10 @@ describe("ImageResourceManager image resources", () => {
 		})
 		expect(loadImageInternal).toHaveBeenNthCalledWith(2, "images/export.png", {
 			variant: "preview",
+		})
+		expect(loadImageInternal).toHaveBeenNthCalledWith(3, "images/full-display.png", {
+			variant: "full",
+			restorePersistentLow: false,
 		})
 	})
 
@@ -717,6 +1036,74 @@ describe("ImageResourceManager image resources", () => {
 			expect(loadImageInternal).toHaveBeenCalled()
 		})
 		expect(eventEmitter.emit).not.toHaveBeenCalled()
+	})
+
+	it("keeps failure events as reference paths while handlers are indexed by identity", () => {
+		const { manager, eventEmitter } = createManager()
+		const resolveResourceReference = createTestResourceReferenceResolver()
+		manager.urlLifecycle.getResourceIdentity = (path) =>
+			getCanvasResourceReferenceIdentity(path, resolveResourceReference)
+		const handler = vi.fn()
+		manager.onImageResourceLoadFailed("/画布A/images/a.png", handler)
+
+		manager.markResourceLoadFailed("./images/a.png", "load-error")
+
+		expect(handler).toHaveBeenCalledWith({
+			data: { path: "./images/a.png", reason: "load-error" },
+		})
+		expect(eventEmitter.emit).toHaveBeenCalledWith({
+			type: "resource:image:load-failed",
+			data: { path: "./images/a.png", reason: "load-error" },
+		})
+	})
+
+	it("notifies aliased image consumers before closing an identity-keyed bitmap", () => {
+		const restoreAnimationFrame = installImmediateAnimationFrame()
+		try {
+			const { manager, eventEmitter } = createManager()
+			const resolveResourceReference = createTestResourceReferenceResolver()
+			manager.urlLifecycle.getResourceIdentity = (path) =>
+				getCanvasResourceReferenceIdentity(path, resolveResourceReference)
+			const referencePath = "./images/a.png"
+			const resourceIdentity = getCanvasResourceReferenceIdentity(
+				referencePath,
+				resolveResourceReference,
+			)
+			const closeOrder: string[] = []
+			const fullResource = createImageResource("full", {
+				width: 10,
+				height: 10,
+				close: () => closeOrder.push("close"),
+			})
+			const entry = createEntry({
+				referencePath,
+				resourceIdentity,
+				fullResource,
+				fullLastAccessAt: 1,
+			})
+			manager.entries.set(resourceIdentity, entry)
+			manager.onImageResourceWillClose("/画布A/images/a.png", () => {
+				closeOrder.push("notify")
+			})
+
+			enforceDecodedBitmapBudget(manager, {
+				reason: "identity-path-regression",
+				softBudgetBytes: 0,
+				hardBudgetBytes: 0,
+				fullBudgetBytes: 0,
+			})
+
+			expect(closeOrder).toEqual(["notify", "close"])
+			expect(eventEmitter.emit).toHaveBeenCalledWith({
+				type: "resource:image:will-close",
+				data: expect.objectContaining({
+					path: referencePath,
+					variant: "full",
+				}),
+			})
+		} finally {
+			restoreAnimationFrame()
+		}
 	})
 
 	it("migrates cached body keys after missing metadata is hydrated", () => {
@@ -1359,6 +1746,45 @@ describe("ImageResourceManager image resources", () => {
 		}
 	})
 
+	it("releases superseded low decoded resources without breaking low URL leases", () => {
+		const restoreAnimationFrame = installImmediateAnimationFrame()
+		try {
+			const { manager } = createManager()
+			const close = vi.fn()
+			const lowResource = createImageResource("low", { close })
+			const previewResource = createImageResource("preview")
+			const entry = createEntry({
+				displaySlots: {
+					low: {
+						resource: lowResource,
+						loadingPromise: null,
+						version: null,
+						lastAccessAt: 1,
+					},
+					preview: {
+						resource: previewResource,
+						loadingPromise: null,
+						version: null,
+						lastAccessAt: 1,
+					},
+				},
+			})
+			manager.entries.set("./images/test.png", entry)
+
+			manager.releaseSupersededLowIfUnused("./images/test.png")
+
+			expect(entry.displaySlots.low.resource).toBeNull()
+			expect(close).toHaveBeenCalledTimes(1)
+
+			entry.displaySlots.low.resource = lowResource
+			entry.lowDisplayLeaseCount = 1
+			manager.releaseSupersededLowIfUnused("./images/test.png")
+			expect(entry.displaySlots.low.resource).toBe(lowResource)
+		} finally {
+			restoreAnimationFrame()
+		}
+	})
+
 	it("skips decoded budget candidate scans while tracked bytes are below budget", () => {
 		const { manager } = createManager()
 		const entry = createEntry()
@@ -1408,10 +1834,14 @@ describe("ImageResourceManager image resources", () => {
 				close: newPreviewClose,
 			})
 			const fullEntry = createEntry({
+				referencePath: "full.png",
+				resourceIdentity: "full.png",
 				fullResource,
 				fullLastAccessAt: 30,
 			})
 			const oldPreviewEntry = createEntry({
+				referencePath: "old-preview.png",
+				resourceIdentity: "old-preview.png",
 				displaySlots: {
 					low: { resource: null, loadingPromise: null, version: null, lastAccessAt: 0 },
 					preview: {
@@ -1423,6 +1853,8 @@ describe("ImageResourceManager image resources", () => {
 				},
 			})
 			const newPreviewEntry = createEntry({
+				referencePath: "new-preview.png",
+				resourceIdentity: "new-preview.png",
 				displaySlots: {
 					low: { resource: null, loadingPromise: null, version: null, lastAccessAt: 0 },
 					preview: {
@@ -1480,6 +1912,8 @@ describe("ImageResourceManager image resources", () => {
 				height: 10,
 			})
 			const entry = createEntry({
+				referencePath: "image/path.png",
+				resourceIdentity: "image/path.png",
 				ossSrc: previewResource.ossSrc,
 				displaySlots: {
 					low: { resource: null, loadingPromise: null, version: null, lastAccessAt: 0 },
@@ -1521,6 +1955,8 @@ describe("ImageResourceManager image resources", () => {
 				height: 10,
 			})
 			const entry = createEntry({
+				referencePath: "image/full.png",
+				resourceIdentity: "image/full.png",
 				fullResource,
 				fullLastAccessAt: 1,
 			})
@@ -1552,6 +1988,8 @@ describe("ImageResourceManager image resources", () => {
 			height: 10,
 		})
 		const entry = createEntry({
+			referencePath: "image/recent-full.png",
+			resourceIdentity: "image/recent-full.png",
 			fullResource,
 			fullLastAccessAt: Date.now(),
 		})
@@ -1940,6 +2378,8 @@ describe("ImageResourceManager image resources", () => {
 		const { manager, eventEmitter } = createManager()
 		const previousResource = createImageResource("preview")
 		const entry = createEntry({
+			referencePath: "./images/a.png",
+			resourceIdentity: "images/a.png",
 			displaySlots: {
 				low: { resource: null, loadingPromise: null, version: null, lastAccessAt: 1 },
 				preview: {
@@ -1975,7 +2415,7 @@ describe("ImageResourceManager image resources", () => {
 		expect(eventEmitter.emit).toHaveBeenCalledWith({
 			type: "resource:image:load-failed",
 			data: {
-				path: "images/a.png",
+				path: "./images/a.png",
 				reason: "load-error",
 				preservePreview: true,
 			},
@@ -1987,7 +2427,7 @@ describe("ImageResourceManager image resources", () => {
 		const identity = JSON.stringify([
 			"design/test-canvas",
 			"images/race.png",
-			"image-process:default",
+			"image-process:default:exif-orientation-v1",
 			"low",
 			"v1",
 		])
@@ -2009,7 +2449,7 @@ describe("ImageResourceManager image resources", () => {
 		expect(removeVersion).toHaveBeenCalledWith(
 			"design/test-canvas",
 			"images/race.png",
-			"image-process:default",
+			"image-process:default:exif-orientation-v1",
 			"v1",
 			expect.any(String),
 		)
@@ -2021,6 +2461,8 @@ describe("ImageResourceManager image resources", () => {
 		const { manager } = createManager()
 		const path = "images/late-write.png"
 		const entry = createEntry({
+			referencePath: path,
+			resourceIdentity: path,
 			ossSrc: "https://example.test/v1.png",
 			resourceVersion: "v1",
 		})
@@ -2068,13 +2510,19 @@ describe("ImageResourceManager image resources", () => {
 		expect(manager.displayVariantPersistentCache.removeWriteOrder).toHaveBeenCalledWith(
 			"design/test-canvas",
 			path,
-			"image-process:default",
+			"image-process:default:exif-orientation-v1",
 			"v1",
 			writeOrder,
 		)
 		expect(
 			manager.persistentLowReadyKeys.has(
-				JSON.stringify(["design/test-canvas", path, "image-process:default", "low", "v1"]),
+				JSON.stringify([
+					"design/test-canvas",
+					path,
+					"image-process:default:exif-orientation-v1",
+					"low",
+					"v1",
+				]),
 			),
 		).toBe(false)
 	})
@@ -2083,6 +2531,8 @@ describe("ImageResourceManager image resources", () => {
 		const { manager } = createManager()
 		const path = "images/rejected-write.png"
 		const entry = createEntry({
+			referencePath: path,
+			resourceIdentity: path,
 			ossSrc: "https://example.test/rejected-write.png",
 			resourceVersion: "v1",
 		})
@@ -2131,6 +2581,8 @@ describe("ImageResourceManager image resources", () => {
 		const close = vi.fn()
 		const lowResource = createImageResource("low", { close })
 		const entry = createEntry({
+			referencePath: path,
+			resourceIdentity: path,
 			ossSrc: "https://example.test/deleted.png",
 			resourceVersion: "v1",
 			displaySlots: {
@@ -2180,7 +2632,7 @@ describe("ImageResourceManager image resources", () => {
 			JSON.stringify([
 				"design/test-canvas",
 				"images/race.png",
-				"image-process:default",
+				"image-process:default:exif-orientation-v1",
 				"low",
 				"v1",
 			]),
@@ -2274,6 +2726,8 @@ describe("ImageResourceManager image resources", () => {
 			ossSrc: "https://example.test/new-signed.png",
 		}
 		const entry = createEntry({
+			referencePath: "./images/a.png",
+			resourceIdentity: "images/a.png",
 			ossSrc: "https://example.test/old-signed.png",
 			resourceVersion: "v1",
 			displaySlots: {
@@ -2332,6 +2786,8 @@ describe("ImageResourceManager image resources", () => {
 			displayBlob: new Blob(["low-v1"], { type: "image/webp" }),
 		})
 		const entry = createEntry({
+			referencePath: "./images/a.png",
+			resourceIdentity: "images/a.png",
 			ossSrc: "https://example.test/v1.png",
 			resourceVersion: "v1",
 			displaySlots: {
@@ -2425,6 +2881,31 @@ describe("ImageResourceManager image resources", () => {
 		expect(buildLoadedResource(entry, "preview")).toMatchObject({
 			ossSrc: "https://example.test/refreshed.png",
 		})
+	})
+
+	it("does not expose a decoded image after it has been closed", () => {
+		const { manager } = createManager()
+		const resource = createImageResource("preview")
+		const entry = createEntry({
+			displaySlots: {
+				low: { resource: null, loadingPromise: null, version: null, lastAccessAt: 1 },
+				preview: {
+					resource,
+					loadingPromise: null,
+					version: null,
+					lastAccessAt: 1,
+				},
+			},
+		})
+		const buildLoadedResource = (
+			manager as unknown as {
+				buildLoadedResource: (target: typeof entry, variant: "preview") => unknown
+			}
+		).buildLoadedResource.bind(manager)
+
+		expect(buildLoadedResource(entry, "preview")).not.toBeNull()
+		resource.closed = true
+		expect(buildLoadedResource(entry, "preview")).toBeNull()
 	})
 
 	it("re-enters the image pipeline after a signed URL expires", async () => {
@@ -2538,7 +3019,7 @@ describe("ImageResourceManager image resources", () => {
 			scope: "design/test-canvas",
 			path: "images/generated.png",
 			variant: "low",
-			rendition: "image-process:default",
+			rendition: "image-process:default:exif-orientation-v1",
 			blob: displayBlob,
 			width: 512,
 			height: 384,

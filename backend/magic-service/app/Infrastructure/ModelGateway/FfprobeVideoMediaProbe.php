@@ -9,62 +9,26 @@ namespace App\Infrastructure\ModelGateway;
 
 use App\Domain\ModelGateway\Contract\VideoMediaProbeInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoMediaMetadata;
-use JsonException;
+use App\Infrastructure\Util\Video\FfprobeRunner;
 use RuntimeException;
-use Symfony\Component\Process\Process;
 
+/**
+ * 基于 ffprobe 的视频媒体元数据探测，字段缺失时抛异常，不做兜底。
+ */
 readonly class FfprobeVideoMediaProbe implements VideoMediaProbeInterface
 {
-    private const int TIMEOUT_SECONDS = 5;
-
-    private const string DEFAULT_BINARY = 'ffprobe';
-
     /**
-     * @param null|string $ffprobeBinary ffprobe 可执行文件路径；为空时读取配置并默认使用 PATH 中的 ffprobe
+     * @param null|string $ffprobeBinary 显式指定的 ffprobe 路径；为空时由 FfprobeRunner 读环境变量
      */
     public function __construct(
+        private FfprobeRunner $fprobeRunner,
         private ?string $ffprobeBinary = null,
     ) {
     }
 
     public function probe(string $filePath): VideoMediaMetadata
     {
-        if (! is_file($filePath) || ! is_readable($filePath)) {
-            throw new RuntimeException(sprintf('video file is not readable: %s', $filePath));
-        }
-
-        $ffprobeBinary = $this->resolveFfprobeBinary();
-        $process = new Process([
-            $ffprobeBinary,
-            '-v',
-            'error',
-            '-print_format',
-            'json',
-            '-show_format',
-            '-show_streams',
-            $filePath,
-        ]);
-        $process->setTimeout(self::TIMEOUT_SECONDS);
-        $process->run();
-
-        if (! $process->isSuccessful()) {
-            $message = trim($process->getErrorOutput() ?: $process->getOutput());
-            if ($process->getExitCode() === 127 || str_contains($message, 'not found')) {
-                throw new RuntimeException(sprintf(
-                    'ffprobe binary not found: %s, please install ffmpeg or set MODEL_GATEWAY_FFPROBE_BINARY',
-                    $ffprobeBinary
-                ));
-            }
-
-            throw new RuntimeException('ffprobe failed: ' . $message);
-        }
-
-        try {
-            /** @var array{streams?: mixed, format?: mixed} $payload */
-            $payload = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new RuntimeException('ffprobe returned invalid json', previous: $exception);
-        }
+        $payload = $this->fprobeRunner->run($filePath, $this->ffprobeBinary);
 
         $videoStream = $this->extractVideoStream($payload['streams'] ?? null);
         if ($videoStream === null) {
@@ -85,17 +49,6 @@ readonly class FfprobeVideoMediaProbe implements VideoMediaProbeInterface
         }
 
         return new VideoMediaMetadata($duration, $width, $height);
-    }
-
-    /**
-     * 读取 ffprobe 可执行文件配置；未配置时沿用系统 PATH 中的 ffprobe。
-     */
-    private function resolveFfprobeBinary(): string
-    {
-        $binary = $this->ffprobeBinary ?? (string) config('model_gateway.video_media.ffprobe_binary', self::DEFAULT_BINARY);
-        $binary = trim($binary);
-
-        return $binary === '' ? self::DEFAULT_BINARY : $binary;
     }
 
     /**

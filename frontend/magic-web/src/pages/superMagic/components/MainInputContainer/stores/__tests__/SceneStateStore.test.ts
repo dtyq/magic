@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { describe, expect, it, vi } from "vitest"
 import { createSceneStateStore } from "../SceneStateStore"
 

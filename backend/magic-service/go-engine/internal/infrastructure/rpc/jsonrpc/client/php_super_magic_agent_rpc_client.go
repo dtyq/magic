@@ -22,8 +22,9 @@ type superMagicAgentManageableCodesData struct {
 }
 
 type superMagicAgentAccessibleCodesData struct {
-	AccessibleCodes []string `json:"accessible_codes"`
-	MissingCodes    []string `json:"missing_codes"`
+	AccessibleCodes    []string          `json:"accessible_codes"`
+	MissingCodes       []string          `json:"missing_codes"`
+	AgentOrganizations map[string]string `json:"agent_organizations"`
 }
 
 type superMagicAgentUsableCodesData struct {
@@ -95,6 +96,36 @@ func (c *PHPSuperMagicAgentRPCClient) ListAccessibleCodes(
 		},
 		func(data superMagicAgentAccessibleCodesData) []string { return data.AccessibleCodes },
 	)
+}
+
+// ListAccessibleContexts 返回当前用户可访问的数字员工及其资源所属组织。
+func (c *PHPSuperMagicAgentRPCClient) ListAccessibleContexts(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	codes []string,
+) (map[string]string, error) {
+	if c.server == nil || c.server.GetRPCClientCount() == 0 {
+		return nil, ErrNoClientConnected
+	}
+
+	var result superMagicAgentRPCResponse[superMagicAgentAccessibleCodesData]
+	if err := unixsocket.CallRPCTypedWithContext(ctx, c.server, constants.MethodKnowledgeSuperMagicAgentListAccessibleCodes, map[string]any{
+		"data_isolation": map[string]any{
+			"organization_code": organizationCode,
+			"user_id":           userID,
+		},
+		"agent_codes": codes,
+	}, &result); err != nil {
+		if c.logger != nil {
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 数字员工可访问上下文失败", "organization_code", organizationCode, "user_id", userID, "agent_codes", codes, "error", err)
+		}
+		return nil, errors.Join(ErrPHPRequestFailed, err)
+	}
+	if result.Code != 0 {
+		return nil, fmt.Errorf("%w: code=%d, message=%s", ErrPHPRequestFailed, result.Code, result.Message)
+	}
+	return result.Data.AgentOrganizations, nil
 }
 
 // ListUsableCodes 列出当前用户在指定组织下可使用的数字员工编码。

@@ -3,16 +3,22 @@ export type ImageActionType =
 	| "set-element-background-image"
 	| "remove-element-background-image"
 	| "insert-floating-image"
+	| "insert-image-node"
 
 export interface ImageActionPayload {
 	action: ImageActionType
+	parentSelector?: string
+	index?: number
 }
 
 export interface ImageUploadRequestPayload {
 	requestId: string
 	action: Extract<
 		ImageActionType,
-		"replace-element-image" | "set-element-background-image" | "insert-floating-image"
+		| "replace-element-image"
+		| "set-element-background-image"
+		| "insert-floating-image"
+		| "insert-image-node"
 	>
 	selector: string
 	suggestedPath: string

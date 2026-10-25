@@ -1,14 +1,15 @@
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { formatTime } from "@/utils/string"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { userStore } from "@/models/user"
-import { DraftKey } from "../../types"
+import { DraftKey, QueueDraftMetadata } from "../../types"
 import { isEqual } from "lodash-es"
 
 // Check if data is meaningful (not empty) - only consider completed files
 export const hasMeaningfulData = (data: {
 	value?: JSONContent | null
 	mentionItems?: MentionListItem[]
+	queueDraft?: QueueDraftMetadata
 }) => {
 	// Check if value has content (not just empty paragraphs)
 	const hasContent =
@@ -22,7 +23,7 @@ export const hasMeaningfulData = (data: {
 	// Check if has mentions
 	const hasMentions = (data.mentionItems || []).length > 0
 
-	return hasContent || hasMentions
+	return hasContent || hasMentions || Boolean(data.queueDraft)
 }
 
 export const genDraftVersionId = (timestamp?: number) => {
@@ -34,7 +35,7 @@ export const genDraftVersionId = (timestamp?: number) => {
  */
 export const generateKey = (draftKey: DraftKey): string => {
 	const workspaceId = draftKey.workspaceId || "global"
-	return `${userStore.user.userInfo?.organization_code}/${userStore.user.userInfo?.user_id}/${workspaceId}/${draftKey.projectId}:${draftKey.topicId}`
+	return `${draftKey.organizationCode ?? userStore.user.userInfo?.organization_code}/${draftKey.userId ?? userStore.user.userInfo?.user_id}/${workspaceId}/${draftKey.projectId}:${draftKey.topicId}`
 }
 
 /**
@@ -42,12 +43,12 @@ export const generateKey = (draftKey: DraftKey): string => {
  */
 export const generateVersionKey = (draftKey: DraftKey, versionId: string): string => {
 	const workspaceId = draftKey.workspaceId || "global"
-	return `${userStore.user.userInfo?.organization_code}/${userStore.user.userInfo?.user_id}/${workspaceId}/${draftKey.projectId}:${draftKey.topicId}:${versionId}`
+	return `${draftKey.organizationCode ?? userStore.user.userInfo?.organization_code}/${draftKey.userId ?? userStore.user.userInfo?.user_id}/${workspaceId}/${draftKey.projectId}:${draftKey.topicId}:${versionId}`
 }
 
 /** Legacy key without workspace dimension for backward compatibility */
 export const generateLegacyKey = (draftKey: DraftKey): string => {
-	return `${userStore.user.userInfo?.organization_code}/${userStore.user.userInfo?.user_id}/${draftKey.projectId}:${draftKey.topicId}`
+	return `${draftKey.organizationCode ?? userStore.user.userInfo?.organization_code}/${draftKey.userId ?? userStore.user.userInfo?.user_id}/${draftKey.projectId}:${draftKey.topicId}`
 }
 
 /**
@@ -57,10 +58,12 @@ export const isEqualData = (
 	versionData: {
 		value?: JSONContent | null
 		mentionItems?: MentionListItem[]
+		queueDraft?: QueueDraftMetadata
 	},
 	latestVersion: {
 		value?: JSONContent | null
 		mentionItems?: MentionListItem[]
+		queueDraft?: QueueDraftMetadata
 	} | null,
 ) => {
 	if (!latestVersion) {
@@ -69,6 +72,7 @@ export const isEqualData = (
 
 	return (
 		isEqual(versionData.value, latestVersion?.value) &&
-		isEqual(versionData.mentionItems, latestVersion?.mentionItems)
+		isEqual(versionData.mentionItems, latestVersion?.mentionItems) &&
+		isEqual(versionData.queueDraft, latestVersion?.queueDraft)
 	)
 }

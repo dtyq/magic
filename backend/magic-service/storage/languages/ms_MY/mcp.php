@@ -9,6 +9,7 @@ return [
         'code' => 'Kod',
         'name' => 'Nama',
         'description' => 'Penerangan',
+        'icon' => 'Ikon',
         'status' => 'Status',
         'external_sse_url' => 'URL Perkhidmatan MCP',
         'url' => 'URL',
@@ -23,6 +24,7 @@ return [
         'scope' => 'Skop',
         'authorization_url' => 'URL Kebenaran',
         'authorization_content_type' => 'Jenis Kandungan Kebenaran',
+        'authorization_method' => 'Authorization Method',
         'issuer_url' => 'URL Pengeluar',
         'redirect_uri' => 'URI Ubah Hala',
         'use_pkce' => 'Gunakan PKCE',
@@ -40,6 +42,7 @@ return [
     // Mesej ralat
     'validate_failed' => 'Pengesahan gagal',
     'not_found' => 'Data tidak dijumpai',
+    'field_too_long' => ':label tidak boleh melebihi :max aksara',
 
     // Ralat berkaitan perkhidmatan
     'service' => [
@@ -82,6 +85,32 @@ return [
             'code_empty' => 'Kod kebenaran tidak boleh kosong',
             'state_empty' => 'Parameter keadaan tidak boleh kosong',
             'mcp_server_code_empty' => 'Kod pelayan MCP tidak boleh kosong',
+        ],
+    ],
+
+    // Pemeriksaan keupayaan MCP Authorization
+    'authorization_capability' => [
+        'unsupported' => 'Kebenaran standard MCP tidak dipilih untuk perkhidmatan ini',
+        'not_configured' => 'Konfigurasi kebenaran standard MCP tiada',
+        'resource_url_required' => 'MCP Resource mesti merupakan URL lengkap',
+        'invalid_server_metadata' => 'Metadata pelayan kebenaran tidak sah',
+        'missing_server_endpoints' => 'Metadata pelayan kebenaran tiada endpoint yang diperlukan',
+        'probe_failed' => 'Pemeriksaan keupayaan MCP Authorization gagal',
+        'registration' => [
+            'pre_registered' => 'Pentadbir mesti mendaftarkan klien terlebih dahulu',
+            'cimd_supported' => 'Pelayan kebenaran mengisytiharkan sokongan CIMD',
+            'cimd_unsupported' => 'Pelayan kebenaran tidak mengisytiharkan sokongan CIMD',
+            'dcr_found' => 'Endpoint pendaftaran klien dinamik ditemui',
+            'dcr_missing' => 'Endpoint pendaftaran klien dinamik tidak ditemui',
+        ],
+        'warnings' => [
+            'dcr_recommended' => 'Pendaftaran klien dinamik disyorkan; kebenaran pertama mungkin mencipta klien jauh.',
+            'cimd_not_advertised' => 'URL CIMD dikonfigurasikan, tetapi pelayan kebenaran tidak mengiklankan sokongan CIMD secara jelas.',
+            'token_auth_not_advertised' => 'Pelayan kebenaran tidak mengiklankan kaedah pengesahan token endpoint; none disyorkan.',
+        ],
+        'failure_reason' => [
+            'remote_request' => 'Permintaan jauh gagal',
+            'configuration_or_discovery' => 'Pengesahan konfigurasi atau penemuan kebenaran gagal',
         ],
     ],
 

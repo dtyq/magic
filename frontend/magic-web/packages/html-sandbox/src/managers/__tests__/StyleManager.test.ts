@@ -7,6 +7,7 @@ import { StyleManager } from "../StyleManager"
 import { CommandHistory } from "../../core/CommandHistory"
 import { ElementSelector } from "../../features/ElementSelector"
 import { EditorBridge } from "../../core/EditorBridge"
+import { markSourceNodes, removeRuntimeNodes } from "../../utils/sourceNodes"
 
 describe("StyleManager", () => {
 	let styleManager: StyleManager
@@ -68,6 +69,55 @@ describe("StyleManager", () => {
 			await styleManager.setBackgroundColor("div#test", "#ff0000")
 
 			expect(mockElementSelector.refreshSelection).toHaveBeenCalledTimes(1)
+		})
+	})
+
+	describe("duplicateElement", () => {
+		it("assigns unique ids to the duplicated subtree", async () => {
+			container.innerHTML =
+				"<section id='source'><span id='source-label'>Content</span></section>"
+
+			await styleManager.duplicateElement("#source")
+
+			expect(document.querySelectorAll("#source")).toHaveLength(1)
+			expect(document.querySelector("#source-copy")).toBeTruthy()
+			expect(document.querySelector("#source-label-copy")).toBeTruthy()
+		})
+
+		it("keeps duplicated ids stable across undo and redo", async () => {
+			container.innerHTML = "<section id='source'>Content</section>"
+
+			await styleManager.duplicateElement("#source")
+			expect(document.querySelector("#source-copy")).toBeTruthy()
+
+			await styleManager.undo()
+			expect(document.querySelector("#source-copy")).toBeNull()
+
+			await styleManager.redo()
+			expect(document.querySelector("#source-copy")).toBeTruthy()
+			expect(document.querySelectorAll("[id='source-copy']")).toHaveLength(1)
+		})
+
+		it("does not promote runtime descendants when duplicating a source node", async () => {
+			container.innerHTML = "<section id='source'><span>Content</span></section>"
+			markSourceNodes(document)
+			const source = container.querySelector("#source") as HTMLElement
+			const dynamic = document.createElement("em")
+			dynamic.className = "runtime-child"
+			dynamic.textContent = "Dynamic"
+			source.appendChild(dynamic)
+
+			await styleManager.duplicateElement("#source")
+			const duplicate = container.querySelector("#source-copy") as HTMLElement
+			expect(duplicate.querySelector(".runtime-child")).not.toBeNull()
+			expect(
+				duplicate.querySelector(".runtime-child")?.hasAttribute("data-magic-source-node"),
+			).toBe(false)
+
+			removeRuntimeNodes(document)
+
+			expect(duplicate.querySelector(".runtime-child")).toBeNull()
+			document.documentElement.removeAttribute("data-magic-source-node")
 		})
 	})
 
@@ -178,6 +228,45 @@ describe("StyleManager", () => {
 			expect(element.style.position).toBe("absolute")
 			expect(element.style.top).toBe("60px")
 			expect(element.style.left).toBe("80px")
+		})
+
+		it("restores inline styles when a batch is cancelled", () => {
+			container.innerHTML = "<div id='test' style='padding: 8px;'>Content</div>"
+			const element = container.querySelector("#test") as HTMLElement
+
+			styleManager.beginBatchOperation("div#test", {
+				padding: "8px",
+			})
+			styleManager.applyStylesTemporary("div#test", {
+				padding: "24px",
+			})
+			expect(element.style.padding).toBe("24px")
+
+			styleManager.cancelBatchOperation()
+			expect(element.style.padding).toBe("8px")
+		})
+
+		it("removes a temporary inline style when the original declaration was absent", () => {
+			container.innerHTML = "<div id='test'>Content</div>"
+			const element = container.querySelector("#test") as HTMLElement
+
+			styleManager.beginBatchOperation("div#test", { padding: "0px" })
+			styleManager.applyStylesTemporary("div#test", { padding: "24px" })
+			styleManager.cancelBatchOperation()
+
+			expect(element.style.getPropertyValue("padding")).toBe("")
+		})
+
+		it("restores the original inline priority when a batch is cancelled", () => {
+			container.innerHTML = "<div id='test' style='padding: 8px !important;'>Content</div>"
+			const element = container.querySelector("#test") as HTMLElement
+
+			styleManager.beginBatchOperation("div#test", { padding: "0px" })
+			styleManager.applyStylesTemporary("div#test", { padding: "24px" })
+			styleManager.cancelBatchOperation()
+
+			expect(element.style.getPropertyValue("padding")).toBe("8px")
+			expect(element.style.getPropertyPriority("padding")).toBe("important")
 		})
 	})
 
@@ -649,6 +738,32 @@ describe("StyleManager", () => {
 			expect(restoredElement?.textContent).toBe("Content")
 		})
 
+		it("keeps runtime descendants unmarked when restoring a deleted node", async () => {
+			container.innerHTML = "<div><span id='test'>Content</span></div>"
+			markSourceNodes(document)
+			const element = container.querySelector("#test") as HTMLElement
+			const dynamic = document.createElement("em")
+			dynamic.className = "runtime-child"
+			dynamic.textContent = "Dynamic"
+			element.appendChild(dynamic)
+
+			await styleManager.deleteElement("span#test")
+			await styleManager.undo()
+
+			const restoredElement = container.querySelector("#test") as HTMLElement
+			expect(restoredElement.querySelector(".runtime-child")).not.toBeNull()
+			expect(
+				restoredElement
+					.querySelector(".runtime-child")
+					?.hasAttribute("data-magic-source-node"),
+			).toBe(false)
+
+			removeRuntimeNodes(document)
+
+			expect(container.querySelector("#test .runtime-child")).toBeNull()
+			document.documentElement.removeAttribute("data-magic-source-node")
+		})
+
 		it.skipIf(typeof window !== "undefined" && !HTMLCanvasElement.prototype.getContext)(
 			"should preserve canvas content when deleting and restoring",
 			async () => {
@@ -1057,6 +1172,46 @@ describe("StyleManager", () => {
 			expect(element.textContent).toBe("New Text")
 		})
 
+		it("keeps image nodes when updating a mixed container", async () => {
+			container.innerHTML =
+				"<div id='test'><img id='icon' src='icon.png'>从低渗透率盆地读向高增长脊线</div>"
+			const element = container.querySelector("#test") as HTMLElement
+			const image = container.querySelector("#icon") as HTMLImageElement
+
+			await styleManager.updateTextContent("div#test", "新的标题")
+
+			expect(element.querySelector("#icon")).toBe(image)
+			expect(image.getAttribute("src")).toBe("icon.png")
+			expect(element.textContent).toBe("新的标题")
+		})
+
+		it("restores nested-only copy on undo without dropping media", async () => {
+			container.innerHTML =
+				"<div id='test'><img id='icon' src='icon.png'><h2>Original</h2></div>"
+			const element = container.querySelector("#test") as HTMLElement
+			const title = container.querySelector("h2") as HTMLHeadingElement
+
+			await styleManager.updateTextContent("div#test", "Updated")
+			expect(title.textContent).toBe("Updated")
+
+			await styleManager.undo()
+
+			expect(element.querySelector("#icon")).not.toBeNull()
+			expect(title.textContent).toBe("Original")
+		})
+
+		it("restores mixed-container text on undo without dropping the image", async () => {
+			container.innerHTML =
+				"<div id='test'><img id='icon' src='icon.png'>从低渗透率盆地读向高增长脊线</div>"
+			const element = container.querySelector("#test") as HTMLElement
+
+			await styleManager.updateTextContent("div#test", "新的标题")
+			await styleManager.undo()
+
+			expect(element.querySelector("#icon")).not.toBeNull()
+			expect(element.textContent).toBe("从低渗透率盆地读向高增长脊线")
+		})
+
 		it("should not record command during batch mode", async () => {
 			container.innerHTML = "<div id='test'>Original Text</div>"
 
@@ -1084,6 +1239,142 @@ describe("StyleManager", () => {
 
 			// Now should have one batch command
 			expect(commandHistory.getUndoStackSize()).toBe(1)
+		})
+	})
+
+	describe("updateElementAttributes", () => {
+		it("refreshes the selected link configuration after undo and redo", async () => {
+			const bridge = new EditorBridge()
+			const sendEvent = vi.spyOn(bridge, "sendEvent")
+			const elementSelector = new ElementSelector(bridge)
+			styleManager.setElementSelector(elementSelector)
+			container.innerHTML = "<div id='test' data-magic-href='old.html'>Go</div>"
+			elementSelector.selectElement(container.querySelector("#test") as HTMLElement)
+			await styleManager.updateElementAttributes("div#test", { dataMagicHref: "new.html" })
+			await styleManager.undo()
+			expect(sendEvent).toHaveBeenLastCalledWith(
+				"ELEMENT_SELECTED",
+				expect.objectContaining({
+					attributes: expect.objectContaining({ dataMagicHref: "old.html" }),
+				}),
+			)
+			await styleManager.redo()
+			expect(sendEvent).toHaveBeenLastCalledWith(
+				"ELEMENT_SELECTED",
+				expect.objectContaining({
+					attributes: expect.objectContaining({ dataMagicHref: "new.html" }),
+				}),
+			)
+			elementSelector.destroy()
+			bridge.destroy()
+		})
+		it("supports click links on arbitrary elements through undo, redo and removal", async () => {
+			container.innerHTML = "<div id='test'>Go</div>"
+			const element = container.querySelector("#test") as HTMLElement
+			await styleManager.updateElementAttributes("div#test", {
+				dataMagicHref: "../slide-2.html",
+			})
+			expect(element.getAttribute("data-magic-href")).toBe("../slide-2.html")
+			await styleManager.undo()
+			expect(element.hasAttribute("data-magic-href")).toBe(false)
+			await styleManager.redo()
+			expect(element.getAttribute("data-magic-href")).toBe("../slide-2.html")
+			await styleManager.updateElementAttributes("div#test", { dataMagicHref: null })
+			expect(element.hasAttribute("data-magic-href")).toBe(false)
+			await styleManager.undo()
+			expect(element.getAttribute("data-magic-href")).toBe("../slide-2.html")
+		})
+
+		it.each(["javascript:alert(1)", "data:text/html,hi", "file:///secret"])(
+			"rejects unsafe custom links %s atomically",
+			async (href) => {
+				container.innerHTML = "<div id='test' title='Old'>Go</div>"
+				await expect(
+					styleManager.updateElementAttributes("div#test", {
+						title: "New",
+						dataMagicHref: href,
+					}),
+				).rejects.toThrow("Unsafe href URL protocol")
+				expect(container.querySelector("#test")?.getAttribute("title")).toBe("Old")
+				expect(commandHistory.getUndoStackSize()).toBe(0)
+			},
+		)
+		it("should update common anchor attributes", async () => {
+			container.innerHTML = "<a id='test' href='/old' target='_self' rel='nofollow'>Link</a>"
+			const element = container.querySelector("#test") as HTMLAnchorElement
+
+			await styleManager.updateElementAttributes("a#test", {
+				href: "/new",
+				target: "_blank",
+				rel: "noopener",
+				ariaLabel: "Open link",
+			})
+
+			expect(element.getAttribute("href")).toBe("/new")
+			expect(element.getAttribute("target")).toBe("_blank")
+			expect(element.getAttribute("rel")).toBe("noopener noreferrer")
+			expect(element.getAttribute("aria-label")).toBe("Open link")
+		})
+
+		it("should restore and reapply attributes through undo and redo", async () => {
+			container.innerHTML = "<a id='test' href='/old' title='Old title'>Link</a>"
+			const element = container.querySelector("#test") as HTMLAnchorElement
+
+			await styleManager.updateElementAttributes("a#test", {
+				href: "/new",
+				title: "New title",
+			})
+			await styleManager.undo()
+
+			expect(element.getAttribute("href")).toBe("/old")
+			expect(element.getAttribute("title")).toBe("Old title")
+
+			await styleManager.redo()
+
+			expect(element.getAttribute("href")).toBe("/new")
+			expect(element.getAttribute("title")).toBe("New title")
+		})
+
+		it("should remove an attribute when its value is empty", async () => {
+			container.innerHTML = "<a id='test' href='/page' download='file.pdf'>Link</a>"
+			const element = container.querySelector("#test") as HTMLAnchorElement
+
+			await styleManager.updateElementAttributes("a#test", { download: "" })
+
+			expect(element.hasAttribute("download")).toBe(false)
+		})
+
+		it("should reject executable href schemes before changing the element", async () => {
+			container.innerHTML = "<a id='test' href='/safe'>Link</a>"
+			const element = container.querySelector("#test") as HTMLAnchorElement
+
+			await expect(
+				styleManager.updateElementAttributes("a#test", {
+					href: " javascript:alert(1)",
+				}),
+			).rejects.toThrow("Unsafe href URL protocol")
+
+			expect(element.getAttribute("href")).toBe("/safe")
+			expect(commandHistory.getUndoStackSize()).toBe(0)
+		})
+
+		it("should not restore an unsafe pre-existing href during undo", async () => {
+			container.innerHTML = "<a id='test' href='javascript:alert(1)'>Link</a>"
+			const element = container.querySelector("#test") as HTMLAnchorElement
+
+			await styleManager.updateElementAttributes("a#test", { title: "Updated" })
+			await styleManager.undo()
+
+			expect(element.hasAttribute("href")).toBe(false)
+		})
+
+		it("should add noopener and noreferrer for blank targets", async () => {
+			container.innerHTML = "<a id='test' href='/page'>Link</a>"
+			const element = container.querySelector("#test") as HTMLAnchorElement
+
+			await styleManager.updateElementAttributes("a#test", { target: "_blank" })
+
+			expect(element.getAttribute("rel")).toBe("noopener noreferrer")
 		})
 	})
 })

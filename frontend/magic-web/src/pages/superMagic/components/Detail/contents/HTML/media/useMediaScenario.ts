@@ -1,4 +1,5 @@
 import { useRef, useMemo, useCallback } from "react"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	findMagicProjectJsFile,
 	saveMediaSpeakersAndMagicProjectJs,
@@ -17,6 +18,7 @@ interface UseMediaScenarioParams {
 export type MediaScenarioType = "audio" | "video" | null
 
 export function useMediaScenario({ attachmentList, fileId }: UseMediaScenarioParams) {
+	const fileApi = useFileApi()
 	// Media相关状态
 	const mediaSpeakers = useRef<MediaSpeakersMap>({})
 	const magicProjectJsFileInfo = useRef<MagicProjectJsFileInfo | null>(null)
@@ -52,6 +54,7 @@ export function useMediaScenario({ attachmentList, fileId }: UseMediaScenarioPar
 				attachmentList: attachmentList,
 				currentFileId: fileId,
 				currentFileName: currentFile.file_name,
+				fileApi,
 			})
 
 			if (fileInfo) {
@@ -63,7 +66,7 @@ export function useMediaScenario({ attachmentList, fileId }: UseMediaScenarioPar
 			console.error("Error loading magic.project.js file:", error)
 			return null
 		}
-	}, [attachmentList, fileId])
+	}, [attachmentList, fileApi, fileId])
 
 	// 处理媒体说话人编辑事件
 	const handleMediaSpeakerEdit = useCallback(

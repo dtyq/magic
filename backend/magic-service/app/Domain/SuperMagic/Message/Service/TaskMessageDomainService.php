@@ -22,17 +22,19 @@ class TaskMessageDomainService
     ) {
     }
 
-    /**
-     * follow-up：按 topic 拉取最近 $roundLimit 轮原始消息候选集.
-     */
-    public function findFollowUpContextMessages(int $topicId, int $roundLimit = 3): array
-    {
-        return $this->messageRepository->findFollowUpContextMessages($topicId, $roundLimit);
-    }
-
     public function getNextSeqId(int $topicId, int $taskId): int
     {
         return $this->messageRepository->getNextSeqId($topicId, $taskId);
+    }
+
+    /**
+     * 获取任务完成结果所需的消息。
+     *
+     * @return TaskMessageEntity[]
+     */
+    public function findCompletedResultMessages(int $topicId, int $taskId): array
+    {
+        return $this->messageRepository->findCompletedResultMessages($topicId, $taskId);
     }
 
     public function updateProcessingStatus(int $id, string $processingStatus, ?string $errorMessage = null, int $retryCount = 0): void

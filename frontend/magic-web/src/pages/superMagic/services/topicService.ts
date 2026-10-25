@@ -1,3 +1,4 @@
+import type { TopicTypeFilterValue } from "../utils/topicTypeFilter"
 import { SuperMagicApi } from "@/apis"
 import { runInAction } from "mobx"
 import { userStore } from "@/models/user"
@@ -5,10 +6,15 @@ import { platformKey } from "@/utils/storage"
 import type { TopicStore } from "../stores/core/topic"
 import type { Topic, TaskStatus, ProjectListItem } from "../pages/Workspace/types"
 import { TopicMode } from "../pages/Workspace/TopicMode"
-import { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
 import { interfaceStore } from "@/stores/interface"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import { analyticsService } from "@/services/analytics"
+import {
+	readProjectInitializationIdentity,
+	type ProjectInitializationScope,
+} from "./projectStateInitialization"
 
 export interface FetchTopicsParams {
 	projectId: string
@@ -28,8 +34,11 @@ export interface UpdateTopicStatusParams {
 export interface CreateTopicParams {
 	projectId: string
 	topicName: string
+	/** Parent project context is known before the topic request and is required by analytics. */
+	workspaceId?: string | null
+	mode?: Topic["topic_mode"] | null
 	/** Topic whose frontend employee selection should be inherited after creation */
-	sourceTopic?: Pick<Topic, "project_id" | "topic_mode" | "agent_code"> | null
+	sourceTopic?: Pick<Topic, "project_id" | "workspace_id" | "topic_mode" | "agent_code"> | null
 }
 
 export interface MarkTopicReadProgressParams {
@@ -44,6 +53,7 @@ interface TopicsApiResponse {
 }
 
 interface GetSidebarTopicsByProjectIdParams {
+	topicType?: TopicTypeFilterValue
 	projectId: string
 	page: number
 	pageSize: number
@@ -53,6 +63,7 @@ interface GetSidebarTopicsByProjectIdParams {
 interface SyncTopicFrontendModePatchParams {
 	topic?: Topic | null
 	mode: TopicMode
+	agentCode?: string | null
 }
 
 const FRONTEND_MODE_PATCH_TTL_MS = 30 * 60 * 1000
@@ -91,7 +102,7 @@ class TopicService {
 	private frontendModePatches = new Map<string, TopicFrontendModePatch>()
 
 	private getRequestKey(apiName: string, ...params: (string | number)[]): string {
-		return `${apiName}:${JSON.stringify(params)}`
+		return `${apiName}:${JSON.stringify([readProjectInitializationIdentity().sessionEpoch, ...params])}`
 	}
 
 	private get frontendModePatchStorageKey() {
@@ -140,6 +151,7 @@ class TopicService {
 	}
 
 	async getSidebarTopicsByProjectId({
+		topicType = "all",
 		projectId,
 		page,
 		pageSize,
@@ -151,12 +163,14 @@ class TopicService {
 			page,
 			pageSize,
 			searchKeyword?.trim() || "",
+			topicType,
 		)
 
 		const pendingRequest = this.pendingRequests.get(requestKey)
 		if (pendingRequest) return pendingRequest
 
 		const requestPromise = SuperMagicApi.getSidebarTopicsByProjectId({
+			...(topicType !== "all" ? { topicType } : {}),
 			id: projectId,
 			page,
 			page_size: pageSize,
@@ -194,14 +208,14 @@ class TopicService {
 		return this.getTopicsByProjectId(projectId, page, PROJECT_TOPICS_PAGE_SIZE)
 	}
 
-	async fetchTopics({
-		projectId,
-		isAutoSelect = true,
-		isSelectLast = false,
-		page = 1,
-	}: FetchTopicsParams): Promise<Topic[]> {
+	async fetchTopics(
+		{ projectId, isAutoSelect = true, isSelectLast = false, page = 1 }: FetchTopicsParams,
+		scope?: ProjectInitializationScope,
+	): Promise<Topic[]> {
+		if (scope && !scope.isCurrent()) return []
 		try {
 			const res = await this.getTopicsForCurrentInterface(projectId, page)
+			if (scope && !scope.isCurrent()) return res.list
 			const updatedTopics = Array.isArray(res.list) ? res.list : []
 
 			runInAction(() => {
@@ -243,19 +257,27 @@ class TopicService {
 		)
 	}
 
-	async createTopic({
-		projectId,
-		topicName,
-		sourceTopic,
-	}: CreateTopicParams): Promise<Topic | null> {
+	async createTopic(
+		{ projectId, topicName, workspaceId, mode, sourceTopic }: CreateTopicParams,
+		scope?: ProjectInitializationScope,
+	): Promise<Topic | null> {
+		if (scope && !scope.isCurrent()) return null
 		try {
+			analyticsService.report("topic_create_attempted", {
+				projectId,
+				workspaceId: workspaceId ?? sourceTopic?.workspace_id,
+				mode: mode ?? sourceTopic?.topic_mode,
+			})
 			const newTopic = await SuperMagicApi.createTopic({
 				topic_name: topicName,
 				project_id: projectId,
 			})
+			// 已提交的创建不重复、不假装回滚；离开后只阻止旧响应重选当前会话。
+			if (scope && !scope.isCurrent()) return newTopic ?? null
 
 			// 创建后按当前端形态重新拉取项目话题列表，避免移动端被旧接口结果覆盖。
 			const topicsRes = await this.getTopicsForCurrentInterface(projectId, 1)
+			if (scope && !scope.isCurrent()) return newTopic ?? null
 			const updatedTopics = Array.isArray(topicsRes?.list) ? topicsRes?.list : []
 			const targetTopic = updatedTopics.find((topic: Topic) => topic?.id === newTopic?.id)
 			const backendTopic = targetTopic ?? newTopic ?? null
@@ -273,11 +295,11 @@ class TopicService {
 
 			runInAction(() => {
 				this.topicStore.setTopics(topicsWithFrontendMode)
-				if (selectedTopic) {
+				// 初始化创建的话题先返回，由初始化一起选中项目和话题，避免提前导航。
+				if (selectedTopic && !scope) {
 					this.topicStore.setSelectedTopic(selectedTopic)
 				}
 			})
-
 			return selectedTopic
 		} catch (error) {
 			console.error("创建话题失败:", error)
@@ -285,10 +307,10 @@ class TopicService {
 		}
 	}
 
-	syncTopicFrontendModePatch({ topic, mode }: SyncTopicFrontendModePatchParams) {
+	syncTopicFrontendModePatch({ topic, mode, agentCode }: SyncTopicFrontendModePatchParams) {
 		if (!topic?.id || !mode) return
 
-		const patchSource = this.resolveManualFrontendModeSource(topic, mode)
+		const patchSource = this.resolveManualFrontendModeSource(topic, mode, agentCode)
 		this.rememberFrontendModePatch(topic.id, patchSource)
 		const currentAgentCode = topic.agent_code?.trim() || undefined
 		if (
@@ -308,8 +330,20 @@ class TopicService {
 	private resolveManualFrontendModeSource(
 		topic: Topic,
 		mode: TopicMode,
+		agentCode?: string | null,
 	): Pick<Topic, "project_id" | "topic_mode" | "agent_code"> {
 		const modeIdentifier = String(mode).trim()
+		const normalizedAgentCode = agentCode?.trim() || undefined
+
+		// Queue drafts store the mode and custom employee code separately. Prefer the
+		// explicit code so restoring `custom_agent` does not clear the employee.
+		if (modeIdentifier === TopicMode.CustomAgent && normalizedAgentCode) {
+			return {
+				project_id: topic.project_id,
+				topic_mode: TopicMode.CustomAgent,
+				agent_code: normalizedAgentCode,
+			}
+		}
 
 		// Only legacy SMA crews use custom_agent; other identifiers are plain topic_mode.
 		if (modeIdentifier.startsWith("SMA")) {

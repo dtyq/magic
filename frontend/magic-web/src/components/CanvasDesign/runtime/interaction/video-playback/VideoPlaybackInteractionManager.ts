@@ -57,6 +57,9 @@ export class VideoPlaybackInteractionManager {
 
 	/** 当前是否允许用键盘切换选中视频（选择工具激活时禁止） */
 	public canToggleSelectedVideoPlaybackByKeyboard(): boolean {
+		if (!this.canvas.permissionManager.can("interaction.playback")) {
+			return false
+		}
 		if (this.isSelectionToolActive()) {
 			return false
 		}
@@ -74,6 +77,9 @@ export class VideoPlaybackInteractionManager {
 		source: Exclude<VideoPlaybackToggleSource, "keyboardSpace">,
 		videoElement: VideoElement,
 	): boolean {
+		if (!this.canvas.permissionManager.can("interaction.playback")) {
+			return false
+		}
 		if (!videoElement.canTogglePlayback()) {
 			return false
 		}

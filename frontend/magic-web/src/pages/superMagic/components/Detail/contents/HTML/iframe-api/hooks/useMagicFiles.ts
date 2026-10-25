@@ -1,9 +1,11 @@
 import { useRef } from "react"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { runInAction } from "mobx"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { base64ToFile } from "@/pages/superMagic/components/MessageEditor/utils/fileConverter"
+import {
+	arrayBufferToFile,
+	base64ToFile,
+} from "@/pages/superMagic/components/MessageEditor/utils/fileConverter"
 import { resolveUploadPath } from "../../utils/file-utils"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import {
@@ -12,17 +14,19 @@ import {
 } from "@/services/superMagic/DefaultAgentSelectionService"
 import { addMultipleFilesToCurrentChat } from "@/pages/superMagic/utils/topics"
 import { SuperMagicApi } from "@/apis"
-import SuperMagicService from "@/pages/superMagic/services"
-import { topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { workspaceStore } from "@/pages/superMagic/stores/core"
 import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { waitForProjectAttachmentChange } from "@/pages/superMagic/utils/projectAttachments/attachmentMutationWaiter"
 import type { HtmlPermissionScope } from "../types"
+import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
+import { isSingleTopicHostProject } from "@/pages/superMagic/utils/isSingleTopicHostProject"
+import { notifySpecifiedAgentUnavailable } from "@/pages/superMagic/utils/notifySpecifiedAgentUnavailable"
 
 interface MagicUploadFileData {
-	/** File 对象（优先使用，通过 postMessage 结构化克隆直接传输） */
-	file?: File
+	/** 二进制对象（优先使用；ArrayBuffer 可通过 transfer list 转移所有权） */
+	file?: File | Blob | ArrayBuffer
 	/** base64 数据（向后兼容，当 file 字段不存在时使用） */
 	base64?: string
 	filename: string
@@ -54,6 +58,13 @@ interface UseMagicFilesOptions {
 	iframeRef: React.RefObject<HTMLIFrameElement>
 	targetOrigin: string
 	selectedProject?: any
+	projectId?: string
+	topicStore?: TopicStore
+	ensureConversation?: () => Promise<{
+		selectedProject: any
+		topicStore: TopicStore
+	} | null>
+	projectContextUnavailableError?: string
 	attachmentList?: any[]
 	htmlRelativeFolderPath?: string
 	uploadImageFileToProject: (params: {
@@ -100,12 +111,17 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 		iframeRef,
 		targetOrigin,
 		selectedProject,
+		projectId,
+		topicStore: scopedTopicStore,
+		ensureConversation,
+		projectContextUnavailableError,
 		attachmentList,
 		htmlRelativeFolderPath,
 		uploadImageFileToProject,
 		authorizePermission,
 	} = options
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 
 	// Keep a stable ref to attachmentList so handlers always see latest value
 	const attachmentListRef = useRef(attachmentList)
@@ -126,8 +142,12 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 			return
 		}
 
-		if (!selectedProject?.id) {
-			replyToIframe(replyType, requestId, { success: false, error: "No project selected" })
+		const runtimeProjectId = projectId ?? selectedProject?.id
+		if (!runtimeProjectId) {
+			replyToIframe(replyType, requestId, {
+				success: false,
+				error: projectContextUnavailableError || "No project selected",
+			})
 			return
 		}
 
@@ -172,15 +192,21 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 				const batch = files.slice(i, i + CONCURRENCY)
 				const batchResults = await Promise.allSettled(
 					batch.map(async (fileData) => {
-						const { filename, path, fileSize } = fileData
-						// Prefer direct File object (zero-copy via structured clone)
-						// Fall back to base64 decoding for backward compatibility
+						const { filename, path, fileSize, fileType } = fileData
+						// Prefer binary payloads; retain Base64 only for older callers.
+						const incomingFile = fileData.file
 						const file =
-							fileData.file instanceof File
-								? fileData.file
-								: fileData.base64
-									? await base64ToFile(fileData.base64, filename)
-									: null
+							incomingFile instanceof File
+								? incomingFile
+								: incomingFile instanceof ArrayBuffer
+									? arrayBufferToFile(incomingFile, filename, fileType)
+									: incomingFile instanceof Blob
+										? new File([incomingFile], filename, {
+												type: incomingFile.type || fileType,
+											})
+										: fileData.base64
+											? await base64ToFile(fileData.base64, filename)
+											: null
 
 						if (!file) {
 							throw new Error("No file data provided (neither file nor base64)")
@@ -224,7 +250,7 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 
 			replyToIframe(replyType, requestId, { success: true, results })
 
-			void waitForProjectAttachmentChange(selectedProject?.id, {
+			void waitForProjectAttachmentChange(runtimeProjectId, {
 				operations: ["add"],
 				matchMode: "project-any-apply",
 				fallback: "full-refresh",
@@ -259,10 +285,29 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 				return
 			}
 
-			if (!selectedProject?.id) {
+			let ensuredConversation:
+				| {
+						selectedProject: any
+						topicStore: TopicStore
+				  }
+				| null
+				| undefined
+			try {
+				ensuredConversation = await ensureConversation?.()
+			} catch (error) {
 				replyToIframe(replyType, requestId, {
 					success: false,
-					error: "No project selected",
+					error: error instanceof Error ? error.message : "No project selected",
+				})
+				return
+			}
+			const activeSelectedProject = ensuredConversation?.selectedProject ?? selectedProject
+			const activeTopicStore = ensuredConversation?.topicStore ?? scopedTopicStore
+			const hostProjectId = activeSelectedProject?.id
+			if (!hostProjectId) {
+				replyToIframe(replyType, requestId, {
+					success: false,
+					error: projectContextUnavailableError || "No project selected",
 				})
 				return
 			}
@@ -302,6 +347,32 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 					return
 				}
 
+				// 龙虾/对话只有一个会话，把文件加到当前话题；忽略 agentMode。
+				if (isSingleTopicHostProject(activeSelectedProject)) {
+					if (!activeTopicStore) {
+						replyToIframe(replyType, requestId, {
+							success: false,
+							error: "No topic store",
+						})
+						return
+					}
+					if (!activeTopicStore.selectedTopic?.id) {
+						replyToIframe(replyType, requestId, {
+							success: false,
+							error: "No topic selected",
+						})
+						return
+					}
+
+					notifySpecifiedAgentUnavailable(agentMode, activeSelectedProject)
+					addMultipleFilesToCurrentChat({ fileItems: foundFiles, autoFocus: true })
+					replyToIframe(replyType, requestId, {
+						success: true,
+						result: { foundCount: foundFiles.length, notFoundPaths },
+					})
+					return
+				}
+
 				const selection = resolveAgentSelection(agentMode)
 				if (!isAgentSelectionAvailable(selection.modeIdentifier, selection.agentCode)) {
 					replyToIframe(replyType, requestId, {
@@ -313,7 +384,9 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 				const finalAgentMode = selection.modeIdentifier as TopicMode
 
 				const workspaceId =
-					selectedProject.workspace_id || workspaceStore.selectedWorkspace?.id || ""
+					activeSelectedProject?.workspace_id ||
+					workspaceStore.selectedWorkspace?.id ||
+					""
 
 				if (!workspaceId) {
 					replyToIframe(replyType, requestId, {
@@ -323,8 +396,16 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 					return
 				}
 
+				if (!activeTopicStore) {
+					replyToIframe(replyType, requestId, {
+						success: false,
+						error: "No topic store",
+					})
+					return
+				}
+
 				const newTopic = await SuperMagicApi.createTopic({
-					project_id: selectedProject.id,
+					project_id: hostProjectId,
 					topic_name: "",
 					project_mode: finalAgentMode as TopicMode,
 				})
@@ -339,17 +420,18 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 
 				const topicWithMode: any = { ...newTopic, topic_mode: finalAgentMode as TopicMode }
 
-				runInAction(() => {
-					topicStore.setSelectedTopic(topicWithMode)
-				})
+				// 必须用传入的 store，不能回落到全局 topicStore。
+				activeTopicStore.setTopics([
+					topicWithMode,
+					...activeTopicStore.topics.filter((topic) => topic.id !== newTopic.id),
+				])
+				activeTopicStore.setSelectedTopic(topicWithMode)
 
 				pubsub.publish(PubSubEvents.Super_Magic_Topic_Mode_Changed, {
 					mode: finalAgentMode as TopicMode,
 					workspaceId,
-					projectId: selectedProject.id,
+					projectId: hostProjectId,
 				})
-
-				SuperMagicService.route.navigateToState({ topicId: newTopic.id || null })
 
 				// Wait for navigation before adding files to the message input
 				setTimeout(() => {
@@ -377,6 +459,15 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 
 		if (!requestId || !Array.isArray(filePaths) || filePaths.length === 0) {
 			replyToIframe(replyType, requestId, { success: false, error: "Invalid request data" })
+			return
+		}
+
+		const runtimeProjectId = projectId ?? selectedProject?.id
+		if (!runtimeProjectId) {
+			replyToIframe(replyType, requestId, {
+				success: false,
+				error: projectContextUnavailableError || "No project selected",
+			})
 			return
 		}
 
@@ -420,7 +511,7 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 			await Promise.allSettled(
 				foundFiles.map(async ({ fileItem, originalPath }) => {
 					try {
-						const downloadUrls = await getTemporaryDownloadUrl({
+						const downloadUrls = await fileApi.getTemporaryDownloadUrl({
 							file_ids: [fileItem.file_id],
 						})
 

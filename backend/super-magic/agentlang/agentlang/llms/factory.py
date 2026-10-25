@@ -19,6 +19,7 @@ from openai.types.chat import ChatCompletion
 from pydantic import BaseModel, Field
 
 from agentlang.config.config import config
+from agentlang.exceptions import StreamInterruptedError
 from agentlang.interface.context import AgentContextInterface
 from agentlang.llms.token_usage.tracker import TokenUsageTracker
 from agentlang.llms.token_usage.pricing import ModelPricing
@@ -57,6 +58,7 @@ class LLMClientConfig(BaseModel):
     extra_params: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     supports_tool_use: bool = True
+    supports_multimodal: bool = False
     type: str = "llm"
     resolved_model_id: Optional[str] = None
 
@@ -72,13 +74,6 @@ class LLMFactory:
     # 价格由 ModelConfigManager 从各 Provider 同步，启动时先使用默认价格表。
     pricing = ModelPricing()
     sandbox_id = os.environ.get("SANDBOX_ID", "default")
-
-    # 初始化 TokenUsageReport
-    _ = TokenUsageReport.get_instance(
-        sandbox_id=sandbox_id,
-        token_tracker=token_tracker,
-        pricing=pricing
-    )
 
     @classmethod
     def register_config(cls, llm_config: LLMClientConfig) -> None:
@@ -245,11 +240,16 @@ class LLMFactory:
         if llm_config.query_params:
             request_params["extra_query"] = llm_config.query_params
 
-        # 添加调用方传入的 extra_body（如禁用思考模式）
+        # 浅合并本次请求覆盖，保留模型配置的其他原生参数且不改写共享配置。
         if extra_body is not None:
-            request_params["extra_body"] = extra_body
+            merged_extra_body = {**(request_params.get("extra_body") or {}), **extra_body}
+            # 调用方显式使用旧 thinking 时，清除模型配置继承的新强度，避免关闭思考被默认强度覆盖。
+            # 调用方同时传入两者时保持原样，由网关按非空 reasoning_effort 优先的规则处理。
+            if "thinking" in extra_body and "reasoning_effort" not in extra_body:
+                merged_extra_body.pop("reasoning_effort", None)
+                request_params.pop("reasoning_effort", None)
+            request_params["extra_body"] = merged_extra_body
 
-        # 动态设置最新的 metadata 到请求头（每次调用都获取最新值）
         extra_headers = MetadataUtil.get_llm_request_headers()
         if llm_config.headers:
             extra_headers = {**extra_headers, **llm_config.headers}
@@ -263,6 +263,7 @@ class LLMFactory:
         # 执行 LLM 调用（统一管理流式/非流式及降级重试）
         response = None
         exception = None
+        cancelled: bool = False
         try:
             response = await ProcessorManager.execute_llm_call(
                 client=client,
@@ -307,7 +308,18 @@ class LLMFactory:
             logger.info(f"[{request_id}] 请求完成 {display_model_id}:{llm_config.name}, 耗时: {elapsed_time:.2f}ms, tokens: {response.usage.total_tokens if response.usage else 'N/A'}")
 
             return response
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
         except Exception as e:
+            # 有终止信号的提前断流按取消处理；无信号断流仍保留失败日志和重试。
+            if (
+                isinstance(e, StreamInterruptedError)
+                and agent_context is not None
+                and agent_context.is_interruption_requested()
+            ):
+                cancelled = True
+                raise asyncio.CancelledError("LLM request stopped by interruption signal") from e
             exception = e
             # Check for resource limit errors (insufficient points, consumption rounds limit, concurrency limit)
             cls._check_and_handle_resource_limit_error(e, request_id)
@@ -322,23 +334,26 @@ class LLMFactory:
 
             raise
         finally:
-            # 统一记录调试日志（内部根据环境变量决定是否记录成功请求，失败请求总是记录）
-            end_timestamp = datetime.now().isoformat()
-            debug_info = LLMDebugInfo(
-                model_id=llm_config.model_id,
-                model_name=llm_config.name,
-                provider=llm_config.provider,
-                api_base_url=llm_config.api_base_url,
-                api_key=llm_config.api_key
-            )
-            asyncio.create_task(save_llm_debug_log(
-                debug_info=debug_info,
-                request_params=request_params,
-                response=response,
-                exception=exception,
-                start_timestamp=start_timestamp,
-                end_timestamp=end_timestamp
-            ))
+            # 在当前调用内确定取消结果，避免后台保存时读到下一次运行重置后的状态。
+            # 取消不生成失败档案，也不触发失败档案淘汰；真实故障继续走原保存流程。
+            if not cancelled:
+                # 统一记录调试日志（内部根据环境变量决定是否记录成功请求，失败请求总是记录）
+                end_timestamp = datetime.now().isoformat()
+                debug_info = LLMDebugInfo(
+                    model_id=llm_config.model_id,
+                    model_name=llm_config.name,
+                    provider=llm_config.provider,
+                    api_base_url=llm_config.api_base_url,
+                    api_key=llm_config.api_key
+                )
+                asyncio.create_task(save_llm_debug_log(
+                    debug_info=debug_info,
+                    request_params=request_params,
+                    response=response,
+                    exception=exception,
+                    start_timestamp=start_timestamp,
+                    end_timestamp=end_timestamp
+                ))
 
     @classmethod
     def get_embedding_client(cls, model_id: str) -> Any:
@@ -423,6 +438,7 @@ class LLMFactory:
                 provider=mc.provider,
                 client_type=mc.client_type,
                 supports_tool_use=mc.supports_tool_use,
+                supports_multimodal=mc.supports_multimodal,
                 max_output_tokens=mc.max_output_tokens,
                 max_context_tokens=mc.max_context_tokens,
                 temperature=mc.temperature,
@@ -615,7 +631,15 @@ class LLMFactory:
         headers.update(MetadataUtil.get_llm_request_headers())
 
         # 4. 添加自定义请求头
-        headers.update(cls._parse_custom_headers())
+        custom_headers = cls._parse_custom_headers()
+        headers.update(custom_headers)
+        # 记录最终 header 状态，以区分元数据正常但 custom headers 覆盖的情况。
+        if MetadataUtil._find_header_key(headers, "Magic-Authorization") is not None:
+            source = "custom_headers" if any(
+                MetadataUtil._find_header_key(custom_headers, name) is not None
+                for name in ("Magic-Authorization", "User-Authorization")
+            ) else "metadata_headers"
+            MetadataUtil.log_authorization_header_diagnostics(headers, source)
 
         return headers
 

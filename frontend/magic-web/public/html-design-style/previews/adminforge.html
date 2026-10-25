@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AdminForge — Enterprise Operations Control Plane</title>
+  <style>
+    :root {
+      --primary: #475569;
+      --primary-dark: #334155;
+      --secondary: #3B82F6;
+      --secondary-light: #EFF6FF;
+      --tertiary: #F59E0B;
+      --bg: #F1F5F9;
+      --surface: #FFFFFF;
+      --surface-subtle: #F8FAFC;
+      --border: #CBD5E1;
+      --border-light: #E2E8F0;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --success: #22C55E;
+      --success-bg: #DCFCE7;
+      --warning: #F59E0B;
+      --warning-bg: #FEF3C7;
+      --danger: #EF4444;
+      --danger-bg: #FEE2E2;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: var(--bg); color: var(--text-main); font-family: var(--font-ui); font-size: 13px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+
+    /* Utilitarian Top Header */
+    .top-bar { height: 48px; background: #1E293B; color: #fff; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #0F172A; }
+    .brand-section { display: flex; align-items: center; gap: 12px; }
+    .brand-title { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+    .org-tag { font-family: var(--font-mono); font-size: 11px; background: #334155; padding: 2px 6px; border-radius: 3px; color: #94A3B8; }
+    
+    .nav-tabs-admin { display: flex; gap: 16px; font-size: 12.5px; font-weight: 500; }
+    .nav-tabs-admin a { color: #94A3B8; text-decoration: none; padding: 14px 0; border-bottom: 2px solid transparent; }
+    .nav-tabs-admin a.active { color: #fff; border-bottom-color: var(--secondary); font-weight: 600; }
+
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .btn-action-top { background: var(--secondary); color: #fff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-secondary-top { background: #334155; color: #E2E8F0; border: 1px solid #475569; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+
+    /* App Workspace Container */
+    .admin-container { max-width: 1340px; margin: 14px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 14px; position: relative; }
+
+    /* Status Telemetry Ribbon */
+    .telemetry-strip { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+    .strip-stat { display: flex; align-items: center; gap: 6px; }
+    .dot-online { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+
+    /* Main Grid: RBAC Role Matrix (Left) + Live Audit Stream (Right) */
+    .content-grid { display: grid; grid-template-columns: 1fr 440px; gap: 14px; }
+
+    /* Card Panels */
+    .panel-card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+    .panel-head { background: var(--surface-subtle); padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .panel-title { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--primary); }
+
+    /* RBAC Matrix Table */
+    .rbac-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+    .rbac-table th { background: var(--surface-subtle); padding: 8px 12px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+    .rbac-table td { padding: 9px 12px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+    .rbac-table tr:hover td { background: #F8FAFC; }
+    
+    .role-badge { font-weight: 700; padding: 2px 6px; border-radius: 3px; font-size: 11px; display: inline-block; }
+    .role-admin { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+    .role-sre { background: #E0E7FF; color: #3730A3; border: 1px solid #C7D2FE; }
+    .role-ops { background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
+    .role-audit { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+
+    .chk-custom { width: 15px; height: 15px; accent-color: var(--secondary); cursor: pointer; }
+
+    /* Live Audit Log Stream */
+    .audit-stream { display: flex; flex-direction: column; }
+    .audit-item { padding: 10px 14px; border-bottom: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+    .audit-item:last-child { border-bottom: none; }
+    .audit-item:hover { background: #F8FAFC; }
+    .audit-meta-row { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+    .audit-action { font-weight: 600; color: var(--text-main); }
+    .audit-badge { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+    .badge-ok { background: var(--success-bg); color: #15803D; }
+    .badge-warn { background: var(--warning-bg); color: #B45309; }
+
+    /* Bulk User CSV Import Modal (Overlaid in Viewport) */
+    .modal-overlay-preview { background: var(--surface); border: 2px solid var(--primary); border-radius: 6px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); margin-top: 8px; overflow: hidden; }
+    .modal-head-bar { background: var(--primary); color: #fff; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 600; }
+    .modal-content-grid { padding: 14px; display: grid; grid-template-columns: 280px 1fr; gap: 14px; }
+    
+    .csv-dropzone { border: 2px dashed var(--border); border-radius: 4px; background: var(--surface-subtle); padding: 16px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+    .file-pill { font-family: var(--font-mono); font-size: 11px; background: #E2E8F0; padding: 3px 8px; border-radius: 4px; color: var(--text-main); font-weight: 600; }
+    
+    .csv-preview-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .csv-preview-table th { background: #F1F5F9; padding: 6px 8px; font-weight: 600; border: 1px solid var(--border); text-align: left; }
+    .csv-preview-table td { padding: 6px 8px; border: 1px solid var(--border-light); font-family: var(--font-mono); }
+    
+    .import-footer-row { background: var(--surface-subtle); border-top: 1px solid var(--border); padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- Utilitarian Top Header -->
+  <header class="top-bar">
+    <div class="brand-section">
+      <div class="brand-title">
+        <span>⚡ ADMINFORGE</span>
+      </div>
+      <span class="org-tag">ENTERPRISE CLUSTER 04</span>
+      <nav class="nav-tabs-admin">
+        <a href="#users" class="active">Users &amp; RBAC</a>
+        <a href="#clusters">Clusters</a>
+        <a href="#secrets">Vault Sync</a>
+        <a href="#audit">Audit Stream</a>
+      </nav>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-secondary-top">+ Quick Filter</button>
+      <button class="btn-action-top">Import Roster CSV</button>
+    </div>
+  </header>
+
+  <main class="admin-container">
+
+    <!-- Telemetry Strip -->
+    <div class="telemetry-strip">
+      <div class="strip-stat">
+        <span class="dot-online"></span>
+        <span>Directory Sync: <strong>Active (Azure AD &amp; Okta)</strong></span>
+      </div>
+      <div>Total Provisioned: <strong>1,420 Users</strong> &bull; <strong>18 Service Accounts</strong></div>
+      <div>Session: <strong>demo.person19@example.com</strong></div>
+    </div>
+
+    <!-- Main Content: RBAC Matrix & Live Audit Stream -->
+    <div class="content-grid">
+      
+      <!-- Left: User Permission RBAC Editor -->
+      <section class="panel-card">
+        <div class="panel-head">
+          <span class="panel-title">ROLE-BASED ACCESS CONTROL (RBAC) MATRIX</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">4 TIERS CONFIGURED</span>
+        </div>
+
+        <table class="rbac-table">
+          <thead>
+            <tr>
+              <th>Assigned Role</th>
+              <th>Users</th>
+              <th style="text-align:center">Read</th>
+              <th style="text-align:center">Write</th>
+              <th style="text-align:center">Cluster Deploy</th>
+              <th style="text-align:center">Key Rotate</th>
+              <th style="text-align:center">Audit Purge</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="role-badge role-admin">SYS_ADMIN</span></td>
+              <td>12 users</td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked disabled></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked disabled></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked disabled></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked disabled></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked disabled></td>
+            </tr>
+            <tr>
+              <td><span class="role-badge role-sre">STAFF_SRE</span></td>
+              <td>48 users</td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+            </tr>
+            <tr>
+              <td><span class="role-badge role-ops">APP_OPERATOR</span></td>
+              <td>280 users</td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+            </tr>
+            <tr>
+              <td><span class="role-badge role-audit">SEC_AUDITOR</span></td>
+              <td>16 users</td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom" checked></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+              <td style="text-align:center"><input type="checkbox" class="chk-custom"></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Right: Live Audit Log Stream -->
+      <aside class="panel-card">
+        <div class="panel-head">
+          <span class="panel-title">IMMUTABLE AUDIT LOG STREAM</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--success)">● LIVE</span>
+        </div>
+
+        <div class="audit-stream">
+          <div class="audit-item">
+            <div class="audit-meta-row">
+              <span>2026-09-19 08:42:19 UTC</span>
+              <span class="audit-badge badge-ok">SUCCESS 200</span>
+            </div>
+            <div class="audit-action">rbac.role_grant: user_842a → STAFF_SRE</div>
+            <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">
+              actor: demo.person01@example.com &bull; ip: 10.240.12.89
+            </div>
+          </div>
+
+          <div class="audit-item">
+            <div class="audit-meta-row">
+              <span>2026-09-19 08:39:04 UTC</span>
+              <span class="audit-badge badge-warn">MFA CHALLENGE</span>
+            </div>
+            <div class="audit-action">cluster.deploy: k8s-eu-prod-node-drain</div>
+            <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">
+              actor: ci-deploy-daemon &bull; ip: 10.240.8.14
+            </div>
+          </div>
+
+          <div class="audit-item">
+            <div class="audit-meta-row">
+              <span>2026-09-19 08:31:50 UTC</span>
+              <span class="audit-badge badge-ok">SUCCESS 200</span>
+            </div>
+            <div class="audit-action">secret.rotate: vault_live_stripe_sync</div>
+            <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">
+              actor: automated_rotation_bot &bull; ip: 127.0.0.1
+            </div>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- Bulk User CSV Import Modal -->
+    <div class="modal-overlay-preview">
+      <div class="modal-head-bar">
+        <span>BULK USER CSV IMPORT MODAL — READY FOR INGESTION</span>
+        <span style="font-family:var(--font-mono); font-size:11px;">MAPPING STEP 2 OF 3</span>
+      </div>
+
+      <div class="modal-content-grid">
+        <div class="csv-dropzone">
+          <svg width="28" height="28" fill="none" stroke="var(--primary)" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span class="file-pill">user_roster_q3_2026.csv</span>
+          <span style="font-size:11px; color:var(--text-muted)">342 Records &bull; UTF-8 Clean</span>
+        </div>
+
+        <div>
+          <table class="csv-preview-table">
+            <thead>
+              <tr>
+                <th>Parsed Full Name</th>
+                <th>Corporate Email</th>
+                <th>Assigned Role</th>
+                <th>Department</th>
+                <th>Validation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Chen Wei</td>
+                <td>demo.person20@example.com</td>
+                <td>STAFF_SRE</td>
+                <td>Infrastructure</td>
+                <td style="color:var(--success); font-weight:700;">✓ VALID</td>
+              </tr>
+              <tr>
+                <td>Anika Patel</td>
+                <td>demo.person06@example.com</td>
+                <td>APP_OPERATOR</td>
+                <td>Core Services</td>
+                <td style="color:var(--success); font-weight:700;">✓ VALID</td>
+              </tr>
+              <tr>
+                <td>Lars Lindqvist</td>
+                <td>demo.person11@example.com</td>
+                <td>SEC_AUDITOR</td>
+                <td>Compliance</td>
+                <td style="color:var(--success); font-weight:700;">✓ VALID</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="import-footer-row">
+        <div>342 rows verified &bull; 0 syntax errors detected</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-secondary-top">Cancel</button>
+          <button class="btn-action-top">Execute Bulk Provision (342 Users)</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+</body>
+</html>

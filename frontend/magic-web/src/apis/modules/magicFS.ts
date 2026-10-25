@@ -1,4 +1,4 @@
-import type { HttpClient, RequestConfig } from "@/apis/core/HttpClient"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
 import type { FileScope } from "./fileScope"
 
 /** MagicFS 文件节点。 */
@@ -15,6 +15,13 @@ export interface MagicFSFile {
 	version: number
 	latest_version: number
 }
+
+export interface MagicFSFileTree extends MagicFSFile {
+	children?: MagicFSFileTree[]
+}
+
+// 与服务端现有后代深度保护一致；边界目录仍可继续读取，不能当成空目录。
+export const MAGIC_FS_TREE_DEPTH = 100
 
 /** MagicFS 文件列表请求。 */
 export interface ListMagicFSFilesParams {
@@ -40,8 +47,16 @@ export interface MagicFSFileResponse {
  *
  * 该 API 只封装通用文件系统元数据操作，正文读取与保存继续复用 Super Agent 文件接口。
  */
-export function generateMagicFSApi(fetch: HttpClient) {
+export function generateMagicFSApi(fetch: ServiceHttpClient) {
 	return {
+		getFileTree(fileId: string, signal?: AbortSignal) {
+			return fetch.post<{ file: MagicFSFileTree }>(
+				`/api/v1/open-api/magicfs/files/${fileId}/tree`,
+				{ depth: MAGIC_FS_TREE_DEPTH },
+				{ signal },
+			)
+		},
+
 		/** 查询指定目录的直接子节点。 */
 		listFiles(params: ListMagicFSFilesParams, config?: Omit<RequestConfig, "url" | "body">) {
 			return fetch.post<{ files: MagicFSFile[] }>(

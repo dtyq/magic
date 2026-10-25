@@ -1,6 +1,6 @@
 import { useCallback, type MutableRefObject, type ReactNode, type Ref } from "react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import { ScrollEdgeFadeOverlays } from "./ScrollEdgeFadeOverlays"
 import type { ScrollEdgeFadeColor } from "./scrollEdgeFadeColors"

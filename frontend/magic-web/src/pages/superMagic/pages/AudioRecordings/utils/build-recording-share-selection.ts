@@ -1,5 +1,6 @@
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type { RecordingDetailFileMap } from "../types/recording-detail"
+import { resolveRecordingShareItemLabel } from "../components/recording-share/resolve-recording-share-item-label"
 
 /** Identifies which detail tab group a shareable recording file belongs to. */
 export type RecordingShareGroupKey = "audio" | "transcript" | "notes" | "summary"
@@ -90,8 +91,13 @@ export function buildRecordingShareSelection(
 		if (!file || !fileId || seen.has(fileId)) return
 
 		seen.add(fileId)
-		groupedItems.push({ groupKey, summaryType, file, fileId })
-		shareableFiles.push(file)
+		const groupedItem: RecordingShareGroupedItem = { groupKey, summaryType, file, fileId }
+		groupedItems.push(groupedItem)
+		// Keep the backend attachment untouched; this field exists only for share-picker UI.
+		shareableFiles.push({
+			...file,
+			share_display_name: resolveRecordingShareItemLabel(groupedItem),
+		})
 	}
 
 	pushItem(fileMap.audio, "audio")

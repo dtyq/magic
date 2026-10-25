@@ -1,5 +1,5 @@
 import MagicIcon from "@/components/base/MagicIcon"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	IconChevronDown,
 	IconChevronUp,
@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next"
 import { TaskStatus, type TaskData } from "../../pages/Workspace/types"
 import StatusIcon from "../MessageHeader/components/StatusIcon"
 import CollapsibleText from "../MessagePanel/components/MessageQueue/components/CollapsibleText"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 // Custom animated icon for running status
 const AnimatedDoingIcon = () => {
@@ -174,9 +175,9 @@ function TaskList({ taskData, className, style, mode }: TaskListProps) {
 					)}
 				</div>
 				{expanded && (
-					<div
-						className="flex flex-col gap-2.5 overflow-auto p-2.5 pt-1.5"
-						style={{ maxHeight: mode === "view" ? "335px" : "240px" }}
+					<ScrollArea
+						viewportClassName="p-2.5 pt-1.5 [&>div]:!flex [&>div]:flex-col [&>div]:gap-2.5"
+						viewportStyle={{ maxHeight: mode === "view" ? "335px" : "240px" }}
 					>
 						{taskData?.process?.map((task) => (
 							<div
@@ -191,7 +192,7 @@ function TaskList({ taskData, className, style, mode }: TaskListProps) {
 								</div>
 							</div>
 						))}
-					</div>
+					</ScrollArea>
 				)}
 			</div>
 		</div>

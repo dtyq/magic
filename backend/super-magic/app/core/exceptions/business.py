@@ -16,6 +16,12 @@ class ErrorCode:
 
     NOT_FOUND = 4004
 
+    # user_tool_call 的 pending 问题不存在（已超时被消费或重复提交）
+    USER_TOOL_CALL_NOT_FOUND = 4100
+
+    # 环境正在空闲退出，问题仍有效；调用方应保留回答并走恢复／重试提示。
+    USER_TOOL_CALL_ENVIRONMENT_CLOSING = 4101
+
 
 class BusinessException(Exception):
     """

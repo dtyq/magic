@@ -10,8 +10,9 @@ import {
 	X,
 } from "lucide-react"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { CSSProperties, MouseEvent } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type {
 	SelfMediaOpsOverview,
 	SelfMediaOpsOverviewAction,
@@ -158,6 +159,7 @@ function SelfMediaOpsOverviewCard({
 	onDismissDailyInsightAction,
 	className,
 }: SelfMediaOpsOverviewCardProps) {
+	const { t, i18n } = useTranslation("super")
 	const { containerRef: opsContainerRef, width: opsContainerWidth } =
 		useMeasuredContainerWidth<HTMLElement>()
 	const animatedReads = useAnimatedOverviewValue(overview.totalReads, NUMBER_ANIMATION_MS)
@@ -169,8 +171,8 @@ function SelfMediaOpsOverviewCard({
 		overview.engagementRate ?? 0,
 		NUMBER_ANIMATION_MS,
 	)
-	const reads = formatSelfMediaCompactNumber(animatedReads)
-	const engagement = formatSelfMediaCompactNumber(animatedEngagement)
+	const reads = formatSelfMediaCompactNumber(animatedReads, i18n?.language)
+	const engagement = formatSelfMediaCompactNumber(animatedEngagement, i18n?.language)
 	const engagementRate = formatSelfMediaPercent(animatedEngagementRate)
 	const primarySignal = buildSelfMediaOpsPrimarySignal(overview)
 	const workflowHealth = buildSelfMediaOpsHealth(overview)
@@ -180,9 +182,9 @@ function SelfMediaOpsOverviewCard({
 		metricsLoading || (healthInsightStatus === "loading" && !healthInsight)
 	const opsHealthTitle = [
 		healthInsight?.summary,
-		metricsLoading ? "正在读取发布后数据" : "",
-		`链路完成度 ${workflowHealth.score}%`,
-		healthInsightStatus === "loading" ? "AI 计算中" : "",
+		metricsLoading ? t("selfMedia.opsReadingMetrics") : "",
+		t("selfMedia.opsPipelineCompletion", { score: workflowHealth.score }),
+		healthInsightStatus === "loading" ? t("selfMedia.opsAiCalculating") : "",
 	]
 		.filter(Boolean)
 		.join(" · ")
@@ -288,11 +290,13 @@ function SelfMediaOpsOverviewCard({
 			)}
 			onClick={onRegenerateDailyInsight}
 			disabled={isInsightLoading}
-			aria-label="更新今日建议"
+			aria-label={t("selfMedia.opsUpdateTodayAdvice")}
 			data-testid="self-media-home-daily-insight-refresh"
 		>
 			<RefreshCw size={13} className={cn(isInsightLoading && "animate-spin")} />
-			<span>{isInsightLoading ? "更新中" : "更新建议"}</span>
+			<span>
+				{isInsightLoading ? t("selfMedia.opsUpdating") : t("selfMedia.opsUpdateAdvice")}
+			</span>
 		</button>
 	) : null
 	const handleDismissDailyInsightAction = (actionId: string) => {
@@ -350,7 +354,7 @@ function SelfMediaOpsOverviewCard({
 								)}
 							>
 								<span className="h-1.5 w-1.5 rounded-full bg-[#59b981] shadow-[0_0_0_4px_rgba(89,185,129,0.14)]" />
-								今日重点信号
+								{t("selfMedia.opsTodaySignals")}
 							</div>
 							<h3
 								className={cn(
@@ -390,7 +394,7 @@ function SelfMediaOpsOverviewCard({
 						>
 							<div className="text-white/62 flex items-center gap-1.5 text-[11px] font-[760]">
 								<BarChart3 size={13} />
-								运营健康度
+								{t("selfMedia.opsHealth")}
 							</div>
 							<div
 								className={cn(
@@ -679,7 +683,7 @@ function SelfMediaOpsOverviewCard({
 										})
 									) : (
 										<div className="bg-white/78 rounded-[18px] p-4 text-[13px] leading-[1.6] text-[#52525b]">
-											今天的发布、数据、评论和复盘都已经齐了，可以继续新建文章或做二次分发。
+											{t("selfMedia.opsTodayComplete")}
 										</div>
 									)}
 								</div>

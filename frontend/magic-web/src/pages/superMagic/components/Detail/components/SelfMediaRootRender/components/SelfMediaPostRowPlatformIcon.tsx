@@ -1,5 +1,5 @@
 import { memo, useId } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SelfMediaPlatform } from "../../../types"
 import { SelfMediaPlatformIconPaths } from "./selfMediaPlatformIconPaths"
 

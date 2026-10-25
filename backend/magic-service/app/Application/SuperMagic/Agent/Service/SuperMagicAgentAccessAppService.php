@@ -12,9 +12,14 @@ use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\AgentSourceType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
+use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentVersionDomainService;
+use Hyperf\Di\Annotation\Inject;
 
 class SuperMagicAgentAccessAppService extends AbstractSuperMagicAppService
 {
+    #[Inject]
+    protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
+
     /**
      * @param array<string> $agentCodes
      * @return array{usable_codes: array<string>, missing_codes: array<string>}
@@ -143,7 +148,11 @@ class SuperMagicAgentAccessAppService extends AbstractSuperMagicAppService
 
     /**
      * @param array<string> $agentCodes
-     * @return array{accessible_codes: array<string>, missing_codes: array<string>}
+     * @return array{
+     *     accessible_codes: array<string>,
+     *     missing_codes: array<string>,
+     *     agent_organizations: array<string, string>
+     * }
      */
     public function listAccessibleAgentCodes(string $organizationCode, string $userId, array $agentCodes): array
     {
@@ -152,16 +161,28 @@ class SuperMagicAgentAccessAppService extends AbstractSuperMagicAppService
             return [
                 'accessible_codes' => [],
                 'missing_codes' => [],
+                'agent_organizations' => [],
             ];
         }
 
         $foundAgentCodes = $this->findExistingAgentCodes($organizationCode, $userId, $agentCodes);
+        $globalAgents = $this->superMagicAgentDomainService->findByCodesWithoutOrganizationFilter($agentCodes);
+        $publicVersions = $this->superMagicAgentVersionDomainService
+            ->getLatestPublishedByCodesWithoutOrganizationFilter($agentCodes);
         $dataIsolation = SuperMagicAgentDataIsolation::create($organizationCode, $userId);
         // 完整员工关联资源同时允许创建者、协作者、已雇佣用户和官方员工读取。
         $readableCodes = $this->getAccessibleAgentCodes($dataIsolation, $userId)['codes'];
         $usableCodes = $this->getUsableAgentCodes($dataIsolation)['codes'];
         $officialCodes = array_values(array_intersect($agentCodes, $this->getOfficialAgentCodes($dataIsolation)));
         $accessibleLookup = array_fill_keys(array_merge($readableCodes, $usableCodes), true);
+
+        // 已发布的 ORGANIZATION / MARKET Agent 是公开资源，允许跨组织进入。
+        foreach ($agentCodes as $agentCode) {
+            if (! isset($globalAgents[$agentCode], $publicVersions[$agentCode])) {
+                continue;
+            }
+            $accessibleLookup[$agentCode] = true;
+        }
 
         $accessibleAgentCodes = [];
         foreach ($agentCodes as $agentCode) {
@@ -175,6 +196,17 @@ class SuperMagicAgentAccessAppService extends AbstractSuperMagicAppService
         return [
             'accessible_codes' => $accessibleAgentCodes,
             'missing_codes' => $this->collectMissingCodes($agentCodes, array_merge($foundAgentCodes, $officialCodes)),
+            'agent_organizations' => array_reduce(
+                $accessibleAgentCodes,
+                static function (array $result, string $agentCode) use ($globalAgents): array {
+                    $organizationCode = ($globalAgents[$agentCode] ?? null)?->getOrganizationCode() ?? '';
+                    if ($organizationCode !== '') {
+                        $result[$agentCode] = $organizationCode;
+                    }
+                    return $result;
+                },
+                []
+            ),
         ];
     }
 

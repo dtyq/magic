@@ -1,35 +1,27 @@
-import { genRequestUrl } from "@/utils/http"
 import type {
 	AuthRequestParams,
 	ResourceTypes,
 } from "@/pages/flow/components/AuthControlButton/types"
 import type { User } from "@/types/user"
 
-import type { HttpClient, RequestConfig } from "../core/HttpClient"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
 import { configStore } from "@/models/config"
 import { isNil } from "lodash-es"
 
-export const generateAuthApi = (fetch: HttpClient) => ({
+export const generateAuthApi = (fetch: ServiceHttpClient) => ({
 	/** 更新资源授权 */
 	updateResourceAccess(params: AuthRequestParams) {
-		return fetch.post<null>(
-			genRequestUrl("/api/v1/operation-permissions/resource-access"),
-			params,
-		)
+		return fetch.post<null>("/api/v1/operation-permissions/resource-access", params)
 	},
 
 	/** 查询资源授权 */
 	getResourceAccess(resource_type: ResourceTypes, resource_id: string) {
-		return fetch.get<AuthRequestParams>(
-			genRequestUrl(
-				"/api/v1/operation-permissions/resource-access",
-				{},
-				{
-					resource_type,
-					resource_id,
-				},
-			),
-		)
+		return fetch.get<AuthRequestParams>("/api/v1/operation-permissions/resource-access", {
+			params: {
+				resource_type,
+				resource_id,
+			},
+		})
 	},
 
 	/**
@@ -73,41 +65,35 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 		thirdPlatformOrganizationCode?: string,
 		options?: Pick<RequestConfig, "skipAppInitWait">,
 	) {
-		return fetch.get<Array<User.MagicOrganization>>(
-			genRequestUrl(
-				"/api/v1/auth/status",
-				{},
-				{
-					login_code: authCode || "",
-				},
-			),
-			{
-				headers: (h) => {
-					const normalizedAuthorization = authorization?.trim()
-					const normalizedOrganizationCode = thirdPlatformOrganizationCode?.trim()
-
-					if (normalizedAuthorization) h.set("authorization", normalizedAuthorization)
-					else h.delete("authorization")
-
-					if (normalizedOrganizationCode)
-						h.set("Organization-Code", normalizedOrganizationCode)
-					else h.delete("Organization-Code")
-
-					return h
-				},
-				priority: "high",
-				enableErrorMessagePrompt: false,
-				enableRequestUnion: true,
-				...options,
+		return fetch.get<Array<User.MagicOrganization>>("/api/v1/auth/status", {
+			params: {
+				login_code: authCode || "",
 			},
-		)
+			headers: (h) => {
+				const normalizedAuthorization = authorization?.trim()
+				const normalizedOrganizationCode = thirdPlatformOrganizationCode?.trim()
+
+				if (normalizedAuthorization) h.set("authorization", normalizedAuthorization)
+				else h.delete("authorization")
+
+				if (normalizedOrganizationCode)
+					h.set("Organization-Code", normalizedOrganizationCode)
+				else h.delete("Organization-Code")
+
+				return h
+			},
+			priority: "high",
+			enableErrorMessagePrompt: false,
+			enableRequestUnion: true,
+			...options,
+		})
 	},
 
 	/**
 	 * @description 获取当前账号所归属的环境 code
 	 */
 	getAccountDeployCode(options?: Pick<RequestConfig, "skipAppInitWait">) {
-		return fetch.get<{ login_code: string }>(genRequestUrl("/api/v1/auth/environment"), {
+		return fetch.get<{ login_code: string }>("/api/v1/auth/environment", {
 			enableRequestUnion: true,
 			headers: (h) => {
 				h.delete("organization-code")
@@ -122,7 +108,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 * @description 用户 Token 换取一次性临时授权 Token
 	 */
 	getTempTokenFromUserToken(options?: Pick<RequestConfig, "skipAppInitWait">) {
-		return fetch.get<{ temp_token: string }>(genRequestUrl("/api/v1/auth/temp-token"), options)
+		return fetch.get<{ temp_token: string }>("/api/v1/auth/temp-token", options)
 	},
 
 	/**
@@ -130,9 +116,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 */
 	getUserTokenFromTempToken(tempToken: string, options?: Pick<RequestConfig, "skipAppInitWait">) {
 		return fetch.get<{ teamshare_token: string }>(
-			genRequestUrl("/api/v1/auth/teamshare-token?temp_token=${tempToken}", {
-				tempToken,
-			}),
+			`/api/v1/auth/teamshare-token?temp_token=${tempToken}`,
 			{
 				enableRequestUnion: true,
 				enableAuthorization: false,
@@ -147,11 +131,18 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 */
 	getAdminPermission() {
 		return fetch.get<{ is_admin: boolean }>(
-			genRequestUrl("/api/v1/operation-permissions/organization-admin"),
+			"/api/v1/operation-permissions/organization-admin",
 			{
 				enableRequestUnion: true,
 			},
 		)
+	},
+
+	/** 获取当前用户的真实权限 key */
+	getMyPermissionList() {
+		return fetch.get<{ permission_key: string[] }>("/api/v1/permissions/me", {
+			enableRequestUnion: true,
+		})
 	},
 
 	/**
@@ -165,7 +156,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 				: "") || ""
 
 		return fetch.get<{ should_redirect: boolean; enable_super_magic_display: boolean }>(
-			url + genRequestUrl("/api/v1/super-agent/login/config"),
+			url + "/api/v1/super-agent/login/config",
 			{
 				headers: {
 					["Organization-Code"]: params?.organizationCode || "",
@@ -183,7 +174,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 */
 	logout(headers?: HeadersInit, signal?: AbortSignal) {
 		return fetch.delete<any>(
-			genRequestUrl("/api/v1/sessions"),
+			"/api/v1/sessions",
 			{},
 			{
 				headers,

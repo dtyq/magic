@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { createFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { SelfMediaAttachmentNode } from "../../types"
 import { WECHAT_ARTICLE_IMAGE_PROCESS } from "../../constants/imageProcess"
 import { loadWechatArticleHtml } from "./wechatArticleHtml"
@@ -77,6 +78,7 @@ describe("loadWechatArticleHtml", () => {
 
 		const result = await loadWechatArticleHtml({
 			fileId: "article-html",
+			fileApi: createFileApi(),
 			attachmentList: [{ file_id: "article-html", updated_at: "partial-version" }],
 			attachments,
 		})
@@ -88,9 +90,11 @@ describe("loadWechatArticleHtml", () => {
 		expect(getTemporaryDownloadUrl).toHaveBeenCalledWith({
 			file_ids: ["article-cover"],
 			options: { xMagicImageProcess: WECHAT_ARTICLE_IMAGE_PROCESS },
+			access: undefined,
 		})
 		expect(getTemporaryDownloadUrl).toHaveBeenCalledWith({
 			file_ids: ["article-css"],
+			access: undefined,
 		})
 	})
 })

@@ -14,7 +14,7 @@ import AgentToolForm from "@/components/Agent/AgentTools/AgentToolForm"
 import AgentTools from "@/components/Agent/AgentTools/AgentTools"
 import { openCreateToolsetModal } from "@/components/business/CreateToolsetModal/openCreateToolsetModal"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
@@ -70,7 +70,7 @@ export default forwardRef<ToolsPanelRefs, ToolsPanelProps>(({ details }, ref) =>
 			title: t("mcp.page.update.title", {
 				name: tool?.name,
 			}),
-			icon: <IconExclamationCircleFilled size={24} style={{ marginRight: 8 }} />,
+			icon: <IconExclamationCircleFilled size={24} className="mr-2" />,
 			content: t("mcp.page.update.confirm", {
 				version: tool?.version,
 				latestVersion: tool?.source_version?.latest_version_name,
@@ -93,7 +93,7 @@ export default forwardRef<ToolsPanelRefs, ToolsPanelProps>(({ details }, ref) =>
 	})
 
 	const onEdit = useMemoizedFn((item: Flow.Mcp.ListItem) => {
-		// 当处于MCP新建状态时（没有details?.id），从本地tools状态中获取工具数据
+		// Use the local tool entry when the MCP has not been created yet.
 		const initialData = !details?.id ? item : undefined
 
 		openAgentCommonModal({
@@ -124,7 +124,7 @@ export default forwardRef<ToolsPanelRefs, ToolsPanelProps>(({ details }, ref) =>
 	const onDelete = useMemoizedFn((item: Flow.Mcp.ListItem) => {
 		Modal.confirm({
 			title: t("mcp.page.delete.title"),
-			icon: <IconExclamationCircleFilled size={24} style={{ marginRight: 8 }} />,
+			icon: <IconExclamationCircleFilled size={24} className="mr-2" />,
 			content: t("mcp.page.delete.content", { name: item?.name }),
 			okText: t("mcp.page.delete.confirm"),
 			okType: "danger",

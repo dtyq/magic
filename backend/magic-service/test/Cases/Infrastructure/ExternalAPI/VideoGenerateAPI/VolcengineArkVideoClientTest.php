@@ -7,13 +7,13 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\VideoGenerateAPI;
 
+use App\ErrorCode\VideoGenerateErrorCode;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
-use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Guzzle\ClientFactory;
 use Hyperf\Logger\LoggerFactory;
 use PHPUnit\Framework\TestCase;
@@ -34,17 +34,15 @@ class VolcengineArkVideoClientTest extends TestCase
         $clientFactory = $this->createMock(ClientFactory::class);
         $clientFactory->expects($this->once())
             ->method('create')
-            ->with([
-                'timeout' => 180,
-                'verify' => false,
-            ])
+            ->with(['timeout' => 180])
             ->willReturn($httpClient);
 
+        $logger = new VolcengineArkRecordingLogger();
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->expects($this->once())
             ->method('get')
             ->with(VolcengineArkVideoClient::class)
-            ->willReturn(new VolcengineArkRecordingLogger());
+            ->willReturn($logger);
 
         $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
 
@@ -56,6 +54,8 @@ class VolcengineArkVideoClientTest extends TestCase
         );
 
         $this->assertSame('task-1', $response['id']);
+        $this->assertSame(['model' => 'doubao-seedance-2-0-fast-260128'], $logger->records[0]['context']['payload']);
+        $this->assertSame(['id' => 'task-1'], $logger->records[1]['context']['response']);
     }
 
     public function testPostReturnsGenericFriendlyMessageForUnmappedArkError(): void
@@ -85,16 +85,10 @@ class VolcengineArkVideoClientTest extends TestCase
             ->method('create')
             ->willReturn($httpClient);
 
-        $client = new VolcengineArkVideoClient(
-            $clientFactory,
-            $loggerFactory,
-            $this->createTranslator([
-                'video.errors.generic' => '视频生成失败，请检查输入内容或稍后重试。',
-            ]),
-        );
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
 
         $this->expectException(ProviderVideoException::class);
-        $this->expectExceptionMessage('视频生成失败，请检查输入内容或稍后重试。');
+        $this->expectExceptionMessage(VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
         try {
             $client->post(
                 'https://ark.cn-beijing.volces.com/api/v3',
@@ -110,7 +104,53 @@ class VolcengineArkVideoClientTest extends TestCase
             $this->assertSame('/contents/generations/tasks', $logger->records[1]['context']['path']);
             $this->assertSame('op-ark-400', $logger->records[1]['context']['context']['operation_id']);
             $this->assertSame(400, $logger->records[1]['context']['http_status']);
-            $this->assertSame('{"error":{"message":"service_tier must be empty"}}', $logger->records[1]['context']['error']);
+            $this->assertSame('{"error":{"message":"service_tier must be empty"}}', $logger->records[1]['context']['response']);
+            $this->assertSame(VideoGenerateErrorCode::GENERAL_ERROR->value, $logger->records[1]['context']['error_code']);
+            $this->assertSame('bad request', $logger->records[1]['context']['error_message']);
+        }
+    }
+
+    public function testGetMarksResourceNotFoundAsNonRetriable(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('get')
+            ->willThrowException(new RequestException(
+                'not found',
+                new Request('GET', 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks/missing-task'),
+                new Response(404, [], json_encode([
+                    'error' => [
+                        'code' => 'ResourceNotFound',
+                        'message' => 'The specified resource `missing-task` is not found.',
+                    ],
+                ], JSON_THROW_ON_ERROR)),
+            ));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->willReturn($httpClient);
+
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->expects($this->once())
+            ->method('get')
+            ->with(VolcengineArkVideoClient::class)
+            ->willReturn(new VolcengineArkRecordingLogger());
+
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
+
+        try {
+            $client->get(
+                'https://ark.cn-beijing.volces.com/api/v3',
+                'secret-api-key',
+                '/contents/generations/tasks/missing-task',
+                ['operation_id' => 'op-resource-not-found'],
+            );
+            self::fail('Expected ProviderVideoException was not thrown.');
+        } catch (ProviderVideoException $exception) {
+            $this->assertFalse($exception->isRetry());
+            $this->assertSame(404, $exception->getHttpStatus());
+            $this->assertNotSame('', $exception->getMessage());
         }
     }
 
@@ -141,17 +181,10 @@ class VolcengineArkVideoClientTest extends TestCase
             ->with(VolcengineArkVideoClient::class)
             ->willReturn(new VolcengineArkRecordingLogger());
 
-        $client = new VolcengineArkVideoClient(
-            $clientFactory,
-            $loggerFactory,
-            $this->createTranslator([
-                'video.errors.InputVideoSensitiveContentDetected.PrivacyInformation' => '输入视频可能包含真人或人脸，请更换无真人、无肖像的素材后再试。',
-                'video.errors.generic' => '视频生成失败，请检查输入内容或稍后重试。',
-            ]),
-        );
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
 
         $this->expectException(ProviderVideoException::class);
-        $this->expectExceptionMessage('输入视频可能包含真人或人脸，请更换无真人、无肖像的素材后再试。');
+        $this->expectExceptionMessage(VideoGenerateErrorCode::INPUT_VIDEO_PRIVACY_FAILED->getMessage());
 
         $client->post(
             'https://ark.cn-beijing.volces.com/api/v3',
@@ -159,6 +192,133 @@ class VolcengineArkVideoClientTest extends TestCase
             '/contents/generations/tasks',
             ['model' => 'doubao-seedance-2-0-fast-260128'],
         );
+    }
+
+    public function testPostPreservesRequestExceptionResponseBodyForDownstreamHandling(): void
+    {
+        $errorResponse = json_encode([
+            'error' => [
+                'code' => 'InputImageSensitiveContentDetected.PrivacyInformation',
+                'message' => "The request failed because the input image 'content[1]' may contain real person. Request id: 0217870408693852d028257773b48b117f8c4bedc94f46b62987e",
+                'param' => '',
+                'type' => 'BadRequest',
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+        $httpClient = $this->createMock(Client::class);
+        $httpClient
+            ->expects($this->once())
+            ->method('post')
+            ->willThrowException(new RequestException(
+                'bad request',
+                new Request('POST', 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks'),
+                new Response(400, [], $errorResponse),
+            ));
+
+        $logger = new VolcengineArkRecordingLogger();
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory
+            ->expects($this->once())
+            ->method('get')
+            ->with(VolcengineArkVideoClient::class)
+            ->willReturn($logger);
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory
+            ->expects($this->once())
+            ->method('create')
+            ->with(['timeout' => 180])
+            ->willReturn($httpClient);
+
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
+
+        try {
+            $client->post(
+                'https://ark.cn-beijing.volces.com/api/v3',
+                'secret-api-key',
+                '/contents/generations/tasks',
+                ['model' => 'doubao-seedance-2-0-260128'],
+                ['operation_id' => 'bcbecba1-17f9-4f38-8ac3-f518cf279a0c'],
+            );
+            self::fail('Expected ProviderVideoException was not thrown.');
+        } catch (ProviderVideoException $exception) {
+            $previous = $exception->getPrevious();
+            self::assertSame(VideoGenerateErrorCode::INPUT_IMAGE_PRIVACY_FAILED->getMessage(), $exception->getMessage());
+            self::assertSame(VideoGenerateErrorCode::INPUT_IMAGE_PRIVACY_FAILED, $exception->getVideoErrorCode());
+            self::assertInstanceOf(RequestException::class, $previous);
+            self::assertSame($errorResponse, $previous->getResponse()?->getBody()->getContents());
+        }
+    }
+
+    public function testPostReturnsGenericInvalidParameterMessageWhenNoHintMatched(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->willThrowException(new RequestException(
+                'original invalid parameter message',
+                new Request('POST', 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks'),
+                new Response(400, [], json_encode([
+                    'error' => [
+                        'code' => 'InvalidParameter',
+                        'message' => 'Error while downloading image.',
+                    ],
+                ], JSON_THROW_ON_ERROR)),
+            ));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())->method('create')->willReturn($httpClient);
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->expects($this->once())
+            ->method('get')
+            ->with(VolcengineArkVideoClient::class)
+            ->willReturn(new VolcengineArkRecordingLogger());
+
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
+
+        try {
+            $client->post(
+                'https://ark.cn-beijing.volces.com/api/v3',
+                'secret-api-key',
+                '/contents/generations/tasks',
+                ['model' => 'doubao-seedance-2-0-260128'],
+            );
+            self::fail('Expected ProviderVideoException was not thrown.');
+        } catch (ProviderVideoException $exception) {
+            self::assertSame(VideoGenerateErrorCode::INVALID_PARAMETER->getMessage(), $exception->getMessage());
+            self::assertSame(VideoGenerateErrorCode::INVALID_PARAMETER, $exception->getVideoErrorCode());
+        }
+    }
+
+    public function testPostReturnsFriendlyMessageForOutputSensitiveContentCode(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->willThrowException(new RequestException(
+                'original sensitive content message',
+                new Request('POST', 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks'),
+                new Response(400, [], json_encode([
+                    'error' => ['code' => 'OutputVideoSensitiveContentDetected.PolicyViolation'],
+                ], JSON_THROW_ON_ERROR)),
+            ));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())->method('create')->willReturn($httpClient);
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->expects($this->once())->method('get')->with(VolcengineArkVideoClient::class)
+            ->willReturn(new VolcengineArkRecordingLogger());
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
+
+        try {
+            $client->post('https://ark.cn-beijing.volces.com/api/v3', 'secret-api-key', '/contents/generations/tasks', ['model' => 'model']);
+            self::fail('Expected ProviderVideoException was not thrown.');
+        } catch (ProviderVideoException $exception) {
+            self::assertSame(
+                VideoGenerateErrorCode::OUTPUT_VIDEO_SENSITIVE_CONTENT_DETECTED_POLICY_VIOLATION->getMessage(),
+                $exception->getMessage(),
+            );
+        }
     }
 
     public function testPostReturnsFriendlyMessageForInvalidParameterCode(): void
@@ -188,17 +348,10 @@ class VolcengineArkVideoClientTest extends TestCase
             ->with(VolcengineArkVideoClient::class)
             ->willReturn(new VolcengineArkRecordingLogger());
 
-        $client = new VolcengineArkVideoClient(
-            $clientFactory,
-            $loggerFactory,
-            $this->createTranslator([
-                'video.errors.InvalidParameter.InvalidResolution' => '当前分辨率不受支持，请改为 480p 或 720p 后重试。',
-                'video.errors.generic' => '视频生成失败，请检查输入内容或稍后重试。',
-            ]),
-        );
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
 
         $this->expectException(ProviderVideoException::class);
-        $this->expectExceptionMessage('当前分辨率不受支持，请改为 480p 或 720p 后重试。');
+        $this->expectExceptionMessage(VideoGenerateErrorCode::INVALID_PARAMETER_INVALID_RESOLUTION->getMessage());
 
         $client->post(
             'https://ark.cn-beijing.volces.com/api/v3',
@@ -246,42 +399,10 @@ class VolcengineArkVideoClientTest extends TestCase
         $this->assertSame('req-ark-200', $logger->records[1]['context']['provider_request_id']);
         $this->assertIsInt($logger->records[1]['context']['elapsed_ms']);
         $this->assertGreaterThanOrEqual(0, $logger->records[1]['context']['elapsed_ms']);
-    }
-
-    /**
-     * @param array<string, string> $lines
-     */
-    private function createTranslator(array $lines): TranslatorInterface
-    {
-        return new class($lines) implements TranslatorInterface {
-            public function __construct(private array $lines)
-            {
-            }
-
-            public function trans(string $key, array $replace = [], ?string $locale = null): array|string
-            {
-                $line = $this->lines[$key] ?? $key;
-                foreach ($replace as $name => $value) {
-                    $line = str_replace(':' . $name, (string) $value, $line);
-                }
-
-                return $line;
-            }
-
-            public function transChoice(string $key, $number, array $replace = [], ?string $locale = null): string
-            {
-                return (string) $this->trans($key, $replace, $locale);
-            }
-
-            public function getLocale(): string
-            {
-                return 'zh_CN';
-            }
-
-            public function setLocale(string $locale)
-            {
-            }
-        };
+        $this->assertSame([
+            'id' => 'task-1',
+            'status' => 'running',
+        ], $logger->records[1]['context']['response']);
     }
 }
 

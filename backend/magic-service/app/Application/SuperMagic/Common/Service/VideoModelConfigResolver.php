@@ -74,7 +74,7 @@ class VideoModelConfigResolver
 
             $videoGenerationConfigDomainService = di(VideoGenerationConfigDomainService::class);
             $featuredConfigs = $videoGenerationConfigDomainService->resolveFeatured($candidates);
-            return $featuredConfigs[$modelId]?->toArray() ?? null;
+            return ($featuredConfigs[$modelId] ?? null)?->toArray() ?? null;
         } catch (Throwable $throwable) {
             di(LoggerFactory::class)->get(static::class)->warning('Failed to resolve video generation config, fallback to model_id only', [
                 'model_id' => $modelId,
@@ -136,6 +136,9 @@ class VideoModelConfigResolver
         if ($providerModels === []) {
             return [];
         }
+
+        // 与 featured 保持一致：先按运行时优先级排序，才能取到与真正执行时同一条 provider 的能力配置。
+        $providerModels = $providerModelDomainService->sortByRuntimePriority($providerModels);
 
         $providerConfigIds = array_values(array_unique(array_map(
             static fn (ProviderModelEntity $model): int => $model->getServiceProviderConfigId(),

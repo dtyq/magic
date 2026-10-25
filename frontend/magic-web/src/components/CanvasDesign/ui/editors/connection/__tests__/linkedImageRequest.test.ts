@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
+import { createTestResourceReferenceResolver } from "../../../../public/__tests__/testResourceReferenceResolver"
 import { buildImageRequestWithLinkedEditorInputs } from "../linkedImageRequest"
+
+const resolveDesignAResourceReference = createTestResourceReferenceResolver()
 
 describe("buildImageRequestWithLinkedEditorInputs", () => {
 	it("adds linked image crop options to the generated image request", () => {
@@ -116,19 +119,42 @@ describe("buildImageRequestWithLinkedEditorInputs", () => {
 				activeMediaReferences: [
 					{
 						kind: "image",
-						path: "/images/shared.png",
+						path: "/画布A/images/shared.png",
 						sourceCrop: { x: 10, y: 20, width: 300, height: 200 },
 					},
 				],
 			},
+			"",
+			resolveDesignAResourceReference,
 		)
 
-		expect(request.reference_images).toEqual(["/images/shared.png"])
+		expect(request.reference_images).toEqual(["/画布A/images/shared.png"])
 		expect(request.reference_image_options).toEqual([
 			{
-				path: "/images/shared.png",
+				path: "/画布A/images/shared.png",
 				crop: { x: 10, y: 20, width: 300, height: 200 },
 			},
 		])
+	})
+
+	it("keeps workspace-root and current-canvas references separate with host identity", () => {
+		const request = buildImageRequestWithLinkedEditorInputs(
+			{
+				reference_images: ["./images/shared.png"],
+			},
+			{
+				textPrompt: "",
+				activeMediaReferences: [
+					{
+						kind: "image",
+						path: "/images/shared.png",
+					},
+				],
+			},
+			"",
+			resolveDesignAResourceReference,
+		)
+
+		expect(request.reference_images).toEqual(["./images/shared.png", "/images/shared.png"])
 	})
 })

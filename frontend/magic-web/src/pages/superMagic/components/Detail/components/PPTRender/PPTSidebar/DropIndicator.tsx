@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export interface DropIndicatorProps {
 	position: "top" | "bottom" | "left" | "right"

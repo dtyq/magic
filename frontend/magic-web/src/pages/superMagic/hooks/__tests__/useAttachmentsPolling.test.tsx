@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { SuperMagicApi } from "@/apis"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
 import type { AttachmentItem } from "../../components/TopicFilesButton/hooks"
-import { loadProjectAttachments } from "../../services"
+import { loadProjectAttachments } from "../../services/projectAttachmentsLoader"
 import {
 	getProjectAttachmentsLastUpdated,
 	markProjectAttachmentsLastUpdated,
@@ -33,7 +33,7 @@ vi.mock("../../utils/attachmentPerf", () => ({
 	measureAttachmentFetch: (_source: string, callback: () => Promise<unknown>) => callback(),
 }))
 
-vi.mock("../../services", () => ({
+vi.mock("../../services/projectAttachmentsLoader", () => ({
 	loadProjectAttachments: vi.fn(),
 }))
 

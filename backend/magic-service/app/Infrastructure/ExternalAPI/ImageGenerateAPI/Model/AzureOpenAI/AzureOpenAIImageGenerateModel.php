@@ -28,13 +28,10 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 
     private AzureOpenAIAPI $api;
 
-    private array $configItem;
-
     private string $model;
 
     public function __construct(array $serviceProviderConfig)
     {
-        $this->configItem = $serviceProviderConfig;
         $this->model = $serviceProviderConfig['model_version'] ?? '';
         $apiConfig = AzureOpenAIClientConfig::fromServiceProviderConfig($serviceProviderConfig);
         $this->api = new AzureOpenAIAPI($apiConfig);
@@ -66,43 +63,13 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
         ]);
 
-        try {
-            if ($imageGenerateRequest->getReferenceImages() !== []) {
-                return $this->api->editImage(
-                    $this->model,
-                    $imageGenerateRequest->getReferenceImages(),
-                    null,
-                    $imageGenerateRequest->getPrompt(),
-                    $imageGenerateRequest->getSize(),
-                    $imageGenerateRequest->getN(),
-                    $imageGenerateRequest->getQuality()
-                );
-            }
+        $fields = $this->buildImageFields($imageGenerateRequest);
 
-            $requestData = [
-                'model' => $this->model,
-                'prompt' => $imageGenerateRequest->getPrompt(),
-                'size' => $imageGenerateRequest->getSize(),
-                'n' => $imageGenerateRequest->getN(),
-            ];
-            if ($imageGenerateRequest->getQuality() !== null) {
-                $requestData['quality'] = $imageGenerateRequest->getQuality();
-            }
-
-            $result = $this->api->generateImage($this->model, $requestData);
-
-            $this->logger->info('Azure OpenAI图像生成：API调用成功', [
-                'result_data_count' => isset($result['data']) ? count($result['data']) : 0,
-            ]);
-
-            return $result;
-        } catch (Exception $e) {
-            $this->logger->error('Azure OpenAI图像生成：API调用失败', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
+        if ($imageGenerateRequest->getReferenceImages() !== []) {
+            return $this->api->editImage($this->model, $imageGenerateRequest->getReferenceImages(), $fields);
         }
+
+        return $this->api->generateImage($this->model, array_merge(['model' => $this->model], $fields));
     }
 
     public function setAK(string $ak): void
@@ -162,11 +129,6 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         return 'azure_openai';
     }
 
-    public function getConfigItem(): array
-    {
-        return $this->configItem;
-    }
-
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         try {
@@ -179,6 +141,36 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * 组装 images/generations 与 images/edits 共用的请求字段，键即线上字段名。
+     * 可选字段为 null / '' 时不出现，与既有的逐字段判断等价。
+     *
+     * @return array<string, mixed>
+     */
+    private function buildImageFields(AzureOpenAIImageRequest $request): array
+    {
+        $fields = [
+            'prompt' => $request->getPrompt(),
+            'size' => $request->getSize(),
+            'n' => $request->getN(),
+        ];
+
+        if ($request->getQuality() !== null) {
+            $fields['quality'] = $request->getQuality();
+        }
+        if ($request->getBackground() !== null) {
+            $fields['background'] = $request->getBackground();
+        }
+        if ($request->getOutputFormat() !== '') {
+            $fields['output_format'] = $request->getOutputFormat();
+        }
+        if (! empty($request->getExtra())) {
+            $fields['extra'] = $request->getExtra();
+        }
+
+        return $fields;
     }
 
     private function buildResponse(array $result): ImageGenerateResponse

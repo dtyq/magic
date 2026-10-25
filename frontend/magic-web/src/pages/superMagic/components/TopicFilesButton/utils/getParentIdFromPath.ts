@@ -9,9 +9,11 @@ export const getParentIdFromPath = (
 ): string | number | undefined => {
 	// 兜底为根路径
 	const defaultParentPath = ROOT_FILE_ID
-	if (!parentPath || !attachments) return defaultParentPath
+	if (!parentPath) return defaultParentPath
 
 	const _parentPath = trim(parentPath, "/")
+	if (!_parentPath) return defaultParentPath
+	if (!attachments) return undefined
 
 	// 移除开头的 '/' 并分割路径
 	const pathParts = _parentPath.split("/")
@@ -23,14 +25,16 @@ export const getParentIdFromPath = (
 		const foundItem = currentItems.find(
 			(item) => item.is_directory && (item.file_name === part || item.name === part),
 		)
-		if (!foundItem || !foundItem.children) {
-			return defaultParentPath
+		if (!foundItem) {
+			// A requested nested path must never silently fall back to project root.
+			return undefined
 		}
 		if (i === pathParts.length - 1) {
 			// 最后一级，返回文件夹ID
-			return foundItem.file_id || defaultParentPath
+			return foundItem.file_id
 		}
+		if (!foundItem.children) return undefined
 		currentItems = foundItem.children as AttachmentItem[]
 	}
-	return defaultParentPath
+	return undefined
 }

@@ -51,10 +51,18 @@ class StreamChunkTimeoutError(Exception):
     携带实际耗时和已处理 chunk 数，确保日志和错误信息始终真实。
     """
 
-    def __init__(self, *, chunk_count: int, chunk_timeout_seconds: float, total_elapsed_seconds: float):
+    def __init__(
+        self,
+        *,
+        chunk_count: int,
+        chunk_timeout_seconds: float,
+        total_elapsed_seconds: float,
+        emitted_text_chars: int = 0,
+    ):
         self.chunk_count = chunk_count
         self.chunk_timeout_seconds = chunk_timeout_seconds
         self.total_elapsed_seconds = total_elapsed_seconds
+        self.emitted_text_chars = emitted_text_chars
         super().__init__(
             f"Chunk timeout: no data received for {chunk_timeout_seconds:.0f}s "
             f"after processing {chunk_count} chunks "
@@ -71,9 +79,17 @@ class StreamInterruptedError(Exception):
     - StreamInterruptedError：连接被对端关闭，数据可能不完整
     """
 
-    def __init__(self, *, chunk_count: int, total_elapsed_seconds: float, message: str = ""):
+    def __init__(
+        self,
+        *,
+        chunk_count: int,
+        total_elapsed_seconds: float,
+        emitted_text_chars: int = 0,
+        message: str = "",
+    ):
         self.chunk_count = chunk_count
         self.total_elapsed_seconds = total_elapsed_seconds
+        self.emitted_text_chars = emitted_text_chars
         if not message:
             message = (
                 f"Stream interrupted after {chunk_count} chunks "

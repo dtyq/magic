@@ -60,7 +60,7 @@ class SlidesTemplateTagAppService extends AbstractKernelAppService
         $dataIsolation = $this->createSlidesTemplateDataIsolation($authorization);
         $dataIsolation->setContainOfficialOrganization(true);
 
-        return $this->slidesTemplateTagDomainService->queriesVisibleGroupsWithTagsByCategory(
+        return $this->slidesTemplateTagDomainService->queriesCachedVisibleGroupsWithTagsByCategory(
             $dataIsolation,
             $request->getCategoryCode()
         );

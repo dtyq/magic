@@ -3,44 +3,21 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import hashlib
 import io
-from dataclasses import dataclass
-from pathlib import PurePosixPath
 
 from PIL import Image
 
 from agentlang.context.tool_context import ToolContext
-from agentlang.environment import Environment
 from app.core.context.agent_context import AgentContext
-from app.infrastructure.storage.factory import StorageFactory
 from app.service.browser.browser_config_adapter import BrowserConfigAdapter
-from app.utils.path_utils import get_workspace_dir
+from app.service.browser.browser_screenshot_artifact import (
+    BrowserEncodedScreenshot,
+    BrowserScreenshotArtifact,
+    BrowserScreenshotArtifactStore,
+)
 from magic_use.config import BrowserScreenshotConfig
 from magic_use.errors import BrowserErrorCode, BrowserSDKError
-
-
-@dataclass(frozen=True, slots=True)
-class BrowserScreenshotArtifact:
-    content_hash: str
-    file_key: str
-    file_size: int
-    width: int
-    height: int
-    quality: int
-    reused: bool
-    # 仅本地进程内调试回退时使用，不参与任何消息或持久化数据序列化。
-    file_url: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class BrowserEncodedScreenshot:
-    content_hash: str
-    content: bytes
-    width: int
-    height: int
-    quality: int
 
 
 class BrowserScreenshotService:
@@ -50,6 +27,7 @@ class BrowserScreenshotService:
             raise BrowserSDKError(BrowserErrorCode.INVALID_CONFIG, "Agent context is unavailable")
         self._tool_context = tool_context
         self._agent_context = agent_context
+        self._artifact_store = BrowserScreenshotArtifactStore(agent_context)
 
     async def encode(self, image: bytes) -> BrowserEncodedScreenshot:
         config = BrowserConfigAdapter.screenshot_config()
@@ -57,111 +35,13 @@ class BrowserScreenshotService:
 
     async def publish(self, image: bytes | BrowserEncodedScreenshot) -> BrowserScreenshotArtifact:
         encoded = await self.encode(image) if isinstance(image, bytes) else image
-        try:
-            screenshot = await self._publish_remote(encoded)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            if not Environment.is_local():
-                raise
-            screenshot = self._create_local_artifact(encoded)
         # Browser Tool Detail 截图是短期展示资源，不能加入 EventContext attachments；
         # 普通附件链路会把它登记为 MagicFS 项目文件，使 Agent 能通过工作区文件系统看到它。
-        return screenshot
+        return await self._artifact_store.publish(encoded)
 
-    async def _publish_remote(
-        self,
-        encoded: BrowserEncodedScreenshot,
-    ) -> BrowserScreenshotArtifact:
-        storage = await StorageFactory.get_storage(
-            sts_token_refresh=self._agent_context.get_init_client_message_sts_token_refresh(),
-            metadata=self._agent_context.get_metadata(),
-            platform=self._agent_context.get_init_client_message_platform_type(),
-        )
-        if storage.credentials is None:
-            raise BrowserSDKError(BrowserErrorCode.INVALID_CONFIG, "Object storage credentials are unavailable")
-        file_key = self._screenshot_file_key(
-            get_workspace_dir(storage.credentials),
-            encoded.content_hash,
-        )
-        reused = await storage.exists(file_key)
-        if not reused:
-            await storage.upload(file=encoded.content, key=file_key)
-
-        file_url = None
-        if Environment.is_local():
-            try:
-                file_url = await storage.get_download_url(key=file_key, expires_in=3600)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                # 本地即时预览地址获取失败时，仍保留 file_key 继续完成工具调用。
-                file_url = None
-
-        return BrowserScreenshotArtifact(
-            content_hash=encoded.content_hash,
-            file_key=file_key,
-            file_size=len(encoded.content),
-            width=encoded.width,
-            height=encoded.height,
-            quality=encoded.quality,
-            reused=reused,
-            # 线上通过 file_id 动态获取临时地址；本地调试器没有 PHP 文件登记链路，直接使用即时地址。
-            file_url=file_url,
-        )
-
-    @staticmethod
-    def _create_local_artifact(
-        encoded: BrowserEncodedScreenshot,
-    ) -> BrowserScreenshotArtifact:
-        encoded_image = base64.b64encode(encoded.content).decode("ascii")
-        return BrowserScreenshotArtifact(
-            content_hash=encoded.content_hash,
-            file_key=f"local-browser-screenshot:{encoded.content_hash}",
-            file_size=len(encoded.content),
-            width=encoded.width,
-            height=encoded.height,
-            quality=encoded.quality,
-            reused=False,
-            file_url=f"data:image/webp;base64,{encoded_image}",
-        )
-
-    def _screenshot_file_key(self, workspace_key: str, content_hash: str) -> str:
-        context = self._agent_context.get_super_magic_product_context()
-        metadata = self._agent_context.get_metadata()
-        project_id = context.project.id if context is not None else str(metadata.get("project_id") or "")
-        topic_id = context.topic.id if context is not None else str(
-            metadata.get("topic_id") or metadata.get("chat_topic_id") or ""
-        )
-        if not project_id or not topic_id:
-            raise BrowserSDKError(
-                BrowserErrorCode.INVALID_CONFIG,
-                "Project and topic context are required to store a Browser screenshot",
-            )
-
-        parts = PurePosixPath(workspace_key.strip("/")).parts
-        project_part = f"project_{project_id}"
-        if project_part not in parts:
-            raise BrowserSDKError(
-                BrowserErrorCode.INVALID_CONFIG,
-                "The Browser screenshot storage path does not match the current project",
-            )
-
-        project_index = parts.index(project_part)
-        project_suffix = parts[project_index + 1 :]
-        if project_suffix not in ((), ("workspace",)):
-            raise BrowserSDKError(
-                BrowserErrorCode.INVALID_CONFIG,
-                "The Browser screenshot storage path is not a project root or workspace path",
-            )
-
-        return PurePosixPath(
-            *parts[: project_index + 1],
-            "runtime",
-            f"topic_{topic_id}",
-            "screenshots",
-            f"{content_hash}.webp",
-        ).as_posix()
+    @property
+    def artifact_store(self) -> BrowserScreenshotArtifactStore:
+        return self._artifact_store
 
     @staticmethod
     def _encode_webp(image: bytes, config: BrowserScreenshotConfig) -> BrowserEncodedScreenshot:

@@ -4,9 +4,38 @@
 
 import { describe, it, expect } from "vitest"
 import { ContentCleaner } from "../ContentCleaner"
+import { markSourceNode } from "../sourceNodes"
 
 describe("ContentCleaner", () => {
 	describe("cleanDocument", () => {
+		it("removes runtime-created children before saving authored HTML", () => {
+			const html =
+				'<html data-magic-source-node=""><body data-magic-source-node=""><section data-magic-source-node=""><p data-magic-source-node="">Fixed</p><p>Dynamic</p></section></body></html>'
+			const cleaned = ContentCleaner.cleanDocument(html)
+			expect(cleaned).toContain("<p>Fixed</p>")
+			expect(cleaned).not.toContain("Dynamic")
+			expect(cleaned).not.toContain("data-magic-source-node")
+		})
+
+		it("preserves editor-inserted nodes that were marked as source content", () => {
+			const parser = new DOMParser()
+			const doc = parser.parseFromString(
+				"<html><body><section><p>Fixed</p></section></body></html>",
+				"text/html",
+			)
+			doc.documentElement.setAttribute("data-magic-source-node", "")
+			doc.body.setAttribute("data-magic-source-node", "")
+			doc.querySelector("section")?.setAttribute("data-magic-source-node", "")
+
+			const inserted = doc.createElement("img")
+			inserted.src = "./images/inserted.png"
+			doc.querySelector("section")?.appendChild(inserted)
+			markSourceNode(inserted)
+
+			const cleaned = ContentCleaner.cleanDocument(doc.documentElement.outerHTML)
+
+			expect(cleaned).toContain("images/inserted.png")
+		})
 		it("should remove injected script elements", () => {
 			const html = `
 				<!DOCTYPE html>
@@ -187,6 +216,28 @@ describe("ContentCleaner", () => {
 			expect(cleaned).not.toContain("data-text-editing")
 			expect(cleaned).not.toContain("data-previous-user-select")
 			expect(cleaned).not.toContain("data-previous-webkit-user-select")
+		})
+
+		it("should remove unsafe hrefs and protect blank targets before persistence", () => {
+			const cleaned = ContentCleaner.cleanDocument(
+				"<html><body><a href='javascript:alert(1)' target='_blank'>Unsafe</a><a href=' /safe '>Safe</a></body></html>",
+			)
+			const doc = new DOMParser().parseFromString(cleaned, "text/html")
+
+			expect(doc.querySelector("a")?.hasAttribute("href")).toBe(false)
+			expect(doc.querySelectorAll("a")[0]?.getAttribute("rel")).toBe("noopener noreferrer")
+			expect(doc.querySelectorAll("a")[1]?.getAttribute("href")).toBe("/safe")
+		})
+
+		it("preserves configured click links while stripping unsafe custom links", () => {
+			const cleaned = ContentCleaner.cleanDocument(
+				"<html><body><div data-magic-href=' ../slide-2.html '>Go</div><img data-magic-href='javascript:alert(1)'></body></html>",
+			)
+			const doc = new DOMParser().parseFromString(cleaned, "text/html")
+			expect(doc.querySelector("div")?.getAttribute("data-magic-href")).toBe(
+				"../slide-2.html",
+			)
+			expect(doc.querySelector("img")?.hasAttribute("data-magic-href")).toBe(false)
 		})
 
 		it("should handle empty document", () => {

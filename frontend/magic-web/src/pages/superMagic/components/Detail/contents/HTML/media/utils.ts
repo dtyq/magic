@@ -1,7 +1,5 @@
-import {
-	getTemporaryDownloadUrl,
-	downloadFileContent,
-} from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { downloadFileContent } from "@/pages/superMagic/utils/api"
 import { flattenAttachments, findMatchingFile } from "../utils"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import { SuperMagicApi } from "@/apis"
@@ -47,8 +45,9 @@ export async function findMagicProjectJsFile(params: {
 	attachmentList: FileItem[]
 	currentFileId: string
 	currentFileName: string
+	fileApi: Pick<FileApi, "getTemporaryDownloadUrl">
 }): Promise<MagicProjectJsFileInfo | null> {
-	const { attachments, attachmentList, currentFileId, currentFileName } = params
+	const { attachments, attachmentList, currentFileId, currentFileName, fileApi } = params
 
 	if (!attachments || !attachmentList || !currentFileId || !currentFileName) {
 		return null
@@ -114,7 +113,7 @@ export async function findMagicProjectJsFile(params: {
 		}
 
 		// 获取magic.project.js文件的内容
-		const downloadUrls = await getTemporaryDownloadUrl({
+		const downloadUrls = await fileApi.getTemporaryDownloadUrl({
 			file_ids: [magicProjectJsFile.file_id],
 		})
 		if (downloadUrls && downloadUrls[0]?.url) {
@@ -874,6 +873,7 @@ export function createImageUrlMessageHandler(
 	allFiles: FileItem[],
 	htmlRelativeFolderPath: string,
 	fileId: string,
+	fileApi: Pick<FileApi, "getTemporaryDownloadUrl">,
 ) {
 	return async (event: MessageEvent) => {
 		// 验证消息来源和类型
@@ -898,7 +898,9 @@ export function createImageUrlMessageHandler(
 
 			if (matchedFile) {
 				// 使用 getTemporaryDownloadUrl 获取OSS URL
-				const response = await getTemporaryDownloadUrl({ file_ids: [matchedFile.file_id] })
+				const response = await fileApi.getTemporaryDownloadUrl({
+					file_ids: [matchedFile.file_id],
+				})
 
 				if (response && response.length > 0 && response[0].url) {
 					const ossUrl = response[0].url
@@ -954,6 +956,7 @@ export async function handleMediaImageUrlRequest(
 	event: MessageEvent,
 	attachmentList: any[],
 	fileId: string,
+	fileApi: Pick<FileApi, "getTemporaryDownloadUrl">,
 ) {
 	// 获取当前HTML文件的目录路径
 	const currentFile = attachmentList?.find((item: any) => item.file_id === fileId)
@@ -968,7 +971,12 @@ export async function handleMediaImageUrlRequest(
 	const allFiles = flattenAttachments(attachmentList || [])
 
 	// 使用公共的消息处理器
-	const imageUrlHandler = createImageUrlMessageHandler(allFiles, htmlRelativeFolderPath, fileId)
+	const imageUrlHandler = createImageUrlMessageHandler(
+		allFiles,
+		htmlRelativeFolderPath,
+		fileId,
+		fileApi,
+	)
 	await imageUrlHandler(event)
 }
 

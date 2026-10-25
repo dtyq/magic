@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Separator } from "@/components/shadcn-ui/separator"
@@ -392,7 +392,7 @@ function SidebarGroupLabel({
 			data-slot="sidebar-group-label"
 			data-sidebar="group-label"
 			className={cn(
-				"outline-hidden flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+				"flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
 				"group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
 				className,
 			)}
@@ -413,7 +413,7 @@ function SidebarGroupAction({
 			data-slot="sidebar-group-action"
 			data-sidebar="group-action"
 			className={cn(
-				"outline-hidden absolute right-3 top-3.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+				"absolute right-3 top-3.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
 				// Increases the hit area of the button on mobile.
 				"after:absolute after:-inset-2 md:after:hidden",
 				"group-data-[collapsible=icon]:hidden",
@@ -446,21 +446,24 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
 	)
 }
 
-function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
-	return (
-		<li
-			data-slot="sidebar-menu-item"
-			data-sidebar="menu-item"
-			className={cn("group/menu-item relative", className)}
-			{...props}
-		/>
-	)
-}
+const SidebarMenuItem = React.forwardRef<HTMLLIElement, React.ComponentProps<"li">>(
+	function SidebarMenuItem({ className, ...props }, ref) {
+		return (
+			<li
+				ref={ref}
+				data-slot="sidebar-menu-item"
+				data-sidebar="menu-item"
+				className={cn("group/menu-item relative", className)}
+				{...props}
+			/>
+		)
+	},
+)
 
 const sidebarMenuButtonVariants = cva(
 	// Keep click feedback neutral; route selection still uses data-active styling below.
 	// Tailwind gates hover via hoverOnlyWhenSupported; no-hover only neutralizes Antd's global anchor hover color on touch.
-	"peer/menu-button outline-hidden group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring transition-[width,height,padding] [-webkit-tap-highlight-color:transparent] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground no-hover:[&:not([data-active=true]):hover]:!text-sidebar-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+	"peer/menu-button group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] [-webkit-tap-highlight-color:transparent] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground no-hover:[&:not([data-active=true]):hover]:!text-sidebar-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
 	{
 		variants: {
 			variant: {
@@ -547,7 +550,7 @@ function SidebarMenuAction({
 			data-slot="sidebar-menu-action"
 			data-sidebar="menu-action"
 			className={cn(
-				"outline-hidden absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring transition-transform [-webkit-tap-highlight-color:transparent] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 peer-hover/menu-button:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
+				"absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform [-webkit-tap-highlight-color:transparent] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 peer-hover/menu-button:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
 				// Increases the hit area of the button on mobile.
 				"after:absolute after:-inset-2 md:after:hidden",
 				"peer-data-[size=sm]/menu-button:top-1",
@@ -617,20 +620,23 @@ function SidebarMenuSkeleton({
 	)
 }
 
-function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
-	return (
-		<ul
-			data-slot="sidebar-menu-sub"
-			data-sidebar="menu-sub"
-			className={cn(
-				"mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5",
-				"group-data-[collapsible=icon]:hidden",
-				className,
-			)}
-			{...props}
-		/>
-	)
-}
+const SidebarMenuSub = React.forwardRef<HTMLUListElement, React.ComponentProps<"ul">>(
+	function SidebarMenuSub({ className, ...props }, ref) {
+		return (
+			<ul
+				ref={ref}
+				data-slot="sidebar-menu-sub"
+				data-sidebar="menu-sub"
+				className={cn(
+					"mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5",
+					"group-data-[collapsible=icon]:hidden",
+					className,
+				)}
+				{...props}
+			/>
+		)
+	},
+)
 
 function SidebarMenuSubItem({ className, ...props }: React.ComponentProps<"li">) {
 	return (
@@ -643,21 +649,22 @@ function SidebarMenuSubItem({ className, ...props }: React.ComponentProps<"li">)
 	)
 }
 
-function SidebarMenuSubButton({
-	asChild = false,
-	size = "md",
-	isActive = false,
-	className,
-	...props
-}: React.ComponentProps<"a"> & {
-	asChild?: boolean
-	size?: "sm" | "md"
-	isActive?: boolean
-}) {
+const SidebarMenuSubButton = React.forwardRef<
+	HTMLAnchorElement,
+	React.ComponentProps<"a"> & {
+		asChild?: boolean
+		size?: "sm" | "md"
+		isActive?: boolean
+	}
+>(function SidebarMenuSubButton(
+	{ asChild = false, size = "md", isActive = false, className, ...props },
+	ref,
+) {
 	const Comp = asChild ? Slot : "a"
 
 	return (
 		<Comp
+			ref={ref}
 			data-slot="sidebar-menu-sub-button"
 			data-sidebar="menu-sub-button"
 			data-size={size}
@@ -665,7 +672,7 @@ function SidebarMenuSubButton({
 			className={cn(
 				// Keep click feedback neutral; route selection still uses data-active styling below.
 				// Tailwind gates hover via hoverOnlyWhenSupported; no-hover only neutralizes Antd's global anchor hover color on touch.
-				"outline-hidden flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground ring-sidebar-ring [-webkit-tap-highlight-color:transparent] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 no-hover:[&:not([data-active=true]):hover]:!text-sidebar-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+				"flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-none ring-sidebar-ring [-webkit-tap-highlight-color:transparent] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 no-hover:[&:not([data-active=true]):hover]:!text-sidebar-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
 				"data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
 				size === "sm" && "text-xs",
 				size === "md" && "text-sm",
@@ -675,7 +682,7 @@ function SidebarMenuSubButton({
 			{...props}
 		/>
 	)
-}
+})
 
 export {
 	Sidebar,

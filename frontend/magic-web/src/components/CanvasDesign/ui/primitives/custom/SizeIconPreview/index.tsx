@@ -1,4 +1,4 @@
-import classNames from "classnames"
+import { cn } from "../../../../runtime/shared/lib/utils"
 import styles from "./index.module.css"
 
 interface SizeIconPreviewProps {
@@ -33,9 +33,9 @@ export default function SizeIconPreview({
 	}
 
 	return (
-		<div className={classNames(styles.iconWrapper, wrapperClassName)} style={wrapperStyle}>
+		<div className={cn(styles.iconWrapper, wrapperClassName)} style={wrapperStyle}>
 			<div
-				className={classNames(styles.icon, iconClassName)}
+				className={cn(styles.icon, iconClassName)}
 				style={{
 					width: `${iconWidth}px`,
 					height: `${iconHeight}px`,

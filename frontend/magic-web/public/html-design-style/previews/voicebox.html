@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceBox — AI Audio &amp; Podcast Community</title>
+<style>
+  :root {
+    --obsidian: #0A0A0E;
+    --obsidian-surface: #121218;
+    --obsidian-card: #181822;
+    --obsidian-elevated: #222230;
+    --border: #2A2A3C;
+    --border-subtle: #1F1F2C;
+    --amber: #F59E0B;
+    --amber-bright: #FBBF24;
+    --amber-dim: #D97706;
+    --amber-glow: rgba(245, 158, 11, 0.28);
+    --amber-bg: rgba(245, 158, 11, 0.1);
+    --crimson: #EF4444;
+    --text-primary: #F9FAFB;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+    --font-heading: 'Archivo Black', Impact, -apple-system, sans-serif;
+    --font-ui: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--obsidian); color: var(--text-primary);
+    font-family: var(--font-ui); overflow: hidden; -webkit-font-smoothing: antialiased; line-height: 1.4;
+  }
+  .app-frame {
+    display: flex; flex-direction: column; height: 100vh; min-height: 520px; width: 100vw; background: var(--obsidian);
+  }
+
+  /* Top Navigation Bar */
+  .top-nav {
+    height: 56px; background: var(--obsidian-surface); border-bottom: 1px solid var(--border);
+    padding: 0 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 10;
+  }
+  .brand-group { display: flex; align-items: center; gap: 12px; }
+  .brand-logo {
+    width: 32px; height: 32px; border-radius: 8px; background: var(--amber); color: var(--obsidian);
+    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px;
+    box-shadow: 0 0 16px var(--amber-glow);
+  }
+  .brand-title { font-family: var(--font-heading); font-size: 18px; letter-spacing: -0.5px; color: #FFF; }
+
+  .nav-links { display: flex; align-items: center; gap: 20px; }
+  .nav-a { font-size: 13.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: color 0.1s; }
+  .nav-a:hover, .nav-a.active { color: var(--amber-bright); }
+
+  .nav-right { display: flex; align-items: center; gap: 14px; }
+  .live-pill {
+    display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px;
+    background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.35); font-size: 11px; font-weight: 700; color: #FCA5A5;
+  }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); animation: pulseLive 1.4s infinite; }
+  @keyframes pulseLive { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+  .audio-badge { font-family: var(--font-mono); font-size: 11px; color: var(--amber-bright); background: var(--amber-bg); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(245,158,11,0.25); }
+
+  /* Main Stage Layout (Soundstage + Sidebar) */
+  .stage-layout { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+  /* Left / Main Soundstage */
+  .soundstage { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* Player Hero Card */
+  .player-hero-card {
+    background: linear-gradient(145deg, #181824 0%, #12121A 100%);
+    border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px;
+    display: flex; flex-direction: column; gap: 18px; position: relative; overflow: hidden;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  }
+  .player-hero-card::before {
+    content: ''; position: absolute; top: -80px; right: -80px; width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%); pointer-events: none;
+  }
+
+  .episode-header { display: flex; gap: 18px; align-items: center; }
+  .episode-art {
+    width: 80px; height: 80px; border-radius: 12px; background: linear-gradient(135deg, #D97706, #B45309, #78350F);
+    display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;
+    box-shadow: 0 6px 18px rgba(245,158,11,0.3); border: 1px solid rgba(255,255,255,0.15);
+  }
+  .episode-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .episode-badge-row { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: var(--amber); letter-spacing: 0.05em; text-transform: uppercase; }
+  .episode-title { font-family: var(--font-heading); font-size: 22px; color: #FFF; line-height: 1.2; letter-spacing: -0.5px; }
+  .episode-sub { font-size: 13.5px; color: var(--text-secondary); }
+
+  /* Waveform Player Bar */
+  .wave-player-section { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .wave-bars-container {
+    height: 48px; background: rgba(0,0,0,0.35); border-radius: 8px; padding: 0 14px;
+    display: flex; align-items: center; gap: 3.5px; position: relative; border: 1px solid var(--border-subtle);
+  }
+  .wave-col { width: 4px; border-radius: 2px; background: #374151; transition: height 0.1s; }
+  .wave-col.played { background: linear-gradient(to top, #D97706, #FBBF24); box-shadow: 0 0 4px var(--amber-glow); }
+  .wave-scrubber {
+    position: absolute; left: 44%; top: 0; bottom: 0; width: 2px; background: #FFF;
+    box-shadow: 0 0 8px #FFF;
+  }
+  .scrubber-head {
+    position: absolute; top: -4px; left: -5px; width: 12px; height: 12px; border-radius: 50%; background: var(--amber-bright);
+    box-shadow: 0 0 10px var(--amber);
+  }
+
+  /* Player Controls Row */
+  .player-controls-row { display: flex; align-items: center; justify-content: space-between; }
+  .time-display { font-family: var(--font-mono); font-size: 12.5px; color: var(--amber-bright); font-weight: 700; }
+  .ctrl-buttons { display: flex; align-items: center; gap: 14px; }
+  .btn-skip { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 15px; }
+  .btn-skip:hover { color: #FFF; }
+  .btn-play-amber {
+    width: 44px; height: 44px; border-radius: 50%; background: var(--amber); color: var(--obsidian);
+    border: none; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: 0 0 18px var(--amber-glow); transition: transform 0.1s;
+  }
+  .btn-play-amber:hover { transform: scale(1.05); background: var(--amber-bright); }
+  .speed-tag { background: var(--obsidian-elevated); border: 1px solid var(--border); color: #FFF; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
+
+  /* Live Synchronized Transcript */
+  .transcript-card {
+    background: var(--obsidian-surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .transcript-header { display: flex; align-items: center; justify-content: space-between; }
+  .transcript-title { font-size: 14px; font-weight: 700; color: #FFF; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+  .transcript-sync-badge { font-size: 11px; color: var(--amber); font-weight: 600; display: flex; align-items: center; gap: 4px; }
+
+  .transcript-stream { display: flex; flex-direction: column; gap: 10px; }
+  .transcript-line {
+    padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5; color: var(--text-secondary);
+    transition: all 0.15s; border-left: 3px solid transparent;
+  }
+  .transcript-line.past { opacity: 0.7; }
+  .transcript-line.active {
+    background: var(--amber-bg); border-left-color: var(--amber); color: #FFF;
+    box-shadow: inset 0 0 12px rgba(245,158,11,0.05);
+  }
+  .ts-time { font-family: var(--font-mono); font-size: 11.5px; color: var(--amber-dim); font-weight: 700; margin-right: 8px; }
+  .ts-speaker { font-weight: 700; color: #FFF; margin-right: 6px; }
+  .karaoke-word { color: var(--amber-bright); font-weight: 700; text-shadow: 0 0 8px var(--amber-glow); }
+
+  /* Right Sidebar: Speaker Bio & Queue (320px) */
+  .stage-sidebar {
+    width: 320px; background: var(--obsidian-surface); border-left: 1px solid var(--border);
+    padding: 20px; display: flex; flex-direction: column; gap: 18px; flex-shrink: 0; overflow-y: auto;
+  }
+
+  /* Speaker Bio Card */
+  .bio-card {
+    background: var(--obsidian-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .bio-top { display: flex; align-items: center; gap: 12px; }
+  .bio-avatar-wrap { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+  .bio-avatar {
+    width: 48px; height: 48px; border-radius: 50%; background: #4B5563; color: #FFF;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;
+    border: 2px solid var(--amber); box-shadow: 0 0 12px var(--amber-glow);
+  }
+  .bio-info { display: flex; flex-direction: column; }
+  .bio-name { font-size: 15px; font-weight: 700; color: #FFF; }
+  .bio-role { font-size: 12px; color: var(--amber-bright); }
+
+  .bio-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
+  .bio-stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: var(--obsidian);
+    padding: 8px; border-radius: 8px; text-align: center; border: 1px solid var(--border-subtle);
+  }
+  .stat-val { font-size: 13px; font-weight: 700; color: #FFF; }
+  .stat-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+
+  .tags-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-pill { font-size: 11px; color: #D1D5DB; background: var(--obsidian-elevated); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); }
+
+  /* Queue Widget */
+  .queue-card {
+    background: var(--obsidian-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .queue-title { font-size: 13px; font-weight: 700; color: #FFF; text-transform: uppercase; letter-spacing: 0.04em; }
+  .queue-item { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
+  .queue-item:last-child { border-bottom: none; }
+  .queue-num { font-family: var(--font-mono); font-size: 12px; color: var(--amber); font-weight: 700; }
+  .queue-details { display: flex; flex-direction: column; gap: 2px; }
+  .queue-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .queue-dur { font-size: 11px; color: var(--text-muted); }
+
+  @media (max-width: 960px) { .stage-sidebar { display: none; } }
+</style>
+</head>
+<body>
+<div class="app-frame">
+  <!-- Top Navigation -->
+  <div class="top-nav">
+    <div class="brand-group">
+      <div class="brand-logo">🎙</div>
+      <span class="brand-title">VoiceBox</span>
+    </div>
+
+    <div class="nav-links">
+      <span class="nav-a active">Live Soundstage</span>
+      <span class="nav-a">Episodes</span>
+      <span class="nav-a">Audio Models</span>
+      <span class="nav-a">Transcripts</span>
+    </div>
+
+    <div class="nav-right">
+      <div class="live-pill">
+        <div class="live-dot"></div>
+        <span>ON AIR</span>
+      </div>
+      <span class="audio-badge">96kHz / 24-bit Lossless</span>
+    </div>
+  </div>
+
+  <!-- Main Stage Layout -->
+  <div class="stage-layout">
+    <!-- Left Soundstage Main -->
+    <div class="soundstage">
+      <!-- Episode Player Card -->
+      <div class="player-hero-card">
+        <div class="episode-header">
+          <div class="episode-art">📻</div>
+          <div class="episode-meta">
+            <div class="episode-badge-row">
+              <span>The Neural Broadcast</span>
+              <span>•</span>
+              <span>Ep. 142</span>
+            </div>
+            <h1 class="episode-title">Generative Audio &amp; Real-Time Voice Synthesis</h1>
+            <div class="episode-sub">Hosted by Dr. Aris Thorne • Featuring Elena Rostova</div>
+          </div>
+        </div>
+
+        <!-- Scrubbable Waveform Visualizer -->
+        <div class="wave-player-section">
+          <div class="wave-bars-container">
+            <div class="wave-col played" style="height:12px;"></div>
+            <div class="wave-col played" style="height:24px;"></div>
+            <div class="wave-col played" style="height:36px;"></div>
+            <div class="wave-col played" style="height:18px;"></div>
+            <div class="wave-col played" style="height:30px;"></div>
+            <div class="wave-col played" style="height:42px;"></div>
+            <div class="wave-col played" style="height:22px;"></div>
+            <div class="wave-col played" style="height:38px;"></div>
+            <div class="wave-col played" style="height:46px;"></div>
+            <div class="wave-col played" style="height:28px;"></div>
+            <div class="wave-col played" style="height:34px;"></div>
+            <div class="wave-col played" style="height:44px;"></div>
+            <div class="wave-col played" style="height:32px;"></div>
+            <div class="wave-col played" style="height:20px;"></div>
+            <div class="wave-col played" style="height:40px;"></div>
+            <div class="wave-col played" style="height:26px;"></div>
+            <div class="wave-col played" style="height:36px;"></div>
+            <div class="wave-col played" style="height:48px;"></div>
+            <!-- Scrubber line -->
+            <div class="wave-scrubber">
+              <div class="scrubber-head"></div>
+            </div>
+            <div class="wave-col" style="height:28px;"></div>
+            <div class="wave-col" style="height:34px;"></div>
+            <div class="wave-col" style="height:22px;"></div>
+            <div class="wave-col" style="height:40px;"></div>
+            <div class="wave-col" style="height:16px;"></div>
+            <div class="wave-col" style="height:30px;"></div>
+            <div class="wave-col" style="height:42px;"></div>
+            <div class="wave-col" style="height:24px;"></div>
+            <div class="wave-col" style="height:36px;"></div>
+            <div class="wave-col" style="height:20px;"></div>
+            <div class="wave-col" style="height:28px;"></div>
+            <div class="wave-col" style="height:14px;"></div>
+          </div>
+
+          <!-- Controls Row -->
+          <div class="player-controls-row">
+            <div class="time-display">24:18 / 58:40</div>
+            <div class="ctrl-buttons">
+              <button class="btn-skip">⏪ 15s</button>
+              <button class="btn-play-amber">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+              </button>
+              <button class="btn-skip">30s ⏩</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="speed-tag">1.25x</span>
+              <span style="color:var(--text-secondary); font-size:15px; cursor:pointer;">🔊</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Synced Transcript -->
+      <div class="transcript-card">
+        <div class="transcript-header">
+          <div class="transcript-title">
+            <span>Live Synchronized Transcript</span>
+          </div>
+          <div class="transcript-sync-badge">
+            <span style="width:6px; height:6px; border-radius:50%; background:var(--amber);"></span>
+            <span>Live Synced</span>
+          </div>
+        </div>
+
+        <div class="transcript-stream">
+          <div class="transcript-line past">
+            <span class="ts-time">[24:06]</span>
+            <span class="ts-speaker">Dr. Aris Thorne:</span>
+            By distilling multi-band residual vector quantization directly into the latent space, the audio model retains human vocal cadence effortlessly.
+          </div>
+
+          <div class="transcript-line active">
+            <span class="ts-time">[24:18]</span>
+            <span class="ts-speaker">Elena Rostova:</span>
+            And the end-to-end latency drops below twelve milliseconds, making <span class="karaoke-word">real-time voice interaction</span> feel genuinely conversational.
+          </div>
+
+          <div class="transcript-line">
+            <span class="ts-time">[24:32]</span>
+            <span class="ts-speaker">Dr. Aris Thorne:</span>
+            Precisely. When paired with spatial ambisonics, you get the sensation that the agent is seated right across the physical studio table from you.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="stage-sidebar">
+      <!-- Speaker Bio -->
+      <div class="bio-card">
+        <div class="bio-top">
+          <div class="bio-avatar-wrap">
+            <div class="bio-avatar">AT</div>
+          </div>
+          <div class="bio-info">
+            <span class="bio-name">Dr. Aris Thorne</span>
+            <span class="bio-role">VP of Audio Intelligence</span>
+          </div>
+        </div>
+        <p class="bio-desc">
+          Leading research in neural acoustic codecs, continuous diffusion vocoders, and low-latency speech pipelines.
+        </p>
+        <div class="bio-stats-row">
+          <div><div class="stat-val">142</div><div class="stat-lbl">Shows</div></div>
+          <div><div class="stat-val">1.4M</div><div class="stat-lbl">Listeners</div></div>
+          <div><div class="stat-val">99%</div><div class="stat-lbl">Rating</div></div>
+        </div>
+        <div class="tags-row">
+          <span class="tag-pill">#NeuralCodecs</span>
+          <span class="tag-pill">#VoiceAI</span>
+          <span class="tag-pill">#SpatialAudio</span>
+        </div>
+      </div>
+
+      <!-- Up Next Queue -->
+      <div class="queue-card">
+        <div class="queue-title">Up Next In Session</div>
+        <div class="queue-item">
+          <span class="queue-num">143</span>
+          <div class="queue-details">
+            <span class="queue-name">Spatial Ambisonics in WebGPU</span>
+            <span class="queue-dur">Tomorrow • 4:00 PM</span>
+          </div>
+        </div>
+        <div class="queue-item">
+          <span class="queue-num">144</span>
+          <div class="queue-details">
+            <span class="queue-name">Lossless Compression at 3kbps</span>
+            <span class="queue-dur">Friday • 2:30 PM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

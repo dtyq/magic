@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Composio — 250+ Tools &amp; Actions for AI Agents</title>
+  <style>
+    :root {
+      --primary: #0007cd;
+      --primary-active: #0005a3;
+      --primary-glow: #1a26ff;
+      --canvas: #0f0f0f;
+      --canvas-deep: #000000;
+      --surface-card: #181818;
+      --surface-card-elevated: #222222;
+      --hairline: #222222;
+      --hairline-strong: #333333;
+      --ink: #ffffff;
+      --body: #a8a8a8;
+      --muted: #888888;
+      --accent-cyan: #00d4ff;
+      --accent-violet: #7b3aed;
+      --semantic-success: #33d17a;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --radius-pill: 9999px;
+      --font-sans: "abcDiatype", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", SFMono-Regular, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--canvas);
+      color: var(--ink);
+      
+      line-height: 1.45;
+      
+      overflow-x: hidden;
+    }
+    /* Top Sticky Navigation */
+    header.top-nav {
+      height: 64px;
+      background: rgba(15, 15, 15, 0.95);
+      border-bottom: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 32px; }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 19px;
+      font-weight: 600;
+      
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .brand-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: var(--radius-sm);
+      background: var(--primary);
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .tools-counter-badge {
+      background: var(--surface-card-elevated);
+      border: 1px solid var(--hairline-strong);
+      color: var(--accent-cyan);
+      
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+    }
+    .nav-links { display: flex; gap: 22px; font-size: 14px; font-weight: 500; }
+    .nav-links a { color: var(--body); text-decoration: none; transition: color 0.15s; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+    .btn-secondary {
+      background: var(--surface-card-elevated);
+      color: var(--ink);
+      border: 1px solid var(--hairline-strong);
+      border-radius: var(--radius-md);
+      font-size: 13.5px;
+      font-weight: 500;
+      padding: 8px 16px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-md);
+      font-size: 13.5px;
+      font-weight: 500;
+      padding: 8px 18px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      
+    }
+    .btn-primary:hover { background: var(--primary-active); }
+    /* Hero Chapter with Central Blue Spotlight Glow */
+    .hero-chapter {
+      position: relative;
+      padding: 44px 32px 36px;
+      max-width: 1360px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .spotlight-glow {
+      position: absolute;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -20%);
+      width: 650px;
+      height: 380px;
+      background: radial-gradient(circle, rgba(26, 38, 255, 0.18) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .hero-content { position: relative; z-index: 2; }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface-card);
+      border: 1px solid var(--hairline-strong);
+      color: var(--ink);
+      
+      font-size: 11.5px;
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+      margin-bottom: 16px;
+    }
+    .hero-headline {
+      font-size: clamp(34px, 4.4vw, 62px);
+      font-weight: 500;
+      line-height: 1.05;
+      letter-spacing: -1.5px;
+      max-width: 860px;
+      margin: 0 auto 16px;
+    }
+    .hero-sub {
+      font-size: 16.5px;
+      color: var(--body);
+      max-width: 660px;
+      margin: 0 auto 28px;
+      line-height: 1.5;
+    }
+    /* Four-Pane Terminal Mockup Grid (2x2) */
+    .terminal-grid {
+      background: var(--canvas-deep);
+      border: 1px solid var(--hairline-strong);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      text-align: left;
+      position: relative;
+      z-index: 2;
+      margin-bottom: 40px;
+    }
+    .terminal-pane {
+      background: var(--surface-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .pane-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--hairline);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .pane-tag {
+      background: var(--surface-card-elevated);
+      color: var(--accent-cyan);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .terminal-code {
+      
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: #d1d5db;
+    }
+    /* Tool Execution Graph SVG */
+    .graph-pane {
+      background: var(--surface-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      position: relative;
+    }
+    /* Auth Token Handshake Pill */
+    .handshake-pill {
+      background: #081a10;
+      border: 1px solid #14532d;
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      
+      font-size: 11.5px;
+      color: var(--semantic-success);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-ping { width: 7px; height: 7px; border-radius: 50%; background: var(--semantic-success);  }
+    /* Webhook Logs Pane */
+    .webhook-log {
+      background: #0d0d0d;
+      border: 1px solid #202020;
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      
+      font-size: 11px;
+      line-height: 1.5;
+      color: #9ca3af;
+      overflow-x: auto;
+    }
+    /* 4-Up Toolkit Grid */
+    .toolkits-section {
+      max-width: 1360px;
+      margin: 0 auto 48px;
+      padding: 0 32px;
+    }
+    .section-head-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 20px;
+    }
+    .section-headline { font-size: 24px; font-weight: 500;  }
+    .toolkits-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .toolkit-card {
+      background: var(--surface-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      transition: border-color 0.15s;
+    }
+    .toolkit-card:hover { border-color: var(--hairline-strong); }
+    .toolkit-icon-plate {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: var(--surface-card-elevated);
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+      
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--accent-cyan);
+    }
+    .toolkit-card h4 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .toolkit-card p { font-size: 12.5px; color: var(--body); line-height: 1.45; }
+    /* Footer */
+    footer.main-footer {
+      border-top: 1px solid var(--hairline);
+      background: var(--canvas);
+      padding: 48px 32px 32px;
+    }
+    .footer-grid {
+      max-width: 1360px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr repeat(3, 1fr);
+      gap: 32px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .footer-col h5 { font-size: 12.5px; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+    .footer-col a { color: var(--body); text-decoration: none; }
+    .footer-col a:hover { color: #ffffff; }
+    .footer-bottom {
+      max-width: 1360px;
+      margin: 20px auto 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    @media (max-width: 1024px) {
+      .terminal-grid { grid-template-columns: 1fr; }
+      .toolkits-grid { grid-template-columns: repeat(2, 1fr); }
+      .footer-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <header class="top-nav">
+    <div class="brand-wrap">
+      <a href="#composio" class="brand-logo">
+        <span class="brand-icon">C</span>
+        <span>composio</span>
+      </a>
+      <span class="tools-counter-badge">250+ AGENT TOOLS &amp; ACTIONS</span>
+      <nav class="nav-links">
+        <a href="#tools">Toolkits</a>
+        <a href="#auth">Auth Vault</a>
+        <a href="#execution">Execution Graph</a>
+        <a href="#docs">Docs</a>
+      </nav>
+    </div>
+    <div class="nav-actions">
+      <button class="btn-secondary">Sign In</button>
+      <button class="btn-primary">Connect Agents →</button>
+    </div>
+  </header>
+  <!-- Hero Chapter with Atmospheric Spotlight -->
+  <main class="hero-chapter">
+    <div class="spotlight-glow"></div>
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span>✦ Production Tool Orchestration for Autonomous Agents</span>
+      </div>
+      <h1 class="hero-headline">Connect AI Agents to 250+ Production Tools in 2 Lines of Code.</h1>
+      <p class="hero-sub">
+        Give agents real-world agency with managed OAuth2 authentication, atomic execution guarantees, and real-time bi-directional webhooks across GitHub, Slack, Jira, and Salesforce.
+      </p>
+      <div style="display: flex; justify-content: center; gap: 12px; margin-bottom: 36px;">
+        <button class="btn-primary">Explore All 250+ Toolkits</button>
+        <button class="btn-secondary">Read Python SDK Docs</button>
+      </div>
+      <!-- Signature Four-Pane Terminal Mockup Grid (2x2) -->
+      <div class="terminal-grid" id="execution">
+        <!-- Pane 1: Agent Intent & Trigger Decision -->
+        <div class="terminal-pane">
+          <div>
+            <div class="pane-header">
+              <span>01 // AGENT INTENT DISPATCH</span>
+              <span class="pane-tag">TRIGGER ACTIVE</span>
+            </div>
+            <div class="terminal-code">
+              <span style="color:#718096;">&gt; Agent Task:</span> "Review PR #482, update Jira sprint card ENG-941 to In Review, and post deployment preview URL to Slack #eng-shipping"<br><br>
+              <span style="color:#60a5fa;">[Composio Planner]</span> Selected Tools:<br>
+              &nbsp;&nbsp;• <code>github.pull_request_get_diff()</code><br>
+              &nbsp;&nbsp;• <code>jira.transition_issue()</code><br>
+              &nbsp;&nbsp;• <code>slack.chat_post_message()</code>
+            </div>
+          </div>
+          <div style="margin-top:14px; font-family:var(--font-mono); font-size:10.5px; color:var(--muted);">
+            Planner Execution Plan: 3 Tools • Sequential Pipeline
+          </div>
+        </div>
+        <!-- Pane 2: Interactive Tool Execution Graph SVG -->
+        <div class="graph-pane">
+          <div class="pane-header">
+            <span>02 // INTERACTIVE EXECUTION GRAPH</span>
+            <span style="color:var(--semantic-success);">CONNECTED</span>
+          </div>
+          <svg viewBox="0 0 460 170" width="100%" height="auto">
+            <defs>
+              <linearGradient id="edgeBlue" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#0007cd"/>
+                <stop offset="100%" stop-color="#00d4ff"/>
+              </linearGradient>
+            </defs>
+            <!-- Edge Paths -->
+            <path d="M 70 85 L 170 85" stroke="url(#edgeBlue)" stroke-width="2"/>
+            <path d="M 230 85 C 270 85, 270 35, 330 35" stroke="#00d4ff" stroke-width="2" fill="none"/>
+            <path d="M 230 85 L 330 85" stroke="#33d17a" stroke-width="2"/>
+            <path d="M 230 85 C 270 85, 270 135, 330 135" stroke="#7b3aed" stroke-width="2" fill="none"/>
+            <!-- Central Agent Node -->
+            <circle cx="50" cy="85" r="22" fill="#181818" stroke="#ffffff" stroke-width="1.5"/>
+            <text x="50" y="89" fill="#ffffff" font-family="'JetBrains Mono'" font-size="9" font-weight="700" text-anchor="middle">AGENT</text>
+            <!-- Composio Auth Bridge Node -->
+            <rect x="170" y="65" width="65" height="40" rx="6" fill="#0007cd" stroke="#1a26ff" stroke-width="1.2"/>
+            <text x="202" y="88" fill="#ffffff" font-family="'JetBrains Mono'" font-size="9" font-weight="700" text-anchor="middle">BRIDGE</text>
+            <!-- Tool Target Nodes -->
+            <!-- GitHub Node -->
+            <rect x="330" y="15" width="115" height="38" rx="6" fill="#181818" stroke="#00d4ff" stroke-width="1"/>
+            <text x="340" y="32" fill="#ffffff" font-family="'JetBrains Mono'" font-size="8.5" font-weight="700">GITHUB API</text>
+            <text x="340" y="44" fill="#00d4ff" font-family="'JetBrains Mono'" font-size="7.5">PR #482 Diff 200 OK</text>
+            <!-- Jira Node -->
+            <rect x="330" y="66" width="115" height="38" rx="6" fill="#181818" stroke="#33d17a" stroke-width="1"/>
+            <text x="340" y="83" fill="#ffffff" font-family="'JetBrains Mono'" font-size="8.5" font-weight="700">JIRA SPRINT</text>
+            <text x="340" y="95" fill="#33d17a" font-family="'JetBrains Mono'" font-size="7.5">ENG-941 Transitioned</text>
+            <!-- Slack Node -->
+            <rect x="330" y="117" width="115" height="38" rx="6" fill="#181818" stroke="#7b3aed" stroke-width="1"/>
+            <text x="340" y="134" fill="#ffffff" font-family="'JetBrains Mono'" font-size="8.5" font-weight="700">SLACK WEBHOOK</text>
+            <text x="340" y="146" fill="#7b3aed" font-family="'JetBrains Mono'" font-size="7.5">#eng-shipping Posted</text>
+          </svg>
+        </div>
+        <!-- Pane 3: Auth Token Handshake Pill -->
+        <div class="terminal-pane">
+          <div>
+            <div class="pane-header">
+              <span>03 // MANAGED AUTH HANDSHAKE</span>
+              <span class="pane-tag">OAUTH2 VAULT</span>
+            </div>
+            <div class="handshake-pill">
+              <span class="status-ping"></span>
+              <div>
+                <strong>OAuth2 Bearer Token Handshake:</strong> GitHub [ghp_...88fa] &amp; Jira [at_...94c] Verified.
+              </div>
+            </div>
+            <p style="font-size:12px; color:var(--body); margin-top:10px; line-height:1.45;">
+              Zero token leak guarantee: Agents never touch plaintext API secrets. Composio proxies requests with auto-refreshing OAuth tokens and enterprise RBAC scoping.
+            </p>
+          </div>
+          <div style="font-family:var(--font-mono); font-size:10.5px; color:var(--muted);">
+            Latency: 14ms • Token Encryption: AES-256 GCM
+          </div>
+        </div>
+        <!-- Pane 4: Real-time Webhook Execution Logs -->
+        <div class="terminal-pane">
+          <div>
+            <div class="pane-header">
+              <span>04 // REAL-TIME WEBHOOK LOGS</span>
+              <span style="color:var(--accent-cyan); font-size:10.5px;">HTTP 200 OK</span>
+            </div>
+            <div class="webhook-log">
+              {"timestamp": "2026-09-19T08:52:14.204Z",<br>
+              &nbsp;"action": "github_create_pull_request_review",<br>
+              &nbsp;"status": "COMPLETED",<br>
+              &nbsp;"payload": {"pull_number": 482, "state": "APPROVED"},<br>
+              &nbsp;"execution_time_ms": 68.4}
+            </div>
+          </div>
+          <div style="margin-top:10px; font-family:var(--font-mono); font-size:10.5px; color:var(--muted); display:flex; justify-content:space-between;">
+            <span>EVALUATION: Verified</span>
+            <span style="color:var(--semantic-success);">ALL HOOKS HEALTHY</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <!-- 4-Up Toolkit Integration Grid -->
+  <section class="toolkits-section" id="tools">
+    <div class="section-head-row">
+      <div>
+        <div style="font-family:var(--font-mono); font-size:11px; color:var(--accent-cyan); text-transform:uppercase; margin-bottom:4px;">ECOSYSTEM</div>
+        <h2 class="section-headline">Pre-Built Integrations for Modern Engineering</h2>
+      </div>
+      <div style="font-size:13px; color:var(--muted);">Browse 250+ Supported Apps</div>
+    </div>
+    <div class="toolkits-grid">
+      <div class="toolkit-card">
+        <div class="toolkit-icon-plate">GH</div>
+        <h4>GitHub Toolkit</h4>
+        <p>Manage PRs, commit code, dispatch GitHub Actions workflows, and automate tags.</p>
+      </div>
+      <div class="toolkit-card">
+        <div class="toolkit-icon-plate">SL</div>
+        <h4>Slack Toolkit</h4>
+        <p>Send rich message blocks, listen to mentions, and trigger agent workflows.</p>
+      </div>
+      <div class="toolkit-card">
+        <div class="toolkit-icon-plate">JR</div>
+        <h4>Jira &amp; Linear</h4>
+        <p>Create issues, transition sprint epics, sync roadmaps, and assign tickets.</p>
+      </div>
+      <div class="toolkit-card">
+        <div class="toolkit-icon-plate">SF</div>
+        <h4>Salesforce &amp; Hubspot</h4>
+        <p>Query CRM accounts, update lead scoring pipeline stages, and sync contacts.</p>
+      </div>
+    </div>
+  </section>
+  <!-- Developer Footer in Canvas Deep -->
+  <footer class="main-footer">
+    <div class="footer-grid">
+      <div>
+        <div style="display:flex; align-items:center; gap:8px; font-weight:600; font-size:18px; margin-bottom:10px;">
+          <span class="brand-icon">C</span>
+          <span>composio</span>
+        </div>
+        <p style="font-size:13px; color:var(--body); max-width:320px; line-height:1.5;">
+          Production-grade tooling infrastructure for AI agents and LLM applications. Build agents that take action.
+        </p>
+      </div>
+      <div class="footer-col">
+        <h5>Toolkits</h5>
+        <ul>
+          <li><a href="#dev">Developer Tools (Git, Linear)</a></li>
+          <li><a href="#comm">Communication (Slack, Teams)</a></li>
+          <li><a href="#crm">Sales &amp; CRM (Salesforce)</a></li>
+          <li><a href="#db">Databases &amp; Cloud (AWS, GCP)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Frameworks</h5>
+        <ul>
+          <li><a href="#langchain">LangChain &amp; LangGraph</a></li>
+          <li><a href="#crewai">CrewAI</a></li>
+          <li><a href="#autogen">Microsoft AutoGen</a></li>
+          <li><a href="#llamaindex">LlamaIndex</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="#docs">Documentation</a></li>
+          <li><a href="#changelog">Changelog</a></li>
+          <li><a href="#security">SOC2 Security</a></li>
+          <li><a href="#contact">Enterprise Sales</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Composio, Inc. All rights reserved.</span>
+      <span>Privacy Policy | Terms of Service | Security Portal</span>
+    </div>
+  </footer>
+</body>
+</html>

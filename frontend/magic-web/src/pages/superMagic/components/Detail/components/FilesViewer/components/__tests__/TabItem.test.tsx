@@ -34,11 +34,9 @@ function renderTab(closeable: boolean) {
 	return render(
 		<TabItem
 			tab={tab}
-			index={0}
 			allTabs={[tab]}
 			isActive
 			isDragging={false}
-			isDragOver={false}
 			isPlayback={false}
 			onSwitchToTab={vi.fn()}
 			onCloseTab={vi.fn()}

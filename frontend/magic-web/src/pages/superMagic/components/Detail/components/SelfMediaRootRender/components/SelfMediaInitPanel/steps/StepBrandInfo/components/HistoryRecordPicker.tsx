@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { History, Trash2, X, User, Compass, Target } from "lucide-react"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 interface BrandRecord {
 	id: string
@@ -54,7 +55,8 @@ export function HistoryRecordPicker({
 			</div>
 
 			{/* Record List */}
-			<div className="max-h-56 divide-y divide-[#18181b]/[0.06] overflow-y-auto">
+			{/* Let short lists shrink while capping the actual scrolling viewport. */}
+			<ScrollArea viewportClassName="h-auto max-h-56 [&>div]:!block [&>div]:divide-y [&>div]:divide-[#18181b]/[0.06]">
 				{records.map((record) => (
 					<div
 						key={record.id}
@@ -122,7 +124,7 @@ export function HistoryRecordPicker({
 						</div>
 					</div>
 				))}
-			</div>
+			</ScrollArea>
 		</div>
 	)
 }

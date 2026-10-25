@@ -10,9 +10,11 @@ namespace Test\Cases\Domain\SlidesTemplate;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateDataIsolation;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateEntity;
 use App\Domain\SlidesTemplate\Entity\ValueObject\Query\SlidesTemplateQuery;
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateOwnerType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateSourceType;
 use App\Domain\SlidesTemplate\Repository\Facade\SlidesTemplateRepositoryInterface;
 use App\Domain\SlidesTemplate\Service\SlidesTemplateDomainService;
+use App\Domain\SlidesTemplate\Service\SlidesTemplateTagDomainService;
 use App\Domain\SlidesTemplate\Service\UsageCount\DefaultSlidesTemplateUsageCountPolicy;
 use App\ErrorCode\SlidesTemplateErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -120,6 +122,9 @@ class SlidesTemplateDomainServiceTest extends TestCase
             'ppt-business-minimal system 职场白皮书 corporate whitepaper 适用于企业汇报 for business reviews',
             $repository->savedEntity?->toArray()['search_text'] ?? null
         );
+        $this->assertSame('OFFICIAL_ORG', $repository->savedEntity?->getOrganizationCode());
+        $this->assertSame(SlidesTemplateOwnerType::Official, $repository->savedEntity?->getOwnerType());
+        $this->assertSame('OFFICIAL_ORG', $repository->savedEntity?->getOwnerId());
     }
 
     public function testCreateThrowsBusinessExceptionWhenCodeAlreadyExists(): void
@@ -134,7 +139,7 @@ class SlidesTemplateDomainServiceTest extends TestCase
         $service->create($this->makeDataIsolation(), $this->makeTemplate());
     }
 
-    public function testCreateRestoresDeletedTemplateWithSameCodeAndUsesNewCreator(): void
+    public function testCreateDoesNotRestoreDeletedTemplateWithSameCode(): void
     {
         $repository = new CapturingSlidesTemplateRepository();
         $repository->entityWithTrashed = $this->makeTemplate()
@@ -145,25 +150,94 @@ class SlidesTemplateDomainServiceTest extends TestCase
             ->setDeletedAt('2026-07-01 10:00:00');
         $service = $this->makeService($repository);
 
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(SlidesTemplateErrorCode::CODE_ALREADY_EXISTS->value);
+
+        $service->create($this->makeDataIsolation(), $this->makeTemplate());
+    }
+
+    public function testFindByIdRejectsTemplateOutsideOfficialOrganization(): void
+    {
+        $repository = new CapturingSlidesTemplateRepository();
+        $repository->entityToFind = $this->makeTemplate()
+            ->setId(123)
+            ->setOrganizationCode('PERSONAL_ORG')
+            ->setOwnerType(SlidesTemplateOwnerType::Official)
+            ->setOwnerId('PERSONAL_ORG');
+        $service = $this->makeService($repository);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(SlidesTemplateErrorCode::TEMPLATE_NOT_FOUND->value);
+
+        $service->findByIdOrFail($this->makeDataIsolation(), 123);
+    }
+
+    public function testFindOfficialByCodeRejectsOwnerIdMismatch(): void
+    {
+        $repository = new CapturingSlidesTemplateRepository();
+        $repository->entityToFind = $this->makeTemplate()
+            ->setId(123)
+            ->setOrganizationCode('OFFICIAL_ORG')
+            ->setOwnerType(SlidesTemplateOwnerType::Official)
+            ->setOwnerId('another-owner');
+        $service = $this->makeService($repository);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(SlidesTemplateErrorCode::TEMPLATE_NOT_FOUND->value);
+
+        $service->findOfficialByCodeOrFail($this->makeDataIsolation(), 'PPT-BUSINESS-MINIMAL');
+    }
+
+    public function testAssertUserAccessibleAllowsOwnedDisabledPersonalTemplate(): void
+    {
+        $dataIsolation = $this->makeDataIsolation();
+        $dataIsolation->setCurrentOrganizationCode('PERSONAL_ORG');
         $template = $this->makeTemplate()
-            ->setLabel([
-                'zh_CN' => '新的模板',
-                'en_US' => 'New Template',
-            ])
-            ->setCreatedUid('new-user')
-            ->setUpdatedUid('new-user');
+            ->setOrganizationCode('PERSONAL_ORG')
+            ->setOwnerType(SlidesTemplateOwnerType::User)
+            ->setOwnerId('user-1')
+            ->setStatus(0);
 
-        $result = $service->create($this->makeDataIsolation(), $template);
+        $this->makeService(new CapturingSlidesTemplateRepository())->assertUserAccessible($dataIsolation, $template);
 
-        $this->assertSame($template, $result);
-        $this->assertSame(123, $repository->savedEntity?->getId());
-        $this->assertSame(7, $repository->savedEntity?->getActualUsageCount());
-        $this->assertSame('new-user', $repository->savedEntity?->getCreatedUid());
-        $this->assertSame('new-user', $repository->savedEntity?->getUpdatedUid());
-        $this->assertSame(
-            'ppt-business-minimal system 新的模板 new template 适用于企业汇报 for business reviews',
-            $repository->savedEntity?->toArray()['search_text'] ?? null
-        );
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertUserAccessibleRejectsOtherUsersPersonalTemplate(): void
+    {
+        $dataIsolation = $this->makeDataIsolation();
+        $dataIsolation->setCurrentOrganizationCode('PERSONAL_ORG');
+        $template = $this->makeTemplate()
+            ->setOrganizationCode('PERSONAL_ORG')
+            ->setOwnerType(SlidesTemplateOwnerType::User)
+            ->setOwnerId('other-user');
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(SlidesTemplateErrorCode::TEMPLATE_NOT_FOUND->value);
+
+        $this->makeService(new CapturingSlidesTemplateRepository())->assertUserAccessible($dataIsolation, $template);
+    }
+
+    public function testAssertUserAccessibleRejectsDisabledOfficialTemplate(): void
+    {
+        $template = $this->makeTemplate()->setStatus(0);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(SlidesTemplateErrorCode::TEMPLATE_NOT_FOUND->value);
+
+        $this->makeService(new CapturingSlidesTemplateRepository())->assertUserAccessible($this->makeDataIsolation(), $template);
+    }
+
+    public function testCreateRejectsNonOfficialOrganization(): void
+    {
+        $service = $this->makeService(new CapturingSlidesTemplateRepository());
+        $dataIsolation = $this->makeDataIsolation();
+        $dataIsolation->setCurrentOrganizationCode('PERSONAL_ORG');
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(SlidesTemplateErrorCode::TEMPLATE_NOT_FOUND->value);
+
+        $service->create($dataIsolation, $this->makeTemplate());
     }
 
     public function testUpdateRebuildsSearchTextBeforeSaving(): void
@@ -203,10 +277,35 @@ class SlidesTemplateDomainServiceTest extends TestCase
         ], $policy->getCount($this->makeDataIsolation(), new SlidesTemplateQuery()));
     }
 
+    public function testSaveUserTemplatePropagatesTransactionFailureWithoutExecutingPersistence(): void
+    {
+        $repository = new CapturingSlidesTemplateRepository();
+        $tagService = $this->createMock(SlidesTemplateTagDomainService::class);
+        $tagService->expects(self::never())->method('syncTemplateTagsByCodes');
+        $service = new FailingTransactionSlidesTemplateDomainService($repository, $tagService);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('transaction failed');
+
+        try {
+            $service->saveUserTemplate(
+                $this->makeDataIsolation(),
+                $this->makeTemplate()->setCode('PERSONAL-TEMPLATE'),
+                null,
+                ['tag-a']
+            );
+        } finally {
+            self::assertNull($repository->savedEntity);
+        }
+    }
+
     private function makeTemplate(): SlidesTemplateEntity
     {
         $template = new SlidesTemplateEntity();
-        $template->setCode('PPT-BUSINESS-MINIMAL')
+        $template->setOrganizationCode('OFFICIAL_ORG')
+            ->setOwnerType(SlidesTemplateOwnerType::Official)
+            ->setOwnerId('OFFICIAL_ORG')
+            ->setCode('PPT-BUSINESS-MINIMAL')
             ->setSourceType(SlidesTemplateSourceType::System)
             ->setLabel([
                 'zh_CN' => '职场白皮书',
@@ -228,12 +327,17 @@ class SlidesTemplateDomainServiceTest extends TestCase
         $dataIsolation->setCurrentUserId('user-1');
         $dataIsolation->setMagicId('magic-1');
         $dataIsolation->setEnabled(true);
+        $dataIsolation->setOfficialOrganizationCodes(['OFFICIAL_ORG']);
         return $dataIsolation;
     }
 
     private function makeService(CapturingSlidesTemplateRepository $repository): SlidesTemplateDomainService
     {
-        return new SlidesTemplateDomainService($repository, new DefaultSlidesTemplateUsageCountPolicy());
+        return new SlidesTemplateDomainService(
+            $repository,
+            new DefaultSlidesTemplateUsageCountPolicy($repository),
+            $this->createMock(SlidesTemplateTagDomainService::class),
+        );
     }
 }
 
@@ -266,7 +370,52 @@ class CapturingSlidesTemplateRepository implements SlidesTemplateRepositoryInter
         return $this->entityWithTrashed;
     }
 
+    public function findGloballyByCodeWithTrashed(string $code): ?SlidesTemplateEntity
+    {
+        return $this->entityWithTrashed;
+    }
+
+    public function findOfficialByCode(SlidesTemplateDataIsolation $dataIsolation, string $code): ?SlidesTemplateEntity
+    {
+        return $this->entityToFind;
+    }
+
+    public function findByCodes(SlidesTemplateDataIsolation $dataIsolation, array $codes): array
+    {
+        return $this->entityToFind ? [$this->entityToFind] : [];
+    }
+
+    public function findByIds(SlidesTemplateDataIsolation $dataIsolation, array $ids): array
+    {
+        return $this->entityToFind ? [$this->entityToFind] : [];
+    }
+
+    public function findVisibleByIds(
+        SlidesTemplateDataIsolation $dataIsolation,
+        array $ids,
+    ): array {
+        return $this->entityToFind ? [$this->entityToFind] : [];
+    }
+
+    public function findIdsForSync(
+        SlidesTemplateDataIsolation $dataIsolation,
+        string $organizationCode,
+        array $templateIds,
+        ?string $categoryCode,
+        array $tagCodes,
+        string $tagMatch,
+        string $afterId,
+        int $limit
+    ): array {
+        return [];
+    }
+
     public function queries(SlidesTemplateDataIsolation $dataIsolation, SlidesTemplateQuery $query, Page $page): array
+    {
+        return ['total' => 0, 'list' => []];
+    }
+
+    public function queriesFavorites(SlidesTemplateDataIsolation $dataIsolation, SlidesTemplateQuery $query, Page $page): array
     {
         return ['total' => 0, 'list' => []];
     }
@@ -330,5 +479,24 @@ class CapturingSlidesTemplateRepository implements SlidesTemplateRepositoryInter
     public function delete(SlidesTemplateDataIsolation $dataIsolation, int|string $id): bool
     {
         return true;
+    }
+}
+
+class FailingTransactionSlidesTemplateDomainService extends SlidesTemplateDomainService
+{
+    public function __construct(
+        CapturingSlidesTemplateRepository $repository,
+        SlidesTemplateTagDomainService $tagService,
+    ) {
+        parent::__construct(
+            $repository,
+            new DefaultSlidesTemplateUsageCountPolicy($repository),
+            $tagService
+        );
+    }
+
+    protected function transaction(callable $callback): mixed
+    {
+        throw new RuntimeException('transaction failed');
     }
 }

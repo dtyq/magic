@@ -24,6 +24,7 @@ const EMPTY_NODE_CHECK_STATES = new Map<string, FileSelectionCheckState>()
 const DEFAULT_ITEM_SELECTABLE = () => true
 
 interface UseFileSelectionOptions {
+	listenGlobalEvents?: boolean
 	projectId?: string
 	getItemId: (item: AttachmentItem) => string
 	treeIndex: AttachmentIndex
@@ -140,35 +141,35 @@ export function useFileSelection(options: UseFileSelectionOptions) {
 		}
 	}, [selectionEnabled, selectedCount, selectableItemCount, onSelectionChange])
 
-	// 监听全选和取消全选事件
+	const handleSelectAll = () => {
+		if (!isSelectMode) return
+
+		measureSelectAll(selectableBranchRootKeys.length, () => {
+			// 选择每个可选分支的最高层节点，由父级选中状态覆盖其后代。
+			const rootFileIds = getSelectionIdsByKeys(
+				treeIndex,
+				selectableBranchRootKeys,
+				getItemId,
+			)
+			setSelectedItems(new Set(rootFileIds))
+			return rootFileIds
+		})
+	}
+
+	const handleDeselectAll = () => {
+		setSelectedItems(new Set())
+	}
+
+	// 用户目录由所属 Panel 直接调用；项目保留原有全局事件入口。
 	useEffect(() => {
-		const handleSelectAll = () => {
-			if (!isSelectMode) return
-
-			measureSelectAll(selectableBranchRootKeys.length, () => {
-				// 选择每个可选分支的最高层节点，由父级选中状态覆盖其后代。
-				const rootFileIds = getSelectionIdsByKeys(
-					treeIndex,
-					selectableBranchRootKeys,
-					getItemId,
-				)
-				setSelectedItems(new Set(rootFileIds))
-				return rootFileIds
-			})
-		}
-
-		const handleDeselectAll = () => {
-			setSelectedItems(new Set())
-		}
-
+		if (options.listenGlobalEvents === false) return
 		pubsub.subscribe(PubSubEvents.Select_All_Files, handleSelectAll)
 		pubsub.subscribe(PubSubEvents.Deselect_All_Files, handleDeselectAll)
-
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Select_All_Files, handleSelectAll)
 			pubsub.unsubscribe(PubSubEvents.Deselect_All_Files, handleDeselectAll)
 		}
-	}, [getItemId, isSelectMode, selectableBranchRootKeys, treeIndex])
+	}, [options.listenGlobalEvents, getItemId, isSelectMode, selectableBranchRootKeys, treeIndex])
 
 	// 递归获取文件夹下所有子项ID（包括文件和文件夹）
 	const getAllItemIds = (folder: AttachmentItem): string[] => {
@@ -328,6 +329,8 @@ export function useFileSelection(options: UseFileSelectionOptions) {
 		getFolderSelectionState,
 		isItemDisabled,
 		resetSelection,
+		handleSelectAll,
+		handleDeselectAll,
 		handleEnterMultiSelectMode,
 		isItemSelected,
 	}

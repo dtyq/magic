@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Real document restart</title>
+	</head>
+	<body>
+		<h2 id="version">__FIXTURE_VERSION__</h2>
+		<script>
+			;(function () {
+				// These globals and timers deliberately leak if a host only calls document.write.
+				window.fixtureBootCount = (window.fixtureBootCount || 0) + 1
+				const bootId = crypto.randomUUID()
+				var visits = Number(localStorage.getItem("refresh-visits") || 0) + 1
+				localStorage.setItem("refresh-visits", String(visits))
+				parent.postMessage(
+					{
+						type: "REFRESH_READY",
+						bootId,
+						bootCount: window.fixtureBootCount,
+						visits,
+						version: document.getElementById("version").textContent,
+					},
+					"*",
+				)
+				setInterval(() => parent.postMessage({ type: "REFRESH_TICK", bootId }, "*"), 20)
+			})()
+		</script>
+	</body>
+</html>

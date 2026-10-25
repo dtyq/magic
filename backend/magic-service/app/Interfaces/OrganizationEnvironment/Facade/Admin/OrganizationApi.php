@@ -12,10 +12,12 @@ use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\OrganizationEnvironment\Service\OrganizationAppService;
 use App\Infrastructure\Core\AbstractApi;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\OrganizationEnvironment\Assembler\OrganizationAssembler;
 use App\Interfaces\OrganizationEnvironment\DTO\OrganizationCreatorResponseDTO;
 use App\Interfaces\OrganizationEnvironment\DTO\OrganizationListRequestDTO;
+use App\Interfaces\OrganizationEnvironment\DTO\OrganizationSearchRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 
@@ -61,5 +63,33 @@ class OrganizationApi extends AbstractApi
         $listDto->setPage($requestDTO->page);
         $listDto->setPageSize($requestDTO->pageSize);
         return $listDto->toArray();
+    }
+
+    /**
+     * 按指定字段搜索组织。
+     */
+    #[CheckPermission(
+        [
+            MagicResourceEnum::PLATFORM_USER_LIST,
+            MagicResourceEnum::PLATFORM_AI_MODEL_AUDIT_LOG,
+            MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_LOG,
+        ],
+        MagicOperationEnum::QUERY
+    )]
+    public function search(): array
+    {
+        $organizationCode = (string) $this->getAuthorization()->getOrganizationCode();
+        $isOfficialOrganization = OfficialOrganizationUtil::isOfficialOrganization($organizationCode);
+
+        $requestDTO = OrganizationSearchRequestDTO::fromRequest($this->request);
+        $page = new Page($requestDTO->page, $requestDTO->pageSize);
+        $result = $this->organizationAppService->searchOrganizations(
+            $page,
+            $requestDTO->searchField,
+            $requestDTO->keyword,
+            $isOfficialOrganization ? null : $organizationCode
+        );
+
+        return OrganizationAssembler::assembleSearchPage($result, $page);
     }
 }

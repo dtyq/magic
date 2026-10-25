@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
 import { merge } from "lodash-es"
@@ -24,7 +24,11 @@ import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { createMessageSendService } from "@/pages/superMagic/services/messageSendFlowService"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import { shouldCheckAttachmentsOnTaskStatus } from "@/pages/superMagic/services/topicStatusSyncService"
-import { type TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import {
+	isTopicTaskRunning,
+	isTopicWaitingForUser,
+	TaskStatus,
+} from "@/pages/superMagic/pages/Workspace/types"
 import { TopicMode } from "../../Workspace/TopicMode"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
 import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
@@ -40,6 +44,7 @@ import {
 import { useClawPlaygroundMessageListContextValue } from "../hooks/useClawPlaygroundMessageListContextValue"
 import { ClawPlaygroundInputToolbar } from "./ClawPlaygroundInputToolbar"
 import { dispatchClawNewChatSlash } from "../utils/dispatchClawNewChatSlash"
+import { useClawConversationAnalytics } from "../hooks/useClawConversationAnalytics"
 
 export interface ClawConversationPanelProps {
 	isConversationPanelCollapsed?: boolean
@@ -63,6 +68,7 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 	const store = useClawPlaygroundStore()
 	const selectedProject = store.selectedProject
 	const selectedTopic = store.selectedTopic
+	useClawConversationAnalytics(selectedTopic?.id)
 	const topicStore = store.topicStore
 	const attachments = store.projectFilesStore.workspaceFileTree
 	const sharedTopicModelStore = useMemo(() => createSuperMagicTopicModelStore(), [])
@@ -88,6 +94,7 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 			}
 		},
 	})
+	const isTaskRunning = showLoading || isTopicTaskRunning(selectedTopic)
 
 	const { handlePullMoreMessage, isMessagesInitialLoading, isSelectedTopicMessagesReady } =
 		useTopicMessages({
@@ -98,7 +105,8 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 		projectId: selectedProject?.id,
 		topicId: selectedTopic?.id,
 		agentCode: clawCode,
-		isTaskRunning: showLoading,
+		isTaskRunning,
+		isWaitingForUser: isTopicWaitingForUser(selectedTopic),
 		isEmptyStatus: false,
 		isShowLoadingInit: isMessagesInitialLoading,
 	})
@@ -189,29 +197,21 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 	const editorNodes = useMemo<SceneEditorNodes>(() => {
 		const messageQueueNode =
 			messageQueue.queue.length > 0 ? (
-				<div className="mb-2">
-					<MessageQueue
-						queue={messageQueue.queue}
-						queueStats={messageQueue.queueStats}
-						editingQueueItem={messageQueue.editingQueueItem}
-						onRemoveMessage={messageQueue.removeFromQueue}
-						onSendMessage={messageQueue.sendQueuedMessage}
-						onStartEdit={messageQueue.startEditQueueItem}
-						onCancelEdit={messageQueue.cancelEditQueueItem}
-					/>
-				</div>
+				<MessageQueue
+					queue={messageQueue.queue}
+					editorRef={messageQueue.editorRef}
+					queueStats={messageQueue.queueStats}
+					onRemoveMessage={messageQueue.removeFromQueue}
+					onSendMessage={messageQueue.sendQueuedMessage}
+					onStartEdit={messageQueue.startEditQueueItem}
+					onWithdraw={messageQueue.withdrawQueueItem}
+					onMove={messageQueue.moveQueueItem}
+					isOperationPending={messageQueue.isQueueOperationPending}
+				/>
 			) : null
 
 		return { messageQueueNode }
-	}, [
-		messageQueue.queue,
-		messageQueue.queueStats,
-		messageQueue.editingQueueItem,
-		messageQueue.removeFromQueue,
-		messageQueue.sendQueuedMessage,
-		messageQueue.startEditQueueItem,
-		messageQueue.cancelEditQueueItem,
-	])
+	}, [messageQueue])
 
 	const editorContext = useMemo<SceneEditorContext>(() => {
 		return {
@@ -241,11 +241,8 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 				})
 				return mergedParams
 			},
-			queueContext: {
-				editingQueueItem: messageQueue.editingQueueItem,
-				addToQueue: messageQueue.addToQueue,
-				finishEditQueueItem: messageQueue.finishEditQueueItem,
-			},
+			editorRef: messageQueue.editorRef,
+			queueContext: messageQueue,
 			size: detailPanelVisible ? "small" : "default",
 		}
 	}, [
@@ -261,9 +258,7 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 		store.workspaceStore.setSelectedWorkspace,
 		topicModelStore,
 		topicStore,
-		messageQueue.editingQueueItem,
-		messageQueue.addToQueue,
-		messageQueue.finishEditQueueItem,
+		messageQueue,
 		detailPanelVisible,
 	])
 
@@ -292,6 +287,7 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 			scope="claw-playground-conversation"
 			rootTestId="claw-playground-conversation-panel"
 			editorTestId="claw-playground-conversation-editor"
+			desktopComposerShell
 			header={
 				<ClawConversationPanelHeader
 					isConversationPanelCollapsed={isConversationPanelCollapsed}
@@ -329,10 +325,11 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 				/>
 			}
 			editor={
-				<div className="flex w-full flex-col gap-2">
+				<div className="flex h-full min-h-0 w-full flex-col gap-1.5">
+					{/* Preserve resized height while keeping the toolbar close to the editor. */}
 					<ClawPlaygroundInputToolbar
 						variant="desktop"
-						isTaskRunning={showLoading}
+						isTaskRunning={isTaskRunning}
 						onNewChat={handleClawNewChatSlash}
 						onOpenSkills={() => onOpenSkillsPanel?.()}
 					/>
@@ -344,11 +341,12 @@ export const ClawConversationPanel = observer(function ClawConversationPanel({
 			messages={messages as SuperMagicMessageItem[]}
 			selectedTopic={selectedTopic}
 			handlePullMoreMessage={handlePullMoreMessage}
+			historyLoadThresholdPx={30}
 			showLoading={showLoading}
 			currentTopicStatus={selectedTopic?.task_status}
 			handleSendMsg={handleSendMsg}
 			isMessagesLoading={isMessagesInitialLoading}
-			// stickyMessageClassName="top-0"
+			resizeHandlePositionClassName="-top-2.5"
 		/>
 	)
 })

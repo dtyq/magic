@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react"
 import AudioFullscreenOverlay from "../audio/index"
 import ImageFullscreenOverlay from "../image/index"
+import VideoFullscreenPlayerOverlay from "../video/VideoFullscreenPlayerOverlay"
 import VideoPreviewContent from "./VideoPreviewContent"
 import type { MediaResourceFullscreenPreviewItem } from "./types"
+import { useCanvas } from "../../../app/providers/CanvasProvider"
 export type { MediaResourceFullscreenPreviewItem, PreviewableMediaResourceKind } from "./types"
 
 interface MediaResourceFullscreenPreviewProps {
@@ -12,7 +14,9 @@ interface MediaResourceFullscreenPreviewProps {
 
 export default function MediaResourceFullscreenPreview(props: MediaResourceFullscreenPreviewProps) {
 	const { resource, onClose } = props
+	const { canvas } = useCanvas()
 	const [isClient, setIsClient] = useState(false)
+	const playbackEnabled = canvas?.permissionManager?.can("interaction.playback") ?? true
 
 	useEffect(() => {
 		setIsClient(true)
@@ -23,7 +27,26 @@ export default function MediaResourceFullscreenPreview(props: MediaResourceFulls
 	}
 
 	if (resource.kind === "video") {
-		return <VideoPreviewContent resource={resource} onClose={onClose} />
+		// 资产库等场景已有可直播 URL，跳过 videoPlaybackManager 的 path 解析。
+		if (resource.previewSrc) {
+			return (
+				<VideoFullscreenPlayerOverlay
+					src={resource.previewSrc}
+					isOpen
+					playbackEnabled={playbackEnabled}
+					onClose={onClose}
+					fileName={resource.fileName}
+					resourcePath={resource.path}
+				/>
+			)
+		}
+		return (
+			<VideoPreviewContent
+				resource={resource}
+				onClose={onClose}
+				playbackEnabled={playbackEnabled}
+			/>
+		)
 	}
 
 	if (resource.kind === "image") {
@@ -32,6 +55,7 @@ export default function MediaResourceFullscreenPreview(props: MediaResourceFulls
 				path={resource.path}
 				fileName={resource.fileName}
 				crop={resource.crop}
+				src={resource.previewSrc}
 				isOpen
 				onClose={onClose}
 			/>
@@ -43,6 +67,7 @@ export default function MediaResourceFullscreenPreview(props: MediaResourceFulls
 			path={resource.path}
 			fileName={resource.fileName}
 			isOpen
+			playbackEnabled={playbackEnabled}
 			onClose={onClose}
 		/>
 	)

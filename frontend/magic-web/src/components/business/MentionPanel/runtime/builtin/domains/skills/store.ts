@@ -2,6 +2,7 @@ import { makeAutoObservable } from "mobx"
 import { CrewApi } from "@/apis"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { MentionItemType, type MentionItem, type SkillMentionData } from "../../../../types"
+import { includesSearchQuery } from "../../store-helpers/matching"
 import type { SkillDomainItem, SkillQueryContextOptions } from "./types"
 
 const DEFAULT_SKILL_QUERY_KEY = "__default__"
@@ -98,9 +99,22 @@ export class MentionPanelSkillsStore {
 		return items.filter((item) => {
 			if (matchesQuery(item.name, normalizedQuery)) return true
 			if (item.package_name && matchesQuery(item.package_name, normalizedQuery)) return true
-			if (item.description && matchesQuery(item.description, normalizedQuery)) return true
+			if (item.description && includesSearchQuery(item.description, normalizedQuery))
+				return true
 			return false
 		})
+	}
+
+	private filterDirectMatches(
+		items: MentionItem[],
+		normalizedQuery: string,
+		matchesQuery: (target: string, query: string) => boolean,
+	) {
+		return items.filter(
+			(item) =>
+				matchesQuery(item.name, normalizedQuery) ||
+				Boolean(item.package_name && matchesQuery(item.package_name, normalizedQuery)),
+		)
 	}
 
 	async searchItems(
@@ -112,7 +126,10 @@ export class MentionPanelSkillsStore {
 				? this.items
 				: await this.fetchItems({ skillQueryKey: this.currentSkillQueryKey })
 
-		return this.filterItems(items, normalizedQuery, matchesQuery)
+		const directMatches = this.filterDirectMatches(items, normalizedQuery, matchesQuery)
+		return directMatches.length > 0
+			? directMatches
+			: this.filterItems(items, normalizedQuery, matchesQuery)
 	}
 
 	hasItem(skillId: string) {

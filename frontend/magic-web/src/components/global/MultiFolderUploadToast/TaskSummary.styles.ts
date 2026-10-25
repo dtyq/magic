@@ -9,7 +9,8 @@ export const useTaskSummaryStyles = createStyles(({ token, css }) => ({
 		justify-content: space-between;
 		align-items: center;
 		padding: 8px 10px;
-		background: #f9f9f9;
+		background: ${token.colorFillQuaternary};
+		border-bottom: 1px solid ${token.colorBorderSecondary};
 		overflow: hidden;
 	`,
 
@@ -19,7 +20,7 @@ export const useTaskSummaryStyles = createStyles(({ token, css }) => ({
 		top: 0;
 		left: 0;
 		height: 100%;
-		background: #ebf2fe;
+		background: ${token.colorPrimaryBg};
 		z-index: 1;
 		transition: width 0.3s ease;
 	`,

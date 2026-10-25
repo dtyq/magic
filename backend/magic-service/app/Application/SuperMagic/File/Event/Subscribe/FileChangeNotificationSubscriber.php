@@ -12,7 +12,9 @@ use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Domain\SuperMagic\Common\Event\DeleteEventSource;
 use App\Domain\SuperMagic\File\Constant\ProjectFileConstant;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileChangeOrigin;
 use App\Domain\SuperMagic\File\Entity\ValueObject\FileMoveChangeSet;
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileSpaceType;
 use App\Domain\SuperMagic\File\Event\CheckpointRollbackFilesChangedEvent;
 use App\Domain\SuperMagic\File\Event\DirectoryDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FileBatchMoveCompletedEvent;
@@ -26,7 +28,6 @@ use App\Domain\SuperMagic\File\Event\FileUploadedEvent;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
-use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\ProjectFileRpcClient;
 use App\Infrastructure\SuperMagic\Utils\RelativeFilePathUtil;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
@@ -42,8 +43,21 @@ use Throwable;
  * File change notification subscriber.
  * Listen to all file change events and push WebSocket notifications to clients.
  * Using async listener to avoid blocking the main business process.
+ *
+ * Notification scope:
+ * - Only TaskFileEntity with space_type = FileSpaceType::PROJECT->value can
+ *   produce project file change notifications.
+ * - User-space and topic-space files never produce project file notifications,
+ *   even when their project_id is greater than zero.
+ * - Deletes that qualify for the file recycle bin are not pushed as project
+ *   file changes; the recycle-bin subscriber owns that lifecycle.
+ * - File version creation does not publish a file change notification.
+ *   Version rollback may publish FileContentSavedEvent for other subscribers,
+ *   but VERSION_ROLLBACK is intentionally ignored by this subscriber.
+ * - For batch events, the same project-space rule is applied per entity before
+ *   changes, parent refresh IDs, and WebSocket messages are built.
  */
-#[AsyncListener]
+#[AsyncListener(driver: 'coroutine')]
 #[Listener(priority: -100)]
 class FileChangeNotificationSubscriber implements ListenerInterface
 {
@@ -53,7 +67,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicUserRepository $magicUserRepository,
-        private readonly ProjectFileRpcClient $projectFileRpcClient,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -113,6 +126,16 @@ class FileChangeNotificationSubscriber implements ListenerInterface
     private function handleFileUploaded(FileUploadedEvent $event): void
     {
         $fileEntity = $event->getFileEntity();
+        if ($this->isUserSpaceFile($fileEntity)) {
+            $this->pushNotification(
+                $event->getUserId(),
+                $this->buildUserPushData('add', $fileEntity, $event->getOrganizationCode())
+            );
+            return;
+        }
+        if (! $this->isProjectSpaceFile($fileEntity)) {
+            return;
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
 
         if (! $projectEntity) {
@@ -134,7 +157,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
-        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -143,11 +165,20 @@ class FileChangeNotificationSubscriber implements ListenerInterface
     private function handleFileDeleted(FileDeletedEvent $event): void
     {
         // Internal overwrites during batch moves are covered by FileBatchMoveCompletedEvent.
-        if ($event->getSource() === DeleteEventSource::InternalOverwrite) {
+        if ($event->getSource() === DeleteEventSource::InternalOverwrite
+            || $this->shouldSkipRecycleBinDelete($event->getFileEntity(), $event->getSource())
+            || ! $this->isProjectSpaceFile($event->getFileEntity())) {
             return;
         }
 
         $fileEntity = $event->getFileEntity();
+        if ($this->isUserSpaceFile($fileEntity)) {
+            $this->pushNotification(
+                $event->getUserId(),
+                $this->buildUserPushData('delete', $fileEntity, $event->getOrganizationCode())
+            );
+            return;
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
 
         if (! $projectEntity) {
@@ -166,7 +197,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
-        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -175,6 +205,19 @@ class FileChangeNotificationSubscriber implements ListenerInterface
     private function handleFileContentSaved(FileContentSavedEvent $event): void
     {
         $fileEntity = $event->getFileEntity();
+        if ($event->getOrigin() === FileChangeOrigin::VERSION_ROLLBACK) {
+            return;
+        }
+        if ($this->isUserSpaceFile($fileEntity)) {
+            $this->pushNotification(
+                $event->getUserId(),
+                $this->buildUserPushData('update', $fileEntity, $event->getOrganizationCode())
+            );
+            return;
+        }
+        if (! $this->isProjectSpaceFile($fileEntity)) {
+            return;
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
 
         if (! $projectEntity) {
@@ -196,7 +239,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
-        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -205,11 +247,21 @@ class FileChangeNotificationSubscriber implements ListenerInterface
     private function handleDirectoryDeleted(DirectoryDeletedEvent $event): void
     {
         // Internal overwrites during batch moves are covered by FileBatchMoveCompletedEvent.
-        if ($event->getSource() === DeleteEventSource::InternalOverwrite) {
+        if ($event->getSource() === DeleteEventSource::InternalOverwrite
+            || $this->shouldSkipRecycleBinDelete($event->getDirectoryEntity(), $event->getSource())
+            || ! $this->isProjectSpaceFile($event->getDirectoryEntity())) {
             return;
         }
 
         $fileEntity = $event->getDirectoryEntity();
+        if ($this->isUserSpaceFile($fileEntity)) {
+            $authorization = $event->getUserAuthorization();
+            $this->pushNotification(
+                $authorization->getId(),
+                $this->buildUserPushData('delete', $fileEntity, $authorization->getOrganizationCode())
+            );
+            return;
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
 
         if (! $projectEntity) {
@@ -229,7 +281,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
-        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -237,8 +288,41 @@ class FileChangeNotificationSubscriber implements ListenerInterface
      */
     private function handleBatchDeleted(FilesBatchDeletedEvent $event): void
     {
+        $userFileEntities = array_values(array_filter(
+            $event->getAllEntities(),
+            fn (TaskFileEntity $fileEntity): bool => $this->isUserSpaceFile($fileEntity)
+        ));
+        if ($userFileEntities !== []) {
+            if ($this->shouldSkipRecycleBinDeleteForBatch($userFileEntities, $event->getSource())) {
+                return;
+            }
+            $authorization = $event->getUserAuthorization();
+            $changes = array_map(
+                static fn (TaskFileEntity $fileEntity): array => [
+                    'operation' => 'delete',
+                    'file_id' => (string) $fileEntity->getFileId(),
+                ],
+                $userFileEntities,
+            );
+            $this->pushNotification(
+                $authorization->getId(),
+                $this->buildUserBatchPushData(
+                    $changes,
+                    $authorization->getOrganizationCode(),
+                    array_map(static fn (TaskFileEntity $file): ?int => $file->getParentId(), $userFileEntities),
+                )
+            );
+            return;
+        }
         $projectId = $event->getProjectId();
-        $fileIds = $event->getFileIds();
+        $fileEntities = $this->taskFileDomainService->filterProjectSpaceFiles($event->getAllEntities());
+        if (empty($fileEntities) || $this->shouldSkipRecycleBinDeleteForBatch($fileEntities, $event->getSource())) {
+            return;
+        }
+        $fileIds = array_map(
+            static fn (TaskFileEntity $fileEntity): int => $fileEntity->getFileId(),
+            $fileEntities
+        );
         $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
 
         if (! $projectEntity) {
@@ -262,13 +346,10 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             changes: $changes,
             organizationCode: $userAuthorization->getOrganizationCode(),
             topicId: '',
-            refreshParentIds: $this->collectMetadataRefreshParentIds($event->getAllEntities())
+            refreshParentIds: $this->collectMetadataRefreshParentIds($fileEntities)
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
-        foreach ($fileIds as $fileId) {
-            $this->notifyKnowledgeProjectFileChange((int) $fileId);
-        }
     }
 
     /**
@@ -277,6 +358,17 @@ class FileChangeNotificationSubscriber implements ListenerInterface
     private function handleFileRenamed(FileRenamedEvent $event): void
     {
         $fileEntity = $event->getFileEntity();
+        if ($this->isUserSpaceFile($fileEntity)) {
+            $authorization = $event->getUserAuthorization();
+            $this->pushNotification(
+                $authorization->getId(),
+                $this->buildUserPushData('update', $fileEntity, $authorization->getOrganizationCode())
+            );
+            return;
+        }
+        if (! $this->isProjectSpaceFile($fileEntity)) {
+            return;
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
 
         if (! $projectEntity) {
@@ -296,7 +388,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
-        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -305,6 +396,28 @@ class FileChangeNotificationSubscriber implements ListenerInterface
     private function handleFileMoved(FileMovedEvent $event): void
     {
         $fileEntity = $event->getFileEntity();
+        if ($this->isUserSpaceFile($fileEntity)) {
+            $authorization = $event->getUserAuthorization();
+            $changes = [];
+            $overwrittenFile = $event->getOverwrittenFile();
+            if ($overwrittenFile !== null && $this->isUserSpaceFile($overwrittenFile)) {
+                $changes[] = ['operation' => 'delete', 'file_id' => (string) $overwrittenFile->getFileId()];
+            }
+            $changes[] = [
+                'operation' => 'update',
+                'file_id' => (string) $fileEntity->getFileId(),
+                'file' => TaskFileItemDTO::fromEntity($fileEntity)->toArray(),
+            ];
+            $parentIds = [$fileEntity->getParentId(), $event->getOldParentId(), $overwrittenFile?->getParentId()];
+            $this->pushNotification(
+                $authorization->getId(),
+                $this->buildUserBatchPushData($changes, $authorization->getOrganizationCode(), $parentIds)
+            );
+            return;
+        }
+        if (! $this->isProjectSpaceFile($fileEntity)) {
+            return;
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
 
         if (! $projectEntity) {
@@ -313,16 +426,14 @@ class FileChangeNotificationSubscriber implements ListenerInterface
 
         $userAuthorization = $event->getUserAuthorization();
         $changes = [];
-        $allNotifyFileIds = [];
 
         // 1. Record delete for the overwritten file (if any)
         $overwrittenFile = $event->getOverwrittenFile();
-        if ($overwrittenFile !== null) {
+        if ($overwrittenFile !== null && $this->isProjectSpaceFile($overwrittenFile)) {
             $changes[] = [
                 'operation' => 'delete',
                 'file_id' => (string) $overwrittenFile->getFileId(),
             ];
-            $allNotifyFileIds[] = $overwrittenFile->getFileId();
         }
 
         // 2. Record update for the moved file
@@ -333,7 +444,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             'file_id' => (string) $fileEntity->getFileId(),
             'file' => $fileDto->toArray(),
         ];
-        $allNotifyFileIds[] = $fileEntity->getFileId();
 
         // 3. Collect refresh_parent_ids: new parent + overwritten file parent + old parent
         $parentIdSet = [];
@@ -364,9 +474,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
-        foreach ($allNotifyFileIds as $notifyFileId) {
-            $this->notifyKnowledgeProjectFileChange($notifyFileId);
-        }
     }
 
     /**
@@ -379,21 +486,62 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $changeSet = $event->getChangeSet();
         $targetProjectId = $event->getTargetProjectId();
 
+        $userDeleted = array_values(array_filter(
+            $changeSet->getDeletedFileEntities(),
+            fn (TaskFileEntity $fileEntity): bool => $this->isUserSpaceFile($fileEntity)
+        ));
+        $userIds = array_merge($changeSet->getAddedFileIds(), $changeSet->getUpdatedFileIds());
+        $userLive = $userIds === []
+            ? []
+            : $this->taskFileDomainService->getFilesByIds($userIds, $targetProjectId, FileSpaceType::USER->value);
+        if ($userDeleted !== [] || $userLive !== []) {
+            $changes = array_map(
+                static fn (TaskFileEntity $fileEntity): array => [
+                    'operation' => 'delete',
+                    'file_id' => (string) $fileEntity->getFileId(),
+                ],
+                $userDeleted,
+            );
+            $addedIds = array_flip($changeSet->getAddedFileIds());
+            foreach ($userLive as $fileEntity) {
+                $changes[] = [
+                    'operation' => isset($addedIds[$fileEntity->getFileId()]) ? 'add' : 'update',
+                    'file_id' => (string) $fileEntity->getFileId(),
+                    'file' => TaskFileItemDTO::fromEntity($fileEntity)->toArray(),
+                ];
+            }
+            if ($changes !== []) {
+                $this->pushNotification(
+                    $event->getUserId(),
+                    $this->buildUserBatchPushData(
+                        $changes,
+                        $event->getOrganizationCode(),
+                        array_merge(
+                            array_map(static fn (TaskFileEntity $file): ?int => $file->getParentId(), $userDeleted),
+                            array_map(static fn (TaskFileEntity $file): ?int => $file->getParentId(), $userLive),
+                        ),
+                    )
+                );
+            }
+            return;
+        }
+
         $projectEntity = $this->projectDomainService->getProjectNotUserId($targetProjectId);
         if (! $projectEntity) {
             return;
         }
 
         $changes = [];
-        $allNotifyFileIds = [];
 
         // 1. Deletes — entities were captured before soft-delete, no re-query needed
         foreach ($changeSet->getDeletedFileEntities() as $fileEntity) {
+            if (! $this->isProjectSpaceFile($fileEntity)) {
+                continue;
+            }
             $changes[] = [
                 'operation' => 'delete',
                 'file_id' => (string) $fileEntity->getFileId(),
             ];
-            $allNotifyFileIds[] = $fileEntity->getFileId();
         }
 
         // 2. Added + Updated — one batch load
@@ -403,7 +551,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
 
         $liveEntities = empty($allLiveIds)
             ? []
-            : $this->taskFileDomainService->getFilesByIds($allLiveIds, $targetProjectId);
+            : $this->taskFileDomainService->getFilesByIds($allLiveIds, $targetProjectId, FileSpaceType::PROJECT->value);
 
         // Build relative paths in one shot (internally uses one getFilesWithParentsByIds call)
         $relPathMap = $this->buildRelativeFilePathsForEntities($liveEntities, $targetProjectId);
@@ -420,7 +568,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             }
             $fileDto = TaskFileItemDTO::fromEntity($liveEntity, $projectEntity->getWorkDir(), $relPathMap[$liveEntity->getFileId()] ?? null);
             $changes[] = ['operation' => 'add', 'file_id' => (string) $fileId, 'file' => $fileDto->toArray()];
-            $allNotifyFileIds[] = $fileId;
         }
 
         foreach ($updatedFileIds as $fileId) {
@@ -430,7 +577,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             }
             $fileDto = TaskFileItemDTO::fromEntity($liveEntity, $projectEntity->getWorkDir(), $relPathMap[$liveEntity->getFileId()] ?? null);
             $changes[] = ['operation' => 'update', 'file_id' => (string) $fileId, 'file' => $fileDto->toArray()];
-            $allNotifyFileIds[] = $fileId;
         }
 
         if (empty($changes)) {
@@ -459,9 +605,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
-        foreach (array_unique($allNotifyFileIds) as $notifyFileId) {
-            $this->notifyKnowledgeProjectFileChange((int) $notifyFileId);
-        }
     }
 
     /**
@@ -470,6 +613,17 @@ class FileChangeNotificationSubscriber implements ListenerInterface
     private function handleFileReplaced(FileReplacedEvent $event): void
     {
         $fileEntity = $event->getFileEntity();
+        if ($this->isUserSpaceFile($fileEntity)) {
+            $authorization = $event->getUserAuthorization();
+            $this->pushNotification(
+                $authorization->getId(),
+                $this->buildUserPushData('update', $fileEntity, $authorization->getOrganizationCode())
+            );
+            return;
+        }
+        if (! $this->isProjectSpaceFile($fileEntity)) {
+            return;
+        }
         $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
 
         if (! $projectEntity) {
@@ -522,7 +676,14 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             return;
         }
 
-        $fileEntities = $this->taskFileDomainService->getFilesByIds(array_values($fileIds), $projectId);
+        // Rollback delete may target a file that has already been soft-deleted
+        // in task_file metadata. Keep the entity available for parent/project
+        // context, while still emitting a delete payload without a file DTO.
+        $fileEntities = $this->taskFileDomainService->getFilesByIdsWithTrash(
+            array_values($fileIds),
+            $projectId,
+            FileSpaceType::PROJECT->value
+        );
         $fileEntitiesById = [];
         foreach ($fileEntities as $fileEntity) {
             $fileEntitiesById[$fileEntity->getFileId()] = $fileEntity;
@@ -566,14 +727,81 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
-        foreach ($fileEntities as $fileEntity) {
-            $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
-        }
     }
 
     private function normalizeFileChangeOperation(mixed $operation): string
     {
         return in_array($operation, ['add', 'update', 'delete'], true) ? $operation : 'update';
+    }
+
+    private function isProjectSpaceFile(TaskFileEntity $fileEntity): bool
+    {
+        return $this->taskFileDomainService->isProjectSpaceFile($fileEntity);
+    }
+
+    private function isUserSpaceFile(TaskFileEntity $fileEntity): bool
+    {
+        return $fileEntity->getSpaceType() === FileSpaceType::USER->value;
+    }
+
+    /** Build the compact user-space event consumed by the MagicFS directory cache. */
+    private function buildUserPushData(
+        string $operation,
+        TaskFileEntity $fileEntity,
+        string $organizationCode,
+    ): array {
+        $change = [
+            'operation' => $operation,
+            'file_id' => (string) $fileEntity->getFileId(),
+        ];
+        if ($operation !== 'delete') {
+            $change['file'] = TaskFileItemDTO::fromEntity($fileEntity)->toArray();
+        }
+
+        return $this->buildUserBatchPushData(
+            [$change],
+            $organizationCode,
+            [$fileEntity->getParentId()]
+        );
+    }
+
+    /** @param array<int, array<string, mixed>> $changes */
+    private function buildUserBatchPushData(
+        array $changes,
+        string $organizationCode,
+        array $refreshParentIds = [],
+    ): array {
+        return $this->buildBatchPushData(
+            projectId: '',
+            workspaceId: '',
+            changes: $changes,
+            organizationCode: $organizationCode,
+            topicId: '',
+            refreshParentIds: array_values(array_unique(array_filter(
+                array_map(static fn ($id): string => (string) ($id ?? ''), $refreshParentIds),
+                static fn (string $id): bool => $id !== '' && $id !== '0'
+            ))),
+            spaceType: FileSpaceType::USER->value,
+        );
+    }
+
+    private function shouldSkipRecycleBinDelete(TaskFileEntity $fileEntity, DeleteEventSource $source): bool
+    {
+        return $this->taskFileDomainService->shouldEnterRecycleBin($fileEntity, $source);
+    }
+
+    /**
+     * @param TaskFileEntity[] $fileEntities
+     */
+    private function shouldSkipRecycleBinDeleteForBatch(array $fileEntities, DeleteEventSource $source): bool
+    {
+        foreach ($fileEntities as $fileEntity) {
+            if ($this->shouldSkipRecycleBinDelete($fileEntity, $source)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -646,10 +874,12 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         string $organizationCode = '',
         string $conversationId = '',
         string $topicId = '',
-        array $refreshParentIds = []
+        array $refreshParentIds = [],
+        string $spaceType = 'project',
     ): array {
         $message = [
             'type' => 'super_magic_file_change',
+            'space_type' => $spaceType,
             'project_id' => $projectId,
             'workspace_id' => $workspaceId,
             'topic_id' => $topicId,
@@ -741,22 +971,6 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             ]);
 
             return [];
-        }
-    }
-
-    private function notifyKnowledgeProjectFileChange(int $projectFileId): void
-    {
-        if ($projectFileId <= 0) {
-            return;
-        }
-
-        try {
-            $this->projectFileRpcClient->notifyChange($projectFileId);
-        } catch (Throwable $throwable) {
-            $this->logger->warning('Notify knowledge project file change failed', [
-                'project_file_id' => $projectFileId,
-                'error' => $throwable->getMessage(),
-            ]);
         }
     }
 

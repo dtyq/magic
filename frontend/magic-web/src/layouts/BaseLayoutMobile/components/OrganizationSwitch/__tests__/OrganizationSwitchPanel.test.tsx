@@ -33,14 +33,6 @@ vi.mock("@/components/base/MagicIcon", () => ({
 	}) => <Component size={size} />,
 }))
 
-vi.mock("@/components/base/MagicButton", () => ({
-	default: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-		<button type="button" onClick={onClick}>
-			{children}
-		</button>
-	),
-}))
-
 vi.mock("@/services/common/FunctionHub", () => ({
 	functionHub: {
 		execute: vi.fn(),
@@ -56,15 +48,6 @@ vi.mock("@/services/common/FunctionHub/registerDefault", () => ({
 vi.mock("@/components/business/RecordingSummary/hooks/useCancelRecord", () => ({
 	default: () => ({
 		cancelRecord: vi.fn().mockResolvedValue(undefined),
-	}),
-}))
-
-vi.mock("../styles.panel", () => ({
-	useOrganizationSwitchPanelStyles: () => ({
-		styles: {
-			panelContainer: "panel-container",
-			footer: "footer",
-		},
 	}),
 }))
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { fileIconStore } from "@/pages/superMagic/stores/fileIconStore"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	getCustomIcon,
 	resolveCustomIconPathToDirectSrc,
@@ -32,6 +32,9 @@ export function useCustomFolderIconUrl({
 	}, [iconPath, children, directSrc])
 
 	const [fetchedUrl, setFetchedUrl] = useState<string | undefined>()
+	// Resolve the icon through the FileApi boundary so custom folder icons are
+	// readable in share previews; the ambient identity is bound once here.
+	const fileApi = useFileApi()
 
 	useEffect(() => {
 		if (directSrc) {
@@ -43,10 +46,12 @@ export function useCustomFolderIconUrl({
 			return
 		}
 		let cancelled = false
-		fileIconStore
-			.getFileIconUrl(iconFileId)
-			.then((u) => {
-				if (!cancelled) setFetchedUrl(u)
+		fileApi
+			.getTemporaryDownloadUrl({ file_ids: [iconFileId] })
+			.then((res) => {
+				if (cancelled) return
+				const url = res?.[0]?.url
+				setFetchedUrl(typeof url === "string" && url ? url : undefined)
 			})
 			.catch(() => {
 				if (!cancelled) setFetchedUrl(undefined)
@@ -54,7 +59,7 @@ export function useCustomFolderIconUrl({
 		return () => {
 			cancelled = true
 		}
-	}, [directSrc, iconFileId])
+	}, [directSrc, iconFileId, fileApi])
 
 	return directSrc ?? fetchedUrl
 }

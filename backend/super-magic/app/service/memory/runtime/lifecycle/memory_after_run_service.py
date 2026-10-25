@@ -9,6 +9,7 @@ from agentlang.event.data import AfterMainAgentRunEventData
 from agentlang.event.event import Event
 from app.service.agent_context_snapshot_service import AgentContextSnapshotService
 from app.service.memory.policies.memory_model_input_filter import MemoryModelInputFilter
+from app.service.memory.policies.memory_skill_policy import is_memory_maintenance_enabled
 from app.service.memory.runtime.extraction.memory_extraction_service import MemoryExtractionService
 from app.service.memory.runtime.extraction.memory_extraction_trigger_service import (
     MemoryExtractionTriggerService,
@@ -53,6 +54,16 @@ class MemoryAfterRunService:
         )
 
     async def _submit_extraction(self, agent_context: "AgentContext") -> None:
-        """捕获当前完整快照，并提交一次独立的后台记忆提取。"""
+        """
+        捕获当前完整快照，并提交一次独立的后台记忆提取。
+
+        捕获对话、会话配置和 Horizon 的副本；这里只在提交边界判断是否自动运行。
+        例：用户刚确认一种报表格式，主 Agent 已结束；后台拿到这段对话后专门检查是否已记住。
+        快照复用现有统一服务，不另扫项目文件，也不是再调用一次模型总结对话。
+        开关变化很低频：提交前判断一次即可；捕获期间关闭时，放弃这份快照，不再派生任务。
+        已有任务占用整理锁时 submit 会按原规则跳过，不在这里变成失败重试。
+        """
         snapshot = await self._snapshot_service.capture(agent_context)
+        if not is_memory_maintenance_enabled(agent_context):
+            return
         self._extraction_service.submit(agent_context, snapshot)

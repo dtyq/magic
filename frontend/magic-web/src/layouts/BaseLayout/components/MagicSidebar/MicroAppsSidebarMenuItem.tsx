@@ -7,7 +7,7 @@ import { SidebarMenuButton, SidebarMenuItem } from "@/components/shadcn-ui/sideb
 import { RouteName } from "@/routes/constants"
 import { getRoutePath, routesPathMatch } from "@/routes/history/helpers"
 import useNavigate from "@/routes/hooks/useNavigate"
-import { isPrivateDeployment } from "@/utils/env"
+import { isMicroAppEnabled } from "@/services/microAppFeature"
 
 interface MicroAppsSidebarMenuItemProps {
 	collapsed: boolean
@@ -25,7 +25,7 @@ export function MicroAppsSidebarMenuItem({ collapsed }: MicroAppsSidebarMenuItem
 	const navigate = useNavigate()
 	const routeUrl = getRoutePath({ name: RouteName.MicroApps })
 
-	if (isPrivateDeployment()) return null
+	if (!isMicroAppEnabled()) return null
 
 	function handleNavigate(event: MouseEvent<HTMLAnchorElement>) {
 		if (!shouldHandleAnchorClick(event)) return

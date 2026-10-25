@@ -1,5 +1,5 @@
-import { nodePasteRule, Extension } from "@tiptap/core"
-import HardBreak from "@tiptap/extension-hard-break"
+import { nodePasteRule, Extension } from "@/infrastructure/editors/tiptap/core"
+import HardBreak from "@/infrastructure/editors/tiptap/extension-hard-break"
 import { Plugin, PluginKey, TextSelection } from "prosemirror-state"
 import { Fragment, Node as ProseMirrorNode, Schema, Slice } from "prosemirror-model"
 

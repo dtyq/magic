@@ -14,7 +14,7 @@ import { MagicFlow } from "@/MagicFlow/types/flow"
 import { Edge } from "reactflow"
 import { NodeSchema } from "@/MagicFlow/register/node"
 import { useExternalConfig, useExternalRef } from "@/MagicFlow/context/ExternalContext/useExternal"
-import { omit } from "lodash"
+import { omit } from "lodash-es"
 
 type UseFlowCommandProps = {
 	layout?: any

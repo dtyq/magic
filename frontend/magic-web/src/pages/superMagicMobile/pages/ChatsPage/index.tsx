@@ -1,3 +1,7 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { observer } from "mobx-react-lite"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useBoolean, useMemoizedFn } from "ahooks"
@@ -10,11 +14,7 @@ import {
 	useOptionalSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
-import magicToast from "@/components/base/MagicToaster/utils"
 import SuperMagicService from "@/pages/superMagic/services"
-import { roleStore } from "@/pages/superMagic/stores"
-import { resolveProjectModeForCreate } from "@/services/superMagic/DefaultAgentSelectionService"
-import { useChatWorkspace } from "@/pages/superMagic/hooks/useChatWorkspace"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
 import ConversationActionsPopup from "@/pages/superMagicMobile/components/ConversationActionsPopup"
 import type { ActionGroup } from "@/pages/superMagicMobile/components/ActionSheet"
@@ -34,10 +34,9 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 	const { t } = useTranslation(["super", "common", "sidebar"])
 	const location = useLocation()
 	const navigate = useNavigate()
-	const { createProjectInChatWorkspace } = useChatWorkspace()
 	const {
 		items,
-		isLoading,
+		isInitialChatListLoading,
 		searchValue,
 		setSearchValue,
 		isEmpty,
@@ -48,20 +47,8 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		optimisticRemove,
 		optimisticUpdatePin,
 	} = useChatConversationList()
-	const currentRole = roleStore.currentRole
-	const [isCreatingChat, setIsCreatingChat] = useState(false)
-	// 同步门闩：避免按钮状态尚未刷新时发生连点重复创建。
-	const isCreatingChatRef = useRef(false)
-	// 创建成功后会跳转离开列表页，避免卸载后仍回写 loading 状态。
-	const isMountedRef = useRef(true)
 	// Route state is a one-shot bridge from detail deletion back to this list.
 	const lastHandledDeletedProjectIdRef = useRef("")
-
-	useEffect(() => {
-		return () => {
-			isMountedRef.current = false
-		}
-	}, [])
 
 	useEffect(() => {
 		const routeState = location.state as Record<string, unknown> | null
@@ -87,6 +74,22 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		})
 	}, [location.state, navigate, optimisticRemove, reload])
 
+	/** Execute the destructive operation only after the shared confirmation popup accepts it. */
+	const handleDeleteConversation = useMemoizedFn(async (project: ProjectListItem) => {
+		if (!canDeleteRecordingProjects([project.id])) return
+		try {
+			optimisticRemove(project.id)
+			await SuperMagicService.deleteProject(project, {
+				selectedProjectBehavior: "navigate-home",
+			})
+			await reload({ silent: true })
+		} catch (error) {
+			if (handleRecordingProjectDeletionError(error)) return
+			await reload({ silent: true })
+			magicToast.error(t("super:chat.deleteChatDescription"))
+		}
+	})
+
 	/**
 	 * 与对话详情页使用完全相同的参数调用 useProjectListActions，确保操作项（label/行为）严格一致。
 	 * - visibleActionKeys 与详情页 MOBILE_CHAT_DETAIL_ACTION_KEYS 对齐，不展示「移动」「协作者」等列表页不相关的操作
@@ -97,12 +100,14 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		projectActions,
 		projectActionComponents: chatProjectActionComponents,
 		updateCurrentActionItem,
+		openProjectDeleteConfirm,
 	} = useProjectListActions({
 		mode: "chat",
 		chatActionContext: "detail",
 		deleteSelectedProjectBehavior: "navigate-home",
 		visibleActionKeys: MOBILE_CHAT_DETAIL_ACTION_KEYS,
 		onProjectChanged: () => reload({ silent: true }),
+		onDeleteProjectConfirmed: handleDeleteConversation,
 	})
 
 	/** 当前待操作的对话（点击更多时设置，面板关闭时清空） */
@@ -195,52 +200,16 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 	})
 
 	/**
-	 * 新建对话统一走 chat workspace 创建链路，避免列表页和抽屉页出现两套创建口径。
-	 * loading 态与首页右上角新建对话对齐，创建完成前禁用按钮并展示旋转图标。
+	 * Open the shared home composer in chat mode.
+	 * The homepage defaults to task when homeMode is absent, so this entry must
+	 * pass homeMode=chat or the conversation tab would not be selected.
+	 * Project and topic creation still happens on the first send.
 	 */
-	const handleCreateChat = useMemoizedFn(async () => {
-		if (isCreatingChatRef.current) return
-
-		isCreatingChatRef.current = true
-		setIsCreatingChat(true)
-
-		try {
-			const createdProject = await createProjectInChatWorkspace({
-				projectMode: resolveProjectModeForCreate(currentRole),
-			})
-
-			if (!createdProject?.project || !createdProject.topic) {
-				magicToast.error(t("super:hierarchicalWorkspacePopup.createProjectFailed"))
-				return
-			}
-
-			await reload()
-			await SuperMagicService.switchChatProject(createdProject.project, createdProject.topic)
-		} catch {
-			magicToast.error(t("super:hierarchicalWorkspacePopup.createProjectFailed"))
-		} finally {
-			isCreatingChatRef.current = false
-			if (isMountedRef.current) {
-				setIsCreatingChat(false)
-			}
-		}
-	})
-
-	/**
-	 * 左滑删除：先乐观移除（即时 UI 反馈），等待删除 API 完成后再刷新列表。
-	 * 若服务端删除失败，reload 会恢复列表并还原乐观删除。
-	 */
-	const handleDeleteConversation = useMemoizedFn(async (item: ChatConversationListItem) => {
-		try {
-			optimisticRemove(item.id)
-			await SuperMagicService.deleteProject(item.project, {
-				selectedProjectBehavior: "navigate-home",
-			})
-			await reload({ silent: true })
-		} catch {
-			await reload({ silent: true })
-			magicToast.error(t("super:chat.deleteChatDescription"))
-		}
+	const handleCreateChat = useMemoizedFn(() => {
+		navigate({
+			name: RouteName.MobileHome,
+			query: { homeMode: "chat" },
+		})
 	})
 
 	/**
@@ -274,18 +243,17 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		<>
 			<ChatConversationListView
 				items={items}
-				isLoading={isLoading}
+				isInitialChatListLoading={isInitialChatListLoading}
 				searchValue={searchValue}
 				isEmpty={isEmpty}
 				isSearchEmpty={isSearchEmpty}
 				hasMore={hasMore}
 				onSearchValueChange={setSearchValue}
 				onCreateChat={handleCreateChat}
-				isCreateChatLoading={isCreatingChat}
 				onOpenConversation={handleOpenConversation}
 				onMore={handleMoreConversation}
 				onPin={MOBILE_CHAT_PIN_ENABLED ? handlePinConversation : undefined}
-				onDelete={handleDeleteConversation}
+				onDelete={(item) => openProjectDeleteConfirm(item.project)}
 				onRefresh={reload}
 				loadMore={loadMore}
 				title={t("super:chatList.title")}

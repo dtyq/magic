@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 import { Schema, type SchemaSpec } from "prosemirror-model"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import { buildAgentPromptContent } from "@/components/business/ElementInspector/ElementInspectorOverlay"
 import { INSPECTOR_DETAIL_MARKER, INSPECTOR_DETAIL_TYPE } from "../const"
 import { serializeInspectorContent, transformInspectorContent } from "../transform"
+import {
+	resetHtmlScreenshotTargetStore,
+	setHtmlScreenshotMention,
+} from "../../../services/HtmlScreenshotTargetStore"
 import type { InspectedElementInfo } from "@/components/business/ElementInspector/types"
 import schemaConfig from "@/pages/superMagic/components/MessageList/components/Text/components/RichText/schemaConfig"
 
@@ -14,6 +18,16 @@ const fileMention = {
 		file_name: "index.html",
 		file_path: "/index.html",
 		file_extension: "html",
+	},
+}
+
+const screenshotMention = {
+	type: MentionItemType.PROJECT_FILE,
+	data: {
+		file_id: "screenshot-1",
+		file_name: "hero.png",
+		file_path: "/hero.png",
+		file_extension: "png",
 	},
 }
 
@@ -68,6 +82,10 @@ function createInspectedElement(): InspectedElementInfo {
 }
 
 describe("inspector-detail transform", () => {
+	beforeEach(() => {
+		resetHtmlScreenshotTargetStore()
+	})
+
 	it("stores the inspected file mention on the inspector node instead of a standalone paragraph", () => {
 		const content = buildAgentPromptContent(createInspectedElement(), labels.title, {
 			fileId: "file-1",
@@ -171,5 +189,91 @@ describe("inspector-detail transform", () => {
 
 		const schema = new Schema(schemaConfig as SchemaSpec)
 		expect(() => schema.nodeFromJSON(transformed)).not.toThrow()
+	})
+
+	it("keeps element screenshots local and does not serialize them", () => {
+		setHtmlScreenshotMention("element:#hero:1", screenshotMention)
+		const serialized = serializeInspectorContent(
+			{
+				type: "doc",
+				content: [
+					{
+						type: "paragraph",
+						content: [
+							{
+								type: INSPECTOR_DETAIL_TYPE,
+								attrs: {
+									title: labels.title,
+									selector: "#hero",
+									tagName: "section",
+									size: "300 × 120 px",
+									computedStyles: "{}",
+									styleCount: 0,
+									textContent: "Hero",
+									screenshotMention,
+									captureId: "element:#hero:1",
+								},
+							},
+						],
+					},
+				],
+			},
+			labels,
+		)
+
+		expect(JSON.stringify(serialized)).not.toContain("hero.png")
+		expect(
+			serialized.content?.some((node) => node.content?.[0]?.text === 'Text Content: "Hero"'),
+		).toBe(true)
+		expect(JSON.stringify(serialized)).not.toContain(INSPECTOR_DETAIL_MARKER.repeat(9))
+	})
+
+	it("round-trips captureId so the message list can load the local screenshot", () => {
+		const serialized = serializeInspectorContent(
+			{
+				type: "doc",
+				content: [
+					{
+						type: "paragraph",
+						content: [
+							{
+								type: INSPECTOR_DETAIL_TYPE,
+								attrs: {
+									title: labels.title,
+									selector: "#hero",
+									tagName: "section",
+									size: "300 × 120 px",
+									computedStyles: "{}",
+									styleCount: 0,
+									textContent: "Hero",
+									captureId: "element:#hero:1",
+								},
+							},
+						],
+					},
+				],
+			},
+			labels,
+		)
+
+		expect(JSON.stringify(serialized)).not.toContain("hero.png")
+
+		const transformed = transformInspectorContent(serialized)
+		const inspectorNode = transformed.content?.[0]?.content?.[0]
+
+		expect(inspectorNode?.type).toBe(INSPECTOR_DETAIL_TYPE)
+		expect(inspectorNode?.attrs?.captureId).toBe("element:#hero:1")
+		expect(inspectorNode?.attrs?.screenshotMention).toBeFalsy()
+
+		const schema = new Schema(schemaConfig as SchemaSpec)
+		const doc = schema.nodeFromJSON(transformed)
+		let preservedCaptureId: string | null = null
+		doc.descendants((node) => {
+			if (node.type.name === INSPECTOR_DETAIL_TYPE) {
+				preservedCaptureId = node.attrs.captureId
+			}
+			return true
+		})
+		expect(preservedCaptureId).toBe("element:#hero:1")
 	})
 })

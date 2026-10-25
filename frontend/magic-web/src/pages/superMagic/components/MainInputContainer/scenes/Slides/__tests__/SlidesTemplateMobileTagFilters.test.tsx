@@ -20,13 +20,13 @@ const tagGroups: SlidesTemplateTagGroupItem[] = [
 	{
 		id: "purpose-group",
 		code: "purpose_group",
-		name_i18n: { zh_CN: "用途与交付物", en_US: "Purpose" },
+		name: "Purpose",
 		sort: 100,
 		tags: [
 			{
 				id: "annual-report",
 				code: "purpose-annual-report",
-				name_i18n: { zh_CN: "年度报告", en_US: "Annual Report" },
+				name: "Annual Report",
 				sort: 100,
 				template_count: 1,
 				is_official: true,
@@ -34,7 +34,7 @@ const tagGroups: SlidesTemplateTagGroupItem[] = [
 			{
 				id: "long-purpose",
 				code: "purpose-long",
-				name_i18n: { zh_CN: "行业与领域综合方案", en_US: "行业领域方案" },
+				name: "Industry Solution",
 				sort: 90,
 				template_count: 1,
 				is_official: true,
@@ -44,13 +44,13 @@ const tagGroups: SlidesTemplateTagGroupItem[] = [
 	{
 		id: "style-group",
 		code: "style_group",
-		name_i18n: { zh_CN: "视觉风格", en_US: "Style" },
+		name: "Style",
 		sort: 90,
 		tags: [
 			{
 				id: "business-style",
 				code: "style-business",
-				name_i18n: { zh_CN: "商务", en_US: "Business" },
+				name: "Business",
 				sort: 90,
 				template_count: 1,
 				is_official: true,
@@ -148,20 +148,25 @@ describe("SlidesTemplateMobileTagFilters", () => {
 		const panel = screen.getByTestId("slides-template-mobile-all-filters-panel")
 		expect(panel).toBeInTheDocument()
 		expect(panel).toHaveClass("flex", "h-full", "rounded-lg", "bg-card")
-		expect(screen.getByTestId("slides-template-mobile-all-filters-groups")).toHaveClass(
-			"w-[116px]",
-			"py-1",
+		const groupsViewport = screen.getByTestId("slides-template-mobile-all-filters-groups")
+		expect(groupsViewport.closest('[data-slot="scroll-area"]')).toHaveClass(
+			"w-[86px]",
 			"border-r",
 			"bg-card",
 		)
+		expect(groupsViewport).toHaveClass("py-1")
+		expect(groupsViewport).toHaveStyle({ overflowY: "scroll" })
 		expect(screen.getByTestId("slides-template-mobile-all-filters-values")).toHaveClass(
 			"px-3",
 			"py-3",
-			"overflow-y-auto",
 		)
+		expect(screen.getByTestId("slides-template-mobile-all-filters-values")).toHaveStyle({
+			overflowY: "scroll",
+		})
 		expect(screen.getByRole("dialog")).toHaveClass(
 			"h-[648px]",
-			"max-h-[90dvh]",
+			"max-h-[90vh]",
+			"supports-[height:100dvh]:max-h-[90dvh]",
 			"max-w-[375px]",
 			"rounded-t-[14px]",
 			"border",
@@ -284,7 +289,11 @@ describe("SlidesTemplateMobileTagFilters", () => {
 
 		fireEvent.click(screen.getByTestId("slides-template-tag-group-trigger-purpose_group"))
 		expectSystemPopupHeader("Purpose")
-		expect(screen.getByRole("dialog")).toHaveClass("max-h-[85dvh]", "rounded-t-[14px]")
+		expect(screen.getByRole("dialog")).toHaveClass(
+			"max-h-[85vh]",
+			"supports-[height:100dvh]:max-h-[85dvh]",
+			"rounded-t-[14px]",
+		)
 		const option = screen.getByTestId("slides-template-tag-mobile-option-purpose-annual-report")
 		expect(option.parentElement).toHaveClass("grid", "grid-cols-3")
 		expect(option).toHaveClass("h-auto", "min-h-12", "min-w-0", "justify-center", "text-center")

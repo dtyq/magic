@@ -1,4 +1,4 @@
-import { JSONContent } from "@tiptap/react"
+import { JSONContent } from "@/infrastructure/editors/tiptap/react"
 
 export interface TipTapEditorData {
 	// html: string

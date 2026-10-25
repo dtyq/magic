@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { ScheduledTaskApi } from "@/apis"
@@ -8,7 +8,7 @@ import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { ScheduledTask } from "@/types/scheduledTask"
 import mcpTempStorage from "../store/MCPTempStorage"
 import { useScheduledTasksModifyModal } from "./useScheduledTasksModifyModal"
-import { JSONContent } from "@tiptap/react"
+import { prepareScheduledTaskRunNow } from "../utils/runScheduledTaskNow"
 import type { ScheduledTasksModifyModalController } from "../types/ScheduledTasksModify"
 
 interface UseScheduleTaskProps {
@@ -45,8 +45,9 @@ export function useScheduleTaskWithModal({
 	})
 
 	const { state, openCreateModal, openEditModal, content } = modifyModal
+	const isSavingRef = useRef(false)
 
-	const { run, loading } = useRequest(
+	const { run, loading, data, error } = useRequest(
 		(args: ScheduledTask.GetListParams) => ScheduledTaskApi.getScheduledTaskList(args),
 		{
 			manual: true,
@@ -82,26 +83,28 @@ export function useScheduleTaskWithModal({
 	})
 
 	const onSaveTask = useMemoizedFn(
-		(taskData: ScheduledTask.UpdateTask, callback?: () => void) => {
+		async (taskData: ScheduledTask.UpdateTask, callback?: () => void) => {
+			if (isSavingRef.current) return
+
+			isSavingRef.current = true
 			try {
 				if (state.mode === "edit" && state.editingTask) {
-					ScheduledTaskApi.updateScheduledTask(
+					await ScheduledTaskApi.updateScheduledTask(
 						state.editingTask.id as string,
 						taskData,
-					).then(() => {
-						magicToast.success(t("accountPanel.timedTasks.editSuccess"))
-						updateTaskList()
-						callback?.()
-					})
+					)
+					magicToast.success(t("accountPanel.timedTasks.editSuccess"))
 				} else {
-					ScheduledTaskApi.createScheduledTask(taskData).then(() => {
-						magicToast.success(t("accountPanel.timedTasks.createSuccess"))
-						updateTaskList()
-						callback?.()
-					})
+					await ScheduledTaskApi.createScheduledTask(taskData)
+					magicToast.success(t("accountPanel.timedTasks.createSuccess"))
 				}
+
+				updateTaskList()
+				callback?.()
 			} catch (error) {
 				console.error("onSaveTask error:", error)
+			} finally {
+				isSavingRef.current = false
 			}
 		},
 	)
@@ -155,19 +158,22 @@ export function useScheduleTaskWithModal({
 		})
 	})
 
-	const runNow = async (task: ScheduledTask.Task) => {
+	const runNow = useMemoizedFn(async (task: ScheduledTask.Task) => {
 		const detail = await ScheduledTaskApi.getScheduledTaskDetails(task.id)
 		if (!detail) return
 
-		const { message_content } = detail
-		const content = JSON.parse(message_content.content) as JSONContent
+		try {
+			const payload = await prepareScheduledTaskRunNow(detail)
+			if (!payload) {
+				magicToast.error(t("accountPanel.timedTasks.promptRequired"))
+				return
+			}
 
-		pubsub.publish(PubSubEvents.Create_New_Topic, {
-			afterCreate: {
-				content,
-			},
-		})
-	}
+			pubsub.publish(PubSubEvents.Create_New_Topic, payload)
+		} catch (error) {
+			console.error("runNow error:", error)
+		}
+	})
 
 	useMount(() => {
 		if (!isScroll) {
@@ -185,11 +191,15 @@ export function useScheduleTaskWithModal({
 		}
 	}, [updateTaskList])
 
+	// manual: true starts with loading=false, so callers must not treat "no tasks yet" as empty.
+	const hasFetched = data !== undefined || error !== undefined
+
 	return {
 		tasks,
 		total,
 		params,
 		loading,
+		hasFetched,
 		content,
 		state,
 		run,

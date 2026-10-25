@@ -98,7 +98,7 @@ vi.mock("@/pages/superMagic/stores/conversation-round-report", () => ({
 	getConversationRoundReportWriterId: testState.getConversationRoundReportWriterId,
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({ report: testState.report, error: vi.fn() }),
 	},

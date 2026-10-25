@@ -18,7 +18,9 @@ import {
 	isAskUserOtherOption,
 	type AskUserCardData,
 	type AskUserQuestionData,
+	ASK_USER_RECOVERY_FAILED_EVENT,
 } from "@/pages/superMagic/components/MessageList/utils/askUser"
+import { isTerminalAskUserReplyError } from "@/pages/superMagic/components/MessageList/utils/askUserReplyState"
 import {
 	buildAskUserDraftCacheKey,
 	clearAskUserDraftAnswers,
@@ -27,6 +29,7 @@ import {
 	type AskUserDraftAnswers,
 } from "@/pages/superMagic/components/MessageList/utils/askUserDraftCache"
 import { sendAskUserToolReply } from "@/pages/superMagic/services/askUserToolReplyService"
+import { superMagicStore } from "@/pages/superMagic/stores"
 
 function getOtherOption(options: readonly string[]) {
 	return options.find((option) => isAskUserOtherOption(option)) || ""
@@ -98,6 +101,8 @@ export function useAskUserActions({
 	askUser,
 	context,
 	isDisabled,
+	onExpiredInteraction,
+	onTerminalError,
 }: {
 	askUser: AskUserCardData
 	context?: {
@@ -106,6 +111,8 @@ export function useAskUserActions({
 		toolCallId?: string
 	}
 	isDisabled: boolean
+	onExpiredInteraction?: () => void
+	onTerminalError?: () => void
 }) {
 	const { t } = useTranslation("super")
 	const [inputValues, setInputValues] = useState<Record<string, string>>({})
@@ -219,8 +226,23 @@ export function useAskUserActions({
 			detail,
 			isAnswered: responseStatus === ASK_USER_RESPONSE_STATUS.answered,
 		})
-		clearAskUserDraftAnswers(draftCacheKey)
 	})
+
+	useEffect(() => {
+		if (!context?.topicId || !context.toolCallId) return
+		return superMagicStore.subscribe(
+			"message.committed",
+			({ payload }) => {
+				if (
+					payload.message.event === ASK_USER_RECOVERY_FAILED_EVENT &&
+					payload.message.toolCallId === context.toolCallId
+				) {
+					setPendingAction(null)
+				}
+			},
+			{ scope: { topicId: context.topicId } },
+		)
+	}, [context?.topicId, context?.toolCallId])
 
 	useEffect(() => {
 		if (!draftCacheKey) return
@@ -242,12 +264,22 @@ export function useAskUserActions({
 	}, [answer, askUser.status, draftCacheKey, isDisabled])
 
 	const handleSubmit = useMemoizedFn(async () => {
+		const isExpiredAtNow = askUser.expiresAt > 0 && Date.now() / 1000 >= askUser.expiresAt
+		if (isExpiredAtNow) {
+			onExpiredInteraction?.()
+			return
+		}
 		if (isDisabled || pendingAction || !isValid) return
 
 		try {
 			setPendingAction("submit")
 			await sendToolReply(ASK_USER_RESPONSE_STATUS.answered)
 		} catch (error) {
+			if (isTerminalAskUserReplyError(error)) {
+				onTerminalError?.()
+				setPendingAction(null)
+				return
+			}
 			console.error(error)
 			setPendingAction(null)
 			magicToast.error(t("askUser.status.submitFailed"))
@@ -255,12 +287,22 @@ export function useAskUserActions({
 	})
 
 	const handleSkip = useMemoizedFn(async () => {
+		const isExpiredAtNow = askUser.expiresAt > 0 && Date.now() / 1000 >= askUser.expiresAt
+		if (isExpiredAtNow) {
+			onExpiredInteraction?.()
+			return
+		}
 		if (isDisabled || pendingAction) return
 
 		try {
 			setPendingAction("skip")
 			await sendToolReply(ASK_USER_RESPONSE_STATUS.skipped)
 		} catch (error) {
+			if (isTerminalAskUserReplyError(error)) {
+				onTerminalError?.()
+				setPendingAction(null)
+				return
+			}
 			console.error(error)
 			setPendingAction(null)
 			magicToast.error(t("askUser.status.submitFailed"))

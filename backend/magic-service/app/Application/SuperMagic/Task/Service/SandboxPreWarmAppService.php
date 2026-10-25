@@ -15,6 +15,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\HiddenType;
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
+use App\Domain\SuperMagic\Project\Event\ProjectDeletedEvent;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
 use App\Domain\SuperMagic\Task\Service\AgentDomainService;
 use App\Domain\SuperMagic\Task\Service\SandboxKeepAliveDomainService;
@@ -26,7 +27,9 @@ use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -50,7 +53,8 @@ class SandboxPreWarmAppService extends AbstractAppService
         protected ProjectAppService $projectAppService,
         protected TopicAppService $topicAppService,
         protected AgentAppService $agentAppService,
-        LoggerFactory $loggerFactory
+        LoggerFactory $loggerFactory,
+        protected EventDispatcherInterface $eventDispatcher,
     ) {
         $this->logger = $loggerFactory->get('sandbox-pre-warm');
     }
@@ -100,7 +104,7 @@ class SandboxPreWarmAppService extends AbstractAppService
         }
 
         // 创建 DataIsolation 对象
-        $dataIsolation = DataIsolation::simpleMake(
+        $dataIsolation = $this->createContactDataIsolationByUser(
             $userAuthorization->getOrganizationCode(),
             $userId
         );
@@ -347,7 +351,7 @@ class SandboxPreWarmAppService extends AbstractAppService
         ));
 
         // 创建 DataIsolation 对象
-        $dataIsolation = DataIsolation::simpleMake(
+        $dataIsolation = $this->createContactDataIsolationByUser(
             $userAuthorization->getOrganizationCode(),
             $userId
         );
@@ -458,7 +462,7 @@ class SandboxPreWarmAppService extends AbstractAppService
         ));
 
         // 创建 DataIsolation
-        $dataIsolation = DataIsolation::simpleMake(
+        $dataIsolation = $this->createContactDataIsolationByUser(
             $userAuthorization->getOrganizationCode(),
             $userId
         );
@@ -521,7 +525,12 @@ class SandboxPreWarmAppService extends AbstractAppService
     protected function cleanOrphanedHiddenProject(ProjectEntity $project, string $userId): void
     {
         try {
-            $this->projectDomainService->deleteProject($project->getId(), $userId);
+            if ($this->projectDomainService->deleteProject($project->getId(), $userId)) {
+                $authorization = (new MagicUserAuthorization())
+                    ->setId($userId)
+                    ->setOrganizationCode($project->getUserOrganizationCode());
+                $this->eventDispatcher->dispatch(new ProjectDeletedEvent($project, $authorization));
+            }
             $this->logger->warning(sprintf(
                 'Cleaned up orphaned hidden project after topic creation failure, projectId=%d',
                 $project->getId()

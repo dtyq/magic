@@ -1,6 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { type ChangeEventHandler, memo, useLayoutEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IconSearch, IconX } from "@tabler/icons-react"
 import {
 	CollaborationProjectCreator,
 	CollaborationProjectType,
@@ -8,19 +7,10 @@ import {
 	Workspace,
 	CollaborationJoinMethod,
 } from "@/pages/superMagic/pages/Workspace/types"
-import { SuperMagicApi } from "@/apis"
 import SuperMagicService from "@/pages/superMagic/services"
-import { useMemoizedFn } from "ahooks"
-import MagicIcon from "@/components/base/MagicIcon"
-import { Input } from "@/components/shadcn-ui/input"
+import { useDebounce, useMemoizedFn } from "ahooks"
 import { CreatorFilter, SortSelector, ViewToggle } from "./components"
-import ProjectItem, {
-	SortType,
-	ViewMode,
-} from "../../../EmptyWorkspacePanel/components/ProjectItem"
-import MagicEmpty from "@/components/base/MagicEmpty"
-import MagicSpin from "@/components/base/MagicSpin"
-import useSearchValue from "@/pages/superMagic/pages/Assistant/components/TopicPanel/hooks/useSearchValue"
+import { SortType, ViewMode } from "../../../EmptyWorkspacePanel/components/ProjectItem"
 import { Tabs } from "antd"
 import useCollaboratorUpdatePanel from "../../../WithCollaborators/hooks/useCollaboratorUpdatePanel"
 import useAddCollaborationToWorkspaceModal from "../AddCollaborationToWorkspaceModal/hooks/useAddCollaborationToWorkspaceModal"
@@ -30,11 +20,17 @@ import { useViewTogglePersistValue } from "./components/ViewToggle/hooks"
 import routeManageService from "@/pages/superMagic/services/routeManageService"
 import { userStore } from "@/models/user"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { Dialog, DialogContent } from "@/components/shadcn-ui/dialog"
-import { MagicModalProps } from "@/components/base/MagicModal"
-import { cn } from "@/lib/utils"
 
-interface CollaborationProjectsPanelProps extends MagicModalProps {
+import { ProjectsPanelToolbar } from "../ProjectsPanelToolbar"
+import { ProjectsPanelList } from "../ProjectsPanel"
+import { Button } from "@/components/shadcn-ui/button"
+import { useCollaborationProjects } from "./useCollaborationProjects"
+
+interface CollaborationProjectsContentProps {
+	open: boolean
+	location: string
+	onSearchValueChange: ChangeEventHandler<HTMLInputElement>
+	searchValue: string
 	onClose?: () => void
 	onCollaborationProjectClick: (project: CollaborationProjectListItem) => void
 	workspaces: Workspace[]
@@ -43,25 +39,11 @@ interface CollaborationProjectsPanelProps extends MagicModalProps {
 	fetchWorkspaces: (params: FetchWorkspacesParams) => void
 }
 
-const gridClassName = cn(
-	"grid gap-2.5",
-	"[grid-template-columns:repeat(6,minmax(0,1fr))]",
-	"max-[1750px]:[grid-template-columns:repeat(5,minmax(0,1fr))]",
-	"max-[1500px]:[grid-template-columns:repeat(4,minmax(0,1fr))]",
-	"max-[1250px]:[grid-template-columns:repeat(3,minmax(0,1fr))]",
-	"max-[1000px]:[grid-template-columns:repeat(2,minmax(0,1fr))]",
-)
-
-const contentClassName = cn(
-	"h-[70vh] overflow-y-auto overflow-x-hidden rounded-b-[12px] bg-gray-50 px-5 pb-5 dark:bg-white/5",
-	"[&::-webkit-scrollbar]:w-[6px]",
-	"[&::-webkit-scrollbar-thumb]:rounded-[4px] [&::-webkit-scrollbar-thumb]:bg-border",
-	"[&::-webkit-scrollbar-track]:bg-transparent",
-)
-
 interface ProjectListProps {
-	projects: CollaborationProjectListItem[]
-	loading: boolean
+	location: string
+	searchValue: string
+	onSearchValueChange: ChangeEventHandler<HTMLInputElement>
+	query: ReturnType<typeof useCollaborationProjects>
 	tabType: CollaborationProjectType
 	currentTab: CollaborationProjectType
 	joinType: CollaborationJoinMethod
@@ -77,12 +59,13 @@ interface ProjectListProps {
 	onAddWorkspaceShortcut: (project: CollaborationProjectListItem) => void
 	onCancelWorkspaceShortcut: (projectId: string, workspaceId?: string) => void
 	onShortcutNavigateToWorkspace: (project: CollaborationProjectListItem) => void
-	refetchProjects: () => void
 }
 
-const ProjectList = memo(function ProjectList({
-	projects,
-	loading,
+function SharedProjectList({
+	location,
+	searchValue,
+	onSearchValueChange,
+	query,
 	tabType,
 	currentTab,
 	joinType,
@@ -93,113 +76,72 @@ const ProjectList = memo(function ProjectList({
 	onSortTypeChange,
 	onViewModeChange,
 	onProjectClick,
-	onPinProject,
-	onAddCollaborators,
-	onAddWorkspaceShortcut,
-	onCancelWorkspaceShortcut,
-	onShortcutNavigateToWorkspace,
-	refetchProjects,
+	...actions
 }: ProjectListProps) {
 	const { t } = useTranslation("super")
-
 	return (
-		<MagicSpin section spinning={loading}>
-			<div data-testid="shared-workspace-dialog-project-list" data-tab-type={tabType}>
-				{/* Control bar */}
-				<div className="bg-gray-50 px-5 pb-2.5 pt-5 dark:bg-white/5">
-					<div className="flex min-w-0 flex-wrap items-center justify-between gap-2.5">
-						<div className="shrink-0 text-sm font-semibold leading-5 text-foreground/80 opacity-80">
-							{t("workspace.projects")} · {projects.length}
-						</div>
-						<div className="flex min-w-0 flex-wrap items-center justify-end gap-2.5">
-							{tabType === CollaborationProjectType.Received &&
-								currentTab === CollaborationProjectType.Received &&
-								joinType === CollaborationJoinMethod.Internal && (
-									<CreatorFilter
-										value={creatorFilter}
-										onChange={onCreatorFilterChange}
-									/>
-								)}
-							<SortSelector value={sortType} onChange={onSortTypeChange} />
-							<ViewToggle value={viewMode} onChange={onViewModeChange} />
-						</div>
+		<ProjectsPanelList
+			projects={query.projects}
+			loading={query.loading}
+			total={query.total}
+			error={
+				query.failed && (
+					<div role="alert" className="flex items-center justify-center gap-2 py-4">
+						<span>{t("sidebarPanels.projectsLoadFailed")}</span>
+						<Button variant="outline" onClick={() => void query.retry()}>
+							{t("sidebarPanels.retry")}
+						</Button>
 					</div>
-				</div>
-
-				{/* Project list */}
-				<div className={contentClassName}>
-					<div
-						className={gridClassName}
-						data-testid="shared-workspace-dialog-project-list-layout"
-						data-view-mode={viewMode}
-					>
-						{projects.map((item, index) => {
-							const projectItemKey = [
-								item.id,
-								item.updated_at,
-								item.last_active_at || "",
-								item.is_pinned ? "1" : "0",
-								item.bind_workspace_id || "",
-								viewMode,
-							].join("-")
-
-							return (
-								<div
-									key={projectItemKey}
-									data-testid="shared-workspace-dialog-project-item"
-									data-tab-type={tabType}
-									data-project-id={item.id}
-									data-project-name={
-										item.project_name || t("project.unnamedProject")
-									}
-								>
-									<ProjectItem<CollaborationProjectListItem>
-										index={index}
-										project={item}
-										onClick={onProjectClick}
-										onPinProject={onPinProject}
-										onAddCollaborators={onAddCollaborators}
-										onAddWorkspaceShortcut={onAddWorkspaceShortcut}
-										onCancelWorkspaceShortcut={onCancelWorkspaceShortcut}
-										onShortcutNavigateToWorkspace={
-											onShortcutNavigateToWorkspace
-										}
-										refetchProjects={refetchProjects}
-										viewMode={viewMode}
-										sortType={sortType}
-										inCollaborationPanel
-									/>
-								</div>
-							)
-						})}
-					</div>
-					{projects.length <= 0 && (
-						<div
-							data-testid="shared-workspace-dialog-project-empty"
-							data-tab-type={tabType}
+				)
+			}
+			footer={
+				!query.failed &&
+				query.hasMore && (
+					<div className="flex justify-center py-4">
+						<Button
+							variant="outline"
+							disabled={query.loading}
+							onClick={() => void query.loadMore()}
 						>
-							<MagicEmpty description={t("project.noProjects")} />
-						</div>
-					)}
-				</div>
-			</div>
-		</MagicSpin>
+							{t("sidebarPanels.loadMore")}
+						</Button>
+					</div>
+				)
+			}
+			tabType={tabType}
+			viewMode={viewMode}
+			toolbar={
+				<ProjectsPanelToolbar
+					location={location}
+					total={query.total}
+					searchValue={searchValue}
+					onSearchValueChange={onSearchValueChange}
+					viewToggle={<ViewToggle value={viewMode} onChange={onViewModeChange} />}
+				>
+					{tabType === CollaborationProjectType.Received &&
+						currentTab === CollaborationProjectType.Received &&
+						joinType === CollaborationJoinMethod.Internal && (
+							<CreatorFilter value={creatorFilter} onChange={onCreatorFilterChange} />
+						)}
+					<SortSelector value={sortType} onChange={onSortTypeChange} compact />
+				</ProjectsPanelToolbar>
+			}
+			itemProps={{
+				...actions,
+				onClick: onProjectClick,
+				sortType,
+				inCollaborationPanel: true,
+			}}
+		/>
 	)
-})
+}
 
-function CollaborationProjectsPanel(props: CollaborationProjectsPanelProps) {
+export function CollaborationProjectsContent(props: CollaborationProjectsContentProps) {
 	const { workspaces, fetchWorkspaces, selectedWorkspace, fetchProjects } = props
 	const { t } = useTranslation("super")
 	const { isPersonalOrganization } = userStore.user
 
-	const { searchValue, onSearchValueChange, debouncedSearchValue, setSearchValue } =
-		useSearchValue({ debounceWait: 500 })
-
-	// Per-tab cached data to avoid stale content when switching tabs
-	const [receivedProjects, setReceivedProjects] = useState<CollaborationProjectListItem[]>([])
-	const [sharedProjects, setSharedProjects] = useState<CollaborationProjectListItem[]>([])
-	const [loadingReceived, setLoadingReceived] = useState(false)
-	const [loadingShared, setLoadingShared] = useState(false)
+	const debouncedSearchValue = useDebounce(props.searchValue, { wait: 500 })
 
 	const [currentTab, setCurrentTab] = useState<CollaborationProjectType>(
 		CollaborationProjectType.Received,
@@ -212,6 +154,7 @@ function CollaborationProjectsPanel(props: CollaborationProjectsPanelProps) {
 	// Control bar states
 	const { viewMode, setViewMode } = useViewTogglePersistValue({
 		localStorageKey: "collaboration_projects_panel_view_toggle_value",
+		defaultValue: ViewMode.LIST,
 	})
 	const [sortType, setSortType] = useState<SortType>(SortType.PROJECT_UPDATE_TIME)
 	const [creatorFilter, setCreatorFilter] = useState<CollaborationProjectCreator[]>([])
@@ -225,71 +168,38 @@ function CollaborationProjectsPanel(props: CollaborationProjectsPanelProps) {
 	const handleSortTypeChange = useMemoizedFn((value: SortType) => setSortType(value))
 	const handleViewModeChange = useMemoizedFn((value: ViewMode) => setViewMode(value))
 
-	const fetchForTab = useMemoizedFn(
-		(
-			tab: CollaborationProjectType,
-			{ resetWhenError = false }: { resetWhenError?: boolean } = {},
-		) => {
-			const setLoading =
-				tab === CollaborationProjectType.Received ? setLoadingReceived : setLoadingShared
-			const setProjects =
-				tab === CollaborationProjectType.Received ? setReceivedProjects : setSharedProjects
-
-			setLoading(true)
-			SuperMagicApi.getCollaborationProjects({
-				page: 1,
-				page_size: 99,
-				name: debouncedSearchValue,
-				type: tab,
-				sort_field: sortType,
-				sort_direction: "desc",
-				creator_user_ids:
-					tab === CollaborationProjectType.Received &&
-					joinType === CollaborationJoinMethod.Internal &&
-					creatorFilter.length > 0
-						? creatorFilter.map((item) => item.user_id)
-						: undefined,
-				join_method: joinType,
-			})
-				.then((res) => setProjects(res?.list || []))
-				.catch(() => {
-					if (resetWhenError) setProjects([])
-				})
-				.finally(() => setLoading(false))
-		},
-	)
-
-	// Refetch current tab — used by action callbacks (pin, shortcut, etc.)
-	const refetchProjects = useMemoizedFn(
-		({ resetWhenError = false }: { resetWhenError?: boolean } = {}) => {
-			fetchForTab(currentTab, { resetWhenError })
-		},
-	)
+	// Per-tab cached data to avoid stale content when switching tabs
+	// Refresh all tabs when filter/sort params change
+	const queryOptions = {
+		open: props.open,
+		name: debouncedSearchValue,
+		sortType,
+		joinType,
+		creatorFilter,
+	}
+	// 打开和参数变化共用一次预取；动作后的刷新仍由原回调显式触发。
+	const received = useCollaborationProjects({
+		...queryOptions,
+		tab: CollaborationProjectType.Received,
+	})
+	const shared = useCollaborationProjects({
+		...queryOptions,
+		tab: CollaborationProjectType.Shared,
+	})
 
 	// Refetch both tabs — used after actions that affect all tabs
 	const refetchAllTabs = useMemoizedFn(() => {
-		fetchForTab(CollaborationProjectType.Received)
-		fetchForTab(CollaborationProjectType.Shared)
+		void received.refresh()
+		void shared.refresh()
 	})
 
-	useEffect(() => {
-		if (props.open) {
-			setCurrentTab(CollaborationProjectType.Received)
-			fetchForTab(CollaborationProjectType.Received, { resetWhenError: true })
-			fetchForTab(CollaborationProjectType.Shared, { resetWhenError: true })
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+	useLayoutEffect(() => {
+		if (props.open) setCurrentTab(CollaborationProjectType.Received)
 	}, [props.open])
 
-	// Refresh all tabs when filter/sort params change
-	useEffect(() => {
-		if (!props.open) return
-		refetchAllTabs()
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [debouncedSearchValue, creatorFilter, sortType])
-
 	const handleClose = useMemoizedFn(() => {
-		setSearchValue("")
+		received.cancel()
+		shared.cancel()
 		setCurrentTab(CollaborationProjectType.Received)
 		handleSortTypeChange(SortType.PROJECT_UPDATE_TIME)
 		setCreatorFilter([])
@@ -332,7 +242,11 @@ function CollaborationProjectsPanel(props: CollaborationProjectsPanelProps) {
 
 	const { openManageModal, CollaboratorUpdatePanel } = useCollaboratorUpdatePanel({
 		selectedProject: selectedCollaborationProject,
-		onClose: () => setSelectedCollaborationProject(null),
+		onClose: () => {
+			setSelectedCollaborationProject(null)
+			// 与最近项目保持一致，成员或共享设置退出后重新取得列表及可用操作。
+			refetchAllTabs()
+		},
 	})
 
 	const onAddCollaborators = useMemoizedFn((project: CollaborationProjectListItem) => {
@@ -390,6 +304,9 @@ function CollaborationProjectsPanel(props: CollaborationProjectsPanelProps) {
 	// Shared props for both ProjectList instances
 	const sharedListProps = useMemo(
 		() => ({
+			location: props.location,
+			searchValue: props.searchValue,
+			onSearchValueChange: props.onSearchValueChange,
 			currentTab,
 			joinType,
 			creatorFilter,
@@ -404,139 +321,69 @@ function CollaborationProjectsPanel(props: CollaborationProjectsPanelProps) {
 			onAddWorkspaceShortcut,
 			onCancelWorkspaceShortcut: cancelWorkspaceShortcut,
 			onShortcutNavigateToWorkspace: shortcutNavigateToWorkspace,
-			refetchProjects,
 		}),
 		// Only re-compute when stable identities change — all handlers are memoized
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[currentTab, joinType, creatorFilter, sortType, viewMode],
-	)
-
-	// Stable per-tab fetch callbacks for ProjectList's refetchProjects prop
-	const refetchReceived = useCallback(
-		() => fetchForTab(CollaborationProjectType.Received),
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[],
-	)
-	const refetchShared = useCallback(
-		() => fetchForTab(CollaborationProjectType.Shared),
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[],
+		[
+			currentTab,
+			joinType,
+			creatorFilter,
+			sortType,
+			viewMode,
+			props.location,
+			props.searchValue,
+			props.onSearchValueChange,
+		],
 	)
 
 	return (
-		<Dialog open={props.open}>
-			{props.open && (
-				<DialogContent
-					showCloseButton={false}
-					className="!w-[80vw] !max-w-[2000px] gap-0 overflow-hidden p-0"
-					onInteractOutside={(e) => e.preventDefault()}
-					onEscapeKeyDown={handleClose}
-					data-testid="shared-workspace-dialog"
-				>
-					{/* Dialog header */}
-					<div
-						className="flex items-center justify-between gap-2.5 px-5 pb-0 pt-5"
-						data-testid="shared-workspace-dialog-header"
-					>
-						<div className="flex min-w-0 flex-col gap-1">
-							<div
-								className="overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold leading-[22px] text-foreground/80"
-								data-testid="shared-workspace-dialog-title"
-							>
-								{t("workspace.collaborationProjectsTitle")}
-							</div>
-							<div
-								className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-normal leading-4 text-foreground/35"
-								data-testid="shared-workspace-dialog-description"
-							>
-								{t("workspace.collaborationProjectsDesc")}
-							</div>
-						</div>
-						<div
-							className="flex items-center gap-2.5"
-							data-testid="shared-workspace-dialog-actions"
-						>
-							<div
-								className="relative w-[220px]"
-								data-testid="shared-workspace-dialog-search"
-							>
-								<IconSearch
-									size={16}
-									className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-								/>
-								<Input
-									className="bg-fill pl-9"
-									placeholder={t("project.searchProject")}
-									onChange={onSearchValueChange}
-									value={searchValue}
-									data-testid="shared-workspace-dialog-search-input"
-								/>
-							</div>
-							<div
-								className="flex cursor-pointer items-center justify-center rounded-[6px] p-1.5 hover:bg-fill active:bg-fill-secondary"
-								data-testid="shared-workspace-dialog-close-button"
-								onClick={(e) => {
-									e.stopPropagation()
-									handleClose()
-								}}
-							>
-								<MagicIcon component={IconX} size={24} />
-							</div>
-						</div>
-					</div>
-
-					{/* Tabs — both panes stay mounted to avoid remount lag on switch */}
-					<Tabs
-						activeKey={currentTab}
-						onChange={(key) => setCurrentTab(key as CollaborationProjectType)}
-						className="[&_.magic-tabs-nav]:!mb-0 [&_.magic-tabs-nav]:!pl-5"
-						destroyOnHidden={false}
-						data-testid="shared-workspace-dialog-tabs"
-						items={[
-							{
-								label: (
-									<span data-testid="shared-workspace-dialog-tab-received">
-										{joinType === CollaborationJoinMethod.Internal
-											? t("workspace.teamSharedWithMe")
-											: t("workspace.externalSharedWithMe")}
-									</span>
-								),
-								key: CollaborationProjectType.Received,
-								children: (
-									<ProjectList
-										{...sharedListProps}
-										tabType={CollaborationProjectType.Received}
-										projects={receivedProjects}
-										loading={loadingReceived}
-										refetchProjects={refetchReceived}
-									/>
-								),
-							},
-							{
-								label: (
-									<span data-testid="shared-workspace-dialog-tab-shared">
-										{t("workspace.sharedByMe")}
-									</span>
-								),
-								key: CollaborationProjectType.Shared,
-								children: (
-									<ProjectList
-										{...sharedListProps}
-										tabType={CollaborationProjectType.Shared}
-										projects={sharedProjects}
-										loading={loadingShared}
-										refetchProjects={refetchShared}
-									/>
-								),
-							},
-						]}
-					/>
-					{CollaboratorUpdatePanel}
-					{AddCollaborationToWorkspaceModal}
-				</DialogContent>
-			)}
-		</Dialog>
+		<>
+			{/* Tabs — both panes stay mounted to avoid remount lag on switch */}
+			<Tabs
+				activeKey={currentTab}
+				onChange={(key) => setCurrentTab(key as CollaborationProjectType)}
+				className="min-h-0 flex-1 [&_.magic-tabs-content-holder]:flex [&_.magic-tabs-content-holder]:min-h-0 [&_.magic-tabs-content-holder]:flex-1 [&_.magic-tabs-content]:flex [&_.magic-tabs-content]:min-h-0 [&_.magic-tabs-content]:flex-1 [&_.magic-tabs-nav]:!mb-0 [&_.magic-tabs-nav]:shrink-0 [&_.magic-tabs-nav]:!pl-5 [&_.magic-tabs-tabpane-active]:flex [&_.magic-tabs-tabpane-active]:min-h-0 [&_.magic-tabs-tabpane-active]:flex-1 [&_.magic-tabs-tabpane-active]:flex-col"
+				destroyOnHidden={false}
+				data-testid="shared-workspace-dialog-tabs"
+				items={[
+					{
+						label: (
+							<span data-testid="shared-workspace-dialog-tab-received">
+								{joinType === CollaborationJoinMethod.Internal
+									? t("workspace.teamSharedWithMe")
+									: t("workspace.externalSharedWithMe")}
+							</span>
+						),
+						key: CollaborationProjectType.Received,
+						children: (
+							<SharedProjectList
+								{...sharedListProps}
+								tabType={CollaborationProjectType.Received}
+								query={received}
+							/>
+						),
+					},
+					{
+						label: (
+							<span data-testid="shared-workspace-dialog-tab-shared">
+								{t("workspace.sharedByMe")}
+							</span>
+						),
+						key: CollaborationProjectType.Shared,
+						children: (
+							<SharedProjectList
+								{...sharedListProps}
+								tabType={CollaborationProjectType.Shared}
+								query={shared}
+							/>
+						),
+					},
+				]}
+			/>
+			{CollaboratorUpdatePanel}
+			{AddCollaborationToWorkspaceModal}
+		</>
 	)
 }
 
-export default memo(CollaborationProjectsPanel)
+export default memo(CollaborationProjectsContent)

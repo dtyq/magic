@@ -11,6 +11,8 @@ enum MentionType: string
 {
     case PROJECT_DIRECTORY = 'project_directory';
     case PROJECT_FILE = 'project_file';
+    case USER_FILE = 'user_file';
+    case USER_DIRECTORY = 'user_directory';
     case MEMORY_DIRECTORY = 'memory_directory';
     case MEMORY_FILE = 'memory_file';
 
@@ -25,7 +27,9 @@ enum MentionType: string
     case UPLOAD_FILE = 'upload_file';
 
     case AGENT = 'agent';
+    case ASSISTANT = 'assistant';
     case MCP = 'mcp';
+    case MICRO_APP = 'micro_app';
     case TOOL = 'tool';
     case SKILL = 'skill';
 

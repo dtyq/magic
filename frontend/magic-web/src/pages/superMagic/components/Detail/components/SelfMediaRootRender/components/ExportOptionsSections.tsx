@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { Label } from "@/components/shadcn-ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/shadcn-ui/radio-group"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SelfMediaExportFormat } from "../utils/exportImageFormat"
 
 type ExportType = "cardsZip" | "longImage"

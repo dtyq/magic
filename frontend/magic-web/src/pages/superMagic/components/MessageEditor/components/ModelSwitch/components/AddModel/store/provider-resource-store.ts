@@ -1,5 +1,7 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import { OrgAiModelProviderApi } from "@/apis"
+import type { ServiceProviderCategory } from "@/apis/modules/org-ai-model-provider"
+import type { ModelListKey } from "../../../types"
 import type { ProviderTemplate, ProviderTemplateOption, ServiceProvider } from "../types"
 import {
 	configToServiceProvider,
@@ -16,16 +18,16 @@ export class ProviderResourceStore {
 	isLoadingTemplates = false
 
 	/** Service providers indexed by category for cross-tab caching */
-	serviceProvidersCache: Partial<Record<"llm" | "vlm", ServiceProvider[]>> = {}
-	providerTemplatesCache: Partial<Record<"llm" | "vlm", ProviderTemplateOption[]>> = {}
-	activeProviderCategory: "llm" | "vlm" | null = null
-	activeTemplateCategory: "llm" | "vlm" | null = null
+	serviceProvidersCache: Partial<Record<ServiceProviderCategory, ServiceProvider[]>> = {}
+	providerTemplatesCache: Partial<Record<ServiceProviderCategory, ProviderTemplateOption[]>> = {}
+	activeProviderCategory: ServiceProviderCategory | null = null
+	activeTemplateCategory: ServiceProviderCategory | null = null
 
 	constructor() {
 		makeAutoObservable(this)
 	}
 
-	private getProviderTemplateNameMap(category: "llm" | "vlm"): Map<string, string> {
+	private getProviderTemplateNameMap(category: ServiceProviderCategory): Map<string, string> {
 		return new Map(
 			(this.providerTemplatesCache[category] ?? []).map((providerTemplate) => [
 				providerTemplate.providerCode,
@@ -34,7 +36,7 @@ export class ProviderResourceStore {
 		)
 	}
 
-	private syncCachedProvidersWithTemplates(category: "llm" | "vlm") {
+	private syncCachedProvidersWithTemplates(category: ServiceProviderCategory) {
 		const cachedProviders = this.serviceProvidersCache[category]
 		if (!cachedProviders) return
 		const providerTemplateNameMap = this.getProviderTemplateNameMap(category)
@@ -51,7 +53,7 @@ export class ProviderResourceStore {
 		if (this.activeProviderCategory === category) this.serviceProviders = nextProviders
 	}
 
-	async loadProviders(category: "llm" | "vlm") {
+	async loadProviders(category: ServiceProviderCategory) {
 		this.isLoadingProviders = true
 		try {
 			const list = await OrgAiModelProviderApi.getOrgAiModelProviderList(category)
@@ -78,7 +80,7 @@ export class ProviderResourceStore {
 		}
 	}
 
-	async loadTemplates(category: "llm" | "vlm") {
+	async loadTemplates(category: ServiceProviderCategory) {
 		this.isLoadingTemplates = true
 		try {
 			const list = await OrgAiModelProviderApi.getNonOfficialProviderTemplates(category)
@@ -105,14 +107,14 @@ export class ProviderResourceStore {
 		}
 	}
 
-	async loadProvidersForModelKey(modelKey: "models" | "image_models"): Promise<void> {
-		const category = modelKey === "image_models" ? "vlm" : "llm"
+	async loadProvidersForModelKey(modelKey: ModelListKey): Promise<void> {
+		const category = this.getCategoryByModelKey(modelKey)
 		if (this.serviceProvidersCache[category] !== undefined) return
 		await this.loadProviders(category)
 	}
 
-	async loadTemplatesForModelKey(modelKey: "models" | "image_models"): Promise<void> {
-		const category = modelKey === "image_models" ? "vlm" : "llm"
+	async loadTemplatesForModelKey(modelKey: ModelListKey): Promise<void> {
+		const category = this.getCategoryByModelKey(modelKey)
 		if (this.providerTemplatesCache[category] !== undefined) {
 			runInAction(() => {
 				this.providerTemplates = this.providerTemplatesCache[category] ?? []
@@ -123,14 +125,20 @@ export class ProviderResourceStore {
 		await this.loadTemplates(category)
 	}
 
-	getProvidersByModelKey(modelKey: "models" | "image_models"): ServiceProvider[] {
-		const category = modelKey === "image_models" ? "vlm" : "llm"
+	getProvidersByModelKey(modelKey: ModelListKey): ServiceProvider[] {
+		const category = this.getCategoryByModelKey(modelKey)
 		return this.serviceProvidersCache[category] ?? []
 	}
 
-	getTemplatesByModelKey(modelKey: "models" | "image_models"): ProviderTemplateOption[] {
-		const category = modelKey === "image_models" ? "vlm" : "llm"
+	getTemplatesByModelKey(modelKey: ModelListKey): ProviderTemplateOption[] {
+		const category = this.getCategoryByModelKey(modelKey)
 		return this.providerTemplatesCache[category] ?? []
+	}
+
+	private getCategoryByModelKey(modelKey: ModelListKey): ServiceProviderCategory {
+		if (modelKey === "image_models") return "vlm"
+		if (modelKey === "video_models") return "vgm"
+		return "llm"
 	}
 
 	addProvider(provider: ServiceProvider) {

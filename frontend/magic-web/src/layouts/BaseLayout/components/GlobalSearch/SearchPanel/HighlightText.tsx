@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react"
-import { createStyles } from "antd-style"
 import { useMagicSearchStore } from "../store"
 
 interface HighlightTextProps {
@@ -7,18 +6,8 @@ interface HighlightTextProps {
 	style?: CSSProperties
 }
 
-const useStyles = createStyles(({ token }) => {
-	return {
-		mark: {
-			fontWeight: "bold",
-			color: token.magicColorScales.brand[5],
-		},
-	}
-})
-
 const HighlightText = ({ text, style }: HighlightTextProps) => {
 	const keyword = useMagicSearchStore((store) => store.searchWord)
-	const { styles } = useStyles()
 
 	if (!keyword) return <span>{text}</span>
 
@@ -27,7 +16,7 @@ const HighlightText = ({ text, style }: HighlightTextProps) => {
 		const isChecked = part.toLowerCase() === keyword.toLowerCase()
 		const key = `${index}_${part}`
 		return isChecked ? (
-			<span key={key} className={styles.mark}>
+			<span key={key} className="font-bold text-primary">
 				{part}
 			</span>
 		) : (

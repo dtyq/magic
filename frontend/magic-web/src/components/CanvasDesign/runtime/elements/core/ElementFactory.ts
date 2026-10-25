@@ -1,5 +1,10 @@
-import type { LayerElement, ElementType } from "../../document/types"
+import type {
+	LayerElement,
+	ElementType,
+	StoryboardElement as StoryboardElementData,
+} from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
+import { normalizeStoryboardShot } from "../../document/storyboardMigration"
 import { BaseElement, BASE_ELEMENT_DEFAULTS } from "./BaseElement"
 // import { RectangleElement } from "../shape/RectangleElement"
 // import { EllipseElement } from "../shape/EllipseElement"
@@ -8,7 +13,10 @@ import { BaseElement, BASE_ELEMENT_DEFAULTS } from "./BaseElement"
 import { TextElement } from "../text/TextElement"
 import { ImageElement } from "../image/ImageElement"
 import { VideoElement } from "../video/VideoElement"
-// import { GroupElement } from "../frame/GroupElement"
+import { AudioElement } from "../audio/AudioElement"
+import { StoryboardElement } from "../storyboard/StoryboardElement"
+import { VideoEditElement } from "../video-edit/VideoEditElement"
+import { GroupElement } from "../frame/GroupElement"
 import { FrameElement } from "../frame/FrameElement"
 import type { Canvas } from "../../core/Canvas"
 
@@ -67,14 +75,20 @@ export class ElementFactory {
 			case ElementTypeEnum.Video:
 				return new VideoElement(data, canvas)
 
-			// case ElementTypeEnum.Group:
-			// 	return new GroupElement(
-			// 		data,
-			// 		eventEmitter,
-			// 		methods,
-			// 		elementManager,
-			// 		selectionManager,
-			// 	)
+			case ElementTypeEnum.Audio:
+				return new AudioElement(data, canvas)
+
+			case ElementTypeEnum.Storyboard:
+				return new StoryboardElement(normalizeStoryboardData(data), canvas)
+
+			case ElementTypeEnum.VideoEdit:
+				return new VideoEditElement(data, canvas)
+
+			case ElementTypeEnum.Group:
+				// Groups are layout scopes just like Frames, but intentionally have no
+				// clipping/background decoration. Keep them as real runtime elements so
+				// their direct children can be selected and arranged on a loaded canvas.
+				return new GroupElement(data, canvas)
 
 			case ElementTypeEnum.Frame:
 				return new FrameElement(data, canvas)
@@ -138,8 +152,113 @@ export class ElementFactory {
 			case ElementTypeEnum.Text:
 				return TextElement.createElementData(id, x, y, roundedWidth, roundedHeight, zIndex)
 
+			case ElementTypeEnum.Image: {
+				const contentId = `${id}-content-1`
+				return {
+					id,
+					type: ElementTypeEnum.Image,
+					x,
+					y,
+					width: roundedWidth,
+					height: roundedHeight,
+					zIndex,
+					activeContentId: contentId,
+					mainContentId: contentId,
+					contents: [{ contentId }],
+				}
+			}
+
+			case ElementTypeEnum.Video: {
+				const contentId = `${id}-content-1`
+				return {
+					id,
+					type: ElementTypeEnum.Video,
+					x,
+					y,
+					width: roundedWidth,
+					height: roundedHeight,
+					zIndex,
+					activeContentId: contentId,
+					mainContentId: contentId,
+					contents: [{ contentId }],
+				}
+			}
+
+			case ElementTypeEnum.Audio: {
+				const contentId = `${id}-content-1`
+				return {
+					id,
+					type: ElementTypeEnum.Audio,
+					x,
+					y,
+					width: roundedWidth,
+					height: roundedHeight,
+					zIndex,
+					activeContentId: contentId,
+					mainContentId: contentId,
+					contents: [{ contentId }],
+				}
+			}
+
+			case ElementTypeEnum.Storyboard:
+				return StoryboardElement.createElementData({
+					id,
+					x,
+					y,
+					width: roundedWidth,
+					height: roundedHeight,
+					zIndex,
+				})
+
+			case ElementTypeEnum.Rectangle:
+			case ElementTypeEnum.Ellipse:
+			case ElementTypeEnum.Triangle:
+			case ElementTypeEnum.Star: {
+				const contentId = `${id}-content-1`
+				const config = this.getDefaultConfig(elementType)
+				const { width: _width, height: _height, ...content } = config
+				return {
+					id,
+					type: elementType,
+					x,
+					y,
+					width: roundedWidth,
+					height: roundedHeight,
+					zIndex,
+					activeContentId: contentId,
+					mainContentId: contentId,
+					contents: [{ contentId, ...content }],
+				}
+			}
+
+			case ElementTypeEnum.Group: {
+				const contentId = `${id}-content-1`
+				return {
+					id,
+					type: ElementTypeEnum.Group,
+					x,
+					y,
+					width: roundedWidth,
+					height: roundedHeight,
+					zIndex,
+					activeContentId: contentId,
+					mainContentId: contentId,
+					contents: [{ contentId }],
+				}
+			}
+
 			case ElementTypeEnum.Frame:
 				return FrameElement.createElementData(id, x, y, roundedWidth, roundedHeight, zIndex)
+
+			case ElementTypeEnum.VideoEdit:
+				return VideoEditElement.createElementData({
+					id,
+					x,
+					y,
+					width: roundedWidth,
+					height: roundedHeight,
+					zIndex,
+				})
 
 			default:
 				// 不支持的类型，抛出错误（因为这是创建数据的方法，调用者应该知道类型）
@@ -161,6 +280,11 @@ export class ElementFactory {
 			imageHeight?: number
 			videoWidth?: number
 			videoHeight?: number
+			audioWidth?: number
+			storyboardWidth?: number
+			storyboardHeight?: number
+			videoEditWidth?: number
+			videoEditHeight?: number
 		},
 	): Record<string, unknown> {
 		// 先获取基础元素默认配置
@@ -204,13 +328,36 @@ export class ElementFactory {
 				)
 				break
 
+			case ElementTypeEnum.Audio:
+				specificConfig = {
+					...AudioElement.getDefaultConfig(),
+					width: options?.audioWidth ?? AudioElement.getDefaultConfig().width,
+				}
+				break
+
+			case ElementTypeEnum.Storyboard:
+				specificConfig = {
+					...StoryboardElement.getDefaultConfig(),
+					width: options?.storyboardWidth ?? StoryboardElement.getDefaultConfig().width,
+					height:
+						options?.storyboardHeight ?? StoryboardElement.getDefaultConfig().height,
+				}
+				break
+
+			case ElementTypeEnum.VideoEdit:
+				specificConfig = {
+					...VideoEditElement.getDefaultConfig(),
+					width: options?.videoEditWidth ?? VideoEditElement.getDefaultConfig().width,
+					height: options?.videoEditHeight ?? VideoEditElement.getDefaultConfig().height,
+				}
+				break
 			case ElementTypeEnum.Frame:
 				specificConfig = FrameElement.getDefaultConfig()
 				break
 
-			// case ElementTypeEnum.Group:
-			// 	specificConfig = GroupElement.getDefaultConfig()
-			// 	break
+			case ElementTypeEnum.Group:
+				specificConfig = GroupElement.getDefaultConfig()
+				break
 
 			default:
 				console.warn(`Unknown element type: ${elementType}`)
@@ -219,5 +366,16 @@ export class ElementFactory {
 
 		// 合并基础配置和特定配置
 		return { ...baseConfig, ...specificConfig }
+	}
+}
+
+function normalizeStoryboardData(data: StoryboardElementData): StoryboardElementData {
+	// 镜头字段归一化；宽高由 StoryboardElement 构造时升到当前默认尺寸。
+	return {
+		...data,
+		contents: data.contents.map((content) => ({
+			...content,
+			shots: content.shots?.map(normalizeStoryboardShot),
+		})),
 	}
 }

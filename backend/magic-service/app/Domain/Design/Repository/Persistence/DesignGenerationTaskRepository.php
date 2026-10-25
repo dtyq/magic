@@ -70,6 +70,32 @@ class DesignGenerationTaskRepository extends DesignAbstractRepository implements
         return DesignGenerationTaskFactory::modelToEntity($model);
     }
 
+    public function findByProjectAndOutputFilePath(
+        DesignDataIsolation $dataIsolation,
+        int $projectId,
+        DesignGenerationAssetType $assetType,
+        string $relativeFilePath
+    ): ?DesignGenerationTaskEntity {
+        if ($relativeFilePath === '') {
+            return null;
+        }
+
+        $builder = $this->createBuilder($dataIsolation, DesignGenerationTaskModel::query());
+        /** @var null|DesignGenerationTaskModel $model */
+        $model = $builder
+            ->where('project_id', $projectId)
+            ->where('asset_type', $assetType->value)
+            ->where('output_payload->relative_file_path', $relativeFilePath)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($model === null) {
+            return null;
+        }
+
+        return DesignGenerationTaskFactory::modelToEntity($model);
+    }
+
     public function findProcessingTasksAfterId(int $cursorId, int $limit): array
     {
         $models = DesignGenerationTaskModel::query()

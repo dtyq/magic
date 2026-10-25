@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import html
 import json
 import os
 import re
@@ -31,60 +32,76 @@ logger = get_logger(__name__)
 
 # 字号检测常量
 MIN_FONT_SIZE_PX = 16  # 最小字号阈值
+SLIDE_NOTES_PATTERN = re.compile(
+    r'<template\b(?=[^>]*\bdata-magic-slide-notes(?:\s|=|>))[^>]*>[\s\S]*?</template\s*>',
+    re.IGNORECASE,
+)
+
+
+def _extract_slide_notes(content: str) -> str:
+    match = SLIDE_NOTES_PATTERN.search(content)
+    if not match:
+        return ""
+    opening_end = match.group(0).find(">")
+    closing_start = match.group(0).lower().rfind("</template")
+    if opening_end < 0 or closing_start < 0:
+        return ""
+    return html.unescape(match.group(0)[opening_end + 1 : closing_start]).strip()
+
+
+def _upsert_slide_notes(content: str, notes: str) -> str:
+    notes_block = (
+        '<template data-magic-slide-notes data-format="plain-text" data-version="1">\n'
+        f"{html.escape(notes, quote=False)}\n"
+        "</template>"
+    )
+    if SLIDE_NOTES_PATTERN.search(content):
+        has_written_block = False
+
+        def replace_notes_block(_match: re.Match[str]) -> str:
+            nonlocal has_written_block
+            if has_written_block:
+                return ""
+            has_written_block = True
+            return notes_block
+
+        return SLIDE_NOTES_PATTERN.sub(replace_notes_block, content)
+
+    for closing_tag in ("</body>", "</html>"):
+        index = content.lower().find(closing_tag)
+        if index >= 0:
+            return f"{content[:index]}{notes_block}\n{content[index:]}"
+    return f"{content}\n{notes_block}"
 
 
 class CreateSlideParams(BaseToolParams):
     file_path: str = Field(
         ...,
-        description="""<!--zh: 幻灯片HTML文件输出路径，相对于工作目录-->
-Slide HTML file output path, relative to working directory"""
+        description="Workspace-relative output HTML path."
     )
     content: str = Field(
         ...,
-        description="""<!--zh: 幻灯片HTML内容-->
-Slide HTML content"""
+        description="Complete slide HTML."
+    )
+    speaker_notes: Optional[str] = Field(
+        default=None,
+        description="Notes text; omitted preserves existing notes or creates an empty block.",
     )
     max_width: int = Field(
         ...,
-        description="""<!--zh: 期望的最大宽度（如1920px），传递给分析脚本使用-->
-Expected max width (e.g., 1920px), passed to analysis script"""
+        description="Positive canvas width in pixels."
     )
     max_height: int = Field(
         ...,
-        description="""<!--zh: 期望的最大高度（如1080px），传递给分析脚本使用-->
-Expected max height (e.g., 1080px), passed to analysis script"""
+        description="Positive canvas height in pixels."
     )
     analysis_js: str = Field(
         ...,
-        description="""<!--zh: 自定义JavaScript分析脚本的函数体内容，不要包含 function() 或 () => 等函数声明，直接写函数体代码。将自动包装为 (function(maxWidth, maxHeight) { 你的代码 })(maxWidth, maxHeight) 格式执行。记住要用 return 语句返回分析结果。-->
-Custom JavaScript analysis script function body content. Don't include function() or () => declarations, write function body code directly. Will be auto-wrapped as (function(maxWidth, maxHeight) { your code })(maxWidth, maxHeight) format for execution. Remember to use return statement to return analysis result."""
+        description="JavaScript function body using maxWidth/maxHeight and returning analysis results."
     )
     insert_after_slide: str = Field(
         ...,
-        description="""<!--zh
-插入位置（必填）：
-- 空字符串 ""：插入到第一页（slides数组开头）
-- 具体文件名：插入到该文件之后，如 "封面.html"、"cover.html"
-- 如果指定的文件不存在于slides数组中，将自动插入到末尾并给出警告
-
-示例：
-- insert_after_slide="" → 插入为第一页
-- insert_after_slide="封面.html" → 插入到"封面.html"之后
-- insert_after_slide="目录.html" → 插入到"目录.html"之后
-
-此参数用于自动更新 magic.project.js 的 slides 数组，确保幻灯片在演示控制器中可见。
--->
-Insert position (required):
-- Empty string "": Insert at first position (beginning of slides array)
-- Specific filename: Insert after that file, e.g., "cover.html", "contents.html"
-- If specified file doesn't exist in slides array, will auto-insert at end with warning
-
-Examples:
-- insert_after_slide="" → Insert as first page
-- insert_after_slide="cover.html" → Insert after "cover.html"
-- insert_after_slide="contents.html" → Insert after "contents.html"
-
-This parameter auto-updates slides array in magic.project.js to ensure slide is visible in presentation controller."""
+        description="New-slide insertion anchor; empty inserts first. Existing slides keep their order."
     )
 
     @field_validator('file_path')
@@ -120,123 +137,10 @@ This parameter auto-updates slides array in magic.project.js to ensure slide is 
         return v.strip()
 
 
-@tool()
+# 使用说明：agents/skills/creating-slides/SKILL.md
+@tool(code_mode_only=True)
 class CreateSlide(AbstractFileTool[CreateSlideParams], WorkspaceTool[CreateSlideParams]):
-    """<!--zh
-    创建幻灯片工具
-
-    创建HTML幻灯片文件并执行自定义分析脚本。主要用于：
-    1. 创建幻灯片HTML文件（总是覆盖模式）
-    2. 通过浏览器加载并执行自定义JavaScript分析
-
-    analysis_js 参数用法：
-    - 传入函数体内容（不要包含 function() 或 () => 声明）
-    - 可以访问 maxWidth、maxHeight 变量
-    - 必须使用 return 语句返回分析结果
-
-    ⚠️ 核心检测目标：
-    幻灯片最常见问题是元素超出 1920×1080 画布导致内容不可见，必须重点检测：
-    1. 元素是否溢出边界（四个方向：左x<0、上y<0、右x+w>1920、下y+h>1080）
-    2. 图片是否过度拉伸（显示尺寸 vs 原始尺寸）
-    3. 至少检测 5 个以上关键元素（根据页面实际内容选择合适的选择器）
-    4. 返回 issues 数组，包含所有问题的具体数值，便于定位修复
-
-    启发性示例（根据实际页面灵活调整）：
-
-    示例1 - 单个元素四方向边界检测逻辑：
-    ```javascript
-    const issues = [];
-    const el = document.querySelector('你的选择器');  // 根据实际页面选择
-    if (el) {
-        const {x, y, width, height} = el.getBoundingClientRect();
-        if (x < 0) issues.push(`元素左侧溢出: x=${Math.round(x)}`);
-        if (y < 0) issues.push(`元素顶部溢出: y=${Math.round(y)}`);
-        if (x + width > maxWidth) issues.push(`元素右侧溢出: ${Math.round(x+width)} > ${maxWidth}`);
-        if (y + height > maxHeight) issues.push(`元素底部溢出: ${Math.round(y+height)} > ${maxHeight}`);
-    }
-    ```
-
-    示例2 - 批量检测逻辑（选择器根据实际调整）：
-    ```javascript
-    document.querySelectorAll('你的选择器').forEach((el, i) => {
-        const {x, y, width, height} = el.getBoundingClientRect();
-        if (x + width > maxWidth) issues.push(`元素${i+1}右侧溢出: ${Math.round(x+width)}`);
-        if (y + height > maxHeight) issues.push(`元素${i+1}底部溢出: ${Math.round(y+height)}`);
-    });
-    ```
-
-    示例3 - 图片拉伸检测逻辑：
-    ```javascript
-    document.querySelectorAll('img').forEach((img, i) => {
-        const {width: dw, height: dh} = img.getBoundingClientRect();
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-            const scaleX = dw / img.naturalWidth;
-            const scaleY = dh / img.naturalHeight;
-            if (scaleX > 1.2 || scaleY > 1.2) {
-                issues.push(`图片${i+1}过度放大${Math.round(Math.max(scaleX, scaleY) * 100)}%`);
-            }
-        }
-    });
-    return issues;
-    ```
-    -->
-    Create slide tool
-
-    Create HTML slide file and execute custom analysis script. Main uses:
-    1. Create slide HTML file (always override mode)
-    2. Load via browser and execute custom JavaScript analysis
-
-    analysis_js parameter usage:
-    - Pass function body content (don't include function() or () => declaration)
-    - Can access maxWidth, maxHeight variables
-    - Must use return statement to return analysis result
-
-    ⚠️ Core detection objectives:
-    Most common slide problem is elements exceeding 1920×1080 canvas causing invisible content, focus on:
-    1. Elements overflow boundaries (four directions: left x<0, top y<0, right x+w>1920, bottom y+h>1080)
-    2. Images over-stretched (display size vs original size)
-    3. Check at least 5+ key elements (choose appropriate selectors based on actual page content)
-    4. Return issues array containing all problems with specific values for easy troubleshooting
-
-    Inspirational examples (flexibly adapt to actual page):
-
-    Example 1 - Single element four-direction boundary check logic:
-    ```javascript
-    const issues = [];
-    const el = document.querySelector('your-selector');  // Choose based on actual page
-    if (el) {
-        const {x, y, width, height} = el.getBoundingClientRect();
-        if (x < 0) issues.push(`Element left overflow: x=${Math.round(x)}`);
-        if (y < 0) issues.push(`Element top overflow: y=${Math.round(y)}`);
-        if (x + width > maxWidth) issues.push(`Element right overflow: ${Math.round(x+width)} > ${maxWidth}`);
-        if (y + height > maxHeight) issues.push(`Element bottom overflow: ${Math.round(y+height)} > ${maxHeight}`);
-    }
-    ```
-
-    Example 2 - Batch check logic (adjust selector based on actual):
-    ```javascript
-    document.querySelectorAll('your-selector').forEach((el, i) => {
-        const {x, y, width, height} = el.getBoundingClientRect();
-        if (x + width > maxWidth) issues.push(`Element${i+1} right overflow: ${Math.round(x+width)}`);
-        if (y + height > maxHeight) issues.push(`Element${i+1} bottom overflow: ${Math.round(y+height)}`);
-    });
-    ```
-
-    Example 3 - Image stretch check logic:
-    ```javascript
-    document.querySelectorAll('img').forEach((img, i) => {
-        const {width: dw, height: dh} = img.getBoundingClientRect();
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-            const scaleX = dw / img.naturalWidth;
-            const scaleY = dh / img.naturalHeight;
-            if (scaleX > 1.2 || scaleY > 1.2) {
-                issues.push(`Image${i+1} over-enlarged ${Math.round(Math.max(scaleX, scaleY) * 100)}%`);
-            }
-        }
-    });
-    return issues;
-    ```
-    """
+    """Write a slide, preserve or update notes, analyze layout, and register its path."""
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -289,10 +193,20 @@ class CreateSlide(AbstractFileTool[CreateSlideParams], WorkspaceTool[CreateSlide
         Returns:
             tuple[str, bool]: (文件操作状态描述, 文件是否已存在)
         """
+        content = params.content
+        target_path = self.base_dir / params.file_path
+        if params.speaker_notes is None and await async_exists(target_path):
+            existing_content = await async_read_text(target_path)
+            # Preserve the newly authored visual HTML while retaining notes when the model
+            # omitted the optional field during an overwrite.
+            content = _upsert_slide_notes(params.content, _extract_slide_notes(existing_content))
+        else:
+            content = _upsert_slide_notes(content, params.speaker_notes or "")
+
         # 构建 WriteFile 参数
         write_params = WriteFileParams(
             file_path=params.file_path,
-            content=params.content
+            content=content
         )
 
         # 调用 WriteFile 工具
@@ -542,24 +456,17 @@ class CreateSlide(AbstractFileTool[CreateSlideParams], WorkspaceTool[CreateSlide
             logger.warning(f"Error parsing magic.project.js: {e}")
             return None
 
-    def _calculate_insert_position(self, slides: List[str], insert_after: str, current_file: str) -> tuple[int, str]:
+    def _calculate_insert_position(self, slides: List[str], insert_after: str) -> tuple[int, str]:
         """
         Calculate insert position in slides array
 
         Args:
             slides: Current slides array
             insert_after: Insert position parameter (empty string or filename)
-            current_file: Current filename
 
         Returns:
             tuple[int, str]: (insert position index, status message)
         """
-        # Check if file already exists in array
-        if current_file in slides:
-            # File exists, remove it first (will re-insert at new position)
-            slides.remove(current_file)
-            logger.info(f"File '{current_file}' already exists in slides array, will reposition")
-
         # Empty string: insert at beginning
         if not insert_after or insert_after.strip() == "":
             return 0, f"✓ 已插入到第一页位置"
@@ -615,11 +522,14 @@ class CreateSlide(AbstractFileTool[CreateSlideParams], WorkspaceTool[CreateSlide
                 logger.warning(f"Invalid slides array type: {type(slides)}")
                 return "⚠️ slides 数组格式错误，请手动检查 magic.project.js"
 
+            # 内容更新不负责排序，也不重写项目配置，避免旧的插入参数移动已有页面。
+            if file_name in slides:
+                return f"Slide order preserved: '{file_name}' remains at position {slides.index(file_name) + 1}."
+
             # Calculate insert position
             insert_position, position_msg = self._calculate_insert_position(
                 slides, 
-                params.insert_after_slide, 
-                file_name
+                params.insert_after_slide,
             )
 
             # Insert file at calculated position

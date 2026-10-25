@@ -3,7 +3,7 @@ import { buildMessageKeysAndTurnGroups, isUserRoleMessage } from "../message-tur
 import type { SuperMagicMessageItem } from "../type"
 
 function msg(role: "user" | "assistant", appId: string): SuperMagicMessageItem {
-	return { role, app_message_id: appId } as SuperMagicMessageItem
+	return { role, app_message_id: appId } as unknown as SuperMagicMessageItem
 }
 
 describe("message-turn-groups", () => {

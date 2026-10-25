@@ -12,7 +12,7 @@ import { botStore } from "@/stores/bot"
 import { FlowApi } from "@/apis"
 import { useModalFooterStyles } from "../shared/styles"
 import { openFlowModal, preloadFlowModal } from "../FlowModal/openFlowModal"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 type CreateToolForm = Pick<MagicFlow.Flow, "name" | "description"> & {
 	icon: string

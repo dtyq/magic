@@ -5,10 +5,16 @@
 <!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Analysis</title></head>
 <body>
+<label>Model <select id="model"></select></label>
 <button id="go">Analyze</button><pre id="out">Ready</pre>
 <script>
 document.getElementById("go").addEventListener("click", async () => {
   const out = document.getElementById("out");
+  const modelSelect = document.getElementById("model");
+  const models = await window.Magic.llm.getModels();
+  modelSelect.replaceChildren(...models.map(model => new Option(model.label || model.id, model.id)));
+  modelSelect.value = models[0]?.id || "";
+  if (!modelSelect.value) throw new Error("No available models");
   out.textContent = "Reading...";
   const [users, orders] = await Promise.all([
     window.Magic.fs.readFile("data/users.json").then(JSON.parse),
@@ -20,7 +26,7 @@ document.getElementById("go").addEventListener("click", async () => {
     window.Magic.llm.stream(
       [{role: "user", content: `Users: ${users.length}, Orders total: ${orders.reduce((s,o)=>s+o.amount,0)}. Recommendations?`}],
       (delta, done) => { result += delta; out.textContent = result; if (done) resolve(null); },
-      {model: "auto", maxTokens: 500}
+      {model: modelSelect.value, maxTokens: 500}
     );
   });
   await window.Magic.fs.writeFile("output/analysis.md", result);
@@ -168,9 +174,9 @@ window.Magic.fs.watchDir(RECORD_DIR, () => loadList().catch(console.error));
 <script>
 let cancelFn = null;
 window.Magic.llm.getModels().then(models => {
-  document.getElementById("model").innerHTML =
-    `<option value="auto" selected>Auto</option>` +
-    models.map(m => `<option value="${m.id}">${m.label||m.id}</option>`).join("");
+  const select = document.getElementById("model");
+  select.replaceChildren(...models.map(m => new Option(m.label || m.id, m.id)));
+  select.value = models[0]?.id || "";
 });
 document.getElementById("send").addEventListener("click", async () => {
   const content = document.getElementById("input").value.trim();
@@ -178,7 +184,8 @@ document.getElementById("send").addEventListener("click", async () => {
   const out = document.getElementById("output");
   out.textContent = "";
   document.getElementById("cancel").disabled = false;
-  const model = document.getElementById("model").value || "auto";
+  const model = document.getElementById("model").value;
+  if (!model) { out.textContent = "No available models"; return; }
   cancelFn = window.Magic.llm.stream(
     [{role: "user", content}],
     (delta, done) => { out.textContent += delta; if (done) { document.getElementById("cancel").disabled = true; cancelFn = null; } },

@@ -5,26 +5,45 @@ import {
 	type PointerEvent as ReactPointerEvent,
 } from "react"
 import ReactDOM from "react-dom"
-import { cn } from "@/lib/tiptap-utils"
+import { useTranslation } from "react-i18next"
+import { cn } from "@/utils/cn"
+import {
+	ResizableCollapseFeedback,
+	ResizeGrip,
+	resizeGlowClassName,
+} from "@/components/shadcn-ui/resizable"
 
 interface TopicResizeHandleProps {
 	className?: string
+	withDivider?: boolean
 	disabled?: boolean
 	onResizeStart: (clientX: number) => void
 	style?: CSSProperties
+	dragging?: boolean
+	collapseProgress?: number
+	collapseArmed?: boolean
+	collapseDirection?: -1 | 1
 }
 
+/** Keeps the layout divider narrow while exposing a wider pointer target for reliable resizing. */
 function TopicResizeHandle({
 	className,
+	withDivider = false,
 	disabled = false,
 	onResizeStart,
 	style,
+	dragging,
+	collapseProgress = 0,
+	collapseArmed = false,
+	collapseDirection = 1,
 }: TopicResizeHandleProps) {
-	const [isDragging, setIsDragging] = useState(false)
+	const { t } = useTranslation("super")
+	const [localDragging, setIsDragging] = useState(false)
+	const isDragging = dragging ?? localDragging
 
 	/** Starts resize from a unified pointer event so mouse, trackpad, and touch share one path. */
 	const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-		if (disabled) return
+		if (disabled || event.button !== 0) return
 		event.preventDefault()
 		setIsDragging(true)
 		onResizeStart(event.clientX)
@@ -51,26 +70,57 @@ function TopicResizeHandle({
 			<div
 				style={style}
 				data-slot="resizable-handle"
+				data-resizing={isDragging ? "true" : undefined}
+				data-dragging={isDragging}
 				onPointerDown={handlePointerDown}
 				className={cn(
-					"focus-visible:outline-hidden relative flex w-px items-center justify-center bg-border after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full data-[panel-group-direction=vertical]:after:left-0 data-[panel-group-direction=vertical]:after:h-1 data-[panel-group-direction=vertical]:after:w-full data-[panel-group-direction=vertical]:after:-translate-y-1/2 data-[panel-group-direction=vertical]:after:translate-x-0 [&[data-panel-group-direction=vertical]>div]:rotate-90",
+					"relative flex w-px items-center justify-center bg-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full [&[data-panel-group-direction=vertical]>div]:rotate-90",
 					"group relative flex !w-2 cursor-col-resize touch-none items-center justify-center !bg-transparent",
-					"overflow-hidden before:pointer-events-none before:absolute before:inset-0 before:z-0",
-					"before:bg-gradient-to-b before:from-[rgba(239,246,255,0)] before:via-[rgba(210,230,255,1)] before:to-[rgba(239,246,255,0)]",
-					"before:opacity-0 before:transition-opacity before:duration-200 hover:before:opacity-100",
-					"after:!w-4",
+					resizeGlowClassName,
+					"group/resize outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:before:opacity-100 dark:[--resize-glow-rgb:52,88,136]",
+					isDragging && "before:opacity-100",
 					"data-[panel-group-direction=vertical]:!h-2 data-[panel-group-direction=vertical]:!w-full",
 					"data-[panel-group-direction=vertical]:before:bg-gradient-to-r",
-					disabled && "pointer-events-none opacity-0",
+					disabled && "pointer-events-none",
+					disabled && "opacity-0",
 					className,
 				)}
 				data-testid="handle-mouse-down"
 				data-pointer-testid="handle-pointer-down"
 			>
-				<div className="relative z-10 flex h-5 shrink-0 items-center justify-center gap-0.5 data-[panel-group-direction=vertical]:h-auto data-[panel-group-direction=vertical]:w-5 data-[panel-group-direction=vertical]:flex-col">
-					<div className="h-full w-px shrink-0 rounded-xs bg-muted-foreground transition-colors duration-200 group-hover:bg-primary data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full" />
-					<div className="h-full w-px shrink-0 rounded-xs bg-muted-foreground transition-colors duration-200 group-hover:bg-primary data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full" />
-				</div>
+				{/* Keep the visible divider on the grip axis, independent of the wider drag target. */}
+				{withDivider && (
+					<span
+						aria-hidden="true"
+						data-slot="resize-divider"
+						className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border"
+					/>
+				)}
+				<div
+					className="absolute inset-y-0 left-1/2 z-20 w-4 -translate-x-1/2 cursor-col-resize touch-none"
+					data-testid="resize-handle-hit-area"
+					aria-hidden="true"
+				/>
+				<ResizableCollapseFeedback
+					dragging={isDragging}
+					collapseProgress={collapseProgress}
+					collapseArmed={collapseArmed}
+					collapseDirection={collapseDirection}
+					pullLabel={
+						collapseDirection < 0
+							? t("sidebarPanels.pullLeftToCollapse")
+							: t("sidebarPanels.pullRightToCollapse")
+					}
+					description={
+						collapseArmed
+							? collapseDirection < 0
+								? t("sidebarPanels.pullRightToCancel")
+								: t("sidebarPanels.pullLeftToCancel")
+							: t("sidebarPanels.releaseKeepsOpen")
+					}
+					releaseLabel={t("sidebarPanels.releaseToCollapse")}
+				/>
+				<ResizeGrip orientation="vertical" />
 			</div>
 
 			{isDragging &&

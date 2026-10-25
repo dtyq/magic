@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocuForge — Modern Developer Documentation Engine</title>
+  <style>
+    :root {
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-soft: #EFF6FF;
+      --secondary: #7C3AED;
+      --secondary-soft: #F5F3FF;
+      --tertiary: #6B7280;
+      --bg: #FAFAFA;
+      --surface: #FFFFFF;
+      --surface-elevated: #F8FAFC;
+      --border: #E4E4E7;
+      --border-subtle: #F4F4F5;
+      --text-main: #18181B;
+      --text-muted: #71717A;
+      --success: #16A34A;
+      --warning: #CA8A04;
+      --danger: #DC2626;
+      --font-head: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Fira Code", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: var(--bg); color: var(--text-main); font-family: var(--font-body); font-size: 13.5px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+
+    /* Top Navigation */
+    .top-header { height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .brand-wrap { display: flex; align-items: center; gap: 14px; }
+    .brand-name { font-family: var(--font-head); font-size: 17px; font-weight: 800; color: var(--text-main); letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px; }
+    .version-tag { font-family: var(--font-mono); font-size: 11px; background: var(--secondary-soft); color: var(--secondary); padding: 1px 7px; border-radius: 9999px; font-weight: 600; }
+    
+    .search-trigger { background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 5px 14px; width: 300px; display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--text-muted); cursor: pointer; }
+    .kbd-shortcut { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-main); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .btn-header { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+
+    /* Main Grid: Sidebar + Live Editor Split */
+    .workspace-layout { max-width: 1360px; margin: 16px auto; padding: 0 20px; display: grid; grid-template-columns: 240px 1fr; gap: 16px; position: relative; }
+
+    /* Sidebar Navigation */
+    .sidebar { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 12px; display: flex; flex-direction: column; gap: 14px; height: fit-content; }
+    .nav-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); padding: 0 8px; margin-bottom: 4px; }
+    .nav-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .nav-item { padding: 6px 10px; border-radius: 6px; font-size: 13px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; text-decoration: none; cursor: pointer; }
+    .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; border-left: 2px solid var(--primary); }
+    .method-badge { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+    .badge-get { background: #F0FDF4; color: var(--success); }
+    .badge-post { background: #EFF6FF; color: var(--primary); }
+
+    /* Main Content Area: Split Markdown Live Preview & Code Tabs */
+    .editor-hub { display: flex; flex-direction: column; gap: 16px; }
+
+    /* Split Editor Component */
+    .split-editor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .editor-top-bar { background: var(--surface-elevated); padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+    .editor-mode-toggle { display: flex; gap: 4px; background: #E4E4E7; padding: 2px; border-radius: 6px; }
+    .mode-btn { background: transparent; border: none; padding: 3px 10px; font-size: 11.5px; font-weight: 600; border-radius: 4px; cursor: pointer; color: var(--text-muted); }
+    .mode-btn.active { background: #fff; color: var(--text-main); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+    .split-pane-grid { display: grid; grid-template-columns: 1fr 1fr; min-height: 260px; }
+    
+    /* Left: Markdown Raw Source */
+    .markdown-source { background: #18181B; color: #E4E4E7; padding: 14px 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; border-right: 1px solid var(--border); overflow-x: auto; }
+    .md-hash { color: #60A5FA; font-weight: 700; }
+    .md-meta { color: #A1A1AA; }
+    .md-code-block { color: #F472B6; }
+
+    /* Right: Rendered HTML Live Preview */
+    .markdown-rendered { background: #fff; padding: 16px 20px; overflow-y: auto; }
+    .rendered-h1 { font-family: var(--font-head); font-size: 19px; font-weight: 800; margin-bottom: 8px; color: var(--text-main); }
+    .rendered-p { font-size: 13px; color: var(--tertiary); margin-bottom: 12px; }
+    .doc-callout { background: var(--primary-soft); border-left: 3px solid var(--primary); padding: 10px 14px; border-radius: 0 6px 6px 0; margin-bottom: 12px; font-size: 12.5px; color: #1E40AF; }
+
+    /* Syntax-Highlighted Code Tabs */
+    .code-tabs-card { background: #0F172A; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1); border: 1px solid #1E293B; }
+    .code-tabs-header { background: #090E1A; padding: 0 16px; border-bottom: 1px solid #1E293B; display: flex; justify-content: space-between; align-items: center; }
+    .tab-pills-row { display: flex; gap: 2px; }
+    .code-tab-btn { background: transparent; border: none; padding: 10px 14px; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: #94A3B8; cursor: pointer; position: relative; }
+    .code-tab-btn.active { color: #38BDF8; font-weight: 600; }
+    .code-tab-btn.active::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: #38BDF8; }
+    .btn-copy-code { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #E2E8F0; border-radius: 6px; padding: 3px 10px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+
+    .code-syntax-area { padding: 14px 18px; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; color: #E2E8F0; overflow-x: auto; }
+    .tok-kw { color: #F472B6; font-weight: 600; }
+    .tok-fn { color: #60A5FA; }
+    .tok-str { color: #4ADE80; }
+    .tok-prop { color: #FBBF24; }
+
+    /* Floating Search Modal ⌘K (Command Palette Overlay) */
+    .search-modal-backdrop { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 560px; background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0,0,0,0.04); z-index: 100; overflow: hidden; }
+    .modal-input-bar { padding: 12px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); background: #fff; }
+    .modal-input { flex: 1; border: none; outline: none; font-size: 14px; font-family: var(--font-body); color: var(--text-main); }
+    .modal-results-list { padding: 8px; max-height: 230px; display: flex; flex-direction: column; gap: 2px; }
+    .result-item { padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; text-decoration: none; color: var(--text-main); cursor: pointer; }
+    .result-item.selected { background: var(--primary-soft); color: var(--primary); }
+    .result-cat { font-family: var(--font-mono); font-size: 10px; background: #F4F4F5; padding: 2px 6px; border-radius: 4px; color: var(--text-muted); }
+    .modal-footer { background: var(--surface-elevated); padding: 8px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Bar -->
+  <header class="top-header">
+    <div class="brand-wrap">
+      <div class="brand-name">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>DocuForge</span>
+      </div>
+      <span class="version-tag">v3.4.0 Engine</span>
+    </div>
+
+    <!-- ⌘K Search Bar Trigger -->
+    <div class="search-trigger">
+      <span>Quick search documentation...</span>
+      <span class="kbd-shortcut">⌘K</span>
+    </div>
+
+    <div class="header-actions">
+      <span style="font-size:12.5px; color:var(--text-muted)">API v2.8 Live</span>
+      <button class="btn-header">Deploy Docs</button>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <main class="workspace-layout">
+
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar">
+      <div>
+        <div class="nav-group-title">Getting Started</div>
+        <ul class="nav-list">
+          <li class="nav-item"><span>Overview &amp; Architecture</span></li>
+          <li class="nav-item"><span>Quickstart Guide</span></li>
+          <li class="nav-item"><span>Authentication Tokens</span></li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="nav-group-title">Core REST Endpoints</div>
+        <ul class="nav-list">
+          <li class="nav-item active">
+            <span>GET /v1/documents</span>
+            <span class="method-badge badge-get">GET</span>
+          </li>
+          <li class="nav-item">
+            <span>POST /v1/publish</span>
+            <span class="method-badge badge-post">POST</span>
+          </li>
+          <li class="nav-item">
+            <span>GET /v1/search/ast</span>
+            <span class="method-badge badge-get">GET</span>
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Center Workspace: Split Editor & Code Tabs -->
+    <div class="editor-hub">
+      
+      <!-- Split Markdown Live Preview -->
+      <section class="split-editor-card">
+        <div class="editor-top-bar">
+          <div style="display:flex; align-items:center; gap:8px; font-weight:600;">
+            <span>docs/api/endpoints.md</span>
+            <span style="color:var(--text-muted); font-size:11px;">(Split Synchronized View)</span>
+          </div>
+          <div class="editor-mode-toggle">
+            <button class="mode-btn">Markdown</button>
+            <button class="mode-btn active">Split 50/50</button>
+            <button class="mode-btn">Preview</button>
+          </div>
+        </div>
+
+        <div class="split-pane-grid">
+          <!-- Left: Raw Markdown Editor -->
+          <div class="markdown-source">
+            <span class="md-hash">#</span> Retrieve Document Stream<br><br>
+            Returns a paginated list of compiled AST document nodes.<br><br>
+            <span class="md-meta">&gt; [!NOTE]</span><br>
+            <span class="md-meta">&gt; Requires Bearer token with `read:docs` scope.</span><br><br>
+            <span class="md-code-block">```bash</span><br>
+            curl -X GET https://api.docuforge.dev/v1/documents<br>
+            <span class="md-code-block">```</span>
+          </div>
+
+          <!-- Right: Rendered HTML Preview -->
+          <div class="markdown-rendered">
+            <h1 class="rendered-h1">Retrieve Document Stream</h1>
+            <p class="rendered-p">
+              Returns a paginated list of compiled AST document nodes with full markdown frontmatter metadata and vector embeddings.
+            </p>
+            <div class="doc-callout">
+              <strong>Note:</strong> Requires Bearer token with <code>read:docs</code> authorization scope.
+            </div>
+            <div style="font-size:11.5px; color:var(--text-muted); font-family:var(--font-mono)">
+              Response Format: <code>application/json (streamed)</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Multi-Language Code Tabs -->
+      <section class="code-tabs-card">
+        <div class="code-tabs-header">
+          <div class="tab-pills-row">
+            <button class="code-tab-btn active">TypeScript</button>
+            <button class="code-tab-btn">cURL</button>
+            <button class="code-tab-btn">Python</button>
+            <button class="code-tab-btn">Go</button>
+          </div>
+          <button class="btn-copy-code">
+            <span>📋 Copy Snippet</span>
+          </button>
+        </div>
+        <div class="code-syntax-area">
+          <span class="tok-kw">import</span> { <span class="tok-fn">DocuForgeClient</span> } <span class="tok-kw">from</span> <span class="tok-str">"@docuforge/sdk"</span>;<br><br>
+          <span class="tok-kw">const</span> client = <span class="tok-kw">new</span> <span class="tok-fn">DocuForgeClient</span>({ apiKey: process.env.DOCU_KEY });<br>
+          <span class="tok-kw">const</span> { data, pagination } = <span class="tok-kw">await</span> client.documents.<span class="tok-fn">list</span>({<br>
+          &nbsp;&nbsp;<span class="tok-prop">limit</span>: 20,<br>
+          &nbsp;&nbsp;<span class="tok-prop">status</span>: <span class="tok-str">"published"</span><br>
+          });
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Floating ⌘K Command Palette Modal Overlay -->
+    <div class="search-modal-backdrop">
+      <div class="modal-input-bar">
+        <svg width="18" height="18" fill="none" stroke="var(--text-muted)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" class="modal-input" placeholder="Search documentation, API endpoints, SDKs..." value="endpoints/auth">
+        <span class="kbd-shortcut" style="font-size:10px;">ESC</span>
+      </div>
+
+      <div class="modal-results-list">
+        <div class="result-item selected">
+          <div>
+            <strong style="color:var(--primary)">GET /v1/auth/tokens</strong> &bull; Authenticate client request
+          </div>
+          <span class="result-cat">REST API</span>
+        </div>
+        <div class="result-item">
+          <div>
+            <strong>Authentication Overview</strong> &bull; JWT &amp; API Key Lifecycle
+          </div>
+          <span class="result-cat">GUIDES</span>
+        </div>
+        <div class="result-item">
+          <div>
+            <strong>TypeScript SDK AuthProvider</strong> &bull; Client setup
+          </div>
+          <span class="result-cat">SDK</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <span>Navigation: <kbd class="kbd-shortcut">↑</kbd> <kbd class="kbd-shortcut">↓</kbd></span>
+        <span>Select: <kbd class="kbd-shortcut">↵</kbd></span>
+        <span>Filter: <strong>3 matches</strong></span>
+      </div>
+    </div>
+
+  </main>
+
+</body>
+</html>

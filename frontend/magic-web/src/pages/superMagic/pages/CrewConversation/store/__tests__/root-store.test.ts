@@ -11,6 +11,8 @@ import {
 } from "@/pages/superMagic/pages/Workspace/types"
 import { CrewConversationStore } from "../root-store"
 
+const analyticsTrackMock = vi.hoisted(() => vi.fn())
+
 type SpecialProjectResponse = Awaited<ReturnType<typeof SuperMagicApi.getSpecialProject>>
 type ProjectDetailResponse = Awaited<ReturnType<typeof SuperMagicApi.getProjectDetail>>
 type TopicsResponse = Awaited<ReturnType<typeof SuperMagicApi.getTopicsByProjectId>>
@@ -41,6 +43,10 @@ vi.mock("@/services/superMagic/SuperMagicModeService", () => ({
 		fetchModeList: vi.fn(),
 		fetchDefaultModeModelList: vi.fn(),
 	},
+}))
+
+vi.mock("@/services/analytics", () => ({
+	analyticsService: { report: analyticsTrackMock },
 }))
 
 vi.mock("@/components/business/MentionPanel/builtin-store", () => ({
@@ -353,6 +359,31 @@ describe("CrewConversationStore", () => {
 		expect(SuperMagicApi.getSpecialProject).toHaveBeenCalledWith({ key: "agent-id-1" })
 		expect(store.selectedProject?.id).toBe("project-1")
 		expect(store.selectedTopic?.id).toBe("topic-1")
+		// Bootstrapping a lazily provisioned Crew project is not a user create attempt.
+		expect(analyticsTrackMock).not.toHaveBeenCalled()
+	})
+
+	it("does not report entity creation when the employee special project already exists", async () => {
+		vi.mocked(crewService.getAgentDetail).mockResolvedValue(createAgent())
+		vi.mocked(SuperMagicApi.getSpecialProject).mockResolvedValue({
+			project: createProject(),
+			is_existing: true,
+		} as SpecialProjectResponse)
+		vi.mocked(SuperMagicApi.getProjectDetail).mockResolvedValue(
+			createProject() as ProjectDetailResponse,
+		)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockResolvedValue({
+			list: [createTopic()],
+		} as TopicsResponse)
+
+		const store = new CrewConversationStore()
+		await store.bootstrap("SMA-existing-agent")
+
+		expect(store.status).toBe("ready")
+		expect(analyticsTrackMock).not.toHaveBeenCalledWith(
+			"project_create_attempted",
+			expect.anything(),
+		)
 	})
 
 	it("uses the validated employee id to create the special project", async () => {

@@ -12,9 +12,10 @@ import {
 import { Label } from "@/components/shadcn-ui/label"
 import { Input } from "@/components/shadcn-ui/input"
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { LucideLazyIcon } from "@/utils/lucideIconLoader"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import { useLocaleText } from "./hooks/useLocaleText"
 import type { FieldItem, OptionItem } from "./types"
@@ -186,7 +187,10 @@ function FilterSelectItem({
 			<div className={cn("flex flex-col items-start gap-1", isCompactMobile && "block")}>
 				{isCompactMobile ? null : (
 					<Label
-						className="text-xs font-medium text-muted-foreground"
+						className={cn(
+							"text-xs font-medium text-muted-foreground",
+							!isCompactMobile && "ml-3",
+						)}
 						onClick={handleOpenDrawer}
 					>
 						{lt(filter.label)}
@@ -265,8 +269,8 @@ function FilterSelectItem({
 				<MagicPopup
 					visible={drawerOpen}
 					onClose={handleCloseDrawer}
-					className="rounded-t-[14px] border-0 bg-muted"
-					bodyClassName="rounded-t-[14px] border-0 bg-muted p-0 overflow-hidden"
+					className="rounded-t-[14px] border-0 bg-muted supports-[overflow:clip]:overflow-clip"
+					bodyClassName="rounded-t-[14px] border-0 bg-muted p-0 overflow-hidden supports-[overflow:clip]:overflow-clip"
 					handlerClassName="bg-muted-foreground mb-1.5 h-1 w-20 rounded-full"
 					title={lt(filter.label)}
 				>
@@ -293,7 +297,11 @@ function FilterSelectItem({
 							</div>
 						</div>
 
-						<div className="overflow-y-auto px-3 pb-5">
+						{/* Grid stretch keeps the viewport within the popup's content-driven height cap. */}
+						<ScrollArea
+							className="grid min-h-0"
+							viewportClassName="h-auto min-h-0 px-3 pb-5 [&>div]:!block"
+						>
 							<div className="flex flex-col gap-1">
 								{availableOptions.length > 0 ? (
 									availableOptions.map(({ option, optionValue }) => {
@@ -334,7 +342,7 @@ function FilterSelectItem({
 									{customInputControl}
 								</div>
 							) : null}
-						</div>
+						</ScrollArea>
 					</div>
 				</MagicPopup>
 			</div>
@@ -392,14 +400,19 @@ function FilterSelectItem({
 						</span>
 					)}
 				</SelectTrigger>
+				{/* Keep long filter lists within the visible viewport while preserving keyboard and wheel scrolling. */}
 				<SelectContent
 					align="start"
 					showScrollButtons={false}
 					className={cn(
+						"max-h-[min(520px,var(--radix-select-content-available-height))]",
 						customInputControl &&
 							"w-[272px] min-w-[272px] overflow-hidden rounded-xl border-border/80 p-0 shadow-lg",
 					)}
-					viewportClassName={cn(customInputControl && "p-1.5")}
+					viewportClassName={cn(
+						"max-h-[min(520px,var(--radix-select-content-available-height))] overflow-y-auto",
+						customInputControl && "p-1.5",
+					)}
 				>
 					{availableOptions.length > 0 ? (
 						availableOptions.map(({ option, optionValue }) => {

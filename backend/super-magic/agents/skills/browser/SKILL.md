@@ -5,30 +5,29 @@ description: Open and operate webpages in a real browser: navigate, read rendere
 
 # Browser
 
-Use Browser tools through `run_sdk_snippet`. Pass only fields required by the task and let optional fields use their defaults. Use the common tools documented below directly. Before calling a capability documented only in a reference, read that reference and use its exact tool and parameter names; do not abbreviate or infer them.
+Use Browser tools through `run_sdk_snippet`. Pass only fields required by the task and let optional fields use their defaults. A known `tab_id` already identifies its Browser. Use the common tools documented below directly. Before calling a capability documented only in a reference, read that reference and use its exact tool and parameter names; do not abbreviate or infer them.
 
 ## Default path
 
 For most tasks, use this four-step path:
 
-1. Open a new URL with `browser_open_page`.
+1. Visit a URL with `browser_navigate`; it reuses the current tab and creates the first tab only when none is available.
 2. Read with `browser_read_page`, or take one `browser_list_elements` when interaction is needed.
-3. Find the exact ref, perform the action, and keep using the same `page_id`.
+3. Find the exact ref and perform the action on the current tab. Ordinary tools accept an optional `tab_id`; omit it to use the AgentContext default tab.
 4. If the next step depends on a specific result, wait for that text, URL, ref, or download; otherwise verify once with a read or changes snapshot.
 
-Do not list sessions before opening a normal sandbox page. Do not navigate to a URL that `browser_open_page` already opened.
+Do not list Browser instances or tabs before normal sandbox browsing. Navigation, reads, and interactions share the current tab automatically.
 
 ```python
 from sdk.tool import tool
 
-page = tool.call("browser_open_page", {"url": "https://example.com"})
+page = tool.call("browser_navigate", {"url": "https://example.com"})
 print(page.content)
 if page.ok:
-    page_id = page.data["page_id"]
-    print(tool.call("browser_read_page", {"page_id": page_id}).content)
+    print(tool.call("browser_read_page", {}).content)
 ```
 
-Use `browser_list_pages` only to reuse an existing page. Use `browser_list_sessions` only when choosing an authorized user Browser, resolving multiple sessions, or recovering from a disconnect.
+Use `browser_new_tab` only when the task must preserve the current page, compare pages side by side, or run a separate flow. Read [sessions.md](references/sessions.md) for explicit tab creation, selection, listing, and closing. Use `browser_list_instances` when the Browser instance is unknown or several Local/Remote connections may be relevant. Use `browser_list_tabs` only when the Tab is unknown.
 
 ## Find a control once
 
@@ -46,7 +45,7 @@ A ref record is an accessibility record, not a DOM element. It has no `tag_name`
 Use all returned refs when locating a target. Do not truncate `snapshot.content`, inspect only the first N refs, guess a ref, or repeatedly retry different elements. The normal path is to print the snapshot content, read its hierarchy, then use the exact ref in the next snippet.
 
 ```python
-snapshot = tool.call("browser_list_elements", {"page_id": page_id})
+snapshot = tool.call("browser_list_elements", {})
 print(snapshot.content)
 ```
 
@@ -55,14 +54,13 @@ After reading the printed tree, continue with its exact ref:
 ```python
 field_ref = "<exact-ref-from-snapshot-content>"
 filled = tool.call("browser_fill", {
-    "page_id": page_id,
     "ref": field_ref,
     "value": "example query",
 })
 print(filled.content)
 if filled.ok:
-    print(tool.call("browser_press", {"page_id": page_id, "key": "Enter"}).content)
-    print(tool.call("browser_read_page", {"page_id": page_id}).content)
+    print(tool.call("browser_press", {"key": "Enter"}).content)
+    print(tool.call("browser_read_page", {}).content)
 ```
 
 Add `name` or `attributes` only when the first filter is ambiguous. Use the hierarchy in `snapshot.content` when repeated labels belong to different forms, dialogs, or page regions.
@@ -78,23 +76,22 @@ Do not add a generic wait after opening a page. After a submit, search, sign-in,
 These are the normal parameter forms. Apply the shared Code Mode result rules to each returned result.
 
 ```python
-tool.call("browser_click", {"page_id": page_id, "ref": ref})
-tool.call("browser_fill", {"page_id": page_id, "ref": ref, "value": "text"})
-tool.call("browser_press", {"page_id": page_id, "key": "Enter"})
-tool.call("browser_hover", {"page_id": page_id, "ref": ref})
+tool.call("browser_click", {"ref": ref})
+tool.call("browser_fill", {"ref": ref, "value": "text"})
+tool.call("browser_press", {"key": "Enter"})
+tool.call("browser_hover", {"ref": ref})
 
 # Page scroll: positive delta_y moves down; negative moves up.
-tool.call("browser_scroll", {"page_id": page_id, "delta_y": 500})
+tool.call("browser_scroll", {"delta_y": 500})
 
 # Bring one referenced element into view without additional wheel movement.
-tool.call("browser_scroll", {"page_id": page_id, "ref": ref})
+tool.call("browser_scroll", {"ref": ref})
 
 # Select by exact option value or unique visible label.
-tool.call("browser_select", {"page_id": page_id, "ref": ref, "value": "Two"})
+tool.call("browser_select", {"ref": ref, "value": "Two"})
 
-tool.call("browser_check", {"page_id": page_id, "ref": ref, "checked": True})
+tool.call("browser_check", {"ref": ref, "checked": True})
 tool.call("browser_upload_file", {
-    "page_id": page_id,
     "ref": ref,
     "file_paths": ["path/inside/workspace.txt"],
 })
@@ -115,7 +112,6 @@ Actions report that input was dispatched, not that the user's intended outcome o
 
 ```python
 waited = tool.call("browser_wait", {
-    "page_id": page_id,
     "condition": "text",
     "value": "Completed",
     "timeout_ms": 10000,
@@ -137,6 +133,7 @@ For a quick post-action check, use `browser_list_elements(scope="changes")`. Aft
 
 | You want | Use |
 |----------|-----|
+| Visit or change a URL in the current tab | `browser_navigate` |
 | Read an article, document, or post | `browser_read_page` |
 | Find one control to click or fill | `browser_find` |
 | `browser_read_page` returned nearly nothing | `browser_read_html` |
@@ -146,19 +143,18 @@ For a quick post-action check, use `browser_list_elements(scope="changes")`. Aft
 
 `browser_find` never picks for you. If it returns several matches, choose one by ref. Never write a selector you have not seen in `browser_read_html` output.
 
-`browser_visual_query` captures and analyzes in one call and writes no file. Never take a screenshot and analyze it separately. Run at most one visual-model call at a time, and give a snippet at least 120 seconds when it follows other Browser work. Use `browser_find_visual` only when a control cannot be identified from text or structure. Use `browser_screenshot` only when the user asks to see or save an image.
+`browser_visual_query` captures the page once, publishes one topic-scoped screenshot artifact, and attaches the screenshot as native visual input for the next main model request. Never take a screenshot and analyze it separately, and do not send a Browser screenshot to `visual_understanding` as a second step. When the current model cannot accept native visual input, the tool reports and uses its explicit visual-analysis fallback. Run at most one visual-model call at a time, and give a snippet at least 120 seconds when it follows other Browser work. Use `browser_find_visual` only when a control cannot be identified from text or structure. Use `browser_screenshot` only when the user asks to see or save an image.
 
 Exact visual calls:
 
 ```python
-shot = tool.call("browser_screenshot", {"page_id": page_id})
+shot = tool.call("browser_screenshot", {})
 print(shot.content)
 
-labeled = tool.call("browser_screenshot", {"page_id": page_id, "labels": True})
+labeled = tool.call("browser_screenshot", {"labels": True})
 print(labeled.content)
 
 saved = tool.call("browser_screenshot", {
-    "page_id": page_id,
     "output_path": "screenshots/page.webp",
 })
 print(saved.content)
@@ -166,13 +162,11 @@ if saved.ok:
     print(saved.data["output_path"])
 
 visual = tool.call("browser_visual_query", {
-    "page_id": page_id,
     "query": "Describe the main visible regions and their spatial arrangement.",
 })
 print(visual.content)
 
 match = tool.call("browser_find_visual", {
-    "page_id": page_id,
     "target": "the primary search field",
 })
 print(match.content)
@@ -188,11 +182,12 @@ If visual analysis is unavailable, continue with reads and snapshots when text o
 
 ## Refs, pages, and failures
 
-- Read page IDs from `result.data["page_id"]`. Items in `browser_list_pages().data["pages"]` also use `page_id`.
-- Reuse returned IDs exactly. Never construct `page_id`, `session_id`, refs, or visual labels.
+- Results expose short `browser_id` values such as `b1` and short `tab_id` values such as `t1`. Existing-tab reads and actions accept an optional `tab_id`; omit it to use the AgentContext default. A Tab ID already identifies its Browser.
+- Reuse returned IDs exactly. Never construct `browser_id`, `tab_id`, refs, or visual labels.
 - Refs remain stable within the same document only when the runtime can prove element identity. Navigation invalidates them.
 - On `stale_ref`, `ref_not_found`, or `ambiguous_ref`, take one fresh interactive snapshot and locate the target again.
-- Leave pages open unless the user asks to close them. Normal operations renew sandbox page lifetime.
+- Normal operations renew sandbox page lifetime; the runtime releases idle pages and failed new pages. Routine browsing requires no cleanup calls. Close a tab when the user or task explicitly requires it.
+- The current tab belongs to this Agent Browser session. A popup or a change in desktop focus does not select another tab.
 - Use `browser_keep_alive` only when a known long-running step must preserve the same sandbox page.
 
 ## CAPTCHA and human verification

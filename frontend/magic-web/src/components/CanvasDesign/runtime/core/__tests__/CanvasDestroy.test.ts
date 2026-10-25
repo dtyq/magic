@@ -10,6 +10,9 @@ describe("Canvas destroy", () => {
 		const canvas = Object.create(Canvas.prototype) as Canvas
 
 		Object.assign(canvas, {
+			mediaEditRecoveryManager: {
+				clearAll: vi.fn(() => destroyOrder.push("mediaEditRecoveryManager")),
+			},
 			visibilityManager: destroyable("visibilityManager"),
 			imagePresentationScheduler: destroyable("imagePresentationScheduler"),
 			resourceUrlWarmupManager: destroyable("resourceUrlWarmupManager"),
@@ -18,12 +21,22 @@ describe("Canvas destroy", () => {
 			resizeObserver: null,
 			containerContextMenuHandler: null,
 			stageContextMenuHandler: null,
+			stageBlankClickHandler: null,
+			stageDoubleClickHandler: null,
 			handleWindowClick: null,
 			cropManager: destroyable("cropManager"),
 			extendManager: destroyable("extendManager"),
 			eraserManager: destroyable("eraserManager"),
 			imageEditingCoordinator: destroyable("imageEditingCoordinator"),
 			generationRuntimeManager: destroyable("generationRuntimeManager"),
+			mediaPlaybackCoordinator: destroyable("mediaPlaybackCoordinator"),
+			videoEditPlaybackManager: destroyable("videoEditPlaybackManager"),
+			audioPlaybackManager: destroyable("audioPlaybackManager"),
+			audioReplaceController: destroyable("audioReplaceController"),
+			imageReplaceController: destroyable("imageReplaceController"),
+			storyboardInteractionManager: destroyable("storyboardInteractionManager"),
+			videoEditInteractionManager: destroyable("videoEditInteractionManager"),
+			videoContinuationManager: destroyable("videoContinuationManager"),
 			eventEmitter: {
 				removeAllListeners: vi.fn(() => destroyOrder.push("eventEmitter")),
 			},
@@ -31,6 +44,7 @@ describe("Canvas destroy", () => {
 			cursorManager: destroyable("cursorManager"),
 			permissionManager: destroyable("permissionManager"),
 			imageBatchPollingRegistry: destroyable("imageBatchPollingRegistry"),
+			viewportQueryCoordinator: destroyable("viewportQueryCoordinator"),
 			elementManager: destroyable("elementManager"),
 			geometryCacheManager: destroyable("geometryCacheManager"),
 			connectionManager: destroyable("connectionManager"),
@@ -40,7 +54,6 @@ describe("Canvas destroy", () => {
 			selectionManager: destroyable("selectionManager"),
 			transformManager: destroyable("transformManager"),
 			hoverManager: destroyable("hoverManager"),
-			videoSelectionPlaybackManager: destroyable("videoSelectionPlaybackManager"),
 			videoPlaybackInteractionManager: destroyable("videoPlaybackInteractionManager"),
 			toolManager: destroyable("toolManager"),
 			inputManager: destroyable("inputManager"),
@@ -61,6 +74,8 @@ describe("Canvas destroy", () => {
 			submitImageWorkerManager: destroyable("submitImageWorkerManager"),
 			videoPlaybackManager: destroyable("videoPlaybackManager"),
 			videoResourceManager: destroyable("videoResourceManager"),
+			audioResourceManager: destroyable("audioResourceManager"),
+			audioWaveformManager: destroyable("audioWaveformManager"),
 			mediaResourceOfflineCacheManager: destroyable("mediaResourceOfflineCacheManager"),
 			pluginManager: destroyable("pluginManager"),
 			stage: destroyable("stage"),
@@ -69,6 +84,7 @@ describe("Canvas destroy", () => {
 		canvas.destroy()
 
 		const eventEmitterIndex = destroyOrder.indexOf("eventEmitter")
+		expect(destroyOrder.indexOf("mediaEditRecoveryManager")).toBeLessThan(eventEmitterIndex)
 		const dependencyIndexes = [
 			"cursorManager",
 			"elementManager",
@@ -88,5 +104,12 @@ describe("Canvas destroy", () => {
 				expect(managerIndex).toBeLessThan(dependencyIndex)
 			})
 		}
+
+		const viewportQueryCoordinatorIndex = destroyOrder.indexOf("viewportQueryCoordinator")
+		expect(viewportQueryCoordinatorIndex).toBeGreaterThanOrEqual(0)
+		expect(viewportQueryCoordinatorIndex).toBeLessThan(destroyOrder.indexOf("elementManager"))
+		expect(viewportQueryCoordinatorIndex).toBeLessThan(
+			destroyOrder.indexOf("geometryCacheManager"),
+		)
 	})
 })

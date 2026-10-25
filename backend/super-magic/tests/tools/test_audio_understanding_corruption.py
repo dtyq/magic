@@ -1,16 +1,7 @@
-"""Tests for AudioUnderstanding lightweight corruption detection.
+"""使用合成容器验证音频文件的轻量损坏检测。
 
-The detection walks top-level ISO BMFF (mp4/m4a/mov/3gp) box headers and flags a
-file as corrupted when any box claims to extend beyond the real file size, which
-means the file is truncated and its sample index (moov) is incomplete.
-
-Synthetic fixtures below mirror the byte structure of two real samples:
-- a truncated file whose 'moov' box overflows EOF (corrupted)
-- a well-formed file whose boxes all stay within bounds (healthy)
-
-Two extra tests run against the real samples when they exist locally, so the
-exact files reported by the user can be verified on the dev machine while CI
-stays portable.
+检测器遍历 ISO BMFF 容器的顶层 box，识别声明大小超出文件边界的截断情况。
+测试仅在隔离目录中构造字节样例，不读取个人音频文件或依赖开发者本地路径。
 """
 
 import struct
@@ -19,11 +10,6 @@ from pathlib import Path
 import pytest
 
 from app.tools.audio_understanding import AudioUnderstanding
-
-# Real samples reported by the user; tests using them skip when absent.
-REAL_CORRUPTED_FILE = Path("/Users/rockli/Downloads/927490488793640960.m4a")
-REAL_HEALTHY_FILE = Path("/Users/rockli/Downloads/927600033708908546.m4a")
-
 
 def _box32(box_type: bytes, payload: bytes) -> bytes:
     """Build an ISO BMFF box with a 32-bit size header."""
@@ -105,29 +91,5 @@ async def test_non_iso_extension_is_skipped(tmp_path):
     audio = _write(tmp_path, "audio.mp3", b"not-an-iso-container" * 10)
 
     reason = await _make_tool(tmp_path)._detect_corruption(audio)
-
-    assert reason is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(
-    not REAL_CORRUPTED_FILE.exists(),
-    reason=f"real corrupted sample not available: {REAL_CORRUPTED_FILE}",
-)
-async def test_real_corrupted_sample(tmp_path):
-    reason = await _make_tool(tmp_path)._detect_corruption(REAL_CORRUPTED_FILE)
-
-    assert reason is not None
-    assert "moov" in reason
-    assert "truncated" in reason
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(
-    not REAL_HEALTHY_FILE.exists(),
-    reason=f"real healthy sample not available: {REAL_HEALTHY_FILE}",
-)
-async def test_real_healthy_sample(tmp_path):
-    reason = await _make_tool(tmp_path)._detect_corruption(REAL_HEALTHY_FILE)
 
     assert reason is None

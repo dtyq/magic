@@ -1,78 +1,38 @@
-import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+// 完整用户空间路径只在本模块定义；展示别名不能参与文件定位或权限判断。
+export const USER_MEMORY_ROOT = [".magic", "memory"] as const
+export const USER_MEMORY_ENTRY = "MEMORY.md"
+export const USER_MEMORY_NOTES = "notes"
+export const USER_PROJECT_MEMORIES_PATH = [...USER_MEMORY_ROOT, "projects"] as const
 
-export type MemoryTreeNodeTagKey =
-	| "memoryRoot"
-	| "global"
-	| "globalMemory"
-	| "globalNotes"
-	| "projects"
-	| "project"
-	| "projectMemory"
-	| "projectNotes"
-
-const MEMORY_ROOT_PATH = ["memory"]
-const GLOBAL_MEMORY_PATH = ["memory", "global"]
-const PROJECTS_PATH = ["memory", "projects"]
-const MEMORY_FILE_NAME = "MEMORY.md"
-const NOTES_DIRECTORY_NAME = "notes"
-const PROJECT_DIRECTORY_PREFIX = "p_"
-
-/** 获取记忆树节点的稳定显示名称。 */
-export function getMemoryTreeNodeName(item?: AttachmentItem | null): string {
-	return String(item?.display_filename || item?.file_name || item?.filename || item?.name || "")
+/** 项目目录只解析身份，展示名称不能回写到目录名或文件路径。 */
+export function getMemoryProjectId(directoryName: string): string | null {
+	return /^p_[1-9][0-9]*$/.test(directoryName) ? directoryName.slice(2) : null
+}
+export function getUserMemoryPath(projectId?: string | null): string[] {
+	return projectId
+		? [...USER_MEMORY_ROOT, "projects", `p_${projectId}`]
+		: [...USER_MEMORY_ROOT, "global"]
 }
 
-/** 建立节点编号到目录层级的索引，避免依赖后端是否返回相对路径。 */
-export function buildMemoryTreeNodePathIndex(items: AttachmentItem[]): Map<string, string[]> {
-	const pathIndex = new Map<string, string[]>()
-
-	const visit = (nodes: AttachmentItem[], parentPath: string[]) => {
-		nodes.forEach((item) => {
-			const currentPath = [...parentPath, getMemoryTreeNodeName(item)]
-			const itemId = String(item.file_id || "")
-			if (itemId) pathIndex.set(itemId, currentPath)
-			if (item.children?.length) visit(item.children, currentPath)
-		})
-	}
-
-	visit(items, [])
-	return pathIndex
-}
-
-/** 根据标准记忆目录结构解析节点右侧标签，普通用户文件不返回标签。 */
-export function resolveMemoryTreeNodeTagKey(
-	pathSegments: string[],
-): MemoryTreeNodeTagKey | undefined {
-	if (isSamePath(pathSegments, MEMORY_ROOT_PATH)) return "memoryRoot"
-	if (isSamePath(pathSegments, GLOBAL_MEMORY_PATH)) return "global"
-	if (isSamePath(pathSegments, [...GLOBAL_MEMORY_PATH, MEMORY_FILE_NAME])) {
-		return "globalMemory"
-	}
-	if (isSamePath(pathSegments, [...GLOBAL_MEMORY_PATH, NOTES_DIRECTORY_NAME])) {
-		return "globalNotes"
-	}
-	if (isSamePath(pathSegments, PROJECTS_PATH)) return "projects"
-
-	const projectDirectoryName = pathSegments[2]
-	const isProjectPath =
-		pathSegments.length >= 3 &&
-		pathSegments[0] === MEMORY_ROOT_PATH[0] &&
-		pathSegments[1] === PROJECTS_PATH[1] &&
-		projectDirectoryName.startsWith(PROJECT_DIRECTORY_PREFIX) &&
-		projectDirectoryName.length > PROJECT_DIRECTORY_PREFIX.length
-	if (!isProjectPath) return
-	if (pathSegments.length === 3) return "project"
-	if (pathSegments.length !== 4) return
-	if (pathSegments[3] === MEMORY_FILE_NAME) return "projectMemory"
-	if (pathSegments[3] === NOTES_DIRECTORY_NAME) return "projectNotes"
-
-	return
-}
-
-/** 判断两个目录层级是否完全一致。 */
-function isSamePath(actualPath: string[], expectedPath: string[]): boolean {
-	return (
-		actualPath.length === expectedPath.length &&
-		actualPath.every((segment, index) => segment === expectedPath[index])
+/** 保护精确的内置路径；普通目录中的同名文件不受限制。 */
+export function isFixedUserMemoryEntry(path: string, isDirectory: boolean): boolean {
+	if (path === "") return isDirectory
+	const segments = path.split("/")
+	if (
+		isDirectory &&
+		(path === ".magic" || path === ".magic/memory" || path === ".magic/memory/projects")
 	)
+		return true
+	const isGlobal = segments[2] === "global"
+	const isProject = segments[2] === "projects" && /^p_[1-9][0-9]*$/.test(segments[3] ?? "")
+	if (
+		segments[0] !== USER_MEMORY_ROOT[0] ||
+		segments[1] !== USER_MEMORY_ROOT[1] ||
+		(!isGlobal && !isProject)
+	)
+		return false
+	const containerLength = isGlobal ? 3 : 4
+	return isDirectory
+		? segments.length === containerLength
+		: segments.length === containerLength + 1 && segments[containerLength] === USER_MEMORY_ENTRY
 }

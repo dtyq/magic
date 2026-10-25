@@ -11,9 +11,13 @@ import { Button } from "@/components/shadcn-ui/button"
 import { userStore } from "@/models/user"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import SkillMarketTabs, {
+	SKILL_MARKET_TAB_VALUES,
+} from "@/pages/superMagic/pages/SkillMarket/components/SkillMarketTabs"
 import { FUNCTION_PERMISSION_CODE } from "@/apis"
 import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { CrewDetailDialog } from "@/pages/superMagic/components/CrewDetailDialog"
+import { HomeOnboardingAnchor } from "@/pages/superMagic/components/LazyGuideTour"
 import { crewService } from "@/services/crew/CrewService"
 import {
 	UserWorkspaceMapCache,
@@ -249,16 +253,31 @@ function EmployeeMarketDesktop({ scrollViewportRef }: EmployeeMarketDesktopProps
 			/>
 			{dialog}
 			<div className="flex min-w-0 flex-col pt-5 sm:pt-6">
-				<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-					<div className="flex min-w-0 flex-1 flex-col gap-2">
-						<h1 className="break-words bg-gradient-to-br from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-2xl font-bold leading-tight text-transparent sm:text-3xl lg:text-4xl">
-							{t("title")}
-						</h1>
+				<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+					<div className="flex min-w-0 flex-1 flex-col gap-2.5">
+						<SkillMarketTabs
+							value={SKILL_MARKET_TAB_VALUES.crew}
+							onValueChange={(value) => {
+								if (value === SKILL_MARKET_TAB_VALUES.skills)
+									navigate({ name: RouteName.CrewMarketSkills })
+								if (value === SKILL_MARKET_TAB_VALUES.connectors)
+									navigate({ name: RouteName.CrewMarketMcp })
+							}}
+						/>
 						<p className="max-w-2xl break-words text-sm text-muted-foreground">
 							{t("subtitle")}
 						</p>
 					</div>
-					<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+					<div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
+						<Button
+							variant="outline"
+							className="h-9 flex-1 gap-2 bg-background shadow-xs sm:flex-none"
+							onClick={() => navigate({ name: RouteName.MyCrew })}
+							data-testid="crew-market-my-crew-button"
+						>
+							<UserRoundCog className="h-4 w-4" />
+							{t("myCrew")}
+						</Button>
 						{canCreateAgent ? (
 							<Button
 								className="h-9 flex-1 gap-2 shadow-xs sm:flex-none"
@@ -274,15 +293,6 @@ function EmployeeMarketDesktop({ scrollViewportRef }: EmployeeMarketDesktopProps
 								{t("createCrew")}
 							</Button>
 						) : null}
-						<Button
-							variant="outline"
-							className="h-9 flex-1 gap-2 bg-background shadow-xs sm:flex-none"
-							onClick={() => navigate({ name: RouteName.MyCrew })}
-							data-testid="crew-market-my-crew-button"
-						>
-							<UserRoundCog className="h-4 w-4" />
-							{t("myCrew")}
-						</Button>
 					</div>
 				</div>
 
@@ -291,23 +301,38 @@ function EmployeeMarketDesktop({ scrollViewportRef }: EmployeeMarketDesktopProps
 					scrollViewportRef={scrollViewportRef}
 					data-testid="crew-market-sticky-header"
 				>
-					<SearchBar
-						value={searchQuery}
-						onChange={setSearchQuery}
-						onSearch={handleSearch}
-						onCompositionStart={onSearchCompositionStart}
-						onCompositionEnd={onSearchCompositionEnd}
-						placeholder={t("aiSearchPlaceholder")}
-						enableSearchSubmit
-						data-testid="crew-market-desktop-search-bar"
-					/>
+					{/*
+					 * The two onboarding anchors below sit on wrappers: the search bar and the
+					 * category strip are shared with the skill and connector markets, and the
+					 * "了解如何雇佣使用数字员工" tour is the only flow that should frame them.
+					 */}
+					<div
+						className="min-w-0"
+						data-guide-anchor={HomeOnboardingAnchor.CrewMarketSearch}
+					>
+						<SearchBar
+							value={searchQuery}
+							onChange={setSearchQuery}
+							onSearch={handleSearch}
+							onCompositionStart={onSearchCompositionStart}
+							onCompositionEnd={onSearchCompositionEnd}
+							placeholder={t("aiSearchPlaceholder")}
+							enableSearchSubmit
+							data-testid="crew-market-desktop-search-bar"
+						/>
+					</div>
 
-					<CategoryFilter
-						categories={store.categories}
-						activeCategoryId={activeFilterId}
-						onCategoryChange={handleCategoryChange}
-						showOrganizationShared={!isPersonalOrganization}
-					/>
+					<div
+						className="min-w-0"
+						data-guide-anchor={HomeOnboardingAnchor.CrewMarketCategories}
+					>
+						<CategoryFilter
+							categories={store.categories}
+							activeCategoryId={activeFilterId}
+							onCategoryChange={handleCategoryChange}
+							showOrganizationShared={!isPersonalOrganization}
+						/>
+					</div>
 				</MarketStickyHeader>
 
 				<div className="flex min-w-0 flex-col gap-5 sm:gap-6">

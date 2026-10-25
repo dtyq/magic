@@ -22,6 +22,11 @@ interface UseShareDataProps {
 	pageSize?: number
 	/** When false, skip authenticated share-management list fetch (e.g. sheet closed or public share page). */
 	enabled?: boolean
+	/**
+	 * Project shares are listed across all projects by default; true limits them to `projectId`
+	 * (a single project's share manager, e.g. the AI canvas project page).
+	 */
+	scopeProjectSharesToProject?: boolean
 }
 
 export function useShareData({
@@ -32,6 +37,7 @@ export function useShareData({
 	currentPage,
 	pageSize = 10,
 	enabled = true,
+	scopeProjectSharesToProject = false,
 }: UseShareDataProps) {
 	const { t } = useTranslation("super")
 	const [data, setData] = useState<(TopicShareItem | FileShareItem | ProjectShareItem)[]>([])
@@ -71,7 +77,7 @@ export function useShareData({
 				case SharedResourceType.Project:
 					resourceTypes = [ResourceType.FileCollection]
 					shareProject = true
-					projectIdParam = ""
+					projectIdParam = scopeProjectSharesToProject ? projectId : ""
 					break
 				default:
 					resourceTypes = [ResourceType.Topic]
@@ -158,7 +164,17 @@ export function useShareData({
 		} finally {
 			setLoading(false)
 		}
-	}, [currentPage, enabled, pageSize, searchText, resourceType, projectId, filterStatus, t])
+	}, [
+		currentPage,
+		enabled,
+		pageSize,
+		searchText,
+		resourceType,
+		projectId,
+		filterStatus,
+		scopeProjectSharesToProject,
+		t,
+	])
 
 	// 防抖版本的 fetchData；关闭时需 cancel，避免 open 由 true→false 时仍发出过期请求。
 	const { run: debouncedFetchData, cancel: cancelDebouncedFetchData } = useDebounceFn(fetchData, {

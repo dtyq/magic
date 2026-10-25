@@ -1,6 +1,6 @@
 import chatDb from "@/database/chat"
 import EditorDraftStore, { EditorDraft, EditorDraftWithInfo } from "@/stores/chatNew/editorDraft"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { cloneDeep, omit } from "lodash-es"
 
 const logger = Logger.createLogger("DraftService")

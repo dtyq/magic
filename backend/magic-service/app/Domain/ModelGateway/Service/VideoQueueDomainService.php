@@ -31,8 +31,8 @@ use RuntimeException;
 /**
  * 视频队列领域服务。
  *
- * 统一视频参数设计落地后，这里不再自己拦 provider/model 的参数支持性，
- * 只消费外部传入的 VideoGenerationConfig 并执行领域规则：
+ * 统一视频参数设计落地后，这里消费外部传入的 VideoGenerationConfig，
+ * 并执行请求与模型能力的领域规则：
  * - 规范化请求
  * - 基础结构 / 类型校验
  * - 创建 / 更新视频任务实体
@@ -166,7 +166,12 @@ readonly class VideoQueueDomainService
         ProviderCode $providerCode,
         VideoGenerationConfig $videoGenerationConfig
     ): array {
-        return $this->normalizeRequest($requestDTO, $providerCode, $videoGenerationConfig);
+        return $this->normalizeRequest(
+            $requestDTO,
+            $providerCode,
+            $videoGenerationConfig,
+            validateRequest: false,
+        );
     }
 
     public function getOperation(string $operationId, string $organizationCode, string $userId): VideoQueueOperationEntity
@@ -428,48 +433,49 @@ readonly class VideoQueueDomainService
     private function normalizeRequest(
         CreateVideoDTO $requestDTO,
         ProviderCode $providerCode,
-        VideoGenerationConfig $videoGenerationConfig
+        VideoGenerationConfig $videoGenerationConfig,
+        bool $validateRequest = true,
     ): array {
         // DTO 到 canonical request 的映射统一收口在这里，
         // 方便后续校验与 provider payload 转换共享同一套结构。
         return $this->normalizeCanonicalRequest([
             'model_id' => $requestDTO->getModel(),
             'task' => $requestDTO->getTask(),
+            'input_mode' => $requestDTO->getInputMode(),
             'prompt' => $requestDTO->getPrompt(),
             'inputs' => $requestDTO->getInputs(),
             'generation' => $requestDTO->getGeneration(),
             'callbacks' => $requestDTO->getCallbacks(),
             'execution' => $requestDTO->getExecution(),
             'extensions' => $requestDTO->getExtensions(),
-        ], $providerCode, $videoGenerationConfig);
+        ], $providerCode, $videoGenerationConfig, $validateRequest);
     }
 
     private function normalizeCanonicalRequest(
         array $requestData,
         ProviderCode $providerCode,
-        VideoGenerationConfig $videoGenerationConfig
+        VideoGenerationConfig $videoGenerationConfig,
+        bool $validateRequest = true,
     ): array {
         // 先把输入清洗成稳定结构。
         $frames = [];
         foreach ($requestData['inputs']['frames'] ?? [] as $frame) {
             $role = trim((string) ($frame['role'] ?? ''));
-            $uri = trim((string) ($frame['uri'] ?? ''));
-            if ($role !== '' && $uri !== '') {
-                $frames[] = [
-                    'role' => $role,
-                    'uri' => $uri,
-                ];
+            $media = is_array($frame) ? $this->normalizeReferenceMedia($frame, 'inputs.frames') : [];
+            if ($role !== '' && $media !== []) {
+                $frames[] = ['role' => $role] + $media;
             }
         }
 
         $referenceImages = [];
         foreach ($requestData['inputs']['reference_images'] ?? [] as $referenceImage) {
-            $uri = trim((string) ($referenceImage['uri'] ?? ''));
-            if ($uri === '') {
+            if (! is_array($referenceImage)) {
                 continue;
             }
-
-            $item = ['uri' => $uri];
+            $item = $this->normalizeReferenceMedia($referenceImage, 'inputs.reference_images');
+            if ($item === []) {
+                continue;
+            }
             $type = $this->normalizeReferenceImageType($referenceImage['type'] ?? null);
             if ($type !== '') {
                 $item['type'] = $type;
@@ -480,6 +486,8 @@ readonly class VideoQueueDomainService
         $maskInput = $this->normalizeMediaInput($requestData['inputs']['mask'] ?? null, 'inputs.mask');
         $referenceVideoInputs = $this->normalizeMediaInputs($requestData['inputs']['reference_videos'] ?? null, 'inputs.reference_videos');
         $referenceAudioInputs = $this->normalizeMediaInputs($requestData['inputs']['reference_audios'] ?? null, 'inputs.reference_audios');
+        // 样片成片的引用由上游（Design）解析成样片任务 ID 后下发，这里只做结构归一化。
+        $draftTaskInput = $this->normalizeDraftTaskInput($requestData['inputs']['draft_task'] ?? null);
 
         $generation = array_filter([
             'size' => $this->normalizeGenerationSize($requestData['generation']['size'] ?? null),
@@ -501,6 +509,8 @@ readonly class VideoQueueDomainService
             'sample_count' => $this->normalizeNullableInt($requestData['generation']['sample_count'] ?? null),
             'camera_fixed' => $this->normalizeOptionalBool($requestData['generation']['camera_fixed'] ?? null),
             'return_last_frame' => $this->normalizeOptionalBool($requestData['generation']['return_last_frame'] ?? null),
+            'web_search' => $this->normalizeOptionalBool($requestData['generation']['web_search'] ?? null),
+            'draft' => $this->normalizeOptionalBool($requestData['generation']['draft'] ?? null),
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
         $generation = $this->normalizeProviderSpecificGeneration(
             $generation,
@@ -531,17 +541,18 @@ readonly class VideoQueueDomainService
             $referenceVideoInputs,
             $referenceAudioInputs,
         );
-        // 统一约定后，所有需要视频素材的任务都从 reference_videos 取输入。
-        $this->assertTaskRequirements($task, $referenceVideoInputs);
-        $this->assertCapability($task);
-        $this->assertCompositionModeRequirements(
-            $task,
-            $compositionMode,
-            $frames,
-            $referenceImages,
-            $referenceVideoInputs,
-            $referenceAudioInputs,
-        );
+        if ($validateRequest) {
+            $this->assertRequestCompatibility(
+                $task,
+                $compositionMode,
+                $frames,
+                $referenceImages,
+                $referenceVideoInputs,
+                $referenceAudioInputs,
+                $draftTaskInput,
+                $videoGenerationConfig,
+            );
+        }
         $extensions = is_array($requestData['extensions'] ?? null) ? $requestData['extensions'] : [];
 
         $prompt = (string) ($requestData['prompt'] ?? '');
@@ -558,6 +569,7 @@ readonly class VideoQueueDomainService
                 'reference_videos' => $referenceVideoInputs,
                 'reference_audios' => $referenceAudioInputs,
                 'mask' => $maskInput,
+                'draft_task' => $draftTaskInput,
             ], static fn (mixed $value): bool => $value !== []),
             'generation' => $generation,
             'callbacks' => $callbacks,
@@ -586,6 +598,7 @@ readonly class VideoQueueDomainService
         }
 
         $resolution = $this->normalizeOptionalString($generation['resolution'] ?? null);
+        $hasExplicitResolution = $resolution !== null;
         if ($resolution === null) {
             $resolution = $this->inferKelingResolutionFromDimensions($generation);
         }
@@ -596,6 +609,11 @@ readonly class VideoQueueDomainService
 
         $resolution = $this->normalizeResolution($resolution);
         if ($resolution === null || ! array_key_exists($resolution, self::KELING_RESOLUTION_TO_MODE)) {
+            if ($hasExplicitResolution) {
+                // 保留显式非法值，由统一的能力校验生成标准错误。
+                unset($generation['mode']);
+                return $generation;
+            }
             unset($generation['resolution'], $generation['mode']);
             return $generation;
         }
@@ -665,8 +683,19 @@ readonly class VideoQueueDomainService
         if (! ($configGeneration['supports_negative_prompt'] ?? false)) {
             unset($generation['negative_prompt']);
         }
-        if (! ($configGeneration['supports_generate_audio'] ?? false)) {
+        $audioConfig = is_array($configGeneration['generate_audio'] ?? null) ? $configGeneration['generate_audio'] : null;
+        $audioSupportDeclared = array_key_exists('supports_generate_audio', $configGeneration);
+        if ($audioConfig === null && $audioSupportDeclared && ! (bool) $configGeneration['supports_generate_audio']) {
             unset($generation['generate_audio']);
+        }
+        $webSearchConfig = is_array($configGeneration['web_search'] ?? null) ? $configGeneration['web_search'] : null;
+        if ($webSearchConfig === null) {
+            unset($generation['web_search']);
+        }
+        // 样片模式只有声明了 draft 开关的能力才接受，其余模型一律裁剪掉。
+        $draftConfig = is_array($configGeneration['draft'] ?? null) ? $configGeneration['draft'] : null;
+        if ($draftConfig === null) {
+            unset($generation['draft']);
         }
         if (! ($configGeneration['supports_enhance_prompt'] ?? false)) {
             unset($generation['enhance_prompt']);
@@ -716,25 +745,96 @@ readonly class VideoQueueDomainService
         return self::KELING_DIMENSIONS_TO_RESOLUTION[$dimensions] ?? null;
     }
 
-    private function assertCapability(string $task): void
-    {
-        match ($task) {
-            VideoTaskType::Generate->value => 'text_prompt',
-            VideoTaskType::Extend->value => 'video_extension',
-            VideoTaskType::Edit->value => VideoInputMode::VideoEdit->value,
-            VideoTaskType::Upscale->value => 'video_upscale',
-            default => throw new RuntimeException('unknown task'),
-        };
-    }
+    /**
+     * 统一校验任务类型、输入模式、模型能力及素材要求。
+     *
+     * @param list<array{role?: string, uri?: string}> $frames
+     * @param list<array{uri: string, type?: string}> $referenceImages
+     * @param list<array{uri: string}> $referenceVideoInputs
+     * @param list<array{uri: string}> $referenceAudioInputs
+     * @param array{id: string}|array{} $draftTaskInput
+     */
+    private function assertRequestCompatibility(
+        string $task,
+        string $compositionMode,
+        array $frames,
+        array $referenceImages,
+        array $referenceVideoInputs,
+        array $referenceAudioInputs,
+        array $draftTaskInput,
+        VideoGenerationConfig $videoGenerationConfig
+    ): void {
+        $taskType = VideoTaskType::from($task);
+        if (! $taskType->supportsInputMode($compositionMode)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+        }
 
-    private function assertTaskRequirements(string $task, array $referenceVideoInputs): void
-    {
-        if (in_array($task, [
-            VideoTaskType::Extend->value,
-            VideoTaskType::Edit->value,
-            VideoTaskType::Upscale->value,
-        ], true) && $referenceVideoInputs === []) {
+        if ($videoGenerationConfig->hasInputModes() && ! $videoGenerationConfig->supportsInputMode($compositionMode)) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::ValidateFailed,
+                sprintf('input_mode %s is not supported by the current video model', $compositionMode),
+            );
+        }
+
+        if ($compositionMode === VideoInputMode::KeyframeGuided->value && $frames !== []) {
+            foreach ($frames as $frame) {
+                $role = strtolower(trim((string) ($frame['role'] ?? '')));
+                if ($role !== '' && ! $videoGenerationConfig->supportsFrameRole($compositionMode, $role)) {
+                    ExceptionBuilder::throw(
+                        MagicApiErrorCode::ValidateFailed,
+                        sprintf('inputs.frames.%s is not supported by the current video model', $role),
+                    );
+                }
+            }
+        }
+
+        $requiredInput = $taskType->requiredSupportedInput();
+        if ($requiredInput !== null
+            && $videoGenerationConfig->hasSupportedInputs()
+            && ! $videoGenerationConfig->supportsInput($requiredInput)) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::ValidateFailed,
+                sprintf('task %s is not supported by the current video model', $task),
+            );
+        }
+
+        if ($taskType->requiresReferenceVideo() && $referenceVideoInputs === []) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_videos is required');
+        }
+
+        switch ($compositionMode) {
+            case VideoInputMode::Standard->value:
+            case VideoInputMode::VideoEdit->value:
+                return;
+            case VideoInputMode::DraftTask->value:
+                if ($draftTaskInput === []) {
+                    ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.draft_task is required');
+                }
+                if ($frames !== [] || $referenceImages !== [] || $referenceVideoInputs !== [] || $referenceAudioInputs !== []) {
+                    ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+                }
+                return;
+            case VideoInputMode::ImageReference->value:
+                if ($referenceImages === []) {
+                    ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_images is required');
+                }
+                if ($referenceVideoInputs !== [] || $referenceAudioInputs !== [] || $frames !== []) {
+                    ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+                }
+                return;
+            case VideoInputMode::OmniReference->value:
+                if ($frames !== []) {
+                    ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+                }
+                return;
+            case VideoInputMode::KeyframeGuided->value:
+                if ($frames === []) {
+                    ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.frames is required');
+                }
+                if ($referenceImages !== [] || $referenceVideoInputs !== [] || $referenceAudioInputs !== []) {
+                    ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+                }
+                return;
         }
     }
 
@@ -748,16 +848,15 @@ readonly class VideoQueueDomainService
     ): string {
         $mode = strtolower(trim((string) $value));
         if ($mode !== '') {
-            if (! in_array($mode, [
-                VideoInputMode::Standard->value,
-                VideoInputMode::ImageReference->value,
-                VideoInputMode::OmniReference->value,
-                VideoInputMode::KeyframeGuided->value,
-            ], true)) {
+            if (! VideoInputMode::isRequestValid($mode)) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
             }
 
             return $mode;
+        }
+
+        if ($task === VideoTaskType::Edit->value) {
+            return VideoInputMode::VideoEdit->value;
         }
 
         if ($task !== VideoTaskType::Generate->value) {
@@ -775,61 +874,6 @@ readonly class VideoQueueDomainService
         }
 
         return VideoInputMode::Standard->value;
-    }
-
-    /**
-     * @param list<array{uri: string, type?: string}> $referenceImages
-     */
-    private function assertCompositionModeRequirements(
-        string $task,
-        string $compositionMode,
-        array $frames,
-        array $referenceImages,
-        array $referenceVideoInputs,
-        array $referenceAudioInputs
-    ): void {
-        if ($compositionMode === VideoInputMode::Standard->value) {
-            return;
-        }
-
-        if ($task !== VideoTaskType::Generate->value) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
-        }
-
-        if ($compositionMode === VideoInputMode::ImageReference->value) {
-            if ($referenceImages === []) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_images is required');
-            }
-            if ($referenceVideoInputs !== [] || $referenceAudioInputs !== [] || $frames !== []) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
-            }
-
-            return;
-        }
-
-        if ($compositionMode === VideoInputMode::OmniReference->value) {
-            if ($referenceImages === [] && $referenceVideoInputs === [] && $referenceAudioInputs === []) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'omni_reference inputs are required');
-            }
-            if ($frames !== []) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
-            }
-
-            return;
-        }
-
-        $hasStartFrame = false;
-        foreach ($frames as $frame) {
-            $role = strtolower(trim((string) ($frame['role'] ?? '')));
-            $hasStartFrame = $hasStartFrame || in_array($role, ['start', 'first'], true);
-        }
-
-        if (! $hasStartFrame) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.frames.start is required');
-        }
-        if ($referenceImages !== [] || $referenceVideoInputs !== [] || $referenceAudioInputs !== []) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
-        }
     }
 
     private function finishSucceeded(VideoQueueOperationEntity $operation, array $result): void
@@ -958,12 +1002,38 @@ readonly class VideoQueueDomainService
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s is invalid', $field));
         }
 
-        $uri = trim((string) ($value['uri'] ?? ''));
-        if ($uri === '') {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.uri is required', $field));
+        $normalized = $this->normalizeReferenceMedia($value, $field);
+        if ($normalized === []) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.uri or %s.base64 is required', $field, $field));
         }
 
-        return ['uri' => $uri];
+        return $normalized;
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeReferenceMedia(array $value, string $field): array
+    {
+        $uri = $this->normalizeOptionalString($value['uri'] ?? null);
+        $base64 = $this->normalizeOptionalString($value['base64'] ?? ($value['base64_data'] ?? null));
+        if ($uri === null && $base64 === null) {
+            return [];
+        }
+
+        $normalized = [];
+        if ($uri !== null) {
+            $normalized['uri'] = $uri;
+        }
+        if ($base64 !== null) {
+            $normalized['base64'] = $base64;
+        }
+        $mimeType = $this->normalizeOptionalString($value['mime_type'] ?? null);
+        if ($mimeType !== null) {
+            $normalized['mime_type'] = strtolower($mimeType);
+        }
+        if (array_key_exists('duration_seconds', $value) && is_numeric($value['duration_seconds'])) {
+            $normalized['duration_seconds'] = (int) $value['duration_seconds'];
+        }
+        return $normalized;
     }
 
     /**
@@ -996,6 +1066,25 @@ readonly class VideoQueueDomainService
         $normalized = is_string($value) ? trim($value) : '';
 
         return $normalized === '' ? null : $normalized;
+    }
+
+    /**
+     * 归一化样片成片引用。
+     *
+     * 只接受上游解析后的样片任务 ID：调用方拿到的是业务 video_id 或工作区路径，
+     * 由 Design 层翻译成方舟样片任务 ID 后再下发，模型网关不再重复解析。
+     *
+     * @return array{id: string}|array{}
+     */
+    private function normalizeDraftTaskInput(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $draftTaskId = $this->normalizeOptionalString($value['id'] ?? null);
+
+        return $draftTaskId === null ? [] : ['id' => $draftTaskId];
     }
 
     private function normalizeGenerationSize(mixed $value): ?string
@@ -1128,7 +1217,30 @@ readonly class VideoQueueDomainService
     {
         $supportedResolutions = $this->normalizeStringList($configGeneration['resolutions'] ?? []);
         if ($supportedResolutions === []) {
+            if (array_key_exists('resolution', $generation)) {
+                ExceptionBuilder::throw(
+                    MagicApiErrorCode::ValidateFailed,
+                    'generation.resolution is not supported by this video model'
+                );
+            }
             unset($generation['resolution']);
+            return $generation;
+        }
+
+        // 显式传入的分辨率必须严格匹配模型能力，不能通过最近档位或默认值静默降级。
+        if (array_key_exists('resolution', $generation)) {
+            $resolution = $this->normalizeResolution($generation['resolution']);
+            if ($resolution === null || ! in_array($resolution, $supportedResolutions, true)) {
+                ExceptionBuilder::throw(
+                    MagicApiErrorCode::ValidateFailed,
+                    sprintf(
+                        'generation.resolution must be one of: %s',
+                        implode(', ', $supportedResolutions)
+                    )
+                );
+            }
+
+            $generation['resolution'] = $resolution;
             return $generation;
         }
 
@@ -1155,24 +1267,7 @@ readonly class VideoQueueDomainService
      */
     private function normalizeSupportedDuration(array $generation, array $configGeneration): array
     {
-        $supportedDurations = $this->normalizeIntList($configGeneration['durations'] ?? []);
-        if ($supportedDurations === []) {
-            unset($generation['duration_seconds']);
-            return $generation;
-        }
-
-        $defaultDuration = $this->normalizeNullableInt($configGeneration['default_duration_seconds'] ?? null);
-        if (! array_key_exists('duration_seconds', $generation)) {
-            return $generation;
-        }
-
-        $duration = $this->coerceIntToSupportedList($generation['duration_seconds'], $supportedDurations, $defaultDuration);
-        if ($duration === null || $duration <= 0) {
-            unset($generation['duration_seconds']);
-            return $generation;
-        }
-
-        $generation['duration_seconds'] = $duration;
+        // duration_type/durations 是 Provider 能力原样下发的元数据；队列层只透传请求时长。
         return $generation;
     }
 
@@ -1302,42 +1397,6 @@ readonly class VideoQueueDomainService
         }
 
         return null;
-    }
-
-    /**
-     * @param list<int> $supportedValues
-     */
-    private function coerceIntToSupportedList(mixed $value, array $supportedValues, ?int $defaultValue): ?int
-    {
-        if ($supportedValues === []) {
-            return null;
-        }
-
-        $normalized = $this->normalizeNullableInt($value);
-        if ($normalized === null) {
-            return $defaultValue;
-        }
-
-        return $this->nearestInt($normalized, $supportedValues) ?? $defaultValue;
-    }
-
-    /**
-     * @param list<int> $supportedValues
-     */
-    private function nearestInt(int $value, array $supportedValues): ?int
-    {
-        sort($supportedValues);
-        $nearest = null;
-        $nearestDistance = null;
-        foreach ($supportedValues as $supportedValue) {
-            $distance = abs($supportedValue - $value);
-            if ($nearestDistance === null || $distance < $nearestDistance || ($distance === $nearestDistance && $supportedValue < $nearest)) {
-                $nearest = $supportedValue;
-                $nearestDistance = $distance;
-            }
-        }
-
-        return $nearest;
     }
 
     /**

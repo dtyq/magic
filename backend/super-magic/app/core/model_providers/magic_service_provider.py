@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from agentlang.config.models.model_config import ModelConfig
+from agentlang.config.models.model_config import ModelConfig, parse_bool_value
 from agentlang.config.models.provider_interface import ModelProvider, RefreshPolicy
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
@@ -64,7 +64,11 @@ class MagicServiceProvider(ModelProvider):
             raise MagicServiceProviderError("magic_service_host not available")
 
         url = f"{_normalize_magic_service_host(host)}/v1/models"
-        params = {"with_info": "1", "with_dynamic_models": "1"}
+        params = {
+            "with_info": "1",
+            "with_dynamic_models": "1",
+            "with_organization_models": "1",
+        }
         headers: Dict[str, str] = {}
         can_send_magic_headers = MetadataUtil.should_send_magic_authorization_headers(host)
         if authorization and can_send_magic_headers:
@@ -207,7 +211,9 @@ class MagicServiceProvider(ModelProvider):
                 pass
 
         if "function_call" in options:
-            config_dict["supports_tool_use"] = bool(options["function_call"])
+            config_dict["supports_tool_use"] = parse_bool_value(options["function_call"], default=True)
+        if "multi_modal" in options:
+            config_dict["supports_multimodal"] = parse_bool_value(options["multi_modal"])
 
         # 从 attributes 提取元数据
         metadata: Dict[str, Any] = {}

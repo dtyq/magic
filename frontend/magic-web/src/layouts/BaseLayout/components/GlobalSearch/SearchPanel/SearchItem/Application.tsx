@@ -1,31 +1,22 @@
-import { createStyles } from "antd-style"
 import type { GlobalSearch } from "@/types/search"
 import { useMemoizedFn } from "ahooks"
 import { useOrganization } from "@/models/user/hooks"
 import HighlightText from "../HighlightText"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 import { useMagicSearchStore } from "../../store"
 
 interface SearchItemApplicationProps {
 	item: GlobalSearch.ApplicationItem
 }
 
-const useApplicationStyle = createStyles(() => {
-	return {
-		item: {
-			height: 56,
-		},
-		wrapper: {
-			height: "100%",
-			justifyContent: "center",
-		},
-	}
-})
+const applicationStyles = {
+	item: "h-14",
+	wrapper: "h-full justify-center",
+}
 
 function Application(props: SearchItemApplicationProps) {
 	const { item } = props
-	const { styles, cx } = useSearchItemCommonStyles()
-	const { styles: applicationStyles } = useApplicationStyle()
 
 	const closePanel = useMagicSearchStore((store) => store.closePanel)
 

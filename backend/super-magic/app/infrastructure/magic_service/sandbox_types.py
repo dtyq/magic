@@ -1,15 +1,15 @@
 """Typed response payloads for sandbox self-management APIs."""
 
-from typing import Literal, TypedDict
+from typing import Literal, Optional, TypedDict
 
 SandboxUpgradeScheduleOperation = Literal["upgrade_scheduled", "already_current"]
-SandboxRestartScheduleOperation = Literal["restart_scheduled"]
+SandboxRestartScheduleOperation = Literal["restart_requested"]
 
 
 class SandboxVersionData(TypedDict):
     current_version: str
     latest_version: str
-    needs_update: bool
+    needs_update: Optional[bool]
 
 
 class SandboxInfoData(SandboxVersionData):
@@ -30,7 +30,6 @@ class SandboxUpgradeScheduleData(SandboxVersionData):
 class SandboxRestartScheduleData(TypedDict):
     sandbox_id: str
     operation: SandboxRestartScheduleOperation
-    delay_seconds: int
 
 
 __all__ = [

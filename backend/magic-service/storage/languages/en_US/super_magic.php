@@ -19,13 +19,11 @@ return [
             'tool_code' => 'Tool Code',
             'tool_name' => 'Tool Name',
             'tool_type' => 'Tool Type',
-            // Common fields
             'page' => 'Page',
             'page_size' => 'Page Size',
             'creator_id' => 'Creator ID',
         ],
         'validation' => [
-            // Basic field validation
             'name_required' => 'Agent name is required',
             'name_string' => 'Agent name must be a string',
             'name_max' => 'Agent name cannot exceed 80 characters',
@@ -38,8 +36,6 @@ return [
             'prompt_required' => 'Agent prompt is required',
             'prompt_array' => 'Agent prompt must be in array format',
             'tools_array' => 'Tools configuration must be in array format',
-
-            // Tool field validation
             'tool_code_required' => 'Tool code is required',
             'tool_code_string' => 'Tool code must be a string',
             'tool_code_max' => 'Tool code cannot exceed 100 characters',
@@ -53,22 +49,16 @@ return [
             'tool_type_required' => 'Tool type is required',
             'tool_type_integer' => 'Tool type must be an integer',
             'tool_type_invalid' => 'Invalid tool type',
-
-            // Pagination validation
             'page_integer' => 'Page must be an integer',
             'page_min' => 'Page cannot be less than 1',
             'page_size_integer' => 'Page size must be an integer',
             'page_size_min' => 'Page size cannot be less than 1',
             'page_size_max' => 'Page size cannot exceed 1000',
-
-            // Search condition validation
             'codes_array' => 'Code list must be in array format',
             'code_string' => 'Code must be a string',
             'code_max' => 'Code cannot exceed 50 characters',
             'creator_id_string' => 'Creator ID must be a string',
             'creator_id_max' => 'Creator ID cannot exceed 40 characters',
-
-            // Order validation
             'frequent_array' => 'Frequent agents order must be in array format',
             'frequent_code_string' => 'Frequent agent code must be a string',
             'frequent_code_max' => 'Frequent agent code cannot exceed 50 characters',
@@ -88,6 +78,7 @@ return [
         'agent_version_not_found' => 'Agent version not found',
         'can_only_review_pending_version' => 'Can only review pending versions',
         'version_already_exists' => 'Version already exists',
+        'invalid_version_format' => 'Invalid version format. Supported formats: 1.0, 1.0.0, v1.0, v1.0.0, V1.0, or V1.0.0',
         'publish_target_type_invalid' => 'Invalid publish target type',
         'publish_target_value_should_be_empty' => 'publish_target_value must be empty for current publish target type',
         'publish_target_value_required' => 'publish_target_value is required for current publish target type',
@@ -95,7 +86,6 @@ return [
         'store_agent_already_added' => 'This store agent has already been added, duplicate addition is not allowed',
         'agent_not_available' => 'You do not have permission to use this agent',
         'category_used_by_market' => 'This category is used by market agents. Please remove the associations first.',
-        // Migrated from crew.php
         'validate_failed' => 'Validation failed',
         'not_found' => 'Crew not found',
         'save_failed' => 'Failed to save crew',
@@ -162,14 +152,31 @@ return [
             'extract_failed' => 'Failed to extract the archive. Please verify the file and try again',
         ],
         'publish' => [
+            'skills_sync_failed' => 'Publish failed: failed to sync skill references (:reason). Check the skills bound to this agent and try again.',
             'identity_md_not_found' => 'Publish failed: the required file :path was not found under the project root. Please add it and try again.',
         ],
         'export_failed' => 'Agent export failed. Please try again later',
+        'description_i18n_en_must_be_string' => 'Description i18n en must be string',
     ],
     'task' => [
         'prompt_length_exceeded' => 'Input text is too long. Please upload it as a file and reference it in the dialog.',
+        'sandbox_init_failed' => 'Runtime environment error. Please try again later.',
+        'chat_task_start_failed' => 'Failed to start the task. Please try again later.',
+        'auto_hire_agent_failed' => 'Failed to automatically hire the employee. Make sure the employee is published and your account has permission to hire them, or try again later.',
+        'question_expired' => 'This question has expired or already been handled, so your answer was not delivered. You can continue the conversation by sending a new message.',
+        'question_recovery_failed' => 'We cannot continue processing right now. Please try again later. Your answer has been kept.',
+        'project_file_count_exceeded' => 'The project space needs some file cleanup before this task can continue. Remove files you no longer need and try again.',
+        'user_space_file_count_exceeded' => 'Your personal file space needs some cleanup before this task can continue. Remove files you no longer need and try again.',
     ],
     'magic_claw' => [
         'create_system_error' => 'A system error occurred. Please try again later.',
     ],
+    'operation_failed' => 'Operation failed',
+    'skill' => [
+        'export_failed' => 'Operation failed',
+    ],
+    'delete_failed' => 'Operation failed',
+    'not_found' => 'Resource not found',
+    'save_failed' => 'Operation failed',
+    'validate_failed' => 'Operation failed',
 ];

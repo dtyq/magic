@@ -5,6 +5,7 @@ import type {
 	SlideScreenshotService,
 } from "../services"
 import type { SlideItem } from "../PPTSidebar/types"
+import type { PPTThumbnailCacheContext, PPTThumbnailCacheMode } from "../services/PPTThumbnailCache"
 
 type ResolveSlide = () => SlideItem | undefined
 type ResolveCurrentSlide = (slide: SlideItem, originalIndex: number) => SlideItem | undefined
@@ -84,6 +85,8 @@ export class PPTScreenshotManager {
 		targetContent?: string,
 		resolveSlide?: ResolveSlide,
 		requestKind: SlideScreenshotRequestKind = "required",
+		cacheContext?: PPTThumbnailCacheContext,
+		cacheMode: PPTThumbnailCacheMode = "use",
 	): Promise<void> {
 		if (this.disposed) return
 
@@ -134,6 +137,8 @@ export class PPTScreenshotManager {
 				cacheKey,
 				contentForScreenshot,
 				requestKind,
+				cacheContext,
+				cacheMode,
 			)
 
 			let accepted = false
@@ -203,6 +208,7 @@ export class PPTScreenshotManager {
 	async generateAllScreenshots(
 		slides: SlideItem[],
 		resolveCurrentSlide?: ResolveCurrentSlide,
+		resolveCacheContext?: (slide: SlideItem) => PPTThumbnailCacheContext | undefined,
 	): Promise<void> {
 		if (this.disposed) return
 		const lifecycleGeneration = this.lifecycleGeneration
@@ -230,6 +236,8 @@ export class PPTScreenshotManager {
 							resolveCurrentSlide
 								? () => resolveCurrentSlide(slide, index)
 								: undefined,
+							"required",
+							resolveCacheContext?.(slide),
 						)
 					}
 					// 跳过未加载或未处理的幻灯片

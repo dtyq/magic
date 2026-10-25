@@ -1,12 +1,14 @@
-import { Flex, Tooltip } from "antd"
-import { memo, useMemo, useState } from "react"
+import { Search as SearchIcon } from "lucide-react"
+import { memo, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 // import BrowserHeader from "../../components/BrowserHeader"
 import CommonHeaderV2 from "../../components/CommonHeaderV2"
 import SearchBody, { SearchGroup } from "./components/SearchBody"
+import SearchGroupTabs from "./components/SearchGroupTabs"
 import { useStyles } from "./styles"
 
 interface SearchProps {
-	data: any
+	data: { groups?: SearchGroup[] }
 	userSelectDetail: any
 	isFromNode: boolean
 	setUserSelectDetail: (detail: any) => void
@@ -63,87 +65,70 @@ export default memo(function Search(props: SearchProps) {
 	} = props
 
 	const { styles, cx } = useStyles()
+	const { t } = useTranslation("super")
 
 	const { groups = [] } = data
 
 	// Use state to track the selected keyword
 	const [selectedKeyword, setSelectedKeyword] = useState<string>(groups?.[0]?.keyword || "")
+	// 回放切到另一批结果时，查询栏、Tab 和正文必须回退到同一组，不能各自保留旧选择。
+	const currentGroup = groups.find((group) => group.keyword === selectedKeyword) || groups[0]
+	const currentKeyword = currentGroup?.keyword || ""
 
 	// Update selected keyword when groups change
-	useMemo(() => {
-		if (groups.length > 0 && !selectedKeyword) {
-			setSelectedKeyword(groups[0].keyword)
-		}
-	}, [groups, selectedKeyword])
-
-	const SuffixComponent = useMemo(() => {
-		// Show all available keywords as suffixes
-		const showGroups = groups.slice(0, 5)
-		return (
-			<Flex gap={4} className={styles.suffixContainer}>
-				{showGroups.map((group: SearchGroup) => {
-					const isSelected = group.keyword === selectedKeyword
-					return (
-						<Tooltip title={group.keyword} key={group.keyword}>
-							<div
-								className={`${styles.suffix} ${
-									isSelected ? styles.suffixSelected : styles.suffixDefault
-								}`}
-								onClick={(e) => {
-									e.stopPropagation()
-									setSelectedKeyword(group.keyword)
-								}}
-								style={{ cursor: "pointer" }}
-								data-testid="set-selected-keyword"
-							>
-								{group.keyword}
-							</div>
-						</Tooltip>
-					)
-				})}
-			</Flex>
-		)
-	}, [
-		groups,
-		selectedKeyword,
-		styles.suffix,
-		styles.suffixContainer,
-		styles.suffixSelected,
-		styles.suffixDefault,
-	])
-
-	const headerActionConfig = useMemo(
-		() => ({
-			customActions: [
-				{
-					key: "search-keyword-tabs",
-					zone: "primary" as const,
-					render: () => SuffixComponent,
-				},
-			],
-		}),
-		[SuffixComponent],
-	)
+	useEffect(() => {
+		setSelectedKeyword(currentKeyword)
+	}, [currentKeyword])
 
 	return (
 		<div className={cx(styles.searchContainer, className)}>
-			<CommonHeaderV2
-				type={type}
-				onFullscreen={onFullscreen}
-				onDownload={onDownload}
-				isFromNode={isFromNode}
-				isFullscreen={isFullscreen}
-				// Pass new props for ActionButtons functionality
-				viewMode={viewMode}
-				onViewModeChange={onViewModeChange}
-				onCopy={onCopy}
-				fileContent={fileContent || selectedKeyword}
-				// File sharing props
-				currentFile={currentFile}
-				allowEdit={allowEdit}
-				actionConfig={headerActionConfig}
-			/>
-			<SearchBody keyword={selectedKeyword} groups={groups} />
+			<div className={styles.queryArea}>
+				{currentGroup && (
+					<div
+						className={styles.query}
+						role="group"
+						aria-label={t("search.queryReadOnly")}
+					>
+						<span className={styles.queryIcon} aria-hidden>
+							<SearchIcon size={16} />
+						</span>
+						<span className={styles.queryText}>
+							{currentGroup.query?.trim() || t("search.queryUnavailable")}
+						</span>
+					</div>
+				)}
+				{groups.length === 1 && (
+					<span className={styles.resultCount}>
+						{t("search.resultCount", { count: groups[0].results.length })}
+					</span>
+				)}
+				<div className={styles.headerActions}>
+					<CommonHeaderV2
+						renderMode="actions"
+						type={type}
+						onFullscreen={onFullscreen}
+						onDownload={onDownload}
+						isFromNode={isFromNode}
+						isFullscreen={isFullscreen}
+						// Pass new props for ActionButtons functionality
+						viewMode={viewMode}
+						onViewModeChange={onViewModeChange}
+						onCopy={onCopy}
+						fileContent={fileContent || currentKeyword}
+						// File sharing props
+						currentFile={currentFile}
+						allowEdit={allowEdit}
+					/>
+				</div>
+			</div>
+			<SearchGroupTabs
+				groups={groups}
+				value={currentKeyword}
+				onValueChange={setSelectedKeyword}
+			>
+				{/* 切换组时重新挂载结果区，重置滚动及摘要展开；同组重渲染保持阅读位置。 */}
+				<SearchBody key={currentKeyword} currentGroup={currentGroup} />
+			</SearchGroupTabs>
 		</div>
 	)
 })

@@ -3,6 +3,7 @@ import {
 	type AttachmentIndex,
 } from "@/pages/superMagic/components/TopicFilesButton/utils/attachmentIndex"
 import { getFileContentById } from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { getStaticDependencyParser } from "./parserRegistry"
 import type { StaticDependencyAttachment, StaticDependencyResult } from "./types"
 
@@ -29,11 +30,16 @@ export async function resolveSingleDocumentStaticDependencies({
 	fileIds,
 	attachments,
 	attachmentIndex,
+	fileApi,
+	signal,
 }: {
 	fileIds: string[]
 	attachments: StaticDependencyAttachment[]
 	attachmentIndex?: AttachmentIndex
+	fileApi?: Pick<FileApi, "getFileContentById">
+	signal?: AbortSignal
 }): Promise<StaticDependencyResult> {
+	signal?.throwIfAborted()
 	if (fileIds.length !== 1) return EMPTY_RESULT
 
 	const resolvedAttachmentIndex =
@@ -44,7 +50,11 @@ export async function resolveSingleDocumentStaticDependencies({
 	const parser = getStaticDependencyParser(file)
 	if (!parser) return EMPTY_RESULT
 
-	const content = await getFileContentById(file.file_id, { responseType: "text" })
+	const content = await (fileApi?.getFileContentById ?? getFileContentById)(file.file_id, {
+		responseType: "text",
+		signal,
+	})
+	signal?.throwIfAborted()
 	if (typeof content !== "string") {
 		throw new Error("Static dependency analysis requires text content")
 	}

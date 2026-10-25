@@ -1,6 +1,6 @@
-import { mergeAttributes, Node, ReactNodeViewRenderer } from "@tiptap/react"
+import { mergeAttributes, Node, ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
 import { ImageUploadNode as ImageUploadNodeComponent } from "@/components/tiptap-node/image-upload-node/image-upload-node"
-import type { NodeType } from "@tiptap/pm/model"
+import type { NodeType } from "@/infrastructure/editors/tiptap/pm-model"
 
 export type UploadFunction = (
 	file: File,
@@ -50,7 +50,7 @@ export interface ImageUploadNodeOptions {
 	HTMLAttributes: Record<string, any>
 }
 
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		imageUpload: {
 			setImageUploadNode: (options?: ImageUploadNodeOptions) => ReturnType
@@ -114,12 +114,12 @@ export const ImageUploadNode = Node.create<ImageUploadNodeOptions>({
 		return {
 			setImageUploadNode:
 				(options) =>
-					({ commands }) => {
-						return commands.insertContent({
-							type: this.name,
-							attrs: options,
-						})
-					},
+				({ commands }) => {
+					return commands.insertContent({
+						type: this.name,
+						attrs: options,
+					})
+				},
 		}
 	},
 

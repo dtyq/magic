@@ -1,7 +1,7 @@
 import { IMCPItem } from "@/components/Agent/MCP"
 import { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 
 /** 定时任务 */
 export namespace ScheduledTask {

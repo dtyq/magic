@@ -132,4 +132,24 @@ describe("buildFileFilterResult", () => {
 		expect(result.filteredFiles[0].children).toBe(attachments[0].children)
 		expect(result.matchedItemPaths).toEqual([])
 	})
+
+	it("classifies Opus recording artifacts as multimedia files", () => {
+		const opusAttachments: AttachmentItem[] = [
+			{
+				file_id: "mock-opus-audio",
+				filename: "mock-recording.opus",
+				file_extension: "opus",
+			},
+		]
+		const result = buildFileFilterResult({
+			attachments: opusAttachments,
+			fileFilters: {
+				...allFilters,
+				multimedia: false,
+			},
+			searchValue: "",
+		})
+
+		expect(result.filteredFiles).toEqual([])
+	})
 })

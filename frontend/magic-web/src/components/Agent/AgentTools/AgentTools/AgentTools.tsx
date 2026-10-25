@@ -1,8 +1,7 @@
-import { useStyles } from "./styles"
 import { IconX, IconChevronDown } from "@tabler/icons-react"
 import { AgentCommonModalChildrenProps } from "@/components/Agent/AgentCommonModal"
-import { Flex, Select, Form, Input, Checkbox } from "antd"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { Select, Form, Input, Checkbox } from "antd"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import MagicSpin from "@/components/base/MagicSpin"
 import CollapseItem from "./CollapseItem"
 import { useDeepCompareEffect, useMemoizedFn, useRequest } from "ahooks"
@@ -13,29 +12,28 @@ import type { Flow, UseableToolSet } from "@/types/flow"
 
 export interface AgentTools extends AgentCommonModalChildrenProps {
 	id?: string
-	/** 已选择工具 Ids */
+	/** IDs of selected tools. */
 	usableCache?: Array<string>
-	/** 自定义添加行为 */
+	/** Custom tool addition handler. */
 	onAdd?: (info: Flow.Mcp.SaveParams) => void
-	/** 操作成功回调 */
+	/** Callback invoked after a successful operation. */
 	onSuccessCallback?: () => void
 }
 
 export default function AgentTools(props: AgentTools) {
 	const { id, onClose, onSuccessCallback } = props
 
-	const { styles } = useStyles()
 	const { t } = useTranslation("agent")
 
 	/** Saved form data */
 	const [usableCache, setUsableCache] = useImmer<Set<string>>(new Set())
 
-	/** 工具列表数据 */
+	/** Available tool sets. */
 	const [toolListData, setToolListData] = useImmer<UseableToolSet.Item[]>([])
 
 	const { loading } = useRequest(FlowApi.getUseableToolList, {
 		onSuccess(data) {
-			// 初始化工具列表数据
+			// Initialize the available tool sets.
 			setToolListData(data?.list || [])
 			onSuccessCallback?.()
 		},
@@ -94,7 +92,7 @@ export default function AgentTools(props: AgentTools) {
 		}
 	})
 
-	// 处理工具列表更新
+	// Update the tools in the matching tool set.
 	const onToolsUpdate = useMemoizedFn((toolsetId: string, tools: UseableToolSet.UsableTool[]) => {
 		setToolListData((preState) => {
 			const targetIndex = preState.findIndex((item) => item.id === toolsetId)
@@ -105,25 +103,31 @@ export default function AgentTools(props: AgentTools) {
 	})
 
 	return (
-		<div className={styles.layout}>
-			<div className={styles.header}>
+		<div className="w-full overflow-hidden rounded-[12px]">
+			<div className="flex items-center justify-between border-b border-border px-5 py-2.5 text-base font-semibold not-italic leading-[22px] text-foreground/80 backdrop-blur-[12px]">
 				{t("common.tool.import")}
-				<div className={styles.close} onClick={onClose}>
+				<div
+					className="flex size-6 cursor-pointer items-center justify-center rounded-[6px] transition-all duration-100 ease-linear hover:bg-fill active:bg-fill-secondary dark:hover:bg-white/10 dark:active:bg-white/[0.15]"
+					onClick={onClose}
+				>
 					<IconX size={24} />
 				</div>
 			</div>
-			<div className={styles.wrapper}>
-				<Form className={styles.wrapperHeader} colon={false}>
-					<Flex align="center">
+			<div className="flex flex-col gap-2 py-2.5">
+				<Form
+					className="flex h-8 w-full items-center justify-between px-2.5 [&_.magic-form-item-label]:after:!hidden"
+					colon={false}
+				>
+					<div className="flex items-center">
 						<Form.Item
 							name="sort"
 							label={t("common.tool.menu.sort")}
-							className={styles.formItem}
+							className="mb-0"
 							initialValue="default"
 						>
 							<Select
 								variant="borderless"
-								style={{ width: 100 }}
+								className="w-[100px]"
 								suffixIcon={<IconChevronDown size={18} />}
 							>
 								<Select.Option key="default" value="default">
@@ -131,18 +135,23 @@ export default function AgentTools(props: AgentTools) {
 								</Select.Option>
 							</Select>
 						</Form.Item>
-					</Flex>
-					<Flex align="center" gap={10}>
-						<Form.Item name="name" className={styles.formItem}>
+					</div>
+					<div className="flex items-center gap-2.5">
+						<Form.Item name="name" className="mb-0">
 							<Input placeholder={t("common.tool.menu.search")} />
 						</Form.Item>
-						<Form.Item name="name" className={styles.formItem}>
+						<Form.Item name="name" className="mb-0">
 							<Checkbox>{t("common.tool.menu.onlyShowOfficial")}</Checkbox>
 						</Form.Item>
-					</Flex>
+					</div>
 				</Form>
 				<MagicSpin spinning={loading}>
-					<MagicScrollBar className={styles.wrapperBody} autoHide={false}>
+					{/* Limit the viewport height so the list grows with its content and scrolls within 70vh. */}
+					<ScrollArea
+						type="always"
+						className="w-full"
+						viewportClassName="min-h-[300px] max-h-[70vh] px-2.5 [&>div]:!block"
+					>
 						{toolListData?.map((item) => (
 							<CollapseItem
 								key={item?.id}
@@ -152,7 +161,7 @@ export default function AgentTools(props: AgentTools) {
 								onToolsUpdate={onToolsUpdate}
 							/>
 						))}
-					</MagicScrollBar>
+					</ScrollArea>
 				</MagicSpin>
 			</div>
 		</div>

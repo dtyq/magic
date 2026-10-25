@@ -5,7 +5,7 @@ import SmartTooltip from "@/components/other/SmartTooltip"
 import FlexBox from "@/components/base/FlexBox"
 import { Button } from "@/components/shadcn-ui/button"
 import { Check, ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import useGeistFont from "@/styles/fonts/geist"
 import { MenuItemProps, MentionItemType } from "../../types"
 import { useMentionItemRenderContextValue, useMentionItemRenderer } from "../../renderers/context"
@@ -14,6 +14,7 @@ import {
 	shouldRenderMentionItemTypeDescription,
 } from "../../renderers/shared/helpers"
 import { MentionPanelBuiltinItemId } from "../../runtime/builtin/catalog-ids"
+import { isSceneCatalogItem } from "../../runtime/builtin/domains/scene-catalog/store"
 
 const MenuItem = memo(function MenuItem(props: MenuItemProps) {
 	const {
@@ -33,13 +34,14 @@ const MenuItem = memo(function MenuItem(props: MenuItemProps) {
 	useGeistFont()
 
 	const renderer = useMentionItemRenderer(item.type)
-	const filePreviewById = useMentionItemRenderContextValue()
+	const { filePreviewById, filePresentationOptions } = useMentionItemRenderContextValue()
 	const rendererContext = {
 		item,
 		t,
 		isSearch,
 		platform: "desktop" as const,
 		filePreviewById,
+		filePresentationOptions,
 	}
 
 	function renderDeleteButton() {
@@ -151,6 +153,8 @@ const MenuItem = memo(function MenuItem(props: MenuItemProps) {
 	const typeDescription = renderer.getTypeDescription?.(rendererContext) ?? null
 	const shouldRenderTypeDescription = shouldRenderMentionItemTypeDescription(rendererContext)
 	const skillSourceLabel = getMentionItemSkillSourceLabel(rendererContext)
+	// Paths keep their tail ("…/studies/x"); scene subtitles are sentences, so they keep their start.
+	const truncateDescriptionStart = !isSceneCatalogItem(item)
 
 	return (
 		<div
@@ -208,7 +212,10 @@ const MenuItem = memo(function MenuItem(props: MenuItemProps) {
 			{shouldRenderTypeDescription && (
 				<div
 					className="relative max-w-[50%] overflow-hidden whitespace-nowrap font-['Geist'] text-[10px] font-normal leading-[13px] text-muted-foreground"
-					style={{ direction: "rtl", textOverflow: "ellipsis" }}
+					style={{
+						direction: truncateDescriptionStart ? "rtl" : "ltr",
+						textOverflow: "ellipsis",
+					}}
 					data-testid={skillSourceLabel ? "mention-panel-skill-source" : undefined}
 				>
 					<span style={{ direction: "ltr", unicodeBidi: "bidi-override" }}>

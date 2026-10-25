@@ -26,7 +26,7 @@ import {
 	Users,
 	Wand2,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export const DATA_EMPTY_STATE_VARIANTS = [
 	"generic",

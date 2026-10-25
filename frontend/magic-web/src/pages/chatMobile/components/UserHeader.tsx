@@ -5,7 +5,7 @@ import { IconChevronLeft } from "@tabler/icons-react"
 import MagicIcon, { MagicIconProps } from "@/components/base/MagicIcon"
 import { ButtonProps } from "antd"
 import FlexBox from "@/components/base/FlexBox"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const useStyles = createStyles(({ token, css }) => ({
 	userHeader: css`

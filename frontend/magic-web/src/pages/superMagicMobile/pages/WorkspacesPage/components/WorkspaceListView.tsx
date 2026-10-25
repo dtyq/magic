@@ -5,7 +5,7 @@ import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/compone
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"

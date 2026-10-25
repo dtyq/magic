@@ -17,7 +17,7 @@ import { DocumentTree } from "@/pages/superMagic/pages/CrewEdit/components/StepD
 import MarkdownSourcePanel from "@/pages/superMagic/pages/CrewEdit/components/StepDetailPanel/KnowledgeDetailView/components/MarkdownSourcePanel"
 import FormattedContentPanel from "@/pages/superMagic/pages/CrewEdit/components/StepDetailPanel/KnowledgeDetailView/components/FormattedContentPanel"
 import TopicResizeHandle from "@/pages/superMagic/pages/TopicPage/components/TopicResizeHandle"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import { buildFragmentConfig } from "../../../utils/strategyConfigConverter"
 
 // 布局常量

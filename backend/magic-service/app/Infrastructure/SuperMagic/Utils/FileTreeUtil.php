@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\SuperMagic\Utils;
 
-use Hyperf\Coroutine\Coroutine;
-
 /**
  * File tree builder utility class.
  *
@@ -259,13 +257,10 @@ class FileTreeUtil
         // 1. Build file map (file_id => file) for O(1) parent lookup
         $fileMap = [];
 
-        foreach ($files as $index => $file) {
+        foreach ($files as $file) {
             $fileId = $file['file_id'] ?? 0;
             if ($fileId > 0) {
                 $fileMap[$fileId] = $file;
-            }
-            if (($index + 1) % 500 === 0) {
-                Coroutine::sleep(0.001);
             }
         }
 
@@ -275,16 +270,13 @@ class FileTreeUtil
         $parentChildMap = [];  // parent_id => [child_files]
         $rootNodes = [];       // root nodes (parent not present in the current file list)
 
-        foreach ($files as $index => $file) {
+        foreach ($files as $file) {
             $parentId = $file['parent_id'] ?? 0;
 
             if ($parentId <= 0 || ! isset($fileMap[$parentId])) {
                 $rootNodes[] = $file;
             } else {
                 $parentChildMap[$parentId][] = $file;
-            }
-            if (($index + 1) % 500 === 0) {
-                Coroutine::sleep(0.001);
             }
         }
 
@@ -472,11 +464,8 @@ class FileTreeUtil
         // If there are child nodes, build recursively
         $fileId = $file['file_id'] ?? 0;
         if (isset($parentChildMap[$fileId]) && ! empty($parentChildMap[$fileId])) {
-            foreach ($parentChildMap[$fileId] as $index => $childFile) {
+            foreach ($parentChildMap[$fileId] as $childFile) {
                 $node['children'][] = self::buildNodeWithChildren($childFile, $parentChildMap, $sorter);
-                if (($index + 1) % 500 === 0) {
-                    Coroutine::sleep(0.001);
-                }
             }
 
             // Sort child nodes using FileNameSorter

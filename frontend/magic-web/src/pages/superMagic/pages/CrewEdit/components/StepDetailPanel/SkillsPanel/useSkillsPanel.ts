@@ -9,8 +9,8 @@ import type {
 } from "@/apis/modules/skills"
 import type { CrewI18nText } from "@/apis/modules/crew"
 import { buildCrewI18nText } from "@/apis/modules/crew"
-import { resolveLocalizedText as resolveLocaleText } from "@/utils/locale"
 import { CREW_SKILLS_TAB, type CrewSkillsTab } from "../../../store"
+import { skillsService } from "@/services/skills/SkillsService"
 
 const SKILLS_PANEL_PAGE_SIZE = 20
 /** Debounce after pause; throttle caps request rate for auto-search. */
@@ -80,6 +80,7 @@ interface UseSkillsPanelOptions {
 	onRemoveSkillFromAgent: (skillCode: string) => Promise<void>
 	/** Refresh bound crew skills from backend after persistence succeeds. */
 	onRefreshSkills?: () => Promise<void>
+	/** Resolved list fields follow the request locale; changes must refresh the API data. */
 	language: string
 	/**
 	 * Optional full replacement for install (after list item click).
@@ -93,21 +94,19 @@ interface UseSkillsPanelOptions {
 	overrideUninstall?: (skillCode: string) => Promise<void>
 }
 
-function resolveLocalizedText(
-	textObj: Record<string, string> | undefined,
-	language: string,
-): string {
-	return resolveLocaleText(textObj, language)
+function resolveStoreSkillCode(item: StoreSkillItem): string {
+	return item.code || item.skill_code || item.package_name || String(item.id)
 }
 
-function mapStoreSkill(item: StoreSkillItem, language: string): SkillPanelItem {
+function mapStoreSkill(item: StoreSkillItem): SkillPanelItem {
 	return {
 		id: item.id,
-		skillCode: item.skill_code,
+		skillCode: resolveStoreSkillCode(item),
 		userSkillCode: item.user_skill_code ?? undefined,
 		isInUserLibrary: item.is_added,
-		name: resolveLocalizedText(item.name_i18n, language),
-		description: resolveLocalizedText(item.description_i18n, language),
+		// Market responses are already localized by the API request language.
+		name: item.name?.trim() || item.package_name || resolveStoreSkillCode(item),
+		description: item.description?.trim() || "",
 		logo: item.logo,
 		sourceType: undefined,
 		status: "not-installed",
@@ -115,15 +114,15 @@ function mapStoreSkill(item: StoreSkillItem, language: string): SkillPanelItem {
 	}
 }
 
-function mapLatestPublishedSkill(item: SkillLastVersionItem, language: string): SkillPanelItem {
+function mapLatestPublishedSkill(item: SkillLastVersionItem): SkillPanelItem {
 	return {
 		id: item.id,
 		skillCode: item.code,
 		userSkillCode: item.code,
 		isInUserLibrary: true,
-		name: resolveLocalizedText(item.name_i18n, language) || item.name || "",
-		description:
-			resolveLocalizedText(item.description_i18n, language) || item.description || "",
+		// Latest-version responses expose the localized display fields directly.
+		name: item.name?.trim() || item.package_name || item.code,
+		description: item.description || "",
 		logo: item.logo,
 		sourceType: item.source_type,
 		status: "not-installed",
@@ -227,12 +226,20 @@ export function useSkillsPanel({
 					page,
 					page_size: SKILLS_PANEL_PAGE_SIZE,
 				})
-				const nextItems = res.list.map((item) => mapStoreSkill(item, language))
+				const nextItems = res.list.map((item) => mapStoreSkill(item))
 				setRawLibrary((prev) => (append ? [...prev, ...nextItems] : nextItems))
+				const legacyTotal =
+					"total" in res && typeof res.total === "number" ? res.total : undefined
+				const pageSize = res.page_size || SKILLS_PANEL_PAGE_SIZE
+				const inferredTotal =
+					legacyTotal ??
+					(res.list.length < pageSize
+						? (page - 1) * pageSize + res.list.length
+						: page * pageSize + 1)
 				updatePaginationState("library", (state) => ({
 					...state,
 					page: res.page,
-					total: res.total,
+					total: inferredTotal,
 				}))
 			} catch {
 				// Non-critical; list stays empty
@@ -244,7 +251,7 @@ export function useSkillsPanel({
 				}))
 			}
 		},
-		[language, updatePaginationState],
+		[updatePaginationState],
 	)
 
 	const fetchMySkills = useCallback(
@@ -260,7 +267,7 @@ export function useSkillsPanel({
 					page,
 					page_size: SKILLS_PANEL_PAGE_SIZE,
 				})
-				const nextItems = res.list.map((item) => mapLatestPublishedSkill(item, language))
+				const nextItems = res.list.map((item) => mapLatestPublishedSkill(item))
 				setRawMySkills((prev) => (append ? [...prev, ...nextItems] : nextItems))
 				updatePaginationState("mySkills", (state) => ({
 					...state,
@@ -277,7 +284,7 @@ export function useSkillsPanel({
 				}))
 			}
 		},
-		[language, updatePaginationState],
+		[updatePaginationState],
 	)
 
 	useEffect(() => {
@@ -286,7 +293,7 @@ export function useSkillsPanel({
 		setIsSearchComposing(false)
 		if (activeTab === CREW_SKILLS_TAB.Library) return
 		void fetchMySkills({ page: 1 })
-	}, [activeTab, fetchMySkills])
+	}, [activeTab, fetchMySkills, language])
 
 	// Library: debounce + throttle; skip while IME is composing (CJK input).
 	useEffect(() => {
@@ -295,7 +302,7 @@ export function useSkillsPanel({
 		const kw = throttledSearchQuery.trim()
 		appliedKeywordRef.current = kw
 		void fetchLibrary({ keyword: kw || undefined, page: 1 })
-	}, [activeTab, throttledSearchQuery, fetchLibrary, isSearchComposing])
+	}, [activeTab, throttledSearchQuery, fetchLibrary, isSearchComposing, language])
 
 	const onSearchCompositionStart = useCallback(() => setIsSearchComposing(true), [])
 	const onSearchCompositionEnd = useCallback(() => setIsSearchComposing(false), [])
@@ -365,7 +372,8 @@ export function useSkillsPanel({
 			try {
 				if (activeTab === CREW_SKILLS_TAB.Library) {
 					if (!skill.isInUserLibrary) {
-						await SkillsApi.addSkillFromStore({ store_skill_id: skill.id })
+						// The install API may return no identity, so preserve the code already shown in the row.
+						await skillsService.addSkillFromStore(skill.id, skillCode)
 					}
 
 					const rawIndex = rawLibrary.findIndex((item) => item.skillCode === skillCode)
@@ -376,9 +384,7 @@ export function useSkillsPanel({
 						page_size: SKILLS_PANEL_PAGE_SIZE,
 						keyword: appliedKeywordRef.current || undefined,
 					})
-					const refreshedPageItems = refreshed.list.map((item) =>
-						mapStoreSkill(item, language),
-					)
+					const refreshedPageItems = refreshed.list.map((item) => mapStoreSkill(item))
 
 					setRawLibrary((prev) =>
 						replacePageItems({
@@ -390,7 +396,7 @@ export function useSkillsPanel({
 					)
 
 					const updatedSkill = refreshed.list.find(
-						(item) => item.skill_code === skillCode,
+						(item) => resolveStoreSkillCode(item) === skillCode,
 					)
 					agentSkillId = updatedSkill?.user_skill_code ?? skillCode
 				} else {
@@ -422,7 +428,6 @@ export function useSkillsPanel({
 			activeTab,
 			busySkills,
 			displayItems,
-			language,
 			onAddSkill,
 			onAddSkillToAgent,
 			onRefreshSkills,

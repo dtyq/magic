@@ -1,7 +1,7 @@
 import { LucideProps } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
-export const Skills = ({ className, size = 20, strokeWidth = 1.25, ...props }: LucideProps) => {
+export const Skills = ({ className, size = 20, strokeWidth = 1, ...props }: LucideProps) => {
 	return (
 		<svg
 			xmlns="http://www.w3.org/2000/svg"

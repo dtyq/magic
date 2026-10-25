@@ -11,12 +11,16 @@ export default function ShareContent({
 	enableImmersiveShareChrome,
 	isImmersiveFullscreen,
 	projectId,
+	shareCode,
+	sharePassword,
+	onCopySharedFilesComplete,
 	topicId,
 	showAllProjectFiles,
 	isProjectShare,
 	viewFileList,
 	showCreatedByBadge,
 	allowDownloadProjectFile,
+	allowCopyProjectFiles,
 	forceFullscreenMode,
 	documentFlowFullscreen,
 	hidePreviewHeader,
@@ -34,12 +38,20 @@ export default function ShareContent({
 	enableImmersiveShareChrome?: boolean
 	isImmersiveFullscreen?: boolean
 	projectId?: string
+	shareCode?: string
+	sharePassword?: string
+	onCopySharedFilesComplete?: (info: {
+		projectId: string
+		workspaceId: string
+		projectName?: string
+	}) => void
 	topicId?: string
 	showAllProjectFiles?: boolean
 	isProjectShare?: boolean
 	viewFileList?: boolean
 	showCreatedByBadge?: boolean
 	allowDownloadProjectFile?: boolean
+	allowCopyProjectFiles?: boolean
 	forceFullscreenMode?: boolean
 	documentFlowFullscreen?: boolean
 	hidePreviewHeader?: boolean
@@ -61,11 +73,15 @@ export default function ShareContent({
 			isImmersiveFullscreen={isImmersiveFullscreen}
 			topicId={topicId}
 			projectId={projectId}
+			shareCode={shareCode}
+			sharePassword={sharePassword}
+			onCopySharedFilesComplete={onCopySharedFilesComplete}
 			showAllProjectFiles={showAllProjectFiles}
 			isProjectShare={isProjectShare}
 			viewFileList={viewFileList}
 			showCreatedByBadge={showCreatedByBadge}
 			allowDownloadProjectFile={allowDownloadProjectFile}
+			allowCopyProjectFiles={allowCopyProjectFiles}
 			forceFullscreenMode={forceFullscreenMode}
 			documentFlowFullscreen={documentFlowFullscreen}
 			hidePreviewHeader={hidePreviewHeader}

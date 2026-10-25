@@ -65,6 +65,12 @@ const t = (key: string) => {
 }
 
 describe("resolveSuperPageDocumentTitle", () => {
+	it("uses the blank composer title even with an old global selection", () => {
+		pathnameState.current = "/cluster/super/new-chat"
+		workspaceStoreState.selectedProject = { project_name: "old project" }
+		renderHook(useProjectTitle)
+		expect(setMetaMock).toHaveBeenLastCalledWith({ title: "chatList.newChat" })
+	})
 	it("uses conversation name only for chat workspace projects", () => {
 		expect(
 			resolveSuperPageDocumentTitle({
@@ -108,6 +114,16 @@ describe("useProjectTitle", () => {
 		pathnameState.current = "/cluster/super/p-1"
 		workspaceStoreState.selectedWorkspace = null
 		workspaceStoreState.selectedProject = null
+	})
+
+	it("leaves micro-app titles to the page despite a stale global project", () => {
+		pathnameState.current = "/cluster/super/micro-app/app-1"
+		workspaceStoreState.selectedWorkspace = { id: "ws-1", name: "设计空间" }
+		workspaceStoreState.selectedProject = { project_name: "旧项目" }
+
+		renderHook(useProjectTitle)
+
+		expect(setMetaMock).not.toHaveBeenCalled()
 	})
 
 	it("syncs document title immediately on mount when project and workspace are selected", () => {

@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useState } from "react"
 import { reaction } from "mobx"
 import { FunctionPermissionApi } from "@/apis"
-import type { FunctionPermissionCode, FunctionPermissionMap } from "@/apis"
+import {
+	PLATFORM_SUPER_ADMIN_PERMISSION_KEY,
+	type FunctionPermissionCode,
+	type FunctionPermissionMap,
+} from "@/apis"
 import { userStore } from "@/models/user"
 
 type FunctionPermissionState = {
 	data?: FunctionPermissionMap
+	error?: unknown
+	isLoading: boolean
+}
+
+type PlatformPermissionState = {
+	permissionKeys?: string[]
 	error?: unknown
 	isLoading: boolean
 }
@@ -17,38 +27,40 @@ let permissionError: unknown
 let permissionRequest: Promise<FunctionPermissionMap> | null = null
 let hasRequestedPermission = false
 let requestVersion = 0
-let permissionUserId = ""
-let disposeUserIdReaction: (() => void) | undefined
+let permissionContextKey = ""
+let disposePermissionContextReaction: (() => void) | undefined
 
 const getCurrentUserId = () => userStore.user.userInfo?.user_id ?? ""
+const getPermissionContextKey = () =>
+	`${getCurrentUserId()}:${userStore.user.organizationCode ?? ""}`
 
 const notifyListeners = () => {
 	listeners.forEach((listener) => listener())
 }
 
 const getPermissionState = (): FunctionPermissionState => ({
-	data: permissionUserId === getCurrentUserId() ? permissionCache : undefined,
-	error: permissionUserId === getCurrentUserId() ? permissionError : undefined,
+	data: permissionContextKey === getPermissionContextKey() ? permissionCache : undefined,
+	error: permissionContextKey === getPermissionContextKey() ? permissionError : undefined,
 	isLoading:
-		permissionUserId !== getCurrentUserId() ||
+		permissionContextKey !== getPermissionContextKey() ||
 		permissionRequest != null ||
 		!hasRequestedPermission,
 })
 
-const resetFunctionPermissions = (userId = getCurrentUserId()) => {
+const resetFunctionPermissions = (contextKey = getPermissionContextKey()) => {
 	permissionCache = undefined
 	permissionError = undefined
 	permissionRequest = null
 	hasRequestedPermission = false
-	permissionUserId = userId
+	permissionContextKey = contextKey
 	requestVersion += 1
 	notifyListeners()
 }
 
 const fetchFunctionPermissions = (force = false) => {
-	const currentUserId = getCurrentUserId()
-	if (permissionUserId !== currentUserId) {
-		resetFunctionPermissions(currentUserId)
+	const currentContextKey = getPermissionContextKey()
+	if (permissionContextKey !== currentContextKey) {
+		resetFunctionPermissions(currentContextKey)
 	}
 
 	if (permissionRequest && !force) return permissionRequest
@@ -83,21 +95,189 @@ const fetchFunctionPermissions = (force = false) => {
 	return request
 }
 
-const startUserIdReaction = () => {
-	if (disposeUserIdReaction) return
+const startPermissionContextReaction = () => {
+	if (disposePermissionContextReaction) return
 
-	disposeUserIdReaction = reaction(getCurrentUserId, (userId, previousUserId) => {
-		if (userId === previousUserId) return
-		resetFunctionPermissions(userId)
-		void fetchFunctionPermissions().catch(() => undefined)
-	})
+	disposePermissionContextReaction = reaction(
+		getPermissionContextKey,
+		(contextKey, previousContextKey) => {
+			if (contextKey === previousContextKey) return
+			resetFunctionPermissions(contextKey)
+			void fetchFunctionPermissions().catch(() => undefined)
+		},
+	)
 }
 
-const stopUserIdReaction = () => {
+const stopPermissionContextReaction = () => {
 	if (listeners.size > 0) return
 
-	disposeUserIdReaction?.()
-	disposeUserIdReaction = undefined
+	disposePermissionContextReaction?.()
+	disposePermissionContextReaction = undefined
+}
+
+const platformPermissionListeners = new Set<() => void>()
+
+let platformPermissionCache: string[] | undefined
+let platformPermissionError: unknown
+let platformPermissionRequest: Promise<string[]> | null = null
+let hasRequestedPlatformPermission = false
+let platformPermissionContextKey = ""
+let platformPermissionRequestVersion = 0
+let disposePlatformPermissionReaction: (() => void) | undefined
+
+const notifyPlatformPermissionListeners = () => {
+	platformPermissionListeners.forEach((listener) => listener())
+}
+
+const getPlatformPermissionState = (): PlatformPermissionState => {
+	const contextKey = getPermissionContextKey()
+
+	return {
+		permissionKeys:
+			platformPermissionContextKey === contextKey ? platformPermissionCache : undefined,
+		error: platformPermissionContextKey === contextKey ? platformPermissionError : undefined,
+		isLoading:
+			platformPermissionContextKey !== contextKey ||
+			platformPermissionRequest != null ||
+			!hasRequestedPlatformPermission,
+	}
+}
+
+const resetPlatformPermission = (contextKey = getPermissionContextKey()) => {
+	platformPermissionCache = undefined
+	platformPermissionError = undefined
+	platformPermissionRequest = null
+	hasRequestedPlatformPermission = false
+	platformPermissionContextKey = contextKey
+	platformPermissionRequestVersion += 1
+	notifyPlatformPermissionListeners()
+}
+
+const fetchPlatformPermissions = (force = false) => {
+	const contextKey = getPermissionContextKey()
+	if (platformPermissionContextKey !== contextKey) {
+		resetPlatformPermission(contextKey)
+	}
+
+	if (platformPermissionRequest && !force) return platformPermissionRequest
+	if (!force && platformPermissionCache !== undefined) {
+		return Promise.resolve(platformPermissionCache)
+	}
+
+	hasRequestedPlatformPermission = true
+	platformPermissionError = undefined
+	const currentRequestVersion = platformPermissionRequestVersion + 1
+	platformPermissionRequestVersion = currentRequestVersion
+	const request = FunctionPermissionApi.getPermissionGroups()
+		.then(({ permission_key }) => {
+			const permissionKeys = Array.isArray(permission_key) ? permission_key : []
+			if (currentRequestVersion === platformPermissionRequestVersion) {
+				platformPermissionCache = permissionKeys
+			}
+			return permissionKeys
+		})
+		.catch((error: unknown) => {
+			if (currentRequestVersion === platformPermissionRequestVersion) {
+				platformPermissionError = error
+			}
+			throw error
+		})
+		.finally(() => {
+			if (currentRequestVersion === platformPermissionRequestVersion) {
+				platformPermissionRequest = null
+				notifyPlatformPermissionListeners()
+			}
+		})
+
+	platformPermissionRequest = request
+	notifyPlatformPermissionListeners()
+	return request
+}
+
+const startPlatformPermissionReaction = () => {
+	if (disposePlatformPermissionReaction) return
+
+	disposePlatformPermissionReaction = reaction(
+		getPermissionContextKey,
+		(contextKey, previous) => {
+			if (contextKey === previous) return
+			resetPlatformPermission(contextKey)
+			void fetchPlatformPermissions().catch(() => undefined)
+		},
+	)
+}
+
+const stopPlatformPermissionReaction = () => {
+	if (platformPermissionListeners.size > 0) return
+
+	disposePlatformPermissionReaction?.()
+	disposePlatformPermissionReaction = undefined
+}
+
+const usePlatformPermissionKeys = (enabled: boolean) => {
+	const [state, setState] = useState<PlatformPermissionState>(getPlatformPermissionState)
+
+	useEffect(() => {
+		if (!enabled) return
+
+		const handleStateChange = () => setState(getPlatformPermissionState())
+		platformPermissionListeners.add(handleStateChange)
+		startPlatformPermissionReaction()
+		handleStateChange()
+		void fetchPlatformPermissions().catch(() => undefined)
+
+		return () => {
+			platformPermissionListeners.delete(handleStateChange)
+			stopPlatformPermissionReaction()
+		}
+	}, [enabled])
+
+	const mutate = useCallback(() => fetchPlatformPermissions(true), [])
+
+	return enabled
+		? { ...state, mutate }
+		: {
+				permissionKeys: undefined,
+				error: undefined,
+				isLoading: false,
+				mutate,
+			}
+}
+
+const usePlatformSuperAdmin = (enabled: boolean) => {
+	const { permissionKeys, error, isLoading } = usePlatformPermissionKeys(enabled)
+
+	return {
+		isSuperAdmin:
+			enabled && permissionKeys?.includes(PLATFORM_SUPER_ADMIN_PERMISSION_KEY) === true,
+		error,
+		isLoading,
+	}
+}
+
+export interface UsePermissionKeyOptions {
+	/** Allow platform super administrators to bypass a missing permission key. */
+	allowSuperAdmin?: boolean
+}
+
+/**
+ * Check a permission key returned by `/api/v1/permissions/me`.
+ * This hook intentionally does not request `/api/v1/function-permissions/me`.
+ */
+export const usePermissionKey = (permissionKey: string, options: UsePermissionKeyOptions = {}) => {
+	const { permissionKeys, error, isLoading, mutate } = usePlatformPermissionKeys(true)
+	const directPermissionGranted = permissionKeys?.includes(permissionKey) === true
+	const superAdminGranted =
+		options.allowSuperAdmin === true &&
+		permissionKeys?.includes(PLATFORM_SUPER_ADMIN_PERMISSION_KEY) === true
+
+	return {
+		error,
+		isAllowed: directPermissionGranted || superAdminGranted,
+		isLoading,
+		mutate,
+		permissionKeys,
+	}
 }
 
 export const useFunctionPermissions = () => {
@@ -107,12 +287,12 @@ export const useFunctionPermissions = () => {
 		const handleStateChange = () => setState(getPermissionState())
 
 		listeners.add(handleStateChange)
-		startUserIdReaction()
+		startPermissionContextReaction()
 		void fetchFunctionPermissions().catch(() => undefined)
 
 		return () => {
 			listeners.delete(handleStateChange)
-			stopUserIdReaction()
+			stopPermissionContextReaction()
 		}
 	}, [])
 
@@ -124,14 +304,33 @@ export const useFunctionPermissions = () => {
 	}
 }
 
-export const useFunctionPermission = (code: FunctionPermissionCode) => {
+export interface UseFunctionPermissionOptions {
+	/** Allow platform super administrators to bypass a missing function permission. */
+	allowSuperAdmin?: boolean
+}
+
+export const useFunctionPermission = (
+	code: FunctionPermissionCode,
+	options: UseFunctionPermissionOptions = {},
+) => {
 	const { data, error, isLoading, mutate } = useFunctionPermissions()
+	const directPermissionGranted = data?.[code] === true
+	const shouldCheckSuperAdmin =
+		options.allowSuperAdmin === true && !isLoading && !directPermissionGranted
+	const platformSuperAdmin = usePlatformSuperAdmin(shouldCheckSuperAdmin)
+	const refresh = useCallback(async () => {
+		const permissions = await mutate()
+		if (options.allowSuperAdmin === true && permissions?.[code] !== true) {
+			await fetchPlatformPermissions(true)
+		}
+		return permissions
+	}, [code, mutate, options.allowSuperAdmin])
 
 	return {
-		error,
-		isAllowed: data?.[code] === true,
-		isLoading,
-		mutate,
+		error: error ?? platformSuperAdmin.error,
+		isAllowed: directPermissionGranted || platformSuperAdmin.isSuperAdmin,
+		isLoading: isLoading || platformSuperAdmin.isLoading,
+		mutate: refresh,
 		permissions: data,
 	}
 }

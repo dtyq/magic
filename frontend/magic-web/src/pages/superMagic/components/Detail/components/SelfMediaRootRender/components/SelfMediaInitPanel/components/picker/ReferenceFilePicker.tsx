@@ -7,8 +7,8 @@ import {
 	DropdownMenuContent,
 } from "@/components/shadcn-ui/dropdown-menu"
 import projectFilesStore from "@/stores/projectFiles"
-import { getFileContentById } from "@/pages/superMagic/utils/api"
-import { cn } from "@/lib/utils"
+import { useFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { cn } from "@/utils/cn"
 import ProjectFilePickerContent from "./ProjectFilePickerContent"
 import { selfMediaOverlayStyles } from "../../../selfMediaOverlayStyles"
 import { useDropZone } from "../../lib/useDropZone"
@@ -85,18 +85,19 @@ function readLocalFile(file: File): Promise<ReferenceFileValue> {
 }
 
 async function readProjectFile(
+	fileApi: Pick<FileApi, "getFileContentById">,
 	fileId: string,
 	fileName: string,
 	filePath?: string,
 ): Promise<ReferenceFileValue> {
 	if (isTextFileName(fileName)) {
-		const content = (await getFileContentById(fileId, {
+		const content = (await fileApi.getFileContentById(fileId, {
 			responseType: "text",
 		})) as string
 		return { name: fileName, content, kind: "text", file_id: fileId, file_path: filePath }
 	}
 
-	const blob = (await getFileContentById(fileId, {
+	const blob = (await fileApi.getFileContentById(fileId, {
 		responseType: "blob",
 	})) as Blob
 	const content = await blobToDataUrl(blob)
@@ -114,6 +115,7 @@ export default function ReferenceFilePicker({
 	className,
 }: ReferenceFilePickerProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const [showProjectPicker, setShowProjectPicker] = useState(false)
 	const [loadingProjectFile, setLoadingProjectFile] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
@@ -160,7 +162,7 @@ export default function ReferenceFilePicker({
 				const selections = pending.slice(0, remaining)
 				const files = await Promise.all(
 					selections.map(({ fileId, fileName, filePath }) =>
-						readProjectFile(fileId, fileName, filePath),
+						readProjectFile(fileApi, fileId, fileName, filePath),
 					),
 				)
 				appendFiles(files)
@@ -173,7 +175,7 @@ export default function ReferenceFilePicker({
 				setLoadingProjectFile(false)
 			}
 		},
-		[appendFiles, maxFiles, onError, selectedPaths, t, value.length],
+		[appendFiles, maxFiles, onError, selectedPaths, t, value.length, fileApi],
 	)
 
 	const handleLocalFileSelect = useCallback(
@@ -222,7 +224,7 @@ export default function ReferenceFilePicker({
 		async (fileId: string, fileName: string, filePath?: string) => {
 			setLoadingProjectFile(true)
 			try {
-				appendFiles([await readProjectFile(fileId, fileName, filePath)])
+				appendFiles([await readProjectFile(fileApi, fileId, fileName, filePath)])
 				setShowProjectPicker(false)
 				setSearchQuery("")
 				setPendingProjectFiles(new Map())
@@ -232,7 +234,7 @@ export default function ReferenceFilePicker({
 				setLoadingProjectFile(false)
 			}
 		},
-		[appendFiles, onError, t],
+		[appendFiles, onError, t, fileApi],
 	)
 
 	const handleProjectFileToggle = useCallback(

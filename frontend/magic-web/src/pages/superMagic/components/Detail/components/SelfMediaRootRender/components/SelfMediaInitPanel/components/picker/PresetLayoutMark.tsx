@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { VisualPresetOption } from "../../types"
 
 const PRESET_LAYOUT_MARK_VARIANTS = {

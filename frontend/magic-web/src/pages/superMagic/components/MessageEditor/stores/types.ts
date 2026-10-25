@@ -1,4 +1,4 @@
-import { JSONContent, Editor } from "@tiptap/react"
+import { JSONContent, Editor } from "@/infrastructure/editors/tiptap/react"
 import { FileData } from "../types"
 
 /**

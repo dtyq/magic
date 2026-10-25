@@ -13,6 +13,8 @@ from app.service.browser.browser_tool_result_builder import BrowserToolResultBui
 MAX_MARKDOWN_PREVIEW_CHARS = 3_000
 MAX_HTML_PREVIEW_CHARS = 5_000
 MAX_VALUE_PREVIEW_CHARS = 3_000
+MAX_SCRIPT_PREVIEW_CHARS = 180
+MAX_SCRIPT_DETAIL_CHARS = 12_000
 MAX_SNAPSHOT_PREVIEW_ITEMS = 12
 MAX_LIST_PREVIEW_ITEMS = 10
 MAX_DIAGNOSTIC_PREVIEW_ITEMS = 5
@@ -124,6 +126,15 @@ def escape_markdown(value: str) -> str:
 def bounded_text(value: str, limit: int) -> str:
     normalized = " ".join(value.split())
     return normalized if len(normalized) <= limit else normalized[:limit].rstrip() + "…"
+
+
+def script_text(arguments: Mapping[str, object], key: str) -> str:
+    value = arguments.get(key)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def script_preview(value: str) -> str:
+    return bounded_text(value, MAX_SCRIPT_PREVIEW_CHARS)
 
 
 def display_time(value: str) -> str:

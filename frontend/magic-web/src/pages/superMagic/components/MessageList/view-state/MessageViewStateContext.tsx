@@ -14,6 +14,16 @@ import {
 const MAX_VIEW_STATE_ENTRIES = 10_000
 
 class MessageViewStateRegistry {
+	private processRevision = 0
+	private processListeners = new Set<() => void>()
+	getProcessRevision = () => this.processRevision
+	subscribeProcesses = (listener: () => void) => {
+		this.processListeners.add(listener)
+		return () => {
+			this.processListeners.delete(listener)
+		}
+	}
+
 	private values = new Map<string, unknown>()
 	private listeners = new Map<string, Set<() => void>>()
 
@@ -35,6 +45,10 @@ class MessageViewStateRegistry {
 			}
 		}
 		this.values.set(key, value)
+		if (key.includes("\u0000process:")) {
+			this.processRevision += 1
+			this.processListeners.forEach((listener) => listener())
+		}
 		this.listeners.get(key)?.forEach((listener) => listener())
 	}
 
@@ -132,4 +146,31 @@ export function useMessageViewState<T>(
 	)
 
 	return scope ? [persistedValue, setValue] : [localValue, setValue]
+}
+
+/** 展开选择使用同一有容量上限的登记表；切换话题或重新开启模式开始新的阅读周期。 */
+export function useMessageProcessViewState(enabled: boolean) {
+	const provider = useContext(ProviderContext)
+	const topicKey = provider?.topicKey || ""
+	const cycle = useRef({ enabled, topicKey, generation: 0 })
+	if (cycle.current.enabled !== enabled || cycle.current.topicKey !== topicKey) {
+		cycle.current = { enabled, topicKey, generation: cycle.current.generation + 1 }
+	}
+	const revision = useSyncExternalStore(
+		enabled
+			? (provider?.registry.subscribeProcesses ?? (() => () => undefined))
+			: () => () => undefined,
+		enabled ? (provider?.registry.getProcessRevision ?? (() => 0)) : () => 0,
+		() => 0,
+	)
+	const prefix = `${provider?.topicKey || ""}\u0000process:${cycle.current.generation}\u0000`
+	return {
+		interactionKey: `${cycle.current.generation}:${revision}`,
+		isExpanded: (key: string) => provider?.registry.get<boolean>(prefix + key) === true,
+		toggle: (key: string) =>
+			provider?.registry.set(
+				prefix + key,
+				provider.registry.get<boolean>(prefix + key) !== true,
+			),
+	}
 }

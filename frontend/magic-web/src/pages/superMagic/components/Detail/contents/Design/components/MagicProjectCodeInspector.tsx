@@ -41,7 +41,7 @@ export default function MagicProjectCodeInspector({
 	} | null>(null)
 
 	const currentContent = content || fallbackContent || ""
-	const isV2MagicProjectFile = useMemo(() => {
+	const isCompressedMagicProjectFile = useMemo(() => {
 		return (
 			fileName === "magic.project.js" && currentContent.includes("MAGICPROJECTDESIGNDATA://")
 		)
@@ -85,7 +85,7 @@ export default function MagicProjectCodeInspector({
 	}, [currentContent])
 
 	useEffect(() => {
-		if (!isV2MagicProjectFile) return
+		if (!isCompressedMagicProjectFile) return
 		const handler = (e: KeyboardEvent) => {
 			if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "d") {
 				const scope = scopeRef.current
@@ -102,9 +102,9 @@ export default function MagicProjectCodeInspector({
 		}
 		window.addEventListener("keydown", handler)
 		return () => window.removeEventListener("keydown", handler)
-	}, [handleDecompressCanvas, isV2MagicProjectFile, scopeRef])
+	}, [handleDecompressCanvas, isCompressedMagicProjectFile, scopeRef])
 
-	if (!isV2MagicProjectFile) return null
+	if (!isCompressedMagicProjectFile) return null
 
 	return (
 		<Modal

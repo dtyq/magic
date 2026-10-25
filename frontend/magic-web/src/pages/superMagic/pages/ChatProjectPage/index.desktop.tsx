@@ -5,9 +5,9 @@ import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/sto
 import SuperMagicService from "@/pages/superMagic/services"
 import { shouldRefreshChatProjectStateOnDesktop } from "@/pages/superMagic/services/topicProjectConsistency"
 import {
-	FileActionVisibilityProvider,
-	HIDE_CLAW_FILE_ACTIONS,
-} from "@/pages/superMagic/providers/file-action-visibility-provider"
+	FileAccessProvider,
+	CLAW_FILE_CONFIG,
+} from "@/pages/superMagic/providers/FileAccessProvider"
 import { useChatExpertSwitch } from "@/pages/superMagic/hooks/useChatExpertSwitch"
 
 const TopicPageDesktop = lazy(() => import("@/pages/superMagic/pages/TopicPage/index.desktop"))
@@ -43,7 +43,7 @@ function ChatProjectPageDesktop() {
 	useChatExpertSwitch()
 
 	return (
-		<FileActionVisibilityProvider value={HIDE_CLAW_FILE_ACTIONS}>
+		<FileAccessProvider {...CLAW_FILE_CONFIG}>
 			<div
 				className="flex h-full min-h-0 w-full flex-col"
 				data-testid="chat-project-page-desktop"
@@ -52,8 +52,16 @@ function ChatProjectPageDesktop() {
 					<TopicPageDesktop pageVariant="singleTopicChat" />
 				</Suspense>
 			</div>
-		</FileActionVisibilityProvider>
+		</FileAccessProvider>
 	)
 }
 
-export default observer(ChatProjectPageDesktop)
+const ObservedPage = observer(ChatProjectPageDesktop)
+
+export default function FileAccessPage() {
+	return (
+		<FileAccessProvider>
+			<ObservedPage />
+		</FileAccessProvider>
+	)
+}

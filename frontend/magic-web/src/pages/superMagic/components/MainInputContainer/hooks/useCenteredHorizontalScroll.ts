@@ -66,10 +66,13 @@ export function useCenteredHorizontalScroll({
 				: null
 
 		resizeObserver?.observe(activeItem)
-		resizeObserver?.observe(container)
+
+		const handleWindowResize = () => scrollToActiveItem("smooth")
+		window.addEventListener("resize", handleWindowResize)
 
 		return () => {
 			resizeObserver?.disconnect()
+			window.removeEventListener("resize", handleWindowResize)
 		}
 	}, [activeKey, scrollToActiveItem])
 

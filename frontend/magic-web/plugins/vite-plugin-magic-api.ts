@@ -14,14 +14,13 @@
  */
 
 import path from "node:path"
-import fs from "node:fs"
 import type { Plugin } from "vite"
 
 const VIRTUAL_MODULE_ID = "virtual:magic-api"
 const RESOLVED_VIRTUAL_MODULE_ID = `\0${VIRTUAL_MODULE_ID}`
 
 /**
- * JS stub that maps `@dtyq/html-sandbox/runtime` imports to the shell
+ * JS stub that maps public package and legacy runtime imports to the shell
  * global.  `|| class {}` ensures `extends BaseRuntimeBridgeApiPlugin`
  * doesn't throw at module evaluation time when the runtime is absent;
  * the real guard is in prelude-entry.ts which short-circuits before
@@ -34,15 +33,14 @@ export var registerRuntimePlugins = _RT.registerRuntimePlugins;
 export var runtimeLoggerHub = _RT.runtimeLoggerHub;
 export var RuntimeLoggerHub = _RT.RuntimeLoggerHub;
 export var installRegisteredRuntimePlugins = _RT.installRegisteredRuntimePlugins;
+
 `
 
 interface MagicApiPluginOptions {
 	projectRoot: string
 }
 
-export default function vitePluginMagicApi({
-	projectRoot,
-}: MagicApiPluginOptions): Plugin {
+export default function vitePluginMagicApi({ projectRoot }: MagicApiPluginOptions): Plugin {
 	const preludeEntryPath = path.resolve(
 		projectRoot,
 		"src/pages/superMagic/components/Detail/contents/HTML/iframe-api/magic-api/prelude-entry.ts",
@@ -55,60 +53,35 @@ export default function vitePluginMagicApi({
 		return {
 			name: "magic-api-runtime-stub",
 			setup(build) {
-				build.onResolve(
-					{ filter: /^@dtyq\/html-sandbox\/runtime/ },
-					() => ({
-						path: "html-sandbox-runtime-stub",
-						namespace: "magic-api-stub",
-					}),
-				)
+				build.onResolve({ filter: /^@dtyq\/html-sandbox\/runtime(?:\/|$)/ }, () => ({
+					path: "html-sandbox-runtime-stub",
+					namespace: "magic-api-stub",
+				}))
 
-				build.onResolve(
-					{ filter: /^@dtyq\/html-sandbox$/ },
-					() => ({
-						path: "html-sandbox-runtime-stub",
-						namespace: "magic-api-stub",
-					}),
-				)
+				build.onResolve({ filter: /^@dtyq\/html-sandbox$/ }, () => ({
+					path: "html-sandbox-runtime-stub",
+					namespace: "magic-api-stub",
+				}))
 
-				build.onLoad(
-					{ filter: /.*/, namespace: "magic-api-stub" },
-					() => ({
-						contents: RUNTIME_STUB_SOURCE,
-						loader: "js",
-					}),
-				)
+				build.onLoad({ filter: /.*/, namespace: "magic-api-stub" }, () => ({
+					// Keep the origin policy shared with the package instead of copying it
+					// into the runtime stub when root imports also request host helpers.
+					contents: `${RUNTIME_STUB_SOURCE}
+export { getParentOrigin } from ${JSON.stringify(path.resolve(htmlSandboxPackageRoot, "src/utils/parentOrigin.ts"))};`,
+					resolveDir: projectRoot,
+					loader: "js",
+				}))
 			},
 		}
 	}
 
 	function createPathAliasPlugin(): import("esbuild").Plugin {
-		const resolveHtmlSandboxSource = (subpath: string) => {
-			const normalizedSubpath = subpath.replace(/^\/+/, "")
-			const basePath = path.join(htmlSandboxPackageRoot, "src", normalizedSubpath)
-			const candidates = [
-				path.join(basePath, "index.ts"),
-				path.join(basePath, "index.tsx"),
-				`${basePath}.ts`,
-				`${basePath}.tsx`,
-				basePath,
-			]
-			return candidates.find((candidate) => fs.existsSync(candidate)) || null
-		}
-
 		return {
 			name: "magic-api-path-alias",
 			setup(build) {
 				build.onResolve({ filter: /^@\// }, (args) => ({
 					path: path.resolve(projectRoot, "src", args.path.slice(2)),
 				}))
-
-				build.onResolve({ filter: /^@dtyq\/html-sandbox\/(.+)$/ }, (args) => {
-					const subpath = args.path.replace(/^@dtyq\/html-sandbox\/?/, "")
-					const resolved = resolveHtmlSandboxSource(subpath)
-					if (!resolved) return null
-					return { path: resolved }
-				})
 			},
 		}
 	}
@@ -121,6 +94,7 @@ export default function vitePluginMagicApi({
 			write: false,
 			format: "iife",
 			platform: "browser",
+			conditions: ["magic-web-source"],
 			target: "es2018",
 			minify: true,
 			sourcemap: false,

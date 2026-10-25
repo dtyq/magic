@@ -14,8 +14,7 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import GlobalMentionPanelStore, {
 	MentionPanelStore,
 } from "@/components/business/MentionPanel/runtime/builtin/store"
-import { cn } from "@/lib/utils"
-import { GuideTourElementId } from "../../../LazyGuideTour/GuideTourManager"
+import { cn } from "@/utils/cn"
 
 const MentionPanel = lazy(() => import("@/components/business/MentionPanel"))
 
@@ -118,8 +117,8 @@ function At({
 				onClick={toggle}
 				data-at-button
 				data-visible={visible}
-				id={GuideTourElementId.MessageEditorAtButton}
 				data-testid="super-message-editor-at-button"
+				data-guide-anchor="message-editor-at-button"
 			>
 				<AtSign size={iconSize} />
 				{showText && t("messageEditor.at")}

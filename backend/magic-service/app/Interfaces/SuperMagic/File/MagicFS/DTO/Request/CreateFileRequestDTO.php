@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\SuperMagic\File\MagicFS\DTO\Request;
 
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileSpaceType;
 use App\Domain\SuperMagic\Message\Entity\ValueObject\MessageMetadata;
 use App\ErrorCode\MagicFSErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -85,6 +86,10 @@ class CreateFileRequestDTO
                 MagicFSErrorCode::INVALID_SPACE_TYPE,
                 'magicfs.space_type_is_required'
             );
+        }
+
+        if (FileSpaceType::tryFrom($dto->space_type) === null) {
+            ExceptionBuilder::throw(MagicFSErrorCode::INVALID_SPACE_TYPE, 'magicfs.unsupported_space_type', ['space_type' => $dto->space_type]);
         }
 
         // parent_id 必填：根目录创建没有项目锚点，无法做权限校验，统一在入参校验层拒绝

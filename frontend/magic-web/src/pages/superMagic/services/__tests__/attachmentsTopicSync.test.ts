@@ -15,24 +15,24 @@ describe("attachmentsTopicSync", () => {
 	it("resolveAttachmentsRefreshWaitersForProject resolves matching waiters", async () => {
 		const p = waitForNextAttachmentsRefreshForProject("proj-a", { timeoutMs: 5000 })
 		resolveAttachmentsRefreshWaitersForProject("proj-a")
-		await expect(p).resolves.toBeUndefined()
+		await expect(p).resolves.toBe(true)
 	})
 
 	it("registerWaitForNextAttachmentsRefreshForProject resolves when project fetch completes", async () => {
 		const p = registerWaitForNextAttachmentsRefreshForProject("proj-b", { timeoutMs: 5000 })
 		resolveAttachmentsRefreshWaitersForProject("proj-b")
-		await expect(p).resolves.toBeUndefined()
+		await expect(p).resolves.toBe(true)
 	})
 
 	it("releaseAttachmentsRefreshWaitersWithoutFetch resolves all pending", async () => {
 		const p1 = waitForNextAttachmentsRefreshForProject("p1", { timeoutMs: 5000 })
 		const p2 = waitForNextAttachmentsRefreshForProject("p2", { timeoutMs: 5000 })
 		releaseAttachmentsRefreshWaitersWithoutFetch()
-		await expect(Promise.all([p1, p2])).resolves.toEqual([undefined, undefined])
+		await expect(Promise.all([p1, p2])).resolves.toEqual([false, false])
 	})
 
 	it("waitForNextAttachmentsRefreshForProject with no projectId resolves immediately", async () => {
-		await expect(waitForNextAttachmentsRefreshForProject(undefined)).resolves.toBeUndefined()
+		await expect(waitForNextAttachmentsRefreshForProject(undefined)).resolves.toBe(false)
 	})
 
 	it("times out when never resolved", async () => {
@@ -50,7 +50,7 @@ describe("attachmentsTopicSync", () => {
 			}),
 		)
 		expect(didThen).toBe(true)
-		await expect(waiter).resolves.toBeUndefined()
+		await expect(waiter).resolves.toBe(true)
 	})
 
 	it("withAttachmentsRefreshWaitersResolved resolves waiters when inner chain rejects", async () => {
@@ -61,6 +61,6 @@ describe("attachmentsTopicSync", () => {
 				Promise.reject(new Error("fail")).catch(() => undefined),
 			),
 		).resolves.toBeUndefined()
-		await expect(waiter).resolves.toBeUndefined()
+		await expect(waiter).resolves.toBe(true)
 	})
 })

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import type { HTMLEditorV2Ref } from "../../../iframe-bridge/types/props"
-import type { SelectedInfo } from "../types"
+import type { ElementRect, SelectedInfo } from "../types"
 import { useStylePanelStore } from "../../../iframe-bridge/contexts/StylePanelContext"
 
 interface UseSelectionMessagesProps {
@@ -8,7 +8,7 @@ interface UseSelectionMessagesProps {
 	editorRef?: React.RefObject<HTMLEditorV2Ref>
 	selectedInfoList: SelectedInfo[]
 	setSelectedInfoList: React.Dispatch<React.SetStateAction<SelectedInfo[]>>
-	setHoveredRect: React.Dispatch<React.SetStateAction<any>>
+	setHoveredRect: React.Dispatch<React.SetStateAction<ElementRect | null>>
 	setIsSelectionMode: React.Dispatch<React.SetStateAction<boolean>>
 }
 
@@ -27,6 +27,10 @@ export function useSelectionMessages({
 	// Use ref to track current selected elements without causing effect re-registration
 	const selectedInfoListRef = useRef<SelectedInfo[]>(selectedInfoList)
 	selectedInfoListRef.current = selectedInfoList
+	// Message handlers are async because text editing must be disabled before the
+	// next selection is applied. Ignore work started by an older selection event
+	// so a delayed deselection cannot clear a newer selection.
+	const selectionRevisionRef = useRef(0)
 
 	useEffect(() => {
 		const handleMessage = async (event: MessageEvent) => {
@@ -54,6 +58,7 @@ export function useSelectionMessages({
 						stylePanelStore.setTextSelection(null)
 					}
 				} else if (type === "ELEMENT_SELECTED") {
+					const selectionRevision = ++selectionRevisionRef.current
 					// Single element selected - show selection highlight
 					const rect = payload?.rect
 					const selector = payload?.selector
@@ -64,6 +69,9 @@ export function useSelectionMessages({
 					const intrinsicWidth = payload?.intrinsicWidth
 					const intrinsicHeight = payload?.intrinsicHeight
 					const intrinsicAspectRatio = payload?.intrinsicAspectRatio
+					const isTextElement = payload?.isTextElement ?? false
+					const hasDirectTextContent = payload?.hasDirectTextContent
+					const textContent = payload?.textContent
 
 					if (rect && selector) {
 						// Disable text editing on previous elements before switching
@@ -87,14 +95,22 @@ export function useSelectionMessages({
 								}
 							}
 						}
+						if (selectionRevision !== selectionRevisionRef.current) return
 
 						setSelectedInfoList([
 							{
 								rect,
 								selector,
+								childRects: payload?.childRects,
 								computedStyles,
 								rotation,
 								isImageElement,
+								isTextElement,
+								hasDirectTextContent,
+								textContent,
+								ancestors: payload?.ancestors,
+								inlineStyles: payload?.inlineStyles,
+								attributes: payload?.attributes,
 								intrinsicWidth,
 								intrinsicHeight,
 								intrinsicAspectRatio,
@@ -108,16 +124,22 @@ export function useSelectionMessages({
 							selector,
 							tagName,
 							isImageElement,
+							isTextElement,
+							hasDirectTextContent,
+							textContent,
+							ancestors: payload?.ancestors,
 							intrinsicWidth,
 							intrinsicHeight,
 							intrinsicAspectRatio,
-							computedStyles: computedStyles as any,
+							inlineStyles: payload?.inlineStyles,
+							computedStyles,
 						})
 
 						// Note: Text editing is now activated by double-click on selected element
 						// No longer auto-enable text editing on selection
 					}
 				} else if (type === "ELEMENTS_SELECTED") {
+					const selectionRevision = ++selectionRevisionRef.current
 					// Multiple elements selected - show all selection highlights
 					const elements = payload?.elements
 
@@ -136,6 +158,7 @@ export function useSelectionMessages({
 								}
 							}
 						}
+						if (selectionRevision !== selectionRevisionRef.current) return
 
 						// Map elements to SelectedInfo format
 						const newSelectedInfoList: SelectedInfo[] = elements.map((el) => ({
@@ -144,6 +167,11 @@ export function useSelectionMessages({
 							computedStyles: el.computedStyles,
 							rotation: el.rotation ?? 0,
 							isImageElement: el.isImageElement ?? false,
+							isTextElement: el.isTextElement,
+							hasDirectTextContent: el.hasDirectTextContent,
+							textContent: el.textContent,
+							inlineStyles: el.inlineStyles,
+							attributes: el.attributes,
 							intrinsicWidth: el.intrinsicWidth,
 							intrinsicHeight: el.intrinsicHeight,
 							intrinsicAspectRatio: el.intrinsicAspectRatio,
@@ -154,21 +182,17 @@ export function useSelectionMessages({
 						setIsSelectionMode(true)
 
 						// Update StylePanelStore with multiple elements
-						const selectedElementsInfo: Array<{
-							selector: string
-							tagName: string
-							isImageElement?: boolean
-							intrinsicWidth?: number
-							intrinsicHeight?: number
-							intrinsicAspectRatio?: number
-							computedStyles: any
-						}> = elements.map((el) => ({
+						const selectedElementsInfo = elements.map((el) => ({
 							selector: el.selector,
 							tagName: el.tagName || "div",
 							isImageElement: el.isImageElement ?? false,
 							intrinsicWidth: el.intrinsicWidth,
 							intrinsicHeight: el.intrinsicHeight,
 							intrinsicAspectRatio: el.intrinsicAspectRatio,
+							isTextElement: el.isTextElement,
+							hasDirectTextContent: el.hasDirectTextContent,
+							textContent: el.textContent,
+							inlineStyles: el.inlineStyles,
 							computedStyles: el.computedStyles || {},
 						}))
 						stylePanelStore.selectElements(selectedElementsInfo)
@@ -179,37 +203,39 @@ export function useSelectionMessages({
 						)
 					}
 				} else if (type === "ELEMENT_DESELECTED") {
+					const selectionRevision = ++selectionRevisionRef.current
 					// Single element deselected - clear selection highlight (backward compatibility)
 					// Use ref to avoid stale closure
 					const previousSelectors = selectedInfoListRef.current.map(
 						(info) => info.selector,
 					)
 					for (const prevSelector of previousSelectors) {
-						if (editorRef?.current) {
-							try {
-								await editorRef.current.disableTextEditing(prevSelector)
-							} catch (error) {
-								// Ignore error if element is already non-editable
-								console.debug("[SelectionOverlay] Text editing already disabled")
-							}
+						if (!editorRef?.current) continue
+						try {
+							await editorRef.current.disableTextEditing(prevSelector)
+						} catch (error) {
+							// Ignore error if element is already non-editable
+							console.debug("[SelectionOverlay] Text editing already disabled")
 						}
 					}
+					if (selectionRevision !== selectionRevisionRef.current) return
 					setSelectedInfoList([])
 				} else if (type === "ELEMENTS_DESELECTED") {
+					const selectionRevision = ++selectionRevisionRef.current
 					// All elements deselected - clear all selection highlights
 					// Use ref to avoid stale closure
 					const previousSelectors = selectedInfoListRef.current.map(
 						(info) => info.selector,
 					)
 					for (const prevSelector of previousSelectors) {
-						if (editorRef?.current) {
-							try {
-								await editorRef.current.disableTextEditing(prevSelector)
-							} catch (error) {
-								// Ignore error
-							}
+						if (!editorRef?.current) continue
+						try {
+							await editorRef.current.disableTextEditing(prevSelector)
+						} catch (error) {
+							// Ignore error
 						}
 					}
+					if (selectionRevision !== selectionRevisionRef.current) return
 					setSelectedInfoList([])
 				} else if (type === "ELEMENT_HOVERED") {
 					// Element hovered - show hover highlight
@@ -222,6 +248,7 @@ export function useSelectionMessages({
 					// Hover ended - clear hover highlight
 					setHoveredRect(null)
 				} else if (type === "SELECTION_MODE_CHANGED") {
+					selectionRevisionRef.current += 1
 					// Selection mode changed
 					const newSelectionMode = payload?.isSelectionMode
 					setIsSelectionMode(newSelectionMode)

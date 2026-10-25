@@ -6,7 +6,7 @@
 import type { VoiceConfig, ConnectionState, VoiceClientEvents, AudioStats } from "./types"
 import type { WorkerMessage, MainThreadMessage, PendingRequest } from "./worker-types"
 import Worker from "./voice-client.worker?worker"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("VoiceClientProxy", { enableConfig: { console: false } })
 
@@ -381,6 +381,15 @@ export class VoiceClientProxy {
 
 	async disconnect(): Promise<void> {
 		logger.log("[Proxy] Starting disconnect process")
+
+		// A worker that is not ready (still starting, failed to start, or disposed)
+		// cannot hold a connection, so there is nothing to tear down. Callers such as
+		// unmount cleanup fire disconnect without awaiting it; rejecting here would
+		// surface as an unhandled "Worker not ready" rejection.
+		if (this.disposed || !this.worker || !this.workerReady) {
+			logger.log("[Proxy] Worker not ready, skipping disconnect")
+			return
+		}
 
 		const message: WorkerMessage = {
 			type: "disconnect",

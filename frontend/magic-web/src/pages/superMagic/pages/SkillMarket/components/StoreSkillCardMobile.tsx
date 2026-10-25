@@ -1,6 +1,6 @@
 import { useMemo } from "react"
-import dayjs from "dayjs"
-import { Award, CircleUserRound, ShieldCheck } from "lucide-react"
+import dayjs from "@/infrastructure/vendors/dayjs"
+import { CircleUserRound, ShieldCheck } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import SmartTooltip from "@/components/other/SmartTooltip"
@@ -10,13 +10,14 @@ import { Separator } from "@/components/shadcn-ui/separator"
 import { SkillThumbnail } from "@/pages/superMagic/components/SkillThumbnail"
 import type { StoreSkillView } from "@/services/skills/SkillsService"
 import { normalizeLocale } from "@/utils/locale"
+import { formatSkillInstallCount } from "./skill-card-formatters"
 import { isOfficialStoreSkillPublisher, resolveStoreSkillPublisherLabel } from "./skill-publisher"
 
 interface StoreSkillCardMobileProps {
 	skill: StoreSkillView
 	language: string
+	showFeaturedTag?: boolean
 	onAdd?: (id: string) => void
-	onUpgrade?: (id: string) => void
 	onOpenDetail?: (skill: StoreSkillView) => void
 }
 
@@ -44,8 +45,8 @@ function normalizeDisplayText(value?: string | null) {
 export const StoreSkillCardMobile = observer(function StoreSkillCardMobile({
 	skill,
 	language,
+	showFeaturedTag = false,
 	onAdd,
-	onUpgrade,
 	onOpenDetail,
 }: StoreSkillCardMobileProps) {
 	const { t } = useTranslation("crew/market")
@@ -58,27 +59,17 @@ export const StoreSkillCardMobile = observer(function StoreSkillCardMobile({
 	const isOfficialPublisher = isOfficialStoreSkillPublisher(skill.publisherType)
 	const packageNameLabel = normalizeDisplayText(skill.packageName)
 	const latestVersionLabel = normalizeDisplayText(skill.latestVersion)
-	const updatedAtLabel = useMemo(
-		() =>
-			t("skillsLibrary.updatedAt", {
-				dateTime: formatSkillUpdatedDateTime(skill.updatedAt, language),
-			}),
-		[language, skill.updatedAt, t],
+	const updatedAtValue = useMemo(
+		() => formatSkillUpdatedDateTime(skill.updatedAt, language),
+		[language, skill.updatedAt],
 	)
+	const installCount = formatSkillInstallCount(skill.installCount, language)
+	const showInstallCount = skill.publisherType !== "OFFICIAL_BUILTIN"
 
 	const isAdded = skill.status === "added"
-	const buttonLabel = isAdded
-		? skill.needUpgrade
-			? t("skillsLibrary.upgrade")
-			: t("skillsLibrary.added")
-		: t("skillsLibrary.addToMySkills")
+	const buttonLabel = isAdded ? t("skillsLibrary.added") : t("skillsLibrary.addToMySkills")
 
 	function handleAction() {
-		if (isAdded && skill.needUpgrade) {
-			onUpgrade?.(skill.id)
-			return
-		}
-
 		if (!isAdded) onAdd?.(skill.id)
 	}
 
@@ -113,15 +104,13 @@ export const StoreSkillCardMobile = observer(function StoreSkillCardMobile({
 						<p className="min-w-0 flex-1 truncate pt-0.5 text-sm font-medium leading-6 text-foreground">
 							{skill.name}
 						</p>
-						{skill.isFeatured ? (
+						{showFeaturedTag ? (
 							<Badge
 								variant="outline"
-								className="size-6 shrink-0 rounded-md border-transparent bg-orange-50/90 p-1 text-orange-500 hover:bg-orange-50/90 dark:bg-orange-950/30 dark:text-orange-300"
-								aria-label={t("skillsLibrary.featured")}
-								title={t("skillsLibrary.featured")}
+								className="mt-0.5 shrink-0 rounded-md border-transparent bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-300"
 								data-testid="skills-library-mobile-card-featured"
 							>
-								<Award className="size-4" />
+								{t("skillsLibrary.featured")}
 							</Badge>
 						) : null}
 					</div>
@@ -168,13 +157,13 @@ export const StoreSkillCardMobile = observer(function StoreSkillCardMobile({
 					event.stopPropagation()
 					handleAction()
 				}}
-				disabled={isAdded && !skill.needUpgrade}
+				disabled={isAdded}
 				data-testid="skills-library-mobile-card-action"
 			>
 				{buttonLabel}
 			</Button>
 
-			<div className="flex min-h-6 items-center justify-between gap-2">
+			<div className="flex min-h-8 items-center justify-between gap-3">
 				<div className="flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground">
 					{isOfficialPublisher ? (
 						<ShieldCheck className="size-4 shrink-0" />
@@ -183,7 +172,25 @@ export const StoreSkillCardMobile = observer(function StoreSkillCardMobile({
 					)}
 					<span className="truncate">{publisherLabel}</span>
 				</div>
-				<span className="shrink-0 text-xs text-muted-foreground">{updatedAtLabel}</span>
+				{showInstallCount && installCount ? (
+					<div
+						className="flex min-w-0 flex-col justify-center gap-0.5 leading-tight"
+						data-testid="skills-library-mobile-card-install-count"
+					>
+						<span className="text-[10px] text-muted-foreground/60">
+							{t("skillsLibrary.installCountLabel")}
+						</span>
+						<span className="text-[11px] text-muted-foreground/80">{installCount}</span>
+					</div>
+				) : null}
+				<div className="flex min-w-0 flex-col items-end justify-center gap-0.5 text-right leading-tight">
+					<span className="text-[10px] text-muted-foreground/60">
+						{t("skillsLibrary.updatedAtLabel")}
+					</span>
+					<span className="truncate text-[11px] text-muted-foreground/80">
+						{updatedAtValue}
+					</span>
+				</div>
 			</div>
 		</div>
 	)

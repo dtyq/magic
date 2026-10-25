@@ -27,7 +27,7 @@ import { set } from "lodash-es"
 import { MCPFormField, importHeaders, MCPConfigToJson, highlightJsonCode } from "./helpers"
 import ToolsPanel from "./ToolsPanel"
 import type { ToolsPanelRefs } from "./ToolsPanel"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Textarea } from "@/components/shadcn-ui/textarea"
@@ -191,7 +191,7 @@ export default function MCPForm(props: MCPFormProps) {
 		}
 	})
 
-	// JSON校验函数（基于onSubmit逻辑）
+	// Validate the imported JSON using the same schema expectations as submission.
 	const validateJson = useMemoizedFn((rawValue: string) => {
 		if (!rawValue || !rawValue.trim()) {
 			setJsonValidationStatus(null)
@@ -210,7 +210,7 @@ export default function MCPForm(props: MCPFormProps) {
 		}
 	})
 
-	// 500ms防抖校验
+	// Debounce validation for 500 ms while the user edits JSON.
 	const { run: debouncedValidateJson } = useDebounceFn(validateJson, { wait: 500 })
 
 	const options = useMemo(() => {
@@ -226,7 +226,7 @@ export default function MCPForm(props: MCPFormProps) {
 			const values = form.getFieldsValue()
 			console.log("values", values)
 			const formData = id ? { id, ...values } : values
-			// 当且仅当类型为 MCPType.Tool
+			// Include locally configured tools only for a built-in MCP tool server.
 			if (formData?.type === MCPType.Tool) {
 				console.log("特殊处理", toolsPanelRefs.current?.getFormData?.())
 				formData.tools = toolsPanelRefs.current?.getFormData?.() || []
@@ -259,14 +259,14 @@ export default function MCPForm(props: MCPFormProps) {
 
 	const [toolsCount, setToolsCount] = useState(0)
 
-	// 监听工具变化并更新数量
+	// Keep the displayed tool count in sync with the imperative tools panel.
 	useEffect(() => {
 		const updateToolsCount = () => {
 			const tools = toolsPanelRefs.current?.getFormData?.() || []
 			setToolsCount(tools.length)
 		}
 
-		// 设置定时器定期检查工具数量变化
+		// Poll for count changes because the panel exposes its state through a ref.
 		const interval = setInterval(updateToolsCount, 500)
 
 		return () => clearInterval(interval)
@@ -485,6 +485,25 @@ export default function MCPForm(props: MCPFormProps) {
 					<Form.Item
 						{...SubFormProps}
 						hidden={authType !== 1}
+						name={[
+							MCPFormField.ServiceConfig,
+							MCPFormField.OAuthConfig,
+							MCPFormField.AuthorizationMethod,
+						]}
+						label="authorization_method"
+						className={formItemClassName}
+						initialValue="POST"
+					>
+						<Select
+							options={[
+								{ label: "POST", value: "POST" },
+								{ label: "GET", value: "GET" },
+							]}
+						/>
+					</Form.Item>
+					<Form.Item
+						{...SubFormProps}
+						hidden={authType !== 1}
 						name="authorization_content_type"
 						label="authorization_content_type"
 						className={formItemClassName}
@@ -553,11 +572,7 @@ export default function MCPForm(props: MCPFormProps) {
 						<Form.Item name={MCPFormField.Icon} className={formItemClassName}>
 							<div className="mt-1 flex flex-col items-center gap-2.5 overflow-hidden rounded-[12px] border border-border py-5">
 								{imageUrl ? (
-									<MagicAvatar
-										src={imageUrl}
-										size={100}
-										style={{ borderRadius: 20 }}
-									/>
+									<MagicAvatar src={imageUrl} size={100} radius={20} />
 								) : (
 									<div className="flex size-[100px] items-center justify-center overflow-hidden rounded-[20px] bg-muted text-foreground">
 										<IconMCP size={78} />
@@ -823,15 +838,7 @@ export default function MCPForm(props: MCPFormProps) {
 													padding={12}
 													readOnly={false}
 													disabled={false}
-													style={{
-														fontFamily:
-															"'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-														fontSize: 12,
-														backgroundColor: "rgba(28,29,35, 1)",
-														color: "#d4d4d4",
-														borderRadius: "6px",
-														minHeight: "100px",
-													}}
+													className="min-h-[100px] rounded-[6px] bg-[#1c1d23] font-['JetBrains_Mono','Fira_Code','Consolas',monospace] text-xs text-[#d4d4d4]"
 													textareaClassName="!resize-none !border-none !bg-transparent !outline-none !pointer-events-auto !select-text"
 													preClassName="!m-0"
 												/>
@@ -945,9 +952,7 @@ export default function MCPForm(props: MCPFormProps) {
 								return (
 									<IconChevronDown
 										size={16}
-										style={{
-											transform: isActive ? "unset" : "rotate(-90deg)",
-										}}
+										className={isActive ? "" : "-rotate-90"}
 									/>
 								)
 							}}

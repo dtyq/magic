@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from "react"
 import { createStyles } from "antd-style"
-import { loadKaTeX, loadKaTeXCSS } from "@/lib/katex"
+import { loadKaTeX, loadKaTeXCSS } from "@/infrastructure/vendors/katex"
 
 interface KaTeXProps {
 	math: string
@@ -73,7 +73,9 @@ const useStyles = createStyles(({ token, css }) => ({
 
 function KaTeX({ math, inline = false }: KaTeXProps) {
 	const { styles } = useStyles()
-	const [katex, setKatex] = useState<typeof import("katex").default | null>(null)
+	const [katex, setKatex] = useState<Awaited<ReturnType<typeof loadKaTeX>>["default"] | null>(
+		null,
+	)
 	const [cssLoaded, setCssLoaded] = useState(false)
 
 	// 按需加载 katex 和 CSS

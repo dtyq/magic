@@ -23,6 +23,9 @@ class SocketIODriverConfig:
     transports: list[str] = field(default_factory=lambda: ['websocket'])  # 传输协议，默认仅使用 WebSocket
     connection_timeout: int = 10  # 连接超时（秒）
     push_timeout: float = 2.0     # 推送超时（秒）
+    reconnect_delay: float = 1.0
+    reconnect_delay_max: float = 5.0
+    reconnect_jitter: float = 0.5  # 退避抖动秒数，必须小于初始延迟
 
     # Socket.IO 协议配置
     namespace: str = "/im"        # Socket.IO 命名空间
@@ -58,6 +61,9 @@ class SocketIODriverConfig:
             "transports": self.transports,
             "connection_timeout": self.connection_timeout,
             "push_timeout": self.push_timeout,
+            "reconnect_delay": self.reconnect_delay,
+            "reconnect_delay_max": self.reconnect_delay_max,
+            "reconnect_jitter": self.reconnect_jitter,
             "namespace": self.namespace,
             "event_name": self.event_name,
             "max_connection_age": self.max_connection_age,
@@ -124,6 +130,13 @@ class SocketIODriverConfig:
 
         if self.max_connection_age <= 0:
             logger.warning(f"SocketIO configuration validation failed: max_connection_age must be positive, got {self.max_connection_age}")
+            return False
+
+        if not (0 < self.reconnect_delay <= self.reconnect_delay_max):
+            logger.warning("Invalid Socket.IO reconnect delay range")
+            return False
+        if not (0 <= self.reconnect_jitter < self.reconnect_delay):
+            logger.warning("Socket.IO reconnect jitter must be smaller than the initial delay")
             return False
 
         return True

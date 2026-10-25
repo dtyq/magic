@@ -1,7 +1,7 @@
 import { memo } from "react"
 import { IconExclamationCircleFilled } from "@tabler/icons-react"
 import { Spinner } from "@/components/shadcn-ui/spinner"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export type OptimisticStatus = "sending" | "failed"
 

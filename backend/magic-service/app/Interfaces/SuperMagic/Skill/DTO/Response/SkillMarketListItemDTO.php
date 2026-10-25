@@ -31,12 +31,6 @@ class SkillMarketListItemDTO implements JsonSerializable
     /** @deprecated 仅序列化为 `user_skill_code`，请改用 `code` */
     private string $userSkillCode;
 
-    private array $nameI18n;
-
-    private array $descriptionI18n;
-
-    private array $sourceI18n;
-
     private string $logo;
 
     private string $publisherType;
@@ -61,6 +55,8 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private string $description;
 
+    private string $source;
+
     private string $fileKey;
 
     private ?string $fileUrl;
@@ -69,15 +65,15 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private string $latestVersion;
 
+    private int $installCount;
+
     public function __construct(
         int $id,
         string $skillCode,
         string $userSkillCode,
         string $name,
         string $description,
-        array $nameI18n,
-        array $descriptionI18n,
-        array $sourceI18n,
+        string $source,
         string $logo,
         string $publisherType,
         array $publisher,
@@ -92,6 +88,8 @@ class SkillMarketListItemDTO implements JsonSerializable
         ?string $fileUrl = null,
         string $packageName = '',
         string $latestVersion = '',
+        int $installCount = 0,
+        ?int $totalInstallCount = null,
     ) {
         $this->id = $id;
         $this->code = $skillCode;
@@ -99,9 +97,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->userSkillCode = $userSkillCode;
         $this->name = $name;
         $this->description = $description;
-        $this->nameI18n = $nameI18n;
-        $this->descriptionI18n = $descriptionI18n;
-        $this->sourceI18n = $sourceI18n;
+        $this->source = $source;
         $this->logo = $logo;
         $this->publisherType = $publisherType;
         $this->publisher = $publisher;
@@ -116,6 +112,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->fileUrl = $fileUrl;
         $this->packageName = $packageName;
         $this->latestVersion = $latestVersion;
+        $this->installCount = $totalInstallCount ?? $installCount;
     }
 
     public function jsonSerialize(): array
@@ -128,9 +125,7 @@ class SkillMarketListItemDTO implements JsonSerializable
             'user_skill_code' => $this->userSkillCode,
             'name' => $this->name,
             'description' => $this->description,
-            'name_i18n' => $this->nameI18n,
-            'description_i18n' => $this->descriptionI18n,
-            'source_i18n' => $this->sourceI18n,
+            'source' => $this->source,
             'logo' => $this->logo,
             'publisher_type' => $this->publisherType,
             'publisher' => $this->publisher,
@@ -145,6 +140,7 @@ class SkillMarketListItemDTO implements JsonSerializable
             'file_url' => $this->fileUrl,
             'package_name' => $this->packageName,
             'latest_version' => $this->latestVersion,
+            'install_count' => $this->installCount,
         ];
     }
 }

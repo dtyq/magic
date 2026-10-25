@@ -26,13 +26,25 @@ class ExportWorkspaceResponse implements ResponseInterface
 
     private array $metadata;
 
-    public function __construct(bool $success, int $code, string $message, string $fileKey = '', array $metadata = [])
+    private string $status;
+
+    private string $taskKey;
+
+    private int $progress;
+
+    private ?string $error;
+
+    public function __construct(bool $success, int $code, string $message, string $fileKey = '', array $metadata = [], string $status = '', string $taskKey = '', int $progress = 0, ?string $error = null)
     {
         $this->success = $success;
         $this->code = $code;
         $this->message = $message;
         $this->fileKey = $fileKey;
         $this->metadata = $metadata;
+        $this->status = $status;
+        $this->taskKey = $taskKey;
+        $this->progress = $progress;
+        $this->error = $error;
     }
 
     public static function fromGatewayResult(GatewayResult $result): self
@@ -44,6 +56,10 @@ class ExportWorkspaceResponse implements ResponseInterface
             $result->getMessage(),
             (string) ($data['file_key'] ?? ''),
             (array) ($data['metadata'] ?? []),
+            (string) ($data['status'] ?? ''),
+            (string) ($data['task_key'] ?? ''),
+            (int) ($data['progress'] ?? 0),
+            isset($data['error']) ? (string) $data['error'] : null,
         );
     }
 
@@ -56,6 +72,10 @@ class ExportWorkspaceResponse implements ResponseInterface
             $response['message'] ?? 'Unknown error',
             (string) ($data['file_key'] ?? ''),
             (array) ($data['metadata'] ?? []),
+            (string) ($data['status'] ?? ''),
+            (string) ($data['task_key'] ?? ''),
+            (int) ($data['progress'] ?? 0),
+            isset($data['error']) ? (string) $data['error'] : null,
         );
     }
 
@@ -84,12 +104,45 @@ class ExportWorkspaceResponse implements ResponseInterface
         return $this->metadata;
     }
 
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function getTaskKey(): string
+    {
+        return $this->taskKey;
+    }
+
+    public function getProgress(): int
+    {
+        return $this->progress;
+    }
+
+    public function getError(): ?string
+    {
+        return $this->error;
+    }
+
     public function getData(): array
     {
-        return [
+        $data = [
+            'code' => $this->code,
+            'message' => $this->message,
             'file_key' => $this->fileKey,
             'metadata' => $this->metadata,
+            'progress' => $this->progress,
         ];
+        if ($this->status !== '') {
+            $data['status'] = $this->status;
+        }
+        if ($this->taskKey !== '') {
+            $data['task_key'] = $this->taskKey;
+        }
+        if ($this->error !== null && $this->error !== '') {
+            $data['error'] = $this->error;
+        }
+        return $data;
     }
 
     public function toArray(): array

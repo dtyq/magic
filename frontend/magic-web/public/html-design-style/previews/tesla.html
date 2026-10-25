@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tesla — Electric Cars, Solar & Clean Energy | Model S Plaid</title>
+  <style>
+    :root {
+      --canvas: #ffffff;
+      --light-ash: #f4f4f4;
+      --carbon-dark: #171a20;
+      --graphite: #393c41;
+      --pewter: #5c5e62;
+      --silver-fog: #8e8e8e;
+      --cloud-gray: #eeeeee;
+      --electric-blue: #3e6ae1;
+      --electric-blue-hover: #3457b2;
+      --font-tesla: "Universal Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--canvas);
+      color: var(--graphite);
+      font-family: var(--font-tesla);
+      font-weight: 400;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Minimalist Top Nav */
+    .tesla-nav {
+      position: sticky; top: 0; z-index: 100;
+      height: 56px; background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 40px; border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    .tesla-wordmark {
+      font-size: 15px; font-weight: 500; letter-spacing: 7px;
+      color: var(--carbon-dark); text-transform: uppercase;
+    }
+    .nav-links { display: flex; gap: 8px; list-style: none; }
+    .nav-btn {
+      font-size: 14px; font-weight: 500; color: var(--carbon-dark);
+      padding: 6px 14px; border-radius: 4px; transition: background-color 0.25s;
+    }
+    .nav-btn:hover { background-color: rgba(0,0,0,0.05); }
+    .nav-actions { display: flex; gap: 12px; }
+
+    /* Full-Bleed Minimalist Vehicle Hero - First 500px Viewport */
+    .tesla-hero {
+      position: relative; min-height: 560px;
+      background: radial-gradient(circle at 50% 30%, #20242c 0%, #111317 75%);
+      color: #ffffff; display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-start;
+      padding-top: 40px; padding-bottom: 48px; text-align: center;
+    }
+    .hero-model-title {
+      font-size: clamp(34px, 4.5vw, 44px); font-weight: 500;
+      color: #ffffff; margin-bottom: 6px; letter-spacing: -0.5px;
+    }
+    .hero-subtitle {
+      font-size: 15px; font-weight: 400; color: #d0d1d2; margin-bottom: 16px;
+    }
+
+    /* Autopilot Full Self-Driving Status Pill */
+    .fsd-status-pill {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(23, 26, 32, 0.75); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.2); border-radius: 9999px;
+      padding: 6px 18px; margin-bottom: 24px; font-size: 12px; font-weight: 500;
+    }
+    .pulse-radar-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #3e6ae1;
+      box-shadow: 0 0 10px #3e6ae1;
+    }
+
+    /* Model S Plaid & Cybertruck Vector Art */
+    .vehicle-hero-artwork {
+      width: 100%; max-width: 640px; height: 180px; margin: 0 auto 24px;
+    }
+    .vehicle-hero-svg { width: 100%; height: 100%; }
+
+    /* Centered Dual CTA Buttons (4px Border-Radius) */
+    .hero-cta-group {
+      display: flex; gap: 16px; justify-content: center; align-items: center;
+      margin-bottom: 32px; z-index: 2;
+    }
+    .btn-tesla-primary {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 200px; height: 40px; border-radius: 4px;
+      background: var(--electric-blue); color: #ffffff;
+      font-size: 14px; font-weight: 500; border: none; cursor: pointer;
+      transition: background-color 0.33s;
+    }
+    .btn-tesla-primary:hover { background: var(--electric-blue-hover); }
+    .btn-tesla-secondary {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 200px; height: 40px; border-radius: 4px;
+      background: rgba(255, 255, 255, 0.85); color: var(--carbon-dark);
+      font-size: 14px; font-weight: 500; border: none; cursor: pointer;
+      transition: background-color 0.33s;
+    }
+    .btn-tesla-secondary:hover { background: #ffffff; }
+
+    /* Performance Specs Bar */
+    .tesla-specs-bar {
+      width: 100%; max-width: 760px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      text-align: center;
+    }
+    .spec-val { font-size: 26px; font-weight: 500; color: #ffffff; line-height: 1.1; }
+    .spec-lbl { font-size: 12px; font-weight: 400; color: #a2a4a7; margin-top: 2px; }
+
+    /* 17" Center Touchscreen Mockup Section */
+    .screen-section {
+      max-width: 1280px; margin: 0 auto; padding: 72px 40px;
+    }
+    .screen-header { text-align: center; margin-bottom: 40px; }
+    .screen-title {
+      font-size: 28px; font-weight: 500; color: var(--carbon-dark); margin-bottom: 8px;
+    }
+    .screen-lead { font-size: 15px; color: var(--pewter); max-width: 600px; margin: 0 auto; }
+
+    /* The Touchscreen Canvas Container */
+    .display-bezel {
+      background: #0f1115; border: 12px solid #23272f; border-radius: 12px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.18); overflow: hidden;
+      max-width: 960px; margin: 0 auto 36px;
+    }
+    .touchscreen-svg { width: 100%; height: 380px; display: block; }
+
+    /* Cybertruck Cyberbeast & Technology Grid */
+    .features-grid {
+      max-width: 1280px; margin: 0 auto; padding: 0 40px 72px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    }
+    .feature-card {
+      background: var(--light-ash); border-radius: 12px; padding: 28px;
+      display: flex; flex-direction: column;
+    }
+    .feature-tag {
+      font-size: 12px; font-weight: 500; color: var(--electric-blue); margin-bottom: 8px;
+    }
+    .feature-name {
+      font-size: 19px; font-weight: 500; color: var(--carbon-dark); margin-bottom: 8px;
+    }
+    .feature-text { font-size: 14px; color: var(--pewter); line-height: 1.55; }
+
+    /* Persistent Chatbot & Bottom Bar */
+    .tesla-chat-bar {
+      background: #ffffff; border-top: 1px solid var(--cloud-gray);
+      padding: 16px 40px; display: flex; justify-content: space-between;
+      align-items: center; max-width: 1280px; margin: 0 auto;
+    }
+    .chat-input-pill {
+      display: flex; align-items: center; gap: 10px; background: var(--light-ash);
+      padding: 10px 18px; border-radius: 4px; width: 340px; font-size: 13.5px; color: var(--silver-fog);
+    }
+    .chat-schedule-link {
+      font-size: 13.5px; font-weight: 500; color: var(--carbon-dark);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chat-schedule-link:hover { color: var(--electric-blue); }
+
+    /* Minimal Footer */
+    .tesla-footer {
+      border-top: 1px solid var(--cloud-gray); padding: 36px 40px 48px;
+      text-align: center; font-size: 12px; color: var(--pewter);
+    }
+    .footer-links { display: flex; gap: 20px; justify-content: center; margin-bottom: 12px; list-style: none; }
+
+    @media (max-width: 860px) {
+      .tesla-nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      .tesla-specs-bar { grid-template-columns: repeat(2, 1fr); }
+      .features-grid { grid-template-columns: 1fr; }
+      .hero-cta-group { flex-direction: column; }
+      .btn-tesla-primary, .btn-tesla-secondary { width: 100%; max-width: 280px; }
+      .tesla-chat-bar { flex-direction: column; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="tesla-nav">
+    <div class="tesla-wordmark">Tesla</div>
+    <ul class="nav-links">
+      <li><a href="#" class="nav-btn">Vehicles</a></li>
+      <li><a href="#" class="nav-btn">Energy</a></li>
+      <li><a href="#" class="nav-btn">Charging</a></li>
+      <li><a href="#" class="nav-btn">Discover</a></li>
+      <li><a href="#" class="nav-btn">Shop</a></li>
+    </ul>
+    <div class="nav-actions">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+      </svg>
+    </div>
+  </header>
+
+  <!-- Hero Section (First 500px Viewport) -->
+  <section class="tesla-hero">
+    <h1 class="hero-model-title">Model S Plaid</h1>
+    <p class="hero-subtitle">Beyond Ludicrous · Tri-Motor All-Wheel Drive Exoskeleton</p>
+
+    <!-- FSD Supervised Status Pill -->
+    <div class="fsd-status-pill">
+      <span class="pulse-radar-dot"></span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <circle cx="12" cy="12" r="3"/>
+        <line x1="12" y1="2" x2="12" y2="9"/>
+        <line x1="12" y1="15" x2="12" y2="22"/>
+      </svg>
+      <span>Full Self-Driving (Supervised) Active</span>
+    </div>
+
+    <!-- Vehicle Aerodynamic Vector Silhouette -->
+    <div class="vehicle-hero-artwork">
+      <svg class="vehicle-hero-svg" viewBox="0 0 580 160" fill="none">
+        <!-- Ground Shadow -->
+        <ellipse cx="290" cy="142" rx="240" ry="10" fill="#000000" opacity="0.6"/>
+        
+        <!-- Model S Plaid Aerodynamic Body Silhouette -->
+        <path d="M50 125 C80 125 105 110 145 92 C195 70 270 58 350 58 C415 58 475 75 510 98 C535 115 550 125 555 125 Z" 
+              fill="#181a20" stroke="#444955" stroke-width="2"/>
+        
+        <!-- Windshield & Roof Glass Arc -->
+        <path d="M190 74 C240 60 330 60 410 74 L420 85 C330 75 250 75 180 85 Z" fill="#2d3340"/>
+        
+        <!-- Flush Door Handles & Plaid Badge Accent -->
+        <line x1="280" y1="96" x2="310" y2="96" stroke="#8e8e8e" stroke-width="1.8"/>
+        <line x1="370" y1="96" x2="400" y2="96" stroke="#8e8e8e" stroke-width="1.8"/>
+        
+        <!-- Wheels -->
+        <circle cx="130" cy="125" r="24" fill="#121316" stroke="#2c3038" stroke-width="3"/>
+        <circle cx="130" cy="125" r="14" stroke="#e22718" stroke-width="2" fill="none"/>
+        <circle cx="450" cy="125" r="24" fill="#121316" stroke="#2c3038" stroke-width="3"/>
+        <circle cx="450" cy="125" r="14" stroke="#e22718" stroke-width="2" fill="none"/>
+
+        <!-- Front Matrix Headlight Glow -->
+        <path d="M495 106 L535 110" stroke="#3e6ae1" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <!-- Dual 4px CTA Buttons -->
+    <div class="hero-cta-group">
+      <button class="btn-tesla-primary">Order Now</button>
+      <button class="btn-tesla-secondary">Demo Drive</button>
+    </div>
+
+    <!-- Specs Bar -->
+    <div class="tesla-specs-bar">
+      <div>
+        <div class="spec-val">1.99 s*</div>
+        <div class="spec-lbl">0-60 mph</div>
+      </div>
+      <div>
+        <div class="spec-val">1,020 hp</div>
+        <div class="spec-lbl">Peak Power</div>
+      </div>
+      <div>
+        <div class="spec-val">359 mi</div>
+        <div class="spec-lbl">EPA Est. Range</div>
+      </div>
+      <div>
+        <div class="spec-val">200 mph</div>
+        <div class="spec-lbl">Top Speed</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17" Center Touchscreen Mockup -->
+  <section class="screen-section">
+    <div class="screen-header">
+      <h2 class="screen-title">Cinematic 17" Center Touchscreen</h2>
+      <p class="screen-lead">
+        2200 × 1300 resolution, true colors, and exceptional responsiveness with left-right tilt capability.
+      </p>
+    </div>
+
+    <div class="display-bezel">
+      <svg class="touchscreen-svg" viewBox="0 0 920 360" fill="none">
+        <!-- Touchscreen Background -->
+        <rect width="920" height="360" fill="#14171d"/>
+
+        <!-- Left 3D Vehicle Telemetry Pane -->
+        <rect x="0" y="0" width="320" height="320" fill="#101318"/>
+        <!-- Top Status: Speed & Gear -->
+        <text x="32" y="52" font-family="'Universal Sans', sans-serif" font-size="34" font-weight="500" fill="#ffffff">72</text>
+        <text x="78" y="44" font-family="'Universal Sans', sans-serif" font-size="12" font-weight="500" fill="#8e8e8e">MPH</text>
+        <rect x="120" y="30" width="34" height="26" rx="3" fill="#ffffff" fill-opacity="0.1"/>
+        <text x="137" y="48" font-family="'Universal Sans', sans-serif" font-size="12" font-weight="500" fill="#ffffff" text-anchor="middle">MAX 70</text>
+        
+        <!-- Vehicle 3D Orthographic Wireframe -->
+        <rect x="60" y="90" width="180" height="90" rx="8" fill="#1c2028" stroke="#3e6ae1" stroke-width="1.5"/>
+        <text x="150" y="140" font-family="'Universal Sans', sans-serif" font-size="11" font-weight="500" fill="#a2a4a7" text-anchor="middle">Model S Plaid · Locked</text>
+        <circle cx="90" cy="180" r="10" fill="#222" stroke="#444" stroke-width="1"/>
+        <text x="90" y="184" font-family="'Universal Sans', sans-serif" font-size="8" fill="#3e6ae1" text-anchor="middle">42 PSI</text>
+        <circle cx="210" cy="180" r="10" fill="#222" stroke="#444" stroke-width="1"/>
+        <text x="210" y="184" font-family="'Universal Sans', sans-serif" font-size="8" fill="#3e6ae1" text-anchor="middle">42 PSI</text>
+
+        <!-- Right Satellite Navigation & Route Guidance Pane -->
+        <rect x="320" y="0" width="600" height="320" fill="#161b24"/>
+        <!-- Simulated Map Grid Lines -->
+        <line x1="320" y1="100" x2="920" y2="100" stroke="#1f2633" stroke-width="1"/>
+        <line x1="320" y1="200" x2="920" y2="200" stroke="#1f2633" stroke-width="1"/>
+        <line x1="500" y1="0" x2="500" y2="320" stroke="#1f2633" stroke-width="1"/>
+        <line x1="720" y1="0" x2="720" y2="320" stroke="#1f2633" stroke-width="1"/>
+        <!-- Route Line -->
+        <path d="M420 280 L520 210 L680 140 L780 80" stroke="#3e6ae1" stroke-width="4" stroke-linecap="round" fill="none"/>
+        <circle cx="780" cy="80" r="8" fill="#e22718" stroke="#ffffff" stroke-width="2"/>
+        
+        <!-- Navigation Turn-By-Turn Card -->
+        <rect x="340" y="24" width="260" height="64" rx="4" fill="rgba(20,23,29,0.92)" stroke="#2f3644" stroke-width="1"/>
+        <text x="360" y="48" font-family="'Universal Sans', sans-serif" font-size="13" font-weight="500" fill="#ffffff">In 800 ft, bear right to Supercharger V4</text>
+        <text x="360" y="68" font-family="'Universal Sans', sans-serif" font-size="11" font-weight="400" fill="#3e6ae1">250 kW · 8 stalls available · Preconditioning</text>
+
+        <!-- Bottom Control Dock Bar -->
+        <rect x="0" y="320" width="920" height="40" fill="#0c0e12" stroke-top="#1f2229"/>
+        <!-- Climate Controls -->
+        <text x="40" y="345" font-family="'Universal Sans', sans-serif" font-size="13" font-weight="500" fill="#ffffff">68°F</text>
+        <text x="880" y="345" font-family="'Universal Sans', sans-serif" font-size="13" font-weight="500" fill="#ffffff">68°F</text>
+        <!-- Dock App Icons -->
+        <circle cx="400" cy="340" r="10" fill="#20242e"/>
+        <circle cx="430" cy="340" r="10" fill="#3e6ae1"/>
+        <circle cx="460" cy="340" r="10" fill="#20242e"/>
+        <circle cx="490" cy="340" r="10" fill="#20242e"/>
+        <circle cx="520" cy="340" r="10" fill="#20242e"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- Technology Cards Grid -->
+  <section class="features-grid">
+    <div class="feature-card">
+      <div class="feature-tag">Cybertruck Exoskeleton</div>
+      <h3 class="feature-name">Ultra-Hard 30X Cold-Rolled</h3>
+      <p class="feature-text">Monochrome stainless-steel skin helps reduce dents, damage, and long-term corrosion while maximizing passenger occupant protection.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Powertrain</div>
+      <h3 class="feature-name">Carbon-Sleeved Rotors</h3>
+      <p class="feature-text">Model S Plaid maintains 1,020 peak horsepower all the way to its 200 mph top speed thanks to thermal carbon-wrap rotor construction.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-tag">Energy Infrastructure</div>
+      <h3 class="feature-name">Supercharger V4 Network</h3>
+      <p class="feature-text">Add up to 200 miles of range in 15 minutes across over 55,000 global high-speed charging pedestals operating at 99.95% uptime.</p>
+    </div>
+  </section>
+
+  <!-- Persistent Chat Bar -->
+  <div class="tesla-chat-bar">
+    <div class="chat-input-pill">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span>Ask a question (e.g., What's Dog Mode?)</span>
+    </div>
+    <a href="#" class="chat-schedule-link">
+      <span>Schedule a Drive Today ›</span>
+    </a>
+  </div>
+
+  <!-- Minimal Footer -->
+  <footer class="tesla-footer">
+    <ul class="footer-links">
+      <li><a href="#">Tesla © 2026</a></li>
+      <li><a href="#">Privacy & Legal</a></li>
+      <li><a href="#">Vehicle Recalls</a></li>
+      <li><a href="#">Contact</a></li>
+      <li><a href="#">News</a></li>
+      <li><a href="#">Locations</a></li>
+    </ul>
+    <p>*With rollout subtracted. Specifications based on US-spec vehicle telemetry.</p>
+  </footer>
+
+</body>
+</html>

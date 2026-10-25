@@ -1,61 +1,24 @@
-import { useState, type ComponentType } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ArrowUp, ChevronDown, Hourglass, Loader2, Pencil, X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { ChevronDown, Hourglass } from "lucide-react"
+import { cn } from "@/utils/cn"
 import type { MessageQueueProps } from "./index"
-import { normalizeQueuePreviewText } from "./utils"
+import MessageQueueItems from "./MessageQueueItems"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 const MOBILE_QUEUE_AUTO_COLLAPSE_THRESHOLD = 3
-
-interface MobileQueueActionButtonProps {
-	label: string
-	disabled?: boolean
-	loading?: boolean
-	icon: ComponentType<{ className?: string; strokeWidth?: number }>
-	onClick: () => void
-	testId: string
-}
-
-/** Render a fixed-size mobile queue action button that matches the prototype row controls. */
-function MobileQueueActionButton({
-	label,
-	disabled = false,
-	loading = false,
-	icon: Icon,
-	onClick,
-	testId,
-}: MobileQueueActionButtonProps) {
-	return (
-		<button
-			type="button"
-			className={cn(
-				"flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] transition-opacity active:opacity-70",
-				(disabled || loading) && "cursor-not-allowed opacity-50 active:opacity-50",
-			)}
-			aria-label={label}
-			title={label}
-			disabled={disabled || loading}
-			onClick={onClick}
-			data-testid={testId}
-		>
-			{loading ? (
-				<Loader2 className="size-4 animate-spin" strokeWidth={2} />
-			) : (
-				<Icon className="size-4" strokeWidth={2} />
-			)}
-		</button>
-	)
-}
 
 /** Render the mobile-only queue card while preserving the existing queue operations. */
 function MobileMessageQueue({
 	queue,
 	queueStats,
-	editingQueueItem,
 	onRemoveMessage,
 	onSendMessage,
 	onStartEdit,
-	onCancelEdit,
+	onWithdraw,
+	onMove,
+	editorRef,
+	isOperationPending,
 	className,
 }: MessageQueueProps) {
 	const { t } = useTranslation("super")
@@ -104,95 +67,23 @@ function MobileMessageQueue({
 			</button>
 
 			{isExpanded && (
-				<div
-					className="flex max-h-[35vh] flex-col overflow-y-auto border-t border-border"
-					data-testid="mobile-message-queue-list"
+				<ScrollArea
+					className="border-t border-border"
+					viewportClassName="max-h-[35vh] [&>div]:!flex [&>div]:flex-col"
+					viewportProps={{ "data-testid": "mobile-message-queue-list" }}
 				>
-					{queue.map((message) => {
-						const isEditing = editingQueueItem?.id === message.id
-						const isDisabled =
-							message.isDeletingLoading ||
-							message.isSendingLoading ||
-							message.isEditingLoading
-						const previewText =
-							normalizeQueuePreviewText(message.content) ||
-							t("messageQueue.mobile.emptyContent")
-
-						return (
-							<div
-								key={message.id}
-								className={cn(
-									"flex shrink-0 items-center gap-2 px-3 py-2 transition-[opacity,transform] duration-200",
-									isEditing && "bg-muted/40",
-								)}
-								data-testid="mobile-message-queue-item"
-							>
-								<div className="min-w-0 flex-1">
-									<p className="m-0 truncate text-sm font-normal leading-5 text-foreground">
-										{previewText}
-									</p>
-								</div>
-								<div className="flex shrink-0 items-center gap-1">
-									{isEditing ? (
-										<button
-											type="button"
-											className={cn(
-												"flex h-8 shrink-0 items-center gap-1 rounded-lg border border-border bg-card px-2 text-xs text-foreground shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]",
-												message.isEditingLoading &&
-													"cursor-not-allowed opacity-50",
-											)}
-											disabled={Boolean(message.isEditingLoading)}
-											onClick={onCancelEdit}
-											data-testid="mobile-message-queue-cancel-edit-button"
-										>
-											{message.isEditingLoading ? (
-												<Loader2
-													className="size-3 animate-spin"
-													strokeWidth={2}
-													data-testid="mobile-message-queue-editing-loading"
-												/>
-											) : null}
-											{t("messageQueue.exitEdit")}
-										</button>
-									) : (
-										<>
-											<MobileQueueActionButton
-												label={t("messageQueue.editMessage")}
-												disabled={Boolean(isDisabled)}
-												loading={Boolean(message.isEditingLoading)}
-												icon={Pencil}
-												onClick={() => onStartEdit(message.id)}
-												testId="mobile-message-queue-edit-button"
-											/>
-											<MobileQueueActionButton
-												label={t("messageQueue.submitNow")}
-												disabled={Boolean(
-													message.isDeletingLoading ||
-													message.isEditingLoading,
-												)}
-												loading={Boolean(message.isSendingLoading)}
-												icon={ArrowUp}
-												onClick={() => onSendMessage(message.id)}
-												testId="mobile-message-queue-send-button"
-											/>
-											<MobileQueueActionButton
-												label={t("messageQueue.removeFromQueue")}
-												disabled={Boolean(
-													message.isSendingLoading ||
-													message.isEditingLoading,
-												)}
-												loading={Boolean(message.isDeletingLoading)}
-												icon={X}
-												onClick={() => onRemoveMessage(message.id)}
-												testId="mobile-message-queue-remove-button"
-											/>
-										</>
-									)}
-								</div>
-							</div>
-						)
-					})}
-				</div>
+					<MessageQueueItems
+						queue={queue}
+						onRemoveMessage={onRemoveMessage}
+						onSendMessage={onSendMessage}
+						onStartEdit={onStartEdit}
+						onWithdraw={onWithdraw}
+						onMove={onMove}
+						editorRef={editorRef}
+						isOperationPending={isOperationPending}
+						variant="mobile"
+					/>
+				</ScrollArea>
 			)}
 		</div>
 	)

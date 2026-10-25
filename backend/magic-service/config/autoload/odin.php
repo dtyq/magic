@@ -244,9 +244,13 @@ return [
             'multi_modal' => false,
             'vector_size' => 0,
             'thinking_budget_levels' => [
-                'low' => 4096,
-                'medium' => 16384,
-                'high' => 32768,
+                'none' => 0, // 关闭思考
+                'minimal' => 1024, // 约 512～1024 token
+                'low' => 2048, // 约 1024～4096 token
+                'medium' => 8192, // 约 4096～8192 token
+                'high' => 16384, // 约 8192～16384 token
+                'xhigh' => 24576, // 约 16384～24576 token
+                'max' => 32768, // 约 24576～32768 token
             ],
         ],
         'general_api_options' => [
@@ -275,21 +279,94 @@ return [
                     'duration_ms',                 // 请求耗时
                     'url',                         // 请求URL
                     'status_code',                 // 响应状态码
+                    'has_proxy',                   // 是否使用代理（不记录代理凭证）
 
-                    // options 信息
+                    // HTTP 控制选项；headers 沿用 Odin 的脱敏处理，不放行整个 options。
                     'options.headers',
+                    'options.stream',
+                    'options.timeout',
+                    'options.connect_timeout',
+
+                    // Chat Completions / Responses / Anthropic 的请求控制参数。
+                    // extra_body 可覆盖这些原生字段，日志记录的是转换与合并后的实际值。
                     'options.json.model',
                     'options.json.temperature',
                     'options.json.max_tokens',
                     'options.json.max_completion_tokens',
+                    'options.json.max_output_tokens',
+                    'options.json.stream',
+                    'options.json.stream_options.include_usage',
+                    'options.json.top_p',
+                    'options.json.seed',
+                    'options.json.n',
+                    'options.json.logprobs',
+                    'options.json.top_logprobs',
+                    'options.json.tool_choice',
+                    'options.json.parallel_tool_calls',
+                    'options.json.service_tier',
+                    'options.json.store',
+                    'options.json.response_format.type',
+                    'options.json.text.format.type',
+                    'options.json.text.verbosity',
                     'options.json.stop',
+                    'options.json.stop_sequences',
+                    'options.json.anthropic_version',
                     'options.json.frequency_penalty',
                     'options.json.presence_penalty',
                     'options.json.business_params',
-                    'options.json.thinking',
                     'options.json.top_k',
                     'options.json.repetition_penalty',
-                    'options.json.reasoning_effort',
+
+                    // Odin 转换后的原生思考参数；只记录控制字段，不放行推理正文。
+                    'options.json.reasoning_effort',                    // Chat Completions 强度
+                    'options.json.thinking',                            // 豆包/DeepSeek/Kimi/Claude 开关与预算
+                    'options.json.reasoning.effort',                     // OpenAI Responses 强度
+                    'options.json.output_config.effort',                 // Claude 自适应强度
+                    'options.json.enable_thinking',                      // 千问思考开关
+                    'options.json.thinking_budget',                      // 千问思考预算
+                    'options.json.reasoning_split',                      // MiniMax 思考输出分离
+                    'options.json.generationConfig.thinkingConfig.thinkingLevel',  // Gemini 强度
+                    'options.json.generationConfig.thinkingConfig.thinkingBudget', // Gemini 预算
+                    // Gemini 的原生控制参数；不放行 contents、system_instruction 与 tools。
+                    'options.json.generationConfig.temperature',
+                    'options.json.generationConfig.maxOutputTokens',
+                    'options.json.generationConfig.stopSequences',
+                    'options.json.generationConfig.topP',
+                    'options.json.generationConfig.topK',
+                    'options.json.generationConfig.candidateCount',
+                    'options.json.generationConfig.responseMimeType',
+                    'options.json.generationConfig.thinkingConfig.includeThoughts',
+                    'options.json.toolConfig.functionCallingConfig.mode',
+                    'options.json.cachedContent',
+
+                    // Bedrock SDK 的外层请求信息与 HTTP 超时，args.body 是含正文的 JSON 字符串，不放行。
+                    'args.modelId',
+                    'args.contentType',
+                    'args.accept',
+                    'args.@http.timeout',
+                    'args.@http.connect_timeout',
+
+                    // Bedrock Converse 的 SDK 与签名客户端使用不同日志结构。
+                    'args.inferenceConfig.temperature',
+                    'args.inferenceConfig.maxTokens',
+                    'args.inferenceConfig.topP',
+                    'args.inferenceConfig.stopSequences',
+                    'args.additionalModelRequestFields.stop_sequences',
+                    'args.additionalModelRequestFields.top_k',
+                    'args.toolConfig.toolChoice',
+                    'args.additionalModelRequestFields.thinking.type',
+                    'args.additionalModelRequestFields.thinking.budget_tokens',
+                    'args.additionalModelRequestFields.output_config.effort',
+                    'body.inferenceConfig.temperature',
+                    'body.inferenceConfig.maxTokens',
+                    'body.inferenceConfig.topP',
+                    'body.inferenceConfig.stopSequences',
+                    'body.additionalModelRequestFields.stop_sequences',
+                    'body.additionalModelRequestFields.top_k',
+                    'body.toolConfig.toolChoice',
+                    'body.additionalModelRequestFields.thinking.type',
+                    'body.additionalModelRequestFields.thinking.budget_tokens',
+                    'body.additionalModelRequestFields.output_config.effort',
 
                     // 使用量统计
                     'usage',                       // 完整的usage对象
@@ -308,6 +385,10 @@ return [
                     'args.stream',                 // 流式响应标志
                     'args.stop',                   // 停止词
                     'args.seed',                   // 随机种子
+                    'args.reasoning_effort',
+                    'args.thinking',
+                    'args.enable_thinking',
+                    'args.thinking_budget',
 
                     // Token预估信息
                     'token_estimate',              // Token估算详情
@@ -331,6 +412,11 @@ return [
                     'performance_flag',            // 性能标记（慢请求标识）
 
                     // 注意：以下字段被排除，不会打印
+                    // - options.json.messages / input / instructions / contents / system_instruction / system
+                    // - options.json.tools / toolConfig 的工具定义 / response_format 与 text.format 的完整 schema
+                    // - args.body（Bedrock invokeModel 的完整 JSON 请求字符串）
+                    // - args.messages / args.system / args.toolConfig.tools
+                    // - body.messages / body.system / body.toolConfig.tools
                     // - args.messages (用户消息内容)
                     // - args.tools (工具定义)
                     // - choices.0.message (响应消息内容)
@@ -357,6 +443,18 @@ return [
         ],
         'model_fixed_temperature' => [
             '%gpt-5%' => 1,
+            '%kimi-k2.5%' => 1,
+        ],
+
+        // 命中后会把请求体中的 max_tokens 替换为 max_completion_tokens。
+        // 同时匹配 models 配置别名和实际模型名（item.model），支持 % 通配符。
+        // 精确匹配优先于通配符；精确匹配为 false 时可排除某个模型。
+        'model_max_completion_tokens' => [
+            '%gpt-5%' => true,
+            '%gpt-6%' => true,
+            'o1-%' => true,
+            'o3-%' => true,
+            'o4-%' => true,
         ],
     ],
     'content_copy_keys' => [

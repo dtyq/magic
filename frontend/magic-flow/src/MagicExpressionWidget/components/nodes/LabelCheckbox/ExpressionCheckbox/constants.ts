@@ -1,5 +1,5 @@
 import i18next from "i18next"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 
 
 export const checkboxSelectOptions = [
@@ -16,5 +16,5 @@ export const checkboxSelectOptions = [
 
 /** 获取具体的项 */
 export const getTargetCheckboxOption = (bool: boolean ) => {
-	return _.cloneDeep(checkboxSelectOptions.find(o => o.value === bool))
+	return cloneDeep(checkboxSelectOptions.find(o => o.value === bool))
 }

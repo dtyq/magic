@@ -2,10 +2,11 @@ import { Check, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import type { ScrollEdgeFadeColor } from "@/components/base-mobile/ScrollEdgeFade"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { OverlayZIndexScope } from "@/utils/overlayZIndex/overlayStackManager"
 
 import {
@@ -119,14 +120,10 @@ export function MobileSettingsSheetContainer(props: {
 
 	const scrollBody =
 		scrollEdgeFade === false ? (
-			<div
-				className={cn(
-					"no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto",
-					resolvedContentClassName,
-				)}
-			>
-				{children}
-			</div>
+			// Keep header actions outside the scrolling viewport and spacing on the content column.
+			<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block" hideScrollbar>
+				<div className={cn("flex flex-col", resolvedContentClassName)}>{children}</div>
+			</ScrollArea>
 		) : (
 			<ScrollEdgeFadeContainer
 				fadeColor={scrollEdgeFade.fadeColor ?? "muted"}

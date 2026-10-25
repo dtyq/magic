@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { DynamicDatabase } from "@/pages/superMagic/stores/storage"
+import { compareStreamRecordsForDisplay, DynamicDatabase } from "@/pages/superMagic/stores/storage"
 
 export function useStreamRecordsCollect() {
 	useEffect(() => {
@@ -16,12 +16,9 @@ export function useStreamRecordsCollect() {
 						"background: green;color: #fff;padding: 0 4px",
 					)
 					const messages = res
+						.slice()
+						.sort(compareStreamRecordsForDisplay)
 						.map((o) => o?.value)
-						.sort((a: any, b: any) => {
-							const aa = a?.message?.send_time || a?.send_time
-							const bb = b?.message?.send_time || b?.send_time
-							return aa - bb
-						})
 
 					/** keep-console */
 					console.log("流水：", messages)

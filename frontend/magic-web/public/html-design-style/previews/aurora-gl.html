@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURORA GL — Generative WebGL Shader & Chromatic Mesh</title>
+  <style>
+    :root {
+      --primary: #7CFF67;
+      --secondary: #5227FF;
+      --accent: #5227FF;
+      --background: #0F1115;
+      --surface: #18181B;
+      --surface-overlay: rgba(24, 24, 27, 0.78);
+      --text-primary: #FFFFFF;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --border: #27272A;
+      --border-glow: rgba(124, 255, 103, 0.3);
+      --font-display: "Inter", system-ui, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --radius-card: 16px;
+      --radius-control: 8px;
+      --radius-pill: 9999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      background-color: var(--background);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* Top Global HUD Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 36px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15, 17, 21, 0.88);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-hud {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+    .brand-mark {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      box-shadow: 0 0 12px rgba(124, 255, 103, 0.5);
+    }
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .telemetry-row {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .fps-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(124, 255, 103, 0.1);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+    }
+    .fps-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--primary);
+      border-radius: 50%;
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.7); opacity: 0.4; }
+    }
+    .metric-chip {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .metric-chip span { color: #FFFFFF; font-weight: 600; }
+    .btn-compile {
+      background: var(--primary);
+      color: #0F1115;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 16px;
+      border-radius: var(--radius-control);
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 0 16px rgba(124, 255, 103, 0.4);
+    }
+
+    /* Hero Generative Viewport (Dense First 500px) */
+    .viewport-hero {
+      position: relative;
+      height: 520px;
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 36px 40px;
+    }
+
+    /* Chromatic Aurora Shader SVG Mesh Layer */
+    .shader-canvas-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .shader-mesh-svg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Hero Text & Floating Inspector Panels */
+    .hero-content {
+      position: relative;
+      z-index: 10;
+      max-width: 600px;
+    }
+    .shader-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 4.8vw, 56px);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 16px;
+      text-shadow: 0 4px 24px rgba(0,0,0,0.8);
+    }
+    .hero-title span {
+      background: linear-gradient(135deg, #FFFFFF 20%, var(--primary) 60%, #A78BFA 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 500px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    }
+
+    /* Floating Shader Parameter Sliders Panel (Overlaid on First 500px) */
+    .shader-hud-card {
+      position: absolute;
+      right: 40px;
+      top: 36px;
+      bottom: 36px;
+      width: 340px;
+      background: var(--surface-overlay);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius-card);
+      padding: 22px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+    }
+    .hud-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    .hud-card-title {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .preset-pill-tag {
+      font-size: 10px;
+      background: rgba(82, 39, 255, 0.3);
+      border: 1px solid var(--secondary);
+      color: #A78BFA;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+    }
+
+    /* Sliders */
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 14px 0;
+    }
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .slider-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .slider-meta span:last-child {
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .range-input {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: #27272A;
+      border-radius: 2px;
+      outline: none;
+    }
+    .range-input::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      box-shadow: 0 0 10px var(--primary);
+    }
+
+    /* Preset Selection Buttons */
+    .preset-row {
+      display: flex;
+      gap: 6px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .btn-preset {
+      flex: 1;
+      padding: 6px 0;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      border-radius: var(--radius-control);
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-preset.active, .btn-preset:hover {
+      background: rgba(124, 255, 103, 0.15);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Bottom Viewport Shader Status Bar */
+    .viewport-bottom-bar {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      gap: 28px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .viewport-bottom-bar div span { color: #FFFFFF; font-weight: 600; }
+
+    /* Shader Library / Matrix Grid */
+    .library-section {
+      padding: 56px 40px;
+      border-bottom: 1px solid var(--border);
+    }
+    .library-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 32px;
+    }
+    .library-header h2 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .bento-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+      display: flex;
+      flex-direction: column;
+    }
+    .bento-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--primary);
+    }
+    .card-thumb {
+      height: 160px;
+      position: relative;
+      background: #08090C;
+      overflow: hidden;
+    }
+    .card-thumb svg { width: 100%; height: 100%; }
+    .card-meta-tag {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 10px;
+      background: rgba(15,17,21,0.85);
+      backdrop-filter: blur(4px);
+      color: var(--primary);
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(124,255,103,0.3);
+    }
+    .card-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      flex: 1;
+    }
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+
+    /* Footer */
+    footer {
+      padding: 36px 40px;
+      background: #08090C;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Global Telemetry Header -->
+  <header>
+    <a href="#" class="brand-hud">
+      <div class="brand-mark"></div>
+      <div class="brand-title">AURORA GL / ETHEREAL</div>
+    </a>
+    <div class="telemetry-row">
+      <div class="fps-badge">
+        <span class="fps-dot"></span>
+        <span>120.4 FPS</span>
+      </div>
+      <div class="metric-chip">FRAMETIME: <span>8.3 ms</span></div>
+      <div class="metric-chip">VRAM: <span>240 MB</span></div>
+      <div class="metric-chip">PASSES: <span>3x RAYMARCH</span></div>
+      <button class="btn-compile">COMPILE GLSL</button>
+    </div>
+  </header>
+
+  <!-- Hero Generative Viewport (Dense First 500px) -->
+  <section class="viewport-hero">
+    <!-- Chromatic Aurora Shader SVG Mesh Layer -->
+    <div class="shader-canvas-layer">
+      <svg class="shader-mesh-svg" viewBox="0 0 1200 600" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="aurora1" cx="30%" cy="40%" r="50%">
+            <stop offset="0%" stop-color="#7CFF67" stop-opacity="0.4"/>
+            <stop offset="60%" stop-color="#5227FF" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#0F1115" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="aurora2" cx="70%" cy="55%" r="60%">
+            <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.35"/>
+            <stop offset="50%" stop-color="#5227FF" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#0F1115" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="beamGrad" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#5227FF" stop-opacity="0.6"/>
+            <stop offset="50%" stop-color="#7CFF67" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="#FF2A85" stop-opacity="0.4"/>
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="#0A0C10"/>
+        <rect width="100%" height="100%" fill="url(#aurora1)"/>
+        <rect width="100%" height="100%" fill="url(#aurora2)"/>
+        <!-- Chromatic Curvature Ribbons -->
+        <path d="M-50 480 Q 300 120, 650 360 T 1300 200" stroke="url(#beamGrad)" stroke-width="120" fill="none" opacity="0.35" filter="blur(25px)"/>
+        <path d="M-50 480 Q 300 120, 650 360 T 1300 200" stroke="#7CFF67" stroke-width="6" fill="none" opacity="0.75"/>
+        <path d="M-20 520 Q 340 180, 700 400 T 1350 240" stroke="#5227FF" stroke-width="8" fill="none" opacity="0.8"/>
+        <!-- Coordinate Grid -->
+        <line x1="0" y1="300" x2="1200" y2="300" stroke="rgba(255,255,255,0.05)" stroke-dasharray="6 6"/>
+      </svg>
+    </div>
+
+    <!-- Hero Content -->
+    <div class="hero-content">
+      <div class="shader-tag">BUFFER_A // FRAGMENT PIPELINE</div>
+      <h1 class="hero-title">
+        High-fidelity <span>chromatic aurora</span> shader engines.
+      </h1>
+      <p class="hero-p">
+        Real-time volumetric raymarching, curl noise vector fields, and chromatic aberration dispersion compiled directly for WebGL 2.0 and WebGPU canvases.
+      </p>
+    </div>
+
+    <!-- Floating Shader Parameter Sliders Panel -->
+    <div class="shader-hud-card">
+      <div>
+        <div class="hud-card-header">
+          <span class="hud-card-title">Shader Uniforms</span>
+          <span class="preset-pill-tag">WebGL 2.0</span>
+        </div>
+
+        <div class="slider-group">
+          <!-- Turbulence -->
+          <div class="slider-row">
+            <div class="slider-meta">
+              <span>Turbulence</span>
+              <span>1.84</span>
+            </div>
+            <input type="range" class="range-input" value="74">
+          </div>
+
+          <!-- Distortion -->
+          <div class="slider-row">
+            <div class="slider-meta">
+              <span>Distortion</span>
+              <span>0.42</span>
+            </div>
+            <input type="range" class="range-input" value="42">
+          </div>
+
+          <!-- Chromatic Aberration -->
+          <div class="slider-row">
+            <div class="slider-meta">
+              <span>Chromatic Dispersion</span>
+              <span>0.18λ</span>
+            </div>
+            <input type="range" class="range-input" value="62">
+          </div>
+
+          <!-- Speed -->
+          <div class="slider-row">
+            <div class="slider-meta">
+              <span>Propagation Speed</span>
+              <span>2.4x</span>
+            </div>
+            <input type="range" class="range-input" value="80">
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 6px; letter-spacing: 0.1em; text-transform: uppercase;">Color Way Presets</div>
+        <div class="preset-row">
+          <button class="btn-preset active">Aurora</button>
+          <button class="btn-preset">Solar</button>
+          <button class="btn-preset">Cyber</button>
+          <button class="btn-preset">Void</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Telemetry Bar -->
+    <div class="viewport-bottom-bar">
+      <div>KERNEL: <span>Simplex 4D / Perlin Octaves (5)</span></div>
+      <div>RESOLUTION: <span>2560 × 1440 @ 2.0 DPR</span></div>
+      <div>BACKEND: <span>ANGLE (Metal / Apple M-Series)</span></div>
+    </div>
+  </section>
+
+  <!-- Shader Presets Bento Library -->
+  <section class="library-section">
+    <div class="library-header">
+      <div>
+        <h2>Generative Visual Library</h2>
+        <p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">Modular GLSL fragment shaders optimized for interactive backdrops and hero containers.</p>
+      </div>
+    </div>
+
+    <div class="bento-grid">
+      <!-- Shader 1 -->
+      <div class="bento-card">
+        <div class="card-thumb">
+          <span class="card-meta-tag">120 FPS</span>
+          <svg viewBox="0 0 320 160"><rect width="100%" height="100%" fill="#0E1015"/><circle cx="160" cy="80" r="60" fill="none" stroke="#7CFF67" stroke-width="2"/><circle cx="160" cy="80" r="40" fill="none" stroke="#5227FF" stroke-width="1.5"/></svg>
+        </div>
+        <div class="card-body">
+          <h3 class="card-title">Ethereal Ion Plasma</h3>
+          <p class="card-desc">Atmospheric electromagnetic waves with variable attenuation and dual-tone gradient mapping.</p>
+          <div class="card-footer">
+            <span>Passes: 2</span>
+            <span>Uniforms: 8</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shader 2 -->
+      <div class="bento-card">
+        <div class="card-thumb">
+          <span class="card-meta-tag">118 FPS</span>
+          <svg viewBox="0 0 320 160"><rect width="100%" height="100%" fill="#0E1015"/><polygon points="80,130 160,30 240,130" stroke="#5227FF" stroke-width="2" fill="none"/><line x1="80" y1="80" x2="240" y2="80" stroke="#7CFF67" stroke-width="1.5"/></svg>
+        </div>
+        <div class="card-body">
+          <h3 class="card-title">Quantum Lattice Flux</h3>
+          <p class="card-desc">Sub-pixel procedural grid displacement with mouse-following magnetic ripple distortion.</p>
+          <div class="card-footer">
+            <span>Passes: 1</span>
+            <span>Uniforms: 6</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shader 3 -->
+      <div class="bento-card">
+        <div class="card-thumb">
+          <span class="card-meta-tag">120 FPS</span>
+          <svg viewBox="0 0 320 160"><rect width="100%" height="100%" fill="#0E1015"/><ellipse cx="160" cy="80" rx="90" ry="40" stroke="#7CFF67" stroke-width="1.5" fill="none"/><ellipse cx="160" cy="80" rx="40" ry="70" stroke="#FF2A85" stroke-width="1.5" fill="none"/></svg>
+        </div>
+        <div class="card-body">
+          <h3 class="card-title">Cosmic Chromatic Prism</h3>
+          <p class="card-desc">Spectral dispersion prism refracting white light into RGB decomposed laser channels.</p>
+          <div class="card-footer">
+            <span>Passes: 3</span>
+            <span>Uniforms: 11</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div>© 2026 AURORA GL SHADER SYSTEM. ALL RIGHTS RESERVED.</div>
+    <div>COLOR TOKENS: #7CFF67 / #5227FF / #0F1115 · 120 FPS CALIBRATED</div>
+    <div>WEBGL 2.0 / WEBGPU SHADER ENGINE</div>
+  </footer>
+
+</body>
+</html>

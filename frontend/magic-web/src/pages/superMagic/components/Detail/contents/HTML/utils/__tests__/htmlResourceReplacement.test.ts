@@ -37,6 +37,86 @@ function replaceResource({
 }
 
 describe("replaceHtmlResourceUrls", () => {
+	it.each([false, true])(
+		"distinguishes literal entities in filenames (reverse=%s)",
+		async (reverse) => {
+			const resources = [
+				{ id: "plain", path: "a&b.png", url: "https://cdn.example.com/plain.png" },
+				{ id: "literal", path: "a&amp;b.png", url: "https://cdn.example.com/literal.png" },
+			]
+			if (reverse) resources.reverse()
+			const result = await replaceHtmlResourceUrls({
+				fileIds: resources.map((item) => item.id),
+				preloadedUrlMapping: new Map(resources.map((item) => [item.id, item.url])),
+				imageFileIds: new Set(),
+				fileUpdatedAtMap: new Map(),
+				htmlContent:
+					'<img id="plain" src="a&amp;b.png"><img id="literal" src="a&amp;amp;b.png">',
+				urlMap: new Map(
+					resources.map((item) => [
+						item.id,
+						{ path: item.path, tag: "img", attr: "src" },
+					]),
+				),
+				filePathMap: new Map(),
+				allFiles: [],
+				relativeFolderPath: "",
+			})
+			const doc = new DOMParser().parseFromString(result.content, "text/html")
+			expect(doc.querySelector("#plain")?.getAttribute("src")).toBe(
+				"https://cdn.example.com/plain.png",
+			)
+			expect(doc.querySelector("#literal")?.getAttribute("src")).toBe(
+				"https://cdn.example.com/literal.png",
+			)
+			expect(doc.querySelector("#plain")?.getAttribute("data-original-path")).toBe("a&b.png")
+			expect(doc.querySelector("#literal")?.getAttribute("data-original-path")).toBe(
+				"a&amp;b.png",
+			)
+		},
+	)
+
+	it.each([false, true])(
+		"inlines only the matching stylesheet path (reverse=%s)",
+		async (reverse) => {
+			const resources = [
+				{
+					fileId: "plain",
+					htmlPath: "a&b.css",
+					content: ".plain { color: red; }",
+					references: [],
+				},
+				{
+					fileId: "literal",
+					htmlPath: "a&amp;b.css",
+					content: ".literal { color: blue; }",
+					references: [],
+				},
+			]
+			if (reverse) resources.reverse()
+			const result = await replaceHtmlResourceUrls({
+				fileIds: [],
+				imageFileIds: new Set(),
+				fileUpdatedAtMap: new Map(),
+				htmlContent:
+					'<link id="plain" rel="stylesheet" href="a&amp;b.css"><link id="literal" rel="stylesheet" href="a&amp;amp;b.css">',
+				urlMap: new Map(),
+				filePathMap: new Map(),
+				allFiles: [],
+				relativeFolderPath: "",
+				externalCssResources: resources,
+			})
+			const doc = new DOMParser().parseFromString(result.content, "text/html")
+			expect(doc.querySelector("#plain")?.nextElementSibling?.textContent).toBe(
+				".plain { color: red; }",
+			)
+			expect(doc.querySelector("#literal")?.nextElementSibling?.textContent).toBe(
+				".literal { color: blue; }",
+			)
+			expect(doc.querySelectorAll("style")).toHaveLength(2)
+		},
+	)
+
 	it("escapes replacement URLs and original paths before writing HTML attributes", async () => {
 		const path = 'assets/report" onerror="alert(1)&.png'
 		const url = 'https://cdn.example.com/image.png?x=" onerror="alert(2)&y=<tag>'

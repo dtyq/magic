@@ -91,12 +91,16 @@ function ImportSkillDialog({
 	// Skill package file → private bucket
 	const { upload } = useUpload({
 		storageType: "private",
+		businessCode: "skill",
 		onProgress: (_, percent) =>
 			setUploadedFile((prev) => (prev ? { ...prev, progress: percent } : null)),
 	})
 
 	// Skill icon → public bucket (must be publicly accessible for display)
-	const { upload: uploadPublic } = useUpload({ storageType: "public" })
+	const { upload: uploadPublic } = useUpload({
+		storageType: "public",
+		businessCode: "skill",
+	})
 
 	const handlePreparedFile = useCallback(
 		async (file: File) => {

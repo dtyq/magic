@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field
 
@@ -40,10 +40,12 @@ from app.utils.document_parse.constants import (
 )
 from app.utils.document_parse.models import DocumentChunk
 from app.utils.document_parse.output.markdown_writer import MarkdownWriter
+from app.utils.document_parse.service.asset_strategy import AssetStrategyResolver
 from app.utils.document_parse.service.document_artifact_mode import DocumentArtifactModeSelector
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.document_inspector import DocumentInspector
+from app.utils.document_parse.service.document_output_version import DocumentOutputVersionResolver
 from app.utils.document_parse.service.reading_state import ReadingStateStore
 from app.utils.document_parse.structure.range_parser import RangeParser
 
@@ -70,6 +72,13 @@ class ExportDocumentMarkdownParams(BaseToolParams):
         None,
         description="Optional range expression. Omit to export the whole document."
     )
+    asset_strategy: Literal["auto", "text_only", "page_visual", "reusable_assets", "full_fidelity"] = Field(
+        "auto",
+        description=(
+            "Asset output strategy: text_only, page_visual, reusable_assets, full_fidelity, or auto. "
+            "Use auto after inspection and sampling when the best strategy should be recommended."
+        ),
+    )
 
 
 @tool(code_mode_only=True)
@@ -85,6 +94,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         if error:
             return error
         assert output_dir is not None
+        requested_output_dir = output_dir
         resolved, error = await require_valid_input_file(params.input_path, "input_path")
         if error:
             return error
@@ -93,6 +103,13 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         try:
             profile = await DocumentInspector().inspect(input_path)
             artifact_mode = DocumentArtifactModeSelector.resolve("auto", profile, DEFAULT_CHUNK_MAX_CHARS)
+            resolved_strategy = AssetStrategyResolver.resolve(params.asset_strategy, profile).resolved_strategy
+            output_dir = await DocumentOutputVersionResolver.resolve(
+                output_dir,
+                input_path,
+                params.asset_strategy,
+                resolved_strategy,
+            )
         except ValueError as exc:
             return ToolResult.error(build_document_parse_model_error("export_document_markdown", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
         except Exception as exc:
@@ -100,8 +117,23 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
 
         try:
             if artifact_mode == "simple":
-                return await self._execute_simple(tool_context, params, input_path, output_dir, profile.file_type, resolved.correction_note)
-            return await self._execute_progressive(tool_context, params, input_path, output_dir, resolved.correction_note)
+                return await self._execute_simple(
+                    tool_context,
+                    params,
+                    input_path,
+                    output_dir,
+                    profile.file_type,
+                    resolved.correction_note,
+                    requested_output_dir,
+                )
+            return await self._execute_progressive(
+                tool_context,
+                params,
+                input_path,
+                output_dir,
+                resolved.correction_note,
+                requested_output_dir,
+            )
         except Exception as exc:
             return ToolResult.error(build_document_parse_model_error("export_document_markdown", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
 
@@ -112,8 +144,14 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         input_path: Path,
         output_dir: Path,
         correction_note: str | None,
+        requested_output_dir: Path,
     ) -> ToolResult:
-        existing_chunks = await self._load_existing_chunks_for_export(input_path, output_dir, params.ranges)
+        existing_chunks = await self._load_existing_chunks_for_export(
+            input_path,
+            output_dir,
+            params.ranges,
+            params.asset_strategy,
+        )
         if existing_chunks:
             return await self._write_existing_progressive_export(tool_context, input_path, output_dir, existing_chunks, correction_note)
 
@@ -123,9 +161,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             ranges=params.ranges,
             mode="auto",
             max_chars=DEFAULT_CHUNK_MAX_CHARS,
-            extract_images=True,
-            exclude_watermark_images=True,
-            deduplicate_repeated_images=True,
+            asset_strategy=params.asset_strategy,
         )
         structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
         await ReadingStateStore().mark_extracted(
@@ -140,7 +176,14 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         combined_path: Path | None = None
         combined_filename = "document.md"
         if combined_filename:
-            combined_path = await MarkdownWriter.write_combined(output_dir / combined_filename, extraction.chunks, input_path.stem)
+            combined_path = await MarkdownWriter.write_combined(
+                output_dir / combined_filename,
+                extraction.chunks,
+                input_path.stem,
+                output_dir,
+                output_dir,
+                [asset.path for asset in extraction.assets],
+            )
             if tool_context:
                 await self._dispatch_file_event(tool_context, str(combined_path), EventType.FILE_CREATED)
 
@@ -154,10 +197,16 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             "",
             f"- Output directory: `{output_dir_str}`",
             f"- Chunk count: {len(extraction.chunks)}",
+            f"- Execution batches: {len(extraction.metadata.get('execution_batches') or [1])}",
             f"- Index: `{output_dir_str}/document.index.json`",
             f"- Outline: `{output_dir_str}/document.outline.md`",
             f"- Reading state: `{output_dir_str}/document.reading_state.json`",
         ]
+        execution_limits = extraction.metadata.get("execution_limits") or {}
+        if execution_limits.get("max_units_per_call"):
+            content_lines.append(
+                f"- Execution limit: {execution_limits['max_units_per_call']} units per call; batching was handled automatically"
+            )
         if combined_path_str:
             content_lines.append(f"- Combined Markdown: `{combined_path_str}`")
 
@@ -166,6 +215,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         extra["outline_path"] = f"{output_dir_str}/document.outline.md"
         extra["combined_path"] = combined_path_str
         extra["artifact_mode"] = "progressive"
+        extra["requested_output_dir"] = str(requested_output_dir)
         extra["structure"] = structure.to_dict()
         data = self._build_sdk_data(
             artifact_mode="progressive",
@@ -188,7 +238,16 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         chunks: list[DocumentChunk],
         correction_note: str | None,
     ) -> ToolResult:
-        combined_path = await MarkdownWriter.write_combined(output_dir / "document.md", chunks, input_path.stem)
+        index = await async_read_json(output_dir / INDEX_FILENAME)
+        asset_paths = [str(item.get("path")) for item in index.get("assets") or [] if item.get("path")]
+        combined_path = await MarkdownWriter.write_combined(
+            output_dir / "document.md",
+            chunks,
+            input_path.stem,
+            output_dir,
+            output_dir,
+            asset_paths,
+        )
         if tool_context:
             await self._dispatch_file_event(tool_context, str(combined_path), EventType.FILE_CREATED)
             await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
@@ -230,6 +289,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         output_dir: Path,
         file_type: str,
         correction_note: str | None,
+        requested_output_dir: Path,
     ) -> ToolResult:
         await async_mkdir(output_dir, parents=True, exist_ok=True)
         temp_dir = output_dir / ".simple-export-tmp"
@@ -243,11 +303,16 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
                 ranges=params.ranges,
                 mode="auto",
                 max_chars=DEFAULT_CHUNK_MAX_CHARS,
-                extract_images=True,
-                exclude_watermark_images=True,
-                deduplicate_repeated_images=True,
+                asset_strategy=params.asset_strategy,
             )
-            await MarkdownWriter.write_combined(combined_path, extraction.chunks, input_path.stem)
+            await MarkdownWriter.write_combined(
+                combined_path,
+                extraction.chunks,
+                input_path.stem,
+                temp_dir,
+                output_dir,
+                [asset.path for asset in extraction.assets],
+            )
             await self._copy_simple_optional_dir(temp_dir, output_dir, ASSETS_DIRNAME)
             await self._copy_simple_optional_dir(temp_dir, output_dir, VISUAL_RESULTS_DIRNAME)
             structure = await DocumentIndexer().build_simple_from_extraction(input_path, output_dir, extraction, combined_path)
@@ -266,8 +331,14 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             f"- Output directory: `{output_dir}`",
             f"- Main Markdown: `{combined_path}`",
             f"- Chunk count: {len(extraction.chunks)}",
+            f"- Execution batches: {len(extraction.metadata.get('execution_batches') or [1])}",
             f"- Index: `{output_dir / INDEX_FILENAME}`",
         ]
+        execution_limits = extraction.metadata.get("execution_limits") or {}
+        if execution_limits.get("max_units_per_call"):
+            content_lines.append(
+                f"- Execution limit: {execution_limits['max_units_per_call']} units per call; batching was handled automatically"
+            )
         if file_type == "spreadsheet":
             content_lines.append("- Note: spreadsheet files may need targeted sheet/range extraction for large tables.")
 
@@ -275,6 +346,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         for chunk in extra.get("chunks") or []:
             chunk["path"] = str(combined_path)
         extra["artifact_mode"] = "simple"
+        extra["requested_output_dir"] = str(requested_output_dir)
         extra["combined_path"] = str(combined_path)
         extra["main_markdown_path"] = str(combined_path)
         extra["index_path"] = str(output_dir / INDEX_FILENAME)
@@ -310,12 +382,16 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         input_path: Path,
         output_dir: Path,
         ranges: Optional[str],
+        asset_strategy: str = "auto",
     ) -> list[DocumentChunk]:
         index_path = output_dir / INDEX_FILENAME
         if not await async_exists(index_path):
             return []
         index = await async_read_json(index_path)
         if str(index.get("source_path") or "") != str(input_path):
+            return []
+        recorded_strategy = ((index.get("metadata") or {}).get("asset_strategy") or {}).get("resolved_strategy")
+        if asset_strategy != "auto" and recorded_strategy != asset_strategy:
             return []
         chunks_data = index.get("chunks") or []
         if not chunks_data:

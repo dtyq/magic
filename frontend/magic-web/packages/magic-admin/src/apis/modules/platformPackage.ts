@@ -109,6 +109,60 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 			return client.put<null>(genRequestUrl(RequestUrl.updateSkillMarketInfo, { id }), data)
 		},
 
+		updateSkillMarketCategoryRelation(id: string, categoryIds: string[]) {
+			return client.put<null>(
+				genRequestUrl(RequestUrl.updateSkillMarketCategoryRelation, { id }),
+				{
+					category_ids: categoryIds,
+				},
+			)
+		},
+
+		getSkillMarketCategoryList(data: PlatformPackage.GetSkillMarketCategoryListParams = {}) {
+			return client.post<PlatformPackage.SkillMarketCategoryListResponse>(
+				RequestUrl.getSkillMarketCategoryList,
+				data,
+			)
+		},
+
+		getSkillMarketCategoryDetail(id: string) {
+			return client.get<PlatformPackage.SkillMarketCategoryItem>(
+				genRequestUrl(RequestUrl.getSkillMarketCategoryDetail, { id }),
+			)
+		},
+
+		createSkillMarketCategory(data: PlatformPackage.SaveSkillMarketCategoryParams) {
+			return client.post<PlatformPackage.SkillMarketCategoryItem>(
+				RequestUrl.createSkillMarketCategory,
+				data,
+			)
+		},
+
+		updateSkillMarketCategory(id: string, data: PlatformPackage.SaveSkillMarketCategoryParams) {
+			return client.put<PlatformPackage.SkillMarketCategoryItem>(
+				genRequestUrl(RequestUrl.updateSkillMarketCategory, { id }),
+				data,
+			)
+		},
+
+		deleteSkillMarketCategory(id: string) {
+			return client.delete<null>(genRequestUrl(RequestUrl.deleteSkillMarketCategory, { id }))
+		},
+
+		parseOfficialSkillFile(data: { file_key: string }) {
+			return client.post<PlatformPackage.ParseOfficialSkillResponse>(
+				RequestUrl.parseOfficialSkillFile,
+				data,
+			)
+		},
+
+		importOfficialSkill(data: PlatformPackage.ImportOfficialSkillParams) {
+			return client.post<PlatformPackage.ImportOfficialSkillResponse>(
+				RequestUrl.importOfficialSkill,
+				data,
+			)
+		},
+
 		getAgentVersionReviewList(data: PlatformPackage.GetAgentVersionReviewListParams) {
 			return client.post<WithPage<PlatformPackage.AgentVersionReview>>(
 				RequestUrl.getAgentVersionReviewList,
@@ -200,14 +254,6 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 				RequestUrl.testAiPowerConnection,
 				data,
 			)
-		},
-
-		getGlobalConfig() {
-			return client.get<PlatformPackage.GlobalConfig>(RequestUrl.getGlobalConfig)
-		},
-
-		updateGlobalConfig(data: PlatformPackage.GlobalConfig) {
-			return client.put(genRequestUrl(RequestUrl.getGlobalConfig), data)
 		},
 	}
 }

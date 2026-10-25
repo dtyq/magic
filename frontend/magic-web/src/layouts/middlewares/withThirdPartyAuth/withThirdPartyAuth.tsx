@@ -5,8 +5,7 @@ import MagicSpin from "@/components/base/MagicSpin"
 import { LoginValueKey } from "@/pages/login/constants"
 import { RoutePath } from "@/constants/routes"
 import { baseHistory, history } from "@/routes/history"
-import { RouteName } from "@/routes/constants"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { useAuthorization } from "@/models/user/hooks"
 import { useClusterCode } from "@/providers/ClusterProvider"
 import { AuthApi, CommonApi } from "@/apis"
@@ -16,12 +15,14 @@ import type { UserService } from "@/services/user/UserService"
 import type { ConfigService } from "@/services/config/ConfigService"
 import { useTranslation } from "react-i18next"
 import { getAuthCode } from "./Strategy"
-import { useStyles } from "./styles"
 import { thirdPartyOpenLink } from "./utils/openLink"
 import { userStore } from "@/models/user"
 import { convertSearchParams, routesMatch } from "@/routes/history/helpers"
 import { defaultClusterCode } from "@/routes/helpers"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { authEventBus } from "@/services/auth/AuthEventBus"
+import { AuthEventName } from "@/services/auth/AuthEvents"
+import { isAccountDisabledError } from "@/services/auth/AuthFailureClassifier"
 
 const logger = Logger.createLogger("withThirdPartyAuth")
 
@@ -38,8 +39,9 @@ export function withThirdPartyAuth<T extends object>(
 	} = {},
 ) {
 	return function WithThirdPartyAuth(props: T) {
-		const { styles } = useStyles()
 		const { t } = useTranslation("interface")
+		/** 登录流程的提示文案单独取 login 命名空间，避免与界面文案混用。 */
+		const { t: tLogin } = useTranslation("login")
 
 		const { setClusterCode } = useClusterCode()
 		const { setAuthorization } = useAuthorization()
@@ -92,7 +94,12 @@ export function withThirdPartyAuth<T extends object>(
 						context: { tempToken },
 					})
 					// Need to redirect to login route
-					history.push({ name: RouteName.Login })
+					authEventBus.emit(AuthEventName.RequestLogin, {
+						reason: "third-party-auth-failed",
+						source: "third-party",
+						returnTo: window.location.href,
+						preserveQuery: true,
+					})
 				}
 			},
 			{ wait: 3000, leading: true, trailing: false },
@@ -201,7 +208,12 @@ export function withThirdPartyAuth<T extends object>(
 					magicToast.error(error?.message)
 
 					// Need to redirect to login route
-					history.push({ name: RouteName.Login })
+					authEventBus.emit(AuthEventName.RequestLogin, {
+						reason: "third-party-auth-failed",
+						source: "third-party",
+						returnTo: window.location.href,
+						preserveQuery: true,
+					})
 				}
 			},
 			{ wait: 3000, leading: true, trailing: false },
@@ -230,6 +242,16 @@ export function withThirdPartyAuth<T extends object>(
 								throw new Error("thirdPartyAuthDeployCode is required")
 							}
 						} catch (err) {
+							/*
+							 * 账号被平台禁用（3109）是确定的终态：继续走临时码换 token 或免登
+							 * 只会再撞一次同样的错误，因此这里直接提示并终止整个免登初始化。
+							 */
+							if (isAccountDisabledError(err)) {
+								magicToast.error(
+									tLogin("magicOrganizationSyncStep.accountDisabled"),
+								)
+								return
+							}
 							// Prohibit the non login process when there is a temporary authorization code
 							if (tempAuthorizationCode) {
 								await generateAuthorizationToken(tempAuthorizationCode)
@@ -260,9 +282,9 @@ export function withThirdPartyAuth<T extends object>(
 				<MagicSpin
 					spinning={isLoading}
 					tip={t("spin.loadingLogin")}
-					wrapperClassName={styles.spin}
+					wrapperClassName="[&_.magic-spin-blur]:opacity-100 [&_.magic-spin]:[--magic-spin-content-height:unset]"
 				>
-					<div style={{ height: "100vh" }} />
+					<div className="h-screen" />
 				</MagicSpin>
 			)
 		}

@@ -1,6 +1,6 @@
 import { Button } from "@/components/shadcn-ui/button"
 import { ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface MenuButtonProps {
 	icon: React.ReactNode

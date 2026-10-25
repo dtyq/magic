@@ -52,7 +52,7 @@ export function RelationItem({
 	}, [changeRef, pos])
 
 	// const handleBlur = useCallback(() => {
-	// 	if (!_.isEqual(cur, conditionData)) changeRef.current.updateConditionData(pos, cur, true)
+	// 	if (!isEqual(cur, conditionData)) changeRef.current.updateConditionData(pos, cur, true)
 	// }, [changeRef, conditionData, cur, pos])
 
 	const handleChange = (

@@ -10,22 +10,19 @@ namespace App\Application\SuperMagic\Message\Event\Subscribe;
 use App\Application\Chat\Service\MagicAgentEventAppService;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
+use App\Application\SuperMagic\Message\Assembler\UserMessageDTOAssembler;
 use App\Application\SuperMagic\Message\DTO\UserMessageDTO;
 use App\Application\SuperMagic\Message\Service\ClientMessageAppService;
 use App\Application\SuperMagic\Message\Service\HandleUserMessageAppService;
-use App\Domain\Chat\DTO\Message\ChatMessage\RichTextMessage;
-use App\Domain\Chat\DTO\Message\ChatMessage\UserToolCallMessage;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
-use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\SuperMagicExecutionSource;
-use App\Domain\SuperMagic\Message\Entity\ValueObject\ChatInstruction;
-use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskMode;
 use App\Domain\SuperMagic\Topic\Service\TopicDomainService;
+use App\ErrorCode\EventErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\SuperMagic\Utils\TaskEventUtil;
@@ -115,34 +112,17 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             ]);
             /** @var null|MagicMessageStruct $messageStruct */
             $messageStruct = $userCallAgentEvent->messageEntity?->getContent();
-            if ($messageStruct instanceof TextContentInterface) {
-                // 可能是富文本，需要处理 @
-                $prompt = $messageStruct->getTextContent();
-                $chatMessageType = $userCallAgentEvent->messageEntity?->getMessageType()->value;
-            } else {
-                $prompt = '';
-                $chatMessageType = ChatMessageType::Text->value;
+            if (! $messageStruct instanceof MagicMessageStruct) {
+                $this->logger->warning('Unsupported super agent message content');
+                return;
             }
-
-            // 更改附件的定义，附件是用户 @了 文件/mcp/agent 等
-            /** @var MagicMessageStruct $messageStruct */
-            $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
-            // 前端不再单独传 mentions，从富文本 Tiptap 内容中补充提取
-            if ($superAgentExtra !== null && $messageStruct instanceof RichTextMessage) {
-                $superAgentExtra->fillMentionsFromTiptapNodesIfEmpty(
-                    $messageStruct->extractMentionNodes()
-                );
-            }
-            $mentions = $superAgentExtra?->getMentionsJsonStruct();
-            $queueId = $superAgentExtra?->getQueueId() ?? '';
+            $chatMessageType = $userCallAgentEvent->messageEntity?->getMessageType()->value ?? ChatMessageType::Text->value;
             // Extract necessary information
             $conversationId = $userCallAgentEvent->seqEntity->getConversationId() ?? '';
             $chatTopicId = $userCallAgentEvent->seqEntity->getExtra()?->getTopicId() ?? '';
             $organizationCode = $userCallAgentEvent->senderUserEntity->getOrganizationCode() ?? '';
             $userId = $userCallAgentEvent->senderUserEntity->getUserId() ?? '';
             $agentUserId = $userCallAgentEvent->agentUserEntity->getUserId() ?? '';
-            $attachments = $userCallAgentEvent->messageEntity?->getContent()?->getAttachments() ?? [];
-            $instructions = $userCallAgentEvent->messageEntity?->getContent()?->getInstructs() ?? [];
             $language = $userCallAgentEvent->messageEntity?->getLanguage() ?? '';
 
             // Get User Seq id
@@ -168,73 +148,33 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
 
             // Create data isolation object
             $dataIsolation = DataIsolation::create($organizationCode, $userId);
+            $dataIsolation->initDataIsolationEnv();
             $dataIsolation->setLanguage($language);
 
-            // Convert attachments array to JSON
-            $attachmentsJson = ! empty($attachments) ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '';
+            $fields = UserMessageDTOAssembler::parseMessageContent($messageStruct, SuperMagicExecutionSource::HumanChat);
+            $userMessageDTO = UserMessageDTOAssembler::fromParsedMessage($fields, [
+                'agent_user_id' => $agentUserId,
+                'chat_conversation_id' => $conversationId,
+                'chat_topic_id' => $chatTopicId,
+                'topic_id' => (int) $chatTopicId,
+                'message_id' => $messageId,
+                'message_seq_id' => $messageSeqId,
+                'chat_message_type' => $chatMessageType,
+                'language' => $language,
+                'raw_content' => $this->getRawContent($userCallAgentEvent),
+            ]);
+            $toolReply = UserMessageDTOAssembler::resolveUserToolCallMessage($messageStruct, $fields['dynamic_params']);
 
-            // Convert mentions array to JSON if not null
-            $mentionsJson = ! empty($mentions) ? json_encode($mentions, JSON_UNESCAPED_UNICODE) : null;
-
-            // raw content
-            $rawContent = $this->getRawContent($userCallAgentEvent);
-
-            // Parse instruction information
-            [$chatInstructs, $taskMode] = $this->parseInstructions($instructions);
-
-            // Parse topic mode from super agent extra (support custom strings)
-            $topicMode = $superAgentExtra?->getTopicPattern() ?? 'general';
-
-            // Extract dynamic params from super agent extra (if present)
-            $dynamicParams = SuperMagicExecutionSource::ensureDynamicParams(
-                $superAgentExtra?->getDynamicParams(),
-                SuperMagicExecutionSource::HumanChat
-            );
-
-            // Create user message DTO
-            $userMessageDTO = new UserMessageDTO(
-                agentUserId: $agentUserId,
-                chatConversationId: $conversationId,
-                chatTopicId: $chatTopicId,
-                topicId: (int) $chatTopicId,
-                prompt: $prompt,
-                attachments: $attachmentsJson,
-                mentions: $mentionsJson,
-                instruction: $chatInstructs,
-                topicMode: $topicMode,
-                taskMode: $taskMode,
-                rawContent: $rawContent,
-                mcpConfig: [],
-                modelId: $superAgentExtra?->getModelId() ?? '',
-                language: $language,
-                queueId: $queueId,
-                messageId: $messageId,
-                messageSeqId: $messageSeqId,
-                chatMessageType: $chatMessageType,
-                dynamicParams: $dynamicParams,
-                extra: $superAgentExtra,
-            );
-
-            $userToolCallMessage = $this->resolveUserToolCallMessage($messageStruct, $dynamicParams);
-
-            // Dispatch to the unified core service. The core methods stay generic and throw
-            // on failure; this subscriber owns all client (WebSocket) notifications, handled
-            // uniformly in the single catch below.
-            if ($userToolCallMessage !== null) {
-                $this->handleUserMessageAppService->handleUserToolCallMessage($dataIsolation, $userMessageDTO, $userToolCallMessage);
-            } elseif ($chatInstructs == ChatInstruction::Interrupted) {
-                $notification = $this->handleUserMessageAppService->handleInternalMessage($dataIsolation, $userMessageDTO);
-                if ($notification !== null) {
-                    $this->clientMessageAppService->sendInterruptMessageToClient(
-                        topicId: $notification->topicId,
-                        taskId: $notification->taskId,
-                        chatTopicId: $userMessageDTO->getChatTopicId(),
-                        chatConversationId: $userMessageDTO->getChatConversationId(),
-                        interruptReason: $notification->reason,
-                    );
-                }
-            } else {
-                $this->handleUserMessageAppService->handleChatMessage($dataIsolation, $userMessageDTO);
+            // The transport owns notifications; classification and execution are shared.
+            $notification = $this->handleUserMessageAppService->handleMessage($dataIsolation, $userMessageDTO, $toolReply);
+            if ($notification !== null) {
+                $this->clientMessageAppService->sendInterruptMessageToClient(
+                    topicId: $notification->topicId,
+                    taskId: $notification->taskId,
+                    chatTopicId: $userMessageDTO->getChatTopicId(),
+                    chatConversationId: $userMessageDTO->getChatConversationId(),
+                    interruptReason: $notification->reason,
+                );
             }
             $this->logger->info('Super agent message processing completed');
             return;
@@ -286,10 +226,27 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
         ?UserMessageDTO $userMessageDTO,
         EventException $e
     ): void {
+        // 过期回答是可预期的竞态结果，前端已经用 Tip 告知用户；不要再写入消息列表。
+        if ($e->getCode() === EventErrorCode::EVENT_USER_TOOL_CALL_EXPIRED->value) {
+            $this->logger->info('Skip reminder for expired user tool call answer', [
+                'error_code' => $e->getCode(),
+            ]);
+            return;
+        }
         if ($dataIsolation === null || $userMessageDTO === null) {
             return;
         }
         try {
+            if ($e->getCode() === EventErrorCode::EVENT_USER_TOOL_CALL_RECOVERY_FAILED->value) {
+                $this->clientMessageAppService->sendUserToolCallRecoveryTipToClient(
+                    topicId: $this->resolveTopicId($dataIsolation, $userMessageDTO),
+                    taskId: '',
+                    chatTopicId: $userMessageDTO->getChatTopicId(),
+                    chatConversationId: $userMessageDTO->getChatConversationId(),
+                    toolCallId: (string) ($e->getData()['tool_call_id'] ?? ''),
+                );
+                return;
+            }
             $this->clientMessageAppService->sendReminderMessageToClient(
                 topicId: $this->resolveTopicId($dataIsolation, $userMessageDTO),
                 taskId: '',
@@ -298,6 +255,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 remind: $e->getMessage(),
                 remindEvent: TaskEventUtil::getRemindTaskEventByCode($e->getCode()),
                 dynamicParams: $userMessageDTO->getDynamicParams(),
+                data: $e->getData(),
             );
         } catch (Throwable $notifyError) {
             $this->logger->error('Failed to send reminder message to client', [
@@ -350,47 +308,6 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
         }
     }
 
-    /**
-     * 将消息结构统一解析为 UserToolCallMessage，兼容旧版 dynamic_params.tool_reply 格式。
-     *
-     * 旧格式（通过 dynamic_params 传递）：
-     * {
-     *   "tool_reply": {
-     *     "name": "ask_user",
-     *     "detail": {
-     *       "task_id": "...",
-     *       "question_id": "call_xxx",
-     *       "response_status": "answered",
-     *       "answer": "..."
-     *     }
-     *   }
-     * }
-     *
-     * 新格式：消息类型直接为 UserToolCallMessage，无需转换。
-     */
-    private function resolveUserToolCallMessage(MagicMessageStruct $messageStruct, ?array $dynamicParams): ?UserToolCallMessage
-    {
-        if ($messageStruct instanceof UserToolCallMessage) {
-            return $messageStruct;
-        }
-
-        $toolReply = $dynamicParams['tool_reply'] ?? null;
-        if (! is_array($toolReply) || empty($toolReply['name'])) {
-            return null;
-        }
-
-        $oldDetail = is_array($toolReply['detail'] ?? null) ? $toolReply['detail'] : [];
-
-        // question_id 对应新格式的 tool_call_id；task_id 沙盒不再需要，均从旧 detail 中剔除
-        $toolCallId = (string) ($oldDetail['question_id'] ?? '');
-        $detail = array_diff_key($oldDetail, array_flip(['question_id', 'task_id']));
-
-        return (new UserToolCallMessage())
-            ->setName((string) $toolReply['name'])
-            ->setToolCallId($toolCallId)
-            ->setDetail($detail);
-    }
-
     private function getRawContent(UserCallAgentEvent $userCallAgentEvent): string
     {
         $seqObject = SeqAssembler::getClientSeqStruct($userCallAgentEvent->seqEntity, $userCallAgentEvent->messageEntity);
@@ -403,42 +320,5 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
         } catch (Throwable $e) {
             return '';
         }
-    }
-
-    /**
-     * Parse instructions, extract chat instruction and task mode.
-     *
-     * @param array $instructions Instruction array
-     * @return array Returns [ChatInstruction, string taskMode]
-     */
-    private function parseInstructions(array $instructions): array
-    {
-        // Default values
-        $chatInstructs = ChatInstruction::Normal;
-        $taskMode = '';
-
-        if (empty($instructions)) {
-            return [$chatInstructs, $taskMode];
-        }
-
-        // Check for matching chat instructions or task modes
-        foreach ($instructions as $instruction) {
-            $value = $instruction['value'] ?? '';
-
-            // First try to match chat instruction
-            $tempChatInstruct = ChatInstruction::tryFrom($value);
-            if ($tempChatInstruct !== null) {
-                $chatInstructs = $tempChatInstruct;
-                continue; // Continue looking for task mode after finding chat instruction
-            }
-
-            // Try to match task mode
-            $tempTaskMode = TaskMode::tryFrom($value);
-            if ($tempTaskMode !== null) {
-                $taskMode = $tempTaskMode->value;
-                break; // Can end loop after finding task mode
-            }
-        }
-        return [$chatInstructs, $taskMode];
     }
 }

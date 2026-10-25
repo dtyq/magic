@@ -13,7 +13,7 @@ class OpenUserSearchAssembler
 {
     /**
      * @param array{items?: array, has_more?: bool, page_token?: string} $result
-     * @return array{items: array<int, array{user_id: string, nickname: string, real_name: string, phone: string}>, has_more: bool, page_token: string}
+     * @return array{items: array<int, array{user_id: string, nickname: string, real_name: string, phone: string, employee_no: string}>, has_more: bool, page_token: string}
      */
     public static function createPageResponse(array $result): array
     {
@@ -29,6 +29,7 @@ class OpenUserSearchAssembler
                 'nickname' => (string) ($data['nickname'] ?? ''),
                 'real_name' => (string) ($data['real_name'] ?? ''),
                 'phone' => $account->getPhone(true),
+                'employee_no' => (string) ($data['employee_no'] ?? ''),
             ];
         }, $result['items'] ?? []);
 

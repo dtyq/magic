@@ -11,7 +11,7 @@ import {
 	Sparkles,
 	type LucideIcon,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /** Resource kinds for mobile list rows and recycle bin (aligned with prototype TrashScreen). */
 export type MobileResourceTypeKind =

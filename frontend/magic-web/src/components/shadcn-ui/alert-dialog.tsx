@@ -4,8 +4,13 @@ import * as React from "react"
 // PROJECT OVERRIDE — radix-ui barrel; retain when merging alert-dialog.
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
+import {
+	OverlayZIndexProvider,
+	resolveEffectiveOverlayZIndex,
+	useCurrentOverlayZIndex,
+} from "@/utils/overlayZIndex"
 
 function AlertDialog({ ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
 	return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
@@ -49,6 +54,7 @@ function AlertDialogContent({
 	overlayStyle,
 	portalContainer,
 	style,
+	children,
 	...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
 	size?: "default" | "sm"
@@ -56,9 +62,16 @@ function AlertDialogContent({
 	overlayStyle?: React.CSSProperties
 	portalContainer?: HTMLElement | null
 }) {
+	const currentOverlayZIndex = useCurrentOverlayZIndex()
+	const effectiveZIndex = resolveEffectiveOverlayZIndex(currentOverlayZIndex, style?.zIndex, 10)
+	const zIndex = effectiveZIndex ?? style?.zIndex
+
 	return (
 		<AlertDialogPortal container={portalContainer ?? undefined}>
-			<AlertDialogOverlay className={overlayClassName} style={overlayStyle} />
+			<AlertDialogOverlay
+				className={overlayClassName}
+				style={{ ...overlayStyle, ...(zIndex != null ? { zIndex } : {}) }}
+			/>
 			<AlertDialogPrimitive.Content
 				data-slot="alert-dialog-content"
 				data-size={size}
@@ -66,12 +79,21 @@ function AlertDialogContent({
 					// PROJECT OVERRIDE — retain when merging upstream shadcn alert-dialog.
 					// Same centered zoom as dialog.tsx; data-open / data-closed translate vars.
 					// Also: rounded-xl, ring, max-w-xs — visual tokens differ from upstream.
-					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-open:[--tw-enter-translate-x:-50%] data-open:[--tw-enter-translate-y:-50%] data-closed:[--tw-exit-translate-x:-50%] data-closed:[--tw-exit-translate-y:-50%] group/alert-dialog-content fixed left-1/2 top-1/2 z-modal grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl bg-background p-4 outline-none ring-1 ring-foreground/10 duration-100 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm",
+					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-open:[--tw-enter-translate-x:-50%] data-open:[--tw-enter-translate-y:-50%] data-closed:[--tw-exit-translate-x:-50%] data-closed:[--tw-exit-translate-y:-50%] group/alert-dialog-content fixed left-1/2 top-1/2 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl bg-background p-4 outline-none ring-1 ring-foreground/10 duration-100 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm",
+					effectiveZIndex == null && "z-modal",
 					className,
 				)}
-				style={style}
+				style={{ ...style, ...(zIndex != null ? { zIndex } : {}) }}
 				{...props}
-			/>
+			>
+				{effectiveZIndex != null ? (
+					<OverlayZIndexProvider value={effectiveZIndex}>
+						{children}
+					</OverlayZIndexProvider>
+				) : (
+					children
+				)}
+			</AlertDialogPrimitive.Content>
 		</AlertDialogPortal>
 	)
 }

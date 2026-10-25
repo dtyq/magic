@@ -468,6 +468,13 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
                     after_cancel = registry.snapshot_execution(agent_ctx.context_id, sdk_execution_id)
                     timeout_status = self._format_timeout_status(before_cancel, after_cancel)
             finally:
+                # 展示来源估算失败也不能阻断既有取消与清理。
+                from agentlang.chat_history.chat_history_models import ContextSource
+                context_source = ContextSource.MIXED
+                try:
+                    context_source = registry.context_source(agent_ctx.context_id, sdk_execution_id)
+                except Exception as source_error:
+                    logger.warning(f"SDK context source unavailable: {type(source_error).__name__}")
                 # 正常完成后清理残留的 in-flight 记录（容错）
                 try:
                     registry.cancel_by_execution(agent_ctx.context_id, sdk_execution_id)
@@ -485,9 +492,9 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
             if timeout_status:
                 content = f"{content}\n\n{timeout_status}"
             if terminal_result.ok:
-                return ToolResult(content=content, system=system)
+                return ToolResult(content=content, system=system, extra_info={"context_source": context_source})
             else:
-                return ToolResult.error(content, system=system)
+                return ToolResult.error(content, system=system, extra_info={"context_source": context_source})
 
         except asyncio.CancelledError:
             # 中断信号，直接向上传播，不要降级为普通错误

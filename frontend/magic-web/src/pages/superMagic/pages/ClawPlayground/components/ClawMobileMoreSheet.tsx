@@ -83,6 +83,7 @@ export function ClawMobileMoreSheet({
 				icon: <X />,
 				ariaLabel: t("superLobster.mobile.close", "关闭"),
 				onClick: () => onOpenChange(false),
+				testId: "claw-mobile-more-sheet-close-button",
 			}}
 			headerTitle={
 				<div className="flex flex-col items-center gap-0.5">

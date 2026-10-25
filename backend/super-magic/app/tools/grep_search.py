@@ -5,7 +5,7 @@ import json
 import asyncio
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic import Field
 
@@ -16,6 +16,8 @@ from agentlang.utils.schema import FileInfo
 from agentlang.utils.token_estimator import num_tokens_from_string
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+from app.core.entity.message.server_message import OperationResultStatus
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.utils.file_utils import is_binary_file
 from app.utils.async_file_utils import async_count_text_lines, async_stat
@@ -76,6 +78,7 @@ class SearchResult:
     content: str  # 格式化的搜索结果文本
     matched_files: List[Path]  # 匹配的文件路径列表
     has_matches: bool  # 是否有匹配结果
+    matches: dict[Path, list[LineInfo]] = field(default_factory=dict)
 
 
 class GrepSearchParams(BaseToolParams):
@@ -146,6 +149,7 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
             "search_content": search_result.content,
             "matched_files_count": len(search_result.matched_files),
             "context_lines": 3,  # Fixed context lines
+            "matches": search_result.matches,
         }
 
         # 返回ToolResult
@@ -526,7 +530,8 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
                 return SearchResult(
                     content=final_content,
                     matched_files=matched_files,
-                    has_matches=True
+                    has_matches=True,
+                    matches=matches,
                 )
             else:
                 # 失败情况，聚合所有输出
@@ -800,13 +805,20 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
         markdown_content += search_content  # This now includes stderr if present
         markdown_content += "\n```"
 
-        return ToolDetail(
+        report = ToolDetail(
             type=DisplayType.MD,  # Use Markdown display type
             data=FileContent(
                 file_name="search_results.md",
                 content=markdown_content
             )
         )
+
+        items = [ToolDetailFactory.create_file_result_item(
+            str(path), self.base_dir, OperationResultStatus.SUCCESS,
+            message=i18n.translate("tool_card.matches", category="tool.messages", count=sum(line.is_match for line in lines)),
+            description=next((f"{line.line_number}: {line.content[:MAX_LINE_LENGTH]}" for line in lines if line.is_match), ""),
+        ) for path, lines in (result.extra_info or {}).get("matches", {}).items()]
+        return ToolDetailFactory.create_operation_result_detail(items, report=report, stage="find")
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """

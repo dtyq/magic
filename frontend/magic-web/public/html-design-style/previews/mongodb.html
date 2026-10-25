@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MongoDB Atlas — Multi-Cloud Developer Data Platform</title>
+<style>
+:root {
+  --canvas: #001e2b;
+  --canvas-deep: #00141e;
+  --surface-1: #092635;
+  --surface-2: #113444;
+  --surface-3: #1a4254;
+  --hairline: #1c3b4b;
+  --hairline-light: rgba(255, 255, 255, 0.08);
+  --primary: #00ed64;
+  --primary-deep: #00b545;
+  --primary-pressed: #008c34;
+  --on-primary: #001e2b;
+  --brand-green-soft: rgba(0, 237, 100, 0.12);
+  --brand-green-glow: rgba(0, 237, 100, 0.28);
+  --brand-teal-mid: #00684a;
+  --ink: #ffffff;
+  --ink-secondary: #c1ccd6;
+  --ink-muted: #8899a6;
+  --ink-faint: #5a7182;
+  --accent-purple: #7b3ff2;
+  --accent-orange: #fa6e39;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+  --font-sans: 'Euclid Circular A', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'Source Code Pro', 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+/* Subtle Ambient Glow */
+.ambient-gradient {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 960px; height: 380px;
+  background: radial-gradient(ellipse 65% 45% at 50% 0%, rgba(0,237,100,0.14) 0%, rgba(0,104,74,0.12) 50%, transparent 80%);
+  filter: blur(60px); pointer-events: none; z-index: 0;
+}
+
+/* Header */
+header {
+  position: sticky; top: 0; z-index: 50; background: rgba(0, 30, 43, 0.88);
+  backdrop-filter: blur(16px); border-bottom: 1px solid var(--hairline); height: 58px;
+}
+.header-inner {
+  max-width: 1260px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between; height: 100%;
+}
+.brand-group { display: flex; align-items: center; gap: 12px; }
+.mongo-leaf-logo {
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+}
+.mongo-leaf-logo svg { width: 100%; height: 100%; }
+.brand-title {
+  font-size: 16px; font-weight: 700; letter-spacing: -0.02em; color: #ffffff;
+  display: flex; align-items: center; gap: 8px;
+}
+.cluster-tag {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  padding: 2px 8px; border-radius: var(--radius-full); color: var(--primary);
+}
+.nav-links { display: flex; align-items: center; gap: 22px; font-size: 13.5px; color: var(--ink-secondary); }
+.nav-links a:hover, .nav-links a.active { color: var(--primary); }
+.nav-links a.active { font-weight: 600; }
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.btn-pill {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  padding: 8px 18px; border-radius: var(--radius-full); cursor: pointer; transition: 0.15s;
+}
+.btn-primary {
+  background: var(--primary); color: var(--on-primary); border: none;
+  box-shadow: 0 0 16px var(--brand-green-glow);
+}
+.btn-primary:hover { background: var(--primary-deep); }
+.btn-outline {
+  background: transparent; color: var(--ink); border: 1px solid var(--hairline-light);
+}
+.btn-outline:hover { background: var(--surface-1); border-color: var(--primary); }
+
+/* Main Container */
+.container { max-width: 1260px; margin: 0 auto; padding: 28px 24px 60px; position: relative; z-index: 1; }
+
+/* Cluster Overview Top Card */
+.cluster-overview-card {
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg); padding: 22px 26px; margin-bottom: 24px;
+}
+.overview-top-row {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  flex-wrap: wrap; gap: 16px; margin-bottom: 20px;
+}
+.cluster-name-wrap h1 {
+  font-size: 26px; font-weight: 700; color: #ffffff; letter-spacing: -0.03em;
+  display: flex; align-items: center; gap: 12px;
+}
+.cloud-badge {
+  font-size: 11.5px; font-family: var(--font-mono); font-weight: 600;
+  background: rgba(0, 237, 100, 0.1); color: var(--primary);
+  border: 1px solid rgba(0, 237, 100, 0.25); padding: 3px 10px; border-radius: var(--radius-full);
+}
+.cluster-sub { font-size: 13.5px; color: var(--ink-secondary); margin-top: 4px; }
+.cluster-actions { display: flex; align-items: center; gap: 10px; }
+
+/* Quick Telemetry Cards */
+.metrics-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  padding-top: 18px; border-top: 1px solid var(--hairline);
+}
+.metric-box { display: flex; flex-direction: column; }
+.metric-name { font-size: 11.5px; font-weight: 600; text-transform: uppercase; color: var(--ink-muted); letter-spacing: 0.05em; }
+.metric-val { font-size: 22px; font-weight: 700; color: #ffffff; margin: 4px 0 2px; }
+.metric-status { font-size: 11px; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+
+/* 2-Column Grid: Replica Set Status & Document Viewer */
+.content-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;
+}
+.panel-card {
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column;
+}
+.panel-header {
+  background: var(--surface-2); border-bottom: 1px solid var(--hairline);
+  padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;
+}
+.panel-title { font-size: 13.5px; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 8px; }
+
+/* Replica Set Nodes List */
+.nodes-list { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.node-card {
+  background: var(--canvas-deep); border: 1px solid var(--hairline);
+  border-radius: var(--radius-md); padding: 12px 16px; display: flex;
+  align-items: center; justify-content: space-between;
+}
+.node-info-left { display: flex; align-items: center; gap: 12px; }
+.node-role-badge {
+  font-size: 10.5px; font-family: var(--font-mono); font-weight: 800;
+  padding: 3px 8px; border-radius: var(--radius-full); letter-spacing: 0.04em;
+}
+.role-primary {
+  background: var(--primary); color: #001e2b; box-shadow: 0 0 10px rgba(0,237,100,0.3);
+}
+.role-secondary {
+  background: rgba(0, 237, 100, 0.12); color: var(--primary);
+  border: 1px solid rgba(0, 237, 100, 0.3);
+}
+.node-details { display: flex; flex-direction: column; gap: 2px; }
+.node-host { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: #ffffff; }
+.node-health { font-size: 11px; color: var(--ink-muted); }
+.node-stats-right { text-align: right; font-family: var(--font-mono); }
+.lag-metric { font-size: 12px; font-weight: 700; color: var(--primary); }
+.uptime-meta { font-size: 10.5px; color: var(--ink-faint); margin-top: 2px; }
+
+/* JSON Document Tree View */
+.query-filter-bar {
+  background: #001018; border-bottom: 1px solid var(--hairline);
+  padding: 8px 14px; display: flex; align-items: center; justify-content: space-between;
+  font-size: 11.5px; font-family: var(--font-mono); color: var(--ink-secondary);
+}
+.query-code { color: var(--primary); }
+.json-tree-container {
+  padding: 16px; font-family: var(--font-mono); font-size: 12px;
+  line-height: 1.65; color: #d1d5db; background: var(--canvas-deep);
+  overflow-x: auto; flex: 1;
+}
+.json-key { color: var(--primary); font-weight: 600; }
+.json-str { color: #a7f3d0; }
+.json-num { color: #fbbf24; }
+.json-type { color: #38bdf8; }
+.json-bool { color: #f43f5e; }
+.json-indent { padding-left: 18px; }
+
+/* Bottom Data Tools Row */
+.tools-card {
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg); padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.tools-info { display: flex; align-items: center; gap: 14px; }
+.tools-icon-box {
+  width: 34px; height: 34px; border-radius: var(--radius-sm);
+  background: var(--brand-green-soft); color: var(--primary);
+  display: grid; place-items: center; font-size: 16px;
+}
+.tools-text h4 { font-size: 13.5px; font-weight: 600; color: #ffffff; }
+.tools-text p { font-size: 12px; color: var(--ink-secondary); }
+</style>
+</head>
+<body>
+<div class="ambient-gradient"></div>
+
+<!-- Top Navigation -->
+<header>
+  <div class="header-inner">
+    <div class="brand-group">
+      <div class="mongo-leaf-logo">
+        <!-- MongoDB Authentic Leaf SVG Motif -->
+        <svg viewBox="0 0 32 64" fill="none">
+          <path d="M16 0C16 0 14 10 7 24C0 38 7 52 16 64C25 52 32 38 25 24C18 10 16 0 16 0Z" fill="#00ed64"/>
+          <path d="M16 0C16 0 15 10 11 24C7 38 12 52 16 64C16 52 18 38 16 24C16 10 16 0 16 0Z" fill="#00684a"/>
+        </svg>
+      </div>
+      <div class="brand-title">
+        MongoDB Atlas
+        <span class="cluster-tag">Cluster0-Production</span>
+      </div>
+    </div>
+
+    <nav class="nav-links">
+      <a class="active" href="#">Overview</a>
+      <a href="#">Collections</a>
+      <a href="#">Performance Advisor</a>
+      <a href="#">Indexes</a>
+      <a href="#">Backup &amp; Restore</a>
+      <a href="#">Security</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="btn-pill btn-outline">Connect</button>
+      <button class="btn-pill btn-primary">+ Insert Document</button>
+    </div>
+  </div>
+</header>
+
+<!-- Main Container -->
+<div class="container">
+  <!-- Cluster Overview Card -->
+  <section class="cluster-overview-card">
+    <div class="overview-top-row">
+      <div class="cluster-name-wrap">
+        <h1>
+          Cluster0-Production
+          <span class="cloud-badge">AWS / us-east-1 &bull; N. Virginia</span>
+        </h1>
+        <p class="cluster-sub">
+          Tier: <strong>M30 Dedicated Cluster</strong> &bull; MongoDB 7.0.12 Enterprise &bull; 3-Node Replica Set (PSA)
+        </p>
+      </div>
+      <div class="cluster-actions">
+        <button class="btn-pill btn-outline" style="padding: 6px 14px; font-size: 12px;">Modify Cluster</button>
+        <button class="btn-pill btn-outline" style="padding: 6px 14px; font-size: 12px;">Real-Time Metrics</button>
+      </div>
+    </div>
+
+    <div class="metrics-row">
+      <div class="metric-box">
+        <span class="metric-name">Cluster State</span>
+        <div class="metric-val" style="color: var(--primary); font-size: 20px;">Healthy</div>
+        <span class="metric-status">● All 3 nodes synchronized</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-name">Ops Per Second</span>
+        <div class="metric-val">4,850</div>
+        <span class="metric-status">&uarr; 99.8% read/write &lt; 2ms</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-name">Memory (RAM)</span>
+        <div class="metric-val">5.1 / 8.0 GB</div>
+        <span style="font-size: 11px; color: var(--ink-muted);">63.7% Cache Utilization</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-name">Active Connections</span>
+        <div class="metric-val">342 / 1,500</div>
+        <span style="font-size: 11px; color: var(--ink-muted);">Auto-scaling enabled</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Content Grid: Replica Set Status & Document Tree -->
+  <div class="content-grid">
+    <!-- Left: Replica Set Node Health Status -->
+    <div class="panel-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          <span>Replica Set Nodes (rs0)</span>
+        </div>
+        <span style="font-size: 11px; font-family: var(--font-mono); color: var(--primary);">Election Term: #14</span>
+      </div>
+
+      <div class="nodes-list">
+        <!-- Node 1: PRIMARY -->
+        <div class="node-card">
+          <div class="node-info-left">
+            <span class="node-role-badge role-primary">PRIMARY</span>
+            <div class="node-details">
+              <span class="node-host">atlas-node-01.mongodb.net:27017</span>
+              <span class="node-health">Health: 100% &bull; Votes: 1 &bull; Priority: 2</span>
+            </div>
+          </div>
+          <div class="node-stats-right">
+            <div class="lag-metric">0 ms lag</div>
+            <div class="uptime-meta">Uptime: 48d 12h</div>
+          </div>
+        </div>
+
+        <!-- Node 2: SECONDARY -->
+        <div class="node-card">
+          <div class="node-info-left">
+            <span class="node-role-badge role-secondary">SECONDARY</span>
+            <div class="node-details">
+              <span class="node-host">atlas-node-02.mongodb.net:27017</span>
+              <span class="node-health">Health: 100% &bull; Votes: 1 &bull; Priority: 1</span>
+            </div>
+          </div>
+          <div class="node-stats-right">
+            <div class="lag-metric">1.2 ms lag</div>
+            <div class="uptime-meta">Uptime: 48d 12h</div>
+          </div>
+        </div>
+
+        <!-- Node 3: SECONDARY -->
+        <div class="node-card">
+          <div class="node-info-left">
+            <span class="node-role-badge role-secondary">SECONDARY</span>
+            <div class="node-details">
+              <span class="node-host">atlas-node-03.mongodb.net:27017</span>
+              <span class="node-health">Health: 100% &bull; Votes: 1 &bull; Priority: 1</span>
+            </div>
+          </div>
+          <div class="node-stats-right">
+            <div class="lag-metric">0.8 ms lag</div>
+            <div class="uptime-meta">Uptime: 48d 12h</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: JSON Document Tree View -->
+    <div class="panel-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Collection: ecommerce.customers</span>
+        </div>
+        <span style="font-size: 11px; font-family: var(--font-mono); color: var(--ink-secondary);">1 of 14,290 docs</span>
+      </div>
+
+      <div class="query-filter-bar">
+        <span>Filter: <code class="query-code">{ status: "active", tier: "enterprise" }</code></span>
+        <span style="color: var(--ink-muted);">Indexed (IXSCAN)</span>
+      </div>
+
+      <div class="json-tree-container">
+<span style="color: #6b7280;">{</span><br>
+<div class="json-indent">
+  <span class="json-key">"_id"</span>: <span class="json-type">ObjectId</span>(<span class="json-str">"66ecb7891a2b0c3d4e5f6789"</span>),<br>
+  <span class="json-key">"account_id"</span>: <span class="json-str">"acc_992147"</span>,<br>
+  <span class="json-key">"name"</span>: <span class="json-str">"Maria Gonzalez"</span>,<br>
+  <span class="json-key">"email"</span>: <span class="json-str">"demo.person12@example.com"</span>,<br>
+  <span class="json-key">"tier"</span>: <span class="json-str">"enterprise"</span>,<br>
+  <span class="json-key">"billing"</span>: <span style="color: #6b7280;">{</span><br>
+  <div class="json-indent">
+    <span class="json-key">"plan"</span>: <span class="json-str">"atlas_m30_annual"</span>,<br>
+    <span class="json-key">"status"</span>: <span class="json-str">"active"</span>,<br>
+    <span class="json-key">"currency"</span>: <span class="json-str">"USD"</span>,<br>
+    <span class="json-key">"mrr"</span>: <span class="json-num">420.00</span><br>
+  </div>
+  <span style="color: #6b7280;">}</span>,<br>
+  <span class="json-key">"clusters"</span>: [<br>
+  <div class="json-indent">
+    <span style="color: #6b7280;">{</span> <span class="json-key">"id"</span>: <span class="json-str">"prod-east"</span>, <span class="json-key">"nodes"</span>: <span class="json-num">3</span> <span style="color: #6b7280;">}</span>,<br>
+    <span style="color: #6b7280;">{</span> <span class="json-key">"id"</span>: <span class="json-str">"analytics-eu"</span>, <span class="json-key">"nodes"</span>: <span class="json-num">2</span> <span style="color: #6b7280;">}</span><br>
+  </div>
+  ],<br>
+  <span class="json-key">"last_login"</span>: <span class="json-type">ISODate</span>(<span class="json-str">"2026-09-19T04:25:18Z"</span>),<br>
+  <span class="json-key">"is_active"</span>: <span class="json-bool">true</span><br>
+</div>
+<span style="color: #6b7280;">}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Data Tools Row -->
+  <div class="tools-card">
+    <div class="tools-info">
+      <div class="tools-icon-box">⚡</div>
+      <div class="tools-text">
+        <h4>Vector Search &amp; Atlas Search Ingestion Active</h4>
+        <p>1,240,000 document vector embeddings synchronized with OpenAI text-embedding-3-small index.</p>
+      </div>
+    </div>
+    <button class="btn-pill btn-primary" style="padding: 7px 18px; font-size: 12.5px;">Manage Index</button>
+  </div>
+</div>
+</body>
+</html>

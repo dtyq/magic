@@ -36,7 +36,7 @@ interface MagicClawRepositoryInterface
      *
      * @return array{total: int, list: MagicClawEntity[]}
      */
-    public function getList(string $userId, string $organizationCode, int $page, int $pageSize): array;
+    public function getList(string $userId, string $organizationCode, int $page, int $pageSize, string $keyword = ''): array;
 
     /**
      * Get paginated list of all non-deleted magic claws across users.
@@ -51,4 +51,12 @@ interface MagicClawRepositoryInterface
     public function updateProjectId(int $id, int $projectId): bool;
 
     public function getByProjectId(int $projectId): ?MagicClawEntity;
+
+    /**
+     * Get claws indexed by their bound project ID.
+     *
+     * @param int[] $projectIds
+     * @return array<int, MagicClawEntity> projectId => claw
+     */
+    public function getByProjectIds(array $projectIds): array;
 }

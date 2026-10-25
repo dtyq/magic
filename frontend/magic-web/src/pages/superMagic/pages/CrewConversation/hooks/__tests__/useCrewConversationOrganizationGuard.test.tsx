@@ -45,7 +45,7 @@ vi.mock("@/hooks/account/useSwitchOrganization", () => ({
 	useSwitchOrganization: () => mocks.switchOrganization,
 }))
 
-vi.mock("@/apis/clients/await-app-init", () => ({
+vi.mock("@/app/services/httpService/interceptors/request/waitForAppInit", () => ({
 	awaitAppInitPromise: vi.fn(() => Promise.resolve()),
 }))
 

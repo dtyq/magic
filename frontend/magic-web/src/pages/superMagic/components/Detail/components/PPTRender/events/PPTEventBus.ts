@@ -109,7 +109,7 @@ export type PPTEventType = (typeof PPT_EVENTS)[keyof typeof PPT_EVENTS]
 export interface DownloadEventPayload {
 	fileId: string
 	fileVersion?: number
-	type?: "file" | "pdf" | "ppt"
+	type?: "file" | "pdf" | "pptx"
 }
 
 export interface FullscreenStateChangePayload {

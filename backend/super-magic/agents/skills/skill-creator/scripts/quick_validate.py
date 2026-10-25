@@ -6,10 +6,27 @@ Quick validation script for skills - minimal version
 import asyncio
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 import aiofiles
 import yaml
+
+
+def is_valid_skill_name(skill_name: str) -> bool:
+    """Return whether a skill name is safe as a single workspace directory."""
+    if not skill_name or len(skill_name) > 64:
+        return False
+    if not unicodedata.category(skill_name[0]).startswith("L"):
+        return False
+    if any(
+        not (unicodedata.category(character).startswith(("L", "N")) or character in "-_")
+        for character in skill_name
+    ):
+        return False
+    if skill_name.endswith(("-", "_")):
+        return False
+    return not any(separator in skill_name for separator in ("--", "__", "-_", "_-"))
 
 
 async def validate_skill(skill_path):
@@ -56,16 +73,9 @@ async def validate_skill(skill_path):
     name = name.strip()
     if not name:
         return False, "Name cannot be empty"
-    # Check naming convention (kebab-case: lowercase with hyphens)
-    if not re.match(r'^[a-z0-9-]+$', name):
-        return False, f"Name '{name}' should be kebab-case (lowercase letters, digits, and hyphens only)"
-    if name.startswith('-') or name.endswith('-') or '--' in name:
-        return False, f"Name '{name}' cannot start/end with hyphen or contain consecutive hyphens"
-    # Length limit: 2 to 64 characters.
-    if len(name) < 2:
-        return False, f"Name '{name}' is too short. Minimum length is 2 characters."
-    if len(name) > 64:
-        return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
+    # Keep the name safe as a single filesystem directory while allowing localized text.
+    if not is_valid_skill_name(name):
+        return False, f"Name '{name}' is not a valid skill directory name"
     # The skill name must match the directory name.
     dir_name = skill_path.name
     if name != dir_name:

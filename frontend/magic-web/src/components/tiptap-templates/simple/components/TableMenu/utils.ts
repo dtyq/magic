@@ -1,6 +1,6 @@
-import type { Editor } from "@tiptap/react"
-import { findParentNode } from "@tiptap/core"
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import { findParentNode } from "@/infrastructure/editors/tiptap/core"
+import type { Node as ProseMirrorNode } from "@/infrastructure/editors/tiptap/pm-model"
 
 /**
  * Check if the cursor is currently inside a table

@@ -1,7 +1,34 @@
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import type { FileReference } from "@/apis/modules/superMagic"
+import type { ReferencedProjectAttachment } from "@/pages/superMagic/services/referencedProjectAttachmentResolver"
+import { createUserFilePreview } from "@/pages/superMagic/components/UserSpace/services/userSpaceFileService"
 
 interface OpenMessageFileOptions {
 	locateInTree?: boolean
+}
+
+export function createReferencedProjectPreviewFile(file: ReferencedProjectAttachment) {
+	return {
+		...file,
+		display_config: {
+			...(file.display_config || {}),
+			previewPolicy: {
+				...(file.display_config?.previewPolicy || {}),
+				standalone: true,
+				syncWithAttachments: false,
+				persistTab: false,
+				restoreAsActive: false,
+			},
+		},
+	}
+}
+
+/** 用户资源单独预览，文本保存统一使用用户文件的修订号契约。 */
+export function openUserFileReference(
+	reference: Extract<FileReference, { space_type: "user" }>,
+): void {
+	if (reference.is_directory) return
+	openMessageFile(createUserFilePreview(reference), { locateInTree: false })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

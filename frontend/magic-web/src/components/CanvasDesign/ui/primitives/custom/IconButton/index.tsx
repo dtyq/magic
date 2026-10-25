@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react"
-import classNames from "classnames"
+import { cn } from "../../../../runtime/shared/lib/utils"
 
 import styles from "./index.module.css"
 
@@ -20,7 +20,7 @@ export default function IconButton(props: PropsWithChildren<IconButtonProps>) {
 
 	return (
 		<div
-			className={classNames(
+			className={cn(
 				styles.iconButton,
 				selected && styles.selected,
 				disabled && styles.disabled,

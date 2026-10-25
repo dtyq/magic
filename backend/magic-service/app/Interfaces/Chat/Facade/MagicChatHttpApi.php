@@ -492,7 +492,7 @@ class MagicChatHttpApi extends AbstractApi
         $instructs = $request->input('instructs');
         $receiveId = $request->input('receive_id');
         $authenticatable = $this->getAuthorization();
-        $magicAgentVersionEntity = $this->magicAgentAppService->getDetailByUserId($receiveId);
+        $magicAgentVersionEntity = $this->magicAgentAppService->getDetailByUserId($receiveId, $authenticatable);
         if ($magicAgentVersionEntity === null) {
             ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED, 'agent.agent_does_not_exist');
         }

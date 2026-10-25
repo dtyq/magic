@@ -30,6 +30,14 @@ function getTabCoordinator(): TabCoordinator {
 					window.focus()
 				}
 			},
+			onForceOverrideRequest: async ({ sessionId }) => {
+				try {
+					const { initializeService } = await import("./serviceInstance")
+					return initializeService().forceStopRecordingForOverride(sessionId)
+				} catch {
+					return false
+				}
+			},
 			onLockAcquired: () => {
 				const params = {
 					userId: userStore.user.userInfo?.user_id,

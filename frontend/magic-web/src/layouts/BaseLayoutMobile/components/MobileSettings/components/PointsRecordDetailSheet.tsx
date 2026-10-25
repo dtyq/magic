@@ -30,6 +30,7 @@ export function MobileSettingsPointsRecordDetailSheet(props: {
 	const metaRows = getPointsRecordDetailMetaRows(item, {
 		recordId: t("bonusPointsModal.recordId"),
 		time: t("bonusPointsModal.time"),
+		remark: t("bonusPointsModal.remark"),
 	})
 
 	return (

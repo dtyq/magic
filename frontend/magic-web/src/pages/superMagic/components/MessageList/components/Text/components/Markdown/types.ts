@@ -8,6 +8,8 @@ export interface MarkdownComponentProps {
 	isStreaming?: boolean
 	isSuspended?: boolean
 	showCursor?: boolean
+	/** 仅 assistant 正文启用微信发送范围展示；用户、工具和思考内容不解释控制语法。 */
+	enableNoSend?: boolean
 	/**
 	 * 是否允许 fence 外的裸 HTML 原样渲染（不转义）。
 	 * - `true`（默认）：跳过预处理转义，所有裸 HTML 将被 XMarkdown 当作原生 HTML 渲染。

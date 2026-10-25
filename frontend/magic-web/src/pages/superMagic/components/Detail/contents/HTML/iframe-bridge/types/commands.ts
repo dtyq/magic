@@ -1,3 +1,5 @@
+import { getEditableTextContent, setElementTextContent } from "@dtyq/html-sandbox"
+
 /**
  * 命令接口
  */
@@ -135,15 +137,15 @@ export class UpdateTextContentCommand extends BaseCommand {
 
 		this.element = element
 		this.newContent = content
-		this.oldContent = element.textContent || ""
+		this.oldContent = getEditableTextContent(element)
 	}
 
 	execute(): void {
-		this.element.textContent = this.newContent
+		setElementTextContent(this.element, this.newContent)
 	}
 
 	undo(): void {
-		this.element.textContent = this.oldContent
+		setElementTextContent(this.element, this.oldContent)
 	}
 }
 

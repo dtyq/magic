@@ -8,7 +8,6 @@ import {
 	ImageIcon,
 	type LucideIcon,
 	Plug,
-	Plus,
 	Puzzle,
 	X,
 } from "lucide-react"
@@ -20,12 +19,16 @@ import MCPButton from "@/components/Agent/MCP/MCPButton"
 import { getMCPAccess } from "@/components/Agent/MCP/store/mcp-access"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Switch } from "@/components/shadcn-ui/switch"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import type { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import type { MentionSelectContext } from "@/components/business/MentionPanel/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import At from "@/pages/superMagic/components/MessageEditor/components/At"
-import { sceneStateStore } from "@/pages/superMagic/components/MainInputContainer/stores"
+import {
+	sceneStateStore as globalSceneStateStore,
+	useOptionalSceneStateStore,
+} from "@/pages/superMagic/components/MainInputContainer/stores"
 import { internetSearchManager } from "@/pages/superMagic/components/MessageEditor/services/InternetSearchManager"
 import type { MessageEditorModules } from "@/pages/superMagic/components/MessageEditor/types"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
@@ -46,18 +49,6 @@ function ActionCountBadge({ count }: { count?: number }) {
 		>
 			{count}
 		</span>
-	)
-}
-
-function AddActionPill({ label }: { label: string }) {
-	return (
-		<div
-			className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3"
-			style={{ boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.05)" }}
-		>
-			<Plus className="h-4 w-4 text-foreground" />
-			<span className="text-sm font-medium leading-5 text-foreground">{label}</span>
-		</div>
 	)
 }
 
@@ -151,7 +142,7 @@ interface MobileComposerAddSheetProps {
 		item: TiptapMentionAttributes,
 		context?: MentionSelectContext,
 	) => Promise<void>
-	/** 引用选择完成且拓展弹窗已关闭后回调，用于恢复底部编辑器焦点 */
+	/** Restore composer focus after mention selection and sheet closing. */
 	onAfterMentionSelect?: () => void
 	onFileUpload: (files: FileList) => void
 	mcpStorageKey?: string
@@ -176,6 +167,7 @@ function MobileComposerAddSheet({
 	const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(true)
 	const mentionTriggerRef = useRef<HTMLDivElement>(null)
 	const pluginTriggerRef = useRef<HTMLDivElement>(null)
+	const sceneStateStore = useOptionalSceneStateStore() ?? globalSceneStateStore
 	const selectedScene = sceneStateStore.currentScene
 	const selectedSkillCount = selectedScene ? 1 : 0
 
@@ -220,7 +212,7 @@ function MobileComposerAddSheet({
 		async (item: TiptapMentionAttributes, context?: MentionSelectContext) => {
 			await onSelectMention(item, context)
 			onOpenChange(false)
-			// 等 MagicPopup 关闭与布局稳定后再聚焦，避免焦点被遮罩层抢走
+			// Wait for the popup to close and settle before restoring composer focus.
 			window.setTimeout(() => {
 				onAfterMentionSelect?.()
 			}, 100)
@@ -231,7 +223,7 @@ function MobileComposerAddSheet({
 	// 	handleOpenMention()
 
 	// 	const skillLabels = Array.from(
-	// 		new Set([tMainInput("addSheet.actions.skills"), "Skills", "技能"]),
+	// 		new Set([tMainInput("addSheet.actions.skills"), "Skills"]),
 	// 	)
 	// 	const tryOpenSkills = (attempt = 0) => {
 	// 		const panel = document.querySelector<HTMLElement>("[data-mention-panel]")
@@ -284,16 +276,17 @@ function MobileComposerAddSheet({
 			<MagicPopup
 				visible={open}
 				onClose={() => onOpenChange(false)}
-				className="rounded-t-[14px] border-0 bg-muted "
-				bodyClassName="rounded-t-[14px] border-0 bg-muted p-0 overflow-hidden"
+				className="rounded-t-[14px] border-0 bg-muted supports-[overflow:clip]:overflow-clip"
+				bodyClassName="flex min-h-0 flex-col rounded-t-[14px] border-0 bg-muted p-0 overflow-hidden supports-[overflow:clip]:overflow-clip"
 				handlerClassName="bg-muted-foreground mb-1.5 h-1 w-20 rounded-full"
 				title={tMainInput("addSheet.title")}
 			>
 				<div
-					className="flex flex-col gap-2 overflow-hidden bg-muted"
+					// Prevent focus from scrolling ancestors that contain the fixed action header.
+					className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-muted supports-[overflow:clip]:overflow-clip"
 					data-testid="mobile-composer-add-sheet"
 				>
-					<div className="mobile-popup-action-header relative flex h-14 flex-row items-center justify-center">
+					<div className="mobile-popup-action-header relative flex h-14 shrink-0 flex-row items-center justify-center">
 						<button
 							type="button"
 							onClick={() => onOpenChange(false)}
@@ -312,8 +305,10 @@ function MobileComposerAddSheet({
 						</div>
 					</div>
 
-					<div
-						className="no-scrollbar flex w-full flex-1 flex-col overflow-y-auto px-2 pb-6"
+					{/* Bound only the actions so the close button stays visible on short screens. */}
+					<ScrollArea
+						className="grid min-h-0 w-full flex-1"
+						viewportClassName="h-auto min-h-0 px-2 pb-6 [&>div]:!flex [&>div]:flex-col"
 						data-testid="mobile-composer-add-sheet-content"
 					>
 						{uploadEnabled && (
@@ -443,7 +438,11 @@ function MobileComposerAddSheet({
 											count={selectedPluginCount}
 										/>
 									</div>
-									<AddActionPill label={tMainInput("addSheet.addButton")} />
+									<ChevronRight
+										className="size-5 shrink-0 text-foreground"
+										data-testid="mobile-composer-add-sheet-plugin-arrow"
+										aria-hidden="true"
+									/>
 								</button>
 							)}
 
@@ -462,7 +461,7 @@ function MobileComposerAddSheet({
 								</div>
 							)}
 						</div>
-					</div>
+					</ScrollArea>
 				</div>
 			</MagicPopup>
 		</>

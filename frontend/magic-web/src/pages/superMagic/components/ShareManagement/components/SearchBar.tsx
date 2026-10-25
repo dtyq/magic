@@ -15,7 +15,7 @@ import { SharedResourceType, WorkspaceProjectTree } from "../types"
 import { ResourceType } from "../../Share/types"
 import { SuperMagicApi } from "@/apis"
 import { Search } from "lucide-react"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 
 // 特殊值，表示"所有项目"
 const ALL_PROJECTS = "__all__"

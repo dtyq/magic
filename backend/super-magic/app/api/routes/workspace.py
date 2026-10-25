@@ -13,7 +13,12 @@ from app.api.http_dto.workspace import (
     WorkspaceExportData,
     WorkspaceImportRequest,
     WorkspaceImportData,
+    WorkspaceExportTaskRequest,
+    WorkspaceExportTaskData,
 )
+from app.service.sandbox_task.models import SandboxTask
+from app.service.sandbox_task.task_manager import SandboxTaskManager
+from app.service.sandbox_task.capability_runner import run_capability
 from agentlang.path_manager import PathManager
 from app.service.agent_dispatcher import AgentDispatcher
 from app.service.workspace_export_service import export_workspace
@@ -24,6 +29,54 @@ from agentlang.logger import get_logger
 router = APIRouter(prefix="/v1/workspace", tags=["工作区管理"])
 
 logger = get_logger(__name__)
+
+
+def _export_task_response(task: SandboxTask) -> dict:
+    output = task.output or {}
+    status = task.status.value if hasattr(task.status, "value") else str(task.status)
+    progress = {
+        "queued": 0,
+        "preparing": 10,
+        "running": 60,
+        "finalizing": 90,
+        "completed": 100,
+    }.get(status, 0)
+    return WorkspaceExportTaskData(
+        task_key=task.task_id,
+        status=status,
+        progress=progress,
+        file_key=output.get("file_key"),
+        metadata=output.get("metadata") or {},
+        error=task.error_message,
+    ).model_dump()
+
+
+@router.post("/export/create", response_model=BaseResponse)
+async def create_workspace_export_endpoint(request: WorkspaceExportTaskRequest) -> BaseResponse:
+    """幂等创建工作区异步导出任务。"""
+    try:
+        task = await SandboxTaskManager.instance().create_or_get(
+            task_id=request.task_key,
+            capability="workspace_export",
+            project_path=str(PathManager.get_workspace_dir().resolve()),
+            payload=request.model_dump(exclude={"task_key"}),
+            worker=run_capability,
+        )
+        return create_success_response("工作区导出任务已提交", _export_task_response(task))
+    except ValueError as error:
+        return create_error_response(str(error), {"task_key": request.task_key}, code=4000)
+
+
+@router.get("/export/check", response_model=BaseResponse)
+async def check_workspace_export_endpoint(task_key: str) -> BaseResponse:
+    """查询工作区异步导出任务。"""
+    task = await SandboxTaskManager.instance().get(task_key)
+    if task is None:
+        return create_error_response("工作区导出任务不存在", {"task_key": task_key}, code=4004)
+    data = _export_task_response(task)
+    if data["status"] == "failed":
+        return create_error_response(task.error_message or "工作区导出失败", data, code=4001)
+    return create_success_response("工作区导出任务状态", data)
 
 
 @router.get("/info", response_model=BaseResponse)
@@ -171,9 +224,12 @@ async def export_workspace_endpoint(request: WorkspaceExportRequest) -> BaseResp
             export_type=request.type,
             code=request.code,
             upload_config=request.upload_config,
+            public_upload_config=request.public_upload_config,
             source_path=request.source_path,
             archive_root=request.archive_root,
             file_name=request.file_name,
+            exclude_paths=request.exclude_paths,
+            skills_md_hash=request.skills_md_hash,
         )
         response_data = WorkspaceExportData.model_validate(result)
 

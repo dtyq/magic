@@ -27,6 +27,7 @@ class PublicQuerySlidesTemplateTagRequest extends FormRequest
             'category_code' => 'nullable|string|max:64',
             'tag_codes' => 'nullable',
             'tag_match' => 'nullable|string|in:any,all',
+            'token' => 'nullable|string',
         ];
     }
 
@@ -47,6 +48,11 @@ class PublicQuerySlidesTemplateTagRequest extends FormRequest
     public function getPage(): int
     {
         return (int) $this->input('page', 1);
+    }
+
+    public function getToken(): string
+    {
+        return trim((string) $this->input('token', ''));
     }
 
     public function getPageSize(): int

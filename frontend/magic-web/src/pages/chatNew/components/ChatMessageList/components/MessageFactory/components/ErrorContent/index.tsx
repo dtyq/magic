@@ -2,6 +2,7 @@ import MagicButton from "@/components/base/MagicButton"
 import { Flex } from "antd"
 import { createStyles } from "antd-style"
 import type { ComponentProps } from "react"
+import { useTranslation } from "react-i18next"
 
 const useStyles = createStyles(({ css, token }) => ({
 	container: css`
@@ -24,6 +25,7 @@ interface ErrorContentProps extends ComponentProps<"div"> {
 }
 
 function ErrorContent({ onReport, onRetry, className, ...props }: ErrorContentProps) {
+	const { t } = useTranslation("chat")
 	const { styles, cx } = useStyles()
 
 	return (
@@ -35,17 +37,15 @@ function ErrorContent({ onReport, onRetry, className, ...props }: ErrorContentPr
 			gap={10}
 			{...props}
 		>
-			<div className={styles.invalidText}>
-				未知的错误原因导致无法正常渲染内容，请联系 Magic 开发团队。
-			</div>
+			<div className={styles.invalidText}>{t("errorContent.unknown")}</div>
 			{onReport && (
 				<MagicButton type="link" onClick={onReport}>
-					上报异常错误
+					{t("errorContent.report")}
 				</MagicButton>
 			)}
 			{onRetry && (
 				<MagicButton type="link" onClick={onRetry}>
-					重试
+					{t("errorContent.retry")}
 				</MagicButton>
 			)}
 		</Flex>

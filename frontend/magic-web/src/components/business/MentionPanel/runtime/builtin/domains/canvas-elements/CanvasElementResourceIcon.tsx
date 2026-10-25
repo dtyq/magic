@@ -4,7 +4,7 @@ import { ImageElement as ImageElementClass } from "@/components/CanvasDesign/run
 import type { ImageInfo } from "@/components/CanvasDesign/runtime/resources/image/ImageResourceManager"
 import { getPersistedSourceCrop } from "@/components/CanvasDesign/runtime/resources/image/imageCropUtils"
 import { useOptionalCanvas } from "@/components/CanvasDesign/app/providers/CanvasProvider"
-import { Image as ImageIcon, Video } from "lucide-react"
+import { Image as ImageIcon, Video, Volume2 } from "lucide-react"
 import type { CanvasElementMentionSourcePreview } from "../../../../types"
 import { MentionFileImagePreviewBox } from "../file-preview/MentionFileImagePreviewBox"
 import { useCanvasElementResourceCanvas } from "./resource-registry"
@@ -16,7 +16,7 @@ function CanvasElementFallbackIcon(props: {
 	iconSize: number
 }) {
 	const { mediaType, iconSize } = props
-	const Icon = mediaType === "video" ? Video : ImageIcon
+	const Icon = mediaType === "video" ? Video : mediaType === "audio" ? Volume2 : ImageIcon
 	return (
 		<Icon
 			size={iconSize}
@@ -307,6 +307,9 @@ export function CanvasElementResourceIcon(props: {
 	iconSize: number
 }) {
 	const { preview, iconSize } = props
+	if (preview.mediaType === "audio") {
+		return <CanvasElementFallbackIcon mediaType="audio" iconSize={iconSize} />
+	}
 	if (preview.mediaType === "video") {
 		return <CanvasElementVideoResourceIcon preview={preview} iconSize={iconSize} />
 	}

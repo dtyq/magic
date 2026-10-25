@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { DropdownMenuItem, DropdownMenuSubTrigger } from "@/components/shadcn-ui/dropdown-menu"
 
 /** Shared trigger styles for export/share text actions in the detail header. */

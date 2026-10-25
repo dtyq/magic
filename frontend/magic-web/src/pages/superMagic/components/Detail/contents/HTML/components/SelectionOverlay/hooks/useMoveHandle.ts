@@ -12,6 +12,8 @@ interface UseMoveHandleOptions {
 	setHoveredRect: Dispatch<SetStateAction<ElementRect | null>>
 	setIsSelectionMode: Dispatch<SetStateAction<boolean>>
 	iframeRef: RefObject<HTMLIFrameElement>
+	onMoveStart?: () => void
+	onMoveEnd?: () => void
 }
 
 interface PointerCaptureState {
@@ -28,6 +30,8 @@ export function useMoveHandle({
 	setHoveredRect,
 	setIsSelectionMode,
 	iframeRef,
+	onMoveStart,
+	onMoveEnd,
 }: UseMoveHandleOptions) {
 	const selectedInfoRef = useRef<SelectedInfo | null>(null)
 	const isMovingRef = useRef(false)
@@ -35,6 +39,12 @@ export function useMoveHandle({
 	const moveStartRectRef = useRef<ElementRect | null>(null)
 	const pendingMoveRef = useRef<{ selector: string; styles: Record<string, string> } | null>(null)
 	const pointerCaptureRef = useRef<PointerCaptureState | null>(null)
+	// Parent callbacks may be inline functions. Keep them out of the drag
+	// lifecycle dependencies so a parent re-render cannot stop an active move.
+	const onMoveStartRef = useRef(onMoveStart)
+	const onMoveEndRef = useRef(onMoveEnd)
+	onMoveStartRef.current = onMoveStart
+	onMoveEndRef.current = onMoveEnd
 	// Store initial top/left values for the current element
 	const initialPositionRef = useRef<{ top: number; left: number }>({ top: 0, left: 0 })
 	const positionModeRef = useRef<string>("relative")
@@ -234,6 +244,10 @@ export function useMoveHandle({
 				console.error("[useMoveHandle] Failed to refresh element after move:", error)
 			}
 		}
+
+		// A completed move should keep the selection box, but must not open the
+		// contextual style panel automatically.
+		onMoveEndRef.current?.()
 	}, [editorRef])
 
 	// Monitor selectedInfo changes - stop moving if element changes
@@ -287,6 +301,9 @@ export function useMoveHandle({
 				stopMove()
 				return
 			}
+			// React may execute the state updater after pointerup has cleared the move refs.
+			// Capture the drag origin before scheduling the updater so it uses stable state.
+			const moveStartRect = moveStartRectRef.current
 
 			const scaleFactor = getScaleFactor()
 			const deltaX = (event.clientX - moveStartMouseRef.current.x) / scaleFactor
@@ -300,14 +317,13 @@ export function useMoveHandle({
 			const { left: newLeft, top: newTop } = constrainToBounds(
 				rawNewLeft,
 				rawNewTop,
-				moveStartRectRef.current.width,
-				moveStartRectRef.current.height,
+				moveStartRect.width,
+				moveStartRect.height,
 			)
 
 			// Calculate constrained delta for UI update
 			const constrainedDeltaX = newLeft - initialPositionRef.current.left
 			const constrainedDeltaY = newTop - initialPositionRef.current.top
-
 			// Immediately update UI for smooth feedback
 			setSelectedInfo((prev) => {
 				if (!prev) return prev
@@ -315,8 +331,8 @@ export function useMoveHandle({
 					...prev,
 					rect: {
 						...prev.rect,
-						left: moveStartRectRef.current!.left + constrainedDeltaX,
-						top: moveStartRectRef.current!.top + constrainedDeltaY,
+						left: moveStartRect.left + constrainedDeltaX,
+						top: moveStartRect.top + constrainedDeltaY,
 					},
 				}
 			})
@@ -337,6 +353,7 @@ export function useMoveHandle({
 
 			event.preventDefault()
 			event.stopPropagation()
+			onMoveStartRef.current?.()
 
 			// Safety: If already moving, stop first to clean up state
 			if (isMovingRef.current) {

@@ -18,11 +18,12 @@ description: "Complete API reference for window.Magic.* in SuperMagic HTML micro
 2. File paths are relative to **app root** (`index.html` dir) by default. `../` is forbidden. Use leading-slash paths such as `"/shared/data.json"` to access project-root files. Writing, deleting, moving, or renaming files outside the app root triggers host confirmation.
 3. `window.Magic.llm` tokens hosted; no `api_key` in HTML.
 4. **No inline event handlers** — use `addEventListener`. For buttons rendered by `innerHTML`, bind one delegated listener on a stable container and use `data-action`/`data-id`.
-5. **LLM calls must include model selector UI** unless user specifies model. Default `"auto"`.
-6. **Complex file-based AI** → use `createTopicAndSend` + `@file` + companion skill. Simple → `readFile` + `llm.chat/stream`.
+5. **LLM and Agent calls must include model selector UI** unless the user specifies a fixed model. Load the available models with `window.Magic.llm.getModels()`, render them in the page, and preselect the first available model. Do not guide users to use `"auto"` as the default selection.
+6. **Complex file-based AI** → use `createTopicAndSend` with the task; published micro-app previews automatically provide `@micro_app` context so the Agent can inspect companion skills. Use an explicit `@file` only when selecting one exact skill. Simple → `readFile` + `llm.chat/stream`.
 7. **High-risk APIs are permission-gated** — new HTML micro-apps must declare requested scopes in `app.json.permissions.scopes`. The host asks the user to approve high-risk runtime calls for a limited duration.
 8. **User info is privacy-gated** — `window.Magic.user.getInfo()` returns only `name` and `avatar` by default. Sensitive fields require a matching permission declaration, a runtime `getInfo({ scopes, reason })` request, and user confirmation.
-9. **Use `app.json` as the micro-app manifest** — every new HTML micro-app folder should include `app.json` next to `index.html`. Put `type`, `name`, `entry`, `anonymous`, file aliases, watch hints, and permissions there. Also generate a minimal `magic.project.js` display bridge that mirrors only `version/type/name/entry/icon`; do not put `anonymous`, permissions, files, watch, or business state in `magic.project.js`.
+9. **Use `app.json` as the micro-app manifest** — every new HTML micro-app folder should include `app.json` next to `index.html`. Put `type`, `name`, `entry`, `anonymous`, file aliases, watch hints, and permissions there. Also generate a minimal `magic.project.js` display bridge that mirrors `version/name/entry/icon`; new bridges use `type: "html-app"`, while existing `type: "micro-app"` bridges remain compatible. Do not put `anonymous`, permissions, files, watch, or business state in `magic.project.js`.
+
    ```json
    {
      "version": "1.0.0",
@@ -261,14 +262,15 @@ const models = await window.Magic.llm.getModels();
 // [{id, object?, owned_by?, icon?, label?, info?}]
 ```
 
-> ⚠️ `model` field **required** — default `"auto"`. Empty string forbidden. Model selector UI must have "Auto Select" as first/default item.
+The `model` field is required for LLM calls. The page model selector should display the returned models and preselect the first available model. Handle an empty model list before sending a request; do not use `"auto"` as the default selector value.
 
 ### `chat(messages, options?)` → `Promise<string>`
 
 ```javascript
 const reply = await window.Magic.llm.chat(
   [{ role: "user", content: "How many planets?" }],
-  { model: "auto" },
+  // selectedModelId comes from the page model selector (default: first model)
+  { model: selectedModelId },
 );
 ```
 
@@ -284,7 +286,8 @@ const cancel = window.Magic.llm.stream(
     text += delta;
     if (done) console.log("Done");
   },
-  { model: "auto", maxTokens: 1000 },
+  // selectedModelId comes from the page model selector (default: first model)
+  { model: selectedModelId, maxTokens: 1000 },
 );
 ```
 
@@ -357,11 +360,13 @@ Requires `project.message.write` in `app.json.permissions.scopes`.
 
 Creates new topic. `message`: plain text or tiptap JSON (see [tiptap ref](references/tiptap-json-format.md)).
 
+When this API is called from a published micro-app preview, the host automatically prepends the current micro-app as a trusted `@micro_app` mention. The referenced project is mounted read-only. Name the companion skill in the task message, for example `createTopicAndSend("Use the inventory_manager Skill to find low-stock products and generate replenishment suggestions.", { model: selectedModelId })`, where `selectedModelId` is chosen by the page model selector and defaults to the first available model. The Agent loads that companion skill with `read_skills(skill_names=["inventory_manager"], project_id=...)` using the mention's `project_id` on the first attempt for that skill; the current runtime-project workspace is not the skill source. System skills omit `project_id`. When a task needs one exact skill file, the app may still include an explicit `@file` mention.
+
 ```javascript
 // Plain text
 const { topicId } = await window.Magic.project.createTopicAndSend(
   "Analyze this",
-  { model: "auto" },
+  { model: selectedModelId },
 );
 
 // Tiptap JSON with @file mention (trigger companion skill)
@@ -380,7 +385,7 @@ const { topicId: t2 } = await window.Magic.project.createTopicAndSend(
               data: {
                 file_id: "skill_ref",
                 file_name: "SKILL.md",
-                file_path: ".magic/report_writer/SKILL.md",
+                file_path: ".magic/skills/report_writer/SKILL.md",
                 file_extension: "md",
               },
             },
@@ -390,21 +395,21 @@ const { topicId: t2 } = await window.Magic.project.createTopicAndSend(
       },
     ],
   },
-  { model: "auto" },
+  { model: selectedModelId },
 );
 ```
 
-Options: `agentId?` (defaults general mode), `model?` (default `"auto"`). Timeout: 30s.
+Options: `agentId?` (defaults general mode), `model?` (pass the model selected in the page model selector; default to the first available model). Timeout: 30s.
 
 Requires `project.message.write` in `app.json.permissions.scopes`.
 
 ### 5.5 `sendMessage(message, options?)` → `Promise<void>`
 
 ```javascript
-await window.Magic.project.sendMessage("Continue analyzing", { model: "auto" });
+await window.Magic.project.sendMessage("Continue analyzing", { model: selectedModelId });
 ```
 
-Options: `model?`. Timeout: 15s.
+`selectedModelId` should come from the page model selector, which displays `getModels()` results and defaults to the first available model. Timeout: 15s.
 
 Requires `project.message.write` in `app.json.permissions.scopes`.
 
@@ -544,7 +549,7 @@ try {
 
 // llm: timeout
 try {
-  return await window.Magic.llm.chat(messages, { model: "auto" });
+  return await window.Magic.llm.chat(messages, { model: selectedModelId });
 } catch (err) {
   if (err.message.includes("timed out")) return "Request timed out.";
   return "Failed: " + err.message;
@@ -557,7 +562,7 @@ window.Magic.llm.stream(
     buffer += delta;
     if (done) finalize(buffer);
   },
-  { model: "auto" },
+  { model: selectedModelId },
 );
 ```
 

@@ -26,41 +26,7 @@ interface UseVirtualDesignProjectOptions {
 	) => Promise<{ file_id?: string; id?: string } | undefined>
 	// 添加直接更新attachments的回调
 	onAttachmentsChange?: (attachments: AttachmentItem[]) => void
-}
-
-// 工具函数：将新文件夹添加到attachments的正确位置
-const addFolderToAttachments = (
-	attachments: AttachmentItem[],
-	newFolder: AttachmentItem,
-	parentPath?: string,
-): AttachmentItem[] => {
-	if (!parentPath) {
-		// 在根目录：新建文件夹放在第一个位置
-		return [newFolder, ...attachments]
-	}
-
-	// 递归查找父文件夹并添加
-	const addToFolder = (items: AttachmentItem[]): AttachmentItem[] => {
-		return items.map((item) => {
-			if (item.is_directory && "children" in item) {
-				const folderPath = item.relative_file_path || `/${item.name}`
-				if (folderPath === parentPath) {
-					// 在此文件夹中添加新文件夹到第一个位置
-					return {
-						...item,
-						children: [newFolder, ...(item.children || [])],
-					}
-				}
-				return {
-					...item,
-					children: addToFolder(item.children || []),
-				}
-			}
-			return item
-		})
-	}
-
-	return addToFolder(attachments)
+	isCurrent?: () => boolean
 }
 
 /**
@@ -77,6 +43,8 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 	const virtualInputRef = useRef<InputRef>(null)
 	const hasFocusedRef = useRef(false)
 	const submittedVirtualIdsRef = useRef<Set<string>>(new Set())
+	const creatingRef = useRef(false)
+	const isCurrent = options.isCurrent ?? (() => true)
 
 	// 聚焦并选择文件夹名的统一处理函数
 	const focusAndSelectFolderName = (inputRef: InputRef) => {
@@ -174,6 +142,7 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 	const confirmVirtualDesignProject = async () => {
 		if (!editingVirtualId || !virtualDesignProject) return
 		if (submittedVirtualIdsRef.current.has(editingVirtualId)) return
+		if (creatingRef.current || !isCurrent()) return
 
 		const trimmedName = virtualDesignProjectName.trim()
 
@@ -203,20 +172,23 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 		}
 
 		submittedVirtualIdsRef.current.add(editingVirtualId)
+		creatingRef.current = true
 
 		try {
 			// 调用画布项目创建回调
-			await options.onDesignProjectCreate?.(
-				trimmedName,
-				virtualDesignProject.parentPath,
-			)
+			await options.onDesignProjectCreate?.(trimmedName, virtualDesignProject.parentPath)
+			if (!isCurrent()) return
 
 			// 创建成功后清理虚拟文件夹
 			clearVirtualDesignProject()
 		} catch (error) {
+			if (!isCurrent()) return
 			submittedVirtualIdsRef.current.delete(editingVirtualId)
-			setErrorMessage("创建画布项目失败，请重试")
+			setErrorMessage(error instanceof Error ? error.message : "创建画布项目失败，请重试")
 			// 失败时不清理虚拟文件夹，让用户可以看到错误并重新尝试
+		} finally {
+			creatingRef.current = false
+			if (!isCurrent()) submittedVirtualIdsRef.current.delete(editingVirtualId)
 		}
 	}
 

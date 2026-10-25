@@ -82,7 +82,7 @@ describe("ChatsPage ChatConversationListItem", () => {
 			/>,
 		)
 
-		const row = screen.getByTestId("mobile-chats-page-item-running-chat")
+		const row = screen.getByTestId("mobile-chats-page-item")
 		expect(within(row).getByTestId("mobile-chats-page-item-loading")).toBeInTheDocument()
 		expect(
 			within(row).queryByTestId("mobile-chats-page-item-default-icon"),
@@ -103,7 +103,7 @@ describe("ChatsPage ChatConversationListItem", () => {
 			/>,
 		)
 
-		const row = screen.getByTestId("mobile-chats-page-item-pinned-chat")
+		const row = screen.getByTestId("mobile-chats-page-item")
 		expect(within(row).getByTestId("mobile-chats-page-item-pinned-badge")).toBeInTheDocument()
 		expect(within(row).getByText("chatList.swipeUnpin")).toBeInTheDocument()
 		expect(within(row).getByTestId("mobile-chats-page-item-default-icon")).toBeInTheDocument()

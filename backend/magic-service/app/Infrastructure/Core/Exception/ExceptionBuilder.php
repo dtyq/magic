@@ -42,7 +42,15 @@ class ExceptionBuilder
     {
         $this->error = $error;
         $this->code = (int) $error->value;
-        $this->config = array_merge($this->config, ApplicationContext::getContainer()->get(ConfigInterface::class)?->get('error_message'));
+
+        // A missing `error_message` config means "no per-code overrides", not a
+        // crash. Merging null unconditionally raised a TypeError that masked the
+        // business exception the caller was actually trying to raise — so in any
+        // environment without that config key (a focused unit test, a minimal
+        // container), every domain error surfaced as a programming error instead
+        // of the exception it was meant to be.
+        $overrides = ApplicationContext::getContainer()->get(ConfigInterface::class)?->get('error_message');
+        $this->config = array_merge($this->config, is_array($overrides) ? $overrides : []);
     }
 
     public function getCode(): int

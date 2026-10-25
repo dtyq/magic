@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react"
 import type { RefObject } from "react"
 import { describe, expect, it, vi } from "vitest"
+import { createTestResourceReferenceResolver } from "../../../../public/__tests__/testResourceReferenceResolver"
 import type { MessageEditorMentionMatcher, MessageEditorRef } from "../../message/MessageEditor"
 import { createReferenceResourcePanelItemFromPath } from "../../message/reference-assets/createReferenceResourcePanelItem"
 import type { LinkedEditorMediaItem } from "../linkedEditorInputs"
@@ -54,6 +55,7 @@ function createEditorRef(
 }
 
 const canSelectMediaConnection = vi.fn(() => true)
+const resolveDesignAResourceReference = createTestResourceReferenceResolver()
 
 describe("useLinkedMediaMentionSelection", () => {
 	it("does not restore or clear any media selection by itself", () => {
@@ -65,6 +67,7 @@ describe("useLinkedMediaMentionSelection", () => {
 				mentionedReferencePaths: [],
 				canSelectMediaConnection,
 				editorRef,
+				resolveResourceReference: resolveDesignAResourceReference,
 			}),
 		)
 
@@ -83,11 +86,16 @@ describe("useLinkedMediaMentionSelection", () => {
 				mentionedReferencePaths: [],
 				canSelectMediaConnection,
 				editorRef,
+				resolveResourceReference: resolveDesignAResourceReference,
 			}),
 		)
 
-		act(() => result.current(mediaItem.connectionId, true))
+		let applied = false
+		act(() => {
+			applied = result.current(mediaItem.connectionId, true)
+		})
 
+		expect(applied).toBe(true)
 		expect(canSelectMediaConnection).toHaveBeenCalledWith(mediaItem.connectionId)
 		expect(insertMentionItem).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -109,16 +117,21 @@ describe("useLinkedMediaMentionSelection", () => {
 				mentionedReferencePaths: [],
 				canSelectMediaConnection,
 				editorRef,
+				resolveResourceReference: resolveDesignAResourceReference,
 			}),
 		)
 
-		act(() => result.current(mediaItem.connectionId, true))
+		let applied = true
+		act(() => {
+			applied = result.current(mediaItem.connectionId, true)
+		})
 
+		expect(applied).toBe(false)
 		expect(mediaItem.selected).toBe(false)
 	})
 
 	it("does not duplicate an existing mention for the same canonical path", () => {
-		const mediaItem = createMediaItem({ path: "/images/source.png" })
+		const mediaItem = createMediaItem({ path: "/画布A/images/source.png" })
 		const { editorRef, insertMentionItem } = createEditorRef()
 		const { result } = renderHook(() =>
 			useLinkedMediaMentionSelection({
@@ -126,6 +139,7 @@ describe("useLinkedMediaMentionSelection", () => {
 				mentionedReferencePaths: ["./images/source.png"],
 				canSelectMediaConnection,
 				editorRef,
+				resolveResourceReference: resolveDesignAResourceReference,
 			}),
 		)
 
@@ -143,6 +157,7 @@ describe("useLinkedMediaMentionSelection", () => {
 				mentionedReferencePaths: ["./images/source.png"],
 				canSelectMediaConnection,
 				editorRef,
+				resolveResourceReference: resolveDesignAResourceReference,
 			}),
 		)
 
@@ -150,9 +165,12 @@ describe("useLinkedMediaMentionSelection", () => {
 
 		expect(removeMentionItems).toHaveBeenCalledTimes(1)
 		const matcher = removeMentionItems.mock.calls[0]?.[0] as
-			MessageEditorMentionMatcher | undefined
+			| MessageEditorMentionMatcher
+			| undefined
 		expect(
-			matcher?.(createReferenceResourcePanelItemFromPath("/images/source.png", "source.png")),
+			matcher?.(
+				createReferenceResourcePanelItemFromPath("/画布A/images/source.png", "source.png"),
+			),
 		).toBe(true)
 		expect(
 			matcher?.(createReferenceResourcePanelItemFromPath("/images/other.png", "other.png")),
@@ -168,11 +186,16 @@ describe("useLinkedMediaMentionSelection", () => {
 				mentionedReferencePaths: ["./images/source.png"],
 				canSelectMediaConnection,
 				editorRef,
+				resolveResourceReference: resolveDesignAResourceReference,
 			}),
 		)
 
-		act(() => result.current(mediaItem.connectionId, false))
+		let applied = true
+		act(() => {
+			applied = result.current(mediaItem.connectionId, false)
+		})
 
+		expect(applied).toBe(false)
 		expect(removeMentionItems).toHaveBeenCalled()
 		expect(mediaItem.selected).toBe(true)
 	})
@@ -187,6 +210,7 @@ describe("useLinkedMediaMentionSelection", () => {
 					mentionedReferencePaths: ["./images/source.png"],
 					canSelectMediaConnection,
 					editorRef,
+					resolveResourceReference: resolveDesignAResourceReference,
 				}),
 			{ initialProps: { mediaItems: [mediaItem] } },
 		)
@@ -199,7 +223,7 @@ describe("useLinkedMediaMentionSelection", () => {
 
 	it("updates a tracked mention when the linked source path or name changes", () => {
 		const oldItem = createMediaItem({
-			path: "/images/source.png",
+			path: "/画布A/images/source.png",
 			selected: true,
 			status: "active",
 		})
@@ -217,6 +241,7 @@ describe("useLinkedMediaMentionSelection", () => {
 					mentionedReferencePaths: [mentionedPath],
 					canSelectMediaConnection,
 					editorRef,
+					resolveResourceReference: resolveDesignAResourceReference,
 				}),
 			{ initialProps: { mediaItem: oldItem, mentionedPath: "./images/source.png" } },
 		)
@@ -240,7 +265,7 @@ describe("useLinkedMediaMentionSelection", () => {
 			| undefined
 		expect(
 			firstCall?.[0]?.(
-				createReferenceResourcePanelItemFromPath("/images/source.png", "source.png"),
+				createReferenceResourcePanelItemFromPath("/画布A/images/source.png", "source.png"),
 			),
 		).toBe(true)
 		expect(firstCall?.[1]).toEqual(

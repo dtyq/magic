@@ -8,7 +8,7 @@ import { useUserInfo } from "@/models/user/hooks"
 import { Input } from "@/components/shadcn-ui/input"
 import { Textarea } from "@/components/shadcn-ui/textarea"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	submitMobileSettingsFeedback,
 	type MobileSettingsFeedbackUploadedImage,

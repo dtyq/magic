@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/eslint-config",
-	"version": "0.0.10",
+	"version": "0.0.11",
 	"description": "Shared ESLint and formatting configuration package with built-in dependencies.",
 	"keywords": [
 		"eslint",

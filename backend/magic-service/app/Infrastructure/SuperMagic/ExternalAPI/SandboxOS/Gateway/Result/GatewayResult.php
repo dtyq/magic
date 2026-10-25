@@ -57,6 +57,23 @@ class GatewayResult
     }
 
     /**
+     * Return complete operation images without substituting release defaults.
+     *
+     * @return null|array{agent_image: string, agfs_image: string}
+     */
+    public function getSandboxImages(): ?array
+    {
+        $agentImage = $this->getDataValue('agent_image');
+        $agfsImage = $this->getDataValue('agfs_image');
+        if (! is_string($agentImage) || trim($agentImage) === ''
+            || ! is_string($agfsImage) || trim($agfsImage) === '') {
+            return null;
+        }
+
+        return ['agent_image' => $agentImage, 'agfs_image' => $agfsImage];
+    }
+
+    /**
      * Check if successful.
      */
     public function isSuccess(): bool

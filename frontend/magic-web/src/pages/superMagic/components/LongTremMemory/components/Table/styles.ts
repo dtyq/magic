@@ -28,13 +28,17 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => {
 		scroll: css`
 			width: 100%;
 			height: calc(100% - 40px);
+		`,
+		scrollViewport: css`
+			padding-right: 20px;
 
-			& .simplebar-content {
-				padding: 0 20px 0 0 !important;
+			@media (max-width: 768px) {
+				padding-right: 0;
+			}
 
-				@media (max-width: 768px) {
-					padding: 0 !important;
-				}
+			/* Let flex rows shrink and ellipsize instead of expanding Radix's table wrapper. */
+			& > div {
+				display: block !important;
 			}
 		`,
 		pagination: css`
@@ -168,7 +172,7 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => {
 			line-height: 20px;
 		`,
 
-		// 项目记忆折叠面板样式
+		// Project memory collapse panel styles.
 		projectCollapse: css`
 			.${prefixCls}-collapse-header {
 				align-items: center !important;

@@ -1,3 +1,4 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { memo, useCallback, useMemo, useRef } from "react"
 import type { MenuProps } from "antd"
 import {
@@ -31,13 +32,16 @@ import type { BuiltinComposedAction, CommonHeaderV2Props } from "./types"
 import { DetailType } from "../../types"
 import { MagicDropdown } from "@/components/base"
 import { IconShare3 } from "@tabler/icons-react"
-import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 import useFullscreenMode from "@/hooks/useFullscreenMode"
-import { useDownloadVisibility } from "@/pages/superMagic/hooks/useDownloadVisibility"
+import { guardMenuClick, guardMenuItems, runGuardedAction } from "../../utils/actionGuard"
+import { cn } from "@/utils/cn"
 
 export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	const {
+		beforeAction,
+		testIdsEnabled = true,
 		renderMode = "full",
+		showBottomBorder = true,
 		type,
 		onFullscreen,
 		onDownload,
@@ -67,16 +71,16 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		extraMoreMenuItems,
 		onCompareVersion,
 		onMoreMenuOpenChange,
+		moreButtonId,
 	} = props
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
-	const effectiveShowDownload = useDownloadVisibility(showDownload, isMobile)
 	const {
-		hideShareFile,
-		hideFullscreen,
-		hideVersionHistory,
-		showShareFileInReadOnly,
-	} = useFileActionVisibility()
+		permissions: access,
+		options: { fullscreen, versionHistory, shareInReadOnly },
+	} = useFileAccess()
+	const effectiveShowDownload = access.download && showDownload
+
 	const headerContainerRef = useRef<HTMLDivElement>(null)
 	const rightActionsContainerRef = useRef<HTMLDivElement>(null)
 	const showButtonText = useContainerShowButtonText(rightActionsContainerRef)
@@ -156,24 +160,41 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		useDownloadImageMenu({
 			onDownload,
 		})
+	const guardedDownloadMenuClick = useMemo(
+		() => guardMenuClick(beforeAction, downloadMenuClick),
+		[beforeAction, downloadMenuClick],
+	)
 
 	const mergedActionConfig = useMemo(() => {
 		const hideDefaults = new Set(actionConfig?.hideDefaults || [])
 
-		if (hideShareFile) hideDefaults.add("share")
-		if (hideFullscreen) hideDefaults.add("fullscreen")
-		if (hideVersionHistory) hideDefaults.add("versionMenu")
+		if (!access.share) hideDefaults.add("share")
+		if (!access.download) hideDefaults.add("download")
+		if (!access.view || !access.preview) {
+			hideDefaults.add("viewMode")
+			hideDefaults.add("openUrl")
+		}
+		if (!fullscreen) hideDefaults.add("fullscreen")
+		if (!versionHistory) hideDefaults.add("versionMenu")
 
-		if (hideDefaults.size === 0) return actionConfig
+		if (hideDefaults.size === 0 && access.export) return actionConfig
 
 		return {
 			...actionConfig,
 			hideDefaults: Array.from(hideDefaults),
+			// Custom renderers may replace these same operation slots.
+			customActions: actionConfig?.customActions?.filter(
+				(item) =>
+					!(item.key === "share" && !access.share) &&
+					!(item.key === "download" && !access.download) &&
+					!(item.key === "export" && !access.export),
+			),
 		}
-	}, [actionConfig, hideShareFile, hideFullscreen, hideVersionHistory])
+	}, [actionConfig, fullscreen, versionHistory, access])
 
 	const actionContext = useMemo(
 		() => ({
+			beforeAction,
 			type,
 			viewMode,
 			isMobile,
@@ -187,7 +208,8 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			showDownload: effectiveShowDownload,
 			showRefreshButton,
 			isNewestFileVersion,
-			allowEdit: allowEdit || showShareFileInReadOnly,
+			allowEdit,
+			shareInReadOnly,
 			currentFile,
 			attachments,
 			fileContent,
@@ -206,6 +228,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		}),
 		[
 			allowEdit,
+			beforeAction,
 			attachments,
 			currentFile,
 			detailMode,
@@ -219,6 +242,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			isEditMode,
 			isFromNode,
 			isFullscreen,
+			isFullscreenMode,
 			isMobile,
 			isNewestFileVersion,
 			isShareRoute,
@@ -230,7 +254,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			showButtonText,
 			effectiveShowDownload,
 			showRefreshButton,
-			showShareFileInReadOnly,
+			shareInReadOnly,
 			type,
 			viewMode,
 			getPopupContainer,
@@ -307,30 +331,34 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 						],
 		}
 
-		return [
-			{
-				key: "locateFile",
-				label: (
-					<div className="flex items-center gap-1.5 text-sm">
-						<View size={16} />
-						<span>{t("fileViewer.locateFile")}</span>
-					</div>
-				),
-				onClick: handleLocateFile,
-			},
-			...(isShareRoute || hideVersionHistory ? [] : [historyItem]),
-			...(extraMoreMenuItems ?? []),
-		]
+		return guardMenuItems(
+			[
+				{
+					key: "locateFile",
+					label: (
+						<div className="flex items-center gap-1.5 text-sm">
+							<View size={16} />
+							<span>{t("fileViewer.locateFile")}</span>
+						</div>
+					),
+					onClick: handleLocateFile,
+				},
+				...(isShareRoute || !versionHistory ? [] : [historyItem]),
+				...(extraMoreMenuItems ?? []),
+			],
+			beforeAction,
+		)
 	}, [
 		fileVersionsList,
 		fileVersion,
 		handleChangeFileVersion,
 		handleLocateFile,
-		hideVersionHistory,
+		versionHistory,
 		isShareRoute,
 		onCompareVersion,
 		t,
 		extraMoreMenuItems,
+		beforeAction,
 	])
 
 	const renderBuiltinAction = useCallback(
@@ -338,33 +366,35 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			const shouldShowActionText = showButtonText
 			const runAction = () => {
 				if (action.disabled) return
-				if (action.onClick) {
-					void action.onClick(actionContext)
-					return
-				}
+				void runGuardedAction(beforeAction, async () => {
+					if (action.onClick) {
+						await action.onClick(actionContext)
+						return
+					}
 
-				switch (action.key) {
-					case "refresh":
-						handleRefresh()
-						return
-					case "download":
-						onDownload?.()
-						return
-					case "copy":
-						void handleCopy(fileVersion)
-						return
-					case "share":
-						void handleShare()
-						return
-					case "openUrl":
-						onOpenUrl?.()
-						return
-					case "fullscreen":
-						onFullscreen?.()
-						return
-					default:
-						return
-				}
+					switch (action.key) {
+						case "refresh":
+							handleRefresh()
+							return
+						case "download":
+							onDownload?.()
+							return
+						case "copy":
+							await handleCopy(fileVersion)
+							return
+						case "share":
+							await handleShare()
+							return
+						case "openUrl":
+							onOpenUrl?.()
+							return
+						case "fullscreen":
+							onFullscreen?.()
+							return
+						default:
+							return
+					}
+				})
 			}
 
 			const titleMap = {
@@ -384,9 +414,14 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			if (action.key === "viewMode") {
 				return (
 					<ViewModeSwitcher
-						data-testid="detail-header-view-mode-switcher"
+						data-testid={
+							testIdsEnabled ? "detail-header-view-mode-switcher" : undefined
+						}
+						testIdsEnabled={testIdsEnabled}
 						viewMode={viewMode}
-						onViewModeChange={(mode) => onViewModeChange?.(mode)}
+						onViewModeChange={(mode) => {
+							void runGuardedAction(beforeAction, () => onViewModeChange?.(mode))
+						}}
 						isMobile={isMobile}
 					/>
 				)
@@ -413,6 +448,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 						<div data-testid="detail-header-action-more">
 							<ActionButton
 								data-testid="detail-header-action-more-button"
+								id={moreButtonId}
 								icon={
 									<MoreHorizontal
 										size={16}
@@ -439,7 +475,10 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 				return (
 					<MagicDropdown
 						key={`download-dropdown-${isFreeTrialVersion}`}
-						menu={{ items: downloadImageDropdownItems, onClick: downloadMenuClick }}
+						menu={{
+							items: downloadImageDropdownItems,
+							onClick: guardedDownloadMenuClick,
+						}}
 						trigger={["click"]}
 						placement="bottomRight"
 						getPopupContainer={
@@ -511,7 +550,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			actionContext,
 			currentFile?.source,
 			downloadImageDropdownItems,
-			downloadMenuClick,
+			guardedDownloadMenuClick,
 			fileVersion,
 			handleCopy,
 			handleRefresh,
@@ -524,10 +563,13 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			onDownload,
 			onFullscreen,
 			onMoreMenuOpenChange,
+			moreButtonId,
 			onOpenUrl,
 			onViewModeChange,
+			beforeAction,
 			showButtonText,
 			t,
+			testIdsEnabled,
 			type,
 			viewMode,
 		],
@@ -556,12 +598,12 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 					{actionsNode}
 				</div>
 				<FileShareModals
-					shareModalVisible={shareModalVisible}
+					shareModalVisible={shareModalVisible && access.share}
 					onCloseShareModal={() => {
 						setShareModalVisible(false)
 						setExistingShareInfo(null)
 					}}
-					showSuccessModal={showSuccessModal}
+					showSuccessModal={showSuccessModal && access.share}
 					existingShareInfo={existingShareInfo}
 					currentFile={currentFile}
 					shareFileId={shareFileId}
@@ -572,7 +614,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 						setShowSuccessModal(false)
 						setExistingShareInfo(null)
 					}}
-					showSimilarSharesDialog={showSimilarSharesDialog}
+					showSimilarSharesDialog={showSimilarSharesDialog && access.share}
 					similarShares={similarShares}
 					onSelectSimilarShare={handleSelectSimilarShare}
 					onCreateNewShare={handleCreateNewShare}
@@ -588,7 +630,10 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		<>
 			<div
 				ref={headerContainerRef}
-				className="relative flex h-11 w-full items-center justify-end gap-2 border-b border-border bg-background px-2.5 text-sm text-muted-foreground"
+				className={cn(
+					"relative flex h-11 w-full shrink-0 items-center justify-end gap-2 bg-background px-2.5 text-sm text-muted-foreground",
+					showBottomBorder && "border-b border-border",
+				)}
 				data-testid="detail-header"
 				data-file-id={currentFile?.id}
 			>
@@ -605,16 +650,17 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 					}
 					onRollback={handleVersionRollback}
 					allowEdit={allowEdit}
+					beforeAction={beforeAction}
 				/>
 			) : null}
 
 			<FileShareModals
-				shareModalVisible={shareModalVisible}
+				shareModalVisible={shareModalVisible && access.share}
 				onCloseShareModal={() => {
 					setShareModalVisible(false)
 					setExistingShareInfo(null)
 				}}
-				showSuccessModal={showSuccessModal}
+				showSuccessModal={showSuccessModal && access.share}
 				existingShareInfo={existingShareInfo}
 				currentFile={currentFile}
 				shareFileId={shareFileId}
@@ -625,7 +671,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 					setShowSuccessModal(false)
 					setExistingShareInfo(null)
 				}}
-				showSimilarSharesDialog={showSimilarSharesDialog}
+				showSimilarSharesDialog={showSimilarSharesDialog && access.share}
 				similarShares={similarShares}
 				onSelectSimilarShare={handleSelectSimilarShare}
 				onCreateNewShare={handleCreateNewShare}

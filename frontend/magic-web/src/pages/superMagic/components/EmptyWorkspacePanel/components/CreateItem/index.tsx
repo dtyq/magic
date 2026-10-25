@@ -1,5 +1,5 @@
 import { useHover } from "ahooks"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useRef } from "react"
 import IconCreateProjectStar1 from "@/enhance/tabler/icons-react/icons/IconCreateProjectStar1"
 import IconCreateProjectStar2 from "@/enhance/tabler/icons-react/icons/IconCreateProjectStar2"

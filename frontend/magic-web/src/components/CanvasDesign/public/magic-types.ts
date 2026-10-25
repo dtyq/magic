@@ -4,7 +4,12 @@ import type {
 	CanvasFileElement,
 	MarkerTypeEnum,
 	CropConfig,
+	ElementType,
 } from "../runtime/document/types"
+import type {
+	CanvasResourceReferenceResolverSnapshot,
+	ResolveCanvasResourceReference,
+} from "./resource-reference"
 
 // 附件来源
 export const AttachmentSource = {
@@ -42,7 +47,7 @@ export const ImageModelStatus = {
 /**
  * 图片/视频生成状态枚举
  */
-export type GenerationStatus = "pending" | "processing" | "completed" | "failed"
+export type GenerationStatus = "pending" | "processing" | "completed" | "failed" | "terminated"
 
 /**
  * 图片/视频生成状态枚举值
@@ -56,6 +61,8 @@ export const GenerationStatus = {
 	Completed: "completed",
 	/** 失败 */
 	Failed: "failed",
+	/** 已终止（用户终止任务 / 任务转向，节点保留） */
+	Terminated: "terminated",
 } as const
 
 /**
@@ -172,11 +179,16 @@ export interface VideoModelItem {
 
 /** 视频输入模式 */
 export type VideoInputMode =
-	"standard" | "image_reference" | "omni_reference" | "video_edit" | "keyframe_guided"
+	| "standard"
+	| "image_reference"
+	| "omni_reference"
+	| "video_edit"
+	| "keyframe_guided"
+	| "draft_task"
 
 /** 输入模式下允许提交的素材字段 */
 export type VideoInputModeSupportedField =
-	"reference_images" | "reference_videos" | "reference_audios" | "frames"
+	"reference_images" | "reference_videos" | "reference_audios" | "frames" | "draft_task"
 
 /**
  * 模式级/变体级生成参数限制。
@@ -285,10 +297,28 @@ export interface VideoGenerationSizeOption {
 	resolution: string
 }
 
+/** 视频生成时长范围（秒） */
+export interface VideoGenerationDurationRange {
+	min: number
+	max: number
+	step: number
+}
+
+export type VideoGenerationDurations = number[] | VideoGenerationDurationRange
+export interface VideoGenerationSwitchConfig {
+	type: "switch"
+	default: boolean
+	name: string
+	description?: string
+	/** 开关启用时进一步收窄当前模式可选的生成参数。 */
+	constraints?: VideoGenerationConstraints
+}
 /**
  * 视频模型元数据：能力、可选生成参数与约束
  */
 export interface VideoGenerationConfig {
+	/** 模型支持的原始输入能力标识（用于保留后端元数据） */
+	supported_inputs?: string[]
 	/** 后端下发的输入模式与每模式下的字段约束 */
 	input_modes?: VideoInputModesMap
 	/** 参考图能力与限制 */
@@ -297,10 +327,18 @@ export interface VideoGenerationConfig {
 	generation?: {
 		/** 可选宽高比列表，如 16:9 */
 		aspect_ratios?: string[]
-		/** 可选时长（秒） */
-		durations?: number[]
+		/** 可选时长（秒）；离散选项或范围 */
+		durations?: VideoGenerationDurations
+		/** 时长选择模式；未下发时由 durations 结构推导 */
+		duration_type?: "options" | "range"
 		/** 默认时长（秒） */
 		default_duration_seconds?: number
+		/** 是否生成音频 */
+		generate_audio?: VideoGenerationSwitchConfig
+		/** 是否启用网络搜索 */
+		web_search?: VideoGenerationSwitchConfig
+		/** 样片模式开关（仅由服务端声明该能力的模型支持）：先出低分辨率样片，再出正片 */
+		draft?: VideoGenerationSwitchConfig
 		/** 可选分辨率列表，如 1080p */
 		resolutions?: string[]
 		/** 可选输出尺寸（与 aspect_ratios、resolutions 组合一一对应时可优先使用） */
@@ -351,7 +389,7 @@ export interface GenerateVideoFrameInput {
 
 /** 参考图输入项 */
 export interface GenerateVideoReferenceImageInput {
-	/** 资源 URI（PATH）；DSL 中存相对路径，发请求时会还原为工作区绝对路径 */
+	/** 资源 URI；工作区路径发请求时还原为绝对路径，opaque asset URI 原样透传 */
 	uri: string
 	/** 参考图类型，如 asset / style */
 	reference_type?: VideoReferenceImageType
@@ -389,6 +427,11 @@ export interface GenerateVideoInputs {
 		/** 资源 URI（PATH）；DSL 中存相对路径，发请求时会还原为工作区绝对路径 */
 		uri: string
 	}
+	/** 样片成片输入；优先使用业务 video_id，旧数据可回退工作区 URI。 */
+	draft_task?: {
+		video_id?: string
+		uri?: string
+	}
 	/** 音频资源列表 */
 	audio?: Array<{
 		/** 资源 URI（PATH）；DSL 中存相对路径，发请求时会还原为工作区绝对路径 */
@@ -398,6 +441,8 @@ export interface GenerateVideoInputs {
 
 /** 单次视频生成的参数（与 inputs 并列） */
 export interface GenerateVideoGeneration {
+	/** 是否生成样片；样片视频在画布播放器中显示样片标识。 */
+	draft?: boolean
 	/** 宽高比，如 16:9 */
 	aspect_ratio?: string
 	/** 分辨率，如 1080p */
@@ -410,6 +455,10 @@ export interface GenerateVideoGeneration {
 	negative_prompt?: string
 	/** 是否生成音频 */
 	generate_audio?: boolean
+	/** 是否启用网络搜索 */
+	web_search?: boolean
+	/** 是否以样片模式生成；仅在模型能力声明 draft 时发送 */
+	draft?: boolean
 	/** 人物生成策略 */
 	person_generation?: string
 	/** 是否增强提示词 */
@@ -477,6 +526,8 @@ export interface DefaultGenerateVideoConfig {
  * 发起图片生成请求参数
  */
 export interface GenerateImageRequest {
+	/** 该版本的生成名称；最终文件名仍由生成结果确定。 */
+	name?: string
 	/** 项目 id */
 	project_id?: string
 	/** 图片 id */
@@ -489,6 +540,10 @@ export interface GenerateImageRequest {
 	size?: string
 	/** 分辨率（对应 scale 值） */
 	resolution?: string
+	/** 任务发起时间；建单后更新为后端返回的真实起点。 */
+	start_time?: string
+	/** 预期完成时间，后端写入的 ISO 8601 日期时间（如 2026-09-28T20:44:16+08:00），用于估算进度 */
+	expected_finished_at?: string
 	/** 文件目录，一定是本项目存在的目录 */
 	file_dir?: string
 	/** 参考图；DSL 中存相对路径，发请求时会还原为工作区绝对路径 */
@@ -533,6 +588,10 @@ export interface GenerateImageResponse {
 	file_url: string | null
 	/** ID */
 	id: string
+	/** 任务发起时间（ISO 8601 日期时间），与 expected_finished_at 配对计算进度 */
+	started_at?: string
+	/** 预期完成时间（ISO 8601 日期时间），后端下发，用于估算进度；聊天工具卡用的是同一个值 */
+	expected_finished_at?: string
 }
 
 export interface GeneratedImageResultItem {
@@ -578,6 +637,10 @@ export interface GenerateImagesResponse {
 	error_message: string | null
 	/** 已返回的图片列表 */
 	images: GeneratedImageResultItem[]
+	/** 任务发起时间（ISO 8601 日期时间），与 expected_finished_at 配对计算进度 */
+	started_at?: string
+	/** 预期完成时间（ISO 8601 日期时间），后端下发，用于估算进度 */
+	expected_finished_at?: string
 }
 
 /**
@@ -795,8 +858,29 @@ export interface GenerateVideoRequest {
 	callbacks?: Record<string, unknown>
 	/** 执行配置 */
 	execution?: Record<string, unknown>
+	/** 画布合成输入快照；数组顺序即合并顺序 */
+	composition?: GenerateVideoComposition
 	/** 扩展配置 */
-	extensions?: Record<string, unknown>
+	extensions?: {
+		output_file_name?: string
+		[key: string]: unknown
+	}
+	/** 画布合成任务类型 */
+	generation_type?: "canvas_composition" | string
+	/** 当前话题 id（画布合成任务使用） */
+	topic_id?: string
+}
+
+export interface GenerateVideoCompositionInput {
+	/** 项目文件根目录下的规范化绝对路径 */
+	path: string
+}
+
+export interface GenerateVideoComposition {
+	/** 按合并顺序排列的视频 */
+	videos: GenerateVideoCompositionInput[]
+	/** 按处理顺序排列的音频 */
+	audios?: GenerateVideoCompositionInput[]
 }
 
 /**
@@ -808,17 +892,17 @@ export interface GenerateVideoResponse {
 	/** 视频 id */
 	video_id: string
 	/** 模型 id */
-	model_id: string
+	model_id: string | null
 	/** 提示词 */
-	prompt: string
+	prompt: string | null
 	/** 输入模式 */
 	input_mode?: VideoInputMode
 	/** 任务类型 */
 	task?: GenerateVideoTask
 	/** 文件目录 */
-	file_dir: string
+	file_dir: string | null
 	/** 文件名 */
-	file_name: string
+	file_name: string | null
 	/** 输入素材 */
 	inputs?: GenerateVideoInputs
 	/** 生成参数 */
@@ -833,6 +917,8 @@ export interface GenerateVideoResponse {
 	updated_at: string
 	/** 文件 URL */
 	file_url: string | null
+	/** 画布合成任务类型 */
+	generation_type?: "canvas_composition" | string
 	/** ID */
 	id: string
 }
@@ -879,8 +965,8 @@ export interface DownloadImageOptions {
  * 获取高清图片生成配置响应数据
  */
 export interface GetConvertHightConfigResponse {
-	/** 是否支持转高清，如果没有配置则不支持转高清 */
-	supported: boolean
+	/** 后台是否开启转高清能力 */
+	enabled: boolean
 	/** 支持的尺寸配置列表 */
 	image_size_config?: {
 		sizes: {
@@ -889,8 +975,28 @@ export interface GetConvertHightConfigResponse {
 			/** 尺寸值，格式为 "宽度x高度"，如 "1024x1024" */
 			value: string
 			/** 分辨率等级，如 "1K", "2K", "4K" */
-			scale: string
+			scale: string | null
 		}[]
+	}
+}
+
+/** 获取 AI 能力可用性响应数据 */
+export interface AiAbilityAvailability {
+	abilities: {
+		/** 是否支持 Seedance 合规校验。关闭时元素菜单和素材库操作菜单都不提供该操作。 */
+		volcengine_ark_assets?: {
+			enabled?: boolean
+		}
+		image_convert_high: GetConvertHightConfigResponse
+		image_remove_background: {
+			enabled: boolean
+		}
+		image_eraser: {
+			enabled: boolean
+		}
+		image_expand: {
+			enabled: boolean
+		}
 	}
 }
 
@@ -936,6 +1042,10 @@ export interface ImageGenerationResultResponse {
 	file_url: string
 	/** ID */
 	id: string
+	/** 任务发起时间（ISO 8601 日期时间），与 expected_finished_at 配对计算进度 */
+	started_at?: string
+	/** 预期完成时间（ISO 8601 日期时间），用于估算进度 */
+	expected_finished_at?: string
 }
 
 /**
@@ -974,6 +1084,10 @@ export interface ImageGenerationResultsResponse {
 	error_message: string | null
 	/** 已返回的图片列表 */
 	images: GeneratedImageResultItem[]
+	/** 任务发起时间（ISO 8601 日期时间），与 expected_finished_at 配对计算进度 */
+	started_at?: string
+	/** 预期完成时间（ISO 8601 日期时间），用于估算进度 */
+	expected_finished_at?: string
 }
 
 /**
@@ -995,15 +1109,15 @@ export interface VideoGenerationResultResponse {
 	/** 视频 id */
 	video_id: string
 	/** 模型 id */
-	model_id: string
+	model_id: string | null
 	/** 提示词 */
-	prompt: string
+	prompt: string | null
 	/** 任务类型 */
 	task?: GenerateVideoTask
 	/** 文件目录 */
-	file_dir: string
+	file_dir: string | null
 	/** 文件名 */
-	file_name: string
+	file_name: string | null
 	/** 输入素材 */
 	inputs?: GenerateVideoInputs
 	/** 生成参数 */
@@ -1019,7 +1133,7 @@ export interface VideoGenerationResultResponse {
 	/** 更新时间 */
 	updated_at: string
 	/** 文件 URL */
-	file_url: string
+	file_url: string | null
 	/** ID */
 	file_id: string
 	/** 海报文件 ID */
@@ -1032,6 +1146,8 @@ export interface VideoGenerationResultResponse {
 	generation_info?: VideoGenerationInfo | null
 	/** 运行时间信息 */
 	runtime?: VideoGenerationRuntimeInfo | null
+	/** 画布合成任务类型 */
+	generation_type?: "canvas_composition" | string
 }
 
 /**
@@ -1063,6 +1179,130 @@ export interface GetFileInfoResponse {
 }
 
 export type FileUrlRequestPriority = "critical" | "visible" | "near" | "background"
+
+/** 资产库媒体类型。资产路径本身不携带媒体类型，类型必须来自资产元数据或显式引用。 */
+export type CanvasAssetMediaType = "image" | "video" | "audio"
+
+/** 资产库合规状态；仅在调用方明确要求合规的生成能力中参与前置校验。 */
+export type CanvasAssetComplianceStatus = "UNVERIFIED" | "PROCESSING" | "PASS" | "FAILED"
+
+/** 单素材异步合规轮询结果。 */
+export interface CanvasAssetComplianceState {
+	assetId: string
+	status: CanvasAssetComplianceStatus
+	failedReason: string | null
+}
+
+/** CanvasDesign 运行时使用的资产详情，不包含可持久化的 workspace 路径。 */
+export interface CanvasAssetResourceInfo {
+	/** 资产服务中的稳定 ID。 */
+	assetId: string
+	/** 由资产接口返回的媒体类型；null 表示接口暂未提供类型。 */
+	mediaType: CanvasAssetMediaType | null
+	/** 当前会话可用的签名资源地址；不得写入 Canvas 文档或离线缓存。 */
+	fileUrl: string | null
+	/** 后端可选返回的签名地址过期时间；旧后端缺失时保持 undefined。 */
+	expiresAt?: string
+	fileName?: string
+	complianceStatus?: CanvasAssetComplianceStatus | null
+	complianceFailedReason?: string | null
+}
+
+/** 请求宿主打开“保存到素材库”弹窗时携带的当前图片或视频信息。 */
+export interface CanvasOpenSaveAssetDialogParams {
+	/** 打开弹窗时捕获的媒体元素 ID。 */
+	elementId: string
+	/** 打开弹窗时捕获的媒体 Content ID。 */
+	contentId: string
+	/** Canvas 文档中保存的媒体路径，仅允许宿主可解析的工作区文件。 */
+	path: string
+	/** 用作弹窗默认值的素材名称。 */
+	name?: string
+}
+
+/** 对已有工作区图片或视频发起合规校验；后端会创建素材并返回其 assetId。 */
+export interface CanvasStartWorkspaceMediaComplianceParams {
+	/** Canvas 文档中保存的媒体路径。 */
+	path: string
+	/** 发起工作区文件合规时使用的素材名称。 */
+	name: string
+}
+
+/** 使用 file_key 对素材库已有 asset 发起合规，不写回画布 DSL。 */
+export interface CanvasStartExistingAssetComplianceParams {
+	assetId: string
+	/** 素材库或 Canvas 详情中的 file_key；已有素材合规只允许该来源。 */
+	fileKey?: string
+	name?: string
+}
+
+/** 保存工作区媒体到素材库时由弹窗提交的可编辑信息。 */
+export interface CanvasSaveAssetToLibraryParams extends CanvasOpenSaveAssetDialogParams {
+	name: string
+	description?: string | null
+	userIds?: string[]
+	departmentIds?: string[]
+	tagIds?: string[]
+}
+
+/** 已有素材的元数据更新参数；不携带文件路径或文件内容。 */
+export interface CanvasUpdateAssetParams {
+	name: string
+	description: string
+	userIds?: string[]
+	departmentIds?: string[]
+	tagIds: string[]
+}
+
+export type CanvasLocalAssetUploadMode = "save" | "verify"
+
+export interface CanvasAssetVisibilityTarget {
+	id: string
+	name: string
+	type: "user" | "department"
+}
+
+/** 编辑已有素材时复用保存弹窗；素材文件本身始终保持不变。 */
+export interface CanvasEditAssetTarget {
+	assetId: string
+	name: string
+	description: string
+	fileUrl: string | null
+	mediaType: CanvasAssetMediaType | null
+	visibility: "private" | "team"
+	userIds?: string[]
+	departmentIds?: string[]
+	visibilityTargets?: CanvasAssetVisibilityTarget[]
+	/** 未读取到授权明细时只允许编辑元数据和标签，避免误清权限。 */
+	visibilityEditable?: boolean
+	tagIds: string[]
+}
+
+/** 素材库卡片请求宿主打开编辑弹窗。提交仍由弹窗显式触发。 */
+export interface CanvasOpenEditAssetDialogParams {
+	asset: CanvasEditAssetTarget
+	onUpdated: () => void
+	onClosed: () => void
+}
+
+/** 素材库上传卡片选中本地文件后，请求宿主打开同一套保存弹窗。 */
+export interface CanvasOpenSaveLocalAssetDialogParams {
+	file: File
+	mode: CanvasLocalAssetUploadMode
+	onSaved: (asset: CanvasAssetResourceInfo) => void
+	onClosed: () => void
+}
+
+/** 本地文件保存到素材库：先落入当前画布目录，再提交素材信息。 */
+export interface CanvasSaveLocalAssetToLibraryParams {
+	file: File
+	mode: CanvasLocalAssetUploadMode
+	name: string
+	description?: string | null
+	userIds?: string[]
+	departmentIds?: string[]
+	tagIds?: string[]
+}
 
 export interface CanvasFileResourceMeta {
 	status: "exists" | "deleted" | "unknown"
@@ -1102,6 +1342,10 @@ export interface UploadFile {
 	onUploadComplete: (result: UploadFileResponse) => void
 	/** 单个文件上传失败回调 */
 	onUploadFailed: (error: Error) => void
+	/** 上传开始回调（可选，保持既有宿主实现兼容） */
+	onUploadStart?: () => void
+	/** 单个文件上传进度回调，值为 0-100（可选） */
+	onUploadProgress?: (progress: number) => void
 }
 
 /**
@@ -1128,6 +1372,17 @@ export interface UploadPrivateFile extends Omit<UploadFile, "overwrite" | "uploa
 export interface UploadFileResponse extends GetFileInfoResponse {
 	/** 文件路径（用于 reference_images 等） */
 	path: string
+	/**
+	 * 宿主附件 id。有则 mention/跨编辑器预览优先使用；
+	 * 无则仅用 path，由 resolveResourceReference 解析身份。
+	 */
+	file_id?: string
+	/** 跨项目粘贴时的源附件 id */
+	source_file_id?: string
+	/** 跨项目粘贴时的源项目 id */
+	source_project_id?: string
+	/** 当前项目 id（可选） */
+	project_id?: string
 }
 
 /**
@@ -1242,21 +1497,22 @@ export interface CanvasDesignStorageData {
 	viewport?: ViewportState
 	/** 当前设计项目的小地图面板是否展开 */
 	minimapOpen?: boolean
+	/** 当前设计项目是否常驻显示图片和视频的标题、分辨率标签 */
+	mediaLabelsAlwaysVisible?: boolean
 	expandedElementIds?: string[]
 	layersCollapsed?: boolean
 	layersWidth?: number
+	layersFilter?: CanvasLayersFilterState
 	markers?: Marker[]
-	/** 图片元素临时配置（未发送前的配置） */
-	tempImageConfigs?: Record<string, Partial<GenerateImageRequest>>
-	/** 视频元素临时配置（未发送前的配置） */
-	tempVideoConfigs?: Record<string, Partial<GenerateVideoRequest>>
 	/** 关联文本的用户选择与顺序（不进入生成 API） */
 	tempLinkedEditorDrafts?: Record<string, StoredLinkedEditorDraftV1 | StoredLinkedEditorDraft>
-	/**
-	 * 视频元素各 input_mode 互斥区暂存（不入生成 API，仅编辑器与本地缓存）
-	 * key 为画布元素 id
-	 */
-	tempVideoModeDrafts?: Record<string, StoredVideoModeDraftsMap>
+}
+
+/** 图层列表的持久化筛选条件。 */
+export interface CanvasLayersFilterState {
+	visibility: "all" | "visible" | "hidden"
+	locked: "all" | "locked" | "unlocked"
+	types: ElementType[]
 }
 
 /** v1 草稿兼容读取类型；媒体 selected ID 仅为历史字段，不再参与业务状态。 */
@@ -1283,21 +1539,45 @@ export interface StoredLinkedFrameBinding {
 	frameRole: "start" | "end"
 }
 
-/** 与 VideoGenerateEditor 中单模式草稿结构一致，用于 localStorage 持久化 */
+/** 视频编辑器按输入模式保存的可恢复配置。 */
 export interface StoredVideoModeInputDraft {
 	prompt?: string
 	activeInputTab?: "frame" | "reference"
-	frameImageInfos: Array<UploadFileResponse | undefined>
-	referenceImageInfos: Array<UploadFileResponse & { assetType: "image" | "video" | "audio" }>
+	frameImageInfos?: Array<UploadFileResponse | undefined>
 	linkedFrameBindings?: Array<StoredLinkedFrameBinding | undefined>
+	referenceAssetInfos?: Array<UploadFileResponse & { assetType: "image" | "video" | "audio" }>
 }
 
-export type StoredVideoModeDraftsMap = Partial<
-	Record<
-		"standard" | "keyframe_guided" | "image_reference" | "omni_reference" | "video_edit",
-		StoredVideoModeInputDraft
-	>
->
+/**
+ * 编辑器恢复用的有序 mention 绑定。
+ * 按 prompt 中 @ 出现顺序保存，避免同名文件仅靠 fileName 反推导致路径/身份漂移。
+ */
+export interface StoredMentionPathBinding {
+	fileName: string
+	path: string
+	/** 宿主附件 id；有则优先于 path 作为跨编辑器身份 */
+	fileId?: string
+	sourceFileId?: string
+	sourceProjectId?: string
+	projectId?: string
+}
+
+/**
+ * 未提交的视频编辑草稿。
+ * 与 generateVideoRequest 分离，避免刷新恢复草稿时被误判为已创建的生成任务。
+ */
+export interface StoredVideoEditorDraft {
+	version: 1
+	request: Partial<GenerateVideoRequest>
+	modeDrafts: Partial<Record<VideoInputMode, StoredVideoModeInputDraft>>
+	/** 快捷编辑源视频。跨输入模式保留，避免切换模式时丢失当前视频。 */
+	quickEditSource?: UploadFileResponse & { assetType: "video" }
+	/** 用户已明确移除快捷编辑源视频；避免重新打开或切换模式时自动复活。 */
+	quickEditSourceRemoved?: boolean
+	/** 按 prompt mention 出现顺序保存的结构化身份，关闭重开后直接重建节点。 */
+	mentionBindings?: StoredMentionPathBinding[]
+	updatedAt: number
+}
 
 export interface CanvasMediaPlacementConfig {
 	/** 新建媒体元素之间的最小间距 */
@@ -1344,8 +1624,38 @@ export interface CanvasDesignConfirmModalOptions {
 	cancelText?: string
 	okButtonProps?: Record<string, unknown>
 	cancelButtonProps?: Record<string, unknown>
+	variant?: "default" | "destructive"
+	showIcon?: boolean
 	onOk?: () => void | Promise<void>
 	onCancel?: () => void
+}
+
+export interface CanvasImageRenameFile {
+	fileId: string
+	fileName: string
+	sourcePath: string
+	parentPath: string
+}
+
+export interface CanvasImageFileRename {
+	elementId: string
+	contentId: string
+	fileId: string
+	expectedName: string
+	targetName: string
+}
+
+export interface CanvasImageRenameMethods {
+	resolveImageRenameFile: (path: string) => CanvasImageRenameFile | undefined
+	validateImageFileRenames: (changes: readonly CanvasImageFileRename[]) => Record<string, string>
+	renameImageFile: (change: CanvasImageFileRename) => Promise<CanvasImageRenameFile>
+}
+
+export interface CanvasDesignConfirmModalHandle {
+	/** 范围切换只更新确认按钮，不重建弹窗或触发删除。 */
+	update: (
+		options: Pick<CanvasDesignConfirmModalOptions, "content" | "okText" | "okButtonProps">,
+	) => void
 }
 
 /**
@@ -1354,6 +1664,8 @@ export interface CanvasDesignConfirmModalOptions {
  * 注意：此接口完全独立，不依赖外部类型
  */
 export interface CanvasDesignMethods {
+	/** 手动图片命名由宿主处理实际文件；自动标题更新不触发文件改名。 */
+	imageRename?: CanvasImageRenameMethods
 	/**
 	 * 获取生图模型列表
 	 * @param mode 模式标识，如果不传则使用当前模式
@@ -1436,6 +1748,11 @@ export interface CanvasDesignMethods {
 	 */
 	getConvertHightConfig: () => Promise<GetConvertHightConfigResponse>
 	/**
+	 * 获取画布 AI 能力可用性
+	 * @returns Promise<AI 能力可用性响应数据>
+	 */
+	getAiAbilityAvailability?: () => Promise<AiAbilityAvailability>
+	/**
 	 * 查询图片生成结果
 	 * @param params 查询参数
 	 * @returns Promise<图片生成结果响应数据>
@@ -1470,6 +1787,10 @@ export interface CanvasDesignMethods {
 		fileName?: string
 		locateInTree?: boolean
 	}) => Promise<void> | void
+	/** 将项目文件移入回收站，并返回服务端确认已处理的文件 ID。 */
+	deleteProjectFiles?: (params: {
+		fileIds: readonly string[]
+	}) => Promise<{ deletedFileIds: string[] }>
 	/**
 	 * 上传文件
 	 * @param uploadFiles 待上传文件数组
@@ -1497,6 +1818,59 @@ export interface CanvasDesignMethods {
 		},
 	) => Promise<GetFileInfoResponse>
 	/**
+	 * 获取素材库资源详情。用于兼容解析 asset://<asset_id>，也用于按 assetId
+	 * 将素材导入当前 Canvas；普通 workspace 路径仍通过 getFileInfo 获取 URL。
+	 */
+	getAssetResourceInfo?: (
+		assetId: string,
+		options?: {
+			forceRefresh?: boolean
+			priority?: FileUrlRequestPriority
+		},
+	) => Promise<CanvasAssetResourceInfo>
+	/** 批量获取素材详情，用于 Canvas 加载和应用素材前刷新动态资源信息。 */
+	getAssetResourceInfos?: (
+		assetIds: string[],
+		options?: { forceRefresh?: boolean },
+	) => Promise<CanvasAssetResourceInfo[]>
+	/** 获取单个素材的异步合规状态，用于 Canvas 级轮询管理器。 */
+	getAssetComplianceStatus?: (assetId: string) => Promise<CanvasAssetComplianceState>
+	/** 批量获取素材的异步合规状态，用于多个素材共享一次轮询请求。 */
+	getAssetComplianceStatuses?: (assetIds: string[]) => Promise<CanvasAssetComplianceState[]>
+	/** 请求宿主打开素材信息编辑弹窗；该入口本身不得直接发起保存。 */
+	openSaveAssetToLibraryDialog?: (params: CanvasOpenSaveAssetDialogParams) => void
+	/** 素材库本地上传：打开保存弹窗，不在选文件时直接入库。 */
+	openSaveLocalAssetDialog?: (params: CanvasOpenSaveLocalAssetDialogParams) => void
+	/** 素材库卡片编辑：复用保存弹窗编辑素材元数据和标签。 */
+	openEditAssetDialog?: (params: CanvasOpenEditAssetDialogParams) => void
+	/** 将本地文件上传到当前画布 images/videos 后保存到素材库。 */
+	saveLocalAssetToLibrary?: (
+		params: CanvasSaveLocalAssetToLibraryParams,
+	) => Promise<CanvasAssetResourceInfo>
+	/**
+	 * 认证上传前确认承诺书已签署。未签署时由宿主打开签署弹窗，
+	 * 用户同意并签署成功后 resolve true。
+	 */
+	ensureAssetAgreementSigned?: (options?: { onSigned?: () => void }) => Promise<boolean>
+	/** 将工作区媒体保存到素材库；宿主负责解析项目路径并注入 project_id。 */
+	saveAssetToLibrary?: (
+		params: CanvasSaveAssetToLibraryParams,
+	) => Promise<CanvasAssetResourceInfo>
+	/**
+	 * 对当前画布工作区文件发起合规校验。后端会在流程中创建素材；返回值里的
+	 * assetId 必须绑定回发起校验的 Content。
+	 */
+	startWorkspaceMediaCompliance?: (
+		params: CanvasStartWorkspaceMediaComplianceParams,
+	) => Promise<CanvasAssetResourceInfo>
+	/**
+	 * 对素材库已有 asset 使用 file_key 发起合规，不创建新的 Canvas 素材绑定。
+	 * 入参 assetId 是稳定素材 ID，调用方始终使用它轮询和刷新状态。
+	 */
+	startExistingAssetCompliance?: (
+		params: CanvasStartExistingAssetComplianceParams,
+	) => Promise<CanvasAssetResourceInfo>
+	/**
 	 * 获取资源轻量版本信息；用于 cache hit 后台校验，不应触发 OSS 换链或下载 body
 	 * @param path 文件路径
 	 * @param options.useImageProcess 是否按图片资源变体计算版本
@@ -1506,21 +1880,14 @@ export interface CanvasDesignMethods {
 		options?: { useImageProcess?: boolean },
 	) => Promise<CanvasFileResourceMeta>
 	/**
-	 * 将画布中记录的资源路径（如 ./xxx/xx）解析为宿主可识别的绝对路径（必选；画布资源同一性与此对齐）
-	 * @param path 原始资源路径（相对或绝对）
-	 * @returns 解析后的绝对路径，例如：/workspace/xxx/xx
+	 * Resolve paths, attachment nodes, storage values, and resource identities through the
+	 * host's authoritative namespace-aware resource model.
 	 */
-	resolveAbsolutePath: (path: string) => string
-	/**
-	 * 返回与原始资源路径指向同一文件的宿主安全候选路径。
-	 * 宿主必须避免返回可能跨画布串线的 suffix 猜测。
-	 */
-	resolveResourcePathCandidates?: (path: string) => string[]
-	/**
-	 * 将宿主工作区路径转换为画布持久化路径。
-	 * 当前画布资源应返回 `./...`，其他工作区资源应返回 `/...`。
-	 */
-	normalizeResourcePathForStorage?: (path: string) => string
+	resolveResourceReference: ResolveCanvasResourceReference
+	/** Resolver 与语义 revision 的原子快照；Canvas 运行时优先使用此入口。 */
+	resourceReferenceResolverSnapshot?: CanvasResourceReferenceResolverSnapshot
+	/** @deprecated 兼容旧宿主；新实现应通过 resourceReferenceResolverSnapshot 提供 revision。 */
+	resourceReferenceResolverVersion?: string
 	/**
 	 * 获取画布虚拟媒体资源的宿主 scope，用于在同源虚拟链接中隔离工作区/项目上下文。
 	 * @returns 例如：/global/super/{workspaceId}/{projectId}
@@ -1594,12 +1961,52 @@ export interface CanvasDesignMethods {
 	 * 确认弹窗（可选）
 	 * 注入后 CanvasDesign 可复用宿主弹窗样式；未注入时由内部组件自行降级实现
 	 */
-	confirmModal?: (options: CanvasDesignConfirmModalOptions) => void
+	confirmModal?: (options: CanvasDesignConfirmModalOptions) => CanvasDesignConfirmModalHandle
 	/**
 	 * 剪贴板读写方法（可选）
 	 * 注入后 CanvasDesign 使用注入实现，否则降级到 navigator.clipboard
 	 */
 	clipboard?: CanvasDesignClipboard
+	/**
+	 * 将画布剪贴板中的源资源物化为目标控件可上传的 File。
+	 * 宿主可在此处执行跨项目权限校验、过期 URL 刷新和资源转移。
+	 */
+	materializeCanvasClipboardAsset?: (input: {
+		sourceCanvasId?: string
+		resourceIdentity?: string
+		sourcePath?: string
+		sourceRef?: {
+			src?: string
+			ossUrl?: string
+			expiresAt?: string
+		}
+		fileName: string
+		mimeType: string
+	}) => Promise<File | null>
+	/** 将画布剪贴板资源解析为目标控件可直接引用的规范路径。 */
+	resolveCanvasClipboardReference?: (input: {
+		sourceProjectId?: string
+		sourceCanvasId?: string
+		sourceFileId?: string
+		resourceIdentity?: string
+		sourcePath?: string
+		projectPath?: string
+		fileName?: string
+		targetProjectId?: string
+		targetCanvasId?: string
+		target: "canvas-editor" | "message-editor"
+	}) => Promise<{
+		kind: "current-canvas" | "project"
+		path: string
+		fileId?: string
+		projectPath?: string
+		resourceIdentity: string
+		fileName: string
+		/** 服务端复制已成功，但目标画布附件快照尚未确认该路径。 */
+		awaitingAttachmentConfirmation?: boolean
+	} | null>
+	/** 当前画布所属项目/画布上下文，供剪贴板协议写入来源身份。 */
+	getCanvasClipboardContext?: () => { projectId?: string; canvasId?: string }
 }
 
 /**

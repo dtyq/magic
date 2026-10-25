@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { MyCrewView } from "@/services/crew/CrewService"
 
 interface MyCrewCardMainSectionProps {

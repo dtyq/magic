@@ -12,6 +12,7 @@ use App\Domain\SuperMagic\File\Repository\Facade\FileCollectionRepositoryInterfa
 use App\Domain\SuperMagic\File\Repository\Model\FileCollectionModel;
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Hyperf\DbConnection\Db;
 
 /**
  * 文件集仓储实现.
@@ -54,6 +55,18 @@ class FileCollectionRepository extends AbstractRepository implements FileCollect
         $entity->setId((int) $model->id);
 
         return $entity;
+    }
+
+    public function touch(int $id, string $updatedUid = ''): bool
+    {
+        $data = [
+            'updated_at' => date('Y-m-d H:i:s'),
+            'scope_version' => Db::raw('scope_version + 1'),
+        ];
+        if ($updatedUid !== '') {
+            $data['updated_uid'] = $updatedUid;
+        }
+        return $this->model->newQuery()->where('id', $id)->update($data) > 0;
     }
 
     /**
@@ -100,6 +113,7 @@ class FileCollectionRepository extends AbstractRepository implements FileCollect
         if ($model->deleted_at) {
             $entity->setDeletedAt($model->deleted_at);
         }
+        $entity->setScopeVersion((int) ($model->scope_version ?? 1));
 
         return $entity;
     }
@@ -117,6 +131,7 @@ class FileCollectionRepository extends AbstractRepository implements FileCollect
             'created_at' => $entity->getCreatedAt(),
             'updated_at' => $entity->getUpdatedAt(),
             'deleted_at' => $entity->getDeletedAt(),
+            'scope_version' => $entity->getScopeVersion(),
         ];
     }
 }

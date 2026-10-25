@@ -1,5 +1,5 @@
 import Konva from "konva"
-import type { StarElement as StarElementData } from "../../document/types"
+import type { StarElement as StarElementData, StarElementContent } from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
 import { BaseElement } from "../core/BaseElement"
 import type { Canvas } from "../../core/Canvas"
@@ -54,27 +54,30 @@ export class StarElement extends BaseElement<StarElementData> {
 			width,
 			height,
 			zIndex,
-			fill: defaultConfig.fill,
-			sides: defaultConfig.sides,
-			innerRadiusRatio: defaultConfig.innerRadiusRatio,
+			activeContentId: `${id}-content-1`,
+			mainContentId: `${id}-content-1`,
+			contents: [
+				{
+					contentId: `${id}-content-1`,
+					fill: defaultConfig.fill,
+					sides: defaultConfig.sides,
+					innerRadiusRatio: defaultConfig.innerRadiusRatio,
+				},
+			],
 		}
 	}
 
 	render(): Konva.Star | null {
-		if (
-			!this.data.width ||
-			!this.data.height ||
-			!this.data.sides ||
-			!this.data.innerRadiusRatio
-		)
+		const content = this.getActiveContent<StarElementContent>()
+		if (!this.data.width || !this.data.height || !content?.sides || !content.innerRadiusRatio)
 			return null
 
 		const width = this.data.width
 		const height = this.data.height
 		const radius = Math.min(width, height) / 2
 
-		const sides = this.data.sides
-		const innerRadiusRatio = this.data.innerRadiusRatio
+		const sides = content.sides
+		const innerRadiusRatio = content.innerRadiusRatio
 
 		const star = new Konva.Star({
 			numPoints: sides,
@@ -83,9 +86,9 @@ export class StarElement extends BaseElement<StarElementData> {
 			// 星形中心位置需要偏移半径
 			offsetX: -width / 2,
 			offsetY: -height / 2,
-			fill: this.data.fill,
-			stroke: this.data.stroke,
-			strokeWidth: this.data.strokeWidth,
+			fill: content.fill,
+			stroke: content.stroke,
+			strokeWidth: content.strokeWidth,
 		})
 
 		this.finalizeNode(star)
@@ -93,6 +96,7 @@ export class StarElement extends BaseElement<StarElementData> {
 	}
 
 	update(newData: StarElementData): boolean {
+		const content = this.getActiveContent<StarElementContent>(newData)
 		this.data = newData
 
 		// 星形元素不需要重新渲染，所有属性都可以通过 setAttrs 更新
@@ -100,8 +104,8 @@ export class StarElement extends BaseElement<StarElementData> {
 			const width = newData.width || 0
 			const height = newData.height || 0
 			const radius = Math.min(width, height) / 2
-			const sides = newData.sides || 0
-			const innerRadiusRatio = newData.innerRadiusRatio || 0
+			const sides = content?.sides || 0
+			const innerRadiusRatio = content?.innerRadiusRatio || 0
 
 			// 更新基础属性（位置、可见性、透明度、zIndex、锁定状态）
 			this.updateBaseProps(this.node, newData)
@@ -113,9 +117,9 @@ export class StarElement extends BaseElement<StarElementData> {
 				outerRadius: radius,
 				offsetX: -width / 2,
 				offsetY: -height / 2,
-				fill: newData.fill,
-				stroke: newData.stroke,
-				strokeWidth: newData.strokeWidth,
+				fill: content?.fill,
+				stroke: content?.stroke,
+				strokeWidth: content?.strokeWidth,
 			})
 		}
 

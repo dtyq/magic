@@ -1,6 +1,7 @@
 /**
  * 文件处理工具函数
  */
+import type { FSFileItem } from "../iframe-api/services/IframeFSService"
 
 /**
  * 将文件转换为 base64 字符串
@@ -116,6 +117,44 @@ export interface ProjectAttachmentNode {
 	updated_at?: string | number
 	is_directory?: boolean
 	children?: ProjectAttachmentNode[]
+}
+
+const iframeFileListCache = new WeakMap<ProjectAttachmentNode[], FSFileItem[]>()
+const emptyIframeFileList: FSFileItem[] = []
+
+/** 同一附件快照只派生一次纯文件元数据；调用方不能原地修改返回数组或成员。 */
+export function getIframeFileList(nodes: ProjectAttachmentNode[] | undefined): FSFileItem[] {
+	if (!nodes?.length) return emptyIframeFileList
+	const cached = iframeFileListCache.get(nodes)
+	if (cached) return cached
+	const result: FSFileItem[] = []
+	const visited = new Set<ProjectAttachmentNode>()
+	const paths = new Set<string>()
+	const stack = [...nodes].reverse()
+	while (stack.length) {
+		const item = stack.pop()
+		if (!item || visited.has(item)) continue
+		// 平铺列表仍带 children：先阻止重复展开，再按路径保留首个文件，延续原选择顺序。
+		visited.add(item)
+		if (item.file_id && item.relative_file_path) {
+			const path = item.relative_file_path.replace(/^\/+/, "")
+			if (!paths.has(path)) {
+				paths.add(path)
+				result.push({
+					file_id: item.file_id,
+					relative_file_path: item.relative_file_path,
+					file_name: item.file_name,
+					is_directory: item.is_directory,
+					updated_at: item.updated_at === undefined ? undefined : String(item.updated_at),
+				})
+			}
+		}
+		for (let index = (item.children?.length || 0) - 1; index >= 0; index--) {
+			stack.push(item.children![index])
+		}
+	}
+	iframeFileListCache.set(nodes, result)
+	return result
 }
 
 export function normalizeProjectPath(path?: string): string {

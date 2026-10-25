@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import type { TFunction } from "i18next"
-import { Clock3, Loader2, ShieldCheck, ShieldOff } from "lucide-react"
+import { Clock3, Loader2, ShieldCheck, ShieldOff, TriangleAlert } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Button } from "@/components/shadcn-ui/button"
@@ -77,6 +77,7 @@ export function HtmlPermissionItem({
 				</span>
 				{item.declarationStatus === "unsupported" ? <UnsupportedBadge /> : null}
 				<GrantBadge granted={Boolean(grant)} />
+				{grant ? <CodeChangeBadge item={item} /> : null}
 			</div>
 			{grant ? (
 				<>
@@ -195,6 +196,57 @@ export function HtmlPermissionItem({
 				</div>
 			) : null}
 		</div>
+	)
+}
+
+/**
+ * Shows whether the app code changed after the grant was confirmed. Read-only grants stay
+ * valid silently; high-risk ones announce that they will ask again on next use.
+ */
+function CodeChangeBadge({ item }: { item: HtmlPermissionSnapshotItem }) {
+	const { t } = useTranslation("super")
+	if (item.needsReconfirm) {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Badge
+						variant="outline"
+						className="gap-1 border-amber-300 text-amber-700 dark:text-amber-300"
+						data-testid="html-permission-reconfirm-badge"
+					>
+						<TriangleAlert size={12} />
+						{t("htmlEditor.permissionManager.reconfirmNext")}
+					</Badge>
+				</TooltipTrigger>
+				<TooltipContent
+					side="top"
+					className="z-tooltip max-w-80 whitespace-normal text-wrap break-words text-left"
+				>
+					{t("htmlEditor.permissionManager.reconfirmNextHint")}
+				</TooltipContent>
+			</Tooltip>
+		)
+	}
+	if (item.codeStatus !== "changed") return null
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Badge
+					variant="outline"
+					className="gap-1 border-amber-300 text-amber-700 dark:text-amber-300"
+					data-testid="html-permission-code-changed-badge"
+				>
+					<TriangleAlert size={12} />
+					{t("htmlEditor.permissionManager.codeChanged")}
+				</Badge>
+			</TooltipTrigger>
+			<TooltipContent
+				side="top"
+				className="z-tooltip max-w-80 whitespace-normal text-wrap break-words text-left"
+			>
+				{t("htmlEditor.permissionManager.codeChangedHint")}
+			</TooltipContent>
+		</Tooltip>
 	)
 }
 

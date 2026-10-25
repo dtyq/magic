@@ -10,6 +10,7 @@ namespace App\Application\Design\Service;
 use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
 use App\Domain\Design\Entity\ValueObject\ImageMarkIdentifyType;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\MemberRole;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
@@ -132,7 +133,8 @@ class ImageMarkIdentifyAppService extends DesignAppService
                 businessParams: [
                     'organization_id' => $dataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $dataIsolation->getCurrentUserId(),
-                    'source_id' => 'design_image_mark_identify',
+                    'business_id' => (string) $projectId,
+                    'source_id' => SourceId::DESIGN_IMAGE_MARK_IDENTIFY,
                 ]
             );
         } catch (Throwable $throwable) {

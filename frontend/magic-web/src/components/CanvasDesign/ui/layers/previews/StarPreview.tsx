@@ -1,4 +1,5 @@
 import type { StarElement } from "../../../runtime/document/types"
+import { getActiveContent } from "../../../runtime/document/elementContent"
 
 interface StarPreviewProps {
 	element: StarElement
@@ -11,11 +12,12 @@ const CENTER_X = SIZE / 2
 const CENTER_Y = SIZE / 2
 
 export function StarPreview({ element }: StarPreviewProps) {
-	const fill = element.fill || "#969696"
-	const stroke = element.stroke || "transparent"
-	const strokeWidth = element.strokeWidth || 0
-	const sides = element.sides || 5
-	const innerRadiusRatio = element.innerRadiusRatio || 0.4
+	const content = getActiveContent(element)
+	const fill = content?.fill || "#969696"
+	const stroke = content?.stroke || "transparent"
+	const strokeWidth = content?.strokeWidth || 0
+	const sides = content?.sides || 5
+	const innerRadiusRatio = content?.innerRadiusRatio || 0.4
 	const opacity = element.opacity !== undefined ? element.opacity : 1
 
 	// 根据实际宽高计算比例，保持宽高比

@@ -21,7 +21,12 @@ final class DesignVideoAssembler
 {
     public static function toDO(DesignVideoCreateDTO $dto): DesignGenerationTaskEntity
     {
-        DesignVideoInputPayloadPreparer::sanitizeDtoForCreate($dto);
+        if ($dto->getGenerationType() === DesignGenerationType::CANVAS_COMPOSITION->value) {
+            DesignVideoInputPayloadPreparer::sanitizeCanvasCompositionDto($dto);
+            $dto->validForCanvasComposition();
+        } else {
+            DesignVideoInputPayloadPreparer::sanitizeDtoForCreate($dto);
+        }
         return DesignGenerationTaskFactory::createVideoTask($dto);
     }
 
@@ -37,6 +42,7 @@ final class DesignVideoAssembler
         $dto->setType(match ($entity->getGenerationType()) {
             DesignGenerationType::TEXT_TO_VIDEO => VideoGenerationType::TEXT_TO_VIDEO->value,
             DesignGenerationType::IMAGE_TO_VIDEO => VideoGenerationType::IMAGE_TO_VIDEO->value,
+            DesignGenerationType::CANVAS_COMPOSITION => null,
         });
         $dto->setStatus($entity->getStatus()->value);
         $dto->setErrorMessage($entity->getStatus()->value === 'failed' ? $entity->getErrorMessage() : null);
@@ -64,14 +70,19 @@ final class DesignVideoAssembler
         $generation = self::arrayValue($requestPayload['generation'] ?? null);
         $outputPayload = $entity->getOutputPayload();
 
+        $isCanvasComposition = $entity->getGenerationType() === DesignGenerationType::CANVAS_COMPOSITION;
+
         return [
+            'generation_type' => $entity->getGenerationType()->value,
             'task' => self::stringValue($requestPayload['task'] ?? null),
             'input_mode' => self::stringValue($requestPayload['input_mode'] ?? null),
             'aspect_ratio' => self::stringValue($generation['aspect_ratio'] ?? null),
             'resolution' => self::stringValue($generation['resolution'] ?? null)
                 ?? self::stringValue($outputPayload['resolution'] ?? null),
-            'duration_seconds' => self::intValue($generation['duration_seconds'] ?? null)
-                ?? self::intValue($outputPayload['duration_seconds'] ?? null),
+            'duration_seconds' => $isCanvasComposition
+                ? self::intValue($outputPayload['duration_seconds'] ?? null)
+                : self::intValue($generation['duration_seconds'] ?? null)
+                    ?? self::intValue($outputPayload['duration_seconds'] ?? null),
         ];
     }
 

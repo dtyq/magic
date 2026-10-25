@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import {
 	MentionItemType,
 	type DataService,
@@ -10,6 +10,8 @@ import type { FileData } from "../../types"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import {
 	createUploadFileMentionData,
+	filterPendingCanvasMentionsFromContent,
+	filterUploadFileMentionsFromContent,
 	isAllowedMention,
 	stripProjectResourceMentionDisplayMetadata,
 	transformMarkerImagePathsToWorkspaceAbsolute,
@@ -71,6 +73,50 @@ function getFirstMentionData(content: ReturnType<typeof markerMentionContent>) {
 }
 
 describe("mention utils", () => {
+	it("allows text mentions but keeps unknown types behind trusted restore", () => {
+		expect(
+			isAllowedMention({
+				type: MentionItemType.TEXT,
+				data: { id: "text-mock-001", label: "Chart Mock", text: "chart id: mock-chart" },
+			}),
+		).toBe(true)
+		expect(
+			isAllowedMention({
+				type: "custom_mock" as typeof MentionItemType.TEXT,
+				data: { id: "custom-mock-001", label: "Custom Mock" },
+			}),
+		).toBe(false)
+	})
+
+	it("preserves trusted structured mentions when the panel data is not loaded", () => {
+		const content: JSONContent = {
+			type: "doc",
+			content: [
+				{
+					type: "paragraph",
+					content: [
+						{
+							type: "mention",
+							attrs: {
+								type: MentionItemType.SKILL,
+								data: { id: "skill-mock-001", name: "Mock Skill" },
+							},
+						},
+					],
+				},
+			],
+		}
+		const dataService: DataService = {
+			dispatch: () => ({ isValid: false }),
+		}
+
+		expect(
+			filterUploadFileMentionsFromContent(content, dataService, {
+				preserveMentionValidation: true,
+			}),
+		).toEqual(content)
+	})
+
 	it("preserves deferred temp destination metadata on upload mentions", () => {
 		const file = new File(["image"], "photo.png", { type: "image/png" })
 		const mentionData = createUploadFileMentionData({
@@ -250,6 +296,48 @@ describe("mention utils", () => {
 		expect(result.mentionItems[2].attrs.data).toHaveProperty("project_name", "Other Project")
 	})
 
+	it("removes only pending canvas mentions from persisted content", () => {
+		const content: JSONContent = {
+			type: "doc",
+			content: [
+				{
+					type: "paragraph",
+					content: [
+						{ type: "text", text: "Use " },
+						{
+							type: "mention",
+							attrs: {
+								type: MentionItemType.PROJECT_FILE,
+								data: { file_id: "pending", file_name: "pending.png" },
+								pending: true,
+								pendingId: "canvas-selection:1",
+							},
+						},
+						{
+							type: "mention",
+							attrs: {
+								type: MentionItemType.PROJECT_FILE,
+								data: { file_id: "formal", file_name: "formal.png" },
+							},
+						},
+					],
+				},
+			],
+		}
+
+		const filtered = filterPendingCanvasMentionsFromContent(content)
+		expect(filtered?.content?.[0]?.content).toEqual([
+			{ type: "text", text: "Use " },
+			{
+				type: "mention",
+				attrs: {
+					type: MentionItemType.PROJECT_FILE,
+					data: { file_id: "formal", file_name: "formal.png" },
+				},
+			},
+		])
+	})
+
 	it.each(["./images/cat.png", "images/cat.png"])(
 		"converts marker image path %s to workspace-relative path before send",
 		(imagePath) => {
@@ -263,4 +351,23 @@ describe("mention utils", () => {
 			expect(markerData.image_relative).toBe(imagePath)
 		},
 	)
+
+	it("does not guess when a legacy marker path matches different attachment nodes", () => {
+		const transformed = transformMarkerImagePathsToWorkspaceAbsolute(
+			markerMentionContent("images/cat.png"),
+			[
+				...designAttachments,
+				{
+					file_id: "root-cat-file",
+					file_name: "cat.png",
+					relative_file_path: "images/cat.png",
+					is_directory: false,
+				},
+			],
+		) as ReturnType<typeof markerMentionContent>
+
+		const markerData = getFirstMentionData(transformed)
+		expect(markerData.image).toBe("images/cat.png")
+		expect(markerData).not.toHaveProperty("image_relative")
+	})
 })

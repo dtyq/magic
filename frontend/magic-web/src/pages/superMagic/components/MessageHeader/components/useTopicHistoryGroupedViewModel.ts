@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import dayjs from "dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { useTranslation } from "react-i18next"
 import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
 
@@ -23,6 +23,7 @@ export interface TopicHistoryGroupViewModel {
 }
 
 interface UseTopicHistoryGroupedViewModelParams {
+	queryKey?: string
 	topics: Topic[]
 }
 
@@ -33,7 +34,10 @@ interface TopicHistoryGroupBase {
 	topics: Topic[]
 }
 
-export function useTopicHistoryGroupedViewModel({ topics }: UseTopicHistoryGroupedViewModelParams) {
+export function useTopicHistoryGroupedViewModel({
+	topics,
+	queryKey,
+}: UseTopicHistoryGroupedViewModelParams) {
 	const { t } = useTranslation("super")
 	const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
 		if (typeof window === "undefined") return {}
@@ -46,6 +50,10 @@ export function useTopicHistoryGroupedViewModel({ topics }: UseTopicHistoryGroup
 		}
 	})
 	const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({})
+
+	useEffect(() => {
+		setVisibleCounts({})
+	}, [queryKey])
 
 	const groups = useMemo<TopicHistoryGroupViewModel[]>(() => {
 		if (topics.length === 0) return []

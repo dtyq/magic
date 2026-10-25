@@ -1,13 +1,13 @@
 import type { Friend, MyOrganization, SquareData } from "@/types/contact"
-import { genRequestUrl } from "@/utils/http"
 import type { StructureItem, StructureUserItem } from "@/types/organization"
 import { SumType } from "@/types/organization"
 import type { CommonResponse, PaginationResponse } from "@/types/request"
 import type { GroupConversationDetail } from "@/types/chat/conversation"
 
-import type { HttpClient, RequestConfig } from "../core/HttpClient"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
+import { A } from "@/pages/chatNew/components/ChatMessageList/components/MessageFactory/components/Markdown/EnhanceMarkdown/components/A"
 
-export const generateContactApi = (fetch: HttpClient) => ({
+export const generateContactApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * 添加好友
 	 * @param friend_id
@@ -16,7 +16,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	addPropmtFriend(friend_id: string) {
 		return fetch.post<{
 			success: boolean
-		}>(genRequestUrl("/api/v1/contact/friends/${friendId}", { friendId: friend_id }))
+		}>(`/api/v1/contact/friends/${friend_id}`)
 	},
 
 	/**
@@ -25,9 +25,9 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	getFriends(data: { page_token?: string }) {
-		return fetch.get<PaginationResponse<Friend>>(
-			genRequestUrl("/api/v1/contact/friends", {}, { page_token: data.page_token }),
-		)
+		return fetch.get<PaginationResponse<Friend>>("/api/v1/contact/friends", {
+			params: { page_token: data.page_token },
+		})
 	},
 
 	/**
@@ -40,14 +40,13 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 */
 	getOrganization(data: { department_id?: string; sum_type?: 1 | 2; page_token?: string }) {
 		return fetch.get<PaginationResponse<StructureItem>>(
-			genRequestUrl(
-				"/api/v1/contact/departments/${id}/children",
-				{ id: data.department_id ?? -1 },
-				{
+			`/api/v1/contact/departments/${data.department_id ?? -1}/children`,
+			{
+				params: {
 					sum_type: data.sum_type,
 					page_token: data.page_token,
 				},
-			),
+			},
 		)
 	},
 
@@ -68,15 +67,14 @@ export const generateContactApi = (fetch: HttpClient) => ({
 		is_recursive?: 0 | 1
 	}) {
 		return fetch.get<PaginationResponse<StructureUserItem>>(
-			genRequestUrl(
-				"/api/v1/contact/departments/${id}/users",
-				{ id: department_id ?? "-1" },
-				{
+			`/api/v1/contact/departments/${department_id ?? "-1"}/users`,
+			{
+				params: {
 					count,
 					page_token,
 					is_recursive,
 				},
-			),
+			},
 		)
 	},
 
@@ -91,22 +89,19 @@ export const generateContactApi = (fetch: HttpClient) => ({
 		page_token?: string
 		filter_agent?: boolean
 	}) {
-		return fetch.get<PaginationResponse<StructureUserItem>>(
-			genRequestUrl(
-				"/api/v1/contact/users/search",
-				{},
-				{
-					query: data.query,
-					query_type: data.query_type,
-					page_token: data.page_token,
-					filter_agent: data.filter_agent,
-				},
-			),
-		)
+		return fetch.get<PaginationResponse<StructureUserItem>>("/api/v1/contact/users/search", {
+			params: {
+				query: data.query,
+				query_type: data.query_type,
+				page_token: data.page_token,
+				filter_agent: data.filter_agent,
+			},
+		})
 	},
 
 	/**
 	 * 模糊搜索部门列表
+	 * TODO: 确认此接口的部门路径。旧模板未提供 id，暂保留 /departments/undefined。
 	 * @param data
 	 * @returns
 	 */
@@ -117,15 +112,14 @@ export const generateContactApi = (fetch: HttpClient) => ({
 		},
 	) {
 		return fetch.get<PaginationResponse<StructureItem>>(
-			genRequestUrl(
-				"/api/v1/contact/departments/${id}",
-				{},
-				{
+			"/api/v1/contact/departments/undefined",
+			{
+				params: {
 					name: data.name,
 					sum_type: data.sum_type,
 					page_token: data.page_token,
 				},
-			),
+			},
 		)
 	},
 
@@ -139,7 +133,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 		options?: Pick<RequestConfig, "skipAppInitWait">,
 	) {
 		return fetch.post<PaginationResponse<StructureUserItem>>(
-			genRequestUrl("/api/v1/contact/users/queries"),
+			"/api/v1/contact/users/queries",
 			data,
 			{
 				enableRequestUnion: true,
@@ -156,7 +150,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 */
 	getConversationInfos(data: { group_ids: string[]; page_token?: string }) {
 		return fetch.post<PaginationResponse<GroupConversationDetail>>(
-			genRequestUrl("/api/v1/contact/groups/queries"),
+			"/api/v1/contact/groups/queries",
 			data,
 		)
 	},
@@ -167,13 +161,12 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 */
 	getUserGroups(params: { page_token?: string }) {
 		return fetch.get<PaginationResponse<GroupConversationDetail & { conversation_id: string }>>(
-			genRequestUrl(
-				"/api/v1/contact/users/self/groups",
-				{},
-				{
+			"/api/v1/contact/users/self/groups",
+			{
+				params: {
 					page_token: params.page_token,
 				},
-			),
+			},
 		)
 	},
 
@@ -183,9 +176,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	getDepartmentInfo(data: { department_id: string }) {
-		return fetch.get<StructureItem>(
-			genRequestUrl("/api/v1/contact/departments/${id}", { id: data.department_id }),
-		)
+		return fetch.get<StructureItem>(`/api/v1/contact/departments/${data.department_id}`)
 	},
 
 	/**
@@ -194,10 +185,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	getUserManual(data: { user_id: string }) {
-		return fetch.post<CommonResponse<string>>(
-			genRequestUrl("/api/v2/magic/contact/user/user-manual"),
-			data,
-		)
+		return fetch.post<CommonResponse<string>>("/api/v2/magic/contact/user/user-manual", data)
 	},
 
 	/**
@@ -207,7 +195,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 */
 	getDepartmentDocument(data: { department_id: string }) {
 		return fetch.get<CommonResponse<string>>(
-			genRequestUrl("/api/v1/departments/${id}/document", { id: data.department_id }),
+			`/api/v1/departments/${data.department_id}/document`,
 		)
 	},
 
@@ -215,7 +203,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 * @description 获取广场提示词
 	 */
 	getSquarePrompts() {
-		return fetch.get<SquareData>(genRequestUrl("/api/v2/magic/friend/square"))
+		return fetch.get<SquareData>("/api/v2/magic/friend/square")
 	},
 
 	/**
@@ -229,11 +217,12 @@ export const generateContactApi = (fetch: HttpClient) => ({
 			"/api/v1/contact/accounts/me/users",
 			{
 				enableRequestUnion: true,
-				headers: organization_code
-					? {
-							"Organization-Code": organization_code,
-						}
-					: undefined,
+				headers: (h) => {
+					if (organization_code) {
+						h.set("Organization-Code", organization_code)
+					}
+					return h
+				},
 				...options,
 			},
 		)
@@ -251,7 +240,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 				key: string
 				value: T
 			}>
-		>(genRequestUrl("/api/v1/contact/users/setting"), data)
+		>("/api/v1/contact/users/setting", data)
 	},
 
 	/**
@@ -264,7 +253,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 				key: string
 				value: T
 			}>
-		>(genRequestUrl("/api/v1/contact/users/setting"), {
+		>("/api/v1/contact/users/setting", {
 			key: "personal_preferences",
 			value,
 		})
@@ -278,7 +267,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 			id: string
 			key: string
 			value: T
-		}>(genRequestUrl("/api/v1/contact/users/setting/${key}", { key }))
+		}>(`/api/v1/contact/users/setting/${key}`)
 	},
 
 	/**
@@ -289,7 +278,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 			id: string
 			key: string
 			value: T
-		}>(genRequestUrl("/api/v1/contact/users/setting/personal_preferences"))
+		}>("/api/v1/contact/users/setting/personal_preferences")
 	},
 
 	/**
@@ -310,7 +299,7 @@ export const generateContactApi = (fetch: HttpClient) => ({
 					value: T
 				}>
 			}>
-		>(genRequestUrl("/api/v1/contact/users/setting/queries"), data)
+		>("/api/v1/contact/users/setting/queries", data)
 	},
 
 	/**
@@ -318,8 +307,6 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 * @returns 我的组织列表
 	 */
 	getMyOrganizations() {
-		return fetch.get<{ items: MyOrganization[] }>(
-			genRequestUrl("/api/v1/contact/accounts/me/organizations"),
-		)
+		return fetch.get<{ items: MyOrganization[] }>("/api/v1/contact/accounts/me/organizations")
 	},
 })

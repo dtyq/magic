@@ -14,7 +14,7 @@ import { Attachment } from "@/pages/superMagic/components/MessageList/components
 import { MessageStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { Button } from "antd"
 import { IconEdit } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 import MentionList from "@/pages/superMagic/components/MessageEditor/components/MentionList"
 import SourceTag from "../SourceTag"
@@ -50,7 +50,8 @@ function RichText(props: NodeProps) {
 	const { projectFilesStore } = useMessageListContext()
 
 	const node = superMagicStore.getMessageNode(props?.node?.super_message_id) as
-		RichTextMessageNode | undefined
+		| RichTextMessageNode
+		| undefined
 	const mentions: NonNullable<MessageRichTextProps["mentions"]> =
 		((node?.extra?.super_agent?.mentions || []) as MessageRichTextProps["mentions"]) || []
 	const mentionItems = getMentionItemsMissingFromRichTextContent(mentions, node?.content)

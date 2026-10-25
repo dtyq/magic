@@ -5,6 +5,7 @@ import { useStreamingHtmlPreviewState } from "./hooks/useStreamingHtmlPreviewSta
 interface StreamingHtmlPreviewProps {
 	content: string
 	isSuspended?: boolean
+	isPreviewActive?: boolean
 	onCommittedContentChange?: (nextContent: string) => void
 	previewLayout?: "desktop" | "phone"
 	availableWidth?: number
@@ -15,19 +16,22 @@ export function StreamingHtmlPreview(props: StreamingHtmlPreviewProps) {
 	const {
 		content,
 		isSuspended = false,
+		isPreviewActive = true,
 		onCommittedContentChange,
 		previewLayout = "phone",
 		availableWidth,
 		onSuggestedCardWidthChange,
 	} = props
 	const { committedContent, handlePreviewRenderReady, isPreviewLoading } =
-		useStreamingHtmlPreviewState({ content, isSuspended, onCommittedContentChange })
+		useStreamingHtmlPreviewState({ content, isSuspended, isPreviewActive })
 
 	return (
 		<HtmlCodeBlockDesktopPreview
 			resolvedCode={committedContent}
 			isPreviewLoading={isPreviewLoading}
 			onPreviewRenderReady={handlePreviewRenderReady}
+			onPreviewContentCommitted={onCommittedContentChange}
+			isPreviewActive={isPreviewActive}
 			availableWidth={availableWidth}
 			onSuggestedCardWidthChange={onSuggestedCardWidthChange}
 			previewLayout={previewLayout}

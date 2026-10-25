@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /**
  * 每个操作按钮的视觉宽度对应 Tailwind w-16（4rem）。

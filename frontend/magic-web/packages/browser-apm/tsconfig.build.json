@@ -1,0 +1,7 @@
+{
+	"compilerOptions": {
+		"outDir": "dist/esm"
+	},
+	"exclude": ["dist", "node_modules", "src/**/__tests__/**"],
+	"extends": "./tsconfig.json"
+}

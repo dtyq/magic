@@ -51,6 +51,22 @@ describe("RecordingSummaryStore.startRecording", () => {
 		expect(recordSummaryStore.floatPanel.expandedAiChat).toBe(true)
 	})
 
+	it("keeps the selected audio processing mode for the recording panel", () => {
+		recordSummaryStore.startRecording({
+			workspace: null,
+			project: null,
+			model: { model_id: "mock-model" } as never,
+			userId: "mock-user",
+			processingMode: "script-processor",
+		})
+
+		expect(recordSummaryStore.processingMode).toBe("script-processor")
+
+		recordSummaryStore.reset()
+
+		expect(recordSummaryStore.processingMode).toBeNull()
+	})
+
 	it("keeps AI chat closed by default for mobile recordings", () => {
 		recordSummaryStore.floatPanel.isMobile = true
 
@@ -64,5 +80,22 @@ describe("RecordingSummaryStore.startRecording", () => {
 		})
 
 		expect(recordSummaryStore.floatPanel.expandedAiChat).toBe(false)
+	})
+
+	it("marks the trailing transcript complete when realtime transcription stops", () => {
+		recordSummaryStore.message = [
+			{
+				id: "message-1",
+				text: "partial transcript",
+				start_time: 0,
+				end_time: 1,
+				definite: false,
+				add_time: Date.now(),
+			},
+		]
+
+		recordSummaryStore.markLastMessageDefinite()
+
+		expect(recordSummaryStore.message[0].definite).toBe(true)
 	})
 })

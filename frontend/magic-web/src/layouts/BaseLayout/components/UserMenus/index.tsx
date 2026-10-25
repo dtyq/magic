@@ -1,5 +1,6 @@
 import {
 	useRef,
+	useEffect,
 	useState,
 	type PropsWithChildren,
 	type PointerEvent,
@@ -18,6 +19,7 @@ interface UserMenusProps extends PropsWithChildren {
 	isPreviewMode?: boolean
 	initialOpen?: boolean
 	placement?: string
+	onOpenChange?: (open: boolean) => void
 }
 
 const UserMenus = observer(function UserMenus({
@@ -25,9 +27,14 @@ const UserMenus = observer(function UserMenus({
 	isPreviewMode,
 	initialOpen = false,
 	placement = "rightTop",
+	onOpenChange,
 }: UserMenusProps) {
 	const [, contextHolder] = Modal.useModal()
 	const [open, setOpen] = useState(initialOpen)
+	useEffect(() => {
+		onOpenChange?.(open)
+	}, [open, onOpenChange])
+	useEffect(() => () => onOpenChange?.(false), [onOpenChange])
 	const ignoredTriggerRef = useRef(false)
 
 	const { menu } = useUserMenu({ isPreviewMode })

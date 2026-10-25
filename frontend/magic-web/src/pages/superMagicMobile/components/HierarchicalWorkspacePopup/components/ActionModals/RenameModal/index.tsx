@@ -8,10 +8,17 @@ import {
 	DrawerTitle,
 } from "@/components/shadcn-ui/drawer"
 import { Input as ShadcnInput } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { XIcon } from "lucide-react"
 import { memo, useEffect, useRef } from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
+import { useTranslation } from "react-i18next"
+import {
+	MAX_PROJECT_NAME_LENGTH,
+	MAX_WORKSPACE_NAME_LENGTH,
+	isProjectNameAtLimit,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 import type { RenameModalProps } from "./types"
 
 function RenameModal({
@@ -22,6 +29,7 @@ function RenameModal({
 	onInputChange,
 	translations,
 }: RenameModalProps) {
+	const { t } = useTranslation("super")
 	const inputRef = useRef<HTMLInputElement>(null)
 
 	const getTitle = () => {
@@ -73,8 +81,14 @@ function RenameModal({
 		}
 	}
 
+	const isWorkspace = currentActionItem?.type === "workspace"
+	const maxLength = isWorkspace ? MAX_WORKSPACE_NAME_LENGTH : MAX_PROJECT_NAME_LENGTH
+	const rawValue = getValue() || ""
+	const isOverLimit = isProjectNameOverLimit(rawValue, maxLength)
+	const isAtLimit = isProjectNameAtLimit(rawValue, maxLength)
+
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-		if (e.key === "Enter" && getValue()?.trim()) {
+		if (e.key === "Enter" && rawValue.trim() && !isOverLimit) {
 			onOk()
 		}
 	}
@@ -95,6 +109,7 @@ function RenameModal({
 			onChange={(e) => onInputChange(e.target.value)}
 			onKeyDown={handleKeyDown}
 			placeholder={getPlaceholder()}
+			maxLength={maxLength}
 			autoFocus
 		/>
 	)
@@ -144,6 +159,30 @@ function RenameModal({
 								{getFieldLabel()}
 							</div>
 							{renderInputContent()}
+							{/* Character counter and limit reminder */}
+							<div className="flex items-center justify-between text-xs text-muted-foreground">
+								{isOverLimit ? (
+									<span className="text-destructive">
+										{t("chat.nameMaxLengthTip", {
+											maxLength,
+										})}
+									</span>
+								) : isAtLimit ? (
+									<span>
+										{t("chat.nameMaxLengthTip", {
+											maxLength,
+										})}
+									</span>
+								) : (
+									<span />
+								)}
+								<span
+									className={isOverLimit ? "text-destructive" : ""}
+									data-testid="rename-modal-char-count"
+								>
+									{rawValue.length}/{maxLength}
+								</span>
+							</div>
 						</div>
 						<div className="flex gap-1.5 pt-1">
 							<Button
@@ -156,7 +195,7 @@ function RenameModal({
 							<Button
 								className="h-9 flex-1 rounded-lg"
 								onClick={onOk}
-								disabled={!getValue()?.trim()}
+								disabled={!rawValue.trim() || isOverLimit}
 							>
 								{translations.confirm}
 							</Button>

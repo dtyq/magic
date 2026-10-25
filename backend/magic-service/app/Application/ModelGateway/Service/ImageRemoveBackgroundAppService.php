@@ -29,7 +29,6 @@ use App\Infrastructure\ExternalAPI\ImageRemoveBackground\Exception\ImageRemoveBa
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverFactory;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverInterface;
 use App\Infrastructure\ImageGenerate\WatermarkPolicyInterface;
-use App\Infrastructure\Util\File\SecureImageDownloader;
 use App\Infrastructure\Util\File\TemporaryFileManager;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -56,9 +55,6 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
 
     #[Inject]
     protected ImageRemoveBackgroundDriverFactory $driverFactory;
-
-    #[Inject]
-    protected SecureImageDownloader $secureImageDownloader;
 
     #[Inject]
     protected AiAbilityDomainService $aiAbilityDomainService;
@@ -325,7 +321,7 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
             'created' => time(),
             'data' => [],
             'usage' => null,
-            'provider_error_message' => $exception->getMessage(),
+            'provider_error_message' => __('image_generate.image_operation_failed'),
             'provider_error_code' => $exception->getProviderErrorCode(),
             'provider' => $exception->getProvider(),
         ]);
@@ -353,12 +349,12 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
             );
         }
 
-        $downloadedImage = $this->secureImageDownloader->download($dto->getImageUrl(), checkHeaderMimeType: false);
-        $temporaryFileManager->add($downloadedImage->getValue());
+        $downloadedImage = $this->imageAssetMaterializer->downloadRemoteImage($dto->getImageUrl());
+        $temporaryFileManager->add($downloadedImage->getRealPath());
 
         return new ImageRemoveBackgroundDriverRequest(
             ImageRemoveBackgroundDriverRequest::SOURCE_TYPE_FILE,
-            $downloadedImage->getValue(),
+            $downloadedImage->getRealPath(),
             $downloadedImage->getMimeType(),
             $outputFormat,
         );

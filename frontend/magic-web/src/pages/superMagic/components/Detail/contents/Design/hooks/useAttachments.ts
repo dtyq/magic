@@ -17,7 +17,7 @@ interface UseAttachmentsOptions {
 interface UseAttachmentsReturn {
 	/** 已扁平化的附件列表 */
 	flatAttachments: FileItem[]
-	/** 附件快照是否已由入口提供；观测过真实快照后，空数组也可能是一个有效快照 */
+	/** 当前项目是否已观测到附件快照；观测后空数组也可能是有效快照 */
 	attachmentsReady: boolean
 	/** 附件索引（路径 / id / 文件名维度快速查找） */
 	attachmentIndex: DesignAttachmentIndex
@@ -30,12 +30,18 @@ interface UseAttachmentsReturn {
  */
 export function useAttachments(options: UseAttachmentsOptions): UseAttachmentsReturn {
 	const { attachments, attachmentList, projectId } = options
+	const observedProjectIdRef = useRef(projectId)
 	const hasObservedAttachmentSnapshotRef = useRef(false)
+
+	if (observedProjectIdRef.current !== projectId) {
+		observedProjectIdRef.current = projectId
+		hasObservedAttachmentSnapshotRef.current = false
+	}
 
 	// 扁平化附件列表
 	const flatAttachments = useMemo(() => {
 		// 如果 attachmentList 存在，直接使用（已经是扁平化的）
-		if (attachmentList && attachmentList.length > 0) {
+		if (Array.isArray(attachmentList)) {
 			return attachmentList
 		}
 		// 否则从 attachments 扁平化
@@ -43,7 +49,7 @@ export function useAttachments(options: UseAttachmentsOptions): UseAttachmentsRe
 		return flattenAttachmentsList(attachments)
 	}, [attachments, attachmentList])
 
-	if (flatAttachments.length > 0) {
+	if (Array.isArray(attachmentList) || Array.isArray(attachments)) {
 		hasObservedAttachmentSnapshotRef.current = true
 	}
 

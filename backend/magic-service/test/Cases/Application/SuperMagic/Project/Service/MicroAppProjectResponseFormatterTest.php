@@ -56,6 +56,7 @@ final class MicroAppProjectResponseFormatterTest extends TestCase
         self::assertFalse($result['publish']['extra']['pure_mode']);
         self::assertArrayNotHasKey('pure_mode', $result['publish']);
         self::assertArrayNotHasKey('allow_copy_project_files', $result['publish']['extra']);
+        self::assertSame('org-1', $result['organization_code']);
         self::assertSame('Demo App', $result['project']['project_name']);
     }
 
@@ -73,6 +74,7 @@ final class MicroAppProjectResponseFormatterTest extends TestCase
         );
 
         self::assertSame('share-code-1', $result['share_code']);
+        self::assertSame('org-1', $result['organization_code']);
         self::assertTrue($result['extra']['pure_mode']);
         self::assertArrayNotHasKey('pure_mode', $result);
     }
@@ -87,6 +89,28 @@ final class MicroAppProjectResponseFormatterTest extends TestCase
 
         self::assertTrue($result['extra']['pure_mode']);
         self::assertArrayNotHasKey('pure_mode', $result);
+    }
+
+    public function testFormatsProjectIdsAsStrings(): void
+    {
+        $result = $this->createFormatter()->formatProject(
+            (new ProjectEntity())
+                ->setId(957589322901028865)
+                ->setWorkspaceId(957589322901028866)
+                ->setCurrentTopicId(957589322901028867),
+        );
+
+        self::assertSame('957589322901028865', $result['id']);
+        self::assertSame('957589322901028866', $result['workspace_id']);
+        self::assertSame('957589322901028867', $result['current_topic_id']);
+    }
+
+    public function testPreservesNullProjectRelationIds(): void
+    {
+        $result = $this->createFormatter()->formatProject(new ProjectEntity());
+
+        self::assertNull($result['workspace_id']);
+        self::assertNull($result['current_topic_id']);
     }
 
     private function createFormatter(

@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import i18n from "i18next"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"

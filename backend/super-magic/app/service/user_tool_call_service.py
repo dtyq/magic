@@ -1,7 +1,7 @@
 """user_tool_call 通用服务：管理前端工具调用的 pending 状态、超时、持久化与恢复。
 
 各工具注册两个回调来封装自身逻辑：
-- result_builder(response_status, answer_json) -> (content, extra_info)
+- result_builder(response_status, answer_json, remark) -> (content, extra_info)
 - timeout_answer_builder() -> answer_json
 
 崩溃恢复时通过 _RESTORE_FACTORIES[tool_name](tool_data) 重建回调。
@@ -11,13 +11,16 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 
 from app.core.context.agent_context import AgentContext
+from app.core.entity.message.client_message import ChatClientMessage
+from app.core.horizon.models import HorizonInjectionPoint
 from app.tools.core.tool_call_event_manager import ToolCallEventManager
+from app.tools.core.tool_result_content_manager import tool_result_content_manager
 from app.utils.async_file_utils import (
     async_exists,
     async_read_json,
@@ -28,11 +31,8 @@ from app.utils.async_file_utils import (
 
 logger = get_logger(__name__)
 
-ASK_USER_KEEPALIVE_THRESHOLD_SECONDS = 18 * 60
-ASK_USER_KEEPALIVE_INTERVAL_SECONDS = 5 * 60
-
-# (response_status, answer_json) -> (content, extra_info)
-ResultBuilder = Callable[[str, str], Tuple[str, Dict[str, Any]]]
+# (response_status, answer_json, remark) -> (content, extra_info)
+ResultBuilder = Callable[[str, str, str], Tuple[str, Dict[str, Any]]]
 # () -> answer_json（超时时构造默认答案）
 TimeoutAnswerBuilder = Callable[[], str]
 # (tool_data) -> (result_builder, timeout_answer_builder)
@@ -53,6 +53,8 @@ class PendingToolCall:
     raw_params: dict = field(default_factory=dict)
     # 工具自定义数据，序列化到磁盘供崩溃恢复时重建回调
     tool_data: dict = field(default_factory=dict)
+    # 问题属于原入站消息；恢复不能使用后来被其它消息覆盖的全局快照。
+    resume_message: Optional[ChatClientMessage] = field(default=None, repr=False)
     # 工具专属回调（不持久化，崩溃恢复时通过 RestoreFactory 重建）
     result_builder: Optional[ResultBuilder] = field(default=None, compare=False, repr=False)
     timeout_answer_builder: Optional[TimeoutAnswerBuilder] = field(default=None, compare=False, repr=False)
@@ -94,6 +96,65 @@ class UserToolCallService:
         if self.__class__._instance is not None:
             return
         self._pending: Dict[str, PendingToolCall] = {}
+        self._ask_user_resume_tasks: dict[str, asyncio.Task[None]] = {}
+        self._idle_exit_requested = False
+
+    def can_release_idle_context(self, agent_context: AgentContext) -> bool:
+        """只有纯等待真人的 AskUser 可以释放环境；其它等待与回答处理仍受保护。"""
+        if any(not task.done() for task in self._ask_user_resume_tasks.values()):
+            return False
+        pending_id = agent_context.get_user_tool_call_pending_id()
+        if pending_id is None:
+            return True
+        pending = self._pending.get(pending_id)
+        return pending is not None and pending.tool_name == "ask_user"
+
+    @property
+    def idle_exit_requested(self) -> bool:
+        return self._idle_exit_requested
+
+    def begin_idle_exit(self) -> bool:
+        """与退出请求在同一事件循环连续调用，之后的回答不能消费旧环境的 pending。"""
+        if any(not task.done() for task in self._ask_user_resume_tasks.values()):
+            return False
+        self._idle_exit_requested = True
+        return True
+
+    async def prepare_ask_user_idle_exit(self, agent_context: AgentContext) -> bool:
+        """本地等待文件和远端历史包均保存成功，才允许空闲释放沙箱。"""
+        pending_id = agent_context.get_user_tool_call_pending_id()
+        pending = self._pending.get(pending_id) if pending_id else None
+        if pending is None:
+            return self.can_release_idle_context(agent_context)
+        if pending.tool_name != "ask_user" or not self.can_release_idle_context(agent_context):
+            return False
+        try:
+            await self._save_pending_to_file(pending)
+            from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
+            if not await FileStorageListenerService._archive_and_upload_project(agent_context):
+                return False
+            # 上传期间可能收到回答或新消息；不能拿已失效的等待快照决定退出。
+            return (
+                self._pending.get(pending.tool_call_id) is pending
+                and agent_context.get_user_tool_call_pending_id() == pending.tool_call_id
+                and self.can_release_idle_context(agent_context)
+            )
+        except Exception as error:
+            logger.warning("AskUser idle-exit persistence failed: tool_call_id=%s error=%s", pending.tool_call_id, error)
+            return False
+
+    def schedule_resume(self, pending: PendingToolCall, response_status: str, answer: str, remark: str = "") -> None:
+        """回答是实际活动；任务登记覆盖消费 pending 到重新派发 Agent 之间的间隙。"""
+        pending.cancel_timeout()
+        if pending.tool_name == "ask_user":
+            pending.agent_context.update_activity_time()
+        task = asyncio.create_task(
+            self.resume_after_user_tool_call(pending, response_status, answer, remark),
+            name=f"user_tool_call_resume_{pending.tool_call_id}",
+        )
+        if pending.tool_name == "ask_user":
+            self._ask_user_resume_tasks[pending.tool_call_id] = task
+            task.add_done_callback(lambda completed: self._ask_user_resume_tasks.pop(pending.tool_call_id, None))
 
     # ─── 公共 API ─────────────────────────────────────────────────────────────
 
@@ -109,13 +170,8 @@ class UserToolCallService:
         tool_name: str,
         tool_call_id: str,
     ) -> Optional[PendingToolCall]:
-        """优先取内存 pending；ask_user 中止后允许从最新聊天历史重建。"""
-        pending = self.pop_pending(tool_call_id)
-        if pending is not None:
-            return pending
-        if tool_name != "ask_user":
-            return None
-        return await self._restore_ask_user_pending_from_latest_history(tool_call_id)
+        """只消费当前内存中的 pending，避免历史消息重新激活已结束的问题。"""
+        return self.pop_pending(tool_call_id)
 
     def clear_pending_for_context(self, agent_context: AgentContext) -> int:
         """取消并清空指定 AgentContext 关联的 user_tool_call 等待态。"""
@@ -158,16 +214,16 @@ class UserToolCallService:
         timeout_answer_builder: TimeoutAnswerBuilder,
     ) -> PendingToolCall:
         """创建 PendingToolCall、启动超时定时器、注册到内存、持久化到文件。"""
-        keepalive_enabled = self._should_enable_ask_user_keepalive(tool_name, expires_at)
-        timeout_task = asyncio.create_task(
-            self._timeout_watcher(
-                tool_call_id,
-                expires_at,
-                agent_context,
-                keepalive_enabled=keepalive_enabled,
-            ),
-            name=f"user_tool_call_timeout_{tool_call_id}",
-        )
+        timeout_task: Optional[asyncio.Task] = None
+        if expires_at > 0:
+            timeout_task = asyncio.create_task(
+                self._timeout_watcher(
+                    tool_call_id,
+                    expires_at,
+                    agent_context,
+                ),
+                name=f"user_tool_call_timeout_{tool_call_id}",
+            )
 
         pending = PendingToolCall(
             tool_call_id=tool_call_id,
@@ -179,6 +235,10 @@ class UserToolCallService:
             agent_id=agent_id,
             raw_params=raw_params,
             tool_data=tool_data,
+            resume_message=(
+                agent_context.get_chat_client_message().model_copy(deep=True)
+                if tool_name == "ask_user" and agent_context.get_chat_client_message() is not None else None
+            ),
             result_builder=result_builder,
             timeout_answer_builder=timeout_answer_builder,
         )
@@ -191,7 +251,13 @@ class UserToolCallService:
             lambda: self._cleanup_pending(tool_call_id),
         )
 
-        await self._save_pending_to_file(pending)
+        try:
+            await self._save_pending_to_file(pending)
+        except (Exception, asyncio.CancelledError):
+            self._pending.pop(tool_call_id, None)
+            pending.cancel_timeout()
+            agent_context.clear_user_tool_call_pending()
+            raise
         return pending
 
     # ─── 新消息取消 ───────────────────────────────────────────────────────────
@@ -215,6 +281,8 @@ class UserToolCallService:
         pending.cancel_timeout()
         pending.agent_context.clear_user_tool_call_pending()
 
+        await self._cancel_canvas_confirmation(pending)
+
         chat_history = getattr(pending.agent_context, "chat_history", None)
         if chat_history is None:
             logger.error("user_tool_call pending exists but chat_history is None, cannot write cancelled ToolResult")
@@ -228,17 +296,25 @@ class UserToolCallService:
 
         try:
             ctx_update = await pending.agent_context.horizon.build_context_update(
-                injection_point="after_user_tool_call_cancel"
+                injection_point=HorizonInjectionPoint.AFTER_USER_TOOL_CALL_CANCEL
             )
             if ctx_update:
-                await chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                await chat_history.append_user_message(
+                    ctx_update,
+                    show_in_ui=False,
+                    source="horizon",
+                )
         except Exception as e:
             logger.warning(f"[AgentHorizon] horizon injection after user_tool_call cancel failed: {e}")
 
         await self._emit_after_tool_call(
             pending,
             content=self.CANCELLED_TOOL_RESULT_CONTENT,
-            extra_info={"status": self.CANCELLED_RESPONSE_STATUS},
+            extra_info={
+                "status": self.CANCELLED_RESPONSE_STATUS,
+                "response_status": self.CANCELLED_RESPONSE_STATUS,
+                "tool_call_id": pending.tool_call_id,
+            },
         )
 
         await self._delete_pending_file(pending.agent_context)
@@ -251,6 +327,7 @@ class UserToolCallService:
         pending: PendingToolCall,
         response_status: str,
         answer: str,
+        remark: str = "",
     ) -> None:
         """工具调用完成（answered / skipped / timeout）后的核心恢复流程。
 
@@ -269,12 +346,31 @@ class UserToolCallService:
             return
 
         try:
-            content, extra_info = pending.result_builder(response_status, answer)
+            content, extra_info = pending.result_builder(response_status, answer, remark)
         except Exception as e:
             logger.error(f"user_tool_call result_builder failed: {e}", exc_info=True)
             content, extra_info = str(e), {"status": "error"}
 
-        logger.info(f"user_tool_call result: response_status={response_status}, content={content!r}")
+        if pending.tool_name == "ask_user" and pending.tool_data.get("prepared_tool_call_id"):
+            from app.service.prepared_operation_confirmation import PreparedOperationConfirmation
+            try:
+                # 授权服务只接受绑定问题 ID 或单题 q-0，不使用展示层宽松归一化的答案。
+                confirmation_answers = json.loads(answer) if answer else {}
+                await PreparedOperationConfirmation(pending.agent_context).answer(
+                    str(pending.tool_data["prepared_tool_call_id"]), pending.tool_call_id,
+                    response_status if extra_info.get("status") != "error" else "error",
+                    confirmation_answers, remark=remark or "",
+                )
+            except Exception:
+                # 凭据落盘失败不能变成授权；普通提问和恢复流程仍继续。
+                logger.error("Prepared operation confirmation was not recorded", exc_info=True)
+                content += "\nThe prepared operation was not authorized. Prepare and confirm it again."
+
+        # 结果内容可能包含用户答案和备注，不在日志中记录完整正文。
+        logger.info(
+            f"user_tool_call result: tool_call_id={pending.tool_call_id}, "
+            f"response_status={response_status}"
+        )
 
         chat_history = getattr(pending.agent_context, "chat_history", None)
         if chat_history is None:
@@ -282,8 +378,17 @@ class UserToolCallService:
             return
 
         try:
+            # 恢复入口绕过普通执行器；只转换写入历史的副本，AFTER 仍使用用户原文。
+            tool_context = ToolCallEventManager.create_tool_context(
+                pending.agent_context, pending.tool_call_id, pending.tool_name, pending.raw_params,
+            )
+            model_result = await tool_result_content_manager.prepare(
+                ToolResult(content=content, tool_call_id=pending.tool_call_id, extra_info=extra_info),
+                tool_name=pending.tool_name,
+                tool_context=tool_context,
+            )
             await chat_history.append_tool_message(
-                content=content,
+                content=model_result.content,
                 tool_call_id=pending.tool_call_id,
             )
             logger.info(f"Appended user_tool_call ToolResult: tool_call_id={pending.tool_call_id}")
@@ -297,7 +402,7 @@ class UserToolCallService:
             logger.error(f"Failed to send user_tool_call AFTER event: {e}", exc_info=True)
 
         await self._delete_pending_file(pending.agent_context)
-        await self._resume_agent()
+        await self._resume_agent(pending)
 
     # ─── 后台超时定时器 ───────────────────────────────────────────────────────
 
@@ -306,34 +411,17 @@ class UserToolCallService:
         tool_call_id: str,
         expires_at: int,
         agent_context: AgentContext,
-        *,
-        keepalive_enabled: bool = False,
     ) -> None:
         """Sleep until expires_at; if not cancelled, trigger timeout flow."""
-        next_keepalive_at = int(time.time()) + ASK_USER_KEEPALIVE_INTERVAL_SECONDS
-        if keepalive_enabled:
-            self._touch_keepalive(agent_context, f"ask_user:{tool_call_id}:start")
-            logger.info(
-                f"ask_user keepalive enabled: tool_call_id={tool_call_id}, "
-                f"expires_at={expires_at}, interval={ASK_USER_KEEPALIVE_INTERVAL_SECONDS}s"
-            )
-
         try:
             while True:
                 now = int(time.time())
-                remaining = expires_at - now
-                if remaining <= 0:
+                remaining = expires_at - now if expires_at else 60
+                if expires_at and remaining <= 0:
                     break
 
                 sleep_seconds = min(60, remaining)
-                if keepalive_enabled:
-                    sleep_seconds = min(sleep_seconds, max(1, next_keepalive_at - now))
-
                 await asyncio.sleep(sleep_seconds)
-
-                if keepalive_enabled and int(time.time()) >= next_keepalive_at:
-                    self._touch_keepalive(agent_context, f"ask_user:{tool_call_id}:waiting")
-                    next_keepalive_at = int(time.time()) + ASK_USER_KEEPALIVE_INTERVAL_SECONDS
         except asyncio.CancelledError:
             return
 
@@ -352,161 +440,7 @@ class UserToolCallService:
                 logger.error(f"user_tool_call timeout_answer_builder failed: {e}", exc_info=True)
                 timeout_answer = ""
 
-        asyncio.create_task(
-            self.resume_after_user_tool_call(
-                pending=pending,
-                response_status="timeout",
-                answer=timeout_answer,
-            ),
-            name=f"user_tool_call_timeout_resume_{tool_call_id}",
-        )
-
-    @staticmethod
-    def _should_enable_ask_user_keepalive(tool_name: str, expires_at: int) -> bool:
-        """判断当前等待是否需要 ask_user 保活。"""
-        if tool_name != "ask_user":
-            return False
-        return expires_at - int(time.time()) > ASK_USER_KEEPALIVE_THRESHOLD_SECONDS
-
-    @staticmethod
-    def _touch_keepalive(agent_context: AgentContext, source: str) -> None:
-        """刷新活动时间，避免长时间等待 ask_user 时被空闲回收。"""
-        try:
-            agent_context.update_activity_time()
-            logger.debug(f"user_tool_call keepalive touched: source={source}")
-        except Exception as e:
-            logger.warning(f"user_tool_call keepalive failed: source={source}, error={e}")
-
-    # ─── 历史兜底恢复 ───────────────────────────────────────────────────────────
-
-    async def _restore_ask_user_pending_from_latest_history(self, tool_call_id: str) -> Optional[PendingToolCall]:
-        """从最新聊天历史里的 ask_user tool_call 重建 pending。
-
-        仅当 `.chat_history` 最后一条消息就是同一个 ask_user 调用时才恢复，
-        避免旧问题在用户已经发送新消息后再次生效。
-        """
-        try:
-            from app.service.agent_dispatcher import AgentDispatcher
-            dispatcher = AgentDispatcher.get_instance()
-            agent_context = dispatcher.agent_context
-            chat_history = self._get_or_create_chat_history(agent_context)
-
-            last_message = await chat_history.load_last_message_from_disk()
-            if last_message is None:
-                return None
-
-            tool_call = self._match_latest_ask_user_tool_call(last_message, tool_call_id)
-            if tool_call is None:
-                return None
-
-            await chat_history.load_messages_from_disk_without_sequence_repair()
-            raw_params = self._parse_tool_call_arguments(tool_call)
-            tool_data = self._build_ask_user_tool_data_from_arguments(raw_params)
-            result_builder, timeout_answer_builder = self._build_ask_user_callbacks(tool_data)
-            pending = PendingToolCall(
-                tool_call_id=tool_call_id,
-                tool_name="ask_user",
-                agent_context=agent_context,
-                timeout_task=None,
-                expires_at=int(time.time()),
-                agent_name=getattr(chat_history, "agent_name", "magic"),
-                agent_id=getattr(chat_history, "agent_id", "main"),
-                raw_params=raw_params,
-                tool_data=tool_data,
-                result_builder=result_builder,
-                timeout_answer_builder=timeout_answer_builder,
-            )
-            logger.info(f"Restored ask_user pending from latest chat history: tool_call_id={tool_call_id}")
-            return pending
-        except Exception as e:
-            logger.warning(f"Failed to restore ask_user pending from chat history: {e}", exc_info=True)
-            return None
-
-    @staticmethod
-    def _get_or_create_chat_history(agent_context: AgentContext):
-        """获取当前 ChatHistory；不存在时按当前 agent 上下文创建。"""
-        chat_history = getattr(agent_context, "chat_history", None)
-        if chat_history is not None:
-            return chat_history
-
-        from agentlang.chat_history.chat_history import ChatHistory
-        from app.path_manager import PathManager
-
-        agent_name = getattr(agent_context, "agent_name", "magic") or "magic"
-        agent_id = agent_context.get_agent_id() or "main"
-        chat_history = ChatHistory(
-            agent_name,
-            agent_id,
-            str(PathManager.get_chat_history_dir()),
-            agent_context.get_event_dispatcher(),
-        )
-        agent_context.chat_history = chat_history
-        return chat_history
-
-    @staticmethod
-    def _match_latest_ask_user_tool_call(last_message, tool_call_id: str):
-        """匹配最后一条 assistant 消息中的 ask_user 调用。"""
-        from agentlang.chat_history.chat_history_models import AssistantMessage
-
-        if not isinstance(last_message, AssistantMessage):
-            return None
-        tool_calls = last_message.tool_calls
-        if not isinstance(tool_calls, list):
-            return None
-        for tool_call in tool_calls:
-            function = getattr(tool_call, "function", None)
-            if (
-                getattr(tool_call, "id", None) == tool_call_id
-                and function is not None
-                and getattr(function, "name", None) == "ask_user"
-            ):
-                return tool_call
-        return None
-
-    @staticmethod
-    def _parse_tool_call_arguments(tool_call) -> Dict[str, Any]:
-        """解析 chat history 中保存的 tool_call arguments。"""
-        function = getattr(tool_call, "function", None)
-        raw_arguments = getattr(function, "arguments", "{}") if function is not None else "{}"
-        if isinstance(raw_arguments, dict):
-            return raw_arguments
-        try:
-            parsed = json.loads(raw_arguments or "{}")
-            return parsed if isinstance(parsed, dict) else {}
-        except (json.JSONDecodeError, TypeError):
-            logger.warning(f"Failed to parse ask_user arguments from history: {raw_arguments!r}")
-            return {}
-
-    @staticmethod
-    def _build_ask_user_tool_data_from_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """从 ask_user 原始参数重建 result_builder 需要的 tool_data。"""
-        from app.core.context.execution_source import SuperMagicExecutionSource
-        from app.tools.ask_user_parser import parse_questions_xml
-
-        return {
-            "parsed_questions": parse_questions_xml(str(arguments.get("questions") or "")),
-            "policy_blocked": False,
-            "policy_source": SuperMagicExecutionSource.UNKNOWN.value,
-        }
-
-    @staticmethod
-    def _build_ask_user_callbacks(tool_data: Dict[str, Any]) -> Tuple[ResultBuilder, TimeoutAnswerBuilder]:
-        """基于历史重建出的 tool_data 创建 ask_user 回调。"""
-        from app.core.context.execution_source import SuperMagicExecutionSource
-        from app.tools.ask_user import (
-            build_ask_user_result_builder,
-            build_ask_user_timeout_answer_builder,
-        )
-
-        parsed_questions = tool_data.get("parsed_questions", [])
-        return (
-            build_ask_user_result_builder(
-                parsed_questions,
-                policy_blocked=bool(tool_data.get("policy_blocked", False)),
-                policy_source=str(tool_data.get("policy_source") or SuperMagicExecutionSource.UNKNOWN.value),
-            ),
-            build_ask_user_timeout_answer_builder(parsed_questions),
-        )
+        self.schedule_resume(pending, "timeout", timeout_answer)
 
     # ─── cleanup（stop_run 时调用）────────────────────────────────────────────
 
@@ -516,13 +450,32 @@ class UserToolCallService:
             return
         pending.cancel_timeout()
         pending.agent_context.clear_user_tool_call_pending()
+        if pending.tool_name == "ask_user" and pending.agent_context.get_interruption_reason() == "idle_timeout":
+            logger.info("AskUser pending preserved on idle exit: tool_call_id=%s", tool_call_id)
+            return
+        await self._cancel_canvas_confirmation(pending)
         await self._delete_pending_file(pending.agent_context)
         logger.info(f"user_tool_call cleanup on stop_run: tool_call_id={tool_call_id}")
+
+    @staticmethod
+    async def _cancel_canvas_confirmation(pending: PendingToolCall) -> None:
+        prepared_id = pending.tool_data.get("prepared_tool_call_id")
+        if not prepared_id:
+            return
+        from app.service.prepared_operation_confirmation import PreparedOperationConfirmation
+        try:
+            await PreparedOperationConfirmation(pending.agent_context).answer(
+                str(prepared_id), pending.tool_call_id, "cancelled", {},
+            )
+        except Exception:
+            logger.warning("Prepared confirmation cancellation could not be recorded", exc_info=True)
 
     # ─── 持久化 ───────────────────────────────────────────────────────────────
 
     async def _save_pending_to_file(self, pending: PendingToolCall) -> None:
         from app.path_manager import PathManager
+        if pending.tool_name == "ask_user" and pending.resume_message is None:
+            raise ValueError("AskUser persistence has no original message")
         data = {
             "tool_call_id": pending.tool_call_id,
             "tool_name": pending.tool_name,
@@ -531,16 +484,25 @@ class UserToolCallService:
             "agent_id": pending.agent_id,
             "raw_params": pending.raw_params,
             "tool_data": pending.tool_data,
+            "resume_message": pending.resume_message.model_dump(mode="json") if pending.resume_message else None,
+            "task_id": pending.agent_context.get_task_id(),
+            "topic_id": pending.agent_context.get_metadata().get("topic_id") or pending.agent_context.get_metadata().get("chat_topic_id"),
         }
         try:
             pending_file = PathManager.get_user_tool_call_pending_file(pending.agent_name, pending.agent_id)
             await async_write_json(pending_file, data, ensure_ascii=False)
+            if pending.tool_name == "ask_user":
+                saved = await async_read_json(pending_file)
+                if saved != data:
+                    raise ValueError("AskUser persistence did not retain the complete waiting record")
             logger.info(
                 f"Persisted user_tool_call pending: tool_call_id={pending.tool_call_id}, "
                 f"file={pending_file.name}"
             )
         except Exception as e:
             logger.error(f"Failed to persist user_tool_call pending: {e}", exc_info=True)
+            if pending.tool_name == "ask_user":
+                raise
 
     async def _delete_pending_file(self, agent_context: AgentContext) -> None:
         from app.path_manager import PathManager
@@ -557,6 +519,51 @@ class UserToolCallService:
 
     # ─── 崩溃恢复 ────────────────────────────────────────────────────────────
 
+    async def _restore_ask_user_context(
+        self, agent_context: AgentContext, data: dict,
+    ) -> ChatClientMessage:
+        """恢复原问题的历史和消息；检查精确未完成调用，不能从旧历史另造问题。"""
+        from agentlang.chat_history.chat_history import ChatHistory
+        from agentlang.chat_history.chat_history_models import AssistantMessage
+        from app.path_manager import PathManager
+        from app.service.agent_dispatcher import AgentDispatcher
+
+        snapshot = data.get("resume_message")
+        if snapshot is None:
+            snapshot = await AgentDispatcher.get_instance().get_last_dispatch_message()
+        if not isinstance(snapshot, dict):
+            raise ValueError("AskUser recovery has no original message")
+        message = ChatClientMessage.model_validate(snapshot)
+        metadata = agent_context.get_metadata()
+        topic_id = str(metadata.get("topic_id") or metadata.get("chat_topic_id") or "")
+        task_id = str(agent_context.get_task_id() or "")
+        source_metadata = message.metadata
+        source_topic = str(source_metadata.topic_id or source_metadata.chat_topic_id or "") if source_metadata else ""
+        source_task = str(source_metadata.super_magic_task_id or "") if source_metadata else ""
+        for expected, current in (
+            (str(data.get("topic_id") or source_topic), topic_id),
+            (str(data.get("task_id") or source_task), task_id),
+        ):
+            if not expected or expected != current:
+                raise ValueError("AskUser recovery does not match the original topic and task")
+
+        history = ChatHistory(
+            data.get("agent_name", "magic"), data.get("agent_id", "main"),
+            str(PathManager.get_chat_history_dir()), agent_context.get_event_dispatcher(),
+        )
+        last = await history.load_last_message_from_disk()
+        if not isinstance(last, AssistantMessage) or not any(
+            call.id == data["tool_call_id"] and call.function.name == "ask_user"
+            for call in last.tool_calls or []
+        ):
+            raise ValueError("AskUser recovery has no matching unfinished tool call")
+        await history.load_messages_from_disk_without_sequence_repair()
+        agent_context.chat_history = history
+        # 环境身份与初始化配置使用当前环境；问题与任务身份保持不变。
+        if message.metadata is not None:
+            message.metadata.sandbox_id = metadata.get("sandbox_id")
+        return message
+
     async def restore_pending_from_disk(self, agent_context: AgentContext) -> None:
         """服务重启后，从持久化文件恢复超时定时器。"""
         from app.path_manager import PathManager
@@ -564,28 +571,38 @@ class UserToolCallService:
         chat_history_dir = PathManager.get_chat_history_dir()
         try:
             entries = await async_scandir(chat_history_dir)
-        except Exception:
+        except Exception as e:
+            logger.warning("Could not scan user_tool_call persistence; initialization continues: %s", e, exc_info=True)
             return
 
+        # 旧等待恢复失败只影响该问题；保留源文件供排查，不能让一份坏记录阻断整个话题。
         for entry in entries:
             if not entry.name.endswith(".user_tool_call.json"):
                 continue
             try:
                 data = await async_read_json(entry.path)
             except Exception as e:
-                logger.error(f"Failed to read user_tool_call persistence file {entry.name}: {e}")
+                logger.warning(f"Failed to read user_tool_call persistence file {entry.name}; skipping: {e}")
                 continue
 
             try:
+                if not isinstance(data, dict):
+                    raise ValueError("Pending tool call record must be an object")
                 tool_call_id = data["tool_call_id"]
                 tool_name = data["tool_name"]
                 expires_at = data["expires_at"]
+                if not isinstance(tool_call_id, str) or not tool_call_id:
+                    raise ValueError("Pending tool call ID must be a non-empty string")
+                if not isinstance(tool_name, str) or not tool_name:
+                    raise ValueError("Pending tool name must be a non-empty string")
+                if not isinstance(expires_at, int):
+                    raise ValueError("Pending tool call expiry must be an integer")
                 agent_name = data.get("agent_name", "magic")
                 agent_id = data.get("agent_id", "main")
                 raw_params = data.get("raw_params", {})
                 tool_data = data.get("tool_data", {})
-            except (KeyError, TypeError) as e:
-                logger.error(f"Failed to parse user_tool_call persistence data from {entry.name}: {e}")
+            except (KeyError, TypeError, ValueError) as e:
+                logger.warning(f"Failed to parse user_tool_call persistence data from {entry.name}; skipping: {e}")
                 continue
 
             if tool_call_id in self._pending:
@@ -593,25 +610,43 @@ class UserToolCallService:
                 continue
 
             factory = self._RESTORE_FACTORIES.get(tool_name)
-            if factory is None:
+            if factory is None and tool_name != "ask_user":
                 logger.warning(f"No restore factory for tool_name={tool_name!r}, skip: tool_call_id={tool_call_id}")
                 continue
 
             try:
-                result_builder, timeout_answer_builder = factory(tool_data)
+                if factory is None:
+                    # 模块循环加载可能早于工厂注册；复用真实已注册工具的同一套回调。
+                    from app.tools.core.base_user_tool_call_tool import BaseUserToolCallTool
+                    from app.tools.core.tool_factory import ToolFactory
+                    tool = ToolFactory().get_tool_instance(tool_name)
+                    if not isinstance(tool, BaseUserToolCallTool):
+                        raise ValueError("AskUser recovery tool is unavailable")
+                    result_builder = tool.build_result_builder(tool_data)
+                    timeout_answer_builder = tool.build_timeout_answer_builder(tool_data)
+                else:
+                    result_builder, timeout_answer_builder = factory(tool_data)
+                resume_message = (
+                    await self._restore_ask_user_context(agent_context, data)
+                    if tool_name == "ask_user" else None
+                )
             except Exception as e:
-                logger.error(f"Restore factory failed for tool_name={tool_name!r}: {e}", exc_info=True)
+                logger.warning(
+                    "Could not restore user_tool_call; skipping: file=%s tool_name=%s tool_call_id=%s error=%s",
+                    entry.name, tool_name, tool_call_id, e, exc_info=True,
+                )
                 continue
 
-            timeout_task = asyncio.create_task(
-                self._timeout_watcher(
-                    tool_call_id,
-                    expires_at,
-                    agent_context,
-                    keepalive_enabled=self._should_enable_ask_user_keepalive(tool_name, expires_at),
-                ),
-                name=f"user_tool_call_timeout_restore_{tool_call_id}",
-            )
+            timeout_task: Optional[asyncio.Task] = None
+            if expires_at > 0:
+                timeout_task = asyncio.create_task(
+                    self._timeout_watcher(
+                        tool_call_id,
+                        expires_at,
+                        agent_context,
+                    ),
+                    name=f"user_tool_call_timeout_restore_{tool_call_id}",
+                )
 
             pending = PendingToolCall(
                 tool_call_id=tool_call_id,
@@ -623,6 +658,7 @@ class UserToolCallService:
                 agent_id=agent_id,
                 raw_params=raw_params,
                 tool_data=tool_data,
+                resume_message=resume_message,
                 result_builder=result_builder,
                 timeout_answer_builder=timeout_answer_builder,
             )
@@ -633,21 +669,27 @@ class UserToolCallService:
                 lambda tool_call_id=tool_call_id: self._cleanup_pending(tool_call_id),
             )
 
-            remaining = expires_at - int(time.time())
-            logger.info(
-                f"Restored user_tool_call timer: tool_call_id={tool_call_id}, "
-                f"tool_name={tool_name}, remaining={max(0, remaining)}s"
-            )
+            if expires_at > 0:
+                remaining = expires_at - int(time.time())
+                logger.info(
+                    f"Restored user_tool_call timer: tool_call_id={tool_call_id}, "
+                    f"tool_name={tool_name}, remaining={max(0, remaining)}s"
+                )
+            else:
+                logger.info(
+                    f"Restored user_tool_call without deadline: tool_call_id={tool_call_id}, "
+                    f"tool_name={tool_name}"
+                )
 
     # ─── 恢复 Agent 推理循环 ──────────────────────────────────────────────────
 
     @staticmethod
-    async def _resume_agent() -> None:
+    async def _resume_agent(pending: PendingToolCall) -> None:
         """Restart the Agent inference loop after user_tool_call completes."""
         from app.service.agent_dispatcher import AgentDispatcher
         dispatcher = AgentDispatcher.get_instance()
 
-        last = await dispatcher.get_last_dispatch_message() or {}
+        last = pending.resume_message.model_dump(mode="json") if pending.resume_message else await dispatcher.get_last_dispatch_message() or {}
         if not last:
             logger.error("[UserToolCallService] _resume_agent: no last_dispatch_message found, cannot resume")
             return
@@ -658,6 +700,8 @@ class UserToolCallService:
         message.prompt = "/resume"
         message.context_type = ContextType.CONTINUE
         message.message_id = f"user-tool-call-resume-{_uuid.uuid4()}"
+        if pending.tool_name == "ask_user":
+            message.update_session = False
 
         logger.info("[UserToolCallService] _resume_agent: restarting Agent via submit_message")
         await dispatcher.submit_message(message)

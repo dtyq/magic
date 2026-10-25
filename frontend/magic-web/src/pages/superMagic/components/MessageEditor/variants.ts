@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { cva, type VariantProps } from "class-variance-authority"
 
 const messageEditorContentBaseClasses =
@@ -14,10 +14,16 @@ const messageEditorContentMentionClasses =
 	"[&_.ProseMirror_.magic-mention]:mx-0.5 [&_.ProseMirror_.magic-mention]:inline [&_.ProseMirror_.magic-mention]:cursor-pointer [&_.ProseMirror_.magic-mention]:overflow-hidden [&_.ProseMirror_.magic-mention]:text-ellipsis [&_.ProseMirror_.magic-mention]:rounded [&_.ProseMirror_.magic-mention]:bg-primary/10 [&_.ProseMirror_.magic-mention]:bg-primary-10 [&_.ProseMirror_.magic-mention]:px-1 [&_.ProseMirror_.magic-mention]:py-0.5 [&_.ProseMirror_.magic-mention]:!align-baseline [&_.ProseMirror_.magic-mention]:text-xs [&_.ProseMirror_.magic-mention]:font-normal [&_.ProseMirror_.magic-mention]:leading-[inherit] [&_.ProseMirror_.magic-mention]:text-primary"
 
 const messageEditorProjectFileMentionAlignmentClasses =
-	"[&_.ProseMirror_.magic-mention[data-type='project_file']]:relative [&_.ProseMirror_.magic-mention[data-type='project_file']]:-top-px [&_.ProseMirror_.magic-mention[data-type='project_file']]:leading-[inherit]"
+	"[&_.ProseMirror_.magic-mention[data-type='project_file']:not([data-mention-node-view='file'])]:relative [&_.ProseMirror_.magic-mention[data-type='project_file']:not([data-mention-node-view='file'])]:-top-px [&_.ProseMirror_.magic-mention[data-type='project_file']:not([data-mention-node-view='file'])]:leading-[inherit]"
+
+const messageEditorFileMentionAlignmentClasses =
+	"[&_.ProseMirror_.magic-mention[data-mention-node-view='file']]:!align-middle"
+
+const messageEditorFolderMentionAlignmentClasses =
+	"[&_.ProseMirror_.magic-mention[data-mention-node-view='folder']]:!align-middle"
 
 const messageEditorContentParagraphClasses =
-	"[&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:whitespace-pre-wrap [&_.ProseMirror_p]:break-all [&_.ProseMirror_p]:p-0 [&_.ProseMirror_p]:leading-[1.5]"
+	"[&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:whitespace-pre-wrap [&_.ProseMirror_p]:[overflow-wrap:anywhere] [&_.ProseMirror_p]:p-0 [&_.ProseMirror_p]:leading-[1.5]"
 
 const messageEditorContentSelectionClasses =
 	"[&_.ProseMirror::selection]:bg-blue-200 dark:[&_.ProseMirror::selection]:bg-blue-500/40 [&_.ProseMirror_*::selection]:bg-blue-200 dark:[&_.ProseMirror_*::selection]:bg-blue-500/40"
@@ -83,16 +89,22 @@ export const messageEditorContentVariants = cva(
 			size: {
 				default: cn(
 					messageEditorProjectFileMentionAlignmentClasses,
+					messageEditorFileMentionAlignmentClasses,
+					messageEditorFolderMentionAlignmentClasses,
 					"[&_.ProseMirror_.magic-mention[data-type='project_file']]:!text-[14px]",
 				),
 				small: cn(
 					"min-h-[78px] text-[13px] leading-4 [&_.ProseMirror]:min-h-[34px]",
 					messageEditorProjectFileMentionAlignmentClasses,
+					messageEditorFileMentionAlignmentClasses,
+					messageEditorFolderMentionAlignmentClasses,
 					"[&_.ProseMirror_.magic-mention[data-type='project_file']]:!text-[13px]",
 				),
 				mobile: cn(
 					"min-h-[78px] text-[13px] leading-4 [&_.ProseMirror]:min-h-[34px]",
 					messageEditorProjectFileMentionAlignmentClasses,
+					messageEditorFileMentionAlignmentClasses,
+					messageEditorFolderMentionAlignmentClasses,
 					"[&_.ProseMirror_.magic-mention[data-type='project_file']]:!text-[13px]",
 				),
 			},

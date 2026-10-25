@@ -122,6 +122,18 @@ class ModelGatewayMapperTest extends TestCase
         $this->assertArrayHasKey($this->officialProVideoModelId(), $models);
     }
 
+    public function testGetVideoModelsWithOrganizationModelsKeepsOfficialModelsVisible(): void
+    {
+        $mapper = di(ModelGatewayMapper::class);
+        $models = $mapper->getVideoModels(
+            ModelGatewayDataIsolation::create(self::TEST_ORGANIZATION_CODE, 'user-test'),
+            withOrganizationModels: true,
+        );
+
+        $this->assertArrayHasKey($this->officialFastVideoModelId(), $models);
+        $this->assertArrayHasKey($this->officialProVideoModelId(), $models);
+    }
+
     public function testExistsReturnsFalseForUnknownVideoModel(): void
     {
         $mapper = di(ModelGatewayMapper::class);

@@ -1,3 +1,7 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import type { ComponentType, ReactNode } from "react"
 import { observer } from "mobx-react-lite"
 import { InfiniteScroll } from "antd-mobile"
@@ -39,7 +43,7 @@ import { AudioRecordingCopyDialog } from "@/pages/superMagic/pages/AudioRecordin
 import { useAudioRecordingCopyToProject } from "@/pages/superMagic/pages/AudioRecordings/hooks/useAudioRecordingCopyToProject"
 import { canCopyAudioProject } from "@/pages/superMagic/pages/AudioRecordings/utils/copy-availability"
 import recordingSummaryStore from "@/stores/recordingSummary"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /**
  * Mobile recordings list panel: toolbar, pull-to-refresh list, sheets, and FAB placeholder.
@@ -75,6 +79,8 @@ interface ShareSheetState {
 	projectName: string
 	attachments: AttachmentItem[]
 	attachmentList: AttachmentItem[]
+	dependencyAttachments: AttachmentItem[]
+	dependencyBundleRootPath?: string
 	fileMap: RecordingDetailFileMap
 	defaultSelectedFileIds: string[]
 }
@@ -338,7 +344,14 @@ function AudioRecordingListPanel({
 	}
 
 	async function handleDelete(projectId: string) {
-		const success = await store.deleteProject(projectId)
+		if (!canDeleteRecordingProjects([projectId])) return false
+		let success: boolean
+		try {
+			success = await store.deleteProject(projectId)
+		} catch (error) {
+			if (handleRecordingProjectDeletionError(error)) return false
+			throw error
+		}
 		if (success) {
 			onResolveOptimisticItem?.(projectId)
 			toast.success(t("audioRecordings:actions.deleteSuccess"))
@@ -390,6 +403,8 @@ function AudioRecordingListPanel({
 				),
 				attachments: shareSelection.shareableFiles,
 				attachmentList: shareSelection.shareableFiles,
+				dependencyAttachments: processed.list,
+				dependencyBundleRootPath: fileMap.bundleRootPath,
 				fileMap,
 				defaultSelectedFileIds: shareSelection.defaultSelectedFileIds,
 			})
@@ -591,6 +606,8 @@ function AudioRecordingListPanel({
 				projectName={shareSheetState?.projectName}
 				attachments={shareSheetState?.attachments ?? []}
 				attachmentList={shareSheetState?.attachmentList ?? []}
+				dependencyAttachments={shareSheetState?.dependencyAttachments ?? []}
+				dependencyBundleRootPath={shareSheetState?.dependencyBundleRootPath}
 				fileMap={shareSheetState?.fileMap}
 				defaultSelectedFileIds={shareSheetState?.defaultSelectedFileIds}
 			/>

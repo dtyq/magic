@@ -10,6 +10,7 @@ namespace App\Domain\SuperMagic\Topic\Entity;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\HiddenType;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskStatus;
 use App\Infrastructure\Core\AbstractEntity;
+use Hyperf\Codec\Json;
 use Throwable;
 
 /**
@@ -68,9 +69,15 @@ class TopicEntity extends AbstractEntity
     protected ?string $sandboxConfig = null;
 
     /**
-     * @var null|string 沙箱网关 create/upgrade 接口返回的 Agent 镜像版本
+     * @var null|string legacy Agent image compatibility value
+     * @deprecated The topic-level `agent_image` column will be retired. Use
+     * `sandbox_images['agent_image']` instead; this value is kept only for
+     * historical rows and backward compatibility during migration.
      */
     protected ?string $agentImage = null;
+
+    /** @var null|array<string, string> Images recorded from the last successful sandbox operation. */
+    protected ?array $sandboxImages = null;
 
     /**
      * @var string 工作目录
@@ -225,7 +232,9 @@ class TopicEntity extends AbstractEntity
             'chat_conversation_id' => $this->chatConversationId ?? '',
             'sandbox_id' => $this->sandboxId ?? '',
             'sandbox_config' => $this->sandboxConfig,
+            // Deprecated legacy field; prefer sandbox_images for new writes.
             'agent_image' => $this->agentImage,
+            'sandbox_images' => $this->sandboxImages,
             'work_dir' => $this->workDir ?? '',
             'topic_name' => $this->topicName ?? '',
             'description' => $this->description,
@@ -417,11 +426,33 @@ class TopicEntity extends AbstractEntity
         return $this;
     }
 
+    public function getSandboxImages(): ?array
+    {
+        return $this->sandboxImages;
+    }
+
+    public function setSandboxImages(null|array|string $images): self
+    {
+        if (is_string($images)) {
+            $images = Json::decode($images);
+        }
+        $this->sandboxImages = is_array($images) ? $images : null;
+        return $this;
+    }
+
+    /**
+     * @deprecated Use getSandboxImages()['agent_image'] instead. Kept for
+     * reading historical rows while the legacy column is being retired.
+     */
     public function getAgentImage(): ?string
     {
         return $this->agentImage;
     }
 
+    /**
+     * @deprecated Use setSandboxImages() instead. This setter only supports
+     * backward-compatible writes to the legacy column.
+     */
     public function setAgentImage(?string $agentImage): self
     {
         $this->agentImage = $agentImage;

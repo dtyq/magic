@@ -22,6 +22,7 @@ function MobileDeleteConfirmPopup({
 	confirmAriaLabel,
 }: MobileDeleteConfirmPopupProps) {
 	return (
+		/* Keep short confirmations content-sized; the bounded body only scrolls for unusually long copy. */
 		<MagicPopup
 			visible={visible}
 			onClose={onClose}
@@ -45,9 +46,10 @@ function MobileDeleteConfirmPopup({
 				tone: "destructive",
 				testId: `${testIdPrefix}-confirm`,
 			}}
-			bodyClassName="max-h-[80dvh] p-0"
+			className="!h-fit !max-h-[320px]"
+			bodyClassName="!h-auto !max-h-[220px] overflow-y-auto p-0"
 		>
-			<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
+			<div className="scrollbar-y-thin flex flex-none flex-col px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
 				{/* Bold entity name + muted consequence mirrors project-detail delete hierarchy. */}
 				<p
 					className="mx-auto max-w-[680px] text-left text-[16px] leading-6"

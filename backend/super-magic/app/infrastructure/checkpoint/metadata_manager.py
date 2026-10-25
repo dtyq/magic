@@ -14,8 +14,13 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
-from app.core.entity.checkpoint import CheckpointInfo, CheckpointManifest, VirtualCheckpoint
-from app.infrastructure.checkpoint.storage import CheckpointStorage
+from app.core.entity.checkpoint import (
+    CheckpointActivity,
+    CheckpointInfo,
+    CheckpointManifest,
+    VirtualCheckpoint,
+)
+from app.infrastructure.checkpoint.storage import KNOWN_SPACES, CheckpointStorage
 from app.utils.async_file_utils import async_write_json, async_read_json
 from agentlang.logger import get_logger
 
@@ -23,26 +28,64 @@ logger = get_logger(__name__)
 
 
 class CheckpointMetadataManager:
-    """Checkpoint元数据管理器"""
+    """Checkpoint元数据管理器
+
+    簿记与流水分属两方：
+    - checkpoint_info.json（<id>/ 根）由 Python 写：仅 {checkpoint_id,
+      created_time}，创建时一次写入、之后只读。
+    - <space>/operations.json 由 magicfs 写：append-only 操作流水，
+      Python 只读。
+
+    load_checkpoint_info 把两者聚合成内存中的 CheckpointInfo 返回，
+    对外接口形态不变。
+    """
 
     def __init__(self):
         self.storage = CheckpointStorage()
 
     async def save_checkpoint_info(self, checkpoint_info: CheckpointInfo) -> bool:
-        """保存checkpoint信息到文件"""
+        """保存checkpoint簿记信息到文件
+
+        只持久化 {checkpoint_id, created_time}；file_snapshots 属于
+        magicfs 的 operations.json，不由本方法写。
+        """
         try:
             info_file = self.storage.get_checkpoint_info_file_path(checkpoint_info.checkpoint_id)
 
-            await async_write_json(info_file, checkpoint_info.model_dump(), ensure_ascii=False, indent=2, default=str)
+            bookkeeping = {
+                "checkpoint_id": checkpoint_info.checkpoint_id,
+                "created_time": checkpoint_info.created_time,
+            }
 
-            logger.info(f"保存checkpoint信息成功: {checkpoint_info.checkpoint_id}")
+            await async_write_json(info_file, bookkeeping, ensure_ascii=False, indent=2, default=str)
+
+            logger.info(f"保存checkpoint簿记成功: {checkpoint_info.checkpoint_id}")
             return True
         except Exception as e:
-            logger.error(f"保存checkpoint信息失败: {e}")
+            logger.error(f"保存checkpoint簿记失败: {e}")
             return False
 
+    async def _load_space_operations(self, checkpoint_id: str) -> list:
+        """聚合各空间分区 operations.json 的 file_snapshots"""
+        merged: list = []
+        for space in KNOWN_SPACES:
+            ops_file = self.storage.get_space_operations_file_path(checkpoint_id, space)
+            if not ops_file.exists():
+                continue
+            try:
+                data = await async_read_json(ops_file)
+            except Exception as e:
+                logger.warning(f"读取空间操作流水失败，跳过该空间: {ops_file}: {e}")
+                continue
+            for snapshot in data.get("file_snapshots") or []:
+                if 'modified_time' in snapshot and isinstance(snapshot['modified_time'], str):
+                    snapshot['modified_time'] = datetime.fromisoformat(
+                        snapshot['modified_time'].replace('Z', '+00:00'))
+                merged.append(snapshot)
+        return merged
+
     async def load_checkpoint_info(self, checkpoint_id: str) -> Optional[CheckpointInfo]:
-        """从文件加载checkpoint信息"""
+        """从文件加载checkpoint信息（簿记 + 各空间流水聚合）"""
         try:
             info_file = self.storage.get_checkpoint_info_file_path(checkpoint_id)
 
@@ -55,11 +98,7 @@ class CheckpointMetadataManager:
             if 'created_time' in data and isinstance(data['created_time'], str):
                 data['created_time'] = datetime.fromisoformat(data['created_time'].replace('Z', '+00:00'))
 
-            # 处理file_snapshots中的datetime字段
-            if 'file_snapshots' in data:
-                for snapshot in data['file_snapshots']:
-                    if 'modified_time' in snapshot and isinstance(snapshot['modified_time'], str):
-                        snapshot['modified_time'] = datetime.fromisoformat(snapshot['modified_time'].replace('Z', '+00:00'))
+            data["file_snapshots"] = await self._load_space_operations(checkpoint_id)
 
             return CheckpointInfo(**data)
 
@@ -91,9 +130,12 @@ class CheckpointMetadataManager:
                     updated_time=datetime.now()
                 )
 
-            # 添加新的checkpoint
+            # 添加新的checkpoint。新 checkpoint 成为当前记账目标意味着
+            # 回到正常记录状态：清掉 restore/rollback 等活动标记，agfs 侧
+            # hook 从此刻起恢复对文件变更的增量记账。
             if checkpoint_id not in manifest.checkpoints:
                 manifest.checkpoints.append(checkpoint_id)
+                manifest.activity = CheckpointActivity.IDLE
                 manifest.updated_time = datetime.now()
 
                 # 保存更新后的清单
@@ -189,17 +231,18 @@ class CheckpointMetadataManager:
             logger.error(f"获取当前checkpoint失败: {e}")
             return None
 
-    async def set_rollback_in_progress(self, in_progress: bool) -> bool:
-        """标记回滚进行中的状态
+    async def set_activity(self, activity: CheckpointActivity) -> bool:
+        """标记 checkpoint 系统当前的活动状态
 
-        Python 侧在执行反向/撤回回滚时，会直接改写工作区文件（删除或从 latest_content 拷回）。
-        magicfs 看到这些工作区写入时需要跳过 checkpoint 维护，否则会把回滚正在恢复的内容
-        误当作新的用户改动，把 latest_content 刷成错误状态。
+        任何非 idle 活动期间，agfs 侧 checkpoint hook 会跳过记账：此时
+        的文件变更来自 checkpoint 系统自身（回滚重放、会话数据恢复），
+        而不是用户编辑，记进快照会把恢复内容误当作新改动回灌。
 
-        该方法把状态写回 checkpoint_manifest.json，由 magicfs 订阅/轮询该文件感知。
+        该方法把状态写回 checkpoint_manifest.json，由 agfs 侧每次变更
+        时读取感知。
 
         Args:
-            in_progress: True 表示进入回滚；False 表示回滚结束恢复正常维护
+            activity: 目标活动状态（idle / rollback / restore）
 
         Returns:
             bool: 是否成功写入
@@ -208,14 +251,14 @@ class CheckpointMetadataManager:
             manifest = await self.load_checkpoint_manifest()
             if not manifest:
                 logger.warning(
-                    f"checkpoint清单不存在，跳过设置 rollback_in_progress={in_progress}"
+                    f"checkpoint清单不存在，跳过设置 activity={activity.value}"
                 )
                 return False
 
-            if manifest.rollback_in_progress == in_progress:
+            if manifest.activity == activity:
                 return True
 
-            manifest.rollback_in_progress = in_progress
+            manifest.activity = activity
             manifest.updated_time = datetime.now()
 
             manifest_file = self.storage.get_checkpoint_manifest_file_path()
@@ -223,10 +266,10 @@ class CheckpointMetadataManager:
                 manifest_file, manifest.model_dump(), ensure_ascii=False, indent=2, default=str
             )
 
-            logger.info(f"设置 rollback_in_progress={in_progress}")
+            logger.info(f"设置 checkpoint activity={activity.value}")
             return True
         except Exception as e:
-            logger.error(f"设置 rollback_in_progress 失败: {e}")
+            logger.error(f"设置 checkpoint activity 失败: {e}")
             return False
 
     async def ensure_initial_checkpoint_created(self) -> bool:

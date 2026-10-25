@@ -11,7 +11,7 @@ import { JsonSchemaEditorProps } from "@/MagicJsonSchemaEditor"
 import Schema from "@/MagicJsonSchemaEditor/types/Schema"
 import { MagicJsonSchemaEditor } from "@/index"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { isEqual } from "lodash-es"
 import React from "react"
 
 export type WidgetJSONSchemaValue = {
@@ -33,7 +33,7 @@ function MagicJSONSchemaEditorWrap({ ...props }: MagicJSONSchemaEditorWrap) {
 		if (!props.onChange || !props.value) return
 
 		/** 值相等，不进行派发 */
-		if (_.isEqual(props.value?.structure, value)) return
+		if (isEqual(props.value?.structure, value)) return
 		props.onChange({
 			...props.value,
 			structure: value,

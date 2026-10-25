@@ -6,7 +6,13 @@ import { fileURLToPath } from "node:url"
 const testFileDir = path.dirname(fileURLToPath(import.meta.url))
 const designRootDir = path.resolve(testFileDir, "..", "..")
 const messageEditorRootDir = path.resolve(designRootDir, "..", "..", "..", "MessageEditor")
+const canvasDesignRootDir = path.resolve(process.cwd(), "src", "components", "CanvasDesign")
 const designPathFacadeFile = path.join(designRootDir, "utils", "designPath.ts")
+const resourceReferenceResolverFile = path.join(
+	designRootDir,
+	"utils",
+	"designResourceReferenceResolver.ts",
+)
 const designFileDropPathsFile = path.join(designRootDir, "hooks", "useDesignFileDropPaths.ts")
 
 function walkFiles(dir: string): string[] {
@@ -55,6 +61,42 @@ describe("design path import scan", () => {
 		)
 
 		const offenders = files.filter((filePath) => /findFileBySrc\s*\(/.test(readText(filePath)))
+		expect(offenders).toEqual([])
+	})
+
+	it("keeps resource path and attachment resolution behind the unified resolver", () => {
+		const files = [...walkFiles(designRootDir), ...walkFiles(messageEditorRootDir)].filter(
+			(filePath) => {
+				if (!/\.(ts|tsx)$/.test(filePath)) return false
+				if (filePath.includes("__tests__")) return false
+				return (
+					filePath !== designPathFacadeFile && filePath !== resourceReferenceResolverFile
+				)
+			},
+		)
+		const forbiddenLegacyReferences =
+			/\b(?:resolveDesignPathForOperation|resolveDesignAttachment|toWorkspaceRelativeCandidates|toWorkspaceRelativePath|getResolvedPathCandidates|toWorkspaceAbsoluteApiPath|toDesignApiPath|isRelativeDesignPath|toWorkspaceAbsoluteApiPathForOperation|resolveDesignAttachmentForNormalizedPath|resolveDesignAttachmentFromCandidates|getDesignPathFileName|isCurrentCanvasResourcePath)\b/
+
+		const offenders = files.filter((filePath) =>
+			forbiddenLegacyReferences.test(readText(filePath)),
+		)
+		expect(offenders).toEqual([])
+	})
+
+	it("does not reintroduce the split legacy CanvasDesign path APIs", () => {
+		const files = [
+			...walkFiles(canvasDesignRootDir),
+			...walkFiles(designRootDir),
+			...walkFiles(messageEditorRootDir),
+		].filter((filePath) => {
+			if (!/\.(ts|tsx)$/.test(filePath)) return false
+			if (filePath.includes("__tests__")) return false
+			return true
+		})
+		const forbiddenLegacyApis =
+			/\b(?:resolveAbsolutePath|resolveResourcePathCandidates|normalizeResourcePathForStorage|getCanvasResourceIdentity|areCanvasResourcePathsSame|toWeakCanvasResourcePath)\b/
+
+		const offenders = files.filter((filePath) => forbiddenLegacyApis.test(readText(filePath)))
 		expect(offenders).toEqual([])
 	})
 

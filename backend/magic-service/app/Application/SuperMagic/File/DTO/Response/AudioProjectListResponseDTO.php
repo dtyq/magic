@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Application\SuperMagic\File\DTO\Response;
 
+use function Hyperf\Translation\trans;
+
 /**
  * Audio Project List Response DTO.
  */
@@ -85,6 +87,19 @@ class AudioProjectListResponseDTO
     private static function transformListItems(array $items): array
     {
         return array_map(function ($item) {
+            // Keep empty project names empty in storage, but provide a stable,
+            // localized display name for the audio project list response.
+            if (trim((string) ($item['project_name'] ?? '')) === '' && ! empty($item['created_at'])) {
+                $createdAt = is_numeric($item['created_at'])
+                    ? (int) $item['created_at']
+                    : strtotime((string) $item['created_at']);
+                if ($createdAt !== false && $createdAt > 0) {
+                    $item['project_name'] = self::translateRecordingAt(
+                        date('Y-m-d H:i', $createdAt)
+                    );
+                }
+            }
+
             // Convert created_at to timestamp
             if (! empty($item['created_at'])) {
                 $item['created_at'] = is_numeric($item['created_at'])
@@ -104,5 +119,15 @@ class AudioProjectListResponseDTO
 
             return $item;
         }, $items);
+    }
+
+    private static function translateRecordingAt(string $time): string
+    {
+        if (function_exists('trans')) {
+            return (string) trans('asr.file_names.recording_at', ['time' => $time]);
+        }
+
+        // Keep standalone DTO tests usable without the Hyperf translation bootstrap.
+        return $time . ' 的录音';
     }
 }

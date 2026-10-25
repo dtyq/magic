@@ -5,10 +5,12 @@ import shutil
 import time
 from pathlib import Path
 from typing import Optional
+
 from loguru import logger
-from app.service.asr.asr_time_config import asr_time_config
-from app.service.asr.asr_size_config import asr_size_config
+
 from app.service.asr.asr_base import AsrServiceBase, ReadJsonOptions
+from app.service.asr.asr_size_config import asr_size_config
+from app.service.asr.asr_time_config import asr_time_config
 
 
 class AsrLocalWorkspaceProxy(AsrServiceBase):
@@ -34,7 +36,7 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
     # Metadata 结构示例:
     # {
     #   "task_key": "uuid-string",
-    #   "last_index": 5,          # 当前 merged.wav 包含的最大文件索引 (即已合并 0.wav ... 5.wav)
+    #   "last_index": 5,          # 当前 merged.{ext} 包含的最大文件索引 (即已合并 0.{ext} ... 5.{ext})
     #   "timestamp": 1234567890.1 # 最后更新时间戳
     # }
 
@@ -66,9 +68,11 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
             # 如果无法获取项目根目录，使用当前工作目录
             return str(Path.cwd() / ".local_cache" / "asr_workspace")
 
-    def __init__(self, task_key: str, remote_dir: Path, local_base_dir: str = None):
+    def __init__(self, task_key: str, remote_dir: Path, local_base_dir: str = None, audio_format: str = None):
         self.task_key = task_key
         self.remote_dir = remote_dir
+        # 任务音频格式决定 merged 文件名（merged.wav / merged.opus），None 回退 wav 兼容历史任务
+        self.merged_filename = self.get_merged_filename(audio_format)
 
         # 如果未指定 local_base_dir，使用默认值
         if local_base_dir is None:
@@ -86,18 +90,25 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
         """获取文件的本地路径"""
         return self.local_dir / filename
 
-    async def save_metadata(self, last_index: int) -> bool:
+    async def save_metadata(
+        self, last_index: int, extra: Optional[dict] = None, atomic: bool = False
+    ) -> bool:
         """保存合并元数据到本地并同步到远程"""
         try:
             metadata = {"task_key": self.task_key, "last_index": last_index, "timestamp": time.time()}
+            if extra:
+                metadata.update(extra)
 
             local_meta_path = self.local_dir / self.METADATA_FILE
             await asyncio.to_thread(
                 local_meta_path.write_text, json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
             )
 
-            # 同步到远程
-            return await self.sync_local_to_remote_atomic(self.METADATA_FILE)
+            # metadata 频繁更新，直接覆盖已有远端文件，避免 AGFS 将
+            # "临时文件 + rename" 记录成新的 file_id。
+            if atomic:
+                return await self.sync_local_to_remote_atomic(self.METADATA_FILE)
+            return await self.sync_local_to_remote_direct(self.METADATA_FILE)
         except Exception as e:
             logger.error(f"{self.LOG_PREFIX} ❌ 保存元数据失败: {e}")
             return False
@@ -174,7 +185,7 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
         return local_path
 
     async def ensure_remote_files_to_local_batch(
-        self, filenames: list[str], required: bool = True, retries: int = None
+        self, filenames: list[str], required: bool = True, retries: int = None, concurrency: int = 32
     ) -> list[Optional[Path]]:
         """
         批量同步远程文件到本地 (并发，支持重试)
@@ -185,28 +196,32 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
         if not filenames:
             return []
 
-        async def _sync_with_retry(filename: str) -> Optional[Path]:
-            last_exception = None
-            for attempt in range(retries + 1):
-                try:
-                    # 批量同步时禁用详细日志，避免重复输出
-                    return await self.ensure_remote_file_to_local(filename, required=required, verbose=False)
-                except Exception as e:
-                    last_exception = e
-                    if attempt < retries:
-                        wait_time = asr_time_config.BATCH_SYNC_INITIAL_BACKOFF * (
-                            asr_time_config.BATCH_SYNC_BACKOFF_MULTIPLIER**attempt
-                        )
-                        logger.warning(
-                            f"{self.LOG_PREFIX} ⚠️ 同步文件 {filename} 失败，{wait_time}s 后重试 ({attempt + 1}/{retries}): {e}"
-                        )
-                        await asyncio.sleep(wait_time)
-                    else:
-                        logger.error(f"{self.LOG_PREFIX} ❌ 同步文件 {filename} 最终失败: {e}")
+        semaphore = asyncio.Semaphore(max(1, concurrency))
 
-            if required and last_exception:
-                raise last_exception
-            return None
+        async def _sync_with_retry(filename: str) -> Optional[Path]:
+            async with semaphore:
+                last_exception = None
+                for attempt in range(retries + 1):
+                    try:
+                        # 批量同步时禁用详细日志，避免重复输出
+                        return await self.ensure_remote_file_to_local(filename, required=required, verbose=False)
+                    except Exception as e:
+                        last_exception = e
+                        if attempt < retries:
+                            wait_time = asr_time_config.BATCH_SYNC_INITIAL_BACKOFF * (
+                                asr_time_config.BATCH_SYNC_BACKOFF_MULTIPLIER**attempt
+                            )
+                            logger.warning(
+                                f"{self.LOG_PREFIX} ⚠️ 同步文件 {filename} 失败，"
+                                f"{wait_time}s 后重试 ({attempt + 1}/{retries}): {e}"
+                            )
+                            await asyncio.sleep(wait_time)
+                        else:
+                            logger.error(f"{self.LOG_PREFIX} ❌ 同步文件 {filename} 最终失败: {e}")
+
+                if required and last_exception:
+                    raise last_exception
+                return None
 
         # 使用 asyncio.gather 并发执行带重试的任务
         tasks = [_sync_with_retry(filename) for filename in filenames]
@@ -242,7 +257,7 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
             logger.info(f"{self.LOG_PREFIX} ✅ 批量同步完成：共 {len(filenames)} 个文件，成功 0 个")
         return final_results
 
-    async def sync_local_to_remote_atomic(self, filename: str) -> bool:
+    async def sync_local_to_remote_atomic(self, filename: str, timeout: int | None = None) -> bool:
         """
         将本地文件原子同步到远程 (Write-Through)
 
@@ -267,8 +282,21 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
             return False
 
         try:
+            local_size = await asyncio.to_thread(lambda: local_path.stat().st_size)
             # 1. 上传到临时文件
             await asyncio.to_thread(shutil.copy2, str(local_path), str(temp_remote_path))
+
+            is_ready, reason = await self.wait_for_file_ready(
+                temp_remote_path,
+                min_size=asr_size_config.OPTIONAL_FILE_MIN_SIZE,
+                expected_size=local_size,
+                retries=asr_time_config.MERGED_FILE_READY_RETRIES,
+                wait_interval=asr_time_config.FILE_READY_WAIT_INTERVAL,
+                timeout=timeout or max(asr_time_config.FILE_READY_TIMEOUT, 300),
+                stable_count=asr_time_config.FILE_STABLE_COUNT,
+            )
+            if not is_ready:
+                raise IOError(f"远端临时文件未就绪: {reason}")
 
             # 2. 强制刷新磁盘缓存 (如果是 NFS/OSS 挂载，这一步很重要)
             # Python 的 shutil.copy2 已经包含了一些 flush，但为了保险可以显式 sync
@@ -277,13 +305,74 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
             # 3. 原子重命名
             await asyncio.to_thread(temp_remote_path.replace, remote_path)
 
-            logger.info(f"{self.LOG_PREFIX} ✅ 同步完成: {filename}")
+            logger.info(f"{self.LOG_PREFIX} ✅ 原子同步完成: {filename} size={local_size}B")
             return True
         except Exception as e:
             logger.error(f"{self.LOG_PREFIX} ❌ 同步失败 {filename}: {e}")
             # 尝试清理临时文件
             await asyncio.to_thread(temp_remote_path.unlink, missing_ok=True)
             return False
+
+    async def sync_local_to_remote_direct(self, filename: str, retries: int | None = None) -> bool:
+        """直接覆盖远端文件，保持 AGFS 中已有文件记录。
+
+        该方法只用于小型、完整生成后再写出的文件（目前是
+        ``merged_metadata.json``）。与原子替换不同，它不会在远端创建临时
+        文件再 rename 到目标路径，因此 AGFS 可以对已有目标执行原位更新。
+        写入后仍会等待文件稳定并校验大小；如果目标原本不存在且写入失败，
+        才清理残留文件，避免覆盖更新失败时先删除旧版本。
+        """
+        if retries is None:
+            retries = asr_time_config.SINGLE_FILE_SYNC_RETRIES
+
+        local_path = self.local_dir / filename
+        remote_path = self.remote_dir / filename
+
+        if not await asyncio.to_thread(local_path.exists):
+            logger.warning(f"{self.LOG_PREFIX} ⚠️ 本地文件不存在，无法同步: {local_path}")
+            return False
+
+        try:
+            local_size = await asyncio.to_thread(lambda: local_path.stat().st_size)
+            remote_existed = await asyncio.to_thread(remote_path.exists)
+        except OSError as e:
+            logger.error(f"{self.LOG_PREFIX} ❌ 获取文件信息失败: {e}")
+            return False
+
+        for attempt in range(retries + 1):
+            try:
+                await asyncio.to_thread(shutil.copy2, str(local_path), str(remote_path))
+                is_ready, reason = await self.wait_for_file_ready(
+                    remote_path,
+                    min_size=asr_size_config.OPTIONAL_FILE_MIN_SIZE,
+                    expected_size=local_size,
+                    retries=asr_time_config.FILE_READY_RETRIES,
+                    wait_interval=asr_time_config.FILE_READY_WAIT_INTERVAL,
+                    stable_count=asr_time_config.FILE_STABLE_COUNT,
+                )
+                if not is_ready:
+                    raise IOError(f"远端文件未就绪: {reason}")
+
+                remote_size = await asyncio.to_thread(lambda: remote_path.stat().st_size)
+                if remote_size != local_size:
+                    raise IOError(f"远端大小不一致 local={local_size}B remote={remote_size}B")
+
+                logger.info(
+                    f"{self.LOG_PREFIX} ✅ 直接覆盖同步完成 {filename} "
+                    f"size={remote_size}B attempt={attempt + 1}/{retries + 1}"
+                )
+                return True
+            except Exception as e:
+                logger.error(
+                    f"{self.LOG_PREFIX} ❌ 直接覆盖同步失败 {filename} "
+                    f"尝试 {attempt + 1}/{retries + 1}: {e}"
+                )
+                if not remote_existed:
+                    await asyncio.to_thread(remote_path.unlink, missing_ok=True)
+                if attempt < retries:
+                    await asyncio.sleep(asr_time_config.OPERATION_RETRY_WAIT)
+
+        return False
 
     async def sync_local_to_remote_single_pass(self, filename: str, retries: int | None = None) -> bool:
         """
@@ -351,19 +440,20 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
 
         return False
 
-    async def cleanup_local(self, force: bool = False):
+    async def cleanup_local(self, force: bool = False, recreate: bool = True):
         """
         清理本地工作区
 
         Args:
             force: 如果为 True，即使有错误也强制删除（用于任务启动时的清理）
+            recreate: 清理后是否重新创建空的任务缓存目录
         """
         try:
             if await asyncio.to_thread(self.local_dir.exists):
                 await asyncio.to_thread(lambda: shutil.rmtree(str(self.local_dir)))
                 logger.info(f"{self.LOG_PREFIX} 🧹 已清理本地缓存: {self.local_dir}")
-                # 重新创建空目录
-                await asyncio.to_thread(self.local_dir.mkdir, parents=True, exist_ok=True)
+                if recreate:
+                    await asyncio.to_thread(self.local_dir.mkdir, parents=True, exist_ok=True)
         except Exception as e:
             if force:
                 logger.warning(f"{self.LOG_PREFIX} ⚠️ 清理本地缓存失败，但继续执行: {e}")
@@ -395,7 +485,7 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
         5. 如果都不存在，返回 (False, -1)
         """
         try:
-            remote_merged = self.remote_dir / self.MERGED_WAV_FILENAME
+            remote_merged = self.remote_dir / self.merged_filename
             remote_metadata = self.remote_dir / self.METADATA_FILE
 
             merged_exists = await asyncio.to_thread(remote_merged.exists)
@@ -410,13 +500,13 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
             if merged_exists != metadata_exists:
                 logger.warning(
                     f"{self.LOG_PREFIX} ⚠️ task_key={self.task_key} "
-                    f"Remote 检查点数据不一致 ({self.MERGED_WAV_FILENAME}={merged_exists}, metadata={metadata_exists})"
+                    f"Remote 检查点数据不一致 ({self.merged_filename}={merged_exists}, metadata={metadata_exists})"
                 )
 
                 # 删除存在的文件
                 if merged_exists:
                     await asyncio.to_thread(remote_merged.unlink, missing_ok=True)
-                    logger.info(f"{self.LOG_PREFIX} 🗑️ 已删除不一致的 {self.MERGED_WAV_FILENAME}")
+                    logger.info(f"{self.LOG_PREFIX} 🗑️ 已删除不一致的 {self.merged_filename}")
 
                 if metadata_exists:
                     await asyncio.to_thread(remote_metadata.unlink, missing_ok=True)
@@ -457,18 +547,18 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
                 await asyncio.to_thread(remote_metadata.unlink, missing_ok=True)
                 return False, -1
 
-            # 3.2 验证 merged.wav 文件大小
+            # 3.2 验证 merged 文件大小
             merged_size = await asyncio.to_thread(lambda: remote_merged.stat().st_size)
             if merged_size == 0:
                 logger.warning(
-                    f"{self.LOG_PREFIX} ⚠️ task_key={self.task_key} {self.MERGED_WAV_FILENAME} 大小为 0，删除检查点文件"
+                    f"{self.LOG_PREFIX} ⚠️ task_key={self.task_key} {self.merged_filename} 大小为 0，删除检查点文件"
                 )
                 await asyncio.to_thread(remote_merged.unlink, missing_ok=True)
                 await asyncio.to_thread(remote_metadata.unlink, missing_ok=True)
                 return False, -1
 
             # 3.3 检查本地缓存是否与 Remote 一致（仅首次运行时）
-            local_merged = self.local_dir / self.MERGED_WAV_FILENAME
+            local_merged = self.local_dir / self.merged_filename
             local_metadata = self.local_dir / self.METADATA_FILE
 
             need_sync = True
@@ -527,7 +617,7 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
                 )
 
                 if not is_ready:
-                    logger.warning(f"{self.LOG_PREFIX} ⚠️ {self.MERGED_WAV_FILENAME} 不可用: {reason}，删除检查点")
+                    logger.warning(f"{self.LOG_PREFIX} ⚠️ {self.merged_filename} 不可用: {reason}，删除检查点")
                     await asyncio.to_thread(remote_merged.unlink, missing_ok=True)
                     await asyncio.to_thread(remote_metadata.unlink, missing_ok=True)
                     return False, -1
@@ -546,7 +636,7 @@ class AsrLocalWorkspaceProxy(AsrServiceBase):
             logger.error(f"{self.LOG_PREFIX} ❌ task_key={self.task_key} 验证检查点失败: {e}")
             # 发生异常，安全起见删除检查点文件
             try:
-                await asyncio.to_thread((self.remote_dir / self.MERGED_WAV_FILENAME).unlink, missing_ok=True)
+                await asyncio.to_thread((self.remote_dir / self.merged_filename).unlink, missing_ok=True)
                 await asyncio.to_thread((self.remote_dir / self.METADATA_FILE).unlink, missing_ok=True)
             except OSError:
                 # 文件删除失败，忽略错误（已经是清理操作）

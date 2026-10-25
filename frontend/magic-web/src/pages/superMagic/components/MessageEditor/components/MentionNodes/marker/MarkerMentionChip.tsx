@@ -1,7 +1,7 @@
 import TSIcon from "@/components/base/TSIcon"
 import type { CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { memo, type MouseEvent } from "react"
 import MarkerNamePrefix from "./MarkerNamePrefix"
 import { getMarkerMentionStyleConfig } from "./shared"

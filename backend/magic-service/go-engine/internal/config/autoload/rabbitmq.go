@@ -20,11 +20,13 @@ type RabbitMQQueuesConfig struct {
 
 // RabbitMQDocumentResyncConfig 保存文档重向量化队列参数。
 type RabbitMQDocumentResyncConfig struct {
-	Enabled                      bool `json:"enabled"`
-	ConsumerPrefetch             int  `mapstructure:"consumerPrefetch" json:"consumer_prefetch"`
-	ConsumerConcurrency          int  `mapstructure:"consumerConcurrency" json:"consumer_concurrency"`
-	TaskTimeoutSeconds           int  `mapstructure:"taskTimeoutSeconds" json:"task_timeout_seconds"`
-	MQPublishTimeoutMillis       int  `mapstructure:"mqPublishTimeoutMillis" json:"mq_publish_timeout_millis"`
-	MaxRequeueAttempts           int  `mapstructure:"maxRequeueAttempts" json:"max_requeue_attempts"`
-	SourceCallbackGateTTLSeconds int  `mapstructure:"sourceCallbackGateTTLSeconds" json:"source_callback_gate_ttl_seconds"`
+	Enabled                        bool `json:"enabled"`
+	ConsumerPrefetch               int  `mapstructure:"consumerPrefetch" json:"consumer_prefetch"`
+	ConsumerConcurrency            int  `mapstructure:"consumerConcurrency" json:"consumer_concurrency"`
+	TaskTimeoutSeconds             int  `mapstructure:"taskTimeoutSeconds" json:"task_timeout_seconds"`
+	MQPublishTimeoutMillis         int  `mapstructure:"mqPublishTimeoutMillis" json:"mq_publish_timeout_millis"`
+	MaxRequeueAttempts             int  `mapstructure:"maxRequeueAttempts" json:"max_requeue_attempts"`
+	UnexpectedEOFBackoffBaseMillis int  `mapstructure:"unexpectedEOFBackoffBaseMillis" json:"unexpected_eof_backoff_base_millis"`
+	UnexpectedEOFBackoffMaxMillis  int  `mapstructure:"unexpectedEOFBackoffMaxMillis" json:"unexpected_eof_backoff_max_millis"`
+	SourceCallbackGateTTLSeconds   int  `mapstructure:"sourceCallbackGateTTLSeconds" json:"source_callback_gate_ttl_seconds"`
 }

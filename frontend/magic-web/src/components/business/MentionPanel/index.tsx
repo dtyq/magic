@@ -15,11 +15,18 @@ import { Virtuoso, VirtuosoGrid } from "react-virtuoso"
 import type { VirtuosoGridHandle, VirtuosoHandle } from "react-virtuoso"
 
 // Types
-import type { MentionItem, MentionPanelProps, MentionPanelRef, MentionSelectContext } from "./types"
+import type {
+	MentionItem,
+	MentionPanelProps,
+	MentionPanelRef,
+	MentionPanelSelectionAssetType,
+	MentionSelectContext,
+} from "./types"
 import { MentionPanelViewMode, PanelState } from "./types"
 
 // Hooks
 import { useMentionPanel } from "./hooks/useMentionPanel"
+import { useMentionSelectionSession } from "./hooks/useMentionSelectionSession"
 import { useI18nStatic } from "./hooks/useI18n"
 import { useIsMobile } from "../../../hooks/useIsMobile"
 import { createDefaultConfig } from "./constants"
@@ -27,6 +34,7 @@ import { createDefaultConfig } from "./constants"
 // Components
 import MenuItem from "./components/MenuItem"
 import GalleryItem from "./components/GalleryItem"
+import SelectedItemsStrip from "./components/SelectedItemsStrip"
 import ViewModeSwitcher from "./components/ViewModeSwitcher"
 import { isMentionPanelGalleryPreviewTarget } from "./components/GalleryPreviewDialog"
 import MagicIcon from "../../base/MagicIcon"
@@ -36,7 +44,7 @@ import {
 	IconArrowNarrowRight,
 	IconSearch,
 } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/shadcn-ui/popover"
 import { ChevronLeft, Plug, Puzzle } from "lucide-react"
@@ -46,12 +54,15 @@ import { resolveMentionPanelRuntime } from "./runtime/default-runtime"
 import {
 	canTogglePendingItem,
 	getMentionItemSelectionKey,
-	getPendingSourceRootId,
-	getSubmittablePendingEntries,
 	isRootDefaultCategoryScreen,
-	type PendingMentionEntry,
+	isMentionFolderItem,
 } from "./utils/multiSelect"
 import { prepareMentionItemForPending } from "./utils/multiSelectValidation"
+import {
+	canAcceptPendingItem,
+	getMentionPanelSelectionSummaryCounts,
+} from "./utils/selectionSummary"
+import { resolveMentionPanelHeight } from "./utils/panelSize"
 import { MentionPanelBuiltinItemId } from "./runtime/builtin/catalog-ids"
 import { createOtherProjectMentionItem } from "./utils/otherProjectMention"
 import projectFilesStore from "@/stores/projectFiles"
@@ -92,6 +103,9 @@ const MentionPanel = observer(
 			style,
 			disableKeyboardShortcuts = false,
 			enableMultiSelect = true,
+			multiSelectNavigationPolicy = "clear",
+			selectionScopeId,
+			selectionSummary,
 			lockDismissToExplicitClose = false,
 			canToggleMultiSelectItem,
 			viewMode = MentionPanelViewMode.LIST,
@@ -110,19 +124,14 @@ const MentionPanel = observer(
 
 		// Internal search state
 		const [internalSearchQuery, setInternalSearchQuery] = useState("")
-		const [multiSelectMode, setMultiSelectMode] = useState(false)
 		const [previewItem, setPreviewItem] = useState<MentionItem | null>(null)
 		const [internalViewMode, setInternalViewMode] = useState<MentionPanelViewMode>(viewMode)
 		const [otherProjectModalVisible, setOtherProjectModalVisible] = useState(false)
-		const [pendingByKey, setPendingByKey] = useState<Map<string, PendingMentionEntry>>(
-			() => new Map(),
-		)
 		const searchInputRef = useRef<HTMLInputElement>(null)
 		const keyboardConfirmHandlerRef = useRef<() => boolean>(() => false)
 		const keyboardMetaEnterHandlerRef = useRef<() => boolean>(() => false)
 		const keyboardNavigateBackHandlerRef = useRef<() => void>(() => undefined)
 		const keyboardEnterFolderHandlerRef = useRef<() => boolean>(() => false)
-		const clearPendingAfterNavigationRef = useRef(false)
 
 		// Internationalization
 		const t = useI18nStatic(language)
@@ -132,15 +141,6 @@ const MentionPanel = observer(
 		const activeViewMode = canSwitchViewMode ? internalViewMode : viewMode
 		const isGalleryMode = activeViewMode === MentionPanelViewMode.GALLERY && !isMobile
 
-		const panelWidth = isGalleryMode ? GALLERY_PANEL_WIDTH : LIST_PANEL_WIDTH
-		const panelHeight = isGalleryMode ? GALLERY_PANEL_HEIGHT : defaultConfig.height
-		const panelSizeStyle = useMemo<CSSProperties>(
-			() => ({
-				width: panelWidth,
-				height: panelHeight,
-			}),
-			[panelHeight, panelWidth],
-		)
 		const resolvedRuntime = useMemo(
 			() =>
 				resolveMentionPanelRuntime({
@@ -196,16 +196,110 @@ const MentionPanel = observer(
 		// Destructure focus properties to avoid ESLint dependency warnings
 		const { shouldFocusSearch, clearFocusTrigger } = focus
 
-		const resetLocalMultiSelectState = useCallback(() => {
-			clearPendingAfterNavigationRef.current = false
-			setMultiSelectMode(false)
-			setPendingByKey(new Map())
-		}, [])
+		const canToggleBaseItem = useCallback(
+			(item: MentionItem) => {
+				if (!enableMultiSelect) return false
+				if (!canTogglePendingItem(item)) return false
+				return canToggleMultiSelectItem ? canToggleMultiSelectItem(item) : true
+			},
+			[canToggleMultiSelectItem, enableMultiSelect],
+		)
 
-		const clearPendingMultiSelectItems = useCallback(() => {
-			clearPendingAfterNavigationRef.current = false
-			setPendingByKey(new Map())
-		}, [])
+		const navigationSignature = useMemo(
+			() =>
+				[
+					state.currentState,
+					...state.navigationStack.map(
+						(item) => `${item.state}:${item.catalogId ?? ""}:${item.id}`,
+					),
+				].join("|"),
+			[state.currentState, state.navigationStack],
+		)
+
+		const {
+			multiSelectMode,
+			pendingByKey,
+			pendingEntries,
+			submittablePendingEntries,
+			enterMultiSelectMode,
+			leaveMultiSelectMode,
+			togglePendingForItem,
+			removePendingKey,
+			clearForNavigation,
+			reset: resetLocalMultiSelectState,
+		} = useMentionSelectionSession({
+			enabled: visible && enableMultiSelect && !isMobile,
+			canToggleItem: canToggleBaseItem,
+			navigationStack: state.navigationStack,
+			navigationKey: navigationSignature,
+			navigationPolicy: multiSelectNavigationPolicy,
+			scopeId: selectionScopeId,
+			prepareItem: prepareMentionItemForPending,
+		})
+
+		// 多选可勾选判定：基础类型/文件夹过滤之上，再叠加容量上限。
+		// 已暂存项允许取消勾选；新增项需满足「已提交 + 暂存」的 per-type / 总上限。
+		const canToggleMultiSelectItemForItem = useCallback(
+			(item: MentionItem) => {
+				if (!canToggleBaseItem(item)) return false
+				if (pendingByKey.has(getMentionItemSelectionKey(item))) return true
+				return canAcceptPendingItem(item, selectionSummary, pendingByKey.values())
+			},
+			[canToggleBaseItem, pendingByKey, selectionSummary],
+		)
+
+		// Current references are the committed base; pending entries are session-local
+		// and may have been collected from folders that are no longer visible.
+		const selectionSummaryCounts = useMemo(() => {
+			if (!multiSelectMode) return undefined
+			return getMentionPanelSelectionSummaryCounts(selectionSummary, pendingByKey.values())
+		}, [multiSelectMode, pendingByKey, selectionSummary])
+
+		const selectionSummaryItems = useMemo(() => {
+			if (!selectionSummaryCounts || !selectionSummary) return []
+
+			const summaryDefinitions: Array<{
+				type: MentionPanelSelectionAssetType
+				label: string
+			}> = [
+				{ type: "image", label: t.selectionSummary.image },
+				{ type: "video", label: t.selectionSummary.video },
+				{ type: "audio", label: t.selectionSummary.audio },
+			]
+
+			return summaryDefinitions
+				.map((definition) => {
+					const limit = selectionSummary.limits[definition.type]
+					const isActive =
+						typeof limit === "number" && Number.isFinite(limit) && limit > 0
+					return {
+						...definition,
+						limit,
+						isActive,
+						reached:
+							isActive && selectionSummaryCounts[definition.type] >= (limit ?? 0),
+					}
+				})
+				.filter((item) => item.isActive)
+		}, [selectionSummary, selectionSummaryCounts, t.selectionSummary])
+		const showSelectionSummary = Boolean(
+			multiSelectMode && selectionSummary && selectionSummaryCounts,
+		)
+		const showSelectedItems = multiSelectMode && pendingEntries.length > 0
+		const panelWidth = isGalleryMode ? GALLERY_PANEL_WIDTH : LIST_PANEL_WIDTH
+		const panelHeight = resolveMentionPanelHeight({
+			baseHeight: isGalleryMode ? GALLERY_PANEL_HEIGHT : defaultConfig.height,
+			isGalleryMode,
+			showSelectionSummary,
+			showSelectedItems,
+		})
+		const panelSizeStyle = useMemo<CSSProperties>(
+			() => ({
+				width: panelWidth,
+				height: panelHeight,
+			}),
+			[panelHeight, panelWidth],
+		)
 
 		// Auto-focus search input when panel becomes visible
 		useEffect(() => {
@@ -275,14 +369,19 @@ const MentionPanel = observer(
 
 		// Use state.items directly as history is now integrated in useMentionPanel
 		const displayItems = state.items
-		const canToggleMultiSelectItemForItem = useCallback(
-			(item: MentionItem) => {
-				if (!enableMultiSelect) return false
-				if (!canTogglePendingItem(item)) return false
-				return canToggleMultiSelectItem ? canToggleMultiSelectItem(item) : true
-			},
-			[canToggleMultiSelectItem, enableMultiSelect],
-		)
+		const panelPreviewItems = useMemo(() => {
+			if (pendingEntries.length === 0) return displayItems
+
+			const items = [...displayItems]
+			const seenKeys = new Set(items.map((item) => getMentionItemSelectionKey(item)))
+			for (const { item } of pendingEntries) {
+				const key = getMentionItemSelectionKey(item)
+				if (seenKeys.has(key)) continue
+				seenKeys.add(key)
+				items.push(item)
+			}
+			return items
+		}, [displayItems, pendingEntries])
 
 		const canUseMultiSelectInCurrentList = useMemo(() => {
 			if (!enableMultiSelect) return false
@@ -290,28 +389,16 @@ const MentionPanel = observer(
 			return displayItems.some((item) => canToggleMultiSelectItemForItem(item))
 		}, [canToggleMultiSelectItemForItem, displayItems, enableMultiSelect, state])
 
-		const navigationSignature = useMemo(
-			() =>
-				[
-					state.currentState,
-					...state.navigationStack.map(
-						(item) => `${item.state}:${item.catalogId ?? ""}:${item.id}`,
-					),
-				].join("|"),
-			[state.currentState, state.navigationStack],
-		)
-
 		useEffect(() => {
 			if (multiSelectMode && !canUseMultiSelectInCurrentList && pendingByKey.size === 0) {
-				setMultiSelectMode(false)
+				leaveMultiSelectMode()
 			}
-		}, [canUseMultiSelectInCurrentList, multiSelectMode, pendingByKey.size])
-
-		useEffect(() => {
-			if (!clearPendingAfterNavigationRef.current) return
-			clearPendingAfterNavigationRef.current = false
-			clearPendingMultiSelectItems()
-		}, [clearPendingMultiSelectItems, navigationSignature])
+		}, [
+			canUseMultiSelectInCurrentList,
+			leaveMultiSelectMode,
+			multiSelectMode,
+			pendingByKey.size,
+		])
 
 		// Create internal ref for DOM element
 		const internalRef = useRef<HTMLDivElement>(null)
@@ -319,20 +406,10 @@ const MentionPanel = observer(
 		const virtuosoRef = useRef<VirtuosoHandle>(null)
 		const virtuosoGridRef = useRef<VirtuosoGridHandle>(null)
 
-		const menuListStyle = useMemo(() => {
-			const searchHeaderHeight = defaultConfig.headerHeight
-			const keyboardHintsHeight = 36
-			const breadcrumbHeight = 16
-			const panelPadding = 4
-			const reservedHeight =
-				searchHeaderHeight + keyboardHintsHeight + breadcrumbHeight + panelPadding
-
-			return {
-				height: Math.max(panelHeight - reservedHeight, 160),
-			}
-		}, [defaultConfig, panelHeight])
-
-		// Auto-scroll to selected item when selectedIndex changes
+		// Auto-scroll when the selected item or the logical list changes. The list can
+		// also be refreshed asynchronously while the user is scrolling; tying this
+		// effect to `state.items.length` would scroll the list back to the selected
+		// item (usually index 0) and overwrite the user's scroll position.
 		useEffect(() => {
 			if (state.selectedIndex < 0) {
 				return
@@ -352,49 +429,7 @@ const MentionPanel = observer(
 			return () => {
 				cancelAnimationFrame(frame)
 			}
-		}, [isGalleryMode, state.selectedIndex, state.items.length])
-
-		const togglePendingForItem = useCallback(
-			async (item: MentionItem) => {
-				if (!canToggleMultiSelectItemForItem(item)) return false
-
-				const key = getMentionItemSelectionKey(item)
-				if (pendingByKey.has(key)) {
-					setPendingByKey((prev) => {
-						const next = new Map(prev)
-						next.delete(key)
-						return next
-					})
-					return true
-				}
-
-				const pendingPreparation = await prepareMentionItemForPending(
-					item,
-					resolvedRuntime.dataService,
-				)
-				if (!pendingPreparation.canSelect) return true
-
-				const sourceRootId = getPendingSourceRootId(state.navigationStack, item)
-				setPendingByKey((prev) => {
-					const next = new Map(prev)
-					if (next.has(key)) next.delete(key)
-					else
-						next.set(key, {
-							item,
-							sourceRootId,
-							mcpValidated: pendingPreparation.mcpValidated,
-						})
-					return next
-				})
-				return true
-			},
-			[
-				canToggleMultiSelectItemForItem,
-				pendingByKey,
-				resolvedRuntime.dataService,
-				state.navigationStack,
-			],
-		)
+		}, [isGalleryMode, navigationSignature, state.searchQuery, state.selectedIndex])
 
 		const handleClosePanel = useCallback(() => {
 			resetLocalMultiSelectState()
@@ -427,7 +462,7 @@ const MentionPanel = observer(
 		)
 
 		const handleConfirmMultiSelect = useCallback(async () => {
-			const entries = getSubmittablePendingEntries(pendingByKey)
+			const entries = submittablePendingEntries
 			if (entries.length === 0) {
 				handleClosePanel()
 				return
@@ -454,17 +489,28 @@ const MentionPanel = observer(
 				await Promise.resolve(result)
 			}
 			resetLocalMultiSelectState()
-		}, [actions, handleClosePanel, onSelect, pendingByKey, resetLocalMultiSelectState])
+		}, [
+			actions,
+			handleClosePanel,
+			onSelect,
+			resetLocalMultiSelectState,
+			submittablePendingEntries,
+		])
 
 		const handleMultiSelectAction = useCallback(() => {
 			if (!multiSelectMode) {
 				if (!canUseMultiSelectInCurrentList) return false
-				setMultiSelectMode(true)
+				enterMultiSelectMode()
 				return true
 			}
 			void handleConfirmMultiSelect()
 			return true
-		}, [canUseMultiSelectInCurrentList, handleConfirmMultiSelect, multiSelectMode])
+		}, [
+			canUseMultiSelectInCurrentList,
+			enterMultiSelectMode,
+			handleConfirmMultiSelect,
+			multiSelectMode,
+		])
 
 		const canEnterFolderForItem = useCallback(
 			(item: MentionItem, enterFolder = true) => {
@@ -479,7 +525,7 @@ const MentionPanel = observer(
 					}) ?? false
 				const nextEnterFolder = enterFolder || shouldEnterFolderDirectly
 				const allowUnselectableForFolderNavigation =
-					nextEnterFolder && item.isFolder === true
+					nextEnterFolder && isMentionFolderItem(item)
 
 				if (item.unSelectable && !allowUnselectableForFolderNavigation) {
 					return false
@@ -521,8 +567,13 @@ const MentionPanel = observer(
 				const selectedItem = displayItems[state.selectedIndex]
 				if (!selectedItem) return true
 
-				if (preferEnterFolder && canEnterFolderForItem(selectedItem, true)) {
-					clearPendingAfterNavigationRef.current = true
+				const shouldEnterFolderDirectly =
+					isMentionFolderItem(selectedItem) &&
+					!canToggleMultiSelectItemForItem(selectedItem)
+				if (
+					(preferEnterFolder || shouldEnterFolderDirectly) &&
+					canEnterFolderForItem(selectedItem, true)
+				) {
 					actions.confirmSelection({ enterFolder: true })
 					return true
 				}
@@ -556,20 +607,20 @@ const MentionPanel = observer(
 
 		const handleKeyboardNavigateBack = useCallback(() => {
 			if (!multiSelectMode) return
-			resetLocalMultiSelectState()
-		}, [multiSelectMode, resetLocalMultiSelectState])
+			clearForNavigation({ exitMode: true })
+		}, [clearForNavigation, multiSelectMode])
 
 		const handleNavigateBack = useCallback(() => {
-			if (multiSelectMode) resetLocalMultiSelectState()
+			clearForNavigation({ exitMode: true })
 			actions.navigateBack()
-		}, [actions, multiSelectMode, resetLocalMultiSelectState])
+		}, [actions, clearForNavigation])
 
 		const handleNavigateToBreadcrumb = useCallback(
 			(index: number) => {
-				if (multiSelectMode) resetLocalMultiSelectState()
+				clearForNavigation({ exitMode: true })
 				actions.navigateToBreadcrumb(index)
 			},
-			[actions, multiSelectMode, resetLocalMultiSelectState],
+			[actions, clearForNavigation],
 		)
 
 		const handleKeyboardEnterFolder = useCallback(() => {
@@ -640,8 +691,24 @@ const MentionPanel = observer(
 				// Update selection index
 				actions.selectItem(index)
 
+				// A host may mark folders as navigation-only. Resolve that intent before
+				// the generic multi-select toggle so a malformed capability predicate
+				// cannot turn a directory into a pending mention.
+				const shouldEnterFolderInMultiSelect =
+					multiSelectMode &&
+					isMentionFolderItem(selectedItem) &&
+					!canToggleMultiSelectItemForItem(selectedItem)
+				if (
+					shouldEnterFolderInMultiSelect &&
+					canEnterFolderForItem(selectedItem, enterFolder)
+				) {
+					setTimeout(() => {
+						actions.confirmSelection({ enterFolder: isRightArrow })
+					})
+					return
+				}
+
 				if (multiSelectMode && isRightArrow && canEnterFolderForItem(selectedItem, true)) {
-					clearPendingAfterNavigationRef.current = true
 					setTimeout(() => {
 						actions.confirmSelection({ enterFolder: true })
 					})
@@ -831,6 +898,9 @@ const MentionPanel = observer(
 							buildStoreRequest={buildStoreRequest}
 							canToggleMultiSelectItem={canToggleMultiSelectItem}
 							enableMultiSelect={enableMultiSelect}
+							multiSelectNavigationPolicy={multiSelectNavigationPolicy}
+							selectionScopeId={selectionScopeId}
+							selectionSummary={selectionSummary}
 							{...restProps}
 						/>
 					</Suspense>
@@ -887,8 +957,8 @@ const MentionPanel = observer(
 			}
 
 			return (
-				<div className="flex items-center gap-1 px-1.5">
-					<div className="inline flex-1 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[16px] text-foreground">
+				<div className="flex min-w-0 items-center gap-1 px-1.5">
+					<div className="inline min-w-0 flex-1 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[16px] text-foreground">
 						{state.navigationStack.map((item, index) => (
 							<span key={item.id}>
 								{index > 0 && <span className="mx-0.5">/</span>}
@@ -920,8 +990,9 @@ const MentionPanel = observer(
 
 		const panelBody = (
 			<MentionPanelRootProviders
+				dataService={resolvedRuntime.dataService}
 				getItemRenderer={resolvedRuntime.getItemRenderer}
-				items={displayItems}
+				items={panelPreviewItems}
 			>
 				<div className="flex w-full flex-1 flex-col overflow-hidden transition-all duration-200 ease-out">
 					{/* Search header (matches Figma design) */}
@@ -1031,12 +1102,11 @@ const MentionPanel = observer(
 					<div
 						ref={menuListRef}
 						className={cn(
-							"flex flex-1 flex-col gap-0 overflow-hidden transition-all duration-200 ease-out",
+							"flex min-h-0 flex-1 flex-col gap-0 overflow-hidden transition-all duration-200 ease-out",
 							isGalleryMode
 								? "p-2 [&_div[data-virtuoso-scroller]::-webkit-scrollbar]:hidden [&_div[data-virtuoso-scroller]]:[-ms-overflow-style:none] [&_div[data-virtuoso-scroller]]:[scrollbar-width:none]"
 								: "[&_div[data-virtuoso-scroller]]:scrollbar-thin [&_div[data-virtuoso-scroller]]:scrollbar-thumb-border [&_div[data-virtuoso-scroller]]:scrollbar-track-transparent [&_div[data-virtuoso-scroller]]:scrollbar-thumb-rounded p-1 [&_div[data-virtuoso-scroller]]:mr-0.5",
 						)}
-						style={menuListStyle}
 						role="listbox"
 					>
 						{dataSource.loading ? (
@@ -1086,6 +1156,36 @@ const MentionPanel = observer(
 							/>
 						)}
 					</div>
+
+					{showSelectionSummary && selectionSummary && selectionSummaryCounts && (
+						<div
+							className="mx-1 flex shrink-0 items-center justify-start gap-1 overflow-hidden whitespace-nowrap px-1.5 pb-1 font-['Geist'] text-[10px] leading-[16px] text-muted-foreground"
+							data-testid="mention-panel-selection-summary"
+							aria-label={t.selectionSummary.selected}
+						>
+							<span>
+								{t.selectionSummary.selected} {pendingByKey.size}
+							</span>
+							{selectionSummaryItems.map(({ type, label, reached }) => (
+								<span key={type} className="inline-flex items-center gap-1">
+									<span aria-hidden>{" · "}</span>
+									<span className={cn(reached && "text-destructive")}>
+										{label} {selectionSummaryCounts[type]}/
+										{selectionSummary.limits[type]}
+									</span>
+								</span>
+							))}
+						</div>
+					)}
+
+					{showSelectedItems && (
+						<SelectedItemsStrip
+							entries={pendingEntries}
+							isGalleryMode={isGalleryMode}
+							t={t}
+							onRemove={removePendingKey}
+						/>
+					)}
 
 					{/* Keyboard Hints */}
 					<div className="mx-1 mb-1 flex flex-nowrap items-center gap-1.5 rounded bg-accent px-1.5 py-1.5">

@@ -4,14 +4,11 @@ import * as React from "react"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 
 // --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
+import { parseShortcutKeys } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Tiptap UI ---
 import type { UseCodeBlockConfig } from "@/components/tiptap-ui/code-block-button"
-import {
-	CODE_BLOCK_SHORTCUT_KEY,
-	useCodeBlock,
-} from "@/components/tiptap-ui/code-block-button"
+import { CODE_BLOCK_SHORTCUT_KEY, useCodeBlock } from "@/components/tiptap-ui/code-block-button"
 
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"

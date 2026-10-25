@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next"
 import { AlertCircle, Clock, Loader2, RotateCw } from "lucide-react"
 import { useState, useCallback, useEffect } from "react"
 import { CrewKnowledge } from "@/types/crew-knowledge"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { KnowledgeApi } from "@/apis"
 
 interface DocumentSyncStatusBadgeProps {

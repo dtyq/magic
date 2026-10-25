@@ -3,7 +3,7 @@ import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import { SceneItem } from "@/pages/superMagic/types/skill"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ScenePanelVariant } from "./LazyScenePanel/types"
 import { useOptionalScenePanelVariant } from "../stores"
 import { useTranslation } from "react-i18next"

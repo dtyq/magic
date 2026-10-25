@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 import traceback
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -35,16 +36,20 @@ from agentlang.logger import get_logger
 from app.core.config.debug_config import is_local_debug_mode_enabled
 from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import Attachment, AttachmentTag
-from app.core.entity.checkpoint import FileOperation, FileSnapshot, FileType
+from app.core.entity.checkpoint import FileSnapshot
 from app.core.entity.event.file_event import FileEventData  # 从业务层导入 FileEventData
 from app.core.entity.project_archive import ArchiveDetail, ProjectArchiveInfo
+from app.infrastructure.checkpoint.remote_sync import CheckpointRemoteSync
 from app.infrastructure.storage.base import BaseFileProcessor
 from app.infrastructure.storage.factory import StorageFactory
 from app.infrastructure.storage.types import StorageResponse
 from app.path_manager import PathManager
 from app.service.agent_event.base_listener_service import BaseListenerService
+from app.service.topic_persistence import (
+    TopicPersistenceManager,
+)
 from app.utils.init_client_message_util import InitClientMessageUtil
-from app.utils.path_utils import get_workspace_dir, get_storage_dir, get_storage_dir_with_fallback
+from app.utils.path_utils import get_workspace_dir, get_storage_dir_with_fallback
 
 logger = get_logger(__name__)
 
@@ -202,7 +207,7 @@ class FileStorageListenerService:
         await FileStorageListenerService._collect_changed_attachments_from_checkpoint(agent_context)
 
         logger.info("处理主代理完成事件：创建文件版本")
-        await FileStorageListenerService._create_changed_files_versions(agent_context)
+        await FileStorageListenerService._create_file_versions_from_checkpoint(agent_context)
 
         FileStorageListenerService._collect_local_debug_attachments(agent_context)
 
@@ -476,7 +481,7 @@ class FileStorageListenerService:
         return info_response
 
     @staticmethod
-    async def _archive_and_upload_project(agent_context: AgentContext) -> None:
+    async def _archive_and_upload_project(agent_context: AgentContext) -> bool:
         """
         Compress and upload project directories separately with independent versioning
 
@@ -487,23 +492,22 @@ class FileStorageListenerService:
         enable_archive = os.getenv("ENABLE_PROJECT_ARCHIVE", "true").lower() == "true"
         if not enable_archive:
             logger.info("ENABLE_PROJECT_ARCHIVE=false，跳过项目归档上传")
-            return
+            return False
 
         try:
             # Get directory paths
-            chat_history_dir = PathManager.get_chat_history_dir()
             workspace_dir = PathManager.get_workspace_dir()
-            topic_id = agent_context.get_metadata().get("topic_id")
+            metadata = agent_context.get_metadata()
+            topic_id = metadata.get("topic_id") or metadata.get("chat_topic_id")
 
             if not topic_id:
                 logger.error("无法获取topic_id，无法进行分离式打包")
-                return
+                return False
 
             # Load local manifest to check current state
             # local_manifest = FileStorageListenerService._load_local_manifest()
 
             # Initialize storage service
-            metadata = agent_context.get_metadata()
             sts_token_refresh = agent_context.get_init_client_message_sts_token_refresh()
             platform_type = agent_context.get_init_client_message_platform_type()
 
@@ -526,23 +530,37 @@ class FileStorageListenerService:
             #     project_archive_info = local_manifest or ProjectArchiveInfo(archives={})
 
             # Process and upload chat history archive
-            await FileStorageListenerService._process_chat_history_archive(
-                chat_history_dir, topic_id, storage_service
+            from app.service.chat_history_archive_service import ChatHistoryArchiveService
+            uploaded = await ChatHistoryArchiveService().upload(
+                topic_id=topic_id, storage_service=storage_service
             )
+            if uploaded:
+                persistence = TopicPersistenceManager(PathManager.get_project_root())
+                try:
+                    await asyncio.to_thread(persistence.clear_topic_chat_history)
+                except Exception as error:
+                    # 清理失败不应覆盖 Agent 结果，也不应阻断 checkpoint 的后续同步。
+                    logger.warning(
+                        "聊天历史归档已上传，但清理 .topic/chat_history 失败，后续启动将重试: %s",
+                        error,
+                        exc_info=True,
+                    )
+                else:
+                    logger.info("聊天历史归档上传成功，已清理 .topic/chat_history")
+            else:
+                logger.warning("本轮聊天历史归档未上传；未清理已有 .topic/chat_history，本轮未更新该副本")
 
-            # Process and upload checkpoints archive
-            checkpoints_dir = PathManager.get_checkpoints_dir()
-            await FileStorageListenerService._process_checkpoints_archive(
-                str(checkpoints_dir), topic_id, storage_service
-            )
+            # 每轮只上传本轮 checkpoint 归档与 manifest（不再整目录打包全量上传）
+            await FileStorageListenerService._sync_checkpoints_archive(topic_id, storage_service)
+            return uploaded
 
             # Save and upload the final manifest
             # await FileStorageListenerService._save_and_upload_project_archive_info(project_archive_info, agent_context)
-            logger.info("聊天历史和checkpoints上传完成")
 
         except Exception as e:
             logger.error(f"分离式打包和上传过程中发生错误: {e}")
             logger.error(traceback.format_exc())
+            return False
 
     @staticmethod
     async def _process_workspace_archive(
@@ -640,137 +658,23 @@ class FileStorageListenerService:
             return None
 
     @staticmethod
-    async def _process_chat_history_archive(
-        chat_history_dir: str,
-        topic_id: str,
-        storage_service
-    ) -> None:
+    async def _sync_checkpoints_archive(topic_id: str, storage_service) -> None:
         """
-        Process chat history archive: compress if changed and upload
+        每轮同步 checkpoint 归档与 manifest。
 
-        Args:
-            chat_history_dir: Path to chat history directory
-            topic_id: Topic ID for naming the archive
-            storage_service: Storage service instance
+        归档补齐、一致发布与差异删除的逻辑都在 CheckpointRemoteSync 内部：
+        未上传成功的归档每轮自动重试，且只有 manifest 引用的所有归档都确认
+        上传后才发布 manifest，保证远端不出现指向空归档的 checkpoint。
         """
-        if not os.path.isdir(chat_history_dir) or not os.listdir(chat_history_dir):
-            logger.info("聊天历史目录为空或不存在，跳过处理")
+        if not topic_id or storage_service is None:
+            logger.warning("缺少 topic_id 或 storage_service，跳过 checkpoint 归档同步")
             return
 
-        await FileStorageListenerService._archive_and_upload_single_chat_history(chat_history_dir, topic_id, storage_service)
-
-    @staticmethod
-    async def _archive_and_upload_single_chat_history(chat_history_dir: str, topic_id: str, storage_service) -> None:
-        """
-        Compress and upload a single chat history archive.
-
-        Args:
-            chat_history_dir: Path to the chat history directory.
-            topic_id: The topic ID for this chat history.
-            storage_service: The storage service instance.
-        """
         try:
-            from app.service.chat_history_cleanup_service import ChatHistoryCleanupService
-            await ChatHistoryCleanupService().run()
-            # Always archive and upload chat history for the current topic
-            logger.info(f"为话题 {topic_id} 处理聊天历史归档")
-
-            # Create archive in a temporary directory
-            with tempfile.TemporaryDirectory() as temp_dir:
-                archive_name = f"chat_history_{topic_id}"
-                archive_path = os.path.join(temp_dir, archive_name)
-                zip_path = shutil.make_archive(archive_path, 'zip', chat_history_dir)
-                logger.info(f"聊天历史已压缩到: {zip_path}")
-
-                # Determine the directory path for upload
-                configured_path = InitClientMessageUtil.get_chat_history_dir()
-                dir_path = configured_path if configured_path else get_workspace_dir(storage_service.credentials)
-
-                # Define object key
-                object_key = BaseFileProcessor.combine_path(
-                    dir_path,
-                    os.path.basename(zip_path)
-                )
-
-                # Upload archive
-                logger.info(f"上传聊天历史归档到: {object_key}")
-                await storage_service.upload(
-                    file=zip_path,
-                    key=object_key,
-                    options=None
-                )
-                logger.info(f"聊天历史归档上传成功: {object_key}")
-
+            await CheckpointRemoteSync(storage_service, topic_id).sync_manifest_and_evicted()
+            logger.info(f"话题 {topic_id} 的 checkpoint 归档同步完成")
         except Exception as e:
-            logger.error(f"处理聊天历史归档时出错: {e}", exc_info=True)
-
-    @staticmethod
-    async def _process_checkpoints_archive(
-        checkpoints_dir: str,
-        topic_id: str,
-        storage_service
-    ) -> None:
-        """
-        Process checkpoints archive: compress if changed and upload
-
-        Args:
-            checkpoints_dir: Path to checkpoints directory
-            topic_id: Topic ID for naming the archive
-            storage_service: Storage service instance
-        """
-        if not os.path.isdir(checkpoints_dir) or not os.listdir(checkpoints_dir):
-            logger.info("checkpoints目录为空或不存在，跳过处理")
-            return
-
-        await FileStorageListenerService._archive_and_upload_single_checkpoints(checkpoints_dir, topic_id, storage_service)
-
-    @staticmethod
-    async def _archive_and_upload_single_checkpoints(checkpoints_dir: str, topic_id: str, storage_service) -> None:
-        """
-        Compress and upload a single checkpoints archive.
-
-        Args:
-            checkpoints_dir: Path to the checkpoints directory.
-            topic_id: The topic ID for this checkpoints.
-            storage_service: The storage service instance.
-        """
-        try:
-            # Always archive and upload checkpoints for the current topic
-            logger.info(f"为话题 {topic_id} 处理checkpoints归档")
-
-            # Create archive in a temporary directory
-            with tempfile.TemporaryDirectory() as temp_dir:
-                archive_name = f"checkpoints_{topic_id}"
-                archive_path = os.path.join(temp_dir, archive_name)
-                zip_path = shutil.make_archive(archive_path, 'zip', checkpoints_dir)
-                logger.info(f"checkpoints已压缩到: {zip_path}")
-
-                # Get work_dir as base path
-                base_path = get_storage_dir(storage_service.credentials)
-
-                # Get checkpoints dir name
-                checkpoints_dir_name = InitClientMessageUtil.get_checkpoints_dir()
-
-                # Combine paths
-                dir_path = BaseFileProcessor.combine_path(base_path, checkpoints_dir_name)
-
-                # Define object key
-                object_key = BaseFileProcessor.combine_path(
-                    dir_path,
-                    os.path.basename(zip_path)
-                )
-
-                # Upload archive
-                logger.info(f"上传checkpoints归档到: {object_key}")
-                await storage_service.upload(
-                    file=zip_path,
-                    key=object_key,
-                    options=None
-                )
-                logger.info(f"checkpoints归档上传成功: {object_key}")
-
-        except Exception as e:
-            logger.error(f"处理checkpoints归档时出错: {e}", exc_info=True)
+            logger.error(f"同步 checkpoints 归档时出错: {e}", exc_info=True)
 
     @staticmethod
     def _calculate_file_md5(file_path: str) -> str:
@@ -830,6 +734,18 @@ class FileStorageListenerService:
             f"构造文件键成功: {filepath}, file_id: {file_id}, 存储键: {s3_key}"
         )
         return ConstructedFileKey(file_key=s3_key, file_id=file_id)
+
+    @staticmethod
+    async def create_workspace_attachment(filepath: str) -> Attachment:
+        """投递前取得真实文件身份；无 MagicFS key 时拒绝产生不可下载的镜像。"""
+        constructed = await FileStorageListenerService._construct_file_key(filepath)
+        if constructed is None:
+            raise ValueError("The file has no MagicFS storage identity; wait for file synchronization.")
+        stat = await async_stat(filepath)
+        return FileStorageListenerService._build_attachment(
+            filepath, constructed.file_key, constructed.file_id, AttachmentTag.FINAL,
+            file_size=stat.st_size,
+        )
 
     @staticmethod
     def _create_attachment_from_uploaded_file(
@@ -974,9 +890,13 @@ class FileStorageListenerService:
         FILE_UPDATED 事件。
 
         过滤规则:
+        - 只收集项目空间条目（变更附件仅展示项目空间；user 空间等其它
+          工作区空间只进文件版本链路，见空间注册表）；topic 空间（聊天
+          历史等内部状态）不出现在用户可见变更里
         - 跳过目录快照 (版本与 attachment 都只针对文件)
         - 跳过 DELETED 操作 (文件已不存在，无法构造 attachment)
-        - 跳过任一路径段以 "." 开头的隐藏路径，覆盖工具和 Agent 生成的隐藏目录
+        - 不按隐藏路径过滤：以 "." 开头的目录（.magic/、.venv/ 等）里的
+          持久文件同样进入变更附件与文件版本链路
         - 同一路径同一 checkpoint 内只取第一次出现 (file_snapshots 已是按顺序追加
           的操作流，保留首次即可)
 
@@ -1047,54 +967,24 @@ class FileStorageListenerService:
     @staticmethod
     def _collect_changed_file_paths(file_snapshots: List[FileSnapshot]) -> List[str]:
         """
-        从 checkpoint 的 file_snapshots 中挑出需要构造 attachment 的文件路径。
+        从 checkpoint 流水中挑出需要构造 attachment 的文件路径。
+
+        选择逻辑（含空间过滤：topic/聊天历史条目不呈现给用户、目录与删除
+        跳过）委托 infrastructure 层纯函数，便于单测直接覆盖；
+        本方法保留仅为调用点稳定。
 
         Args:
-            file_snapshots: checkpoint_info.file_snapshots
+            file_snapshots: 聚合后的 checkpoint_info.file_snapshots
 
         Returns:
             List[str]: 按首次出现顺序去重后的文件路径列表；workspace 内文件为
             相对路径，跨项目挂载（referenced-projects）文件为 agent 视角绝对路径
         """
-        seen: set = set()
-        ordered: List[str] = []
-        for snapshot in file_snapshots:
-            if snapshot.file_type == FileType.DIRECTORY:
-                continue
-            if snapshot.operation == FileOperation.DELETED:
-                continue
-            # rename 不改内容，跳过以避免触发不必要的 create_file_version；
-            # 若同一 file_id 后续在同一 checkpoint 内出现 UPDATED，仍会进列表
-            # （seen 按 file_path 去重，RENAMED 不会提前占用新路径）。
-            if snapshot.operation == FileOperation.RENAMED:
-                continue
+        from app.infrastructure.checkpoint.attachment_candidates import (
+            select_changed_attachment_paths,
+        )
 
-            path = snapshot.file_path
-            if path in seen:
-                continue
-
-            if FileStorageListenerService._is_hidden_path(path):
-                continue
-
-            seen.add(path)
-            ordered.append(path)
-        return ordered
-
-    @staticmethod
-    def _is_hidden_path(path: str) -> bool:
-        """
-        判断路径是否属于隐藏路径 (任一路径段以 "." 开头)。
-
-        用于过滤由工具或 Agent 自动生成、不应出现在"本轮变更附件"列表里的隐藏产物。
-        """
-        normalized = path.replace("\\", "/").lstrip("/")
-        if not normalized:
-            return False
-        for segment in normalized.split("/"):
-            if segment.startswith("."):
-                return True
-        return False
-
+        return select_changed_attachment_paths(file_snapshots)
     @staticmethod
     def _build_attachment(
         filepath: str,
@@ -1102,6 +992,7 @@ class FileStorageListenerService:
         file_id: Optional[str],
         file_tag: AttachmentTag,
         source: int = 3,
+        file_size: Optional[int] = None,
     ) -> Attachment:
         """
         构造 Attachment 对象的公共实现，供事件路径与 checkpoint 路径共用。
@@ -1117,7 +1008,8 @@ class FileStorageListenerService:
             Attachment: 构造好的附件对象
         """
         file_path_obj = Path(filepath)
-        file_size = os.path.getsize(filepath)
+        if file_size is None:
+            file_size = os.path.getsize(filepath)
         file_ext = file_path_obj.suffix.lstrip('.')
         file_name = file_path_obj.name
 
@@ -1136,9 +1028,15 @@ class FileStorageListenerService:
         )
 
     @staticmethod
-    async def _create_changed_files_versions(agent_context: AgentContext) -> bool:
+    async def _create_file_versions_from_checkpoint(agent_context: AgentContext) -> bool:
         """
-        创建变更文件的版本信息
+        从 checkpoint 流水创建文件版本（工作区空间：project / user）。
+
+        文件版本与变更附件是两条独立策略：附件列表仅展示项目空间变更，
+        版本创建覆盖全部工作区空间（如用户空间 .magic/ 下的记忆文件）。
+        权威数据源是 agfs 侧按空间分区的 operations.json，路径解析与
+        附件收集一致：绝对路径（挂载配置下发 path_prefix）原样使用，
+        相对路径按 workspace 目录拼接。
 
         Args:
             agent_context: Agent 上下文
@@ -1153,17 +1051,55 @@ class FileStorageListenerService:
             return True
 
         try:
+            # 延迟导入: CheckpointService / CheckpointUtils 在顶层 import 会形成
+            # file_storage_listener_service ↔ checkpoint_service 的循环依赖
+            from app.infrastructure.checkpoint.attachment_candidates import (
+                select_file_version_paths,
+            )
+            from app.service.checkpoint_service import CheckpointService
             from app.service.file_version_service import FileVersionService
+            from app.utils.checkpoint_utils import CheckpointUtils
+
+            message_id = CheckpointUtils.get_current_checkpoint_context(agent_context)
+            if not message_id:
+                logger.warning("未能获取 message_id，跳过创建文件版本")
+                return True
+
+            checkpoint_service = CheckpointService()
+            checkpoint_info = await checkpoint_service.get_checkpoint(message_id)
+            if not checkpoint_info or not checkpoint_info.file_snapshots:
+                logger.info(f"checkpoint {message_id} 无文件变更，跳过创建文件版本")
+                return True
+
+            recorded_paths = select_file_version_paths(checkpoint_info.file_snapshots)
+            if not recorded_paths:
+                logger.info(f"checkpoint {message_id} 过滤后无需要创建版本的文件变更")
+                return True
+
+            workspace_dir = PathManager.get_workspace_dir()
+            absolute_paths = []
+            for recorded_path in recorded_paths:
+                if os.path.isabs(recorded_path):
+                    # 跨挂载（user / referenced-projects）的变更以 agent 视角
+                    # 绝对路径记录，直接使用；无 magicfs xattr 的文件由
+                    # create_file_versions 优雅跳过
+                    absolute_paths.append(recorded_path)
+                else:
+                    absolute_paths.append(str(workspace_dir / recorded_path.lstrip("/")))
+
+            logger.info(f"准备为 {len(absolute_paths)} 个文件创建版本信息")
 
             version_service = FileVersionService()
-            result = await version_service.create_changed_files_versions(agent_context)
+            result = await version_service.create_file_versions(absolute_paths)
 
-            if result:
-                logger.info("文件版本创建成功")
+            if result.get("success"):
+                logger.info(
+                    f"文件版本创建完成: {result.get('success_count')}/{result.get('total_count')}"
+                )
             else:
-                logger.warning("文件版本创建失败")
+                logger.warning(f"文件版本创建失败: {result}")
 
-            return result
+            return bool(result.get("success"))
 
         except Exception as e:
             logger.error(f"创建文件版本过程中发生异常: {e}", exc_info=True)

@@ -19,6 +19,10 @@ Router::addGroup(
         // 根据项目 ID 获取项目根目录 file_id（agfs-server 动态挂载 referenced-project 时调用）
         Router::get('/projects/{projectId}/root-file-id', [MagicFSApi::class, 'getProjectRootFileId']);
 
+        // 批量拉取多个文件树的变更（推送不可用时的合并轮询入口）。
+        // 必须定义在 /files/{id}/... 之前，避免将来出现同前缀动态段时被抢占。
+        Router::post('/changes/batch', [MagicFSApi::class, 'getFileTreeChangesBatch']);
+
         Router::addGroup('/files', static function () {
             // 列出目录内容
             Router::post('/queries', [MagicFSApi::class, 'listFiles']);
@@ -34,8 +38,17 @@ Router::addGroup(
             // 获取文件信息
             Router::post('/{id}/queries', [MagicFSApi::class, 'getFileInfo']);
 
+            // 按直接子项分页读取目录。挂载端必须使用此接口，禁止通过
+            // tree 接口把整个项目元数据加载进单个请求。
+            Router::post('/{id}/children', [MagicFSApi::class, 'listChildrenPage']);
+
             // 创建文件或目录
             Router::post('', [MagicFSApi::class, 'createFile']);
+
+            // Rename / move. Separate from updateFile because "who survives when
+            // the destination is occupied" is an identity decision a partial
+            // update cannot express (see RenameFileRequestDTO).
+            Router::post('/{id}/rename', [MagicFSApi::class, 'renameFile']);
 
             // 更新文件元数据
             Router::put('/{id}', [MagicFSApi::class, 'updateFile']);
@@ -43,11 +56,17 @@ Router::addGroup(
             // 删除文件或目录
             Router::delete('/{id}', [MagicFSApi::class, 'deleteFile']);
 
-            // 获取文件树
+            // Legacy/export tree API. It is strictly bounded by depth,
+            // max_nodes and max_bytes; mount/FUSE code must use children
+            // pages plus the change feed instead.
             Router::post('/{id}/tree', [MagicFSApi::class, 'getFileTree']);
 
             // 获取单个文件版本号
             Router::get('/{id}/version', [MagicFSApi::class, 'getFileVersion']);
+
+            // 按持久化游标读取精准变更；挂载同步使用该接口，不再因根
+            // 版本变化而重新下载整棵树。
+            Router::get('/{id}/changes', [MagicFSApi::class, 'getFileTreeChanges']);
         });
     },
     ['middleware' => [SandboxUserAuthMiddleware::class]]

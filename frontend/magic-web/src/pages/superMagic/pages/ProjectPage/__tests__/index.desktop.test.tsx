@@ -15,6 +15,7 @@ vi.mock("@/utils/pubsub", () => ({
 		Open_File_Tab: "open_file_tab",
 		Open_Playback_Tab: "open_playback_tab",
 		Open_Knowledge_Base_Tab: "open_knowledge_base_tab",
+		Open_Micro_App_Tab: "open_micro_app_tab",
 		Update_Attachments_Loading: "update_attachments_loading",
 		Update_Attachments: "update_attachments",
 		Super_Magic_Update_Auto_Detail: "super_magic_update_auto_detail",
@@ -27,6 +28,7 @@ vi.mock("mobx-react-lite", () => ({
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({ t: (key: string) => key }),
+	initReactI18next: { type: "3rdParty", init: vi.fn() },
 }))
 
 vi.mock("ahooks", async () => {
@@ -56,6 +58,7 @@ vi.mock("@/pages/superMagic/components/Detail", async () => {
 				openFileTab: vi.fn(),
 				openPlaybackTab: vi.fn(),
 				openKnowledgeBaseTab: vi.fn(),
+				openMicroAppTab: vi.fn(),
 			}))
 			return <div data-testid="detail" />
 		}),
@@ -132,12 +135,31 @@ vi.mock("@/pages/superMagic/stores/core", () => ({
 	},
 }))
 
+vi.mock("@/pages/superMagic/services", () => ({
+	loadProjectAttachments: vi.fn(),
+}))
+
+vi.mock("@/models/config", () => ({
+	configStore: {},
+}))
+
+vi.mock("@/assets/locales/create", () => ({
+	createI18nNext: () => ({
+		init: async () => undefined,
+		instance: { changeLanguage: async () => undefined },
+	}),
+}))
+
 vi.mock("@/pages/superMagic/components/ProjectCardContainer", () => ({
 	default: () => <div data-testid="project-card" />,
 }))
 
 vi.mock("@/pages/superMagic/pages/TopicPage/components/TopicDesktopPanels", () => ({
 	default: () => <div data-testid="topic-desktop-panels" />,
+}))
+
+vi.mock("@/pages/superMagic/hooks/useSlidesTemplateNavigation", () => ({
+	useSlidesTemplateNavigation: vi.fn(),
 }))
 
 vi.mock("@/services/audioRecordings", () => ({
@@ -152,7 +174,12 @@ describe("ProjectPage desktop", () => {
 		const { unmount } = render(<ProjectPage />)
 		unmount()
 
-		for (const eventName of ["open_file_tab", "open_playback_tab", "open_knowledge_base_tab"]) {
+		for (const eventName of [
+			"open_file_tab",
+			"open_playback_tab",
+			"open_knowledge_base_tab",
+			"open_micro_app_tab",
+		]) {
 			const subscribeCall = pubsubMock.subscribe.mock.calls.find(
 				([event]) => event === eventName,
 			)

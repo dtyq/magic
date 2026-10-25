@@ -17,7 +17,9 @@ import StreamMessageApplyServiceV2 from "./MessageApplyServices/StreamMessageApp
 import IntermediateMessageApplyService from "./MessageApplyServices/IntermediateMessageApplyService"
 import { WorkspaceStateCache } from "@/pages/superMagic/utils/superMagicCache"
 import { shouldSuppressRecordSummaryNotification } from "@/services/audioRecordings"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
+import type { NotificationUpdateMessage } from "@/apis/modules/notifications"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 
 const logger = Logger.createLogger("ChatBusinessMessageService")
 
@@ -144,7 +146,12 @@ class ChatBusinessMessageService {
 				StreamMessageApplyServiceV2.apply(message.payload as StreamResponseV2)
 				break
 			case EventType.Intermediate:
-				this.handleIntermediateMessage(message.payload as RecordSummaryResultMessage)
+				this.handleIntermediateMessage(
+					message.payload as
+						| RecordSummaryResultMessage
+						| NotificationUpdateMessage
+						| IntermediateResponse,
+				)
 				break
 			default:
 				this.handleSeqRecordMessage(message.payload as SeqRecord<CMessage>)
@@ -156,8 +163,13 @@ class ChatBusinessMessageService {
 	 * Handle intermediate message (including record summary results)
 	 */
 	private handleIntermediateMessage(
-		messagePayload: RecordSummaryResultMessage | IntermediateResponse,
+		messagePayload:
+			RecordSummaryResultMessage | NotificationUpdateMessage | IntermediateResponse,
 	) {
+		if (messagePayload?.type === "notification_update") {
+			pubsub.publish(PubSubEvents.Notification_Updated, messagePayload.notification_update)
+			return
+		}
 		// Check if it's a record summary result message
 		if (
 			typeof messagePayload === "object" &&
@@ -216,15 +228,6 @@ class ChatBusinessMessageService {
 		switch (payload.type) {
 			case SeqRecordType.seq:
 				const seqId = payload?.seq?.seq_id
-
-				console.log(
-					"%c 接收到服务端的消息:",
-					"background-color: green; color: white;",
-					seqId,
-					// @ts-ignore
-					payload?.seq?.message?.type as string,
-					payload,
-				)
 
 				const magicId = userStore.user.userInfo?.magic_id
 				const magicOrganizationCode = userStore.user.organizationCode

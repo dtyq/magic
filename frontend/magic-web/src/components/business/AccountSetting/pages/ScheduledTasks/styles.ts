@@ -113,20 +113,152 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => {
 			color: ${token.magicColorUsages.text[3]};
 		`,
 		tag: css`
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			max-width: 100%;
+			min-width: 0;
 			width: fit-content;
-			height: 18px;
+			min-height: 18px;
+			flex-shrink: 0;
+			/* Do not inherit the taller row line-height and clip the link text. */
+			line-height: 14px;
+			text-decoration: none;
+			overflow: hidden;
 			font-size: 10px;
 			color: ${token.magicColorUsages.text[2]};
 			border-radius: 4px;
 			padding: 2px 4px;
 			background-color: ${token.magicColorUsages.fill[0]};
-			cursor: pointer;
+
+			/* Only real links (with href) look and behave interactive. */
+			&[href] {
+				cursor: pointer;
+			}
+
+			&[href]:hover,
+			&[href]:active {
+				color: ${token.magicColorUsages.text[2]};
+				text-decoration: none;
+				background-color: ${token.magicColorUsages.fill[1]};
+			}
 		`,
 		ellipsisText: css`
-			max-width: 300px;
+			flex: 1;
+			min-width: 0;
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
+		`,
+		tagIcon: css`
+			display: inline-flex;
+			flex-shrink: 0;
+		`,
+		timeCol: css`
+			flex: 0 0 25%;
+			max-width: 25%;
+			white-space: nowrap;
+		`,
+		infoCol: css`
+			flex: 1;
+			min-width: 0;
+			padding: 0 12px;
+		`,
+		resultCol: css`
+			flex: 0 0 80px;
+			white-space: nowrap;
+			text-align: center;
+		`,
+		taskName: css`
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		`,
+		mobileListWrapper: css`
+			height: min(62dvh, 520px);
+			padding-inline: 16px;
+		`,
+		mobileListItem: css`
+			height: auto !important;
+			align-content: unset;
+			padding: 16px 0 !important;
+			border-bottom: 1px solid ${token.magicColorUsages.border} !important;
+			margin-block-end: 0 !important;
+			color: ${token.magicColorUsages.text[1]};
+			font-size: 14px;
+			font-weight: 400;
+
+			&:last-child {
+				border-bottom: none !important;
+			}
+		`,
+		mobileItemWrapper: css`
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+			width: 100%;
+			min-width: 0;
+			padding: 0;
+		`,
+		mobileMetaRow: css`
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			width: 100%;
+		`,
+		mobileTime: css`
+			flex-shrink: 0;
+			white-space: nowrap;
+			font-size: 12px;
+			line-height: 20px;
+			color: ${token.magicColorUsages.text[3]};
+		`,
+		mobileStatus: css`
+			flex-shrink: 0;
+			line-height: 20px;
+		`,
+		mobileTaskName: css`
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-size: 15px;
+			font-weight: 600;
+			line-height: 22px;
+			color: ${token.magicColorUsages.text[0]};
+		`,
+		mobilePath: css`
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			width: 100%;
+			min-width: 0;
+			height: 40px;
+			padding: 0 12px;
+			border-radius: 10px;
+			background-color: ${token.magicColorUsages.fill[0]};
+			overflow: hidden;
+
+			&[href] {
+				cursor: pointer;
+			}
+
+			&[href]:hover,
+			&[href]:active {
+				color: ${token.magicColorUsages.text[2]};
+				text-decoration: none;
+				background-color: ${token.magicColorUsages.fill[1]};
+			}
+		`,
+		mobilePathText: css`
+			flex: 1;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-size: 12px;
+			line-height: 18px;
+			color: ${token.magicColorUsages.text[2]};
 		`,
 		statusTag: css`
 			border: none;
@@ -139,8 +271,7 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => {
 			margin-top: 10px;
 		`,
 		listWrapper: css`
-			height: 500px;
-			min-height: 300px;
+			height: min(500px, calc(100dvh - 150px));
 		`,
 		listItem: css`
 			height: 60px;
@@ -152,10 +283,13 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => {
 			font-weight: 400;
 		`,
 		itemWrapper: css`
+			width: 100%;
+			min-width: 0;
 			padding: 0 16px;
 		`,
 		headerWrapper: css`
 			height: 40px;
+			/* Use the same inset as record rows, without an extra list gutter. */
 			padding: 0 16px;
 			font-size: 14px;
 			color: ${token.magicColorUsages.text[0]};

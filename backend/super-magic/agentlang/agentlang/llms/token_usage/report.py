@@ -26,45 +26,12 @@ class TokenUsageReport:
     """Token使用统计报告生成器
 
     负责将TokenUsageTracker中的数据生成各种格式的报告
-    支持按照sandbox_id维度汇总token使用情况
     使用标准化的数据对象处理报告
     """
-
-    # 保存全局的报告实例，按sandbox_id索引
-    _instances: Dict[str, 'TokenUsageReport'] = {}
 
     @staticmethod
     def _create_default_pricing() -> ModelPricing:
         return ModelPricing()
-
-    @classmethod
-    def get_instance(cls, sandbox_id: str = "default", token_tracker: Optional[Any] = None,
-                     pricing: Optional[ModelPricing] = None,
-                    report_dir: str = None) -> 'TokenUsageReport':
-        """获取或创建指定sandbox_id的TokenUsageReport实例
-
-        Args:
-            sandbox_id: 沙箱ID
-            token_tracker: token使用跟踪器
-            pricing: 模型价格配置
-            report_dir: 报告文件保存目录，默认为None表示使用默认目录
-
-        Returns:
-            TokenUsageReport: 对应sandbox_id的实例
-        """
-        if sandbox_id not in cls._instances:
-            # 没有提供pricing时创建默认实例
-            if pricing is None:
-                pricing = cls._create_default_pricing()
-
-            # 创建实例
-            cls._instances[sandbox_id] = cls(token_tracker, pricing, sandbox_id, report_dir)
-
-            # 设置token_tracker的report_manager（如果提供了）
-            if token_tracker:
-                token_tracker.set_report_manager(cls._instances[sandbox_id])
-
-        return cls._instances[sandbox_id]
 
     @classmethod
     def for_session(cls, *, file_prefix: str, token_tracker: Optional[Any],
@@ -102,9 +69,6 @@ class TokenUsageReport:
         else:
             self.report_dir = report_dir
 
-        # 确保报告目录存在
-        os.makedirs(self.report_dir, exist_ok=True)
-
         # 文件名前缀，可通过 set_file_prefix() 更新为 agent_name<agent_id> 格式
         self._file_prefix: Optional[str] = None
 
@@ -123,7 +87,10 @@ class TokenUsageReport:
         Returns:
             str: 报告文件的完整路径
         """
-        prefix = self._file_prefix if self._file_prefix else self.sandbox_id
+        if not self._file_prefix:
+            raise RuntimeError("Token usage report requires an explicit Agent session prefix")
+
+        prefix = self._file_prefix
         file_name = f"{prefix}.token_usage.json"
         return os.path.join(self.report_dir, file_name)
 
@@ -252,6 +219,9 @@ class TokenUsageReport:
         try:
             # 将报告转换为可JSON化的字典
             report_dict = self._serialize_report(report)
+
+            # 仅在首次真正写入报告时创建目录，避免 import 阶段提前创建 .topic。
+            os.makedirs(self.report_dir, exist_ok=True)
 
             # 保存到文件
             with open(file_path, 'w', encoding='utf-8') as f:

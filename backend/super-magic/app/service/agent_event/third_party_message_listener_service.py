@@ -65,6 +65,8 @@ class ThirdPartyMessageListenerService:
             project_id=event_data.project_id,
             topic_id=event_data.topic_id,
             rich_text_content=event_data.rich_text_content,
+            attachments=event_data.attachments,
+            mentions=event_data.mentions,
             topic_pattern=event_data.topic_pattern,
             model_id=event_data.model_id,
             enable_web_search=event_data.enable_web_search,

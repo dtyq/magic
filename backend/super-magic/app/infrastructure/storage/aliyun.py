@@ -536,7 +536,46 @@ class AliyunOSSUploader(AbstractStorage, BaseFileProcessor):
                 return False
 
         except Exception as e:
-            logger.error(f"Error checking file existence: {e}")
+            logger.error(f"Error during head_object for key '{key}': {type(e).__name__} - {e}")
+            return False
+
+    @with_refreshed_credentials
+    async def delete(
+        self,
+        key: str,
+        options: Optional[Options] = None
+    ) -> bool:
+        """
+        异步删除OSS上的指定文件。
+
+        Args:
+            key: 文件名/路径
+            options: 可选配置
+
+        Returns:
+            bool: 删除成功为True，失败为False（删除不存在的对象视为成功）
+        """
+        if not self.credentials:
+            raise ValueError("未设置凭证")
+
+        if not isinstance(self.credentials, AliyunCredentials):
+            raise ValueError("凭证类型错误")
+
+        credentials: AliyunCredentials = self.credentials
+        if options is None:
+            options = {}
+
+        try:
+            bucket = self._get_bucket_client()
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: bucket.delete_object(key),
+            )
+            logger.info(f"删除OSS对象成功: {key}")
+            return True
+        except Exception as e:
+            logger.error(f"删除OSS对象失败: {key} - {type(e).__name__} - {e}")
             return False
 
     @with_refreshed_credentials

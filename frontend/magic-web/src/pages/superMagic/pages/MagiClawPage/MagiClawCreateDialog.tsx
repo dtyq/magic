@@ -13,7 +13,7 @@ import {
 } from "@/components/shadcn-ui/dialog"
 import { Input } from "@/components/shadcn-ui/input"
 import { useUpload } from "@/hooks/useUploadFiles"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
 import { MagiClawTemplateAvatar } from "./MagiClawTemplateAvatar"
 import { MAGI_CLAW_TEMPLATE_OPTIONS } from "./constants/template_options"
@@ -198,19 +198,9 @@ export function MagiClawCreateDialog({
 								/>
 
 								<div className="flex min-w-0 flex-col gap-1">
-									<div className="flex flex-wrap items-center gap-1 md:gap-2">
-										<DialogTitle className="text-2xl font-medium leading-8 text-foreground">
-											{t("superLobster.createDialog.title")}
-										</DialogTitle>
-										<div className="flex items-center gap-0.5 font-poppins text-2xl leading-8 tracking-[-0.48px] text-foreground">
-											<span className="font-semibold">
-												{t("superLobster.heroLead", clawBrandValues)}
-											</span>
-											<span className="font-black text-[#EF4444]">
-												{t("superLobster.titleAccent", clawBrandValues)}
-											</span>
-										</div>
-									</div>
+									<DialogTitle className="text-2xl font-medium leading-8 text-foreground">
+										{t("superLobster.createDialog.heading", clawBrandValues)}
+									</DialogTitle>
 									<DialogDescription className="text-sm leading-none text-muted-foreground">
 										{t("superLobster.createDialog.subtitle", clawBrandValues)}
 									</DialogDescription>

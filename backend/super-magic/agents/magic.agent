@@ -14,9 +14,9 @@ tools:
   - shell_await
   - write_file
   - edit_file
-  - edit_file_range
+  - edit_file_ranges
+  - find_file_ranges
   - multi_edit_file
-  - multi_edit_file_range
   - delete_files
   - ask_user
 skills:
@@ -25,12 +25,13 @@ skills:
     - name: browser
     - name: download
     - name: share
+    - name: super-magic
     - name: skill-vetter
     - name: using-mcp
     - name: env-manager
     - name: cli-manager
     - name: skill-creator
-    - name: canvas-designer
+    - name: canvas-manager
     - name: creating-slides
     - name: deep-research
     - name: using-llm
@@ -39,9 +40,11 @@ skills:
     - name: lark-cli
     - name: dingtalk-cli
     - name: teamshare-cli
-    - name: micro-app-architect
+    - name: html-app-architect
     - name: document-converter
     - name: using-oauth2
+    - name: vibe-coding
+    - name: startup-manager
   workspace_skills: "*"
 ---
 

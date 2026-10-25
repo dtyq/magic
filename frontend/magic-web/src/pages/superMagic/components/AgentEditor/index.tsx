@@ -1,4 +1,12 @@
-import { memo, useEffect, forwardRef, useImperativeHandle, useRef } from "react"
+import {
+	forwardRef,
+	memo,
+	useCallback,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react"
 import { AgentEditorProps, AgentEditorRef } from "./types"
 import { useStyles } from "./style"
 import { useTranslation } from "react-i18next"
@@ -6,10 +14,8 @@ import { Spin } from "antd"
 import { SuperMagicApi } from "@/apis"
 import { resolveCrewAgentPromptText } from "@/services/crew/agent-prompt"
 import type { AgentDetailResponse } from "@/apis/modules/crew"
-import {
-	SimpleEditor,
-	SimpleEditorRef,
-} from "@/components/tiptap-templates/simple/simple-editor"
+import { LazySimpleEditor } from "@/components/tiptap-templates/simple/lazy-simple-editor"
+import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/types"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
 const AgentEditor = forwardRef<AgentEditorRef, AgentEditorProps>((props, ref) => {
@@ -19,6 +25,7 @@ const AgentEditor = forwardRef<AgentEditorRef, AgentEditorProps>((props, ref) =>
 
 	// SimpleEditor ref
 	const simpleEditorRef = useRef<SimpleEditorRef>(null)
+	const [simpleEditorReady, setSimpleEditorReady] = useState(false)
 
 	// 暴露给父组件的方法
 	useImperativeHandle(ref, () => ({
@@ -72,13 +79,13 @@ const AgentEditor = forwardRef<AgentEditorRef, AgentEditorProps>((props, ref) =>
 	}))
 
 	// 处理编辑器初始化完成逻辑
-	const handleEditorReady = () => {
+	const handleEditorReady = useCallback(() => {
 		onReady?.()
-	}
+	}, [onReady])
 
 	// 处理数据加载和编辑器初始化
 	useEffect(() => {
-		if (!simpleEditorRef.current) return
+		if (!simpleEditorReady || !simpleEditorRef.current) return
 
 		if (agent.id) {
 			SuperMagicApi.getAgentDetail({ agent_id: agent.id })
@@ -104,8 +111,7 @@ const AgentEditor = forwardRef<AgentEditorRef, AgentEditorProps>((props, ref) =>
 			// 没有 agent 数据，但编辑器仍然准备就绪
 			handleEditorReady()
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [agent.id, simpleEditorRef.current])
+	}, [agent.id, simpleEditorReady, setEditorAgent, setLoading, handleEditorReady])
 
 	// 阻止所有按键事件冒泡
 	const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -116,8 +122,9 @@ const AgentEditor = forwardRef<AgentEditorRef, AgentEditorProps>((props, ref) =>
 		<div className={styles.container} onKeyDown={handleKeyDown} data-testid="handle-key-down">
 			<Spin spinning={loading}>
 				<div className={styles.editorWrapper}>
-					<SimpleEditor
+					<LazySimpleEditor
 						ref={simpleEditorRef}
+						onReady={() => setSimpleEditorReady(true)}
 						content=""
 						onUpdate={({ editor: _editor }) => {
 							const markdown =

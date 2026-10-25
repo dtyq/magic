@@ -2,17 +2,61 @@ import { observer } from "mobx-react-lite"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import GroupIcon from "./GroupIcon"
 import { useLocaleText } from "./hooks/useLocaleText"
 import type { OptionGroup } from "./types"
-import type { ReactNode } from "react"
+import { forwardRef, Fragment, type MouseEvent, type ReactNode } from "react"
+
+export interface TemplateGroupSelectorOptionProps {
+	className?: string
+	icon?: ReactNode
+	isSelected: boolean
+	label: ReactNode
+	onClick?: (event: MouseEvent<HTMLButtonElement>) => void
+	"data-testid"?: string
+}
+
+export const TemplateGroupSelectorOption = forwardRef<
+	HTMLButtonElement,
+	TemplateGroupSelectorOptionProps
+>(function TemplateGroupSelectorOption(
+	{ className, icon, isSelected, label, onClick, "data-testid": dataTestId, ...props },
+	ref,
+) {
+	return (
+		<Button
+			ref={ref}
+			type="button"
+			variant={isSelected ? "outline" : "secondary"}
+			size="default"
+			className={cn(
+				"h-9 shrink-0 gap-2 rounded-full border-2 border-transparent px-4 py-2 font-normal shadow-xs active:scale-[0.96]",
+				isSelected && "border-primary bg-background text-primary",
+				className,
+			)}
+			aria-pressed={isSelected}
+			data-selected={isSelected}
+			data-testid={dataTestId}
+			onClick={onClick}
+			{...props}
+		>
+			{icon}
+			<span className="whitespace-nowrap text-sm leading-5">{label}</span>
+		</Button>
+	)
+})
 
 interface TemplateGroupSelectorProps {
 	groups: OptionGroup[]
 	selectedGroupKey: string
 	onGroupChange: (groupKey: string) => void
 	renderGroupIcon?: (group: OptionGroup) => ReactNode
+	renderGroupOption?: (
+		group: OptionGroup,
+		optionProps: Omit<TemplateGroupSelectorOptionProps, "onClick">,
+	) => ReactNode
+	optionClassName?: string
 	className?: string
 	controlBackground?: string
 	leftControlClassName?: string
@@ -27,6 +71,8 @@ const TemplateGroupSelector = observer(
 		selectedGroupKey,
 		onGroupChange,
 		renderGroupIcon,
+		renderGroupOption,
+		optionClassName,
 		className,
 		controlBackground,
 		leftControlClassName,
@@ -94,31 +140,30 @@ const TemplateGroupSelector = observer(
 						return null
 					}
 
+					const optionProps: Omit<TemplateGroupSelectorOptionProps, "onClick"> = {
+						className: optionClassName,
+						icon: iconNode,
+						isSelected,
+						label: lt(group.group_name),
+						"data-testid": `${dataTestId}-option-${group.group_key}`,
+					}
+					const customOption = renderGroupOption?.(group, optionProps)
 					return (
-						<Button
-							key={group.group_key}
-							variant={isSelected ? "outline" : "secondary"}
-							size="default"
-							className={cn(
-								"h-9 shrink-0 gap-2 rounded-full border-2 border-transparent px-4 py-2 font-normal shadow-xs",
-								isSelected && "border-primary bg-background text-primary",
+						<Fragment key={group.group_key}>
+							{customOption ?? (
+								<TemplateGroupSelectorOption
+									{...optionProps}
+									onClick={(event) => {
+										onGroupChange(group.group_key)
+										event.currentTarget.scrollIntoView({
+											behavior: "smooth",
+											inline: "center",
+											block: "nearest",
+										})
+									}}
+								/>
 							)}
-							aria-pressed={isSelected}
-							data-testid={`${dataTestId}-option-${group.group_key}`}
-							onClick={(e) => {
-								onGroupChange(group.group_key)
-								e.currentTarget.scrollIntoView({
-									behavior: "smooth",
-									inline: "center",
-									block: "nearest",
-								})
-							}}
-						>
-							{iconNode}
-							<span className="whitespace-nowrap text-sm leading-5">
-								{lt(group.group_name)}
-							</span>
-						</Button>
+						</Fragment>
 					)
 				})}
 			</HeadlessHorizontalScroll>

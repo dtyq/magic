@@ -17,6 +17,15 @@ interface MessageQueueRepositoryInterface
      */
     public function create(MessageQueueEntity $messageQueue): MessageQueueEntity;
 
+    public function getByClientSyncId(string $userId, string $organizationCode, int $projectId, int $topicId, string $syncId): ?MessageQueueEntity;
+
+    public function getNextSortOrder(int $topicId): int;
+
+    public function restore(MessageQueueEntity $message): bool;
+
+    /** @param int[] $messageIds */
+    public function saveOrder(int $topicId, array $messageIds): void;
+
     /**
      * Update message queue.
      */
@@ -39,12 +48,12 @@ interface MessageQueueRepositoryInterface
     /**
      * Get message queue by ID.
      */
-    public function getById(int $id): ?MessageQueueEntity;
+    public function getById(int $id, bool $includeDeleted = false): ?MessageQueueEntity;
 
     /**
      * Get message queue by ID for specific user.
      */
-    public function getByIdForUser(int $id, string $userId): ?MessageQueueEntity;
+    public function getByIdForUser(int $id, string $userId, bool $includeDeleted = false): ?MessageQueueEntity;
 
     /**
      * Update message status.

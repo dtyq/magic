@@ -9,6 +9,8 @@ namespace App\Application\OrganizationEnvironment\Service;
 
 use App\Domain\Contact\Service\MagicAccountDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSearchField;
 use App\Domain\OrganizationEnvironment\Service\OrganizationDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Di\Annotation\Inject;
@@ -30,6 +32,21 @@ class OrganizationAppService
     public function queries(Page $page, ?array $filters = null): array
     {
         return $this->organizationDomainService->queries($page, $filters);
+    }
+
+    /**
+     * 按指定字段搜索组织。
+     *
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: OrganizationEntity[]}
+     */
+    public function searchOrganizations(
+        Page $page,
+        OrganizationSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array {
+        return $this->organizationDomainService->searchOrganizations($page, $searchField, $keyword, $organizationCodeFilter);
     }
 
     /**

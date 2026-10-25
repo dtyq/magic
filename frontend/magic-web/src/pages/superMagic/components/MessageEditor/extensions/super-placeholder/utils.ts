@@ -1,4 +1,4 @@
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import type { Editor, SuperPlaceholderAttrs } from "./types"
 import { SUPER_PLACEHOLDER_TYPE } from "./const"
 

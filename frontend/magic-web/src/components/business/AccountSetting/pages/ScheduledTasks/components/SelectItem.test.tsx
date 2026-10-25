@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
 	addTopic: vi.fn(),
 	toastError: vi.fn(),
 	projectOptions: [] as Array<{ label: string; value: string }>,
+	topicOptions: [] as Array<{ label: string; value: string }>,
 }))
 
 vi.mock("@/hooks/useIsMobile", () => ({ useIsMobile: () => true }))
@@ -63,14 +64,43 @@ vi.mock("../hooks/useProjects", () => ({
 }))
 
 vi.mock("../hooks/useTopics", () => ({
-	useTopics: () => ({ topicOptions: [], handleAddTopic: mocks.addTopic }),
+	useTopics: () => ({ topicOptions: mocks.topicOptions, handleAddTopic: mocks.addTopic }),
 }))
 
 describe("SelectItem create flow", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mocks.projectOptions.length = 0
+		mocks.topicOptions.length = 0
 		mocks.addProject.mockResolvedValue({ id: "project-1", project_name: "Brand new" })
+	})
+
+	it("selects the first topic when a new mobile task has no topic context", async () => {
+		mocks.topicOptions.push(
+			{ label: "First mock topic", value: "mock-topic-first" },
+			{ label: "Second mock topic", value: "mock-topic-second" },
+		)
+		const onChange = vi.fn()
+		const onSelect = vi.fn()
+
+		render(
+			<SelectItem
+				type="topic"
+				workspaceId="mock-workspace"
+				projectId="mock-project"
+				autoSelectFirstOption
+				onChange={onChange}
+				onSelect={onSelect}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(onChange).toHaveBeenCalledWith("mock-topic-first")
+			expect(onSelect).toHaveBeenCalledWith({
+				label: "First mock topic",
+				value: "mock-topic-first",
+			})
+		})
 	})
 
 	it("closes the mobile popup after selecting an existing project", () => {

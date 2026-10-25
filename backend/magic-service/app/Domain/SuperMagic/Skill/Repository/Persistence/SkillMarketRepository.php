@@ -20,7 +20,10 @@ use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\SuperMagic\Utils\DateFormatUtil;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Hyperf\Codec\Json;
+use Hyperf\DbConnection\Db;
+use Psr\SimpleCache\CacheInterface;
 use RuntimeException;
 
 /**
@@ -28,11 +31,52 @@ use RuntimeException;
  */
 class SkillMarketRepository extends AbstractRepository implements SkillMarketRepositoryInterface
 {
+    private const OFFICIAL_BUILTIN_SKILLS_CACHE_KEY = 'super_magic:skill_market:official_builtin:entities:v2';
+
+    private const OFFICIAL_BUILTIN_SKILLS_CACHE_TTL = 300;
+
     public function __construct(
         protected SkillRepositoryInterface $skillRepository,
         protected SkillMarketModel $skillMarketModel,
-        protected SkillCategoryRepositoryInterface $skillCategoryRepository
+        protected SkillCategoryRepositoryInterface $skillCategoryRepository,
+        protected CacheInterface $cache
     ) {
+    }
+
+    /**
+     * 获取已发布的官方内置 Skill 实体。
+     *
+     * @return array<int, SkillMarketEntity>
+     */
+    public function getOfficialBuiltinSkillEntities(): array
+    {
+        $cachedRows = $this->cache->get(self::OFFICIAL_BUILTIN_SKILLS_CACHE_KEY);
+        if (is_array($cachedRows)) {
+            return $this->toEntities($cachedRows);
+        }
+
+        $marketTable = $this->skillMarketModel->getTable();
+        $versionTable = $this->resolveSkillVersionTable();
+        $models = $this->skillMarketModel::query()
+            ->leftJoin($versionTable . ' as skill_versions', $marketTable . '.skill_version_id', '=', 'skill_versions.id')
+            ->select($marketTable . '.*', 'skill_versions.package_name')
+            ->where($marketTable . '.publisher_type', PublisherType::OFFICIAL_BUILTIN->value)
+            ->where($marketTable . '.publish_status', PublishStatus::PUBLISHED->value)
+            ->orderBy($marketTable . '.id')
+            ->get();
+
+        $rows = [];
+        foreach ($models as $model) {
+            $rows[] = $model->toArray();
+        }
+
+        $this->cache->set(
+            self::OFFICIAL_BUILTIN_SKILLS_CACHE_KEY,
+            $rows,
+            self::OFFICIAL_BUILTIN_SKILLS_CACHE_TTL
+        );
+
+        return $this->toEntities($rows);
     }
 
     /**
@@ -61,6 +105,38 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         }
 
         return $result;
+    }
+
+    /**
+     * 批量查询市场在架（已发布且未隐藏）的 Skill code.
+     *
+     * 与市场货架列表（queries）保持同一可见口径：publish_status = PUBLISHED 且 is_hidden = false。
+     *
+     * @param array<string> $skillCodes
+     * @return array<string>
+     */
+    public function findPublishedSkillCodes(array $skillCodes): array
+    {
+        $skillCodes = array_values(array_unique(array_filter(
+            $skillCodes,
+            static fn (string $skillCode): bool => $skillCode !== ''
+        )));
+        if ($skillCodes === []) {
+            return [];
+        }
+
+        $models = $this->skillMarketModel::query()
+            ->whereIn('skill_code', $skillCodes)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false)
+            ->get();
+
+        $codes = [];
+        foreach ($models as $model) {
+            $codes[] = (string) $model->skill_code;
+        }
+
+        return array_values(array_unique($codes));
     }
 
     /**
@@ -93,6 +169,40 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         }
 
         return $this->toEntity($model->toArray());
+    }
+
+    public function findOfficialBySkillCode(string $organizationCode, string $skillCode): ?SkillMarketEntity
+    {
+        /** @var null|SkillMarketModel $model */
+        $model = $this->skillMarketModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('skill_code', $skillCode)
+            ->where('publisher_type', PublisherType::OFFICIAL->value)
+            ->whereNull('deleted_at')
+            ->first();
+
+        return $model === null ? null : $this->toEntity($model->toArray());
+    }
+
+    public function findOfficialByPackageName(string $packageName): ?SkillMarketEntity
+    {
+        $marketTable = $this->skillMarketModel->getTable();
+        $versionTable = $this->resolveSkillVersionTable();
+        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+
+        /** @var null|SkillMarketModel $model */
+        $model = $this->skillMarketModel::query()
+            ->join($versionTable . ' as skill_versions', $marketTable . '.skill_version_id', '=', 'skill_versions.id')
+            ->select($marketTable . '.*', 'skill_versions.package_name')
+            ->where($marketTable . '.organization_code', $officialOrganizationCode)
+            ->where('skill_versions.package_name', $packageName)
+            ->where($marketTable . '.publisher_type', PublisherType::OFFICIAL->value)
+            ->where($marketTable . '.publisher_id', $officialOrganizationCode)
+            ->whereNull($marketTable . '.deleted_at')
+            ->whereNull('skill_versions.deleted_at')
+            ->first();
+
+        return $model === null ? null : $this->toEntity($model->toArray());
     }
 
     public function findPublishedBySkillCode(string $skillCode): ?SkillMarketEntity
@@ -142,7 +252,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
     /**
      * 查询市场技能列表（支持分页、关键词搜索、发布者类型筛选）.
      *
-     * @return array{total: int, list: SkillMarketEntity[]}
+     * @return array{total: ?int, list: SkillMarketEntity[]}
      */
     public function queries(
         SkillQuery $query,
@@ -171,12 +281,21 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             $builder->where('publisher_type', $publisherType);
         }
 
-        // 先查询总数
-        $total = $builder->count();
+        if ($query->getIsFeatured() !== null) {
+            $builder->where('is_featured', $query->getIsFeatured());
+        }
 
-        // 排序：精选优先，其次 sort_order 非空优先且数值越大越靠前；为空时回落按 id
+        $this->applyCategoryFilter($builder, $query->getCategoryIds() ?? [], 'magic_skill_market.id');
+
+        // 不需要 total 时跳过 count，减少一次聚合查询
+        $total = null;
+        if ($page->isTotal()) {
+            $total = $builder->count();
+        }
+
         $builder->orderBy('is_featured', 'DESC');
         $builder->orderBy('sort_order', 'DESC');
+        $builder->orderBy('total_install_count', 'DESC');
         $builder->orderBy('id', 'DESC');
 
         // 分页
@@ -206,6 +325,7 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         ?string $packageName,
         ?string $startTime,
         ?string $endTime,
+        array $categoryIds,
         string $orderBy,
         Page $page
     ): array {
@@ -257,9 +377,12 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             $builder->where($marketTable . '.created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
         }
 
+        $this->applyCategoryFilter($builder, $categoryIds, $marketTable . '.id');
+
         $idOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
         $builder->orderBy($marketTable . '.is_featured', $idOrder);
         $builder->orderBy($marketTable . '.sort_order', $idOrder);
+        $builder->orderBy($marketTable . '.total_install_count', $idOrder);
         $builder->orderBy($marketTable . '.id', $idOrder);
 
         $result = $this->getByPage($builder, $page);
@@ -289,6 +412,20 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         }
 
         return $this->toEntity($model->toArray());
+    }
+
+    public function findByIdForVectorIndex(int $id): ?SkillMarketEntity
+    {
+        $marketTable = $this->skillMarketModel->getTable();
+        $versionTable = $this->resolveSkillVersionTable();
+        $model = $this->skillMarketModel::query()
+            ->leftJoin($versionTable . ' as skill_versions', $marketTable . '.skill_version_id', '=', 'skill_versions.id')
+            ->select($marketTable . '.*', 'skill_versions.package_name')
+            ->where($marketTable . '.id', $id)
+            ->whereNull($marketTable . '.deleted_at')
+            ->first();
+
+        return $model === null ? null : $this->toEntity($model->toArray());
     }
 
     /**
@@ -328,6 +465,82 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
         return $result;
     }
 
+    public function findVisibleByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $models = $this->skillMarketModel::query()
+            ->whereIn('id', array_values(array_unique(array_map('intval', $ids))))
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at')
+            ->orderByDesc('is_featured')
+            ->orderByDesc('sort_order')
+            ->orderByDesc('total_install_count')
+            ->orderByDesc('id')
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = $this->toEntity($model->toArray());
+            $result[(int) $entity->getId()] = $entity;
+        }
+
+        return $result;
+    }
+
+    public function findPublishedWithoutSkillFileByIdCursor(int $afterId = 0, int $limit = 100): array
+    {
+        $models = $this->skillMarketModel::query()
+            ->select('magic_skill_market.*')
+            ->join('magic_skill_versions', 'magic_skill_versions.id', '=', 'magic_skill_market.skill_version_id')
+            ->where('magic_skill_market.publish_status', PublishStatus::PUBLISHED->value)
+            ->whereNull('magic_skill_market.deleted_at')
+            ->whereNull('magic_skill_versions.deleted_at')
+            ->where('magic_skill_versions.is_current_version', 1)
+            ->where(static fn ($query) => $query
+                ->whereNull('magic_skill_versions.skill_file_key')
+                ->orWhere('magic_skill_versions.skill_file_key', ''))
+            ->where('magic_skill_market.id', '>', $afterId)
+            ->orderBy('magic_skill_market.id')
+            ->limit($limit)
+            ->get();
+
+        return array_map(fn (SkillMarketModel $model) => $this->toEntity($model->toArray()), $models->all());
+    }
+
+    public function findVectorIndexIds(
+        array $categoryIds = [],
+        array $codes = [],
+        ?string $publisherType = null,
+        string $afterId = '0',
+        int $limit = 100,
+    ): array {
+        $builder = $this->skillMarketModel::query()
+            ->where('id', '>', max(0, (int) $afterId))
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at');
+
+        $codes = array_values(array_unique(array_filter($codes, static fn (string $code): bool => $code !== '')));
+        if ($codes !== []) {
+            $builder->whereIn('skill_code', $codes);
+        }
+
+        if ($publisherType !== null && trim($publisherType) !== '') {
+            $builder->where('publisher_type', trim($publisherType));
+        }
+
+        $this->applyCategoryFilter($builder, array_values(array_unique(array_map('intval', $categoryIds))), 'magic_skill_market.id');
+
+        return array_map(
+            static fn ($id): int => (int) $id,
+            $builder->orderBy('id')->limit(max(1, min($limit, 100)))->pluck('id')->all()
+        );
+    }
+
     /**
      * 增加商店技能的安装次数.
      */
@@ -335,9 +548,24 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
     {
         $affected = $this->skillMarketModel::query()
             ->where('id', $id)
-            ->increment('install_count');
+            ->update([
+                'install_count' => Db::raw('install_count + 1'),
+                'total_install_count' => Db::raw('total_install_count + 1'),
+            ]);
 
         return $affected > 0;
+    }
+
+    public function updateBaseInstallCountById(int $id, int $baseInstallCount): bool
+    {
+        $affected = $this->skillMarketModel::query()
+            ->where('id', $id)
+            ->update([
+                'base_install_count' => $baseInstallCount,
+                'total_install_count' => Db::raw('install_count + ' . (int) $baseInstallCount),
+            ]);
+
+        return $affected > 0 || $this->skillMarketModel::query()->where('id', $id)->exists();
     }
 
     /**
@@ -371,10 +599,6 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             $model->is_hidden = $payload['is_hidden'];
         }
 
-        if (array_key_exists('category_id', $payload)) {
-            $model->category_id = $payload['category_id'];
-        }
-
         if ($model->isDirty() === false) {
             return true;
         }
@@ -397,9 +621,10 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'logo' => $entity->getLogo(),
             'publisher_id' => $entity->getPublisherId(),
             'publisher_type' => $entity->getPublisherType()->value,
-            'category_id' => $entity->getCategoryId(),
             'publish_status' => $entity->getPublishStatus()->value,
             'install_count' => $entity->getInstallCount(),
+            'base_install_count' => $entity->getBaseInstallCount(),
+            'total_install_count' => $entity->getTotalInstallCount(),
             'sort_order' => $entity->getSortOrder(),
             'is_featured' => $entity->isFeatured(),
             'is_hidden' => $entity->isHidden(),
@@ -435,9 +660,11 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'logo' => $data['logo'] ?? null,
             'publisher_id' => $data['publisher_id'] ?? '',
             'publisher_type' => $data['publisher_type'] ?? PublisherType::USER->value,
-            'category_id' => $data['category_id'] ?? null,
             'publish_status' => $data['publish_status'] ?? PublishStatus::UNPUBLISHED->value,
             'install_count' => $data['install_count'] ?? 0,
+            'base_install_count' => $data['base_install_count'] ?? 0,
+            'total_install_count' => $data['total_install_count']
+                ?? (($data['install_count'] ?? 0) + ($data['base_install_count'] ?? 0)),
             'sort_order' => $data['sort_order'] ?? null,
             'is_featured' => $data['is_featured'] ?? false,
             'is_hidden' => $data['is_hidden'] ?? false,
@@ -445,6 +672,36 @@ class SkillMarketRepository extends AbstractRepository implements SkillMarketRep
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,
         ]);
+    }
+
+    private function applyCategoryFilter($builder, array $categoryIds, string $marketIdColumn): void
+    {
+        if ($categoryIds === []) {
+            return;
+        }
+
+        $builder->whereExists(function ($subQuery) use ($categoryIds, $marketIdColumn) {
+            $subQuery->selectRaw('1')
+                ->from('magic_skill_category_relations as skill_category_relations')
+                ->whereColumn('skill_category_relations.relation_id', $marketIdColumn)
+                ->where('skill_category_relations.relation_type', 'SKILL_MARKET')
+                ->whereIn('skill_category_relations.category_id', $categoryIds)
+                ->whereNull('skill_category_relations.deleted_at');
+        });
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, SkillMarketEntity>
+     */
+    private function toEntities(array $rows): array
+    {
+        $entities = [];
+        foreach ($rows as $row) {
+            $entities[] = $this->toEntity($row);
+        }
+
+        return $entities;
     }
 
     private function resolveSkillVersionTable(): string

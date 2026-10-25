@@ -8,7 +8,7 @@ import MagicSelect from "@/common/BaseUI/Select"
 import { MagicJsonSchemaEditor } from "@/index"
 import { Form } from "antd"
 import { useMemoizedFn, useMount, useUpdateEffect } from "ahooks"
-import _ from "lodash"
+import { get, set } from "lodash-es"
 import React, { useMemo, useState } from "react"
 import usePrevious from "../../../common/hooks/usePrevious"
 import { customNodeType, templateMap } from "../../../constants"
@@ -35,7 +35,7 @@ export default function SubFlowV1() {
 
 	/** 上游同步下游 */
 	useMount(() => {
-		const serverInput = _.get(currentNode, ["input", "form", "structure"])
+		const serverInput = get(currentNode, ["input", "form", "structure"])
 		setInput(serverInput)
 	})
 
@@ -43,11 +43,11 @@ export default function SubFlowV1() {
 		if (!currentNode) return
 		if (changeValues.sub_flow_id) {
 			const targetFlow = mockFlowList.find((flow) => flow.id === changeValues.sub_flow_id)
-			_.set(currentNode, ["name"], targetFlow?.name)
-			_.set(currentNode, ["params", "sub_flow_id"], changeValues.sub_flow_id)
-			_.set(currentNode, ["params", "avatar"], targetFlow?.icon)
-			// _.set(currentNode, ["output"], targetFlow?.output)
-			// _.set(currentNode, ["input"], targetFlow?.input)
+			set(currentNode, ["name"], targetFlow?.name)
+			set(currentNode, ["params", "sub_flow_id"], changeValues.sub_flow_id)
+			set(currentNode, ["params", "avatar"], targetFlow?.icon)
+			// set(currentNode, ["output"], targetFlow?.output)
+			// set(currentNode, ["input"], targetFlow?.input)
 		}
 		updateNodeConfig({ ...currentNode })
 	})
@@ -55,8 +55,8 @@ export default function SubFlowV1() {
 	/** input更新时同步到节点 */
 	useUpdateEffect(() => {
 		if (!currentNode) return
-		_.set(currentNode, ["input", "form", "structure"], input)
-		const subFlowId = _.get(currentNode, ["params", "sub_flow_id"])
+		set(currentNode, ["input", "form", "structure"], input)
+		const subFlowId = get(currentNode, ["params", "sub_flow_id"])
 		form.setFieldsValue({
 			sub_flow_id: subFlowId,
 		})

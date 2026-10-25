@@ -14,6 +14,8 @@ import { MobileSettingsLoginDevicesSheet } from "./components/LoginDevicesSheet"
 import { MobileSettingsPasswordSheet } from "./components/PasswordSecuritySheets"
 import { MobileSettingsPhoneSecuritySheet } from "./components/PhoneSecuritySheet"
 import { MobileSettingsProfileSheet } from "./components/ProfileSheet"
+import { MobileSettingsPersonalQuotaSheet } from "./components/PersonalQuotaSheet"
+import { MobileSettingsTeamPointsSheet } from "./components/TeamPointsSheet"
 import {
 	getMobileSettingsRootItemAction,
 	MobileSettingsOrderHistorySheet,
@@ -114,6 +116,14 @@ function MobileSettingsPanelComponent(props: {
 			<MobileSettingsPointsSheet
 				open={hasPanelOpen("pointsPurchase")}
 				onClose={() => closePanelAndDescendants("pointsPurchase")}
+			/>
+			<MobileSettingsTeamPointsSheet
+				open={hasPanelOpen("teamPoints")}
+				onClose={() => closePanelAndDescendants("teamPoints")}
+			/>
+			<MobileSettingsPersonalQuotaSheet
+				open={hasPanelOpen("personalQuota")}
+				onClose={() => closePanelAndDescendants("personalQuota")}
 			/>
 			<MobileSettingsPointsDetailSheet
 				open={hasPanelOpen("pointsDetail")}

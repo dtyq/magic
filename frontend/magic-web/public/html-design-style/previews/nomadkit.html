@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NomadKit — Digital Nomad Travel &amp; Remote Work Toolkit</title>
+  <style>
+    :root {
+      --amber-primary: #D4A373;
+      --amber-dark: #B58252;
+      --amber-bright: #F4A261;
+      --amber-soft: #FEF3E7;
+      --teal-ocean: #0891B2;
+      --teal-deep: #0E7490;
+      --teal-light: #E0F2FE;
+      --teal-bright: #06B6D4;
+      --forest-green: #166534;
+      --forest-soft: #DCFCE7;
+      --sand-bg: #FFFDF7;
+      --surface-card: #FFFFFF;
+      --border-sand: #E8E2D5;
+      --border-light: #F1ECE1;
+      --ink-charcoal: #1F2937;
+      --ink-muted: #6B7280;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #F4EFE6; color: var(--ink-charcoal);
+      font-family: var(--font-sans); line-height: 1.45; -webkit-font-smoothing: antialiased;
+      display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px;
+    }
+    .nomad-deck {
+      width: 100%; max-width: 1120px; aspect-ratio: 16 / 10;
+      background: var(--sand-bg); border-radius: 12px;
+      box-shadow: 0 20px 50px rgba(181, 130, 82, 0.15), 0 0 0 1px var(--border-sand);
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+    }
+    .nomad-top-stripe {
+      height: 5px;
+      background: linear-gradient(90deg, var(--teal-ocean) 0%, var(--teal-bright) 35%, var(--amber-bright) 70%, var(--amber-primary) 100%);
+    }
+    .nomad-header {
+      height: 52px; padding: 0 20px; background: rgba(255, 253, 247, 0.95);
+      border-bottom: 1px solid var(--border-sand); display: flex;
+      align-items: center; justify-content: space-between;
+    }
+    .brand-group { display: flex; align-items: center; gap: 8px; }
+    .brand-badge {
+      width: 28px; height: 28px; border-radius: 7px;
+      background: linear-gradient(135deg, var(--teal-ocean), var(--teal-deep));
+      display: flex; align-items: center; justify-content: center;
+      color: #FFF; font-weight: 900; font-size: 14px;
+    }
+    .brand-text { font-size: 16px; font-weight: 800; color: var(--teal-deep); letter-spacing: -0.02em; }
+    .live-beacon {
+      display: flex; align-items: center; gap: 7px; background: #FFFFFF;
+      border: 1px solid var(--border-sand); padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    }
+    .status-pulse-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #10B981;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+    }
+    .header-pills { display: flex; align-items: center; gap: 8px; }
+    .header-pill {
+      background: var(--amber-soft); border: 1px solid rgba(212, 163, 115, 0.4);
+      padding: 3px 9px; border-radius: 5px; font-size: 10.5px; font-weight: 700;
+      color: var(--amber-dark); display: flex; align-items: center; gap: 4px;
+    }
+    .header-pill.teal { background: var(--teal-light); border-color: rgba(8, 145, 178, 0.3); color: var(--teal-deep); }
+    .nomad-body {
+      flex: 1; padding: 14px 18px; display: grid; grid-template-columns: 290px 1fr; gap: 14px; overflow: hidden;
+    }
+    .left-col { display: flex; flex-direction: column; gap: 12px; }
+    .speed-card, .map-card, .matrix-card {
+      background: var(--surface-card); border: 1px solid var(--border-sand); border-radius: 9px;
+    }
+    .speed-card { padding: 12px; }
+    .speed-head, .map-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .speed-title, .map-title { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+    .speed-title { color: var(--teal-deep); }
+    .map-title { color: var(--amber-dark); }
+    .wifi-chip { font-size: 9px; font-weight: 700; background: var(--forest-soft); color: var(--forest-green); padding: 1px 5px; border-radius: 4px; }
+    .speed-display-wrap { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 6px; }
+    .speed-gauge-svg { width: 95px; height: 60px; }
+    .speed-big-num { text-align: right; }
+    .speed-val { font-size: 30px; font-weight: 900; color: var(--teal-ocean); line-height: 1; letter-spacing: -0.03em; }
+    .speed-unit { font-size: 10px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; }
+    .speed-telemetry-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+      border-top: 1px dashed var(--border-sand); padding-top: 6px;
+    }
+    .tel-item { text-align: center; }
+    .tel-label { font-size: 8px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; }
+    .tel-val { font-size: 12px; font-weight: 800; color: var(--ink-charcoal); font-family: var(--font-mono); }
+    .map-card { padding: 10px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+    .map-svg-wrap {
+      width: 100%; height: 80px; background: #F5EFE6; border-radius: 5px;
+      overflow: hidden; border: 1px solid var(--border-sand);
+    }
+    .cafe-list { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+    .cafe-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 7px; background: var(--sand-bg); border: 1px solid var(--border-light);
+      border-radius: 5px; font-size: 10px;
+    }
+    .cafe-name { font-weight: 700; color: var(--ink-charcoal); }
+    .cafe-specs { font-size: 8.5px; color: var(--teal-deep); font-weight: 600; }
+    .right-col { display: flex; flex-direction: column; gap: 10px; }
+    .matrix-card { padding: 14px; flex: 1; display: flex; flex-direction: column; }
+    .matrix-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+    .matrix-title { font-size: 14px; font-weight: 800; color: var(--ink-charcoal); }
+    .matrix-sub { font-size: 10.5px; color: var(--ink-muted); margin-top: 1px; }
+    .filter-tags { display: flex; gap: 5px; }
+    .f-tag { font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: #F3F4F6; color: var(--ink-muted); }
+    .f-tag.active { background: var(--teal-ocean); color: #FFFFFF; }
+    .visa-table-wrap { width: 100%; border: 1px solid var(--border-sand); border-radius: 6px; overflow: hidden; }
+    .visa-table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; }
+    .visa-table th {
+      background: #FAF7F0; color: var(--ink-muted); font-size: 9px;
+      text-transform: uppercase; font-weight: 800; padding: 7px 10px; border-bottom: 1px solid var(--border-sand);
+    }
+    .visa-table td { padding: 7px 10px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+    .country-cell { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+    .visa-type-tag { font-size: 9.5px; font-weight: 700; color: var(--teal-deep); background: var(--teal-light); padding: 1px 5px; border-radius: 3px; }
+    .num-tag { font-family: var(--font-mono); font-weight: 600; }
+    .badge-status { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 999px; }
+    .st-active { background: var(--forest-soft); color: var(--forest-green); }
+    .st-hot { background: #FEF3C7; color: #B45309; }
+    .nomad-utils-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+    .util-box {
+      background: var(--sand-bg); border: 1px solid var(--border-sand); border-radius: 5px;
+      padding: 6px 8px; display: flex; align-items: center; gap: 6px;
+    }
+    .util-text h5 { font-size: 10px; font-weight: 800; }
+    .util-text p { font-size: 8.5px; color: var(--ink-muted); }
+    .nomad-footer {
+      height: 32px; padding: 0 20px; border-top: 1px solid var(--border-sand);
+      background: var(--sand-bg); display: flex; align-items: center;
+      justify-content: space-between; font-size: 10px; color: var(--ink-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="nomad-deck">
+    <div class="nomad-top-stripe"></div>
+
+    <header class="nomad-header">
+      <div class="brand-group">
+        <div class="brand-badge">NK</div>
+        <div class="brand-text">Nomad<span style="color:var(--amber-dark)">Kit</span> OS</div>
+        <div class="live-beacon">
+          <span class="status-pulse-dot"></span>
+          <span>Canggu, Bali 🇮🇩 • 29°C Sunny • UTC+8</span>
+        </div>
+      </div>
+      <div class="header-pills">
+        <div class="header-pill teal"><span>📶 Starlink</span><span>48ms</span></div>
+        <div class="header-pill"><span>💳 eSIM Active</span><span>18.4 GB</span></div>
+        <div class="header-pill" style="background:#FFF;"><span>Score: <strong>4.9/5</strong></span></div>
+      </div>
+    </header>
+
+    <main class="nomad-body">
+      <section class="left-col">
+        <!-- Live Speed Test -->
+        <div class="speed-card">
+          <div class="speed-head">
+            <span class="speed-title">Live Speed Telemetry</span>
+            <span class="wifi-chip">Wi-Fi 6</span>
+          </div>
+          <div class="speed-display-wrap">
+            <svg class="speed-gauge-svg" viewBox="0 0 120 70" fill="none">
+              <path d="M15 62 A46 46 0 0 1 105 62" stroke="#E5E7EB" stroke-width="8" stroke-linecap="round" />
+              <path d="M15 62 A46 46 0 0 1 95 32" stroke="url(#tealSpeedGrad)" stroke-width="8" stroke-linecap="round" />
+              <line x1="60" y1="62" x2="86" y2="36" stroke="#0E7490" stroke-width="2.8" stroke-linecap="round" />
+              <circle cx="60" cy="62" r="4.5" fill="#0891B2" />
+              <defs>
+                <linearGradient id="tealSpeedGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#06B6D4" /><stop offset="100%" stop-color="#0891B2" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="speed-big-num">
+              <div class="speed-val">145</div>
+              <div class="speed-unit">Mbps Down</div>
+            </div>
+          </div>
+          <div class="speed-telemetry-grid">
+            <div class="tel-item"><div class="tel-label">Upload</div><div class="tel-val" style="color:var(--teal-ocean)">42.8 M</div></div>
+            <div class="tel-item"><div class="tel-label">Latency</div><div class="tel-val">14 ms</div></div>
+            <div class="tel-item"><div class="tel-label">Jitter</div><div class="tel-val">1.8 ms</div></div>
+          </div>
+        </div>
+
+        <!-- Local Cafe Map -->
+        <div class="map-card">
+          <div class="map-head">
+            <span class="map-title">Canggu Workspace Radar</span>
+            <span style="font-size:9px; color:var(--ink-muted); font-weight:700;">Within 1.5 km</span>
+          </div>
+          <div class="map-svg-wrap">
+            <svg width="100%" height="100%" viewBox="0 0 260 80" fill="none">
+              <path d="M0 58 Q80 48 160 66 L260 52 L260 80 L0 80 Z" fill="#BAE6FD" fill-opacity="0.5" />
+              <path d="M0 58 Q80 48 160 66 L260 52" stroke="#0891B2" stroke-width="1.2" stroke-dasharray="2 2" />
+              <path d="M35 0 L58 50 L110 46 L145 0" stroke="#E2D9C8" stroke-width="2.5" />
+              <path d="M110 46 L200 42 L240 0" stroke="#E2D9C8" stroke-width="2" />
+              <circle cx="110" cy="38" r="4" fill="#3B82F6" stroke="#FFF" stroke-width="1.2" />
+              <circle cx="70" cy="24" r="3.5" fill="#E76F51" stroke="#FFF" stroke-width="1" />
+              <text x="77" y="27" font-size="7.5" font-weight="700" fill="#78350F">Bambu (160M)</text>
+              <circle cx="170" cy="22" r="3.5" fill="#166534" stroke="#FFF" stroke-width="1" />
+              <text x="177" y="25" font-size="7.5" font-weight="700" fill="#166534">Zin Cafe (120M)</text>
+              <circle cx="138" cy="50" r="3.5" fill="#0891B2" stroke="#FFF" stroke-width="1" />
+              <text x="144" y="56" font-size="7.5" font-weight="700" fill="#0891B2">Dojo Hub</text>
+            </svg>
+          </div>
+          <div class="cafe-list">
+            <div class="cafe-item">
+              <span class="cafe-name">☕ Bambu Cowork</span>
+              <span class="cafe-specs">⚡ 160 Mbps • Plugs 10/10</span>
+            </div>
+            <div class="cafe-item">
+              <span class="cafe-name">🌴 Zin Open-Air</span>
+              <span class="cafe-specs">⚡ 120 Mbps • Quiet Pool</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Visa Matrix -->
+      <section class="right-col">
+        <div class="matrix-card">
+          <div class="matrix-head">
+            <div>
+              <h2 class="matrix-title">Remote Worker Country Visa Matrix</h2>
+              <p class="matrix-sub">Verified legal nomad visas with tax incentives &amp; fast-track processing</p>
+            </div>
+            <div class="filter-tags">
+              <span class="f-tag active">All</span>
+              <span class="f-tag">SE Asia</span>
+              <span class="f-tag">Europe</span>
+              <span class="f-tag">Americas</span>
+            </div>
+          </div>
+
+          <div class="visa-table-wrap">
+            <table class="visa-table">
+              <thead>
+                <tr>
+                  <th>Country &amp; Visa</th>
+                  <th>Min. Income</th>
+                  <th>Duration</th>
+                  <th>Tax Status</th>
+                  <th>Processing</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><div class="country-cell"><span>🇮🇩</span><div><div>Indonesia</div><span class="visa-type-tag">E33G Remote</span></div></div></td>
+                  <td><span class="num-tag">$60k/yr</span></td>
+                  <td>1 Year</td>
+                  <td style="color:var(--forest-green); font-weight:700;">0% Foreign</td>
+                  <td>14 Days</td>
+                  <td><span class="badge-status st-hot">★ Popular</span></td>
+                </tr>
+                <tr>
+                  <td><div class="country-cell"><span>🇵🇹</span><div><div>Portugal</div><span class="visa-type-tag">D8 Nomad</span></div></div></td>
+                  <td><span class="num-tag">€3,280/mo</span></td>
+                  <td>2 Years</td>
+                  <td>20% NHR</td>
+                  <td>60 Days</td>
+                  <td><span class="badge-status st-active">Active</span></td>
+                </tr>
+                <tr>
+                  <td><div class="country-cell"><span>🇹🇭</span><div><div>Thailand</div><span class="visa-type-tag">DTV Nomad</span></div></div></td>
+                  <td><span class="num-tag">$14,500 proof</span></td>
+                  <td>5 Years</td>
+                  <td style="color:var(--forest-green); font-weight:700;">Tax Exempt</td>
+                  <td>5 Days</td>
+                  <td><span class="badge-status st-hot">Fast-Track</span></td>
+                </tr>
+                <tr>
+                  <td><div class="country-cell"><span>🇪🇸</span><div><div>Spain</div><span class="visa-type-tag">Startups Law</span></div></div></td>
+                  <td><span class="num-tag">€2,646/mo</span></td>
+                  <td>3 Years</td>
+                  <td>24% Beckham</td>
+                  <td>45 Days</td>
+                  <td><span class="badge-status st-active">Active</span></td>
+                </tr>
+                <tr>
+                  <td><div class="country-cell"><span>🇨🇷</span><div><div>Costa Rica</div><span class="visa-type-tag">Estancia</span></div></div></td>
+                  <td><span class="num-tag">$3,000/mo</span></td>
+                  <td>2 Years</td>
+                  <td style="color:var(--forest-green); font-weight:700;">0% Income</td>
+                  <td>30 Days</td>
+                  <td><span class="badge-status st-active">Active</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="nomad-utils-row">
+            <div class="util-box">
+              <span style="font-size:15px;">💱</span>
+              <div class="util-text">
+                <h5>1 USD = 15,720 IDR</h5>
+                <p>Wise Mid-Market Rate</p>
+              </div>
+            </div>
+            <div class="util-box">
+              <span style="font-size:15px;">🕒</span>
+              <div class="util-text">
+                <h5>SF: 17:00 • NY: 20:00</h5>
+                <p>Pacific Sync Window Open</p>
+              </div>
+            </div>
+            <div class="util-box">
+              <span style="font-size:15px;">🛡️</span>
+              <div class="util-text">
+                <h5>SafetyWing Active</h5>
+                <p>Global Medical Coverage</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="nomad-footer">
+      <div>NomadKit Platform • Real-time travel telemetry &amp; border governance</div>
+      <div>Synced: 3 mins ago • Latency 14ms</div>
+    </footer>
+  </div>
+</body>
+</html>

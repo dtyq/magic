@@ -10,4 +10,6 @@ return [
     'driver_not_available' => 'Weather driver [:label] is not available',
     'no_enabled_provider' => 'No enabled weather provider configuration found',
     'request_failed' => 'Data query request failed',
+    'invalid_response' => 'Invalid value',
+    'location_required' => 'Value is required',
 ];

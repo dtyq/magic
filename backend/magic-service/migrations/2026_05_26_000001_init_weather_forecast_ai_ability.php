@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
-use App\Application\Provider\Official\AiAbilityInitializer;
+use App\Application\Provider\Initializer\AiAbilityInitializer;
 use Hyperf\Database\Migrations\Migration;
 
 return new class extends Migration {

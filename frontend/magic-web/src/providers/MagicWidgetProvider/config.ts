@@ -1,4 +1,10 @@
-import type { MagicWidgetConfig, MagicWidgetEmbedContext, MagicWidgetLayout } from "./types"
+import type {
+	MagicWidgetConfig,
+	MagicWidgetConfigWarning,
+	MagicWidgetEmbedContext,
+	MagicWidgetLayout,
+} from "./types"
+import { normalizeMagicWidgetCustomGroups } from "./custom-groups"
 
 export const MAGIC_WIDGET_PROTOCOL = "magic-widget"
 export const MAGIC_WIDGET_PROTOCOL_VERSION = 1
@@ -8,152 +14,43 @@ const MAGIC_WIDGET_QUERY_EMBED = "magicWidgetEmbed"
 const MAGIC_WIDGET_QUERY_INSTANCE_ID = "magicWidgetInstanceId"
 const MAGIC_WIDGET_QUERY_PROTOCOL_VERSION = "magicWidgetProtocolVersion"
 const MAGIC_WIDGET_QUERY_HOST_ORIGIN = "magicWidgetHostOrigin"
+const MAGIC_WIDGET_QUERY_RENDER_MODE = "magicWidgetRenderMode"
 const MAX_INITIAL_CONFIG_LENGTH = 4_096
-const CONFIG_KEYS = new Set(["layout", "shell", "conversation", "responsive"])
-const SHELL_CONFIG_KEYS = new Set(["appSidebar"])
-const CONVERSATION_CONFIG_KEYS = new Set([
-	"projectFiles",
-	"topicHistory",
-	"autoHire",
-	"previewMode",
-])
-const RESPONSIVE_CONFIG_KEYS = new Set(["mobileDetection"])
-type MagicWidgetPreviewMode = NonNullable<
-	NonNullable<MagicWidgetConfig["conversation"]>["previewMode"]
->
-type MagicWidgetMobileDetection = NonNullable<
-	NonNullable<MagicWidgetConfig["responsive"]>["mobileDetection"]
->
-const PREVIEW_MODES = new Set<MagicWidgetPreviewMode>(["split", "fullscreen", "switchable"])
-const MOBILE_DETECTION_MODES = new Set<MagicWidgetMobileDetection>([
-	"viewport",
-	"device-and-viewport",
-])
 
-/** Narrows untrusted Widget configuration values to plain records. */
-function requirePlainObject(value: unknown, label: string): Record<string, unknown> {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new Error(`${label} must be an object`)
+/** Accepts a host config snapshot while reporting non-fatal custom Mention filtering. */
+export function acceptMagicWidgetConfig(
+	value: unknown,
+	reportWarning?: (warning: MagicWidgetConfigWarning) => void,
+): MagicWidgetConfig {
+	if (!isPlainConfigObject(value)) {
+		throw new Error("Magic widget config must be an object")
 	}
-	const prototype = Object.getPrototypeOf(value)
-	if (prototype !== Object.prototype && prototype !== null) {
-		throw new Error(`${label} must be a plain object`)
-	}
-	return value as Record<string, unknown>
-}
-
-/** Rejects unknown fields before configuration enters React state. */
-function assertKnownKeys(value: Record<string, unknown>, keys: Set<string>, label: string): void {
-	const unknownKey = Object.keys(value).find((key) => !keys.has(key))
-	if (unknownKey) throw new Error(`${label}.${unknownKey} is not supported`)
-}
-
-/** Reads one optional boolean from an untrusted configuration section. */
-function readOptionalBoolean(
-	value: Record<string, unknown>,
-	key: string,
-	label: string,
-): boolean | undefined {
-	const field = value[key]
-	if (field === undefined) return undefined
-	if (typeof field !== "boolean") throw new Error(`${label}.${key} must be a boolean`)
-	return field
-}
-
-/** Reads one optional preview strategy from an untrusted configuration section. */
-function readOptionalPreviewMode(
-	value: Record<string, unknown>,
-	key: string,
-	label: string,
-): MagicWidgetPreviewMode | undefined {
-	const field = value[key]
-	if (field === undefined) return undefined
-	if (typeof field !== "string" || !PREVIEW_MODES.has(field as MagicWidgetPreviewMode)) {
-		throw new Error(`${label}.${key} must be split, fullscreen, or switchable`)
-	}
-	return field as MagicWidgetPreviewMode
-}
-
-/** Reads one optional mobile detection strategy from an untrusted configuration section. */
-function readOptionalMobileDetection(
-	value: Record<string, unknown>,
-	key: string,
-	label: string,
-): MagicWidgetMobileDetection | undefined {
-	const field = value[key]
-	if (field === undefined) return undefined
-	if (
-		typeof field !== "string" ||
-		!MOBILE_DETECTION_MODES.has(field as MagicWidgetMobileDetection)
-	) {
-		throw new Error(`${label}.${key} must be viewport or device-and-viewport`)
-	}
-	return field as MagicWidgetMobileDetection
-}
-
-/** Validates and clones the complete configuration snapshot sent by the SDK. */
-export function normalizeMagicWidgetConfig(value: unknown): MagicWidgetConfig {
-	const record = requirePlainObject(value, "config")
-	assertKnownKeys(record, CONFIG_KEYS, "config")
-	const layout = record.layout
-	if (layout !== undefined && layout !== "desktop" && layout !== "mobile") {
-		throw new Error("config.layout must be desktop or mobile")
-	}
-
-	let shell: MagicWidgetConfig["shell"]
-	if (record.shell !== undefined) {
-		const shellRecord = requirePlainObject(record.shell, "config.shell")
-		assertKnownKeys(shellRecord, SHELL_CONFIG_KEYS, "config.shell")
-		const appSidebar = readOptionalBoolean(shellRecord, "appSidebar", "config.shell")
-		shell = appSidebar === undefined ? {} : { appSidebar }
-	}
-
-	let conversation: MagicWidgetConfig["conversation"]
-	if (record.conversation !== undefined) {
-		const conversationRecord = requirePlainObject(record.conversation, "config.conversation")
-		assertKnownKeys(conversationRecord, CONVERSATION_CONFIG_KEYS, "config.conversation")
-		const projectFiles = readOptionalBoolean(
-			conversationRecord,
-			"projectFiles",
-			"config.conversation",
-		)
-		const topicHistory = readOptionalBoolean(
-			conversationRecord,
-			"topicHistory",
-			"config.conversation",
-		)
-		const autoHire = readOptionalBoolean(conversationRecord, "autoHire", "config.conversation")
-		const previewMode = readOptionalPreviewMode(
-			conversationRecord,
-			"previewMode",
-			"config.conversation",
-		)
-		conversation = {
-			...(projectFiles === undefined ? {} : { projectFiles }),
-			...(topicHistory === undefined ? {} : { topicHistory }),
-			...(autoHire === undefined ? {} : { autoHire }),
-			...(previewMode === undefined ? {} : { previewMode }),
+	if (value.panel !== undefined) {
+		if (!isPlainConfigObject(value.panel))
+			throw new Error("Magic widget config.panel must be an object")
+		return {
+			...value,
+			panel: {
+				...value.panel,
+				...(value.panel.customGroups === undefined
+					? {}
+					: {
+							customGroups: normalizeMagicWidgetCustomGroups(
+								value.panel.customGroups,
+								reportWarning,
+							),
+						}),
+			},
 		}
 	}
+	return value
+}
 
-	let responsive: MagicWidgetConfig["responsive"]
-	if (record.responsive !== undefined) {
-		const responsiveRecord = requirePlainObject(record.responsive, "config.responsive")
-		assertKnownKeys(responsiveRecord, RESPONSIVE_CONFIG_KEYS, "config.responsive")
-		const mobileDetection = readOptionalMobileDetection(
-			responsiveRecord,
-			"mobileDetection",
-			"config.responsive",
-		)
-		responsive = mobileDetection === undefined ? {} : { mobileDetection }
-	}
-
-	return {
-		...(layout === undefined ? {} : { layout }),
-		...(shell === undefined ? {} : { shell }),
-		...(conversation === undefined ? {} : { conversation }),
-		...(responsive === undefined ? {} : { responsive }),
-	}
+/** Keeps arrays and class instances out of widget state without reapplying the SDK field allowlist. */
+function isPlainConfigObject(value: unknown): value is MagicWidgetConfig {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false
+	const prototype = Object.getPrototypeOf(value)
+	return prototype === Object.prototype || prototype === null
 }
 
 /** Reads the private embed identity only inside a real iframe document. */
@@ -164,6 +61,7 @@ export function getMagicWidgetEmbedContext(search: string): MagicWidgetEmbedCont
 	const instanceId = params.get(MAGIC_WIDGET_QUERY_INSTANCE_ID)?.trim()
 	const protocolVersion = Number(params.get(MAGIC_WIDGET_QUERY_PROTOCOL_VERSION))
 	const hostOriginValue = params.get(MAGIC_WIDGET_QUERY_HOST_ORIGIN)
+	const renderModeValue = params.get(MAGIC_WIDGET_QUERY_RENDER_MODE)
 	if (!instanceId || protocolVersion !== MAGIC_WIDGET_PROTOCOL_VERSION || !hostOriginValue) {
 		return null
 	}
@@ -171,7 +69,14 @@ export function getMagicWidgetEmbedContext(search: string): MagicWidgetEmbedCont
 	try {
 		const hostUrl = new URL(hostOriginValue)
 		if (hostUrl.protocol !== "http:" && hostUrl.protocol !== "https:") return null
-		return { instanceId, protocolVersion, hostOrigin: hostUrl.origin }
+		return {
+			instanceId,
+			protocolVersion,
+			hostOrigin: hostUrl.origin,
+			...(renderModeValue === "inline" || renderModeValue === "floating"
+				? { renderMode: renderModeValue }
+				: {}),
+		}
 	} catch {
 		return null
 	}
@@ -186,7 +91,7 @@ export function getMagicWidgetInitialConfig(
 	const serializedConfig = new URLSearchParams(search).get(MAGIC_WIDGET_QUERY_CONFIG)
 	if (!serializedConfig || serializedConfig.length > MAX_INITIAL_CONFIG_LENGTH) return {}
 	try {
-		return normalizeMagicWidgetConfig(JSON.parse(serializedConfig))
+		return acceptMagicWidgetConfig(JSON.parse(serializedConfig))
 	} catch {
 		return {}
 	}

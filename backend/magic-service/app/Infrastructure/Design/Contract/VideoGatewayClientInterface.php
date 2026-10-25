@@ -23,4 +23,11 @@ interface VideoGatewayClientInterface
      * @return array<string, mixed>
      */
     public function queryVideo(string $operationId, array $businessParams): array;
+
+    public function downloadMediaToLocalFile(string $operationId, string $url): string;
+
+    /**
+     * @param array<string, string> $businessParams
+     */
+    public function timeoutVideo(string $operationId, array $businessParams): void;
 }

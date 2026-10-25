@@ -1,7 +1,9 @@
 import type { ExtendSession, ImageElement } from "../../../runtime/document/types"
+import { getActiveContent } from "../../../runtime/document/elementContent"
 
 export function createInitialExtendSession(imageElement: ImageElement): ExtendSession {
 	return {
+		contentId: getActiveContent(imageElement)?.contentId,
 		frame: {
 			x: 0,
 			y: 0,
@@ -27,6 +29,7 @@ export function resizeExtendSessionFrame(options: {
 	const frameCenterY = anchorCenter ? anchorCenter.y : session.frame.y + session.frame.height / 2
 
 	return {
+		contentId: session.contentId,
 		frame: {
 			x: frameCenterX - nextWidth / 2,
 			y: frameCenterY - nextHeight / 2,

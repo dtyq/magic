@@ -2,18 +2,26 @@ import { Form, Flex } from "antd"
 import { get } from "lodash-es"
 import { useTranslation } from "react-i18next"
 import { resolveToString } from "@dtyq/es6-template-strings"
-import { MagicSwitch } from "@/components/base/MagicSwitch"
 import { useModifyStyles } from "../styles"
+import { FormSwitch } from "./FormSwitch"
 import SelectItem, { type OptionItem } from "./SelectItem"
 
 interface ProjectTopicItemProps {
 	mode: "project" | "topic"
 	workspaceId: string
 	projectId?: string
+	autoSelectFirstOption?: boolean
 	onSelect?: (value: OptionItem | undefined) => void
 }
 
-function ProjectTopicItem({ mode, workspaceId, projectId, onSelect }: ProjectTopicItemProps) {
+/** Renders the optional project/topic form field with shared selection behavior. */
+function ProjectTopicItem({
+	mode,
+	workspaceId,
+	projectId,
+	autoSelectFirstOption = false,
+	onSelect,
+}: ProjectTopicItemProps) {
 	const { t } = useTranslation("interface")
 	const { styles } = useModifyStyles()
 
@@ -22,13 +30,8 @@ function ProjectTopicItem({ mode, workspaceId, projectId, onSelect }: ProjectTop
 			label={
 				<Flex gap={4} align="center">
 					{t(`accountPanel.timedTasks.${mode}`)}
-					<Form.Item
-						name={`${mode}_enabled`}
-						noStyle
-						valuePropName="checked"
-						initialValue={true}
-					>
-						<MagicSwitch size="small" />
+					<Form.Item name={`${mode}_enabled`} noStyle valuePropName="checked">
+						<FormSwitch />
 					</Form.Item>
 				</Flex>
 			}
@@ -60,6 +63,7 @@ function ProjectTopicItem({ mode, workspaceId, projectId, onSelect }: ProjectTop
 								type={mode}
 								workspaceId={workspaceId}
 								projectId={projectId}
+								autoSelectFirstOption={autoSelectFirstOption}
 								onSelect={onSelect}
 							/>
 						</Form.Item>

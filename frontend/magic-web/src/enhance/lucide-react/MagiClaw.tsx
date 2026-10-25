@@ -1,5 +1,5 @@
 import { LucideProps } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export const MagiClaw = ({ className, size = 16, strokeWidth = 1, ...props }: LucideProps) => {
 	return (

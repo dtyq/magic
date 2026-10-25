@@ -1,8 +1,5 @@
 import type { PPTLoggerService } from "../services"
 import { ProjectStateRepository } from "@/models/config/repositories/SuperProjectStateRepository"
-import { WorkspaceStateCache } from "@/pages/superMagic/utils/superMagicCache"
-import { getSuperIdState } from "@/pages/superMagic/utils/query"
-import { userStore } from "@/models/user"
 
 export interface PPTActiveIndexCacheConfig {
 	organizationCode?: string
@@ -135,11 +132,6 @@ export class PPTActiveIndexCacheManager {
 			}
 
 			const fileState = {
-				tabs: currentState?.fileState?.tabs || [],
-				activeTabId: currentState?.fileState?.activeTabId,
-				detailState: currentState?.fileState?.detailState,
-				playbackTabExists: currentState?.fileState?.playbackTabExists,
-				playbackTabActive: currentState?.fileState?.playbackTabActive,
 				pptActiveIndexMap,
 			}
 
@@ -200,22 +192,12 @@ export class PPTActiveIndexCacheManager {
 			const cachedIndex = cachedState?.fileState?.pptActiveIndexMap?.[mainFileId]
 
 			if (typeof cachedIndex === "number" && cachedIndex >= 0) {
-				// Validate projectId is ready before restoring
-				const isValid = await this.waitForProjectIdReady(
-					selectedProjectId,
-					configGeneration,
-				)
-
-				if (isValid && configGeneration === this.configGeneration) {
+				if (configGeneration === this.configGeneration) {
 					this.logger.debug("🔄 Restored cached activeIndex", {
 						operation: "restoreActiveIndex",
 						metadata: { index: cachedIndex, fileId: mainFileId },
 					})
 					return cachedIndex
-				} else {
-					this.logger.warn("ProjectId not ready, skipping cache restoration", {
-						operation: "restoreActiveIndex",
-					})
 				}
 			} else {
 				this.logger.debug("No cached activeIndex found", {
@@ -235,80 +217,6 @@ export class PPTActiveIndexCacheManager {
 			})
 			return null
 		}
-	}
-
-	/**
-	 * Wait for projectId to be ready with retry mechanism
-	 * 等待 projectId 准备好（带重试机制）
-	 *
-	 * @param expectedProjectId The expected project ID to validate
-	 * @returns true if projectId is ready and matches, false otherwise
-	 */
-	private async waitForProjectIdReady(
-		expectedProjectId: string,
-		configGeneration: number,
-	): Promise<boolean> {
-		return new Promise((resolve) => {
-			let retryCount = 0
-			const maxRetries = 10
-
-			const check = () => {
-				// Check if manager is disposed
-				if (this.disposed || configGeneration !== this.configGeneration) {
-					resolve(false)
-					return
-				}
-
-				// Get projectId from various sources
-				const workspaceState = WorkspaceStateCache.get(userStore.user.userInfo)
-				const superIdState = getSuperIdState()
-				const projectId =
-					(window as any).project_id ||
-					workspaceState?.projectId ||
-					superIdState?.projectId
-
-				// Validate projectId matches expected
-				if (projectId === expectedProjectId) {
-					this.logger.debug("ProjectId is ready", {
-						operation: "waitForProjectIdReady",
-						metadata: { projectId, retryCount },
-					})
-					resolve(true)
-					return
-				}
-
-				// Retry if not exceeded max retries
-				if (retryCount < maxRetries) {
-					retryCount++
-					this.logger.debug("ProjectId not ready, retrying...", {
-						operation: "waitForProjectIdReady",
-						metadata: {
-							retryCount,
-							maxRetries,
-							currentProjectId: projectId,
-							expectedProjectId,
-						},
-					})
-					setTimeout(check, 100)
-				} else {
-					this.logger.warn(
-						"ProjectId not ready after max retries, skipping cache restoration",
-						{
-							operation: "waitForProjectIdReady",
-							metadata: {
-								currentProjectId: projectId,
-								expectedProjectId,
-								retryCount,
-							},
-						},
-					)
-					resolve(false)
-				}
-			}
-
-			// Start checking
-			check()
-		})
 	}
 
 	/**

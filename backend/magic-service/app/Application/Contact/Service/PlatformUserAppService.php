@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Contact\Service;
 
+use App\Domain\Contact\Entity\ValueObject\UserSearchField;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Di\Annotation\Inject;
@@ -22,5 +23,20 @@ class PlatformUserAppService extends AbstractContactAppService
     public function queries(Page $page, ?array $filters = null): array
     {
         return $this->magicUserDomainService->queriesPlatformUsers($page, $filters);
+    }
+
+    /**
+     * 按指定字段搜索用户。
+     *
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: array<int, array<string, mixed>>}
+     */
+    public function searchUsers(
+        Page $page,
+        UserSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array {
+        return $this->magicUserDomainService->searchUsers($page, $searchField, $keyword, $organizationCodeFilter);
     }
 }

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\SuperMagic\Common\RecycleBin\Service;
 
 use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinEntity;
+use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinFileQuery;
 use App\Domain\SuperMagic\Common\RecycleBin\Enum\RecycleBinResourceType;
 use App\Domain\SuperMagic\Common\RecycleBin\Handler\FilePermanentDeleteHandler;
 use App\Domain\SuperMagic\Common\RecycleBin\Handler\MicroAppPermanentDeleteHandler;
@@ -143,7 +144,8 @@ class RecycleBinDomainService
         ?string $keyword = null,
         string $order = 'desc',
         int $page = 1,
-        int $pageSize = 20
+        int $pageSize = 20,
+        ?RecycleBinFileQuery $fileQuery = null
     ): array {
         return $this->recycleBinRepository->getRecycleBinList(
             userId: $userId,
@@ -151,7 +153,8 @@ class RecycleBinDomainService
             keyword: $keyword,
             order: $order,
             page: $page,
-            pageSize: $pageSize
+            pageSize: $pageSize,
+            fileQuery: $fileQuery
         );
     }
 
@@ -160,9 +163,9 @@ class RecycleBinDomainService
      *
      * @return array<int, int> key 为 RecycleBinResourceType->value，value 为数量
      */
-    public function getCountsByType(string $userId, ?string $keyword = null): array
+    public function getCountsByType(string $userId, ?string $keyword = null, ?int $projectId = null): array
     {
-        return $this->recycleBinRepository->getCountsByTypeVisibleToUser($userId, $keyword);
+        return $this->recycleBinRepository->getCountsByTypeVisibleToUser($userId, $keyword, $projectId);
     }
 
     /**

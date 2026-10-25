@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { ChevronDown, Pencil } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { TopicFileIcon } from "@/pages/superMagic/components/TopicFilesButton/components/TopicFileIcon"
 import type { SelectedFileHierarchyNode } from "../types"
 

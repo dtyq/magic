@@ -1,6 +1,6 @@
 import { useImmer } from "use-immer"
 import { useMemoizedFn } from "ahooks"
-import dayjs, { type Dayjs } from "@/lib/dayjs"
+import dayjs, { type Dayjs } from "@/infrastructure/vendors/dayjs"
 import { SearchApprovalStatus, SearchMessageDate } from "../types"
 
 interface SearchPanelApprovalFormData {

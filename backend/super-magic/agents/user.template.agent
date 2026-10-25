@@ -14,9 +14,9 @@ tools:
   - shell_await
   - write_file
   - edit_file
-  - edit_file_range
+  - edit_file_ranges
+  - find_file_ranges
   - multi_edit_file
-  - multi_edit_file_range
   - delete_files
   - ask_user
 skills:
@@ -26,6 +26,8 @@ skills:
     - name: using-llm
     - name: env-manager
     - name: user-info
+    - name: vibe-coding
+    - name: startup-manager
   workspace_skills: "*"
 ---
 

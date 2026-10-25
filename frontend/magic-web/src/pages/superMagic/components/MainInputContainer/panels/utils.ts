@@ -1,8 +1,9 @@
 import i18n from "i18next"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import {
 	DEFAULT_LOCALE_KEY,
 	OptionViewType,
+	type FieldPanelConfig,
 	type FieldItem,
 	type IdentifiedOptionItem,
 	type LocaleText,
@@ -146,6 +147,29 @@ export function flattenFieldOptions(field: FieldItem): OptionItem[] {
 
 export function hasSelectableOptions(field: FieldItem | undefined): boolean {
 	return Boolean(field && flattenFieldOptions(field).length > 0)
+}
+
+/** Match FieldConfigPanel's visibility rules before creating layout wrappers around it. */
+export function isFieldPanelRenderable(config: FieldPanelConfig): boolean {
+	const fieldItems = config.field?.items ?? []
+	if (fieldItems.length === 0) return false
+
+	const isTemplatePanel =
+		config.field?.view_type === OptionViewType.GRID ||
+		config.field?.view_type === OptionViewType.SLIDES_PRESET
+	return !isTemplatePanel || hasSelectableOptions(findComplexField(fieldItems))
+}
+
+/** Keep mobile scene wrappers mounted while runtime-backed slide templates load their options. */
+export function isMobileScenePanelRenderable(config: FieldPanelConfig): boolean {
+	const fieldItems = config.field?.items ?? []
+	if (fieldItems.length === 0) return false
+
+	if (config.field?.view_type === OptionViewType.SLIDES_PRESET) {
+		return Boolean(findComplexField(fieldItems))
+	}
+
+	return isFieldPanelRenderable(config)
 }
 
 function getSelectedOptionLabel(field: FieldItem, locale: string): string {

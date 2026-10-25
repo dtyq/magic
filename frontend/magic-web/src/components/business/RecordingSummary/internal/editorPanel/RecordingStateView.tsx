@@ -97,7 +97,7 @@ export function RecordingStateView({
 					onInterrupt={onInterrupt}
 				/>
 				<div
-					className="text-[10px] leading-[13px] text-[rgba(28,29,35,0.55)]"
+					className="mx-auto mt-2 text-center text-[10px] leading-[13px] text-[rgba(28,29,35,0.55)]"
 					data-testid="recording-editor-warning-text"
 				>
 					{t("recordingSummary.superEditorPanel.warning.duringRecording")}

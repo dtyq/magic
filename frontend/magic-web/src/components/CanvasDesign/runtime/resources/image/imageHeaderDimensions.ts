@@ -1,3 +1,9 @@
+import {
+	createImageOrientationMetadata,
+	parseJpegExifOrientation,
+	type ImageOrientationMetadata,
+} from "./imageOrientation"
+
 export interface ImageHeaderDimensions {
 	width: number
 	height: number
@@ -201,6 +207,26 @@ export function parseImageDimensionsFromHeader(buffer: ArrayBuffer): ImageHeader
 	)
 }
 
+export function parseImageMetadataFromHeader(buffer: ArrayBuffer): ImageOrientationMetadata | null {
+	const view = new DataView(buffer)
+	const jpegDimensions = parseJpegDimensions(view)
+	if (jpegDimensions) {
+		return createImageOrientationMetadata(
+			jpegDimensions.width,
+			jpegDimensions.height,
+			parseJpegExifOrientation(buffer),
+		)
+	}
+	const dimensions =
+		parsePngDimensions(view) ??
+		parseWebpDimensions(view) ??
+		parseGifDimensions(view) ??
+		parseBmpDimensions(view) ??
+		parseIcoDimensions(view)
+	if (!dimensions) return null
+	return createImageOrientationMetadata(dimensions.width, dimensions.height)
+}
+
 function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
 	if (typeof blob.arrayBuffer === "function") {
 		return blob.arrayBuffer()
@@ -224,6 +250,23 @@ export async function parseImageDimensionsFromBlobHeader(
 			await readBlobAsArrayBuffer(blob.slice(0, bytesToRead)),
 		)
 		if (dimensions) return dimensions
+		if (bytesToRead >= blob.size || bytesToRead >= JPEG_HEADER_SCAN_MAX_BYTES) break
+		bytesToRead = Math.min(blob.size, JPEG_HEADER_SCAN_MAX_BYTES, bytesToRead * 2)
+	}
+	return null
+}
+
+export async function parseImageMetadataFromBlobHeader(
+	blob: Blob,
+): Promise<ImageOrientationMetadata | null> {
+	if (blob.size <= 0) return null
+
+	let bytesToRead = Math.min(blob.size, JPEG_HEADER_SCAN_INITIAL_BYTES)
+	while (bytesToRead <= Math.min(blob.size, JPEG_HEADER_SCAN_MAX_BYTES)) {
+		const metadata = parseImageMetadataFromHeader(
+			await readBlobAsArrayBuffer(blob.slice(0, bytesToRead)),
+		)
+		if (metadata) return metadata
 		if (bytesToRead >= blob.size || bytesToRead >= JPEG_HEADER_SCAN_MAX_BYTES) break
 		bytesToRead = Math.min(blob.size, JPEG_HEADER_SCAN_MAX_BYTES, bytesToRead * 2)
 	}

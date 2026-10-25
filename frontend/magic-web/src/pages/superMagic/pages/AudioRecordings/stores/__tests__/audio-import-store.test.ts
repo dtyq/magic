@@ -210,6 +210,24 @@ describe("AudioImportStore", () => {
 		expect(toastErrorMock).toHaveBeenCalled()
 	})
 
+	it("accepts an Opus recording artifact when the browser omits its MIME type", async () => {
+		const { AudioImportStore } = await import("../audio-import-store")
+		const store = new AudioImportStore()
+
+		await store.startAudioImport([new File(["mock-audio"], "mock-recording.opus")], {
+			projectId: "project-import",
+			projectName: "Imported Project",
+			topicId: "topic-import",
+			workspaceId: "workspace-import",
+			modelId: "model-alpha",
+			taskKey: "session-web-imported",
+			autoSummaryEnabled: false,
+		})
+
+		expect(uploadFilesMock).toHaveBeenCalledTimes(1)
+		expect(toastErrorMock).not.toHaveBeenCalled()
+	})
+
 	it("stops after import-files when imported auto summary is disabled", async () => {
 		const { AudioImportStore } = await import("../audio-import-store")
 		const store = new AudioImportStore()
@@ -339,5 +357,126 @@ describe("AudioImportStore", () => {
 				}),
 			],
 		})
+	})
+
+	it("notifies onUploadStarted only after upload progress confirms transferred bytes", async () => {
+		let resolveUpload: (value?: unknown) => void = () => undefined
+		let reportProgress: ((fileId: string, uploadedBytes: number) => void) | undefined
+		uploadFilesMock.mockImplementation(
+			(_files, _projectId, _folderPath, _taskId, _unused, onProgress) =>
+				new Promise((resolve) => {
+					resolveUpload = resolve
+					reportProgress = onProgress
+				}),
+		)
+		const onUploadStarted = vi.fn()
+		const { AudioImportStore } = await import("../audio-import-store")
+		const store = new AudioImportStore()
+
+		const startPromise = store.startAudioImport(
+			[new File(["voice"], "imported.wav", { type: "audio/wav" })],
+			{
+				projectId: "project-import",
+				projectName: "Imported Project",
+				topicId: "topic-import",
+				workspaceId: "workspace-import",
+				modelId: "model-alpha",
+				taskKey: "session-web-imported",
+				autoSummaryEnabled: true,
+				onUploadStarted,
+			},
+		)
+
+		await vi.waitFor(() => {
+			expect(uploadFilesMock).toHaveBeenCalledTimes(1)
+		})
+		expect(onUploadStarted).not.toHaveBeenCalled()
+		reportProgress?.("upload-1", 0)
+		expect(onUploadStarted).not.toHaveBeenCalled()
+		reportProgress?.("upload-1", 1)
+		expect(onUploadStarted).toHaveBeenCalledTimes(1)
+		reportProgress?.("upload-1", 2)
+		expect(onUploadStarted).toHaveBeenCalledTimes(1)
+		expect(reportFileUploadsMock).not.toHaveBeenCalled()
+
+		resolveUpload()
+		await startPromise
+	})
+
+	it("does not notify onUploadStarted when client-side validation fails", async () => {
+		const onUploadStarted = vi.fn()
+		const { AudioImportStore } = await import("../audio-import-store")
+		const store = new AudioImportStore()
+		const oversizedFile = new File([new Uint8Array(1)], "huge.wav", { type: "audio/wav" })
+		Object.defineProperty(oversizedFile, "size", { value: store.MAX_UPLOAD_SIZE + 1 })
+
+		await store.startAudioImport([oversizedFile], {
+			projectId: "project-import",
+			projectName: "Imported Project",
+			topicId: "topic-import",
+			workspaceId: "workspace-import",
+			modelId: "model-alpha",
+			taskKey: "session-web-imported",
+			autoSummaryEnabled: true,
+			onUploadStarted,
+		})
+
+		expect(onUploadStarted).not.toHaveBeenCalled()
+		expect(uploadFilesMock).not.toHaveBeenCalled()
+	})
+
+	it("does not notify onUploadStarted when uploadFiles throws before returning a promise", async () => {
+		uploadFilesMock.mockImplementation(() => {
+			throw new Error("oss unavailable")
+		})
+		const onUploadStarted = vi.fn()
+		const { AudioImportStore } = await import("../audio-import-store")
+		const store = new AudioImportStore()
+
+		await store.startAudioImport([new File(["voice"], "imported.wav", { type: "audio/wav" })], {
+			projectId: "project-import",
+			projectName: "Imported Project",
+			topicId: "topic-import",
+			workspaceId: "workspace-import",
+			modelId: "model-alpha",
+			taskKey: "session-web-imported",
+			autoSummaryEnabled: true,
+			onUploadStarted,
+		})
+
+		expect(onUploadStarted).not.toHaveBeenCalled()
+	})
+
+	it("keeps the upload running when onUploadStarted throws", async () => {
+		uploadFilesMock.mockImplementation(
+			async (_files, _projectId, _folderPath, _taskId, _unused, onProgress, onCompleted) => {
+				onProgress("upload-1", 1)
+				await onCompleted("upload-1", {
+					file_extension: "wav",
+					file_key: "recording/imported.wav",
+					file_name: "imported.wav",
+					file_size: 256,
+				})
+			},
+		)
+		const onUploadStarted = vi.fn(() => {
+			throw new Error("observer failed")
+		})
+		const { AudioImportStore } = await import("../audio-import-store")
+		const store = new AudioImportStore()
+
+		await store.startAudioImport([new File(["voice"], "imported.wav", { type: "audio/wav" })], {
+			projectId: "project-import",
+			projectName: "Imported Project",
+			topicId: "topic-import",
+			workspaceId: "workspace-import",
+			modelId: "model-alpha",
+			taskKey: "session-web-imported",
+			autoSummaryEnabled: true,
+			onUploadStarted,
+		})
+
+		expect(onUploadStarted).toHaveBeenCalledTimes(1)
+		expect(importAudioProjectFilesMock).toHaveBeenCalledTimes(1)
 	})
 })

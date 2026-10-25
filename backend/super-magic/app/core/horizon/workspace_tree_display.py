@@ -1,16 +1,36 @@
 """Workspace tree display compression for Horizon context."""
 
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.utils.file_utils import WorkspaceEntry, format_file_size
-
+from app.core.entity.message.server_message import UnexpandedDirectory
+from app.utils.directory_scan import DirectoryScanBudget, describe_unexpanded
+from app.utils.file_utils import (
+    WorkspaceEntry,
+    format_file_size,
+)
 
 WORKSPACE_FILES_DISPLAY_MAX_CHARS = 16 * 1024
 WORKSPACE_TREE_SCAN_DEPTH = 5
 WORKSPACE_EXTENSION_TYPE_LIMIT = 10
+
+# 工作区快照的扫描预算。这是每轮 Loop 自动跑的观测，成本必须由代码封顶，而 list_dir
+# 工具是模型主动发起的查询，两者诉求相反，所以预算分开定义、分开演进。
+#
+# - 条目数是主约束：它同时决定 FUSE 往返次数（每个条目一次 stat）和基线体积。
+# - 时间只是兜底：条目数已经限定工作量，这里再设一道，是为了防止挂载异常时把整个
+#   Loop 拖住。它同时也是唯一能在 worker 线程里生效的中断手段。
+#
+# 命中任何一项都会让这次观测不完整，模型必须被告知（见 build_workspace_snapshot_partial_notice）
+# ——整份列表会在首包和压缩后重新注入，让模型把没读到的目录当成空目录，比不给列表更糟。
+#
+# 不完整**不再**影响变更清单：变更只有一个来源（变更账本事件），它不依赖观测完整性。
+WORKSPACE_SNAPSHOT_SCAN_BUDGET = DirectoryScanBudget(
+    max_nodes=5000,
+    max_seconds=60.0,
+)
 
 _DETAIL_HINT = (
     'Use list_dir(relative_workspace_path="<directory>", level=3) for details.'
@@ -375,6 +395,31 @@ def _render_full_workspace_summary(
         if len(candidate) <= max_chars:
             return candidate
     return None
+
+
+def build_workspace_snapshot_partial_notice(
+    unexpanded: Sequence[UnexpandedDirectory],
+) -> str:
+    """把工作区快照的扫描缺口写成一段必须让模型看到的话；没有缺口时返回空串。
+
+    基线不完整时，模型不能把"列表里没有"推断成"文件已删除"——那正是节点预算造成
+    "假删除上报"的同一个根因，只是换了一条路径。这段话和 `AgentHorizon` 里增量 diff
+    的准入规则是同一条约束的两端：diff 那边负责不上报无法证明的增删，这里负责让模型
+    自己不往那个方向推断。
+
+    例：预算截断在 node_modules/ 和 vendor/，模型仍会看到这两行目录，但不会看到它们的
+    子项。没有这段话时模型会认为两个目录是空的；有这段话时它知道要单独 list_dir 一次。
+    """
+    details = describe_unexpanded(unexpanded)
+    if not details:
+        return ""
+    return (
+        f"\n[PARTIAL] The workspace listing above is incomplete: "
+        f"{len(unexpanded)} directories were not read.\n"
+        f"{details}\n"
+        "Files under those directories are not shown. Their absence from this listing "
+        "does not mean they were deleted. Use list_dir on a specific path to see inside it.\n"
+    )
 
 
 def render_workspace_summary(

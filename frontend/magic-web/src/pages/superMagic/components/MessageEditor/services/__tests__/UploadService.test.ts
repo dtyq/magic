@@ -1,14 +1,20 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const sdkMocks = vi.hoisted(() => ({
 	upload: vi.fn(),
+	uploadConfigs: [] as Array<{ fileName?: string }>,
 	progressCallback: undefined as ((progress: number) => void) | undefined,
 	successCallback: undefined as ((response: { data: { path: string } }) => void) | undefined,
 }))
 
+const apiMocks = vi.hoisted(() => ({
+	getSnowflakeIds: vi.fn(),
+}))
+
 vi.mock("@dtyq/upload-sdk", () => ({
 	Upload: class {
-		upload() {
+		upload(config: { fileName?: string }) {
+			sdkMocks.uploadConfigs.push(config)
 			const callbacks = {
 				progress: (callback: (progress: number) => void) => {
 					sdkMocks.progressCallback = callback
@@ -24,6 +30,12 @@ vi.mock("@dtyq/upload-sdk", () => ({
 			sdkMocks.upload(callbacks)
 			return callbacks
 		}
+	},
+}))
+
+vi.mock("@/apis", () => ({
+	SuperMagicApi: {
+		getSnowflakeIds: apiMocks.getSnowflakeIds,
 	},
 }))
 
@@ -45,7 +57,7 @@ vi.mock("@/utils/http", () => ({
 	genRequestUrl: vi.fn((path: string) => path),
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			error: vi.fn(),
@@ -56,15 +68,63 @@ vi.mock("@/utils/log", () => ({
 
 import { UploadService } from "../UploadService"
 
+function createFileData(name = "demo.txt") {
+	return {
+		id: "file-1",
+		name,
+		file: new File(["demo"], name, { type: "text/plain" }),
+		status: "init" as const,
+	}
+}
+
+async function waitForSdkUpload() {
+	await vi.waitFor(() => {
+		expect(sdkMocks.upload).toHaveBeenCalled()
+	})
+}
+
 describe("UploadService", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		sdkMocks.uploadConfigs = []
+		sdkMocks.progressCallback = undefined
+		sdkMocks.successCallback = undefined
+		apiMocks.getSnowflakeIds.mockResolvedValue({ ids: ["snowflake-1"] })
+	})
+
+	it("uses snowflake ids as OSS names and keeps original names in the result", async () => {
+		const fileData = createFileData("report.pdf")
+		const service = new UploadService<typeof fileData>()
+
+		const uploadPromise = service.upload({ fileList: [fileData] })
+		await waitForSdkUpload()
+		sdkMocks.successCallback?.({ data: { path: "uploads/snowflake-1" } })
+		const result = await uploadPromise
+
+		expect(apiMocks.getSnowflakeIds).toHaveBeenCalledWith({ count: 1 })
+		expect(sdkMocks.uploadConfigs[0]).toMatchObject({ fileName: "snowflake-1" })
+		expect(result.fullfilled[0]?.value).toMatchObject({
+			key: "uploads/snowflake-1",
+			name: "report.pdf",
+		})
+	})
+
+	it("does not upload when snowflake id generation fails", async () => {
+		apiMocks.getSnowflakeIds.mockResolvedValueOnce({ ids: [] })
+		const fileData = createFileData()
+		const onFail = vi.fn()
+		const service = new UploadService<typeof fileData>()
+
+		const result = await service.upload({ fileList: [fileData], onFail })
+
+		expect(sdkMocks.upload).not.toHaveBeenCalled()
+		expect(result.rejected).toHaveLength(1)
+		expect(onFail).toHaveBeenCalled()
+	})
+
 	it("forwards zero and normalized finite progress values", async () => {
 		const onProgress = vi.fn()
-		const fileData = {
-			id: "file-1",
-			name: "demo.txt",
-			file: new File(["demo"], "demo.txt", { type: "text/plain" }),
-			status: "init" as const,
-		}
+		const fileData = createFileData()
 		const service = new UploadService<typeof fileData>()
 
 		const uploadPromise = service.upload({
@@ -72,6 +132,7 @@ describe("UploadService", () => {
 			onProgress,
 		})
 
+		await waitForSdkUpload()
 		sdkMocks.progressCallback?.(0)
 		sdkMocks.progressCallback?.(-1)
 		sdkMocks.progressCallback?.(42.5)

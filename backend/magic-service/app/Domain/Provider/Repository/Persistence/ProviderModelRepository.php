@@ -179,6 +179,23 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         $this->updateStatusDirect($dataIsolation, $organizationModelId, $status);
     }
 
+    public function updateStatusByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds, Status $status): void
+    {
+        $modelIds = array_values(array_unique($modelIds));
+        if ($modelIds === []) {
+            return;
+        }
+
+        ProviderModelModel::query()
+            ->where('organization_code', $dataIsolation->getCurrentOrganizationCode())
+            ->whereIn('model_id', $modelIds)
+            ->where('status', '<>', $status->value)
+            ->update([
+                'status' => $status->value,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
     public function deleteByModelParentId(ProviderDataIsolation $dataIsolation, string $modelParentId): void
     {
         $builder = ProviderModelModel::query()->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
@@ -360,6 +377,84 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         }
 
         return $modelsByModelId;
+    }
+
+    /**
+     * 批量获取模型和服务商配置均已启用的模型。
+     */
+    public function getAvailableByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array
+    {
+        $modelIds = array_values(array_unique(array_filter($modelIds)));
+        if ($modelIds === []) {
+            return [];
+        }
+
+        $enabledConfigIds = $this->createBuilder($dataIsolation, ProviderConfigModel::query())
+            ->where('status', Status::Enabled->value)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->all();
+        if ($enabledConfigIds === []) {
+            return [];
+        }
+
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query())
+            ->whereIn('model_id', $modelIds)
+            ->where('status', Status::Enabled->value)
+            ->whereIn('service_provider_config_id', $enabledConfigIds)
+            ->orderBy('sort', 'desc')
+            ->orderBy('id');
+        $entities = ProviderModelAssembler::toEntities(Db::select($builder->toSql(), $builder->getBindings()));
+
+        $modelsByModelId = [];
+        foreach ($entities as $entity) {
+            $modelsByModelId[$entity->getModelId()][] = $entity;
+        }
+        return $modelsByModelId;
+    }
+
+    /**
+     * 查询全部可用模型标识候选项，并按模型标识聚合。
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function queryAvailableModelOptions(ProviderDataIsolation $dataIsolation, string $keyword): array
+    {
+        $enabledConfigQuery = $this->createBuilder($dataIsolation, ProviderConfigModel::query())
+            ->where('status', Status::Enabled->value)
+            ->whereNull('deleted_at')
+            ->select('id');
+
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query())
+            ->whereIn('service_provider_config_id', $enabledConfigQuery)
+            ->where('status', Status::Enabled->value)
+            ->where('type', '<>', ProviderModelType::DYNAMIC->value)
+            ->whereNull('deleted_at')
+            ->selectRaw('model_id, MAX(name) as name, MAX(icon) as icon, MAX(status) as status, MAX(type) as type')
+            ->groupBy('model_id')
+            ->orderBy('name')
+            ->orderBy('model_id');
+        if ($keyword !== '') {
+            $like = '%' . addcslashes($keyword, '%_') . '%';
+            $builder->where(static function (Builder $builder) use ($like): void {
+                $builder->where('model_id', 'like', $like)
+                    ->orWhere('name', 'like', $like);
+            });
+        }
+
+        $options = [];
+        foreach ($builder->get() as $row) {
+            $modelId = (string) $row->model_id;
+            $options[$modelId] = [
+                'model_id' => $modelId,
+                'name' => (string) ($row->name ?: $modelId),
+                'icon' => (string) $row->icon,
+                'status' => (int) $row->status,
+                'type' => (string) $row->type,
+            ];
+        }
+
+        return array_values($options);
     }
 
     /**

@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { useCanvas } from "../../providers/CanvasProvider"
 import { useCanvasEvent } from "../canvas"
 import { ElementTypeEnum } from "../../../runtime/document/types"
-import { toCanonicalCanvasResourcePath } from "../../../runtime/shared/path/canvasResourcePath"
+import { areCanvasHostResourceReferencesSame } from "../../../runtime/shared/path/canvasResourcePath"
+import { getActiveImageContent } from "../../../runtime/document/elementContent"
 import type { ImageInfo } from "../../../runtime/resources/image/ImageResourceManager"
 
 export interface UseImageLowUrlOptions {
@@ -80,12 +81,26 @@ export function useImageLowUrl(options: UseImageLowUrlOptions): UseImageLowUrlRe
 		"element:updated",
 		useCallback(
 			({ data }) => {
-				if (!enabled || data.elementId !== elementId) return
+				if (!canvas || !enabled || data.elementId !== elementId) return
 				if (data.data?.type !== ElementTypeEnum.Image) return
-				if (data.data.src !== src) return
+				const effectiveSrc =
+					(canvas.getEffectiveContent(data.elementId) as { src?: string } | undefined)
+						?.src ?? getActiveImageContent(data.data).src
+				if (effectiveSrc !== src) return
 				void syncLoadedLowUrl()
 			},
-			[elementId, enabled, src, syncLoadedLowUrl],
+			[elementId, enabled, src, syncLoadedLowUrl, canvas],
+		),
+	)
+
+	useCanvasEvent(
+		"content:previewChanged",
+		useCallback(
+			({ data }) => {
+				if (!enabled || (data.elementId && data.elementId !== elementId)) return
+				void syncLoadedLowUrl()
+			},
+			[elementId, enabled, syncLoadedLowUrl],
 		),
 	)
 
@@ -118,9 +133,7 @@ export function useImageLowUrl(options: UseImageLowUrlOptions): UseImageLowUrlRe
 		useCallback(
 			({ data }) => {
 				if (!canvas || !enabled || !src) return
-				const resolveAbs = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
-				const normalizedPath = toCanonicalCanvasResourcePath(data.path, resolveAbs)
-				if (toCanonicalCanvasResourcePath(src, resolveAbs) !== normalizedPath) return
+				if (!areCanvasHostResourceReferencesSame(canvas, src, data.path)) return
 
 				const currentRequestId = requestIdRef.current + 1
 				requestIdRef.current = currentRequestId

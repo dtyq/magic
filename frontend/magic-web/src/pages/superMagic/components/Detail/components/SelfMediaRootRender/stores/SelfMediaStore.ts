@@ -1,5 +1,5 @@
 import { comparer, makeAutoObservable, reaction, runInAction, type IReactionDisposer } from "mobx"
-import { logger as rootLogger } from "@/utils/log"
+import { logger as rootLogger } from "@/infrastructure/logger"
 import type { SelfMediaInitialNavigation, SelfMediaPlatform } from "../../../types"
 import type {
 	SelfMediaPost,
@@ -17,6 +17,7 @@ import {
 	type PlatformSlice,
 } from "../services/selfMediaHelpers"
 import { invalidateCardFrameSourceCache } from "../components/CardFrame"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 const log = rootLogger.createLogger("SelfMediaStore")
 
@@ -91,8 +92,8 @@ export class SelfMediaStore {
 	private _disposed = false
 	private _reactionDisposer: IReactionDisposer | null = null
 
-	constructor(service?: SelfMediaPostsService) {
-		this._service = service ?? new SelfMediaPostsService()
+	constructor(service?: SelfMediaPostsService, fileApi?: FileApi) {
+		this._service = service ?? new SelfMediaPostsService(fileApi)
 		makeAutoObservable(
 			this,
 			{

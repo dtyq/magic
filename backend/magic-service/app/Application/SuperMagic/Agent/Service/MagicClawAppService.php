@@ -10,6 +10,7 @@ namespace App\Application\SuperMagic\Agent\Service;
 use App\Domain\SuperMagic\Agent\Entity\MagicClawEntity;
 use App\Domain\SuperMagic\Agent\Event\BeforeCreateClawEvent;
 use App\Domain\SuperMagic\Agent\Service\MagicClawDomainService;
+use App\Domain\SuperMagic\Agent\Service\MagicClawRuntimePolicyDomainService;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
 use App\Domain\SuperMagic\Task\Service\SandboxVersionDomainService;
 use App\Domain\SuperMagic\Topic\Service\TopicDomainService;
@@ -51,6 +52,7 @@ class MagicClawAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $userId = $dataIsolation->getCurrentUserId();
         $orgCode = $dataIsolation->getCurrentOrganizationCode();
+        di(MagicClawRuntimePolicyDomainService::class)->assertCanCreate($orgCode, $userId);
 
         $this->eventDispatcher->dispatch(new BeforeCreateClawEvent(
             $orgCode,
@@ -124,50 +126,18 @@ class MagicClawAppService extends AbstractSuperMagicAppService
         $userId = $dataIsolation->getCurrentUserId();
         $orgCode = $dataIsolation->getCurrentOrganizationCode();
 
-        // Resolve sandbox_id before deletion: code → project_id → topic_id → sandbox_id
-        $sandboxId = null;
-        $entity = $this->magicClawDomainService->findByCode($code, $userId, $orgCode);
-        $projectId = $entity->getProjectId();
-        if ($projectId !== null) {
-            $topicIdMap = $this->projectDomainService->getTopicIdMapByProjectIds([$projectId]);
-            $topicId = $topicIdMap[$projectId] ?? null;
-            if ($topicId !== null) {
-                $topic = $this->topicDomainService->getTopicById($topicId);
-                $sandboxId = $topic?->getSandboxId() ?: null;
-            }
-        }
-
-        // Soft-delete MagicClaw record
+        // Deletion uses the same durable cleanup as revocation, including every topic and converter.
         $this->magicClawDomainService->deleteClaw($code, $userId, $orgCode);
-
-        // Stop sandbox after deletion (non-fatal: sandbox may already be gone)
-        if (! empty($sandboxId)) {
-            try {
-                $result = $this->sandboxGateway->deleteSandbox($sandboxId);
-                if (! $result->isSuccess()) {
-                    $this->logger->warning('[MagicClaw] Failed to stop sandbox after deletion', [
-                        'code' => $code,
-                        'sandbox_id' => $sandboxId,
-                        'message' => $result->getMessage(),
-                    ]);
-                }
-            } catch (Throwable $e) {
-                $this->logger->warning('[MagicClaw] Exception while stopping sandbox after deletion', [
-                    'code' => $code,
-                    'sandbox_id' => $sandboxId,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
+        di(MagicClawReconciliationAppService::class)->requestReconciliation($orgCode, 'claw_deleted', true);
     }
 
     /**
      * Get paginated magic claw list with resolved icon URLs and sandbox status.
-     * Each item in list contains 'entity' (MagicClawEntity), 'status' (?string), 'topic_id' (?int), and 'need_upgrade' (bool).
+     * Each item in list contains 'entity' (MagicClawEntity), 'status' (?string), 'topic_id' (?int), and 'need_upgrade' (bool|null).
      *
-     * @return array{total: int, list: array<array{entity: MagicClawEntity, status: null|string, topic_id: null|int, need_upgrade: bool}>, page: int, page_size: int}
+     * @return array{total: int, list: array<array{entity: MagicClawEntity, status: null|string, topic_id: null|int, need_upgrade: null|bool}>, page: int, page_size: int}
      */
-    public function queries(Authenticatable $authorization, int $page, int $pageSize): array
+    public function queries(Authenticatable $authorization, int $page, int $pageSize, string $keyword = ''): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
@@ -175,7 +145,8 @@ class MagicClawAppService extends AbstractSuperMagicAppService
             $dataIsolation->getCurrentUserId(),
             $dataIsolation->getCurrentOrganizationCode(),
             $page,
-            $pageSize
+            $pageSize,
+            $keyword
         );
 
         $entities = $result['list'];
@@ -194,7 +165,7 @@ class MagicClawAppService extends AbstractSuperMagicAppService
                 'entity' => $entity,
                 'status' => $projectId !== null ? ($statusByProjectId[$projectId] ?? null) : null,
                 'topic_id' => $topicId,
-                'need_upgrade' => $topicId !== null ? ($needUpgradeByTopicId[$topicId] ?? false) : false,
+                'need_upgrade' => $topicId !== null ? ($needUpgradeByTopicId[$topicId] ?? null) : null,
             ];
         }, $entities);
 
@@ -310,7 +281,7 @@ class MagicClawAppService extends AbstractSuperMagicAppService
      * Batch-resolve sandbox version upgrade requirement indexed by topic ID.
      *
      * @param array<int, null|int> $topicIdMap Map of projectId => topicId
-     * @return array<int, bool> Map of topicId => needUpgrade
+     * @return array<int, null|bool> Map of topicId => needUpgrade
      */
     private function resolveNeedUpgradeByTopicIdMap(array $topicIdMap): array
     {
@@ -332,7 +303,7 @@ class MagicClawAppService extends AbstractSuperMagicAppService
         try {
             return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds);
         } catch (Throwable $e) {
-            $this->logger->warning('[MagicClaw] Failed to resolve need_upgrade in queries, fallback to false', [
+            $this->logger->warning('[MagicClaw] Failed to resolve need_upgrade in queries, version unknown', [
                 'topic_ids_count' => count($topicIds),
                 'error' => $e->getMessage(),
             ]);

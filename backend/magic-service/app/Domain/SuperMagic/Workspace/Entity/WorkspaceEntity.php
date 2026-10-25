@@ -28,6 +28,8 @@ class WorkspaceEntity extends AbstractEntity
 
     protected int $isPinned = 0;
 
+    protected ?int $sortOrder = null;
+
     protected string $createdUid = '';
 
     protected string $updatedUid = '';
@@ -143,6 +145,17 @@ class WorkspaceEntity extends AbstractEntity
     public function setIsPinned(int $isPinned): self
     {
         $this->isPinned = $isPinned;
+        return $this;
+    }
+
+    public function getSortOrder(): ?int
+    {
+        return $this->sortOrder;
+    }
+
+    public function setSortOrder(?int $sortOrder): self
+    {
+        $this->sortOrder = $sortOrder;
         return $this;
     }
 
@@ -301,6 +314,7 @@ class WorkspaceEntity extends AbstractEntity
             'name' => $this->name,
             'is_archived' => $this->isArchived,
             'is_pinned' => $this->isPinned,
+            'sort_order' => $this->sortOrder,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,

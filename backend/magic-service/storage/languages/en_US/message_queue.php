@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'queue_changed' => 'The queue has changed. Refresh it and try again.',
     'cannot_modify_message' => 'Message cannot be modified in current status',
     'status_not_modifiable' => 'Message status does not allow modification',
     'update_failed' => 'Failed to update message',
@@ -12,4 +13,5 @@ return [
     'consume_failed' => 'Failed to consume message',
     'message_not_found' => 'Message not found or access denied',
     'operation_locked' => 'Operation is locked by another process, please try again later',
+    'invalid_message_type' => 'Invalid value: :type',
 ];

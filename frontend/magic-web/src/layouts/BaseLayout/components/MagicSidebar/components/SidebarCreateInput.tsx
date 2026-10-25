@@ -1,8 +1,8 @@
 import { Check, X } from "lucide-react"
 import { useEffect, useRef } from "react"
-import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { InputGroup, InputGroupAddon, InputGroupButton } from "@/components/shadcn-ui/input-group"
+import { cn } from "@/utils/cn"
 import { shouldSuppressInputAutoFocusInMagicApp } from "@/utils/inputFocusPolicy"
 
 type SidebarCreateInputSize = "sm" | "md"
@@ -101,49 +101,60 @@ function SidebarCreateInput({
 
 	return (
 		<div className={cn("w-full", containerClassName)} data-testid={containerTestId}>
-			<div ref={wrapperRef} className="flex items-center gap-1">
-				<Input
-					ref={inputRef}
-					autoFocus={shouldAutoFocus}
-					data-testid={inputTestId}
-					value={value}
-					onChange={(e) => onValueChange(e.target.value)}
-					onKeyDown={handleKeyDown}
-					onBlur={handleBlur}
-					placeholder={placeholder}
-					disabled={disabled}
+			<div ref={wrapperRef}>
+				{/* 输入与操作共用边框，组内切换焦点仍由原失焦规则处理，避免挤占名称宽度。 */}
+				<InputGroup
 					className={cn(
-						"mr-1 bg-input/30 text-sm leading-5",
+						"bg-background shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-1",
 						SIZE_CLASS_MAP[size],
-						inputClassName,
 					)}
-				/>
-				<Button
-					type="button"
-					variant="outline"
-					size="icon"
-					data-testid={submitButtonTestId}
-					aria-label={submitButtonAriaLabel}
-					disabled={disabled || !hasValue}
-					onClick={() => {
-						void onSubmit()
-					}}
-					className={cn("size-8 shrink-0 rounded-md shadow-xs", SIZE_CLASS_MAP[size])}
 				>
-					<Check className="h-4 w-4 text-[#22c55e]" />
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="icon"
-					data-testid={cancelButtonTestId}
-					aria-label={cancelButtonAriaLabel}
-					disabled={disabled}
-					onClick={onCancel}
-					className={cn("size-8 shrink-0 rounded-md shadow-xs", SIZE_CLASS_MAP[size])}
-				>
-					<X className="h-4 w-4 text-[#ef4444]" />
-				</Button>
+					<Input
+						ref={inputRef}
+						data-slot="input-group-control"
+						autoFocus={shouldAutoFocus}
+						data-testid={inputTestId}
+						value={value}
+						onChange={(e) => onValueChange(e.target.value)}
+						onKeyDown={handleKeyDown}
+						onBlur={handleBlur}
+						placeholder={placeholder}
+						disabled={disabled}
+						className={cn(
+							"h-full flex-1 rounded-none border-0 bg-transparent px-2 text-sm leading-5 shadow-none focus-visible:ring-0 dark:bg-transparent",
+							inputClassName,
+						)}
+					/>
+					<InputGroupAddon
+						align="inline-end"
+						className="shrink-0 gap-0 py-0 pr-1 has-[>button]:mr-0"
+					>
+						<InputGroupButton
+							type="button"
+							size="icon-xs"
+							data-testid={submitButtonTestId}
+							aria-label={submitButtonAriaLabel}
+							disabled={disabled || !hasValue}
+							onClick={() => {
+								void onSubmit()
+							}}
+							className="text-muted-foreground hover:text-foreground focus-visible:ring-1"
+						>
+							<Check className="size-4" strokeWidth={1.5} />
+						</InputGroupButton>
+						<InputGroupButton
+							type="button"
+							size="icon-xs"
+							data-testid={cancelButtonTestId}
+							aria-label={cancelButtonAriaLabel}
+							disabled={disabled}
+							onClick={onCancel}
+							className="text-muted-foreground hover:text-foreground focus-visible:ring-1"
+						>
+							<X className="size-4" strokeWidth={1.5} />
+						</InputGroupButton>
+					</InputGroupAddon>
+				</InputGroup>
 			</div>
 		</div>
 	)

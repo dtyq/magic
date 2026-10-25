@@ -7,17 +7,25 @@ import asyncio
 import uuid
 from typing import Optional
 
-from dingtalk_stream import AckMessage, ChatbotHandler, ChatbotMessage, CallbackMessage, Credential, DingTalkStreamClient
+from dingtalk_stream import (
+    AckMessage,
+    CallbackMessage,
+    ChatbotHandler,
+    ChatbotMessage,
+    Credential,
+    DingTalkStreamClient,
+)
 from dingtalk_stream.card_instance import AIMarkdownCardInstance
 
 from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
-from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
-from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.channel.base.third_party_message import dispatch_third_party_message
+from app.channel.config import IMChannelDisplay, IMChannelsConfig
+from app.channel.dingtalk.aggregation import DingTalkMessageAggregator
 from app.channel.dingtalk.stream import DingTalkStream
 from app.channel.dingtalk.streaming_driver import DingTalkStreamingDriver
-from app.channel.config import IMChannelsConfig, IMChannelDisplay
+from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
+from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.core.keepalive_registry import KeepaliveRegistry
 from app.utils.time_utils import now_ms
 
@@ -39,6 +47,7 @@ class DingTalkChannel(BaseChannel):
         self._display = IMChannelDisplay()
         # 缓存最后一次收到的用户消息，供 cron 主动推送复用会话上下文
         self._last_incoming_message: Optional[ChatbotMessage] = None
+        self._message_aggregator = DingTalkMessageAggregator(self._process_aggregated_message)
 
     @classmethod
     def get_instance(cls) -> "DingTalkChannel":
@@ -146,6 +155,7 @@ class DingTalkChannel(BaseChannel):
           - 请求异常 → 不阻塞连接，视为正常
         """
         import uuid as _uuid
+
         import aiohttp
 
         assert self._client is not None
@@ -209,6 +219,7 @@ class DingTalkChannel(BaseChannel):
         return None
 
     async def disconnect(self) -> None:
+        await self._message_aggregator.flush()
         KeepaliveRegistry.get_instance().reset_source(self.key)
         if self._connect_ready_task and not self._connect_ready_task.done():
             self._connect_ready_task.cancel()
@@ -220,7 +231,28 @@ class DingTalkChannel(BaseChannel):
         logger.info("[DingTalkChannel] 已断开")
 
     async def _on_message(self, incoming_message: ChatbotMessage, raw_data: dict | None = None) -> None:
-        """处理文本消息：创建 AI 卡片 → 注册 stream + sink → dispatch → 清理。"""
+        """接收钉钉回调，先聚合留言与转发事件，再进入消息处理链路。"""
+        current_message_at_ms = now_ms()
+        self._last_message_at_ms = current_message_at_ms
+        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
+        payload = raw_data if raw_data is not None else incoming_message.to_dict()
+        content = payload.get("content")
+        logger.info(
+            "[DingTalkChannel] 收到消息: "
+            f"msgtype={payload.get('msgtype')!r}, "
+            f"fields={sorted(payload)}, "
+            f"content_fields={sorted(content) if isinstance(content, dict) else []}"
+        )
+
+        await self._message_aggregator.submit(payload, incoming_message)
+
+    async def _process_aggregated_message(
+        self,
+        payloads: list[dict],
+        incoming_message: ChatbotMessage,
+    ) -> None:
+        """处理一个已经聚合完成的逻辑消息。"""
+        from app.channel.dingtalk.media import merge_dingtalk_payloads, prepare_dingtalk_message
         from app.service.agent_dispatcher import AgentDispatcher
 
         dispatcher = AgentDispatcher.get_instance()
@@ -228,14 +260,11 @@ class DingTalkChannel(BaseChannel):
             logger.error("[DingTalkChannel] agent_context 未初始化，忽略消息")
             return
 
-        text = incoming_message.text
-        content = (text.content or "").strip() if text else ""
-        if not content:
+        payload = merge_dingtalk_payloads(payloads)
+        prepared = await prepare_dingtalk_message(payload, self._client)
+        content = prepared.text
+        if not content and not prepared.media:
             return
-
-        current_message_at_ms = now_ms()
-        self._last_message_at_ms = current_message_at_ms
-        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
         # senderStaffId 是企业内部用户 ID，senderId 是钉钉平台 ID（与 TS 逻辑一致）
         user_id = incoming_message.sender_staff_id or incoming_message.sender_id or "dingtalk_user"
         ctx = dispatcher.agent_context
@@ -251,17 +280,16 @@ class DingTalkChannel(BaseChannel):
         # 缓存本次消息上下文，供 cron 主动推送复用（sender_staff_id 已补全）
         self._last_incoming_message = incoming_message
         # 持久化原始消息数据，供重启后恢复
-        if raw_data is not None:
-            try:
-                from app.channel.dingtalk.state import DingTalkRuntimeState, save_runtime_state
-                await save_runtime_state(
-                    DingTalkRuntimeState(
-                        last_message_data=raw_data,
-                        last_message_at_ms=current_message_at_ms,
-                    )
+        try:
+            from app.channel.dingtalk.state import DingTalkRuntimeState, save_runtime_state
+            await save_runtime_state(
+                DingTalkRuntimeState(
+                    last_message_data=payload,
+                    last_message_at_ms=now_ms(),
                 )
-            except Exception as e:
-                logger.warning(f"[DingTalkChannel] 保存运行态失败: {e}")
+            )
+        except Exception as e:
+            logger.warning(f"[DingTalkChannel] 保存运行态失败: {e}")
 
         card = AIMarkdownCardInstance(self._client, incoming_message)
         # 使用 TS 连接器验证过的模板，仅声明 msgContent 字段避免渲染空占位（msgSlider 等）
@@ -295,6 +323,7 @@ class DingTalkChannel(BaseChannel):
         chat_msg = ChatClientMessage(
             message_id=local_id,
             prompt=content,
+            channel_context={"channel_media": [item.model_dump(mode="json") for item in prepared.media]},
             metadata=Metadata(agent_user_id=user_id, channel_name=self.key),
             dynamic_config={
                 EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY: SuperMagicExecutionSource.THIRD_PARTY_IM.value,

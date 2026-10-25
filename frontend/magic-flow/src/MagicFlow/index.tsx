@@ -1,6 +1,7 @@
 import ErrorContent from "@/common/BaseUI/ErrorComponent/ErrorComponent"
+import TablerIconGlobalStyle from "@/common/BaseUI/TablerIconGlobalStyle"
 import clsx from "clsx"
-import _ from "lodash"
+import { omit } from "lodash-es"
 import React, { useImperativeHandle, useMemo } from "react"
 import { ErrorBoundary } from "react-error-boundary"
 import { Edge, ReactFlowProvider } from "reactflow"
@@ -169,7 +170,7 @@ const MagicFlowComponent = React.forwardRef(
 					...flow,
 					nodes: nodes.map((n) => {
 						const node = nodeConfig?.[n.node_id] || {}
-						const omitKeysNode = _.omit(node, omitNodeKeys)
+						const omitKeysNode = omit(node, omitNodeKeys)
 						return omitKeysNode
 					}),
 					edges,
@@ -297,6 +298,7 @@ const MagicFlowComponent = React.forwardRef(
 					return <ErrorContent />
 				}}
 			>
+				<TablerIconGlobalStyle />
 				<ConfigProvider prefixCls={CLASSNAME_PREFIX}>
 					<MagicFlowProvider>
 						<ExternalProvider {...externalProviderProps}>

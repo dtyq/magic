@@ -39,15 +39,27 @@ export const providersByCategory: Record<AiModel.ServiceProviderCategory, Provid
 		region: [AiModel.ServiceProvider.AWSBedrock],
 	},
 	[AiModel.ServiceProviderCategory.VLM]: {
-		/** 排除使用 Access Key/Secret Key 的服务商 */
-		excludeApiKey: [AiModel.ServiceProvider.MiracleVision, AiModel.ServiceProvider.Volcengine],
+		/** 排除使用 Access Key/Secret Key 的服务商（Lovart 用 ak/sk 鉴权，没有 api_key 概念） */
+		excludeApiKey: [
+			AiModel.ServiceProvider.MiracleVision,
+			AiModel.ServiceProvider.Volcengine,
+			AiModel.ServiceProvider.Lovart,
+		],
 		excludeApiAgent: [
 			AiModel.ServiceProvider.MiracleVision,
 			AiModel.ServiceProvider.Volcengine,
 		],
 		apiVersion: [AiModel.ServiceProvider.MicrosoftAzure],
-		accessKey: [AiModel.ServiceProvider.MiracleVision, AiModel.ServiceProvider.Volcengine],
-		secretKey: [AiModel.ServiceProvider.MiracleVision, AiModel.ServiceProvider.Volcengine],
+		accessKey: [
+			AiModel.ServiceProvider.MiracleVision,
+			AiModel.ServiceProvider.Volcengine,
+			AiModel.ServiceProvider.Lovart,
+		],
+		secretKey: [
+			AiModel.ServiceProvider.MiracleVision,
+			AiModel.ServiceProvider.Volcengine,
+			AiModel.ServiceProvider.Lovart,
+		],
 		region: [],
 	},
 	[AiModel.ServiceProviderCategory.VGM]: {

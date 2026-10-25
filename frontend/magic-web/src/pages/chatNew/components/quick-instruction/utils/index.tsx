@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { isArray, isObject } from "lodash-es"
 import { ExtensionName } from "../extension/constants"
 

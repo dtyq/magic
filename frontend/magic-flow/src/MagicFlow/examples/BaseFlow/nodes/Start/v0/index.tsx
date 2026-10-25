@@ -9,7 +9,7 @@ import { Form } from "antd"
 import { IconAppWindow, IconMessageCircleHeart, IconRepeat } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import clsx from "clsx"
-import _ from "lodash"
+import { cloneDeep, find, findIndex, get, set } from "lodash-es"
 import React, { useMemo } from "react"
 import { WidgetValue } from "../../../common/Output"
 import Common from "./components/Common"
@@ -30,19 +30,19 @@ export default function StartV0() {
 	}, [currentNode?.meta?.parent_id])
 
 	const branches = useMemo(() => {
-		return _.get(currentNode, ["params", "branches"], [])
+		return get(currentNode, ["params", "branches"], [])
 	}, [currentNode])
 
 	const chatTemplate = useMemo(() => {
-		return _.find(branches, { trigger_type: TriggerType.NewChat })
+		return find(branches, { trigger_type: TriggerType.NewChat })
 	}, [branches])
 
 	const messageTemplate = useMemo(() => {
-		return _.find(branches, { trigger_type: TriggerType.Message })
+		return find(branches, { trigger_type: TriggerType.Message })
 	}, [branches])
 
 	const loopStartTemplate = useMemo(() => {
-		return _.find(branches, { trigger_type: TriggerType.LoopStart })
+		return find(branches, { trigger_type: TriggerType.LoopStart })
 	}, [branches])
 
 	const onChange = useMemoizedFn(
@@ -55,7 +55,7 @@ export default function StartV0() {
 				if (!Reflect.has(triggerTypeToConfig, triggerType)) {
 					triggerTypeToConfig[triggerType] = {} as Record<string, any>
 				}
-				_.set(triggerTypeToConfig, [triggerType, name], innerValue)
+				set(triggerTypeToConfig, [triggerType, name], innerValue)
 			})
 
 			/**
@@ -73,7 +73,7 @@ export default function StartV0() {
 			for (let [triggerType, newConfig] of Object.entries(triggerTypeToConfig)) {
 				// @ts-ignore
 				triggerType = Number(triggerType)
-				const branchIndex = _.findIndex(node?.params?.branches, {
+				const branchIndex = findIndex(node?.params?.branches, {
 					// @ts-ignore
 					trigger_type: triggerType as number,
 				})
@@ -83,13 +83,13 @@ export default function StartV0() {
 				if (!oldBranch) return
 				// @ts-ignore
 				if (triggerType === TriggerType.Arguments) {
-					const cloneOutput = _.cloneDeep(oldBranch?.output as WidgetValue["value"])
-					_.set(cloneOutput, ["form", "structure"], newConfig?.output)
-					_.set(oldBranch, ["output"], cloneOutput)
-					_.set(oldBranch, ["input"], cloneOutput)
+					const cloneOutput = cloneDeep(oldBranch?.output as WidgetValue["value"])
+					set(cloneOutput, ["form", "structure"], newConfig?.output)
+					set(oldBranch, ["output"], cloneOutput)
+					set(oldBranch, ["input"], cloneOutput)
 					break
 				}
-				_.set(oldBranch, ["config"], { ...oldBranch.config, ...newConfig })
+				set(oldBranch, ["config"], { ...oldBranch.config, ...newConfig })
 			}
 
 			updateNodeConfig({

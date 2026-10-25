@@ -192,6 +192,10 @@ describe("registerAppServiceWorker", () => {
 		expect(resolvedUrl.searchParams.get("vendorCacheHosts")).toBe(
 			"public-cdn.example.com,assets.example.com,cdn.jsdelivr.net",
 		)
+		expect(resolvedUrl.searchParams.get("swDiagnostics")).toBe("0")
+		expect(resolvedUrl.searchParams.get("swDiagCacheStartMs")).toBe("100")
+		expect(resolvedUrl.searchParams.get("swDiagCacheMatchMs")).toBe("100")
+		expect(resolvedUrl.searchParams.get("swDiagTotalMs")).toBe("300")
 		expect(options).toEqual({ scope: "/" })
 	})
 

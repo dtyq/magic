@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -200,17 +201,43 @@ class BrowserConfigAdapter:
         return result
 
     @classmethod
-    async def build_playwright(cls, workspace_dir: str) -> BrowserRuntimeConfig:
+    async def build_playwright(
+        cls,
+        workspace_dir: str,
+        *,
+        viewport_width: int | None = None,
+        viewport_height: int | None = None,
+        device_scale_factor: float | None = None,
+    ) -> BrowserRuntimeConfig:
         """为内部渲染、转换和抓取任务创建 Playwright 配置，不使用用户 Chrome session。"""
         backend = (
             BrowserBackendKind.LOCAL_PLAYWRIGHT
             if Environment.is_local()
             else BrowserBackendKind.REMOTE_PLAYWRIGHT
         )
-        return await cls.build(
+        runtime_config = await cls.build(
             workspace_dir,
             backend_override=backend,
             host_scope=str(PathManager.get_workspace_dir()),
+        )
+        if viewport_width is None and viewport_height is None and device_scale_factor is None:
+            return runtime_config
+        return replace(
+            runtime_config,
+            context=replace(
+                runtime_config.context,
+                viewport_width=(
+                    viewport_width if viewport_width is not None else runtime_config.context.viewport_width
+                ),
+                viewport_height=(
+                    viewport_height if viewport_height is not None else runtime_config.context.viewport_height
+                ),
+                device_scale_factor=(
+                    device_scale_factor
+                    if device_scale_factor is not None
+                    else runtime_config.context.device_scale_factor
+                ),
+            ),
         )
 
     @classmethod

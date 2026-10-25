@@ -14,6 +14,7 @@ import { canManageProject } from "@/pages/superMagic/utils/permission"
 interface AddCollaboratorsProps<T extends ProjectListItem | CollaborationProjectListItem> {
 	members: Collaborator[]
 	totalCount: number
+	max?: number
 	style?: CSSProperties
 	className?: string
 	isSelfCollaborationProjectStatus?: boolean
@@ -24,6 +25,7 @@ interface AddCollaboratorsProps<T extends ProjectListItem | CollaborationProject
 function AddCollaborators<T extends ProjectListItem | CollaborationProjectListItem>({
 	members,
 	totalCount,
+	max,
 	className,
 	style,
 	isSelfCollaborationProjectStatus,
@@ -55,7 +57,7 @@ function AddCollaborators<T extends ProjectListItem | CollaborationProjectListIt
 				{isSelfCollaborationProjectStatus && (
 					<MagicIcon component={IconUsersPlus} size={14} />
 				)}
-				<MagicAvatarStack members={members} totalCount={totalCount} />
+				<MagicAvatarStack members={members} totalCount={totalCount} max={max} />
 			</div>
 		</>
 	)

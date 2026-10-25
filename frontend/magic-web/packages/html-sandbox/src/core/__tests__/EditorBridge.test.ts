@@ -8,6 +8,7 @@ import { MESSAGE_PROTOCOL_VERSION, MessageCategory } from "../types"
 import type { RequestMessage, CommandMessage } from "../types"
 
 describe("EditorBridge", () => {
+	const parentOrigin = window.location.origin
 	let bridge: EditorBridge
 	let postMessageSpy: ReturnType<typeof vi.spyOn>
 
@@ -133,7 +134,7 @@ describe("EditorBridge", () => {
 						message: expect.stringContaining("Unknown request type"),
 					}),
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 
@@ -167,7 +168,7 @@ describe("EditorBridge", () => {
 						message: "Handler error",
 					}),
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 	})
@@ -258,7 +259,7 @@ describe("EditorBridge", () => {
 						code: "COMMAND_FAILED",
 					}),
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 	})
@@ -275,7 +276,7 @@ describe("EditorBridge", () => {
 					payload: { data: "test" },
 					source: "iframe",
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 
@@ -287,7 +288,7 @@ describe("EditorBridge", () => {
 					type: "TEST_EVENT",
 					payload: undefined,
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 

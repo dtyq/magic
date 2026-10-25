@@ -12,7 +12,7 @@ Convert the raw request into:
 - constraints (time, geography, industry, entities)
 - output preferences (depth, style, length)
 
-If information is insufficient, do not start heavy execution; go to kickoff Q&A first.
+If information is insufficient, do not start heavy execution; follow the `ask_user` interaction rules in [SKILL.md](../SKILL.md) to resolve missing decisions.
 
 ---
 
@@ -43,8 +43,7 @@ Plan should include:
 
 ## Phase 2: Low-Input Kickoff Confirmation
 
-The kickoff Q&A template is embedded in SKILL.md — present it alongside the plan draft.
-Do not run heavy retrieval until user confirms start.
+Show the plan draft in the assistant message, then call `ask_user` directly according to [SKILL.md](../SKILL.md). Follow its shared interaction rules for questions, existing authorization, answers, and unavailable-tool cases. Begin heavy retrieval only when those rules permit execution.
 
 ---
 

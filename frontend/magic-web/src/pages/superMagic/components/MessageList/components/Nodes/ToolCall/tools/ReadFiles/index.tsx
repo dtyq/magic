@@ -5,7 +5,8 @@ import { ChevronUp, ChevronRight } from "lucide-react"
 import { memo, useEffect, useMemo, useState } from "react"
 import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { TextEditor } from "../../../../Tool/components/ToolDetail"
-import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { downloadFileContent } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { observer } from "mobx-react-lite"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { defaultOpen } from "../../config"
@@ -45,6 +46,9 @@ export const getLanguageFromFileName = (fileName?: string, extension?: string): 
 
 function ReadFiles(props: NodeProps) {
 	const { onMouseEnter, onMouseLeave } = props
+	// Bind the ambient share/session identity so the file content request is not
+	// rejected on share previews.
+	const fileApi = useFileApi()
 	const node = superMagicStore.getMessageNode(props?.node?.super_message_id)
 	const tool = node?.tool
 	const fileData = tool?.detail?.data || {}
@@ -66,13 +70,17 @@ function ReadFiles(props: NodeProps) {
 
 	useEffect(() => {
 		if (!content && fileData?.file_id) {
-			getTemporaryDownloadUrl({ file_ids: [fileData?.file_id] }).then((res: any) => {
-				downloadFileContent(res[0]?.url).then((data: any) => {
-					setContent(data)
+			fileApi
+				.getTemporaryDownloadUrl({
+					file_ids: [fileData?.file_id],
 				})
-			})
+				.then((res: any) => {
+					downloadFileContent(res[0]?.url).then((data: any) => {
+						setContent(data)
+					})
+				})
 		}
-	}, [content, fileData?.file_id])
+	}, [content, fileApi, fileData?.file_id])
 
 	const onClick = () => {
 		if (tool.status !== "error") {

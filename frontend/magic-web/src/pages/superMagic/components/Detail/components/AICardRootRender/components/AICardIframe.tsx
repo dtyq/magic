@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { cn } from "@/utils/cn"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { processHtmlContent } from "../../../contents/HTML/htmlProcessor"
 import { flattenAttachments } from "../../../contents/HTML/utils"
 import { injectFetchInterceptorScript } from "../../../contents/HTML/utils/fetchInterceptor"
@@ -40,6 +40,9 @@ function AICardIframe({
 	onLoad,
 }: AICardIframeProps) {
 	const { t } = useTranslation("super")
+	// Card HTML is readable in read-only share previews; bind the ambient identity so
+	// the download-url request is not rejected by the share guard.
+	const fileApi = useFileApi()
 	const [processedContent, setProcessedContent] = useState<string | null>(null)
 	const [filePathMapping, setFilePathMapping] =
 		useState<Map<string, string>>(EMPTY_FILE_PATH_MAPPING)
@@ -105,7 +108,7 @@ function AICardIframe({
 		setFilePathMapping(EMPTY_FILE_PATH_MAPPING)
 		;(async () => {
 			try {
-				const urls = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+				const urls = await fileApi.getTemporaryDownloadUrl({ file_ids: [fileId] })
 				const url = urls?.[0]?.url
 				if (!url) throw new Error("No download URL")
 				if (cancelled) return
@@ -147,7 +150,7 @@ function AICardIframe({
 		return () => {
 			cancelled = true
 		}
-	}, [fileId, currentFile?.file_name, currentFileFingerprint, relativeFolderPath])
+	}, [fileApi, fileId, currentFile?.file_name, currentFileFingerprint, relativeFolderPath])
 
 	const handleRenderReady = useCallback(() => {
 		setLoading(false)

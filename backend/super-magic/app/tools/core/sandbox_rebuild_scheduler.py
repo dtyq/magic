@@ -1,34 +1,36 @@
-"""Delay self-rebuild requests to give the current Agent time to reply."""
+"""Keep the existing delayed sandbox upgrade behavior."""
 
 from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import Literal
 
 from app.core.context.agent_context import AgentContext
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfig
 from app.tools.core.sandbox_tool_context import LoggerLike
 
-SandboxRebuildOperation = Literal["upgrade", "restart"]
-
-SANDBOX_REBUILD_DELAY_SECONDS = 10
+SANDBOX_UPGRADE_DELAY_SECONDS = 10
 _pending_tasks: dict[str, asyncio.Task[None]] = {}
 
 
-def schedule_sandbox_rebuild(
+def schedule_sandbox_upgrade(
     *,
     agent_context: AgentContext,
     config: MagicServiceConfig,
     sandbox_id: str,
-    operation: SandboxRebuildOperation,
     delay_seconds: int,
     logger: LoggerLike,
 ) -> None:
-    """Schedule one rebuild for this run and cancel it if the run is interrupted."""
+    """
+    为当前 run 安排一次延迟升级，并在 run 被中断时取消。
+
+    MOCK DEMO：
+    - 10 秒内收到新消息：取消延迟升级任务。
+    - Agent 主动重启不走本调度器，由收尾协调器处理。
+    """
     if agent_context.is_interruption_requested():
-        raise asyncio.CancelledError(f"Sandbox {operation} interrupted before scheduling")
+        raise asyncio.CancelledError("Sandbox upgrade interrupted before scheduling")
     if delay_seconds < 1:
         raise ValueError("delay_seconds must be at least 1")
 
@@ -38,14 +40,13 @@ def schedule_sandbox_rebuild(
         previous_task.cancel()
 
     task = asyncio.create_task(
-        _run_delayed_rebuild(
+        _run_delayed_upgrade(
             config=config,
             sandbox_id=sandbox_id,
-            operation=operation,
             delay_seconds=delay_seconds,
             logger=logger,
         ),
-        name=f"sandbox-{operation}-{sandbox_id}",
+        name=f"sandbox-upgrade-{sandbox_id}",
     )
     _pending_tasks[context_key] = task
 
@@ -55,13 +56,13 @@ def schedule_sandbox_rebuild(
         try:
             done_task.result()
         except asyncio.CancelledError:
-            logger.info("Delayed sandbox %s was cancelled before execution", operation)
+            logger.info("Delayed sandbox upgrade was cancelled before execution")
         except Exception as exc:
-            logger.error("Delayed sandbox %s failed: %s", operation, exc, exc_info=True)
+            logger.error("Delayed sandbox upgrade failed: %s", exc, exc_info=True)
 
     task.add_done_callback(_on_done)
 
-    async def _cancel_pending_rebuild() -> None:
+    async def _cancel_pending_upgrade() -> None:
         if _pending_tasks.get(context_key) is not task or task.done():
             return
         task.cancel()
@@ -69,36 +70,30 @@ def schedule_sandbox_rebuild(
             await task
 
     agent_context.register_run_cleanup(
-        f"sandbox-rebuild:{context_key}",
-        _cancel_pending_rebuild,
+        f"sandbox-upgrade:{context_key}",
+        _cancel_pending_upgrade,
     )
 
 
-async def _run_delayed_rebuild(
+async def _run_delayed_upgrade(
     *,
     config: MagicServiceConfig,
     sandbox_id: str,
-    operation: SandboxRebuildOperation,
     delay_seconds: int,
     logger: LoggerLike,
 ) -> None:
     await asyncio.sleep(delay_seconds)
     logger.info(
-        "Triggering delayed sandbox %s after %s seconds, sandbox_id=%s",
-        operation,
+        "Triggering delayed sandbox upgrade after %s seconds, sandbox_id=%s",
         delay_seconds,
         sandbox_id,
     )
 
     async with MagicServiceClient(config) as client:
-        if operation == "upgrade":
-            await client.upgrade_sandbox(sandbox_id)
-        else:
-            await client.restart_sandbox(sandbox_id)
+        await client.upgrade_sandbox(sandbox_id)
 
 
 __all__ = [
-    "SANDBOX_REBUILD_DELAY_SECONDS",
-    "SandboxRebuildOperation",
-    "schedule_sandbox_rebuild",
+    "SANDBOX_UPGRADE_DELAY_SECONDS",
+    "schedule_sandbox_upgrade",
 ]

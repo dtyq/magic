@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { MenuProps } from "antd"
 import { useTranslation } from "react-i18next"
-import { Pencil, Trash2 } from "lucide-react"
+import { AppWindow, Pencil, Trash2 } from "lucide-react"
 import type { Workspace } from "../pages/Workspace/types"
 import { suppressSelectionAfterWorkspaceRename } from "@/pages/superMagic/utils/workspaceRenameSelectionGuard"
 
@@ -9,12 +9,14 @@ interface UseWorkspaceActionMenuParams {
 	workspace: Workspace | null
 	selectedWorkspace?: Workspace | null
 	onDelete: (workspaceId: string) => void
-	onRename: (workspaceId: string) => void
+	onRename: (workspaceId: string, fallbackWorkspace?: Workspace | null) => void
 	onMenuClose?: () => void
 	onTransferStart?: () => void
+	onOpenManager?: () => void
 }
 
 interface UseWorkspaceActionMenuReturn {
+	isModalOpen: boolean
 	menuItems: MenuProps["items"]
 	menuProps: {
 		items: MenuProps["items"]
@@ -33,6 +35,7 @@ export function useWorkspaceActionMenu({
 	onDelete,
 	onRename,
 	onMenuClose,
+	onOpenManager,
 }: UseWorkspaceActionMenuParams): UseWorkspaceActionMenuReturn {
 	const { t } = useTranslation("super")
 
@@ -40,6 +43,21 @@ export function useWorkspaceActionMenu({
 		if (!workspace) return []
 
 		const items: MenuProps["items"] = []
+
+		if (onOpenManager)
+			items.push({
+				key: "project-manager",
+				label: (
+					<div className="flex items-center gap-2">
+						<AppWindow size={16} />
+						<span>{t("projectNavigation.openManager")}</span>
+					</div>
+				),
+				onClick: () => {
+					onMenuClose?.()
+					onOpenManager()
+				},
+			})
 
 		items.push({
 			key: "rename",
@@ -55,7 +73,7 @@ export function useWorkspaceActionMenu({
 			onClick: () => {
 				// Guard next selection click to avoid rename menu click-through.
 				suppressSelectionAfterWorkspaceRename()
-				onRename(workspace.id)
+				onRename(workspace.id, workspace)
 				onMenuClose?.()
 			},
 		})
@@ -79,9 +97,10 @@ export function useWorkspaceActionMenu({
 		})
 
 		return items
-	}, [workspace, onDelete, onRename, onMenuClose, t])
+	}, [workspace, onDelete, onRename, onMenuClose, onOpenManager, t])
 
 	return {
+		isModalOpen: false,
 		menuItems,
 		menuProps: {
 			items: menuItems,

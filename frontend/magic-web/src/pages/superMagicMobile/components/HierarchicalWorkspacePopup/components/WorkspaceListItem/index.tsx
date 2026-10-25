@@ -1,7 +1,7 @@
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconChevronRight, IconDots } from "@tabler/icons-react"
 import { memo } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { WorkspaceListItemProps } from "./types"
 import { useMemoizedFn } from "ahooks"
 import WorkspaceIcon from "../WorkspaceIcon"

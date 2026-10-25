@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metric Flow — Real-Time Infrastructure Telemetry</title>
+<style>
+  :root {
+    --canvas: #0b0e14;
+    --surface: #121722;
+    --surface-elevated: #171d2b;
+    --surface-hover: #1e2638;
+    --border: #232b3b;
+    --border-light: #2d374a;
+    --primary: #3b82f6;
+    --primary-glow: rgba(59, 130, 246, 0.35);
+    --secondary: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --ink-primary: #f3f4f6;
+    --ink-secondary: #9ca3af;
+    --ink-muted: #6b7280;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+    --radius-xs: 3px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background-color: var(--canvas);
+    color: var(--ink-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .app-shell {
+    max-width: 1340px;
+    margin: 0 auto;
+    padding: 12px 18px 36px;
+  }
+  /* Topbar Navigation */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 50px;
+    padding: 0 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+  .logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 14.5px;
+    letter-spacing: -0.01em;
+  }
+  .logo-icon {
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 10px var(--primary-glow);
+  }
+  .logo-icon svg { width: 14px; height: 14px; stroke: white; }
+  .cluster-select {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-secondary);
+  }
+  .health-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--secondary);
+    font-weight: 500;
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--secondary);
+    box-shadow: 0 0 6px var(--secondary);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .time-select {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border);
+    color: var(--ink-primary);
+    padding: 4px 10px;
+    border-radius: var(--radius-xs);
+    font-size: 11.5px;
+    font-family: var(--font-mono);
+  }
+  .btn-refresh {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: var(--primary);
+    padding: 4px 10px;
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* 4 KPI Telemetry Cards */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-title {
+    font-size: 11px;
+    color: var(--ink-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .kpi-num-group {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+  .kpi-change {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .change-up { color: var(--secondary); }
+  .change-warn { color: var(--warning); }
+  .kpi-sparkline {
+    height: 32px;
+    width: 100%;
+  }
+
+  /* p99 Radial Gauge Card */
+  .gauge-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 2px;
+  }
+
+  /* Main Time-Series Area Chart Card */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .chart-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .chart-legends {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+  .chart-svg-container {
+    width: 100%;
+    height: 220px;
+    position: relative;
+  }
+
+  /* Alert Trigger Table */
+  .alert-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+  }
+  .alert-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+    font-family: var(--font-mono);
+  }
+  .alert-table th {
+    text-align: left;
+    color: var(--ink-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .alert-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid rgba(35, 43, 59, 0.6);
+  }
+  .alert-pill {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .pill-crit { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); }
+  .pill-warn { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+  .pill-ok { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
+
+  @media (max-width: 960px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-wrap">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        </div>
+        <span>MetricFlow</span>
+      </div>
+      <div class="cluster-select">
+        <span>cluster:</span>
+        <strong style="color:#ffffff;">us-east-prod-k8s-01</strong>
+      </div>
+      <div class="health-badge">
+        <span class="status-dot"></span>
+        <span>1,420 / 1,420 Pods Healthy</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <select class="time-select">
+        <option>Last 15 Minutes</option>
+        <option>Last 1 Hour</option>
+        <option>Last 24 Hours</option>
+      </select>
+      <button class="btn-refresh">
+        <span>⟳ Auto-refresh: 5s</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 4 KPI Telemetry Cards (First 500px View) -->
+  <div class="kpi-row">
+    <!-- KPI 1: CPU Saturation -->
+    <div class="kpi-card">
+      <div class="kpi-title">
+        <span>CPU Core Saturation</span>
+        <span>98.2 / 128 Cores</span>
+      </div>
+      <div class="kpi-num-group">
+        <div class="kpi-value">76.4%</div>
+        <div class="kpi-change change-up">+3.2% vs 1h</div>
+      </div>
+      <svg class="kpi-sparkline" viewBox="0 0 200 32">
+        <path d="M0 24 Q 25 18, 50 22 T 100 12 T 150 16 T 200 8" fill="none" stroke="#3b82f6" stroke-width="2"/>
+        <path d="M0 24 Q 25 18, 50 22 T 100 12 T 150 16 T 200 8 L 200 32 L 0 32 Z" fill="rgba(59, 130, 246, 0.15)"/>
+      </svg>
+    </div>
+
+    <!-- KPI 2: Memory Working Set -->
+    <div class="kpi-card">
+      <div class="kpi-title">
+        <span>Memory Working Set</span>
+        <span>512 GB Total</span>
+      </div>
+      <div class="kpi-num-group">
+        <div class="kpi-value">412.8 <span style="font-size:13px; font-weight:400; color:var(--ink-secondary);">GB</span></div>
+        <div class="kpi-change change-warn">80.6% limit</div>
+      </div>
+      <svg class="kpi-sparkline" viewBox="0 0 200 32">
+        <path d="M0 20 Q 30 14, 60 18 T 120 10 T 160 12 T 200 6" fill="none" stroke="#10b981" stroke-width="2"/>
+        <path d="M0 20 Q 30 14, 60 18 T 120 10 T 160 12 T 200 6 L 200 32 L 0 32 Z" fill="rgba(16, 185, 129, 0.15)"/>
+      </svg>
+    </div>
+
+    <!-- KPI 3: p99 Latency Gauge -->
+    <div class="kpi-card">
+      <div class="kpi-title">
+        <span>p99 Synthetic Latency</span>
+        <span>Target: &lt;45ms</span>
+      </div>
+      <div class="gauge-container">
+        <div>
+          <div class="kpi-value">18.4 <span style="font-size:13px; font-weight:400; color:var(--ink-secondary);">ms</span></div>
+          <div class="kpi-change change-up">✓ SLA Compliant</div>
+        </div>
+        <!-- Radial Gauge SVG -->
+        <svg width="60" height="42" viewBox="0 0 70 45">
+          <path d="M 10 40 A 25 25 0 0 1 60 40" fill="none" stroke="#232b3b" stroke-width="6" stroke-linecap="round"/>
+          <path d="M 10 40 A 25 25 0 0 1 45 18" fill="none" stroke="#3b82f6" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="35" cy="40" r="4" fill="#ffffff"/>
+          <line x1="35" y1="40" x2="42" y2="21" stroke="#ffffff" stroke-width="2"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- KPI 4: Network I/O Throughput -->
+    <div class="kpi-card">
+      <div class="kpi-title">
+        <span>Network I/O Throughput</span>
+        <span>482k pps</span>
+      </div>
+      <div class="kpi-num-group">
+        <div class="kpi-value">12.96 <span style="font-size:13px; font-weight:400; color:var(--ink-secondary);">GB/s</span></div>
+        <div class="kpi-change change-up">↓ 4.8G ↑ 8.1G</div>
+      </div>
+      <svg class="kpi-sparkline" viewBox="0 0 200 32">
+        <path d="M0 26 Q 40 22, 80 14 T 140 18 T 200 10" fill="none" stroke="#f59e0b" stroke-width="2"/>
+        <path d="M0 26 Q 40 22, 80 14 T 140 18 T 200 10 L 200 32 L 0 32 Z" fill="rgba(245, 158, 11, 0.15)"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Real-Time Time-Series Area Chart -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+        CLUSTER CPU &amp; MEMORY SATURATION TELEMETRY (15m REAL-TIME STREAM)
+      </div>
+      <div class="chart-legends">
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#3b82f6;"></span>
+          <span>node_cpu_seconds (76.4%)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#10b981;"></span>
+          <span>container_memory_working_set (80.6%)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#f59e0b;"></span>
+          <span>disk_io_wait (12.4%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multi-Series Area Chart SVG -->
+    <div class="chart-svg-container">
+      <svg width="100%" height="100%" viewBox="0 0 1000 220" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="grad-cpu" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"/>
+          </linearGradient>
+          <linearGradient id="grad-mem" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#10b981" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Y-Axis Grid Lines -->
+        <line x1="40" y1="20" x2="980" y2="20" stroke="#1c2333" stroke-width="1"/>
+        <text x="15" y="24" fill="#6b7280" font-family="'IBM Plex Mono', monospace" font-size="10">100%</text>
+
+        <line x1="40" y1="65" x2="980" y2="65" stroke="#1c2333" stroke-width="1"/>
+        <text x="20" y="69" fill="#6b7280" font-family="'IBM Plex Mono', monospace" font-size="10">75%</text>
+
+        <line x1="40" y1="110" x2="980" y2="110" stroke="#1c2333" stroke-width="1"/>
+        <text x="20" y="114" fill="#6b7280" font-family="'IBM Plex Mono', monospace" font-size="10">50%</text>
+
+        <line x1="40" y1="155" x2="980" y2="155" stroke="#1c2333" stroke-width="1"/>
+        <text x="20" y="159" fill="#6b7280" font-family="'IBM Plex Mono', monospace" font-size="10">25%</text>
+
+        <line x1="40" y1="200" x2="980" y2="200" stroke="#232b3b" stroke-width="1"/>
+        <text x="26" y="204" fill="#6b7280" font-family="'IBM Plex Mono', monospace" font-size="10">0%</text>
+
+        <!-- Series 1: Memory Area Fill & Line (Emerald) -->
+        <path d="M 50 140 Q 150 120, 250 100 T 450 85 T 650 70 T 800 64 T 980 58 L 980 200 L 50 200 Z" fill="url(#grad-mem)"/>
+        <path d="M 50 140 Q 150 120, 250 100 T 450 85 T 650 70 T 800 64 T 980 58" fill="none" stroke="#10b981" stroke-width="2"/>
+
+        <!-- Series 2: CPU Area Fill & Line (Blue) -->
+        <path d="M 50 160 Q 150 135, 250 110 T 450 125 T 650 90 T 800 75 T 980 66 L 980 200 L 50 200 Z" fill="url(#grad-cpu)"/>
+        <path d="M 50 160 Q 150 135, 250 110 T 450 125 T 650 90 T 800 75 T 980 66" fill="none" stroke="#3b82f6" stroke-width="2.5"/>
+
+        <!-- Series 3: Disk I/O Line (Amber) -->
+        <path d="M 50 185 Q 150 175, 250 180 T 450 165 T 650 170 T 800 160 T 980 152" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="4,3"/>
+
+        <!-- Time Ticks on X-Axis -->
+        <text x="60" y="215" fill="#9ca3af" font-family="'IBM Plex Mono', monospace" font-size="10.5">16:50:00</text>
+        <text x="340" y="215" fill="#9ca3af" font-family="'IBM Plex Mono', monospace" font-size="10.5">16:55:00</text>
+        <text x="620" y="215" fill="#9ca3af" font-family="'IBM Plex Mono', monospace" font-size="10.5">17:00:00</text>
+        <text x="900" y="215" fill="#9ca3af" font-family="'IBM Plex Mono', monospace" font-size="10.5">17:05:00</text>
+
+        <!-- Crosshair Cursor at t=17:02:15 -->
+        <line x1="740" y1="20" x2="740" y2="200" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,3"/>
+        <circle cx="740" cy="80" r="4" fill="#3b82f6" stroke="#ffffff" stroke-width="1.5"/>
+        <circle cx="740" cy="67" r="4" fill="#10b981" stroke="#ffffff" stroke-width="1.5"/>
+
+        <!-- Interactive Data Tooltip Box -->
+        <rect x="750" y="30" width="160" height="52" rx="4" fill="#171d2b" stroke="#3b82f6" stroke-width="1"/>
+        <text x="760" y="46" fill="#e2e8f0" font-family="'IBM Plex Mono', monospace" font-size="10" font-weight="600">t = 17:02:15 UTC</text>
+        <text x="760" y="60" fill="#60a5fa" font-family="'IBM Plex Mono', monospace" font-size="9.5">CPU: 76.4% (+3.2%)</text>
+        <text x="760" y="73" fill="#34d399" font-family="'IBM Plex Mono', monospace" font-size="9.5">MEM: 412.8 GB (80.6%)</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Alert Trigger Table -->
+  <div class="alert-card">
+    <div style="font-size: 11.5px; font-weight: 600; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center;">
+      <span>PROMETHEUS ALERTMANAGER — ACTIVE FIRING RULES</span>
+      <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--danger);">1 CRITICAL • 1 WARNING</span>
+    </div>
+
+    <table class="alert-table">
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Rule Identifier</th>
+          <th>Target Entity</th>
+          <th>Condition Threshold</th>
+          <th>Value</th>
+          <th>State</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="alert-pill pill-crit">CRITICAL</span></td>
+          <td>KubePodMemoryLimitSaturation</td>
+          <td>payment-worker-pod-8c4d</td>
+          <td>container_mem &gt; 95%</td>
+          <td style="color:#f87171; font-weight:600;">98.4%</td>
+          <td>FIRING (2m 14s)</td>
+          <td><span style="color:var(--primary); cursor:pointer;">Restart Pod</span></td>
+        </tr>
+        <tr>
+          <td><span class="alert-pill pill-warn">WARNING</span></td>
+          <td>IngressP99LatencySpike</td>
+          <td>api-gateway-mesh-ingress</td>
+          <td>p99_latency &gt; 35ms</td>
+          <td style="color:#fbbf24; font-weight:600;">38.2ms</td>
+          <td>PENDING (45s)</td>
+          <td><span style="color:var(--primary); cursor:pointer;">Scale Replica</span></td>
+        </tr>
+        <tr>
+          <td><span class="alert-pill pill-ok">RESOLVED</span></td>
+          <td>HighDiskReadLatencyIO</td>
+          <td>cockroachdb-node-03</td>
+          <td>await_ms &gt; 20ms</td>
+          <td style="color:#34d399; font-weight:600;">4.1ms</td>
+          <td>RESOLVED (10m)</td>
+          <td><span style="color:var(--ink-muted);">Silenced</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useSelfMediaStore } from "../../stores"
 import RednoteEditView from "../rednote/edit"
 import { RednoteShellContentGate } from "../rednote/RednoteShellContentGate"

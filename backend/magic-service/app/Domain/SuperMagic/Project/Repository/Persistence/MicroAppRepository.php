@@ -39,6 +39,13 @@ class MicroAppRepository implements MicroAppRepositoryInterface
         return $model instanceof MicroAppModel ? $this->toEntity($model) : null;
     }
 
+    public function findByResourceIdWithTrashed(string $resourceId): ?MicroAppEntity
+    {
+        $model = MicroAppModel::withTrashed()->where('resource_id', $resourceId)->first();
+
+        return $model instanceof MicroAppModel ? $this->toEntity($model) : null;
+    }
+
     public function findByProjectId(int $projectId): ?MicroAppEntity
     {
         $model = MicroAppModel::query()
@@ -214,7 +221,9 @@ class MicroAppRepository implements MicroAppRepositoryInterface
         MicroAppListScope $scope,
         string $keyword,
         int $page,
-        int $pageSize
+        int $pageSize,
+        bool $publishedOnly = false,
+        bool $mentionableOnly = false,
     ): array {
         if ($organizationCodes === []) {
             return ['total' => 0, 'list' => []];
@@ -226,7 +235,54 @@ class MicroAppRepository implements MicroAppRepositoryInterface
             ->where('p.project_status', 1)
             ->where('p.is_hidden', 0)
             ->whereNull('ma.deleted_at')
-            ->whereNull('p.deleted_at')
+            ->whereNull('p.deleted_at');
+        if ($publishedOnly) {
+            $query->where('ma.publish_status', MicroAppPublishStatus::Published->value);
+        }
+        if ($mentionableOnly) {
+            // Drafts are executable only for the owner or edit-capable collaborators.
+            // Published apps remain mentionable for the existing viewer-access path.
+            $query->where(function ($mentionQuery) use ($userId, $departmentIds): void {
+                $mentionQuery->where('ma.publish_status', MicroAppPublishStatus::Published->value)
+                    ->orWhere(function ($draftQuery) use ($userId, $departmentIds): void {
+                        $draftQuery
+                            ->where('ma.publish_status', MicroAppPublishStatus::Unpublished->value)
+                            ->where(function ($editorQuery) use ($userId, $departmentIds): void {
+                                $editorQuery->where('p.user_id', $userId);
+                                $editorQuery->orWhere(function ($memberQuery) use ($userId, $departmentIds): void {
+                                    $memberQuery
+                                        ->where('p.user_id', '<>', $userId)
+                                        ->where('p.is_collaboration_enabled', 1)
+                                        ->whereExists(function ($roleQuery) use ($userId, $departmentIds): void {
+                                            $roleQuery
+                                                ->select(Db::raw('1'))
+                                                ->from('magic_super_agent_project_members as draft_pm')
+                                                ->whereColumn('draft_pm.project_id', 'p.id')
+                                                ->where('draft_pm.status', 1)
+                                                ->whereNull('draft_pm.deleted_at')
+                                                ->whereIn('draft_pm.role', ['manage', 'editor'])
+                                                ->where(function ($targetQuery) use ($userId, $departmentIds): void {
+                                                    $targetQuery
+                                                        ->where(function ($userQuery) use ($userId): void {
+                                                            $userQuery
+                                                                ->where('draft_pm.target_type', 'User')
+                                                                ->where('draft_pm.target_id', $userId);
+                                                        });
+                                                    if ($departmentIds !== []) {
+                                                        $targetQuery->orWhere(function ($departmentQuery) use ($departmentIds): void {
+                                                            $departmentQuery
+                                                                ->where('draft_pm.target_type', 'Department')
+                                                                ->whereIn('draft_pm.target_id', $departmentIds);
+                                                        });
+                                                    }
+                                                });
+                                        });
+                                });
+                            });
+                    });
+            });
+        }
+        $query = $query
             ->where(function ($accessQuery) use ($userId, $departmentIds): void {
                 $accessQuery->where('p.user_id', $userId);
 
@@ -262,36 +318,53 @@ class MicroAppRepository implements MicroAppRepositoryInterface
                 });
             });
 
+        if ($scope === MicroAppListScope::Recent) {
+            $query->join('magic_super_agent_micro_app_visits as mav', function ($join) use ($userId, $organizationCodes): void {
+                $join->on('mav.micro_app_id', '=', 'ma.id')
+                    ->where('mav.user_id', $userId)
+                    ->whereIn('mav.organization_code', $organizationCodes);
+            });
+        }
+
         if ($keyword !== '') {
             $query->where('p.project_name', 'like', '%' . $keyword . '%');
         }
 
         switch ($scope) {
             case MicroAppListScope::Created:
-                $query->where('ma.creator_id', $userId);
+                $query->where('p.user_id', $userId);
                 break;
             case MicroAppListScope::Collaborated:
                 $query
-                    ->where('p.user_id', '<>', $userId)
-                    ->where('ma.creator_id', '<>', $userId);
+                    ->where('p.user_id', '<>', $userId);
+                break;
+            case MicroAppListScope::Recent:
                 break;
         }
 
         $total = (clone $query)->count('ma.id');
+        $query = $query->select([
+            'ma.id as app_id',
+            'p.id as project_id',
+            'p.project_name as app_name',
+            'p.project_description as app_description',
+            'ma.creator_id',
+            'ma.cover_file_key',
+            'ma.publish_status',
+            'p.updated_at',
+            'p.user_id as project_owner_id',
+            'p.user_organization_code as organization_code',
+        ]);
+
+        if ($scope === MicroAppListScope::Recent) {
+            $query = $query->addSelect('mav.last_visited_at')
+                ->orderBy('mav.last_visited_at', 'desc')
+                ->orderBy('ma.id', 'desc');
+        } else {
+            $query = $query->orderBy('p.updated_at', 'desc')->orderBy('ma.id', 'desc');
+        }
+
         $rows = $query
-            ->select([
-                'ma.id as app_id',
-                'p.project_name as app_name',
-                'p.project_description as app_description',
-                'ma.creator_id',
-                'ma.cover_file_key',
-                'ma.publish_status',
-                'p.updated_at',
-                'p.user_id as project_owner_id',
-                'p.user_organization_code as organization_code',
-            ])
-            ->orderBy('p.updated_at', 'desc')
-            ->orderBy('ma.id', 'desc')
             ->offset(($page - 1) * $pageSize)
             ->limit($pageSize)
             ->get()

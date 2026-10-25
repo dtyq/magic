@@ -27,6 +27,8 @@ export interface UseIframeFSOptions {
 	iframeRef: React.RefObject<HTMLIFrameElement>
 	/** 回发 iframe 的严格目标源。 */
 	targetOrigin: string
+	/** Recreate document-owned watches/streams when the iframe Window changes. */
+	runtimeRevision?: string | number
 	/** HTML 入口文件的 workspace 相对路径 */
 	entryPath: string
 	/** workspace 文件列表（attachmentList 扁平化后） */
@@ -35,6 +37,8 @@ export interface UseIframeFSOptions {
 	appConfig: HTMLAppConfig | null
 	/** 项目 ID，用于删除等需要 project_id 的操作 */
 	projectId?: string
+	/** 项目上下文不可用时返回给 iframe 的语义化错误。 */
+	projectContextUnavailableError?: string
 	/** 创建新文件时的上传函数，复用现有上传链路 */
 	uploadFn: UploadFn
 	/** 更新已存在文件内容的函数（不重新上传 OSS） */
@@ -71,6 +75,8 @@ export interface UseIframeFSOptions {
 	confirmProjectDeleteFn?: ConfirmProjectDeleteFn
 	/** 执行高风险能力前的授权检查。 */
 	authorizePermission?: (scope: HtmlPermissionScope) => Promise<boolean>
+	getFileAccess?: () =>
+		import("@/pages/superMagic/fileAccess/fileAccessContext").FileAccessContext | null
 }
 
 export interface UseIframeFSReturn {
@@ -82,10 +88,12 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 	const {
 		iframeRef,
 		targetOrigin,
+		runtimeRevision = 0,
 		entryPath,
 		fileList,
 		appConfig,
 		projectId,
+		projectContextUnavailableError,
 		uploadFn,
 		saveContentFn,
 		mkdirFn,
@@ -96,26 +104,27 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 		verifyFileFn,
 		confirmProjectDeleteFn,
 		authorizePermission,
+		getFileAccess,
 	} = options
 
 	const serviceRef = useRef<IframeFSService | null>(null)
 	// 调用方可能在渲染时创建新的保存函数；稳定代理避免重建 Service 丢失 watch 注册，同时调用最新实现。
 	const stableSaveContentFn = useMemoizedFn(saveContentFn)
 
-	// postToIframe 是稳定引用，内部每次通过 ref 取最新的 iframe window
-	const postToIframe = useMemoizedFn((message: object) => {
-		iframeRef.current?.contentWindow?.postMessage(message, targetOrigin)
-	})
-
 	// 重建 service：entryPath / appConfig 变化时
 	useDeepCompareEffect(() => {
 		serviceRef.current?.destroy()
+		const target = iframeRef.current?.contentWindow
+		let active = true
 		serviceRef.current = new IframeFSService({
-			postToIframe,
+			postToIframe: (message) => {
+				if (active) target?.postMessage(message, targetOrigin)
+			},
 			entryPath,
 			fileList,
 			appConfig,
 			projectId,
+			projectContextUnavailableError,
 			uploadFn,
 			saveContentFn: stableSaveContentFn,
 			mkdirFn,
@@ -126,16 +135,21 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 			verifyFileFn,
 			confirmProjectDeleteFn,
 			authorizePermission,
+			getFileAccess,
 		})
 
 		return () => {
+			active = false
 			serviceRef.current?.destroy()
 			serviceRef.current = null
 		}
 	}, [
+		runtimeRevision,
+		targetOrigin,
 		entryPath,
 		appConfig,
 		projectId,
+		projectContextUnavailableError,
 		uploadFn,
 		stableSaveContentFn,
 		mkdirFn,
@@ -146,6 +160,7 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 		verifyFileFn,
 		confirmProjectDeleteFn,
 		authorizePermission,
+		getFileAccess,
 	])
 
 	// fileList 变化时仅更新内部引用，避免重建 service（会中断 watch 轮询）

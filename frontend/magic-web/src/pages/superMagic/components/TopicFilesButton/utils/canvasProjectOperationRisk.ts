@@ -3,6 +3,7 @@ import {
 	ELEMENT_DETAILS_FILENAME,
 	ELEMENT_DETAILS_USER_FILENAME,
 } from "../../Detail/contents/Design/utils/elementDetailsStore"
+import type { AttachmentIndex } from "./attachmentIndex"
 
 export type CanvasProjectOperationType = "delete" | "move" | "rename"
 
@@ -17,6 +18,7 @@ export interface CanvasProjectOperationRisk {
 
 export interface DetectCanvasProjectOperationRiskOptions {
 	attachments: AttachmentItem[]
+	attachmentIndex?: AttachmentIndex
 	fileIds?: string[]
 	items?: AttachmentItem[]
 	operation: CanvasProjectOperationType
@@ -28,6 +30,11 @@ const ELEMENT_DETAILS_FILE_NAMES = new Set([
 	ELEMENT_DETAILS_USER_FILENAME,
 ])
 const CANVAS_RESOURCE_DIRS = new Set(["images", "videos", "audios"])
+const EMPTY_RISK: CanvasProjectOperationRisk = {
+	shouldWarn: false,
+	riskTypes: [],
+	affectedProjectNames: [],
+}
 
 interface CanvasProjectInfo {
 	rootPath: string
@@ -210,33 +217,140 @@ function isCanvasResourcePath(relativePath: string): boolean {
 	return CANVAS_RESOURCE_DIRS.has(firstSegment)
 }
 
-export async function detectCanvasProjectOperationRisk({
+function directoryHasMagicProject(
+	directory: AttachmentItem,
+	attachmentIndex: AttachmentIndex,
+): boolean {
+	const directoryId = normalizeFileId(directory.file_id)
+	if (directoryId) {
+		return attachmentIndex
+			.getChildKeysById(directoryId)
+			.some(
+				(key) =>
+					getItemName(attachmentIndex.getItemByKey(key)).toLowerCase() ===
+					MAGIC_PROJECT_FILE_NAME.toLowerCase(),
+			)
+	}
+
+	const directoryPath = getItemPath(directory)
+	if (!directoryPath) return false
+	return attachmentIndex
+		.getChildKeysByKey(directoryPath)
+		.some(
+			(key) =>
+				getItemName(attachmentIndex.getItemByKey(key)).toLowerCase() ===
+				MAGIC_PROJECT_FILE_NAME.toLowerCase(),
+		)
+}
+
+function getItemLineage(item: AttachmentItem, attachmentIndex: AttachmentIndex): AttachmentItem[] {
+	const itemId = normalizeFileId(item.file_id)
+	if (itemId) {
+		const ancestors = attachmentIndex.getParentItemsById(itemId)
+		const indexedItem = attachmentIndex.getItemById(itemId)
+		return [...ancestors, indexedItem || item]
+	}
+
+	const itemPath = getItemPath(item)
+	if (!itemPath) return [item]
+	const entry = attachmentIndex.getEntryByKey(itemPath)
+	if (!entry) return [item]
+	return [...attachmentIndex.getParentItemsByKey(entry.key), entry.item]
+}
+
+function toCanvasProjectInfo(root: AttachmentItem): CanvasProjectInfo | null {
+	const rootPath = getItemPath(root)
+	if (!rootPath) return null
+	return {
+		rootPath,
+		projectName: getItemName(root) || rootPath.split("/").pop() || rootPath,
+	}
+}
+
+/**
+ * Resolve the owning canvas project from the selected node only — parent chain +
+ * direct children of the candidate root. Never walks the full attachment index.
+ */
+function resolveCanvasProjectAroundItem(
+	item: AttachmentItem,
+	attachmentIndex: AttachmentIndex,
+): CanvasProjectInfo | null {
+	const lineage = getItemLineage(item, attachmentIndex)
+	const name = getItemName(item)
+	const nameLower = name.toLowerCase()
+
+	if (!item.is_directory) {
+		const parent = lineage.length >= 2 ? lineage[lineage.length - 2] : null
+		const isEntryOrSidecar =
+			nameLower === MAGIC_PROJECT_FILE_NAME.toLowerCase() ||
+			ELEMENT_DETAILS_FILE_NAMES.has(name)
+		if (
+			parent?.is_directory &&
+			isEntryOrSidecar &&
+			directoryHasMagicProject(parent, attachmentIndex)
+		)
+			return toCanvasProjectInfo(parent)
+	}
+
+	const resourceDirIndex = lineage.findIndex(
+		(entry) => entry.is_directory && CANVAS_RESOURCE_DIRS.has(getItemName(entry).toLowerCase()),
+	)
+	if (resourceDirIndex > 0) {
+		const canvasRoot = lineage[resourceDirIndex - 1]
+		if (directoryHasMagicProject(canvasRoot, attachmentIndex))
+			return toCanvasProjectInfo(canvasRoot)
+	}
+
+	if (item.is_directory && directoryHasMagicProject(item, attachmentIndex))
+		return toCanvasProjectInfo(item)
+
+	return null
+}
+
+function resolveSelectedItems({
 	attachments,
+	attachmentIndex,
 	fileIds,
 	items,
-}: DetectCanvasProjectOperationRiskOptions): Promise<CanvasProjectOperationRisk> {
+}: Pick<
+	DetectCanvasProjectOperationRiskOptions,
+	"attachments" | "attachmentIndex" | "fileIds" | "items"
+>): AttachmentItem[] {
+	const selectedFromItems = items || []
+	if (!fileIds?.length) return selectedFromItems as AttachmentItem[]
+
+	if (attachmentIndex) {
+		return [
+			...selectedFromItems,
+			...fileIds
+				.map(
+					(fileId) =>
+						attachmentIndex.getItemById(fileId) || attachmentIndex.getItemByKey(fileId),
+				)
+				.filter((item): item is AttachmentItem => Boolean(item)),
+		]
+	}
+
 	const fileItems = flattenAttachments(attachments)
-	const selectedItems = [
-		...(items || []),
-		...(fileIds || []).map((fileId) => findItemByLookupKey(fileItems, fileId)).filter(Boolean),
-	] as AttachmentItem[]
+	return [
+		...selectedFromItems,
+		...fileIds
+			.map((fileId) => findItemByLookupKey(fileItems, fileId))
+			.filter((item): item is AttachmentItem => Boolean(item)),
+	]
+}
 
-	if (selectedItems.length === 0) {
-		return { shouldWarn: false, riskTypes: [], affectedProjectNames: [] }
-	}
-
-	const projects = collectCanvasProjects(fileItems)
-	if (projects.length === 0) {
-		return { shouldWarn: false, riskTypes: [], affectedProjectNames: [] }
-	}
+function detectRiskForSelectedItems(
+	selectedItems: AttachmentItem[],
+	projects: CanvasProjectInfo[],
+): CanvasProjectOperationRisk {
+	if (selectedItems.length === 0 || projects.length === 0) return EMPTY_RISK
 
 	const riskTypes = new Set<CanvasProjectOperationRiskType>()
 	const affectedProjectNames = new Set<string>()
 
 	for (const project of projects) {
-		if (selectedIncludesWholeProject(selectedItems, project)) {
-			continue
-		}
+		if (selectedIncludesWholeProject(selectedItems, project)) continue
 
 		for (const item of selectedItems) {
 			const itemPath = getItemPath(item)
@@ -269,6 +383,100 @@ export async function detectCanvasProjectOperationRisk({
 		riskTypes: Array.from(riskTypes),
 		affectedProjectNames: Array.from(affectedProjectNames),
 	}
+}
+
+function detectRiskWithAttachmentIndex(
+	selectedItems: AttachmentItem[],
+	attachmentIndex: AttachmentIndex,
+): CanvasProjectOperationRisk {
+	if (selectedItems.length === 0) return EMPTY_RISK
+
+	const projectsByRoot = new Map<string, CanvasProjectInfo>()
+	for (const item of selectedItems) {
+		const project = resolveCanvasProjectAroundItem(item, attachmentIndex)
+		if (!project) continue
+		projectsByRoot.set(project.rootPath, project)
+	}
+
+	return detectRiskForSelectedItems(selectedItems, Array.from(projectsByRoot.values()))
+}
+
+function isCanvasManagedItem(candidate: AttachmentItem, attachmentIndex: AttachmentIndex): boolean {
+	if (candidate.is_directory && candidate.display_config?.type === "design") return true
+
+	const name = getItemName(candidate)
+	const nameLower = name.toLowerCase()
+	if (nameLower === MAGIC_PROJECT_FILE_NAME.toLowerCase()) return true
+	if (ELEMENT_DETAILS_FILE_NAMES.has(name)) return true
+
+	const lineage = getItemLineage(candidate, attachmentIndex)
+	const resourceDirIndex = lineage.findIndex(
+		(entry) => entry.is_directory && CANVAS_RESOURCE_DIRS.has(getItemName(entry).toLowerCase()),
+	)
+	if (resourceDirIndex <= 0) return Boolean(candidate.display_config?.type)
+
+	const canvasRoot = lineage[resourceDirIndex - 1]
+	if (canvasRoot.display_config?.type === "design") return true
+	return directoryHasMagicProject(canvasRoot, attachmentIndex)
+}
+
+export function canSkipCanvasProjectOperationRiskForMove(
+	fileIds: string[],
+	attachmentIndex?: AttachmentIndex,
+): boolean {
+	if (!fileIds.length) return true
+	// Without an index we cannot inspect a directory subtree safely. Keep the
+	// conservative behaviour and run the full guard in that case.
+	if (!attachmentIndex) return false
+
+	return fileIds.every((fileId) => {
+		const item = attachmentIndex.getItemById(fileId) || attachmentIndex.getItemByKey(fileId)
+		if (!item) return false
+
+		// Folder moves used to always enter the O(n) canvas preflight. Inspect only
+		// the selected subtree instead; ordinary folders can take the same fast path
+		// as ordinary files, while folders containing canvas-managed files remain
+		// protected.
+		const descendantKeys = item.is_directory
+			? (() => {
+					const byId = attachmentIndex.getDescendantKeysById(fileId)
+					return byId.length > 0 ? byId : attachmentIndex.getDescendantKeysByKey(fileId)
+				})()
+			: []
+		const itemsToCheck = item.is_directory
+			? [
+					item,
+					...descendantKeys
+						.map((key) => attachmentIndex.getItemByKey(key))
+						.filter((child): child is AttachmentItem => Boolean(child)),
+				]
+			: [item]
+
+		return itemsToCheck.every((candidate) => !isCanvasManagedItem(candidate, attachmentIndex))
+	})
+}
+
+export async function detectCanvasProjectOperationRisk({
+	attachments,
+	attachmentIndex,
+	fileIds,
+	items,
+}: DetectCanvasProjectOperationRiskOptions): Promise<CanvasProjectOperationRisk> {
+	const selectedItems = resolveSelectedItems({
+		attachments,
+		attachmentIndex,
+		fileIds,
+		items,
+	})
+
+	if (selectedItems.length === 0) return EMPTY_RISK
+
+	// Prefer local parent-chain lookups whenever the index is available. The previous
+	// `entriesById.values()` materialization forced an O(n) walk of every attachment.
+	if (attachmentIndex) return detectRiskWithAttachmentIndex(selectedItems, attachmentIndex)
+
+	const fileItems = flattenAttachments(attachments)
+	return detectRiskForSelectedItems(selectedItems, collectCanvasProjects(fileItems))
 }
 
 export function hasCanvasProjectInAttachments(attachments: AttachmentItem[]): boolean {

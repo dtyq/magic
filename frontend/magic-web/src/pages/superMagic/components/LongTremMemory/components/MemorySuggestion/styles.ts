@@ -96,13 +96,17 @@ export const useStyles = createStyles(({ css, token }) => {
 		scroll: css`
 			width: 100%;
 			height: 100%;
+		`,
+		scrollViewport: css`
+			padding: 10px;
 
-			& .simplebar-content {
-				padding: 10px !important;
+			@media (max-width: 768px) {
+				padding: 0 10px 0 0;
+			}
 
-				@media (max-width: 768px) {
-					padding: 0 10px 0 0 !important;
-				}
+			/* Keep cards and wrapped text within the available panel width. */
+			& > div {
+				display: block !important;
 			}
 		`,
 		item: css`

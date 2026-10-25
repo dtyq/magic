@@ -9,13 +9,11 @@ import type { SuperMagicUpdateAttachmentsPayload } from "../events/files"
  */
 
 export type SuperMagicUpdateAttachmentsRequest =
-	| SuperMagicUpdateAttachmentsPayload
-	| (() => void)
-	| undefined
+	SuperMagicUpdateAttachmentsPayload | (() => void) | undefined
 
 interface WaitEntry {
 	projectId: string
-	resolve: () => void
+	resolve: (didLoad: boolean) => void
 	timeoutId: ReturnType<typeof setTimeout>
 }
 
@@ -43,13 +41,15 @@ function removeEntry(entry: WaitEntry) {
 
 function enqueueAttachmentsRefreshWait(
 	projectId: string,
-	options: { timeoutMs: number; publishRefresh: boolean },
-): Promise<void> {
-	const { timeoutMs, publishRefresh } = options
+	options: { timeoutMs: number; publishRefresh: boolean; signal?: AbortSignal },
+): Promise<boolean> {
+	const { timeoutMs, publishRefresh, signal } = options
+	if (signal?.aborted) return Promise.reject(new DOMException("Cancelled", "AbortError"))
 
-	return new Promise((resolve, reject) => {
+	return new Promise<boolean>((resolve, reject) => {
 		const timeoutId = setTimeout(() => {
 			removeEntry(entry)
+			signal?.removeEventListener("abort", onAbort)
 			reject(
 				new Error(
 					`[attachmentsTopicSync] wait timeout after ${timeoutMs}ms for project ${projectId}`,
@@ -59,12 +59,21 @@ function enqueueAttachmentsRefreshWait(
 
 		const entry: WaitEntry = {
 			projectId,
-			resolve: () => {
+			resolve: (didLoad) => {
 				clearTimeout(timeoutId)
-				resolve()
+				signal?.removeEventListener("abort", onAbort)
+				resolve(didLoad)
 			},
 			timeoutId,
 		}
+		// 用户切换范围或关闭浮窗时，只取消本次等待，不取消已提交上传或共享刷新。
+		const onAbort = () => {
+			removeEntry(entry)
+			clearTimeout(timeoutId)
+			signal?.removeEventListener("abort", onAbort)
+			reject(new DOMException("Cancelled", "AbortError"))
+		}
+		signal?.addEventListener("abort", onAbort, { once: true })
 		waitQueue.push(entry)
 		if (publishRefresh) {
 			requestProjectAttachmentsFullRefresh({
@@ -77,11 +86,15 @@ function enqueueAttachmentsRefreshWait(
 
 export function waitForNextFullAttachmentsRefreshForProject(
 	projectId: string | undefined,
-	options?: { timeoutMs?: number },
-): Promise<void> {
-	if (!projectId) return Promise.resolve()
+	options?: { timeoutMs?: number; signal?: AbortSignal },
+): Promise<boolean> {
+	if (!projectId) return Promise.resolve(false)
 	const timeoutMs = options?.timeoutMs ?? 15_000
-	return enqueueAttachmentsRefreshWait(projectId, { timeoutMs, publishRefresh: true })
+	return enqueueAttachmentsRefreshWait(projectId, {
+		timeoutMs,
+		publishRefresh: true,
+		signal: options?.signal,
+	})
 }
 
 /**
@@ -90,8 +103,8 @@ export function waitForNextFullAttachmentsRefreshForProject(
  */
 export function waitForNextAttachmentsRefreshForProject(
 	projectId: string | undefined,
-	options?: { timeoutMs?: number },
-): Promise<void> {
+	options?: { timeoutMs?: number; signal?: AbortSignal },
+): Promise<boolean> {
 	return waitForNextFullAttachmentsRefreshForProject(projectId, options)
 }
 
@@ -101,21 +114,25 @@ export function waitForNextAttachmentsRefreshForProject(
  */
 export function registerWaitForNextAttachmentsRefreshForProject(
 	projectId: string | undefined,
-	options?: { timeoutMs?: number },
-): Promise<void> {
-	if (!projectId) return Promise.resolve()
+	options?: { timeoutMs?: number; signal?: AbortSignal },
+): Promise<boolean> {
+	if (!projectId) return Promise.resolve(false)
 	const timeoutMs = options?.timeoutMs ?? 15_000
-	return enqueueAttachmentsRefreshWait(projectId, { timeoutMs, publishRefresh: false })
+	return enqueueAttachmentsRefreshWait(projectId, {
+		timeoutMs,
+		publishRefresh: false,
+		signal: options?.signal,
+	})
 }
 
 /** 在对应 project 的 getAttachments 进入 finally 后调用（成功或失败均应调用） */
-export function resolveAttachmentsRefreshWaitersForProject(projectId: string) {
+export function resolveAttachmentsRefreshWaitersForProject(projectId: string, didLoad = true) {
 	for (let i = waitQueue.length - 1; i >= 0; i--) {
 		const w = waitQueue[i]
 		if (w.projectId === projectId) {
 			waitQueue.splice(i, 1)
 			clearTimeout(w.timeoutId)
-			w.resolve()
+			w.resolve(didLoad)
 		}
 	}
 }
@@ -142,6 +159,6 @@ export function releaseAttachmentsRefreshWaitersWithoutFetch() {
 	const pending = waitQueue.splice(0, waitQueue.length)
 	for (const w of pending) {
 		clearTimeout(w.timeoutId)
-		w.resolve()
+		w.resolve(false)
 	}
 }

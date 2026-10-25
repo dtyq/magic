@@ -5,6 +5,7 @@ import {
 	pickSelectedElementIdAtStagePointer,
 	resolveManagedElementIdFromKonvaNode,
 } from "../transform/elementNodeUtils"
+import { getNameLabelElementIdFromNode } from "../labels/nameLabelNodeUtils"
 
 /**
  * Hover 管理器 - 管理元素的 hover 效果
@@ -14,6 +15,8 @@ import {
  * 3. 发出 hover 事件
  */
 export class HoverManager {
+	private static readonly VIEWPORT_HOVER_SETTLE_DELAY_MS = 160
+
 	private canvas: Canvas
 
 	// Hover 状态
@@ -24,6 +27,12 @@ export class HoverManager {
 	private hoverRafId: number | null = null
 	private eventUnsubscribers: Array<() => void> = []
 	private isViewportGestureActive = false
+	private isViewportMotionActive = false
+	// During zoom, keep the existing hover visuals stable and defer only the new hit test until settle.
+	private preserveHoverDuringViewportMotion = false
+	private isStagePointerInside = true
+	private skipNextSynchronousPanRefresh = false
+	private viewportHoverRefreshTimerId: ReturnType<typeof setTimeout> | null = null
 
 	// Hover 边框样式配置（静态属性，供其他类使用）
 	public static readonly HOVER_STROKE = "#3B82F6"
@@ -79,26 +88,41 @@ export class HoverManager {
 			}),
 		)
 
-		// 监听视口缩放事件，鼠标未移动时也要重新命中当前指针下的元素
+		// 连续缩放时暂停 hover，等视口静止后只重新命中一次当前指针下的元素。
 		this.eventUnsubscribers.push(
 			this.canvas.eventEmitter.on("viewport:scale", () => {
 				if (this.isViewportGestureActive) {
-					this.clearHover()
+					this.suspendHoverForViewportMotion(true)
+					this.markViewportScaleRefreshHandled()
 					return
 				}
-				this.refreshHoverAtCurrentPointer()
-				this.updateHoverStrokeWidth()
+				this.deferHoverRefreshUntilViewportSettles(true)
+				this.markViewportScaleRefreshHandled()
 			}),
 		)
 
-		// 监听视口平移事件，鼠标未移动时也要重新命中当前指针下的元素
+		// 连续平移时暂停 hover，避免每帧命中测试及其下游节点、动画和绘制更新。
 		this.eventUnsubscribers.push(
 			this.canvas.eventEmitter.on("viewport:pan", () => {
-				if (this.isViewportGestureActive) {
-					this.clearHover()
+				// A zoom update applies its final scale and position before synchronously emitting
+				// scale followed by pan. The scale handler already scheduled the settled refresh.
+				if (this.skipNextSynchronousPanRefresh) {
+					this.skipNextSynchronousPanRefresh = false
 					return
 				}
-				this.refreshHoverAtCurrentPointer()
+				if (this.isViewportGestureActive) {
+					this.suspendHoverForViewportMotion(this.preserveHoverDuringViewportMotion)
+					return
+				}
+				this.deferHoverRefreshUntilViewportSettles()
+			}),
+		)
+
+		this.eventUnsubscribers.push(
+			this.canvas.eventEmitter.on("viewport:changed", ({ data }) => {
+				if (data.phase === "end") {
+					this.resumeHoverAfterViewportSettles()
+				}
 			}),
 		)
 
@@ -106,9 +130,14 @@ export class HoverManager {
 			this.canvas.eventEmitter.on("viewport:gesture", ({ data }) => {
 				this.isViewportGestureActive = data.active
 				if (data.active) {
-					this.pendingHoverTarget = null
-					this.cancelHoverFlush()
-					this.clearHover()
+					// Minimap gestures pan the viewport; pinch gestures are zoom interactions and keep
+					// the current hover visuals until the final pointer hit test.
+					this.suspendHoverForViewportMotion(
+						data.source === "touch-pinch" || data.source === "webkit-gesture",
+					)
+					this.cancelDeferredViewportHoverRefresh()
+				} else {
+					this.resumeHoverAfterViewportSettles()
 				}
 			}),
 		)
@@ -144,14 +173,113 @@ export class HoverManager {
 		)
 	}
 
+	private markViewportScaleRefreshHandled(): void {
+		this.skipNextSynchronousPanRefresh = true
+		queueMicrotask(() => {
+			this.skipNextSynchronousPanRefresh = false
+		})
+	}
+
+	private suspendHoverForViewportMotion(preserveVisualState = false): void {
+		this.isViewportMotionActive = true
+		this.pendingHoverTarget = null
+		this.cancelHoverFlush()
+		this.preserveHoverDuringViewportMotion =
+			preserveVisualState && this.canPreserveHoverVisualsDuringViewportMotion()
+		if (this.preserveHoverDuringViewportMotion) {
+			this.updateHoverNodeForViewport()
+		} else {
+			this.clearHover()
+		}
+	}
+
+	private deferHoverRefreshUntilViewportSettles(preserveVisualState = false): void {
+		this.suspendHoverForViewportMotion(preserveVisualState)
+		this.cancelDeferredViewportHoverRefresh()
+		if (!this.isStagePointerInside) {
+			this.isViewportMotionActive = false
+			this.preserveHoverDuringViewportMotion = false
+			return
+		}
+
+		this.viewportHoverRefreshTimerId = setTimeout(() => {
+			this.viewportHoverRefreshTimerId = null
+			this.resumeHoverAfterViewportSettles()
+		}, HoverManager.VIEWPORT_HOVER_SETTLE_DELAY_MS)
+	}
+
+	private resumeHoverAfterViewportSettles(): void {
+		this.cancelDeferredViewportHoverRefresh()
+		this.isViewportMotionActive = false
+		this.preserveHoverDuringViewportMotion = false
+		if (this.isViewportGestureActive || !this.isStagePointerInside) return
+		this.refreshHoverAtCurrentPointer()
+	}
+
+	private cancelDeferredViewportHoverRefresh(): void {
+		if (this.viewportHoverRefreshTimerId === null) return
+		clearTimeout(this.viewportHoverRefreshTimerId)
+		this.viewportHoverRefreshTimerId = null
+	}
+
+	private updateHoverNodeForViewport(): void {
+		const elementId = this.hoveredElementId
+		const hoverNode = this.hoverNode
+		if (!elementId || !hoverNode) return
+
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		if (this.hoverNodeIsDefault && hoverNode instanceof Konva.Rect) {
+			const bounds = adapter.getElementBounds(elementId)
+			// Keep the current node if geometry is temporarily unavailable; the settled hit test will
+			// either retain it with fresh geometry or clear it without a visible intermediate blink.
+			if (!bounds) return
+
+			hoverNode.setAttrs({
+				x: bounds.x,
+				y: bounds.y,
+				width: bounds.width,
+				height: bounds.height,
+				stroke: HoverManager.HOVER_STROKE,
+				strokeWidth: this.getHoverStrokeWidth(),
+			})
+			return
+		}
+
+		adapter.updateHoverEffect(elementId, hoverNode, this.canvas.stage)
+	}
+
+	private getHoverStrokeWidth(): number {
+		const stageScale = this.canvas.stage.scaleX()
+		const safeStageScale = Number.isFinite(stageScale) && stageScale > 0 ? stageScale : 1
+		return HoverManager.HOVER_STROKE_WIDTH / safeStageScale
+	}
+
+	private canPreserveHoverVisualsDuringViewportMotion(): boolean {
+		return (
+			this.isStagePointerInside &&
+			!this.isExtendModeActive() &&
+			!this.isConnectionDragActive() &&
+			!this.canvas.transformManager.isTransformInteractionActive()
+		)
+	}
+
+	private shouldKeepHoverVisualsDuringViewportMotion(): boolean {
+		return (
+			this.isViewportMotionActive &&
+			this.preserveHoverDuringViewportMotion &&
+			this.canPreserveHoverVisualsDuringViewportMotion()
+		)
+	}
+
 	/**
 	 * 处理鼠标移动事件
 	 */
 	private handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>): void => {
+		this.isStagePointerInside = true
 		if (this.shouldSuppressHover()) {
 			this.pendingHoverTarget = null
 			this.cancelHoverFlush()
-			this.clearHover()
+			if (!this.shouldKeepHoverVisualsDuringViewportMotion()) this.clearHover()
 			return
 		}
 
@@ -190,13 +318,19 @@ export class HoverManager {
 
 	private refreshHoverAtCurrentPointer(): void {
 		if (this.shouldSuppressHover()) {
-			this.clearHover()
+			if (!this.shouldKeepHoverVisualsDuringViewportMotion()) this.clearHover()
 			return
 		}
 
 		const pointerPosition = this.canvas.stage.getPointerPosition()
 		if (!pointerPosition) {
 			this.clearHover()
+			return
+		}
+
+		// 名称标签在 overlay 层；只查这一层，避免无连接时对整张 stage 做命中。
+		const overlayTarget = this.canvas.overlayLayer?.getIntersection?.(pointerPosition)
+		if (this.applyNameLabelHover(overlayTarget)) {
 			return
 		}
 
@@ -223,7 +357,7 @@ export class HoverManager {
 
 	private resolveHoverTarget(target: Konva.Node | null): void {
 		if (this.shouldSuppressHover()) {
-			this.clearHover()
+			if (!this.shouldKeepHoverVisualsDuringViewportMotion()) this.clearHover()
 			return
 		}
 
@@ -236,6 +370,10 @@ export class HoverManager {
 
 		if (this.isConnectionTarget(target)) {
 			this.clearHover()
+			return
+		}
+
+		if (this.applyNameLabelHover(target)) {
 			return
 		}
 
@@ -271,6 +409,10 @@ export class HoverManager {
 	 * 处理鼠标离开 stage 事件
 	 */
 	private handleMouseLeave = (): void => {
+		this.isStagePointerInside = false
+		this.isViewportMotionActive = false
+		this.preserveHoverDuringViewportMotion = false
+		this.cancelDeferredViewportHoverRefresh()
 		this.pendingHoverTarget = null
 		this.cancelHoverFlush()
 		this.clearHover()
@@ -281,7 +423,7 @@ export class HoverManager {
 	 */
 	private setHover(elementId: string): void {
 		if (this.shouldSuppressHover()) {
-			this.clearHover()
+			if (!this.shouldKeepHoverVisualsDuringViewportMotion()) this.clearHover()
 			return
 		}
 
@@ -318,7 +460,7 @@ export class HoverManager {
 					width: boundingRect.width,
 					height: boundingRect.height,
 					stroke: HoverManager.HOVER_STROKE,
-					strokeWidth: HoverManager.HOVER_STROKE_WIDTH / this.canvas.stage.scaleX(),
+					strokeWidth: this.getHoverStrokeWidth(),
 				})
 			} else {
 				hoverNode = new Konva.Rect({
@@ -327,7 +469,7 @@ export class HoverManager {
 					width: boundingRect.width,
 					height: boundingRect.height,
 					stroke: HoverManager.HOVER_STROKE,
-					strokeWidth: HoverManager.HOVER_STROKE_WIDTH / this.canvas.stage.scaleX(),
+					strokeWidth: this.getHoverStrokeWidth(),
 					listening: false,
 					name: "hover-rect",
 				})
@@ -348,40 +490,6 @@ export class HoverManager {
 		this.hoverNode = hoverNode
 		this.hoverNodeIsDefault = isDefaultHoverNode
 		this.setHoveredElementId(elementId)
-	}
-
-	/**
-	 * 更新 hover 效果（当缩放改变时调用）
-	 */
-	private updateHoverStrokeWidth(): void {
-		if (!this.hoverNode || !this.hoveredElementId) return
-
-		// 尝试使用 Element 的自定义更新方法
-		const element = this.canvas.elementManager.getElementInstance(this.hoveredElementId)
-		if (element && typeof element.updateHoverEffect === "function") {
-			element.updateHoverEffect(this.hoverNode, this.canvas.stage)
-			// 确保使用正确的 strokeWidth（覆盖自定义方法可能使用的错误值）
-			this.applyHoverStrokeWidth(this.hoverNode)
-		} else {
-			// 默认更新描边宽度
-			this.applyHoverStrokeWidth(this.hoverNode)
-		}
-
-		this.requestControlsDraw("hover-stroke")
-	}
-
-	/**
-	 * 递归应用 hover 边框宽度到节点及其子节点
-	 */
-	private applyHoverStrokeWidth(node: Konva.Node): void {
-		if (node instanceof Konva.Shape) {
-			node.strokeWidth(HoverManager.HOVER_STROKE_WIDTH / this.canvas.stage.scaleX())
-		} else if (node instanceof Konva.Group) {
-			// 递归更新 Group 中的所有子节点
-			node.children.forEach((child) => {
-				this.applyHoverStrokeWidth(child)
-			})
-		}
 	}
 
 	/**
@@ -411,6 +519,22 @@ export class HoverManager {
 		return this.canvas.selectionManager.isSelected(elementId)
 			? this.hoverNode === null
 			: this.hoverNode !== null
+	}
+
+	private applyNameLabelHover(target: Konva.Node | null | undefined): boolean {
+		const elementId = getNameLabelElementIdFromNode(target)
+		if (!elementId) return false
+
+		const invalidElementReason = this.getInvalidElementIdReason(elementId)
+		if (invalidElementReason) {
+			this.clearHover()
+			return true
+		}
+
+		if (!this.isHoverStateCurrentForElement(elementId)) {
+			this.setHover(elementId)
+		}
+		return true
 	}
 
 	/**
@@ -574,6 +698,7 @@ export class HoverManager {
 	private shouldSuppressHover(): boolean {
 		return (
 			this.isViewportGestureActive ||
+			this.isViewportMotionActive ||
 			this.isExtendModeActive() ||
 			this.isConnectionDragActive()
 		)
@@ -605,6 +730,7 @@ export class HoverManager {
 	 */
 	public destroy(): void {
 		this.cancelHoverFlush()
+		this.cancelDeferredViewportHoverRefresh()
 
 		// 清除 hover 状态
 		this.clearHover()

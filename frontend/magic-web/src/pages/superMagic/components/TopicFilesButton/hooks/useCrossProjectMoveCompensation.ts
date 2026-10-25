@@ -4,6 +4,9 @@ import type { AttachmentItem } from "./types"
 type CrossProjectOperationSuccessResult = {
 	operationType: "move" | "copy"
 	fileIds: string[]
+	targetProjectId: string
+	targetWorkspaceId?: string
+	targetProjectName?: string
 }
 
 interface UseCrossProjectMoveCompensationOptions {

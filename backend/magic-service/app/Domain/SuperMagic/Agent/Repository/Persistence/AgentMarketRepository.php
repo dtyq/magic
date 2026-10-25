@@ -175,6 +175,85 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
         return new AgentMarketEntity($model->toArray());
     }
 
+    public function findVisibleByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $models = $this->agentMarketModel::query()
+            ->whereIn('id', array_values(array_unique(array_map('intval', $ids))))
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = new AgentMarketEntity($model->toArray());
+            if ($entity->getId() !== null) {
+                $result[(int) $entity->getId()] = $entity;
+            }
+        }
+
+        return $result;
+    }
+
+    public function findVisibleByIdsForSearch(array $ids, AgentMarketQuery $query): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $builder = $this->agentMarketModel::query()
+            ->whereIn('id', $ids)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at');
+
+        if ($query->getMarketType() === AgentMarketType::ORGANIZATION) {
+            $builder->where('market_type', AgentMarketType::ORGANIZATION->value)
+                ->where('organization_code', $query->getVisibleOrganizationCode());
+        }
+
+        $result = [];
+        foreach ($builder->get() as $model) {
+            $entity = new AgentMarketEntity($model->toArray());
+            if ($entity->getId() !== null) {
+                $result[(int) $entity->getId()] = $entity;
+            }
+        }
+
+        return $result;
+    }
+
+    public function findVectorIndexIds(string $afterId = '0', int $limit = 100): array
+    {
+        $afterId = max(0, (int) $afterId);
+        $limit = min(100, max(1, $limit));
+
+        return $this->agentMarketModel::query()
+            ->where('id', '>', $afterId)
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false)
+            ->whereIn('market_type', [AgentMarketType::MARKET->value, AgentMarketType::ORGANIZATION->value])
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    public function countVectorIndexRecords(): int
+    {
+        return (int) $this->agentMarketModel::query()
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false)
+            ->whereIn('market_type', [AgentMarketType::MARKET->value, AgentMarketType::ORGANIZATION->value])
+            ->count();
+    }
+
     public function countByCategoryId(int $categoryId): int
     {
         return $this->countByCategoryIds([$categoryId])[$categoryId] ?? 0;
@@ -266,6 +345,17 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
         return $entity;
     }
 
+    /** @return int[] */
+    public function findIdsByAgentCode(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): array
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->agentMarketModel::query());
+
+        return $builder->where('agent_code', $agentCode)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+    }
+
     public function offlineByAgentCode(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): bool
     {
         $builder = $this->createBuilder($dataIsolation, $this->agentMarketModel::query());
@@ -277,28 +367,6 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             );
 
         return true;
-    }
-
-    public function clearCategoryIdByIds(SuperMagicAgentDataIsolation $dataIsolation, array $ids): int
-    {
-        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
-        if ($ids === []) {
-            return 0;
-        }
-
-        return $this->createBuilder($dataIsolation, $this->agentMarketModel::query())
-            ->whereIn('id', $ids)
-            ->update(['category_id' => null]);
-    }
-
-    public function findIdsByAgentCode(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): array
-    {
-        $builder = $this->createBuilder($dataIsolation, $this->agentMarketModel::query());
-
-        return $builder->where('agent_code', $agentCode)
-            ->pluck('id')
-            ->map(static fn ($id) => (int) $id)
-            ->all();
     }
 
     /**
@@ -507,10 +575,6 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
 
         if (array_key_exists('is_hidden', $payload)) {
             $model->is_hidden = $payload['is_hidden'];
-        }
-
-        if (array_key_exists('category_id', $payload)) {
-            $model->category_id = $payload['category_id'];
         }
 
         if (array_key_exists('name_i18n', $payload)) {

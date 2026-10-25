@@ -23,7 +23,9 @@ from app.tools.browser.presentation.common import (
 
 
 def list_sessions_detail(result: ToolResult) -> str:
-    sessions = result.data.get("sessions")
+    sessions = result.data.get("browsers")
+    if sessions is None:
+        sessions = result.data.get("sessions")
     if not isinstance(sessions, list):
         return ""
     result_text = (
@@ -42,8 +44,10 @@ def list_sessions_detail(result: ToolResult) -> str:
             browser_name = _browser_name(string(identity.get("name")))
             browser_version = string(identity.get("version"))
         heading = " ".join(part for part in (browser_name, browser_version) if part).strip()
+        browser_id = string(session.get("browser_id"))
+        heading = " — ".join(part for part in (browser_id, heading) if part).strip()
         heading = heading or message("browser.detail.session", index=index)
-        page_ids = session.get("page_ids")
+        page_ids = session.get("tab_ids") or session.get("page_ids")
         lines = [
             f"#### {escape_markdown(heading)}",
             field("browser.detail.label.status", _session_state(string(session.get("state")))),
@@ -70,7 +74,9 @@ def list_sessions_detail(result: ToolResult) -> str:
 
 
 def list_pages_detail(result: ToolResult) -> str:
-    pages = result.data.get("pages")
+    pages = result.data.get("tabs")
+    if pages is None:
+        pages = result.data.get("pages")
     if not isinstance(pages, list):
         return ""
     result_text = (
@@ -82,7 +88,7 @@ def list_pages_detail(result: ToolResult) -> str:
     for index, page in enumerate(pages[:MAX_LIST_PREVIEW_ITEMS], start=1):
         if not isinstance(page, Mapping):
             continue
-        current = f" · {message('browser.detail.current_page')}" if page.get("active") is True else ""
+        current = f" · {message('browser.detail.current_page')}" if page.get("selected", page.get("active")) is True else ""
         lines = [
             f"#### {index}. {escape_markdown(page_display_title(page))}{current}",
             field(
@@ -119,8 +125,14 @@ def activate_page_detail(result: ToolResult) -> str:
     return _page_result_detail(result, "browser.detail.result.page_activated")
 
 
+def select_tab_detail(result: ToolResult) -> str:
+    return _page_result_detail(result, "browser.detail.result.page_selected")
+
+
 def close_page_detail(result: ToolResult, arguments: Mapping[str, object]) -> str:
-    page_id = string(result.data.get("page_id")) or string(arguments.get("page_id"))
+    if not result.ok:
+        return ""
+    page_id = string(result.data.get("tab_id")) or string(arguments.get("tab_id"))
     lines = [message("browser.detail.result.page_closed")]
     if page_id:
         lines.append(field("browser.detail.label.page_id", escape_markdown(page_id)))

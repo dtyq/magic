@@ -1,7 +1,7 @@
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ShareNameFieldProps } from "./types"
 import { useShareNameField } from "./hooks/useShareNameField"
 

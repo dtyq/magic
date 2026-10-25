@@ -60,7 +60,7 @@ class GetSandboxInfo(BaseTool[GetSandboxInfoParams]):
             f"- Status: {result['status'] or 'unknown'}\n"
             f"- Current Agent image version: {result['current_version'] or 'unknown'}\n"
             f"- Latest Agent image version: {result['latest_version'] or 'unknown'}\n"
-            f"- Update needed: {'yes' if result['needs_update'] else 'no'}"
+            f"- Update needed: {'unknown' if result['needs_update'] is None else 'yes' if result['needs_update'] else 'no'}"
         )
         payload = dict(result)
         return ToolResult(content=content, data=payload, extra_info=payload)
@@ -94,7 +94,7 @@ class GetSandboxInfo(BaseTool[GetSandboxInfoParams]):
             f"- {_translate('sandbox.detail.status')}: {_display_value(info.get('status'))}",
             f"- {_translate('sandbox.detail.current_version')}: {_display_value(info.get('current_version'))}",
             f"- {_translate('sandbox.detail.latest_version')}: {_display_value(info.get('latest_version'))}",
-            f"- {_translate('sandbox.detail.needs_update')}: {_yes_no(bool(info.get('needs_update')))}",
+            f"- {_translate('sandbox.detail.needs_update')}: {_yes_no(info.get('needs_update'))}",
         ]
         return ToolDetail(
             type=DisplayType.MD,
@@ -134,7 +134,9 @@ def _display_value(value: object) -> str:
     return f"`{text}`" if text else _translate("sandbox.detail.unknown")
 
 
-def _yes_no(value: bool) -> str:
+def _yes_no(value: object) -> str:
+    if value is None:
+        return _translate("sandbox.detail.unknown")
     return _translate("sandbox.detail.yes" if value else "sandbox.detail.no")
 
 

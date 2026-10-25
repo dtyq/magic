@@ -1,44 +1,35 @@
 import { observer } from "mobx-react-lite"
 import { useCallback, useState } from "react"
 import { useDebounceFn } from "ahooks"
+import { useTranslation } from "react-i18next"
 import { Input } from "@/components/shadcn-ui/input"
+import { NumericDragInput } from "../controls"
 import { Label } from "@/components/shadcn-ui/label"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/shadcn-ui/select"
-import { Button } from "@/components/shadcn-ui/button"
+import { Select, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn-ui/select"
 import type { StyleSectionProps } from "../types"
+import { getAuthoredLineHeight, resolveDisplayLineHeight } from "../utils/lineHeight"
+import { EditorSelectContent } from "../../EditorFloating"
 
 const FONT_SIZES = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64, 72, 96]
 const FONT_WEIGHTS = ["300", "400", "500", "600", "700", "800", "900"]
-const FONT_WEIGHT_LABELS: Record<string, string> = {
-	"300": "Light",
-	"400": "Regular",
-	"500": "Medium",
-	"600": "Semibold",
-	"700": "Bold",
-	"800": "Extrabold",
-	"900": "Black",
-}
 
 /**
  * 文字样式配置区域
  */
 const TypographySection = observer(function TypographySection({
 	selectedElement,
-	editorRef,
 	onStyleChange,
 }: StyleSectionProps) {
+	const { t } = useTranslation("super")
 	const { computedStyles } = selectedElement
 
 	// 解析当前值
 	const currentFontSize = parseInt(computedStyles.fontSize) || 16
 	const currentFontWeight = computedStyles.fontWeight || "400"
-	const currentLineHeight = computedStyles.lineHeight || "normal"
+	const currentLineHeight = resolveDisplayLineHeight(
+		computedStyles.lineHeight,
+		getAuthoredLineHeight(selectedElement.inlineStyles),
+	)
 	const currentColor = computedStyles.color || "#000000"
 
 	// 本地状态（用于输入框）
@@ -105,13 +96,13 @@ const TypographySection = observer(function TypographySection({
 	return (
 		<div className="space-y-4">
 			<div className="space-y-2">
-				<h4 className="text-sm font-medium">文字样式</h4>
+				<h4 className="text-sm font-medium">{t("stylePanel.typography")}</h4>
 			</div>
 
 			{/* 颜色选择 */}
 			<div className="space-y-2">
 				<Label htmlFor="text-color" className="text-xs">
-					文字颜色
+					{t("stylePanel.textColor")}
 				</Label>
 				<div className="flex gap-2">
 					<Input
@@ -134,28 +125,27 @@ const TypographySection = observer(function TypographySection({
 			{/* 字体大小 */}
 			<div className="space-y-2">
 				<Label htmlFor="font-size" className="text-xs">
-					字体大小
+					{t("stylePanel.fontSize")}
 				</Label>
 				<div className="flex gap-2">
 					<Select value={fontSize} onValueChange={handleFontSizeChange}>
 						<SelectTrigger className="flex-1">
 							<SelectValue />
 						</SelectTrigger>
-						<SelectContent>
+						<EditorSelectContent>
 							{FONT_SIZES.map((size) => (
 								<SelectItem key={size} value={String(size)}>
 									{size}px
 								</SelectItem>
 							))}
-						</SelectContent>
+						</EditorSelectContent>
 					</Select>
-					<Input
+					<NumericDragInput
 						id="font-size"
-						type="number"
 						value={fontSize}
-						onChange={(e) => handleFontSizeChange(e.target.value)}
+						onChange={handleFontSizeChange}
 						className="w-20"
-						min="1"
+						min={1}
 					/>
 				</div>
 			</div>
@@ -163,38 +153,36 @@ const TypographySection = observer(function TypographySection({
 			{/* 字体粗细 */}
 			<div className="space-y-2">
 				<Label htmlFor="font-weight" className="text-xs">
-					字体粗细
+					{t("stylePanel.fontWeight")}
 				</Label>
 				<Select value={currentFontWeight} onValueChange={handleFontWeightChange}>
 					<SelectTrigger id="font-weight">
 						<SelectValue />
 					</SelectTrigger>
-					<SelectContent>
+					<EditorSelectContent>
 						{FONT_WEIGHTS.map((weight) => (
 							<SelectItem key={weight} value={weight}>
-								{FONT_WEIGHT_LABELS[weight]} ({weight})
+								{t(`stylePanel.fontWeightOptions.${weight}`)} ({weight})
 							</SelectItem>
 						))}
-					</SelectContent>
+					</EditorSelectContent>
 				</Select>
 			</div>
 
 			{/* 行高 */}
 			<div className="space-y-2">
 				<Label htmlFor="line-height" className="text-xs">
-					行高
+					{t("stylePanel.lineHeight")}
 				</Label>
 				<Input
 					id="line-height"
 					type="text"
 					value={lineHeight}
 					onChange={(e) => handleLineHeightChange(e.target.value)}
-					placeholder="normal, 1.5, 24px"
+					placeholder={t("stylePanel.lineHeightPlaceholder")}
 					className="font-mono text-xs"
 				/>
-				<p className="text-xs text-muted-foreground">
-					可以是数字（如 1.5）、长度值（如 24px）或 normal
-				</p>
+				<p className="text-xs text-muted-foreground">{t("stylePanel.lineHeightHint")}</p>
 			</div>
 		</div>
 	)

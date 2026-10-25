@@ -1,0 +1,14 @@
+{
+  "id": "explicit-ordinary-mode",
+  "prompt": "Make an advertisement from the uploaded product images. 生成模式: 普通",
+  "expected_reference": "references/video-generation.md",
+  "expected_tools": ["estimate_canvas_content_points", "add_canvas_elements", "wait_canvas_generation"],
+  "constraints": [
+    "Honor the explicit ordinary generation mode as a hard constraint.",
+    "Do not interpret advertisement alone as detailed staged mode.",
+    "An explicit ordinary generation mode plus uploaded assets stays on basic video generation.",
+    "Do not load professional-video-production.md.",
+    "Use row_incremental layout.",
+    "Do not create professional-production Connections, a storyboard, initialization image, shot reference image, shot videos, staged approvals, or a video-edit."
+  ]
+}

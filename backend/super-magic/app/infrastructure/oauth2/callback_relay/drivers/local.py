@@ -26,16 +26,29 @@ from app.utils.runtime_storage import (
     RuntimeEvictionPolicy,
     ensure_runtime_directory,
     evict_runtime_files,
+    get_runtime_config_int,
     trigger_opportunistic_cleanup,
 )
 
 ENV_LOCAL_REDIRECT_URI = "OAUTH2_LOCAL_CALLBACK_REDIRECT_URI"
 
-_CALLBACK_EVICTION_POLICY = RuntimeEvictionPolicy(
-    max_entries=128,
-    target_entries=96,
-    max_age_seconds=24 * 60 * 60,
-)
+def _load_callback_eviction_policy() -> RuntimeEvictionPolicy:
+    return RuntimeEvictionPolicy(
+        max_entries=get_runtime_config_int(
+            "runtime_cleanup.oauth2_callback.max_file_count",
+            minimum=1,
+        ),
+        target_entries=get_runtime_config_int(
+            "runtime_cleanup.oauth2_callback.target_file_count",
+            minimum=0,
+        ),
+        max_age_seconds=get_runtime_config_int(
+            "runtime_cleanup.oauth2_callback.max_age_hours",
+            minimum=1,
+        )
+        * 60
+        * 60,
+    )
 
 
 class LocalOAuth2CallbackRelay(OAuth2CallbackRelay):
@@ -118,7 +131,7 @@ class LocalOAuth2CallbackRelay(OAuth2CallbackRelay):
         )
         await evict_runtime_files(
             self.callbacks_dir,
-            policy=_CALLBACK_EVICTION_POLICY,
+            policy=_load_callback_eviction_policy(),
             suffixes=(".json",),
             protected_paths=protected_paths,
         )

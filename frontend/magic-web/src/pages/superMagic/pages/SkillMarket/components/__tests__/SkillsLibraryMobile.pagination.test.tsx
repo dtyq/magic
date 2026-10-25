@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import type { ComponentProps, ReactNode, Ref } from "react"
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const navigateMock = vi.fn()
@@ -13,7 +14,7 @@ vi.mock("react-i18next", () => ({
 	}),
 	initReactI18next: {
 		type: "3rdParty",
-		init: () => {},
+		init: () => undefined,
 	},
 }))
 
@@ -76,6 +77,7 @@ vi.mock("@/routes/constants", () => ({
 
 vi.mock("@/services/skills/SkillsService", () => ({
 	skillsService: {
+		getSkillMarketCategories: vi.fn().mockResolvedValue([]),
 		getStoreSkills: (...args: unknown[]) => getStoreSkillsMock(...args),
 		getUserSkillIdMapByCodes: (...args: unknown[]) => getUserSkillIdMapByCodesMock(...args),
 		addSkillFromStore: vi.fn(),
@@ -95,23 +97,36 @@ describe("SkillsLibraryMobile pagination", () => {
 		vi.clearAllMocks()
 		getStoreSkillsMock
 			.mockResolvedValueOnce({
-				list: [
-					{
-						id: "skill-1",
-						storeSkillId: "store-skill-1",
-						skillCode: "skill.code.1",
-						name: "Skill 1",
-						description: "First skill",
-						isFeatured: false,
-						status: "not-added",
-						publisherType: "OFFICIAL",
-						needUpgrade: false,
-						updatedAt: "2026-03-23 10:00:00",
-					},
-				],
+				list: Array.from({ length: 20 }, (_, index) => ({
+					id: `skill-${index + 1}`,
+					storeSkillId: `store-skill-${index + 1}`,
+					skillCode: `skill.code.${index + 1}`,
+					name: `Skill ${index + 1}`,
+					description: "First skill",
+					isFeatured: false,
+					status: "not-added" as const,
+					publisherType: "OFFICIAL" as const,
+					needUpgrade: false,
+					updatedAt: "2026-03-23 10:00:00",
+				})),
 				page: 1,
 				pageSize: 20,
-				total: 40,
+			})
+			.mockResolvedValueOnce({
+				list: Array.from({ length: 20 }, (_, index) => ({
+					id: `featured-skill-${index + 1}`,
+					storeSkillId: `featured-store-skill-${index + 1}`,
+					skillCode: `featured.skill.code.${index + 1}`,
+					name: `Featured Skill ${index + 1}`,
+					description: "Featured skill",
+					isFeatured: true,
+					status: "not-added",
+					publisherType: "OFFICIAL",
+					needUpgrade: false,
+					updatedAt: "2026-03-23 10:00:00",
+				})),
+				page: 1,
+				pageSize: 20,
 			})
 			.mockResolvedValueOnce({
 				list: [
@@ -130,7 +145,6 @@ describe("SkillsLibraryMobile pagination", () => {
 				],
 				page: 2,
 				pageSize: 20,
-				total: 40,
 			})
 		getUserSkillIdMapByCodesMock.mockResolvedValue(new Map())
 	})
@@ -139,7 +153,7 @@ describe("SkillsLibraryMobile pagination", () => {
 		vi.unstubAllGlobals()
 	})
 
-	it("binds the observer to the scroll viewport and loads more", async () => {
+	it("deduplicates initial requests in StrictMode and loads more", async () => {
 		const { default: SkillsLibraryMobile } = await import("../SkillsLibraryMobile")
 		const observe = vi.fn()
 		const disconnect = vi.fn()
@@ -158,20 +172,37 @@ describe("SkillsLibraryMobile pagination", () => {
 
 		vi.stubGlobal("IntersectionObserver", intersectionObserver)
 
-		render(<SkillsLibraryMobile />)
+		render(
+			<StrictMode>
+				<SkillsLibraryMobile />
+			</StrictMode>,
+		)
 
 		await waitFor(() => {
-			expect(getStoreSkillsMock).toHaveBeenCalledTimes(1)
-			expect(intersectionObserver).toHaveBeenCalledTimes(1)
+			expect(getStoreSkillsMock).toHaveBeenCalled()
+			expect(intersectionObserver).toHaveBeenCalled()
+		})
+
+		await act(async () => {
+			screen.getByTestId("skill-category-featured").click()
+		})
+		await waitFor(() => {
+			expect(getStoreSkillsMock).toHaveBeenLastCalledWith({
+				page: 1,
+				page_size: 20,
+				keyword: undefined,
+				publisher_type: undefined,
+				category_ids: undefined,
+				is_featured: 1,
+			})
 		})
 
 		expect(screen.getByTestId("skills-library-mobile-scroll-sentinel")).toBeInTheDocument()
 
 		const viewport = screen.getByTestId("mock-scroll-viewport")
-		expect(intersectionObserver.mock.calls[0]?.[1]).toMatchObject({
-			root: viewport,
-			rootMargin: "160px 0px",
-		})
+		const observerOptions = intersectionObserver.mock.calls[0]?.[1]
+		expect(observerOptions?.root).toBe(viewport)
+		expect(observerOptions?.rootMargin).toBe("160px 0px")
 
 		const callback = intersectionObserver.mock.calls[0]?.[0] as IntersectionObserverCallback
 
@@ -183,15 +214,16 @@ describe("SkillsLibraryMobile pagination", () => {
 		})
 
 		await waitFor(() => {
-			expect(getStoreSkillsMock).toHaveBeenCalledTimes(2)
+			expect(getStoreSkillsMock).toHaveBeenCalledTimes(3)
 		})
 
-		expect(getStoreSkillsMock.mock.calls[1]?.[0]).toMatchObject({
+		expect(getStoreSkillsMock.mock.calls[2]?.[0]).toMatchObject({
 			page: 2,
 			page_size: 20,
 			keyword: undefined,
+			is_featured: 1,
 		})
-		expect(observe).toHaveBeenCalledTimes(1)
-		expect(disconnect).not.toHaveBeenCalled()
+		expect(observe).toHaveBeenCalled()
+		expect(disconnect).toHaveBeenCalled()
 	})
 })

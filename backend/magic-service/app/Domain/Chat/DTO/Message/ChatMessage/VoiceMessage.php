@@ -220,6 +220,7 @@ class VoiceMessage extends FileMessage implements TextContentInterface
         // 设置音频信息
         $audioDTO = new SpeechAudioDTO([
             'url' => $fileUrl,
+            'format' => strtolower(ltrim($this->getAttachment()?->getFileExtension() ?? '', '.')),
         ]);
 
         // 设置用户信息

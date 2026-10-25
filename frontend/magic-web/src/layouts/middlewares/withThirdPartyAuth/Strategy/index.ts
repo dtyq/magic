@@ -1,4 +1,4 @@
-import type { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 import { Login } from "@/types/login"
 import { DingTalkLoginStrategy, isDingTalk } from "./DingTalkStrategy"
 import { LarkStrategy, isLark } from "./LarkkStrategy"

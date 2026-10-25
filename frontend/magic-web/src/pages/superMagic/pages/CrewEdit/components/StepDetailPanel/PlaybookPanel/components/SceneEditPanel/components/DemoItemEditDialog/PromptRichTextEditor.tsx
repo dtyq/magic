@@ -1,12 +1,12 @@
-import Placeholder from "@tiptap/extension-placeholder"
-import StarterKit from "@tiptap/starter-kit"
-import { EditorContent, useEditor, type JSONContent } from "@tiptap/react"
+import Placeholder from "@/infrastructure/editors/tiptap/extension-placeholder"
+import StarterKit from "@/infrastructure/editors/tiptap/starter-kit"
+import { EditorContent, useEditor, type JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { MentionExtension } from "@/components/business/MentionPanel/tiptap-plugin"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { DataService } from "@/components/business/MentionPanel/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	getPromptRichTextPlainText,
 	isPromptRichTextEmpty,

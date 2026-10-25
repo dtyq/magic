@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { useMemo } from "react"
 import TypewriterText from "./TypewriterText"
 import { PORTAL_IDS } from "@/constants/portal"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 function MessageListFallback({ className }: { className?: string }) {
 	const { t } = useTranslation("super")

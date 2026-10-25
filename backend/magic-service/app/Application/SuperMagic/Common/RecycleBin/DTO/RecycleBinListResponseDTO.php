@@ -11,11 +11,11 @@ use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinEntity;
 
 class RecycleBinListResponseDTO
 {
-    private int $total;
+    private ?int $total;
 
     private array $list;
 
-    public function __construct(int $total, array $list, array $userMap = [])
+    public function __construct(?int $total, array $list, array $userMap = [], private ?array $pagination = null)
     {
         $this->total = $total;
         $this->list = array_map(
@@ -30,18 +30,24 @@ class RecycleBinListResponseDTO
 
     public function toArray(): array
     {
-        return [
-            'total' => $this->total,
-            'list' => $this->list,
-        ];
+        $result = ['list' => $this->list];
+        if ($this->total !== null) {
+            $result['total'] = $this->total;
+        }
+        return array_merge($result, $this->pagination ?? []);
     }
 
     public static function fromResult(array $result): self
     {
         return new self(
-            $result['total'],
+            $result['total'] ?? null,
             $result['list'],
-            $result['user_map'] ?? []
+            $result['user_map'] ?? [],
+            array_key_exists('has_more', $result) ? [
+                'has_more' => $result['has_more'],
+                'next_cursor' => $result['next_cursor'],
+                'search_limits' => $result['search_limits'],
+            ] : null
         );
     }
 }

@@ -1,7 +1,7 @@
 import type { MagicClawTemplateCode } from "@/apis"
 import openClawAvatar from "@/assets/resources/magi-claw/template-open-claw.png"
 import magiShockAvatar from "@/assets/resources/magi-claw/template-magi-shock.png"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface MagiClawTemplateAvatarProps {
 	templateCode?: MagicClawTemplateCode | string | null

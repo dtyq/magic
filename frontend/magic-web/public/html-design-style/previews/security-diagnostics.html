@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Diagnostics — Cyber Threat Radar &amp; Vulnerability Command Center</title>
+  <style>
+    :root {
+      --primary: #DC2626;
+      --primary-glow: rgba(220, 38, 38, 0.4);
+      --accent: #6B1111;
+      --surface: #160404;
+      --surface-elevated: #240808;
+      --surface-border: #450A0A;
+      --bg: #030303;
+      --text-main: #FFFFFF;
+      --text-muted: #A1A1AA;
+      --border-zinc: #27272A;
+      --critical: #DC2626;
+      --high: #EA580C;
+      --medium: #EAB308;
+      --low: #3B82F6;
+      --pass: #22C55E;
+      --font-display: "Oswald", "Arial Black", Impact, sans-serif;
+      --font-mono: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: var(--bg); color: var(--text-main); font-family: var(--font-display); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+
+    /* Top Command Header */
+    .command-header { height: 58px; background: #080202; border-bottom: 1px solid var(--surface-border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+    .brand-cluster { display: flex; align-items: center; gap: 14px; }
+    .brand-title { font-size: 20px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+    .brand-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 10px var(--primary); animation: pulse-red 1.6s infinite; }
+    
+    .status-badge-live { font-family: var(--font-mono); font-size: 11px; background: rgba(220, 38, 38, 0.2); border: 1px solid var(--primary); color: #FFAAAA; padding: 2px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .header-metrics { display: flex; align-items: center; gap: 24px; font-family: var(--font-mono); font-size: 12px; }
+    .metric-chip { display: flex; flex-direction: column; align-items: flex-end; }
+    .metric-chip .num { font-weight: 700; color: #fff; }
+    .metric-chip .lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+
+    /* Zero-Day Intrusion Alert Banner */
+    .zero-day-banner { background: linear-gradient(90deg, #3D0A0A 0%, #1A0303 100%); border-top: 1px solid var(--primary); border-bottom: 1px solid var(--primary); padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 12.5px; }
+    .alert-lead { display: flex; align-items: center; gap: 10px; }
+    .beacon-pulse { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 14px var(--primary); }
+    .alert-text strong { color: #FFA4A4; font-weight: 700; }
+    .btn-isolate { background: var(--primary); color: #fff; border: 1px solid #ff7b7b; border-radius: 4px; padding: 4px 12px; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; }
+
+    /* Main Grid: First 500px High Impact Radar & CVEs */
+    .dashboard-layout { max-width: 1320px; margin: 18px auto; padding: 0 20px; display: grid; grid-template-columns: 380px 1fr; gap: 18px; }
+
+    /* Threat Radar Card */
+    .radar-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; align-items: center; position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(220, 38, 38, 0.15); }
+    .radar-top-row { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-family: var(--font-mono); font-size: 11px; }
+    .radar-scope-title { font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; }
+    
+    /* Radar Circle Animation */
+    .radar-frame { position: relative; width: 230px; height: 230px; border-radius: 50%; border: 1px solid rgba(220, 38, 38, 0.4); background: radial-gradient(circle, rgba(220,38,38,0.12) 0%, rgba(3,3,3,0.95) 75%); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .radar-grid-ring { position: absolute; border-radius: 50%; border: 1px dashed rgba(220, 38, 38, 0.25); }
+    .ring-1 { width: 70px; height: 70px; }
+    .ring-2 { width: 140px; height: 140px; }
+    .radar-crosshair-h { position: absolute; left: 0; right: 0; height: 1px; background: rgba(220, 38, 38, 0.2); }
+    .radar-crosshair-v { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(220, 38, 38, 0.2); }
+    
+    .radar-sweep { position: absolute; width: 50%; height: 50%; top: 0; right: 0; transform-origin: 0% 100%; background: linear-gradient(45deg, rgba(220,38,38,0.6) 0%, transparent 60%); border-radius: 100% 0 0 0; animation: radar-spin 3.2s linear infinite; }
+    
+    .blip { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 8px #ff2222; animation: blip-fade 1.6s ease-in-out infinite alternate; }
+    .blip-1 { top: 58px; left: 82px; }
+    .blip-2 { top: 140px; right: 54px; background: #ea580c; box-shadow: 0 0 8px #ea580c; }
+    .blip-3 { bottom: 42px; left: 100px; }
+
+    .radar-telemetry { width: 100%; margin-top: 14px; font-family: var(--font-mono); font-size: 11px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid var(--surface-border); padding-top: 10px; }
+    .tel-item { display: flex; justify-content: space-between; color: var(--text-muted); }
+    .tel-item span.val { color: #fff; font-weight: 600; }
+
+    /* Right Center: CVE Breakdown & Posture */
+    .content-center { display: flex; flex-direction: column; gap: 16px; }
+
+    /* CVE Summary Bar */
+    .cve-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .cve-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 8px; padding: 12px 14px; position: relative; }
+    .cve-card.crit { border-top: 3px solid var(--critical); }
+    .cve-card.high { border-top: 3px solid var(--high); }
+    .cve-card.med { border-top: 3px solid var(--medium); }
+    .cve-card.soc { border-top: 3px solid var(--pass); }
+    
+    .cve-label { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+    .cve-count { font-size: 26px; font-weight: 700; color: #fff; margin: 4px 0 2px; }
+    .cve-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); }
+
+    /* CVE Active Table */
+    .threat-table-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 8px; overflow: hidden; }
+    .table-head-bar { background: var(--surface-elevated); padding: 10px 18px; border-bottom: 1px solid var(--surface-border); display: flex; justify-content: space-between; align-items: center; }
+    .table-title { font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .threat-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; }
+    .threat-table th { background: #110303; padding: 8px 16px; text-align: left; color: var(--text-muted); font-size: 10.5px; text-transform: uppercase; border-bottom: 1px solid var(--surface-border); }
+    .threat-table td { padding: 10px 16px; border-bottom: 1px solid var(--surface-border); vertical-align: middle; }
+    .threat-table tr:hover td { background: var(--surface-elevated); }
+
+    .cve-badge { padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; display: inline-block; }
+    .cve-badge.crit { background: rgba(220, 38, 38, 0.25); color: #ff6b6b; border: 1px solid var(--critical); }
+    .cve-badge.high { background: rgba(234, 88, 12, 0.25); color: #ffaa75; border: 1px solid var(--high); }
+    .cve-badge.med { background: rgba(234, 179, 8, 0.2); color: #ffe680; border: 1px solid var(--medium); }
+
+    .score-badge { font-weight: 700; color: #fff; }
+    .mitigate-btn { background: transparent; border: 1px solid var(--surface-border); color: #fff; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; text-transform: uppercase; }
+    .mitigate-btn:hover { background: var(--primary); border-color: var(--primary); }
+
+    /* Bottom Compliance Grid */
+    .compliance-bar { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 8px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 12px; }
+    .comp-pill { display: flex; align-items: center; gap: 8px; }
+    .comp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pass); box-shadow: 0 0 6px var(--pass); }
+
+    @keyframes radar-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pulse-red {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    @keyframes blip-fade {
+      0% { opacity: 0.3; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1.2); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Command Header -->
+  <header class="command-header">
+    <div class="brand-cluster">
+      <span class="brand-dot"></span>
+      <h1 class="brand-title">CYBERSECURITY COMMAND CENTER</h1>
+      <span class="status-badge-live">eBPF Shield Active</span>
+    </div>
+    <div class="header-metrics">
+      <div class="metric-chip">
+        <span class="num">1,842,900</span>
+        <span class="lbl">Packets / Sec</span>
+      </div>
+      <div class="metric-chip">
+        <span class="num">99.98%</span>
+        <span class="lbl">Firewall Scrub</span>
+      </div>
+      <div class="metric-chip">
+        <span class="num" style="color:var(--critical)">DEFCON 2</span>
+        <span class="lbl">Threat Posture</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Zero-Day Intrusion Alert -->
+  <div class="zero-day-banner">
+    <div class="alert-lead">
+      <span class="beacon-pulse"></span>
+      <span class="alert-text">
+        <strong>ZERO-DAY INTRUSION DETECTED:</strong> Rogue SSH payload from <code>194.26.29.112</code> targeting <code>auth-proxy-k8s-pod-7</code>. Auto-isolated by Kernel eBPF guard.
+      </span>
+    </div>
+    <button class="btn-isolate">Quarantine Node</button>
+  </div>
+
+  <!-- Main Grid -->
+  <main class="dashboard-layout">
+    
+    <!-- Left Column: Threat Detection Radar -->
+    <aside class="radar-card">
+      <div class="radar-top-row">
+        <span class="radar-scope-title">EDGE RADAR SWEEP</span>
+        <span style="color:var(--primary); font-weight:700;">RADIUS: 360°</span>
+      </div>
+
+      <div class="radar-frame">
+        <div class="radar-grid-ring ring-1"></div>
+        <div class="radar-grid-ring ring-2"></div>
+        <div class="radar-crosshair-h"></div>
+        <div class="radar-crosshair-v"></div>
+        <div class="radar-sweep"></div>
+        
+        <!-- Detected Anomalies (Blips) -->
+        <div class="blip blip-1" title="Critical Anomaly"></div>
+        <div class="blip blip-2" title="High Latency Probe"></div>
+        <div class="blip blip-3" title="Port Scan Burst"></div>
+      </div>
+
+      <div class="radar-telemetry">
+        <div class="tel-item">
+          <span>HOSTS MONITORED:</span>
+          <span class="val">4,280 NODES</span>
+        </div>
+        <div class="tel-item">
+          <span>HONEYPOT HITS:</span>
+          <span class="val">614 INBOUND</span>
+        </div>
+        <div class="tel-item">
+          <span>LATENCY IMPACT:</span>
+          <span class="val">&lt; 0.18ms</span>
+        </div>
+        <div class="tel-item">
+          <span>ZERO-DAYS BLOCKED:</span>
+          <span class="val" style="color:var(--primary)">14 TODAY</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Column: CVE Breakdown & Table -->
+    <div class="content-center">
+      
+      <!-- 4-Stat Metric Breakdown -->
+      <div class="cve-summary-grid">
+        <div class="cve-card crit">
+          <div class="cve-label">Critical CVEs</div>
+          <div class="cve-count" style="color:var(--critical)">2</div>
+          <div class="cve-meta">CVSS score &gt; 9.0</div>
+        </div>
+        <div class="cve-card high">
+          <div class="cve-label">High Severity</div>
+          <div class="cve-count" style="color:var(--high)">7</div>
+          <div class="cve-meta">Privilege escalation</div>
+        </div>
+        <div class="cve-card med">
+          <div class="cve-label">Medium CVEs</div>
+          <div class="cve-count" style="color:var(--medium)">19</div>
+          <div class="cve-meta">Header disclosure</div>
+        </div>
+        <div class="cve-card soc">
+          <div class="cve-label">SOC2 Score</div>
+          <div class="cve-count" style="color:var(--pass)">94.2%</div>
+          <div class="cve-meta">Audit Ready Pass</div>
+        </div>
+      </div>
+
+      <!-- Threat Table -->
+      <div class="threat-table-card">
+        <div class="table-head-bar">
+          <span class="table-title">VULNERABILITY LOG &amp; ZERO-DAY TRIAGE</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">UPDATED: REAL-TIME SEC STREAM</span>
+        </div>
+        <table class="threat-table">
+          <thead>
+            <tr>
+              <th>Vulnerability ID</th>
+              <th>Impact Scope</th>
+              <th>Vector Detail</th>
+              <th>CVSS</th>
+              <th>Remediation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="cve-badge crit">CVE-2026-3819</span></td>
+              <td><strong>K8s Ingress Controller</strong></td>
+              <td>Remote code execution via malformed header buffer</td>
+              <td><span class="score-badge" style="color:var(--critical)">9.8 CRIT</span></td>
+              <td><button class="mitigate-btn">Patch v1.9.2</button></td>
+            </tr>
+            <tr>
+              <td><span class="cve-badge crit">CVE-2026-1920</span></td>
+              <td><strong>Kernel eBPF VM Subsystem</strong></td>
+              <td>Local bounds check bypass on ring buffer</td>
+              <td><span class="score-badge" style="color:var(--critical)">9.1 CRIT</span></td>
+              <td><button class="mitigate-btn">Hotfix Applied</button></td>
+            </tr>
+            <tr>
+              <td><span class="cve-badge high">CVE-2026-0844</span></td>
+              <td><strong>OpenSSL TLS Handshake</strong></td>
+              <td>Session ticket reuse leading to token leak</td>
+              <td><span class="score-badge" style="color:var(--high)">8.4 HIGH</span></td>
+              <td><button class="mitigate-btn">Revoke Certs</button></td>
+            </tr>
+            <tr>
+              <td><span class="cve-badge med">CVE-2026-0211</span></td>
+              <td><strong>Node.js HTTP Parser</strong></td>
+              <td>Request smuggling on chunked pipeline</td>
+              <td><span class="score-badge" style="color:var(--medium)">6.5 MED</span></td>
+              <td><button class="mitigate-btn">Filter Proxy</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Compliance Strip -->
+      <div class="compliance-bar">
+        <div class="comp-pill">
+          <span class="comp-dot"></span>
+          <span><strong>ISO 27001 / SOC 2 Type II:</strong> Continuous Automated Evidence Stream</span>
+        </div>
+        <div style="color:var(--text-muted)">
+          Enclave Hardware Hash: <code>f8819c::sec-core-0</code>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+</body>
+</html>

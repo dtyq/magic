@@ -167,7 +167,8 @@ readonly class ProjectFileRpcService
                 $limit,
                 'id',
                 'desc',
-                $dataIsolation
+                $dataIsolation,
+                false
             );
 
             $items = [];

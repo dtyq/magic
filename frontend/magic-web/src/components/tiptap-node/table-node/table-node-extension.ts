@@ -1,8 +1,9 @@
-import { mergeAttributes } from "@tiptap/react"
-import { Table } from "@tiptap/extension-table"
-import { TextSelection } from "@tiptap/pm/state"
+import { mergeAttributes } from "@/infrastructure/editors/tiptap/react"
+import { Table } from "@/infrastructure/editors/tiptap/extension-table"
+import { TextSelection } from "@/infrastructure/editors/tiptap/pm-state"
 
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import { serializeTableMarkdown } from "./table-markdown"
 
 const TABLE_CELL_NODE_NAMES = new Set(["tableCell", "tableHeader"])
 
@@ -55,6 +56,13 @@ const selectCurrentTableCellContent = (editor: Editor) => {
 
 // Custom Table extension with wrapper for horizontal overflow handling
 export const TableWithWrapper = Table.extend({
+	addStorage() {
+		return {
+			...this.parent?.(),
+			markdown: { serialize: serializeTableMarkdown },
+		}
+	},
+
 	renderHTML({ HTMLAttributes }) {
 		return [
 			"div",

@@ -1,6 +1,6 @@
 import { useRef, useState, type DragEvent, type MouseEvent, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import type { ModeItem } from "@/pages/superMagic/pages/Workspace/types"
 import ModeAvatar from "../../ModeAvatar"

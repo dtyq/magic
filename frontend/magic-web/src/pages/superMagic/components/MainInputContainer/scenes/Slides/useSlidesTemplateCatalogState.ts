@@ -18,6 +18,9 @@ import {
 	type SlidesTemplateTagGroupItem,
 	type SlidesTemplateTagItem,
 } from "./slidesTemplateState"
+import { FEATURED_SLIDES_TEMPLATE_TAG_CODE } from "../../panels/slides-preset/templateMeta"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { getShareAccessToken } from "@/pages/superMagic/fileAccess/fileAccessContext"
 
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -63,6 +66,9 @@ function isServerBackedGroupKey(groupKey: string) {
 export function useSlidesTemplateCatalogState({
 	pageSize = SLIDES_TEMPLATE_PAGE_SIZE,
 }: UseSlidesTemplateCatalogStateOptions = {}) {
+	// Share previews inject their rotating temporary token through FileAccessProvider.
+	const fileAccess = useFileAccess()
+	const temporaryToken = getShareAccessToken(fileAccess)
 	const [templates, setTemplates] = useState<SlidesTemplateItem[]>([])
 	const [categories, setCategories] = useState<SlidesTemplateCategoryItem[]>([])
 	const [operationalTags, setOperationalTags] = useState<SlidesTemplateTagItem[]>([])
@@ -125,10 +131,14 @@ export function useSlidesTemplateCatalogState({
 	useEffect(() => {
 		let cancelled = false
 
-		SuperMagicApi.getSlidesTemplateCategories({
+		const categoryParams = {
 			page: 1,
 			page_size: SLIDES_TEMPLATE_CATEGORY_PAGE_SIZE,
-		})
+		}
+		const categoriesRequest = temporaryToken
+			? SuperMagicApi.getSlidesTemplateCategories(categoryParams, { temporaryToken })
+			: SuperMagicApi.getSlidesTemplateCategories(categoryParams)
+		categoriesRequest
 			.then((response) => {
 				if (cancelled) return
 				setCategories(response.list ?? [])
@@ -148,7 +158,7 @@ export function useSlidesTemplateCatalogState({
 		return () => {
 			cancelled = true
 		}
-	}, [])
+	}, [temporaryToken])
 
 	const categoryCodeSet = useMemo(
 		() => new Set(categories.map((category) => category.code)),
@@ -164,7 +174,10 @@ export function useSlidesTemplateCatalogState({
 		let cancelled = false
 
 		// 顶部一级筛选项只读取系统内置的运营标签组。
-		SuperMagicApi.getSlidesTemplateTagGroups({})
+		const tagGroupsRequest = temporaryToken
+			? SuperMagicApi.getSlidesTemplateTagGroups({}, { temporaryToken })
+			: SuperMagicApi.getSlidesTemplateTagGroups({})
+		tagGroupsRequest
 			.then((response) => {
 				if (cancelled) return
 				setAllTagGroups(response ?? [])
@@ -186,7 +199,7 @@ export function useSlidesTemplateCatalogState({
 		return () => {
 			cancelled = true
 		}
-	}, [])
+	}, [temporaryToken])
 
 	useEffect(() => {
 		if (!selectedCategoryCode) {
@@ -199,7 +212,13 @@ export function useSlidesTemplateCatalogState({
 		let cancelled = false
 		setIsCategoryTagGroupsLoading(true)
 
-		SuperMagicApi.getSlidesTemplateTagGroups({ category_code: selectedCategoryCode })
+		const tagGroupsRequest = temporaryToken
+			? SuperMagicApi.getSlidesTemplateTagGroups(
+					{ category_code: selectedCategoryCode },
+					{ temporaryToken },
+				)
+			: SuperMagicApi.getSlidesTemplateTagGroups({ category_code: selectedCategoryCode })
+		tagGroupsRequest
 			.then((response) => {
 				if (cancelled) return
 				setCategoryTagGroups(response ?? [])
@@ -218,7 +237,7 @@ export function useSlidesTemplateCatalogState({
 		return () => {
 			cancelled = true
 		}
-	}, [selectedCategoryCode])
+	}, [selectedCategoryCode, temporaryToken])
 
 	const tagGroups = selectedCategoryCode ? categoryTagGroups : allTagGroups
 
@@ -301,6 +320,7 @@ export function useSlidesTemplateCatalogState({
 			}
 
 			const queryParams = {
+				scope: "official" as const,
 				page: nextPage,
 				page_size: pageSize,
 				...(debouncedKeyword ? { keyword: debouncedKeyword } : {}),
@@ -316,15 +336,20 @@ export function useSlidesTemplateCatalogState({
 			try {
 				const templatesRequest = SuperMagicApi.getSlidesTemplates(queryParams, {
 					xMagicImageProcess: SLIDES_TEMPLATE_IMAGE_PROCESS,
+					...(temporaryToken ? { temporaryToken } : {}),
 				})
 				const countRequest =
 					mode === "replace"
-						? Promise.resolve(SuperMagicApi.getSlidesTemplateCount(queryParams)).catch(
-								(error) => {
-									console.error("Failed to fetch slides template count", error)
-									return null
-								},
-							)
+						? Promise.resolve(
+								temporaryToken
+									? SuperMagicApi.getSlidesTemplateCount(queryParams, {
+											temporaryToken,
+										})
+									: SuperMagicApi.getSlidesTemplateCount(queryParams),
+							).catch((error) => {
+								console.error("Failed to fetch slides template count", error)
+								return null
+							})
 						: null
 				const response = await templatesRequest
 				if (!mountedRef.current || requestSeq !== requestSeqRef.current) return
@@ -397,7 +422,7 @@ export function useSlidesTemplateCatalogState({
 				}
 			}
 		},
-		[debouncedKeyword, pageSize, selectedCategoryCode, selectedTagCodes],
+		[debouncedKeyword, pageSize, selectedCategoryCode, selectedTagCodes, temporaryToken],
 	)
 
 	useEffect(() => {
@@ -454,13 +479,14 @@ export function useSlidesTemplateCatalogState({
 	const serverBackedTemplateOptions = useMemo(() => {
 		const cache = templateOptionCacheRef.current
 		const activeCodes = new Set<string>()
+		const isFeaturedQuery = selectedTagCodes.includes(FEATURED_SLIDES_TEMPLATE_TAG_CODE)
 
 		const options = templates.map((template) => {
 			activeCodes.add(template.code)
 			const cached = cache.get(template.code)
-			if (cached?.source === template) return cached.option
+			if (cached?.source === template && !isFeaturedQuery) return cached.option
 
-			const option = toTemplateOption(template)
+			const option = toTemplateOption(template, { isFeatured: isFeaturedQuery })
 			cache.set(template.code, { source: template, option })
 			return option
 		})
@@ -470,7 +496,7 @@ export function useSlidesTemplateCatalogState({
 		}
 
 		return options
-	}, [templates])
+	}, [selectedTagCodes, templates])
 	const templateOptions = isServerBackedGroup
 		? serverBackedTemplateOptions
 		: (selectedGroup?.children ?? [])
@@ -506,6 +532,23 @@ export function useSlidesTemplateCatalogState({
 		fetchTemplates(1, "replace")
 	}, [fetchTemplates, isLoading, isLoadingMore, isRefreshing])
 
+	const setTemplateFavorite = useCallback((code: string, isFavorite: boolean) => {
+		setTemplates((currentTemplates) => {
+			const nextTemplates = currentTemplates.map((template) =>
+				template.code === code ? { ...template, is_favorite: isFavorite } : template,
+			)
+			templatesRef.current = nextTemplates
+			return nextTemplates
+		})
+		const cachedDetail = templateDetailCacheRef.current.get(code)
+		if (cachedDetail) {
+			templateDetailCacheRef.current.set(code, {
+				...cachedDetail,
+				is_favorite: isFavorite,
+			})
+		}
+	}, [])
+
 	return {
 		groups,
 		hasAnyTemplate,
@@ -538,6 +581,7 @@ export function useSlidesTemplateCatalogState({
 		setKeyword,
 		setSelectedGroupKey,
 		setSelectedChildTagCodes,
+		setTemplateFavorite,
 		templateOptions,
 	}
 }

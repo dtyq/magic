@@ -3,15 +3,18 @@ import React, { memo, useRef } from "react"
 import { useStyles } from "./style"
 import { useFileUrl } from "@/pages/superMagic/hooks/useFileUrl"
 import { Flex } from "antd"
-import "xgplayer/dist/index.min.css"
+import "@/infrastructure/vendors/xgplayer/styles"
 import { useXgPlayer } from "./hooks/useXgPlayer"
 import { PlayerStates } from "./components"
 import { injectFullscreenStyles } from "./utils"
+import DetailEmpty from "../../components/DetailEmpty"
+import { useTranslation } from "react-i18next"
 
 // Inject fullscreen styles once
 injectFullscreenStyles()
 
 interface VideoPreviewProps {
+	onRefreshFile?: () => void
 	type?: string
 	currentIndex?: number
 	onPrevious?: () => void
@@ -52,6 +55,7 @@ interface VideoPreviewProps {
 }
 
 export function VideoPreview(props: VideoPreviewProps) {
+	const { t } = useTranslation("super")
 	const { styles } = useStyles()
 	const {
 		type,
@@ -70,13 +74,17 @@ export function VideoPreview(props: VideoPreviewProps) {
 	} = props
 
 	const { file_id } = data || {}
-	const { fileUrl } = useFileUrl({ file_id: file_id || "" })
+	const { fileUrl, hasError, fileResource, refreshFileUrl } = useFileUrl({
+		file_id: file_id || "",
+	})
 	const containerRef = useRef<HTMLDivElement>(null)
 
 	// Use custom hook for player management
 	const { isLoading, playerReady } = useXgPlayer({
-		fileUrl,
 		fileId: file_id,
+		fileUrl,
+		fileResource,
+		refreshFileUrl,
 		containerRef,
 	})
 
@@ -85,6 +93,13 @@ export function VideoPreview(props: VideoPreviewProps) {
 		if (onDownload) onDownload()
 	}
 
+	if (hasError)
+		return (
+			<DetailEmpty
+				title={t("common.fileNotFoundOrLoadFailed")}
+				onRetry={props.onRefreshFile}
+			/>
+		)
 	return (
 		<div className={styles.mediaViewer}>
 			{showFileHeader && (

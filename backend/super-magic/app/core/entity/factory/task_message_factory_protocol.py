@@ -4,7 +4,7 @@
 定义所有事件→消息方法签名，v1/v2 工厂均需实现此 Protocol。
 """
 
-from typing import Optional, runtime_checkable, Protocol
+from typing import TYPE_CHECKING, Optional, runtime_checkable, Protocol
 
 from agentlang.event.data import (
     BeforeInitEventData,
@@ -27,12 +27,21 @@ from app.core.entity.event.event import (
 )
 from app.core.entity.message.server_message import ServerMessage
 from app.core.entity.final_task_state import FinalTaskState
+from app.core.entity.event.event_context import OutboundMessageRecord
 from agentlang.event.event import Event
+
+if TYPE_CHECKING:
+    from app.core.context.agent_context import AgentContext
 
 
 @runtime_checkable
 class TaskMessageFactoryProtocol(Protocol):
     """消息工厂 Protocol，定义所有事件→消息的方法签名。"""
+
+    @classmethod
+    def create_channel_outbound_message(
+        cls, agent_context: "AgentContext", record: OutboundMessageRecord,
+    ) -> ServerMessage: ...
 
     @classmethod
     def create_error_message(

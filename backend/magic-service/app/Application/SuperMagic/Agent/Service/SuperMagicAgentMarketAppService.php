@@ -16,6 +16,7 @@ use App\Domain\SuperMagic\Agent\Entity\UserAgentEntity;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublisherType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\Query\AgentMarketQuery;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
+use App\Domain\SuperMagic\Agent\Service\AgentMarketVectorIndexDomainService;
 use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentCategoryDomainService;
 use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentMarketDomainService;
 use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentPlaybookDomainService;
@@ -29,6 +30,7 @@ use App\Infrastructure\Util\File\EasyFileTools;
 use App\Interfaces\SuperMagic\Agent\DTO\Request\QueryAgentMarketsRequestDTO;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
+use Throwable;
 
 /**
  * Application service for market agent use cases.
@@ -52,6 +54,9 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected MagicUserDomainService $magicUserDomainService;
+
+    #[Inject]
+    protected AgentMarketVectorIndexDomainService $agentMarketVectorIndexDomainService;
 
     /**
      * @return array<int, array{id:int, name_i18n:array, logo:?string, sort_order:int, status:int, crew_count:int}>
@@ -126,7 +131,7 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     playbooks_map: array<int, array<int, AgentPlaybookEntity>>,
-     *     total: int
+     *     total: ?int
      * }
      */
     public function queries(Authenticatable $authorization, QueryAgentMarketsRequestDTO $requestDTO): array
@@ -157,8 +162,8 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
         // Build the page request.
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
 
-        // Fetch the published market list.
-        $result = $this->superMagicAgentMarketDomainService->queries($query, $page);
+        // Use semantic ranking only after the first complete index reconciliation.
+        $result = $this->queryMarkets($dataIsolation, $query, $page);
         $agentMarkets = $result['list'];
         $this->fillMarketCategoryIds($agentMarkets);
         $total = $result['total'];
@@ -209,6 +214,36 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             'playbooks_map' => $playbooksMap,
             'total' => $total,
         ];
+    }
+
+    /** Query Qdrant when ready and fall back to the authoritative MySQL query. */
+    private function queryMarkets(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        AgentMarketQuery $query,
+        Page $page,
+    ): array {
+        if (trim((string) $query->getKeyword()) === ''
+            || ! $this->agentMarketVectorIndexDomainService->isVectorSearchReady()
+            || ! $this->agentMarketVectorIndexDomainService->isAvailable()) {
+            return $this->superMagicAgentMarketDomainService->queries($query, $page);
+        }
+
+        try {
+            return [
+                'total' => null,
+                'list' => $this->agentMarketVectorIndexDomainService->search(
+                    $dataIsolation,
+                    $query,
+                    $page,
+                ),
+            ];
+        } catch (Throwable $throwable) {
+            $this->logger->warning('Agent market semantic search fell back to MySQL', [
+                'exception' => $throwable::class,
+                'message' => $throwable->getMessage(),
+            ]);
+            return $this->superMagicAgentMarketDomainService->queries($query, $page);
+        }
     }
 
     /**

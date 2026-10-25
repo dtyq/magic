@@ -23,6 +23,10 @@ export interface ShareTypeFieldProps {
 	value: ShareType
 	onChange: (type: ShareType) => void
 	availableTypes: ShareType[]
+	/** Function-permission filtered types. Undefined keeps legacy callers unrestricted. */
+	permittedTypes?: ShareType[]
+	/** Keeps an existing, now-disallowed type visible during edit so users can switch away from it. */
+	preserveCurrentType?: boolean
 }
 
 /**

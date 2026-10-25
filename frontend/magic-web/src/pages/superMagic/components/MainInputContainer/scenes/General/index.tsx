@@ -8,16 +8,34 @@ import DefaultMessageEditorContainer from "../../components/editors/DefaultMessa
 import { ScenePanelComponentBaseProps } from "../../types"
 import { ScenePanelVariant } from "../../components/LazyScenePanel/types"
 import { useOptionalScenePanelVariant, useSceneStateStore } from "../../stores"
+import VideoProductionConfigPanel from "../../components/VideoProductionConfigPanel"
+import { useConversationInputLayout } from "../../../ConversationInputResize/context"
+import { cn } from "@/utils/cn"
+import { useIsMobile } from "@/hooks/useIsMobile"
 
 interface GeneralInputContainerProps extends ScenePanelComponentBaseProps {
 	scenes: SceneItem[] | undefined
 }
 
-function GeneralInputContainer({ scenes, editorContext, editorNodes }: GeneralInputContainerProps) {
+function GeneralInputContainer({
+	scenes,
+	editorContext,
+	editorNodes,
+	inputContainerId,
+}: GeneralInputContainerProps) {
 	const sceneStateStore = useSceneStateStore()
 	const variant = useOptionalScenePanelVariant()
+	const isMobile = useIsMobile()
+	const inputLayout = useConversationInputLayout()
+	// Propagate the resized conversation height through the general scene wrappers.
+	const shouldFillHeight = Boolean(inputLayout?.fillHeight)
 	const editorPortalTarget = usePortalTarget({
-		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
+		portalId: inputContainerId ?? SCENE_INPUT_IDS.INPUT_CONTAINER,
+		// Desktop home and project composers mount their portal target before this scene (the project
+		// page loads it lazily), so resolve it before paint instead of showing an empty composer.
+		resolveBeforePaint:
+			!isMobile &&
+			(variant === ScenePanelVariant.HomePage || variant === ScenePanelVariant.TopicPage),
 	})
 
 	const scenesSwitcherPortalTarget = usePortalTarget({
@@ -52,15 +70,30 @@ function GeneralInputContainer({ scenes, editorContext, editorNodes }: GeneralIn
 					<AnimatePresence mode="wait">
 						<motion.div
 							key="general-editor"
+							className={cn(shouldFillHeight && "h-full min-h-0")}
 							initial={SCENE_ANIMATION_CONFIG.initial}
 							animate={SCENE_ANIMATION_CONFIG.animate}
 							exit={SCENE_ANIMATION_CONFIG.exit}
 							transition={SCENE_ANIMATION_CONFIG.transition}
 						>
-							<DefaultMessageEditorContainer
-								editorContext={editorContext}
-								editorNodes={editorNodes}
-							/>
+							<div
+								className={cn(
+									"flex flex-col gap-2",
+									shouldFillHeight && "h-full min-h-0",
+								)}
+							>
+								<div className={cn(shouldFillHeight && "min-h-0 flex-1")}>
+									<DefaultMessageEditorContainer
+										editorContext={editorContext}
+										editorNodes={editorNodes}
+									/>
+								</div>
+								<VideoProductionConfigPanel
+									topicMode={editorContext?.topicMode}
+									agentCode={editorContext?.agentCode}
+									selectedTopic={editorContext?.selectedTopic}
+								/>
+							</div>
 						</motion.div>
 					</AnimatePresence>,
 					editorPortalTarget,

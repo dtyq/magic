@@ -34,6 +34,9 @@ class SuperMagicTopicModelStore {
 	/** Agent code when topic_mode is custom_agent (featured mode.identifier) */
 	currentAgentCode: string = ""
 
+	/** Context key whose model data has completed loading */
+	loadedContextKey = ""
+
 	constructor() {
 		makeAutoObservable(this, {}, { autoBind: true })
 	}
@@ -75,6 +78,11 @@ class SuperMagicTopicModelStore {
 		this.isLoading = loading
 	}
 
+	/** 标记当前上下文的模型已加载完成 */
+	markCurrentContextLoaded(contextKey: string) {
+		this.loadedContextKey = contextKey
+	}
+
 	/**
 	 * Set current context (topic, project, mode)
 	 * This will trigger the service to fetch models via reaction
@@ -104,6 +112,7 @@ class SuperMagicTopicModelStore {
 
 		if (contextChanged) {
 			this.isLoading = true
+			this.loadedContextKey = ""
 
 			const isWorkspaceHome = !nextTopicId && !nextProjectId
 			if (isWorkspaceHome) {
@@ -126,6 +135,7 @@ class SuperMagicTopicModelStore {
 		this.currentProjectId = ""
 		this.currentTopicMode = getFallbackTopicModeIdentifier()
 		this.currentAgentCode = ""
+		this.loadedContextKey = ""
 	}
 }
 

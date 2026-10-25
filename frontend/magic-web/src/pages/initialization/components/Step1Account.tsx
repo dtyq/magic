@@ -21,7 +21,7 @@ const formSchema = z
 	.object({
 		name: z.string().min(1, "请输入Agent名称"),
 		description: z.string().optional(),
-		phone: z.string().min(1, "请输入手机号"),
+		phone: z.string().trim().min(1, "请输入手机号"),
 		password: z.string().min(1, "请输入密码"),
 		confirm_password: z.string(),
 	})

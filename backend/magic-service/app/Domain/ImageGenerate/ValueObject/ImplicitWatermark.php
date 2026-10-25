@@ -125,7 +125,7 @@ class ImplicitWatermark
         return [
             'AIGC' => [
                 'Label' => config('image_generate.aigc_metadata.label', '2'),
-                'ContentProducter' => config('image_generate.aigc_metadata.content_producer', '001191440300MA5HTEC8X100000'),
+                'ContentProducter' => config('image_generate.aigc_metadata.content_producer', ''),
                 'ProduceID' => $this->getProduceId(),
                 'ReservedCode1' => $this->getEncryptedSign(),
             ],

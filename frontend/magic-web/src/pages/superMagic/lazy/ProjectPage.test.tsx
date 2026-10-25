@@ -32,6 +32,16 @@ vi.mock("react-router", () => ({
 	useParams: () => ({
 		projectId: mockState.projectId,
 	}),
+	useLocation: () => ({ pathname: `/global/super/${mockState.projectId}` }),
+}))
+
+// The canvas redirect has its own coverage; keep the full route table out of this unit test.
+vi.mock("../hooks/useAiCanvasRouteRedirect", () => ({
+	useAiCanvasRouteRedirect: () => undefined,
+}))
+
+vi.mock("@/routes/history/helpers", () => ({
+	routesMatch: () => null,
 }))
 
 vi.mock("@/hooks/useIsMobile", () => ({

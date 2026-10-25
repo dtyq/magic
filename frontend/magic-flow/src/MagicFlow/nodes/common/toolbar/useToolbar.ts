@@ -9,7 +9,7 @@ import { nodeManager } from "@/MagicFlow/register/node"
 import { useExternalConfig } from "@/MagicFlow/context/ExternalContext/useExternal"
 import { defaultEdgeConfig } from "@/MagicFlow/edges"
 import { generatePasteNode, judgeIsLoopBody, judgeLoopNode } from "@/MagicFlow/utils"
-import _ from "lodash"
+import { castArray } from "lodash-es"
 import { useNodesActions } from "@/MagicFlow/context/NodesContext/useNodes"
 import { FLOW_EVENTS, flowEventBus } from "@/common/BaseUI/Select/constants"
 
@@ -35,7 +35,7 @@ export default function useToolbar () {
 	const deleteNode = useMemoizedFn((id: string) => {
         const edges = getEdges()
         const nodes = Object.values(nodeConfig)
-		const deleteIds = _.castArray(id).reduce((acc, nId) => {
+		const deleteIds = castArray(id).reduce((acc, nId) => {
 			const n = nodeConfig[nId]
 			// @ts-ignore
 			const nodeType = n[paramsName.nodeType]

@@ -1,6 +1,6 @@
 ---
 name: using-mcp
-description: Discover, connect to, and invoke tools on MCP (Model Context Protocol) servers. CRITICAL - When the user message contains [@mcp:...] mention, you MUST load this skill first to use MCP tools correctly.
+description: Discover, connect to, and invoke tools on referenced MCP servers. Load this skill when an MCP server is referenced through an mcp:// typed link or MCP mention.
 ---
 
 # MCP Tools Calling Skill
@@ -57,6 +57,15 @@ When the user wants to register a brand-new MCP server, run `mcp_add_server` fir
 2. ALWAYS call `mcp_get_tool_schema` before `mcp_call_tool` unless you already saw the schema in this conversation.
 3. NEVER call `mcp_*` tools as standalone tool calls. They only work inside `run_sdk_snippet` via `sdk.tool.call`.
 4. ALWAYS check `result.ok` before proceeding. Errors should be surfaced to the user, not silently retried.
+
+## Authentication and MCP configuration errors
+
+When an MCP tool returns an error that indicates authentication or a missing
+credential — for example `未登录`, `密钥错误`, `invalid key`, `unauthorized`,
+or HTTP `401`/`403` — tell the user that the MCP key or another MCP
+configuration value may be incorrect and ask them to check the MCP
+configuration. Do not silently retry the same request or claim that the key
+is definitely wrong unless the server explicitly confirms it.
 
 ## Environment variables in reusable MCP configs
 

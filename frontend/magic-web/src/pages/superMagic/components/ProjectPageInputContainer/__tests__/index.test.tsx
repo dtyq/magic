@@ -203,4 +203,24 @@ describe("ProjectPageInputContainer scoped topic store", () => {
 		expect(screen.getByTestId("desktop-input-container")).toBeInTheDocument()
 		expect(testState.desktopEditorContext?.allowRecordingMode).toBe(false)
 	})
+
+	it("uses an explicit employee override for the editor context", () => {
+		render(
+			<ProjectPageInputContainer
+				{...createProps({
+					agentCode: "SMA-default-agent",
+					showModeToggle: false,
+				})}
+			/>,
+		)
+
+		expect(testState.desktopEditorContext?.agentCode).toBe("SMA-default-agent")
+		expect(testState.desktopEditorContext?.showModeToggle).toBe(false)
+	})
+
+	it("allows a locked composer to clear the historical topic employee", () => {
+		render(<ProjectPageInputContainer {...createProps({ agentCode: null })} />)
+
+		expect(testState.desktopEditorContext?.agentCode).toBeUndefined()
+	})
 })

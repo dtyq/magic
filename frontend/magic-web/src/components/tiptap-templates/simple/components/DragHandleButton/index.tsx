@@ -1,6 +1,6 @@
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import type { Node as ProseMirrorNode } from "@/infrastructure/editors/tiptap/pm-model"
 import { IconGripVertical } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"

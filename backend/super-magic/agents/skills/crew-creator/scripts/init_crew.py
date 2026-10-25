@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Initialize a minimal set of employee definition files in .workspace/.magic/.
+Initialize a minimal set of employee definition files in .magic/.
 
 Reads a JSON config (via --config <path>) containing employee metadata
 and generates the appropriate definition files.
@@ -9,40 +9,21 @@ Usage:
     python scripts/init_crew.py --config /path/to/config.json [--overwrite]
 
 Config JSON schema:
-    # Single-language mode (default) — fields in user's preferred language:
+    # All fields are written in the selected language:
     {
         "name":            "Research Assistant",        # required
         "role":            "Academic Researcher",       # required
         "description":     "A professional research assistant",  # required
         "role_body":       "You are an academic researcher...",  # optional (IDENTITY.md body)
         "personality":     "Rigorous, concise...",      # optional -> SOUL.md
-        "personality_en":  "Rigorous, concise...",      # optional English translation
-        "instructions":    "Workflow...",               # optional -> AGENTS.md
-        "instructions_en": "Workflow...",               # optional English translation
-    }
-
-    # Multilingual mode — add _cn or _en suffixed fields for translations.
-    # Base fields remain the primary language. Suffixed fields are written as
-    # ordinary language-specific sections, not HTML comments.
-    {
-        "name":            "Research Assistant",
-        "name_en":         "Research Assistant",
-        "role":            "Academic Researcher",
-        "role_en":         "Academic Researcher",
-        "description":     "A professional research assistant",
-        "description_en":  "A professional research assistant",
-        "role_body":       "You are an academic researcher...",
-        "role_body_en":    "You are an academic researcher...",
-        "personality":     "Rigorous, concise...",
-        "personality_en":  "Rigorous, concise...",
-        "instructions":    "Workflow...",
-        "instructions_en": "Workflow..."
+        "instructions":    "Workflow...",               # required -> AGENTS.md
+        "skill_decomposition_decision": "yes"            # required: "yes" or "no"
     }
 
 Files generated:
-    .workspace/.magic/IDENTITY.md   — always
-    .workspace/.magic/AGENTS.md     — if instructions provided
-    .workspace/.magic/SOUL.md       — if personality provided
+    .magic/IDENTITY.md   — always
+    .magic/AGENTS.md     — if instructions provided
+    .magic/SOUL.md       — if personality provided
     (TOOLS.md / SKILLS.md are intentionally NOT created so the system uses defaults)
 """
 
@@ -50,91 +31,124 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-# agents/skills/_shared/ is under parents[2] for all skill scripts.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from _shared.bootstrap import get_project_root
+REQUIRED_FIELDS = ("name", "role", "description", "instructions", "skill_decomposition_decision")
+VALID_SKILL_DECOMPOSITION_DECISIONS = {"yes", "no"}
 
 
-REQUIRED_FIELDS = ("name", "role", "description")
-
-# Mapping from suffix to section heading
-SUFFIX_LABEL: dict[str, str] = {
-    "_cn": "Chinese",
-    "_en": "English",
-}
-
-
-def _has_translations(cfg: dict) -> bool:
-    """Check if the config has any translation (suffixed) fields."""
-    return any(k.endswith(tuple(SUFFIX_LABEL)) for k in cfg)
-
-
-def _wrap_body(body: str, cfg: dict, field: str) -> str:
+def _resolve_workspace_dir() -> Path:
     """
-    Format body text. In multilingual mode, keep the primary content first and
-    append translations as ordinary language-specific sections.
-    `field` is the base field name (e.g. "role_body", "instructions", "personality").
+    Resolve the employee workspace directory.
+    When running inside sandbox (/app), cwd is usually the workspace (/mnt/agfs/magicfs/project).
+    If cwd has .magic or is named 'project', cwd is the employee workspace.
+    If cwd/.workspace exists, prefer cwd/.workspace.
     """
-    if not _has_translations(cfg):
-        return f"{body}\n"
-
-    parts: list[str] = [body]
-    for suffix, label in SUFFIX_LABEL.items():
-        translation = cfg.get(f"{field}{suffix}")
-        if translation:
-            parts.append(f"## {label}\n\n{translation}")
-
-    return "\n\n".join(parts) + "\n"
+    cwd = Path.cwd()
+    if (cwd / ".magic").exists() or cwd.name == "project":
+        return cwd
+    if (cwd / ".workspace").exists():
+        return cwd / ".workspace"
+    return cwd
 
 
-def _build_identity(cfg: dict) -> str:
+def _resolve_config_path(config_arg: str, workspace_dir: Path) -> tuple[Path | None, list[Path]]:
+    config_path = Path(config_arg).expanduser()
+    if config_path.is_absolute():
+        candidates = [config_path]
+    else:
+        candidates = [
+            Path.cwd() / config_path,
+            workspace_dir / config_path,
+            workspace_dir / ".workspace" / config_path,
+        ]
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve(), candidates
+    return None, candidates
+
+
+def _detect_existing_avatar(workspace_dir: Path) -> str | None:
+    """Detect if an avatar already exists in workspace (.magic/logo.*)."""
+    magic_dir = workspace_dir / ".magic"
+    for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+        candidate = magic_dir / f"logo{ext}"
+        if candidate.is_file():
+            return f".magic/logo{ext}"
+    return None
+
+
+def _build_identity(cfg: dict, workspace_dir: Path | None = None) -> str:
     header_lines = [
         "---",
         f"name: {cfg['name']}",
         f"role: {cfg['role']}",
         f"description: {cfg['description']}",
     ]
-
-    # Add suffixed header fields for multilingual mode
-    for suffix in SUFFIX_LABEL:
-        for field in ("name", "role", "description"):
-            value = cfg.get(f"{field}{suffix}")
-            if value:
-                header_lines.append(f"{field}{suffix}: {value}")
+    existing_avatar = _detect_existing_avatar(workspace_dir) if workspace_dir else None
+    icon = cfg.get("icon") or existing_avatar or ".magic/logo.png"
+    header_lines.append(f"icon: {icon}")
 
     header_lines.append("---")
     header = "\n".join(header_lines) + "\n"
 
-    # Build body with language-aware default
     body = cfg.get("role_body") or ""
     if not body:
         role = cfg["role"]
         desc = cfg["description"]
         body = f"Role: {role}\n\nDescription: {desc}"
 
-    return f"{header}\n{_wrap_body(body, cfg, 'role_body')}"
+    return f"{header}\n{body}\n"
 
 
-def _build_agents(cfg: dict) -> str | None:
+def _build_crew_instructions(cfg: dict) -> str | None:
     body = cfg.get("instructions")
     if not body:
         return None
-    return _wrap_body(body, cfg, "instructions")
+    return f"{body}\n"
 
 
 def _build_soul(cfg: dict) -> str | None:
     body = cfg.get("personality")
     if not body:
         return None
-    return _wrap_body(body, cfg, "personality")
+    return f"{body}\n"
+
+
+def _validate_crew_instructions(content: str) -> list[str]:
+    if not content.strip():
+        return ["content"]
+
+    ordered_steps = 0
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        separator_index = 0
+        while separator_index < len(stripped) and stripped[separator_index].isdigit():
+            separator_index += 1
+
+        if separator_index == 0 or separator_index >= len(stripped):
+            continue
+        if stripped[separator_index] not in ".)":
+            continue
+        if not stripped[separator_index + 1 :].strip():
+            continue
+        ordered_steps += 1
+
+    if ordered_steps < 2:
+        return ["executable_steps"]
+
+    return []
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Initialize employee definition files in .workspace/.magic/",
+        description="Initialize employee definition files in .magic/",
     )
     parser.add_argument(
         "--config",
@@ -148,11 +162,14 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    config_path = Path(args.config)
-    if not config_path.is_absolute():
-        config_path = Path.cwd() / config_path
-    if not config_path.is_file():
-        print(json.dumps({"ok": False, "error": f"Config file not found: {config_path}"}, ensure_ascii=False))
+    workspace_dir = _resolve_workspace_dir()
+    config_path, candidates = _resolve_config_path(args.config, workspace_dir)
+    if config_path is None:
+        checked_paths = ", ".join(str(path) for path in candidates)
+        print(json.dumps({
+            "ok": False,
+            "error": f"Config file not found. Checked: {checked_paths}",
+        }, ensure_ascii=False))
         return 1
 
     try:
@@ -166,8 +183,24 @@ def main() -> int:
         print(json.dumps({"ok": False, "error": f"Missing required fields: {missing}"}, ensure_ascii=False))
         return 1
 
-    project_root = get_project_root()
-    ws_dir = project_root / ".workspace" / ".magic"
+    skill_decision = str(cfg["skill_decomposition_decision"]).strip().lower()
+    if skill_decision not in VALID_SKILL_DECOMPOSITION_DECISIONS:
+        print(json.dumps({
+            "ok": False,
+            "error": "skill_decomposition_decision must be an explicit 'yes' or 'no'.",
+        }, ensure_ascii=False))
+        return 1
+
+    invalid_crew_instruction_sections = _validate_crew_instructions(str(cfg["instructions"]))
+    if invalid_crew_instruction_sections:
+        print(json.dumps({
+            "ok": False,
+            "error": "AGENTS.md instructions must contain at least two executable ordered steps.",
+            "missing_sections": invalid_crew_instruction_sections,
+        }, ensure_ascii=False))
+        return 1
+
+    ws_dir = workspace_dir / ".magic"
 
     identity_path = ws_dir / "IDENTITY.md"
     if identity_path.exists() and not args.overwrite:
@@ -180,12 +213,12 @@ def main() -> int:
     ws_dir.mkdir(parents=True, exist_ok=True)
     created: list[str] = []
 
-    identity_path.write_text(_build_identity(cfg), encoding="utf-8")
+    identity_path.write_text(_build_identity(cfg, workspace_dir), encoding="utf-8")
     created.append("IDENTITY.md")
 
-    agents_content = _build_agents(cfg)
-    if agents_content:
-        (ws_dir / "AGENTS.md").write_text(agents_content, encoding="utf-8")
+    crew_instructions = _build_crew_instructions(cfg)
+    if crew_instructions:
+        (ws_dir / "AGENTS.md").write_text(crew_instructions, encoding="utf-8")
         created.append("AGENTS.md")
 
     soul_content = _build_soul(cfg)
@@ -193,14 +226,12 @@ def main() -> int:
         (ws_dir / "SOUL.md").write_text(soul_content, encoding="utf-8")
         created.append("SOUL.md")
 
-    multilingual = _has_translations(cfg)
-    mode = "multilingual" if multilingual else "single-language"
     print(json.dumps({
         "ok": True,
         "workspace": str(ws_dir),
-        "mode": mode,
+        "mode": "single-language",
         "files_created": created,
-        "message": f"Employee '{cfg['name']}' ({cfg['role']}) initialized with {len(created)} file(s) in {mode} mode.",
+        "message": f"Employee '{cfg['name']}' ({cfg['role']}) initialized with {len(created)} file(s) in single-language mode.",
     }, ensure_ascii=False))
     return 0
 

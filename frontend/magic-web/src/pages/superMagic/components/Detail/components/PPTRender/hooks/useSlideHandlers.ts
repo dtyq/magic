@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import type { PPTStore } from "../stores/PPTStore"
 
@@ -7,10 +8,16 @@ interface UseSlideHandlers {
 	setIsSidebarCollapsed: (collapsed: boolean) => void
 }
 
+export interface RefreshAllProgress {
+	done: number
+	total: number
+}
+
 interface UseSlideHandlersReturn {
 	handleEditModeChange: (fileId: string, isEditing: boolean) => void
 	handleRefreshSlide: (index: number) => Promise<void>
 	handleRefreshAllSlides: () => Promise<void>
+	refreshAllProgress: RefreshAllProgress | null
 	handleRegenerateScreenshot: (index: number) => Promise<void>
 	handleSidebarCollapsedChange: (collapsed: boolean) => void
 }
@@ -24,6 +31,8 @@ export function useSlideHandlers({
 	setIsAnySlideEditing,
 	setIsSidebarCollapsed,
 }: UseSlideHandlers): UseSlideHandlersReturn {
+	const [refreshAllProgress, setRefreshAllProgress] = useState<RefreshAllProgress | null>(null)
+
 	const handleEditModeChange = useMemoizedFn((fileId: string, isEditing: boolean) => {
 		// 更新全局编辑标志和 store 中特定幻灯片的编辑状态
 		setIsAnySlideEditing(isEditing)
@@ -45,7 +54,7 @@ export function useSlideHandlers({
 
 		try {
 			// 通过文件 ID 刷新幻灯片（获取最新 URL 并重新加载内容）
-			await store.refreshSlideByFileId(fileId)
+			await store.refreshSlideByFileId(fileId, "refresh")
 		} catch (error) {
 			console.error("Failed to refresh slide content:", error)
 			throw error
@@ -53,7 +62,7 @@ export function useSlideHandlers({
 	})
 
 	const handleRefreshAllSlides = useMemoizedFn(async () => {
-		if (store.isTransitioning) return
+		if (store.isTransitioning || refreshAllProgress) return
 
 		// Phase 1: Refresh slides that have a known fileId
 		const fileIds = [
@@ -66,16 +75,28 @@ export function useSlideHandlers({
 			),
 		]
 
-		await Promise.all(
-			fileIds.map(async (fileId) => {
-				try {
-					await store.refreshSlideByFileId(fileId)
-				} catch (error) {
-					console.error("Failed to refresh slide content:", fileId, error)
-				}
-			}),
-		)
+		setRefreshAllProgress({ done: 0, total: fileIds.length })
+		try {
+			await Promise.all(
+				fileIds.map(async (fileId) => {
+					try {
+						await store.refreshSlideByFileId(fileId, "refresh")
+					} catch (error) {
+						console.error("Failed to refresh slide content:", fileId, error)
+					} finally {
+						setRefreshAllProgress((prev) =>
+							prev ? { ...prev, done: prev.done + 1 } : prev,
+						)
+					}
+				}),
+			)
+			await retryPendingSlides()
+		} finally {
+			setRefreshAllProgress(null)
+		}
+	})
 
+	async function retryPendingSlides() {
 		// Phase 2: Retry slides that are in error/idle state (file may have been generated since)
 		const pendingSlides = store.slides.filter(
 			(slide) =>
@@ -98,14 +119,14 @@ export function useSlideHandlers({
 					const fileId = store.getFileIdByPath(slide.path)
 					if (!fileId) return
 					try {
-						await store.refreshSlideByFileId(fileId)
+						await store.refreshSlideByFileId(fileId, "refresh")
 					} catch (error) {
 						// Silently ignore - file may still not be ready
 					}
 				}),
 			)
 		}
-	})
+	}
 
 	const handleRegenerateScreenshot = useMemoizedFn(async (index: number) => {
 		const slide = store.slides[index]
@@ -117,7 +138,7 @@ export function useSlideHandlers({
 		try {
 			// 清除旧缓存后重新生成截图
 			store.clearSlideScreenshot(index)
-			await store.generateSlideScreenshot(index)
+			await store.generateSlideScreenshot(index, undefined, "required", "refresh")
 		} catch (error) {
 			console.error("Failed to regenerate screenshot:", error)
 			throw error
@@ -132,6 +153,7 @@ export function useSlideHandlers({
 		handleEditModeChange,
 		handleRefreshSlide,
 		handleRefreshAllSlides,
+		refreshAllProgress,
 		handleRegenerateScreenshot,
 		handleSidebarCollapsedChange,
 	}

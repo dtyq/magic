@@ -33,6 +33,24 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         return new TaskMessageEntity($record->toArray());
     }
 
+    /**
+     * @param int[] $ids
+     * @return TaskMessageEntity[]
+     */
+    public function getByIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->model::query()
+            ->whereIn('id', $ids)
+            ->get()
+            ->map(static fn ($record): TaskMessageEntity => new TaskMessageEntity($record->toArray()))
+            ->all();
+    }
+
     public function save(TaskMessageEntity $message): void
     {
         $this->model::query()->create($message->toArray());
@@ -47,59 +65,25 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->insert($data);
     }
 
-    public function findByTaskId(string $taskId): array
+    public function findCompletedResultMessages(int $topicId, int $taskId): array
     {
         $query = $this->model::query()
-            ->where('task_id', $taskId)
-            ->orderBy('send_timestamp', 'asc');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
-    }
-
-    /**
-     * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
-     * @return TaskMessageEntity[]
-     */
-    public function findUserMessagesByTopicIdAndTaskId(int $topicId, string $taskId): array
-    {
-        $query = $this->model::query()
+            ->select([
+                'id',
+                'event',
+                'raw_content',
+                'attachments',
+            ])
             ->where('topic_id', $topicId)
-            ->where('task_id', $taskId)
-            ->where('sender_type', 'user')
-            ->orderBy('id');
+            ->where('task_id', (string) $taskId)
+            ->where('sender_type', 'assistant')
+            ->where('processing_status', TaskMessageModel::PROCESSING_STATUS_COMPLETED)
+            ->whereIn('event', ['after_agent_reply', 'after_main_agent_run'])
+            ->orderBy('id', 'asc');
 
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
-    }
-
-    /**
-     * @return TaskMessageEntity[]
-     */
-    public function findFollowUpContextMessages(int $topicId, int $roundLimit): array
-    {
-        if ($topicId <= 0) {
-            return [];
-        }
-
-        $roundLimit = max(1, $roundLimit);
-        $boundaryQuestion = $this->findFollowUpBoundaryQuestion($topicId, $roundLimit);
-        if ($boundaryQuestion === null) {
-            $candidateMessages = $this->findFollowUpCandidateMessages($topicId, null);
-        } else {
-            $candidateMessages = $this->findFollowUpCandidateMessages($topicId, $boundaryQuestion->getSendTimestamp());
-        }
-        if ($candidateMessages === []) {
-            return [];
-        }
-
-        return $candidateMessages;
+        return $query->get()
+            ->map(static fn (TaskMessageModel $record): TaskMessageEntity => new TaskMessageEntity($record->toArray()))
+            ->all();
     }
 
     /**
@@ -124,7 +108,9 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
 
         // 如果 $showInUi 为 true，则添加条件过滤
         if ($showInUi) {
-            $query->where('show_in_ui', true);
+            $query->where('show_in_ui', true)
+                // Optimizer picks PRIMARY or idx_topic_message for ORDER BY id. This index matches the filter.
+                ->forceIndex('idx_topic_show_deleted_id');
         }
 
         $query->orderBy('id', $sortDirection);
@@ -141,39 +127,48 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         // 执行查询
         $records = $query->get();
 
-        // 将查询结果转换为实体对象
-        $messages = [];
-        $imSeqIds = [];
-        foreach ($records as $record) {
-            // toArray() 会自动应用 casts 转换
-            $entity = new TaskMessageEntity($record->toArray());
-            $messages[] = $entity;
-
-            // 收集 im_seq_id 用于批量查询 im_status
-            if ($entity->getImSeqId() !== null) {
-                $imSeqIds[$entity->getImSeqId()] = $entity->getImSeqId();
-            }
-        }
-
-        // 批量查询 im_status
-        if (! empty($imSeqIds)) {
-            $imStatusMap = Db::table('magic_chat_sequences')
-                ->whereIn('id', array_values($imSeqIds))
-                ->pluck('status', 'id')
-                ->toArray();
-
-            // 将 im_status 设置到对应的实体中
-            foreach ($messages as $message) {
-                if ($message->getImSeqId() !== null && isset($imStatusMap[$message->getImSeqId()])) {
-                    $message->setImStatus((int) $imStatusMap[$message->getImSeqId()]);
-                }
-            }
-        }
+        $messages = $this->hydrateMessages($records);
 
         // 返回结构化结果
         return [
             'list' => $messages,
             'total' => $total,
+        ];
+    }
+
+    /**
+     * Find messages using keyset pagination.
+     *
+     * @return array{list: TaskMessageEntity[], has_more: bool, next_cursor: ?string}
+     */
+    public function findByTopicIdAfterId(int $topicId, ?int $afterId = null, int $limit = 20, bool $showInUi = true): array
+    {
+        $limit = max(1, min($limit, 100));
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->when($showInUi, static fn ($query) => $query->where('show_in_ui', true)
+                // Optimizer picks PRIMARY for id > cursor ORDER BY id. This index matches the filter.
+                ->forceIndex('idx_topic_show_deleted_id'))
+            ->orderBy('id', 'asc')
+            ->limit($limit + 1);
+
+        if ($afterId !== null) {
+            $query->where('id', '>', $afterId);
+        }
+
+        $records = $query->get();
+        $hasMore = $records->count() > $limit;
+        if ($hasMore) {
+            $records = $records->slice(0, $limit)->values();
+        }
+
+        $messages = $this->hydrateMessages($records);
+        $lastMessage = $messages === [] ? null : $messages[array_key_last($messages)];
+
+        return [
+            'list' => $messages,
+            'has_more' => $hasMore,
+            'next_cursor' => $hasMore && $lastMessage !== null ? (string) $lastMessage->getId() : null,
         ];
     }
 
@@ -191,22 +186,6 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             return null;
         }
         return new TaskMessageEntity($record->toArray());
-    }
-
-    public function findPendingMessagesByTopicId(int $topicId, string $processingStatus, string $senderType = 'assistant', int $limit = 50): array
-    {
-        $query = $this->model::query()
-            ->where('topic_id', $topicId)
-            ->where('processing_status', $processingStatus)
-            ->where('sender_type', $senderType)
-            ->orderBy('seq_id', 'asc')
-            ->limit($limit);
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
     }
 
     public function updateProcessingStatus(int $id, string $processingStatus, ?string $errorMessage = null, int $retryCount = 0): void
@@ -247,7 +226,8 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         // 利用降序索引直接获取最大 seq_id，配合 ORDER BY seq_id DESC
         $maxSeqId = $this->model::query()
             ->where('topic_id', $topicId)
-            ->where('task_id', $taskId)
+            // task_id is varchar: bind as string, otherwise MySQL casts the column to double and the index cannot be used
+            ->where('task_id', (string) $taskId)
             ->orderByDesc('seq_id')
             ->value('seq_id');
 
@@ -279,7 +259,8 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $query = $this->model::query()
             ->where('seq_id', $seqId)
             ->where('topic_id', $topicId)
-            ->where('task_id', $taskId)
+            // task_id is varchar: bind as string to keep the index usable
+            ->where('task_id', (string) $taskId)
             ->first();
 
         if (! $query) {
@@ -351,7 +332,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ]);
 
         if ($taskId > 0) {
-            $query = $query->where('task_id', $taskId);
+            $query = $query->where('task_id', (string) $taskId);
         }
 
         $query->orderBy('seq_id', 'asc')->limit($limit * 2); // 适当放大limit，因为要在代码中过滤
@@ -511,6 +492,38 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     }
 
     /**
+     * Convert message records and hydrate IM status in one batch.
+     *
+     * @return TaskMessageEntity[]
+     */
+    private function hydrateMessages(iterable $records): array
+    {
+        $messages = [];
+        $imSeqIds = [];
+        foreach ($records as $record) {
+            $entity = new TaskMessageEntity($record->toArray());
+            $messages[] = $entity;
+            if ($entity->getImSeqId() !== null) {
+                $imSeqIds[$entity->getImSeqId()] = $entity->getImSeqId();
+            }
+        }
+
+        if (! empty($imSeqIds)) {
+            $imStatusMap = Db::table('magic_chat_sequences')
+                ->whereIn('id', array_values($imSeqIds))
+                ->pluck('status', 'id')
+                ->toArray();
+            foreach ($messages as $message) {
+                if ($message->getImSeqId() !== null && isset($imStatusMap[$message->getImSeqId()])) {
+                    $message->setImStatus((int) $imStatusMap[$message->getImSeqId()]);
+                }
+            }
+        }
+
+        return $messages;
+    }
+
+    /**
      * `insert()` 不会自动维护时间戳，这里统一补齐消息表需要的 created_at/updated_at。
      */
     private function withTimestamps(array $payload): array
@@ -578,53 +591,5 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
                 TaskStatus::FINISHED->value,
                 TaskStatus::ERROR->value,
             ]);
-    }
-
-    private function findFollowUpBoundaryQuestion(int $topicId, int $roundLimit): ?TaskMessageEntity
-    {
-        $offset = max(0, $roundLimit - 1);
-        $record = $this->model::query()
-            ->where('topic_id', $topicId)
-            ->where(function ($query) {
-                $query->whereNull('event')
-                    ->orWhere('event', '');
-            })
-            ->orderByDesc('send_timestamp')
-            ->orderByDesc('seq_id')
-            ->offset($offset)
-            ->limit(1)
-            ->first();
-
-        return $record === null ? null : new TaskMessageEntity($record->toArray());
-    }
-
-    /**
-     * @return TaskMessageEntity[]
-     */
-    private function findFollowUpCandidateMessages(int $topicId, ?int $boundaryTimestamp): array
-    {
-        $query = $this->model::query()
-            ->where('topic_id', $topicId)
-            ->where(function ($query) {
-                $query->whereNull('event')
-                    ->orWhere('event', '')
-                    ->orWhere('event', 'after_agent_reply');
-            });
-        if ($boundaryTimestamp !== null) {
-            $query->where('send_timestamp', '>=', $boundaryTimestamp);
-        }
-
-        $records = $query
-            ->orderBy('send_timestamp')
-            ->orderBy('seq_id')
-            ->orderBy('id')
-            ->get();
-
-        $messages = [];
-        foreach ($records as $record) {
-            $messages[] = new TaskMessageEntity($record->toArray());
-        }
-
-        return $messages;
     }
 }

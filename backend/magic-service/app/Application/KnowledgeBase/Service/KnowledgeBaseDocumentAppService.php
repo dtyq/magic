@@ -103,12 +103,13 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     ): void {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->documentAppClient->reVectorizedByThirdFileId(DocumentRequestDTO::forReVectorizedByThirdFileId(
+        $request = DocumentRequestDTO::forReVectorizedByThirdFileId(
             $thirdPlatformType,
             $thirdFileId,
             $context->dataIsolation(),
             $thirdKnowledgeId,
-        ));
+        );
+        di(ThirdFileRevectorizeCooldownAppService::class)->notify($request);
     }
 
     public function showRaw(

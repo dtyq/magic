@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { IconGripVertical, IconPhoto } from "@tabler/icons-react"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import type { SortableSlideItemProps } from "./types"
 
 /**
@@ -64,7 +64,7 @@ export function SortableSlideItem({ slide, index, screenshot }: SortableSlideIte
 				"group relative flex items-center gap-2.5 rounded-md border border-border bg-background p-2 transition-all duration-200 ease-out",
 				"hover:border-primary/30 hover:bg-accent/30 hover:shadow-sm",
 				isDragging &&
-				"z-50 scale-105 cursor-grabbing border-primary/50 bg-background shadow-lg ring-2 ring-primary/20",
+					"z-50 scale-105 cursor-grabbing border-primary/50 bg-background shadow-lg ring-2 ring-primary/20",
 				!isDragging && "shadow-none",
 			)}
 		>

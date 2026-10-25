@@ -106,6 +106,11 @@ class AttachmentsProcessedEventSubscriber implements ListenerInterface
      */
     private function handleAttachmentsProcessed(AttachmentsProcessedEvent $event): void
     {
+        $parentFile = $this->taskFileDomainService->getById($event->parentFileId);
+        if ($parentFile === null || ! $this->taskFileDomainService->isProjectSpaceFile($parentFile)) {
+            return;
+        }
+
         $this->logger->info('Handling AttachmentsProcessedEvent', [
             'parent_file_id' => $event->parentFileId,
             'project_id' => $event->projectId,
@@ -136,7 +141,8 @@ class AttachmentsProcessedEventSubscriber implements ListenerInterface
      */
     private function handleFileEvent(TaskFileEntity $fileEntity): void
     {
-        if (! ProjectFileConstant::isSetMetadataFile($fileEntity->getFileName())) {
+        if (! $this->taskFileDomainService->isProjectSpaceFile($fileEntity)
+            || ! ProjectFileConstant::isSetMetadataFile($fileEntity->getFileName())) {
             return;
         }
 
@@ -177,7 +183,8 @@ class AttachmentsProcessedEventSubscriber implements ListenerInterface
     {
         $fileEntity = $event->getFileEntity();
 
-        if (! ProjectFileConstant::isSetMetadataFile($fileEntity->getFileName())) {
+        if (! $this->taskFileDomainService->isProjectSpaceFile($fileEntity)
+            || ! ProjectFileConstant::isSetMetadataFile($fileEntity->getFileName())) {
             return;
         }
 

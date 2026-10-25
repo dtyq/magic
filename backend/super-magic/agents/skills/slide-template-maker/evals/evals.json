@@ -1,0 +1,90 @@
+{
+  "skill_name": "slide-template-maker",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我上传了一个 brand-template.pptx，帮我转成可复用的 PPT 模板。",
+      "expected_output": "Load slide-template-maker. Skip the shape intake because reusable is already specified. If the source has images and the user did not specify asset strategy, call ask_user once before create_slide_template_project with a recommended keep-usable-images default. Do not call convert_pptx_to_slide_template, pptx-to-html, or any legacy template converter. Call query_slide_template_taxonomy once, print every group's tags from result.data in that same snippet, and pick exact category_code and tag_codes by the source's audience, purpose, and visuals rather than keyword search, then call create_slide_template_project with a semantic SLIDE- base ID and bilingual labels, and use the returned unique template_id/template_directory for all later calls. The generated folder name should use the Chinese or English localized label selected by the language tag, contain no random ID suffix, and not change template.json. Then call prepare_slide_template_source with template_dir and source_presentation only; it renders the pages itself, so do not call convert_document_format or write document-converter-output in the workspace. Call review_slide_template_source for recommended_review_indexes in batches of up to 6, then select_slide_template_source_assets with complete decision objects using public ids such as asset-01. Author a clean semantic template directory with visual-spec.md, theme.css, images/, and semantic slides/*.html. Finally call finalize_slide_template to create previews/ and template-assets.json in the same directory, then compare previews with the source. Create no ZIP or slide-templates/ prefix."
+    },
+    {
+      "id": 2,
+      "prompt": "把这个旧版 .ppt 文件做成模板，尽量保留它的水墨风格。",
+      "expected_output": "Load slide-template-maker. Skip the shape intake because keeping the ink style already implies visual-system reconstruction, not page-by-page copying. If asset strategy is missing, call ask_user once before create with a recommended keep-usable-images default. Create the project first, then convert the legacy PPT to PPTX through document-converter so it can be read as OOXML, call prepare_slide_template_source with that presentation and let it render the pages, call review_slide_template_source for recommended pages in batches, reconstruct the ink visual system from scratch, set source.kind=derived and source.method=visual-reconstruction, and avoid converter HTML or full-slide screenshots."
+    },
+    {
+      "id": 3,
+      "prompt": "参考这三张截图，制作一套医疗培训 PPT 模板。",
+      "expected_output": "Load slide-template-maker and the image workflow. Analyze palette, typography, layout language, components, density, and image treatment with visual_understanding, classify as healthcare when appropriate, and create an original semantic template without treating screenshots as reusable slide images. Set source.method=image-rebuild. After authoring, always call finalize_slide_template so previews/ and template-assets.json exist. Do not skip finalize because the source is not PPTX."
+    },
+    {
+      "id": 4,
+      "prompt": "做一套黑金、杂志排版、大标题压迫感的公司战略模板。",
+      "expected_output": "Load slide-template-maker and the text-brief workflow. Skip shape and asset intake because the brief already specifies the look and there is no source deck. Create a scene-specific 8-15 page inventory, call create_slide_template_project, then author visual-spec.md, theme.css, and varied semantic slides in template_dir. Call finalize_slide_template to create previews/ and template-assets.json. Output only <semantic-template-name>/ and no ZIP."
+    },
+    {
+      "id": 5,
+      "prompt": "把这个 HTML 演示页面整理成可复用的模板。",
+      "expected_output": "Load slide-template-maker and the HTML workflow. Inspect source HTML/CSS/assets, source canvas dimensions, and representative rendered pages; preserve the source aspect ratio while rebuilding independent fixed-canvas semantic template pages. Set source.method=html-import. Do not call prepare_slide_template_source. After authoring, always call finalize_slide_template so previews/ and template-assets.json exist."
+    },
+    {
+      "id": 6,
+      "prompt": "从这个包含 magic.project.js 的幻灯片项目中提取模板。",
+      "expected_output": "Load slide-template-maker and project-template-workflow. Treat the Super Magic HTML project as a source, not a blocked format. Do not modify the source project. Do not call prepare_slide_template_source, review_slide_template_source, or select_slide_template_source_assets. Create with source.method=project-extract, group repeated layouts, sanitize content, author the standalone template, then always call finalize_slide_template. Finalize renders authored HTML into previews/ and does not require PPTX, OOXML, or source analysis. Output <semantic-template-name>/ with previews/ and template-assets.json, without magic.project.js, index.html, slide-bridge.js, or ZIP. Do not tell the user finalization is impossible because the source is HTML."
+    },
+    {
+      "id": 7,
+      "prompt": "源 PPT 里有客户 Logo、真人照片、二维码和内部后台截图，做模板时都保留。",
+      "expected_output": "Load slide-template-maker. Use ask_user before keeping ambiguous sensitive assets, recommend neutral replacement, and keep originals only after explicit confirmation. Unanswered items must not be retained."
+    },
+    {
+      "id": 8,
+      "prompt": "输出目录已经有同名模板了，直接覆盖。",
+      "expected_output": "Load slide-template-maker. Do not overwrite automatically. Ask whether the user intends an update to the existing template or wants a new semantic template ID, then follow the chosen path."
+    },
+    {
+      "id": 9,
+      "prompt": "先给我看看平台里有哪些 PPT 模板可以选。",
+      "expected_output": "Do not use slide-template-maker. Load slide-template for platform template browsing, selection, installation, and application."
+    },
+    {
+      "id": 10,
+      "prompt": "模板做好后帮我直接打成 ZIP。",
+      "expected_output": "Load slide-template-maker and follow its no-ZIP project contract. Keep source files, previews/, and template-assets.json under the same <semantic-template-name>/ directory; explain that the skill does not create a ZIP."
+    },
+    {
+      "id": 11,
+      "prompt": "做一套中文读书分享模板，页面文件名也使用中文。",
+      "expected_output": "Load slide-template-maker. Use concise Chinese semantic slide filenames such as slides/封面.html and slides/目录.html when appropriate, while keeping template.json slides[].layout values in stable lowercase kebab-case."
+    },
+    {
+      "id": 12,
+      "prompt": "源 PPT 里有几张插画和照片，其中一张低清、两张与版式无关。尽量保留有价值的原始素材，但不要把没用到的图片放进模板。",
+      "expected_output": "Load slide-template-maker. Prepare the rendered pages and PPTX structure, call review_slide_template_source for recommended pages, classify asset_type and quality, and call select_slide_template_source_assets with complete decision objects using public ids such as asset-01. Send 1-8 complete objects per call, not catalog ids or empty dicts, and repeat until pending_count is 0. Reuse only high-quality or acceptable assets that materially preserve the source visual identity and are referenced by final HTML/CSS; discard low-quality, irrelevant, redundant, sensitive, or layout-damaging assets. Do not emulate source analysis or copy converter-extracted filenames into the catalog. Finalize only after the selected files are actually used and no extra files remain under images/source-assets/."
+    },
+    {
+      "id": 13,
+      "prompt": "把这个 PPT 做成模板。",
+      "expected_output": "Load slide-template-maker. Before create_slide_template_project, call ask_user once for missing shape and asset strategy, in the user's language. Recommend reusable 8-15 pages plus keep-usable-source-images, with defaults so skip or timeout can continue. Do not open, convert, or render the deck before asking, do not put ask_user inside Code Mode, and do not use converter HTML or full-slide screenshots as finished pages. After intake, create the project, then prepare with source_presentation so the tool renders the pages, review, select complete decision objects, author semantic HTML, and finalize."
+    },
+    {
+      "id": 14,
+      "prompt": "这个 PPT 封面和章节页是深色的，中间的内容页是浅色的，帮我做成模板。",
+      "expected_output": "Load slide-template-maker. Read the background map returned by prepare_slide_template_source and review every index in recommended_review_indexes, which already includes one page per background scheme. Define one surface class per scheme in theme.css, each pairing a background with its own foreground, muted-text, border, and accent tokens, and apply the matching surface class on each slide's slide-container root so covers and dividers stay dark while content pages stay light. Do not hard-code a single body background and do not reconstruct the whole deck in one tone. Record the surface inventory in visual-spec.md, and before reporting completion compare the generated previews with the rendered source pages so the light and dark sequence matches."
+    },
+    {
+      "id": 15,
+      "prompt": "做出来的模板看着跟原稿不像，标题都居中了，正文也特别小。",
+      "expected_output": "Load slide-template-maker. Treat this as a fidelity failure, not a styling preference. Use the composition and typography percentages reported by review_slide_template_source: apply the measured margins, alignment axis, column count, and block proportions instead of centering, and convert the reported percentage-of-canvas-height type sizes into px against the declared canvas, keeping body text at or above 1.8% of canvas height. Re-review any source page whose geometry is unknown rather than assuming a default, then finalize and compare each preview against its source page for background, margins, alignment, title placement, type scale, and accent color."
+    },
+    {
+      "id": 16,
+      "prompt": "页面 HTML 已经写好了，但 finalize 失败，previews 文件夹也没有生成。这套模板算做完了吗？",
+      "expected_output": "Load slide-template-maker. Treat the task as blocked, not complete. Do not tell the user the template is finished. Name the blocker as finalize_slide_template failure or missing previews/, list remaining steps including capturing thumbnail, collage, and one preview per slide, and report what already exists so the user can continue."
+    },
+    {
+      "id": 17,
+      "prompt": "从这个 Super Magic PPT 项目提取模板。原始文件是 HTML 项目不是 PPTX，finalize_slide_template 是不是没法跑？预览图是不是也做不了？",
+      "expected_output": "Load slide-template-maker and project-template-workflow. Treat the Super Magic project as a source, not a blocked format. Do not call prepare_slide_template_source. Set source.method=project-extract, author the standalone template, then always call finalize_slide_template. Finalize renders authored HTML into previews/ and does not require PPTX, OOXML, or source analysis. Do not tell the user finalization or preview generation is impossible because the source is HTML."
+    }
+  ]
+}

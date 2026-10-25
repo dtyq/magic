@@ -49,7 +49,7 @@ vi.mock("react-i18next", async (importOriginal) => {
 	}
 })
 
-vi.mock("@tiptap/react", () => ({
+vi.mock("@/infrastructure/editors/tiptap/react", () => ({
 	useEditor: vi.fn(() => ({
 		getText: vi.fn(() => ""),
 		isEmpty: true,

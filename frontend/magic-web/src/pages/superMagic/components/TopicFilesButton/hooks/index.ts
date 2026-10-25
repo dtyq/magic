@@ -47,6 +47,8 @@ export {
 	isNodeSelected,
 } from "./fileSelectionUtils"
 
+export { useCopyFileSelector } from "./useCopyFileSelector"
+
 export type {
 	AttachmentItem,
 	FolderItem,

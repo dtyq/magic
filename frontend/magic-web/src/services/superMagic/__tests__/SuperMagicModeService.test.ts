@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { IconType } from "@/pages/superMagic/components/AgentSelector/types"
-import { MODEL_TYPE_IMAGE, MODEL_TYPE_LLM } from "@/apis/modules/org-ai-model-provider"
+import {
+	MODEL_TYPE_IMAGE,
+	MODEL_TYPE_LLM,
+	MODEL_TYPE_VIDEO,
+} from "@/apis/modules/org-ai-model-provider"
 import type { ModeItem } from "@/pages/superMagic/pages/Workspace/types"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
@@ -74,11 +78,15 @@ vi.mock("../SuperMagicCustomModelService", () => ({
 			model_icon: model.icon ?? "",
 			model_status: ModelStatusEnum.Normal,
 			sort: 0,
+			...(model.video_generation_config
+				? { video_generation_config: model.video_generation_config }
+				: {}),
 		})),
 	},
 }))
 
 import superMagicModeService from "../SuperMagicModeService"
+import superMagicModeListRepository from "../repositories/SuperMagicModeListRepository"
 import superMagicCustomModelService from "../SuperMagicCustomModelService"
 import { SuperMagicApi } from "@/apis"
 import { userStore } from "@/models/user"
@@ -396,6 +404,46 @@ describe("SuperMagicModeService", () => {
 
 		expect(resolved?.id).toBe("custom-image-1")
 		expect(resolved?.model_name).toBe("Custom Shared Image Model")
+	})
+
+	it("prefers custom video model over official video model", async () => {
+		const videoGenerationConfig = {
+			supported_inputs: ["text_prompt", "image"],
+			generation: {
+				aspect_ratios: ["16:9"],
+				resolutions: ["720p"],
+				durations: [5],
+			},
+		}
+		vi.mocked(superMagicCustomModelService.findMyModelById).mockResolvedValue({
+			id: "custom-video-1",
+			name: "Custom Shared Video Model",
+			model_id: "shared-video-model",
+			model_type: MODEL_TYPE_VIDEO,
+			category: "vgm",
+			service_provider_config_id: "provider-3",
+			service_provider_config: {
+				id: "provider-3",
+				name: "Custom Video Provider",
+			},
+			description: "Custom video description",
+			icon: "custom-video-icon",
+			video_generation_config: videoGenerationConfig,
+		})
+
+		const resolved = await superMagicModeService.resolveModelByMode({
+			mode: "general",
+			modelId: "shared-video-model",
+			modelType: "video",
+		})
+
+		expect(superMagicCustomModelService.findMyModelById).toHaveBeenCalledWith({
+			modelId: "shared-video-model",
+			modelType: MODEL_TYPE_VIDEO,
+		})
+		expect(resolved?.id).toBe("custom-video-1")
+		expect(resolved?.model_name).toBe("Custom Shared Video Model")
+		expect(resolved?.video_generation_config).toEqual(videoGenerationConfig)
 	})
 
 	it("uses default model groups to organize all supported image and video models", () => {
@@ -730,6 +778,12 @@ describe("SuperMagicModeService", () => {
 		expect(superMagicModeService.isModeVisible("hidden-agent")).toBe(false)
 	})
 
+	it("keeps the internal micro-app mode available without a crew-list entry", () => {
+		superMagicModeService._modeMap.clear()
+
+		expect(superMagicModeService.isModeValid(TopicMode.MicroApp)).toBe(true)
+	})
+
 	it("reuses fresh mode list in the same user context", async () => {
 		vi.mocked(SuperMagicApi.getCrewList).mockResolvedValue({
 			list: [
@@ -960,6 +1014,134 @@ describe("SuperMagicModeService", () => {
 
 		expect(SuperMagicApi.getDefaultModeModelList).toHaveBeenCalledTimes(1)
 	})
+
+	it.each(["cached", "missing", "invalid", "storage-error"])(
+		"keeps the micro-app model catalog when %s crew cache hydration finishes later",
+		async (cacheState) => {
+			const cachedCrewList = createCrewList("general").list
+			const pendingCache = createDeferred<ModeItem[] | undefined>()
+			if (cacheState === "invalid") {
+				window.localStorage.setItem(createModeListStorageKey("zh_CN"), "{}")
+			}
+			if (cacheState === "storage-error") {
+				vi.mocked(superMagicModeListRepository.getByKey).mockImplementationOnce(
+					async () => {
+						await pendingCache.promise
+						throw new Error("Cache unavailable")
+					},
+				)
+			} else {
+				vi.mocked(superMagicModeListRepository.getByKey).mockReturnValueOnce(
+					pendingCache.promise,
+				)
+			}
+			const model = createModelItem({
+				id: "default-1",
+				modelId: "default-model",
+				name: "Default Model",
+			})
+			const group = superMagicModeService._modeMap.get("general")?.groups[0].group
+			if (!group) throw new Error("Missing model group fixture")
+			vi.mocked(SuperMagicApi.getDefaultModeModelList).mockResolvedValue({
+				...createModeItem(TopicMode.Default),
+				groups: [
+					{
+						group,
+						model_ids: [model.model_id],
+						image_model_ids: [model.model_id],
+						video_model_ids: [model.model_id],
+					},
+				],
+				models: { [model.model_id]: model },
+			})
+			vi.mocked(SuperMagicApi.getCrewList).mockResolvedValue(createCrewList("general"))
+
+			// Page mount loads default models independently of the slower crew cache read.
+			const hydration = superMagicModeService.hydrateFromStorage()
+			await flushPendingBootstrap()
+			await superMagicModeService.fetchDefaultModeModelList({ force: true })
+			expect(superMagicModeService.getModelListByMode(TopicMode.Default)).toEqual([model])
+
+			pendingCache.resolve(cacheState === "cached" ? cachedCrewList : undefined)
+			await hydration
+			await superMagicModeService.fetchModeList()
+			await superMagicModeService.fetchDefaultModeModelList()
+
+			// A fresh default response must remain reachable by the editor after hydration.
+			expect(superMagicModeService.getModelListByMode(TopicMode.Default)).toEqual([model])
+			expect(superMagicModeService.getImageModelListByMode(TopicMode.Default)).toEqual([
+				model,
+			])
+			expect(superMagicModeService.getVideoModelListByMode(TopicMode.Default)).toEqual([
+				model,
+			])
+			expect(SuperMagicApi.getDefaultModeModelList).toHaveBeenCalledTimes(1)
+		},
+	)
+
+	it.each(["language", "organization", "user"])(
+		"does not retain the previous default catalog after a %s change",
+		async (contextField) => {
+			vi.mocked(SuperMagicApi.getDefaultModeModelList).mockResolvedValue({
+				...createModeItem(TopicMode.Default),
+				groups: [],
+				models: {},
+			})
+			await superMagicModeService.fetchDefaultModeModelList()
+			expect(superMagicModeService._modeMap.has(TopicMode.Default)).toBe(true)
+
+			if (contextField === "language") configStore.i18n.displayLanguage = "en_US"
+			if (contextField === "organization") userStore.user.organizationCode = "other-org"
+			if (contextField === "user") {
+				if (!userStore.user.userInfo) throw new Error("Missing user fixture")
+				userStore.user.userInfo.user_id = "other-user"
+			}
+			await superMagicModeService.hydrateFromStorage()
+
+			expect(superMagicModeService._modeMap.has(TopicMode.Default)).toBe(false)
+		},
+	)
+
+	it("refetches default models after returning to a previous context", async () => {
+		vi.mocked(SuperMagicApi.getDefaultModeModelList).mockResolvedValue({
+			...createModeItem(TopicMode.Default),
+			groups: [],
+			models: {},
+		})
+		await superMagicModeService.fetchDefaultModeModelList()
+		configStore.i18n.displayLanguage = "en_US"
+		await superMagicModeService.hydrateFromStorage()
+		configStore.i18n.displayLanguage = "zh_CN"
+		await superMagicModeService.hydrateFromStorage()
+		await superMagicModeService.fetchDefaultModeModelList()
+
+		expect(SuperMagicApi.getDefaultModeModelList).toHaveBeenCalledTimes(2)
+		expect(superMagicModeService._modeMap.has(TopicMode.Default)).toBe(true)
+	})
+
+	it.each(["resolved", "rejected"])(
+		"ignores a %s cache read from the previous context",
+		async (result) => {
+			const pendingCache = createDeferred<ModeItem[] | undefined>()
+			vi.mocked(superMagicModeListRepository.getByKey).mockImplementationOnce(async () => {
+				await pendingCache.promise
+				if (result === "rejected") throw new Error("Old cache unavailable")
+				return createCrewList("old-crew").list
+			})
+			const hydration = superMagicModeService.hydrateFromStorage()
+			await flushPendingBootstrap()
+			configStore.i18n.displayLanguage = "en_US"
+			mockModeListStore.set(
+				createModeListStorageKey("en_US"),
+				createCrewList("new-crew").list,
+			)
+			await superMagicModeService.hydrateFromStorage()
+			pendingCache.resolve(undefined)
+			await hydration
+
+			expect(superMagicModeService.modeList[0]?.mode.identifier).toBe("new-crew")
+		},
+	)
 
 	it("migrates and cleans localStorage entries from other organizations", async () => {
 		const foreignKey = "super_magic/mode_list/other-org/other-user/zh_CN"

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Blue — Electric Blue Wallet & Token Swap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0052FF; --primary-hover: #003ECB;
+      --secondary: #5B616E; --neutral: #8A919E;
+      --bg: #F9FAFB; --surface: #FFFFFF;
+      --text-pri: #050F1A; --text-sec: #5B616E;
+      --border: #D1D5DB; --border-light: #E5E7EB;
+      --success: #05B169; --warning: #F0AD4E; --error: #DF2935;
+      --font-display: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 9999px;
+      --shadow-sm: 0 1px 3px rgba(5,15,26,0.06);
+      --shadow-md: 0 4px 12px rgba(5,15,26,0.08);
+      --shadow-glow: 0 8px 24px rgba(0,82,255,0.18);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text-pri); font-family: var(--font-display); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    
+    .mono { font-family: var(--font-mono); }
+    .nav { height: 60px; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--text-pri); text-decoration: none; }
+    .brand-icon { width: 32px; height: 32px; border-radius: var(--r-md); background: var(--primary); display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 8px rgba(0,82,255,0.3); }
+    .nav-items { display: flex; gap: 24px; list-style: none; }
+    .nav-link { color: var(--text-sec); font-size: 14px; font-weight: 500; cursor: pointer; padding: 6px 0; border-bottom: 2px solid transparent; }
+    .nav-link.active { color: var(--primary); font-weight: 700; border-color: var(--primary); }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .net-pill { display: flex; align-items: center; gap: 6px; background: #EEF2FF; border: 1px solid #C7D2FE; color: var(--primary); font-weight: 600; font-size: 12px; padding: 5px 10px; border-radius: var(--r-full); }
+    .net-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+    .wallet-btn { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); padding: 5px 12px; border-radius: var(--r-md); font-family: var(--font-mono); font-size: 13px; font-weight: 500; cursor: pointer; }
+
+    .main-wrap { max-width: 1140px; margin: 24px auto; padding: 0 20px; }
+    .hero-strip { background: linear-gradient(135deg, #FFFFFF 0%, #F0F4FF 100%); border: 1px solid #E0E7FF; border-radius: var(--r-xl); padding: 22px 28px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm); }
+    .hero-lbl { font-size: 12px; font-weight: 500; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.04em; }
+    .hero-bal { font-family: var(--font-mono); font-size: 36px; font-weight: 700; color: var(--text-pri); letter-spacing: -0.02em; line-height: 1.15; margin: 4px 0; }
+    .chip-pos { display: inline-flex; align-items: center; gap: 4px; background: #E6F6EF; color: var(--success); font-family: var(--font-mono); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); }
+    .action-pills { display: flex; gap: 8px; }
+    .act-pill { background: var(--surface); border: 1px solid var(--border); color: var(--text-pri); font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: var(--r-full); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .act-pill.primary { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(0,82,255,0.25); }
+
+    .grid-2col { display: grid; grid-template-columns: 460px 1fr; gap: 24px; }
+    
+    /* Glass Swap Card */
+    .swap-card { background: rgba(255,255,255,0.92); backdrop-filter: blur(16px); border: 1px solid rgba(0,82,255,0.15); border-radius: var(--r-xl); padding: 24px; box-shadow: var(--shadow-glow); }
+    .swap-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .swap-title { font-size: 18px; font-weight: 700; color: var(--text-pri); }
+    .swap-badge { background: #EEF2FF; color: var(--primary); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--r-full); }
+    
+    .field-card { background: #F9FAFB; border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px; margin-bottom: 8px; }
+    .field-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-sec); margin-bottom: 6px; }
+    .field-row { display: flex; justify-content: space-between; align-items: center; }
+    .swap-input { background: transparent; border: none; outline: none; font-family: var(--font-mono); font-size: 26px; font-weight: 600; color: var(--text-pri); width: 60%; }
+    .token-select { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); padding: 6px 12px; border-radius: var(--r-full); font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
+    
+    .divider-wrap { display: flex; justify-content: center; position: relative; margin: -4px 0; z-index: 2; }
+    .btn-invert { width: 36px; height: 36px; border-radius: 50%; background: var(--surface); border: 2px solid #EEF2FF; color: var(--primary); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--shadow-md); }
+    .btn-invert:hover { background: var(--primary); color: #fff; }
+
+    .rate-info { background: #F9FAFB; border: 1px solid var(--border-light); border-radius: var(--r-md); padding: 10px 12px; margin: 14px 0; font-size: 12px; color: var(--text-sec); display: flex; flex-direction: column; gap: 4px; }
+    .rate-row { display: flex; justify-content: space-between; font-family: var(--font-mono); }
+
+    /* Biometric Toggle */
+    .bio-module { background: linear-gradient(135deg, #F0F4FF 0%, #FFFFFF 100%); border: 1px solid #C7D2FE; border-radius: var(--r-lg); padding: 12px 14px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }
+    .bio-left { display: flex; align-items: center; gap: 10px; }
+    .bio-icon { width: 32px; height: 32px; border-radius: var(--r-md); background: #DBEAFE; color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .bio-title { font-size: 13px; font-weight: 700; color: var(--text-pri); }
+    .bio-desc { font-size: 11px; color: var(--text-sec); }
+    .toggle-switch { position: relative; width: 44px; height: 24px; background: var(--primary); border-radius: var(--r-full); cursor: pointer; box-shadow: 0 0 8px rgba(0,82,255,0.4); }
+    .toggle-knob { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+    .btn-swap-main { width: 100%; height: 48px; background: var(--primary); color: #fff; border: none; border-radius: var(--r-md); font-weight: 700; font-size: 15px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,82,255,0.35); transition: background 0.15s; }
+    .btn-swap-main:hover { background: var(--primary-hover); }
+
+    /* Right Column: History & Assets */
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 20px; box-shadow: var(--shadow-sm); }
+    .panel-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .panel-h3 { font-size: 16px; font-weight: 700; }
+    
+    .tx-list { display: flex; flex-direction: column; }
+    .tx-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-left { display: flex; align-items: center; gap: 12px; }
+    .tx-icon-wrap { width: 36px; height: 36px; border-radius: var(--r-md); background: #F3F4F6; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .tx-name { font-weight: 700; font-size: 13px; }
+    .tx-time { font-size: 11px; color: var(--neutral); }
+    .tx-right { text-align: right; }
+    .tx-amt { font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+    .tx-sub { font-family: var(--font-mono); font-size: 11px; color: var(--text-sec); }
+
+    .asset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-light); }
+    .asset-box { background: #F9FAFB; border: 1px solid var(--border-light); border-radius: var(--r-md); padding: 10px 12px; }
+    .asset-tok { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .asset-val { font-family: var(--font-mono); font-size: 14px; font-weight: 700; margin: 4px 0 2px; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div style="display:flex; align-items:center; gap:32px;">
+      <a href="#" class="brand">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <span>CryptoBlue</span>
+      </a>
+      <ul class="nav-items">
+        <li class="nav-link">Assets</li>
+        <li class="nav-link active">Swap</li>
+        <li class="nav-link">Earn</li>
+        <li class="nav-link">Activity</li>
+      </ul>
+    </div>
+    <div class="nav-right">
+      <div class="net-pill">
+        <div class="net-dot"></div>
+        <span>Base L2</span>
+      </div>
+      <div class="wallet-btn">
+        <span style="color:var(--primary); font-weight:700;">0x4F12...9C8A</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="main-wrap">
+    
+    <!-- Balance Strip -->
+    <section class="hero-strip">
+      <div>
+        <div class="hero-lbl">Total Portfolio Balance</div>
+        <div class="hero-bal">,920.50</div>
+        <div class="chip-pos">▲ +,140.80 (+4.58%) today</div>
+      </div>
+      <div class="action-pills">
+        <button class="act-pill primary">+ Buy Crypto</button>
+        <button class="act-pill">↑ Send</button>
+        <button class="act-pill">↓ Receive</button>
+        <button class="act-pill">⇄ Bridge</button>
+      </div>
+    </section>
+
+    <div class="grid-2col">
+      
+      <!-- Token Swap Interface -->
+      <section class="swap-card">
+        <div class="swap-head">
+          <span class="swap-title">Token Swap</span>
+          <span class="swap-badge">⚡ Slippage 0.5%</span>
+        </div>
+
+        <!-- You Pay -->
+        <div class="field-card">
+          <div class="field-top">
+            <span>You Pay</span>
+            <span class="mono">Balance: 4.82 ETH (<strong style="color:var(--primary); cursor:pointer;">MAX</strong>)</span>
+          </div>
+          <div class="field-row">
+            <input type="text" class="swap-input" value="2.45">
+            <button class="token-select">
+              <svg width="18" height="18" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#627EEA"/><path d="M16.498 4v8.87l7.497 3.35z" fill="#fff" fill-opacity=".6"/><path d="M16.498 4L9 16.22l7.498-3.35z" fill="#fff"/><path d="M16.498 21.968v6.027L24 17.616z" fill="#fff" fill-opacity=".6"/><path d="M16.498 27.995v-6.028L9 17.616z" fill="#fff"/><path d="M16.498 20.573l7.497-4.353-7.497-3.348z" fill="#fff" fill-opacity=".2"/><path d="M9 16.22l7.498 4.353v-7.701z" fill="#fff" fill-opacity=".6"/></svg>
+              <span>ETH</span>
+              <span style="font-size:10px;">▼</span>
+            </button>
+          </div>
+          <div style="font-size:11px; color:var(--neutral); margin-top:4px; font-family:var(--font-mono);">~,832.16 USD</div>
+        </div>
+
+        <!-- Invert Button -->
+        <div class="divider-wrap">
+          <button class="btn-invert">⇅</button>
+        </div>
+
+        <!-- You Receive -->
+        <div class="field-card">
+          <div class="field-top">
+            <span>You Receive (Estimated)</span>
+            <span class="mono">Balance: 12,450.00 USDC</span>
+          </div>
+          <div class="field-row">
+            <input type="text" class="swap-input" value="7,824.30">
+            <button class="token-select">
+              <svg width="18" height="18" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#2775CA"/><path d="M16 7.5a8.5 8.5 0 100 17 8.5 8.5 0 000-17zm1 12.75h-2v.75h-1.5v-.75H13v-1.5h3.5a1.25 1.25 0 100-2.5h-2a2.75 2.75 0 010-5.5V10h1.5v.75H17v1.5h-3.5a1.25 1.25 0 100 2.5h2a2.75 2.75 0 010 5.5z" fill="#fff"/></svg>
+              <span>USDC</span>
+              <span style="font-size:10px;">▼</span>
+            </button>
+          </div>
+          <div style="font-size:11px; color:var(--neutral); margin-top:4px; font-family:var(--font-mono);">~,824.30 USD</div>
+        </div>
+
+        <!-- Route & Fee Disclosures -->
+        <div class="rate-info">
+          <div class="rate-row"><span>Exchange Rate:</span><strong>1 ETH = 3,193.59 USDC</strong></div>
+          <div class="rate-row"><span>Network Gas (Base):</span><span style="color:var(--success);">zsh.18 (~0.00005 ETH)</span></div>
+          <div class="rate-row"><span>Routing Path:</span><span>Uniswap v3 + 0x Split</span></div>
+        </div>
+
+        <!-- Biometric Approval Toggle Module -->
+        <div class="bio-module">
+          <div class="bio-left">
+            <div class="bio-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            </div>
+            <div>
+              <div class="bio-title">Biometric Confirmation</div>
+              <div class="bio-desc">Hardware signature required for transactions &gt; ,000</div>
+            </div>
+          </div>
+          <div class="toggle-switch">
+            <div class="toggle-knob"></div>
+          </div>
+        </div>
+
+        <button class="btn-swap-main">Swap ETH for USDC</button>
+      </section>
+
+      <!-- Right Column: Transactions & Assets -->
+      <section class="panel">
+        <div class="panel-hdr">
+          <span class="panel-h3">Recent Activity</span>
+          <span style="font-size:12px; color:var(--primary); font-weight:600; cursor:pointer;">View Explorer →</span>
+        </div>
+
+        <div class="tx-list">
+          <!-- Tx 1 -->
+          <div class="tx-row">
+            <div class="tx-left">
+              <div class="tx-icon-wrap" style="background:#EEF2FF; color:var(--primary);">⇄</div>
+              <div>
+                <div class="tx-name">Swapped ETH for USDC</div>
+                <div class="tx-time">14m ago • Hash: <span class="mono">0xa8f2...71e4</span></div>
+              </div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amt">+3,830.50 USDC</div>
+              <div class="tx-sub">-1.20 ETH</div>
+            </div>
+          </div>
+
+          <!-- Tx 2 -->
+          <div class="tx-row">
+            <div class="tx-left">
+              <div class="tx-icon-wrap" style="background:#E6F6EF; color:var(--success);">↓</div>
+              <div>
+                <div class="tx-name">Received ETH</div>
+                <div class="tx-time">2h ago • From: <span class="mono">0x3b1...88c9</span></div>
+              </div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amt" style="color:var(--success);">+0.85 ETH</div>
+              <div class="tx-sub">+,714.50 USD</div>
+            </div>
+          </div>
+
+          <!-- Tx 3 -->
+          <div class="tx-row">
+            <div class="tx-left">
+              <div class="tx-icon-wrap" style="background:#FEF3C7; color:var(--warning);">★</div>
+              <div>
+                <div class="tx-name">Supplied to Aave V3</div>
+                <div class="tx-time">Yesterday • 5.4% APY</div>
+              </div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amt">3,000.00 USDC</div>
+              <div class="tx-sub">Earning Yield</div>
+            </div>
+          </div>
+
+          <!-- Tx 4 -->
+          <div class="tx-row">
+            <div class="tx-left">
+              <div class="tx-icon-wrap" style="background:#FEE2E2; color:var(--error);">↑</div>
+              <div>
+                <div class="tx-name">Sent USDC to ENS</div>
+                <div class="tx-time">Sep 17 • To: <span class="mono">sarah.base.eth</span></div>
+              </div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amt" style="color:var(--text-pri);">-500.00 USDC</div>
+              <div class="tx-sub">Confirmed</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Asset Distribution Mini Grid -->
+        <div class="asset-grid">
+          <div class="asset-box">
+            <div class="asset-tok"><span style="color:#627EEA;">●</span> Ethereum</div>
+            <div class="asset-val">,330.71</div>
+            <div style="font-size:11px; color:var(--text-sec); font-family:var(--font-mono);">9.48 ETH (62%)</div>
+          </div>
+          <div class="asset-box">
+            <div class="asset-tok"><span style="color:#2775CA;">●</span> USD Coin</div>
+            <div class="asset-val">,697.74</div>
+            <div style="font-size:11px; color:var(--text-sec); font-family:var(--font-mono);">13,697 USDC (28%)</div>
+          </div>
+          <div class="asset-box">
+            <div class="asset-tok"><span style="color:#F7931A;">●</span> cbBTC</div>
+            <div class="asset-val">,892.05</div>
+            <div style="font-size:11px; color:var(--text-sec); font-family:var(--font-mono);">0.072 BTC (10%)</div>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+  </main>
+
+</body>
+</html>

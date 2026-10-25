@@ -4,6 +4,8 @@ import type { CanonicalContentDimensions } from "../utils/slide-dimensions"
 
 export interface IframeScalingConfig {
 	containerRef: React.RefObject<HTMLDivElement>
+	/** Optional non-scrolling viewport used only for width/height measurements. */
+	measurementRef?: React.RefObject<HTMLDivElement>
 	iframeRef: React.RefObject<HTMLIFrameElement>
 	isPptRender?: boolean
 	isFullscreen?: boolean
@@ -47,6 +49,7 @@ const DEFAULT_CONTENT_HEIGHT = 1080
 export function useIframeScaling(config: IframeScalingConfig): IframeScalingResult {
 	const {
 		containerRef,
+		measurementRef,
 		iframeRef,
 		isPptRender,
 		isFullscreen,
@@ -62,6 +65,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		autoFitScalePaddingFactor = 1,
 		autoFitVerticalPadding = 0,
 	} = config
+	const scaleViewportRef = measurementRef ?? containerRef
 
 	const [internalScaleRatio, setInternalScaleRatio] = useState(1)
 	const [internalVerticalOffset, setInternalVerticalOffset] = useState(0)
@@ -177,7 +181,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		(nextContentWidth?: number, nextContentHeight?: number) => {
 			// Sync compute to avoid first-frame flicker
 			if (
-				!containerRef.current ||
+				!scaleViewportRef.current ||
 				(!isPptRender && !hasSlideContainer && !scaleContentDimensions) ||
 				!isVisible
 			) {
@@ -191,8 +195,8 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 				return false
 			}
 
-			const containerWidth = containerRef.current.offsetWidth
-			const containerHeight = containerRef.current.offsetHeight
+			const containerWidth = scaleViewportRef.current.offsetWidth
+			const containerHeight = scaleViewportRef.current.offsetHeight
 
 			if (!containerWidth || !containerHeight) return false
 
@@ -256,7 +260,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 			return true
 		},
 		[
-			containerRef,
+			scaleViewportRef,
 			effectiveManualScale,
 			enableHeightCalculation,
 			hasSlideContainer,
@@ -340,6 +344,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		}
 	}, [
 		calculateScaleAndDimensions,
+		calculateScaleAndDimensionsSync,
 		enableHeightCalculation,
 		iframeLoaded,
 		contentInjected,
@@ -467,19 +472,26 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	useEffect(() => {
 		if (!isPptRender && !hasSlideContainer && !scaleContentDimensions) return
 		// Use ResizeObserver to monitor container size changes
-		const container = containerRef.current
+		const container = scaleViewportRef.current
 		if (!container) return
+		// ResizeObserver already batches layout changes. A trailing debounce can be
+		// postponed throughout a splitter drag, leaving the slide at an old scale
+		// until it jumps to the latest size. Fit each delivered viewport size instead.
 		const resizeObserver = new ResizeObserver(() => {
-			calculateScaleAndDimensions()
+			calculateScaleAndDimensionsSync()
 		})
 		resizeObserver.observe(container)
 
 		return () => {
 			resizeObserver.disconnect()
 		}
-		// containerRef is intentionally omitted from deps as ref objects don't trigger re-renders
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [calculateScaleAndDimensions, isPptRender, hasSlideContainer, scaleContentDimensions])
+	}, [
+		calculateScaleAndDimensionsSync,
+		isPptRender,
+		hasSlideContainer,
+		scaleContentDimensions,
+		scaleViewportRef,
+	])
 
 	// Set manual scale function
 	const setManualScale = useCallback(

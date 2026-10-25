@@ -11,16 +11,16 @@ import uuid
 from typing import Dict, Optional, Tuple
 
 import aiohttp
+from agentlang.event.event import EventType
+from agentlang.logger import get_logger
+from agentlang.utils.metadata import MetadataUtil
+from agentlang.utils.shadow_code import ShadowCode
 
 from app.core.config.communication_config import (
     MessageSubscriptionAuthScheme,
     MessageSubscriptionConfig,
 )
-from agentlang.event.event import EventType
 from app.core.stream import Stream
-from agentlang.logger import get_logger
-from agentlang.utils.shadow_code import ShadowCode
-from agentlang.utils.metadata import MetadataUtil
 from app.i18n.i18n_manager import I18nManager
 
 logger = get_logger(__name__)
@@ -50,7 +50,7 @@ class HTTPSubscriptionStream(Stream):
 
     def _obfuscate_data(self, data: str) -> str:
         """
-        使用ShadowCode对数据进行混淆
+        使用 JSON 安全入口混淆，避免 Unicode 字节被替换后无法还原。
 
         Args:
             data: 要混淆的数据
@@ -58,15 +58,11 @@ class HTTPSubscriptionStream(Stream):
         Returns:
             混淆后的数据
         """
-        try:
-            return ShadowCode.shadow(data)
-        except Exception as e:
-            logger.error(f"数据混淆失败: {e}")
-            return data  # 失败时返回原始数据
+        return ShadowCode.shadow_json(data)
 
     def _prepare_request_data(self, data: str) -> str:
         """
-        根据配置准备请求数据
+        根据配置准备请求数据；编码失败向上传播，不发送标记不匹配的原文。
 
         Args:
             data: 原始数据
@@ -78,8 +74,6 @@ class HTTPSubscriptionStream(Stream):
             return data
 
         try:
-
-
             # 包装成标准格式
             obfuscated_flag = os.getenv("HTTP_SUBSCRIPTION_OBFUSCATED", "true").lower() == "true"
 
@@ -88,17 +82,15 @@ class HTTPSubscriptionStream(Stream):
                 obfuscated_data = self._obfuscate_data(data)
             else:
                 obfuscated_data = data
-
-
             wrapped_data = {
                 "data": obfuscated_data,
                 "obfuscated": obfuscated_flag
             }
 
             return json.dumps(wrapped_data)
-        except Exception as e:
-            logger.error(f"准备请求数据失败: {e}")
-            return data  # 失败时返回原始数据
+        except Exception:
+            # 异常可能携带载荷正文，固定说明防止外层日志泄漏内容。
+            raise ValueError("Failed to prepare subscription payload") from None
 
     async def _ensure_session(self):
         """Ensure an HTTP session exists."""

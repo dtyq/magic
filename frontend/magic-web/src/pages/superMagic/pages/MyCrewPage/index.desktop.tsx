@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Check, CirclePlus, Loader2, SlidersHorizontal } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
+import magicToast from "@/components/base/MagicToaster/utils"
 import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
@@ -31,6 +32,7 @@ import MyCrewCrewTypeTabs from "./components/MyCrewCrewTypeTabs"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import { isOfficialMyCrewAgent } from "./components/my-crew-card-shared"
 import { useMyCrewTabs } from "./hooks/useMyCrewTabs"
+import { copyCrewUsageLink } from "./utils/crewUsageLink"
 
 const MyCrewManageSortingDialog = lazy(() =>
 	import("./components/MyCrewManageSortingDialog").then((module) => ({
@@ -206,6 +208,19 @@ function MyCrewPage() {
 		[navigate],
 	)
 
+	/** Copies a published created crew link and reports the action result to the user. */
+	const handleCopyUsageLink = useCallback(
+		async (agentCode: string) => {
+			try {
+				await copyCrewUsageLink(agentCode)
+				magicToast.success(t("myCrewPage.copyUsageLinkSuccess"))
+			} catch {
+				magicToast.error(t("myCrewPage.copyUsageLinkFailed"))
+			}
+		},
+		[t],
+	)
+
 	return (
 		<>
 			{isSortingDialogOpen ? (
@@ -355,6 +370,7 @@ function MyCrewPage() {
 												}
 												onEdit={handleEdit}
 												onConversation={handleOpenConversation}
+												onCopyUsageLink={handleCopyUsageLink}
 												onUpgrade={handleUpgrade}
 												onPublishToStore={handleOpenPublishPanel}
 												onDelete={handleDeleteCreatedCrew}

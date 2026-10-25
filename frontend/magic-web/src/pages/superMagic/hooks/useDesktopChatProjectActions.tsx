@@ -1,3 +1,7 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { lazy, Suspense, useMemo, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
@@ -129,6 +133,7 @@ export function useDesktopChatProjectActions({
 		const targetProject = resolveTargetProject()
 		if (!targetProject?.id) return
 
+		if (!canDeleteRecordingProjects([targetProject.id])) return
 		const deletedProject = targetProject
 		const isDeletingSelectedProject = projectStore.selectedProject?.id === deletedProject.id
 		const fallbackWorkspaceId = workspaceStore.workspaces.find(
@@ -151,6 +156,7 @@ export function useDesktopChatProjectActions({
 			setDeleteModalOpen(false)
 			setCurrentActionItem(null)
 		} catch (error) {
+			if (handleRecordingProjectDeletionError(error)) return
 			console.error("Failed to delete chat project:", error)
 			magicToast.error(t("chat.deleteChatFailed"))
 		}
@@ -291,6 +297,7 @@ export function useDesktopChatProjectActions({
 	)
 
 	return {
+		isProjectModalOpen: renameDialogOpen || saveAsModalOpen || deleteModalOpen,
 		currentActionItem,
 		updateCurrentActionItem,
 		projectActions,

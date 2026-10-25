@@ -13,6 +13,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatComplet
 
 from agentlang.agent.define import AgentDefine
 from agentlang.agent.loader import AgentLoader
+from agentlang.agent.models import AgentRunRequest
 from agentlang.agent.state import AgentState
 from agentlang.chat_history import ToolCall
 from agentlang.context.base_agent_context import BaseAgentContext
@@ -120,22 +121,22 @@ class BaseAgent(ABC):
 
 
     @abstractmethod
-    async def run(self, query: str):
+    async def run(self, request: AgentRunRequest):
         """
         运行 Agent 处理查询。
 
         Args:
-            query: 用户查询/指令
+            request: Agent 运行请求，包含用户查询及扩展输入
         """
         pass
 
     @abstractmethod
-    async def run_main_agent(self, query: str):
+    async def run_main_agent(self, request: AgentRunRequest):
         """
         以主 Agent 身份运行，通常包含额外的事件处理和错误管理。
 
         Args:
-            query: 用户查询/指令
+            request: Agent 运行请求，包含用户查询及扩展输入
         """
         pass
 

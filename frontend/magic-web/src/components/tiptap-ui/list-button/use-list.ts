@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { type Editor } from "@tiptap/react"
-import { NodeSelection } from "@tiptap/pm/state"
+import { type Editor } from "@/infrastructure/editors/tiptap/react"
+import { NodeSelection } from "@/infrastructure/editors/tiptap/pm-state"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
@@ -18,7 +18,7 @@ import {
 	isNodeInSchema,
 	isNodeTypeSelected,
 	isValidPosition,
-} from "@/lib/tiptap-utils"
+} from "@/infrastructure/editors/tiptap/utils"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
 export type ListType = "bulletList" | "orderedList" | "taskList"
@@ -73,43 +73,50 @@ export function canToggleList(
 	turnInto: boolean = true,
 ): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isNodeInSchema(type, activeEditor) || isNodeTypeSelected(activeEditor, ["image"]))
-				return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (
+					!isNodeInSchema(type, activeEditor) ||
+					isNodeTypeSelected(activeEditor, ["image"])
+				)
+					return false
 
-			if (!turnInto) {
-				switch (type) {
-					case "bulletList":
-						return activeEditor.can().toggleBulletList()
-					case "orderedList":
-						return activeEditor.can().toggleOrderedList()
-					case "taskList":
-						return activeEditor.can().toggleList("taskList", "taskItem")
-					default:
-						return false
-				}
-			}
-
-			try {
-				const view = activeEditor.view
-				const state = view.state
-				const selection = state.selection
-
-				// 仅折叠光标需要解析块位置；非空 TextSelection 必须保留整段选区以便多行一起列表化
-				if (selection.empty) {
-					const pos = findNodePosition({
-						editor: activeEditor,
-						node: state.selection.$anchor.node(1),
-					})?.pos
-					if (!isValidPosition(pos)) return false
+				if (!turnInto) {
+					switch (type) {
+						case "bulletList":
+							return activeEditor.can().toggleBulletList()
+						case "orderedList":
+							return activeEditor.can().toggleOrderedList()
+						case "taskList":
+							return activeEditor.can().toggleList("taskList", "taskItem")
+						default:
+							return false
+					}
 				}
 
-				return true
-			} catch {
-				return false
-			}
-		}, false) ?? false
+				try {
+					const view = activeEditor.view
+					const state = view.state
+					const selection = state.selection
+
+					// 仅折叠光标需要解析块位置；非空 TextSelection 必须保留整段选区以便多行一起列表化
+					if (selection.empty) {
+						const pos = findNodePosition({
+							editor: activeEditor,
+							node: state.selection.$anchor.node(1),
+						})?.pos
+						if (!isValidPosition(pos)) return false
+					}
+
+					return true
+				} catch {
+					return false
+				}
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -118,20 +125,24 @@ export function canToggleList(
  */
 export function isListActive(editor: Editor | null, type: ListType): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
 
-			switch (type) {
-				case "bulletList":
-					return activeEditor.isActive("bulletList")
-				case "orderedList":
-					return activeEditor.isActive("orderedList")
-				case "taskList":
-					return activeEditor.isActive("taskList")
-				default:
-					return false
-			}
-		}, false) ?? false
+				switch (type) {
+					case "bulletList":
+						return activeEditor.isActive("bulletList")
+					case "orderedList":
+						return activeEditor.isActive("orderedList")
+					case "taskList":
+						return activeEditor.isActive("taskList")
+					default:
+						return false
+				}
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -140,67 +151,73 @@ export function isListActive(editor: Editor | null, type: ListType): boolean {
  */
 export function toggleList(editor: Editor | null, type: ListType): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!canToggleList(activeEditor, type)) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!canToggleList(activeEditor, type)) return false
 
-			try {
-				const view = activeEditor.view
-				let state = view.state
-				let tr = state.tr
+				try {
+					const view = activeEditor.view
+					let state = view.state
+					let tr = state.tr
 
-				// 折叠光标：有内容的块用 NodeSelection 再 clearNodes，与原先行为一致
-				// 空块不要用该路径，否则 clearNodes 易把结构弄乱；多行选区不可改成单块 NodeSelection
-				if (state.selection.empty) {
-					const pos = findNodePosition({
-						editor: activeEditor,
-						node: state.selection.$anchor.node(1),
-					})?.pos
-					if (!isValidPosition(pos)) return false
+					// 折叠光标：有内容的块用 NodeSelection 再 clearNodes，与原先行为一致
+					// 空块不要用该路径，否则 clearNodes 易把结构弄乱；多行选区不可改成单块 NodeSelection
+					if (state.selection.empty) {
+						const pos = findNodePosition({
+							editor: activeEditor,
+							node: state.selection.$anchor.node(1),
+						})?.pos
+						if (!isValidPosition(pos)) return false
 
-					const block = state.doc.nodeAt(pos)
-					if (block && block.content.size > 0) {
-						tr = tr.setSelection(NodeSelection.create(state.doc, pos))
-						view.dispatch(tr)
-						state = view.state
+						const block = state.doc.nodeAt(pos)
+						if (block && block.content.size > 0) {
+							tr = tr.setSelection(NodeSelection.create(state.doc, pos))
+							view.dispatch(tr)
+							state = view.state
+						}
 					}
-				}
 
-				const selection = state.selection
+					const selection = state.selection
 
-				let chain = activeEditor.chain().focus()
+					let chain = activeEditor.chain().focus()
 
-				// Handle NodeSelection：取消列表时不要 clearNodes，否则会拆坏列表结构，第二次点同一列表无法正确取消且易出现空行
-				if (selection instanceof NodeSelection) {
-					const firstChild = selection.node.firstChild?.firstChild
-					const lastChild = selection.node.lastChild?.lastChild
+					// Handle NodeSelection：取消列表时不要 clearNodes，否则会拆坏列表结构，第二次点同一列表无法正确取消且易出现空行
+					if (selection instanceof NodeSelection) {
+						const firstChild = selection.node.firstChild?.firstChild
+						const lastChild = selection.node.lastChild?.lastChild
 
-					const from = firstChild ? selection.from + firstChild.nodeSize : selection.from + 1
+						const from = firstChild
+							? selection.from + firstChild.nodeSize
+							: selection.from + 1
 
-					const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
+						const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
 
-					chain = chain.setTextSelection({ from, to })
-					if (!activeEditor.isActive(type)) {
-						chain = chain.clearNodes()
+						chain = chain.setTextSelection({ from, to })
+						if (!activeEditor.isActive(type)) {
+							chain = chain.clearNodes()
+						}
 					}
+
+					const toggleMap: Record<ListType, () => typeof chain> = {
+						bulletList: () => chain.toggleBulletList(),
+						orderedList: () => chain.toggleOrderedList(),
+						taskList: () => chain.toggleList("taskList", "taskItem"),
+					}
+
+					const toggle = toggleMap[type]
+					if (!toggle) return false
+
+					toggle().run()
+
+					return true
+				} catch {
+					return false
 				}
-
-				const toggleMap: Record<ListType, () => typeof chain> = {
-					bulletList: () => chain.toggleBulletList(),
-					orderedList: () => chain.toggleOrderedList(),
-					taskList: () => chain.toggleList("taskList", "taskItem"),
-				}
-
-				const toggle = toggleMap[type]
-				if (!toggle) return false
-
-				toggle().run()
-
-				return true
-			} catch {
-				return false
-			}
-		}, false) ?? false
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -215,16 +232,20 @@ export function shouldShowButton(props: {
 	const { editor, type, hideWhenUnavailable } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isNodeInSchema(type, activeEditor)) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!isNodeInSchema(type, activeEditor)) return false
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canToggleList(activeEditor, type)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canToggleList(activeEditor, type)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }

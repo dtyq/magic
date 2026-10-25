@@ -80,7 +80,8 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
           contentMetricsFrameId: null,
           contentMetricsNestedFrameId: null,
           scrollRestoreFrameId: null,
-          scrollRestoreNestedFrameId: null
+          scrollRestoreNestedFrameId: null,
+          isActive: true
         };
       }
 
@@ -354,11 +355,17 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
       };
     }
 
-    function postContentMetrics(phase) {
+    function postContentMetrics(phase, contentVersion) {
+      if (!getPreviewState().isActive) {
+        return;
+      }
       try {
         var metrics = measureContentMetrics();
         window.parent.postMessage({
           type: "contentMetrics",
+          contentVersion: typeof contentVersion === "number"
+            ? contentVersion
+            : getPreviewState().contentVersion,
           phase: phase,
           contentWidth: metrics.contentWidth,
           contentHeight: metrics.contentHeight,
@@ -385,8 +392,11 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
       }
     }
 
-    function scheduleContentMetrics(phase) {
+    function scheduleContentMetrics(phase, contentVersion) {
       var previewState = getPreviewState();
+      var metricsVersion = typeof contentVersion === "number"
+        ? contentVersion
+        : previewState.contentVersion;
       cancelScheduledContentMetrics();
 
       previewState.contentMetricsFrameId = requestAnimationFrame(function() {
@@ -394,7 +404,7 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
 
         previewState.contentMetricsNestedFrameId = requestAnimationFrame(function() {
           previewState.contentMetricsNestedFrameId = null;
-          postContentMetrics(phase);
+          postContentMetrics(phase, metricsVersion);
         });
       });
     }
@@ -417,6 +427,9 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
 
     function scheduleSettledSignals(version) {
       var previewState = getPreviewState();
+      if (!previewState.isActive) {
+        return;
+      }
       clearSettledTimeout();
       previewState.settledTimeoutId = window.setTimeout(function() {
         if (getPreviewState().contentVersion !== version) {
@@ -426,17 +439,26 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
         previewState.settledTimeoutId = null;
 
         try {
-          window.parent.postMessage({ type: "pageFullyLoaded" }, "*");
+          window.parent.postMessage({
+            type: "pageFullyLoaded",
+            contentVersion: version
+          }, "*");
         } catch (error) {
           console.error("发送流式预览 fully-loaded 消息时出错:", error);
         }
 
-        scheduleContentMetrics("settled");
+        scheduleContentMetrics("settled", version);
       }, 160);
     }
 
     function ensureSettledObserver(version) {
       var previewState = getPreviewState();
+
+      if (!previewState.isActive) {
+        disconnectSettledObserver();
+        clearSettledTimeout();
+        return;
+      }
 
       if (typeof ResizeObserver !== "function" || !document.documentElement || !document.body) {
         scheduleSettledSignals(version);
@@ -456,10 +478,13 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
       scheduleSettledSignals(version);
     }
 
-    function waitForRenderComplete() {
+    function waitForRenderComplete(contentVersion) {
       requestAnimationFrame(function() {
         requestAnimationFrame(function() {
-          window.parent.postMessage({ type: "renderComplete" }, "*");
+          window.parent.postMessage({
+            type: "renderComplete",
+            contentVersion: contentVersion
+          }, "*");
         });
       });
     }
@@ -468,14 +493,17 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
       var previewState = getPreviewState();
 
       try {
-        window.parent.postMessage({ type: "contentLoaded" }, "*");
+        window.parent.postMessage({
+          type: "contentLoaded",
+          contentVersion: previewState.contentVersion
+        }, "*");
         window.parent.postMessage({ type: "domReady" }, "*");
       } catch (error) {
         console.error("发送流式预览 ready 消息时出错:", error);
       }
 
-      waitForRenderComplete();
-      scheduleContentMetrics("initial");
+      waitForRenderComplete(previewState.contentVersion);
+      scheduleContentMetrics("initial", previewState.contentVersion);
       ensureSettledObserver(previewState.contentVersion);
     }
 
@@ -487,7 +515,7 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
           } catch (error) {
             console.error("发送 DOM ready 消息时出错:", error);
           }
-          waitForRenderComplete();
+          waitForRenderComplete(getPreviewState().contentVersion);
         });
       } else {
         try {
@@ -495,7 +523,7 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
         } catch (error) {
           console.error("发送 DOM ready 消息时出错:", error);
         }
-        waitForRenderComplete();
+        waitForRenderComplete(getPreviewState().contentVersion);
       }
 
       if (document.readyState === "complete") {
@@ -540,17 +568,38 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
 
         if (
           !event.data ||
-          event.data.type !== "setContent" ||
-          typeof event.data.content !== "string"
+          (event.data.type !== "setContent" && event.data.type !== "setActive")
         ) {
           return;
         }
 
         var previewState = getPreviewState();
+        if (event.data.type === "setActive") {
+          previewState.isActive = event.data.isActive !== false;
+          if (!previewState.isActive) {
+            cancelScheduledContentMetrics();
+            clearSettledTimeout();
+            disconnectSettledObserver();
+            return;
+          }
+
+          if (previewState.hasWrittenContentOnce) {
+            scheduleContentMetrics("initial", previewState.contentVersion);
+            ensureSettledObserver(previewState.contentVersion);
+          }
+          return;
+        }
+
+        if (typeof event.data.content !== "string") {
+          return;
+        }
         var scrollPosition = previewState.hasWrittenContentOnce
           ? captureScrollPosition()
           : null;
-        previewState.contentVersion += 1;
+        var incomingContentVersion = Number(event.data.contentVersion);
+        previewState.contentVersion = Number.isInteger(incomingContentVersion)
+          ? incomingContentVersion
+          : previewState.contentVersion + 1;
         var parsedDocument = parseIncomingDocument(event.data.content);
         var nextHeadHTML =
           parsedDocument && parsedDocument.head
@@ -581,10 +630,23 @@ const STREAMING_HTML_PREVIEW_RUNTIME = `<!DOCTYPE html>
         setupDOMLoadListeners();
         markExecutedBodyScripts(document.body);
         scheduleScrollRestore(scrollPosition);
-        window.parent.postMessage({ type: "contentLoaded" }, "*");
-        scheduleContentMetrics("initial");
+        window.parent.postMessage({
+          type: "contentLoaded",
+          contentVersion: previewState.contentVersion
+        }, "*");
+        scheduleContentMetrics("initial", previewState.contentVersion);
       } catch (error) {
         console.error("处理流式预览消息时出错:", error);
+        var errorMessage = error && error.message ? String(error.message) : "Unknown streaming preview error";
+        try {
+          window.parent.postMessage({
+            type: "streamingPreviewError",
+            contentVersion: getPreviewState().contentVersion,
+            message: errorMessage
+          }, "*");
+        } catch (postError) {
+          console.error("发送流式预览错误消息时出错:", postError);
+        }
       }
     }
 
@@ -618,8 +680,13 @@ function injectStreamingPreviewScrollStyle(html: string): string {
 		return html
 	}
 
-	if (html.includes("</head>")) {
-		return html.replace("</head>", `${STREAMING_HTML_PREVIEW_SCROLL_STYLE}</head>`)
+	// Inject after the real head opening tag. Replacing the first `</head>` is unsafe:
+	// getFullContent also embeds user/runtime scripts that may contain the literal
+	// `</head>` in a JavaScript string, and inserting CSS there breaks that script.
+	if (/<head\b[^>]*>/i.test(html)) {
+		return html.replace(/<head\b[^>]*>/i, (headTag) => {
+			return `${headTag}${STREAMING_HTML_PREVIEW_SCROLL_STYLE}`
+		})
 	}
 
 	return `${html}${STREAMING_HTML_PREVIEW_SCROLL_STYLE}`
@@ -632,10 +699,24 @@ export function StreamingHtmlPreviewRenderer(props: HtmlPreviewRendererProps) {
 		onMetrics,
 		containIframeOverscroll = false,
 		hideVerticalScroll = false,
+		onContentCommitted,
+		isPreviewActive = true,
 	} = props
 	const iframeRef = useRef<HTMLIFrameElement>(null)
 	const isIframeReadyRef = useRef(false)
-	const lastPostedContentRef = useRef("")
+	const contentVersionRef = useRef(0)
+	const latestSentVersionRef = useRef(0)
+	const lastAcknowledgedFullContentRef = useRef("")
+	const lastPostedActivityRef = useRef<boolean | null>(null)
+	const acknowledgeTimeoutRef = useRef<number | null>(null)
+	const latestPayloadRef = useRef<{ fullContent: string; committedContent: string }>({
+		fullContent: "",
+		committedContent: "",
+	})
+	const mailboxRef = useRef<{
+		inFlight: { version: number; fullContent: string; committedContent: string } | null
+		pending: { fullContent: string; committedContent: string } | null
+	}>({ inFlight: null, pending: null })
 	useEffect(() => {
 		const iframe = iframeRef.current
 		if (!iframe) return
@@ -656,21 +737,76 @@ export function StreamingHtmlPreviewRenderer(props: HtmlPreviewRendererProps) {
 
 		return injectStreamingPreviewScrollStyle(previewDocument)
 	}, [containIframeOverscroll, hideVerticalScroll, previewContent])
+	// Keep the high-frequency payload in a ref so ACK/timeout handlers always flush
+	// the newest version instead of the render that originally created the timer.
+	latestPayloadRef.current = { fullContent, committedContent: content }
 
-	const postContent = useCallback(() => {
-		if (!isIframeReadyRef.current) return
-		if (!iframeRef.current?.contentWindow) return
-		if (lastPostedContentRef.current === fullContent) return
+	const clearAcknowledgeTimeout = useCallback(() => {
+		if (acknowledgeTimeoutRef.current !== null) {
+			window.clearTimeout(acknowledgeTimeoutRef.current)
+			acknowledgeTimeoutRef.current = null
+		}
+	}, [])
 
+	const postActivityState = useCallback(() => {
+		if (!isIframeReadyRef.current || !iframeRef.current?.contentWindow) return
+		if (isPreviewActive && lastPostedActivityRef.current === null) return
+		if (lastPostedActivityRef.current === isPreviewActive) return
 		iframeRef.current.contentWindow.postMessage(
-			{
-				type: "setContent",
-				content: fullContent,
-			},
+			{ type: "setActive", isActive: isPreviewActive },
 			"*",
 		)
-		lastPostedContentRef.current = fullContent
-	}, [fullContent])
+		lastPostedActivityRef.current = isPreviewActive
+	}, [isPreviewActive])
+
+	const postLatestContent = useCallback(() => {
+		const latestPayload = latestPayloadRef.current
+		const mailbox = mailboxRef.current
+
+		if (!isIframeReadyRef.current || !iframeRef.current?.contentWindow) {
+			mailbox.pending = latestPayload
+			return
+		}
+
+		if (!isPreviewActive) {
+			mailbox.pending = latestPayload
+			return
+		}
+
+		if (mailbox.inFlight) {
+			if (mailbox.inFlight.fullContent !== latestPayload.fullContent) {
+				mailbox.pending = latestPayload
+			}
+			return
+		}
+
+		if (latestPayload.fullContent === mailbox.pending?.fullContent) {
+			mailbox.pending = null
+		}
+		if (!latestPayload.fullContent) return
+		if (latestPayload.fullContent === lastAcknowledgedFullContentRef.current) return
+
+		const contentVersion = contentVersionRef.current + 1
+		contentVersionRef.current = contentVersion
+		latestSentVersionRef.current = contentVersion
+		mailbox.inFlight = { version: contentVersion, ...latestPayload }
+		mailbox.pending = null
+
+		iframeRef.current.contentWindow.postMessage(
+			{ type: "setContent", content: latestPayload.fullContent, contentVersion },
+			"*",
+		)
+
+		clearAcknowledgeTimeout()
+		acknowledgeTimeoutRef.current = window.setTimeout(() => {
+			const currentFlight = mailboxRef.current.inFlight
+			if (!currentFlight || currentFlight.version !== contentVersion) return
+			const hasPendingContent = mailboxRef.current.pending !== null
+			mailboxRef.current.inFlight = null
+			acknowledgeTimeoutRef.current = null
+			if (hasPendingContent) postLatestContent()
+		}, 800)
+	}, [clearAcknowledgeTimeout, isPreviewActive])
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
@@ -683,17 +819,48 @@ export function StreamingHtmlPreviewRenderer(props: HtmlPreviewRendererProps) {
 
 			if (event.data?.type === "iframeReady") {
 				isIframeReadyRef.current = true
-				lastPostedContentRef.current = ""
-				postContent()
+				postActivityState()
+				postLatestContent()
 				return
 			}
 
 			if (event.data?.type === "renderComplete" || event.data?.type === "pageFullyLoaded") {
+				const contentVersion = Number(event.data?.contentVersion)
+				const currentFlight = mailboxRef.current.inFlight
+				if (!Number.isInteger(contentVersion) || !currentFlight) return
+				if (contentVersion !== currentFlight.version) return
+
+				// 只有当前 in-flight 版本得到 iframe ACK，才解除 loading 并冻结可恢复内容。
+				clearAcknowledgeTimeout()
+				mailboxRef.current.inFlight = null
+				lastAcknowledgedFullContentRef.current = currentFlight.fullContent
+				onContentCommitted?.(currentFlight.committedContent)
 				onReady()
+				postLatestContent()
+				return
+			}
+
+			if (event.data?.type === "streamingPreviewError") {
+				const contentVersion = Number(event.data?.contentVersion)
+				const currentFlight = mailboxRef.current.inFlight
+				if (Number.isInteger(contentVersion) && currentFlight?.version === contentVersion) {
+					const hasPendingContent = mailboxRef.current.pending !== null
+					clearAcknowledgeTimeout()
+					mailboxRef.current.inFlight = null
+					if (hasPendingContent) postLatestContent()
+				}
 				return
 			}
 
 			if (event.data?.type !== "contentMetrics") return
+			const metricsContentVersion = Number(event.data?.contentVersion)
+			if (
+				!Number.isInteger(metricsContentVersion) ||
+				metricsContentVersion !== latestSentVersionRef.current ||
+				!isPreviewActive
+			) {
+				return
+			}
 
 			const contentWidth = Number(event.data?.contentWidth)
 			const contentHeight = Number(event.data?.contentHeight)
@@ -717,11 +884,26 @@ export function StreamingHtmlPreviewRenderer(props: HtmlPreviewRendererProps) {
 		return () => {
 			window.removeEventListener("message", handleMessage)
 		}
-	}, [onMetrics, onReady, postContent])
+	}, [
+		clearAcknowledgeTimeout,
+		isPreviewActive,
+		onContentCommitted,
+		onMetrics,
+		onReady,
+		postActivityState,
+		postLatestContent,
+	])
 
 	useEffect(() => {
-		postContent()
-	}, [postContent])
+		postActivityState()
+		postLatestContent()
+	}, [content, fullContent, postActivityState, postLatestContent])
+
+	useEffect(() => {
+		return () => {
+			clearAcknowledgeTimeout()
+		}
+	}, [clearAcknowledgeTimeout])
 
 	return (
 		<iframe
@@ -729,7 +911,7 @@ export function StreamingHtmlPreviewRenderer(props: HtmlPreviewRendererProps) {
 			className="h-full w-full border-none bg-transparent"
 			title="Streaming HTML Preview"
 			sandbox="allow-scripts allow-modals allow-forms allow-same-origin allow-popups allow-downloads allow-pointer-lock"
-			allow="fullscreen pointer-lock"
+			allow="fullscreen; pointer-lock"
 			allowFullScreen
 			srcDoc={STREAMING_HTML_PREVIEW_RUNTIME}
 			scrolling="yes"

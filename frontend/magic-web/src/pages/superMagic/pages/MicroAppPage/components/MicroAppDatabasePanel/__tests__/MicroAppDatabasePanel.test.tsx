@@ -32,6 +32,9 @@ describe("MicroAppDatabasePanel", () => {
 
 		await screen.findByText("Apple")
 		expect(screen.getByText("Survey")).toBeInTheDocument()
+		const tableHeader = screen.getByTestId("magicbase-table-header")
+		expect(tableHeader.querySelector("h3")).toHaveTextContent("Survey answers")
+		expect(tableHeader.querySelector("h3")?.nextElementSibling).toHaveTextContent("Survey")
 		expect(screen.getByText("microAppPage.databasePanel.title")).toBeInTheDocument()
 		expect(screen.getByText("microAppPage.databasePanel.description")).toBeInTheDocument()
 		expect(document.body).not.toHaveTextContent("enabled")
@@ -96,6 +99,7 @@ describe("MicroAppDatabasePanel", () => {
 				id: `table-${index + 1}`,
 				table_key: `survey_${index + 1}`,
 				table_name: `Survey ${index + 1}`,
+				description: `中文名 ${index + 1}`,
 			})),
 		)
 		renderPanel()
@@ -104,6 +108,7 @@ describe("MicroAppDatabasePanel", () => {
 		const tableList = document.getElementById("magicbase-table-list-panel")
 		expect(tableList).toBeInTheDocument()
 		expect(tableList).toHaveClass("w-[220px]")
+		expect(screen.getByRole("button", { name: /中文名 1.*Survey 1/ })).toBeInTheDocument()
 		expect(
 			screen.getByPlaceholderText("microAppPage.databasePanel.searchTables"),
 		).toBeInTheDocument()

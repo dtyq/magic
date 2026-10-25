@@ -11,7 +11,10 @@ use App\Application\Kernel\EnvManager;
 use App\Application\Permission\Service\UserModelAccessAppService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
+use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\Provider\DTO\ProviderModelItemDTO;
+use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
@@ -28,6 +31,7 @@ class ProviderModelAppService extends AbstractProviderAppService
         private readonly ProviderModelDomainService $providerModelDomainService,
         FileDomainService $fileDomainService,
         private readonly ProviderConfigDomainService $providerConfigDomainService,
+        private readonly VideoGenerationConfigDomainService $videoGenerationConfigDomainService,
     ) {
         parent::__construct($fileDomainService);
     }
@@ -86,6 +90,9 @@ class ProviderModelAppService extends AbstractProviderAppService
                     'id' => (string) $providerConfigEntity->getId(),
                     'name' => $providerConfigEntity->getLocalizedAlias($locale),
                 ]);
+                $providerModelItemDTO->setVideoGenerationConfig(
+                    $this->resolveVideoGenerationConfig($model, $providerConfigEntity)
+                );
             }
 
             $providerModelDetailDTOs[] = $providerModelItemDTO;
@@ -185,5 +192,21 @@ class ProviderModelAppService extends AbstractProviderAppService
     private function getUserModelAccessAppService(): UserModelAccessAppService
     {
         return di(UserModelAccessAppService::class);
+    }
+
+    private function resolveVideoGenerationConfig(
+        ProviderModelEntity $model,
+        ?ProviderConfigEntity $providerConfigEntity,
+    ): ?VideoGenerationConfig {
+        $providerCode = $providerConfigEntity?->getProviderCode();
+        if (! $model->getModelType()->isVideoGeneration() || $providerCode === null) {
+            return null;
+        }
+
+        return $this->videoGenerationConfigDomainService->resolve(
+            $model->getModelVersion(),
+            $model->getModelId(),
+            $providerCode,
+        );
     }
 }

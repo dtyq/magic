@@ -1,3 +1,4 @@
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 import { Login } from "@/types/login"
 import { configStore } from "@/models/config"
 import type { ThirdPartyLoginStrategy } from "../../types"
@@ -14,7 +15,7 @@ export const LarkStrategy: ThirdPartyLoginStrategy = {
 	 */
 	getAuthCode: (
 		deployCode: string,
-		options?: Pick<import("@/apis/core/HttpClient").RequestConfig, "skipAppInitWait">,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
 	): Promise<string> => {
 		void options
 		// eslint-disable-next-line no-async-promise-executor

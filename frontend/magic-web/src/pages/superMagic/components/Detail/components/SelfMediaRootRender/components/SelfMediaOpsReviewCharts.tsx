@@ -13,7 +13,7 @@ import {
 	YAxis,
 } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/shadcn-ui/chart"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type {
 	SelfMediaOpsReviewFunnelItem,
 	SelfMediaOpsReviewImpactItem,

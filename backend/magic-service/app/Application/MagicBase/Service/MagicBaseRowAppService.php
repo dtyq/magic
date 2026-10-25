@@ -52,7 +52,7 @@ readonly class MagicBaseRowAppService
                 $data,
             ));
 
-            return new MagicBaseRowDTO($this->rowQuerySupport->formatRow(
+            return new MagicBaseRowDTO($this->rowQuerySupport->formatWrittenRow(
                 $authorization,
                 $projectId,
                 $context->getTable(),
@@ -99,7 +99,7 @@ readonly class MagicBaseRowAppService
 
             $select = $this->selectParserDomainService->parse($requestDTO->getSelect());
             $rows = array_map(
-                fn (mixed $row): MagicBaseRowDTO => new MagicBaseRowDTO($this->rowQuerySupport->formatRow(
+                fn (mixed $row): MagicBaseRowDTO => new MagicBaseRowDTO($this->rowQuerySupport->formatWrittenRow(
                     $authorization,
                     $projectId,
                     $context->getTable(),
@@ -125,14 +125,14 @@ readonly class MagicBaseRowAppService
     public function updateRow(MagicUserAuthorization $authorization, int $projectId, int $tableId, int $recordId, CreateRowRequestDTO $requestDTO): MagicBaseRowDTO
     {
         return Db::transaction(function () use ($authorization, $projectId, $tableId, $recordId, $requestDTO): MagicBaseRowDTO {
-            $context = $this->accessControl->requireWritableTable($authorization, $projectId, $tableId);
+            $context = $this->accessControl->requireDataWritableTable($authorization, $projectId, $tableId);
             $row = $this->accessControl->requireEditableRow($authorization, $context, $recordId);
 
             $normalized = $this->rowDomainService->normalizeRowPayload($requestDTO->getData(), $context->getAccess()->getColumns(), false);
             $this->accessControl->assertEditableColumns($context, $row, array_values(array_map('strval', array_keys($normalized))));
 
             $row = $this->rowStorageResolver->saveRow($this->rowDomainService->applyUpdate($row, $normalized));
-            return new MagicBaseRowDTO($this->rowQuerySupport->formatRow(
+            return new MagicBaseRowDTO($this->rowQuerySupport->formatWrittenRow(
                 $authorization,
                 $projectId,
                 $context->getTable(),
@@ -147,7 +147,7 @@ readonly class MagicBaseRowAppService
     public function deleteRow(MagicUserAuthorization $authorization, int $projectId, int $tableId, int $recordId): void
     {
         Db::transaction(function () use ($authorization, $projectId, $tableId, $recordId): void {
-            $context = $this->accessControl->requireWritableTable($authorization, $projectId, $tableId);
+            $context = $this->accessControl->requireDataWritableTable($authorization, $projectId, $tableId);
             $row = $this->accessControl->requireDeletableRow($authorization, $context, $recordId);
 
             $this->rowStorageResolver->saveRow($this->rowDomainService->markDeleted($row));
@@ -165,7 +165,7 @@ readonly class MagicBaseRowAppService
                 MagicBaseExceptionBuilder::parameterMissing('record_ids');
             }
 
-            $context = $this->accessControl->requireWritableTable($authorization, $projectId, $tableId);
+            $context = $this->accessControl->requireDataWritableTable($authorization, $projectId, $tableId);
             $rows = [];
             foreach ($recordIds as $recordId) {
                 $rows[$recordId] = $this->accessControl->requireDeletableRow($authorization, $context, $recordId);

@@ -3,10 +3,11 @@ import { ListFilter, RotateCcw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
+import { cn } from "@/utils/cn"
 import { useLocaleText } from "../../panels/hooks/useLocaleText"
 import SlidesTemplateMobileFilterOption from "./SlidesTemplateMobileFilterOption"
-import type { SlidesTemplateTagGroupItem } from "./slidesTemplateState"
+import { getSlidesTemplateName, type SlidesTemplateTagGroupItem } from "./slidesTemplateState"
 import SlidesTemplateMobileFilterPopup from "./SlidesTemplateMobileFilterPopup"
 import SlidesTemplateTagGroupSelect from "./SlidesTemplateTagGroupSelect"
 
@@ -114,7 +115,7 @@ function SlidesTemplateMobileTagFilters({
 				open={isPanelOpen}
 				onOpenChange={handlePanelOpenChange}
 				title={panelTitle}
-				className="mx-auto h-[648px] max-h-[90dvh] max-w-[375px] border border-border [&_.mobile-popup-action-header]:mb-0"
+				className="mx-auto h-[648px] max-h-[90vh] max-w-[375px] border border-border supports-[height:100dvh]:max-h-[90dvh] [&_.mobile-popup-action-header]:mb-0"
 				contentClassName="overflow-hidden px-[10px] pb-5 pt-2"
 				headerTrailingAction={
 					selectedTagCodes.length > 0
@@ -131,10 +132,15 @@ function SlidesTemplateMobileTagFilters({
 					className="flex h-full min-h-0 w-full overflow-hidden rounded-lg bg-card"
 					data-testid="slides-template-mobile-all-filters-panel"
 				>
-					<nav
-						className="no-scrollbar w-[86px] shrink-0 overflow-y-auto border-r border-border bg-card py-1"
-						aria-label={panelTitle}
-						data-testid="slides-template-mobile-all-filters-groups"
+					{/* Keep groups and values independently scrollable within the fixed split panel. */}
+					<ScrollArea
+						className="min-h-0 w-[86px] shrink-0 border-r border-border bg-card"
+						viewportClassName="py-1 [&>div]:!block"
+						viewportProps={{
+							role: "navigation",
+							"aria-label": panelTitle,
+							"data-testid": "slides-template-mobile-all-filters-groups",
+						}}
 					>
 						{tagGroups.map((tagGroup) => {
 							const isActive = tagGroup.code === activeTagGroup?.code
@@ -156,18 +162,23 @@ function SlidesTemplateMobileTagFilters({
 									{isActive ? (
 										<span className="absolute inset-y-0 left-0 w-[3px] rounded-r-full bg-primary" />
 									) : null}
-									<span className="line-clamp-2">{lt(tagGroup.name_i18n)}</span>
+									<span className="line-clamp-2">
+										{lt(getSlidesTemplateName(tagGroup))}
+									</span>
 								</button>
 							)
 						})}
-					</nav>
+					</ScrollArea>
 
-					<div
-						className="no-scrollbar min-w-0 flex-1 overflow-y-auto px-3 py-3"
-						data-testid="slides-template-mobile-all-filters-values"
+					<ScrollArea
+						className="min-h-0 min-w-0 flex-1"
+						viewportClassName="px-3 py-3 [&>div]:!block"
+						viewportProps={{
+							"data-testid": "slides-template-mobile-all-filters-values",
+						}}
 					>
 						<h2 className="mb-3 px-0.5 text-[14px] leading-5 text-muted-foreground">
-							{activeTagGroup ? lt(activeTagGroup.name_i18n) : null}
+							{activeTagGroup ? lt(getSlidesTemplateName(activeTagGroup)) : null}
 						</h2>
 						<div className="grid grid-cols-2 content-start gap-2">
 							{activeTagGroup?.tags.map((tag) => {
@@ -176,7 +187,7 @@ function SlidesTemplateMobileTagFilters({
 								return (
 									<SlidesTemplateMobileFilterOption
 										key={tag.code}
-										label={lt(tag.name_i18n)}
+										label={lt(getSlidesTemplateName(tag))}
 										selected={isSelected}
 										variant="splitSheet"
 										onClick={() => toggleSelectedTag(tag.code)}
@@ -185,7 +196,7 @@ function SlidesTemplateMobileTagFilters({
 								)
 							})}
 						</div>
-					</div>
+					</ScrollArea>
 				</div>
 			</SlidesTemplateMobileFilterPopup>
 		</div>

@@ -1,14 +1,16 @@
-import { lazy, Suspense, useCallback, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
-import { cn } from "@/lib/utils"
+import MagicTooltip from "@/components/base/MagicTooltip"
+import { cn } from "@/utils/cn"
 import ModeAvatar from "../../ModeAvatar"
 import {
-	ChevronDown,
 	ChevronRight,
 	ChevronUp,
+	Bot,
 	CirclePlus,
+	Ellipsis,
 	Loader2,
 	SlidersHorizontal,
 } from "lucide-react"
@@ -22,6 +24,7 @@ import type { ModeItem } from "../../../pages/Workspace/types"
 import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
 export const CREW_OVERFLOW_THRESHOLD = 6
+const AVATAR_ROTATION_INTERVAL_MS = 5000
 
 const MyCrewManageSortingDialog = lazy(() =>
 	import("@/pages/superMagic/pages/MyCrewPage/components/MyCrewManageSortingDialog").then(
@@ -35,12 +38,28 @@ interface RoleSwitcherOverflowMenuProps {
 	modeList: ModeItem[]
 	role: TopicMode
 	onSelectMode: (modeIdentifier: TopicMode) => void
+	isScrolled: boolean
+}
+
+function selectRandomModes(modeList: ModeItem[], count: number, previousModes: ModeItem[] = []) {
+	const previousIds = new Set(previousModes.map((modeItem) => modeItem.mode.identifier))
+	const differentModes = modeList.filter((modeItem) => !previousIds.has(modeItem.mode.identifier))
+	const sourceModes = differentModes.length >= count ? differentModes : modeList
+	const shuffled = [...sourceModes]
+	for (let index = shuffled.length - 1; index > 0; index -= 1) {
+		const randomIndex = Math.floor(Math.random() * (index + 1))
+		const currentMode = shuffled[index]
+		shuffled[index] = shuffled[randomIndex]
+		shuffled[randomIndex] = currentMode
+	}
+	return shuffled.slice(0, count)
 }
 
 export function RoleSwitcherOverflowMenu({
 	modeList,
 	role,
 	onSelectMode,
+	isScrolled,
 }: RoleSwitcherOverflowMenuProps) {
 	const navigate = useNavigate()
 	const { t } = useTranslation("crew/create")
@@ -52,11 +71,66 @@ export function RoleSwitcherOverflowMenu({
 	const { isAllowed: canCreateAgent } = useFunctionPermission(
 		FUNCTION_PERMISSION_CODE.AgentCreate,
 	)
+	const [avatarModes, setAvatarModes] = useState(() => selectRandomModes(modeList, 3))
+	const [isAvatarTransitionVisible, setIsAvatarTransitionVisible] = useState(true)
+	const avatarModesRef = useRef(avatarModes)
+	const avatarTransitionFrameRef = useRef<number | null>(null)
+	// Keep the trigger width stable while the employee list is scrolled.
+	const shouldShowAvatarGroup = !isPopoverOpen && avatarModes.length > 0
+	const showAvatarGroup = shouldShowAvatarGroup && isAvatarTransitionVisible
+
+	useEffect(() => {
+		const nextModes = selectRandomModes(modeList, 3, avatarModesRef.current)
+		avatarModesRef.current = nextModes
+		setAvatarModes(nextModes)
+		setIsAvatarTransitionVisible(true)
+	}, [modeList])
+
+	useEffect(() => {
+		if (isScrolled || isPopoverOpen || modeList.length <= 3) return
+
+		const rotateAvatarModes = () => {
+			const currentModes = avatarModesRef.current
+			if (currentModes.length === 0) return
+
+			const nextModes = selectRandomModes(modeList, 3, currentModes)
+			if (nextModes.length === 0) return
+
+			avatarModesRef.current = nextModes
+			setIsAvatarTransitionVisible(false)
+			setAvatarModes(nextModes)
+
+			if (avatarTransitionFrameRef.current != null) {
+				cancelAnimationFrame(avatarTransitionFrameRef.current)
+			}
+			avatarTransitionFrameRef.current = requestAnimationFrame(() => {
+				setIsAvatarTransitionVisible(true)
+				avatarTransitionFrameRef.current = null
+			})
+		}
+
+		const intervalId = window.setInterval(rotateAvatarModes, AVATAR_ROTATION_INTERVAL_MS)
+		return () => {
+			window.clearInterval(intervalId)
+			setIsAvatarTransitionVisible(true)
+			if (avatarTransitionFrameRef.current != null) {
+				cancelAnimationFrame(avatarTransitionFrameRef.current)
+				avatarTransitionFrameRef.current = null
+			}
+		}
+	}, [isPopoverOpen, isScrolled, modeList])
 
 	const handleNavigateMyCrew = useCallback(() => {
 		setIsPopoverOpen(false)
 		navigate({
 			name: RouteName.MyCrew,
+		})
+	}, [navigate])
+
+	const handleNavigateCrewMarket = useCallback(() => {
+		setIsPopoverOpen(false)
+		navigate({
+			name: RouteName.CrewMarket,
 		})
 	}, [navigate])
 
@@ -91,21 +165,53 @@ export function RoleSwitcherOverflowMenu({
 		<>
 			<Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
 				<PopoverTrigger asChild>
-					<span>
-						<Button
-							type="button"
-							variant="outline"
-							size="icon"
-							className="size-10 shrink-0 rounded-full"
-							data-testid="role-switcher-overflow-trigger"
-							aria-expanded={isPopoverOpen}
-						>
-							{isPopoverOpen ? (
-								<ChevronUp className="size-4" />
-							) : (
-								<ChevronDown className="size-4" />
-							)}
-						</Button>
+					<span className="flex shrink-0 justify-end">
+						<MagicTooltip title={tMarket("moreCrewTooltip")}>
+							<Button
+								type="button"
+								variant="outline"
+								size="icon"
+								className={cn(
+									"shrink-0 rounded-full transition-[width] duration-200 ease-out",
+									shouldShowAvatarGroup ? "h-10 w-[60px] gap-0 px-2" : "size-10",
+								)}
+								data-testid="role-switcher-overflow-trigger"
+								aria-expanded={isPopoverOpen}
+							>
+								{isPopoverOpen ? (
+									<ChevronUp className="size-4" />
+								) : (
+									<span className="relative flex h-5 w-[38px] items-center justify-center">
+										<div
+											className={cn(
+												"absolute flex items-center -space-x-2 transition-all duration-300 ease-out",
+												showAvatarGroup
+													? "scale-100 opacity-100"
+													: "scale-75 opacity-0",
+											)}
+											data-testid="role-switcher-overflow-avatar-group"
+										>
+											{avatarModes.map((modeItem) => (
+												<ModeAvatar
+													key={modeItem.mode.identifier}
+													mode={modeItem.mode}
+													className="border-2 border-background"
+													iconSize={16}
+												/>
+											))}
+										</div>
+										<Ellipsis
+											className={cn(
+												"size-4 transition-all duration-200 ease-out",
+												shouldShowAvatarGroup
+													? "scale-75 opacity-0"
+													: "scale-100 opacity-100",
+											)}
+										/>
+									</span>
+								)}
+							</Button>
+						</MagicTooltip>
 					</span>
 				</PopoverTrigger>
 				<PopoverContent
@@ -116,10 +222,10 @@ export function RoleSwitcherOverflowMenu({
 					)}
 					data-testid="role-switcher-overflow-popover"
 				>
-					<div className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-3">
+					<div className="flex shrink-0 items-center gap-2.5 border-b border-border px-3 py-2">
 						<button
 							type="button"
-							className="flex min-w-0 flex-1 items-center gap-1 text-left text-xl font-medium leading-none text-foreground hover:opacity-90"
+							className="flex min-w-0 flex-1 items-center gap-1 text-left text-base font-medium leading-none text-foreground hover:opacity-90"
 							data-testid="role-switcher-overflow-go-my-crew"
 							aria-label={tMarket("myCrewPage.roleSwitcherPopover.goToMyCrewAria")}
 							onClick={handleNavigateMyCrew}
@@ -211,6 +317,15 @@ export function RoleSwitcherOverflowMenu({
 							})}
 						</div>
 					</ScrollArea>
+					<button
+						type="button"
+						className="flex h-12 shrink-0 items-center justify-center gap-2 border-t border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+						onClick={handleNavigateCrewMarket}
+						data-testid="role-switcher-overflow-go-crew-market"
+					>
+						<Bot className="size-4" aria-hidden />
+						{tMarket("hireMoreCrew")}
+					</button>
 				</PopoverContent>
 			</Popover>
 			{isSortingDialogOpen ? (

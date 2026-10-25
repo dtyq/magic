@@ -17,6 +17,11 @@ use App\Infrastructure\Core\ValueObject\Page;
  */
 interface SkillRepositoryInterface
 {
+    public function lockByCode(SkillDataIsolation $dataIsolation, string $code): void;
+
+    /** @return SkillEntity[] */
+    public function findByProjectId(SkillDataIsolation $dataIsolation, int $projectId): array;
+
     /**
      * 根据 code 查找 Skill.
      *
@@ -33,6 +38,13 @@ interface SkillRepositoryInterface
      * @return array<string, SkillEntity> 技能实体数组，key 为 code
      */
     public function findByCodes(SkillDataIsolation $dataIsolation, array $codes): array;
+
+    /**
+     * 查询当前用户创建的技能 code。
+     *
+     * @return array<string>
+     */
+    public function findCodesByCreator(SkillDataIsolation $dataIsolation): array;
 
     /**
      * 保存 Skill.
@@ -153,4 +165,26 @@ interface SkillRepositoryInterface
     public function updateUpdatedAtByProjectId(SkillDataIsolation $dataIsolation, int $projectId): bool;
 
     public function findUserSkillsByIds(SkillDataIsolation $dataIsolation, array $skillIds): array;
+
+    /**
+     * 查询本地 ZIP 导入的 Skill，用于一次性清理历史多语言数据.
+     *
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function findLocalUploadSkillsForI18nCleanup(
+        SkillDataIsolation $dataIsolation,
+        ?string $skillCode,
+        int $page,
+        int $pageSize
+    ): array;
+
+    /**
+     * 仅更新 Skill 的名称和描述多语言字段.
+     */
+    public function updateNameAndDescriptionI18n(
+        SkillDataIsolation $dataIsolation,
+        string $skillCode,
+        array $nameI18n,
+        ?array $descriptionI18n
+    ): bool;
 }

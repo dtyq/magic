@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { SuperMagicApi } from "@/apis"
 import {
@@ -44,6 +44,10 @@ const useResolvedTemplateColorsMock = vi.hoisted(() =>
 
 const useIsMobileMock = vi.hoisted(() => vi.fn(() => false))
 const useFinePointerHoverMock = vi.hoisted(() => vi.fn(() => false))
+const toastMock = vi.hoisted(() => ({
+	success: vi.fn(),
+	error: vi.fn(),
+}))
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: apiMock,
@@ -54,9 +58,11 @@ vi.mock("react-i18next", () => ({
 		t: (key: string, options?: { count?: string }) =>
 			key === "playbook.edit.presets.templateCount"
 				? `${options?.count} 套`
-				: key === "playbook.edit.presets.unselected"
-					? "Not selected"
-					: key,
+				: key === "ppt.templateReplacement.title"
+					? "选择 PPT 模板"
+					: key === "playbook.edit.presets.unselected"
+						? "Not selected"
+						: key,
 		i18n: { language: "en_US" },
 	}),
 }))
@@ -84,6 +90,10 @@ vi.mock("@/hooks/useIsMobile", () => ({
 
 vi.mock("../../../panels/slides-preset/useFinePointerHover", () => ({
 	useFinePointerHover: useFinePointerHoverMock,
+}))
+
+vi.mock("@/components/base/MagicToaster/utils", () => ({
+	default: toastMock,
 }))
 
 const businessCategory: SlidesTemplateCategoryItem = {
@@ -143,6 +153,13 @@ function createSlidesTemplatePanelContentState(
 		tagGroups: [],
 		templateOptions: [],
 		total: 0,
+		myTemplatesEmptyStatus: null,
+		myTemplatesActiveSection: "created",
+		setMyTemplatesActiveSection: vi.fn(),
+		retryMyTemplates: vi.fn(),
+		favoritePendingCodes: new Set(),
+		removeTemplate: vi.fn(async () => undefined),
+		toggleTemplateFavorite: vi.fn(async () => undefined),
 		...overrides,
 	}
 }
@@ -282,8 +299,7 @@ describe("SlidesTemplatePanel", () => {
 		})
 		await waitFor(() => {
 			const lastContent = handlePresetContentChange.mock.calls.at(-1)?.[0] as
-				| JSONContent
-				| undefined
+				JSONContent | undefined
 			expect(getPromptRichTextPlainText(lastContent)).toContain("Pages: 6-10")
 		})
 
@@ -300,8 +316,7 @@ describe("SlidesTemplatePanel", () => {
 
 		await waitFor(() => {
 			const lastContent = handlePresetContentChange.mock.calls.at(-1)?.[0] as
-				| JSONContent
-				| undefined
+				JSONContent | undefined
 			expect(lastContent).toBeUndefined()
 		})
 	})
@@ -347,6 +362,9 @@ describe("SlidesTemplatePanel", () => {
 		expect(
 			screen.getByTestId("slides-template-home-clear-selected-template"),
 		).toBeInTheDocument()
+		expect(
+			screen.getByTestId("slides-template-home-selected-template").children[1],
+		).toHaveClass("md:ml-auto")
 
 		fireEvent.click(screen.getByTestId("slides-template-home-preview-selected-template"))
 		expect(screen.getByTestId("slides-preset-preview-dialog-content")).toBeInTheDocument()
@@ -430,16 +448,32 @@ describe("SlidesTemplatePanel", () => {
 				filters={[]}
 				onFilterChange={vi.fn()}
 				onTemplatePickerContainerChange={vi.fn()}
+				compactLayout
 			/>,
 		)
 		const chooseTemplateButton = screen
 			.getAllByTestId("slides-template-home-choose-template")
 			.at(-1)
 		expect(chooseTemplateButton).toBeDefined()
+		expect(chooseTemplateButton).toHaveClass("md:h-11")
+		expect(chooseTemplateButton?.querySelector("p")).toHaveClass("md:whitespace-nowrap")
+		expect(chooseTemplateButton?.parentElement).toHaveClass("md:flex-none")
+		expect(
+			chooseTemplateButton?.closest('[data-testid="slides-template-home-selected-template"]'),
+		).toHaveClass("md:flex-nowrap")
+		expect(
+			chooseTemplateButton?.closest('[data-testid="slides-template-home-selected-template"]'),
+		).not.toHaveClass("md:justify-center")
+		expect(
+			chooseTemplateButton?.closest('[data-testid="slides-template-home-selected-template"]')
+				?.children[1],
+		).toHaveClass("md:ml-auto")
 		expect(chooseTemplateButton).toHaveTextContent(
 			"playbook.edit.presets.form.selectOrAutoSelectTemplate",
 		)
 		expect(chooseTemplateButton).toHaveAttribute("aria-haspopup", "dialog")
+		fireEvent.click(chooseTemplateButton)
+		expect(screen.getByRole("dialog")).toHaveTextContent("选择 PPT 模板")
 	})
 
 	it("highlights the template area and requests a random template on drop", () => {
@@ -520,7 +554,7 @@ describe("SlidesTemplatePanel", () => {
 		)
 	})
 
-	it("opens the template picker from the selected template hover action", async () => {
+	it("opens the template picker dialog from the selected template hover action", async () => {
 		useFinePointerHoverMock.mockReturnValue(true)
 		const handleClear = vi.fn()
 		const handleTemplatePickerContainerChange = vi.fn()
@@ -558,6 +592,7 @@ describe("SlidesTemplatePanel", () => {
 		expect(
 			screen.getByTestId("slides-template-home-replace-selected-template"),
 		).toHaveAttribute("aria-expanded", "true")
+		expect(screen.getByRole("dialog")).toHaveTextContent("选择 PPT 模板")
 		expect(handleClear).not.toHaveBeenCalled()
 		await waitFor(() =>
 			expect(handleTemplatePickerContainerChange).toHaveBeenCalledWith(
@@ -654,6 +689,24 @@ describe("SlidesTemplatePanel", () => {
 		expect(screen.queryByTestId("slides-template-panel-template-count")).toBeNull()
 	})
 
+	it("opens My templates from the home category selector", async () => {
+		render(
+			<SlidesTemplatePanel
+				config={createSlidesPresetPanelConfig([])}
+				variant={ScenePanelVariant.HomePage}
+			/>,
+		)
+
+		const myTemplatesTab = await screen.findByTestId(
+			"template-group-selector-option-__my_slides_templates__",
+		)
+		Object.assign(myTemplatesTab, { scrollIntoView: vi.fn() })
+		fireEvent.click(myTemplatesTab)
+
+		expect(await screen.findByTestId("my-slides-templates-unavailable")).toBeInTheDocument()
+		expect(myTemplatesTab).toHaveAttribute("aria-pressed", "true")
+	})
+
 	it("does not render when there are no templates", async () => {
 		vi.mocked(SuperMagicApi.getSlidesTemplates).mockResolvedValue({
 			page: 1,
@@ -702,6 +755,9 @@ describe("SlidesTemplatePanel", () => {
 		fireEvent.click(trigger)
 
 		expect(await screen.findByTestId("slides-template-search-toggle")).toBeInTheDocument()
+		expect(
+			screen.getByTestId("template-group-selector-option-__my_slides_templates__"),
+		).toBeInTheDocument()
 		expect(screen.queryByTestId("slides-template-search-input")).not.toBeInTheDocument()
 		fireEvent.click(screen.getByTestId("slides-template-search-toggle"))
 		expect(await screen.findByTestId("slides-template-search-input")).toBeInTheDocument()
@@ -712,7 +768,7 @@ describe("SlidesTemplatePanel", () => {
 		expect(trigger).not.toHaveTextContent("101,582 套")
 	})
 
-	it("keeps the floating template picker open while changing a desktop tag filter", async () => {
+	it("keeps the template picker dialog open while changing a desktop tag filter", async () => {
 		vi.mocked(SuperMagicApi.getSlidesTemplateTagGroups).mockResolvedValue([
 			{
 				id: "style-group",
@@ -792,6 +848,34 @@ describe("SlidesTemplatePanel", () => {
 		fireEvent.click(await screen.findByText("Business Template"))
 
 		await waitFor(() => expect(trigger).toHaveTextContent("Business Template"))
+	})
+
+	it("clears controlled template selection when the input scope changes", async () => {
+		function ControlledTopicTemplatePanel() {
+			const [selectedTemplate, setSelectedTemplate] = useState<OptionItem | null>({
+				value: businessTemplate.code,
+				label: businessTemplate.label,
+			})
+			const config = useMemo(() => createSlidesPresetPanelConfig([]), [])
+
+			return (
+				<SlidesTemplatePanel
+					config={config}
+					variant={ScenePanelVariant.TopicPage}
+					selectedTemplate={selectedTemplate}
+					onTemplateSelect={setSelectedTemplate}
+				/>
+			)
+		}
+
+		const { rerender } = render(<ControlledTopicTemplatePanel />)
+		const trigger = await screen.findByTestId("slides-template-floating-selector-trigger")
+		expect(trigger).toHaveTextContent("Business Template")
+
+		sceneStateStoreMock.inputScopeKey = "ppt\u001etopic-b\u001e"
+		rerender(<ControlledTopicTemplatePanel />)
+
+		await waitFor(() => expect(trigger).not.toHaveTextContent("Business Template"))
 	})
 
 	it("keeps mobile compact selector and filters on the same row", async () => {
@@ -876,6 +960,34 @@ describe("SlidesTemplatePanel", () => {
 		expect(screen.getByTestId("slides-template-search-input")).toHaveValue("business")
 	})
 
+	it("shows a success toast after favoriting or unfavoriting a template", async () => {
+		const toggleTemplateFavorite = vi
+			.fn()
+			.mockResolvedValueOnce(true)
+			.mockResolvedValueOnce(false)
+		const favoriteTemplate = { ...businessTemplate, value: businessTemplate.code }
+		render(
+			<SlidesTemplatePanelContent
+				slidesState={createSlidesTemplatePanelContentState({
+					templateOptions: [favoriteTemplate],
+					toggleTemplateFavorite,
+				})}
+				onTemplateClick={vi.fn()}
+			/>,
+		)
+
+		const favoriteButton = screen.getByTestId("slides-preset-card-favorite-button")
+		fireEvent.click(favoriteButton)
+		await waitFor(() =>
+			expect(toastMock.success).toHaveBeenCalledWith("mySlidesTemplates.favoriteSuccess"),
+		)
+
+		fireEvent.click(favoriteButton)
+		await waitFor(() =>
+			expect(toastMock.success).toHaveBeenCalledWith("mySlidesTemplates.unfavoriteSuccess"),
+		)
+	})
+
 	it("renders filter skeletons while filter metadata initializes", () => {
 		render(
 			<SlidesTemplatePanelContent
@@ -928,6 +1040,139 @@ describe("SlidesTemplatePanel", () => {
 		expect(categoryButton).toBeInTheDocument()
 		fireEvent.click(categoryButton)
 		expect(setSelectedGroupKey).toHaveBeenCalledWith("all")
+	})
+
+	it("shows My templates before Featured on the homepage selector", () => {
+		const myTemplatesGroupKey = "__my_slides_templates__"
+		render(
+			<SlidesTemplatePanelContent
+				slidesState={createSlidesTemplatePanelContentState({
+					groups: [
+						{ group_key: "all", group_name: "All", children: [] },
+						{
+							group_key: myTemplatesGroupKey,
+							group_name: "My templates",
+							children: [],
+						},
+						{ group_key: "tag:featured", group_name: "Featured", children: [] },
+					],
+				})}
+				onTemplateClick={vi.fn()}
+				showMyTemplates
+			/>,
+		)
+
+		const myTemplatesTab = screen.getByTestId(
+			`template-group-selector-option-${myTemplatesGroupKey}`,
+		)
+		const featuredTab = screen.getByTestId("template-group-selector-option-tag:featured")
+		expect(myTemplatesTab).toContainElement(screen.getByTestId("my-slides-templates-tab-icon"))
+		expect(screen.queryByTestId("my-slides-templates-section-tabs")).toBeNull()
+		expect(
+			myTemplatesTab.compareDocumentPosition(featuredTab) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy()
+	})
+
+	it("keeps My templates selected when its selected entry is clicked again", () => {
+		const myTemplatesGroupKey = "__my_slides_templates__"
+		const setSelectedGroupKey = vi.fn()
+		render(
+			<SlidesTemplatePanelContent
+				slidesState={createSlidesTemplatePanelContentState({
+					selectedGroupKey: myTemplatesGroupKey,
+					setSelectedGroupKey,
+					groups: [
+						{ group_key: "all", group_name: "All", children: [] },
+						{
+							group_key: myTemplatesGroupKey,
+							group_name: "My templates",
+							children: [],
+						},
+						{ group_key: "tag:featured", group_name: "Featured", children: [] },
+					],
+				})}
+				onTemplateClick={vi.fn()}
+				showMyTemplates
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId(`template-group-selector-option-${myTemplatesGroupKey}`))
+
+		expect(setSelectedGroupKey).not.toHaveBeenCalled()
+	})
+
+	it("hides tag filters when the homepage selects My templates", () => {
+		render(
+			<SlidesTemplatePanelContent
+				slidesState={createSlidesTemplatePanelContentState({
+					selectedGroupKey: "__my_slides_templates__",
+					tagGroups: [
+						{
+							id: "style-group",
+							code: "style_group",
+							name_i18n: { zh_CN: "视觉风格", en_US: "Style" },
+							sort: 90,
+							tags: [
+								{
+									id: "business-style",
+									code: "style-business",
+									name_i18n: { zh_CN: "商务", en_US: "Business" },
+									sort: 90,
+									template_count: 1,
+									is_official: true,
+								},
+							],
+						},
+					],
+				})}
+				onTemplateClick={vi.fn()}
+				showMyTemplates
+			/>,
+		)
+
+		const myTemplatesTab = screen.getByTestId(
+			"template-group-selector-option-__my_slides_templates__",
+		)
+		const createdTab = screen.getByTestId("my-slides-templates-section-created")
+		expect(myTemplatesTab).toHaveClass("h-9", "rounded-full")
+		expect(createdTab).toHaveClass(
+			"h-8",
+			"rounded-lg",
+			"bg-muted/60",
+			"transition-none",
+			"active:scale-100",
+		)
+		expect(screen.getByTestId("my-slides-templates-secondary-tabs")).toBeInTheDocument()
+		expect(screen.getByTestId("my-slides-templates-section-favorites")).toBeInTheDocument()
+		expect(screen.getByTestId("my-slides-templates-section-used")).toBeInTheDocument()
+		expect(screen.queryByTestId("my-slides-templates-section-tabs")).toBeNull()
+		expect(screen.queryByTestId("slides-template-category-tag-filters")).toBeNull()
+		expect(screen.queryByTestId("slides-template-tag-filters-skeleton")).toBeNull()
+	})
+
+	it("confirms before removing a created template", async () => {
+		const removeTemplate = vi.fn(async () => undefined)
+		render(
+			<SlidesTemplatePanelContent
+				slidesState={createSlidesTemplatePanelContentState({
+					selectedGroupKey: "__my_slides_templates__",
+					templateOptions: [{ value: "PPT-created", label: "Created template" }],
+					removeTemplate,
+				})}
+				onTemplateClick={vi.fn()}
+				showMyTemplates
+				enableMyTemplateRemoval
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("slides-preset-card-remove-button"))
+		expect(screen.getByTestId("confirm-dialog-title")).toHaveTextContent(
+			"mySlidesTemplates.removeConfirmTitle",
+		)
+		expect(removeTemplate).not.toHaveBeenCalled()
+
+		fireEvent.click(screen.getByTestId("confirm-dialog-confirm"))
+		await waitFor(() => expect(removeTemplate).toHaveBeenCalledWith("PPT-created"))
 	})
 
 	it("renders each tag group as a multi-select dropdown", () => {

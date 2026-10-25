@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite"
 import { motion } from "framer-motion"
 import { ArrowUpRight } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useLocaleText } from "../hooks/useLocaleText"
 import type { OptionItem } from "../types"
 import { getOptionValue } from "../utils"

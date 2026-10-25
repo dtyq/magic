@@ -1,9 +1,10 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { useCallback, useState } from "react"
 import type { TFunction } from "i18next"
-import type {
-	ProjectListItem,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import projectStore from "@/pages/superMagic/stores/core/project"
 import superMagicService from "@/pages/superMagic/services"
 import DeleteDangerModal from "@/components/business/DeleteDangerModal"
@@ -65,10 +66,12 @@ function useCollapsedWorkspaceProjectActions({
 				content: targetProject.project_name || t("super:project.unnamedProject"),
 				needConfirm: false,
 				onSubmit: async () => {
+					if (!canDeleteRecordingProjects([targetProject.id])) return
 					try {
 						await superMagicService.deleteProject(targetProject)
 						magicToast.success(t("super:project.deleteProjectSuccess"))
 					} catch (error) {
+						if (handleRecordingProjectDeletionError(error)) return
 						console.log("删除项目失败，失败原因：", error)
 					}
 				},

@@ -30,14 +30,14 @@
 	},
 	"devDependencies": {
 		"@types/node": "^22.13.10",
-		"@zumer/snapdom": "^2.0.2",
+		"@zumer/snapdom": "^2.24.17",
 		"jszip": "^3.10.1",
 		"typescript": "^5.4.5",
 		"vite": "^8.0.3",
 		"vitest": "^3.2.4"
 	},
 	"peerDependencies": {
-		"@zumer/snapdom": "^2.0.2",
+		"@zumer/snapdom": "^2.24.17",
 		"jszip": "^3.10.1"
 	},
 	"publishConfig": {

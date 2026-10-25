@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo } from "react"
+import { lazy, Suspense, useMemo, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import ProjectCard from "../ProjectCard"
 import type { ProjectCardContainerProps } from "./types"
@@ -6,13 +6,13 @@ import projectFilesStore from "@/stores/projectFiles"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useShareProject } from "../../layouts/MainLayout/hooks/useShareProject"
 import { ShareMode, ShareType } from "../Share/types"
-import projectStore from "../../stores/core/project"
-import SuperMagicService from "../../services"
 import { observer } from "mobx-react-lite"
 import { Workspace, WorkspaceStatus } from "../../pages/Workspace/types"
 import { isReadOnlyProject } from "../../utils/permission"
 import { isOtherCollaborationProject } from "../../constants"
 import { generateShareUrl } from "../../components/ShareManagement/utils/shareTypeHelpers"
+
+import WorkspaceProjectsPanel from "../WorkspacesMenu/components/WorkspaceProjectsPanel"
 
 const ShareModal = lazy(() => import("@/pages/superMagic/components/Share/Modal"))
 
@@ -36,8 +36,10 @@ const ShareSuccessModal = lazy(
 function ProjectCardContainer({
 	selectedProject,
 	selectedWorkspace,
-	onDropdownClick,
+	onCollapse,
+	isPanelVisible = true,
 	className,
+	variant,
 }: ProjectCardContainerProps) {
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
@@ -50,27 +52,17 @@ function ProjectCardContainer({
 		? selectedWorkspace?.name || selectedProject?.workspace_name || ""
 		: selectedProject?.workspace_name || selectedWorkspace?.name || ""
 
-	const projectOptions = isReceivedCollaboration
-		? projectStore.receivedCollaborationProjects
-		: projectStore.getProjectsByWorkspace(currentWorkspaceId)
-
-	const handleProjectMenuOpenChange = (open: boolean) => {
-		if (!open) return
-		if (isReceivedCollaboration) {
-			void projectStore.loadReceivedCollaborationProjects()
-			return
-		}
-		if (currentWorkspaceId) {
-			void SuperMagicService.project.fetchProjects({
-				workspaceId: currentWorkspaceId,
-				clearWhenNoProjects: false,
-			})
-		}
-	}
+	const [projectsOpen, setProjectsOpen] = useState(false)
+	useEffect(() => {
+		if (!isPanelVisible) setProjectsOpen(false)
+	}, [isPanelVisible])
 
 	const workspaceForProjectActions = useMemo<Workspace>(
 		() => ({
 			id: currentWorkspaceId,
+			workspace_type: isSelectedWorkspaceMatched
+				? selectedWorkspace?.workspace_type || "default"
+				: "default",
 			name: currentWorkspaceName,
 			is_archived: isSelectedWorkspaceMatched ? (selectedWorkspace?.is_archived ?? 0) : 0,
 			current_topic_id:
@@ -92,16 +84,6 @@ function ProjectCardContainer({
 		],
 	)
 
-	const handleWorkspaceHomeClick = () => {
-		if (currentWorkspaceId) {
-			SuperMagicService.clearProjectAndTopicSelection()
-			SuperMagicService.route.navigateToWorkspace(currentWorkspaceId)
-			return
-		}
-
-		SuperMagicService.clearProjectAndTopicSelection()
-		SuperMagicService.route.navigateToHome()
-	}
 	// 使用分享项目 hook
 	const shareProject = useShareProject({
 		attachments: projectFilesStore.workspaceFileTree,
@@ -118,16 +100,27 @@ function ProjectCardContainer({
 				project={selectedProject}
 				workspaceName={currentWorkspaceName || t("workspace.unnamedWorkspace")}
 				collaborators={t("collaborators.empty")}
-				onWorkspaceHomeClick={handleWorkspaceHomeClick}
+				onWorkspaceProjectsOpen={() => setProjectsOpen(true)}
+				onCollapse={onCollapse}
+				isPanelVisible={isPanelVisible}
 				onShareClick={shareProject.openShareModal}
-				onDropdownClick={onDropdownClick}
-				projectOptions={projectOptions}
-				showCreateProject={!isReceivedCollaboration}
-				enableWorkspaceNavigation={!isReceivedCollaboration}
-				onProjectMenuOpenChange={handleProjectMenuOpenChange}
 				actionWorkspace={workspaceForProjectActions}
 				className={className}
+				variant={variant}
 			/>
+
+			{projectsOpen && (
+				<WorkspaceProjectsPanel
+					key={currentWorkspaceId}
+					open
+					initialSource={
+						isReceivedCollaboration
+							? { type: "collaboration" }
+							: { type: "workspace", workspace: workspaceForProjectActions }
+					}
+					onClose={() => setProjectsOpen(false)}
+				/>
+			)}
 
 			{!isReadOnlyProject(selectedProject?.user_role) && (
 				<>

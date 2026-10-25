@@ -53,12 +53,14 @@ function DeleteModal({
 				icon: <X />,
 				ariaLabel: translations.cancel,
 				onClick: onCancel,
+				testId: "hierarchical-workspace-delete-cancel",
 			}}
 			headerTrailingAction={{
 				icon: <Check />,
 				ariaLabel: translations.confirm,
 				onClick: onOk,
 				tone: "destructive",
+				testId: "hierarchical-workspace-delete-confirm",
 			}}
 			bodyClassName="max-h-[80dvh] p-0"
 		>

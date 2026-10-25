@@ -485,7 +485,10 @@ class MagicBaseApi extends AbstractApi
         }
 
         $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
-        if ($shareEntity === null) {
+        // Existing tokens must stop working when a share is disabled. Unknown share
+        // types must not fall through to the anonymous/public authorization branch.
+        if ($shareEntity === null || ! $shareEntity->getIsEnabled()
+            || ShareAccessType::tryFrom($shareEntity->getShareType()) === null) {
             $this->denyRuntimeAccess();
         }
 
@@ -532,7 +535,7 @@ class MagicBaseApi extends AbstractApi
      */
     private function denyRuntimeAccess()
     {
-        MagicBaseExceptionBuilder::accessDenied('无项目访问权限');
+        MagicBaseExceptionBuilder::accessDenied('magicbase.project_access_denied');
         throw new RuntimeException('Unreachable.');
     }
 }

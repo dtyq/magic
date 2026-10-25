@@ -21,6 +21,7 @@ import {
 	saveLinkedEditorDraftToStorage,
 } from "./linkedEditorDraft"
 import type { StoredLinkedEditorDraft } from "../../../public/magic-types"
+import type { ResolveCanvasResourceReference } from "../../../public/resource-reference"
 
 export interface LinkedEditorInputsState extends LinkedEditorInputsResolution {
 	isTextConnectionSelected: (connectionId: string) => boolean
@@ -53,6 +54,7 @@ function areCropConfigsEqual(a?: CropConfig, b?: CropConfig): boolean {
 function areLinkedMediaItemsEqual(
 	prev: LinkedEditorMediaItem[],
 	next: LinkedEditorMediaItem[],
+	resolveResourceReference?: ResolveCanvasResourceReference,
 ): boolean {
 	if (prev.length !== next.length) return false
 	for (let index = 0; index < prev.length; index += 1) {
@@ -63,13 +65,14 @@ function areLinkedMediaItemsEqual(
 		if (prevItem.sourceElementId !== nextItem.sourceElementId) return false
 		if (prevItem.kind !== nextItem.kind) return false
 		if (
-			getLinkedMediaReferenceIdentity(prevItem.path) !==
-			getLinkedMediaReferenceIdentity(nextItem.path)
+			getLinkedMediaReferenceIdentity(prevItem.path, resolveResourceReference) !==
+			getLinkedMediaReferenceIdentity(nextItem.path, resolveResourceReference)
 		) {
 			return false
 		}
 		if (prevItem.fileName !== nextItem.fileName) return false
 		if (!areCropConfigsEqual(prevItem.sourceCrop, nextItem.sourceCrop)) return false
+		if (prevItem.sourceContentId !== nextItem.sourceContentId) return false
 		if (prevItem.status !== nextItem.status) return false
 		if (prevItem.reason !== nextItem.reason) return false
 		if (prevItem.selected !== nextItem.selected) return false
@@ -81,6 +84,7 @@ function areLinkedMediaItemsEqual(
 function areLinkedMediaReferencesEqual(
 	prev: LinkedEditorMediaReference[],
 	next: LinkedEditorMediaReference[],
+	resolveResourceReference?: ResolveCanvasResourceReference,
 ): boolean {
 	if (prev.length !== next.length) return false
 	for (let index = 0; index < prev.length; index += 1) {
@@ -89,12 +93,13 @@ function areLinkedMediaReferencesEqual(
 		if (!prevItem || !nextItem) return false
 		if (prevItem.kind !== nextItem.kind) return false
 		if (
-			getLinkedMediaReferenceIdentity(prevItem.path) !==
-			getLinkedMediaReferenceIdentity(nextItem.path)
+			getLinkedMediaReferenceIdentity(prevItem.path, resolveResourceReference) !==
+			getLinkedMediaReferenceIdentity(nextItem.path, resolveResourceReference)
 		) {
 			return false
 		}
 		if (!areCropConfigsEqual(prevItem.sourceCrop, nextItem.sourceCrop)) return false
+		if (prevItem.sourceContentId !== nextItem.sourceContentId) return false
 	}
 	return true
 }
@@ -102,7 +107,14 @@ function areLinkedMediaReferencesEqual(
 function areLinkedEditorInputsEqual(
 	prev: LinkedEditorInputsResolution,
 	next: LinkedEditorInputsResolution,
+	resolveResourceReference?: ResolveCanvasResourceReference,
 ): boolean {
+	if (prev.connectedSourceElementIds.length !== next.connectedSourceElementIds.length)
+		return false
+	for (let index = 0; index < prev.connectedSourceElementIds.length; index += 1) {
+		if (prev.connectedSourceElementIds[index] !== next.connectedSourceElementIds[index])
+			return false
+	}
 	if (prev.textPrompt !== next.textPrompt) return false
 	if (prev.textConnections.length !== next.textConnections.length) return false
 	for (let index = 0; index < prev.textConnections.length; index += 1) {
@@ -114,8 +126,12 @@ function areLinkedEditorInputsEqual(
 		if (prevItem.text !== nextItem.text) return false
 	}
 	return (
-		areLinkedMediaItemsEqual(prev.mediaItems, next.mediaItems) &&
-		areLinkedMediaReferencesEqual(prev.activeMediaReferences, next.activeMediaReferences)
+		areLinkedMediaItemsEqual(prev.mediaItems, next.mediaItems, resolveResourceReference) &&
+		areLinkedMediaReferencesEqual(
+			prev.activeMediaReferences,
+			next.activeMediaReferences,
+			resolveResourceReference,
+		)
 	)
 }
 
@@ -123,7 +139,10 @@ export function useLinkedEditorInputs(
 	options: UseLinkedEditorInputsOptions,
 ): LinkedEditorInputsState {
 	const { targetElementId, targetKind, enabled = true, mediaPolicy } = options
-	const mentionedReferencePaths = options.mentionedReferencePaths ?? []
+	const mentionedReferencePaths = useMemo(
+		() => options.mentionedReferencePaths ?? [],
+		[options.mentionedReferencePaths],
+	)
 	const { canvas } = useCanvas()
 	const [resolution, setResolution] = useState<LinkedEditorInputsResolution>(() =>
 		resolveLinkedEditorInputs({
@@ -180,6 +199,8 @@ export function useLinkedEditorInputs(
 	const orderedTextConnectionIds = reconciledEditorDraft.orderedTextConnectionIds
 
 	const refreshInputs = useCallback(() => {
+		const resolveResourceReference =
+			canvas?.magicConfigManager?.config?.methods?.resolveResourceReference
 		const nextResolution = resolveLinkedEditorInputs({
 			canvas,
 			targetElementId,
@@ -188,7 +209,7 @@ export function useLinkedEditorInputs(
 			mediaPolicy,
 		})
 		setResolution((prevResolution) =>
-			areLinkedEditorInputsEqual(prevResolution, nextResolution)
+			areLinkedEditorInputsEqual(prevResolution, nextResolution, resolveResourceReference)
 				? prevResolution
 				: nextResolution,
 		)
@@ -239,8 +260,10 @@ export function useLinkedEditorInputs(
 				manualReferences: mediaPolicy?.manualReferences,
 				targetKind,
 				mediaPolicy,
+				resolveResourceReference:
+					canvas?.magicConfigManager?.config?.methods?.resolveResourceReference,
 			}),
-		[mediaPolicy, mentionedReferencePaths, resolution.mediaItems, targetKind],
+		[canvas, mediaPolicy, mentionedReferencePaths, resolution.mediaItems, targetKind],
 	)
 
 	useEffect(() => {

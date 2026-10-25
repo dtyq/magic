@@ -43,9 +43,9 @@ const useBindOpenApiAccountStyles = createStyles(({ css, isDarkMode, token }) =>
 			border: 1px solid transparent;
 			color: ${isDarkMode ? token.magicColorUsages.white : token.magicColorScales.grey[4]};
 			&:hover {
-				background: ${isDarkMode
-				? token.magicColorScales.grey[3]
-				: token.magicColorScales.grey[0]};
+				background: ${
+					isDarkMode ? token.magicColorScales.grey[3] : token.magicColorScales.grey[0]
+				};
 			}
 		`,
 		avatar: css`
@@ -160,7 +160,7 @@ function BindOpenApiAccount({ flowId, open, onClose }: BindOpenApiAccountProps) 
 	})
 	return (
 		<MagicModal
-			title="授权应用"
+			title={t("openapi.authorizeApp", { ns: "flow" })}
 			open={open}
 			onOk={handleOk}
 			onCancel={handleCancel}
@@ -177,8 +177,8 @@ function BindOpenApiAccount({ flowId, open, onClose }: BindOpenApiAccountProps) 
 				className={styles.form}
 			>
 				<Form.Item
-					label="新增应用"
-					extra="选中即新增"
+					label={t("openapi.addApp", { ns: "flow" })}
+					extra={t("openapi.selectToAdd", { ns: "flow" })}
 					required
 					rules={[{ required: true }]}
 				>
@@ -194,7 +194,7 @@ function BindOpenApiAccount({ flowId, open, onClose }: BindOpenApiAccountProps) 
 					</Flex>
 				</Form.Item>
 				<MagicSpin section spinning={isLoading}>
-					<Form.Item label="已添加应用">
+					<Form.Item label={t("openapi.addedApps", { ns: "flow" })}>
 						<Form.List name="bind">
 							{(subFields) => (
 								<div
@@ -236,7 +236,12 @@ function BindOpenApiAccount({ flowId, open, onClose }: BindOpenApiAccountProps) 
 													)}
 													<span>{fieldData.name}</span>
 												</Flex>
-												<Tooltip title={`移除${fieldData.name}`}>
+												<Tooltip
+													title={t("openapi.removeApp", {
+														ns: "flow",
+														name: fieldData.name,
+													})}
+												>
 													<MagicIcon
 														component={IconX}
 														className={styles.iconX}

@@ -9,6 +9,8 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from agentlang.utils.schema import FileInfo
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+from app.core.entity.message.server_message import OperationResultStatus
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
@@ -203,9 +205,16 @@ class FileSearch(WorkspaceTool[FileSearchParams]):
         else:
             lines.append(i18n.translate("search.no_results", category="tool.messages"))
 
-        return ToolDetail(
+        report = ToolDetail(
             type=DisplayType.MD,
             data=FileContent(file_name="file_search_results.md", content="\n".join(lines)),
+        )
+
+        return ToolDetailFactory.create_operation_result_detail(
+            (ToolDetailFactory.create_file_result_item(
+                str(item.get("path") or ""), self.base_dir, OperationResultStatus.SUCCESS,
+                message=str(item.get("size_text") or ""),
+            ) for item in matches), report=report, stage="find",
         )
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:

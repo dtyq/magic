@@ -47,16 +47,18 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     public int $generateNum = 4;
 
     // 图片来源类型
-    public ImageGenerateSourceEnum $sourceType;
+    public ImageGenerateSourceEnum $sourceType = ImageGenerateSourceEnum::NONE;
 
     // 来源ID
-    public string $sourceId;
+    public string $sourceId = '';
 
     // 图片生成附加配置
     public array $imageGenerationConfig = [];
 
     // 输出图片格式（统一使用小写格式，如 png、jpeg、webp；空字符串表示使用服务商默认格式）
     public string $outputFormat = '';
+
+    public ?array $extra = null;
 
     public function __construct()
     {
@@ -257,5 +259,15 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     public function setOutputFormat(string $outputFormat): void
     {
         $this->outputFormat = $outputFormat;
+    }
+
+    public function getExtra(): ?array
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(?array $extra): void
+    {
+        $this->extra = $extra;
     }
 }

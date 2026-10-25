@@ -9,6 +9,7 @@ namespace App\Interfaces\SuperMagic\Skill\DTO\Request;
 
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\PublishTargetValue;
 use App\Infrastructure\Core\AbstractRequestDTO;
+use App\Infrastructure\Util\VersionUtil;
 use Hyperf\Validation\Rule;
 
 use function Hyperf\Translation\__;
@@ -24,6 +25,9 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
     public ?array $publishTargetValue = null;
 
     public bool $exportFileFromProject = true;
+
+    /** @var int[] */
+    public array $categoryIds = [];
 
     public function getVersion(): string
     {
@@ -75,6 +79,18 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
         $this->exportFileFromProject = $exportFileFromProject;
     }
 
+    /** @return int[] */
+    public function getCategoryIds(): array
+    {
+        return array_values(array_unique(array_map('intval', $this->categoryIds)));
+    }
+
+    /** @param array<int, int|string> $categoryIds */
+    public function setCategoryIds(array $categoryIds): void
+    {
+        $this->categoryIds = $categoryIds;
+    }
+
     public function toPublishTargetValue(): ?PublishTargetValue
     {
         return PublishTargetValue::fromArray($this->publishTargetValue);
@@ -99,7 +115,7 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'version' => 'required|string|max:32',
+            'version' => ['required', 'string', 'max:32', VersionUtil::getValidationRule()],
             'version_description_i18n' => 'required|array',
             'version_description_i18n.zh_CN' => 'nullable|string|max:1000',
             'version_description_i18n.en_US' => 'nullable|string|max:1000',
@@ -110,6 +126,8 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
             'publish_target_value.department_ids' => 'nullable|array',
             'publish_target_value.department_ids.*' => 'string|max:64',
             'export_file_from_project' => 'nullable|boolean',
+            'category_ids' => 'exclude_unless:publish_target_type,MARKET|nullable|array|max:100',
+            'category_ids.*' => 'integer|min:1',
         ];
     }
 
@@ -119,6 +137,7 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
             'version.required' => __('common.parameter_required', ['label' => 'version']),
             'version.string' => __('validation.string', ['attribute' => 'version']),
             'version.max' => __('validation.max.string', ['attribute' => 'version', 'max' => 32]),
+            'version.regex' => __('skill.invalid_version_format'),
             'version_description_i18n.required' => __('common.parameter_required', ['label' => 'version_description_i18n']),
             'version_description_i18n.array' => __('validation.array', ['attribute' => 'version_description_i18n']),
             'version_description_i18n.zh_CN.string' => __('validation.string', ['attribute' => 'version_description_i18n.zh_CN']),

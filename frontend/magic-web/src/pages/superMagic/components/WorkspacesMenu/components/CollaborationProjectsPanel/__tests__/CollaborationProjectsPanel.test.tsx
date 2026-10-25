@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { ProjectsPanel } from "../../ProjectsPanel"
 
 const { getCollaborationProjects, viewModeState } = vi.hoisted(() => ({
 	getCollaborationProjects: vi.fn(),
@@ -47,6 +48,9 @@ vi.mock("antd", () => ({
 }))
 
 vi.mock("@/components/shadcn-ui/dialog", () => ({
+	DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	DialogPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 	Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
 		open ? <div>{children}</div> : null,
 	DialogContent: ({
@@ -204,24 +208,30 @@ describe("CollaborationProjectsPanel", () => {
 		})
 
 		render(
-			<CollaborationProjectsPanel
+			<ProjectsPanel
 				open
-				workspaces={[]}
-				selectedWorkspace={null}
-				fetchProjects={vi.fn()}
-				fetchWorkspaces={vi.fn()}
-				onCollaborationProjectClick={vi.fn()}
+				title="项目管理器"
+				searchValue=""
+				onSearchValueChange={vi.fn()}
 				onClose={vi.fn()}
-			/>,
+			>
+				<CollaborationProjectsPanel
+					searchValue=""
+					open
+					workspaces={[]}
+					selectedWorkspace={null}
+					fetchProjects={vi.fn()}
+					fetchWorkspaces={vi.fn()}
+					onCollaborationProjectClick={vi.fn()}
+					onClose={vi.fn()}
+				/>
+			</ProjectsPanel>,
 		)
 
 		await waitFor(() => expect(getCollaborationProjects).toHaveBeenCalled())
 
 		expect(screen.getByTestId("shared-workspace-dialog")).not.toBeNull()
-		expect(screen.getByTestId("shared-workspace-dialog-title")).toHaveTextContent("共享工作区")
-		expect(screen.getByTestId("shared-workspace-dialog-description")).toHaveTextContent(
-			"共享工作区说明",
-		)
+		expect(screen.getByTestId("shared-workspace-dialog-title")).toHaveTextContent("项目管理器")
 		expect(screen.getByTestId("shared-workspace-dialog-search-input")).not.toBeNull()
 		expect(screen.getByTestId("shared-workspace-dialog-close-button")).not.toBeNull()
 		expect(screen.getByTestId("shared-workspace-dialog-tabs")).not.toBeNull()
@@ -249,23 +259,31 @@ describe("CollaborationProjectsPanel", () => {
 		})
 
 		render(
-			<CollaborationProjectsPanel
+			<ProjectsPanel
 				open
-				workspaces={[]}
-				selectedWorkspace={null}
-				fetchProjects={vi.fn()}
-				fetchWorkspaces={vi.fn()}
-				onCollaborationProjectClick={vi.fn()}
+				title="项目管理器"
+				searchValue=""
+				onSearchValueChange={vi.fn()}
 				onClose={vi.fn()}
-			/>,
+			>
+				<CollaborationProjectsPanel
+					searchValue=""
+					open
+					workspaces={[]}
+					selectedWorkspace={null}
+					fetchProjects={vi.fn()}
+					fetchWorkspaces={vi.fn()}
+					onCollaborationProjectClick={vi.fn()}
+					onClose={vi.fn()}
+				/>
+			</ProjectsPanel>,
 		)
 
 		await waitFor(() => expect(getCollaborationProjects).toHaveBeenCalled())
 
 		const layout = screen.getAllByTestId("shared-workspace-dialog-project-list-layout")[0]
 		expect(layout).toHaveAttribute("data-view-mode", "grid")
-		expect(layout.className).toContain("repeat(6,minmax(0,1fr))")
-		expect(layout.className).toContain("max-[1250px]")
+		expect(layout.className).toContain("repeat(auto-fill,minmax(min(100%,240px),1fr))")
 		expect(layout.className).not.toContain("repeat(6,1fr)")
 	})
 
@@ -278,15 +296,24 @@ describe("CollaborationProjectsPanel", () => {
 		})
 
 		render(
-			<CollaborationProjectsPanel
+			<ProjectsPanel
 				open
-				workspaces={[]}
-				selectedWorkspace={null}
-				fetchProjects={vi.fn()}
-				fetchWorkspaces={vi.fn()}
-				onCollaborationProjectClick={vi.fn()}
+				title="项目管理器"
+				searchValue=""
+				onSearchValueChange={vi.fn()}
 				onClose={vi.fn()}
-			/>,
+			>
+				<CollaborationProjectsPanel
+					searchValue=""
+					open
+					workspaces={[]}
+					selectedWorkspace={null}
+					fetchProjects={vi.fn()}
+					fetchWorkspaces={vi.fn()}
+					onCollaborationProjectClick={vi.fn()}
+					onClose={vi.fn()}
+				/>
+			</ProjectsPanel>,
 		)
 
 		await waitFor(() => expect(getCollaborationProjects).toHaveBeenCalled())
@@ -294,6 +321,6 @@ describe("CollaborationProjectsPanel", () => {
 		const layout = screen.getAllByTestId("shared-workspace-dialog-project-list-layout")[0]
 		expect(layout).toHaveAttribute("data-view-mode", "list")
 		expect(layout.className).toContain("grid")
-		expect(layout.className).toContain("repeat(6,minmax(0,1fr))")
+		expect(layout.className).toContain("grid-cols-1")
 	})
 })

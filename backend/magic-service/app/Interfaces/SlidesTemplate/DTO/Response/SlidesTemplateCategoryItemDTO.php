@@ -15,19 +15,11 @@ class SlidesTemplateCategoryItemDTO extends AbstractDTO
 
     public string $code = '';
 
-    public I18nTextDTO $nameI18n;
+    public string $name = '';
 
     public int $sort = 0;
 
-    public int $templateCount = 0;
-
     public bool $isOfficial = false;
-
-    public function __construct(?array $data = null)
-    {
-        $this->setNameI18n(null);
-        parent::__construct($data);
-    }
 
     public function getId(): string
     {
@@ -49,14 +41,14 @@ class SlidesTemplateCategoryItemDTO extends AbstractDTO
         $this->code = $code ?? '';
     }
 
-    public function getNameI18n(): I18nTextDTO
+    public function getName(): string
     {
-        return $this->nameI18n;
+        return $this->name;
     }
 
-    public function setNameI18n(null|array|I18nTextDTO $nameI18n): void
+    public function setName(?string $name): void
     {
-        $this->nameI18n = $nameI18n instanceof I18nTextDTO ? $nameI18n : I18nTextDTO::fromArray($nameI18n ?? []);
+        $this->name = $name ?? '';
     }
 
     public function getSort(): int
@@ -67,16 +59,6 @@ class SlidesTemplateCategoryItemDTO extends AbstractDTO
     public function setSort(null|int|string $sort): void
     {
         $this->sort = $sort === null ? 0 : (int) $sort;
-    }
-
-    public function getTemplateCount(): int
-    {
-        return $this->templateCount;
-    }
-
-    public function setTemplateCount(null|int|string $templateCount): void
-    {
-        $this->templateCount = $templateCount === null ? 0 : (int) $templateCount;
     }
 
     public function isOfficial(): bool

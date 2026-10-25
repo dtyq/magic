@@ -1,8 +1,7 @@
 import { useCallback } from "react"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { openNewTab } from "@/routes/helpers"
-import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour/GuideTourManager"
 import type { GuideItem } from "../types"
 import { useLocaleText } from "./useLocaleText"
 
@@ -73,7 +72,9 @@ export function useGuideItemAction() {
 				// Focus editor then click the upload button in the MessageEditor toolbar
 				pubsub.publish(PubSubEvents.Add_Content_To_Chat, {})
 				requestAnimationFrame(() => {
-					document.getElementById(GuideTourElementId.UploadFileButton)?.click()
+					document
+						.querySelector<HTMLElement>('[data-guide-action="upload-file"]')
+						?.click()
 				})
 				break
 

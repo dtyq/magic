@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verdana Health — Clinical Design System &amp; Dosage Engine</title>
+  <style>
+  :root {
+  --primary: #0f172a;
+  --primary-hover: #020617;
+  --slate: #64748b;
+  --slate-light: #f1f5f9;
+  --sage: #059669;
+  --sage-light: #ecfdf5;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --border-focus: #0f172a;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --success: #16a34a;
+  --success-subtle: #dcfce7;
+  --warning: #ca8a04;
+  --warning-subtle: #fef9c3;
+  --error: #dc2626;
+  --error-subtle: #fee2e2;
+  --info: #0284c7;
+  --info-subtle: #e0f2fe;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 9999px;
+  --shadow-subtle: 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.08);
+  --font-system: 'Verdana', Geneva, -apple-system, sans-serif;
+  --font-display: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-system);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  }
+  
+  .system-nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  }
+  .system-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  }
+  .brand-symbol {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-family: var(--font-system);
+  font-weight: 700;
+  font-size: 16px;
+  }
+  .brand-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.01em;
+  }
+  .brand-title span { color: var(--sage); font-weight: 600; }
+  .spec-version {
+  background: var(--slate-light);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--slate);
+  font-weight: 600;
+  }
+  .nav-compliance {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  }
+  .wcag-badge {
+  background: var(--sage-light);
+  border: 1px solid rgba(5,150,105,0.25);
+  color: var(--sage);
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  }
+  
+  .calc-container {
+  max-width: 1240px;
+  margin: 18px auto;
+  padding: 0 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  }
+  
+  .badge-showcase-strip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-subtle);
+  flex-wrap: wrap;
+  gap: 10px;
+  }
+  .strip-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slate);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  }
+  .badge-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  }
+  .clinical-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  }
+  .chip-critical {
+  background: var(--error-subtle);
+  color: var(--error);
+  border: 1px solid rgba(220,38,38,0.3);
+  }
+  .chip-warning {
+  background: var(--warning-subtle);
+  color: var(--warning);
+  border: 1px solid rgba(202,138,4,0.3);
+  }
+  .chip-target {
+  background: var(--success-subtle);
+  color: var(--success);
+  border: 1px solid rgba(22,163,74,0.3);
+  }
+  .chip-protocol {
+  background: var(--info-subtle);
+  color: var(--info);
+  border: 1px solid rgba(2,132,199,0.3);
+  }
+  
+  .dosage-workstation {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+  }
+  .calculator-form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  }
+  .card-heading {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--slate-light);
+  padding-bottom: 10px;
+  }
+  
+  .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  }
+  .input-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  }
+  .field-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  }
+  .field-input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .field-input-wrap:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15,23,42,0.12);
+  }
+  .field-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  outline: none;
+  }
+  .unit-addon {
+  background: var(--slate-light);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--slate);
+  border-left: 1px solid var(--border);
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  }
+  .unit-toggle-segmented {
+  display: flex;
+  background: var(--slate-light);
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  gap: 2px;
+  margin-top: 4px;
+  }
+  .seg-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: var(--slate);
+  cursor: pointer;
+  border-radius: 3px;
+  }
+  .seg-btn.active {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+  
+  .field-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-system);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--primary);
+  outline: none;
+  background: #fff;
+  }
+  .field-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15,23,42,0.12);
+  }
+  
+  .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  cursor: pointer;
+  }
+  .medical-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  }
+  .checkbox-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  }
+  .btn-calc-action {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  }
+  .btn-calc-action:hover {
+  background: var(--primary-hover);
+  }
+  
+  .dosage-output-card {
+  background: #ffffff;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  }
+  .output-badge-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  }
+  .calc-status {
+  background: var(--success-subtle);
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  }
+  .calculated-highlight {
+  background: var(--slate-light);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  }
+  .calc-label { font-size: 11px; color: var(--slate); font-weight: 700; text-transform: uppercase; }
+  .calc-primary-val {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--primary);
+  }
+  .calc-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+  }
+  .sub-calc-box {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  }
+  .sub-calc-title { font-size: 10.5px; color: var(--slate); font-weight: 700; }
+  .sub-calc-metric {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--sage);
+  margin-top: 2px;
+  }
+  .safety-envelope-banner {
+  background: #f0fdf4;
+  border-left: 4px solid var(--sage);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  color: #166534;
+  margin-top: 12px;
+  }
+  .safety-envelope-banner strong { color: #14532d; }
+  
+  .formulary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-subtle);
+  }
+  .formulary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 8px;
+  }
+  .formulary-table th {
+  background: var(--slate-light);
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: var(--primary);
+  border-bottom: 1px solid var(--border);
+  }
+  .formulary-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  }
+  .footer-verdana {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--slate);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  }
+  </style>
+</head>
+<body>
+  
+  <header class="system-nav">
+  <div class="system-brand">
+  <div class="brand-symbol">VH</div>
+  <div class="brand-title">Verdana<span>Health</span></div>
+  <span class="spec-version">SYS-CALC v3.4</span>
+  </div>
+  <div class="nav-compliance">
+  <div class="wcag-badge">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  WCAG 2.2 AAA Contrast
+  </div>
+  <span style="font-weight: 600; color: var(--primary);">Station: Ped-ICU 02</span>
+  </div>
+  </header>
+
+  <main class="calc-container">
+  
+  <section class="badge-showcase-strip">
+  <span class="strip-label">Clinical Alert Badges:</span>
+  <div class="badge-row">
+  <span class="clinical-chip chip-critical">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Critical Alert: Out of Range
+  </span>
+  <span class="clinical-chip chip-warning">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
+  Caution: Renal Clearance
+  </span>
+  <span class="clinical-chip chip-target">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  Therapeutic Range Met
+  </span>
+  <span class="clinical-chip chip-protocol">
+  Investigational Protocol
+  </span>
+  </div>
+  </section>
+
+  
+  <div class="dosage-workstation">
+  
+  <section class="calculator-form-card">
+  <h2 class="card-heading">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+  Pediatric Dosage Calculator Form
+  </h2>
+
+  <div class="form-grid">
+  
+  <div class="input-control-group">
+  <label class="field-label">Patient Weight</label>
+  <div class="field-input-wrap">
+  <input type="text" class="field-input" value="18.5">
+  <span class="unit-addon">kg</span>
+  </div>
+  <div class="unit-toggle-segmented">
+  <button class="seg-btn active">kg</button>
+  <button class="seg-btn">lbs</button>
+  </div>
+  </div>
+
+  
+  <div class="input-control-group">
+  <label class="field-label">Patient Age</label>
+  <div class="field-input-wrap">
+  <input type="text" class="field-input" value="4 yrs 8 mos">
+  <span class="unit-addon">age</span>
+  </div>
+  <span style="font-size: 11px; color: var(--slate); margin-top: 4px;">Pediatric Group 2 (2-11y)</span>
+  </div>
+  </div>
+
+  
+  <div class="input-control-group">
+  <label class="field-label">Drug Selection &amp; Suspension Formulation</label>
+  <select class="field-select">
+  <option>Amoxicillin Oral Suspension (250 mg / 5 mL)</option>
+  <option>Amoxicillin-Clavulanate (400 mg / 57 mg per 5 mL)</option>
+  <option>Cefdinir Suspension (125 mg / 5 mL)</option>
+  <option>Azithromycin Suspension (200 mg / 5 mL)</option>
+  </select>
+  </div>
+
+  
+  <div class="input-control-group">
+  <label class="field-label">Clinical Indication &amp; Target Daily Dose</label>
+  <select class="field-select">
+  <option>Acute Otitis Media (High Dose: 45 mg/kg/day divided q12h)</option>
+  <option>Streptococcal Pharyngitis (50 mg/kg/day divided q12h)</option>
+  <option>Community-Acquired Pneumonia (90 mg/kg/day divided q12h)</option>
+  </select>
+  </div>
+
+  
+  <div style="display: flex; flex-direction: column; gap: 6px;">
+  <label class="checkbox-row">
+  <input type="checkbox" class="medical-checkbox" checked>
+  <span class="checkbox-text">Verify against AAP Clinical Practice Guidelines (2026 update)</span>
+  </label>
+  <label class="checkbox-row">
+  <input type="checkbox" class="medical-checkbox" checked>
+  <span class="checkbox-text">Standard Normal Renal Clearance (eGFR &gt; 90 mL/min/1.73m&sup2;)</span>
+  </label>
+  </div>
+
+  <button class="btn-calc-action">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  Recalculate Clinical Dosage
+  </button>
+  </section>
+
+  
+  <section class="dosage-output-card">
+  <div>
+  <div class="output-badge-top">
+  <span style="font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--primary);">
+  Calculated Prescription Output
+  </span>
+  <div class="calc-status">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+  Verified
+  </div>
+  </div>
+
+  <div class="calculated-highlight">
+  <div class="calc-label">Total Daily Target Dose</div>
+  <div class="calc-primary-val">832.5 mg / day</div>
+  <div style="font-size: 11.5px; color: var(--slate); font-family: var(--font-mono);">
+  Equation: 18.5 kg &times; 45.0 mg/kg/day
+  </div>
+  </div>
+
+  <div class="calc-breakdown">
+  <div class="sub-calc-box">
+  <div class="sub-calc-title">DOSE PER ADMINISTRATION</div>
+  <div class="sub-calc-metric">416.25 mg</div>
+  <div style="font-size: 10.5px; color: var(--slate); margin-top: 1px;">Every 12 hours (q12h)</div>
+  </div>
+  <div class="sub-calc-box">
+  <div class="sub-calc-title">DISPENSATION VOLUME</div>
+  <div class="sub-calc-metric" style="color: var(--primary);">8.3 mL bid</div>
+  <div style="font-size: 10.5px; color: var(--slate); margin-top: 1px;">250 mg / 5 mL strength</div>
+  </div>
+  </div>
+
+  
+  <div class="safety-envelope-banner">
+  <strong>SAFETY ENVELOPE CHECK: PASSED</strong><br>
+  Calculated dose is 45 mg/kg/day, strictly within the maximum ceiling of 90 mg/kg/day. No dose adjustment required.
+  </div>
+  </div>
+
+  <div style="border-top: 1px solid var(--border); padding-top: 10px; margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+  <span style="font-size: 11px; color: var(--slate);">10-Day Total Volume: <strong>166 mL</strong></span>
+  <button style="background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 700; cursor: pointer;">
+  Print Rx Label
+  </button>
+  </div>
+  </section>
+  </div>
+
+  
+  <section class="formulary-card">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+  <span style="font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--primary);">
+  Pediatric Antimicrobial Reference Standards
+  </span>
+  <span style="font-family: var(--font-mono); font-size: 11px; color: var(--slate);">LexiComp Clinical DB</span>
+  </div>
+
+  <table class="formulary-table">
+  <thead>
+  <tr>
+  <th>Antimicrobial Agent</th>
+  <th>Standard Pediatric Dose</th>
+  <th>Severe / High-Dose Ceiling</th>
+  <th>Recommended Route</th>
+  <th>Contraindication Alerts</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr>
+  <td><strong>Amoxicillin</strong></td>
+  <td style="font-family: var(--font-mono);">25 &ndash; 45 mg/kg/day</td>
+  <td style="font-family: var(--font-mono); font-weight: 700; color: var(--primary);">90 mg/kg/day max</td>
+  <td>PO q12h or q8h</td>
+  <td><span style="color: var(--error); font-weight: 700;">Severe Beta-Lactam Anaphylaxis</span></td>
+  </tr>
+  <tr>
+  <td><strong>Cefdinir</strong></td>
+  <td style="font-family: var(--font-mono);">14 mg/kg/day</td>
+  <td style="font-family: var(--font-mono); font-weight: 700; color: var(--primary);">600 mg/day max</td>
+  <td>PO q12h or q24h</td>
+  <td>Iron supplementation interaction</td>
+  </tr>
+  <tr>
+  <td><strong>Azithromycin</strong></td>
+  <td style="font-family: var(--font-mono);">10 mg/kg/day Day 1, then 5 mg/kg</td>
+  <td style="font-family: var(--font-mono); font-weight: 700; color: var(--primary);">500 mg/day max</td>
+  <td>PO q24h &times; 5 days</td>
+  <td>Hepatic impairment / QTc prolongation</td>
+  </tr>
+  </tbody>
+  </table>
+  </section>
+
+  
+  <footer class="footer-verdana">
+  <span>Verdana Health Systems &bull; High-Contrast Medical UI Spec v3.4</span>
+  <span style="font-family: var(--font-mono);">Validated: AAP / FDA Pediatric Dosing Standards</span>
+  </footer>
+  </main>
+</body>
+</html>

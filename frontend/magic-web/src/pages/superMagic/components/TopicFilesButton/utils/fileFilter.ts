@@ -31,7 +31,22 @@ interface SearchFilterContext {
 
 const FILE_TYPES: Record<FileFilterCategory, string[]> = {
 	documents: ["pdf", "doc", "docx", "docm", "txt", "md", "csv", "xlsx", "xls"],
-	multimedia: ["jpg", "jpeg", "png", "gif", "mp4", "mp3", "wav", "avi", "mov"],
+	multimedia: [
+		"jpg",
+		"jpeg",
+		"png",
+		"gif",
+		"mp4",
+		"mp3",
+		"wav",
+		"ogg",
+		"opus",
+		"m4a",
+		"aac",
+		"flac",
+		"avi",
+		"mov",
+	],
 	code: ["js", "ts", "tsx", "jsx", "py", "java", "cpp", "c", "go", "rust", "html", "css"],
 }
 

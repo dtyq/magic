@@ -1,11 +1,10 @@
 import { useFlowInteractionActions } from "@/MagicFlow/components/FlowDesign/context/FlowInteraction/useFlowInteraction"
 import { useFlowNodes } from "@/MagicFlow/context/FlowContext/useFlow"
-import { IconUploadError } from "@douyinfe/semi-icons"
+import { IconAlertCircleFilled, IconCopy, IconTrash } from "@tabler/icons-react"
 import { Button, Popconfirm, Tooltip } from "antd"
-import { IconCopy, IconTrash } from "@tabler/icons-react"
 import { useUpdateEffect } from "ahooks"
 import i18next from "i18next"
-import { isFunction } from "lodash"
+import { isFunction } from "lodash-es"
 import React, { useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useKeyPress } from "reactflow"
@@ -37,7 +36,7 @@ export default function ToolbarComponent({ id, showCopy = true }: ToolbarCompone
 						title={i18next.t("flow.confirm2DeleteNode", { ns: "magicFlow" })}
 						onConfirm={() => deleteNode(id)}
 						onOpenChange={(visible) => setIsPopconfirmVisible(visible)}
-						icon={<IconUploadError style={{ color: "rgb(255, 24, 9)" }} />}
+						icon={<IconAlertCircleFilled style={{ color: "rgb(255, 24, 9)" }} />}
 						okButtonProps={{ danger: true }}
 						okText={i18next.t("common.confirm", { ns: "magicFlow" })}
 						cancelText={i18next.t("common.cancel", { ns: "magicFlow" })}
@@ -45,7 +44,7 @@ export default function ToolbarComponent({ id, showCopy = true }: ToolbarCompone
 					>
 						{/* @ts-ignore */}
 						<Button type="link" ref={trashRef} className={styles.deleteBtn}>
-							<IconTrash stroke={1} />
+							<IconTrash size={16} stroke={1.8} />
 						</Button>
 					</Popconfirm>
 				),
@@ -56,7 +55,7 @@ export default function ToolbarComponent({ id, showCopy = true }: ToolbarCompone
 
 		if (showCopy) {
 			resultItems.push({
-				icon: <IconCopy stroke={1} />,
+				icon: <IconCopy size={16} stroke={1.8} />,
 				tooltip: i18next.t("common.copy", { ns: "magicFlow" }),
 				callback: () => pasteNode(id),
 			})

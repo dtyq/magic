@@ -9,7 +9,7 @@ import {
 } from "@/types/chat/conversation_message"
 import type { CMessage } from "@/types/chat"
 import type { SeenMessage } from "@/types/chat/seen_message"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import chatDb from "@/database/chat"
 
 const logger = Logger.createLogger("MessageDbService")

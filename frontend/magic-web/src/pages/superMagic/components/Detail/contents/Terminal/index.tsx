@@ -3,18 +3,18 @@ import { clipboard } from "@/utils/clipboard-helpers"
 import { Flex } from "antd"
 import { useTranslation } from "react-i18next"
 import CommonHeaderV2 from "../../components/CommonHeaderV2"
-import "@xterm/xterm/css/xterm.css"
-import "./index.css"
 import { useStyles } from "./styles"
-import { IconCopy } from "@tabler/icons-react"
-import { DetailTerminalData } from "../../types"
+import { Copy, Terminal as TerminalIcon } from "lucide-react"
+import { DetailTerminalData, type TerminalToolInfo } from "../../types"
 import TerminalDisplay from "./components/TerminalDisplay"
+import { TerminalHelpButton } from "./components/TerminalHelpButton"
 import { ActionButton } from "../../components/CommonHeader/components"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { useIsMobile } from "@/hooks/useIsMobile"
+import type { ActionContext } from "../../components/CommonHeaderV2/types"
 
 interface TerminalProps {
 	data: DetailTerminalData
+	terminalToolInfo?: TerminalToolInfo
 	userSelectDetail: any
 	setUserSelectDetail?: (detail: any) => void
 	isFromNode?: boolean
@@ -58,6 +58,7 @@ interface TerminalProps {
 export default memo(function Terminal(props: TerminalProps) {
 	const {
 		data,
+		terminalToolInfo,
 		isFromNode,
 		// Props from Render component
 		type,
@@ -73,7 +74,6 @@ export default memo(function Terminal(props: TerminalProps) {
 	const { t } = useTranslation("super")
 
 	const { command, output, exit_code } = data
-	const isMobile = useIsMobile()
 
 	// 处理复制功能
 	const handleTerminalCopy = useCallback(async () => {
@@ -95,39 +95,65 @@ export default memo(function Terminal(props: TerminalProps) {
 		() => ({
 			customActions: [
 				{
-					key: "terminal-copy",
-					zone: "primary" as const,
+					key: "terminal-title",
+					zone: "leading" as const,
 					render: () => (
+						<div className={styles.title}>
+							<TerminalIcon size={16} aria-hidden />
+							<span>{t("terminal.title")}</span>
+							<span className={styles.readOnly}>{t("terminal.readOnly")}</span>
+						</div>
+					),
+				},
+				{
+					key: "terminal-guide",
+					zone: "secondary" as const,
+					render: ({ showButtonText, isMobile }: ActionContext) => (
+						<TerminalHelpButton showText={showButtonText && !isMobile} />
+					),
+				},
+				{
+					key: "terminal-copy",
+					zone: "secondary" as const,
+					render: ({ showButtonText, isMobile }: ActionContext) => (
 						<Flex gap="small" align="center">
 							<ActionButton
-								icon={IconCopy}
+								icon={<Copy size={16} />}
+								size={16}
 								onClick={handleTerminalCopy}
 								title={t("fileViewer.copy")}
-								text={!isMobile ? t("fileViewer.copy") : undefined}
-								showText={!isMobile}
+								text={t("fileViewer.copy")}
+								showText={showButtonText && !isMobile}
 							/>
 						</Flex>
 					),
 				},
 			],
 		}),
-		[handleTerminalCopy, isMobile, t],
+		[handleTerminalCopy, styles.title, styles.readOnly, t],
 	)
 
 	return (
 		<div className={cx(styles.terminalContainer, className)}>
-			<CommonHeaderV2
-				type={type}
-				onFullscreen={onFullscreen}
-				onDownload={onDownload}
-				isFromNode={isFromNode}
-				isFullscreen={isFullscreen}
-				// File sharing props
-				currentFile={currentFile}
-				allowEdit={allowEdit}
-				actionConfig={headerActionConfig}
-			/>
+			<div className={styles.toolbar}>
+				<CommonHeaderV2
+					renderMode="actions"
+					type={type}
+					onFullscreen={onFullscreen}
+					onDownload={onDownload}
+					isFromNode={isFromNode}
+					isFullscreen={isFullscreen}
+					// File sharing props
+					currentFile={currentFile}
+					allowEdit={allowEdit}
+					actionConfig={headerActionConfig}
+				/>
+			</div>
 			<TerminalDisplay
+				showControls
+				recordKey={terminalToolInfo?.id}
+				action={terminalToolInfo?.action}
+				remark={terminalToolInfo?.remark}
 				className={styles.terminalContent}
 				command={command}
 				output={output}

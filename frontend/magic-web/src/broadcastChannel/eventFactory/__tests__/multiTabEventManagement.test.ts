@@ -163,7 +163,7 @@ import eventFactory from "../index"
 import MagicModal from "@/components/base/MagicModal"
 import UserDispatchService from "@/services/user/UserDispatchService"
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			log: vi.fn(),

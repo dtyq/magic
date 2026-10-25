@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import IconFacebook from "@/enhance/tabler/icons-react/icons/IconFacebook"
 import IconInstagram from "@/enhance/tabler/icons-react/icons/IconInstagram"
 import IconRednote from "@/enhance/tabler/icons-react/icons/IconRednote"

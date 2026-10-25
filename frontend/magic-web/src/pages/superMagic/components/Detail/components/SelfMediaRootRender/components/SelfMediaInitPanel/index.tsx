@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { userStore } from "@/models/user"
 import { SelfMediaBrandRecordService } from "@/services/selfMedia"
 import { SelfMediaFileStorageService } from "../../services/SelfMediaFileStorageService"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import StepBrandInfo from "./steps/StepBrandInfo"
 import type { BrandAutoSaveStatus, StepBrandInfoRef } from "./steps/StepBrandInfo"
 import StepTopicAndDetail from "./steps/StepTopicAndDetail"
@@ -41,6 +42,7 @@ function SelfMediaInitPanel({
 	onBackHome,
 }: SelfMediaInitPanelProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const userId = userStore.user.userInfo?.user_id || ""
 	const organizationCode = userStore.user.organizationCode || ""
 	const projectId = selectedProject?.id || ""
@@ -48,8 +50,10 @@ function SelfMediaInitPanel({
 
 	const fileStorageService = useMemo(
 		() =>
-			projectId ? new SelfMediaFileStorageService(projectId, folderFileId, folderPath) : null,
-		[projectId, folderFileId, folderPath],
+			projectId
+				? new SelfMediaFileStorageService(projectId, folderFileId, folderPath, fileApi)
+				: null,
+		[projectId, folderFileId, folderPath, fileApi],
 	)
 
 	const brandService = useMemo(

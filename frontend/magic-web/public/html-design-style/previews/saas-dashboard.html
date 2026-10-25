@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian Analytics — Modern SaaS Revenue, Cohort Retention & Churn Telemetry</title>
+<style>
+:root {
+--bg: #090A0F;
+--surface: #11141E;
+--surface-subtle: #181C2B;
+--surface-hover: #1E2336;
+--border: #222738;
+--border-subtle: #191D2B;
+--text-primary: #FFFFFF;
+--text-secondary: #94A3B8;
+--text-tertiary: #64748B;
+--primary: #2460E0;
+--primary-hover: #1D4ED8;
+--primary-glow: rgba(36, 96, 224, 0.25);
+--green: #10B981;
+--green-bg: rgba(16, 185, 129, 0.12);
+--red: #EF4444;
+--red-bg: rgba(239, 68, 68, 0.12);
+--amber: #F59E0B;
+--radius-sm: 4px;
+--radius-control: 8px;
+--radius-card: 12px;
+--font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+--font-mono: 'DM Mono', 'JetBrains Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background: var(--bg); color: var(--text-primary);
+font-family: var(--font-sans); font-size: 13.5px; line-height: 1.45;
+-webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+/* App Layout */
+.app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+/* Sidebar */
+.app-sidebar {
+background: #0C0E17; border-right: 1px solid var(--border);
+padding: 20px 14px; display: flex; flex-direction: column; gap: 24px;
+}
+.brand-block { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.brand-icon {
+width: 26px; height: 26px; border-radius: 6px; background: linear-gradient(135deg, #2460E0, #60A5FA);
+display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #fff;
+}
+.brand-name { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+.nav-group { display: flex; flex-direction: column; gap: 4px; }
+.nav-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--text-tertiary); padding: 6px 8px; letter-spacing: 0.5px; }
+.nav-btn {
+display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-control);
+font-size: 12.5px; font-weight: 500; color: var(--text-secondary); transition: all 0.15s;
+}
+.nav-btn:hover { background: var(--surface-subtle); color: var(--text-primary); }
+.nav-btn.active { background: rgba(36, 96, 224, 0.15); color: #60A5FA; font-weight: 600; }
+/* Main Area */
+.main-workspace { display: flex; flex-direction: column; overflow-x: hidden; }
+/* Top Bar */
+.top-bar {
+height: 56px; background: rgba(17, 20, 30, 0.8); backdrop-filter: blur(10px);
+border-bottom: 1px solid var(--border); display: flex; align-items: center;
+justify-content: space-between; padding: 0 28px;
+}
+.search-box {
+display: flex; align-items: center; gap: 8px; background: var(--surface-subtle);
+border: 1px solid var(--border); border-radius: var(--radius-control); padding: 6px 12px; font-size: 12.5px; width: 280px;
+}
+.search-box input { border: none; background: transparent; outline: none; color: #fff; font-size: 12px; width: 100%; }
+.btn-action {
+font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: var(--radius-control);
+border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-secondary { background: var(--surface-subtle); color: var(--text-secondary); border-color: var(--border); }
+/* Dashboard Body (First 500px Impact) */
+.dashboard-body { padding: 24px 28px; }
+.page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+.page-sub { font-size: 13px; color: var(--text-secondary); }
+/* 4 Primary KPI Cards */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+.kpi-card {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+padding: 18px; position: relative; overflow: hidden;
+}
+.kpi-card::after {
+content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+background: linear-gradient(90deg, transparent, rgba(36, 96, 224, 0.4), transparent);
+}
+.kpi-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.kpi-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.5px; }
+.badge-growth {
+font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; padding: 2px 6px;
+border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 3px;
+}
+.badge-up { background: var(--green-bg); color: var(--green); }
+.badge-down { background: var(--red-bg); color: var(--red); }
+.kpi-num { font-family: var(--font-mono); font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.1; margin-bottom: 4px; }
+.kpi-foot { font-size: 11.5px; color: var(--text-secondary); }
+/* 2-Column Split: Churn Rate Reduction & Cohort Retention */
+.analytics-grid { display: grid; grid-template-columns: 1.15fr 1.25fr; gap: 18px; margin-bottom: 22px; }
+.panel {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+padding: 20px; display: flex; flex-direction: column;
+}
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.panel-title { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+/* Churn Reduction Curve */
+.churn-stat-row { display: flex; gap: 20px; margin-bottom: 12px; }
+.churn-stat-item .val { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: #fff; }
+.churn-stat-item .lbl { font-size: 10.5px; color: var(--text-secondary); text-transform: uppercase; }
+/* Cohort Retention Heat Map Grid */
+.cohort-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11px; }
+.cohort-table th {
+text-align: center; padding: 7px 4px; font-weight: 600; color: var(--text-tertiary);
+font-size: 10px; text-transform: uppercase;
+}
+.cohort-table th:first-child { text-align: left; }
+.cohort-table td { padding: 5px 3px; text-align: center; }
+.cohort-label { text-align: left; font-weight: 600; color: #fff; white-space: nowrap; }
+.cohort-cell {
+border-radius: 4px; padding: 5px 0; font-weight: 600;
+}
+.heat-100 { background: #064e3b; color: #6ee7b7; }
+.heat-90 { background: #065f46; color: #a7f3d0; }
+.heat-85 { background: #047857; color: #d1fae5; }
+.heat-80 { background: #0f766e; color: #ccfbf1; }
+.heat-75 { background: #134e4a; color: #99f6e4; }
+.heat-empty { background: rgba(255,255,255,0.03); color: var(--text-tertiary); }
+/* Recent Live Subscriptions Table */
+.table-panel {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+padding: 18px;
+}
+.subs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.subs-table th {
+text-align: left; padding: 8px 10px; background: var(--surface-subtle);
+color: var(--text-tertiary); font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+border-bottom: 1px solid var(--border);
+}
+.subs-table td { padding: 10px; border-bottom: 1px solid var(--border-subtle); }
+.customer-cell { display: flex; align-items: center; gap: 8px; }
+.customer-av { width: 22px; height: 22px; border-radius: 50%; background: #2460E0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+@media (max-width: 1024px) {
+.app-shell { grid-template-columns: 1fr; }
+.app-sidebar { display: none; }
+.kpi-row { grid-template-columns: repeat(2, 1fr); }
+.analytics-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+<!-- Sidebar Navigation -->
+<aside class="app-sidebar">
+<div class="brand-block">
+<div class="brand-icon">M</div>
+<div class="brand-name">Meridian // SaaS</div>
+</div>
+<div class="nav-group">
+<div class="nav-label">Analytics Suite</div>
+<a href="#mrr" class="nav-btn active">● Revenue & MRR</a>
+<a href="#cohorts" class="nav-btn">❖ Cohort Retention</a>
+<a href="#churn" class="nav-btn">▼ Churn Reduction</a>
+<a href="#customers" class="nav-btn">👥 Customer LTV</a>
+</div>
+<div class="nav-group">
+<div class="nav-label">Billing & Gateway</div>
+<a href="#invoices" class="nav-btn">Stripe Connect</a>
+<a href="#plans" class="nav-btn">Plan Management</a>
+<a href="#settings" class="nav-btn">Settings</a>
+</div>
+</aside>
+<!-- Main Workspace -->
+<main class="main-workspace">
+<!-- Top Navigation -->
+<header class="top-bar">
+<div class="search-box">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+<input type="text" placeholder="Search customer, invoice, or plan...">
+</div>
+<div style="display: flex; gap: 10px; align-items: center;">
+<span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary);">
+DATA REFRESH: <strong style="color: var(--green);">REAL-TIME</strong>
+</span>
+<button class="btn-action btn-secondary">Trailing 12 Mo</button>
+<button class="btn-action btn-primary">+ Export Model</button>
+</div>
+</header>
+<!-- Dashboard Body -->
+<div class="dashboard-body">
+<div class="page-head">
+<div>
+<h1 class="page-title">Real-Time Revenue & Retention Diagnostics</h1>
+<p class="page-sub">Monitoring $142,850 Monthly Recurring Revenue with cohort retention dynamics and churn control.</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<button class="btn-action btn-secondary">Segment: B2B Enterprise</button>
+<button class="btn-action btn-primary">Schedule Report</button>
+</div>
+</div>
+<!-- 4 Key Revenue Metrics (First 500px) -->
+<div class="kpi-row">
+<div class="kpi-card">
+<div class="kpi-top">
+<span class="kpi-tag">Real-Time MRR</span>
+<span class="badge-growth badge-up">▲ 18.4% MoM</span>
+</div>
+<div class="kpi-num" style="color: #fff;">$142,850</div>
+<div class="kpi-foot">Annualized ARR: <strong style="color: #60A5FA;">$1,714,200</strong></div>
+</div>
+<div class="kpi-card">
+<div class="kpi-top">
+<span class="kpi-tag">Net Revenue Retention</span>
+<span class="badge-growth badge-up">▲ 124% NRR</span>
+</div>
+<div class="kpi-num" style="color: var(--green);">124.2%</div>
+<div class="kpi-foot">Expansion MRR: +$14,210 this mo</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-top">
+<span class="kpi-tag">Gross Logo Churn</span>
+<span class="badge-growth badge-up">▼ 1.1% Low</span>
+</div>
+<div class="kpi-num" style="color: #fff;">1.12%</div>
+<div class="kpi-foot">Industry Benchmark: 2.8% - 3.5%</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-top">
+<span class="kpi-tag">Customer Lifetime Value</span>
+<span class="badge-growth badge-up">LTV:CAC 5.2x</span>
+</div>
+<div class="kpi-num" style="color: #fff;">$18,450</div>
+<div class="kpi-foot">Average Payback: 5.4 Months</div>
+</div>
+</div>
+<!-- 2-Column Split: Churn Reduction Curve & Cohort Retention Heatmap -->
+<div class="analytics-grid">
+<!-- Panel 1: Churn Reduction Curve -->
+<div class="panel">
+<div class="panel-head">
+<div class="panel-title">Churn Rate Reduction Curve (Trailing 12 Mo)</div>
+<span class="badge-growth badge-up">Reduced by 76.6%</span>
+</div>
+<div class="churn-stat-row">
+<div class="churn-stat-item">
+<div class="val">1.1%</div>
+<div class="lbl">Current Churn</div>
+</div>
+<div class="churn-stat-item">
+<div class="val" style="color: var(--text-tertiary);">4.8%</div>
+<div class="lbl">Initial Baseline</div>
+</div>
+<div class="churn-stat-item">
+<div class="val" style="color: var(--green);">-$5,240</div>
+<div class="lbl">MRR Churn Saved/Mo</div>
+</div>
+</div>
+<!-- Churn Curve SVG -->
+<svg viewBox="0 0 460 140" width="100%" height="135" style="background: var(--surface-subtle); border-radius: 8px; padding: 8px;">
+<line x1="30" y1="20" x2="440" y2="20" stroke="#1f2536" stroke-dasharray="2,2"/>
+<line x1="30" y1="55" x2="440" y2="55" stroke="#1f2536" stroke-dasharray="2,2"/>
+<line x1="30" y1="90" x2="440" y2="90" stroke="#1f2536" stroke-dasharray="2,2"/>
+<line x1="30" y1="120" x2="440" y2="120" stroke="#2a3348"/>
+<text x="5" y="24" fill="#64748B" font-size="8" font-family="monospace">5.0%</text>
+<text x="5" y="59" fill="#64748B" font-size="8" font-family="monospace">3.0%</text>
+<text x="5" y="94" fill="#64748B" font-size="8" font-family="monospace">1.5%</text>
+<!-- Benchmark Target Line 1.5% -->
+<line x1="30" y1="90" x2="440" y2="90" stroke="#F59E0B" stroke-dasharray="4,3" stroke-width="1.2"/>
+<text x="360" y="85" fill="#F59E0B" font-size="8" font-family="monospace">Target: 1.5%</text>
+<defs>
+<linearGradient id="churnGrad" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#2460E0" stop-opacity="0.35"/>
+<stop offset="100%" stop-color="#2460E0" stop-opacity="0.0"/>
+</linearGradient>
+</defs>
+<!-- Churn Area & Line Curve descending from 4.8% (y=24) to 1.1% (y=105) -->
+<path d="M 30 26 Q 90 32, 140 50 T 230 72 T 320 92 T 420 105 L 420 120 L 30 120 Z" fill="url(#churnGrad)"/>
+<path d="M 30 26 Q 90 32, 140 50 T 230 72 T 320 92 T 420 105" fill="none" stroke="#2460E0" stroke-width="2.5"/>
+<circle cx="420" cy="105" r="4" fill="#10B981" stroke="#fff" stroke-width="1.5"/>
+<text x="385" y="122" fill="#10B981" font-size="9" font-weight="bold" font-family="monospace">1.12%</text>
+</svg>
+</div>
+<!-- Panel 2: Cohort Retention Heat Map -->
+<div class="panel">
+<div class="panel-head">
+<div class="panel-title">Cohort Retention Matrix (Net Revenue Retention)</div>
+<span style="font-family: var(--font-mono); font-size: 11px; color: var(--green);">NRR Average: 124%</span>
+</div>
+<table class="cohort-table">
+<thead>
+<tr>
+<th>Cohort</th>
+<th>Users</th>
+<th>M0</th>
+<th>M1</th>
+<th>M2</th>
+<th>M3</th>
+<th>M4</th>
+<th>M5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="cohort-label">Nov 2025</td>
+<td>280</td>
+<td><div class="cohort-cell heat-100">100%</div></td>
+<td><div class="cohort-cell heat-90">94%</div></td>
+<td><div class="cohort-cell heat-85">91%</div></td>
+<td><div class="cohort-cell heat-85">88%</div></td>
+<td><div class="cohort-cell heat-80">85%</div></td>
+<td><div class="cohort-cell heat-80">84%</div></td>
+</tr>
+<tr>
+<td class="cohort-label">Dec 2025</td>
+<td>310</td>
+<td><div class="cohort-cell heat-100">100%</div></td>
+<td><div class="cohort-cell heat-90">95%</div></td>
+<td><div class="cohort-cell heat-90">92%</div></td>
+<td><div class="cohort-cell heat-85">89%</div></td>
+<td><div class="cohort-cell heat-85">87%</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+</tr>
+<tr>
+<td class="cohort-label">Jan 2026</td>
+<td>390</td>
+<td><div class="cohort-cell heat-100">100%</div></td>
+<td><div class="cohort-cell heat-90">96%</div></td>
+<td><div class="cohort-cell heat-90">93%</div></td>
+<td><div class="cohort-cell heat-90">91%</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+</tr>
+<tr>
+<td class="cohort-label">Feb 2026</td>
+<td>420</td>
+<td><div class="cohort-cell heat-100">100%</div></td>
+<td><div class="cohort-cell heat-90">97%</div></td>
+<td><div class="cohort-cell heat-90">94%</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+</tr>
+<tr>
+<td class="cohort-label">Mar 2026</td>
+<td>480</td>
+<td><div class="cohort-cell heat-100">100%</div></td>
+<td><div class="cohort-cell heat-90">98%</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+<td><div class="cohort-cell heat-empty">—</div></td>
+</tr>
+</tbody>
+</table>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 11px; color: var(--text-secondary);">
+<span>Cohort Curve: <strong>High Product-Market Fit</strong></span>
+<span style="color: var(--green);">M5 Retention Stable at 84%+</span>
+</div>
+</div>
+</div>
+<!-- Recent Subscriptions Stream -->
+<div class="table-panel">
+<div class="panel-head">
+<div class="panel-title">Real-Time Subscription Stream (Last 60 Minutes)</div>
+<button class="btn-action btn-secondary" style="padding: 4px 10px;">Live Feed</button>
+</div>
+<table class="subs-table">
+<thead>
+<tr>
+<th>Customer & Domain</th>
+<th>Plan Tier</th>
+<th>Contract MRR</th>
+<th>Billing Cycle</th>
+<th>Acquisition Channel</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<div class="customer-cell">
+<div class="customer-av">S</div>
+<div><strong>Supabase Inc</strong><br><span style="color:var(--text-tertiary); font-size:10.5px;">supabase.com</span></div>
+</div>
+</td>
+<td>Enterprise Scale</td>
+<td><strong style="color:#fff; font-family:var(--font-mono);">$4,200 /mo</strong></td>
+<td>Annual Prepaid</td>
+<td>Organic Product Virality</td>
+<td><span class="badge-growth badge-up">Active</span></td>
+</tr>
+<tr>
+<td>
+<div class="customer-cell">
+<div class="customer-av" style="background:#059669;">R</div>
+<div><strong>Retool Enterprise</strong><br><span style="color:var(--text-tertiary); font-size:10.5px;">retool.com</span></div>
+</div>
+</td>
+<td>Dedicated VPC</td>
+<td><strong style="color:#fff; font-family:var(--font-mono);">$6,800 /mo</strong></td>
+<td>Annual Prepaid</td>
+<td>Outbound Sales</td>
+<td><span class="badge-growth badge-up">Active</span></td>
+</tr>
+<tr>
+<td>
+<div class="customer-cell">
+<div class="customer-av" style="background:#7C3AED;">L</div>
+<div><strong>Linear Orbit Inc</strong><br><span style="color:var(--text-tertiary); font-size:10.5px;">linear.app</span></div>
+</div>
+</td>
+<td>Growth Tier</td>
+<td><strong style="color:#fff; font-family:var(--font-mono);">$1,450 /mo</strong></td>
+<td>Monthly Recurring</td>
+<td>Direct Founder Referral</td>
+<td><span class="badge-growth badge-up">Active</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</div>
+</body>
+</html>

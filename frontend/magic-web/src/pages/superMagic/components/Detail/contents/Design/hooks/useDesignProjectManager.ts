@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react"
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { produce } from "immer"
 import { useImmer } from "use-immer"
@@ -8,13 +8,19 @@ import { DesignData } from "../types"
 import {
 	DesignProjectManager,
 	type DesignConflict,
+	type PendingDesignUpgrade,
 	type DesignProjectManagerOptions,
 	type DesignProjectStateBag,
 	type DesignSaveMetadata,
 } from "../managers"
-import { MAGIC_PROJECT_VERSION_V2 } from "../utils/magicProjectCompression"
-import type { DesignDraftReason } from "../utils/designDraftStorage"
+import { MAGIC_PROJECT_VERSION_V3 } from "../utils/magicProjectCompression"
+import type { DesignDraftReason, DesignDraftWriteResult } from "../utils/designDraftStorage"
 import type { ElementDetailsProvenance } from "@/components/CanvasDesign/runtime/document"
+import type { DesignLoadIssue, DesignSidecarStatus } from "../utils/designDataLoader"
+import type { DesignCurrentFileLoadResult } from "../managers/types"
+import type { CanvasAccessMode } from "@/components/CanvasDesign/public/props"
+import { resolveDesignAccessMode } from "../managers/types"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 export type UseDesignProjectManagerOptions = DesignProjectManagerOptions
 
@@ -31,6 +37,10 @@ export interface UseDesignProjectManagerReturn {
 
 	isInitialLoading: boolean
 	isSaving: boolean
+	pendingDesignUpgrade: PendingDesignUpgrade | null
+	designLoadIssue: DesignLoadIssue | undefined
+	sidecarStatus: DesignSidecarStatus
+	clearDesignLoadIssue: () => void
 
 	scheduleAutoSave: (metadata?: DesignSaveMetadata) => void
 	cancelAutoSave: () => void
@@ -38,28 +48,34 @@ export interface UseDesignProjectManagerReturn {
 		designData: DesignData,
 		options?: { immediate?: boolean; reason?: DesignDraftReason },
 	) => void
-	manualSave: () => Promise<void>
+	persistLocalDraftAndWait: (
+		designData: DesignData,
+		options?: { immediate?: boolean; reason?: DesignDraftReason },
+	) => Promise<DesignDraftWriteResult | null>
+	hasUnsavedChanges: (designData?: DesignData) => boolean
+	manualSave: (designData?: DesignData) => Promise<boolean>
 	syncDesignData: (newDesignData: DesignData) => void
+	persistPendingDesignUpgrade: () => Promise<boolean>
 
-	loadFromRemote: () => Promise<void>
-	reloadPreservingLocalDraft: () => Promise<void>
-	reloadDiscardingLocalDraft: () => Promise<void>
+	loadFromRemote: () => Promise<boolean>
+	reloadPreservingLocalDraft: () => Promise<boolean>
+	reloadCurrentVersion: () => Promise<void>
+	reloadDiscardingLocalDraft: () => Promise<boolean>
 
 	saveToRemote: () => Promise<void>
 	generateContent: (data?: DesignData) => string
 
 	loadWithVersion: (version: number) => Promise<DesignData | null>
-	loadLatest: () => Promise<{ data: DesignData | null; version: number | null }>
+	loadLatest: () => Promise<DesignCurrentFileLoadResult>
 
 	checkRemoteUpdate: () => Promise<{
 		hasUpdate: boolean
-		currentVersion: number | null
+		currentFingerprint: string | null
 		isCheckReliable: boolean
 	}>
-	updateLocalVersion: (version: number) => void
 
-	isReadOnly: boolean
-	setIsReadOnly: (value: boolean) => void
+	accessMode: CanvasAccessMode
+	setAccessMode: (value: CanvasAccessMode) => void
 
 	isProcessingRevoke: boolean
 	revokeType: "revoke" | "restore" | null
@@ -89,7 +105,7 @@ export interface UseDesignProjectManagerReturn {
 const INITIAL_DESIGN_DATA: DesignData = {
 	type: "design",
 	name: "",
-	version: MAGIC_PROJECT_VERSION_V2,
+	version: MAGIC_PROJECT_VERSION_V3,
 	canvas: { elements: [] },
 }
 
@@ -101,16 +117,24 @@ export function useDesignProjectManager(
 	options: UseDesignProjectManagerOptions,
 ): UseDesignProjectManagerReturn {
 	const { t } = useTranslation("super")
+	// Bind the ambient file identity once here; managers live outside React and
+	// receive this closure instead of each helper sprouting an `access` param.
+	const fileApi = useFileApi()
 
 	const [magicProjectJsFileId, setMagicProjectJsFileId] = useState<string | null>(null)
 	const [designData, updateDesignData] = useImmer<DesignData>(INITIAL_DESIGN_DATA)
 	const [elementDetailsProvenance, setElementDetailsProvenanceState] =
 		useState<ElementDetailsProvenance>({})
 	const [isInitialLoading, setIsInitialLoading] = useState(true)
-	const [isReadOnly, setIsReadOnly] = useState(
-		!options.allowEdit || options.isPlaybackMode || options.isShareRoute || options.isMobile,
+	const [accessMode, setAccessMode] = useState<CanvasAccessMode>(() =>
+		resolveDesignAccessMode(options),
 	)
 	const [isSaving, setIsSaving] = useState(false)
+	const [pendingDesignUpgrade, setPendingDesignUpgrade] = useState<PendingDesignUpgrade | null>(
+		null,
+	)
+	const [designLoadIssue, setDesignLoadIssueState] = useState<DesignLoadIssue | undefined>()
+	const [sidecarStatus, setSidecarStatusState] = useState<DesignSidecarStatus>("missing")
 	const [fileVersionsList, setFileVersionsList] = useState<FileHistoryVersion[]>([])
 	const [fileVersion, setFileVersion] = useState<number | undefined>(undefined)
 	const [isProcessingRevoke, setIsProcessingRevoke] = useState(false)
@@ -119,19 +143,24 @@ export function useDesignProjectManager(
 
 	const designDataRef = useRef(designData)
 	const elementDetailsProvenanceRef = useRef(elementDetailsProvenance)
+	const pendingDesignUpgradeRef = useRef<PendingDesignUpgrade | null>(pendingDesignUpgrade)
+	const designLoadIssueRef = useRef<DesignLoadIssue | undefined>(designLoadIssue)
+	const sidecarStatusRef = useRef<DesignSidecarStatus>(sidecarStatus)
 	const conflictStateRef = useRef<DesignConflict | null>(conflictState)
 	const magicProjectJsFileIdRef = useRef<string | null>(null)
-	const isReadOnlyRef = useRef(isReadOnly)
-	const magicProjectJsVersionRef = useRef<number | null>(null)
+	const accessModeRef = useRef(accessMode)
 	const prevDesignDataFingerprintRef = useRef<string>("")
 	const fileVersionsListRef = useRef<FileHistoryVersion[]>([])
 	const fileVersionRef = useRef<number | undefined>(undefined)
 
 	designDataRef.current = designData
 	elementDetailsProvenanceRef.current = elementDetailsProvenance
+	pendingDesignUpgradeRef.current = pendingDesignUpgrade
+	designLoadIssueRef.current = designLoadIssue
+	sidecarStatusRef.current = sidecarStatus
 	conflictStateRef.current = conflictState
 	magicProjectJsFileIdRef.current = magicProjectJsFileId
-	isReadOnlyRef.current = isReadOnly
+	accessModeRef.current = accessMode
 	fileVersionsListRef.current = fileVersionsList
 	fileVersionRef.current = fileVersion
 
@@ -148,17 +177,16 @@ export function useDesignProjectManager(
 		() => ({
 			getDesignData: () => designDataRef.current,
 			getElementDetailsProvenance: () => elementDetailsProvenanceRef.current,
+			getPendingDesignUpgrade: () => pendingDesignUpgradeRef.current,
+			getDesignLoadIssue: () => designLoadIssueRef.current,
+			getSidecarStatus: () => sidecarStatusRef.current,
 			getConflictState: () => conflictStateRef.current,
 			getMagicProjectJsFileId: () => magicProjectJsFileIdRef.current,
-			getMagicProjectJsVersion: () => magicProjectJsVersionRef.current,
-			setMagicProjectJsVersion: (v) => {
-				magicProjectJsVersionRef.current = v
-			},
 			getPrevDesignDataFingerprint: () => prevDesignDataFingerprintRef.current,
 			setPrevDesignDataFingerprint: (v) => {
 				prevDesignDataFingerprintRef.current = v
 			},
-			getIsReadOnly: () => isReadOnlyRef.current,
+			getAccessMode: () => accessModeRef.current,
 			setters: {
 				setMagicProjectJsFileId,
 				setDesignData: (data) => {
@@ -169,11 +197,23 @@ export function useDesignProjectManager(
 					elementDetailsProvenanceRef.current = provenance
 					setElementDetailsProvenanceState(provenance)
 				},
+				setPendingDesignUpgrade: (upgrade) => {
+					pendingDesignUpgradeRef.current = upgrade
+					setPendingDesignUpgrade(upgrade)
+				},
+				setDesignLoadIssue: (issue) => {
+					designLoadIssueRef.current = issue
+					setDesignLoadIssueState(issue)
+				},
+				setSidecarStatus: (status) => {
+					sidecarStatusRef.current = status
+					setSidecarStatusState(status)
+				},
 				setIsInitialLoading,
 				setIsSaving,
-				setIsReadOnly: (v) => {
-					isReadOnlyRef.current = v
-					setIsReadOnly(v)
+				setAccessMode: (v) => {
+					accessModeRef.current = v
+					setAccessMode(v)
 				},
 				setFileVersionsList,
 				setFileVersion,
@@ -192,7 +232,13 @@ export function useDesignProjectManager(
 	if (!managerRef.current) {
 		managerRef.current = new DesignProjectManager({
 			stateBag,
-			options: { ...options, getT: () => t },
+			options: {
+				...options,
+				accessMode: resolveDesignAccessMode(options),
+				isOffline: options.isOffline,
+				getT: () => t,
+				fileApi,
+			},
 			getFileVersionsList: () => fileVersionsListRef.current,
 			getFileVersion: () => fileVersionRef.current,
 		})
@@ -200,9 +246,15 @@ export function useDesignProjectManager(
 
 	const manager = managerRef.current
 
-	useEffect(() => {
-		manager.updateOptions({ ...options, getT: () => t })
-	}, [manager, options, t])
+	useLayoutEffect(() => {
+		manager.updateOptions({
+			...options,
+			accessMode: resolveDesignAccessMode(options),
+			isOffline: options.isOffline,
+			getT: () => t,
+			fileApi,
+		})
+	}, [manager, options, t, fileApi])
 
 	useEffect(() => {
 		if (options.isShareRoute || !magicProjectJsFileId) return
@@ -237,11 +289,17 @@ export function useDesignProjectManager(
 		[updateDesignData, manager],
 	)
 
-	const isNewestVersion = useMemo(() => {
-		if (!fileVersionsList?.length) return true
-		if (!fileVersion) return true
-		return fileVersion === fileVersionsList[0].version
-	}, [fileVersion, fileVersionsList])
+	const isNewestVersion = fileVersion === undefined
+
+	const loadFromRemote = useCallback(() => manager.loadFromRemote(), [manager])
+	const reloadPreservingLocalDraft = useCallback(
+		() => manager.reloadPreservingLocalDraft(),
+		[manager],
+	)
+	const reloadDiscardingLocalDraft = useCallback(
+		() => manager.reloadDiscardingLocalDraft(),
+		[manager],
+	)
 
 	return {
 		magicProjectJsFileId,
@@ -256,17 +314,29 @@ export function useDesignProjectManager(
 
 		isInitialLoading,
 		isSaving,
+		pendingDesignUpgrade,
+		designLoadIssue,
+		sidecarStatus,
+		clearDesignLoadIssue: () => {
+			designLoadIssueRef.current = undefined
+			setDesignLoadIssueState(undefined)
+		},
 
 		scheduleAutoSave: (metadata) => manager.scheduleAutoSave(metadata),
 		cancelAutoSave: () => manager.cancelAutoSave(),
 		persistLocalDraft: (data, persistOptions) =>
 			manager.persistLocalDraft(data, persistOptions),
-		manualSave: () => manager.manualSave(),
+		persistLocalDraftAndWait: (data, persistOptions) =>
+			manager.persistLocalDraftAndWait(data, persistOptions),
+		hasUnsavedChanges: (data) => manager.hasUnsavedChanges(data),
+		manualSave: (data) => manager.manualSave(data),
 		syncDesignData: (data) => manager.syncDesignData(data),
+		persistPendingDesignUpgrade: () => manager.persistPendingDesignUpgrade(),
 
-		loadFromRemote: () => manager.loadFromRemote(),
-		reloadPreservingLocalDraft: () => manager.reloadPreservingLocalDraft(),
-		reloadDiscardingLocalDraft: () => manager.reloadDiscardingLocalDraft(),
+		loadFromRemote,
+		reloadPreservingLocalDraft,
+		reloadCurrentVersion: () => manager.reloadCurrentVersion(),
+		reloadDiscardingLocalDraft,
 
 		saveToRemote: () => manager.saveToRemote(),
 		generateContent: (data) => manager.generateContent(data),
@@ -275,10 +345,9 @@ export function useDesignProjectManager(
 		loadLatest: () => manager.loadLatest(),
 
 		checkRemoteUpdate: () => manager.checkRemoteUpdate(),
-		updateLocalVersion: (v) => manager.updateLocalVersion(v),
 
-		isReadOnly,
-		setIsReadOnly: (v) => manager.setIsReadOnly(v),
+		accessMode,
+		setAccessMode: (v) => manager.setAccessMode(v),
 
 		isProcessingRevoke,
 		revokeType,

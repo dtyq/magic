@@ -1,22 +1,28 @@
 import { useCallback } from "react"
+import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { ArrowLeft, Loader2, Search } from "lucide-react"
-import type { MicroAppListScope } from "@/apis/modules/superMagic"
+import type { MicroAppListItem } from "@/apis/modules/superMagic"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
-import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import {
 	MicroAppEmptyIllustration,
 	MicroAppSearchEmptyIllustration,
 } from "@/pages/superMagic/components/MicroAppStateIllustration"
+import {
+	canEditProject,
+	canManageCollaborators as canManageProjectCollaborators,
+} from "@/pages/superMagic/utils/permission"
 import { RouteName } from "@/routes/constants"
 import useNavigate from "@/routes/hooks/useNavigate"
 import MicroAppCard from "./components/MicroAppCard"
 import MicroAppListActionDialogs from "./components/MicroAppListActionDialogs"
 import MicroAppLoadErrorState from "./components/MicroAppLoadErrorState"
+import MicroAppScopeTabs from "./components/MicroAppScopeTabs"
 import { useMicroAppListItemActions } from "./hooks/useMicroAppListItemActions"
-import { useMicroAppsPage } from "./hooks/useMicroAppsPage"
+import { useMicroAppCollaboratorManagement } from "./hooks/useMicroAppCollaboratorManagement"
+import { shouldOpenPublishedShare, useMicroAppsPage } from "./hooks/useMicroAppsPage"
 
 function formatAppTime(value: string | null | undefined): string {
 	if (!value) return ""
@@ -28,11 +34,12 @@ function MobileGridLoading() {
 	return (
 		<div className="grid grid-cols-1 gap-3" data-testid="micro-apps-mobile-loading">
 			{[1, 2, 3, 4].map((item) => (
-				<div key={item} className="overflow-hidden rounded-2xl border border-border/60">
-					<div className="aspect-[16/10] animate-pulse bg-muted/50" />
-					<div className="space-y-2 p-3">
-						<div className="h-3.5 w-3/4 animate-pulse rounded bg-muted/60" />
-						<div className="h-3 w-1/2 animate-pulse rounded bg-muted/40" />
+				<div key={item} className="rounded-2xl border border-border/60 p-2">
+					<div className="h-[76px] animate-pulse rounded-xl bg-muted/50" />
+					<div className="space-y-3 px-2 pb-2 pt-3">
+						<div className="h-4 w-3/4 animate-pulse rounded bg-muted/60" />
+						<div className="h-4 w-1/2 animate-pulse rounded bg-muted/40" />
+						<div className="h-3 w-3/5 animate-pulse rounded bg-muted/40" />
 					</div>
 				</div>
 			))}
@@ -40,12 +47,13 @@ function MobileGridLoading() {
 	)
 }
 
-export default function MicroAppsListPageMobile() {
+export default observer(function MicroAppsListPageMobile() {
 	const { t } = useTranslation("super")
 	const navigate = useNavigate({ fallbackRoute: { name: RouteName.MicroApps } })
 	const {
 		apps,
 		scope,
+		availableScopes,
 		setScope,
 		keyword,
 		setKeyword,
@@ -59,16 +67,22 @@ export default function MicroAppsListPageMobile() {
 		deleteApp,
 	} = useMicroAppsPage()
 	const itemActions = useMicroAppListItemActions({ renameApp, deleteApp })
+	const { openInNewWindow } = itemActions
+	const collaboratorManagement = useMicroAppCollaboratorManagement()
 
 	const handleOpenApp = useCallback(
-		(appId: string) => {
+		(app: MicroAppListItem) => {
+			if (shouldOpenPublishedShare(scope, app.publish_status)) {
+				openInNewWindow(app)
+				return
+			}
 			navigate({
 				name: RouteName.MicroApp,
-				params: { appId },
+				params: { appId: app.app_id },
 				viewTransition: false,
 			})
 		},
-		[navigate],
+		[navigate, openInNewWindow, scope],
 	)
 	const EmptyIllustration = keyword ? MicroAppSearchEmptyIllustration : MicroAppEmptyIllustration
 
@@ -120,28 +134,16 @@ export default function MicroAppsListPageMobile() {
 								data-testid="micro-apps-mobile-search"
 							/>
 						</div>
-						<Tabs
-							value={scope}
-							onValueChange={(value) => setScope(value as MicroAppListScope)}
-						>
-							<TabsList className="grid h-10 w-full grid-cols-3 rounded-xl">
-								<TabsTrigger value="all" data-testid="micro-apps-mobile-scope-all">
-									{t("microAppsPage.scopeAll")}
-								</TabsTrigger>
-								<TabsTrigger
-									value="created"
-									data-testid="micro-apps-mobile-scope-created"
-								>
-									{t("microAppsPage.scopeCreated")}
-								</TabsTrigger>
-								<TabsTrigger
-									value="collaborated"
-									data-testid="micro-apps-mobile-scope-collaborated"
-								>
-									{t("microAppsPage.scopeCollaborated")}
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
+						<div className="-mx-1 overflow-x-auto">
+							{/* Scroll instead of shrinking tabs on mobile. */}
+							<MicroAppScopeTabs
+								value={scope}
+								availableScopes={availableScopes}
+								onChange={setScope}
+								testIdPrefix="micro-apps-mobile-scope"
+								className="h-10"
+							/>
+						</div>
 					</div>
 
 					{loading ? <MobileGridLoading /> : null}
@@ -163,12 +165,16 @@ export default function MicroAppsListPageMobile() {
 								<p className="text-base font-medium text-foreground">
 									{keyword
 										? t("microAppsPage.noSearchResults")
-										: t("microAppsPage.emptyTitle")}
+										: scope === "accessible"
+											? t("microAppsPage.publishedEmptyTitle")
+											: t("microAppsPage.emptyTitle")}
 								</p>
 								<p className="text-sm text-muted-foreground">
 									{keyword
 										? t("microAppsPage.noSearchResultsDescription")
-										: t("microAppsPage.emptyDescription")}
+										: scope === "accessible"
+											? t("microAppsPage.publishedEmptyDescription")
+											: t("microAppsPage.emptyDescription")}
 								</p>
 							</div>
 						</div>
@@ -196,12 +202,23 @@ export default function MicroAppsListPageMobile() {
 											? t("microAppsPage.statusPublished")
 											: t("microAppsPage.statusUnpublished")
 									}
-									onClick={() => handleOpenApp(app.app_id)}
+									onClick={() => handleOpenApp(app)}
 									variant="mobile"
 									onOpenInNewWindow={() => itemActions.openInNewWindow(app)}
 									onRename={() => itemActions.openRename(app)}
 									onDelete={() => itemActions.openDelete(app)}
+									onManageCollaborators={() =>
+										collaboratorManagement.openCollaboratorManager(app)
+									}
+									managingCollaborators={
+										collaboratorManagement.loadingAppId === app.app_id
+									}
 									canDelete={app.can_delete}
+									canRename={canEditProject(app.user_role)}
+									canManageCollaborators={
+										collaboratorManagement.canManageCollaborators &&
+										canManageProjectCollaborators(app.user_role)
+									}
 									testId={`micro-apps-mobile-app-${app.app_id}`}
 								/>
 							))}
@@ -236,6 +253,7 @@ export default function MicroAppsListPageMobile() {
 				onConfirmRename={itemActions.confirmRename}
 				onConfirmDelete={itemActions.confirmDelete}
 			/>
+			{collaboratorManagement.CollaboratorUpdatePanel}
 		</div>
 	)
-}
+})

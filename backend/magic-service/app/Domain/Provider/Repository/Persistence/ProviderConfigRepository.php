@@ -11,7 +11,9 @@ use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderConfigSearchField;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\ProviderType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderConfigQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
@@ -109,6 +111,112 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
             }
         }
         $result['list'] = $list;
+
+        return $result;
+    }
+
+    /**
+     * 按指定字段搜索服务商配置。
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离上下文
+     * @return array{total: int, list: array<int, array<string, mixed>>}
+     */
+    public function searchProviderConfigs(
+        ProviderDataIsolation $dataIsolation,
+        Page $page,
+        ProviderConfigSearchField $searchField,
+        string $keyword
+    ): array {
+        $query = $this->createConfigQuery()
+            ->join('service_provider as provider', 'provider.id', '=', 'service_provider_configs.service_provider_id')
+            ->whereNull('provider.deleted_at');
+
+        $isOfficialOrganization = $dataIsolation->isOfficialOrganization();
+        $currentOrganizationCode = $dataIsolation->getCurrentOrganizationCode();
+        if (! $isOfficialOrganization) {
+            $query
+                ->where('service_provider_configs.organization_code', $currentOrganizationCode)
+                ->where('provider.provider_type', '!=', ProviderType::Official->value);
+        }
+
+        match ($searchField) {
+            ProviderConfigSearchField::ConfigId => $query->where('service_provider_configs.id', (int) $keyword),
+            ProviderConfigSearchField::ProviderName => $query->where('provider.name', 'like', '%' . $keyword . '%'),
+            ProviderConfigSearchField::ProviderAlias => $query->where('service_provider_configs.alias', 'like', '%' . $keyword . '%'),
+        };
+
+        $total = (clone $query)->count('service_provider_configs.id');
+        $listQuery = clone $query;
+        $listQuery
+            ->select([
+                'service_provider_configs.id as service_provider_config_id',
+                'service_provider_configs.service_provider_id',
+                'provider.name as provider_name',
+                'service_provider_configs.alias as provider_alias',
+            ])
+            ->orderBy('service_provider_configs.sort', 'desc')
+            ->orderBy('service_provider_configs.id', 'asc')
+            ->forPage($page->getPage(), $page->getPageNum());
+
+        $rows = Db::select($listQuery->toSql(), $listQuery->getBindings());
+
+        return [
+            'total' => $total,
+            'list' => $rows,
+        ];
+    }
+
+    public function getOfficialOrganizationConfigIds(): array
+    {
+        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+        if ($officialOrganizationCode === '') {
+            return [];
+        }
+
+        // 审计查询要覆盖历史上用过的官方配置，不能用选择器那套未删除过滤
+        return ProviderConfigModel::query()
+            ->where('organization_code', $officialOrganizationCode)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->values()
+            ->toArray();
+    }
+
+    public function getProviderConfigIdentityMetadataByIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        // 统计 breakdown 按历史配置 ID 补名称，已软删配置仍要能展示
+        $rows = ProviderConfigModel::query()
+            ->join('service_provider as provider', 'provider.id', '=', 'service_provider_configs.service_provider_id')
+            ->whereIn('service_provider_configs.id', $ids)
+            ->select([
+                'service_provider_configs.id as service_provider_config_id',
+                'service_provider_configs.organization_code',
+                'service_provider_configs.alias as provider_alias',
+                'provider.name as provider_name',
+            ])
+            ->get()
+            ->toArray();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $row = (array) $row;
+            $configId = (int) ($row['service_provider_config_id'] ?? 0);
+            if ($configId <= 0) {
+                continue;
+            }
+            $result[$configId] = [
+                'service_provider_config_id' => (string) $configId,
+                'organization_code' => (string) ($row['organization_code'] ?? ''),
+                'provider_name' => (string) ($row['provider_name'] ?? ''),
+                'provider_alias' => (string) ($row['provider_alias'] ?? ''),
+            ];
+        }
 
         return $result;
     }
@@ -353,11 +461,12 @@ class ProviderConfigRepository extends AbstractModelRepository implements Provid
 
     /**
      * 准备移除软删相关功能，临时这样写。创建带有软删除过滤的 ProviderConfigModel 查询构建器.
+     * 必须带表名：本仓储会 join service_provider，两边都有 deleted_at。
      */
     protected function createConfigQuery(): Builder
     {
         /* @phpstan-ignore-next-line */
-        return ProviderConfigModel::query()->whereNull('deleted_at');
+        return ProviderConfigModel::query()->whereNull('service_provider_configs.deleted_at');
     }
 
     /**

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { type Editor } from "@tiptap/react"
+import { type Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
@@ -14,11 +14,7 @@ import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"
 import { Button, ButtonGroup } from "@/components/tiptap-ui-primitive/button"
-import {
-	Popover,
-	PopoverTrigger,
-	PopoverContent,
-} from "@/components/tiptap-ui-primitive/popover"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/tiptap-ui-primitive/popover"
 import { Separator } from "@/components/tiptap-ui-primitive/separator"
 import { Card, CardBody, CardItemGroup } from "@/components/tiptap-ui-primitive/card"
 
@@ -47,8 +43,8 @@ export interface ColorHighlightPopoverContentProps {
 
 export interface ColorHighlightPopoverProps
 	extends
-	Omit<ButtonProps, "type">,
-	Pick<UseColorHighlightConfig, "editor" | "hideWhenUnavailable" | "onApplied"> {
+		Omit<ButtonProps, "type">,
+		Pick<UseColorHighlightConfig, "editor" | "hideWhenUnavailable" | "onApplied"> {
 	/**
 	 * Optional colors to use in the highlight popover.
 	 * If not provided, defaults to a predefined set of colors.

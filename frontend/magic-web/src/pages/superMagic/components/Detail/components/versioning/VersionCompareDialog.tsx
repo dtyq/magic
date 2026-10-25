@@ -5,6 +5,7 @@ import MagicModal from "@/components/base/MagicModal"
 import IsolatedHTMLRenderer, {
 	type IsolatedHTMLRendererRef,
 } from "../../contents/HTML/IsolatedHTMLRenderer"
+import type { HtmlNavigationRequest } from "../../contents/HTML/utils/html-navigation"
 import { resolvePptScaleContentDimensions } from "../../contents/HTML/utils/slide-dimensions"
 
 interface VersionCompareDialogProps {
@@ -24,6 +25,8 @@ interface VersionCompareDialogProps {
 	filePathMapping: Map<string, string>
 	/** File ID */
 	fileId?: string
+	/** Runtime-only URL state requested by navigation inside the HTML app. */
+	htmlNavigation?: HtmlNavigationRequest
 	/** Open new tab callback */
 	openNewTab: (fileId: string, path: string) => void
 	/** Selected project */
@@ -41,6 +44,7 @@ function VersionCompareDialog({
 	onUseServerVersion,
 	filePathMapping,
 	fileId,
+	htmlNavigation,
 	openNewTab,
 	selectedProject,
 	attachmentList,
@@ -154,6 +158,7 @@ function VersionCompareDialog({
 								filePathMapping={filePathMapping}
 								openNewTab={openNewTab}
 								fileId={fileId ? `${fileId}-my` : undefined}
+								htmlNavigation={htmlNavigation}
 								selectedProject={selectedProject}
 								attachmentList={attachmentList}
 								isVisible={true}
@@ -202,6 +207,7 @@ function VersionCompareDialog({
 								filePathMapping={filePathMapping}
 								openNewTab={openNewTab}
 								fileId={fileId ? `${fileId}-server` : undefined}
+								htmlNavigation={htmlNavigation}
 								selectedProject={selectedProject}
 								attachmentList={attachmentList}
 								isVisible={true}

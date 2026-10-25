@@ -29,18 +29,27 @@ class DocumentReadingPlanner:
         max_units = self._budget_number(budget, "page", "unit", default=10)
         action = self._choose_action(source, goal)
         next_range = self._next_range(source, max_units)
+        strategy_context = self._strategy_context(source)
         plan = {
             "goal": goal,
             "output_dir": str(output_dir),
             "recommended_action": action,
             "recommended_range": next_range,
             "recommended_mode": self._mode_for_action(action),
+            "recommended_asset_strategy": strategy_context.get("recommended_strategy", "auto"),
+            "asset_strategy_reason": strategy_context.get("reason", ""),
+            "asset_strategy_requires_confirmation": bool(strategy_context.get("requires_user_confirmation")),
+            "asset_strategy_context": strategy_context,
             "reason": self._reason(source, action),
             "risks": self._risks(source, action),
             "state_path": str(output_dir / READING_STATE_FILENAME),
             "index_available": bool(index),
         }
         source["recommended_next_actions"] = [self._action_sentence(plan)]
+        if plan["asset_strategy_requires_confirmation"]:
+            source["recommended_next_actions"].append(
+                "Call ask_user once to confirm the recommended asset strategy before extraction."
+            )
         await ReadingStateStore().save(output_dir, source)
         return plan
 
@@ -61,6 +70,14 @@ class DocumentReadingPlanner:
             "current_reading_goal": "",
             "metadata": index.get("metadata", {}),
         }
+
+    @staticmethod
+    def _strategy_context(state: dict[str, Any]) -> dict[str, Any]:
+        """从抽样状态读取资产策略上下文，供主 Agent 决定是否询问用户。"""
+
+        metadata = state.get("metadata") or {}
+        context = metadata.get("strategy_context")
+        return dict(context) if isinstance(context, dict) else {}
 
     @staticmethod
     def _budget_number(budget: str | None, *keywords: str, default: int) -> int:

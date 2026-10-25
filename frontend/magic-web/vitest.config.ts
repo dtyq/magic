@@ -1,6 +1,8 @@
 import { resolve } from "path"
+import { defaultClientConditions } from "vite"
 import { defineConfig, mergeConfig } from "vitest/config"
 import { getOverlayViteConfig } from "./vite/overlay"
+import vitePluginIframeRuntime from "./plugins/vite-plugin-iframe-runtime"
 
 const fixAntdLocaleImportExtensions = () => ({
 	name: "fix-antd-locale-import-extensions",
@@ -32,9 +34,31 @@ const fixAntdLocaleImportExtensions = () => ({
 
 const getVitestBaseConfig = () => {
 	return {
-		plugins: [fixAntdLocaleImportExtensions()],
+		plugins: [
+			fixAntdLocaleImportExtensions(),
+			vitePluginIframeRuntime({ projectRoot: __dirname }),
+		],
 		resolve: {
+			// Match application resolution so tests do not depend on a previously built dist.
+			conditions: ["magic-web-source", ...defaultClientConditions],
 			alias: [
+				// 与应用保持一致，组件测试直接解析导出工具源码，无需预构建包。
+				{
+					find: "@magic-web/html2image",
+					replacement: resolve(__dirname, "packages/html2image/src/index.ts"),
+				},
+				{
+					find: "@admin-components",
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: "@customer/",
+					replacement: `${resolve(__dirname, "customer/src")}/`,
+				},
+				{
+					find: "@enterprise/",
+					replacement: `${resolve(__dirname, "enterprise/src")}/`,
+				},
 				{
 					find: "@admin/",
 					replacement: `${resolve(__dirname, "packages/magic-admin/src")}/`,
@@ -60,35 +84,23 @@ const getVitestBaseConfig = () => {
 					replacement: resolve(__dirname, "test/mocks/magic-api-prelude.ts"),
 				},
 				{
-					find: /^@dtyq\/html-sandbox\/index\.html(\?raw)?$/,
-					replacement: `${resolve(__dirname, "packages/html-sandbox/index.html")}$1`,
-				},
-				{
-					find: "@dtyq/html-sandbox/runtime",
-					replacement: resolve(__dirname, "packages/html-sandbox/src/runtime/index.ts"),
-				},
-				{
-					find: "@dtyq/html-sandbox/utils/parentOrigin",
-					replacement: resolve(
-						__dirname,
-						"packages/html-sandbox/src/utils/parentOrigin.ts",
-					),
-				},
-				{
-					find: "@dtyq/html-sandbox/telemetry",
-					replacement: resolve(__dirname, "packages/html-sandbox/src/telemetry/index.ts"),
-				},
-				{
-					find: "@dtyq/html-sandbox",
-					replacement: resolve(__dirname, "packages/html-sandbox/src/index.ts"),
-				},
-				{
-					find: /^@dtyq\/html-sandbox\/(.+)$/,
-					replacement: resolve(__dirname, "packages/html-sandbox/src/$1"),
-				},
-				{
 					find: "@dtyq/es6-template-strings",
 					replacement: resolve(__dirname, "test/mocks/es6-template-strings.ts"),
+				},
+				{
+					find: /^@dtyq\/magic-admin$/,
+					replacement: resolve(__dirname, "packages/magic-admin/src/index.ts"),
+				},
+				{
+					find: /^@dtyq\/magic-admin\/components$/,
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: /^@dtyq\/magic-admin\/provider$/,
+					replacement: resolve(
+						__dirname,
+						"packages/magic-admin/src/provider/AdminProvider/index.tsx",
+					),
 				},
 				// Keep Vitest aligned with app-local package aliases that are normally resolved by Vite.
 				{
@@ -98,6 +110,14 @@ const getVitestBaseConfig = () => {
 				{
 					find: "@dtyq/x-markdown",
 					replacement: resolve(__dirname, "packages/x-markdown/src/index.ts"),
+				},
+				{
+					find: "@magic-admin-v2",
+					replacement: resolve(__dirname, "packages/magic-admin-v2/src"),
+				},
+				{
+					find: "@dtyq/magic-admin-v2",
+					replacement: resolve(__dirname, "packages/magic-admin-v2/src/index.ts"),
 				},
 			],
 		},
@@ -126,9 +146,25 @@ const getVitestBaseConfig = () => {
 	}
 }
 
+const vitestBaseConfig = getVitestBaseConfig()
+const overlayConfig = getOverlayViteConfig({
+	projectRoot: __dirname,
+	mode: "test",
+	loadEnv: false,
+})
+const baseAliases = vitestBaseConfig.resolve?.alias
+const overlayAliases = overlayConfig.resolve?.alias
+
 export default defineConfig(
-	mergeConfig(getVitestBaseConfig(), {
-		resolve: getOverlayViteConfig({ projectRoot: __dirname, mode: "test", loadEnv: false })
-			.resolve,
+	mergeConfig(vitestBaseConfig, {
+		...overlayConfig,
+		resolve: {
+			...overlayConfig.resolve,
+			// overlay 配置包含自定义别名时，同时保留测试环境专用别名。
+			alias: [
+				...(Array.isArray(baseAliases) ? baseAliases : []),
+				...(Array.isArray(overlayAliases) ? overlayAliases : []),
+			],
+		},
 	}),
 )

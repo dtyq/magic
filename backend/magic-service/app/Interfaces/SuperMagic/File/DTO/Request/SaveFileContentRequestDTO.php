@@ -9,6 +9,7 @@ namespace App\Interfaces\SuperMagic\File\DTO\Request;
 
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\ShadowCode\ShadowCode;
 use JsonSerializable;
 
 /**
@@ -88,8 +89,15 @@ class SaveFileContentRequestDTO implements JsonSerializable
         // Remove empty content check - allow empty string value
         // Content field existence is already checked in fromRequest()
 
-        // Validate content size limit
+        // V2 的 Base64 开销不应挤占原有 10 MiB 正文容量，先限制编码体积再解码校验。
         $contentSize = strlen($this->content);
+        if ($this->enableShadow && str_starts_with($this->content, ShadowCode::PREFIX_V2)) {
+            $maxEncodedSize = strlen(ShadowCode::PREFIX_V2) + 4 * intdiv(self::MAX_CONTENT_SIZE + 2, 3);
+            if ($contentSize > $maxEncodedSize) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'content_too_large');
+            }
+            $contentSize = strlen(ShadowCode::unShadow($this->content));
+        }
         if ($contentSize > self::MAX_CONTENT_SIZE) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'content_too_large');
         }

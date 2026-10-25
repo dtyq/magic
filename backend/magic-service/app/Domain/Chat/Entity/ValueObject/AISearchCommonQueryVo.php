@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Chat\Entity\ValueObject;
 
 use App\Domain\Chat\DTO\Message\ChatMessage\Item\DeepSearch\SearchDetailItem;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use Hyperf\Odin\Contract\Model\ModelInterface;
 use Hyperf\Odin\Memory\MessageHistory;
 
@@ -207,7 +208,7 @@ class AISearchCommonQueryVo
             'organization_id' => $this->getOrganizationCode(),
             'user_id' => $this->getUserId(),
             'business_id' => uniqid('odin_', true),
-            'source_id' => 'ai_search',
+            'source_id' => SourceId::AI_SEARCH,
             'user_name' => '',
         ];
     }

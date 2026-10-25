@@ -66,23 +66,27 @@ MentionPanel/
 
 - `project-files`
 - `upload-files`
-- `agents`
+- `digital-employees`（调用现有数字员工列表接口）
+- `flows`（二级包含 `agents`、`tools`）
 - `mcp-extensions`
 - `skills`
-- `tools`
 
 当前 builtin catalog 在 `runtime/builtin/registry.ts` 里注册了：
 
 - `upload-files`
 - `mcp-extensions`
+- `digital-employees`
+- `flows`
 - `agents`
 - `skills`
 - `tools`
 - `histories`
 - `tabs`
+- `scene-catalog`
 
 当前 builtin search plugin 包含：
 
+- `scene-catalog`（排在最前，同一文件只保留场景目录里的那一行）
 - `workspace-files`
 - `upload-files`
 - `mcp`
@@ -440,6 +444,34 @@ const runtime: MentionPanelRuntime = {
   }}
 />
 ```
+
+## 场景 4：我想在某个页面的 @ 面板固定一个「本场景」入口
+
+例如 AI 研究页的「本次研究」：首页最上方一行，进入后按分组列出本次研究的人设、产物和访谈记录。
+
+不需要新增业务类型，也不需要写 dataService。页面持有自己的 store 实例（`createMentionPanelStore`），把数据推进去即可：
+
+```ts
+mentionPanelStore.setPinnedSceneCatalog({
+  name: "本次研究",
+  icon: <FlaskConical size={16} />,
+  groups: [
+    { id: "personas", title: "受访人设", items: personaItems },
+    { id: "outputs", title: "研究产物", items: outputItems },
+  ],
+})
+// 离开页面或切换上下文时
+mentionPanelStore.setPinnedSceneCatalog(null)
+```
+
+| 行为 | 说明 |
+| --- | --- |
+| 首页 | 入口排在最前（在 `setPinnedCurrentMicroApp` 的微应用之前）；所有分组都为空时不显示 |
+| 进入入口 | 每个非空分组一行标题，后面是该组条目 |
+| 全局搜索 | 匹配条目名称和副标题（`description`，子串匹配）；与项目文件搜索命中同一文件时只保留场景里的那一行 |
+| 选中 | 条目就是普通 mention（通常是 `project_file`），发送和后端处理不变 |
+
+条目的 `description` 在列表右侧作为副标题显示（例如人设的一句话简介），不再显示文件所在目录；搜索结果中没有副标题时显示入口名称。实现见 `runtime/builtin/domains/scene-catalog/`。
 
 ## 推荐阅读顺序
 

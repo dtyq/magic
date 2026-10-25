@@ -133,7 +133,7 @@ iframe shell 内部还维护 `runtimeState`（`loaded / loading / runtimeUrl`）
 | 枚举                             | 取值                                           | 含义                                                                                     |
 | -------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `FETCH_MESSAGE_TYPES`            | `REQUEST` / `RESPONSE`                         | fetch 拦截的相对路径解析请求/响应                                                        |
-| `KEYBOARD_MESSAGE_TYPES`         | `SAVE` / `SAVE_AND_EXIT` / `CANCEL` / `SOURCE` | 编辑态键盘快捷键                                                                         |
+| `KEYBOARD_MESSAGE_TYPES`         | `SAVE` / `SAVE_AND_EXIT` / `CANCEL` / `SOURCE` | 编辑态键盘快捷键（定义在 html-sandbox，由 EditorRuntime 转发，宿主从 fetchInterceptor 转出；不再向 HTML 注入脚本）                                                                         |
 | `POST_MESSAGE_TARGET_STRATEGIES` | `SAME_ORIGIN_ANCESTOR` / `CROSS_ORIGIN_PARENT` | **区分两种方向的开关**：同域向上找最后一个同源窗口；跨域遇到首个跨域边界即作为目标父窗口 |
 
 ### 4.4 生命周期状态机（iframe → 主站）

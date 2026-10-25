@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Check, Pencil, Plus, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SelfMediaPost, SelfMediaPostMetaPatch } from "../../types"
 import { normalizeRednoteTags, parseRednoteTagDraft, updateRednoteTags } from "./rednoteMeta"
 import { RednoteMetaSaveStatus } from "./RednoteMetaSaveStatus"

@@ -1,5 +1,5 @@
-import { mergeAttributes, Node, nodePasteRule } from "@tiptap/core"
-import { ReactNodeViewRenderer } from "@tiptap/react"
+import { mergeAttributes, Node, nodePasteRule } from "@/infrastructure/editors/tiptap/core"
+import { ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
 import type { HTMLAttributes } from "react"
 import { emojiLocaleCache } from "@/components/base/MagicEmojiPanel/cache"
 import { magicEmojiRegex } from "@/pages/chatNew/components/ChatSubSider/utils"

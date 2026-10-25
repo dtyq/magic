@@ -38,7 +38,7 @@ class GitService:
     DEFAULT_CONFIG = {
         'monitored_directories': [
             {
-                'path': '.chat_history',
+                'path': '.topic/chat_history',
                 'ignore_patterns': ['*.tmp', '.git/*']
             },
             {

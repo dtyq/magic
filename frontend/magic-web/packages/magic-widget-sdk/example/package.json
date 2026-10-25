@@ -1,0 +1,17 @@
+{
+	"name": "magic-widget-sdk-example",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Standalone Bun web service serving the Magic Widget SDK interactive example page",
+	"type": "module",
+	"scripts": {
+		"dev": "bun --watch server.ts",
+		"start": "bun run server.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.14",
+		"typescript": "^5.4.5"
+	},
+	"packageManager": "bun@1.3.14"
+}

@@ -64,6 +64,22 @@ class BaseMentionHandler(ABC):
         """
         return ""
 
+    async def extract_image_refs(
+        self,
+        mention: Dict[str, Any],
+        agent_context: Optional["AgentContext"] = None,
+    ) -> List[str]:
+        """提取当前 mention 可提供的原生视觉图片引用。
+
+        Args:
+            mention: mention 数据
+            agent_context: 可选的 AgentContext 实例
+
+        Returns:
+            List[str]: 当前 mention 中的图片路径列表
+        """
+        return []
+
     @staticmethod
     def normalize_path(file_path: str) -> str:
         """标准化文件路径：将绝对路径转换为相对路径

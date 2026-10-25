@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter;
 
+use App\Domain\ModelGateway\Contract\VideoGenerationConnectivityTestableInterface;
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
@@ -15,7 +16,7 @@ use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use RuntimeException;
 
-readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapterInterface
+readonly class KelingVideoAdapterRouter implements VideoGenerationConnectivityTestableInterface
 {
     public function __construct(
         private KelingOmniVideoAdapter $kelingOmniVideoAdapter,
@@ -55,6 +56,19 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
     public function query(VideoQueueOperationEntity $operation, QueueExecutorConfig $config, string $providerTaskId): array
     {
         return $this->resolveOperationAdapter($operation)->query($operation, $config, $providerTaskId);
+    }
+
+    public function testConnection(QueueExecutorConfig $config, string $modelVersion): bool
+    {
+        $adapter = $this->resolveAdapter($modelVersion, '');
+        if ($adapter instanceof VideoGenerationConnectivityTestableInterface) {
+            return $adapter->testConnection($config, $modelVersion);
+        }
+
+        throw new RuntimeException(sprintf(
+            'keling connectivity test not supported for model %s',
+            $modelVersion,
+        ));
     }
 
     private function resolveOperationAdapter(VideoQueueOperationEntity $operation): VideoGenerationProviderAdapterInterface

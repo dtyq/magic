@@ -73,6 +73,56 @@ class TOSCredentialTest extends CloudFileBaseTest
     }
 
     /**
+     * 使用真实 TOS 配置验证一次批量预签名 URL 请求。
+     */
+    public function testGetPreSignedUrlsByCredentialWithRealTosRequest(): void
+    {
+        $filesystem = $this->getFilesystem();
+        $credentialPolicy = $this->createTestCredentialPolicy();
+
+        $urls = $filesystem->getPreSignedUrlsByCredential(
+            $credentialPolicy,
+            [
+                [
+                    'object_key' => 'easy-file/tos_demo.png',
+                    'options' => [
+                        'filename' => 'batch-image.png',
+                    ],
+                ],
+                [
+                    'object_key' => 'easy-file/test.txt',
+                    'options' => [
+                        'filename' => 'batch-text.txt',
+                        'download' => false,
+                    ],
+                ],
+            ],
+            [
+                'cache' => false,
+                'expires' => 600,
+            ]
+        );
+
+        $this->assertCount(2, $urls);
+        $this->assertArrayHasKey('easy-file/tos_demo.png', $urls);
+        $this->assertArrayHasKey('easy-file/test.txt', $urls);
+
+        foreach ($urls as $url) {
+            $parsedUrl = parse_url($url);
+            $this->assertIsArray($parsedUrl);
+            $this->assertSame('https', $parsedUrl['scheme'] ?? null);
+            $this->assertNotEmpty($parsedUrl['host'] ?? null);
+
+            $query = [];
+            parse_str((string) ($parsedUrl['query'] ?? ''), $query);
+            $this->assertArrayHasKey('X-Tos-Signature', $query);
+        }
+
+        $this->assertContentDisposition($urls['easy-file/tos_demo.png'], 'attachment; filename="batch-image.png"; filename*=UTF-8\'\'batch-image.png');
+        $this->assertContentDisposition($urls['easy-file/test.txt'], 'inline; filename="batch-text.txt"; filename*=UTF-8\'\'batch-text.txt');
+    }
+
+    /**
      * Test getting object metadata by credential.
      *
      * @depends testCreateObjectByCredential

@@ -12,14 +12,28 @@ import {
 import ConversationService from "@/services/chat/conversation/ConversationService"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { projectAttachmentsChangeLog } from "@/pages/superMagic/utils/projectAttachments/changeLogReporter"
+import { logger as Logger } from "@/infrastructure/logger"
+
+const logger = Logger.createLogger("IntermediateMessageApplyService")
 
 class IntermediateMessageApplyService {
+	/** Payload shapes already reported, so a chatty channel cannot flood the logs */
+	private readonly warnedPayloadShapes = new Set<string>()
+
 	/**
 	 * 应用消息
 	 * @param message 消息对象
 	 */
 	apply(message: IntermediateResponse) {
-		switch (message.seq.message.type) {
+		// The intermediate channel also carries payloads without `seq` (for example realtime
+		// pushes newer than this client). Ignore them instead of throwing an unhandled rejection.
+		const messageType = message?.seq?.message?.type
+		if (!messageType) {
+			this.warnUnsupportedPayload(message)
+			return
+		}
+
+		switch (messageType) {
 			case IntermediateMessageType.StartConversationInput:
 				this.applyStartConversationInputMessage(
 					message.seq as SeqResponse<StartConversationInputMessage>,
@@ -54,6 +68,14 @@ class IntermediateMessageApplyService {
 			default:
 				break
 		}
+	}
+
+	private warnUnsupportedPayload(message: unknown) {
+		const payloadType = (message as { type?: unknown } | null | undefined)?.type
+		const shape = typeof payloadType === "string" ? payloadType : "unknown"
+		if (this.warnedPayloadShapes.has(shape)) return
+		this.warnedPayloadShapes.add(shape)
+		logger.warn("Ignored intermediate payload without seq message", { payloadType: shape })
 	}
 
 	/**

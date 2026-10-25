@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import type { SelfMediaView } from "../types"

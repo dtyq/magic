@@ -32,7 +32,33 @@ export type AudioSourceType = "microphone" | "system" | "both"
  * Audio format type
  * 音频格式类型
  */
-export type AudioFormatType = "pcm" | "wav"
+export type AudioFormatType = "pcm" | "wav" | "opus"
+
+/** Concrete encoder implementations that can be selected before recording starts. */
+export type RecordingEncoderKind = "webcodecs-opus" | "wasm-opus" | "wav"
+
+/** Persisted artifact format used to keep a session compatible across restarts. */
+export type RecordingEncodingFormat = "pcm" | "wav" | "ogg-opus"
+
+/** Startup policy that controls encoder priority without changing the file contract. */
+export interface RecordingEncodingPolicy {
+	policyVersion: string
+	candidates: RecordingEncoderKind[]
+	forceWav?: boolean
+	allowWavFallback: boolean
+}
+
+/** Snapshot restored from an existing session after its first chunk is persisted. */
+export interface RecordingEncodingSnapshot {
+	format: RecordingEncodingFormat
+	policyVersion?: string
+	/** Output sample rate written into each persisted audio chunk. */
+	sampleRate?: number
+	/** Output channel count written into each persisted audio chunk. */
+	channels?: number
+	/** PCM bits per sample for WAV/PCM output. */
+	bitsPerSample?: number
+}
 
 /**
  * Audio processing mode
@@ -59,6 +85,7 @@ export interface RecordingStatus {
 	session: RecordingSessionState | null
 	bufferDuration: number
 	isPaused: boolean
+	processingMode?: AudioProcessingMode
 }
 
 /**
@@ -92,10 +119,13 @@ export interface AudioSourceConfig {
 export interface RecorderCoreConfig {
 	sampleRate: number // Sample rate in Hz (default: 16000)
 	bitRate: number // Bit depth (default: 16)
+	audioBitsPerSecond?: number // Target compressed audio bitrate in bits per second
 	chunkDuration: number // Chunk duration in seconds (default: 10)
 	type: AudioFormatType // Output format
 	maxRetries: number // Max retries for opening recorder (default: 5)
 	audioSource?: AudioSourceConfig // Audio source configuration
+	encodingPolicy?: RecordingEncodingPolicy // Startup encoder priority and emergency fallback
+	lockedEncoding?: RecordingEncodingSnapshot // Existing session format that must not change
 }
 
 /**
@@ -103,7 +133,7 @@ export interface RecorderCoreConfig {
  * RecorderCore 适配器事件
  */
 export interface RecorderCoreEvents {
-	onChunkReady?: (chunk: StoredAudioChunk, chunkIndex: number) => void
+	onChunkReady?: (chunk: StoredAudioChunk, chunkIndex: number) => void | Promise<void>
 	onError?: (error: Error) => void
 	onProcess?: (duration: number, bufferSize: number) => void
 	onStateChange?: (state: RecordingState) => void
@@ -191,6 +221,13 @@ export interface EncodedAudioChunk {
 	data: ArrayBuffer
 	mimeType: string
 	size: number
+}
+
+/** Raw Opus packet with timing expressed in microseconds. */
+export interface OpusPacket {
+	data: Uint8Array
+	timestampUs: number
+	durationUs: number
 }
 
 /**

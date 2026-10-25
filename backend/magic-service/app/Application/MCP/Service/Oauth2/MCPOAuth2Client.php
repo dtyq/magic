@@ -285,11 +285,10 @@ class MCPOAuth2Client
 
         if (! empty($allParams)) {
             $queryString = http_build_query($allParams);
-            // OAuth2 scope 参数中的 + 号不应该被编码
-            // 在 OAuth2 规范中，+ 用于分隔多个 scope 值
+            // 保留配置中的加号和逗号分隔符，兼容不同 OAuth 服务的 scope 格式。
             if (isset($allParams['scope'])) {
                 $encodedScope = urlencode($allParams['scope']);
-                $decodedScope = str_replace('%2B', '+', $encodedScope);
+                $decodedScope = str_replace(['%2B', '%2C'], ['+', ','], $encodedScope);
                 $queryString = str_replace($encodedScope, $decodedScope, $queryString);
             }
             $url .= '?' . $queryString;
@@ -318,32 +317,39 @@ class MCPOAuth2Client
             'connect_timeout' => 10,
         ]);
 
-        // Prepare HTTP Basic Authentication
-        $clientId = $config->getClientId();
-        $clientSecret = $config->getClientSecret();
-        $basicAuth = base64_encode($clientId . ':' . $clientSecret);
-
-        // Prepare request options based on configured content type
-        $contentType = $config->getAuthorizationContentType();
-        $options = [
-            RequestOptions::HEADERS => [
-                'Authorization' => 'Basic ' . $basicAuth,
-                'Accept' => 'application/json',
-                'Content-Type' => $contentType,
-            ],
+        $method = $config->getAuthorizationMethod();
+        $headers = [
+            'Accept' => 'application/json',
+        ];
+        $commonOptions = [
+            RequestOptions::HEADERS => $headers,
+            // GET 请求会携带敏感查询参数，禁用 Guzzle 异常避免完整 URL 进入异常日志。
+            RequestOptions::HTTP_ERRORS => false,
         ];
 
-        // Set request body based on content type
-        if ($contentType === 'application/json') {
-            $options[RequestOptions::JSON] = $params;
+        // GET 模式用于兼容百度等将 Token 参数放在 URL 查询串中的 OAuth 服务。
+        if ($method === 'GET') {
+            $options = $commonOptions;
+            $options[RequestOptions::QUERY] = $params;
+            $response = $client->get($config->getAuthorizationUrl(), $options);
         } else {
-            // Fallback for other content types (though currently only application/json is supported)
-            $options[RequestOptions::FORM_PARAMS] = $params;
+            $clientId = $config->getClientId();
+            $clientSecret = $config->getClientSecret();
+            $contentType = $config->getAuthorizationContentType();
+            $headers['Authorization'] = 'Basic ' . base64_encode($clientId . ':' . $clientSecret);
+            $headers['Content-Type'] = $contentType;
+            $options = $commonOptions;
+            $options[RequestOptions::HEADERS] = $headers;
+
+            if ($contentType === 'application/json') {
+                $options[RequestOptions::JSON] = $params;
+            } else {
+                $options[RequestOptions::FORM_PARAMS] = $params;
+            }
+
+            $response = $client->post($config->getAuthorizationUrl(), $options);
         }
 
-        // Use token endpoint URL for exchanging code for access_token
-        $tokenUrl = $config->getAuthorizationUrl(); // This is the token endpoint
-        $response = $client->post($tokenUrl, $options);
         $body = $response->getBody()->getContents();
 
         $data = json_decode($body, true);

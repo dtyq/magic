@@ -36,6 +36,7 @@ class MessageMetadata
      * @param null|UserInfoValueObject $userInfo 用户信息对象
      * @param bool $skipInitMessages 是否跳过初始化消息
      * @param string $traceId 追踪ID
+     * @param null|array<string, mixed> $personalPreferences 当前聊天消息的个人偏好
      */
     public function __construct(
         private string $agentUserId = '',
@@ -53,7 +54,8 @@ class MessageMetadata
         private string $authorization = '',
         ?UserInfoValueObject $userInfo = null,
         private bool $skipInitMessages = false,
-        private string $traceId = ''
+        private string $traceId = '',
+        private ?array $personalPreferences = null
     ) {
         $this->userInfo = $userInfo;
     }
@@ -72,6 +74,16 @@ class MessageMetadata
 
         $traceId = CoContext::getTraceId() ?? '';
 
+        $personalPreferences = is_array($data['personal_preferences'] ?? null)
+            ? $data['personal_preferences']
+            : null;
+        if ($personalPreferences === null && array_key_exists('long_term_memory_enabled', $data)) {
+            $legacyValue = $data['long_term_memory_enabled'];
+            $personalPreferences = [
+                'long_term_memory_enabled' => is_bool($legacyValue) ? $legacyValue : true,
+            ];
+        }
+
         return new self(
             $data['agent_user_id'] ?? '',
             $data['user_id'] ?? '',
@@ -88,7 +100,8 @@ class MessageMetadata
             $data['authorization'] ?? '',
             $userInfo,
             $data['skip_init_messages'] ?? false,
-            $traceId
+            $traceId,
+            $personalPreferences
         );
     }
 
@@ -116,6 +129,11 @@ class MessageMetadata
             'authorization' => $this->authorization,
             'trace_id' => $this->traceId,
         ];
+
+        // 个人偏好只由 CHAT metadata 携带；INIT metadata 不传递运行时配置。
+        if ($this->personalPreferences !== null) {
+            $result['personal_preferences'] = $this->personalPreferences;
+        }
 
         // 添加用户信息（如果存在）
         if ($this->userInfo !== null) {
@@ -360,6 +378,28 @@ class MessageMetadata
     {
         $clone = clone $this;
         $clone->traceId = $traceId;
+        return $clone;
+    }
+
+    /**
+     * 获取个人偏好.
+     *
+     * @return null|array<string, mixed> 个人偏好；INIT metadata 未携带时返回 null
+     */
+    public function getPersonalPreferences(): ?array
+    {
+        return $this->personalPreferences;
+    }
+
+    /**
+     * 设置个人偏好.
+     *
+     * @param array<string, mixed> $personalPreferences 个人偏好
+     */
+    public function withPersonalPreferences(array $personalPreferences): self
+    {
+        $clone = clone $this;
+        $clone->personalPreferences = $personalPreferences;
         return $clone;
     }
 }

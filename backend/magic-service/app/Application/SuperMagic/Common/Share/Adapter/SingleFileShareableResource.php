@@ -278,6 +278,11 @@ class SingleFileShareableResource implements ResourceFactoryInterface
         }
     }
 
+    public function getResourceContentByCursor(string $resourceId, string $userId, string $organizationCode, ?int $afterId, int $limit): array
+    {
+        return $this->getResourceContent($resourceId, $userId, $organizationCode, 1, $limit);
+    }
+
     /**
      * 获取文件名.
      * resource_id 是文件集ID，通过文件集查询文件.

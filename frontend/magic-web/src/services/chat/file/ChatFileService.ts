@@ -68,12 +68,13 @@ class ChatFileService {
 	 */
 	fetchFileUrl(
 		datas?: { file_id: string; message_id: string }[],
+		options: { forceRefresh?: boolean } = {},
 	): Promise<Record<string, FileCacheData>> {
 		if (!datas || !datas.length) return Promise.resolve({})
 
 		// 检测是否过期
 		const { true: expired = [], false: notExpired = [] } = groupBy(datas, (item) => {
-			return this.checkFileExpired(item.file_id)
+			return options.forceRefresh || this.checkFileExpired(item.file_id)
 		})
 
 		if (expired.length > 0) {

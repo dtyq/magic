@@ -230,6 +230,21 @@ describe("parseSkillConfigYaml", () => {
 	it("returns null on invalid yaml", () => {
 		expect(parseSkillConfigYaml("{ bad")).toBe(null)
 	})
+
+	it.each([
+		["missing dir", "skill:\n  name: demo"],
+		["non-string dir", "skill:\n  dir: 123"],
+		["empty dir", 'skill:\n  dir: "  "'],
+		["absolute dir", 'skill:\n  dir: "/outside"'],
+		["parent traversal", 'skill:\n  dir: "../outside"'],
+		["current directory segment", 'skill:\n  dir: "demo/./nested"'],
+	])("returns null for %s", (_name, content) => {
+		expect(parseSkillConfigYaml(content)).toBe(null)
+	})
+
+	it("normalizes Windows separators in skill.dir", () => {
+		expect(parseSkillConfigYaml('skill:\n  dir: "nested\\\\demo"')).toBe("nested/demo")
+	})
 })
 
 describe("parseSkillMdFrontmatter", () => {

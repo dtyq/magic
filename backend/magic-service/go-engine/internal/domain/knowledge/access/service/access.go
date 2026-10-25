@@ -107,6 +107,44 @@ type ExternalAccessReader interface {
 	ListOperations(ctx context.Context, actor Actor, knowledgeBaseCodes []string) (map[string]Operation, error)
 }
 
+// NewCompositeAccessReader combines supplemental permission sources and keeps the strongest operation.
+func NewCompositeAccessReader(readers ...ExternalAccessReader) ExternalAccessReader {
+	filtered := make([]ExternalAccessReader, 0, len(readers))
+	for _, reader := range readers {
+		if reader != nil {
+			filtered = append(filtered, reader)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return compositeAccessReader{readers: filtered}
+}
+
+type compositeAccessReader struct {
+	readers []ExternalAccessReader
+}
+
+func (r compositeAccessReader) ListOperations(
+	ctx context.Context,
+	actor Actor,
+	knowledgeBaseCodes []string,
+) (map[string]Operation, error) {
+	operations := make(map[string]Operation)
+	for _, reader := range r.readers {
+		readerOperations, err := reader.ListOperations(ctx, actor, knowledgeBaseCodes)
+		if err != nil {
+			return nil, fmt.Errorf("list supplemental knowledge access operations: %w", err)
+		}
+		for code, operation := range readerOperations {
+			if operation.StrongerThan(operations[code]) {
+				operations[code] = operation
+			}
+		}
+	}
+	return operations, nil
+}
+
 // RelationReader 为后续文档/片段资源一致性校验预留。
 type RelationReader interface {
 	NormalizeTarget(ctx context.Context, actor Actor, target Target) (Target, error)

@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import useResizablePanel from "@/pages/superMagic/hooks/useResizablePanel"
 import TopicResizeHandle from "@/pages/superMagic/pages/TopicPage/components/TopicResizeHandle"
 import { KNOWLEDGE_DETAIL_PANEL_WIDTH_TRANSITION } from "../layout-transition"

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IBM Cloud &amp; Cognitive Infrastructure - Carbon Design System</title>
+  <style>
+    :root {
+      --primary: #0f62fe;
+      --on-primary: #ffffff;
+      --ink: #161616;
+      --ink-muted: #525252;
+      --ink-subtle: #8c8c8c;
+      --canvas: #ffffff;
+      --surface-1: #f4f4f4;
+      --surface-2: #e0e0e0;
+      --inverse-canvas: #161616;
+      --inverse-surface-1: #262626;
+      --inverse-ink: #ffffff;
+      --inverse-ink-muted: #c6c6c6;
+      --hairline: #e0e0e0;
+      --hairline-strong: #161616;
+      --blue-hover: #0050e6;
+      --semantic-success: #24a148;
+      --semantic-warning: #f1c21b;
+      --semantic-error: #da1e28;
+      --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "IBM Plex Mono", "Courier New", Menlo, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      letter-spacing: 0.16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Carbon Flat Square Aesthetic (0px Radius Everywhere) */
+    button, input, select, textarea, div, a { border-radius: 0px !important; }
+
+    /* Carbon Utility Bar */
+    .utility-bar {
+      background: var(--surface-1);
+      height: 32px;
+      padding: 0 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--ink-muted);
+      border-bottom: 1px solid var(--hairline);
+    }
+    .utility-links { display: flex; gap: 20px; }
+    .utility-links a { color: var(--ink-muted); text-decoration: none; }
+    .utility-links a:hover { color: var(--ink); }
+
+    /* Top Nav Bar */
+    .top-nav {
+      background: var(--canvas);
+      height: 48px;
+      padding: 0 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--hairline);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-brand-group {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+    /* Official IBM 8-Bar Logo SVG */
+    .ibm-8bar-logo {
+      width: 58px;
+      height: 24px;
+      display: block;
+    }
+    .nav-categories {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+    .nav-categories a {
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 400;
+    }
+    .nav-categories a.active {
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .nav-right-tools {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 14px;
+    }
+    .nav-right-tools a {
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    /* Hero Section: Carbon Light-weight (300) Typography */
+    .hero-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 54px 32px 48px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 48px;
+      align-items: center;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .hero-eyebrow {
+      font-size: 14px;
+      color: var(--primary);
+      font-weight: 400;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hero-eyebrow::before {
+      content: "";
+      width: 16px;
+      height: 2px;
+      background: var(--primary);
+      display: inline-block;
+    }
+    .hero-display-headline {
+      font-size: clamp(38px, 4.8vw, 62px);
+      font-weight: 300; /* Signature IBM light weight */
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      color: var(--ink);
+      margin-bottom: 20px;
+    }
+    .hero-subhead {
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 1.5;
+      color: var(--ink-muted);
+      margin-bottom: 32px;
+      max-width: 580px;
+    }
+    .hero-button-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    /* Carbon Square Buttons */
+    .btn-carbon-primary {
+      background: var(--primary);
+      color: var(--on-primary);
+      border: 1px solid var(--primary);
+      padding: 13px 24px;
+      font-size: 14px;
+      font-weight: 400;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-carbon-primary:hover { background: var(--blue-hover); }
+    .btn-carbon-secondary {
+      background: var(--ink);
+      color: var(--inverse-ink);
+      border: 1px solid var(--ink);
+      padding: 13px 24px;
+      font-size: 14px;
+      font-weight: 400;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    /* Monospace Live Telemetry Tile on Hero */
+    .hero-telemetry-panel {
+      background: var(--surface-1);
+      border: 1px solid var(--hairline);
+      padding: 24px;
+    }
+    .telemetry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .telemetry-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-badge-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--semantic-success);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--semantic-success);
+      border-radius: 50% !important;
+    }
+    .telemetry-mono-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+    }
+    .telemetry-item {
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      padding: 10px 12px;
+    }
+    .telemetry-label {
+      color: var(--ink-subtle);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .telemetry-value {
+      color: var(--ink);
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    /* Product Tabs with Carbon 2px Blue Indicator */
+    .carbon-tabs-bar {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .carbon-tab {
+      padding: 16px 24px;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--ink-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      text-decoration: none;
+    }
+    .carbon-tab.selected {
+      color: var(--ink);
+      font-weight: 600;
+      border-bottom-color: var(--primary);
+    }
+
+    /* Main Grid-Aligned Enterprise Status Cards */
+    .status-section {
+      max-width: 1400px;
+      margin: 40px auto;
+      padding: 0 32px;
+    }
+    .section-eyebrow-text {
+      font-size: 14px;
+      color: var(--ink-muted);
+      margin-bottom: 8px;
+    }
+    .section-title-large {
+      font-size: 32px;
+      font-weight: 400;
+      margin-bottom: 32px;
+    }
+    .enterprise-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .carbon-feature-card {
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 280px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .carbon-feature-card:hover {
+      background: var(--surface-1);
+      border-color: var(--hairline-strong);
+    }
+    .card-top-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--primary);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .card-heading {
+      font-size: 22px;
+      font-weight: 400;
+      line-height: 1.3;
+      margin-bottom: 12px;
+    }
+    .card-desc {
+      font-size: 14px;
+      color: var(--ink-muted);
+      margin-bottom: 20px;
+      line-height: 1.45;
+    }
+    .card-metrics-row {
+      font-family: var(--font-mono);
+      background: var(--surface-1);
+      border: 1px solid var(--hairline);
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+    .card-arrow-link {
+      font-size: 14px;
+      color: var(--primary);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+    .card-arrow-link:hover { text-decoration: underline; }
+
+    /* Charcoal Inverse Footer Band */
+    .carbon-footer {
+      background: var(--inverse-canvas);
+      color: var(--inverse-ink-muted);
+      padding: 56px 32px 36px;
+      font-size: 13px;
+      margin-top: 60px;
+    }
+    .footer-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .footer-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--inverse-surface-1);
+      margin-bottom: 36px;
+    }
+    .footer-grid-cols {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 32px;
+      margin-bottom: 48px;
+    }
+    .footer-col h5 {
+      color: var(--inverse-ink);
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .footer-col ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .footer-col a {
+      color: var(--inverse-ink-muted);
+      text-decoration: none;
+    }
+    .footer-col a:hover { color: var(--inverse-ink); }
+    .footer-bottom-bar {
+      border-top: 1px solid var(--inverse-surface-1);
+      padding-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    @media (max-width: 990px) {
+      .hero-container { grid-template-columns: 1fr; }
+      .enterprise-cards-grid { grid-template-columns: 1fr; }
+      .footer-grid-cols { grid-template-columns: 1fr 1fr; }
+      .nav-categories { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Carbon Utility Bar -->
+  <div class="utility-bar">
+    <span>United States &bull; English</span>
+    <div class="utility-links">
+      <a href="#contact">Contact</a>
+      <a href="#support">Support</a>
+      <a href="#portal">My IBM</a>
+    </div>
+  </div>
+
+  <!-- Primary Top Nav Bar -->
+  <header class="top-nav">
+    <div class="nav-brand-group">
+      <a href="#" style="display:flex; align-items:center;">
+        <!-- Official IBM 8-Bar Logo SVG (8 Horizontal Stripes) -->
+        <svg class="ibm-8bar-logo" viewBox="0 0 160 64" fill="#161616">
+          <!-- Bar 1 -->
+          <rect x="0" y="0" width="36" height="5" />
+          <rect x="52" y="0" width="46" height="5" />
+          <rect x="110" y="0" width="42" height="5" />
+          <!-- Bar 2 -->
+          <rect x="0" y="8" width="36" height="5" />
+          <rect x="52" y="8" width="46" height="5" />
+          <rect x="110" y="8" width="46" height="5" />
+          <!-- Bar 3 -->
+          <rect x="12" y="16" width="12" height="5" />
+          <rect x="52" y="16" width="22" height="5" />
+          <rect x="86" y="16" width="14" height="5" />
+          <rect x="110" y="16" width="14" height="5" />
+          <rect x="134" y="16" width="12" height="5" />
+          <rect x="154" y="16" width="6" height="5" />
+          <!-- Bar 4 -->
+          <rect x="12" y="24" width="12" height="5" />
+          <rect x="52" y="24" width="46" height="5" />
+          <rect x="110" y="24" width="24" height="5" />
+          <rect x="144" y="24" width="16" height="5" />
+          <!-- Bar 5 -->
+          <rect x="12" y="32" width="12" height="5" />
+          <rect x="52" y="32" width="46" height="5" />
+          <rect x="110" y="32" width="24" height="5" />
+          <rect x="144" y="32" width="16" height="5" />
+          <!-- Bar 6 -->
+          <rect x="12" y="40" width="12" height="5" />
+          <rect x="52" y="40" width="22" height="5" />
+          <rect x="86" y="40" width="14" height="5" />
+          <rect x="110" y="40" width="14" height="5" />
+          <rect x="134" y="40" width="12" height="5" />
+          <rect x="154" y="40" width="6" height="5" />
+          <!-- Bar 7 -->
+          <rect x="0" y="48" width="36" height="5" />
+          <rect x="52" y="48" width="46" height="5" />
+          <rect x="110" y="48" width="46" height="5" />
+          <!-- Bar 8 -->
+          <rect x="0" y="56" width="36" height="5" />
+          <rect x="52" y="56" width="46" height="5" />
+          <rect x="110" y="56" width="42" height="5" />
+        </svg>
+      </a>
+
+      <ul class="nav-categories">
+        <li><a href="#cloud" class="active">Hybrid Cloud</a></li>
+        <li><a href="#ai">watsonx &bull; AI</a></li>
+        <li><a href="#infra">Infrastructure</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="#consulting">Consulting</a></li>
+      </ul>
+    </div>
+
+    <div class="nav-right-tools">
+      <a href="#search">Search</a>
+      <a href="#signin">Log in</a>
+    </div>
+  </header>
+
+  <!-- Hero Section (Light Weight 300 Display Headline) -->
+  <section class="hero-container">
+    <div>
+      <div class="hero-eyebrow">Hybrid Cloud &amp; Cognitive Compute</div>
+      <h1 class="hero-display-headline">
+        Enterprise infrastructure engineered for mission-critical scale.
+      </h1>
+      <p class="hero-subhead">
+        Deploy secure workloads across private cloud, multi-cloud bare metal, and quantum-ready mainframes with guaranteed 99.999% uptime SLAs.
+      </p>
+
+      <div class="hero-button-row">
+        <a href="#deploy" class="btn-carbon-primary">
+          Explore IBM Cloud
+          <span>&rarr;</span>
+        </a>
+        <a href="#talk" class="btn-carbon-secondary">
+          Consult an engineer
+        </a>
+      </div>
+    </div>
+
+    <!-- Live Infrastructure Telemetry Metric Tile -->
+    <div class="hero-telemetry-panel">
+      <div class="telemetry-header">
+        <span class="telemetry-title">Global Cluster Telemetry</span>
+        <div class="status-badge-live">
+          <div class="pulse-dot"></div>
+          <span>ALL REGIONS NOMINAL</span>
+        </div>
+      </div>
+
+      <div class="telemetry-mono-grid">
+        <div class="telemetry-item">
+          <div class="telemetry-label">ACTIVE PODS</div>
+          <div class="telemetry-value">14,290 nodes</div>
+        </div>
+
+        <div class="telemetry-item">
+          <div class="telemetry-label">AVERAGE LATENCY</div>
+          <div class="telemetry-value" style="color:var(--primary);">1.4 ms</div>
+        </div>
+
+        <div class="telemetry-item">
+          <div class="telemetry-label">CPU ALLOCATION</div>
+          <div class="telemetry-value">94.2% EFFICIENT</div>
+        </div>
+
+        <div class="telemetry-item">
+          <div class="telemetry-label">Q-BIT FIDELITY</div>
+          <div class="telemetry-value" style="color:var(--semantic-success);">99.982%</div>
+        </div>
+      </div>
+
+      <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); margin-top: 14px; border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; justify-content: space-between;">
+        <span>Hash: 0x9f1a7b...c04</span>
+        <span>Secured via FIPS 140-2 L4</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Carbon Product Tabs Strip with 2px Blue Underline -->
+  <div class="carbon-tabs-bar">
+    <a href="#overview" class="carbon-tab selected">Infrastructure Status</a>
+    <a href="#cloud-pak" class="carbon-tab">Cloud Pak for AIOps</a>
+    <a href="#power10" class="carbon-tab">Power10 &amp; LinuxONE</a>
+    <a href="#quantum" class="carbon-tab">Quantum System Two</a>
+  </div>
+
+  <!-- Enterprise Status Cards Section -->
+  <section class="status-section">
+    <div class="section-eyebrow-text">Enterprise Deployments</div>
+    <h2 class="section-title-large">Engineered Infrastructure Components</h2>
+
+    <div class="enterprise-cards-grid">
+      
+      <!-- Card 1: Cloud Pak for AIOps -->
+      <div class="carbon-feature-card">
+        <div>
+          <div class="card-top-tag">
+            <span>AIOPS &bull; SUITE</span>
+            <span style="color:var(--semantic-success);">&bull; HEALTHY</span>
+          </div>
+          <h3 class="card-heading">IBM Cloud Pak for AIOps</h3>
+          <p class="card-desc">
+            Automate incident resolution and proactive anomaly detection across hybrid clouds using generative AI foundation models.
+          </p>
+          <div class="card-metrics-row">
+            <span>Mean Time to Resolve:</span>
+            <span style="font-weight:600; color:var(--primary);">-68% MTTR</span>
+          </div>
+        </div>
+        <a href="#aiops" class="card-arrow-link">
+          Read architecture brief &rarr;
+        </a>
+      </div>
+
+      <!-- Card 2: Bare Metal & Power10 Compute -->
+      <div class="carbon-feature-card">
+        <div>
+          <div class="card-top-tag">
+            <span>COMPUTE &bull; HARDWARE</span>
+            <span style="color:var(--semantic-success);">&bull; HEALTHY</span>
+          </div>
+          <h3 class="card-heading">Bare Metal Power10 Servers</h3>
+          <p class="card-desc">
+            Ultra-high throughput enterprise compute built for memory-intensive SAP HANA and financial transaction core workloads.
+          </p>
+          <div class="card-metrics-row">
+            <span>Encrypted Throughput:</span>
+            <span style="font-weight:600;">48.2 TB/sec</span>
+          </div>
+        </div>
+        <a href="#power10" class="card-arrow-link">
+          View server configurations &rarr;
+        </a>
+      </div>
+
+      <!-- Card 3: Quantum System Two -->
+      <div class="carbon-feature-card">
+        <div>
+          <div class="card-top-tag">
+            <span>QUANTUM &bull; MODULAR</span>
+            <span style="color:var(--primary);">&bull; COHERENT</span>
+          </div>
+          <h3 class="card-heading">IBM Quantum System Two</h3>
+          <p class="card-desc">
+            Utility-scale quantum computation running Heron processors with modular cryogenic quantum communication links.
+          </p>
+          <div class="card-metrics-row">
+            <span>Quantum Volume:</span>
+            <span style="font-weight:600; color:var(--primary);">QV 262,144</span>
+          </div>
+        </div>
+        <a href="#quantum" class="card-arrow-link">
+          Access quantum runtime &rarr;
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Charcoal Slate Black Footer -->
+  <footer class="carbon-footer">
+    <div class="footer-inner">
+      <div class="footer-top-row">
+        <!-- Footer White 8-Bar Logo -->
+        <svg class="ibm-8bar-logo" viewBox="0 0 160 64" fill="#ffffff">
+          <rect x="0" y="0" width="36" height="5" /><rect x="52" y="0" width="46" height="5" /><rect x="110" y="0" width="42" height="5" />
+          <rect x="0" y="8" width="36" height="5" /><rect x="52" y="8" width="46" height="5" /><rect x="110" y="8" width="46" height="5" />
+          <rect x="12" y="16" width="12" height="5" /><rect x="52" y="16" width="22" height="5" /><rect x="86" y="16" width="14" height="5" /><rect x="110" y="16" width="14" height="5" /><rect x="134" y="16" width="12" height="5" /><rect x="154" y="16" width="6" height="5" />
+          <rect x="12" y="24" width="12" height="5" /><rect x="52" y="24" width="46" height="5" /><rect x="110" y="24" width="24" height="5" /><rect x="144" y="24" width="16" height="5" />
+          <rect x="12" y="32" width="12" height="5" /><rect x="52" y="32" width="46" height="5" /><rect x="110" y="32" width="24" height="5" /><rect x="144" y="32" width="16" height="5" />
+          <rect x="12" y="40" width="12" height="5" /><rect x="52" y="40" width="22" height="5" /><rect x="86" y="40" width="14" height="5" /><rect x="110" y="40" width="14" height="5" /><rect x="134" y="40" width="12" height="5" /><rect x="154" y="40" width="6" height="5" />
+          <rect x="0" y="48" width="36" height="5" /><rect x="52" y="48" width="46" height="5" /><rect x="110" y="48" width="46" height="5" />
+          <rect x="0" y="56" width="36" height="5" /><rect x="52" y="56" width="46" height="5" /><rect x="110" y="56" width="42" height="5" />
+        </svg>
+        <span style="font-size: 14px; color: var(--inverse-ink-muted);">Carbon Design System v11 Implementation</span>
+      </div>
+
+      <div class="footer-grid-cols">
+        <div class="footer-col">
+          <h5>Discover</h5>
+          <ul>
+            <li><a href="#">Products &amp; Solutions</a></li>
+            <li><a href="#">Red Hat OpenShift</a></li>
+            <li><a href="#">IBM Research</a></li>
+            <li><a href="#">Case Studies</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Architecture</h5>
+          <ul>
+            <li><a href="#">Cloud Architecture Center</a></li>
+            <li><a href="#">Carbon Design System</a></li>
+            <li><a href="#">Quantum Platform</a></li>
+            <li><a href="#">Security Compliance</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Developers</h5>
+          <ul>
+            <li><a href="#">Documentation</a></li>
+            <li><a href="#">CLI Tools &amp; SDKs</a></li>
+            <li><a href="#">Community Forums</a></li>
+            <li><a href="#">Open Source Initiatives</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>About IBM</h5>
+          <ul>
+            <li><a href="#">Annual Report</a></li>
+            <li><a href="#">Careers</a></li>
+            <li><a href="#">Investor Relations</a></li>
+            <li><a href="#">Responsibility &amp; Ethics</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom-bar">
+        <span>&copy; Copyright IBM Corporation 2026. All rights reserved.</span>
+        <span>Contact &bull; Privacy &bull; Terms of use &bull; Accessibility</span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

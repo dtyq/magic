@@ -22,7 +22,9 @@ class PathManager:
     _browser_data_dir: ClassVar[Optional[Path]] = None
     _cache_dir_name: ClassVar[str] = ".cache"
     _cache_dir: ClassVar[Optional[Path]] = None
-    _chat_history_dir_name: ClassVar[str] = ".chat_history"  # 使用应用层建议的顶级带点目录
+    _topic_dir_name: ClassVar[str] = ".topic"
+    _topic_dir: ClassVar[Optional[Path]] = None
+    _chat_history_dir_name: ClassVar[str] = ".chat_history"
     _chat_history_dir: ClassVar[Optional[Path]] = None
     _credentials_dir_name: ClassVar[str] = ".credentials" # 凭证目录路径
     _credentials_dir: ClassVar[Optional[Path]] = None
@@ -161,6 +163,7 @@ class PathManager:
         cls._workspace_dir = cls._project_root / cls._workspace_dir_name
         cls._browser_data_dir = cls._project_root / cls._browser_data_dir_name
         cls._cache_dir = cls._project_root / cls._cache_dir_name
+        cls._topic_dir = cls._project_root / cls._topic_dir_name
         cls._chat_history_dir = cls._project_root / cls._chat_history_dir_name
         cls._credentials_dir = cls._project_root / cls._credentials_dir_name
 
@@ -179,7 +182,6 @@ class PathManager:
         cls._workspace_dir.mkdir(exist_ok=True)
         cls._browser_data_dir.mkdir(exist_ok=True)
         cls._cache_dir.mkdir(exist_ok=True)
-        cls._chat_history_dir.mkdir(exist_ok=True)
 
     @classmethod
     def get_project_root(cls) -> Path:
@@ -235,6 +237,23 @@ class PathManager:
     def get_chat_history_dir_name(cls) -> str:
         """获取聊天历史记录目录名称"""
         return cls._chat_history_dir_name
+
+    @classmethod
+    def get_topic_dir_name(cls) -> str:
+        """获取话题持久化目录名称。"""
+        return cls._topic_dir_name
+
+    @classmethod
+    def get_topic_dir(cls) -> Path:
+        """获取话题持久化目录路径。"""
+        cls._ensure_initialization()
+        return cls._topic_dir
+
+    @classmethod
+    def get_topic_chat_history_dir(cls) -> Path:
+        """获取 topic 持久卷中的聊天记录源目录。"""
+        cls._ensure_initialization()
+        return cls._topic_dir / "chat_history"
 
     @classmethod
     def get_chat_history_dir(cls) -> Path:

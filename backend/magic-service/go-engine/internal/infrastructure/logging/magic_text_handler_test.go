@@ -45,6 +45,25 @@ func TestMagicTextHandler_FormatAndNoColorInBuffer(t *testing.T) {
 	}
 }
 
+func TestMagicTextHandler_TraceIDUsesSearchablePrefix(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	logger := logging.NewSugaredLoggerForTest(
+		logging.NewMagicTextHandlerForTest(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}),
+		"app",
+	).With("trace_id", "8ec7b527d38f3977")
+
+	logger.InfoContext(context.Background(), "message")
+
+	line := strings.TrimSpace(buf.String())
+	if !strings.Contains(line, "[trace_id:8ec7b527d38f3977]") {
+		t.Fatalf("expected searchable trace id prefix, got %q", line)
+	}
+	if strings.Contains(line, "[8ec7b527d38f3977]") {
+		t.Fatalf("trace id should not use the legacy bare bracket format: %q", line)
+	}
+}
+
 func TestLevelName(t *testing.T) {
 	t.Parallel()
 	if got := logging.LevelNameForTest(slog.LevelWarn); got != expectedWarningLevel {

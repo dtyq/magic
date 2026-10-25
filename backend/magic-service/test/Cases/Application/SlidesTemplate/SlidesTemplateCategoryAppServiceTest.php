@@ -59,7 +59,7 @@ class SlidesTemplateCategoryAppServiceTest extends TestCase
         $this->assertInstanceOf(Page::class, $result['page']);
     }
 
-    public function testPublicQueriesUseCurrentAndOfficialEnabledCategoriesWithTemplateCount(): void
+    public function testPublicQueriesUseCurrentAndOfficialEnabledCategoriesWithoutTemplateCount(): void
     {
         $dataIsolation = $this->makeDataIsolation('CURRENT_ORG', ['OFFICIAL_ORG']);
         $request = new TestPublicQuerySlidesTemplateCategoryRequest(keyword: 'business');
@@ -73,7 +73,7 @@ class SlidesTemplateCategoryAppServiceTest extends TestCase
         $domainService = $this->createMock(SlidesTemplateCategoryDomainService::class);
         $domainService
             ->expects($this->once())
-            ->method('queriesWithTemplateCount')
+            ->method('queries')
             ->with(
                 $this->callback(static fn (SlidesTemplateDataIsolation $actual): bool => $actual->isContainOfficialOrganization()
                     && $actual->getOrganizationCodes() === ['CURRENT_ORG', 'OFFICIAL_ORG']),

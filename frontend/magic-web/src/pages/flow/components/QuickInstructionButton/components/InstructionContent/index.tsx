@@ -6,7 +6,7 @@ import { InstructionType } from "@/types/bot"
 import { resolveToString } from "@dtyq/es6-template-strings"
 import type { MagicRichEditorRef } from "@/components/base/MagicRichEditor"
 import MagicRichEditor from "@/components/base/MagicRichEditor"
-import type { UseEditorOptions } from "@tiptap/react"
+import type { UseEditorOptions } from "@/infrastructure/editors/tiptap/react"
 import { IconAt } from "@tabler/icons-react"
 import { useStyles } from "../../styles"
 

@@ -1,8 +1,22 @@
 import type { TFunction } from "i18next"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
+import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { ScheduledTask } from "@/types/scheduledTask"
 import { DEFAULT_TIME, WEEKDAY_LABELS } from "./constants"
 import { Weekday, type ScheduleConfig, type ScheduleFormValues } from "./types"
+
+/** Persist only the model identity required at runtime and the fields used for edit-time display. */
+export function serializeScheduledTaskModel(
+	model?: ModelItem | null,
+): ScheduledTask.ModelSelection | undefined {
+	if (!model?.model_id) return undefined
+
+	return {
+		model_id: model.model_id,
+		...(model.model_name ? { model_name: model.model_name } : {}),
+		...(model.model_icon ? { model_icon: model.model_icon } : {}),
+	}
+}
 
 export function formatMultipleSchedules(schedules: ScheduleConfig, t: TFunction): string {
 	if (!schedules) return t("accountPanel.timedTasks.noPlan")

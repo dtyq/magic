@@ -3,7 +3,11 @@ import { Flex } from "antd"
 import { getI18n } from "react-i18next"
 import MagicSpin from "@/components/base/MagicSpin"
 import { openSettingPanel } from "@/components/business/SettingPanel/openSettingPanel"
-import { getAccountSettingMenuItems, type AccountSettingMenuItem } from "./config"
+import {
+	ACCOUNT_SETTING_NAMESPACES,
+	getAccountSettingMenuItems,
+	type AccountSettingMenuItem,
+} from "./config"
 import type { AccountSettingPage } from "./types"
 
 const i18n = getI18n()
@@ -19,7 +23,8 @@ export interface OpenAccountSettingOptions {
 export async function openAccountSetting(options: OpenAccountSettingOptions = {}) {
 	const { defaultActiveKey, onClose, width, height } = options
 
-	await i18n.loadNamespaces(ACCOUNT_SETTING_NAMESPACE)
+	// Each edition declares its resources so menu labels are ready before the panel opens.
+	await i18n.loadNamespaces(ACCOUNT_SETTING_NAMESPACES)
 
 	const t = (key: string) => i18n.t(key, { ns: ACCOUNT_SETTING_NAMESPACE })
 	const menuItems = getAccountSettingMenuItems(t)
@@ -40,8 +45,7 @@ export async function openAccountSetting(options: OpenAccountSettingOptions = {}
 		menuItems,
 		renderContent: (key) => {
 			const item = menuItems.find((menuItem) => menuItem.key === key) as
-				| AccountSettingMenuItem
-				| undefined
+				AccountSettingMenuItem | undefined
 
 			return <Suspense fallback={loadingFallback}>{item?.component}</Suspense>
 		},

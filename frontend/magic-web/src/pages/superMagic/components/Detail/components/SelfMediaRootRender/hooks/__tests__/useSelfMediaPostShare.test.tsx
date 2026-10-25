@@ -6,7 +6,7 @@ import type { SelfMediaPlatformPostItem } from "../../stores/SelfMediaStore"
 import type { SelfMediaAttachmentNode } from "../../types"
 
 const mockHandleShare = vi.hoisted(() => vi.fn())
-const mockVisibility = vi.hoisted(() => ({ hideShareFile: false }))
+const mockAccess = vi.hoisted(() => ({ share: true }))
 
 vi.mock("../../../CommonHeader/hooks", () => ({
 	useFileShare: () => ({
@@ -34,9 +34,17 @@ vi.mock("@/hooks/useIsMobile", () => ({
 	useIsMobile: () => false,
 }))
 
-vi.mock("@/pages/superMagic/providers/file-action-visibility-provider", () => ({
-	useFileActionVisibility: () => mockVisibility,
-}))
+vi.mock("@/pages/superMagic/providers/FileAccessProvider", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("@/pages/superMagic/providers/FileAccessProvider")>()
+	return {
+		...actual,
+		useFileAccess: () => ({
+			permissions: { ...actual.DEFAULT_FILE_ACCESS, ...mockAccess },
+			options: actual.DEFAULT_FILE_ACTION_OPTIONS,
+		}),
+	}
+})
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({ t: (key: string) => key }),
@@ -89,7 +97,7 @@ describe("useSelfMediaPostShare", () => {
 	beforeEach(() => {
 		mockHandleShare.mockReset()
 		mockHandleShare.mockResolvedValue(undefined)
-		mockVisibility.hideShareFile = false
+		mockAccess.share = true
 	})
 
 	it("shares the current article directory through the common file share flow", async () => {
@@ -129,7 +137,7 @@ describe("useSelfMediaPostShare", () => {
 
 		expect(result.current.canShare).toBe(false)
 
-		mockVisibility.hideShareFile = true
+		mockAccess.share = false
 		rerender({ enabled: true })
 		expect(result.current.canShare).toBe(false)
 	})

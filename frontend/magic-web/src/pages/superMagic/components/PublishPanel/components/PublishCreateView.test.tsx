@@ -34,7 +34,15 @@ vi.mock(
 	}),
 )
 
-function createPanelData(): PublishPanelData {
+function createPanelData(
+	marketCopy: PublishPanelData["marketCopy"] = {
+		publishToLabelKey: "skillEditPage.publishPanel.publishToOptions.skills_library.label",
+		publishToDescriptionKey:
+			"skillEditPage.publishPanel.publishToOptions.skills_library.description",
+		targetLabelKey: "skillEditPage.publishPanel.targets.skills_library.label",
+		targetDescriptionKey: "skillEditPage.publishPanel.targets.skills_library.description",
+	},
+): PublishPanelData {
 	return {
 		hasUnpublishedChanges: true,
 		currentPublisherName: "Username",
@@ -52,13 +60,7 @@ function createPanelData(): PublishPanelData {
 				},
 			],
 		},
-		marketCopy: {
-			publishToLabelKey: "skillEditPage.publishPanel.publishToOptions.skills_library.label",
-			publishToDescriptionKey:
-				"skillEditPage.publishPanel.publishToOptions.skills_library.description",
-			targetLabelKey: "skillEditPage.publishPanel.targets.skills_library.label",
-			targetDescriptionKey: "skillEditPage.publishPanel.targets.skills_library.description",
-		},
+		marketCopy,
 		availablePublishTo: ["INTERNAL", "MARKET"],
 		availableInternalTargets: ["PRIVATE", "MEMBER", "ORGANIZATION"],
 	}
@@ -120,5 +122,30 @@ describe("PublishCreateView", () => {
 		expect(
 			screen.queryByTestId("skill-publish-specific-members-trigger"),
 		).not.toBeInTheDocument()
+	})
+
+	it("uses the selected market name in the publishing process", () => {
+		const store = new PublishPanelStore({
+			initialData: createPanelData({
+				publishToLabelKey: "skillEditPage.publishPanel.publishToOptions.crew_market.label",
+				publishToDescriptionKey:
+					"skillEditPage.publishPanel.publishToOptions.crew_market.description",
+				targetLabelKey: "skillEditPage.publishPanel.targets.crew_market.label",
+				targetDescriptionKey: "skillEditPage.publishPanel.targets.crew_market.description",
+			}),
+		})
+
+		store.openCreateView()
+		store.selectPublishTo("MARKET")
+
+		render(
+			<PublishPanelStoreProvider store={store}>
+				<PublishCreateView onClose={vi.fn()} />
+			</PublishPanelStoreProvider>,
+		)
+
+		expect(screen.getByTestId("skill-publish-process-card")).toHaveTextContent(
+			"skillEditPage.publishPanel.publishToOptions.crew_market.label",
+		)
 	})
 })

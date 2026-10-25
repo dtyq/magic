@@ -26,7 +26,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useHorizontalScrollWithFade } from "../hooks/useHorizontalScrollWithFade"
 import type { AudioProjectListItem } from "@/types/audioProject"
 import {

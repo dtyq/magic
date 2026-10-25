@@ -1,4 +1,5 @@
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
+import { flattenFiles } from "../components/QuickOpenItem"
+import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import magicToast from "@/components/base/MagicToaster/utils"
 import {
@@ -6,6 +7,7 @@ import {
 	buildWebsiteTab,
 	COMMON_WEBSITE_PRESETS_LIMIT,
 	getCommonWebsitePresets,
+	getWebsitePresets,
 	isWebsiteTab,
 	removeCommonWebsitePreset,
 	saveCommonWebsitePreset,
@@ -13,11 +15,21 @@ import {
 	WEBSITE_TAB_PREFIX,
 	WEBSITE_PRESETS,
 } from "../utils/websiteTabs"
-import { getFileViewerTabType } from "../utils/tabType"
+import { getFileViewerTabType, hasActivePreviewTab } from "../utils/tabType"
 import WebsiteIframeTabContent from "../components/WebsiteIframeTabContent"
 import WebsitePresetMenu from "../components/WebsitePresetMenu"
 import CommonWebsitePresetDialog from "../components/CommonWebsitePresetDialog"
 import { useTabContextMenu } from "../hooks/useTabContextMenu"
+
+const { getMentionMicroAppsMock } = vi.hoisted(() => ({
+	getMentionMicroAppsMock: vi.fn(),
+}))
+
+vi.mock("@/apis", () => ({
+	SuperMagicApi: {
+		getMentionMicroApps: getMentionMicroAppsMock,
+	},
+}))
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
@@ -39,6 +51,12 @@ vi.mock("@/components/base/MagicToaster/utils", () => ({
 		error: vi.fn(),
 		info: vi.fn(),
 	},
+}))
+
+vi.mock("@/components/base/MagicFileIcon", () => ({
+	default: ({ type, size }: { type?: string; size?: number }) => (
+		<span data-testid="magic-file-icon" data-size={size} data-type={type} />
+	),
 }))
 
 vi.mock("@/components/shadcn-ui/context-menu", () => ({
@@ -94,15 +112,23 @@ vi.mock("@/components/shadcn-ui/dropdown-menu", () => ({
 	DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 	DropdownMenuContent: ({
 		children,
+		onOpenAutoFocus: _onOpenAutoFocus,
+		sideOffset: _sideOffset,
 		...props
 	}: {
 		children: React.ReactNode
+		onOpenAutoFocus?: (event: Event) => void
+		sideOffset?: number
 		[key: string]: unknown
-	}) => (
-		<div data-testid="website-preset-menu" {...props}>
-			{children}
-		</div>
-	),
+	}) => {
+		void _onOpenAutoFocus
+		void _sideOffset
+		return (
+			<div data-testid="website-preset-menu" {...props}>
+				{children}
+			</div>
+		)
+	},
 	DropdownMenuItem: ({
 		children,
 		onClick,
@@ -152,63 +178,31 @@ describe("website tabs", () => {
 		expect(preset?.url).toBe("https://example.com/prompts")
 	})
 
-	it("includes curated prompt and material discovery website presets with translation keys", () => {
-		expect(WEBSITE_PRESETS).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: "letsmagic-nano-banana-pro-prompts",
-					titleKey: "fileViewer.website.presets.nanoBananaPro.title",
-					icon: "nano-banana-pro",
-					url: "https://www.letsmagic.cn/nano-banana-pro-prompts",
-				}),
-				expect.objectContaining({
-					id: "letsmagic-gpt-image-2-prompts",
-					titleKey: "fileViewer.website.presets.gptImage2.title",
-					icon: "gpt-image-2",
-					url: "https://www.letsmagic.cn/gpt-image-2-prompts",
-				}),
-				expect.objectContaining({
-					id: "baidu-images",
-					titleKey: "fileViewer.website.presets.baiduImages.title",
-					descriptionKey: "fileViewer.website.presets.baiduImages.description",
-					iconSrc: expect.stringContaining("baidu-images.png"),
-					url: expect.stringContaining("https://image.baidu.com/search/index"),
-				}),
-				expect.objectContaining({
-					id: "bing-images",
-					titleKey: "fileViewer.website.presets.bingImages.title",
-					descriptionKey: "fileViewer.website.presets.bingImages.description",
-					iconSrc: expect.stringMatching(/^data:image\/svg\+xml/),
-					url: "https://www.bing.com/images/search",
-				}),
-				expect.objectContaining({
-					id: "xiaohongshu",
-					titleKey: "fileViewer.website.presets.xiaohongshu.title",
-					iconSrc: expect.stringContaining("xiaohongshu.png"),
-					url: "https://www.xiaohongshu.com/",
-				}),
-				expect.objectContaining({
-					id: "zcool",
-					titleKey: "fileViewer.website.presets.zcool.title",
-					iconSrc: expect.stringContaining("zcool.png"),
-					url: "https://www.zcool.com.cn/",
-				}),
-				expect.objectContaining({
-					id: "pexels",
-					titleKey: "fileViewer.website.presets.pexels.title",
-					iconSrc: expect.stringContaining("pexels.png"),
-					url: "https://www.pexels.com/",
-				}),
-			]),
-		)
+	it("includes the remaining material discovery website presets", () => {
+		expect(WEBSITE_PRESETS.map((preset) => preset.id)).toEqual([
+			"baidu-images",
+			"bing-images",
+			"pexels",
+		])
 
 		const presetIds = WEBSITE_PRESETS.map((preset) => preset.id)
+		expect(presetIds).not.toContain("letsmagic-nano-banana-pro-prompts")
+		expect(presetIds).not.toContain("letsmagic-gpt-image-2-prompts")
+		expect(presetIds).not.toContain("xiaohongshu")
 		expect(presetIds).not.toContain("douyin")
 		expect(presetIds).not.toContain("pixabay")
 		expect(presetIds).not.toContain("google-images")
 		expect(presetIds).not.toContain("magnific")
 		expect(presetIds).not.toContain("unsplash")
 		expect(presetIds).not.toContain("freepik")
+	})
+
+	it("hides Baidu Images in the international environment", () => {
+		expect(getWebsitePresets(true).map((preset) => preset.id)).toEqual([
+			"bing-images",
+			"pexels",
+		])
+		expect(getWebsitePresets(false).map((preset) => preset.id)).toContain("baidu-images")
 	})
 
 	it("builds a stable persisted tab for a website preset", () => {
@@ -255,7 +249,23 @@ describe("website tabs", () => {
 		expect(getFileViewerTabType({ id: "file-2", type: "website" })).toBe("website")
 		expect(getFileViewerTabType({ id: `${WEBSITE_TAB_PREFIX}legacy` })).toBe("website")
 		expect(getFileViewerTabType({ id: "__kb__doc" })).toBe("knowledge_base")
+		expect(getFileViewerTabType({ id: "__micro_app__app-1" })).toBe("micro_app")
 		expect(getFileViewerTabType({ id: "__playback__" })).toBe("playback")
+	})
+
+	it("treats knowledge-base and micro-app tabs as active previews", () => {
+		expect(
+			hasActivePreviewTab([{ active: false }], [{ active: true }], [{ active: false }]),
+		).toBe(true)
+		expect(
+			hasActivePreviewTab([{ active: false }], [{ active: false }], [{ active: true }]),
+		).toBe(true)
+		expect(
+			hasActivePreviewTab([{ active: false }], [{ active: false }], [{ active: false }]),
+		).toBe(false)
+		expect(
+			hasActivePreviewTab([{ active: true }], [{ active: false }], [{ active: false }]),
+		).toBe(true)
 	})
 
 	it("reports existing common website presets without overwriting them", () => {
@@ -665,31 +675,57 @@ describe("website tabs", () => {
 
 	it("opens the selected preset from the add menu", () => {
 		const onOpenWebsiteTab = vi.fn()
-		const { container } = render(<WebsitePresetMenu onOpenWebsiteTab={onOpenWebsiteTab} />)
+		render(<WebsitePresetMenu onOpenWebsiteTab={onOpenWebsiteTab} />)
 
-		const addButton = screen.getByRole("button", { name: "fileViewer.website.add" })
-		expect(addButton.querySelector("svg")).toBeInTheDocument()
-		expect(container.querySelector(".lucide-plus")).toBeInTheDocument()
+		const addButton = screen.getByRole("button", { name: "fileViewer.website.quickOpen" })
+		expect(addButton.querySelector(".lucide-square-plus")).toBeInTheDocument()
+		expect(addButton).toHaveClass(
+			"h-7",
+			"min-w-7",
+			"max-w-7",
+			"ml-1",
+			"overflow-hidden",
+			"hover:max-w-32",
+		)
+		expect(addButton).not.toHaveClass("mx-1")
+		expect(within(addButton).getByText("fileViewer.website.quickOpen")).toHaveClass(
+			"opacity-0",
+			"group-hover:opacity-100",
+		)
+		expect(addButton.querySelector(".lucide-search")).not.toBeInTheDocument()
 
 		fireEvent.click(
 			screen.getByRole("button", {
-				name: "fileViewer.website.presets.nanoBananaPro.title",
+				name: "fileViewer.website.presets.baiduImages.title",
 			}),
 		)
 
 		expect(onOpenWebsiteTab).toHaveBeenCalledWith({
 			...WEBSITE_PRESETS[0],
-			title: "fileViewer.website.presets.nanoBananaPro.title",
-			description: "fileViewer.website.presets.nanoBananaPro.description",
+			title: "fileViewer.website.presets.baiduImages.title",
+			description: "fileViewer.website.presets.baiduImages.description",
 		})
 	})
 
-	it("renders model icons for the LetsMagic prompt website presets", () => {
+	it("does not render the removed website presets", () => {
 		const onOpenWebsiteTab = vi.fn()
 		render(<WebsitePresetMenu onOpenWebsiteTab={onOpenWebsiteTab} />)
 
-		expect(screen.getByTestId("website-preset-icon-nano-banana-pro")).toBeInTheDocument()
-		expect(screen.getByTestId("website-preset-icon-gpt-image-2")).toBeInTheDocument()
+		expect(
+			screen.queryByRole("button", {
+				name: "fileViewer.website.presets.nanoBananaPro.title",
+			}),
+		).not.toBeInTheDocument()
+		expect(
+			screen.queryByRole("button", {
+				name: "fileViewer.website.presets.gptImage2.title",
+			}),
+		).not.toBeInTheDocument()
+		expect(
+			screen.queryByRole("button", {
+				name: "fileViewer.website.presets.xiaohongshu.title",
+			}),
+		).not.toBeInTheDocument()
 	})
 
 	it("renders website icons for material discovery presets", () => {
@@ -704,14 +740,6 @@ describe("website tabs", () => {
 			"src",
 			expect.stringMatching(/^data:image\/svg\+xml/),
 		)
-		expect(screen.getByTestId("website-preset-icon-xiaohongshu")).toHaveAttribute(
-			"src",
-			expect.stringContaining("xiaohongshu.png"),
-		)
-		expect(screen.getByTestId("website-preset-icon-zcool")).toHaveAttribute(
-			"src",
-			expect.stringContaining("zcool.png"),
-		)
 		expect(screen.getByTestId("website-preset-icon-pexels")).toHaveAttribute(
 			"src",
 			expect.stringContaining("pexels.png"),
@@ -722,9 +750,14 @@ describe("website tabs", () => {
 		const onOpenWebsiteTab = vi.fn()
 		render(<WebsitePresetMenu onOpenWebsiteTab={onOpenWebsiteTab} />)
 
-		fireEvent.change(screen.getByPlaceholderText("fileViewer.website.customPlaceholder"), {
-			target: { value: "example.com/prompts" },
-		})
+		fireEvent.change(
+			screen.getByRole("textbox", {
+				name: "fileViewer.website.searchAllPlaceholder",
+			}),
+			{
+				target: { value: "example.com/prompts" },
+			},
+		)
 		fireEvent.click(screen.getByRole("button", { name: "fileViewer.website.openCustom" }))
 
 		expect(onOpenWebsiteTab).toHaveBeenCalledWith({
@@ -745,7 +778,7 @@ describe("website tabs", () => {
 		const onOpenWebsiteTab = vi.fn()
 		render(<WebsitePresetMenu onOpenWebsiteTab={onOpenWebsiteTab} />)
 
-		expect(screen.getByText("fileViewer.website.commonTitle")).toBeInTheDocument()
+		expect(screen.getAllByText("fileViewer.website.sections.websites")).not.toHaveLength(0)
 		fireEvent.click(screen.getByRole("button", { name: "Saved Image Board" }))
 
 		expect(onOpenWebsiteTab).toHaveBeenCalledWith(
@@ -859,7 +892,7 @@ describe("website tabs", () => {
 		expect(getCommonWebsitePresets()).toEqual([])
 	})
 
-	it("keeps the menu header and custom url input sticky above a scrollable preset list", () => {
+	it("uses ScrollArea for results while keeping search and categories fixed", () => {
 		const onOpenWebsiteTab = vi.fn()
 		render(<WebsitePresetMenu onOpenWebsiteTab={onOpenWebsiteTab} />)
 
@@ -868,8 +901,82 @@ describe("website tabs", () => {
 		const list = screen.getByTestId("website-preset-list")
 
 		expect(menu).toHaveClass("overflow-hidden")
-		expect(header).toHaveClass("sticky")
-		expect(header).toHaveClass("top-0")
-		expect(list).toHaveClass("overflow-y-auto")
+		expect(menu).toHaveClass("h-[min(620px,75vh)]")
+		expect(menu).not.toHaveClass("max-h-[min(620px,75vh)]")
+		expect(header).toHaveClass("shrink-0")
+		expect(list).toHaveAttribute("data-slot", "scroll-area")
+		expect(list.querySelector("[data-slot='scroll-area-viewport']")).toHaveClass("p-2")
+		expect(
+			screen.getByRole("navigation", { name: "fileViewer.website.sections.label" }),
+		).toBeInTheDocument()
+		expect(
+			screen.getByRole("textbox", {
+				name: "fileViewer.website.searchAllPlaceholder",
+			}),
+		).toBeInTheDocument()
+		expect(screen.queryByTestId("micro-app-filter-header")).not.toBeInTheDocument()
+	})
+
+	it("searches nested project files and opens the selected file", () => {
+		const onOpenFileTab = vi.fn()
+		const matchingFile = {
+			file_id: "file-2",
+			file_name: "release-plan.md",
+			file_extension: "md",
+			display_filename: "Release plan",
+			relative_file_path: "docs/release-plan.md",
+		}
+		render(
+			<WebsitePresetMenu
+				onOpenWebsiteTab={vi.fn()}
+				onOpenFileTab={onOpenFileTab}
+				fileAttachments={[
+					{
+						file_id: "folder-1",
+						file_name: "docs",
+						is_directory: true,
+						children: [matchingFile, { file_id: "file-3", file_name: "notes.md" }],
+					},
+				]}
+			/>,
+		)
+
+		fireEvent.change(screen.getByTestId("quick-open-search-input"), {
+			target: { value: "release" },
+		})
+
+		expect(screen.queryByRole("button", { name: "notes.md" })).not.toBeInTheDocument()
+		expect(screen.getByTestId("magic-file-icon")).toHaveAttribute("data-type", "md")
+		expect(screen.getByTestId("magic-file-icon")).toHaveAttribute("data-size", "28")
+		fireEvent.click(screen.getByRole("button", { name: "Release plan" }))
+		expect(onOpenFileTab).toHaveBeenCalledWith(matchingFile)
+	})
+	it("hides descendants of hidden directories from quick open and search", () => {
+		const hiddenFile = { file_id: "secret", file_name: "secret.md" }
+		const visibleFile = { file_id: "public", file_name: "public.md" }
+		const files = [
+			{
+				file_id: "hidden",
+				is_directory: true,
+				is_hidden: true,
+				children: [{ file_id: "nested", is_directory: true, children: [hiddenFile] }],
+			},
+			visibleFile,
+		]
+		expect(flattenFiles(files)).toEqual([visibleFile])
+		const onOpenFileTab = vi.fn()
+		render(
+			<WebsitePresetMenu
+				fileAttachments={files}
+				onOpenFileTab={onOpenFileTab}
+				onOpenWebsiteTab={vi.fn()}
+			/>,
+		)
+		expect(screen.queryByRole("button", { name: "secret.md" })).not.toBeInTheDocument()
+		fireEvent.change(screen.getByTestId("quick-open-search-input"), {
+			target: { value: "secret" },
+		})
+		expect(screen.queryByRole("button", { name: "secret.md" })).not.toBeInTheDocument()
+		expect(onOpenFileTab).not.toHaveBeenCalled()
 	})
 })

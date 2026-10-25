@@ -2,6 +2,7 @@ import type { SeqRecord } from "@/apis/modules/chat/types"
 import type { User } from "./user"
 import type { CMessage, EventType } from "./chat"
 import type { IntermediateMessage } from "./chat/intermediate_message"
+import type { NotificationUpdateMessage } from "@/apis/modules/notifications"
 
 /**
  * 流式消息状态
@@ -39,7 +40,7 @@ export type WebSocketPayload =
 	  }
 	| {
 			type: EventType.Intermediate
-			payload: RecordSummaryResultMessage
+			payload: RecordSummaryResultMessage | NotificationUpdateMessage | IntermediateResponse
 	  }
 
 /**

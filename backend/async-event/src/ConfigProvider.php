@@ -63,6 +63,12 @@ class ConfigProvider
                     'source' => __DIR__ . '/../publish/migrations/2023_05_18_104130_create_async_event_records.php',  // 对应的配置文件路径
                     'destination' => BASE_PATH . '/migrations/2023_05_18_104130_create_async_event_records.php', // 复制为这个路径下的该文件
                 ],
+                [
+                    'id' => 'migration-context-data',
+                    'description' => 'migration file for async event context data.',
+                    'source' => __DIR__ . '/../publish/migrations/2024_12_19_000000_add_context_data_to_async_event_records.php',
+                    'destination' => BASE_PATH . '/migrations/2024_12_19_000000_add_context_data_to_async_event_records.php',
+                ],
             ],
         ];
     }

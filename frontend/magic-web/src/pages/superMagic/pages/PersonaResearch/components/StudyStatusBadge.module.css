@@ -1,0 +1,27 @@
+/* The running step fills left to right, then fades and starts again: progress, not a pulse. */
+.runningFill {
+	width: 0;
+	animation: running-fill 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes running-fill {
+	0% {
+		width: 0;
+		opacity: 1;
+	}
+	75% {
+		width: 100%;
+		opacity: 1;
+	}
+	100% {
+		width: 100%;
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.runningFill {
+		width: 50%;
+		animation: none;
+	}
+}

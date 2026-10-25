@@ -27,7 +27,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/shadcn-ui/alert-dialog"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SelfMediaPlatformPostItem } from "../stores/SelfMediaStore"
 import type { SelfMediaPostPublishStatus } from "../types"
 import { selfMediaOverlayStyles } from "./selfMediaOverlayStyles"

@@ -1,9 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { EditorStore } from "../index"
-import { JSONContent, Editor } from "@tiptap/react"
+import { JSONContent, Editor } from "@/infrastructure/editors/tiptap/react"
+import { MentionItemType } from "@/components/business/MentionPanel/types"
 
 describe("EditorStore", () => {
 	let store: EditorStore
+
+	/** Creates an editor-shaped mock accepted by the lifecycle guard. */
+	function createActiveEditor(commands: Record<string, ReturnType<typeof vi.fn>> = {}) {
+		return {
+			isDestroyed: false,
+			commands: {
+				insertContent: vi.fn(),
+				focus: vi.fn(),
+				...commands,
+			},
+		} as unknown as Editor
+	}
 
 	beforeEach(() => {
 		store = new EditorStore()
@@ -85,7 +98,7 @@ describe("EditorStore", () => {
 
 	describe("setEditor", () => {
 		it("should set editor instance", () => {
-			const mockEditor = { commands: { focus: vi.fn() } } as unknown as Editor
+			const mockEditor = createActiveEditor()
 
 			store.setEditor(mockEditor)
 			expect(store.tiptapEditor).toBeTruthy()
@@ -93,12 +106,134 @@ describe("EditorStore", () => {
 		})
 
 		it("should set editor to null", () => {
-			const mockEditor = { commands: {} } as unknown as Editor
+			const mockEditor = createActiveEditor()
 			store.setEditor(mockEditor)
 			expect(store.tiptapEditor).toBeTruthy()
 
 			store.setEditor(null)
 			expect(store.tiptapEditor).toBeNull()
+		})
+
+		it("replays buffered content when the editor becomes available", () => {
+			const setContent = vi.fn()
+			const mockEditor = createActiveEditor({ setContent })
+			const content: JSONContent = {
+				type: "doc",
+				content: [{ type: "paragraph", content: [{ type: "text", text: "Mock" }] }],
+			}
+			store.setValue(content)
+
+			store.setEditor(mockEditor)
+
+			expect(setContent).toHaveBeenCalledWith(content, { emitUpdate: false })
+		})
+	})
+
+	describe("trusted Mention restoration", () => {
+		/** Creates trusted SDK content with a stable mock Mention identity. */
+		function createTrustedMentionContent(id = "mock-skill-001"): JSONContent {
+			return {
+				type: "doc",
+				content: [
+					{
+						type: "paragraph",
+						content: [
+							{
+								type: "mention",
+								attrs: {
+									type: MentionItemType.SKILL,
+									data: { id, name: "Mock Skill" },
+								},
+							},
+						],
+					},
+				],
+			}
+		}
+
+		it("keeps the validation bypass active during the restore transaction", async () => {
+			const setContent = vi.fn()
+			const mockEditor = createActiveEditor({ setContent })
+			const content: JSONContent = {
+				type: "doc",
+				content: [{ type: "paragraph", content: [{ type: "text", text: "mock" }] }],
+			}
+
+			store.setEditor(mockEditor)
+			store.updateContent(content, { preserveMentionValidation: true })
+
+			expect(setContent).toHaveBeenCalledWith(content)
+			expect(store.preserveMentionValidation).toBe(true)
+			expect(store.preserveMentionContent).toBe(true)
+			await Promise.resolve()
+			expect(store.preserveMentionValidation).toBe(false)
+		})
+
+		it("retains trusted Mention identities after the synchronous bypass ends", async () => {
+			store.updateContent(createTrustedMentionContent(), {
+				preserveMentionValidation: true,
+			})
+
+			await Promise.resolve()
+
+			expect(
+				store.isTrustedMention({
+					type: MentionItemType.SKILL,
+					data: { id: "mock-skill-001", name: "Mock Skill" },
+				}),
+			).toBe(true)
+		})
+
+		it("replaces trusted Mention identities on the next trusted restore", () => {
+			store.updateContent(createTrustedMentionContent("mock-skill-001"), {
+				preserveMentionValidation: true,
+			})
+			store.updateContent(createTrustedMentionContent("mock-skill-002"), {
+				preserveMentionValidation: true,
+			})
+
+			expect(
+				store.isTrustedMention({
+					type: MentionItemType.SKILL,
+					data: { id: "mock-skill-001" },
+				}),
+			).toBe(false)
+			expect(
+				store.isTrustedMention({
+					type: MentionItemType.SKILL,
+					data: { id: "mock-skill-002" },
+				}),
+			).toBe(true)
+		})
+
+		it("clears trusted Mention identities for ordinary content updates", () => {
+			store.updateContent(createTrustedMentionContent(), {
+				preserveMentionValidation: true,
+			})
+
+			store.updateContent({ type: "doc", content: [{ type: "paragraph" }] })
+
+			expect(
+				store.isTrustedMention({
+					type: MentionItemType.SKILL,
+					data: { id: "mock-skill-001" },
+				}),
+			).toBe(false)
+		})
+
+		it("clears trusted Mention identities when the editor is cleared", () => {
+			store.updateContent(createTrustedMentionContent(), {
+				preserveMentionValidation: true,
+			})
+
+			store.clearContent()
+
+			expect(
+				store.isTrustedMention({
+					type: MentionItemType.SKILL,
+					data: { id: "mock-skill-001" },
+				}),
+			).toBe(false)
 		})
 	})
 
@@ -124,9 +259,7 @@ describe("EditorStore", () => {
 
 		it("should call editor clearContent command when editor exists", () => {
 			const clearContentMock = vi.fn()
-			const mockEditor = {
-				commands: { clearContent: clearContentMock },
-			} as unknown as Editor
+			const mockEditor = createActiveEditor({ clearContent: clearContentMock })
 
 			store.setEditor(mockEditor)
 			store.clearContent()
@@ -143,9 +276,7 @@ describe("EditorStore", () => {
 	describe("focus", () => {
 		it("should call editor focus command when editor exists", () => {
 			const focusMock = vi.fn()
-			const mockEditor = {
-				commands: { focus: focusMock },
-			} as unknown as Editor
+			const mockEditor = createActiveEditor({ focus: focusMock })
 
 			store.setEditor(mockEditor)
 			store.focus()
@@ -172,9 +303,7 @@ describe("EditorStore", () => {
 
 		it("should call editor setContent when editor exists", () => {
 			const setContentMock = vi.fn()
-			const mockEditor = {
-				commands: { setContent: setContentMock },
-			} as unknown as Editor
+			const mockEditor = createActiveEditor({ setContent: setContentMock })
 
 			const content: JSONContent = {
 				type: "doc",
@@ -189,9 +318,7 @@ describe("EditorStore", () => {
 
 		it("should not call editor setContent when content is undefined", () => {
 			const setContentMock = vi.fn()
-			const mockEditor = {
-				commands: { setContent: setContentMock },
-			} as unknown as Editor
+			const mockEditor = createActiveEditor({ setContent: setContentMock })
 
 			store.setEditor(mockEditor)
 			store.updateContent(undefined)
@@ -254,7 +381,7 @@ describe("EditorStore", () => {
 
 	describe("dispose", () => {
 		it("should clear editor reference", () => {
-			const mockEditor = { commands: {} } as unknown as Editor
+			const mockEditor = createActiveEditor()
 			store.setEditor(mockEditor)
 			expect(store.tiptapEditor).toBeTruthy()
 

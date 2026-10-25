@@ -5,23 +5,19 @@ import {
 	setGlobalLanguage,
 	useGlobalLanguage,
 	useSupportLanguageOptions,
-	useTheme,
 } from "@/models/config/hooks"
-import { cn } from "@/lib/utils"
 
 function LanguageSelect() {
 	const options = useSupportLanguageOptions()
 	const lang = useGlobalLanguage()
-	const { prefersColorScheme } = useTheme()
-	const isDarkMode = prefersColorScheme === "dark"
 
 	return (
 		<MagicSelect
 			prefix={
-				<MagicIcon component={IconWorld} size={20} color={isDarkMode ? "#fff" : "#000"} />
+				<MagicIcon component={IconWorld} size={20} className="text-black dark:text-white" />
 			}
 			value={lang}
-			className={cn("w-fit rounded-full bg-white px-2 py-[5px] dark:bg-fill-secondary")}
+			className="w-fit rounded-full bg-white px-2 py-[5px] dark:bg-fill-secondary"
 			options={options}
 			variant="borderless"
 			placement="bottomRight"

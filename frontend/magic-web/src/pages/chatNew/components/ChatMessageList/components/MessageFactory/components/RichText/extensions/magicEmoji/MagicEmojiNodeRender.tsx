@@ -1,5 +1,5 @@
-import type { NodeViewProps } from "@tiptap/core"
-import { NodeViewWrapper } from "@tiptap/react"
+import type { NodeViewProps } from "@/infrastructure/editors/tiptap/core"
+import { NodeViewWrapper } from "@/infrastructure/editors/tiptap/react"
 import { memo } from "react"
 
 const MagicEmojiNodeRender = memo((props: NodeViewProps) => {

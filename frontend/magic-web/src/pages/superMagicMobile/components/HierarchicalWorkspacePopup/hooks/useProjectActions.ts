@@ -12,6 +12,7 @@ import routeManageService from "@/pages/superMagic/services/routeManageService"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { analyticsService } from "@/services/analytics"
 
 interface UseProjectActionsParams {
 	currentProject?: ProjectListItem
@@ -110,6 +111,7 @@ export function useProjectActions({
 
 			const loadingMessage = magicToast.loading({ content: t("ui.processing"), duration: 0 })
 			const defaultProjectName = ""
+			analyticsService.report("project_create_attempted", { workspaceId })
 			const res = await SuperMagicApi.createProject({
 				workspace_id: workspaceId,
 				project_name: defaultProjectName,

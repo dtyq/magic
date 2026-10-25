@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageStatus, TaskStatus, type Topic } from "@/pages/superMagic/pages/Workspace/types"
 import MessageList from "../index"
 import type { SuperMagicMessageItem } from "../type"
@@ -8,7 +8,14 @@ import type { SuperMagicMessageItem } from "../type"
 const storeState = vi.hoisted(() => ({
 	activeStreamsByTopic: new Map<string, string[]>(),
 	messageNodesById: new Map<string, Record<string, unknown>>(),
-	streamStagesByTopicAndId: new Map<string, string>(),
+	streamStatesByTopicAndId: new Map<string, Record<string, unknown>>(),
+	virtualItems: undefined as Array<{ key: string }> | undefined,
+	virtualListProps: undefined as
+		| {
+				userIndices?: number[]
+		  }
+		| undefined,
+	isMobile: true,
 }))
 
 vi.mock("mobx-react-lite", () => ({
@@ -21,7 +28,7 @@ vi.mock("react-i18next", () => ({
 }))
 
 vi.mock("@/hooks/useIsMobile", () => ({
-	useIsMobile: () => true,
+	useIsMobile: () => storeState.isMobile,
 }))
 
 vi.mock("@/components/base-mobile/ScrollEdgeFade", () => ({
@@ -33,24 +40,12 @@ vi.mock("@/components/base-mobile/ScrollEdgeFade", () => ({
 	}),
 }))
 
-vi.mock("@/components/shadcn-ui/scroll-area", () => ({
-	ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}))
-
 vi.mock("@/components/shadcn-ui/button", () => ({
 	Button: ({ children }: { children: ReactNode }) => <button>{children}</button>,
 }))
 
 vi.mock("@/components/shadcn-ui/spinner", () => ({
 	Spinner: () => <div data-testid="initial-spinner" />,
-}))
-
-vi.mock("@/pages/superMagic/components/MessageList/hooks/useAutoScroll", () => ({
-	useAutoScroll: () => ({
-		showBackToLatest: false,
-		scrollToBottom: vi.fn(),
-		notifyPullMoreStarted: vi.fn(),
-	}),
 }))
 
 vi.mock("@/pages/superMagic/components/MessageList/hooks/useVirtualMessageScroll", () => ({
@@ -68,44 +63,31 @@ vi.mock("@/pages/superMagic/components/MessageList/components/Nodes", () => ({
 	),
 }))
 
-vi.mock("@/pages/superMagic/components/MessageList/MessageTurnGroupList", () => ({
-	USER_MESSAGE_ROW_CLASS: "user-message-row",
-	USER_MESSAGE_STICKY_OVERLAY_CLASS: "user-message-sticky-overlay",
-	getUserMessageStickyTopClass: () => "user-message-sticky-top",
-	MessageTurnGroupList: ({
-		groups,
-		renderNode,
-	}: {
-		groups: Array<{
-			key: string
-			items: Array<{ node: SuperMagicMessageItem; index: number }>
-		}>
-		renderNode: (item: { node: SuperMagicMessageItem; index: number }) => ReactNode
-	}) => (
-		<div data-testid="normal-message-stream">
-			{groups.flatMap((group) =>
-				group.items.map((item) => (
-					<div key={`${group.key}-${item.index}`}>{renderNode(item)}</div>
-				)),
-			)}
-		</div>
-	),
-}))
-
 vi.mock("@/pages/superMagic/components/MessageList/components/VirtualMessageList", () => ({
 	VirtualMessageList: ({
 		items,
 		renderNode,
+		footer,
+		userIndices,
 	}: {
 		items: Array<{ key: string }>
 		renderNode: (args: { item: any }) => ReactNode
-	}) => (
-		<div data-testid="virtual-message-stream">
-			{items.map((item) => (
-				<div key={item.key}>{renderNode({ item })}</div>
-			))}
-		</div>
-	),
+		footer?: ReactNode
+		userIndices?: number[]
+	}) => {
+		storeState.virtualItems = items
+		storeState.virtualListProps = {
+			userIndices,
+		}
+		return (
+			<div data-testid="virtual-message-stream">
+				{items.map((item) => (
+					<div key={item.key}>{renderNode({ item })}</div>
+				))}
+				{footer}
+			</div>
+		)
+	},
 }))
 
 vi.mock("@/pages/superMagic/components/MessageList/components/RevokedEditableUserMessage", () => ({
@@ -164,12 +146,8 @@ vi.mock("@/pages/superMagic/stores", () => ({
 			storeState.messageNodesById.has(superMessageId || "")
 				? storeState.messageNodesById.get(superMessageId || "")
 				: { status: "finished", content: "visible" },
-		getStreamState: (topicId: string, superMessageId: string) => {
-			const stage = storeState.streamStagesByTopicAndId.get(
-				`${topicId}\u0000${superMessageId}`,
-			)
-			return stage ? { stage } : undefined
-		},
+		getStreamState: (topicId: string, superMessageId: string) =>
+			storeState.streamStatesByTopicAndId.get(`${topicId}\u0000${superMessageId}`),
 	},
 }))
 
@@ -252,10 +230,48 @@ afterEach(() => {
 	cleanup()
 	storeState.activeStreamsByTopic.clear()
 	storeState.messageNodesById.clear()
-	storeState.streamStagesByTopicAndId.clear()
+	storeState.streamStatesByTopicAndId.clear()
+	storeState.virtualItems = undefined
+	storeState.virtualListProps = undefined
+	storeState.isMobile = true
 })
 
 describe("MessageList bottom loading", () => {
+	it.each([false, true])(
+		"keeps user turns sticky in a short viewport (mobile=%s)",
+		(isMobile) => {
+			const originalHeight = window.innerHeight
+			storeState.isMobile = isMobile
+			Object.defineProperty(window, "innerHeight", {
+				configurable: true,
+				value: 700,
+			})
+
+			try {
+				render(
+					<MessageList
+						data={[
+							userMessage,
+							createMessage({
+								appMessageId: "assistant-sticky",
+								role: "assistant",
+							}),
+						]}
+						selectedTopic={topicA}
+						classNames={{ content: "pt-[10px]" }}
+					/>,
+				)
+
+				expect(storeState.virtualListProps?.userIndices).toEqual([0])
+			} finally {
+				Object.defineProperty(window, "innerHeight", {
+					configurable: true,
+					value: originalHeight,
+				})
+			}
+		},
+	)
+
 	it("routes every converted top-level message through the virtual list", () => {
 		render(
 			<MessageList
@@ -274,6 +290,55 @@ describe("MessageList bottom loading", () => {
 		expect(screen.getByTestId("virtual-message-stream")).toBeInTheDocument()
 		expect(screen.getByTestId("message-user-message")).toBeInTheDocument()
 		expect(screen.getByTestId("message-assistant-virtual")).toBeInTheDocument()
+	})
+
+	it("reuses virtual item references when only the outer data array is recreated", () => {
+		const data = [
+			userMessage,
+			createMessage({
+				appMessageId: "assistant-stable",
+				role: "assistant",
+			}),
+		]
+		const { rerender } = render(<MessageList data={data} selectedTopic={topicA} />)
+		const firstItems = storeState.virtualItems
+
+		rerender(<MessageList data={[...data]} selectedTopic={topicA} />)
+
+		expect(storeState.virtualItems).toBe(firstItems)
+	})
+
+	it("rebuilds the projection when one message element changes", () => {
+		const data = [
+			userMessage,
+			createMessage({ appMessageId: "assistant-changing", role: "assistant" }),
+		]
+		const { rerender } = render(<MessageList data={data} selectedTopic={topicA} />)
+		const firstItems = storeState.virtualItems
+
+		rerender(
+			<MessageList
+				data={[data[0], { ...data[1], content: "updated" }]}
+				selectedTopic={topicA}
+			/>,
+		)
+
+		expect(storeState.virtualItems).not.toBe(firstItems)
+		expect(storeState.virtualItems?.[0]).toBe(firstItems?.[0])
+		expect(storeState.virtualItems?.[1]).not.toBe(firstItems?.[1])
+	})
+
+	it("does not rebuild virtual items for an equivalent selected Topic object", () => {
+		const data = [
+			userMessage,
+			createMessage({ appMessageId: "assistant-topic-stable", role: "assistant" }),
+		]
+		const { rerender } = render(<MessageList data={data} selectedTopic={topicA} />)
+		const firstItems = storeState.virtualItems
+
+		rerender(<MessageList data={data} selectedTopic={{ ...topicA }} />)
+
+		expect(storeState.virtualItems).toBe(firstItems)
 	})
 
 	it("刷新恢复时活跃流不可见则显示 Loading，可见后隐藏，Final 清理后不会重新出现。", () => {
@@ -320,10 +385,13 @@ describe("MessageList bottom loading", () => {
 			content: "",
 			tool_calls: [],
 		})
-		storeState.streamStagesByTopicAndId.set(
-			`${topicA.chat_topic_id}\u0000${superMessageId}`,
-			"content",
-		)
+		storeState.streamStatesByTopicAndId.set(`${topicA.chat_topic_id}\u0000${superMessageId}`, {
+			stage: "content",
+			content: "",
+			reasoning_content: "",
+			tool_calls: [],
+			isFinalMessageReceived: false,
+		})
 		const assistantMessage = createMessage({
 			appMessageId: "assistant-empty-content",
 			superMessageId,
@@ -462,5 +530,206 @@ describe("MessageList bottom loading", () => {
 
 		expect(screen.getByTestId("initial-spinner")).toBeInTheDocument()
 		expect(screen.queryByTestId("message-user-1")).not.toBeInTheDocument()
+	})
+
+	describe("生成停滞(stalled)时的底部 Loading", () => {
+		const STALL_SHOW_DELAY_MS = 800
+		const STALL_MIN_VISIBLE_MS = 500
+
+		beforeEach(() => {
+			vi.useFakeTimers()
+		})
+
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		function setupStalledContentStream({
+			superMessageId,
+			projectedContent,
+			receivedContent,
+			toolCalls = [],
+		}: {
+			superMessageId: string
+			projectedContent: string
+			receivedContent: string
+			toolCalls?: Array<Record<string, unknown>>
+		}) {
+			storeState.activeStreamsByTopic.set(topicA.chat_topic_id, [superMessageId])
+			storeState.messageNodesById.set(superMessageId, {
+				role: "assistant",
+				reasoning_content: "",
+				content: projectedContent,
+				tool_calls: toolCalls,
+			})
+			storeState.streamStatesByTopicAndId.set(
+				`${topicA.chat_topic_id}\u0000${superMessageId}`,
+				{
+					stage: toolCalls.length > 0 ? "tool" : "content",
+					content: receivedContent,
+					reasoning_content: "",
+					tool_calls: toolCalls,
+					isFinalMessageReceived: false,
+				},
+			)
+			return createMessage({
+				appMessageId: `app-${superMessageId}`,
+				superMessageId,
+				role: "assistant",
+				correlationId: `correlation-${superMessageId}`,
+			})
+		}
+
+		it("content 已全部投影且等待 tool_call chunk 时,停顿超过阈值后重新显示 Loading;推进恢复后按最短展示时长隐藏。", () => {
+			const superMessageId = "stream-stalled-content"
+			const assistantMessage = setupStalledContentStream({
+				superMessageId,
+				projectedContent: "正文已经流完",
+				receivedContent: "正文已经流完",
+			})
+
+			const { rerender } = render(
+				<MessageList
+					data={[userMessage, assistantMessage]}
+					selectedTopic={topicA}
+					showLoading={false}
+					currentTopicStatus={TaskStatus.RUNNING}
+				/>,
+			)
+
+			// 停顿未超过阈值前不显示,吸收 chunk 之间的正常间隙。
+			expect(screen.queryByTestId("super-magic-message-list-loading")).not.toBeInTheDocument()
+
+			act(() => {
+				vi.advanceTimersByTime(STALL_SHOW_DELAY_MS)
+			})
+			expect(screen.getByTestId("super-magic-message-list-loading")).toBeInTheDocument()
+
+			// 新 chunk 到达:接收缓冲超过投影,恢复推进。
+			storeState.streamStatesByTopicAndId.set(
+				`${topicA.chat_topic_id}\u0000${superMessageId}`,
+				{
+					stage: "content",
+					content: "正文已经流完,又来了新内容",
+					reasoning_content: "",
+					tool_calls: [],
+					isFinalMessageReceived: false,
+				},
+			)
+			rerender(
+				<MessageList
+					data={[userMessage, assistantMessage]}
+					selectedTopic={topicA}
+					showLoading={false}
+					currentTopicStatus={TaskStatus.RUNNING}
+				/>,
+			)
+
+			// 最短展示时长内保持可见,避免闪烁。
+			expect(screen.getByTestId("super-magic-message-list-loading")).toBeInTheDocument()
+			act(() => {
+				vi.advanceTimersByTime(STALL_MIN_VISIBLE_MS)
+			})
+			expect(screen.queryByTestId("super-magic-message-list-loading")).not.toBeInTheDocument()
+		})
+
+		it("打字机仍在追赶(投影落后于接收缓冲)时不显示底部 Loading。", () => {
+			const assistantMessage = setupStalledContentStream({
+				superMessageId: "stream-advancing",
+				projectedContent: "正文",
+				receivedContent: "正文还有更多内容没播完",
+			})
+
+			render(
+				<MessageList
+					data={[userMessage, assistantMessage]}
+					selectedTopic={topicA}
+					showLoading={false}
+					currentTopicStatus={TaskStatus.RUNNING}
+				/>,
+			)
+
+			act(() => {
+				vi.advanceTimersByTime(STALL_SHOW_DELAY_MS)
+			})
+			expect(screen.queryByTestId("super-magic-message-list-loading")).not.toBeInTheDocument()
+		})
+
+		it("接收缓冲已有可渲染 tool_call 时由工具卡片承接状态,不叠加底部 Loading。", () => {
+			const assistantMessage = setupStalledContentStream({
+				superMessageId: "stream-tool-owner",
+				projectedContent: "正文已经流完",
+				receivedContent: "正文已经流完",
+				toolCalls: [{ id: "tool-1", function: { name: "read_file" } }],
+			})
+
+			render(
+				<MessageList
+					data={[userMessage, assistantMessage]}
+					selectedTopic={topicA}
+					showLoading={false}
+					currentTopicStatus={TaskStatus.RUNNING}
+				/>,
+			)
+
+			act(() => {
+				vi.advanceTimersByTime(STALL_SHOW_DELAY_MS)
+			})
+			expect(screen.queryByTestId("super-magic-message-list-loading")).not.toBeInTheDocument()
+		})
+
+		it("Topic RUNNING 且无活跃流(两条消息之间的空档)时,防抖后显示 Loading。", () => {
+			const assistantMessage = createMessage({
+				appMessageId: "assistant-finished",
+				superMessageId: "assistant-finished",
+				role: "assistant",
+				correlationId: "correlation-finished",
+			})
+			storeState.messageNodesById.set("assistant-finished", {
+				role: "assistant",
+				status: "finished",
+				content: "上一条消息已完成",
+				tool_calls: [],
+			})
+
+			render(
+				<MessageList
+					data={[userMessage, assistantMessage]}
+					selectedTopic={topicA}
+					showLoading={false}
+					currentTopicStatus={TaskStatus.RUNNING}
+				/>,
+			)
+
+			expect(screen.queryByTestId("super-magic-message-list-loading")).not.toBeInTheDocument()
+
+			act(() => {
+				vi.advanceTimersByTime(STALL_SHOW_DELAY_MS)
+			})
+			expect(screen.getByTestId("super-magic-message-list-loading")).toBeInTheDocument()
+		})
+
+		it("Topic 已结束(非 RUNNING、无活跃流)时停顿不会触发 Loading。", () => {
+			const assistantMessage = createMessage({
+				appMessageId: "assistant-done",
+				superMessageId: "assistant-done",
+				role: "assistant",
+				correlationId: "correlation-done",
+			})
+
+			render(
+				<MessageList
+					data={[userMessage, assistantMessage]}
+					selectedTopic={topicA}
+					showLoading={false}
+					currentTopicStatus={TaskStatus.FINISHED}
+				/>,
+			)
+
+			act(() => {
+				vi.advanceTimersByTime(STALL_SHOW_DELAY_MS)
+			})
+			expect(screen.queryByTestId("super-magic-message-list-loading")).not.toBeInTheDocument()
+		})
 	})
 })

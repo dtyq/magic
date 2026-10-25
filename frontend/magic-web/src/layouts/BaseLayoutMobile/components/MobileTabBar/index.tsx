@@ -4,7 +4,7 @@ import { observer } from "mobx-react-lite"
 import { useLocation, useNavigate as useReactRouterNavigate } from "react-router"
 import { useTabBarIndicator } from "./hooks"
 import { Badge } from "@/components/shadcn-ui/badge"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import useChatUnreadCount from "./hooks/useChatUnreadCount"
 import { userStore } from "@/models/user"

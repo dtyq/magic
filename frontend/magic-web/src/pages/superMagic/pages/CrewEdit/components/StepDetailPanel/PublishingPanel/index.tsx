@@ -13,6 +13,13 @@ import { crewService } from "@/services/crew/CrewService"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { convertSearchParams } from "@/routes/history/helpers"
+import {
+	AsyncPublishError,
+	loadPendingPublishTask,
+	resolveAsyncPublishErrorMessage,
+	resumePendingPublish,
+	runAsyncPublish,
+} from "@/pages/superMagic/utils/asyncPublish"
 import { CREW_EDIT_ERROR } from "../../../constants/errors"
 import { useCrewEditStore } from "../../../context"
 import { getCrewCodeRequiredMessage, resolveCrewEditError } from "../../../store/shared"
@@ -24,12 +31,14 @@ import {
 	mapAgentPublishTargetTypeToPublishTo,
 } from "./publishPanelData"
 import { useFunctionPermission } from "@/hooks/useFunctionPermission"
+import { useUpload } from "@/hooks/useUploadFiles"
+import { ensureWorkspaceAvatarUploaded } from "../../../utils/publish-avatar"
 
 const CREW_EDIT_PUBLISH_VIEW_QUERY_KEY = "publishView"
 const CREW_EDIT_PUBLISH_VERSION_QUERY_KEY = "publishVersion"
 
 function PublishingPanel() {
-	const { i18n } = useTranslation("crew/market")
+	const { t, i18n } = useTranslation("crew/market")
 	const store = useCrewEditStore()
 	const location = useLocation()
 	const navigate = useNavigate()
@@ -43,8 +52,13 @@ function PublishingPanel() {
 	const { isAllowed: canPublishAgentTeam } = useFunctionPermission(
 		FUNCTION_PERMISSION_CODE.AgentPublish,
 	)
+	const { upload: uploadPublicAvatar } = useUpload({
+		storageType: "public",
+		useSnowflakeId: true,
+	})
 	const submitDraftRef = useRef<(draft: PublishDraft) => Promise<void>>(async () => undefined)
 	const versionsRef = useRef<AgentVersionItem[]>([])
+	const publishAbortRef = useRef<AbortController | null>(null)
 	const [publishPanelStore] = useState(
 		() =>
 			new PublishPanelStore({
@@ -55,7 +69,6 @@ function PublishingPanel() {
 				onSubmit: (draft) => submitDraftRef.current(draft),
 			}),
 	)
-
 	const loadPublishPanelData = useCallback(async () => {
 		if (!crewCode) {
 			versionsRef.current = []
@@ -148,7 +161,18 @@ function PublishingPanel() {
 		publishPanelStore,
 	])
 
-	const handleCreateNewVersion = useCallback(async () => {
+	const resumeActionRef = useRef({
+		loadPublishPanelData,
+		t,
+		store,
+	})
+	resumeActionRef.current = {
+		loadPublishPanelData,
+		t,
+		store,
+	}
+
+	const openCreateNewVersion = useCallback(async () => {
 		if (!crewCode) {
 			magicToast.error(getCrewCodeRequiredMessage())
 			return
@@ -198,11 +222,44 @@ function PublishingPanel() {
 			return
 		}
 
+		publishAbortRef.current?.abort()
+		const abortController = new AbortController()
+		publishAbortRef.current = abortController
+
 		try {
-			await crewService.publishAgent(crewCode, buildPublishParamsFromDraft(draft))
+			await ensureWorkspaceAvatarUploaded({
+				crewCode,
+				currentIcon: store.identity.icon,
+				workspaceFiles: store.projectFilesStore.workspaceFilesList,
+				upload: uploadPublicAvatar,
+				onAvatarUploaded: (avatarUrl) => {
+					store.identity.setAvatarUrl(avatarUrl)
+				},
+			})
+
+			await runAsyncPublish({
+				resourceType: "agent",
+				code: crewCode,
+				draft,
+				create: () =>
+					crewService.publishAgentAsync(crewCode, buildPublishParamsFromDraft(draft)),
+				check: (publishTaskId) => crewService.checkAgentPublish(crewCode, publishTaskId),
+				onProgress: (progress) => publishPanelStore.setPublishProgress(progress),
+				signal: abortController.signal,
+			})
+			magicToast.success(t("skillEditPage.publishPanel.toast.publishSuccess"))
 			store.markCrewPublished()
 			await Promise.all([loadPublishPanelData(), store.refreshAgentDetail()])
 		} catch (error) {
+			if (error instanceof AsyncPublishError && error.reason === "aborted") {
+				throw error
+			}
+
+			if (error instanceof AsyncPublishError) {
+				magicToast.error(resolveAsyncPublishErrorMessage(error, t))
+				throw error
+			}
+
 			const { message } = resolveCrewEditError({
 				error,
 				fallbackKey: CREW_EDIT_ERROR.saveCrewFailed,
@@ -216,11 +273,101 @@ function PublishingPanel() {
 		void loadPublishPanelData()
 	}, [loadPublishPanelData])
 
+	/**
+	 * Resume polling when re-entering with a pending publish_task_id.
+	 * If the task is already ready, settle silently (no loading UI / success toast).
+	 */
+	useEffect(() => {
+		if (!crewCode) return
+		const pending = loadPendingPublishTask<PublishDraft>("agent", crewCode)
+		if (!pending?.publish_task_id) return
+
+		publishAbortRef.current?.abort()
+		const abortController = new AbortController()
+		publishAbortRef.current = abortController
+		let active = true
+		let waitingUiStarted = false
+
+		void (async () => {
+			const {
+				loadPublishPanelData: reloadPanel,
+				t: translate,
+				store: crewStore,
+			} = resumeActionRef.current
+			try {
+				const result = await resumePendingPublish({
+					resourceType: "agent",
+					code: crewCode,
+					publishTaskId: pending.publish_task_id,
+					draft: pending.draft,
+					check: (publishTaskId) =>
+						crewService.checkAgentPublish(crewCode, publishTaskId),
+					onProgress: (progress) => {
+						if (active && waitingUiStarted) {
+							publishPanelStore.setPublishProgress(progress)
+						}
+					},
+					signal: abortController.signal,
+					onStartWaiting: (draft) => {
+						if (!active) return
+						waitingUiStarted = true
+						publishPanelStore.beginPublishing(0)
+						if (draft) {
+							publishPanelStore.openCreateViewWithDraft(draft)
+						} else {
+							publishPanelStore.openCreateView()
+						}
+					},
+				})
+				if (!active) return
+
+				crewStore.markCrewPublished()
+				await Promise.all([reloadPanel(), crewStore.refreshAgentDetail()])
+				if (!active) return
+
+				if (result.alreadyReady) {
+					// Already finished while user was away — refresh quietly, no toast / loading.
+					publishPanelStore.openHistoryView()
+					return
+				}
+
+				magicToast.success(translate("skillEditPage.publishPanel.toast.publishSuccess"))
+				publishPanelStore.openHistoryView()
+			} catch (error) {
+				if (!active) return
+				if (error instanceof AsyncPublishError && error.reason === "aborted") return
+				if (error instanceof AsyncPublishError) {
+					magicToast.error(resolveAsyncPublishErrorMessage(error, translate))
+					return
+				}
+				const { message } = resolveCrewEditError({
+					error,
+					fallbackKey: CREW_EDIT_ERROR.saveCrewFailed,
+				})
+				magicToast.error(message)
+			} finally {
+				if (active && waitingUiStarted) publishPanelStore.clearPublishingState()
+			}
+		})()
+
+		return () => {
+			active = false
+			abortController.abort()
+			if (waitingUiStarted) publishPanelStore.clearPublishingState()
+		}
+	}, [crewCode, publishPanelStore])
+
+	useEffect(() => {
+		return () => {
+			publishAbortRef.current?.abort()
+		}
+	}, [])
+
 	return (
 		<PublishPanel
 			store={publishPanelStore}
 			onClose={() => setActiveStep(null)}
-			onCreateNewVersion={handleCreateNewVersion}
+			onCreateNewVersion={openCreateNewVersion}
 		/>
 	)
 }

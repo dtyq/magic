@@ -10,6 +10,7 @@ import {
 import { agentsRenderer } from "./domains/agents"
 import { historyRenderer } from "./domains/history"
 import { mcpRenderer } from "./domains/mcp"
+import { microAppsRenderer } from "./domains/micro-apps-renderer"
 import { skillsRenderer } from "./domains/skills"
 import { tabsRenderer } from "./domains/tabs"
 import { toolsRenderer } from "./domains/tools"
@@ -26,6 +27,7 @@ const defaultRenderer: MentionItemRenderer = {
 const domainRendererEntries: Array<[string, MentionItemRenderer]> = [
 	[MentionItemType.MCP, mcpRenderer],
 	[MentionItemType.AGENT, agentsRenderer],
+	[MentionItemType.MICRO_APP, microAppsRenderer],
 	[MentionItemType.SKILL, skillsRenderer],
 	[MentionItemType.TOOL, toolsRenderer],
 	[MentionItemType.TITLE, {}],

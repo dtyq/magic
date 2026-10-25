@@ -16,6 +16,7 @@ use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\Util\File\ProviderAssetUri;
 use Dtyq\CloudFile\Kernel\Utils\RemoteDownloadSecurityConfig;
 use Dtyq\CloudFile\Kernel\Utils\SafeRemoteFileDownloader;
 use Psr\SimpleCache\CacheInterface;
@@ -23,6 +24,9 @@ use RuntimeException;
 
 /**
  * 负责读取参考视频真实媒体时长。
+ *
+ * provider 专用素材引用（asset://）指向第三方素材，本层拿不到可探测的媒体实体，
+ * 按默认时长兜底计入，保证预估与计费链路不会因引用改写而中断。
  */
 readonly class VideoInputMediaMetadataResolver
 {
@@ -33,6 +37,12 @@ readonly class VideoInputMediaMetadataResolver
     private const int CACHE_TTL_SECONDS = 86400;
 
     private const string CACHE_KEY_PREFIX = 'video_input_metadata:v1';
+
+    /**
+     * provider 素材（asset://）无法在本层探测真实时长时使用的兜底秒数。
+     * 取参考视频时长上限，避免少算预估与计费秒数。
+     */
+    private const int PROVIDER_ASSET_FALLBACK_DURATION_SECONDS = 15;
 
     private SafeRemoteFileDownloader $remoteFileDownloader;
 
@@ -54,7 +64,8 @@ readonly class VideoInputMediaMetadataResolver
 
     /**
      * 预估计费必须读取真实参考视频时长，不能信任客户端透传的秒数。
-     * 工作区文件沿用现有 TaskFile 缓存；外部 URL 则实时下载并探测最新元数据。
+     * 工作区文件沿用现有 TaskFile 缓存；外部 URL 则实时下载并探测最新元数据；
+     * provider 素材引用无法探测时按默认时长兜底。
      *
      * @param list<array<string, mixed>> $referenceVideos
      * @param bool $forceRecheck 为 true 时跳过缓存并重新探测，当前只预留给底层内部调用
@@ -78,6 +89,7 @@ readonly class VideoInputMediaMetadataResolver
         $referenceVideoCount = 0;
         $normalizedReferencePaths = [];
         $remoteUrls = [];
+        $providerAssetCount = 0;
 
         foreach ($referenceVideos as $referenceVideo) {
             $uri = $this->normalizeReferenceUri($referenceVideo['uri'] ?? null);
@@ -91,10 +103,16 @@ readonly class VideoInputMediaMetadataResolver
                 continue;
             }
 
+            // provider 素材引用没有可下载的媒体实体，无法探测真实时长，按默认时长兜底计入。
+            if (ProviderAssetUri::isValid($uri)) {
+                ++$providerAssetCount;
+                continue;
+            }
+
             $normalizedReferencePaths[] = $this->normalizeRelativePath($uri);
         }
 
-        if ($normalizedReferencePaths === [] && $remoteUrls === []) {
+        if ($normalizedReferencePaths === [] && $remoteUrls === [] && $providerAssetCount === 0) {
             return [
                 'total_duration_seconds' => 0,
                 'reference_video_count' => 0,
@@ -105,6 +123,11 @@ readonly class VideoInputMediaMetadataResolver
             $metadata = $this->probeRemoteVideo($remoteUrl);
             $totalDurationSeconds += $this->roundDurationSeconds($metadata->getDurationSecondsFloat());
             ++$referenceVideoCount;
+        }
+
+        if ($providerAssetCount > 0) {
+            $totalDurationSeconds += $providerAssetCount * self::PROVIDER_ASSET_FALLBACK_DURATION_SECONDS;
+            $referenceVideoCount += $providerAssetCount;
         }
 
         if ($normalizedReferencePaths !== []) {

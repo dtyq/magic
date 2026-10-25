@@ -1,5 +1,5 @@
 import type { AssociateQuestion } from "@/types/chat/conversation_message"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { t } from "i18next"
 import { TimeLineDotStatus } from "./const"
 

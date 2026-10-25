@@ -1,3 +1,5 @@
+import type { FileAccessContext } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	getTemporaryDownloadUrl,
 	type GetTemporaryDownloadUrlItem,
@@ -7,6 +9,8 @@ interface ResolveResourceUrlsWithVersionOverridesParams {
 	fileIds: string[]
 	resourceFileVersions?: Record<string, number | undefined>
 	fetchUnversionedUrls: (fileIds: string[]) => Promise<GetTemporaryDownloadUrlItem[]>
+	access?: FileAccessContext | null
+	fileApi?: Pick<FileApi, "getTemporaryDownloadUrl">
 }
 
 interface InlineDashboardDataJsParams {
@@ -18,6 +22,8 @@ export async function resolveResourceUrlsWithVersionOverrides({
 	fileIds,
 	resourceFileVersions,
 	fetchUnversionedUrls,
+	access,
+	fileApi,
 }: ResolveResourceUrlsWithVersionOverridesParams): Promise<GetTemporaryDownloadUrlItem[]> {
 	const versionedFileIds = fileIds.filter(
 		(fileId) => typeof resourceFileVersions?.[fileId] === "number",
@@ -37,9 +43,10 @@ export async function resolveResourceUrlsWithVersionOverrides({
 		return acc
 	}, {})
 
-	const versionedUrls = await getTemporaryDownloadUrl({
+	const versionedUrls = await (fileApi?.getTemporaryDownloadUrl ?? getTemporaryDownloadUrl)({
 		file_ids: versionedFileIds,
 		file_versions: fileVersions,
+		access: access ?? undefined,
 	})
 
 	return [...urlData, ...(versionedUrls || [])]

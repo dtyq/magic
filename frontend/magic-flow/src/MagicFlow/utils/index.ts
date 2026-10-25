@@ -2,7 +2,7 @@ import { DataSourceOption } from "@/common/BaseUI/DropdownRenderer/Reference"
 import { BaseNodeType, nodeManager, NodeSchema, NodeVersion, NodeVersionWidget, NodeWidget } from "../register/node"
 import { FormItemType } from "@/MagicExpressionWidget/types"
 import Schema from "@/MagicJsonSchemaEditor/types/Schema"
-import _ from "lodash"
+import { cloneDeep, get, last, set } from "lodash-es"
 import { Edge, XYPosition } from "reactflow"
 import { MagicFlow } from "../types/flow"
 import { generateSnowFlake } from "@/common/utils/snowflake"
@@ -34,7 +34,7 @@ export const handleRenderProps = (n: MagicFlow.Node, index: number, paramsName: 
 	const nodeMeta = isMetaEmpty ? { position: { x: 0, y: 0 } } : n.meta
 
 	// 当前节点的属性，icon，颜色等
-	let currentNodeProperties = _.get(nodeSchemaListMap, [nodeType, getNodeVersion(n)], {} as NodeWidget)
+	let currentNodeProperties = get(nodeSchemaListMap, [nodeType, getNodeVersion(n)], {} as NodeWidget)
 
 	// 添加循环内节点的特殊属性
 	addLoopProperties(n, paramsName)
@@ -197,7 +197,7 @@ export const getNodeSchema = (nodeType: string | number, nodeVersion?: NodeVersi
 
     const version = nodeVersion || getLatestNodeVersion(nodeType) as string
 	console.time("克隆操作")
-	const result = _.get(nodeVersionSchema, [nodeType, version, 'schema'])
+	const result = get(nodeVersionSchema, [nodeType, version, 'schema'])
 	console.timeEnd("克隆操作")
 	return result
 
@@ -208,7 +208,7 @@ export const getNodeSchema = (nodeType: string | number, nodeVersion?: NodeVersi
 export const getNodeGroups = () => {
 	
 	const { nodeGroups  } = nodeManager
-	const result = _.cloneDeep(nodeGroups)
+	const result = cloneDeep(nodeGroups)
 	return result
 
 }
@@ -231,12 +231,12 @@ export const judgeLoopNode = (nodeType: string | number) => {
  * @params extraConfig 额外的节点配置
  */
 export const generateNewNode = (nodeSchema: NodeSchema, paramsName: MagicFlow.ParamsName, nodeId: string, position: XYPosition, extraConfig?: Record<string, any>) => {
-	const defaultParams = _.get(nodeSchema, [paramsName.params], null)
+	const defaultParams = get(nodeSchema, [paramsName.params], null)
 
 	console.time("克隆操作")
 	const newNode = {
 		data: {},
-		[paramsName.params]: _.cloneDeep(defaultParams),
+		[paramsName.params]: cloneDeep(defaultParams),
 		id: nodeId,
 		node_id:  nodeId,
 		remark: "",
@@ -260,7 +260,7 @@ export const generateNewNode = (nodeSchema: NodeSchema, paramsName: MagicFlow.Pa
 // 获取当前节点schema的最新版本，并做兜底
 export const getLatestNodeVersion = (nodeType: BaseNodeType) => {
     const { nodeVersionSchema } = flowStore.getState()
-    const latestNodeVersion = _.last(Object.keys(_.get(nodeVersionSchema, [nodeType], {})) || []) as string 
+    const latestNodeVersion = last(Object.keys(get(nodeVersionSchema, [nodeType], {})) || []) as string
     return latestNodeVersion || DefaultNodeVersion
 }
 
@@ -323,7 +323,7 @@ export const generatePasteNode = (node: MagicFlow.Node, paramsName: MagicFlow.Pa
  */
 export const generatePasteEdges = (oldId2NewIdMap: Record<string,string>, oldRelationEdges: Edge[]) => {
 	console.time("克隆操作")
-	const cloneEdges = _.cloneDeep(oldRelationEdges)
+	const cloneEdges = cloneDeep(oldRelationEdges)
 	const newEdges = cloneEdges.reduce((acc, curEdge) => {
 		curEdge.id = generateSnowFlake()
 		if(Reflect.has(oldId2NewIdMap, curEdge.source)) {
@@ -411,7 +411,7 @@ export const generateLoopBody = (loopNode: MagicFlow.Node, paramsName:MagicFlow.
 	defaultLoopBodyNodes.push(loopStartNode)
 
 	// 设置循环节点与循环体节点的关联id，后端用于查询
-	_.set(loopNode, ['meta', 'relation_id'], loopBodyNode.id)
+	set(loopNode, ['meta', 'relation_id'], loopBodyNode.id)
 	
 	// 必须先增加循环体，不然expandParent不生效
 	newNodes.push(loopBodyNode)
@@ -469,7 +469,7 @@ export const getRegisterNodeTypes = () => {
         }, {} as NodeVersionWidget)
         return Object.keys(addableVersionMap).length > 0
 	}).map(nodeVersionWidget => {
-        const latestWidget = _.last(Object.values(nodeVersionWidget))
+        const latestWidget = last(Object.values(nodeVersionWidget))
         return latestWidget?.schema?.id
     }).filter(nodeType => !!nodeType) as BaseNodeType[]
 }

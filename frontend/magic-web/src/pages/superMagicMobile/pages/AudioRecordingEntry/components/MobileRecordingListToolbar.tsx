@@ -1,7 +1,7 @@
 import { ChevronDown, ListFilter, Search, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { resolveRecordingGroupDisplayName } from "@/services/audioRecordings/resolveRecordingGroupDisplayName"
 
 interface MobileRecordingListToolbarProps {

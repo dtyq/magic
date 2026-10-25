@@ -374,13 +374,33 @@ class MetadataUtil:
         return None
 
     @classmethod
+    def log_authorization_header_diagnostics(cls, headers: Dict[str, Any], source: str) -> None:
+        """只记录来源和长度，不记录凭据内容、前缀或指纹，也不修改请求头。"""
+        lengths = {}
+        for name in ("Magic-Authorization", "User-Authorization"):
+            key = cls._find_header_key(headers, name)
+            value = headers.get(key) if key else None
+            lengths[name] = len(value) if isinstance(value, str) else 0
+        logger.info(f"Authorization headers source={source} magic_length={lengths['Magic-Authorization']} "
+                    f"user_length={lengths['User-Authorization']}")
+
+    @classmethod
+    def add_sandbox_id_header(cls, headers: Dict[str, Any]) -> None:
+        """标记发起请求的运行沙箱，便于服务端追踪调用来源。"""
+        # 使用运行环境的身份，避免将请求参数里的目标 sandbox_id 当成调用来源。
+        sandbox_id = config.get("sandbox.id") or os.environ.get("SANDBOX_ID", "")
+        if sandbox_id:
+            header_key = cls._find_header_key(headers, "sandbox-id")
+            headers[header_key or "sandbox-id"] = str(sandbox_id)
+
+    @classmethod
     def add_magic_and_user_authorization_headers(
         cls,
         headers: Dict[str, Any],
         magic_authorization: Optional[str] = None,
     ) -> None:
         """
-        为请求头添加 Magic-Authorization 与 User-Authorization 认证头
+        为请求头添加沙箱来源标识、Magic-Authorization 与 User-Authorization 认证头
 
         Args:
             headers: 请求头字典，会被原地修改
@@ -390,6 +410,8 @@ class MetadataUtil:
             仅在请求头中存在 Magic-Authorization 时，按配置转发 User-Authorization，
             以避免无意扩大转发范围。
         """
+        cls.add_sandbox_id_header(headers)
+
         if magic_authorization is None:
             magic_authorization = config.get("sandbox.magic_authorization")
 
@@ -416,6 +438,7 @@ class MetadataUtil:
         user_header_key = cls._find_header_key(headers, "User-Authorization")
         user_header_value = headers.get(user_header_key) if user_header_key else None
         if user_header_value:
+            cls.log_authorization_header_diagnostics(headers, "existing_headers")
             return
 
         user_auth = cls.get_user_authorization()
@@ -425,3 +448,4 @@ class MetadataUtil:
         if user_header_key and user_header_key != "User-Authorization":
             headers.pop(user_header_key, None)
         headers["User-Authorization"] = user_auth
+        cls.log_authorization_header_diagnostics(headers, "init_client_metadata")

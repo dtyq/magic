@@ -13,6 +13,7 @@ import { getCachedChatWorkspaceId, useChatWorkspace } from "../useChatWorkspace"
 
 const getChatWorkspaceMock = vi.fn()
 const getProjectsMock = vi.fn()
+const createProjectMock = vi.fn()
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
@@ -24,7 +25,7 @@ vi.mock("@/apis", () => ({
 vi.mock("@/pages/superMagic/services", () => ({
 	default: {
 		project: {
-			createProject: vi.fn(),
+			createProject: (...args: unknown[]) => createProjectMock(...args),
 		},
 	},
 }))
@@ -93,6 +94,7 @@ describe("useChatWorkspace", () => {
 			project_name: "server keyword",
 			order_by: "updated_at",
 			sort: "desc",
+			pin_priority: 1,
 			page: 1,
 			page_size: 20,
 		})
@@ -129,5 +131,26 @@ describe("useChatWorkspace", () => {
 
 		expect(loadingStatesDuringFetch.every((isLoading) => !isLoading)).toBe(true)
 		expect(result.current.isLoadingChatProjects).toBe(false)
+	})
+
+	it("marks projects created from the chat entry as chat analytics", async () => {
+		const { result } = renderHook(() => useChatWorkspace())
+
+		await waitFor(() => {
+			expect(result.current.chatWorkspace?.id).toBe(CHAT_WORKSPACE.id)
+		})
+
+		await act(async () => {
+			await result.current.createProjectInChatWorkspace({
+				projectMode: TopicMode.General,
+			})
+		})
+
+		expect(createProjectMock).toHaveBeenCalledWith({
+			workspaceId: CHAT_WORKSPACE.id,
+			projectMode: TopicMode.General,
+			workdir: undefined,
+			creationScene: "chat",
+		})
 	})
 })

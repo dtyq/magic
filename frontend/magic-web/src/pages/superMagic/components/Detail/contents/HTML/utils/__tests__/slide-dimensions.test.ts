@@ -42,6 +42,22 @@ describe("extractSlideContainerDimensionsFromHtml", () => {
 		).toEqual({ width: 1080, height: 1080 })
 	})
 
+	it("extracts fixed canvas dimensions declared on the html and body shell", () => {
+		expect(
+			extractSlideContainerDimensionsFromHtml(`
+				<!DOCTYPE html>
+				<html>
+					<head>
+						<style>
+							html, body { width: 1080px; height: 1080px; margin: 0; }
+						</style>
+					</head>
+					<body><main class="ft-canvas"></main></body>
+				</html>
+			`),
+		).toEqual({ width: 1080, height: 1080 })
+	})
+
 	it("returns null when no canonical slide dimensions are available", () => {
 		expect(extractSlideContainerDimensionsFromHtml("<div>plain html</div>")).toBeNull()
 	})

@@ -1,12 +1,13 @@
-import { type Highlighter } from "shiki"
+import { type Highlighter } from "@/infrastructure/vendors/shiki"
 import useSWR from "swr"
-import { loadShiki } from "@/lib/shiki"
-import { loadShikiTransformers } from "@/lib/shikijs-transformers"
+import { loadShiki } from "@/infrastructure/vendors/shiki"
+import { loadShikiTransformers } from "@/infrastructure/vendors/shikijs-transformers"
 
 import { FALLBACK_LANG } from "@/utils/markdown"
 import { themeConfig } from "../configs/theme"
 
 import languageMap from "../configs/languageMap"
+import { escapeCodeHtml } from "../search-highlights"
 
 const FALLBACK_LANGS = [FALLBACK_LANG]
 
@@ -54,7 +55,7 @@ export const useHighlight = (text: string, lang: string = FALLBACK_LANG, isDarkM
 				})
 				return html
 			} catch {
-				return `<pre><code>${text}</code></pre>`
+				return `<pre><code>${escapeCodeHtml(text)}</code></pre>`
 			}
 		},
 		{ revalidateOnFocus: false },

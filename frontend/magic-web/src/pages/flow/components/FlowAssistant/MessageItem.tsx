@@ -1,5 +1,6 @@
 import type React from "react"
 import { Avatar, Spin, Button, Space } from "antd"
+import { useTranslation } from "react-i18next"
 import { IconReload } from "@tabler/icons-react"
 import { useStyles } from "./styles"
 import AnimatedLoading, { loadingContainerStyle } from "./components/AnimatedLoading"
@@ -40,6 +41,7 @@ function MessageItem(props: MessageProps): React.ReactElement {
 		onCancel,
 		onRetry,
 	} = props
+	const { t } = useTranslation()
 	const { styles, cx } = useStyles()
 	const { detectCommands, processCommandMarkers } = useCommandDetection()
 
@@ -54,9 +56,11 @@ function MessageItem(props: MessageProps): React.ReactElement {
 						type="primary"
 						onClick={() => onConfirm?.(confirmOperation.type, confirmOperation.data)}
 					>
-						确认
+						{t("button.confirm", { ns: "interface" })}
 					</Button>
-					<Button onClick={() => onCancel?.(confirmOperation.type)}>取消</Button>
+					<Button onClick={() => onCancel?.(confirmOperation.type)}>
+						{t("button.cancel", { ns: "interface" })}
+					</Button>
 				</Space>
 			</div>
 		)
@@ -180,7 +184,7 @@ function MessageItem(props: MessageProps): React.ReactElement {
 						icon={<IconReload size={16} />}
 						className={styles.retryButton}
 						onClick={() => onRetry?.(id)}
-						title="重试"
+						title={t("button.retry", { ns: "interface" })}
 					/>
 				)}
 			</div>

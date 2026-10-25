@@ -1,10 +1,9 @@
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useMemoizedFn } from "ahooks"
-import { matchPath } from "react-router"
+import { matchPath, useLocation } from "react-router"
 import { configStore } from "@/models/config"
 import { userStore } from "@/models/user"
 import { useAccount } from "@/stores/authentication"
-import { useClusterConfig } from "@/models/config/hooks"
 import { service } from "@/services"
 import type { ConfigService } from "@/services/config/ConfigService"
 import { ensureClusterConfigReady } from "@/services/config/cluster-config-loader"
@@ -15,233 +14,143 @@ import { RouteName } from "@/routes/constants"
 import { omit } from "lodash-es"
 import { whiteListRoutes } from "@/routes/const/whiteRoutes"
 import { refreshAccountContextPage } from "@/broadcastChannel/eventFactory/accountContextRefresh"
+import { defaultClusterCode } from "@/routes/helpers"
+import { appStore } from "@/stores/app"
 
-const clusterConfigLoadedCache = new Set<string>()
-
-interface UseClusterSwitchOptions {
-	targetClusterCode: string
-}
-
-interface UseClusterSwitchResult {
-	isSameCluster: boolean
-	loading: boolean
-	setSameCluster: (value: boolean) => void
-}
+type Admission = "pending" | "ready" | "login-required"
+const normalizeCluster = (code: string) => (code === defaultClusterCode ? "" : code)
 
 /**
- * 集群切换逻辑 Hook
- * 负责处理集群配置加载、账号匹配和自动切换逻辑
- *
- * 性能优化：
- * 1. 使用 AbortController 取消过期请求
- * 2. 使用缓存避免重复加载集群配置
- * 3. 使用 useMemo 缓存计算结果
- * 4. 使用 useMemoizedFn 稳定函数引用
+ * Bootstrap owns login; this hook only reconciles the route's target afterwards.
+ * Global account/config changes are login outputs, not new route-switch intents.
  */
-export function useClusterSwitch(options: UseClusterSwitchOptions): UseClusterSwitchResult {
-	const { targetClusterCode } = options
+export function useClusterSwitch({ targetClusterCode }: { targetClusterCode: string }) {
 	const { accountSwitch } = useAccount()
-	const { clustersConfig } = useClusterConfig()
-
-	// 使用 useMemo 避免不必要的初始状态计算
-	const initialSameCluster = useMemo(
-		() => targetClusterCode === configStore.cluster.clusterCode,
-		[targetClusterCode],
-	)
-
-	// 预先检查是否为白名单路由（只在 mount 时计算一次）
-	const isWhiteListRoute = useMemo(
-		() => isInWhiteList(window.location.pathname),
-		[], // 空依赖，只在组件挂载时计算
-	)
-
-	// 优化 loading 初始状态：如果集群匹配或在白名单中，不需要 loading
-	const initialLoading = useMemo(
-		() => !initialSameCluster && !isWhiteListRoute,
-		[initialSameCluster, isWhiteListRoute],
-	)
-
-	const [isSameCluster, setSameCluster] = useState(initialSameCluster)
-	const [loading, setLoading] = useState(initialLoading)
-
-	// 使用 ref 存储 AbortController，用于取消过期请求
-	const abortControllerRef = useRef<AbortController | null>(null)
-	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-	// 查找匹配的账号（使用 useMemo 缓存）
-	const matchedAccount = useMemo(() => findMatchedAccount(targetClusterCode), [targetClusterCode])
-
-	// 稳定的错误处理函数
-	const handleError = useMemoizedFn((error: unknown) => {
-		console.error("ClusterLayout init error:", error)
-		handleInitError()
+	const { pathname } = useLocation()
+	const isWhiteListRoute = whiteListRoutes.some((route) => matchPath(route, pathname))
+	const target = normalizeCluster(targetClusterCode)
+	const [decision, setDecision] = useState<{
+		target: string
+		publicRoute: boolean
+		status: Admission
+	}>()
+	// Existing account switching is not cancellable. Wait for it before reconciling
+	// another target, so this layout cannot run two legacy switches concurrently.
+	const pendingSwitch = useRef<Promise<void> | null>(null)
+	const setSameCluster = useMemoizedFn((ready: boolean) => {
+		setDecision({
+			target,
+			publicRoute: isWhiteListRoute,
+			status: ready ? "ready" : "login-required",
+		})
 	})
 
-	// 稳定的加载集群配置函数
-	const ensureClusterConfigLoaded = useMemoizedFn(async (clusterCode: string): Promise<void> => {
-		// 如果已经加载过，直接返回
-		if (clusterConfigLoadedCache.has(clusterCode)) {
-			return
+	useEffect(() => {
+		const controller = new AbortController()
+		const { signal } = controller
+		const publish = (status: Admission) => {
+			if (!signal.aborted) setDecision({ target, publicRoute: isWhiteListRoute, status })
 		}
+		async function reconcile() {
+			// Read accounts only after the entire AppService flow, including DingTalk
+			// auth, has settled. A boolean loading flag does not provide this ordering.
+			try {
+				// AppService owns failure redirects; its cached result must not veto a
+				// later successful login when this route is visited again.
+				await appStore.appInitPromise
+			} catch (error) {
+				if (!signal.aborted) {
+					console.error(error)
+					publish("login-required")
+				}
+				return
+			}
+			const previousSwitch = pendingSwitch.current
+			try {
+				await previousSwitch
+			} catch {
+				publish("login-required")
+				return
+			}
+			if (signal.aborted) return
 
-		await ensureClusterConfigReady(clusterCode)
-		clusterConfigLoadedCache.add(clusterCode)
-	})
-
-	// 主初始化逻辑
-	const initialize = useMemoizedFn(async (signal: AbortSignal) => {
-		try {
-			// 提前判断：如果目标集群与当前集群一致，或在白名单中，直接通过（无需 loading）
-			if (targetClusterCode === configStore.cluster.clusterCode || isWhiteListRoute) {
-				if (!clustersConfig?.[targetClusterCode]) {
+			const current = () => normalizeCluster(configStore.cluster.clusterCode)
+			if (current() === target || isWhiteListRoute) {
+				publish("ready")
+				// A completed switch still needs its account-scoped stores rebuilt,
+				// even if navigation superseded the effect that originally started it.
+				if (previousSwitch) return refreshAccountContextPage()
+				// Preserve the existing public-route configuration behavior without
+				// unmounting content while configuration is fetched.
+				if (!configStore.cluster.clusterConfig[target]) {
 					try {
-						await ensureClusterConfigReady(targetClusterCode)
-						await service
-							.get<ConfigService>("configService")
-							.setClusterCode(targetClusterCode)
+						const previousCluster = current()
+						await ensureClusterConfigReady(target)
+						// Config discovery must not overwrite a login completed in the meantime.
+						if (!signal.aborted && current() === previousCluster)
+							await service.get<ConfigService>("configService").setClusterCode(target)
 					} catch (error) {
-						console.warn("whiteList cluster config sync failed", error)
+						console.warn("cluster config sync failed", error)
 					}
 				}
-				setSameCluster(true)
-				setLoading(false)
 				return
 			}
 
-			// 只有在需要切换时才显示 loading
-			setLoading(true)
+			try {
+				// Keep existing cluster validation, account switching and refresh semantics.
+				await CommonApi.getPrivateConfigure(target, {
+					skipAppInitWait: true,
+					enableErrorMessagePrompt: false,
+					enableRequestUnion: true,
+				})
+				if (signal.aborted) return
+				if (target && !configStore.cluster.clusterConfig[target])
+					await ensureClusterConfigReady(target)
+				if (signal.aborted) return
+				if (current() === target) return publish("ready")
 
-			// 1. 获取私有配置
-			await CommonApi.getPrivateConfigure(targetClusterCode, { skipAppInitWait: true })
-
-			// 检查请求是否已被取消
-			if (signal.aborted) return
-
-			// 2. 如果集群配置不存在，则加载集群配置（带缓存）
-			if (!clustersConfig?.[targetClusterCode] && targetClusterCode !== "") {
-				await ensureClusterConfigLoaded(targetClusterCode)
-			}
-
-			// 检查请求是否已被取消
-			if (signal.aborted) return
-
-			// 3. 再次检查集群是否一致（可能在异步操作期间已切换）
-			if (targetClusterCode === configStore.cluster.clusterCode || isWhiteListRoute) {
-				setSameCluster(true)
-				return
-			}
-
-			// 4. 如果找到匹配账号，自动切换
-			if (matchedAccount) {
-				setSameCluster(true)
+				const account = userStore.account.accounts.find(
+					(item) =>
+						normalizeCluster(item.deployCode).toLowerCase() === target.toLowerCase(),
+				)
+				if (!account) return publish("login-required")
+				const task = accountSwitch(
+					account.magic_id,
+					account.magic_user_id,
+					account.organizationCode,
+				)
+				pendingSwitch.current = task
 				try {
-					await accountSwitch(
-						matchedAccount.magic_id,
-						matchedAccount.magic_user_id,
-						matchedAccount.organizationCode,
-					)
-					// Rebuild account-scoped stores after the route-driven account switch succeeds.
+					await task
+					if (signal.aborted) return
+					publish("ready")
 					refreshAccountContextPage()
 				} catch (error) {
-					console.error(error)
+					if (!signal.aborted) {
+						console.error(error)
+						publish("login-required")
+					}
+				} finally {
+					if (pendingSwitch.current === task) pendingSwitch.current = null
 				}
-			} else {
-				// 目标集群不存在已登录账号，且为非白名单
-				setSameCluster(false)
-			}
-		} catch (error) {
-			// 忽略取消错误
-			if (signal.aborted) return
-			handleError(error)
-		} finally {
-			if (!signal.aborted) {
-				setLoading(false)
+			} catch (error) {
+				if (signal.aborted) return
+				console.error(error)
+				publish("login-required")
+				handleInitError()
 			}
 		}
-	})
+		void reconcile()
+		return () => controller.abort()
+	}, [target, isWhiteListRoute, accountSwitch])
 
-	// 使用 useEffect 替代 useDebounceEffect，实现更精细的控制
-	useEffect(() => {
-		// 取消之前的请求
-		if (abortControllerRef.current) {
-			abortControllerRef.current.abort()
-		}
-
-		// 清除之前的防抖定时器
-		if (debounceTimerRef.current) {
-			clearTimeout(debounceTimerRef.current)
-		}
-
-		// 创建新的 AbortController
-		const abortController = new AbortController()
-		abortControllerRef.current = abortController
-
-		// 快速判断：如果集群已匹配或在白名单中，立即执行（无需防抖）
-		const needsSwitch =
-			targetClusterCode !== configStore.cluster.clusterCode && !isWhiteListRoute
-
-		if (!needsSwitch) {
-			// 无需切换，立即执行
-			initialize(abortController.signal).catch(console.error)
-		} else {
-			// 需要切换，使用防抖避免快速切换导致的多次请求
-			debounceTimerRef.current = setTimeout(() => {
-				initialize(abortController.signal).catch(console.error)
-			}, 50)
-		}
-
-		// 清理函数
-		return () => {
-			abortController.abort()
-			if (debounceTimerRef.current) {
-				clearTimeout(debounceTimerRef.current)
-			}
-		}
-	}, [targetClusterCode, initialize, isWhiteListRoute])
-
-	return {
-		isSameCluster,
-		loading,
-		setSameCluster,
-	}
-}
-
-/**
- * 检查路径是否在白名单中
- * 使用缓存避免重复匹配
- */
-const whiteListCheckCache = new Map<string, boolean>()
-
-function isInWhiteList(pathname: string): boolean {
-	// 先检查缓存
-	if (whiteListCheckCache.has(pathname)) {
-		return whiteListCheckCache.get(pathname) ?? false
-	}
-
-	// 执行匹配
-	const result = whiteListRoutes.some((route) => matchPath(route, pathname))
-
-	// 缓存结果（限制缓存大小，避免内存泄漏）
-	if (whiteListCheckCache.size > 100) {
-		// 删除最早的缓存项
-		const firstKey = whiteListCheckCache.keys().next().value
-		if (firstKey) {
-			whiteListCheckCache.delete(firstKey)
-		}
-	}
-
-	whiteListCheckCache.set(pathname, result)
-	return result
-}
-
-/**
- * 查找匹配的账号
- * 根据目标集群代码，在已登录账号中查找对应的账号
- */
-function findMatchedAccount(targetClusterCode: string) {
-	return userStore.account.accounts.find(
-		(account) => account.deployCode?.toLowerCase?.() === targetClusterCode?.toLowerCase?.(),
-	)
+	// Ordinary navigation within the same cluster reuses admission. Only a change
+	// of target or access policy blocks the Outlet, never a query/key change.
+	const status =
+		decision?.target === target && decision.publicRoute === isWhiteListRoute
+			? decision.status
+			: "pending"
+	return { loading: status === "pending", isSameCluster: status === "ready", setSameCluster }
 }
 
 /**

@@ -1,8 +1,13 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest"
-import { render, screen, fireEvent, cleanup } from "@testing-library/react"
+import {
+	render,
+	screen,
+	fireEvent,
+	cleanup,
+} from "@testing-library/react"
 import type { ReactNode } from "react"
-import type { Editor } from "@tiptap/react"
-import * as TiptapReact from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import * as TiptapReact from "@/infrastructure/editors/tiptap/react"
 import MagicRichEditor from "../index"
 
 // 提升模拟函数
@@ -82,7 +87,7 @@ if (typeof window.URL.createObjectURL === "undefined") {
 }
 
 // 模拟 TipTap 依赖
-vi.mock("@tiptap/react", () => {
+vi.mock("@/infrastructure/editors/tiptap/react", () => {
 	return {
 		useEditor: vi.fn().mockReturnValue(baseMockEditor),
 		EditorContent: ({
@@ -101,7 +106,7 @@ vi.mock("@tiptap/react", () => {
 })
 
 // 模拟 StarterKit 扩展
-vi.mock("@tiptap/starter-kit", () => ({
+vi.mock("@/infrastructure/editors/tiptap/starter-kit", () => ({
 	default: {
 		configure: vi.fn().mockImplementation(() => {
 			const extensionObj: Record<string, any> = {
@@ -121,15 +126,15 @@ vi.mock("@tiptap/starter-kit", () => ({
 }))
 
 // 模拟其他扩展
-vi.mock("@tiptap/extension-highlight", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-highlight", () => ({
 	default: {},
 }))
 
-vi.mock("@tiptap/extension-text-align", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-text-align", () => ({
 	default: {},
 }))
 
-vi.mock("@tiptap/extension-text-style", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-text-style", () => ({
 	default: {},
 }))
 
@@ -160,7 +165,7 @@ vi.mock("../extensions/magicEmoji", () => ({
 }))
 
 // 模拟 HardBlock 扩展
-vi.mock("@tiptap/extension-hard-break", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-hard-break", () => ({
 	default: {
 		extend: vi.fn().mockReturnValue({
 			addPasteRules: vi.fn().mockReturnValue([]),

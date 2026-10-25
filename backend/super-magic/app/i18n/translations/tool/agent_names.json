@@ -50,5 +50,13 @@
     "test": {
         "zh_CN": "测试智能体",
         "en_US": "Test Agent"
+    },
+    "persona-research": {
+        "zh_CN": "AI 研究员",
+        "en_US": "AI Researcher"
+    },
+    "persona-interviewer": {
+        "zh_CN": "访谈主持人",
+        "en_US": "Interview Moderator"
     }
 }

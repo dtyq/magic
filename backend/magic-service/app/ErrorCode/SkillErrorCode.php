@@ -127,4 +127,22 @@ enum SkillErrorCode: int
 
     #[ErrorMessage('skill.skill_config_invalid')]
     case SKILL_CONFIG_INVALID = 51276;
+
+    #[ErrorMessage('skill.official_organization_required')]
+    case OFFICIAL_ORGANIZATION_REQUIRED = 51277;
+
+    #[ErrorMessage('skill.official_import_source_required')]
+    case OFFICIAL_IMPORT_SOURCE_REQUIRED = 51278;
+
+    #[ErrorMessage('skill.official_import_source_conflict')]
+    case OFFICIAL_IMPORT_SOURCE_CONFLICT = 51279;
+
+    #[ErrorMessage('skill.official_skill_not_found')]
+    case OFFICIAL_SKILL_NOT_FOUND = 51280;
+
+    #[ErrorMessage('skill.publish_preparation_stale')]
+    case PUBLISH_PREPARATION_STALE = 51281;
+
+    #[ErrorMessage('skill.project_binding_conflict')]
+    case PROJECT_BINDING_CONFLICT = 51282;
 }

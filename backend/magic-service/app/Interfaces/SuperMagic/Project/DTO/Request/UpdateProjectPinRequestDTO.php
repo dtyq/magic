@@ -22,6 +22,31 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
      */
     public bool $isPin = false;
 
+    public ?string $targetWorkspaceId = null;
+
+    public ?string $preProjectId = null;
+
+    public ?string $nextProjectId = null;
+
+    public bool $preProjectIdProvided = false;
+
+    public bool $nextProjectIdProvided = false;
+
+    public function getTargetWorkspaceId(): ?int
+    {
+        return $this->targetWorkspaceId === null || $this->targetWorkspaceId === '' ? null : (int) $this->targetWorkspaceId;
+    }
+
+    public function getPreProjectId(): ?int
+    {
+        return $this->preProjectId === null || $this->preProjectId === '' ? null : (int) $this->preProjectId;
+    }
+
+    public function getNextProjectId(): ?int
+    {
+        return $this->nextProjectId === null || $this->nextProjectId === '' ? null : (int) $this->nextProjectId;
+    }
+
     /**
      * 获取是否置顶.
      */
@@ -53,6 +78,9 @@ class UpdateProjectPinRequestDTO extends AbstractRequestDTO
     {
         return [
             'is_pin' => 'required|boolean',
+            'target_workspace_id' => 'nullable|string|max:64',
+            'pre_project_id' => 'nullable|string',
+            'next_project_id' => 'nullable|string',
         ];
     }
 

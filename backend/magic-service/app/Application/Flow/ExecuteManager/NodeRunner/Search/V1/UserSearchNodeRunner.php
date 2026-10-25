@@ -127,12 +127,15 @@ class UserSearchNodeRunner extends AbstractSearchNodeRunner
                     ];
                 }
 
+                $position = $this->getFirstNonEmptyDepartmentValue($userDepartment, 'job_title');
+                $workNumber = $this->getFirstNonEmptyDepartmentValue($userDepartment, 'employee_no');
+
                 $users[] = [
                     'user_id' => $magicUser->getUserId(),
                     'real_name' => $magicAccount->getRealName(),
-                    'position' => $userDepartment[0]['job_title'] ?? '',
+                    'position' => $position,
                     'phone_number' => $magicAccount->getCountryCode() . $magicAccount->getPhone($phoneDesensitization),
-                    'work_number' => $userDepartment[0]['employee_no'] ?? '',
+                    'work_number' => $workNumber,
                     'departments' => $departmentArray,
                 ];
             }
@@ -429,5 +432,22 @@ class UserSearchNodeRunner extends AbstractSearchNodeRunner
         // 合并 && 去重
         $departmentIds = array_merge(...$departmentsChildrenIds);
         return array_values(array_unique($departmentIds));
+    }
+
+    /**
+     * 从用户的部门关系中获取指定字段的第一个非空值。
+     *
+     * @param array<int, array<string, mixed>> $userDepartments
+     */
+    private function getFirstNonEmptyDepartmentValue(array $userDepartments, string $field): string
+    {
+        foreach ($userDepartments as $department) {
+            $value = $department[$field] ?? '';
+            if (is_string($value) && trim($value) !== '') {
+                return $value;
+            }
+        }
+
+        return '';
     }
 }

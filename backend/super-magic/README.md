@@ -26,6 +26,10 @@ SuperMagic 是一个通用人工智能系统(AGI)，提供强大的任务处理�
 - `ANTHROPIC_API_KEY`：Anthropic API密钥
 - `TIKHUB_API_KEY`：TikHub API密钥（用于知乎工具）
 
+生成文件的 AIGC 元数据使用 `CONTENT_PRODUCER` 作为内容生产者标识，请由部署者配置自己的标识。未配置或配置为空时，该字段为空字符串，不会代填其他主体。
+
+此变量用于 SuperMagic Python 服务；Magic Service PHP 服务使用独立的 `AIGC_CONTENT_PRODUCER`，应在各自部署环境中配置。
+
 ## 工具列表
 
 ### 知乎工具

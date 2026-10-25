@@ -1,4 +1,5 @@
 import { SkillPanelType, OptionViewType, type SkillPanelConfig } from "../../panels/types"
+import { SLIDES_LANGUAGE_OPTIONS } from "./slidesLanguageOptions"
 /**
  * Default slides panel configuration
  * This can be replaced with data from API or other sources
@@ -548,11 +549,7 @@ export const defaultSlidesPanelConfig: SkillPanelConfig[] = [
 				{
 					data_key: "language",
 					label: { zh_CN: "语言", en_US: "Language" },
-					options: [
-						{ value: "auto", label: { zh_CN: "自动", en_US: "Auto" } },
-						{ value: "zh", label: { zh_CN: "中文", en_US: "Chinese" } },
-						{ value: "en", label: { zh_CN: "英文", en_US: "English" } },
-					],
+					options: SLIDES_LANGUAGE_OPTIONS,
 				},
 			],
 		},

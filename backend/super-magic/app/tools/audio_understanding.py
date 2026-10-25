@@ -5,43 +5,58 @@
 它支持提交音频文件进行转录并查询结果。
 """
 
-from app.i18n import i18n
 import asyncio
 import json
 import logging
-import time
+import re
+import traceback
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import aiofiles
 import httpx
-from mutagen import File as MutagenFile
-from pydantic import Field
-
 from agentlang.config.config import Config
 from agentlang.context.tool_context import ToolContext
 from agentlang.event import EventPairType, get_correlation_manager
 from agentlang.event.data import PendingToolCallEventData
 from agentlang.event.event import EventType
+from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.metadata import MetadataUtil
-from app.core.entity.message.server_message import DisplayType, ToolDetail
+from mutagen import File as MutagenFile
+from pydantic import Field
+
+from app.core.context.run_interruption import await_with_interruption
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+from app.core.entity.message.server_message import DisplayType, FileContent, OperationResultStatus, ToolDetail
+from app.i18n import i18n
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
+from app.service.asr.asr_audio_preparation import (
+    CONTAINER_TO_API_FORMAT,
+    MAX_UPLOAD_BYTES,
+    AudioPreparationError,
+    AudioPreparationMode,
+    AudioPreparer,
+    AudioProbeError,
+    PreparedAudio,
+)
 from app.service.asr.asr_merge_task_manager import AsrMergeTaskManager
 from app.service.file_service import FileService, WorkspaceFileURLError
 from app.tools.core.base_tool_params import BaseToolParams
+from app.tools.core.tool_keepalive import start_tool_keep_alive, stop_tool_keep_alive
 from app.tools.workspace_tool import WorkspaceTool
+from app.utils.async_file_utils import async_exists, async_mkdir, async_stat, async_write_text
 
 
 class AudioUnderstandingError(Exception):
     """Audio Understanding 工具的自定义异常"""
 
-    def __init__(self, message: str, error_code: str = None):
+    def __init__(self, message: str, error_code: str = None, task_id: str = None):
         self.message = message
         self.error_code = error_code
+        self.task_id = task_id
         super().__init__(message)
 
 
@@ -50,7 +65,82 @@ class TranscriptionResult:
     """转录结果数据类"""
 
     text: str
-    duration_ms: Optional[int] = None
+    task_id: Optional[str] = None
+    api_declared_duration_ms: Optional[int] = None
+    last_utterance_end_ms: Optional[int] = None
+    last_utterance_end_source: Optional[str] = None
+    utterances: list[dict] | None = None
+
+
+class TranscriptionValidationError(ValueError):
+    """The ASR provider interpreted a different audio duration than we uploaded."""
+
+
+@dataclass(frozen=True)
+class TimelineTrim:
+    dropped_count: int
+    dropped_span_seconds: float
+    retained_end_seconds: float
+
+    @property
+    def has_drop(self) -> bool:
+        return self.dropped_count > 0
+
+
+@dataclass(frozen=True)
+class AudioRunResult:
+    transcript_path: Path
+    trim: TimelineTrim
+    preparation_mode: AudioPreparationMode
+    fallback_used: bool
+
+
+def utterance_end_ms(utterance: dict) -> int:
+    try:
+        start_time = max(0, int(utterance.get("start_time", 0)))
+    except (TypeError, ValueError):
+        start_time = 0
+    try:
+        duration = max(0, int(utterance.get("duration", 0)))
+    except (TypeError, ValueError):
+        duration = 0
+    return start_time + duration
+
+
+def validate_transcription_result(prepared: PreparedAudio, result: TranscriptionResult) -> None:
+    local_seconds = prepared.reference_duration_seconds
+    if result.api_declared_duration_ms is None or result.api_declared_duration_ms <= 0:
+        raise TranscriptionValidationError("ASR response has no valid declared duration")
+
+    api_seconds = result.api_declared_duration_ms / 1000
+    tolerance = max(2.0, local_seconds * 0.01)
+    if abs(local_seconds - api_seconds) > tolerance:
+        raise TranscriptionValidationError(
+            f"ASR declared duration mismatch: local={local_seconds:.3f}s api={api_seconds:.3f}s"
+        )
+
+
+def trim_out_of_range_utterances(
+    prepared: PreparedAudio,
+    utterances: list[dict],
+) -> tuple[list[dict], TimelineTrim]:
+    max_allowed_ms = int((prepared.reference_duration_seconds + 2.0) * 1000)
+    retained: list[dict] = []
+    dropped: list[dict] = []
+    for utterance in utterances:
+        (retained if utterance_end_ms(utterance) <= max_allowed_ms else dropped).append(utterance)
+
+    retained_end_ms = max((utterance_end_ms(item) for item in retained), default=0)
+    dropped_end_ms = max((utterance_end_ms(item) for item in dropped), default=0)
+    dropped_span_seconds = max(
+        0.0,
+        dropped_end_ms / 1000 - prepared.reference_duration_seconds,
+    )
+    return retained, TimelineTrim(
+        dropped_count=len(dropped),
+        dropped_span_seconds=dropped_span_seconds,
+        retained_end_seconds=retained_end_ms / 1000,
+    )
 
 
 class AudioUnderstandingParams(BaseToolParams):
@@ -74,6 +164,24 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
     # Constants
     PLATFORM_TYPE_VOLCENGINE = "volcengine"
     HTTP_TIMEOUT = 30
+    RETRYABLE_QUERY_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+    # ASR 已给出明确结论（拒绝音频，或完成但内容无效）的错误码；此时任务不会再被查询，临时上传可以删除。
+    # 查询中断、鉴权失败、超时等结果未知的错误码不在其中，上传对象需保留以便继续查询该任务。
+    DEFINITIVE_ASR_ERROR_CODES = frozenset({
+        "ASR_ERROR",
+        "FORMAT_NOT_SUPPORTED",
+        "EMPTY_TRANSCRIPT",
+        "NO_UTTERANCES",
+        "EXTRACT_TEXT_FAILED",
+        "SILENT_AUDIO",
+        "INVALID_PARAMETERS",
+        "EMPTY_AUDIO",
+        "FILE_DOWNLOAD_FAILED",
+        "SERVER_BUSY",
+        "INTERNAL_SERVER_ERROR",
+        "UNKNOWN_STATUS",
+        "TASK_SUCCESS_NO_AUDIO_INFO",
+    })
     # ISO BMFF（mp4 家族）扩展名，提交前做轻量完整性校验
     MP4_FAMILY_EXTS = {"mp4", "m4a", "m4v", "mov", "3gp", "3g2"}
     # 进度报告间隔：固定30秒，无论音频多长，保持用户体验一致
@@ -88,6 +196,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
         self.api_base_url = None
         self.magic_service_config = None
         self._initialized = False
+        self.audio_preparer = AudioPreparer()
 
     def _initialize_service(self):
         """延迟初始化服务，只在需要时进行"""
@@ -128,14 +237,14 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             try:
                 MagicServiceConfigLoader.load_with_fallback()
                 return True
-            except Exception as e:
+            except Exception:
                 return False
 
         except Exception as e:
             self.logger.warning(f"检查AudioUnderstanding工具可用性失败: {e}")
             return False
 
-    async def _run(self, params: AudioUnderstandingParams, correlation_id: str) -> str:
+    async def _run(self, params: AudioUnderstandingParams, correlation_id: str) -> AudioRunResult:
         """
         将音频文件转换为文本
 
@@ -151,7 +260,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             file_path = self.resolve_path(params.audio_path)
             audio_filename = file_path.name
             # 检查文件是否存在（异步执行以避免阻塞）
-            file_exists = await asyncio.to_thread(file_path.exists)
+            file_exists = await async_exists(file_path)
             if not file_exists:
                 raise AudioUnderstandingError(
                     i18n.translate("audio_understanding.file_not_found", category="tool.messages", file_path=params.audio_path),
@@ -177,7 +286,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             audio_duration = await self._get_audio_duration(file_path)
 
             # 获取文件大小用于日志记录（异步执行以避免阻塞）
-            file_stat = await asyncio.to_thread(file_path.stat)
+            file_stat = await async_stat(file_path)
             file_size_mb = file_stat.st_size / (1024 * 1024)  # 转换为 MB
 
             # 前置检查：判断是否需要拆分音频
@@ -185,10 +294,12 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             max_size_mb = 480
             max_duration_hours = 4.8
             max_duration_seconds = max_duration_hours * 3600
-            
-            duration_hours = (audio_duration / 3600) if audio_duration else 0
+
+            # Intentionally enforce the existing split policy against the user source,
+            # before conversion. Changing this to the smaller prepared upload would alter
+            # split_audio product behavior and is tracked as a separate decision.
             needs_split = file_size_mb > max_size_mb or (audio_duration and audio_duration > max_duration_seconds)
-            
+
             if needs_split:
                 # 格式化时长显示
                 if audio_duration and audio_duration > 0:
@@ -203,7 +314,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                         duration_str = f"{seconds}秒"
                 else:
                     duration_str = "未知"
-                
+
                 # 构建拆分建议提示
                 split_suggestion = f"""⚠️ 音频文件过大，建议先拆分后再转录
 
@@ -222,7 +333,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
 2. 拆分完成后，对每个拆分的音频文件分别使用 audio_understanding 进行转录
 
 这样可以提高转录成功率，避免因文件过大导致的超时或失败问题。"""
-                
+
                 raise AudioUnderstandingError(
                     split_suggestion,
                     "FILE_TOO_LARGE"
@@ -253,96 +364,292 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                 estimated_transcription_duration  # 保存估算的转录处理时长（用于进度计算）
             )
 
-            # 确定音频格式（从文件扩展名提取）
-            audio_format = file_path.suffix.lstrip(".")
-            if not audio_format:
-                raise AudioUnderstandingError(
-                    i18n.translate("audio_understanding.format_not_supported", category="tool.messages", format="未知格式"),
-                    "FORMAT_NOT_SUPPORTED",
-                )
+            format_preparation_enabled = bool(
+                self.config.get("audio_understanding.format_preparation_enabled", True)
+            )
+            duration_validation_enabled = bool(
+                self.config.get("audio_understanding.duration_validation_enabled", True)
+            )
+            # Disabling preparation restores the original "submit the source as-is" path,
+            # so the canonical fallback must be off too, otherwise a validation failure
+            # would still transcode behind the kill switch.
+            fallback_enabled = format_preparation_enabled and bool(
+                self.config.get("audio_understanding.canonical_fallback_enabled", True)
+            )
+            max_fallback_attempts = min(
+                1,
+                max(0, int(self.config.get("audio_understanding.max_fallback_attempts", 1))),
+            )
 
-            # 走统一入口：local file -> xattr s3_key -> presigned URL
-            try:
-                file_url = await FileService().get_workspace_file_url(file_path, expires_in=7200)
-            except WorkspaceFileURLError as e:
-                raise AudioUnderstandingError(
-                    i18n.translate(
-                        "audio_understanding.transcription_error",
-                        category="tool.messages",
-                        error=str(e),
-                    ),
-                    "S3_KEY_NOT_FOUND",
-                )
-            except FileNotFoundError as e:
-                raise AudioUnderstandingError(
-                    i18n.translate(
-                        "audio_understanding.file_not_found",
-                        category="tool.messages",
-                        file_path=params.audio_path,
-                    ),
-                    "FILE_NOT_FOUND",
-                )
+            forced_mode = None if format_preparation_enabled else AudioPreparationMode.PRESERVE
+            fallback_used = False
+            final_result: TranscriptionResult | None = None
+            final_trim: TimelineTrim | None = None
+            final_mode: AudioPreparationMode | None = None
 
-            # 提交转录任务
-            task_id = await self._submit_transcription_task(file_url, audio_format)
-            if not task_id:
-                raise AudioUnderstandingError(
-                    i18n.translate("audio_understanding.transcription_error", category="tool.messages", error="Submit audio transcription task failed"),
-                    "TASK_SUBMISSION_FAILED",
-                )
+            for attempt in range(1, 2 + max_fallback_attempts):
+                try:
+                    async with self.audio_preparer.prepare_audio(file_path, forced_mode) as prepared:
+                        self._log_prepared_audio(prepared, attempt)
+                        try:
+                            result = await self._transcribe_prepared_audio(
+                                prepared,
+                                params.timeout,
+                                correlation_id,
+                            )
+                        except AudioUnderstandingError as exc:
+                            retryable_upstream_error = exc.error_code == "FORMAT_NOT_SUPPORTED"
+                            retry_possible = (
+                                retryable_upstream_error
+                                and fallback_enabled
+                                and attempt == 1
+                                and max_fallback_attempts > 0
+                                and prepared.mode is not AudioPreparationMode.CANONICAL
+                            )
+                            if not retry_possible:
+                                raise
+                            self.logger.warning(
+                                "ASR rejected prepared format; retrying canonical: attempt=%s mode=%s error_code=%s",
+                                attempt,
+                                prepared.mode.value,
+                                exc.error_code,
+                            )
+                            forced_mode = AudioPreparationMode.CANONICAL
+                            fallback_used = True
+                            continue
 
-            # 轮询结果，获取转录文本和API返回的准确时长（使用传入的 correlation_id）
-            transcription_result = await self._poll_transcription_result(task_id, params.timeout, correlation_id)
+                        if duration_validation_enabled:
+                            try:
+                                validate_transcription_result(prepared, result)
+                            except TranscriptionValidationError as exc:
+                                retry_possible = (
+                                    fallback_enabled
+                                    and attempt == 1
+                                    and max_fallback_attempts > 0
+                                    and prepared.mode is not AudioPreparationMode.CANONICAL
+                                )
+                                self.logger.warning(
+                                    "Transcription declared duration validation failed: "
+                                    "attempt=%s mode=%s retry=%s reason=%s",
+                                    attempt,
+                                    prepared.mode.value,
+                                    retry_possible,
+                                    exc,
+                                )
+                                if not retry_possible:
+                                    raise AudioUnderstandingError(
+                                        i18n.translate(
+                                            "audio_understanding.result_mismatch",
+                                            category="tool.messages",
+                                        ),
+                                        "TRANSCRIPTION_RESULT_MISMATCH",
+                                    ) from exc
+                                forced_mode = AudioPreparationMode.CANONICAL
+                                fallback_used = True
+                                continue
 
-            # 使用API返回的准确时长覆盖本地读取的不准确值
-            if transcription_result.duration_ms is not None and transcription_result.duration_ms > 0:
-                api_duration_seconds = transcription_result.duration_ms / 1000.0
-                self.logger.info(
-                    f"Using accurate duration from API: {api_duration_seconds:.1f}s ({api_duration_seconds / 60:.1f} minutes)"
-                )
+                        utterances = result.utterances or []
+                        retained, trim = trim_out_of_range_utterances(prepared, utterances)
+                        if not retained:
+                            raise AudioUnderstandingError(
+                                i18n.translate(
+                                    "audio_understanding.no_valid_utterance",
+                                    category="tool.messages",
+                                ),
+                                "TRANSCRIPTION_EMPTY_AFTER_TRIM",
+                            )
 
-                # 如果本地读取的时长明显不准确（差异超过5秒或本地时长<5秒），则使用API时长
-                if audio_duration is None or abs(audio_duration - api_duration_seconds) > 5 or audio_duration < 5:
-                    if audio_duration is not None:
-                        self.logger.warning(
-                            f"Local duration ({audio_duration:.1f}s) significantly differs from API duration ({api_duration_seconds:.1f}s), using API duration"
-                        )
-                    else:
+                        final_result = self._replace_result_utterances(result, retained)
+                        final_trim = trim
+                        final_mode = prepared.mode
+                        self._audio_duration = prepared.reference_duration_seconds
                         self.logger.info(
-                            f"Local duration not available, using API duration ({api_duration_seconds:.1f}s)"
+                            "Transcription timeline normalized: dropped_utterance_count=%s "
+                            "dropped_span_seconds=%.3f retained_end_seconds=%.3f",
+                            trim.dropped_count,
+                            trim.dropped_span_seconds,
+                            trim.retained_end_seconds,
                         )
+                        break
+                except (AudioProbeError, AudioPreparationError) as exc:
+                    self.logger.error("Audio preparation failed: %s", exc)
+                    raise AudioUnderstandingError(
+                        i18n.translate(
+                            "audio_understanding.format_preparation_failed",
+                            category="tool.messages",
+                        ),
+                        "AUDIO_PREPARATION_FAILED",
+                    ) from exc
 
-                    # 覆盖本地读取的不准确值
-                    self._audio_duration = api_duration_seconds
-                    audio_duration = api_duration_seconds
-            else:
-                self.logger.warning("API did not return duration information, using local duration estimation")
+            if final_result is None or final_trim is None or final_mode is None:
+                raise AudioUnderstandingError(
+                    i18n.translate("audio_understanding.result_mismatch", category="tool.messages"),
+                    "TRANSCRIPTION_RESULT_MISMATCH",
+                )
 
             # 转录文件输出到音频文件所在目录（使用已解析的绝对路径，避免依赖进程 CWD）
             transcript_full_path = file_path.parent / params.transcript_filename
 
             # 确保目录存在
-            await asyncio.to_thread(transcript_full_path.parent.mkdir, parents=True, exist_ok=True)
+            await async_mkdir(transcript_full_path.parent, parents=True, exist_ok=True)
 
             # 将转录文本写入到与音频文件相同目录下的转录文件
-            async with aiofiles.open(transcript_full_path, "w", encoding="utf-8") as f:
-                await f.write(transcription_result.text)
+            await async_write_text(transcript_full_path, final_result.text)
+            await self._dispatch_transcription_progress_event(final_result.task_id or "", 0, 0, 100, correlation_id, "completed")
 
             self.logger.info(
                 i18n.translate("audio_understanding.transcription_success", category="tool.messages", content=str(transcript_full_path))
             )
-            # self.logger.info(f"Transcription result: {result}")
-            return i18n.translate("audio_understanding.transcription_success", category="tool.messages", content=str(transcript_full_path))
+            return AudioRunResult(
+                transcript_path=transcript_full_path,
+                trim=final_trim,
+                preparation_mode=final_mode,
+                fallback_used=fallback_used,
+            )
 
         except AudioUnderstandingError:
             # 重新抛出自定义异常
             raise
         except Exception as e:
             raise AudioUnderstandingError(
-                i18n.translate("audio_understanding.transcription_error", category="tool.messages", error=f"Audio transcription processing failed - {str(e)}",
+                i18n.translate("audio_understanding.transcription_error", category="tool.messages", error=f"Audio transcription processing failed - {e!s}",
                 ),
                 "GENERAL_ERROR",
             )
+
+    def _log_prepared_audio(self, prepared: PreparedAudio, attempt: int) -> None:
+        self.logger.info(
+            "Audio prepared: audio_prepare_mode=%s policy_version=2026-09-20-v1 "
+            "source_container=%s source_codec=%s source_sample_rate=%s source_channels=%s "
+            "source_bits_per_sample=%s source_duration_seconds=%.3f upload_container=%s "
+            "upload_codec=%s upload_sample_rate=%s upload_channels=%s upload_bits_per_sample=%s "
+            "upload_is_temporary=%s upload_duration_seconds=%.3f attempt=%s",
+            prepared.mode.value,
+            prepared.source.container,
+            prepared.source.codec,
+            prepared.source.sample_rate,
+            prepared.source.channels,
+            prepared.source.bits_per_sample,
+            prepared.source.duration_seconds,
+            prepared.upload.container,
+            prepared.upload.codec,
+            prepared.upload.sample_rate,
+            prepared.upload.channels,
+            prepared.upload.bits_per_sample,
+            prepared.temporary,
+            prepared.upload.duration_seconds,
+            attempt,
+        )
+
+    def _replace_result_utterances(
+        self,
+        result: TranscriptionResult,
+        utterances: list[dict],
+    ) -> TranscriptionResult:
+        formatted_result = ["## 📝 Dialogue Content", ""]
+        formatted_result.extend(self._format_utterances_to_lines(utterances))
+        last_utterance = max(utterances, key=utterance_end_ms)
+        return TranscriptionResult(
+            text="\n".join(formatted_result),
+            task_id=result.task_id,
+            api_declared_duration_ms=result.api_declared_duration_ms,
+            last_utterance_end_ms=utterance_end_ms(last_utterance),
+            last_utterance_end_source=(
+                "utterance_duration" if "duration" in last_utterance else "start_time_only"
+            ),
+            utterances=utterances,
+        )
+
+    async def _resolve_upload_url(self, prepared: PreparedAudio) -> tuple[str, dict | None]:
+        file_service = FileService()
+        if not prepared.temporary:
+            try:
+                url = await file_service.get_workspace_file_url(prepared.upload_path, expires_in=7200)
+            except WorkspaceFileURLError as exc:
+                raise AudioUnderstandingError(
+                    i18n.translate(
+                        "audio_understanding.transcription_error",
+                        category="tool.messages",
+                        error=str(exc),
+                    ),
+                    "S3_KEY_NOT_FOUND",
+                ) from exc
+            except FileNotFoundError as exc:
+                raise AudioUnderstandingError(
+                    i18n.translate(
+                        "audio_understanding.file_not_found",
+                        category="tool.messages",
+                        file_path=str(prepared.upload_path),
+                    ),
+                    "FILE_NOT_FOUND",
+                ) from exc
+            return url, None
+
+        upload = await file_service.upload_local_file(
+            str(prepared.upload_path),
+            expires_in=7200,
+            options={"max_size_bytes": MAX_UPLOAD_BYTES},
+        )
+        return upload["temporary_url"], upload
+
+    async def _transcribe_prepared_audio(
+        self,
+        prepared: PreparedAudio,
+        timeout: int,
+        correlation_id: str,
+    ) -> TranscriptionResult:
+        upload_record: dict | None = None
+        file_service = FileService()
+        can_cleanup_upload = True
+        try:
+            file_url, upload_record = await self._resolve_upload_url(prepared)
+            try:
+                audio_format = CONTAINER_TO_API_FORMAT[prepared.upload.container]
+            except KeyError as exc:
+                raise AudioUnderstandingError(
+                    i18n.translate(
+                        "audio_understanding.format_not_supported",
+                        category="tool.messages",
+                        format=prepared.upload.container,
+                    ),
+                    "FORMAT_NOT_SUPPORTED",
+                ) from exc
+
+            can_cleanup_upload = False
+            task_id = await self._submit_transcription_task(file_url, audio_format)
+            if not task_id:
+                raise AudioUnderstandingError(
+                    i18n.translate(
+                        "audio_understanding.transcription_error",
+                        category="tool.messages",
+                        error="Submit audio transcription task failed",
+                    ),
+                    "TASK_SUBMISSION_FAILED",
+                )
+            result = await self._poll_transcription_result(task_id, timeout, correlation_id)
+            can_cleanup_upload = True
+            return result
+        except AudioUnderstandingError as exc:
+            # 明确拒绝或已完成但内容无效时可清理；传输中断、鉴权阻塞查询、取消等均保留。
+            if exc.error_code in self.DEFINITIVE_ASR_ERROR_CODES:
+                can_cleanup_upload = True
+            raise
+        finally:
+            if upload_record and not can_cleanup_upload:
+                self.logger.warning("Retained temporary ASR upload because task outcome is unknown: object_key=%s",
+                                    upload_record.get("object_key", ""))
+            if upload_record and can_cleanup_upload:
+                try:
+                    await file_service.delete_uploaded_object(
+                        upload_record.get("object_key", ""),
+                        upload_record.get("platform"),
+                    )
+                except Exception as exc:
+                    self.logger.error(
+                        "Failed to delete temporary ASR upload object: object_key=%s error=%s",
+                        upload_record.get("object_key", ""),
+                        exc,
+                    )
 
     def _build_api_headers(self) -> Dict[str, str]:
         """使用 Magic 元数据构建 API 请求头，遵循 generate_image.py 的模式"""
@@ -374,10 +681,102 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             if language:
                 headers["Magic-Language"] = language
 
-        self.logger.info(f"构建的 API 请求头: {headers}")
+        # 只记录请求头名称和凭据长度，不记录凭据内容。
+        self.logger.info("Built ASR API headers: names=%s", sorted(headers))
+        MetadataUtil.log_authorization_header_diagnostics(headers, "audio_request")
         return headers
 
-    async def _submit_transcription_task(self, file_url: str, audio_format: str) -> Optional[str]:
+    def _asr_interruption_event(self) -> asyncio.Event | None:
+        # 工具上下文只在 execute 期间存在；脱离 execute 直接调用时没有中断信号可等待。
+        context = getattr(self, "_current_tool_context", None)
+        agent_context = context.get_extension("agent_context") if context is not None else None
+        return agent_context.get_interruption_event() if agent_context is not None else None
+
+    def _log_asr_event(self, level: str, event: str, **fields: object) -> None:
+        metadata = MetadataUtil.get_metadata() if MetadataUtil.is_initialized() else {}
+        context = getattr(self, "_current_tool_context", None)
+        values = {
+            "magic_task_id": metadata.get("super_magic_task_id"),
+            "topic_id": metadata.get("topic_id"),
+            "tool_call_id": context.tool_call_id if context is not None else None,
+            "correlation_id": getattr(self, "_current_correlation_id", None),
+            **fields,
+        }
+        # 统一日志入口保证诊断事件进入项目日志；不依赖标准 logging 的默认 WARNING 级别。
+        get_logger(__name__).opt(depth=1).log(
+            level, "{} {}", event, json.dumps(values, ensure_ascii=False)
+        )
+
+    def _asr_error_detail(self, error: Exception) -> str:
+        detail = re.sub(r"https?://[^\s\"'<>]+", "<redacted-url>", repr(error))
+        if self.api_key:
+            detail = detail.replace(self.api_key, "<redacted-api-key>")
+        return detail
+
+    async def _query_transcription_task(
+        self,
+        client: httpx.AsyncClient,
+        task_id: str,
+        headers: dict[str, str],
+        deadline: float,
+        poll_count: int,
+        consecutive_failures: int,
+        max_failures: int,
+    ) -> httpx.Response:
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        remaining = deadline - started
+        if remaining <= 0:
+            raise TimeoutError("Transcription polling deadline reached")
+        fields = {
+            "asr_request_id": task_id,
+            "request_path": f"/speech/large-model/query/{task_id}",
+            "query_attempt": poll_count,
+            "consecutive_failures": consecutive_failures,
+            "max_consecutive_failures": max_failures,
+            "http_timeout_seconds": self.HTTP_TIMEOUT,
+            "remaining_seconds": round(remaining, 3),
+        }
+        self._log_asr_event("INFO", "audio.asr.query.start", **fields)
+        try:
+            # HTTPX 限制各网络阶段；外层期限限制本次请求总时长，且中断会取消在途请求。
+            async with asyncio.timeout(remaining):
+                response = await await_with_interruption(
+                    client.post(
+                        f"{self.api_base_url}/speech/large-model/query/{task_id}?type={self.PLATFORM_TYPE_VOLCENGINE}",
+                        headers=headers,
+                        json={},
+                        timeout=self.HTTP_TIMEOUT,
+                    ),
+                    self._asr_interruption_event(),
+                )
+            self._log_asr_event(
+                "INFO", "audio.asr.query.response", **fields,
+                elapsed_ms=round((loop.time() - started) * 1000, 1),
+                http_status=response.status_code,
+                upstream_status=response.headers.get("X-Volcengine-Status-Code", ""),
+                upstream_log_id=response.headers.get("X-Volcengine-Log-Id", ""),
+                gateway_request_id=response.headers.get("X-Request-ID", ""),
+            )
+            response.raise_for_status()
+            return response
+        except (httpx.HTTPError, TimeoutError) as error:
+            self._log_asr_event(
+                "WARNING", "audio.asr.query.failed", **fields,
+                elapsed_ms=round((loop.time() - started) * 1000, 1),
+                error_type=type(error).__name__,
+                error_detail=self._asr_error_detail(error),
+                error_traceback=traceback.format_tb(error.__traceback__),
+            )
+            raise
+
+    # 提交失败的分类（决定能否清理临时上传、能否重新提交）：
+    # | 失败形态                         | 错误码                                    | 含义                         |
+    # | 服务返回 HTTP 错误               | AUTHENTICATION_FAILED / SUBMIT_HTTP_ERROR | 明确被拒绝，没有创建任务     |
+    # | 状态头非成功或响应没有任务 ID    | TASK_SUBMISSION_FAILED                    | 明确被拒绝，没有创建任务     |
+    # | 超时或网络中断                   | SUBMIT_RESULT_UNKNOWN                     | 远端可能已接受，不能自动重发 |
+    # | 响应无法解析                     | SUBMIT_INVALID_RESPONSE                   | 响应格式异常，同样不能重发   |
+    async def _submit_transcription_task(self, file_url: str, audio_format: str) -> str:
         """
         提交音频文件进行转录
 
@@ -386,8 +785,9 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             audio_format: 音频格式（wav、mp3、ogg、m4a 等）
 
         Returns:
-            str: 成功则返回任务 ID，否则返回 None
+            str: 已接受的任务 ID；提交未完成时抛错，不自动重发。
         """
+        started = asyncio.get_running_loop().time()
         try:
             url = f"{self.api_base_url}/speech/large-model/submit"
             headers = self._build_api_headers()
@@ -398,28 +798,84 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                 "request": {"enable_speaker_info": True},
             }
 
-            self.logger.info(f"Submitting transcription task for {audio_format} file")
+            self._log_asr_event(
+                "INFO", "audio.asr.submit.start", audio_format=audio_format,
+                request_path="/speech/large-model/submit",
+                http_timeout_seconds=self.HTTP_TIMEOUT,
+            )
             async with httpx.AsyncClient() as client:
-                response = await client.post(url, headers=headers, json=payload, timeout=self.HTTP_TIMEOUT)
+                # 提交超时不自动重试：远端可能已接受，重发会创建另一个收费任务。
+                response = await await_with_interruption(
+                    client.post(url, headers=headers, json=payload, timeout=self.HTTP_TIMEOUT),
+                    self._asr_interruption_event(),
+                )
+                self._log_asr_event(
+                    "INFO", "audio.asr.submit.response",
+                    elapsed_ms=round((asyncio.get_running_loop().time() - started) * 1000, 1),
+                    http_status=response.status_code,
+                    upstream_status=response.headers.get("X-Volcengine-Status-Code", ""),
+                    upstream_log_id=response.headers.get("X-Volcengine-Log-Id", ""),
+                    gateway_request_id=response.headers.get("X-Request-ID", ""),
+                )
                 response.raise_for_status()
 
                 result = response.json()
-                self.logger.info(f"Submit transcription result: {result}")
-                if result.get("request_id"):
-                    task_id = result.get("request_id")
-                    self.logger.info(f"Transcription task submitted successfully, task_id: {task_id}")
-                    return task_id
-                else:
-                    self.logger.error(f"Submit transcription failed: {result}")
-                    return None
+                # 网关可能在 HTTP 200 下带回 ASR 业务错误，同时仍返回 request_id；此时任务并未创建成功。
+                status = response.headers.get("X-Volcengine-Status-Code", "")
+                if status and status != "20000000":
+                    raise AudioUnderstandingError(
+                        f"Transcription submission rejected (ASR status {status}). No transcript was written.",
+                        "TASK_SUBMISSION_FAILED",
+                    )
+                task_id = result.get("request_id")
+                if not task_id:
+                    raise AudioUnderstandingError(
+                        "Transcription submission returned no task ID. No transcript was written.",
+                        "TASK_SUBMISSION_FAILED",
+                    )
+                self._log_asr_event("INFO", "audio.asr.submit.accepted", asr_request_id=task_id)
+                return str(task_id)
 
-        except httpx.HTTPError as e:
-            self.logger.error(f"Request failed: {e}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Submit transcription error: {e}")
-            return None
+        except asyncio.CancelledError:
+            self._log_asr_event("INFO", "audio.asr.submit.cancelled", remote_submission_state="unknown")
+            raise
+        except Exception as error:
+            self._log_asr_event(
+                "ERROR", "audio.asr.submit.failed",
+                elapsed_ms=round((asyncio.get_running_loop().time() - started) * 1000, 1),
+                error_type=type(error).__name__, error_detail=self._asr_error_detail(error),
+                error_traceback=traceback.format_tb(error.__traceback__),
+            )
+            if isinstance(error, AudioUnderstandingError):
+                raise
+            if isinstance(error, httpx.HTTPStatusError):
+                status_code = error.response.status_code
+                raise AudioUnderstandingError(
+                    f"Transcription submission failed (HTTP {status_code}). No transcript was written.",
+                    "AUTHENTICATION_FAILED" if status_code in {401, 403} else "SUBMIT_HTTP_ERROR",
+                ) from error
+            if isinstance(error, (httpx.RequestError, TimeoutError)):
+                # 提交可能已被接收；重发会创建重复计费任务。只对已有 ID 的查询做重试。
+                raise AudioUnderstandingError(
+                    f"Unable to confirm transcription submission ({type(error).__name__}). The service may have "
+                    "accepted it, but no task ID was received. Do not automatically submit the audio again. "
+                    "No transcript was written.",
+                    "SUBMIT_RESULT_UNKNOWN",
+                ) from error
+            raise AudioUnderstandingError(
+                f"Invalid transcription submission response ({type(error).__name__}). "
+                "Remote acceptance is unconfirmed; resubmitting may create a duplicate task. "
+                "No transcript was written.",
+                "SUBMIT_INVALID_RESPONSE",
+            ) from error
 
+    # 查询失败的处理（所有错误都携带 task_id：任务可能仍在处理，应查询该任务而不是重新提交音频）：
+    # | 失败形态                                  | 处理                                     | 错误码                |
+    # | 超时、网络中断、502/503 等临时 HTTP 状态  | 同一任务继续查询，连续失败达到上限才结束 | QUERY_RESULT_UNKNOWN  |
+    # | 401/403                                   | 不重试                                   | AUTHENTICATION_FAILED |
+    # | 其它 HTTP 状态（如 404）                  | 不重试                                   | QUERY_HTTP_ERROR      |
+    # | 其它请求错误（如协议不受支持）            | 不重试                                   | QUERY_REQUEST_FAILED  |
+    # 完成进度（100%）不在这里发送：只有文字稿写入成功后，由 _run 统一发送。
     async def _poll_transcription_result(self, task_id: str, timeout: int, correlation_id: str) -> TranscriptionResult:
         """
         轮询转录结果
@@ -431,164 +887,193 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
         Returns:
             TranscriptionResult: 转录结果，包含文本和音频时长
         """
-        async with httpx.AsyncClient() as client:
-            try:
-                url = f"{self.api_base_url}/speech/large-model/query/{task_id}?type={self.PLATFORM_TYPE_VOLCENGINE}"
-
-                headers = self._build_api_headers()
-
-                start_time = time.time()
-                poll_count = 0
-                last_progress_time = start_time
-                last_percentage = 1  # 跟踪上次报告的百分比
-
-                # 使用固定的进度报告间隔（30秒）
-                progress_interval = self.PROGRESS_REPORT_INTERVAL
-                estimated_transcription_duration = getattr(self, "_estimated_transcription_duration", 0)
-                self.logger.info(
-                    f"Using progress interval: {progress_interval} seconds for estimated transcription duration: {estimated_transcription_duration:.1f} seconds"
-                )
-
-                # 发送初始进度事件
-                initial_percentage = 1
-                last_percentage = initial_percentage
-                # correlation_id 随机字符串
-                await self._dispatch_transcription_progress_event(task_id, 0, 0, initial_percentage, correlation_id)
-
-                while time.time() - start_time < timeout:
-                    # 在每次循环开始时让出控制权，允许事件循环处理其他请求
-                    await asyncio.sleep(0)
-
-                    current_time = time.time()
-                    elapsed_seconds = int(current_time - start_time)
-
-                    # 根据估算的转录处理时长计算进度百分比
-                    if (
-                        hasattr(self, "_estimated_transcription_duration")
-                        and self._estimated_transcription_duration > 0
-                    ):
-                        # 使用已经过的时间与估算的转录处理时长的比例计算进度，最高到 80%
-                        time_based_percentage = min(
-                            int((elapsed_seconds / self._estimated_transcription_duration) * 80), 80
+        loop = asyncio.get_running_loop()
+        start_time = loop.time()
+        deadline = start_time + timeout
+        poll_count = 0
+        consecutive_failures = 0
+        max_failures = max(1, int(self.config.get("audio_understanding.max_consecutive_query_failures", 5)))
+        last_percentage = 1  # 跟踪上次报告的百分比
+        # 使用固定的进度报告间隔（30秒）
+        progress_interval = self.PROGRESS_REPORT_INTERVAL
+        headers = self._build_api_headers()
+        try:
+            async with asyncio.timeout_at(deadline):
+                async with httpx.AsyncClient() as client:
+                    # 发送初始进度事件
+                    await await_with_interruption(
+                        self._dispatch_transcription_progress_event(task_id, 0, 0, 1, correlation_id),
+                        self._asr_interruption_event(),
+                    )
+                    while True:
+                        # 休眠替代 sleep(0) 空转；查询、重试和用户中断共享同一个整体期限。
+                        await await_with_interruption(
+                            asyncio.sleep(progress_interval), self._asr_interruption_event()
                         )
-                        # 确保最小进度为 1%
-                        time_based_percentage = max(time_based_percentage, 1)
-
-                        # 80% 之后，每次进度事件增加 1%，最高 99%（经典做法：最后卡在99%）
-                        if last_percentage >= 80:
-                            percentage = min(last_percentage + 1, 99)
-                        else:
-                            # 确保进度只增不减
-                            percentage = max(time_based_percentage, last_percentage)
-                    else:
-                        # 如果估算不可用，则回退到原始逻辑，但也限制在 99%
-                        if last_percentage >= 80:
-                            percentage = min(last_percentage + 1, 99)
-                        else:
-                            percentage = min(max(elapsed_seconds // progress_interval, 1), 80)
-                            # 确保进度只增不减
-                            percentage = max(percentage, last_percentage)
-
-                    # 根据音频时长动态发送进度事件
-                    if current_time - last_progress_time >= progress_interval:
+                        elapsed_seconds = int(loop.time() - start_time)
                         poll_count += 1
-                        await self._dispatch_transcription_progress_event(
-                            task_id, elapsed_seconds, poll_count, percentage, correlation_id
-                        )
-                        last_progress_time = current_time
-                        last_percentage = percentage  # 更新上次报告的百分比
-
-                        # 增强日志记录，包含文件大小和估算的转录处理时间
-                        if hasattr(self, "_file_size_mb") and hasattr(self, "_estimated_transcription_duration"):
-                            self.logger.info(
-                                f"Polling transcription result for {self._file_size_mb:.2f}MB file (attempt {poll_count}, progress {percentage}%, estimated transcription time: {self._estimated_transcription_duration:.1f}s) for task_id: {task_id}"
+                        # 根据估算的转录处理时长计算进度百分比
+                        if (
+                            hasattr(self, "_estimated_transcription_duration")
+                            and self._estimated_transcription_duration > 0
+                        ):
+                            # 使用已经过的时间与估算的转录处理时长的比例计算进度，最高到 80%
+                            time_based_percentage = min(
+                                int((elapsed_seconds / self._estimated_transcription_duration) * 80), 80
                             )
+                            # 确保最小进度为 1%
+                            time_based_percentage = max(time_based_percentage, 1)
+
+                            # 80% 之后，每次进度事件增加 1%，最高 99%（经典做法：最后卡在99%）
+                            if last_percentage >= 80:
+                                percentage = min(last_percentage + 1, 99)
+                            else:
+                                # 确保进度只增不减
+                                percentage = max(time_based_percentage, last_percentage)
                         else:
-                            self.logger.info(
-                                f"Polling transcription result (attempt {poll_count}, progress {percentage}%) for task_id: {task_id}"
+                            # 如果估算不可用，则回退到原始逻辑，但也限制在 99%
+                            if last_percentage >= 80:
+                                percentage = min(last_percentage + 1, 99)
+                            else:
+                                percentage = min(max(elapsed_seconds // progress_interval, 1), 80)
+                                # 确保进度只增不减
+                                percentage = max(percentage, last_percentage)
+
+                        # 根据音频时长动态发送进度事件
+                        await await_with_interruption(
+                            self._dispatch_transcription_progress_event(
+                                task_id, elapsed_seconds, poll_count, percentage, correlation_id
+                            ),
+                            self._asr_interruption_event(),
+                        )
+                        last_percentage = percentage  # 更新上次报告的百分比
+                        try:
+                            response = await self._query_transcription_task(
+                                client, task_id, headers, deadline, poll_count,
+                                consecutive_failures, max_failures,
                             )
-
-                        self.logger.debug(f"Request URL: {url}")
-
-                        response = await client.post(url, headers=headers, json={}, timeout=self.HTTP_TIMEOUT)
-                        response.raise_for_status()
-                        self.logger.debug(f"Response status: {response.status_code}")
+                        except httpx.HTTPError as error:
+                            http_status = (
+                                error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
+                            )
+                            if http_status in {401, 403}:
+                                raise AudioUnderstandingError(
+                                    f"Transcription query was not authorized (HTTP {http_status}) for task {task_id}. "
+                                    "The task may still be processing. No transcript was written. "
+                                    "Query this task rather than resubmitting the audio.",
+                                    "AUTHENTICATION_FAILED", task_id,
+                                ) from error
+                            retryable = isinstance(
+                                error, (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
+                            ) or http_status in self.RETRYABLE_QUERY_HTTP_STATUSES
+                            consecutive_failures += 1
+                            failure_label = f"HTTP {http_status}" if http_status is not None else type(error).__name__
+                            if retryable and consecutive_failures < max_failures:
+                                self._log_asr_event(
+                                    "WARNING", "audio.asr.query.retry", asr_request_id=task_id,
+                                    query_attempt=poll_count, consecutive_failures=consecutive_failures,
+                                    max_consecutive_failures=max_failures,
+                                    retry_delay_seconds=progress_interval,
+                                    remaining_seconds=round(max(0, deadline - loop.time()), 3),
+                                    error_type=type(error).__name__,
+                                )
+                                continue
+                            # 查询失败不代表识别失败，远端任务可能仍在处理；不能暗示重发安全。
+                            if retryable:
+                                raise AudioUnderstandingError(
+                                    f"Unable to confirm transcription result for task {task_id} "
+                                    f"({failure_label}; consecutive failures: {consecutive_failures}). "
+                                    "The task may still be processing. No transcript was written. "
+                                    "Query this task rather than resubmitting the audio.",
+                                    "QUERY_RESULT_UNKNOWN", task_id,
+                                ) from error
+                            if http_status is not None:
+                                raise AudioUnderstandingError(
+                                    f"Transcription query failed ({failure_label}) for task {task_id}. "
+                                    "No transcript was written.",
+                                    "QUERY_HTTP_ERROR", task_id,
+                                ) from error
+                            raise AudioUnderstandingError(
+                                f"Transcription query failed ({failure_label}) for task {task_id}. "
+                                "The task may still be processing. No transcript was written. "
+                                "Query this task rather than resubmitting the audio.",
+                                "QUERY_REQUEST_FAILED", task_id,
+                            ) from error
 
                         # 从响应头获取状态信息
-                        logid = response.headers.get("X-Volcengine-Log-Id", "")
                         status_code = response.headers.get("X-Volcengine-Status-Code", "")
                         status_message = response.headers.get("X-Volcengine-Message", "")
-
-                        self.logger.info(
-                            f"Response headers - Logid: {logid}, Status Code: {status_code}, Message: {status_message}"
-                        )
-
                         result = response.json()
+                        if consecutive_failures:
+                            self._log_asr_event(
+                                "INFO", "audio.asr.query.recovered", asr_request_id=task_id,
+                                query_attempt=poll_count, recovered_failures=consecutive_failures,
+                            )
+                        consecutive_failures = 0
 
                         # 检查响应头中的状态码
                         if status_code == "20000000":  # 成功
                             # audio_info 不为空，表示任务已完成
                             if result.get("audio_info"):
-                                self.logger.info(f"Found audio_info in response: {result.get('audio_info')}")
-                                # 任务完成时发送最终进度事件，进度为100%
-                                await self._dispatch_transcription_progress_event(
-                                    task_id, elapsed_seconds, poll_count, 100, correlation_id, "completed"
-                                )
-                                # 提取转录文本和时长
+                                # 提取转录文本和时长；内容校验通过后才算完成
                                 transcription_result = self._extract_transcribed_text(result)
-                                self.logger.info(f"Transcription completed successfully for task_id: {task_id}")
+                                transcription_result.task_id = task_id
+                                self._log_asr_event("INFO", "audio.asr.poll.completed", asr_request_id=task_id, query_attempt=poll_count)
                                 return transcription_result
                             else:
                                 self.logger.warning(
                                     f"Success status but no audio_info in response for task_id: {task_id}"
                                 )
-                                self.logger.debug(f"Full response: {result}")
-                                return TranscriptionResult(
-                                    text=i18n.translate("audio_understanding.task_success_no_audio_info", category="tool.messages")
+                                raise AudioUnderstandingError(
+                                    "ASR reported completion without audio metadata. No transcript was written.",
+                                    "TASK_SUCCESS_NO_AUDIO_INFO",
                                 )
 
                         elif status_code == "20000001":  # 处理中
                             self.logger.info(
                                 f"Transcription still processing for task_id: {task_id}, waiting {progress_interval} seconds..."
                             )
-                            await asyncio.sleep(progress_interval)
                             continue
 
                         elif status_code == "20000002":  # 队列中
                             self.logger.info(
                                 f"Transcription task in queue for task_id: {task_id}, waiting {progress_interval} seconds..."
                             )
-                            await asyncio.sleep(progress_interval)
                             continue
 
                         elif status_code == "20000003":  # 静音音频
                             self.logger.warning(f"Silent audio detected for task_id: {task_id}")
-                            return TranscriptionResult(
-                                text=i18n.translate("audio_understanding.transcription_error", category="tool.messages", error="Silent audio detected, please resubmit task",)
+                            raise AudioUnderstandingError(
+                                "The audio contains no speech. Verify the source file before submitting again.",
+                                "SILENT_AUDIO",
                             )
 
                         elif status_code == "45000001":  # 无效参数
                             self.logger.error(f"Invalid parameters for task_id: {task_id}")
-                            return TranscriptionResult(
-                                text=i18n.translate("audio_understanding.invalid_parameters", category="tool.messages", status_message=status_message)
+                            raise AudioUnderstandingError(
+                                f"ASR rejected the parameters: {status_message}",
+                                "INVALID_PARAMETERS",
                             )
 
                         elif status_code == "45000002":  # 空音频
                             self.logger.error(f"Empty audio for task_id: {task_id}")
-                            return TranscriptionResult(
-                                text=i18n.translate("audio_understanding.transcription_error", category="tool.messages", error="Empty audio file")
+                            raise AudioUnderstandingError(
+                                "ASR rejected an empty audio file.",
+                                "EMPTY_AUDIO",
                             )
 
                         elif status_code == "45000151":  # 无效音频格式
                             self.logger.error(f"Invalid audio format for task_id: {task_id}")
-                            return TranscriptionResult(
-                                text=i18n.translate("audio_understanding.format_not_supported", category="tool.messages", format="audio format")
+                            raise AudioUnderstandingError(
+                                "ASR rejected the audio format.",
+                                "FORMAT_NOT_SUPPORTED",
                             )
 
                         elif status_code == "45000006":  # 文件无法下载
                             self.logger.error(f"file cannot download for task_id: {task_id}")
-                            return TranscriptionResult(
-                                text=i18n.translate("audio_understanding.transcription_error", category="tool.messages", error="File cannot be downloaded")
+                            raise AudioUnderstandingError(
+                                "ASR could not download the audio file.",
+                                "FILE_DOWNLOAD_FAILED",
                             )
 
                         elif status_code.startswith("550"):  # 内部服务器错误
@@ -596,51 +1081,71 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                                 f"Internal server error for task_id: {task_id}, status_code: {status_code}"
                             )
                             if status_code == "55000031":
-                                return TranscriptionResult(
-                                    text=i18n.translate("audio_understanding.transcription_error", category="tool.messages", error="Server busy, please try again later",)
+                                raise AudioUnderstandingError(
+                                    "The ASR service reported that it is busy.",
+                                    "SERVER_BUSY",
                                 )
                             else:
-                                return TranscriptionResult(
-                                    text=i18n.translate("audio_understanding.internal_server_error", category="tool.messages", status_code=status_code,
-                                        status_message=status_message,)
+                                raise AudioUnderstandingError(
+                                    f"ASR reported an internal error ({status_code}): {status_message}",
+                                    "INTERNAL_SERVER_ERROR",
                                 )
 
                         else:
                             # 未知状态码，检查 audio_info 是否存在
                             if result.get("audio_info"):
-                                # 任务完成时发送最终进度事件，进度为100%
-                                await self._dispatch_transcription_progress_event(
-                                    task_id, elapsed_seconds, poll_count, 100, correlation_id, "completed"
-                                )
-                                # 提取转录文本和时长
+                                # 提取转录文本和时长；内容校验通过后才算完成
                                 transcription_result = self._extract_transcribed_text(result)
-                                self.logger.info(f"Transcription completed successfully for task_id: {task_id}")
+                                transcription_result.task_id = task_id
+                                self._log_asr_event("INFO", "audio.asr.poll.completed", asr_request_id=task_id, query_attempt=poll_count)
                                 return transcription_result
                             elif result.get("audio_info") == []:
                                 # audio_info 为空数组，表示任务正在处理
                                 self.logger.info(
                                     f"Transcription still processing for task_id: {task_id}, waiting {progress_interval} seconds..."
                                 )
-                                await asyncio.sleep(progress_interval)
                                 continue
                             else:
                                 self.logger.warning(f"Unknown status code '{status_code}' for task_id: {task_id}")
-                                return TranscriptionResult(
-                                    text=i18n.translate("audio_understanding.unknown_status_code", category="tool.messages", status_code=status_code,
-                                        status_message=status_message,)
+                                raise AudioUnderstandingError(
+                                    f"ASR returned an unknown status ({status_code}): {status_message}",
+                                    "UNKNOWN_STATUS",
                                 )
 
-                self.logger.error(f"Transcription timeout after {timeout} seconds for task_id: {task_id}")
-                return TranscriptionResult(text=i18n.translate("audio_understanding.task_timeout", category="tool.messages", timeout=timeout))
-
-            except httpx.HTTPError as e:
-                self.logger.error(f"Request failed while polling: {e}")
-                return TranscriptionResult(
-                    text=i18n.translate("audio_understanding.query_request_failed", category="tool.messages", error=str(e))
-                )
-            except Exception as e:
-                self.logger.error(f"Exception while polling transcription result: {e}")
-                return TranscriptionResult(text=i18n.translate("audio_understanding.query_exception", category="tool.messages", error=str(e)))
+        except asyncio.CancelledError:
+            self._log_asr_event("INFO", "audio.asr.poll.cancelled", asr_request_id=task_id, query_attempt=poll_count)
+            raise
+        except TimeoutError as error:
+            self._log_asr_event(
+                "ERROR", "audio.asr.poll.timeout", asr_request_id=task_id,
+                query_attempt=poll_count, total_timeout_seconds=timeout,
+                consecutive_failures=consecutive_failures,
+            )
+            raise AudioUnderstandingError(
+                f"Timed out waiting for transcription task {task_id} after {timeout} seconds. "
+                "The result is unknown; the task may still be processing. No transcript was written. "
+                "Query this task rather than resubmitting the audio.",
+                "QUERY_RESULT_UNKNOWN", task_id,
+            ) from error
+        except AudioUnderstandingError as error:
+            error.task_id = error.task_id or task_id
+            self._log_asr_event(
+                "ERROR", "audio.asr.poll.failed", asr_request_id=task_id,
+                query_attempt=poll_count, error_code=error.error_code,
+            )
+            raise
+        except Exception as error:
+            self._log_asr_event(
+                "ERROR", "audio.asr.poll.failed", asr_request_id=task_id,
+                query_attempt=poll_count, error_type=type(error).__name__,
+                error_detail=self._asr_error_detail(error),
+                error_traceback=traceback.format_tb(error.__traceback__),
+            )
+            raise AudioUnderstandingError(
+                f"Could not read the result of submitted ASR task {task_id} ({type(error).__name__}). "
+                "Its transcription outcome is unconfirmed; do not assume that submitting it again is safe.",
+                "QUERY_EXCEPTION", task_id,
+            ) from error
 
     def _extract_transcribed_text(self, data: Dict[str, Any]) -> TranscriptionResult:
         """
@@ -655,7 +1160,15 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
         """
         try:
             utterances = None
-            duration_ms = None
+            duration_values: list[int] = []
+
+            def collect_duration(value: object) -> None:
+                try:
+                    parsed = int(value)  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    return
+                if parsed > 0:
+                    duration_values.append(parsed)
 
             # Try to extract utterances and duration from audio_info field (new format)
             if "audio_info" in data:
@@ -667,12 +1180,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
 
                     for segment in audio_info:
                         if isinstance(segment, dict):
-                            # Extract duration from first segment that has it
-                            if duration_ms is None and "duration" in segment:
-                                duration_ms = segment.get("duration")
-                                self.logger.info(
-                                    f"Extracted audio duration from API: {duration_ms}ms ({duration_ms / 1000:.1f}s)"
-                                )
+                            collect_duration(segment.get("duration"))
 
                             if "utterances" in segment:
                                 filtered = self._filter_utterances(segment["utterances"])
@@ -687,10 +1195,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                 elif isinstance(audio_info, dict):
                     # audio_info is a single dictionary
                     if "duration" in audio_info:
-                        duration_ms = audio_info.get("duration")
-                        self.logger.info(
-                            f"Extracted audio duration from API: {duration_ms}ms ({duration_ms / 1000:.1f}s)"
-                        )
+                        collect_duration(audio_info.get("duration"))
 
                     if "utterances" in audio_info:
                         utterances = self._filter_utterances(audio_info["utterances"])
@@ -698,14 +1203,12 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             # Fallback: check result field (old format)
             if utterances is None and "result" in data:
                 result = data["result"]
+                collect_result_durations = not duration_values
 
                 if isinstance(result, dict):
                     # Extract duration from result if not found yet
-                    if duration_ms is None and "duration" in result:
-                        duration_ms = result.get("duration")
-                        self.logger.info(
-                            f"Extracted audio duration from API (result field): {duration_ms}ms ({duration_ms / 1000:.1f}s)"
-                        )
+                    if collect_result_durations and "duration" in result:
+                        collect_duration(result.get("duration"))
 
                     if "utterances" in result:
                         utterances = self._filter_utterances(result["utterances"])
@@ -716,12 +1219,8 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
 
                     for item in result:
                         if isinstance(item, dict):
-                            # Extract duration from first item that has it
-                            if duration_ms is None and "duration" in item:
-                                duration_ms = item.get("duration")
-                                self.logger.info(
-                                    f"Extracted audio duration from API (result list): {duration_ms}ms ({duration_ms / 1000:.1f}s)"
-                                )
+                            if collect_result_durations:
+                                collect_duration(item.get("duration"))
 
                             if "utterances" in item:
                                 filtered = self._filter_utterances(item["utterances"])
@@ -733,73 +1232,53 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                     if all_utterances:
                         utterances = all_utterances
 
-            # Fallback: extract duration from last utterance timestamp if still not found
-            if duration_ms is None and utterances:
-                last_timestamp_ms = self._extract_last_timestamp(utterances)
-                if last_timestamp_ms:
-                    duration_ms = last_timestamp_ms
-                    self.logger.info(
-                        f"Fallback: Extracted duration from last utterance timestamp: {duration_ms}ms ({duration_ms / 1000:.1f}s)"
-                    )
-
             # Format result in Markdown format (no Front Matter)
+            if utterances:
+                utterances = [item for item in utterances if isinstance(item, dict)]
             if utterances:
                 formatted_result = []
                 formatted_result.append("## 📝 Dialogue Content")
                 formatted_result.append("")  # Empty line after title
                 utterances_lines = self._format_utterances_to_lines(utterances)
+                if not utterances_lines:
+                    raise AudioUnderstandingError("Transcription returned no usable speech. No transcript was written.", "EMPTY_TRANSCRIPT")
                 formatted_result.extend(utterances_lines)
-                return TranscriptionResult(text="\n".join(formatted_result), duration_ms=duration_ms)
+                api_declared_duration_ms = sum(duration_values) if duration_values else None
+                last_utterance = max(utterances, key=utterance_end_ms)
+                last_utterance_end_ms = utterance_end_ms(last_utterance)
+                last_utterance_end_source = (
+                    "utterance_duration" if "duration" in last_utterance else "start_time_only"
+                )
+                if api_declared_duration_ms is not None:
+                    self.logger.info(
+                        "Extracted ASR declared duration: %sms; last utterance end: %sms (%s)",
+                        api_declared_duration_ms,
+                        last_utterance_end_ms,
+                        last_utterance_end_source,
+                    )
+                return TranscriptionResult(
+                    text="\n".join(formatted_result),
+                    api_declared_duration_ms=api_declared_duration_ms,
+                    last_utterance_end_ms=last_utterance_end_ms,
+                    last_utterance_end_source=last_utterance_end_source,
+                    utterances=utterances,
+                )
 
             # No utterances found, return raw data for debugging
-            self.logger.warning(f"Could not extract utterances from response data: {data}")
-            return TranscriptionResult(text=json.dumps(data, ensure_ascii=False, indent=2), duration_ms=duration_ms)
+            self.logger.warning("ASR response contained no usable utterances")
+            raise AudioUnderstandingError(
+                i18n.translate("audio_understanding.task_success_no_audio_info", category="tool.messages"),
+                "NO_UTTERANCES",
+            )
 
+        except AudioUnderstandingError:
+            raise
         except Exception as e:
             self.logger.error(f"Error extracting transcribed text: {e}")
-            return TranscriptionResult(text=i18n.translate("audio_understanding.extract_text_error", category="tool.messages", error=str(e)))
-
-    def _extract_last_timestamp(self, utterances: Any) -> Optional[int]:
-        """
-        Extract the last timestamp from utterances as a fallback duration
-
-        Args:
-            utterances: Utterances data (list or dict)
-
-        Returns:
-            Optional[int]: Last timestamp in milliseconds, or None if not found
-        """
-        try:
-            last_timestamp = None
-
-            if isinstance(utterances, list) and utterances:
-                # Get the last utterance
-                for utterance in reversed(utterances):
-                    if isinstance(utterance, dict):
-                        # Try start_time + duration if both exist
-                        if "start_time" in utterance:
-                            start_time = utterance.get("start_time", 0)
-                            # If there's a duration field in the utterance, add it
-                            if "duration" in utterance:
-                                last_timestamp = start_time + utterance.get("duration", 0)
-                            else:
-                                # Otherwise just use start_time as approximation
-                                last_timestamp = start_time
-                            break
-            elif isinstance(utterances, dict):
-                # Single utterance
-                if "start_time" in utterances:
-                    start_time = utterances.get("start_time", 0)
-                    if "duration" in utterances:
-                        last_timestamp = start_time + utterances.get("duration", 0)
-                    else:
-                        last_timestamp = start_time
-
-            return last_timestamp
-
-        except Exception as e:
-            self.logger.warning(f"Error extracting last timestamp: {e}")
-            return None
+            raise AudioUnderstandingError(
+                i18n.translate("audio_understanding.extract_text_error", category="tool.messages", error=str(e)),
+                "EXTRACT_TEXT_FAILED",
+            ) from e
 
     def _format_utterances_to_lines(self, utterances: Any) -> list:
         """
@@ -849,7 +1328,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             start_time = utterance.get("start_time", 0)
             text = utterance.get("text", "")
 
-            if not text:
+            if not isinstance(text, str) or not text.strip():
                 return ""
 
             # Convert milliseconds to MM:SS format
@@ -1208,6 +1687,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
 
     async def execute(self, tool_context: ToolContext, params: AudioUnderstandingParams) -> ToolResult:
         """执行音频到文本的转换"""
+        keep_alive_task = None
         try:
             # 延迟初始化服务
             self._initialize_service()
@@ -1215,6 +1695,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             # 保存当前工具上下文和文件路径，供事件分发使用
             self._current_tool_context = tool_context
             self._current_file_path = params.audio_path
+            keep_alive_task = start_tool_keep_alive(tool_context)
 
             # 获取当前活跃的 tool_call correlation_id，确保 before/pending/after 事件使用同一个 ID
             correlation_manager = get_correlation_manager()
@@ -1240,7 +1721,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             self.logger.info(f"[_transcribe] 最终使用的 correlation_id: {correlation_id}")
 
             # 执行音频到文本的转换（传入 correlation_id）
-            result_message = await self._run(params, correlation_id)
+            run_result = await self._run(params, correlation_id)
 
             # 构造完整的转录文件路径（直接从参数构造，不依赖字符串解析）
             audio_file_path = Path(params.audio_path)
@@ -1250,28 +1731,33 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             audio_duration = getattr(self, "_audio_duration", 0)
             file_size_mb = getattr(self, "_file_size_mb", 0)
             duration_seconds = int(audio_duration) if audio_duration else 0
-            duration_minutes = duration_seconds // 60
-            duration_remain_seconds = duration_seconds % 60
 
             # 获取当前日期时间
-            current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            current_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
             # 获取录音开始时间
             start_time = await self._get_recording_start_time(tool_context)
 
             # 返回文件路径以便 LLM 可以读取
+            trim_note = ""
+            if run_result.trim.has_drop:
+                trim_note = (
+                    f"\nRemoved {run_result.trim.dropped_count} utterances whose timestamps exceeded "
+                    f"the audio end; retained content ends at {run_result.trim.retained_end_seconds:.1f}s.\n"
+                    "The tail of this recording may be incomplete; do not infer conclusions from a missing ending."
+                )
+            fallback_note = (
+                "\nThe source was converted to the canonical ASR format after validation failed."
+                if run_result.fallback_used
+                else ""
+            )
             return ToolResult(
                 ok=True,
-                content=f"""音频转录完成！
-
-音频文件：{params.audio_path}
-转录文件：{transcription_file_path}
-音频时长：{duration_seconds}秒（{duration_minutes}分{duration_remain_seconds}秒）
-文件大小：{file_size_mb:.2f}MB
-转录日期：{current_date}
-录音开始时间：{start_time}
-
-下一步：使用 setup_audio_project 工具搭建项目结构。""",
+                content=(
+                    f"Audio transcription completed. Transcript written to {transcription_file_path}. Audio duration {audio_duration:.1f}s."
+                    f"{trim_note}{fallback_note}\n"
+                    "Next: use setup_audio_project to create the audio project structure."
+                ),
                 extra_info={
                     "audio_path": params.audio_path,
                     "transcription_file_path": transcription_file_path,
@@ -1279,17 +1765,28 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                     "file_size_mb": file_size_mb,
                     "date": current_date,
                     "recording_start_time": start_time,
+                    "audio_prepare_mode": run_result.preparation_mode.value,
+                    "canonical_fallback_used": run_result.fallback_used,
+                    "dropped_utterance_count": run_result.trim.dropped_count,
+                    "dropped_span_seconds": run_result.trim.dropped_span_seconds,
+                    "retained_end_seconds": run_result.trim.retained_end_seconds,
                 },
             )
 
         except AudioUnderstandingError as e:
-            self.logger.error(f"Audio transcription failed: {e.message}")
+            self.logger.error("Audio transcription failed error_code=%s task_id=%s", e.error_code, e.task_id)
+            await self._dispatch_transcription_progress_event(e.task_id or "", 0, 0, 0,
+                                                              getattr(self, "_current_correlation_id", ""), "failed")
             return ToolResult(
                 ok=False,
-                content=e.message,
+                content=(
+                    f"Audio transcription failed (error code {e.error_code or 'UNKNOWN_ERROR'}).\n"
+                    f"{e.message}"
+                ),
                 extra_info={
                     "error": e.message,
                     "error_code": e.error_code,
+                    "asr_task_id": e.task_id,
                     "audio_path": params.audio_path,
                     "transcribed_text": "",
                 },
@@ -1299,10 +1796,11 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             error_message = i18n.translate("audio_understanding.transcription_error", category="tool.messages", error=str(e))
             return ToolResult(
                 ok=False,
-                content=error_message,
-                extra_info={"error": str(e), "audio_path": params.audio_path, "transcribed_text": ""},
+                content=f"Audio transcription failed with an unexpected error.\n{error_message}",
+                extra_info={"error": error_message, "error_code": "GENERAL_ERROR", "audio_path": params.audio_path, "transcribed_text": ""},
             )
         finally:
+            stop_tool_keep_alive(keep_alive_task)
             # 清理上下文引用
             if hasattr(self, "_current_tool_context"):
                 delattr(self, "_current_tool_context")
@@ -1342,7 +1840,7 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                     if current_section == "additions" and current_content:
                         try:
                             result_data["additions"] = json.loads("\n".join(current_content))
-                        except:
+                        except json.JSONDecodeError:
                             result_data["additions"] = current_content
                     current_section = "utterances"
                     current_content = []
@@ -1355,16 +1853,16 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             if current_section == "additions" and current_content:
                 try:
                     result_data["additions"] = json.loads("\n".join(current_content))
-                except:
+                except json.JSONDecodeError:
                     result_data["additions"] = current_content
             elif current_section == "utterances" and current_content:
                 try:
                     result_data["utterances"] = json.loads("\n".join(current_content))
-                except:
+                except json.JSONDecodeError:
                     result_data["utterances"] = current_content
 
                 # 从话语中提取实际文本内容供 LLM 使用
-                if "utterances" in result_data and result_data["utterances"]:
+                if result_data.get("utterances"):
                     utterances_text = []
                     if isinstance(result_data["utterances"], list):
                         for utterance in result_data["utterances"]:
@@ -1386,21 +1884,45 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             self.logger.error(f"Error parsing transcription result: {e}")
             return {"text": result_text}
 
+    def _get_failure_display_message(self, result: ToolResult) -> str:
+        error_code = (result.extra_info or {}).get("error_code")
+        if error_code in {
+            "QUERY_RESULT_UNKNOWN",
+            "SUBMIT_RESULT_UNKNOWN",
+            "SUBMIT_INVALID_RESPONSE",
+            "QUERY_REQUEST_FAILED",
+            "QUERY_EXCEPTION",
+        }:
+            key = "audio_understanding.result_unknown"
+        elif error_code == "AUTHENTICATION_FAILED":
+            key = "audio_understanding.authentication_failed"
+        else:
+            key = "audio_understanding.failed_no_transcript"
+        return i18n.translate(key, category="tool.messages")
+
     async def get_tool_detail(
         self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
     ) -> Optional[ToolDetail]:
         """获取前端预览的工具详情"""
-        if not result.ok or not result.extra_info:
+        if not result.ok:
+            return ToolDetail(type=DisplayType.TEXT, data={"message": self._get_failure_display_message(result)})
+        if not result.extra_info:
             return None
 
         try:
             # Extract metadata from extra_info
             audio_path = result.extra_info.get("audio_path", "")
-            # Get audio filename
-            audio_filename = Path(audio_path).name if audio_path else "unknown"
-            return ToolDetail(
-                type=DisplayType.TEXT, data={"message": "100%", "progress": 100, "file_name": audio_filename}
-            )
+            item = ToolDetailFactory.create_file_result_item(audio_path, self.base_dir, OperationResultStatus.SUCCESS)
+            transcript = str(result.extra_info.get("transcription_file_path") or "")
+            report = None
+            if transcript:
+                transcript_item = ToolDetailFactory.create_file_result_item(transcript, self.base_dir, OperationResultStatus.SUCCESS)
+                if transcript_item.target:
+                    report = ToolDetail(type=DisplayType.MD, data=FileContent(
+                        file_name=Path(transcript).name, content="",
+                        target_file_path=f"./{transcript_item.target.relative_file_path}",
+                    ))
+            return ToolDetailFactory.create_operation_result_detail([item], report=report, stage="analyze")
         except Exception as e:
             self.logger.error(f"生成工具详情失败: {e}")
             return None
@@ -1432,7 +1954,27 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
         if not result.ok:
             return {
                 "action": i18n.translate("audio_understanding", category="tool.actions"),
-                "remark": i18n.translate("audio_understanding.transcription_error", category="tool.messages", error=result.content),
+                "remark": self._get_failure_display_message(result),
+            }
+
+        if result.extra_info and result.extra_info.get("dropped_utterance_count", 0) > 0:
+            return {
+                "action": i18n.translate("audio_understanding", category="tool.actions"),
+                "remark": i18n.translate(
+                    "audio_understanding.timeline_trimmed",
+                    category="tool.messages",
+                    count=result.extra_info["dropped_utterance_count"],
+                    retained_end=f"{result.extra_info.get('retained_end_seconds', 0):.1f}s",
+                ),
+            }
+
+        if result.extra_info and result.extra_info.get("canonical_fallback_used"):
+            return {
+                "action": i18n.translate("audio_understanding", category="tool.actions"),
+                "remark": i18n.translate(
+                    "audio_understanding.canonical_fallback_succeeded",
+                    category="tool.messages",
+                ),
             }
 
         if not arguments:

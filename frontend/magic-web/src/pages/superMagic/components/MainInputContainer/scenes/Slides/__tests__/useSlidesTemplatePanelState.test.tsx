@@ -2,21 +2,29 @@ import { StrictMode, type ReactNode } from "react"
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { SuperMagicApi } from "@/apis"
+import { MY_SLIDES_TEMPLATES_GROUP_KEY } from "@/pages/superMagic/pages/SlidesTemplates/useMySlidesTemplates"
+import { FEATURED_SLIDES_TEMPLATE_TAG_CODE } from "../../../panels/slides-preset/templateMeta"
 import {
 	SLIDES_TEMPLATE_IMAGE_PROCESS,
 	SLIDES_TEMPLATE_PAGE_SIZE,
 	createSlidesTemplateCategoryGroupKey,
+	createSlidesTemplateTagGroupKey,
 	type SlidesTemplateCategoryItem,
 	type SlidesTemplateItem,
 } from "../slidesTemplateState"
 import { useSlidesTemplatePanelState } from "../useSlidesTemplatePanelState"
 
 const apiMock = vi.hoisted(() => ({
+	favoriteSlidesTemplate: vi.fn(),
+	getFavoriteSlidesTemplates: vi.fn(),
 	getSlidesTemplateCategories: vi.fn(),
+	getSlidesTemplateCodeAvailability: vi.fn(),
 	getSlidesTemplateTagGroups: vi.fn(),
 	getSlidesTemplateCount: vi.fn(),
 	getSlidesTemplateDetail: vi.fn(),
 	getSlidesTemplates: vi.fn(),
+	getUsedSlidesTemplates: vi.fn(),
+	unfavoriteSlidesTemplate: vi.fn(),
 }))
 
 const slidesTemplateImageOptions = {
@@ -25,6 +33,12 @@ const slidesTemplateImageOptions = {
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: apiMock,
+}))
+
+vi.mock("react-i18next", () => ({
+	useTranslation: () => ({
+		t: (key: string) => key,
+	}),
 }))
 
 const businessCategory: SlidesTemplateCategoryItem = {
@@ -115,6 +129,18 @@ describe("useSlidesTemplatePanelState", () => {
 			total: 1,
 			list: [businessTemplate],
 		})
+		vi.mocked(SuperMagicApi.getFavoriteSlidesTemplates).mockResolvedValue({
+			page: 1,
+			page_size: 40,
+			list: [],
+		})
+		vi.mocked(SuperMagicApi.getUsedSlidesTemplates).mockResolvedValue({
+			page: 1,
+			page_size: 40,
+			list: [],
+		})
+		vi.mocked(SuperMagicApi.favoriteSlidesTemplate).mockResolvedValue([])
+		vi.mocked(SuperMagicApi.unfavoriteSlidesTemplate).mockResolvedValue([])
 	})
 
 	afterEach(() => {
@@ -139,11 +165,146 @@ describe("useSlidesTemplatePanelState", () => {
 			{
 				page: 1,
 				page_size: SLIDES_TEMPLATE_PAGE_SIZE,
+				scope: "official",
 			},
 			slidesTemplateImageOptions,
 		)
 		expect(result.current.groups[0].group_key).toBe("all")
 		expect(result.current.templateOptions[0].value).toBe(businessTemplate.code)
+	})
+
+	it("inserts My templates immediately before Featured", async () => {
+		vi.mocked(SuperMagicApi.getSlidesTemplateTagGroups).mockResolvedValue([
+			{
+				id: "operational",
+				code: "operational_group",
+				name_i18n: { zh_CN: "运营标签", en_US: "Operational" },
+				sort: 100,
+				tags: [
+					{
+						id: "featured",
+						code: FEATURED_SLIDES_TEMPLATE_TAG_CODE,
+						name_i18n: { zh_CN: "精选", en_US: "Featured" },
+						sort: 100,
+						template_count: 1,
+						is_official: true,
+					},
+				],
+			},
+		])
+
+		const { result } = renderHook(() => useSlidesTemplatePanelState())
+		const featuredGroupKey = createSlidesTemplateTagGroupKey(FEATURED_SLIDES_TEMPLATE_TAG_CODE)
+
+		await waitFor(() =>
+			expect(
+				result.current.groups.some((group) => group.group_key === featuredGroupKey),
+			).toBe(true),
+		)
+
+		const groupKeys = result.current.groups.map((group) => group.group_key)
+		expect(groupKeys.indexOf(MY_SLIDES_TEMPLATES_GROUP_KEY)).toBe(
+			groupKeys.indexOf(featuredGroupKey) - 1,
+		)
+	})
+
+	it("switches the three My templates data sources and defaults to Created", async () => {
+		const createdTemplate = { ...businessTemplate, code: "PPT-created", is_official: false }
+		const favoriteTemplate = {
+			...businessTemplate,
+			code: "PPT-favorite",
+			is_favorite: true,
+		}
+		const usedTemplate = { ...businessTemplate, code: "PPT-used" }
+		vi.mocked(SuperMagicApi.getSlidesTemplates).mockImplementation(async (params) => ({
+			page: params.page ?? 1,
+			page_size: params.page_size ?? 40,
+			list: params.scope === "user" ? [createdTemplate] : [businessTemplate],
+		}))
+		vi.mocked(SuperMagicApi.getFavoriteSlidesTemplates).mockResolvedValue({
+			page: 1,
+			page_size: 40,
+			list: [favoriteTemplate],
+		})
+		vi.mocked(SuperMagicApi.getUsedSlidesTemplates).mockResolvedValue({
+			page: 1,
+			page_size: 40,
+			list: [usedTemplate],
+		})
+		const { result } = renderHook(() => useSlidesTemplatePanelState())
+
+		await waitFor(() => expect(result.current.isLoading).toBe(false))
+		act(() => result.current.setSelectedGroupKey(MY_SLIDES_TEMPLATES_GROUP_KEY))
+		await waitFor(() => expect(result.current.templateOptions[0]?.value).toBe("PPT-created"))
+		expect(result.current.myTemplatesActiveSection).toBe("created")
+		expect(result.current.tagGroups).toEqual([])
+
+		act(() => result.current.setMyTemplatesActiveSection("favorites"))
+		await waitFor(() => expect(result.current.templateOptions[0]?.value).toBe("PPT-favorite"))
+		expect(SuperMagicApi.getFavoriteSlidesTemplates).toHaveBeenCalled()
+
+		act(() => result.current.setMyTemplatesActiveSection("used"))
+		await waitFor(() => expect(result.current.templateOptions[0]?.value).toBe("PPT-used"))
+		expect(SuperMagicApi.getUsedSlidesTemplates).toHaveBeenCalled()
+	})
+
+	it("keeps the home search action stable when switching My templates sections", async () => {
+		const { result } = renderHook(() => useSlidesTemplatePanelState())
+
+		await waitFor(() => expect(result.current.isLoading).toBe(false))
+		act(() => result.current.setSelectedGroupKey(MY_SLIDES_TEMPLATES_GROUP_KEY))
+		const initialSetKeyword = result.current.setKeyword
+
+		act(() => result.current.setMyTemplatesActiveSection("favorites"))
+
+		expect(result.current.selectedGroupKey).toBe(MY_SLIDES_TEMPLATES_GROUP_KEY)
+		expect(result.current.setKeyword).toBe(initialSetKeyword)
+	})
+
+	it("keeps official tag filters visible and leaves My templates when a tag changes", async () => {
+		vi.mocked(SuperMagicApi.getSlidesTemplateTagGroups).mockResolvedValue([
+			{
+				id: "scene-group",
+				code: "scene_group",
+				name_i18n: { zh_CN: "场景", en_US: "Scene" },
+				sort: 100,
+				tags: [
+					{
+						id: "report",
+						code: "report",
+						name_i18n: { zh_CN: "汇报", en_US: "Report" },
+						sort: 100,
+						template_count: 1,
+						is_official: true,
+					},
+				],
+			},
+		])
+		const { result } = renderHook(() => useSlidesTemplatePanelState())
+
+		await waitFor(() => expect(result.current.tagGroups).toHaveLength(1))
+		act(() => result.current.setSelectedGroupKey(MY_SLIDES_TEMPLATES_GROUP_KEY))
+		await waitFor(() =>
+			expect(result.current.selectedGroupKey).toBe(MY_SLIDES_TEMPLATES_GROUP_KEY),
+		)
+		expect(result.current.tagGroups).toHaveLength(1)
+
+		act(() => result.current.setSelectedChildTagCodes(["report"]))
+		await waitFor(() => expect(result.current.selectedGroupKey).toBe("all"))
+		expect(result.current.selectedChildTagCodes).toEqual(["report"])
+	})
+
+	it("optimistically favorites a template without changing its code identity", async () => {
+		const { result } = renderHook(() => useSlidesTemplatePanelState())
+		await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+		await act(async () => {
+			await result.current.toggleTemplateFavorite(result.current.templateOptions[0])
+		})
+
+		expect(SuperMagicApi.favoriteSlidesTemplate).toHaveBeenCalledWith(businessTemplate.code)
+		expect(result.current.templateOptions[0].value).toBe(businessTemplate.code)
+		expect(result.current.templateOptions[0].is_favorite).toBe(true)
 	})
 
 	it("marks all templates as empty when the first page list is empty", async () => {
@@ -396,6 +557,7 @@ describe("useSlidesTemplatePanelState", () => {
 				{
 					page: 1,
 					page_size: SLIDES_TEMPLATE_PAGE_SIZE,
+					scope: "official",
 					category_code: businessCategory.code,
 				},
 				slidesTemplateImageOptions,
@@ -412,6 +574,7 @@ describe("useSlidesTemplatePanelState", () => {
 					{
 						page: 1,
 						page_size: SLIDES_TEMPLATE_PAGE_SIZE,
+						scope: "official",
 						category_code: businessCategory.code,
 						keyword: "whitepaper",
 					},

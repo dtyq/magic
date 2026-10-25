@@ -12,10 +12,10 @@ interface BrowserInfo {
  * Minimum supported versions for different browsers
  */
 export const MIN_SUPPORTED_VERSIONS = {
-	Chrome: 89,
-	Edge: 89,
-	Firefox: 78,
-	Safari: 15,
+	Chrome: 111,
+	Edge: 111,
+	Firefox: 114,
+	Safari: 16.4,
 	Unknown: 0,
 }
 
@@ -36,18 +36,20 @@ export function getBrowserInfo(): BrowserInfo {
 	let name = "Unknown"
 	let version = 0
 
-	// Chrome detection
-	const chromeMatch = userAgent.match(/Chrome\/(\d+)/)
-	if (chromeMatch && chromeMatch[1]) {
-		name = "Chrome"
-		version = parseInt(chromeMatch[1], 10)
-	}
-	// Edge detection (Chromium-based)
-	else if (userAgent.indexOf("Edg") !== -1) {
+	// Edge includes a Chrome token in its user agent, so detect it first.
+	if (userAgent.indexOf("Edg") !== -1) {
 		const edgeMatch = userAgent.match(/Edg\/(\d+)/)
 		if (edgeMatch && edgeMatch[1]) {
 			name = "Edge"
 			version = parseInt(edgeMatch[1], 10)
+		}
+	}
+	// Chrome detection
+	else if (userAgent.indexOf("Chrome") !== -1) {
+		const chromeMatch = userAgent.match(/Chrome\/(\d+)/)
+		if (chromeMatch?.[1]) {
+			name = "Chrome"
+			version = parseInt(chromeMatch[1], 10)
 		}
 	}
 	// Firefox detection
@@ -60,10 +62,10 @@ export function getBrowserInfo(): BrowserInfo {
 	}
 	// Safari detection
 	else if (userAgent.indexOf("Safari") !== -1 && userAgent.indexOf("Chrome") === -1) {
-		const safariMatch = userAgent.match(/Version\/(\d+)/)
+		const safariMatch = userAgent.match(/Version\/(\d+(\.\d+)?)/)
 		if (safariMatch && safariMatch[1]) {
 			name = "Safari"
-			version = parseInt(safariMatch[1], 10)
+			version = parseFloat(safariMatch[1])
 		}
 	}
 

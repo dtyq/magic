@@ -10,17 +10,18 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import List, Optional
+from typing import TYPE_CHECKING, Optional
 
 import aiohttp
 
 from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.config import IMChannelsConfig, WechatCredential
 from app.channel.wechat import api
 from app.channel.wechat.state import (
-    WechatUserContext,
     WechatRuntimeState,
+    WechatUserContext,
     get_latest_context,
     load_runtime_state,
     save_context_token,
@@ -28,11 +29,13 @@ from app.channel.wechat.state import (
 )
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
-from app.channel.base.third_party_message import dispatch_third_party_message
 from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
-from app.core.keepalive_registry import KeepaliveRegistry
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
+from app.core.keepalive_registry import KeepaliveRegistry
 from app.utils.time_utils import now_ms
+
+if TYPE_CHECKING:
+    from app.core.context.agent_context import AgentContext
 
 logger = get_logger(__name__)
 
@@ -82,23 +85,6 @@ class WechatChannel(BaseChannel):
         if credential is None:
             return None
         return f"Bot ID: {credential.ilink_bot_id}"
-
-    def build_agent_context_fragment(self, message: ChatClientMessage | None) -> str:
-        ctx = message.channel_context if message else None
-        raw_media: List[dict] = ctx.get("wechat_media", []) if ctx else []
-
-        if not raw_media:
-            return f'<im source="{self.source_name}" />'
-
-        lines = [f'<im source="{self.source_name}">', "  <media>"]
-        for item in raw_media:
-            quoted = ' from="quoted"' if item.get("from_quote") else ""
-            lines.append(
-                f'    <file type="{item.get("media_type")}" mime="{item.get("mime_type")}"'
-                f' path="{item.get("relative_path")}"{quoted} />'
-            )
-        lines.extend(["  </media>", "</im>"])
-        return "\n".join(lines)
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
         from app.channel.wechat.login import LoginStatus, WechatLoginManager
@@ -316,8 +302,8 @@ class WechatChannel(BaseChannel):
 
     async def _handle_message(self, msg: dict) -> None:
         """提取文本与 context_token，下载媒体，转发给 AgentDispatcher。"""
-        from app.service.agent_dispatcher import AgentDispatcher
         from app.channel.wechat.media import download_message_media
+        from app.service.agent_dispatcher import AgentDispatcher
 
         dispatcher = AgentDispatcher.get_instance()
         if not dispatcher.agent_context:
@@ -403,7 +389,7 @@ class WechatChannel(BaseChannel):
                 channel_name="wechat",
             ),
             channel_context={
-                "wechat_media": [wechat_media.model_dump()] if wechat_media else []
+                "channel_media": [wechat_media.model_dump(mode="json")] if wechat_media else []
             },
             dynamic_config={
                 EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY: SuperMagicExecutionSource.THIRD_PARTY_IM.value,
@@ -440,16 +426,7 @@ class WechatChannel(BaseChannel):
             return False
 
         stream_id = f"wechat-proactive-{id(self)}"
-        wechat_stream = WechatStream(
-            http_session=self._http_session,
-            bot_token=self._credential.bot_token,
-            to_user_id=latest_context.user_id,
-            context_token=latest_context.context_token,
-            base_url=self._credential.base_url,
-            cdn_base_url=self._credential.cdn_base_url,
-            stream_id=stream_id,
-            is_proactive=True,
-        )
+        wechat_stream = self._create_outbound_stream(stream_id=stream_id)
         ctx.add_stream(wechat_stream)
 
         async def _cleanup() -> None:
@@ -458,6 +435,45 @@ class WechatChannel(BaseChannel):
         ctx.register_run_cleanup(cleanup_key, _cleanup)
         logger.info("[WechatChannel] proactive stream registered for cron notification")
         return True
+
+    def get_tool_delivery_stream(self, ctx: AgentContext) -> WechatStream:
+        """复用本轮微信通道；无通道时为显式发送创建仅工具使用的通道。"""
+        streams = [stream for stream in ctx.streams.values() if isinstance(stream, WechatStream)]
+        if streams:
+            if len(streams) != 1 or not streams[0].can_send_tool_message:
+                raise ValueError("The current run has no unique active WeChat delivery stream.")
+            return streams[0]
+
+        stream = self._create_outbound_stream(
+            stream_id=f"wechat-tool-{ctx.context_id}", send_final_reply=False,
+        )
+        ctx.add_stream(stream)
+
+        async def _cleanup() -> None:
+            ctx.remove_stream(stream)
+
+        ctx.register_run_cleanup("wechat_tool_stream", _cleanup)
+        return stream
+
+    def _create_outbound_stream(
+        self, *, stream_id: str, send_final_reply: bool = True,
+    ) -> WechatStream:
+        if not self.is_connected or self._credential is None or self._http_session is None:
+            raise ValueError("WeChat is disconnected. Connect it before sending messages.")
+        latest_context = self._get_latest_context()
+        if not latest_context.user_id or not latest_context.context_token:
+            raise ValueError("No WeChat conversation is available. Send a message in WeChat to establish it.")
+        return WechatStream(
+            http_session=self._http_session,
+            bot_token=self._credential.bot_token,
+            to_user_id=latest_context.user_id,
+            context_token=latest_context.context_token,
+            base_url=self._credential.base_url,
+            cdn_base_url=self._credential.cdn_base_url,
+            stream_id=stream_id,
+            is_proactive=True,
+            send_final_reply=send_final_reply,
+        )
 
     def _build_runtime_state(self) -> WechatRuntimeState:
         return WechatRuntimeState(

@@ -10,8 +10,8 @@ vi.mock("react-i18next", () => ({
 				"card.regenerateSummary": "Regenerate summary",
 				"detail.notSummarized": "No summary yet",
 				"detail.notSummarizedHint": "Generate a summary to preview it here",
-				"detail.summarizing": "Summarizing",
-				"detail.summarizingHint": "All summary views will appear when it is ready.",
+				"detail.summarizingHint":
+					"Summarizing now. It will appear automatically when ready.",
 				"detail.empty.summaryFailed": "Summary failed",
 				"detail.empty.summaryFailedHint": "Please retry the summary.",
 			}
@@ -40,7 +40,10 @@ describe("RecordingDetailSummaryState", () => {
 		render(<RecordingDetailSummaryState status="generating" onGenerateSummary={vi.fn()} />)
 
 		expect(screen.getByTestId("recording-detail-summary-state-generating")).toBeInTheDocument()
-		expect(screen.getByText("Summarizing")).toBeInTheDocument()
+		expect(
+			screen.getByText("Summarizing now. It will appear automatically when ready."),
+		).toBeInTheDocument()
+		expect(screen.queryByText("Summarizing")).toBeNull()
 		expect(screen.queryByRole("button")).toBeNull()
 	})
 

@@ -13,6 +13,22 @@ import { ElementTypeEnum } from "../document/types"
 import type { Canvas } from "../core/Canvas"
 import { ImageElement as ImageElementClass } from "../elements/image/ImageElement"
 import { VideoElement as VideoElementClass } from "../elements/video/VideoElement"
+import { getActiveContent } from "../document/elementContent"
+import { resolveGridPlacements, resolveHorizontalPlacements } from "./placement/placementMath"
+import {
+	closeImageSource,
+	createImageSourceFromBlob,
+	getImageSourceDimensions,
+} from "../resources/image/imageSourceUtils"
+import { parseImageMetadataFromBlobHeader } from "../resources/image/imageHeaderDimensions"
+import { isAssetResourcePath, isAssetResourceScheme } from "./path/canvasResourcePath"
+
+function getEffectiveContentForRead(canvas: Canvas, element: LayerElement) {
+	if (typeof canvas.getEffectiveContent === "function") {
+		return canvas.getEffectiveContent(element.id) as { src?: string } | undefined
+	}
+	return getActiveContent(element) as { src?: string } | undefined
+}
 
 /**
  * 矩形边界
@@ -501,6 +517,27 @@ export interface FileTypeConfig {
 	maxSize: number
 }
 
+const SUPPORTED_AUDIO_MIME_TYPES = [
+	"audio/mpeg",
+	"audio/mp3",
+	"audio/wav",
+	"audio/x-wav",
+	"audio/wave",
+	"audio/vnd.wave",
+	"audio/ogg",
+	"audio/mp4",
+	"audio/x-m4a",
+	"audio/m4a",
+	"audio/aac",
+	"audio/x-aac",
+] as const
+
+function isSupportedAudioMimeType(mimeType: string): boolean {
+	return SUPPORTED_AUDIO_MIME_TYPES.includes(
+		mimeType.toLowerCase() as (typeof SUPPORTED_AUDIO_MIME_TYPES)[number],
+	)
+}
+
 /**
  * 允许的文件类型配置（基于 MIME type）
  * 用于验证 File 对象（从文件系统拖拽）
@@ -510,7 +547,7 @@ export interface FileTypeConfig {
 export const ALLOWED_FILE_TYPES: FileTypeConfig[] = [
 	{ mimeType: "image/", maxSize: Infinity }, // Infinity 表示不限制大小
 	{ mimeType: "video/", maxSize: Infinity },
-	{ mimeType: "audio/", maxSize: Infinity },
+	...SUPPORTED_AUDIO_MIME_TYPES.map((mimeType) => ({ mimeType, maxSize: Infinity })),
 ]
 
 /**
@@ -562,6 +599,22 @@ export function isFileSizeValid(file: File): boolean {
  * @returns 验证结果，包含是否有效和错误信息
  */
 export function validateFile(file: File): { valid: boolean; error?: string } {
+	const hasSupportedAudioExtension = isAudioFile(file)
+	const hasAudioMimeType = file.type.toLowerCase().startsWith("audio/")
+	if (hasSupportedAudioExtension || hasAudioMimeType) {
+		if (!hasSupportedAudioExtension) {
+			return { valid: false, error: `不支持的音频格式: ${file.name}` }
+		}
+		if (
+			file.type &&
+			file.type !== "application/octet-stream" &&
+			!isSupportedAudioMimeType(file.type)
+		) {
+			return { valid: false, error: `不支持的音频类型: ${file.type}` }
+		}
+		return { valid: true }
+	}
+
 	if (!isAllowedFileType(file)) {
 		return { valid: false, error: `不支持的文件类型: ${file.type}` }
 	}
@@ -639,11 +692,8 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".we
 export const SUPPORTED_VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm"] as const
 export const SUPPORTED_AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".aac"] as const
 
-/**
- * 检查文件是否为音频类型（MIME 或扩展名回退）
- */
+/** 检查文件扩展名是否属于画布一期支持的音频格式。 */
 export function isAudioFile(file: File): boolean {
-	if (file.type.startsWith("audio/")) return true
 	const lower = file.name.toLowerCase()
 	return SUPPORTED_AUDIO_EXTENSIONS.some((ext) => lower.endsWith(ext))
 }
@@ -695,6 +745,11 @@ export function validateImageFilePath(filePath: string): FileValidationResult {
 export function validateCanvasFilePath(filePath: string): FileValidationResult {
 	if (!filePath) {
 		return { valid: false, reason: "文件路径为空" }
+	}
+	if (isAssetResourceScheme(filePath)) {
+		return isAssetResourcePath(filePath)
+			? { valid: true }
+			: { valid: false, reason: "无效的素材库资源路径" }
 	}
 
 	const lastDotIndex = filePath.lastIndexOf(".")
@@ -749,26 +804,17 @@ export function validateImageFilePaths(filePaths: string[]): {
  * @param file 图片文件对象
  * @returns Promise<{width: number, height: number}> 图片的宽度和高度
  */
-export function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
-	return new Promise((resolve, reject) => {
-		const img = new Image()
-		const url = URL.createObjectURL(file)
+export async function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
+	const metadata = await parseImageMetadataFromBlobHeader(file)
+	if (metadata) return { width: metadata.width, height: metadata.height }
 
-		img.onload = () => {
-			URL.revokeObjectURL(url)
-			resolve({
-				width: img.naturalWidth,
-				height: img.naturalHeight,
-			})
-		}
-
-		img.onerror = () => {
-			URL.revokeObjectURL(url)
-			reject(new Error("Failed to load image"))
-		}
-
-		img.src = url
-	})
+	const image = await createImageSourceFromBlob(file)
+	if (!image) throw new Error("Failed to load image")
+	try {
+		return getImageSourceDimensions(image)
+	} finally {
+		closeImageSource(image)
+	}
 }
 
 /**
@@ -861,32 +907,7 @@ export function calculateHorizontalImageLayout(
 	anchorPosition: { x: number; y: number },
 	spacing: number = 0,
 ): Array<{ x: number; y: number }> {
-	if (imageDimensions.length === 0) {
-		return []
-	}
-
-	const firstImageDimensions = imageDimensions[0]
-	const firstImageWidth = firstImageDimensions.width
-	const firstImageHeight = firstImageDimensions.height
-
-	// 第一个图片的顶部位置（顶部对齐）
-	const topY = anchorPosition.y - firstImageHeight / 2
-
-	// 第一个图片的左边缘从锚点位置开始
-	let currentLeftEdge = anchorPosition.x - firstImageWidth / 2
-
-	// 计算每个图片的中心位置
-	return imageDimensions.map((dimensions) => {
-		// 计算当前图片的中心位置
-		const centerX = currentLeftEdge + dimensions.width / 2
-		// 计算当前图片的中心 Y（顶部对齐：顶部 + 当前图片高度的一半）
-		const centerY = topY + dimensions.height / 2
-
-		// 更新下一个图片的左边缘位置（当前图片右边缘 + 间距）
-		currentLeftEdge += dimensions.width + spacing
-
-		return { x: centerX, y: centerY }
-	})
+	return resolveHorizontalPlacements(imageDimensions, anchorPosition, spacing)
 }
 
 /**
@@ -904,48 +925,7 @@ export function calculateGridImageLayout(
 	spacing: number = 200,
 	maxPerRow: number = 4,
 ): Array<{ x: number; y: number }> {
-	if (imageDimensions.length === 0) {
-		return []
-	}
-
-	const positions: Array<{ x: number; y: number }> = []
-
-	// 将元素分成多行
-	const rows: Array<Array<{ width: number; height: number; originalIndex: number }>> = []
-	for (let i = 0; i < imageDimensions.length; i++) {
-		const rowIndex = Math.floor(i / maxPerRow)
-		if (!rows[rowIndex]) {
-			rows[rowIndex] = []
-		}
-		rows[rowIndex].push({ ...imageDimensions[i], originalIndex: i })
-	}
-
-	// 第一个元素的中心对齐 anchorPosition，计算左上角起始点
-	const firstWidth = imageDimensions[0].width
-	const firstHeight = imageDimensions[0].height
-	const startX = anchorPosition.x - firstWidth / 2
-	const startY = anchorPosition.y - firstHeight / 2
-
-	let currentY = startY
-
-	for (const row of rows) {
-		let currentX = startX
-		let rowMaxHeight = 0
-
-		for (const item of row) {
-			// 中心位置
-			const centerX = currentX + item.width / 2
-			const centerY = currentY + item.height / 2
-			positions[item.originalIndex] = { x: centerX, y: centerY }
-
-			currentX += item.width + spacing
-			rowMaxHeight = Math.max(rowMaxHeight, item.height)
-		}
-
-		currentY += rowMaxHeight + spacing
-	}
-
-	return positions
+	return resolveGridPlacements(imageDimensions, anchorPosition, { spacing, maxPerRow })
 }
 
 /**
@@ -1052,48 +1032,6 @@ export function generateUniqueElementName(baseName: string, existingNames: Set<s
 }
 
 /**
- * 计算新元素的位置（放在原元素右边，顶部对齐）
- * @param originalElement 原元素数据
- * @param originalElementInstance 原元素实例（需要 getBoundingRect 方法）
- * @param elementManager 元素管理器（用于查找父元素）
- * @param spacing 新元素与原元素之间的间距，默认为 0
- * @returns 新元素的位置坐标，如果无法计算则返回 null
- */
-export function calculateNewElementPosition(
-	originalElement: LayerElement,
-	originalElementInstance: { getBoundingRect: () => Rect | null },
-	elementManager: { findParentIdForElement: (id: string) => string | undefined },
-	spacing: number = 0,
-): { x: number; y: number } | null {
-	// 获取原图片的位置和尺寸
-	const originalWidth = originalElement.width ?? 1024
-
-	// 检查原图片是否在 Frame 里面
-	const parentId = elementManager.findParentIdForElement(originalElement.id)
-	let newX: number
-	let newY: number
-
-	if (parentId) {
-		// 原图片在 Frame 里，需要使用画布绝对坐标
-		const boundingRect = originalElementInstance.getBoundingRect()
-		if (!boundingRect) {
-			return null
-		}
-		// 新元素放在原图片右边，顶部对齐（使用画布绝对坐标）
-		newX = boundingRect.x + boundingRect.width + spacing
-		newY = boundingRect.y // 顶部对齐
-	} else {
-		// 原图片不在 Frame 里，直接使用相对坐标
-		const originalX = originalElement.x ?? 0
-		const originalY = originalElement.y ?? 0
-		newX = originalX + originalWidth + spacing
-		newY = originalY // 顶部对齐
-	}
-
-	return { x: newX, y: newY }
-}
-
-/**
  * 从 MIME 类型获取文件后缀
  * @param mimeType MIME 类型，如 "image/png"
  * @returns 文件后缀，如 "png"
@@ -1109,6 +1047,13 @@ export function getFileExtensionFromMimeType(mimeType: string): string {
 		"image/svg+xml": "svg",
 		"image/bmp": "bmp",
 		"image/x-icon": "ico",
+		"audio/mpeg": "mp3",
+		"audio/mp3": "mp3",
+		"audio/wav": "wav",
+		"audio/x-wav": "wav",
+		"audio/ogg": "ogg",
+		"audio/mp4": "m4a",
+		"audio/aac": "aac",
 	}
 
 	// 如果映射中存在，直接返回
@@ -1143,8 +1088,8 @@ export function getLoadedImageElements(canvas: Canvas): ImageElement[] {
 
 		const imageElement = elementData as ImageElement
 
-		// 从 ImageElement 实例判断图片是否已加载
-		if (imageElement.src) {
+		// 从 effective Content 和 ImageElement 实例判断图片是否已加载
+		if (getEffectiveContentForRead(canvas, imageElement)?.src) {
 			const elementInstance = canvas.elementManager.getElementInstance(id)
 			if (
 				elementInstance &&
@@ -1168,7 +1113,11 @@ export function getLoadedVideoElements(canvas: Canvas): CanvasFileElement[] {
 
 	for (const id of selectedIds) {
 		const elementData = canvas.elementManager.getElementData(id)
-		if (!elementData || elementData.type !== ElementTypeEnum.Video || !elementData.src) continue
+		const effectiveContent = elementData
+			? getEffectiveContentForRead(canvas, elementData)
+			: undefined
+		if (!elementData || elementData.type !== ElementTypeEnum.Video || !effectiveContent?.src)
+			continue
 
 		const elementInstance = canvas.elementManager.getElementInstance(id)
 		if (
@@ -1187,7 +1136,11 @@ export function getLoadedVideoElements(canvas: Canvas): CanvasFileElement[] {
  * 获取已加载的文件元素列表（图片、视频等，用于下载/添加到对话）
  */
 export function getLoadedFileElements(canvas: Canvas): CanvasFileElement[] {
-	return [...getLoadedImageElements(canvas), ...getLoadedVideoElements(canvas)]
+	return [
+		...getLoadedImageElements(canvas),
+		...getLoadedVideoElements(canvas),
+		...getSelectedAudioElements(canvas),
+	]
 }
 
 /**
@@ -1209,6 +1162,14 @@ export function getSelectedVideoElements(canvas: Canvas): CanvasFileElement[] {
 		.filter((element): element is CanvasFileElement => element?.type === ElementTypeEnum.Video)
 }
 
+/** 获取当前选区中的全部音频元素。 */
+export function getSelectedAudioElements(canvas: Canvas): CanvasFileElement[] {
+	return canvas.selectionManager
+		.getSelectedIds()
+		.map((id) => canvas.elementManager.getElementData(id))
+		.filter((element): element is CanvasFileElement => element?.type === ElementTypeEnum.Audio)
+}
+
 /** 获取当前选区中的全部媒体元素，自动忽略文本、形状等非媒体元素。 */
 export function getSelectedFileElements(canvas: Canvas): CanvasFileElement[] {
 	return canvas.selectionManager
@@ -1216,6 +1177,8 @@ export function getSelectedFileElements(canvas: Canvas): CanvasFileElement[] {
 		.map((id) => canvas.elementManager.getElementData(id))
 		.filter(
 			(element): element is CanvasFileElement =>
-				element?.type === ElementTypeEnum.Image || element?.type === ElementTypeEnum.Video,
+				element?.type === ElementTypeEnum.Image ||
+				element?.type === ElementTypeEnum.Video ||
+				element?.type === ElementTypeEnum.Audio,
 		)
 }

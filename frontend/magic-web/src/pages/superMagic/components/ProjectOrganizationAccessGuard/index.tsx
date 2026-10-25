@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react"
+import MagicSpin from "@/components/base/MagicSpin"
 import { useTranslation } from "react-i18next"
 import OrganizationSwitchState from "@/components/business/OrganizationSwitchState"
 import FolderIcon from "@/pages/share/assets/icon/folder_empty.svg"
@@ -19,8 +19,8 @@ export default function ProjectOrganizationAccessGuard({
 
 	if (organizationAccess.status === "loading") {
 		return (
-			<div className="flex h-full w-full items-center justify-center bg-background">
-				<Loader2 className="size-8 animate-spin text-muted-foreground" />
+			<div className="h-full w-full bg-background">
+				<MagicSpin className="h-full" />
 			</div>
 		)
 	}

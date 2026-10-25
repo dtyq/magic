@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltAgent — Autonomous AI Agent Framework &amp; DAG Orchestrator</title>
+  <style>
+    :root {
+      --canvas: #101010;
+      --canvas-soft: #1a1a1a;
+      --canvas-elevated: #222222;
+      --primary: #00d992;
+      --primary-soft: #2fd6a1;
+      --primary-glow: rgba(0, 217, 146, 0.2);
+      --ink: #f2f2f2;
+      --ink-strong: #ffffff;
+      --body: #bdbdbd;
+      --mute: #8b949e;
+      --hairline: #3d3a39;
+      --hairline-dashed: rgba(79, 93, 117, 0.4);
+      --font-sans: Inter, system-ui, -apple-system, sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: var(--canvas); color: var(--ink); font-family: var(--font-sans); font-size: 13.5px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+    /* Top Bar */
+    .top-nav { height: 54px; background: var(--canvas); border-bottom: 1px solid var(--hairline); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; }
+    .brand-wrap { display: flex; align-items: center; gap: 12px; }
+    .brand-logo { font-size: 16px; font-weight: 700; color: var(--ink-strong); display: flex; align-items: center; gap: 8px; }
+    .logo-bolt { color: var(--primary); font-size: 18px; }
+    .nav-links { display: flex; gap: 20px; font-size: 13px; }
+    .nav-links a { color: var(--body); text-decoration: none; }
+    .nav-links a.active { color: var(--primary); font-weight: 600; }
+
+    .nav-stats { display: flex; align-items: center; gap: 14px; font-family: var(--font-mono); font-size: 12px; }
+    .status-pill { background: rgba(0, 217, 146, 0.12); border: 1px solid rgba(0, 217, 146, 0.35); color: var(--primary); padding: 2px 8px; border-radius: 9999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+    .btn-deploy { background: var(--primary); color: #101010; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+
+    /* Main Container */
+    .container { max-width: 1320px; margin: 16px auto; padding: 0 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Agent Session Header Banner (First 500px High Impact) */
+    .session-card { background: var(--canvas-soft); border: 1px solid var(--hairline); border-radius: 8px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+    .session-title-group { display: flex; align-items: center; gap: 14px; }
+    .agent-avatar { width: 34px; height: 34px; border-radius: 8px; background: rgba(0, 217, 146, 0.15); border: 1px solid var(--primary); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 16px; font-weight: 700; }
+    .session-name { font-size: 16px; font-weight: 600; color: var(--ink-strong); }
+    .session-id { font-family: var(--font-mono); font-size: 11px; color: var(--mute); }
+
+    .step-timer-box { display: flex; align-items: center; gap: 16px; font-family: var(--font-mono); font-size: 12px; }
+    .timer-display { background: #101010; border: 1px solid var(--primary); padding: 4px 10px; border-radius: 6px; color: var(--primary); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; box-shadow: 0 0 10px rgba(0, 217, 146, 0.15); }
+    .token-counter { color: var(--body); }
+
+    /* Workspace 2-Column Split: DAG Tree (Left 60%) + Memory Inspector (Right 40%) */
+    .dag-workspace-grid { display: grid; grid-template-columns: 1fr 420px; gap: 16px; }
+
+    /* Task DAG Tree Card */
+    .dag-card { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    .dag-header { background: var(--canvas-soft); padding: 10px 16px; border-bottom: 1px solid var(--hairline); display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 600; }
+    .dag-canvas-area { padding: 24px; min-height: 380px; position: relative; display: flex; flex-direction: column; justify-content: space-between; background: radial-gradient(circle at 50% 50%, rgba(26,26,26,0.6) 0%, #101010 100%); }
+
+    /* SVG Connecting Lines Behind Nodes */
+    .dag-svg-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+    /* DAG Tree Nodes */
+    .dag-row { display: flex; justify-content: center; gap: 32px; position: relative; z-index: 2; }
+    
+    .dag-node { background: var(--canvas-soft); border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 14px; width: 230px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); transition: border-color 0.2s; }
+    .dag-node.completed { border-color: rgba(0, 217, 146, 0.4); }
+    .dag-node.running { border: 2px solid var(--primary); box-shadow: 0 0 16px rgba(0, 217, 146, 0.3); background: #16241d; animation: node-pulse 2s infinite; }
+    .dag-node.queued { border: 1px dashed var(--hairline); opacity: 0.65; }
+
+    .node-top { display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+    .node-status-tag { font-family: var(--font-mono); font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 3px; }
+    .tag-done { background: rgba(0, 217, 146, 0.2); color: var(--primary); }
+    .tag-run { background: var(--primary); color: #101010; font-weight: 700; }
+    .tag-wait { background: #262626; color: var(--mute); }
+
+    .node-title { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--ink-strong); }
+    .node-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--mute); font-family: var(--font-mono); margin-top: 2px; }
+
+    /* Memory Context Inspector */
+    .memory-card { background: var(--canvas-soft); border: 1px solid var(--hairline); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+    .mem-header { background: #141414; padding: 10px 16px; border-bottom: 1px solid var(--hairline); display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 600; }
+    .mem-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; font-size: 12.5px; }
+
+    .mem-section-title { font-family: var(--font-mono); font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--mute); margin-bottom: 6px; display: flex; justify-content: space-between; }
+    
+    /* Key Value Memory Tokens */
+    .mem-block { background: #101010; border: 1px solid var(--hairline); border-radius: 6px; padding: 10px 12px; font-family: var(--font-mono); font-size: 11.5px; }
+    .kv-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .kv-row:last-child { margin-bottom: 0; }
+    .kv-key { color: var(--mute); }
+    .kv-val { color: var(--ink-strong); font-weight: 500; }
+    .kv-val.highlight { color: var(--primary); font-weight: 700; }
+
+    /* Context Window Progress Bar */
+    .window-bar-wrap { background: #202020; border-radius: 4px; height: 8px; overflow: hidden; margin-top: 4px; }
+    .window-bar-fill { background: var(--primary); height: 100%; width: 64%; border-radius: 4px; }
+
+    /* Active Tool Calls Cluster */
+    .tools-list { display: flex; flex-direction: column; gap: 6px; }
+    .tool-item { background: #101010; border: 1px solid var(--hairline); border-radius: 4px; padding: 6px 10px; font-family: var(--font-mono); font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+    .tool-active-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); display: inline-block; box-shadow: 0 0 6px var(--primary); }
+
+    /* Bottom Telemetry Footer */
+    .telemetry-band { background: var(--canvas-soft); border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 11.5px; }
+    .tel-metric { display: flex; align-items: center; gap: 8px; }
+    .tel-val { color: var(--primary); font-weight: 700; }
+
+    @keyframes node-pulse {
+      0%, 100% { border-color: var(--primary); box-shadow: 0 0 14px rgba(0, 217, 146, 0.35); }
+      50% { border-color: rgba(0, 217, 146, 0.4); box-shadow: 0 0 6px rgba(0, 217, 146, 0.1); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="top-nav">
+    <div class="brand-wrap">
+      <div class="brand-logo">
+        <span class="logo-bolt">⚡</span>
+        <span>VOLTAGENT</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#orchestrator" class="active">DAG Orchestrator</a>
+        <a href="#memory">Vector Memory</a>
+        <a href="#tools">Tool Sandbox</a>
+        <a href="#logs">Execution Traces</a>
+      </nav>
+    </div>
+
+    <div class="nav-stats">
+      <div class="status-pill">
+        <span class="pill-dot"></span>
+        <span>AUTONOMOUS ENGINE ACTIVE</span>
+      </div>
+      <button class="btn-deploy">+ Spawn Worker</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Active Agent Session Ribbon -->
+    <section class="session-card">
+      <div class="session-title-group">
+        <div class="agent-avatar">VA</div>
+        <div>
+          <div class="session-name">VoltAgent Autonomous Codebase Refactor &bull; Job #819</div>
+          <div class="session-id">Agent Model: claude-3-5-sonnet &bull; Session UUID: 8f9b2-ea01</div>
+        </div>
+      </div>
+
+      <div class="step-timer-box">
+        <div class="timer-display">
+          <span>⏱</span>
+          <span>00:04.12s</span>
+        </div>
+        <div class="token-counter">Step <strong>4 of 6</strong> (84.6 tokens/sec)</div>
+      </div>
+    </section>
+
+    <!-- Main Workspace Split: DAG Tree & Memory Inspector -->
+    <div class="dag-workspace-grid">
+      
+      <!-- Task DAG Tree Execution Graph -->
+      <div class="dag-card">
+        <div class="dag-header">
+          <span>DYNAMIC TASK EXECUTION DAG GRAPH</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--mute)">Acyclic Dependency Graph</span>
+        </div>
+
+        <div class="dag-canvas-area">
+          
+          <!-- SVG Connecting Edges Behind Nodes -->
+          <svg class="dag-svg-overlay" viewBox="0 0 800 360" preserveAspectRatio="none">
+            <!-- Root to Layer 1 -->
+            <path d="M 400 65 L 260 145" stroke="#3d3a39" stroke-width="2" fill="none" />
+            <path d="M 400 65 L 540 145" stroke="#3d3a39" stroke-width="2" fill="none" />
+            <!-- Layer 1 to Running Node -->
+            <path d="M 260 205 L 400 280" stroke="#00d992" stroke-width="2" stroke-dasharray="4" fill="none" />
+            <path d="M 540 205 L 400 280" stroke="#00d992" stroke-width="2" stroke-dasharray="4" fill="none" />
+          </svg>
+
+          <!-- Layer 0: Root Intent Parser -->
+          <div class="dag-row">
+            <div class="dag-node completed">
+              <div class="node-top">
+                <span class="node-status-tag tag-done">✓ COMPLETED</span>
+                <span>id: root_0</span>
+              </div>
+              <div class="node-title">parse_user_intent</div>
+              <div class="node-meta">
+                <span>Duration: 0.14s</span>
+                <span>Tokens: 180</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Layer 1: Parallel Branch Execution -->
+          <div class="dag-row">
+            <div class="dag-node completed">
+              <div class="node-top">
+                <span class="node-status-tag tag-done">✓ COMPLETED</span>
+                <span>id: branch_a</span>
+              </div>
+              <div class="node-title">codebase_ast_indexer</div>
+              <div class="node-meta">
+                <span>Duration: 1.28s</span>
+                <span>14 files parsed</span>
+              </div>
+            </div>
+
+            <div class="dag-node completed">
+              <div class="node-top">
+                <span class="node-status-tag tag-done">✓ COMPLETED</span>
+                <span>id: branch_b</span>
+              </div>
+              <div class="node-title">security_policy_checker</div>
+              <div class="node-meta">
+                <span>Duration: 0.42s</span>
+                <span>0 alerts</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Layer 2: Convergence (Running Step) -->
+          <div class="dag-row">
+            <div class="dag-node running">
+              <div class="node-top">
+                <span class="node-status-tag tag-run">⚡ EXECUTING</span>
+                <span style="color:var(--primary); font-weight:700;">00:04.12s</span>
+              </div>
+              <div class="node-title" style="color:var(--primary)">speculative_patch_synthesizer</div>
+              <div class="node-meta">
+                <span style="color:#fff">Streaming AST diff...</span>
+                <span>Worker: thread_4</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Agent Memory Context Inspector -->
+      <aside class="memory-card">
+        <div class="mem-header">
+          <span>AGENT MEMORY CONTEXT</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--primary)">SYNCED</span>
+        </div>
+
+        <div class="mem-body">
+          
+          <!-- Context Window Usage -->
+          <div>
+            <div class="mem-section-title">
+              <span>Working Context Window</span>
+              <span>128K / 200K (64%)</span>
+            </div>
+            <div class="window-bar-wrap">
+              <div class="window-bar-fill"></div>
+            </div>
+          </div>
+
+          <!-- Short-Term Vector Buffer -->
+          <div>
+            <div class="mem-section-title">Short-Term Key/Value Embeddings</div>
+            <div class="mem-block">
+              <div class="kv-row">
+                <span class="kv-key">target_repo:</span>
+                <span class="kv-val">voltagent/engine-core</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-key">branch_target:</span>
+                <span class="kv-val">feat/async-dag-eval</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-key">active_vector_dim:</span>
+                <span class="kv-val highlight">1536 float32</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-key">cache_hit_rate:</span>
+                <span class="kv-val highlight">99.4% (Redis)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Tool Sandbox Calls -->
+          <div>
+            <div class="mem-section-title">Active Sandboxed Tool Calls</div>
+            <div class="tools-list">
+              <div class="tool-item">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="tool-active-dot"></span>
+                  <span style="color:var(--ink-strong)">ripgrep(pattern="struct JobNode")</span>
+                </div>
+                <span style="color:var(--mute)">done (8ms)</span>
+              </div>
+              <div class="tool-item">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="tool-active-dot"></span>
+                  <span style="color:var(--ink-strong)">cargo_check(strict=true)</span>
+                </div>
+                <span style="color:var(--primary)">running</span>
+              </div>
+              <div class="tool-item">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="color:var(--mute)">○</span>
+                  <span style="color:var(--mute)">git_commit_push(auto_merge=true)</span>
+                </div>
+                <span style="color:var(--mute)">pending</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- Bottom Telemetry Ribbon -->
+    <div class="telemetry-band">
+      <div class="tel-metric">
+        <span>DAG NODE CONCURRENCY:</span>
+        <span class="tel-val">8 PARALLEL WORKERS</span>
+      </div>
+      <div class="tel-metric">
+        <span>FAILOVER RETRIES:</span>
+        <span class="tel-val">0 (CLEAN TRACE)</span>
+      </div>
+      <div class="tel-metric">
+        <span>MEMORY RETENTION:</span>
+        <span class="tel-val">EPISODIC PERSISTENCE OK</span>
+      </div>
+    </div>
+
+  </main>
+
+</body>
+</html>

@@ -1,50 +1,17 @@
 import MagicIcon from "@/components/base/MagicIcon"
 
 import { IconMoon, IconSunHigh } from "@tabler/icons-react"
-import { Flex } from "antd"
-import { createStyles } from "antd-style"
+import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { magic } from "@/enhance/magicElectron"
 import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { useTheme } from "@/models/config/hooks"
 
-const useStyles = createStyles(({ css, isDarkMode, token }) => {
-	return {
-		container: css`
-			position: relative;
-			padding: 4px;
-			border-radius: 100px;
-			width: 56px;
-			height: 28px;
-			background: ${token.magicColorScales.grey[1]};
-			cursor: pointer;
-		`,
-		icon: css`
-			margin: 3px;
-			cursor: pointer;
-			color: ${isDarkMode ? token.magicColorUsages.white : token.magicColorScales.grey[8]};
-			transition: color 0.3s ease;
-		`,
-		handler: css`
-			border-radius: 100px;
-			width: 20px;
-			height: 20px;
-			background: ${isDarkMode
-				? token.magicColorScales.grey[8]
-				: token.magicColorUsages.white};
-			position: absolute;
-			transform: translateX(${isDarkMode ? "28px" : "0"});
-			transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-			box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
-			display: flex;
-			align-items: center;
-			justify-content: center;
-		`,
-	}
-})
+const iconClassName =
+	"m-[3px] cursor-pointer text-neutral-800 transition-colors duration-300 ease-[ease] dark:text-white"
 
 function AppearenceSwitch() {
-	const { styles } = useStyles()
+	const { t } = useTranslation("interface")
 
 	const { prefersColorScheme, setTheme } = useTheme()
 
@@ -55,22 +22,24 @@ function AppearenceSwitch() {
 	})
 
 	return (
-		<Flex
-			className={styles.container}
-			align="center"
-			justify="space-between"
+		<button
+			type="button"
+			role="switch"
+			aria-checked={prefersColorScheme === "dark"}
+			aria-label={t("setting.appearance")}
+			className="relative flex h-7 w-14 cursor-pointer items-center justify-between rounded-[100px] border-0 bg-neutral-100 p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring dark:bg-neutral-800"
 			onClick={onThemeChange}
 		>
-			<MagicIcon className={styles.icon} component={IconSunHigh} size={16} />
-			<MagicIcon className={styles.icon} component={IconMoon} size={16} />
-			<div className={styles.handler}>
+			<MagicIcon className={iconClassName} component={IconSunHigh} size={16} />
+			<MagicIcon className={iconClassName} component={IconMoon} size={16} />
+			<div className="absolute flex size-5 translate-x-0 items-center justify-center rounded-[100px] bg-white shadow-[0_2px_8px_0_rgba(0,0,0,0.1)] transition-all duration-300 ease-in-out dark:translate-x-7 dark:bg-neutral-100">
 				<MagicIcon
-					className={styles.icon}
+					className={iconClassName}
 					component={prefersColorScheme === "dark" ? IconMoon : IconSunHigh}
 					size={14}
 				/>
 			</div>
-		</Flex>
+		</button>
 	)
 }
 

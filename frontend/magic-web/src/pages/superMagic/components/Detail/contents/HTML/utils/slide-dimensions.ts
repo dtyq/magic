@@ -43,6 +43,19 @@ function getInlineStyleDimensions(canvas: Element): CanonicalContentDimensions |
 	return { width, height }
 }
 
+function getDeclarationDimensions(declarations: string): CanonicalContentDimensions | null {
+	const width = parsePositivePixelDimension(
+		declarations.match(/(?:^|;)\s*width\s*:\s*([^;]+)/i)?.[1],
+	)
+	const height = parsePositivePixelDimension(
+		declarations.match(/(?:^|;)\s*height\s*:\s*([^;]+)/i)?.[1],
+	)
+
+	if (!width || !height) return null
+
+	return { width, height }
+}
+
 function getStyleRuleDimensions(doc: Document): CanonicalContentDimensions | null {
 	const rules = Array.from(doc.querySelectorAll("style"))
 	for (const style of rules) {
@@ -56,14 +69,27 @@ function getStyleRuleDimensions(doc: Document): CanonicalContentDimensions | nul
 				continue
 			}
 
-			const width = parsePositivePixelDimension(
-				declarations.match(/(?:^|;)\s*width\s*:\s*([^;]+)/i)?.[1],
-			)
-			const height = parsePositivePixelDimension(
-				declarations.match(/(?:^|;)\s*height\s*:\s*([^;]+)/i)?.[1],
-			)
+			const dimensions = getDeclarationDimensions(declarations)
+			if (dimensions) return dimensions
+		}
+	}
 
-			if (width && height) return { width, height }
+	return null
+}
+
+function getRootStyleRuleDimensions(doc: Document): CanonicalContentDimensions | null {
+	const rules = Array.from(doc.querySelectorAll("style"))
+
+	for (const style of rules) {
+		const matches = style.textContent?.matchAll(/([^{}]+)\{([^{}]*)\}/g)
+		if (!matches) continue
+
+		for (const match of matches) {
+			const selectors = match[1].split(",").map((selector) => selector.trim().toLowerCase())
+			if (!selectors.includes("html") || !selectors.includes("body")) continue
+
+			const dimensions = getDeclarationDimensions(match[2])
+			if (dimensions) return dimensions
 		}
 	}
 
@@ -85,7 +111,8 @@ export function extractSlideContainerDimensionsFromHtml(
 		return (
 			getAttributeDimensions(canvas) ??
 			getInlineStyleDimensions(canvas) ??
-			getStyleRuleDimensions(doc)
+			getStyleRuleDimensions(doc) ??
+			getRootStyleRuleDimensions(doc)
 		)
 	} catch {
 		return null

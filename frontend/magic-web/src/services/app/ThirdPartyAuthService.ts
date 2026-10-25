@@ -1,13 +1,13 @@
 import { AuthApi, CommonApi } from "@/apis"
-import type { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 import { service } from "@/services"
 import { RoutePath } from "@/constants/routes"
 import { baseHistory, history } from "@/routes/history"
-import { RouteName } from "@/routes/constants"
 import { LoginValueKey } from "@/pages/login/constants"
 import { convertSearchParams, routesMatch } from "@/routes/history/helpers"
 import { defaultClusterCode } from "@/routes/helpers"
 import { userStore } from "@/models/user"
+import { configStore } from "@/models/config"
 import type { Login } from "@/types/login"
 import type { User } from "@/types/user"
 import type { LoginService } from "@/services/user/LoginService"
@@ -22,8 +22,9 @@ import type {
 	ThirdPartyAccountReconcileResult,
 } from "@/services/app/types/thirdPartyAccountReconcile"
 import { isLoginAuthorizationWhitelist } from "@/utils/env"
-import { message } from "antd"
-import magicToast from "@/components/base/MagicToaster/utils"
+import { authEventBus } from "@/services/auth/AuthEventBus"
+import { AuthEventName } from "@/services/auth/AuthEvents"
+import { isNil } from "lodash-es"
 
 // const logger = Logger.createLogger("thirdPartyAuthService")
 const logger = { ...console, report: console.log }
@@ -219,6 +220,57 @@ class ThirdPartyAuthService {
 		return orgCode
 	}
 
+	private isLoginSameWindow() {
+		return new URL(window.location.href).searchParams.get("loginSameWindow") === "true"
+	}
+
+	/**
+	 * Same-window only: resolve organizations and persist the account entry in the current page.
+	 * New-window flows rely on AppService.initAccount in the destination window instead.
+	 */
+	private async syncAccountSystem(
+		deployCode: string,
+		accessToken: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<void> {
+		const loginService = service.get<LoginService>("loginService")
+		const userService = service.get<UserService>("userService")
+		const {
+			magicOrganizationMap,
+			organizationCode,
+			thirdPlatformOrganizations,
+			thirdPlatformOrganizationCode,
+		} = await loginService.getThirdPlatformOrganizations(accessToken, deployCode, options)
+
+		userService.setOrganization({
+			organizationCode,
+			teamshareOrganizationCode: thirdPlatformOrganizationCode,
+			organizations: thirdPlatformOrganizations,
+			magicOrganizationMap,
+		})
+
+		const urlOrganizationCode = this.getThirdPartyOrganizationCode()
+		const teamshareOrganizationCode =
+			thirdPlatformOrganizationCode ||
+			urlOrganizationCode ||
+			userStore.user.teamshareOrganizationCode
+
+		if (urlOrganizationCode) {
+			await userService.setTeamshareOrganization(urlOrganizationCode, options)
+		}
+
+		await loginService.accountSync(
+			{
+				deployCode,
+				access_token: accessToken,
+				magicOrganizationMap,
+				organizations: thirdPlatformOrganizations,
+				teamshareOrganizationCode,
+			},
+			options,
+		)
+	}
+
 	/**
 	 * Process temporary authorization token, exchange for user token,
 	 * save locally, and remove corresponding query
@@ -282,7 +334,12 @@ class ThirdPartyAuthService {
 			})
 			// Need to redirect to login route
 			logger.log("重定向到登录页")
-			history.push({ name: RouteName.Login })
+			authEventBus.emit(AuthEventName.RequestLogin, {
+				reason: "third-party-auth-failed",
+				source: "third-party",
+				returnTo: window.location.href,
+				preserveQuery: true,
+			})
 			throw error
 		}
 	}
@@ -302,7 +359,11 @@ class ThirdPartyAuthService {
 			return
 		}
 
-		await this.performRedirectUrlStep(options, false)
+		// Fresh auto-login: sync account only when staying in the current window.
+		await this.performRedirectUrlStep(options, {
+			reloadCurrentWindow: false,
+			syncAccountInSameWindow: true,
+		})
 	}
 
 	private scheduleExistingSessionRedirect(
@@ -316,7 +377,9 @@ class ThirdPartyAuthService {
 					logger.log("第三方平台账号后台校验完成", { deployCode, result })
 					if (result === "stale") return
 
-					await this.performRedirectUrlStep(options, result === "switched")
+					await this.performRedirectUrlStep(options, {
+						reloadCurrentWindow: result === "switched",
+					})
 				})
 				.catch((error) => {
 					logger.warn("第三方平台账号后台校验异常", { deployCode, error })
@@ -329,16 +392,23 @@ class ThirdPartyAuthService {
 			return
 		}
 
-		window.setTimeout(runReconcile, 0)
+		setTimeout(runReconcile, 0)
 	}
 
 	private async performRedirectUrlStep(
 		options: Pick<RequestConfig, "skipAppInitWait"> | undefined,
-		reloadCurrentWindow: boolean,
+		{
+			reloadCurrentWindow = false,
+			syncAccountInSameWindow = false,
+		}: {
+			reloadCurrentWindow?: boolean
+			syncAccountInSameWindow?: boolean
+		} = {},
 	): Promise<void> {
 		logger.log("开始URL重定向步骤")
 		const url = new URL(window.location.href)
 		const { searchParams } = url
+		const loginSameWindow = this.isLoginSameWindow()
 
 		// Remove private deployment code to prevent logic from repeating
 		searchParams.delete(this.thirdPartyAuthDeployCode)
@@ -348,10 +418,18 @@ class ThirdPartyAuthService {
 
 		// Open in current window (optimized for specific scenarios,
 		// continue business process in the same tab)
-		if (url.searchParams.get("loginSameWindow") === "true") {
+		if (loginSameWindow) {
 			logger.log("检测到同窗口登录标识，跳过重定向")
 			// Remove third-party cluster code to prevent process dead loop
 			searchParams.delete(this.thirdPartyAuthDeployCode)
+
+			if (syncAccountInSameWindow && !reloadCurrentWindow && userStore.user.authorization) {
+				const deployCode = configStore.cluster.clusterCode ?? ""
+				logger.log("同窗口免登，同步账号体系", { deployCode })
+				await this.syncAccountSystem(deployCode, userStore.user.authorization, options)
+				logger.log("同窗口账号体系同步完成")
+			}
+
 			if (reloadCurrentWindow) {
 				// The candidate token has been committed; remove the login parameters and reinitialize account state in the current window.
 				window.location.replace(url.toString())
@@ -417,7 +495,11 @@ class ThirdPartyAuthService {
 			 * (as authorization requires obtaining the corresponding third-party organization ID, application key, etc.)
 			 */
 			logger.log("获取私有化配置", { deployCode })
-			const data = await CommonApi.getPrivateConfigure(deployCode, options)
+			const data = await CommonApi.getPrivateConfigure(deployCode, {
+				enableRequestUnion: true,
+				enableErrorMessagePrompt: false,
+				...options,
+			})
 			logger.log("私有化配置获取完成")
 
 			/**
@@ -439,7 +521,7 @@ class ThirdPartyAuthService {
 
 			logger.log("获取授权码", { deployCode })
 			const { authCode, platform } = await this.getAuthCode(deployCode, options)
-			logger.log("授权码获取完成", { platform, authCodeLength: authCode?.length })
+			logger.log("授权码获取完成", { platform, authCodeLength: authCode?.length, authCode })
 
 			const url = new URL(window.location.href)
 			logger.log("执行登录步骤", { platform, redirect: url.toString() })
@@ -460,9 +542,27 @@ class ThirdPartyAuthService {
 
 			// Establish a mapping relationship between cluster codes and user tokens
 			logger.log("同步魔法组织映射关系", { deployCode })
-			await service
+			const magicOrganizationMap = await service
 				.get<LoginService>("loginService")
 				.magicOrganizationSync(deployCode, access_token, undefined, options)
+
+			// 第三方组织获取
+			const { organizations, organizationCode, thirdPlatformOrganizationCode } = await service
+				.get<LoginService>("loginService")
+				.getThirdPlatformOrganization(
+					magicOrganizationMap,
+					access_token,
+					deployCode,
+					options,
+				)
+
+			// 设置组织
+			service.get<UserService>("userService").setOrganization({
+				organizationCode,
+				teamshareOrganizationCode: thirdPlatformOrganizationCode,
+				organizations,
+				magicOrganizationMap,
+			})
 			logger.log("魔法组织映射关系同步完成")
 
 			// Optimized for specific scenarios, continue the business process under the same tab
@@ -473,7 +573,12 @@ class ThirdPartyAuthService {
 			logger.error("自动登录流程失败", { deployCode, error })
 			// Need to redirect to login route
 			logger.log("重定向到登录页")
-			history.push({ name: RouteName.Login })
+			authEventBus.emit(AuthEventName.RequestLogin, {
+				reason: "third-party-auth-failed",
+				source: "third-party",
+				returnTo: window.location.href,
+				preserveQuery: true,
+			})
 			throw error
 		}
 	}
@@ -519,10 +624,14 @@ class ThirdPartyAuthService {
 			if (!(await this.canBackgroundProbe())) return "unsupported"
 
 			// Load the target deployment configuration for the platform SDK without switching the current access cluster.
-			const targetConfig = await CommonApi.getPrivateConfigure(deployCode, options)
+			const targetConfig = await CommonApi.getPrivateConfigure(deployCode, {
+				enableRequestUnion: true,
+				enableErrorMessagePrompt: false,
+				...options,
+			})
 			await service
 				.get<ConfigService>("configService")
-				.setClusterConfig(deployCode, targetConfig.config)
+				.setClusterConfig(deployCode, targetConfig.config, { waitForPersistence: false })
 
 			const identityRequestOptions = {
 				...options,
@@ -639,9 +748,12 @@ class ThirdPartyAuthService {
 			await this.redirectUrlStep(options, authorization)
 		} else if (tempAuthorizationCode) {
 			await this.generateAuthorizationToken(tempAuthorizationCode, options)
-		} else if (thirdPartyAuthDeployCode) {
+		} else if (thirdPartyAuthDeployCode || !isNil(thirdPartyAuthDeployCode)) {
 			// If and only if there is a private exclusive code can it trigger login exemption
-			await this.handleAutoLogin(thirdPartyAuthDeployCode, options)
+			await this.handleAutoLogin(
+				thirdPartyAuthDeployCode === defaultClusterCode ? "" : thirdPartyAuthDeployCode,
+				options,
+			)
 		} else {
 			throw new Error("no third party auth params")
 		}

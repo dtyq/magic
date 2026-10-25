@@ -17,6 +17,89 @@ use ZipArchive;
  */
 class ZipUtil
 {
+    private const MAX_EXTRACTED_FILE_SIZE = 100 * 1024 * 1024;
+
+    /**
+     * 从 ZIP 中提取指定文件，不解压其他内容.
+     */
+    public static function extractFile(
+        string $zipFile,
+        string $fileName,
+        string $target,
+        int $maxExtractedSize = self::MAX_EXTRACTED_FILE_SIZE
+    ): void {
+        if ($fileName === '' || basename($fileName) !== $fileName) {
+            throw new RuntimeException('Invalid ZIP file name');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipFile) !== true) {
+            throw new RuntimeException('Failed to open ZIP file');
+        }
+
+        try {
+            $rootEntry = null;
+            $wrapperEntries = [];
+            for ($index = 0; $index < $zip->numFiles; ++$index) {
+                $name = $zip->getNameIndex($index);
+                if ($name === false || str_ends_with($name, '/')) {
+                    continue;
+                }
+
+                $normalizedName = str_replace('\\', '/', $name);
+                if ($normalizedName === $fileName) {
+                    $rootEntry = $name;
+                    break;
+                }
+
+                $segments = explode('/', $normalizedName);
+                if (count($segments) !== 2
+                    || $segments[0] === ''
+                    || $segments[0] === '__MACOSX'
+                    || $segments[1] !== $fileName
+                ) {
+                    continue;
+                }
+
+                $wrapperEntries[$normalizedName] = $name;
+            }
+
+            $entryName = $rootEntry;
+            if ($entryName === null && $wrapperEntries !== []) {
+                ksort($wrapperEntries, SORT_STRING);
+                $entryName = reset($wrapperEntries);
+            }
+
+            if (! is_string($entryName)) {
+                throw new RuntimeException($fileName . ' not found');
+            }
+
+            $entryIndex = $zip->locateName($entryName);
+            $entryStat = $entryIndex === false ? false : $zip->statIndex($entryIndex);
+            if ($entryStat === false || ! isset($entryStat['size'])) {
+                throw new RuntimeException('Failed to inspect ' . $fileName);
+            }
+            if ($entryStat['size'] > $maxExtractedSize) {
+                throw new RuntimeException($fileName . ' exceeds maximum allowed size: ' . $maxExtractedSize . ' bytes');
+            }
+
+            $stream = $zip->getStream($entryName);
+            $output = fopen($target, 'wb');
+            if ($stream === false || $output === false) {
+                throw new RuntimeException('Failed to extract ' . $fileName);
+            }
+
+            $copied = stream_copy_to_stream($stream, $output, $maxExtractedSize + 1);
+            fclose($stream);
+            fclose($output);
+            if ($copied === false || $copied > $maxExtractedSize) {
+                throw new RuntimeException($fileName . ' exceeds maximum allowed size: ' . $maxExtractedSize . ' bytes');
+            }
+        } finally {
+            $zip->close();
+        }
+    }
+
     /**
      * 解压 ZIP 文件到指定目录.
      *

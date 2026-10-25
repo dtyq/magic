@@ -8,6 +8,7 @@ import {
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import type { ShareResourceApiItem } from "../../ShareManagement/types"
 import SimilarShareItem from "../components/SimilarShareItem"
 
@@ -47,13 +48,17 @@ function SimilarSharesDialog({
 				style={{ zIndex: 1200 }}
 				data-testid="on-pointer-down-outside"
 			>
-				<DialogHeader className="border-b border-border px-3 py-3" data-testid="similar-shares-dialog-header">
+				<DialogHeader
+					className="border-b border-border px-3 py-3"
+					data-testid="similar-shares-dialog-header"
+				>
 					<DialogTitle className="text-base font-semibold">
 						{t("share.useSimilarShare")}
 					</DialogTitle>
 				</DialogHeader>
 
-				<div className="flex max-h-[500px] flex-col gap-3 overflow-y-auto p-5">
+				{/* Keep the dialog content-sized while limiting the actual list viewport. */}
+				<ScrollArea viewportClassName="h-auto max-h-[500px] p-5 [&>div]:!flex [&>div]:flex-col [&>div]:gap-3">
 					{shares.map((share) => (
 						<SimilarShareItem
 							key={share.resource_id}
@@ -62,14 +67,26 @@ function SimilarSharesDialog({
 							showStats
 						/>
 					))}
-				</div>
+				</ScrollArea>
 
-				<DialogFooter className="border-t border-border px-3 py-3" data-testid="similar-shares-dialog-footer">
+				<DialogFooter
+					className="border-t border-border px-3 py-3"
+					data-testid="similar-shares-dialog-footer"
+				>
 					<div className="flex items-center gap-1.5">
-						<Button variant="outline" onClick={onClose} className="h-9" data-testid="on-close">
+						<Button
+							variant="outline"
+							onClick={onClose}
+							className="h-9"
+							data-testid="on-close"
+						>
 							{t("common.cancel")}
 						</Button>
-						<Button onClick={handleCreateNew} className="h-9" data-testid="handle-create-new">
+						<Button
+							onClick={handleCreateNew}
+							className="h-9"
+							data-testid="handle-create-new"
+						>
 							{t("share.createNewShare")}
 						</Button>
 					</div>

@@ -2,11 +2,14 @@ import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Canvas } from "../../../../runtime/core/Canvas"
 import type { CanvasDesignStorageData } from "../../../../public/magic-types"
+import { createTestResourceReferenceResolver } from "../../../../public/__tests__/testResourceReferenceResolver"
 
 const mocks = vi.hoisted(() => ({
 	useCanvas: vi.fn(),
 	resolveLinkedEditorInputs: vi.fn(),
 }))
+
+const resolveDesignAResourceReference = createTestResourceReferenceResolver()
 
 vi.mock("../../../../app/providers/CanvasProvider", () => ({
 	useCanvas: mocks.useCanvas,
@@ -36,6 +39,7 @@ function createCanvas(initialStorage: CanvasDesignStorageData): {
 			config: {
 				methods: {
 					getStorage: () => storage,
+					resolveResourceReference: resolveDesignAResourceReference,
 					saveStorage: (nextStorage: CanvasDesignStorageData) => {
 						storage = nextStorage
 					},
@@ -68,6 +72,7 @@ describe("useLinkedEditorInputs draft persistence", () => {
 		})
 		mocks.useCanvas.mockReturnValue({ canvas })
 		mocks.resolveLinkedEditorInputs.mockReturnValue({
+			connectedSourceElementIds: [],
 			textConnections: [
 				{ connectionId: "text-1", sourceElementId: "source-text-1", text: "first" },
 				{ connectionId: "text-2", sourceElementId: "source-text-2", text: "second" },
@@ -119,6 +124,7 @@ describe("useLinkedEditorInputs draft persistence", () => {
 		const { canvas } = createCanvas({})
 		mocks.useCanvas.mockReturnValue({ canvas })
 		mocks.resolveLinkedEditorInputs.mockReturnValue({
+			connectedSourceElementIds: [],
 			textConnections: [],
 			textPrompt: "",
 			mediaItems: [
@@ -153,6 +159,7 @@ describe("useLinkedEditorInputs draft persistence", () => {
 		const { canvas } = createCanvas({})
 		mocks.useCanvas.mockReturnValue({ canvas })
 		mocks.resolveLinkedEditorInputs.mockReturnValue({
+			connectedSourceElementIds: [],
 			textConnections: [],
 			textPrompt: "",
 			mediaItems: [
@@ -179,7 +186,7 @@ describe("useLinkedEditorInputs draft persistence", () => {
 				targetElementId,
 				targetKind: "image",
 				mediaPolicy: { supportedKinds: ["image"], maxTotalCount: 1 },
-				mentionedReferencePaths: ["/images/source-1.png"],
+				mentionedReferencePaths: ["/画布A/images/source-1.png"],
 			}),
 		)
 

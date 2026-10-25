@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from agentlang.logger import get_logger
+from app.core.tool_names import normalize_tool_names
 from app.path_manager import PathManager
 from app.utils.async_file_utils import (
     async_exists,
@@ -55,9 +56,11 @@ def resolve_crew_tools(
     excluded_builtin_tools: Any,
 ) -> List[str]:
     """Resolve the final crew tool list from builtin, excluded, and extra tools."""
-    builtin = _normalize_item_names(builtin_tools)
-    extra = _normalize_item_names(extra_tools)
-    excluded = set(_normalize_item_names(excluded_builtin_tools))
+    builtin = normalize_tool_names(_normalize_item_names(builtin_tools))
+    extra = normalize_tool_names(_normalize_item_names(extra_tools))
+    excluded = set(
+        normalize_tool_names(_normalize_item_names(excluded_builtin_tools), for_exclusion=True)
+    )
 
     seen: set[str] = set()
     merged: List[str] = []

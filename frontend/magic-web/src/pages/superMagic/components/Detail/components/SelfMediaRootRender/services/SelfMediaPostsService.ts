@@ -1,5 +1,5 @@
-import { getFileContentById } from "@/pages/superMagic/utils/api"
-import { logger as rootLogger } from "@/utils/log"
+import { createFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { logger as rootLogger } from "@/infrastructure/logger"
 import { flattenAttachments, resolveRelativePath } from "../../../contents/HTML/utils"
 import type { SelfMediaPlatform } from "../../../types"
 import type { SelfMediaConfig, SelfMediaPost, SelfMediaPostEntry } from "../types"
@@ -126,6 +126,7 @@ function sumSlicePosts(slices: PlatformSlice[]): number {
  * flags; callers can assume the returned snapshot is safe to merge.
  */
 export class SelfMediaPostsService {
+	private readonly fileApi: FileApi
 	private snapshot: SelfMediaSnapshot = { ...EMPTY_SNAPSHOT }
 	private readonly pendingPostLoads = new Map<string, Promise<SelfMediaPost>>()
 	private readonly fileIdIndex = new Map<string, FileRole>()
@@ -135,6 +136,10 @@ export class SelfMediaPostsService {
 	private lastSharedPostSourceKey: string | null = null
 	private lastFolderFileId: string | null = null
 	private disposed = false
+
+	constructor(fileApi: FileApi = createFileApi()) {
+		this.fileApi = fileApi
+	}
 
 	/** Current cached snapshot (useful for tests / debugging) */
 	getSnapshot(): SelfMediaSnapshot {
@@ -212,7 +217,11 @@ export class SelfMediaPostsService {
 		const startedAt = Date.now()
 		try {
 			if (!ctx.magicProjectFileId && ctx.sharedPosts.length > 0) {
-				const sharedPosts = await loadSharedPosts(ctx.sharedPosts, ctx.allFiles)
+				const sharedPosts = await loadSharedPosts(
+					ctx.sharedPosts,
+					ctx.allFiles,
+					this.fileApi,
+				)
 				if (this.disposed) return this.snapshot
 				const entriesByPlatform = new Map<SelfMediaPlatform, SelfMediaPostEntry[]>()
 				const loadedPosts: Record<string, SelfMediaPost> = {}
@@ -585,7 +594,7 @@ export class SelfMediaPostsService {
 	}
 
 	private async loadRootSlicesInternal(magicProjectFileId: string): Promise<PlatformSlice[]> {
-		const content = (await getFileContentById(magicProjectFileId, {
+		const content = (await this.fileApi.getFileContentById(magicProjectFileId, {
 			responseType: "text",
 		})) as string
 
@@ -618,7 +627,7 @@ export class SelfMediaPostsService {
 		}
 
 		const startedAt = Date.now()
-		const content = (await getFileContentById(postFile.file_id, {
+		const content = (await this.fileApi.getFileContentById(postFile.file_id, {
 			responseType: "text",
 		})) as string
 

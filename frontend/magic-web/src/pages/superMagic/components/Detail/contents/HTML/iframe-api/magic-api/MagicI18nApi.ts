@@ -6,9 +6,8 @@
  * 之前注入）。后续语言变更通过 MAGIC_I18N_LANG_SUBSCRIBE 消息推送。
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
+import { BaseRuntimeBridgeApiPlugin, getParentOrigin } from "@dtyq/html-sandbox"
 import { getPreludeVersion, isStaleDocument } from "./prelude-runtime-context"
-import { getParentOrigin } from "@dtyq/html-sandbox/utils/parentOrigin"
 
 export class MagicI18nApi extends BaseRuntimeBridgeApiPlugin {
 	constructor() {
@@ -20,7 +19,7 @@ export class MagicI18nApi extends BaseRuntimeBridgeApiPlugin {
 		if (!window.Magic) window.Magic = {}
 		if (window.Magic.i18n) return
 
-		type I18nCallback = (result: { lang: string;[key: string]: unknown }) => void
+		type I18nCallback = (result: { lang: string; [key: string]: unknown }) => void
 		const i18nSubscribers = new Set<I18nCallback>()
 
 		// 读取 full-content.ts 注入的初始语言，兜底 "zh-CN"
@@ -38,7 +37,7 @@ export class MagicI18nApi extends BaseRuntimeBridgeApiPlugin {
 					this.logger.error("subscribe:invalid-callback", {
 						callbackType: typeof callback,
 					})
-					return () => { }
+					return () => {}
 				}
 				i18nSubscribers.add(callback as I18nCallback)
 				const requestId = `i18n_subscribe_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
@@ -67,11 +66,11 @@ export class MagicI18nApi extends BaseRuntimeBridgeApiPlugin {
 		}
 
 		window.addEventListener("message", (event: MessageEvent) => {
-			if (isStaleDocument(installedVersion)) return
+			if (!this.isHostMessage(event) || isStaleDocument(installedVersion)) return
 			if (!event.data || event.data.type !== "MAGIC_I18N_LANG_SUBSCRIBE") return
 			if (!event.data.success) return
 
-			const results = (event.data.results ?? {}) as { lang?: string;[key: string]: unknown }
+			const results = (event.data.results ?? {}) as { lang?: string; [key: string]: unknown }
 			const nextLang = typeof results.lang === "string" ? results.lang : ""
 			if (nextLang && window.Magic.i18n) {
 				window.Magic.i18n.lang = nextLang

@@ -1,4 +1,5 @@
-export interface AttachmentProps {
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+export interface AttachmentProps extends AttachmentItem {
 	file_extension: string | undefined
 	file_name: string
 	filename: string
@@ -6,6 +7,7 @@ export interface AttachmentProps {
 	url: string
 	file_id: string
 	display_filename?: string
+	file_tag?: "user_upload" | "process" | "browser" | "final"
 	display_config?: {
 		version: string
 		type: string

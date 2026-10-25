@@ -29,7 +29,11 @@ export function MagiClawFeatures() {
 	]
 
 	return (
-		<section className="flex flex-col gap-4 px-2.5" data-testid="magi-claw-features">
+		<section
+			className="flex flex-col gap-4 px-2.5"
+			data-testid="magi-claw-features"
+			data-guide-anchor="magi-claw-features"
+		>
 			{featureItems.map((featureItem) => (
 				<div
 					key={featureItem.key}

@@ -163,7 +163,7 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     {
         return [
             'id' => 'nullable|string',
-            'topic_name' => 'present|string|max:100',
+            'topic_name' => 'present|string|max:255',
             'project_id' => 'required|string',
             'project_mode' => 'nullable|string',
             'is_hidden' => 'nullable|boolean',
@@ -178,7 +178,7 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     {
         return [
             'topic_name.present' => 'Topic name field is required',
-            'topic_name.max' => 'Topic name cannot exceed 100 characters',
+            'topic_name.max' => 'Topic name cannot exceed 255 characters',
             'project_id.required' => 'Project ID cannot be empty',
             'project_id.string' => 'Project ID must be a string',
         ];

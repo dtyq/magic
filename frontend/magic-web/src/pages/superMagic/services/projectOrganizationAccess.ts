@@ -1,10 +1,19 @@
 import { SuperMagicApi } from "@/apis"
-import type { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 import { interfaceStore } from "@/stores/interface"
 import type { User } from "@/types/user"
+import { appStore } from "@/stores/app"
+import {
+	readProjectInitializationIdentity,
+	isProjectInitializationIdentityCurrent,
+} from "./projectStateInitialization"
 
 const ORGANIZATION_SWITCH_SUPPRESSION_KEY = "super-magic:project-organization-access-suppression"
 const ORGANIZATION_SWITCH_SUPPRESSION_DURATION = 30_000
+const pendingAccessRequests = new Map<
+	string,
+	ReturnType<typeof SuperMagicApi.getProjectAccessibility>
+>()
 
 interface OrganizationSwitchSuppression {
 	pathname: string
@@ -88,7 +97,33 @@ export async function resolveRequiredProjectOrganizationCode({
 	if (!projectId || isProjectOrganizationAccessCheckSuppressed()) return null
 
 	try {
-		const accessibility = await SuperMagicApi.getProjectAccessibility(projectId, requestOptions)
+		const identity = readProjectInitializationIdentity()
+		// 只合并原有两个入口的等价读取。独立信号、自定义请求头等选项仍保持独立。
+		const canShare = Object.keys(requestOptions ?? {}).every(
+			(key) => key === "skipAppInitWait" || key === "enableErrorMessagePrompt",
+		)
+		const appReady = !appStore.isInitialing && Boolean(appStore.appInitPromise)
+		const requestKey = JSON.stringify([
+			identity.sessionEpoch,
+			projectId,
+			currentOrganizationCode,
+			!appReady && Boolean(requestOptions?.skipAppInitWait),
+			requestOptions?.enableErrorMessagePrompt ?? true,
+		])
+		let request = canShare ? pendingAccessRequests.get(requestKey) : undefined
+		if (!request) {
+			request = SuperMagicApi.getProjectAccessibility(projectId, requestOptions)
+			if (canShare) {
+				const pending = request.finally(() => {
+					if (pendingAccessRequests.get(requestKey) === pending)
+						pendingAccessRequests.delete(requestKey)
+				})
+				pendingAccessRequests.set(requestKey, pending)
+				request = pending
+			}
+		}
+		const accessibility = await request
+		if (!isProjectInitializationIdentityCurrent(identity)) return null
 		const requiredOrganizationCode =
 			accessibility?.required_magic_organization_code?.trim() || null
 

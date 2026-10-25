@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react"
 import { createRef } from "react"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import TopicFilesPanel, { type TopicFilesPanelRef } from "../TopicFilesPanel"
 
 const selectDirectoryModalSpy = vi.fn()
@@ -50,9 +50,13 @@ vi.mock("@/utils/pubsub", () => ({
 	},
 }))
 
+const shareRouteMocks = vi.hoisted(() => ({
+	isShareRoute: false,
+}))
+
 vi.mock("../../../hooks/useShareRoute", () => ({
 	default: () => ({
-		isShareRoute: false,
+		isShareRoute: shareRouteMocks.isShareRoute,
 	}),
 }))
 
@@ -182,7 +186,13 @@ vi.mock("../components", () => ({
 	DuplicateFileModal: () => null,
 	FolderConflictModal: () => null,
 	SelectModeHeader: () => <div />,
-	NormalModeHeader: () => <div />,
+	NormalModeHeader: (props: { showRefresh?: boolean; isShareRoute?: boolean }) => (
+		<div
+			data-testid="normal-mode-header"
+			data-show-refresh={String(props.showRefresh)}
+			data-is-share-route={String(props.isShareRoute)}
+		/>
+	),
 	SearchModeHeader: () => <div />,
 }))
 
@@ -212,6 +222,39 @@ vi.mock("@/pages/superMagicMobile/components/ProjectShareSheet", () => ({
 }))
 
 describe("TopicFilesPanel", () => {
+	beforeEach(() => {
+		shareRouteMocks.isShareRoute = false
+	})
+
+	it("shows refresh on share-like routes when showRefresh is enabled", () => {
+		shareRouteMocks.isShareRoute = true
+
+		render(
+			<TopicFilesPanel
+				attachments={[]}
+				projectId="project-1"
+				allowEdit={false}
+				showRefresh
+			/>,
+		)
+
+		expect(screen.getByTestId("normal-mode-header")).toHaveAttribute(
+			"data-show-refresh",
+			"true",
+		)
+	})
+
+	it("hides refresh on share routes when showRefresh is omitted", () => {
+		shareRouteMocks.isShareRoute = true
+
+		render(<TopicFilesPanel attachments={[]} projectId="project-1" allowEdit={false} />)
+
+		expect(screen.getByTestId("normal-mode-header")).toHaveAttribute(
+			"data-show-refresh",
+			"false",
+		)
+	})
+
 	it("只读场景下命令式 API 不触发上传或移动写操作", () => {
 		uploadFileSpy.mockClear()
 		uploadFolderSpy.mockClear()

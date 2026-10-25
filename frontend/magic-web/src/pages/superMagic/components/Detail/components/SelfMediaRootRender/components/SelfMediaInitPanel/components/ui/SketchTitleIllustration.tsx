@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import brandIllustration from "@/assets/resources/self-media/title-brand.png"
 import confirmIllustration from "@/assets/resources/self-media/title-confirm.png"
 import outlineIllustration from "@/assets/resources/self-media/title-outline.png"

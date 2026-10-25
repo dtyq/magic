@@ -10,7 +10,6 @@ namespace HyperfTest\Cases\Application\ModelGateway\ImageOperation;
 use App\Application\ModelGateway\Processor\ImageProcessorInterface;
 use App\Application\ModelGateway\Processor\ImageProcessorPipeline;
 use App\Application\ModelGateway\Struct\ImageProcessContext;
-use App\Infrastructure\ExternalAPI\Image\ImageAsset;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -29,8 +28,9 @@ class ImageProcessorPipelineTest extends TestCase
     public function testProcessRunsProcessorsInOrderOnSameContext(): void
     {
         $context = new ImageProcessContext(
-            asset: ImageAsset::fromLocalFile('/tmp/provider-result.png', 'image/png', 'official_proxy'),
             localFilePath: '/tmp/provider-result.png',
+            mimeType: 'image/png',
+            provider: 'official_proxy',
         );
 
         $firstProcessor = Mockery::mock(ImageProcessorInterface::class);

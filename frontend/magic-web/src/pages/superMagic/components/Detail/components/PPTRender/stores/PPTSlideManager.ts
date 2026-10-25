@@ -716,6 +716,7 @@ export class PPTSlideManager {
 		})
 
 		this.slides[index].content = content
+		this.slides[index].resourceVersionSignature = null
 		this.slides[index].loadingState = "loaded"
 	}
 
@@ -749,6 +750,9 @@ export class PPTSlideManager {
 
 		this.slides[index] = {
 			...this.slides[index],
+			...("content" in updates || "rawContent" in updates
+				? { resourceVersionSignature: null }
+				: {}),
 			...updates,
 		}
 	}

@@ -1,6 +1,7 @@
 import { Activity, Bookmark, Eye, Heart, MessageCircle, Send, TrendingUp } from "lucide-react"
 import type { ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
+import { cn } from "@/utils/cn"
 import type { SelfMediaOpsOverview } from "../services/selfMediaOpsOverview"
 import {
 	formatSelfMediaCompactNumber,
@@ -22,34 +23,34 @@ interface SelfMediaOpsDataSummaryProps {
 	className?: string
 }
 
-const secondaryMetrics = [
+const secondaryMetricDefs = [
 	{
 		key: "likes",
-		label: "点赞",
+		labelKey: "selfMedia.likes",
 		icon: Heart,
-		getValue: (overview: SelfMediaOpsOverview) =>
-			formatSelfMediaCompactNumber(getEngagementTotals(overview).likes),
+		getValue: (overview: SelfMediaOpsOverview, locale?: string) =>
+			formatSelfMediaCompactNumber(getEngagementTotals(overview).likes, locale),
 	},
 	{
 		key: "comments",
-		label: "评论",
+		labelKey: "selfMedia.comments",
 		icon: MessageCircle,
-		getValue: (overview: SelfMediaOpsOverview) =>
-			formatSelfMediaCompactNumber(getEngagementTotals(overview).comments),
+		getValue: (overview: SelfMediaOpsOverview, locale?: string) =>
+			formatSelfMediaCompactNumber(getEngagementTotals(overview).comments, locale),
 	},
 	{
 		key: "saves",
-		label: "收藏",
+		labelKey: "selfMedia.saves",
 		icon: Bookmark,
-		getValue: (overview: SelfMediaOpsOverview) =>
-			formatSelfMediaCompactNumber(getEngagementTotals(overview).saves),
+		getValue: (overview: SelfMediaOpsOverview, locale?: string) =>
+			formatSelfMediaCompactNumber(getEngagementTotals(overview).saves, locale),
 	},
 	{
 		key: "shares",
-		label: "分享",
+		labelKey: "selfMedia.shares",
 		icon: Send,
-		getValue: (overview: SelfMediaOpsOverview) =>
-			formatSelfMediaCompactNumber(getEngagementTotals(overview).shares),
+		getValue: (overview: SelfMediaOpsOverview, locale?: string) =>
+			formatSelfMediaCompactNumber(getEngagementTotals(overview).shares, locale),
 	},
 ] as const
 
@@ -76,25 +77,33 @@ function SelfMediaOpsDataSummary({
 	dense = false,
 	className,
 }: SelfMediaOpsDataSummaryProps) {
+	const { t, i18n } = useTranslation("super")
+	const secondaryLabels = {
+		likes: t("selfMedia.likes"),
+		comments: t("selfMedia.comments"),
+		saves: t("selfMedia.saves"),
+		shares: t("selfMedia.shares"),
+	}
+	const locale = i18n?.language
 	const synced = overview.completion.metrics.done
 	const total = overview.completion.metrics.total
 	const averageReads = loading
-		? "同步中"
+		? t("selfMedia.syncing")
 		: synced > 0
-			? formatSelfMediaCompactNumber(overview.totalReads / synced)
+			? formatSelfMediaCompactNumber(overview.totalReads / synced, locale)
 			: "--"
 	const displayValues: Record<SelfMediaOpsMetricKey, string> = loading
 		? {
-				reads: "同步中",
-				engagement: "同步中",
-				rate: "同步中",
+				reads: t("selfMedia.syncing"),
+				engagement: t("selfMedia.syncing"),
+				rate: t("selfMedia.syncing"),
 			}
 		: values
 	const displayStatusLabels: Record<SelfMediaOpsMetricKey, string> = loading
 		? {
-				reads: "读取数据",
-				engagement: "读取数据",
-				rate: "读取数据",
+				reads: t("selfMedia.readingData"),
+				engagement: t("selfMedia.readingData"),
+				rate: t("selfMedia.readingData"),
 			}
 		: statusLabels
 
@@ -114,13 +123,17 @@ function SelfMediaOpsDataSummary({
 				)}
 			>
 				<div>
-					<h4 className="text-[13px] font-[820] text-[#18181b]">发布后数据汇总</h4>
+					<h4 className="text-[13px] font-[820] text-[#18181b]">
+						{t("selfMedia.opsSummaryTitle")}
+					</h4>
 					<p className="mt-1 text-[11px] font-[620] text-[#71717a]">
-						{total > 0 ? `已同步 ${synced}/${total}` : "等待发布后同步"}
+						{total > 0
+							? t("selfMedia.syncedProgress", { synced, total })
+							: t("selfMedia.waitingSync")}
 					</p>
 				</div>
 				<div className="bg-white/64 rounded-full border border-white/70 px-3 py-1 text-[11px] font-[760] text-[#4f6670] shadow-[inset_0_1px_rgba(255,255,255,0.82)]">
-					篇均阅读 {averageReads}
+					{t("selfMedia.avgReads", { value: averageReads })}
 				</div>
 			</div>
 			<div
@@ -132,7 +145,7 @@ function SelfMediaOpsDataSummary({
 			>
 				<PrimaryMetricTile
 					icon={<Eye size={dense ? 15 : 17} />}
-					label="总阅读"
+					label={t("selfMedia.totalReads")}
 					value={displayValues.reads}
 					statusLabel={displayStatusLabels.reads}
 					motionState={motionStates.reads}
@@ -144,7 +157,7 @@ function SelfMediaOpsDataSummary({
 				/>
 				<PrimaryMetricTile
 					icon={<TrendingUp size={dense ? 15 : 17} />}
-					label="总互动"
+					label={t("selfMedia.totalInteractions")}
 					value={displayValues.engagement}
 					statusLabel={displayStatusLabels.engagement}
 					motionState={motionStates.engagement}
@@ -156,7 +169,7 @@ function SelfMediaOpsDataSummary({
 				/>
 				<PrimaryMetricTile
 					icon={<Activity size={dense ? 15 : 17} />}
-					label="平均互动率"
+					label={t("selfMedia.avgInteractionRate")}
 					value={displayValues.rate}
 					statusLabel={displayStatusLabels.rate}
 					motionState={motionStates.rate}
@@ -173,7 +186,7 @@ function SelfMediaOpsDataSummary({
 					dense ? "mt-2" : "mt-3",
 				)}
 			>
-				{secondaryMetrics.map((item) => {
+				{secondaryMetricDefs.map((item) => {
 					const Icon = item.icon
 					return (
 						<div
@@ -187,7 +200,7 @@ function SelfMediaOpsDataSummary({
 						>
 							<div className="flex items-center gap-1.5 text-[11px] font-[720]">
 								<Icon size={13} />
-								<span>{item.label}</span>
+								<span>{secondaryLabels[item.key]}</span>
 							</div>
 							<div
 								className={cn(
@@ -195,7 +208,7 @@ function SelfMediaOpsDataSummary({
 									dense ? "text-[13px]" : "text-[16px]",
 								)}
 							>
-								{loading ? "—" : item.getValue(overview)}
+								{loading ? "—" : item.getValue(overview, locale)}
 							</div>
 						</div>
 					)

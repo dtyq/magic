@@ -35,7 +35,6 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property null|string $review_remark 审核说明
  * @property string $publish_target_type 发布对象类型
  * @property null|array $publish_target_value 发布对象实际值
- * @property null|int $category_id 市场分类 ID
  * @property null|array $version_description_i18n 版本描述（多语言）
  * @property null|string $publisher_user_id 发布者用户ID
  * @property null|Carbon $published_at 发布时间
@@ -76,7 +75,6 @@ class AgentVersionModel extends AbstractModel
         'review_remark',
         'publish_target_type',
         'publish_target_value',
-        'category_id',
         'version_description_i18n',
         'publisher_user_id',
         'published_at',
@@ -108,7 +106,6 @@ class AgentVersionModel extends AbstractModel
         'review_remark' => 'string',
         'publish_target_type' => 'string',
         'publish_target_value' => 'array',
-        'category_id' => 'integer',
         'version_description_i18n' => 'array',
         'publisher_user_id' => 'string',
         'published_at' => 'datetime',

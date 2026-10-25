@@ -29,6 +29,7 @@ interface RecordingDetailLeftColumnProps {
 	onExpandedChange: (expanded: boolean) => void
 	onPlaybackRateChange: (rate: number) => void
 	onOpenSpeakerSettings: () => void
+	isSummarizing?: boolean
 }
 
 /** Left workbench column combining inline player and transcript list. */
@@ -54,6 +55,7 @@ export function RecordingDetailLeftColumn({
 	onExpandedChange,
 	onPlaybackRateChange,
 	onOpenSpeakerSettings,
+	isSummarizing = false,
 }: RecordingDetailLeftColumnProps) {
 	const segments = useMemo(
 		() => (transcriptMarkdown ? parseTranscriptMarkdown(transcriptMarkdown) : []),
@@ -72,7 +74,7 @@ export function RecordingDetailLeftColumn({
 	)
 
 	return (
-		<>
+		<div className="flex h-full min-h-0 flex-col gap-4">
 			<RecordingDetailAudioPlayer
 				audioRef={audioRef}
 				audioUrl={audioUrl}
@@ -104,7 +106,8 @@ export function RecordingDetailLeftColumn({
 				}
 				onSelectedSpeakerIdsChange={onSelectedSpeakerIdsChange}
 				onOpenSpeakerSettings={onOpenSpeakerSettings}
+				isSummarizing={isSummarizing}
 			/>
-		</>
+		</div>
 	)
 }

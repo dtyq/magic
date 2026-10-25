@@ -148,8 +148,8 @@ class TokenUsageTracker:
         # 添加使用记录到跟踪器
         self.add_usage(model_id, token_usage)
 
-        # 优先使用当前 Agent 会话的报告管理器，避免并发 Agent 共享全局文件名前缀。
-        active_report_manager = report_manager or self._report_manager
+        # 只有调用方显式传入当前 Agent 会话报告时才落盘，避免隐式使用 sandbox 级报告。
+        active_report_manager = report_manager
         if active_report_manager:
             active_report_manager.update_and_save_usage(model_id, token_usage, resolved_model_id=resolved_model_id)
 

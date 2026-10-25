@@ -8,8 +8,12 @@ from __future__ import annotations
 
 import importlib
 import io
+import os
 import sys
 from pathlib import Path
+
+# Redirect any runtime log directory to safe system location rather than workspace cwd
+os.environ.setdefault("LOG_DIR", "/app/logs" if Path("/app/logs").exists() else "/tmp/logs")
 
 _project_root: Path | None = None
 

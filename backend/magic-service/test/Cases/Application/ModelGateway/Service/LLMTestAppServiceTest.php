@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Service\ConnectivityTest\LLMConnectivityTestMessageBuilder;
 use App\Application\ModelGateway\Service\LLMTestAppService;
+use App\Domain\Provider\DTO\Item\ModelConfigItem;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
@@ -64,6 +66,150 @@ class LLMTestAppServiceTest extends TestCase
         $this->assertConnectivityModelByConfigAppliesResolvedProxy(true);
     }
 
+    public function testRequestedMultimodalSupportIsUsedWithoutSavedModelConfig(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $resolveMethod = new ReflectionMethod($service, 'resolveConnectivitySupportMultiModal');
+        $resolveMethod->setAccessible(true);
+
+        $this->assertTrue($resolveMethod->invoke($service, null, true));
+        $this->assertFalse($resolveMethod->invoke($service, null, null));
+    }
+
+    public function testRequestedFunctionSupportIsUsedWithoutSavedModelConfig(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $resolveMethod = new ReflectionMethod($service, 'resolveConnectivitySupportFunction');
+        $resolveMethod->setAccessible(true);
+
+        $this->assertTrue($resolveMethod->invoke($service, null, true));
+        $this->assertFalse($resolveMethod->invoke($service, null, null));
+    }
+
+    public function testSavedModelConfigTakesPriorityOverRequestedValue(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $resolveMethod = new ReflectionMethod($service, 'resolveConnectivitySupportMultiModal');
+        $resolveMethod->setAccessible(true);
+
+        $enabledConfig = new ModelConfigItem(['support_multi_modal' => true]);
+        $disabledConfig = new ModelConfigItem(['support_multi_modal' => false]);
+
+        $this->assertTrue($resolveMethod->invoke($service, $enabledConfig, false));
+        $this->assertFalse($resolveMethod->invoke($service, $disabledConfig, true));
+    }
+
+    public function testSavedFunctionConfigTakesPriorityOverRequestedValue(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $resolveMethod = new ReflectionMethod($service, 'resolveConnectivitySupportFunction');
+        $resolveMethod->setAccessible(true);
+
+        $enabledConfig = new ModelConfigItem(['support_function' => true]);
+        $disabledConfig = new ModelConfigItem(['support_function' => false]);
+
+        $this->assertTrue($resolveMethod->invoke($service, $enabledConfig, false));
+        $this->assertFalse($resolveMethod->invoke($service, $disabledConfig, true));
+    }
+
+    public function testConnectivityModelOptionsUseResolvedMultimodalSupport(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod($service, 'buildConnectivityModelOptions');
+        $method->setAccessible(true);
+
+        $options = $method->invoke($service, false, null, true);
+
+        $this->assertTrue($options->isMultiModal());
+    }
+
+    public function testConnectivityModelOptionsUseResolvedFunctionSupport(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod($service, 'buildConnectivityModelOptions');
+        $method->setAccessible(true);
+
+        $enabledOptions = $method->invoke($service, false, null, false, true);
+        $disabledOptions = $method->invoke($service, false, null, false, false);
+
+        $this->assertTrue($enabledOptions->supportsFunctionCall());
+        $this->assertFalse($disabledOptions->supportsFunctionCall());
+    }
+
+    public function testConnectivityModelOptionsPassThroughChatApi(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod($service, 'buildConnectivityModelOptions');
+        $method->setAccessible(true);
+
+        $defaultOptions = $method->invoke($service, false, null, false);
+        $this->assertSame('chat_completions', $defaultOptions->getChatApi());
+
+        $responsesConfig = new ModelConfigItem(['chat_api' => 'responses']);
+        $responsesOptions = $method->invoke($service, false, $responsesConfig, false);
+        $this->assertSame('responses', $responsesOptions->getChatApi());
+    }
+
+    public function testMultimodalChatRequestContainsImageMessage(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod($service, 'buildConnectivityChatRequest');
+        $method->setAccessible(true);
+
+        $request = $method->invoke(
+            $service,
+            LLMConnectivityTestMessageBuilder::buildMultimodalMessages(),
+            ['source_id' => 'connectivity_test'],
+            null,
+            64
+        );
+        $messages = $request->getMessages();
+
+        $this->assertCount(1, $messages);
+        $this->assertTrue($messages[0]->hasImageMultiModal());
+        $this->assertSame(64, $request->getMaxTokens());
+        $this->assertSame('connectivity_test', $request->getBusinessParams()['source_id']);
+        $this->assertSame([], $request->getTools());
+    }
+
+    public function testTextChatRequestIncludesFunctionCallToolsWhenEnabled(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod($service, 'buildConnectivityChatRequest');
+        $method->setAccessible(true);
+
+        $request = $method->invoke(
+            $service,
+            LLMConnectivityTestMessageBuilder::buildTextMessages(),
+            ['source_id' => 'connectivity_test'],
+            null,
+            null,
+            true
+        );
+        $tools = $request->getTools();
+
+        $this->assertCount(1, $tools);
+        $this->assertSame('get_current_time', $tools[0]->getName());
+    }
+
+    public function testTextChatRequestOmitsFunctionCallToolsWhenDisabled(): void
+    {
+        $service = (new ReflectionClass(LLMTestAppService::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod($service, 'buildConnectivityChatRequest');
+        $method->setAccessible(true);
+
+        $request = $method->invoke(
+            $service,
+            LLMConnectivityTestMessageBuilder::buildTextMessages(),
+            ['source_id' => 'connectivity_test'],
+            null,
+            null,
+            false
+        );
+
+        $this->assertSame([], $request->getTools());
+    }
+
     private function assertConnectivityModelByConfigAppliesResolvedProxy(bool $embedding): void
     {
         $proxyUrl = 'socks5h://user:pass@127.0.0.1:1080';
@@ -74,7 +220,7 @@ class LLMTestAppServiceTest extends TestCase
             {
             }
 
-            public function resolve(array $config = []): ?string
+            public function resolve(array $config = []): string
             {
                 $this->resolvedConfigs[] = $config;
                 return $this->proxyUrl;

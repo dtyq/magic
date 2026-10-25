@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { FileAccessProvider } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { createShareFileAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import AICardIframe from "../AICardIframe"
 
 vi.mock("react-i18next", () => ({
@@ -151,6 +153,32 @@ describe("AICardIframe", () => {
 
 		await waitFor(() => {
 			expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(2)
+		})
+	})
+
+	it("binds the ambient share access to the card html request", async () => {
+		const shareAccess = createShareFileAccess({
+			token: "share-token",
+			projectId: "share-project",
+		})
+
+		render(
+			<FileAccessProvider value={shareAccess}>
+				<AICardIframe
+					fileId="current-html"
+					attachmentList={createAttachmentList()}
+					showSkeleton={false}
+				/>
+			</FileAccessProvider>,
+		)
+
+		// The share preview can only read the card html when the share identity is
+		// forwarded; an unbound call fails closed on share routes.
+		await waitFor(() => {
+			expect(getTemporaryDownloadUrl).toHaveBeenCalledWith({
+				file_ids: ["current-html"],
+				access: shareAccess,
+			})
 		})
 	})
 

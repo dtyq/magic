@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Domain\ModelGateway\Entity\Dto;
 
 use App\Domain\ModelGateway\Entity\Dto\CreateVideoDTO;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Infrastructure\Core\Exception\BusinessException;
 use PHPUnit\Framework\TestCase;
 
@@ -74,13 +75,13 @@ class CreateVideoDTOTest extends TestCase
             'business_params' => [
                 'organization_code' => 'DT001',
                 'user_id' => 'user-1',
-                'source_id' => 'design_video_generation',
+                'source_id' => SourceId::DESIGN_VIDEO_GENERATION,
             ],
         ]);
 
         $dto->valid();
 
-        $this->assertSame('design_video_generation', $dto->getBusinessParam('source_id'));
+        $this->assertSame(SourceId::DESIGN_VIDEO_GENERATION, $dto->getBusinessParam('source_id'));
     }
 
     public function testManagedPollingDefaultsToEnabledAndCanBeDisabled(): void

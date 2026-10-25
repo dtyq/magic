@@ -121,6 +121,7 @@ return [
 
     // Liên quan đến tên tệp
     'file_names' => [
+        'recording_at' => 'Bản ghi âm lúc :time',
         'recording_prefix' => 'Ghi âm',
         'merged_audio_prefix' => 'Tệp ghi âm',
         'original_recording' => 'Tệp ghi âm gốc',
@@ -154,10 +155,16 @@ return [
         'summary_middle_with_note' => ' nội dung ghi âm và ',
         'summary_suffix_with_note' => ' nội dung ghi chú của tôi thành một sản phẩm siêu việt',
         // i18n cho tin nhắn tóm tắt lại
-        'resummary_prefix' => 'Vui lòng tóm tắt lại dự án ghi âm hiện có này: ',
+        'resummary_prefix' => 'Vui lòng tóm tắt lại ',
         'resummary_note_middle' => '. Vui lòng tham chiếu tệp ghi chú/ngữ cảnh hiện có này: ',
         'resummary_base_instruction' => '. Chỉ đọc magic.project.js, bản ghi lời nói và ghi chú làm nguồn thông tin gốc. Không chạy lại ASR, không tách âm thanh và không sửa audio, transcript hoặc notes. Không đọc các tệp phái sinh cũ như summary, topics, insights, highlights, followup, intent, power_dynamics, metrics hoặc mindmap.',
         'resummary_scope_instruction' => 'Gọi analyze_audio_project với analysis_scope=":analysis_scope" và không truyền specified_analysis_types.',
         'resummary_specified_instruction' => 'Gọi analyze_audio_project với specified_analysis_types=:specified_analysis_types.',
+        // Tiền tố/hậu tố i18n tóm tắt lại (không có ghi chú)
+        'resummary_suffix' => ' nội dung ghi âm. Vui lòng bỏ qua các sản phẩm tổng kết cũ, phân tích lại bản ghi âm và tạo một sản phẩm siêu việt hoàn toàn mới. Không cần thực hiện lại việc chuyển âm thanh thành văn bản.',
+        // Tiền tố/hậu tố i18n tóm tắt lại (có ghi chú)
+        'resummary_prefix_with_note' => 'Vui lòng tóm tắt lại ',
+        'resummary_middle_with_note' => ' nội dung ghi âm và ',
+        'resummary_suffix_with_note' => ' nội dung ghi chú của tôi. Vui lòng bỏ qua các sản phẩm tổng kết cũ, phân tích lại bản ghi âm cùng ghi chú và tạo một sản phẩm siêu việt hoàn toàn mới. Không cần thực hiện lại việc chuyển âm thanh thành văn bản.',
     ],
 ];

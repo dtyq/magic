@@ -4,8 +4,10 @@ import { IconSearch } from "@tabler/icons-react"
 import MagicIcon from "@/components/base/MagicIcon"
 import { createStyles } from "antd-style"
 import { useMemoizedFn } from "ahooks"
+import { useTranslation } from "react-i18next"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
-// 样式定义
+// Keep dropdown styling consistent with the existing theme tokens.
 const useStyles = createStyles(({ token, css }) => ({
 	dropdown: css`
 		padding: 8px;
@@ -27,20 +29,10 @@ const useStyles = createStyles(({ token, css }) => ({
 	`,
 
 	optionsList: css`
+		height: auto;
 		max-height: 200px;
-		overflow-y: auto;
-
-		&::-webkit-scrollbar {
-			width: 6px;
-		}
-
-		&::-webkit-scrollbar-thumb {
-			background-color: ${token.colorBorderSecondary};
-			border-radius: 3px;
-
-			&:hover {
-				background-color: ${token.colorBorder};
-			}
+		> div {
+			display: block !important;
 		}
 	`,
 
@@ -92,7 +84,7 @@ interface BaseDropdownRendererProps {
 const BaseDropdownRenderer = memo<BaseDropdownRendererProps>(
 	({
 		options = [],
-		placeholder = "搜索...",
+		placeholder,
 		value,
 		onChange,
 		showSearch = true,
@@ -100,10 +92,12 @@ const BaseDropdownRenderer = memo<BaseDropdownRendererProps>(
 		OptionWrapper,
 		...restProps
 	}) => {
+		const { t } = useTranslation()
 		const { styles } = useStyles()
+		const searchPlaceholder = placeholder ?? t("common.searchPlaceholder", { ns: "flow" })
 		const [searchValue, setSearchValue] = useState("")
 
-		// 过滤选项
+		// Filter by the searchable text while retaining the original option labels.
 		const filteredOptions = options.filter((option) => {
 			if (!searchValue) return true
 			const label = option.realLabel
@@ -118,7 +112,7 @@ const BaseDropdownRenderer = memo<BaseDropdownRendererProps>(
 			setSearchValue(e.target.value)
 		})
 
-		// 重置搜索值
+		// Reset search when the selected value changes.
 		useEffect(() => {
 			setSearchValue("")
 		}, [value])
@@ -140,7 +134,7 @@ const BaseDropdownRenderer = memo<BaseDropdownRendererProps>(
 				</div>
 			)
 
-			// 如果有包装组件，使用包装组件
+			// Preserve callers' custom option wrappers.
 			if (OptionWrapper) {
 				return (
 					<OptionWrapper key={option.value || index} option={option}>
@@ -157,7 +151,7 @@ const BaseDropdownRenderer = memo<BaseDropdownRendererProps>(
 				{showSearch && (
 					<div className={styles.searchBox}>
 						<Input
-							placeholder={placeholder}
+							placeholder={searchPlaceholder}
 							value={searchValue}
 							onChange={handleSearchChange}
 							prefix={<MagicIcon component={IconSearch} size={16} />}
@@ -170,15 +164,18 @@ const BaseDropdownRenderer = memo<BaseDropdownRendererProps>(
 					</div>
 				)}
 
-				<div className={styles.optionsList}>
+				<ScrollArea viewportClassName={styles.optionsList}>
 					{filteredOptions.length > 0 ? (
 						filteredOptions.map(renderOption)
 					) : (
 						<div className={styles.empty}>
-							<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />
+							<Empty
+								image={Empty.PRESENTED_IMAGE_SIMPLE}
+								description={t("common.noData", { ns: "flow" })}
+							/>
 						</div>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 		)
 	},

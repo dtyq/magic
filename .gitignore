@@ -12,3 +12,6 @@ bin/splitsh-lite
 .superpowers
 .codex
 .workspace
+.zcode
+.workbuddy
+logs/

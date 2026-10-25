@@ -1,14 +1,15 @@
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Form } from "antd"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { resolveToString } from "@dtyq/es6-template-strings"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { MagicDatePicker } from "@/components/base"
-import { MagicSwitch } from "@/components/base/MagicSwitch"
+import { FormSwitch } from "@/components/business/AccountSetting/pages/ScheduledTasks/components/FormSwitch"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { parseContent } from "@/pages/superMagic/components/MessageList/components/Text/components/RichText/utils"
 import { createMentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import {
@@ -32,9 +33,18 @@ import mcpTempStorage from "@/components/business/AccountSetting/pages/Scheduled
 import type { FormValues } from "@/components/business/AccountSetting/pages/ScheduledTasks/types"
 import { ScheduledTask } from "@/types/scheduledTask"
 import { ProjectFilesStore } from "@/stores/projectFiles"
-import { getNextRunTime } from "@/components/business/AccountSetting/pages/ScheduledTasks/utils"
+import {
+	getNextRunTime,
+	serializeScheduledTaskModel,
+} from "@/components/business/AccountSetting/pages/ScheduledTasks/utils"
 import type { MicroAppScheduledTasksModifyProps } from "./types"
 import { applyMicroAppScheduledTaskContext } from "./utils"
+import {
+	isAgentSelectionAvailable,
+	resolveAgentSelection,
+	resolveDefaultAgentSelection,
+} from "@/services/superMagic/DefaultAgentSelectionService"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 
 const formClassName = cn(
 	"[&_.magic-form-item]:mb-4",
@@ -114,7 +124,21 @@ export function MicroAppScheduledTasksModify({
 	const [form] = Form.useForm<ScheduledTask.UpdateTask>()
 	const [loading, setLoading] = useState(Boolean(initialValues))
 	const [promptRequired, setPromptRequired] = useState(false)
-	const [topicMode, setTopicMode] = useState<TopicMode>(TopicMode.General)
+	// Runtime tasks may use any employee; development tasks retain their fixed micro-app employee.
+	const allowSelectAgent = Boolean(context.microAppId)
+	const [agentSelection, setAgentSelection] = useState(() => {
+		const saved = initialValues?.message_content?.extra?.super_agent
+		return saved?.topic_pattern
+			? resolveAgentSelection(saved.topic_pattern, saved.agent_code)
+			: resolveDefaultAgentSelection()
+	})
+	const modelTopicMode = allowSelectAgent
+		? (agentSelection.modeIdentifier as TopicMode)
+		: TopicMode.Default
+	const runtimeTopicMode = allowSelectAgent ? agentSelection.topicPattern : TopicMode.MicroApp
+	const handleAgentChange = useMemoizedFn((nextMode: TopicMode) => {
+		setAgentSelection(resolveAgentSelection(nextMode))
+	})
 	const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null)
 	const [modalStores] = useState(() => {
 		const projectFilesStore = new ProjectFilesStore()
@@ -126,7 +150,6 @@ export function MicroAppScheduledTasksModify({
 	const selectedWorkspace = useMemo(() => createWorkspace(context), [context])
 	const selectedProject = useMemo(() => createProject(context), [context])
 
-	const topicId = Form.useWatch("topic_id", form)
 	const deadlineEnabled = Form.useWatch("deadline_enabled", form)
 	const timeConfig = Form.useWatch("time_config", form)
 
@@ -169,6 +192,14 @@ export function MicroAppScheduledTasksModify({
 
 	const onOk = useMemoizedFn(async () => {
 		try {
+			if (
+				allowSelectAgent &&
+				superMagicModeService.modeList.length > 0 &&
+				!isAgentSelectionAvailable(agentSelection.modeIdentifier, agentSelection.agentCode)
+			) {
+				magicToast.error(t("accountPanel.timedTasks.agentUnavailable"))
+				return
+			}
 			const values = await form.validateFields()
 			if (!context.workspaceId || !context.projectId) {
 				magicToast.error(t("accountPanel.timedTasks.workspace"))
@@ -182,6 +213,12 @@ export function MicroAppScheduledTasksModify({
 
 			setPromptRequired(false)
 			const content = tiptapEditorRef.current?.editor?.getJSON() ?? {}
+			const imageModel = serializeScheduledTaskModel(
+				tiptapEditorRef.current?.selectedImageModel,
+			)
+			const videoModel = serializeScheduledTaskModel(
+				tiptapEditorRef.current?.selectedVideoModel,
+			)
 			onSubmit?.(
 				applyMicroAppScheduledTaskContext(
 					{
@@ -203,8 +240,14 @@ export function MicroAppScheduledTasksModify({
 									mentions: tiptapEditorRef.current?.mentionItems,
 									input_mode: "plan",
 									chat_mode: "normal",
-									topic_pattern: topicMode,
+									topic_pattern: runtimeTopicMode,
+									...(allowSelectAgent &&
+										agentSelection.agentCode && {
+											agent_code: agentSelection.agentCode,
+										}),
 									model: tiptapEditorRef.current?.selectedModel,
+									...(imageModel && { image_model: imageModel }),
+									...(videoModel && { video_model: videoModel }),
 								},
 							},
 						},
@@ -252,9 +295,11 @@ export function MicroAppScheduledTasksModify({
 		tiptapEditorRef.current.setSelectedModel?.(
 			initialValues.message_content.extra?.super_agent?.model || null,
 		)
-		setTopicMode(
-			(initialValues.message_content.extra?.super_agent?.topic_pattern as TopicMode) ||
-				TopicMode.General,
+		tiptapEditorRef.current.setSelectedImageModel?.(
+			initialValues.message_content.extra?.super_agent?.image_model || null,
+		)
+		tiptapEditorRef.current.setSelectedVideoModel?.(
+			initialValues.message_content.extra?.super_agent?.video_model || null,
 		)
 	}, [initialValues, loading])
 
@@ -266,16 +311,6 @@ export function MicroAppScheduledTasksModify({
 		})
 		setSelectedTopic(null)
 	}, [context.workspaceId, context.projectId, context.topicId])
-
-	useEffect(() => {
-		const taskContextWindow = window as Window & { project_id?: string; topic_id?: string }
-		taskContextWindow.project_id = context.projectId
-		if (topicId) taskContextWindow.topic_id = topicId
-		return () => {
-			taskContextWindow.project_id = ""
-			taskContextWindow.topic_id = ""
-		}
-	}, [context.projectId, topicId])
 
 	const handleTopicSelect = useMemoizedFn((item?: { value: string; label: string }) => {
 		if (!item) {
@@ -291,7 +326,7 @@ export function MicroAppScheduledTasksModify({
 			task_status: TaskStatus.WAITING,
 			task_mode: "",
 			project_id: context.projectId,
-			topic_mode: topicMode,
+			topic_mode: modelTopicMode,
 			updated_at: "",
 			workspace_id: context.workspaceId,
 			token_used: null,
@@ -308,101 +343,118 @@ export function MicroAppScheduledTasksModify({
 				colon={false}
 				requiredMark={customRequiredMark}
 			>
-				<div className="max-h-[65vh] overflow-y-auto p-5">
-					<Form.Item
-						label={t("accountPanel.timedTasks.name")}
-						name="task_name"
-						rules={[
-							{
-								required: true,
-								message: resolveToString(t("form.required"), {
-									label: t("accountPanel.timedTasks.name"),
-								}),
-							},
-						]}
-					>
-						<Input
-							data-testid="micro-app-scheduled-task-name"
-							placeholder={t("accountPanel.timedTasks.namePlaceholder")}
+				<ScrollArea viewportClassName="max-h-[calc(100dvh-12rem)]">
+					<div className="p-5">
+						<Form.Item
+							label={t("accountPanel.timedTasks.name")}
+							name="task_name"
+							rules={[
+								{
+									required: true,
+									message: resolveToString(t("form.required"), {
+										label: t("accountPanel.timedTasks.name"),
+									}),
+								},
+							]}
+						>
+							<Input
+								data-testid="micro-app-scheduled-task-name"
+								placeholder={t("accountPanel.timedTasks.namePlaceholder")}
+							/>
+						</Form.Item>
+
+						<Form.Item
+							label={t("accountPanel.timedTasks.prompt")}
+							help={
+								promptRequired
+									? t("accountPanel.timedTasks.promptRequired")
+									: undefined
+							}
+							validateStatus={promptRequired ? "error" : undefined}
+						>
+							<MessageEditor
+								ref={tiptapEditorRef}
+								className={cn(
+									"rounded-md border border-border",
+									promptRequired && "border-destructive",
+								)}
+								placeholder={tSuper("messageEditor.placeholderTask")}
+								selectedTopic={selectedTopic}
+								selectedProject={selectedProject}
+								selectedWorkspace={selectedWorkspace}
+								topicMode={modelTopicMode}
+								agentCode={allowSelectAgent ? agentSelection.agentCode : undefined}
+								setTopicMode={allowSelectAgent ? handleAgentChange : undefined}
+								showModeToggle={allowSelectAgent || undefined}
+								allowChangeMode={allowSelectAgent}
+								projectFilesStore={modalStores.projectFilesStore}
+								mentionPanelStore={modalStores.mentionPanelStore}
+								enableAiCompletion
+								attachments={attachments}
+								size={isMobile ? "mobile" : "default"}
+								containerClassName="border-none"
+							/>
+						</Form.Item>
+
+						{!allowSelectAgent && (
+							<>
+								<ReadonlyContextItem
+									label={tSuper("scheduleTask.projectScope")}
+									value={context.projectName || context.projectId}
+								/>
+								<ReadonlyContextItem
+									label={tSuper("scheduleTask.agentScope")}
+									value={tSuper("scheduleTask.microAppAgent")}
+								/>
+							</>
+						)}
+
+						<ProjectTopicItem
+							mode="topic"
+							workspaceId={context.workspaceId}
+							projectId={context.projectId}
+							onSelect={handleTopicSelect}
 						/>
-					</Form.Item>
 
-					<Form.Item
-						label={t("accountPanel.timedTasks.prompt")}
-						help={
-							promptRequired ? t("accountPanel.timedTasks.promptRequired") : undefined
-						}
-						validateStatus={promptRequired ? "error" : undefined}
-					>
-						<MessageEditor
-							ref={tiptapEditorRef}
-							className={cn(
-								"rounded-md border border-border",
-								promptRequired && "border-destructive",
-							)}
-							placeholder={tSuper("messageEditor.placeholderTask")}
-							selectedTopic={selectedTopic}
-							selectedProject={selectedProject}
-							selectedWorkspace={selectedWorkspace}
-							topicMode={topicMode}
-							setTopicMode={setTopicMode}
-							projectFilesStore={modalStores.projectFilesStore}
-							mentionPanelStore={modalStores.mentionPanelStore}
-							showModeToggle
-							enableAiCompletion
-							allowChangeMode
-							attachments={attachments}
-							size={isMobile ? "mobile" : "default"}
-							containerClassName="border-none"
-						/>
-					</Form.Item>
+						<Form.Item
+							label={t("accountPanel.timedTasks.plan")}
+							name="time_config"
+							rules={[
+								{
+									required: true,
+									message: t("accountPanel.timedTasks.planRequired"),
+								},
+							]}
+						>
+							<ScheduledItem />
+						</Form.Item>
 
-					<ReadonlyContextItem
-						label={tSuper("scheduleTask.projectScope")}
-						value={context.projectName || context.projectId}
-					/>
-
-					<ProjectTopicItem
-						mode="topic"
-						workspaceId={context.workspaceId}
-						projectId={context.projectId}
-						onSelect={handleTopicSelect}
-					/>
-
-					<Form.Item
-						label={t("accountPanel.timedTasks.plan")}
-						name="time_config"
-						rules={[
-							{ required: true, message: t("accountPanel.timedTasks.planRequired") },
-						]}
-					>
-						<ScheduledItem />
-					</Form.Item>
-
-					{timeConfig?.type !== ScheduledTask.ScheduleType.Once ? (
-						<div className="flex items-center gap-2">
-							<Form.Item name="deadline_enabled" noStyle>
-								<MagicSwitch size="small" />
-							</Form.Item>
-							<span className="text-sm leading-4 text-foreground/80">
-								{t("chat.timedTask.deadline")}
-							</span>
-							{deadlineEnabled ? (
-								<Form.Item
-									name="deadline"
-									noStyle
-									getValueProps={(value) => ({ value: value && dayjs(value) })}
-								>
-									<MagicDatePicker
-										format="YYYY/MM/DD"
-										minDate={dayjs(minDate, "YYYY/MM/DD HH:mm")}
-									/>
+						{timeConfig?.type !== ScheduledTask.ScheduleType.Once ? (
+							<div className="flex items-center gap-2">
+								<Form.Item name="deadline_enabled" noStyle>
+									<FormSwitch />
 								</Form.Item>
-							) : null}
-						</div>
-					) : null}
-				</div>
-
+								<span className="text-sm leading-4 text-foreground/80">
+									{t("chat.timedTask.deadline")}
+								</span>
+								{deadlineEnabled ? (
+									<Form.Item
+										name="deadline"
+										noStyle
+										getValueProps={(value) => ({
+											value: value && dayjs(value),
+										})}
+									>
+										<MagicDatePicker
+											format="YYYY/MM/DD"
+											minDate={dayjs(minDate, "YYYY/MM/DD HH:mm")}
+										/>
+									</Form.Item>
+								) : null}
+							</div>
+						) : null}
+					</div>
+				</ScrollArea>
 				<div className={footerClassName}>
 					<div className="flex items-center gap-2">
 						<span>{t("accountPanel.timedTasks.enabled")}</span>
@@ -412,18 +464,24 @@ export function MicroAppScheduledTasksModify({
 							noStyle
 							normalize={(value) => (value ? 1 : 0)}
 						>
-							<MagicSwitch size="small" />
+							<FormSwitch />
 						</Form.Item>
 					</div>
 					<div className="flex gap-2.5">
 						<Button
+							type="button"
 							variant="outline"
 							onClick={onCancel}
 							data-testid="micro-app-scheduled-task-cancel"
 						>
 							{t("accountPanel.timedTasks.cancel")}
 						</Button>
-						<Button onClick={onOk} data-testid="micro-app-scheduled-task-submit">
+						{/* onOk validates explicitly; native submit would invalidate that pending validation. */}
+						<Button
+							type="button"
+							onClick={onOk}
+							data-testid="micro-app-scheduled-task-submit"
+						>
 							{mode === "create"
 								? t("accountPanel.timedTasks.create")
 								: t("accountPanel.timedTasks.save")}

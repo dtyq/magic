@@ -4,34 +4,33 @@ import type {
 	SelfMediaPostOpsMetricValue,
 } from "../services/SelfMediaFileStorageService"
 import type { SelfMediaPostOpsArtifacts } from "../services/selfMediaOpsArtifactStates"
+import { formatSelfMediaMetricDisplay } from "../services/selfMediaOpsOverview"
 
-export function getEngagementItems(opsMetrics?: SelfMediaPostOpsMetricsPayload | null) {
+export function getEngagementItems(
+	opsMetrics?: SelfMediaPostOpsMetricsPayload | null,
+	locale?: string,
+) {
 	const items: Array<{
 		key: string
 		labelKey: string
 		value: string
 		Icon: typeof ThumbsUp
 	}> = []
-	const reads = getOpsMetricDisplayValue(opsMetrics?.metrics, [
-		"reads",
-		"readCount",
-		"read_count",
-		"viewCount",
-		"views",
-		"view_count",
-	])
-	const likes = getOpsMetricDisplayValue(opsMetrics?.metrics, [
-		"likes",
-		"feedLikes",
-		"likeCount",
-		"like_count",
-	])
-	const comments = getOpsMetricDisplayValue(opsMetrics?.metrics, [
-		"comments",
-		"commentCount",
-		"commentsCount",
-		"comment_count",
-	])
+	const reads = getOpsMetricDisplayValue(
+		opsMetrics?.metrics,
+		["reads", "readCount", "read_count", "viewCount", "views", "view_count"],
+		locale,
+	)
+	const likes = getOpsMetricDisplayValue(
+		opsMetrics?.metrics,
+		["likes", "feedLikes", "likeCount", "like_count"],
+		locale,
+	)
+	const comments = getOpsMetricDisplayValue(
+		opsMetrics?.metrics,
+		["comments", "commentCount", "commentsCount", "comment_count"],
+		locale,
+	)
 
 	if (reads) {
 		items.push({
@@ -63,25 +62,12 @@ export function getEngagementItems(opsMetrics?: SelfMediaPostOpsMetricsPayload |
 function getOpsMetricDisplayValue(
 	metrics: Record<string, SelfMediaPostOpsMetricValue> | undefined,
 	keys: string[],
+	locale?: string,
 ) {
 	if (!metrics) return ""
 	for (const key of keys) {
-		const displayValue = normalizeMetricDisplayValue(metrics[key])
+		const displayValue = formatSelfMediaMetricDisplay(metrics[key], locale)
 		if (displayValue) return displayValue
-	}
-	return ""
-}
-
-function normalizeMetricDisplayValue(value: SelfMediaPostOpsMetricValue | undefined) {
-	if (typeof value === "string") {
-		const trimmed = value.trim()
-		if (trimmed) return trimmed
-	}
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return String(value)
-	}
-	if (value && typeof value === "object") {
-		return normalizeMetricDisplayValue(value.value)
 	}
 	return ""
 }

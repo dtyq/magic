@@ -1,7 +1,7 @@
 """AgentHorizon 的 JSON 持久化。
 
 文件命名规则与 ChatHistory 一致：
-  .chat_history/{agent_name}<{agent_id}>.horizon.json
+  .topic/chat_history/{agent_name}<{agent_id}>.horizon.json
 
 正常保存和 fork 写入共用同一套 codec：
 
@@ -15,12 +15,13 @@ Skill、通知、模型配置、workspace 快照和 context usage baseline。这
 from __future__ import annotations
 
 import asyncio
-import copy
-from dataclasses import fields
+from dataclasses import asdict, fields
 from pathlib import Path
 from typing import Optional
 
 from agentlang.logger import get_logger
+from app.core.entity.user_context import UserContextSnapshot
+from app.core.horizon.profile_context import AgentIdentityState
 from app.core.horizon.migration import CURRENT_VERSION, apply_migrations
 from app.core.horizon.models import (
     BrowserPageObservation,
@@ -28,15 +29,17 @@ from app.core.horizon.models import (
     HorizonState,
     ImageModelState,
     ManualContextWindowState,
+    MemoryDirectorySnapshot,
     PendingNotification,
+    PendingResumption,
+    ResumptionStatus,
+    ResumptionTrigger,
     SuperMagicProductContextState,
     VideoModelState,
 )
 from app.utils.async_file_utils import (
     async_exists,
     async_read_json,
-    async_rename,
-    async_unlink,
     async_write_json,
 )
 
@@ -82,6 +85,44 @@ def _notif_from_dict(d: dict) -> PendingNotification:
         pushed_at=d["pushed_at"],
         source=d["source"],
         content=d["content"],
+    )
+
+
+def _resumption_to_dict(resumption: PendingResumption) -> dict[str, str]:
+    # 持久化字段必须与 PendingResumption 保持一一对应；状态命名变更不能只改内存模型。
+    return {
+        "id": resumption.id,
+        "source": resumption.source,
+        "content": resumption.content,
+        "created_at": resumption.created_at,
+        "trigger": resumption.trigger.value,
+        "status": resumption.status.value,
+        "assigned_at": resumption.assigned_at,
+        "assigned_to_run_id": resumption.assigned_to_run_id,
+        "last_error": resumption.last_error,
+    }
+
+
+def _resumption_from_dict(data: dict) -> PendingResumption:
+    # 从 JSON 恢复时保留 assigned 的时间和 run 归属，供重启后的过期分配清理使用。
+    try:
+        trigger = ResumptionTrigger(str(data.get("trigger") or ResumptionTrigger.RUNTIME_READY))
+    except ValueError:
+        trigger = ResumptionTrigger.RUNTIME_READY
+    try:
+        status = ResumptionStatus(str(data.get("status") or ResumptionStatus.PENDING))
+    except ValueError:
+        status = ResumptionStatus.PENDING
+    return PendingResumption(
+        id=str(data.get("id") or ""),
+        source=str(data.get("source") or ""),
+        content=str(data.get("content") or ""),
+        created_at=str(data.get("created_at") or ""),
+        trigger=trigger,
+        status=status,
+        assigned_at=str(data.get("assigned_at") or ""),
+        assigned_to_run_id=str(data.get("assigned_to_run_id") or ""),
+        last_error=str(data.get("last_error") or ""),
     )
 
 
@@ -141,6 +182,23 @@ def _manual_context_windows_from_dict(data: object) -> dict[str, ManualContextWi
     return result
 
 
+def _memory_directory_from_dict(data: object) -> MemoryDirectorySnapshot | None:
+    """
+    恢复有限深度快照；旧成员摘要没有完整条目，下一次扫描重新建立。
+
+    恢复真实条目后，进程重启或完整 fork 才能识别同数量的文件替换。
+    只有分组名称或计数无法重建这些路径，所以不猜旧状态，交给下一次真实扫描。
+    """
+    if not isinstance(data, dict) or "entries" not in data or "scan_depth" not in data:
+        return None
+    return MemoryDirectorySnapshot(
+        root=data["root"],
+        scan_depth=data["scan_depth"],
+        entries=data["entries"],
+        exists=bool(data.get("exists", True)),
+    )
+
+
 def _assert_codec_covers_horizon_state(codec_name: str, field_names: set[str]) -> None:
     """新增持久化字段时，强制维护者同时更新 Horizon codec。
 
@@ -166,8 +224,14 @@ def _encode_state(state: HorizonState) -> dict:
     data = {
         "version": CURRENT_VERSION,
         "agent_id": state.agent_id,
+        "user_context": state.user_context.model_dump(mode="json") if state.user_context else None,
+        "user_context_baseline": state.user_context_baseline.model_dump(mode="json") if state.user_context_baseline else None,
+        "user_context_auto_fetch_attempted": state.user_context_auto_fetch_attempted,
+        "agent_identity": state.agent_identity.model_dump(mode="json") if state.agent_identity else None,
         "loaded_skills": state.loaded_skills,
+        "suggested_skill_names": state.suggested_skill_names,
         "pending_notifications": [_notif_to_dict(n) for n in state.pending_notifications],
+        "pending_resumptions": [_resumption_to_dict(r) for r in state.pending_resumptions],
         "browser_pages": {
             page_id: _browser_page_to_dict(page)
             for page_id, page in state.browser_pages.items()
@@ -186,7 +250,8 @@ def _encode_state(state: HorizonState) -> dict:
         ),
         "user_preferred_language": state.user_preferred_language,
         "workspace_files": state.workspace_files,
-        "workspace_entries": state.workspace_entries,
+        # 目录快照跟其它 Horizon 字段一起保存；显示折叠从不写回这个结构。
+        "memory_directory": asdict(state.memory_directory) if state.memory_directory is not None else None,
         "client_context": state.client_context,
         "cli_status": state.cli_status,
         "context_usage_baseline_used": state.context_usage_baseline_used,
@@ -207,11 +272,17 @@ def _decode_state(data: dict) -> HorizonState:
     恢复逻辑。
     """
     decoded_fields = {
+        "user_context",
+        "user_context_baseline",
+        "user_context_auto_fetch_attempted",
+        "agent_identity",
         "agent_id",
         "file_records",
         "pending_notifications",
+        "pending_resumptions",
         "browser_pages",
         "loaded_skills",
+        "suggested_skill_names",
         "image_model",
         "video_model",
         "manual_context_windows",
@@ -221,7 +292,7 @@ def _decode_state(data: dict) -> HorizonState:
         "super_magic_product_context",
         "user_preferred_language",
         "workspace_files",
-        "workspace_entries",
+        "memory_directory",
         "client_context",
         "cli_status",
         "context_usage_baseline_used",
@@ -233,10 +304,23 @@ def _decode_state(data: dict) -> HorizonState:
     _assert_codec_covers_horizon_state("decoder", decoded_fields)
 
     state = HorizonState(agent_id=data.get("agent_id", ""))
+    if data.get("user_context") is not None:
+        state.user_context = UserContextSnapshot.model_validate(data["user_context"])
+    if data.get("user_context_baseline") is not None:
+        state.user_context_baseline = UserContextSnapshot.model_validate(data["user_context_baseline"])
+    state.user_context_auto_fetch_attempted = bool(data.get("user_context_auto_fetch_attempted", False))
+    if data.get("agent_identity") is not None:
+        state.agent_identity = AgentIdentityState.model_validate(data["agent_identity"])
     state.loaded_skills = data.get("loaded_skills", [])
+    state.suggested_skill_names = data.get("suggested_skill_names", [])
     state.pending_notifications = [
         _notif_from_dict(notification)
         for notification in data.get("pending_notifications", [])
+    ]
+    state.pending_resumptions = [
+        _resumption_from_dict(resumption)
+        for resumption in data.get("pending_resumptions", [])
+        if isinstance(resumption, dict)
     ]
     state.browser_pages = {
         page_id: _browser_page_from_dict(page)
@@ -268,7 +352,7 @@ def _decode_state(data: dict) -> HorizonState:
     )
     state.user_preferred_language = data.get("user_preferred_language", "")
     state.workspace_files = data.get("workspace_files", "")
-    state.workspace_entries = data.get("workspace_entries", [])
+    state.memory_directory = _memory_directory_from_dict(data.get("memory_directory"))
     state.client_context = data.get("client_context", "")
     state.cli_status = data.get("cli_status", "")
     state.context_usage_baseline_used = int(data.get("context_usage_baseline_used", 0))
@@ -280,7 +364,7 @@ def _decode_state(data: dict) -> HorizonState:
 
 
 class HorizonStore:
-    """原子写入的 JSON 持久化，与 ChatHistory 同目录。
+    """Horizon JSON 持久化，与 ChatHistory 同目录。
 
     Horizon 与 ChatHistory 是同一个 Agent 会话的两个持久化组件，不能单独把某一份当成
     完整上下文。`AgentContextSnapshotService` 会同时准备并提交它们；本类只负责 Horizon
@@ -291,6 +375,7 @@ class HorizonStore:
         self.agent_name = agent_name
         self.agent_id = agent_id
         self._path = self.path_for_session(agent_name, agent_id, Path(chat_history_dir))
+        self._save_lock = asyncio.Lock()
 
     @staticmethod
     def path_for_session(agent_name: str, agent_id: str, chat_history_dir: Path) -> Path:
@@ -310,18 +395,11 @@ class HorizonStore:
             return None
 
     async def save(self, state: HorizonState) -> None:
-        tmp = self._path.with_suffix(".tmp")
         try:
-            await self._write_path(tmp, state)
-            await async_rename(tmp, self._path)
+            async with self._save_lock:
+                await self._write_path(self._path, state)
         except Exception as e:
             logger.warning(f"[HorizonStore] 保存失败: {e}")
-            try:
-                await async_unlink(tmp)
-            except asyncio.CancelledError:
-                raise
-            except Exception as cleanup_error:
-                logger.warning(f"[HorizonStore] 清理临时文件失败: {cleanup_error}")
 
     @classmethod
     async def load_for_session(
@@ -345,15 +423,13 @@ class HorizonStore:
         target_agent_id: str,
         horizon_path: Path,
     ) -> None:
-        """把 Horizon baseline 改为目标身份后写入指定临时路径。
+        """按 Horizon 自己的 fork 语义生成目标状态并写入指定临时路径。
 
-        fork 后状态内容仍然来自来源，但文件里的 `agent_id` 必须改成目标 ID：否则子
-        Agent 启动时会看到“文件名是 research-2，状态内部却属于 research-1”的身份冲突。
-        深拷贝保证这个改名不会反向修改来源 Agent 的内存状态。
+        哪些状态可以继承、哪些外部动作必须清理由 `HorizonState.copy_for_fork()` 统一
+        决定；Store 只负责把已经准备好的目标状态写入文件。
         """
         normalized_horizon_path = Path(horizon_path).expanduser().resolve(strict=False)
-        target_state = copy.deepcopy(state)
-        target_state.agent_id = target_agent_id
+        target_state = state.copy_for_fork(target_agent_id)
         await cls._write_path(normalized_horizon_path, target_state)
 
     @staticmethod

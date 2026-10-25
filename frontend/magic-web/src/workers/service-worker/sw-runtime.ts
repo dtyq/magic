@@ -3,7 +3,12 @@
  * Register new capabilities (push, background sync, etc.) via ServiceWorkerFeature.
  */
 
-import { handleCanvasMediaMessage, handleCanvasMediaRequest } from "./canvasMediaShared"
+import {
+	cleanupExpiredCanvasMediaStorage,
+	cleanupLegacyCanvasMediaStorage,
+	handleCanvasMediaMessage,
+	handleCanvasMediaRequest,
+} from "./canvasMediaShared"
 import type { CacheRuntimeRegistration } from "./cache-runtime"
 import {
 	enforceAppStaticExpirationAfterPrecache,
@@ -50,7 +55,7 @@ function createAppCacheFeature(
 	return {
 		id: "app-cache",
 		async onInstall() {
-			await precacheStaticAssetsOnInstall()
+			await precacheStaticAssetsOnInstall(cacheRegistration?.appStaticExpirationManager)
 			await enforceAppStaticExpirationAfterPrecache(cacheRegistration)
 		},
 		async onActivate({ sw }) {
@@ -78,7 +83,13 @@ function createAppCacheFeature(
 					event.data?.intervalMs,
 					event.data?.batchSize,
 				)
-				event.waitUntil(warmUpStaticAssetsOnIdle(assets, options))
+				event.waitUntil(
+					warmUpStaticAssetsOnIdle(
+						assets,
+						options,
+						cacheRegistration?.appStaticExpirationManager,
+					),
+				)
 				return true
 			}
 			return false
@@ -92,6 +103,10 @@ function createAppCacheFeature(
 function createCanvasMediaFeature(): ServiceWorkerFeature {
 	return {
 		id: "canvas-media",
+		async onActivate() {
+			await cleanupLegacyCanvasMediaStorage()
+			await cleanupExpiredCanvasMediaStorage()
+		},
 		onMessage(event) {
 			handleCanvasMediaMessage(event)
 			return false

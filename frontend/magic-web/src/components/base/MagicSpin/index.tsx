@@ -1,5 +1,5 @@
 import { Spinner } from "@/components/shadcn-ui/spinner"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { memo, useEffect, useState } from "react"
 import type { HTMLAttributes, ReactNode } from "react"
 

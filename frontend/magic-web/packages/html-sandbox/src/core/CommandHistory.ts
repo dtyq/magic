@@ -140,6 +140,11 @@ export class CommandHistory {
 		this.batchStartCommand = null
 	}
 
+	/** Read the in-flight batch so cancel can restore inline styles. */
+	peekBatchStart(): CommandRecord | null {
+		return this.batchStartCommand
+	}
+
 	/**
 	 * Check if in batch mode
 	 */

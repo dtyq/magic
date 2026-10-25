@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RED BROADCAST — 24/7 Global Breaking News &amp; Live Studio Coverage</title>
+  <style>
+    :root {
+      --crimson: #dc2626;
+      --red-bright: #ff0000;
+      --studio-canvas: #0b0f14;
+      --studio-surface: #121820;
+      --studio-card: #18222e;
+      --studio-border: #233042;
+      --white: #ffffff;
+      --text-dim: #94a3b8;
+      --warning-amber: #f59e0b;
+      --live-green: #22c55e;
+      --font-main: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "Roboto Mono", "SF Mono", monospace;
+      --radius-sm: 2px;
+      --radius-md: 4px;
+      --radius-lg: 8px;
+      --radius-pill: 9999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--studio-canvas); color: var(--white); font-family: var(--font-main); line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+    a { color: inherit; text-decoration: none; }
+
+    .top-studio-bar {
+      background: #06090d; border-bottom: 1px solid var(--studio-border); padding: 5px 24px;
+      font-family: var(--font-mono); font-size: 11px; display: flex; justify-content: space-between; align-items: center; color: var(--text-dim);
+    }
+    .broadcast-header {
+      background: var(--studio-surface); border-bottom: 2px solid var(--crimson); padding: 10px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .broadcast-logo { display: flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 900; letter-spacing: -0.5px; text-transform: uppercase; }
+    .logo-red-box { background: var(--crimson); color: #fff; padding: 2px 7px; border-radius: var(--radius-sm); }
+    
+    .live-on-air-badge {
+      display: inline-flex; align-items: center; gap: 8px; background: rgba(220, 38, 38, 0.15);
+      border: 1px solid var(--crimson); padding: 4px 10px; border-radius: var(--radius-pill);
+      font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: #ff4d4d; letter-spacing: 1.5px;
+    }
+    .pulsing-dot { width: 9px; height: 9px; background: var(--red-bright); border-radius: 50%; animation: livePulse 1s infinite alternate; }
+    @keyframes livePulse { 0% { opacity: 0.4; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1.3); box-shadow: 0 0 10px var(--crimson); } }
+
+    .broadcast-nav { display: flex; gap: 18px; list-style: none; }
+    .broadcast-nav a { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); }
+    .broadcast-nav a.active { color: var(--white); border-bottom: 2px solid var(--crimson); padding-bottom: 4px; }
+    .header-viewer-count { font-family: var(--font-mono); font-size: 11px; color: var(--live-green); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+
+    .ticker-bar-wrap {
+      background: var(--crimson); color: #fff; display: flex; align-items: center; overflow: hidden;
+      height: 34px; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    }
+    .ticker-lead-tag { background: #991b1b; padding: 0 16px; height: 100%; display: flex; align-items: center; letter-spacing: 1.5px; z-index: 2; }
+    .ticker-track { display: flex; white-space: nowrap; animation: tScroll 28s linear infinite; }
+    .ticker-item { padding: 0 24px; display: inline-flex; align-items: center; gap: 8px; }
+    .ticker-item strong { color: var(--warning-amber); }
+    @keyframes tScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    .shell { max-width: 1380px; margin: 0 auto; padding: 20px 24px 50px; }
+    .breaking-alert {
+      background: linear-gradient(90deg, #38070b 0%, #17070b 100%); border: 1px solid var(--crimson);
+      border-left: 5px solid var(--crimson); border-radius: var(--radius-md); padding: 12px 18px;
+      margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .alert-badge { background: var(--crimson); color: #fff; font-family: var(--font-mono); font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: var(--radius-sm); margin-right: 12px; }
+
+    .broadcast-grid { display: grid; grid-template-columns: 2.2fr 1fr; gap: 24px; }
+    .main-feed { display: flex; flex-direction: column; gap: 14px; }
+
+    .video-canvas {
+      width: 100%; aspect-ratio: 16 / 9; background: #05070a; border: 2px solid var(--studio-border);
+      border-radius: var(--radius-lg); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    }
+    .hud-cam {
+      position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.85); border: 1px solid var(--crimson);
+      border-radius: var(--radius-sm); padding: 4px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .hud-audio {
+      position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.85); border: 1px solid var(--studio-border);
+      padding: 4px 10px; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
+    }
+    .audio-meter { display: flex; gap: 2px; align-items: flex-end; height: 12px; }
+    .meter-bar { width: 3px; background: var(--live-green); }
+
+    .lower-third {
+      position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 75%, transparent 100%);
+      padding: 14px 18px 12px; border-top: 2px solid var(--crimson);
+    }
+    .lt-kicker { font-family: var(--font-mono); font-size: 10px; font-weight: 800; color: var(--warning-amber); letter-spacing: 1.5px; margin-bottom: 2px; }
+    .lt-title { font-size: clamp(17px, 2.3vw, 22px); font-weight: 900; line-height: 1.2; text-transform: uppercase; }
+
+    .video-info {
+      background: var(--studio-surface); border: 1px solid var(--studio-border); border-radius: var(--radius-md);
+      padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .anchor-profile { display: flex; align-items: center; gap: 10px; }
+    .anchor-av { width: 38px; height: 38px; border-radius: 50%; background: #1e293b; border: 2px solid var(--crimson); display: grid; place-items: center; font-weight: 800; }
+    .btn-act { background: var(--studio-card); border: 1px solid var(--studio-border); color: #fff; font-size: 11px; font-weight: 700; padding: 6px 14px; border-radius: var(--radius-pill); cursor: pointer; }
+    .btn-act.active { background: var(--crimson); border-color: var(--crimson); }
+
+    .sidebar-newsroom { display: flex; flex-direction: column; gap: 16px; }
+    .sb-card { background: var(--studio-surface); border: 1px solid var(--studio-border); border-radius: var(--radius-md); padding: 16px; }
+    .newsroom-hd {
+      display: flex; justify-content: space-between; border-bottom: 2px solid var(--crimson);
+      padding-bottom: 8px; margin-bottom: 12px; font-family: var(--font-mono); font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+    }
+    .dispatch-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .dispatch-item { padding-bottom: 10px; border-bottom: 1px solid var(--studio-border); display: flex; flex-direction: column; gap: 2px; }
+    .disp-meta { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+    .disp-h { font-size: 13px; font-weight: 700; line-height: 1.3; }
+
+    .sat-feeds { margin-top: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .feed-card { background: var(--studio-surface); border: 1px solid var(--studio-border); border-radius: var(--radius-md); overflow: hidden; }
+    .feed-box { width: 100%; height: 105px; background: #070a0e; position: relative; display: grid; place-items: center; border-bottom: 1px solid var(--studio-border); }
+    .bureau-tag { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,0.85); border: 1px solid var(--studio-border); padding: 2px 6px; font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: var(--warning-amber); }
+    .feed-cnt { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+    .feed-t { font-size: 12px; font-weight: 700; line-height: 1.3; }
+
+    @media (max-width: 900px) {
+      .broadcast-grid { grid-template-columns: 1fr; }
+      .sat-feeds { grid-template-columns: 1fr; }
+      .broadcast-nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <aside class="top-studio-bar">
+    <div>STUDIO MASTER: <strong style="color:var(--warning-amber);">UTC 04:38:12</strong> · SATELLITE FEED EUR-01</div>
+    <div>BROADCAST GRID RESOLUTION: 4K 60FPS</div>
+  </aside>
+
+  <header class="broadcast-header">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="broadcast-logo"><span class="logo-red-box">RED</span> BROADCAST</div>
+      <div class="live-on-air-badge"><span class="pulsing-dot"></span> LIVE ON AIR</div>
+    </div>
+    <nav>
+      <ul class="broadcast-nav">
+        <li><a href="#" class="active">LIVE DESK</a></li>
+        <li><a href="#">WORLD</a></li>
+        <li><a href="#">SECURITY</a></li>
+        <li><a href="#">ECONOMY</a></li>
+        <li><a href="#">ARCHIVE</a></li>
+      </ul>
+    </nav>
+    <div class="header-viewer-count">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span>1,240,890 LIVE</span>
+    </div>
+  </header>
+
+  <aside class="ticker-bar-wrap">
+    <div class="ticker-lead-tag">BREAKING WIRE</div>
+    <div class="ticker-track">
+      <div class="ticker-item"><strong>[04:37 UTC]</strong> EMERGENCY ACCORD RATIFIED AT GENEVA CLIMATE SUMMIT</div>
+      <div class="ticker-item"><strong>[04:32 UTC]</strong> GLOBAL FINANCIAL MARKETS SURGE +1.8% ON TRANSIT TREATY</div>
+      <div class="ticker-item"><strong>[04:20 UTC]</strong> PACIFIC SEISMIC SENSORS RECORD MAG 6.4 OFF KURIL TRENCH; NO TSUNAMI</div>
+      <div class="ticker-item"><strong>[04:15 UTC]</strong> EUROPEAN POWER GRID OPERATORS REPORT HISTORIC 88% RENEWABLE PEAK</div>
+      <div class="ticker-item"><strong>[04:37 UTC]</strong> EMERGENCY ACCORD RATIFIED AT GENEVA CLIMATE SUMMIT</div>
+      <div class="ticker-item"><strong>[04:32 UTC]</strong> GLOBAL FINANCIAL MARKETS SURGE +1.8% ON TRANSIT TREATY</div>
+    </div>
+  </aside>
+
+  <main class="shell">
+    <section class="breaking-alert">
+      <div style="display:flex; align-items:center;">
+        <span class="alert-badge">FLASH REPORT</span>
+        <span style="font-size:15px; font-weight:700;">GLOBAL SUMMIT REACHES BINDING TREATY ON STRATEGIC ENERGY CORRIDORS</span>
+      </div>
+      <span style="font-family:var(--font-mono); font-size:11px; color:var(--text-dim);">GENEVA BUREAU · 2M AGO</span>
+    </section>
+
+    <div class="broadcast-grid">
+      <article class="main-feed">
+        <div class="video-canvas">
+          <svg style="width:100%; height:100%; position:absolute;" viewBox="0 0 760 420" fill="none">
+            <rect width="100%" height="100%" fill="#080e16"/>
+            <g stroke="#182535" stroke-width="1" opacity="0.6">
+              <line x1="0" y1="140" x2="760" y2="140"/>
+              <line x1="0" y1="280" x2="760" y2="280"/>
+              <line x1="190" y1="0" x2="190" y2="420"/>
+              <line x1="380" y1="0" x2="380" y2="420"/>
+              <line x1="570" y1="0" x2="570" y2="420"/>
+            </g>
+            <circle cx="380" cy="180" r="120" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.4"/>
+            <polygon points="200,360 560,360 500,280 260,280" fill="#0f1924" stroke="#233042" stroke-width="2"/>
+            <line x1="260" y1="280" x2="500" y2="280" stroke="#dc2626" stroke-width="3"/>
+            <circle cx="380" cy="220" r="28" fill="#1e293b"/>
+            <path d="M 330 280 C 330 250, 430 250, 430 280 Z" fill="#1e293b"/>
+          </svg>
+
+          <div class="hud-cam"><span style="width:6px; height:6px; background:var(--crimson); border-radius:50%;"></span> CAM 01 · MAIN DESK</div>
+          <div class="hud-audio">
+            <span>MIC A: -6dB</span>
+            <div class="audio-meter">
+              <div class="meter-bar" style="height:6px;"></div>
+              <div class="meter-bar" style="height:9px;"></div>
+              <div class="meter-bar" style="height:12px; background:var(--warning-amber);"></div>
+              <div class="meter-bar" style="height:10px; background:var(--crimson);"></div>
+            </div>
+          </div>
+
+          <div class="lower-third">
+            <div class="lt-kicker">LIVE BROADCAST // DIPLOMATIC ACCORD SIGNED</div>
+            <h1 class="lt-title">GENEVA ACCORD UNANIMOUSLY ADOPTED BY 42 MEMBER STATES</h1>
+          </div>
+        </div>
+
+        <div class="video-info">
+          <div class="anchor-profile">
+            <div class="anchor-av">M</div>
+            <div>
+              <div style="font-size:14px; font-weight:700;">Marcus Sterling &amp; Elena Rostova</div>
+              <div style="font-family:var(--font-mono); font-size:10px; color:var(--text-dim);">CHIEF ANCHORS · RED BROADCAST INTERNATIONAL</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-act active">LIVE AUDIO</button>
+            <button class="btn-act">MULTI-VIEW</button>
+            <button class="btn-act">TRANSCRIPT</button>
+          </div>
+        </div>
+      </article>
+
+      <aside class="sidebar-newsroom">
+        <section class="sb-card">
+          <div class="newsroom-hd">
+            <span>ROLLING DISPATCHES</span>
+            <span style="color:var(--crimson);">24/7 FEED</span>
+          </div>
+          <ol class="dispatch-list">
+            <li class="dispatch-item">
+              <div class="disp-meta"><span style="color:var(--crimson); font-weight:700;">● LIVE UPDATE</span><span>04:36 UTC</span></div>
+              <a href="#" class="disp-h">UN Council formally ratifies enforcement mechanisms for cross-border grid sharing.</a>
+            </li>
+            <li class="dispatch-item">
+              <div class="disp-meta"><span>PARIS BUREAU</span><span>04:28 UTC</span></div>
+              <a href="#" class="disp-h">French energy minister announces synchronisation of high-voltage subsea interconnector.</a>
+            </li>
+            <li class="dispatch-item">
+              <div class="disp-meta"><span>WASHINGTON</span><span>04:14 UTC</span></div>
+              <a href="#" class="disp-h">Treasury issues updated export guidance following multilateral rare-metals signing.</a>
+            </li>
+            <li class="dispatch-item">
+              <div class="disp-meta"><span>TOKYO DESK</span><span>03:59 UTC</span></div>
+              <a href="#" class="disp-h">Nikkei futures jump 380 points in early trading as energy shipping tariffs are eliminated.</a>
+            </li>
+          </ol>
+        </section>
+
+        <section class="sb-card" style="background:#090d13; border-color:var(--crimson);">
+          <div style="font-family:var(--font-mono); font-size:10px; font-weight:800; color:var(--crimson); text-transform:uppercase; margin-bottom:6px;">
+            RADAR &amp; DISASTER ALERT
+          </div>
+          <p style="font-size:12.5px; color:var(--text-dim); line-height:1.45;">
+            Pacific satellites track Category 4 Super-Typhoon moving northeast; international shipping lanes alerted across maritime grid.
+          </p>
+        </section>
+      </aside>
+    </div>
+
+    <section class="sat-feeds">
+      <article class="feed-card">
+        <div class="feed-box">
+          <span class="bureau-tag">LONDON · FEED 02</span>
+          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div class="feed-cnt">
+          <span style="font-family:var(--font-mono); font-size:10px; color:var(--crimson); font-weight:700;">WESTMINSTER</span>
+          <h2 class="feed-t">Parliamentary Emergency Debate on Subsea Cable Defense Protocols</h2>
+        </div>
+      </article>
+
+      <article class="feed-card">
+        <div class="feed-box">
+          <span class="bureau-tag">TOKYO · FEED 03</span>
+          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div class="feed-cnt">
+          <span style="font-family:var(--font-mono); font-size:10px; color:var(--warning-amber); font-weight:700;">KASUMIGASEKI</span>
+          <h2 class="feed-t">Ministry of Economy Presses Forward on Commercial Fast-Neutron SMRs</h2>
+        </div>
+      </article>
+
+      <article class="feed-card">
+        <div class="feed-box">
+          <span class="bureau-tag">WASHINGTON · FEED 04</span>
+          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div class="feed-cnt">
+          <span style="font-family:var(--font-mono); font-size:10px; color:var(--live-green); font-weight:700;">WHITE HOUSE</span>
+          <h2 class="feed-t">National Economic Council Press Briefing on Global Trade Agreements</h2>
+        </div>
+      </article>
+    </section>
+  </main>
+
+</body>
+</html>

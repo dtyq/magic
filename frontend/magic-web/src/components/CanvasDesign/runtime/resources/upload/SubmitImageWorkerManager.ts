@@ -53,6 +53,7 @@ export class SubmitImageWorkerManager {
 		}
 	>()
 	private requestIdCounter = 0
+	private destroyed = false
 
 	constructor(options: { canvas: Canvas }) {
 		this.canvas = options.canvas
@@ -70,6 +71,9 @@ export class SubmitImageWorkerManager {
 				? await this.canvas.imageResourceManager.ensureFreshOssSrc(params.src)
 				: undefined
 		const ossSrc = resolvedOssSrc ?? undefined
+		if (this.destroyed) {
+			return null
+		}
 		if (!params.sourceDimensions && !ossSrc) {
 			return null
 		}
@@ -109,6 +113,9 @@ export class SubmitImageWorkerManager {
 		}
 
 		const ossSrc = await this.canvas.imageResourceManager.ensureFreshOssSrc(params.src)
+		if (this.destroyed) {
+			return null
+		}
 		if (!ossSrc) {
 			return null
 		}
@@ -140,6 +147,8 @@ export class SubmitImageWorkerManager {
 	}
 
 	public destroy(): void {
+		if (this.destroyed) return
+		this.destroyed = true
 		const pendingError = new Error("SubmitImageWorkerManager destroyed")
 		this.pendingRequests.forEach((pending) => pending.reject(pendingError))
 		this.pendingRequests.clear()
@@ -150,10 +159,13 @@ export class SubmitImageWorkerManager {
 	}
 
 	private isWorkerAvailable(): boolean {
-		return typeof Worker === "function"
+		return !this.destroyed && typeof Worker === "function"
 	}
 
 	private getWorker(): Worker {
+		if (this.destroyed) {
+			throw new Error("SubmitImageWorkerManager destroyed")
+		}
 		if (!this.worker) {
 			this.worker = new Worker(new URL("./submitImage.worker.ts", import.meta.url), {
 				type: "module",
@@ -178,6 +190,9 @@ export class SubmitImageWorkerManager {
 	private async sendToWorker(
 		request: SubmitImageWorkerRequest,
 	): Promise<SubmitImageWorkerResponse> {
+		if (this.destroyed) {
+			throw new Error("SubmitImageWorkerManager destroyed")
+		}
 		return new Promise((resolve, reject) => {
 			this.pendingRequests.set(request.requestId, { resolve, reject })
 			this.getWorker().postMessage(request, getSubmitImageWorkerTransferables(request))

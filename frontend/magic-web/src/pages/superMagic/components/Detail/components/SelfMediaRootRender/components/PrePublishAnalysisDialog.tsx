@@ -16,7 +16,7 @@ import {
 } from "@/components/shadcn-ui/dialog"
 import { RadioGroup, RadioGroupItem } from "@/components/shadcn-ui/radio-group"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	SELF_MEDIA_PRE_PUBLISH_ANALYSIS_GOALS,
 	type SelfMediaPrePublishAnalysisGoal,

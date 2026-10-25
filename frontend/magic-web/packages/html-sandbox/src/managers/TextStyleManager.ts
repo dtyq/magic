@@ -14,6 +14,8 @@ import type { EditorBridge } from "../core/EditorBridge"
 import type { ElementSelector } from "../features/ElementSelector"
 import { EditorLogger } from "../utils/EditorLogger"
 import { findElement } from "../utils/ElementSelector"
+import { markSourceNode } from "../utils/sourceNodes"
+import { getElementSelector } from "../utils/dom"
 
 export class TextStyleManager {
 	private commandHistory: CommandHistory
@@ -164,31 +166,9 @@ export class TextStyleManager {
 	 * Generate a unique selector for an element
 	 */
 	private generateSelector(element: HTMLElement): string {
-		// Try to use data-editor-id first
-		const editorId = element.getAttribute("data-editor-id")
-		if (editorId) {
-			return `[data-editor-id="${editorId}"]`
-		}
-
-		// Fallback to id
-		if (element.id) {
-			return `#${element.id}`
-		}
-
-		// Generate a path-based selector
-		const path: string[] = []
-		let current: HTMLElement | null = element
-
-		while (current && current !== document.body) {
-			let selector = current.tagName.toLowerCase()
-			if (current.className) {
-				selector += `.${current.className.split(" ").join(".")}`
-			}
-			path.unshift(selector)
-			current = current.parentElement
-		}
-
-		return path.join(" > ")
+		// Generated HTML often has classes like text-[19px], lg:px-8 and text-white/90.
+		// Reuse escaped, unique selectors so partial-text style commands can resolve their container.
+		return getElementSelector(element)
 	}
 
 	/**
@@ -413,6 +393,7 @@ export class TextStyleManager {
 
 				// Insert the span at the selection point
 				range.insertNode(span)
+				markSourceNode(span)
 
 				// Update target span reference for re-selection
 				targetSpan = span

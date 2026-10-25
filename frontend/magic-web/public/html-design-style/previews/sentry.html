@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentry — Application Performance & Error Monitoring</title>
+<style>
+:root {
+--canvas: #150f23;
+--canvas-deep: #0e0a18;
+--canvas-soft: #1f1633;
+--surface: #261e3d;
+--surface-subtle: #1b152d;
+--surface-hover: #31274e;
+--border: #362d59;
+--border-light: #483c75;
+--border-glow: rgba(225, 86, 124, 0.4);
+--magenta: #e1567c;
+--magenta-light: #f47298;
+--magenta-glow: rgba(225, 86, 124, 0.32);
+--lime: #c2ef4e;
+--violet: #6a5fc1;
+--violet-mid: #79628c;
+--ink: #fbfafc;
+--ink-muted: #bdb8c0;
+--ink-dim: #79628c;
+--red-bg: rgba(225, 86, 124, 0.15);
+--font-sans: 'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+--font-mono: 'Monaco', 'Menlo', 'JetBrains Mono', Consolas, monospace;
+--radius-sm: 6px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--radius-full: 9999px;
+--max-w: 1160px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+.container { width: min(var(--max-w), calc(100% - 40px)); margin: 0 auto; }
+.magenta-glow {
+position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 960px; height: 440px;
+background: radial-gradient(ellipse 65% 50% at 50% 0%, rgba(225, 86, 124, 0.22) 0%, rgba(106, 95, 193, 0.18) 50%, transparent 75%);
+filter: blur(48px); pointer-events: none; z-index: 0;
+}
+header {
+position: sticky; top: 0; z-index: 100; background: rgba(21, 15, 35, 0.88); backdrop-filter: blur(16px);
+border-bottom: 1px solid var(--border);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand-wrap { display: flex; align-items: center; gap: 12px; }
+.brand-logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+.sentry-logo { width: 22px; height: 22px; fill: var(--magenta); filter: drop-shadow(0 0 8px rgba(225,86,124,0.5)); }
+.badge-status {
+font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full);
+background: rgba(194, 239, 78, 0.12); color: var(--lime); border: 1px solid rgba(194, 239, 78, 0.3);
+}
+.nav-links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--ink-muted); }
+.nav-links a:hover { color: var(--ink); }
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+.btn {
+display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 16px;
+border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.15s;
+}
+.btn-magenta {
+background: var(--magenta); color: #ffffff; border: 1px solid var(--magenta-light);
+box-shadow: 0 0 20px var(--magenta-glow);
+}
+.btn-magenta:hover { background: #d04369; transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--border-light); }
+.btn-secondary:hover { background: var(--surface-hover); border-color: var(--magenta-light); }
+.hero { position: relative; z-index: 1; padding: 36px 0 20px; text-align: center; }
+.announcement {
+display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px; border-radius: var(--radius-full);
+background: rgba(225, 86, 124, 0.12); border: 1px solid rgba(225, 86, 124, 0.35); font-size: 12px; color: #fcc2d2; margin-bottom: 18px;
+}
+.glow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta); }
+.hero-h1 {
+font-size: clamp(34px, 5.2vw, 62px); font-weight: 700; line-height: 1.08; letter-spacing: -0.03em; max-width: 880px; margin: 0 auto 16px;
+}
+.magenta-text { color: var(--magenta); text-shadow: 0 0 24px rgba(225, 86, 124, 0.45); }
+.hero-desc { font-size: 16px; color: var(--ink-muted); max-width: 640px; margin: 0 auto 24px; line-height: 1.55; }
+.hero-actions { display: flex; justify-content: center; gap: 12px; margin-bottom: 36px; }
+.sentry-window {
+max-width: 1080px; margin: 0 auto; background: var(--canvas-deep); border: 1px solid var(--border);
+border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 30px 90px rgba(0,0,0,0.85); text-align: left;
+}
+.window-header {
+padding: 12px 18px; background: #1a132c; border-bottom: 1px solid var(--border);
+display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.issue-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.issue-badge {
+display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm);
+background: var(--red-bg); color: var(--magenta); border: 1px solid rgba(225, 86, 124, 0.4); font-size: 11px; font-weight: 700;
+}
+.issue-name { font-size: 14px; font-weight: 700; color: #ffffff; font-family: var(--font-mono); }
+.issue-meta {
+display: flex; align-items: center; gap: 12px; font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);
+}
+.win-body {
+display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; padding: 20px; background: var(--canvas-soft);
+}
+.stacktrace-card {
+background: var(--canvas-deep); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.stack-file-head {
+display: flex; justify-content: space-between; align-items: center; font-size: 12px;
+font-family: var(--font-mono); color: var(--ink-muted); padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.code-lines { font-family: var(--font-mono); font-size: 11px; line-height: 1.6; }
+.code-line { display: flex; gap: 12px; padding: 2px 6px; border-radius: 4px; }
+.line-no { color: var(--ink-dim); width: 22px; text-align: right; user-select: none; }
+.code-line.error-line {
+background: rgba(225, 86, 124, 0.18); border-left: 3px solid var(--magenta); color: #fff; font-weight: 600;
+}
+.vars-inspector {
+background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm);
+padding: 10px 12px; font-family: var(--font-mono); font-size: 11px;
+}
+.vars-title { color: var(--violet-mid); font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+.side-diagnostics { display: flex; flex-direction: column; gap: 16px; }
+.gauge-box {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 16px; display: flex; align-items: center; gap: 18px;
+}
+.gauge-svg-wrap { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+.gauge-val-center {
+position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+font-size: 13px; font-weight: 700; color: var(--lime); font-family: var(--font-mono);
+}
+.breadcrumbs-box {
+background: var(--canvas-deep); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.bc-head { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.bc-list { display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 11px; }
+.bc-item { display: flex; align-items: flex-start; gap: 8px; }
+.bc-tag {
+font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.08); color: var(--ink-muted);
+}
+.bc-tag.crash { background: var(--red-bg); color: var(--magenta); border: 1px solid rgba(225,86,124,0.3); }
+.feature-section { padding: 48px 0 32px; border-top: 1px solid var(--border); margin-top: 48px; }
+.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; }
+.feat-card {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 22px; transition: 0.2s;
+}
+.feat-card:hover { border-color: var(--magenta); transform: translateY(-2px); }
+.feat-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); background: rgba(225,86,124,0.15); color: var(--magenta); display: grid; place-items: center; margin-bottom: 14px; }
+.feat-h { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.feat-p { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+.spec-bar {
+margin-top: 36px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border);
+border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;
+flex-wrap: wrap; gap: 10px; font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);
+}
+.tokens-list { display: flex; gap: 14px; flex-wrap: wrap; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 4px; }
+footer { padding: 32px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--ink-dim); margin-top: 40px; }
+.footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 880px) { .nav-links { display: none; } .win-body, .feat-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="magenta-glow"></div>
+<header>
+<div class="container nav-inner">
+<div class="brand-wrap">
+<a href="#" class="brand-logo" aria-label="Sentry">
+<svg class="sentry-logo" viewBox="0 0 24 24">
+<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14.5h-2v-2h2v2zm0-4h-2V7h2v5.5z"/>
+</svg>
+<span>Sentry</span>
+</a>
+<span class="badge-status">Telemetry Active</span>
+</div>
+<nav class="nav-links">
+<a href="#errors">Error Monitoring</a>
+<a href="#tracing">Distributed Tracing</a>
+<a href="#replay">Session Replay</a>
+<a href="#vitals">Web Vitals</a>
+<a href="#pricing">Pricing</a>
+</nav>
+<div class="nav-actions">
+<a href="#signin" class="btn btn-secondary">Sign In</a>
+<a href="#start" class="btn btn-magenta">Get Started</a>
+</div>
+</div>
+</header>
+<main>
+<section class="hero">
+<div class="container">
+<div class="announcement">
+<span class="glow-dot"></span>
+<span>Sentry v26: Autonomous Root-Cause Diagnostics & LLM Tracing</span>
+</div>
+<h1 class="hero-h1">
+Code breaks.
+<br>
+<span class="magenta-text">Fix it before users notice.</span>
+</h1>
+<p class="hero-desc">
+From browser crashes to distributed microservice latency spikes, Sentry equips developers with source-mapped stack traces, user breadcrumbs, and real-time release health.
+</p>
+<div class="hero-actions">
+<a href="#start" class="btn btn-magenta" style="padding: 10px 22px; font-size: 14px;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+Start Free Trial
+</a>
+<a href="#sandbox" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+Live Demo Sandbox
+</a>
+</div>
+<div class="sentry-window">
+<div class="window-header">
+<div class="issue-title-row">
+<span class="issue-badge">UNHANDLED EXCEPTION</span>
+<span class="issue-name">TypeError: Cannot read properties of undefined (reading 'checkout_session')</span>
+</div>
+<div class="issue-meta">
+<span>Events: <strong style="color:#fff;">14.2k</strong></span>
+<span>Users: <strong style="color:var(--magenta);">840 affected</strong></span>
+<span style="color:var(--lime);">Release: v2.14.0</span>
+</div>
+</div>
+<div class="win-body">
+<div class="stacktrace-card">
+<div class="stack-file-head">
+<span style="color:#fff; font-weight:600;">app/api/checkout/webhook/route.ts</span>
+<span>line 42:28 in handleStripeWebhook</span>
+</div>
+<div class="code-lines">
+<div class="code-line">
+<span class="line-no">39</span>
+<span style="color:var(--ink-muted);">export async function POST(req: Request) {</span>
+</div>
+<div class="code-line">
+<span class="line-no">40</span>
+<span style="color:var(--ink-muted);">&nbsp;&nbsp;const event = await parseStripeWebhook(req);</span>
+</div>
+<div class="code-line">
+<span class="line-no">41</span>
+<span style="color:var(--ink-muted);">&nbsp;&nbsp;const { data, type } = event;</span>
+</div>
+<div class="code-line error-line">
+<span class="line-no">42</span>
+<span>&nbsp;&nbsp;const session = data.object.checkout_session; // 💥 TypeError</span>
+</div>
+<div class="code-line">
+<span class="line-no">43</span>
+<span style="color:var(--ink-muted);">&nbsp;&nbsp;await fulfillCustomerOrder(session.customer_id);</span>
+</div>
+<div class="code-line">
+<span class="line-no">44</span>
+<span style="color:var(--ink-muted);">&nbsp;&nbsp;return NextResponse.json({ received: true });</span>
+</div>
+<div class="code-line">
+<span class="line-no">45</span>
+<span style="color:var(--ink-muted);">}</span>
+</div>
+</div>
+<div class="vars-inspector">
+<div class="vars-title">Exception Variable State</div>
+<div style="color:var(--ink-muted);">data.object: <span style="color:#818cf8;">{ id: "evt_3Nz82a", status: "invoice_payment_failed" }</span></div>
+<div style="color:var(--magenta); margin-top:2px;">data.object.checkout_session: <span>undefined ⚠️</span></div>
+</div>
+</div>
+<div class="side-diagnostics">
+<div class="gauge-box">
+<div class="gauge-svg-wrap">
+<svg width="72" height="72" viewBox="0 0 36 36">
+<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#261e3d" stroke-width="3.5"/>
+<path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#c2ef4e" stroke-width="3.5" stroke-dasharray="99.78, 100" stroke-linecap="round"/>
+</svg>
+<div class="gauge-val-center">99.8%</div>
+</div>
+<div>
+<div style="font-size:13px; font-weight:700; color:#fff;">Crash-Free Sessions</div>
+<div style="font-size:11px; color:var(--ink-muted); margin-top:2px;">Mean Time to Resolution: <strong style="color:var(--lime);">4.2m</strong></div>
+<div style="font-size:10px; color:var(--ink-dim); margin-top:1px;">0.02% degraded from target</div>
+</div>
+</div>
+<div class="breadcrumbs-box">
+<div class="bc-head">
+<span>Breadcrumb Timeline</span>
+<span style="color:var(--ink-dim); font-size:10px; font-family:var(--font-mono);">LAST 5 ACTIONS</span>
+</div>
+<div class="bc-list">
+<div class="bc-item">
+<span class="bc-tag">UI</span>
+<div><span>Clicked <span style="color:#818cf8;">button#pay-button</span></span></div>
+</div>
+<div class="bc-item">
+<span class="bc-tag">HTTP</span>
+<div><span>POST /api/checkout [200 OK]</span></div>
+</div>
+<div class="bc-item">
+<span class="bc-tag">WARN</span>
+<div><span style="color:#f59e0b;">Payload missing invoice session token</span></div>
+</div>
+<div class="bc-item">
+<span class="bc-tag crash">CRASH</span>
+<div><span style="color:var(--magenta);">TypeError: undefined 'checkout_session'</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="feature-section" id="errors">
+<div class="container">
+<div style="text-align:center;">
+<div style="font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.14em; color:var(--magenta); margin-bottom:6px;">Full Stack Observability</div>
+<h2 style="font-size: clamp(22px, 3vw, 32px); font-weight:700; letter-spacing:-0.03em;">See inside every error and latency spike.</h2>
+</div>
+<div class="feat-grid">
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+</div>
+<div class="feat-h">Source-Mapped Stack Traces</div>
+<div class="feat-p">Automatic minified JavaScript and TypeScript source mapping with zero exposure. See line numbers, git commits, and suspect authors immediately.</div>
+</div>
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+</div>
+<div class="feat-h">Breadcrumb Flight Recorder</div>
+<div class="feat-p">Review the exact chronological sequence of network requests, DOM mutations, console logs, and state changes leading up to the unhandled crash.</div>
+</div>
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+</div>
+<div class="feat-h">Distributed Tracing & Vitals</div>
+<div class="feat-p">Connect frontend user latency, Core Web Vitals (LCP, INP, CLS), API gateways, and SQL queries into a unified distributed execution trace.</div>
+</div>
+</div>
+<div class="spec-bar">
+<div class="tokens-list">
+<span><span class="swatch" style="background:#150f23; border:1px solid #444;"></span>--canvas: #150f23</span>
+<span><span class="swatch" style="background:#362d59;"></span>--border: #362d59</span>
+<span><span class="swatch" style="background:#e1567c;"></span>--magenta: #e1567c</span>
+<span><span class="swatch" style="background:#c2ef4e;"></span>--lime: #c2ef4e</span>
+<span><span class="swatch" style="background:#6a5fc1;"></span>--violet: #6a5fc1</span>
+</div>
+<div>Tokens: Rubik Display · Dark Purple & Sentry Magenta Voltage</div>
+</div>
+</div>
+</section>
+</main>
+<footer>
+<div class="container footer-row">
+<div style="display:flex; align-items:center; gap:8px;">
+<svg class="sentry-logo" style="width:14px; height:14px;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14.5h-2v-2h2v2zm0-4h-2V7h2v5.5z"/></svg>
+<span>© 2026 Functional Software, Inc. dba Sentry. Real-time telemetry.</span>
+</div>
+<div style="display:flex; gap:16px;">
+<a href="#">Status</a>
+<a href="#">Privacy</a>
+<a href="#">Terms</a>
+<a href="#">Security</a>
+</div>
+</div>
+</footer>
+</body>
+</html>

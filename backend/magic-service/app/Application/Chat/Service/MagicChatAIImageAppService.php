@@ -16,7 +16,6 @@ use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicChatFileEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageCardResponseType;
-use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\Radio;
 use App\Domain\Chat\Entity\ValueObject\FileType;
 use App\Domain\Chat\Service\MagicAIImageDomainService;
@@ -25,6 +24,7 @@ use App\Domain\Chat\Service\MagicChatFileDomainService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\ModelGateway\Service\MsgLogDomainService;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
@@ -128,7 +128,7 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
      */
     private function handleGenerateImage(RequestContext $requestContext, MagicChatAIImageReqDTO $reqDTO): void
     {
-        $res = $this->generateImage($requestContext, $reqDTO->getParams());
+        $res = $this->generateImage($requestContext, $reqDTO);
         $this->aiSendMessage(
             $reqDTO->getConversationId(),
             (string) $this->idGenerator->generate(),
@@ -154,11 +154,18 @@ class MagicChatAIImageAppService extends AbstractAIImageAppService
             ],
         ]
     )]
-    private function generateImage(RequestContext $requestContext, AIImageGenerateParamsVO $generateParamsVO): array
+    private function generateImage(RequestContext $requestContext, MagicChatAIImageReqDTO $reqDTO): array
     {
+        $generateParamsVO = $reqDTO->getParams();
+        $toolCode = $generateParamsVO->getSourceId();
+        $generateParamsVO->setSourceId(SourceId::SUPER_MAGIC);
         $model = $generateParamsVO->getModel();
         // 根据模型类型创建对应的服务
         $data = $generateParamsVO->toArray();
+        $data['business_id'] = $reqDTO->getTopicId() !== '' ? $reqDTO->getTopicId() : $reqDTO->getConversationId();
+        if ($toolCode !== '') {
+            $data['tool_code'] = $toolCode;
+        }
         $magicUserAuthorization = $requestContext->getUserAuthorization();
         $images = $this->llmAppService->imageGenerate($magicUserAuthorization, $model, '', $data);
         $this->logger->info('images', $images);

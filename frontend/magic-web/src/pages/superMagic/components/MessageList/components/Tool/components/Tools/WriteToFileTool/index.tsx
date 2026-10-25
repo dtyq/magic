@@ -3,10 +3,8 @@ import ToolCard from "../../ToolCard"
 import ToolContainer from "../../ToolContainer"
 import { TextEditor } from "../../ToolDetail"
 import type { BaseToolProps } from "../../../types"
-import {
-	downloadFileContent,
-	getTemporaryDownloadUrl,
-} from "@/pages/superMagic/utils/api"
+import { downloadFileContent } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { useCollapse } from "../hooks/useCollapse"
 
 interface WriteToFileToolProps extends BaseToolProps {
@@ -21,6 +19,9 @@ interface WriteToFileToolProps extends BaseToolProps {
 }
 
 function WriteToFileTool(props: WriteToFileToolProps) {
+	// Bind the ambient share/session identity so the file content request is not
+	// rejected on share previews.
+	const fileApi = useFileApi()
 	const { collapsed, setCollapsed, DropdownIcon, collapseCardClassName, expandedCardClassName } =
 		useCollapse()
 
@@ -65,13 +66,17 @@ function WriteToFileTool(props: WriteToFileToolProps) {
 
 	useEffect(() => {
 		if (!content && fileData?.file_id) {
-			getTemporaryDownloadUrl({ file_ids: [fileData?.file_id] }).then((res: any) => {
-				downloadFileContent(res[0]?.url).then((data: any) => {
-					setContent(data)
+			fileApi
+				.getTemporaryDownloadUrl({
+					file_ids: [fileData?.file_id],
 				})
-			})
+				.then((res: any) => {
+					downloadFileContent(res[0]?.url).then((data: any) => {
+						setContent(data)
+					})
+				})
 		}
-	}, [content, fileData?.file_id])
+	}, [content, fileApi, fileData?.file_id])
 
 	// 如果折叠，只显示 ToolCard 带 suffix
 	if (collapsed) {
@@ -99,6 +104,7 @@ function WriteToFileTool(props: WriteToFileToolProps) {
 				cardClassName={expandedCardClassName}
 			/>
 			<TextEditor
+				file={fileData}
 				content={content}
 				fileName={fileName}
 				language={getLanguageFromFileName(fileName)}

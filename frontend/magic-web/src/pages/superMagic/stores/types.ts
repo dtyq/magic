@@ -1,3 +1,4 @@
+import type { DownloadProgressState } from "./download-progress"
 import type { SeqRecord } from "@/apis/modules/chat/types"
 import type {
 	ConversationMessageSend,
@@ -30,6 +31,9 @@ export type HttpToolProjectionPolicy = "preserve_live" | "historical_terminal"
  * 已由 WS/完整恢复确认的 canonical 消息则统一进入 Final 结算。
  */
 export type HttpAssistantSnapshotPolicy = "progress_snapshot" | "canonical_final"
+
+/** Final settlement can finish transport while the visible row still catches up. */
+export type AssistantRenderPhase = "reasoning_content" | "content" | "tool" | "idle" | "interrupted"
 
 export type LifecycleEventPolicy = "silent" | "live"
 
@@ -108,10 +112,17 @@ export interface SharedMessageItem {
 	[key: string]: unknown
 }
 
+/** Store canonical nodes include live raw nodes and the heterogeneous share payload. */
+export type SuperMagicStoreMessageNode = RawSuperMagicMessageNode | SharedMessageItem
+
 // ─── 消息项 ──────────────────────────────────────────────────
 
 export interface MessageItem {
 	app_message_id: string
+	/** 本地流式卡的序号只用于展示；真实 IM/HTTP 消息接管后才参与服务端水位。 */
+	is_stream_placeholder: boolean
+	/** 首次出现时的前一条可见消息身份；后续同步只更新内容，不改变展示位置。 */
+	display_after_message_id?: string
 	/** Store/UI 统一查询身份；User=app_message_id，Assistant/Tool 历史消息回退 app_message_id。 */
 	super_message_id: string
 	/** 消息相关联Id */
@@ -151,11 +162,25 @@ export interface TokenUsageDetail {
 	cache_write_tokens: number
 }
 
+export interface ContextInputBreakdown {
+	source: "text_estimate"
+	system_tokens: number
+	tool_definition_tokens: number
+	skill_tokens: number
+	mcp_tokens: number
+	conversation_tokens: number
+	tool_result_tokens: number
+	contains_non_text_content: boolean
+	partial_attribution: boolean
+}
+
 export interface TokenUsage {
+	input_breakdown?: ContextInputBreakdown
 	input_tokens: number
 	output_tokens: number
 	total_tokens: number
 	max_context_tokens?: number
+	compaction_threshold_tokens?: number
 	model_id: string
 	input_tokens_details: TokenUsageDetail
 	request_id: string
@@ -267,6 +292,7 @@ export interface ToolStreamMessageState {
 }
 
 export interface ToolResponseState {
+	downloadProgress?: DownloadProgressState
 	action?: string
 	attachments?: null | Array<any>
 	detail?: {
@@ -362,6 +388,10 @@ export interface TopicMeta {
 	syncGeneration: number
 	/** 当前话题是否正在进行权威同步 */
 	syncState: TopicSyncState
+	/** 已发送但尚未观察到对应 Agent 流的本地执行次数；用于防止旧 finished 状态抢先开启终态同步。 */
+	pendingExecutionCount: number
+	/** 最近一次本地执行开始时间，用于让永久丢失首个 chunk 的发送最终回到恢复轮询。 */
+	pendingExecutionStartedAt: number | null
 	/** 当前话题恢复时采用的渲染策略 */
 	renderPolicy: TopicRenderPolicy
 }

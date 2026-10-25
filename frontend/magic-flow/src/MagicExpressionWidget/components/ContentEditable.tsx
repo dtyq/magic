@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { useMemoizedFn, useMount, useResetState, useUpdateEffect } from "ahooks"
 import clsx from "clsx"
-import { cloneDeep, endsWith, last } from "lodash"
+import { cloneDeep, endsWith, last } from "lodash-es"
 import React, {
 	forwardRef,
 	memo,

@@ -1,0 +1,284 @@
+---
+name: dokturek-ui-kit-copy
+source_file: Dokturek UI kit (Copy)
+source_page:         ↳  Final design
+generated_at: 2026-07-27T22:17:22.623Z
+---
+
+# Dokturek UI kit (Copy) Design Guidelines
+
+## Source
+- Figma file: Dokturek UI kit (Copy)
+- Figma page:         ↳  Final design
+- Extracted at: 2026-07-27T22:17:22.623Z
+
+## Variable Collections
+- ☀️  Mode
+- 💨 Tailwind
+- 📱 Responsive
+- 🚀 Themes
+- 🎨 Brand colors
+- 🎨🎨 Color mode
+
+## Color Tokens
+- avatar-2: image
+- avatar-1: image
+- avatar-3: image
+- avatar-4: image
+- avatar-5: image
+- avatar-6: image
+- avatar-7: image
+- avatar-8: image
+- avatar-9: image
+- avatar-10: image
+- avatar-11: image
+- avatar-12: image
+- avatar-13: image
+- avatar-14: image
+- avatar-15: image
+- avatar-16: image
+- avatar-17: image
+- avatar-18: image
+- avatar-19: image
+- avatar-20: image
+- bg-gradient: gradient_linear(#FFFFFF 0% | #09090B 100%)
+- primary-gradient: gradient_linear(#171717 0% | #6D28D9 100%)
+- SVG Line: gradient_linear(#76717F00 0% | #737373 25% | #737373 75%, ...)
+- Primary Gredient: gradient_linear(#171717 0% | #6D28D9 100%)
+- card Gredient: gradient_linear(#0F172A 0% | #334155 100%)
+- Gredient 2: gradient_linear(#171717 0% | #DC2626 100%)
+- Button Overlay: gradient_linear(#00000033 0% | #00000000 100%)
+- Fill glass effect: gradient_angular(#9C9C9C80 3% | #9C9C9C59 9% | #FFFFFF80 17%, ...)
+- Fill glass effect white: gradient_linear(#FFFFFF80 0% | #D9D9D933 100%)
+- Stroke Glass effect V2: pattern
+- Background gradient: gradient_linear(#F2E7FE 40% | #FFEDD5 100%)
+- Violet: #F4EEFB
+- button gradient: gradient_radial(#D6B6FD 0% | #F2E7FE 67%)
+- button gradient hover: gradient_radial(#7A13F9 0% | #C292FC 67%)
+- Border card: gradient_linear(#FFFFFF 0% | #E8E8E8 41% | #FFFFFF 100%)
+- Button konverzní: gradient_radial(#D6B6FD 0% | #6F11E3 100%)
+- Ghost button: gradient_radial(#F9FAFB 0% | #E5E7EB 100%)
+- tab gradient: gradient_radial(#F2E7FE 37% | #A661FB 100%)
+- Tab gradient: gradient_radial(#7A13F926 35% | #FFFFFF0D 100%)
+- Brand color/Violet/violet-50: #330869
+
+## Typography Tokens
+- Tailwind/XS/Light: Geist Light, 12px / 16px, tracking 0%
+- Tailwind/XS/Regular: Geist Regular, 12px / 16px, tracking 0%
+- Tailwind/XS/Medium: Geist Medium, 12px / 16px, tracking 0%
+- Tailwind/XS/Semi Bold: Geist SemiBold, 12px / 16px, tracking 0%
+- Tailwind/XS/Bold: Geist Bold, 12px / 16px, tracking 0%
+- Tailwind/SM/Light: Geist Light, 14px / 20px, tracking 0%
+- Tailwind/SM/Regular: Geist Regular, 14px / 20px, tracking 0%
+- Tailwind/SM/Medium: Geist Medium, 14px / 20px, tracking 0%
+- Tailwind/SM/Semi Bold: Geist SemiBold, 14px / 20px, tracking 0%
+- Tailwind/SM/Bold: Geist Bold, 14px / 20px, tracking 0%
+- Tailwind/Base/Light: Geist Light, 16px / 24px, tracking 0%
+- Tailwind/Base/Regular: Geist Regular, 16px / 24px, tracking 0%
+- Tailwind/Base/Medium: Geist Medium, 16px / 24px, tracking 0%
+- Tailwind/Base/Semi Bold: Geist SemiBold, 16px / 24px, tracking 0%
+- Tailwind/Base/Bold: Geist Bold, 16px / 24px, tracking 0%
+- Tailwind/LG/Light: Geist Light, 18px / 28px, tracking 0%
+- Tailwind/LG/Regular: Geist Regular, 18px / 28px, tracking 0%
+- Tailwind/LG/Medium: Geist Medium, 18px / 28px, tracking 0%
+- Tailwind/LG/Semi Bold: Geist SemiBold, 18px / 28px, tracking 0%
+- Tailwind/LG/Bold: Geist Bold, 18px / 28px, tracking 0%
+- Tailwind/XL/Light: Geist Light, 20px / 28px, tracking 0%
+- Tailwind/XL/Regular: Geist Regular, 20px / 28px, tracking 0%
+- Tailwind/XL/Medium: Geist Medium, 20px / 28px, tracking 0%
+- Tailwind/XL/Semi Bold: Geist SemiBold, 20px / 28px, tracking 0%
+- Tailwind/XL/Bold: Geist Bold, 20px / 28px, tracking 0%
+- Tailwind/2XL/Light: Geist Light, 24px / 32px, tracking 0%
+- Tailwind/2XL/Regular: Geist Regular, 24px / 32px, tracking 0%
+- Tailwind/2XL/Medium: Geist Medium, 24px / 32px, tracking 0%
+- Tailwind/2XL/Semi Bold: Geist SemiBold, 24px / 32px, tracking 0%
+- Tailwind/2XL/Bold: Geist Bold, 24px / 32px, tracking 0%
+- Tailwind/3XL/Light: Geist Light, 30px / 36px, tracking 0%
+- Tailwind/3XL/Regular: Geist Regular, 30px / 36px, tracking 0%
+- Tailwind/3XL/Medium: Geist Medium, 30px / 36px, tracking 0%
+- Tailwind/3XL/Semi Bold: Geist SemiBold, 30px / 36px, tracking 0%
+- Tailwind/3XL/Bold: Geist Bold, 30px / 36px, tracking 0%
+- Tailwind/4XL/Light: Geist Light, 36px / 40px, tracking 0%
+- Tailwind/4XL/Regular: Geist Regular, 36px / 40px, tracking 0%
+- Tailwind/4XL/Medium: Geist Medium, 36px / 40px, tracking 0%
+- Tailwind/4XL/Semi Bold: Geist SemiBold, 36px / 40px, tracking 0%
+- Tailwind/4XL/Bold: Geist Bold, 36px / 40px, tracking 0%
+
+## Spacing Tokens
+- 💨 Tailwind/spacing/px: 1
+- 💨 Tailwind/spacing/0: 0
+- 💨 Tailwind/spacing/0,5: 2
+- 💨 Tailwind/spacing/1: 4
+- 💨 Tailwind/spacing/1,5: 6
+- 💨 Tailwind/spacing/2: 8
+- 💨 Tailwind/spacing/2,5: 10
+- 💨 Tailwind/spacing/3: 12
+- 💨 Tailwind/spacing/3,5: 14
+- 💨 Tailwind/spacing/4: 16
+- 💨 Tailwind/spacing/5: 20
+- 💨 Tailwind/spacing/6: 24
+- 💨 Tailwind/spacing/7: 28
+- 💨 Tailwind/spacing/8: 32
+- 💨 Tailwind/spacing/9: 36
+- 💨 Tailwind/spacing/10: 40
+- 💨 Tailwind/spacing/11: 44
+- 💨 Tailwind/spacing/12: 48
+- 💨 Tailwind/spacing/14: 56
+- 💨 Tailwind/spacing/16: 64
+- 💨 Tailwind/spacing/20: 80
+- 💨 Tailwind/spacing/24: 96
+- 💨 Tailwind/spacing/28: 112
+- 💨 Tailwind/spacing/32: 128
+- 💨 Tailwind/spacing/36: 144
+- 💨 Tailwind/spacing/40: 160
+- 💨 Tailwind/spacing/44: 176
+- 💨 Tailwind/spacing/48: 192
+- 💨 Tailwind/spacing/52: 208
+- 💨 Tailwind/spacing/56: 224
+- 💨 Tailwind/spacing/60: 240
+- 💨 Tailwind/spacing/64: 256
+- 💨 Tailwind/spacing/72: 288
+- 💨 Tailwind/spacing/80: 320
+- 💨 Tailwind/spacing/96: 384
+- 📱 Responsive/vertical-padding: alias(spacing/24)
+- 📱 Responsive/horizontal-padding: alias(spacing/8)
+- 📱 Responsive/section-spacing: alias(spacing/24)
+- ☀️  Mode/spacing/5: 5
+- ☀️  Mode/spacing/8: 8
+
+## Radius Tokens
+- 💨 Tailwind/borders/radius/rounded-none: 0
+- 💨 Tailwind/borders/radius/rounded-sm: 4
+- 💨 Tailwind/borders/radius/rounded: 8
+- 💨 Tailwind/borders/radius/rounded-md: 16
+- 💨 Tailwind/borders/radius/rounded-lg: 24
+- 💨 Tailwind/borders/radius/rounded-xl: 32
+- 💨 Tailwind/borders/radius/rounded-2xl: 40
+- 💨 Tailwind/borders/radius/rounded-3xl: 48
+- 💨 Tailwind/borders/radius/rounded-full: 9999
+- 💨 Tailwind/borders/width/border-0: alias(spacing/0)
+- 💨 Tailwind/borders/width/border-2: alias(spacing/0,5)
+- 💨 Tailwind/borders/width/border-4: alias(spacing/1)
+- 💨 Tailwind/borders/width/border-8: alias(spacing/2)
+- 💨 Tailwind/borders/width/border: alias(spacing/px)
+- ☀️  Mode/border radius/none: alias(VariableID:014cd5a9d4bb83b3024fd85723073a1c8195ef4a/55067:104)
+- ☀️  Mode/border radius/sm: alias(border radius/sm)
+- ☀️  Mode/border radius/lg: alias(border radius/lg)
+- ☀️  Mode/border radius/md: alias(border radius/md)
+- ☀️  Mode/border radius/rounded: alias(border radius/rounded)
+- ☀️  Mode/border radius/xl: alias(border radius/xl)
+- ☀️  Mode/border radius/xs: alias(border radius/xs)
+- 🚀 Themes/shadow/xl/blur-radius: 0
+- 🚀 Themes/shadow/md/blur-radius: 0
+- 🚀 Themes/shadow/sm/spread-radius: 0
+- 🚀 Themes/shadow/sm/blur-radius: 0
+- 🚀 Themes/shadow/lg/blur-radius: 0
+- 🚀 Themes/border radius/none: 0
+- 🚀 Themes/border radius/xs: 2
+- 🚀 Themes/border radius/sm: 6
+- 🚀 Themes/shadow/md/spread-radius: 0
+- 🚀 Themes/border radius/xl: 14
+- 🚀 Themes/shadow/xl/spread-radius: 0
+- 🚀 Themes/border radius/lg: 10
+- 🚀 Themes/border radius/md: 8
+- 🚀 Themes/border radius/rounded: 9999
+- 🚀 Themes/shadow/lg/spread-radius: 0
+- 🚀 Themes/shadow/2xs/blur-radius-dark: 0
+- 🚀 Themes/shadow/2xs/spread-radius-dark: 0
+- 🚀 Themes/shadow/xs/blur-radius-dark: 2
+- 🚀 Themes/shadow/xs/spread-radius-dark: 0
+
+## Motion Tokens
+- 🚀 Themes/shadow/xl/2/spread-radius: -6
+- 🚀 Themes/shadow/xl/1/spread-radius: -5
+- 🚀 Themes/shadow/xl/1/blur-radius: 25
+- 🚀 Themes/shadow/lg/2/spread-radius: -4
+- 🚀 Themes/shadow/lg/2/blur-radius: 6
+- 🚀 Themes/shadow/lg/2/offset-y: 4
+- 🚀 Themes/shadow/lg/1/offset-y: 10
+- 🚀 Themes/shadow/xl/2/blur-radius: 10
+- 🚀 Themes/shadow/xs/offset-x: 0
+- 🚀 Themes/shadow/lg/2/offset-x: 0
+- 🚀 Themes/shadow/md/2/offset-y: 2
+- 🚀 Themes/shadow/xl/2/offset-y: 8
+- 🚀 Themes/shadow/md/2/offset-x: 0
+- 🚀 Themes/shadow/sm/2/blur-radius: 2
+- 🚀 Themes/shadow/sm/2/offset-x: 0
+- 🚀 Themes/shadow/sm/1/spread-radius: 0
+- 🚀 Themes/shadow/sm/2/spread-radius: -1
+- 🚀 Themes/shadow/sm/1/blur-radius: 3
+- 🚀 Themes/shadow/2xl/blur-radius: 50
+- 🚀 Themes/shadow/2xl/offset-x: 0
+- 🚀 Themes/shadow/xs/spread-radius: 0
+- 🚀 Themes/shadow/xs/blur-radius: 2
+- 🚀 Themes/shadow/xs/offset-y: 1
+- 🚀 Themes/shadow/md/1/blur-radius: 6
+- 🚀 Themes/shadow/xl/1/offset-x: 0
+- 🚀 Themes/shadow/lg/1/spread-radius: -3
+- 🚀 Themes/shadow/lg/1/offset-x: 0
+- 🚀 Themes/shadow/md/1/spread-radius: -1
+- 🚀 Themes/shadow/xl/1/offset-y: 20
+- 🚀 Themes/shadow/sm/1/offset-x: 0
+- 🚀 Themes/shadow/md/2/blur-radius: 4
+- 🚀 Themes/shadow/md/1/offset-y: 4
+- 🚀 Themes/shadow/md/1/offset-x: 0
+- 🚀 Themes/shadow/sm/2/offset-y: 1
+- 🚀 Themes/shadow/md/2/spread-radius: -2
+- 🚀 Themes/shadow/2xl/offset-y: 25
+- 🚀 Themes/shadow/2xs/spread-radius: 0
+- 🚀 Themes/shadow/2xl/spread-radius: -12
+- 🚀 Themes/shadow/2xs/offset-x: 0
+- 🚀 Themes/shadow/xl/2/offset-x: 0
+
+## Effect Styles
+- card-bg-blur: background_blur 8px
+- shadow ring: drop_shadow 0px offset 0 0 #A1A1AA80
+- TEST-card (A): drop_shadow 4px offset 0 4 #6366F10D + noise + ...
+- Card Glass effect: background_blur 3.9px + inner_shadow 22px offset 0 0 #F2F2F280 + ...
+- Effect Glass effect V2: drop_shadow 40px offset 0 16 #26516329 + inner_shadow 17.14px offset -4.29 -8.57 #FFFFFF33 + ...
+- Shadow lvl 1: drop_shadow 40px offset 0 20 #7A13F91A + inner_shadow 17.14px offset -4.29 -8.57 #FFFFFF33 + ...
+- Shadow lvl 2: drop_shadow 40px offset 0 24 #7A13F933 + inner_shadow 17.14px offset -4.29 -8.57 #FFFFFF33 + ...
+- Shadow lvl 3: drop_shadow 40px offset 0 32 #7A13F940 + inner_shadow 17.14px offset -4.29 -8.57 #FFFFFF33 + ...
+- button shadow: drop_shadow 10px offset 0 5 #7A13F940 + inner_shadow 17.14px offset -4.29 -8.57 #FFFFFF33 + ...
+- Light/bg-blur/none: background_blur 0px
+- Light/bg-blur/sm: background_blur 4px
+- Light/bg-blur/blur: background_blur 8px
+- Light/bg-blur/md: background_blur 12px
+- Light/bg-blur/lg: background_blur 16px
+- Light/bg-blur/xl: background_blur 24px
+- Light/bg-blur/2xl: background_blur 40px
+- Light/bg-blur/3xl: background_blur 64px
+- Light/layer-blur/none: layer_blur 0px
+- Light/layer-blur/sm: layer_blur 4px
+- Light/layer-blur/blur: layer_blur 8px
+- Light/layer-blur/md: layer_blur 12px
+- Light/layer-blur/lg: layer_blur 16px
+- Light/layer-blur/xl: layer_blur 24px
+- Light/layer-blur/2xl: layer_blur 40px
+- Light/layer-blur/3xl: layer_blur 64px
+- Light/box-shadow/default/2xs: drop_shadow 0px offset 0 1 #00000040
+- Light/box-shadow/default/xs: drop_shadow 2px offset 0 1 #0000000D
+- Light/box-shadow/default/sm: drop_shadow 2px offset 0 1 #3E245C1A + drop_shadow 3px offset 0 1 #3E245C1A
+- Light/box-shadow/default/md: drop_shadow 4px offset 0 2 #0000001A + drop_shadow 6px offset 0 4 #0000001A
+- Light/box-shadow/default/lg: drop_shadow 6px offset 0 4 #0000001A + drop_shadow 15px offset 0 10 #0000001A
+- Light/box-shadow/default/xl: drop_shadow 10px offset 0 8 #0000001A + drop_shadow 25px offset 0 20 #0000001A
+- Light/box-shadow/default/2xl: drop_shadow 50px offset 0 25 #00000040
+- Light/box-shadow/primary/xs: drop_shadow 2px offset 0 1 #0000000D
+- Light/box-shadow/primary/sm: drop_shadow 2px offset 0 1 #0000001A + drop_shadow 3px offset 0 1 #0000001A
+- Light/box-shadow/primary/md: drop_shadow 4px offset 0 2 #0000001A + drop_shadow 6px offset 0 4 #0000001A
+- Light/box-shadow/primary/lg: drop_shadow 6px offset 0 4 #0000001A + drop_shadow 15px offset 0 10 #0000001A
+- Light/box-shadow/primary/xl: drop_shadow 10px offset 0 8 #0000001A + drop_shadow 25px offset 0 20 #0000001A
+- Light/box-shadow/primary/2xl: drop_shadow 50px offset 0 25 #00000040
+- Light/box-shadow/primary/2xs: drop_shadow 0px offset 0 1 #0000000D
+- Light/box-shadow/secondary/xs: drop_shadow 2px offset 0 1 #00000033
+
+## Grid Styles
+- No local grid styles found.
+
+## Component Families
+- No components were found on the current page. Add component sets to improve guideline coverage.
+
+## Editing Notes
+- Refine this file after extraction to add brand context and rationale.
+- Keep token names synchronized with Figma styles and variables.
+- Add usage examples and anti-patterns for critical components.

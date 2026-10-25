@@ -1,5 +1,5 @@
 import type { SelfMediaPlatform } from "../../../../types"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 
 /** An outline node in the tree structure */
 export interface OutlineNode {

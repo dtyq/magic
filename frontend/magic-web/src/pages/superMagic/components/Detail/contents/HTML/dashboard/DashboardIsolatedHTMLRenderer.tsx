@@ -13,7 +13,13 @@ import {
 	type DashboardCard,
 	type DataJsFileInfo,
 } from "./utils"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { decodeHTMLEntities } from "../utils/full-content"
+import { getHtmlSandboxRuntimeUrl } from "../utils/html-sandbox-runtime-url"
+import {
+	getDevicePreviewScrollbarsScript,
+	syncDevicePreviewScrollbars,
+} from "../utils/device-preview-scrollbars"
 import {
 	buildHtmlVirtualStorageNamespace,
 	createVirtualStorageContext,
@@ -31,6 +37,7 @@ interface IsolatedHTMLRendererProps {
 	isEditMode?: boolean
 	/** 预览模式：头部切到手机框时传 mobile，桌面预览传 desktop；不传则不向子页同步（保持 auto） */
 	dashboardRenderMode?: DashboardIframeRenderMode
+	devicePreviewEnabled?: boolean
 	onSaveReady?: (triggerSave: () => void) => void
 	// 添加必要的props来获取文件信息
 	attachments?: FileItem[]
@@ -38,7 +45,6 @@ interface IsolatedHTMLRendererProps {
 	currentFileId?: string
 	currentFileName?: string
 	projectId?: string
-	topicId?: string
 }
 
 const useStyles = createStyles(({ css }) => ({
@@ -67,16 +73,18 @@ function IsolatedHTMLRenderer({
 	className,
 	isEditMode,
 	dashboardRenderMode,
+	devicePreviewEnabled = false,
 	onSaveReady,
 	attachments,
 	attachmentList,
 	currentFileId,
 	currentFileName,
 	projectId,
-	topicId,
 }: IsolatedHTMLRendererProps) {
 	const { styles, cx } = useStyles()
+	const fileApi = useFileApi()
 	const externalRenderSiteUrl = useMemo(() => env("MAGIC_HTML_SANDBOX_URL"), [])
+	const htmlSandboxRuntimeUrl = useMemo(() => getHtmlSandboxRuntimeUrl(), [])
 	const htmlSandboxShellUrl = useMemo(
 		() => externalRenderSiteUrl || "/husky.html",
 		[externalRenderSiteUrl],
@@ -127,6 +135,10 @@ function IsolatedHTMLRenderer({
 		script.setAttribute("data-injected", "magic-virtual-storage")
 		script.textContent = getVirtualStorageBridgeScript(virtualStorageContext)
 		doc.head.insertBefore(script, doc.head.firstChild)
+		const devicePreviewScript = doc.createElement("script")
+		devicePreviewScript.setAttribute("data-injected", "magic-device-preview")
+		devicePreviewScript.textContent = getDevicePreviewScrollbarsScript(window.location.origin)
+		doc.head.appendChild(devicePreviewScript)
 
 		return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
 	}, [contentTrim, virtualStorageContext])
@@ -135,7 +147,6 @@ function IsolatedHTMLRenderer({
 		let cancelled = false
 		const namespace = buildHtmlVirtualStorageNamespace({
 			projectId,
-			topicId,
 			fileId: currentFileId,
 		})
 
@@ -150,7 +161,7 @@ function IsolatedHTMLRenderer({
 		return () => {
 			cancelled = true
 		}
-	}, [currentFileId, projectId, topicId])
+	}, [currentFileId, projectId])
 
 	useEffect(() => {
 		if (!virtualStorageContext) return
@@ -179,6 +190,7 @@ function IsolatedHTMLRenderer({
 				attachmentList,
 				currentFileId,
 				currentFileName,
+				fileApi,
 			})
 
 			if (fileInfo) {
@@ -229,7 +241,7 @@ function IsolatedHTMLRenderer({
 	useEffect(() => {
 		void loadDataJsFile()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [attachments, attachmentList, currentFileId, currentFileName])
+	}, [attachments, attachmentList, currentFileId, currentFileName, fileApi])
 
 	// 初始化 iframe 入口：同源与跨域都先加载 sandbox shell，再通过 setContent 注入业务 HTML。
 	useEffect(() => {
@@ -253,16 +265,28 @@ function IsolatedHTMLRenderer({
 			{
 				type: "setContent",
 				content: dashboardContent,
+				runtimeUrl: htmlSandboxRuntimeUrl,
 			},
 			externalRenderSiteOrigin || "*",
 		)
 		lastInjectedContentRef.current = dashboardContent
-	}, [dashboardContent, externalRenderSiteOrigin, iframeLoaded])
+	}, [dashboardContent, externalRenderSiteOrigin, htmlSandboxRuntimeUrl, iframeLoaded])
 
 	// 接收子容器消息
 	useEffect(() => {
 		const callback = (event: MessageEvent) => {
 			if (event.source !== iframeRef.current?.contentWindow) return
+			if (
+				event.data?.type === "contentLoaded" &&
+				event.origin === (externalRenderSiteOrigin || window.location.origin)
+			) {
+				syncDevicePreviewScrollbars(
+					iframeRef.current,
+					externalRenderSiteOrigin || window.location.origin,
+					devicePreviewEnabled,
+				)
+				return
+			}
 			if (event.data?.type === "iframeReady") {
 				setIframeLoaded(true)
 				return
@@ -284,7 +308,16 @@ function IsolatedHTMLRenderer({
 		return () => {
 			window.removeEventListener("message", callback)
 		}
-	}, [externalRenderSiteOrigin])
+	}, [externalRenderSiteOrigin, devicePreviewEnabled])
+
+	// 只同步原生条的显示，不能让设备模式变化触发 dashboardContent 重建。
+	useEffect(() => {
+		syncDevicePreviewScrollbars(
+			iframeRef.current,
+			externalRenderSiteOrigin || window.location.origin,
+			devicePreviewEnabled,
+		)
+	}, [devicePreviewEnabled, externalRenderSiteOrigin])
 
 	// 发送消息给子容器，编辑状态变更后
 	useEffect(() => {
@@ -334,7 +367,7 @@ function IsolatedHTMLRenderer({
 				title="HTML Content"
 				src={htmlSandboxShellUrl}
 				sandbox="allow-scripts allow-modals allow-forms allow-same-origin allow-popups allow-downloads allow-pointer-lock allow-orientation-lock allow-presentation"
-				allow="fullscreen; autoplay; picture-in-picture; encrypted-media; web-share; clipboard-write"
+				allow="fullscreen; autoplay; microphone; camera; picture-in-picture; encrypted-media; web-share; clipboard-write"
 				allowFullScreen
 				data-testid="html-content-iframe"
 			/>

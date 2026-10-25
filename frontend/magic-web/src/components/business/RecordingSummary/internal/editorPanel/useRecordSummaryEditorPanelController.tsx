@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMemoizedFn, useDebounceFn } from "ahooks"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import ModelSwitchContainer from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/ModelSwitchContainer"
 import { useMessageEditorStore } from "@/pages/superMagic/components/MessageEditor/stores"
 import superMagicTopicModelService from "@/services/superMagic/topicModel/SuperMagicTopicModelService"
@@ -21,7 +23,6 @@ import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import SuperMagicService from "@/pages/superMagic/services"
 import type { AudioSourceType } from "@/services/recordSummary/MediaRecorderService/types/RecorderTypes"
 import { type Workspace } from "@/pages/superMagic/pages/Workspace/types"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { getFallbackTopicModeIdentifier } from "@/services/superMagic/DefaultAgentSelectionService"
 import { getEditorPanelMode } from "./getEditorPanelMode"
 import { useRecordingEditorRuntime } from "../editorRuntime"
@@ -31,6 +32,15 @@ import {
 	SUPER_MAGIC_INTERRUPT_DEBOUNCE_MS,
 } from "@/pages/superMagic/services/sendSuperMagicInterruptMessage"
 import { userStore } from "@/models/user"
+import { runForceRecordingOverride } from "@/components/business/RecordingSummary/utils/force-recording-override"
+import {
+	getHomepageRecordingStartBlocker,
+	resolveEnsuredRecordingTopicMode,
+	resolveRecordingStartContext,
+	resolveSelectedProjectStartContext,
+	type HomepageRecordingStartBlocker,
+	type RecordingStartContext,
+} from "./recordingStartContext"
 
 type SaveSuperMagicTopicModel = RecordSummaryEditorPanelRef["saveSuperMagicTopicModel"]
 
@@ -44,7 +54,11 @@ export function useRecordSummaryEditorPanelController({
 	editorModeSwitch,
 	modelSwitch,
 	attachments,
+	beforeRecordingStart,
+	recordingNewProjectTopicMode,
+	allowSelectRecordingProject,
 }: RecordSummaryEditorPanelProps) {
+	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
 	const recordSummaryService = initializeRecordSummaryService()
 	const runtime = useRecordingEditorRuntime()
@@ -92,6 +106,8 @@ export function useRecordSummaryEditorPanelController({
 	const [uploadFileId, setUploadFileId] = useState<string | null>(null)
 	const [uploadProgress, setUploadProgress] = useState(0)
 	const [selectedAudioSource, setSelectedAudioSource] = useState<AudioSourceType>("microphone")
+	const [isPreparingRecordingStart, setIsPreparingRecordingStart] = useState(false)
+	const startRecordingInFlightRef = useRef(false)
 
 	const {
 		uploading,
@@ -154,7 +170,7 @@ export function useRecordSummaryEditorPanelController({
 		validateFileCount,
 	})
 
-	const { cancelRecord } = useCancelRecord({
+	const { cancelRecordFromUI: cancelRecord } = useCancelRecord({
 		onSummarizeSuccess: (result) => {
 			onSummarizeSuccessDefaultCallback(result)
 		},
@@ -175,75 +191,100 @@ export function useRecordSummaryEditorPanelController({
 		},
 	})
 
-	const handleStartRecording = useMemoizedFn(async (mode: "new" | "current" = "new") => {
-		if (!isModelReady || !selectedWorkspace?.id || !selectedModel?.model_id) {
-			console.error("workspace, topic, project, model not selected")
-			return
-		}
-
-		let workspace: Workspace | null = selectedWorkspace
-		let project = selectedProject
-		let topic = selectedTopic
-
-		if (mode === "current") {
-			const { project: nextProject, workspace: nextWorkspace } =
-				await openSelectorWithResult()
-			project = nextProject
-			workspace = nextWorkspace
-		}
-
-		if (!workspace) {
-			console.error("workspace not selected")
-			return
-		}
-
-		if (!topic || !project) {
-			const { project: ensuredProject, topic: ensuredTopic } =
-				await recordSummaryService.ensureProjectAndTopic(
-					{
-						workspace,
-						project,
-					},
-					{
-						topicMode: selectedProject
-							? TopicMode.RecordSummary
-							: getFallbackTopicModeIdentifier(),
-					},
-				)
-
-			if (!project) {
-				recordSummaryService.emit(
-					RECORD_SUMMARY_EVENTS.UPDATE_EMPTY_WORKSPACE_PANEL_PROJECTS,
-					{
-						topicId: ensuredTopic?.id,
-						projectId: ensuredProject?.id,
-						workspaceId: workspace.id || "",
-					},
-				)
+	const notifyHomepageRecordingStartBlocked = useMemoizedFn(
+		(blocker: HomepageRecordingStartBlocker) => {
+			if (blocker === "missingWorkspace") {
+				toast.error(t("recordingSummary.superEditorPanel.warning.missingWorkspace"))
+				return
 			}
 
-			project = ensuredProject
-			topic = ensuredTopic
-		}
+			toast.error(t("recordingSummary.superEditorPanel.warning.missingModel"))
+		},
+	)
 
-		if (!selectedModel || !project) {
-			console.error("project or model not selected")
-			return
-		}
+	const startNewRecording = useMemoizedFn(
+		async (mode: "new" | "current" = "new", startContext?: RecordingStartContext) => {
+			const resolvedContext =
+				startContext ??
+				resolveRecordingStartContext({
+					selectedWorkspace,
+					selectedProject,
+					selectedTopic,
+					selectedModel,
+				})
+			const nextWorkspace = resolvedContext.workspace
+			const nextProject = resolvedContext.project
+			const nextTopic = resolvedContext.topic
+			const nextModel = resolvedContext.model
+			const startBlocker = getHomepageRecordingStartBlocker(resolvedContext)
 
-		await runtime.actions.startRecording({
-			workspace,
-			project,
-			topic,
-			selectedTopic,
-			model: selectedModel,
-			audioSource: selectedAudioSource,
-		})
+			if ((!startContext && !isModelReady) || startBlocker) {
+				console.error("workspace, topic, project, model not selected")
+				if (startBlocker) notifyHomepageRecordingStartBlocked(startBlocker)
+				return
+			}
 
-		if (selectedProjectFromSelector && selectedWorkspaceFromSelector) {
-			clearSelection()
-		}
-	})
+			let workspace: Workspace | null = nextWorkspace
+			let project = nextProject
+			let topic = nextTopic
+
+			if (mode === "current") {
+				const { project: nextProject, workspace: nextWorkspace } =
+					await openSelectorWithResult()
+				project = nextProject
+				workspace = nextWorkspace
+			}
+
+			if (!topic || !project) {
+				const { project: ensuredProject, topic: ensuredTopic } =
+					await recordSummaryService.ensureProjectAndTopic(
+						{
+							workspace,
+							project,
+						},
+						{
+							topicMode: resolveEnsuredRecordingTopicMode({
+								hasProject: Boolean(nextProject),
+								recordingNewProjectTopicMode,
+								fallbackTopicMode: getFallbackTopicModeIdentifier(),
+							}),
+						},
+					)
+
+				if (!project) {
+					recordSummaryService.emit(
+						RECORD_SUMMARY_EVENTS.UPDATE_EMPTY_WORKSPACE_PANEL_PROJECTS,
+						{
+							topicId: ensuredTopic?.id,
+							projectId: ensuredProject?.id,
+							workspaceId: workspace?.id || "",
+						},
+					)
+				}
+
+				project = ensuredProject
+				topic = ensuredTopic
+			}
+
+			if (!nextModel || !project) {
+				console.error("project or model not selected")
+				return
+			}
+
+			await runtime.actions.startRecording({
+				workspace,
+				project,
+				topic,
+				selectedTopic,
+				model: nextModel,
+				audioSource: selectedAudioSource,
+			})
+
+			if (selectedProjectFromSelector && selectedWorkspaceFromSelector) {
+				clearSelection()
+			}
+		},
+	)
 
 	const handleCompleteRecordingWithSummary = useMemoizedFn(() => {
 		runtime.actions.finishRecording({
@@ -255,6 +296,62 @@ export function useRecordSummaryEditorPanelController({
 				console.log(error)
 			},
 		})
+	})
+
+	const handleStartRecording = useMemoizedFn(async (mode: "new" | "current" = "new") => {
+		if (startRecordingInFlightRef.current) return
+		startRecordingInFlightRef.current = true
+		// Show the preparing state before the async gate so a repeated tap reads as
+		// ignored instead of being silently dropped by the in-flight ref.
+		setIsPreparingRecordingStart(true)
+		try {
+			// Homepage send validates the workspace before creating anything. Do the same
+			// before replacing an in-progress recording or creating a project.
+			if (beforeRecordingStart && !(await beforeRecordingStart())) return
+
+			// Resolve the destination before override so a missing workspace or
+			// model cannot finish the current recording and then fail to start.
+			let selectedStartContext: RecordingStartContext | undefined
+			if (mode === "current") {
+				const pickedContext = await resolveSelectedProjectStartContext({
+					openSelector: openSelectorWithResult,
+					selectedModel,
+				})
+				if (!pickedContext) return
+				selectedStartContext = pickedContext
+			} else {
+				const homepageStartContext = resolveRecordingStartContext({
+					selectedWorkspace,
+					selectedProject,
+					selectedTopic,
+					selectedModel,
+				})
+				const startBlocker = getHomepageRecordingStartBlocker(homepageStartContext)
+				if (startBlocker) {
+					notifyHomepageRecordingStartBlocked(startBlocker)
+					return
+				}
+				selectedStartContext = homepageStartContext
+			}
+
+			const overrideContext = await recordSummaryService.getRecordingOverrideContext()
+			if (overrideContext) {
+				const prepared = await runForceRecordingOverride(
+					overrideContext,
+					() => recordSummaryService.prepareRecordingOverride(overrideContext.sessionId),
+					() =>
+						recordSummaryService.releaseOverrideSessionForForceStart(
+							overrideContext.sessionId,
+						),
+				)
+				if (!prepared) return
+			}
+
+			await startNewRecording("new", selectedStartContext)
+		} finally {
+			startRecordingInFlightRef.current = false
+			setIsPreparingRecordingStart(false)
+		}
 	})
 
 	const handleCancelUpload = useMemoizedFn(() => {
@@ -287,10 +384,6 @@ export function useRecordSummaryEditorPanelController({
 
 	const handleAudioSourceChange = useMemoizedFn((audioSource: AudioSourceType) => {
 		setSelectedAudioSource(audioSource)
-	})
-
-	const handleOpenCurrentRecording = useMemoizedFn(() => {
-		runtime.actions.openCurrentRecording()
 	})
 
 	useEffect(() => {
@@ -328,7 +421,7 @@ export function useRecordSummaryEditorPanelController({
 			value={selectedAudioSource}
 			onChange={handleAudioSourceChange}
 			size={size}
-			disabled={runtime.state.isStartingRecord || uploading}
+			disabled={runtime.state.isStartingRecord || isPreparingRecordingStart || uploading}
 		/>
 	) : null
 
@@ -351,10 +444,8 @@ export function useRecordSummaryEditorPanelController({
 		editorModeSwitch,
 		handleCancelUpload,
 		handleCompleteRecordingWithSummary,
-		handleOpenCurrentRecording,
 		handleStartRecording,
 		handleUploadFile,
-		isCurrentRecording,
 		isMediaRecorderNotSupported: recordSummaryStore.isMediaRecorderNotSupported,
 		isModelReady,
 		isOtherTabRecording: recordSummaryStore.isOtherTabRecording,
@@ -362,7 +453,7 @@ export function useRecordSummaryEditorPanelController({
 		isRecording: runtime.state.isRecording,
 		isSmall,
 		isMobile,
-		isStartingRecord: runtime.state.isStartingRecord,
+		isStartingRecord: runtime.state.isStartingRecord || isPreparingRecordingStart,
 		isTaskRunning,
 		isWaitingSummarize: recordSummaryStore.isWaitingSummarize,
 		leftToolbar,
@@ -370,6 +461,7 @@ export function useRecordSummaryEditorPanelController({
 		panelMode,
 		saveSuperMagicTopicModel,
 		selectedProjectId: selectedProject?.id,
+		allowSelectRecordingProject,
 		size,
 		uploading,
 		uploadProgress,

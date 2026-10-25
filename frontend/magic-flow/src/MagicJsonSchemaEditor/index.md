@@ -201,13 +201,13 @@ import JsonSchemaEditor from './index';
 import React from "react";
 import { Button } from "antd";
 import { nanoid } from "nanoid"
-import _ from "lodash";
+import { uniqueId } from "lodash-es";
 
 const refInstance = React.createRef(null)
 
 const onAdd = () => {
     if(refInstance && refInstance.current) {
-        const keys = new Array(1).fill(0).map(o => _.uniqueId("field_"))
+        const keys = new Array(1).fill(0).map(o => uniqueId("field_"))
         keys.forEach(key => {
             refInstance.current.addRootChildField(key)
         })

@@ -55,6 +55,7 @@ from agentlang.utils.file import clear_directory_contents
 import aiofiles # 导入 aiofiles
 import aiofiles.os # 导入 aiofiles.os
 from app.core.context.agent_context import AgentContext
+from agentlang.agent.models import AgentRunRequest
 
 # 使用agentlang.logger模块的配置函数，从环境变量获取日志级别，默认为INFO
 log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -412,7 +413,7 @@ async def main():
 
         # 如果提供了查询文本，则执行单次查询并退出
         if args.query:
-            response = await agent.run(args.query)
+            response = await agent.run(AgentRunRequest(query=args.query))
             logger.info(f"\n{response}")
             return
 
@@ -426,7 +427,7 @@ async def main():
                 if query.lower() in ('exit', 'quit', 'q'):
                     break
 
-                response = await agent.run(query)
+                response = await agent.run(AgentRunRequest(query=query))
                 logger.info(f"\n{response}")
             except KeyboardInterrupt:
                 logger.info("\n程序已终止")

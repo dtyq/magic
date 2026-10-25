@@ -9,7 +9,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import { useMemoizedFn } from "ahooks"
 import chatTopicService from "@/services/chat/topic"
 import conversationService from "@/services/chat/conversation/ConversationService"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const headerRootClass = cn(
 	"flex h-full items-center justify-between gap-4 px-3",

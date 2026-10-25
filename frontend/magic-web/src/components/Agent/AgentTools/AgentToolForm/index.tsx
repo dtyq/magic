@@ -1,7 +1,6 @@
-import { useStyles } from "./styles"
 import { AgentCommonModalChildrenProps } from "@/components/Agent/AgentCommonModal"
 import { IconX } from "@tabler/icons-react"
-import { Button, Flex, Form, Input } from "antd"
+import { Button, Form, Input } from "antd"
 import MagicSpin from "@/components/base/MagicSpin"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { FlowApi } from "@/apis"
@@ -14,7 +13,7 @@ export interface AgentToolFormProps extends AgentCommonModalChildrenProps {
 	mcpId: string
 	onFinish?: (info: Flow.Mcp.SaveParams) => void
 	onSuccessCallback?: () => void
-	/** 初始数据，用于新建MCP时直接传递工具数据 */
+	/** Initial tool data passed directly when creating an MCP. */
 	initialData?: Partial<Flow.Mcp.SaveParams>
 }
 
@@ -26,7 +25,6 @@ const enum AgentToolFormField {
 export default function AgentToolForm(props: AgentToolFormProps) {
 	const { id, mcpId, onClose, onSuccessCallback, initialData } = props
 
-	const { styles } = useStyles()
 	const { t } = useTranslation("agent")
 
 	const [form] = Form.useForm()
@@ -44,26 +42,26 @@ export default function AgentToolForm(props: AgentToolFormProps) {
 
 	useMount(() => {
 		if (initialData) {
-			// 如果提供了初始数据，直接使用（适用于新建MCP的情况）
+			// Use the supplied initial data when creating an MCP.
 			form.setFieldsValue(initialData)
 		} else if (id && mcpId) {
-			// 如果有id和mcpId，从API获取数据（适用于已有MCP的情况）
+			// Fetch tool details when editing a tool in an existing MCP.
 			run(id, mcpId)
 		}
 	})
 
 	const onFinish = useMemoizedFn((values) => {
 		const fieldsName = ["id", "name", "description", "source", "rel_code", "enabled"]
-		// 如果有初始数据，优先使用初始数据；否则使用API返回的data
+		// Prefer initial data over the API response when both are available.
 		const baseData = initialData || data || {}
 		const formData = id ? { id, ...baseData, ...values } : { ...baseData, ...values }
 
 		if (props?.onFinish) {
-			// 当传递了onFinish回调时，使用回调处理（适用于没有mcpId的情况）
+			// Delegate submission to the supplied callback, including when no MCP ID exists yet.
 			props.onFinish(pick(formData, fieldsName))
 			onClose?.()
 		} else {
-			// 当没有传递onFinish回调且有mcpId时，直接调用API
+			// Save through the API when no submission callback is supplied.
 			if (!mcpId) {
 				console.warn("mcpId is required for direct API call")
 				return
@@ -80,10 +78,13 @@ export default function AgentToolForm(props: AgentToolFormProps) {
 	const isEdit = id || !!initialData
 
 	return (
-		<div className={styles.layout}>
-			<div className={styles.header}>
+		<div className="w-full overflow-hidden rounded-[12px]">
+			<div className="flex w-full items-center justify-between gap-2.5 border-b border-border px-5 py-2.5 text-base font-semibold not-italic leading-[22px] text-foreground/80 backdrop-blur-[12px]">
 				{t(isEdit ? "common.tool.editTitle" : "common.tool.createTitle")}
-				<div className={styles.close} onClick={onClose}>
+				<div
+					className="flex size-6 cursor-pointer items-center justify-center rounded-[6px] transition-all duration-100 ease-linear hover:bg-fill active:bg-fill-secondary dark:hover:bg-white/10 dark:active:bg-white/[0.15]"
+					onClick={onClose}
+				>
 					<IconX size={24} />
 				</div>
 			</div>
@@ -97,13 +98,14 @@ export default function AgentToolForm(props: AgentToolFormProps) {
 					preserve={false}
 					onFinish={onFinish}
 				>
-					<div className={styles.body}>
+					{/* Preserve Ant Design label spacing and typography; Form still handles validation and submission. */}
+					<div className="max-h-[60vh] w-full p-2.5 [&_.magic-form-item-label]:!pb-1.5 [&_.magic-form-item-label_label]:text-xs [&_.magic-form-item-label_label]:font-normal [&_.magic-form-item-label_label]:not-italic [&_.magic-form-item-label_label]:leading-4 [&_.magic-form-item-label_label]:text-foreground/60">
 						<Form.Item
 							name={AgentToolFormField.Name}
 							label={t("common.tool.form.name")}
 							required
 							rules={[{ required: true }]}
-							className={styles.formItem}
+							className="mb-2.5 last:mb-0"
 						>
 							<Input placeholder={t("common.tool.form.namePlaceholder")} />
 						</Form.Item>
@@ -112,17 +114,26 @@ export default function AgentToolForm(props: AgentToolFormProps) {
 							label={t("common.tool.form.desc")}
 							required
 							rules={[{ required: true }]}
-							className={styles.formItem}
+							className="mb-2.5 last:mb-0"
 						>
 							<Input placeholder={t("common.tool.form.descPlaceholder")} />
 						</Form.Item>
 					</div>
-					<Flex justify="flex-end" gap={10} className={styles.footer}>
-						<Button onClick={onClose}>{t("common.tool.form.cancel")}</Button>
-						<Button htmlType="submit" type="primary">
+					<div className="flex justify-end gap-2.5 p-2.5">
+						<Button
+							className="dark:!border-border dark:!bg-fill dark:!text-foreground/80 dark:hover:!bg-fill-secondary"
+							onClick={onClose}
+						>
+							{t("common.tool.form.cancel")}
+						</Button>
+						<Button
+							className="dark:!bg-primary dark:!text-primary-foreground dark:hover:!bg-primary/90"
+							htmlType="submit"
+							type="primary"
+						>
 							{t(isEdit ? "common.tool.form.save" : "common.tool.form.create")}
 						</Button>
-					</Flex>
+					</div>
 				</Form>
 			</MagicSpin>
 		</div>

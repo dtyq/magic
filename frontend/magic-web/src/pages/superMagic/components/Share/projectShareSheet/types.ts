@@ -34,6 +34,10 @@ export interface ProjectShareSheetProps {
 	projectName?: string
 	attachments: AttachmentItem[]
 	attachmentList?: AttachmentItem[]
+	/** Full attachment snapshot used for hidden recording document dependency lookup. */
+	dependencyAttachments?: AttachmentItem[]
+	/** Recording bundle root used to prevent cross-bundle dependency matching. */
+	dependencyBundleRootPath?: string
 	fileMap?: RecordingDetailFileMap
 	defaultSelectedFileIds?: string[]
 	defaultOpenFileId?: string
@@ -66,6 +70,11 @@ export interface ProjectShareSheetController {
 	loading: boolean
 	saving: boolean
 	isCheckingShare: boolean
+	permittedShareTypes?: ShareType[]
+	shareTypePermissionLoading?: boolean
+	isSelectedShareTypePermitted?: boolean
+	/** Whether the organization is on a free plan, i.e. the paid-plan sharing gate applies. */
+	isFreePlan?: boolean
 	advancedOpen: boolean
 	defaultSelectedFileIds: string[]
 	selectedFileIds: string[]

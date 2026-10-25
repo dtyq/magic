@@ -1,12 +1,12 @@
 import type { NodeProps } from "../../../types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { memo } from "react"
 import { observer } from "mobx-react-lite"
 import { defaultOpen } from "../../config"
 import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { ChevronUp, ChevronRight } from "lucide-react"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { isEmpty } from "lodash-es"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
 
@@ -83,7 +83,11 @@ function TodoWrite(props: NodeProps) {
 					)}
 				</div>
 				{open && (
-					<MagicScrollBar className="relative m-0 max-h-[300px] rounded-b-lg rounded-t-none pb-1.5 pl-1.5 pr-1.5 pt-0 [&_.simplebar-content]:!pb-2 [&_.simplebar-content]:!pl-2 [&_.simplebar-content]:!pr-2 [&_.simplebar-content]:!pt-0">
+					// Exclude the outer bottom padding from the viewport cap to retain the 300px panel limit.
+					<ScrollArea
+						className="m-0 rounded-b-lg rounded-t-none px-1.5 pb-1.5"
+						viewportClassName="max-h-[294px] px-2 pb-2 [&>div]:!block"
+					>
 						<div className="flex max-h-full w-full flex-col items-center gap-2.5 self-stretch rounded-lg border border-border bg-white p-2.5 dark:bg-card">
 							{items.map((o) => (
 								<div key={o.id} className="flex items-start gap-2.5 self-stretch">
@@ -98,7 +102,7 @@ function TodoWrite(props: NodeProps) {
 								</div>
 							))}
 						</div>
-					</MagicScrollBar>
+					</ScrollArea>
 				)}
 			</div>
 		)

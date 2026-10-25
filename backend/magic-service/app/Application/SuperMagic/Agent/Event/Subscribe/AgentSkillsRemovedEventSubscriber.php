@@ -233,7 +233,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             $projectEntity,
             $organizationCode,
             $projectOrgCode,
-            $removedPackageNames,
+            array_merge($removedPackageNames, $skillCodes),
             SkillsMdSyncService::OPERATION_REMOVE,
             $removedSystemPackageNames
         );

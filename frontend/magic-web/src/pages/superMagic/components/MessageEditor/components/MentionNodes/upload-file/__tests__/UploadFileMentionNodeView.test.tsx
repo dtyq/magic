@@ -10,7 +10,7 @@ const storeMocks = vi.hoisted(() => ({
 	getFileById: vi.fn(),
 }))
 
-vi.mock("@tiptap/react", () => ({
+vi.mock("@/infrastructure/editors/tiptap/react", () => ({
 	NodeViewWrapper: ({
 		as: Component = "div",
 		children,
@@ -27,6 +27,7 @@ vi.mock("@/hooks/useIsMobile", () => ({
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({ t: (key: string) => key }),
+	initReactI18next: { type: "3rdParty", init: vi.fn() },
 }))
 
 vi.mock("@/pages/superMagic/components/MessageEditor/stores", () => ({
@@ -56,7 +57,7 @@ function createProps(
 		},
 		selected: false,
 		deleteNode: vi.fn(),
-	} as ComponentProps<typeof UploadFileMentionNodeView>
+	} as unknown as ComponentProps<typeof UploadFileMentionNodeView>
 }
 
 describe("UploadFileMentionNodeView", () => {
@@ -75,7 +76,7 @@ describe("UploadFileMentionNodeView", () => {
 
 		render(<UploadFileMentionNodeView {...createProps()} />)
 
-		const fileName = screen.getByText("@demo.mov")
+		const fileName = screen.getByText("demo.mov")
 		expect(fileName).toBeInTheDocument()
 		const mention = fileName.closest(".magic-mention")
 		const visual = screen.getByTestId("upload-file-mention-visual")
@@ -84,7 +85,8 @@ describe("UploadFileMentionNodeView", () => {
 			"!overflow-visible",
 			"!bg-transparent",
 			"!p-0",
-			"align-middle",
+			"!align-middle",
+			"!-top-px",
 		)
 		expect(visual).toHaveClass(
 			"h-[18px]",
@@ -110,7 +112,7 @@ describe("UploadFileMentionNodeView", () => {
 
 		render(<UploadFileMentionNodeView {...createProps()} />)
 
-		const mention = screen.getByText("@demo.mov").closest(".magic-mention")
+		const mention = screen.getByText("demo.mov").closest(".magic-mention")
 		expect(mention).toHaveClass("magic-mention")
 		expect(screen.getByTestId("upload-file-mention-visual")).toHaveClass(
 			"bg-primary-10",
@@ -201,7 +203,7 @@ describe("UploadFileMentionNodeView", () => {
 			storeMocks.getFileById.mock.calls.filter(([fileId]) => fileId === "file-1").length,
 		).toBe(firstLookupCount)
 		expect(
-			within(screen.getByText("@second.mov").parentElement as HTMLElement).getByText("40%"),
+			within(screen.getByText("second.mov").parentElement as HTMLElement).getByText("40%"),
 		).toBeInTheDocument()
 	})
 

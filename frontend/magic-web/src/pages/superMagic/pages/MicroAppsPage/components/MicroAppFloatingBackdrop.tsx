@@ -11,7 +11,7 @@ import {
 	Workflow,
 } from "lucide-react"
 import { useRef, type ReactNode, type RefObject } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 gsap.registerPlugin(useGSAP, ScrollTrigger)
 
@@ -397,6 +397,13 @@ export default function MicroAppFloatingBackdrop({
 				{mobile ? <MobileMosaic active={active} /> : <DesktopMosaic active={active} />}
 			</div>
 			<div className="micro-app-color-wash absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(248,248,245,0.99)_0%,rgba(248,248,245,0.97)_28%,rgba(248,248,245,0.82)_40%,rgba(248,248,245,0.2)_68%,transparent_84%)] will-change-transform dark:bg-[radial-gradient(ellipse_at_center,rgba(16,17,22,0.98)_0%,rgba(16,17,22,0.94)_35%,rgba(16,17,22,0.62)_56%,transparent_84%)]" />
+			<div
+				data-testid="micro-app-hero-light"
+				className={cn(
+					"absolute inset-0 bg-[radial-gradient(ellipse_at_32%_40%,rgba(255,255,255,0.85),transparent_55%),radial-gradient(ellipse_at_75%_70%,rgba(157,188,255,0.16),transparent_48%)] transition-opacity duration-1000 ease-out motion-reduce:transition-none dark:mix-blend-soft-light",
+					active ? "opacity-50" : "opacity-25",
+				)}
+			/>
 			<div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(248,248,245,0.35),transparent_22%,transparent_78%,rgba(248,248,245,0.78))] dark:bg-[linear-gradient(to_bottom,rgba(16,17,22,0.45),transparent_25%,transparent_72%,rgba(16,17,22,0.8))]" />
 		</div>
 	)

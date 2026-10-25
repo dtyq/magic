@@ -11,13 +11,16 @@ describe("messageEditorContentVariants", () => {
 			expect(classes).toContain("[&_.ProseMirror_.magic-mention]:!align-baseline")
 			expect(classes).toContain("[&_.ProseMirror_.magic-mention]:leading-[inherit]")
 			expect(classes).toContain(
-				"[&_.ProseMirror_.magic-mention[data-type='project_file']]:relative",
+				"[&_.ProseMirror_.magic-mention[data-type='project_file']:not([data-mention-node-view='file'])]:relative",
 			)
 			expect(classes).toContain(
-				"[&_.ProseMirror_.magic-mention[data-type='project_file']]:-top-px",
+				"[&_.ProseMirror_.magic-mention[data-type='project_file']:not([data-mention-node-view='file'])]:-top-px",
 			)
 			expect(classes).toContain(
-				"[&_.ProseMirror_.magic-mention[data-type='project_file']]:leading-[inherit]",
+				"[&_.ProseMirror_.magic-mention[data-type='project_file']:not([data-mention-node-view='file'])]:leading-[inherit]",
+			)
+			expect(classes).toContain(
+				"[&_.ProseMirror_.magic-mention[data-mention-node-view='file']]:!align-middle",
 			)
 		}
 

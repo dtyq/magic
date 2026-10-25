@@ -39,6 +39,21 @@ export function useCanvasElements(elementIds?: string[]): LayerElement[] {
 		[elementIds, shouldSubscribe],
 	)
 
+	useCanvasEventWithInstance(
+		shouldSubscribe ? canvas : null,
+		"content:previewChanged",
+		({ data }) => {
+			if (
+				elementIds === undefined ||
+				!data.elementId ||
+				elementIds.includes(data.elementId)
+			) {
+				forceUpdate()
+			}
+		},
+		[elementIds, shouldSubscribe],
+	)
+
 	if (!canvas) {
 		return []
 	}
@@ -86,6 +101,15 @@ export function useCanvasElement(
 			}
 		},
 		[elementId, includeTransient, shouldSubscribe],
+	)
+
+	useCanvasEventWithInstance(
+		shouldSubscribe ? canvas : null,
+		"content:previewChanged",
+		({ data }) => {
+			if (elementId && (!data.elementId || data.elementId === elementId)) forceUpdate()
+		},
+		[elementId, shouldSubscribe],
 	)
 
 	if (!elementId || !canvas) {

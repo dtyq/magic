@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { InstagramPresetPreviewCard } from "./PresetPreviewInstagramCards"
 
 type PresetPreviewVariant = "cover" | "content"

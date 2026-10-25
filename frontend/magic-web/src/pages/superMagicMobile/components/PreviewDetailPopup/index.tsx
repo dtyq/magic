@@ -10,6 +10,7 @@ import {
 	useEffect,
 	useImperativeHandle,
 	useMemo,
+	useRef,
 	useState,
 } from "react"
 import { useTranslation } from "react-i18next"
@@ -17,14 +18,18 @@ import { useDetailActions } from "@/pages/superMagic/components/Detail/hooks/use
 import { isEmpty } from "lodash-es"
 import { useLocation } from "react-router"
 import { copyFileContent } from "@/pages/superMagic/utils/share"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { useMemoizedFn } from "ahooks"
 import { X } from "lucide-react"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import { useIsMobile } from "@/hooks/useIsMobile"
+import { retainMobilePresentationLayout } from "@/stores/layout/mobilePresentationLayout"
 import MagicModal from "@/components/base/MagicModal"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
-import { cn } from "@/lib/utils"
+import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
+import { OverlayZIndexProvider } from "@/utils/overlayZIndex"
+import { cn } from "@/utils/cn"
 import { getPreviewDetailDisplayName } from "./headerMeta"
 import {
 	MOBILE_PREVIEW_BODY_CLASSNAME,
@@ -68,6 +73,8 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 		allowEdit,
 		onPreviewFileChange,
 		onPreviewFullscreenChange,
+		zIndex,
+		inline = false,
 	} = props
 
 	const isMobile = useIsMobile()
@@ -81,14 +88,26 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 	}, [hideHeaderProp, search])
 
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const [previewDetail, setPreviewDetail] = useState<PreviewDetail>()
 	const [visible, setVisible] = useState(false)
+	const shouldOwnOverlayLayer = visible && !isFileShare && !inline
+	const { overlayZIndex, releaseOverlayZIndex } = useOverlayZIndex({
+		open: shouldOwnOverlayLayer,
+		zIndex,
+	})
 	const [attachments, setAttachments] = useState<AttachmentItem[]>([])
 	const [attachmentList, setAttachmentList] = useState<AttachmentItem[]>([])
 	const [userSelectDetail, setUserDetail] = useState<PreviewDetail>()
 	// New state for ActionButtons functionality
 	const [viewMode, setViewMode] = useState<"code" | "desktop" | "phone">("desktop")
 	const [favoriteFiles, setFavoriteFiles] = useState<Set<string>>(new Set())
+	const releaseMobileLayoutRef = useRef<(() => void) | null>(null)
+	const releaseMobileLayout = useMemoizedFn(() => {
+		releaseMobileLayoutRef.current?.()
+		releaseMobileLayoutRef.current = null
+	})
+	useEffect(() => () => releaseMobileLayout(), [releaseMobileLayout])
 
 	const open = useCallback(
 		(
@@ -96,11 +115,26 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 			attachmentTree: AttachmentItem[],
 			attachmentList: AttachmentItem[],
 		) => {
+			// Exiting PPT fullscreen may leave the viewport in landscape. Keep the route and
+			// sheet mounted until this preview closes, so its file, slide and draft state survive.
+			// Inline previews live inside the page and never close, so they hold no layout lock.
+			if (isMobile && !isFileShare && !inline) {
+				releaseMobileLayoutRef.current ??= retainMobilePresentationLayout()
+			}
 			setPreviewDetail(options)
 			setAttachments(attachmentTree || [])
 			setAttachmentList(attachmentList || [])
 			setUserDetail(options)
 			setVisible(true)
+		},
+		[isMobile, isFileShare, inline],
+	)
+
+	/** Keeps an open preview aligned with project attachment data loaded after first render. */
+	const updateAttachments = useCallback(
+		(attachmentTree: AttachmentItem[], nextAttachmentList: AttachmentItem[]) => {
+			setAttachments(attachmentTree || [])
+			setAttachmentList(nextAttachmentList || [])
 		},
 		[],
 	)
@@ -141,9 +175,10 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 				fileId || previewDetail?.data?.file_id || "",
 				fileContent,
 				fileVersion,
+				fileApi,
 			)
 		},
-		[attachmentList, t, previewDetail?.data?.file_id],
+		[attachmentList, fileApi, t, previewDetail?.data?.file_id],
 	)
 
 	// Handle share functionality for files
@@ -174,6 +209,7 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 		return {
 			open,
 			onlyUpdateDetail,
+			updateAttachments,
 		}
 	})
 
@@ -202,7 +238,13 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 		setIsFullscreen(false)
 		onClose?.()
 		setVisible(false)
-	}, [onClose, setIsFullscreen])
+		releaseMobileLayout()
+	}, [onClose, releaseMobileLayout, setIsFullscreen])
+
+	/** Release after exit animation so the closing layer keeps its stack slot. */
+	const handleOverlayExited = useCallback(() => {
+		releaseOverlayZIndex()
+	}, [releaseOverlayZIndex])
 
 	const isShareRoute = useMemo(() => {
 		// 检查是否在分享场景，如果是分享场景则不显示下载全部文件按钮
@@ -371,6 +413,17 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 			: false
 	}, [attachmentList, previewDetail])
 
+	if (inline) {
+		return (
+			<div
+				className="flex h-full min-h-0 w-full flex-col bg-background"
+				data-testid="inline-preview-detail-root"
+			>
+				{previewDetail ? RenderComponent : null}
+			</div>
+		)
+	}
+
 	if (isFileShare) {
 		return (
 			<div
@@ -401,6 +454,11 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 				onClose={handleClose}
 				position="bottom"
 				title={displayFileName}
+				zIndex={overlayZIndex}
+				zIndexManaged={false}
+				onAnimationEnd={(isOpen) => {
+					if (!isOpen) handleOverlayExited()
+				}}
 				headerVariant={hideHeader ? undefined : "actionHeader"}
 				headerTitle={displayFileName}
 				headerLeadingAction={
@@ -422,14 +480,16 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 					MOBILE_PREVIEW_BODY_CLASSNAME,
 					isShareRoute && previewDetail?.isFromNode
 						? PREVIEW_MOBILE_BOTTOM_GAP_CLASSNAME
-						: "rounded-xl rounded-b-none",
+						: undefined,
 				)}
 				maskClosable
 				data-testid="file-preview-detail-popup-root"
 			>
-				<div className="flex min-h-0 flex-1 flex-col bg-background">
-					{!!previewDetail && visible && <>{RenderComponent}</>}
-				</div>
+				<OverlayZIndexProvider value={overlayZIndex}>
+					<div className="flex min-h-0 flex-1 flex-col bg-background">
+						{!!previewDetail && visible && <>{RenderComponent}</>}
+					</div>
+				</OverlayZIndexProvider>
 			</MagicPopup>
 		)
 	}
@@ -465,10 +525,14 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 				effectiveIsFullscreen && PREVIEW_MODAL_FULLSCREEN_CLASSNAME,
 			)}
 			centered={!effectiveIsFullscreen}
+			zIndex={overlayZIndex}
+			afterClose={handleOverlayExited}
 		>
-			<div className={PREVIEW_MODAL_BODY_WRAPPER_CLASSNAME}>
-				{!!previewDetail && visible && <>{RenderComponent}</>}
-			</div>
+			<OverlayZIndexProvider value={overlayZIndex}>
+				<div className={PREVIEW_MODAL_BODY_WRAPPER_CLASSNAME}>
+					{!!previewDetail && visible && <>{RenderComponent}</>}
+				</div>
+			</OverlayZIndexProvider>
 		</MagicModal>
 	)
 }

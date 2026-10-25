@@ -17,13 +17,19 @@ const GeneralInputContainer = lazy(() => import("../../scenes/General"))
 
 interface LazyScenePanelProps extends ScenePanelComponentBaseProps {
 	scenes?: SceneItem[]
+	inputContainerId?: string
 }
 
 /**
  * Lazy loaded skill panel component with loading skeleton
  * Shows skeleton when config is loading or component is lazy loading
  */
-function LazyScenePanel({ scenes, editorContext, editorNodes }: LazyScenePanelProps) {
+function LazyScenePanel({
+	scenes,
+	editorContext,
+	editorNodes,
+	inputContainerId,
+}: LazyScenePanelProps) {
 	const variant = useOptionalScenePanelVariant()
 	const { isLoading, editorType } = useCurrentSceneConfig({
 		topicMode: editorContext?.topicMode,
@@ -32,7 +38,7 @@ function LazyScenePanel({ scenes, editorContext, editorNodes }: LazyScenePanelPr
 	const [sharedEditorStore] = useState(() => new MessageEditorStore())
 
 	const renderContent = () => {
-		const commonProps = { editorContext, editorNodes }
+		const commonProps = { editorContext, editorNodes, inputContainerId }
 
 		if (isLoading) {
 			return <SkillPanelSkeleton includeEditor variant={variant} />

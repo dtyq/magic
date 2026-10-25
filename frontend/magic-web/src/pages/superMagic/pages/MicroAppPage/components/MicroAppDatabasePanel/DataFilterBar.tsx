@@ -21,7 +21,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import {
 	type DraftFilterCondition,

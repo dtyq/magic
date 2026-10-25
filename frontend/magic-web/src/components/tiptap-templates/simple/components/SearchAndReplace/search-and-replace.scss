@@ -51,6 +51,15 @@
 	animation: search-panel-slide-in 0.15s ease-out;
 }
 
+// Pure-share Markdown uses the Window as its scroll container. Keep the search panel
+// attached to the viewport instead of leaving it at the top of the long document.
+.simple-editor-wrapper.simple-editor-document-flow
+	.large-markdown-search-panel-document-flow {
+	position: fixed;
+	top: max(0.5rem, env(safe-area-inset-top));
+	right: max(1rem, env(safe-area-inset-right));
+}
+
 @keyframes search-panel-slide-in {
 	from {
 		opacity: 0;

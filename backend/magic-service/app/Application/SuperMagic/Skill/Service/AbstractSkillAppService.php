@@ -20,22 +20,39 @@ use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as 
 use App\Domain\SuperMagic\Skill\Entity\SkillEntity;
 use App\Domain\SuperMagic\Skill\Entity\SkillMarketEntity;
 use App\Domain\SuperMagic\Skill\Entity\SkillVersionEntity;
-use App\Domain\SuperMagic\Skill\Entity\ValueObject\BuiltinSkill;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\SkillDataIsolation;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\SkillSourceType;
 use App\Domain\SuperMagic\Skill\Service\SkillDomainService;
+use App\Domain\SuperMagic\Skill\Service\SkillMarketDomainService;
 use App\Domain\SuperMagic\Skill\Service\SkillVersionDomainService;
+use App\ErrorCode\SkillErrorCode;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\File\EasyFileTools;
+use App\Infrastructure\Util\File\TemporaryFileManager;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\ZipUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
+use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Hyperf\Di\Annotation\Inject;
+use Hyperf\Redis\Redis;
+use RuntimeException;
 
 /**
  * Skill 应用服务抽象基类.
  */
 abstract class AbstractSkillAppService extends AbstractKernelAppService
 {
+    protected const IMPORT_LOCK_EXPIRE_SECONDS = 60;
+
+    private const IMPORT_TOKEN_EXPIRE_SECONDS = 4 * 3600;
+
+    /** Skill 包内需要单独存储的说明文件. */
+    private const SKILL_FILE_NAME = 'SKILL.md';
+
     #[Inject]
     protected FileDomainService $fileDomainService;
 
@@ -47,6 +64,116 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
 
     #[Inject]
     protected ResourceAccessPolicyService $resourceAccessPolicyService;
+
+    #[Inject]
+    protected LockerInterface $locker;
+
+    #[Inject]
+    protected Redis $redis;
+
+    #[Inject]
+    protected SkillMarketDomainService $skillMarketDomainService;
+
+    /**
+     * 下载 Skill 压缩包，仅提取 SKILL.md 并上传为独立文件.
+     */
+    protected function uploadSkillFileFromPackage(SkillVersionEntity $version): string
+    {
+        $fileKey = $version->getFileKey();
+        if ($fileKey === null || trim($fileKey) === '') {
+            throw new RuntimeException('Skill package file_key is empty');
+        }
+
+        $archive = TemporaryFileManager::createTempFile('skill-package-');
+        $filePath = TemporaryFileManager::createTempFile('skill-file-');
+        try {
+            $this->fileDomainService->downloadByChunks($version->getOrganizationCode(), $fileKey, $archive, StorageBucketType::Private);
+            ZipUtil::extractFile($archive, self::SKILL_FILE_NAME, $filePath);
+            $upload = new UploadFile($filePath, 'skills/' . $version->getCode() . '/versions/' . $version->getId(), self::SKILL_FILE_NAME, false);
+            $this->fileDomainService->uploadByCredential($version->getOrganizationCode(), $upload, StorageBucketType::Private, false);
+            return $upload->getKey();
+        } finally {
+            foreach ([$archive, $filePath] as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+    }
+
+    /**
+     * 创建导入 Token 并保存导入数据.
+     *
+     * @param array<string, mixed> $data
+     */
+    protected function createImportToken(string $prefix, array $data): string
+    {
+        $token = IdGenerator::getUniqueIdSha256();
+        $payload = array_merge($data, ['expires_at' => time() + self::IMPORT_TOKEN_EXPIRE_SECONDS]);
+
+        $this->redis->setex(
+            $prefix . $token,
+            self::IMPORT_TOKEN_EXPIRE_SECONDS,
+            json_encode($payload, JSON_THROW_ON_ERROR)
+        );
+
+        return $token;
+    }
+
+    /**
+     * 读取并校验导入 Token.
+     *
+     * @return array<string, mixed>
+     */
+    protected function readImportToken(string $prefix, string $token): array
+    {
+        $payload = $this->redis->get($prefix . $token);
+        if (! is_string($payload) || $payload === '') {
+            ExceptionBuilder::throw(SkillErrorCode::INVALID_IMPORT_TOKEN, 'skill.invalid_import_token');
+        }
+
+        $data = json_decode($payload, true);
+        if (! is_array($data) || ($data['expires_at'] ?? 0) < time()) {
+            ExceptionBuilder::throw(SkillErrorCode::IMPORT_TOKEN_EXPIRED, 'skill.import_token_expired');
+        }
+
+        return $data;
+    }
+
+    /**
+     * 删除已消费的导入 Token.
+     */
+    protected function removeImportToken(string $prefix, string $token): void
+    {
+        if ($token === '') {
+            return;
+        }
+
+        $this->redis->del($prefix . $token);
+    }
+
+    /**
+     * 获取导入互斥锁.
+     */
+    protected function acquireImportLock(string $lockKey): string
+    {
+        $lockOwner = IdGenerator::getUniqueId32();
+        if (! $this->locker->mutexLock($lockKey, $lockOwner, self::IMPORT_LOCK_EXPIRE_SECONDS)) {
+            ExceptionBuilder::throw(SkillErrorCode::IMPORT_CONCURRENT_ERROR, 'skill.import_concurrent_error');
+        }
+
+        return $lockOwner;
+    }
+
+    /**
+     * 释放导入互斥锁.
+     */
+    protected function releaseImportLock(string $lockKey, string $lockOwner): void
+    {
+        if ($lockKey !== '' && $lockOwner !== '') {
+            $this->locker->release($lockKey, $lockOwner);
+        }
+    }
 
     /**
      * 创建 Skill 数据隔离对象.
@@ -157,11 +284,72 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
         $currentUserSkillCodes = $this->skillDomainService->findCurrentUserSkillCodes($dataIsolation);
 
         $sharedSkillCodes = array_values(array_diff($accessibleSkillCodes, $currentUserSkillCodes));
-        $sharedSkillCodes = array_values(array_diff($sharedSkillCodes, BuiltinSkill::values()));
+        $sharedSkillCodes = array_values(array_diff(
+            $sharedSkillCodes,
+            $this->skillMarketDomainService->getOfficialBuiltinSkillCodes()
+        ));
 
         return [
             'codes' => $sharedSkillCodes,
             'operations' => $accessibleSkillResult['operations'],
+        ];
+    }
+
+    /**
+     * 获取仅通过发布可见性共享的技能代码。
+     *
+     * operation_permissions 中明确授权的技能由 collaborated 作用域负责，
+     * 不应继续出现在新的 team_shared 作用域中。
+     *
+     * @return array{codes: array<string>, operations: array<string, Operation>}
+     */
+    protected function getTeamSharedVisibleSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        /** @var array{operations: array<string, Operation>, operation_codes: array<string>, visibility_codes: array<string>} $accessibleSkillResult */
+        $accessibleSkillResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL
+        );
+        $currentUserSkillCodes = $this->skillDomainService->findCurrentUserSkillCodes($dataIsolation);
+        $excludedCodes = array_merge(
+            $currentUserSkillCodes,
+            $accessibleSkillResult['operation_codes'] ?? [],
+            $this->skillMarketDomainService->getOfficialBuiltinSkillCodes()
+        );
+
+        return [
+            'codes' => array_values(array_diff($accessibleSkillResult['visibility_codes'] ?? [], $excludedCodes)),
+            'operations' => [],
+        ];
+    }
+
+    /**
+     * 获取当前用户明确参与协作的技能代码。
+     *
+     * @return array{codes: array<string>, operations: array<string, Operation>}
+     */
+    protected function getCollaboratedSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        /** @var array{operations: array<string, Operation>, operation_codes: array<string>} $accessibleSkillResult */
+        $accessibleSkillResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL
+        );
+        $creatorSkillCodes = $this->skillDomainService->findCurrentUserCreatedSkillCodes($dataIsolation);
+        $codes = array_values(array_diff(
+            $accessibleSkillResult['operation_codes'] ?? [],
+            $creatorSkillCodes,
+            $this->skillMarketDomainService->getOfficialBuiltinSkillCodes()
+        ));
+
+        return [
+            'codes' => $codes,
+            'operations' => array_intersect_key(
+                $accessibleSkillResult['operations'] ?? [],
+                array_fill_keys($codes, true)
+            ),
         ];
     }
 
@@ -190,7 +378,7 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
      */
     protected function mergeBuiltinSkillCodes(array $skillCodes, ?array $resourceCode = null): array
     {
-        $builtinSkillCodes = BuiltinSkill::values();
+        $builtinSkillCodes = $this->skillMarketDomainService->getOfficialBuiltinSkillCodes();
         if ($resourceCode !== null) {
             $builtinSkillCodes = array_values(array_intersect($builtinSkillCodes, $resourceCode));
         }

@@ -2,6 +2,9 @@
 	"agents": {
 		"aiChat": "AI 聊天"
 	},
+	"aiCanvas": {
+		"title": "AI 画布"
+	},
 	"appsMenu": {
 		"aiApps": "AI 应用",
 		"aiFinance": "AI 金融",
@@ -15,9 +18,16 @@
 	},
 	"chats": {
 		"empty": "暂无对话",
+		"myChats": "我的对话",
 		"newChat": "新建对话",
 		"refresh": "刷新对话列表",
 		"title": "对话"
+	},
+	"clawRuntime": {
+		"accessRevoked": "你当前没有龙虾使用权限，系统会停止相关龙虾。已保存的数据保留；重新授权后需要手动启动。停止前已发生的用量可能延迟入账。",
+		"accessUnavailable": "龙虾暂不可用",
+		"refreshFailed": "暂时无法确认使用权限，请重试。",
+		"refreshPermission": "刷新权限"
 	},
 	"crewMarket": {
 		"title": "数字员工"
@@ -26,9 +36,13 @@
 		"defaultUser": "用户",
 		"feedback": "使用反馈",
 		"freeAccount": "Free",
+		"globalRecycleBin": "全局回收站",
+		"globalRecycleBinHint": "查看你有权限访问的已删除空间、项目、话题、文件和微应用",
 		"helpCenter": "帮助中心",
-		"inbox": "收件箱",
+		"helpCenterTooltip": "查看超级麦吉使用指南",
+		"inbox": "站内信",
 		"recycleBin": "回收站",
+		"recycleBinTooltip": "查看你有权限访问的已删除空间、项目、话题、文件和微应用",
 		"renew": "续费",
 		"themeAuto": "跟随系统",
 		"themeDark": "深色模式",
@@ -36,7 +50,125 @@
 		"upgradeNow": "立即升级"
 	},
 	"home": {
-		"title": "首页"
+		"title": "新建任务"
+	},
+	"inbox": {
+		"auth": {
+			"accept": "接受",
+			"acceptedResult": "你已接受本次协作邀请。",
+			"expiredResult": "该邀请已过期，未授予权限。",
+			"reject": "拒绝",
+			"rejectedResult": "你已拒绝本次协作邀请。"
+		},
+		"back": "返回",
+		"close": "关闭站内信",
+		"empty": "当前分类暂无消息",
+		"groups": {
+			"earlier": "更早",
+			"today": "今天",
+			"yesterday": "昨天"
+		},
+		"loading": "加载中",
+		"markAllRead": "全部已读",
+		"messages": {
+			"casePoints": {
+				"body": "案例完整度高，已被官方案例库收录。",
+				"title": "奖励到账"
+			},
+			"crewApproved": {
+				"body": "你的数字员工「PPT 制作专家」已审核通过。",
+				"title": "数字员工审核通过"
+			},
+			"crewInvite": {
+				"body": "赵明邀请你协作开发数字员工「PPT 制作专家」。",
+				"title": "数字员工协作开发邀请"
+			},
+			"invitePoints": {
+				"body": "你邀请的用户「陈晓」已完成注册。",
+				"title": "邀请注册奖励"
+			},
+			"paymentSuccess": {
+				"body": "你已成功购买「1,000 积分」，支付金额 ¥10.00。",
+				"title": "支付成功"
+			},
+			"projectInvite": {
+				"body": "黄任秋邀请你加入项目「发票需求」，接受后即可进入项目协作。",
+				"title": "项目协作邀请"
+			},
+			"shareFileTeam": {
+				"body": "黄任秋向全团队成员分享了文件「开票功能需求说明.md」。",
+				"title": "收到团队分享 · 文件"
+			},
+			"shareFileYou": {
+				"body": "黄任秋向你分享了文件「开票功能原型.html」。",
+				"title": "收到团队分享 · 文件"
+			},
+			"shareProjectMembers": {
+				"body": "张志鹏向指定成员分享了项目「海外渠道分析」。",
+				"title": "收到团队分享 · 项目"
+			},
+			"shareProjectTeam": {
+				"body": "张志鹏向全团队成员分享了项目「发票需求」。",
+				"title": "收到团队分享 · 项目"
+			},
+			"skillApproved": {
+				"body": "你的技能「合同审查专家」已审核通过。",
+				"title": "技能审核通过"
+			},
+			"skillInvite": {
+				"body": "李海清邀请你协作开发技能「合同审查专家」。",
+				"title": "技能协作开发邀请"
+			},
+			"taskFailed": {
+				"body": "个人工作区 / 验收项目A 执行失败，请重试。",
+				"title": "任务执行失败"
+			},
+			"taskSuccess": {
+				"body": "个人工作区 / 验收项目A 执行成功。",
+				"title": "任务执行成功"
+			}
+		},
+		"meta": {
+			"accepted": "已接受",
+			"crew": "数字员工",
+			"members": "指定成员",
+			"payment": "支付通知",
+			"pending": "待处理",
+			"points": "积分奖励",
+			"rejected": "已拒绝",
+			"skill": "技能",
+			"task": "任务",
+			"team": "全团队成员"
+		},
+		"openResource": "查看资源",
+		"permission": {
+			"editor": "可编辑",
+			"manager": "可管理",
+			"viewer": "仅查看"
+		},
+		"pointsAmount": "{{amount}} 积分",
+		"resource": {
+			"organization": "所属组织",
+			"permission": "协作权限"
+		},
+		"shareScope": {
+			"all": "全团队成员",
+			"specific": "指定成员"
+		},
+		"tabs": {
+			"all": "全部",
+			"auth": "授权记录",
+			"system": "系统通知"
+		},
+		"tabsAria": "消息分类",
+		"templateUnavailable": "模板暂不可用",
+		"toast": {
+			"accepted": "已接受邀请",
+			"expired": "邀请已过期，未授予权限",
+			"markAllRead": "系统通知已全部标记为已读，授权邀请仍需处理",
+			"rejected": "已拒绝邀请",
+			"withdrawn": "该消息已撤回"
+		}
 	},
 	"mobileShell": {
 		"themeToggle": {
@@ -57,6 +189,9 @@
 		"otherAccount": "其他账号",
 		"personalVersion": "个人版",
 		"saasPlatform": "SaaS 平台"
+	},
+	"personaResearch": {
+		"title": "AI 研究"
 	},
 	"project": {
 		"empty": "暂无项目",
@@ -83,7 +218,7 @@
 		"nav": {
 			"apps": "应用",
 			"chats": "对话",
-			"magiClaw": "超级龙虾",
+			"magiClaw": "{{clawBrand}}",
 			"myCrew": "数字员工",
 			"recording": "录音与纪要",
 			"trash": "回收站",
@@ -101,7 +236,8 @@
 		"upgrade": "升级"
 	},
 	"skillsLibrary": {
-		"title": "技能库"
+		"clawTitle": "技能",
+		"title": "数字员工・技能・连接器"
 	},
 	"slidesTemplates": {
 		"compactCount": "{{value}} 套",
@@ -120,6 +256,7 @@
 		"createDialog": {
 			"avatarLabel": "头像",
 			"basicInformationLabel": "基础信息",
+			"heading": "创建{{clawBrand}}",
 			"nameLabel": "名称",
 			"namePlaceholder": "输入 {{clawBrand}} 名称",
 			"removeUploadedAvatar": "删除已上传头像",
@@ -174,7 +311,7 @@
 			"stop": "停止",
 			"stopFailed": "停止失败，请稍后重试",
 			"stopSuccess": "停止成功",
-			"title": "我的超级龙虾",
+			"title": "我的{{clawBrand}}",
 			"upgradeAvailable": "有新版本可用",
 			"userGuide": "使用指南"
 		},
@@ -196,7 +333,7 @@
 		},
 		"features": {
 			"connect": {
-				"description": "无缝接入飞书、微信、钉钉等主流平台，打破应用边界，让超级龙虾随时随地都在你身边。",
+				"description": "无缝接入飞书、微信、钉钉等主流平台，打破应用边界，让 {{clawBrand}} 随时随地都在你身边。",
 				"title": "连接到任意平台，随时随地开聊"
 			},
 			"customization": {
@@ -209,6 +346,7 @@
 			}
 		},
 		"getStarted": "开始使用",
+		"heroDescription": "{{clawBrand}}是一个拥有鲜明个性与长期记忆的 AI 助手\n无需复杂设置，7×24 小时在线",
 		"heroLead": "超级",
 		"mobile": {
 			"createdByMe": "我创建的",
@@ -216,7 +354,7 @@
 			"moreActions": "更多操作",
 			"mySuperClaw": "我的 {{clawBrand}}"
 		},
-		"title": "超级龙虾",
+		"title": "{{clawBrand}}",
 		"titleAccent": "龙虾",
 		"workspace": {
 			"back": "返回",

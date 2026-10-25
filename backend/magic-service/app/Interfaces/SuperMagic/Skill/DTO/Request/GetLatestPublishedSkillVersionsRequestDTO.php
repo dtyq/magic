@@ -24,6 +24,10 @@ class GetLatestPublishedSkillVersionsRequestDTO extends AbstractRequestDTO
 
     public ?string $keyword = null;
 
+    public ?string $agentCode = null;
+
+    public bool $agentDraft = false;
+
     public function getPage(): int
     {
         return $this->page;
@@ -55,6 +59,8 @@ class GetLatestPublishedSkillVersionsRequestDTO extends AbstractRequestDTO
             'codes' => 'nullable|array|max:200',
             'codes.*' => 'nullable|string|max:64',
             'keyword' => 'nullable|string|max:255',
+            'agent_code' => 'nullable|string|max:64',
+            'agent_draft' => 'sometimes|boolean',
         ];
     }
 

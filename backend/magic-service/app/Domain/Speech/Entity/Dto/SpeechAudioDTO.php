@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Speech\Entity\Dto;
 
 use App\Infrastructure\Core\AbstractDTO;
+use InvalidArgumentException;
 
 class SpeechAudioDTO extends AbstractDTO
 {
@@ -15,13 +16,13 @@ class SpeechAudioDTO extends AbstractDTO
 
     protected string $format = '';
 
-    protected string $codec = 'raw';
+    protected ?string $codec = null;
 
-    protected int $rate = 16000;
+    protected ?int $rate = null;
 
-    protected int $bits = 16;
+    protected ?int $bits = null;
 
-    protected int $channel = 1;
+    protected ?int $channel = null;
 
     public function __construct(array $data = [])
     {
@@ -48,43 +49,58 @@ class SpeechAudioDTO extends AbstractDTO
         $this->format = $format;
     }
 
-    public function getCodec(): string
+    public function getCodec(): ?string
     {
         return $this->codec;
     }
 
-    public function setCodec(string $codec): void
+    public function setCodec(?string $codec): void
     {
         $this->codec = $codec;
     }
 
-    public function getRate(): int
+    public function getRate(): ?int
     {
         return $this->rate;
     }
 
-    public function setRate(int $rate): void
+    public function setRate(?int $rate): void
     {
         $this->rate = $rate;
     }
 
-    public function getBits(): int
+    public function getBits(): ?int
     {
         return $this->bits;
     }
 
-    public function setBits(int $bits): void
+    public function setBits(?int $bits): void
     {
         $this->bits = $bits;
     }
 
-    public function getChannel(): int
+    public function getChannel(): ?int
     {
         return $this->channel;
     }
 
-    public function setChannel(int $channel): void
+    public function setChannel(?int $channel): void
     {
         $this->channel = $channel;
+    }
+
+    public function toArray(): array
+    {
+        if (in_array(strtolower($this->format), ['raw', 'pcm'], true)
+            && ($this->rate === null || $this->bits === null || $this->channel === null)) {
+            throw new InvalidArgumentException('Raw PCM audio requires rate, bits, and channel');
+        }
+
+        // Only send what the caller actually declared. An unknown format is omitted so the
+        // vendor detects the container itself instead of receiving an empty declaration.
+        return array_filter(
+            parent::toArray(),
+            static fn (mixed $value): bool => $value !== null && $value !== '',
+        );
     }
 }

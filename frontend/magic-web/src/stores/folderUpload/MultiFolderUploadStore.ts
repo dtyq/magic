@@ -1,6 +1,6 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import i18n from "i18next"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { SuperMagicApi } from "@/apis"
 import { FolderUploadTask } from "./FolderUploadTask"
 import { TaskQueue } from "./TaskQueue"
@@ -635,6 +635,7 @@ class MultiFolderUploadStore {
 			// 开始执行任务
 			await task.execute({
 				onProgress: this.handleTaskProgress,
+				onFileProgress: this.handleTaskFileProgress,
 				onComplete: this.handleTaskComplete,
 				onError: this.handleTaskError,
 				onBatchUploadComplete: this.handleBatchUploadComplete,
@@ -644,6 +645,10 @@ class MultiFolderUploadStore {
 			console.error(`Task ${task.id} execution failed:`, error)
 			this.handleTaskError(task.id, error as Error)
 		}
+	}
+
+	private handleTaskFileProgress = (taskId: string, file: File, progress: number): void => {
+		this.taskCallbacks.get(taskId)?.onFileProgress?.(taskId, file, progress)
 	}
 
 	// 任务进度回调
@@ -820,13 +825,13 @@ class MultiFolderUploadStore {
 	}
 
 	// 批次保存完成回调
-	private handleBatchSaveComplete = (batchSaveInfo: BatchSaveInfo): void => {
+	private handleBatchSaveComplete = async (batchSaveInfo: BatchSaveInfo): Promise<void> => {
 		const userCallbacks = this.taskCallbacks.get(batchSaveInfo.taskId)
 
 		// 调用用户的onBatchSaveComplete回调函数
 		if (userCallbacks?.onBatchSaveComplete) {
 			try {
-				userCallbacks.onBatchSaveComplete(batchSaveInfo)
+				await userCallbacks.onBatchSaveComplete(batchSaveInfo)
 				console.log(
 					`💾 Batch save completed for task ${batchSaveInfo.taskId}: ${batchSaveInfo.savedFilesCount} files saved (${batchSaveInfo.totalProcessedFiles} total processed)`,
 				)

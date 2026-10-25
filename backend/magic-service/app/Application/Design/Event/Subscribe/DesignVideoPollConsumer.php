@@ -15,6 +15,7 @@ use App\Domain\Design\Entity\DesignDataIsolation;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\Design\Factory\PathFactory;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
+use App\Domain\Design\Service\DesignVideoSubmissionDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
 use App\Domain\SuperMagic\File\Entity\ValueObject\FileType;
@@ -47,6 +48,8 @@ use function Hyperf\Translation\trans;
 )]
 class DesignVideoPollConsumer extends ConsumerMessage
 {
+    private const int ARCHIVE_RETRY_MAX_AGE_SECONDS = 12 * 60 * 60;
+
     public function __construct(
         private readonly DesignGenerationTaskDomainService $domainService,
         private readonly VideoGatewayClientInterface $videoGatewayClient,
@@ -56,6 +59,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
         private readonly ProjectDomainService $projectDomainService,
         private readonly DesignGeneratedVideoFileNameTool $generatedVideoFileNameTool,
         private readonly LoggerInterface $logger,
+        private readonly DesignVideoSubmissionDomainService $submissionDomainService,
     ) {
     }
 
@@ -75,12 +79,14 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $dataIsolation = DesignDataIsolation::create($msg->organizationCode, $entity->getUserId());
 
         $operationId = $entity->getOperationId();
+        $sandboxId = (string) ($entity->getProviderPayload()['sandbox_id'] ?? '');
         if ($operationId === '') {
             $this->logger->error('design video poll mark failed', [
                 'reason' => 'operation_id_missing',
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
+                'sandbox_id' => $sandboxId,
                 'operation_id' => $operationId,
                 'error' => trans('design.video_generation.operation_id_missing'),
             ]);
@@ -94,25 +100,47 @@ class DesignVideoPollConsumer extends ConsumerMessage
 
         $deadlineAt = $entity->getPollDeadlineAt();
         if ($deadlineAt !== null && strtotime($deadlineAt) !== false && time() > strtotime($deadlineAt)) {
+            $businessParams = [
+                'organization_code' => $entity->getOrganizationCode(),
+                'user_id' => $entity->getUserId(),
+            ];
             $this->logger->error('design video poll mark failed', [
                 'reason' => 'timeout',
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
+                'sandbox_id' => $sandboxId,
                 'operation_id' => $operationId,
                 'submitted_at' => $entity->getProviderPayload()['submitted_at'] ?? null,
                 'deadline_at' => $deadlineAt,
                 'error' => trans('design.video_generation.timeout'),
             ]);
+            try {
+                $this->videoGatewayClient->timeoutVideo($operationId, $businessParams);
+            } catch (Throwable $throwable) {
+                $this->logger->warning('design video poll timeout compensation failed', [
+                    'video_id' => $entity->getGenerationId(),
+                    'project_id' => $entity->getProjectId(),
+                    'organization_code' => $entity->getOrganizationCode(),
+                    'operation_id' => $operationId,
+                    'error' => $throwable->getMessage(),
+                ]);
+            }
             $this->domainService->markAsFailed($dataIsolation, $entity, trans('design.video_generation.timeout'));
             return Result::ACK;
         }
 
         try {
-            $result = $this->videoGatewayClient->queryVideo($operationId, [
-                'organization_code' => $entity->getOrganizationCode(),
-                'user_id' => $entity->getUserId(),
-            ]);
+            if ($entity->isCanvasComposition()) {
+                $contactIsolation = ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+                $contactIsolation->initDataIsolationEnv();
+                $result = $this->submissionDomainService->queryCanvasComposition($dataIsolation, $entity, $contactIsolation);
+            } else {
+                $result = $this->videoGatewayClient->queryVideo($operationId, [
+                    'organization_code' => $entity->getOrganizationCode(),
+                    'user_id' => $entity->getUserId(),
+                ]);
+            }
         } catch (BusinessException $exception) {
             $this->handleQueryFailure($dataIsolation, $entity, $msg, $exception);
             return Result::ACK;
@@ -136,6 +164,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
+                'sandbox_id' => $sandboxId,
                 'operation_id' => $operationId,
                 'status' => $status,
                 'provider_result' => is_array($result['provider_result'] ?? null) ? $result['provider_result'] : [],
@@ -145,7 +174,6 @@ class DesignVideoPollConsumer extends ConsumerMessage
                 $dataIsolation,
                 $entity,
                 (string) ($error['message'] ?? 'video generation failed'),
-                $error['code'] ?? null
             );
             return Result::ACK;
         }
@@ -156,6 +184,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
+                'sandbox_id' => $sandboxId,
                 'operation_id' => $operationId,
                 'status' => $status,
                 'provider_result' => is_array($result['provider_result'] ?? null) ? $result['provider_result'] : [],
@@ -166,24 +195,37 @@ class DesignVideoPollConsumer extends ConsumerMessage
         }
 
         try {
+            if ($entity->isCanvasComposition() && $this->completeCanvasComposition($dataIsolation, $entity, $result)) {
+                return Result::ACK;
+            }
             $this->archiveFiles($dataIsolation, $entity, $result);
         } catch (Throwable $throwable) {
             $this->logger->error('design video poll archive failed', [
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
+                'sandbox_id' => $sandboxId,
                 'operation_id' => $operationId,
                 'error' => $throwable->getMessage(),
             ]);
-            $this->logger->error('design video poll mark failed', [
-                'reason' => 'archive_failed',
-                'video_id' => $entity->getGenerationId(),
-                'project_id' => $entity->getProjectId(),
-                'organization_code' => $entity->getOrganizationCode(),
-                'operation_id' => $operationId,
-                'error' => $throwable->getMessage(),
-            ]);
-            $this->domainService->markAsFailed($dataIsolation, $entity, $throwable->getMessage());
+
+            // 如果重试超过期限还是失败，则默认同意
+            if (time() - $entity->getCreatedAt()->getTimestamp() > self::ARCHIVE_RETRY_MAX_AGE_SECONDS) {
+                $this->logger->error('design video poll archive retry expired, mark failed', [
+                    'reason' => 'archive_retry_expired',
+                    'video_id' => $entity->getGenerationId(),
+                    'project_id' => $entity->getProjectId(),
+                    'organization_code' => $entity->getOrganizationCode(),
+                    'operation_id' => $operationId,
+                    'created_at' => $entity->getCreatedAt()->format(DATE_ATOM),
+                    'error' => $throwable->getMessage(),
+                ]);
+                $this->domainService->markAsFailed($dataIsolation, $entity, $throwable->getMessage());
+                return Result::ACK;
+            }
+
+            $this->producer->produce(new DesignVideoPollDelayPublisher($msg));
+            return Result::ACK;
         }
 
         return Result::ACK;
@@ -281,45 +323,99 @@ class DesignVideoPollConsumer extends ConsumerMessage
         // 目录可能已被用户改名或移动，任务完成时同步为 ID 解析出的最新相对路径。
         $entity->setFileDir($relativeFileDir);
         $uploadPath = substr($fullFileDir, strlen($filePrefix));
-        $videoUploadFile = new UploadFile($videoUrl, $uploadPath, $fileName, false);
-        $posterUploadFile = $posterUrl !== '' ? new UploadFile($posterUrl, $uploadPath, $posterFileName, false) : null;
-
-        Db::beginTransaction();
+        $videoTempPath = null;
+        $posterTempPath = null;
         try {
-            $videoTaskFile = $this->createProjectFile(
-                $dataIsolation,
-                $project,
-                $taskFileDir->getFileId(),
-                rtrim($fullFileDir, '/') . '/' . ltrim($fileName, '/'),
-                $fileName,
-                $videoUploadFile
-            );
-            $posterTaskFile = null;
-            if ($posterUploadFile !== null) {
-                $posterTaskFile = $this->createProjectFile(
+            $videoTempPath = $this->videoGatewayClient->downloadMediaToLocalFile($entity->getOperationId(), $videoUrl);
+            if ($posterUrl !== '') {
+                $posterTempPath = $this->videoGatewayClient->downloadMediaToLocalFile($entity->getOperationId(), $posterUrl);
+            }
+
+            $videoUploadFile = new UploadFile($videoTempPath, $uploadPath, $fileName, false);
+            $posterUploadFile = $posterTempPath !== null ? new UploadFile($posterTempPath, $uploadPath, $posterFileName, false) : null;
+
+            Db::beginTransaction();
+            try {
+                $videoTaskFile = $this->createProjectFile(
                     $dataIsolation,
                     $project,
                     $taskFileDir->getFileId(),
-                    rtrim($fullFileDir, '/') . '/' . ltrim($posterFileName, '/'),
-                    $posterFileName,
-                    $posterUploadFile
+                    rtrim($fullFileDir, '/') . '/' . ltrim($fileName, '/'),
+                    $fileName,
+                    $videoUploadFile
                 );
+                $posterTaskFile = null;
+                if ($posterUploadFile !== null) {
+                    $posterTaskFile = $this->createProjectFile(
+                        $dataIsolation,
+                        $project,
+                        $taskFileDir->getFileId(),
+                        rtrim($fullFileDir, '/') . '/' . ltrim($posterFileName, '/'),
+                        $posterFileName,
+                        $posterUploadFile
+                    );
+                }
+
+                $this->fileDomainService->uploadByCredential($entity->getOrganizationCode(), $videoUploadFile, StorageBucketType::SandBox, false);
+                if ($posterUploadFile !== null) {
+                    $this->fileDomainService->uploadByCredential($entity->getOrganizationCode(), $posterUploadFile, StorageBucketType::SandBox, false);
+                }
+
+                $this->domainService->markAsCompleted($dataIsolation, $entity, $outputPayload, $fileName);
+                Db::commit();
+
+                $entity->setFileId($videoTaskFile->getFileId());
+                $entity->setPosterFileId($posterTaskFile?->getFileId());
+            } catch (Throwable $throwable) {
+                Db::rollBack();
+                throw $throwable;
             }
-
-            $this->fileDomainService->uploadByCredential($entity->getOrganizationCode(), $videoUploadFile, StorageBucketType::SandBox, false);
-            if ($posterUploadFile !== null) {
-                $this->fileDomainService->uploadByCredential($entity->getOrganizationCode(), $posterUploadFile, StorageBucketType::SandBox, false);
+        } finally {
+            if ($videoTempPath !== null) {
+                @unlink($videoTempPath);
             }
-
-            $this->domainService->markAsCompleted($dataIsolation, $entity, $outputPayload, $fileName);
-            Db::commit();
-
-            $entity->setFileId($videoTaskFile->getFileId());
-            $entity->setPosterFileId($posterTaskFile?->getFileId());
-        } catch (Throwable $throwable) {
-            Db::rollBack();
-            throw $throwable;
+            if ($posterTempPath !== null) {
+                @unlink($posterTempPath);
+            }
         }
+    }
+
+    /**
+     * 画布合成结果已经写入共享工作区，不重复上传；仅记录路径供文件同步和查询使用。
+     */
+    private function completeCanvasComposition(
+        DesignDataIsolation $dataIsolation,
+        DesignGenerationTaskEntity $entity,
+        array $result,
+    ): bool {
+        $output = is_array($result['output'] ?? null) ? $result['output'] : [];
+        $relativePath = trim((string) ($output['video_path'] ?? ''), '/');
+        if ($relativePath === '') {
+            return false;
+        }
+
+        // Super Magic 返回 workspace-relative 路径（通常带 ./ 前缀），Design 任务统一保存为前导斜杠形式。
+        $relativePath = preg_replace('#^\./#', '', $relativePath) ?? $relativePath;
+        $relativePath = '/' . ltrim($relativePath, '/');
+        $fileName = basename($relativePath);
+        $this->domainService->markAsCompleted($dataIsolation, $entity, [
+            'relative_file_path' => $relativePath,
+            'provider_video_url' => (string) ($output['video_url'] ?? ''),
+            'duration_seconds' => $output['duration_seconds'] ?? null,
+            'resolution' => (string) ($output['resolution'] ?? ''),
+            'has_audio_output' => (bool) ($output['has_audio_output'] ?? false),
+            'archive_skipped_reason' => 'sandbox_workspace_output',
+        ], $fileName);
+        $this->logger->info('design video canvas composition completed', [
+            'video_id' => $entity->getGenerationId(),
+            'project_id' => $entity->getProjectId(),
+            'organization_code' => $entity->getOrganizationCode(),
+            'sandbox_id' => (string) ($entity->getProviderPayload()['sandbox_id'] ?? ''),
+            'operation_id' => $entity->getOperationId(),
+            'file_dir' => $entity->getFileDir(),
+            'relative_file_path' => $relativePath,
+        ]);
+        return true;
     }
 
     /**
@@ -420,6 +516,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
             'video_id' => $entity->getGenerationId(),
             'project_id' => $entity->getProjectId(),
             'organization_code' => $entity->getOrganizationCode(),
+            'sandbox_id' => (string) ($entity->getProviderPayload()['sandbox_id'] ?? ''),
             'operation_id' => $entity->getOperationId(),
             'provider_task_id' => $entity->getProviderPayload()['provider_task_id'] ?? '',
             'error' => $throwable->getMessage(),
@@ -434,6 +531,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
+                'sandbox_id' => (string) ($entity->getProviderPayload()['sandbox_id'] ?? ''),
                 'operation_id' => $entity->getOperationId(),
                 'provider_task_id' => $entity->getProviderPayload()['provider_task_id'] ?? '',
                 'error' => $republishThrowable->getMessage(),
@@ -443,6 +541,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
+                'sandbox_id' => (string) ($entity->getProviderPayload()['sandbox_id'] ?? ''),
                 'operation_id' => $entity->getOperationId(),
                 'provider_task_id' => $entity->getProviderPayload()['provider_task_id'] ?? '',
                 'error' => $publicErrorMessage,

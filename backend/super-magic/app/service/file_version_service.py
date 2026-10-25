@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from agentlang.logger import get_logger
-from app.core.context.agent_context import AgentContext
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader, ConfigurationError
 from app.infrastructure.magic_service.constants import FileEditType
@@ -86,7 +85,10 @@ class FileVersionService:
 
                 except Exception as e:
                     failed_files.append(filepath)
-                    logger.error(f"创建文件版本时发生异常: {filepath}, 错误: {e}")
+                    logger.error(
+                        f"创建文件版本时发生异常: {filepath}, "
+                        f"error_type={type(e).__name__}, 错误: {e!r}"
+                    )
 
             total_count = len(file_paths)
             result_data = {
@@ -169,28 +171,3 @@ class FileVersionService:
             logger.info(f"content_version 已更新: {filepath}, version={latest_version}")
         except Exception as e:
             logger.warning(f"更新 content_version 失败: {filepath}, 错误: {e}")
-
-    async def create_changed_files_versions(self, agent_context: AgentContext) -> bool:
-        """
-        创建变更文件的版本信息
-
-        Args:
-            agent_context: Agent 上下文
-
-        Returns:
-            bool: 是否成功创建版本
-        """
-        try:
-            file_paths = [a.filepath for a in agent_context.get_attachments() if a.filepath]
-            if not file_paths:
-                logger.info("没有检测到文件变更，跳过创建文件版本")
-                return True
-
-            logger.info(f"准备创建 {len(file_paths)} 个文件的版本信息")
-
-            result = await self.create_file_versions(file_paths, edit_type=FileEditType.AI)
-            return result["success"]
-
-        except Exception as e:
-            logger.error(f"创建变更文件版本过程中发生异常: {e}", exc_info=True)
-            return False

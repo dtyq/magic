@@ -6,16 +6,20 @@ import { StoreSkillCardMobile } from "../StoreSkillCardMobile"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string, params?: { dateTime?: string }) => {
+		t: (key: string, params?: { dateTime?: string; formattedCount?: string }) => {
 			switch (key) {
 				case "skillsLibrary.addToMySkills":
 					return "Add to My Skills"
 				case "skillsLibrary.added":
 					return "Added"
-				case "skillsLibrary.upgrade":
-					return "Upgrade"
 				case "skillsLibrary.updatedAt":
 					return `Updated ${params?.dateTime ?? ""}`.trim()
+				case "skillsLibrary.updatedAtLabel":
+					return "Updated"
+				case "skillsLibrary.installCount":
+					return `${params?.formattedCount ?? ""} installs`.trim()
+				case "skillsLibrary.installCountLabel":
+					return "Installs"
 				case "skillsLibrary.official":
 					return "Official"
 				case "employeeCard.officialBuiltin":
@@ -50,6 +54,7 @@ function createSkill(overrides: Partial<StoreSkillView> = {}) {
 		description: "Skill description",
 		thumbnail: undefined,
 		isFeatured: false,
+		installCount: 234,
 		latestVersion: "v1.0.0",
 		status: "not-added",
 		authorName: undefined,
@@ -91,7 +96,7 @@ describe("StoreSkillCardMobile", () => {
 		expect(screen.getByTestId("skills-library-mobile-card-action")).toBeDisabled()
 	})
 
-	it("keeps the upgrade action when an added skill still needs upgrade", () => {
+	it("keeps added skills unavailable even when an older version is detected", () => {
 		const skill = createSkill({
 			status: "added",
 			needUpgrade: true,
@@ -99,8 +104,8 @@ describe("StoreSkillCardMobile", () => {
 
 		render(<StoreSkillCardMobile skill={skill} language="en_US" />)
 
-		expect(screen.getByTestId("skills-library-mobile-card-action")).toHaveTextContent("Upgrade")
-		expect(screen.getByTestId("skills-library-mobile-card-action")).not.toBeDisabled()
+		expect(screen.getByTestId("skills-library-mobile-card-action")).toHaveTextContent("Added")
+		expect(screen.getByTestId("skills-library-mobile-card-action")).toBeDisabled()
 	})
 
 	it("does not open detail when action button is clicked", () => {
@@ -131,5 +136,36 @@ describe("StoreSkillCardMobile", () => {
 		render(<StoreSkillCardMobile skill={skill} language="en_US" />)
 
 		expect(screen.getByText("Official Built-in")).toBeInTheDocument()
+	})
+
+	it("shows install count alongside publisher and updated time", () => {
+		const skill = createSkill()
+
+		render(<StoreSkillCardMobile skill={skill} language="en_US" />)
+
+		expect(screen.getByTestId("skills-library-mobile-card-install-count")).toHaveTextContent(
+			"Installs",
+		)
+		expect(screen.getByTestId("skills-library-mobile-card-install-count")).toHaveTextContent(
+			"234",
+		)
+	})
+
+	it("does not show a featured badge on the card", () => {
+		const skill = createSkill({ isFeatured: true })
+
+		render(<StoreSkillCardMobile skill={skill} language="en_US" />)
+
+		expect(screen.queryByTestId("skills-library-mobile-card-featured")).not.toBeInTheDocument()
+	})
+
+	it("shows a featured badge when the card is rendered in the featured section", () => {
+		const skill = createSkill({ isFeatured: true })
+
+		render(<StoreSkillCardMobile skill={skill} language="en_US" showFeaturedTag />)
+
+		expect(screen.getByTestId("skills-library-mobile-card-featured")).toHaveTextContent(
+			"Featured",
+		)
 	})
 })

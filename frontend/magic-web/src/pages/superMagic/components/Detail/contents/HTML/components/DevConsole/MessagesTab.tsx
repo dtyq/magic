@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { ChevronRight, ArrowUpRight, ArrowDownLeft } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { MessageEntry, MessageDirection } from "./types"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

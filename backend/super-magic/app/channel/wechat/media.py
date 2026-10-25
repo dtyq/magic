@@ -9,6 +9,7 @@ AES key 编码两种情况（来自 pic-decrypt.ts parseAesKey）：
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import mimetypes
 import secrets
@@ -22,9 +23,14 @@ from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from agentlang.logger import get_logger
+from app.channel.base.media import (
+    MediaDownloadError,
+    MediaSource,
+    download_media_source,
+    read_response_bytes,
+)
 from app.channel.wechat.models import WechatMediaContext, WechatMediaType
 from app.path_manager import PathManager
-from app.utils.async_file_utils import async_mkdir, async_write_bytes
 
 logger = get_logger(__name__)
 
@@ -82,12 +88,22 @@ def _build_cdn_url(encrypt_query_param: str, cdn_base_url: str = CDN_BASE_URL) -
 
 
 async def _fetch_bytes(session: aiohttp.ClientSession, url: str, label: str) -> bytes:
-    """从 CDN 下载原始字节（不解密）。"""
-    async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-        if resp.status != 200:
-            body = await resp.text()
-            raise RuntimeError(f"{label}: CDN {resp.status} {body[:100]}")
-        return await resp.read()
+    """微信 CDN 同样限制大小，并对短暂网络异常做有限重试。"""
+    for attempt in range(3):
+        try:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                # AES padding 最多额外占一个块，明文保存时仍执行 50 MiB 限制。
+                return await read_response_bytes(resp, max_bytes=50 * 1024 * 1024 + 16)
+        except (aiohttp.ClientConnectionError, aiohttp.ClientPayloadError, TimeoutError, ConnectionError):
+            if attempt == 2:
+                raise
+        except MediaDownloadError as error:
+            if attempt == 2 or not (error.status in (408, 429) or 500 <= error.status < 600):
+                raise
+            await asyncio.sleep(max(2 ** attempt, error.retry_after))
+            continue
+        await asyncio.sleep(2 ** attempt)
+    raise AssertionError("Unreachable CDN retry state")
 
 
 async def _download_and_decrypt(
@@ -100,7 +116,7 @@ async def _download_and_decrypt(
     """下载并 AES-128-ECB 解密一个 CDN 媒体文件。"""
     key = _parse_aes_key(aes_key_b64)
     url = _build_cdn_url(encrypt_query_param, cdn_base_url)
-    logger.debug(f"{label}: fetching {url[:80]}")
+    logger.debug(f"{label}: fetching media")
     encrypted = await _fetch_bytes(session, url, label)
     logger.debug(f"{label}: downloaded {len(encrypted)} bytes, decrypting")
     plaintext = _decrypt_aes_ecb(encrypted, key)
@@ -116,15 +132,17 @@ def _make_filename(media_type: str, ext: str) -> str:
 
 
 async def _save_media(data: bytes, user_id: str, filename: str) -> Path:
-    """
-    保存媒体文件到 .workspace/uploads/im-channels/wechat/<user_id>/<filename>。
-    返回绝对路径。
-    """
-    user_dir = PathManager.get_wechat_im_uploads_dir() / user_id
-    await async_mkdir(user_dir, parents=True, exist_ok=True)
-    file_path = user_dir / filename
-    await async_write_bytes(file_path, data)
-    return file_path
+    """新附件使用统一 UUID 目录，保留参数以兼容微信现有调用。"""
+    async def fetch() -> bytes:
+        return data
+
+    context = await download_media_source("wechat", MediaSource(
+        media_type=WechatMediaType.FILE,
+        file_name=filename,
+        mime_type=_guess_mime_type(filename, "application/octet-stream"),
+        fetch=fetch,
+    ))
+    return PathManager.get_workspace_dir() / context.relative_path
 
 
 def _relative_path(abs_path: Path) -> str:
@@ -142,13 +160,17 @@ def _build_media_context(
     media_type: WechatMediaType,
     mime_type: str,
     from_quote: bool,
+    size_bytes: int = 0,
+    file_name: str = "",
 ) -> WechatMediaContext:
     return WechatMediaContext(
         relative_path=_relative_path(abs_path),
         absolute_path=str(abs_path),
         media_type=media_type,
-        mime_type=mime_type,
+        mime_type=_guess_mime_type(abs_path.name, mime_type),
         from_quote=from_quote,
+        size_bytes=size_bytes,
+        file_name=file_name,
     )
 
 
@@ -272,6 +294,8 @@ async def _handle_image(
         media_type=WechatMediaType.IMAGE,
         mime_type=_guess_mime_type(filename, "image/jpeg"),
         from_quote=from_quote,
+        size_bytes=len(data),
+        file_name=filename,
     )
 
 
@@ -298,6 +322,8 @@ async def _handle_voice(
         media_type=WechatMediaType.VOICE,
         mime_type="audio/silk",
         from_quote=from_quote,
+        size_bytes=len(data),
+        file_name=filename,
     )
 
 
@@ -336,6 +362,8 @@ async def _handle_file(
         media_type=WechatMediaType.FILE,
         mime_type=_guess_mime_type(filename, "application/octet-stream"),
         from_quote=from_quote,
+        size_bytes=len(data),
+        file_name=original_name or filename,
     )
 
 
@@ -361,4 +389,6 @@ async def _handle_video(
         media_type=WechatMediaType.VIDEO,
         mime_type=_guess_mime_type(filename, "video/mp4"),
         from_quote=from_quote,
+        size_bytes=len(data),
+        file_name=filename,
     )

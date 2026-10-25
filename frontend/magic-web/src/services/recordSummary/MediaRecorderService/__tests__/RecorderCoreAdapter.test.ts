@@ -157,6 +157,19 @@ describe("RecorderCoreAdapter", () => {
 			expect(status.isRecording).toBe(false)
 		})
 
+		it("keeps the error state when chunk encoding failed before stop completes", async () => {
+			const internalAdapter = adapter as unknown as {
+				state: "recording"
+				encodingFailed: boolean
+			}
+			internalAdapter.state = "recording"
+			internalAdapter.encodingFailed = true
+
+			await adapter.stop()
+
+			expect(adapter.getStatus().state).toBe("error")
+		})
+
 		it("should pause recording", async () => {
 			const sessionId = "test-session-123"
 			await adapter.start(sessionId)

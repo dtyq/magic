@@ -31,6 +31,10 @@ vi.mock("react-i18next", () => ({
 	}),
 }))
 
+vi.mock("@/pages/superMagic/utils/clawBrand", () => ({
+	getClawBrandTranslationValues: () => ({ clawBrand: "SuperClaw", clawLead: "Super" }),
+}))
+
 vi.mock("sonner", () => ({
 	toast: {
 		error: toastErrorMock,
@@ -41,6 +45,16 @@ vi.mock("sonner", () => ({
 vi.mock("@/apis", () => ({
 	MagicClawApi: magicClawApiMocks,
 	SuperMagicApi: superMagicApiMocks,
+	FUNCTION_PERMISSION_CODE: {
+		MagicClawCreate: "magic_claw.create",
+	},
+}))
+
+vi.mock("@/hooks/useFunctionPermission", () => ({
+	useFunctionPermission: () => ({
+		isAllowed: true,
+		isLoading: false,
+	}),
 }))
 
 vi.mock("@/components/base/MagicDropdown", () => ({

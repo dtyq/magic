@@ -105,6 +105,20 @@ readonly class ResourceVisibilityDomainService
     }
 
     /**
+     * 按资源整体清理可见性记录（资源行已消失的场景，如素材删除）。
+     *
+     * 与 {@see self::deleteResourceVisibilityByPrincipals()} 的区别：不限定主体类型和主体 ID，
+     * 一次删掉该资源下的全部主体记录。资源本身不存在了，任何主体的授权都只会是悬空数据。
+     */
+    public function deleteResourceVisibility(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode
+    ): bool {
+        return $this->resourceVisibilityRepository->deleteByResourceCode($dataIsolation, $resourceType, $resourceCode);
+    }
+
+    /**
      * 按主体精准追加可见性记录。
      *
      * 这里使用“批量查询已有 + 批量 insertOrIgnore 缺失”的方式：

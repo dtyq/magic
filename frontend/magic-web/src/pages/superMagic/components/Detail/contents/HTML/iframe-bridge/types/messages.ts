@@ -113,6 +113,17 @@ export enum EditorMessageType {
 	SET_ELEMENT_POSITION = "SET_ELEMENT_POSITION",
 	DELETE_ELEMENT = "DELETE_ELEMENT",
 	DUPLICATE_ELEMENT = "DUPLICATE_ELEMENT",
+	DUPLICATE_DOM_NODE = "DUPLICATE_DOM_NODE",
+	MOVE_DOM_NODE = "MOVE_DOM_NODE",
+	BEGIN_DOM_MOVE_PREVIEW = "BEGIN_DOM_MOVE_PREVIEW",
+	PREVIEW_DOM_MOVE = "PREVIEW_DOM_MOVE",
+	COMMIT_DOM_MOVE_PREVIEW = "COMMIT_DOM_MOVE_PREVIEW",
+	CANCEL_DOM_MOVE_PREVIEW = "CANCEL_DOM_MOVE_PREVIEW",
+	INSERT_TEXT_NODE = "INSERT_TEXT_NODE",
+	INSERT_IMAGE_NODE = "INSERT_IMAGE_NODE",
+	COPY_DOM_NODE = "COPY_DOM_NODE",
+	CUT_DOM_NODE = "CUT_DOM_NODE",
+	PASTE_DOM_NODE = "PASTE_DOM_NODE",
 	RUN_IMAGE_ACTION = "RUN_IMAGE_ACTION",
 
 	// ========== 批量操作（用于拖动、旋转、缩放等） ==========
@@ -125,6 +136,11 @@ export enum EditorMessageType {
 	SET_TEXT_CONTENT = "SET_TEXT_CONTENT",
 	GET_TEXT_CONTENT = "GET_TEXT_CONTENT",
 	UPDATE_TEXT_CONTENT = "UPDATE_TEXT_CONTENT",
+	UPDATE_ELEMENT_ATTRIBUTES = "UPDATE_ELEMENT_ATTRIBUTES",
+	GET_PPT_BUILDS = "GET_PPT_BUILDS",
+	UPDATE_PPT_BUILDS = "UPDATE_PPT_BUILDS",
+	SET_PPT_BUILD_MARKERS = "SET_PPT_BUILD_MARKERS",
+	PREVIEW_PPT_BUILD = "PREVIEW_PPT_BUILD",
 	ENABLE_TEXT_EDITING = "ENABLE_TEXT_EDITING",
 	DISABLE_TEXT_EDITING = "DISABLE_TEXT_EDITING",
 
@@ -142,14 +158,19 @@ export enum EditorMessageType {
 
 	// ========== 编辑状态 ==========
 	ENTER_EDIT_MODE = "ENTER_EDIT_MODE",
+	SET_PPT_BUILD_MODE = "SET_PPT_BUILD_MODE",
 	EXIT_EDIT_MODE = "EXIT_EDIT_MODE",
 	SELECT_ELEMENT = "SELECT_ELEMENT",
+	HOVER_ELEMENT = "HOVER_ELEMENT",
+	CLEAR_HOVER_ELEMENT = "CLEAR_HOVER_ELEMENT",
 
 	// ========== 元素选择模式 ==========
 	ENTER_SELECTION_MODE = "ENTER_SELECTION_MODE",
 	EXIT_SELECTION_MODE = "EXIT_SELECTION_MODE",
 	CLEAR_SELECTION = "CLEAR_SELECTION",
 	GET_COMPUTED_STYLES = "GET_COMPUTED_STYLES",
+	GET_DOM_TREE = "GET_DOM_TREE",
+	SCROLL_TO_ELEMENT = "SCROLL_TO_ELEMENT",
 	REFRESH_SELECTED_ELEMENT = "REFRESH_SELECTED_ELEMENT",
 	REFRESH_SELECTED_ELEMENTS = "REFRESH_SELECTED_ELEMENTS",
 
@@ -176,6 +197,7 @@ export enum EditorMessageType {
 	ELEMENTS_DESELECTED = "ELEMENTS_DESELECTED",
 	ELEMENT_HOVERED = "ELEMENT_HOVERED",
 	ELEMENT_HOVER_END = "ELEMENT_HOVER_END",
+	DYNAMIC_ELEMENT_CLICKED = "DYNAMIC_ELEMENT_CLICKED",
 	SELECTION_MODE_CHANGED = "SELECTION_MODE_CHANGED",
 	IFRAME_ZOOM_REQUEST = "IFRAME_ZOOM_REQUEST",
 
@@ -236,12 +258,61 @@ export type ImageActionType =
 	| "set-element-background-image"
 	| "remove-element-background-image"
 	| "insert-floating-image"
+	| "insert-image-node"
 
 /**
  * 执行图片动作的 Payload
  */
 export interface ImageActionPayload {
 	action: ImageActionType
+	parentSelector?: string
+	index?: number
+}
+
+export interface DomTreeNode {
+	nodeId: string
+	selector: string
+	tagName: string
+	label: string
+	textContent?: string
+	resource?: string
+	/** Resolved image source used for the DOM-tree thumbnail. */
+	thumbnailUrl?: string
+	children: DomTreeNode[]
+	/** Whether the canvas can select this node. Kept optional for older runtimes. */
+	canSelect?: boolean
+	editable: boolean
+	canHaveChildren: boolean
+	canDelete: boolean
+	canMove: boolean
+	disabledReason?: string
+	dynamicWarning?: string
+}
+
+export interface DomTreeResponse {
+	root: DomTreeNode
+	/** Clipboard state is optional for compatibility with older iframe runtimes. */
+	clipboard?: {
+		hasContent: boolean
+		mode?: "copy" | "cut"
+	}
+}
+
+export interface MoveDomNodePayload {
+	nodeId: string
+	targetParentId: string
+	targetIndex: number
+}
+
+export interface InsertTextNodePayload {
+	parentNodeId: string
+	index?: number
+	textContent: string
+}
+
+export interface InsertImageNodePayload {
+	parentNodeId: string
+	index?: number
 }
 
 /**
@@ -251,7 +322,10 @@ export interface ImageUploadRequestPayload {
 	requestId: string
 	action: Extract<
 		ImageActionType,
-		"replace-element-image" | "set-element-background-image" | "insert-floating-image"
+		| "replace-element-image"
+		| "set-element-background-image"
+		| "insert-floating-image"
+		| "insert-image-node"
 	>
 	selector: string
 	suggestedPath: string
@@ -362,6 +436,11 @@ export interface ElementSelectedPayload {
 		width: string
 		height: string
 		display: string
+		parentSelector?: string
+		parentDisplay?: string
+		parentFlexDirection?: string
+		parentJustifyContent?: string
+		parentAlignItems?: string
 		position: string
 
 		// 边距
@@ -408,12 +487,45 @@ export interface ElementSelectedPayload {
 		width: number
 		height: number
 	}
+	childRects?: Array<{
+		top: number
+		left: number
+		width: number
+		height: number
+		position?: string
+		display?: string
+	}>
+	ancestors?: Array<{
+		selector: string
+		tagName: string
+		textContent?: string
+		rect: {
+			top: number
+			left: number
+			width: number
+			height: number
+		}
+	}>
 	/** 元素旋转角度（度数） */
 	rotation?: number
 	/** 是否为文本元素 */
 	isTextElement?: boolean
+	/** 是否包含元素自身的非空文本节点（不包含后代元素文本） */
+	hasDirectTextContent?: boolean
 	/** 文本内容 */
 	textContent?: string
+	/** 元素当前的内联 CSS 声明 */
+	inlineStyles?: Record<string, string>
+	/** 常用 HTML 属性 */
+	attributes?: {
+		href?: string
+		dataMagicHref?: string
+		target?: string
+		rel?: string
+		download?: string
+		title?: string
+		ariaLabel?: string
+	}
 }
 
 /**
@@ -466,6 +578,12 @@ export interface GetTextContentResponse {
 export interface UpdateTextContentPayload {
 	selector: string
 	content: string
+}
+
+/** 更新元素常用 HTML 属性的 Payload */
+export interface UpdateElementAttributesPayload {
+	selector: string
+	attributes: Record<string, string | null>
 }
 
 /**
@@ -612,7 +730,7 @@ export interface DragOverPayload {
  * 拖拽离开 Payload（父 → iframe）
  * 通知 iframe 拖拽已离开，应隐藏指示器
  */
-export interface DragLeavePayload { }
+export interface DragLeavePayload {}
 
 /**
  * 拖拽放置图片 Payload（父 → iframe）

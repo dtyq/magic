@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react"
 import { useMemoizedFn } from "ahooks"
+import { ensureFileSavesSynced } from "../services/fileSaveQueue"
 
 /**
  * Hook for managing checkBeforeClose with save handler registration
@@ -42,7 +43,9 @@ function useCheckBeforeCloseWithSave({
 		const result = await checkBeforeClose(
 			contentSaveHandlerRef.current ? handleSave : undefined,
 		)
-		return result !== "cancel"
+		if (result === "cancel") return false
+		if (!fileId) return true
+		return await ensureFileSavesSynced([fileId])
 	})
 
 	// Register wrapped checkBeforeClose to FilesViewer

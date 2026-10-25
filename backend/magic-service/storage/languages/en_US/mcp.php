@@ -9,6 +9,7 @@ return [
         'code' => 'Code',
         'name' => 'Name',
         'description' => 'Description',
+        'icon' => 'Icon',
         'status' => 'Status',
         'external_sse_url' => 'MCP Service URL',
         'url' => 'URL',
@@ -17,13 +18,24 @@ return [
         'headers' => 'Headers',
         'env' => 'Environment Variables',
         'oauth2_config' => 'OAuth2 Configuration',
+        'mcp_authorization_config' => 'MCP Standard Authorization Configuration',
         'client_id' => 'Client ID',
         'client_secret' => 'Client Secret',
         'client_url' => 'Client URL',
         'scope' => 'Scope',
         'authorization_url' => 'Authorization URL',
         'authorization_content_type' => 'Authorization Content Type',
+        'authorization_method' => 'Authorization Method',
         'issuer_url' => 'Issuer URL',
+        'resource_metadata_url' => 'Resource Metadata URL',
+        'authorization_server_url' => 'Authorization Server URL',
+        'authorization_endpoint' => 'Authorization Endpoint',
+        'token_endpoint' => 'Token Endpoint',
+        'registration_endpoint' => 'Client Registration Endpoint',
+        'registration_mode' => 'Client Registration Mode',
+        'client_metadata_url' => 'Client Metadata URL',
+        'token_endpoint_auth_method' => 'Token Endpoint Authentication Method',
+        'application_type' => 'Application Type',
         'redirect_uri' => 'Redirect URI',
         'use_pkce' => 'Use PKCE',
         'response_type' => 'Response Type',
@@ -35,11 +47,13 @@ return [
     'auth_type' => [
         'none' => 'No Authentication',
         'oauth2' => 'OAuth2 Authentication',
+        'mcp_authorization' => 'MCP standard authorization',
     ],
 
     // Error messages
     'validate_failed' => 'Validation failed',
     'not_found' => 'Data not found',
+    'field_too_long' => ':label cannot exceed :max characters',
 
     // Service related errors
     'service' => [
@@ -83,6 +97,59 @@ return [
             'state_empty' => 'State parameter cannot be empty',
             'mcp_server_code_empty' => 'MCP server code cannot be empty',
         ],
+    ],
+
+    'authorization' => [
+        'discovery_failed' => 'Failed to discover MCP authorization server',
+        'issuer_mismatch' => 'MCP authorization server issuer validation failed',
+        'state_invalid' => 'MCP authorization state is invalid or expired',
+        'token_exchange_failed' => 'Failed to exchange MCP authorization token',
+        'not_configured' => 'MCP standard authorization is not configured',
+    ],
+
+    // MCP authorization capability probe
+    'authorization_capability' => [
+        'unsupported' => 'MCP standard authorization is not selected for this service',
+        'not_configured' => 'MCP standard authorization configuration is missing',
+        'resource_url_required' => 'The MCP Resource must be a complete URL',
+        'invalid_server_metadata' => 'Invalid authorization server metadata',
+        'missing_server_endpoints' => 'Authorization server metadata is missing required endpoints',
+        'probe_failed' => 'MCP authorization capability probe failed',
+        'registration' => [
+            'pre_registered' => 'An administrator must pre-register the client',
+            'cimd_supported' => 'The authorization server declares CIMD support',
+            'cimd_unsupported' => 'The authorization server does not declare CIMD support',
+            'dcr_found' => 'A dynamic client registration endpoint was discovered',
+            'dcr_missing' => 'No dynamic client registration endpoint was discovered',
+        ],
+        'warnings' => [
+            'dcr_recommended' => 'Dynamic client registration is recommended; the first authorization may create a remote client.',
+            'cimd_not_advertised' => 'A CIMD URL is configured, but the authorization server does not explicitly advertise CIMD support.',
+            'token_auth_not_advertised' => 'The authorization server does not advertise a token endpoint authentication method; none is recommended.',
+        ],
+        'failure_reason' => [
+            'remote_request' => 'The remote request failed',
+            'configuration_or_discovery' => 'Configuration validation or authorization discovery failed',
+        ],
+    ],
+
+    // MCP authorization callback page
+    'authorization_callback' => [
+        'title' => [
+            'success' => 'Authorization completed',
+            'failure' => 'Authorization failed',
+        ],
+        'message' => [
+            'success' => 'MCP authorization is complete. You can close this page.',
+            'failure' => 'The MCP authorization callback failed. Return to the original page and try again.',
+        ],
+        'description' => [
+            'success' => 'This page will close automatically in 10 seconds. You can also return to the original page to continue.',
+            'failure' => 'Check that the authorization server is configured correctly, or start the authorization flow again.',
+        ],
+        'countdown' => ' seconds until this page closes automatically',
+        'manual_close' => 'The browser did not allow this page to close automatically. Please close it manually.',
+        'close_button' => 'Close page',
     ],
 
     // Command validation errors

@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling;
 
+use App\Domain\ModelGateway\Contract\VideoGenerationConnectivityTestableInterface;
+use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
@@ -15,11 +17,19 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmni
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Guzzle\ClientFactory;
+use Hyperf\Logger\LoggerFactory;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * @internal
@@ -333,6 +343,115 @@ class KelingOmniVideoAdapterTest extends TestCase
         $this->assertNotContains('generation.has_audio_output', $operation->getAcceptedParams());
     }
 
+    public function testAdapterSupportsConnectivityTest(): void
+    {
+        $this->assertInstanceOf(VideoGenerationConnectivityTestableInterface::class, $this->createAdapter());
+    }
+
+    public function testConnectionReturnsTrueForValidationError(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->with(
+                'https://localhost/v1/ai/workspace-demo/kling/videos/omni-video',
+                $this->callback(static function (array $options): bool {
+                    return ($options['json']['model_name'] ?? null) === 'kling-v3-omni'
+                        && ($options['json']['duration'] ?? null) === '0';
+                }),
+            )
+            ->willThrowException(new RequestException(
+                'invalid parameters',
+                new Request('POST', 'https://localhost/v1/ai/workspace-demo/kling/videos/omni-video'),
+                new Response(400, [], json_encode(['message' => 'invalid duration'], JSON_THROW_ON_ERROR)),
+            ));
+
+        $adapter = $this->createConnectivityAdapter($httpClient);
+
+        $this->assertTrue($adapter->testConnection(
+            new QueueExecutorConfig('https://localhost/v1/ai/workspace-demo', 'secret', 3, 20, []),
+            'kling-v3-omni',
+        ));
+    }
+
+    public function testConnectionThrowsForAuthError(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->method('post')
+            ->willThrowException(new RequestException(
+                'unauthorized',
+                new Request('POST', 'https://localhost/v1/ai/workspace-demo/kling/videos/omni-video'),
+                new Response(401, [], json_encode(['message' => 'unauthorized'], JSON_THROW_ON_ERROR)),
+            ));
+
+        $adapter = $this->createConnectivityAdapter($httpClient);
+
+        try {
+            $adapter->testConnection(
+                new QueueExecutorConfig('https://localhost/v1/ai/workspace-demo', 'secret', 3, 20, []),
+                'kling-v3-omni',
+            );
+            $this->fail('Expected connectivity test to throw for auth error.');
+        } catch (ProviderVideoException $exception) {
+            $this->assertSame(401, $exception->getHttpStatus());
+        }
+    }
+
+    public function testConnectionThrowsForNetworkError(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->method('post')
+            ->willThrowException(new ConnectException(
+                'connection timeout',
+                new Request('POST', 'https://localhost/v1/ai/workspace-demo/kling/videos/omni-video'),
+            ));
+
+        $adapter = $this->createConnectivityAdapter($httpClient);
+
+        $this->expectException(ProviderVideoException::class);
+
+        $adapter->testConnection(
+            new QueueExecutorConfig('https://localhost/v1/ai/workspace-demo', 'secret', 3, 20, []),
+            'kling-v3-omni',
+        );
+    }
+
+    public function testConnectionThrowsWhenInvalidPayloadCreatesTask(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->method('post')
+            ->willReturn(new Response(200, [], json_encode([
+                'data' => ['task_id' => 'unexpected-task'],
+            ], JSON_THROW_ON_ERROR)));
+
+        $adapter = $this->createConnectivityAdapter($httpClient);
+
+        $this->expectException(ProviderVideoException::class);
+        $this->expectExceptionMessage('Keling connectivity test did not receive the expected validation error');
+
+        $adapter->testConnection(
+            new QueueExecutorConfig('https://localhost/v1/ai/workspace-demo', 'secret', 3, 20, []),
+            'kling-v3-omni',
+        );
+    }
+
+    public function testConnectionThrowsWhenInvalidPayloadSucceedsWithoutTask(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->method('post')
+            ->willReturn(new Response(200, [], '{}'));
+
+        $adapter = $this->createConnectivityAdapter($httpClient);
+
+        $this->expectException(ProviderVideoException::class);
+        $this->expectExceptionMessage('Keling connectivity test did not receive the expected validation error');
+
+        $adapter->testConnection(
+            new QueueExecutorConfig('https://localhost/v1/ai/workspace-demo', 'secret', 3, 20, []),
+            'kling-v3-omni',
+        );
+    }
+
     private function createAdapter(): KelingOmniVideoAdapter
     {
         return new KelingOmniVideoAdapter(
@@ -340,6 +459,28 @@ class KelingOmniVideoAdapterTest extends TestCase
             new KelingTransportFactory(
                 new ApiKeyKelingTransport(
                     new KelingVideoClient($this->createMock(ClientFactory::class))
+                )
+            )
+        );
+    }
+
+    private function createConnectivityAdapter(Client $httpClient): KelingOmniVideoAdapter
+    {
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->willReturn($httpClient);
+
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->method('get')
+            ->with(KelingVideoClient::class)
+            ->willReturn($this->createMock(LoggerInterface::class));
+
+        return new KelingOmniVideoAdapter(
+            new KelingOmniGenerationCapabilityProvider(),
+            new KelingTransportFactory(
+                new ApiKeyKelingTransport(
+                    new KelingVideoClient($clientFactory, $loggerFactory)
                 )
             )
         );

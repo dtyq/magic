@@ -1,17 +1,21 @@
+import { useChatSidebarSelection } from "../hooks/useChatSidebarSelection"
+import ProjectNavigationToolbar from "../ProjectNavigationToolbar"
+import ChatWorkspaceItem, { type ChatWorkspaceItemHandle } from "../ChatWorkspaceItem"
 import {
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
-	type CSSProperties,
 	type ReactNode,
+	type RefObject,
 } from "react"
 import { observer } from "mobx-react-lite"
 import { toJS } from "mobx"
 import { useRequest } from "ahooks"
 import { useImmer } from "use-immer"
-import { Loader2, Plus, RefreshCw, Search, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { sidebarStore } from "@/stores/layout"
 import workspaceStore from "@/pages/superMagic/stores/core/workspace"
@@ -24,34 +28,67 @@ import {
 } from "@/pages/superMagic/pages/Workspace/types"
 import WorkspaceItem from "./WorkspaceItem"
 import CreateWorkspaceInput from "./CreateWorkspaceInput"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn-ui/input-group"
-import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { toTestIdSegment } from "@/utils/testid"
-import {
-	SidebarGroup,
-	SidebarGroupContent,
-	SidebarGroupLabel,
-	SidebarMenu,
-} from "@/components/shadcn-ui/sidebar"
+import { SidebarMenu } from "@/components/shadcn-ui/sidebar"
+import { SCROLL_HINT_HEIGHTS } from "@/components/shadcn-ui/scroll-area"
+import { useWorkspaceListDnd } from "./useWorkspaceListDnd"
+import { useProjectPinBoundaryConfirmation } from "./ProjectPinBoundaryConfirmDialog"
+import { subscribeWorkspaceSearchInvalidation } from "@/pages/superMagic/services/workspaceListSearchInvalidation"
+import { isHomeOnboardingSidebarTopMode } from "@/pages/superMagic/components/LazyGuideTour/GuideTourManager"
 
 const SEARCH_PAGE_SIZE = 20
 
 interface WorkspaceListProps {
+	scrollRef: RefObject<HTMLDivElement>
+	scrollAreaRef: RefObject<HTMLDivElement>
+	onBusyChange?: (busy: boolean) => void
 	beforeItems?: ReactNode
+	onSelect?: () => void
+	onOpenManager: (workspace: Workspace) => void
 }
 
-function WorkspaceList({ beforeItems }: WorkspaceListProps) {
+function WorkspaceList({
+	beforeItems,
+	onSelect,
+	onOpenManager,
+	onBusyChange,
+	scrollRef,
+	scrollAreaRef,
+}: WorkspaceListProps) {
 	const { t } = useTranslation()
+	const isExpanded = sidebarStore.workspacesExpanded
 	const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
 	const [isRefreshing, setIsRefreshing] = useState(false)
 	const [isSearchMode, setIsSearchMode] = useState(false)
+	const [chatSearchKeyword, setChatSearchKeyword] = useState("")
+	const chatWorkspaceRef = useRef<ChatWorkspaceItemHandle>(null)
+	const [busyWorkspaces, setBusyWorkspaces] = useState<Set<string>>(new Set())
+	const onWorkspaceBusyChange = useCallback((id: string, busy: boolean) => {
+		setBusyWorkspaces((previous) => {
+			if (previous.has(id) === busy) return previous
+			const next = new Set(previous)
+			if (busy) next.add(id)
+			else next.delete(id)
+			return next
+		})
+	}, [])
+	const onChatBusyChange = useCallback(
+		(busy: boolean) => onWorkspaceBusyChange("sidebar-my-chats", busy),
+		[onWorkspaceBusyChange],
+	)
+	useEffect(() => {
+		onBusyChange?.(isCreatingWorkspace || busyWorkspaces.size > 0)
+	}, [isCreatingWorkspace, busyWorkspaces, onBusyChange])
+	useEffect(() => () => onBusyChange?.(false), [onBusyChange])
 	const [searchState, updateSearchState] = useImmer({
 		value: "",
 		workspaces: [] as Workspace[],
 		projects: [] as ProjectListItem[],
 		page: 1,
 		hasMoreWorkspaces: true,
+		hasMoreProjects: true,
+		failed: false,
 	})
 	const [isLoadingMoreWorkspaces, setIsLoadingMoreWorkspaces] = useState(false)
 	const [workspacePage, setWorkspacePage] = useState(1)
@@ -60,7 +97,13 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 	const hasRequestedInitialLoadRef = useRef(false)
 	const isInitialWorkspaceListLoading =
 		workspaceStore.isWorkspaceListLoading && workspaces.length === 0
-	const selectedWorkspaceId = workspaceStore.selectedWorkspace?.id
+	const { isChatRoute } = useChatSidebarSelection()
+	const selectedWorkspaceId = isChatRoute ? undefined : workspaceStore.selectedWorkspace?.id
+	const lastLocatedWorkspace = useRef(
+		sidebarStore.navigationScrollPositions.has("sidebar-scroll:expanded")
+			? selectedWorkspaceId
+			: undefined,
+	)
 	const workspaceListRef = useRef<HTMLDivElement>(null)
 	const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
 	const isLoadingMoreWorkspacesRef = useRef(false)
@@ -113,8 +156,143 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 				).values(),
 			)
 		: workspaces
+	const [projectHeights, setProjectHeights] = useState<Record<string, number>>({})
+	const workspaceLayoutKey = displayedWorkspaces
+		.map(
+			(workspace) =>
+				`${workspace.id}:${(isSearchMode && projectsByWorkspaceId.has(workspace.id)) || sidebarStore.expandedWorkspaces.has(workspace.id)}`,
+		)
+		.join("|")
+	useLayoutEffect(() => {
+		const list = workspaceListRef.current
+		if (!isExpanded || !list) return
+		// When mounted in Sheet/portal without StrictMode, scrollAreaRef.current might not yet be
+		// populated during the child layout pass. Fall back to finding the enclosing scroll area in DOM.
+		const scrollArea =
+			scrollAreaRef.current ?? list.closest<HTMLElement>("[data-slot=scroll-area]")
+		if (!scrollArea) return
+		const layoutContainer = scrollArea.closest<HTMLElement>("[data-sidebar-project-navigation]")
+		const measure = () => {
+			// A Sheet portal can mount before its flex layout has a usable height.
+			// Fall back to window height so virtualization is never blocked with 0 or undefined height.
+			const containerHeight =
+				scrollArea.clientHeight > 0
+					? scrollArea.clientHeight
+					: typeof window !== "undefined"
+						? Math.max(200, window.innerHeight - 180)
+						: 0
+			const items = Array.from(
+				list.querySelectorAll<HTMLElement>("[data-sidebar-workspace-root]"),
+			)
+			// Re-read visibility after the floating sidebar settles; the overlapping tab keeps
+			// its toolbar mounted even while hidden.
+			const navigationHeaders = Array.from(
+				scrollArea.querySelectorAll<HTMLElement>("[data-sidebar-navigation-header]"),
+			).filter((header) => getComputedStyle(header).visibility !== "hidden")
+			// 高度预算扣除双向提示的最大占位；提示显隐不再反过来改变项目高度和溢出状态。
+			// 分类和操作栏吸顶后持续占位，项目列表与下一组标题使用剩余高度。
+			const stickyHeight = navigationHeaders.reduce(
+				(height, header) => height + header.offsetHeight,
+				0,
+			)
+			const availableHeight = Math.max(
+				0,
+				containerHeight -
+					SCROLL_HINT_HEIGHTS.top -
+					SCROLL_HINT_HEIGHTS.bottom -
+					stickyHeight,
+			)
+			const headers = items.map((item) =>
+				item.querySelector<HTMLElement>("[data-sidebar-workspace-header]"),
+			)
+			const sizes = items.map(
+				(item, index) =>
+					(headers[index]?.offsetHeight ?? 0) +
+					parseFloat(getComputedStyle(item).marginBottom),
+			)
+			const heights: Record<string, number> = {}
+			items.forEach((item, index) => {
+				const next = items[index + 1]
+				let reserve = next ? sizes[index + 1] : 0
+				// 下一组展开时只预留其标题；折叠且空间足够时，再露出一组标题。
+				if (
+					next?.dataset.workspaceExpanded === "false" &&
+					items[index + 2] &&
+					availableHeight - sizes[index] - reserve - sizes[index + 2] >= sizes[index]
+				)
+					reserve += sizes[index + 2]
+				const workspaceId = item.dataset.sidebarDropWorkspaceId
+				if (!workspaceId) return
+				heights[workspaceId] = Math.max(0, availableHeight - sizes[index] - reserve)
+			})
+			setProjectHeights((previous) =>
+				Object.keys(previous).length === items.length &&
+				Object.entries(heights).every(([id, height]) => previous[id] === height)
+					? previous
+					: heights,
+			)
+		}
+		measure()
+		const observer = new ResizeObserver(measure)
+		observer.observe(scrollArea)
+		if (layoutContainer && layoutContainer !== scrollArea) observer.observe(layoutContainer)
+		const items = Array.from(
+			list.querySelectorAll<HTMLElement>("[data-sidebar-workspace-root]"),
+		)
+		const navigationHeaders = Array.from(
+			scrollArea.querySelectorAll<HTMLElement>("[data-sidebar-navigation-header]"),
+		)
+		navigationHeaders.forEach((header) => observer.observe(header))
+		items.forEach((item) => {
+			const header = item.querySelector("[data-sidebar-workspace-header]")
+			if (header) observer.observe(header)
+		})
+		// The first frame runs after Sheet has committed its portal and flex dimensions.
+		const frameId = window.requestAnimationFrame(measure)
+		return () => {
+			window.cancelAnimationFrame(frameId)
+			observer.disconnect()
+		}
+	}, [workspaceLayoutKey, isExpanded, scrollAreaRef])
+	const { requestConfirmation, confirmationDialog } = useProjectPinBoundaryConfirmation()
+	const {
+		rootRef: dndRootRef,
+		dropIndicatorRef,
+		handleDragStart,
+		handleDragMove,
+		handleDragOver,
+		handleDragLeave,
+		handleDrop,
+		handleDragEnd,
+	} = useWorkspaceListDnd({
+		workspaces,
+		scrollRef,
+		disabled: isSearchMode || !isExpanded,
+		requestPinBoundaryConfirmation: requestConfirmation,
+	})
+
+	const defaultScrollTop = useRef(
+		sidebarStore.navigationScrollPositions.get("sidebar-scroll:expanded") ?? 0,
+	)
+	const wasSearchModeRef = useRef(isSearchMode)
+	useLayoutEffect(() => {
+		const exitedSearch = wasSearchModeRef.current && !isSearchMode
+		wasSearchModeRef.current = isSearchMode
+		if (isExpanded && exitedSearch && scrollRef.current)
+			scrollRef.current.scrollTop = defaultScrollTop.current
+	}, [isSearchMode, isExpanded, scrollRef])
+	useEffect(() => {
+		const viewport = scrollRef.current
+		if (!viewport || !isExpanded || isSearchMode) return
+		const rememberPosition = () => {
+			defaultScrollTop.current = viewport.scrollTop
+		}
+		viewport.addEventListener("scroll", rememberPosition, { passive: true })
+		return () => viewport.removeEventListener("scroll", rememberPosition)
+	}, [isExpanded, isSearchMode, scrollRef])
 
 	function handleStartCreateWorkspace() {
+		sidebarStore.selectNavigationSection("workspaces")
 		setIsCreatingWorkspace(true)
 	}
 
@@ -132,7 +310,11 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 		try {
 			// Keep manual refresh focused on sidebar data caches so the action
 			// updates visible workspace/project lists without issuing extra status-only requests.
-			await superMagicService.silentRefreshSidebarLoadedCaches()
+			await Promise.all([
+				superMagicService.silentRefreshSidebarLoadedCaches(),
+				chatWorkspaceRef.current?.refresh(),
+			])
+			if (isSearchMode) searchWorkspaces(searchState.value)
 			setWorkspacePage(1)
 			setHasMoreWorkspaces(true)
 		} finally {
@@ -185,9 +367,9 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 							workspace_name: searchName,
 						})
 					: Promise.resolve(null),
-				!append
+				searchState.hasMoreProjects || !append
 					? SuperMagicApi.getProjectsWithCollaboration({
-							page: 1,
+							page,
 							page_size: 100,
 							project_name: searchName,
 						})
@@ -208,12 +390,28 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 					draft.workspaces = append
 						? [...draft.workspaces, ...workspaceList]
 						: workspaceList
-					draft.projects = append ? [...draft.projects, ...projectList] : projectList
+					draft.projects = Array.from(
+						new Map(
+							[...(append ? draft.projects : []), ...projectList].map((project) => [
+								project.id,
+								project,
+							]),
+						).values(),
+					)
+					draft.hasMoreProjects = Boolean(
+						projectResponse &&
+						page * 100 < projectResponse.total &&
+						projectList.length > 0,
+					)
+					draft.failed = false
 					draft.page = page
 				})
 			},
 			onError: (_error, [{ append }]) => {
 				isSearchPendingRef.current = false
+				updateSearchState((draft) => {
+					draft.failed = true
+				})
 				if (!append) {
 					updateSearchState((draft) => {
 						draft.workspaces = []
@@ -226,12 +424,15 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 
 	const searchWorkspaces = useCallback(
 		(workspaceName: string) => {
+			setChatSearchKeyword(workspaceName)
 			if (!workspaceName.trim()) {
 				cancelSearch()
 				isSearchPendingRef.current = false
 				updateSearchState((draft) => {
 					draft.page = 1
 					draft.hasMoreWorkspaces = true
+					draft.hasMoreProjects = true
+					draft.failed = false
 					draft.workspaces = toJS(workspaces)
 					draft.projects = []
 				})
@@ -244,11 +445,21 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 			updateSearchState((draft) => {
 				draft.page = 1
 				draft.hasMoreWorkspaces = true
+				draft.hasMoreProjects = true
+				draft.failed = false
 			})
 			runSearch({ keyword: workspaceName, page: 1, append: false })
 		},
 		[cancelSearch, runSearch, updateSearchState, workspaces],
 	)
+
+	useEffect(() => {
+		return subscribeWorkspaceSearchInvalidation(() => {
+			if (!isSearchMode) return
+			// Refetch only after the mutation API has finished so the snapshot matches server state.
+			searchWorkspaces(searchState.value)
+		})
+	}, [isSearchMode, searchState.value, searchWorkspaces])
 
 	const loadNextPage = useCallback(() => {
 		if (!isSearchMode) {
@@ -260,7 +471,8 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 			!searchState.value.trim() ||
 			isSearchLoading ||
 			isSearchPendingRef.current ||
-			!searchState.hasMoreWorkspaces
+			(!searchState.hasMoreWorkspaces && !searchState.hasMoreProjects) ||
+			searchState.failed
 		)
 			return
 
@@ -271,6 +483,8 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 		isSearchMode,
 		loadMoreWorkspaces,
 		searchState.hasMoreWorkspaces,
+		searchState.hasMoreProjects,
+		searchState.failed,
 		searchState.page,
 		searchState.value,
 		runSearch,
@@ -278,10 +492,8 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 
 	useEffect(() => {
 		const sentinel = loadMoreSentinelRef.current
-		if (!sentinel || typeof IntersectionObserver === "undefined") return
-		const scrollContainer = sentinel.closest<HTMLElement>(
-			"[data-testid='sidebar-content-root']",
-		)
+		if (!isExpanded || !sentinel || typeof IntersectionObserver === "undefined") return
+		const scrollContainer = scrollRef.current
 		if (!scrollContainer) return
 
 		const observer = new IntersectionObserver(
@@ -294,19 +506,23 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 		)
 		observer.observe(sentinel)
 		return () => observer.disconnect()
-	}, [displayedWorkspaces.length, loadNextPage])
+	}, [displayedWorkspaces.length, loadNextPage, isExpanded, scrollRef])
 
 	const handleSearchOpen = useCallback(() => {
+		sidebarStore.selectNavigationSection("workspaces")
 		updateSearchState((draft) => {
 			draft.workspaces = toJS(workspaces)
 			draft.projects = []
 			draft.page = 1
 			draft.hasMoreWorkspaces = true
+			draft.hasMoreProjects = true
+			draft.failed = false
 		})
 		setIsSearchMode(true)
 	}, [updateSearchState, workspaces])
 
 	const handleSearchClose = useCallback(() => {
+		setChatSearchKeyword("")
 		cancelSearch()
 		isSearchPendingRef.current = false
 		updateSearchState((draft) => {
@@ -315,6 +531,8 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 			draft.projects = []
 			draft.page = 1
 			draft.hasMoreWorkspaces = true
+			draft.hasMoreProjects = true
+			draft.failed = false
 		})
 		setIsSearchMode(false)
 	}, [cancelSearch, updateSearchState])
@@ -334,131 +552,96 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 	}, [workspaces.length])
 
 	useEffect(() => {
-		if (!selectedWorkspaceId) return
+		// Remember the current selection when hiding this tab so reshow does not relocate.
+		if (!isExpanded && selectedWorkspaceId) {
+			lastLocatedWorkspace.current = selectedWorkspaceId
+			return
+		}
+		if (
+			!selectedWorkspaceId ||
+			!isExpanded ||
+			lastLocatedWorkspace.current === selectedWorkspaceId
+		)
+			return
+		lastLocatedWorkspace.current = selectedWorkspaceId
 
 		sidebarStore.setActiveWorkspace(selectedWorkspaceId)
 		sidebarStore.setWorkspaceExpanded(selectedWorkspaceId, true)
 
 		const workspaceIdSegment = toTestIdSegment(selectedWorkspaceId)
 		const animationFrameId = window.requestAnimationFrame(() => {
+			if (isHomeOnboardingSidebarTopMode()) {
+				const scrollContainer = workspaceListRef.current?.closest<HTMLElement>(
+					"[data-testid='sidebar-content-root']",
+				)
+				scrollContainer?.scrollTo({ top: 0, behavior: "auto" })
+				return
+			}
 			const workspaceElement = workspaceListRef.current?.querySelector<HTMLElement>(
 				`[data-workspace-id-segment="${workspaceIdSegment}"]`,
 			)
-			workspaceElement?.scrollIntoView({
-				behavior: "smooth",
-				block: "start",
-			})
+			// Workspace items use scroll-margin-top for the sticky list header.
+			// Without it, block:start tucks the first project under the workspace title.
+			const viewport = scrollRef.current
+			if (workspaceElement && viewport)
+				viewport.scrollTo({
+					top:
+						viewport.scrollTop +
+						workspaceElement.getBoundingClientRect().top -
+						viewport.getBoundingClientRect().top -
+						parseFloat(getComputedStyle(workspaceElement).scrollMarginTop),
+					behavior: "smooth",
+				})
 		})
 
 		return () => window.cancelAnimationFrame(animationFrameId)
-	}, [selectedWorkspaceId])
+	}, [selectedWorkspaceId, isExpanded, scrollRef])
 
 	return (
-		<SidebarGroup
-			className="flex w-full shrink-0 flex-col py-0 pl-2 pr-0"
-			data-testid="sidebar-workspace-list"
-			style={
-				{
-					"--workspace-list-sticky-top": isSearchMode ? "2.25rem" : "2rem",
-				} as CSSProperties
-			}
+		<div
+			ref={dndRootRef}
+			onDragStart={handleDragStart}
+			onDrag={handleDragMove}
+			onDragEnter={(event) => {
+				if (event.currentTarget.contains(event.target as Node)) event.preventDefault()
+			}}
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
+			onDragEnd={handleDragEnd}
+			// Stay in flow when inactive so the shared tree scroll does not clamp.
+			className="relative flex flex-col"
+			data-guide-anchor="sidebar-workspace-list"
 		>
-			<div
-				className="sticky top-0 z-20 -ml-2 bg-sidebar pl-2"
-				data-testid="sidebar-workspace-list-sticky-header"
-			>
-				{isSearchMode ? (
-					<div className="flex h-9 items-center gap-1 px-2 pr-3 duration-200 animate-in fade-in">
-						<InputGroup className="h-7 flex-1 rounded-md bg-sidebar duration-300 animate-in fade-in slide-in-from-left-4 [&:has([data-slot=input-group-control]:focus-visible)]:border-sidebar-border [&:has([data-slot=input-group-control]:focus-visible)]:ring-0">
-							<InputGroupAddon align="inline-start">
-								<Search size={16} />
-							</InputGroupAddon>
-							<InputGroupInput
-								className="h-6"
-								placeholder={t("super:workspace.searchWorkspace")}
-								value={searchState.value}
-								onChange={(event) => {
-									const value = event.target.value
-									updateSearchState((draft) => {
-										draft.value = value
-									})
-								}}
-								onValueChangeAfterComposition={searchWorkspaces}
-								autoFocus
-								data-testid="sidebar-workspace-list-search-input"
-							/>
-						</InputGroup>
-						<Button
-							type="button"
-							size="icon-sm"
-							className="size-7 border bg-white text-foreground duration-300 animate-in fade-in hover:bg-accent"
-							onClick={handleSearchClose}
-							aria-label={t("common.cancel")}
-							data-testid="sidebar-workspace-list-search-close"
-						>
-							<X className="size-4" />
-						</Button>
-					</div>
-				) : (
-					<SidebarGroupLabel className="h-8 px-2 text-xs font-medium leading-4 text-[#737373] opacity-70 dark:text-[#a3a3a3] dark:opacity-100">
-						{t("sidebar:workspace.title")}
-					</SidebarGroupLabel>
-				)}
-				<div
-					className={cn(
-						"absolute right-3.5 top-1.5 z-10 flex items-center gap-0.5 opacity-70",
-						"group-data-[collapsible=icon]:hidden",
-						isSearchMode && "hidden",
-					)}
-					data-testid="sidebar-workspace-list-actions"
-				>
-					<button
-						type="button"
-						aria-label={t("super:workspace.searchWorkspace")}
-						data-testid="sidebar-workspace-list-search"
-						className="outline-hidden relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4"
-						onClick={handleSearchOpen}
-					>
-						<Search className="h-4 w-4" />
-					</button>
-					{isInitialWorkspaceListLoading && (
-						<Loader2
-							className="h-4 w-4 shrink-0 animate-spin text-[rgb(var(--muted-foreground-rgb))] opacity-70"
-							aria-hidden
-							data-testid="sidebar-workspace-list-loading"
-						/>
-					)}
-					<button
-						type="button"
-						aria-label={t("sidebar:workspace.refresh")}
-						data-testid="sidebar-workspace-list-refresh"
-						disabled={isRefreshing}
-						className={cn(
-							"outline-hidden relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4",
-							"after:absolute after:-inset-2 md:after:hidden",
-						)}
-						onClick={() => void handleRefresh()}
-					>
-						<RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-					</button>
-					<button
-						type="button"
-						aria-label={t("sidebar:workspace.add")}
-						data-testid="sidebar-workspace-list-add"
-						className={cn(
-							"outline-hidden relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4",
-							"after:absolute after:-inset-2 md:after:hidden",
-						)}
-						onClick={handleStartCreateWorkspace}
-					>
-						<Plus className="h-4 w-4" />
-					</button>
-				</div>
-			</div>
-			<SidebarGroupContent>
+			{confirmationDialog}
+			<ProjectNavigationToolbar
+				disabled={isCreatingWorkspace || busyWorkspaces.size > 0}
+				isSearchMode={isSearchMode}
+				searchValue={searchState.value}
+				isInitialWorkspaceListLoading={isInitialWorkspaceListLoading}
+				isRefreshing={isRefreshing}
+				onSearchValueChange={(value) =>
+					updateSearchState((draft) => {
+						draft.value = value
+					})
+				}
+				searchWorkspaces={searchWorkspaces}
+				handleSearchOpen={handleSearchOpen}
+				handleSearchClose={handleSearchClose}
+				handleRefresh={handleRefresh}
+				handleStartCreateWorkspace={handleStartCreateWorkspace}
+			/>
+			<div className="mt-1">
 				<SidebarMenu>
-					<div className="w-full pr-3">
+					<div className="w-full">
 						{beforeItems}
+						<ChatWorkspaceItem
+							ref={chatWorkspaceRef}
+							active={isExpanded}
+							searchKeyword={chatSearchKeyword}
+							onBusyChange={onChatBusyChange}
+							onSelect={onSelect}
+						/>
 						<div ref={workspaceListRef}>
 							{isCreatingWorkspace && (
 								<div className="w-full duration-150 animate-in fade-in slide-in-from-top-2">
@@ -470,15 +653,21 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 							)}
 							{displayedWorkspaces.map((workspace, index) => (
 								<WorkspaceItem
+									active={isExpanded}
 									key={workspace.id}
 									workspace={workspace}
+									scrollRef={scrollRef}
+									maxProjectHeight={projectHeights[workspace.id]}
+									onOpenManager={() => onOpenManager(workspace)}
+									onBusyChange={onWorkspaceBusyChange}
+									dndDisabled={isSearchMode}
 									searchProjects={
 										isSearchMode && projectsByWorkspaceId.has(workspace.id)
 											? projectsByWorkspaceId.get(workspace.id)
 											: undefined
 									}
 									className={cn(
-										"mb-[2px]",
+										"mb-1",
 										index === displayedWorkspaces.length - 1 && "mb-0",
 									)}
 								/>
@@ -493,12 +682,43 @@ function WorkspaceList({ beforeItems }: WorkspaceListProps) {
 									<Loader2 className="size-4 animate-spin" />
 								</div>
 							)}
+							{isSearchMode && searchState.failed && (
+								<button
+									type="button"
+									className="w-full p-2 text-left text-xs text-muted-foreground"
+									onClick={() => {
+										isSearchPendingRef.current = true
+										runSearch({
+											keyword: searchState.value,
+											page:
+												searchState.projects.length ||
+												searchState.workspaces.length
+													? searchState.page + 1
+													: 1,
+											append: Boolean(
+												searchState.projects.length ||
+												searchState.workspaces.length,
+											),
+										})
+									}}
+								>
+									{t("super:projectNavigation.retry")}
+								</button>
+							)}
 							<div ref={loadMoreSentinelRef} className="h-px" aria-hidden="true" />
 						</div>
 					</div>
 				</SidebarMenu>
-			</SidebarGroupContent>
-		</SidebarGroup>
+			</div>
+			<svg
+				ref={dropIndicatorRef}
+				aria-hidden="true"
+				className="pointer-events-none absolute left-0 top-0 z-50 hidden h-2 overflow-visible text-[#b9dcff]"
+			>
+				<line x1="4" y1="4" x2="100%" y2="4" stroke="currentColor" strokeWidth="2" />
+				<circle cx="4" cy="4" r="4" fill="currentColor" />
+			</svg>
+		</div>
 	)
 }
 

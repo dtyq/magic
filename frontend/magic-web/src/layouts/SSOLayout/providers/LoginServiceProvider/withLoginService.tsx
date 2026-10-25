@@ -10,10 +10,12 @@ export function withLoginService<P extends object = NonNullable<unknown>>(
 		service,
 		onClusterChange,
 		syncFromGlobalClusterCode,
+		syncClusterConfig,
 	}: {
 		service: ServiceContainer
 		onClusterChange?: (code: string) => void
 		syncFromGlobalClusterCode?: boolean
+		syncClusterConfig?: boolean
 	},
 ): (props: P) => ReactElement {
 	return (props: P) => {
@@ -21,6 +23,7 @@ export function withLoginService<P extends object = NonNullable<unknown>>(
 			<ClusterProvider
 				onClusterChange={onClusterChange}
 				syncFromGlobalClusterCode={syncFromGlobalClusterCode}
+				syncClusterConfig={syncClusterConfig}
 			>
 				<LoginServiceProvider service={service}>
 					<WrapperComponent {...props} />

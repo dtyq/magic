@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 
 import type { MagicBaseRow, MagicBaseSortRule } from "@/apis/modules/magicBase"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { MicroAppDatabaseEmptyIllustration } from "@/pages/superMagic/components/MicroAppStateIllustration"
 
 import type { CellCoordinate, ContextMenuPosition, MagicBaseCellSelection } from "./DataGrid.types"

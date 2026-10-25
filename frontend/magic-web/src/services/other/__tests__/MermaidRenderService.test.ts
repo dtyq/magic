@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest"
 // @ts-ignore
 import MermaidRenderService from "../MermaidRenderService"
-import type { RenderResult } from "mermaid"
+import type { RenderResult } from "@/infrastructure/vendors/mermaid"
 
 // Mock the database module
 vi.mock("@/opensource/database/mermaid", () => ({

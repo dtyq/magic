@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
 
 	return {
 		events,
+		namespaces: ["accountSetting"],
 		setNamespaceLoaded(value: boolean) {
 			namespaceLoaded = value
 		},
@@ -53,6 +54,7 @@ vi.mock("@/components/business/SettingPanel/openSettingPanel", () => ({
 }))
 
 vi.mock("../config", () => ({
+	ACCOUNT_SETTING_NAMESPACES: mocks.namespaces,
 	getAccountSettingMenuItems: mocks.getAccountSettingMenuItems,
 }))
 
@@ -61,19 +63,27 @@ import { openAccountSetting } from "../openAccountSetting"
 describe("openAccountSetting", () => {
 	beforeEach(() => {
 		mocks.events.length = 0
+		mocks.namespaces.splice(0, mocks.namespaces.length, "accountSetting")
 		mocks.setNamespaceLoaded(false)
 		vi.clearAllMocks()
 	})
 
-	it("loads accountSetting namespace before building menu items", async () => {
-		await openAccountSetting()
+	it.each([["accountSetting"], ["accountSetting", "epAccountSetting"]])(
+		"loads edition namespaces %j before building menu items",
+		async (...namespaces) => {
+			mocks.namespaces.splice(0, mocks.namespaces.length, ...namespaces)
+			await openAccountSetting()
 
-		expect(mocks.loadNamespaces).toHaveBeenCalledWith("accountSetting")
-		expect(mocks.getAccountSettingMenuItems).toHaveBeenCalledOnce()
-		expect(mocks.openSettingPanel).toHaveBeenCalledOnce()
-		expect(mocks.events).toEqual(["load:accountSetting", "t:accountSetting:myAccount:loaded"])
+			expect(mocks.loadNamespaces).toHaveBeenCalledWith(namespaces)
+			expect(mocks.getAccountSettingMenuItems).toHaveBeenCalledOnce()
+			expect(mocks.openSettingPanel).toHaveBeenCalledOnce()
+			expect(mocks.events).toEqual([
+				`load:${namespaces.join(",")}`,
+				"t:accountSetting:myAccount:loaded",
+			])
 
-		const [options] = mocks.openSettingPanel.mock.calls[0] ?? []
-		expect(options.menuItems[0]?.label).toBe("accountSetting:myAccount")
-	})
+			const [options] = mocks.openSettingPanel.mock.calls[0] ?? []
+			expect(options.menuItems[0]?.label).toBe("accountSetting:myAccount")
+		},
+	)
 })

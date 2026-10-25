@@ -3,7 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/
 import { useTranslation } from "react-i18next"
 import { DEFAULT_KEY, internetSearchManager } from "../../services/InternetSearchManager"
 import { useState, useEffect } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Globe, GlobeX } from "lucide-react"
 
 interface InternetSearchProps {

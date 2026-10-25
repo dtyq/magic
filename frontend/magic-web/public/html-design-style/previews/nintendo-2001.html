@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nintendo.com - Welcome to Nintendo (2001)</title>
+<style>:root{--nintendo-red:#e60012;--signal-orange:#f68d1f;--amber:#ecab37;--nav-gold:#e48600;--canvas:#7a8aba;--canvas-soft:#9fbee7;--lavender:#acace7;--periwinkle:#8ba1d4;--chrome-indigo:#3d4f97;--muted-indigo:#60619c;--platinum:#dedede;--carbon:#21242e;--surface:#ffffff;--hairline:#5a5f8c;}*{box-sizing:border-box;margin:0;padding:0;}body{background-color:#55628a;background-image:linear-gradient(180deg,#62729e 0%,#46547c 100%);font-family:Arial,Helvetica,sans-serif;color:var(--carbon);font-size:12px;line-height:1.35;padding:10px 6px;}.console-chassis{max-width:860px;margin:0 auto;background:var(--canvas);border:3px solid #9bb0e0;border-right-color:var(--chrome-indigo);border-bottom-color:var(--chrome-indigo);box-shadow:0 8px 24px rgba(0,0,0,0.4),inset 1px 1px 0 #cad8ff;}.masthead-row{background:linear-gradient(180deg,#8ba0d8 0%,#7586b6 100%);padding:6px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--chrome-indigo);}.mario-welcome{display:flex;align-items:center;gap:10px;}.mascot-avatar-svg{width:44px;height:44px;filter:drop-shadow(1px 2px 0px rgba(0,0,0,0.35));}.mascot-speech-bubble{background:var(--surface);border:2px solid var(--chrome-indigo);border-radius:12px;padding:5px 12px;font-size:11px;font-weight:bold;color:var(--carbon);position:relative;box-shadow:2px 2px 0 rgba(0,0,0,0.15);}.mascot-speech-bubble::before{content:"";position:absolute;left:-8px;top:50%;transform:translateY(-50%);border-width:5px 8px 5px 0;border-style:solid;border-color:transparent var(--chrome-indigo) transparent transparent;}.masthead-search{display:flex;align-items:center;gap:5px;background:rgba(0,0,0,0.12);padding:4px 6px;border-radius:4px;border:1px solid var(--chrome-indigo);}.search-input{background:var(--surface);border:1px solid var(--chrome-indigo);border-radius:2px;padding:2px 6px;font-size:11px;width:140px;}.btn-amber-go{background:linear-gradient(180deg,#ffe066 0%,var(--amber) 100%);border:1px solid #946200;border-radius:2px;padding:2px 8px;font-size:10.5px;font-weight:bold;color:var(--carbon);cursor:pointer;}.nav-carbon-bar{background-color:var(--carbon);background-image:radial-gradient(#3a3f50 20%,transparent 20%);background-size:4px 4px;height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:2px solid #000;}.logo-pill{background:var(--surface);border:2px solid #c0c0c0;border-radius:9999px;padding:2px 10px;display:flex;align-items:center;box-shadow:inset 0 1px 2px rgba(0,0,0,0.3);}.nintendo-wordmark{color:var(--nintendo-red);font-family:"Arial Black",Arial,sans-serif;font-size:14px;font-weight:900;letter-spacing:0.5px;line-height:1;}.primary-nav-links{display:flex;gap:16px;list-style:none;}.primary-nav-links a{color:var(--nav-gold);font-family:Arial,sans-serif;font-size:12.5px;font-weight:700;letter-spacing:0.5px;text-decoration:none;text-transform:uppercase;text-shadow:0 1px 2px #000;}.primary-nav-links a.active{color:#ffffff;border-bottom:2px solid var(--signal-orange);}.nav-utility-chips{display:flex;gap:6px;}.chip-btn{background:linear-gradient(180deg,#ffe066 0%,var(--amber) 100%);border:1px solid #7a5000;border-radius:2px;padding:2px 7px;font-size:10px;font-weight:800;color:var(--carbon);text-transform:uppercase;}.subnav-strip{background:var(--canvas-soft);border-bottom:1px solid var(--chrome-indigo);padding:3px 12px;display:flex;gap:14px;font-size:10.5px;font-weight:bold;}.subnav-strip a{color:var(--chrome-indigo);text-decoration:none;}.main-grid{display:grid;grid-template-columns:1fr 240px;gap:10px;padding:10px;}.hero-panel{background:radial-gradient(circle at 75% 50%,#462878 0%,#1e1338 100%);border:2px solid var(--chrome-indigo);border-radius:6px;padding:14px;color:#fff;position:relative;overflow:hidden;box-shadow:inset 0 0 16px rgba(0,0,0,0.6);margin-bottom:10px;}.hero-badge-tag{background:var(--signal-orange);color:#fff;font-size:10px;font-weight:900;padding:2px 7px;border-radius:2px;display:inline-block;text-transform:uppercase;margin-bottom:6px;}.hero-display-title{font-family:"Arial Black",Impact,sans-serif;font-size:26px;font-weight:900;line-height:1.1;text-transform:uppercase;color:#ffffff;text-shadow:2px 2px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,0 3px 6px rgba(0,0,0,0.8);letter-spacing:0.5px;}.hero-subtitle{font-size:12px;color:#d8cfff;margin:6px 0 10px;max-width:320px;line-height:1.35;}.hero-cta-row{display:flex;align-items:center;gap:12px;}.btn-hero-play{background:linear-gradient(180deg,#ffaa33 0%,var(--signal-orange) 100%);color:#fff;border:2px outset #ffcc88;border-radius:4px;padding:6px 14px;font-weight:900;font-size:12px;text-transform:uppercase;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 5px #000;cursor:pointer;}.circle-arrow{width:16px;height:16px;background:#fff;border-radius:50%;color:var(--signal-orange);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;}.seal-of-quality{position:absolute;right:12px;bottom:10px;width:82px;height:82px;filter:drop-shadow(2px 2px 3px rgba(0,0,0,0.7));}.gamecube-art-svg{position:absolute;right:90px;top:15px;width:110px;height:85px;filter:drop-shadow(3px 4px 6px rgba(0,0,0,0.6));}.content-panel{background:var(--periwinkle);border:2px solid #a2b4e4;border-right-color:var(--chrome-indigo);border-bottom-color:var(--chrome-indigo);border-radius:4px;margin-bottom:10px;overflow:hidden;}.panel-header-bar{background:linear-gradient(90deg,#3d4f97 0%,#5266b0 100%);color:#fff;padding:4px 10px;font-size:11px;font-weight:700;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;}.news-list{background:var(--platinum);padding:6px 8px;display:flex;flex-direction:column;gap:5px;}.news-item{background:var(--surface);border:1px solid #b8c4d8;border-radius:3px;padding:6px 8px;display:flex;justify-content:space-between;align-items:center;gap:8px;}.news-meta-title{font-weight:bold;color:var(--chrome-indigo);font-size:11.5px;}.news-date{color:#777;font-size:10px;margin-right:6px;}.chevron-chip{background:var(--signal-orange);color:#fff;width:16px;height:16px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;flex-shrink:0;}.games-2x2{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px;background:#cdd8ee;}.game-card-mini{background:var(--surface);border:1px solid var(--chrome-indigo);border-radius:4px;padding:6px;display:flex;gap:8px;align-items:center;}.cartridge-thumbnail{width:42px;height:48px;background:#2a2244;border:1px solid #000;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-size:7.5px;font-weight:bold;text-align:center;flex-shrink:0;box-shadow:1px 1px 2px rgba(0,0,0,0.3);}.game-mini-info h4{font-size:11px;color:var(--carbon);margin-bottom:2px;}.esrb-square{border:1px solid #000;font-family:Impact,Arial,sans-serif;font-size:11px;padding:0 4px;background:#fff;display:inline-block;margin-top:2px;}.right-rail{display:flex;flex-direction:column;gap:10px;}.carbon-action-btn{background:linear-gradient(180deg,#323746 0%,var(--carbon) 100%);color:#fff;border:1px solid #4f566d;border-right-color:#000;border-bottom-color:#000;padding:7px 10px;font-size:11px;font-weight:bold;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;text-decoration:none;box-shadow:0 2px 4px rgba(0,0,0,0.25);}.poll-box{background:#c5d4ed;border:2px solid var(--chrome-indigo);border-radius:4px;padding:8px;}.poll-title{font-weight:bold;color:var(--chrome-indigo);font-size:11px;margin-bottom:6px;border-bottom:1px dashed var(--chrome-indigo);padding-bottom:3px;}.poll-radio-group{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;font-size:11px;}.poll-radio-item{display:flex;align-items:center;gap:5px;}.btn-poll-submit{background:var(--signal-orange);color:#fff;border:1px solid #aa4400;border-radius:2px;padding:3px 10px;font-size:10.5px;font-weight:bold;cursor:pointer;}.footer-slab{background-color:var(--carbon);background-image:radial-gradient(#3a3f50 20%,transparent 20%);background-size:4px 4px;color:#b0bcd6;padding:10px 14px;border-top:2px solid #000;display:flex;justify-content:space-between;align-items:center;font-size:10px;flex-wrap:wrap;gap:8px;}.footer-links a{color:var(--canvas-soft);text-decoration:none;margin-right:8px;}.esrb-privacy-badge{background:var(--amber);color:var(--carbon);padding:2px 6px;border-radius:2px;font-weight:800;font-size:9px;}@media (max-width:650px){.main-grid{grid-template-columns:1fr;}.games-2x2{grid-template-columns:1fr;}}</style>
+</head>
+<body>
+<div class="console-chassis">
+<!-- Masthead with Mario Speech Bubble and Search -->
+<header class="masthead-row">
+<div class="mario-welcome">
+<!-- 2001 Era Mario Mascot SVG Art -->
+<svg class="mascot-avatar-svg" viewBox="0 0 64 64">
+<circle cx="32" cy="32" r="30" fill="#e60012" stroke="#fff" stroke-width="2" />
+<!-- Mario Cap & Face Art -->
+<path d="M12 28 C12 16 22 8 36 8 C48 8 54 14 54 22 C48 22 42 24 38 27 Z" fill="#e60012" />
+<path d="M16 26 C24 22 44 22 52 26 C52 28 48 30 38 30 C26 30 18 28 16 26 Z" fill="#b00000" />
+<!-- White Emblem 'M' -->
+<circle cx="32" cy="18" r="8" fill="#ffffff" />
+<text x="32" y="23" font-family="Arial Black" font-size="11" font-weight="900" fill="#e60012" text-anchor="middle">M</text>
+<!-- Face & Moustache -->
+<ellipse cx="32" cy="38" rx="14" ry="12" fill="#ffd5b0" />
+<ellipse cx="28" cy="35" rx="3" ry="4" fill="#1b4d8a" />
+<ellipse cx="36" cy="35" rx="3" ry="4" fill="#1b4d8a" />
+<ellipse cx="32" cy="39" rx="4" ry="3" fill="#ffb490" />
+<!-- Famous Moustache -->
+<path d="M22 44 C25 40 30 42 32 41 C34 42 39 40 42 44 C38 46 34 44 32 45 C30 44 26 46 22 44 Z" fill="#2d1c10" />
+</svg>
+<div class="mascot-speech-bubble">
+Welcome to Nintendo.com! Catch the GameCube fever!
+</div>
+</div>
+<div class="masthead-search">
+<input type="text" class="search-input" value="GameCube Pre-order" />
+<button class="btn-amber-go">GO</button>
+</div>
+</header>
+<!-- Carbon Nav Bar with Halftone Texture and Racetrack Pill Logo -->
+<nav class="nav-carbon-bar">
+<div class="logo-pill">
+<span class="nintendo-wordmark">Nintendo</span>
+</div>
+<ul class="primary-nav-links">
+<li><a href="#games" class="active">GAMES</a></li>
+<li><a href="#systems">SYSTEMS</a></li>
+<li><a href="#news">NEWS</a></li>
+<li><a href="#nsider">NSIDER</a></li>
+<li><a href="#downloads">DOWNLOADS</a></li>
+</ul>
+<div class="nav-utility-chips">
+<span class="chip-btn">CODE BANK</span>
+<span class="chip-btn">GAME FINDER</span>
+</div>
+</nav>
+<!-- Subnav Secondary Strip -->
+<div class="subnav-strip">
+<a href="#parents">Parents</a> &bull;
+<a href="#support">Customer Service</a> &bull;
+<a href="#corp">Corporate</a> &bull;
+<a href="#global">Global</a> &bull;
+<a href="#privacy">Privacy Policy</a> &bull;
+<a href="#store">Online Store</a>
+</div>
+<!-- Main Grid Layout -->
+<div class="main-grid">
+<!-- Left Content Column -->
+<main>
+<!-- Y2K Hero Showcase Panel -->
+<section class="hero-panel">
+<span class="hero-badge-tag">NINTENDO GAMECUBE &bull; LAUNCH ERA</span>
+<h2 class="hero-display-title">SUPER SMASH BROS.<br>MELEE</h2>
+<p class="hero-subtitle">
+The ultimate 4-player brawl has arrived. Experience liquid-smooth 60fps action powered by 162MHz Gekko IBM processor and ATI graphics.
+</p>
+<div class="hero-cta-row">
+<button class="btn-hero-play">
+PLAY IT ON GAMECUBE
+<span class="circle-arrow">&#9658;</span>
+</button>
+<span style="font-size: 11px; color: #eedd88; font-weight: bold;">AVAILABLE NOV 18</span>
+</div>
+<!-- GameCube Indigo Console SVG Art -->
+<svg class="gamecube-art-svg" viewBox="0 0 100 80">
+<!-- 3D Cube Isometric Body -->
+<polygon points="50,6 90,24 50,42 10,24" fill="#584da2" stroke="#251b5c" stroke-width="1.5" />
+<polygon points="10,24 50,42 50,76 10,58" fill="#443986" stroke="#251b5c" stroke-width="1.5" />
+<polygon points="50,42 90,24 90,58 50,76" fill="#33296c" stroke="#251b5c" stroke-width="1.5" />
+<!-- Disc Lid Circle -->
+<ellipse cx="50" cy="24" rx="22" ry="11" fill="#2d2260" stroke="#7768c8" stroke-width="1" />
+<ellipse cx="50" cy="24" rx="9" ry="4.5" fill="#18113e" />
+<text x="50" y="26" fill="#e48600" font-family="Arial" font-size="3" font-weight="bold" text-anchor="middle">GAMECUBE</text>
+<!-- 4 Front Controller Ports -->
+<ellipse cx="22" cy="46" rx="4" ry="2" fill="#111" />
+<ellipse cx="32" cy="50" rx="4" ry="2" fill="#111" />
+<ellipse cx="42" cy="54" rx="4" ry="2" fill="#111" />
+<ellipse cx="26" cy="56" rx="3" ry="1.5" fill="#888" />
+</svg>
+<!-- Official Nintendo Seal of Quality SVG -->
+<svg class="seal-of-quality" viewBox="0 0 100 100">
+<!-- Gold Starburst Edge -->
+<circle cx="50" cy="50" r="46" fill="#ecab37" stroke="#946200" stroke-width="2" stroke-dasharray="3,1" />
+<!-- White Oval Center -->
+<ellipse cx="50" cy="50" rx="40" ry="28" fill="#ffffff" stroke="#c09020" stroke-width="1.5" />
+<text x="50" y="38" font-family="Arial Black" font-size="7" font-weight="900" fill="#21242e" text-anchor="middle">Official</text>
+<text x="50" y="47" font-family="Arial Black" font-size="8.5" font-weight="900" fill="#e60012" text-anchor="middle">Nintendo</text>
+<text x="50" y="56" font-family="Arial Black" font-size="6.5" font-weight="900" fill="#21242e" text-anchor="middle">Seal of Quality</text>
+<circle cx="22" cy="50" r="1.5" fill="#ecab37" />
+<circle cx="78" cy="50" r="1.5" fill="#ecab37" />
+</svg>
+</section>
+<!-- Official News Content Panel -->
+<section class="content-panel">
+<div class="panel-header-bar">
+<span>OFFICIAL NINTENDO NEWS &amp; DISPATCHES</span>
+<span style="font-size: 9.5px;">OCTOBER 2001</span>
+</div>
+<div class="news-list">
+<div class="news-item">
+<div>
+<span class="news-date">10.24</span>
+<span class="news-meta-title">Luigi's Mansion Shines as GameCube Launch Showcase</span>
+</div>
+<div class="chevron-chip">&#9658;</div>
+</div>
+<div class="news-item">
+<div>
+<span class="news-date">10.18</span>
+<span class="news-meta-title">Game Boy Advance Breaks Records: 5 Million Units Sold Worldwide</span>
+</div>
+<div class="chevron-chip">&#9658;</div>
+</div>
+<div class="news-item">
+<div>
+<span class="news-date">10.12</span>
+<span class="news-meta-title">Zelda: Oracle of Ages &amp; Oracle of Seasons Password Linking Guide</span>
+</div>
+<div class="chevron-chip">&#9658;</div>
+</div>
+</div>
+</section>
+<!-- 2x2 Featured Hits Grid -->
+<section class="content-panel">
+<div class="panel-header-bar">
+<span>FEATURED GAMES &amp; NEW RELEASES</span>
+<span style="font-size: 9.5px; color: #ffe066;">ALL PLATFORMS</span>
+</div>
+<div class="games-2x2">
+<!-- Game 1 -->
+<div class="game-card-mini">
+<div class="cartridge-thumbnail" style="background:#552200;">
+<span>GBA</span>
+<span style="font-size: 6px; color:#ffdd44; margin-top:2px;">MARIO</span>
+<span style="font-size: 5.5px; color:#fff;">KART</span>
+</div>
+<div class="game-mini-info">
+<h4>Mario Kart: Super Circuit</h4>
+<div style="font-size: 10px; color: #555;">Game Boy Advance</div>
+<span class="esrb-square">E</span>
+</div>
+</div>
+<!-- Game 2 -->
+<div class="game-card-mini">
+<div class="cartridge-thumbnail" style="background:#004433;">
+<span>GBC</span>
+<span style="font-size: 6px; color:#aaffaa; margin-top:2px;">ZELDA</span>
+<span style="font-size: 5.5px; color:#fff;">SEASONS</span>
+</div>
+<div class="game-mini-info">
+<h4>The Legend of Zelda</h4>
+<div style="font-size: 10px; color: #555;">Oracle of Seasons</div>
+<span class="esrb-square">E</span>
+</div>
+</div>
+<!-- Game 3 -->
+<div class="game-card-mini">
+<div class="cartridge-thumbnail" style="background:#331166;">
+<span>GCN</span>
+<span style="font-size: 6px; color:#ddaaff; margin-top:2px;">LUIGI</span>
+<span style="font-size: 5.5px; color:#fff;">MANSION</span>
+</div>
+<div class="game-mini-info">
+<h4>Luigi's Mansion</h4>
+<div style="font-size: 10px; color: #555;">Nintendo GameCube</div>
+<span class="esrb-square">E</span>
+</div>
+</div>
+<!-- Game 4 -->
+<div class="game-card-mini">
+<div class="cartridge-thumbnail" style="background:#661122;">
+<span>GBA</span>
+<span style="font-size: 6px; color:#ffaaaa; margin-top:2px;">GOLDEN</span>
+<span style="font-size: 5.5px; color:#fff;">SUN</span>
+</div>
+<div class="game-mini-info">
+<h4>Golden Sun</h4>
+<div style="font-size: 10px; color: #555;">Epic GBA RPG</div>
+<span class="esrb-square">E</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Right Action Rail -->
+<aside class="right-rail">
+<a href="#join" class="carbon-action-btn">
+<span>&#9733; MY NINTENDO LOGIN</span>
+<span style="color:var(--signal-orange);">&gt;</span>
+</a>
+<a href="#subscribe" class="carbon-action-btn">
+<span>NINTENDO POWER MAG</span>
+<span style="color:var(--signal-orange);">&gt;</span>
+</a>
+<!-- Player's Poll -->
+<div class="poll-box">
+<div class="poll-title">PLAYER'S POLL &bull; VOTE NOW</div>
+<p style="font-size: 11px; margin-bottom: 6px; font-weight: bold;">
+Which GameCube launch title will you play first on Day One?
+</p>
+<div class="poll-radio-group">
+<label class="poll-radio-item">
+<input type="radio" name="gc_poll" checked />
+<span>Super Smash Bros. Melee</span>
+</label>
+<label class="poll-radio-item">
+<input type="radio" name="gc_poll" />
+<span>Luigi's Mansion</span>
+</label>
+<label class="poll-radio-item">
+<input type="radio" name="gc_poll" />
+<span>Star Wars: Rogue Leader</span>
+</label>
+<label class="poll-radio-item">
+<input type="radio" name="gc_poll" />
+<span>Super Monkey Ball</span>
+</label>
+</div>
+<button class="btn-poll-submit">SUBMIT VOTE</button>
+</div>
+<!-- GBA Hardware Promo Card -->
+<div style="background: var(--lavender); border: 2px solid var(--chrome-indigo); border-radius: 4px; padding: 8px; text-align: center;">
+<div style="font-weight: 900; font-size: 12px; color: #1e1338; text-transform: uppercase;">GAME BOY ADVANCE</div>
+<div style="font-size: 10px; color: #443366; margin: 2px 0 6px;">32-Bit Handheld Power</div>
+<!-- GBA Vector Preview -->
+<svg width="100" height="50" viewBox="0 0 100 50">
+<!-- GBA Wide Indigo Chassis -->
+<rect x="10" y="5" width="80" height="40" rx="14" fill="#4856a0" stroke="#251b5c" stroke-width="1.5" />
+<!-- Landscape Screen Frame -->
+<rect x="30" y="10" width="40" height="30" rx="4" fill="#21242e" />
+<rect x="34" y="14" width="32" height="22" fill="#889870" />
+<text x="50" y="27" fill="#2d3020" font-family="monospace" font-size="5" font-weight="bold" text-anchor="middle">GAME BOY</text>
+<!-- D-Pad Left -->
+<polygon points="18,22 22,22 22,18 24,18 24,22 28,22 28,24 24,24 24,28 22,28 22,24 18,24" fill="#111" />
+<!-- A & B Buttons Right -->
+<circle cx="76" cy="26" r="3" fill="#cc2200" />
+<circle cx="82" cy="20" r="3" fill="#cc2200" />
+</svg>
+<div style="font-size: 10px; font-weight: bold; color: var(--chrome-indigo); margin-top: 4px;">
+Available in Arctic, Glacier &amp; Indigo
+</div>
+</div>
+</aside>
+</div>
+<!-- Carbon Navy Halftone Footer Slab -->
+<footer class="footer-slab">
+<div class="footer-links">
+<a href="#about">About Nintendo</a>
+<a href="#contact">Contact Us</a>
+<a href="#store">Online Store</a>
+<a href="#esrb">ESRB Rating Guide</a>
+<a href="#legal">Legal &amp; Trademark Info</a>
+</div>
+<div style="display: flex; align-items: center; gap: 8px;">
+<span class="esrb-privacy-badge">ESRB PRIVACY CERTIFIED</span>
+<span style="font-size: 9.5px;">&copy; 1997-2001 Nintendo of America Inc.</span>
+</div>
+</footer>
+</div>
+</body>
+</html>

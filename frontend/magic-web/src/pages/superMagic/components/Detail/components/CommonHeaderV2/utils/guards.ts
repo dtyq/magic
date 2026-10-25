@@ -82,7 +82,7 @@ export function canShowShare(context: ActionContext): boolean {
 	return (
 		Boolean(context.currentFile?.id) &&
 		!context.isShareRoute &&
-		context.allowEdit &&
+		(context.allowEdit || context.shareInReadOnly === true) &&
 		context.isNewestFileVersion
 	)
 }

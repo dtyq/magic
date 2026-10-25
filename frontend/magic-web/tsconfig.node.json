@@ -10,6 +10,7 @@
 	"include": [
 		"vite.config.ts",
 		"vitest.config.ts",
+		"vitest.html-sandbox.config.ts",
 		"commitlint.config.cjs",
 		".eslintrc.cjs",
 		".prettierrc.cjs",

@@ -1,5 +1,6 @@
 import { useRef, useState, useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
+import { usePendingActionGuard } from "../../../utils/usePendingActionGuard"
 
 interface NavigationAction {
 	type: "prev" | "next" | "first" | "jump"
@@ -9,6 +10,10 @@ interface NavigationAction {
 interface UseCheckBeforeNavigateParams {
 	/** Whether any slide is currently being edited */
 	isAnySlideEditing: boolean
+	/** Whether the active slide has pending AI selection targets */
+	isInspectorPicking?: () => boolean
+	/** Requests confirmation before clearing the active slide's AI selection */
+	requestInspectorExit?: () => boolean | Promise<boolean>
 	/** Current active slide index (for computing target page number) */
 	activeIndex: number
 }
@@ -43,27 +48,32 @@ interface UseCheckBeforeNavigateReturn {
  * Hook for managing navigation confirmation with save handler
  * Provides async checkBeforeNavigate function that shows confirmation dialog if editing
  *
- * @param params - isAnySlideEditing and activeIndex
+ * @param params - current slide edit and AI selection state plus activeIndex
  * @returns Object containing checkBeforeNavigate function and dialog-related states
  */
 function useCheckBeforeNavigate({
 	isAnySlideEditing,
+	isInspectorPicking,
+	requestInspectorExit,
 	activeIndex,
 }: UseCheckBeforeNavigateParams): UseCheckBeforeNavigateReturn {
 	// Store save handler for current active slide
 	const activeSlideSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
 	const activeSlideDiscardHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
 
-	// Store resolve/reject callbacks for navigation promise
-	const navigationPromiseRef = useRef<{
-		resolve: (value: boolean) => void
-		reject: (error: Error) => void
-	} | null>(null)
-
 	// Navigation confirmation dialog state
 	const [showNavigationDialog, setShowNavigationDialog] = useState(false)
-	const [pendingNavigation, setPendingNavigation] = useState<NavigationAction | null>(null)
 	const [isSavingForNavigation, setIsSavingForNavigation] = useState(false)
+	const navigationGuard = usePendingActionGuard<NavigationAction>({
+		shouldBlock: () => isAnySlideEditing,
+		onBlocked: () => setShowNavigationDialog(true),
+	})
+	const {
+		run: runNavigation,
+		resolve: resolveNavigation,
+		cancel: cancelNavigation,
+	} = navigationGuard
+	const pendingNavigation = navigationGuard.pendingContext
 
 	// Register save handler from active slide
 	const registerSaveHandler = useMemoizedFn((handler: (() => Promise<boolean>) | null) => {
@@ -74,28 +84,20 @@ function useCheckBeforeNavigate({
 		activeSlideDiscardHandlerRef.current = handler
 	})
 
-	// Check before navigate - returns true if can navigate, false if cancelled
+	// Check before navigate - returns true if can navigate, false if cancelled.
+	// AI selection owns its own confirmation modal, so it must be resolved before
+	// the edit-mode navigation guard can defer the same navigation action.
 	const checkBeforeNavigate = useMemoizedFn(
 		async (
 			type: "prev" | "next" | "first" | "jump",
 			targetIndex?: number,
 		): Promise<boolean> => {
-			// If not editing, allow navigation immediately
-			if (!isAnySlideEditing) {
-				return true
+			if (isInspectorPicking?.()) {
+				const canExitInspector = await (requestInspectorExit?.() ?? Promise.resolve(true))
+				if (!canExitInspector) return false
 			}
 
-			// If already showing dialog, return false to prevent duplicate dialogs
-			if (showNavigationDialog) {
-				return false
-			}
-
-			// Show confirmation dialog and wait for user decision
-			return new Promise((resolve) => {
-				navigationPromiseRef.current = { resolve, reject: () => resolve(false) }
-				setPendingNavigation({ type, targetIndex })
-				setShowNavigationDialog(true)
-			})
+			return runNavigation(async () => undefined, { type, targetIndex })
 		},
 	)
 
@@ -111,47 +113,38 @@ function useCheckBeforeNavigate({
 
 			if (!didSave) return
 
-			// Close dialog and reset state
+			// Close dialog and resolve the deferred check. The caller then performs
+			// the actual slide navigation after this Promise resolves.
 			setShowNavigationDialog(false)
-			setPendingNavigation(null)
-
-			// Resolve promise with true (navigation allowed)
-			navigationPromiseRef.current?.resolve(true)
-			navigationPromiseRef.current = null
+			await resolveNavigation(true)
 		} catch (error) {
 			console.error("Failed to save before navigation:", error)
-
-			// Resolve with false on error (navigation blocked)
-			navigationPromiseRef.current?.resolve(false)
-			navigationPromiseRef.current = null
+			await resolveNavigation(false)
 		} finally {
 			setIsSavingForNavigation(false)
 		}
 	})
 
 	// Handle discard and navigate
-	const handleDiscardAndNavigate = useMemoizedFn(() => {
-		void (async () => {
-			const didDiscard = activeSlideDiscardHandlerRef.current
-				? await activeSlideDiscardHandlerRef.current()
-				: true
-			if (!didDiscard) return
+	const handleDiscardAndNavigate = useMemoizedFn(async () => {
+		const didDiscard = activeSlideDiscardHandlerRef.current
+			? await activeSlideDiscardHandlerRef.current()
+			: true
+		if (!didDiscard) return
 
-			setShowNavigationDialog(false)
-			setPendingNavigation(null)
-			navigationPromiseRef.current?.resolve(true)
-			navigationPromiseRef.current = null
-		})()
+		setShowNavigationDialog(false)
+		await resolveNavigation(true)
 	})
 
 	// Handle cancel navigation
 	const handleCancelNavigation = useMemoizedFn(() => {
 		setShowNavigationDialog(false)
-		setPendingNavigation(null)
+		cancelNavigation()
+	})
 
-		// Resolve promise with false (navigation cancelled)
-		navigationPromiseRef.current?.resolve(false)
-		navigationPromiseRef.current = null
+	const handleNavigationDialogOpenChange = useMemoizedFn((show: boolean) => {
+		setShowNavigationDialog(show)
+		if (!show) cancelNavigation()
 	})
 
 	// Compute target page number for dialog
@@ -178,7 +171,7 @@ function useCheckBeforeNavigate({
 		registerSaveHandler,
 		registerDiscardHandler,
 		showNavigationDialog,
-		setShowNavigationDialog,
+		setShowNavigationDialog: handleNavigationDialogOpenChange,
 		isSavingForNavigation,
 		targetPageNumber,
 		handleSaveAndNavigate,

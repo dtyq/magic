@@ -6,28 +6,26 @@ Read [SKILL.md](../SKILL.md) first. Use diagnostic tools only when page behavior
 
 ```python
 browser_evaluate(
-    page_id: str,
     expression: str,
     argument: JSON | None = None,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
+browser_add_init_script(source: str, tab_id: str | None = None)
 browser_read_console(
-    page_id: str,
     clear: bool = True,
     limit: int = 100,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
 browser_read_network(
-    page_id: str,
     clear: bool = True,
     limit: int = 100,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
 ```
 
 ## JavaScript Evaluation
 
-`browser_evaluate` runs targeted JavaScript in the selected page.
+`browser_evaluate` runs targeted JavaScript in the current tab. All diagnostic tools use that same current tab. `browser_add_init_script` registers JavaScript before site scripts on future navigations of this tab; it does not execute on the current document.
 
 Use it for:
 
@@ -50,7 +48,6 @@ The result content shows a bounded value preview. The complete JSON-serializable
 
 ```python
 result = tool.call("browser_evaluate", {
-    "page_id": page_id,
     "expression": "() => ({ title: document.title, ready: document.readyState })",
 })
 print(result.content)
@@ -73,8 +70,8 @@ Prefer metadata such as method, sanitized URL, status, resource type, timing, an
 ## Failure Handling
 
 - Stale ref: take a new snapshot.
-- Page not found: list pages and select the current page explicitly.
-- Session disconnected: list sessions; resume only through the product connection flow.
+- Page not found: use `browser_list_tabs` and `browser_select_tab` to choose an existing tab, or `browser_navigate` when no tabs remain.
+- Session disconnected: list Browser instances; resume only through the product connection flow.
 - Unsupported capability: read session capabilities and use a documented alternative.
 - Navigation timeout: inspect the current URL and page state before retrying. Do not assume the navigation failed completely.
 - Script injection or Lens failure: report the error. Do not silently replace Lens with a server-side converter.

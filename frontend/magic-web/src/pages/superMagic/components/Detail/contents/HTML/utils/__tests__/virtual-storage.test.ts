@@ -1057,3 +1057,230 @@ describe("virtual HTML storage host", () => {
 		expect(bridgeScript).toContain("IDBKeyRange")
 	})
 })
+
+const STORAGE_DB_NAME = "MagicHtmlVirtualStorage"
+const STORAGE_STORE_NAME = "namespaces"
+
+interface SeededPersistedState {
+	namespace: string
+	localStorage?: Record<string, string>
+	updatedAt?: number
+}
+
+/** 直接向底层 IndexedDB 写入历史记录，模拟旧版本的持久化数据。 */
+async function seedPersistedState(record: SeededPersistedState): Promise<void> {
+	await new Promise<void>((resolve, reject) => {
+		const request = indexedDB.open(STORAGE_DB_NAME, 1)
+
+		request.onupgradeneeded = () => {
+			const db = request.result
+			if (!db.objectStoreNames.contains(STORAGE_STORE_NAME)) {
+				db.createObjectStore(STORAGE_STORE_NAME, { keyPath: "namespace" })
+			}
+		}
+		request.onerror = () => reject(request.error)
+		request.onsuccess = () => {
+			const db = request.result
+			const tx = db.transaction(STORAGE_STORE_NAME, "readwrite")
+			tx.objectStore(STORAGE_STORE_NAME).put({
+				namespace: record.namespace,
+				localStorage: record.localStorage ?? {},
+				sessionStorage: {},
+				cookies: {},
+				indexedDB: {},
+				updatedAt: record.updatedAt ?? Date.now(),
+			})
+			tx.oncomplete = () => {
+				db.close()
+				resolve()
+			}
+			tx.onerror = () => reject(tx.error)
+			tx.onabort = () => reject(tx.error)
+		}
+	})
+}
+
+async function readSeededState(namespace: string): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		const request = indexedDB.open(STORAGE_DB_NAME, 1)
+
+		request.onerror = () => reject(request.error)
+		request.onsuccess = () => {
+			const db = request.result
+			const tx = db.transaction(STORAGE_STORE_NAME, "readonly")
+			const getRequest = tx.objectStore(STORAGE_STORE_NAME).get(namespace)
+			getRequest.onsuccess = () => {
+				db.close()
+				resolve(getRequest.result)
+			}
+			getRequest.onerror = () => {
+				db.close()
+				reject(getRequest.error)
+			}
+		}
+	})
+}
+
+describe("virtual HTML storage legacy topic namespace migration", () => {
+	beforeEach(async () => {
+		const { resetVirtualStorageForTests } = await import("../virtual-storage")
+		resetVirtualStorageForTests()
+		vi.spyOn(console, "log").mockImplementation(() => undefined)
+	})
+
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it("reads legacy per-topic data when the folded namespace has no record", async () => {
+		const { buildHtmlVirtualStorageNamespace, createVirtualStorageContext } =
+			await import("../virtual-storage")
+
+		await seedPersistedState({
+			namespace:
+				"magic-html-storage:project:legacy-read-project:topic:topic-a:file:index-file",
+			localStorage: { theme: "dark" },
+			updatedAt: 1_700_000_000_000,
+		})
+
+		const namespace = buildHtmlVirtualStorageNamespace({
+			projectId: "legacy-read-project",
+			fileId: "index-file",
+		})
+		const context = await createVirtualStorageContext({ namespace })
+
+		expect(context.snapshot.localStorage).toEqual({ theme: "dark" })
+	})
+
+	it("picks the most recently updated topic as the migration source", async () => {
+		const { buildHtmlVirtualStorageNamespace, createVirtualStorageContext } =
+			await import("../virtual-storage")
+
+		await seedPersistedState({
+			namespace:
+				"magic-html-storage:project:legacy-latest-project:topic:topic-old:file:index-file",
+			localStorage: { theme: "light" },
+			updatedAt: 1_600_000_000_000,
+		})
+		await seedPersistedState({
+			namespace:
+				"magic-html-storage:project:legacy-latest-project:topic:topic-new:file:index-file",
+			localStorage: { theme: "dark" },
+			updatedAt: 1_700_000_000_000,
+		})
+
+		const namespace = buildHtmlVirtualStorageNamespace({
+			projectId: "legacy-latest-project",
+			fileId: "index-file",
+		})
+		const context = await createVirtualStorageContext({ namespace })
+
+		expect(context.snapshot.localStorage).toEqual({ theme: "dark" })
+	})
+
+	it("never overwrites existing folded-namespace data", async () => {
+		const { buildHtmlVirtualStorageNamespace, createVirtualStorageContext } =
+			await import("../virtual-storage")
+
+		const namespace = buildHtmlVirtualStorageNamespace({
+			projectId: "legacy-existing-project",
+			fileId: "index-file",
+		})
+		await seedPersistedState({
+			namespace,
+			localStorage: { theme: "solarized" },
+			updatedAt: 1_500_000_000_000,
+		})
+		await seedPersistedState({
+			namespace:
+				"magic-html-storage:project:legacy-existing-project:topic:topic-a:file:index-file",
+			localStorage: { theme: "dark" },
+			updatedAt: 1_700_000_000_000,
+		})
+
+		const context = await createVirtualStorageContext({ namespace })
+
+		expect(context.snapshot.localStorage).toEqual({ theme: "solarized" })
+
+		// 二次读取保持幂等，不因旧记录更新而重新覆盖。
+		await seedPersistedState({
+			namespace:
+				"magic-html-storage:project:legacy-existing-project:topic:topic-b:file:index-file",
+			localStorage: { theme: "nord" },
+			updatedAt: 1_900_000_000_000,
+		})
+		const reread = await createVirtualStorageContext({ namespace })
+		expect(reread.snapshot.localStorage).toEqual({ theme: "solarized" })
+	})
+
+	it("does not migrate legacy records from another project or file", async () => {
+		const { buildHtmlVirtualStorageNamespace, createVirtualStorageContext } =
+			await import("../virtual-storage")
+
+		await seedPersistedState({
+			namespace:
+				"magic-html-storage:project:legacy-isolation-other:topic:topic-a:file:index-file",
+			localStorage: { theme: "dark" },
+		})
+		await seedPersistedState({
+			namespace:
+				"magic-html-storage:project:legacy-isolation-project:topic:topic-a:file:other-file",
+			localStorage: { theme: "dark" },
+		})
+
+		const namespace = buildHtmlVirtualStorageNamespace({
+			projectId: "legacy-isolation-project",
+			fileId: "index-file",
+		})
+		const context = await createVirtualStorageContext({ namespace })
+
+		expect(context.snapshot.localStorage).toEqual({})
+	})
+
+	it("keeps legacy records in place after migrating", async () => {
+		const { buildHtmlVirtualStorageNamespace, createVirtualStorageContext } =
+			await import("../virtual-storage")
+
+		const legacyNamespace =
+			"magic-html-storage:project:legacy-keep-project:topic:topic-a:file:index-file"
+		await seedPersistedState({
+			namespace: legacyNamespace,
+			localStorage: { theme: "dark" },
+			updatedAt: 1_700_000_000_000,
+		})
+
+		const namespace = buildHtmlVirtualStorageNamespace({
+			projectId: "legacy-keep-project",
+			fileId: "index-file",
+		})
+		await createVirtualStorageContext({ namespace })
+
+		expect(await readSeededState(legacyNamespace)).toMatchObject({
+			namespace: legacyNamespace,
+			localStorage: { theme: "dark" },
+		})
+		expect(await readSeededState(namespace)).toMatchObject({
+			namespace,
+			localStorage: { theme: "dark" },
+		})
+	})
+
+	it("does not treat an unrelated ephemeral namespace as a migration source", async () => {
+		const { buildHtmlVirtualStorageNamespace, createVirtualStorageContext } =
+			await import("../virtual-storage")
+
+		await seedPersistedState({
+			namespace: "magic-html-storage:ephemeral:legacy-ephemeral-file",
+			localStorage: { theme: "dark" },
+			updatedAt: 1_900_000_000_000,
+		})
+
+		const namespace = buildHtmlVirtualStorageNamespace({
+			projectId: "legacy-ephemeral-project",
+			fileId: "legacy-ephemeral-file",
+		})
+		const context = await createVirtualStorageContext({ namespace })
+
+		expect(context.snapshot.localStorage).toEqual({})
+	})
+})

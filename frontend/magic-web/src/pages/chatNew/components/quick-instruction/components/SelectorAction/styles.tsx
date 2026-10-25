@@ -25,10 +25,14 @@ export const useStyles = createStyles(({ css, prefixCls, token }) => {
 				background-color: ${token.magicColorUsages.primaryLight.default};
 			}
 		`,
-		menu: css`
+		viewport: css`
+			height: auto;
 			max-height: 50vh;
-			overflow-y: auto;
-
+			> div {
+				display: block !important;
+			}
+		`,
+		menu: css`
 			.${prefixCls}-menu-title-content {
 				span {
 					width: 100%;

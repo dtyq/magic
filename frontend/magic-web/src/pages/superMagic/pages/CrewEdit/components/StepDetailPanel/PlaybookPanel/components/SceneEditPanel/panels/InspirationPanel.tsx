@@ -6,6 +6,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Input } from "@/components/shadcn-ui/input"
 import { Separator } from "@/components/shadcn-ui/separator"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
@@ -26,7 +27,7 @@ import {
 	isIdentifiedOptionItem,
 	resolveDemoPromptText,
 } from "@/pages/superMagic/components/MainInputContainer/panels/utils"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import { Badge } from "@/components/shadcn-ui/badge"
 import type { InspirationItemData } from "../inspirationItems"
 
@@ -308,7 +309,7 @@ export const InspirationPanel = observer(function InspirationPanel() {
 			</div>
 
 			{/* Content area */}
-			<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto rounded-lg border border-border p-4">
+			<div className="flex min-h-0 flex-1 flex-col gap-4 rounded-lg border border-border p-4">
 				{/* Toolbar: Create Group + scrollable group tabs */}
 				<div className="flex shrink-0 items-center gap-3">
 					{readOnly ? null : (
@@ -374,45 +375,52 @@ export const InspirationPanel = observer(function InspirationPanel() {
 				</div>
 
 				{/* Items / Empty state */}
-				{filteredItems.length === 0 ? (
-					<div className="flex flex-1 flex-col items-center justify-center">
-						<EmptyState
-							title={t("playbook.edit.inspiration.empty.title")}
-							description={t("playbook.edit.inspiration.empty.description")}
-							createLabel={t("playbook.edit.inspiration.empty.create")}
-							onCreate={readOnly ? undefined : openCreateItem}
+				{/* Keep group controls fixed and let the empty state fill the item viewport. */}
+				{/* Inset cards without moving them so their selection rings are not clipped. */}
+				<ScrollArea
+					className="-m-1 grid min-h-0 flex-1"
+					viewportClassName="h-auto min-h-0 p-1 [&>div]:!flex [&>div]:min-h-full [&>div]:flex-col"
+				>
+					{filteredItems.length === 0 ? (
+						<div className="flex flex-1 flex-col items-center justify-center">
+							<EmptyState
+								title={t("playbook.edit.inspiration.empty.title")}
+								description={t("playbook.edit.inspiration.empty.description")}
+								createLabel={t("playbook.edit.inspiration.empty.create")}
+								onCreate={readOnly ? undefined : openCreateItem}
+							/>
+						</div>
+					) : readOnly ? (
+						<TemplateViewSwitcher
+							mode="view"
+							viewType={config?.demo?.view_type}
+							items={filteredItems}
+							onTemplateClick={() => undefined}
 						/>
-					</div>
-				) : readOnly ? (
-					<TemplateViewSwitcher
-						mode="view"
-						viewType={config?.demo?.view_type}
-						items={filteredItems}
-						onTemplateClick={() => undefined}
-					/>
-				) : (
-					<TemplateViewSwitcher
-						mode="edit"
-						viewType={config?.demo?.view_type}
-						items={filteredItems}
-						selectedKeys={selectedKeys}
-						onSelect={handleSelectOne}
-						onEdit={(item) => openEditItem(item, activeGroupKey ?? "")}
-						onDelete={(value) =>
-							confirm({
-								title: t("playbook.edit.inspiration.deleteItemConfirm.title"),
-								description: t(
-									"playbook.edit.inspiration.deleteItemConfirm.description",
-								),
-								variant: "destructive",
-								onConfirm: () => {
-									storeRef.current.deleteInspirationItem(value)
-									void storeRef.current.save()
-								},
-							})
-						}
-					/>
-				)}
+					) : (
+						<TemplateViewSwitcher
+							mode="edit"
+							viewType={config?.demo?.view_type}
+							items={filteredItems}
+							selectedKeys={selectedKeys}
+							onSelect={handleSelectOne}
+							onEdit={(item) => openEditItem(item, activeGroupKey ?? "")}
+							onDelete={(value) =>
+								confirm({
+									title: t("playbook.edit.inspiration.deleteItemConfirm.title"),
+									description: t(
+										"playbook.edit.inspiration.deleteItemConfirm.description",
+									),
+									variant: "destructive",
+									onConfirm: () => {
+										storeRef.current.deleteInspirationItem(value)
+										void storeRef.current.save()
+									},
+								})
+							}
+						/>
+					)}
+				</ScrollArea>
 			</div>
 
 			{/* Dialogs */}

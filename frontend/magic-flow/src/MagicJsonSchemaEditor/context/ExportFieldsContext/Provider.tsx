@@ -1,7 +1,7 @@
 import Schema from "@/MagicJsonSchemaEditor/types/Schema"
 import SchemaDescription from "@/MagicJsonSchemaEditor/types/SchemaDescription"
 import { useUpdateEffect } from "ahooks"
-import _ from "lodash"
+
 import type { PropsWithChildren } from "react"
 import React, { useMemo, useState } from "react"
 

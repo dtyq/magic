@@ -77,7 +77,17 @@ class PlatformSettingInitializer
         }
 
         if ($changed) {
-            $this->platformSettingsAppService->save(PlatformSettings::fromArray($settingsData));
+            $this->platformSettingsAppService->update(static function (PlatformSettings $current) use ($hasName, $hasDescription, $language, $normalizedName, $normalizedDescription): PlatformSettings {
+                $data = $current->toArray();
+                if ($hasName) {
+                    $data['name_i18n'][$language] = $normalizedName;
+                    $data['agent_role_name_i18n'][$language] = $normalizedName;
+                }
+                if ($hasDescription) {
+                    $data['agent_role_description_i18n'][$language] = $normalizedDescription;
+                }
+                return PlatformSettings::fromArray($data);
+            });
         }
 
         return [

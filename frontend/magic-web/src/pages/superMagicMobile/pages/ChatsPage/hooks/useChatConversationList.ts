@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDebounce, useMemoizedFn } from "ahooks"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { useTranslation } from "react-i18next"

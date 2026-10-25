@@ -5,7 +5,8 @@ import type { ProjectOrganizationAccessStatus } from "../../contexts/ProjectOrga
 
 const mocks = vi.hoisted(() => ({
 	historyListener: null as
-		null | ((update: { action: string; location: { pathname: string } }) => void),
+		| null
+		| ((update: { action: string; location: { pathname: string } }) => void),
 }))
 
 vi.mock("@/routes/history", () => ({

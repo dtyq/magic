@@ -143,10 +143,16 @@ class PlaywrightBackend(ABC):
 
     async def open_page(self, url: str = "about:blank") -> BrowserPage:
         handle = await self._runtime.open_page()
-        page = await self._runtime.describe_page(handle)
-        if url == "about:blank":
-            return page
-        return await self.navigate(page.id, url)
+        try:
+            page = await self._runtime.describe_page(handle)
+            if url == "about:blank":
+                return page
+            return await self.navigate(page.id, url)
+        except BaseException:
+            # 只回滚本次新页；navigate 自身仍保留有效文档的超时恢复和已有页状态。
+            self._observer.clear_page(handle.page_id)
+            await self._runtime.discard_new_page(handle.page)
+            raise
 
     async def close_page(self, page_id: str) -> None:
         self._observer.clear_page(page_id)

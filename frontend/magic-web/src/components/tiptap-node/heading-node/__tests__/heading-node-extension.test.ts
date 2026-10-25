@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest"
-import { Editor } from "@tiptap/core"
-import { StarterKit } from "@tiptap/starter-kit"
+import { Editor } from "@/infrastructure/editors/tiptap/core"
+import { StarterKit } from "@/infrastructure/editors/tiptap/starter-kit"
 import { HeadingNode } from "../heading-node-extension"
 
 describe("HeadingNode Extension", () => {

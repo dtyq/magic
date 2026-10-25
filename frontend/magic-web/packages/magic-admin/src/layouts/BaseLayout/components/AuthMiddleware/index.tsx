@@ -1,14 +1,16 @@
 import type { ComponentType } from "react"
 import { useState } from "react"
 import { useMemoizedFn, useMount } from "ahooks"
-import { MagicSpin } from "@admin-components"
 import { useAdminStore } from "@admin/stores/admin"
 import { useApis } from "@admin/apis"
 import { PERMISSION_KEY_MAP } from "@admin/const/common"
-import { Flex } from "antd"
 
 export interface AuthMiddlewareProps {
 	className?: string
+}
+
+export interface AuthMiddlewareInjectedProps {
+	authLoading?: boolean
 }
 
 /**
@@ -20,8 +22,12 @@ export interface AuthMiddlewareProps {
  * @returns 包装后的组件
  * ```
  */
-export function withAuthMiddleware<P extends object>(WrappedComponent: ComponentType<P>) {
-	return function AuthMiddleware(props: P & AuthMiddlewareProps) {
+export function withAuthMiddleware<P extends object>(
+	WrappedComponent: ComponentType<P & AuthMiddlewareInjectedProps>,
+) {
+	return function AuthMiddleware(
+		props: Omit<P, keyof AuthMiddlewareInjectedProps> & AuthMiddlewareProps,
+	) {
 		const { AIManageApi, SecurityApi } = useApis()
 		const {
 			isPermissionInitialized,
@@ -36,8 +42,8 @@ export function withAuthMiddleware<P extends object>(WrappedComponent: Component
 
 		// 获取权限数据（并行请求以缩短加载时间）
 		const getAuthorizedPermission = useMemoizedFn(async () => {
+			setLoading(true)
 			try {
-				// 前 4 个请求互不依赖，并行执行
 				const [officialOrgRes, permissionRes] = await Promise.all([
 					AIManageApi.isOfficialOrg(),
 					SecurityApi.getMyPermissionList(),
@@ -47,10 +53,8 @@ export function withAuthMiddleware<P extends object>(WrappedComponent: Component
 					permissionRes.permission_key.includes(
 						PERMISSION_KEY_MAP.MAGIC_PLATFORM_PERMISSIONS,
 					)
-				// 是否是官方组织
 				setIsOfficialOrg(isOfficial)
 
-				/** 是否是个人组织 */
 				const isPersonal = permissionRes.permission_key.includes(
 					PERMISSION_KEY_MAP.MAGIC_PERSON_PERMISSIONS,
 				)
@@ -66,20 +70,10 @@ export function withAuthMiddleware<P extends object>(WrappedComponent: Component
 			}
 		})
 
-		// 只在权限未初始化时执行权限获取
 		useMount(() => {
 			getAuthorizedPermission()
 		})
 
-		// 权限初始化中，显示加载状态
-		if (loading) {
-			return (
-				<Flex justify="center" align="center" style={{ height: "100vh", width: "100vw" }}>
-					<MagicSpin spinning />
-				</Flex>
-			)
-		}
-
-		return <WrappedComponent {...props} />
+		return <WrappedComponent {...(props as P)} authLoading={loading} />
 	}
 }

@@ -3,7 +3,7 @@ import styles from "@/MagicFlow/nodes/BaseNode/index.module.less"
 import { nodeManager } from "@/MagicFlow/register/node"
 import { MagicFlow } from "@/MagicFlow/types/flow"
 import clsx from "clsx"
-import _ from "lodash"
+import { get, isString } from "lodash-es"
 import React, { useMemo } from "react"
 
 type UseAvatarProps = {
@@ -15,7 +15,7 @@ type UseAvatarProps = {
 export default function useAvatar({ icon, color, currentNode }: UseAvatarProps) {
 	const AvatarComponent = useMemo(() => {
 		const avatar =
-			_.get(currentNode, nodeManager.avatarPath, "") || (_.isString(icon) ? icon : "")
+			get(currentNode, nodeManager.avatarPath, "") || (isString(icon) ? icon : "")
 		if (avatar) {
 			return (
 				<img

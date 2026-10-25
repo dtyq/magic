@@ -9,13 +9,14 @@ import {
 } from "../canvasLoop"
 import { useTemplateCanvasVisibleItems } from "../useTemplateCanvasVisibleItems"
 
-function createTile(index: number): SlidesTemplateCanvasTile {
+function createTile(index: number, isFavorite = false): SlidesTemplateCanvasTile {
 	return {
 		id: `template-${index}`,
 		kind: "cover",
 		template: {
 			label: `Template ${index}`,
 			value: `template-${index}`,
+			is_favorite: isFavorite,
 		},
 	}
 }
@@ -137,5 +138,66 @@ describe("useTemplateCanvasVisibleItems", () => {
 
 		expect(offsetRef.current).toEqual<TemplateCanvasPoint>(expectedOffset)
 		expect(onOffsetRebase).toHaveBeenCalledTimes(1)
+	})
+
+	it("does not keep stale preserved cards after a favorite update", () => {
+		const initialItems = buildTemplateCanvasItems(
+			Array.from({ length: 12 }, (_, index) => createTile(index + 1)),
+		)
+		const appendedItems = buildTemplateCanvasItems(
+			Array.from({ length: 24 }, (_, index) => createTile(index + 1)),
+		)
+		const favoriteUpdatedItems = buildTemplateCanvasItems(
+			Array.from({ length: 24 }, (_, index) => createTile(index + 1, index === 0)),
+		)
+		const initialLoopMetrics = getSlidesTemplateCanvasLoopMetrics(initialItems)
+		const appendedLoopMetrics = getSlidesTemplateCanvasLoopMetrics(appendedItems)
+		const updatedLoopMetrics = getSlidesTemplateCanvasLoopMetrics(favoriteUpdatedItems)
+		const viewport = document.createElement("div")
+		vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue({
+			bottom: 600,
+			height: 600,
+			left: 0,
+			right: 800,
+			top: 0,
+			width: 800,
+			x: 0,
+			y: 0,
+			toJSON: () => ({}),
+		})
+		const viewportRef = createRef<HTMLDivElement>()
+		viewportRef.current = viewport
+		const offsetRef = { current: { x: 0, y: 0 } }
+		const scaleRef = { current: 0.6 }
+		const onOffsetRebase = vi.fn()
+
+		const { result, rerender } = renderHook(
+			({
+				items,
+				loopMetrics,
+			}: {
+				items: typeof initialItems
+				loopMetrics: typeof initialLoopMetrics
+			}) =>
+				useTemplateCanvasVisibleItems({
+					canvasItems: items,
+					loopMetrics,
+					onOffsetRebase,
+					offsetRef,
+					resetKey: "all:",
+					scaleRef,
+					viewportRef,
+				}),
+			{ initialProps: { items: initialItems, loopMetrics: initialLoopMetrics } },
+		)
+
+		rerender({ items: appendedItems, loopMetrics: appendedLoopMetrics })
+		rerender({ items: favoriteUpdatedItems, loopMetrics: updatedLoopMetrics })
+
+		expect(
+			result.current.visibleCanvasItems.some(
+				({ item }) => item.template.is_favorite === true,
+			),
+		).toBe(true)
 	})
 })

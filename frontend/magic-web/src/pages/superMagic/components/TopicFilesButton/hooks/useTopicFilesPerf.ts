@@ -38,7 +38,7 @@ export function useTopicFilesPerfSession({
 				reason: "component_cleanup",
 			})
 		}
-	}, [attachments, projectId, selectedProjectId])
+	}, [projectId, selectedProjectId])
 }
 
 export function measureMergedFilesBuild<T extends AttachmentItem[]>(

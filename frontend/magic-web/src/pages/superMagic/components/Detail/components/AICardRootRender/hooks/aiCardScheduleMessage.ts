@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 
 /** Extract plain text from the stored prompt value (JSON string of JSONContent) */
 export function getPromptPlainText(prompt: string): string {

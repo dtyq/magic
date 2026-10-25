@@ -1,8 +1,7 @@
-import { memo, useMemo, useCallback, ClipboardEvent } from "react"
+import { memo, useMemo, useCallback, ClipboardEvent, Suspense } from "react"
 import { useTranslation } from "react-i18next"
 import { Flex } from "antd"
-// @ts-ignore
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { McpSyntaxHighlighter as SyntaxHighlighter } from "@/infrastructure/vendors/react-syntax-highlighter/mcp"
 // Types
 import type { McpToolContentProps } from "./types"
 
@@ -182,57 +181,65 @@ const McpToolContent = memo(({ detail, className }: McpToolContentProps) => {
 				<Flex vertical gap={4} className={styles.section}>
 					<span className={styles.sectionTitle}>{t("mcpTool.parameters")}</span>
 					<div className={styles.codeBlock} onCopy={handleCopy} data-testid="handle-copy">
-						<SyntaxHighlighter
-							language="json"
-							style={customTheme}
-							customStyle={{
-								background: colorTheme.bgCode,
-								margin: 0,
-								padding: "10px",
-								fontSize: "12px",
-								lineHeight: "1.5",
-							}}
-							showLineNumbers={true}
-							lineNumberStyle={{
-								color: colorTheme.textSecondary,
-								fontSize: "12px",
-								paddingRight: "10px",
-								userSelect: "none",
-								textAlign: "center",
-								minWidth: "12px",
-							}}
-						>
-							{formattedParameters}
-						</SyntaxHighlighter>
+						<Suspense fallback={null}>
+							<SyntaxHighlighter
+								language="json"
+								style={customTheme}
+								customStyle={{
+									background: colorTheme.bgCode,
+									margin: 0,
+									padding: "10px",
+									fontSize: "12px",
+									lineHeight: "1.5",
+								}}
+								showLineNumbers={true}
+								lineNumberStyle={{
+									color: colorTheme.textSecondary,
+									fontSize: "12px",
+									paddingRight: "10px",
+									userSelect: "none",
+									textAlign: "center",
+									minWidth: "12px",
+								}}
+							>
+								{formattedParameters}
+							</SyntaxHighlighter>
+						</Suspense>
 					</div>
 				</Flex>
 
 				{/* Result Section */}
 				<Flex vertical gap={4} className={cx(styles.section, styles.resultSection)}>
 					<span className={styles.sectionTitle}>{t("mcpTool.result")}</span>
-					<div className={styles.codeBlock} onCopy={handleCopy} data-testid="handle-copy-2">
-						<SyntaxHighlighter
-							language="json"
-							style={customTheme}
-							customStyle={{
-								background: colorTheme.bgCode,
-								margin: 0,
-								padding: "10px",
-								fontSize: "12px",
-								lineHeight: "1.5",
-							}}
-							showLineNumbers={true}
-							lineNumberStyle={{
-								color: colorTheme.textSecondary,
-								fontSize: "12px",
-								paddingRight: "10px",
-								userSelect: "none",
-								textAlign: "center",
-								minWidth: "12px",
-							}}
-						>
-							{formattedResult}
-						</SyntaxHighlighter>
+					<div
+						className={styles.codeBlock}
+						onCopy={handleCopy}
+						data-testid="handle-copy-2"
+					>
+						<Suspense fallback={null}>
+							<SyntaxHighlighter
+								language="json"
+								style={customTheme}
+								customStyle={{
+									background: colorTheme.bgCode,
+									margin: 0,
+									padding: "10px",
+									fontSize: "12px",
+									lineHeight: "1.5",
+								}}
+								showLineNumbers={true}
+								lineNumberStyle={{
+									color: colorTheme.textSecondary,
+									fontSize: "12px",
+									paddingRight: "10px",
+									userSelect: "none",
+									textAlign: "center",
+									minWidth: "12px",
+								}}
+							>
+								{formattedResult}
+							</SyntaxHighlighter>
+						</Suspense>
 					</div>
 				</Flex>
 			</Flex>

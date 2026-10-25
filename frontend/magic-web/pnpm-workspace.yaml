@@ -2,7 +2,9 @@
 # standalone install root with its own pnpm-workspace.yaml and pnpm-lock.yaml,
 # so this (open-source) lockfile never references commercial dependencies.
 packages:
+  - "packages/browser-apm"
   - "packages/magic-admin"
+  - "packages/magic-admin-v2"
   - "packages/html2pptx"
   - "packages/html2image"
   - "packages/magic-widget-sdk"
@@ -12,8 +14,6 @@ packages:
 overrides:
   "@dtyq/magic-flow>react": 18.3.1
   "@dtyq/magic-flow>react-dom": 18.3.1
-  "@feb/editor-tiptap>@tiptap/extension-list": 3.11.1
-  "@feb/editor-tiptap>@tiptap/extensions": 3.11.1
   # Tiptap's official v3 packages share runtime APIs and must stay on one
   # release. Keep this list explicit: @tiptap/y-tiptap is also official but
   # has an independent version line, while non-@tiptap editor packages are
@@ -66,10 +66,12 @@ overrides:
   "@tiptap/suggestion": 3.11.1
   "@types/react": 18.3.23
   "@types/react-dom": 18.3.7
+  "lucide-react": "0.577.0"
+  "@tabler/icons-react": "3.46.0"
   esbuild: 0.24.0
+  # @dtyq/eslint-config@0.0.11 still targets ESLint 8 + typescript-eslint 5.
+  # Without this pin, autoInstallPeers pulls eslint@9 into packages that omit
+  # a direct eslint dependency (e.g. magic-admin) and mixes incompatible plugins.
+  eslint: 8.57.1
   katex: 0.16.21
   marked: 15.0.12
-
-patchedDependencies:
-  pptxgenjs: patches/pptxgenjs.patch
-  tiptap-markdown: patches/tiptap-markdown.patch

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kraken Pro Exchange Terminal — ETH/USD Margin</title>
+  <style>
+    :root {
+      --kraken-purple: #7132f5;
+      --purple-dark: #5741d8;
+      --purple-subtle: rgba(113, 50, 245, 0.16);
+      --bg-terminal: #07070e;
+      --bg-panel: #0d0e15;
+      --bg-card: #13141f;
+      --bg-elevated: #181926;
+      --border-dark: #222334;
+      --text-white: #ffffff;
+      --cool-gray: #9497a9;
+      --muted-gray: #686b82;
+      --trading-green: #149e61;
+      --trading-red: #f6465d;
+      --font-display: "Kraken-Brand", "IBM Plex Sans", sans-serif;
+      --font-ui: "Kraken-Product", -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: "IBM Plex Mono", monospace;
+      --radius-sm: 6px;
+      --radius-btn: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg-terminal); color: var(--text-white); font-family: var(--font-ui); font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
+    .pro-header { height: 50px; background: var(--bg-panel); border-bottom: 1px solid var(--border-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; position: sticky; top: 0; z-index: 100; }
+    .header-left, .header-right { display: flex; align-items: center; }
+    .header-left { gap: 20px; }
+    .kraken-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    .brand-squid { width: 24px; height: 24px; background: var(--kraken-purple); border-radius: 6px; display: grid; place-items: center; color: #fff; font-family: var(--font-display); font-weight: 800; font-size: 15px; }
+    .brand-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -0.4px; }
+    .pro-tag { font-size: 10px; font-weight: 700; background: var(--purple-subtle); color: var(--kraken-purple); padding: 1px 5px; border-radius: 4px; border: 1px solid rgba(113,50,245,0.3); }
+    .nav-links { display: flex; gap: 16px; list-style: none; font-size: 13px; color: var(--cool-gray); }
+    .nav-link.active { color: var(--text-white); font-weight: 600; }
+    .header-right { gap: 10px; }
+    .proof-badge-btn { display: flex; align-items: center; gap: 6px; background: rgba(20,158,97,0.12); border: 1px solid rgba(20,158,97,0.3); padding: 4px 10px; border-radius: var(--radius-sm); font-size: 11px; color: var(--trading-green); font-weight: 600; }
+    .btn-deposit-purple { background: var(--kraken-purple); color: #fff; border: none; font-weight: 600; font-size: 12px; padding: 6px 14px; border-radius: var(--radius-btn); cursor: pointer; }
+
+    .market-bar { height: 42px; background: var(--bg-panel); border-bottom: 1px solid var(--border-dark); display: flex; align-items: center; padding: 0 16px; gap: 20px; overflow-x: auto; }
+    .pair-badge { display: flex; align-items: center; gap: 6px; }
+    .pair-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: #fff; }
+    .pair-leverage-tag { font-size: 10px; font-weight: 700; background: rgba(113,50,245,0.25); color: #c4b5fd; padding: 1px 5px; border-radius: 3px; }
+    .market-price { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--trading-green); }
+    .stat-col { display: flex; flex-direction: column; }
+    .stat-lbl { font-size: 10px; color: var(--muted-gray); }
+    .stat-num { font-family: var(--font-mono); font-size: 11px; color: var(--cool-gray); }
+
+    .terminal-main { display: grid; grid-template-columns: 1fr 260px 300px; gap: 1px; background: var(--border-dark); }
+    .panel-cell { background: var(--bg-panel); display: flex; flex-direction: column; }
+    .panel-top { height: 34px; padding: 0 10px; border-bottom: 1px solid var(--border-dark); display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--cool-gray); }
+    .chart-container { flex: 1; padding: 10px; display: flex; flex-direction: column; }
+    .chart-stat-head { display: flex; gap: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--muted-gray); margin-bottom: 6px; }
+    .chart-svg-box { width: 100%; height: 300px; }
+
+    .ladder-head { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 5px 8px; font-size: 10px; color: var(--muted-gray); border-bottom: 1px solid var(--border-dark); }
+    .ladder-row { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 3px 8px; font-family: var(--font-mono); font-size: 11px; position: relative; }
+    .ladder-bar { position: absolute; top: 0; bottom: 0; right: 0; opacity: 0.18; pointer-events: none; }
+    .ladder-ask .ladder-bar { background: var(--trading-red); }
+    .ladder-bid .ladder-bar { background: var(--trading-green); }
+    .ladder-ask .p-col { color: var(--trading-red); }
+    .ladder-bid .p-col { color: var(--trading-green); }
+    .s-col { text-align: right; color: var(--text-white); }
+    .t-col { text-align: right; color: var(--cool-gray); }
+    .mid-spread-strip { padding: 6px 8px; background: var(--bg-card); border-top: 1px solid var(--border-dark); border-bottom: 1px solid var(--border-dark); display: flex; justify-content: space-between; align-items: center; }
+    .mid-price { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--trading-green); }
+
+    .order-slip-cell { background: var(--bg-panel); padding: 12px; }
+    .trade-type-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border-dark); padding-bottom: 6px; margin-bottom: 10px; }
+    .trade-tab { font-size: 11px; font-weight: 600; color: var(--muted-gray); cursor: pointer; padding: 3px 6px; border-radius: 4px; }
+    .trade-tab.active { background: var(--purple-subtle); color: var(--kraken-purple); }
+
+    .leverage-module { background: var(--bg-card); border: 1px solid var(--border-dark); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 10px; }
+    .leverage-header { display: flex; justify-content: space-between; align-items: center; }
+    .leverage-title { font-size: 11px; font-weight: 600; color: var(--cool-gray); }
+    .leverage-cur-val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--kraken-purple); background: rgba(113,50,245,0.15); padding: 1px 5px; border-radius: 3px; }
+    .leverage-stops { display: flex; justify-content: space-between; position: relative; margin: 8px 0 4px; }
+    .leverage-stops::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: var(--border-dark); z-index: 1; }
+    .stop-btn { z-index: 2; background: var(--bg-panel); border: 1px solid var(--border-dark); border-radius: 3px; font-size: 9.5px; font-family: var(--font-mono); font-weight: 600; color: var(--cool-gray); padding: 1px 5px; cursor: pointer; }
+    .stop-btn.active { background: var(--kraken-purple); color: #fff; border-color: var(--kraken-purple); }
+
+    .form-group-field { background: var(--bg-card); border: 1px solid var(--border-dark); border-radius: var(--radius-sm); padding: 6px 8px; margin-bottom: 7px; display: flex; justify-content: space-between; align-items: center; }
+    .field-lbl { font-size: 10px; color: var(--muted-gray); }
+    .field-inp { background: transparent; border: none; color: #fff; font-family: var(--font-mono); font-size: 12px; font-weight: 600; text-align: right; outline: none; width: 100px; }
+    .field-denom { font-size: 10px; color: var(--cool-gray); margin-left: 3px; }
+
+    .margin-specs { background: var(--bg-elevated); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 10.5px; color: var(--cool-gray); margin: 8px 0 10px; }
+    .margin-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+    .margin-val { font-family: var(--font-mono); color: #fff; font-weight: 600; }
+
+    .order-action-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .btn-order-buy, .btn-order-sell { color: #fff; border: none; border-radius: var(--radius-btn); height: 36px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-order-buy { background: var(--trading-green); }
+    .btn-order-sell { background: var(--trading-red); }
+
+    .reserves-panel { background: var(--bg-panel); border-top: 1px solid var(--border-dark); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .reserves-left { display: flex; align-items: center; gap: 8px; }
+    .audit-seal { width: 24px; height: 24px; border-radius: 50%; background: var(--purple-subtle); border: 1px solid var(--kraken-purple); display: grid; place-items: center; color: var(--kraken-purple); font-size: 12px; }
+    .reserves-title { font-weight: 700; color: #fff; font-size: 11px; margin-right: 4px; }
+    .reserves-sub { color: var(--cool-gray); font-size: 11px; }
+    .reserves-hash { font-family: var(--font-mono); font-size: 10px; color: var(--kraken-purple); background: var(--bg-card); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-dark); }
+  </style>
+</head>
+<body>
+  <header class="pro-header">
+    <div class="header-left">
+      <a href="#" class="kraken-brand">
+        <div class="brand-squid">K</div>
+        <span class="brand-title">kraken</span>
+        <span class="pro-tag">PRO</span>
+      </a>
+      <ul class="nav-links">
+        <li class="nav-link active">Trade</li>
+        <li class="nav-link">Margin</li>
+        <li class="nav-link">Futures</li>
+        <li class="nav-link">Earn</li>
+      </ul>
+    </div>
+    <div class="header-right">
+      <div class="proof-badge-btn">
+        <span>✓</span>
+        <span>Proof of Reserves: Verified</span>
+      </div>
+      <button class="btn-deposit-purple">Deposit</button>
+    </div>
+  </header>
+
+  <section class="market-bar">
+    <div class="pair-badge">
+      <span class="pair-title">ETH/USD</span>
+      <span class="pair-leverage-tag">20x MARGIN</span>
+    </div>
+    <div class="market-price">$3,524.80</div>
+    <div class="stat-col">
+      <span class="stat-lbl">24h Change</span>
+      <span class="stat-num" style="color: var(--trading-green);">+140.50 (+4.15%)</span>
+    </div>
+    <div class="stat-col">
+      <span class="stat-lbl">24h High</span>
+      <span class="stat-num">3,582.00</span>
+    </div>
+    <div class="stat-col">
+      <span class="stat-lbl">24h Low</span>
+      <span class="stat-num">3,380.20</span>
+    </div>
+    <div class="stat-col">
+      <span class="stat-lbl">24h Volume</span>
+      <span class="stat-num">89,241.15 ETH</span>
+    </div>
+  </section>
+
+  <main class="terminal-main">
+    <div class="panel-cell">
+      <div class="panel-top">
+        <div style="display: flex; gap: 6px;">
+          <span style="color: var(--text-white);">Candles</span>
+          <span>15m</span>
+          <span style="color: var(--kraken-purple); font-weight: 700;">1H</span>
+          <span>4H</span>
+          <span>1D</span>
+        </div>
+        <span>EMA(20) • RSI(14)</span>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-stat-head">
+          <span>O: 3,420.00</span>
+          <span>H: 3,540.00</span>
+          <span>L: 3,410.00</span>
+          <span style="color: var(--trading-green);">C: 3,524.80</span>
+        </div>
+
+        <div class="chart-svg-box">
+          <svg width="100%" height="100%" viewBox="0 0 520 280" preserveAspectRatio="none">
+            <line x1="0" y1="55" x2="520" y2="55" stroke="#181926" stroke-dasharray="3,3"/>
+            <line x1="0" y1="120" x2="520" y2="120" stroke="#181926" stroke-dasharray="3,3"/>
+            <line x1="0" y1="185" x2="520" y2="185" stroke="#181926" stroke-dasharray="3,3"/>
+            <text x="475" y="58" fill="#686b82" font-family="var(--font-mono)" font-size="9">3,560.00</text>
+            <text x="475" y="123" fill="#686b82" font-family="var(--font-mono)" font-size="9">3,500.00</text>
+            <text x="475" y="188" fill="#686b82" font-family="var(--font-mono)" font-size="9">3,440.00</text>
+
+            <rect x="25" y="235" width="22" height="40" fill="rgba(20,158,97,0.3)"/>
+            <rect x="80" y="245" width="22" height="30" fill="rgba(246,70,93,0.3)"/>
+            <rect x="135" y="225" width="22" height="50" fill="rgba(20,158,97,0.3)"/>
+            <rect x="190" y="240" width="22" height="35" fill="rgba(246,70,93,0.3)"/>
+            <rect x="245" y="220" width="22" height="55" fill="rgba(20,158,97,0.3)"/>
+            <rect x="300" y="210" width="22" height="65" fill="rgba(20,158,97,0.4)"/>
+            <rect x="355" y="198" width="22" height="77" fill="rgba(20,158,97,0.5)"/>
+            <rect x="410" y="185" width="22" height="90" fill="rgba(20,158,97,0.6)"/>
+
+            <path d="M 36 190 Q 180 165 310 138 T 421 80" fill="none" stroke="#7132f5" stroke-width="2"/>
+
+            <line x1="36" y1="160" x2="36" y2="210" stroke="#149e61" stroke-width="1.5"/>
+            <rect x="25" y="170" width="22" height="30" fill="#149e61"/>
+            <line x1="91" y1="170" x2="91" y2="215" stroke="#f6465d" stroke-width="1.5"/>
+            <rect x="80" y="180" width="22" height="20" fill="#f6465d"/>
+            <line x1="146" y1="140" x2="146" y2="195" stroke="#149e61" stroke-width="1.5"/>
+            <rect x="135" y="150" width="22" height="32" fill="#149e61"/>
+            <line x1="201" y1="145" x2="201" y2="185" stroke="#f6465d" stroke-width="1.5"/>
+            <rect x="190" y="155" width="22" height="18" fill="#f6465d"/>
+            <line x1="256" y1="115" x2="256" y2="165" stroke="#149e61" stroke-width="1.5"/>
+            <rect x="245" y="125" width="22" height="28" fill="#149e61"/>
+            <line x1="311" y1="90" x2="311" y2="145" stroke="#149e61" stroke-width="1.5"/>
+            <rect x="300" y="100" width="22" height="32" fill="#149e61"/>
+            <line x1="366" y1="65" x2="366" y2="120" stroke="#149e61" stroke-width="1.5"/>
+            <rect x="355" y="75" width="22" height="35" fill="#149e61"/>
+            <line x1="421" y1="32" x2="421" y2="85" stroke="#149e61" stroke-width="2"/>
+            <rect x="410" y="42" width="22" height="32" fill="#149e61"/>
+
+            <line x1="0" y1="54" x2="465" y2="54" stroke="#149e61" stroke-width="1" stroke-dasharray="3,3"/>
+            <rect x="460" y="44" width="60" height="20" fill="#149e61" rx="4"/>
+            <text x="464" y="58" fill="#ffffff" font-family="var(--font-mono)" font-weight="700" font-size="9.5">3,524.80</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-cell">
+      <div class="panel-top">
+        <span>Order Book</span>
+        <span style="font-size: 10px; color: var(--muted-gray);">Group: 0.05</span>
+      </div>
+      <div class="ladder-head">
+        <span>Price</span>
+        <span style="text-align: right;">Size</span>
+        <span style="text-align: right;">Depth</span>
+      </div>
+      <div class="ladder-row ladder-ask">
+        <div class="ladder-bar" style="width: 84%;"></div>
+        <span class="p-col">3,527.10</span>
+        <span class="s-col">4.821</span>
+        <span class="t-col">24.12</span>
+      </div>
+      <div class="ladder-row ladder-ask">
+        <div class="ladder-bar" style="width: 65%;"></div>
+        <span class="p-col">3,526.40</span>
+        <span class="s-col">2.140</span>
+        <span class="t-col">19.30</span>
+      </div>
+      <div class="ladder-row ladder-ask">
+        <div class="ladder-bar" style="width: 45%;"></div>
+        <span class="p-col">3,525.90</span>
+        <span class="s-col">6.480</span>
+        <span class="t-col">17.16</span>
+      </div>
+      <div class="ladder-row ladder-ask">
+        <div class="ladder-bar" style="width: 25%;"></div>
+        <span class="p-col">3,525.20</span>
+        <span class="s-col">1.250</span>
+        <span class="t-col">10.68</span>
+      </div>
+      <div class="mid-spread-strip">
+        <span class="mid-price">3,524.80 ↗</span>
+        <span style="font-size: 10px; color: var(--muted-gray);">Spread 0.40</span>
+      </div>
+      <div class="ladder-row ladder-bid">
+        <div class="ladder-bar" style="width: 28%;"></div>
+        <span class="p-col">3,524.40</span>
+        <span class="s-col">3.120</span>
+        <span class="t-col">3.12</span>
+      </div>
+      <div class="ladder-row ladder-bid">
+        <div class="ladder-bar" style="width: 52%;"></div>
+        <span class="p-col">3,523.80</span>
+        <span class="s-col">5.840</span>
+        <span class="t-col">8.96</span>
+      </div>
+      <div class="ladder-row ladder-bid">
+        <div class="ladder-bar" style="width: 72%;"></div>
+        <span class="p-col">3,523.10</span>
+        <span class="s-col">7.210</span>
+        <span class="t-col">16.17</span>
+      </div>
+      <div class="ladder-row ladder-bid">
+        <div class="ladder-bar" style="width: 90%;"></div>
+        <span class="p-col">3,522.50</span>
+        <span class="s-col">8.450</span>
+        <span class="t-col">24.62</span>
+      </div>
+    </div>
+
+    <div class="panel-cell order-slip-cell">
+      <div class="trade-type-tabs">
+        <span class="trade-tab">Spot</span>
+        <span class="trade-tab active">Margin</span>
+        <span class="trade-tab">Futures</span>
+      </div>
+
+      <div class="leverage-module">
+        <div class="leverage-header">
+          <span class="leverage-title">Margin Leverage Slider</span>
+          <span class="leverage-cur-val">5x Leverage</span>
+        </div>
+        <div class="leverage-stops">
+          <span class="stop-btn">1x</span>
+          <span class="stop-btn">2x</span>
+          <span class="stop-btn active">5x</span>
+          <span class="stop-btn">10x</span>
+          <span class="stop-btn">20x</span>
+        </div>
+      </div>
+
+      <div class="form-group-field">
+        <span class="field-lbl">Price</span>
+        <div>
+          <input type="text" class="field-inp" value="3,524.80">
+          <span class="field-denom">USD</span>
+        </div>
+      </div>
+
+      <div class="form-group-field">
+        <span class="field-lbl">Position Size</span>
+        <div>
+          <input type="text" class="field-inp" value="2.5000">
+          <span class="field-denom">ETH</span>
+        </div>
+      </div>
+
+      <div class="margin-specs">
+        <div class="margin-row">
+          <span>Total Order</span>
+          <span class="margin-val">$8,812.00</span>
+        </div>
+        <div class="margin-row">
+          <span>Initial Margin (20%)</span>
+          <span class="margin-val" style="color: var(--kraken-purple);">$1,762.40</span>
+        </div>
+        <div class="margin-row">
+          <span>Est. Liq Price</span>
+          <span class="margin-val" style="color: var(--trading-red);">$2,842.10</span>
+        </div>
+      </div>
+
+      <div class="order-action-pair">
+        <button class="btn-order-buy">Buy / Long ETH</button>
+        <button class="btn-order-sell">Sell / Short ETH</button>
+      </div>
+
+      <div style="margin-top: 10px; font-size: 10.5px; color: var(--muted-gray); text-align: center;">
+        Borrow Limit: 250,000 USD
+      </div>
+    </div>
+  </main>
+
+  <footer class="reserves-panel">
+    <div class="reserves-left">
+      <div class="audit-seal">🔒</div>
+      <div>
+        <span class="reserves-title">Proof of Reserves: Cryptographically Verified</span>
+        <span class="reserves-sub">1:1 on-chain backing audited by Armanino LLP.</span>
+      </div>
+    </div>
+    <div class="reserves-hash">SHA-256 #8f92a10b4c81e...</div>
+  </footer>
+</body>
+</html>

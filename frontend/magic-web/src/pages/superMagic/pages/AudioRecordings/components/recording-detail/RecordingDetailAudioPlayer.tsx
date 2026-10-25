@@ -53,6 +53,8 @@ export function RecordingDetailAudioPlayer({
 				rate={playbackRate}
 				colorSegments={colorSegments}
 				chrome="outlined"
+				collapsedTransportControls
+				rateMenuPlacement="down"
 				onExpandedChange={onExpandedChange}
 				onTogglePlay={onToggle}
 				onSeek={onSeek}

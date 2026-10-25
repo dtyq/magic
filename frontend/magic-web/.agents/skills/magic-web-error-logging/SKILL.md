@@ -11,9 +11,9 @@ Apply the current structured error protocol without changing the business workfl
 
 Read the current implementation before changing logging behavior:
 
-- `src/utils/log/errorReport.ts`
-- `src/utils/log/Logger.ts`
-- `src/utils/log/plugins/builtin/ReporterPlugin/ReporterPlugin.ts`
+- `src/infrastructure/logger/types.ts` and `src/infrastructure/logger/record/createRecord.ts`
+- `src/infrastructure/logger/index.ts` and `src/infrastructure/logger/internal.ts`
+- `src/infrastructure/logger/delivery/queue.ts` and `src/infrastructure/logger/delivery/transport.ts`
 - `packages/logger/src/providers/volcengine/error.ts`
 - the callback, wrapper, or adapter type at the actual call site
 
@@ -24,7 +24,7 @@ Read [references/contract.md](references/contract.md) when deciding field behavi
 ## Required Workflow
 
 1. Identify the logger before editing.
-    - Confirm it is the unified Logger created by `src/utils/log`, not `console`, a third-party callback logger, Bridge logger, test double, or unrelated object with an `error` method.
+    - Confirm it is the unified Logger exported by `src/infrastructure/logger`, not `console`, a third-party callback logger, Bridge logger, test double, or unrelated object with an `error` method.
     - Do not convert unsupported logger APIs to the structured contract.
 2. Inspect the complete business context.
     - Read the catch/callback signature and its type definition.

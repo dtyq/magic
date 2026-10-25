@@ -87,7 +87,7 @@ The system supports configuration through environment variables, improving deplo
 
 ```
 # Permission system configuration
-PERMISSIONS={"flow_admin":["13800000000","13900000000"]}
+PERMISSIONS={"flow_admin":["13800000000","13800000018"]}
 ```
 
 ## Permission Matching Rules

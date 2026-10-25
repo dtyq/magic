@@ -17,7 +17,7 @@ import SuperMagicService from "@/pages/superMagic/services"
 import { isCollaborationWorkspace } from "@/pages/superMagic/constants"
 import { workspaceStore } from "@/pages/superMagic/stores/core"
 import { getWorkspaceRouteUrl } from "@/pages/superMagic/utils/route"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { sidebarStore } from "@/stores/layout"
 
 const WorkspaceSwitcher = observer(function WorkspaceSwitcher() {

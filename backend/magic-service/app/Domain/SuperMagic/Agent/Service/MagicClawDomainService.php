@@ -85,9 +85,9 @@ readonly class MagicClawDomainService
      *
      * @return array{total: int, list: MagicClawEntity[]}
      */
-    public function getList(string $userId, string $organizationCode, int $page, int $pageSize): array
+    public function getList(string $userId, string $organizationCode, int $page, int $pageSize, string $keyword = ''): array
     {
-        return $this->magicClawRepository->getList($userId, $organizationCode, $page, $pageSize);
+        return $this->magicClawRepository->getList($userId, $organizationCode, $page, $pageSize, $keyword);
     }
 
     /**
@@ -113,6 +113,17 @@ readonly class MagicClawDomainService
     public function getByProjectId(int $projectId): ?MagicClawEntity
     {
         return $this->magicClawRepository->getByProjectId($projectId);
+    }
+
+    /**
+     * Get claws indexed by their bound project ID.
+     *
+     * @param int[] $projectIds
+     * @return array<int, MagicClawEntity> projectId => claw
+     */
+    public function getByProjectIds(array $projectIds): array
+    {
+        return $this->magicClawRepository->getByProjectIds($projectIds);
     }
 
     private function getByCodeOrFail(string $code, string $userId, string $organizationCode): MagicClawEntity

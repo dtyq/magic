@@ -11,8 +11,9 @@ cron 调度服务核心
 from __future__ import annotations
 
 import asyncio
+import copy
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from agentlang.logger import get_logger
 from app.service.cron.executor import execute_agent_turn
@@ -26,6 +27,14 @@ from app.service.cron.models import (
 )
 from app.service.cron.schedule import compute_next_run_ms, now_ms
 from app.service.cron.store import archive_completed_job, load_cron_state, save_cron_state, scan_jobs
+from app.service.cron.utils import (
+    CRON_LOG_INTERVAL_S,
+    CRON_LOG_MAX_JOBS,
+    format_job_label,
+    format_job_schedule,
+    format_log_duration,
+    format_log_time,
+)
 
 logger = get_logger(__name__)
 
@@ -67,12 +76,14 @@ class CronService:
         self._known_invalid_mtimes: Dict[str, float] = {}    # job_id → mtime（无效文件，用于抑制重复告警）
         # 下次最近到期任务的时间戳（毫秒），用于动态 sleep
         self._next_due_ms: Optional[int] = None
+        self._last_summary_at: float | None = None
 
     def start(self) -> None:
         """启动调度器（在 asyncio event loop 中调用）。"""
         self._stopped = False
+        self._last_summary_at = None
         self._task = asyncio.create_task(self._run(), name="cron-scheduler")
-        logger.info("cron scheduler started")
+        logger.debug("定时任务：调度服务已启动，准备检查任务。")
 
     async def stop(self) -> None:
         """优雅停止调度器。"""
@@ -83,7 +94,7 @@ class CronService:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        logger.info("cron scheduler stopped")
+        logger.info("定时任务：调度服务已停止，不再检查新的到期任务。")
 
     # ── 主循环 ────────────────────────────────────────────────────────────────
 
@@ -112,7 +123,7 @@ class CronService:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"cron scheduler tick failed: {e}", exc_info=True)
+                logger.exception(f"定时任务：本轮调度检查失败，将继续重试。原因：{type(e).__name__}: {e}")
                 await asyncio.sleep(MIN_SLEEP_S)
 
     # ── tick ─────────────────────────────────────────────────────────────────
@@ -130,6 +141,7 @@ class CronService:
         scanned, new_invalid_mtimes = await scan_jobs(self._known_mtimes, self._known_invalid_mtimes)
         self._known_invalid_mtimes = new_invalid_mtimes
         scanned_ids = {j.id for j in scanned}
+        previous_jobs = self._jobs
 
         new_jobs: Dict[str, CronJob] = {}
         changed_ids = set()
@@ -144,9 +156,10 @@ class CronService:
         # 2. 加载 + 更新运行时状态
         async with self._state_lock:
             state = await load_cron_state()
+            previous_state = copy.deepcopy(state)
 
             # 3. 清理卡死任务
-            _clear_stuck_jobs(state)
+            _clear_stuck_jobs(state, self._jobs)
 
             # 4. 为新增/变更任务计算 next_run_at_ms
             current_ms = now_ms()
@@ -159,8 +172,6 @@ class CronService:
 
             # 清理已删除任务的状态
             removed_ids = [rid for rid in list(state.jobs.keys()) if rid not in scanned_ids]
-            if removed_ids:
-                logger.info(f"cron tick: cleaning up removed jobs from state: {removed_ids}")
             for removed_id in removed_ids:
                 del state.jobs[removed_id]
 
@@ -175,21 +186,21 @@ class CronService:
             # 有任务变化（新增/修改/删除）或有到期任务时，持久化状态
             # 注意：changed_ids 包含新增任务，若此时不保存，下次 tick 加载磁盘状态
             # 会拿到空 state，导致 next_run_at_ms 丢失，任务永远无法被调度
-            should_save = bool(due_jobs or changed_ids or removed_ids or (set(state.jobs.keys()) != scanned_ids))
-            tick_log = (
-                f"cron tick: jobs={sorted(scanned_ids)} due={[j.id for j in due_jobs]} "
-                f"changed={sorted(changed_ids)} removed={removed_ids} saved={should_save}"
-            )
-            if due_jobs or changed_ids or removed_ids or should_save:
-                logger.info(tick_log)
-            elif scanned_ids:
-                logger.debug(tick_log)
+            # 禁用任务可以没有状态记录；比较真实内容变化，避免每轮重复保存。
+            # 比较在卡死标记清理之前取得的快照，也能保留这些恢复操作的写入。
+            should_save = bool(due_jobs or changed_ids or removed_ids or state != previous_state)
             if should_save:
-                await save_cron_state(state)
+                try:
+                    await save_cron_state(state)
+                except Exception as e:
+                    # 阶段说明随原异常交给主循环，只打印一份失败堆栈。
+                    e.add_note("定时任务：本轮状态保存失败，尚未提交本轮待执行任务。")
+                    raise
+
+            self._log_job_changes(previous_jobs, changed_ids, removed_ids, state)
 
         # 7. 派发独立 task，不阻塞 tick 返回
         for job in due_jobs:
-            logger.info(f"cron: dispatching job [{job.id}]")
             asyncio.create_task(
                 self._execute_and_update(job),
                 name=f"cron-job-{job.id}",
@@ -197,24 +208,119 @@ class CronService:
 
         # 8. 更新下次最近到期时间，供 _compute_sleep 使用
         _update_next_due(self, state)
+        self._log_summary(self._jobs, state)
 
         # 定期兜底：若有未发出的通知且主 agent 未运行，则触发（异步，不阻塞 tick）
         from app.service.cron.notification import try_notify_main_agent
         asyncio.create_task(try_notify_main_agent(), name="cron-tick-notify")
+
+    def _log_job_changes(
+        self,
+        previous_jobs: dict[str, CronJob],
+        changed_ids: set[str],
+        removed_state_ids: list[str],
+        state: CronState,
+    ) -> None:
+        for job_id in sorted(changed_ids):
+            job = self._jobs[job_id]
+            action = "已新增" if job_id not in previous_jobs else "配置已更新"
+            enabled = "已启用；" if job.enabled else ""
+            logger.info(
+                f"定时任务{format_job_label(job)}：{action}，"
+                f"{enabled}{format_job_schedule(job, state.jobs.get(job_id))}。"
+            )
+        removed_job_ids = previous_jobs.keys() - self._jobs.keys()
+        for job_id in sorted(removed_job_ids):
+            label = format_job_label(previous_jobs[job_id])
+            if job_id in self._known_invalid_mtimes:
+                logger.warning(f"定时任务{label}：配置无法解析，已从调度列表移除，请检查配置告警。")
+            else:
+                logger.info(f"定时任务{label}：未再扫描到配置文件，已从调度列表移除。")
+        stale_ids = set(removed_state_ids) - removed_job_ids
+        if stale_ids:
+            logger.info(f"定时任务：已清理 {len(stale_ids)} 项不存在任务的残留状态。")
+
+    def _log_summary(
+        self, jobs: dict[str, CronJob], state: CronState, *, startup: bool = False,
+    ) -> None:
+        # 普通扫描只低频汇报；本条证明本轮检查完成，不表示任务和通知全部健康。
+        now = time.monotonic()
+        if self._last_summary_at is not None and now - self._last_summary_at < CRON_LOG_INTERVAL_S:
+            return
+        enabled = sum(job.enabled for job in jobs.values())
+        running = sum(
+            js.running_at_ms is not None
+            for job_id, js in state.jobs.items() if job_id in jobs
+        )
+        title = "启动检查完成" if startup else "本轮检查完成"
+        parts = [
+            f"定时任务：{title}。共 {len(jobs)} 项，已启用 {enabled} 项、"
+            f"已停用 {len(jobs) - enabled} 项；未结束 {running} 项（含等待执行名额）。"
+        ]
+        issues: list[str] = []
+        scheduled: list[CronJob] = []
+        for job in jobs.values():
+            if not job.enabled:
+                continue
+            js = state.jobs.get(job.id)
+            if js is None:
+                issues.append(f"{format_job_label(job)}缺少调度状态")
+            elif js.running_at_ms is not None:
+                continue
+            elif js.next_run_at_ms is None:
+                issues.append(f"{format_job_label(job)}缺少执行时间")
+            else:
+                scheduled.append(job)
+        scheduled.sort(key=lambda job: (state.jobs[job.id].next_run_at_ms or 0, job.id))
+        if scheduled:
+            job = scheduled[0]
+            next_ms = state.jobs[job.id].next_run_at_ms
+            if next_ms is not None:
+                if next_ms < now_ms():
+                    issues.append(f"{format_job_label(job)}计划时间 {format_log_time(next_ms, job)} 已过，尚未提交执行")
+                else:
+                    parts.append(f"下一项{format_job_label(job)}预计在 {format_log_time(next_ms, job)} 执行。")
+        elif not jobs:
+            parts.append("尚未发现有效的定时任务。")
+        elif not enabled:
+            parts.append("当前没有待执行安排。")
+        elif running:
+            parts.append("等待已提交任务结束后更新后续安排。")
+        if self._known_invalid_mtimes:
+            issues.append(f"{len(self._known_invalid_mtimes)} 项配置无法解析，已跳过，请检查此前配置告警")
+        if issues:
+            parts.append("请检查：" + "；".join(issues[:CRON_LOG_MAX_JOBS]) + "。")
+            if len(issues) > CRON_LOG_MAX_JOBS:
+                parts.append(f"另有 {len(issues) - CRON_LOG_MAX_JOBS} 项问题未展开。")
+            logger.warning("".join(parts))
+        else:
+            logger.info("".join(parts))
+        self._last_summary_at = now
 
     async def _execute_and_update(self, job: CronJob) -> None:
         """
         执行单个 job 并回写状态。
         外层 try/except 防止 task 静默死亡。
         """
+        label = format_job_label(job)
+        phase: Literal["等待执行名额", "执行任务", "归档结果", "更新调度状态"] = "等待执行名额"
+        outcome = "尚未获得执行结果"
+        waiting_since = time.monotonic()
+        waited = self._semaphore.locked()
+        if waited:
+            logger.info(f"定时任务{label}：执行名额已满，等待其它任务结束。")
         try:
             async with self._semaphore:
+                phase = "执行任务"
+                waiting = f"，已等待 {format_log_duration(time.monotonic() - waiting_since)}" if waited else ""
+                logger.info(f"定时任务{label}：开始执行{waiting}。")
                 if job.payload.kind == PayloadKind.AGENT_TURN:
                     result = await execute_agent_turn(job)
                 else:
-                    logger.warning(f"cron job [{job.id}] payload kind '{job.payload.kind}' not implemented, skipping")
+                    logger.warning(f"定时任务{label}：暂不支持任务类型 {job.payload.kind}，本次未执行。")
                     result = CronRunResult(status="error", error=f"payload kind '{job.payload.kind}' not implemented")
 
+            outcome = "业务执行成功" if result.status == "ok" else "业务执行未完成"
             if result.status == "ok":
                 # 保活语义绑定到“任务本身已经成功跑完”，而不是后面的归档/落盘是否成功。
                 # 使用 notify_activity 而非 keepalive_once，启动 72h 自动续期循环，
@@ -223,10 +329,11 @@ class CronService:
                     from app.core.keepalive_registry import KeepaliveRegistry
                     KeepaliveRegistry.get_instance().notify_activity(f"cron:{job.id}")
                 except Exception as e:
-                    logger.warning(f"cron job [{job.id}] keepalive failed: {e}")
+                    logger.warning(f"定时任务{label}：执行成功，但沙盒活跃时间续期失败。原因：{type(e).__name__}: {e}")
 
             # at 类型一次性任务执行成功后归档并删除原始文件
             if result.status == "ok" and job.schedule.kind == ScheduleKind.AT:
+                phase = "归档结果"
                 from datetime import datetime, timezone as dt_timezone
                 run_at = datetime.now(dt_timezone.utc)
                 tz_str = job.timezone or getattr(job.schedule, "tz", None)
@@ -238,16 +345,21 @@ class CronService:
                         pass
                 await archive_completed_job(job, result, run_at)
 
+            phase = "更新调度状态"
             async with self._state_lock:
                 state = await load_cron_state()
                 js = state.jobs.setdefault(job.id, CronJobState())
                 _update_job_state_after_run(job, js, result, now_ms())
                 await save_cron_state(state)
+                _log_run_result(job, js, result)
 
         except asyncio.CancelledError:
-            logger.warning(f"cron job task cancelled: {job.id}")
+            logger.warning(f"定时任务{label}：在{phase}阶段被中断；{outcome}。")
         except Exception as e:
-            logger.error(f"cron job task unexpected error [{job.id}]: {e}", exc_info=True)
+            logger.exception(
+                f"定时任务{label}：{phase}失败；{outcome}。"
+                f"原因：{type(e).__name__}: {e}",
+            )
             # 尽力回写错误状态
             try:
                 async with self._state_lock:
@@ -256,8 +368,12 @@ class CronService:
                     failed = CronRunResult(status="error", error=str(e))
                     _update_job_state_after_run(job, js, failed, now_ms())
                     await save_cron_state(state)
-            except Exception:
-                pass
+                    logger.warning(f"定时任务{label}：已回写异常状态；{format_job_schedule(job, js)}。")
+            except Exception as state_error:
+                logger.exception(
+                    f"定时任务{label}：异常状态回写也失败，无法确认后续安排。"
+                    f"原因：{type(state_error).__name__}: {state_error}",
+                )
 
     # ── 启动补偿 ──────────────────────────────────────────────────────────────
 
@@ -271,8 +387,8 @@ class CronService:
             scanned, new_invalid_mtimes = await scan_jobs({}, {})
             self._known_invalid_mtimes = new_invalid_mtimes
             scanned_ids = {j.id for j in scanned}
-            logger.info(f"cron startup: scanned jobs={scanned_ids}")
             if not scanned:
+                self._log_summary({}, CronState(), startup=True)
                 return
 
             self._jobs = {j.id: j for j in scanned}
@@ -282,7 +398,6 @@ class CronService:
                 state = await load_cron_state()
                 stale_ids = [sid for sid in state.jobs if sid not in scanned_ids]
                 if stale_ids:
-                    logger.info(f"cron startup: removing stale state entries: {stale_ids}")
                     for sid in stale_ids:
                         del state.jobs[sid]
 
@@ -294,6 +409,8 @@ class CronService:
                         continue
                     js = state.jobs.setdefault(job.id, CronJobState())
                     # 清理因崩溃残留的 running 标记
+                    if js.running_at_ms is not None:
+                        logger.warning(f"定时任务{format_job_label(job)}：启动时发现未结束标记，将清除标记并重新计算安排。")
                     js.running_at_ms = None
                     _recalculate_next_run(job, js, current_ms)
                     if js.next_run_at_ms is not None and js.next_run_at_ms <= current_ms:
@@ -301,13 +418,20 @@ class CronService:
 
                 await save_cron_state(state)
                 _update_next_due(self, state)
+                if stale_ids:
+                    logger.info(f"定时任务：启动时已清理 {len(stale_ids)} 项不存在任务的残留状态。")
+
+            self._log_summary(self._jobs, state, startup=True)
 
             if not overdue:
                 return
 
-            logger.info(f"cron startup: {len(overdue)} overdue job(s) found, compensating")
             immediate = overdue[:_MAX_IMMEDIATE_COMPENSATE]
             deferred = overdue[_MAX_IMMEDIATE_COMPENSATE:]
+            logger.info(
+                f"定时任务：启动时发现 {len(overdue)} 项到期任务，"
+                f"立即提交 {len(immediate)} 项，其余 {len(deferred)} 项按原有间隔错开提交。"
+            )
 
             for job in immediate:
                 asyncio.create_task(
@@ -326,18 +450,47 @@ class CronService:
                 )
 
         except Exception as e:
-            logger.error(f"cron startup compensate failed: {e}", exc_info=True)
+            logger.exception(f"定时任务：启动检查或补偿安排失败。原因：{type(e).__name__}: {e}")
 
 
 # ── 内部工具函数 ──────────────────────────────────────────────────────────────
 
-def _clear_stuck_jobs(state: CronState) -> None:
+def _log_run_result(job: CronJob, state: CronJobState, result: CronRunResult) -> None:
+    """在状态保存成功后说明执行结果与后续安排，不代表结果归档或通知送达。"""
+    label = format_job_label(job)
+    duration = format_log_duration(result.duration_ms / 1000)
+    if result.status == "ok":
+        schedule = (
+            "本次为一次性任务，没有下一次计划"
+            if job.schedule.kind == ScheduleKind.AT
+            else format_job_schedule(job, state)
+        )
+        logger.info(f"定时任务{label}：执行成功，用时 {duration}；{schedule}。")
+    elif not job.enabled and state.consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
+        logger.error(
+            f"定时任务{label}：连续失败已达到 {state.consecutive_errors} 次，"
+            "已停止后续调度；请检查此前失败原因及任务配置。"
+        )
+    else:
+        logger.warning(
+            f"定时任务{label}：本次未完成，用时 {duration}，连续失败 {state.consecutive_errors} 次；"
+            f"{format_job_schedule(job, state)}。"
+        )
+
+
+def _clear_stuck_jobs(state: CronState, jobs: dict[str, CronJob]) -> None:
     """清理 running_at_ms 超过 2 小时的卡死任务标记。"""
     current_ms = now_ms()
-    for js in state.jobs.values():
+    for job_id, js in state.jobs.items():
         if js.running_at_ms is not None:
             if current_ms - js.running_at_ms > _STUCK_TIMEOUT_MS:
                 js.running_at_ms = None
+                job = jobs.get(job_id)
+                label = format_job_label(job) if job is not None else f"（ID：{job_id}）"
+                logger.warning(
+                    f"定时任务{label}：未结束标记已超过 {format_log_duration(_STUCK_TIMEOUT_MS / 1000)}，"
+                    "已清除该标记并重新检查调度条件。"
+                )
 
 
 def _update_next_due(self_obj: "CronService", state: "CronState") -> None:
@@ -360,7 +513,7 @@ def _get_end_at_ms(job: CronJob) -> Optional[int]:
         dt = datetime.fromisoformat(end_at.replace("Z", "+00:00"))
         return int(dt.timestamp() * 1000)
     except Exception as e:
-        logger.warning(f"cron: invalid end_at '{end_at}' for [{job.id}]: {e}")
+        logger.warning(f"定时任务{format_job_label(job)}：结束时间配置无效，本次未应用结束时间限制。原因：{type(e).__name__}: {e}")
         return None
 
 
@@ -378,16 +531,16 @@ def _recalculate_next_run(job: CronJob, js: CronJobState, current_ms: int) -> No
             next_ms = compute_next_run_ms(job, js, current_ms)
             end_at_ms = _get_end_at_ms(job)
             if end_at_ms is not None and (current_ms >= end_at_ms or (next_ms is not None and next_ms >= end_at_ms)):
-                logger.info(f"cron: [{job.id}] reached end_at, disabling")
+                logger.info(f"定时任务{format_job_label(job)}：已达到结束时间限制，停止后续调度。")
                 job.enabled = False
                 js.next_run_at_ms = None
             else:
                 js.next_run_at_ms = next_ms
     except Exception as e:
-        logger.warning(f"cron: failed to compute next run for [{job.id}]: {e}")
+        logger.warning(f"定时任务{format_job_label(job)}：无法计算下一次执行时间。原因：{type(e).__name__}: {e}")
         js.consecutive_errors = (js.consecutive_errors or 0) + 1
         if js.consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
-            logger.error(f"cron: disabling [{job.id}] due to {js.consecutive_errors} consecutive schedule errors")
+            logger.error(f"定时任务{format_job_label(job)}：连续 {js.consecutive_errors} 次计算执行时间失败，停止后续调度，请检查配置。")
             job.enabled = False
 
 
@@ -433,7 +586,6 @@ def _update_job_state_after_run(
     else:
         js.consecutive_errors = (js.consecutive_errors or 0) + 1
         if js.consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
-            logger.error(f"cron: disabling [{job.id}] after {js.consecutive_errors} consecutive errors")
             job.enabled = False
             js.next_run_at_ms = None
             return
@@ -448,7 +600,7 @@ def _update_job_state_after_run(
         else:
             end_at_ms = _get_end_at_ms(job)
             if end_at_ms is not None and next_ms >= end_at_ms:
-                logger.info(f"cron: [{job.id}] next run would exceed end_at, disabling")
+                logger.info(f"定时任务{format_job_label(job)}：下一次执行将达到结束时间限制，停止后续调度。")
                 job.enabled = False
                 js.next_run_at_ms = None
             elif js.consecutive_errors and js.consecutive_errors > 0 and backoff_idx >= 0:
@@ -457,4 +609,4 @@ def _update_job_state_after_run(
             else:
                 js.next_run_at_ms = next_ms
     except Exception as e:
-        logger.warning(f"cron: failed to compute next run after execution [{job.id}]: {e}")
+        logger.warning(f"定时任务{format_job_label(job)}：执行后的下一次时间计算失败。原因：{type(e).__name__}: {e}")

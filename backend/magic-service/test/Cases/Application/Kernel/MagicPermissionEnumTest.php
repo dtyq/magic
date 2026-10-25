@@ -67,6 +67,9 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertContains('platform.skill.market.edit', $permissionKeys);
         $this->assertContains('platform.setting.slides_template.query', $permissionKeys);
         $this->assertContains('platform.setting.slides_template.edit', $permissionKeys);
+        $this->assertContains('admin.setting.identity_watermark.edit', $permissionKeys);
+        $this->assertContains('platform.setting.asset.query', $permissionKeys);
+        $this->assertContains('platform.setting.asset.edit', $permissionKeys);
         $this->assertNotContains('platform.agent.official.edit', $permissionKeys);
     }
 
@@ -85,6 +88,9 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertTrue($this->permission->isValidPermission('platform.skill.market.query'));
         $this->assertTrue($this->permission->isValidPermission('platform.setting.slides_template.query'));
         $this->assertTrue($this->permission->isValidPermission('platform.setting.slides_template.edit'));
+        $this->assertTrue($this->permission->isValidPermission('admin.setting.identity_watermark.edit'));
+        $this->assertTrue($this->permission->isValidPermission('platform.setting.asset.query'));
+        $this->assertTrue($this->permission->isValidPermission('platform.setting.asset.edit'));
         $this->assertFalse($this->permission->isValidPermission('admin.ai.model_management.query'));
         $this->assertFalse($this->permission->isValidPermission('workspace.ai.model_management.manage'));
         $this->assertFalse($this->permission->isValidPermission('platform.agent.official.edit'));
@@ -176,11 +182,13 @@ class MagicPermissionEnumTest extends HttpTestCase
         );
 
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management.application_menu'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.basic_settings'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.basic_settings.application_menu'));
         $this->assertTrue($this->containsPermissionKey($tree, $applicationQueryPermission));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.slides_template'));
-        $this->assertFalse($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management.slides_template'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_management.slides_template'));
+        // 素材库权限必须出现在权限树里，否则管理员没法在角色配置里授权，头像后台接口谁也调不通。
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_management.asset_library'));
+        $this->assertFalse($this->containsPermissionKey($tree, 'menu.platform_management.basic_settings.slides_template'));
         $this->assertTrue($this->containsPermissionKey($tree, $slidesTemplateQueryPermission));
         $this->assertTrue($this->containsPermissionKey($tree, $slidesTemplateEditPermission));
         $this->assertSame('智能体增强', $this->permission->getResourceModule(MagicResourceEnum::PLATFORM_SLIDES_TEMPLATE->value));

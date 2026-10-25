@@ -1,10 +1,11 @@
 import { Children, forwardRef, useEffect, useImperativeHandle, type ReactNode } from "react"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import MicroAppPageDesktop from "../index.desktop"
 import { registerMicroAppDesktopWorkspaceCases } from "./index.desktop.workspace-cases"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 
 const detailMocks = vi.hoisted(() => ({
 	openFileTab: vi.fn(),
@@ -14,6 +15,11 @@ const detailMocks = vi.hoisted(() => ({
 const previewMocks = vi.hoisted(() => ({
 	aiEdit: vi.fn(),
 	devConsoleToggle: vi.fn(),
+	permissionManagerOpen: vi.fn(),
+	render: vi.fn(),
+}))
+
+const previewWorkspaceMocks = vi.hoisted(() => ({
 	render: vi.fn(),
 }))
 
@@ -29,6 +35,9 @@ const resolverMocks = vi.hoisted(() => ({
 
 const controllerMocks = vi.hoisted(() => ({
 	initLoading: false,
+	isReadOnly: false,
+	canUseDevelopment: true,
+	ensureUsageProject: vi.fn(),
 	checkAttachmentsNowDebounced: vi.fn(),
 	attachmentList: [
 		{ file_id: "entry-1", file_name: "index.html", relative_file_path: "index.html" },
@@ -77,8 +86,9 @@ vi.mock("@/routes/hooks/useNavigate", () => ({
 	default: () => vi.fn(),
 }))
 
-vi.mock("@/pages/superMagic/providers/file-action-visibility-provider", () => ({
-	FileActionVisibilityProvider: ({ children }: { children: ReactNode }) => children,
+vi.mock("@/pages/superMagic/providers/FileAccessProvider", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/pages/superMagic/providers/FileAccessProvider")>()),
+	FileAccessProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
 vi.mock("@/pages/superMagic/stores", () => ({
@@ -87,6 +97,15 @@ vi.mock("@/pages/superMagic/stores", () => ({
 		getToolResponseForRendering: vi.fn(),
 		getStreamState: vi.fn(),
 		getMessageNode: vi.fn(),
+	},
+}))
+
+vi.mock("@/stores/projectFiles", () => ({
+	default: {
+		workspaceFilesList: [
+			{ file_id: "admin-1", file_name: "admin.html", file_extension: "html" },
+		],
+		currentSelectedProject: { id: "project-1" },
 	},
 }))
 
@@ -191,6 +210,20 @@ vi.mock("@/pages/superMagic/components/MessageHeader", () => ({
 
 vi.mock("../context", () => ({
 	AppStoreProvider: ({ children }: { children: ReactNode }) => children,
+	useAppStore: () => ({
+		conversation: {
+			selectedProject: null,
+			topicStore: {},
+			loadProjectContext: vi.fn(),
+			reset: vi.fn(),
+		},
+	}),
+}))
+
+vi.mock("@/apis", () => ({
+	SuperMagicApi: {
+		getMicroAppRuntimeProject: vi.fn().mockResolvedValue({ exists: false, project: null }),
+	},
 }))
 
 vi.mock("../hooks/useMicroAppPageController", () => ({
@@ -200,6 +233,10 @@ vi.mock("../hooks/useMicroAppPageController", () => ({
 			initError: null,
 			mentionPanelStore: {},
 			projectFilesStore: {},
+			setConversationType: vi.fn(),
+			usageConversation: {
+				topicStore: {},
+			},
 		},
 		conversation: {
 			topicStore: {
@@ -213,8 +250,9 @@ vi.mock("../hooks/useMicroAppPageController", () => ({
 			workspace_name: "Workspace",
 		},
 		selectedTopic: { id: "topic-1", topic_name: "Topic" },
+		canUseDevelopment: controllerMocks.canUseDevelopment,
 		hasRunningTopic: true,
-		isReadOnly: false,
+		isReadOnly: controllerMocks.isReadOnly,
 		canEdit: false,
 		canPublish: true,
 		attachments: [],
@@ -242,6 +280,8 @@ vi.mock("../hooks/useMicroAppPageController", () => ({
 		captureCoverReady: true,
 		handleCaptureCover: vi.fn(),
 		handleEditMicroApp: vi.fn(),
+		ensureUsageProject: controllerMocks.ensureUsageProject,
+		sourceOrganizationCode: "org-1",
 	}),
 }))
 
@@ -256,6 +296,13 @@ vi.mock("../components/MicroAppHeader", () => ({
 	},
 }))
 
+vi.mock("../components/MicroAppPreviewWorkspace", () => ({
+	default: (props: Record<string, unknown>) => {
+		previewWorkspaceMocks.render(props)
+		return <div data-testid="micro-app-runtime-preview-workspace" />
+	},
+}))
+
 vi.mock("../components/MicroAppEntryPreview", () => ({
 	default: function MockMicroAppEntryPreview(props: {
 		entryFile?: { file_id?: string; file_name?: string; updated_at?: string } | null
@@ -264,9 +311,11 @@ vi.mock("../components/MicroAppEntryPreview", () => ({
 		onRegisterAIEdit?: (handler: (() => void) | null) => void
 		onRegisterDevConsoleToggle?: (handler: (() => void) | null) => void
 		onDevConsoleActiveChange?: (active: boolean) => void
+		onHtmlPermissionManagerChange?: (manager: { open: () => void } | null) => void
 		onOpenFile?: (fileItem?: unknown) => void
 	}) {
-		const { onRegisterAIEdit, onRegisterDevConsoleToggle } = props
+		const { onRegisterAIEdit, onRegisterDevConsoleToggle, onHtmlPermissionManagerChange } =
+			props
 		const hasEntryFile = Boolean(props.entryFile?.file_id)
 		useEffect(() => {
 			onRegisterAIEdit?.(previewMocks.aiEdit)
@@ -276,6 +325,12 @@ vi.mock("../components/MicroAppEntryPreview", () => ({
 			onRegisterDevConsoleToggle?.(hasEntryFile ? previewMocks.devConsoleToggle : null)
 			return () => onRegisterDevConsoleToggle?.(null)
 		}, [hasEntryFile, onRegisterDevConsoleToggle])
+		useEffect(() => {
+			onHtmlPermissionManagerChange?.(
+				hasEntryFile ? { open: previewMocks.permissionManagerOpen } : null,
+			)
+			return () => onHtmlPermissionManagerChange?.(null)
+		}, [hasEntryFile, onHtmlPermissionManagerChange])
 		previewMocks.render(props)
 		return <div data-testid="desktop-entry-preview" />
 	},
@@ -339,8 +394,8 @@ vi.mock("@/pages/superMagic/components/ShareManagement/ShareManagementPanel", ()
 	),
 }))
 
-vi.mock("@/pages/superMagic/components/LongTremMemory/components/MemorySider", () => ({
-	LongTremMemorySider: ({
+vi.mock("@/pages/superMagic/components/UserSpace/UserSpacePanel", () => ({
+	default: ({
 		projectId,
 		activeFileId,
 		onFileClick,
@@ -351,7 +406,7 @@ vi.mock("@/pages/superMagic/components/LongTremMemory/components/MemorySider", (
 	}) => (
 		<button
 			type="button"
-			data-testid="desktop-long-memory-panel"
+			data-testid="desktop-user-space-panel"
 			data-project-id={projectId}
 			data-active-file-id={activeFileId || undefined}
 			onClick={() =>
@@ -359,8 +414,9 @@ vi.mock("@/pages/superMagic/components/LongTremMemory/components/MemorySider", (
 					file_id: "memory-1",
 					file_name: "MEMORY.md",
 					file_extension: "md",
-					project_id: "0",
-					display_config: { previewPolicy: { fileScope: "memory" } },
+					space_type: "user",
+					relative_file_path: ".magic/memory/global/MEMORY.md",
+					display_config: { previewPolicy: { fileScope: "user" } },
 				})
 			}
 		>
@@ -380,6 +436,8 @@ describe("MicroAppPageDesktop", () => {
 			error: null,
 		}
 		controllerMocks.initLoading = false
+		controllerMocks.isReadOnly = false
+		controllerMocks.canUseDevelopment = true
 		controllerMocks.attachmentList = [
 			{ file_id: "entry-1", file_name: "index.html", relative_file_path: "index.html" },
 			{ file_id: "admin-1", file_name: "admin.html", relative_file_path: "admin.html" },
@@ -390,7 +448,9 @@ describe("MicroAppPageDesktop", () => {
 		detailMocks.render.mockClear()
 		previewMocks.aiEdit.mockClear()
 		previewMocks.devConsoleToggle.mockClear()
+		previewMocks.permissionManagerOpen.mockClear()
 		previewMocks.render.mockClear()
+		previewWorkspaceMocks.render.mockClear()
 		headerMocks.render.mockClear()
 		overlayMocks.render.mockClear()
 		conversationPanelMocks.render.mockClear()
@@ -398,6 +458,10 @@ describe("MicroAppPageDesktop", () => {
 		topicHistoryMocks.render.mockClear()
 		previewPopupMocks.open.mockClear()
 		controllerMocks.checkAttachmentsNowDebounced.mockClear()
+		controllerMocks.ensureUsageProject.mockReset()
+		controllerMocks.ensureUsageProject.mockRejectedValue(
+			new Error("microAppShare.crossOrganizationConversationUnsupported"),
+		)
 	})
 
 	it("uses the loading illustration while resolving the project", () => {
@@ -431,7 +495,67 @@ describe("MicroAppPageDesktop", () => {
 		)
 	})
 
-	it("opens tool details from the conversation panel in a preview modal", async () => {
+	it("wires the HTML permission manager from the preview to the header", async () => {
+		render(<MicroAppPageDesktop />)
+		await screen.findByTestId("desktop-entry-preview")
+
+		const headerProps = headerMocks.render.mock.lastCall?.[0] as {
+			canManageHtmlPermissions: boolean
+			onManageHtmlPermissions: () => void
+		}
+		expect(headerProps.canManageHtmlPermissions).toBe(true)
+
+		act(() => headerProps.onManageHtmlPermissions())
+		expect(previewMocks.permissionManagerOpen).toHaveBeenCalledOnce()
+	})
+
+	it("does not initialize a usage conversation when only switching to preview mode", async () => {
+		render(<MicroAppPageDesktop />)
+		await screen.findByTestId("desktop-entry-preview")
+		const headerProps = headerMocks.render.mock.lastCall?.[0] as {
+			onPageModeChange: (mode: "development" | "preview") => void
+		}
+
+		act(() => headerProps.onPageModeChange("preview"))
+
+		expect(controllerMocks.ensureUsageProject).not.toHaveBeenCalled()
+		expect(screen.getByTestId("micro-app-runtime-preview-workspace")).toBeInTheDocument()
+		expect(previewWorkspaceMocks.render).toHaveBeenCalledWith(
+			expect.objectContaining({
+				appId: "app-1",
+				sourceOrganizationCode: "org-1",
+			}),
+		)
+	})
+
+	it("does not open editor files from message events in preview mode", async () => {
+		const file = {
+			file_id: "admin-1",
+			file_name: "admin.html",
+			relative_file_path: "admin.html",
+		}
+
+		render(<MicroAppPageDesktop />)
+		await screen.findByTestId("desktop-entry-preview")
+		const headerProps = headerMocks.render.mock.lastCall?.[0] as {
+			onPageModeChange: (mode: "development" | "preview") => void
+		}
+
+		act(() => headerProps.onPageModeChange("preview"))
+		act(() => {
+			pubsub.publish(PubSubEvents.Open_File_Tab, {
+				fileId: file.file_id,
+				fileData: file,
+			})
+		})
+		act(() => headerProps.onPageModeChange("development"))
+
+		expect(previewPopupMocks.open).not.toHaveBeenCalled()
+		expect(screen.queryByTestId("desktop-files-viewer")).not.toBeInTheDocument()
+		expect(detailMocks.openFileTab).not.toHaveBeenCalled()
+	})
+
+	it("opens tool details in a preview modal over the entry preview", async () => {
 		render(<MicroAppPageDesktop />)
 		await screen.findByTestId("desktop-entry-preview")
 
@@ -445,6 +569,35 @@ describe("MicroAppPageDesktop", () => {
 			expect.any(Array),
 			expect.any(Array),
 		)
+	})
+
+	it("opens tool details from the conversation panel in a preview modal", async () => {
+		render(<MicroAppPageDesktop />)
+		await screen.findByTestId("desktop-entry-preview")
+		fireEvent.click(screen.getByTestId("micro-app-nav-files"))
+
+		fireEvent.click(screen.getByTestId("desktop-conversation-panel"))
+
+		expect(previewPopupMocks.open).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "shell",
+				currentFileId: "tool-1",
+			}),
+			expect.any(Array),
+			expect.any(Array),
+		)
+	})
+
+	it("hides the conversation panel for read-only projects", async () => {
+		controllerMocks.isReadOnly = true
+		controllerMocks.canUseDevelopment = false
+
+		render(<MicroAppPageDesktop />)
+		await screen.findByTestId("desktop-entry-preview")
+
+		expect(screen.queryByTestId("desktop-conversation-panel")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("micro-app-conversation-rail")).not.toBeInTheDocument()
+		expect(conversationPanelMocks.render).not.toHaveBeenCalled()
 	})
 
 	it("uses the same loading illustration while loading project context", () => {
@@ -467,6 +620,22 @@ describe("MicroAppPageDesktop", () => {
 		expect(screen.queryByTestId("micro-app-conversation-rail")).not.toBeInTheDocument()
 	})
 
+	it("expands a collapsed conversation panel when a micro-app sends a message", async () => {
+		render(<MicroAppPageDesktop />)
+		await screen.findByTestId("desktop-entry-preview")
+
+		const conversationPanelProps = conversationPanelMocks.render.mock.calls.at(-1)?.[0] as {
+			onToggleConversationPanel: () => void
+		}
+		act(() => conversationPanelProps.onToggleConversationPanel())
+		expect(screen.queryByTestId("desktop-conversation-panel")).not.toBeInTheDocument()
+		expect(screen.getByTestId("micro-app-conversation-rail")).toBeInTheDocument()
+
+		act(() => pubsub.publish(PubSubEvents.Expand_Topic_Conversation_Panel))
+		expect(screen.getByTestId("desktop-conversation-panel")).toBeInTheDocument()
+		expect(screen.queryByTestId("micro-app-conversation-rail")).not.toBeInTheDocument()
+	})
+
 	it("connects task completion to the attachment refresh check", () => {
 		render(<MicroAppPageDesktop />)
 
@@ -477,13 +646,29 @@ describe("MicroAppPageDesktop", () => {
 		)
 	})
 
-	it("hides the topic mode icon in the micro-app history panel", () => {
+	it("hides the topic mode icon in the development history panel", () => {
 		topicHistoryMocks.isOpen = true
 
 		render(<MicroAppPageDesktop />)
 
 		expect(topicHistoryMocks.render).toHaveBeenCalledWith(
 			expect.objectContaining({ hideTopicListModeIcon: true }),
+		)
+	})
+
+	it("shows employee icons in the preview history panel", async () => {
+		topicHistoryMocks.isOpen = true
+
+		render(<MicroAppPageDesktop />)
+		await screen.findByTestId("desktop-entry-preview")
+		const headerProps = headerMocks.render.mock.lastCall?.[0] as {
+			onPageModeChange: (mode: "development" | "preview") => void
+		}
+
+		act(() => headerProps.onPageModeChange("preview"))
+
+		expect(topicHistoryMocks.render).toHaveBeenCalledWith(
+			expect.objectContaining({ hideTopicListModeIcon: false }),
 		)
 	})
 

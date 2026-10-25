@@ -11,8 +11,10 @@ import { useStyles as useCommonStyles } from "../FileManager/styles"
 import type { DataItem } from "./useData"
 import useData from "./useData"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { useTranslation } from "react-i18next"
 
 export default memo(function SharedTopics() {
+	const { t } = useTranslation("super")
 	const { styles } = useStyles()
 	const { styles: commonStyles } = useCommonStyles()
 	const containerRef = useRef<HTMLDivElement>(null)
@@ -24,92 +26,77 @@ export default memo(function SharedTopics() {
 
 	const handleCancel = useCallback(() => {
 		setSelectedRowKeys([])
-		// Modal.confirm({
-		// 	title: "取消选中",
-		// 	content: `确定要取消选中的 ${selectedRowKeys.length} 个文件的标记吗？`,
-		// 	okText: "确定",
-		// 	cancelText: "取消",
-		// 	onOk: async () => {
-		// 		try {
-		// 			setSelectedRowKeys([])
-		// 			magicToast.success("已取消选中")
-		// 		} catch (error) {
-		// 			magicToast.error("取消失败")
-		// 			console.error("Failed to batch remove stars:", error)
-		// 		}
-		// 	},
-		// })
 	}, [])
 
 	const handleRemove = useCallback(() => {
 		if (selectedRowKeys.length === 0) {
-			magicToast.warning("请先选择标记文件")
+			magicToast.warning(t("sharedTopics.selectMarkedFirst"))
 			return
 		}
 		Modal.confirm({
-			title: "批量取消标记",
-			content: `确定要取消选中的 ${selectedRowKeys.length} 个文件的标记吗？`,
-			okText: "确定",
-			cancelText: "取消",
+			title: t("sharedTopics.batchUnmarkTitle"),
+			content: t("sharedTopics.batchUnmarkContent", { count: selectedRowKeys.length }),
+			okText: t("sharedTopics.confirm"),
+			cancelText: t("sharedTopics.cancel"),
 			onOk: async () => {
 				try {
 					setData((prev) => prev.filter((file) => !selectedRowKeys.includes(file.id)))
 					setSelectedRowKeys([])
-					magicToast.success("已批量取消标记")
+					magicToast.success(t("sharedTopics.batchUnmarkSuccess"))
 				} catch (error) {
-					magicToast.error("取消失败")
+					magicToast.error(t("sharedTopics.unmarkFailed"))
 					console.error("Failed to batch remove stars:", error)
 				}
 			},
 		})
-	}, [selectedRowKeys, setData])
+	}, [selectedRowKeys, setData, t])
 
-	const handleRemoveItem = useCallback((id: string) => { }, [])
+	const handleRemoveItem = useCallback((id: string) => {}, [])
 
 	const dropdownItems = useMemo(() => {
 		return [
 			{
 				key: "1",
-				label: "取消选中",
+				label: t("sharedTopics.unselect"),
 				onClick: handleCancel,
 			},
 		]
-	}, [handleCancel])
+	}, [handleCancel, t])
 
 	const columns: ColumnsType<DataItem> = useMemo(() => {
 		return [
 			{
-				title: "话题名称",
+				title: t("sharedTopics.topicName"),
 				dataIndex: "name",
 			},
 			{
-				title: "分享方式",
+				title: t("sharedTopics.shareMethod"),
 			},
 			{
-				title: "工作区",
+				title: t("sharedTopics.workspace"),
 			},
 			{
-				title: "标记时间",
+				title: t("sharedTopics.markedTime"),
 				dataIndex: "uploadTime",
 				width: "25%",
 			},
 			{
-				title: "操作",
+				title: t("sharedTopics.action"),
 				align: "center",
 				width: 160,
-				render: (_, record) => (
+				render: () => (
 					<Space size={10}>
 						<Button type="link" className={styles.operationButton}>
-							设置权限
+							{t("sharedTopics.setPermission")}
 						</Button>
 						<Button type="link" className={styles.operationButton}>
-							取消分享
+							{t("sharedTopics.unshare")}
 						</Button>
 					</Space>
 				),
 			},
 		]
-	}, [styles.operationButton])
+	}, [styles.operationButton, t])
 
 	const content = data.length ? (
 		<Table
@@ -133,17 +120,20 @@ export default memo(function SharedTopics() {
 		/>
 	) : (
 		<div className={commonStyles.emptyWrapper}>
-			<Empty description="暂无标记的文件" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+			<Empty
+				description={t("sharedTopics.emptyMarked")}
+				image={Empty.PRESENTED_IMAGE_SIMPLE}
+			/>
 		</div>
 	)
 
 	return (
 		<div className={commonStyles.pageContainer}>
-			<div className={commonStyles.title}>分享的话题</div>
-			<div className={commonStyles.description}>管理对外分享的话题</div>
+			<div className={commonStyles.title}>{t("sharedTopics.title")}</div>
+			<div className={commonStyles.description}>{t("sharedTopics.subtitle")}</div>
 			<div className={commonStyles.formHeader}>
 				<Input
-					placeholder="搜索话题"
+					placeholder={t("sharedTopics.searchPlaceholder")}
 					className={commonStyles.searchInput}
 					value={searchKeywords}
 					onChange={(event) => {
@@ -152,7 +142,7 @@ export default memo(function SharedTopics() {
 				/>
 				<Dropdown menu={{ items: dropdownItems }} disabled={selectedRowKeys.length === 0}>
 					<MagicButton className={styles.batchOperationButton} onClick={handleRemove}>
-						<span>批量操作</span>
+						<span>{t("sharedTopics.batchAction")}</span>
 						<MagicIcon component={IconChevronDown} size={20} stroke={2} />
 					</MagicButton>
 				</Dropdown>

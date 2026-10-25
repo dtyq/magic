@@ -8,11 +8,16 @@ export function useWorkspaceRename() {
 	const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 	const [renamingWorkspace, setRenamingWorkspace] = useState<Workspace | null>(null)
 
-	const openRenameModal = useMemoizedFn((workspaceId: string) => {
-		const workspace = workspaceStore.workspaces.find((ws) => ws.id === workspaceId) ?? null
-		setRenamingWorkspace(workspace)
-		setRenameDialogOpen(true)
-	})
+	const openRenameModal = useMemoizedFn(
+		(workspaceId: string, fallbackWorkspace?: Workspace | null) => {
+			const workspace =
+				workspaceStore.workspaces.find((ws) => ws.id === workspaceId) ??
+				fallbackWorkspace ??
+				null
+			setRenamingWorkspace(workspace)
+			setRenameDialogOpen(true)
+		},
+	)
 
 	const closeRenameModal = useMemoizedFn(() => {
 		setRenameDialogOpen(false)
@@ -30,6 +35,7 @@ export function useWorkspaceRename() {
 	))
 
 	return {
+		renameDialogOpen,
 		openRenameModal,
 		closeRenameModal,
 		renderRenameModal,

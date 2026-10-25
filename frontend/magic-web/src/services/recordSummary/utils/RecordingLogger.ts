@@ -1,5 +1,5 @@
-import { logger as Logger } from "@/utils/log"
-import type { StructuredErrorInput } from "@/utils/log/errorReport"
+import { logger as Logger } from "@/infrastructure/logger"
+import type { StructuredErrorInput } from "@/infrastructure/logger"
 
 /**
  * Namespaced logger interface

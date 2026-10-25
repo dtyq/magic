@@ -157,6 +157,7 @@ class TextContentCompletionAppService extends DesignAppService
                 'organization_id' => $dataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'project_id' => $projectId,
+                'business_id' => (string) $projectId,
                 'source_id' => SourceId::DESIGN_TEXT_CONTENT_COMPLETION,
             ]
         );

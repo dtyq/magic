@@ -1,6 +1,6 @@
 // 消息编辑草稿
 import { FileData } from "@/pages/chatNew/components/MessageEditor/components/InputFiles/types"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { makeAutoObservable } from "mobx"
 
 export interface EditorDraftWithInfo {

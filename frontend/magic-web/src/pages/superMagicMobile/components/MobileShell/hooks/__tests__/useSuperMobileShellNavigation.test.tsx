@@ -127,8 +127,11 @@ describe("useSuperMobileShellNavigation", () => {
 			"recording",
 			"myCrew",
 			"magiClaw",
-			"apps",
+			"aiCanvas",
+			"personaResearch",
+			"microApps",
 			"trash",
+			"apps",
 		])
 	})
 
@@ -139,6 +142,7 @@ describe("useSuperMobileShellNavigation", () => {
 		["recording", "AudioRecordings"],
 		["myCrew", "MyCrew"],
 		["magiClaw", "MagiClaw"],
+		["aiCanvas", "AiCanvas"],
 		["apps", "SuperApps"],
 		["trash", "RecycleBin"],
 		["unknown-key", "MobileHome"],

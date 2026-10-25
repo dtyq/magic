@@ -4,21 +4,27 @@ import { EditorView } from "prosemirror-view"
 import { Schema, Node, DOMSerializer, type SchemaSpec } from "prosemirror-model"
 import { EditorState, TextSelection } from "prosemirror-state"
 import { useMemoizedFn } from "ahooks"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import schemaConfig from "./schemaConfig"
 import { parseContent } from "./utils"
 import type { RichTextProps } from "./types"
-import type { JSONContent } from "@tiptap/core"
-import { MentionItemType } from "@/components/business/MentionPanel/types"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import { getMentionDisplayName } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import { getDisplayText } from "@/pages/superMagic/components/MessageEditor/extensions/super-placeholder/utils"
 import { INSPECTOR_DETAIL_TYPE } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/const"
 import { transformInspectorContent } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/transform"
+import { restoreWechatChatContent } from "@/pages/superMagic/components/MessageEditor/extensions/wechat-chat-history/transform"
+import { WECHAT_CHAT_HISTORY } from "@/pages/superMagic/components/MessageEditor/extensions/wechat-chat-history/types"
+import { createWechatReadOnlyView } from "@/pages/superMagic/components/MessageEditor/components/WechatChatHistory/readOnly"
 import type { InspectorDetailAttrs } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail"
 import InlineMention from "./components/InlineMention"
 import { InspectorDetailReadOnly } from "./components/InspectorDetailReadOnly"
 import { useMessageListContext } from "@/pages/superMagic/components/MessageList/context"
+import {
+	getClipboardHtml,
+	getClipboardPlainText,
+	resolveClipboardContent,
+	resolveMentionForClipboard,
+} from "@/pages/superMagic/components/MessageList/utils/mentionClipboard"
 
 // Schedule a callback on the microtask queue. Falls back to Promise.resolve()
 // for older browsers/WebViews that lack the native queueMicrotask (pre-2019).
@@ -31,7 +37,14 @@ const scheduleMicrotask =
 
 const RichText = memo(
 	function RichText(props: RichTextProps) {
-		const { content, className, style, onFileClick, markerClickScene = "messageList" } = props
+		const {
+			content,
+			className,
+			style,
+			onFileClick,
+			markerClickScene = "messageList",
+			fileMentionRenderConfig,
+		} = props
 		const { projectFilesStore } = useMessageListContext()
 
 		const scene = markerClickScene
@@ -42,6 +55,7 @@ const RichText = memo(
 		const finalSchema = useMemo(() => new Schema(schemaConfig as SchemaSpec), [])
 		const mentionNodeViews = useMemo(
 			() => ({
+				[WECHAT_CHAT_HISTORY]: createWechatReadOnlyView,
 				mention: (node: Node) => {
 					const dom = document.createElement("span")
 					dom.className = "mention-node-view"
@@ -54,6 +68,7 @@ const RichText = memo(
 							markerClickScene={scene}
 							messageContent={content}
 							projectFilesStore={projectFilesStore}
+							fileMentionRenderConfig={fileMentionRenderConfig}
 						/>,
 					)
 
@@ -91,67 +106,10 @@ const RichText = memo(
 			[content, onFileClick, projectFilesStore, scene],
 		)
 
-		// Generate plain text from ProseMirror node
-		const getPlainText = useMemoizedFn((node: Node): string => {
-			if (node.type.name === "text") {
-				return node.text || ""
-			}
-
-			if (node.type.name === "mention") {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				const displayName = getMentionDisplayName(node.attrs as any)
-				const type = node.attrs.type
-				return type === MentionItemType.FOLDER ? ` @${displayName}/ ` : ` @${displayName} `
-			}
-
-			if (node.type.name === "super-placeholder") {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				return getDisplayText(node.attrs as any)
-			}
-
-			if (node.type.name === INSPECTOR_DETAIL_TYPE) {
-				const attrs = node.attrs
-				const lines: string[] = []
-				if (attrs.selector) lines.push(`selector: ${attrs.selector}`)
-				if (attrs.size) lines.push(`size: ${attrs.size}`)
-				if (attrs.computedStyles && attrs.computedStyles !== "{}") {
-					try {
-						const styles = JSON.parse(attrs.computedStyles) as Record<string, string>
-						const pairs = Object.entries(styles).map(([k, v]) => `${k}: ${v}`)
-						if (pairs.length > 0) lines.push(`computedStyles: ${pairs.join("; ")}`)
-					} catch {
-						lines.push(`computedStyles: ${attrs.computedStyles}`)
-					}
-				}
-				if (attrs.textContent) lines.push(`textContent: "${attrs.textContent}"`)
-				return lines.length > 0 ? `${lines.join("\n")}\n` : ""
-			}
-
-			if (node.type.name === "hardBreak") {
-				return "\n"
-			}
-
-			if (node.type.name === "paragraph") {
-				let text = ""
-				node.forEach((child) => {
-					text += getPlainText(child)
-				})
-				return text + "\n"
-			}
-
-			// For other nodes, recursively process children
-			let text = ""
-			node.forEach((child) => {
-				text += getPlainText(child)
-			})
-			return text
-		})
-
 		// Handle copy events to provide proper plain text representation
 		const handleCopy = useMemoizedFn((view: EditorView, event: ClipboardEvent) => {
 			const { state } = view
 			const { selection } = state
-
 			if (selection.empty) {
 				return false // No selection, let browser handle default behavior
 			}
@@ -167,16 +125,13 @@ const RichText = memo(
 				// Create a temporary container to get HTML
 				const tempDiv = document.createElement("div")
 				tempDiv.appendChild(dom)
-				const htmlContent = tempDiv.innerHTML
-
-				// Generate plain text by walking through the fragment
-				let plainText = ""
-				fragment.content.forEach((node) => {
-					plainText += getPlainText(node)
-				})
-
-				// Remove trailing newline if it exists
-				plainText = plainText.replace(/\n$/, "")
+				const workspaceFiles = projectFilesStore?.workspaceFilesList ?? []
+				const currentProjectId = projectFilesStore?.currentSelectedProject?.id
+				const htmlContent = getClipboardHtml(
+					tempDiv.innerHTML,
+					workspaceFiles,
+					currentProjectId,
+				)
 
 				// Extract mentions and build rich text JSON from the fragment
 				const mentions: TiptapMentionAttributes[] = []
@@ -189,20 +144,37 @@ const RichText = memo(
 					const collectMentions = (n: Node) => {
 						if (n.type.name === "mention" && n.attrs) {
 							mentions.push(n.attrs as TiptapMentionAttributes)
-						} else if (n.type.name === INSPECTOR_DETAIL_TYPE && n.attrs.fileMention) {
-							mentions.push(n.attrs.fileMention as TiptapMentionAttributes)
+						} else if (n.type.name === INSPECTOR_DETAIL_TYPE) {
+							for (const key of ["fileMention", "screenshotMention"] as const) {
+								if (n.attrs[key])
+									mentions.push(n.attrs[key] as TiptapMentionAttributes)
+							}
 						}
 						n.forEach((child) => collectMentions(child))
 					}
 					collectMentions(node)
 				})
+				const clipboardContent = resolveClipboardContent(
+					richTextJson,
+					workspaceFiles,
+					currentProjectId,
+				)
+				const clipboardMentions = mentions.map((mention) =>
+					resolveMentionForClipboard(mention, workspaceFiles, currentProjectId),
+				)
+				const plainText = getClipboardPlainText(
+					clipboardContent,
+					workspaceFiles,
+					currentProjectId,
+				)
 
 				// Build magic clipboard metadata
 				const metadata: Record<string, unknown> = {
-					richText: JSON.stringify(richTextJson),
+					richText: JSON.stringify(clipboardContent),
+					sourceProjectId: currentProjectId,
 				}
-				if (mentions.length > 0) {
-					metadata.mentions = mentions.map((m) => ({ attrs: m }))
+				if (clipboardMentions.length > 0) {
+					metadata.mentions = clipboardMentions.map((attrs) => ({ attrs }))
 				}
 				const metadataBase64 = btoa(encodeURIComponent(JSON.stringify(metadata)))
 				const htmlWithMetadata = `<div data-magic-clipboard="${metadataBase64}">${htmlContent}</div>`
@@ -279,7 +251,9 @@ const RichText = memo(
 					}
 
 					// Transform inspector text paragraphs into collapsible nodes
-					const transformedContent = transformInspectorContent(parsedContent)
+					const transformedContent = restoreWechatChatContent(
+						transformInspectorContent(parsedContent),
+					)
 
 					// 创建 ProseMirror 视图
 					editorViewRef.current = new EditorView(containerRef.current, {
@@ -337,7 +311,8 @@ const RichText = memo(
 			prev.content === next.content &&
 			prev.className === next.className &&
 			prev.onFileClick === next.onFileClick &&
-			prev.markerClickScene === next.markerClickScene
+			prev.markerClickScene === next.markerClickScene &&
+			prev.fileMentionRenderConfig === next.fileMentionRenderConfig
 		)
 	},
 )

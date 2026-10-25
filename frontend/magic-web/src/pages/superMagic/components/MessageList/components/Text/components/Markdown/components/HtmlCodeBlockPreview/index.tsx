@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 import {
@@ -16,6 +16,7 @@ import { useHtmlCodeBlockPreviewController } from "./hooks/useHtmlCodeBlockPrevi
 import { useHtmlCodeBlockPreviewCopy } from "./hooks/useHtmlCodeBlockPreviewCopy"
 import { useHtmlCodeBlockPreviewExpandAutoScroll } from "./hooks/useHtmlCodeBlockPreviewExpandAutoScroll"
 import { useHtmlCodeBlockPreviewStreamingScroll } from "./hooks/useHtmlCodeBlockPreviewStreamingScroll"
+import { useHtmlCodeBlockPreviewActivity } from "./hooks/useHtmlCodeBlockPreviewActivity"
 import { hasVisibleHtmlPreviewContent } from "./shared"
 import type { HtmlCodeBlockPreviewProps } from "./types"
 import { resolveHtmlPreviewIntrinsicWidthHint } from "./preview-width"
@@ -33,6 +34,8 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 		previewCode,
 		fullCode,
 		streamingScrollStateRef,
+		isCodeWrapped,
+		onToggleCodeWrap,
 		...restPreProps
 	} = props
 	const { t } = useTranslation("super")
@@ -97,6 +100,17 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 		hasVisiblePreviewContent,
 		viewStateKey,
 	})
+	const effectiveIsExpanded = hasVisiblePreviewContent || viewMode === "code" ? isExpanded : false
+	const { setPreviewActivityElement, isPreviewActive } = useHtmlCodeBlockPreviewActivity({
+		enabled: isStreaming && effectiveIsExpanded && shouldRenderPreview,
+	})
+	const setPreviewRootElement = useCallback(
+		(element: HTMLDivElement | null) => {
+			setPreviewLayoutElement(element)
+			setPreviewActivityElement(element)
+		},
+		[setPreviewActivityElement, setPreviewLayoutElement],
+	)
 	const getScrollTargetElement = useCallback(() => {
 		if (viewMode === "desktop") return desktopPreviewSurfaceElementRef.current
 		if (viewMode === "phone") return phonePreviewSurfaceElementRef.current
@@ -116,13 +130,13 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 	const phoneModeLabel = t("fileViewer.phoneMode")
 	const fullscreenLabel = t("fileViewer.fullscreen", "全屏")
 	const htmlSnippetLabel = tInterface("chat.markdown.htmlSnippet", "HTML 片段")
+	const wrapLabel = tInterface("chat.markdown.wrapCode", "换行")
+	const unwrapLabel = tInterface("chat.markdown.unwrapCode", "取消换行")
 	const shouldRenderCopyButton = !isStreaming && hasResolvedCode
 	// 全屏按钮
 	const shouldRenderFullscreenButton = !isStreaming && hasResolvedCode && hasVisiblePreviewContent
 	const shouldRenderViewModeSwitcher = hasResolvedCode && hasVisiblePreviewContent
 	// 非渲染标签场景下默认只保留 header；只有用户明确展开源码时，才展示下方内容区。
-	const effectiveIsExpanded = hasVisiblePreviewContent || viewMode === "code" ? isExpanded : false
-
 	async function handleCopy() {
 		await copyHtmlCode(effectiveResolvedCode)
 	}
@@ -207,7 +221,7 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 
 	return (
 		<div
-			ref={setPreviewLayoutElement}
+			ref={setPreviewRootElement}
 			className="my-3 w-full min-w-0 self-stretch"
 			data-testid="html-code-block-preview"
 		>
@@ -236,6 +250,9 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 						phoneModeLabel={phoneModeLabel}
 						copyLabel={copyLabel}
 						copySuccessLabel={copySuccessLabel}
+						wrapLabel={wrapLabel}
+						unwrapLabel={unwrapLabel}
+						isCodeWrapped={isCodeWrapped}
 						fullscreenLabel={fullscreenLabel}
 						viewMode={viewMode}
 						isExpanded={effectiveIsExpanded}
@@ -246,6 +263,7 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 						// 移动端消息预览只保留手机视图入口，不再展示 PC 预览按钮。
 						shouldRenderDesktopModeButton={!isStreaming && !isMobile}
 						onCopy={handleCopy}
+						onToggleCodeWrap={onToggleCodeWrap}
 						onOpenFullscreen={handleOpenInFilesViewer}
 						onToggleExpanded={handleToggleExpanded}
 						onViewModeChange={handleViewModeChange}
@@ -273,6 +291,7 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 								codeClassName={codeBlockInfo.className}
 								codeDisplayContent={committedCodeDisplayContent}
 								scrollAreaRef={setScrollAreaElement}
+								isCodeWrapped={isCodeWrapped}
 							/>
 						)}
 						{effectiveIsExpanded &&
@@ -287,6 +306,7 @@ function HtmlCodeBlockPreview(props: HtmlCodeBlockPreviewProps) {
 										key={previewRenderKey}
 										isStreaming
 										isSuspended={isSuspended}
+										isPreviewActive={isPreviewActive}
 										resolvedCode={effectiveResolvedCode}
 										isPreviewLoading={isPreviewLoading}
 										onPreviewRenderReady={() =>

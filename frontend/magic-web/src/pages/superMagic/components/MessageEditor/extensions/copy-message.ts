@@ -1,94 +1,33 @@
-import { Extension, type JSONContent } from "@tiptap/core"
+import { Extension, type JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { Plugin, PluginKey } from "prosemirror-state"
-import { isAllowedMention, markProjectFileMentionForCopy } from "../utils/mention"
-import type {
-	MentionListItem,
-	TiptapMentionAttributes,
-} from "@/components/business/MentionPanel/tiptap-plugin/types"
+import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import type { DataService } from "@/components/business/MentionPanel/types"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import {
-	extractClipboardMetadata,
-	isMagicClipboard,
-	type MagicClipboardMetadata,
-} from "@/utils/clipboard-helpers"
-import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
-import { transformInspectorContent } from "./inspector-detail"
+	serializeMessageClipboard,
+	writeMessageClipboardPayload,
+} from "@/utils/messageClipboardSerializer"
+import { pasteMessageClipboard } from "./pasteMessageClipboard"
 
 interface CopyMessageOptions {
 	onMentionsInsert?: (items: TiptapMentionAttributes[]) => void
 	onContentChange?: (content: JSONContent) => void
 	dataService?: DataService | null
-}
-
-function prepareMentionAttrs(
-	attrs: TiptapMentionAttributes,
-	metadata: MagicClipboardMetadata,
-	dataService?: DataService | null,
-): TiptapMentionAttributes | null {
-	const pendingProjectFileMention = markProjectFileMentionForCopy(attrs, metadata.sourceProjectId)
-	if (pendingProjectFileMention) return pendingProjectFileMention
-
-	if (isAllowedMention(attrs, dataService)) return attrs
-
-	return null
-}
-
-function prepareMentionItems(
-	mentions: unknown[],
-	metadata: MagicClipboardMetadata,
-	dataService?: DataService | null,
-): TiptapMentionAttributes[] {
-	return (mentions as MentionListItem[])
-		.map((mention) => prepareMentionAttrs(mention.attrs, metadata, dataService))
-		.filter((mention): mention is TiptapMentionAttributes => Boolean(mention))
-}
-
-function prepareRichTextContent(
-	content: JSONContent,
-	metadata: MagicClipboardMetadata,
-	dataService?: DataService | null,
-): JSONContent {
-	if (!content) return content
-
-	let transformedContent = content
-
-	if (content.type === "mention" && content.attrs) {
-		const attrs = prepareMentionAttrs(
-			content.attrs as TiptapMentionAttributes,
-			metadata,
-			dataService,
-		)
-		if (!attrs) return {}
-
-		transformedContent = {
-			...content,
-			attrs,
-		}
-	}
-
-	if (content.content && Array.isArray(content.content)) {
-		const transformedChildren = content.content
-			.map((child) => prepareRichTextContent(child, metadata, dataService))
-			.filter((child) => Object.keys(child).length > 0)
-
-		if (transformedChildren.some((child, index) => child !== content.content?.[index])) {
-			transformedContent = {
-				...transformedContent,
-				content: transformedChildren,
-			}
-		}
-	}
-
-	return transformedContent
+	getWorkspaceFilesList?: () => AttachmentItem[]
+	getCurrentProjectId?: () => string | undefined
 }
 
 const CopyMessageExtension = Extension.create<CopyMessageOptions>({
 	name: "copyMessage",
+	// Tiptap 会反转同优先级扩展；先恢复资源，再让通用文本插件处理剩余粘贴。
+	priority: 110,
 
 	addOptions() {
 		return {
 			onMentionsInsert: undefined,
 			dataService: null,
+			getWorkspaceFilesList: undefined,
+			getCurrentProjectId: undefined,
 		}
 	},
 
@@ -98,65 +37,42 @@ const CopyMessageExtension = Extension.create<CopyMessageOptions>({
 				key: new PluginKey("copyMessage"),
 
 				props: {
+					handleDOMEvents: {
+						copy: (view, event) => {
+							if (!this.options.getWorkspaceFilesList) {
+								return false
+							}
+
+							const clipboardEvent = event as ClipboardEvent
+							const clipboardData = clipboardEvent.clipboardData
+							if (!clipboardData) {
+								return false
+							}
+
+							const payload = serializeMessageClipboard(view, {
+								workspaceFiles: this.options.getWorkspaceFilesList(),
+								sourceProjectId: this.options.getCurrentProjectId?.(),
+							})
+							if (!payload) {
+								return false
+							}
+
+							clipboardEvent.preventDefault()
+							writeMessageClipboardPayload(clipboardData, payload)
+
+							return true
+						},
+					},
 					handlePaste: (_view, event) => {
 						const clipboardData = event.clipboardData
 						if (!clipboardData) return false
 
-						// 检查是否是来自Magic应用的剪贴板数据
-						if (!isMagicClipboard(clipboardData)) {
-							return false
-						}
-
-						// 使用兼容移动端的方式提取元数据
-						const metadata = extractClipboardMetadata(clipboardData)
-						console.log("📋 Extracted clipboard metadata:", metadata)
-
-						if (!metadata) {
-							return false
-						}
-
-						const mentions = Array.isArray(metadata.mentions) ? metadata.mentions : null
-						const mentionItems = mentions
-							? prepareMentionItems(
-									mentions,
-									metadata,
-									this.options.dataService ?? null,
-								)
-							: []
-						const syncMentions = () => {
-							if (mentions) this.options.onMentionsInsert?.(mentionItems)
-						}
-
-						// 处理富文本内容
-						if (metadata.richText) {
-							try {
-								const content = prepareRichTextContent(
-									JSON.parse(metadata.richText),
-									metadata,
-									this.options.dataService ?? null,
-								)
-								const editorContent = transformInspectorContent(content)
-								return (
-									runActiveEditor(
-										this.editor,
-										(editor) => {
-											if (!editor.commands.insertContent(editorContent))
-												return false
-											syncMentions()
-											return true
-										},
-										false,
-									) ?? false
-								)
-							} catch (err) {
-								console.error("❌ Failed to parse rich text content:", err)
-								syncMentions()
-							}
-						} else {
-							syncMentions()
-						}
-
-						return false
+						return pasteMessageClipboard(this.editor, clipboardData, {
+							onMentionsInsert: this.options.onMentionsInsert,
+							dataService: this.options.dataService ?? null,
+							getWorkspaceFilesList: this.options.getWorkspaceFilesList,
+							getCurrentProjectId: this.options.getCurrentProjectId,
+						})
 					},
 				},
 			}),

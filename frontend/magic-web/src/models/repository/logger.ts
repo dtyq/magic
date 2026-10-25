@@ -1,3 +1,3 @@
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 export const logger = Logger.createLogger("repository")

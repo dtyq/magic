@@ -6,24 +6,24 @@ Read [SKILL.md](../SKILL.md) first. Use these tools when the task depends on ren
 
 ```python
 browser_screenshot(
-    page_id: str,
     labels: bool = False,
     full_page: bool = False,
     output_path: str | None = None,
     scale: float | None = None,
     quality: int | None = None,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
 browser_visual_query(
-    page_id: str,
     query: str,
     full_page: bool = False,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
-browser_find_visual(page_id: str, target: str, session_id: str | None = None)
+browser_find_visual(target: str, tab_id: str | None = None)
 ```
 
-`browser_visual_query` captures and analyzes the page in one call. Do not call `browser_screenshot` first when the task is to answer a visual question.
+Screenshots and visual tools capture the current tab. Each Tool Detail screenshot is bound to the actual tab used by that operation, even when a different desktop tab is visible or an action opens a popup. If that tab disappears before capture, the tool keeps its result without substituting another tab's image.
+
+`browser_visual_query` captures the page once, publishes one topic-scoped screenshot artifact, and attaches it as native visual input for the next main model request. Do not call `browser_screenshot` first when the task is to answer a visual question, and do not call `visual_understanding` on the Browser screenshot separately.
 
 For long, dense visual content, scroll one viewport at a time and call `browser_visual_query` on each viewport. Use `full_page=True` only for overall layout because very long screenshots lose fine detail when compressed.
 
@@ -39,14 +39,12 @@ The result includes a `label_to_ref` mapping. Convert a visual choice back to th
 
 ```python
 shot = tool.call("browser_screenshot", {
-    "page_id": page_id,
     "labels": True,
 })
 print(shot.content)
 if shot.ok:
     target_ref = shot.data["label_to_ref"]["A2"]
     print(tool.call("browser_click", {
-        "page_id": page_id,
         "ref": target_ref,
     }).content)
 ```

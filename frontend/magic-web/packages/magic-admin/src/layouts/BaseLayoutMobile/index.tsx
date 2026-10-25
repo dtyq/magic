@@ -3,10 +3,14 @@ import { Outlet } from "react-router-dom"
 import { useStyles } from "./styles"
 import MobileTabBar from "./components/MobileTabBar"
 import MobileHeader from "./components/MobileHeader"
-import { withAuthMiddleware } from "../BaseLayout/components/AuthMiddleware"
+import { AdminAuthContentLoading } from "@admin-components"
+import {
+	withAuthMiddleware,
+	type AuthMiddlewareInjectedProps,
+} from "../BaseLayout/components/AuthMiddleware"
 import { useGetCurrentRouteInfo } from "../BaseLayout/useGetCurrentRouteInfo"
 
-const BaseLayoutMobile = () => {
+const BaseLayoutMobile = ({ authLoading }: AuthMiddlewareInjectedProps) => {
 	const { styles } = useStyles()
 	const { hiddenMenu } = useGetCurrentRouteInfo()
 
@@ -18,7 +22,7 @@ const BaseLayoutMobile = () => {
 				className={styles.container}
 				style={{ height: hiddenMenu ? "calc(100% - 56px)" : "calc(100% - 56px - 52px)" }}
 			>
-				<Outlet />
+				{authLoading ? <AdminAuthContentLoading /> : <Outlet />}
 			</div>
 			{!hiddenMenu && <MobileTabBar />}
 			{/* <GlobalSafeArea direction="bottom" /> */}

@@ -24,5 +24,6 @@ return [
         'secret_key' => 'Secret Key',
         'conversation_id' => 'Conversation ID',
         'enabled' => 'Enabled',
+        'api_key_name' => 'Api key name: :label',
     ],
 ];

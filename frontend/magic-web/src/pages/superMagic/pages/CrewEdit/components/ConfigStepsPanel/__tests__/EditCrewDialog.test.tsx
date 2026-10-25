@@ -46,6 +46,13 @@ vi.mock("@/hooks/useUploadFiles", () => ({
 	useUpload: () => ({ upload: vi.fn() }),
 }))
 
+vi.mock("@/apis", () => ({
+	FileApi: {
+		reportFileUploads: vi.fn(),
+		getFileUrl: vi.fn(),
+	},
+}))
+
 vi.mock("@/services/crew/CrewService", () => ({
 	crewService: { updateAgentInfo: vi.fn() },
 }))

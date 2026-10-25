@@ -5,10 +5,12 @@ import * as apis from "@/apis"
 import { LoginService } from "@/services/user/LoginService/LoginService"
 import { OrganizationService } from "@/services/user/OrganizationService"
 import { ConfigService } from "@/services/config/ConfigService"
-import { initialApi } from "@/apis/clients/interceptor"
 import { FlowService } from "./flow"
+import { initializeAuthRuntime } from "./auth/AuthRuntime"
 
 export function initializeApp() {
+	// Install the auth event subscriber before API clients can observe an invalid session.
+	initializeAuthRuntime()
 	const container = new ServiceContainer()
 
 	// 将 API 初始化延迟到实际创建服务时进行
@@ -43,8 +45,6 @@ export function initializeApp() {
 	// const configService = container.get<ConfigService>("configService")
 	// const flowService = container.get<FlowService>("flowService")
 	// const organizationService = container.get<OrganizationService>("organizationService")
-
-	initialApi(container)
 
 	// 返回可供应用使用的服务实例
 	return {

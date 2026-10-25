@@ -1,5 +1,5 @@
 import { generateContactApi } from "./modules/contact"
-import magicClient from "./clients/magic"
+import { defaultMagicClient as magicClient } from "@/infrastructure/network/http"
 import chatWebSocketClient from "./clients/chatWebSocket"
 import { generateUserApi } from "./modules/user"
 import { generateCommonApi } from "./modules/common"
@@ -17,6 +17,7 @@ import { generateGlobalApi } from "./modules/global"
 import { generateScheduledTaskApi } from "./modules/scheduledTask"
 import { generateSuperMagicApi } from "./modules/superMagic"
 import { generateSkillsApi } from "./modules/skills"
+import { generateHtmlDesignStylesApi } from "./modules/htmlDesignStyles"
 import { generateCrewApi } from "./modules/crew"
 import { generateOrgAiModelProviderApi } from "./modules/org-ai-model-provider"
 import { generateRecycleBinApi } from "./modules/recycle-bin"
@@ -25,6 +26,9 @@ import { generateMagicClawApi } from "./modules/magicClaw"
 import { generateFunctionPermissionApi } from "./modules/function-permission"
 import { generateMagicFSApi } from "./modules/magicFS"
 import { generateMagicBaseApi } from "./modules/magicBase"
+import { generateSlidesTemplateUploadApi } from "./modules/slidesTemplateUpload"
+import { generateNotificationApi } from "./modules/notifications"
+import { buildAssetVisibility, generateAssetsApi } from "./modules/assets"
 
 /** 重置服务 */
 export const UserApi = generateUserApi(magicClient)
@@ -45,11 +49,15 @@ export const MagicUserApi = generateMagicUserApi(magicClient)
 export const GlobalApi = generateGlobalApi(magicClient)
 export const ScheduledTaskApi = generateScheduledTaskApi(magicClient)
 export const RecycleBinApi = generateRecycleBinApi(magicClient)
+export const NotificationApi = generateNotificationApi(magicClient)
 
 /** 超级麦吉 */
 export const SuperMagicApi = generateSuperMagicApi(magicClient)
+export const SlidesTemplateUploadApi = generateSlidesTemplateUploadApi(magicClient)
 /** Skills */
 export const SkillsApi = generateSkillsApi(magicClient)
+/** HTML design styles */
+export const HtmlDesignStylesApi = generateHtmlDesignStylesApi(magicClient)
 /** Crew */
 export const CrewApi = generateCrewApi(magicClient)
 
@@ -67,9 +75,13 @@ export const FunctionPermissionApi = generateFunctionPermissionApi(magicClient)
 export const MagicFSApi = generateMagicFSApi(magicClient)
 /** MagicBase */
 export const MagicBaseApi = generateMagicBaseApi(magicClient)
+export const AssetsApi = generateAssetsApi(magicClient)
 
 export { MAGIC_CLAW_STATUS } from "./modules/magicClaw"
-export { FUNCTION_PERMISSION_CODE } from "./modules/function-permission"
+export {
+	FUNCTION_PERMISSION_CODE,
+	PLATFORM_SUPER_ADMIN_PERMISSION_KEY,
+} from "./modules/function-permission"
 
 export type {
 	MagicClawItem,
@@ -83,7 +95,11 @@ export type {
 	UpdateMagicClawBody,
 } from "./modules/magicClaw"
 
-export type { FunctionPermissionCode, FunctionPermissionMap } from "./modules/function-permission"
+export type {
+	FunctionPermissionCode,
+	FunctionPermissionMap,
+	PermissionGroupsResponse,
+} from "./modules/function-permission"
 export type {
 	CreateMagicFSFileParams,
 	ListMagicFSFilesParams,
@@ -92,6 +108,51 @@ export type {
 } from "./modules/magicFS"
 export type { FileScope } from "./modules/fileScope"
 export type {
+	AssetAgreementStatusResponse,
+	AssetBusinessType,
+	AssetComplianceResponse,
+	AssetComplianceStatus,
+	AssetComplianceSourceParams,
+	AssetFileSourceParams,
+	AssetItem,
+	AssetKind,
+	AssetMediaType,
+	AssetOwner,
+	AssetOwnerItem,
+	AssetQueryParams,
+	AssetQueryResponse,
+	AssetScope,
+	AssetSource,
+	AssetVisibilityType,
+	AssetTag,
+	AssetTagGroupItem,
+	AssetTagItem,
+	AssetTagListResponse,
+	AssetTagTreeNode,
+	AssetTagMatch,
+	AssetTagMutationResponse,
+	AssetTagNodeType,
+	AssetVisibilityConfig,
+	AssetVisibilityConfigResponse,
+	AssetVisibilityMember,
+	BatchDeleteAssetsParams,
+	BatchDeleteAssetsResponse,
+	BatchGetAssetsParams,
+	CreateAssetParams,
+	CreateAssetTagParams,
+	DeleteAssetResponse,
+	PrivateUploadTokenCredentials,
+	PrivateUploadTokenData,
+	PrivateUploadTokenParams,
+	SaveAssetToLibraryParams,
+	SaveAssetVisibility,
+	StartAssetComplianceParams,
+	TransferAssetOwnerParams,
+	TransferAssetOwnerResponse,
+	UpdateAssetTagParams,
+	UpdateAssetParams,
+} from "./modules/assets"
+export type {
 	MagicBaseColumn,
 	MagicBaseQueryRowsRequest,
 	MagicBaseQueryRowsResponse,
@@ -99,3 +160,4 @@ export type {
 	MagicBaseSortRule,
 	MagicBaseTable,
 } from "./modules/magicBase"
+export { buildAssetVisibility }

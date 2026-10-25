@@ -19,12 +19,15 @@ use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublisherType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublishTargetType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentType;
+use App\Domain\SuperMagic\Agent\Event\AgentMarketPublishedEvent;
 use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentDomainService;
+use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentMarketDomainService;
 use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentVersionDomainService;
 use App\Domain\SuperMagic\Agent\Service\UserAgentDomainService;
 use App\Infrastructure\Util\File\EasyFileTools;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use DateTime;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\DbConnection\Db;
 use Throwable;
 
@@ -32,6 +35,7 @@ class OfficialAgentsInitializer
 {
     public function __construct(
         private readonly SuperMagicAgentDomainService $superMagicAgentDomainService,
+        private readonly SuperMagicAgentMarketDomainService $superMagicAgentMarketDomainService,
         private readonly SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService,
         private readonly ResourceVisibilityDomainService $resourceVisibilityDomainService,
         private readonly UserAgentDomainService $userAgentDomainService,
@@ -128,6 +132,14 @@ class OfficialAgentsInitializer
                     $entity->getSourceId(),
                     (int) $publishedVersion->getId()
                 );
+                $market = $this->superMagicAgentMarketDomainService->getPublishedByAgentCode($entity->getCode());
+                if ($market !== null && $market->getId() !== null) {
+                    AsyncEventUtil::dispatch(new AgentMarketPublishedEvent(
+                        (string) $market->getId(),
+                        $organizationCode,
+                        $userId,
+                    ));
+                }
 
                 $results[] = [
                     'code' => $config['code'],

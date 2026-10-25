@@ -6,7 +6,8 @@ import { Input } from "@/components/shadcn-ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import { getSelfMediaPostActionClassName } from "./SelfMediaPostActionButton"
 import type { SelfMediaPlatformPostItem } from "../stores/SelfMediaStore"
 import type { SelfMediaPostOpsArtifactAnimation } from "../services/selfMediaOpsArtifactStates"
 import { selfMediaOverlayStyles } from "./selfMediaOverlayStyles"
@@ -149,12 +150,9 @@ function SelfMediaPostPublishedLinkPopover({
 		) : (
 			<button
 				type="button"
-				className={cn(
-					"inline-flex h-9 items-center justify-center rounded-full text-[12px] font-[700] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-					showLabel ? "gap-1.5 px-3" : "w-9",
-					sourceReady
-						? "bg-[#f4f4f5] text-[#18181b] hover:bg-[#e4e4e7]"
-						: "bg-[#18181b] text-[#ffffff] hover:bg-[#27272a]",
+				className={getSelfMediaPostActionClassName(
+					Boolean(showLabel),
+					sourceReady ? "default" : "primary",
 				)}
 				aria-label={label}
 				title={showLabel ? undefined : label}

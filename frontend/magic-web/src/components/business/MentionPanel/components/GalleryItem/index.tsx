@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from "react"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Check, ChevronRight, FileText, Maximize2 } from "lucide-react"
 import type { I18nTexts } from "../../i18n/types"
 import {
@@ -14,7 +14,9 @@ import { useMentionItemRenderContextValue, useMentionItemRenderer } from "../../
 import {
 	getMentionProjectFileImageExtension,
 	isMentionPanelImageFileExtension,
+	isMentionPanelVideoFileExtension,
 } from "../../runtime/builtin/domains/file-preview/preview-utils"
+import MentionVideoPreview from "../MentionVideoPreview"
 
 interface GalleryItemProps {
 	item: MentionItem
@@ -32,19 +34,21 @@ function isFolderLikeItem(item: MentionItem) {
 	return item.type === MentionCoreItemType.FOLDER || item.isFolder || item.hasChildren
 }
 
-function getProjectImagePreview(
+function getProjectMediaPreview(
 	item: MentionItem,
 	filePreviewById: Readonly<Record<string, string>>,
 ) {
 	if (item.type !== MentionItemType.PROJECT_FILE) {
-		return { isImage: false, previewUrl: undefined }
+		return { isImage: false, isVideo: false, previewUrl: undefined }
 	}
 
 	const data = item.data as ProjectFileMentionData | undefined
-	const isImage = isMentionPanelImageFileExtension(getMentionProjectFileImageExtension(item))
+	const extension = getMentionProjectFileImageExtension(item)
+	const isImage = isMentionPanelImageFileExtension(extension)
+	const isVideo = isMentionPanelVideoFileExtension(extension)
 	const previewUrl = data?.file_id ? filePreviewById[data.file_id] : undefined
 
-	return { isImage, previewUrl }
+	return { isImage, isVideo, previewUrl }
 }
 
 function getFileExtensionLabel(item: MentionItem) {
@@ -66,16 +70,18 @@ const GalleryItem = memo(function GalleryItem(props: GalleryItemProps) {
 		enablePreview,
 	} = props
 	const renderer = useMentionItemRenderer(item.type)
-	const filePreviewById = useMentionItemRenderContextValue()
+	const { filePreviewById = {}, filePresentationOptions } = useMentionItemRenderContextValue()
 	const rendererContext = {
 		item,
 		t,
 		isSearch,
 		platform: "desktop" as const,
 		filePreviewById,
+		filePresentationOptions,
 	}
-	const { isImage, previewUrl } = getProjectImagePreview(item, filePreviewById)
+	const { isImage, isVideo, previewUrl } = getProjectMediaPreview(item, filePreviewById)
 	const isFolderLike = isFolderLikeItem(item)
+	const isPreviewableMedia = isImage || isVideo
 	const isDisabled = Boolean(item.unSelectable && !isFolderLike)
 	const [imagePreviewFailed, setImagePreviewFailed] = useState(false)
 	const [previewWaitExpired, setPreviewWaitExpired] = useState(false)
@@ -130,13 +136,24 @@ const GalleryItem = memo(function GalleryItem(props: GalleryItemProps) {
 		return <div className="col-span-full my-0.5 h-px bg-border" />
 	}
 
+	const fileFallback = (
+		<div className="relative flex size-14 items-center justify-center rounded-md border bg-background text-muted-foreground shadow-sm">
+			{renderer.renderIcon?.(rendererContext) ?? <FileText className="size-7" />}
+			{extensionLabel && (
+				<span className="absolute bottom-1 rounded-sm bg-muted px-1 text-[8px] font-medium leading-3 text-muted-foreground">
+					{extensionLabel}
+				</span>
+			)}
+		</div>
+	)
+
 	return (
 		<div
 			className={cn(
 				"group/gallery-card relative flex h-[132px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-md border bg-background transition-all duration-150",
 				"hover:border-primary/40 hover:bg-accent/40 hover:shadow-sm",
 				isFolderLike && "border-border/80 bg-muted/20 hover:bg-accent/50",
-				!isImage && !isFolderLike && "bg-muted/10",
+				!isPreviewableMedia && !isFolderLike && "bg-muted/10",
 				selected && "border-primary/60 bg-accent shadow-sm ring-1 ring-primary/20",
 				isDisabled &&
 					"cursor-not-allowed opacity-55 hover:border-border hover:bg-background hover:shadow-none",
@@ -153,16 +170,19 @@ const GalleryItem = memo(function GalleryItem(props: GalleryItemProps) {
 				className={cn(
 					"relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/60",
 					isFolderLike && "bg-muted/30",
-					!isImage && !isFolderLike && "bg-muted/20",
+					!isPreviewableMedia && !isFolderLike && "bg-muted/20",
 				)}
 			>
-				{hasImagePreview ? (
+				{isVideo ? (
+					<MentionVideoPreview item={item} fallback={fileFallback} />
+				) : hasImagePreview ? (
 					<img
 						src={previewUrl}
 						alt=""
-						className="block h-full w-full object-cover"
+						className="block h-full w-full object-contain"
 						loading="eager"
 						decoding="async"
+						draggable={false}
 						referrerPolicy="no-referrer"
 						onError={() => setImagePreviewFailed(true)}
 						data-testid="mention-panel-gallery-preview-image"
@@ -174,14 +194,7 @@ const GalleryItem = memo(function GalleryItem(props: GalleryItemProps) {
 						{renderer.renderIcon?.(rendererContext)}
 					</div>
 				) : (
-					<div className="relative flex size-14 items-center justify-center rounded-md border bg-background text-muted-foreground shadow-sm">
-						{renderer.renderIcon?.(rendererContext) ?? <FileText className="size-7" />}
-						{extensionLabel && (
-							<span className="absolute bottom-1 rounded-sm bg-muted px-1 text-[8px] font-medium leading-3 text-muted-foreground">
-								{extensionLabel}
-							</span>
-						)}
-					</div>
+					fileFallback
 				)}
 
 				{showCheckbox && (

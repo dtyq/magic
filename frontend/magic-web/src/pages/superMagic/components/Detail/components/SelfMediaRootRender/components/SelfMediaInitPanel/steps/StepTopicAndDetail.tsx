@@ -10,12 +10,13 @@ import { buildDefaultArticleFolderName } from "../../../services/selfMediaPrompt
 import type { GeneratedTopic } from "../../../services/selfMediaAiGenerate"
 import type { SelfMediaPlatform } from "../../../../../types"
 import type { SelfMediaFileStorageService } from "../../../services/SelfMediaFileStorageService"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import AiTopicAssistant from "../components/ai/AiTopicAssistant"
 import ArticleCard from "../components/article/ArticleCard"
 import StepTopicArticleNavigator from "./StepTopicArticleNavigator"
 import StepTopicHero from "./StepTopicHero"
 import StepTopicWorkspaceHeader from "./StepTopicWorkspaceHeader"
+import "./StepTopicAndDetail.css"
 
 interface StepTopicAndDetailProps {
 	articles: ArticleDetail[]
@@ -204,62 +205,68 @@ export default function StepTopicAndDetail({
 			<AiTopicAssistant onGenerate={handleAiGenerate} />
 
 			{articles.length > 0 ? (
-				<div className="grid min-h-[550px] grid-cols-1 items-start gap-6 lg:grid-cols-12 lg:gap-8">
-					<StepTopicArticleNavigator
-						articles={articles}
-						activeIndex={safeActiveIndex}
-						collapsed={isLeftCollapsed}
-						pendingRemoveIndex={pendingRemoveIndex}
-						onCollapsedChange={setIsLeftCollapsed}
-						onSelectArticle={handleSelectArticle}
-						onAdd={handleAdd}
-						onRequestRemove={setPendingRemoveIndex}
-						onCancelRemove={() => setPendingRemoveIndex(null)}
-						onConfirmRemove={handleRemove}
-					/>
-
+				<div data-self-media-topic-container>
 					<div
-						className={cn(
-							"relative flex select-text flex-col space-y-5",
-							isLeftCollapsed ? "lg:col-span-11" : "lg:col-span-8",
-						)}
+						className="grid min-h-[550px] grid-cols-1 items-start gap-6"
+						data-self-media-topic-layout
+						data-topic-navigator-collapsed={isLeftCollapsed}
 					>
-						<StepTopicWorkspaceHeader
-							article={articles[safeActiveIndex]}
+						<StepTopicArticleNavigator
+							articles={articles}
 							activeIndex={safeActiveIndex}
-							articleCount={articles.length}
-							canPrev={safeActiveIndex > 0}
-							canNext={safeActiveIndex < articles.length - 1}
-							focusTitleRequest={focusTitleRequest}
-							onArticleUpdate={(updated) => onArticleUpdate(safeActiveIndex, updated)}
-							onPrev={handlePrevArticle}
-							onNext={handleNextArticle}
+							collapsed={isLeftCollapsed}
+							pendingRemoveIndex={pendingRemoveIndex}
+							onCollapsedChange={setIsLeftCollapsed}
+							onSelectArticle={handleSelectArticle}
+							onAdd={handleAdd}
+							onRequestRemove={setPendingRemoveIndex}
+							onCancelRemove={() => setPendingRemoveIndex(null)}
+							onConfirmRemove={handleRemove}
 						/>
 
-						<div className="w-full min-w-0 flex-1">
-							<div
-								key={safeActiveIndex}
-								className={cn(
-									"w-full rounded-b-none rounded-t-[28px] bg-white/95 p-5 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_20px_60px_rgba(47,43,36,0.08)]",
-									slideDirection === "left"
-										? "duration-300 animate-in fade-in slide-in-from-right-4"
-										: "duration-300 animate-in fade-in slide-in-from-left-4",
-								)}
-							>
-								<ArticleCard
-									index={safeActiveIndex}
-									article={articles[safeActiveIndex]}
-									globalSettings={globalSettings}
-									onUpdate={(updated) =>
-										onArticleUpdate(safeActiveIndex, updated)
-									}
-									onRemove={() => handleRemove(safeActiveIndex)}
-									onPersistDraft={onPersistDraft}
-									fileStorageService={fileStorageService}
-									hideHeader={true}
-									alwaysExpanded={true}
-									showFolderField={false}
-								/>
+						<div
+							className="relative flex select-text flex-col space-y-5"
+							data-self-media-topic-workspace
+						>
+							<StepTopicWorkspaceHeader
+								article={articles[safeActiveIndex]}
+								activeIndex={safeActiveIndex}
+								articleCount={articles.length}
+								canPrev={safeActiveIndex > 0}
+								canNext={safeActiveIndex < articles.length - 1}
+								focusTitleRequest={focusTitleRequest}
+								onArticleUpdate={(updated) =>
+									onArticleUpdate(safeActiveIndex, updated)
+								}
+								onPrev={handlePrevArticle}
+								onNext={handleNextArticle}
+							/>
+
+							<div className="w-full min-w-0 flex-1">
+								<div
+									key={safeActiveIndex}
+									className={cn(
+										"w-full rounded-b-none rounded-t-[28px] bg-white/95 p-5 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_20px_60px_rgba(47,43,36,0.08)]",
+										slideDirection === "left"
+											? "duration-300 animate-in fade-in slide-in-from-right-4"
+											: "duration-300 animate-in fade-in slide-in-from-left-4",
+									)}
+								>
+									<ArticleCard
+										index={safeActiveIndex}
+										article={articles[safeActiveIndex]}
+										globalSettings={globalSettings}
+										onUpdate={(updated) =>
+											onArticleUpdate(safeActiveIndex, updated)
+										}
+										onRemove={() => handleRemove(safeActiveIndex)}
+										onPersistDraft={onPersistDraft}
+										fileStorageService={fileStorageService}
+										hideHeader={true}
+										alwaysExpanded={true}
+										showFolderField={false}
+									/>
+								</div>
 							</div>
 						</div>
 					</div>

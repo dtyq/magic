@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OWL GREEN // Gamified Learning Streak Platform</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap');
+
+    :root {
+      --owl-green: #58cc02;
+      --owl-green-dark: #3c8c00;
+      --owl-green-light: #d7ffb8;
+      --owl-blue: #1cb0f6;
+      --owl-blue-dark: #1899d6;
+      --owl-orange: #ff9600;
+      --owl-orange-dark: #cc7800;
+      --owl-gold: #ffc800;
+      --owl-gold-dark: #e5a500;
+      --owl-red: #ff4b4b;
+      --owl-red-dark: #cc3c3c;
+      --owl-card: #ffffff;
+      --owl-bg: #f7f7f7;
+      --owl-border: #e5e5e5;
+      --owl-text: #3c3c3c;
+      --owl-muted: #777777;
+      --font-nunito: 'Nunito', system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--owl-bg);
+      color: var(--owl-text);
+      font-family: var(--font-nunito);
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+      padding: 16px 20px 40px;
+      min-height: 100vh;
+    }
+
+    /* Top Gamification Status Bar */
+    header.gamify-bar {
+      max-width: 1040px;
+      margin: 0 auto 20px;
+      background: #ffffff;
+      border: 2px solid var(--owl-border);
+      border-bottom: 4px solid #cecece;
+      border-radius: 18px;
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .gamify-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--owl-green);
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+    .stats-group {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 800;
+    }
+    .streak-badge {
+      color: var(--owl-orange);
+      background: #fff4e5;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      border: 1.5px solid rgba(255, 150, 0, 0.3);
+      box-shadow: 0 2px 0 rgba(204, 120, 0, 0.2);
+    }
+    .gem-badge {
+      color: var(--owl-blue);
+      background: #ebf8ff;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      border: 1.5px solid rgba(28, 176, 246, 0.3);
+      box-shadow: 0 2px 0 rgba(24, 153, 214, 0.2);
+    }
+    .heart-badge {
+      color: var(--owl-red);
+      background: #ffeeee;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      border: 1.5px solid rgba(255, 75, 75, 0.3);
+      box-shadow: 0 2px 0 rgba(204, 60, 60, 0.2);
+    }
+
+    /* XP Progress Bar */
+    .xp-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--owl-gold-dark);
+    }
+    .xp-track {
+      width: 140px;
+      height: 12px;
+      background: #e5e5e5;
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .xp-fill {
+      width: 80%;
+      height: 100%;
+      background: var(--owl-gold);
+      border-radius: 9999px;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.4);
+    }
+
+    /* Main Lesson Container (Top 500px Focal Area) */
+    .lesson-container {
+      max-width: 1040px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 310px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* Left Mascot Column */
+    .mascot-col {
+      background: #ffffff;
+      border: 2px solid var(--owl-border);
+      border-bottom: 5px solid #cecece;
+      border-radius: 20px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+    }
+    .owl-stage {
+      width: 190px;
+      height: 190px;
+      position: relative;
+      margin-bottom: 14px;
+      animation: gentleHop 3s ease-in-out infinite;
+    }
+    @keyframes gentleHop {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .mascot-bubble {
+      background: #ffffff;
+      border: 2px solid var(--owl-border);
+      border-radius: 16px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--owl-text);
+      position: relative;
+      margin-top: 6px;
+      box-shadow: 0 3px 0 #e5e5e5;
+    }
+    .mascot-bubble::after {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 0 10px 10px 10px;
+      border-style: solid;
+      border-color: transparent transparent #ffffff transparent;
+    }
+
+    /* Right Interactive Lesson Quiz Card */
+    .quiz-card {
+      background: #ffffff;
+      border: 2px solid var(--owl-border);
+      border-bottom: 6px solid #cecece;
+      border-radius: 24px;
+      padding: 28px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 480px;
+    }
+    .quiz-eyebrow {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--owl-muted);
+      margin-bottom: 8px;
+    }
+    .quiz-question-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .speaker-btn {
+      width: 48px;
+      height: 48px;
+      background: var(--owl-blue);
+      border: none;
+      border-radius: 14px;
+      border-bottom: 4px solid var(--owl-blue-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #ffffff;
+      flex-shrink: 0;
+      transition: all 0.1s;
+    }
+    .speaker-btn:hover {
+      transform: translateY(-1px);
+      border-bottom-width: 5px;
+    }
+    .speaker-btn:active {
+      transform: translateY(2px);
+      border-bottom-width: 2px;
+    }
+    .prompt-text {
+      font-size: 23px;
+      font-weight: 900;
+      color: var(--owl-text);
+      line-height: 1.25;
+    }
+
+    /* Selected Answer Sentence Construction Box */
+    .sentence-answer-dropzone {
+      min-height: 80px;
+      border-top: 2px solid var(--owl-border);
+      border-bottom: 2px solid var(--owl-border);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 4px;
+      margin-bottom: 28px;
+    }
+    .chip-word {
+      background: #ffffff;
+      color: var(--owl-text);
+      border: 2px solid var(--owl-border);
+      border-bottom: 4px solid #cecece;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      transition: all 0.1s;
+    }
+    .chip-word:hover {
+      border-color: #d0d0d0;
+      background: #fafafa;
+    }
+    .chip-word:active {
+      transform: translateY(2px);
+      border-bottom-width: 2px;
+    }
+    .chip-word.active-selection {
+      background: #eefbee;
+      color: var(--owl-green-dark);
+      border-color: var(--owl-green);
+      border-bottom-color: var(--owl-green-dark);
+    }
+    .chip-word.used {
+      background: #e5e5e5;
+      color: #a0a0a0;
+      border-color: #d5d5d5;
+      border-bottom-width: 2px;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    /* Word Bank Choices */
+    .word-bank-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+
+    /* Bottom Action Footer */
+    .quiz-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 2px solid var(--owl-border);
+      padding-top: 20px;
+    }
+    .btn-skip {
+      background: transparent;
+      border: 2px solid var(--owl-border);
+      border-bottom: 4px solid #cecece;
+      color: var(--owl-muted);
+      border-radius: 14px;
+      padding: 12px 24px;
+      font-size: 15px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+    .btn-check {
+      background: var(--owl-green);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      border-bottom: 5px solid var(--owl-green-dark);
+      padding: 14px 44px;
+      font-size: 16px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(88, 204, 2, 0.35);
+      transition: all 0.1s;
+    }
+    .btn-check:hover {
+      transform: translateY(-2px);
+      border-bottom-width: 7px;
+      background: #61d904;
+    }
+    .btn-check:active {
+      transform: translateY(3px);
+      border-bottom-width: 2px;
+    }
+
+    /* Mini Skill Tree Path Preview */
+    .skill-path-bar {
+      max-width: 1040px;
+      margin: 20px auto 0;
+      background: #ffffff;
+      border: 2px solid var(--owl-border);
+      border-bottom: 4px solid #cecece;
+      border-radius: 18px;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
+    .path-node {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .node-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: #ffffff;
+      font-size: 16px;
+    }
+    .node-title { font-size: 13px; font-weight: 800; }
+    .node-sub { font-size: 11px; color: var(--owl-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Gamification Status Ribbon -->
+  <header class="gamify-bar">
+    <a href="#" class="gamify-brand">
+      <span>🦉</span>
+      <span>OWL GREEN</span>
+    </a>
+
+    <div class="stats-group">
+      <!-- Streak Flame -->
+      <div class="stat-pill streak-badge">
+        <span>🔥</span>
+        <span>42 DAY STREAK</span>
+      </div>
+
+      <!-- Gems -->
+      <div class="stat-pill gem-badge">
+        <span>💎</span>
+        <span>1,450</span>
+      </div>
+
+      <!-- Hearts -->
+      <div class="stat-pill heart-badge">
+        <span>❤️</span>
+        <span>5 / 5</span>
+      </div>
+
+      <!-- Daily XP Progress Bar -->
+      <div class="xp-bar-wrap">
+        <span>⚡ 320 / 400 XP</span>
+        <div class="xp-track">
+          <div class="xp-fill"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Lesson View (First 500px Focal Impact) -->
+  <main class="lesson-container">
+    
+    <!-- Left: Friendly Animated Owl Mascot & Speech Bubble -->
+    <div class="mascot-col">
+      <div class="owl-stage">
+        <!-- High-Fidelity Friendly Duo Owl Vector SVG -->
+        <svg viewBox="0 0 200 200" width="100%" height="100%">
+          <defs>
+            <linearGradient id="owlBodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#72e609"/>
+              <stop offset="100%" stop-color="#58cc02"/>
+            </linearGradient>
+            <linearGradient id="owlBellyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff"/>
+              <stop offset="100%" stop-color="#f0f8e8"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Shadow Feet -->
+          <ellipse cx="75" cy="184" rx="20" ry="7" fill="#ff9600" />
+          <ellipse cx="125" cy="184" rx="20" ry="7" fill="#ff9600" />
+          
+          <!-- Outer Body Feather -->
+          <ellipse cx="100" cy="110" rx="72" ry="76" fill="url(#owlBodyGrad)" stroke="#46a302" stroke-width="4"/>
+
+          <!-- Left Wing (Resting) -->
+          <path d="M 28 100 C 20 120, 32 150, 48 140 C 42 125, 38 110, 35 100" fill="#46a302"/>
+          <!-- Right Wing (Waving Up Cheerfully) -->
+          <path d="M 165 95 C 185 75, 195 90, 185 115 C 175 110, 168 105, 165 95" fill="#46a302"/>
+
+          <!-- Soft Light Cream Belly -->
+          <ellipse cx="100" cy="125" rx="46" ry="50" fill="url(#owlBellyGrad)"/>
+          
+          <!-- Cute Belly Feather Chevrons -->
+          <path d="M 88 120 Q 100 126, 112 120" stroke="#a4e470" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <path d="M 84 135 Q 100 142, 116 135" stroke="#a4e470" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <path d="M 90 150 Q 100 156, 110 150" stroke="#a4e470" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+          <!-- Big Expressive Eye Rings -->
+          <circle cx="70" cy="85" r="28" fill="#ffffff" stroke="#46a302" stroke-width="3"/>
+          <circle cx="130" cy="85" r="28" fill="#ffffff" stroke="#46a302" stroke-width="3"/>
+
+          <!-- Pupil Left (Big Joyful Eyes) -->
+          <circle cx="75" cy="85" r="16" fill="#1cb0f6"/>
+          <circle cx="78" cy="84" r="10" fill="#0c4a6e"/>
+          <circle cx="74" cy="80" r="4" fill="#ffffff"/>
+
+          <!-- Pupil Right (Big Joyful Eyes) -->
+          <circle cx="125" cy="85" r="16" fill="#1cb0f6"/>
+          <circle cx="122" cy="84" r="10" fill="#0c4a6e"/>
+          <circle cx="126" cy="80" r="4" fill="#ffffff"/>
+
+          <!-- Cheerful Orange Beak -->
+          <polygon points="100,92 112,108 88,108" fill="#ff9600" stroke="#cc7800" stroke-width="2" stroke-linejoin="round"/>
+
+          <!-- Rosy Cheeks -->
+          <ellipse cx="50" cy="108" rx="8" ry="4" fill="#ff6b6b" opacity="0.4"/>
+          <ellipse cx="150" cy="108" rx="8" ry="4" fill="#ff6b6b" opacity="0.4"/>
+        </svg>
+      </div>
+
+      <div class="mascot-bubble">
+        <span>¡Genial! You're on a <strong>42-day roll</strong>! Keep the flame burning! 🔥</span>
+      </div>
+    </div>
+
+    <!-- Right: Interactive Lesson Quiz Card -->
+    <div class="quiz-card">
+      <div>
+        <div class="quiz-eyebrow">UNIT 5 // LESSON 3 OF 4 • DAILY BOOST</div>
+        <div class="quiz-question-row">
+          <button class="speaker-btn" title="Listen to pronunciation">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          </button>
+          <div class="prompt-text">
+            Translate: “El búho sabio aprende nuevos idiomas rápidamente.”
+          </div>
+        </div>
+
+        <!-- Constructed Sentence Dropzone -->
+        <div class="sentence-answer-dropzone">
+          <div class="chip-word active-selection">The</div>
+          <div class="chip-word active-selection">wise</div>
+          <div class="chip-word active-selection">owl</div>
+          <div class="chip-word active-selection">learns</div>
+          <div class="chip-word active-selection">languages</div>
+          <div class="chip-word active-selection">quickly</div>
+        </div>
+
+        <!-- Word Bank Options -->
+        <div class="word-bank-grid">
+          <button class="chip-word used">The</button>
+          <button class="chip-word used">owl</button>
+          <button class="chip-word used">wise</button>
+          <button class="chip-word">coffee</button>
+          <button class="chip-word used">learns</button>
+          <button class="chip-word">trains</button>
+          <button class="chip-word used">languages</button>
+          <button class="chip-word">eats</button>
+          <button class="chip-word used">quickly</button>
+        </div>
+      </div>
+
+      <!-- Action Footer -->
+      <footer class="quiz-footer">
+        <button class="btn-skip">SKIP LESSON</button>
+        <button class="btn-check">CHECK ANSWER ✓</button>
+      </footer>
+    </div>
+
+  </main>
+
+  <!-- Mini Skill Tree Path -->
+  <div class="skill-path-bar">
+    <div class="path-node">
+      <div class="node-circle" style="background:var(--owl-green); border-bottom:4px solid var(--owl-green-dark);">👑</div>
+      <div><div class="node-title">Unit 1: Basics</div><div class="node-sub">Crown Mastered</div></div>
+    </div>
+    <div class="path-node">
+      <div class="node-circle" style="background:var(--owl-green); border-bottom:4px solid var(--owl-green-dark);">✓</div>
+      <div><div class="node-title">Unit 2: Phrases</div><div class="node-sub">100% Completed</div></div>
+    </div>
+    <div class="path-node">
+      <div class="node-circle" style="background:var(--owl-blue); border-bottom:4px solid var(--owl-blue-dark); box-shadow:0 0 10px rgba(28,176,246,0.4);">5</div>
+      <div><div class="node-title">Unit 5: Animals</div><div class="node-sub" style="color:var(--owl-blue); font-weight:800;">In Progress (3/4)</div></div>
+    </div>
+    <div class="path-node">
+      <div class="node-circle" style="background:#e5e5e5; color:#999; border-bottom:4px solid #ccc;">🔒</div>
+      <div><div class="node-title">Unit 6: Travel</div><div class="node-sub">Locked (Unlock at Unit 5)</div></div>
+    </div>
+  </div>
+
+</body>
+</html>

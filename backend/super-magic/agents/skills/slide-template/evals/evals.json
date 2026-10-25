@@ -3,81 +3,43 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "帮我用科技深色风格做一个 AI 发展趋势的 PPT，10页左右",
-      "expected_output": "先加载 slide-template。若上下文已有平台模板候选列表，则根据“科技深色风格”推荐 3-5 个候选模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和 template code，同时提供不使用模板的选项。若上下文没有模板候选或明确 code，则询问用户提供 template code、从平台模板面板选择，或确认不使用模板；不得展示旧内置模板目录或编造 code。用户选定 code 后，通过 run_sdk_snippet 调用 install_slides_template 安装模板包，使用返回的 installed_directory 先读取 template.json，再根据 files/slides 字段加载 theme.css、visual-spec.md、slides/*.html 和本地 images 等可用资源；template.json 应使用 schema_version=1.0、PPT-... template_id、label/description 和 slides[].file/title/layout/description，category_code 可选且不依赖旧 preview.html 或 slots 元数据，再继续生成",
-      "files": []
+      "prompt": "先给我看看有哪些 PPT 模板可以选。",
+      "expected_output": "Load slide-template. If platform candidates are present, show 3-5 options through ask_user with name, description, exact code, and a no-template option. If no candidates or code are available, ask the user to select from the platform UI or provide a code. Do not invent local template options."
     },
     {
       "id": 2,
-      "prompt": "我要做一个季度业绩汇报 PPT，想要商务简约风格，内容关于 2025 年 Q1 销售数据",
-      "expected_output": "先加载 slide-template。若上下文已有平台模板候选列表，则根据“季度业绩汇报”和“商务简约风格”推荐 3-5 个候选模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和 template code，同时提供不使用模板的选项。若上下文没有模板候选或明确 code，则询问用户提供 template code、从平台模板面板选择，或确认不使用模板；不得展示旧内置模板目录或编造 code。用户选定 code 后，通过 install_slides_template 安装模板包，使用返回的 installed_directory 先读取 template.json，再根据 files/slides 字段加载 theme.css、visual-spec.md、slides/*.html 和本地 images 等可用资源；不依赖旧 preview.html 或 slots 元数据",
-      "files": []
+      "prompt": "使用模板 code PPT-TPL-ABC123 做一份季度经营汇报。",
+      "expected_output": "Load slide-template, call install_slides_template with the exact code, read template.json first, then inspect declared CSS, visual spec, representative pages, and required local assets before creating the presentation."
     },
     {
       "id": 3,
-      "prompt": "先给我看看有哪些 PPT 模板可以选，我还没决定用哪个",
-      "expected_output": "加载 slide-template。若上下文已有平台模板候选列表，则使用 ask_user 展示 3-5 套可选模板；每个选项需包含模板名称、简短描述和 template code，同时提供不使用模板的选项。若上下文没有平台模板候选列表或 code，则说明本 skill 不再内置模板列表，要求用户从平台模板面板选择或提供 template code；不得列出旧 assets/templates 目录或 preview.html 路径；安装后的模板应按新版 HTML slide template project 读取 template.json、visual-spec.md、theme.css、images/ 和 slides/*.html",
-      "files": []
+      "prompt": "用这个平台模板做销售汇报，source.kind 是 original。",
+      "expected_output": "Load slide-template and use component-system mode. Follow the installed template's palette, typography, components, layout patterns, and assets without requiring source-page cloning."
     },
     {
       "id": 4,
-      "prompt": "帮我做一个论文答辩 PPT，学术风格，主题是机器学习在医疗影像诊断中的应用",
-      "expected_output": "先加载 slide-template。若上下文已有平台模板候选列表，则根据“论文答辩”和“学术风格”推荐 3-5 个候选模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和 template code，同时提供不使用模板的选项。若上下文没有模板候选或明确 code，则询问用户提供 template code、从平台模板面板选择，或确认不使用模板；不得展示旧内置模板目录或编造 code。用户选定 code 后，通过 install_slides_template 安装模板包，使用返回的 installed_directory 先读取 template.json，再根据 files/slides 字段加载 theme.css、visual-spec.md、slides/*.html 和本地 images 等可用资源；不依赖旧 preview.html 或 slots 元数据",
-      "files": []
+      "prompt": "用这个模板做产品介绍，source.kind 是 derived，source.method 是 visual-reconstruction。",
+      "expected_output": "Load slide-template and use semantic page-master mode. Select the closest semantic source page, copy it with all local dependencies, replace mapped content slots first, and preserve structure, page CSS, visual anchors, typography, palette, and positioning."
     },
     {
       "id": 5,
-      "prompt": "做一个互联网产品发布会 PPT，要时尚一点，有渐变感，介绍我们的新 App",
-      "expected_output": "先加载 slide-template。若上下文已有平台模板候选列表，则根据“互联网产品发布会”“时尚”和“渐变感”推荐 3-5 个候选模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和 template code，同时提供不使用模板的选项。若上下文没有模板候选或明确 code，则询问用户提供 template code、从平台模板面板选择，或确认不使用模板；不得展示旧内置模板目录或编造 code。用户选定 code 后，通过 install_slides_template 安装模板包，使用返回的 installed_directory 先读取 template.json，再根据 files/slides 字段加载 theme.css、visual-spec.md、slides/*.html 和本地 images 等可用资源；不依赖旧 preview.html 或 slots 元数据",
-      "files": []
+      "prompt": "这个旧模板的 source.kind 是 converted，source.file 是 brand-template.pptx，用它做新 PPT。",
+      "expected_output": "Load slide-template and retain legacy read compatibility. Recognize the PPT-derived package from source.kind plus the presentation filename, use page-master-preserving edits, and do not regenerate the template through a conversion tool."
     },
     {
       "id": 6,
-      "prompt": "帮我做一个公司战略 PPT，模板风格我想要黑金奢华、细线网格、杂志封面感、大标题压迫感",
-      "expected_output": "加载 slide-template，识别用户正在描述自定义模板风格；按 custom template workflow 生成新的轻量模板包目录，包含 template.json、visual-spec.md、theme.css、images/、slides/；template.json 必须遵循 references/template-json-spec.md；预览图只能由脚本从 slides/*.html 生成到 artifact，不能进入模板 ZIP；随后读取 template.json/theme.css，并使用该新模板生成 PPT，不强行要求平台 template code，也不套用旧内置模板目录",
-      "files": []
+      "prompt": "参考这张截图做一套新的 PPT 模板。",
+      "expected_output": "Do not create the template in slide-template. Load slide-template-maker and follow its image visual-reconstruction workflow."
     },
     {
       "id": 7,
-      "prompt": "我上传了一个 brand-template.pptx，帮我把它转成平台可复用的 PPT 模板",
-      "expected_output": "加载 slide-template 后识别这是 PPTX 转平台模板任务；读取 references/pptx-template-workflow.md；调用 convert_pptx_to_slide_template 工具，默认 preserve_source_data_attrs=false、externalize_inline_svg=true、create_zip=false；先输出待二次调整的轻量模板源码目录 template.json、可选 magic.project.js、theme.css、images/、slides/*.html，而不是立即把它当最终模板 ZIP，也不由工具脚本生成统一 visual-spec.md；magic.project.js 采用 type=slide 的 slide 项目配置，slides 指向生成的 slide HTML，仅用于草稿预览或编辑，不写入 template.json.files；工具返回后不能结束，需要继续读取转换后的 template.json、theme.css、代表性 slides/*.html 和预览 artifact，由大模型分析实际页面风格，生成包含 How to use this converted template 的 visual-spec.md，更新 template.json.files.visual_spec，并优化 template.json、theme.css、images/、slides/*.html；template.json 必须包含 schema_version、template_id、label、description、files、slides、source、warnings，其中 schema_version 固定为 1.0，template_id 使用 PPT-...，category_code 可选；预览图只能由脚本从 slides/*.html 生成到 artifact，不能进入模板源码目录或 ZIP，也不写入 template.json.files；slides 只记录每页 file、title、layout、description，不写 source_slide、slots、best_for、risks；每页 description 需说明页面用途、结构、slot 组、视觉锚点和图片/图表/表格角色，便于后续 template-preserving 选页；slides/*.html 默认只保留 data-role 和 data-slot 相关语义属性，不保留 data-element-id、data-source-shape-id 等渲染器追溯属性；大型非 slot inline SVG 默认外置到 images/vectors/*.svg，HTML 中只保留本地 img 引用；refinement 不得为了抽象组件破坏源页面可复制性；轻量 QA 确认符合最新模板规范后，在结束对话时询问用户是否要把优化后的模板打包成与模板文件夹平级的 <template-id>-template.zip；未获确认前不自动打包；最终 ZIP 必须排除 magic.project.js；不再调用旧 raw HTML 工具，不运行旧 extraction/finalizer 脚本，不生成 template-pages.md、template-pages.json、默认 source.css、preview.html、previews/ 或 packages/ 子目录",
-      "files": []
+      "prompt": "把我上传的 PPTX 转成模板。",
+      "expected_output": "Do not call convert_pptx_to_slide_template. Load slide-template-maker, render the source only as visual evidence, and reconstruct a clean semantic template from scratch."
     },
     {
       "id": 8,
-      "prompt": "帮我下载几个公开 PPTX 模板，验证一下这个 PPTX 转模板流程能不能跑通",
-      "expected_output": "加载 slide-template 并进入 PPTX Template Workflow；下载公开可访问的 PPTX 样本到 .workspace/slide-template-validation/pptx-samples/；对每个样本调用 convert_pptx_to_slide_template，并把结果写入 .workspace/slide-template-validation/results/<sample-name>/；验证每个结果先输出待二次调整的模板源码目录，包含 template.json、可选 magic.project.js、theme.css、images/、slides/*.html，默认 create_zip=false 时不要求立即存在 <template-id>-template.zip，也不要求工具脚本已生成 visual-spec.md；验证 magic.project.js 若存在，应采用 type=slide 的 slide 项目配置，slides 指向生成的 slide HTML，且不写入 template.json.files；工具返回后继续基于转换内容优化：读取 template.json/theme.css/slides/*.html 和预览 artifact，由大模型分析实际页面风格生成包含 How to use this converted template 的 visual-spec.md，更新 template.json.files.visual_spec，优化元数据、CSS、页面 HTML、资源引用和 data-slot 提示；验证 template.json 符合新版 schema：schema_version=1.0、PPT-... template_id、label/description、files、slides、source、warnings，category_code 可选，且 slides 只记录 file、title、layout、description；验证每页 description 足够具体，能支持后续 template-preserving 选页；验证 slides/*.html 使用 ../theme.css、../images/... 并包含 data-slot 编辑提示；验证默认 slides/*.html 不包含 data-element-id、data-source-shape-id 等渲染器追溯属性；验证大型非 slot inline SVG 默认外置到 images/vectors/*.svg；验证预览图由脚本从 slides/*.html 生成到 artifact；轻量 QA 通过后在结束对话时询问用户是否要生成与模板文件夹平级的最终 <template-id>-template.zip，并说明 ZIP 会排除 magic.project.js、中间渲染产物、原始 PPTX、template-pages.*、默认 source.css、preview.html、previews/ 或 packages/ 子目录；汇报每个样本是否成功、页数、草稿目录和失败原因，不提交下载样本或验证产物",
-      "files": []
-    },
-    {
-      "id": 9,
-      "prompt": "我选了一个平台模板，template.json 里 source.kind 是 converted，source.file 是 brand-template.pptx。请用这个模板做一份新 PPT。",
-      "expected_output": "加载 slide-template 并识别这是 PPTX-derived 模板：不能只因为 source.kind=converted 判断，需结合 source.file 的 .pptx 后缀或 visual-spec/description 明确来源；进入 template-preserving edit mode。通过 install_slides_template 安装模板包，使用返回的 installed_directory 读取 template.json、theme.css、visual-spec.md、代表性 slides/*.html 和预览图后，逐页根据 layout、description、HTML slot 结构、图片/图表数量、预览图选择 source_slide_file；todo_list 每页记录 edit_mode: template_preserving、text_slot_mapping、可选 image_slot_mapping/chart_data_mapping、锁定元素和允许的小幅适配。创建项目后复制 theme.css、所选页面 HTML 和所有本地资源；页面生成时先复制源 HTML，再局部替换文本 slot，保留 DOM、CSS、图片/SVG/图表容器、绝对定位、字体层级和配色；不使用通用 Tailwind 页面或 create_slide 从零重写；完成后检查 src/href 不引用模板安装目录或绝对本地路径",
-      "files": []
-    },
-    {
-      "id": 10,
-      "prompt": "用这个 PPTX 转出的模板做产品介绍，把内容页里明确的产品图片换成我上传的产品图，背景和装饰不要变。",
-      "expected_output": "识别 PPTX-derived 模板后使用 template-preserving edit mode。先选择最接近的内容页并复制完整 HTML；只在明确是内容图片/photo/product image 的 image slot 上替换用户上传图片，保持原图片容器尺寸、裁剪方式、层级和位置。背景、装饰、纹理、主视觉、SVG、形状默认锁定，不因存在 data-slot-type=image 就替换；角色不清的图片保留原样。替换后检查本地图片已复制到目标项目 images 目录，HTML 只引用项目内资源，页面结构和配色不被重写",
-      "files": []
-    },
-    {
-      "id": 11,
-      "prompt": "用 PPTX 转出来的模板里那张图表页，改成 Q2 销售数据图表。",
-      "expected_output": "进入 PPTX-derived 的 template-preserving edit mode，选择包含 chart slot 或图表容器的最接近源页面，复制完整 HTML 和图表依赖资源。保留图表容器尺寸、位置、字体、颜色、图例位置、背景、装饰和页面绝对定位，只更新图表数据、系列名、分类标签和必要的数据标签；若图表依赖外部 JSON 或 ECharts runtime，必须复制到目标项目可访问位置并更新相对路径；不得用新图表布局或通用卡片重新设计该页",
-      "files": []
-    },
-    {
-      "id": 12,
-      "prompt": "这个 PPTX 模板里有客户 Logo、二维码和内部系统截图。转成模板并用它做新 PPT 时这些能保留吗？",
-      "expected_output": "加载 slide-template 后说明 template-preserving edit mode 不绕过敏感资产规则。PPTX 转模板 refinement 阶段应识别客户 Logo、二维码、内部系统截图等 ambiguous sensitive assets，并通过 ask_user 询问替换为中性资产、保留原资产或移除；只有用户明确选择保留时才可进入最终模板 ZIP 和后续 PPT 复用。未确认时默认替换或移除，同时保留页面布局和视觉角色；最终报告需列出用户确认保留的敏感资产",
-      "files": []
-    },
-    {
-      "id": 13,
-      "prompt": "我选择了一个普通平台模板，source.kind 是 original，不是 PPTX 转换出来的。请用它做销售汇报。",
-      "expected_output": "加载 slide-template 并通过 install_slides_template 安装模板包后，从返回的 installed_directory 读取 template.json、theme.css、visual-spec.md 和代表性 slides/*.html；确认不是 PPTX-derived 模板，因此不强制进入 template-preserving clone-first 分支。按普通平台模板流程使用 theme.css、visual-spec、组件、layout pattern 和 data-slot 提示生成页面，可使用 create_slide 创建新页；仍需保持模板配色和组件体系，不得发明冲突风格，但不要求每页复制某个源 HTML 或记录 source_slide_file/edit_mode: template_preserving",
-      "files": []
+      "prompt": "把这个 magic.project.js 幻灯片项目提取成模板。",
+      "expected_output": "Load slide-template-maker because template extraction and creation are outside slide-template's responsibility."
     }
   ]
 }

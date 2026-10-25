@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { useMemoizedFn, useMount } from "ahooks"
 import MemberCard from "@/components/business/MemberCard"
 import MemberCardStore from "@/stores/display/MemberCardStore"
@@ -12,11 +12,14 @@ import {
 	ResizablePanelGroup,
 	ResizablePanel,
 	ResizableHandle,
+	ResizableCollapseFeedback,
+	ResizeGrip,
+	resizeGlowClassName,
 } from "@/components/shadcn-ui/resizable"
 import type { ImperativePanelHandle } from "react-resizable-panels"
 import { sidebarStore } from "@/stores/layout"
 import MagicSidebar from "./components/MagicSidebar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useSidebarAnimation, useSidebarResponsive } from "./hooks"
 import { globalShareManagementStore } from "@/pages/superMagic/components/ShareManagement/stores"
 import { magic } from "@/enhance/magicElectron"
@@ -25,6 +28,9 @@ import MaintenanceNotice from "@/components/global/MaintenanceNotice"
 import { useLocation } from "react-router-dom"
 import { useMagicWidgetConfig } from "@/providers/MagicWidgetProvider"
 import { resolveMagicWidgetCrewLayout } from "@/providers/MagicWidgetProvider/config"
+import { useTranslation } from "react-i18next"
+import { routesMatch } from "@/routes/history/helpers"
+import { RouteName } from "@/routes/constants"
 
 const isElectron = magic?.env?.isElectron?.()
 
@@ -34,18 +40,19 @@ const ShareManagementContainer = lazy(
 	() => import("@/pages/superMagic/components/ShareManagement/ShareManagementContainer"),
 )
 
-const ROOT_SAFE_AREA_STYLE: CSSProperties = {
-	paddingTop: "var(--safe-area-inset-top)",
-	paddingRight: "var(--safe-area-inset-right)",
-	paddingBottom: "var(--safe-area-inset-bottom)",
-	paddingLeft: "var(--safe-area-inset-left)",
-}
-
 const BaseLayoutPc = observer(() => {
+	const { t } = useTranslation("super")
 	useMetaSet()
 	const { Content } = useKeepAlive()
 	const sidebarPanelRef = useRef<ImperativePanelHandle>(null)
-	const { search } = useLocation()
+	const { search, pathname } = useLocation()
+	const [sidebarBusy, setSidebarBusy] = useState(false)
+	const routeName = routesMatch(pathname)?.route.name
+	const projectPage =
+		routeName === RouteName.SuperWorkspaceProjectState ||
+		routeName === RouteName.SuperWorkspaceProjectTopicState ||
+		routeName === RouteName.SuperChatProjectState ||
+		routeName === RouteName.AiCanvasProjectState
 	const { config: widgetConfig, embedContext } = useMagicWidgetConfig()
 	const widgetLayout = resolveMagicWidgetCrewLayout({
 		configuredLayout: embedContext ? widgetConfig.layout : undefined,
@@ -60,16 +67,26 @@ const BaseLayoutPc = observer(() => {
 	const [initialWidth] = useState(() => sidebarStore.width)
 
 	const {
+		overlayMode,
+		resizeDrag,
+		isUserResizingRef,
 		handleSidebarDragging,
 		handleSidebarResize,
 		handleSidebarResizeKeyDown,
 		minSidebarSizePercent,
 		getExpandedSidebarSizePercent,
-	} = useSidebarResponsive({ sidebarPanelRef, initialWidth })
+	} = useSidebarResponsive({
+		sidebarPanelRef,
+		initialWidth,
+		enabled: showAppSidebar,
+		projectPage: projectPage && !embedContext,
+		busy: sidebarBusy,
+	})
 
 	// Handle smooth sidebar animation and restore the responsive expanded width.
 	const cancelSidebarAnimation = useSidebarAnimation({
 		sidebarPanelRef,
+		isUserResizingRef,
 		getExpandedSidebarSizePercent,
 	})
 
@@ -78,13 +95,11 @@ const BaseLayoutPc = observer(() => {
 		handleSidebarDragging(isDragging)
 	})
 
-	const handleSidebarHandleKeyDown = useMemoizedFn(
-		(event: React.KeyboardEvent<HTMLDivElement>) => {
-			if (handleSidebarResizeKeyDown(event)) {
-				cancelSidebarAnimation()
-			}
-		},
-	)
+	const handleSidebarHandleKeyDown = useMemoizedFn((event: React.KeyboardEvent<HTMLElement>) => {
+		if (handleSidebarResizeKeyDown(event)) {
+			cancelSidebarAnimation()
+		}
+	})
 
 	useEffect(() => {
 		const sidebarPanel = sidebarPanelRef.current
@@ -128,9 +143,8 @@ const BaseLayoutPc = observer(() => {
 
 	return (
 		<div
-			className="flex h-full w-full flex-col bg-sidebar"
+			className="flex h-full w-full flex-col bg-sidebar pb-safe-bottom pl-safe-left pr-safe-right pt-safe-top"
 			data-testid="base-layout-pc-root"
-			style={ROOT_SAFE_AREA_STYLE}
 			onClick={handleClick}
 		>
 			<MaintenanceNotice />
@@ -149,21 +163,21 @@ const BaseLayoutPc = observer(() => {
 							defaultSize={
 								!showAppSidebar
 									? 0
-									: sidebarStore.collapsed
+									: sidebarStore.collapsed || overlayMode
 										? sidebarStore.collapsedSizePercent
 										: initialWidth
 							}
 							maxSize={
 								!showAppSidebar
 									? 0
-									: sidebarStore.collapsed
+									: sidebarStore.collapsed || overlayMode
 										? sidebarStore.collapsedSizePercent
-										: sidebarStore.MAX_WIDTH_PERCENT
+										: sidebarStore.getMaxWidthPercent(sidebarStore.windowWidth)
 							}
 							minSize={
 								!showAppSidebar
 									? 0
-									: sidebarStore.collapsed
+									: sidebarStore.collapsed || overlayMode || resizeDrag.expanding
 										? sidebarStore.collapsedSizePercent
 										: minSidebarSizePercent
 							}
@@ -174,28 +188,62 @@ const BaseLayoutPc = observer(() => {
 									"h-full",
 									!showAppSidebar && "pointer-events-none invisible",
 								)}
+								// 拖开时按正常最小宽度排内容，由面板裁切露出，避免窄尺寸挤压按钮与文字。
+								style={
+									resizeDrag.expanding
+										? {
+												minWidth: `${(minSidebarSizePercent / 100) * window.innerWidth}px`,
+											}
+										: undefined
+								}
 								aria-hidden={!showAppSidebar}
 							>
-								<MagicSidebar />
+								<MagicSidebar
+									overlayMode={overlayMode}
+									visible={showAppSidebar}
+									onBusyChange={setSidebarBusy}
+								/>
 							</div>
 						</ResizablePanel>
 					)}
 				</Observer>
 
-				{/* Resize Handle - hidden when collapsed */}
+				{/* 收起后仍保留同一把手，短拉可展开；原生拖动生命周期不随展示状态切断。 */}
+				{/* 弹性提示需要显示在主内容上方；仅拖动期间提升手柄层级。 */}
 				<Observer>
 					{() => (
 						<ResizableHandle
-							disabled={!showAppSidebar || sidebarStore.collapsed}
+							disabled={!showAppSidebar || overlayMode || resizeDrag.cancelled}
+							aria-label={t("sidebarPanels.resizeSidebar")}
+							data-dragging={resizeDrag.dragging}
 							onDragging={handleSidebarDraggingChange}
 							onKeyDownCapture={handleSidebarHandleKeyDown}
 							className={cn(
-								"w-px bg-transparent hover:!bg-transparent",
-								!showAppSidebar || sidebarStore.collapsed
+								// Overlay both panels and stay above the project page's z-20 collapsed divider and preview resize slots.
+								"group/resize z-40 -mx-1 w-2 shrink-0 bg-transparent outline-none before:!inset-0 before:!w-full before:!translate-x-0 after:!inset-0 after:!w-full after:!translate-x-0 hover:!bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:before:opacity-100 dark:[--resize-glow-rgb:52,88,136]",
+								resizeGlowClassName,
+								resizeDrag.dragging && "before:opacity-100",
+								resizeDrag.dragging && "z-50",
+								!showAppSidebar || overlayMode
 									? "pointer-events-none opacity-0"
 									: "opacity-100 hover:bg-primary/30",
 							)}
-						/>
+						>
+							<ResizeGrip orientation="vertical" />
+							<ResizableCollapseFeedback
+								dragging={resizeDrag.dragging}
+								collapseProgress={resizeDrag.progress}
+								collapseArmed={resizeDrag.armed}
+								collapseDirection={-1}
+								pullLabel={t("sidebarPanels.pullLeftToCollapse")}
+								description={
+									resizeDrag.armed
+										? t("sidebarPanels.pullRightToCancel")
+										: t("sidebarPanels.releaseKeepsOpen")
+								}
+								releaseLabel={t("sidebarPanels.releaseToCollapse")}
+							/>
+						</ResizableHandle>
 					)}
 				</Observer>
 
@@ -203,7 +251,10 @@ const BaseLayoutPc = observer(() => {
 				<ResizablePanel id="main-content-panel">
 					{/* Keep the desktop floating gap only when the page is not embedded by Widget SDK. */}
 					<div
-						className={cn("flex h-full flex-col", !embedContext && "py-2 pl-0 pr-2")}
+						className={cn(
+							"relative flex h-full flex-col",
+							!embedContext && "py-2 pl-0 pr-2",
+						)}
 						data-testid="base-layout-pc-main-frame"
 					>
 						{/* 白色容器，带圆角、边框、阴影 */}

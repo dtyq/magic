@@ -1,5 +1,5 @@
 ---
-model_id: deepseek-v3.2
+model_id: deepseek-v4-flash
 ai_ability_code: auto_completion
 temperature: 0.1
 max_tokens: 50

@@ -1,9 +1,12 @@
 import { useCallback, useRef } from "react"
 import type { HTMLEditorV2Ref } from "../../../iframe-bridge/types/props"
 import type { ElementRect, SelectedInfo } from "../types"
+import { useGapHandles } from "./useGapHandles"
 import { useResizeHandles } from "./useResizeHandles"
 import { useRotateHandle } from "./useRotateHandle"
 import { useMoveHandle } from "./useMoveHandle"
+
+const NOOP_PREVIEW_STYLES = () => {}
 
 interface UseSelectionHandlesProps {
 	editorRef?: React.RefObject<HTMLEditorV2Ref>
@@ -14,6 +17,11 @@ interface UseSelectionHandlesProps {
 	setSelectedInfoList: React.Dispatch<React.SetStateAction<SelectedInfo[]>>
 	setHoveredRect: React.Dispatch<React.SetStateAction<ElementRect | null>>
 	setIsSelectionMode: React.Dispatch<React.SetStateAction<boolean>>
+	onMoveStart?: () => void
+	onMoveEnd?: () => void
+	onPreviewSize?: (size: { width: string; height: string }) => void
+	gapAxesLinked?: boolean
+	onPreviewStyles?: (styles: Partial<{ rowGap: string; columnGap: string }>) => void
 }
 
 /**
@@ -29,14 +37,17 @@ export function useSelectionHandles({
 	setSelectedInfoList,
 	setHoveredRect,
 	setIsSelectionMode,
+	onMoveStart,
+	onMoveEnd,
+	onPreviewSize,
+	gapAxesLinked = false,
+	onPreviewStyles = NOOP_PREVIEW_STYLES,
 }: UseSelectionHandlesProps) {
 	// Adapter function to convert between single and multi-select state
 	const createStateAdapter = useCallback(
 		(
 			infoOrUpdater:
-				| SelectedInfo
-				| null
-				| ((prev: SelectedInfo | null) => SelectedInfo | null),
+				SelectedInfo | null | ((prev: SelectedInfo | null) => SelectedInfo | null),
 		) => {
 			if (typeof infoOrUpdater === "function") {
 				setSelectedInfoList((prev) => {
@@ -60,6 +71,7 @@ export function useSelectionHandles({
 		setSelectedInfo: createStateAdapter,
 		setHoveredRect,
 		setIsSelectionMode,
+		onPreviewSize,
 	})
 
 	const { onRotateHandleMouseDown, rotation } = useRotateHandle({
@@ -81,6 +93,18 @@ export function useSelectionHandles({
 		setHoveredRect,
 		setIsSelectionMode,
 		iframeRef,
+		onMoveStart,
+		onMoveEnd,
+	})
+
+	const { gapHandles, isGapDragging, onGapHandlePointerDown } = useGapHandles({
+		editorRef,
+		selectedInfo,
+		gapAxesLinked,
+		onPreviewStyles,
+		isPptRender,
+		scaleRatio,
+		setSelectedInfo: createStateAdapter,
 	})
 
 	// Refs to prevent duplicate operations
@@ -203,6 +227,10 @@ export function useSelectionHandles({
 		// Move
 		onMoveHandleMouseDown,
 		isMoving,
+		// Gap
+		gapHandles,
+		isGapDragging,
+		onGapHandlePointerDown,
 		// Operations
 		handleDelete,
 		handleDuplicate,

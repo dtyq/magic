@@ -5,6 +5,7 @@ import {
 	PanelState,
 	type MentionItem,
 	type MentionPanelGalleryOptions,
+	type MentionPanelSelectionSummary,
 	type ProjectFileMentionData,
 } from "@/components/business/MentionPanel/types"
 import type {
@@ -14,7 +15,7 @@ import type {
 } from "@/components/CanvasDesign/public/props"
 import { CANVAS_REFERENCE_MENTION_ITEM_TYPE } from "@/components/CanvasDesign/ui/editors/message/reference-assets/canvasReferenceMention.constants"
 import type { ComponentType } from "react"
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 
 const PANEL_CLASS_NAME = "canvas-design-reference-resource-panel"
 
@@ -30,6 +31,9 @@ interface CanvasMentionPanelProps {
 	viewMode?: MentionPanelViewMode
 	galleryOptions?: MentionPanelGalleryOptions
 	enableMultiSelect?: boolean
+	multiSelectNavigationPolicy?: "clear" | "preserve"
+	selectionScopeId?: string
+	selectionSummary?: MentionPanelSelectionSummary
 	onSelect: (item: MentionItem, context?: ReferenceResourcePanelSelectContext) => void
 	onClose: () => void
 	canToggleMultiSelectItem?: (item: MentionItem) => boolean
@@ -67,9 +71,31 @@ export function CanvasDesignReferenceResourcePanel(props: ReferenceResourcePanel
 		initialNavigationStack,
 		catalogBehavior,
 		enableMultiSelect,
+		selectionScopeId,
+		selectionSummary,
 		onSelect,
 		onClose,
 	} = props
+
+	const mentionPanelSelectionSummary = useMemo<MentionPanelSelectionSummary | undefined>(() => {
+		if (!selectionSummary) return undefined
+
+		return {
+			currentCounts: selectionSummary.currentCounts,
+			limits: selectionSummary.limits,
+			totalLimit: selectionSummary.totalLimit,
+			getItemAssetType: (item) => {
+				const panelItem = toReferenceResourcePanelItem(item)
+				return panelItem ? selectionSummary.getItemAssetType?.(panelItem) : undefined
+			},
+			isItemAlreadySelected: (item) => {
+				const panelItem = toReferenceResourcePanelItem(item)
+				return panelItem
+					? selectionSummary.isItemAlreadySelected?.(panelItem) === true
+					: false
+			},
+		}
+	}, [selectionSummary])
 
 	useEffect(() => {
 		if (!visible) return
@@ -102,6 +128,9 @@ export function CanvasDesignReferenceResourcePanel(props: ReferenceResourcePanel
 			viewMode={MentionPanelViewMode.GALLERY}
 			galleryOptions={{ enablePreviewModal: true }}
 			enableMultiSelect={enableMultiSelect}
+			multiSelectNavigationPolicy="preserve"
+			selectionScopeId={selectionScopeId}
+			selectionSummary={mentionPanelSelectionSummary}
 			onSelect={(item, context) => {
 				const panelItem = toReferenceResourcePanelItem(item)
 				if (!panelItem) return

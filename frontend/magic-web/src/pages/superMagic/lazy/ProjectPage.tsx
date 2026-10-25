@@ -1,12 +1,14 @@
 import { lazy, Suspense, useEffect, useState } from "react"
-import { useParams } from "react-router"
+import { useLocation, useParams } from "react-router"
 import { observer } from "mobx-react-lite"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { projectStore, topicStore } from "../stores/core"
 import Navigate from "@/routes/components/Navigate"
 import { RouteName } from "@/routes/constants"
+import { routesMatch } from "@/routes/history/helpers"
 import ProjectPageDesktopSkeleton from "./skeleton/ProjectPageDesktopSkeleton"
 import ProjectPageMobileSkeleton from "./skeleton/ProjectPageMobileSkeleton"
+import AiCanvasProjectPageDesktopSkeleton from "./skeleton/AiCanvasProjectPageDesktopSkeleton"
 import { isOwner, isReadOnlyProject } from "../utils/permission"
 import superMagicService from "../services"
 import { useUpdateEffect } from "ahooks"
@@ -16,7 +18,12 @@ import {
 	getCachedChatWorkspaceId,
 } from "@/pages/superMagic/hooks/useChatWorkspace"
 import { isChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
-import { wasProjectRemovedFromLoadedList } from "@/pages/superMagic/services/topicProjectConsistency"
+import {
+	isTopicBoundToProject,
+	wasProjectRemovedFromLoadedList,
+} from "@/pages/superMagic/services/topicProjectConsistency"
+import { useAiCanvasRouteRedirect } from "../hooks/useAiCanvasRouteRedirect"
+import { isAiCanvasProject } from "../utils/isAiCanvasProject"
 
 const ProjectPageDesktop = lazy(() => import("@/pages/superMagic/pages/ProjectPage/index.desktop"))
 const ProjectPageMobile = lazy(() => import("@/pages/superMagicMobile/pages/ProjectPage"))
@@ -46,6 +53,7 @@ function tryFetchProjectTopicsIfNeeded(project: ProjectListItem): void {
 const ProjectPage = observer(() => {
 	const isMobile = useIsMobile()
 	const { projectId } = useParams()
+	const { pathname } = useLocation()
 	const [chatWorkspaceId, setChatWorkspaceId] = useState<string | null>(() =>
 		getCachedChatWorkspaceId(),
 	)
@@ -53,6 +61,9 @@ const ProjectPage = observer(() => {
 		Boolean(isMobile && projectId && getCachedChatWorkspaceId() == null),
 	)
 	const selectedProject = projectStore.selectedProject
+
+	// Canvas projects move to their own address; see the desktop branch below.
+	useAiCanvasRouteRedirect()
 
 	/**
 	 * 移动端刷新时优先按当前 projectId 回补项目上下文，避免先渲染出旧项目内容。
@@ -180,25 +191,33 @@ const ProjectPage = observer(() => {
 		)
 	}
 
+	// A canvas project on the generic route is about to move to `/super/ai-canvas/:projectId`
+	// (the redirect hook above); skip the generic topic redirect so it moves only once.
+	if (
+		projectId &&
+		selectedProject?.id === projectId &&
+		isAiCanvasProject(selectedProject) &&
+		routesMatch(pathname)?.route.name !== RouteName.AiCanvasProjectState
+	) {
+		return <AiCanvasProjectPageDesktopSkeleton />
+	}
+
 	// Handle desktop redirect to topic page
-	if (projectId) {
-		const isReadOnly = isReadOnlyProject(projectStore.selectedProject?.user_role)
-		const hasSelectedTopic = !!topicStore.selectedTopic
-
-		if (hasSelectedTopic || !isReadOnly) {
-			const lastTopicId =
-				topicStore.selectedTopic?.id || projectStore.selectedProject?.current_topic_id
-
-			if (lastTopicId) {
-				return (
-					<Navigate
-						name={RouteName.SuperWorkspaceProjectTopicState}
-						params={{ projectId, topicId: lastTopicId }}
-						replace
-					/>
-				)
-			}
-		}
+	const selectedTopic = topicStore.selectedTopic
+	// current_topic_id 只标识目标，不代表话题已加载；项目和话题必须属于当前入口。
+	if (
+		projectId &&
+		selectedProject?.id === projectId &&
+		selectedTopic &&
+		isTopicBoundToProject(selectedTopic, projectId)
+	) {
+		return (
+			<Navigate
+				name={RouteName.SuperWorkspaceProjectTopicState}
+				params={{ projectId, topicId: selectedTopic.id }}
+				replace
+			/>
+		)
 	}
 
 	// Default desktop view

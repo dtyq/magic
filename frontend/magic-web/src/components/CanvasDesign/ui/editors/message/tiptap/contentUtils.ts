@@ -1,24 +1,70 @@
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
+import type { StoredMentionPathBinding } from "../../../../public/magic-types"
 import { CANVAS_REFERENCE_MENTION_ITEM_TYPE } from "../reference-assets/canvasReferenceMention.constants"
+import { isStructuredFileId } from "../reference-assets/createReferenceResourcePanelItem"
 import { getCanvasResourceFileName } from "../../../../runtime/shared/path/canvasResourcePath"
+import type { ReferenceResourceAssetType } from "../reference-assets/reference-resource.types"
 
 /** 项目 MentionExtension 使用的 PROJECT_FILE 类型标识 */
 const PROJECT_FILE_TYPE = CANVAS_REFERENCE_MENTION_ITEM_TYPE.projectFile
 export const MENTION_CARET_GUARD_TEXT = "\u200b"
 
+export type MatchableMentionSource = "element-reference" | "project-tree"
+
 /** 可匹配的 @ 项，用于 string 转 JSON 时判断是否渲染为节点 */
 export interface MatchableMentionItem {
 	name: string
 	path?: string
+	/** 路径无法表达媒体类型时（如 asset://），由资源来源显式提供。 */
+	assetType?: ReferenceResourceAssetType
 	/** 是否禁用（达到参考图数量限制时，未选中的文件会被禁用） */
 	disabled?: boolean
+	/**
+	 * element-reference: 当前元素已绑定的参考文件，是 string rematch 的首选。
+	 * project-tree: 工作区其它文件；同名但 identity 不同时应作为独立候选。
+	 */
+	source?: MatchableMentionSource
 }
+
+/**
+ * 跨编辑器生命周期恢复 mention 时使用的结构化绑定。
+ *
+ * 同名文件不能仅靠 fileName 区分，因此恢复时按文档中的 mention 出现顺序
+ * 保存并重建真实路径与宿主身份。该数据只属于编辑器/session 恢复，不参与后端请求格式。
+ */
+export type MentionPathBinding = StoredMentionPathBinding
 
 interface ProjectFileData {
 	file_id?: string
 	file_name?: string
 	file_path?: string
 	file_extension?: string
+	media_type?: "image" | "video" | "audio"
+	project_id?: string
+	source_project_id?: string
+	source_file_id?: string
+}
+
+export function areMentionPathBindingsEqual(
+	left: MentionPathBinding[],
+	right: MentionPathBinding[],
+): boolean {
+	if (left.length !== right.length) return false
+	return left.every(
+		(binding, index) =>
+			binding.fileName === right[index]?.fileName &&
+			binding.path === right[index]?.path &&
+			binding.fileId === right[index]?.fileId &&
+			binding.sourceFileId === right[index]?.sourceFileId &&
+			binding.sourceProjectId === right[index]?.sourceProjectId &&
+			binding.projectId === right[index]?.projectId,
+	)
+}
+
+function isPendingMentionData(data: unknown): boolean {
+	return Boolean(
+		data && typeof data === "object" && (data as { pending?: boolean }).pending === true,
+	)
 }
 
 /**
@@ -35,6 +81,7 @@ export function getStringFromContent(doc: JSONContent | null | undefined): strin
 			node.attrs?.type === PROJECT_FILE_TYPE &&
 			(node.attrs?.data as ProjectFileData)?.file_name
 		) {
+			if (node.attrs?.pending === true || isPendingMentionData(node.attrs?.data)) return
 			parts.push(`@${(node.attrs.data as ProjectFileData).file_name}`)
 			return
 		}
@@ -51,7 +98,13 @@ export function getStringFromContent(doc: JSONContent | null | undefined): strin
 		}
 	}
 
-	traverse(doc)
+	// 原生多行粘贴会生成多个 paragraph；草稿只保存字符串，必须保留块边界，
+	// 否则重新进入编辑器时各段文本会粘连到同一行。
+	const blocks = doc.type === "doc" ? (doc.content ?? []) : [doc]
+	blocks.forEach((block, index) => {
+		if (index > 0) parts.push("\n")
+		traverse(block)
+	})
 	return parts.join("")
 }
 
@@ -122,6 +175,7 @@ function createMentionMatcher(matchableItems: MatchableMentionItem[]): MentionMa
 export function getContentFromString(
 	value: string,
 	matchableItems: MatchableMentionItem[],
+	mentionBindings: MentionPathBinding[] = [],
 ): JSONContent {
 	if (!value.trim()) {
 		return { type: "doc", content: [{ type: "paragraph" }] }
@@ -142,6 +196,7 @@ export function getContentFromString(
 		})
 	}
 	const matcher = createMentionMatcher(matchableItems)
+	let mentionOccurrenceIndex = 0
 	let i = 0
 	while (i < value.length) {
 		const atIndex = value.indexOf("@", i)
@@ -154,20 +209,42 @@ export function getContentFromString(
 		}
 		const match = findMentionAt(value, atIndex, matcher)
 		if (match) {
-			const { matchedItem, endIndex } = match
+			const { endIndex } = match
+			const binding = mentionBindings[mentionOccurrenceIndex]
+			const matchedItem =
+				binding && binding.fileName.toLowerCase() === match.matchedItem.name.toLowerCase()
+					? {
+							...match.matchedItem,
+							name: binding.fileName,
+							path: binding.path,
+						}
+					: match.matchedItem
+			mentionOccurrenceIndex += 1
 			const fileName = matchedItem.name
 			const path = matchedItem.path
+			const bindingMatches =
+				binding && binding.fileName.toLowerCase() === fileName.toLowerCase()
 			content.push({
 				type: "mention",
 				attrs: {
 					type: PROJECT_FILE_TYPE,
 					data: {
-						file_id: path ?? fileName,
+						file_id: (bindingMatches && binding.fileId) || path || fileName,
 						file_name: fileName,
 						file_path: path ?? "",
 						file_extension: fileName.includes(".")
 							? (fileName.split(".").pop() ?? "")
 							: "",
+						...(matchedItem.assetType ? { media_type: matchedItem.assetType } : {}),
+						...(bindingMatches && binding.projectId
+							? { project_id: binding.projectId }
+							: {}),
+						...(bindingMatches && binding.sourceProjectId
+							? { source_project_id: binding.sourceProjectId }
+							: {}),
+						...(bindingMatches && binding.sourceFileId
+							? { source_file_id: binding.sourceFileId }
+							: {}),
 					},
 				},
 			})
@@ -247,6 +324,97 @@ export function getMatchablePathsFromValue(
 }
 
 /**
+ * 从 value 中提取所有能匹配到的 mention 名称（保留重复出现次数）。
+ *
+ * 这里不能复用 getMatchablePathsFromValue：同名文件会按候选顺序解析为不同路径，
+ * 但对于判断“文本中的 mention 是否已经渲染成节点”，只需要比较名称和出现次数。
+ */
+export function getMatchableMentionNamesFromValue(
+	value: string,
+	matchableItems: MatchableMentionItem[],
+): string[] {
+	if (!value || matchableItems.length === 0) return []
+
+	const names: string[] = []
+	const matcher = createMentionMatcher(matchableItems)
+	let i = 0
+	while (i < value.length) {
+		const atIndex = value.indexOf("@", i)
+		if (atIndex === -1) break
+		const match = findMentionAt(value, atIndex, matcher)
+		if (match) {
+			names.push(match.matchedItem.name)
+			i = match.endIndex
+		} else {
+			i = atIndex + 1
+		}
+	}
+	return names
+}
+
+/** 从 TipTap JSON 内容提取所有已渲染的项目文件 mention 名称（保留重复出现次数）。 */
+export function getMentionNamesFromContent(doc: JSONContent | null | undefined): string[] {
+	if (!doc) return []
+	const names: string[] = []
+
+	function traverse(node: JSONContent) {
+		if (
+			node.type === "mention" &&
+			node.attrs?.type === PROJECT_FILE_TYPE &&
+			(node.attrs?.data as ProjectFileData)?.file_name
+		) {
+			if (node.attrs?.pending === true || isPendingMentionData(node.attrs?.data)) return
+			names.push((node.attrs.data as ProjectFileData).file_name as string)
+			return
+		}
+		for (const child of node.content ?? []) {
+			traverse(child)
+		}
+	}
+
+	traverse(doc)
+	return names
+}
+
+/** 从 TipTap JSON 内容提取 mention 的有序路径绑定（保留重复出现次数与结构化身份）。 */
+export function getMentionPathBindingsFromContent(
+	doc: JSONContent | null | undefined,
+): MentionPathBinding[] {
+	if (!doc) return []
+	const bindings: MentionPathBinding[] = []
+
+	function traverse(node: JSONContent) {
+		if (node.type === "mention" && node.attrs?.type === PROJECT_FILE_TYPE) {
+			const data = node.attrs.data as ProjectFileData | undefined
+			if (
+				node.attrs.pending !== true &&
+				!isPendingMentionData(data) &&
+				data?.file_name &&
+				data.file_path
+			) {
+				bindings.push({
+					fileName: data.file_name,
+					path: data.file_path,
+					...(isStructuredFileId(data.file_id, data.file_path)
+						? { fileId: data.file_id }
+						: {}),
+					...(data.source_file_id ? { sourceFileId: data.source_file_id } : {}),
+					...(data.source_project_id ? { sourceProjectId: data.source_project_id } : {}),
+					...(data.project_id ? { projectId: data.project_id } : {}),
+				})
+			}
+			return
+		}
+		for (const child of node.content ?? []) {
+			traverse(child)
+		}
+	}
+
+	traverse(doc)
+	return bindings
+}
+
+/**
  * 从 TipTap JSON 内容提取所有 @ 提及的路径列表（去重）
  * 仅支持 mention type=project_file（MentionPanel）
  */
@@ -260,6 +428,7 @@ export function getMentionPathsFromContent(doc: JSONContent | null | undefined):
 			node.attrs?.type === PROJECT_FILE_TYPE &&
 			(node.attrs?.data as ProjectFileData)?.file_path
 		) {
+			if (node.attrs?.pending === true || isPendingMentionData(node.attrs?.data)) return
 			const filePath = (node.attrs.data as ProjectFileData).file_path
 			if (filePath) {
 				paths.add(filePath)

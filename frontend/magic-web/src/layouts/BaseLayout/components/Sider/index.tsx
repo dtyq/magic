@@ -1,5 +1,5 @@
-import { Flex, Menu } from "antd"
-import { forwardRef, useMemo } from "react"
+import { Menu, theme } from "antd"
+import { forwardRef, useMemo, type CSSProperties } from "react"
 import { IconDots } from "@tabler/icons-react"
 import { useLocation } from "react-router"
 import MagicIcon from "@/components/base/MagicIcon"
@@ -8,7 +8,8 @@ import { useGlobalLanguage } from "@/models/config/hooks"
 import Divider from "@/components/other/Divider"
 import type { MenuItemType } from "antd/es/menu/interface"
 import { useAutoCollapsed } from "./hooks"
-import { useStyles } from "./styles"
+import { getMenuClassName, siderClassNames } from "./classNames"
+import { cn } from "@/utils/cn"
 import UserMenus from "../UserMenus"
 import SiderActionSlot from "./components/SiderActionSlot"
 import OrganizationSwitch from "./components/OrganizationSwitch"
@@ -51,7 +52,8 @@ const Sider = observer(
 
 			const { userInfo } = userStore.user
 
-			const { styles, cx } = useStyles({ collapsed: useAutoCollapsed(collapsed), language })
+			const isCollapsed = useAutoCollapsed(collapsed)
+			const { token } = theme.useToken()
 
 			const handleNavigate = useMemoizedFn(({ key }: { key: string }) => {
 				// navigate(key)
@@ -60,26 +62,25 @@ const Sider = observer(
 
 			const OrganizationSwitchChildren = useMemo(
 				() => (
-					<div className={styles.icon}>
+					<div className={siderClassNames.icon}>
 						<MagicIcon color="currentColor" size={16} component={IconDots} />
 					</div>
 				),
-				[styles.icon],
+				[],
 			)
 
 			return (
-				<Flex
+				<div
 					ref={ref}
-					className={cx(styles.sider, className)}
-					vertical
-					align="center"
-					justify="space-between"
+					className={cn(siderClassNames.root, isCollapsed ? "w-14" : "w-auto", className)}
+					// Keep the title-bar height configurable by the active theme provider.
+					style={{ "--title-bar-height": `${token.titleBarHeight}px` } as CSSProperties}
 				>
 					<UserMenus>
 						<UserAvatarRender userInfo={userInfo} size={40} />
 					</UserMenus>
-					<Divider direction="horizontal" className={styles.divider} />
-					<Flex vertical flex={1} className={styles.menus}>
+					<Divider direction="horizontal" className={siderClassNames.divider} />
+					<div className={siderClassNames.menus}>
 						{menuItems?.map((menu, index) => {
 							const key = `index-${index}`
 							return (
@@ -87,22 +88,27 @@ const Sider = observer(
 									key={key}
 									mode="inline"
 									selectedKeys={selectedKeys}
-									className={cx(styles.menu)}
+									className={getMenuClassName(language)}
 									items={menu}
 									onClick={handleNavigate}
 								/>
 							)
 						})}
-					</Flex>
+					</div>
 					<SiderActionSlot />
-					<Divider direction="horizontal" className={styles.divider} />
-					<Flex gap={4} align="center" className={styles.organizationSwitchWrapper}>
+					<Divider direction="horizontal" className={siderClassNames.divider} />
+					<div
+						className={cn(
+							"flex items-center gap-1",
+							isCollapsed ? "flex-col" : "flex-row",
+						)}
+					>
 						<OrganizationSwitch showPopover={false} />
 						<OrganizationSwitch showPopover>
 							{OrganizationSwitchChildren}
 						</OrganizationSwitch>
-					</Flex>
-				</Flex>
+					</div>
+				</div>
 			)
 		},
 	),

@@ -5,6 +5,17 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'open_api' => [
+        'invalid_id' => ':field 必须是有效的正整数 ID',
+        'files_must_be_list' => 'files 必须是文件列表',
+        'duplicate_file_key' => '同一批次不能包含重复的 file_key',
+        'invalid_upload' => '上传文件无效或未完整接收',
+        'upload_too_large' => '文件超过后端上传上限，请使用 STS 直传',
+        'key_out_of_scope' => '文件不属于当前项目上传范围',
+        'upload_not_completed' => '文件尚未完成上传',
+        'head_failed' => '无法校验上传文件，请稍后重试',
+        'registration_failed' => '文件登记失败',
+    ],
     'file_not_found' => '文件未找到',
     'file_exist' => '文件已存在',
     'illegal_file_key' => '非法的文件键',
@@ -47,6 +58,7 @@ return [
 
     // File version related
     'cannot_version_directory' => '无法为目录创建版本',
+    'cannot_version_file' => '无法为该空间文件创建版本',
     'version_create_failed' => '创建文件版本失败',
     'access_denied' => '访问被拒绝',
 
@@ -66,4 +78,31 @@ return [
     'batch_move_failed' => '批量移动操作失败',
     'batch_copy_failed' => '批量复制操作失败',
     'directory_copy_not_supported_yet' => '目录复制功能暂未支持，请使用批量复制',
+    'batch_save_failed' => '操作失败',
+    'batch_save_locked' => '请求处理失败',
+    'cannot_generate_url_for_directory' => '请求处理失败',
+    'cannot_rollback_directory' => '请求处理失败',
+    'check_batch_status_failed' => '操作失败',
+    'directory_creation_locked' => '请求处理失败',
+    'file_collection_empty_or_not_found' => '资源不存在',
+    'file_permission_denied' => '请求处理失败',
+    'get_tree_failed' => '操作失败',
+    'get_urls_by_path_failed' => '操作失败',
+    'get_urls_by_token_failed' => '操作失败',
+    'get_urls_failed' => '操作失败',
+    'illegal_file_name' => '请求处理失败',
+    'move_operation_busy' => '请求处理失败',
+    'not_found' => '资源不存在：:name',
+    'operation_failed' => '操作失败',
+    'parent_file_not_found' => '资源不存在',
+    'rollback_failed' => '操作失败',
+    'root_directory_not_found' => '资源不存在',
+    'root_not_found' => '资源不存在',
+
+    'batch_file_ids_or_topic_id_required' => '参数不能为空',
+    'batch_topic_id_invalid' => '参数无效',
+    'delete_failed' => '操作失败',
+    'multiple_projects_not_allowed' => '请求处理失败',
+    'sandbox_not_ready' => '请求处理失败',
+    'sandbox_save_failed' => '操作失败',
 ];

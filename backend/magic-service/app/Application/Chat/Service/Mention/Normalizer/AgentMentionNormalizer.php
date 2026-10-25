@@ -8,20 +8,22 @@ declare(strict_types=1);
 namespace App\Application\Chat\Service\Mention\Normalizer;
 
 use App\Application\Chat\Service\Mention\AbstractMentionNormalizer;
-use App\Domain\Agent\Service\MagicAgentDomainService;
+use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
+use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentDomainService;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use Hyperf\Logger\LoggerFactory;
 
 /**
- * @agent mention 规范化：补全 flow_code / description / agent_name / icon / instructs。
+ * @agent mention 规范化：补全 agent_code / flow_code / description / agent_name / icon / instructs。
  *
- * mention 中 agent_id 即 agent.id（与 AgentMention/AgentData 一致）。
+ * 新 Agent mention 的 agent_id 即 SuperMagic Agent 的公开 code；旧业务助理
+ * 使用独立的 assistant mention，不应从 MagicAgentDomainService 读取。
  */
 class AgentMentionNormalizer extends AbstractMentionNormalizer
 {
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly MagicAgentDomainService $magicAgentDomainService,
+        private readonly SuperMagicAgentDomainService $superMagicAgentDomainService,
     ) {
         parent::__construct($loggerFactory);
     }
@@ -33,18 +35,18 @@ class AgentMentionNormalizer extends AbstractMentionNormalizer
             return [];
         }
 
-        $agent = $this->magicAgentDomainService->getAgentById($agentId);
-        if (! $agent->isAvailable()) {
+        $dataIsolation = SuperMagicAgentDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $agent = $this->superMagicAgentDomainService->getByCode($dataIsolation, $agentId);
+        if ($agent === null || ! $agent->isEnabled()) {
             return [];
         }
 
         return [
-            'agent_id' => $agent->getId(),
-            'flow_code' => $agent->getFlowCode(),
-            'agent_name' => $agent->getAgentName(),
-            'description' => $agent->getAgentDescription(),
-            'icon' => $agent->getAgentAvatar(),
-            'instructs' => $agent->getInstructs() ?? [],
+            'agent_id' => $agentId,
+            'agent_code' => $agent->getCode(),
+            'agent_name' => $agent->getName(),
+            'description' => $agent->getDescription(),
+            'icon' => $agent->getIcon(),
         ];
     }
 }

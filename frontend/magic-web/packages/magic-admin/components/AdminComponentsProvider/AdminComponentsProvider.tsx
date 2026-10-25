@@ -3,31 +3,19 @@ import type { PropsWithChildren } from "react"
 import { ConfigProvider } from "antd"
 import zhCN from "antd/es/locale/zh_CN"
 import enUS from "antd/es/locale/en_US"
-import ruRU from "antd/es/locale/ru_RU"
-import kkKZ from "antd/es/locale/kk_KZ"
-import idID from "antd/es/locale/id_ID"
-import jaJP from "antd/es/locale/ja_JP"
-import msMY from "antd/es/locale/ms_MY"
-import thTH from "antd/es/locale/th_TH"
-import viVN from "antd/es/locale/vi_VN"
-import frFR from "antd/es/locale/fr_FR"
 import MagicThemeProvider from "../ThemeProvider"
 import { SearchComponentProvider } from "../TableWithFilters/SearchComponentRegistry"
 import locales from "../locales"
 import type { LocaleType } from "../locales"
 
+/**
+ * Languages the admin console ships translations for. The host application
+ * drives this value; keep it aligned with the app's supported locales so the
+ * admin console and the surrounding UI never disagree on language.
+ */
 export enum LanguageType {
 	zh_CN = "zh_CN",
 	en_US = "en_US",
-	id_ID = "id_ID",
-	ja_JP = "ja_JP",
-	ms_MY = "ms_MY",
-	th_TH = "th_TH",
-	vi_VN = "vi_VN",
-	fil_PH = "fil_PH",
-	fr_FR = "fr_FR",
-	ru_RU = "ru_RU",
-	kk_KZ = "kk_KZ",
 }
 export enum ThemeType {
 	LIGHT = "light",
@@ -76,22 +64,6 @@ function AdminComponentsProvider(props: PropsWithChildren<AdminComponentsProvide
 				return zhCN
 			case LanguageType.en_US:
 				return enUS
-			case LanguageType.ru_RU:
-				return ruRU
-			case LanguageType.kk_KZ:
-				return kkKZ
-			case LanguageType.id_ID:
-				return idID
-			case LanguageType.ja_JP:
-				return jaJP
-			case LanguageType.ms_MY:
-				return msMY
-			case LanguageType.th_TH:
-				return thTH
-			case LanguageType.vi_VN:
-				return viVN
-			case LanguageType.fr_FR:
-				return frFR
 			default:
 				return enUS
 		}

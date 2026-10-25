@@ -121,7 +121,8 @@ export function buildFallbackSelfMediaOpsHealthInsight({
 	const completionText = `链路完成度 ${workflowHealth.score}%`
 	const dataText = `总阅读 ${formatSelfMediaCompactNumber(
 		overview.totalReads,
-	)}，总互动 ${formatSelfMediaCompactNumber(overview.totalEngagement)}`
+		"zh-CN",
+	)}，总互动 ${formatSelfMediaCompactNumber(overview.totalEngagement, "zh-CN")}`
 	const summary =
 		hasCompleteWorkflow && hasNoRealData
 			? "流程链路已经闭环，但真实阅读和互动数据仍为 0，需要确认数据源读取或重新同步。"

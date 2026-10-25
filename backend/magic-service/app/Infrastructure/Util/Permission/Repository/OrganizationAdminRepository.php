@@ -101,9 +101,8 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
             $query->whereIn('user_id', $filters['user_ids']);
         }
 
-        // 排序：先按是否为组织创建者排序，再按授权时间排序，都是降序
-        $query->orderBy('is_organization_creator', 'desc')
-            ->orderBy('granted_at', 'desc');
+        // 创建人身份由 magic_organizations.creator_id 派生，历史镜像字段不参与排序。
+        $query->orderBy('granted_at', 'desc');
 
         // 分页
         $total = $query->count();
@@ -183,19 +182,6 @@ readonly class OrganizationAdminRepository implements OrganizationAdminRepositor
             $entity->revoke();
             $this->save($dataIsolation, $entity);
         }
-    }
-
-    /**
-     * 获取组织创建人.
-     */
-    public function getOrganizationCreator(DataIsolation $dataIsolation): ?OrganizationAdminEntity
-    {
-        $model = $this->organizationAdminQuery($dataIsolation)
-            ->where('is_organization_creator', 1)
-            ->where('status', OrganizationAdminModel::STATUS_ENABLED)
-            ->first();
-
-        return $model ? $this->mapArrayToEntity($model->toArray()) : null;
     }
 
     /**

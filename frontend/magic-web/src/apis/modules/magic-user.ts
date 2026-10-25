@@ -1,9 +1,8 @@
-import { HttpClient } from "@/apis/core/HttpClient"
-import { genRequestUrl } from "@/utils/http"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 
 export type UpdateUserInfoPermission = "nickname" | "avatar_url"
 
-export const generateMagicUserApi = (fetch: HttpClient) => ({
+export const generateMagicUserApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * @description 修改用户信息
 	 * @param {object} params 用户信息参数
@@ -25,7 +24,7 @@ export const generateMagicUserApi = (fetch: HttpClient) => ({
 			keep_used_follow_up_suggestions?: boolean
 		}
 	}) {
-		return fetch.post(genRequestUrl("/api/v1/contact/users/me"), params)
+		return fetch.post("/api/v1/contact/users/me", params)
 	},
 
 	/**
@@ -33,8 +32,6 @@ export const generateMagicUserApi = (fetch: HttpClient) => ({
 	 * @returns {Promise<{ permission: boolean }>}
 	 */
 	getUserUpdatePermission() {
-		return fetch.get<UpdateUserInfoPermission[]>(
-			genRequestUrl("/api/v1/contact/users/me/update-permission"),
-		)
+		return fetch.get<UpdateUserInfoPermission[]>("/api/v1/contact/users/me/update-permission")
 	},
 })

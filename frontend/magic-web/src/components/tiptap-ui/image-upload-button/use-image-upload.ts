@@ -2,14 +2,14 @@
 
 import * as React from "react"
 import { useHotkeys } from "react-hotkeys-hook"
-import { type Editor } from "@tiptap/react"
+import { type Editor } from "@/infrastructure/editors/tiptap/react"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 // --- Lib ---
-import { isExtensionAvailable, isNodeTypeSelected } from "@/lib/tiptap-utils"
+import { isExtensionAvailable, isNodeTypeSelected } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Icons ---
 import { ImagePlusIcon } from "@/components/tiptap-icons/image-plus-icon"
@@ -41,16 +41,20 @@ export interface UseImageUploadConfig {
  */
 export function canInsertImage(editor: Editor | null): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (
-				!isExtensionAvailable(activeEditor, "imageUpload") ||
-				isNodeTypeSelected(activeEditor, ["image"])
-			)
-				return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (
+					!isExtensionAvailable(activeEditor, "imageUpload") ||
+					isNodeTypeSelected(activeEditor, ["image"])
+				)
+					return false
 
-			return activeEditor.can().insertContent({ type: "imageUpload" })
-		}, false) ?? false
+				return activeEditor.can().insertContent({ type: "imageUpload" })
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -59,10 +63,14 @@ export function canInsertImage(editor: Editor | null): boolean {
  */
 export function isImageActive(editor: Editor | null): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			return activeEditor.isActive("imageUpload")
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				return activeEditor.isActive("imageUpload")
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -73,15 +81,19 @@ export function insertImage(editor: Editor | null): boolean {
 	if (!canInsertImage(editor)) return false
 
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			return activeEditor
-				.chain()
-				.focus()
-				.insertContent({
-					type: "imageUpload",
-				})
-				.run()
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				return activeEditor
+					.chain()
+					.focus()
+					.insertContent({
+						type: "imageUpload",
+					})
+					.run()
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -95,16 +107,20 @@ export function shouldShowButton(props: {
 	const { editor, hideWhenUnavailable } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isExtensionAvailable(activeEditor, "imageUpload")) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!isExtensionAvailable(activeEditor, "imageUpload")) return false
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canInsertImage(activeEditor)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canInsertImage(activeEditor)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }

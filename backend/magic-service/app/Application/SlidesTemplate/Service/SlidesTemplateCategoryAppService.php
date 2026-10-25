@@ -39,7 +39,7 @@ class SlidesTemplateCategoryAppService extends AbstractKernelAppService
         $query->setOnlyWithTemplates(true);
 
         $page = new Page($request->getPage(), $request->getPageSize());
-        $result = $this->slidesTemplateCategoryDomainService->queriesWithTemplateCount($dataIsolation, $query, $page);
+        $result = $this->slidesTemplateCategoryDomainService->queries($dataIsolation, $query, $page);
 
         return [
             'page' => $page,

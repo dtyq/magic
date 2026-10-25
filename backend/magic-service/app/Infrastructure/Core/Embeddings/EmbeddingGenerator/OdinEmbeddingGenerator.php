@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Core\Embeddings\EmbeddingGenerator;
 
+use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Model\Embedding;
 use Psr\SimpleCache\CacheInterface;
@@ -17,8 +19,19 @@ readonly class OdinEmbeddingGenerator implements EmbeddingGeneratorInterface
     {
     }
 
-    public function embedText(EmbeddingInterface $embeddingModel, string $text, array $options = []): array
+    public function getDefaultModel(BaseDataIsolation $dataIsolation): EmbeddingInterface
     {
+        return di(ModelGatewayMapper::class)->getEmbeddingModelProxy(
+            $dataIsolation,
+            EmbeddingGenerator::getVectorDefaultModel(),
+        );
+    }
+
+    public function embedText(
+        EmbeddingInterface $embeddingModel,
+        string $text,
+        array $options = [],
+    ): array {
         $businessParams = $options['business_params'] ?? [];
         unset($options['business_params']);
         // 对嵌入做缓存，减少消耗
@@ -34,10 +47,15 @@ readonly class OdinEmbeddingGenerator implements EmbeddingGeneratorInterface
             }
 
             $embedding = new Embedding($embeddings[0] ?? []);
+            $vector = $embedding->getEmbeddings();
+            if ($vector === []) {
+                // Do not cache an empty response; transient provider failures must be retried.
+                return [];
+            }
 
             $data = [
                 'text' => $text,
-                'embeddings' => $embedding->getEmbeddings(),
+                'embeddings' => $vector,
                 'class' => get_class($embeddingModel),
                 'options' => $options,
             ];

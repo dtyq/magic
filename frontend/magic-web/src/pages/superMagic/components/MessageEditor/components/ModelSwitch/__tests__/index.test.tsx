@@ -507,7 +507,7 @@ describe("ModelSwitch", () => {
 	})
 
 	describe("Dropdown State Management", () => {
-		it("should close dropdown after model selection", async () => {
+		it("should keep the dropdown open after model selection so reasoning effort can still be adjusted", async () => {
 			// Arrange
 			render(<ModelSwitch modelList={mockModelList} onModelChange={mockOnModelChange} />)
 
@@ -520,8 +520,9 @@ describe("ModelSwitch", () => {
 
 			// Assert
 			await waitFor(() => {
-				expect(screen.queryByTestId("dropdown-content")).not.toBeInTheDocument()
+				expect(mockOnModelChange).toHaveBeenCalled()
 			})
+			expect(screen.getByTestId("dropdown-content")).toBeInTheDocument()
 		})
 
 		it("should toggle dropdown state correctly", async () => {

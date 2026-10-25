@@ -81,6 +81,10 @@ describe("getCustomIcon", () => {
 		expect(getCustomIcon({ type: "custom", icon_path: "legacy.png" })).toBe("legacy.png")
 	})
 
+	it("accepts the new html-app display type", () => {
+		expect(getCustomIcon({ type: "html-app", icon: "app.svg" })).toBe("app.svg")
+	})
+
 	it("returns undefined when not custom", () => {
 		expect(getCustomIcon({ type: "slide", icon: "x.png" })).toBeUndefined()
 	})
@@ -117,6 +121,15 @@ describe("getFileTreeIconType", () => {
 		expect(
 			getFileTreeIconType({
 				display_config: { type: "custom", index: "a.html" },
+				file_extension: "html",
+			}),
+		).toBe("html")
+	})
+
+	it("prefers extension for the new html-app display type", () => {
+		expect(
+			getFileTreeIconType({
+				display_config: { type: "html-app", index: "a.html" },
 				file_extension: "html",
 			}),
 		).toBe("html")
@@ -201,6 +214,19 @@ describe("getAppEntryFile", () => {
 		expect(
 			getAppEntryFile(children, {
 				type: "micro-app",
+				entry: "main.html",
+			})?.file_id,
+		).toBe("m")
+	})
+
+	it("uses app.json entry for html-app display type", () => {
+		const children = [
+			{ name: "index.html", file_id: "i" },
+			{ name: "main.html", file_id: "m", is_directory: false },
+		]
+		expect(
+			getAppEntryFile(children, {
+				type: "html-app",
 				entry: "main.html",
 			})?.file_id,
 		).toBe("m")

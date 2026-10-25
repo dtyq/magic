@@ -2,22 +2,33 @@
 
 提供 generate_images 等工具复用的原子能力：
 - 模型解析
-- 参考图本地路径转预签名 URL（含图片压缩）
+- 参考图本地路径转预签名 URL 或 Base64 Data URL
 - 图片下载（多策略 + 指数退避重试）
 - 文件保存（自动追加序号避免覆盖）
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
+from agentlang.config.config import config
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.path_manager import PathManager
 from app.service.file_service import FileService, WorkspaceFileURLError
 from app.tools.visual_understanding_utils.image_compress_utils import compress_if_needed
+from app.tools.visual_understanding_utils.image_conversion_utils import local_file_to_base64
+from app.tools.visual_understanding_utils.image_format_utils import get_content_type_for_local_file
 from app.utils.async_file_utils import async_exists, async_mkdir, async_unlink
 
 logger = get_logger(__name__)
+
+BASE64_COMPRESS_THRESHOLD_MB = 3.0
+
+
+def _should_use_base64_reference_images() -> bool:
+    """判断本地参考图是否使用 Base64 Data URL 传输。"""
+    return config.get("image_generator.use_base64_reference_images", False) is True
+
 
 async def resolve_image_model(tool_context: Optional[ToolContext]) -> str:
     """
@@ -40,11 +51,14 @@ async def local_image_to_presigned_url(
     visual_dir: str,
 ) -> Tuple[str, List[str]]:
     """
-    将本地图片路径转换为预签名 URL。
-    超过大小限制时先压缩到 visual_dir 再生成 URL。
+    根据配置将本地图片转换为 Base64 Data URL 或预签名 URL。
+
+    Base64 模式复用视觉理解的图片压缩与编码能力；URL 模式保持现有
+    MagicFS 预签名链路。HTTP URL 由上层直接透传，不进入本方法。
 
     Returns:
-        (url, temp_files): url 是预签名 URL，temp_files 是压缩产生的临时文件（调用方负责清理）
+        (url, temp_files): url 是预签名 URL 或 Base64 Data URL，
+        temp_files 是 URL 模式压缩产生的临时文件（调用方负责清理）
 
     Raises:
         ValueError: 文件不存在或 URL 生成失败
@@ -54,6 +68,16 @@ async def local_image_to_presigned_url(
 
     try:
         resolved_path = await _resolve_local_image_path(image_source, workspace_dir)
+
+        if _should_use_base64_reference_images():
+            content_type = await get_content_type_for_local_file(str(resolved_path))
+            data_url = await local_file_to_base64(
+                str(resolved_path),
+                content_type,
+                compress_threshold_mb=BASE64_COMPRESS_THRESHOLD_MB,
+            )
+            logger.info(f"参考图已转换为 Base64 Data URL: {image_source}")
+            return data_url, temp_files
 
         await async_mkdir(visual_dir, parents=True, exist_ok=True)
         compressed_path = await compress_if_needed(str(resolved_path), output_dir=visual_dir)
@@ -113,10 +137,12 @@ async def resolve_reference_images_to_urls(
     base_dir: Path,
 ) -> Tuple[List[str], List[str]]:
     """
-    将参考图列表（本地路径或 URL）统一转换为可访问的 URL 列表。
+    将参考图列表统一转换为生图服务可接受的 URL 列表。
+
+    列表元素可以是 HTTP URL、预签名 URL 或 Base64 Data URL。
 
     Returns:
-        (urls, temp_files): urls 是结果 URL 列表，temp_files 是所有压缩临时文件（调用方负责清理）
+        (urls, temp_files): urls 是结果 URL 列表，temp_files 是 URL 模式下的压缩临时文件
     """
     urls: List[str] = []
     all_temp_files: List[str] = []
@@ -133,6 +159,60 @@ async def resolve_reference_images_to_urls(
     return urls, all_temp_files
 
 
+def get_model_valid_sizes(tool_context: Optional[ToolContext]) -> List[Tuple[int, int]]:
+    """
+    读取当前生效图片模型的合法尺寸列表（宽, 高）。
+
+    数据来源于 agent_context.model_context.image.sizes，该字段由平台通过
+    dynamic_config.image_model.sizes 动态注入，因此不在代码中硬编码具体
+    模型的尺寸表；未配置或解析不出时返回空列表，调用方应将其视为
+    "无约束，透传原值"。
+    """
+    agent_context = tool_context.get_extension("agent_context") if tool_context else None
+    if not agent_context:
+        return []
+
+    valid: List[Tuple[int, int]] = []
+    for spec in agent_context.model_context.image.sizes:
+        value = spec.value
+        if not value or "x" not in value:
+            continue
+        parts = value.split("x")
+        if len(parts) != 2:
+            continue
+        try:
+            w, h = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        if w > 0 and h > 0:
+            valid.append((w, h))
+
+    return valid
+
+
+def snap_to_nearest_valid_size(size_str: str, valid_sizes: List[Tuple[int, int]]) -> str:
+    """
+    将任意 'WxH' 尺寸 snap 到 valid_sizes 中最接近的合法值。
+
+    优先匹配宽高比，其次匹配面积；valid_sizes 为空（当前模型未提供尺寸
+    能力）或 size_str 已在列表内时原样返回，避免对无约束场景做无意义改写。
+    """
+    if not valid_sizes:
+        return size_str
+
+    w, h = int(size_str.split("x")[0]), int(size_str.split("x")[1])
+    if (w, h) in valid_sizes:
+        return size_str
+
+    aspect = w / h
+    area = w * h
+    best = min(
+        valid_sizes,
+        key=lambda s: abs(s[0] / s[1] - aspect) * 10 + abs(s[0] * s[1] - area) / area,
+    )
+    return f"{best[0]}x{best[1]}"
+
+
 async def resolve_size_from_references(
     reference_images: List[str],
     base_dir: Path,
@@ -142,6 +222,7 @@ async def resolve_size_from_references(
     所有图片都无法读取时返回 None。
     """
     import asyncio
+
     from PIL import Image
 
     best_area = -1
@@ -171,6 +252,7 @@ async def resolve_size_from_references(
 async def detect_image_file_extension(file_path: str) -> str:
     """根据图片真实内容推断保存扩展名，失败时回退到文件后缀。"""
     import asyncio
+
     from PIL import Image
 
     extension_map = {

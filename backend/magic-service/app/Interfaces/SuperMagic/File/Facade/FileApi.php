@@ -13,6 +13,7 @@ use App\Application\SuperMagic\File\Service\AgentFileAppService;
 use App\Application\SuperMagic\File\Service\FileBatchAppService;
 use App\Application\SuperMagic\File\Service\FileManagementAppService;
 use App\Application\SuperMagic\File\Service\FileProcessAppService;
+use App\Application\SuperMagic\File\Service\FileReferenceAppService;
 use App\Application\SuperMagic\File\Service\FileVersionAppService;
 use App\Application\SuperMagic\File\Service\SandboxFileNotificationAppService;
 use App\Application\SuperMagic\Workspace\Service\WorkspaceAppService;
@@ -40,10 +41,12 @@ use App\Interfaces\SuperMagic\File\DTO\Request\GetFileVersionsRequestDTO;
 use App\Interfaces\SuperMagic\File\DTO\Request\MoveFileRequestDTO;
 use App\Interfaces\SuperMagic\File\DTO\Request\RefreshStsTokenRequestDTO;
 use App\Interfaces\SuperMagic\File\DTO\Request\ReplaceFileRequestDTO;
+use App\Interfaces\SuperMagic\File\DTO\Request\ResolveFileReferencesRequestDTO;
 use App\Interfaces\SuperMagic\File\DTO\Request\RollbackFileToVersionRequestDTO;
 use App\Interfaces\SuperMagic\File\DTO\Request\SandboxFileNotificationRequestDTO;
 use App\Interfaces\SuperMagic\File\DTO\Request\SaveProjectFileRequestDTO;
 use App\Interfaces\SuperMagic\File\DTO\Request\WorkspaceAttachmentsRequestDTO;
+use App\Interfaces\SuperMagic\File\DTO\Response\FileReferenceResultDTO;
 use App\Interfaces\SuperMagic\Project\DTO\Request\ProjectUploadTokenRequestDTO;
 use App\Interfaces\SuperMagic\Topic\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -66,8 +69,19 @@ class FileApi extends AbstractApi
         private readonly SandboxFileNotificationAppService $sandboxFileNotificationAppService,
         private readonly AccessTokenAuthorizationService $accessTokenAuthorizationService,
         private readonly FileScopeHandlerResolver $fileScopeHandlerResolver,
+        private readonly FileReferenceAppService $fileReferenceAppService,
     ) {
         parent::__construct($request);
+    }
+
+    public function resolveReferences(): array
+    {
+        /** @var MagicUserAuthorization $authorization */
+        $authorization = $this->getAuthorization();
+        $request = ResolveFileReferencesRequestDTO::fromRequest($this->request);
+        $results = $this->fileReferenceAppService->resolve($authorization, $request->references);
+
+        return ['results' => array_map(static fn (FileReferenceResultDTO $result): array => $result->toArray(), $results)];
     }
 
     /**
@@ -283,9 +297,13 @@ class FileApi extends AbstractApi
 
         // 获取 token 参数
         $token = $this->request->input('token');
+        $authorizedProjectId = null;
         if (! empty($token)) {
             // 先进行下载权限校验
-            $this->accessTokenAuthorizationService->validateTokenAndCheckDownloadPermission($token);
+            $shareEntity = $this->accessTokenAuthorizationService->validateTokenAndCheckDownloadPermission($token);
+            // A token must be bound to the project stored on its share record.
+            // Treat a missing project scope as invalid for this status endpoint.
+            $authorizedProjectId = $shareEntity->getProjectId() ?? '';
 
             // 走token鉴权逻辑：验证token并创建临时用户授权（基于分享创建者信息）
             $userAuthorization = $this->accessTokenAuthorizationService->validateTokenAndCreateUserAuthorization($token);
@@ -296,7 +314,7 @@ class FileApi extends AbstractApi
         }
 
         // Call application service
-        $responseDTO = $this->fileBatchAppService->checkBatchDownload($requestContext, $batchKey);
+        $responseDTO = $this->fileBatchAppService->checkBatchDownload($requestContext, $batchKey, $authorizedProjectId);
 
         return $responseDTO->toArray();
     }

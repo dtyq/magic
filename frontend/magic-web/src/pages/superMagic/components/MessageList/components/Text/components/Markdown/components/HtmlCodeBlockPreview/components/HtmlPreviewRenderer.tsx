@@ -7,7 +7,7 @@ import { inlineDashboardDataJs } from "@/pages/superMagic/components/Detail/cont
 import { processHtmlContent } from "@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor"
 import { rewriteHtmlWithMagicCdn } from "@/pages/superMagic/components/Detail/contents/HTML/utils"
 import { injectFetchInterceptorScript } from "@/pages/superMagic/components/Detail/contents/HTML/utils/fetchInterceptor"
-import projectFilesStore from "@/stores/projectFiles"
+import { useMessageListProjectFilesStore } from "@/pages/superMagic/components/MessageList/context"
 import {
 	HTML_CODE_BLOCK_PREVIEW_CONTAIN_IFRAME_OVERSCROLL,
 	HTML_CODE_BLOCK_PREVIEW_EMPTY_FILE_PATH_MAPPING,
@@ -27,6 +27,8 @@ interface HtmlPreviewRendererProps {
 	content: string
 	onReady: () => void
 	onMetrics: (metrics: HtmlPreviewRendererMetrics) => void
+	onContentCommitted?: (content: string) => void
+	isPreviewActive?: boolean
 	containIframeOverscroll?: boolean
 	hideVerticalScroll?: boolean
 }
@@ -48,7 +50,7 @@ export const HtmlPreviewRenderer = observer(function HtmlPreviewRenderer(
 		containIframeOverscroll = true,
 		hideVerticalScroll = false,
 	} = props
-	const workspaceFilesList = projectFilesStore.workspaceFilesList
+	const workspaceFilesList = useMessageListProjectFilesStore()?.workspaceFilesList ?? []
 	const workspaceFilesSignature = workspaceFilesList
 		.map(
 			(file) =>

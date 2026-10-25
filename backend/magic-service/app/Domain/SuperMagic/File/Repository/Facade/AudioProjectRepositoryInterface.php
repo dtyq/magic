@@ -78,6 +78,11 @@ interface AudioProjectRepositoryInterface
     public function updateByProjectId(int $projectId, array $data): int;
 
     /**
+     * Set audio format when unset, or confirm an existing identical value.
+     */
+    public function setAudioFormatIfUnset(int $projectId, string $audioFormat): int;
+
+    /**
      * Delete audio project by project ID.
      */
     public function deleteByProjectId(int $projectId): void;

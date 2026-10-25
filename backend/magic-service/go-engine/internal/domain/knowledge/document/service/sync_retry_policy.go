@@ -72,6 +72,7 @@ func isTerminalResourceLimitError(err error) bool {
 
 func isKnownPermanentDocumentError(err error) bool {
 	return isEmptyDocumentError(err) ||
+		errors.Is(err, shared.ErrDocumentNotFound) ||
 		errors.Is(err, ErrUnsupportedKnowledgeBaseFileType) ||
 		errors.Is(err, ErrNoParserFound) ||
 		errors.Is(err, ErrDocumentSourceEmpty) ||
@@ -86,6 +87,9 @@ func isEmptyDocumentError(err error) bool {
 func hasPermanentDocumentFailureMessage(err error) bool {
 	message := strings.ToLower(err.Error())
 	if hasEmptyDocumentFailureMessage(err) {
+		return true
+	}
+	if strings.Contains(message, "document not found") {
 		return true
 	}
 	return strings.Contains(message, "unsupported knowledge base file type") ||

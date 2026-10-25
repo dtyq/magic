@@ -35,6 +35,9 @@ describe("downloadRecordingAudioFile", () => {
 		expect(result).toBe(true)
 		expect(getTemporaryDownloadUrlMock).toHaveBeenCalledWith({
 			file_ids: ["audio-file-001"],
+			is_download: true,
+			download_mode: "download",
+			access: undefined,
 		})
 		expect(downloadFileWithAnchorMock).toHaveBeenCalledWith(
 			"https://example.invalid/audio/story.wav",

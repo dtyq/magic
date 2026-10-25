@@ -1,4 +1,3 @@
-import { useStyles } from "./styles"
 import { clipboard } from "@/utils/clipboard-helpers"
 import magicToast from "@/components/base/MagicToaster/utils"
 import {
@@ -10,7 +9,7 @@ import {
 	IconEye,
 	IconEyeOff,
 } from "@tabler/icons-react"
-import { Flex, Button, Table, Switch, Tooltip, Popconfirm } from "antd"
+import { Button, Table, Switch, Tooltip, Popconfirm } from "antd"
 import { type AgentCommonModalChildrenProps, openAgentCommonModal } from "../../AgentCommonModal"
 import { useMemo, useState } from "react"
 import { useMemoizedFn, useRequest, useThrottleEffect } from "ahooks"
@@ -26,19 +25,17 @@ interface AgentAuthorizationTools extends AgentCommonModalChildrenProps {
 }
 
 function ToggleCell(props: { value: string }) {
-	const { styles } = useStyles()
-
 	const [hidden, setHidden] = useState(true)
 
 	if (!props?.value) {
 		return <div />
 	}
 	return (
-		<div className={styles.toggleCell}>
-			<span>
+		<div className="flex items-center gap-2">
+			<span className="text-center leading-5">
 				{hidden ? Array.from({ length: props?.value.length }, () => "*") : props?.value}
 			</span>
-			<div>
+			<div className="inline-flex size-5 cursor-pointer">
 				{hidden ? (
 					<IconEye size={20} strokeWidth={1.5} onClick={() => setHidden(false)} />
 				) : (
@@ -52,7 +49,6 @@ function ToggleCell(props: { value: string }) {
 export default function AgentAuthorizationTools(props: AgentAuthorizationTools) {
 	const { id, onClose } = props
 
-	const { styles } = useStyles()
 	const { t } = useTranslation("agent")
 
 	const { data, run, loading, refresh } = useRequest(
@@ -103,8 +99,9 @@ export default function AgentAuthorizationTools(props: AgentAuthorizationTools) 
 	})
 
 	const triggerAgentToolsCopy = useMemoizedFn(async (record) => {
-		const sseURL = `${env("MAGIC_SERVICE_BASE_URL")}/api/v1/mcp/sse/${id}?key=${record.secret_key
-			}`
+		const sseURL = `${env("MAGIC_SERVICE_BASE_URL")}/api/v1/mcp/sse/${id}?key=${
+			record.secret_key
+		}`
 		await clipboard.writeText(sseURL)
 		magicToast.success(t("common.auth.copySuccess"))
 	})
@@ -152,10 +149,10 @@ export default function AgentAuthorizationTools(props: AgentAuthorizationTools) 
 				title: t("common.auth.operate"),
 				render(_, record) {
 					return (
-						<Flex gap="10px">
+						<div className="flex gap-2.5">
 							<Tooltip title={t("common.auth.editKey")}>
 								<div
-									className={styles.button}
+									className="flex size-6 cursor-pointer items-center justify-center rounded-[4px] text-foreground/80 hover:bg-fill active:bg-fill-secondary dark:hover:bg-white/10 dark:active:bg-white/[0.15]"
 									onClick={() => triggerAgentToolsEdit(record)}
 								>
 									<MagicIcon component={IconPencil} size={18} />
@@ -168,14 +165,14 @@ export default function AgentAuthorizationTools(props: AgentAuthorizationTools) 
 								cancelText={t("common.auth.cancel")}
 							>
 								<Tooltip title={t("common.auth.resetKey")}>
-									<div className={styles.button}>
+									<div className="flex size-6 cursor-pointer items-center justify-center rounded-[4px] text-foreground/80 hover:bg-fill active:bg-fill-secondary dark:hover:bg-white/10 dark:active:bg-white/[0.15]">
 										<MagicIcon component={IconRefresh} size={18} />
 									</div>
 								</Tooltip>
 							</Popconfirm>
 							<Tooltip title={t("common.auth.copyCurl")}>
 								<div
-									className={styles.button}
+									className="flex size-6 cursor-pointer items-center justify-center rounded-[4px] text-foreground/80 hover:bg-fill active:bg-fill-secondary dark:hover:bg-white/10 dark:active:bg-white/[0.15]"
 									onClick={() => triggerAgentToolsCopy(record)}
 								>
 									<MagicIcon component={IconCopy} size={18} />
@@ -188,12 +185,12 @@ export default function AgentAuthorizationTools(props: AgentAuthorizationTools) 
 								cancelText={t("common.auth.cancel")}
 							>
 								<Tooltip title={t("common.auth.deleteKey")}>
-									<div className={styles.button}>
+									<div className="flex size-6 cursor-pointer items-center justify-center rounded-[4px] text-foreground/80 hover:bg-fill active:bg-fill-secondary dark:hover:bg-white/10 dark:active:bg-white/[0.15]">
 										<MagicIcon component={IconTrash} size={18} />
 									</div>
 								</Tooltip>
 							</Popconfirm>
-						</Flex>
+						</div>
 					)
 				},
 			},
@@ -202,19 +199,25 @@ export default function AgentAuthorizationTools(props: AgentAuthorizationTools) 
 
 	const dataSource = data?.list || []
 	return (
-		<div className={styles.layout}>
-			<div className={styles.header}>
+		<div className="w-full overflow-hidden rounded-[12px]">
+			<div className="flex w-full items-center justify-between gap-2.5 border-b border-border px-5 py-2.5 text-base font-semibold not-italic leading-[22px] text-foreground/80 backdrop-blur-[12px]">
 				{t("common.auth.title")}
-				<div className={styles.close} onClick={onClose}>
+				<div
+					className="flex size-6 cursor-pointer items-center justify-center rounded-[6px] transition-all duration-100 ease-linear hover:bg-fill active:bg-fill-secondary dark:hover:bg-white/10 dark:active:bg-white/[0.15]"
+					onClick={onClose}
+				>
 					<IconX size={24} />
 				</div>
 			</div>
-			<div className={styles.body}>
-				<Flex align="center" justify="space-between" className={styles.bodyWrapper}>
-					<Flex align="center">
-						<span className={styles.bodyTitle}>{t("common.auth.desc")}</span>
-					</Flex>
+			<div className="flex max-h-[60vh] w-full flex-col gap-2.5 p-2.5">
+				<div className="flex h-10 w-full items-center justify-between">
+					<div className="flex items-center">
+						<span className="text-sm font-normal not-italic leading-5 text-foreground/80">
+							{t("common.auth.desc")}
+						</span>
+					</div>
 					<Button
+						className="dark:!bg-primary dark:!text-primary-foreground dark:hover:!bg-primary/90"
 						type="primary"
 						onClick={() =>
 							openAgentCommonModal({
@@ -232,20 +235,7 @@ export default function AgentAuthorizationTools(props: AgentAuthorizationTools) 
 					>
 						{t("common.auth.create")}
 					</Button>
-				</Flex>
-				{/*<Flex align="center" className={styles.bodyMenu}>*/}
-				{/*	<Form layout="inline">*/}
-				{/*		<Form.Item label="接入方式">*/}
-				{/*			<Select></Select>*/}
-				{/*		</Form.Item>*/}
-				{/*		<Form.Item label="状态">*/}
-				{/*			<Select></Select>*/}
-				{/*		</Form.Item>*/}
-				{/*		<Form.Item label="接入方名称">*/}
-				{/*			<Input />*/}
-				{/*		</Form.Item>*/}
-				{/*	</Form>*/}
-				{/*</Flex>*/}
+				</div>
 				<div>
 					<Table
 						loading={loading}

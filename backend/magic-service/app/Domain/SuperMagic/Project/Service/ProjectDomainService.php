@@ -28,6 +28,7 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
+use RuntimeException;
 use Throwable;
 
 use function Hyperf\Translation\trans;
@@ -40,6 +41,12 @@ class ProjectDomainService
     private const CACHE_KEY_UNGROUPED_COUNT = 'project_ungrouped_count:%s:%s:%s';
 
     private const CACHE_TTL_UNGROUPED_COUNT = 60;
+
+    /**
+     * A fork record whose progress has not advanced for this long is treated as abandoned.
+     * Must stay well above the consumer's lock TTL so a slow but live migration is never reclaimed.
+     */
+    private const FORK_STALE_TIMEOUT_SECONDS = 900;
 
     private LoggerInterface $logger;
 
@@ -153,6 +160,12 @@ class ProjectDomainService
         ];
 
         return $this->projectRepository->updateProjectByCondition($conditions, $data);
+    }
+
+    /** @return ProjectEntity[] */
+    public function getProjectsForWorkspaceDeletion(int $workspaceId): array
+    {
+        return $this->projectRepository->findByWorkspaceIdForDeletion($workspaceId);
     }
 
     /**
@@ -276,8 +289,22 @@ class ProjectDomainService
         int $targetWorkspaceId,
         string $targetProjectName,
         string $userId,
-        string $userOrganizationCode
+        string $userOrganizationCode,
+        ?string $projectMode = null
     ): array {
+        // A live migration refreshes updated_at on every processed batch, so a running record left
+        // untouched past the timeout has lost its consumer and will never finish. Reclaim it here,
+        // otherwise a single lost migration blocks every later copy of the same project forever.
+        $staleBefore = date('Y-m-d H:i:s', time() - self::FORK_STALE_TIMEOUT_SECONDS);
+        if ($this->projectForkRepository->failStaleRunningForks($userId, $sourceProjectId, $staleBefore, 'File migration failed')) {
+            $this->logger->warning(sprintf(
+                'Reclaimed abandoned fork of project %d for user %s, no progress since %s',
+                $sourceProjectId,
+                $userId,
+                $staleBefore
+            ));
+        }
+
         // Check if user already has a running fork for this project
         if ($this->projectForkRepository->hasRunningFork($userId, $sourceProjectId)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_FORK_ALREADY_RUNNING, trans('project.fork_already_running'));
@@ -298,7 +325,8 @@ class ProjectDomainService
             $targetProjectName,
             $userId,
             $userOrganizationCode,
-            $currentTime
+            $currentTime,
+            $projectMode
         );
 
         // Save forked project
@@ -334,6 +362,27 @@ class ProjectDomainService
     }
 
     /**
+     * Mark a running fork record as failed.
+     *
+     * Returns false when the record is missing or already in a terminal state, so callers may
+     * invoke it defensively without overwriting a more accurate failure recorded earlier.
+     */
+    public function markForkRecordFailed(int $forkId, string $errMsg): bool
+    {
+        $forkRecord = $this->projectForkRepository->findById($forkId);
+        if ($forkRecord === null || $forkRecord->getStatus() !== ForkStatus::RUNNING) {
+            return false;
+        }
+
+        return $this->projectForkRepository->updateStatus(
+            $forkId,
+            ForkStatus::FAILED->value,
+            $forkRecord->getProgress(),
+            $errMsg
+        );
+    }
+
+    /**
      * Move project to another workspace.
      * @param int $sourceProjectId Source project ID
      * @param null|int $targetWorkspaceId Target workspace ID (null means move to no workspace)
@@ -345,9 +394,12 @@ class ProjectDomainService
         ?int $targetWorkspaceId,
         string $userId,
         ?string $targetProjectName = null,
-        ?string $projectMode = null
+        ?string $projectMode = null,
+        ?int $preProjectId = null,
+        ?int $nextProjectId = null,
+        bool $sortProvided = false
     ): ProjectEntity {
-        return Db::transaction(function () use ($sourceProjectId, $targetWorkspaceId, $userId, $targetProjectName, $projectMode) {
+        return Db::transaction(function () use ($sourceProjectId, $targetWorkspaceId, $userId, $targetProjectName, $projectMode, $preProjectId, $nextProjectId, $sortProvided) {
             $currentTime = date('Y-m-d H:i:s');
 
             // Get the source project first to return updated entity
@@ -361,35 +413,46 @@ class ProjectDomainService
             $workspaceChanged = $originalWorkspaceId !== $targetWorkspaceId;
             $projectNameChanged = $targetProjectName !== null
                 && $targetProjectName !== $sourceProject->getProjectName();
+            $projectModeChanged = $projectMode !== null
+                && $projectMode !== $sourceProject->getProjectMode();
 
             // Check if project is already in target workspace with the target name
-            if (! $workspaceChanged && ! $projectNameChanged) {
+            if (! $workspaceChanged && ! $projectNameChanged && ! $projectModeChanged && ! $sortProvided) {
                 return $sourceProject;
             }
 
-            // Update project workspace_id and optional project name
-            $projectUpdateData = [
-                'workspace_id' => $targetWorkspaceId,
-                'updated_uid' => $userId,
-                'updated_at' => $currentTime,
-            ];
+            // A sort-only request must not mutate the project's business timestamp.
+            $projectUpdateData = [];
+            if ($workspaceChanged || $projectNameChanged || $projectModeChanged) {
+                $projectUpdateData = [
+                    'workspace_id' => $targetWorkspaceId,
+                    'updated_uid' => $userId,
+                    'updated_at' => $currentTime,
+                ];
+            }
             if ($projectNameChanged) {
                 $projectUpdateData['project_name'] = $targetProjectName;
             }
-            if ($projectMode !== null) {
+            if ($projectModeChanged) {
                 $projectUpdateData['project_mode'] = $projectMode;
             }
 
-            $projectUpdateResult = $this->projectRepository->updateProjectByCondition(
-                ['id' => $sourceProjectId],
-                $projectUpdateData
-            );
+            if ($projectUpdateData !== []) {
+                $projectUpdateResult = $this->projectRepository->updateProjectByCondition(
+                    ['id' => $sourceProjectId],
+                    $projectUpdateData
+                );
 
-            if (! $projectUpdateResult) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::UPDATE_PROJECT_FAILED, trans('project.project_update_failed'));
+                if (! $projectUpdateResult) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::UPDATE_PROJECT_FAILED, trans('project.project_update_failed'));
+                }
             }
 
             if ($workspaceChanged) {
+                // Manual positions are scoped to the source workspace. Clear
+                // them without changing the project's pin state; the pin API
+                // can assign a precise position in the destination workspace.
+                $this->projectMemberSettingRepository->clearManualSortOrders($userId, $sourceProjectId);
                 // Update topics workspace_id
                 $topicUpdateResult = $this->topicRepository->updateTopicByCondition(
                     [
@@ -403,16 +466,25 @@ class ProjectDomainService
                 );
 
                 // Update tasks workspace_id
-                $taskUpdateResult = $this->taskRepository->updateTaskByCondition(
+                // 路线 C：task 表无 project_id 索引，先经 topics 表（含已软删话题）取 topic_id，再按 topic_id 一次性更新
+                $topicIds = $this->topicRepository->getTopicIdsByCondition(
                     [
                         'project_id' => $sourceProjectId,
                         'workspace_id' => $originalWorkspaceId,
                     ],
-                    [
-                        'workspace_id' => $targetWorkspaceId,
-                        'updated_at' => $currentTime,
-                    ]
+                    true
                 );
+                if ($topicIds !== []) {
+                    $this->taskRepository->updateTaskByCondition(
+                        [
+                            'topic_id' => $topicIds,
+                        ],
+                        [
+                            'workspace_id' => $targetWorkspaceId,
+                            'updated_at' => $currentTime,
+                        ]
+                    );
+                }
 
                 $this->messageScheduleDomainService->syncMovedProjectSchedules(
                     [$sourceProjectId],
@@ -425,6 +497,17 @@ class ProjectDomainService
                 $this->syncOwnerWorkspaceBinding($sourceProject, $targetWorkspaceId);
             }
 
+            if ($sortProvided) {
+                $this->applyProjectSortOrderForBatch(
+                    $userId,
+                    $sourceProject->getUserOrganizationCode(),
+                    $sourceProjectId,
+                    $targetWorkspaceId,
+                    $preProjectId,
+                    $nextProjectId
+                );
+            }
+
             // Return updated project entity
             $updatedProject = $this->projectRepository->findById($sourceProjectId);
             if (! $updatedProject) {
@@ -435,6 +518,154 @@ class ProjectDomainService
 
             return $updatedProject;
         });
+    }
+
+    public function applyProjectSortOrderForBatch(
+        string $userId,
+        string $organizationCode,
+        int $projectId,
+        ?int $workspaceId,
+        ?int $preProjectId,
+        ?int $nextProjectId = null
+    ): void {
+        $this->applyProjectSortOrderForGroup($userId, $organizationCode, $projectId, $workspaceId, $preProjectId, $nextProjectId, false);
+    }
+
+    public function applyProjectSortOrderForGroup(
+        string $userId,
+        string $organizationCode,
+        int $projectId,
+        ?int $workspaceId,
+        ?int $preProjectId,
+        ?int $nextProjectId = null,
+        bool $targetPinned = false
+    ): void {
+        if ($workspaceId === null) {
+            if ($preProjectId !== null || $nextProjectId !== null) {
+                throw new RuntimeException('Cannot set relative project order without a target workspace');
+            }
+            return;
+        }
+
+        // `pre_project_id` wins when both relative-position parameters are supplied.
+        $targetProjectId = $preProjectId ?? $nextProjectId;
+        $insertAfter = $preProjectId !== null;
+        if ($targetProjectId === null) {
+            // An explicit null relative-position value is a no-op. Omitting
+            // both fields is handled by the application service and never
+            // enters this method.
+            return;
+        }
+
+        if ($targetProjectId === $projectId) {
+            throw new RuntimeException('Relative project cannot be the current project');
+        }
+
+        $targetProject = $this->projectRepository->findById($targetProjectId);
+        if ($targetProject === null || $targetProject->getWorkspaceId() !== $workspaceId) {
+            throw new RuntimeException('Relative project is not in the target workspace');
+        }
+
+        $workspaceProjectIds = $this->projectRepository->getProjectIdsByWorkspaceId(
+            $workspaceId,
+            $userId,
+            $organizationCode
+        );
+        // The target may be a collaboration project that is visible to the
+        // current user but is not owned by them, so include it explicitly
+        // when lazily creating the user's settings row.
+        $workspaceProjectIds[] = (string) $targetProjectId;
+        $this->projectMemberSettingRepository->ensureSettingsForSorting(
+            $userId,
+            array_map('intval', $workspaceProjectIds),
+            $organizationCode
+        );
+
+        $targetSetting = $this->projectMemberSettingRepository->findByUserAndProject($userId, $targetProjectId);
+        if ($targetSetting === null) {
+            throw new RuntimeException('Relative project setting is invalid');
+        }
+        if ($targetSetting->isPinned() !== $targetPinned) {
+            throw new RuntimeException('Relative project is not in the target ordering group');
+        }
+
+        $rows = $this->projectMemberSettingRepository->getSortOrderRows(
+            $userId,
+            $workspaceId,
+            $projectId,
+            $targetPinned
+        );
+        $orderedIds = array_map(static fn (array $row): int => $row['id'], $rows);
+        $sortOrderMap = [];
+        foreach ($rows as $row) {
+            $value = $targetPinned ? $row['pinned_sort_order'] : $row['sort_order'];
+            if ($value !== null) {
+                $sortOrderMap[$row['id']] = $value;
+            }
+        }
+        if (! in_array($targetProjectId, $orderedIds, true)) {
+            throw new RuntimeException('Relative project is not in the target ordering group');
+        }
+
+        $allHaveSortOrder = $rows !== [] && array_reduce(
+            $rows,
+            static function (bool $carry, array $row) use ($targetPinned): bool {
+                $value = $targetPinned ? $row['pinned_sort_order'] : $row['sort_order'];
+                return $carry && $value !== null;
+            },
+            true
+        );
+        if (! $allHaveSortOrder) {
+            $initial = [];
+            $rank = 1_000_000;
+            foreach ($orderedIds as $id) {
+                $initial[$id] = $rank;
+                $rank += 1_000_000;
+            }
+            if ($targetPinned) {
+                $this->projectMemberSettingRepository->batchUpdatePinnedSortOrders($userId, $initial);
+            } else {
+                $this->projectMemberSettingRepository->batchUpdateSortOrdersForMove($userId, $initial);
+            }
+            $sortOrderMap = $initial;
+        }
+
+        $index = array_search($targetProjectId, $orderedIds, true);
+        $insertPosition = $insertAfter ? $index + 1 : $index;
+        array_splice($orderedIds, $insertPosition, 0, [$projectId]);
+
+        $position = $insertPosition;
+        $previousSortOrder = $position > 0 ? $sortOrderMap[$orderedIds[$position - 1]] : null;
+        $nextSortOrder = $position + 1 < count($orderedIds) ? $sortOrderMap[$orderedIds[$position + 1]] : null;
+
+        if ($previousSortOrder === null && $nextSortOrder !== null) {
+            $newSortOrder = $nextSortOrder - 1_000_000;
+        } elseif ($previousSortOrder !== null && $nextSortOrder === null) {
+            $newSortOrder = $previousSortOrder + 1_000_000;
+        } elseif ($previousSortOrder !== null && $nextSortOrder !== null
+            && $nextSortOrder - $previousSortOrder > 1
+        ) {
+            $newSortOrder = intdiv($previousSortOrder + $nextSortOrder, 2);
+        } else {
+            $sortOrders = [];
+            $rank = 1_000_000;
+            foreach ($orderedIds as $id) {
+                $sortOrders[$id] = $rank;
+                $rank += 1_000_000;
+            }
+            if ($targetPinned) {
+                $this->projectMemberSettingRepository->batchUpdatePinnedSortOrders($userId, $sortOrders);
+            } else {
+                $this->projectMemberSettingRepository->batchUpdateSortOrdersForMove($userId, $sortOrders);
+            }
+            $newSortOrder = $sortOrders[$projectId];
+        }
+
+        if ($targetPinned) {
+            $this->projectMemberSettingRepository->updatePinnedSortOrder($userId, $projectId, $organizationCode, $newSortOrder);
+        } else {
+            $this->projectMemberSettingRepository->updateSortOrderForMove($userId, $projectId, $organizationCode, $newSortOrder);
+        }
     }
 
     /**
@@ -709,7 +940,8 @@ class ProjectDomainService
         string $targetProjectName,
         string $userId,
         string $userOrganizationCode,
-        string $currentTime
+        string $currentTime,
+        ?string $projectMode = null
     ): ProjectEntity {
         $forkedProject = new ProjectEntity();
         $forkedProject->setUserId($userId)
@@ -718,7 +950,7 @@ class ProjectDomainService
             ->setProjectName($targetProjectName)
             ->setProjectDescription($sourceProject->getProjectDescription())
             ->setWorkDir('') // Will be set later during file migration
-            ->setProjectMode($sourceProject->getProjectMode())
+            ->setProjectMode($projectMode ?? $sourceProject->getProjectMode())
             ->setProjectStatus(ProjectStatus::ACTIVE->value)
             ->setCurrentTopicId(null)
             ->setCurrentTopicStatus('')

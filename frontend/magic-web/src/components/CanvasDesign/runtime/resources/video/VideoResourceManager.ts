@@ -30,6 +30,31 @@ export interface LoadedVideoMetadata {
 /** 海报位图来源：由 VideoResourceManager 绘制到 canvas，供 Konva.Image 使用 */
 export type VideoPosterSource = HTMLCanvasElement
 
+/**
+ * 已交给资源管理器释放的 poster 不得再次进入 Konva.Image。
+ * poster 是可变的 HTMLCanvasElement，单看 width/height 不能区分“刚创建的 1×1
+ * poster”和“已经被释放后降级成 1×1 的 poster”，因此额外保留对象身份标记。
+ */
+const releasedVideoPosters = new WeakSet<object>()
+
+export function isUsableVideoPosterSource(value: unknown): value is VideoPosterSource {
+	if (typeof value !== "object" || value === null || releasedVideoPosters.has(value)) {
+		return false
+	}
+
+	try {
+		const poster = value as VideoPosterSource
+		return (
+			Number.isFinite(poster.width) &&
+			Number.isFinite(poster.height) &&
+			poster.width > 0 &&
+			poster.height > 0
+		)
+	} catch {
+		return false
+	}
+}
+
 /** 已解析的可播放地址 + 首帧海报 + 元数据 */
 export interface LoadedVideoResource {
 	/** 带签名的可播放 URL（可能过期，需结合 ensureFreshOssSrc） */
@@ -119,8 +144,8 @@ export class VideoResourceManager {
 		this.diagnostics.increment("staleRequestDropCount")
 	}
 
-	private canonicalResourcePath(path: string): string {
-		return this.urlLifecycle.canonicalResourcePath(path)
+	private getResourceIdentity(path: string): string {
+		return this.urlLifecycle.getResourceIdentity(path)
 	}
 
 	constructor(options: { canvas: Canvas }) {
@@ -132,10 +157,9 @@ export class VideoResourceManager {
 			isDestroyed: () => this.destroyed,
 			onStaleRequestDrop: () => this.markStaleRequestDrop(),
 			setFailureReason: (entry, reason) => this.setFailureReason(entry, reason),
-			onResourceDeleted: (normalizedPath, entry) =>
-				this.handleVideoResourceDeleted(normalizedPath, entry),
+			onResourceDeleted: (_resourceIdentity, entry) => this.handleVideoResourceDeleted(entry),
 			refreshResource: (path) => this.refreshResource(path),
-			onResourceVersionChanged: (_normalizedPath, entry) => {
+			onResourceVersionChanged: (_resourceIdentity, entry) => {
 				entry.resourceNeedsReload = true
 			},
 			incrementDiagnostic: (counter) => this.diagnostics.increment(counter),
@@ -205,8 +229,8 @@ export class VideoResourceManager {
 			return null
 		}
 		if (this.shouldDropAbortedLoad(options)) return null
-		const normalizedPath = this.canonicalResourcePath(path)
-		const entry = this.getOrCreateEntry(normalizedPath)
+		const resourceIdentity = this.getResourceIdentity(path)
+		const entry = this.getOrCreateEntry(resourceIdentity, path)
 		const result = await this.urlLifecycle.ensureFreshOssInfo(path, entry, options)
 		return this.shouldDropAbortedLoad(options) ? null : result
 	}
@@ -226,7 +250,7 @@ export class VideoResourceManager {
 	}
 
 	public getFailureReason(path: string): ResourceLoadFailureReason | null {
-		const canonical = this.urlLifecycle.getCanonicalFromAlias(path)
+		const canonical = this.urlLifecycle.getResourceIdentity(path)
 		return this.entries.get(canonical)?.lastFailureReason ?? null
 	}
 
@@ -242,7 +266,7 @@ export class VideoResourceManager {
 		}
 		const failedResources: VideoResourceFailureInfo[] = []
 
-		this.entries.forEach((entry, path) => {
+		this.entries.forEach((entry) => {
 			if (entry.resource) {
 				loaded += 1
 				posterCanvasBytes +=
@@ -257,7 +281,7 @@ export class VideoResourceManager {
 				failureReasonCounts[entry.lastFailureReason] += 1
 				if (failedResources.length < MAX_FAILED_RESOURCE_DEBUG_ITEMS) {
 					failedResources.push({
-						path,
+						path: entry.referencePath,
 						reason: entry.lastFailureReason,
 						source: entry.source,
 						fileName: entry.fileName,
@@ -297,10 +321,10 @@ export class VideoResourceManager {
 			return false
 		}
 		this.diagnostics.increment("refreshResourceCount")
-		const normalizedPath = this.canonicalResourcePath(path)
-		if (!normalizedPath) return false
+		const resourceIdentity = this.getResourceIdentity(path)
+		if (!resourceIdentity) return false
 
-		const entry = this.getOrCreateEntry(normalizedPath)
+		const entry = this.getOrCreateEntry(resourceIdentity, path)
 		const previousRefresh = entry.refreshPromise
 		const refreshPromise = (async () => {
 			if (previousRefresh) {
@@ -311,7 +335,7 @@ export class VideoResourceManager {
 				await entry.loadingPromise.promise.catch(() => null)
 			}
 			if (this.destroyed) return false
-			return this.refreshVideoResourceFromNetwork(path, normalizedPath, entry, {
+			return this.refreshVideoResourceFromNetwork(path, resourceIdentity, entry, {
 				forceRefresh: true,
 				priority: "critical",
 			})
@@ -341,20 +365,20 @@ export class VideoResourceManager {
 			| "content_length"
 		>,
 	): void {
-		const normalizedPath = this.canonicalResourcePath(path)
-		const entry = this.getOrCreateEntry(normalizedPath)
+		const resourceIdentity = this.getResourceIdentity(path)
+		const entry = this.getOrCreateEntry(resourceIdentity, path)
 		this.urlLifecycle.primeCache(path, entry, fileInfo)
 	}
 
 	/** 读取当前缓存中的视频元信息；不触发换链与解码，供快速布局使用 */
 	public getCachedMetadata(path: string): LoadedVideoMetadata | null {
-		const canonical = this.urlLifecycle.getCanonicalFromAlias(path)
+		const canonical = this.urlLifecycle.getResourceIdentity(path)
 		const entry = this.entries.get(canonical)
 		return entry?.resource?.metadata ?? null
 	}
 
 	public needsResourceReload(path: string): boolean {
-		const canonical = this.urlLifecycle.getCanonicalFromAlias(path)
+		const canonical = this.urlLifecycle.getResourceIdentity(path)
 		return this.entries.get(canonical)?.resourceNeedsReload === true
 	}
 
@@ -362,7 +386,7 @@ export class VideoResourceManager {
 	public enforcePosterBudget(retainedPaths: ReadonlySet<string>): void {
 		if (this.destroyed) return
 		const retainedCanonicalPaths = new Set(
-			Array.from(retainedPaths, (path) => this.canonicalResourcePath(path)),
+			Array.from(retainedPaths, (path) => this.getResourceIdentity(path)),
 		)
 		let totalBytes = 0
 		const candidates: Array<{ path: string; entry: ResourceEntry; bytes: number }> = []
@@ -380,13 +404,16 @@ export class VideoResourceManager {
 		for (const candidate of candidates) {
 			if (totalBytes <= VIDEO_POSTER_CACHE_MAX_BYTES) break
 			if (!candidate.entry.resource) continue
-			this.releaseResource(candidate.entry.resource)
+			this.releaseResource(candidate.entry.resource, {
+				path: candidate.entry.referencePath,
+				reason: "viewport-far",
+			})
 			candidate.entry.resource = null
 			candidate.entry.resourceNeedsReload = true
 			totalBytes = Math.max(0, totalBytes - candidate.bytes)
 			this.canvas.eventEmitter.emit({
 				type: "resource:released",
-				data: { path: candidate.path },
+				data: { path: candidate.entry.referencePath },
 			})
 		}
 	}
@@ -404,7 +431,10 @@ export class VideoResourceManager {
 		this.previewLoader.destroy(pendingError)
 		this.entries.forEach((entry) => {
 			entry.loadingPromise?.abort()
-			this.releaseResource(entry.resource)
+			this.releaseResource(entry.resource, {
+				path: entry.referencePath,
+				reason: "manager-destroy",
+			})
 		})
 		this.entries.clear()
 		this.canvas.eventEmitter.off("element:deleted", this.handleElementDeleted)
@@ -414,6 +444,15 @@ export class VideoResourceManager {
 
 	private buildLoadedResource(entry: ResourceEntry): LoadedVideoResource | null {
 		if (!entry.ossSrc || !entry.resource) {
+			return null
+		}
+		if (!isUsableVideoPosterSource(entry.resource.poster)) {
+			this.releaseResource(entry.resource, {
+				path: entry.referencePath,
+				reason: "invalid-entry-poster",
+			})
+			entry.resource = null
+			entry.resourceNeedsReload = true
 			return null
 		}
 		this.setFailureReason(entry, null)
@@ -426,10 +465,12 @@ export class VideoResourceManager {
 		}
 	}
 
-	private getOrCreateEntry(normalizedPath: string): ResourceEntry {
-		let entry = this.entries.get(normalizedPath)
+	private getOrCreateEntry(resourceIdentity: string, referencePath: string): ResourceEntry {
+		let entry = this.entries.get(resourceIdentity)
 		if (!entry) {
 			entry = {
+				referencePath,
+				resourceIdentity,
 				ossSrc: null,
 				ossSrcFromCachedFallback: false,
 				sourceUrl: null,
@@ -446,7 +487,7 @@ export class VideoResourceManager {
 				resourceNeedsReload: false,
 				resourceLastAccessAt: 0,
 			}
-			this.entries.set(normalizedPath, entry)
+			this.entries.set(resourceIdentity, entry)
 		}
 		return entry
 	}
@@ -469,8 +510,8 @@ export class VideoResourceManager {
 			return null
 		}
 		if (this.shouldDropAbortedLoad(options)) return null
-		const normalizedPath = this.canonicalResourcePath(path)
-		const entry = this.getOrCreateEntry(normalizedPath)
+		const resourceIdentity = this.getResourceIdentity(path)
+		const entry = this.getOrCreateEntry(resourceIdentity, path)
 		if (this.clearExpiredOssSrc(entry)) {
 			entry.resourceNeedsReload = true
 		}
@@ -489,7 +530,7 @@ export class VideoResourceManager {
 
 		const request = new SharedAbortableRequest<LoadedVideoResource | null>(
 			(signal) =>
-				this.loadVideoResourcePipeline(path, normalizedPath, entry, {
+				this.loadVideoResourcePipeline(path, resourceIdentity, entry, {
 					...options,
 					signal,
 				}),
@@ -514,7 +555,7 @@ export class VideoResourceManager {
 
 	private async loadVideoResourcePipeline(
 		path: string,
-		normalizedPath: string,
+		resourceIdentity: string,
 		entry: ResourceEntry,
 		options?: VideoResourceLoadOptions,
 	): Promise<LoadedVideoResource | null> {
@@ -524,7 +565,7 @@ export class VideoResourceManager {
 		}
 		const cachedResource = await this.loadCachedVideoResource(
 			path,
-			normalizedPath,
+			resourceIdentity,
 			entry,
 			options,
 		)
@@ -533,7 +574,7 @@ export class VideoResourceManager {
 			return null
 		}
 		if (cachedResource) {
-			this.triggerBackgroundMetadataRefresh(path, normalizedPath, entry)
+			this.triggerBackgroundMetadataRefresh(path, resourceIdentity, entry)
 			return cachedResource
 		}
 		if (this.shouldDropAbortedLoad(options)) return null
@@ -558,7 +599,7 @@ export class VideoResourceManager {
 		}
 		if (this.shouldDropAbortedLoad(options)) return null
 
-		return this.loadVideoResource(path, normalizedPath, ossSrc, entry, 0, options)
+		return this.loadVideoResource(path, resourceIdentity, ossSrc, entry, 0, options)
 	}
 
 	private clearExpiredOssSrc(entry: ResourceEntry): boolean {
@@ -575,19 +616,22 @@ export class VideoResourceManager {
 
 	private triggerBackgroundMetadataRefresh(
 		path: string,
-		normalizedPath: string,
+		resourceIdentity: string,
 		entry: ResourceEntry,
 	): void {
-		this.urlLifecycle.triggerBackgroundMetadataRefresh(path, normalizedPath, entry)
+		this.urlLifecycle.triggerBackgroundMetadataRefresh(path, resourceIdentity, entry)
 	}
 
-	private handleVideoResourceDeleted(normalizedPath: string, entry: ResourceEntry): void {
+	private handleVideoResourceDeleted(entry: ResourceEntry): void {
 		this.canvas.mediaResourceOfflineCacheManager.removeCachedResource({
-			path: normalizedPath,
+			path: entry.referencePath,
 			mediaType: "video",
 		})
 		if (entry.resource) {
-			this.releaseResource(entry.resource)
+			this.releaseResource(entry.resource, {
+				path: entry.referencePath,
+				reason: "resource-deleted",
+			})
 			entry.resource = null
 		}
 		entry.ossSrc = null
@@ -599,7 +643,7 @@ export class VideoResourceManager {
 		entry.contentLength = null
 		this.canvas.eventEmitter.emit({
 			type: "resource:video:load-failed",
-			data: { path: normalizedPath, reason: "not-found" },
+			data: { path: entry.referencePath, reason: "not-found" },
 		})
 	}
 
@@ -617,7 +661,7 @@ export class VideoResourceManager {
 
 	private async loadCachedVideoResource(
 		path: string,
-		normalizedPath: string,
+		resourceIdentity: string,
 		entry: ResourceEntry,
 		options?: VideoResourceLoadOptions,
 	): Promise<LoadedVideoResource | null> {
@@ -639,7 +683,7 @@ export class VideoResourceManager {
 
 		const result = await this.loadVideoResource(
 			path,
-			normalizedPath,
+			resourceIdentity,
 			cached.url,
 			entry,
 			0,
@@ -661,7 +705,7 @@ export class VideoResourceManager {
 
 	private async refreshVideoResourceFromNetwork(
 		path: string,
-		normalizedPath: string,
+		resourceIdentity: string,
 		entry: ResourceEntry,
 		options?: { forceRefresh?: boolean; priority?: CanvasResourceTaskPriority },
 	): Promise<boolean> {
@@ -700,7 +744,7 @@ export class VideoResourceManager {
 
 		if (options?.forceRefresh) {
 			this.canvas.mediaResourceOfflineCacheManager.removeCachedResource({
-				path: normalizedPath,
+				path,
 				mediaType: "video",
 			})
 		}
@@ -716,7 +760,10 @@ export class VideoResourceManager {
 			if (isNotFound) {
 				const hadSurface = !!entry.resource || !!options?.forceRefresh
 				if (entry.resource) {
-					this.releaseResource(entry.resource)
+					this.releaseResource(entry.resource, {
+						path: entry.referencePath,
+						reason: "resource-not-found",
+					})
 					entry.resource = null
 				}
 				entry.resourceNeedsReload = false
@@ -728,7 +775,7 @@ export class VideoResourceManager {
 				if (hadSurface) {
 					this.canvas.eventEmitter.emit({
 						type: "resource:video:load-failed",
-						data: { path: normalizedPath, reason: "not-found" },
+						data: { path: entry.referencePath, reason: "not-found" },
 					})
 				}
 			} else {
@@ -737,7 +784,7 @@ export class VideoResourceManager {
 				this.canvas.eventEmitter.emit({
 					type: "resource:video:load-failed",
 					data: {
-						path: normalizedPath,
+						path: entry.referencePath,
 						reason: entry.lastFailureReason ?? "load-error",
 						preservePreview: Boolean(previousResource),
 					},
@@ -747,7 +794,7 @@ export class VideoResourceManager {
 		}
 
 		entry.resource = null
-		const loaded = await this.loadVideoResource(path, normalizedPath, ossSrc, entry, 0, {
+		const loaded = await this.loadVideoResource(path, resourceIdentity, ossSrc, entry, 0, {
 			...options,
 			preservePreviewOnFailure: Boolean(previousResource),
 		})
@@ -756,10 +803,13 @@ export class VideoResourceManager {
 			return false
 		}
 		if (loaded) {
-			this.releaseResource(previousResource)
+			this.releaseResource(previousResource, {
+				path: entry.referencePath,
+				reason: "resource-refreshed",
+			})
 			this.canvas.eventEmitter.emit({
 				type: "resource:video:refreshed",
-				data: { path: normalizedPath, resource: loaded },
+				data: { path: entry.referencePath, resource: loaded },
 			})
 			return true
 		}
@@ -775,7 +825,7 @@ export class VideoResourceManager {
 
 	private async loadVideoResource(
 		path: string,
-		normalizedPath: string,
+		resourceIdentity: string,
 		ossSrc: string,
 		entry: ResourceEntry,
 		retryCount = 0,
@@ -797,7 +847,7 @@ export class VideoResourceManager {
 					source: "video-resource:preview",
 					canvasId: this.canvas.id,
 					managerInstanceId: this.managerInstanceId,
-					path: normalizedPath,
+					path: resourceIdentity,
 					url: ossSrc,
 					priority: retryCount > 0 ? "critical" : (options?.priority ?? "visible"),
 					signal: options?.signal,
@@ -816,7 +866,13 @@ export class VideoResourceManager {
 		}
 		if (this.shouldDropAbortedLoad(options)) return null
 		if (loaded && entry.ossSrc !== ossSrc) {
-			this.releaseResource({ poster: loaded.poster, metadata: loaded.metadata })
+			this.releaseResource(
+				{ poster: loaded.poster, metadata: loaded.metadata },
+				{
+					path: entry.referencePath,
+					reason: "stale-load",
+				},
+			)
 			return null
 		}
 		if (!loaded && retryCount === 0) {
@@ -830,7 +886,7 @@ export class VideoResourceManager {
 			if (freshOssSrc) {
 				return this.loadVideoResource(
 					path,
-					normalizedPath,
+					resourceIdentity,
 					freshOssSrc,
 					entry,
 					retryCount + 1,
@@ -845,7 +901,7 @@ export class VideoResourceManager {
 			this.canvas.eventEmitter.emit({
 				type: "resource:video:load-failed",
 				data: {
-					path: normalizedPath,
+					path: entry.referencePath,
 					reason: entry.lastFailureReason ?? "load-error",
 					preservePreview: options?.preservePreviewOnFailure,
 				},
@@ -861,13 +917,16 @@ export class VideoResourceManager {
 		}
 		entry.resourceLastAccessAt = Date.now()
 		if (previousResource && previousResource !== entry.resource) {
-			this.releaseResource(previousResource)
+			this.releaseResource(previousResource, {
+				path: entry.referencePath,
+				reason: "resource-replaced",
+			})
 		}
 		entry.resourceNeedsReload = false
 		this.setFailureReason(entry, null)
 		this.canvas.mediaResourceOfflineCacheManager.recordVirtualResourceLoadSuccess(ossSrc)
 
-		this.entries.set(normalizedPath, entry)
+		this.entries.set(resourceIdentity, entry)
 		return this.buildLoadedResource(entry)
 	}
 
@@ -883,8 +942,8 @@ export class VideoResourceManager {
 			return null
 		}
 
-		const normalizedPath = this.canonicalResourcePath(path)
-		const entry = this.getOrCreateEntry(normalizedPath)
+		const resourceIdentity = this.getResourceIdentity(path)
+		const entry = this.getOrCreateEntry(resourceIdentity, path)
 		const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
 			path,
 			ossSrc,
@@ -932,43 +991,106 @@ export class VideoResourceManager {
 		const usedPaths = new Set<string>()
 		const elementsDict = this.canvas.elementManager.getElementsDict()
 		for (const elementData of Object.values(elementsDict)) {
-			if (elementData.type !== ElementTypeEnum.Video || !elementData.src) {
-				continue
-			}
-			usedPaths.add(this.canonicalResourcePath(elementData.src))
+			if (elementData.type !== ElementTypeEnum.Video) continue
+			const effectiveContent = this.canvas.getEffectiveContent(elementData.id) as
+				{ src?: string } | undefined
+			if (!effectiveContent?.src) continue
+			usedPaths.add(this.getResourceIdentity(effectiveContent.src))
 		}
 
-		this.entries.forEach((entry, path) => {
-			if (usedPaths.has(path)) return
+		this.entries.forEach((entry, resourceIdentity) => {
+			if (usedPaths.has(resourceIdentity)) return
 
 			if (entry.resource) {
-				this.releaseResource(entry.resource)
+				this.releaseResource(entry.resource, {
+					path: entry.referencePath,
+					reason: "unused-resource",
+				})
 				entry.resource = null
 				this.canvas.eventEmitter.emit({
 					type: "resource:released",
-					data: { path },
+					data: { path: entry.referencePath },
 				})
 			}
 			entry.ossSrc = null
 			entry.ossSrcFromCachedFallback = false
 			entry.expiresAt = null
 			this.canvas.mediaResourceOfflineCacheManager.removeCachedResource({
-				path,
+				path: entry.referencePath,
 				mediaType: "video",
 			})
 			if (!entry.exchangePromise && !entry.loadingPromise) {
-				this.entries.delete(path)
+				this.entries.delete(resourceIdentity)
 			}
 		})
 	}
 
-	private releaseResource(resource: VideoResource | null): void {
+	private releaseResource(
+		resource: VideoResource | null,
+		context?: { path?: string; reason?: string },
+	): void {
 		if (!resource) {
 			return
 		}
 
-		resource.poster.width = 0
-		resource.poster.height = 0
+		if (releasedVideoPosters.has(resource.poster)) return
+
+		// Notify consumers while the source still has its original dimensions. The
+		// scene-graph fallback below covers both VideoElement and VideoEditElement,
+		// including stale Konva nodes left behind by a deferred rerender.
+		releasedVideoPosters.add(resource.poster)
+		this.canvas.eventEmitter?.emit({
+			type: "resource:video:will-release",
+			data: {
+				path: context?.path,
+				poster: resource.poster,
+				reason: context?.reason ?? "unknown",
+			},
+		})
+		this.detachPosterFromSceneGraph(resource.poster)
+
+		// Keep a drawable fallback surface. A stale Konva node must never receive a
+		// 0×0 canvas, even if it survives until the next render pass.
+		resource.poster.width = 1
+		resource.poster.height = 1
+	}
+
+	private detachPosterFromSceneGraph(poster: VideoPosterSource): void {
+		const roots: unknown[] = [this.canvas.stage]
+		try {
+			const layers = this.canvas.getAllLayers?.()
+			if (layers) roots.unshift(...Array.from(layers.values()))
+		} catch {
+			// Canvas teardown can race resource cleanup; the stage root is still best effort.
+		}
+		const visited = new Set<object>()
+
+		const visit = (value: unknown): void => {
+			if (!value || typeof value !== "object" || visited.has(value)) return
+			visited.add(value)
+
+			const node = value as {
+				getClassName?: () => string
+				image?: (next?: CanvasImageSource) => CanvasImageSource | undefined
+				getChildren?: () => unknown
+			}
+			if (node.getClassName?.() === "Image" && typeof node.image === "function") {
+				try {
+					if (node.image() === poster) node.image(undefined)
+				} catch {
+					// Destroyed Konva nodes can reject reads while Canvas is unmounting.
+				}
+			}
+
+			try {
+				const children = node.getChildren?.()
+				if (Array.isArray(children)) children.forEach(visit)
+			} catch {
+				// Continue with other layer roots if one stale node is unavailable.
+			}
+		}
+
+		roots.forEach(visit)
 	}
 
 	private getPosterBytes(poster: VideoPosterSource): number {

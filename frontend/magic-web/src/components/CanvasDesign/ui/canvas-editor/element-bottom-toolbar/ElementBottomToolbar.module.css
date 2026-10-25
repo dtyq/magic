@@ -1,0 +1,129 @@
+.root {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 2;
+	display: inline-flex;
+	flex-flow: row nowrap;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: flex-start;
+	box-sizing: border-box;
+	max-width: calc(100vw - 24px);
+	height: 42px;
+	padding: var(--spacing-1, 4px);
+	overflow: auto hidden;
+	white-space: nowrap;
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+	opacity: 0;
+	overscroll-behavior-x: contain;
+	pointer-events: none;
+	scrollbar-width: none;
+}
+
+.root::-webkit-scrollbar {
+	display: none;
+}
+
+.root[data-empty="true"] {
+	width: 0;
+	height: 0;
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+}
+
+.item {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+}
+
+.content {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+}
+
+.button {
+	display: inline-flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+	justify-content: center;
+	height: var(--width-w-8, 32px);
+	padding: 0 var(--spacing-1-5, 6px);
+	color: var(--base-foreground, #030712);
+	font: inherit;
+	white-space: nowrap;
+	background: var(--tailwind-colors-base-transparent, rgb(255 255 255 / 0%));
+	border: 0;
+	border-radius: var(--border-radius-rounded-sm, 6px);
+	cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+	background: var(--base-sidebar-accent, #f5f5f5);
+}
+
+.button:focus-visible {
+	outline: 2px solid var(--base-ring, #2563eb);
+	outline-offset: 1px;
+}
+
+.button:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+.tooltipTrigger,
+.disabledTooltipTrigger {
+	display: inline-flex;
+}
+
+.disabledTooltipTrigger {
+	cursor: not-allowed;
+}
+
+.disabledTooltipTrigger > .button {
+	pointer-events: none;
+}
+
+/* Keep generated-video estimates aligned with the compact points treatment on the submit button. */
+.button [data-video-generation-estimate] {
+	display: inline-flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+}
+
+.button [data-video-generation-estimate-points] {
+	display: inline-flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	font-size: var(--text-xs-font-size, 12px);
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.shortcut {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px 4px;
+	color: var(--base-muted-foreground, #737373);
+	font-size: 10px;
+	line-height: 1;
+	border: 1px solid var(--base-muted-foreground, #737373);
+	border-radius: var(--border-radius-rounded-sm, 6px);
+}
+
+.divider {
+	flex-shrink: 0;
+	width: 1px;
+	height: var(--width-w-6, 24px);
+	background: var(--base-border, #e5e5e5);
+}

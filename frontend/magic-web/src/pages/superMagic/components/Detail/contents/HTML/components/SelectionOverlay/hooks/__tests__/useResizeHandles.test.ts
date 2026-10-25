@@ -298,4 +298,75 @@ describe("useResizeHandles", () => {
 		expect(latestUpdate?.rect.width).toBe(240)
 		expect(latestUpdate?.rect.height).toBe(120)
 	})
+
+	it("reports preview size while dragging a resize handle", async () => {
+		const onPreviewSize = vi.fn()
+		const selectedInfo: SelectedInfo = {
+			selector: "div.card",
+			rect: {
+				top: 0,
+				left: 0,
+				width: 200,
+				height: 100,
+			},
+			computedStyles: {
+				width: "200px",
+				height: "100px",
+				parentDisplay: "block",
+			},
+		}
+
+		const selectedInfoUpdates: SelectedInfo[] = []
+		const trackingSetSelectedInfo = vi.fn(
+			(updater: (prev: SelectedInfo | null) => SelectedInfo) => {
+				const nextValue = updater(selectedInfo)
+				selectedInfoUpdates.push(nextValue)
+			},
+		)
+
+		const { result } = renderHook(() =>
+			useResizeHandles({
+				editorRef: mockEditorRef as any,
+				isPptRender: false,
+				scaleRatio: 1,
+				selectedInfo,
+				setSelectedInfo: trackingSetSelectedInfo as any,
+				setHoveredRect: mockSetHoveredRect as any,
+				setIsSelectionMode: mockSetIsSelectionMode as any,
+				onPreviewSize,
+			}),
+		)
+
+		const handle = result.current.resizeHandles.find((item) => item.id === "bottom-right")
+		const pointerTarget = {
+			setPointerCapture: vi.fn(),
+			releasePointerCapture: vi.fn(),
+		}
+
+		await act(async () => {
+			await result.current.onHandleMouseDown(
+				{
+					clientX: 100,
+					clientY: 100,
+					pointerId: 1,
+					currentTarget: pointerTarget,
+					preventDefault: vi.fn(),
+					stopPropagation: vi.fn(),
+				} as any,
+				handle!,
+			)
+		})
+
+		await act(async () => {
+			document.dispatchEvent(
+				createPointerLikeEvent("pointermove", {
+					clientX: 140,
+					clientY: 130,
+					buttons: 1,
+				}),
+			)
+		})
+
+		expect(onPreviewSize).toHaveBeenCalledWith({ width: "240px", height: "130px" })
+	})
 })

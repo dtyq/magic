@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import authorIllustration from "@/assets/resources/self-media/field-author.png"
 import positionIllustration from "@/assets/resources/self-media/field-position.png"
 import audienceIllustration from "@/assets/resources/self-media/field-audience.png"

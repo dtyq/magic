@@ -35,6 +35,36 @@ describe("share MessageList messagesTransformer", () => {
 		})
 	})
 
+	it("lifts the SuperMagic payload onto the item the virtual projection filters", () => {
+		// The projection decides renderability from the item's top level. With the payload left
+		// nested under `raw_content`, an Assistant turn reaches it with an empty content trio and
+		// an IM-level status of "read", and gets dropped as an unrenderable row.
+		const [message] = messagesTransformer([
+			{
+				message_id: "shared-assistant-1",
+				type: "super_magic_message",
+				status: "read",
+				raw_content: {
+					super_magic_message: {
+						role: "assistant",
+						content: "shared content",
+						reasoning_content: "shared reasoning",
+						tool_calls: [{ id: "call-1" }],
+						status: "finished",
+					},
+				},
+			},
+		])
+
+		expect(message).toMatchObject({
+			content: "shared content",
+			reasoning_content: "shared reasoning",
+			tool_calls: [{ id: "call-1" }],
+			// The canonical node, which carries the terminal status and any attachments.
+			debug: { status: "finished" },
+		})
+	})
+
 	it.each([
 		{
 			messageId: "shared-user-without-super-id",

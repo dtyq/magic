@@ -14,6 +14,8 @@ final class AgentData extends AbstractDTO implements MentionDataInterface
 {
     protected string $agentId;
 
+    protected ?string $agentCode = null;
+
     protected string $agentName;
 
     protected string $agentIcon;
@@ -33,6 +35,16 @@ final class AgentData extends AbstractDTO implements MentionDataInterface
     public function getAgentName(): ?string
     {
         return $this->agentName ?? null;
+    }
+
+    public function getAgentCode(): ?string
+    {
+        return $this->agentCode ?? null;
+    }
+
+    public function setAgentCode(?string $agentCode): void
+    {
+        $this->agentCode = $agentCode;
     }
 
     public function getAgentIcon(): ?string

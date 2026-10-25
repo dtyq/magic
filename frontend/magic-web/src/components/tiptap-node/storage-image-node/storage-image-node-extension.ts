@@ -1,4 +1,4 @@
-import { mergeAttributes, Node, ReactNodeViewRenderer } from "@tiptap/react"
+import { mergeAttributes, Node, ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
 import type { ImageStorageInterface } from "@/services/tiptap-image-storage"
 import { StorageImageNodeView } from "./storage-image-node-view"
 
@@ -22,7 +22,7 @@ export interface StorageImageNodeOptions {
 	HTMLAttributes?: Record<string, unknown>
 }
 
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		storageImage: {
 			/**
@@ -207,81 +207,81 @@ export const StorageImageNode = Node.create<StorageImageNodeOptions>({
 		return {
 			insertStorageImage:
 				(attrs) =>
-					({ commands }) => {
-						return commands.insertContent({
-							type: this.name,
-							attrs,
-						})
-					},
+				({ commands }) => {
+					return commands.insertContent({
+						type: this.name,
+						attrs,
+					})
+				},
 
 			updateStorageImage:
 				(id, attrs) =>
-					({ tr, state }) => {
-						let updated = false
-						state.doc.descendants((node, pos) => {
-							if (node.type.name === this.name && node.attrs.id === id) {
-								tr.setNodeMarkup(pos, undefined, {
-									...node.attrs,
-									...attrs,
-								})
-								updated = true
-								return false
-							}
-						})
-						return updated
-					},
+				({ tr, state }) => {
+					let updated = false
+					state.doc.descendants((node, pos) => {
+						if (node.type.name === this.name && node.attrs.id === id) {
+							tr.setNodeMarkup(pos, undefined, {
+								...node.attrs,
+								...attrs,
+							})
+							updated = true
+							return false
+						}
+					})
+					return updated
+				},
 
 			updateStorageImageAlign:
 				(id: string, align: "left" | "center" | "right" | null) =>
-					({ tr, state }) => {
-						let updated = false
-						state.doc.descendants((node, pos) => {
-							if (node.type.name === this.name && node.attrs.id === id) {
-								tr.setNodeMarkup(pos, undefined, {
-									...node.attrs,
-									align,
-								})
-								updated = true
-								return false
-							}
-						})
-						return updated
-					},
+				({ tr, state }) => {
+					let updated = false
+					state.doc.descendants((node, pos) => {
+						if (node.type.name === this.name && node.attrs.id === id) {
+							tr.setNodeMarkup(pos, undefined, {
+								...node.attrs,
+								align,
+							})
+							updated = true
+							return false
+						}
+					})
+					return updated
+				},
 
 			updateStorageImageObjectFit:
 				(id: string, objectFit: "cover" | "contain" | "fill") =>
-					({ tr, state }) => {
-						let updated = false
-						state.doc.descendants((node, pos) => {
-							if (node.type.name === this.name && node.attrs.id === id) {
-								tr.setNodeMarkup(pos, undefined, {
-									...node.attrs,
-									objectFit,
-								})
-								updated = true
-								return false
-							}
-						})
-						return updated
-					},
+				({ tr, state }) => {
+					let updated = false
+					state.doc.descendants((node, pos) => {
+						if (node.type.name === this.name && node.attrs.id === id) {
+							tr.setNodeMarkup(pos, undefined, {
+								...node.attrs,
+								objectFit,
+							})
+							updated = true
+							return false
+						}
+					})
+					return updated
+				},
 
 			deleteStorageImage:
 				(id) =>
-					({ tr, state }) => {
-						let deleted = false
-						state.doc.descendants((node, pos) => {
-							if (node.type.name === this.name && node.attrs.id === id) {
-								tr.delete(pos, pos + node.nodeSize)
-								// Delete from storage asynchronously
-								this.options.imageStorage.deleteImage(id).catch((error) => {
-									this.options.onError?.(error)
-								})
-								deleted = true
-								return false
-							}
-						})
-						return deleted
-					},
+				({ tr, state }) => {
+					let deleted = false
+					state.doc.descendants((node, pos) => {
+						if (node.type.name === this.name && node.attrs.id === id) {
+							tr.delete(pos, pos + node.nodeSize)
+							// Delete from storage asynchronously
+							this.options.imageStorage.deleteImage(id).catch((error) => {
+								this.options.onError?.(error)
+							})
+							deleted = true
+							return false
+						}
+					})
+					return deleted
+				},
 		}
 	},
 

@@ -80,24 +80,28 @@
         "en_US": "Task execution failed. Please try again later."
     },
     "messages.llm_provider_timeout": {
-        "zh_CN": "AI 模型服务当前负载较高，响应已超时，请稍后重试，或尝试切换其他模型后重试。",
-        "en_US": "The AI model service is under high load and timed out. Please try again later, or try switching to a different model."
+        "zh_CN": "当前模型暂时未能响应。",
+        "en_US": "The current model could not respond."
     },
     "messages.llm_provider_connection_failed": {
-        "zh_CN": "AI 模型服务当前负载较高，连接暂时中断，请稍后重试，或尝试切换其他模型后重试。",
-        "en_US": "The AI model service is under high load and the connection was interrupted. Please try again later, or try switching to a different model."
+        "zh_CN": "当前模型暂时未能响应。",
+        "en_US": "The current model could not respond."
     },
     "messages.llm_provider_rate_limited": {
-        "zh_CN": "当前使用人数过多，AI 模型服务负载较高，请稍后重试，或尝试切换其他模型后重试。",
-        "en_US": "The AI model service is at capacity due to high user demand. Please try again later, or try switching to a different model."
+        "zh_CN": "当前模型暂时未能响应。",
+        "en_US": "The current model could not respond."
     },
     "messages.llm_provider_error": {
-        "zh_CN": "AI 模型服务当前负载较高，处理请求时出现异常，请稍后重试，或尝试切换其他模型后重试。",
-        "en_US": "The AI model service encountered an error while processing your request. Please try again later, or try switching to a different model."
+        "zh_CN": "当前模型暂时未能响应。",
+        "en_US": "The current model could not respond."
     },
     "messages.llm_provider_config_error": {
-        "zh_CN": "AI 模型配置出现异常。请稍后重试或切换其他模型。如仍无法解决，请联系系统管理员。",
-        "en_US": "AI model configuration error. Please try again later or switch to another model. If the issue persists, contact the system administrator."
+        "zh_CN": "当前模型暂时无法继续处理。",
+        "en_US": "The current model cannot continue right now."
+    },
+    "messages.llm_provider_request_rejected": {
+        "zh_CN": "当前模型暂时无法继续处理。",
+        "en_US": "The current model cannot continue right now."
     },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
@@ -178,6 +182,118 @@
     "cron.notify.status_ok": {
         "zh_CN": "成功",
         "en_US": "completed successfully"
+    },
+    "im.media.received_attachments": {
+        "zh_CN": "[已收到附件]",
+        "en_US": "[Received attachments]"
+    },
+    "im.media.additional_attachments_skipped": {
+        "zh_CN": "[附件数量超过上限，已跳过其余附件]",
+        "en_US": "[Additional attachments skipped: attachment count limit reached]"
+    },
+    "im.media.download_timeout": {
+        "zh_CN": "[附件：{filename}；下载失败：消息处理超时。请重新发送。]",
+        "en_US": "[Attachment: {filename}; download failed: message time limit reached. Please resend.]"
+    },
+    "im.media.download_failed": {
+        "zh_CN": "[附件：{filename}；下载失败。请重新发送。]",
+        "en_US": "[Attachment: {filename}; download failed. Please resend.]"
+    },
+    "dingtalk.forwarded_record.title": {
+        "zh_CN": "聊天记录内容",
+        "en_US": "Forwarded chat record"
+    },
+    "dingtalk.forwarded_record.filename_suffix": {
+        "zh_CN": "的聊天记录",
+        "en_US": "chat record"
+    },
+    "dingtalk.forwarded_record.participants": {
+        "zh_CN": "@ {participants}",
+        "en_US": "@ {participants}"
+    },
+    "dingtalk.forwarded_record.participant_separator": {
+        "zh_CN": " 和 ",
+        "en_US": " and "
+    },
+    "dingtalk.forwarded_record.more_participants": {
+        "zh_CN": " 等",
+        "en_US": " and others"
+    },
+    "dingtalk.forwarded_record.participant": {
+        "zh_CN": "参与者 {index}",
+        "en_US": "Participant {index}"
+    },
+    "dingtalk.forwarded_record.image": {
+        "zh_CN": "[图片附件 {index}：{filename}]",
+        "en_US": "[Image attachment {index}: {filename}]"
+    },
+    "dingtalk.forwarded_record.file": {
+        "zh_CN": "[文件附件 {index}：{filename}]",
+        "en_US": "[File attachment {index}: {filename}]"
+    },
+    "dingtalk.forwarded_record.unknown_item": {
+        "zh_CN": "[未识别的转发消息内容]",
+        "en_US": "[Unrecognized forwarded message item]"
+    },
+    "dingtalk.forwarded_record.empty": {
+        "zh_CN": "（聊天记录为空或无法解析）",
+        "en_US": "(The forwarded chat record is empty or could not be parsed.)"
+    },
+    "dingtalk.forwarded_record.image_label": {
+        "zh_CN": "图片附件",
+        "en_US": "Image attachment"
+    },
+    "dingtalk.forwarded_record.file_label": {
+        "zh_CN": "文件附件",
+        "en_US": "File attachment"
+    },
+    "dingtalk.forwarded_record.download_failed": {
+        "zh_CN": "[{kind}：{filename}，下载失败，请重新发送]",
+        "en_US": "[{kind}: {filename}; download failed, please resend]"
+    },
+    "lark.forwarded_record.filename": {
+        "zh_CN": "{participants}的会话记录",
+        "en_US": "{participants} conversation history"
+    },
+    "lark.forwarded_record.filename_fallback": {
+        "zh_CN": "会话记录",
+        "en_US": "Conversation history"
+    },
+    "lark.forwarded_record.participant_separator": {
+        "zh_CN": "与",
+        "en_US": " and "
+    },
+    "lark.forwarded_record.more_participants": {
+        "zh_CN": "等",
+        "en_US": " and others"
+    },
+    "lark.inbound.folder_unsupported": {
+        "zh_CN": "[文件夹附件：{filename}；暂不支持下载文件夹]",
+        "en_US": "[Folder attachment: {filename}; folder download is not supported]"
+    },
+    "lark.inbound.unsupported_forwarded_type": {
+        "zh_CN": "[暂不支持的飞书转发消息类型：{kind}]",
+        "en_US": "[Unsupported forwarded Lark message type: {kind}]"
+    },
+    "lark.inbound.no_readable_forwarded_messages": {
+        "zh_CN": "[没有可读取的转发消息]",
+        "en_US": "[No readable forwarded messages]"
+    },
+    "lark.inbound.forwarded_attachment_download_failed": {
+        "zh_CN": "[转发附件下载失败]",
+        "en_US": "[Forwarded attachment download failed]"
+    },
+    "lark.inbound.unsupported_or_empty_post": {
+        "zh_CN": "[不支持或为空的飞书富文本消息]",
+        "en_US": "[Unsupported or empty Lark post message.]"
+    },
+    "lark.inbound.merged_forward_retrieval_failed": {
+        "zh_CN": "[无法获取合并转发消息，请重新发送]",
+        "en_US": "[Merged forwarded messages could not be retrieved. Please resend.]"
+    },
+    "lark.inbound.unsupported_message_type": {
+        "zh_CN": "[不支持的飞书消息类型，请改用文本或受支持的附件重新发送]",
+        "en_US": "[Unsupported Lark message type. Please resend as text or a supported attachment.]"
     },
     "cron.notify.status_error": {
         "zh_CN": "失败",

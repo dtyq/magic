@@ -8,6 +8,7 @@ import { GET_FILE_INFO_NOT_FOUND_ERROR_CODE } from "@/components/CanvasDesign/ru
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { DesignAttachmentIndex } from "../utils/designAttachmentIndex"
 import { useTranslation } from "react-i18next"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	getFileInfoByPath,
 	getFileResourceMetaByPath,
@@ -78,6 +79,9 @@ export function useFileInfoProvider(
 		attachmentIndex,
 	} = options
 	const { t } = useTranslation("super")
+	// designFileInfoCache is a module-level cache outside React; thread the ambient
+	// identity into each request so its in-flight keys and batches stay identity-pure.
+	const fileApi = useFileApi()
 
 	// 当文件列表变化时，清理已删除文件的缓存
 	useEffect(() => {
@@ -105,6 +109,7 @@ export function useFileInfoProvider(
 				attachmentIndex,
 				attachmentsSnapshotKeyOverride: attachmentIndex?.attachmentsSnapshotKey,
 				hasAttachmentSnapshot: attachmentsReady === true,
+				fileApi,
 			})
 			if (!result) {
 				throw createFileNotFoundByPathError(
@@ -121,6 +126,7 @@ export function useFileInfoProvider(
 			designProjectBasePath,
 			designProjectId,
 			attachmentIndex,
+			fileApi,
 		],
 	)
 
@@ -159,6 +165,7 @@ export function useFileInfoProvider(
 					filesList: flatAttachments,
 					designProjectId,
 					priority: "critical",
+					fileApi,
 				})
 				return result
 			} catch (error) {
@@ -167,7 +174,7 @@ export function useFileInfoProvider(
 				throw new Error(errorMessage)
 			}
 		},
-		[t, flatAttachments, designProjectId],
+		[t, flatAttachments, designProjectId, fileApi],
 	)
 
 	/**
@@ -187,10 +194,19 @@ export function useFileInfoProvider(
 				designProjectBasePath,
 				designProjectId,
 				attachmentIndex,
-				opts,
+				{
+					...opts,
+					hasAttachmentSnapshot: attachmentsReady === true,
+				},
 			)
 		},
-		[flatAttachments, designProjectBasePath, designProjectId, attachmentIndex],
+		[
+			flatAttachments,
+			designProjectBasePath,
+			designProjectId,
+			attachmentIndex,
+			attachmentsReady,
+		],
 	)
 
 	return {

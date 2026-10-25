@@ -12,6 +12,7 @@ from loguru import logger
 
 from app.service.asr.asr_time_config import asr_time_config
 from app.service.asr.asr_size_config import asr_size_config
+from app.service.asr.asr_utils import build_merged_filename
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,20 @@ class AsrServiceBase:
     """
 
     LOG_PREFIX = "[asrmerge]"
-    MERGED_WAV_FILENAME = "merged.wav"
+    MERGED_WAV_FILENAME = "merged.wav"  # 历史默认 merged 文件名，动态场景请用 get_merged_filename
+
+    @classmethod
+    def get_merged_filename(cls, audio_format: str | None = None) -> str:
+        """
+        按任务音频格式获取 merged 文件名
+
+        Args:
+            audio_format: 任务音频格式（wav/opus），None 时回退 merged.wav 兼容历史任务
+
+        Returns:
+            str: merged 文件名（merged.wav / merged.opus）
+        """
+        return build_merged_filename(audio_format)
 
     @classmethod
     async def wait_for_file_ready(

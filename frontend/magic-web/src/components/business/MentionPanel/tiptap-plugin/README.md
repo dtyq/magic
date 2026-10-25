@@ -26,8 +26,8 @@ import MentionExtension from "./path/to/MentionPanel/tiptap-plugin"
 ### 基本使用
 
 ```typescript
-import { useEditor, EditorContent } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
+import { useEditor, EditorContent } from "@/infrastructure/editors/tiptap/react"
+import StarterKit from "@/infrastructure/editors/tiptap/starter-kit"
 import MentionExtension from "./components/business/MentionPanel/tiptap-plugin"
 
 function MyEditor() {
@@ -50,28 +50,28 @@ function MyEditor() {
 
 ```typescript
 const editor = useEditor({
-  extensions: [
-    StarterKit,
-    MentionExtension.configure({
-      // 界面语言
-      language: "zh-CN",
-      
-      // 搜索框占位符
-      searchPlaceholder: "搜索项目文件",
-      
-      // 允许空格
-      allowSpaces: true,
-      
-      // 允许的前缀字符
-      allowedPrefixes: ["@", "#"],
-      
-      // 渲染文本函数
-      renderText: ({ node }) => `@${node.attrs.label}`,
-      
-      // 父容器获取函数
-      getParentContainer: () => document.getElementById("editor-container"),
-    }),
-  ],
+	extensions: [
+		StarterKit,
+		MentionExtension.configure({
+			// 界面语言
+			language: "zh-CN",
+
+			// 搜索框占位符
+			searchPlaceholder: "搜索项目文件",
+
+			// 允许空格
+			allowSpaces: true,
+
+			// 允许的前缀字符
+			allowedPrefixes: ["@", "#"],
+
+			// 渲染文本函数
+			renderText: ({ node }) => `@${node.attrs.label}`,
+
+			// 父容器获取函数
+			getParentContainer: () => document.getElementById("editor-container"),
+		}),
+	],
 })
 ```
 
@@ -79,25 +79,25 @@ const editor = useEditor({
 
 ### MentionPanelPluginOptions
 
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `language` | `Language` | `"en"` | 界面语言 |
-| `searchPlaceholder` | `string` | - | 搜索输入框占位符 |
-| `allowSpaces` | `boolean` | `true` | 是否允许空格 |
-| `allowedPrefixes` | `string[]` \| `null` | `null` | 允许的前缀字符 |
-| `renderText` | `function` | - | 自定义渲染函数 |
-| `getParentContainer` | `function` | - | 获取父容器函数 |
+| 属性                 | 类型                 | 默认值 | 说明             |
+| -------------------- | -------------------- | ------ | ---------------- |
+| `language`           | `Language`           | `"en"` | 界面语言         |
+| `searchPlaceholder`  | `string`             | -      | 搜索输入框占位符 |
+| `allowSpaces`        | `boolean`            | `true` | 是否允许空格     |
+| `allowedPrefixes`    | `string[]` \| `null` | `null` | 允许的前缀字符   |
+| `renderText`         | `function`           | -      | 自定义渲染函数   |
+| `getParentContainer` | `function`           | -      | 获取父容器函数   |
 
 ### TiptapMentionAttributes
 
 ```typescript
 interface TiptapMentionAttributes {
-  id: string           // 唯一标识
-  label: string        // 显示文本
-  type: string         // 类型 (file, folder, agent, etc.)
-  description?: string // 描述信息
-  icon?: string        // 图标标识
-  metadata?: Record<string, any> // 额外数据
+	id: string // 唯一标识
+	label: string // 显示文本
+	type: string // 类型 (file, folder, agent, etc.)
+	description?: string // 描述信息
+	icon?: string // 图标标识
+	metadata?: Record<string, any> // 额外数据
 }
 ```
 
@@ -108,15 +108,15 @@ interface TiptapMentionAttributes {
 ```typescript
 // 插入提及
 editor.commands.insertContent([
-  {
-    type: "mentionPanel",
-    attrs: {
-      id: "file-123",
-      label: "README.md",
-      type: "file",
-      description: "项目说明文件",
-    },
-  },
+	{
+		type: "mentionPanel",
+		attrs: {
+			id: "file-123",
+			label: "README.md",
+			type: "file",
+			description: "项目说明文件",
+		},
+	},
 ])
 ```
 
@@ -156,18 +156,18 @@ editor.commands.insertContent([
 
 ```css
 :root {
-  --mention-panel-bg: #ffffff;
-  --mention-panel-border: #e5e7eb;
-  --mention-panel-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
-  --mention-panel-radius: 8px;
-  
-  --mention-item-padding: 8px;
-  --mention-item-hover-bg: #f3f4f6;
-  --mention-item-selected-bg: #eef3fd;
-  
-  --mention-text-primary: #1f2937;
-  --mention-text-secondary: #6b7280;
-  --mention-text-hint: #9ca3af;
+	--mention-panel-bg: #ffffff;
+	--mention-panel-border: #e5e7eb;
+	--mention-panel-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+	--mention-panel-radius: 8px;
+
+	--mention-item-padding: 8px;
+	--mention-item-hover-bg: #f3f4f6;
+	--mention-item-selected-bg: #eef3fd;
+
+	--mention-text-primary: #1f2937;
+	--mention-text-secondary: #6b7280;
+	--mention-text-hint: #9ca3af;
 }
 ```
 
@@ -175,27 +175,27 @@ editor.commands.insertContent([
 
 ```css
 .mention-panel {
-  /* 面板样式 */
+	/* 面板样式 */
 }
 
 .mention-panel-item {
-  /* 项目样式 */
+	/* 项目样式 */
 }
 
 .mention-panel-item.selected {
-  /* 选中项目样式 */
+	/* 选中项目样式 */
 }
 ```
 
 ## ⌨️ 键盘快捷键
 
-| 快捷键 | 功能 |
-|--------|------|
-| `↑` / `↓` | 上下导航 |
-| `←` | 返回上级 |
-| `→` | 进入文件夹 |
-| `Enter` | 确认选择 |
-| `Escape` | 关闭面板 |
+| 快捷键    | 功能       |
+| --------- | ---------- |
+| `↑` / `↓` | 上下导航   |
+| `←`       | 返回上级   |
+| `→`       | 进入文件夹 |
+| `Enter`   | 确认选择   |
+| `Escape`  | 关闭面板   |
 
 ## 🔧 高级功能
 
@@ -204,15 +204,15 @@ editor.commands.insertContent([
 ```typescript
 // 可以通过 MentionPanel 的 dataService 属性自定义数据源
 const customDataService = {
-  loadDefaultItems: async () => {
-    // 加载默认项目
-  },
-  searchItems: async (query: string) => {
-    // 搜索项目
-  },
-  loadFolderItems: async (folderId: string) => {
-    // 加载文件夹内容
-  },
+	loadDefaultItems: async () => {
+		// 加载默认项目
+	},
+	searchItems: async (query: string) => {
+		// 搜索项目
+	},
+	loadFolderItems: async (folderId: string) => {
+		// 加载文件夹内容
+	},
 }
 ```
 
@@ -220,16 +220,16 @@ const customDataService = {
 
 ```typescript
 const editor = useEditor({
-  extensions: [
-    MentionExtension.configure({
-      onSelect: (item) => {
-        console.log("选中项目:", item)
-      },
-      onClose: () => {
-        console.log("面板关闭")
-      },
-    }),
-  ],
+	extensions: [
+		MentionExtension.configure({
+			onSelect: (item) => {
+				console.log("选中项目:", item)
+			},
+			onClose: () => {
+				console.log("面板关闭")
+			},
+		}),
+	],
 })
 ```
 
@@ -248,26 +248,26 @@ npm test -- --testNamePattern="MentionPanel Integration"
 ### 常见问题
 
 1. **面板不显示**
-   - 检查是否正确配置了扩展
-   - 确认 @ 字符前有空格或在行首
+    - 检查是否正确配置了扩展
+    - 确认 @ 字符前有空格或在行首
 
 2. **搜索不工作**
-   - 确认 dataService 正确配置
-   - 检查搜索 API 是否正常
+    - 确认 dataService 正确配置
+    - 检查搜索 API 是否正常
 
 3. **样式问题**
-   - 检查 CSS 变量是否正确设置
-   - 确认没有样式冲突
+    - 检查 CSS 变量是否正确设置
+    - 确认没有样式冲突
 
 4. **键盘导航异常**
-   - 检查是否有其他插件冲突
-   - 确认 onKeyDown 事件正确处理
+    - 检查是否有其他插件冲突
+    - 确认 onKeyDown 事件正确处理
 
 ### 调试模式
 
 ```typescript
 MentionExtension.configure({
-  debug: true, // 开启调试模式
+	debug: true, // 开启调试模式
 })
 ```
 
@@ -283,4 +283,4 @@ MIT License
 
 - [Tiptap 官方文档](https://tiptap.dev/)
 - [MentionPanel 组件文档](../README.md)
-- [项目 GitHub](https://github.com/your-org/your-repo) 
+- [项目 GitHub](https://github.com/your-org/your-repo)

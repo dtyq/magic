@@ -1,7 +1,7 @@
 import { useState } from "react"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import type { MagicDropdownProps } from "@/components/base/MagicDropdown"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { preloadProjectActionModals } from "@/pages/superMagic/components/EmptyWorkspacePanel/hooks/projectActionModals"
 import { ProjectItemLike, ProjectActionHandlers, ProjectActionMenuKey } from "./types"
 import { useProjectActionMenu } from "./useProjectActionMenu"

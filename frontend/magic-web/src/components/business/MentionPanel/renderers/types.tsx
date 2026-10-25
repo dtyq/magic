@@ -1,3 +1,4 @@
+import type { FilePresentationOptions } from "@/pages/superMagic/components/TopicFilesButton/utils/file-presentation"
 import type { ReactNode } from "react"
 import type { MentionItem } from "../types"
 import type { I18nTexts } from "../i18n/types"
@@ -9,6 +10,7 @@ export interface MentionItemRendererContext {
 	t: I18nTexts
 	isSearch?: boolean
 	platform: MentionItemRendererPlatform
+	filePresentationOptions?: FilePresentationOptions
 	filePreviewById?: Readonly<Record<string, string>>
 }
 

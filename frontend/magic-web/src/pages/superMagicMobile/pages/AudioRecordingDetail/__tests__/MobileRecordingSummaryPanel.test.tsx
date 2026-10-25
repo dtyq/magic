@@ -1,8 +1,12 @@
 import type { ReactNode } from "react"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { MobileRecordingSummaryPanel } from "../components/MobileRecordingSummaryPanel"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+
+vi.mock("@/models/user", () => ({
+	userStore: {},
+}))
 
 const scrollEdgeFadePropsMock = vi.fn()
 const magicMarkmapPropsMock = vi.fn()
@@ -10,11 +14,15 @@ const isolatedHtmlRendererPropsMock = vi.fn()
 const processHtmlContentMock = vi.fn()
 
 vi.mock("react-i18next", () => ({
+	initReactI18next: { type: "3rdParty", init: vi.fn() },
 	useTranslation: () => ({
 		t: (key: string) => {
 			const labels: Record<string, string> = {
 				"detail.emptySummary": "No summary",
-				"detail.emptySummaryFile": "No summary file",
+				"detail.emptySummaryFile":
+					"Summarizing now. It will appear automatically when ready.",
+				"detail.summarizingHint":
+					"Summarizing now. It will appear automatically when ready.",
 				"detail.tabs.summary": "Minutes",
 				"detail.tabs.topics": "Topics",
 				"detail.tabs.highlights": "Highlights",
@@ -53,7 +61,15 @@ vi.mock("@/components/base/MagicMarkmap", () => ({
 vi.mock("@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer", () => ({
 	default: (props: Record<string, unknown>) => {
 		isolatedHtmlRendererPropsMock(props)
-		return <div data-testid="mobile-recording-metrics-html" />
+		return (
+			<div data-testid="mobile-recording-metrics-html">
+				<button
+					type="button"
+					data-testid="mobile-recording-metrics-render-ready"
+					onClick={props.onRenderReady as () => void}
+				/>
+			</div>
+		)
 	},
 }))
 
@@ -309,6 +325,46 @@ Important discussion.
 		expect(screen.queryByTestId("summary-scroll-edge-fade")).toBeNull()
 	})
 
+	it("centers the generating copy when a configured summary file is still empty", () => {
+		resetSharedMocks()
+
+		render(
+			<MobileRecordingSummaryPanel
+				summaryFiles={[createSummaryFileRef("summary", "summary.md")]}
+				summaryContent={{ summary: "" }}
+				isGenerating
+				attachmentList={[]}
+				scrollPaddingBottom={72}
+				speakerNameMap={{}}
+				onOpenSpeakerSettings={vi.fn()}
+				onTimeClick={vi.fn()}
+			/>,
+		)
+
+		const message = screen.getByText(
+			"Summarizing now. It will appear automatically when ready.",
+		)
+		expect(message).toHaveClass("flex-1", "items-center", "justify-center")
+	})
+
+	it("falls back to the completed empty-summary copy when generation is inactive", () => {
+		resetSharedMocks()
+
+		render(
+			<MobileRecordingSummaryPanel
+				summaryFiles={[createSummaryFileRef("summary", "summary.md")]}
+				summaryContent={{ summary: "" }}
+				attachmentList={[]}
+				scrollPaddingBottom={72}
+				speakerNameMap={{}}
+				onOpenSpeakerSettings={vi.fn()}
+				onTimeClick={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByText("No summary")).toBeInTheDocument()
+	})
+
 	it("overrides the mindmap canvas to use a solid mobile background", () => {
 		resetSharedMocks()
 
@@ -389,6 +445,11 @@ Important discussion.
 		)
 
 		await screen.findByTestId("mobile-recording-metrics-html")
+		expect(screen.getByTestId("mobile-recording-metrics-loading")).toBeInTheDocument()
+		fireEvent.click(screen.getByTestId("mobile-recording-metrics-render-ready"))
+		await waitFor(() => {
+			expect(screen.queryByTestId("mobile-recording-metrics-loading")).toBeNull()
+		})
 
 		expect(processHtmlContentMock).toHaveBeenCalledWith(
 			expect.objectContaining({

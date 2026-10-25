@@ -7,14 +7,25 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\Event;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
+
 class SpeechRecognitionUsageEvent
 {
+    private ?string $eventId = null;
+
     public function __construct(
         public string $provider,
         public string $organizationCode,
         public string $userId,
         public array $businessParams = [],
+        ?string $eventId = null,
     ) {
+        $this->eventId = $eventId ?: (string) ($businessParams['event_id'] ?? IdGenerator::getSnowId());
+    }
+
+    public function getEventId(): string
+    {
+        return $this->eventId ??= (string) ($this->businessParams['event_id'] ?? IdGenerator::getSnowId());
     }
 
     public function getProvider(): string
@@ -48,6 +59,7 @@ class SpeechRecognitionUsageEvent
             'provider' => $this->provider,
             'organization_code' => $this->organizationCode,
             'user_id' => $this->userId,
+            'event_id' => $this->eventId,
             'business_params' => $this->businessParams,
         ];
     }

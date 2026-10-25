@@ -1,13 +1,15 @@
 import { useRef, useEffect } from "react"
-import { MonacoEditor } from "@/lib/monacoEditor"
+import { MonacoEditor } from "@/infrastructure/editors/monaco"
 import type { editor } from "monaco-editor"
 import { useUnmount } from "ahooks"
 import { useTheme } from "@/models/config/hooks"
 import { formatLongCurlDataRawForPreview } from "./preview-content"
+import { isLargeMarkdownContent } from "../../largeMarkdown"
 
 interface CodeSourceEditorProps {
 	language: string
 	isEditMode?: boolean
+	isLargeFile?: boolean
 	content: string
 	onChange?: (value: string) => void
 }
@@ -60,11 +62,18 @@ const mapLanguageToMonaco = (lang: string): string => {
 	return languageMap[lang.toLowerCase()] || lang.toLowerCase()
 }
 
-function CodeSourceEditor({ language, isEditMode, content, onChange }: CodeSourceEditorProps) {
+function CodeSourceEditor({
+	language,
+	isEditMode,
+	isLargeFile: isLargeFileProp,
+	content,
+	onChange,
+}: CodeSourceEditorProps) {
 	const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
 	const monacoLanguage = mapLanguageToMonaco(language)
 	const { prefersColorScheme } = useTheme()
 	const monacoTheme = prefersColorScheme === "dark" ? "vs-dark" : "vs-light"
+	const isLargeFile = isLargeFileProp ?? isLargeMarkdownContent(content)
 
 	const onDidFocusEditorTextFn = useRef<{ dispose: () => void } | null>(null)
 	const onDidPasteListener = useRef<{ dispose: () => void } | null>(null)
@@ -101,6 +110,7 @@ function CodeSourceEditor({ language, isEditMode, content, onChange }: CodeSourc
 	// Common editor options
 	const commonOptions: editor.IStandaloneEditorConstructionOptions = {
 		minimap: { enabled: false },
+		largeFileOptimizations: true,
 		fontSize: 14,
 		lineNumbers: "on",
 		scrollBeyondLastLine: false,
@@ -122,21 +132,21 @@ function CodeSourceEditor({ language, isEditMode, content, onChange }: CodeSourc
 			horizontalScrollbarSize: 10,
 		},
 		renderWhitespace: "selection",
-		bracketPairColorization: { enabled: true },
+		bracketPairColorization: { enabled: !isLargeFile },
 		guides: {
-			indentation: true,
-			bracketPairs: true,
+			indentation: !isLargeFile,
+			bracketPairs: !isLargeFile,
 		},
-		folding: true,
+		folding: !isLargeFile,
 		foldingStrategy: "indentation",
 		showFoldingControls: "mouseover",
 		lineDecorationsWidth: 10,
 		lineNumbersMinChars: 3,
 		glyphMargin: false,
-		matchBrackets: "always",
-		colorDecorators: true,
+		matchBrackets: isLargeFile ? "never" : "always",
+		colorDecorators: !isLargeFile,
 		codeLens: false,
-		links: true,
+		links: !isLargeFile,
 	}
 
 	// Mode-specific options

@@ -61,4 +61,13 @@ describe("IntermediateMessageApplyService", () => {
 			seq,
 		)
 	})
+
+	it.each([
+		["payload without seq", { type: "notification_update" }],
+		["seq without message", { type: "seq", seq: {} }],
+		["undefined payload", undefined],
+	])("ignores %s without throwing", (_name, payload) => {
+		expect(() => IntermediateMessageApplyService.apply(payload as never)).not.toThrow()
+		expect(mocks.publish).not.toHaveBeenCalled()
+	})
 })

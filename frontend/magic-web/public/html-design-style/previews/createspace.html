@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CREATESPACE — Creative Co-Working & Maker Canvas</title>
+  <style>
+    :root {
+      --terracotta: #C85A32;
+      --terracotta-dark: #A54420;
+      --terracotta-soft: #F2D5C8;
+      --sand-bg: #F7F4EE;
+      --surface: #FFFFFF;
+      --surface-glass: rgba(255, 255, 255, 0.72);
+      --ink: #22201E;
+      --ink-muted: #736E67;
+      --border: #E5DFC5;
+      --border-warm: #D4CBB8;
+      --olive: #5C6B47;
+      --font-display: "Poppins", "Plus Jakarta Sans", system-ui, sans-serif;
+      --font-body: "DM Sans", system-ui, sans-serif;
+      --font-mono: "Fira Code", monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --shadow-glass: 0 8px 32px rgba(34, 32, 30, 0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      background-color: var(--sand-bg);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    .top-notice {
+      background: var(--terracotta);
+      color: #FFFFFF;
+      padding: 7px 32px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+    }
+    .top-notice a { color: #FFFFFF; font-weight: 700; margin-left: 6px; }
+    header {
+      background: var(--surface-glass);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+    .brand-icon {
+      width: 30px;
+      height: 30px;
+      background: var(--terracotta);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 900;
+      font-size: 15px;
+    }
+    .brand-title { font-family: var(--font-display); font-size: 18px; font-weight: 800; }
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a { font-size: 13px; font-weight: 500; color: var(--ink-muted); text-decoration: none; }
+    .nav-links a.active, .nav-links a:hover { color: var(--terracotta); font-weight: 600; }
+    .btn-primary {
+      padding: 8px 18px;
+      background: var(--terracotta);
+      color: #FFFFFF;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .btn-primary:hover { background: var(--terracotta-dark); }
+
+    /* Hero Section (Dense First 500px) */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 32px;
+      padding: 44px 40px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+    .badge-terracotta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--terracotta-soft);
+      color: var(--terracotta-dark);
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(34px, 4vw, 50px);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
+    }
+    .hero h1 span { color: var(--terracotta); }
+    .hero-lead { font-size: 15px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 22px; max-width: 480px; }
+    .hero-stats {
+      display: flex;
+      gap: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .stat-box h4 { font-family: var(--font-display); font-size: 24px; font-weight: 800; }
+    .stat-box p { font-size: 11px; color: var(--ink-muted); }
+
+    /* Mini Floorplan Snippet in Hero */
+    .floorplan-widget {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-glass);
+    }
+    .fp-head { display: flex; justify-content: space-between; margin-bottom: 12px; }
+    .fp-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+    .fp-status-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
+      background: #E8F5E9;
+      color: #2E7D32;
+    }
+    .fp-svg-wrap {
+      width: 100%;
+      height: 200px;
+      background: #FAF8F5;
+      border: 1px dashed var(--border-warm);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    /* Booking Section */
+    .section-padding { padding: 48px 40px; border-bottom: 1px solid var(--border); }
+    .sec-head-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 24px;
+    }
+    .sec-head-row h2 { font-family: var(--font-display); font-size: 32px; font-weight: 800; }
+    .chips { display: flex; gap: 8px; }
+    .chip {
+      padding: 5px 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-warm);
+      background: var(--surface);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .chip.active, .chip:hover { background: var(--terracotta); color: #FFF; border-color: var(--terracotta); }
+    .booking-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .interactive-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-glass);
+    }
+    .canvas-svg { width: 100%; height: 260px; }
+    .studio-zone { cursor: pointer; transition: fill 0.2s; }
+    .studio-zone:hover { fill: #FCECE6!important; }
+    .panel-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .panel-zone { font-family: var(--font-mono); font-size: 10px; color: var(--terracotta); font-weight: 700; margin-bottom: 6px; }
+    .panel-title { font-family: var(--font-display); font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+    .panel-specs { list-style: none; margin: 14px 0; font-size: 12px; color: var(--ink-muted); }
+    .panel-specs li { padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+    .panel-specs li strong { color: var(--ink); }
+    .btn-block-booking {
+      width: 100%;
+      padding: 12px;
+      background: var(--terracotta);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-block-booking:hover { background: var(--terracotta-dark); }
+
+    /* Community Calendar & Members */
+    .comm-split {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 32px;
+      padding: 48px 40px;
+      border-bottom: 1px solid var(--border);
+    }
+    .comm-split h3 { font-family: var(--font-display); font-size: 22px; font-weight: 800; margin-bottom: 20px; }
+    .ev-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .ev-date {
+      background: var(--sand-bg);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      text-align: center;
+      min-width: 52px;
+    }
+    .ev-m { font-size: 9px; font-weight: 700; color: var(--terracotta); text-transform: uppercase; }
+    .ev-d { font-family: var(--font-display); font-size: 18px; font-weight: 800; line-height: 1; }
+    .ev-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+    .ev-card p { font-size: 11px; color: var(--ink-muted); }
+    .mem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mem-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mem-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-pill);
+      background: var(--terracotta-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--terracotta-dark);
+      font-size: 12px;
+    }
+    .mem-name { font-weight: 700; font-size: 12px; }
+    .mem-role { font-size: 10px; color: var(--ink-muted); }
+    footer {
+      padding: 32px 40px;
+      background: var(--ink);
+      color: var(--sand-bg);
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-notice">
+    <div>✦ Autumn 2026 Residency Grants now open. <a href="#">Apply by Oct 15 →</a></div>
+    <div>BERLIN KREUZBERG MAKER DISTRICT</div>
+  </div>
+
+  <header>
+    <a href="#" class="brand-wrap">
+      <div class="brand-icon">C</div>
+      <div class="brand-title">CreateSpace</div>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#booking" class="active">Workspace Map</a></li>
+      <li><a href="#calendar">Calendar</a></li>
+      <li><a href="#members">Makers</a></li>
+    </ul>
+    <a href="#booking" class="btn-primary">Book a Desk</a>
+  </header>
+
+  <!-- Hero Section (Dense First 500px Viewport) -->
+  <section class="hero">
+    <div>
+      <div class="badge-terracotta">● 12 Maker Pods Available Today</div>
+      <h1>A tactile sanctuary for <span>designers, craftspeople & coders.</span></h1>
+      <p class="hero-lead">Warm terracotta aesthetics, high-spec ceramic kilns, 3D clay printers, and lightning-fast workspaces built for cross-disciplinary creators.</p>
+      <div class="hero-stats">
+        <div class="stat-box"><h4>2,400 m²</h4><p>Open Canvas</p></div>
+        <div class="stat-box"><h4>180+</h4><p>Makers</p></div>
+        <div class="stat-box"><h4>24/7</h4><p>Fab-Lab</p></div>
+      </div>
+    </div>
+
+    <!-- Mini Floorplan Widget -->
+    <div class="floorplan-widget">
+      <div class="fp-head">
+        <div class="fp-title">Level 02 // Live Floorplan</div>
+        <span class="fp-status-tag">Live Sensor Sync</span>
+      </div>
+      <div class="fp-svg-wrap">
+        <svg viewBox="0 0 420 200" width="100%" height="100%">
+          <rect width="100%" height="100%" fill="#FBF9F6"/>
+          <rect x="20" y="20" width="160" height="75" rx="6" fill="#FCECE6" stroke="#C85A32" stroke-width="1.5"/>
+          <text x="35" y="45" font-family="sans-serif" font-size="11" font-weight="700" fill="#A54420">Ceramic & Clay Pod</text>
+          <text x="35" y="65" font-family="sans-serif" font-size="10" fill="#736E67">4 / 6 Wheels Active</text>
+
+          <rect x="195" y="20" width="205" height="75" rx="6" fill="#F4EFE6" stroke="#D4CBB8" stroke-width="1.5"/>
+          <text x="210" y="45" font-family="sans-serif" font-size="11" font-weight="700" fill="#22201E">Bio-Materials Lab</text>
+          <text x="210" y="65" font-family="sans-serif" font-size="10" fill="#736E67">3 Fume Hoods Ready</text>
+
+          <rect x="20" y="105" width="220" height="75" rx="6" fill="#FFFFFF" stroke="#D4CBB8" stroke-width="1.5"/>
+          <text x="35" y="130" font-family="sans-serif" font-size="11" font-weight="700" fill="#22201E">Hot-Desk Commons</text>
+          <text x="35" y="150" font-family="sans-serif" font-size="10" fill="#736E67">Herman Miller Chairs</text>
+
+          <rect x="250" y="105" width="150" height="75" rx="6" fill="#EDF3E8" stroke="#5C6B47" stroke-width="1.5"/>
+          <text x="265" y="130" font-family="sans-serif" font-size="11" font-weight="700" fill="#3D4A2C">Quiet Focus Pods</text>
+          <text x="265" y="150" font-family="sans-serif" font-size="10" fill="#5C6B47">2 Pods Free</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Floorplan Booking Section -->
+  <section class="section-padding" id="booking">
+    <div class="sec-head-row">
+      <div>
+        <h2>Floorplan Workspace Booking</h2>
+        <p style="color: var(--ink-muted); font-size: 13px; margin-top: 2px;">Click any studio zone to inspect equipment and reserve your pass.</p>
+      </div>
+      <div class="chips">
+        <button class="chip active">All Studios</button>
+        <button class="chip">Ceramic & Clay</button>
+        <button class="chip">Fab-Lab 3D</button>
+      </div>
+    </div>
+
+    <div class="booking-grid">
+      <div class="interactive-box">
+        <svg class="canvas-svg" viewBox="0 0 650 260">
+          <rect width="100%" height="100%" fill="#FAF8F5" rx="8"/>
+          <rect x="15" y="15" width="620" height="230" rx="6" fill="none" stroke="#D4CBB8" stroke-width="2"/>
+          
+          <g class="studio-zone">
+            <rect x="30" y="30" width="270" height="95" rx="6" fill="#FCECE6" stroke="#C85A32" stroke-width="2"/>
+            <text x="50" y="60" font-family="sans-serif" font-size="14" font-weight="700" fill="#A54420">Atelier Terracotta (Selected)</text>
+            <text x="50" y="80" font-family="sans-serif" font-size="11" fill="#736E67">Pottery wheels, Shimpo kiln</text>
+            <circle cx="50" cy="100" r="4" fill="#C85A32"/>
+            <text x="62" y="104" font-family="monospace" font-size="10" fill="#A54420">OCCUPANCY: 65%</text>
+          </g>
+
+          <g class="studio-zone">
+            <rect x="315" y="30" width="305" height="95" rx="6" fill="#FFFFFF" stroke="#D4CBB8" stroke-width="1.5"/>
+            <text x="335" y="60" font-family="sans-serif" font-size="14" font-weight="700" fill="#22201E">Fab-Lab & CNC Milling</text>
+            <text x="335" y="80" font-family="sans-serif" font-size="11" fill="#736E67">Prusa XL printers, 120W Laser</text>
+            <circle cx="335" cy="100" r="4" fill="#5C6B47"/>
+            <text x="347" y="104" font-family="monospace" font-size="10" fill="#5C6B47">READY · 4 SLOTS</text>
+          </g>
+
+          <g class="studio-zone">
+            <rect x="30" y="135" width="390" height="95" rx="6" fill="#FFFFFF" stroke="#D4CBB8" stroke-width="1.5"/>
+            <text x="50" y="165" font-family="sans-serif" font-size="14" font-weight="700" fill="#22201E">Hot-Desk Commons</text>
+            <text x="50" y="185" font-family="sans-serif" font-size="11" fill="#736E67">Custom oak tables, 4K monitors</text>
+            <circle cx="50" cy="205" r="4" fill="#E6A728"/>
+            <text x="62" y="209" font-family="monospace" font-size="10" fill="#736E67">DAY PASS VALID</text>
+          </g>
+
+          <g class="studio-zone">
+            <rect x="430" y="135" width="190" height="95" rx="6" fill="#FFFFFF" stroke="#D4CBB8" stroke-width="1.5"/>
+            <text x="445" y="165" font-family="sans-serif" font-size="13" font-weight="700" fill="#22201E">Sound Pod</text>
+            <text x="445" y="185" font-family="sans-serif" font-size="11" fill="#736E67">Genelec audio</text>
+            <circle cx="445" cy="205" r="4" fill="#C85A32"/>
+            <text x="457" y="209" font-family="monospace" font-size="10" fill="#A54420">IN USE TILL 18:00</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="panel-box">
+        <div>
+          <div class="panel-zone">ZONE 01 // SELECTED</div>
+          <h3 class="panel-title">Atelier Terracotta</h3>
+          <p style="font-size: 12px; color: var(--ink-muted);">High-fire electric kiln, clay racks, and wet cleanup sinks.</p>
+          <ul class="panel-specs">
+            <li><span>Day Rate</span> <strong>€45 / Day</strong></li>
+            <li><span>Equipment</span> <strong>Shimpo Whisper × 4</strong></li>
+            <li><span>Drying Rack</span> <strong>Assigned Shelf #14</strong></li>
+            <li><span>Status</span> <strong style="color: #2E7D32;">Instant Confirm</strong></li>
+          </ul>
+        </div>
+        <button class="btn-block-booking">Reserve Atelier Pass →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Events & Members -->
+  <section class="comm-split" id="calendar">
+    <div>
+      <h3>Community Workshops</h3>
+      <div class="ev-card">
+        <div class="ev-date"><div class="ev-m">SEP</div><div class="ev-d">24</div></div>
+        <div><h4>Tactile Ceramics: Nerikomi Patterns</h4><p>With Yuki Tanaka · 18:30 — 21:00</p></div>
+      </div>
+      <div class="ev-card">
+        <div class="ev-date"><div class="ev-m">OCT</div><div class="ev-d">02</div></div>
+        <div><h4>Bio-Mycelium Furniture Molding</h4><p>With BioLab Zurich · 17:00</p></div>
+      </div>
+      <div class="ev-card">
+        <div class="ev-date"><div class="ev-m">OCT</div><div class="ev-d">09</div></div>
+        <div><h4>Generative Shaders for Pen Plotters</h4><p>Axidraw Plotter workshop · 19:00</p></div>
+      </div>
+    </div>
+
+    <div id="members">
+      <h3>Resident Makers</h3>
+      <div class="mem-grid">
+        <div class="mem-card"><div class="mem-avatar">EL</div><div><div class="mem-name">Elena Lindner</div><div class="mem-role">Bio-Material Arch</div></div></div>
+        <div class="mem-card"><div class="mem-avatar" style="background:#EBF2E4; color:#3D4A2C;">KM</div><div><div class="mem-name">Kai Mori</div><div class="mem-role">Ceramic Sculptor</div></div></div>
+        <div class="mem-card"><div class="mem-avatar" style="background:#FBF0D9; color:#926815;">SR</div><div><div class="mem-name">Soren Rost</div><div class="mem-role">Industrial Lighting</div></div></div>
+        <div class="mem-card"><div class="mem-avatar">AW</div><div><div class="mem-name">Anya Weber</div><div class="mem-role">Generative Media</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div>© 2026 CREATESPACE CO-WORKING & MAKER CANVAS.</div>
+    <div>WARM TERRACOTTA & BEIGE · POPPINS / DM SANS SPEC</div>
+    <div>KREUZBERG, BERLIN · OPEN 24/7</div>
+  </footer>
+</body>
+</html>

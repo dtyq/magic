@@ -1,7 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from "react"
 import { useId, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Input } from "@/components/shadcn-ui/input"
 import type { ArticleDetail, OutlineNode, ReferenceFileValue } from "../../types"
 import { STYLE_PRESETS, ALL_PLATFORMS, getVisualPresetsForPlatform } from "../../types"

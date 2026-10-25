@@ -1,0 +1,7 @@
+{
+  "id": "image-search-import",
+  "prompt": "Search for image candidates for one topic, import only candidates that download and pass media validation, and inspect the created Elements.",
+  "expected_reference": "references/image-search.md",
+  "expected_tools": ["search_canvas_image_candidates", "query_canvas_overview", "query_canvas_element_details"],
+  "constraints": ["Deduplicate source URLs within the topic.", "Keep successful imports when another candidate fails.", "Retry only a failed search item when the user explicitly asks."]
+}

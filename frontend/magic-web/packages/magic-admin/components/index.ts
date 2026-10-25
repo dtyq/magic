@@ -47,6 +47,8 @@ export type { MagicDropdownProps, MagicDropdownButtonProps } from "./MagicDropdo
 export { default as MagicSpin } from "./MagicSpin"
 export type { MagicSpinProps } from "./MagicSpin"
 
+export { default as AdminAuthContentLoading } from "./AdminAuthContentLoading"
+
 export { default as MagicDatePicker } from "./MagicDatePicker"
 export type { MagicDatePickerProps, MagicDatePickerRangePickerProps } from "./MagicDatePicker"
 

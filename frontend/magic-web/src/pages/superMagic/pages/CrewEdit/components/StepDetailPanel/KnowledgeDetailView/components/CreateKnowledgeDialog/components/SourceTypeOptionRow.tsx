@@ -1,5 +1,5 @@
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import type { KnowledgeSourceOption } from "../types"
 

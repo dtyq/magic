@@ -91,11 +91,13 @@ function ModelSwitchContainer({
 			}
 			if (modelType === "image") {
 				setSelectedImageModel(modelItem)
+			} else if (modelType === "video") {
+				setSelectedVideoModel(modelItem)
 			} else {
 				setSelectedModel(modelItem)
 			}
 		},
-		[setSelectedModel, setSelectedImageModel],
+		[setSelectedModel, setSelectedImageModel, setSelectedVideoModel],
 	)
 
 	const handleConnectGuide = useCallback(() => {

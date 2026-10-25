@@ -1,4 +1,3 @@
-import type { ReactNode } from "react"
 import { act, render, renderHook, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ScheduledTask } from "@/types/scheduledTask"
@@ -12,15 +11,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("react-i18next", async (importOriginal) => ({
 	...(await importOriginal<typeof import("react-i18next")>()),
 	useTranslation: () => ({ t: (key: string) => key }),
-}))
-
-vi.mock("@/components/business/AccountSetting/pages/ScheduledTasks/styles", () => ({
-	useModalStyles: () => ({ styles: { modal: "modal" } }),
-}))
-
-vi.mock("@/components/base/MagicModal", () => ({
-	default: ({ open, children }: { open?: boolean; children?: ReactNode }) =>
-		open ? children : null,
 }))
 
 vi.mock("@/components/base/MagicToaster/utils", () => ({
@@ -113,3 +103,7 @@ describe("useMicroAppScheduledTasksModifyModal", () => {
 		)
 	})
 })
+
+vi.mock("antd", async (importOriginal) => ({
+	...(await importOriginal<typeof import("antd")>()),
+}))

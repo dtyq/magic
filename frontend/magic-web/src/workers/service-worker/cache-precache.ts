@@ -1,4 +1,5 @@
 import { APP_STATIC_CACHE_NAME, PRECACHE_BATCH_CONCURRENCY } from "./sw-constants"
+import type { CacheExpirationLike } from "./cache-runtime"
 
 // Injected at production build by vite-plugin-app-service-worker (empty in dev).
 declare const __SW_PRECACHE_ASSETS__: string[]
@@ -19,7 +20,9 @@ async function runTasksInBatches<T>(
 }
 
 /** Populates the static assets bucket during install so CacheFirst can hit immediately. */
-export async function precacheStaticAssetsOnInstall(): Promise<void> {
+export async function precacheStaticAssetsOnInstall(
+	expirationManager?: CacheExpirationLike | null,
+): Promise<void> {
 	if (!PRECACHE_ASSETS.length) return
 
 	const cache = await caches.open(APP_STATIC_CACHE_NAME)
@@ -29,6 +32,7 @@ export async function precacheStaticAssetsOnInstall(): Promise<void> {
 			const response = await fetch(request)
 			if (!response.ok) return
 			await cache.put(request, response)
+			await expirationManager?.updateTimestamp(request.url)
 		} catch {
 			// A single failed precache URL must not reject the install event.
 		}

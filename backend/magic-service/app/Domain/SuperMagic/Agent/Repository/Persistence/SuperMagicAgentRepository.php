@@ -19,9 +19,12 @@ use Hyperf\Database\Model\Builder;
 
 class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements SuperMagicAgentRepositoryInterface
 {
-    public function getByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?SuperMagicAgentEntity
+    public function getByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code, bool $forUpdate = false): ?SuperMagicAgentEntity
     {
         $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
+        if ($forUpdate) {
+            $builder->lockForUpdate();
+        }
 
         /** @var null|SuperMagicAgentModel $model */
         $model = $builder->where('code', $code)->first();
@@ -42,6 +45,27 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
 
         $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
         $models = $builder
+            ->whereIn('code', $codes)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $entity = SuperMagicAgentFactory::createEntity($model);
+            $result[$entity->getCode()] = $entity;
+        }
+
+        return $result;
+    }
+
+    public function findByCodesWithoutOrganizationFilter(array $codes): array
+    {
+        $codes = array_values(array_unique(array_filter($codes)));
+        if ($codes === []) {
+            return [];
+        }
+
+        $models = SuperMagicAgentModel::query()
             ->whereIn('code', $codes)
             ->whereNull('deleted_at')
             ->get();

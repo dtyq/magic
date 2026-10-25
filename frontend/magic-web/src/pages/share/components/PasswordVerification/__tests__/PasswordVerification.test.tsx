@@ -54,6 +54,7 @@ describe("PasswordVerification", () => {
 		})
 
 		expect(screen.getByTestId("password-input")).toHaveValue("ABCD12")
+		expect(screen.queryByTestId("password-remember-checkbox")).not.toBeInTheDocument()
 	})
 
 	it("supports configurable micro app password length without uppercasing", () => {
@@ -72,5 +73,20 @@ describe("PasswordVerification", () => {
 		})
 
 		expect(screen.getByTestId("password-input")).toHaveValue("abcd1234efgh5678ijkl9012mnop3456")
+	})
+
+	it("shows the optional remember-password control only when configured", () => {
+		const onCheckedChange = vi.fn()
+		render(
+			<PasswordVerification
+				resourceId="resource-1"
+				onVerifySuccess={vi.fn()}
+				getShareData={vi.fn()}
+				rememberPassword={{ enabled: true, checked: false, onCheckedChange }}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("password-remember-checkbox"))
+		expect(onCheckedChange).toHaveBeenCalledWith(true)
 	})
 })

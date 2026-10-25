@@ -1,4 +1,3 @@
-import FlexBox from "@/components/base/FlexBox"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import {
 	getMentionDescription,
@@ -10,9 +9,7 @@ import {
 	ProjectFileMentionData,
 	UploadFileMentionData,
 } from "@/components/business/MentionPanel/types"
-import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { useTranslation } from "react-i18next"
-import { ImageInProjectFile, ImageInUploadFile } from "./AtItemPreviewImage"
 
 interface MentionTooltipContentProps {
 	data: TiptapMentionAttributes
@@ -37,31 +34,17 @@ export function MentionTooltipContent(props: MentionTooltipContentProps) {
 		case MentionItemType.FOLDER:
 			return (data.data as DirectoryMentionData).directory_path
 		case MentionItemType.MEMORY_FILE:
+		case MentionItemType.USER_FILE:
 			return (data.data as { file_path: string }).file_path
 		case MentionItemType.MEMORY_DIRECTORY:
+		case MentionItemType.USER_DIRECTORY:
 			return (data.data as { directory_path: string }).directory_path
 
-		case MentionItemType.PROJECT_FILE: {
-			const item = data.data as ProjectFileMentionData
-			const fileName = item.file_name
-			const extension = item.file_extension || item.file_name.split(".").pop() || ""
-
-			if (item.file_id && getFileType(extension) === "image") {
-				return (
-					<FlexBox vertical gap={4} align="flex-start">
-						<span className="w-full whitespace-pre-wrap">{fileName}</span>
-						<ImageInProjectFile fileId={item.file_id} fileName={fileName} />
-					</FlexBox>
-				)
-			}
-
-			return item.file_path
-		}
+		case MentionItemType.PROJECT_FILE:
+			return (data.data as ProjectFileMentionData).file_path
 
 		case MentionItemType.UPLOAD_FILE: {
 			const uploadData = data.data as UploadFileMentionData
-			const file = uploadData.file
-			const fileExtension = uploadData.file_extension || file?.type.split("/").pop() || ""
 			const isUploadError = uploadData.upload_status === "error"
 
 			const fileNameNode = (
@@ -70,15 +53,6 @@ export function MentionTooltipContent(props: MentionTooltipContentProps) {
 					{uploadData.file_name}
 				</span>
 			)
-
-			if (file && getFileType(fileExtension) === "image") {
-				return (
-					<FlexBox vertical gap={4} align="flex-start">
-						{fileNameNode}
-						<ImageInUploadFile file={file} fileName={uploadData.file_name} />
-					</FlexBox>
-				)
-			}
 
 			return fileNameNode
 		}

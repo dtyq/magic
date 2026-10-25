@@ -1,4 +1,5 @@
 import type { AttachmentItem } from "../../components/TopicFilesButton/hooks"
+import { isMagicSystemFolder } from "../../components/TopicFilesButton/utils/magic-system-folder"
 
 // Root parent_id has several legacy forms; normalize it across V1/V2/WS.
 export const ROOT_PARENT_MARKERS = new Set(["", "0", "918559425666367489"])
@@ -64,12 +65,19 @@ export function createAttachmentNodeComparator(locale?: string) {
 	})
 
 	return (left: AttachmentItem, right: AttachmentItem) => {
+		const magicPriority = compareMagicFolderPriority(left, right)
+		if (magicPriority) return magicPriority
 		const leftIsDirectory = Boolean(left.is_directory)
 		const rightIsDirectory = Boolean(right.is_directory)
 		if (leftIsDirectory !== rightIsDirectory) return leftIsDirectory ? -1 : 1
 
 		return collator.compare(getAttachmentName(left), getAttachmentName(right))
 	}
+}
+
+/** 系统目录优先于名称和时间排序；两个普通节点返回 0，保留调用方的原排序。 */
+export function compareMagicFolderPriority(left: AttachmentItem, right: AttachmentItem): number {
+	return Number(isMagicSystemFolder(right)) - Number(isMagicSystemFolder(left))
 }
 
 export function sortAttachmentTree(tree: AttachmentItem[], locale?: string): AttachmentItem[] {

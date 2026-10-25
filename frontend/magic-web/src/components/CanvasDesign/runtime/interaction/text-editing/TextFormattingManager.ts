@@ -3,8 +3,10 @@ import {
 	ElementTypeEnum,
 	type RichTextParagraph,
 	type TextElement,
+	type TextElementContent,
 	type TextStyle,
 } from "../../document/types"
+import { getActiveContent } from "../../document/elementContent"
 import type {
 	TextAlignValue,
 	TextEditorFormattingState,
@@ -110,7 +112,11 @@ export class TextFormattingManager {
 			selectedTextElement,
 			isEditingText: state.active && state.canEdit,
 			hasTextSelectionContext: state.active,
-			resolvedDefaultStyle: getResolvedTextDefaultStyle(selectedTextElement?.defaultStyle),
+			resolvedDefaultStyle: getResolvedTextDefaultStyle(
+				selectedTextElement
+					? getActiveContent<TextElementContent>(selectedTextElement)?.defaultStyle
+					: undefined,
+			),
 		}
 	}
 
@@ -205,7 +211,9 @@ export class TextFormattingManager {
 
 		const updatePayload = {
 			content: setRichTextParagraphTextAlign(
-				removeRichTextInlineStyles(toolbarState.selectedTextElement.content),
+				removeRichTextInlineStyles(
+					getActiveContent<TextElementContent>(toolbarState.selectedTextElement)?.content,
+				),
 				textAlign,
 			),
 		}
@@ -259,9 +267,12 @@ export class TextFormattingManager {
 		}
 
 		const updatePayload = {
-			content: removeRichTextInlineStyles(toolbarState.selectedTextElement.content),
+			content: removeRichTextInlineStyles(
+				getActiveContent<TextElementContent>(toolbarState.selectedTextElement)?.content,
+			),
 			defaultStyle: mergeTextDefaultStylePatch(
-				toolbarState.selectedTextElement.defaultStyle,
+				getActiveContent<TextElementContent>(toolbarState.selectedTextElement)
+					?.defaultStyle,
 				patch,
 			),
 		}
@@ -306,7 +317,10 @@ export class TextFormattingManager {
 		}
 
 		this.commitSelectedTextElement(source, toolbarState.selectedTextElement, {
-			content: setRichTextParagraphStyle(toolbarState.selectedTextElement.content, patch),
+			content: setRichTextParagraphStyle(
+				getActiveContent<TextElementContent>(toolbarState.selectedTextElement)?.content,
+				patch,
+			),
 		})
 		return true
 	}
@@ -320,7 +334,7 @@ export class TextFormattingManager {
 	private commitSelectedTextElement(
 		source: string,
 		selectedTextElement: TextElement,
-		updatePayload: Partial<Pick<TextElement, "content" | "defaultStyle">>,
+		updatePayload: Partial<Pick<TextElementContent, "content" | "defaultStyle">>,
 	): void {
 		this.canvas.elementManager.update(selectedTextElement.id, updatePayload)
 	}

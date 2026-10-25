@@ -1,6 +1,6 @@
 import { Check } from "lucide-react"
 import { motion, useReducedMotion } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { STEPS } from "../constants"
 
 type StepKey = (typeof STEPS)[number]["key"]

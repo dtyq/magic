@@ -71,18 +71,18 @@ final class MagicBaseConst
 
     public const DEFAULT_TABLE_PERMISSIONS = [
         'read_scope' => self::SCOPE_PUBLIC,
-        'insert_scope' => self::SCOPE_PUBLIC,
+        'insert_scope' => self::SCOPE_DISABLED,
     ];
 
     public const DEFAULT_ROW_PERMISSIONS = [
         'read_scope' => self::SCOPE_PUBLIC,
-        'edit_scope' => self::SCOPE_PUBLIC,
-        'delete_scope' => self::SCOPE_PUBLIC,
+        'edit_scope' => self::SCOPE_PRIVATE_USER,
+        'delete_scope' => self::SCOPE_PRIVATE_USER,
     ];
 
     public const DEFAULT_COLUMN_PERMISSIONS = [
         'read_scope' => self::SCOPE_PUBLIC,
-        'edit_scope' => self::SCOPE_PUBLIC,
+        'edit_scope' => self::SCOPE_PRIVATE_USER,
     ];
 
     public const SCOPES = [

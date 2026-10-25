@@ -10,16 +10,16 @@ const {
 	defaultMCPStoreMock,
 	sceneStateStoreMock,
 	mockPlaybooks,
+	capturedEditorContext,
 } = vi.hoisted(() => ({
 	mockLoad: vi.fn(),
 	defaultMCPStoreMock: {
-		hasMCP: false,
-		hasEverAddedMcp: false,
 		initialized: true,
 		load: vi.fn(),
 	},
 	mockSetCurrentScene: vi.fn(),
 	mockSetInputScopeKey: vi.fn(),
+	capturedEditorContext: { current: null as Record<string, unknown> | null },
 	mockPlaybooks: [] as Array<{
 		id: string
 		name: string
@@ -74,15 +74,10 @@ vi.mock("@/pages/superMagic/services", () => ({
 }))
 
 vi.mock("../../components/LazyScenePanel", () => ({
-	default: () => <div data-testid="lazy-scene-panel" />,
-}))
-
-vi.mock("../../components/PluginTips", () => ({
-	default: ({ onConnectClick }: { onConnectClick: () => void }) => (
-		<button type="button" onClick={onConnectClick}>
-			pluginTips.connectTools
-		</button>
-	),
+	default: ({ editorContext }: { editorContext: Record<string, unknown> }) => {
+		capturedEditorContext.current = editorContext
+		return <div data-testid="lazy-scene-panel" />
+	},
 }))
 
 vi.mock("../../components/SelectedSkillBadge", () => ({
@@ -130,61 +125,24 @@ vi.mock("@/pages/superMagic/stores/core", () => ({
 	},
 }))
 
-vi.mock("@/components/Agent/AgentCommonModal", () => ({
-	AgentCommonModal: ({ children }: { children: ReactNode }) => (
-		<div data-testid="agent-common-modal">{children}</div>
-	),
-}))
-
-vi.mock("@/components/Agent/MCP/AgentSettings", () => ({
-	default: () => <div data-testid="agent-settings" />,
-}))
-
 import EditorLayout from "../EditorLayout"
 
 describe("EditorLayout", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		defaultMCPStoreMock.hasMCP = false
-		defaultMCPStoreMock.hasEverAddedMcp = false
 		defaultMCPStoreMock.initialized = true
 		defaultMCPStoreMock.load = mockLoad.mockResolvedValue(undefined)
 		mockPlaybooks.length = 0
 		sceneStateStoreMock.currentScene = null
 		sceneStateStoreMock.setCurrentScene = mockSetCurrentScene
 		sceneStateStoreMock.setInputScopeKey = mockSetInputScopeKey
+		capturedEditorContext.current = null
 	})
 
-	it("shows plugin tips when user has no global MCP", async () => {
-		render(<EditorLayout />)
+	it("marks workspace-home entity creation as workspace regardless of selected mode", () => {
+		render(<EditorLayout mode={"SMA-agent" as TopicMode} />)
 
-		await waitFor(() => {
-			expect(screen.getByText("pluginTips.connectTools")).toBeInTheDocument()
-		})
-	})
-
-	it("hides plugin tips after user once added MCP but removed all", async () => {
-		defaultMCPStoreMock.hasEverAddedMcp = true
-
-		render(<EditorLayout />)
-
-		await waitFor(() => {
-			expect(mockLoad).toHaveBeenCalled()
-		})
-
-		expect(screen.queryByText("pluginTips.connectTools")).not.toBeInTheDocument()
-	})
-
-	it("hides plugin tips when user already has a global MCP", async () => {
-		defaultMCPStoreMock.hasMCP = true
-
-		render(<EditorLayout />)
-
-		await waitFor(() => {
-			expect(mockLoad).toHaveBeenCalled()
-		})
-
-		expect(screen.queryByText("pluginTips.connectTools")).not.toBeInTheDocument()
+		expect(capturedEditorContext.current?.creationScene).toBe("workspace")
 	})
 
 	it("loads MCP state from shared store", async () => {

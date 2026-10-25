@@ -16,15 +16,10 @@ export class UserGlobalStorage extends MCPSave {
 	private readonly storageKey = "super_magic_mcp_servers"
 
 	async getMCP(): Promise<Array<IMCPItem>> {
-		try {
-			const { value } = await ContactApi.getUserStorage<{ servers: Array<IMCPItem> }>(
-				this.storageKey,
-			)
-			return value?.servers || []
-		} catch (error) {
-			console.error("User storage get MCP error", error)
-			return []
-		}
+		const { value } = await ContactApi.getUserStorage<{ servers: Array<IMCPItem> }>(
+			this.storageKey,
+		)
+		return value?.servers || []
 	}
 
 	async saveMCP(value: Array<{ id: string }>): Promise<void> {
@@ -49,13 +44,8 @@ export class ProjectStorage extends MCPSave {
 	}
 
 	async getMCP(): Promise<Array<IMCPItem>> {
-		try {
-			const { servers } = await FlowApi.getMCPFromProject(this.storageKey)
-			return servers || []
-		} catch (error) {
-			console.error("Project storage get MCP error", error)
-			return []
-		}
+		const { servers } = await FlowApi.getMCPFromProject(this.storageKey)
+		return servers || []
 	}
 
 	async saveMCP(value: Array<IMCPItem>): Promise<void> {

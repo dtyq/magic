@@ -47,6 +47,7 @@ vi.mock("../../../contents/HTML/IsolatedHTMLRenderer", () => ({
 	default: forwardRef(function MockIsolatedHTMLRenderer(
 		props: {
 			scaleContentDimensions?: { width: number; height: number } | null
+			toolbarClassName?: string
 		},
 		_ref,
 	) {
@@ -55,6 +56,7 @@ vi.mock("../../../contents/HTML/IsolatedHTMLRenderer", () => ({
 				data-testid="mock-isolated-html-renderer"
 				data-width={props.scaleContentDimensions?.width ?? ""}
 				data-height={props.scaleContentDimensions?.height ?? ""}
+				data-toolbar-class={props.toolbarClassName ?? ""}
 			/>
 		)
 	}),
@@ -93,6 +95,8 @@ describe("RednoteEditView scale dimensions", () => {
 		const renderer = await screen.findByTestId("mock-isolated-html-renderer")
 		expect(renderer).toHaveAttribute("data-width", "540")
 		expect(renderer).toHaveAttribute("data-height", "720")
+		expect(renderer.getAttribute("data-toolbar-class")).toContain("left-2")
+		expect(renderer.getAttribute("data-toolbar-class")).not.toContain("left-1/2")
 	})
 
 	it("passes instagram card dimensions through the shared rednote editor", async () => {

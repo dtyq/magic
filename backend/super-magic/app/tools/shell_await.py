@@ -5,6 +5,7 @@ shell_await 工具：查询后台任务输出、等待进程结束、向进程�
 import asyncio
 import json
 import re
+from enum import StrEnum
 from typing import Any, Dict, Optional
 
 from pydantic import Field, model_validator
@@ -16,7 +17,7 @@ from app.i18n import i18n
 from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
 from app.core.entity.tool.tool_result_types import TerminalToolResult
 from app.tools.core import BaseTool, BaseToolParams, tool
-from app.utils.process_executor import truncate_output_for_llm
+from app.utils.process_executor import truncate_output_for_display
 from app.tools.shell_exec_utils.bg_errors import (
     err_invalid_pattern,
     err_kill_on_finished_task,
@@ -33,6 +34,14 @@ logger = get_logger(__name__)
 _MAX_INFINITE_WAIT_SECONDS = 3600.0
 # 超过此阈值的等待触发定期续期（防止沙盒因闲置被杀）
 _KEEP_ALIVE_THRESHOLD = 60.0
+
+
+class ShellAwaitOperation(StrEnum):
+    SLEEP = "sleep"
+    KILL = "kill"
+    SEND_INPUT = "send_input"
+    SNAPSHOT = "snapshot"
+    WAIT = "wait"
 
 
 class ShellAwaitParams(BaseToolParams):
@@ -166,7 +175,7 @@ Rules for shell_await:
             if params.kill:
                 if task.status != TaskStatus.RUNNING:
                     content = err_kill_on_finished_task(params.task_id, task.status.value)
-                    output = truncate_output_for_llm(await manager._store.read_full(params.task_id))
+                    output = await manager._store.read_full(params.task_id)
                     payload = json.dumps({
                         "task_id": params.task_id,
                         "status": task.status.value,
@@ -179,7 +188,7 @@ Rules for shell_await:
                     return result
 
                 await manager.kill_task(params.task_id)
-                output = truncate_output_for_llm(await manager._store.read_full(params.task_id))
+                output = await manager._store.read_full(params.task_id)
                 payload = json.dumps({
                     "task_id": params.task_id,
                     "status": "killed",
@@ -242,7 +251,7 @@ Rules for shell_await:
                 "task_id": params.task_id,
                 "status": reason,
                 "exit_code": exit_code,
-                "output": truncate_output_for_llm(output),
+                "output": output,
             }, ensure_ascii=False)
             result = TerminalToolResult(command="shell_await", content=payload, ok=True)
             result.set_exit_code(exit_code if exit_code is not None else 0)
@@ -254,32 +263,51 @@ Rules for shell_await:
             result.set_exit_code(-2)
             return result
 
-    async def get_before_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
-    ) -> Dict:
-        args = arguments or {}
-        task_id = args.get("task_id")
-        timeout = args.get("timeout", 30)
-        input_text = args.get("input_text")
+    @staticmethod
+    def _get_display_operation(arguments: dict[str, object]) -> ShellAwaitOperation:
+        # 展示遵循执行顺序：纯等待优先；有命令时，停止和发送输入优先于读取输出。
+        if arguments.get("task_id") is None:
+            return ShellAwaitOperation.SLEEP
+        if arguments.get("kill"):
+            return ShellAwaitOperation.KILL
+        if arguments.get("input_text"):
+            return ShellAwaitOperation.SEND_INPUT
+        if arguments.get("timeout") == 0:
+            return ShellAwaitOperation.SNAPSHOT
+        return ShellAwaitOperation.WAIT
 
-        if task_id is None:
-            remark = i18n.translate(
-                "shell_await.before_sleep",
-                category="tool.messages",
-                seconds=timeout,
-            )
-        elif timeout == -1:
-            remark = i18n.translate("shell_await.before_kill", category="tool.messages")
-        elif timeout == 0:
-            remark = i18n.translate("shell_await.before_snapshot", category="tool.messages")
-        elif input_text:
-            remark = i18n.translate("shell_await.before_send_input", category="tool.messages")
+    @staticmethod
+    def _get_display_action(
+        operation: ShellAwaitOperation, arguments: dict[str, object]
+    ) -> str:
+        if operation != ShellAwaitOperation.SLEEP:
+            return i18n.translate(f"shell_await.{operation}", category="tool.actions")
+
+        timeout = arguments.get("timeout", 30)
+        if not isinstance(timeout, int):
+            return i18n.translate("shell_await.sleep", category="tool.actions")
+
+        minutes, seconds = divmod(max(0, timeout), 60)
+        if minutes and seconds:
+            duration_key = "shell_await.duration_minutes_seconds"
+        elif minutes:
+            duration_key = "shell_await.duration_minutes"
         else:
-            remark = i18n.translate("shell_await.before_wait", category="tool.messages")
+            duration_key = "shell_await.duration_seconds"
+        duration = i18n.translate(
+            duration_key, category="tool.messages", minutes=minutes, seconds=seconds
+        )
+        return i18n.translate("shell_await.sleep_for", category="tool.actions", duration=duration)
+
+    async def get_before_tool_call_friendly_action_and_remark(
+        self, tool_name: str, tool_context: ToolContext, arguments: dict[str, object] | None = None
+    ) -> dict[str, str]:
+        args = arguments or {}
+        operation = self._get_display_operation(args)
 
         return {
-            "action": i18n.translate("shell_await", category="tool.actions"),
-            "remark": remark,
+            "action": self._get_display_action(operation, args),
+            "remark": i18n.translate(f"shell_await.before_{operation}", category="tool.messages"),
             "tool_name": tool_name,
         }
 
@@ -289,8 +317,10 @@ Rules for shell_await:
         tool_context: ToolContext,
         result: ToolResult,
         execution_time: float,
-        arguments: Dict[str, Any] = None,
-    ) -> Dict:
+        arguments: dict[str, object] | None = None,
+    ) -> dict[str, str]:
+        args = arguments or {}
+        action = self._get_display_action(self._get_display_operation(args), args)
         if not result.ok:
             content = result.content or ""
             exit_code = getattr(result, "exit_code", None)
@@ -308,11 +338,10 @@ Rules for shell_await:
 
             result.use_custom_remark = True
             return {
-                "action": i18n.translate("shell_await", category="tool.actions"),
+                "action": action,
                 "remark": i18n.translate(remark_key, category="tool.messages"),
             }
 
-        task_id = (arguments or {}).get("task_id", "")
         try:
             payload = json.loads(result.content)
             status = payload.get("status", "")
@@ -324,7 +353,7 @@ Rules for shell_await:
             remark = ""
 
         return {
-            "action": i18n.translate("shell_await", category="tool.actions"),
+            "action": action,
             "remark": remark,
         }
 
@@ -350,5 +379,7 @@ Rules for shell_await:
             cmd_label = f"shell_await --kill task_id={task_id}" if task_id else "shell_await --kill"
         else:
             cmd_label = f"shell_await task_id={task_id}" if task_id else "shell_await(sleep)"
+        # 只裁剪终端展示副本，完整 result.content 仍交给全局文件化处理。
+        output = truncate_output_for_display(output)
         terminal_content = TerminalContent(command=cmd_label, output=output, exit_code=exit_code)
         return ToolDetail(type=DisplayType.TERMINAL, data=terminal_content)

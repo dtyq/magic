@@ -50,8 +50,6 @@ class AgentMarketListItemDTO extends AbstractDTO
 
     private array $publisher;
 
-    private ?int $categoryId;
-
     /** @var int[] */
     private array $categoryIds;
 
@@ -75,7 +73,6 @@ class AgentMarketListItemDTO extends AbstractDTO
         array $playbooks,
         string $publisherType,
         array $publisher,
-        ?int $categoryId,
         array $categoryIds,
         bool $isFeatured,
         string $marketType,
@@ -96,7 +93,6 @@ class AgentMarketListItemDTO extends AbstractDTO
         $this->playbooks = $playbooks;
         $this->publisherType = $publisherType;
         $this->publisher = $publisher;
-        $this->categoryId = $categoryId;
         $this->categoryIds = $categoryIds;
         $this->isFeatured = $isFeatured;
         $this->marketType = $marketType;
@@ -124,7 +120,6 @@ class AgentMarketListItemDTO extends AbstractDTO
             'playbooks' => $this->playbooks,
             'publisher_type' => $this->publisherType,
             'publisher' => $this->publisher,
-            'category_id' => $this->categoryId === null ? null : (string) $this->categoryId,
             'category_ids' => array_map(static fn (int $categoryId): string => (string) $categoryId, $this->categoryIds),
             'is_featured' => $this->isFeatured,
             'market_type' => $this->marketType,

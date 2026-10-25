@@ -3,6 +3,9 @@ import { RouteName } from "@/routes/constants"
 import { isSuperWorkspaceRouteName } from "../routeScopedStateMatcher"
 
 describe("isSuperWorkspaceRouteName", () => {
+	it("does not restore the previous project into the blank desktop chat composer", () => {
+		expect(isSuperWorkspaceRouteName(RouteName.SuperChatHome)).toBe(false)
+	})
 	it("returns true for super workspace routes", () => {
 		expect(isSuperWorkspaceRouteName(RouteName.SuperWorkspaceProjectTopicState)).toBe(true)
 	})

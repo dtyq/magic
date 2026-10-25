@@ -1,5 +1,5 @@
 import React, { useMemo } from "react"
-import type { Extension } from "@tiptap/core"
+import type { Extension } from "@/infrastructure/editors/tiptap/core"
 import type { SlashDropdownMenuProps } from "./types"
 import { SlashCommandExtension } from "./extension/SlashCommandExtension"
 

@@ -22,9 +22,9 @@ CanvasDesign keeps its public root at `src/components/CanvasDesign`, but the imp
 | `runtime/text/` | Text editing overlay, rich text model, text layout, and typography helpers. |
 | `runtime/shared/` | Cross-runtime helpers for geometry, placement, path, DOM, media, render, normalization, ids, and throttling. |
 | `ui/toolbar/` | Main canvas toolbar and plugin entry button. |
-| `ui/element-toolbar/` | Selected-element toolbar, split into text, image, video, frame, shape, layout, download, and size tools. |
+| `ui/element-tools/` | Unified selected-element tool catalog, surfaces, renderers, domain components, and media editor sessions. |
 | `ui/layers/` | Layers drawer, previews, button, empty state, and resize handle. |
-| `ui/editors/` | Message, image, and video generation editors. |
+| `ui/element-tools/editors/` | Image and video generation editor sessions. |
 | `ui/panels/` | Crop, extend, eraser, history, source list, menu, rename, tips, action hints, and plugin panels. |
 | `ui/fullscreen/` | Fullscreen shells and image/video/audio/media-resource overlays. |
 | `ui/previews/` | Reusable media preview UI. |
@@ -45,7 +45,7 @@ CanvasDesign keeps its public root at `src/components/CanvasDesign`, but the imp
 | Change document merge/patch/export behavior | `runtime/document/` |
 | Add or modify an element class | `runtime/elements/<domain>/` |
 | Add a toolbar tool | `ui/toolbar/` or `runtime/interaction/tools/` |
-| Change selected-element controls | `ui/element-toolbar/<domain>/` |
+| Change selected-element controls | `ui/element-tools/components/<domain>/` or `ui/element-tools/editors/<domain>/` |
 | Change selection, transform, hover, snap, viewport, or keyboard behavior | `runtime/interaction/<domain>/` |
 | Change image/video resource loading | `runtime/resources/image/`, `runtime/resources/video/`, `runtime/resources/visibility/` |
 | Change upload or polling | `runtime/resources/upload/`, `runtime/resources/polling/` |
@@ -53,8 +53,8 @@ CanvasDesign keeps its public root at `src/components/CanvasDesign`, but the imp
 | Change plugin runtime protocol or bridge | `ui/panels/plugin/runtime-protocol/`, `ui/panels/plugin/runtime-bridge/`, `runtime/plugins/` |
 | Change plugin window UI | `ui/panels/plugin/window/` |
 | Change message editor reference assets | `ui/editors/message/reference-assets/` |
-| Change image generation editor | `ui/editors/image/` |
-| Change video generation editor | `ui/editors/video/` |
+| Change image generation editor | `ui/element-tools/editors/image/` |
+| Change video generation editor | `ui/element-tools/editors/video/` |
 | Change fullscreen media UI | `ui/fullscreen/` |
 | Change local UI primitives | `ui/primitives/` |
 

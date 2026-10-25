@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { clipboard } from "@/utils/clipboard-helpers"
 import { Form, Input, Button, Radio } from "antd"
 import MagicIcon from "@/components/base/MagicIcon"
@@ -19,6 +20,7 @@ interface DatabaseConfig {
 }
 
 export default function DataSourceDatabase() {
+	const { t } = useTranslation("super")
 	const { styles, cx } = useStyles()
 	const [form] = Form.useForm<DatabaseConfig>()
 	const [loading, setLoading] = useState(false)
@@ -28,8 +30,8 @@ export default function DataSourceDatabase() {
 	// 复制
 	const copyIp = useCallback(() => {
 		clipboard.writeText("127.0.0.1")
-		magicToast.success("IP 已复制到剪贴板")
-	}, [])
+		magicToast.success(t("dataSource.ipCopied"))
+	}, [t])
 
 	// 处理数据库类型选择
 	const handleTypeChange = useCallback(
@@ -63,17 +65,17 @@ export default function DataSourceDatabase() {
 			// 模拟 API 调用
 			await new Promise((resolve) => setTimeout(resolve, 2000))
 
-			magicToast.success("连接测试成功！")
+			magicToast.success(t("dataSource.testSuccess"))
 		} catch (error: any) {
 			if (error.errorFields) {
-				magicToast.error("请填写完整的连接信息")
+				magicToast.error(t("dataSource.fillConnectionInfo"))
 			} else {
-				magicToast.error("连接测试失败，请检查配置信息")
+				magicToast.error(t("dataSource.testFailed"))
 			}
 		} finally {
 			setTestLoading(false)
 		}
-	}, [form])
+	}, [form, t])
 
 	// 保存配置
 	const handleSave = useCallback(async () => {
@@ -88,13 +90,13 @@ export default function DataSourceDatabase() {
 			// 模拟 API 调用
 			await new Promise((resolve) => setTimeout(resolve, 1000))
 
-			magicToast.success("数据源配置保存成功！")
+			magicToast.success(t("dataSource.saveSuccess"))
 		} catch (error) {
-			magicToast.error("请填写完整的配置信息")
+			magicToast.error(t("dataSource.fillConfig"))
 		} finally {
 			setLoading(false)
 		}
-	}, [form])
+	}, [form, t])
 
 	return (
 		<Form
@@ -108,17 +110,17 @@ export default function DataSourceDatabase() {
 		>
 			{/* 基础信息 */}
 			<div className={styles.section}>
-				<div className={styles.sectionTitle}>基础信息</div>
+				<div className={styles.sectionTitle}>{t("dataSource.basicInfo")}</div>
 				<Form.Item
 					name="name"
-					label="名称"
-					rules={[{ required: true, message: "请输入数据源名称" }]}
+					label={t("dataSource.name")}
+					rules={[{ required: true, message: t("dataSource.nameRequired") }]}
 				>
-					<Input placeholder="请输入数据源名称" />
+					<Input placeholder={t("dataSource.namePlaceholder")} />
 				</Form.Item>
-				<Form.Item name="description" label="描述">
+				<Form.Item name="description" label={t("dataSource.description")}>
 					<Input.TextArea
-						placeholder="请输入数据源描述"
+						placeholder={t("dataSource.descriptionPlaceholder")}
 						rows={4}
 						className={styles.textArea}
 					/>
@@ -127,11 +129,11 @@ export default function DataSourceDatabase() {
 
 			{/* 数据库信息 */}
 			<div className={styles.section}>
-				<div className={styles.sectionTitle}>数据库信息</div>
+				<div className={styles.sectionTitle}>{t("dataSource.dbInfo")}</div>
 				<Form.Item
 					name="type"
-					label="数据库类型"
-					rules={[{ required: true, message: "请选择数据库类型" }]}
+					label={t("dataSource.dbType")}
+					rules={[{ required: true, message: t("dataSource.dbTypeRequired") }]}
 				>
 					<Radio.Group
 						className={styles.databaseTypeRadioGroup}
@@ -173,51 +175,51 @@ export default function DataSourceDatabase() {
 				</Form.Item>
 				<Form.Item
 					name="host"
-					label="数据库地址"
-					rules={[{ required: true, message: "请输入数据库地址" }]}
+					label={t("dataSource.host")}
+					rules={[{ required: true, message: t("dataSource.hostRequired") }]}
 				>
-					<Input placeholder="请输入数据库 Url 或 IP 地址" />
+					<Input placeholder={t("dataSource.hostPlaceholder")} />
 				</Form.Item>
 
 				<Form.Item
 					name="port"
-					label="端口"
-					rules={[{ required: true, message: "请输入端口" }]}
+					label={t("dataSource.port")}
+					rules={[{ required: true, message: t("dataSource.portRequired") }]}
 				>
-					<Input placeholder="请输入端口" />
+					<Input placeholder={t("dataSource.portPlaceholder")} />
 				</Form.Item>
 				<Form.Item
 					name="database"
-					label="数据库名称"
-					rules={[{ required: true, message: "请输入数据库名称" }]}
+					label={t("dataSource.database")}
+					rules={[{ required: true, message: t("dataSource.databaseRequired") }]}
 				>
-					<Input placeholder="请输入数据库名称" />
+					<Input placeholder={t("dataSource.databasePlaceholder")} />
 				</Form.Item>
 			</div>
 
 			{/* 认证 */}
 			<div className={styles.section}>
-				<div className={styles.sectionTitle}>认证</div>
+				<div className={styles.sectionTitle}>{t("dataSource.auth")}</div>
 
 				<Form.Item
 					name="username"
-					label="数据库账号"
-					rules={[{ required: true, message: "请输入数据库账号" }]}
+					label={t("dataSource.username")}
+					rules={[{ required: true, message: t("dataSource.usernameRequired") }]}
 				>
-					<Input placeholder="请输入数据库账号" />
+					<Input placeholder={t("dataSource.usernamePlaceholder")} />
 				</Form.Item>
 
 				<Form.Item
 					name="password"
-					label="数据库密码"
-					rules={[{ required: true, message: "请输入数据库密码" }]}
+					label={t("dataSource.password")}
+					rules={[{ required: true, message: t("dataSource.passwordRequired") }]}
 				>
-					<Input.Password placeholder="请输入数据库密码" />
+					<Input.Password placeholder={t("dataSource.passwordPlaceholder")} />
 				</Form.Item>
 
 				<div className={styles.ipTip}>
 					<div className={styles.ipTipText}>
-						确保以下 IP 在您数据库的 IP 白名单中：
+						{t("dataSource.ipWhitelistTip")}
 						<span className={styles.ipAddress}>
 							<span>127.0.0.1</span>
 							<MagicIcon
@@ -240,7 +242,7 @@ export default function DataSourceDatabase() {
 					loading={testLoading}
 					onClick={handleTestConnection}
 				>
-					测试连接
+					{t("dataSource.testConnection")}
 				</Button>
 
 				<Button
@@ -249,7 +251,7 @@ export default function DataSourceDatabase() {
 					loading={loading}
 					onClick={handleSave}
 				>
-					保存
+					{t("dataSource.save")}
 				</Button>
 			</div>
 		</Form>

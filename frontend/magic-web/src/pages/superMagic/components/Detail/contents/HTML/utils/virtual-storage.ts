@@ -1,4 +1,6 @@
 import { cloneDeep } from "lodash-es"
+import { serializeScriptData } from "./serialize-script-data"
+import { VirtualStorageTransactions, transactionError } from "./virtual-storage-transactions"
 
 export const VIRTUAL_STORAGE_PROTOCOL = "magic-html-virtual-storage/v1"
 
@@ -38,6 +40,8 @@ export interface VirtualStorageSnapshot {
 	localStorage: VirtualStorageRecord
 	sessionStorage: VirtualStorageRecord
 	cookies: VirtualStorageRecord
+	/** Optional to preserve old snapshots that stored only cookie strings. */
+	cookieExpires?: Record<string, number>
 	indexedDB: Record<string, VirtualIndexedDBDatabaseSnapshot>
 }
 
@@ -68,7 +72,6 @@ interface CreateVirtualStorageContextOptions {
 
 interface BuildNamespaceOptions {
 	projectId?: string
-	topicId?: string
 	fileId?: string
 	markerId?: string
 }
@@ -95,6 +98,7 @@ interface StorageOpMessage extends StorageMessageBase {
 	payload?: {
 		key?: unknown
 		value?: unknown
+		expiresAt?: unknown
 	}
 }
 
@@ -102,6 +106,8 @@ interface StorageIdbMessage extends StorageMessageBase {
 	type: typeof VIRTUAL_STORAGE_MESSAGE_TYPES.IDB_REQUEST
 	requestId: string
 	action:
+		| "transactionCommit"
+		| "transactionAbort"
 		| "open"
 		| "deleteDatabase"
 		| "databases"
@@ -149,6 +155,14 @@ const DB_NAME = "MagicHtmlVirtualStorage"
 const DB_VERSION = 1
 const STORE_NAME = "namespaces"
 const DEFAULT_CONTEXT_TTL_MS = 30 * 60 * 1000
+const NAMESPACE_ROOT = "magic-html-storage"
+const NAMESPACE_PROJECT_PREFIX = `${NAMESPACE_ROOT}:project:`
+const NAMESPACE_FILE_SEPARATOR = ":file:"
+/**
+ * 旧命名空间曾包含话题段：`magic-html-storage:project:{p}:topic:{t}:file:{f}`。
+ * 虚拟存储现已改为只按 project + file 隔离，这里保留该分隔符用于读取并迁移旧数据。
+ */
+const LEGACY_NAMESPACE_TOPIC_SEPARATOR = ":topic:"
 const RUNTIME_POST_MESSAGE_TARGET_HELPER = `
 function __magicGetVirtualStoragePostMessageTarget() {
 	var strategy = window.__MAGIC_POST_MESSAGE_TARGET_STRATEGY__ || "same-origin-ancestor";
@@ -170,7 +184,10 @@ let dbPromise: Promise<IDBDatabase | null> | null = null
 let memoryStore = new Map<string, PersistedVirtualStorageState>()
 let debugEvents: VirtualStorageDebugEvent[] = []
 let namespaceOperationQueues = new Map<string, Promise<void>>()
+const indexedDBTransactions = new VirtualStorageTransactions()
 let indexedDBSchemaRepairRequests = new Set<string>()
+/** 已经尝试过旧话题命名空间回退的命名空间，避免每次读取都全表扫 key。 */
+let legacyMigrationChecked = new Set<string>()
 
 const DEBUG_EVENT_LIMIT = 200
 const TOKEN_TAIL_LENGTH = 8
@@ -261,9 +278,47 @@ function normalizeNamespacePart(value: string | undefined, fallback: string): st
 
 export function buildHtmlVirtualStorageNamespace(options: BuildNamespaceOptions): string {
 	const projectPart = normalizeNamespacePart(options.projectId, "no-project")
-	const topicPart = normalizeNamespacePart(options.topicId, "no-topic")
 	const filePart = normalizeNamespacePart(options.fileId || options.markerId, "default")
-	return `magic-html-storage:project:${projectPart}:topic:${topicPart}:file:${filePart}`
+	return `${NAMESPACE_PROJECT_PREFIX}${projectPart}${NAMESPACE_FILE_SEPARATOR}${filePart}`
+}
+
+/** 拆出新命名空间里的 project / file 片段，无法识别时返回 null。 */
+function parseNamespaceScope(namespace: string): { projectPart: string; filePart: string } | null {
+	if (!namespace.startsWith(NAMESPACE_PROJECT_PREFIX)) return null
+	const rest = namespace.slice(NAMESPACE_PROJECT_PREFIX.length)
+	// project / file 片段都可能含 ":"，因此按最后一个 ":file:" 切分。
+	const separatorIndex = rest.lastIndexOf(NAMESPACE_FILE_SEPARATOR)
+	if (separatorIndex <= 0) return null
+	return {
+		projectPart: rest.slice(0, separatorIndex),
+		filePart: rest.slice(separatorIndex + NAMESPACE_FILE_SEPARATOR.length),
+	}
+}
+
+/** 构造匹配同一 project + file 的旧话题命名空间的判定函数，不含自身。 */
+function getLegacyNamespaceMatcher(namespace: string): ((candidate: string) => boolean) | null {
+	const scope = parseNamespaceScope(namespace)
+	if (!scope) return null
+
+	const legacyPrefix = `${NAMESPACE_PROJECT_PREFIX}${scope.projectPart}${LEGACY_NAMESPACE_TOPIC_SEPARATOR}`
+	const legacySuffix = `${NAMESPACE_FILE_SEPARATOR}${scope.filePart}`
+
+	return (candidate: string) =>
+		candidate !== namespace &&
+		candidate.startsWith(legacyPrefix) &&
+		candidate.endsWith(legacySuffix) &&
+		candidate.length > legacyPrefix.length + legacySuffix.length
+}
+
+/** 多个话题都存有同一文件的数据时，以最近写入的一份作为迁移来源。 */
+function pickLatestPersistedState(
+	states: PersistedVirtualStorageState[],
+): PersistedVirtualStorageState | null {
+	return states.reduce<PersistedVirtualStorageState | null>(
+		(latest, state) =>
+			!latest || (state.updatedAt ?? 0) > (latest.updatedAt ?? 0) ? state : latest,
+		null,
+	)
 }
 
 function canUseIndexedDB(): boolean {
@@ -292,78 +347,216 @@ function openDatabase(): Promise<IDBDatabase | null> {
 	return dbPromise
 }
 
-async function readPersistedState(namespace: string): Promise<PersistedVirtualStorageState> {
+function emptyPersistedState(namespace: string): PersistedVirtualStorageState {
+	return { namespace, ...emptySnapshot(), updatedAt: Date.now() }
+}
+
+/** 只读取当前命名空间已持久化的数据，不做任何回退或迁移。 */
+async function readPersistedStateRaw(
+	namespace: string,
+): Promise<PersistedVirtualStorageState | null> {
 	const db = await openDatabase()
-	if (!db) {
-		return (
-			memoryStore.get(namespace) ?? { namespace, ...emptySnapshot(), updatedAt: Date.now() }
-		)
-	}
+	if (!db) return memoryStore.get(namespace) ?? null
 
 	return new Promise((resolve) => {
 		const tx = db.transaction(STORE_NAME, "readonly")
 		const store = tx.objectStore(STORE_NAME)
 		const request = store.get(namespace)
 
-		request.onsuccess = () => {
-			resolve(
-				(request.result as PersistedVirtualStorageState | undefined) ?? {
-					namespace,
-					...emptySnapshot(),
-					updatedAt: Date.now(),
-				},
-			)
-		}
-		request.onerror = () =>
-			resolve(
-				memoryStore.get(namespace) ?? {
-					namespace,
-					...emptySnapshot(),
-					updatedAt: Date.now(),
-				},
-			)
+		request.onsuccess = () =>
+			resolve((request.result as PersistedVirtualStorageState | undefined) ?? null)
+		request.onerror = () => resolve(memoryStore.get(namespace) ?? null)
 	})
 }
 
-async function writePersistedState(state: PersistedVirtualStorageState): Promise<void> {
-	const nextState = { ...cloneValue(state), updatedAt: Date.now() }
-	memoryStore.set(nextState.namespace, nextState)
-	const location = {
-		backend: "indexedDB",
-		dbName: DB_NAME,
-		storeName: STORE_NAME,
-		namespace: nextState.namespace,
-		localStorageKeys: Object.keys(nextState.localStorage),
-		sessionStorageKeys: Object.keys(nextState.sessionStorage),
-		cookieKeys: Object.keys(nextState.cookies),
-		indexedDBNames: Object.keys(nextState.indexedDB),
-	}
+/**
+ * 把旧话题命名空间的数据惰性迁移到当前命名空间。
+ * 只在当前命名空间尚无数据时补写一次，且不删除旧记录，因此可重复执行、可回滚。
+ */
+async function migrateLegacyTopicNamespaceState(namespace: string): Promise<void> {
+	const matchesLegacy = getLegacyNamespaceMatcher(namespace)
+	if (!matchesLegacy) return
 
 	const db = await openDatabase()
 	if (!db) {
-		console.log("[VirtualStorageHost] persisted", {
-			...location,
-			backend: "memory-fallback",
-		})
+		if (memoryStore.has(namespace)) return
+		const latest = pickLatestPersistedState(
+			Array.from(memoryStore.values()).filter((state) => matchesLegacy(state.namespace)),
+		)
+		if (latest) memoryStore.set(namespace, { ...cloneValue(latest), namespace })
 		return
 	}
 
 	await new Promise<void>((resolve) => {
+		let settled = false
+		const finish = () => {
+			if (settled) return
+			settled = true
+			resolve()
+		}
+
+		let tx: IDBTransaction
+		try {
+			// 用单个 readwrite 事务完成「判存 + 选源 + 补写」，避免多标签页并发时相互覆盖。
+			tx = db.transaction(STORE_NAME, "readwrite")
+		} catch {
+			finish()
+			return
+		}
+
+		const store = tx.objectStore(STORE_NAME)
+		tx.oncomplete = finish
+		tx.onerror = finish
+		tx.onabort = finish
+
+		const existingRequest = store.get(namespace)
+		existingRequest.onerror = finish
+		existingRequest.onsuccess = () => {
+			if (existingRequest.result !== undefined) {
+				finish()
+				return
+			}
+
+			const keysRequest = store.getAllKeys()
+			keysRequest.onerror = finish
+			keysRequest.onsuccess = () => {
+				const legacyKeys = (keysRequest.result ?? []).filter(
+					(key): key is string => typeof key === "string" && matchesLegacy(key),
+				)
+				if (legacyKeys.length === 0) {
+					finish()
+					return
+				}
+
+				const states: PersistedVirtualStorageState[] = []
+				let pending = legacyKeys.length
+				const collect = () => {
+					pending -= 1
+					if (pending > 0) return
+					const latest = pickLatestPersistedState(states)
+					// 保留原 updatedAt，避免迁移本身改变数据的时序语义。
+					if (latest) store.put({ ...cloneValue(latest), namespace })
+				}
+
+				for (const key of legacyKeys) {
+					const getRequest = store.get(key)
+					getRequest.onsuccess = () => {
+						const row = getRequest.result as PersistedVirtualStorageState | undefined
+						if (row) states.push(row)
+						collect()
+					}
+					getRequest.onerror = collect
+				}
+			}
+		}
+	})
+}
+
+async function readPersistedState(namespace: string): Promise<PersistedVirtualStorageState> {
+	const persisted = await readPersistedStateRaw(namespace)
+	if (persisted) return persisted
+
+	// 历史数据写在带话题段的旧命名空间下，读取时按 project + file 回退迁移一份。
+	if (!legacyMigrationChecked.has(namespace)) {
+		legacyMigrationChecked.add(namespace)
+		await migrateLegacyTopicNamespaceState(namespace)
+	}
+
+	const migrated = await readPersistedStateRaw(namespace)
+	return migrated ?? emptyPersistedState(namespace)
+}
+
+function logPersistedState(state: PersistedVirtualStorageState, backend: string): void {
+	console.log("[VirtualStorageHost] persisted", {
+		backend,
+		dbName: DB_NAME,
+		storeName: STORE_NAME,
+		namespace: state.namespace,
+		localStorageKeys: Object.keys(state.localStorage),
+		sessionStorageKeys: Object.keys(state.sessionStorage),
+		cookieKeys: Object.keys(state.cookies),
+		indexedDBNames: Object.keys(state.indexedDB),
+	})
+}
+
+/** Read the latest snapshot and apply only the requested mutation under one native lock. */
+async function updatePersistedState<T>(
+	namespace: string,
+	update: (state: PersistedVirtualStorageState, changed: () => Promise<void>) => Promise<T>,
+): Promise<T> {
+	// Perform any legacy namespace migration before opening the mutation transaction.
+	await readPersistedState(namespace)
+	const db = await openDatabase()
+	let dirty = false
+	const changed = async () => {
+		dirty = true
+	}
+	if (!db) {
+		const current = cloneValue(await readPersistedState(namespace))
+		const result = await update(current, changed)
+		if (dirty) {
+			current.updatedAt = Date.now()
+			memoryStore.set(namespace, current)
+			logPersistedState(current, "memory-fallback")
+		}
+		return result
+	}
+	return new Promise<T>((resolve, reject) => {
 		const tx = db.transaction(STORE_NAME, "readwrite")
 		const store = tx.objectStore(STORE_NAME)
-		store.put(nextState)
-		tx.oncomplete = () => resolve()
-		tx.onerror = () => resolve()
-		tx.onabort = () => resolve()
+		const request = store.get(namespace)
+		let committed: PersistedVirtualStorageState | undefined
+		let result: T
+		let failure: unknown
+		request.onsuccess = () => {
+			const current =
+				(request.result as PersistedVirtualStorageState | undefined) ??
+				emptyPersistedState(namespace)
+			// Updates are local operations only. Their promise continuations run in this
+			// request's microtask checkpoint, while the native transaction is active.
+			update(current, changed)
+				.then((value) => {
+					result = value
+					if (dirty) {
+						current.updatedAt = Date.now()
+						store.put(current)
+						committed = current
+					}
+				})
+				.catch((error: unknown) => {
+					failure = error
+					tx.abort()
+				})
+		}
+		tx.oncomplete = () => {
+			if (committed) {
+				memoryStore.set(namespace, cloneValue(committed))
+				logPersistedState(committed, "indexedDB")
+			}
+			resolve(result)
+		}
+		tx.onerror = () =>
+			reject(failure ?? tx.error ?? transactionError("AbortError", "Storage update failed"))
+		tx.onabort = () =>
+			reject(failure ?? tx.error ?? transactionError("AbortError", "Storage update aborted"))
 	})
-	console.log("[VirtualStorageHost] persisted", location)
 }
 
 export async function loadVirtualStorageSnapshot(
 	namespace: string,
 ): Promise<VirtualStorageSnapshot> {
+	// This external read must include writes already accepted from the retired
+	// document. Queue operations use readPersistedState directly, avoiding self-wait.
+	await namespaceOperationQueues.get(namespace)
 	const state = await readPersistedState(namespace)
+	for (const [key, expiresAt] of Object.entries(state.cookieExpires ?? {})) {
+		if (expiresAt <= Date.now()) {
+			delete state.cookies[key]
+			delete state.cookieExpires?.[key]
+		}
+	}
 	return {
+		...(state.cookieExpires ? { cookieExpires: cloneValue(state.cookieExpires) } : {}),
 		localStorage: cloneValue(state.localStorage),
 		sessionStorage: cloneValue(state.sessionStorage),
 		cookies: cloneValue(state.cookies),
@@ -406,7 +599,12 @@ class VirtualStorageRegistry {
 
 	register(context: RegisteredVirtualStorageContext): void {
 		this.cleanup()
-		this.contexts.set(this.getKey(context.renderId, context.token), context)
+		const key = this.getKey(context.renderId, context.token)
+		this.contexts.set(key, context)
+		console.log("[VirtualStorageRegistry] register", {
+			...this.toContextLog(context),
+			contextCount: this.contexts.size,
+		})
 	}
 
 	unregister(
@@ -414,8 +612,12 @@ class VirtualStorageRegistry {
 			Partial<Pick<RegisteredVirtualStorageContext, "namespace">>,
 	): void {
 		const key = this.getKey(context.renderId, context.token)
-		const existing = this.contexts.get(key)
 		const removed = this.contexts.delete(key)
+		console.log("[VirtualStorageRegistry] unregister", {
+			...this.toContextLog(context),
+			contextCount: this.contexts.size,
+			removed,
+		})
 	}
 
 	get(message: Pick<StorageMessageBase, "renderId" | "token" | "namespace">) {
@@ -572,34 +774,48 @@ function replaceAreaRecord(
 }
 
 async function applyStorageOperation(message: StorageOpMessage): Promise<void> {
-	const state = await readPersistedState(message.namespace)
-	const areaRecord = getAreaRecord(state, message.area)
-	const areaSnapshot = normalizeStorageSnapshot(message.snapshot)
-	const key = message.payload?.key == null ? "" : String(message.payload.key)
+	return updatePersistedState(message.namespace, async (state, persist) => {
+		const areaRecord = getAreaRecord(state, message.area)
+		const areaSnapshot = normalizeStorageSnapshot(message.snapshot)
+		const key = message.payload?.key == null ? "" : String(message.payload.key)
 
-	if (areaSnapshot) {
-		replaceAreaRecord(state, message.area, areaSnapshot)
-	} else {
-		switch (message.op) {
-			case "setItem":
-			case "setCookie":
-				if (!key) return
-				areaRecord[key] = String(message.payload?.value ?? "")
-				break
-			case "removeItem":
-			case "removeCookie":
-				if (!key) return
-				delete areaRecord[key]
-				break
-			case "clear":
-				for (const existingKey of Object.keys(areaRecord)) delete areaRecord[existingKey]
-				break
-			default:
-				return
+		if (areaSnapshot) {
+			replaceAreaRecord(state, message.area, areaSnapshot)
+		} else {
+			switch (message.op) {
+				case "setItem":
+				case "setCookie":
+					if (!key) return
+					areaRecord[key] = String(message.payload?.value ?? "")
+					break
+				case "removeItem":
+				case "removeCookie":
+					if (!key) return
+					delete areaRecord[key]
+					break
+				case "clear":
+					for (const existingKey of Object.keys(areaRecord))
+						delete areaRecord[existingKey]
+					break
+				default:
+					return
+			}
 		}
-	}
 
-	await writePersistedState(state)
+		if (message.area === "cookies") {
+			state.cookieExpires ??= {}
+			for (const name of Object.keys(state.cookieExpires)) {
+				if (!(name in state.cookies)) delete state.cookieExpires[name]
+			}
+			if (message.op === "setCookie" && key) {
+				const expiresAt = message.payload?.expiresAt
+				if (typeof expiresAt === "number" && Number.isFinite(expiresAt))
+					state.cookieExpires[key] = expiresAt
+				else delete state.cookieExpires[key]
+			}
+		}
+		await persist()
+	})
 }
 
 function getIndexedDBSchemaRepairKey(namespace: string, dbName: string): string {
@@ -867,10 +1083,56 @@ function resolveObjectStoreKey(
 
 async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unknown> {
 	const payload = message.payload ?? {}
+	const transactionId =
+		typeof payload.transactionId === "string" ? payload.transactionId : undefined
+	const key = transactionId
+		? JSON.stringify([message.namespace, message.renderId, message.token, transactionId])
+		: undefined
+	if (message.action === "transactionAbort") {
+		if (!key) throw transactionError("InvalidStateError", "Transaction ID is required")
+		indexedDBTransactions.abort(key)
+		return true
+	}
+	if (message.action === "transactionCommit") {
+		if (!key) throw transactionError("InvalidStateError", "Transaction ID is required")
+		await updatePersistedState(message.namespace, async (current, persist) => {
+			if (indexedDBTransactions.commit(key, current)) await persist()
+		})
+		return true
+	}
+	if (!key)
+		return updatePersistedState(message.namespace, (current, persist) =>
+			executeIndexedDBRequest(message, current, persist),
+		)
+	const current = await readPersistedState(message.namespace)
+	try {
+		const transaction = indexedDBTransactions.begin(
+			key,
+			String(payload.dbName ?? ""),
+			payload.transactionMode,
+			payload.transactionStores,
+			current,
+		)
+		indexedDBTransactions.assertOperation(transaction, message.action, payload.storeName)
+		const staged = Object.assign(transaction.state, {
+			namespace: message.namespace,
+			updatedAt: current.updatedAt,
+		})
+		return await executeIndexedDBRequest(message, staged, async () => undefined)
+	} catch (error) {
+		indexedDBTransactions.abort(key)
+		throw error
+	}
+}
+
+async function executeIndexedDBRequest(
+	message: StorageIdbMessage,
+	state: PersistedVirtualStorageState,
+	persist: () => Promise<void>,
+): Promise<unknown> {
+	const payload = message.payload ?? {}
 	const dbName = String(payload.dbName ?? "")
 	if (!dbName && message.action !== "databases") throw new Error("IndexedDB dbName is required")
-
-	const state = await readPersistedState(message.namespace)
 
 	switch (message.action) {
 		case "databases":
@@ -880,7 +1142,7 @@ async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unkno
 			}))
 		case "deleteDatabase":
 			delete state.indexedDB[dbName]
-			await writePersistedState(state)
+			await persist()
 			return true
 		case "open": {
 			const { db, upgraded, oldVersion, repairing } = ensureDatabase(
@@ -888,7 +1150,7 @@ async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unkno
 				dbName,
 				Number(payload.version || 1),
 			)
-			await writePersistedState(state)
+			await persist()
 			return {
 				name: db.name,
 				version: db.version,
@@ -903,7 +1165,7 @@ async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unkno
 			if (!storeName) throw new Error("IndexedDB storeName is required")
 			const options = isObject(payload.options) ? payload.options : {}
 			ensureObjectStore(db, storeName, options)
-			await writePersistedState(state)
+			await persist()
 			return {
 				name: storeName,
 				objectStores: Object.keys(db.objectStores),
@@ -930,7 +1192,7 @@ async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unkno
 				unique: Boolean(options.unique),
 				multiEntry: Boolean(options.multiEntry),
 			}
-			await writePersistedState(state)
+			await persist()
 			return {
 				name: indexName,
 				keyPath,
@@ -952,7 +1214,7 @@ async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unkno
 				throw new Error("Key already exists")
 			}
 			store.records[recordKey] = recordValue
-			await writePersistedState(state)
+			await persist()
 			return keyValue
 		}
 		case "get": {
@@ -970,7 +1232,7 @@ async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unkno
 				dbName,
 			})
 			delete store.records[normalizeIdbKey(payload.key) ?? ""]
-			await writePersistedState(state)
+			await persist()
 			return true
 		}
 		case "clear": {
@@ -980,7 +1242,7 @@ async function handleIndexedDBRequest(message: StorageIdbMessage): Promise<unkno
 				dbName,
 			})
 			store.records = {}
-			await writePersistedState(state)
+			await persist()
 			return true
 		}
 		case "indexGet": {
@@ -1074,6 +1336,10 @@ export function createVirtualStorageMessageHandler(
 		const message = event.data
 		const context = registry.get(message)
 		if (!context) {
+			console.log(
+				"[VirtualStorageRegistry] context-not-found",
+				registry.getContextNotFoundLog(message),
+			)
 			recordRejectedStorageMessage(event, "context-not-found", message)
 			return
 		}
@@ -1170,6 +1436,8 @@ export function createVirtualStorageMessageHandler(
 					requestId: message.requestId,
 					success: false,
 					error: error instanceof Error ? error.message : String(error),
+					errorName:
+						isObject(error) && typeof error.name === "string" ? error.name : "Error",
 				})
 			}
 		})
@@ -1190,7 +1458,8 @@ export function getSerializableVirtualStorageContext(
 }
 
 export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeContext): string {
-	const serializedContext = JSON.stringify(getSerializableVirtualStorageContext(context))
+	// Cached HTML can contain </script>; keep the snapshot inside its script element.
+	const serializedContext = serializeScriptData(getSerializableVirtualStorageContext(context))
 	const messageTypes = JSON.stringify(VIRTUAL_STORAGE_MESSAGE_TYPES)
 
 	return `
@@ -1202,7 +1471,8 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 		var state = {
 			localStorage: Object.assign({}, context.snapshot && context.snapshot.localStorage || {}),
 			sessionStorage: Object.assign({}, context.snapshot && context.snapshot.sessionStorage || {}),
-			cookies: Object.assign({}, context.snapshot && context.snapshot.cookies || {})
+			cookies: Object.assign({}, context.snapshot && context.snapshot.cookies || {}),
+			cookieExpires: Object.assign({}, context.snapshot && context.snapshot.cookieExpires || {})
 		};
 		var debugEntries = [];
 
@@ -1391,32 +1661,30 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 
 		function parseCookieString(cookieStr) {
 			var parts = String(cookieStr || "").split(";");
-			var pair = parts[0];
-			var eq = pair.indexOf("=");
+			var eq = parts[0].indexOf("=");
 			if (eq <= 0) return null;
-			var remove = false;
+			var expiresAt;
+			var maxAge;
 			for (var i = 1; i < parts.length; i++) {
 				var option = parts[i].trim();
 				var optionEq = option.indexOf("=");
 				var optionName = (optionEq >= 0 ? option.slice(0, optionEq) : option).trim().toLowerCase();
 				var optionValue = optionEq >= 0 ? option.slice(optionEq + 1).trim() : "";
-				if (optionName === "max-age" && Number(optionValue) <= 0) remove = true;
-				if (optionName === "expires") {
-					var expiresAt = Date.parse(optionValue);
-					if (!isNaN(expiresAt) && expiresAt <= Date.now()) remove = true;
-				}
+				if (optionName === "max-age" && /^-?[0-9]+$/.test(optionValue)) maxAge = Number(optionValue);
+				if (optionName === "expires" && !isNaN(Date.parse(optionValue))) expiresAt = Date.parse(optionValue);
 			}
-			return {
-				name: pair.slice(0, eq).trim(),
-				value: decodeURIComponent(pair.slice(eq + 1) || ""),
-				remove: remove
-			};
+			if (maxAge !== undefined) expiresAt = Date.now() + maxAge * 1000;
+			return { name: parts[0].slice(0, eq).trim(), value: decodeURIComponent(parts[0].slice(eq + 1) || ""), expiresAt: expiresAt, remove: expiresAt !== undefined && expiresAt <= Date.now() };
 		}
 
 		function formatCookies() {
-			return Object.keys(state.cookies).map(function(name) {
-				return name + "=" + encodeURIComponent(state.cookies[name]);
-			}).join("; ");
+			Object.keys(state.cookieExpires).forEach(function(name) {
+				if (state.cookieExpires[name] <= Date.now()) {
+					delete state.cookies[name];
+					delete state.cookieExpires[name];
+				}
+			});
+			return Object.keys(state.cookies).map(function(name) { return name + "=" + encodeURIComponent(state.cookies[name]); }).join("; ");
 		}
 
 		function setupCookieFacade() {
@@ -1431,11 +1699,14 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 						if (!parsed || !parsed.name) return cookieString;
 						if (parsed.remove) {
 							delete state.cookies[parsed.name];
+							delete state.cookieExpires[parsed.name];
 							postStorageOp("cookies", "removeCookie", { key: parsed.name });
 							return cookieString;
 						}
 						state.cookies[parsed.name] = parsed.value;
-						postStorageOp("cookies", "setCookie", { key: parsed.name, value: parsed.value });
+						if (parsed.expiresAt !== undefined) state.cookieExpires[parsed.name] = parsed.expiresAt;
+						else delete state.cookieExpires[parsed.name];
+						postStorageOp("cookies", "setCookie", { key: parsed.name, value: parsed.value, expiresAt: parsed.expiresAt });
 						return cookieString;
 					}
 				});
@@ -1531,8 +1802,81 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 			target.dispatchEvent(event);
 		}
 
+		var transactionSeq = 0;
+		function transactionPayload(tx) {
+			return { dbName: tx.dbName, transactionId: tx.__magicId, transactionMode: tx.mode, transactionStores: tx.__magicStores };
+		}
+		function abortTransaction(tx, error) {
+			if (tx.__magicState !== "active" && tx.__magicState !== "committing") return;
+			tx.__magicState = "aborted";
+			tx.error = error || null;
+			clearTimeout(tx.__magicCommitTimer);
+			requestIdb("transactionAbort", transactionPayload(tx)).catch(function() {});
+			setTimeout(function() { dispatchEventLike(tx, "onabort", "abort"); }, 0);
+		}
+		function scheduleTransactionCommit(tx) {
+			clearTimeout(tx.__magicCommitTimer);
+			tx.__magicCommitTimer = setTimeout(function() {
+				if (tx.__magicState !== "active" || tx.__magicPending !== 0) return;
+				tx.__magicState = "committing";
+				requestIdb("transactionCommit", transactionPayload(tx)).then(function() {
+					if (tx.__magicState !== "committing") return;
+					tx.__magicState = "complete";
+					dispatchEventLike(tx, "oncomplete", "complete");
+				}, function(error) { abortTransaction(tx, error); });
+			}, 0);
+		}
+		function assertTransactionActive(tx, writing) {
+			if (!tx || !tx.__magicId) return;
+			if (tx.__magicState !== "active") throw new DOMException("Transaction is inactive", "TransactionInactiveError");
+			if (writing && tx.mode === "readonly") throw new DOMException("Transaction is readonly", "ReadOnlyError");
+		}
+		function createNormalTransaction(dbName, dbVersion, storeNames, mode) {
+			var stores = Array.isArray(storeNames) ? storeNames.map(String) : [String(storeNames)];
+			if (!stores.length) throw new DOMException("A transaction requires an object store", "InvalidAccessError");
+			if (mode !== undefined && mode !== "readonly" && mode !== "readwrite") throw new TypeError("Invalid transaction mode");
+			var tx = new EventTarget();
+			tx.__magicId = "transaction_" + (++transactionSeq) + "_" + Date.now();
+			tx.__magicState = "active";
+			tx.__magicStores = stores;
+			tx.__magicPending = 0;
+			tx.dbName = dbName;
+			tx.mode = mode || "readonly";
+			tx.error = null;
+			tx.objectStoreNames = createDomStringList(stores);
+			tx.oncomplete = null;
+			tx.onerror = null;
+			tx.onabort = null;
+			tx.objectStore = function(name) {
+				assertTransactionActive(tx, false);
+				name = name || stores[0];
+				if (stores.indexOf(name) === -1) throw new DOMException("Object store is outside the transaction scope", "NotFoundError");
+				return createObjectStore(dbName, dbVersion, name, tx);
+			};
+			tx.abort = function() {
+				if (tx.__magicState !== "active") throw new DOMException("Transaction is already finished", "InvalidStateError");
+				abortTransaction(tx, null);
+			};
+			scheduleTransactionCommit(tx);
+			return tx;
+		}
+
 		function trackTransactionPromise(transaction, promise) {
 			if (!transaction) return promise;
+			if (transaction.__magicId) {
+				transaction.__magicPending += 1;
+				clearTimeout(transaction.__magicCommitTimer);
+				return promise.then(function(result) {
+					transaction.__magicPending -= 1;
+					if (transaction.__magicState === "aborted") throw new DOMException("Transaction aborted", "AbortError");
+					if (transaction.__magicPending === 0) scheduleTransactionCommit(transaction);
+					return result;
+				}, function(error) {
+					transaction.__magicPending -= 1;
+					abortTransaction(transaction, error);
+					throw error;
+				});
+			}
 			transaction.__magicPending = (transaction.__magicPending || 0) + 1;
 			return promise.then(
 				function(result) {
@@ -1579,7 +1923,7 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 			return Promise.all(transaction.__magicUpgradePromises);
 		}
 
-		function createRequestExecutor(executor) {
+		function createRequestExecutor(executor, transaction) {
 			var request = new EventTarget();
 			request.result = undefined;
 			request.error = null;
@@ -1597,7 +1941,10 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 				.then(executor)
 				.then(function(result) {
 					request.result = result;
-					fire("success");
+					try { fire("success"); } catch (error) {
+						if (transaction && transaction.__magicId) abortTransaction(transaction, new DOMException("Request success handler threw", "AbortError"));
+						else throw error;
+					}
 				})
 				.catch(function(error) {
 					request.error = error instanceof Error ? error : new Error(String(error));
@@ -1608,7 +1955,7 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 			return request;
 		}
 
-		function createCursorRequest(executor) {
+		function createCursorRequest(executor, transaction) {
 			var request = new EventTarget();
 			request.result = undefined;
 			request.error = null;
@@ -1617,6 +1964,21 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 			var entries = [];
 			var index = 0;
 
+			function queueContinuation(count) {
+				assertTransactionActive(transaction, false);
+				index += count;
+				if (transaction && transaction.__magicId) {
+					transaction.__magicPending += 1;
+					clearTimeout(transaction.__magicCommitTimer);
+				}
+				setTimeout(function() {
+					if (transaction && transaction.__magicId) {
+						transaction.__magicPending -= 1;
+						if (transaction.__magicState === "aborted") return;
+					}
+					emitSuccess();
+				}, 0);
+			}
 			function emitSuccess() {
 				var entry = entries[index];
 				request.result = entry ? {
@@ -1624,15 +1986,20 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 					primaryKey: entry.primaryKey,
 					value: entry.value,
 					continue: function() {
-						index += 1;
-						setTimeout(emitSuccess, 0);
+						queueContinuation(1);
 					},
 					advance: function(count) {
-						index += Math.max(1, Number(count || 1));
-						setTimeout(emitSuccess, 0);
+						queueContinuation(Math.max(1, Number(count || 1)));
 					}
 				} : null;
-				dispatchEventLike(request, "onsuccess", "success");
+				try { dispatchEventLike(request, "onsuccess", "success"); } catch (error) {
+					if (transaction && transaction.__magicId) {
+						abortTransaction(transaction, new DOMException("Cursor success handler threw", "AbortError"));
+						return;
+					}
+					throw error;
+				}
+				if (transaction && transaction.__magicId && transaction.__magicPending === 0) scheduleTransactionCommit(transaction);
 			}
 
 			Promise.resolve()
@@ -1675,7 +2042,7 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 						clearTimeout(timeout);
 						window.removeEventListener("message", onMessage);
 						if (data.success) resolve(data.result);
-						else reject(new Error(data.error || "Virtual IndexedDB request failed"));
+						else reject(data.errorName && data.errorName !== "Error" ? new DOMException(data.error || "Virtual IndexedDB request failed", data.errorName) : new Error(data.error || "Virtual IndexedDB request failed"));
 					}
 				}
 				window.addEventListener("message", onMessage);
@@ -1714,20 +2081,11 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 					return createObjectStore(dbName, dbVersion, name, upgradeTransaction);
 				},
 				transaction: function(storeNames, mode) {
-					var firstStoreName = Array.isArray(storeNames) ? storeNames[0] : storeNames;
-					var tx = new EventTarget();
-					tx.mode = mode || "readonly";
-					tx.objectStoreNames = createDomStringList(Array.isArray(storeNames) ? storeNames : [storeNames]);
-					tx.oncomplete = null;
-					tx.onerror = null;
-					tx.onabort = null;
-					tx.objectStore = function(name) {
-						return createObjectStore(dbName, dbVersion, name || firstStoreName, tx);
-					};
-					tx.abort = function() {
-						dispatchEventLike(tx, "onabort", "abort");
-					};
-					return tx;
+					var names = Array.isArray(storeNames) ? storeNames : [storeNames];
+					for (var i = 0; i < names.length; i++) {
+						if (objectStoreNames.indexOf(names[i]) === -1) throw new DOMException("Object store not found", "NotFoundError");
+					}
+					return createNormalTransaction(dbName, dbVersion, storeNames, mode);
 				},
 				close: function() {}
 			};
@@ -1735,12 +2093,17 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 
 		function createObjectStore(dbName, dbVersion, storeName, transaction) {
 			function executeInTransaction(action, payload) {
+				if (transaction && transaction.__magicId) {
+					if (transaction.__magicState === "aborted") return Promise.reject(new DOMException("Transaction aborted", "AbortError"));
+					payload = Object.assign({}, payload, transactionPayload(transaction));
+				}
 				return trackTransactionPromise(transaction, requestIdb(action, payload));
 			}
 			function createIndexFacade(indexName) {
 				return {
 					name: indexName,
 					get: function(query) {
+						assertTransactionActive(transaction, false);
 						return createRequestExecutor(function() {
 							return executeInTransaction("indexGet", {
 								dbName: dbName,
@@ -1749,9 +2112,10 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 								indexName: indexName,
 								query: serializeKeyRange(query)
 							});
-						});
+						}, transaction);
 					},
 					getAll: function(query, count) {
+					assertTransactionActive(transaction, false);
 						return createRequestExecutor(function() {
 							return executeInTransaction("indexGetAll", {
 								dbName: dbName,
@@ -1761,9 +2125,10 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 								query: serializeKeyRange(query),
 								count: count
 							});
-						});
+						}, transaction);
 					},
 					count: function(query) {
+					assertTransactionActive(transaction, false);
 						return createRequestExecutor(function() {
 							return executeInTransaction("count", {
 								dbName: dbName,
@@ -1772,9 +2137,10 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 								indexName: indexName,
 								query: serializeKeyRange(query)
 							});
-						});
+						}, transaction);
 					},
 					openCursor: function(query, direction) {
+					assertTransactionActive(transaction, false);
 						return createCursorRequest(function() {
 							return executeInTransaction("openCursor", {
 								dbName: dbName,
@@ -1784,13 +2150,14 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 								query: serializeKeyRange(query),
 								direction: direction
 							});
-						});
+						}, transaction);
 					}
 				};
 			}
 			return {
 				name: storeName,
 				createIndex: function(indexName, keyPath, options) {
+					if (!transaction || transaction.mode !== "versionchange") throw new DOMException("Indexes require an upgrade transaction", "InvalidStateError");
 					var schemaPromise = requestIdb("createIndex", {
 						dbName: dbName,
 						version: dbVersion,
@@ -1810,44 +2177,52 @@ export function getVirtualStorageBridgeScript(context: VirtualStorageRuntimeCont
 					return createIndexFacade(indexName);
 				},
 				put: function(value, key) {
+					assertTransactionActive(transaction, true);
 					return createRequestExecutor(function() {
 						return executeInTransaction("put", { dbName: dbName, version: dbVersion, storeName: storeName, value: value, key: key });
-					});
+					}, transaction);
 				},
 				add: function(value, key) {
+					assertTransactionActive(transaction, true);
 					return createRequestExecutor(function() {
 						return executeInTransaction("add", { dbName: dbName, version: dbVersion, storeName: storeName, value: value, key: key });
-					});
+					}, transaction);
 				},
 				get: function(key) {
+					assertTransactionActive(transaction, false);
 					return createRequestExecutor(function() {
 						return executeInTransaction("get", { dbName: dbName, version: dbVersion, storeName: storeName, key: key });
-					});
+					}, transaction);
 				},
 				delete: function(key) {
+					assertTransactionActive(transaction, true);
 					return createRequestExecutor(function() {
 						return executeInTransaction("delete", { dbName: dbName, version: dbVersion, storeName: storeName, key: key });
-					});
+					}, transaction);
 				},
 				clear: function() {
+					assertTransactionActive(transaction, true);
 					return createRequestExecutor(function() {
 						return executeInTransaction("clear", { dbName: dbName, version: dbVersion, storeName: storeName });
-					});
+					}, transaction);
 				},
 				getAll: function(query, count) {
+					assertTransactionActive(transaction, false);
 					return createRequestExecutor(function() {
 						return executeInTransaction("getAll", { dbName: dbName, version: dbVersion, storeName: storeName, query: serializeKeyRange(query), count: count });
-					});
+					}, transaction);
 				},
 				count: function(query) {
+					assertTransactionActive(transaction, false);
 					return createRequestExecutor(function() {
 						return executeInTransaction("count", { dbName: dbName, version: dbVersion, storeName: storeName, query: serializeKeyRange(query) });
-					});
+					}, transaction);
 				},
 				openCursor: function(query, direction) {
+					assertTransactionActive(transaction, false);
 					return createCursorRequest(function() {
 						return executeInTransaction("openCursor", { dbName: dbName, version: dbVersion, storeName: storeName, query: serializeKeyRange(query), direction: direction });
-					});
+					}, transaction);
 				}
 			};
 		}
@@ -1921,6 +2296,8 @@ export function resetVirtualStorageForTests(): void {
 	debugEvents = []
 	namespaceOperationQueues = new Map()
 	indexedDBSchemaRepairRequests = new Set()
+	indexedDBTransactions.reset()
+	legacyMigrationChecked = new Set()
 	const debugGlobal = getDebugGlobal()
 	if (debugGlobal) debugGlobal.__MAGIC_HTML_VIRTUAL_STORAGE_DEBUG_LOGS__ = []
 	virtualStorageRegistry.reset()

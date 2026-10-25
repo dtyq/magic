@@ -67,6 +67,14 @@ export class PersonStrategy extends BaseMCP {
 	}
 }
 
+/**
+ * Delegate MCP listing and status operations to the selected strategy.
+ * Supply a strategy in the constructor or call setContext before accessing the service.
+ * OfficialStrategy queries official connectors; OrganizationStrategy queries accessible
+ * connectors. PersonStrategy is currently a placeholder that returns an empty list.
+ * Strategy status methods are pass-through placeholders; selection persistence is handled
+ * separately by MCPStorageService and the scoped MCP stores.
+ */
 export class MCPManagerService {
 	private context: BaseMCP | null = null
 

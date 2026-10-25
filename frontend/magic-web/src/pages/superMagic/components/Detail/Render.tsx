@@ -1,13 +1,13 @@
+import {
+	useFileAccess as useFilePermissions,
+	FileAccessProvider,
+} from "@/pages/superMagic/providers/FileAccessProvider"
 import ContentRenderer from "./components/ContentRenderer"
 import { DetailType } from "./types"
 import { SuperMagicApi } from "@/apis"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
-import { useDeepCompareEffect } from "ahooks"
+import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { exportSingleFileToPpt } from "@/pages/superMagic/components/TopicFilesButton/utils/exportSingleFile"
-import { getExportAllFileIds } from "./contents/HTML/utils"
-import MagicProgressToast from "@/components/base/MagicProgressToast"
 import useEditMode from "./hooks/useEditMode"
 import useCheckBeforeCloseWithSave from "./hooks/useCheckBeforeCloseWithSave"
 import { useSyncCustomProjectFolderNameBeforeSave } from "./hooks/useSyncCustomProjectFolderNameBeforeSave"
@@ -17,27 +17,43 @@ import { DownloadImageMode } from "../../pages/Workspace/types"
 import { MagicSpin } from "@/components/base"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { prepareSingleSlideExport } from "@/pages/superMagic/services/pptService"
-import { exportPPTX } from "@magic/html2pptx"
+import {
+	iterateSingleExportSlide,
+	prepareSingleSlideExport,
+} from "@/pages/superMagic/services/pptService"
 import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
 import { createPptxResourceErrorCollector } from "@/pages/superMagic/utils/pptxResourceErrors"
-import { hasPPTMetadata, isFileInPPTMode } from "./utils/file"
+import {
+	publishPptxExportFailure,
+	publishPptxExportIssues,
+} from "@/pages/superMagic/utils/pptxExportIssues"
+import type { ExportIssue } from "@magic/html2pptx"
+import { isFileInPPTMode, isFileInSlideCanvasMode } from "./utils/file"
 import { prepareHtmlPagesForExport } from "@/utils/htmlExportPrepare"
-import { exportHtmlToImage, type ImageExportFormat } from "@magic-web/html2image"
+import type { ImageExportFormat } from "@magic-web/html2image"
 import {
 	createPptxSlideConfig,
 	resolvePptScaleContentDimensions,
 } from "./contents/HTML/utils/slide-dimensions"
-import { ossUploadService } from "@/stores/folderUpload/uploadService"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
-import { unshadow } from "@/utils/shadow"
 import {
 	documentExportService,
 	type DocumentExport,
 } from "@/pages/superMagic/services/documentExport"
+import {
+	formatPptxStreamingProgress,
+	iteratePreparedPptxPages,
+	assertPptxExportAvailable,
+	openPptxDestination,
+	PptxExportUnavailableError,
+	startPptxStreamingExportFromFactory,
+} from "@/pages/superMagic/services/pptxStreamingExport"
 import { useDownloadProgress } from "@/pages/superMagic/hooks/useDownloadProgress"
+import { getShareAccessToken } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	mergeStaticDependencyFileIds,
 	resolveSingleDocumentStaticDependencies,
@@ -47,12 +63,17 @@ import {
 	isFileShareAllowed,
 	isFileVersionHistoryAllowed,
 } from "./components/FilesViewer/hooks/previewPolicy"
+import { FileSaveFailureListener } from "./components/FileSaveFailureListener"
 import {
-	FileActionVisibilityProvider,
-	useFileActionVisibility,
-} from "@/pages/superMagic/providers/file-action-visibility-provider"
+	ensureFileSavesSynced,
+	enqueueOptimisticSave,
+	getFileSaveQueue,
+	type FileSavePersistRequest,
+} from "./services/fileSaveQueue"
+import { persistFileSave } from "./services/fileSaveQueue/persistFileSave"
 
-export default function Render(props: any) {
+function FileContentRender(props: any) {
+	const { permissions: access, options: inheritedOptions } = useFilePermissions()
 	const {
 		type,
 		data,
@@ -68,9 +89,10 @@ export default function Render(props: any) {
 		isFromNode,
 		onClose,
 		userSelectDetail,
+		terminalToolInfo,
 		isFullscreen,
 		attachmentList,
-		allowEdit,
+		allowEdit: requestedAllowEdit,
 		// New props for ActionButtons functionality
 		viewMode,
 		onViewModeChange,
@@ -103,29 +125,33 @@ export default function Render(props: any) {
 		onUnregisterCheckBeforeClose,
 		projectId,
 		browserAttachments,
-		allowDownload,
+		allowDownload: requestedAllowDownload,
+		audioPlayerMode,
 		mdToolbarContainer,
 	} = props
 	const { t } = useTranslation("super")
+	const isHtmlSlideCanvasMode = useMemo(
+		() =>
+			type === DetailType.Html &&
+			(data?.display_config?.type === "slide" ||
+				isFileInSlideCanvasMode(data?.file_id, attachmentList ?? [])),
+		[attachmentList, data?.display_config?.type, data?.file_id, type],
+	)
 	const downloadProgress = useDownloadProgress()
+	const fileAccess = useFileAccess()
+	const fileApi = useFileApi()
+	const shareToken = getShareAccessToken(fileAccess)
 	const effectiveDisplayConfig = displayConfig || data?.display_config
+	const allowDownload = fileAccess?.kind === "recycle-bin" ? false : requestedAllowDownload
+	const allowEdit =
+		effectiveDisplayConfig?.previewPolicy?.readonly === true ? false : requestedAllowEdit
 	const editingPresenceEnabled = isEditingPresenceEnabled(effectiveDisplayConfig)
 	const fileShareAllowed = isFileShareAllowed(effectiveDisplayConfig)
 	const fileVersionHistoryAllowed = isFileVersionHistoryAllowed(effectiveDisplayConfig)
-	const inheritedFileActionVisibility = useFileActionVisibility()
-	const fileActionVisibility = useMemo(
-		() => ({
-			...inheritedFileActionVisibility,
-			hideShareFile: inheritedFileActionVisibility.hideShareFile || !fileShareAllowed,
-			hideVersionHistory:
-				inheritedFileActionVisibility.hideVersionHistory || !fileVersionHistoryAllowed,
-		}),
-		[inheritedFileActionVisibility, fileShareAllowed, fileVersionHistoryAllowed],
-	)
 	const isPptRenderer =
 		type === DetailType.PowerPoint ||
-		(type === DetailType.Html &&
-			(hasPPTMetadata(data) || isFileInPPTMode(data?.file_id, attachmentList ?? [])))
+		type === DetailType.SlidesTemplate ||
+		isHtmlSlideCanvasMode
 	const supportsDocumentFlow =
 		documentFlowFullscreen &&
 		!isPptRenderer &&
@@ -136,6 +162,7 @@ export default function Render(props: any) {
 		fileId: data?.file_id,
 		fileName: data?.file_name || data?.display_filename || data?.filename,
 		editingPresenceEnabled,
+		silentClose: type === DetailType.Design,
 	})
 
 	// Use hook to manage save handler registration and wrapped checkBeforeClose
@@ -151,15 +178,13 @@ export default function Render(props: any) {
 		currentFileData: data,
 	})
 
-	const [exportProgress, setExportProgress] = useState(0)
-	const [isExporting, setIsExporting] = useState(false)
 	const shouldRefreshAfterSave = useRef(false)
 
 	// 订阅进入编辑状态事件
 	useEffect(() => {
 		const handleEnterEditMode = (fileId: string) => {
 			// 只有当事件中的 fileId 与当前文件的 fileId 匹配时才触发
-			if (fileId === data?.file_id) {
+			if (allowEdit && fileId === data?.file_id) {
 				setIsEditMode(true)
 			}
 		}
@@ -194,22 +219,23 @@ export default function Render(props: any) {
 		isPPTEditMode?: boolean,
 		// 是否在保存后退出编辑模式，默认为 false（保持编辑状态）
 		shouldExitEditMode: boolean = false,
-	) => {
+		options?: { silent?: boolean; awaitPersist?: boolean },
+	): Promise<boolean> => {
 		const targetFileId = fileId || data.file_id
 		if (!editingPresenceEnabled) {
-			await doSave(
+			return await doSave(
 				targetFileId,
 				newContent,
 				enable_shadow,
 				fetchFileVersions,
 				shouldExitEditMode,
+				options,
 			)
-			return
 		}
 		const { editing_user_count } = await SuperMagicApi.getFileEditCount(targetFileId)
 		const threshold = isPPTEditMode || isEditMode ? 1 : 0
 		if (editing_user_count > threshold) {
-			await new Promise((resolve, reject) => {
+			return await new Promise<boolean>((resolve) => {
 				const modal = MagicModal.confirm({
 					title: t("detail.editingConflictPrompt"),
 					variant: "default",
@@ -220,26 +246,76 @@ export default function Render(props: any) {
 					maskClosable: false,
 					centered: true,
 					onOk: async () => {
-						await doSave(
+						const didSave = await doSave(
 							targetFileId,
 							newContent,
 							enable_shadow,
 							undefined,
 							shouldExitEditMode,
+							options,
 						)
-						modal.destroy()
-						resolve(true)
+						if (didSave) modal.destroy()
+						resolve(didSave)
 					},
 					onCancel: () => {
 						modal.destroy()
-						reject("cancel")
+						resolve(false)
 					},
 				})
 			})
-			return
 		}
-		await doSave(targetFileId, newContent, enable_shadow, fetchFileVersions, shouldExitEditMode)
+		return await doSave(
+			targetFileId,
+			newContent,
+			enable_shadow,
+			fetchFileVersions,
+			shouldExitEditMode,
+			options,
+		)
 	}
+
+	const getPersistFileMeta = useMemoizedFn((fileId: string) => {
+		const item = [...(attachmentList || []), ...(attachments || [])].find(
+			(entry: { file_id?: string; file_key?: string; file_name?: string }) =>
+				entry?.file_id === fileId,
+		)
+		const projectIdValue =
+			data?.project_id !== undefined && data?.project_id !== null
+				? String(data.project_id)
+				: selectedProject?.id || projectId
+		return {
+			fileKey: item?.file_key || (fileId === data?.file_id ? data?.file_key : undefined),
+			fileName: item?.file_name || data?.file_name || "content.html",
+			projectId: projectIdValue || undefined,
+			fileScope:
+				data?.display_config?.previewPolicy?.fileScope ||
+				effectiveDisplayConfig?.previewPolicy?.fileScope,
+		}
+	})
+
+	const persistQueuedSave = useMemoizedFn(async (request: FileSavePersistRequest) => {
+		return persistFileSave(request, {
+			getFileMeta: getPersistFileMeta,
+			syncFolderName: syncCustomProjectFolderNameBeforeSave,
+		})
+	})
+
+	const resolveBaselineVersion = useMemoizedFn((fileId: string) => {
+		const item = [...(attachmentList || []), ...(attachments || [])].find(
+			(entry: { file_id?: string; file_version?: number | string }) =>
+				entry?.file_id === fileId,
+		)
+		const version =
+			item?.file_version ?? (fileId === data?.file_id ? data?.file_version : undefined)
+		return version == null ? undefined : String(version)
+	})
+
+	useEffect(() => {
+		if (!data?.file_id || !onRefreshFile) return
+		return getFileSaveQueue().registerRestoreHandler(String(data.file_id), () => {
+			onRefreshFile()
+		})
+	}, [data?.file_id, onRefreshFile])
 
 	async function doSave(
 		targetFileId: string,
@@ -252,89 +328,44 @@ export default function Render(props: any) {
 			isSelectNewest?: boolean,
 		) => void,
 		shouldExitEditMode: boolean = false,
-	) {
-		const key = `save-${targetFileId}`
-		magicToast.loading({
-			content: t("common.saving"),
-			key,
-		})
-		try {
-			try {
-				await syncCustomProjectFolderNameBeforeSave(targetFileId, newContent)
-			} catch (error) {
-				console.error("syncCustomProjectFolderNameBeforeSave failed:", error)
-			}
-
-			const fileKey = data?.file_key
-			const projectIdValue =
-				data?.project_id !== undefined && data?.project_id !== null
-					? String(data.project_id)
-					: selectedProject?.id || projectId
-			const fileScope =
-				data?.display_config?.previewPolicy?.fileScope ||
-				effectiveDisplayConfig?.previewPolicy?.fileScope
-			const contentStr =
-				typeof newContent === "string" ? newContent : JSON.stringify(newContent)
-			const uploadContent =
-				enable_shadow && contentStr.startsWith("SHADOWED_")
-					? unshadow(contentStr)
-					: contentStr
-
-			// Edited content can exceed the save API request-body limit, so this path reuses
-			// the OSS key returned in the current file metadata for direct upload. The key
-			// must come from that metadata only; do not replace it with user input or a
-			// client-constructed cross-project path. Changes are still committed via replaceFile.
-			if (fileKey && projectIdValue) {
-				const uploadedPath = await ossUploadService.uploadContentByFileKey(
-					uploadContent,
-					fileKey,
-					projectIdValue,
-					data?.file_name || "content.html",
-					fileScope,
-				)
-
-				await SuperMagicApi.replaceFile({
-					id: targetFileId,
-					file_key: uploadedPath,
-				})
-			} else {
-				const res = await SuperMagicApi.saveFileContent([
-					{
-						file_id: targetFileId,
-						content: newContent,
-						enable_shadow,
-					},
-				])
-				if (!res?.success_files?.length) {
-					magicToast.error({
-						content: t("common.saveFailed"),
-						key,
-					})
-					return
-				}
-			}
-
-			await fetchFileVersions?.(targetFileId, 10, undefined, true)
-			magicToast.success({
-				content: t("common.saveSuccess"),
-				key,
-			})
-			if (shouldExitEditMode) {
-				setIsEditMode(false)
-			}
-		} catch (err) {
-			magicToast.error({
-				content: t("common.saveFailed"),
-				key,
-			})
+		options?: { silent?: boolean; awaitPersist?: boolean },
+	): Promise<boolean> {
+		if (!allowEdit) return false
+		const silent = options?.silent === true
+		const didEnqueue = await enqueueOptimisticSave(
+			{
+				fileId: targetFileId,
+				content: newContent,
+				enableShadow: enable_shadow,
+				baselineVersion: resolveBaselineVersion(targetFileId),
+				silent,
+				persist: persistQueuedSave,
+				onSuccess: async () => {
+					await fetchFileVersions?.(targetFileId, 10, undefined, true)
+					if (!silent) {
+						magicToast.success({
+							content: t("common.saveSuccess"),
+							key: `save-${targetFileId}`,
+						})
+					}
+				},
+			},
+			{ awaitPersist: options?.awaitPersist },
+		)
+		if (shouldExitEditMode && didEnqueue) {
+			setIsEditMode(false)
 		}
+		return didEnqueue
 	}
 
 	const exportFile = async (fileId: string, fileVersion?: number) => {
+		if (!access.download || allowDownload === false) return
+		if (!(await ensureFileSavesSynced([fileId]))) return
 		try {
 			const dependencyResult = await resolveSingleDocumentStaticDependencies({
 				fileIds: [fileId],
 				attachments: attachmentList || attachments || [],
+				fileApi,
 			})
 			const effectiveFileIds = mergeStaticDependencyFileIds(
 				[fileId],
@@ -346,7 +377,7 @@ export default function Render(props: any) {
 				await downloadProgress.startDownload({
 					projectId: selectedProject?.id || projectId,
 					fileIds: effectiveFileIds,
-					token: (window as unknown as { temporary_token?: string }).temporary_token,
+					token: shareToken || undefined,
 					label: t("topicFiles.downloading"),
 					onSuccess: () => magicToast.success(t("topicFiles.downloadSuccess")),
 					onError: () => magicToast.error(t("topicFiles.downloadFailed")),
@@ -359,48 +390,22 @@ export default function Render(props: any) {
 			magicToast.warning(t("share.documentDependenciesAnalysisFailed"))
 		}
 
-		getTemporaryDownloadUrl({
-			file_ids: [fileId],
-			file_versions: fileVersion ? { [fileId]: fileVersion } : undefined,
-			download_mode: DownloadImageMode.Download,
-			is_download: true,
-		}).then((res: any) => {
-			downloadFileWithAnchor(res[0]?.url)
-		})
-		// const fileIds = getExportAllFileIds(fileId, attachments)
-		// batchExportFile({
-		// 	projectId: selectedProject?.id,
-		// 	fileIds,
-		// 	t,
-		// 	onStart: startExport,
-		// 	onEnd: endExport,
-		// 	onProgress,
-		// 	onError,
-		// })
-	}
-	const startExport = () => {
-		setIsExporting(true)
-		setExportProgress(0)
-	}
-	const onProgress = (progress: number) => {
-		setExportProgress(Math.round(progress))
-	}
-	const endExport = () => {
-		setExportProgress(100)
-		setTimeout(() => {
-			setIsExporting(false)
-			setExportProgress(0)
-			// magicToast.success(t("topicFiles.exportSuccess"))
-		}, 500)
-	}
-	const onError = () => {
-		setIsExporting(false)
-		setExportProgress(0)
-		magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+		fileApi
+			.getTemporaryDownloadUrl({
+				file_ids: [fileId],
+				file_versions: fileVersion ? { [fileId]: fileVersion } : undefined,
+				download_mode: DownloadImageMode.Download,
+				is_download: true,
+			})
+			.then((res: any) => {
+				downloadFileWithAnchor(res[0]?.url)
+			})
 	}
 
-	const exportPdf = async (fileId: string) => {
+	const exportPdf = async (fileId: string, previewElement?: HTMLElement) => {
+		if (!access.export || allowDownload === false) return
 		if (!fileId) return
+		if (!(await ensureFileSavesSynced([fileId]))) return
 
 		const documentExporter = documentExportService.get()
 		if (!documentExporter) {
@@ -411,6 +416,12 @@ export default function Render(props: any) {
 		const toastId = createRandomUuidV4()
 		const resourceErrors = documentExporter.createResourceErrorCollector(t)
 		let pdfHandle: DocumentExport.Handle | null = null
+		const inPptMode =
+			displayConfig?.type === "slide" || isFileInPPTMode(fileId, attachmentList ?? [])
+		const page = inPptMode
+			? undefined
+			: await documentExporter.requestPdfExportSettings({ previewElement })
+		if (page === null) return
 
 		const getPdfExportToastContent = (progressText: string) => (
 			<div className="flex items-center gap-2">
@@ -439,14 +450,13 @@ export default function Render(props: any) {
 				fileId,
 				fileName: fileItem?.file_name || data?.file_name,
 				attachmentList: attachments ?? [],
+				access: fileAccess ?? undefined,
+				fileApi,
 			})
 
 			if (!result.htmlSlides.some(Boolean)) {
 				throw new Error("Failed to fetch HTML file content")
 			}
-
-			const inPptMode =
-				displayConfig?.type === "slide" || isFileInPPTMode(fileId, attachmentList ?? [])
 
 			const preparedHtmlSlides = await prepareHtmlPagesForExport({
 				pages: result.htmlSlides,
@@ -455,12 +465,15 @@ export default function Render(props: any) {
 				fileName: fileItem?.file_name || data?.file_name,
 				attachmentList: attachments ?? [],
 				displayConfig,
+				access: fileAccess ?? undefined,
+				fileApi,
 			})
 
 			pdfHandle = documentExporter.exportPages(preparedHtmlSlides, {
 				fileName: (result.fileName || "export") + ".pdf",
 				skipFailedPages: true,
 				pptMode: inPptMode,
+				page,
 				vector: {
 					fitContentWidth: !inPptMode,
 				},
@@ -497,7 +510,9 @@ export default function Render(props: any) {
 	}
 
 	const exportRasterPdf = async (fileId: string, pageMode: "fit" | "paginate") => {
+		if (!access.export || allowDownload === false) return
 		if (!fileId) return
+		if (!(await ensureFileSavesSynced([fileId]))) return
 
 		const documentExporter = documentExportService.get()
 		if (!documentExporter) {
@@ -536,6 +551,8 @@ export default function Render(props: any) {
 				fileId,
 				fileName: fileItem?.file_name || data?.file_name,
 				attachmentList: attachments ?? [],
+				access: fileAccess ?? undefined,
+				fileApi,
 			})
 
 			if (!result.htmlSlides.some(Boolean)) {
@@ -552,6 +569,8 @@ export default function Render(props: any) {
 				fileName: fileItem?.file_name || data?.file_name,
 				attachmentList: attachments ?? [],
 				displayConfig,
+				access: fileAccess ?? undefined,
+				fileApi,
 			})
 
 			pdfHandle = documentExporter.exportRasterPages(preparedHtmlSlides, {
@@ -579,26 +598,22 @@ export default function Render(props: any) {
 			})
 		}
 	}
-	const exportPpt = async (fileId: string) => {
-		const fileIds = getExportAllFileIds(fileId, attachments)
-		fileIds?.length > 0 &&
-			exportSingleFileToPpt({
-				fileId: fileId,
-				projectId: selectedProject?.id || projectId,
-				t,
-				onStart: startExport,
-				onEnd: endExport,
-				onProgress,
-				onError,
-			})
-	}
 
 	const exportPptx = async (fileId: string) => {
+		if (!access.export || allowDownload === false) return
 		if (!fileId) return
+		if (!(await ensureFileSavesSynced([fileId]))) return
 
 		const toastId = createRandomUuidV4()
-		let exportHandle: ReturnType<typeof exportPPTX> | null = null
+		let cancelExport: (() => void) | null = null
+		let destinationLease: Awaited<ReturnType<typeof openPptxDestination>> = null
 		const resourceErrors = createPptxResourceErrorCollector(t)
+		const exportIssues: ExportIssue[] = []
+		// Keep these values outside try so early failures can still publish a
+		// diagnostic without triggering a second ReferenceError in catch.
+		const fileItem = attachmentList?.find((item: any) => item.file_id === fileId)
+		const sourceFileName = fileItem?.file_name || data?.file_name
+		const exportFileName = String(sourceFileName || "export").replace(/\.html?$/i, "")
 
 		function getExportToastContent(progressText: string) {
 			return (
@@ -609,7 +624,7 @@ export default function Render(props: any) {
 						variant="secondary"
 						size="sm"
 						className="h-6 bg-destructive-custom px-2 text-xs text-destructive hover:opacity-90"
-						onClick={() => exportHandle?.cancel()}
+						onClick={() => cancelExport?.()}
 					>
 						{t("topicFiles.exportCancel")}
 					</Button>
@@ -624,57 +639,80 @@ export default function Render(props: any) {
 				duration: 0,
 			})
 
-			const fileItem = attachmentList?.find((item: any) => item.file_id === fileId)
-			const result = await prepareSingleSlideExport({
-				fileId,
-				fileName: fileItem?.file_name || data?.file_name,
-				attachmentList: attachments ?? [],
-			})
+			assertPptxExportAvailable({ pageCount: 1 })
+			destinationLease = await openPptxDestination({ suggestedName: exportFileName })
+			if (!destinationLease) {
+				magicToast.destroy(toastId)
+				return
+			}
+			const autoSize = !isFileInPPTMode(fileId, attachmentList ?? [])
+			const pptFontResolver = documentExportService.get()?.getPptFontResolver?.()
 
-			if (!result.htmlSlides.some(Boolean)) {
-				magicToast.error({
+			{
+				const destination = destinationLease.destination
+				const streamingHandle = startPptxStreamingExportFromFactory(
+					(signal) =>
+						iteratePreparedPptxPages(
+							iterateSingleExportSlide({
+								fileId,
+								fileName: sourceFileName,
+								attachmentList: attachments ?? [],
+								access: fileAccess ?? undefined,
+								fileApi,
+								signal,
+							}),
+							{
+								attachments: attachments ?? [],
+								fileId,
+								fileName: sourceFileName,
+								attachmentList: attachments ?? [],
+								displayConfig,
+								signal,
+							},
+						),
+					(firstPage) => ({
+						fileName: exportFileName,
+						destination,
+						outputPolicy: "file-stream",
+						pageCount: 1,
+						autoSize,
+						config: createPptxSlideConfig(
+							resolvePptScaleContentDimensions(firstPage.html),
+						),
+						skipFailedPages: true,
+						fontResolver: pptFontResolver,
+						logger: pptxExternalLogger,
+						logLevel: "warn",
+						onResourceLoadError: resourceErrors.onResourceLoadError,
+						onExportIssue: (issue) => exportIssues.push(issue),
+						onProgress: (progress) => {
+							magicToast.loading({
+								key: toastId,
+								content: getExportToastContent(
+									formatPptxStreamingProgress(
+										t("topicFiles.exporting"),
+										progress,
+									),
+								),
+								duration: 0,
+							})
+						},
+					}),
+				)
+				cancelExport = streamingHandle.cancel
+				await streamingHandle.promise
+				publishPptxExportIssues(exportIssues, { fileId, fileName: exportFileName })
+				magicToast.success({
 					key: toastId,
-					content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+					content: t("topicFiles.exportSuccess"),
 					duration: 1000,
 				})
 				return
 			}
-
-			const preparedHtmlSlides = await prepareHtmlPagesForExport({
-				pages: result.htmlSlides,
-				attachments: attachments ?? [],
-				fileId,
-				fileName: fileItem?.file_name || data?.file_name,
-				attachmentList: attachments ?? [],
-				displayConfig,
-			})
-
-			const autoSize = !isFileInPPTMode(fileId, attachmentList ?? [])
-			const pptxConfig = createPptxSlideConfig(
-				resolvePptScaleContentDimensions(preparedHtmlSlides[0]),
-			)
-			const pptFontResolver = documentExportService.get()?.getPptFontResolver?.()
-
-			exportHandle = exportPPTX(preparedHtmlSlides, {
-				fileName: result.fileName,
-				skipFailedPages: true,
-				autoSize,
-				config: pptxConfig,
-				fontResolver: pptFontResolver,
-				logger: pptxExternalLogger,
-				logLevel: "warn",
-				onResourceLoadError: resourceErrors.onResourceLoadError,
-			})
-
-			await exportHandle.promise
-
-			magicToast.success({
-				key: toastId,
-				content: t("topicFiles.exportSuccess"),
-				duration: 1000,
-			})
 		} catch (error: unknown) {
+			await destinationLease?.abort(error).catch(() => undefined)
 			const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+			const isUnavailable = error instanceof PptxExportUnavailableError
 			if (isAbort) {
 				magicToast.info({
 					key: toastId,
@@ -682,10 +720,16 @@ export default function Render(props: any) {
 					duration: 1000,
 				})
 			} else {
+				publishPptxExportFailure(exportIssues, error, {
+					fileId,
+					fileName: exportFileName,
+				})
 				magicToast.error({
 					key: toastId,
-					content: t("topicFiles.contextMenu.fileExport.exportFailed"),
-					duration: 1000,
+					content: isUnavailable
+						? error.message
+						: t("topicFiles.contextMenu.fileExport.exportFailed"),
+					duration: isUnavailable ? 3000 : 1000,
 				})
 				reportPptxExportError(error, { fileId, source: "Render" })
 			}
@@ -693,7 +737,9 @@ export default function Render(props: any) {
 	}
 
 	const exportImage = async (fileId: string, format: ImageExportFormat = "png") => {
+		if (!access.export || allowDownload === false) return
 		if (!fileId) return
+		if (!(await ensureFileSavesSynced([fileId]))) return
 
 		const toastId = createRandomUuidV4()
 		try {
@@ -708,6 +754,8 @@ export default function Render(props: any) {
 				fileId,
 				fileName: fileItem?.file_name || data?.file_name,
 				attachmentList: attachments ?? [],
+				access: fileAccess ?? undefined,
+				fileApi,
 			})
 
 			if (!result.htmlSlides.some(Boolean)) {
@@ -721,8 +769,12 @@ export default function Render(props: any) {
 				fileName: fileItem?.file_name || data?.file_name,
 				attachmentList: attachments ?? [],
 				displayConfig,
+				access: fileAccess ?? undefined,
+				fileApi,
 			})
 
+			// 图片导出引擎只用于显式导出，普通文件预览不加载；失败沿用本操作的错误出口。
+			const { exportHtmlToImage } = await import("@magic-web/html2image")
 			await exportHtmlToImage({
 				pages: preparedHtmlSlides,
 				format,
@@ -754,20 +806,24 @@ export default function Render(props: any) {
 	// Common props object for passing to content components
 	const commonProps = {
 		type,
+		attachmentLoadState: props.attachmentLoadState,
 		attachments,
 		setUserSelectDetail,
 		currentIndex,
 		onPrevious,
 		onNext,
 		onFullscreen,
-		onDownload: onDownload ?? exportFile,
+		onDownload:
+			access.download && allowDownload !== false ? (onDownload ?? exportFile) : undefined,
 		totalFiles,
 		hasUserSelectDetail,
 		isFromNode,
 		onClose,
 		userSelectDetail,
+		terminalToolInfo,
 		isFullscreen,
 		attachmentList,
+		isHtmlSlideCanvasMode,
 		isEditMode,
 		setIsEditMode,
 		saveEditContent,
@@ -795,10 +851,8 @@ export default function Render(props: any) {
 		exportFile,
 		exportPdf,
 		exportRasterPdf,
-		exportPpt,
 		exportPptx,
 		exportImage,
-		isExporting,
 		selectedProject,
 		selectedTopic,
 		showFileHeader,
@@ -812,13 +866,15 @@ export default function Render(props: any) {
 		documentFlowFullscreen: supportsDocumentFlow,
 		mdToolbarContainer,
 		isTabActive: props.isTabActive,
-		allowDownload,
+		allowDownload: allowDownload !== false,
+		audioPlayerMode,
 		projectId,
 		browserAttachments,
 	}
 
 	return (
 		<>
+			<FileSaveFailureListener persist={persistQueuedSave} />
 			<div
 				className={cn(
 					supportsDocumentFlow
@@ -848,22 +904,51 @@ export default function Render(props: any) {
 						)
 					}
 				>
-					<FileActionVisibilityProvider value={fileActionVisibility}>
+					<FileAccessProvider
+						permissions={{
+							share: fileShareAllowed && fileAccess?.kind !== "recycle-bin",
+						}}
+						options={{
+							copyTo: inheritedOptions.copyTo && fileAccess?.kind !== "recycle-bin",
+							moveTo: inheritedOptions.moveTo && fileAccess?.kind !== "recycle-bin",
+							shareTopic:
+								inheritedOptions.shareTopic && fileAccess?.kind !== "recycle-bin",
+							createNewTopic:
+								inheritedOptions.createNewTopic &&
+								fileAccess?.kind !== "recycle-bin",
+							versionHistory:
+								inheritedOptions.versionHistory &&
+								fileVersionHistoryAllowed &&
+								fileAccess?.kind !== "recycle-bin",
+						}}
+					>
 						<ContentRenderer type={type} data={data} commonProps={commonProps} />
-					</FileActionVisibilityProvider>
+					</FileAccessProvider>
 				</Suspense>
 			</div>
-
-			{/* 使用封装的进度条组件 */}
-			<MagicProgressToast
-				visible={isExporting}
-				progress={exportProgress}
-				text={t("topicFiles.exportingTip")}
-				position="top"
-				width={280}
-				showPercentage={true}
-				progressHeight={4}
-			/>
 		</>
+	)
+}
+
+/** Avoid mounting file preview content when its containing scope disallows viewing. */
+export default function Render(props: any) {
+	const { permissions: access } = useFilePermissions()
+	// Tool-only panels keep working; file previews can contain inline data without a file id.
+	const isFile = ![
+		DetailType.Terminal,
+		DetailType.Browser,
+		DetailType.Search,
+		DetailType.KnowledgeSearch,
+		DetailType.Empty,
+		DetailType.Deleted,
+		DetailType.FileTree,
+	].includes(props.type)
+	if (isFile && (!access.view || !access.preview)) return null
+	return (
+		<FileAccessProvider
+			permissions={{ download: props.allowDownload, export: props.allowDownload }}
+		>
+			<FileContentRender {...props} />
+		</FileAccessProvider>
 	)
 }

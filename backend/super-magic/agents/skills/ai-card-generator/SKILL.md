@@ -37,7 +37,7 @@ The skill documentation, built-in templates, and prompt snippets are written in 
 
 When a card needs interactivity, web-page previews, file I/O, agent/model selectors, or AI deep-analysis actions, read and apply these skills first:
 
-- `micro-app-architect`: decompose the user's request, decide interaction/data/Agent boundaries, and choose Simple/Medium/Complex architecture.
+- `html-app-architect`: decompose the user's request, decide interaction/data/Agent boundaries, and choose Simple/Medium/Complex architecture for ordinary HTML projects.
 - `html-api-sdk`: verify exact `window.Magic.*` API signatures, message formats, error handling, and fallback behavior.
 
 Do not treat an AI Card as a static screenshot. It is an updateable HTML micro-page: the template owns the interaction and visual structure, while the scheduled Agent workflow owns data fetching, source tracking, and content replacement.
@@ -400,10 +400,10 @@ Example pattern in card UI:
 
 1. Source preview controls: open trusted source URLs in a sandboxed iframe and always keep a new-tab `<a>` fallback.
 2. "Generate analysis request" button: extract key text and source links from card sections.
-3. "Send to Agent" button: call `window.Magic.project.createTopicAndSend(...)` with `{ model: "auto" }`; fall back to `setInputMessage(...)` when project APIs are unavailable.
+3. "Send to Agent" button: display the available model list, select the first model by default, and call `window.Magic.project.createTopicAndSend(...)` with `{ model: selectedModelId }`; fall back to `setInputMessage(...)` when project APIs are unavailable.
 4. Show status text if Magic API is unavailable in current runtime.
 
-When sending file paths, follow `html-api-sdk` and `micro-app-architect`: use tiptap JSON with `@file` mentions, call `getAppBasePath()` for app-relative data files, and keep `.magic/` skill paths workspace-root relative.
+When sending file paths, follow `html-api-sdk` and `html-app-architect`: use tiptap JSON with `@file` mentions, call `getAppBasePath()` for app-relative data files, and keep `.magic/` skill paths workspace-root relative.
 
 ## Preset Templates
 

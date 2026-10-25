@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from enum import StrEnum
 from pathlib import Path
 from typing import List, Optional
 
@@ -21,6 +23,7 @@ from agentlang.logger import get_logger
 from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
 from app.path_manager import PathManager
 from app.service.cron.models import CronJob, CronRunResult
+from app.service.cron.utils import CRON_LOG_INTERVAL_S, format_job_label
 from app.utils.async_file_utils import (
     async_exists,
     async_mkdir,
@@ -35,6 +38,30 @@ _lock: asyncio.Lock = asyncio.Lock()
 
 # 通知 summary 最大字符数（全文在 result 文件里，这里只存摘要）
 _SUMMARY_MAX_CHARS = 200
+
+
+class _NotificationWaitReason(StrEnum):
+    NOT_READY = "主 Agent 尚未准备好"
+    BUSY = "主 Agent 正在执行其它任务"
+
+
+_last_wait_reason: _NotificationWaitReason | None = None
+_last_wait_log_at: float = 0.0
+
+
+def _log_notification_wait(reason: _NotificationWaitReason | None) -> None:
+    """只记录等待原因变化和低频提醒，不改变通知的消费与重试时机。"""
+    global _last_wait_reason, _last_wait_log_at
+    if reason is None:
+        _last_wait_reason = None
+        _last_wait_log_at = 0.0
+        return
+    now = time.monotonic()
+    if reason != _last_wait_reason or now - _last_wait_log_at >= CRON_LOG_INTERVAL_S:
+        # 同一事件循环内判断和记录之间不 await，避免两个通知触发点重复打印。
+        _last_wait_reason = reason
+        _last_wait_log_at = now
+        logger.info(f"定时任务通知：已有结果等待处理，{reason.value}，稍后重试。")
 
 
 @dataclass
@@ -100,7 +127,7 @@ async def append_notification(job: CronJob, result: CronRunResult, result_file: 
         if existing and not existing.endswith("\n"):
             existing += "\n"
         await async_write_text(path, existing + line + "\n")
-        logger.info(f"cron notification appended: job={job.id} status={result.status}")
+        logger.debug(f"定时任务{format_job_label(job)}：执行结果已加入待处理通知。")
 
 
 async def consume_notifications() -> List[CronNotificationRecord]:
@@ -118,7 +145,7 @@ async def consume_notifications() -> List[CronNotificationRecord]:
         await async_write_text(path, "")
 
     records: List[CronNotificationRecord] = []
-    for line in content.splitlines():
+    for line_number, line in enumerate(content.splitlines(), start=1):
         line = line.strip()
         if not line:
             continue
@@ -128,9 +155,9 @@ async def consume_notifications() -> List[CronNotificationRecord]:
             if record is not None:
                 records.append(record)
             else:
-                logger.warning(f"cron notification: missing required fields, skipping: {line[:80]!r}")
+                logger.warning(f"定时任务通知：第 {line_number} 行缺少必需字段，已跳过，请检查通知记录。")
         except json.JSONDecodeError:
-            logger.warning(f"cron notification: malformed JSON line, skipping: {line[:80]!r}")
+            logger.warning(f"定时任务通知：第 {line_number} 行不是有效 JSON，已跳过，请检查通知记录。")
 
     return records
 
@@ -152,6 +179,7 @@ async def try_notify_main_agent() -> None:
     2. CronService._tick() 每次调度后（定期兜底检测）
     """
     if not await has_pending_notifications():
+        _log_notification_wait(None)
         return
 
     from app.service.agent_dispatcher import AgentDispatcher
@@ -159,11 +187,11 @@ async def try_notify_main_agent() -> None:
     dispatcher = AgentDispatcher.get_instance()
     agent_context = dispatcher.agent_context
     if agent_context is None:
-        logger.debug("cron notify: AgentDispatcher not initialized, skip")
+        _log_notification_wait(_NotificationWaitReason.NOT_READY)
         return
 
     if AgentRuntime.get_instance().is_context_running(agent_context.context_id):
-        logger.debug("cron notify: main agent is running, skip")
+        _log_notification_wait(_NotificationWaitReason.BUSY)
         return
 
     records = await consume_notifications()
@@ -208,7 +236,7 @@ async def try_notify_main_agent() -> None:
     # 必须在 submit_message 返回后再调用 register_run_cleanup（即 create_proactive_streams），
     # 否则 stop_run 会把刚注册的 cleanup 触发一遍，把 WechatStream 提前移除。
     await dispatcher.submit_message(chat_msg)
-    logger.info(f"cron notify: submitted {len(records)} notification(s) to main agent")
+    _log_notification_wait(None)
 
     # 为所有已连接且有缓存上下文的 IM 渠道注册主动推送 stream/sink，
     # 使 agent 的回复能同步推送到 IM，而不仅仅写入聊天历史文件。
@@ -224,9 +252,15 @@ async def try_notify_main_agent() -> None:
             if ok:
                 registered_channels.append(channel.key)
         except Exception as e:
-            logger.warning(f"cron notify: channel {channel.key} error, skipping: {e}")
+            logger.warning(f"定时任务通知：无法准备 {channel.key} 渠道输出，已跳过该渠道。原因：{type(e).__name__}: {e}")
 
     if registered_channels:
-        logger.info(f"cron notify: proactive streams registered for channels: {registered_channels}")
+        logger.info(
+            f"定时任务通知：已将 {len(records)} 项结果交给主 Agent 处理，"
+            f"输出渠道为 {'、'.join(registered_channels)}；尚未确认送达。"
+        )
     else:
-        logger.info("cron notify: no connected channels with cached context, reply goes to history only")
+        logger.info(
+            f"定时任务通知：已将 {len(records)} 项结果交给主 Agent 处理，"
+            "未连接可用推送渠道，回复仅进入会话记录。"
+        )

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpaceX — Starship Flight 5 | Making Life Multiplanetary</title>
+  <style>
+    :root {
+      --canvas-night: #000000;
+      --canvas-night-soft: #0a0a0a;
+      --canvas-light: #ffffff;
+      --on-primary: #ffffff;
+      --on-primary-mute: #f0f0fa;
+      --hairline-on-dark: #3a3a3f;
+      --hairline-subtle: #222226;
+      --ink-mute: #8a8a92;
+      --font-din: "D-DIN-Bold", "DIN Alternate", "Arial Narrow", Arial, sans-serif;
+      --font-din-regular: "D-DIN", "Arial Narrow", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--canvas-night);
+      color: var(--on-primary);
+      font-family: var(--font-din-regular);
+      font-weight: 400;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* SpaceX Top Navigation */
+    .spacex-nav {
+      position: sticky; top: 0; z-index: 100; height: 64px; background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(16px); border-bottom: 1px solid var(--hairline-subtle);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 48px;
+    }
+    .spacex-logo-svg { width: 140px; height: 18px; }
+    .nav-items { display: flex; gap: 28px; list-style: none; }
+    .nav-item-link {
+      font-family: var(--font-din); font-size: 12.5px; font-weight: 700;
+      letter-spacing: 1.2px; text-transform: uppercase; color: var(--on-primary);
+    }
+    .nav-meta-link {
+      font-family: var(--font-din); font-size: 12px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase; color: var(--on-primary);
+    }
+
+    /* Hero Deep Space - First 500px Viewport */
+    .spacex-hero {
+      position: relative; min-height: 540px; padding: 40px 48px 48px;
+      display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end;
+      border-bottom: 1px solid var(--hairline-on-dark);
+      background: radial-gradient(circle at 70% 30%, #0d1218 0%, #000000 70%); overflow: hidden;
+    }
+    .earth-horizon-arc { position: absolute; right: -120px; top: -60px; width: 720px; height: 720px; pointer-events: none; opacity: 0.45; }
+    .hero-content-wrap { position: relative; z-index: 2; max-width: 800px; }
+    .hero-eyebrow {
+      font-family: var(--font-din); font-size: 12px; font-weight: 700;
+      letter-spacing: 2.2px; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 10px;
+    }
+    .hero-title {
+      font-family: var(--font-din); font-size: clamp(36px, 5.5vw, 70px);
+      font-weight: 700; line-height: 0.96; letter-spacing: 1.6px;
+      text-transform: uppercase; color: var(--on-primary); margin-bottom: 12px;
+    }
+    .hero-sub { font-size: 15px; color: var(--on-primary-mute); line-height: 1.6; margin-bottom: 24px; max-width: 600px; }
+
+    /* Ghost Outlined Pill Button (32px Radius) */
+    .btn-spacex-pill {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 50px; padding: 0 34px; border-radius: 32px;
+      background: transparent; border: 1px solid var(--on-primary);
+      color: var(--on-primary); font-family: var(--font-din);
+      font-size: 13px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; cursor: pointer; transition: all 0.25s ease;
+    }
+    .btn-spacex-pill:hover { background: #ffffff; color: #000000; }
+
+    /* Telemetry HUD Widget */
+    .telemetry-hud-card {
+      position: absolute; right: 48px; bottom: 48px;
+      background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(12px);
+      border: 1px solid var(--hairline-on-dark); border-radius: 8px;
+      padding: 18px 22px; width: 330px; z-index: 3;
+    }
+    .hud-header {
+      display: flex; justify-content: space-between; font-family: var(--font-din);
+      font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--ink-mute); margin-bottom: 12px; border-bottom: 1px solid var(--hairline-subtle); padding-bottom: 6px;
+    }
+    .hud-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hud-item-val { font-family: var(--font-din); font-size: 17px; font-weight: 700; color: #ffffff; }
+    .hud-item-lbl { font-size: 10px; letter-spacing: 1px; color: var(--ink-mute); text-transform: uppercase; }
+
+    /* 33 Raptor 3 Engine Matrix Section */
+    .raptor-section {
+      max-width: 1320px; margin: 0 auto; padding: 72px 48px;
+      border-bottom: 1px solid var(--hairline-on-dark);
+    }
+    .section-eyebrow {
+      font-family: var(--font-din); font-size: 12px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 8px;
+    }
+    .section-title {
+      font-family: var(--font-din); font-size: 38px; font-weight: 700;
+      letter-spacing: 1.2px; text-transform: uppercase; color: var(--on-primary); line-height: 1.1;
+      margin-bottom: 14px;
+    }
+    .section-lead { max-width: 680px; color: var(--on-primary-mute); font-size: 15px; margin-bottom: 40px; }
+
+    .raptor-display-grid {
+      display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center;
+    }
+    .raptor-matrix-card {
+      background: var(--canvas-night-soft); border: 1px solid var(--hairline-on-dark);
+      border-radius: 8px; padding: 28px; text-align: center;
+    }
+    .raptor-svg { width: 100%; max-width: 440px; height: 280px; margin: 0 auto; }
+
+    .propulsion-stats-list { display: flex; flex-direction: column; gap: 18px; }
+    .prop-stat-item {
+      padding: 16px; background: var(--canvas-night-soft);
+      border: 1px solid var(--hairline-subtle); border-radius: 4px;
+    }
+    .prop-stat-val {
+      font-family: var(--font-din); font-size: 24px; font-weight: 700;
+      letter-spacing: 1px; color: #ffffff; margin-bottom: 4px;
+    }
+    .prop-stat-lbl {
+      font-family: var(--font-din); font-size: 11px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 4px;
+    }
+    .prop-stat-desc { font-size: 13.5px; color: #a4a4ac; line-height: 1.5; }
+
+    /* Flight 5 Timeline & Trajectory Section */
+    .flight-timeline-section {
+      max-width: 1320px; margin: 0 auto; padding: 64px 48px;
+      border-bottom: 1px solid var(--hairline-on-dark);
+    }
+    .timeline-steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 28px; }
+    .timeline-card { background: var(--canvas-night-soft); border: 1px solid var(--hairline-on-dark); border-radius: 6px; padding: 20px 16px; }
+    .timeline-time { font-family: var(--font-din); font-size: 13.5px; font-weight: 700; letter-spacing: 1.5px; color: #ffffff; margin-bottom: 4px; }
+    .timeline-event { font-family: var(--font-din); font-size: 14.5px; font-weight: 700; text-transform: uppercase; color: #ffffff; margin-bottom: 6px; }
+    .timeline-detail { font-size: 12.5px; color: var(--ink-mute); line-height: 1.5; }
+
+    /* Reusable Heat Shield Tiles & Orbital Chart Grid */
+    .hardware-grid {
+      max-width: 1320px; margin: 0 auto; padding: 60px 48px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 28px; border-bottom: 1px solid var(--hairline-on-dark);
+    }
+    .hardware-card { background: var(--canvas-night-soft); border: 1px solid var(--hairline-on-dark); border-radius: 8px; padding: 28px; }
+    .heatshield-svg { width: 100%; height: 150px; margin: 14px 0; }
+
+    /* SpaceX Footer */
+    .spacex-footer {
+      max-width: 1320px; margin: 0 auto; padding: 44px 48px 32px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+    }
+    .footer-links-row { display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+    .footer-link-item { font-family: var(--font-din); font-size: 11.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-mute); }
+    .footer-link-item:hover { color: #ffffff; }
+    .footer-legal-copy {
+      font-size: 12px; color: #5a5a5f; max-width: 640px; line-height: 1.5;
+    }
+
+    @media (max-width: 960px) {
+      .spacex-nav { padding: 0 20px; }
+      .nav-items { display: none; }
+      .telemetry-hud-card { position: static; width: 100%; margin-top: 24px; }
+      .raptor-display-grid, .hardware-grid { grid-template-columns: 1fr; }
+      .timeline-steps-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="spacex-nav">
+    <!-- SpaceX Wordmark SVG -->
+    <svg class="spacex-logo-svg" viewBox="0 0 140 18" fill="none">
+      <text x="0" y="15" font-family="'D-DIN-Bold', 'Arial Narrow', Arial, sans-serif" font-size="16" font-weight="700" fill="#ffffff" letter-spacing="3">SPACEX</text>
+      <path d="M110 4 Q125 7 138 15" stroke="#ffffff" stroke-width="1.8" fill="none"/>
+    </svg>
+
+    <ul class="nav-items">
+      <li><a href="#" class="nav-item-link">Falcon 9</a></li>
+      <li><a href="#" class="nav-item-link">Falcon Heavy</a></li>
+      <li><a href="#" class="nav-item-link">Dragon</a></li>
+      <li><a href="#" class="nav-item-link">Starship</a></li>
+      <li><a href="#" class="nav-item-link">Human Spaceflight</a></li>
+      <li><a href="#" class="nav-item-link">Starshield</a></li>
+    </ul>
+
+    <div class="nav-meta-link">
+      <a href="#">Shop</a>
+    </div>
+  </header>
+
+  <!-- Hero Section (First 500px Viewport) -->
+  <section class="spacex-hero">
+    <!-- Orbital Earth Horizon Vector -->
+    <svg class="earth-horizon-arc" viewBox="0 0 720 720" fill="none">
+      <circle cx="600" cy="120" r="480" stroke="#1f2c3a" stroke-width="1.5" fill="none"/>
+      <circle cx="600" cy="120" r="475" stroke="#3e6ae1" stroke-width="2.5" stroke-opacity="0.3" fill="none"/>
+      <!-- Small orbital satellite indicator -->
+      <circle cx="210" cy="380" r="3" fill="#ffffff"/>
+      <line x1="200" y1="380" x2="220" y2="380" stroke="#ffffff" stroke-width="0.8"/>
+    </svg>
+
+    <div class="hero-content-wrap">
+      <div class="hero-eyebrow">Flight Test 5 // Starbase, Texas</div>
+      <h1 class="hero-title">Starship Flight 5</h1>
+      <p class="hero-sub">
+        Super Heavy booster caught mid-air by the launch tower chopsticks at Starbase, followed by Starship orbital coast and precision Indian Ocean splashdown.
+      </p>
+      <button class="btn-spacex-pill">Watch Launch Webcast</button>
+    </div>
+
+    <!-- Telemetry HUD Card -->
+    <div class="telemetry-hud-card">
+      <div class="hud-header">
+        <span>Starship Telemetry</span>
+        <span style="color: #ffffff;">T+ 00:02:42</span>
+      </div>
+      <div class="hud-grid">
+        <div>
+          <div class="hud-item-val">68.4 KM</div>
+          <div class="hud-item-lbl">Altitude</div>
+        </div>
+        <div>
+          <div class="hud-item-val">5,420 KM/H</div>
+          <div class="hud-item-lbl">Velocity</div>
+        </div>
+        <div>
+          <div class="hud-item-val">33 / 33</div>
+          <div class="hud-item-lbl">Raptors Online</div>
+        </div>
+        <div>
+          <div class="hud-item-val">MAX Q</div>
+          <div class="hud-item-lbl">Passed Nominal</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 33 Raptor 3 Engines Propulsion Matrix -->
+  <section class="raptor-section">
+    <div class="section-eyebrow">Propulsion Architecture</div>
+    <h2 class="section-title">33 Raptor 3 Full-Flow Staged Combustion</h2>
+    <p class="section-lead">
+      Super Heavy is propelled by 33 methane-oxygen Raptor engines generating 72 Meganewtons of liftoff thrust — more than double the Saturn V moon rocket.
+    </p>
+
+    <div class="raptor-display-grid">
+      <!-- Concentric Raptor Engine Layout SVG -->
+      <div class="raptor-matrix-card">
+        <svg class="raptor-svg" viewBox="0 0 440 280" fill="none">
+          <!-- Outer Booster Ring Hull -->
+          <circle cx="220" cy="140" r="120" stroke="#2a2a30" stroke-width="2" fill="#08080a"/>
+          
+          <!-- Outer Ring of 20 Raptor Engines -->
+          <circle cx="220" cy="140" r="96" stroke="#1c1c22" stroke-width="1" stroke-dasharray="3 3"/>
+          <!-- 20 Concentric Engine Nozzles -->
+          <g fill="#1a1a20" stroke="#ffffff" stroke-width="1.2">
+            <circle cx="220" cy="44" r="10"/><circle cx="249" cy="48" r="10"/><circle cx="277" cy="61" r="10"/>
+            <circle cx="300" cy="81" r="10"/><circle cx="313" cy="108" r="10"/><circle cx="316" cy="140" r="10"/>
+            <circle cx="313" cy="172" r="10"/><circle cx="300" cy="199" r="10"/><circle cx="277" cy="219" r="10"/>
+            <circle cx="249" cy="232" r="10"/><circle cx="220" cy="236" r="10"/><circle cx="191" cy="232" r="10"/>
+            <circle cx="163" cy="219" r="10"/><circle cx="140" cy="199" r="10"/><circle cx="127" cy="172" r="10"/>
+            <circle cx="124" cy="140" r="10"/><circle cx="127" cy="108" r="10"/><circle cx="140" cy="81" r="10"/>
+            <circle cx="163" cy="61" r="10"/><circle cx="191" cy="48" r="10"/>
+          </g>
+
+          <!-- Middle Ring of 10 Gimbaling Engines -->
+          <circle cx="220" cy="140" r="55" stroke="#2a2a34" stroke-width="1" stroke-dasharray="2 3"/>
+          <g fill="#252530" stroke="#f0f0fa" stroke-width="1.2">
+            <circle cx="220" cy="85" r="9"/><circle cx="252" cy="95" r="9"/><circle cx="272" cy="123" r="9"/>
+            <circle cx="272" cy="157" r="9"/><circle cx="252" cy="185" r="9"/><circle cx="220" cy="195" r="9"/>
+            <circle cx="188" cy="185" r="9"/><circle cx="168" cy="157" r="9"/><circle cx="168" cy="123" r="9"/>
+            <circle cx="188" cy="95" r="9"/>
+          </g>
+
+          <!-- Center Cluster of 3 Deep-Throttle Landing Engines -->
+          <g fill="#ffffff" stroke="#ffffff" stroke-width="1.5">
+            <circle cx="220" cy="122" r="8"/>
+            <circle cx="206" cy="149" r="8"/>
+            <circle cx="234" cy="149" r="8"/>
+          </g>
+
+          <!-- Center Legend -->
+          <text x="220" y="270" font-family="'D-DIN-Bold', sans-serif" font-size="11" font-weight="700" fill="#8a8a92" letter-spacing="1.5" text-anchor="middle">
+            33 RAPTOR ENGINES · 9M STAINLESS EXOSKELETON
+          </text>
+        </svg>
+      </div>
+
+      <!-- Propulsion Stats -->
+      <div class="propulsion-stats-list">
+        <div class="prop-stat-item">
+          <div class="prop-stat-val">72 MN / 16.7 MLBF</div>
+          <div class="prop-stat-lbl">Liftoff Thrust</div>
+          <div class="prop-stat-desc">Full-flow staged combustion cycle with sub-cooled liquid methane (CH4) and liquid oxygen (LOX).</div>
+        </div>
+        <div class="prop-stat-item">
+          <div class="prop-stat-val">350 SECONDS</div>
+          <div class="prop-stat-lbl">Specific Impulse (Isp)</div>
+          <div class="prop-stat-desc">Integrated regenerative cooling with internal flow channels eliminate secondary thermal blankets.</div>
+        </div>
+        <div class="prop-stat-item">
+          <div class="prop-stat-val">100% REUSABLE</div>
+          <div class="prop-stat-lbl">Rapid Turnaround Architecture</div>
+          <div class="prop-stat-desc">Designed to fire multiple times per day without engine rebuild or disassembly.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Flight 5 Mission Profile Timeline -->
+  <section class="flight-timeline-section">
+    <div class="section-eyebrow">Mission Sequence</div>
+    <h2 class="section-title">Flight 5 Staging & Booster Catch</h2>
+    
+    <div class="timeline-steps-grid">
+      <div class="timeline-card">
+        <div class="timeline-time">T+ 00:01:02</div>
+        <div class="timeline-event">Max Q</div>
+        <div class="timeline-detail">Vehicle experiences maximum aerodynamic mechanical stress during atmospheric ascent.</div>
+      </div>
+      <div class="timeline-card">
+        <div class="timeline-time">T+ 00:02:39</div>
+        <div class="timeline-event">Hot-Staging</div>
+        <div class="timeline-detail">Starship upper stage engines ignite while still attached to Super Heavy interstage.</div>
+      </div>
+      <div class="timeline-card" style="border-color: #ffffff;">
+        <div class="timeline-time">T+ 00:06:54</div>
+        <div class="timeline-event">Booster Catch</div>
+        <div class="timeline-detail">Super Heavy returns to launch pad and is caught by the launch tower chopsticks arms.</div>
+      </div>
+      <div class="timeline-card">
+        <div class="timeline-time">T+ 01:05:40</div>
+        <div class="timeline-event">Ship Splashdown</div>
+        <div class="timeline-detail">Starship executes controlled belly-flop aerodynamic entry into Indian Ocean.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reusable Heat Shield Tiles & Orbital Trajectory -->
+  <section class="hardware-grid">
+    <div class="hardware-card">
+      <div class="section-eyebrow">Thermal Protection System</div>
+      <h3 style="font-family: var(--font-din); font-size: 20px; font-weight:700; text-transform:uppercase; margin-bottom:8px;">18,000 Hexagonal Tiles</h3>
+      <p style="font-size: 13.5px; color: var(--on-primary-mute); line-height: 1.5;">
+        Engineered silica ceramic tiles protect the windward side during 2,700°C atmospheric reentry plasma heating.
+      </p>
+      
+      <!-- Hexagonal Tiles Pattern SVG -->
+      <svg class="heatshield-svg" viewBox="0 0 360 140" fill="none">
+        <g stroke="#3a3a3f" stroke-width="1.2" fill="#141418">
+          <polygon points="40,20 60,10 80,20 80,45 60,55 40,45"/>
+          <polygon points="80,20 100,10 120,20 120,45 100,55 80,45"/>
+          <polygon points="120,20 140,10 160,20 160,45 140,55 120,45"/>
+          <polygon points="160,20 180,10 200,20 200,45 180,55 160,45"/>
+          <polygon points="200,20 220,10 240,20 240,45 220,55 200,45"/>
+          <polygon points="60,55 80,45 100,55 100,80 80,90 60,80"/>
+          <polygon points="100,55 120,45 140,55 140,80 120,90 100,80"/>
+          <polygon points="140,55 160,45 180,55 180,80 160,90 140,80"/>
+          <polygon points="180,55 200,45 220,55 220,80 200,90 180,80"/>
+        </g>
+        <text x="180" y="125" font-family="'D-DIN-Bold', sans-serif" font-size="10" font-weight="700" fill="#8a8a92" letter-spacing="1.5" text-anchor="middle">
+          MECHANICALLY FASTENED · ZERO ADHESIVE
+        </text>
+      </svg>
+    </div>
+
+    <div class="hardware-card">
+      <div class="section-eyebrow">Orbital Flight Mechanics</div>
+      <h3 style="font-family: var(--font-din); font-size: 20px; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Sub-Orbital Insertion Track</h3>
+      <p style="font-size: 13.5px; color: var(--on-primary-mute); line-height: 1.5;">
+        Trajectory designed for passive atmospheric reentry even in the event of complete attitude control loss.
+      </p>
+
+      <svg class="heatshield-svg" viewBox="0 0 360 140" fill="none">
+        <!-- Earth Curvature Line -->
+        <path d="M20 120 Q180 90 340 120" stroke="#3a3a3f" stroke-width="2" fill="none"/>
+        <!-- Trajectory Arc -->
+        <path d="M40 115 Q120 20 240 30 Q300 50 330 115" stroke="#ffffff" stroke-width="2" stroke-dasharray="4 3" fill="none"/>
+        <circle cx="180" cy="25" r="4" fill="#ffffff"/>
+        <text x="180" y="15" font-family="'D-DIN-Bold', sans-serif" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle">APOGEE: 212 KM</text>
+        <circle cx="40" cy="115" r="3" fill="#ffffff"/>
+        <text x="40" y="132" font-family="'D-DIN-Bold', sans-serif" font-size="8.5" fill="#8a8a92">STARBASE</text>
+        <circle cx="330" cy="115" r="3" fill="#ffffff"/>
+        <text x="310" y="132" font-family="'D-DIN-Bold', sans-serif" font-size="8.5" fill="#8a8a92">INDIAN OCEAN</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- SpaceX Footer -->
+  <footer class="spacex-footer">
+    <div class="footer-links-row">
+      <a href="#" class="footer-link-item">SpaceX © 2026</a>
+      <a href="#" class="footer-link-item">Privacy Policy</a>
+      <a href="#" class="footer-link-item">Suppliers</a>
+    </div>
+    <p class="footer-legal-copy">
+      For media and mission inquiries, contact demo.person14@example.com. Starship and Super Heavy are registered trademarks of Space Exploration Technologies Corp.
+    </p>
+  </footer>
+
+</body>
+</html>

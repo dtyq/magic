@@ -42,6 +42,11 @@ interface SubscriptionManagerInterface
      */
     public function getPersonalVideoGenerationConcurrencyLimit(): ?int;
 
+    /**
+     * 获取当前用户可拥有的已通过火山素材数量上限，null 表示不限。
+     */
+    public function getPersonalArkAssetIdLimit(): ?int;
+
     public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool;
 
     public function isPaidSubscription(): bool;

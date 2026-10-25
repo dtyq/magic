@@ -1,3 +1,7 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { Sheet, SheetContent, SheetHeader } from "@/components/shadcn-ui/sheet"
@@ -316,7 +320,13 @@ function ChatDrawer({
 		const project = currentActionItem?.project
 		if (!project) return
 
-		await SuperMagicService.deleteProject(project)
+		if (!canDeleteRecordingProjects([project.id])) return
+		try {
+			await SuperMagicService.deleteProject(project)
+		} catch (error) {
+			if (handleRecordingProjectDeletionError(error)) return
+			throw error
+		}
 		await refreshChatProjects()
 		magicToast.success(t("chat.deleteChatSuccess"))
 		setProjectDeleteModalVisible(false)
@@ -526,12 +536,14 @@ function ChatDrawer({
 					icon: <X />,
 					ariaLabel: t("common.cancel"),
 					onClick: () => setProjectDeleteModalVisible(false),
+					testId: "chat-drawer-project-delete-close",
 				}}
 				headerTrailingAction={{
 					icon: <Check />,
 					ariaLabel: t("common.confirm"),
 					onClick: handleDeleteProjectConfirm,
 					tone: "destructive",
+					testId: "chat-drawer-project-delete-confirm",
 				}}
 				bodyClassName="max-h-[80dvh] p-0"
 			>

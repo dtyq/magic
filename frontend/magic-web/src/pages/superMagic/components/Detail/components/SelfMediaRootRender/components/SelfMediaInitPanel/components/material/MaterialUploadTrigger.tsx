@@ -1,5 +1,5 @@
 import { forwardRef } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface MaterialUploadTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 	compact: boolean

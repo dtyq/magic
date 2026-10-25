@@ -4,5 +4,5 @@ import { TooltipProvider } from "../shadcn/tooltip"
 export default function UIProvider(props: PropsWithChildren<unknown>) {
 	const { children } = props
 
-	return <TooltipProvider>{children}</TooltipProvider>
+	return <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
 }

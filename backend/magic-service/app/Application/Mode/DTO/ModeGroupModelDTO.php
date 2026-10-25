@@ -12,6 +12,7 @@ use App\Application\Mode\DTO\ValueObject\ModelStatus;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Infrastructure\Core\AbstractDTO;
 
+/** 面向模型选择器的模型信息，默认强度只用于展示继承值。 */
 class ModeGroupModelDTO extends AbstractDTO
 {
     protected string $id = '';
@@ -19,6 +20,15 @@ class ModeGroupModelDTO extends AbstractDTO
     protected string $groupId = '';
 
     protected string $modelId = '';
+
+    /** 空值隐藏倍率，零值包含缺价和明确零价。 */
+    protected ?float $billingMultiplier = null;
+
+    protected string $resolvedModelId = '';
+
+    protected array $reasoningEffortLevels = [];
+
+    protected ?string $reasoningEffortDefault = null;
 
     protected string $modelName = '';
 
@@ -37,6 +47,20 @@ class ModeGroupModelDTO extends AbstractDTO
     protected ?ImageSizeConfig $imageSizeConfig = null;
 
     protected ?VideoGenerationConfig $videoGenerationConfig = null;
+
+    /** 设置解析后的模型标识与能力，不改变用户选择的逻辑模型标识。 */
+    public function setReasoningCapability(string $resolvedModelId, array $levels, ?string $default = null): void
+    {
+        $this->resolvedModelId = $resolvedModelId;
+        $this->reasoningEffortLevels = $levels;
+        $this->reasoningEffortDefault = $default;
+    }
+
+    /** 仅装配服务层已计算的参考倍率，不暴露内部售价。 */
+    public function setBillingMultiplier(?float $value): void
+    {
+        $this->billingMultiplier = $value;
+    }
 
     public function getId(): string
     {

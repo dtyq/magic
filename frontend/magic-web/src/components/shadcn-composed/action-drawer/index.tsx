@@ -3,7 +3,7 @@ import { XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import { Drawer as DrawerPrimitive } from "vaul"
 

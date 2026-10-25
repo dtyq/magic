@@ -1,11 +1,10 @@
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { set } from "lodash-es"
-import mock from "./mock_v2.json"
 
 // @ts-ignore
 window.test = (topicId: string = "837333386617253888") => {
-	// const mock: any[] = []
+	const mock: any[] = []
 
 	function check() {
 		const allAfterAgentReply = mock.filter((o) => {

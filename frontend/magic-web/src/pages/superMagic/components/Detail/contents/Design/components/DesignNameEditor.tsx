@@ -15,11 +15,11 @@ const useStyles = createStyles(() => ({
 interface DesignNameEditorProps {
 	name: string
 	onNameChange?: (name: string) => void
-	isReadOnly?: boolean
+	canEdit?: boolean
 }
 
 export function DesignNameEditor(props: DesignNameEditorProps) {
-	const { name, onNameChange, isReadOnly = false } = props
+	const { name, onNameChange, canEdit = true } = props
 	const { styles } = useStyles()
 
 	const [isEditing, setIsEditing] = useState(false)
@@ -38,7 +38,7 @@ export function DesignNameEditor(props: DesignNameEditorProps) {
 	}, [isEditing])
 
 	const handleNameClick = () => {
-		if (isReadOnly) return
+		if (!canEdit) return
 		setIsEditing(true)
 		setEditingName(name)
 	}
@@ -73,7 +73,7 @@ export function DesignNameEditor(props: DesignNameEditorProps) {
 
 	return (
 		<span
-			className={`${styles.name} ${!isReadOnly ? styles.nameSpan : ""}`}
+			className={`${styles.name} ${canEdit ? styles.nameSpan : ""}`}
 			onClick={handleNameClick}
 		>
 			{name}

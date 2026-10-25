@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\SuperMagic\Agent\Service;
 
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\SuperMagic\Agent\Entity\SuperMagicAgentEntity;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentOptimizationType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentTool;
@@ -62,7 +63,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
                 businessParams: [
                     'organization_id' => $dataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $dataIsolation->getCurrentUserId(),
-                    'source_id' => 'super_magic_agent_optimizer',
+                    'source_id' => SourceId::SUPER_MAGIC_AGENT_OPTIMIZER,
                 ]
             );
         } catch (Throwable $throwable) {
@@ -197,7 +198,7 @@ class SuperMagicAgentAiOptimizeAppService extends AbstractSuperMagicAppService
             'meta' => [
                 'ts' => time(),
                 'lang_hint' => $languageHint,
-                'src' => 'super_magic_agent_optimizer',
+                'src' => SourceId::SUPER_MAGIC_AGENT_OPTIMIZER,
             ],
         ];
 

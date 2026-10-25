@@ -22,7 +22,6 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property null|string $logo Logo 图片 URL
  * @property string $publisher_id 发布者用户 ID
  * @property string $publisher_type 发布者类型
- * @property null|int $category_id 分类 ID
  * @property string $publish_status 发布状态
  * @property int $install_count 安装次数
  * @property null|int $sort_order 排序值，数值越大越靠前
@@ -51,7 +50,6 @@ class AgentMarketModel extends AbstractModel
         'icon_type',
         'publisher_id',
         'publisher_type',
-        'category_id',
         'publish_status',
         'install_count',
         'sort_order',
@@ -73,7 +71,6 @@ class AgentMarketModel extends AbstractModel
         'icon_type' => 'integer',
         'publisher_id' => 'string',
         'publisher_type' => 'string',
-        'category_id' => 'integer',
         'publish_status' => 'string',
         'organization_code' => 'string',
         'market_type' => 'string',

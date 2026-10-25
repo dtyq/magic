@@ -1,8 +1,8 @@
 import { memo } from "react"
 import { IconChevronRight } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
-import { format, addDays } from "date-fns"
-import { cn } from "@/lib/utils"
+import dayjs from "@/infrastructure/vendors/dayjs"
+import { cn } from "@/utils/cn"
 import { ShareType } from "../types"
 import type { ShareResourceApiItem } from "../../ShareManagement/types"
 import { getShareTypeIcon } from "../../ShareManagement/utils/shareTypeHelpers"
@@ -59,8 +59,9 @@ function SimilarShareItem({ item, onClick, showStats = false }: SimilarShareItem
 			return t("share.permanent")
 		}
 		try {
-			const expireDate = new Date(item.expire_at as string)
-			const formattedDate = format(expireDate, "yyyy/MM/dd HH:mm")
+			const expireDate = dayjs(item.expire_at as string)
+			if (!expireDate.isValid()) return t("share.permanent")
+			const formattedDate = expireDate.format("YYYY/MM/DD HH:mm")
 			return `${t("shareManagement.validUntil", {
 				days: item.expire_days,
 				date: formattedDate,

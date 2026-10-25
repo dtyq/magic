@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Notion — The all-in-one workspace for notes, docs, project management, and databases.">
+  <title>Notion — Your Connected Workspace</title>
+  <style>
+    :root {
+      --primary: #5645d4;
+      --primary-hover: #4534b3;
+      --canvas: #ffffff;
+      --surface-sidebar: #f7f6f3;
+      --surface-card: #ffffff;
+      --border: #e9e8e5;
+      --border-dark: #d3d1cb;
+      --ink: #37352f;
+      --ink-muted: #787671;
+      --ink-dim: #9b9a97;
+      --tag-red: #ffe2dd;
+      --tag-orange: #fadec9;
+      --tag-yellow: #fdecc8;
+      --tag-green: #dbeddb;
+      --tag-blue: #d3e5ef;
+      --tag-purple: #e8deee;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif;
+      --font-serif: Lyon-Text, Georgia, "Times New Roman", serif;
+      --font-mono: "SF Mono", Monaco, "Courier New", monospace;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 10px;
+      --shell: 1200px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Notion Web Topbar */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      height: 58px; display: flex; align-items: center;
+    }
+    .topbar-inner {
+      width: min(var(--shell), calc(100% - 48px)); margin: 0 auto;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; }
+    .notion-n {
+      width: 26px; height: 26px; background: #000; color: #fff;
+      border-radius: 4px; display: grid; place-items: center; font-weight: 800; font-size: 16px;
+    }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; font-weight: 500; color: var(--ink); }
+    .nav-links a:hover { color: var(--primary); }
+    .btn-notion-pri {
+      background: var(--primary); color: #fff; font-size: 13px; font-weight: 600;
+      padding: 8px 16px; border-radius: var(--radius-sm); transition: background 0.2s;
+    }
+    .btn-notion-pri:hover { background: var(--primary-hover); }
+
+    /* Marketing Header Section - Optimized for 16:10 Cover */
+    .marketing-hero {
+      text-align: center; padding: clamp(48px, 6vw, 80px) 20px 40px;
+    }
+    .marketing-title {
+      font-family: var(--font-sans);
+      font-size: clamp(38px, 6vw, 76px); font-weight: 700;
+      letter-spacing: -0.04em; line-height: 1.05; margin-bottom: 18px;
+    }
+    .marketing-sub {
+      font-size: clamp(17px, 2vw, 22px); color: var(--ink-muted);
+      max-width: 620px; margin: 0 auto 32px; line-height: 1.5;
+    }
+    .hero-btn-row { display: flex; justify-content: center; gap: 14px; margin-bottom: 48px; }
+
+    /* Realistic Notion Document & Database Canvas Window */
+    .notion-app-window {
+      max-width: 1060px; margin: 0 auto;
+      border: 1px solid var(--border-dark); border-radius: var(--radius-lg);
+      background: #ffffff; box-shadow: 0 20px 60px rgba(15, 15, 15, 0.08);
+      overflow: hidden; text-align: left;
+    }
+    .app-topbar {
+      height: 40px; background: var(--surface-sidebar); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+      font-size: 12px; color: var(--ink-muted);
+    }
+    .breadcrumbs { display: flex; align-items: center; gap: 6px; }
+
+    .doc-page { padding: 40px 60px; }
+    .cover-banner {
+      height: 120px; border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+      margin-bottom: -40px;
+    }
+    .page-icon {
+      width: 72px; height: 72px; background: #ffffff; border-radius: 12px;
+      display: grid; place-items: center; font-size: 40px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-left: 20px; position: relative; z-index: 2;
+    }
+    .page-h1 {
+      font-family: var(--font-sans); font-size: 36px; font-weight: 700;
+      margin: 18px 0 14px; letter-spacing: -0.03em;
+    }
+    
+    /* Callout Box */
+    .callout-box {
+      display: flex; gap: 14px; padding: 16px 18px;
+      background: var(--surface-sidebar); border-radius: var(--radius-sm);
+      font-size: 14px; margin-bottom: 28px; line-height: 1.5;
+    }
+    .callout-icon { font-size: 20px; }
+
+    /* Database Kanban Board */
+    .board-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    }
+    .board-tabs { display: flex; gap: 18px; font-size: 13px; font-weight: 600; color: var(--ink-muted); }
+    .board-tab.active { color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+
+    .kanban-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    }
+    .kanban-col {
+      background: #fafaf9; border-radius: var(--radius-md); padding: 12px;
+    }
+    .col-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; font-size: 12px; font-weight: 600;
+    }
+    .status-pill {
+      padding: 2px 8px; border-radius: var(--radius-sm); font-size: 11px;
+    }
+    .pill-backlog { background: #e3e2de; color: var(--ink); }
+    .pill-progress { background: #d3e5ef; color: #183347; }
+    .pill-done { background: #dbeddb; color: #1c3829; }
+
+    .card-item {
+      background: #ffffff; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 14px; margin-bottom: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04); cursor: pointer;
+    }
+    .card-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tag-badge {
+      font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 500;
+    }
+    .card-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: var(--ink-dim); border-top: 1px solid #f3f3f2; padding-top: 8px;
+    }
+
+    /* Slash Menu Floating Mockup */
+    .slash-popup {
+      position: absolute; width: 280px; background: #ffffff;
+      border: 1px solid var(--border-dark); border-radius: var(--radius-md);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.15); padding: 6px 0;
+      font-size: 13px; display: none;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border); padding: 48px 0;
+      margin-top: 64px; font-size: 13px; color: var(--ink-muted);
+    }
+    .footer-inner {
+      width: min(var(--shell), calc(100% - 48px)); margin: 0 auto;
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    }
+
+    @media (max-width: 860px) {
+      .doc-page { padding: 24px; }
+      .kanban-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- NOTION WEB TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand-wrap">
+        <div class="notion-n">N</div>
+        <span>Notion</span>
+      </div>
+      <nav class="nav-links" aria-label="Notion sections">
+        <a href="#product">Product</a>
+        <a href="#teams">Teams</a>
+        <a href="#individuals">Individuals</a>
+        <a href="#download">Download</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+      <div>
+        <a href="#app" class="btn-notion-pri">Get Notion free</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="marketing-hero">
+      <h1 class="marketing-title">The happier workspace.</h1>
+      <p class="marketing-sub">
+        Write, plan, and organize in a connected space where docs, wikis, and projects live together seamlessly.
+      </p>
+      <div class="hero-btn-row">
+        <a href="#app" class="btn-notion-pri" style="padding:12px 24px; font-size:15px;">Get Notion free →</a>
+        <a href="#demo" style="display:inline-flex; align-items:center; padding:12px 20px; font-size:14px; font-weight:500; color:var(--primary);">Request a demo ↗</a>
+      </div>
+
+      <!-- AUTHENTIC NOTION DOCUMENT & KANBAN WINDOW -->
+      <div class="notion-app-window" id="app">
+        <div class="app-topbar">
+          <div class="breadcrumbs">
+            <span>Engineering Hub</span>
+            <span>/</span>
+            <span>Roadmaps</span>
+            <span>/</span>
+            <span style="color:var(--ink); font-weight:600;">🚀 Q4 Core Platform</span>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <span>Share</span>
+            <span>Updates</span>
+            <span>Favorite ★</span>
+          </div>
+        </div>
+
+        <div class="doc-page">
+          <div class="cover-banner"></div>
+          <div class="page-icon">🚀</div>
+          <h2 class="page-h1">Q4 Core Platform Sprint</h2>
+
+          <!-- Callout box -->
+          <div class="callout-box">
+            <span class="callout-icon">💡</span>
+            <div>
+              <strong>Sprint Objective:</strong> Shift frontend render tree to virtualized windowing and enable real-time multiplayer cursor synchronization.
+            </div>
+          </div>
+
+          <!-- Kanban Database View -->
+          <div class="board-header">
+            <div class="board-tabs">
+              <span class="board-tab active">📋 Board View</span>
+              <span class="board-tab">📅 Timeline</span>
+              <span class="board-tab">📑 All Tasks (32)</span>
+            </div>
+            <div style="font-size:12px; color:var(--ink-muted);">Filter · Sort · Group by Status</div>
+          </div>
+
+          <div class="kanban-grid">
+            <!-- Col 1: Not Started -->
+            <div class="kanban-col">
+              <div class="col-header">
+                <span class="status-pill pill-backlog">To Do (2)</span>
+                <span>＋</span>
+              </div>
+              <article class="card-item">
+                <h3 class="card-title">IndexedDB offline snapshot fallback</h3>
+                <div class="card-tags">
+                  <span class="tag-badge" style="background:var(--tag-yellow);">Storage</span>
+                </div>
+                <div class="card-meta">
+                  <span>Due Oct 24</span>
+                  <span>👤 Elena</span>
+                </div>
+              </article>
+              <article class="card-item">
+                <h3 class="card-title">Accessibility audit on keyboard tab traps</h3>
+                <div class="card-tags">
+                  <span class="tag-badge" style="background:var(--tag-orange);">A11y</span>
+                </div>
+                <div class="card-meta">
+                  <span>Due Oct 28</span>
+                  <span>👤 Mark</span>
+                </div>
+              </article>
+            </div>
+
+            <!-- Col 2: In Progress -->
+            <div class="kanban-col">
+              <div class="col-header">
+                <span class="status-pill pill-progress">In Progress (2)</span>
+                <span>＋</span>
+              </div>
+              <article class="card-item">
+                <h3 class="card-title">Virtual canvas hardware acceleration</h3>
+                <div class="card-tags">
+                  <span class="tag-badge" style="background:var(--tag-blue);">WebGL</span>
+                  <span class="tag-badge" style="background:var(--tag-purple);">Core</span>
+                </div>
+                <div class="card-meta">
+                  <span>Due Tomorrow</span>
+                  <span>👤 Kenji</span>
+                </div>
+              </article>
+              <article class="card-item">
+                <h3 class="card-title">Slash menu quick search palette</h3>
+                <div class="card-tags">
+                  <span class="tag-badge" style="background:var(--tag-green);">Editor</span>
+                </div>
+                <div class="card-meta">
+                  <span>Due Friday</span>
+                  <span>👤 Sarah</span>
+                </div>
+              </article>
+            </div>
+
+            <!-- Col 3: Done -->
+            <div class="kanban-col">
+              <div class="col-header">
+                <span class="status-pill pill-done">Done (3)</span>
+                <span>✓</span>
+              </div>
+              <article class="card-item">
+                <h3 class="card-title">PostgreSQL connection pooling upgrade</h3>
+                <div class="card-tags">
+                  <span class="tag-badge" style="background:var(--tag-green);">Infra</span>
+                </div>
+                <div class="card-meta">
+                  <span>Completed</span>
+                  <span>👤 Alex</span>
+                </div>
+              </article>
+              <article class="card-item">
+                <h3 class="card-title">Nested database relation rollups</h3>
+                <div class="card-tags">
+                  <span class="tag-badge" style="background:var(--tag-blue);">Database</span>
+                </div>
+                <div class="card-meta">
+                  <span>Completed</span>
+                  <span>👤 David</span>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>Notion Labs, Inc. · The All-in-One Connected Workspace</span>
+      <span>Official Design System Reference 2026</span>
+    </div>
+  </footer>
+</body>
+</html>

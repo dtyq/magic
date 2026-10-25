@@ -79,6 +79,29 @@ describe("useOverlayZIndex", () => {
 		expect(nextRound.overlayZIndex).toBe(1010)
 	})
 
+	test("非托管打开后显式 zIndex 变化会同步层级且不推高后续托管游标", async () => {
+		const { result, rerender } = renderHook(
+			({ zIndex }) => useOverlayZIndex({ open: true, zIndex, zIndexManaged: false }),
+			{ initialProps: { zIndex: 1000 } },
+		)
+
+		await waitFor(() => {
+			expect(result.current.overlayZIndex).toBe(1000)
+		})
+		expect(result.current.contentZIndex).toBe(1001)
+
+		rerender({ zIndex: 1020 })
+
+		await waitFor(() => {
+			expect(result.current.overlayZIndex).toBe(1020)
+		})
+		expect(result.current.contentZIndex).toBe(1021)
+
+		const nextManaged = acquireOverlayZIndex({ scope: "global" })
+		expect(nextManaged.overlayZIndex).toBe(1010)
+		nextManaged.release()
+	})
+
 	test("打开期间 zIndex 变化不触发重新分配", async () => {
 		const { result, rerender } = renderHook(
 			({ zIndex }) => useOverlayZIndex({ open: true, zIndex }),

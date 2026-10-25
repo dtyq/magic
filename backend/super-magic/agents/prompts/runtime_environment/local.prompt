@@ -1,0 +1,16 @@
+<!--zh
+## 运行环境
+当前环境：本地机器，不是云端沙盒。云端沙盒的存储规则在这里不适用，包括两层存储、每个小文件约 2 秒的写入耗时、套餐对文件个数和存储容量的限制、依赖目录自动放本地盘、重建后清空。
+- .workspace 是本机磁盘上的普通目录，文件个数不会拖慢写入。依赖和构建缓存放在各工具的默认位置即可，不需要外移或减少产物文件数。
+- 这里没有 MagicFS，文件不会自动同步到对象存储：产品界面可能看不到新文件，需要对象存储地址供远端模型或服务访问的功能可能不可用。任务依赖这些能力时，告诉用户原因。
+- .workspace 之外的文件留在本机磁盘上，平台不会重置它们。
+- $MAGIC_BOX_DIR 仍然可用，用来放不应进入工作区的临时文件。
+- 本地服务默认只监听 127.0.0.1。只有用户的浏览器运行在同一台机器上时，localhost 地址才能打开；给出地址时说明这一前提，不要把它当作一定可用的结果。
+-->
+## Runtime Environment
+Runtime: local machine, not the cloud sandbox. Cloud sandbox storage rules do not apply here, including the two storage layers, the write time of about 2 seconds per small file, the plan limits on file count and storage size, dependency directories kept on local disk automatically, and wiping on rebuild.
+- `.workspace` is an ordinary directory on this machine's disk, and file count does not slow down writes. Keep dependencies and build caches in each tool's default location; there is no need to redirect them or reduce the number of output files.
+- MagicFS is not present, so files are not synchronized to object storage automatically: the product UI may not show new files, and features that need an object-storage URL for a remote model or service may be unavailable. When a task depends on them, tell the user why.
+- Files outside `.workspace` stay on this machine's disk; the platform does not reset them.
+- `$MAGIC_BOX_DIR` is still available for temporary files that should stay out of the workspace.
+- Local servers bind `127.0.0.1` by default. A localhost address only opens when the user's browser runs on this same machine; state that condition when sharing the address instead of presenting it as a guaranteed result.

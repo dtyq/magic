@@ -1,6 +1,7 @@
 import Konva from "konva"
 import type { Canvas } from "../../core/Canvas"
 import { resolveManagedElementIdFromKonvaNode } from "../transform/elementNodeUtils"
+import { getNameLabelElementIdFromNode } from "../labels/nameLabelNodeUtils"
 import type {
 	CanvasInputEventType,
 	CanvasInputModifiers,
@@ -314,7 +315,9 @@ export class CanvasInputManager {
 			return
 		}
 
-		const elementId = resolveManagedElementIdFromKonvaNode(input.target, this.canvas)
+		const elementId =
+			resolveManagedElementIdFromKonvaNode(input.target, this.canvas) ??
+			getNameLabelElementIdFromNode(input.target)
 		if (!elementId) return
 
 		const timer = setTimeout(() => {

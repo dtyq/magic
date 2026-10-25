@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VaultLine — Institutional Treasury &amp; Multi-Sig Custody</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+:root {
+--navy: #1E3A5F; --navy-dark: #162D4A; --navy-light: #EFF6FF;
+--gold: #C49A2A; --gold-light: #FEFCE8;
+--bg: #FFFDF7; --surface: #FFFFFF;
+--border: #E2DFD5; --border-dark: #CBD5E1;
+--text-pri: #1E293B; --text-sec: #475569; --text-muted: #94A3B8;
+--success: #16A34A; --success-bg: #F0FDF4;
+--warning: #CA8A04; --warning-bg: #FEFCE8;
+--error: #DC2626; --error-bg: #FEF2F2;
+--font-serif: 'DM Serif Display', Georgia, serif;
+--font-sans: 'Inter', system-ui, sans-serif;
+--font-mono: 'IBM Plex Mono', monospace;
+--r-xs: 2px; --r-sm: 4px; --r-md: 6px; --r-full: 9999px;
+--shadow-subtle: 0 1px 3px rgba(30, 41, 59, 0.05), 0 1px 2px rgba(30, 41, 59, 0.03);
+--shadow-gold: 0 4px 16px rgba(196, 154, 42, 0.16);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text-pri); font-family: var(--font-sans); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.mono { font-family: var(--font-mono); }
+.serif { font-family: var(--font-serif); }
+.gold { color: var(--gold); }
+.navy { color: var(--navy); }
+.top-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 28px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+.brand-wrap { display: flex; align-items: center; gap: 14px; }
+.crest-icon { width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--navy); border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 16px; font-weight: 700; box-shadow: var(--shadow-gold); }
+.brand-title { font-family: var(--font-serif); font-size: 22px; color: var(--navy); letter-spacing: 0.02em; line-height: 1; }
+.brand-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); margin-top: 2px; }
+.header-trust { display: flex; align-items: center; gap: 8px; }
+.trust-chip { display: flex; align-items: center; gap: 5px; background: var(--bg); border: 1px solid var(--border); padding: 4px 8px; border-radius: var(--r-xs); font-size: 10px; font-weight: 600; color: var(--text-sec); }
+.auth-signer { display: flex; align-items: center; gap: 10px; background: var(--navy-light); border: 1px solid #BFDBFE; padding: 5px 12px; border-radius: var(--r-sm); font-size: 12px; }
+.signer-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+.main-wrap { max-width: 1200px; margin: 24px auto; padding: 0 24px; }
+.reserves-panel { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--navy); border-radius: var(--r-sm); padding: 20px 24px; margin-bottom: 20px; box-shadow: var(--shadow-subtle); display: flex; justify-content: space-between; align-items: center; }
+.res-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-sec); }
+.res-val { font-family: var(--font-mono); font-size: 34px; font-weight: 600; color: var(--navy); line-height: 1.15; margin: 4px 0; }
+.res-policy { font-family: var(--font-mono); font-size: 11px; color: var(--gold); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.res-pills { display: flex; gap: 14px; }
+.res-item { border-left: 2px solid var(--border); padding-left: 10px; }
+.res-item-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+.res-item-val { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--text-pri); }
+.grid-2col { display: grid; grid-template-columns: 1fr 390px; gap: 20px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 22px; box-shadow: var(--shadow-subtle); margin-bottom: 20px; }
+.quorum-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+.quorum-h2 { font-family: var(--font-serif); font-size: 20px; color: var(--navy); }
+.quorum-badge { background: var(--gold-light); border: 1px solid #FDE047; color: var(--warning); font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: var(--r-xs); }
+.hash-strip { background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 14px; margin-bottom: 16px; }
+.hash-row { display: flex; justify-content: space-between; align-items: center; }
+.hash-val { font-family: var(--font-mono); font-size: 12px; color: var(--navy); font-weight: 600; word-break: break-all; }
+.btn-copy { background: #fff; border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--r-xs); font-size: 10px; font-weight: 600; color: var(--text-sec); cursor: pointer; }
+.tx-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 12px; margin-bottom: 16px; }
+.tx-detail-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+.tx-detail-val { font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--navy); }
+.quorum-progress-wrap { margin-bottom: 18px; }
+.quorum-bar-head { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+.progress-bar-bg { width: 100%; height: 8px; background: #E2E8F0; border-radius: var(--r-full); overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--navy) 0%, var(--gold) 100%); border-radius: var(--r-full); }
+.signers-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.signer-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: #fff; border: 1px solid var(--border); border-radius: var(--r-sm); }
+.signer-row.signed { border-left: 3px solid var(--success); }
+.signer-row.pending { border-left: 3px solid var(--warning); background: #FFFDF7; }
+.signer-row.action-required { border-left: 3px solid var(--navy); background: #F0F7FF; }
+.signer-info { display: flex; align-items: center; gap: 10px; }
+.signer-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.signer-name { font-weight: 600; font-size: 12px; }
+.signer-role { font-size: 11px; color: var(--text-sec); }
+.signer-status-badge { font-family: var(--font-mono); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: var(--r-xs); }
+.badge-signed { background: var(--success-bg); color: var(--success); }
+.badge-pending { background: var(--warning-bg); color: var(--warning); }
+.badge-action { background: var(--navy); color: #fff; }
+.quorum-actions { display: flex; gap: 10px; }
+.btn-sign { flex: 2; height: 42px; background: var(--navy); color: #fff; border: 1px solid var(--gold); border-radius: var(--r-sm); font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: var(--shadow-gold); }
+.btn-sign:hover { background: var(--navy-dark); }
+.btn-reject { flex: 1; height: 42px; background: #fff; border: 1px solid var(--border-dark); color: var(--text-sec); border-radius: var(--r-sm); font-weight: 600; font-size: 12px; cursor: pointer; }
+.payroll-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 20px; box-shadow: var(--shadow-subtle); }
+.payroll-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.payroll-title { font-family: var(--font-serif); font-size: 18px; color: var(--navy); }
+.compliance-checks { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.check-icon { color: var(--success); font-weight: 700; font-size: 13px; }
+.audit-list { display: flex; flex-direction: column; gap: 10px; }
+.audit-item { padding-bottom: 10px; border-bottom: 1px solid var(--border); font-size: 11px; }
+.audit-item:last-child { border-bottom: none; }
+.audit-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+  <!-- Institutional Top Header --><header class="top-header"><div class="brand-wrap"><div class="crest-icon">VL</div><div><div class="brand-title">VAULTLINE</div><div class="brand-sub">Treasury &amp; Multi-Sig Custody</div></div></div><div class="header-trust"><div class="trust-chip"><span>🔒</span><span>FDIC REGULATED</span></div><div class="trust-chip"><span>🏛️</span><span>VAULT: VLT-9042-US-EAST</span></div><div class="auth-signer"><div class="signer-dot"></div><span>Eleanor Vance <strong>(Signer #5)</strong></span></div></div></header><main class="main-wrap"><!-- Treasury Reserves Strip --><section class="reserves-panel"><div><div class="res-lbl">Total Institutional Reserves</div><div class="res-val">,850,000.00 <span style="font-size:16px; color:var(--text-sec);">USD</span></div><div class="res-policy"><span>🛡️</span><span>Quorum Rule: 3 of 5 Hardware Signatures Enforced (&gt; ,000)</span></div></div><div class="res-pills"><div class="res-item"><div class="res-item-lbl">Federal T-Bills (65%)</div><div class="res-item-val">,852,500.00</div></div><div class="res-item"><div class="res-item-lbl">Liquid Cash (25%)</div><div class="res-item-val">,712,500.00</div></div><div class="res-item"><div class="res-item-lbl">Tokenized Yield (10%)</div><div class="res-item-val">,285,000.00</div></div></div></section><!-- 2-Column Grid --><div class="grid-2col"><!-- Left Column: Pending Quorum Approval --><div><div class="card"><div class="quorum-head"><div><div class="quorum-h2">Pending Multi-Sig Quorum Approval</div><div style="font-size:12px; color:var(--text-sec); margin-top:2px;">Transaction #TX-8821 • Corporate Payroll Disbursement</div></div><div class="quorum-badge">3 of 5 COLLECTED (60%)</div></div><!-- Cryptographic Transaction Hash --><div class="hash-strip"><div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span class="mono" style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Cryptographic Transaction Hash</span><button class="btn-copy">Copy Hash</button></div><div class="hash-val">0x7f9a2b8c4d1e0f3a6b5c8d2e1f4a9b0c3d5e7f1a2b4c6d8e0f2a4b6c8e1d3f5a</div></div><!-- Transaction Details --><div class="tx-details"><div><div class="tx-detail-lbl">Disbursement Amount</div><div class="tx-detail-val" style="color:var(--navy);">,420,500.00 USD</div></div><div><div class="tx-detail-lbl">Beneficiary</div><div class="tx-detail-val" style="font-size:12px;">Apex Corporate Clearing</div></div><div><div class="tx-detail-lbl">Quorum Timelock</div><div class="tx-detail-val" style="color:var(--warning); font-size:12px;">Expires in 04:18:22</div></div></div><!-- Quorum Progress --><div class="quorum-progress-wrap"><div class="quorum-bar-head"><span>Quorum Threshold: 3 / 5 Signatures</span><span style="color:var(--navy);">60% Achieved</span></div><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:60%;"></div></div></div><!-- Signers Roster --><div class="signers-list"><!-- Signer 1 --><div class="signer-row signed"><div class="signer-info"><div class="signer-icon" style="background:var(--success-bg); color:var(--success);">✓</div><div><div class="signer-name">Jonathan Hayes — Chief Financial Officer</div><div class="signer-role mono">Key: 0x84A...391 • Ledger Nano X (FIPS 140-2)</div></div></div><span class="signer-status-badge badge-signed">SIGNED (14:12 UTC)</span></div><!-- Signer 2 --><div class="signer-row signed"><div class="signer-info"><div class="signer-icon" style="background:var(--success-bg); color:var(--success);">✓</div><div><div class="signer-name">Claire Moreau — VP of Treasury</div><div class="signer-role mono">Key: 0x21F...882 • YubiKey Bio Enterprise</div></div></div><span class="signer-status-badge badge-signed">SIGNED (14:38 UTC)</span></div><!-- Signer 3 --><div class="signer-row signed"><div class="signer-info"><div class="signer-icon" style="background:var(--success-bg); color:var(--success);">✓</div><div><div class="signer-name">David Sterling — Chief Risk Officer</div><div class="signer-role mono">Key: 0x93C...140 • Trezor Safe 3 HSM</div></div></div><span class="signer-status-badge badge-signed">SIGNED (15:04 UTC)</span></div><!-- Signer 4 --><div class="signer-row pending"><div class="signer-info"><div class="signer-icon" style="background:var(--warning-bg); color:var(--warning);">⏳</div><div><div class="signer-name">Miriam Zhao — General Counsel</div><div class="signer-role mono">Key: 0x55E...77A • Reviewing Legal Schedule</div></div></div><span class="signer-status-badge badge-pending">PENDING SIGNATURE</span></div><!-- Signer 5 --><div class="signer-row action-required"><div class="signer-info"><div class="signer-icon" style="background:var(--navy); color:#fff;">⚡</div><div><div class="signer-name">Eleanor Vance (You) — Managing Partner</div><div class="signer-role mono">Key: 0x18D...92B • Hardware Key Ready</div></div></div><span class="signer-status-badge badge-action">READY TO SIGN</span></div></div><!-- Quorum Actions --><div class="quorum-actions"><button class="btn-sign"><span>🔑</span><span>Authorize &amp; Sign with Hardware Key</span></button><button class="btn-reject">Request Independent Audit</button></div></div></div><!-- Right Column: Scheduled Payroll & Audit Trail --><div><!-- Scheduled Corporate Payroll Card --><div class="payroll-panel card"><div class="payroll-head"><span class="payroll-title">Scheduled Payroll Run</span><span class="mono" style="font-size:11px; background:var(--navy-light); color:var(--navy); padding:2px 8px; border-radius:var(--r-xs); font-weight:600;">Oct 1, 2026</span></div><div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; margin-bottom:12px;"><div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Total Batch Allocation</div><div class="mono" style="font-size:22px; font-weight:600; color:var(--navy);">,420,500.00</div><div class="mono" style="font-size:11px; color:var(--text-sec); margin-top:2px;">342 Employees Across 14 Legal Entities</div></div><!-- Automated Compliance Checks --><div class="compliance-checks"><div class="check-row"><span class="check-icon">✓</span><span>OFAC &amp; FinCEN Sanctions List: Cleared</span></div><div class="check-row"><span class="check-icon">✓</span><span>Automated State &amp; Federal Withholding: .2K</span></div><div class="check-row"><span class="check-icon">✓</span><span>Treasury Liquidity Buffer: 100% Sufficient</span></div><div class="check-row"><span class="check-icon">✓</span><span>Smart Contract Formal Verification: Passed</span></div></div><div style="border-top:1px solid var(--border); padding-top:12px; margin-top:12px; font-size:11px; color:var(--text-muted);">
+            Batch Reference: <span class="mono" style="color:var(--text-sec);">PAYROLL-2026-Q4-01</span></div></div><!-- Immutable Audit Trail --><div class="card" style="margin-bottom:0;"><div style="font-family:var(--font-serif); font-size:16px; color:var(--navy); margin-bottom:12px;">Immutable Audit Log</div><div class="audit-list"><div class="audit-item"><div style="font-weight:600;">Signature Appended by D. Sterling</div><div class="audit-time">Sep 19, 15:04 UTC • Block #19,482,884</div></div><div class="audit-item"><div style="font-weight:600;">Signature Appended by C. Moreau</div><div class="audit-time">Sep 19, 14:38 UTC • Block #19,482,860</div></div><div class="audit-item"><div style="font-weight:600;">Signature Appended by J. Hayes</div><div class="audit-time">Sep 19, 14:12 UTC • Block #19,482,835</div></div><div class="audit-item"><div style="font-weight:600;">Disbursement Proposal #TX-8821 Created</div><div class="audit-time">Sep 19, 13:45 UTC • Initiated by HR Controller</div></div></div></div></div></div></main>
+
+</body>
+</html>

@@ -87,6 +87,44 @@ def enrich_span_with_user_context(span: Span) -> None:
         _logger.warning(f"Unexpected error enriching span with user context: {e}")
 
 
+def enrich_span_with_trace_correlation(span: Span) -> Optional[str]:
+    """
+    Enrich a span with an external trace_id from metadata, for cross-system correlation.
+
+    The FastAPI root span attaches "external.trace_id" / "request.correlation_id" from
+    either metadata or HTTP headers (see fastapi_integration.py). Child spans created
+    later in the request lifecycle (e.g. "openai.chat", "tool.*") have no access to the
+    original HTTP headers, but the metadata file (init_client_message.json) is still
+    readable, so we can at least carry the same trace_id sourced from there.
+
+    Args:
+        span: OpenTelemetry span to enrich
+
+    Returns:
+        The trace_id found in metadata, or None if unavailable.
+    """
+    if not span or not span.is_recording():
+        return None
+
+    if not METADATA_AVAILABLE:
+        return None
+
+    try:
+        metadata = MetadataUtil.get_metadata()
+        trace_id = metadata.get("trace_id")
+        if trace_id:
+            trace_id_str = str(trace_id)
+            span.set_attribute("trace.source", "metadata.trace_id")
+            span.set_attribute("external.trace_id", trace_id_str)
+            span.set_attribute("request.correlation_id", trace_id_str)
+            return trace_id_str
+    except MetadataError as e:
+        _logger.debug(f"Could not load metadata for trace correlation: {e}")
+    except Exception as e:
+        _logger.warning(f"Unexpected error enriching span with trace correlation: {e}")
+    return None
+
+
 def set_langfuse_tags(span: Span, *tags: str) -> None:
     """
     Set Langfuse tags on a span

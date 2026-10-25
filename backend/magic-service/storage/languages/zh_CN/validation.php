@@ -137,8 +137,7 @@ return [
             'rule-name' => 'custom-message',
         ],
     ],
-    'attributes' => [
-    ],
+    'attributes' => [],
     'phone_number' => ':attribute 必须为一个有效的电话号码',
     'telephone_number' => ':attribute 必须为一个有效的手机号码',
     'chinese_word' => ':attribute 必须包含以下有效字符 (中文/英文，数字, 下划线)',
@@ -166,6 +165,11 @@ return [
             'required' => '成员ID不能为空',
             'string' => '成员ID必须是字符串',
             'max' => '成员ID长度不能超过:max个字符',
+        ],
+        'permission' => [
+            'in' => '请求处理失败',
+            'required' => '参数不能为空',
+            'string' => '请求处理失败',
         ],
     ],
     'schedule_time' => [

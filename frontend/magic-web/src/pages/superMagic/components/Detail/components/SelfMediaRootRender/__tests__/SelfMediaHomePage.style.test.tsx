@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
+		i18n: { language: "en" },
 		t: (key: string, options?: Record<string, unknown>) =>
 			({
 				"detail.selfMedia.home.articleCount": `${options?.count ?? 0} articles`,

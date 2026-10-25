@@ -4,24 +4,25 @@ File Service Module
 Provides file-related operations including version history retrieval.
 """
 
-import traceback
 import logging
-from typing import List, Dict, Any, Optional, Union
+import stat
+import traceback
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
+from app.core.base_service import Base
+from app.core.config.communication_config import STSTokenRefreshConfig
 from app.infrastructure.git.git import GitService
+from app.infrastructure.storage.base import AbstractStorage
 from app.infrastructure.storage.factory import StorageFactory
 from app.infrastructure.storage.types import (
-    PlatformType,
-    VolcEngineCredentials,
     AliyunCredentials,
     LocalCredentials,
+    PlatformType,
     S3Credentials,
+    VolcEngineCredentials,
 )
-from app.infrastructure.storage.base import AbstractStorage
-from app.core.config.communication_config import STSTokenRefreshConfig
-from app.core.base_service import Base
-from app.utils.async_file_utils import async_exists, get_s3_key_from_xattr
+from app.utils.async_file_utils import async_exists, async_read_bytes, async_stat, get_s3_key_from_xattr
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ class FileService(Base):
 
         Args:
             file_key: The file path/key to get version history for
-            git_directory: The git directory to use (e.g., '.workspace', '.chat_history').
+            git_directory: The git directory to use (e.g., '.workspace', '.topic/chat_history').
                           If None, uses the project root.
 
         Returns:
@@ -220,7 +221,6 @@ class FileService(Base):
         """
         try:
             import subprocess
-            import os
 
             # Get the project root directory
             project_root = git_service._get_project_root()
@@ -364,7 +364,7 @@ class FileService(Base):
         Args:
             file_key: The file path/key to get content for
             commit_hash: The commit hash to get file from
-            git_directory: The git directory to use (e.g., '.workspace', '.chat_history').
+            git_directory: The git directory to use (e.g., '.workspace', '.topic/chat_history').
                           If None, uses the project root.
 
         Returns:
@@ -579,9 +579,7 @@ class FileService(Base):
             Dict containing upload result
         """
         try:
-            from datetime import datetime
             from pathlib import Path
-            from app.utils.path_utils import get_storage_dir
 
             # Get storage service with credential refresh support
             storage_service = await self._get_storage_service()
@@ -795,16 +793,24 @@ class FileService(Base):
             file_path_obj = Path(file_path)
 
             # Check if file exists and is readable
-            if not file_path_obj.exists():
+            if not await async_exists(file_path_obj):
                 raise FileNotFoundError(f"File not found: {file_path}")
 
-            if not file_path_obj.is_file():
+            file_stat = await async_stat(file_path_obj)
+            if not stat.S_ISREG(file_stat.st_mode):
                 raise ValueError(f"Path is not a file: {file_path}")
+
+            max_size_bytes = options.get("max_size_bytes") if options else None
+            if max_size_bytes is not None and file_stat.st_size > int(max_size_bytes):
+                raise ValueError(
+                    f"File exceeds upload size limit: {file_stat.st_size} > {int(max_size_bytes)} bytes"
+                )
 
             # Read file content
             try:
-                with open(file_path_obj, "rb") as f:
-                    file_content = f.read()
+                # The storage adapters currently require a complete bytes payload. Read it
+                # asynchronously so large temporary uploads do not block the event loop.
+                file_content = await async_read_bytes(file_path_obj)
                 logger.info(f"Read file content: {len(file_content)} bytes")
             except Exception as e:
                 raise Exception(f"Failed to read file {file_path}: {e}")
@@ -867,6 +873,15 @@ class FileService(Base):
             logger.error(f"Failed to upload local file {file_path}: {e}")
             logger.error(traceback.format_exc())
             raise Exception(f"Upload failed: {e}")
+
+    async def delete_uploaded_object(self, object_key: str, platform: str | None = None) -> bool:
+        """Delete an object created by :meth:`upload_local_file` after its consumer finishes."""
+        if not object_key:
+            return True
+        platform_type = PlatformType(platform) if platform else None
+        storage_service = await self._get_storage_service(platform_type)
+        await storage_service.refresh_credentials()
+        return await storage_service.delete(object_key)
 
     async def get_download_url_by_file_key(
         self, file_key: str, expires_in: int = 3600, options: Optional[Dict[str, Any]] = None

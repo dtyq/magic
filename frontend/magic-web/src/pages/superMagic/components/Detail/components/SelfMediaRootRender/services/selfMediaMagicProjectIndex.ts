@@ -1,5 +1,5 @@
 import { SuperMagicApi } from "@/apis"
-import { getFileContentById } from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { parseMagicProjectConfigContentWithRange } from "@/pages/superMagic/utils/magicProjectConfigParser"
 import type { SelfMediaPlatform } from "../../../types"
 import type { ArticleDetail } from "../components/SelfMediaInitPanel/types"
@@ -44,6 +44,7 @@ export interface PrefillSelfMediaMagicProjectIndexParams {
 	attachmentList?: AttachmentNode[]
 	folderFileId?: string
 	postTargets?: ArticlePostTarget[]
+	fileApi: Pick<FileApi, "getFileContentById">
 }
 
 interface SplitMagicProjectJsResult {
@@ -201,6 +202,7 @@ export async function prefillSelfMediaMagicProjectIndex({
 	attachmentList,
 	folderFileId,
 	postTargets,
+	fileApi,
 }: PrefillSelfMediaMagicProjectIndexParams): Promise<void> {
 	if (!articles.length) return
 
@@ -209,7 +211,7 @@ export async function prefillSelfMediaMagicProjectIndex({
 	const magicProjectFileId = magicProjectFile?.file_id?.toString()
 	if (!magicProjectFileId) throw new Error("magicProjectNotFound")
 
-	const content = (await getFileContentById(magicProjectFileId, {
+	const content = (await fileApi.getFileContentById(magicProjectFileId, {
 		responseType: "text",
 	})) as string
 	const entries = buildSelfMediaPostIndexEntries(articles, postTargets)

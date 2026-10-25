@@ -3,15 +3,7 @@ import { BaseTool, type ToolMetadata, type ToolOptions } from "./BaseTool"
 import { ElementTypeEnum, type VideoElement } from "../../document/types"
 import { ElementFactory } from "../../elements/core/ElementFactory"
 import { generateElementId } from "../../shared/ids"
-import {
-	collectObstacleRects,
-	findNextImageVideoPlaceholderPositionNearViewport,
-} from "../../shared/placement/findNonOverlappingPlacement"
-import {
-	getCanvasCenter,
-	getResolvedMediaPlacementConfig,
-	getViewportCanvasRect,
-} from "../../shared/placement/elementUtils"
+import { resolveNearestFreeMediaPlacement } from "../../shared/placement/placementEngine"
 import type {
 	DefaultGenerateVideoConfig,
 	VideoGenerationSizeOption,
@@ -93,26 +85,7 @@ export class VideoGeneratorTool extends BaseTool {
 		const videoWidth = defaultSize?.width
 		const videoHeight = defaultSize?.height
 		const videoSize = this.getVideoElementSize(videoWidth, videoHeight)
-		const mediaPlacementConfig = getResolvedMediaPlacementConfig(this.canvas)
-
-		const obstacles = collectObstacleRects(
-			this.canvas.elementManager.getAllElements(),
-			(el) => {
-				return (
-					this.canvas.permissionManager.isVisible(el) &&
-					!this.canvas.permissionManager.isLocked(el)
-				)
-			},
-		)
-		const position = findNextImageVideoPlaceholderPositionNearViewport(obstacles, {
-			elementWidth: videoSize.width,
-			elementHeight: videoSize.height,
-			viewportRect: getViewportCanvasRect(this.canvas),
-			anchor: getCanvasCenter(this.canvas),
-			spacing: mediaPlacementConfig.spacing,
-			maxPerRow: mediaPlacementConfig.maxPerRow,
-			maxSearchRings: mediaPlacementConfig.maxSearchRings,
-		})
+		const position = resolveNearestFreeMediaPlacement(this.canvas, videoSize)
 
 		this.createVideoElementAt(position.x, position.y, videoSize.width, videoSize.height)
 	}
@@ -121,9 +94,10 @@ export class VideoGeneratorTool extends BaseTool {
 		centerX: number,
 		centerY: number,
 		videoModelList?: VideoModelItem[],
+		options?: VideoGeneratorElementCreateOptions,
 	): string {
 		const size = this.getVideoElementSizeForModelList(videoModelList)
-		return this.createVideoElementAtCenter(centerX, centerY, size.width, size.height)
+		return this.createVideoElementAtCenter(centerX, centerY, size.width, size.height, options)
 	}
 
 	public getVideoElementSizeForModelList(videoModelList?: VideoModelItem[]): {
@@ -170,8 +144,7 @@ export class VideoGeneratorTool extends BaseTool {
 		const methods = this.canvas.magicConfigManager.config?.methods
 		const rootStorage = methods?.getRootStorage?.()
 		const defaultConfig = rootStorage?.defaultGenerateVideoConfig as
-			| DefaultGenerateVideoConfig
-			| undefined
+			DefaultGenerateVideoConfig | undefined
 		const selectedModel =
 			videoModelList.find((model) => model.model_id === defaultConfig?.model_id) ||
 			videoModelList[0]
@@ -312,6 +285,7 @@ export class VideoGeneratorTool extends BaseTool {
 		centerY: number,
 		width?: number,
 		height?: number,
+		options?: VideoGeneratorElementCreateOptions,
 	): string {
 		const size = this.getVideoElementSize(width, height)
 		return this.createVideoElementAt(
@@ -319,41 +293,48 @@ export class VideoGeneratorTool extends BaseTool {
 			centerY - size.height / 2,
 			size.width,
 			size.height,
+			options,
 		)
 	}
 
-	private createVideoElementAt(x: number, y: number, width?: number, height?: number): string {
+	private createVideoElementAt(
+		x: number,
+		y: number,
+		width?: number,
+		height?: number,
+		options?: VideoGeneratorElementCreateOptions,
+	): string {
 		const size = this.getVideoElementSize(width, height)
 		const elementId = generateElementId()
 		const newZIndex = this.canvas.elementManager.getNextZIndexInLevel()
-		const defaultConfig = ElementFactory.getDefaultConfig(ElementTypeEnum.Video, {
-			videoWidth: size.width,
-			videoHeight: size.height,
-		})
-
-		const videoElement: VideoElement = {
-			id: elementId,
-			type: ElementTypeEnum.Video,
+		const videoElement = ElementFactory.createElementData(
+			ElementTypeEnum.Video,
+			elementId,
 			x,
 			y,
-			...defaultConfig,
-			zIndex: newZIndex,
-		}
+			size.width,
+			size.height,
+			newZIndex,
+		) as VideoElement
 
 		this.canvas.elementManager.create(videoElement)
-		this.canvas.selectionManager?.select(elementId)
+		if (options?.select !== false) {
+			this.canvas.selectionManager?.select(elementId)
+		}
 
-		requestAnimationFrame(() => {
-			const isInViewport = this.canvas.viewportController.isElementInViewport([elementId])
-			if (!isInViewport) {
-				this.canvas.viewportController.moveElementToViewport([elementId], {
-					animated: true,
-					padding: { top: 50, right: 50, bottom: 50, left: 100 },
-				})
-			}
-		})
+		if (options?.ensureInViewport !== false) {
+			this.ensureElementVisible(elementId)
+		}
 
-		this.onTaskComplete()
+		if (options?.completeTask !== false) {
+			this.onTaskComplete()
+		}
 		return elementId
 	}
+}
+
+export interface VideoGeneratorElementCreateOptions {
+	select?: boolean
+	ensureInViewport?: boolean
+	completeTask?: boolean
 }

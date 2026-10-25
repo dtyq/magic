@@ -36,29 +36,27 @@ class MagicGeneratedSuggestionDomainService
         return $entity;
     }
 
-    public function createGenerating(
+    /**
+     * 保存沙箱上报的追加问题状态。
+     *
+     * @param string[] $suggestions
+     * @param array<string, string> $params
+     */
+    public function saveReport(
         int $type,
-        int|string $relationId,
-        array $params = [],
-        null|int|string $createdUid = null,
-    ): array {
-        return $this->generatedSuggestionRepository->createGenerating(
+        string $relationId,
+        GeneratedSuggestionStatus $status,
+        array $suggestions,
+        ?string $createdUid,
+        array $params,
+    ): MagicGeneratedSuggestionEntity {
+        return $this->generatedSuggestionRepository->saveReport(
             $type,
             $relationId,
-            $params,
+            $status,
+            $suggestions,
             $createdUid,
+            $params,
         );
-    }
-
-    /**
-     * @param string[] $suggestions
-     */
-    public function updateStatus(
-        int $type,
-        int|string $relationId,
-        GeneratedSuggestionStatus $status,
-        array $suggestions = [],
-    ): void {
-        $this->generatedSuggestionRepository->updateStatus($type, $relationId, $status, $suggestions);
     }
 }

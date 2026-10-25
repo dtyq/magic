@@ -10,7 +10,7 @@ import { useDeviceLogout } from "@/pages/user/pages/my/components/LoginDevices/h
 import { useUserDevices } from "@/models/user/hooks"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import { VerificationCode } from "@/constants/bussiness"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { getDeviceInfo } from "@/utils/devices"
 import type { User } from "@/types/user"
 import type { TFunction } from "i18next"

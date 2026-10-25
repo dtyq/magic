@@ -10,6 +10,7 @@ import { useSlideScreenshots } from "./hooks/useSlideScreenshots"
 import { findMagicProjectJsFile, updateSlidesOrder } from "../../utils/magicProjectUpdater"
 import type { SlidesSortPanelProps, SortableSlide } from "./types"
 import { Loader2 } from "lucide-react"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 /**
  * Slides sort panel component
@@ -17,7 +18,6 @@ import { Loader2 } from "lucide-react"
 export function SlidesSortPanel({
 	slides,
 	originalSlidesPaths,
-	filePathMapping,
 	attachments,
 	currentFileId,
 	currentFileName,
@@ -26,6 +26,7 @@ export function SlidesSortPanel({
 	slideContents,
 }: SlidesSortPanelProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const [isSaving, setIsSaving] = useState(false)
 
 	// Convert slides to sortable items with HTML content
@@ -91,6 +92,8 @@ export function SlidesSortPanel({
 			await updateSlidesOrder({
 				fileId: magicProjectFile.fileId,
 				newSlidesOrder,
+				expectedSlides: originalSlidesPaths,
+				fileApi: fileApi.identityKey === "none" ? undefined : fileApi,
 			})
 
 			message.success(t("fileViewer.sortSlidesSuccess"))

@@ -5,7 +5,9 @@ const locateFileBlinkAnimation = keyframes`
 		background-color: transparent;
 	}
 	50% {
-		background-color: #EEF3FD;
+		/* Amber stays distinct from the open file's blue selection. */
+		background-color: #fff1b8;
+		box-shadow: inset 0 0 0 2px #fa8c16;
 	}
 `
 
@@ -363,9 +365,25 @@ export const useStyles = createStyles(({ token }) => ({
 	rowTagSlot: {
 		display: "flex",
 		alignItems: "center",
+		flexWrap: "nowrap",
+		gap: 4,
+		// 固有宽度在显隐前后保持一致，测量时无需临时修改排版。
+		width: "max-content",
+		maxWidth: "none",
 		flexShrink: 0,
 		marginLeft: "auto",
 		marginRight: "4px",
+	},
+	// 文件名和标签保持单行；实际宽度由列表统一测量，放不下时隐藏用途。
+	fileTitleWithTag: {
+		flexWrap: "nowrap",
+	},
+	fileItemWithTag: {
+		height: 30,
+		"@media (max-width: 768px)": {
+			height: "auto",
+			minHeight: 40,
+		},
 	},
 	activeFileItemWrapper: {
 		// backgroundColor: "#EEF3FD",

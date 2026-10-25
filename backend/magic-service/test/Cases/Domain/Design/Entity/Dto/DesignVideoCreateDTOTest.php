@@ -335,4 +335,115 @@ class DesignVideoCreateDTOTest extends TestCase
 
         $dto->validForEstimate();
     }
+
+    public function testCanvasCompositionAcceptsWorkspaceFileListsWithoutTopicId(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'composition-1',
+            'generation_type' => 'canvas_composition',
+            'file_dir' => '/canvas/videos/',
+            'generation' => [
+                'aspect_ratio' => '9:16',
+                'resolution' => '480p',
+            ],
+            'composition' => [
+                'videos' => [
+                    ['path' => '/canvas/videos/a.mp4'],
+                    ['path' => '/canvas/videos/b.mp4'],
+                ],
+                'audios' => [
+                    ['path' => '/canvas/audios/b.mp3'],
+                ],
+            ],
+        ]);
+
+        $dto->validForCanvasComposition();
+
+        $this->assertCount(2, $dto->getComposition()['videos']);
+        $this->assertSame('/canvas/audios/b.mp3', $dto->getComposition()['audios'][0]['path']);
+    }
+
+    public function testCanvasCompositionRejectsMultipleAudioFiles(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'composition-2',
+            'generation_type' => 'canvas_composition',
+            'file_dir' => '/canvas/videos/',
+            'composition' => [
+                'videos' => [['path' => '/canvas/videos/a.mp4']],
+                'audios' => [
+                    ['path' => '/canvas/audios/a.mp3'],
+                    ['path' => '/canvas/audios/b.mp3'],
+                ],
+            ],
+        ]);
+
+        $this->expectException(Throwable::class);
+
+        $dto->validForCanvasComposition();
+    }
+
+    public function testDraftTaskInputAcceptsUriObject(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'draft-task-1',
+            'model_id' => 'seedance-2.5',
+            'task' => 'generate',
+            'input_mode' => 'draft_task',
+            'file_dir' => '/2121/videos/',
+            'inputs' => [
+                'draft_task' => ['uri' => '/2121/videos/sample.mp4'],
+            ],
+        ]);
+
+        $dto->valid();
+
+        $this->assertSame('draft_task', $dto->getInputMode());
+        $this->assertSame(['uri' => '/2121/videos/sample.mp4'], $dto->getDraftTask());
+    }
+
+    public function testDraftTaskInputRejectsListShape(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'draft-task-2',
+            'model_id' => 'seedance-2.5',
+            'task' => 'generate',
+            'input_mode' => 'draft_task',
+            'file_dir' => '/2121/videos/',
+            'inputs' => [
+                // 样片引用是单个对象；列表形态两个字段都读不到，必须被拦下。
+                'draft_task' => [['uri' => '/2121/videos/sample.mp4']],
+            ],
+        ]);
+
+        // 只断言「被拒绝」：本文件的批量运行下 ExceptionBuilder 可能因容器未就绪先抛 TypeError，
+        // 具体文案（inputs.draft_task must be an object）无法在批量场景稳定断言。
+        $this->expectException(Throwable::class);
+
+        $dto->valid();
+    }
+
+    public function testDraftTaskIsNotATaskType(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'draft-task-3',
+            'model_id' => 'seedance-2.5',
+            // 样片成片不新增 task 取值，task=draft_task 必须被判为非法。
+            'task' => 'draft_task',
+            'input_mode' => 'draft_task',
+            'file_dir' => '/2121/videos/',
+            'inputs' => [
+                'draft_task' => ['uri' => '/2121/videos/sample.mp4'],
+            ],
+        ]);
+
+        $this->expectException(Throwable::class);
+
+        $dto->valid();
+    }
 }

@@ -76,16 +76,21 @@ class WorkDirectoryUtil
      */
     public static function getTopicRootDir(string $userId, int $projectId, int $topicId): string
     {
+        // TODO: Topic 文件全面迁移到基于 TaskFile 元数据和 topic root file_id 的新空间后，
+        // 再统一切换这里的物理目录；当前必须保留 runtime/topic_{topicId}，以兼容既有
+        // 上传、消息、Snapshot 路径及按该前缀颁发的对象存储权限。
         return self::getRootDir($userId, $projectId) . sprintf('/runtime/topic_%s', $topicId);
     }
 
     public static function getTopicUploadDir(string $userId, int $projectId, int $topicId): string
     {
+        // TODO: 后续 Topic 新空间上线时，上传凭证目录应与新的 Topic root 一起切换。
         return self::getTopicRootDir($userId, $projectId, $topicId) . '/uploads';
     }
 
     public static function getTopicMessageDir(string $userId, int $projectId, int $topicId): string
     {
+        // TODO: 后续 Topic 新空间上线时，消息文件目录应与新的 Topic root 一起切换。
         return self::getTopicRootDir($userId, $projectId, $topicId) . '/message';
     }
 

@@ -9,6 +9,11 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { workspaceStore } from "@/pages/superMagic/stores/core"
 import SuperMagicService from "@/pages/superMagic/services"
 import { useStyles } from "./styles"
+import {
+	MAX_PROJECT_NAME_LENGTH,
+	clampProjectName,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 
 type ProjectMovePopupMode = "move" | "saveAsProject"
 type SaveAsProjectView = "form" | "workspaceSelect"
@@ -68,7 +73,7 @@ function SaveAsProjectForm({
 					className={styles.nameInput}
 					value={projectName}
 					placeholder={t("hierarchicalWorkspacePopup.inputProjectName")}
-					maxLength={100}
+					maxLength={MAX_PROJECT_NAME_LENGTH}
 					onChange={(event) => onProjectNameChange(event.target.value)}
 					autoFocus
 					data-testid="project-move-popup-name-input"
@@ -194,7 +199,9 @@ function MoveProjectPopup({
 		() => availableWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? null,
 		[availableWorkspaces, selectedWorkspaceId],
 	)
-	const isConfirmDisabled = !selectedWorkspaceId || (isSaveAsProjectMode && !projectName.trim())
+	const isConfirmDisabled =
+		!selectedWorkspaceId ||
+		(isSaveAsProjectMode && (!projectName.trim() || isProjectNameOverLimit(projectName.trim())))
 	const headerTitle =
 		isSaveAsProjectMode && saveAsView === "workspaceSelect"
 			? t("chat.workspaceSelectTitle")
@@ -212,7 +219,7 @@ function MoveProjectPopup({
 		setSelectedWorkspaceId(
 			resolveInitialWorkspaceId(workspaceStore.workspaces, excludeWorkspaceId),
 		)
-		setProjectName(defaultProjectName)
+		setProjectName(clampProjectName(defaultProjectName))
 		setSaveAsView("form")
 	}, [defaultProjectName, open, excludeWorkspaceId])
 
@@ -237,7 +244,7 @@ function MoveProjectPopup({
 
 		onConfirm({
 			workspaceId: selectedWorkspaceId,
-			projectName: isSaveAsProjectMode ? projectName.trim() : undefined,
+			projectName: isSaveAsProjectMode ? clampProjectName(projectName) : undefined,
 		})
 	})
 

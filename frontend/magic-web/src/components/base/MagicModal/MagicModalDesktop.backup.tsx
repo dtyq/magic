@@ -14,7 +14,7 @@ import {
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { isUndefined } from "lodash-es"
 import { convertButtonProps } from "./utils"
 

@@ -7,6 +7,7 @@ declare(strict_types=1);
 use App\ErrorCode\AgentErrorCode;
 use App\ErrorCode\AppMenuErrorCode;
 use App\ErrorCode\AsrErrorCode;
+use App\ErrorCode\AssetErrorCode;
 use App\ErrorCode\AuthenticationErrorCode;
 use App\ErrorCode\ChatErrorCode;
 use App\ErrorCode\DesignErrorCode;
@@ -32,6 +33,7 @@ use App\ErrorCode\SuperMagicErrorCode;
 use App\ErrorCode\TokenErrorCode;
 use App\ErrorCode\UserErrorCode;
 use App\ErrorCode\UserTaskErrorCode;
+use App\ErrorCode\VideoGenerateErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 
 return [
@@ -47,10 +49,12 @@ return [
         TokenErrorCode::class => [9000, 10000],
         FlowErrorCode::class => [31000, 31999],
         AgentErrorCode::class => [32000, 32999],
+        AssetErrorCode::class => [48000, 48099],
         AuthenticationErrorCode::class => [33000, 33999],
         ModeErrorCode::class => [34000, 34999],
         PermissionErrorCode::class => [42000, 42999],
         ImageGenerateErrorCode::class => [44000, 44999],
+        VideoGenerateErrorCode::class => [50000, 50099],
         AsrErrorCode::class => [43000, 43999],
         UserTaskErrorCode::class => [8000, 8999],
         ServiceProviderErrorCode::class => [44000, 44999],

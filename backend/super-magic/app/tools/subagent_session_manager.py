@@ -2,6 +2,10 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Dict, Optional, Set
 
+from agentlang.logger import get_logger
+
+logger = get_logger(__name__)
+
 if TYPE_CHECKING:
     from app.core.context.agent_context import AgentContext
 
@@ -96,6 +100,17 @@ class SubagentSessionManager:
             if not children:
                 self._children_by_parent_context.pop(parent_context_id, None)
 
+    async def list_running_child_runs(self, parent_context_id: str) -> list[SubagentRunRef]:
+        """只读查询该父上下文仍在运行的子 Agent，不创建句柄或修改父子登记。"""
+        running: list[SubagentRunRef] = []
+        async with self._registry_lock:
+            for ref in self._children_by_parent_context.get(parent_context_id, set()):
+                handle = self._sessions.get(self._make_key(ref.agent_name, ref.agent_id))
+                # task 可能已结束，但注销回调尚未执行；不能只凭父子登记判断仍在运行。
+                if handle is not None and handle.is_running():
+                    running.append(ref)
+        return sorted(running, key=lambda ref: (ref.agent_name, ref.agent_id))
+
     async def interrupt_child_runs(
         self,
         parent_context_id: str,
@@ -122,6 +137,20 @@ class SubagentSessionManager:
         await asyncio.gather(*(_interrupt(ref) for ref in refs))
         return results
 
+    async def interrupt_all_runs(self, reason: str, timeout: float = 10.0) -> None:
+        """沙盒重启时中断所有登记的子 Agent，包括隔离运行的压缩和记忆 Agent。"""
+        async with self._registry_lock:
+            runs = [(key, handle) for key, handle in self._sessions.items() if handle.is_running()]
+
+        async def _interrupt(key: str, handle: SubagentSessionHandle) -> None:
+            try:
+                if not await self._interrupt_handle(handle, reason, timeout):
+                    logger.warning("Sub-agent did not stop before sandbox restart: %s", key)
+            except Exception as exc:
+                logger.warning("Unable to interrupt sub-agent %s: %s", key, exc, exc_info=True)
+
+        await asyncio.gather(*(_interrupt(key, handle) for key, handle in runs))
+
     async def clear_run(self, agent_name: str, agent_id: str, task: asyncio.Task) -> None:
         handle = await self.get_handle(agent_name, agent_id)
         if handle.task is task:
@@ -136,6 +165,14 @@ class SubagentSessionManager:
         timeout: float = 10.0,
     ) -> bool:
         handle = await self.get_handle(agent_name, agent_id)
+        return await self._interrupt_handle(handle, reason, timeout)
+
+    @staticmethod
+    async def _interrupt_handle(
+        handle: SubagentSessionHandle,
+        reason: str,
+        timeout: float,
+    ) -> bool:
         if not handle.is_running():
             return True
 

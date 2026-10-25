@@ -1,7 +1,5 @@
-import type { WithPage, WithPageToken } from "@admin/types/common"
 import type { AiModel } from "@admin/const/aiModel"
 import type { AiManage } from "../../types/aiManage"
-import type { DataDashboard } from "../../types/datadashboard"
 import { RequestUrl } from "../constant"
 import { genRequestUrl } from "../utils"
 import type { HttpClient } from "../core/HttpClient"
@@ -17,24 +15,10 @@ export const generateAIManageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 非官方组织获取服务提供商 */
-		getServiceProviderNonOfficial(category: AiModel.ServiceProviderCategory) {
-			return client.get<AiManage.ServiceProvider[]>(
-				genRequestUrl(RequestUrl.getServiceProviderNonOfficial, {}, { category }),
-			)
-		},
-
 		/** 获取服务商列表 */
 		getServiceProviderList(category: string) {
 			return client.get<AiManage.ServiceProviderList[]>(
 				genRequestUrl(RequestUrl.getServiceProviderList, {}, { category }),
-			)
-		},
-
-		/** 非官方组织获取服务商列表 */
-		getServiceProviderListNonOfficial(category: string) {
-			return client.get<AiManage.ServiceProviderList[]>(
-				genRequestUrl(RequestUrl.getServiceProviderListNonOfficial, {}, { category }),
 			)
 		},
 
@@ -55,27 +39,10 @@ export const generateAIManageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 非官方组织获取服务商详细信息 */
-		getServiceProviderDetailNonOfficial(id: string) {
-			return client.get<AiManage.ServiceProviderDetail>(
-				genRequestUrl(RequestUrl.getServiceProviderDetailNonOfficial, {
-					id,
-				}),
-			)
-		},
-
 		/** 更新服务商信息 */
 		updateServiceProviderInfo(data: AiManage.UpdateServiceProviderParams) {
 			return client.put<AiManage.ServiceProviderDetail>(
 				RequestUrl.getServiceProviderList,
-				data,
-			)
-		},
-
-		/** 非官方组织更新服务商信息 */
-		updateServiceProviderInfoNonOfficial(data: AiManage.UpdateServiceProviderParams) {
-			return client.put<AiManage.ServiceProviderDetail>(
-				RequestUrl.getServiceProviderListNonOfficial,
 				data,
 			)
 		},
@@ -88,27 +55,10 @@ export const generateAIManageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 非官方组织添加服务商 */
-		addServiceProviderNonOfficial(data: AiManage.AddServiceProviderParams) {
-			return client.post<AiManage.ServiceProviderDetail>(
-				RequestUrl.getServiceProviderListNonOfficial,
-				data,
-			)
-		},
-
 		/** 删除服务商 */
 		deleteServiceProvider(id: string) {
 			return client.delete<null>(
 				genRequestUrl(RequestUrl.getServiceProviderDetail, {
-					id,
-				}),
-			)
-		},
-
-		/** 非官方组织删除服务商 */
-		deleteServiceProviderNonOfficial(id: string) {
-			return client.delete<null>(
-				genRequestUrl(RequestUrl.getServiceProviderDetailNonOfficial, {
 					id,
 				}),
 			)
@@ -123,23 +73,9 @@ export const generateAIManageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 非官方组织更新模型状态 */
-		updateModelStatusNonOfficial(data: AiManage.UpdateModelStatusParams) {
-			const { model_id, ...rest } = data
-			return client.put<null>(
-				genRequestUrl(RequestUrl.updateModelStatusNonOfficial, { id: model_id }),
-				rest,
-			)
-		},
-
 		/** 添加模型 */
 		addModel(data: AiManage.AddModelParams) {
 			return client.post<AiManage.ModelInfo>(RequestUrl.addModel, data)
-		},
-
-		/** 非官方组织添加模型 */
-		addModelNonOfficial(data: AiManage.AddModelParams) {
-			return client.post<AiManage.ModelInfo>(RequestUrl.addModelNonOfficial, data)
 		},
 
 		/** 删除模型 */
@@ -147,21 +83,9 @@ export const generateAIManageApi = (client: HttpClient) => {
 			return client.delete<null>(genRequestUrl(RequestUrl.deleteModel, { id }))
 		},
 
-		/** 非官方组织删除模型 */
-		deleteModelNonOfficial(id: string) {
-			return client.delete<null>(genRequestUrl(RequestUrl.deleteModelNonOfficial, { id }))
-		},
-
 		/** 获取模型详情 */
 		getModelDetail(id: string) {
 			return client.get<AiManage.ModelInfo>(genRequestUrl(RequestUrl.deleteModel, { id }))
-		},
-
-		/** 非官方组织获取模型详情 */
-		getModelDetailNonOfficial(id: string) {
-			return client.get<AiManage.ModelInfo>(
-				genRequestUrl(RequestUrl.deleteModelNonOfficial, { id }),
-			)
 		},
 
 		/** 连通性测试 */
@@ -169,22 +93,9 @@ export const generateAIManageApi = (client: HttpClient) => {
 			return client.post<AiManage.TestConnectionResult>(RequestUrl.testConnection, data)
 		},
 
-		/** 非官方组织连通性测试 */
-		testConnectionNonOfficial(data: AiManage.TestConnectionParams) {
-			return client.post<AiManage.TestConnectionResult>(
-				RequestUrl.testConnectionNonOfficial,
-				data,
-			)
-		},
-
 		/** 获取模型标识列表 */
 		getOriginalModelList() {
 			return client.get<AiManage.ModelIdList[]>(RequestUrl.getOriginalModelList)
-		},
-
-		/** 非官方组织获取模型标识列表 */
-		getOriginalModelListNonOfficial() {
-			return client.get<AiManage.ModelIdList[]>(RequestUrl.getOriginalModelListNonOfficial)
 		},
 
 		/** 删除模型标识 */
@@ -192,55 +103,9 @@ export const generateAIManageApi = (client: HttpClient) => {
 			return client.delete<null>(genRequestUrl(RequestUrl.deleteModalId, { id }))
 		},
 
-		/** 非官方组织删除模型标识 */
-		deleteModalIdNonOfficial(id: string) {
-			return client.delete<null>(genRequestUrl(RequestUrl.deleteModalIdNonOfficial, { id }))
-		},
-
 		/** 添加模型标识 */
 		addModalId(model_id: string) {
 			return client.post<null>(RequestUrl.addModalId, { model_id })
-		},
-
-		/** 非官方组织添加模型标识 */
-		addModalIdNonOfficial(model_id: string) {
-			return client.post<null>(RequestUrl.addModalIdNonOfficial, { model_id })
-		},
-
-		/** 组织后台 - 获取员工审核列表 */
-		getOrganizationAgentVersionReviewList(
-			data: AiManage.GetOrganizationAgentVersionReviewListParams,
-		) {
-			return client.post<WithPage<AiManage.OrganizationAgentVersionReview>>(
-				RequestUrl.getOrganizationAgentVersionReviewList,
-				data,
-			)
-		},
-
-		/** 组织后台 - 审核员工版本 */
-		reviewOrganizationAgentVersion(id: string, data: AiManage.ReviewOrganizationVersionParams) {
-			return client.put<null>(
-				genRequestUrl(RequestUrl.reviewOrganizationAgentVersion, { id }),
-				data,
-			)
-		},
-
-		/** 组织后台 - 获取 Skill 审核列表 */
-		getOrganizationSkillVersionReviewList(
-			data: AiManage.GetOrganizationSkillVersionReviewListParams,
-		) {
-			return client.post<WithPage<AiManage.OrganizationSkillVersionReview>>(
-				RequestUrl.getOrganizationSkillVersionReviewList,
-				data,
-			)
-		},
-
-		/** 组织后台 - 审核 Skill 版本 */
-		reviewOrganizationSkillVersion(id: string, data: AiManage.ReviewOrganizationVersionParams) {
-			return client.put<null>(
-				genRequestUrl(RequestUrl.reviewOrganizationSkillVersion, { id }),
-				data,
-			)
 		},
 
 		/** 获取默认图标 */
@@ -270,169 +135,9 @@ export const generateAIManageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 数据看板 - 数字员工筛选选项 */
-		getDataDashboardAgentOptions() {
-			return client.get<DataDashboard.AgentOptions>(RequestUrl.getDataDashboardAgentOptions)
-		},
-
-		/** 数据看板 - 数字员工分析 Summary */
-		getDataDashboardAgentSummary(data: DataDashboard.AgentSummaryQuery) {
-			return client.get<DataDashboard.AgentSummary>(
-				genRequestUrl(RequestUrl.getDataDashboardAgentSummary, {}, data),
-			)
-		},
-
-		/** 数据看板 - 数字员工分析 Tabs */
-		getDataDashboardAgentTabs(data: DataDashboard.AgentTabsQuery) {
-			return client.get<DataDashboard.PagedResponse<DataDashboard.AgentTabRow>>(
-				genRequestUrl(RequestUrl.getDataDashboardAgentTabs, {}, data),
-			)
-		},
-
-		/** 数据看板 - 成员分析 Summary */
-		getDataDashboardMemberSummary(data: DataDashboard.MemberSummaryQuery) {
-			return client.get<DataDashboard.MemberSummary>(
-				genRequestUrl(RequestUrl.getDataDashboardMemberSummary, {}, data),
-			)
-		},
-
-		/** 数据看板 - 成员分析 Tabs */
-		getDataDashboardMemberTabs(data: DataDashboard.MemberTabsQuery) {
-			return client.get<DataDashboard.PagedResponse<DataDashboard.MemberTabRow>>(
-				genRequestUrl(RequestUrl.getDataDashboardMemberTabs, {}, data),
-			)
-		},
-
-		/** 数据看板 - 组织分析 Summary */
-		getDataDashboardOrganizationSummary(data: DataDashboard.OrganizationSummaryQuery) {
-			return client.get<DataDashboard.OrganizationSummary>(
-				genRequestUrl(RequestUrl.getDataDashboardOrganizationSummary, {}, data),
-			)
-		},
-
-		/** 数据看板 - 组织分析 Tabs */
-		getDataDashboardOrganizationTabs(data: DataDashboard.OrganizationTabsQuery) {
-			return client.get<DataDashboard.PagedResponse<DataDashboard.OrganizationTabRow>>(
-				genRequestUrl(RequestUrl.getDataDashboardOrganizationTabs, {}, data),
-			)
-		},
-
-		/** 数据看板 - 消耗分析 Summary */
-		getDataDashboardConsumptionSummary(data: DataDashboard.ConsumptionAnalysisQuery) {
-			return client.get<DataDashboard.ConsumptionAnalysisSummary>(
-				genRequestUrl(RequestUrl.getDataDashboardConsumptionSummary, {}, data),
-			)
-		},
-
-		/** 数据看板 - 创建组织分析导出任务 */
-		createDataDashboardOrganizationExport(data: DataDashboard.DashboardExportRequest) {
-			return client.post<DataDashboard.DashboardExportCreated>(
-				RequestUrl.createDataDashboardOrganizationExport,
-				data,
-				{ enableErrorMessagePrompt: false },
-			)
-		},
-
-		/** 数据看板 - 创建数字员工分析导出任务 */
-		createDataDashboardAgentExport(data: DataDashboard.DashboardExportRequest) {
-			return client.post<DataDashboard.DashboardExportCreated>(
-				RequestUrl.createDataDashboardAgentExport,
-				data,
-				{ enableErrorMessagePrompt: false },
-			)
-		},
-
-		/** 数据看板 - 创建成员分析导出任务 */
-		createDataDashboardMemberExport(data: DataDashboard.DashboardExportRequest) {
-			return client.post<DataDashboard.DashboardExportCreated>(
-				RequestUrl.createDataDashboardMemberExport,
-				data,
-				{ enableErrorMessagePrompt: false },
-			)
-		},
-
-		/** 数据看板 - 查询导出任务 */
-		getDataDashboardExportTask(exportId: string) {
-			return client.get<DataDashboard.DashboardExportTask>(
-				genRequestUrl(RequestUrl.getDataDashboardExportTask, { export_id: exportId }),
-				{ enableErrorMessagePrompt: false },
-			)
-		},
-
-		/* -------- 功能配置API -------- */
-
-		/** 获取企业内部助理列表 */
-		getAgentList(data: AiManage.GetAgentListParams) {
-			return client.post<WithPage<AiManage.Agent>>(RequestUrl.getAgentList, data)
-		},
-
-		/** 更新助理状态 */
-		updateAgentStatus(data: AiManage.UpdateAgentStatusParams) {
-			return client.post<null>(RequestUrl.updateAgentStatus, data)
-		},
-
-		/** 获取企业内助理创建人 */
-		getAgentCreator() {
-			return client.get<Record<string, string>>(RequestUrl.getAgentCreator)
-		},
-
-		/** 保存助理 */
-		saveAgent(data: AiManage.SaveAgentParams) {
-			return client.post<AiManage.Agent>(RequestUrl.saveAgent, data)
-		},
-
 		/** 判断当前组织是否是官方组织 */
 		isOfficialOrg() {
 			return client.get<AiManage.IsOfficialOrg>(RequestUrl.isOfficialOrg)
-		},
-
-		/* 获取助理全局设置 */
-		getAgentGlobalSetting() {
-			return client.get<AiManage.AgentGlobalSetting>(RequestUrl.agentGlobalSettings)
-		},
-
-		/* 设置助理全局设置 */
-		setAgentGlobalSetting(data: AiManage.AgentGlobalSetting) {
-			return client.put<null>(RequestUrl.agentGlobalSettings, data)
-		},
-
-		/* 获取发布助理列表 */
-		getPublishList(data: AiManage.GetPublishListParams) {
-			return client.get<WithPageToken<AiManage.PublishAgentList>>(
-				genRequestUrl(RequestUrl.getPublishList, {}, { ...data }),
-			)
-		},
-
-		/* 获取组织当前订阅的套餐 */
-		getSubscriptionInfo() {
-			return client.get<AiManage.SubscriptionInfo>(RequestUrl.getSubscriptionInfo)
-		},
-
-		/* -------- 管控策略API -------- */
-
-		/* 获取积分组织管控规则列表 */
-		getControlRuleList() {
-			return client.get<AiManage.ControlRule>(RequestUrl.getOrgControlRule)
-		},
-
-		/* 保存积分组织管控规则 */
-		saveControlRule(data: AiManage.SaveControlRuleParams) {
-			return client.post<null>(RequestUrl.getOrgControlRule, data)
-		},
-
-		/* 查询管控目标已用积分 */
-		getControlTargetUsedPoints(data: AiManage.GetControlTargetUsedPointsParams) {
-			return client.post<{ [key: string]: number }>(
-				RequestUrl.getControlTargetUsedPoints,
-				data,
-			)
-		},
-
-		/* 获取商品列表并携带sku */
-		getProductListWithSku(params: AiManage.GetProductListWithSkuParams) {
-			return client.get<AiManage.ProductListWithSku>(
-				genRequestUrl(RequestUrl.getProductListWithSku, {}, { ...params }),
-			)
 		},
 	}
 }

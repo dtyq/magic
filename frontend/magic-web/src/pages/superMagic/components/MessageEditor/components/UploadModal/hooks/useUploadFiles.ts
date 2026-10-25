@@ -5,6 +5,7 @@ import { generateNextFileName } from "../../../utils/generateUniqueFileName"
 interface FileItem {
 	name: string
 	file: File
+	originalFile: File
 }
 
 interface UseUploadFilesProps {
@@ -19,7 +20,9 @@ export function useUploadFiles({
 	validateFileCount = (files) => ({ validFiles: files, hasError: false }),
 }: UseUploadFilesProps) {
 	const [fileList, setFileList] = useState<FileItem[]>(
-		uploadFiles ? uploadFiles.map((file) => ({ name: file.name, file })) : [],
+		uploadFiles
+			? uploadFiles.map((file) => ({ name: file.name, file, originalFile: file }))
+			: [],
 	)
 
 	// Add files to upload list
@@ -61,12 +64,17 @@ export function useUploadFiles({
 		}
 
 		const validateFileSizeResult = validateFileSize(newFiles)
+		const originalFiles = new Map(newFiles.map((file, index) => [file, filesArray[index]]))
 		const validateFileCountResult = validateFileCount(validateFileSizeResult.validFiles)
 
 		if (validateFileCountResult.validFiles) {
 			setFileList((prev) => [
 				...prev,
-				...validateFileCountResult.validFiles.map((f) => ({ name: f.name, file: f })),
+				...validateFileCountResult.validFiles.map((file) => ({
+					name: file.name,
+					file,
+					originalFile: originalFiles.get(file) ?? file,
+				})),
 			])
 		}
 	})
@@ -109,7 +117,13 @@ export function useUploadFiles({
 	// Reset to initial files
 	const resetFiles = useMemoizedFn(() => {
 		setFileList(
-			uploadFiles ? Array.from(uploadFiles).map((file) => ({ name: file.name, file })) : [],
+			uploadFiles
+				? Array.from(uploadFiles).map((file) => ({
+						name: file.name,
+						file,
+						originalFile: file,
+					}))
+				: [],
 		)
 	})
 

@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button, buttonVariants } from "@/components/shadcn-ui/button"
 import type { VariantProps } from "class-variance-authority"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { StepNavigationProps } from "./types"
 
 /**

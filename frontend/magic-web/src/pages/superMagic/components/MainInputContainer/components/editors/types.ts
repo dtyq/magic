@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import type { ComponentType, ReactNode, RefObject } from "react"
 import type { LocaleText } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import type { DataService } from "@/components/business/MentionPanel/types"
@@ -11,6 +11,8 @@ import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesBut
 import type { MessageEditorRef } from "@/pages/superMagic/components/MessageEditor/MessageEditor"
 import type {
 	DraftKey,
+	QueueMessageInput,
+	QueueDraftSnapshot,
 	EditorPromptCarouselConfig,
 	ModelItem,
 	MessageEditorLayoutConfig,
@@ -29,20 +31,18 @@ import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { QueuedMessage } from "@/pages/superMagic/components/MessagePanel/hooks/useMessageQueue"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
 
-export interface QueueMessageInput {
-	content: JSONContent
-	mentionItems: MentionListItem[]
-	selectedModel?: ModelItem | null
-	selectedImageModel?: ModelItem | null
-	selectedVideoModel?: ModelItem | null
-	topicMode?: TopicMode
-	agentCode?: string | null
-}
+export type { QueueMessageInput } from "@/pages/superMagic/components/MessageEditor/types"
 
 export interface SceneEditorQueueContext {
+	editorRef: RefObject<MessageEditorRef | null>
 	editingQueueItem: QueuedMessage | null
 	addToQueue: (params: QueueMessageInput) => Promise<string | undefined>
-	finishEditQueueItem: (value: JSONContent | undefined, mentionItems: MentionListItem[]) => void
+	finishEditQueueItem: (params: QueueMessageInput) => Promise<boolean>
+	queueDraft: QueueDraftSnapshot | null
+	cancelEditQueueItem: () => Promise<void>
+	onEditorReady: () => void
+	retryQueueDraftRemoval: () => Promise<void>
+	isQueueOperationPending: boolean
 }
 
 export interface SceneEditorContext {
@@ -51,9 +51,15 @@ export interface SceneEditorContext {
 	/** Optional rotating examples shown while the editor is empty */
 	promptCarousel?: EditorPromptCarouselConfig
 	draftKey?: DraftKey
+	/** Portal target for the scene editor; blank chat uses its own target during route transitions. */
+	sceneInputContainerId?: string
+	/** Blank composers upload temporary attachments without creating a project before send. */
+	deferProjectCreationUntilSend?: boolean
 	selectedTopic: Topic | null
 	selectedProject: ProjectListItem | null
 	selectedWorkspace?: Workspace | null
+	/** Product surface that owns entity creation; do not infer it from the selected agent. */
+	creationScene?: string
 	setSelectedTopic?: (topic: Topic | null) => void
 	/** 话题自动命名完成后，让目标详情页同步话题名称并重新读取项目名称。 */
 	refreshProjectAfterTopicRename?: boolean
@@ -66,7 +72,7 @@ export interface SceneEditorContext {
 	agentCode?: string
 	setTopicMode?: (mode: TopicMode) => void
 	/** Runtime recovery that must not persist user preferences. */
-	recoverTopicMode?: (mode: TopicMode) => void
+	recoverTopicMode?: (mode: TopicMode, agentCode?: string | null) => void
 	topicExamplesMode?: TopicMode
 	size?: MessageEditorSize
 	className?: string
@@ -93,6 +99,13 @@ export interface SceneEditorContext {
 		workdir?: string
 	}) => Promise<CreatedProject | null>
 	createTopic?: (params: { selectedProject?: ProjectListItem | null }) => Promise<Topic | null>
+	/**
+	 * Mentions bound to every sent message once the project exists (see
+	 * MessageSendPreparationContext.getImplicitMentionItems); the AI canvas uses it for its canvas.
+	 */
+	getImplicitMentionItems?: (
+		project: ProjectListItem,
+	) => MentionListItem[] | Promise<MentionListItem[]>
 	onSendSuccess?: (params: {
 		currentProject: ProjectListItem | null
 		currentTopic: Topic | null
@@ -101,6 +114,8 @@ export interface SceneEditorContext {
 		content: JSONContent | undefined
 		mentionItems: MentionListItem[]
 	}) => void
+	/** Validate the destination before preparing a new mobile home message, including retries. */
+	beforeSend?: () => Promise<boolean>
 	onSendComplete?: (params: {
 		success: boolean
 		currentProject: ProjectListItem | null
@@ -124,6 +139,10 @@ export interface SceneEditorContext {
 	editorModeSwitch?: ({ disabled }: { disabled: boolean }) => ReactNode
 	/** Controls whether recording-summary editors can enter recording mode. */
 	allowRecordingMode?: boolean
+	/** When false, the recording start button cannot choose an existing project. */
+	allowSelectRecordingProject?: boolean
+	/** Topic mode for a project created by the recording start button. */
+	recordingNewProjectTopicMode?: TopicMode
 	modelSwitch?: ReactNode
 	topicStore?: TopicStore
 	/** 挂载后自动聚焦编辑器（移动端弹窗打开时使用） */

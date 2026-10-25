@@ -9,6 +9,7 @@ return [
         'code' => 'รหัส',
         'name' => 'ชื่อ',
         'description' => 'คำอธิบาย',
+        'icon' => 'ไอคอน',
         'status' => 'สถานะ',
         'external_sse_url' => 'URL บริการ MCP',
         'url' => 'URL',
@@ -23,6 +24,7 @@ return [
         'scope' => 'ขอบเขต',
         'authorization_url' => 'URL การอนุญาต',
         'authorization_content_type' => 'ประเภทเนื้อหาการอนุญาต',
+        'authorization_method' => 'Authorization Method',
         'issuer_url' => 'URL ผู้ออก',
         'redirect_uri' => 'URI เปลี่ยนเส้นทาง',
         'use_pkce' => 'ใช้ PKCE',
@@ -40,6 +42,7 @@ return [
     // ข้อความแสดงข้อผิดพลาด
     'validate_failed' => 'การตรวจสอบล้มเหลว',
     'not_found' => 'ไม่พบข้อมูล',
+    'field_too_long' => ':label ต้องไม่เกิน :max ตัวอักษร',
 
     // ข้อผิดพลาดที่เกี่ยวข้องกับบริการ
     'service' => [
@@ -82,6 +85,32 @@ return [
             'code_empty' => 'รหัสการอนุญาตไม่สามารถเว้นว่างได้',
             'state_empty' => 'พารามิเตอร์สถานะไม่สามารถเว้นว่างได้',
             'mcp_server_code_empty' => 'รหัสเซิร์ฟเวอร์ MCP ไม่สามารถเว้นว่างได้',
+        ],
+    ],
+
+    // การตรวจสอบความสามารถของ MCP Authorization
+    'authorization_capability' => [
+        'unsupported' => 'บริการนี้ไม่ได้เลือกการอนุญาตมาตรฐาน MCP',
+        'not_configured' => 'ไม่มีการกำหนดค่าการอนุญาตมาตรฐาน MCP',
+        'resource_url_required' => 'MCP Resource ต้องเป็น URL แบบเต็ม',
+        'invalid_server_metadata' => 'ข้อมูลเมตาของเซิร์ฟเวอร์การอนุญาตไม่ถูกต้อง',
+        'missing_server_endpoints' => 'ข้อมูลเมตาของเซิร์ฟเวอร์การอนุญาตขาด endpoint ที่จำเป็น',
+        'probe_failed' => 'การตรวจสอบความสามารถของ MCP Authorization ล้มเหลว',
+        'registration' => [
+            'pre_registered' => 'ผู้ดูแลระบบต้องลงทะเบียนไคลเอนต์ล่วงหน้า',
+            'cimd_supported' => 'เซิร์ฟเวอร์การอนุญาตประกาศว่ารองรับ CIMD',
+            'cimd_unsupported' => 'เซิร์ฟเวอร์การอนุญาตไม่ได้ประกาศว่ารองรับ CIMD',
+            'dcr_found' => 'พบ endpoint สำหรับลงทะเบียนไคลเอนต์แบบไดนามิก',
+            'dcr_missing' => 'ไม่พบ endpoint สำหรับลงทะเบียนไคลเอนต์แบบไดนามิก',
+        ],
+        'warnings' => [
+            'dcr_recommended' => 'แนะนำการลงทะเบียนไคลเอนต์แบบไดนามิก การอนุญาตครั้งแรกอาจสร้างไคลเอนต์ระยะไกล',
+            'cimd_not_advertised' => 'มีการกำหนดค่า URL CIMD แต่เซิร์ฟเวอร์การอนุญาตไม่ได้ประกาศการรองรับ CIMD อย่างชัดเจน',
+            'token_auth_not_advertised' => 'เซิร์ฟเวอร์การอนุญาตไม่ได้ประกาศวิธีการยืนยันตัวตนของ token endpoint จึงแนะนำ none',
+        ],
+        'failure_reason' => [
+            'remote_request' => 'คำขอระยะไกลล้มเหลว',
+            'configuration_or_discovery' => 'การตรวจสอบการกำหนดค่าหรือการค้นพบการอนุญาตล้มเหลว',
         ],
     ],
 

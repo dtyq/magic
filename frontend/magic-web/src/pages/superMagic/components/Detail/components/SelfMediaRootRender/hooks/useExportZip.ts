@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react"
-import JSZip from "jszip"
+import { loadJSZip } from "@/infrastructure/vendors/jszip"
 import { saveAs } from "file-saver"
-import { logger as rootLogger } from "@/utils/log"
+import { logger as rootLogger } from "@/infrastructure/logger"
 import type { CardFrameRef } from "../components/CardFrame"
 import type { SelfMediaPost } from "../types"
 import { DEFAULT_SELF_MEDIA_EXPORT_FORMAT } from "../utils/exportImageFormat"
@@ -17,6 +17,7 @@ import {
 	stitchCardDataUrlsToBlob,
 	stitchWechatCoverImagesToBlob,
 } from "../utils/exportImageUtils"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 const log = rootLogger.createLogger("useExportZip")
 
@@ -67,6 +68,7 @@ const DEFAULT_PIXEL_RATIO = 2
  *    (only succeeds when iframe is same-origin or tainted-canvas tolerated).
  */
 export function useExportZip(): UseExportZipResult {
+	const fileApi = useFileApi()
 	const [progress, setProgress] = useState<ExportProgress>({
 		current: 0,
 		total: 0,
@@ -90,7 +92,7 @@ export function useExportZip(): UseExportZipResult {
 			const total = posts.reduce((sum, p) => sum + p.cards.length, 0)
 			setProgress({ current: 0, total, status: "running" })
 
-			const zip = new JSZip()
+			const zip = new (await loadJSZip())()
 			let processed = 0
 			let captured = 0
 			const failedPageNumbers: number[] = []
@@ -260,6 +262,7 @@ export function useExportZip(): UseExportZipResult {
 					heroFileId: post.heroCover?.fileId,
 					pixelRatio: effectivePixelRatio,
 					format,
+					fileApi,
 				})
 				saveAs(blob, `${imageName}-wechat-cover.${format}`)
 				setProgress({ current: 1, total: 1, status: "done" })
@@ -280,7 +283,7 @@ export function useExportZip(): UseExportZipResult {
 				runningRef.current = false
 			}
 		},
-		[],
+		[fileApi],
 	)
 
 	return { progress, exportZip, exportLongImage, exportWechatCoverImage }

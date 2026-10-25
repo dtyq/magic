@@ -149,7 +149,9 @@ export function useProjectDetailFilesController({
 				])
 			}
 
+			onUpdateAttachments?.()
 			magicToast.success(t("topicFiles.contextMenu.createFileSuccess"))
+			return response
 		} catch (error) {
 			console.error("创建移动端项目详情文件失败:", error)
 			magicToast.error(t("projectDetail.createFileFailed"))
@@ -170,14 +172,17 @@ export function useProjectDetailFilesController({
 		const parentId = resolveParentIdFromPath(parentPath)
 
 		try {
-			await SuperMagicApi.createFile({
+			const response = await SuperMagicApi.createFile({
 				project_id: projectId,
 				parent_id: parentId,
 				file_name: folderName,
 				is_directory: true,
 			})
 
+			// Refresh the attachment tree so the newly created folder is visible immediately.
+			onUpdateAttachments?.()
 			magicToast.success(t("topicFiles.contextMenu.createFolderSuccess"))
+			return response
 		} catch (error) {
 			console.error("创建移动端项目详情文件夹失败:", error)
 			magicToast.error(t("projectDetail.createFolderFailed"))
@@ -232,8 +237,10 @@ export function useProjectDetailFilesController({
 					await SuperMagicApi.deleteFiles({
 						file_ids: fileIds,
 						project_id: projectId,
-					}).catch(() => null)
+					})
 
+					// Reload the server-backed attachment tree before leaving selection mode.
+					onUpdateAttachments?.()
 					magicToast.success(t("topicFiles.contextMenu.deleteFileSuccess"))
 					setIsSelectMode(false)
 					setSelectionResetKey((prev) => prev + 1)

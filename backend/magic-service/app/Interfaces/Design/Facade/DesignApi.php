@@ -17,6 +17,7 @@ use App\Domain\Design\Entity\Dto\DesignVideoCreateDTO;
 use App\Domain\Design\Entity\ImageGenerationEntity;
 use App\Domain\Design\Entity\ValueObject\ImageGenerationType;
 use App\Domain\Design\Entity\ValueObject\ImageMarkIdentifyType;
+use App\Domain\ImageGenerate\ValueObject\ImageGenerationExpectedDuration;
 use App\Interfaces\Design\Assembler\DesignVideoAssembler;
 use App\Interfaces\Design\Assembler\ImageGenerationAssembler;
 use App\Interfaces\Design\DTO\ImageGenerationDTO;
@@ -33,6 +34,7 @@ use App\Interfaces\Design\RequestForm\IdentifyImageMarkFormRequest;
 use App\Interfaces\Design\RequestForm\QueryImageGenerationResultFormRequest;
 use App\Interfaces\Design\RequestForm\QueryVideoGenerationResultFormRequest;
 use App\Interfaces\Design\RequestForm\RemoveBackgroundFormRequest;
+use DateTimeInterface;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 
@@ -327,7 +329,8 @@ class DesignApi extends AbstractApi
      *
      * GET /api/v1/design/convert-high/config
      *
-     * @return array Response with convert high config (supported status and sizes)
+     * @deprecated use GET /api/v1/ai-abilities/availability instead
+     * @return array response with supported status and convert high image size configuration
      */
     public function imageConvertHighConfig(): array
     {
@@ -388,6 +391,18 @@ class DesignApi extends AbstractApi
             'status' => $entity->getStatus()->value,
             'error_message' => $entity->getErrorMessage(),
             'images' => $entity->getImages(),
+            // 成对下发任务起止时间，供画布和工具卡使用同一进度口径。
+            'started_at' => date(
+                DateTimeInterface::ATOM,
+                $entity->getCreatedAt()->getTimestamp()
+            ),
+            'expected_finished_at' => date(
+                DateTimeInterface::ATOM,
+                $entity->getCreatedAt()->getTimestamp() + ImageGenerationExpectedDuration::resolveSeconds(
+                    $entity->getResolution(),
+                    $entity->getSize()
+                )
+            ),
         ];
     }
 

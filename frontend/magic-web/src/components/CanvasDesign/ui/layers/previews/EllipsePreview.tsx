@@ -1,4 +1,5 @@
 import type { EllipseElement } from "../../../runtime/document/types"
+import { getActiveContent } from "../../../runtime/document/elementContent"
 
 interface EllipsePreviewProps {
 	element: EllipseElement
@@ -11,9 +12,10 @@ const CENTER_X = SIZE / 2
 const CENTER_Y = SIZE / 2
 
 export function EllipsePreview({ element }: EllipsePreviewProps) {
-	const fill = element.fill || "#969696"
-	const stroke = element.stroke || "transparent"
-	const strokeWidth = element.strokeWidth || 0
+	const content = getActiveContent(element)
+	const fill = content?.fill || "#969696"
+	const stroke = content?.stroke || "transparent"
+	const strokeWidth = content?.strokeWidth || 0
 	const opacity = element.opacity !== undefined ? element.opacity : 1
 
 	// 根据实际宽高计算比例，保持宽高比

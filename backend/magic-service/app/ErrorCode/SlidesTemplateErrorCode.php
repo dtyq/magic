@@ -49,4 +49,43 @@ enum SlidesTemplateErrorCode: int
 
     #[ErrorMessage('slides_template.tag_group_cannot_bind')]
     case TAG_GROUP_CANNOT_BIND = 47011;
+
+    #[ErrorMessage('slides_template.user_template_access_denied')]
+    case USER_TEMPLATE_ACCESS_DENIED = 47012;
+
+    #[ErrorMessage('slides_template.template_disabled_cannot_use')]
+    case TEMPLATE_DISABLED_CANNOT_USE = 47013;
+
+    #[ErrorMessage('slides_template.category_not_official')]
+    case CATEGORY_NOT_OFFICIAL = 47014;
+
+    #[ErrorMessage('slides_template.tag_not_official')]
+    case TAG_NOT_OFFICIAL = 47015;
+
+    #[ErrorMessage('slides_template.template_file_access_denied')]
+    case TEMPLATE_FILE_ACCESS_DENIED = 47016;
+
+    #[ErrorMessage('slides_template.project_template_manifest_not_found')]
+    case PROJECT_TEMPLATE_MANIFEST_NOT_FOUND = 47017;
+
+    #[ErrorMessage('slides_template.project_template_directory_invalid')]
+    case PROJECT_TEMPLATE_DIRECTORY_INVALID = 47018;
+
+    #[ErrorMessage('slides_template.project_template_asset_not_found')]
+    case PROJECT_TEMPLATE_ASSET_NOT_FOUND = 47019;
+
+    #[ErrorMessage('slides_template.project_template_manifest_invalid')]
+    case PROJECT_TEMPLATE_MANIFEST_INVALID = 47020;
+
+    #[ErrorMessage('slides_template.project_template_file_too_large')]
+    case PROJECT_TEMPLATE_FILE_TOO_LARGE = 47021;
+
+    #[ErrorMessage('slides_template.project_template_too_many_files')]
+    case PROJECT_TEMPLATE_TOO_MANY_FILES = 47022;
+
+    #[ErrorMessage('slides_template.project_template_too_many_preview_images')]
+    case PROJECT_TEMPLATE_TOO_MANY_PREVIEW_IMAGES = 47023;
+
+    #[ErrorMessage('slides_template.project_template_export_failed')]
+    case PROJECT_TEMPLATE_EXPORT_FAILED = 47024;
 }

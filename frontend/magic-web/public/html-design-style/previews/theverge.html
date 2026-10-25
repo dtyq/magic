@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Verge — Technology, Science, Art & Culture</title>
+  <style>
+    :root {
+      --canvas: #131313;
+      --slate: #2d2d2d;
+      --frame: #313131;
+      --white: #ffffff;
+      --muted: #949494;
+      --off-white: #e9e9e9;
+      --mint: #3cffd0;
+      --ultraviolet: #5200ff;
+      --magenta: #e2127a;
+      --neon-yellow: #ffe600;
+      --link-blue: #3860be;
+      --font-display: Impact, "Arial Black", "Haettenschweiler", -apple-system, sans-serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", "Roboto Mono", monospace;
+      --radius-md: 20px;
+      --radius-lg: 24px;
+      --radius-pill: 40px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--canvas); color: var(--white); font-family: var(--font-sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; transition: color 0.15s; }
+    a:hover { color: var(--link-blue); }
+
+    .top-hazard-bar {
+      background: var(--neon-yellow); color: #000; font-family: var(--font-mono); font-size: 11px;
+      font-weight: 800; text-transform: uppercase; letter-spacing: 1.6px; padding: 6px 24px;
+      display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000;
+    }
+    .hazard-live { display: inline-flex; align-items: center; gap: 8px; }
+    .pulse-dot { width: 8px; height: 8px; background: var(--magenta); border-radius: 50%; animation: pGlow 1.2s infinite alternate; }
+    @keyframes pGlow { 0% { opacity: 0.5; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1.3); } }
+
+    .header-nav { background: var(--canvas); border-bottom: 1px solid var(--frame); position: sticky; top: 0; z-index: 90; }
+    .header-inner { max-width: 1280px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .brand-logo { font-family: var(--font-display); font-size: clamp(34px, 4.5vw, 50px); line-height: 0.85; text-transform: uppercase; color: var(--white); }
+    .brand-logo span { color: var(--magenta); }
+    .nav-cats { display: flex; gap: 18px; list-style: none; }
+    .nav-cats a { font-family: var(--font-mono); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--off-white); }
+    .nav-cats a.active { color: var(--mint); box-shadow: 0 -2px 0 0 var(--mint) inset; }
+    .btn-mint-pill {
+      background: var(--mint); color: #000; font-family: var(--font-mono); font-size: 11px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 1.5px; padding: 8px 20px; border-radius: var(--radius-pill); border: none; cursor: pointer;
+    }
+    .btn-mint-pill:hover { background: #fff; box-shadow: 0 0 10px var(--mint); }
+
+    .shell { max-width: 1280px; margin: 0 auto; padding: 20px 24px 50px; }
+    .polygon-banner {
+      background: linear-gradient(90deg, #220619 0%, #15092a 100%); border: 1px solid var(--magenta);
+      border-radius: var(--radius-md); padding: 12px 18px; margin-bottom: 24px; display: flex;
+      justify-content: space-between; align-items: center;
+    }
+    .polygon-badge {
+      background: var(--magenta); color: #fff; font-family: var(--font-mono); font-size: 10px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 1.8px; padding: 5px 12px; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 100%, 0 100%);
+      margin-right: 14px;
+    }
+    .banner-txt { font-size: 14px; font-weight: 500; }
+    .banner-txt strong { color: var(--neon-yellow); }
+    .banner-time { font-family: var(--font-mono); font-size: 10px; color: var(--mint); letter-spacing: 1px; font-weight: 700; }
+
+    .grid-stage { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .hero-banner {
+      background: #181818; border: 1px solid var(--frame); border-radius: var(--radius-lg); padding: 28px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .kicker-row { display: flex; justify-content: space-between; align-items: center; }
+    .kicker-tag {
+      background: var(--ultraviolet); color: #fff; font-family: var(--font-mono); font-size: 10px;
+      font-weight: 800; text-transform: uppercase; letter-spacing: 1.8px; padding: 4px 10px; border-radius: var(--radius-md);
+    }
+    .hero-title {
+      font-family: var(--font-display); font-size: clamp(34px, 4.2vw, 54px); line-height: 0.92;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .hero-sub { font-size: 17px; font-weight: 300; line-height: 1.45; color: var(--off-white); }
+
+    .hero-graphic {
+      width: 100%; height: 230px; border-radius: var(--radius-md); background: #0c0c12; border: 1px solid #252536;
+      position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    }
+    .chip-overlay {
+      position: absolute; bottom: 12px; left: 14px; background: rgba(19, 19, 19, 0.92);
+      border: 1px solid var(--mint); border-radius: 4px; padding: 6px 12px; display: flex; gap: 10px; align-items: center;
+    }
+    .chip-val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--mint); }
+    .chip-lbl { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; color: var(--muted); }
+
+    .hero-byline { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--frame); padding-top: 16px; }
+    .author-block { display: flex; align-items: center; gap: 10px; }
+    .author-img { width: 36px; height: 36px; border-radius: 50%; background: #262626; border: 2px solid var(--magenta); display: grid; place-items: center; }
+    .author-name { font-size: 13px; font-weight: 700; }
+    .author-date { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; }
+    .btn-read {
+      background: transparent; border: 1px solid var(--mint); color: var(--mint); font-family: var(--font-mono);
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; padding: 7px 16px;
+      border-radius: var(--radius-pill); cursor: pointer; transition: all 0.15s;
+    }
+    .btn-read:hover { background: var(--mint); color: #000; }
+
+    .sidebar-stream {
+      background: #171717; border: 1px solid var(--frame); border-radius: var(--radius-lg); padding: 20px 18px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .stream-hd { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--ultraviolet); padding-bottom: 10px; }
+    .stream-ttl { font-family: var(--font-display); font-size: 24px; text-transform: uppercase; }
+    .stream-badge { background: var(--magenta); color: #fff; font-family: var(--font-mono); font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; }
+
+    .stream-list { list-style: none; position: relative; padding-left: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .stream-list::before {
+      content: ""; position: absolute; top: 4px; bottom: 8px; left: 4px; width: 2px;
+      background: repeating-linear-gradient(to bottom, var(--ultraviolet), var(--ultraviolet) 5px, transparent 5px, transparent 10px);
+    }
+    .stream-item {
+      background: var(--canvas); border: 1px solid var(--frame); border-radius: var(--radius-md); padding: 12px 14px;
+      position: relative; transition: border-color 0.15s, transform 0.15s;
+    }
+    .stream-item:hover { border-color: var(--mint); transform: translateX(3px); }
+    .stream-item::before {
+      content: ""; position: absolute; left: -18px; top: 16px; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--mint); box-shadow: 0 0 5px var(--mint);
+    }
+    .stream-item.magenta::before { background: var(--magenta); box-shadow: 0 0 5px var(--magenta); }
+    .stream-item.yellow::before { background: var(--neon-yellow); box-shadow: 0 0 5px var(--neon-yellow); }
+    .st-meta { display: flex; justify-content: space-between; margin-bottom: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .st-time { color: var(--muted); }
+    .st-cat { color: var(--mint); }
+    .stream-item.magenta .st-cat { color: var(--magenta); }
+    .stream-item.yellow .st-cat { color: var(--neon-yellow); }
+    .st-h { font-size: 13px; font-weight: 700; line-height: 1.35; margin-bottom: 4px; }
+    .st-by { font-family: var(--font-mono); font-size: 9px; color: #7e7e7e; }
+
+    .trio-cards { margin-top: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .c-card { border-radius: var(--radius-lg); padding: 20px; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; }
+    .c-mint { background: var(--mint); color: #000; }
+    .c-purple { background: var(--ultraviolet); color: #fff; }
+    .c-magenta { background: var(--magenta); color: #fff; }
+    .c-kicker { font-family: var(--font-mono); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+    .c-title { font-family: var(--font-display); font-size: 24px; line-height: 0.95; text-transform: uppercase; margin-bottom: 8px; }
+    .c-deck { font-size: 12px; line-height: 1.4; opacity: 0.9; margin-bottom: 12px; }
+    .c-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 4px; width: fit-content; background: #000; }
+    .c-mint .c-badge { color: var(--mint); }
+    .c-purple .c-badge { background: rgba(0,0,0,0.5); color: #fff; }
+    .c-magenta .c-badge { color: var(--neon-yellow); }
+
+    @media (max-width: 900px) {
+      .grid-stage { grid-template-columns: 1fr; }
+      .trio-cards { grid-template-columns: 1fr; }
+      .nav-cats { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <aside class="top-hazard-bar">
+    <div class="hazard-live">
+      <span class="pulse-dot"></span>
+      <span>VERGE INTELLIGENCE RADAR // CHIP WARS DISPATCH #409</span>
+    </div>
+    <div>FREQ: 5.8 GHZ · SAN FRANCISCO · TOKYO</div>
+  </aside>
+
+  <header class="header-nav">
+    <div class="header-inner">
+      <div style="display:flex; align-items:baseline; gap:12px;">
+        <a href="#" class="brand-logo">THE VERGE<span>.</span></a>
+        <span style="font-family:var(--font-mono); font-size:10px; color:var(--mint); letter-spacing:1.5px; font-weight:700;">STORYSTREAM</span>
+      </div>
+      <nav>
+        <ul class="nav-cats">
+          <li><a href="#" class="active">TECH</a></li>
+          <li><a href="#">REVIEWS</a></li>
+          <li><a href="#">AI FRONTIER</a></li>
+          <li><a href="#">SCIENCE</a></li>
+          <li><a href="#">ENTERTAINMENT</a></li>
+        </ul>
+      </nav>
+      <button class="btn-mint-pill">GET THE STREAM</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="polygon-banner">
+      <div style="display:flex; align-items:center;">
+        <span class="polygon-badge">BREAKING HARDWARE</span>
+        <div class="banner-txt">
+          <strong>QUANTUM SILICON LEAK:</strong> 1.2nm photonic architecture benchmarks surpass classic limits by <strong>340%</strong>.
+        </div>
+      </div>
+      <div class="banner-time">UPDATE: 2M AGO</div>
+    </section>
+
+    <div class="grid-stage">
+      <article class="hero-banner">
+        <div class="kicker-row">
+          <span class="kicker-tag">EXCLUSIVE INVESTIGATION</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--muted);">142 COMMENTS</span>
+        </div>
+        <a href="#">
+          <h1 class="hero-title">THE SILICON RENAISSANCE: HOW NEURAL OPTICAL DIES BROKE MOORE’S BARRIER</h1>
+        </a>
+        <p class="hero-sub">
+          Inside the cleanrooms of Taiwan and Arizona, engineers have abandoned planar silicon for 3D wafer-scale optical interconnects.
+        </p>
+
+        <div class="hero-graphic">
+          <svg style="width:100%; height:100%; position:absolute;" viewBox="0 0 700 230" fill="none">
+            <defs>
+              <pattern id="vGrid" width="35" height="35" patternUnits="userSpaceOnUse">
+                <path d="M 35 0 L 0 0 0 35" fill="none" stroke="#222232" stroke-width="1"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#vGrid)"/>
+            <polygon points="100,30 250,30 300,100 200,200 60,160" stroke="#5200ff" stroke-width="2" fill="rgba(82,0,255,0.1)"/>
+            <polygon points="400,20 620,50 670,180 500,210 360,150" stroke="#e2127a" stroke-width="2" fill="rgba(226,18,122,0.08)"/>
+            <rect x="270" y="45" width="160" height="140" rx="12" fill="#111118" stroke="#3cffd0" stroke-width="2.5"/>
+            <circle cx="350" cy="115" r="38" stroke="#ffe600" stroke-width="2" stroke-dasharray="5 3"/>
+            <circle cx="350" cy="115" r="20" fill="#3cffd0" fill-opacity="0.2" stroke="#3cffd0" stroke-width="2"/>
+            <text x="350" y="120" fill="#fff" font-family="'SF Mono', monospace" font-size="11" font-weight="bold" text-anchor="middle">V-900 NEURAL</text>
+            <path d="M 100 115 L 270 115 M 430 115 L 610 115" stroke="#3cffd0" stroke-width="2"/>
+            <path d="M 230 30 L 270 65 M 430 65 L 500 30" stroke="#e2127a" stroke-width="2"/>
+            <path d="M 180 200 L 290 165 M 410 165 L 520 200" stroke="#ffe600" stroke-width="2"/>
+          </svg>
+          <div class="chip-overlay">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3cffd0" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/></svg>
+            <div>
+              <div class="chip-val">184.2 TB/S DENSITY</div>
+              <div class="chip-lbl">PHOTONIC WAFER VERIFIED</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-byline">
+          <div class="author-block">
+            <div class="author-img">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#e9e9e9"><path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z"/></svg>
+            </div>
+            <div>
+              <div class="author-name">Nilay Patel &amp; Alex Cranz</div>
+              <div class="author-date">SEP 19, 2026 · 11:24 AM ET</div>
+            </div>
+          </div>
+          <button class="btn-read">READ FULL DOSSIER</button>
+        </div>
+      </article>
+
+      <aside class="sidebar-stream">
+        <div class="stream-hd">
+          <span class="stream-ttl">STORYSTREAM</span>
+          <span class="stream-badge">LIVE FEED</span>
+        </div>
+        <ol class="stream-list">
+          <li class="stream-item">
+            <div class="st-meta"><span class="st-time">12:44 PM ET</span><span class="st-cat">AI POLICY</span></div>
+            <a href="#" class="st-h">EU Passes Comprehensive Algorithmic Transparency Directive</a>
+            <div class="st-by">BY JAMES VINCENT · 24 COMMENTS</div>
+          </li>
+          <li class="stream-item magenta">
+            <div class="st-meta"><span class="st-time">12:18 PM ET</span><span class="st-cat">SMARTPHONES</span></div>
+            <a href="#" class="st-h">Hands-On: The Tri-Fold OLED Prototype That Survives 500K Folds</a>
+            <div class="st-by">BY ALLISON JOHNSON · 89 COMMENTS</div>
+          </li>
+          <li class="stream-item yellow">
+            <div class="st-meta"><span class="st-time">11:55 AM ET</span><span class="st-cat">AUDIO GEAR</span></div>
+            <a href="#" class="st-h">Solid-State MEMS Drivers Are Quietly Killing IEM Earphones</a>
+            <div class="st-by">BY CHRIS WELCH · 42 COMMENTS</div>
+          </li>
+          <li class="stream-item">
+            <div class="st-meta"><span class="st-time">11:20 AM ET</span><span class="st-cat">CYBERSECURITY</span></div>
+            <a href="#" class="st-h">Signal Protocol Receives First Quantum-Resistant Ratchet Upgrade</a>
+            <div class="st-by">BY DAN GOODIN · 61 COMMENTS</div>
+          </li>
+        </ol>
+      </aside>
+    </div>
+
+    <section class="trio-cards">
+      <article class="c-card c-mint">
+        <div>
+          <div class="c-kicker" style="color:#064e3b;">VERGE REVIEW // 9.5 SCORE</div>
+          <h2 class="c-title">MACBOOK PRO M5 MAX</h2>
+          <p class="c-deck">Unfathomable local inference power combined with 28-hour battery longevity leaves rivals scrambling.</p>
+        </div>
+        <div class="c-badge"><span>★ 9.5 / 10</span><span style="font-weight:400; font-size:9px; margin-left:4px;">ESSENTIAL</span></div>
+      </article>
+
+      <article class="c-card c-purple">
+        <div>
+          <div class="c-kicker" style="color:var(--mint);">PODCAST // VERGECAST #812</div>
+          <h2 class="c-title">WHO WILL GOVERN SYNTHETIC MINDS?</h2>
+          <p class="c-deck">David Pierce sits down with frontier lab researchers on the ethics of autonomous machine agency.</p>
+        </div>
+        <div class="c-badge"><span>58 MIN LISTEN</span></div>
+      </article>
+
+      <article class="c-card c-magenta">
+        <div>
+          <div class="c-kicker" style="color:var(--neon-yellow);">FUTURE MOBILITY // REPORT</div>
+          <h2 class="c-title">SOLID-STATE BATTERY DAWN</h2>
+          <p class="c-deck">First production vehicles complete 1,000-mile nonstop sub-zero crossing over the Canadian Rockies.</p>
+        </div>
+        <div class="c-badge"><span>READ 12-PART REPORT →</span></div>
+      </article>
+    </section>
+  </main>
+
+</body>
+</html>

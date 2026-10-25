@@ -10,9 +10,12 @@ function createCanvasStub(options: {
 	let currentConnections = options.initialConnections ?? []
 	const eventEmitter = new EventEmitter()
 	const restoredListener = vi.fn()
-	eventEmitter.on("document:restored", restoredListener)
+	eventEmitter.on("document:restored", () => {
+		restoredListener(currentConnections.map((connection) => ({ ...connection })))
+	})
 
 	const canvas = {
+		clearPreviewContent: vi.fn(),
 		eventEmitter,
 		resourceUrlWarmupManager: {
 			warmupDocument: vi.fn(),
@@ -24,6 +27,7 @@ function createCanvasStub(options: {
 					eventEmitter.emit({ type: "document:restored", data: undefined })
 				}
 			}),
+			clear: vi.fn(),
 		},
 		connectionManager: {
 			exportConnections: vi.fn(() =>
@@ -34,7 +38,9 @@ function createCanvasStub(options: {
 					...connection,
 				}))
 			}),
+			clear: vi.fn(),
 		},
+		markerManager: { clear: vi.fn() },
 	} as unknown as Canvas
 
 	return { canvas, restoredListener }
@@ -51,6 +57,9 @@ describe("Canvas.loadDocumentSmart", () => {
 		})
 
 		expect(restoredListener).toHaveBeenCalledTimes(1)
+		expect(restoredListener).toHaveBeenCalledWith([
+			{ id: "edge", sourceElementId: "source", targetElementId: "target" },
+		])
 	})
 
 	it("does not duplicate document:restored when elements already emitted it", () => {
@@ -76,5 +85,16 @@ describe("Canvas.loadDocumentSmart", () => {
 		Canvas.prototype.loadDocumentSmart.call(canvas, { connections })
 
 		expect(restoredListener).not.toHaveBeenCalled()
+	})
+
+	it("clears session Content previews together with the document", () => {
+		const { canvas } = createCanvasStub({})
+
+		Canvas.prototype.clear.call(canvas)
+
+		expect(canvas.clearPreviewContent).toHaveBeenCalledTimes(1)
+		expect(canvas.elementManager.clear).toHaveBeenCalledTimes(1)
+		expect(canvas.connectionManager.clear).toHaveBeenCalledWith({ emitChange: false })
+		expect(canvas.markerManager.clear).toHaveBeenCalledTimes(1)
 	})
 })

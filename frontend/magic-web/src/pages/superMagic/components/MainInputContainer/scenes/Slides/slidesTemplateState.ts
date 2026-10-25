@@ -1,8 +1,9 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import {
 	OptionViewType,
 	SkillPanelType,
 	type FieldPanelConfig,
+	type LocaleTextMap,
 	type OptionGroup,
 	type OptionItem,
 	type OptionItemTag,
@@ -17,10 +18,12 @@ import {
 } from "@/workers/service-worker/sw-constants"
 import { buildConcatenatedPresetContent, localeTextToDisplayString } from "../../panels/utils"
 import { FEATURED_SLIDES_TEMPLATE_TAG_CODE } from "../../panels/slides-preset/templateMeta"
+import { SLIDES_LANGUAGE_OPTIONS } from "./slidesLanguageOptions"
 
 export interface SlidesTemplateItem {
+	id?: string
 	code: string
-	source_type?: "SYSTEM" | "OFFICIAL"
+	source_type?: "SYSTEM" | "OFFICIAL" | "CUSTOM" | "system" | "official" | "custom" | "user"
 	category_code?: string | null
 	label: {
 		zh_CN: string
@@ -31,27 +34,41 @@ export interface SlidesTemplateItem {
 		en_US: string
 	}
 	thumbnail_url?: string | null
+	thumbnail_file_key?: string
 	collage_url?: string | null
+	collage_file_key?: string | null
 	preview_image_urls?: string[]
+	preview_image_file_keys?: string[]
 	preview_url?: string | null
-	sort: number
+	template_file_key?: string
+	sort?: number
+	status?: 0 | 1
 	is_official: boolean
+	is_favorite?: boolean
 	usage_count?: number
 	colors?: string[]
 	tags?: SlidesTemplateItemTag[]
+	created_at?: string | null
+	updated_at?: string | null
+	project?: SlidesTemplateProjectReference | null
+}
+
+export interface SlidesTemplateProjectReference {
+	id: string
+	directory_id: string
 }
 
 export interface SlidesTemplateItemTag extends OptionItemTag {
 	id: string
 	code: string
-	name_i18n: {
-		zh_CN: string
-		en_US: string
-	}
+	name?: string
+	name_i18n?: LocaleTextMap
 	sort: number
 }
 
 export interface SlidesTemplateQueryParams {
+	scope?: SlidesTemplateScope
+	code?: string
 	page?: number
 	page_size?: number
 	keyword?: string
@@ -60,10 +77,52 @@ export interface SlidesTemplateQueryParams {
 	tag_match?: SlidesTemplateTagMatch
 }
 
+export type SlidesTemplateScope = "official" | "user" | "all"
+
+export type SlidesTemplateCodeAvailability = "UNUSED" | "OWNED_BY_ME" | "OCCUPIED"
+
+export interface SlidesTemplateCodeAvailabilityResponse {
+	status: SlidesTemplateCodeAvailability
+}
+
 export interface SlidesTemplateListResponse {
 	page: number
 	page_size: number
 	list: SlidesTemplateItem[]
+}
+
+export interface SlidesTemplateLocaleItem {
+	language: string
+	value: string
+}
+
+export type SlidesTemplateResponseText =
+	string | SlidesTemplateItem["label"] | SlidesTemplateLocaleItem[]
+
+export interface SlidesTemplateRawListResponse {
+	page: number
+	page_size: number
+	list: Array<
+		Omit<SlidesTemplateItem, "label" | "description"> & {
+			label?: SlidesTemplateResponseText | null
+			description?: SlidesTemplateResponseText | null
+			tags?: SlidesTemplateItemTag[]
+		}
+	>
+}
+
+export interface SaveSlidesTemplatePayload {
+	code?: string
+	category_code?: string | null
+	label: SlidesTemplateItem["label"]
+	description: SlidesTemplateItem["description"]
+	thumbnail_file_key: string
+	collage_file_key?: string | null
+	preview_image_file_keys?: string[]
+	template_file_key: string
+	preview_url?: string | null
+	tag_codes?: string[]
+	status?: 0 | 1
 }
 
 export interface SlidesTemplateCountResponse {
@@ -87,10 +146,9 @@ export interface SlidesTemplateDetail extends SlidesTemplateItem {
 export interface SlidesTemplateCategoryItem {
 	id: string
 	code: string
-	name_i18n: {
-		zh_CN: string
-		en_US: string
-	}
+	/** 新接口字段。旧的 name_i18n 仅保留类型兼容，不参与展示。 */
+	name?: string
+	name_i18n?: LocaleTextMap
 	sort: number
 	template_count: number
 	is_official: boolean
@@ -111,27 +169,51 @@ export interface SlidesTemplateCategoryListResponse {
 
 export type SlidesTemplateTagMatch = "any" | "all"
 
+export interface SlidesTemplateTagQueryParams {
+	page?: number
+	page_size?: number
+	keyword?: string
+	category_code?: string
+	tag_codes?: string | string[]
+	tag_match?: SlidesTemplateTagMatch
+}
+
 export interface SlidesTemplateTagItem {
 	id: string
 	code: string
-	name_i18n: {
-		zh_CN: string
-		en_US: string
-	}
+	/** 新接口字段。旧的 name_i18n 仅保留类型兼容，不参与展示。 */
+	name?: string
+	name_i18n?: LocaleTextMap
 	sort: number
 	template_count: number
 	is_official: boolean
 }
 
+export interface SlidesTemplateTagListResponse {
+	page: number
+	page_size: number
+	total: number
+	list: SlidesTemplateTagItem[]
+}
+
 export interface SlidesTemplateTagGroupItem {
 	id: string
 	code: string
-	name_i18n: {
-		zh_CN: string
-		en_US: string
-	}
+	/** 新接口字段。旧的 name_i18n 仅保留类型兼容，不参与展示。 */
+	name?: string
+	name_i18n?: LocaleTextMap
 	sort: number
 	tags: SlidesTemplateTagItem[]
+}
+
+export function getSlidesTemplateName(
+	item: Pick<
+		SlidesTemplateCategoryItem | SlidesTemplateTagItem | SlidesTemplateTagGroupItem,
+		"code" | "name" | "name_i18n"
+	>,
+) {
+	// Keep a read-only fallback for cached responses during the API rollout; new responses only provide `name`.
+	return item.name ?? item.name_i18n ?? item.code
 }
 
 export const ALL_SLIDES_TEMPLATE_GROUP_KEY = "all"
@@ -227,11 +309,7 @@ const slidesStaticFields: NonNullable<FieldPanelConfig["field"]>["items"] = [
 		data_key: "language",
 		label: { zh_CN: "语言", en_US: "Language" },
 		default_value: "",
-		options: [
-			{ value: "auto", label: { zh_CN: "自动", en_US: "Auto" } },
-			{ value: "zh", label: { zh_CN: "中文", en_US: "Chinese" } },
-			{ value: "en", label: { zh_CN: "英文", en_US: "English" } },
-		],
+		options: SLIDES_LANGUAGE_OPTIONS,
 	},
 ]
 
@@ -307,12 +385,11 @@ function groupSlidesTemplatesByTag(
 ): OptionGroup[] {
 	return tags.map((tag) => ({
 		group_key: createSlidesTemplateTagGroupKey(tag.code),
-		group_name: tag.name_i18n,
-		children: templates
-			.filter((template) =>
-				template.tags?.some((templateTag) => templateTag.code === tag.code),
-			)
-			.map(toTemplateOption),
+		group_name: getSlidesTemplateName(tag),
+		// Keep the featured entry visually distinct from ordinary tag filters.
+		...(tag.code === FEATURED_SLIDES_TEMPLATE_TAG_CODE ? { group_icon: "Sparkles" } : {}),
+		// Tag filtering is handled by the server; preserve template tags for featured rendering.
+		children: templates.map(toTemplateOption),
 	}))
 }
 
@@ -331,7 +408,7 @@ function groupSlidesTemplatesByCategory(
 		children.forEach((child) => groupedTemplateCodes.add(String(child.value)))
 		groups.push({
 			group_key: createSlidesTemplateCategoryGroupKey(category.code),
-			group_name: category.name_i18n,
+			group_name: getSlidesTemplateName(category),
 			children,
 		})
 	})
@@ -392,35 +469,82 @@ export function createSlidesFixedSceneConfig(
 	}
 }
 
-export function toTemplateOption(template: SlidesTemplateItem) {
-	const isFeatured = template.tags?.some((tag) => tag.code === FEATURED_SLIDES_TEMPLATE_TAG_CODE)
+export function toTemplateOption(template: SlidesTemplateItem, options?: { isFeatured?: boolean }) {
+	const isFeatured =
+		options?.isFeatured ??
+		template.tags?.some((tag) => tag.code === FEATURED_SLIDES_TEMPLATE_TAG_CODE)
 	const imageCacheValue = isFeatured
 		? FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_VALUE
 		: SLIDES_TEMPLATE_IMAGE_CACHE_VALUE
-	const markTemplateImageUrl = (url: string | null | undefined) =>
+	const markTemplateImageUrl = <T extends string | null | undefined>(url: T): T =>
 		markSlidesTemplateImageUrlByCacheValue(url, imageCacheValue)
 
 	return {
 		value: template.code,
 		label: template.label,
 		preset_value: {
-			zh_CN: `${template.label.zh_CN}（${template.code}）`,
-			en_US: `${template.label.en_US} (${template.code})`,
+			zh_CN: `${resolveSlidesTemplateText(template.label, "zh_CN")}（${template.code}）`,
+			en_US: `${resolveSlidesTemplateText(template.label, "en_US")} (${template.code})`,
 		},
 		thumbnail_url: markTemplateImageUrl(template.thumbnail_url) ?? undefined,
-		collage_url: markTemplateImageUrl(template.collage_url) ?? undefined,
-		// 预览页优先使用逐页图片；缺少逐页图片时不把拼接图当作 PPT 页面。
-		preview_image_urls: (template.preview_image_urls ?? []).map(markTemplateImageUrl),
+		// 拼接图和逐页预览只在详情页按需加载，避免一次打开模板目录缓存整套 PPT 页面。
+		collage_url: template.collage_url ?? undefined,
+		preview_image_urls: template.preview_image_urls ?? [],
 		description: template.description,
 		preview_url: template.preview_url ?? undefined,
 		usage_count: template.usage_count ?? 0,
+		is_favorite: template.is_favorite ?? false,
+		status: template.status,
 		sort: template.sort,
 		colors: template.colors ?? [],
 		tags: template.tags ?? [],
+		project: template.project ?? null,
 		preview_title: {
-			zh_CN: `${template.label.zh_CN}预览`,
-			en_US: `${template.label.en_US} Preview`,
+			zh_CN: `${resolveSlidesTemplateText(template.label, "zh_CN")}预览`,
+			en_US: `${resolveSlidesTemplateText(template.label, "en_US")} Preview`,
 		},
+	}
+}
+
+function resolveSlidesTemplateText(value: SlidesTemplateResponseText, locale: string): string {
+	if (typeof value === "string") return value
+	if (Array.isArray(value)) {
+		return value.find((item) => item.language === locale)?.value ?? value[0]?.value ?? ""
+	}
+	return value[locale as "zh_CN" | "en_US"] ?? ""
+}
+
+function normalizeSlidesTemplateText(
+	value: SlidesTemplateResponseText | null | undefined,
+): SlidesTemplateItem["label"] {
+	if (typeof value === "string" || value == null) {
+		return { zh_CN: value ?? "", en_US: value ?? "" }
+	}
+	if (!Array.isArray(value)) return value
+
+	return value.reduce(
+		(result, item) => {
+			if (item.language === "zh_CN") result.zh_CN = item.value
+			if (item.language === "en_US") result.en_US = item.value
+			return result
+		},
+		{ zh_CN: "", en_US: "" },
+	)
+}
+
+export function normalizeSlidesTemplateResponse(
+	response: SlidesTemplateRawListResponse,
+): SlidesTemplateListResponse {
+	return {
+		...response,
+		list: (response.list ?? []).map((item) => {
+			return {
+				...item,
+				tags: item.tags ?? [],
+				label: normalizeSlidesTemplateText(item.label),
+				description: normalizeSlidesTemplateText(item.description),
+			}
+		}),
 	}
 }
 

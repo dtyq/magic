@@ -1,5 +1,5 @@
 import { Layers } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ScheduledTask } from "@/types/scheduledTask"
 import type { SelfMediaPlatform } from "../../../types"
 import type { SelfMediaAttachmentNode, SelfMediaPostPublishStatus } from "../types"

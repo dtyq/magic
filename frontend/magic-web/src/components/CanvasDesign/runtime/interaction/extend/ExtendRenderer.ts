@@ -6,6 +6,7 @@ import {
 	syncNodeTransformRelativeTo,
 } from "../../shared/geometry/nodeTransform"
 import type { Canvas } from "../../core/Canvas"
+import type { CanvasEvent } from "../../core/EventEmitter"
 import type { ExtendSession, ImageElement } from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
 import { applyAspectRatioToBoundBox, isEdgeAnchor } from "../transform/anchorUtils"
@@ -17,6 +18,7 @@ import {
 	createFrameGridLines,
 	isManagedOverlayNode,
 	localBoxToAbsoluteBox,
+	updateFrameGridLineStrokeWidth,
 	updateFrameGridLines,
 } from "../frame/FrameEditorShared"
 import { applyExtendAnchorCursor, applyExtendTransformerActiveCursor } from "./extendAnchorCursor"
@@ -62,11 +64,13 @@ export class ExtendRenderer {
 	private updateFromPanelHandler?: (event: {
 		data: { elementId: string; session: ExtendSession }
 	}) => void
+	private resourceWillCloseHandler?: (event: CanvasEvent<"resource:image:will-close">) => void
 	private stagePointerDownHandler?: (
 		event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
 	) => void
 	private frameInitialAspectRatio: number | null = null
 	private imageInitialAspectRatio: number | null = null
+	private readonly closedImages = new WeakSet<object>()
 
 	constructor(options: { canvas: Canvas; elementId: string }) {
 		this.canvas = options.canvas
@@ -82,12 +86,27 @@ export class ExtendRenderer {
 		}
 
 		this.canvas.eventEmitter.on("extend:updateFromPanel", this.updateFromPanelHandler)
+		this.resourceWillCloseHandler = ({ data }) => {
+			this.closedImages.add(data.image)
+			if (this.imageProxy?.image() !== data.image) return
+			this.imageProxy.image(undefined)
+			this.canvas.controlsLayer.batchDraw()
+			queueMicrotask(() => {
+				if (!this.imageProxy || !this.sourceElementNode) return
+				this.syncImageProxyFromSource()
+			})
+		}
+		this.canvas.eventEmitter.on("resource:image:will-close", this.resourceWillCloseHandler)
 	}
 
 	private removeEventListeners(): void {
 		if (this.updateFromPanelHandler) {
 			this.canvas.eventEmitter.off("extend:updateFromPanel", this.updateFromPanelHandler)
 			this.updateFromPanelHandler = undefined
+		}
+		if (this.resourceWillCloseHandler) {
+			this.canvas.eventEmitter.off("resource:image:will-close", this.resourceWillCloseHandler)
+			this.resourceWillCloseHandler = undefined
 		}
 		if (this.stagePointerDownHandler) {
 			this.canvas.stage.off("mousedown touchstart", this.stagePointerDownHandler)
@@ -194,6 +213,7 @@ export class ExtendRenderer {
 			this.frameBox,
 			...gridLines,
 		)
+		this.updateGridLineStrokeWidth()
 		this.canvas.controlsLayer.add(this.overlayGroup)
 		this.createFrameLabels()
 		this.updateFrameLabels()
@@ -376,10 +396,19 @@ export class ExtendRenderer {
 			this.canvas.controlsLayer,
 		)
 		this.ensureImageProxyWithinFrame()
+		this.updateGridLineStrokeWidth()
 		this.frameTransformer?.forceUpdate()
 		this.imageTransformer?.forceUpdate()
 		this.updateFrameLabels()
 		this.canvas.controlsLayer.batchDraw()
+	}
+
+	private updateGridLineStrokeWidth(): void {
+		updateFrameGridLineStrokeWidth(
+			this.overlayGroup,
+			EXTEND_GRID_LINE_NAME,
+			this.canvas.stage.scaleX(),
+		)
 	}
 
 	public getBoundingRect(): { x: number; y: number; width: number; height: number } | null {
@@ -415,11 +444,24 @@ export class ExtendRenderer {
 	private getRenderedImageNode(elementNode: Konva.Group): Konva.Image | null {
 		const children = elementNode.getChildren()
 		for (const child of children) {
-			if (child instanceof Konva.Image && child.image()) {
+			const image = child instanceof Konva.Image ? child.image() : undefined
+			if (child instanceof Konva.Image && image && !this.closedImages.has(image as object)) {
 				return child
 			}
 		}
 		return null
+	}
+
+	private syncImageProxyFromSource(): void {
+		if (!(this.sourceElementNode instanceof Konva.Group) || !this.imageProxy) return
+		const renderedImageNode = this.getRenderedImageNode(this.sourceElementNode)
+		const renderedImage = renderedImageNode?.image()
+		if (!renderedImage) return
+		this.imageProxy.setAttrs({
+			image: renderedImage,
+			crop: renderedImageNode.crop(),
+		})
+		this.canvas.controlsLayer.batchDraw()
 	}
 
 	private updateImageClip(frame: ExtendSession["frame"]): void {

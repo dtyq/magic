@@ -13,8 +13,10 @@ import (
 	fragdto "magic/internal/application/knowledge/fragment/dto"
 	appservice "magic/internal/application/knowledge/fragment/service"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
+	sharedaccess "magic/internal/application/knowledge/shared/access"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
 	autoloadcfg "magic/internal/config/autoload"
+	kbaccess "magic/internal/domain/knowledge/access/service"
 	docentity "magic/internal/domain/knowledge/document/entity"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
@@ -660,6 +662,67 @@ func TestFragmentAppServiceSimilarityByAgent(t *testing.T) {
 	}
 	if result.Hits[0].CitationID == "" || !strings.Contains(result.ContextText, result.Hits[0].CitationID) {
 		t.Fatalf("expected context text to include citation id, got %#v", result)
+	}
+}
+
+func TestFragmentAppServiceSimilarityByAgentUsesAgentResourceOrganization(t *testing.T) {
+	t.Parallel()
+
+	const (
+		userOrganization     = "ORG-B"
+		resourceOrganization = "ORG-A"
+	)
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			"KB-ORG-A": {
+				{FragmentID: 1, KnowledgeCode: "KB-ORG-A", DocumentCode: "DOC-1", Content: "跨组织公开员工命中", Score: 0.9},
+			},
+		},
+	}
+	bindingRepo := &fragmentAppKnowledgeBaseBindingReaderStub{
+		knowledgeBaseCodes: []string{"KB-ORG-A"},
+	}
+	agentAccess := &fragmentAppSuperMagicAgentAccessCheckerStub{
+		accessibleCodes:         map[string]struct{}{"SMA-ORG-A": {}},
+		accessibleOrganizations: map[string]string{"SMA-ORG-A": resourceOrganization},
+	}
+	kbReader := &fragmentAppKnowledgeReaderStub{
+		listResult: []*kbentity.KnowledgeBase{
+			{Code: "KB-ORG-A", OrganizationCode: resourceOrganization, KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee, Enabled: true, Model: "text-embedding-3-small"},
+		},
+		listTotal: 1,
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService:          fragmentSvc,
+		KBService:                kbReader,
+		KnowledgeBaseBindingRepo: bindingRepo,
+		SuperMagicAgentAccess:    agentAccess,
+		DefaultEmbeddingModel:    "text-embedding-3-small",
+	})
+
+	result, err := svc.SimilarityByAgent(context.Background(), &fragdto.AgentSimilarityInput{
+		OrganizationCode: userOrganization,
+		UserID:           "USER-ORG-B",
+		AgentCode:        "SMA-ORG-A",
+		Query:            "跨组织公开知识库检索",
+	})
+	if err != nil {
+		t.Fatalf("similarity by agent failed: %v", err)
+	}
+	if result == nil || result.HitCount != 1 {
+		t.Fatalf("expected one cross-organization hit, got %#v", result)
+	}
+	if agentAccess.lastOrg != userOrganization {
+		t.Fatalf("expected access check organization %q, got %q", userOrganization, agentAccess.lastOrg)
+	}
+	if bindingRepo.lastBindingOrganization != resourceOrganization {
+		t.Fatalf("expected binding lookup organization %q, got %q", resourceOrganization, bindingRepo.lastBindingOrganization)
+	}
+	if kbReader.lastListQuery == nil || kbReader.lastListQuery.OrganizationCode != resourceOrganization {
+		t.Fatalf("expected knowledge base lookup organization %q, got %#v", resourceOrganization, kbReader.lastListQuery)
+	}
+	if fragmentSvc.lastSimilarityOrganization != resourceOrganization {
+		t.Fatalf("expected similarity organization %q, got %q", resourceOrganization, fragmentSvc.lastSimilarityOrganization)
 	}
 }
 
@@ -1460,6 +1523,33 @@ func TestFragmentAppServiceSimilarityAuthorizesByBoundAccessibleAgent(t *testing
 	}
 }
 
+func TestFragmentAppServiceKnowledgeAccessUsesBatchBindingLookup(t *testing.T) {
+	t.Parallel()
+
+	_, bindingRepo, _, svc := newSimilarityAuthorizationTestService(t, similarityAuthorizationTestDeps{
+		bindIDs:         []string{"AGENT-1"},
+		accessibleCodes: map[string]struct{}{"AGENT-1": {}},
+	})
+
+	operations, err := svc.KnowledgeAccessBatchOperationsForTest(
+		context.Background(),
+		kbaccess.Actor{OrganizationCode: testFragmentOrganization, UserID: "U1"},
+		[]string{testFragmentKnowledgeCode},
+	)
+	if err != nil {
+		t.Fatalf("batch permission lookup failed: %v", err)
+	}
+	if operations[testFragmentKnowledgeCode] != kbaccess.OperationRead {
+		t.Fatalf("expected relationship read permission, got %#v", operations)
+	}
+	if bindingRepo.batchBindIDLookupCalls != 1 || !slices.Equal(bindingRepo.lastBatchKnowledgeCodes, []string{testFragmentKnowledgeCode}) {
+		t.Fatalf("expected one batch binding lookup, got %#v", bindingRepo)
+	}
+	if bindingRepo.bindIDLookupCalls != 0 {
+		t.Fatalf("expected no per-knowledge-base binding lookup, got %d", bindingRepo.bindIDLookupCalls)
+	}
+}
+
 func TestFragmentAppServiceSimilarityRejectsLinkedFlowKnowledgeWithoutReadPermission(t *testing.T) {
 	t.Parallel()
 
@@ -1675,19 +1765,29 @@ func newSimilarityAuthorizationTestService(
 		knowledgeBaseType = kbentity.KnowledgeBaseTypeDigitalEmployee
 	}
 	agentAccess := &fragmentAppSuperMagicAgentAccessCheckerStub{accessibleCodes: deps.accessibleCodes}
+	knowledgeBase := &kbentity.KnowledgeBase{
+		Code:              testFragmentKnowledgeCode,
+		OrganizationCode:  testFragmentOrganization,
+		KnowledgeBaseType: knowledgeBaseType,
+		Model:             "text-embedding-3-small",
+	}
+	permissionReader := sharedaccess.NewPermissionReader(
+		deps.permissionReader,
+		sharedaccess.NewDigitalEmployeeRelationshipReader(
+			&fragmentAppKnowledgeReaderStub{listResult: []*kbentity.KnowledgeBase{knowledgeBase}},
+			bindingRepo,
+			agentAccess,
+		),
+	)
 	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
 		FragmentService: fragmentSvc,
 		KBService: &fragmentAppKnowledgeReaderStub{
-			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
-				Code:              testFragmentKnowledgeCode,
-				OrganizationCode:  testFragmentOrganization,
-				KnowledgeBaseType: knowledgeBaseType,
-				Model:             "text-embedding-3-small",
-			},
+			showByCodeAndOrgResult: knowledgeBase,
+			listResult:             []*kbentity.KnowledgeBase{knowledgeBase},
 		},
 		KnowledgeBaseBindingRepo: bindingRepo,
 		SuperMagicAgentAccess:    agentAccess,
-		PermissionReader:         deps.permissionReader,
+		PermissionReader:         permissionReader,
 		DefaultEmbeddingModel:    "text-embedding-3-small",
 	})
 	return fragmentSvc, bindingRepo, agentAccess, svc
@@ -2931,36 +3031,37 @@ func TestFragmentAppServicePreviewHelpers(t *testing.T) {
 }
 
 type fragmentAppFragmentServiceStub struct {
-	saveErr                  error
-	savedFragment            *fragmodel.KnowledgeBaseFragment
-	showResult               *fragmodel.KnowledgeBaseFragment
-	showErr                  error
-	findByPointResults       []*fragmodel.KnowledgeBaseFragment
-	findByPointErr           error
-	lastPointIDs             []string
-	listResult               []*fragmodel.KnowledgeBaseFragment
-	listTotal                int64
-	listErr                  error
-	destroyErr               error
-	syncErr                  error
-	similarityResults        []*fragmodel.SimilarityResult
-	similarityResultsByKB    map[string][]*fragmodel.SimilarityResult
-	similarityCalls          map[string]int
-	similarityErr            error
-	lastListQuery            *fragmodel.Query
-	destroyCollection        string
-	destroyedFragment        *fragmodel.KnowledgeBaseFragment
-	destroyedBatch           []*fragmodel.KnowledgeBaseFragment
-	filterPointIDs           []string
-	filterPointErr           error
-	syncedKnowledgeBase      *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
-	syncedFragment           *fragmodel.KnowledgeBaseFragment
-	lastSimilarityReq        fragretrieval.SimilarityRequest
-	setPayloadErr            error
-	lastSetPayloadCollection string
-	lastSetPayloadUpdates    map[string]map[string]any
-	warmupErr                error
-	warmupCalls              int
+	saveErr                    error
+	savedFragment              *fragmodel.KnowledgeBaseFragment
+	showResult                 *fragmodel.KnowledgeBaseFragment
+	showErr                    error
+	findByPointResults         []*fragmodel.KnowledgeBaseFragment
+	findByPointErr             error
+	lastPointIDs               []string
+	listResult                 []*fragmodel.KnowledgeBaseFragment
+	listTotal                  int64
+	listErr                    error
+	destroyErr                 error
+	syncErr                    error
+	similarityResults          []*fragmodel.SimilarityResult
+	similarityResultsByKB      map[string][]*fragmodel.SimilarityResult
+	similarityCalls            map[string]int
+	similarityErr              error
+	lastListQuery              *fragmodel.Query
+	destroyCollection          string
+	destroyedFragment          *fragmodel.KnowledgeBaseFragment
+	destroyedBatch             []*fragmodel.KnowledgeBaseFragment
+	filterPointIDs             []string
+	filterPointErr             error
+	syncedKnowledgeBase        *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
+	syncedFragment             *fragmodel.KnowledgeBaseFragment
+	lastSimilarityReq          fragretrieval.SimilarityRequest
+	lastSimilarityOrganization string
+	setPayloadErr              error
+	lastSetPayloadCollection   string
+	lastSetPayloadUpdates      map[string]map[string]any
+	warmupErr                  error
+	warmupCalls                int
 }
 
 func (s *fragmentAppFragmentServiceStub) Save(_ context.Context, fragment *fragmodel.KnowledgeBaseFragment) error {
@@ -3025,6 +3126,9 @@ func (s *fragmentAppFragmentServiceStub) SyncFragment(_ context.Context, kb *sha
 
 func (s *fragmentAppFragmentServiceStub) Similarity(_ context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, req fragretrieval.SimilarityRequest) ([]*fragmodel.SimilarityResult, error) {
 	s.lastSimilarityReq = req
+	if kb != nil {
+		s.lastSimilarityOrganization = kb.OrganizationCode
+	}
 	if kb != nil && s.similarityResultsByKB != nil {
 		if s.similarityCalls == nil {
 			s.similarityCalls = map[string]int{}
@@ -3099,23 +3203,32 @@ func (s fragmentPermissionReaderStub) ListOperations(
 }
 
 type fragmentAppKnowledgeBaseBindingReaderStub struct {
-	knowledgeBaseCodes    []string
-	bindingMetadataByCode map[string]kbentity.AgentKnowledgeBaseBindingMetadata
-	bindIDs               []string
-	bindIDsByOrganization map[string][]string
-	err                   error
-	bindIDLookupCalls     int
-	lastOrganizationCode  string
-	lastKnowledgeBaseCode string
-	lastBindIDsBindType   kbentity.BindingType
+	knowledgeBaseCodes      []string
+	bindingMetadataByCode   map[string]kbentity.AgentKnowledgeBaseBindingMetadata
+	bindIDs                 []string
+	bindIDsByOrganization   map[string][]string
+	err                     error
+	bindIDLookupCalls       int
+	batchBindIDLookupCalls  int
+	lastBatchKnowledgeCodes []string
+	lastOrganizationCode    string
+	lastBindingOrganization string
+	lastKnowledgeBaseCode   string
+	lastBindIDsBindType     kbentity.BindingType
 }
 
-func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListBindIDsByKnowledgeBase(
-	context.Context,
-	string,
-	kbentity.BindingType,
-) ([]string, error) {
-	return append([]string(nil), s.bindIDs...), s.err
+func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListBindIDsByKnowledgeBases(
+	_ context.Context,
+	knowledgeBaseCodes []string,
+	_ kbentity.BindingType,
+) (map[string][]string, error) {
+	s.batchBindIDLookupCalls++
+	s.lastBatchKnowledgeCodes = append([]string(nil), knowledgeBaseCodes...)
+	result := make(map[string][]string, len(knowledgeBaseCodes))
+	for _, code := range knowledgeBaseCodes {
+		result[code] = append([]string(nil), s.bindIDs...)
+	}
+	return result, s.err
 }
 
 func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListBindIDsByKnowledgeBaseInOrg(
@@ -3144,11 +3257,12 @@ func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListKnowledgeBaseCodesByBind
 }
 
 func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListKnowledgeBaseBindingsByBindID(
-	context.Context,
-	kbentity.BindingType,
-	string,
-	string,
+	_ context.Context,
+	_ kbentity.BindingType,
+	_ string,
+	organizationCode string,
 ) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	s.lastBindingOrganization = organizationCode
 	result := make([]kbentity.AgentKnowledgeBaseBinding, 0, len(s.knowledgeBaseCodes))
 	for _, code := range s.knowledgeBaseCodes {
 		result = append(result, kbentity.AgentKnowledgeBaseBinding{
@@ -3160,11 +3274,35 @@ func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListKnowledgeBaseBindingsByB
 }
 
 type fragmentAppSuperMagicAgentAccessCheckerStub struct {
-	accessibleCodes map[string]struct{}
-	err             error
-	lastOrg         string
-	lastUserID      string
-	lastCodes       []string
+	accessibleCodes         map[string]struct{}
+	accessibleOrganizations map[string]string
+	err                     error
+	lastOrg                 string
+	lastUserID              string
+	lastCodes               []string
+}
+
+func (s *fragmentAppSuperMagicAgentAccessCheckerStub) ListAccessibleContexts(
+	_ context.Context,
+	organizationCode string,
+	userID string,
+	codes []string,
+) (map[string]string, error) {
+	s.lastOrg = organizationCode
+	s.lastUserID = userID
+	s.lastCodes = append([]string(nil), codes...)
+	if s.accessibleOrganizations != nil {
+		result := make(map[string]string, len(s.accessibleOrganizations))
+		for code, resourceOrganizationCode := range s.accessibleOrganizations {
+			result[code] = resourceOrganizationCode
+		}
+		return result, s.err
+	}
+	result := make(map[string]string, len(s.accessibleCodes))
+	for code := range s.accessibleCodes {
+		result[code] = organizationCode
+	}
+	return result, s.err
 }
 
 func (s *fragmentAppSuperMagicAgentAccessCheckerStub) ListAccessibleCodes(
@@ -3184,6 +3322,14 @@ func (s *fragmentAppSuperMagicAgentAccessCheckerStub) ListAccessibleCodes(
 		result[code] = struct{}{}
 	}
 	return result, s.err
+}
+
+func (s *fragmentAppSuperMagicAgentAccessCheckerStub) ListManageableCodes(
+	_ context.Context,
+	_, _ string,
+	_ []string,
+) (map[string]struct{}, error) {
+	return map[string]struct{}{}, s.err
 }
 
 func (s *fragmentAppKnowledgeReaderStub) Show(_ context.Context, code string) (*kbentity.KnowledgeBase, error) {

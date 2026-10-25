@@ -57,6 +57,20 @@ const useStyles = createStyles(({ token }) => {
 				borderColor: token.magicColorUsages.primary.hover,
 			},
 		},
+		rememberOption: {
+			display: "flex",
+			alignItems: "center",
+			gap: "8px",
+			width: "100%",
+			fontSize: "14px",
+			color: token.magicColorUsages.text[1],
+			cursor: "pointer",
+		},
+		rememberCheckbox: {
+			width: "16px",
+			height: "16px",
+			accentColor: token.magicColorUsages.primary.default,
+		},
 	}
 })
 
@@ -73,6 +87,11 @@ interface PasswordVerificationProps {
 	uppercase?: boolean
 	title?: string
 	description?: string
+	rememberPassword?: {
+		enabled: boolean
+		checked: boolean
+		onCheckedChange(checked: boolean): void
+	}
 }
 
 export default function PasswordVerification({
@@ -86,6 +105,7 @@ export default function PasswordVerification({
 	uppercase = true,
 	title: titleProp,
 	description: descriptionProp,
+	rememberPassword,
 }: PasswordVerificationProps) {
 	const [password, setPassword] = useState(initialPassword)
 	const [loading, setLoading] = useState(false)
@@ -230,6 +250,18 @@ export default function PasswordVerification({
 					{t("common.confirm")}
 				</Button>
 			</div>
+			{rememberPassword?.enabled ? (
+				<label className={styles.rememberOption}>
+					<input
+						type="checkbox"
+						className={styles.rememberCheckbox}
+						checked={rememberPassword.checked}
+						onChange={(event) => rememberPassword.onCheckedChange(event.target.checked)}
+						data-testid="password-remember-checkbox"
+					/>
+					<span>{t("microAppShare.rememberPassword")}</span>
+				</label>
+			) : null}
 		</div>
 	)
 }

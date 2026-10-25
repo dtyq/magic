@@ -70,13 +70,15 @@ interface ImageFullscreenOverlayProps {
 	path: string
 	fileName?: string
 	crop?: CropConfig
+	/** 直接可用的预览 URL；传入后跳过画布 ImageResourceManager 解析。 */
+	src?: string
 	isOpen: boolean
 	onClose: () => void
 	closeAriaLabel?: string
 }
 
 export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProps) {
-	const { path, fileName, crop, isOpen, onClose, closeAriaLabel } = props
+	const { path, fileName, crop, src: previewSrc, isOpen, onClose, closeAriaLabel } = props
 	const { t } = useCanvasDesignI18n()
 
 	const hideChromeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -85,6 +87,9 @@ export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProp
 
 	const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null)
 	const [hasError, setHasError] = useState(false)
+	const [isRefreshingUrl, setIsRefreshingUrl] = useState(false)
+	const urlRetryAttemptedRef = useRef(false)
+	const urlRetryGenerationRef = useRef(0)
 
 	const [panelSize, setPanelSize] = useState<{
 		width: number
@@ -96,10 +101,11 @@ export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProp
 	const cropSignature = useMemo(() => getCropSignature(crop), [crop])
 	const hasCrop = Boolean(crop)
 
-	const { fullUrl, lowUrl, imageInfo, isLoading } = useReferenceImageUrls(path, {
+	const { fullUrl, lowUrl, imageInfo, isLoading, refreshFullUrl } = useReferenceImageUrls(path, {
 		eagerFullUrl: true,
+		enabled: isOpen,
 	})
-	const src = fullUrl ?? lowUrl
+	const src = previewSrc ?? fullUrl ?? lowUrl
 	const sourceSize = useMemo(() => {
 		if (imageInfo?.naturalWidth && imageInfo.naturalHeight) {
 			return {
@@ -111,19 +117,42 @@ export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProp
 	}, [imageInfo, naturalSize])
 
 	useEffect(() => {
+		urlRetryAttemptedRef.current = false
+		urlRetryGenerationRef.current += 1
 		setNaturalSize(null)
 		setHasError(false)
-	}, [path])
+		setIsRefreshingUrl(false)
+		return () => {
+			urlRetryGenerationRef.current += 1
+		}
+	}, [isOpen, path, refreshFullUrl])
 
 	useEffect(() => {
 		setViewMode(hasCrop ? "cropped" : "original")
 	}, [cropSignature, hasCrop, path])
 
-	useEffect(() => {
-		if (!isOpen) {
-			setHasError(false)
+	const handleImageError = useCallback(async () => {
+		if (!isOpen) return
+		if (urlRetryAttemptedRef.current) {
+			setHasError(true)
+			return
 		}
-	}, [isOpen])
+		// 浏览器 img 不暴露 HTTP 状态，签名过期和网络失败都只尝试一次换链。
+		// 关闭或切换图片后，旧请求不能改变当前面板的加载/失败状态。
+		urlRetryAttemptedRef.current = true
+		const generation = urlRetryGenerationRef.current
+		setIsRefreshingUrl(true)
+		setNaturalSize(null)
+		try {
+			const nextUrl = await refreshFullUrl()
+			if (urlRetryGenerationRef.current !== generation) return
+			setHasError(!nextUrl)
+		} catch {
+			if (urlRetryGenerationRef.current === generation) setHasError(true)
+		} finally {
+			if (urlRetryGenerationRef.current === generation) setIsRefreshingUrl(false)
+		}
+	}, [isOpen, refreshFullUrl])
 
 	const clearHideChromeTimer = useCallback(() => {
 		if (hideChromeTimerRef.current !== null) {
@@ -257,7 +286,7 @@ export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProp
 			!panelSize ||
 			(activeViewMode === "cropped" && effectiveCrop && !croppedImageLayout)),
 	)
-	const showLoading = (!src && isLoading) || isImageLayoutPending
+	const showLoading = isRefreshingUrl || (!src && isLoading) || isImageLayoutPending
 	const showError = hasError || (!src && !isLoading)
 	const showCropModeSwitcher = Boolean(effectiveCrop)
 	const originalImageLabel = t("mediaResourceFullscreenPreview.originalImage", "原图")
@@ -286,7 +315,7 @@ export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProp
 			<div className={styles.overlayContent}>
 				{showLoading ? (
 					<div className={styles.loadingOnly}>
-						{src && !hasError ? (
+						{src && !hasError && !isRefreshingUrl ? (
 							<img
 								ref={imgRef}
 								className={styles.video}
@@ -303,7 +332,7 @@ export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProp
 								onLoad={(event) => {
 									applyNaturalSizeFromImage(event.currentTarget)
 								}}
-								onError={() => setHasError(true)}
+								onError={handleImageError}
 							/>
 						) : null}
 						<div className={styles.spinner} />
@@ -429,7 +458,7 @@ export default function ImageFullscreenOverlay(props: ImageFullscreenOverlayProp
 										onLoad={(event) => {
 											applyNaturalSizeFromImage(event.currentTarget)
 										}}
-										onError={() => setHasError(true)}
+										onError={handleImageError}
 									/>
 								) : null}
 							</div>

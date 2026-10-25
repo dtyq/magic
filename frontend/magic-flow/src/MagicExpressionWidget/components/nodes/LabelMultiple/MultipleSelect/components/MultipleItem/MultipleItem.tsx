@@ -1,4 +1,4 @@
-import { CheckOutlined } from "@ant-design/icons"
+import { IconCheck } from "@tabler/icons-react"
 import React from "react"
 import { Multiple, MultipleOption } from "../../../types"
 import MultipleBlock from "./MultipleBlock"
@@ -31,7 +31,7 @@ export default function MultipleItem({
 		>
 			<MultipleBlock item={item} onDelete={onDelete} />
 			{showCheck && value.includes(item.id) && (
-				<CheckOutlined className="icon" color={closeColor || "#1C1D2359"} />
+				<IconCheck className="icon" color={closeColor || "#1C1D2359"} />
 			)}
 		</div>
 	)

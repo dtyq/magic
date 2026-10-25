@@ -10,7 +10,10 @@ function getTransformResult({
 	const plugin = vitePluginTransformBaseImports({ paths })
 	if (!("transform" in plugin) || !plugin.transform) throw new Error("Transform hook is required")
 
-	const result = plugin.transform.call(
+	// The hook is declared in object form so Rolldown can apply `filter` natively.
+	const handler =
+		typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler
+	const result = handler.call(
 		{
 			getCombinedSourcemap: () => null,
 		},
@@ -110,5 +113,40 @@ describe("vitePluginTransformBaseImports", () => {
 		expect(transformedCode).toContain(
 			'import TriangleAlertIcon from "lucide-react/dist/esm/icons/triangle-alert.js"',
 		)
+	})
+
+	test("marks transformed Lucide static imports for the static code-splitting group", () => {
+		const transformedCode = getTransformResult({
+			code: 'import { Search } from "lucide-react"',
+			paths: [
+				{
+					base: "lucide-react",
+					subDirectory: "dist/esm/icons",
+					query: "lucide-static",
+					componentNameFormatter: (componentName) => `${componentName.toLowerCase()}.js`,
+				},
+			],
+		})
+
+		expect(transformedCode).toContain(
+			'import Search from "lucide-react/dist/esm/icons/search.js?lucide-static"',
+		)
+	})
+
+	test("native filter only admits script modules outside node_modules that quote a base", () => {
+		const plugin = vitePluginTransformBaseImports({
+			paths: ["@/components/base", { base: "lucide-react", subDirectory: "dist/esm/icons" }],
+		})
+		const { filter } = plugin.transform as unknown as {
+			filter: { id: { include: RegExp; exclude: RegExp }; code: RegExp }
+		}
+
+		expect(filter.id.include.test("/src/a.tsx")).toBe(true)
+		expect(filter.id.include.test("/src/a.css")).toBe(false)
+		expect(filter.id.exclude.test("/x/node_modules/a.js")).toBe(true)
+		expect(filter.code.test('import { A } from "@/components/base"')).toBe(true)
+		expect(filter.code.test("import { A } from 'lucide-react'")).toBe(true)
+		expect(filter.code.test('import { A } from "@/components/base/Other"')).toBe(false)
+		expect(filter.code.test("const x = 1")).toBe(false)
 	})
 })

@@ -17,10 +17,19 @@ export interface UploadButtonProps extends MagicButtonProps {
 	onFileChange?: (files: FileList) => void
 	multiple?: boolean
 	accept?: string
+	directory?: boolean
 }
 
 const UploadButton = memo(
-	({ icon, onFileChange, multiple = true, children, accept, ...props }: UploadButtonProps) => {
+	({
+		icon,
+		onFileChange,
+		multiple = true,
+		children,
+		accept,
+		directory = false,
+		...props
+	}: UploadButtonProps) => {
 		const UploadHandler = useMemoizedFn((onUpload) => {
 			return (
 				<MagicButton
@@ -40,6 +49,7 @@ const UploadButton = memo(
 				onFileChange={onFileChange}
 				multiple={multiple}
 				accept={accept}
+				directory={directory}
 			/>
 		)
 	},

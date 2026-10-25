@@ -52,17 +52,17 @@ class PlatformPermissionTreeTest extends HttpTestCase
     {
         $tree = $this->permission->getPermissionTree(true);
 
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_package.subscription_package'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_package.order_management'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_tenant.tenant_points'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management.content_audit'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management.proxy_server'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_model.video_model'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.official_agent'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.skill_review'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.skill_market'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.employee_review'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.employee_market'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_package.package_list'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_package.order_list'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.tenant_management.tenant_points'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.operations_settings.content_audit'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.operations_settings.proxy_server'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.model_management.video_model'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_management.official_agent'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_management.publish_review.skill_review'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_management.official_market.skill_market'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_management.publish_review.employee_review'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_management.official_market.employee_market'));
 
         $this->assertTrue($this->containsPermissionKey(
             $tree,
@@ -136,6 +136,27 @@ class PlatformPermissionTreeTest extends HttpTestCase
         $this->assertSame('积分管理-绑定套餐', $node['full_label'] ?? null);
     }
 
+    public function testGetPermissionTreeUsesTranslatedApplicationMenuResourceLabel(): void
+    {
+        $tree = $this->permission->getPermissionTree(false);
+        $permissionKey = $this->permission->buildPermission('admin.ai.application.menu', 'query');
+        $node = $this->findNodeByPermissionKey($tree, $permissionKey);
+
+        $this->assertIsArray($node);
+        $this->assertSame('查询', $node['label'] ?? null);
+        $this->assertSame('组织应用菜单-查询', $node['full_label'] ?? null);
+    }
+
+    public function testGetPermissionTreeContainsOrganizationIdentityWatermarkPermission(): void
+    {
+        $tree = $this->permission->getPermissionTree(false);
+
+        $this->assertTrue($this->containsPermissionKey(
+            $tree,
+            $this->permission->buildPermission('admin.setting.identity_watermark', 'edit')
+        ));
+    }
+
     public function testGetPermissionTreeHidesPlatformResourcesForNonPlatformOrganization(): void
     {
         $tree = $this->permission->getPermissionTree(false);
@@ -166,6 +187,30 @@ class PlatformPermissionTreeTest extends HttpTestCase
             $tree,
             $this->permission->buildPermission(self::RESOURCE_PLATFORM_PROXY_SERVER, 'query')
         ));
+    }
+
+    public function testGetPermissionTreeHidesOrganizationOnlyModelAndApplicationResourcesForPlatformOrganization(): void
+    {
+        $platformTree = $this->permission->getPermissionTree(true);
+        $workspaceTree = $this->permission->getPermissionTree(false);
+
+        foreach (['text', 'image', 'video'] as $modelType) {
+            $permissionKey = $this->permission->buildPermission("workspace.model.{$modelType}", 'query');
+            $this->assertFalse($this->containsPermissionKey($platformTree, $permissionKey));
+            $this->assertTrue($this->containsPermissionKey($workspaceTree, $permissionKey));
+        }
+
+        $organizationAppMenuPermission = $this->permission->buildPermission(
+            'admin.ai.application.menu',
+            'query'
+        );
+        $organizationIdentityWatermarkPermission = $this->permission->buildPermission(
+            'admin.setting.identity_watermark',
+            'edit'
+        );
+        $this->assertFalse($this->containsPermissionKey($platformTree, $organizationAppMenuPermission));
+        $this->assertFalse($this->containsPermissionKey($platformTree, $organizationIdentityWatermarkPermission));
+        $this->assertTrue($this->containsPermissionKey($workspaceTree, $organizationAppMenuPermission));
     }
 
     public function testGetResourceModuleUsesMappedTagForPlatformResources(): void

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vercel — The Platform for Frontend Teams</title>
+<style>
+:root {
+--canvas: #000000;
+--canvas-soft: #0a0a0a;
+--surface: #111111;
+--surface-subtle: #161616;
+--border: #222222;
+--border-light: #333333;
+--ink: #ffffff;
+--ink-muted: #888888;
+--ink-dim: #555555;
+--link-bright: #3291ff;
+--emerald: #50e3c2;
+--grad-develop: linear-gradient(135deg, #007cf0 0%, #00dfd8 100%);
+--grad-preview: linear-gradient(135deg, #7928ca 0%, #ff0080 100%);
+--grad-ship: linear-gradient(135deg, #ff4d4d 0%, #f9cb28 100%);
+--font-sans: Geist, Inter, -apple-system, sans-serif;
+--font-mono: "Geist Mono", monospace;
+--radius-sm: 6px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--radius-full: 9999px;
+--max-w: 1140px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+.container { width: min(var(--max-w), calc(100% - 40px)); margin: 0 auto; }
+.mesh-glow {
+position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 960px; height: 440px;
+background: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(121,40,202,0.24) 0%, rgba(0,112,243,0.18) 45%, transparent 75%);
+filter: blur(40px); pointer-events: none; z-index: 0;
+}
+header {
+position: sticky; top: 0; z-index: 100; background: rgba(0,0,0,0.85); backdrop-filter: blur(16px);
+border-bottom: 1px solid var(--border);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand-wrap { display: flex; align-items: center; gap: 14px; }
+.brand-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.brand-triangle { width: 20px; height: 18px; fill: #ffffff; }
+.nextjs-pill {
+display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--radius-full);
+background: rgba(255,255,255,0.06); border: 1px solid var(--border-light); font-size: 11px; color: #e5e5e5;
+}
+.nav-links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--ink-muted); }
+.nav-links a:hover { color: var(--ink); }
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+.btn {
+display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px;
+border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.15s;
+}
+.btn-white { background: #ffffff; color: #000; border: 1px solid #fff; font-weight: 600; }
+.btn-white:hover { background: #eee; box-shadow: 0 0 16px rgba(255,255,255,0.3); }
+.btn-ghost { background: transparent; color: var(--ink-muted); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--ink); background: var(--surface); border-color: var(--border-light); }
+.hero { position: relative; z-index: 1; padding: 36px 0 20px; text-align: center; }
+.badge {
+display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: var(--radius-full);
+background: rgba(255,255,255,0.05); border: 1px solid var(--border-light); font-size: 12px; color: var(--ink-muted); margin-bottom: 18px;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #00dfd8; box-shadow: 0 0 8px #00dfd8; }
+.hero-h1 {
+font-size: clamp(34px, 5vw, 60px); font-weight: 700; line-height: 1.08; letter-spacing: -0.04em; max-width: 880px; margin: 0 auto 14px;
+}
+.g-dev { background: var(--grad-develop); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.g-prev { background: var(--grad-preview); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.g-ship { background: var(--grad-ship); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-desc { font-size: 16px; color: var(--ink-muted); max-width: 620px; margin: 0 auto 24px; }
+.hero-btns { display: flex; justify-content: center; gap: 12px; margin-bottom: 32px; }
+.window {
+max-width: 1040px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border);
+border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,0.85); text-align: left;
+}
+.win-head {
+padding: 12px 18px; background: var(--canvas-soft); border-bottom: 1px solid var(--border);
+display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.repo-tag { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.branch-pill {
+font-family: var(--font-mono); font-size: 11px; padding: 2px 7px; border-radius: var(--radius-full);
+background: rgba(255,255,255,0.08); color: var(--ink-muted); border: 1px solid var(--border);
+}
+.domain-badge {
+display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: var(--radius-full);
+background: rgba(0,112,243,0.1); border: 1px solid rgba(0,112,243,0.3); font-size: 11px; color: #c2dcff; font-family: var(--font-mono);
+}
+.pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: #50e3c2; box-shadow: 0 0 8px #50e3c2; }
+.win-grid { padding: 20px; display: grid; grid-template-columns: 1.8fr 1.2fr; gap: 20px; background: var(--canvas-soft); }
+.panel-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px; }
+.panel-head {
+display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+padding-bottom: 10px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600;
+text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted);
+}
+.commit-text { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.commit-meta { font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono); display: flex; gap: 10px; margin-bottom: 14px; }
+.hash { color: var(--link-bright); background: rgba(0,112,243,0.12); padding: 1px 5px; border-radius: 3px; }
+.steps { display: flex; flex-direction: column; gap: 9px; }
+.step-row {
+display: flex; align-items: center; justify-content: space-between; padding: 9px 12px;
+background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px;
+}
+.step-badge {
+width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+font-size: 9px; font-weight: 700; background: rgba(80,227,194,0.15); color: #50e3c2;
+}
+.step-dur { font-family: var(--font-mono); color: var(--ink-muted); font-size: 11px; }
+.gauge-wrap { text-align: center; padding: 12px 0; }
+.gauge-arc {
+width: 120px; height: 60px; margin: 0 auto 8px; position: relative; overflow: hidden;
+}
+.gauge-circle {
+width: 120px; height: 120px; border-radius: 50%; border: 9px solid #222;
+border-top-color: #50e3c2; border-right-color: #00dfd8; border-left-color: #0070f3; transform: rotate(-45deg);
+}
+.gauge-num { font-size: 30px; font-weight: 700; font-family: var(--font-mono); color: var(--ink); }
+.gauge-lbl { font-size: 11px; color: var(--ink-muted); }
+.region-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+.reg-chip {
+background: var(--surface-subtle); border: 1px solid var(--border); padding: 5px 8px;
+border-radius: var(--radius-sm); display: flex; justify-content: space-between; font-size: 11px; font-family: var(--font-mono);
+}
+.feat-section { padding: 48px 0 32px; border-top: 1px solid var(--border); margin-top: 48px; }
+.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 24px; }
+.feat-box {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 20px; transition: 0.2s;
+}
+.feat-box:hover { border-color: var(--border-light); transform: translateY(-2px); }
+.feat-ico { width: 34px; height: 34px; border-radius: var(--radius-sm); display: grid; place-items: center; margin-bottom: 14px; }
+.feat-t { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.feat-p { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
+.token-bar {
+margin-top: 36px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border);
+border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;
+flex-wrap: wrap; gap: 10px; font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);
+}
+.chips { display: flex; gap: 14px; flex-wrap: wrap; }
+.c-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 4px; }
+footer { padding: 32px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--ink-dim); margin-top: 40px; }
+.foot-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 840px) { .nav-links { display: none; } .win-grid, .feat-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="mesh-glow"></div>
+<!-- HEADER -->
+<header>
+<div class="container nav-inner">
+<div class="brand-wrap">
+<a href="#" class="brand-logo" aria-label="Vercel">
+<svg class="brand-triangle" viewBox="0 0 115 100"><polygon points="57.5 0, 115 100, 0 100"/></svg>
+<span>Vercel</span>
+</a>
+<div class="nextjs-pill">
+<svg width="12" height="12" viewBox="0 0 180 180" fill="none">
+<circle cx="90" cy="90" r="90" fill="#fff"/>
+<path d="M149.5 157.4L69.1 54H54v72h12.1V69.4l73.9 95.4c3.3-2.2 6.5-4.7 9.5-7.4z" fill="#000"/>
+<rect x="115" y="54" width="12" height="72" fill="#000"/>
+</svg>
+<span>Next.js 15</span>
+</div>
+</div>
+<nav class="nav-links">
+<a href="#products">Products</a>
+<a href="#solutions">Solutions</a>
+<a href="#resources">Resources</a>
+<a href="#enterprise">Enterprise</a>
+<a href="#pricing">Pricing</a>
+</nav>
+<div class="nav-actions">
+<a href="#login" class="btn btn-ghost">Log In</a>
+<a href="#deploy" class="btn btn-white">Start Deploying</a>
+</div>
+</div>
+</header>
+<main>
+<!-- HERO (IMPACTFUL TOP 500PX) -->
+<section class="hero">
+<div class="container">
+<div class="badge">
+<span class="badge-dot"></span>
+<span>Vercel Edge Network 2026: <strong>Fluid Multi-Region Compute</strong></span>
+</div>
+<h1 class="hero-h1">
+Your complete platform for the Web.
+<br>
+<span class="g-dev">Develop.</span>
+<span class="g-prev">Preview.</span>
+<span class="g-ship">Ship.</span>
+</h1>
+<p class="hero-desc">
+Vercel provides developer workflow tooling and global edge infrastructure to build, preview, and deploy sub-millisecond modern web applications.
+</p>
+<div class="hero-btns">
+<a href="#deploy" class="btn btn-white" style="padding: 9px 20px;">
+<svg width="12" height="12" viewBox="0 0 115 100" fill="currentColor"><polygon points="57.5 0, 115 100, 0 100"/></svg>
+Start Deploying
+</a>
+<a href="#demo" class="btn btn-ghost" style="padding: 9px 18px;">Get an Enterprise Demo</a>
+</div>
+<!-- MOCKUP DASHBOARD WINDOW -->
+<div class="window">
+<div class="win-head">
+<div class="repo-tag">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6M12 19h8"/></svg>
+<span>next-commerce</span>
+<span style="color:var(--ink-muted); font-weight:normal;">/ production</span>
+<span class="branch-pill">git: main (prod)</span>
+</div>
+<div class="domain-badge">
+<span class="pulse-dot"></span>
+<span>https://next-commerce-prod.vercel.app</span>
+<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+</div>
+</div>
+<div class="win-grid">
+<!-- Left: Git Commit & Deployment Pipeline Stream -->
+<div class="panel-card">
+<div class="panel-head">
+<span style="display:flex; align-items:center; gap:6px;">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+Deployment Stream Pipeline
+</span>
+<span style="color:#50e3c2; font-family:var(--font-mono); font-size:10px;">READY (ACTIVE)</span>
+</div>
+<div class="commit-text">feat: optimize server components streaming & ISR caching</div>
+<div class="commit-meta">
+<span class="hash">commit a8f4c12</span>
+<span>by leerob</span>
+<span>38s ago</span>
+<span>Target: Production</span>
+</div>
+<div class="steps">
+<div class="step-row">
+<div style="display:flex; align-items:center; gap:8px;">
+<div class="step-badge">✓</div>
+<div><strong>Git Hook & Cache Store</strong> <span style="font-size:10px; color:var(--ink-muted);">· pnpm locked</span></div>
+</div>
+<div class="step-dur">0.2s</div>
+</div>
+<div class="step-row">
+<div style="display:flex; align-items:center; gap:8px;">
+<div class="step-badge">✓</div>
+<div><strong>Next.js 15 Turbopack Build</strong> <span style="font-size:10px; color:var(--ink-muted);">· 42 routes compiled</span></div>
+</div>
+<div class="step-dur">2.4s</div>
+</div>
+<div class="step-row">
+<div style="display:flex; align-items:center; gap:8px;">
+<div class="step-badge">✓</div>
+<div><strong>Propagate to 320+ Edge Nodes</strong> <span style="font-size:10px; color:var(--ink-muted);">· TLS Anycast live</span></div>
+</div>
+<div class="step-dur">1.1s</div>
+</div>
+<div class="step-row" style="background: rgba(80,227,194,0.06); border-color: rgba(80,227,194,0.35);">
+<div style="display:flex; align-items:center; gap:8px;">
+<div class="step-badge" style="box-shadow: 0 0 8px rgba(80,227,194,0.4);">●</div>
+<div><strong style="color:#50e3c2;">Instant Domain Live & Healthy</strong> <span style="font-size:10px; color:var(--ink-muted);">· zero-downtime cutover</span></div>
+</div>
+<div class="step-dur" style="color:#50e3c2; font-weight:600;">Total 3.7s</div>
+</div>
+</div>
+</div>
+<!-- Right: 14ms Edge Function Latency Gauge -->
+<div class="panel-card" style="display:flex; flex-direction:column; justify-content:space-between;">
+<div class="panel-head">
+<span style="display:flex; align-items:center; gap:6px;">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+Edge Latency Gauge
+</span>
+<span style="color:var(--link-bright); font-family:var(--font-mono); font-size:10px;">GLOBAL P95</span>
+</div>
+<div class="gauge-wrap">
+<div class="gauge-arc">
+<div class="gauge-circle"></div>
+</div>
+<div class="gauge-num">14ms</div>
+<div class="gauge-lbl">Average Global Edge Execution</div>
+</div>
+<div class="region-grid">
+<div class="reg-chip"><span>iad1 (US East)</span><span style="color:#50e3c2;">8ms</span></div>
+<div class="reg-chip"><span>fra1 (Frankfurt)</span><span style="color:#50e3c2;">12ms</span></div>
+<div class="reg-chip"><span>hnd1 (Tokyo)</span><span style="color:#50e3c2;">16ms</span></div>
+<div class="reg-chip"><span>syd1 (Sydney)</span><span style="color:#50e3c2;">18ms</span></div>
+</div>
+<div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; justify-content:space-between; font-size:10px; font-family:var(--font-mono); color:var(--ink-muted);">
+<span>Cache Hit Ratio: <strong style="color:#fff;">99.4%</strong></span>
+<span>Cold Start: <strong style="color:#50e3c2;">0ms</strong></span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 3-COL FEATURE CARDS -->
+<section class="feat-section" id="products">
+<div class="container">
+<div style="text-align:center;">
+<div style="font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.14em; color:var(--link-bright); margin-bottom:6px;">Frontend Cloud Platform</div>
+<h2 style="font-size: clamp(22px, 3vw, 32px); font-weight:700; letter-spacing:-0.03em;">Engineered for peak developer velocity.</h2>
+</div>
+<div class="feat-grid">
+<div class="feat-box">
+<div class="feat-ico" style="background: rgba(0,124,240,0.12); color:#00dfd8;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+</div>
+<div class="feat-t">Develop with Next.js & Turbopack</div>
+<div class="feat-p">Zero-config compilation for React Server Components, Streaming SSR, and automated package optimization with instant hot reload.</div>
+</div>
+<div class="feat-box">
+<div class="feat-ico" style="background: rgba(121,40,202,0.12); color:#ff0080;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+</div>
+<div class="feat-t">Preview on Every Pull Request</div>
+<div class="feat-p">Every git branch automatically deploys to an isolated URL with real-time feedback pins, live database branching, and security inspection.</div>
+</div>
+<div class="feat-box">
+<div class="feat-ico" style="background: rgba(255,77,77,0.12); color:#f9cb28;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+</div>
+<div class="feat-t">Ship on Global Anycast Edge</div>
+<div class="feat-p">Automatic traffic routing across 320+ worldwide edge locations with instant cache invalidation, DDoS mitigation, and edge middleware.</div>
+</div>
+</div>
+<!-- SPECIFICATION TOKEN BAR -->
+<div class="token-bar">
+<div class="chips">
+<span><span class="c-dot" style="background:#000; border:1px solid #444;"></span>--canvas: #000000</span>
+<span><span class="c-dot" style="background:#0070f3;"></span>--link: #0070f3</span>
+<span><span class="c-dot" style="background:#50e3c2;"></span>--emerald: #50e3c2</span>
+<span><span class="c-dot" style="background:#ff0080;"></span>--pink: #ff0080</span>
+<span><span class="c-dot" style="background:#f9cb28;"></span>--amber: #f9cb28</span>
+</div>
+<div>Tokens: Geist & Geist Mono · Pitch-Black Edge Console</div>
+</div>
+</div>
+</section>
+</main>
+<!-- FOOTER -->
+<footer>
+<div class="container foot-row">
+<div style="display:flex; align-items:center; gap:8px;">
+<svg class="brand-triangle" style="width:13px; height:11px;" viewBox="0 0 115 100"><polygon points="57.5 0, 115 100, 0 100"/></svg>
+<span>© 2026 Vercel Inc. Pitch-Black Architecture.</span>
+</div>
+<div style="display:flex; gap:16px;">
+<a href="#">Status</a>
+<a href="#">Privacy</a>
+<a href="#">Terms</a>
+<a href="#">Edge Network</a>
+</div>
+</div>
+</footer>
+</body>
+</html>

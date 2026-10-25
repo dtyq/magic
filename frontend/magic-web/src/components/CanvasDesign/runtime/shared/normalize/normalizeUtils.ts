@@ -101,6 +101,21 @@ export function normalizeSize(
 }
 
 /**
+ * 规范化新建画框的尺寸。
+ *
+ * 画框通常用于包裹内容，向上取整可以避免取整后尺寸小于内容边界。
+ */
+export function normalizeFrameCreationSize(
+	width: number,
+	height: number,
+): { width: number; height: number } {
+	return {
+		width: Math.ceil(width),
+		height: Math.ceil(height),
+	}
+}
+
+/**
  * 规范化整个矩形
  * @param rect - 矩形对象
  * @param options - 规范化选项

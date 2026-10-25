@@ -8,6 +8,7 @@ import { IconChevronRight } from "@tabler/icons-react"
 import type { ItemType } from "antd/es/breadcrumb/Breadcrumb"
 import { routes } from "@admin/routes"
 import { useAdminStore } from "@admin/stores/admin"
+import { useAdmin } from "@admin/provider/AdminProvider"
 import { PERMISSION_KEY_MAP } from "@admin/const/common"
 import { useAdminAuth } from "@admin/hooks/useAdminAuth"
 import { findRouteByPathname, checkItemPermission } from "@admin/utils/routeUtils"
@@ -15,6 +16,7 @@ import NotAuthPage from "@admin/pages/NotAuthPage"
 import { useIsMobile } from "@admin/hooks/useIsMobile"
 import { useStyles } from "./styles"
 import SecondaryLayoutMobile from "../SecondaryLayoutMobile"
+import { isRoutePathAccessible, type RouteAccessContext } from "@admin/routes/routeAccess"
 
 export interface SecondaryLayoutProps extends Pick<SideMenuProps, "openKeys"> {
 	usePadding?: boolean
@@ -122,7 +124,9 @@ const SecondaryLayout = memo((props: SecondaryLayoutProps) => {
 	const { items, ...rest } = props
 	const isMobile = useIsMobile()
 
-	const { userPermissions } = useAdminStore()
+	const { userPermissions, teamshareUserPermissions, isOfficialOrg, isPersonalOrganization } =
+		useAdminStore()
+	const { env } = useAdmin()
 	const hasAllPermissions = useMemo(
 		() =>
 			userPermissions.includes(PERMISSION_KEY_MAP.MAGIC_PLATFORM_PERMISSIONS) ||
@@ -133,13 +137,23 @@ const SecondaryLayout = memo((props: SecondaryLayoutProps) => {
 
 	// 递归过滤菜单项
 	const menuItems = useMemo(() => {
+		const accessContext: RouteAccessContext = {
+			isOfficialOrg,
+			isPersonalOrganization,
+			userPermissions,
+			teamshareUserPermissions,
+			env,
+		}
 		const filterMenuItems = (menuItemsList: SideMenuItem[]): SideMenuItem[] => {
 			return menuItemsList
 				.filter((item) => {
 					if (item.hidden) {
 						return false
 					}
-					return checkItemPermission(item, userPermissions, hasAllPermissions)
+					return (
+						checkItemPermission(item, userPermissions, hasAllPermissions) &&
+						isRoutePathAccessible(routes, String(item.key || ""), accessContext)
+					)
 				})
 				.map((item) => {
 					// 处理子项
@@ -152,9 +166,18 @@ const SecondaryLayout = memo((props: SecondaryLayoutProps) => {
 						children: filteredChildren,
 					}
 				})
+				.filter((item) => !item.children || item.children.length > 0)
 		}
 		return filterMenuItems(items)
-	}, [hasAllPermissions, items, userPermissions])
+	}, [
+		env,
+		hasAllPermissions,
+		isOfficialOrg,
+		isPersonalOrganization,
+		items,
+		teamshareUserPermissions,
+		userPermissions,
+	])
 
 	return isMobile ? (
 		<SecondaryLayoutMobile items={menuItems} {...rest} />

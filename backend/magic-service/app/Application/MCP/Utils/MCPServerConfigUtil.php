@@ -117,7 +117,7 @@ class MCPServerConfigUtil
             $userSetting = $userSettingsMap[$code] ?? null;
 
             $checkRequireFields = self::shouldCheckRequiredFields($serviceConfig, $userSetting);
-            $checkAuth = self::shouldCheckAuth($serviceConfig, $userSetting);
+            $checkAuth = self::shouldCheckAuth($mcpDataIsolation, $entity, $serviceConfig, $userSetting);
 
             $results[$code] = [
                 'check_require_fields' => $checkRequireFields,
@@ -145,8 +145,12 @@ class MCPServerConfigUtil
             $serviceConfig = $entity->getServiceConfig();
             $requiredFields = $serviceConfig->getRequireFields();
 
-            // Add OAuth2 authentication if available
-            if ($serviceConfig instanceof ExternalSSEServiceConfig && $userSetting?->getOauth2AuthResult()?->isValid()) {
+            // 仅兼容旧 OAuth2 模式；MCP Authorization 凭据由 Super Magic 建连时按引用获取。
+            if (
+                $serviceConfig instanceof ExternalSSEServiceConfig
+                && $serviceConfig->getAuthType() === ServiceConfigAuthType::OAUTH2
+                && $userSetting?->getOauth2AuthResult()?->isValid()
+            ) {
                 $serviceConfig->addHeader(HeaderConfig::create('Authorization', 'Bearer ' . $userSetting->getOauth2AuthResult()->getAccessToken()));
             }
 
@@ -233,10 +237,17 @@ class MCPServerConfigUtil
     /**
      * Check if OAuth2 authentication validation is needed.
      */
-    private static function shouldCheckAuth(ServiceConfigInterface $serviceConfig, ?MCPUserSettingEntity $userSetting): bool
-    {
+    private static function shouldCheckAuth(
+        MCPDataIsolation $dataIsolation,
+        MCPServerEntity $mcpServer,
+        ServiceConfigInterface $serviceConfig,
+        ?MCPUserSettingEntity $userSetting
+    ): bool {
         if (! $serviceConfig instanceof ExternalSSEServiceConfig) {
             return false;
+        }
+        if ($serviceConfig->getAuthType() === ServiceConfigAuthType::MCP_AUTHORIZATION) {
+            return di(MCPAuthorizationCredentialResolver::class)->resolveAccessToken($dataIsolation, $mcpServer) === null;
         }
         if ($serviceConfig->getAuthType() !== ServiceConfigAuthType::OAUTH2) {
             return false;

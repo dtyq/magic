@@ -15,6 +15,7 @@ use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\File\ImageBase64DataUriParser;
+use App\Infrastructure\Util\File\ProviderAssetUri;
 
 readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderInterface
 {
@@ -31,6 +32,8 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
     private const string INPUT_KEY_REFERENCE_AUDIOS = 'reference_audios';
 
     private const string INPUT_KEY_FRAMES = 'frames';
+
+    private const string INPUT_KEY_DRAFT_TASK = 'draft_task';
 
     private const string FIELD_URI = 'uri';
 
@@ -79,6 +82,7 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         $projectId = $entity->getProjectId();
         // VolcengineArk 这类支持图片直链的模型直接走 URL，避免无谓的 base64 转换。
         $supportsImageInputUrl = $this->supportsImageInputUrl($entity);
+        $supportsProviderAssetUri = (bool) ($entity->getRequestPayload()['supports_provider_asset_uri'] ?? false);
 
         $mask = [];
         if ($entity->getMask() !== null) {
@@ -97,7 +101,7 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         $referenceImages = [];
         foreach ($entity->getReferenceImages() as $referenceImage) {
             $relativePath = (string) ($referenceImage[self::FIELD_URI] ?? '');
-            if (ImageBase64DataUriParser::isValid($relativePath)) {
+            if (ImageBase64DataUriParser::isValid($relativePath) || ($supportsProviderAssetUri && ProviderAssetUri::isValid($relativePath))) {
                 $item = [self::FIELD_URI => $relativePath];
                 $type = trim((string) ($referenceImage[self::FIELD_TYPE] ?? ''));
                 if ($type !== '') {
@@ -131,7 +135,7 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         foreach ($entity->getFrames() as $frame) {
             $uri = (string) ($frame[self::FIELD_URI] ?? '');
             $role = (string) ($frame[self::FIELD_ROLE] ?? '');
-            if (ImageBase64DataUriParser::isValid($uri)) {
+            if (ImageBase64DataUriParser::isValid($uri) || ($supportsProviderAssetUri && ProviderAssetUri::isValid($uri))) {
                 $frames[] = [self::FIELD_ROLE => $role, self::FIELD_URI => $uri];
                 continue;
             }
@@ -161,6 +165,11 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
                 continue;
             }
 
+            if ($supportsProviderAssetUri && ProviderAssetUri::isValid($uri)) {
+                $referenceVideos[] = [self::FIELD_URI => $uri];
+                continue;
+            }
+
             $fileKey = $this->resolveFileKey($projectId, $uri, self::ERROR_REFERENCE_MEDIA_URL_MISSING);
             $referenceVideos[] = [self::FIELD_URI => $this->buildImageUrl(
                 $entity->getOrganizationCode(),
@@ -174,6 +183,11 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         foreach ($entity->getReferenceAudios() as $referenceAudio) {
             $uri = (string) ($referenceAudio[self::FIELD_URI] ?? '');
             if ($uri === '') {
+                continue;
+            }
+
+            if ($supportsProviderAssetUri && ProviderAssetUri::isValid($uri)) {
+                $referenceAudios[] = [self::FIELD_URI => $uri];
                 continue;
             }
 
@@ -195,6 +209,8 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
             self::INPUT_KEY_REFERENCE_VIDEOS => $referenceVideos,
             self::INPUT_KEY_REFERENCE_AUDIOS => $referenceAudios,
             self::INPUT_KEY_FRAMES => $frames,
+            // 样片成片引用已由 Design 层解析成下游样片任务 ID，这里只做透传。
+            self::INPUT_KEY_DRAFT_TASK => $entity->getDraftTask(),
         ], static fn (array $value): bool => $value !== []);
     }
 

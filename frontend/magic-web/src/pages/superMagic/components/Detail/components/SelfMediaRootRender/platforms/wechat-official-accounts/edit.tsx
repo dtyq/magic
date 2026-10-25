@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import {
@@ -11,7 +12,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/shadcn-ui/alert-dialog"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import IsolatedHTMLRenderer, {
 	type IsolatedHTMLRendererRef,
 } from "../../../../contents/HTML/IsolatedHTMLRenderer"
@@ -27,6 +28,7 @@ import { RednoteEditRefreshConfirmDialog } from "../rednote/RednoteEditRefreshCo
 import { RednoteEditSaveStatusIndicator } from "../rednote/RednoteEditSaveStatusIndicator"
 import FileEditButtons from "@/pages/superMagic/components/Detail/components/EditToolbar/FileEditButtons"
 import { selfMediaOverlayStyles } from "../../components/selfMediaOverlayStyles"
+import { usePendingActionGuard } from "../../../../utils/usePendingActionGuard"
 
 type SaveStatus = "idle" | "saving" | "saved" | "error"
 
@@ -68,6 +70,7 @@ function WechatEditView({
 	onRequestRefreshCurrentPostReady,
 }: WechatEditViewProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const article = post.article
 	const fileId = article?.fileId
 
@@ -92,7 +95,12 @@ function WechatEditView({
 	const [showSaveRetryDialog, setShowSaveRetryDialog] = useState(false)
 	const [showUnsavedNavDialog, setShowUnsavedNavDialog] = useState(false)
 	const [showRefreshConfirmDialog, setShowRefreshConfirmDialog] = useState(false)
-	const pendingActionRef = useRef<(() => void) | null>(null)
+	const saveRetryTargetRef = useRef<"navigation" | "refresh" | null>(null)
+
+	const [htmlToolbarEndHost, setHtmlToolbarEndHost] = useState<HTMLDivElement | null>(null)
+	const onHtmlToolbarEndRef = useCallback((el: HTMLDivElement | null) => {
+		setHtmlToolbarEndHost(el)
+	}, [])
 
 	const [filePathMapping, setFilePathMapping] = useState<Map<string, string>>(new Map())
 	const [contentReloadVersion, setContentReloadVersion] = useState(0)
@@ -101,6 +109,31 @@ function WechatEditView({
 		isDirtyRef.current = nextDirty
 		setHasUnsavedChanges((prev) => (prev === nextDirty ? prev : nextDirty))
 	}, [])
+
+	const shouldBlockPendingAction = useCallback(
+		() => isEditMode && isDirtyRef.current,
+		[isEditMode],
+	)
+	const handleNavigationBlocked = useCallback(() => {
+		setShowUnsavedNavDialog(true)
+	}, [])
+	const handleRefreshBlocked = useCallback(() => {
+		setShowRefreshConfirmDialog(true)
+	}, [])
+	const navigationGuard = usePendingActionGuard({
+		shouldBlock: shouldBlockPendingAction,
+		onBlocked: handleNavigationBlocked,
+	})
+	const refreshGuard = usePendingActionGuard({
+		shouldBlock: shouldBlockPendingAction,
+		onBlocked: handleRefreshBlocked,
+	})
+	const {
+		run: runNavigation,
+		resolve: resolveNavigation,
+		cancel: cancelNavigation,
+	} = navigationGuard
+	const { run: runRefresh, resolve: resolveRefresh, cancel: cancelRefresh } = refreshGuard
 
 	const flattenedFiles = useMemo(
 		() =>
@@ -136,7 +169,7 @@ function WechatEditView({
 		setContent(null)
 		;(async () => {
 			try {
-				const urls = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+				const urls = await fileApi.getTemporaryDownloadUrl({ file_ids: [fileId] })
 				const url = urls?.[0]?.url
 				if (!url) throw new Error("noArticleUrl")
 				if (cancelled) return
@@ -157,6 +190,7 @@ function WechatEditView({
 						fileName: currentFile?.file_name,
 						html_relative_path: relativeFolderPath,
 						xMagicImageProcess: CARD_IMAGE_PROCESS,
+						fileApi,
 					})
 					processedContent = result.processedContent || html
 					mapping = result.filePathMapping || new Map()
@@ -179,7 +213,14 @@ function WechatEditView({
 		}
 		// Intentionally exclude isEditMode & content to avoid re-fetch during editing
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [fileId, attachmentList, contentReloadVersion, currentFile?.file_name, relativeFolderPath])
+	}, [
+		fileId,
+		attachmentList,
+		contentReloadVersion,
+		currentFile?.file_name,
+		relativeFolderPath,
+		fileApi,
+	])
 
 	useEffect(() => {
 		if (content && fileId && !isEditMode) {
@@ -193,15 +234,6 @@ function WechatEditView({
 
 	const handleSaveReady = useCallback((triggerSave: () => Promise<SaveResult | undefined>) => {
 		setTriggerSaveRef(() => triggerSave)
-	}, [])
-
-	const runPendingAction = useCallback(() => {
-		pendingActionRef.current?.()
-		pendingActionRef.current = null
-	}, [])
-
-	const clearPendingAction = useCallback(() => {
-		pendingActionRef.current = null
 	}, [])
 
 	const executeSave = useMemoizedFn(async (): Promise<boolean> => {
@@ -238,15 +270,14 @@ function WechatEditView({
 	const runNavigationAfterSave = useMemoizedFn(async (action: () => void) => {
 		if (!isEditMode || !isDirtyRef.current) {
 			action()
-			return
+			return true
 		}
-		pendingActionRef.current = () => {
+
+		return runNavigation(() => {
 			setDirtyState(false)
 			setIsEditMode(false)
 			action()
-		}
-		// Show confirm dialog instead of auto-saving
-		setShowUnsavedNavDialog(true)
+		}, undefined)
 	})
 
 	const reloadArticle = useMemoizedFn(() => {
@@ -262,12 +293,7 @@ function WechatEditView({
 	})
 
 	const runRefreshAfterGuard = useMemoizedFn((action: () => void) => {
-		if (!isEditMode || !isDirtyRef.current) {
-			action()
-			return
-		}
-		pendingActionRef.current = action
-		setShowRefreshConfirmDialog(true)
+		return runRefresh(action, undefined)
 	})
 
 	useEffect(() => {
@@ -348,39 +374,48 @@ function WechatEditView({
 		const saved = await executeSave()
 		if (saved) {
 			setShowSaveRetryDialog(false)
-			runPendingAction()
+			const target = saveRetryTargetRef.current
+			saveRetryTargetRef.current = null
+			if (target === "navigation") await resolveNavigation(true)
+			if (target === "refresh") await resolveRefresh(true)
 		}
-	}, [executeSave, runPendingAction])
+	}, [executeSave, resolveNavigation, resolveRefresh])
 
 	const handleDiscardAfterFailedSave = useCallback(() => {
 		setShowSaveRetryDialog(false)
 		setDirtyState(false)
-		reloadArticle()
-		runPendingAction()
-	}, [runPendingAction, setDirtyState, reloadArticle])
+		const target = saveRetryTargetRef.current
+		saveRetryTargetRef.current = null
+		if (target === "navigation") {
+			reloadArticle()
+			void resolveNavigation(true)
+		}
+		if (target === "refresh") void resolveRefresh(true)
+	}, [reloadArticle, resolveNavigation, resolveRefresh, setDirtyState])
 
 	// ===== Unsaved nav dialog handlers =====
 	const handleSaveBeforeNav = useCallback(async () => {
 		setShowUnsavedNavDialog(false)
 		const saved = await executeSave()
 		if (saved) {
-			runPendingAction()
+			await resolveNavigation(true)
 			return
 		}
+		saveRetryTargetRef.current = "navigation"
 		setShowSaveRetryDialog(true)
-	}, [executeSave, runPendingAction])
+	}, [executeSave, resolveNavigation])
 
 	const handleDiscardBeforeNav = useCallback(() => {
 		setShowUnsavedNavDialog(false)
 		setDirtyState(false)
 		reloadArticle()
-		runPendingAction()
-	}, [runPendingAction, setDirtyState, reloadArticle])
+		void resolveNavigation(true)
+	}, [reloadArticle, resolveNavigation, setDirtyState])
 
 	const handleCancelNav = useCallback(() => {
 		setShowUnsavedNavDialog(false)
-		clearPendingAction()
-	}, [clearPendingAction])
+		cancelNavigation()
+	}, [cancelNavigation])
 
 	const handleCancelEdit = useCallback(() => {
 		setDirtyState(false)
@@ -391,23 +426,24 @@ function WechatEditView({
 		const saved = await executeSave()
 		if (saved) {
 			setShowRefreshConfirmDialog(false)
-			runPendingAction()
+			await resolveRefresh(true)
 			return
 		}
 		setShowRefreshConfirmDialog(false)
+		saveRetryTargetRef.current = "refresh"
 		setShowSaveRetryDialog(true)
-	}, [executeSave, runPendingAction])
+	}, [executeSave, resolveRefresh])
 
 	const handleDiscardBeforeRefresh = useCallback(() => {
 		setShowRefreshConfirmDialog(false)
 		setDirtyState(false)
-		runPendingAction()
-	}, [runPendingAction, setDirtyState])
+		void resolveRefresh(true)
+	}, [resolveRefresh, setDirtyState])
 
 	const handleCancelRefreshConfirm = useCallback(() => {
 		setShowRefreshConfirmDialog(false)
-		clearPendingAction()
-	}, [clearPendingAction])
+		cancelRefresh()
+	}, [cancelRefresh])
 
 	const openNewTab = useCallback(() => {
 		// No-op in edit view context
@@ -427,25 +463,6 @@ function WechatEditView({
 	return (
 		<div className="flex h-full" data-testid="wechat-edit-view">
 			<div className="relative flex-1 overflow-hidden">
-				{/* Manual save toolbar — shown when there are unsaved changes */}
-				{hasUnsavedChanges ? (
-					<div
-						className={`absolute right-3 top-[42px] z-50 flex items-center gap-1 px-2 py-1 ${selfMediaOverlayStyles.floatingPanel}`}
-					>
-						<FileEditButtons
-							isEditMode
-							isSaving={isSaving}
-							showButtonText
-							onSave={async () => {
-								await executeSave()
-							}}
-							onCancel={handleCancelEdit}
-						/>
-					</div>
-				) : (
-					<RednoteEditSaveStatusIndicator status={saveStatus} />
-				)}
-
 				{contentLoading ? (
 					<div
 						className="flex h-full items-center justify-center text-sm text-muted-foreground"
@@ -477,9 +494,31 @@ function WechatEditView({
 							selectedProject={selectedProject}
 							attachmentList={attachmentList}
 							isVisible
-							// toolbarClassName="absolute left-1/2 top-2 z-[10] -translate-x-1/2 w-[98%] rounded-lg border border-border bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60"
+							toolbarEndRef={onHtmlToolbarEndRef}
 							className="h-full w-full"
 						/>
+						{htmlToolbarEndHost && content
+							? createPortal(
+									hasUnsavedChanges ? (
+										<FileEditButtons
+											testIdPrefix="wechat-edit"
+											isEditMode
+											isSaving={isSaving}
+											showButtonText
+											onSave={async () => {
+												await executeSave()
+											}}
+											onCancel={handleCancelEdit}
+										/>
+									) : (
+										<RednoteEditSaveStatusIndicator
+											status={saveStatus}
+											inline
+										/>
+									),
+									htmlToolbarEndHost,
+								)
+							: null}
 					</div>
 				) : (
 					<div

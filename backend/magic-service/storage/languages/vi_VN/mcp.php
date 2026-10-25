@@ -9,6 +9,7 @@ return [
         'code' => 'Mã',
         'name' => 'Tên',
         'description' => 'Mô tả',
+        'icon' => 'Biểu tượng',
         'status' => 'Trạng thái',
         'external_sse_url' => 'URL Dịch vụ MCP',
         'url' => 'URL',
@@ -23,6 +24,7 @@ return [
         'scope' => 'Phạm vi',
         'authorization_url' => 'URL Ủy quyền',
         'authorization_content_type' => 'Loại Nội dung Ủy quyền',
+        'authorization_method' => 'Authorization Method',
         'issuer_url' => 'URL Nhà phát hành',
         'redirect_uri' => 'URI Chuyển hướng',
         'use_pkce' => 'Sử dụng PKCE',
@@ -40,6 +42,7 @@ return [
     // Thông báo lỗi
     'validate_failed' => 'Xác thực thất bại',
     'not_found' => 'Không tìm thấy dữ liệu',
+    'field_too_long' => ':label không được vượt quá :max ký tự',
 
     // Lỗi liên quan đến dịch vụ
     'service' => [
@@ -82,6 +85,32 @@ return [
             'code_empty' => 'Mã ủy quyền không được để trống',
             'state_empty' => 'Tham số trạng thái không được để trống',
             'mcp_server_code_empty' => 'Mã máy chủ MCP không được để trống',
+        ],
+    ],
+
+    // Kiểm tra khả năng MCP Authorization
+    'authorization_capability' => [
+        'unsupported' => 'Dịch vụ này chưa chọn ủy quyền tiêu chuẩn MCP',
+        'not_configured' => 'Thiếu cấu hình ủy quyền tiêu chuẩn MCP',
+        'resource_url_required' => 'MCP Resource phải là URL đầy đủ',
+        'invalid_server_metadata' => 'Metadata máy chủ ủy quyền không hợp lệ',
+        'missing_server_endpoints' => 'Metadata máy chủ ủy quyền thiếu các endpoint bắt buộc',
+        'probe_failed' => 'Kiểm tra khả năng MCP Authorization thất bại',
+        'registration' => [
+            'pre_registered' => 'Quản trị viên phải đăng ký trước client',
+            'cimd_supported' => 'Máy chủ ủy quyền công bố hỗ trợ CIMD',
+            'cimd_unsupported' => 'Máy chủ ủy quyền không công bố hỗ trợ CIMD',
+            'dcr_found' => 'Đã phát hiện endpoint đăng ký client động',
+            'dcr_missing' => 'Không phát hiện endpoint đăng ký client động',
+        ],
+        'warnings' => [
+            'dcr_recommended' => 'Khuyến nghị đăng ký client động; lần ủy quyền đầu tiên có thể tạo client từ xa.',
+            'cimd_not_advertised' => 'Đã cấu hình URL CIMD nhưng máy chủ ủy quyền không công bố rõ hỗ trợ CIMD.',
+            'token_auth_not_advertised' => 'Máy chủ ủy quyền không công bố phương thức xác thực token endpoint; đề xuất none.',
+        ],
+        'failure_reason' => [
+            'remote_request' => 'Yêu cầu từ xa thất bại',
+            'configuration_or_discovery' => 'Xác thực cấu hình hoặc khám phá ủy quyền thất bại',
         ],
     ],
 

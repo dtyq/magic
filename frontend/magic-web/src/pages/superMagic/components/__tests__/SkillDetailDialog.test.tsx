@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ComponentProps, ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 
@@ -137,7 +137,9 @@ vi.mock("@/services/skills/SkillsService", () => ({
 }))
 
 vi.mock("@/components/tiptap-templates/simple/simple-editor", () => ({
-	SimpleEditor: ({ content }: { content: string }) => <div>{content}</div>,
+	SimpleEditor: ({ content }: { content: string }) => (
+		<div data-testid="skill-simple-editor">{content}</div>
+	),
 }))
 
 describe("SkillDetailDialog", () => {
@@ -212,5 +214,48 @@ describe("SkillDetailDialog", () => {
 		await waitFor(() => {
 			expect(screen.queryByTestId("skill-detail-dialog-skill-file")).not.toBeInTheDocument()
 		})
+	})
+
+	it("keeps the dialog open and reports primary action errors", async () => {
+		getMarketSkillDetailViewMock.mockResolvedValue({
+			code: "skill.code",
+			name: "Skill Name",
+			description: "Skill description",
+			logo: "",
+			packageName: "skill.package",
+			versionCode: "1.0.0",
+			updatedAt: "2026-04-09 10:00:00",
+			skillFileUrl: undefined,
+			isFeatured: false,
+			publisherType: "OFFICIAL",
+			publisherName: "Magic",
+		})
+		const actionError = new Error("failed")
+		const onActionError = vi.fn()
+		const onOpenChange = vi.fn()
+
+		const { SkillDetailDialog } = await import("../SkillDetailDialog")
+
+		render(
+			<SkillDetailDialog
+				open={true}
+				onOpenChange={onOpenChange}
+				skillCode="skill.code"
+				detailSource="market"
+				primaryAction={{
+					label: "Add",
+					onClick: vi.fn().mockRejectedValue(actionError),
+					onError: onActionError,
+					testId: "skill-detail-dialog-primary-action",
+				}}
+			/>,
+		)
+
+		fireEvent.click(await screen.findByTestId("skill-detail-dialog-primary-action"))
+
+		await waitFor(() => {
+			expect(onActionError).toHaveBeenCalledWith(actionError)
+		})
+		expect(onOpenChange).not.toHaveBeenCalled()
 	})
 })

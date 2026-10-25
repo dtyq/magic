@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest"
 import type {
 	CanvasConnection,
+	FrameElement,
 	LayerElement,
+	RectangleElement,
 } from "@/components/CanvasDesign/runtime/document/types"
 import type { DesignData } from "../../types"
 import { mergeDesignDataByElement } from "../designDataElementMerge"
 
-function rect(id: string, options: Partial<LayerElement> = {}): LayerElement {
+function rect(id: string, options: Partial<RectangleElement> = {}): RectangleElement {
+	const contentId = `${id}-content-1`
 	return {
 		id,
 		type: "rectangle",
@@ -15,11 +18,19 @@ function rect(id: string, options: Partial<LayerElement> = {}): LayerElement {
 		width: 100,
 		height: 100,
 		zIndex: 1,
+		activeContentId: contentId,
+		mainContentId: contentId,
+		contents: [{ contentId }],
 		...options,
 	}
 }
 
-function frame(id: string, children: LayerElement[] = [], options: Partial<LayerElement> = {}) {
+function frame(
+	id: string,
+	children: LayerElement[] = [],
+	options: Partial<FrameElement> = {},
+): FrameElement {
+	const contentId = `${id}-content-1`
 	return {
 		id,
 		type: "frame",
@@ -29,8 +40,11 @@ function frame(id: string, children: LayerElement[] = [], options: Partial<Layer
 		height: 200,
 		zIndex: 1,
 		children,
+		activeContentId: contentId,
+		mainContentId: contentId,
+		contents: [{ contentId }],
 		...options,
-	} as LayerElement
+	}
 }
 
 function connection(

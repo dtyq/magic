@@ -10,14 +10,16 @@ namespace App\Application\ModelGateway\Event\Subscribe;
 use App\Application\ModelGateway\Event\ModelUsageEvent;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
+use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\ModelGateway\Service\MsgLogDomainService;
 use DateTime;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
+use Hyperf\Odin\Api\Response\Usage;
 use Psr\Container\ContainerInterface;
 
-#[AsyncListener]
+#[AsyncListener(driver: 'coroutine')]
 #[Listener]
 class ScheduleUsageRecordSubscriber implements ListenerInterface
 {
@@ -32,26 +34,73 @@ class ScheduleUsageRecordSubscriber implements ListenerInterface
     {
         return [
             ModelUsageEvent::class,
+            ImageGeneratedEvent::class,
         ];
     }
 
     public function process(object $event): void
     {
-        if (! $event instanceof ModelUsageEvent) {
+        if ($event instanceof ModelUsageEvent) {
+            if ($event->getBusinessParam('is_success', true) === false) {
+                return;
+            }
+
+            $dataIsolation = LLMDataIsolation::create($event->getOrganizationCode());
+            $this->recordMessageLog(
+                $dataIsolation,
+                usage: $event->getUsage(),
+                model: $event->getModelId(),
+                modelVersion: $event->getModelVersion(),
+                organizationCode: $event->getOrganizationCode(),
+                userId: $event->getUserId(),
+                appCode: $event->getAppId(),
+                businessParams: $event->getBusinessParams(),
+            );
             return;
         }
-        $dataIsolation = LLMDataIsolation::create($event->getOrganizationCode());
 
-        $this->recordMessageLog($dataIsolation, $event);
+        if ($event instanceof ImageGeneratedEvent) {
+            $businessParams = $event->getBusinessParams();
+            if (strtoupper((string) ($businessParams['status'] ?? '')) !== 'SUCCESS') {
+                return;
+            }
+
+            $usage = $event->getUsage() ?? new Usage(promptTokens: 0, completionTokens: 0, totalTokens: 0);
+            $modelVersion = (string) ($businessParams['model_version'] ?? $event->getModel());
+            $model = (string) ($businessParams['model_id'] ?? $event->getModel());
+            $providerModelId = (string) ($businessParams['provider_model_id'] ?? $event->getProviderModelId());
+            $businessParams['provider_model_id'] = $providerModelId;
+            if (! isset($businessParams['access_token_id'])) {
+                $businessParams['access_token_id'] = $event->getAccessTokenId() ?? '';
+            }
+
+            $dataIsolation = LLMDataIsolation::create($event->getOrganizationCode());
+            $this->recordMessageLog(
+                $dataIsolation,
+                usage: $usage,
+                model: $model,
+                modelVersion: $modelVersion,
+                organizationCode: $event->getOrganizationCode(),
+                userId: $event->getUserId(),
+                appCode: (string) ($businessParams['app_id'] ?? ''),
+                businessParams: $businessParams,
+            );
+        }
     }
 
     /**
-     * Record message log.
+     * 统一记录模型调用日志。
      */
-    private function recordMessageLog(LLMDataIsolation $dataIsolation, ModelUsageEvent $modelUsageEvent): void
-    {
-        $usage = $modelUsageEvent->getUsage();
-
+    private function recordMessageLog(
+        LLMDataIsolation $dataIsolation,
+        Usage $usage,
+        string $model,
+        string $modelVersion,
+        string $organizationCode,
+        string $userId,
+        string $appCode,
+        array $businessParams
+    ): void {
         $msgLog = new MsgLogEntity();
         $msgLog->setUseAmount(0);
         $msgLog->setUseToken($usage->getTotalTokens());
@@ -70,16 +119,17 @@ class ScheduleUsageRecordSubscriber implements ListenerInterface
         }
         $msgLog->setCacheReadTokens($cacheReadTokens);
 
-        $msgLog->setModel($modelUsageEvent->getModelId());
-        $msgLog->setUserId($modelUsageEvent->getUserId());
-        $msgLog->setAppCode($modelUsageEvent->getAppId());
-        $msgLog->setOrganizationCode($modelUsageEvent->getOrganizationCode());
-        $msgLog->setBusinessId($modelUsageEvent->getBusinessParam('business_id') ?? '');
-        $msgLog->setSourceId($modelUsageEvent->getBusinessParam('source_id') ?? '');
-        $msgLog->setUserName($modelUsageEvent->getBusinessParam('user_name') ?? '');
-        $msgLog->setAccessTokenId($modelUsageEvent->getBusinessParam('access_token_id') ?? '');
-        $msgLog->setProviderId($modelUsageEvent->getBusinessParam('service_provider_id') ?? '');
-        $msgLog->setProviderModelId($modelUsageEvent->getBusinessParam('service_provider_model_id') ?? '');
+        $msgLog->setModel($model);
+        $msgLog->setModelVersion($modelVersion);
+        $msgLog->setUserId($userId);
+        $msgLog->setAppCode($appCode);
+        $msgLog->setOrganizationCode($organizationCode);
+        $msgLog->setBusinessId((string) ($businessParams['business_id'] ?? ''));
+        $msgLog->setSourceId((string) ($businessParams['source_id'] ?? ''));
+        $msgLog->setUserName((string) ($businessParams['user_name'] ?? ''));
+        $msgLog->setAccessTokenId($businessParams['access_token_id'] ?? '');
+        $msgLog->setProviderId($businessParams['service_provider_id'] ?? '');
+        $msgLog->setProviderModelId($businessParams['service_provider_model_id'] ?? $businessParams['provider_model_id'] ?? '');
         $msgLog->setCreatedAt(new DateTime());
         $this->msgLogDomainService->create($dataIsolation, $msgLog);
     }

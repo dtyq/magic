@@ -3,7 +3,7 @@ import { IconMessageCircle, IconFiles, IconFolder } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { SmoothTabs } from "@/components/shadcn-ui/smooth-tabs"
 import { SharedResourceType } from "../types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface PrimaryTabsProps {
 	value: SharedResourceType

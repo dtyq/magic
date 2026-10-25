@@ -161,6 +161,12 @@ final class BillingObject
     private const string IMAGE_PIXEL_COUNT_PATTERN = '/^image_(lte|gt)_([1-9]\d*)w_pixel_output_count(?:_cost)?$/';
 
     /**
+     * 视频参考图片超额计费对象：after_N 表示前 N 张免费，第 N+1 张开始计费。
+     * 同时支持售价对象和成本对象：video.reference_image.after_N.count[.cost]。
+     */
+    private const string VIDEO_REFERENCE_IMAGE_AFTER_COUNT_PATTERN = '/^video\.reference_image\.after_([1-9]\d*)\.count(?:\.cost)?$/';
+
+    /**
      * Video 动态对象族：video.{resolution}.{modifier}.{duration|token}[.cost].
      */
     private const string VIDEO_OBJECT_PATTERN = '/^video\.([a-z0-9x_]+)\.([a-z_]+(?:\.[a-z_]+)*)\.(duration|token)(?:\.cost)?$/';
@@ -196,6 +202,7 @@ final class BillingObject
 
         if (in_array($normalized, self::STATIC_OBJECTS, true)
             || preg_match(self::IMAGE_COUNT_PATTERN, $normalized) === 1
+            || preg_match(self::VIDEO_REFERENCE_IMAGE_AFTER_COUNT_PATTERN, $normalized) === 1
             || self::parseVideoObjectValue($normalized) !== null) {
             return new self($normalized);
         }
@@ -250,6 +257,35 @@ final class BillingObject
     public static function videoDurationCost(string $resolution): self
     {
         return self::videoObject($resolution, self::VIDEO_MODIFIER_BASE, self::VIDEO_BILLING_UNIT_DURATION, true);
+    }
+
+    public static function videoReferenceImageAfterCount(int $freeCount): self
+    {
+        return new self(sprintf('video.reference_image.after_%d.count', max(1, $freeCount)));
+    }
+
+    public static function videoReferenceImageAfterCountCost(int $freeCount): self
+    {
+        return new self(sprintf('video.reference_image.after_%d.count.cost', max(1, $freeCount)));
+    }
+
+    public function isVideoReferenceImageAfterCountObject(): bool
+    {
+        return $this->getReferenceImageFreeCount() !== null && ! $this->isCostObject();
+    }
+
+    public function isVideoReferenceImageAfterCountCostObject(): bool
+    {
+        return $this->getReferenceImageFreeCount() !== null && $this->isCostObject();
+    }
+
+    public function getReferenceImageFreeCount(): ?int
+    {
+        if (preg_match(self::VIDEO_REFERENCE_IMAGE_AFTER_COUNT_PATTERN, $this->value, $matches) !== 1) {
+            return null;
+        }
+
+        return (int) $matches[1];
     }
 
     /**
@@ -381,6 +417,15 @@ final class BillingObject
     public function toVideoPricing(): ?array
     {
         return self::parseVideoObjectValue($this->value);
+    }
+
+    public function usesInputVideoDuration(): bool
+    {
+        $pricing = $this->toVideoPricing();
+
+        return $pricing !== null
+            && $pricing['billing_unit'] === self::VIDEO_BILLING_UNIT_DURATION
+            && in_array(self::VIDEO_MODIFIER_REFERENCE_VIDEO, $pricing['modifier'], true);
     }
 
     /**

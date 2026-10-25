@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Mic } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useVoiceInput } from "@/components/business/VoiceInput/hooks"
 import { useMicrophonePermission } from "@/hooks/useMicrophonePermission"
 

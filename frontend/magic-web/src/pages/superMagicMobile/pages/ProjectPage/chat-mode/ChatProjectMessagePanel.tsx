@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite"
 import { ChevronLeft, Ellipsis } from "lucide-react"
 import { useState } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { projectStore, topicStore } from "@/pages/superMagic/stores/core"

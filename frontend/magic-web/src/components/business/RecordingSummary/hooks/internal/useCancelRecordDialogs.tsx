@@ -7,6 +7,7 @@ import {
 	RecordSummaryAlertIcon,
 } from "../../components/RecordSummaryAlertCard"
 import { Mic } from "lucide-react"
+import { CancelRecordDialogDismissedError } from "./cancelRecordDialogError"
 
 interface UseCancelRecordDialogsOptions {
 	noNeedButtonText?: string
@@ -74,7 +75,7 @@ export function useCancelRecordDialogs({
 				closable: true,
 				maskClosable: false,
 				onCancel: () => {
-					reject(new Error("cancel recording dialog dismissed"))
+					reject(new CancelRecordDialogDismissedError())
 				},
 				icon: (
 					<RecordSummaryAlertIcon tone="neutral">
@@ -109,7 +110,7 @@ export function useCancelRecordDialogs({
 							appearance="secondary"
 							onClick={() => {
 								modalInstance.destroy()
-								reject(new Error("cancel recording dialog dismissed"))
+								reject(new CancelRecordDialogDismissedError())
 							}}
 							data-testid="record-summary-stop-cancel-button"
 						>

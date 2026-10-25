@@ -3,7 +3,7 @@ import { observer } from "mobx-react-lite"
 import MagicSpin from "@/components/base/MagicSpin"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { Flex } from "antd"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import { topicModelStore } from "@/stores/superMagic"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
@@ -62,6 +62,9 @@ import type {
 	SelfMediaWechatCoverType,
 } from "./types"
 import type { SelfMediaPlatformPostItem } from "./stores/SelfMediaStore"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { shouldWaitForShareAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 type SelfMediaRootMode = "home" | "create" | "platform"
 type Translate = (key: string, options?: Record<string, unknown>) => string
@@ -118,6 +121,10 @@ function resolveFirstAvailableSelfMediaDataSyncModel(): ModelItem | null {
  * component consumes the store through `useSelfMediaStore()`.
  */
 function SelfMediaRootRender(props: SelfMediaRootRenderProps) {
+	const fileAccess = useFileAccess()
+	if (shouldWaitForShareAccess(fileAccess)) {
+		return <MagicSpin />
+	}
 	const {
 		data,
 		attachments,
@@ -192,6 +199,7 @@ const SelfMediaRootRenderInner = observer(function SelfMediaRootRenderInner({
 	openFileTab,
 }: SelfMediaRootRenderInnerProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const store = useSelfMediaStore()
 	const {
 		canShare: canSharePost,
@@ -232,8 +240,10 @@ const SelfMediaRootRenderInner = observer(function SelfMediaRootRenderInner({
 	const projectId = selectedProject?.id || ""
 	const fileStorageService = useMemo(
 		() =>
-			projectId ? new SelfMediaFileStorageService(projectId, folderFileId, folderPath) : null,
-		[projectId, folderFileId, folderPath],
+			projectId
+				? new SelfMediaFileStorageService(projectId, folderFileId, folderPath, fileApi)
+				: null,
+		[projectId, folderFileId, folderPath, fileApi],
 	)
 
 	// Detect empty project: no platforms configured and not loading

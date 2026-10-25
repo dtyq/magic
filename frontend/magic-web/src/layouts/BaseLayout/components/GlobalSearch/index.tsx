@@ -1,21 +1,18 @@
 import type { ButtonProps } from "antd"
-import { cx } from "antd-style"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import { useKeyPress } from "ahooks"
 import { isMac } from "@/utils/devices"
 import type { MouseEvent, FocusEvent } from "react"
 import { useCallback, useEffect } from "react"
-import { useSearchStyles } from "./styles"
 import SearchPanel from "./SearchPanel"
 import { useMagicSearchStore } from "./store"
 import MagicModal from "@/components/base/MagicModal"
-import { MagicButton } from "@dtyq/magic-admin/components"
+import { Button } from "@/components/shadcn-ui/button"
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconSearch, IconX } from "@tabler/icons-react"
-import FlexBox from "@/components/base/FlexBox"
 
 function GlobalSearch({ className }: ButtonProps) {
-	const { styles } = useSearchStyles()
 	const { t } = useTranslation("search")
 	const open = useMagicSearchStore((store) => store.open)
 
@@ -55,25 +52,29 @@ function GlobalSearch({ className }: ButtonProps) {
 
 	return (
 		<>
-			<MagicButton onClick={openPanel} className={styles.button}>
+			<Button
+				variant="ghost"
+				onClick={openPanel}
+				className="size-8 border-0 p-1.5"
+				aria-label={t("quickSearch.searchPlaceholder")}
+			>
 				<MagicIcon component={IconSearch} size={24} />
-			</MagicButton>
+			</Button>
 			<MagicModal
-				// overlayClassName={cx(styles.popover)}
 				open={open}
 				onCancel={closePanel}
 				footer={null}
 				closeIcon={null}
 				classNames={{
-					body: styles.modalBody,
-					content: styles.content,
+					body: "overflow-hidden [--magic-modal-body-padding:0]",
+					content: "overflow-hidden",
 				}}
 				centered
 			>
-				<FlexBox align="center" justify="space-between" className={styles.header}>
+				<div className="flex h-11 items-center justify-between border-b border-[var(--magic-color-border-secondary)]">
 					<MagicIcon
 						component={IconSearch}
-						className={styles.searchIcon}
+						className="ml-5 mr-2.5 text-foreground/40"
 						size={24}
 						color="currentColor"
 					/>
@@ -86,16 +87,21 @@ function GlobalSearch({ className }: ButtonProps) {
 								preState.searchWord = event?.target?.value
 							})
 						}
-						className={cx(className, styles.input)}
+						className={cn(
+							"w-full border-0 bg-transparent shadow-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
+							className,
+						)}
 						placeholder={t("quickSearch.searchPlaceholder")}
 					/>
-					<MagicIcon
-						component={IconX}
-						size={24}
+					<Button
+						variant="ghost"
+						aria-label={t("button.close", { ns: "interface" })}
 						onClick={closePanel}
-						className={styles.close}
-					/>
-				</FlexBox>
+						className="size-11 shrink-0 rounded-none border-l border-[var(--magic-color-border-secondary)] p-2.5"
+					>
+						<MagicIcon component={IconX} size={24} />
+					</Button>
+				</div>
 				<SearchPanel maxHeight={maxHeight} />
 			</MagicModal>
 		</>

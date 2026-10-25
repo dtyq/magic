@@ -34,9 +34,14 @@ class MagicChatImageConvertHighReqDTO
 
     public ?string $radio = null;
 
-    public ImageGenerateSourceEnum $sourceType;
+    public ImageGenerateSourceEnum $sourceType = ImageGenerateSourceEnum::NONE;
 
-    public string $sourceId;
+    public string $sourceId = '';
+
+    /**
+     * Super Magic 内置工具编码，保留在事件业务参数中。
+     */
+    public string $toolCode = '';
 
     public function getReferText(): ?string
     {
@@ -178,6 +183,23 @@ class MagicChatImageConvertHighReqDTO
     public function setSourceId(string $sourceId): self
     {
         $this->sourceId = $sourceId;
+        return $this;
+    }
+
+    /**
+     * 获取内置工具编码。
+     */
+    public function getToolCode(): string
+    {
+        return $this->toolCode;
+    }
+
+    /**
+     * 设置内置工具编码。
+     */
+    public function setToolCode(string $toolCode): self
+    {
+        $this->toolCode = $toolCode;
         return $this;
     }
 }

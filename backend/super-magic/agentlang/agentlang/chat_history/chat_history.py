@@ -12,17 +12,20 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 import aiofiles
 
+from agentlang.agent.models import AgentRunRequest
 from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.config.config import config
 from agentlang.utils.token_estimator import num_tokens_from_string
 
 # 从新的模块导入类型和工具
 from agentlang.chat_history.chat_history_models import (
     format_duration_to_str, parse_duration_from_str,
     SystemMessage, UserMessage,
-    AssistantMessage, ToolMessage, ChatMessage,
+    UserMessageContentPart,
+    AssistantMessage, ToolMessage, ChatMessage, ContextSource,
     FunctionCall, ToolCall, chat_message_from_dict
 )
 from agentlang.chat_history.session_config import SessionConfig
@@ -43,6 +46,8 @@ logger = get_logger(__name__)
 
 # 单条 assistant 消息 content 的 token 安全上限
 # 模型正常 max_output_tokens 约 8K-64K；超过此值视为退化输出，保留头尾后截断（如模型死循环输出时会超出此值）。
+# 此阈值是既有异常历史兜底：避免单条膨胀正文撑满后续请求，连 compact 请求也无法执行。
+# 只检查 assistant 正文，不裁剪原生工具参数或工作区文件；清理分批提示时须保留，调整前先核实历史依据并获许可。
 # 如需适配更大输出窗口，应单独评估退化保护、成本和上下文风险后再调整。
 _MSG_CONTENT_TOKEN_LIMIT = 100_000
 
@@ -65,6 +70,7 @@ _HORIZON_DIAGNOSTIC_BLOCK_TAGS = (
     "persistent_memory",
     "user_preferred_language_changed",
     "file_changes",
+    "memory_directory",
     "notifications",
     "magiclaw_startup",
 )
@@ -236,7 +242,6 @@ class ChatHistory:
         # 事件分发器（必需）
         self.event_dispatcher = event_dispatcher
 
-        os.makedirs(self.chat_history_dir, exist_ok=True) # 确保目录存在
         self._history_file_path = self._build_chat_history_filename()
         # load() 改为 async，不在 __init__ 中调用，由外部显式 await chat_history.load()
 
@@ -511,6 +516,7 @@ class ChatHistory:
     def _save_session_document(self, document: Dict[str, Any]) -> None:
         """保存完整会话状态文档。"""
         config_file = self._build_model_config_filename()
+        os.makedirs(self.chat_history_dir, exist_ok=True)
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(document, f, ensure_ascii=False, indent=2)
 
@@ -1016,6 +1022,7 @@ class ChatHistory:
         """
         try:
             tools_file_path = self._build_tools_list_filename()
+            os.makedirs(self.chat_history_dir, exist_ok=True)
             # 使用indent美化JSON输出
             tools_json = json.dumps(tools_list, indent=4, ensure_ascii=False)
             with open(tools_file_path, "w", encoding="utf-8") as f:
@@ -1081,6 +1088,8 @@ class ChatHistory:
         msg: UserMessage,
         message_index: int,
         content_len: int,
+        limit: int,
+        limit_unit: str,
     ) -> None:
         content = msg.content
         file_count, largest_file_path, largest_file_len = _largest_xml_block(content, "file", "path")
@@ -1095,7 +1104,8 @@ class ChatHistory:
             f"message_index={message_index} "
             f"created_at={getattr(msg, 'created_at', '')!r} "
             f"content_len={content_len:,} "
-            f"limit={_HORIZON_MSG_CONTENT_MAX_CHARS:,} "
+            f"content_tokens={num_tokens_from_string(content):,} "
+            f"limit={limit:,} limit_unit={limit_unit} "
             f"sha256={_sha256_short(content)} "
             f"blocks={_format_horizon_block_lengths(content)} "
             f"file_changes_count={file_count} "
@@ -1115,13 +1125,33 @@ class ChatHistory:
         """
         sanitized_messages: List[ChatMessage] = []
         fixes = 0
+        """
+        与 Horizon 新内容生成共用应用预算，避免 20K Token 的合法消息重启后被旧 32K
+        字符规则删除。Agentlang 独立使用且未配置 Horizon 时，继续原有字符保护。
+        source 仍为 horizon；不改变其它消息清理、不引入消息版本或新的交付协议。
+        """
+        configured_limit = config.get("horizon.context_max_tokens")
+        """
+        本段只清理历史中的异常 Horizon 消息；普通用户文本和模型退化输出仍走各自规则。
+        日志继续保留字符长度、最大内容块和文件占用，同时标出 Token 额度，方便追查来源。
+        """
+        use_tokens = (
+            not isinstance(configured_limit, bool)
+            and isinstance(configured_limit, (str, int))
+            and str(configured_limit).isdecimal()
+            and int(configured_limit) > 0
+        )
+        horizon_limit = int(configured_limit) if use_tokens else _HORIZON_MSG_CONTENT_MAX_CHARS
         for idx, msg in enumerate(self.messages):
             # 规则 1：超大 horizon user 消息 → 丢弃
             if isinstance(msg, UserMessage) and getattr(msg, "source", None) == "horizon":
                 content_len = len(msg.content)
-                if content_len > _HORIZON_MSG_CONTENT_MAX_CHARS:
+                measured_size = num_tokens_from_string(msg.content) if use_tokens else content_len
+                if measured_size > horizon_limit:
                     fixes += 1
-                    self._log_removed_oversized_horizon_message(msg, idx, content_len)
+                    self._log_removed_oversized_horizon_message(
+                        msg, idx, content_len, horizon_limit, "tokens" if use_tokens else "chars",
+                    )
                     continue
 
             # 规则 2：超大 assistant content → 截断保留头尾
@@ -1601,10 +1631,32 @@ class ChatHistory:
         message = SystemMessage(content=content, show_in_ui=show_in_ui)
         await self.add_message(message)
 
-    async def append_user_message(self, content: str, show_in_ui: bool = True, source: Optional[str] = None) -> None:
-        """添加一条用户消息。source 用于标记消息来源（None=用户，"horizon"=系统注入等）。"""
-        message = UserMessage(content=content, show_in_ui=show_in_ui, source=source)
+    async def append_user_message(
+        self,
+        content: str,
+        show_in_ui: bool = True,
+        source: Optional[str] = None,
+        content_parts: Optional[List[UserMessageContentPart]] = None,
+    ) -> None:
+        """添加一条用户消息，可选保存规范化多模态内容片段。"""
+        message = UserMessage(
+            content=content,
+            show_in_ui=show_in_ui,
+            source=source,
+            content_parts=content_parts,
+        )
         await self.add_message(message)
+
+    async def append_user_query(
+        self,
+        request: AgentRunRequest,
+    ) -> None:
+        """将已规范化的 Agent 运行请求转换为普通用户消息并写入聊天历史。"""
+        content_parts: List[UserMessageContentPart] = [
+            UserMessageContentPart.text_part(request.query)
+        ]
+        content_parts.extend(UserMessageContentPart.image_ref(path) for path in request.image_refs)
+        await self.append_user_message(request.query, content_parts=content_parts)
 
     async def append_assistant_message(self,
                                  content: Optional[str],
@@ -1714,7 +1766,8 @@ class ChatHistory:
                             tool_call_id: str,
                             system: Optional[str] = None,
                             show_in_ui: bool = False,
-                            duration_ms: Optional[float] = None) -> None:
+                            duration_ms: Optional[float] = None,
+                            context_source: ContextSource | None = None) -> None:
         """
         添加一条工具消息。
 
@@ -1732,7 +1785,8 @@ class ChatHistory:
             tool_call_id=tool_call_id,
             system=system,
             show_in_ui=show_in_ui,
-            duration_ms=duration_ms
+            duration_ms=duration_ms,
+            context_source=context_source,
         )
         await self.add_message(message)
 
@@ -1775,8 +1829,106 @@ class ChatHistory:
                 continue
 
         # 🔧 修复历史消息中的序列错误（兼容已存在的错误历史）
-        fixed_messages = self._fix_message_sequence_errors(llm_messages)
-        return fixed_messages
+        return self.normalize_messages_for_llm(llm_messages)
+
+    def get_message_snapshot(self) -> tuple[ChatMessage, ...]:
+        """返回当前全部聊天消息的元组快照，隔离列表结构的后续变更。"""
+        return tuple(self.messages)
+
+    @staticmethod
+    def _is_native_visual_user_message(message: ChatMessage) -> bool:
+        """判断是否属于可进入原生视觉请求的 user 消息。"""
+        if not isinstance(message, UserMessage):
+            return False
+        if message.source == "native_visual":
+            return True
+        return bool(message.show_in_ui and message.source != "compact_summary")
+
+    @staticmethod
+    def _native_visual_image_count(message: UserMessage) -> int:
+        """统计 user 消息中的图片引用数量。"""
+        return sum(1 for part in (message.content_parts or []) if part.type == "image_ref")
+
+    def find_current_business_user_message(self) -> Optional[UserMessage]:
+        """定位当前业务用户消息，忽略 Horizon 等系统注入消息。"""
+        for message in reversed(self.messages):
+            if isinstance(message, UserMessage) and self._is_native_visual_user_message(message):
+                return message
+        return None
+
+    async def disable_native_visual_messages(
+        self,
+        *,
+        exclude: Optional[UserMessage] = None,
+    ) -> int:
+        """把原生视觉 user 消息标记为不再进入原生视觉请求。
+
+        | 消息                   | 处理后                         |
+        | 历史原生视觉 user 消息 | include_in_native_visual=False |
+        | exclude 指定的当前消息 | 保持原样                       |
+        | 已经是 False 的消息    | 不重复写入                     |
+        """
+        updated = 0
+        for message in self.messages:
+            if not isinstance(message, UserMessage):
+                continue
+            if exclude is not None and message is exclude:
+                continue
+            if not self._is_native_visual_user_message(message):
+                continue
+            if self._native_visual_image_count(message) <= 0:
+                continue
+            if message.include_in_native_visual is False:
+                continue
+            message.include_in_native_visual = False
+            updated += 1
+        if updated:
+            await self.save()
+        return updated
+
+    async def disable_historical_native_visual_if_over_limit(
+        self,
+        max_history_image_refs: int,
+    ) -> int:
+        """历史加当前的图片合计超过上限时，关掉全部历史原生视觉 user 消息。
+
+        例：上限 20。历史 15 张、当前 10 张，合计 25。
+        历史原生视觉 user 消息全部改为 False，当前 10 张仍可带图。
+        """
+        if max_history_image_refs < 0:
+            return 0
+        current = self.find_current_business_user_message()
+        total_image_count = 0
+        for message in self.messages:
+            if not isinstance(message, UserMessage):
+                continue
+            if not self._is_native_visual_user_message(message):
+                continue
+            if message.include_in_native_visual is False:
+                continue
+            total_image_count += self._native_visual_image_count(message)
+        if total_image_count <= max_history_image_refs:
+            return 0
+        current_image_count = (
+            self._native_visual_image_count(current)
+            if current is not None and current.include_in_native_visual is not False
+            else 0
+        )
+        updated = await self.disable_native_visual_messages(exclude=current)
+        logger.info(
+            f"原生视觉历史图片超限，已关闭历史消息中的原生视觉: "
+            f"total_image_count={total_image_count}, "
+            f"current_image_count={current_image_count}, "
+            f"limit={max_history_image_refs}, updated={updated}"
+        )
+        return updated
+
+    def normalize_messages_for_llm(
+        self,
+        llm_messages: Sequence[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """规范化已序列化的 LLM 消息，并修复工具调用序列。"""
+        return self._fix_message_sequence_errors(list(llm_messages))
 
     def _reorder_displaced_tool_results(self, llm_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """一步到位地重排工具调用序列，确保每个 assistant(tool_calls) 紧跟其所有 tool_result。

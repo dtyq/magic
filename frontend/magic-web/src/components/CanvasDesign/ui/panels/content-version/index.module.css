@@ -1,0 +1,395 @@
+.panel {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	width: 352px;
+	max-width: calc(100vw - 16px);
+
+	/* Chrome 100 does not support dvh; the viewport fallback still bounds the panel. */
+	max-height: calc(100vh - 16px);
+	padding: 0;
+	overflow: hidden;
+	background: var(--base-background, #fff);
+	border: var(--border-width-border, 1px) solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+	opacity: 0;
+	pointer-events: none;
+}
+
+.header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-width: 0;
+	padding: 10px 10px 0;
+}
+
+.title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-weight: var(--font-weight-semibold, 600);
+	font-size: var(--text-sm-font-size, 14px);
+	line-height: var(--text-sm-line-height, 20px);
+}
+
+.closeButton {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	color: var(--base-foreground, #030712);
+	background: transparent;
+	border: 0;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.closeButton:hover {
+	background: var(--base-sidebar-accent, #f5f5f5);
+}
+
+.closeButton:focus-visible,
+.selectButton:focus-visible,
+.cardAction:focus-visible,
+.audioToggle:focus-visible {
+	outline: 2px solid var(--base-ring, #2563eb);
+	outline-offset: 1px;
+}
+
+.divider {
+	width: auto;
+	height: 1px;
+	margin: 10px 10px 0;
+	background: var(--base-border, #e5e5e5);
+}
+
+.scrollArea {
+	flex: 1;
+	min-height: 0;
+}
+
+.scrollViewport {
+	max-height: min(520px, calc(100vh - 80px));
+}
+
+.content {
+	/* Padding lives inside the scroll viewport so card shadows are not clipped. */
+	padding: 10px;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--spacing-2, 8px);
+}
+
+.card {
+	position: relative;
+	min-width: 0;
+}
+
+.selectButton {
+	position: relative;
+	display: block;
+	width: 100%;
+	padding: 0;
+	overflow: hidden;
+	background: var(--base-muted, #f5f5f5);
+	border: 1px solid #d9d9d9;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: box-shadow 160ms ease;
+}
+
+.card[data-active="true"] .selectButton {
+	box-shadow: 0 0 6px 1.5px rgb(0 0 0 / 20%);
+}
+
+.selectButton:disabled {
+	cursor: wait;
+	opacity: 0.7;
+}
+
+.thumbnail {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	aspect-ratio: 1;
+	overflow: hidden;
+	color: var(--base-muted-foreground, #737373);
+	background: var(--base-muted, #f5f5f5);
+}
+
+.media {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.videoStage {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.videoPlayback {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 120ms ease;
+}
+
+.videoPlayback[data-visible="true"] {
+	opacity: 1;
+}
+
+.statusPlaceholder {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	padding: 6px;
+	color: var(--base-muted-foreground, #737373);
+	text-align: center;
+	background: var(--base-muted, #f5f5f5);
+}
+
+.statusPlaceholder[data-kind="failed"] {
+	color: var(--base-destructive, #dc2626);
+}
+
+.statusLabel {
+	display: -webkit-box;
+	max-width: 100%;
+	overflow: hidden;
+	font-size: 10px;
+	line-height: 14px;
+	overflow-wrap: anywhere;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.mutedIcon {
+	color: var(--base-muted-foreground, #737373);
+}
+
+.audioVisual {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	padding: 8px;
+	color: var(--base-muted-foreground, #737373);
+	background: var(--base-muted, #f5f5f5);
+}
+
+.audioIcon {
+	flex-shrink: 0;
+}
+
+.audioFileName {
+	display: -webkit-box;
+	max-width: 100%;
+	overflow: hidden;
+	color: var(--base-foreground, #171717);
+	font-size: 10px;
+	line-height: 14px;
+	text-align: center;
+	overflow-wrap: anywhere;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.audioToggle {
+	position: absolute;
+	right: 4px;
+	bottom: 4px;
+	z-index: 4;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	color: #171717;
+	background: rgb(255 255 255 / 94%);
+	border: 1px solid rgb(255 255 255 / 72%);
+	border-radius: 50%;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+	cursor: pointer;
+}
+
+.audioToggle:hover:not(:disabled) {
+	background: #fff;
+}
+
+.audioToggle:active:not(:disabled) {
+	background: #e3e3e3;
+	transform: scale(0.94);
+}
+
+.audioToggle:disabled {
+	cursor: wait;
+	opacity: 0.6;
+}
+
+.audioStatusOverlay {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	border-radius: 8px;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.mainBadge {
+	position: absolute;
+	top: 4px;
+	left: 4px;
+	z-index: 2;
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: 18px;
+	padding: 0 4px;
+	color: #fff;
+	font-size: 10px;
+	font-family: Arial, sans-serif;
+	line-height: 18px;
+	white-space: nowrap;
+	background: rgb(0 0 0 / 70%);
+	border-radius: 4px;
+	pointer-events: none;
+}
+
+.cardActions {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	z-index: 5;
+	display: flex;
+	gap: 4px;
+	visibility: hidden;
+	opacity: 0;
+	transition: opacity 120ms ease;
+	pointer-events: none;
+}
+
+.card:hover .cardActions,
+.card:focus-within .cardActions {
+	visibility: visible;
+	opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+	.cardActions {
+		visibility: visible;
+		opacity: 1;
+	}
+}
+
+.cardAction {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	color: #171717;
+	background: rgb(255 255 255 / 94%);
+	border: 1px solid rgb(255 255 255 / 72%);
+	border-radius: 4px;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+	cursor: pointer;
+	transition:
+		background-color 120ms ease,
+		transform 80ms ease;
+	pointer-events: auto;
+}
+
+.cardAction:hover:not(:disabled) {
+	background: #f0f0f0;
+}
+
+.cardAction:active:not(:disabled) {
+	background: #e3e3e3;
+	transform: scale(0.97);
+}
+
+.dangerAction {
+	color: #dc2626;
+}
+
+.cardAction:disabled {
+	cursor: wait;
+	opacity: 0.5;
+}
+
+.spinner {
+	animation: content-version-spin 1s linear infinite;
+}
+
+.failed {
+	color: var(--base-destructive, #dc2626);
+}
+
+@keyframes content-version-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.spinner {
+		animation: none;
+	}
+
+	.cardActions {
+		transition: none;
+	}
+
+	.selectButton {
+		transition: none;
+	}
+
+	.cardAction {
+		transition: none;
+	}
+
+	.videoPlayback {
+		transition: none;
+	}
+
+	.audioToggle {
+		transition: none;
+	}
+
+	.cardAction:active:not(:disabled) {
+		transform: none;
+	}
+}

@@ -10,6 +10,12 @@ import {
 	getSummaryButtonVariant,
 	shouldShowSummaryButton,
 } from "@/pages/superMagic/pages/AudioRecordings/utils/summary-action-utils"
+import {
+	MAX_PROJECT_NAME_LENGTH,
+	clampProjectName,
+	isProjectNameAtLimit,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 
 interface MobileRecordingMoreSheetProps {
 	isOpen: boolean
@@ -138,12 +144,17 @@ export function MobileRecordingMoreSheet({
 
 	const handleRenamePress = useCallback(() => {
 		if (!item) return
-		setRenameValue(resolveRecordingDisplayName(item.project_name, item.created_at))
+		setRenameValue(
+			clampProjectName(
+				resolveRecordingDisplayName(item.project_name, item.created_at),
+				MAX_PROJECT_NAME_LENGTH,
+			),
+		)
 		setView("rename")
 	}, [item])
 
 	const handleRenameConfirm = useCallback(async () => {
-		const name = renameValue.trim()
+		const name = clampProjectName(renameValue, MAX_PROJECT_NAME_LENGTH)
 		if (!name || !item) return
 		const success = await onRename(item.id, name)
 		if (success) handleClose()
@@ -228,7 +239,10 @@ export function MobileRecordingMoreSheet({
 				onClick: () => {
 					void handleRenameConfirm()
 				},
-				disabled: !renameValue.trim() || isSubmittingAction,
+				disabled:
+					!renameValue.trim() ||
+					isProjectNameOverLimit(renameValue, MAX_PROJECT_NAME_LENGTH) ||
+					isSubmittingAction,
 				tone: "primary" as const,
 				testId: "mobile-recording-rename-confirm",
 			}
@@ -356,6 +370,7 @@ export function MobileRecordingMoreSheet({
 						<Input
 							type="text"
 							value={renameValue}
+							maxLength={MAX_PROJECT_NAME_LENGTH}
 							onChange={(event) => setRenameValue(event.target.value)}
 							placeholder={t(
 								"super:mobile.recordingEntry.moreSheet.renamePlaceholder",
@@ -370,6 +385,34 @@ export function MobileRecordingMoreSheet({
 							data-testid="mobile-recording-rename-input"
 						/>
 					</MenuGroup>
+					{/* Character counter and limit reminder */}
+					<div className="flex items-center justify-between px-[14px] text-xs text-muted-foreground">
+						{isProjectNameOverLimit(renameValue, MAX_PROJECT_NAME_LENGTH) ? (
+							<span className="text-destructive">
+								{t("chat.nameMaxLengthTip", {
+									maxLength: MAX_PROJECT_NAME_LENGTH,
+								})}
+							</span>
+						) : isProjectNameAtLimit(renameValue, MAX_PROJECT_NAME_LENGTH) ? (
+							<span>
+								{t("chat.nameMaxLengthTip", {
+									maxLength: MAX_PROJECT_NAME_LENGTH,
+								})}
+							</span>
+						) : (
+							<span />
+						)}
+						<span
+							className={
+								isProjectNameOverLimit(renameValue, MAX_PROJECT_NAME_LENGTH)
+									? "text-destructive"
+									: ""
+							}
+							data-testid="mobile-recording-rename-char-count"
+						>
+							{renameValue.length}/{MAX_PROJECT_NAME_LENGTH}
+						</span>
+					</div>
 				</div>
 			) : null}
 

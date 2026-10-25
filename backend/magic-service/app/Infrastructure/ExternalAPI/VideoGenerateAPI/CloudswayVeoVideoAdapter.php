@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\ErrorCode\VideoGenerateErrorCode;
 use Hyperf\Contract\TranslatorInterface;
 
 readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
@@ -61,11 +62,10 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
 
     public function supportsModel(string $modelVersion, string $modelId): bool
     {
+        $normalizedModelVersion = strtolower(trim($modelVersion));
         $normalizedModelId = strtolower(trim($modelId));
-        return in_array($normalizedModelId, [
-            self::MODEL_ID_FAST,
-            self::MODEL_ID_PRO,
-        ], true);
+        return in_array(self::MODEL_ID_FAST, [$normalizedModelVersion, $normalizedModelId], true)
+            || in_array(self::MODEL_ID_PRO, [$normalizedModelVersion, $normalizedModelId], true);
     }
 
     public function resolveGenerationConfig(string $modelVersion, string $modelId): ?VideoGenerationConfig
@@ -74,7 +74,7 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
             return null;
         }
 
-        $supportsReferenceImages = $this->supportsReferenceImages($modelId);
+        $supportsReferenceImages = $this->supportsReferenceImages($modelVersion, $modelId);
 
         return new VideoGenerationConfig([
             'supported_inputs' => array_values(array_filter([
@@ -97,7 +97,6 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
                 'default_resolution' => self::DEFAULT_RESOLUTION,
                 'supports_seed' => true,
                 'seed_range' => [self::MIN_SEED, self::MAX_SEED],
-                'supports_watermark' => false,
                 'supports_negative_prompt' => true,
                 'supports_generate_audio' => true,
                 'supports_person_generation' => true,
@@ -145,7 +144,10 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
         $inputs = is_array($request['inputs'] ?? null) ? $request['inputs'] : [];
         $referenceImages = is_array($inputs['reference_images'] ?? null) ? $inputs['reference_images'] : [];
         $frames = is_array($inputs['frames'] ?? null) ? $inputs['frames'] : [];
-        $supportsReferenceImages = $this->supportsReferenceImages($operation->getModel());
+        $supportsReferenceImages = $this->supportsReferenceImages(
+            $operation->getModelVersion(),
+            $operation->getModel(),
+        );
 
         $instance = [
             'prompt' => (string) ($request['prompt'] ?? ''),
@@ -338,9 +340,7 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
             $response['data']['name'] ?? null,
         );
         if ($operationName === null) {
-            throw new ProviderVideoException(
-                $this->extractProviderMessage($response, 'cloudsway veo submit succeeded but operation name missing')
-            );
+            throw new ProviderVideoException(VideoGenerateErrorCode::GENERAL_ERROR, VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
         }
 
         return $operationName;
@@ -383,11 +383,10 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
             'output' => $videoUrl === null ? [] : [
                 'video_url' => $videoUrl,
                 'provider_task_id' => $providerTaskId,
-                'provider_base_url' => rtrim($config->getBaseUrl(), '/'),
             ],
             'error' => $error === null ? null : [
                 'code' => 'PROVIDER_FAILED',
-                'message' => $this->firstNonEmptyString($error['message'] ?? null, 'video generation failed') ?? 'video generation failed',
+                'message' => VideoGenerateErrorCode::GENERAL_ERROR->getMessage(),
                 'provider_code' => isset($error['code']) ? (string) $error['code'] : null,
             ],
         ];
@@ -506,9 +505,10 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
         return self::DEFAULT_RESOLUTION;
     }
 
-    private function supportsReferenceImages(string $modelId): bool
+    private function supportsReferenceImages(string $modelVersion, string $modelId): bool
     {
-        return strtolower(trim($modelId)) === self::MODEL_ID_PRO;
+        return strtolower(trim($modelVersion)) === self::MODEL_ID_PRO
+            || strtolower(trim($modelId)) === self::MODEL_ID_PRO;
     }
 
     private function isSupportedSampleCount(mixed $value): bool

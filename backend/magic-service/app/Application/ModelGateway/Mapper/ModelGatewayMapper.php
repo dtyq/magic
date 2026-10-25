@@ -9,6 +9,7 @@ namespace App\Application\ModelGateway\Mapper;
 
 use App\Application\ModelGateway\Service\AggregateModelResolverService;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessContext;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
@@ -174,50 +175,82 @@ class ModelGatewayMapper extends ModelMapper
      * 获取当前组织下的所有可用 chat 模型.
      * @return ModelEntry[]
      */
-    public function getChatModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
-    {
+    public function getChatModels(
+        BaseDataIsolation $dataIsolation,
+        bool $withDynamicModels = false,
+        ?ModelAccessContext $accessContext = null,
+        ?bool $withOrganizationModels = null,
+    ): array {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, [ModelType::LLM], $withDynamicModels);
+        return $this->getModelsByType($dataIsolation, [ModelType::LLM], $withDynamicModels, $accessContext, $withOrganizationModels);
     }
 
     /**
      * 获取当前组织下的所有可用 embedding 模型.
      * @return ModelEntry[]
      */
-    public function getEmbeddingModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
-    {
+    public function getEmbeddingModels(
+        BaseDataIsolation $dataIsolation,
+        bool $withDynamicModels = false,
+        ?ModelAccessContext $accessContext = null,
+        ?bool $withOrganizationModels = null,
+    ): array {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, [ModelType::EMBEDDING], $withDynamicModels);
+        return $this->getModelsByType($dataIsolation, [ModelType::EMBEDDING], $withDynamicModels, $accessContext, $withOrganizationModels);
     }
 
     /**
      * get all available image models under the current organization.
      * @return ModelEntry[]
      */
-    public function getImageModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
-    {
+    public function getImageModels(
+        BaseDataIsolation $dataIsolation,
+        bool $withDynamicModels = false,
+        ?ModelAccessContext $accessContext = null,
+        ?bool $withOrganizationModels = null,
+    ): array {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, [ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE], $withDynamicModels);
+        return $this->getModelsByType(
+            $dataIsolation,
+            [ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE],
+            $withDynamicModels,
+            $accessContext,
+            $withOrganizationModels,
+        );
     }
 
     /**
      * get all available video models under the current organization.
      * @return ModelEntry[]
      */
-    public function getVideoModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
-    {
+    public function getVideoModels(
+        BaseDataIsolation $dataIsolation,
+        bool $withDynamicModels = false,
+        ?ModelAccessContext $accessContext = null,
+        ?bool $withOrganizationModels = null,
+    ): array {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, [ModelType::TEXT_TO_VIDEO], $withDynamicModels);
+        return $this->getModelsByType($dataIsolation, [ModelType::TEXT_TO_VIDEO], $withDynamicModels, $accessContext, $withOrganizationModels);
     }
 
     /**
      * 获取当前组织下所有类型的可用模型.
      * @return ModelEntry[]
      */
-    public function getAllModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
-    {
+    public function getAllModels(
+        BaseDataIsolation $dataIsolation,
+        bool $withDynamicModels = false,
+        ?ModelAccessContext $accessContext = null,
+        ?bool $withOrganizationModels = null,
+    ): array {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, [ModelType::LLM, ModelType::EMBEDDING, ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE, ModelType::TEXT_TO_VIDEO], $withDynamicModels);
+        return $this->getModelsByType(
+            $dataIsolation,
+            [ModelType::LLM, ModelType::EMBEDDING, ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE, ModelType::TEXT_TO_VIDEO],
+            $withDynamicModels,
+            $accessContext,
+            $withOrganizationModels,
+        );
     }
 
     protected function loadEnvModels(): void
@@ -272,10 +305,16 @@ class ModelGatewayMapper extends ModelMapper
      * 获取当前组织下指定类型的所有可用模型，支持同时查询多种类型.
      *
      * @param ModelType[] $modelTypes 需要查询的模型类型，不可为空
+     * @param null|ModelAccessContext $accessContext 当前用户模型权限上下文
      * @return ModelEntry[]
      */
-    private function getModelsByType(ModelGatewayDataIsolation $dataIsolation, array $modelTypes, bool $withDynamicModels = false): array
-    {
+    private function getModelsByType(
+        ModelGatewayDataIsolation $dataIsolation,
+        array $modelTypes,
+        bool $withDynamicModels = false,
+        ?ModelAccessContext $accessContext = null,
+        ?bool $withOrganizationModels = null,
+    ): array {
         $list = [];
 
         // 加载 env 模型（仅 LLM/EMBEDDING 有 env 模型，其他类型跳过）
@@ -303,6 +342,9 @@ class ModelGatewayMapper extends ModelMapper
             }
         }
 
+        // 保留一份包含无权限原子模型的内部集合，供动态模型解析使用；对外列表仍只返回可访问模型。
+        $resolvedAtomList = $list;
+
         // 合并多个类型的可用模型 ID，任意类型返回 null（不限制）则整体不限制
         $availableModelIds = [];
         foreach ($modelTypes as $modelType) {
@@ -317,6 +359,18 @@ class ModelGatewayMapper extends ModelMapper
         }
         if (is_array($availableModelIds)) {
             $availableModelIds = array_keys($availableModelIds);
+        }
+
+        // 默认只按订阅可用模型 ID 查询，保持既有 /v1/models 行为。
+        // 开启 with_organization_models 后，只追加当前组织的启用模型；官方模型仍受订阅白名单约束。
+        if ($withOrganizationModels && is_array($availableModelIds)) {
+            $organizationDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
+            $organizationModelIdsByType = $this->providerManager->getModelIdsGroupByType($organizationDataIsolation, $modelTypes);
+            $availableModelIds = $this->mergeOrganizationModelIds(
+                $availableModelIds,
+                $organizationModelIdsByType,
+                $modelTypes,
+            );
         }
 
         // 需要包含官方组织的数据
@@ -393,6 +447,11 @@ class ModelGatewayMapper extends ModelMapper
                 $modelLogs['model_disabled_or_invalid'][] = "{$providerLabel}|{$providerModel->getModelId()}";
                 continue;
             }
+            $resolvedAtomList[$model->getKey()] = $model;
+            if (! $this->isModelAccessible($accessContext, $providerModel->getModelId())) {
+                $modelLogs['user_access_denied'][] = "{$providerLabel}|{$providerModel->getModelId()}";
+                continue;
+            }
             $modelLogs['success'][] = "{$providerLabel}|{$providerModel->getModelId()}";
             $list[$model->getKey()] = $model;
         }
@@ -406,7 +465,18 @@ class ModelGatewayMapper extends ModelMapper
         );
 
         foreach ($pendingDynamicModels as $providerModel) {
-            $dynamicModel = $this->createDynamicOdinModel($providerModel, $list, $dataIsolation, $preloadedDynamicLookup);
+            if (! $this->isModelAccessible($accessContext, $providerModel->getModelId())) {
+                $modelLogs['user_access_denied'][] = "dynamic|{$providerModel->getModelId()}";
+                continue;
+            }
+
+            $dynamicModel = $this->createDynamicOdinModel(
+                $providerModel,
+                $resolvedAtomList,
+                $dataIsolation,
+                $accessContext,
+                $preloadedDynamicLookup
+            );
             if (! $dynamicModel) {
                 continue;
             }
@@ -488,6 +558,36 @@ class ModelGatewayMapper extends ModelMapper
     }
 
     /**
+     * 将组织模型追加到有限订阅模型列表，保持所有 model_id 的值而不是索引下标。
+     *
+     * @param string[] $availableModelIds
+     * @param array<string, string[]> $organizationModelIdsByType
+     * @param ModelType[] $modelTypes
+     * @return string[]
+     */
+    private function mergeOrganizationModelIds(
+        array $availableModelIds,
+        array $organizationModelIdsByType,
+        array $modelTypes,
+    ): array {
+        $availableModelIdMap = array_fill_keys($availableModelIds, true);
+        foreach ($modelTypes as $modelType) {
+            $organizationModelIds = $organizationModelIdsByType[$modelType->value] ?? null;
+            if (! is_array($organizationModelIds)) {
+                continue;
+            }
+            foreach ($organizationModelIds as $modelId) {
+                $availableModelIdMap[$modelId] = true;
+            }
+        }
+
+        return array_map(
+            static fn (int|string $modelId): string => (string) $modelId,
+            array_keys($availableModelIdMap),
+        );
+    }
+
+    /**
      * 为待处理的 DYNAMIC 模型集合批量预加载其候选 sub_model_id 的 ProviderModelEntity，
      * 输出一份 model_id => ProviderModelEntity 的查表，供 AggregateModelResolverService O(1) 命中，
      * 以避免逐个 sub_model_id 逐条 SQL 的 N+1 问题.
@@ -564,6 +664,7 @@ class ModelGatewayMapper extends ModelMapper
         ProviderModelEntity $dynamicModel,
         array $atomList,
         ModelGatewayDataIsolation $dataIsolation,
+        ?ModelAccessContext $accessContext = null,
         array $preloadedLookup = [],
     ): ?ModelEntry {
         $aggregateResolver = di(AggregateModelResolverService::class);
@@ -571,7 +672,7 @@ class ModelGatewayMapper extends ModelMapper
         $resolvedModelId = $aggregateResolver->resolveModel(
             $dynamicModel,
             $dataIsolation,
-            null,
+            $accessContext,
             $visitedModelIds,
             $preloadedLookup,
         );
@@ -627,7 +728,21 @@ class ModelGatewayMapper extends ModelMapper
             ),
         };
 
-        return new ModelEntry(attributes: $dynamicAttributes, model: $model);
+        return new ModelEntry(attributes: $dynamicAttributes, model: $model, reasoningEffortDefault: $resolvedEntry->getReasoningEffortDefault());
+    }
+
+    /**
+     * 判断模型是否对当前用户可见。
+     *
+     * 未传入权限上下文或组织未启用模型权限控制时，保持原有模型列表行为。
+     */
+    private function isModelAccessible(?ModelAccessContext $accessContext, string $modelId): bool
+    {
+        if ($accessContext === null || ! $accessContext->isRestricted()) {
+            return true;
+        }
+
+        return $accessContext->canAccess($modelId);
     }
 
     private function createModelByProvider(
@@ -733,6 +848,7 @@ class ModelGatewayMapper extends ModelMapper
                         'max_output_tokens' => $providerModelEntity->getConfig()?->getMaxOutputTokens(),
                         'default_temperature' => $providerModelEntity->getConfig()?->getCreativity(),
                         'fixed_temperature' => $providerModelEntity->getConfig()?->getTemperature(),
+                        'chat_api' => $providerModelEntity->getConfig()?->getChatApi(),
                     ],
                     'api_options' => [
                         'proxy' => $proxy,
@@ -740,6 +856,31 @@ class ModelGatewayMapper extends ModelMapper
                 ]),
             ),
             extra: $providerModelEntity->getExtraArray(),
+            reasoningEffortDefault: $providerModelEntity->getConfig()?->getEffectiveReasoningEffortDefault(),
+        );
+    }
+
+    /**
+     * 套餐模型白名单只约束官方组织提供的 LLM。
+     *
+     * 这样组织自有服务商模型不会因为平台套餐只列出官方模型而被误判为不可用。
+     */
+    private function isModelAvailableForSubscription(
+        ModelGatewayDataIsolation $dataIsolation,
+        ProviderModelEntity $providerModelEntity,
+        ?ModelType $modelType
+    ): bool {
+        if ($dataIsolation->isOfficialOrganization()) {
+            return true;
+        }
+
+        if ($providerModelEntity->getOrganizationCode() === $dataIsolation->getCurrentOrganizationCode()) {
+            return true;
+        }
+
+        return $dataIsolation->getSubscriptionManager()->isValidModelAvailable(
+            $providerModelEntity->getModelId(),
+            $modelType
         );
     }
 
@@ -764,11 +905,9 @@ class ModelGatewayMapper extends ModelMapper
             return null;
         }
         // 检查当前套餐是否有这个模型的使用权限 - 目前只有 LLM 模型有这个限制
-        if ($providerModelEntity->getModelType()->isLLM()) {
-            if (! $dataIsolation->isOfficialOrganization() && ! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($providerModelEntity->getModelId(), $modelType)) {
-                $this->logger->info('模型不在可用名单', ['model' => $providerModelEntity->getModelId(), 'model_type' => $modelType?->value]);
-                return null;
-            }
+        if (! $this->isModelAvailableForSubscription($dataIsolation, $providerModelEntity, $modelType)) {
+            $this->logger->info('模型不在可用名单', ['model' => $providerModelEntity->getModelId(), 'model_type' => $modelType?->value]);
+            return null;
         }
 
         // 获取配置

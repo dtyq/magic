@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Realsee HomeUI v2 — 3D LiDAR Spatial VR Real Estate Digital Twin</title>
+  <style>
+    :root {
+      --brand-primary: #3f75ff;
+      --brand-primary-strong: #3366ff;
+      --brand-primary-10: rgba(63, 117, 255, 0.10);
+      --brand-primary-soft: #ecf2ff;
+      --brand-glow: rgba(87, 174, 255, 0.15);
+      --surface-dark: #06040d;
+      --surface-dark-deep: #05050a;
+      --surface-dark-blue: #050a20;
+      --surface-dark-panel: #0e111b;
+      --surface-dark-card: rgba(78, 78, 78, 0.14);
+      --border-dark: rgba(255, 255, 255, 0.12);
+      --border-dark-strong: rgba(255, 255, 255, 0.22);
+      --border-blue-glow: rgba(63, 117, 255, 0.4);
+      --text-white: #ffffff;
+      --text-white-90: rgba(255, 255, 255, 0.90);
+      --text-white-80: rgba(255, 255, 255, 0.80);
+      --text-white-60: rgba(255, 255, 255, 0.60);
+      --accent-coral: #ff775c;
+      --accent-green: #10b981;
+      --r-md: 8px;
+      --r-lg: 12px;
+      --r-xl: 16px;
+      --r-pill: 100px;
+      --font-ui: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-dark);
+      color: var(--text-white-90);
+      font-family: var(--font-ui);
+      font-size: 13.5px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    /* Top Spatial HUD Header */
+    .realsee-header {
+      background: rgba(6, 4, 13, 0.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-dark);
+      padding: 12px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-spatial {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .lidar-cube-emblem {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--brand-primary) 0%, #1e40af 100%);
+      border-radius: var(--r-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px var(--brand-glow);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .brand-name-wrap {
+      display: flex;
+      flex-direction: column;
+    }
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-subtitle {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-white-60);
+    }
+    .floor-tabs {
+      display: flex;
+      background: var(--surface-dark-panel);
+      border: 1px solid var(--border-dark);
+      border-radius: var(--r-pill);
+      padding: 3px;
+    }
+    .tab-pill {
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-white-60);
+      cursor: pointer;
+      border-radius: var(--r-pill);
+      transition: all 0.2s;
+    }
+    .tab-pill.active {
+      background: var(--brand-primary);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(63, 117, 255, 0.4);
+    }
+    .header-ctrls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-vr-toggle {
+      background: rgba(63, 117, 255, 0.15);
+      border: 1px solid var(--border-blue-glow);
+      color: #ffffff;
+      padding: 7px 16px;
+      border-radius: var(--r-pill);
+      font-size: 12.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 14px rgba(63, 117, 255, 0.2);
+    }
+    .btn-vr-toggle:hover {
+      background: var(--brand-primary);
+    }
+    /* Main Spatial Real Estate Experience */
+    .spatial-stage {
+      max-width: 1320px;
+      margin: 18px auto;
+      padding: 0 24px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    /* First 500px High-Impact Area: 3D Dollhouse LiDAR Canvas & HUD */
+    .dollhouse-viewport-card {
+      background: radial-gradient(circle at 60% 40%, #0d152f 0%, var(--surface-dark-deep) 80%);
+      border: 1px solid var(--border-dark);
+      border-radius: var(--r-xl);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8), 0 0 30px var(--brand-glow);
+    }
+    .viewport-meta-overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .property-title {
+      font-size: 19px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .lidar-status-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border-dark);
+      color: var(--accent-green);
+      padding: 3px 8px;
+      border-radius: var(--r-pill);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+    }
+    .hud-controls-top-right {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+    }
+    .hud-tool-btn {
+      width: 36px;
+      height: 36px;
+      background: rgba(14, 17, 27, 0.8);
+      border: 1px solid var(--border-dark);
+      color: #ffffff;
+      border-radius: var(--r-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    .hud-tool-btn:hover {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+    }
+    /* Interactive 360 Dollhouse Floorplan Canvas SVG */
+    .dollhouse-canvas-wrap {
+      width: 100%;
+      height: 340px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .floorplan-svg {
+      width: 100%;
+      max-width: 760px;
+      height: 100%;
+      filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.6));
+    }
+    /* Bottom HUD Drawer in Dollhouse */
+    .viewport-bottom-hud {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+      border-top: 1px solid var(--border-dark);
+      padding-top: 14px;
+    }
+    .hud-metric-card {
+      background: var(--surface-dark-card);
+      border: 1px solid var(--border-dark);
+      border-radius: var(--r-lg);
+      padding: 10px 14px;
+      backdrop-filter: blur(8px);
+    }
+    .hud-metric-label {
+      font-size: 11px;
+      color: var(--text-white-60);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+    }
+    .hud-metric-val {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 2px;
+    }
+    /* Feature & Technology Grid */
+    .spatial-tech-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    .feature-panel {
+      background: var(--surface-dark-panel);
+      border: 1px solid var(--border-dark);
+      border-radius: var(--r-xl);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.2s;
+    }
+    .feature-panel:hover {
+      border-color: var(--border-blue-glow);
+    }
+    .panel-icon-wrap {
+      width: 38px;
+      height: 38px;
+      background: var(--brand-primary-10);
+      border: 1px solid var(--border-blue-glow);
+      border-radius: var(--r-lg);
+      color: var(--brand-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+    .feature-title {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+    .feature-desc {
+      font-size: 12.5px;
+      color: var(--text-white-80);
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+    .feature-tag {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--brand-primary);
+      font-weight: 600;
+    }
+    /* Footer */
+    .spatial-footer {
+      background: var(--surface-dark-deep);
+      border-top: 1px solid var(--border-dark);
+      padding: 20px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-white-60);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Spatial HUD Header -->
+  <header class="realsee-header">
+    <div class="brand-spatial">
+      <div class="lidar-cube-emblem">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      </div>
+      <div class="brand-name-wrap">
+        <div class="brand-title">Realsee HomeUI <span>v2.0</span></div>
+        <div class="brand-subtitle">3D LiDAR Spatial Digital Twin</div>
+      </div>
+    </div>
+
+    <!-- Floor Level Switcher -->
+    <div class="floor-tabs">
+      <div class="tab-pill active">1F Ground Floor</div>
+      <div class="tab-pill">2F Master Suite</div>
+      <div class="tab-pill">Roof Terrace</div>
+    </div>
+
+    <!-- Right Controls: VR Headset Toggle -->
+    <div class="header-ctrls">
+      <button class="btn-vr-toggle">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4h-2a2 2 0 0 0-1.6.8l-1.2 1.6a1 1 0 0 1-1.6 0l-1.2-1.6a2 2 0 0 0-1.6-.8H6a4 4 0 0 1-4-4v-4z"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/></svg>
+        <span>🥽 VR Immersion</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Spatial Real Estate Viewport -->
+  <main class="spatial-stage">
+
+    <!-- High Impact 3D Dollhouse LiDAR Canvas (First 500px) -->
+    <div class="dollhouse-viewport-card">
+
+      <div class="viewport-meta-overlay">
+        <h1 class="property-title">Villa Belle-Vue · Spatial Tour</h1>
+        <div class="lidar-status-badge">
+          <span style="width:6px;height:6px;background:var(--accent-green);border-radius:50%;"></span>
+          <span>LiDAR MESH ACTIVE · 1.48B PTS (±2mm)</span>
+        </div>
+      </div>
+
+      <div class="hud-controls-top-right">
+        <button class="hud-tool-btn" title="Laser Ruler">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0l12.6 12.6z"/></svg>
+        </button>
+        <button class="hud-tool-btn" title="360 Rotation Compass">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z"/></svg>
+        </button>
+        <button class="hud-tool-btn" title="Sunlight Simulator">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+        </button>
+      </div>
+
+      <!-- Isometric 3D Dollhouse Floorplan Canvas SVG with Laser Measurement Dimension Callouts -->
+      <div class="dollhouse-canvas-wrap">
+        <svg class="floorplan-svg" viewBox="0 0 760 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Isometric Grid Perspective -->
+          <g opacity="0.25" stroke="#3f75ff" stroke-width="0.8">
+            <line x1="100" y1="310" x2="660" y2="310" stroke-dasharray="4 4"/>
+            <line x1="160" y1="60" x2="160" y2="310" stroke-dasharray="4 4"/>
+            <line x1="600" y1="60" x2="600" y2="310" stroke-dasharray="4 4"/>
+          </g>
+
+          <!-- Dollhouse Outer Walls (3D Isometric Outline) -->
+          <polygon points="170,180 380,80 590,180 380,290" fill="rgba(63, 117, 255, 0.04)" stroke="#3f75ff" stroke-width="2"/>
+          <polygon points="170,180 380,80 380,290" fill="rgba(255, 255, 255, 0.02)"/>
+
+          <!-- Partition Walls: Living Room, Master Bed, Kitchen -->
+          <line x1="380" y1="80" x2="380" y2="290" stroke="#3f75ff" stroke-width="1.8"/>
+          <line x1="275" y1="130" x2="275" y2="235" stroke="rgba(255, 255, 255, 0.4)" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <line x1="485" y1="130" x2="485" y2="235" stroke="rgba(255, 255, 255, 0.4)" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+          <!-- Laser Measurement Dimension Callout [3.45m x 4.20m] on Living Room -->
+          <g transform="translate(230, 195)">
+            <rect x="-10" y="-12" width="130" height="24" rx="12" fill="rgba(6,4,13,0.85)" stroke="#3f75ff" stroke-width="1.5"/>
+            <circle cx="2" cy="0" r="3" fill="#ff775c"/>
+            <text x="12" y="4" fill="#ffffff" font-family="ui-monospace, monospace" font-size="11" font-weight="700">3.45m × 4.20m</text>
+          </g>
+
+          <!-- Laser Dimension Callout [5.80m x 4.10m] on Master Suite -->
+          <g transform="translate(420, 195)">
+            <rect x="-10" y="-12" width="130" height="24" rx="12" fill="rgba(6,4,13,0.85)" stroke="#10b981" stroke-width="1.5"/>
+            <circle cx="2" cy="0" r="3" fill="#10b981"/>
+            <text x="12" y="4" fill="#ffffff" font-family="ui-monospace, monospace" font-size="11" font-weight="700">5.80m × 4.10m</text>
+          </g>
+
+          <!-- Hotspot Scanning Nodes (Interactive LiDAR Points) -->
+          <g transform="translate(340, 160)">
+            <circle cx="0" cy="0" r="14" fill="rgba(63,117,255,0.2)" stroke="#3f75ff" stroke-width="1"/>
+            <circle cx="0" cy="0" r="4" fill="#ffffff"/>
+            <text x="16" y="4" fill="#3f75ff" font-family="sans-serif" font-size="10" font-weight="700">Scan #01 (Living)</text>
+          </g>
+
+          <g transform="translate(470, 150)">
+            <circle cx="0" cy="0" r="14" fill="rgba(63,117,255,0.2)" stroke="#3f75ff" stroke-width="1"/>
+            <circle cx="0" cy="0" r="4" fill="#ffffff"/>
+            <text x="16" y="4" fill="#3f75ff" font-family="sans-serif" font-size="10" font-weight="700">Scan #02 (Suite)</text>
+          </g>
+
+          <!-- Camera FOV Cone Indicator -->
+          <path d="M380 290 L320 220 L440 220 Z" fill="url(#fov-gradient)" opacity="0.6"/>
+
+          <defs>
+            <linearGradient id="fov-gradient" x1="380" y1="290" x2="380" y2="220" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#3f75ff" stop-opacity="0.5"/>
+              <stop offset="1" stop-color="#3f75ff" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <!-- Bottom HUD Vitals -->
+      <div class="viewport-bottom-hud">
+        <div class="hud-metric-card">
+          <div class="hud-metric-label">Indoor Net Usable Area</div>
+          <div class="hud-metric-val">148.6 m² (1,600 sq ft)</div>
+        </div>
+        <div class="hud-metric-card">
+          <div class="hud-metric-label">Clear Ceiling Height</div>
+          <div class="hud-metric-val">3.15 m (Laser Calibrated)</div>
+        </div>
+        <div class="hud-metric-card">
+          <div class="hud-metric-label">Natural Daylight Index</div>
+          <div class="hud-metric-val" style="color:var(--accent-coral);">94% South-Facing</div>
+        </div>
+        <div class="hud-metric-card">
+          <div class="hud-metric-label">BIM Export Format</div>
+          <div class="hud-metric-val" style="color:var(--brand-primary);">IFC 4.3 / Revit 3D</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Spatial Real Estate Architecture Capabilities -->
+    <div class="spatial-tech-grid">
+      <div class="feature-panel">
+        <div>
+          <div class="panel-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <h3 class="feature-title">Millimeter LiDAR Mesh</h3>
+          <p class="feature-desc">Reconstructs volumetric floorplans from billions of spatial point clouds with true architectural precision.</p>
+        </div>
+        <span class="feature-tag">HARDWARE INTEGRATED · GALILEO 2</span>
+      </div>
+
+      <div class="feature-panel">
+        <div>
+          <div class="panel-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <h3 class="feature-title">Laser Dimension Callouts</h3>
+          <p class="feature-desc">Interactive point-to-point measurement directly inside the VR space. Instant surface area and wall boundary detection.</p>
+        </div>
+        <span class="feature-tag">AUTOMATED ACCURACY ±0.2%</span>
+      </div>
+
+      <div class="feature-panel">
+        <div>
+          <div class="panel-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4h-2a2 2 0 0 0-1.6.8l-1.2 1.6a1 1 0 0 1-1.6 0l-1.2-1.6a2 2 0 0 0-1.6-.8H6a4 4 0 0 1-4-4v-4z"/></svg>
+          </div>
+          <h3 class="feature-title">Cross-Platform VR Immersion</h3>
+          <p class="feature-desc">WebXR native runtime for Apple Vision Pro, Meta Quest 3, and mobile browsers with zero install required.</p>
+        </div>
+        <span class="feature-tag">WEBXR 60FPS LOW LATENCY</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Spatial Footer -->
+  <footer class="spatial-footer">
+    <div><strong>Realsee HomeUI v2.0</strong> · Spatial Real Estate Digital Twin Architecture.</div>
+    <div style="font-family:var(--font-mono);font-size:11px;">POWERED BY REALSEE.AI SPATIAL ENGINE</div>
+  </footer>
+
+</body>
+</html>

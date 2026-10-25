@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Provider\Command;
 
-use App\Application\Provider\Official\AiAbilityInitializer;
+use App\Application\Provider\Initializer\AiAbilityInitializer;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Psr\Container\ContainerInterface;

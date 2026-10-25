@@ -47,6 +47,12 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('topic.topic_not_running')]
     case TOPIC_NOT_RUNNING = 51054;
 
+    #[ErrorMessage('topic.target_message_not_found')]
+    case DUPLICATE_TARGET_MESSAGE_NOT_FOUND = 51055;
+
+    #[ErrorMessage('topic.no_messages_to_copy')]
+    case DUPLICATE_NO_MESSAGES_TO_COPY = 51056;
+
     // Task related error codes (51100-51149)
     #[ErrorMessage('task.not_found')]
     case TASK_NOT_FOUND = 51100;
@@ -305,6 +311,9 @@ enum SuperAgentErrorCode: int
     // Publish related error codes (51243-51250)
     #[ErrorMessage('super_magic.agent.publish.identity_md_not_found')]
     case PUBLISH_IDENTITY_MD_NOT_FOUND = 51243;
+
+    #[ErrorMessage('super_magic.agent.publish.skills_sync_failed')]
+    case PUBLISH_SKILLS_SYNC_FAILED = 51244;
 
     // Import related error codes (51239-51242)
     #[ErrorMessage('super_magic.agent.import.invalid_file_type')]

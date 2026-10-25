@@ -13,13 +13,19 @@ from app.utils.async_file_utils import async_exists, async_is_file, async_iterdi
 
 from ..constants import CHUNKS_DIRNAME
 from ..models import DocumentChunk
+from ..output.markdown_asset_link_resolver import MarkdownAssetLinkResolver
 
 
 class ChunkStore:
     """Persist markdown chunks to ``chunks/``."""
 
     @staticmethod
-    async def write_chunks(output_dir: Path, chunks: Iterable[DocumentChunk]) -> List[DocumentChunk]:
+    async def write_chunks(
+        output_dir: Path,
+        chunks: Iterable[DocumentChunk],
+        asset_paths: Iterable[str] | None = None,
+    ) -> List[DocumentChunk]:
+        """将 chunk 持久化，并按 chunk 文件位置渲染资产链接。"""
         chunks_dir = output_dir / CHUNKS_DIRNAME
         existing_ids = await ChunkStore._existing_chunk_ids(chunks_dir)
         used_ids = set(existing_ids)
@@ -44,6 +50,14 @@ class ChunkStore:
                 chunk.next_chunk_id = id_map[chunk.next_chunk_id]
             filename = f"{chunk.chunk_id}.md"
             path = chunks_dir / filename
+            chunk.content = MarkdownAssetLinkResolver.rewrite_asset_links(
+                chunk.content,
+                output_dir,
+                output_dir / "document.md",
+                output_dir,
+                path,
+                asset_paths or (),
+            )
             await async_write_text(path, chunk.content.rstrip() + "\n")
             chunk.path = str(path.relative_to(output_dir))
             saved.append(chunk)

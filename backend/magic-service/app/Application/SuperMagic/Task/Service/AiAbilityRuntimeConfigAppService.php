@@ -7,10 +7,14 @@ declare(strict_types=1);
 
 namespace App\Application\SuperMagic\Task\Service;
 
+use App\Application\Kernel\Service\PlatformSettingsAppService;
 use App\Domain\Provider\Entity\AiAbilityEntity;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\AiAbilityDomainService;
+use Hyperf\Coroutine\Parallel;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * AI 能力运行时配置应用服务.
@@ -26,6 +30,7 @@ readonly class AiAbilityRuntimeConfigAppService
         AiAbilityCode::SmartFilename->value => 'smart_filename',
         AiAbilityCode::Compact->value => 'compact',
         AiAbilityCode::AnalysisAudio->value => 'analysis_audio',
+        AiAbilityCode::FollowUpQuestions->value => 'follow_up_questions',
     ];
 
     /**
@@ -33,6 +38,8 @@ readonly class AiAbilityRuntimeConfigAppService
      */
     public function __construct(
         private AiAbilityDomainService $aiAbilityDomainService,
+        private PlatformSettingsAppService $platformSettingsAppService,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -41,11 +48,33 @@ readonly class AiAbilityRuntimeConfigAppService
      */
     public function getRuntimeConfig(): array
     {
-        $dataIsolation = ProviderDataIsolation::create()->disabled();
-        $aiAbilities = $this->aiAbilityDomainService->getAll($dataIsolation);
+        $parallel = new Parallel();
+        $parallel->add(function (): array {
+            try {
+                $dataIsolation = ProviderDataIsolation::create()->disabled();
+                return $this->buildRuntimeConfigs($this->aiAbilityDomainService->getAll($dataIsolation));
+            } catch (Throwable $throwable) {
+                $this->logger->warning('获取 AI 能力运行时配置失败', [
+                    'error' => $throwable->getMessage(),
+                ]);
+                return [];
+            }
+        }, 'ai_abilities');
+        $parallel->add(function (): string {
+            try {
+                return $this->platformSettingsAppService->get()->getGlobalSystemPrompt();
+            } catch (Throwable $throwable) {
+                $this->logger->warning('获取全局系统提示词失败', [
+                    'error' => $throwable->getMessage(),
+                ]);
+                return '';
+            }
+        }, 'global_system_prompt');
+        $result = $parallel->wait();
 
         return [
-            'ai_abilities' => $this->buildRuntimeConfigs($aiAbilities),
+            'ai_abilities' => (array) ($result['ai_abilities'] ?? []),
+            'global_system_prompt' => (string) ($result['global_system_prompt'] ?? ''),
         ];
     }
 

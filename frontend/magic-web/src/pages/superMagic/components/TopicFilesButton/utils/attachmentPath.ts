@@ -1,3 +1,4 @@
+import { getFileDisplayPath } from "@/pages/superMagic/utils/markdownFileReference"
 import type { TFunction } from "i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { clipboard } from "@/utils/clipboard-helpers"
@@ -44,6 +45,8 @@ export function getCopyableAttachmentPath(
 	item: AttachmentItem,
 	treeIndex?: AttachmentIndex,
 ): string | undefined {
+	if (item.file_reference || item.space_type === "user")
+		return getFileDisplayPath(item) || undefined
 	const relativePath = normalizePathCandidate(item.relative_file_path)
 	if (relativePath) return relativePath
 

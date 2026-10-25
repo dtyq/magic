@@ -38,6 +38,9 @@ class QuerySkillMarketsRequestAdminDTO extends AbstractRequestDTO
 
     public ?string $endTime = null;
 
+    /** @var int[] */
+    public array $categoryIds = [];
+
     public function getPage(): int
     {
         return $this->page;
@@ -108,6 +111,12 @@ class QuerySkillMarketsRequestAdminDTO extends AbstractRequestDTO
         return $this->endTime;
     }
 
+    /** @return int[] */
+    public function getCategoryIds(): array
+    {
+        return array_values(array_unique(array_map('intval', $this->categoryIds)));
+    }
+
     protected static function getHyperfValidationRules(): array
     {
         return [
@@ -122,6 +131,8 @@ class QuerySkillMarketsRequestAdminDTO extends AbstractRequestDTO
             'order_by' => 'nullable|string|in:asc,desc',
             'start_time' => 'nullable|string',
             'end_time' => 'nullable|string',
+            'category_ids' => 'nullable|array|max:100',
+            'category_ids.*' => 'integer|min:1',
         ];
     }
 

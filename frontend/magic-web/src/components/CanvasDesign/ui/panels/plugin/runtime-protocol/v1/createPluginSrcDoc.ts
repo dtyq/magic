@@ -1,10 +1,11 @@
 import type { CanvasDesignPlugin } from "../../../../../runtime/document/types"
+import type { CanvasAccessMode } from "../../../../../public/props"
 
 export function createPluginSrcDocV1(
 	plugin: CanvasDesignPlugin,
 	locale: string,
 	channelToken: string,
-	hostState: { readonly: boolean },
+	hostState: { accessMode: CanvasAccessMode },
 ) {
 	const runtimeCode = plugin.runtimeCode
 	const runtimeUrl = plugin.runtimeUrl
@@ -16,7 +17,7 @@ export function createPluginSrcDocV1(
 		locales: plugin.locales ?? {},
 		host: {
 			locale,
-			readonly: hostState.readonly,
+			accessMode: hostState.accessMode,
 		},
 	}
 	const runtimeScript = runtimeCode

@@ -2,6 +2,7 @@ import { Tooltip } from "antd"
 import { TooltipPlacement } from "antd/es/tooltip"
 import type { HTMLAttributes } from "react"
 import { useRef, useState } from "react"
+import { TOOLTIP_DELAY_DURATION } from "@/constants/style"
 
 interface EllipsisWithTooltipProps extends HTMLAttributes<HTMLDivElement> {
 	text?: string
@@ -30,6 +31,7 @@ const MagicEllipseWithTooltip = ({
 
 	return (
 		<Tooltip
+			mouseEnterDelay={TOOLTIP_DELAY_DURATION / 1000}
 			title={isOverflowed ? text : ""}
 			placement={placement}
 			arrow

@@ -1,4 +1,4 @@
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { MentionItemType, CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
 import { normalizeCanvasMarkerMentionData } from "@/components/business/MentionPanel/utils/canvasMarkerMention"

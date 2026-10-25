@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/
 import { useTranslation } from "react-i18next"
 import { useEffect, useMemo } from "react"
 import { SummaryGuideDOMId } from "@/pages/superMagic/components/MessagePanel/components/TopicExamples/SummaryGuide"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const getPaddingClass = (className?: string) => {
 	const matchedPadding = className?.match(/p-(\d)/)?.[1]

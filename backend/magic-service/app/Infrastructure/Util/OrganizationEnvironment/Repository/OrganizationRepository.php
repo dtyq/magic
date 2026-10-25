@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Util\OrganizationEnvironment\Repository;
 
 use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSearchField;
 use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSyncStatus;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Repository\Persistence\Model\OrganizationModel;
@@ -147,6 +148,46 @@ class OrganizationRepository implements OrganizationRepositoryInterface
 
         // 分页查询
         $models = $query
+            ->forPage($page->getPage(), $page->getPageNum())
+            ->get();
+
+        $organizations = [];
+        foreach ($models as $model) {
+            $organizations[] = $this->mapToEntity($model);
+        }
+
+        return [
+            'total' => $total,
+            'list' => $organizations,
+        ];
+    }
+
+    /**
+     * 按指定字段搜索组织。
+     *
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: OrganizationEntity[]}
+     */
+    public function searchOrganizations(
+        Page $page,
+        OrganizationSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array {
+        $query = OrganizationModel::query();
+
+        if ($organizationCodeFilter !== null) {
+            $query->where('magic_organization_code', $organizationCodeFilter);
+        }
+
+        match ($searchField) {
+            OrganizationSearchField::OrganizationCode => $query->where('magic_organization_code', $keyword),
+            OrganizationSearchField::OrganizationName => $query->where('name', 'like', '%' . $keyword . '%'),
+        };
+
+        $total = (clone $query)->count();
+        $models = $query
+            ->orderBy('id', 'desc')
             ->forPage($page->getPage(), $page->getPageNum())
             ->get();
 

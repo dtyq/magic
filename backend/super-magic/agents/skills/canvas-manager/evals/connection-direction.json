@@ -1,0 +1,6 @@
+{
+  "id": "connection-direction",
+  "prompt": "Reconnect an existing source to a new target after the user identifies the exact old Connection ID.",
+  "expected_tools": ["manage_canvas_connections"],
+  "constraints": ["Use replace_existing_connections=true.", "Use the exact remove_connection_ids returned by a query."]
+}

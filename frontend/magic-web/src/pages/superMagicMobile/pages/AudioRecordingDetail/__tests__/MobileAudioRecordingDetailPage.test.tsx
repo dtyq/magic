@@ -91,8 +91,12 @@ vi.mock("@/pages/superMagic/components/ProjectPageInputContainer", () => ({
 	default: (props: {
 		createTopic?: () => Promise<unknown>
 		onSendSuccess?: (params: { currentTopic: unknown }) => void
+		allowRecordingMode?: boolean
 	}) => (
-		<div data-testid="mock-recording-ai-composer">
+		<div
+			data-testid="mock-recording-ai-composer"
+			data-allow-recording-mode={String(props.allowRecordingMode)}
+		>
 			<button
 				type="button"
 				onClick={async () => {
@@ -207,7 +211,8 @@ vi.mock("react-i18next", () => ({
 				"detail.loadFailed": "Load failed",
 				"detail.untitled": "Untitled",
 				"detail.summarizing": "Generating summary...",
-				"detail.summarizingHint": "All summary views will appear when it is ready.",
+				"detail.summarizingHint":
+					"Summarizing now. It will appear automatically when ready.",
 				"detail.notSummarized": "No summary yet",
 				"detail.notSummarizedHint": "Generate a summary to preview it here",
 				"actions.renameTitle": "Rename title",
@@ -599,7 +604,10 @@ describe("MobileAudioRecordingDetailPage", () => {
 				audio: { file_id: "audio-mobile-001", file_name: "recording-mock.mp3" },
 				summaryFiles: [{ type: "summary", fileId: "summary-file", fileName: "summary.md" }],
 				magicProject: { file_id: "magic-project-file-001" },
-				magicProjectConfig: { metadata: { speakers: { "Speaker-1": "Saved Host" } } },
+				magicProjectConfig: {
+					files: { notes: "notes/mock-notes.md" },
+					metadata: { speakers: { "Speaker-1": "Saved Host" } },
+				},
 			},
 			texts: {
 				transcript: { fileId: "transcript-file", content: "Transcript mock" },
@@ -629,11 +637,29 @@ describe("MobileAudioRecordingDetailPage", () => {
 		expect(sourcePanelPropsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				availableSpeakerIds: ["Speaker-1"],
-				scrollPaddingBottom: expect.any(Number),
+				scrollPaddingBottom: expect.any(String),
 				selectedSpeakerIds: ["Speaker-1"],
 				transcriptContent: "Transcript mock",
 				notesContent: "Notes mock",
+				showNotesTab: true,
 			}),
+		)
+	})
+
+	it("hides notes when the bundle config does not declare them", () => {
+		const detailData = detailDataMock()
+		detailDataMock.mockReturnValue({
+			...detailData,
+			fileMap: {
+				...detailData.fileMap,
+				magicProjectConfig: { metadata: { speakers: {} } },
+			},
+		})
+
+		render(<MobileAudioRecordingDetailPage />)
+
+		expect(sourcePanelPropsMock).toHaveBeenCalledWith(
+			expect.objectContaining({ showNotesTab: false }),
 		)
 	})
 
@@ -670,7 +696,7 @@ describe("MobileAudioRecordingDetailPage", () => {
 		expect(summaryPanelPropsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				attachmentList: expect.any(Array),
-				scrollPaddingBottom: expect.any(Number),
+				scrollPaddingBottom: expect.any(String),
 				summaryFiles: [
 					expect.objectContaining({
 						type: "summary",
@@ -695,6 +721,7 @@ describe("MobileAudioRecordingDetailPage", () => {
 		expect(screen.queryByTestId("mobile-recording-audio-player")).toBeNull()
 		expect(screen.queryByText("Topics")).toBeNull()
 		expect(screen.queryByText("New topic")).toBeNull()
+		expect(screen.queryByRole("button", { name: "topicTypeFilter.label" })).toBeNull()
 
 		const topicsContainer = screen.getByTestId("mobile-recording-detail-ai-topics")
 		expect(topicsContainer.className).toContain("px-3")
@@ -706,6 +733,11 @@ describe("MobileAudioRecordingDetailPage", () => {
 		await waitFor(() => {
 			expect(screen.getByTestId("mock-recording-ai-composer")).toBeInTheDocument()
 		})
+		// Detail Ask AI must stay in text-editing mode even for the recording-summary agent.
+		expect(screen.getByTestId("mock-recording-ai-composer")).toHaveAttribute(
+			"data-allow-recording-mode",
+			"false",
+		)
 		const composerContainer = screen.getByTestId("mobile-recording-detail-ai-composer")
 		expect(composerContainer.className).not.toContain("mt-4")
 		expect(composerContainer.className).not.toContain("pt-2")
@@ -829,7 +861,10 @@ describe("MobileAudioRecordingDetailPage", () => {
 
 		fireEvent.click(screen.getByText("Summary"))
 		const latestSummaryPanelProps = summaryPanelPropsMock.mock.calls.at(-1)?.[0] as
-			{ onTimeClick?: (start: number, end?: number) => void } | undefined
+			| {
+					onTimeClick?: (start: number, end?: number) => void
+			  }
+			| undefined
 
 		act(() => {
 			latestSummaryPanelProps?.onTimeClick?.(12, 24)
@@ -859,10 +894,10 @@ describe("MobileAudioRecordingDetailPage", () => {
 		fireEvent.click(screen.getByText("Summary"))
 
 		expect(screen.getByTestId("mobile-recording-summary-placeholder")).toBeInTheDocument()
-		expect(screen.getByText("Generating summary...")).toBeInTheDocument()
 		expect(
-			screen.getByText("All summary views will appear when it is ready."),
+			screen.getByText("Summarizing now. It will appear automatically when ready."),
 		).toBeInTheDocument()
+		expect(screen.queryByText("Generating summary...")).toBeNull()
 	})
 
 	it("navigates back to the recordings list", () => {
@@ -1148,3 +1183,14 @@ describe("MobileAudioRecordingDetailPage", () => {
 		})
 	})
 })
+
+vi.mock("@/pages/superMagic/hooks/usePaginatedTopics", () => ({
+	default: () => ({
+		displayTopics: [],
+		total: 0,
+		isLoading: false,
+		error: null,
+		hasMore: false,
+		reload: vi.fn(),
+	}),
+}))

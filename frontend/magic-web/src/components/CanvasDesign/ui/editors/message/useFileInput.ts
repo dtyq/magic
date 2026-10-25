@@ -1,8 +1,29 @@
-import { useRef, useCallback, useState } from "react"
+import { useRef, useCallback, useEffect, useState } from "react"
 import type { CanvasDesignMethods, UploadFileResponse } from "../../../public/magic-types"
 import type { Canvas } from "../../../runtime/core/Canvas"
 import { ImageElement as ImageElementClass } from "../../../runtime/elements/image/ImageElement"
 import { VideoElement as VideoElementClass } from "../../../runtime/elements/video/VideoElement"
+import { isAudioFile, isImageFile, isVideoFile } from "../../../runtime/shared/ids"
+import {
+	CanvasUploadMentionController,
+	type CanvasUploadMentionHandle,
+} from "./CanvasUploadMentionController"
+
+function primeUploadedResource(
+	canvas: Canvas,
+	file: File | undefined,
+	result: UploadFileResponse,
+): void {
+	if (!file || !result.src) return
+
+	if (isImageFile(file)) {
+		canvas.imageResourceManager.primeCache(result.path, result)
+	} else if (isVideoFile(file)) {
+		canvas.videoResourceManager.primeCache(result.path, result)
+	} else if (isAudioFile(file)) {
+		canvas.audioResourceManager.primeCache(result.path, result)
+	}
+}
 
 interface UseFileInputOptions {
 	methods?: CanvasDesignMethods
@@ -20,10 +41,16 @@ interface UseFileInputOptions {
 	accept?: string
 	/** 本次文件选择最多处理多少个文件；替换场景传 1。 */
 	maxSelectedFiles?: number
+	/** 可选的逐项过滤器；用于混合媒体批量选择时跳过不支持/超限文件。 */
+	filterFiles?: (files: File[]) => File[]
 	/** 默认上传后写入元素参考资源；视频编辑器可关闭，自行按槽位分发 */
 	shouldSaveToElement?: boolean
 	/** 一次文件选择流程结束（含未选文件、校验失败、上传结束），用于清理临时上下文 */
 	onUploadSessionEnd?: () => void
+	/** 可选：将上传文件映射为编辑器内 pending mention，并按 pendingId 原位 resolve。 */
+	pendingUploadMentionController?: CanvasUploadMentionController
+	/** 允许调用方按槽位语义过滤是否进入 prompt pending mention。 */
+	shouldInsertPendingMention?: (file: File, index: number) => boolean
 }
 
 interface UploadFilesOverrides {
@@ -31,6 +58,11 @@ interface UploadFilesOverrides {
 	maxReferenceFiles?: number
 	maxSelectedFiles?: number
 	ignoreReferenceFileCapacity?: boolean
+	/**
+	 * Pre-allocated pending mention handles aligned with the files array passed to
+	 * uploadFiles (before filtering/slicing). When set, beginBatch insert is skipped.
+	 */
+	pendingMentionHandles?: Array<CanvasUploadMentionHandle | undefined>
 }
 
 interface TriggerFileSelectOptions {
@@ -48,14 +80,21 @@ export function useFileInput(options: UseFileInputOptions) {
 		maxReferenceFiles,
 		accept,
 		maxSelectedFiles,
+		filterFiles,
 		shouldSaveToElement = true,
 		onUploadSessionEnd,
+		pendingUploadMentionController,
+		shouldInsertPendingMention,
 	} = options
 
 	const fileInputRef = useRef<HTMLInputElement | null>(null)
 	const nextFileSelectMaxSelectedFilesRef = useRef<number | undefined>(undefined)
 	const nextFileSelectIgnoreCapacityRef = useRef<boolean | undefined>(undefined)
 	const [isUploading, setIsUploading] = useState(false)
+
+	useEffect(() => {
+		return () => pendingUploadMentionController?.invalidateSession()
+	}, [pendingUploadMentionController])
 
 	const finishUploadSession = useCallback(() => {
 		nextFileSelectMaxSelectedFilesRef.current = undefined
@@ -81,6 +120,8 @@ export function useFileInput(options: UseFileInputOptions) {
 
 	const uploadFiles = useCallback(
 		async (selectedFiles: File[], overrides?: UploadFilesOverrides) => {
+			const uploadedResults: UploadFileResponse[] = []
+			const filteredSelectedFiles = filterFiles ? filterFiles(selectedFiles) : selectedFiles
 			const nextCurrentReferenceFiles =
 				overrides?.currentReferenceFiles ?? currentReferenceFiles ?? []
 			const nextMaxReferenceFiles = overrides?.maxReferenceFiles ?? maxReferenceFiles
@@ -101,17 +142,17 @@ export function useFileInput(options: UseFileInputOptions) {
 
 			const selectedFilesWithinSelectionLimit =
 				nextMaxSelectedFiles !== undefined
-					? selectedFiles.slice(0, Math.max(0, Math.floor(nextMaxSelectedFiles)))
-					: selectedFiles
+					? filteredSelectedFiles.slice(0, Math.max(0, Math.floor(nextMaxSelectedFiles)))
+					: filteredSelectedFiles
 
 			if (selectedFilesWithinSelectionLimit.length === 0 || !methods?.uploadFiles) {
 				finishUploadSession()
-				return
+				return uploadedResults
 			}
 
 			if (allowedCount === 0) {
 				finishUploadSession()
-				return
+				return uploadedResults
 			}
 
 			const filesToUpload =
@@ -121,23 +162,60 @@ export function useFileInput(options: UseFileInputOptions) {
 
 			if (filesToUpload.length === 0) {
 				finishUploadSession()
-				return
+				return uploadedResults
 			}
 
 			if (!canvas) {
 				finishUploadSession()
-				return
+				return uploadedResults
 			}
 
 			const batchTotal = filesToUpload.length
+			const pendingHandleByIndex = new Map<number, CanvasUploadMentionHandle>()
+			const preallocatedHandles = overrides?.pendingMentionHandles
+			if (preallocatedHandles) {
+				filesToUpload.forEach((file, uploadIndex) => {
+					const sourceIndex = selectedFiles.indexOf(file)
+					const handle = sourceIndex >= 0 ? preallocatedHandles[sourceIndex] : undefined
+					if (handle) pendingHandleByIndex.set(uploadIndex, handle)
+				})
+			} else {
+				const pendingHandles =
+					pendingUploadMentionController?.beginBatch(filesToUpload, {
+						includeMention: shouldInsertPendingMention,
+					}) ?? []
+				pendingHandles.forEach((handle) => {
+					pendingHandleByIndex.set(handle.index, handle)
+				})
+			}
 			setIsUploading(true)
 			try {
 				await canvas.canvasFileUploadManager.uploadDirect(
 					filesToUpload,
 					nextCurrentReferenceFiles,
 					{
+						onUploadProgress: (progress, index) => {
+							pendingUploadMentionController?.updateProgress(
+								pendingHandleByIndex.get(index),
+								progress,
+							)
+						},
 						onUploadComplete: (result, index) => {
 							if (result && result.path) {
+								uploadedResults[index] = result
+								const pendingHandle = pendingHandleByIndex.get(index)
+								if (
+									pendingHandle &&
+									pendingUploadMentionController?.resolve(
+										pendingHandle,
+										result,
+									) !== true
+								) {
+									return
+								}
+								// 先登记上传结果，再更新编辑器状态，避免 SourceList 在附件快照刷新前按 path 解析失败。
+								primeUploadedResource(canvas, filesToUpload[index], result)
+
 								if (shouldSaveToElement && elementId) {
 									const elementInstance =
 										canvas.elementManager.getElementInstance(elementId)
@@ -154,16 +232,26 @@ export function useFileInput(options: UseFileInputOptions) {
 							}
 						},
 						onUploadFailed: (error, index) => {
+							pendingUploadMentionController?.fail(
+								pendingHandleByIndex.get(index),
+								error,
+							)
 							console.error(`File ${index} upload failed:`, error)
 						},
 					},
 				)
 			} catch (error) {
-				//
+				pendingHandleByIndex.forEach((handle) =>
+					pendingUploadMentionController?.fail(
+						handle,
+						error instanceof Error ? error : String(error),
+					),
+				)
 			} finally {
 				setIsUploading(false)
 				finishUploadSession()
 			}
+			return uploadedResults.filter((result): result is UploadFileResponse => Boolean(result))
 		},
 		[
 			methods,
@@ -175,6 +263,9 @@ export function useFileInput(options: UseFileInputOptions) {
 			elementId,
 			onFileUploaded,
 			finishUploadSession,
+			filterFiles,
+			pendingUploadMentionController,
+			shouldInsertPendingMention,
 		],
 	)
 

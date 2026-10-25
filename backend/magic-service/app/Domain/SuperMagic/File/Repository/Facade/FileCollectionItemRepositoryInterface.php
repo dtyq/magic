@@ -23,6 +23,21 @@ interface FileCollectionItemRepositoryInterface
     public function getByCollectionId(int $collectionId): array;
 
     /**
+     * Get collection entries after a stable id cursor.
+     *
+     * @return array<int, FileCollectionItemEntity>
+     */
+    public function getByCollectionIdCursor(int $collectionId, int $afterId, int $limit): array;
+
+    /**
+     * Check which file IDs are direct entries of a collection.
+     *
+     * @param array<int|string> $fileIds
+     * @return array<int, FileCollectionItemEntity>
+     */
+    public function getByCollectionIdAndFileIds(int $collectionId, array $fileIds): array;
+
+    /**
      * 批量插入文件集项.
      *
      * @param FileCollectionItemEntity[] $items 文件集项实体数组

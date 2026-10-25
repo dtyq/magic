@@ -5,7 +5,7 @@ import { useCurrentNode } from "@dtyq/magic-flow/dist/MagicFlow/nodes/common/con
 import { useFlow } from "@dtyq/magic-flow/dist/MagicFlow/context/FlowContext/useFlow"
 import type { DefaultOptionType } from "antd/lib/select"
 import { useMemoizedFn } from "ahooks"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import MagicSelect from "@dtyq/magic-flow/dist/common/BaseUI/Select"
 import { useTranslation } from "react-i18next"
 import { resolveToString } from "@dtyq/es6-template-strings"

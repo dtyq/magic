@@ -1,0 +1,6 @@
+{
+  "id": "frame-cross-tool",
+  "prompt": "After a Frame exists, inspect it, adjust its layout, and connect it to another exact Element while preserving its children.",
+  "expected_tools": ["query_canvas_element_details", "layout_canvas_elements", "manage_canvas_connections", "query_canvas_element_details"],
+  "constraints": ["Frame children remain nested and are not flattened.", "Frame child coordinates stay in the direct parent's local coordinate space.", "Use the exact Connection ID for any removal or replacement.", "Do not append Content or create a generation task for the Frame."]
+}

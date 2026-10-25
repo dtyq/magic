@@ -1,4 +1,16 @@
 export namespace AiModel {
+	/** 思考档位统一按网关协议顺序展示。 */
+	export const reasoningEffortLevels = [
+		"none",
+		"minimal",
+		"low",
+		"medium",
+		"high",
+		"xhigh",
+		"max",
+	] as const
+	export type ReasoningEffort = (typeof reasoningEffortLevels)[number]
+
 	/** 业务类型 */
 	export enum BusinessType {
 		/** 服务商 */
@@ -69,6 +81,8 @@ export namespace AiModel {
 		/** Wangsu */
 		Wangsu = "Wangsu",
 		Keling = "Keling",
+		/** Lovart */
+		Lovart = "Lovart",
 	}
 
 	/** 服务商默认 API 地址（与后端默认占位一致） */
@@ -94,6 +108,7 @@ export namespace AiModel {
 		[ServiceProvider.Google]: "https://generativelanguage.googleapis.com/v1beta",
 		[ServiceProvider.Anthropic]: "https://api.anthropic.com",
 		[ServiceProvider.Keling]: "https://api.klingai.com",
+		[ServiceProvider.Lovart]: "https://lgw.lovart.ai",
 	}
 
 	/** 权限 */
@@ -122,6 +137,14 @@ export namespace AiModel {
 		SupportVision = "2",
 		/** 支持深度思考 */
 		SupportThink = "3",
+	}
+
+	/** OpenAI 兼容聊天接口类型 */
+	export enum ChatApi {
+		/** Chat Completions：POST /chat/completions */
+		ChatCompletions = "chat_completions",
+		/** Responses：POST /responses */
+		Responses = "responses",
 	}
 
 	/** 模型类型组 */

@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
+/**
+ * 聊天请求参数，保留旧思考配置并接收统一思考强度。
+ */
 class CompletionDTO extends AbstractRequestDTO
 {
     protected array $messages = [];
@@ -33,6 +36,12 @@ class CompletionDTO extends AbstractRequestDTO
     protected float $presencePenalty = 0.0;
 
     protected ?array $thinking = null;
+
+    /** 请求值原样交给 Odin，避免中间层绑定其档位与类型规则。 */
+    protected mixed $reasoningEffort = null;
+
+    /** 每次路由后的默认值与用户选择分开，避免重试沿用上一候选的默认。 */
+    private ?string $modelReasoningEffortDefault = null;
 
     public function __construct(?array $data = null)
     {
@@ -142,6 +151,34 @@ class CompletionDTO extends AbstractRequestDTO
     public function setThinking(?array $thinking): void
     {
         $this->thinking = $thinking;
+    }
+
+    /** 更新当前实际模型默认值，不修改请求中的原始用户选择。 */
+    public function setModelReasoningEffortDefault(?string $level): void
+    {
+        $this->modelReasoningEffortDefault = $level;
+    }
+
+    /** 明确强度优先，旧 thinking 继续有效；省略两者才应用模型默认。 */
+    public function getEffectiveReasoningEffort(): mixed
+    {
+        return $this->reasoningEffort ?? ($this->thinking === null ? $this->modelReasoningEffortDefault : null);
+    }
+
+    /**
+     * 获取统一思考强度，空值表示回退旧思考配置或模型默认值。
+     */
+    public function getReasoningEffort(): mixed
+    {
+        return $this->reasoningEffort;
+    }
+
+    /**
+     * 原样保存请求强度，档位、类型及供应商能力校验统一交给 Odin。
+     */
+    public function setReasoningEffort(mixed $reasoningEffort): void
+    {
+        $this->reasoningEffort = $reasoningEffort;
     }
 
     public function getStreamOptions(): ?array

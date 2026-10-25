@@ -5,10 +5,24 @@ import { Input } from "@/components/shadcn-ui/input"
 import { Separator } from "@/components/shadcn-ui/separator"
 import { Switch } from "@/components/shadcn-ui/switch"
 import { Badge } from "@/components/shadcn-ui/badge"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/shadcn-ui/select"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
 import magicToast from "@/components/base/MagicToaster/utils"
 import type { MediaRecorderConfig } from "@/types/recordSummary"
-import type { RecordingDebugPanelProps } from "./types"
+import type { RecordingDebugFormat, RecordingDebugPanelProps } from "./types"
+import {
+	RECORDING_DEBUG_FORMAT_OPTIONS,
+	readRecordingDebugFormat,
+	toRecordingDebugConfig,
+	normalizeRecordingDebugFormat,
+	writeRecordingDebugFormat,
+} from "./recordingFormatDebug"
 import { isDev } from "@/utils/env"
 
 const STREAM_POLL_INTERVAL_MS = 1000
@@ -18,10 +32,15 @@ function RecordingDebugPanel({ isOpen = true }: RecordingDebugPanelProps) {
 	const [debugStreamInfo, setDebugStreamInfo] = useState<StreamDebugInfo | null>(null)
 	const [debugConfig, setDebugConfig] = useState<MediaRecorderConfig | null>(null)
 	const [editableConfig, setEditableConfig] = useState<MediaRecorderConfig | null>(null)
+	const [appliedDebugFormat, setAppliedDebugFormat] = useState<RecordingDebugFormat>("auto")
+	const [editableDebugFormat, setEditableDebugFormat] = useState<RecordingDebugFormat>("auto")
 	const isDevEnvironment = isDev
 
 	useEffect(() => {
 		if (!isDevEnvironment || !isOpen) return
+		const persistedFormat = readRecordingDebugFormat()
+		setAppliedDebugFormat(persistedFormat)
+		setEditableDebugFormat(persistedFormat)
 		const recordSummaryService = initializeService()
 		const currentConfig = recordSummaryService?.getMediaRecorderConfig?.()
 		if (!currentConfig) return
@@ -48,20 +67,29 @@ function RecordingDebugPanel({ isOpen = true }: RecordingDebugPanelProps) {
 
 	if (!isDevEnvironment || !isOpen) return null
 
+	/** Apply editable diagnostics settings to the next recording session. */
 	const handleApplyDebugConfig = () => {
 		const recordSummaryService = initializeService()
 		if (!recordSummaryService || !editableConfig) return
-		recordSummaryService.updateMediaRecorderConfig?.(editableConfig)
-		setDebugConfig(editableConfig)
+		const nextConfig = {
+			...editableConfig,
+			...toRecordingDebugConfig(editableDebugFormat),
+		}
+		recordSummaryService.updateMediaRecorderConfig?.(nextConfig)
+		setDebugConfig(nextConfig)
+		setAppliedDebugFormat(editableDebugFormat)
+		writeRecordingDebugFormat(editableDebugFormat)
 		magicToast.success(t("recordingSummary.debugPanel.applySuccess"))
 	}
 
+	/** Restore both numeric controls and the pending format to the last applied state. */
 	const handleResetDebugConfig = () => {
 		if (!debugConfig) return
 		setEditableConfig({
 			...debugConfig,
 			audioSource: debugConfig.audioSource ? { ...debugConfig.audioSource } : undefined,
 		})
+		setEditableDebugFormat(appliedDebugFormat)
 	}
 
 	return (
@@ -187,6 +215,31 @@ function RecordingDebugPanel({ isOpen = true }: RecordingDebugPanelProps) {
 					</div>
 					{editableConfig ? (
 						<div className="flex flex-col gap-3 text-xs">
+							<div className="flex items-center justify-between gap-3">
+								<span className="text-muted-foreground">
+									{t("recordingSummary.debugPanel.format")}
+								</span>
+								<Select
+									value={editableDebugFormat}
+									onValueChange={(value) => {
+										setEditableDebugFormat(normalizeRecordingDebugFormat(value))
+									}}
+								>
+									<SelectTrigger
+										className="h-8 w-36"
+										data-testid="recording-debug-format-select"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{RECORDING_DEBUG_FORMAT_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{t(option.labelKey)}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
 							<div className="flex items-center justify-between gap-3">
 								<span className="text-muted-foreground">
 									{t("recordingSummary.debugPanel.timeslice")}
@@ -435,12 +488,12 @@ function parseNumberValue(value: string): number | null {
 
 interface StreamSettingItem {
 	key:
-	| "sampleRate"
-	| "channelCount"
-	| "echoCancellation"
-	| "noiseSuppression"
-	| "autoGainControl"
-	| "deviceId"
+		| "sampleRate"
+		| "channelCount"
+		| "echoCancellation"
+		| "noiseSuppression"
+		| "autoGainControl"
+		| "deviceId"
 	value: unknown
 }
 

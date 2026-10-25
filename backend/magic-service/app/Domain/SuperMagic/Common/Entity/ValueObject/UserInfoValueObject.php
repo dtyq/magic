@@ -23,6 +23,7 @@ class UserInfoValueObject
      * @param array $departments 部门信息数组
      * @param string $email 邮箱
      * @param string $phone 手机号
+     * @param string $thirdPlatformId 当前组织来源系统的用户ID，空值表示无法确定
      */
     public function __construct(
         private string $id = '',
@@ -32,7 +33,8 @@ class UserInfoValueObject
         private string $position = '',
         private array $departments = [],
         private string $email = '',
-        private string $phone = ''
+        private string $phone = '',
+        private string $thirdPlatformId = '',
     ) {
         // Ensure departments are DepartmentInfoValueObject instances
         $this->departments = array_map(function ($dept) {
@@ -66,7 +68,8 @@ class UserInfoValueObject
             $data['position'] ?? '',
             $departments,
             $data['email'] ?? '',
-            $data['phone'] ?? ''
+            $data['phone'] ?? '',
+            $data['third_platform_id'] ?? '',
         );
     }
 
@@ -79,6 +82,7 @@ class UserInfoValueObject
     {
         return [
             'id' => $this->id,
+            'third_platform_id' => $this->thirdPlatformId,
             'nickname' => $this->nickname,
             'real_name' => $this->realName,
             'work_number' => $this->workNumber,
@@ -90,6 +94,14 @@ class UserInfoValueObject
     }
 
     // Getters
+    /**
+     * 获取当前组织来源系统的用户 ID，不作为认证身份。
+     */
+    public function getThirdPlatformId(): string
+    {
+        return $this->thirdPlatformId;
+    }
+
     public function getId(): string
     {
         return $this->id;

@@ -1,8 +1,10 @@
 import { useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import type { AttachmentItem } from "./types"
+import type { DirectorySource } from "../../SelectPathModal/components/SelectDirectoryModal/types"
 
 interface UseCopyFileSelectorOptions {
+	directorySource?: DirectorySource
 	projectId?: string
 	attachments?: AttachmentItem[]
 	onCopySuccess?: () => void
@@ -19,16 +21,18 @@ export function useCopyFileSelector(options: UseCopyFileSelectorOptions = {}) {
 	const [visible, setVisible] = useState(false)
 	const [pendingCopyFileIds, setPendingCopyFileIds] = useState<string[]>([])
 
-	/** Open the copy target picker for one or more file IDs. */
-	const showCopySelector = useCallback((fileIds: string[]) => {
+	/** Open the copy picker for one or more file IDs. */
+	const [defaultPath, setDefaultPath] = useState<AttachmentItem[]>([])
+	const showCopySelector = useCallback((fileIds: string[], path: AttachmentItem[] = []) => {
 		if (fileIds.length === 0) return
 		setPendingCopyFileIds(fileIds)
+		setDefaultPath(path)
 		setVisible(true)
 	}, [])
 
 	const openBatchCopyByFileIds = useCallback(
-		(fileIds: string[]) => {
-			showCopySelector(fileIds)
+		(fileIds: string[], path: AttachmentItem[] = []) => {
+			showCopySelector(fileIds, path)
 		},
 		[showCopySelector],
 	)
@@ -36,6 +40,7 @@ export function useCopyFileSelector(options: UseCopyFileSelectorOptions = {}) {
 	const hideCopySelector = useCallback(() => {
 		setVisible(false)
 		setPendingCopyFileIds([])
+		setDefaultPath([])
 	}, [])
 
 	const notifyCopySuccess = useCallback(() => {
@@ -49,6 +54,7 @@ export function useCopyFileSelector(options: UseCopyFileSelectorOptions = {}) {
 		hideCopySelector,
 		notifyCopySuccess,
 		selectorConfig: {
+			directorySource: options.directorySource,
 			visible,
 			title: t("topicFiles.contextMenu.copyTo"),
 			tips: t("topicFiles.moveModal.tips"),
@@ -62,7 +68,7 @@ export function useCopyFileSelector(options: UseCopyFileSelectorOptions = {}) {
 			// Copy allows selecting source folder/subfolder as target (desktop parity).
 			disabledFolderIds: [] as string[],
 			confirmLoading: false,
-			defaultPath: [] as AttachmentItem[],
+			defaultPath,
 		},
 	}
 }

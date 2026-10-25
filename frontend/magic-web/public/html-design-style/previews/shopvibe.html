@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SHOPVIBE // Underground Streetwear Drop</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700;800;900&family=Nunito:wght@600;700;800&family=Space+Mono:wght@700&display=swap');
+
+    :root {
+      --primary: #D946EF;
+      --primary-hover: #C026D3;
+      --secondary: #22D3EE;
+      --acid-green: #A3E635;
+      --acid-glow: rgba(163, 230, 53, 0.4);
+      --bg: #0D0D12;
+      --bg-card: #151520;
+      --surface: #1E1E2D;
+      --border-subtle: #2D2D42;
+      --text-main: #FFFFFF;
+      --text-muted: #9CA3AF;
+      --font-display: 'Poppins', sans-serif;
+      --font-body: 'Nunito', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      line-height: 1.5;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Live Streetwear Drop Ticker */
+    .drop-ticker {
+      background: linear-gradient(90deg, #9333EA 0%, #D946EF 50%, #A3E635 100%);
+      color: #000; padding: 7px 16px; font-family: var(--font-mono); font-size: 11px;
+      font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .ticker-left { display: flex; align-items: center; gap: 8px; }
+    .flash-dot { width: 7px; height: 7px; background: #000; border-radius: 50%; animation: pulseAlert 1.2s infinite; }
+    @keyframes pulseAlert { 0%,100%{transform:scale(.9);opacity:.5} 50%{transform:scale(1.3);opacity:1} }
+
+    nav.vibes-nav {
+      position: sticky; top: 0; z-index: 90; background: rgba(13,13,18,0.92);
+      backdrop-filter: blur(14px); border-bottom: 1px solid var(--border-subtle);
+      padding: 0 24px; height: 58px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand-logo {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-display); font-size: 22px; font-weight: 900;
+      font-style: italic; letter-spacing: -0.04em; text-transform: uppercase;
+    }
+    .brand-logo span.highlight {
+      background: linear-gradient(135deg, #A3E635 0%, #22D3EE 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .tag-genz {
+      font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+      background: #D946EF; color: #FFF; padding: 2px 5px; border-radius: 4px; font-style: normal;
+    }
+    .nav-menu { display: flex; gap: 20px; list-style: none; font-family: var(--font-display); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .nav-menu a { color: #D1D5DB; text-decoration: none; transition: color 0.2s; }
+    .nav-menu a:hover, .nav-menu a.active { color: var(--acid-green); }
+    .nav-stats { display: flex; align-items: center; gap: 12px; }
+    .pill-cart {
+      background: #D946EF; color: #FFF; border: none; border-radius: 9999px;
+      padding: 7px 16px; font-family: var(--font-body); font-weight: 800; font-size: 12px;
+      cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(217,70,239,0.4);
+    }
+    .pill-cart:hover { background: var(--primary-hover); transform: scale(1.03); }
+
+    .container { max-width: 1240px; margin: 0 auto; padding: 20px 18px 40px; }
+    .drop-hero {
+      display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px;
+      background: radial-gradient(circle at 75% 25%, #2A173B 0%, #151520 60%, #0F0F17 100%);
+      border: 2px solid var(--border-subtle); border-radius: 20px; padding: 28px 30px;
+      position: relative; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+    }
+    .visual-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .drop-badges { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .badge-acid {
+      background: var(--acid-green); color: #000; font-family: var(--font-display);
+      font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 4px 9px; border-radius: 6px;
+    }
+    .viewers-pill {
+      background: rgba(0,0,0,0.6); border: 1px solid rgba(163,230,53,0.4); color: #A3E635;
+      font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 4px 10px;
+      border-radius: 9999px; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .flame-icon { animation: flameBounce 1s infinite alternate ease-in-out; }
+    @keyframes flameBounce { 0% { transform: translateY(0); } 100% { transform: translateY(-2px); } }
+
+    .sneaker-stage {
+      width: 100%; max-width: 420px; height: 270px; display: flex; align-items: center; justify-content: center;
+      filter: drop-shadow(0 14px 20px rgba(0,0,0,0.7));
+    }
+    .drop-info { display: flex; flex-direction: column; justify-content: space-between; }
+    .countdown-card {
+      background: rgba(13,13,18,0.85); border: 1px solid #3B2D54; border-radius: 10px;
+      padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .countdown-label { font-family: var(--font-display); font-size: 10px; font-weight: 700; color: #D1D5DB; text-transform: uppercase; }
+    .countdown-timer { display: flex; gap: 4px; font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: #FACC15; }
+    .timer-unit { background: #231C33; padding: 2px 6px; border-radius: 4px; border: 1px solid #4B336B; }
+
+    .drop-title {
+      font-family: var(--font-display); font-size: 28px; font-weight: 800; font-style: italic;
+      line-height: 1.15; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .drop-title span.grad {
+      background: linear-gradient(90deg, #D946EF 0%, #22D3EE 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .drop-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px; }
+    .size-section { margin-bottom: 16px; }
+    .size-header { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
+    .size-guide { color: var(--secondary); text-decoration: underline; cursor: pointer; }
+    .size-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .size-pill {
+      min-width: 42px; height: 34px; padding: 0 8px; background: #1A1A28; border: 1.5px solid #373752;
+      border-radius: 9999px; color: #FFF; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
+    }
+    .size-pill:hover { border-color: var(--primary); transform: translateY(-1px); }
+    .size-pill.selected { background: var(--primary); border-color: var(--primary); color: #FFF; box-shadow: 0 0 10px rgba(217,70,239,0.5); }
+    .size-pill.disabled { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
+
+    .buy-row { display: flex; align-items: center; gap: 14px; }
+    .price-wrap { display: flex; flex-direction: column; }
+    .price-current { font-family: var(--font-display); font-size: 26px; font-weight: 900; color: #FFF; }
+    .price-strike { font-family: var(--font-mono); font-size: 11px; color: #6B7280; text-decoration: line-through; }
+    .btn-bag {
+      flex: 1; height: 46px; background: linear-gradient(90deg, #D946EF 0%, #9333EA 100%);
+      color: #FFF; border: none; border-radius: 9999px; font-family: var(--font-display);
+      font-size: 13px; font-weight: 800; text-transform: uppercase; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 6px 18px rgba(217,70,239,0.45); transition: all 0.2s;
+    }
+    .btn-bag:hover { transform: translateY(-1px); }
+
+    .section-title { display: flex; justify-content: space-between; align-items: flex-end; margin: 30px 0 14px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px; }
+    .section-title h3 { font-family: var(--font-display); font-size: 18px; font-weight: 800; text-transform: uppercase; font-style: italic; }
+    .section-title a { font-family: var(--font-mono); font-size: 10px; color: var(--acid-green); text-decoration: none; font-weight: 700; }
+
+    .drops-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .drop-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 14px; transition: all 0.2s; }
+    .drop-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+    .card-img-box { height: 120px; background: #1F1F30; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .drop-card h4 { font-family: var(--font-display); font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .card-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+    .card-foot { display: flex; justify-content: space-between; align-items: center; }
+    .card-price { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--acid-green); }
+    .quick-add { background: transparent; border: 1.5px solid var(--primary); color: var(--primary); font-size: 10px; font-weight: 700; border-radius: 9999px; padding: 3px 10px; cursor: pointer; }
+    .quick-add:hover { background: var(--primary); color: #FFF; }
+
+    footer.vibe-footer { border-top: 1px solid var(--border-subtle); margin-top: 36px; padding: 20px 18px; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 10px; color: #6B7280; }
+
+    @media (max-width: 860px) {
+      .drop-hero { grid-template-columns: 1fr; }
+      .drops-grid { grid-template-columns: 1fr; }
+      .nav-menu { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Live Drop Ticker -->
+  <div class="drop-ticker">
+    <div class="ticker-left">
+      <span class="flash-dot"></span>
+      <span>LIMITED EDITION DROP 042 // ACID GLITCH PROTOCOL</span>
+    </div>
+    <div>WORLDWIDE INSTANT EXPRESS • RESTOCKS NEVER GUARANTEED</div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="vibes-nav">
+    <div class="brand-logo">
+      <span>SHOP<span class="highlight">VIBE</span></span>
+      <span class="tag-genz">GEN-Z LAB</span>
+    </div>
+
+    <ul class="nav-menu">
+      <li><a href="#" class="active">Drops</a></li>
+      <li><a href="#">Kicks</a></li>
+      <li><a href="#">Apparel</a></li>
+      <li><a href="#">Grails</a></li>
+    </ul>
+
+    <div class="nav-stats">
+      <button class="pill-cart">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        <span>Bag (3)</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Container -->
+  <main class="container">
+
+    <!-- Hero Drop (16:10 Thumbnail dense area) -->
+    <section class="drop-hero">
+      
+      <!-- Sneaker Visual Stage with SVG -->
+      <div class="visual-wrapper">
+        <div class="drop-badges">
+          <span class="badge-acid">⚡ QUICKSTRIKE TIER 1</span>
+          <div class="viewers-pill">
+            <span class="flame-icon">🔥</span>
+            <span>34 people viewing now</span>
+          </div>
+        </div>
+
+        <div class="sneaker-stage">
+          <svg viewBox="0 0 420 280" width="100%" height="100%">
+            <defs>
+              <linearGradient id="cyberSole" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#A3E635" />
+                <stop offset="100%" stop-color="#22D3EE" />
+              </linearGradient>
+              <linearGradient id="bodyPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#3B185F" />
+                <stop offset="60%" stop-color="#24073B" />
+                <stop offset="100%" stop-color="#12031C" />
+              </linearGradient>
+              <linearGradient id="holoOverlay" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#D946EF" stop-opacity="0.8" />
+                <stop offset="100%" stop-color="#22D3EE" stop-opacity="0.8" />
+              </linearGradient>
+            </defs>
+
+            <ellipse cx="210" cy="245" rx="150" ry="16" fill="#000000" opacity="0.6" />
+
+            <!-- Outsole Base (Acid Green Tread) -->
+            <path d="M50 215 Q 120 235 240 230 Q 320 226 370 195 L 365 178 Q 300 205 235 208 Q 130 208 55 190 Z" fill="url(#cyberSole)" stroke="#111" stroke-width="1.5" />
+            
+            <rect x="120" y="202" width="28" height="14" rx="4" fill="#22D3EE" opacity="0.9" />
+            <rect x="156" y="203" width="28" height="14" rx="4" fill="#22D3EE" opacity="0.9" />
+            <rect x="192" y="204" width="28" height="14" rx="4" fill="#22D3EE" opacity="0.9" />
+
+            <!-- Main Upper Silhouette -->
+            <path d="M55 190 Q 70 160 95 130 Q 140 105 180 85 Q 215 110 245 135 L 330 160 Q 365 172 365 180 L 320 206 Q 220 210 55 190 Z" fill="url(#bodyPurple)" stroke="#3B2358" stroke-width="2" />
+
+            <!-- Holographic Side Wave -->
+            <path d="M120 145 Q 180 120 230 140 Q 280 160 335 168 L 325 185 Q 270 178 220 160 Q 170 142 110 165 Z" fill="url(#holoOverlay)" />
+
+            <!-- Acid Green Heel & Tab -->
+            <path d="M60 180 Q 52 145 70 120 L 85 125 Q 72 150 78 185 Z" fill="#A3E635" />
+            <path d="M65 115 Q 60 90 75 80 L 85 92 Q 78 100 80 118 Z" fill="#D946EF" />
+
+            <!-- Fluorescent Neon Laces -->
+            <line x1="175" y1="95" x2="215" y2="135" stroke="#A3E635" stroke-width="3" stroke-linecap="round" />
+            <line x1="195" y1="108" x2="235" y2="145" stroke="#A3E635" stroke-width="3" stroke-linecap="round" />
+            <line x1="215" y1="120" x2="255" y2="155" stroke="#A3E635" stroke-width="3" stroke-linecap="round" />
+            <line x1="235" y1="132" x2="275" y2="162" stroke="#A3E635" stroke-width="3" stroke-linecap="round" />
+
+            <circle cx="175" cy="95" r="4" fill="#D946EF" stroke="#FFF" stroke-width="1.2" />
+            <circle cx="195" cy="108" r="4" fill="#D946EF" stroke="#FFF" stroke-width="1.2" />
+            <circle cx="215" cy="120" r="4" fill="#D946EF" stroke="#FFF" stroke-width="1.2" />
+            <circle cx="235" cy="132" r="4" fill="#D946EF" stroke="#FFF" stroke-width="1.2" />
+
+            <!-- Toe Cap Armor -->
+            <path d="M320 162 Q 355 170 365 180 L 350 196 Q 315 185 305 175 Z" fill="#22D3EE" opacity="0.8" />
+            <text x="120" y="185" fill="#A3E635" font-family="'Space Mono', monospace" font-size="8" font-weight="700">SYS_VIBE // RX-99</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Drop Information & Purchasing -->
+      <div class="drop-info">
+        <div>
+          <!-- Streetwear Drop Countdown Timer -->
+          <div class="countdown-card">
+            <span class="countdown-label">⏳ DROP CLOSES IN</span>
+            <div class="countdown-timer">
+              <span class="timer-unit">04<small style="font-size: 9px;">H</small></span> :
+              <span class="timer-unit">18<small style="font-size: 9px;">M</small></span> :
+              <span class="timer-unit">52<small style="font-size: 9px;">S</small></span>
+            </div>
+          </div>
+
+          <h1 class="drop-title">CYBERRUNNER <span class="grad">ACID GLITCH V2</span></h1>
+          <p class="drop-desc">
+            Ultra-limited tactical low-top runner engineered with dual-density nitrogen foam, acid green lug outsole, and UV-reactive iridescent ripstop overlays.
+          </p>
+
+          <!-- Size Pills Grid -->
+          <div class="size-section">
+            <div class="size-header">
+              <span>Select Men's Size (US)</span>
+              <span class="size-guide">Size Chart</span>
+            </div>
+            <div class="size-grid">
+              <button class="size-pill">US 7</button>
+              <button class="size-pill">US 8</button>
+              <button class="size-pill">US 9</button>
+              <button class="size-pill selected">US 10</button>
+              <button class="size-pill">US 11</button>
+              <button class="size-pill disabled">US 12</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buy Button & Price -->
+        <div class="buy-row">
+          <div class="price-wrap">
+            <div class="price-current">$195</div>
+            <div class="price-strike">$240 MSRP</div>
+          </div>
+          <button class="btn-bag">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <path d="M16 10a4 4 0 0 1-8 0"></path>
+            </svg>
+            <span>Add To Bag // Drop 042</span>
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Sub Drops Grid -->
+    <div class="section-title">
+      <h3>Accompanying Drop Pieces</h3>
+      <a href="#">VIEW ALL DROP 042 ITEMS (8) →</a>
+    </div>
+
+    <div class="drops-grid">
+      <div class="drop-card">
+        <div class="card-img-box">
+          <svg width="80" height="70" viewBox="0 0 100 90">
+            <path d="M28 22 L40 14 Q 50 20 60 14 L72 22 L86 42 L76 48 L70 36 L70 82 L30 82 L30 36 L24 48 L14 42 Z" fill="#251633" stroke="#D946EF" stroke-width="1.5" />
+            <rect x="40" y="52" width="20" height="14" rx="2" fill="#170E21" stroke="#373752" />
+          </svg>
+        </div>
+        <h4>Acid Oversized Hoodie</h4>
+        <div class="card-meta">500 GSM French Terry • Boxy Fit</div>
+        <div class="card-foot"><span class="card-price">$130</span><button class="quick-add">+ Add</button></div>
+      </div>
+
+      <div class="drop-card">
+        <div class="card-img-box">
+          <svg width="70" height="70" viewBox="0 0 100 90">
+            <path d="M30 15 L70 15 L66 82 L52 82 L50 40 L48 82 L34 82 Z" fill="#1D202D" stroke="#22D3EE" stroke-width="1.5" />
+            <rect x="26" y="38" width="10" height="18" rx="2" fill="#2E3347" stroke="#A3E635" />
+            <rect x="64" y="38" width="10" height="18" rx="2" fill="#2E3347" stroke="#A3E635" />
+          </svg>
+        </div>
+        <h4>Tactical Cargo Pants</h4>
+        <div class="card-meta">Ripstop Nylon • 8 Pockets</div>
+        <div class="card-foot"><span class="card-price">$165</span><button class="quick-add">+ Add</button></div>
+      </div>
+
+      <div class="drop-card">
+        <div class="card-img-box">
+          <svg width="70" height="70" viewBox="0 0 100 90">
+            <path d="M35 25 Q 50 12 65 25 L 70 70 Q 50 78 30 70 Z" fill="#281A3A" stroke="#A3E635" stroke-width="1.5" />
+            <rect x="40" y="35" width="20" height="10" rx="3" fill="#000" stroke="#D946EF" />
+          </svg>
+        </div>
+        <h4>Matrix Ribbed Balaclava</h4>
+        <div class="card-meta">Thermal Merino • Reflective</div>
+        <div class="card-foot"><span class="card-price">$55</span><button class="quick-add">+ Add</button></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="vibe-footer">
+    <div>© 2026 SHOPVIBE GLOBAL CO. • VERIFIED AUTHENTICITY NFC INTEGRATED</div>
+    <div>DESIGNED FOR THE CULTURE • HIGH-VOLTAGE STREETWEAR</div>
+  </footer>
+
+</body>
+</html>

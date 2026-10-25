@@ -1,7 +1,8 @@
 import { Check, ChevronLeft, ChevronRight, FileDown, Layers, Plus, Trash2, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import MagicTooltip from "@/components/base/MagicTooltip"
 import type { ArticleDetail } from "../types"
 import PlatformBrandIcon from "../../PlatformBrandIcon"
@@ -69,7 +70,8 @@ export default function StepTopicArticleNavigator({
 		return (
 			<aside
 				data-testid="self-media-topic-navigator-panel"
-				className="flex h-fit flex-col items-center gap-3 rounded-[24px] bg-white/95 p-3 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_18px_44px_rgba(47,43,36,0.08)] lg:sticky lg:top-6 lg:col-span-1"
+				className="flex h-fit flex-col items-center gap-3 rounded-[24px] bg-white/95 p-3 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_18px_44px_rgba(47,43,36,0.08)]"
+				data-self-media-topic-navigator
 			>
 				<MagicTooltip
 					title={t(
@@ -127,18 +129,25 @@ export default function StepTopicArticleNavigator({
 	return (
 		<aside
 			data-testid="self-media-topic-navigator-panel"
-			className="flex h-fit flex-col rounded-[28px] bg-white/95 p-4 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_20px_60px_rgba(47,43,36,0.08)] lg:sticky lg:top-6 lg:col-span-4"
+			className="flex h-fit flex-col rounded-[28px] bg-white/95 p-4 shadow-[inset_0_1px_rgba(255,255,255,0.85),0_20px_60px_rgba(47,43,36,0.08)]"
+			data-self-media-topic-navigator
 		>
-			<div className="flex items-center justify-between gap-3 pb-4 [container-type:inline-size]">
-				<div className="flex min-w-0 items-center gap-2 text-[#18181b]">
+			<div
+				className="flex items-center justify-between gap-3 pb-4"
+				data-self-media-topic-navigator-header
+			>
+				<div
+					className="flex min-w-0 items-center gap-2 text-[#18181b]"
+					data-self-media-topic-navigator-title
+				>
 					<span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f4f4f5]">
 						<Layers size={15} />
 					</span>
 					<div className="min-w-0">
-						<p className="truncate text-sm font-[780]">
+						<p className="truncate whitespace-nowrap text-sm font-[780]">
 							{t("detail.selfMedia.initPanel.stepTopic.navigatorTitle", "选题看板")}
 						</p>
-						<p className="text-xs font-medium text-[#71717a]">
+						<p className="whitespace-nowrap text-xs font-medium text-[#71717a]">
 							{t("detail.selfMedia.initPanel.stepTopic.articleCountLabel", {
 								count: articles.length,
 								defaultValue: "文章：{{count}} 篇",
@@ -146,7 +155,7 @@ export default function StepTopicArticleNavigator({
 						</p>
 					</div>
 				</div>
-				<div className="flex items-center gap-1.5">
+				<div className="flex items-center gap-1.5" data-self-media-topic-actions>
 					<MagicTooltip
 						title={t(
 							"detail.selfMedia.initPanel.stepTopic.collapseNavigator",
@@ -161,6 +170,7 @@ export default function StepTopicArticleNavigator({
 								"收起看板",
 							)}
 							className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f4f5] text-[#18181b] transition-colors hover:bg-[#e4e4e7]"
+							data-self-media-topic-collapse
 							onClick={() => onCollapsedChange(true)}
 							data-testid="on-collapsed-change-2"
 						>
@@ -176,12 +186,12 @@ export default function StepTopicArticleNavigator({
 								"detail.selfMedia.initPanel.stepTopic.addTopic",
 								"添加选题",
 							)}
-							className="flex h-9 items-center gap-1.5 rounded-full bg-[#18181b] px-3 text-xs font-[800] text-white shadow-[0_12px_24px_rgba(24,24,27,0.14)] transition-transform hover:-translate-y-0.5"
+							className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#18181b] px-3 text-xs font-[800] text-white shadow-[0_12px_24px_rgba(24,24,27,0.14)] transition-transform hover:-translate-y-0.5"
 							onClick={onAdd}
 							data-testid="on-add"
 						>
 							<Plus size={12} />
-							<span className="hidden [@container(min-width:260px)]:inline">
+							<span className="inline">
 								{t("detail.selfMedia.initPanel.stepTopic.addTopic", "添加选题")}
 							</span>
 						</button>
@@ -189,7 +199,12 @@ export default function StepTopicArticleNavigator({
 				</div>
 			</div>
 
-			<div className="max-h-[calc(100vh-250px)] flex-1 space-y-2 overflow-y-auto pr-1">
+			{/* Cap the viewport itself so the content-sized panel can shrink for short lists. */}
+			{/* A block wrapper keeps long titles from widening Radix's default table wrapper. */}
+			<ScrollArea
+				className="min-h-0 flex-1"
+				viewportClassName="h-auto max-h-[calc(100vh-250px)] pr-1 [&>div]:!block [&>div]:space-y-2"
+			>
 				{articles.map((item, idx) => {
 					const isActive = idx === activeIndex
 					const articleLabel =
@@ -363,7 +378,7 @@ export default function StepTopicArticleNavigator({
 						</div>
 					)
 				})}
-			</div>
+			</ScrollArea>
 		</aside>
 	)
 }

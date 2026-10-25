@@ -1,9 +1,9 @@
 import { lazy, Suspense } from "react"
-import type { EditorProps } from "@/lib/monacoEditor"
+import type { EditorProps } from "@/infrastructure/editors/monaco"
 import { createStyles } from "antd-style"
 import MagicLoading from "@/components/other/MagicLoading"
 
-const Editor = lazy(() => import("@/lib/monacoEditor/MonacoEditor"))
+const Editor = lazy(() => import("@/infrastructure/editors/monaco/MonacoEditor"))
 
 const useStyles = createStyles(({ css }) => ({
 	editor: css`

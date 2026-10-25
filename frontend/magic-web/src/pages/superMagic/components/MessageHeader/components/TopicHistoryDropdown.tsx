@@ -35,8 +35,11 @@ interface TopicHistoryDropdownProps {
 	topicService?: TopicServiceClass
 	placement?: string
 	onDropdownOpenChange?: (open: boolean) => void
+	/** Notified after the history menu has already opened. */
+	onTriggerAction?: () => Promise<void> | void
 	/** Hide mode tag icon in each topic list row */
 	hideTopicListModeIcon?: boolean
+	hideTopicTypeFilter?: boolean
 	hideCreateTopicButton?: boolean
 	hideDeleteTopicButton?: boolean
 	children: ReactNode
@@ -66,7 +69,9 @@ function TopicHistoryDropdown({
 	topicService,
 	placement = "bottomRight",
 	onDropdownOpenChange,
+	onTriggerAction,
 	hideTopicListModeIcon = false,
+	hideTopicTypeFilter = false,
 	hideCreateTopicButton = false,
 	hideDeleteTopicButton = false,
 	children,
@@ -96,7 +101,8 @@ function TopicHistoryDropdown({
 		}, 0)
 	}
 
-	const handleOpenChange = (nextOpen: boolean) => {
+	/** Applies an open-state change after the immediate-close guard has been checked. */
+	const applyOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen && suppressImmediateCloseRef.current) {
 			clearImmediateCloseProtection()
 			return
@@ -105,6 +111,20 @@ function TopicHistoryDropdown({
 		clearImmediateCloseProtection()
 		setOpen(nextOpen)
 		onDropdownOpenChange?.(nextOpen)
+	}
+
+	/** Opens the legacy menu first, then notifies the host. */
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen) {
+			applyOpenChange(false)
+			return
+		}
+
+		applyOpenChange(true)
+		if (!onTriggerAction) return
+		void Promise.resolve(onTriggerAction()).catch(() => {
+			// A host callback failure must not close a history menu that already opened.
+		})
 	}
 
 	useEffect(() => {
@@ -167,6 +187,7 @@ function TopicHistoryDropdown({
 						onUnarchiveTopic={onUnarchiveTopic}
 						topicService={topicService}
 						hideTopicListModeIcon={hideTopicListModeIcon}
+						hideTopicTypeFilter={hideTopicTypeFilter}
 						hideCreateTopicButton={hideCreateTopicButton}
 						hideDeleteTopicButton={hideDeleteTopicButton}
 						searchInputRef={searchInputRef}

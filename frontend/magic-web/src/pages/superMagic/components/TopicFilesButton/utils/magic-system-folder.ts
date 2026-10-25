@@ -4,6 +4,99 @@ import type { AttachmentItem } from "../hooks/types"
 const MAGIC_FOLDER_NAME = ".magic" as const
 const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md" as const
 
+/** 场景属于文件定义工作区；使用某个员工聊天不等于正在编辑该员工。 */
+export type FileHelpContext =
+	{ kind: "project" | "claw" | "crew"; projectId: string } | { kind: "user" | "unknown" }
+
+export type SystemFileHelpKind =
+	| "projectMagic"
+	| "userMagic"
+	| "clawMagic"
+	| "crewMagic"
+	| "projectInstructions"
+	| "directoryInstructions"
+	| "clawInstructions"
+	| "clawIdentity"
+	| "clawSoul"
+	| "crewInstructions"
+	| "agentInstructions"
+	| "instructionFile"
+	| "crewIdentity"
+	| "crewSoul"
+
+/** 优先使用真实空间路径；仅有文件名时，必须由已知父节点确定目录作用域。 */
+export function resolveFileHelpPath(item: AttachmentItem, parentPath?: string): string {
+	const raw = item.file_reference?.space_relative_path ?? item.relative_file_path ?? item.path
+	if (raw) {
+		const normalized = raw
+			.trim()
+			.replace(/^\.\//, "")
+			.replace(/^\/+|\/+$/g, "")
+		const parts = normalized.split("/")
+		if (parts.some((part) => part === ".." || part.includes("\0"))) return ""
+		if (parts[0] === ".workspace" && item.file_reference?.space_type !== "user") parts.shift()
+		if (parts[0] === "~" && (item.file_reference?.space_type ?? item.space_type) === "user")
+			parts.shift()
+		return parts.filter((part) => part && part !== ".").join("/")
+	}
+	if (parentPath === undefined) return ""
+	const name = item.file_name || item.name || item.filename || ""
+	return name ? [parentPath, name].filter(Boolean).join("/") : ""
+}
+
+/**
+ * 展示用途与删除保护分开：后者仍使用下方既有宽匹配，不能因文案细化而放宽保护。
+ * 用户挂载文件优先于页面场景；其它项目的文件也不能继承当前龙虾或员工身份。
+ */
+export function resolveSystemFileHelpKind(
+	item: AttachmentItem,
+	path = resolveFileHelpPath(item),
+	context?: FileHelpContext,
+): SystemFileHelpKind | undefined {
+	const reference = item.file_reference
+	const space = reference?.space_type ?? item.space_type
+	let owner: FileHelpContext["kind"] = context?.kind ?? "unknown"
+	if (space === "user") owner = "user"
+	else if (reference?.space_type === "project") {
+		if (!context || !("projectId" in context) || context.projectId !== reference.project_id)
+			owner = "project"
+	}
+	if (item.is_directory) {
+		if (path !== MAGIC_FOLDER_NAME) return
+		switch (owner) {
+			case "user":
+				return "userMagic"
+			case "claw":
+				return "clawMagic"
+			case "crew":
+				return "crewMagic"
+			case "project":
+				return "projectMagic"
+			default:
+				return
+		}
+	}
+	if (owner === "crew") {
+		if (path === ".magic/IDENTITY.md") return "crewIdentity"
+		if (path === ".magic/SOUL.md") return "crewSoul"
+	}
+	if (owner === "claw") {
+		if (path === ".magic/IDENTITY.md") return "clawIdentity"
+		if (path === ".magic/SOUL.md") return "clawSoul"
+	}
+	const name = path.split("/").at(-1) || item.file_name || item.name || item.filename
+	if (name !== PROJECT_INSTRUCTIONS_FILE_NAME) return
+	if (owner === "user" || owner === "unknown" || !path) return "instructionFile"
+	if (path === ".magic/AGENTS.md") {
+		if (owner === "claw") return "clawInstructions"
+		if (owner === "crew") return "crewInstructions"
+		return "agentInstructions"
+	}
+	// `.magic` 中的资料不参与普通目录规则索引，也不能冒充定义根的行为指令。
+	if (path.split("/").includes(MAGIC_FOLDER_NAME)) return "instructionFile"
+	return path === PROJECT_INSTRUCTIONS_FILE_NAME ? "projectInstructions" : "directoryInstructions"
+}
+
 export interface ProjectInstructionsFileCandidate {
 	readonly is_directory?: boolean
 	readonly name?: string

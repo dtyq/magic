@@ -1,9 +1,14 @@
 import Konva from "konva"
 import { describe, expect, it, vi } from "vitest"
 import { ElementManager } from "../ElementManager"
-import type { LayerElement } from "../../../document/types"
+import type {
+	ElementType,
+	ElementUpdatePatch,
+	ImageElement,
+	LayerElement,
+} from "../../../document/types"
 import { CanvasDocumentIndex } from "../CanvasDocumentIndex"
-import { GenerationStatus } from "../../../../public/magic-types"
+import { GenerationStatus, type UploadFileResponse } from "../../../../public/magic-types"
 
 interface DragManagerHarness {
 	canvas: {
@@ -57,8 +62,309 @@ function createElement(id: string): LayerElement {
 		y: 0,
 		width: 100,
 		height: 100,
+		activeContentId: `${id}-content`,
+		mainContentId: `${id}-content`,
+		contents: [{ contentId: `${id}-content` }],
 	}
 }
+
+function createVisibilityManager(elements: LayerElement[]) {
+	const manager = Object.create(ElementManager.prototype) as unknown as {
+		elements: Map<string, { getData: () => LayerElement }>
+		documentIndex: CanvasDocumentIndex
+		dataTreeVisibilityCache: Map<string, boolean>
+		findParentIdForElement: (elementId: string) => string | undefined
+		isElementVisibleInDataTree: (elementId: string) => boolean
+		updateDataOnly: (
+			element: {
+				getData: () => LayerElement
+				getId: () => string
+				update: (data: LayerElement) => boolean
+			},
+			updates: ElementUpdatePatch,
+			options: { silent?: boolean },
+		) => void
+		invalidateGeometryForElement: (elementId: string) => void
+		scheduleContentLayerDraw: () => void
+		emitElementChange: () => void
+	}
+	manager.elements = new Map(elements.map((element) => [element.id, { getData: () => element }]))
+	manager.documentIndex = new CanvasDocumentIndex()
+	manager.dataTreeVisibilityCache = new Map()
+	return manager
+}
+
+describe("ElementManager element creation names", () => {
+	it("assigns the next unique name through the public create entry", () => {
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			elements: Map<string, { getData: () => LayerElement }>
+			doCreate: ReturnType<typeof vi.fn>
+			getElementsDict: ElementManager["getElementsDict"]
+			create: ElementManager["create"]
+		}
+		const existing = { ...createElement("existing"), name: "视频合并" }
+		manager.elements = new Map([[existing.id, { getData: () => existing }]])
+		manager.doCreate = vi.fn((element: LayerElement) => {
+			manager.elements.set(element.id, { getData: () => element })
+		})
+		manager.getElementsDict = () => ({ [existing.id]: existing })
+
+		manager.create({ ...createElement("new"), name: "视频合并" })
+
+		expect(manager.doCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "视频合并(1)" }),
+			{},
+		)
+	})
+
+	it("normalizes Frame dimensions at the public create boundary", () => {
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			elements: Map<string, { getData: () => LayerElement }>
+			doCreate: ReturnType<typeof vi.fn>
+			getElementsDict: ElementManager["getElementsDict"]
+			create: ElementManager["create"]
+		}
+		const frame: LayerElement = {
+			id: "frame",
+			type: "frame",
+			x: 10,
+			y: 20,
+			width: 101.2,
+			height: 99.4,
+			activeContentId: "frame-content",
+			mainContentId: "frame-content",
+			contents: [{ contentId: "frame-content" }],
+		}
+		manager.elements = new Map()
+		manager.doCreate = vi.fn((element: LayerElement) => {
+			manager.elements.set(element.id, { getData: () => element })
+		})
+		manager.getElementsDict = () => ({})
+
+		manager.create(frame)
+
+		expect(manager.doCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ width: 102, height: 100 }),
+			{},
+		)
+	})
+})
+
+describe("ElementManager nested geometry invalidation", () => {
+	it("invalidates descendants and ancestors when a container changes", () => {
+		const image = createElement("image")
+		const group = {
+			...createElement("group"),
+			type: "group" as const,
+			children: [image],
+		}
+		const frame = {
+			...createElement("frame"),
+			type: "frame" as const,
+			children: [group],
+		}
+		const outerGroup = {
+			...createElement("outer-group"),
+			type: "group" as const,
+			children: [frame],
+		}
+		const dataById = new Map<string, LayerElement>([
+			[image.id, image],
+			[group.id, group],
+			[frame.id, frame],
+			[outerGroup.id, outerGroup],
+		])
+		const parentById = new Map([
+			[image.id, group.id],
+			[group.id, frame.id],
+			[frame.id, outerGroup.id],
+		])
+		const invalidateElements = vi.fn()
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			elements: Map<string, { getData: () => LayerElement }>
+			canvas: {
+				geometryCacheManager: { invalidateElements: typeof invalidateElements }
+			}
+			findParentElement: (elementId: string) => { getData: () => LayerElement } | undefined
+			invalidateGeometryForElement: (elementId: string) => void
+		}
+		manager.elements = new Map(
+			Array.from(dataById, ([elementId, data]) => [elementId, { getData: () => data }]),
+		)
+		manager.canvas = { geometryCacheManager: { invalidateElements } }
+		manager.findParentElement = (elementId) => {
+			const parentId = parentById.get(elementId)
+			return parentId ? manager.elements.get(parentId) : undefined
+		}
+
+		manager.invalidateGeometryForElement(frame.id)
+
+		expect(invalidateElements).toHaveBeenCalledOnce()
+		expect(invalidateElements).toHaveBeenCalledWith(
+			new Set([frame.id, group.id, image.id, outerGroup.id]),
+		)
+	})
+})
+
+describe("ElementManager data-tree visibility", () => {
+	it("reuses cached visibility for descendants of nested Frame and Group elements", () => {
+		const image = createElement("image")
+		const sibling = createElement("sibling")
+		const group = {
+			...createElement("group"),
+			type: "group" as const,
+			children: [image, sibling],
+		}
+		const innerFrame = {
+			...createElement("inner-frame"),
+			type: "frame" as const,
+			children: [group],
+		}
+		const outerFrame = {
+			...createElement("outer-frame"),
+			type: "frame" as const,
+			children: [innerFrame],
+		}
+		const manager = createVisibilityManager([outerFrame, innerFrame, group, image, sibling])
+		const findParentId = vi.spyOn(manager, "findParentIdForElement")
+
+		expect(manager.isElementVisibleInDataTree(image.id)).toBe(true)
+		expect(manager.isElementVisibleInDataTree(sibling.id)).toBe(true)
+
+		// The second branch only resolves the sibling itself; the shared Group and Frame chain is cached.
+		expect(findParentId).toHaveBeenCalledTimes(5)
+		expect(manager.dataTreeVisibilityCache).toEqual(
+			new Map([
+				[image.id, true],
+				[group.id, true],
+				[innerFrame.id, true],
+				[outerFrame.id, true],
+				[sibling.id, true],
+			]),
+		)
+	})
+
+	it("invalidates cached visibility when a hidden nested ancestor becomes visible", () => {
+		const image = createElement("image")
+		let groupData = {
+			...createElement("group"),
+			type: "group" as const,
+			visible: false,
+			children: [image],
+		}
+		const frame = {
+			...createElement("frame"),
+			type: "frame" as const,
+			children: [groupData],
+		}
+		const groupElement = {
+			getData: () => groupData as LayerElement,
+			getId: () => groupData.id,
+			update: vi.fn((nextData: LayerElement) => {
+				groupData = nextData as typeof groupData
+				return false
+			}),
+			getNode: () => null,
+		}
+		const manager = createVisibilityManager([frame, groupData, image])
+		manager.elements.set(groupData.id, groupElement)
+		manager.invalidateGeometryForElement = vi.fn()
+		manager.scheduleContentLayerDraw = vi.fn()
+		manager.emitElementChange = vi.fn()
+
+		expect(manager.isElementVisibleInDataTree(image.id)).toBe(false)
+
+		manager.updateDataOnly(groupElement, { visible: true }, { silent: true })
+
+		expect(manager.isElementVisibleInDataTree(image.id)).toBe(true)
+		expect(manager.dataTreeVisibilityCache.get(groupData.id)).toBe(true)
+	})
+})
+
+describe("ElementManager document loading", () => {
+	it("preserves persisted Frame dimensions during document loading", () => {
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			batchMode: boolean
+			elements: Map<string, unknown>
+			pendingEvents: unknown[]
+			clear: ReturnType<typeof vi.fn>
+			doCreate: ReturnType<typeof vi.fn>
+			flush: ReturnType<typeof vi.fn>
+			reorderTopLevelElements: ReturnType<typeof vi.fn>
+			canvas: { geometryCacheManager: { invalidateAll: ReturnType<typeof vi.fn> } }
+			replaceAll: ElementManager["replaceAll"]
+		}
+		const frame: LayerElement = {
+			id: "persisted-frame",
+			type: "frame",
+			x: 10,
+			y: 20,
+			width: 101.2,
+			height: 99.4,
+			activeContentId: "persisted-frame-content",
+			mainContentId: "persisted-frame-content",
+			contents: [{ contentId: "persisted-frame-content" }],
+		}
+		manager.batchMode = false
+		manager.elements = new Map()
+		manager.pendingEvents = []
+		manager.clear = vi.fn()
+		manager.doCreate = vi.fn()
+		manager.flush = vi.fn()
+		manager.reorderTopLevelElements = vi.fn()
+		manager.canvas = { geometryCacheManager: { invalidateAll: vi.fn() } }
+
+		manager.replaceAll([frame])
+
+		expect(manager.doCreate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: frame.id,
+				width: frame.width,
+				height: frame.height,
+			}),
+			{ batch: true },
+		)
+		expect(manager.canvas.geometryCacheManager.invalidateAll).toHaveBeenCalledOnce()
+	})
+
+	it("continues loading after one element fails and records the issue", () => {
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			batchMode: boolean
+			elements: Map<string, unknown>
+			pendingEvents: unknown[]
+			clear: ReturnType<typeof vi.fn>
+			doCreate: ReturnType<typeof vi.fn>
+			flush: ReturnType<typeof vi.fn>
+			reorderTopLevelElements: ReturnType<typeof vi.fn>
+			canvas: { geometryCacheManager: { invalidateAll: ReturnType<typeof vi.fn> } }
+			replaceAll: ElementManager["replaceAll"]
+			getLastLoadIssues: ElementManager["getLastLoadIssues"]
+		}
+		manager.batchMode = false
+		manager.elements = new Map()
+		manager.pendingEvents = []
+		manager.clear = vi.fn()
+		manager.doCreate = vi.fn((element: LayerElement) => {
+			if (element.id === "broken") throw new Error("invalid video size")
+		})
+		manager.flush = vi.fn()
+		manager.reorderTopLevelElements = vi.fn()
+		manager.canvas = { geometryCacheManager: { invalidateAll: vi.fn() } }
+
+		manager.replaceAll([createElement("first"), createElement("broken"), createElement("last")])
+
+		expect(manager.doCreate).toHaveBeenCalledTimes(3)
+		expect(manager.getLastLoadIssues()).toEqual([
+			{
+				elementId: "broken",
+				elementType: "rectangle",
+				message: "invalid video size",
+			},
+		])
+		expect(manager.flush).toHaveBeenCalledOnce()
+		expect(manager.reorderTopLevelElements).toHaveBeenCalledOnce()
+	})
+})
 
 describe("ElementManager drag eligibility", () => {
 	it("keeps the selected element draggable in single selection", () => {
@@ -234,6 +540,45 @@ describe("ElementManager node-only resize sync", () => {
 	})
 })
 
+describe("ElementManager image crop resize sync", () => {
+	it("preserves an explicit nested crop clear during a resize update", () => {
+		const currentData = {
+			id: "image-1",
+			type: "image",
+			width: 100,
+			height: 80,
+			activeContentId: "content-1",
+			mainContentId: "content-1",
+			contents: [
+				{
+					contentId: "content-1",
+					src: "./image.png",
+					crop: { x: 10, y: 12, width: 40, height: 30 },
+				},
+			],
+		} as ImageElement
+		const element = {
+			getData: () => currentData,
+		}
+		const manager = Object.create(ElementManager.prototype) as {
+			normalizeUpdates: (element: unknown, updates: ElementUpdatePatch) => ElementUpdatePatch
+		}
+
+		const normalized = manager.normalizeUpdates(element, {
+			width: 200,
+			height: 160,
+			contents: [
+				{
+					...currentData.contents[0],
+					crop: undefined,
+				},
+			],
+		})
+
+		expect(normalized.contents?.[0]?.crop).toBeUndefined()
+	})
+})
+
 describe("ElementManager transform-safe full updates", () => {
 	it("preserves the live node position and defers structural rerender for resource updates", () => {
 		const node = new Konva.Group({ x: 140, y: 180 })
@@ -244,7 +589,14 @@ describe("ElementManager transform-safe full updates", () => {
 			y: 16,
 			width: 80,
 			height: 60,
-			status: GenerationStatus.Processing,
+			contents: [
+				{
+					contentId: "content-1",
+					status: GenerationStatus.Processing,
+				},
+			],
+			activeContentId: "content-1",
+			mainContentId: "content-1",
 		} as LayerElement
 		const updateElement = vi.fn((nextData: LayerElement) => {
 			elementData = nextData
@@ -280,8 +632,13 @@ describe("ElementManager transform-safe full updates", () => {
 			expect.objectContaining({
 				x: 140,
 				y: 180,
-				src: "target/image.png",
-				status: GenerationStatus.Completed,
+				contents: [
+					expect.objectContaining({
+						contentId: "content-1",
+						src: "target/image.png",
+						status: GenerationStatus.Completed,
+					}),
+				],
 			}),
 		)
 		expect(rerenderWhenTransformIdle).toHaveBeenCalledTimes(1)
@@ -297,6 +654,7 @@ describe("ElementManager container child lifecycle", () => {
 		}
 		const manager = Object.create(ElementManager.prototype) as {
 			elements: Map<string, typeof childElement>
+			dataTreeVisibilityCache: Map<string, boolean>
 			canvas: {
 				eventEmitter: {
 					emit: ReturnType<typeof vi.fn>
@@ -312,6 +670,7 @@ describe("ElementManager container child lifecycle", () => {
 			) => void
 		}
 		manager.elements = new Map()
+		manager.dataTreeVisibilityCache = new Map()
 		manager.canvas = {
 			eventEmitter: {
 				emit: vi.fn(),
@@ -329,7 +688,9 @@ describe("ElementManager container child lifecycle", () => {
 			y: 0,
 			width: 100,
 			height: 80,
-			src: "./images/child.png",
+			activeContentId: "child-content",
+			mainContentId: "child-content",
+			contents: [{ contentId: "child-content", src: "./images/child.png" }],
 		} as LayerElement
 		const frame = {
 			id: "frame-1",
@@ -338,6 +699,9 @@ describe("ElementManager container child lifecycle", () => {
 			y: 0,
 			width: 300,
 			height: 200,
+			activeContentId: "frame-content",
+			mainContentId: "frame-content",
+			contents: [{ contentId: "frame-content" }],
 			children: [child],
 		} as LayerElement
 
@@ -401,7 +765,9 @@ describe("ElementManager document patch export", () => {
 			y: 24,
 			width: 80,
 			height: 60,
-			src: "./images/a.png",
+			activeContentId: "child-content",
+			mainContentId: "child-content",
+			contents: [{ contentId: "child-content", src: "./images/a.png" }],
 			runtimeOnly: true,
 		} as LayerElement
 		const frame = {
@@ -411,6 +777,9 @@ describe("ElementManager document patch export", () => {
 			y: 0,
 			width: 300,
 			height: 200,
+			activeContentId: "frame-content",
+			mainContentId: "frame-content",
+			contents: [{ contentId: "frame-content" }],
 			children: [child],
 		} as LayerElement
 		const manager = createPatchManager([frame, child])
@@ -426,7 +795,7 @@ describe("ElementManager document patch export", () => {
 					element: expect.objectContaining({
 						id: "child-1",
 						type: "image",
-						src: "./images/a.png",
+						contents: [expect.objectContaining({ src: "./images/a.png" })],
 					}),
 				},
 			],
@@ -438,7 +807,7 @@ describe("ElementManager document patch export", () => {
 	})
 
 	it("skips deleted and temporary elements while preserving deleted ids", () => {
-		const temp = { id: "temp-1", type: "rectangle", x: 0, y: 0 } as LayerElement
+		const temp = createElement("temp-1")
 		const manager = createPatchManager([temp], [{ id: "temp-1" }])
 
 		const patch = manager.exportDocumentPatch({
@@ -459,11 +828,12 @@ describe("ElementManager document patch export", () => {
 			y: 24,
 			width: 80,
 			height: 60,
-			src: undefined,
+			activeContentId: "temp-content",
+			mainContentId: "temp-content",
+			contents: [{ contentId: "temp-content" }],
 		} as LayerElement
 		const child = {
-			id: "child-1",
-			type: "rectangle",
+			...createElement("child-1"),
 			x: 20,
 			y: 32,
 			width: 40,
@@ -476,6 +846,9 @@ describe("ElementManager document patch export", () => {
 			y: 0,
 			width: 300,
 			height: 200,
+			activeContentId: "frame-content",
+			mainContentId: "frame-content",
+			contents: [{ contentId: "frame-content" }],
 			children: [tempChild, child],
 		} as LayerElement
 		const manager = createPatchManager([frame, tempChild, child], [{ id: "temp-child" }])
@@ -619,10 +992,14 @@ describe("ElementManager generation target commit", () => {
 		)
 		expect(temporaryElements.size).toBe(0)
 		expect(emit).toHaveBeenCalledTimes(3)
-		expect(markGenerateImageRequestAsUser).toHaveBeenCalledWith("image-1", "image-task-1")
+		expect(markGenerateImageRequestAsUser).toHaveBeenCalledWith(
+			"image-1",
+			"image-task-1",
+			undefined,
+		)
 		expect(emit).toHaveBeenLastCalledWith({
 			type: "element:batchupdated",
-			data: undefined,
+			data: { elementIds: ["image-1", "image-2"] },
 		})
 	})
 
@@ -659,18 +1036,125 @@ describe("ElementManager generation target commit", () => {
 	})
 })
 
+describe("ElementManager Content writes", () => {
+	it("routes image business field patches into the active Content", () => {
+		const manager = Object.create(ElementManager.prototype) as {
+			mergeElementData: (
+				currentData: LayerElement,
+				updates: ElementUpdatePatch,
+				elementId: string,
+			) => LayerElement
+		}
+		const current: ImageElement = {
+			id: "image-1",
+			type: "image",
+			activeContentId: "v1",
+			mainContentId: "v1",
+			contents: [{ contentId: "v1", src: "./images/v1.png" }],
+		}
+
+		const merged = manager.mergeElementData(current, { src: "./images/v2.png" }, current.id)
+		expect(merged.contents[0]).toEqual(
+			expect.objectContaining({ contentId: "v1", src: "./images/v2.png" }),
+		)
+	})
+
+	it("keeps node identity stable while merging Content patches", () => {
+		const manager = Object.create(ElementManager.prototype) as {
+			mergeElementData: (
+				currentData: LayerElement,
+				updates: ElementUpdatePatch & { id?: string; type?: ElementType },
+				elementId: string,
+			) => LayerElement
+		}
+		const current: ImageElement = {
+			id: "image-1",
+			type: "image",
+			activeContentId: "v1",
+			mainContentId: "v1",
+			contents: [{ contentId: "v1", src: "./images/v1.png" }],
+		}
+
+		const merged = manager.mergeElementData(
+			current,
+			{ id: current.id, type: current.type, src: "./images/next.png" },
+			current.id,
+		)
+		if (merged.type !== "image") throw new Error("Expected image Element")
+		expect(merged.id).toBe(current.id)
+		expect(merged.type).toBe(current.type)
+		expect(merged.contents[0]?.src).toBe("./images/next.png")
+	})
+
+	it("rejects creating an Element with invalid Content pointers before rendering", () => {
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			doCreate: (elementData: LayerElement, options: object) => void
+		}
+		const invalid: ImageElement = {
+			id: "image-1",
+			type: "image",
+			zIndex: 0,
+			activeContentId: "missing",
+			mainContentId: "content-1",
+			contents: [{ contentId: "content-1", src: "./images/a.png" }],
+		}
+
+		expect(() => manager.doCreate(invalid, {})).toThrow("Invalid v3 element data")
+	})
+
+	it("rejects updates that leave Content pointers invalid before mutating the Element", () => {
+		const current: ImageElement = {
+			id: "image-1",
+			type: "image",
+			activeContentId: "content-1",
+			mainContentId: "content-1",
+			contents: [{ contentId: "content-1", src: "./images/a.png" }],
+		}
+		const update = vi.fn()
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			elements: Map<
+				string,
+				{ getData: () => LayerElement; getNode: () => null; update: typeof update }
+			>
+			doUpdate: (elementId: string, updates: Partial<LayerElement>, options: object) => void
+		}
+		manager.elements = new Map([
+			[
+				current.id,
+				{
+					getData: () => current,
+					getNode: () => null,
+					update,
+				},
+			],
+		])
+
+		expect(() =>
+			manager.doUpdate(current.id, { mainContentId: "missing" } as Partial<LayerElement>, {}),
+		).toThrow("Invalid v3 element data")
+		expect(update).not.toHaveBeenCalled()
+	})
+})
+
 describe("ElementManager batch update completion events", () => {
 	it("does not emit batchupdated when an update throws", () => {
 		const emit = vi.fn()
+		const current: ImageElement = {
+			id: "image-1",
+			type: "image",
+			activeContentId: "content-1",
+			mainContentId: "content-1",
+			contents: [{ contentId: "content-1", src: "./images/a.png" }],
+		}
 		const manager = Object.create(ElementManager.prototype) as unknown as {
-			elements: Map<string, unknown>
+			elements: Map<string, { getData: () => LayerElement }>
 			batchMode: boolean
 			doUpdate: ReturnType<typeof vi.fn>
 			flush: ReturnType<typeof vi.fn>
 			canvas: { eventEmitter: { emit: typeof emit } }
 			batchUpdate: ElementManager["batchUpdate"]
 		}
-		manager.elements = new Map([["image-1", {}]])
+		manager.elements = new Map([["image-1", { getData: () => current }]])
 		manager.batchMode = false
 		manager.doUpdate = vi.fn(() => {
 			throw new Error("update failed")
@@ -684,6 +1168,41 @@ describe("ElementManager batch update completion events", () => {
 		expect(manager.flush).toHaveBeenCalledOnce()
 		expect(emit).not.toHaveBeenCalled()
 	})
+
+	it("validates every batch target before applying any update", () => {
+		const image = (id: string): ImageElement => ({
+			id,
+			type: "image",
+			activeContentId: `${id}-content`,
+			mainContentId: `${id}-content`,
+			contents: [{ contentId: `${id}-content`, src: `./images/${id}.png` }],
+		})
+		const first = image("image-1")
+		const second = image("image-2")
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			elements: Map<string, { getData: () => LayerElement }>
+			batchMode: boolean
+			doUpdate: ReturnType<typeof vi.fn>
+			flush: ReturnType<typeof vi.fn>
+			batchUpdate: ElementManager["batchUpdate"]
+		}
+		manager.elements = new Map([
+			[first.id, { getData: () => first }],
+			[second.id, { getData: () => second }],
+		])
+		manager.batchMode = false
+		manager.doUpdate = vi.fn()
+		manager.flush = vi.fn()
+
+		expect(() =>
+			manager.batchUpdate([
+				{ id: first.id, data: { name: "valid" } },
+				{ id: second.id, data: { activeContentId: "missing" } as Partial<LayerElement> },
+			]),
+		).toThrow("Invalid v3 element data")
+		expect(manager.doUpdate).not.toHaveBeenCalled()
+		expect(manager.flush).not.toHaveBeenCalled()
+	})
 })
 
 describe("ElementManager temporary element creation", () => {
@@ -693,6 +1212,7 @@ describe("ElementManager temporary element creation", () => {
 			temporaryElements: Map<string, unknown>
 			doCreate: ReturnType<typeof vi.fn>
 			doDelete: ReturnType<typeof vi.fn>
+			getElementsDict: ElementManager["getElementsDict"]
 			createTemporaryElement: ElementManager["createTemporaryElement"]
 		}
 		manager.elements = new Map()
@@ -702,6 +1222,7 @@ describe("ElementManager temporary element creation", () => {
 			manager.elements.delete(elementId)
 			manager.temporaryElements.delete(elementId)
 		})
+		manager.getElementsDict = () => ({}) as Record<string, LayerElement>
 		return manager
 	}
 
@@ -715,10 +1236,10 @@ describe("ElementManager temporary element creation", () => {
 				historyPolicy: "exclude",
 				clipboardPolicy: "exclude",
 			})
-			manager.elements.set(element.id, {})
+			manager.elements.set(element.id, { getData: () => element })
 		})
 
-		expect(manager.createTemporaryElement(element)).toBe(element.id)
+		expect(manager.createTemporaryElement(element)).toMatchObject({ elementId: element.id })
 		expect(manager.doCreate).toHaveBeenCalledWith(element, {})
 	})
 
@@ -756,6 +1277,42 @@ describe("ElementManager temporary element creation", () => {
 		)
 		expect(manager.temporaryElements.has(element.id)).toBe(false)
 	})
+
+	it("forwards the normalized upload result to temporary element completion callbacks", () => {
+		const element = createElement("temporary-upload-1")
+		const queueUpload = vi.fn()
+		const manager = Object.create(ElementManager.prototype) as unknown as {
+			canvas: {
+				canvasFileUploadManager: { queueUpload: typeof queueUpload }
+			}
+			elements: Map<string, unknown>
+			createTemporaryElement: ReturnType<typeof vi.fn>
+			createTemporary: ElementManager["createTemporary"]
+		}
+		manager.canvas = { canvasFileUploadManager: { queueUpload } }
+		manager.elements = new Map()
+		manager.createTemporaryElement = vi.fn((elementData: LayerElement) => {
+			manager.elements.set(elementData.id, {})
+			return { elementId: elementData.id, element: elementData }
+		})
+		const onUploadComplete = vi.fn()
+
+		manager.createTemporary(element, {
+			uploadFiles: [new File(["audio"], "voice.mp3", { type: "audio/mpeg" })],
+			onUploadComplete,
+		})
+		const uploadResult: UploadFileResponse = {
+			path: "./audios/voice.mp3",
+			src: "https://example.test/voice.mp3",
+			fileName: "voice.mp3",
+		}
+		const queuedRequest = queueUpload.mock.calls[0]?.[0] as {
+			onUploadComplete: (result: UploadFileResponse) => void
+		}
+		queuedRequest.onUploadComplete(uploadResult)
+
+		expect(onUploadComplete).toHaveBeenCalledWith(element.id, uploadResult)
+	})
 })
 
 describe("ElementManager runtime-only generation deletion", () => {
@@ -774,6 +1331,7 @@ describe("ElementManager runtime-only generation deletion", () => {
 		const emitElementChange = vi.fn()
 		const manager = Object.create(ElementManager.prototype) as unknown as {
 			elements: Map<string, typeof element>
+			dataTreeVisibilityCache: Map<string, boolean>
 			temporaryElements: Map<
 				string,
 				{
@@ -791,6 +1349,7 @@ describe("ElementManager runtime-only generation deletion", () => {
 			delete: ElementManager["delete"]
 		}
 		manager.elements = new Map([[elementData.id, element]])
+		manager.dataTreeVisibilityCache = new Map()
 		manager.temporaryElements = new Map([
 			[
 				elementData.id,

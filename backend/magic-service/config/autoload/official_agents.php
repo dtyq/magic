@@ -62,6 +62,34 @@ return [
         'sort_order' => 996,
     ],
     [
+        'code' => 'video-production',
+        'name_i18n' => [
+            'default' => 'Video Production Specialist',
+            'en_US' => 'Video Production Specialist',
+            'zh_CN' => '视频制作专家',
+        ],
+        'role_i18n' => [
+            'default' => [
+                'Plan and produce high-quality videos',
+            ],
+            'en_US' => [
+                'Plan and produce high-quality videos',
+            ],
+            'zh_CN' => [
+                '策划并制作高质量视频',
+            ],
+        ],
+        'description_i18n' => [
+            'default' => 'Create professional videos from ideas, images, or scripts',
+            'en_US' => 'Create professional videos from ideas, images, or scripts',
+            'zh_CN' => '根据创意、图片或脚本制作专业视频',
+        ],
+        'icon' => 'IconVideo',
+        'icon_url' => '',
+        'color' => '#FFF0F0',
+        'sort_order' => 995,
+    ],
+    [
         'code' => 'general',
         'name_i18n' => [
             'default' => 'SuperMagic',

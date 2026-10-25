@@ -5,7 +5,7 @@ import { DataSourceOption } from "@/common/BaseUI/DropdownRenderer/Reference"
 import { Splitor } from "@/common/BaseUI/DropdownRenderer/Reference/constants"
 import { getReferencePrefix } from "@/MagicFlow/utils"
 import { CursorRef, EXPRESSION_VALUE, InputExpressionValue, LabelTypeMap, MethodOption } from "./types"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 
 const snowflake = new Snowflake({
 	mid: 1024,
@@ -176,7 +176,7 @@ const findAllIndices = (str: string, char: string): number[] => {
 export const findTargetTriggerField = (expressionField: EXPRESSION_VALUE[], cursor: CursorRef) => {
     const { offset, id } = cursor
     // 找到所有带有Trigger的表达式块
-    const allHasTriggerFields = _.cloneDeep(expressionField.filter((field) =>
+    const allHasTriggerFields = cloneDeep(expressionField.filter((field) =>
         field.value.includes(TextAreaModeTrigger),
     ))
 

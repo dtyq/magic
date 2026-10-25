@@ -22,6 +22,11 @@ function hasUriRecord(value: unknown): boolean {
 	return hasNonEmptyString(asRecord(value)?.uri)
 }
 
+function hasDraftTaskReference(value: unknown): boolean {
+	const record = asRecord(value)
+	return hasNonEmptyString(record?.video_id) || hasNonEmptyString(record?.uri)
+}
+
 function hasUriRecordArray(value: unknown): boolean {
 	if (!Array.isArray(value)) return false
 	return value.some((item) => hasUriRecord(item))
@@ -54,11 +59,23 @@ export function hasVideoGenerationRequestMediaIntent(
 export function hasVideoGenerationRequestEstimateIntent(
 	request: Partial<GenerateVideoRequest> | null | undefined,
 ): boolean {
+	if (request?.input_mode === "draft_task") {
+		return hasDraftTaskReference(asRecord(request.inputs)?.draft_task)
+	}
+	// Edit mode needs real reference media; a leftover prompt from another mode is not enough.
+	const isEditTask = request?.task === "edit" || request?.input_mode === "video_edit"
+	if (isEditTask) return hasVideoGenerationRequestMediaIntent(request)
 	return Boolean(request?.prompt?.trim()) || hasVideoGenerationRequestMediaIntent(request)
 }
 
 export function hasVideoGenerationRequestSubmitIntent(
 	request: Partial<GenerateVideoRequest> | null | undefined,
 ): boolean {
+	if (request?.generation_type === "canvas_composition") {
+		return Boolean(request.composition?.videos?.some((video) => video.path?.trim()))
+	}
+	if (request?.input_mode === "draft_task") {
+		return hasDraftTaskReference(asRecord(request.inputs)?.draft_task)
+	}
 	return Boolean(request?.prompt?.trim())
 }

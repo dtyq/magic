@@ -16,7 +16,7 @@ import {
 } from "react"
 
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { platformKey } from "@/utils/storage"
 import { Button } from "@/components/shadcn-ui/button"
 import { Badge } from "@/components/shadcn-ui/badge"
@@ -51,7 +51,6 @@ import {
 } from "lucide-react"
 import {
 	DropdownMenu,
-	DropdownMenuContent,
 	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
@@ -74,6 +73,7 @@ import { StorageTab } from "./StorageTab"
 import { SourcesTab } from "./SourcesTab"
 import { DependenciesTab } from "./DependenciesTab"
 import { OnboardingDialog } from "./OnboardingDialog"
+import { EditorDropdownMenuContent } from "../EditorFloating"
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -356,7 +356,7 @@ export function DevConsolePanel({
 		<div
 			ref={panelRef}
 			className={cn(
-				"relative flex min-h-0 min-w-0 flex-shrink-0 flex-col overflow-hidden bg-background/95 backdrop-blur-sm",
+				"relative flex min-h-0 min-w-0 flex-shrink-0 flex-col overflow-hidden bg-background/95 backdrop-blur-sm transition-[width,height] duration-300 ease-out motion-reduce:transition-none",
 				layout === "right" ? "h-full border-l" : "w-full border-t",
 			)}
 			style={
@@ -607,7 +607,7 @@ export function DevConsolePanel({
 								<EllipsisVertical size={14} />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-48">
+						<EditorDropdownMenuContent align="end" className="w-48">
 							<DropdownMenuLabel className="flex items-center justify-between gap-4 px-2 py-1.5 font-normal">
 								<span>{t("stylePanel.devConsole.dockSide")}</span>
 								<div className="flex items-center gap-1">
@@ -637,7 +637,7 @@ export function DevConsolePanel({
 									</button>
 								</div>
 							</DropdownMenuLabel>
-						</DropdownMenuContent>
+						</EditorDropdownMenuContent>
 					</DropdownMenu>
 
 					{layout === "bottom" && (

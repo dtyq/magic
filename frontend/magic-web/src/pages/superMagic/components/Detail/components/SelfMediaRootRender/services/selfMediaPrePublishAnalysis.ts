@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import i18n from "i18next"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import { getFolderMentionData } from "@/components/business/MentionPanel/utils/directoryMention"

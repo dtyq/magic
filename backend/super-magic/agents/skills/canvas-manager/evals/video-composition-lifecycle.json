@@ -1,0 +1,7 @@
+{
+  "id": "video-composition-lifecycle",
+  "prompt": "Configure a Video Edit with an ordered video sequence and optional audio sequence, then compose and verify the final video Element.",
+  "expected_reference": "references/professional-video-production.md",
+  "expected_tools": ["query_canvas_element_details", "add_canvas_elements", "query_canvas_element_details"],
+  "constraints": ["Use only confirmed main Content and exact Connection IDs.", "A failed composition keeps its failed Content and does not erase the previous active or main Content.", "Do not call wait_canvas_generation for synchronous composition.", "Verify the final MP4."]
+}

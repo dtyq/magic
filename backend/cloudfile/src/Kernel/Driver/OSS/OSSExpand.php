@@ -21,7 +21,11 @@ use Dtyq\CloudFile\Kernel\Struct\CredentialPolicy;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FileMetadata;
 use Dtyq\CloudFile\Kernel\Struct\ImageProcessOptions;
+use Dtyq\CloudFile\Kernel\Utils\ContentDispositionBuilder;
 use Dtyq\CloudFile\Kernel\Utils\EasyFileTools;
+use Dtyq\CloudFile\Kernel\Utils\ResultFormatter;
+use Dtyq\CloudFile\Kernel\Utils\RetryExecutor;
+use Dtyq\CloudFile\Kernel\Utils\StsPolicyBuilder;
 use Exception;
 use InvalidArgumentException;
 use League\Flysystem\FileAttributes;
@@ -426,8 +430,7 @@ class OSSExpand implements ExpandInterface
     private function signUrl(string $path, int $timeout = 60, string $downloadName = '', array $options = []): string
     {
         if (! empty($downloadName)) {
-            $downloadName = rawurlencode($downloadName);
-            $options['response-content-disposition'] = 'attachment;filename="' . $downloadName . '";filename*=utf-8\'\'' . $downloadName;
+            $options['response-content-disposition'] = ContentDispositionBuilder::build($downloadName);
         }
 
         // 处理图片处理参数
@@ -525,79 +528,26 @@ class OSSExpand implements ExpandInterface
 
         // 目录限制
         $dir = $credentialPolicy->getDir();
-        $resource = "{$config['bucket']}/";
-        if (! empty($credentialPolicy->getDir())) {
-            $resource = $resource . $credentialPolicy->getDir();
-        }
 
         // https://help.aliyun.com/zh/oss/user-guide/ram-policy-overview/?spm=a2c4g.11186623.0.0.746d67e8gIGwZH#concept-y5r-5rm-2gb
-        $stsPolicy = match ($credentialPolicy->getStsType()) {
-            'list_objects' => [
-                'Statement' => [
-                    [
-                        'Action' => [
-                            'oss:ListObjects',
-                            'oss:ListObjectVersions',
-                        ],
-                        'Resource' => [
-                            "acs:oss:*:*:{$this->bucket}",
-                        ],
-                        'Condition' => [
-                            'StringLike' => [
-                                'oss:Prefix' => [
-                                    "{$dir}",
-                                    "{$dir}*",
-                                ],
-                            ],
-                        ],
-                        'Effect' => 'Allow',
-                    ],
-                ],
-            ],
-            'del_objects' => [
-                'Statement' => [
-                    [
-                        'Action' => [
-                            'oss:DeleteObject',
-                            'oss:DeleteObjectVersion',
-                            'oss:DeleteObjectTagging',
-                            'oss:DeleteObjectVersionTagging',
-                        ],
-                        'Resource' => [
-                            "acs:oss:*:*:{$resource}*",
-                        ],
-                        'Effect' => 'Allow',
-                    ],
-                ],
-            ],
-            default => [
-                'Statement' => [
-                    [
-                        'Action' => [
-                            'oss:PutObject',
-                            'oss:AbortMultipartUpload',
-                            'oss:GetObject',
-                            'oss:ListParts',
-                            'oss:GetObjectMeta',
-                        ],
-                        'Resource' => [
-                            "acs:oss:*:*:{$resource}*",
-                        ],
-                        'Effect' => 'Allow',
-                    ],
-                ],
-            ],
-        };
+        $stsPolicy = (new StsPolicyBuilder())->buildOss($config['bucket'], $dir, $credentialPolicy->getStsTypes());
 
-        $sts = Sts::v20150401()->assumeRole([
-            'query' => [
-                'RegionId' => $stsRegion,
-                'RoleArn' => $config['role_arn'],
-                'RoleSessionName' => $roleSessionName,
-                'DurationSeconds' => $expires,
-                'Policy' => json_encode($stsPolicy),
-            ],
-        ])->request()->toArray();
+        $sts = RetryExecutor::execute(static function () use ($config, $expires, $roleSessionName, $stsPolicy, $stsRegion): array {
+            $result = Sts::v20150401()->assumeRole([
+                'query' => [
+                    'RegionId' => $stsRegion,
+                    'RoleArn' => $config['role_arn'],
+                    'RoleSessionName' => $roleSessionName,
+                    'DurationSeconds' => $expires,
+                    'Policy' => json_encode($stsPolicy),
+                ],
+            ])->request()->toArray();
+            if (empty($result['Credentials'])) {
+                throw new CloudFileException('获取 STS 失败，result: ' . ResultFormatter::format($result));
+            }
+
+            return $result;
+        });
 
         return [
             'region' => 'oss-' . $stsRegion,

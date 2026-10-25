@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import TopicItemSkeleton from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/components/TopicItemSkeleton"
 
 type MobileHeaderSkeletonVariant = "project-entry" | "project-topic" | "chat-hero" | "mobile-home"

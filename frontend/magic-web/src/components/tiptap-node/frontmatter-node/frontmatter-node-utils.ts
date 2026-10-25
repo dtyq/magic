@@ -23,7 +23,18 @@ export function extractMarkdownFrontmatter(markdown: string): MarkdownFrontmatte
 	}
 }
 
-export function preprocessMarkdownFrontmatter(markdown: string): string {
+export interface FrontmatterSourceReplacement {
+	sourceStart: number
+	sourceEnd: number
+	start: number
+	end: number
+}
+
+export function preprocessMarkdownFrontmatter(
+	markdown: string,
+	onReplacements?: (ranges: FrontmatterSourceReplacement[]) => void,
+): string {
+	onReplacements?.([])
 	const match = extractMarkdownFrontmatter(markdown)
 	if (!match) return markdown
 
@@ -33,7 +44,20 @@ export function preprocessMarkdownFrontmatter(markdown: string): string {
 	].join(" ")
 
 	const body = stripLeadingLineBreak(match.body)
-	if (!body) return placeholderHtml
+	if (!body) {
+		onReplacements?.([
+			{ sourceStart: 0, sourceEnd: markdown.length, start: 0, end: placeholderHtml.length },
+		])
+		return placeholderHtml
+	}
+	onReplacements?.([
+		{
+			sourceStart: 0,
+			sourceEnd: markdown.length - body.length,
+			start: 0,
+			end: placeholderHtml.length + 2,
+		},
+	])
 
 	return `${placeholderHtml}\n\n${body}`
 }

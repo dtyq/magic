@@ -53,6 +53,12 @@ class SandboxEndpoints
      */
     public const WORKSPACE_EXPORT = 'api/v1/workspace/export';
 
+    /** 异步创建工作区导出任务。 */
+    public const WORKSPACE_EXPORT_CREATE = 'api/v1/workspace/export/create';
+
+    /** 查询异步工作区导出任务。 */
+    public const WORKSPACE_EXPORT_CHECK = 'api/v1/workspace/export/check';
+
     /**
      * Workspace import endpoint.
      */

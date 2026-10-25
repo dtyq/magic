@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { isEmpty } from "lodash-es"
 import { Flex, Tooltip } from "antd"
 import { IconExternalLink } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import Render from "../../../Render"
 import PlaybackControl from "../../../components/PlaybackControl"
 import StatusIcon from "../../../../MessageHeader/components/StatusIcon"
@@ -133,6 +133,12 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 		toolSteps,
 		currentStepIndex,
 	})
+	const currentStepDetail = currentToolStep?.detail as
+		{ type?: DetailType; data?: { groups?: unknown } } | undefined
+	// 搜索结果已展示查询和条数，旧备注中的需求名称无需重复显示；错误文本和其他工具仍保留备注。
+	const hasSearchResults =
+		currentStepDetail?.type === DetailType.Search &&
+		Array.isArray(currentStepDetail.data?.groups)
 
 	// 修正 disPlayDetail 的类型：如果 metadata.type 是 design 但 type 是 notSupport，需要修正
 	// 这个修正逻辑在源头（工具调用生成 detail 时）无法处理，因为 detail 可能来自后端
@@ -221,7 +227,7 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 					className="mb-[14px] flex h-6 items-center gap-1"
 					align="center"
 				>
-					<Flex align="center" gap={4}>
+					<Flex align="center" gap={4} className="min-w-0 flex-1 overflow-hidden">
 						<StatusIcon status={currentTopicStatus} className="shrink-0" />
 						<span className="shrink-0 text-[18px] font-medium leading-6 text-foreground">
 							{t("playbackControl.magicVirtualMachine")}
@@ -236,7 +242,7 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 									<ToolIconBadge
 										toolName={currentToolStep?.name}
 										size={16}
-										iconSize={10}
+										iconSize={12}
 									/>
 									<div className="flex items-center gap-2">
 										<span
@@ -249,7 +255,7 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 											{currentToolStep.action}
 										</span>
 									</div>
-									{currentToolStep.remark && (
+									{currentToolStep.remark && !hasSearchResults && (
 										<Tooltip title={currentToolStep.remark}>
 											<span className="shrink overflow-hidden text-ellipsis whitespace-nowrap text-xs text-muted-foreground">
 												{currentToolStep.remark}
@@ -259,9 +265,9 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 								</div>
 							)}
 					</Flex>
-					<Flex align="center" gap={4}>
+					<Flex align="center" gap={4} className="shrink-0">
 						{/* Md 工具栏 portal 挂载点，Md 组件会渲染渲染/原文/复制按钮到此处 */}
-						<div ref={setMdToolbarEl} />
+						<div ref={setMdToolbarEl} className="flex shrink-0" />
 						{/* 打开原文件按钮 */}
 						{shouldShowOpenSourceFileButton && (
 							<ActionButton
@@ -308,6 +314,7 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 					disPlayDetail={correctedDisPlayDetail}
 					userSelectDetail={userSelectDetail}
 					isFullscreen={isFullscreen}
+					terminalToolInfo={currentToolStep}
 					attachmentList={attachmentList}
 					viewMode={currentFileViewMode}
 					displayConfig={meta?.display_config}

@@ -6,6 +6,7 @@ import {
 	IconLayoutSidebarRightExpand,
 	IconMicrophone,
 	IconPlayerStopFilled,
+	IconSubtitlesAi,
 	IconWindowMaximize,
 	IconWindowMinimize,
 	IconWritingSign,
@@ -46,10 +47,13 @@ import {
 	RecorderInitializationError,
 	AudioSourceSwitchError,
 } from "@/services/recordSummary/MediaRecorderService/types/RecorderErrors"
-import { Editor } from "@tiptap/core"
+import { Editor } from "@/infrastructure/editors/tiptap/core"
 import NoteUpdateStatus from "../NoteUpdateStatus"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { isDev } from "@/utils/env"
+import { Switch } from "@/components/shadcn-ui/switch"
+import type { AudioProcessingMode } from "@/services/recordSummary/MediaRecorderService/types/RecorderTypes"
+import { CompatibilityRecordingNotice } from "./CompatibilityRecordingNotice"
 
 export interface PcFloatPanelProps {
 	isWaitingSummarize: boolean
@@ -92,6 +96,7 @@ export interface PcFloatPanelProps {
 	onToggleExpandedAiChat: () => void
 	/** Audio-recordings (`project_mode=audio`) uses a simplified PC panel without legacy chrome. */
 	isAudioProjectMode?: boolean
+	processingMode?: AudioProcessingMode | null
 	projectFilesStore: ProjectFilesStore
 	attachments: AttachmentItem[]
 	attachmentList: AttachmentItem[]
@@ -100,13 +105,14 @@ export interface PcFloatPanelProps {
 	urlResolver: (relativePath: string) => Promise<string>
 	currentDocumentPath: string
 	folderPath: string
-	onImageUploadSuccess?: (relativePath: string) => void
+	onImageUploadSuccess?: (relativePath: string) => void | Promise<void>
 	editorRef?: React.RefObject<SimpleEditorRef>
 	onSave?: (editor: Editor | null) => void
 	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
+	requireImagesFolderParentId?: boolean
 	transcriptionEnabled?: boolean
-	isEnablingTranscription?: boolean
-	onEnableTranscription?: () => void | Promise<void>
+	isTranscriptionToggling?: boolean
+	onTranscriptionEnabledChange?: (enabled: boolean) => void | Promise<void>
 }
 
 const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
@@ -142,6 +148,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 		expandedAiChat,
 		onToggleExpandedAiChat,
 		isAudioProjectMode = false,
+		processingMode,
 		projectFilesStore,
 		attachments,
 		attachmentList,
@@ -150,16 +157,19 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 		urlResolver,
 		currentDocumentPath,
 		folderPath,
+		onImageUploadSuccess,
 		editorRef,
 		onSave,
 		resolveImagesFolderParentId,
+		requireImagesFolderParentId,
 		transcriptionEnabled = true,
-		isEnablingTranscription = false,
-		onEnableTranscription,
+		isTranscriptionToggling = false,
+		onTranscriptionEnabledChange,
 	} = props
 
 	const isEditMode = mode === "edit"
-	const shouldShowTranscriptionDisabledState = isEditMode && transcriptionEnabled === false
+	const shouldShowTranscriptionDisabledState =
+		isEditMode && transcriptionEnabled === false && messages.length === 0
 
 	const [enableAnimation, setEnableAnimation] = useState(false)
 	// 用于存储动画定时器引用，便于清理
@@ -353,12 +363,8 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 		}
 	})
 
-	/**
-	 * Delegates the PC CTA click to the container so the view only owns button
-	 * state and keeps default_audio persistence in the shared orchestration layer.
-	 */
-	const handleEnableTranscription = useMemoizedFn(() => {
-		void onEnableTranscription?.()
+	const handleTranscriptionEnabledChange = useMemoizedFn((enabled: boolean) => {
+		void onTranscriptionEnabledChange?.(enabled)
 	})
 
 	// 获取展开样式（支持全屏状态）
@@ -448,6 +454,13 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 											<span className={styles.recordingText}>
 												{t("recordingSummary.status.recording")}
 											</span>
+											{!isExpanded && (
+												<CompatibilityRecordingNotice
+													processingMode={processingMode}
+													isAudioProjectMode={isAudioProjectMode}
+													isExpanded={false}
+												/>
+											)}
 										</div>
 										<AudioVisualizer
 											duration={duration}
@@ -593,6 +606,14 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 								</div>
 							</div>
 
+							{isExpanded && (
+								<CompatibilityRecordingNotice
+									processingMode={processingMode}
+									isAudioProjectMode={isAudioProjectMode}
+									isExpanded
+								/>
+							)}
+
 							<MagicSplitter
 								className={cx(styles.messagesContainer, "recording-messages")}
 								hiddenSplitterBar={false}
@@ -605,7 +626,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 									{/* Messages - 动画容器 */}
 									<div
 										data-testid="record-summary-pc-float-panel-messages"
-										style={{ position: "relative", height: "100%" }}
+										className={styles.transcriptionContent}
 									>
 										{shouldShowTranscriptionDisabledState ? (
 											<div
@@ -633,24 +654,6 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 														"mobile.recordingEntry.active.transcriptionDisabledDescription",
 													)}
 												</div>
-												<button
-													type="button"
-													className={styles.transcriptionEnableButton}
-													disabled={
-														isEnablingTranscription ||
-														!onEnableTranscription
-													}
-													onClick={handleEnableTranscription}
-													data-testid="record-summary-pc-float-panel-enable-transcription"
-												>
-													{isEnablingTranscription
-														? t(
-																"mobile.recordingEntry.active.enablingTranscription",
-															)
-														: t(
-																"mobile.recordingEntry.active.enableTranscription",
-															)}
-												</button>
 											</div>
 										) : (
 											<>
@@ -666,6 +669,34 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 												/>
 											</>
 										)}
+									</div>
+									<div className={styles.transcriptionToolbar}>
+										<span className={styles.transcriptionToolbarLabel}>
+											<MagicIcon
+												component={IconSubtitlesAi}
+												size={14}
+												color="currentColor"
+												aria-hidden
+											/>
+											{t(
+												"mobile.recordingEntry.settings.transcriptionToggle.label",
+											)}
+										</span>
+										<Switch
+											checked={transcriptionEnabled}
+											loading={isTranscriptionToggling}
+											disabled={
+												!isEditMode ||
+												isWaitingSummarize ||
+												isTranscriptionToggling ||
+												!onTranscriptionEnabledChange
+											}
+											onCheckedChange={handleTranscriptionEnabledChange}
+											aria-label={t(
+												"mobile.recordingEntry.settings.transcriptionToggle.label",
+											)}
+											data-testid="record-summary-pc-float-panel-transcription-switch"
+										/>
 									</div>
 								</MagicSplitter.Panel>
 								{isEditMode && (
@@ -713,9 +744,12 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 													urlResolver={urlResolver}
 													className={styles.editorBody}
 													folderPath={folderPath}
-													onImageUploadSuccess={checkNowDebounced}
+													onImageUploadSuccess={onImageUploadSuccess}
 													resolveImagesFolderParentId={
 														resolveImagesFolderParentId
+													}
+													requireImagesFolderParentId={
+														requireImagesFolderParentId
 													}
 													editorRef={editorRef}
 													placeholder={t(

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KS Tools France — Outillage Industriel &amp; Diagnostic Atelier</title>
+  <style>
+    :root {
+      --ks-red: #e11a22;
+      --ks-red-hover: #c4141c;
+      --ks-charcoal: #343a40;
+      --ks-dark: #212529;
+      --ks-surface: #f8f9fa;
+      --ks-surface-alt: #f1f3f5;
+      --ks-border: #dee2e6;
+      --ks-border-dark: #ced4da;
+      --ks-text: #212529;
+      --ks-muted: #6c757d;
+      --status-green: #198754;
+      --status-green-bg: #d1e7dd;
+      --status-yellow: #ffc107;
+      --status-red: #dc3545;
+      --status-blue: #0dcaf0;
+      --font-montserrat: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --r-sm: 4px;
+      --r-md: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--ks-surface);
+      color: var(--ks-text);
+      font-family: var(--font-montserrat);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Industrial Top Navbar */
+    .ks-navbar {
+      background: var(--ks-charcoal);
+      color: #ffffff;
+      padding: 12px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .ks-emblem {
+      background: var(--ks-red);
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: 0.05em;
+      padding: 5px 12px;
+      border-radius: var(--r-sm);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 2px 6px rgba(225, 26, 34, 0.4);
+    }
+    .brand-subline {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.8);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .ks-nav-links {
+      display: flex;
+      gap: 22px;
+      list-style: none;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .ks-nav-links a {
+      color: #ffffff;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .ks-nav-links a:hover,
+    .ks-nav-links a.active {
+      color: var(--ks-red);
+    }
+    .lang-switcher {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .flag-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 2px;
+      padding: 3px 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .flag-fr {
+      display: inline-flex;
+      width: 14px;
+      height: 10px;
+      border: 1px solid #ffffff;
+      overflow: hidden;
+    }
+    .flag-fr span { flex: 1; height: 100%; }
+    .flag-fr .b1 { background: #002395; }
+    .flag-fr .b2 { background: #ffffff; }
+    .flag-fr .b3 { background: #ed2939; }
+    /* Industrial Red Stripe */
+    .page-header-stripe {
+      height: 4px;
+      background: var(--ks-red);
+      width: 100%;
+    }
+    /* Main Layout: First 500px High-Impact Area */
+    .workshop-container {
+      max-width: 1240px;
+      margin: 24px auto;
+      padding: 0 32px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .section-headline-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 2px solid var(--ks-charcoal);
+      padding-bottom: 8px;
+    }
+    .section-main-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ks-dark);
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+    }
+    .jeeves-sync-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: #e9ecef;
+      color: var(--ks-dark);
+      padding: 3px 8px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--ks-border);
+    }
+    /* Hero Diagnostic & Order Verification Grid */
+    .hero-diagnostic-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 24px;
+    }
+    /* Verification Result Card (2px Colored Border) */
+    .card-ks {
+      background: #ffffff;
+      border: 1px solid var(--ks-border);
+      border-radius: var(--r-md);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+    .card-verification {
+      border: 2px solid var(--status-green);
+    }
+    .card-ks-header {
+      background: #f8f9fa;
+      border-bottom: 1px solid var(--ks-border);
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .client-title {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--ks-dark);
+    }
+    .order-ref {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ks-muted);
+    }
+    .card-ks-body {
+      padding: 20px;
+    }
+    .badge-status-lg {
+      background: var(--status-green-bg);
+      color: var(--status-green);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: var(--r-sm);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      border: 1px solid rgba(25, 135, 84, 0.3);
+    }
+    .qty-meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .progress-track {
+      height: 12px;
+      background: #e9ecef;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--status-green);
+      width: 100%;
+      border-radius: 6px;
+    }
+    .po-reason-text {
+      background: var(--ks-surface-alt);
+      border-left: 3px solid var(--status-green);
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: var(--ks-text);
+      line-height: 1.45;
+      margin-bottom: 16px;
+    }
+    .action-btn-group {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-ks-primary {
+      background: var(--ks-red);
+      color: #ffffff;
+      border: none;
+      padding: 11px 22px;
+      border-radius: var(--r-sm);
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+    .btn-ks-primary:hover {
+      background: var(--ks-red-hover);
+    }
+    .btn-ks-secondary {
+      background: transparent;
+      border: 1px solid var(--ks-border-dark);
+      color: var(--ks-dark);
+      padding: 11px 18px;
+      border-radius: var(--r-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    /* Torque Wrench Spec Card */
+    .specs-summary-card {
+      background: #ffffff;
+      border: 1px solid var(--ks-border);
+      border-radius: var(--r-md);
+      padding: 20px;
+    }
+    .tool-header {
+      border-bottom: 1px solid var(--ks-border);
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .tool-ref {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ks-red);
+      font-weight: 700;
+    }
+    .tool-name {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: var(--ks-dark);
+      margin-top: 2px;
+    }
+    .specs-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .specs-table td {
+      padding: 7px 0;
+      border-bottom: 1px solid #f1f3f5;
+    }
+    .specs-table td:first-child {
+      color: var(--ks-muted);
+      font-weight: 500;
+    }
+    .specs-table td:last-child {
+      text-align: right;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--ks-dark);
+    }
+    /* Inventory & Workshop Table */
+    .inventory-section {
+      background: #ffffff;
+      border: 1px solid var(--ks-border);
+      border-radius: var(--r-md);
+      padding: 20px;
+    }
+    .inventory-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .inv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .inv-table th {
+      background: var(--ks-charcoal);
+      color: #ffffff;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+    }
+    .inv-table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--ks-border);
+      vertical-align: middle;
+    }
+    .inv-table tr:hover td {
+      background: var(--ks-surface);
+    }
+    .badge-stock {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: var(--r-sm);
+    }
+    .stock-ok { background: #d1e7dd; color: #0f5132; }
+    .stock-low { background: #fff3cd; color: #664d03; }
+    /* Footer */
+    .ks-footer {
+      background: var(--ks-charcoal);
+      color: #ffffff;
+      padding: 22px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      margin-top: 32px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Dark Navbar -->
+  <header class="ks-navbar">
+    <div class="brand-cluster">
+      <div class="ks-emblem">KS TOOLS</div>
+      <span class="brand-subline">France · Intranet ADV &amp; Storno</span>
+    </div>
+    <ul class="ks-nav-links">
+      <li><a href="#verification" class="active">Vérification Commande</a></li>
+      <li><a href="#outillage">Outillage &amp; Clés</a></li>
+      <li><a href="#stocks">Stocks Atelier</a></li>
+    </ul>
+    <div class="lang-switcher">
+      <div class="flag-badge">
+        <span class="flag-fr"><span class="b1"></span><span class="b2"></span><span class="b3"></span></span>
+        <span>FR</span>
+      </div>
+      <span style="font-size:11px;color:rgba(255,255,255,0.5);">DE | EN</span>
+    </div>
+  </header>
+
+  <!-- Branded Red Stripe -->
+  <div class="page-header-stripe"></div>
+
+  <!-- Main Content Layout -->
+  <main class="workshop-container">
+
+    <div class="section-headline-row">
+      <h1 class="section-main-title">Contrôle d'Annulation &amp; Fiche Outillage</h1>
+      <div class="jeeves-sync-tag">Jeeves ERP Connecté · Entrepôt Brumath</div>
+    </div>
+
+    <!-- Diagnostic & Order Verification First 500px High-Impact Area -->
+    <div class="hero-diagnostic-grid" id="verification">
+
+      <!-- Order Result Card -->
+      <div class="card-ks card-verification">
+        <div class="card-ks-header">
+          <div>
+            <div class="client-title">👤 C-10042 — DUPONT S.A.S. (Atelier Poids Lourds)</div>
+            <div class="order-ref">Commande N° : 100042-FR · Date : 19/09/2026</div>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--status-green);font-weight:700;">EDI CONFORME</span>
+        </div>
+        <div class="card-ks-body">
+          <div class="badge-status-lg">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Annulation totale possible (FullyCancellable)</span>
+          </div>
+
+          <div class="qty-meta-row">
+            <span>Commandé : <strong>100 pcs</strong></span>
+            <span style="color:var(--status-green);">Annulable : <strong>100 pcs</strong></span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill"></div>
+          </div>
+
+          <div class="po-reason-text">
+            <strong>Motif système :</strong> La totalité de la ligne de commande est encore en phase de préparation non-colisée au centre logistique de Brumath. Aucune expédition validée.
+          </div>
+
+          <div class="action-btn-group">
+            <button class="btn-ks-primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Valider l'annulation totale</span>
+            </button>
+            <button class="btn-ks-secondary">Consulter historique EDI</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- High Precision Torque Wrench Specs -->
+      <div class="specs-summary-card" id="outillage">
+        <div class="tool-header">
+          <span class="tool-ref">RÉF : 516.1442 · ISO 6789</span>
+          <h2 class="tool-name">Clé dynamométrique ERGOTORQUE® precision 1/2"</h2>
+        </div>
+
+        <table class="specs-table">
+          <tbody>
+            <tr>
+              <td>Plage de couple</td>
+              <td>20 – 100 N·m</td>
+            </tr>
+            <tr>
+              <td>Carré d'entraînement</td>
+              <td>1/2" (12.7 mm)</td>
+            </tr>
+            <tr>
+              <td>Précision de déclenchement</td>
+              <td>±3 % certifié</td>
+            </tr>
+            <tr>
+              <td>Mécanisme à cliquet</td>
+              <td>72 dents réversible</td>
+            </tr>
+            <tr>
+              <td>Verrouillage de consigne</td>
+              <td>Bague de blocage push-pull</td>
+            </tr>
+            <tr>
+              <td>Poids net</td>
+              <td>1 150 g</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--ks-border);display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--ks-muted);">Certificat d’étalonnage individuel inclus</span>
+          <span style="color:var(--ks-red);font-weight:700;font-size:12px;">OUTILLAGE PRO</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Workshop Inventory Table -->
+    <div class="inventory-section" id="stocks">
+      <div class="inventory-title-row">
+        <h3 style="font-size:16px;font-weight:700;color:var(--ks-dark);">Inventaire Outillage Spécialisé en Stock</h3>
+        <span style="font-size:12px;color:var(--ks-muted);">Mise à jour temps réel Jeeves</span>
+      </div>
+
+      <table class="inv-table">
+        <thead>
+          <tr>
+            <th>Réf. Article</th>
+            <th>Désignation de l'Outillage</th>
+            <th>Emplacement</th>
+            <th>Stock Dispo</th>
+            <th>Statut Ligne</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family:var(--font-mono);font-weight:700;">516.1442</td>
+            <td>Clé dynamométrique 1/2" ERGOTORQUE® precision 20-100 Nm</td>
+            <td style="font-family:var(--font-mono);">RAY-B04-02</td>
+            <td><span class="badge-stock stock-ok">48 pcs</span></td>
+            <td><span style="color:var(--status-green);font-weight:600;font-size:12px;">● Prêt expédition</span></td>
+          </tr>
+          <tr>
+            <td style="font-family:var(--font-mono);font-weight:700;">917.0779</td>
+            <td>Coffret de douilles chrome-vanadium 1/4" - 1/2" (179 pièces)</td>
+            <td style="font-family:var(--font-mono);">RAY-C12-08</td>
+            <td><span class="badge-stock stock-ok">124 coffrets</span></td>
+            <td><span style="color:var(--status-green);font-weight:600;font-size:12px;">● Prêt expédition</span></td>
+          </tr>
+          <tr>
+            <td style="font-family:var(--font-mono);font-weight:700;">150.1495</td>
+            <td>Testeur de compression numérique diesel/essence HD</td>
+            <td style="font-family:var(--font-mono);">RAY-D01-04</td>
+            <td><span class="badge-stock stock-low">6 pcs</span></td>
+            <td><span style="color:var(--status-yellow);font-weight:600;font-size:12px;">▲ Réappro en cours</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <!-- Industrial Red Bottom Stripe & Footer -->
+  <div class="page-header-stripe"></div>
+  <footer class="ks-footer">
+    <div><strong>KS TOOLS S.A.R.L.</strong> · Outillage et matériel d'atelier professionnel. Siège social : 67170 Brumath, France.</div>
+    <div style="font-family:var(--font-mono);font-size:11px;">SYSTÈME INTRANET STORNO v2.8</div>
+  </footer>
+
+</body>
+</html>

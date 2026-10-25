@@ -30,6 +30,14 @@
 	overflow-wrap: break-word;
 }
 
+/* 超长 URL 没有空格可断，单独覆盖 a，避免撑破消息气泡 */
+.plainMarkdown:global(.x-markdown) a {
+	max-width: 100%;
+	word-break: break-all;
+	overflow-wrap: anywhere;
+	white-space: normal;
+}
+
 .plainMarkdown:global(.x-markdown) p {
 	margin-block: 0.75em;
 	white-space: pre-wrap;
@@ -103,6 +111,75 @@
 
 .plainMarkdown:global(.x-markdown) pre {
 	overflow-x: auto;
+}
+
+.codeBlock {
+	margin: 0.5em 0;
+	min-width: 0;
+	overflow: hidden;
+	border-radius: 8px;
+	border: 1px solid rgb(var(--border-rgb) / var(--border-alpha));
+	background: rgb(var(--muted-rgb));
+}
+
+.codeBlockToolbar {
+	display: flex;
+	min-height: 34px;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 3px 6px 3px 12px;
+	border-bottom: 1px solid rgb(var(--border-rgb) / var(--border-alpha));
+	color: rgb(var(--muted-foreground-rgb));
+	font-size: 12px;
+}
+
+.codeBlockLanguage {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.codeBlockActions {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 2px;
+}
+
+.plainMarkdown:global(.x-markdown) .codeBlockPre {
+	margin: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+	padding: 12px 16px 16px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+
+.plainMarkdown:global(.x-markdown) .codeBlockPreUnwrapped {
+	overflow-x: auto;
+	white-space: pre;
+}
+
+.plainMarkdown:global(.x-markdown) .codeBlockPreUnwrapped code {
+	white-space: inherit;
+	overflow-wrap: normal;
+	word-break: normal;
+}
+
+.plainMarkdown:global(.x-markdown) .codeBlockPreWrapped {
+	overflow-x: hidden;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.plainMarkdown:global(.x-markdown) .codeBlockPreWrapped code {
+	white-space: inherit;
+	overflow-wrap: inherit;
+	word-break: inherit;
 }
 
 .qrCodeBlock {

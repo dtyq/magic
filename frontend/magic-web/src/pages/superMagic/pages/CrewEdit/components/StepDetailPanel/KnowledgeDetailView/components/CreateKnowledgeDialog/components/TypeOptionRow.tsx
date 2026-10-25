@@ -1,5 +1,5 @@
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { KnowledgeTypeOption } from "../types"
 
 export interface TypeOptionRowProps {

@@ -1,11 +1,17 @@
 import type { Canvas } from "../../core/Canvas"
 import { ElementTypeEnum, type ExtendSession, type ImageElement } from "../../document/types"
+import {
+	getActiveContent,
+	getActiveImageContentId,
+	getContentById,
+} from "../../document/elementContent"
 import { calculateNodesRect } from "../../shared/ids"
 import { ExtendRenderer } from "./ExtendRenderer"
 
 export class ExtendManager {
 	private canvas: Canvas
 	private extendingElementId: string | null = null
+	private extendingContentId: string | null = null
 	private tempSession: ExtendSession | null = null
 	private extendRenderer: ExtendRenderer | null = null
 
@@ -178,11 +184,20 @@ export class ExtendManager {
 		}
 	}
 
-	public enterExtendMode(elementId: string): void {
+	public enterExtendMode(elementId: string, contentId?: string): void {
+		if (
+			!this.canvas.permissionManager.can("document.write") ||
+			!this.canvas.permissionManager.can("sideEffect.generate")
+		)
+			return
 		if (this.extendingElementId === elementId) return
 
 		const elementData = this.canvas.elementManager.getElementData(elementId)
 		if (!elementData || elementData.type !== ElementTypeEnum.Image) return
+		if (contentId && getActiveImageContentId(elementData as ImageElement) !== contentId) return
+		const targetContent = contentId
+			? getContentById(elementData, contentId)
+			: getActiveContent(elementData)
 
 		this.canvas.imageEditingCoordinator.activate({
 			mode: "extend",
@@ -191,6 +206,10 @@ export class ExtendManager {
 		})
 
 		this.tempSession = this.createInitialSession(elementData as ImageElement)
+		this.extendingContentId = targetContent?.contentId ?? null
+		if (this.tempSession && this.extendingContentId) {
+			this.tempSession = { ...this.tempSession, contentId: this.extendingContentId }
+		}
 
 		this.canvas.selectionManager.deselectAll()
 		this.extendingElementId = elementId
@@ -233,6 +252,7 @@ export class ExtendManager {
 		}
 
 		this.extendingElementId = null
+		this.extendingContentId = null
 		this.tempSession = null
 
 		this.canvas.imageEditingCoordinator.deactivate("extend", elementId)
@@ -244,7 +264,7 @@ export class ExtendManager {
 	}
 
 	public updateTempSession(session: ExtendSession): void {
-		this.tempSession = session
+		this.tempSession = this.withTargetContent(session)
 
 		if (!this.extendingElementId) return
 
@@ -252,7 +272,7 @@ export class ExtendManager {
 			type: "extend:tempUpdate",
 			data: {
 				elementId: this.extendingElementId,
-				session,
+				session: this.tempSession,
 			},
 		})
 		this.emitExtendPosition()
@@ -261,12 +281,12 @@ export class ExtendManager {
 	public updateTempSessionFromPanel(session: ExtendSession): void {
 		if (!this.extendingElementId) return
 
-		this.tempSession = session
+		this.tempSession = this.withTargetContent(session)
 		this.canvas.eventEmitter.emit({
 			type: "extend:updateFromPanel",
 			data: {
 				elementId: this.extendingElementId,
-				session,
+				session: this.tempSession,
 			},
 		})
 		this.emitExtendPosition()
@@ -274,6 +294,24 @@ export class ExtendManager {
 
 	public confirmExtend(): void {
 		if (!this.extendingElementId || !this.tempSession) return
+		if (
+			!this.canvas.permissionManager.can("document.write") ||
+			!this.canvas.permissionManager.can("sideEffect.generate")
+		) {
+			this.cancelExtend()
+			return
+		}
+		const element = this.canvas.elementManager.getElementData(this.extendingElementId)
+		if (
+			!element ||
+			element.type !== ElementTypeEnum.Image ||
+			!this.extendingContentId ||
+			getActiveImageContentId(element as ImageElement) !== this.extendingContentId ||
+			!getContentById(element, this.extendingContentId)
+		) {
+			this.exitExtendMode(true)
+			return
+		}
 
 		this.canvas.eventEmitter.emit({
 			type: "extend:confirmed",
@@ -299,6 +337,13 @@ export class ExtendManager {
 
 	public getTempSession(): ExtendSession | null {
 		return this.tempSession
+	}
+
+	private withTargetContent(session: ExtendSession): ExtendSession {
+		return {
+			...session,
+			contentId: this.extendingContentId ?? session.contentId,
+		}
 	}
 
 	public getImageProxyLocalRect(): {

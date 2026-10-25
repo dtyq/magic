@@ -8,6 +8,10 @@ import TopicResizeHandle from "@/pages/superMagic/pages/TopicPage/components/Top
 import AppConversationPanel from "./AppConversationPanel"
 import MicroAppPanelToggleButton from "./MicroAppPanelToggleButton"
 import * as layout from "../layoutConstants"
+import { cn } from "@/utils/cn"
+import { useTranslation } from "react-i18next"
+import ConversationEmptyState from "@/pages/superMagic/components/ConversationPanelScaffold/ConversationEmptyState"
+import { MicroAppConversationEmptyIllustration } from "@/pages/superMagic/components/MicroAppStateIllustration"
 
 interface MicroAppDesktopConversationPanelsProps {
 	selectedProject: ComponentProps<typeof AppConversationPanel>["selectedProject"]
@@ -28,6 +32,7 @@ interface MicroAppDesktopConversationPanelsProps {
 	onSelectDetail: (detail: unknown) => void
 	onExpandCollapsedPanel: () => void
 	showConversationLabel: string
+	lockToMicroAppMode: boolean
 }
 
 export default function MicroAppDesktopConversationPanels({
@@ -49,35 +54,58 @@ export default function MicroAppDesktopConversationPanels({
 	onSelectDetail,
 	onExpandCollapsedPanel,
 	showConversationLabel,
+	lockToMicroAppMode,
 }: MicroAppDesktopConversationPanelsProps) {
+	const { t } = useTranslation("super")
 	return (
 		<>
 			{!isMessagePanelCollapsed ? (
 				<>
 					<TopicResizeHandle
+						withDivider
 						onResizeStart={onMessagePanelResizeStart}
-						className={isMessagePanelDragging ? "before:opacity-100" : undefined}
+						className={cn(
+							isMessagePanelDragging ? "before:opacity-100" : undefined,
+							"!bg-sidebar",
+						)}
 					/>
 					<aside
-						className="h-full shrink-0 overflow-hidden border-l border-border bg-background"
+						className="flex h-full min-h-0 shrink-0 flex-col overflow-hidden bg-background"
 						style={{ width: messagePanelWidthPx }}
 						data-testid="micro-app-conversation-panel"
 					>
-						<AppConversationPanel
-							selectedProject={selectedProject}
-							topicStore={topicStore}
-							mentionPanelStore={mentionPanelStore}
-							projectFilesStore={projectFilesStore}
-							onTerminalTopicStatusChange={onTerminalTopicStatusChange}
-							detailPanelVisible
-							isConversationPanelCollapsed={isMessagePanelCollapsed}
-							onToggleConversationPanel={onToggleConversationPanel}
-							onExpandConversationPanel={onExpandConversationPanel}
-							historyTriggerMode="layout"
-							isHistoryPanelOpen={isTopicHistoryPanelOpen}
-							onToggleHistoryPanel={onToggleHistoryPanel}
-							onSelectDetail={onSelectDetail}
-						/>
+						<div className="min-h-0 flex-1">
+							{selectedProject ? (
+								<AppConversationPanel
+									selectedProject={selectedProject}
+									topicStore={topicStore}
+									mentionPanelStore={mentionPanelStore}
+									projectFilesStore={projectFilesStore}
+									lockToMicroAppMode={lockToMicroAppMode}
+									onTerminalTopicStatusChange={onTerminalTopicStatusChange}
+									detailPanelVisible
+									isConversationPanelCollapsed={isMessagePanelCollapsed}
+									onToggleConversationPanel={onToggleConversationPanel}
+									onExpandConversationPanel={onExpandConversationPanel}
+									historyTriggerMode="layout"
+									isHistoryPanelOpen={isTopicHistoryPanelOpen}
+									onToggleHistoryPanel={onToggleHistoryPanel}
+									onSelectDetail={onSelectDetail}
+								/>
+							) : (
+								<ConversationEmptyState
+									testId="micro-app-usage-project-empty"
+									icon={
+										<MicroAppConversationEmptyIllustration
+											size="sm"
+											className="w-[136px]"
+										/>
+									}
+									title={t("microAppPage.conversation.usageEmptyTitle")}
+									subtitle={t("microAppPage.conversation.usageEmptyDescription")}
+								/>
+							)}
+						</div>
 					</aside>
 				</>
 			) : null}
@@ -93,7 +121,8 @@ export default function MicroAppDesktopConversationPanels({
 						topicActions={topicActions}
 						isConversationPanelCollapsed={isMessagePanelCollapsed}
 						onExpandConversationPanel={onExpandConversationPanel}
-						hideTopicListModeIcon
+						// Preview/published topics can be employees; hide icons in development.
+						hideTopicListModeIcon={lockToMicroAppMode}
 						onClose={onCloseHistoryPanel}
 					/>
 				</aside>

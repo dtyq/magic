@@ -14,9 +14,9 @@ const enterpriseProfiles: MagicEnvProfile[] = [
 	{
 		name: "test",
 		label: "Testing",
-		host: "magic-web.saas-test.cn-beijing.volce.teamshare.work",
-		allowedHosts: ["magic-web.saas-test.cn-beijing.volce.teamshare.work"],
-		runtimeConfigUrl: "https://magic-web.saas-test.cn-beijing.volce.teamshare.work/config.js",
+		host: "magic-web.example.test",
+		allowedHosts: ["magic-web.example.test"],
+		runtimeConfigUrl: "https://magic-web.example.test/config.js",
 	},
 	{
 		name: "intl-pre",
@@ -88,6 +88,65 @@ describe("resolveMagicEnvProfileConfig", () => {
 
 		expect(config).toEqual({})
 	})
+
+	it("proxies micro app install routes to the selected profile origin", () => {
+		const config = resolveMagicEnvProfileConfig({
+			env: {
+				MAGIC_ENV_PROFILE: "test",
+			},
+			profiles: enterpriseProfiles,
+		})
+
+		expect(config.server?.proxy?.["^/micro-app/[^/]+/manifest\\.webmanifest$"]).toMatchObject({
+			target: "https://magic-web.example.test",
+			changeOrigin: true,
+		})
+	})
+
+	it("keeps ports out of allowed hosts while preserving the proxy origin", () => {
+		const config = resolveMagicEnvProfileConfig({
+			env: { MAGIC_ENV_PROFILE: "custom-port" },
+			profiles: [
+				{
+					name: "custom-port",
+					runtimeConfigUrl: "https://example.test:8443/config.js",
+				},
+			],
+		})
+
+		expect(config.server?.allowedHosts).toEqual(["example.test"])
+		expect(config.server?.proxy?.["^/micro-app/[^/]+/icon"]).toMatchObject({
+			target: "https://example.test:8443",
+		})
+	})
+
+	it("uses a bare IPv6 hostname in allowed hosts", () => {
+		const config = resolveMagicEnvProfileConfig({
+			env: { MAGIC_ENV_PROFILE: "ipv6" },
+			profiles: [
+				{
+					name: "ipv6",
+					runtimeConfigUrl: "https://[2001:db8::1]:8443/config.js",
+				},
+			],
+		})
+
+		expect(config.server?.allowedHosts).toEqual(["[2001:db8::1]"])
+	})
+
+	it("ignores runtime config URLs without a protocol", () => {
+		const config = resolveMagicEnvProfileConfig({
+			env: { MAGIC_ENV_PROFILE: "invalid-url" },
+			profiles: [
+				{
+					name: "invalid-url",
+					runtimeConfigUrl: "example.test:8443/config.js",
+				},
+			],
+		})
+
+		expect(config).toEqual({})
+	})
 })
 
 describe("resolveMagicEnvProfileRuntimeConfig", () => {
@@ -102,7 +161,7 @@ describe("resolveMagicEnvProfileRuntimeConfig", () => {
 		expect(runtimeConfig).toEqual({
 			profileName: "test",
 			runtimeConfigUrl:
-				"https://magic-web.saas-test.cn-beijing.volce.teamshare.work/config.js",
+				"https://magic-web.example.test/config.js",
 		})
 	})
 })
@@ -125,7 +184,7 @@ describe("vitePluginMagicEnvProfiles", () => {
 		const config = await runConfigHook(plugin, "enterprise-test")
 
 		expect(config?.server?.allowedHosts).toContain(
-			"magic-web.saas-test.cn-beijing.volce.teamshare.work",
+			"magic-web.example.test",
 		)
 	})
 
@@ -141,7 +200,7 @@ describe("vitePluginMagicEnvProfiles", () => {
 		const config = await runConfigHook(plugin, "development")
 
 		expect(config?.server?.allowedHosts).toContain(
-			"magic-web.saas-test.cn-beijing.volce.teamshare.work",
+			"magic-web.example.test",
 		)
 		expect(config?.server?.allowedHosts).not.toContain("lower-layer.local")
 	})
@@ -175,7 +234,7 @@ describe("vitePluginMagicEnvProfiles", () => {
 		expect(response.body).toBe(remoteConfig)
 		expect(response.next).not.toHaveBeenCalled()
 		expect(fetchMock).toHaveBeenCalledWith(
-			"https://magic-web.saas-test.cn-beijing.volce.teamshare.work/config.js",
+			"https://magic-web.example.test/config.js",
 			{
 				headers: {
 					"cache-control": "no-cache",

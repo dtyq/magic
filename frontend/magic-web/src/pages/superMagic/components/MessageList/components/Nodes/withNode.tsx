@@ -1,14 +1,9 @@
+import { AssistantMessageHeader } from "./AssistantMessageHeader"
 import type { NodeProps } from "./types"
-import { type ComponentType, useMemo } from "react"
-import { useTranslation } from "react-i18next"
+import { type ComponentType } from "react"
 import { observer } from "mobx-react-lite"
 import { withUserNode } from "../Card/UserCard"
 import { withAssistantCard } from "../Card/AssistantCard"
-import { useMessageListContext } from "../../context"
-import { globalConfigStore } from "@/stores/globalConfig"
-import { getAvatarUrl } from "@/utils/avatar"
-import dayjs from "@/lib/dayjs"
-import { cn } from "@/lib/utils"
 
 export interface WithNodeProps extends NodeProps {
 	role: string
@@ -29,53 +24,15 @@ export const withNode = (WrapperComponent: ComponentType<WithNodeProps>) => {
 	return observer((props: WithNodeProps) => {
 		const { role, isFirst, classNames } = props
 
-		const { t } = useTranslation("super")
-		const { renderAssistantAvatar } = useMessageListContext()
-
-		const globalConfig = globalConfigStore.globalConfig
-		const avatarUrl = globalConfig?.minimal_logo || ""
-
 		// Select component by role without creating new components inside useMemo
 		const ElementNode =
 			role === "assistant" || role === "tool" ? AssistantNode : UserNodeComponent
 
-		// Format send time as "MM/DD HH:mm"
-		const formattedTime = useMemo(() => {
-			const sendTime = props?.node?.send_time
-			if (!sendTime) return t("ui.agentLabel")
-			return dayjs(sendTime * 1000).format("MM/DD HH:mm")
-		}, [props?.node?.send_time, t])
-
 		if (isFirst) {
-			const assistantAvatar = renderAssistantAvatar?.({
-				className: classNames?.icon,
-			}) ?? (
-				<img
-					src={getAvatarUrl(avatarUrl, 24)}
-					alt=""
-					className={cn(
-						"z-[10] flex size-6 items-center justify-center rounded-full",
-						classNames?.icon,
-					)}
-					data-testid="with-node-image"
-				/>
-			)
 			return (
-				<div className="relative w-full pt-[24px] last:mb-0">
-					<div
-						className={cn(
-							"z-2 absolute left-[-25px] top-[-3px] flex h-6 w-full gap-1.5",
-							"mb-[14px]",
-							classNames?.header,
-						)}
-					>
-						{assistantAvatar}
-						<span className="text-[12px] leading-6 text-muted-foreground">
-							{formattedTime}
-						</span>
-					</div>
+				<AssistantMessageHeader sendTime={props.node?.send_time} classNames={classNames}>
 					<ElementNode {...props} classNames={classNames} />
-				</div>
+				</AssistantMessageHeader>
 			)
 		}
 		return <ElementNode {...props} classNames={classNames} />

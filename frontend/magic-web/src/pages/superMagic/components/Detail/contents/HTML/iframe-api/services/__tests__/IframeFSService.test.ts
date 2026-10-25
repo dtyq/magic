@@ -58,7 +58,7 @@ describe("IframeFSService", () => {
 			path: "./assets/image.png",
 		})
 
-		expect(getIframeDownloadUrl).toHaveBeenCalledWith(["image-id"])
+		expect(getIframeDownloadUrl).toHaveBeenCalledWith(["image-id"], null)
 		expect(postToIframe).toHaveBeenCalledWith({
 			type: FS_MESSAGE_TYPES.GET_FILE_URL_RESPONSE,
 			requestId: "req-get-url",
@@ -119,6 +119,31 @@ describe("IframeFSService", () => {
 				success: false,
 			}),
 		)
+	})
+
+	it("returns a context error before authorization when project APIs are unavailable", async () => {
+		const projectContextError = "Share mode does not support project APIs"
+		const authorizePermission = vi.fn()
+		const { service, postToIframe } = createService({
+			fileList: [file("root-id", "shared.txt", "shared.txt")],
+			projectId: undefined,
+			projectContextUnavailableError: projectContextError,
+			authorizePermission,
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.READ_REQUEST, {
+			type: FS_MESSAGE_TYPES.READ_REQUEST,
+			requestId: "req-share-context",
+			path: "/shared.txt",
+		})
+
+		expect(authorizePermission).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith({
+			type: FS_MESSAGE_TYPES.READ_RESPONSE,
+			requestId: "req-share-context",
+			success: false,
+			error: projectContextError,
+		})
 	})
 
 	it("requires fs.project.write before checking whether a project-root delete target exists", async () => {
@@ -1118,5 +1143,138 @@ describe("IframeFSService", () => {
 		expect(deleteFilesFn).not.toHaveBeenCalled()
 		expect(moveFileFn).not.toHaveBeenCalled()
 		expect(renameFileFn).not.toHaveBeenCalled()
+	})
+})
+
+describe("IframeFSService mutation visibility", () => {
+	it("does not change the file list when upload or deletion fails", async () => {
+		const original = file("existing", "app/existing.txt")
+		const { service, postToIframe } = createService({
+			fileList: [original],
+			uploadFn: vi.fn().mockRejectedValue(new Error("Upload failed")),
+			deleteFn: vi.fn().mockRejectedValue(new Error("Delete failed")),
+		})
+		await service.handleMessage(FS_MESSAGE_TYPES.WRITE_REQUEST, {
+			requestId: "write",
+			path: "new.txt",
+			content: "new",
+		})
+		expect(postToIframe).toHaveBeenLastCalledWith(expect.objectContaining({ success: false }))
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
+			requestId: "delete",
+			path: "existing.txt",
+		})
+		expect(postToIframe).toHaveBeenLastCalledWith(expect.objectContaining({ success: false }))
+		await service.handleMessage(FS_MESSAGE_TYPES.LIST_REQUEST, { requestId: "list", dir: "./" })
+		expect(postToIframe).toHaveBeenLastCalledWith(
+			expect.objectContaining({ files: ["existing.txt"] }),
+		)
+		service.destroy()
+	})
+
+	it.each(["text", "blob"])("exposes a new %s file before attachment refresh", async (kind) => {
+		const created = file("new-id", "app/data/hello.txt")
+		const { service, postToIframe, cfg } = createService({
+			uploadFn: vi.fn().mockResolvedValue(created),
+			mkdirFn: vi.fn(async ({ name }) => ({ file_id: `dir-${name}` })),
+		})
+		await service.handleMessage(
+			kind === "text" ? FS_MESSAGE_TYPES.WRITE_REQUEST : FS_MESSAGE_TYPES.WRITE_BLOB_REQUEST,
+			{
+				requestId: "write",
+				path: "data/hello.txt",
+				content: "hello",
+				blob: new Blob(["hello"]),
+			},
+		)
+		expect(postToIframe).toHaveBeenLastCalledWith(
+			expect.objectContaining({ requestId: "write", success: true }),
+		)
+		// A delayed unrelated attachment snapshot must not hide the successful write.
+		service.updateFileList([])
+		vi.mocked(getIframeDownloadUrl).mockResolvedValue([
+			{ file_id: "new-id", url: "https://example.com/hello" },
+		])
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("hello"))
+		try {
+			await service.handleMessage(FS_MESSAGE_TYPES.READ_REQUEST, {
+				requestId: "read",
+				path: "data/hello.txt",
+			})
+			expect(postToIframe).toHaveBeenLastCalledWith(
+				expect.objectContaining({ requestId: "read", success: true, content: "hello" }),
+			)
+			await service.handleMessage(FS_MESSAGE_TYPES.WRITE_REQUEST, {
+				requestId: "overwrite",
+				path: "data/hello.txt",
+				content: "again",
+			})
+			expect(cfg.saveContentFn).toHaveBeenCalledWith({ file_id: "new-id", content: "again" })
+			expect(cfg.uploadFn).toHaveBeenCalledTimes(1)
+		} finally {
+			fetchMock.mockRestore()
+			service.destroy()
+		}
+	})
+
+	it("removes deleted directory children before replying and tolerates a stale snapshot", async () => {
+		const initial = [
+			file("dir", "app/data", "data", { is_directory: true }),
+			file("child", "app/data/a.txt"),
+		]
+		const { service, postToIframe } = createService({
+			fileList: initial,
+			deleteFilesFn: vi.fn(),
+		})
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_DIR_REQUEST, {
+			requestId: "delete",
+			path: "data",
+		})
+		expect(postToIframe).toHaveBeenLastCalledWith(expect.objectContaining({ success: true }))
+		service.updateFileList(initial)
+		await service.handleMessage(FS_MESSAGE_TYPES.LIST_DIR_REQUEST, {
+			requestId: "list",
+			dir: "data",
+		})
+		expect(postToIframe).toHaveBeenLastCalledWith(
+			expect.objectContaining({ success: true, entries: [] }),
+		)
+		// Once acknowledged, subsequent external recreation must be visible again.
+		service.updateFileList([])
+		service.updateFileList(initial)
+		await service.handleMessage(FS_MESSAGE_TYPES.LIST_DIR_REQUEST, {
+			requestId: "list-again",
+			dir: "data",
+		})
+		expect(postToIframe).toHaveBeenLastCalledWith(
+			expect.objectContaining({ entries: [expect.objectContaining({ name: "a.txt" })] }),
+		)
+		service.destroy()
+	})
+
+	it("keeps rename results without mutating the host snapshot", async () => {
+		const initial = [file("id", "app/a.txt", "a.txt")]
+		const { service, postToIframe } = createService({
+			fileList: initial,
+			renameFileFn: vi.fn(),
+			deleteFn: vi.fn(),
+		})
+		await service.handleMessage(FS_MESSAGE_TYPES.RENAME_FILE_REQUEST, {
+			requestId: "rename",
+			path: "a.txt",
+			newName: "b.txt",
+		})
+		expect(postToIframe).toHaveBeenLastCalledWith(expect.objectContaining({ success: true }))
+		expect(initial[0].relative_file_path).toBe("app/a.txt")
+		service.updateFileList(initial)
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
+			requestId: "delete",
+			path: "b.txt",
+		})
+		expect(postToIframe).toHaveBeenLastCalledWith(expect.objectContaining({ success: true }))
+		service.updateFileList(initial)
+		await service.handleMessage(FS_MESSAGE_TYPES.LIST_REQUEST, { requestId: "list", dir: "./" })
+		expect(postToIframe).toHaveBeenLastCalledWith(expect.objectContaining({ files: [] }))
+		service.destroy()
 	})
 })

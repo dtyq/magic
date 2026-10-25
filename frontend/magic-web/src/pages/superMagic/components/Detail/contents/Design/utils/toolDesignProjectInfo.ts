@@ -1,13 +1,21 @@
 import { LayerElement } from "@/components/CanvasDesign/runtime/document/types"
 import projectFilesStore from "@/stores/projectFiles"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { requestCanvasElementFocus } from "../hooks/useDesignFocusElement"
 
-export function getToolDesignProjectInfo(tool: unknown) {
+export function getToolDesignProjectInfo(
+	tool: unknown,
+	filesStore: Pick<
+		typeof projectFilesStore,
+		"workspaceFileTree" | "workspaceFilesList"
+	> = projectFilesStore,
+) {
 	const toolData = tool as ToolDesignProjectData
 	const magicProjectJSFile = toolData.attachments?.find(
 		(item) => item.filename === "magic.project.js" || item.file_name === "magic.project.js",
 	)
-	const fileTree = projectFilesStore.workspaceFileTree as unknown as WorkspaceFileItem[]
-	const fileList = projectFilesStore.workspaceFilesList as unknown as WorkspaceFileItem[]
+	const fileTree = filesStore.workspaceFileTree as unknown as WorkspaceFileItem[]
+	const fileList = filesStore.workspaceFilesList as unknown as WorkspaceFileItem[]
 	const designProject = findDesignProjectByMagicProjectFile(
 		magicProjectJSFile,
 		fileTree,
@@ -41,6 +49,38 @@ export function getDesignProjectCurrentFileByProjectPath(options: {
 	if (!id || !name) return undefined
 
 	return { id, name }
+}
+
+export function focusCanvasElementByProjectPath(options: {
+	projectPath: string
+	elementId: string
+	contentId?: string
+	showGenerationDetails?: boolean
+	filesStore?: Pick<typeof projectFilesStore, "workspaceFileTree" | "workspaceFilesList">
+}): boolean {
+	const filesStore = options.filesStore ?? projectFilesStore
+	const designProject = getDesignProjectCurrentFileByProjectPath({
+		projectPath: options.projectPath,
+		attachments: filesStore.workspaceFileTree,
+		flatAttachments: filesStore.workspaceFilesList,
+	})
+	if (!designProject) return false
+
+	pubsub.publish(PubSubEvents.Open_File_Tab, {
+		fileId: designProject.id,
+	})
+
+	requestCanvasElementFocus({
+		canvasDesignId: designProject.id,
+		elementIds: [options.elementId],
+		selectElement: [options.elementId],
+		contentId: options.contentId,
+		showGenerationDetails: options.showGenerationDetails,
+		animated: false,
+		padding: { top: "25%", right: "25%", bottom: "25%", left: "25%" },
+	})
+
+	return true
 }
 
 export function isSameDesignProjectPath(options: {

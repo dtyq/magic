@@ -5,6 +5,7 @@
 from agentlang.chat_history.chat_history_models import (
     format_duration_to_str, parse_duration_from_str,
     SystemMessage, UserMessage,
+    UserMessageContentPart,
     AssistantMessage, ToolMessage,
     ChatMessage,
     FunctionCall, ToolCall,
@@ -16,6 +17,7 @@ from agentlang.llms.token_usage.models import TokenUsage
 __all__ = [
     'format_duration_to_str', 'parse_duration_from_str',
     'SystemMessage', 'UserMessage',
+    'UserMessageContentPart',
     'AssistantMessage', 'ToolMessage',
     'ChatMessage',
     'FunctionCall', 'ToolCall',

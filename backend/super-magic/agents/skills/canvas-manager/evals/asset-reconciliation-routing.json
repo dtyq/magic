@@ -1,0 +1,7 @@
+{
+  "id": "asset-reconciliation-routing",
+  "prompt": "The user says the Canvas is missing a file from the images directory and asks for a repair plan.",
+  "expected_reference": "references/asset-reconciliation.md",
+  "expected_tools": ["query_canvas_overview", "query_canvas_element_details"],
+  "constraints": ["Do not write until the user explicitly requests repair.", "Never delete Canvas Elements or Content.", "If Canvas tools cannot complete the requested repair, use the controlled magic.project.js gzip + Base64 recovery fallback only for the exact target project."]
+}

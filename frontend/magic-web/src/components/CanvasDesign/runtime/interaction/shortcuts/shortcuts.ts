@@ -79,6 +79,15 @@ export const SHORTCUTS: ShortcutDefinition[] = [
 
 	// ===== 编辑快捷键 =====
 	{
+		id: "edit.duplicate",
+		name: "创建副本",
+		key: "d",
+		modifiers: ["mod"],
+		category: "edit",
+		preventDefault: true,
+		description: "为选中元素创建副本",
+	},
+	{
 		id: "edit.delete",
 		name: "删除",
 		key: "delete",
@@ -279,12 +288,12 @@ export const SHORTCUTS: ShortcutDefinition[] = [
 	},
 	{
 		id: "distribute.auto-layout",
-		name: "自动布局",
+		name: "智能排列",
 		key: "a",
 		modifiers: ["shift"],
 		category: "selection",
 		preventDefault: true,
-		description: "自动布局元素",
+		description: "根据连线或类型智能排列元素",
 	},
 
 	// ===== 层级快捷键 =====

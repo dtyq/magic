@@ -1,15 +1,15 @@
-import { genRequestUrl } from "@/utils/http"
-
 import type { Common } from "@/types/common"
 import { env } from "@/utils/env"
-import type { HttpClient, RequestConfig } from "@/apis/core/HttpClient"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
 
-export const generateCommonApi = (fetch: HttpClient) => ({
+export const generateCommonApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * 获取应用国际化语言、国际冠号等配置(开源版本本地获取)
 	 * @returns
 	 */
-	async getInternationalizedSettings(options?: Pick<RequestConfig, "skipAppInitWait">) {
+	async getInternationalizedSettings(
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<Common.InternationalizedSettingsResponse> {
 		void options
 		return {
 			phone_area_codes: [
@@ -95,7 +95,10 @@ export const generateCommonApi = (fetch: HttpClient) => ({
 	 */
 	async getPrivateConfigure(
 		code: string,
-		options?: Pick<RequestConfig, "skipAppInitWait">,
+		options?: Pick<
+			RequestConfig,
+			"skipAppInitWait" | "enableRequestUnion" | "enableErrorMessagePrompt"
+		>,
 	): Promise<{ config: Common.PrivateConfig }> {
 		// 当且仅当 code 为空或不存在则返回当前 magic 部署环境的对应相同环境下 teamshare、keewood 配置
 		if (!code || code === "") {
@@ -121,8 +124,7 @@ export const generateCommonApi = (fetch: HttpClient) => ({
 			}
 		}
 		return fetch.post<{ config: Common.PrivateConfig }>(
-			env("MAGIC_SERVICE_KEEWOOD_BASE_URL", true) +
-				genRequestUrl("/v4/private-deployments/configuration"),
+			env("MAGIC_SERVICE_KEEWOOD_BASE_URL", true) + "/v4/private-deployments/configuration",
 			{ identifier: code || "" },
 			{ enableRequestUnion: true, ...options },
 		)

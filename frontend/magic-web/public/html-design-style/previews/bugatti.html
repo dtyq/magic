@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BUGATTI — Pour l'Éternité | Tourbillon</title>
+  <style>
+    :root {
+      --canvas: #000000;
+      --surface-soft: #0d0d0d;
+      --surface-card: #141414;
+      --primary: #ffffff;
+      --on-dark: #ffffff;
+      --body: #cccccc;
+      --body-strong: #e6e6e6;
+      --muted: #999999;
+      --muted-soft: #666666;
+      --hairline: #262626;
+      --link: #c3d9f3;
+      --font-display: "Bugatti Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-serif: "Bugatti Text Regular", "EB Garamond", Garamond, serif;
+      --font-mono: "Bugatti Monospace", ui-monospace, "SF Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--canvas);
+      color: var(--on-dark);
+      font-family: var(--font-serif);
+      font-weight: 400;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Top Navigation */
+    .bugatti-nav {
+      position: sticky; top: 0; z-index: 100;
+      height: 56px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(16px); border-bottom: 1px solid var(--hairline);
+    }
+    .nav-label {
+      font-family: var(--font-mono); font-size: 12px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--on-dark); cursor: pointer;
+      display: flex; align-items: center; gap: 8px; transition: color 0.2s;
+    }
+    .nav-label:hover { color: var(--link); }
+    .nav-wordmark {
+      font-family: var(--font-display); font-size: 15px; font-weight: 400;
+      letter-spacing: 6px; text-transform: uppercase; color: var(--on-dark);
+    }
+
+    /* Atlantic Spine Motif */
+    .atlantic-spine-wrap { position: relative; width: 100%; overflow: hidden; }
+    .atlantic-spine {
+      position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.06) 65%, transparent 100%);
+      transform: translateX(-50%); pointer-events: none; z-index: 1;
+    }
+
+    /* Hero Showcase - Optimized for 16:10 thumbnail preview */
+    .hero-stage {
+      position: relative; min-height: 540px; display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-start; padding: 40px 24px 50px;
+      text-align: center; border-bottom: 1px solid var(--hairline);
+      background: radial-gradient(circle at 50% 12%, #111215 0%, #000000 68%);
+    }
+    .hero-eyebrow {
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+    }
+    .hero-title {
+      font-family: var(--font-display); font-size: clamp(36px, 5.2vw, 64px);
+      font-weight: 400; letter-spacing: 5px; line-height: 1.05;
+      text-transform: uppercase; color: var(--on-dark); margin-bottom: 8px;
+    }
+    .hero-tagline {
+      font-family: var(--font-serif); font-size: clamp(15px, 1.8vw, 19px);
+      color: var(--body); font-style: italic; margin-bottom: 24px;
+    }
+
+    /* The Horseshoe Grille SVG */
+    .horseshoe-emblem-wrap { width: 210px; height: 185px; margin: 0 auto 24px; }
+    .horseshoe-svg { width: 100%; height: 100%; filter: drop-shadow(0 8px 24px rgba(255,255,255,0.08)); }
+
+    /* Transparent Pill CTA with 1px White Outline */
+    .cta-group { display: flex; gap: 16px; justify-content: center; align-items: center; z-index: 2; }
+    .btn-bugatti-pill {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 44px; padding: 0 34px; border-radius: 9999px;
+      border: 1px solid var(--primary); background: transparent; color: var(--on-dark);
+      font-family: var(--font-mono); font-size: 13px; font-weight: 400;
+      letter-spacing: 2.5px; text-transform: uppercase; cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .btn-bugatti-pill:hover { background: rgba(255,255,255,0.1); box-shadow: 0 0 16px rgba(255,255,255,0.2); }
+    .btn-secondary-link {
+      font-family: var(--font-mono); font-size: 12px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--link); display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    /* Tourbillon Specs Strip */
+    .specs-strip {
+      max-width: 1240px; margin: 0 auto; display: grid;
+      grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--hairline);
+    }
+    .spec-cell {
+      padding: 32px 20px; text-align: center; border-right: 1px solid var(--hairline);
+      background: var(--canvas); transition: background 0.3s ease;
+    }
+    .spec-cell:last-child { border-right: none; }
+    .spec-cell:hover { background: var(--surface-soft); }
+    .spec-value {
+      font-family: var(--font-display); font-size: clamp(26px, 3vw, 40px);
+      font-weight: 400; letter-spacing: 2px; color: var(--on-dark); line-height: 1.1; margin-bottom: 6px;
+    }
+    .spec-unit { font-size: 16px; color: var(--muted); margin-left: 2px; }
+    .spec-title {
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+    }
+    .spec-sub { font-family: var(--font-serif); font-size: 13px; color: var(--muted-soft); }
+
+    /* Horology Section */
+    .horology-section { max-width: 1240px; margin: 0 auto; padding: 64px 48px; border-bottom: 1px solid var(--hairline); }
+    .section-header-wrap { text-align: center; margin-bottom: 40px; }
+    .section-caption {
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 2.5px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+    }
+    .section-title {
+      font-family: var(--font-display); font-size: 32px; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--on-dark); margin-bottom: 12px;
+    }
+    .section-lead { max-width: 640px; margin: 0 auto; color: var(--body); font-size: 15px; }
+
+    /* Gauge Cockpit Grid */
+    .gauge-cockpit-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center; }
+    .gauge-display-card {
+      background: var(--surface-card); border: 1px solid var(--hairline);
+      padding: 28px; text-align: center;
+    }
+    .gauge-svg-container { width: 100%; max-width: 420px; height: 260px; margin: 0 auto; }
+    .cockpit-spec-list { display: flex; flex-direction: column; gap: 18px; }
+    .spec-item { padding: 14px 0; border-bottom: 1px solid var(--hairline); }
+    .spec-item-label {
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+    }
+    .spec-item-val {
+      font-family: var(--font-display); font-size: 19px; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--on-dark); margin-bottom: 4px;
+    }
+    .spec-item-desc { font-family: var(--font-serif); font-size: 13.5px; color: var(--body); }
+
+    /* Engineering Cards */
+    .engineering-grid {
+      max-width: 1240px; margin: 0 auto; padding: 64px 48px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .eng-card { background: var(--surface-card); border: 1px solid var(--hairline); padding: 28px 24px; }
+    .eng-card-number { font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; color: var(--muted); margin-bottom: 12px; }
+    .eng-card-title {
+      font-family: var(--font-display); font-size: 18px; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--on-dark); margin-bottom: 10px;
+    }
+    .eng-card-body { font-size: 13.5px; color: var(--body); line-height: 1.55; }
+
+    /* Footer */
+    .bugatti-footer {
+      max-width: 1240px; margin: 0 auto; padding: 56px 48px 40px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+    }
+    .footer-wordmark {
+      font-family: var(--font-display); font-size: 18px; letter-spacing: 8px;
+      text-transform: uppercase; color: var(--on-dark); margin-bottom: 20px;
+    }
+    .footer-links { display: flex; gap: 28px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center; }
+    .footer-link {
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--muted); transition: color 0.2s;
+    }
+    .footer-link:hover { color: var(--on-dark); }
+    .footer-legal { font-family: var(--font-serif); font-size: 12.5px; color: var(--muted-soft); max-width: 580px; }
+
+    @media (max-width: 860px) {
+      .bugatti-nav { padding: 0 20px; }
+      .specs-strip { grid-template-columns: repeat(2, 1fr); }
+      .spec-cell:nth-child(2) { border-right: none; }
+      .gauge-cockpit-grid, .engineering-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="atlantic-spine-wrap">
+    <div class="atlantic-spine"></div>
+
+    <!-- Navigation -->
+    <header class="bugatti-nav">
+      <div class="nav-label">
+        <svg width="14" height="10" viewBox="0 0 16 12" fill="none">
+          <line x1="0" y1="1" x2="16" y2="1" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="0" y1="6" x2="12" y2="6" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="0" y1="11" x2="16" y2="11" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <span>Menu</span>
+      </div>
+      <div class="nav-wordmark">Bugatti</div>
+      <div class="nav-label"><span>Atelier</span></div>
+    </header>
+
+    <!-- Hero Stage (First 500px Viewport) -->
+    <section class="hero-stage">
+      <div class="hero-eyebrow">Molsheim · Pour l'Éternité</div>
+      <h1 class="hero-title">Tourbillon</h1>
+      <p class="hero-tagline">An entirely new mechanical horology supercar · 8.3L V16</p>
+
+      <!-- Horseshoe Grille & Macaron SVG -->
+      <div class="horseshoe-emblem-wrap">
+        <svg class="horseshoe-svg" viewBox="0 0 210 185" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22 170 V82 C22 38 58 12 105 12 C152 12 188 38 188 82 V170" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M32 170 V85 C32 45 64 22 105 22 C146 22 178 45 178 85 V170" stroke="#333333" stroke-width="1.2"/>
+          <line x1="42" y1="65" x2="168" y2="65" stroke="#222" stroke-width="1" stroke-dasharray="2 3"/>
+          <line x1="35" y1="90" x2="175" y2="90" stroke="#222" stroke-width="1" stroke-dasharray="2 3"/>
+          <line x1="33" y1="115" x2="177" y2="115" stroke="#222" stroke-width="1" stroke-dasharray="2 3"/>
+          <line x1="33" y1="140" x2="177" y2="140" stroke="#222" stroke-width="1" stroke-dasharray="2 3"/>
+          <line x1="105" y1="22" x2="105" y2="170" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+          
+          <!-- Macaron Emblem -->
+          <ellipse cx="105" cy="50" rx="26" ry="16" fill="#d11218" stroke="#ffffff" stroke-width="1.2"/>
+          <ellipse cx="105" cy="50" rx="23" ry="13" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-dasharray="1.5 2"/>
+          <text x="105" y="54" font-family="'Bugatti Display', sans-serif" font-size="9.5" font-weight="700" fill="#ffffff" letter-spacing="1.2" text-anchor="middle">BUGATTI</text>
+        </svg>
+      </div>
+
+      <!-- Transparent Pill CTA -->
+      <div class="cta-group">
+        <button class="btn-bugatti-pill">Discover Tourbillon</button>
+        <a href="#horology" class="btn-secondary-link">
+          <span>Horology Specs</span>
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6H9.5M9.5 6L6 2.5M9.5 6L6 9.5" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </a>
+      </div>
+    </section>
+
+    <!-- Specs Strip -->
+    <section class="specs-strip">
+      <div class="spec-cell">
+        <div class="spec-value">1,800<span class="spec-unit">HP</span></div>
+        <div class="spec-title">Powertrain Output</div>
+        <div class="spec-sub">8.3L V16 + 3 E-Motors</div>
+      </div>
+      <div class="spec-cell">
+        <div class="spec-value">445<span class="spec-unit">KM/H</span></div>
+        <div class="spec-title">V-Max Top Speed</div>
+        <div class="spec-sub">Speed Key Engaged</div>
+      </div>
+      <div class="spec-cell">
+        <div class="spec-value">2.0<span class="spec-unit">S</span></div>
+        <div class="spec-title">0 – 100 KM/H</div>
+        <div class="spec-sub">All-Wheel Torque Vectoring</div>
+      </div>
+      <div class="spec-cell">
+        <div class="spec-value">9,000<span class="spec-unit">RPM</span></div>
+        <div class="spec-title">Engine Redline</div>
+        <div class="spec-sub">Naturally Aspirated</div>
+      </div>
+    </section>
+
+    <!-- Horology Cluster -->
+    <section id="horology" class="horology-section">
+      <div class="section-header-wrap">
+        <div class="section-caption">Swiss Horology · Concepto Partnership</div>
+        <h2 class="section-title">The Skeleton Instrument Cluster</h2>
+        <p class="section-lead">
+          Crafted by Swiss horologists from over 600 components in titanium and sapphire crystal. 
+          Pure analog mechanical immortality anchored directly to the steering column.
+        </p>
+      </div>
+
+      <div class="gauge-cockpit-grid">
+        <div class="gauge-display-card">
+          <div class="gauge-svg-container">
+            <svg viewBox="0 0 420 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Central Concentric Speed & RPM Dial -->
+              <circle cx="210" cy="130" r="98" stroke="#333338" stroke-width="1.5" fill="#0c0d10"/>
+              <circle cx="210" cy="130" r="82" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1" stroke-dasharray="2 5"/>
+              
+              <!-- Left Sub-Dial: Battery & Power -->
+              <circle cx="100" cy="145" r="50" stroke="#2c2d32" stroke-width="1.2" fill="#08090a"/>
+              <text x="100" y="136" font-family="'Bugatti Monospace', monospace" font-size="8.5" fill="#999999" letter-spacing="1" text-anchor="middle">KW / HP</text>
+              <line x1="100" y1="145" x2="118" y2="128" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="100" cy="145" r="3" fill="#ffffff"/>
+              <circle cx="100" cy="145" r="1.2" fill="#d11218"/>
+
+              <!-- Right Sub-Dial: Temperature & Fuel -->
+              <circle cx="320" cy="145" r="50" stroke="#2c2d32" stroke-width="1.2" fill="#08090a"/>
+              <text x="320" y="136" font-family="'Bugatti Monospace', monospace" font-size="8.5" fill="#999999" letter-spacing="1" text-anchor="middle">TEMP °C</text>
+              <line x1="320" y1="145" x2="302" y2="128" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="320" cy="145" r="3" fill="#ffffff"/>
+              <circle cx="320" cy="145" r="1.2" fill="#d11218"/>
+
+              <!-- Skeleton Bridges & Gears -->
+              <line x1="170" y1="105" x2="250" y2="155" stroke="#44444a" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="250" y1="105" x2="170" y2="155" stroke="#44444a" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="185" cy="118" r="12" stroke="#555560" stroke-width="1.2" stroke-dasharray="2 2"/>
+              <circle cx="235" cy="145" r="15" stroke="#555560" stroke-width="1.2" stroke-dasharray="2 2"/>
+              <circle cx="235" cy="145" r="3" fill="#d11218"/>
+              <circle cx="185" cy="145" r="3" fill="#d11218"/>
+
+              <!-- Central Speed & RPM Needles -->
+              <line x1="210" y1="130" x2="265" y2="75" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+              <line x1="210" y1="130" x2="165" y2="85" stroke="#d11218" stroke-width="1.6" stroke-linecap="round"/>
+              <circle cx="210" cy="130" r="9" fill="#141416" stroke="#ffffff" stroke-width="1.4"/>
+              <circle cx="210" cy="130" r="3.5" fill="#d11218"/>
+
+              <text x="210" y="200" font-family="'Bugatti Display', sans-serif" font-size="11" fill="#ffffff" letter-spacing="2" text-anchor="middle">550 KM/H</text>
+              <text x="210" y="214" font-family="'Bugatti Monospace', monospace" font-size="7.5" fill="#999999" letter-spacing="1.5" text-anchor="middle">10,000 RPM · SWISS TITANIUM</text>
+            </svg>
+          </div>
+          <div style="font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 2px; color: var(--muted); margin-top: 14px; text-transform: uppercase;">
+            Fixed Center Hub Architecture · Zero Screen Instrument
+          </div>
+        </div>
+
+        <div class="cockpit-spec-list">
+          <div class="spec-item">
+            <div class="spec-item-label">Horological Tolerance</div>
+            <div class="spec-item-val">0.005 Millimeters</div>
+            <div class="spec-item-desc">Milled from solid titanium with synthetic ruby pivot bearings ensuring zero thermal play.</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-item-label">Sapphire Crystal Glass</div>
+            <div class="spec-item-val">Dual Anti-Reflective Coating</div>
+            <div class="spec-item-desc">Optically pure sapphire eliminates reflections under direct sunlight at terminal velocity.</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-item-label">Steering Integration</div>
+            <div class="spec-item-val">Fixed-Hub Geometry</div>
+            <div class="spec-item-desc">The rim turns around the stationary cluster, guaranteeing line-of-sight across every steering angle.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Engineering Grid -->
+    <section class="engineering-grid">
+      <div class="eng-card">
+        <div class="eng-card-number">01 / CHASSIS</div>
+        <h3 class="eng-card-title">T800 Carbon Monocoque</h3>
+        <p class="eng-card-body">
+          Crash structures integrated with 3D-printed organic aluminium suspension wishbones, reducing weight by 45% over conventional forgings.
+        </p>
+      </div>
+      <div class="eng-card">
+        <div class="eng-card-number">02 / PROPULSION</div>
+        <h3 class="eng-card-title">Cosworth 8.3L V16</h3>
+        <p class="eng-card-body">
+          One-meter long atmospheric powerplant revving to 9,000 RPM without forced induction, paired with three 800V oil-cooled electric motors.
+        </p>
+      </div>
+      <div class="eng-card">
+        <div class="eng-card-number">03 / AERODYNAMICS</div>
+        <h3 class="eng-card-title">Atlantic Center Spine</h3>
+        <p class="eng-card-body">
+          The heritage spine stabilizes laminar flow over the rear diffuser while channeling cooling air directly into the naturally aspirated intake plenum.
+        </p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bugatti-footer">
+      <div class="footer-wordmark">Bugatti</div>
+      <div class="footer-links">
+        <a href="#" class="footer-link">Tourbillon</a>
+        <a href="#" class="footer-link">Heritage</a>
+        <a href="#" class="footer-link">Sur Mesure</a>
+        <a href="#" class="footer-link">Molsheim Atelier</a>
+        <a href="#" class="footer-link">Contact</a>
+      </div>
+      <div class="footer-legal">
+        © 2026 Bugatti Automobiles S.A.S. Tourbillon: 18.5 l/100 km combined · 420 g/km CO2.
+      </div>
+    </footer>
+  </div>
+
+</body>
+</html>

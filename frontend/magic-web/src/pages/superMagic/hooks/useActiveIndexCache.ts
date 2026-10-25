@@ -2,9 +2,6 @@ import { useEffect, useMemo, useCallback } from "react"
 import { useDebounceFn } from "ahooks"
 import { useOrganization } from "@/models/user/hooks/useOrganization"
 import { ProjectStateRepository } from "@/models/config/repositories/SuperProjectStateRepository"
-import { getSuperIdState } from "../utils/query"
-import { WorkspaceStateCache } from "../utils/superMagicCache"
-import { userStore } from "@/models/user"
 
 interface UseActiveIndexCacheOptions {
 	selectedProjectId?: string
@@ -63,10 +60,6 @@ export function useActiveIndexCache({
 				}
 
 				const fileState = {
-					tabs: currentState?.fileState?.tabs || [],
-					activeTabId: currentState?.fileState?.activeTabId,
-					detailMode: currentState?.fileState?.detailMode,
-					singleModeDetail: currentState?.fileState?.singleModeDetail,
 					pptActiveIndexMap,
 				}
 
@@ -110,48 +103,9 @@ export function useActiveIndexCache({
 
 				if (cachedState?.fileState?.pptActiveIndexMap) {
 					const cachedIndex = cachedState.fileState.pptActiveIndexMap[fileId]
-
-					// 检查必要的状态是否已经准备好
-					const checkAndRestoreIndex = (retryCount = 0) => {
-						// 使用和 API 相同的方式检查状态
-						const workspaceState = WorkspaceStateCache.get(userStore.user.userInfo)
-						const superIdState = getSuperIdState()
-
-						const projectId =
-							(window as any).project_id ||
-							workspaceState?.projectId ||
-							superIdState?.projectId
-
-						// 检查 projectId 是否存在且与选中的项目ID一致
-						const isProjectIdValid = projectId && projectId === selectedProjectId
-
-						if (!isProjectIdValid && retryCount < 10) {
-							// 如果 project_id 还没准备好或不一致，100ms 后重试，最多重试10次
-							setTimeout(() => checkAndRestoreIndex(retryCount + 1), 100)
-							return
-						}
-
-						if (!isProjectIdValid) {
-							console.warn(
-								"⚠️ project_id 未准备好或与选中项目不一致，跳过 activeIndex 缓存恢复",
-								{
-									projectId,
-									selectedProjectId,
-								},
-							)
-							return
-						}
-
-						if (typeof cachedIndex === "number" && cachedIndex >= 0) {
-							console.log("🔄 恢复缓存的 PPT activeIndex:", {
-								fileId,
-								activeIndex: cachedIndex,
-							})
-							setActiveIndex(cachedIndex)
-						}
+					if (typeof cachedIndex === "number" && cachedIndex >= 0) {
+						setActiveIndex(cachedIndex)
 					}
-
-					checkAndRestoreIndex()
 				}
 			} catch (error) {
 				console.error("❌ 加载缓存 PPT activeIndex 失败:", error)

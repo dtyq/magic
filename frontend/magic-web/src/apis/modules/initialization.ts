@@ -1,18 +1,17 @@
-import { genRequestUrl } from "@/utils/http"
-import type { HttpClient } from "../core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import type {
 	InitializationData,
 	LLMConnectivityTestRequest,
 	LLMConnectivityTestResponse,
 } from "../types"
 
-export const generateInitializationApi = (fetch: HttpClient) => ({
+export const generateInitializationApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * 提交初始化配置
 	 * @param data 包含三个步骤的完整初始化数据
 	 */
 	submitInitialization(data: InitializationData) {
-		return fetch.post<{ success: boolean }>(genRequestUrl("/api/v1/bootstrap"), data)
+		return fetch.post<{ success: boolean }>("/api/v1/bootstrap", data)
 	},
 
 	/**
@@ -21,7 +20,7 @@ export const generateInitializationApi = (fetch: HttpClient) => ({
 	 */
 	testLLMConnectivity(data: LLMConnectivityTestRequest) {
 		return fetch.post<LLMConnectivityTestResponse>(
-			genRequestUrl("/api/v1/bootstrap/llm/connectivity-test"),
+			"/api/v1/bootstrap/llm/connectivity-test",
 			data,
 			{
 				enableAuthorizationVerification: false,

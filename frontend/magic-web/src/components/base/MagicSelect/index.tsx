@@ -8,7 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import type { OverlayZIndexScope } from "@/utils/overlayZIndex/overlayStackManager"
@@ -294,6 +294,8 @@ const MagicSelect = memo(
 				onClick?.(e)
 			}
 		}
+		// Keep the placeholder state explicit so selected values use the foreground color.
+		const isPlaceholder = !selectedOption
 
 		return (
 			<>
@@ -307,7 +309,7 @@ const MagicSelect = memo(
 						"flex w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:ring-ring/50",
 						"focus-visible:border-ring focus-visible:ring-[3px]",
 						"disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50",
-						"data-[placeholder]:text-muted-foreground",
+						"text-foreground data-[placeholder=true]:text-muted-foreground",
 						// Size-specific styles
 						"data-[size=default]:h-9 data-[size=default]:px-3 data-[size=default]:py-2 data-[size=default]:text-sm",
 						"data-[size=sm]:h-7 data-[size=sm]:px-1.5 data-[size=sm]:py-1.5 data-[size=sm]:text-xs",
@@ -315,7 +317,7 @@ const MagicSelect = memo(
 						triggerClassName,
 					)}
 					data-testid={dataTestId}
-					data-placeholder={!selectedOption}
+					data-placeholder={isPlaceholder ? "true" : undefined}
 				>
 					{prefix && <span className="mr-1.5 flex items-center">{prefix}</span>}
 					<span className="line-clamp-1 flex items-center gap-2">

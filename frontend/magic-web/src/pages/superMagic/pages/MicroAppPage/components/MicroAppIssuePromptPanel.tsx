@@ -18,7 +18,7 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 
 import {

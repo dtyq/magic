@@ -1,11 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import {
+	createSessionFileAccess,
+	createShareFileAccess,
+} from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { SHARED_MEDIA_THUMBNAIL_IMAGE_PROCESS } from "@/pages/superMagic/services/sharedMediaImageProcess"
+import {
 	__resetProjectFileImagePreviewCoordinatorForTests,
 	cancelProjectFileImagePreviewRequest,
+	isProjectFileImagePreviewDirectUrlUsable,
+	invalidateProjectFileImagePreviewDirectUrl,
 	projectFileImagePreviewCoordinatorConfig,
 	requestProjectFileImagePreview,
 	requestProjectFileImagePreviewBatch,
+	seedProjectFileImagePreviewDirectUrls,
 } from "./projectFileImagePreviewCoordinator"
 
 vi.mock("@/pages/superMagic/utils/api", () => ({
@@ -30,6 +38,7 @@ function createRows(fileIds: string[]) {
 describe("projectFileImagePreviewCoordinator", () => {
 	beforeEach(() => {
 		vi.useFakeTimers()
+		vi.setSystemTime(new Date("2026-09-09T14:00:00"))
 		vi.clearAllMocks()
 		__resetProjectFileImagePreviewCoordinatorForTests()
 	})
@@ -57,6 +66,100 @@ describe("projectFileImagePreviewCoordinator", () => {
 		})
 		expect(secondResult).toEqual(firstResult)
 		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
+	})
+
+	it("keeps concurrent share and session thumbnail requests in separate exchanges", async () => {
+		const source = createSource(2)
+		vi.mocked(getTemporaryDownloadUrl).mockResolvedValue(createRows([source.fileId]))
+		const shareAccess = createShareFileAccess({
+			token: "share-token-coalesce",
+			projectId: "project-1",
+		})
+		const sessionAccess = createSessionFileAccess({ projectId: "project-1" })
+
+		// Two identities request the same file in the same batch window. They must
+		// not be coalesced into one exchange or share an in-flight promise.
+		const shareRequest = requestProjectFileImagePreview(source, { access: shareAccess })
+		const sessionRequest = requestProjectFileImagePreview(source, { access: sessionAccess })
+		await vi.advanceTimersByTimeAsync(projectFileImagePreviewCoordinatorConfig.batchDelayMs * 3)
+		const [shareResult, sessionResult] = await Promise.all([shareRequest, sessionRequest])
+
+		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(2)
+		expect(shareResult.status).toBe("loaded")
+		expect(sessionResult.status).toBe("loaded")
+		const kinds = vi.mocked(getTemporaryDownloadUrl).mock.calls.map(([arg]) => arg.access?.kind)
+		expect(kinds).toEqual(["share", "session"])
+	})
+
+	it("seeds an attachment-list URL for reuse by the preview coordinator", async () => {
+		const source = {
+			...createSource(6),
+			directThumbnailUrl: "https://cdn.example.com/file-6-direct.jpg",
+			directThumbnailExpiresAt: "2099-01-01 00:00:00",
+			fileVersion: 3,
+			updatedAt: "2026-09-08 10:00:00",
+			resourceVersion: "resource-3",
+		}
+		seedProjectFileImagePreviewDirectUrls([source])
+
+		await expect(requestProjectFileImagePreview(source)).resolves.toEqual({
+			status: "loaded",
+			item: {
+				url: source.directThumbnailUrl,
+				expiresAt: source.directThumbnailExpiresAt,
+			},
+		})
+		expect(getTemporaryDownloadUrl).not.toHaveBeenCalled()
+	})
+
+	it("does not treat expired direct urls as usable", () => {
+		const source = {
+			...createSource(7),
+			directThumbnailUrl: "https://cdn.example.com/file-7-direct.jpg",
+			directThumbnailExpiresAt: "2026-09-09 14:00:10",
+		}
+
+		seedProjectFileImagePreviewDirectUrls([source])
+		expect(isProjectFileImagePreviewDirectUrlUsable(source)).toBe(false)
+	})
+
+	it("does not re-seed a rejected direct url", () => {
+		const source = {
+			...createSource(8),
+			directThumbnailUrl: "https://cdn.example.com/file-8-direct.jpg",
+			directThumbnailExpiresAt: "2099-01-01 00:00:00",
+		}
+
+		seedProjectFileImagePreviewDirectUrls([source])
+		invalidateProjectFileImagePreviewDirectUrl(source)
+		seedProjectFileImagePreviewDirectUrls([source])
+
+		expect(isProjectFileImagePreviewDirectUrlUsable(source)).toBe(false)
+	})
+	it("passes attachment version metadata through the shared URL resolver", async () => {
+		const source = {
+			...createSource(1),
+			fileVersion: 7,
+			updatedAt: "2026-09-04 10:00:00",
+			resourceVersion: "resource-version-7",
+		}
+		vi.mocked(getTemporaryDownloadUrl).mockResolvedValueOnce(createRows([source.fileId]))
+
+		const request = requestProjectFileImagePreview(source)
+		await vi.advanceTimersByTimeAsync(projectFileImagePreviewCoordinatorConfig.batchDelayMs)
+		await expect(request).resolves.toMatchObject({ status: "loaded" })
+
+		expect(getTemporaryDownloadUrl).toHaveBeenCalledWith({
+			file_ids: [source.fileId],
+			file_versions: { [source.fileId]: 7 },
+			download_mode: undefined,
+			is_download: undefined,
+			cache: undefined,
+			options: {
+				xMagicImageProcess: SHARED_MEDIA_THUMBNAIL_IMAGE_PROCESS,
+			},
+			enableErrorMessagePrompt: false,
+		})
 	})
 
 	it("keeps signed urls in memory only and exchanges again after reset", async () => {

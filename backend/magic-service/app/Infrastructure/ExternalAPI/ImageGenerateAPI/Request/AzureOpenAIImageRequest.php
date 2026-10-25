@@ -13,6 +13,8 @@ class AzureOpenAIImageRequest extends ImageGenerateRequest
 
     private ?string $quality = null;
 
+    private ?string $background = null;
+
     private int $n = 1;
 
     public function getReferenceImages(): array
@@ -43,6 +45,16 @@ class AzureOpenAIImageRequest extends ImageGenerateRequest
     public function getQuality(): ?string
     {
         return $this->quality;
+    }
+
+    public function setBackground(?string $background): void
+    {
+        $this->background = $background;
+    }
+
+    public function getBackground(): ?string
+    {
+        return $this->background;
     }
 
     public function setN(int $n): void

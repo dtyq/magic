@@ -1,8 +1,8 @@
 import { Topic, Workspace } from "../../../pages/Workspace/types"
 import { SuperMagicApi } from "@/apis"
 import { useMemoizedFn, useThrottleFn } from "ahooks"
-import { logger as Logger } from "@/utils/log"
-import { Editor } from "@tiptap/core"
+import { logger as Logger } from "@/infrastructure/logger"
+import { Editor } from "@/infrastructure/editors/tiptap/core"
 import { useEffect } from "react"
 import { SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
 

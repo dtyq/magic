@@ -4,7 +4,7 @@ import { ShowColumns } from "@/MagicJsonSchemaEditor/constants"
 import MagicJSONSchemaEditorWrap from "@/common/BaseUI/MagicJsonSchemaEditorWrap"
 import { Form } from "antd"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { set } from "lodash-es"
 import React, { useMemo } from "react"
 import usePrevious from "../../../common/hooks/usePrevious"
 import styles from "./index.module.less"
@@ -22,7 +22,7 @@ export default function VariableSaveV0() {
 		const currentNodeConfig = nodeConfig[currentNode?.node_id]
 
 		Object.entries(changeValues).forEach(([changeKey, changeValue]) => {
-			_.set(currentNodeConfig, ["params", changeKey], changeValue)
+			set(currentNodeConfig, ["params", changeKey], changeValue)
 		})
 
 		updateNodeConfig({

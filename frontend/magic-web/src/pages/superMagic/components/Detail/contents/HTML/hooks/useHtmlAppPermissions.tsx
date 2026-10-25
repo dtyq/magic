@@ -11,6 +11,7 @@ import {
 	SelectValue,
 } from "@/components/shadcn-ui/select"
 import { userStore } from "@/models/user"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
 import { getIframeDownloadUrl } from "../iframe-api/iframeApi"
 import { htmlMicroAppPreviewLogger } from "../utils/htmlMicroAppPreviewLogger"
 import {
@@ -25,6 +26,7 @@ import {
 	type HtmlPermissionConfirmRequest,
 	type HtmlPermissionMissingDeclarationRequest,
 } from "../iframe-api/services/IframePermissionService"
+import { HtmlPermissionAuthorizationQueue } from "../iframe-api/services/HtmlPermissionAuthorizationQueue"
 import type { HTMLAppConfig, HtmlPermissionScope } from "../iframe-api/types"
 import { hasManageableHtmlPermissionDeclarations } from "../iframe-api/services/htmlPermissionDeclarations"
 import {
@@ -32,6 +34,7 @@ import {
 	serializeHtmlPermissionTtl,
 	type HtmlPermissionTtl,
 } from "../iframe-api/services/htmlPermissionPolicy"
+import { requestHtmlPermissionCodeChangeConfirm } from "../components/PermissionManager/CodeChangeConfirmPopover"
 import { useHtmlPermissionI18n } from "./useHtmlPermissionI18n"
 
 interface HtmlAppFileItem {
@@ -47,6 +50,8 @@ interface UseHtmlAppPermissionsOptions {
 	projectId?: string
 	fileList: HtmlAppFileItem[]
 	enabled?: boolean
+	/** Standalone micro app id; when set, authorization is keyed on it instead of the entry file. */
+	appId?: string
 }
 
 export function shouldShowHtmlPermissionManager(
@@ -63,17 +68,21 @@ export function useHtmlAppPermissions({
 	projectId,
 	fileList,
 	enabled = true,
+	appId,
 }: UseHtmlAppPermissionsOptions) {
 	const { t } = useTranslation("super")
+	const fileAccess = useFileAccess()
 	const { getScopeLabel, getTtlLabel, getUserInfoFieldLabel } = useHtmlPermissionI18n()
 	const [grantRevision, setGrantRevision] = useState(0)
 	// 服务实例包含当前 HTML 的运行指纹，避免切换文件时短暂复用上一应用的授权数量。
 	const [activeGrantState, setActiveGrantState] = useState<{
 		service: IframePermissionService | null
 		count: number
+		codeChanged: boolean
 	}>({
 		service: null,
 		count: 0,
+		codeChanged: false,
 	})
 	const cleanedEntryPath = (relativeFilePath || "").replace(/^\/+/, "")
 	const lastSlash = cleanedEntryPath.lastIndexOf("/")
@@ -118,6 +127,16 @@ export function useHtmlAppPermissions({
 	const appConfigFileUpdatedAt = appConfigFile?.updated_at || ""
 
 	const userId = userStore.user.userInfo?.user_id?.trim() || ""
+	// The entry file id is the stable identity of an ordinary HTML app: it survives edits,
+	// renames and moves, while copies and re-created files get a new id.
+	const entryFileId = useMemo(() => {
+		if (appId) return ""
+		return (
+			fileList.find(
+				(file) => file?.relative_file_path?.replace(/^\/+/, "") === cleanedEntryPath,
+			)?.file_id || ""
+		)
+	}, [appId, cleanedEntryPath, fileList])
 	const htmlAppInstance = useMemo(() => {
 		return {
 			userId,
@@ -125,26 +144,55 @@ export function useHtmlAppPermissions({
 			appRootDir,
 			entryPath: cleanedEntryPath,
 			content: rawSourceCode || content || "",
-			runtimeFingerprint: JSON.stringify(
-				fileList
-					.filter((file) => {
-						const filePath = file?.relative_file_path || ""
-						return (
-							isFileInsideHtmlApp(filePath, appRootDir) &&
-							isHtmlOrJavaScriptFile(filePath)
-						)
-					})
-					.map((file) => ({
-						fileId: file.file_id,
-						path: file.relative_file_path.replace(/^\/+/, ""),
-						updatedAt: file.updated_at || "",
-					}))
-					.sort((a, b) => a.path.localeCompare(b.path)),
-			),
+			appId: appId || "",
+			entryFileId,
+			// Only needed to adopt grants saved by earlier (fingerprint-keyed) versions, so it is
+			// computed lazily instead of hashing the whole file list on every update.
+			getRuntimeFingerprint: () =>
+				JSON.stringify(
+					fileList
+						.filter((file) => {
+							const filePath = file?.relative_file_path || ""
+							return (
+								isFileInsideHtmlApp(filePath, appRootDir) &&
+								isHtmlOrJavaScriptFile(filePath)
+							)
+						})
+						.map((file) => ({
+							fileId: file.file_id,
+							path: file.relative_file_path.replace(/^\/+/, ""),
+							updatedAt: file.updated_at || "",
+						}))
+						.sort((a, b) => a.path.localeCompare(b.path)),
+				),
 		}
-	}, [appRootDir, cleanedEntryPath, content, fileList, projectId, rawSourceCode, userId])
+	}, [
+		appId,
+		appRootDir,
+		cleanedEntryPath,
+		content,
+		entryFileId,
+		fileList,
+		projectId,
+		rawSourceCode,
+		userId,
+	])
 
 	const htmlPermissionGrantStore = useMemo(() => getHtmlPermissionGrantStore(), [])
+	// Queue lifetime follows the app identity only. File edits must not rebuild it, otherwise an
+	// in-flight authorization is aborted every time the user or agent saves a file.
+	const htmlPermissionAuthorizationQueue = useMemo(
+		() => new HtmlPermissionAuthorizationQueue(),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[
+			htmlAppInstanceKey,
+			userId,
+			htmlAppInstance.appId,
+			htmlAppInstance.entryFileId,
+			htmlAppConfigState,
+			enabled,
+		],
+	)
 
 	const confirmHtmlPermission = useMemoizedFn(
 		({
@@ -156,8 +204,20 @@ export function useHtmlAppPermissions({
 			presentation,
 			ttlOptions,
 			defaultTtlMs,
+			signal,
 		}: HtmlPermissionConfirmRequest) =>
 			new Promise<{ allowed: boolean; ttlMs: HtmlPermissionTtl }>((resolve) => {
+				let settled = false
+				const modalRef: { destroy?: () => void } = {}
+				const settle = (result: { allowed: boolean; ttlMs: HtmlPermissionTtl }) => {
+					if (settled) return
+					settled = true
+					signal?.removeEventListener("abort", handleAbort)
+					modalRef.destroy?.()
+					resolve(result)
+				}
+				const handleAbort = () => settle({ allowed: false, ttlMs: 0 })
+
 				let selectedTtlMs = defaultTtlMs
 				const displayAppName = appName || t("htmlEditor.permissionManager.defaultAppName")
 				const scopeLabel = scopes
@@ -237,7 +297,12 @@ export function useHtmlAppPermissions({
 								<SelectTrigger className="mt-3 w-full">
 									<SelectValue />
 								</SelectTrigger>
-								<SelectContent>
+								{/*
+								 * MagicModal.confirm keeps the desktop dialog implementation on mobile
+								 * and raises its content layer dynamically. Keep this permission menu
+								 * above that content layer instead of letting it render behind the dialog.
+								 */}
+								<SelectContent className="!z-[calc(var(--z-index-modal)+100)]">
 									{ttlOptions.map((option) => (
 										<SelectItem
 											key={serializeHtmlPermissionTtl(option.ttlMs)}
@@ -259,15 +324,12 @@ export function useHtmlAppPermissions({
 					closable: false,
 					maskClosable: false,
 					centered: true,
-					onOk: () => {
-						modal.destroy()
-						resolve({ allowed: true, ttlMs: selectedTtlMs })
-					},
-					onCancel: () => {
-						modal.destroy()
-						resolve({ allowed: false, ttlMs: 0 })
-					},
+					onOk: () => settle({ allowed: true, ttlMs: selectedTtlMs }),
+					onCancel: () => settle({ allowed: false, ttlMs: 0 }),
 				})
+				modalRef.destroy = () => modal.destroy()
+				if (signal?.aborted) handleAbort()
+				else signal?.addEventListener("abort", handleAbort, { once: true })
 			}),
 	)
 
@@ -319,19 +381,26 @@ export function useHtmlAppPermissions({
 				grantStore: htmlPermissionGrantStore,
 				confirmPermission: confirmHtmlPermission,
 				onMissingDeclaration: notifyMissingPermissionDeclaration,
+				confirmCodeChange: requestHtmlPermissionCodeChangeConfirm,
 				onGrantsChanged: notifyGrantsChanged,
 				appConfigState: htmlAppConfigState,
 				appInstance: htmlAppInstance,
+				authorizationQueue: htmlPermissionAuthorizationQueue,
 			}),
 		[
 			confirmHtmlPermission,
 			htmlAppConfigState,
 			htmlAppInstance,
+			htmlPermissionAuthorizationQueue,
 			htmlPermissionGrantStore,
 			notifyGrantsChanged,
 			notifyMissingPermissionDeclaration,
 		],
 	)
+
+	useEffect(() => {
+		return () => htmlPermissionAuthorizationQueue.dispose()
+	}, [htmlPermissionAuthorizationQueue])
 
 	const authorizeHtmlPermission = useMemoizedFn(async (scope: HtmlPermissionScope) => {
 		return htmlPermissionService.authorize(scope)
@@ -364,12 +433,15 @@ export function useHtmlAppPermissions({
 	const revokeAllHtmlPermissions = useMemoizedFn(async () => {
 		return htmlPermissionService.revokeAll()
 	})
+	const acknowledgeHtmlPermissionCodeChanges = useMemoizedFn(async () => {
+		return htmlPermissionService.acknowledgeCodeChanges()
+	})
 
 	useEffect(() => {
 		let cancelled = false
 
 		if (!enabled || htmlAppConfigState.status === "loading") {
-			setActiveGrantState({ service: htmlPermissionService, count: 0 })
+			setActiveGrantState({ service: htmlPermissionService, count: 0, codeChanged: false })
 			return
 		}
 
@@ -380,11 +452,17 @@ export function useHtmlAppPermissions({
 				setActiveGrantState({
 					service: htmlPermissionService,
 					count: snapshot.activeGrantCount,
+					codeChanged:
+						snapshot.codeChangedGrantCount > 0 || snapshot.needsReconfirmCount > 0,
 				})
 			})
 			.catch((error) => {
 				if (cancelled) return
-				setActiveGrantState({ service: htmlPermissionService, count: 0 })
+				setActiveGrantState({
+					service: htmlPermissionService,
+					count: 0,
+					codeChanged: false,
+				})
 				htmlMicroAppPreviewLogger.warn("Failed to read active permission grants", {
 					error,
 				})
@@ -416,7 +494,7 @@ export function useHtmlAppPermissions({
 			return
 		}
 
-		getIframeDownloadUrl([appConfigFileId])
+		getIframeDownloadUrl([appConfigFileId], fileAccess)
 			.then(async (urls) => {
 				const url = urls?.[0]?.url
 				if (!url) throw new Error("Failed to get app.json download URL")
@@ -470,6 +548,9 @@ export function useHtmlAppPermissions({
 		hasHtmlPermissionDeclarations,
 		activeHtmlPermissionGrantCount:
 			activeGrantState.service === htmlPermissionService ? activeGrantState.count : 0,
+		// Drives the dot on the permission button: grants exist whose app code changed afterwards.
+		htmlPermissionCodeChanged:
+			activeGrantState.service === htmlPermissionService && activeGrantState.codeChanged,
 		htmlAppInstanceKey,
 		authorizeHtmlPermission,
 		preauthorizeHtmlPermission,
@@ -478,6 +559,7 @@ export function useHtmlAppPermissions({
 		revokeHtmlPermission,
 		updateHtmlPermissionTtl,
 		revokeAllHtmlPermissions,
+		acknowledgeHtmlPermissionCodeChanges,
 		permissionRevision: `${htmlAppInstanceKey}:${htmlAppConfigState.status}:${grantRevision}`,
 	}
 }

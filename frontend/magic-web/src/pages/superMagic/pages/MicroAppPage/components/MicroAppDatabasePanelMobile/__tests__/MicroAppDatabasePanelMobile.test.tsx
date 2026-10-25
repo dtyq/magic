@@ -53,6 +53,7 @@ vi.mock("swr", () => ({
 						project_id: "project-1",
 						table_key: "tasks",
 						table_name: "任务表",
+						description: "任务中文名",
 						status: "enabled",
 						columns: [],
 					},
@@ -68,6 +69,7 @@ vi.mock("swr", () => ({
 					project_id: "project-1",
 					table_key: "tasks",
 					table_name: "任务表",
+					description: "任务中文名",
 					status: "enabled",
 					columns: [
 						{
@@ -117,6 +119,8 @@ describe("MicroAppDatabasePanelMobile", () => {
 			"bottom",
 		)
 		expect(screen.getByTestId("mobile-magicbase-table-list")).toBeInTheDocument()
+		expect(screen.getByText("任务中文名")).toBeInTheDocument()
+		expect(screen.getByText("任务表")).toBeInTheDocument()
 		expect(document.body).not.toHaveTextContent("tasks")
 
 		fireEvent.click(screen.getByTestId("mobile-magicbase-table-table-1"))
@@ -128,6 +132,8 @@ describe("MicroAppDatabasePanelMobile", () => {
 			screen.queryByRole("tab", { name: "microAppPage.databasePanel.permissionsTab" }),
 		).not.toBeInTheDocument()
 		expect(screen.getByText("任务")).toBeInTheDocument()
+		expect(screen.getByText("任务中文名")).toBeInTheDocument()
+		expect(screen.getByText("任务表")).toBeInTheDocument()
 		expect(screen.getByText("写测试")).toBeInTheDocument()
 		expect(document.body).not.toHaveTextContent("tasks")
 	})

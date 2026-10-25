@@ -16,6 +16,8 @@ interface MicroAppRepositoryInterface
 
     public function findByIdWithTrashed(int $id): ?MicroAppEntity;
 
+    public function findByResourceIdWithTrashed(string $resourceId): ?MicroAppEntity;
+
     public function findByProjectId(int $projectId): ?MicroAppEntity;
 
     public function findByProjectIdWithTrashed(int $projectId): ?MicroAppEntity;
@@ -56,6 +58,8 @@ interface MicroAppRepositoryInterface
         MicroAppListScope $scope,
         string $keyword,
         int $page,
-        int $pageSize
+        int $pageSize,
+        bool $publishedOnly = false,
+        bool $mentionableOnly = false,
     ): array;
 }

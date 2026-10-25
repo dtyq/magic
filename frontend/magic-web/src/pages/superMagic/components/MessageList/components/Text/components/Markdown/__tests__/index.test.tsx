@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import MarkdownComponent from "../index"
@@ -20,6 +20,7 @@ import {
 	MessageViewStateProvider,
 	MessageViewStateScopeProvider,
 } from "@/pages/superMagic/components/MessageList/view-state/MessageViewStateContext"
+import type { HtmlPreviewRendererProps } from "../components/HtmlCodeBlockPreview/components/HtmlPreviewRenderer"
 
 vi.mock("react-i18next", () => ({
 	initReactI18next: { type: "3rdParty", init: vi.fn() },
@@ -256,15 +257,30 @@ function MockHtmlPreviewRenderer({
 	)
 }
 
-function MockStreamingHtmlPreviewRenderer(props: Parameters<typeof MockHtmlPreviewRenderer>[0]) {
-	const { content, onRenderReady } = props
+function MockStreamingHtmlPreviewRenderer(props: HtmlPreviewRendererProps) {
+	const {
+		content,
+		onReady,
+		onContentCommitted,
+		onMetrics,
+		containIframeOverscroll,
+		hideVerticalScroll,
+	} = props
 
-	useEffect(() => {
-		if (!/(<body\b|<div\b|<main\b|<section\b|<button\b|<p\b)/i.test(content)) return
-		onRenderReady?.()
-	}, [content, onRenderReady])
+	function acknowledgeContent() {
+		onContentCommitted?.(content)
+		onReady()
+	}
 
-	return <MockHtmlPreviewRenderer {...props} />
+	return (
+		<MockHtmlPreviewRenderer
+			content={content}
+			containIframeOverscroll={containIframeOverscroll}
+			hideVerticalScroll={hideVerticalScroll}
+			onRenderReady={acknowledgeContent}
+			onContentMetrics={onMetrics}
+		/>
+	)
 }
 
 vi.mock("@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer", () => ({
@@ -1373,8 +1389,54 @@ describe("MessageList Markdown HTML preview", () => {
 		await act(async () => {
 			await vi.advanceTimersByTimeAsync(120)
 		})
+		expect(screen.getByTestId("isolated-html-renderer")).not.toHaveTextContent("Second")
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(360)
+		})
 
 		expect(screen.getByTestId("isolated-html-renderer")).toHaveTextContent("Second")
+	})
+
+	it("keeps the last safe html frame until a streaming inline script is complete", async () => {
+		vi.useFakeTimers()
+		const safePrefix = "<!DOCTYPE html><html><body><main>Report</main>"
+		const { rerender } = render(
+			<MarkdownComponent
+				content={["```html", `${safePrefix}<script>renderChart(`].join("\n")}
+				isStreaming
+			/>,
+		)
+
+		expect(screen.getByTestId("isolated-html-renderer")).toHaveTextContent("Report")
+		expect(screen.getByTestId("isolated-html-renderer")).not.toHaveTextContent("renderChart")
+
+		rerender(
+			<MarkdownComponent
+				content={["```html", `${safePrefix}<script>renderChart({ title: "EIC"`].join("\n")}
+				isStreaming
+			/>,
+		)
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(120)
+		})
+
+		expect(screen.getByTestId("isolated-html-renderer")).not.toHaveTextContent("renderChart")
+
+		rerender(
+			<MarkdownComponent
+				content={[
+					"```html",
+					`${safePrefix}<script>renderChart({ title: "EIC" })</script></body></html>`,
+				].join("\n")}
+				isStreaming
+			/>,
+		)
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(120)
+		})
+
+		expect(screen.getByTestId("isolated-html-renderer")).toHaveTextContent("renderChart")
 	})
 
 	it("uses isolated iframe preview during streaming when external script-backed styles are required", () => {
@@ -1481,6 +1543,14 @@ describe("MessageList Markdown HTML preview", () => {
 				'<div style="width: 320px"><img width="280" src="demo.png"></div>',
 			),
 		).toBe(320)
+	})
+
+	it("does not treat max-width as an intrinsic phone canvas width", () => {
+		expect(
+			resolveHtmlPreviewIntrinsicWidthHint(
+				'<div style="max-width: 1000px; width: 100%;">Responsive</div>',
+			),
+		).toBeNull()
 	})
 
 	it("injects a stable scrollbar gutter style into preview documents", () => {
@@ -1843,7 +1913,7 @@ describe("MessageList Markdown HTML preview", () => {
 		)
 	})
 
-	it("widens the phone preview card when runtime content width exceeds the baseline", async () => {
+	it("keeps the phone preview card stable when runtime content width exceeds the baseline", () => {
 		render(
 			<MarkdownComponent
 				content={"```html\n<!DOCTYPE html><html><body><h1>Hello</h1></body></html>\n```"}
@@ -1858,18 +1928,16 @@ describe("MessageList Markdown HTML preview", () => {
 
 		expect(screen.getByTestId("html-code-block-preview-canvas")).toHaveAttribute(
 			"data-preview-canvas-width",
-			"520",
+			"414",
 		)
-		await waitFor(() => {
-			expect(screen.getByTestId("html-code-block-preview-card")).toHaveStyle({
-				width: "482px",
-			})
+		expect(screen.getByTestId("html-code-block-preview-card")).toHaveStyle({
+			width: "428px",
 		})
 		expect(screen.getByTestId("html-code-block-preview-card").className).not.toContain("px-0")
 		expect(screen.getByTestId("html-code-block-preview-phone-frame-inner").style.width).toBe("")
 		expect(screen.getByTestId("html-code-block-preview-canvas")).toHaveAttribute(
 			"data-preview-scale",
-			"0.927",
+			"1.000",
 		)
 		expect(screen.getByTestId("html-code-block-preview-viewport").className).not.toContain(
 			"overflow-x-auto",
@@ -2076,11 +2144,11 @@ describe("MessageList Markdown HTML preview", () => {
 		fireEvent.click(phoneSurface.getByRole("button", { name: "metrics-phone-wide" }))
 
 		expect(screen.getByTestId("html-code-block-preview-desktop")).toHaveStyle({
-			height: "371px",
+			height: "320px",
 		})
 		expect(screen.getByTestId("html-code-block-preview-canvas")).toHaveAttribute(
 			"data-preview-scale",
-			"0.580",
+			"0.500",
 		)
 		expect(screen.getByTestId("html-code-block-preview-card")).toHaveStyle({
 			width: "320px",
@@ -2279,7 +2347,7 @@ describe("MessageList Markdown HTML preview", () => {
 		})
 	})
 
-	it("does not reuse the cached phone card width when switching to desktop preview", async () => {
+	it("does not cache runtime phone width when switching preview layouts", () => {
 		render(
 			<MarkdownComponent
 				content={"```html\n<!DOCTYPE html><html><body><h1>Hello</h1></body></html>\n```"}
@@ -2292,10 +2360,8 @@ describe("MessageList Markdown HTML preview", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "metrics-phone-wide" }))
 
-		await waitFor(() => {
-			expect(screen.getByTestId("html-code-block-preview-card")).toHaveStyle({
-				width: "482px",
-			})
+		expect(screen.getByTestId("html-code-block-preview-card")).toHaveStyle({
+			width: "428px",
 		})
 
 		fireEvent.click(screen.getByTestId("html-code-block-preview-tab-desktop"))
@@ -2319,7 +2385,7 @@ describe("MessageList Markdown HTML preview", () => {
 		fireEvent.click(screen.getByTestId("html-code-block-preview-tab-phone"))
 
 		expect(screen.getByTestId("html-code-block-preview-card")).toHaveStyle({
-			width: "482px",
+			width: "428px",
 		})
 	})
 
@@ -2462,5 +2528,20 @@ describe("MessageList Markdown HTML preview", () => {
 				'<!DOCTYPE html><html><body><div style="width: 1920px; min-width: 1920px;">Wide</div></body></html>',
 			),
 		).toBe(1920)
+	})
+})
+
+describe("MessageList Markdown links", () => {
+	it("wraps long authorization urls instead of keeping them on one line", () => {
+		const longUrl =
+			"https://login.dingtalk.com/oauth2/auth?client_id=dingmbw5n9ktkkbbjv3g&prompt=consent&redirect_uri=http%3A%2F%2F127.0.0.1%3A43631%2Fcallback&response_type=code&scope=openid"
+
+		render(<MarkdownComponent content={`授权链接：\n[${longUrl}](${longUrl})`} />)
+
+		const anchor = screen.getByTestId("markdown-link-anchor")
+		expect(anchor).toHaveAttribute("href", longUrl)
+		expect(anchor.className).toContain("break-all")
+		expect(anchor.className).toContain("whitespace-normal")
+		expect(anchor.className).not.toContain("whitespace-nowrap")
 	})
 })

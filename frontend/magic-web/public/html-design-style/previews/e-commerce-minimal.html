@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KÖLN & CO. — Minimalist Nordic Living</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --primary: #1A1A1A;
+      --primary-hover: #333333;
+      --background: #FFFFFF;
+      --background-warm: #F8F7F4;
+      --ash-wood: #EBE7DF;
+      --ash-border: #DCD6CA;
+      --surface: #FFFFFF;
+      --border: #E8E8E8;
+      --border-light: #F0F0F0;
+      --text-primary: #1A1A1A;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --success: #2E7D32;
+      --sale: #C62828;
+      --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--background);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 80px; /* Space for sticky pill */
+    }
+
+    .eco-banner {
+      background: var(--background-warm); border-bottom: 1px solid var(--border);
+      padding: 7px 20px; font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
+      text-transform: uppercase; display: flex; justify-content: space-between; color: var(--text-secondary);
+    }
+    .eco-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--success); font-weight: 600; }
+    .eco-badge svg { width: 12px; height: 12px; fill: currentColor; }
+
+    header.nordic-nav {
+      position: sticky; top: 0; z-index: 90; background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+      padding: 0 32px; height: 58px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    }
+    .nav-left { display: flex; gap: 24px; list-style: none; font-size: 12px; font-weight: 500; text-transform: uppercase; }
+    .nav-left a { color: var(--text-secondary); text-decoration: none; }
+    .nav-left a:hover, .nav-left a.active { color: var(--text-primary); }
+    .brand-mark { text-align: center; font-size: 18px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; text-decoration: none; color: var(--text-primary); }
+    .nav-right { display: flex; justify-content: flex-end; align-items: center; gap: 20px; font-size: 12px; font-weight: 500; text-transform: uppercase; }
+    .nav-right a { color: var(--text-secondary); text-decoration: none; }
+    .bag-count { font-family: var(--font-mono); font-size: 10px; background: var(--text-primary); color: #FFF; padding: 2px 5px; border-radius: 9999px; margin-left: 4px; }
+
+    .main-wrap { max-width: 1240px; margin: 0 auto; padding: 28px 24px 48px; }
+    .pdp-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 36px; align-items: start; }
+    .image-stage {
+      background: var(--background-warm); border: 1px solid var(--ash-border);
+      position: relative; padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 420px;
+    }
+    .image-stage .tag-floating {
+      position: absolute; top: 14px; left: 14px; background: var(--surface);
+      border: 1px solid var(--border); padding: 4px 8px; font-size: 10px; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-primary);
+    }
+    .ceramics-svg-wrap { width: 100%; max-width: 380px; height: 300px; display: flex; align-items: center; justify-content: center; }
+    .thumb-strip { display: flex; gap: 10px; margin-top: 20px; width: 100%; }
+    .thumb-box {
+      flex: 1; height: 60px; background: var(--background-warm); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px;
+      color: var(--text-secondary); text-transform: uppercase; transition: border-color 0.2s;
+    }
+    .thumb-box.active, .thumb-box:hover { border-color: var(--primary); color: var(--text-primary); background: #FFF; }
+
+    .info-panel { padding-top: 4px; }
+    .category-crumb { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+    .product-title { font-size: 28px; font-weight: 500; line-height: 1.2; letter-spacing: -0.3px; margin-bottom: 10px; }
+    .price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+    .price-main { font-size: 24px; font-weight: 600; color: var(--text-primary); }
+    .price-tax { font-size: 11px; color: var(--text-muted); }
+    .product-lead { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 18px; border-bottom: 1px solid var(--border-light); padding-bottom: 16px; }
+
+    .selector-block { margin-bottom: 18px; }
+    .selector-label { display: flex; justify-content: space-between; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+    .selector-label span.selection-val { font-weight: 400; color: var(--text-secondary); }
+    .swatches-row { display: flex; gap: 8px; }
+    .color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15); cursor: pointer; }
+    .color-swatch.active { box-shadow: 0 0 0 2px #FFF, 0 0 0 3px var(--text-primary); }
+    .swatch-chalk { background: #F4F3EF; }
+    .swatch-sand { background: #DCD4C4; }
+    .swatch-ash { background: #3B3836; }
+
+    .set-pills-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .set-pill {
+      height: 40px; background: var(--background); border: 1px solid var(--border);
+      color: var(--text-primary); font-size: 11px; font-weight: 500; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .set-pill:hover { border-color: var(--primary); }
+    .set-pill.selected { background: var(--primary); color: #FFF; border-color: var(--primary); }
+
+    .btn-add-main {
+      width: 100%; height: 48px; background: var(--primary); color: #FFF; border: none;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px;
+    }
+    .btn-add-main:hover { background: var(--primary-hover); }
+
+    .specs-strip { border-top: 1px solid var(--border-light); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .spec-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
+    .spec-row span.key { color: var(--text-muted); }
+
+    .section-headline { margin: 48px 0 16px; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .section-headline h3 { font-size: 17px; font-weight: 500; }
+    .section-headline span { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+
+    .product-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .grid-item { background: var(--surface); display: flex; flex-direction: column; cursor: pointer; }
+    .item-art-frame { background: var(--background-warm); border: 1px solid var(--ash-border); height: 160px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .grid-item:hover .item-art-frame { border-color: var(--primary); }
+    .item-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; color: var(--text-primary); }
+    .item-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    .item-price { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+
+    .sticky-pill-bar {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 100;
+      background: var(--surface); border: 1px solid var(--primary); box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+      border-radius: 9999px; padding: 6px 10px 6px 18px; display: flex; align-items: center; gap: 16px; min-width: 400px;
+    }
+    .pill-info { display: flex; flex-direction: column; }
+    .pill-title { font-size: 11px; font-weight: 600; }
+    .pill-detail { font-size: 10px; color: var(--text-muted); }
+    .pill-btn {
+      background: var(--primary); color: #FFF; border: none; border-radius: 9999px;
+      padding: 8px 18px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; cursor: pointer; white-space: nowrap;
+    }
+    .pill-btn:hover { background: var(--primary-hover); }
+
+    footer.nordic-footer {
+      border-top: 1px solid var(--border); padding: 24px 32px; display: flex;
+      justify-content: space-between; align-items: center; font-size: 10px;
+      color: var(--text-muted); text-transform: uppercase; margin-top: 48px;
+    }
+
+    @media (max-width: 860px) {
+      .pdp-grid { grid-template-columns: 1fr; }
+      .product-grid { grid-template-columns: 1fr; }
+      .sticky-pill-bar { min-width: 90%; }
+      header.nordic-nav { padding: 0 20px; }
+      .nav-left { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Eco-Friendly Carbon Offset Badge Banner -->
+  <div class="eco-banner">
+    <div class="eco-badge">
+      <svg viewBox="0 0 24 24">
+        <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22L6.66 19.7C7.14 19.87 7.64 20 8 20C19 20 22 3 22 3C21 5 14 5.25 9 6.25C4 7.25 2 11.5 2 13.5C2 15.5 3.75 17.25 3.75 17.25C7 11 11.5 9 17 8Z"/>
+      </svg>
+      <span>100% CLIMATE NEUTRAL • VERIFIED CARBON OFFSET ON EVERY ORDER</span>
+    </div>
+    <div>SUSTAINABLY HARVESTED ASH WOOD & NON-TOXIC CERAMIC GLAZES</div>
+  </div>
+
+  <!-- Minimalist Navigation Bar -->
+  <header class="nordic-nav">
+    <ul class="nav-left">
+      <li><a href="#" class="active">Tableware</a></li>
+      <li><a href="#">Furniture</a></li>
+      <li><a href="#">Lighting</a></li>
+      <li><a href="#">Textiles</a></li>
+    </ul>
+
+    <a href="#" class="brand-mark">KÖLN &amp; CO.</a>
+
+    <div class="nav-right">
+      <a href="#">Archive</a>
+      <a href="#">Stockholm</a>
+      <a href="#">Bag <span class="bag-count">2</span></a>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="main-wrap">
+
+    <!-- PDP 55/45 Nordic Showcase -->
+    <section class="pdp-grid">
+      
+      <!-- Ceramic Tableware Showcase (Pale Ash Wood Surface Frame) -->
+      <div class="image-stage">
+        <div class="tag-floating">Stoneware Collection 04</div>
+        
+        <div class="ceramics-svg-wrap">
+          <svg viewBox="0 0 380 300" width="100%" height="100%">
+            <defs>
+              <!-- Pale Ash Table Wood Grain Gradient -->
+              <linearGradient id="ashPlank" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#EFECE5" />
+                <stop offset="50%" stop-color="#E5E1D7" />
+                <stop offset="100%" stop-color="#DCD6C9" />
+              </linearGradient>
+
+              <!-- Chalk White Ceramic Glaze -->
+              <linearGradient id="chalkGlaze" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#FFFFFF" />
+                <stop offset="40%" stop-color="#F7F6F2" />
+                <stop offset="80%" stop-color="#E8E5DD" />
+                <stop offset="100%" stop-color="#DDD8CD" />
+              </linearGradient>
+
+              <!-- Terracotta Clay Rim -->
+              <linearGradient id="clayRim" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#C28464" />
+                <stop offset="100%" stop-color="#9C6246" />
+              </linearGradient>
+            </defs>
+
+            <!-- Table Plank Surface -->
+            <polygon points="20,240 360,240 380,285 0,285" fill="url(#ashPlank)" />
+            <line x1="20" y1="240" x2="360" y2="240" stroke="#C8C0AF" stroke-width="1.5" />
+
+            <!-- Soft Cast Shadows -->
+            <ellipse cx="200" cy="245" rx="100" ry="12" fill="#000" opacity="0.06" />
+            <ellipse cx="110" cy="246" rx="40" ry="7" fill="#000" opacity="0.08" />
+
+            <!-- Large Dinner Plate -->
+            <ellipse cx="195" cy="236" rx="96" ry="16" fill="url(#chalkGlaze)" stroke="#E0DBD0" stroke-width="1.2" />
+            <ellipse cx="195" cy="235" rx="86" ry="12" fill="#F8F7F4" stroke="url(#clayRim)" stroke-width="1" />
+
+            <!-- Minimalist Ceramic Teapot -->
+            <g id="teapot">
+              <!-- Teapot Handle -->
+              <path d="M165 140 C165 92, 235 92, 235 140" fill="none" stroke="#A88B6E" stroke-width="4" stroke-linecap="round" />
+              <!-- Teapot Body -->
+              <path d="M160 215 Q150 170 170 145 L230 145 Q250 170 240 215 Z" fill="url(#chalkGlaze)" stroke="#DDD8CD" stroke-width="1.5" />
+              <path d="M161 205 L160 215 Q200 220 240 215 L239 205 Z" fill="url(#clayRim)" />
+              <!-- Spout -->
+              <path d="M236 170 Q262 156 258 146 Q248 152 232 160 Z" fill="url(#chalkGlaze)" stroke="#DDD8CD" />
+              <!-- Lid -->
+              <ellipse cx="200" cy="144" rx="26" ry="5" fill="#F0ECE4" stroke="url(#clayRim)" />
+              <circle cx="200" cy="138" r="4" fill="#C28464" />
+            </g>
+
+            <!-- Stoneware Tea Bowl (Left) -->
+            <path d="M94 232 Q88 212 98 198 L126 198 Q136 212 132 232 Z" fill="url(#chalkGlaze)" stroke="#DDD8CD" />
+            <ellipse cx="112" cy="198" rx="14" ry="3.5" fill="#F0ECE4" stroke="url(#clayRim)" />
+            <path d="M95 227 L94 232 Q112 235 132 232 L131 227 Z" fill="url(#clayRim)" />
+
+            <!-- Ceramic Pitcher (Right) -->
+            <path d="M266 235 Q262 216 270 204 L294 200 L296 206 Q302 218 298 235 Z" fill="url(#chalkGlaze)" stroke="#DDD8CD" />
+            <ellipse cx="282" cy="204" rx="12" ry="3.5" fill="#F0ECE4" stroke="url(#clayRim)" />
+          </svg>
+        </div>
+
+        <div class="thumb-strip">
+          <div class="thumb-box active">Stoneware Set</div>
+          <div class="thumb-box">Table Context</div>
+          <div class="thumb-box">Chalk Glaze</div>
+          <div class="thumb-box">Craft Studio</div>
+        </div>
+      </div>
+
+      <!-- Right Column PDP Details -->
+      <div class="info-panel">
+        <div class="category-crumb">CERAMICS / CORE LIVING / SKU #KL-8802</div>
+        <h1 class="product-title">Nordic Stoneware Tableware Set</h1>
+        
+        <div class="price-row">
+          <span class="price-main">$185.00</span>
+          <span class="price-tax">Incl. VAT • Free Climate Neutral Shipping</span>
+        </div>
+
+        <p class="product-lead">
+          Hand-thrown Scandinavian ceramic tableware set made from dense Swedish stoneware clay. Finished with a satin-matte chalk glaze and raw exposed terracotta baseline. Designed for tactile ritual, longevity, and effortless everyday gathering.
+        </p>
+
+        <!-- Glaze Swatches -->
+        <div class="selector-block">
+          <div class="selector-label">
+            <span>Color Glaze</span>
+            <span class="selection-val">Chalk White (Matte)</span>
+          </div>
+          <div class="swatches-row">
+            <div class="color-swatch swatch-chalk active" title="Chalk White"></div>
+            <div class="color-swatch swatch-sand" title="Nordic Sand"></div>
+            <div class="color-swatch swatch-ash" title="Ash Basalt"></div>
+          </div>
+        </div>
+
+        <!-- Set Size Pills (Strict 0px sharp geometry) -->
+        <div class="selector-block">
+          <div class="selector-label">
+            <span>Composition</span>
+            <span class="selection-val">4-Piece Service Set</span>
+          </div>
+          <div class="set-pills-row">
+            <button class="set-pill selected">
+              <strong>Set of 4</strong>
+              <small style="font-size: 10px; opacity: 0.8;">Standard</small>
+            </button>
+            <button class="set-pill">
+              <strong>Set of 8</strong>
+              <small style="font-size: 10px; opacity: 0.8;">+$160</small>
+            </button>
+            <button class="set-pill">
+              <strong>Set of 12</strong>
+              <small style="font-size: 10px; opacity: 0.8;">+$310</small>
+            </button>
+          </div>
+        </div>
+
+        <!-- Add to Bag Primary CTA (Sharp 0px geometry) -->
+        <button class="btn-add-main">Add To Bag — $185.00</button>
+
+        <!-- Product Specs Accordion Strip -->
+        <div class="specs-strip">
+          <div class="spec-row">
+            <span class="key">Material</span>
+            <span>Swedish High-Fire Stoneware Clay</span>
+          </div>
+          <div class="spec-row">
+            <span class="key">Care</span>
+            <span>Dishwasher, Microwave &amp; Oven Safe (up to 240°C)</span>
+          </div>
+          <div class="spec-row">
+            <span class="key">Provenance</span>
+            <span>Handmade in Gustavsberg, Sweden</span>
+          </div>
+          <div class="spec-row">
+            <span class="key">Carbon Footprint</span>
+            <span>Net Zero (Offset via South Pole Climate Project)</span>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Curated Lifestyle Objects Grid -->
+    <div class="section-headline">
+      <h3>Accompanying Living Objects</h3>
+      <span>Crafted in Nordic Workshops</span>
+    </div>
+
+    <div class="product-grid">
+      <div class="grid-item">
+        <div class="item-art-frame">
+          <svg width="80" height="70" viewBox="0 0 120 100">
+            <path d="M22 45 Q20 70 60 72 Q100 70 98 45 Z" fill="#E8DFD3" stroke="#BAAFA0" stroke-width="1.5" />
+            <ellipse cx="60" cy="45" rx="38" ry="10" fill="#F4EFEA" stroke="#C4B8A8" />
+          </svg>
+        </div>
+        <div class="item-name">Solid Ash Wood Salad Bowl</div>
+        <div class="item-meta">Turned White Ash • Natural Oil</div>
+        <div class="item-price">$95.00</div>
+      </div>
+
+      <div class="grid-item">
+        <div class="item-art-frame">
+          <svg width="70" height="70" viewBox="0 0 100 100">
+            <path d="M36 76 L40 45 L60 45 L64 76 Z" fill="#F7F6F2" stroke="#DCD6C9" stroke-width="1.5" />
+            <path d="M38 45 L34 26 L66 26 L62 45 Z" fill="#E8E5DD" stroke="#DCD6C9" />
+          </svg>
+        </div>
+        <div class="item-name">Stoneware Pour-Over Carafe</div>
+        <div class="item-meta">750ml Ceramic Brewer</div>
+        <div class="item-price">$65.00</div>
+      </div>
+
+      <div class="grid-item">
+        <div class="item-art-frame">
+          <svg width="80" height="70" viewBox="0 0 120 100">
+            <polygon points="30,42 90,42 82,72 38,72" fill="#ECE8DF" stroke="#D0C7B8" stroke-width="1.5" />
+            <line x1="60" y1="42" x2="60" y2="72" stroke="#DBD3C5" />
+          </svg>
+        </div>
+        <div class="item-name">Washed Linen Napkins (4)</div>
+        <div class="item-meta">100% French Flax • Oatmeal</div>
+        <div class="item-price">$42.00</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Sticky Add-to-Cart Pill Floating Bar -->
+  <aside class="sticky-pill-bar">
+    <div class="pill-info">
+      <div class="pill-title">Nordic Stoneware Tableware Set</div>
+      <div class="pill-detail">Chalk White • Set of 4 • $185.00</div>
+    </div>
+    <button class="pill-btn">Add To Bag — $185</button>
+  </aside>
+
+  <!-- Nordic Footer -->
+  <footer class="nordic-footer">
+    <div>© 2026 KÖLN &amp; CO. DESIGN STUDIO • STOCKHOLM — COPENHAGEN</div>
+    <div>CERTIFIED B-CORP • PLASTIC-FREE ARCHIVAL PACKAGING</div>
+  </footer>
+
+</body>
+</html>

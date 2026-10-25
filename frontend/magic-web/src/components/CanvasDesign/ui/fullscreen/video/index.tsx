@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
-import { ElementTypeEnum, type VideoElement } from "../../../runtime/document/types"
+import {
+	ElementTypeEnum,
+	type VideoElement,
+	type VideoElementContent,
+} from "../../../runtime/document/types"
 import { useCanvasElement } from "../../../app/hooks/canvas"
 import { useCanvas } from "../../../app/providers/CanvasProvider"
 import { VideoElement as VideoElementClass } from "../../../runtime/elements/video/VideoElement"
@@ -16,6 +20,16 @@ export default function VideoFullscreenOverlay(props: VideoFullscreenOverlayProp
 	const { canvas } = useCanvas()
 	const element = useCanvasElement(elementId)
 	const videoElement = element?.type === ElementTypeEnum.Video ? (element as VideoElement) : null
+	const playbackEnabled = canvas?.permissionManager?.can("interaction.playback") ?? true
+	const videoElementId = videoElement?.id
+	const videoContent = videoElement
+		? typeof canvas?.getEffectiveContent === "function"
+			? canvas.getEffectiveContent<VideoElementContent>(videoElement.id)
+			: (videoElement.contents?.find(
+					(content) => content.contentId === videoElement.activeContentId,
+				) ?? videoElement.contents?.[0])
+		: undefined
+	const videoSrc = videoContent?.src
 	const [playbackVideoElement, setPlaybackVideoElement] = useState<HTMLVideoElement | null>(null)
 	const [isLoading, setIsLoading] = useState(false)
 	const [hasError, setHasError] = useState(false)
@@ -25,7 +39,7 @@ export default function VideoFullscreenOverlay(props: VideoFullscreenOverlayProp
 	} | null>(null)
 
 	useEffect(() => {
-		const src = videoElement?.src
+		const src = videoSrc
 		if (!canvas || !src) {
 			setIntrinsicSizeHint(null)
 			return
@@ -46,7 +60,7 @@ export default function VideoFullscreenOverlay(props: VideoFullscreenOverlayProp
 		return () => {
 			cancelled = true
 		}
-	}, [canvas, videoElement?.src])
+	}, [canvas, videoSrc])
 
 	useEffect(() => {
 		if (videoElement) {
@@ -56,14 +70,14 @@ export default function VideoFullscreenOverlay(props: VideoFullscreenOverlayProp
 	}, [onClose, videoElement])
 
 	useEffect(() => {
-		if (!canvas || !elementId || !videoElement?.src) {
+		if (!canvas || !elementId || !videoElementId || !videoSrc || !playbackEnabled) {
 			setPlaybackVideoElement(null)
 			setIsLoading(false)
 			setHasError(false)
 			return
 		}
 
-		const elementInstance = canvas.elementManager.getElementInstance(videoElement.id)
+		const elementInstance = canvas.elementManager.getElementInstance(videoElementId)
 		if (!(elementInstance instanceof VideoElementClass)) {
 			setPlaybackVideoElement(null)
 			setIsLoading(false)
@@ -91,11 +105,8 @@ export default function VideoFullscreenOverlay(props: VideoFullscreenOverlayProp
 				}
 
 				if (isCancelled) {
-					if (usedHandoff) {
-						elementInstance.handoffPlaybackFromFullscreen()
-					} else {
-						elementInstance.releaseFullscreenPlayback()
-					}
+					// Cleanup already released this effect's session. A shared consumer ID may
+					// now belong to a newer StrictMode replay acquire, so do not release again.
 					return
 				}
 
@@ -124,14 +135,14 @@ export default function VideoFullscreenOverlay(props: VideoFullscreenOverlayProp
 				elementInstance.releaseFullscreenPlayback()
 			}
 		}
-	}, [canvas, elementId, videoElement?.id, videoElement?.src])
+	}, [canvas, elementId, playbackEnabled, videoElementId, videoSrc])
 
 	const handlePlayRequest = useCallback(async () => {
-		if (!canvas || !elementId || !videoElement?.src) {
+		if (!canvas || !elementId || !videoElementId || !videoSrc || !playbackEnabled) {
 			return false
 		}
 
-		const elementInstance = canvas.elementManager.getElementInstance(videoElement.id)
+		const elementInstance = canvas.elementManager.getElementInstance(videoElementId)
 		if (!(elementInstance instanceof VideoElementClass)) {
 			return false
 		}
@@ -150,18 +161,20 @@ export default function VideoFullscreenOverlay(props: VideoFullscreenOverlayProp
 		} finally {
 			setIsLoading(false)
 		}
-	}, [canvas, elementId, videoElement?.id, videoElement?.src])
+	}, [canvas, elementId, playbackEnabled, videoElementId, videoSrc])
 
 	return (
 		<VideoFullscreenPlayerOverlay
 			isOpen={Boolean(elementId && videoElement)}
+			src={videoSrc}
+			playbackEnabled={playbackEnabled}
 			onClose={onClose}
 			videoElement={playbackVideoElement}
 			onPlayRequest={handlePlayRequest}
 			intrinsicSizeHint={intrinsicSizeHint}
 			isLoading={isLoading}
 			hasError={hasError}
-			resourcePath={videoElement?.src ?? ""}
+			resourcePath={videoSrc ?? ""}
 		/>
 	)
 }

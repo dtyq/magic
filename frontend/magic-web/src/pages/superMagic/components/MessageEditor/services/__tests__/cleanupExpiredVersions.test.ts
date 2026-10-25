@@ -4,12 +4,9 @@ import { LocalStorageDraftService } from "../draftService/LocalStorageDraftServi
 import type { DraftKey, DraftData } from "../../types"
 
 // Mock Logger
-vi.mock("@/opensource/utils/log/Logger", () => ({
-	default: class MockLogger {
-		constructor() {}
-		log = vi.fn()
-		error = vi.fn()
-		warn = vi.fn()
+vi.mock("@/infrastructure/logger", () => ({
+	logger: {
+		createLogger: () => ({ log: vi.fn(), warn: vi.fn(), error: vi.fn(), report: vi.fn() }),
 	},
 }))
 

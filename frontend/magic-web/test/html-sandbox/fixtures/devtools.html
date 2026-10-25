@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Live proxy composition</title>
+		<script data-fixture-helper></script>
+	</head>
+	<body>
+		<h2>DevTools proxies around live Magic calls</h2>
+		<script>
+			;(async function () {
+				const originalParent = parent
+				const originalFetch = fetch
+				const originalLog = console.log
+				let enabledFetch
+				let enabledLog
+				async function toggle(enabled, phase) {
+					await new Promise((resolve) => {
+						function listener(event) {
+							if (event.data?.type !== "FIXTURE_DEVTOOLS_ACK") return
+							removeEventListener("message", listener)
+							resolve()
+						}
+						addEventListener("message", listener)
+						parent.postMessage({ type: "FIXTURE_DEVTOOLS", enabled, phase }, "*")
+					})
+				}
+				await Fixture.test(
+					"enable all proxies without breaking window.Magic or fetch",
+					async () => {
+						await toggle(true, "first")
+						Fixture.equal(fetch === originalFetch, false)
+						Fixture.equal(console.log === originalLog, false)
+						enabledFetch = fetch
+						enabledLog = console.log
+						console.log("fixture first console entry")
+						Fixture.equal(await Magic.fs.readFile("data.txt"), "fixture file content")
+						Fixture.equal(await (await fetch("./resource.json")).json(), {
+							message: "real resource",
+						})
+					},
+				)
+				await Fixture.test(
+					"transfer-list postMessage keeps native semantics through the parent proxy",
+					async () => {
+						const bytes = new Uint8Array([10, 20]).buffer
+						parent.postMessage(
+							{ type: "FIXTURE_TRANSFER", bytes },
+							{ targetOrigin: "*", transfer: [bytes] },
+						)
+						Fixture.equal(bytes.byteLength, 0)
+					},
+				)
+				await Fixture.test(
+					"disable restores parent, console and fetch and keeps APIs usable",
+					async () => {
+						await toggle(false, "disabled")
+						Fixture.equal(parent === originalParent, true)
+						// Restoring a bound native function may produce a new identity. Assert
+						// that interception stops and real calls still work instead.
+						Fixture.equal(fetch === enabledFetch, false)
+						Fixture.equal(console.log === enabledLog, false)
+						console.log("fixture disabled console entry")
+						Fixture.equal(await (await fetch("./resource.json")).json(), {
+							message: "real resource",
+						})
+						Fixture.equal(await Magic.fs.readFile("data.txt"), "fixture file content")
+					},
+				)
+				await Fixture.test(
+					"re-enable starts a fresh proxy session without recursive messages",
+					async () => {
+						await toggle(true, "second")
+						console.log("fixture second console entry")
+						Fixture.equal(await (await fetch("./resource.json")).json(), {
+							message: "real resource",
+						})
+						Fixture.equal((await Magic.agent.getAgents())[0].id, "fixture-agent")
+						await toggle(false)
+					},
+				)
+				Fixture.done()
+			})()
+		</script>
+	</body>
+</html>

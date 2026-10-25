@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
-import type { NodeViewProps } from "@tiptap/react"
-import { NodeViewWrapper } from "@tiptap/react"
+import type { NodeViewProps } from "@/infrastructure/editors/tiptap/react"
+import { NodeViewWrapper } from "@/infrastructure/editors/tiptap/react"
 import type { ProjectImageNodeOptions } from "./project-image-node-extension"
 import { isTempPath } from "./temp-path-utils"
 import { AlignmentToolbar, ImagePlaceholder, ImageUrlEditor, ResizeHandles } from "./components"
@@ -206,8 +206,6 @@ export function ProjectImageNodeView(props: ProjectImageNodeViewProps) {
 			document.body,
 		)
 	}
-
-	console.log("error", error)
 
 	return (
 		<>

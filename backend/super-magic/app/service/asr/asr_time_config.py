@@ -9,6 +9,8 @@ ASR 音频合并服务时间配置
 - 任务清理时间
 """
 
+import os
+
 
 class AsrTimeConfig:
     """
@@ -62,6 +64,51 @@ class AsrTimeConfig:
     MAX_UNSTABLE_FILE_TIMEOUT: int = 30
 
     # ==================== FFmpeg 操作配置 ====================
+
+    OGG_REENCODE_BITRATE: str = os.getenv("ASR_OGG_REENCODE_BITRATE", "32k")
+    # finish 后等待分片可见/稳定的最长时间，WAV/Opus 统一使用。
+    FINISH_SHARD_TIMEOUT_SECONDS: int = int(
+        os.getenv("ASR_FINISH_SHARD_TIMEOUT_SECONDS", "300")
+    )
+    # 兼容已有调用方；新逻辑统一使用 FINISH_SHARD_TIMEOUT_SECONDS。
+    OPUS_FINISH_DEADLINE_TIMEOUT: int = FINISH_SHARD_TIMEOUT_SECONDS
+    FINISH_SHARD_POLL_INTERVAL_SECONDS: int = int(
+        os.getenv("ASR_FINISH_SHARD_POLL_INTERVAL_SECONDS", "5")
+    )
+    FINISH_SHARD_STABLE_SCAN_COUNT: int = int(
+        os.getenv("ASR_FINISH_SHARD_STABLE_SCAN_COUNT", "3")
+    )
+    # finish 超时后允许自动收敛的尾部分片最大缺失数（仅 WAV 增量合并路径使用；
+    # Opus finish 路径的尾部缺片已统一走静音补齐，见下方 FINISH_MAX_MISSING_*）
+    FINISH_MAX_TAIL_MISSING_SHARDS: int = int(
+        os.getenv("ASR_FINISH_MAX_TAIL_MISSING_SHARDS", "3")
+    )
+    # Opus 缺片（中间/尾部/混合）只能在 finish 超时后用静音补齐。数量与比例同时受限，
+    # 避免把严重丢包伪装成一次正常完成；单个缺片不受比例限制。
+    # env 新名优先，旧的 *_MIDDLE_* 名称仅作兼容兜底。
+    FINISH_MAX_MISSING_SHARDS: int = int(
+        os.getenv(
+            "ASR_FINISH_MAX_MISSING_SHARDS",
+            os.getenv("ASR_FINISH_MAX_MIDDLE_MISSING_SHARDS", "3"),
+        )
+    )
+    FINISH_MAX_MISSING_RATIO: float = float(
+        os.getenv(
+            "ASR_FINISH_MAX_MISSING_RATIO",
+            os.getenv("ASR_FINISH_MAX_MIDDLE_MISSING_RATIO", "0.05"),
+        )
+    )
+    OPUS_SHARD_SYNC_TIMEOUT: int = int(os.getenv("ASR_OPUS_SHARD_SYNC_TIMEOUT", "900"))
+    OPUS_STAGING_UPLOAD_TIMEOUT: int = int(
+        os.getenv("ASR_OPUS_STAGING_UPLOAD_TIMEOUT", "900")
+    )
+    OPUS_FINISH_FFMPEG_TIMEOUT: int = int(os.getenv("ASR_OPUS_FINISH_FFMPEG_TIMEOUT", "1800"))
+    OPUS_SHARD_SYNC_CONCURRENCY: int = int(
+        os.getenv("ASR_OPUS_SHARD_SYNC_CONCURRENCY", "32")
+    )
+    OPUS_SHARD_PROBE_CONCURRENCY: int = int(
+        os.getenv("ASR_OPUS_SHARD_PROBE_CONCURRENCY", "8")
+    )
 
     # FFmpeg 命令超时时间：执行 FFmpeg 合并命令的最大等待时间
     # 默认 300 秒（5分钟）

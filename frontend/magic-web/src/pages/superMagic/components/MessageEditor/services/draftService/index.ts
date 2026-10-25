@@ -1,8 +1,14 @@
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { cloneDeep, throttle } from "lodash-es"
-import { logger as Logger } from "@/utils/log"
-import { DraftData, DraftKey, DraftServiceInterface, DraftVersionInfo } from "../../types"
+import { logger as Logger } from "@/infrastructure/logger"
+import {
+	DraftData,
+	DraftKey,
+	DraftServiceInterface,
+	DraftVersionInfo,
+	QueueDraftMetadata,
+} from "../../types"
 import { DraftService } from "./draftService"
 import { genDraftVersionId } from "./utils"
 
@@ -15,6 +21,7 @@ const logger = Logger.createLogger("DraftManager")
 export class DraftManager {
 	private storage: DraftServiceInterface
 	private entries = new Map<string, DraftQueueEntry>()
+	private lastSaveTimestamp = 0
 	private versionByKey = new Map<string, number>()
 
 	constructor(storage?: DraftServiceInterface) {
@@ -30,56 +37,20 @@ export class DraftManager {
 		projectId: string
 		value?: JSONContent | null
 		mentionItems?: MentionListItem[]
-	}): Promise<DraftQueueEntry> {
-		const draftKey = {
-			workspaceId: data.workspaceId,
-			projectId: data.projectId,
-			topicId: data.topicId,
-		}
-		const compositeKey = this.getCompositeKey(
-			draftKey.workspaceId,
-			draftKey.projectId,
-			draftKey.topicId,
+		queueDraft?: QueueDraftMetadata
+	}): Promise<void> {
+		// 已发送正文与空输入按同一队列顺序保存，避免旧自动保存恢复已发送内容。
+		await this.saveDraftStrict({
+			...data,
+			value: data.value ?? undefined,
+			mentionItems: data.mentionItems ?? [],
+			versionId: `${genDraftVersionId(Date.now())}/sent`,
+		})
+		await this.saveDraftStrict(
+			{ ...data, value: undefined, mentionItems: [], queueDraft: undefined },
+			true,
+			true,
 		)
-		const entry = this.entries.get(compositeKey) ?? {
-			inFlight: null,
-			pending: null,
-			pendingVersion: 0,
-		}
-
-		// Append a new empty version as the latest without altering existing versions
-		// Use a unique versionId to avoid overwriting time-based keys
-		const versionTimestamp = Date.now()
-		const uniqueVersionId = `${genDraftVersionId(versionTimestamp)}/sent`
-		// 与 prepareSavePayload 一致：编辑器 value 可能含 MobX 代理或不可结构化克隆的嵌套对象，IndexedDB put 前必须落成纯 JSON 树
-		const sentSnapshotPayload = cloneDeep({
-			workspaceId: data.workspaceId,
-			projectId: data.projectId,
-			topicId: data.topicId,
-			mentionItems: data.mentionItems || [],
-			value: data.value || undefined,
-			isAutoSaved: false,
-			versionId: uniqueVersionId,
-			versionTimestamp,
-		})
-		const clearedEditorPayload = cloneDeep({
-			workspaceId: data.workspaceId,
-			projectId: data.projectId,
-			topicId: data.topicId,
-			mentionItems: [],
-			value: undefined,
-		})
-		entry.inFlight = Promise.all([
-			// 发送出去的内容保存一个版本
-			this.storage.saveDraftVersion(draftKey, sentSnapshotPayload, true),
-			// 把最新版本设置为空
-			this.storage.saveDraftVersion(draftKey, clearedEditorPayload, true),
-		]).finally(() => {
-			entry.inFlight = null
-		})
-
-		this.entries.set(compositeKey, entry)
-		return entry
 	}
 
 	/**
@@ -91,8 +62,11 @@ export class DraftManager {
 		projectId: string
 		value?: JSONContent | null
 		mentionItems?: MentionListItem[]
+		queueDraft?: QueueDraftMetadata
 	}): Promise<void> {
 		const draftKey = {
+			userId: data.queueDraft?.userId,
+			organizationCode: data.queueDraft?.organizationCode,
 			workspaceId: data.workspaceId,
 			projectId: data.projectId,
 			topicId: data.topicId,
@@ -115,10 +89,14 @@ export class DraftManager {
 		entry.pendingVersion = currentVersion
 		this.entries.set(compositeKey, entry)
 
-		if (entry.inFlight) return entry.inFlight as Promise<void>
+		if (entry.inFlight)
+			return entry.inFlight.then(
+				() => undefined,
+				() => undefined,
+			)
 
-		entry.inFlight = (async () => {
-			while (entry.pending) {
+		const write = (async () => {
+			while (entry.pending && !entry.strictDepth) {
 				const next = entry.pending
 				const submitVersion = entry.pendingVersion
 				entry.pending = null
@@ -129,6 +107,10 @@ export class DraftManager {
 				try {
 					// Always overwrite existing draft since we removed auto-save versioning
 					await this.storage.saveDraftVersion(draftKey, next.draftData)
+					await this.storage.saveDraft(draftKey, {
+						...next.draftData,
+						isCurrentSnapshot: true,
+					})
 
 					// If a clear happened during the save, ensure the draft is not resurrected
 					const latestAfterSave = this.versionByKey.get(compositeKey) ?? 0
@@ -146,10 +128,68 @@ export class DraftManager {
 					// continue loop to try pending saves if any
 				}
 			}
-			entry.inFlight = null
 		})()
+		entry.inFlight = write
+		try {
+			await write
+		} finally {
+			if (entry.inFlight === write) entry.inFlight = null
+		}
+	}
 
-		return entry.inFlight as Promise<void>
+	/** 显式交接必须确认持久化成功；普通自动保存仍沿用原有错误容错。 */
+	async saveDraftStrict(
+		data: Omit<DraftData, "createdAt" | "updatedAt">,
+		newVersion = false,
+		current = false,
+	): Promise<void> {
+		const key = this.getCompositeKey(data.workspaceId, data.projectId, data.topicId)
+		const entry: DraftQueueEntry = this.entries.get(key) ?? {
+			inFlight: null,
+			pending: null,
+			pendingVersion: 0,
+		}
+		const snapshot = cloneDeep(data)
+		delete snapshot.isCurrentSnapshot
+		snapshot.versionTimestamp = this.nextSaveTimestamp()
+		snapshot.isAutoSaved = false
+		if (snapshot.queueDraft) snapshot.versionId = `queue/${snapshot.queueDraft.clientSyncId}`
+		else if (newVersion) snapshot.versionId = `saved/${crypto.randomUUID()}`
+		// 严格保存是顺序边界：此前的自动保存先完成，此后的输入不能被旧快照覆盖。
+		const previous = entry.inFlight
+		const previousPending = entry.pending
+		entry.pending = null
+		entry.strictDepth = (entry.strictDepth ?? 0) + 1
+		const write = (async () => {
+			await previous?.catch(() => undefined)
+			if (previousPending) {
+				await this.storage.saveDraftVersion(
+					previousPending.draftData,
+					previousPending.draftData,
+				)
+				await this.storage.saveDraft(previousPending.draftData, {
+					...previousPending.draftData,
+					isCurrentSnapshot: true,
+				})
+			}
+			await this.storage.saveDraftVersion(data, snapshot, true)
+			if (current)
+				await this.storage.saveDraft(data, { ...snapshot, isCurrentSnapshot: true })
+		})()
+		entry.inFlight = write
+		this.entries.set(key, entry)
+		try {
+			await write
+		} finally {
+			entry.strictDepth = (entry.strictDepth ?? 1) - 1
+			if (entry.inFlight === write) {
+				entry.inFlight = null
+				// 等待存储期间，自动保存可能重新写入 pending。
+				const pending = entry.pending as DraftQueueEntry["pending"]
+				entry.pending = null
+				if (pending) void this.saveDraft(pending.draftData)
+			}
+		}
 	}
 
 	/**
@@ -211,6 +251,11 @@ export class DraftManager {
 		return `${workspaceId || "global"}:${projectId}:${topicId || "default"}`
 	}
 
+	private nextSaveTimestamp(): number {
+		this.lastSaveTimestamp = Math.max(Date.now(), this.lastSaveTimestamp + 1)
+		return this.lastSaveTimestamp
+	}
+
 	/**
 	 * Prepare save payload
 	 */
@@ -220,9 +265,13 @@ export class DraftManager {
 		projectId: string
 		value?: JSONContent | null
 		mentionItems?: MentionListItem[]
+		queueDraft?: QueueDraftMetadata
 	}): PreparedSavePayload {
 		const draftData: Omit<DraftData, "createdAt" | "updatedAt"> = cloneDeep({
+			versionTimestamp: this.nextSaveTimestamp(),
 			value: data.value || undefined,
+			queueDraft: data.queueDraft,
+			...(data.queueDraft && { versionId: `queue/${data.queueDraft.clientSyncId}` }),
 			mentionItems: data.mentionItems || [],
 			workspaceId: data.workspaceId || "global",
 			projectId: data.projectId,
@@ -236,6 +285,8 @@ export class DraftManager {
 	 * Load latest draft version
 	 */
 	async loadLatestDraftVersion(key: DraftKey): Promise<DraftData | null> {
+		const current = await this.storage.loadDraft(key)
+		if (current?.isCurrentSnapshot) return current
 		const draft = await this.storage.loadLatestDraftVersion(key)
 		if (!draft) {
 			// 如果draft不存在，则尝试从legacyDraft中迁移数据
@@ -321,7 +372,8 @@ interface PreparedSavePayload {
 }
 
 interface DraftQueueEntry {
-	inFlight: Promise<void | [void, void]> | null
+	strictDepth?: number
+	inFlight: Promise<void> | null
 	pending: PreparedSavePayload | null
 	pendingVersion: number
 }

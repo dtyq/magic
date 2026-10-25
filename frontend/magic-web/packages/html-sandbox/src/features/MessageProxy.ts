@@ -36,6 +36,7 @@ export class MessageProxy {
 	private originalParentDescriptor: PropertyDescriptor | undefined
 	private parentPatched = false
 	private incomingHandler: ((event: MessageEvent) => void) | null = null
+	private realParentWindow: Window | null = null
 
 	enable(): void {
 		if (this.enabled) return
@@ -81,8 +82,9 @@ export class MessageProxy {
 			// is the browser-native descriptor. Inspector messages depend on that bridge.
 			const originalParentDescriptor = Object.getOwnPropertyDescriptor(window, "parent")
 			const realParent = window.parent
+			this.realParentWindow = realParent
 			const parentProxy = new Proxy(realParent, {
-				get(target, prop, receiver) {
+				get(target, prop) {
 					if (prop === "postMessage") {
 						return function (
 							message: unknown,
@@ -102,9 +104,9 @@ export class MessageProxy {
 						}
 					}
 					// For all other properties, return the real value.
-					// We use Reflect.get so that getters on Window still work.
+					// Native Window getters require the real Window as their receiver.
 					try {
-						return Reflect.get(target, prop, receiver)
+						return Reflect.get(target, prop, target)
 					} catch {
 						// Cross-origin access to other properties may throw; that's fine.
 						return undefined
@@ -142,6 +144,7 @@ export class MessageProxy {
 		} finally {
 			this.originalParentDescriptor = undefined
 			this.parentPatched = false
+			this.realParentWindow = null
 		}
 	}
 
@@ -150,7 +153,7 @@ export class MessageProxy {
 	private listenIncoming(): void {
 		this.incomingHandler = (event: MessageEvent) => {
 			// Only record messages from parent
-			if (event.source !== window.parent) return
+			if (this.realParentWindow && event.source !== this.realParentWindow) return
 			this.recordMessage("incoming", event.data, event.origin)
 		}
 		window.addEventListener("message", this.incomingHandler)

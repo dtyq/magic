@@ -4,6 +4,12 @@ import { useTranslation } from "react-i18next"
 
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Input } from "@/components/shadcn-ui/input"
+import {
+	MAX_PROJECT_NAME_LENGTH,
+	clampProjectName,
+	isProjectNameAtLimit,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 
 interface CreateProjectSheetProps {
 	isOpen: boolean
@@ -17,6 +23,9 @@ interface CreateProjectSheetProps {
 export function CreateProjectSheet({ isOpen, onClose, onCreate }: CreateProjectSheetProps) {
 	const { t } = useTranslation("super")
 	const [value, setValue] = useState("")
+
+	const isOverLimit = isProjectNameOverLimit(value)
+	const isAtLimit = isProjectNameAtLimit(value)
 
 	/**
 	 * 统一处理 Sheet 的开关回调，关闭时顺手清空上次未提交的输入内容。
@@ -32,11 +41,11 @@ export function CreateProjectSheet({ isOpen, onClose, onCreate }: CreateProjectS
 	)
 
 	/**
-	 * 仅在输入非空时提交创建，避免把空白名称继续透传到业务层。
+	 * 仅在输入非空且未超长时提交创建，避免把空白或超长名称透传到业务层。
 	 */
 	const handleConfirm = useCallback(async () => {
-		const normalizedValue = value.trim()
-		if (!normalizedValue) return
+		const normalizedValue = clampProjectName(value)
+		if (!normalizedValue || isProjectNameOverLimit(value.trim())) return
 		await onCreate(normalizedValue)
 		setValue("")
 	}, [onCreate, value])
@@ -67,7 +76,7 @@ export function CreateProjectSheet({ isOpen, onClose, onCreate }: CreateProjectS
 				onClick: () => {
 					void handleConfirm()
 				},
-				disabled: !value.trim(),
+				disabled: !value.trim() || isOverLimit,
 				tone: "primary",
 				testId: "workspace-project-create-sheet-confirm",
 			}}
@@ -84,6 +93,7 @@ export function CreateProjectSheet({ isOpen, onClose, onCreate }: CreateProjectS
 					<Input
 						type="text"
 						value={value}
+						maxLength={MAX_PROJECT_NAME_LENGTH}
 						onChange={(event) => setValue(event.target.value)}
 						placeholder={t("hierarchicalWorkspacePopup.inputProjectName")}
 						autoFocus
@@ -98,6 +108,30 @@ export function CreateProjectSheet({ isOpen, onClose, onCreate }: CreateProjectS
 							}
 						}}
 					/>
+				</div>
+				{/* Character counter and limit reminder */}
+				<div className="flex items-center justify-between px-[14px] text-xs text-muted-foreground">
+					{isOverLimit ? (
+						<span className="text-destructive">
+							{t("chat.nameMaxLengthTip", {
+								maxLength: MAX_PROJECT_NAME_LENGTH,
+							})}
+						</span>
+					) : isAtLimit ? (
+						<span>
+							{t("chat.nameMaxLengthTip", {
+								maxLength: MAX_PROJECT_NAME_LENGTH,
+							})}
+						</span>
+					) : (
+						<span />
+					)}
+					<span
+						className={isOverLimit ? "text-destructive" : ""}
+						data-testid="workspace-project-create-sheet-char-count"
+					>
+						{value.length}/{MAX_PROJECT_NAME_LENGTH}
+					</span>
 				</div>
 			</div>
 		</MagicPopup>

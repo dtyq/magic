@@ -1,0 +1,7 @@
+{
+  "id": "continue-in-progress-professional-production",
+  "prompt": "Continue the current Canvas video production. The project already has a confirmed storyboard and shot reference images. Generate the remaining shot videos and finish the final composition.",
+  "expected_reference": "references/professional-video-production.md",
+  "expected_tools": ["query_canvas_overview", "query_canvas_element_details", "add_canvas_elements", "wait_canvas_generation"],
+  "constraints": ["An in-progress professional production stays on professional-video-production.md when the user says continue.", "Do not restart from basic video generation.", "Preserve confirmed storyboard and shot reference-image results.", "Use confirmation gates before remaining shot videos and final composition."]
+}

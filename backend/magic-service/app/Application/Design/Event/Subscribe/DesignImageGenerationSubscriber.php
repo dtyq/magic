@@ -38,6 +38,7 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 use function Hyperf\Support\retry;
+use function Hyperf\Translation\__;
 
 #[AsyncListener(driver: 'coroutine', waitForSync: false)]
 #[Listener]
@@ -118,11 +119,23 @@ class DesignImageGenerationSubscriber implements ListenerInterface
                         : 'design.image_generation.missing_image_data_error_prompt_only';
                     ExceptionBuilder::throw(DesignErrorCode::ThirdPartyServiceError, $translationKey);
                 }
-                ExceptionBuilder::throw(DesignErrorCode::ThirdPartyServiceError, 'design.image_generation.generate_image_failed_with_message', ['message' => $errorMessage]);
+                $this->logger->warning('design image operation provider failed', [
+                    'task_id' => $imageGenerationEntity->getId(),
+                    'error' => $errorMessage,
+                ]);
+                ExceptionBuilder::throw(DesignErrorCode::ThirdPartyServiceError, 'image_generate.image_operation_failed');
             }
             $this->completeImageTask($dataIsolation, $imageGenerationEntity, $response);
         } catch (Throwable $throwable) {
-            $this->imageGenerationDomainService->markAsFailed($dataIsolation, $imageGenerationEntity->getId(), $throwable->getMessage());
+            $this->logger->error('design image operation failed', [
+                'task_id' => $imageGenerationEntity->getId(),
+                'error' => $throwable->getMessage(),
+            ]);
+            $this->imageGenerationDomainService->markAsFailed(
+                $dataIsolation,
+                $imageGenerationEntity->getId(),
+                __('image_generate.image_operation_failed')
+            );
         } finally {
             if ($lease->ownsSlot()) {
                 $this->logger->info('design image operation concurrency release start', $this->buildConcurrencyLogContext($imageGenerationEntity, $lease));

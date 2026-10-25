@@ -60,7 +60,7 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
             if outcome.requires_qr_render:
                 return ToolResult(content=_build_qr_refresh_message(outcome.qrcode_content))
             if outcome.success:
-                await self._activate_channel(outcome, tool_context.sandbox_id)
+                await self._activate_channel(outcome, tool_context.topic_id)
             return ToolResult(content=outcome.message)
         except Exception as e:
             logger.error(f"[WaitWechatLogin] wait_for_outcome failed: {e}")
@@ -92,10 +92,12 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
             ),
         }
 
-    async def _activate_channel(self, outcome: WechatLoginOutcome, sandbox_id: str) -> None:
+    async def _activate_channel(self, outcome: WechatLoginOutcome, topic_id: str) -> None:
         """扫码成功后保存凭据并启动 WechatChannel。"""
         if outcome.result is None:
             raise RuntimeError("The WeChat login succeeded, but the result payload is missing.")
+        if not topic_id:
+            raise RuntimeError("The WeChat login succeeded, but the current topic ID is missing.")
 
         result = outcome.result
         config = await load_config()
@@ -108,7 +110,7 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
             base_url=result.base_url,
             cdn_base_url=existing_cdn_base_url,
             ilink_user_id=result.ilink_user_id,
-            sandbox_id=sandbox_id,
+            topic_id=topic_id,
         )
         await save_config(config)
         logger.info("[WaitWechatLogin] WeChat credentials saved")

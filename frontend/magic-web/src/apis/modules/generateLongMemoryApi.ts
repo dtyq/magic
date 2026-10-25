@@ -1,12 +1,11 @@
 import type { LongMemory } from "@/types/longMemory"
-import { genRequestUrl } from "@/utils/http"
 
-import type { HttpClient } from "../core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 
-export const generateLongMemoryApi = (fetch: HttpClient) => ({
+export const generateLongMemoryApi = (fetch: ServiceHttpClient) => ({
 	/** 验证一段话是否需要被记忆 */
 	evaluateMemory() {
-		return fetch.post(genRequestUrl("/api/v1/memories/evaluate"))
+		return fetch.post("/api/v1/memories/evaluate")
 	},
 	/** 获取记忆列表 */
 	getMemories(data: {
@@ -22,40 +21,27 @@ export const generateLongMemoryApi = (fetch: HttpClient) => ({
 	 * @returns 创建记忆的结果
 	 */
 	createMemory(data: { content: string; project_id?: string }) {
-		return fetch.post(genRequestUrl("/api/v1/memory"), data)
+		return fetch.post("/api/v1/memory", data)
 	},
 	/** 获取记忆详情 */
 	getMemoryDetails(memoryId: string) {
 		return fetch.get<{
 			success: boolean
 			data: LongMemory.Memory
-		}>(
-			genRequestUrl("/api/v1/memory/${memoryId}", {
-				memoryId,
-			}),
-		)
+		}>(`/api/v1/memory/${memoryId}`)
 	},
 	/** 更新记忆 */
 	setMemory(memoryId: string, data: { content?: string; pending_content?: string }) {
 		return fetch.put<{
 			success: boolean
 			message: string
-		}>(
-			genRequestUrl("/api/v1/memory/${memoryId}", {
-				memoryId,
-			}),
-			{
-				...data,
-			},
-		)
+		}>(`/api/v1/memory/${memoryId}`, {
+			...data,
+		})
 	},
 	/** 删除记忆 */
 	deleteMemory(memoryId: string) {
-		return fetch.delete(
-			genRequestUrl("/api/v1/memory/${memoryId}", {
-				memoryId,
-			}),
-		)
+		return fetch.delete(`/api/v1/memory/${memoryId}`)
 	},
 	/** 批量接受/拒绝记忆 */
 	batchAcceptMemories(memoryIds: string[], action: "accept" | "reject") {
@@ -78,30 +64,26 @@ export const generateLongMemoryApi = (fetch: HttpClient) => ({
 	},
 	/** 搜索记忆 */
 	searchMemory() {
-		return fetch.get(genRequestUrl("/api/v1/memories/search"))
+		return fetch.get("/api/v1/memories/search")
 	},
 	/** 强化记忆 */
 	reinforceMemory(memoryId: string) {
-		return fetch.get(
-			genRequestUrl("/api/v1/memories/${memoryId}/reinforce", {
-				memoryId,
-			}),
-		)
+		return fetch.get(`/api/v1/memories/${memoryId}/reinforce`)
 	},
 	/** 批量强化记忆 */
 	reinforceMemories() {
-		return fetch.get(genRequestUrl("/api/v1/memories/reinforce"))
+		return fetch.get("/api/v1/memories/reinforce")
 	},
 	/** 维护记忆 */
 	maintainMemory() {
-		return fetch.get(genRequestUrl("/api/v1/memories/maintain"))
+		return fetch.get("/api/v1/memories/maintain")
 	},
 	/** 获取记忆统计信息 */
 	getMemoryStats() {
-		return fetch.get(genRequestUrl("/api/v1/memories/stats"))
+		return fetch.get("/api/v1/memories/stats")
 	},
 	/** 获取系统提示词 */
 	getMemoryPrompt() {
-		return fetch.get(genRequestUrl("/api/v1/memories/prompt"))
+		return fetch.get("/api/v1/memories/prompt")
 	},
 })

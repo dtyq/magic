@@ -2,13 +2,14 @@ import type { LucideIcon } from "lucide-react"
 import { Moon, Sun, SunMoon } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTheme } from "@/models/config/hooks"
 import type { ThemeMode } from "antd-style"
 import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { isDev } from "@/utils/env"
 import { MagicTooltip } from "@/components/base"
 import { useActionButtonsMenu } from "./useActionButtonsMenu"
+import NotificationCenterSidebarEntry from "./NotificationCenterSidebarEntry"
 interface ActionButtonsProps {
 	collapsed: boolean
 }
@@ -44,66 +45,66 @@ function ActionButtons({ collapsed }: ActionButtonsProps) {
 
 	return (
 		<div
-			className="flex w-full shrink-0 flex-col px-0 py-2"
+			className="flex w-full shrink-0 flex-col items-center gap-1 px-0 py-1"
 			data-testid="sidebar-action-buttons"
 		>
-			<div className={cn("flex w-full shrink-0 flex-col gap-1", collapsed && "items-center")}>
+			{/* 展开时均匀分布三个图标入口，收起时沿侧栏纵向排列。 */}
+			<div
+				className={cn(
+					"flex w-full shrink-0 items-center gap-1",
+					collapsed ? "flex-col" : "justify-around",
+				)}
+			>
+				<NotificationCenterSidebarEntry collapsed={collapsed} />
 				{actionItems.map((item) => {
 					const Icon = item.icon
 					return (
-						<Button
+						<MagicTooltip
 							key={item.id}
-							variant="ghost"
-							size={collapsed ? "icon" : "sm"}
-							data-testid={`sidebar-action-${item.id}`}
-							className={cn(
-								"h-8 shrink-0",
-								collapsed ? "w-8" : "w-full justify-start px-2",
-							)}
-							onClick={item.onClick}
+							title={item.tooltip}
+							placement={collapsed ? "right" : "top"}
 						>
-							<Icon
-								className={cn(
-									"h-4 w-4 text-sidebar-foreground",
-									!collapsed && "mr-2",
-								)}
-							/>
-							{!collapsed && (
-								<span className="text-sm text-sidebar-foreground">
-									{t(item.label)}
-								</span>
-							)}
-						</Button>
+							<Button
+								aria-label={
+									item.id === "recycle-bin"
+										? t("footer.globalRecycleBin")
+										: item.label
+								}
+								variant="ghost"
+								size="icon-sm"
+								data-testid={`sidebar-action-${item.id}`}
+								className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+								onClick={item.onClick}
+							>
+								<Icon className="size-4" />
+							</Button>
+						</MagicTooltip>
 					)
 				})}
-
-				{isDev && (
-					<MagicTooltip title="当前仅在开发环境开启">
-						<Button
-							variant="ghost"
-							size={collapsed ? "icon" : "sm"}
-							data-testid="sidebar-action-theme"
-							className={cn(
-								"h-8 shrink-0",
-								collapsed ? "w-8" : "w-full justify-start px-2",
-							)}
-							onClick={handleThemeToggle}
-						>
-							<ThemeIcon
-								className={cn(
-									"h-4 w-4 text-sidebar-foreground",
-									!collapsed && "mr-2",
-								)}
-							/>
-							{!collapsed && (
-								<span className="text-sm text-sidebar-foreground">
-									{themeLabel}
-								</span>
-							)}
-						</Button>
-					</MagicTooltip>
-				)}
 			</div>
+
+			{isDev && (
+				<MagicTooltip title="当前仅在开发环境开启" placement="right">
+					<Button
+						variant="ghost"
+						size={collapsed ? "icon" : "sm"}
+						data-testid="sidebar-action-theme"
+						aria-label={themeLabel}
+						className={cn(
+							"h-8 shrink-0 gap-2 text-[13px] font-normal leading-5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+							collapsed ? "w-8" : "w-full justify-start px-2",
+						)}
+						onClick={handleThemeToggle}
+					>
+						<ThemeIcon className="h-4 w-4 text-sidebar-foreground" />
+						{!collapsed && (
+							<span className="text-[13px] text-sidebar-foreground">
+								{themeLabel}
+							</span>
+						)}
+					</Button>
+				</MagicTooltip>
+			)}
 		</div>
 	)
 }

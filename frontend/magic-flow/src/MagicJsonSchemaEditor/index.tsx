@@ -10,6 +10,7 @@ import { observer } from "mobx-react"
 import { ExpressionSource } from "@/MagicExpressionWidget/types"
 import { DataSourceOption } from "@/common/BaseUI/DropdownRenderer/Reference"
 import ErrorContent from "@/common/BaseUI/ErrorComponent/ErrorComponent"
+import TablerIconGlobalStyle from "@/common/BaseUI/TablerIconGlobalStyle"
 import Editor from "./components/editor"
 import { AppendPosition, DefaultColumnNames, DefaultDisplayColumns, ShowColumns } from "./constants"
 import { ExportFieldsProvider } from "./context/ExportFieldsContext/Provider"
@@ -307,6 +308,7 @@ const JsonSchemaObserverEditor = observer(
 						return <ErrorContent />
 					}}
 				>
+					<TablerIconGlobalStyle />
 					<ConfigProvider prefixCls={CLASSNAME_PREFIX}>
 						<div>
 							<GlobalStyle />

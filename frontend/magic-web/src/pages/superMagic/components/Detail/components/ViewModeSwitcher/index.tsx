@@ -12,8 +12,19 @@ const TRIGGER_CLASS =
 	" dark:data-[state=active]:shadow-[0px_1px_3px_0px_rgba(0,0,0,0.4),0px_1px_2px_-1px_rgba(0,0,0,0.3)]"
 
 function ViewModeSwitcher(props: ViewModeSwitcherProps) {
-	const { viewMode, onViewModeChange, isMobile = false, enableMobileMode = true } = props
+	const {
+		viewMode,
+		onViewModeChange,
+		isMobile = false,
+		enableMobileMode = true,
+		testIdPrefix,
+		testIdsEnabled = true,
+	} = props
 	const { t } = useTranslation("super")
+	const getTriggerTestId = (mode: ViewMode) => {
+		if (!testIdsEnabled) return undefined
+		return testIdPrefix ? `${testIdPrefix}-${mode}-button` : `view-mode-${mode}`
+	}
 
 	const handleValueChange = (value: string) => {
 		onViewModeChange(value as ViewMode)
@@ -27,7 +38,7 @@ function ViewModeSwitcher(props: ViewModeSwitcherProps) {
 						<TabsTrigger
 							value="code"
 							className={TRIGGER_CLASS}
-							data-testid="view-mode-code"
+							data-testid={getTriggerTestId("code")}
 						>
 							<Code size={16} strokeWidth={1.5} className="stroke-foreground" />
 						</TabsTrigger>
@@ -39,7 +50,7 @@ function ViewModeSwitcher(props: ViewModeSwitcherProps) {
 							<TabsTrigger
 								value="desktop"
 								className={TRIGGER_CLASS}
-								data-testid="view-mode-desktop"
+								data-testid={getTriggerTestId("desktop")}
 							>
 								<Smartphone
 									size={16}
@@ -56,7 +67,7 @@ function ViewModeSwitcher(props: ViewModeSwitcherProps) {
 								<TabsTrigger
 									value="desktop"
 									className={TRIGGER_CLASS}
-									data-testid="view-mode-desktop"
+									data-testid={getTriggerTestId("desktop")}
 								>
 									<Monitor
 										size={16}
@@ -67,12 +78,16 @@ function ViewModeSwitcher(props: ViewModeSwitcherProps) {
 							</span>
 						</MagicTooltip>
 						{enableMobileMode && (
-							<MagicTooltip title={t("fileViewer.phoneMode")} placement="top">
+							<MagicTooltip
+								title={t("fileViewer.devicePreview.mode")}
+								placement="top"
+							>
 								<span className="inline-flex h-full items-center">
 									<TabsTrigger
 										value="phone"
+										aria-label={t("fileViewer.devicePreview.mode")}
 										className={TRIGGER_CLASS}
-										data-testid="view-mode-phone"
+										data-testid={getTriggerTestId("phone")}
 									>
 										<Smartphone
 											size={16}

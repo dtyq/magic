@@ -16,7 +16,7 @@ return new class extends Migration {
                 $table->string('agent_image', 512)
                     ->nullable()
                     ->default(null)
-                    ->comment('Agent image used by sandbox (returned by sandbox gateway on create/upgrade)')
+                    ->comment('Deprecated legacy Agent image; use sandbox_images instead')
                     ->after('sandbox_config');
             }
         });

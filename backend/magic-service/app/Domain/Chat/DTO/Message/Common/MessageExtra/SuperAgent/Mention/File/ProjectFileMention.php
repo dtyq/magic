@@ -12,6 +12,8 @@ use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionTy
 
 final class ProjectFileMention extends AbstractMention
 {
+    use MarkdownFileLinkTrait;
+
     public function getMentionTextStruct(): string
     {
         // 如果file_path为空，需要根据 file_id拿到 file_key，从 file_key解析到 file_path
@@ -19,8 +21,7 @@ final class ProjectFileMention extends AbstractMention
         if (! $data instanceof FileData) {
             return '';
         }
-        $filePath = $data->getFilePath() ?? '';
-        return sprintf('[@file_path:%s]', $filePath);
+        return $this->formatMarkdownFileReference($data);
     }
 
     public function getMentionJsonStruct(): array

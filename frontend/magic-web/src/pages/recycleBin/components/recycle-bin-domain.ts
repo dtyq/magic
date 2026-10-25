@@ -15,6 +15,7 @@ export type ResourceType = (typeof RESOURCE_TYPE)[keyof typeof RESOURCE_TYPE]
 
 /** Parent location snapshot stored in recycle-bin list `extra_data.parent_info`. */
 export interface RecycleBinParentInfo {
+	space_type?: "user" | "project"
 	workspace_id?: number
 	workspace_name?: string
 	project_id?: number
@@ -32,6 +33,8 @@ export interface RecycleBinItem {
 	path: string
 	deletedOn: string
 	remainingDays: number
+	originalPath?: string | null
+	deletedByName?: string
 }
 
 export interface ItemTarget {
@@ -52,6 +55,7 @@ export type DeleteTarget = ActionTarget
 export type SelectPathTarget = { type: "topic"; target: RestoreTarget }
 
 export interface RestoreCheckResult {
+	rootSpaceTypes?: Array<"user" | "project">
 	/** 需移动的 resource_id（父级不存在） */
 	itemsNeedMove: string[]
 	/** 无需移动的 resource_id（父级存在可直接恢复） */
@@ -151,9 +155,13 @@ export function toResourceType(value?: number): ResourceType {
 export function mapRecycleBinItem(item: RecycleBinListItemDto, t: TFunction): RecycleBinItem {
 	const parentInfo = item.extra_data?.parent_info
 	const workspaceName =
-		parentInfo?.workspace_name?.trim() || item.extra_data?.workspace_name?.trim() || ""
+		item.extra_data?.space_type === "user"
+			? t("userSpace.title")
+			: parentInfo?.workspace_name?.trim() || item.extra_data?.workspace_name?.trim() || ""
 	const projectName =
-		parentInfo?.project_name?.trim() || item.extra_data?.project_name?.trim() || ""
+		item.extra_data?.space_type === "user"
+			? ""
+			: parentInfo?.project_name?.trim() || item.extra_data?.project_name?.trim() || ""
 	const relativeFilePath = item.extra_data?.relative_file_path?.trim() || ""
 	const resourceType = toResourceType(item.resource_type)
 	const path =
@@ -185,7 +193,20 @@ export function mapRecycleBinItem(item: RecycleBinListItemDto, t: TFunction): Re
 		path,
 		deletedOn: item.deleted_at ?? "",
 		remainingDays: item.remaining_days ?? 0,
+		originalPath: getOriginalFileParentPath(item),
+		deletedByName: item.deleted_by_user?.nickname || item.deleted_by_name,
 	}
+}
+
+/** 删除快照用于本次查询的展示分类；缺少快照时不能用活跃目录树猜测旧位置。 */
+function getOriginalFileParentPath(item: RecycleBinListItemDto): string | null {
+	const filePath = item.extra_data?.relative_file_path?.trim()
+	if (filePath && filePath !== "/" && filePath.startsWith("/")) {
+		const normalizedPath = filePath.replace(/\/+$/, "")
+		return normalizedPath.slice(0, normalizedPath.lastIndexOf("/")) || "/"
+	}
+	const parent = item.extra_data?.original_parent_id
+	return parent === null || parent === 0 || parent === "0" ? "/" : null
 }
 
 export function getCategoryByResourceType(resourceType?: ResourceType): RecycleBinItem["category"] {
@@ -268,6 +289,13 @@ export function buildRecycleBinPathParts(props: {
 	t: TFunction
 }) {
 	const { resourceType, parentInfo, resourceName, t } = props
+	if (resourceType === RESOURCE_TYPE.FILE && parentInfo?.space_type === "user") {
+		const path = resolveRecycleBinParentPath({
+			relativeFilePath: parentInfo.relative_file_path,
+			resourceName,
+		})
+		return path ? [path.replace(/^\/+|\/+$/g, "")] : []
+	}
 	if (resourceType === RESOURCE_TYPE.WORKSPACE) return []
 	if (resourceType === RESOURCE_TYPE.PROJECT) {
 		return [
@@ -326,7 +354,11 @@ export function buildRecycleBinPathLabel(props: {
 	if (props.resourceType === RESOURCE_TYPE.MICRO_APP) {
 		return props.t("mobile.recycleBin.pathScopes.microApps")
 	}
-	const head = props.t("mobile.recycleBin.pathScopes.workspaces")
+	const head = props.t(
+		props.parentInfo?.space_type === "user"
+			? "userSpace.title"
+			: "mobile.recycleBin.pathScopes.workspaces",
+	)
 	const parts = buildRecycleBinPathParts({
 		resourceType: props.resourceType,
 		parentInfo: props.parentInfo,
@@ -456,6 +488,14 @@ export function getRestoreStatusMessage(
 
 	const resourceType = target ? getRestoreTargetResourceType({ target, items }) : undefined
 	const conflictCount = Object.keys(result.conflictResolutions ?? {}).length
+	const rootSpaceTypes = result.rootSpaceTypes ?? ["project"]
+	const rootLocation = t(
+		rootSpaceTypes.length > 1
+			? "recycleBin.restoreCheck.spaceRoots"
+			: rootSpaceTypes[0] === "user"
+				? "recycleBin.restoreCheck.userRoot"
+				: "recycleBin.restoreCheck.projectRoot",
+	)
 	const skippedCount = result.skippedNameConflictCount ?? 0
 	const projectMissingCount = result.projectMissingCount ?? 0
 	const projectMissingFileNames = result.projectMissingFileNames ?? []
@@ -508,12 +548,14 @@ export function getRestoreStatusMessage(
 			if (!conflictNames) {
 				baseMessage = t("recycleBin.restoreCheck.fileConflictCountConfirmMessage", {
 					parentMissingCount: conflictCount,
+					rootLocation,
 					nameConflictCount: skippedCount,
 				})
 				return [baseMessage, ...terminalConflictMessages].filter(Boolean).join("\n")
 			}
 			baseMessage = t("recycleBin.restoreCheck.fileConflictConfirmMessage", {
 				parentMissingCount: conflictCount,
+				rootLocation,
 				nameConflictCount: skippedCount,
 				conflictNames,
 			})
@@ -534,6 +576,7 @@ export function getRestoreStatusMessage(
 		}
 		if (conflictCount > 0) {
 			baseMessage = t("recycleBin.restoreCheck.parentMissingConfirmMessage", {
+				rootLocation,
 				count: conflictCount,
 			})
 			return [baseMessage, ...terminalConflictMessages].filter(Boolean).join("\n")

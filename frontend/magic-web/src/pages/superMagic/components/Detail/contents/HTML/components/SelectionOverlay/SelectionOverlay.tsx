@@ -3,10 +3,11 @@
  * Renders element selection and hover highlights in the parent window (not inside iframe)
  */
 
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { AnimatePresence } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { observer } from "mobx-react-lite"
+import { cn } from "@/utils/cn"
 import type { HTMLEditorV2Ref } from "../../iframe-bridge/types/props"
+import { useStylePanelStore } from "../../iframe-bridge/contexts/StylePanelContext"
 import type { ElementRect, SelectedInfo } from "./types"
 import { HTML_EDITOR_Z_INDEX } from "../../constants/z-index"
 import { useSelectionMessages } from "./hooks/useSelectionMessages"
@@ -18,6 +19,8 @@ import { SelectionBox } from "./components/SelectionBox"
 import { HoverBox } from "./components/HoverBox"
 
 interface SelectionOverlayProps {
+	/** 宿主视口改变但比例相同时，也需要重新计算 iframe 的位置。 */
+	layoutKey?: string
 	scrollContainerRef?: React.RefObject<HTMLElement>
 	containerRef?: React.RefObject<HTMLElement>
 	iframeRef: React.RefObject<HTMLIFrameElement>
@@ -25,11 +28,18 @@ interface SelectionOverlayProps {
 	scaleRatio?: number
 	isPptRender?: boolean
 	disabled?: boolean
+	/** Draw selection feedback without manipulation handles or edit shortcuts. */
+	readOnly?: boolean
 	className?: string
 	onSelectedElementChange?: (rect: ElementRect | null) => void
+	onSelectedElementViewportChange?: (rect: (ElementRect & { selector?: string }) | null) => void
+	onElementMoveStart?: () => void
+	onElementMoveEnd?: () => void
 }
 
-export const SelectionOverlay = memo(function SelectionOverlay({
+// observer already memos; wrapping memo() throws in mobx-react-lite 4
+export const SelectionOverlay = observer(function SelectionOverlay({
+	layoutKey,
 	scrollContainerRef,
 	containerRef,
 	iframeRef,
@@ -37,12 +47,29 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 	scaleRatio = 1,
 	isPptRender = false,
 	disabled = false,
+	readOnly = false,
 	className,
 	onSelectedElementChange,
+	onSelectedElementViewportChange,
+	onElementMoveStart,
+	onElementMoveEnd,
 }: SelectionOverlayProps) {
 	const [selectedInfoList, setSelectedInfoList] = useState<SelectedInfo[]>([])
 	const [hoveredRect, setHoveredRect] = useState<ElementRect | null>(null)
 	const [isSelectionMode, setIsSelectionMode] = useState(false)
+	const stylePanelStore = useStylePanelStore()
+	const handlePreviewSize = useCallback(
+		(size: { width: string; height: string }) => {
+			stylePanelStore.updateComputedStyles(size)
+		},
+		[stylePanelStore],
+	)
+	const handlePreviewStyles = useCallback(
+		(styles: Partial<{ rowGap: string; columnGap: string }>) => {
+			stylePanelStore.updateComputedStyles(styles)
+		},
+		[stylePanelStore],
+	)
 	const [overlayViewportOrigin, setOverlayViewportOrigin] = useState({ top: 0, left: 0 })
 	const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -55,15 +82,44 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 
 	// Notify parent component when selected element changes (with stable callback)
 	const selectedRectRef = useRef<ElementRect | null>(null)
+	const viewportRectRef = useRef<string>("")
 	const selectedRect = useMemo(() => selectedInfo?.rect || null, [selectedInfo])
 
 	useEffect(() => {
 		// Only notify if rect actually changed to prevent unnecessary parent updates
-		if (onSelectedElementChange && selectedRectRef.current !== selectedRect) {
-			selectedRectRef.current = selectedRect
-			onSelectedElementChange(selectedRect)
+		if (onSelectedElementChange || onSelectedElementViewportChange) {
+			const viewportRect = selectedRect
+				? transformRect(
+						selectedRect,
+						iframeRef,
+						isPptRender,
+						scaleRatio,
+						selectedInfo?.selector,
+					)
+				: null
+			if (onSelectedElementChange && selectedRectRef.current !== selectedRect) {
+				selectedRectRef.current = selectedRect
+				onSelectedElementChange(selectedRect)
+			}
+			const anchorKey = viewportRect
+				? `${selectedInfo?.selector ?? ""}:${viewportRect.top}:${viewportRect.left}:${viewportRect.width}:${viewportRect.height}`
+				: ""
+			if (onSelectedElementViewportChange && viewportRectRef.current !== anchorKey) {
+				viewportRectRef.current = anchorKey
+				onSelectedElementViewportChange(
+					viewportRect ? { ...viewportRect, selector: selectedInfo?.selector } : null,
+				)
+			}
 		}
-	}, [selectedRect, onSelectedElementChange])
+	}, [
+		iframeRef,
+		isPptRender,
+		scaleRatio,
+		selectedInfo?.selector,
+		selectedRect,
+		onSelectedElementChange,
+		onSelectedElementViewportChange,
+	])
 
 	// Handle messages from iframe
 	useSelectionMessages({
@@ -88,6 +144,7 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 
 	// Sync highlights on scale changes (hides during scaling, shows after)
 	const { isScaling } = useScaleSync({
+		layoutKey,
 		scaleRatio,
 		isSelectionMode,
 		selectedInfoList,
@@ -141,6 +198,9 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 		rotation,
 		onMoveHandleMouseDown,
 		isMoving,
+		gapHandles,
+		isGapDragging,
+		onGapHandlePointerDown,
 		handleDelete,
 		handleDuplicate,
 		executeDelete,
@@ -154,12 +214,21 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 		setSelectedInfoList,
 		setHoveredRect,
 		setIsSelectionMode,
+		onMoveStart: onElementMoveStart,
+		onMoveEnd: onElementMoveEnd,
+		onPreviewSize: handlePreviewSize,
+		gapAxesLinked: stylePanelStore.gapAxesLinked,
+		onPreviewStyles: handlePreviewStyles,
 	})
+	const previewHoverRect = stylePanelStore.previewRect ?? hoveredRect
 
 	// Transform hover rect (memoized)
 	const transformedHoveredRect = useMemo(
-		() => (hoveredRect ? transformRect(hoveredRect, iframeRef, isPptRender, scaleRatio) : null),
-		[hoveredRect, iframeRef, isPptRender, scaleRatio],
+		() =>
+			previewHoverRect
+				? transformRect(previewHoverRect, iframeRef, isPptRender, scaleRatio)
+				: null,
+		[previewHoverRect, iframeRef, isPptRender, scaleRatio],
 	)
 	const overlayHoveredRect = useMemo(
 		() =>
@@ -190,7 +259,6 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 			)
 			return {
 				selector: info.selector,
-				info,
 				viewportRect: transformedRect,
 				transformedRect: offsetRect(transformedRect, overlayViewportOrigin),
 				transform,
@@ -208,7 +276,7 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 	])
 
 	useEffect(() => {
-		if (!isSelectionMode || !selectedInfo || disabled) {
+		if (!isSelectionMode || !selectedInfo || disabled || readOnly) {
 			return
 		}
 
@@ -271,7 +339,15 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 		return () => {
 			window.removeEventListener("keydown", handleShortcut, true)
 		}
-	}, [containerRef, disabled, executeDelete, executeDuplicate, isSelectionMode, selectedInfo])
+	}, [
+		containerRef,
+		disabled,
+		readOnly,
+		executeDelete,
+		executeDuplicate,
+		isSelectionMode,
+		selectedInfo,
+	])
 
 	// Don't render when disabled (saving)
 	if (disabled) {
@@ -287,6 +363,8 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 	return (
 		<div
 			ref={overlayRef}
+			data-html-selection-overlay="true"
+			data-testid="html-editor-selection-overlay"
 			className={cn("pointer-events-none", className)}
 			style={{
 				position: "fixed",
@@ -297,30 +375,28 @@ export const SelectionOverlay = memo(function SelectionOverlay({
 			}}
 		>
 			{/* Selected elements highlights */}
-			<AnimatePresence mode="sync">
-				{transformedSelections.map(
-					({ selector, info, viewportRect, transformedRect, transform }) => (
-						<SelectionBox
-							key={selector}
-							info={info}
-							transformedRect={transformedRect}
-							viewportRect={viewportRect}
-							isMultiSelect={isMultiSelect}
-							isSelectionMode={isSelectionMode}
-							transform={transform}
-							containerElement={containerElement}
-							isMoving={isMoving}
-							rotation={rotation}
-							resizeHandles={resizeHandles}
-							onMoveHandleMouseDown={onMoveHandleMouseDown}
-							onRotateHandleMouseDown={onRotateHandleMouseDown}
-							onResizeHandleMouseDown={onHandleMouseDown}
-							onDelete={handleDelete}
-							onDuplicate={handleDuplicate}
-						/>
-					),
-				)}
-			</AnimatePresence>
+			{transformedSelections.map(({ selector, viewportRect, transformedRect, transform }) => (
+				<SelectionBox
+					key={selector}
+					transformedRect={transformedRect}
+					viewportRect={viewportRect}
+					isMultiSelect={isMultiSelect}
+					isSelectionMode={isSelectionMode && !readOnly}
+					transform={transform}
+					containerElement={containerElement}
+					isMoving={isMoving}
+					rotation={rotation}
+					resizeHandles={resizeHandles}
+					onMoveHandleMouseDown={onMoveHandleMouseDown}
+					onRotateHandleMouseDown={onRotateHandleMouseDown}
+					onResizeHandleMouseDown={onHandleMouseDown}
+					gapHandles={gapHandles}
+					onGapHandlePointerDown={onGapHandlePointerDown}
+					isGapDragging={isGapDragging}
+					onDelete={handleDelete}
+					onDuplicate={handleDuplicate}
+				/>
+			))}
 
 			{/* Hovered element highlight */}
 			{overlayHoveredRect && (

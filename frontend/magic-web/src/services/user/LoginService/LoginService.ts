@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import type { LoginFormValuesMap, LoginStepResult } from "@/pages/login/types"
-import type { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 import { Login } from "@/types/login"
 import type { User } from "@/types/user"
 import { getDeviceInfo } from "@/utils/devices"
@@ -15,11 +15,28 @@ import type { ConfigService } from "../../config/ConfigService"
 import type { UserService } from "../UserService"
 import type { Common } from "@/types/common"
 import { AccountService } from "../AccountService"
-import magicClient from "@/apis/clients/magic"
+import { defaultMagicClient as magicClient } from "@/infrastructure/network/http/runtime"
 import { userTransformer } from "@/models/user/transformers"
 
+// Depend on login capabilities only; another edition need not implement OSS profile-edit APIs.
+type LoginUserApi = Pick<
+	typeof apis.UserApi,
+	| "login"
+	| "loginByEmail"
+	| "thirdPartyLogins"
+	| "dingtalkAppLogin"
+	| "getPhoneVerificationCode"
+	| "getUsersVerificationCode"
+	| "getWechatQrcodeTicket"
+	| "getWechatLoginStatus"
+	| "wechatBindAccount"
+	| "sendEmailVerificationCode"
+	| "getImageCaptcha"
+	| "verifyImageCaptcha"
+>
+
 export class LoginService {
-	protected userApi: (typeof apis)["UserApi"]
+	protected userApi: LoginUserApi
 
 	protected authApi: (typeof apis)["AuthApi"]
 
@@ -29,7 +46,12 @@ export class LoginService {
 
 	protected readonly service: Container
 
-	constructor(dependencies: typeof apis, service: Container) {
+	constructor(
+		dependencies: Pick<typeof apis, "AuthApi" | "CommonApi" | "ContactApi"> & {
+			UserApi: LoginUserApi
+		},
+		service: Container,
+	) {
 		this.userApi = dependencies.UserApi
 		this.authApi = dependencies.AuthApi
 		this.commonApi = dependencies.CommonApi
@@ -143,7 +165,9 @@ export class LoginService {
 	}
 
 	/** 同步当前登录帐号的环境配置 */
-	syncClusterConfig = async (options?: Pick<RequestConfig, "skipAppInitWait">) => {
+	syncClusterConfig = async (
+		options?: Pick<RequestConfig, "skipAppInitWait" | "enableErrorMessagePrompt">,
+	) => {
 		try {
 			const login_code = ""
 			const config = await this.getClusterConfig(login_code, options)
@@ -204,7 +228,7 @@ export class LoginService {
 				teamshareOrganizationCode,
 			} = params
 
-			const magicOrgs = Object.values(magicOrganizationMap)
+			const magicOrgs = Object.values(magicOrganizationMap ?? {})
 
 			const orgCode =
 				teamshareOrganizationCode || magicOrgs?.[0]?.third_platform_organization_code
@@ -216,7 +240,7 @@ export class LoginService {
 				if (userInfo) {
 					userStore.user.setUserInfo(userTransformer(userInfo))
 					// 登录完成后构造用户信息，维护在账号体系中
-					this.service.get<AccountService>("accountService").setAccount({
+					await this.service.get<AccountService>("accountService").setAccount({
 						deployCode,
 						nickname: userInfo?.nickname,
 						organizationCode: userInfo?.organization_code,
@@ -305,6 +329,7 @@ export class LoginService {
 		magicOrganizationMap: Record<string, User.MagicOrganization>,
 		_accessToken: string,
 		_deployCode?: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
 	): Promise<{
 		organizations: Array<User.UserOrganization>
 		organizationCode: string

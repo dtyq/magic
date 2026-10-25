@@ -58,7 +58,7 @@ readonly class AsrAudioConfig
             'output_filename' => $this->outputFilename,
         ];
 
-        if ($this->fileShardCount !== null && $this->fileShardCount >= 0) {
+        if ($this->fileShardCount !== null && $this->fileShardCount > 0) {
             $data['file_shard_count'] = $this->fileShardCount;
         }
 

@@ -1,7 +1,11 @@
-import { Extension } from "@tiptap/core"
-import { ReactRenderer } from "@tiptap/react"
-import Suggestion from "@tiptap/suggestion"
-import type { SuggestionOptions, SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion"
+import { Extension } from "@/infrastructure/editors/tiptap/core"
+import { ReactRenderer } from "@/infrastructure/editors/tiptap/react"
+import Suggestion from "@/infrastructure/editors/tiptap/suggestion"
+import type {
+	SuggestionOptions,
+	SuggestionProps,
+	SuggestionKeyDownProps,
+} from "@/infrastructure/editors/tiptap/suggestion"
 
 import type { SuggestionItem, SlashMenuConfig } from "../types"
 import SlashDropdownRenderer from "../components/SlashDropdownRenderer"
@@ -185,10 +189,16 @@ export const SlashCommandExtension = Extension.create<SlashCommandOptions>({
 		return {
 			"Mod-/": () => {
 				return (
-					runActiveEditor(this.editor, (editor) => {
-						const commands = editor.commands as { triggerSlashCommand?: () => boolean }
-						return commands.triggerSlashCommand?.() || false
-					}, false) ?? false
+					runActiveEditor(
+						this.editor,
+						(editor) => {
+							const commands = editor.commands as {
+								triggerSlashCommand?: () => boolean
+							}
+							return commands.triggerSlashCommand?.() || false
+						},
+						false,
+					) ?? false
 				)
 			},
 		}

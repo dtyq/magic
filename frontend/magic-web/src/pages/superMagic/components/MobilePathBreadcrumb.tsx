@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ChevronLeft, ChevronRight, Home } from "lucide-react"
 
 export interface MobilePathBreadcrumbSegment {

@@ -1,4 +1,5 @@
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { getAttachmentFileName } from "./recording-detail-files"
 import { downloadRecordingAttachmentFile } from "./download-recording-attachment"
 
@@ -6,6 +7,7 @@ interface DownloadRecordingAudioParams {
 	fileId?: string
 	audioFile?: AttachmentItem
 	fallbackName?: string
+	fileApi?: Pick<FileApi, "getTemporaryDownloadUrl">
 }
 
 /**
@@ -16,6 +18,7 @@ export async function downloadRecordingAudioFile({
 	fileId,
 	audioFile,
 	fallbackName,
+	fileApi,
 }: DownloadRecordingAudioParams): Promise<boolean> {
 	if (!fileId) return false
 
@@ -23,5 +26,6 @@ export async function downloadRecordingAudioFile({
 	return downloadRecordingAttachmentFile({
 		fileId,
 		fileName: preferredName || undefined,
+		fileApi,
 	})
 }

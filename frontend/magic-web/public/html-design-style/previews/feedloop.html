@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FeedLoop — Algorithmic Social Activity Stream</title>
+<style>
+ :root {
+ --primary: #2563EB;
+ --primary-hover: #1D4ED8;
+ --primary-light: #EFF6FF;
+ --secondary: #6B7280;
+ --bg-canvas: #F9FAFB;
+ --surface: #FFFFFF;
+ --border: #E5E7EB;
+ --border-subtle: #F3F4F6;
+ --text-primary: #111827;
+ --text-secondary: #4B5563;
+ --text-muted: #9CA3AF;
+ --success: #16A34A;
+ --retweet-green: #10B981;
+ --like-pink: #EF4444;
+ --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; }
+ html, body {
+ height: 100%; background: var(--bg-canvas); color: var(--text-primary);
+ font-family: var(--font-ui); overflow: hidden; -webkit-font-smoothing: antialiased; line-height: 1.4;
+ }
+ .app-layout {
+ display: flex; height: 100vh; min-height: 520px; width: 100vw; justify-content: center; background: var(--bg-canvas);
+ }
+ /* 1. Left Nav Rail (240px) */
+ .nav-rail {
+ width: 240px; padding: 16px 14px; display: flex; flex-direction: column; justify-content: space-between;
+ border-right: 1px solid var(--border); background: #FFFFFF; flex-shrink: 0;
+ }
+ .brand-logo-row {
+ display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 12px; cursor: pointer;
+ }
+ .brand-logo-icon {
+ width: 32px; height: 32px; border-radius: 8px; background: var(--primary); color: #FFF;
+ display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
+ box-shadow: 0 4px 10px rgba(37,99,235,0.3);
+ }
+ .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: var(--text-primary); }
+ .nav-menu { display: flex; flex-direction: column; gap: 4px; }
+ .nav-item {
+ display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 9999px;
+ font-size: 15px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.12s;
+ }
+ .nav-item:hover { background: var(--border-subtle); color: var(--text-primary); }
+ .nav-item.active { background: var(--primary-light); color: var(--primary); }
+ .nav-badge {
+ margin-left: auto; background: var(--primary); color: #FFF; font-size: 11px; font-weight: 700;
+ padding: 1px 7px; border-radius: 9999px;
+ }
+ .btn-compose-post {
+ margin-top: 16px; background: var(--primary); color: #FFFFFF; border: none; border-radius: 9999px;
+ height: 44px; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;
+ box-shadow: 0 4px 12px rgba(37,99,235,0.28); transition: background 0.1s;
+ }
+ .btn-compose-post:hover { background: var(--primary-hover); }
+ /* User profile card in nav */
+ .nav-user-profile {
+ display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9999px; cursor: pointer;
+ }
+ .nav-user-profile:hover { background: var(--border-subtle); }
+ .user-avatar-sm {
+ width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+ color: #FFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+ }
+ .user-nav-meta { display: flex; flex-direction: column; line-height: 1.25; }
+ .user-nav-name { font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
+ .user-nav-handle { font-size: 12px; color: var(--text-muted); }
+ /* 2. Center Feed Column (600px) */
+ .feed-center {
+ width: 600px; display: flex; flex-direction: column; background: #FFFFFF;
+ border-right: 1px solid var(--border); flex-shrink: 0; overflow-y: auto;
+ }
+ /* Feed Tabs Header */
+ .feed-sticky-header {
+ position: sticky; top: 0; background: rgba(255,255,255,0.94); backdrop-filter: blur(8px);
+ border-bottom: 1px solid var(--border); z-index: 20; display: flex; flex-direction: column;
+ }
+ .feed-top-title {
+ padding: 12px 18px 6px; font-size: 17px; font-weight: 800; letter-spacing: -0.3px;
+ }
+ .feed-tabs-row { display: flex; border-top: 1px solid var(--border-subtle); }
+ .feed-tab {
+ flex: 1; text-align: center; padding: 12px 0; font-size: 14.5px; font-weight: 600; color: var(--text-secondary);
+ cursor: pointer; position: relative;
+ }
+ .feed-tab.active { color: var(--text-primary); font-weight: 700; }
+ .feed-tab.active::after {
+ content: ''; position: absolute; bottom: 0; left: 35%; right: 35%; height: 3px; background: var(--primary); border-radius: 3px 3px 0 0;
+ }
+ /* Composer Card */
+ .composer-card {
+ padding: 14px 18px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 12px;
+ }
+ .composer-right { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+ .composer-textarea {
+ width: 100%; border: none; outline: none; font-size: 16px; font-family: inherit; color: var(--text-primary);
+ resize: none; min-height: 48px;
+ }
+ .composer-toolbar {
+ display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-subtle);
+ padding-top: 10px;
+ }
+ .toolbar-icons { display: flex; align-items: center; gap: 14px; color: var(--primary); }
+ .t-icon { cursor: pointer; font-size: 16px; }
+ .composer-actions { display: flex; align-items: center; gap: 12px; }
+ .audience-tag { font-size: 12px; font-weight: 600; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 9999px; }
+ .btn-post-sm {
+ background: var(--primary); color: #FFF; border: none; padding: 6px 16px; border-radius: 9999px;
+ font-size: 13px; font-weight: 700; cursor: pointer;
+ }
+ /* Feed Post Card */
+ .post-card {
+ padding: 16px 18px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 12px;
+ cursor: pointer; transition: background 0.1s;
+ }
+ .post-card:hover { background: #FAFBFD; }
+ .post-avatar-box {
+ width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+ font-weight: 700; font-size: 15px; color: #FFF; flex-shrink: 0;
+ }
+ .post-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+ /* Algorithmic Pill */
+ .algo-context {
+ display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--secondary); margin-bottom: 2px;
+ }
+ .algo-context-spark { color: var(--primary); }
+ /* Author Header */
+ .post-author-row { display: flex; align-items: center; justify-content: space-between; }
+ .author-meta-left { display: flex; align-items: center; gap: 5px; font-size: 14px; }
+ .author-name { font-weight: 700; color: var(--text-primary); }
+ .verified-badge {
+ width: 16px; height: 16px; border-radius: 50%; background: var(--primary); color: #FFF;
+ display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800;
+ }
+ .author-handle { color: var(--text-muted); font-size: 13.5px; }
+ .post-dot { color: var(--text-muted); font-size: 12px; }
+ .post-timestamp { color: var(--text-muted); font-size: 13.5px; }
+ .post-text {
+ font-size: 14.5px; line-height: 1.5; color: var(--text-primary); word-break: break-word;
+ }
+ .post-link { color: var(--primary); text-decoration: none; font-weight: 500; }
+ .post-link:hover { text-decoration: underline; }
+ /* Rich Media Preview Card */
+ .rich-media-embed {
+ margin-top: 8px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: #FAFBFD;
+ }
+ .media-graph-preview {
+ height: 130px; background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); padding: 14px 18px;
+ display: flex; flex-direction: column; justify-content: space-between; color: #FFF; position: relative;
+ }
+ .graph-badge {
+ font-size: 11px; font-weight: 700; background: rgba(37,99,235,0.3); border: 1px solid rgba(37,99,235,0.5);
+ color: #93C5FD; padding: 2px 8px; border-radius: 9999px; width: fit-content;
+ }
+ .benchmark-bars { display: flex; flex-direction: column; gap: 8px; }
+ .bench-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+ .bench-label { width: 85px; color: #94A3B8; font-weight: 500; }
+ .bench-track { flex: 1; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+ .bench-fill { height: 100%; border-radius: 4px; }
+ /* Engagement Metrics Bar */
+ .metrics-bar {
+ display: flex; align-items: center; justify-content: space-between; max-width: 480px; margin-top: 8px;
+ color: var(--secondary); font-size: 12.5px;
+ }
+ .metric-item {
+ display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color 0.12s;
+ }
+ .metric-item:hover { color: var(--primary); }
+ .metric-item.retweet:hover { color: var(--retweet-green); }
+ .metric-item.like:hover, .metric-item.like.active { color: var(--like-pink); }
+ .metric-count { font-weight: 500; }
+ /* 3. Right Sidebar (300px) */
+ .feed-sidebar {
+ width: 300px; padding: 16px; display: flex; flex-direction: column; gap: 16px; flex-shrink: 0;
+ }
+ .sidebar-search-box {
+ background: #EFEFF1; border-radius: 9999px; height: 40px; padding: 0 16px;
+ display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--text-muted);
+ }
+ /* Trending Widget Card */
+ .widget-card {
+ background: #FFFFFF; border: 1px solid var(--border); border-radius: 16px; padding: 16px;
+ display: flex; flex-direction: column; gap: 12px;
+ }
+ .widget-header-title { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+ .trend-item { display: flex; flex-direction: column; gap: 2px; cursor: pointer; padding: 4px 0; }
+ .trend-item:hover .trend-tag { color: var(--primary); }
+ .trend-category { font-size: 11.5px; color: var(--text-muted); }
+ .trend-tag { font-size: 14px; font-weight: 700; color: var(--text-primary); transition: color 0.1s; }
+ .trend-posts { font-size: 11.5px; color: var(--text-muted); }
+ /* Who to follow */
+ .follow-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+ .follow-avatar { width: 36px; height: 36px; border-radius: 50%; background: #4F46E5; color: #FFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+ .btn-follow {
+ background: #111827; color: #FFF; border: none; padding: 6px 14px; border-radius: 9999px;
+ font-size: 12.5px; font-weight: 700; cursor: pointer;
+ }
+ @media (max-width: 960px) { .feed-sidebar { display: none; } }
+</style>
+</head>
+<body>
+<div class="app-layout">
+ <div class="nav-rail">
+ <div>
+ <div class="brand-logo-row">
+ <div class="brand-logo-icon">⟳</div>
+ <span class="brand-name">FeedLoop</span>
+ </div>
+ <div class="nav-menu">
+ <div class="nav-item active">
+ <span style="font-size:18px;">🏠</span>
+ <span>Home</span>
+ </div>
+ <div class="nav-item">
+ <span style="font-size:18px;">✨</span>
+ <span>Explore</span>
+ </div>
+ <div class="nav-item">
+ <span style="font-size:18px;">🔔</span>
+ <span>Notifications</span>
+ <span class="nav-badge">12</span>
+ </div>
+ <div class="nav-item">
+ <span style="font-size:18px;">✉️</span>
+ <span>Messages</span>
+ </div>
+ <div class="nav-item">
+ <span style="font-size:18px;">🔖</span>
+ <span>Bookmarks</span>
+ </div>
+ </div>
+ <button class="btn-compose-post" style="width:100%;">Post</button>
+ </div>
+ <div class="nav-user-profile">
+ <div class="user-avatar-sm">EL</div>
+ <div class="user-nav-meta">
+ <span class="user-nav-name">Elena Vance</span>
+ <span class="user-nav-handle">@elena_ux</span>
+ </div>
+ <span style="margin-left:auto; color:var(--text-muted);">···</span>
+ </div>
+ </div>
+ <div class="feed-center">
+ <div class="feed-sticky-header">
+ <div class="feed-top-title">Home</div>
+ <div class="feed-tabs-row">
+ <div class="feed-tab active">For You</div>
+ <div class="feed-tab">Following</div>
+ </div>
+ </div>
+ <div class="composer-card">
+ <div class="user-avatar-sm" style="flex-shrink:0;">EL</div>
+ <div class="composer-right">
+ <textarea class="composer-textarea" placeholder="What's happening in tech?"></textarea>
+ <div class="composer-toolbar">
+ <div class="toolbar-icons">
+ <span class="t-icon" title="Media">🖼️</span>
+ <span class="t-icon" title="GIF">🎞️</span>
+ <span class="t-icon" title="Poll">📊</span>
+ <span class="t-icon" title="Emoji">😀</span>
+ </div>
+ <div class="composer-actions">
+ <span class="audience-tag">Everyone can reply</span>
+ <button class="btn-post-sm">Post</button>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="post-card">
+ <div class="post-avatar-box" style="background: linear-gradient(135deg, #2563EB, #7C3AED);">MV</div>
+ <div class="post-main">
+ <div class="algo-context">
+ <span class="algo-context-spark">✦</span>
+ <span>Recommended based on Distributed Systems & AI</span>
+ </div>
+ <div class="post-author-row">
+ <div class="author-meta-left">
+ <span class="author-name">Maya Vance</span>
+ <span class="verified-badge">✓</span>
+ <span class="author-handle">@mayavance_ai</span>
+ <span class="post-dot">·</span>
+ <span class="post-timestamp">28m</span>
+ </div>
+ <span style="color:var(--text-muted);">···</span>
+ </div>
+ <div class="post-text">
+ We just open-sourced our v3 streaming CRDT pipeline! Sub-millisecond state sync, zero-copy wire serialization, and handles 2.4M concurrent connections with zero packet loss ⚡️ Details & benchmarks below:
+ </div>
+ <div class="rich-media-embed">
+ <div class="media-graph-preview">
+ <div style="display:flex; justify-content:space-between; align-items:center;">
+ <span class="graph-badge">BENCHMARK REPORT</span>
+ <span style="font-size:11px; color:#94A3B8;">p99 Latency (lower is better)</span>
+ </div>
+ <div class="benchmark-bars">
+ <div class="bench-row">
+ <span class="bench-label">Legacy v2</span>
+ <div class="bench-track"><div class="bench-fill" style="width:78%; background:#EF4444;"></div></div>
+ <span style="width:45px; font-weight:700; text-align:right;">42.8ms</span>
+ </div>
+ <div class="bench-row">
+ <span class="bench-label">FeedLoop v3</span>
+ <div class="bench-track"><div class="bench-fill" style="width:14%; background:#10B981;"></div></div>
+ <span style="width:45px; font-weight:700; text-align:right; color:#10B981;">1.2ms</span>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="metrics-bar">
+ <div class="metric-item">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+ <span class="metric-count">84</span>
+ </div>
+ <div class="metric-item retweet">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+ <span class="metric-count">326</span>
+ </div>
+ <div class="metric-item like active">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+ <span class="metric-count" style="color:var(--like-pink); font-weight:700;">2.4K</span>
+ </div>
+ <div class="metric-item">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+ <span class="metric-count">618</span>
+ </div>
+ <div class="metric-item">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+ <span class="metric-count">88.5K</span>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="post-card">
+ <div class="post-avatar-box" style="background: linear-gradient(135deg, #10B981, #059669);">AT</div>
+ <div class="post-main">
+ <div class="post-author-row">
+ <div class="author-meta-left">
+ <span class="author-name">Alex Thorne</span>
+ <span class="verified-badge">✓</span>
+ <span class="author-handle">@thorne_dev</span>
+ <span class="post-dot">·</span>
+ <span class="post-timestamp">1h</span>
+ </div>
+ <span style="color:var(--text-muted);">···</span>
+ </div>
+ <div class="post-text">
+ The future of client architecture is local-first with optimistic offline reconciliation. What primitives are you building into your stack this year?
+ </div>
+ <div class="metrics-bar">
+ <div class="metric-item"><span>💬</span><span class="metric-count">42</span></div>
+ <div class="metric-item retweet"><span>🔁</span><span class="metric-count">95</span></div>
+ <div class="metric-item like"><span>❤️</span><span class="metric-count">814</span></div>
+ <div class="metric-item"><span>🔖</span><span class="metric-count">182</span></div>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div class="feed-sidebar">
+ <div class="sidebar-search-box">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+ <span>Search FeedLoop</span>
+ </div>
+ <div class="widget-card">
+ <div class="widget-header-title">Trending Topics</div>
+ <div class="trend-item">
+ <span class="trend-category">Artificial Intelligence · Trending</span>
+ <span class="trend-tag">#LocalFirstAI</span>
+ <span class="trend-posts">48.2K posts</span>
+ </div>
+ <div class="trend-item">
+ <span class="trend-category">Engineering · Trending</span>
+ <span class="trend-tag">WebGPU Shaders</span>
+ <span class="trend-posts">32.4K posts</span>
+ </div>
+ <div class="trend-item">
+ <span class="trend-category">Design Systems · Trending</span>
+ <span class="trend-tag">Token Engine v2</span>
+ <span class="trend-posts">14.8K posts</span>
+ </div>
+ <div class="trend-item">
+ <span class="trend-category">Technology · Trending</span>
+ <span class="trend-tag">#CRDT</span>
+ <span class="trend-posts">26.1K posts</span>
+ </div>
+ </div>
+ <div class="widget-card">
+ <div class="widget-header-title">Who to follow</div>
+ <div class="follow-item">
+ <div style="display:flex; align-items:center; gap:8px;">
+ <div class="follow-avatar">SL</div>
+ <div style="display:flex; flex-direction:column; line-height:1.2;">
+ <span style="font-size:13.5px; font-weight:700;">Sarah Lin</span>
+ <span style="font-size:12px; color:var(--text-muted);">@sarah_systems</span>
+ </div>
+ </div>
+ <button class="btn-follow">Follow</button>
+ </div>
+ </div>
+ </div>
+</div>
+</body>
+</html>

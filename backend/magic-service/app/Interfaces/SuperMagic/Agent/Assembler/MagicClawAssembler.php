@@ -42,14 +42,14 @@ class MagicClawAssembler
      *
      * @param null|string $status Sandbox running status (e.g. Running, Exited, Pending) or null if unknown
      * @param null|int $topicId Current topic ID of the associated project, or null if none assigned
-     * @param bool $needUpgrade Whether the sandbox requires upgrade
+     * @param null|bool $needUpgrade Whether the sandbox requires upgrade
      * @return array<string,mixed>
      */
     public static function toListItem(
         MagicClawEntity $entity,
         ?string $status = null,
         ?int $topicId = null,
-        bool $needUpgrade = false
+        ?bool $needUpgrade = null
     ): array {
         return [
             'id' => (string) $entity->getId(),
@@ -62,6 +62,8 @@ class MagicClawAssembler
             'topic_id' => (string) ($topicId ?? ''),
             'status' => $status,
             'need_upgrade' => $needUpgrade,
+            'created_at' => $entity->getCreatedAt(),
+            'updated_at' => $entity->getUpdatedAt(),
         ];
     }
 }

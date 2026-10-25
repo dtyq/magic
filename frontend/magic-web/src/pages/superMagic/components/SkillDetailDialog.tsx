@@ -1,10 +1,17 @@
 import { observer } from "mobx-react-lite"
-import { useEffect, useMemo, useState, type AnimationEventHandler, type ReactNode } from "react"
+import {
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+	type AnimationEventHandler,
+	type ReactNode,
+} from "react"
 import {
 	Award,
 	BadgeInfo,
 	ChevronDown,
-	ChevronsDown,
 	CircleUserRound,
 	Clock3,
 	GalleryHorizontalEnd,
@@ -27,7 +34,7 @@ import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Separator } from "@/components/shadcn-ui/separator"
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { SkillThumbnail } from "@/pages/superMagic/components/SkillThumbnail"
 import { downloadFileContent } from "@/pages/superMagic/utils/api"
 import {
@@ -42,6 +49,8 @@ import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor
 interface SkillDetailDialogAction {
 	label: string
 	onClick: () => Promise<void> | void
+	/** Called when the action fails; the dialog remains open so the user can retry. */
+	onError?: (error: unknown) => void
 	variant?: VariantProps<typeof buttonVariants>["variant"]
 	/** Merged with base full-width styles (e.g. destructive tint for uninstall). */
 	className?: string
@@ -199,10 +208,12 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 	const [isLoading, setIsLoading] = useState(false)
 	const [isSkillMarkdownLoading, setIsSkillMarkdownLoading] = useState(false)
 	const [hasLoadFailed, setHasLoadFailed] = useState(false)
-	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [isSkillMarkdownExpanded, setIsSkillMarkdownExpanded] = useState(true)
 	const [reloadNonce, setReloadNonce] = useState(0)
 	const [isActionLoading, setIsActionLoading] = useState(false)
+	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [isDescriptionOverflowing, setIsDescriptionOverflowing] = useState(false)
+	const descriptionMeasureRef = useRef<HTMLParagraphElement>(null)
 
 	const normalizedSkillCode = skillCode?.trim() || ""
 
@@ -248,6 +259,7 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 			setDetail(null)
 			setSkillMarkdown("")
 			setIsDescriptionExpanded(false)
+			setIsDescriptionOverflowing(false)
 			setIsSkillMarkdownExpanded(true)
 
 			try {
@@ -301,13 +313,26 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 		normalizeDisplayText(fallbackDetail?.description) ||
 		t("mySkills.noDescription")
 	const normalizedSkillMarkdown = normalizeDisplayText(skillMarkdown)
+	const hasSkillPreview = isSkillMarkdownLoading || Boolean(normalizedSkillMarkdown)
+	const canExpandDescription = isDescriptionOverflowing || displayDescription.length > 150
+
+	useLayoutEffect(() => {
+		if (!descriptionMeasureRef.current || isDescriptionExpanded) return
+
+		const frameId = window.requestAnimationFrame(() => {
+			const element = descriptionMeasureRef.current
+			if (!element) return
+			const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight) || 24
+			setIsDescriptionOverflowing(element.scrollHeight > lineHeight * 3 + 1)
+		})
+
+		return () => window.cancelAnimationFrame(frameId)
+	}, [displayDescription, isDescriptionExpanded])
 	const metaItems = buildMetaItems({
 		detail: displayDetail,
 		language: i18n.language,
 		t,
 	})
-	const canExpandDescription = displayDescription.length > 220
-
 	async function handlePrimaryAction() {
 		if (!primaryAction || primaryAction.disabled || isActionLoading) return
 
@@ -315,6 +340,8 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 		try {
 			await primaryAction.onClick()
 			onOpenChange(false)
+		} catch (error) {
+			primaryAction.onError?.(error)
 		} finally {
 			setIsActionLoading(false)
 		}
@@ -336,13 +363,21 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 			<DialogContent
 				showCloseButton={false}
 				overlayClassName="bg-black/50 backdrop-blur-sm"
-				className="max-h-[calc(100%-3rem)] w-[calc(100%-2rem)] max-w-[680px] gap-0 overflow-hidden rounded-xl border bg-background p-0 shadow-sm"
+				className={cn(
+					"max-h-[min(900px,calc(100vh-3rem))] w-[calc(100%-2rem)] max-w-[760px] gap-0 overflow-hidden rounded-xl border bg-background p-0 shadow-sm sm:max-w-[760px]",
+					hasSkillPreview && "h-[min(900px,calc(100vh-3rem))]",
+				)}
 				// DialogContent mirrors style.zIndex onto overlay; use contentZIndex so mask sits above parent drawer.
 				style={{ zIndex: overlayLayer.contentZIndex }}
 				onAnimationEnd={handleContentAnimationEnd}
 				data-testid="skill-detail-dialog"
 			>
-				<div className="flex h-full max-h-[90vh] w-full min-w-0 flex-col px-3 pb-3 pt-2">
+				<div
+					className={cn(
+						"flex max-h-[90vh] w-full min-w-0 flex-col overflow-hidden px-3 pb-3 pt-2",
+						hasSkillPreview && "h-full min-h-0",
+					)}
+				>
 					<div className="relative flex items-center justify-center pb-3">
 						<div className="h-1 w-20 rounded-full bg-muted-foreground/30" />
 						<Button
@@ -379,10 +414,15 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 						</div>
 					) : (
 						<div
-							className="flex min-h-0 flex-1 flex-col"
+							className={cn("flex flex-col", hasSkillPreview && "min-h-0 flex-1")}
 							data-testid="skill-detail-dialog-content"
 						>
-							<div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 px-1 pb-1">
+							<div
+								className={cn(
+									"flex min-w-0 flex-col gap-3 px-1 pb-1",
+									hasSkillPreview && "min-h-0 flex-1 basis-0 overflow-hidden",
+								)}
+							>
 								<div className="flex min-w-0 flex-col items-center gap-2 px-3 pt-2">
 									<SkillThumbnail
 										src={displayDetail?.logo}
@@ -438,47 +478,44 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 									</div>
 								) : null}
 
-								<Collapsible
-									open={!canExpandDescription || isDescriptionExpanded}
-									onOpenChange={setIsDescriptionExpanded}
+								<div
+									className="relative rounded-xl bg-secondary px-3 py-2.5"
+									data-testid="skill-detail-dialog-description"
 								>
-									<div
-										className="rounded-xl bg-secondary px-3 py-2.5"
-										data-testid="skill-detail-dialog-description"
+									<p
+										ref={descriptionMeasureRef}
+										className="pointer-events-none absolute left-3 right-3 top-2.5 -z-10 break-words text-sm leading-6 text-muted-foreground opacity-0"
+										aria-hidden="true"
 									>
-										<p
-											className={cn(
-												"break-words text-sm leading-6 text-muted-foreground",
-												!isDescriptionExpanded &&
-													canExpandDescription &&
-													"line-clamp-6",
-											)}
+										{displayDescription}
+									</p>
+									<p
+										className={cn(
+											"break-words text-sm leading-6 text-muted-foreground",
+											!isDescriptionExpanded &&
+												canExpandDescription &&
+												"line-clamp-3",
+										)}
+									>
+										{displayDescription}
+									</p>
+									{canExpandDescription ? (
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="mt-1.5 h-7 w-full text-xs"
+											onClick={() =>
+												setIsDescriptionExpanded((expanded) => !expanded)
+											}
+											data-testid="skill-detail-dialog-description-toggle"
 										>
-											{displayDescription}
-										</p>
-										{canExpandDescription ? (
-											<CollapsibleTrigger asChild>
-												<Button
-													type="button"
-													variant="ghost"
-													size="sm"
-													className="mt-1.5 h-7 w-full gap-1 text-xs"
-													data-testid="skill-detail-dialog-description-toggle"
-												>
-													{isDescriptionExpanded
-														? t("skillDetailDialog.collapse")
-														: t("skillDetailDialog.expandAll")}
-													<ChevronsDown
-														className={cn(
-															"size-4 transition-transform",
-															isDescriptionExpanded && "rotate-180",
-														)}
-													/>
-												</Button>
-											</CollapsibleTrigger>
-										) : null}
-									</div>
-								</Collapsible>
+											{isDescriptionExpanded
+												? t("skillDetailDialog.collapse")
+												: t("skillDetailDialog.expandAll")}
+										</Button>
+									) : null}
+								</div>
 
 								{primaryAction ? (
 									<Button
@@ -501,7 +538,7 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 
 								{isSkillMarkdownLoading || normalizedSkillMarkdown ? (
 									<div
-										className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border"
+										className="min-h-0 flex-1 basis-0 overflow-hidden rounded-xl border border-border"
 										data-testid="skill-detail-dialog-skill-file"
 									>
 										<Collapsible
@@ -529,11 +566,11 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 											</CollapsibleTrigger>
 											{isSkillMarkdownExpanded ? <Separator /> : null}
 											<CollapsibleContent
-												className="min-h-0 flex-1"
+												className="min-h-0 flex-1 overflow-hidden"
 												data-testid="skill-detail-dialog-skill-file-content"
 											>
 												<ScrollArea
-													className="h-full w-full overflow-hidden"
+													className="h-full min-h-0 w-full overflow-hidden"
 													viewportClassName="h-full [&>div]:!block"
 												>
 													<div className="min-w-0 p-4">
@@ -549,7 +586,9 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 																isEditable={false}
 																enableDragHandle={false}
 																className="!h-auto !overflow-visible [&_.simple-editor-content]:!h-auto [&_.simple-editor-content]:!overflow-visible [&_.simple-editor]:!p-2"
-																content={normalizedSkillMarkdown}
+																content={
+																	normalizedSkillMarkdown ?? ""
+																}
 															/>
 														)}
 													</div>

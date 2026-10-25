@@ -14,6 +14,7 @@ export interface FolderConflictModalProps {
 	onCancel: () => void
 	onMerge: (applyToAll: boolean) => void
 	onKeepBoth: (applyToAll: boolean) => void
+	onReplace?: (applyToAll: boolean) => void
 }
 
 const useStyles = createStyles(({ css, token, prefixCls }) => ({
@@ -170,6 +171,7 @@ export function FolderConflictModal({
 	onCancel,
 	onMerge,
 	onKeepBoth,
+	onReplace,
 }: FolderConflictModalProps) {
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
@@ -184,6 +186,10 @@ export function FolderConflictModal({
 	}
 	const handleKeepBoth = () => {
 		onKeepBoth(applyToAll)
+		resetApplyToAll()
+	}
+	const handleReplace = () => {
+		onReplace?.(applyToAll)
 		resetApplyToAll()
 	}
 	const handleMerge = () => {
@@ -244,6 +250,11 @@ export function FolderConflictModal({
 					<div className={styles.mobileFooter}>
 						{showApplyToAll ? applyToAllCheckbox : null}
 						<div className={styles.mobileButtonGroup}>
+							{onReplace && (
+								<Button className={styles.mobileButton} onClick={handleReplace}>
+									{t("topicFiles.duplicateFolder.replace")}
+								</Button>
+							)}
 							<Button className={styles.mobileButton} onClick={handleKeepBoth}>
 								{t("topicFiles.duplicateFolder.keepBoth")}
 							</Button>
@@ -293,6 +304,11 @@ export function FolderConflictModal({
 							<Button className={styles.primaryButton} onClick={handleKeepBoth}>
 								{t("topicFiles.duplicateFolder.keepBoth")}
 							</Button>
+							{onReplace && (
+								<Button className={styles.primaryButton} onClick={handleReplace}>
+									{t("topicFiles.duplicateFolder.replace")}
+								</Button>
+							)}
 							{canMerge && (
 								<Button className={styles.primaryButton} onClick={handleMerge}>
 									{t("topicFiles.duplicateFolder.merge")}

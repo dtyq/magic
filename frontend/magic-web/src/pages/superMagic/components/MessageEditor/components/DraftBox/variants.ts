@@ -82,7 +82,7 @@ export const draftBoxCloseButtonVariants = cva(
 // Content
 export const draftBoxContentVariants = cva("flex flex-1 flex-col overflow-hidden")
 
-export const draftBoxScrollContainerVariants = cva("flex-1 overflow-y-auto", {
+export const draftBoxScrollContainerVariants = cva("", {
 	variants: {
 		size: {
 			default: "px-6 py-4",

@@ -1,6 +1,8 @@
 import { useMemoizedFn } from "ahooks"
 import type { AttachmentItem } from "./types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
+import type { TopicFilesChatContext } from "../file-space"
+import { getFileReferenceIdentityKey } from "@/pages/superMagic/services/userFileReferenceResolver"
 import {
 	addFileToCurrentChat,
 	addFileToNewChat,
@@ -23,7 +25,8 @@ interface UseSelectedFilesManagerOptions {
 	selectedProject?: ProjectListItem | null
 	afterAddFileToCurrentTopic?: () => void
 	afterAddFileToNewTopic?: () => void
-	createAttachmentMention?: (item: AttachmentItem) => TiptapMentionAttributes | null
+	createAttachmentMention?: TopicFilesChatContext["createAttachmentMention"]
+	fileSpaceType?: TopicFilesChatContext["fileSpaceType"]
 }
 
 /**
@@ -79,15 +82,19 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 		afterAddFileToCurrentTopic,
 		afterAddFileToNewTopic,
 		createAttachmentMention,
+		fileSpaceType,
 	} = options
+	const getChatIdentity = useMemoizedFn(() =>
+		JSON.stringify([getFileReferenceIdentityKey(), selectedProject?.id]),
+	)
 
 	/** 将文件转换为当前文件空间定义的 mention。 */
-	const createMentionsForChat = useMemoizedFn((files: AttachmentItem[]) => {
+	const createMentionsForChat = useMemoizedFn(async (files: AttachmentItem[]) => {
 		if (!createAttachmentMention) return []
-
-		return files
-			.map(createAttachmentMention)
-			.filter((item): item is TiptapMentionAttributes => item !== null)
+		const identity = getChatIdentity()
+		const items = await Promise.all(files.map(createAttachmentMention))
+		if (identity !== getChatIdentity()) return []
+		return items.filter((item): item is TiptapMentionAttributes => item !== null)
 	})
 
 	// 获取选中的文件列表
@@ -96,7 +103,7 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 	})
 
 	// 添加多个文件到当前对话
-	const handleAddMultipleFilesToCurrentChat = useMemoizedFn(() => {
+	const handleAddMultipleFilesToCurrentChat = useMemoizedFn(async () => {
 		if (selectedItems.size === 0) return
 
 		const selectedFiles = getSelectedFiles()
@@ -104,7 +111,7 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 		if (selectedFiles.length > 0) {
 			if (createAttachmentMention) {
 				addMentionsToCurrentChat({
-					items: createMentionsForChat(selectedFiles),
+					items: await createMentionsForChat(selectedFiles),
 					autoFocus: true,
 				})
 			} else {
@@ -115,7 +122,7 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 	})
 
 	// 添加多个文件到新对话
-	const handleAddMultipleFilesToNewChat = useMemoizedFn(() => {
+	const handleAddMultipleFilesToNewChat = useMemoizedFn(async () => {
 		if (selectedItems.size === 0) return
 
 		const selectedFiles = getSelectedFiles()
@@ -123,7 +130,7 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 		if (selectedFiles.length > 0) {
 			if (createAttachmentMention) {
 				addMentionsToNewChat({
-					items: createMentionsForChat(selectedFiles),
+					items: await createMentionsForChat(selectedFiles),
 					selectedProject,
 					afterAddFileToNewTopic,
 					autoFocus: true,
@@ -157,9 +164,9 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 	})
 
 	// 添加单个文件到当前对话
-	const handleAddToCurrentChat = useMemoizedFn((item: AttachmentItem) => {
+	const handleAddToCurrentChat = useMemoizedFn(async (item: AttachmentItem) => {
 		if (createAttachmentMention) {
-			const mention = createAttachmentMention(item)
+			const [mention] = await createMentionsForChat([item])
 			if (mention) addMentionsToCurrentChat({ items: [mention], autoFocus: true })
 		} else {
 			addFileToCurrentChat({ fileItem: item })
@@ -168,9 +175,9 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 	})
 
 	// 添加单个文件到新对话
-	const handleAddToNewChat = useMemoizedFn((item: AttachmentItem) => {
+	const handleAddToNewChat = useMemoizedFn(async (item: AttachmentItem) => {
 		if (createAttachmentMention) {
-			const mention = createAttachmentMention(item)
+			const [mention] = await createMentionsForChat([item])
 			if (!mention) return
 			addMentionsToNewChat({
 				items: [mention],
@@ -191,17 +198,13 @@ export function useSelectedFilesManager(options: UseSelectedFilesManagerOptions)
 	// 处理拖拽开始事件 - 支持多文件拖拽
 	const handleDragStart = useMemoizedFn((e: React.DragEvent, item: AttachmentItem) => {
 		const dragData = getFilesForDrag(item)
+		const withSpace = (file: AttachmentItem): AttachmentItem =>
+			fileSpaceType ? { ...file, space_type: fileSpaceType } : file
 
 		if (dragData.isMultiple) {
-			handleMultipleFilesDragStart(
-				e,
-				dragData.files,
-				createAttachmentMention
-					? dragData.files.map((file) => createAttachmentMention(file))
-					: undefined,
-			)
+			handleMultipleFilesDragStart(e, dragData.files.map(withSpace))
 		} else {
-			handleAttachmentDragStart(e, item, createAttachmentMention?.(item) || undefined)
+			handleAttachmentDragStart(e, withSpace(item))
 		}
 	})
 

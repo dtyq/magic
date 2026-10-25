@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { normalizeTemplateColors } from "./templateColors"
 
 interface SlidesTemplateColorPaletteProps {

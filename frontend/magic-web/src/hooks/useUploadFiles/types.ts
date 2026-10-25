@@ -9,6 +9,8 @@ export interface UploadResponse {
 export interface UseUploadFilesParams<F> {
 	/** 文件存储类型 */
 	storageType?: "private" | "public"
+	/** 使用业务隔离的上传凭证接口；目前仅 Skill 使用专用接口。 */
+	businessCode?: "skill"
 	/** 是否使用STS */
 	sts?: boolean
 	/** 上传请求URL */

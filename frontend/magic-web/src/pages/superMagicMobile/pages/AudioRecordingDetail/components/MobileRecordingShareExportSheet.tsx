@@ -1,3 +1,4 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import React, { useState, useEffect } from "react"
 import {
 	ChevronRight,
@@ -10,11 +11,13 @@ import {
 	Search as SearchIcon,
 	X,
 	Check,
+	Copy,
+	LogIn,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { downloadRecordingAttachmentFile } from "@/pages/superMagic/pages/AudioRecordings/utils/download-recording-attachment"
 import { downloadRecordingFilesBatch } from "@/pages/superMagic/pages/AudioRecordings/utils/download-recording-batch"
 import { getAttachmentFileName } from "../utils/recording-detail-files"
@@ -27,11 +30,17 @@ interface MobileRecordingShareExportSheetProps {
 	projectId?: string
 	allowDownload?: boolean
 	showShareSection?: boolean
+	showCopyProject?: boolean
+	copyProjectLabel?: string
+	showLogin?: boolean
+	loginLabel?: string
 	mainHeaderTitle?: string
 	onOpenChange: (open: boolean) => void
 	onShareLink: () => void
 	onDownloadRecording: () => void
 	onSearch?: () => void
+	onCopyProject?: () => void
+	onLogin?: () => void
 }
 
 interface ActionRowProps {
@@ -40,6 +49,7 @@ interface ActionRowProps {
 	onClick?: () => void
 	disabled?: boolean
 	showDivider?: boolean
+	testId?: string
 }
 
 /** Individual list items inside the action sheet menu groups. */
@@ -49,6 +59,7 @@ function ActionRow({
 	onClick,
 	disabled = false,
 	showDivider = false,
+	testId = "mobile-recording-share-action",
 }: ActionRowProps) {
 	// Normalize icon size and color to match prototype standard (17px, strokeWidth 1.8)
 	const normalizedIcon = React.isValidElement(icon)
@@ -65,6 +76,7 @@ function ActionRow({
 				disabled={disabled}
 				onClick={onClick}
 				className="flex h-12 w-full items-center gap-3 bg-card px-[14px] text-left transition-opacity active:opacity-60 disabled:opacity-40"
+				data-testid={testId}
 			>
 				<span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
 					{normalizedIcon}
@@ -131,13 +143,21 @@ export function MobileRecordingShareExportSheet({
 	projectId,
 	allowDownload = true,
 	showShareSection = true,
+	showCopyProject = false,
+	copyProjectLabel,
+	showLogin = false,
+	loginLabel,
 	mainHeaderTitle,
 	onOpenChange,
 	onShareLink,
 	onDownloadRecording,
 	onSearch,
+	onCopyProject,
+	onLogin,
 }: MobileRecordingShareExportSheetProps) {
-	const { t } = useTranslation("audioRecordings")
+	const { permissions: access } = useFileAccess()
+	const effectiveAllowDownload = access.download && allowDownload
+	const { t } = useTranslation(["audioRecordings", "super"])
 	const [view, setView] = useState<"main" | "exportSummary">("main")
 	const [selectedSummaryTypes, setSelectedSummaryTypes] = useState<Set<string>>(new Set())
 
@@ -152,6 +172,7 @@ export function MobileRecordingShareExportSheet({
 
 	/** Instantly downloads the original transcript Markdown file. */
 	async function handleDownloadTranscript() {
+		if (!effectiveAllowDownload) return
 		if (!fileMap?.transcript?.file_id) return
 		const fileName =
 			getAttachmentFileName(fileMap.transcript) || `${recordingName}_transcript.md`
@@ -164,6 +185,7 @@ export function MobileRecordingShareExportSheet({
 
 	/** Instantly downloads the original notes Markdown file. */
 	async function handleDownloadNotes() {
+		if (!effectiveAllowDownload) return
 		if (!fileMap?.notes?.file_id) return
 		const fileName = getAttachmentFileName(fileMap.notes) || `${recordingName}_notes.md`
 		const ok = await downloadRecordingAttachmentFile({
@@ -175,6 +197,7 @@ export function MobileRecordingShareExportSheet({
 
 	/** Downloads all checked summary files (single download directly, multi-select triggers backend batch download). */
 	async function handleDownloadSummary() {
+		if (!effectiveAllowDownload) return
 		if (selectedSummaryTypes.size === 0) {
 			toast.info(t("detail.noExportFilesSelected"))
 			return
@@ -271,6 +294,7 @@ export function MobileRecordingShareExportSheet({
 							<div className="overflow-hidden rounded-[22px] bg-card">
 								<ActionRow
 									label={t("detail.searchContent")}
+									testId="mobile-recording-share-search-action"
 									icon={<SearchIcon />}
 									onClick={() => {
 										onSearch()
@@ -280,7 +304,39 @@ export function MobileRecordingShareExportSheet({
 							</div>
 						</div>
 					) : null}
-					{showShareSection ? (
+					{showCopyProject || showLogin ? (
+						<div className="flex flex-col gap-2">
+							<div className="overflow-hidden rounded-[22px] bg-card">
+								{showCopyProject ? (
+									<ActionRow
+										label={
+											copyProjectLabel ??
+											t("audioRecordings:card.copyToProject")
+										}
+										testId="mobile-recording-share-copy-project-action"
+										icon={<Copy />}
+										onClick={() => {
+											onOpenChange(false)
+											onCopyProject?.()
+										}}
+										showDivider={showLogin}
+									/>
+								) : null}
+								{showLogin ? (
+									<ActionRow
+										label={loginLabel ?? t("super:share.login")}
+										testId="mobile-recording-share-login-action"
+										icon={<LogIn />}
+										onClick={() => {
+											onOpenChange(false)
+											onLogin?.()
+										}}
+									/>
+								) : null}
+							</div>
+						</div>
+					) : null}
+					{showShareSection && access.share ? (
 						<div className="flex flex-col gap-2">
 							<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
 								{t("detail.shareSection")}
@@ -288,14 +344,17 @@ export function MobileRecordingShareExportSheet({
 							<div className="overflow-hidden rounded-[22px] bg-card">
 								<ActionRow
 									label={t("detail.shareLink")}
+									testId="mobile-recording-share-share-link-action"
 									icon={<Link2 />}
-									onClick={onShareLink}
+									onClick={() => {
+										if (access.share) onShareLink()
+									}}
 								/>
 							</div>
 						</div>
 					) : null}
 
-					{allowDownload ? (
+					{effectiveAllowDownload ? (
 						<div className="flex flex-col gap-2">
 							<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
 								{t("detail.exportSection")}
@@ -303,13 +362,17 @@ export function MobileRecordingShareExportSheet({
 							<div className="overflow-hidden rounded-[22px] bg-card">
 								<ActionRow
 									label={t("detail.exportRecording")}
+									testId="mobile-recording-share-export-recording-action"
 									icon={<Music />}
-									onClick={onDownloadRecording}
+									onClick={() => {
+										if (effectiveAllowDownload) onDownloadRecording()
+									}}
 									disabled={!fileMap?.audio}
 									showDivider
 								/>
 								<ActionRow
 									label={t("detail.exportTranscript")}
+									testId="mobile-recording-share-export-transcript-action"
 									icon={<FileText />}
 									onClick={handleDownloadTranscript}
 									disabled={!fileMap?.transcript}
@@ -317,6 +380,7 @@ export function MobileRecordingShareExportSheet({
 								/>
 								<ActionRow
 									label={t("detail.exportNotes")}
+									testId="mobile-recording-share-export-notes-action"
 									icon={<NotebookPen />}
 									onClick={handleDownloadNotes}
 									disabled={!fileMap?.notes}
@@ -324,6 +388,7 @@ export function MobileRecordingShareExportSheet({
 								/>
 								<ActionRow
 									label={t("detail.exportSummary")}
+									testId="mobile-recording-share-export-summary-action"
 									icon={<Sparkles />}
 									onClick={() => setView("exportSummary")}
 									disabled={!hasSummaryFiles}
@@ -343,6 +408,7 @@ export function MobileRecordingShareExportSheet({
 								<CheckRow
 									key={fileRef.type}
 									label={getSummaryTabLabel(fileRef.type)}
+									data-testid={`mobile-recording-share-export-summary-${fileRef.type}-action`}
 									checked={selectedSummaryTypes.has(fileRef.type)}
 									onToggle={() => toggleSummaryType(fileRef.type)}
 									showDivider={i < fileMap.summaryFiles.length - 1}
@@ -355,8 +421,9 @@ export function MobileRecordingShareExportSheet({
 						<button
 							type="button"
 							onClick={handleDownloadSummary}
-							disabled={selectedSummaryTypes.size === 0}
+							disabled={!effectiveAllowDownload || selectedSummaryTypes.size === 0}
 							className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-[16px] font-medium text-primary-foreground transition-opacity active:opacity-80 disabled:opacity-40"
+							data-testid="mobile-recording-share-export-summary-button"
 						>
 							{t("detail.exportSummary")}
 						</button>

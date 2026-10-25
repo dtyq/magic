@@ -1,8 +1,7 @@
-import { genRequestUrl } from "@/utils/http"
 import type { VectorKnowledge, WithPage } from "@/types/flow"
 import type { Knowledge } from "@/types/knowledge"
 import type { CrewKnowledge } from "@/types/crew-knowledge"
-import type { HttpClient } from "../../core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import type {
 	GetSourceBindingNodesParams,
 	SourceBindingNodesResponse,
@@ -10,45 +9,33 @@ import type {
 
 import { knowledgeType } from "@/pages/vectorKnowledge/constant"
 
-export const generateKnowledgeApi = (fetch: HttpClient) => ({
+export const generateKnowledgeApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * 创建知识库
 	 */
 	createKnowledge(params: Knowledge.CreateKnowledgeParams) {
-		return fetch.post<Knowledge.CreateKnowledgeResult>(
-			genRequestUrl("/api/v1/knowledge-bases"),
-			params,
-		)
+		return fetch.post<Knowledge.CreateKnowledgeResult>("/api/v1/knowledge-bases", params)
 	},
 
 	/**
 	 * 创建知识库 (Crew专用)
 	 */
 	createCrewKnowledge(params: CrewKnowledge.CreateKnowledgeParams) {
-		return fetch.post<Knowledge.CreateKnowledgeResult>(
-			genRequestUrl("/api/v1/knowledge-bases"),
-			params,
-		)
+		return fetch.post<Knowledge.CreateKnowledgeResult>("/api/v1/knowledge-bases", params)
 	},
 
 	/**
 	 * 更新知识库
 	 */
 	updateKnowledge(params: Knowledge.UpdateKnowledgeParams) {
-		return fetch.put<Knowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}", { code: params.code }),
-			params,
-		)
+		return fetch.put<Knowledge.Detail>(`/api/v1/knowledge-bases/${params.code}`, params)
 	},
 
 	/**
 	 * 更新知识库 (Crew专用)
 	 */
 	updateCrewKnowledge(params: CrewKnowledge.UpdateKnowledgeParams) {
-		return fetch.put<CrewKnowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}", { code: params.code }),
-			params,
-		)
+		return fetch.put<CrewKnowledge.Detail>(`/api/v1/knowledge-bases/${params.code}`, params)
 	},
 
 	/**
@@ -68,7 +55,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 		type?: knowledgeType
 	}) {
 		return fetch.post<WithPage<Knowledge.KnowledgeItem[]>>(
-			genRequestUrl("/api/v1/knowledge-bases/queries"),
+			"/api/v1/knowledge-bases/queries",
 			{
 				name,
 				page,
@@ -95,7 +82,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 		pageSize?: number
 	}) {
 		return fetch.post<WithPage<CrewKnowledge.KnowledgeItem[]>>(
-			genRequestUrl("/api/v1/knowledge-bases/queries"),
+			"/api/v1/knowledge-bases/queries",
 			{
 				name,
 				agent_codes,
@@ -109,27 +96,21 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 * 获取知识库详情
 	 */
 	getKnowledgeDetail(code: string) {
-		return fetch.get<Knowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}", { code }),
-		)
+		return fetch.get<Knowledge.Detail>(`/api/v1/knowledge-bases/${code}`)
 	},
 
 	/**
 	 * 获取知识库详情 (Crew专用)
 	 */
 	getCrewKnowledgeDetail(code: string) {
-		return fetch.get<CrewKnowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}", { code }),
-		)
+		return fetch.get<CrewKnowledge.Detail>(`/api/v1/knowledge-bases/${code}`)
 	},
 
 	/**
 	 * 删除知识库
 	 */
 	deleteKnowledge(code: string) {
-		return fetch.delete<Knowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}", { code }),
-		)
+		return fetch.delete<Knowledge.Detail>(`/api/v1/knowledge-bases/${code}`)
 	},
 
 	/**
@@ -147,7 +128,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 		pageSize?: number
 	}) {
 		return fetch.post<WithPage<Knowledge.EmbedDocumentDetail[]>>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}/documents/queries", { code }),
+			`/api/v1/knowledge-bases/${code}/documents/queries`,
 			{
 				name,
 				page,
@@ -171,9 +152,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 		pageSize?: number
 	}) {
 		return fetch.post<WithPage<CrewKnowledge.EmbedDocumentDetail[]>>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}/documents/queries", {
-				code,
-			}),
+			`/api/v1/knowledge-bases/${code}/documents/queries`,
 			{
 				name,
 				page,
@@ -187,9 +166,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	addKnowledgeDocument(params: Knowledge.AddKnowledgeDocumentParams) {
 		return fetch.post<Knowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}/documents", {
-				code: params.knowledge_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents`,
 			params,
 		)
 	},
@@ -199,9 +176,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	addCrewKnowledgeDocument(params: CrewKnowledge.AddKnowledgeDocumentParams) {
 		return fetch.post<CrewKnowledge.EmbedDocumentDetail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}/documents", {
-				code: params.knowledge_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents`,
 			params,
 		)
 	},
@@ -211,13 +186,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	getDocumentOriginalFileLink(params: { knowledge_code: string; document_code: string }) {
 		return fetch.get<{ url: string }>(
-			genRequestUrl(
-				"/api/v1/knowledge-bases/${knowledge_code}/documents/${document_code}/original-file-link",
-				{
-					knowledge_code: params.knowledge_code,
-					document_code: params.document_code,
-				},
-			),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents/${params.document_code}/original-file-link`,
 		)
 	},
 
@@ -226,13 +195,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	getKnowledgeSourceFileLink(params: Knowledge.GetKnowledgeSourceFileLinkParams) {
 		return fetch.post<{ data: Knowledge.KnowledgeSourceFileLink }>(
-			genRequestUrl(
-				"/go/api/v1/knowledge-bases/${knowledge_base_code}/documents/${document_code}/source-file-link",
-				{
-					knowledge_base_code: params.knowledgeBaseCode,
-					document_code: params.documentCode,
-				},
-			),
+			`/go/api/v1/knowledge-bases/${params.knowledgeBaseCode}/documents/${params.documentCode}/source-file-link`,
 			{
 				file_key: params.fileKey,
 			},
@@ -244,10 +207,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	getKnowledgeDocumentDetail(params: { knowledge_code: string; document_code: string }) {
 		return fetch.get<Knowledge.EmbedDocumentDetail>(
-			genRequestUrl("/api/v1/knowledge-bases/${knowledge_code}/documents/${document_code}", {
-				knowledge_code: params.knowledge_code,
-				document_code: params.document_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents/${params.document_code}`,
 		)
 	},
 
@@ -256,10 +216,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	getCrewKnowledgeDocumentDetail(params: { knowledge_code: string; document_code: string }) {
 		return fetch.get<CrewKnowledge.EmbedDocumentDetail>(
-			genRequestUrl("/api/v1/knowledge-bases/${knowledge_code}/documents/${document_code}", {
-				knowledge_code: params.knowledge_code,
-				document_code: params.document_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents/${params.document_code}`,
 		)
 	},
 
@@ -268,10 +225,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	updateKnowledgeDocument(params: Knowledge.UpdateKnowledgeDocumentParams) {
 		return fetch.put<Knowledge.EmbedDocumentDetail>(
-			genRequestUrl("/api/v1/knowledge-bases/${knowledge_code}/documents/${document_code}", {
-				knowledge_code: params.knowledge_code,
-				document_code: params.document_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents/${params.document_code}`,
 			{
 				name: params.name,
 				enabled: params.enabled,
@@ -286,10 +240,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	updateCrewKnowledgeDocument(params: CrewKnowledge.UpdateKnowledgeDocumentParams) {
 		return fetch.put<CrewKnowledge.EmbedDocumentDetail>(
-			genRequestUrl("/api/v1/knowledge-bases/${knowledge_code}/documents/${document_code}", {
-				knowledge_code: params.knowledge_code,
-				document_code: params.document_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents/${params.document_code}`,
 			{
 				name: params.name,
 				enabled: params.enabled,
@@ -305,10 +256,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	deleteKnowledgeDocument(params: Knowledge.DeleteKnowledgeDocumentParams) {
 		return fetch.delete<Knowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${knowledge_code}/documents/${document_code}", {
-				knowledge_code: params.knowledge_code,
-				document_code: params.document_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents/${params.document_code}`,
 		)
 	},
 
@@ -317,10 +265,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	deleteCrewKnowledgeDocument(params: CrewKnowledge.DeleteKnowledgeDocumentParams) {
 		return fetch.delete<CrewKnowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${knowledge_code}/documents/${document_code}", {
-				knowledge_code: params.knowledge_code,
-				document_code: params.document_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/documents/${params.document_code}`,
 		)
 	},
 
@@ -349,9 +294,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	recallTest(params: { knowledge_code: string; query: string }) {
 		return fetch.post<WithPage<Knowledge.FragmentItem[]>>(
-			genRequestUrl("/api/v1/knowledge-bases/${knowledge_code}/fragments/similarity", {
-				knowledge_code: params.knowledge_code,
-			}),
+			`/api/v1/knowledge-bases/${params.knowledge_code}/fragments/similarity`,
 			{ query: params.query },
 		)
 	},
@@ -361,13 +304,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	getFragmentList(params: Knowledge.GetFragmentListParams) {
 		return fetch.post<Knowledge.FragmentListWithNodes>(
-			genRequestUrl(
-				"/api/v1/knowledge-bases/${knowledge_base_code}/documents/${document_code}/fragments/queries",
-				{
-					knowledge_base_code: params.knowledgeBaseCode,
-					document_code: params.documentCode,
-				},
-			),
+			`/api/v1/knowledge-bases/${params.knowledgeBaseCode}/documents/${params.documentCode}/fragments/queries`,
 			{
 				page: params.page,
 				page_size: params.pageSize,
@@ -384,13 +321,7 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 		sync?: boolean
 	}) {
 		return fetch.post(
-			genRequestUrl(
-				"/api/v1/knowledge-bases/${knowledge_base_code}/documents/${document_code}/re-vectorized",
-				{
-					knowledge_base_code: params.knowledgeBaseCode,
-					document_code: params.documentCode,
-				},
-			),
+			`/api/v1/knowledge-bases/${params.knowledgeBaseCode}/documents/${params.documentCode}/re-vectorized`,
 			{
 				sync: params.sync,
 			},
@@ -408,11 +339,10 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 
 	/**
 	 * 重建知识库
+	 * TODO: 确认应使用 id 还是 code。旧模板提供 id 却引用 code，暂保留 /knowledge-bases/undefined。
 	 */
-	rebuildKnowledge(id: string) {
-		return fetch.post<Knowledge.Detail>(
-			genRequestUrl("/api/v1/knowledge-bases/${code}", { id }),
-		)
+	rebuildKnowledge(_id: string) {
+		return fetch.post<Knowledge.Detail>("/api/v1/knowledge-bases/undefined")
 	},
 
 	/**
@@ -446,7 +376,8 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	getActiveModelByCategory(params: Knowledge.GetActiveModelByCategoryParams) {
 		return fetch.get<Knowledge.ServiceProvider[]>(
-			genRequestUrl("/api/v1/admin/service-providers/by-category", {}, params),
+			"/api/v1/admin/service-providers/by-category",
+			{ params: { ...params } },
 		)
 	},
 
@@ -475,7 +406,8 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	 */
 	getSourceBindingNodes(params: GetSourceBindingNodesParams) {
 		return fetch.get<SourceBindingNodesResponse>(
-			genRequestUrl("/api/v1/knowledge-bases/source-bindings/nodes", {}, params),
+			"/api/v1/knowledge-bases/source-bindings/nodes",
+			{ params: { ...params } },
 		)
 	},
 })

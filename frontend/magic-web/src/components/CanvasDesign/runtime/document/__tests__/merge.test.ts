@@ -1,12 +1,45 @@
 import { describe, expect, it } from "vitest"
-import type { CanvasConnection, CanvasDocument, LayerElement } from "../types"
+import type {
+	CanvasConnection,
+	CanvasDocument,
+	ImageElement,
+	ImageElementContent,
+	LayerElement,
+} from "../types"
+import { getElementContentFields } from "../elementContent"
 import {
 	mergeCanvasDocuments,
 	refreshCanvasDocumentElementMergeConflictsFromRemote,
 } from "../merge"
+function normalizedElement(element: Record<string, unknown>): LayerElement {
+	const { id, type, contents, activeContentId, mainContentId, ...rest } = element
+	if (typeof id !== "string" || typeof type !== "string") {
+		throw new Error("test element id/type is required")
+	}
+	const contentFields = getElementContentFields(type)
+	const content = {
+		contentId: `${id}-content-1`,
+		...Object.fromEntries(
+			contentFields
+				.filter((field) => rest[field] !== undefined)
+				.map((field) => [field, rest[field]]),
+		),
+	}
+	for (const field of contentFields) delete rest[field]
+	const nextContents = (contents as Array<Record<string, unknown>> | undefined) ?? [content]
+	const pointer = (nextContents[0]?.contentId as string | undefined) ?? null
+	return {
+		...rest,
+		id,
+		type,
+		contents: nextContents,
+		activeContentId: (activeContentId as string | null | undefined) ?? pointer,
+		mainContentId: (mainContentId as string | null | undefined) ?? pointer,
+	} as unknown as LayerElement
+}
 
 function rect(id: string, props: Partial<LayerElement> = {}): LayerElement {
-	return {
+	return normalizedElement({
 		id,
 		type: "rectangle",
 		x: 0,
@@ -14,11 +47,11 @@ function rect(id: string, props: Partial<LayerElement> = {}): LayerElement {
 		width: 100,
 		height: 100,
 		...props,
-	}
+	})
 }
 
 function image(id: string, props: Partial<LayerElement> = {}): LayerElement {
-	return {
+	return normalizedElement({
 		id,
 		type: "image",
 		x: 0,
@@ -26,11 +59,11 @@ function image(id: string, props: Partial<LayerElement> = {}): LayerElement {
 		width: 100,
 		height: 100,
 		...props,
-	} as LayerElement
+	})
 }
 
 function video(id: string, props: Partial<LayerElement> = {}): LayerElement {
-	return {
+	return normalizedElement({
 		id,
 		type: "video",
 		x: 0,
@@ -38,11 +71,11 @@ function video(id: string, props: Partial<LayerElement> = {}): LayerElement {
 		width: 100,
 		height: 100,
 		...props,
-	} as LayerElement
+	})
 }
 
 function frame(id: string, children: LayerElement[] = [], props: Partial<LayerElement> = {}) {
-	return {
+	return normalizedElement({
 		id,
 		type: "frame",
 		x: 0,
@@ -51,7 +84,7 @@ function frame(id: string, children: LayerElement[] = [], props: Partial<LayerEl
 		height: 200,
 		children,
 		...props,
-	} as LayerElement
+	})
 }
 
 function connection(
@@ -66,7 +99,117 @@ function canvas(elements: LayerElement[], connections?: CanvasConnection[]): Can
 	return connections ? { elements, connections } : { elements }
 }
 
+function contentImage(
+	contents: ImageElementContent[],
+	activeContentId = contents[0]?.contentId,
+	mainContentId = contents[0]?.contentId,
+): ImageElement {
+	return {
+		id: "versioned-image",
+		type: "image",
+		x: 0,
+		y: 0,
+		width: 100,
+		height: 100,
+		activeContentId: activeContentId as string,
+		mainContentId: mainContentId as string,
+		contents,
+	}
+}
+
 describe("mergeCanvasDocuments", () => {
+	it("conflicts when the same element id changes type", () => {
+		const baseImage = contentImage([{ contentId: "c1", src: "./images/base.png" }])
+		const localImage = contentImage([{ contentId: "c1", src: "./images/base.png" }])
+		const remoteImage = video("versioned-image")
+
+		const result = mergeCanvasDocuments({
+			baseCanvas: canvas([baseImage]),
+			localCanvas: canvas([localImage]),
+			remoteCanvas: canvas([remoteImage]),
+		})
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				ok: false,
+				isElementLevelConflict: true,
+				conflictElementIds: ["versioned-image"],
+			}),
+		)
+	})
+
+	it("merges independent Content additions while preserving creation order", () => {
+		const base = contentImage([{ contentId: "c1", src: "./images/base.png" }])
+		const local = contentImage([
+			...base.contents,
+			{ contentId: "local-c2", status: "processing" },
+		])
+		const remote = contentImage([
+			...base.contents,
+			{ contentId: "remote-c2", status: "failed" },
+		])
+
+		const result = mergeCanvasDocuments({
+			baseCanvas: canvas([base]),
+			localCanvas: canvas([local]),
+			remoteCanvas: canvas([remote]),
+		})
+
+		expect(result.ok).toBe(true)
+		if (!result.ok) return
+		expect(
+			(result.mergedCanvas.elements?.[0] as ImageElement).contents.map(
+				(content) => content.contentId,
+			),
+		).toEqual(["c1", "local-c2", "remote-c2"])
+	})
+
+	it("enters the existing conflict flow when both sides edit one Content differently", () => {
+		const base = contentImage([{ contentId: "c1", src: "./images/base.png" }])
+		const local = contentImage([{ contentId: "c1", src: "./images/local.png" }])
+		const remote = contentImage([{ contentId: "c1", src: "./images/remote.png" }])
+
+		const result = mergeCanvasDocuments({
+			baseCanvas: canvas([base]),
+			localCanvas: canvas([local]),
+			remoteCanvas: canvas([remote]),
+		})
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				ok: false,
+				isElementLevelConflict: true,
+				reason: "same-element-changed",
+				conflictElementIds: ["versioned-image"],
+			}),
+		)
+	})
+
+	it("conflicts when one side deletes a Content while the other edits it", () => {
+		const base = contentImage([
+			{ contentId: "c1", src: "./images/base.png" },
+			{ contentId: "c2", src: "./images/two.png" },
+		])
+		const local = contentImage(base.contents.slice(0, 1))
+		const remote = contentImage([
+			base.contents[0],
+			{ ...base.contents[1], crop: { x: 1, y: 1, width: 10, height: 10 } },
+		])
+
+		const result = mergeCanvasDocuments({
+			baseCanvas: canvas([base]),
+			localCanvas: canvas([local]),
+			remoteCanvas: canvas([remote]),
+		})
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				ok: false,
+				isElementLevelConflict: true,
+				conflictElementIds: ["versioned-image"],
+			}),
+		)
+	})
 	it("merges local and remote changes on different elements", () => {
 		const baseCanvas = canvas([rect("local"), rect("remote")])
 		const localCanvas = canvas([rect("local", { x: 10 }), rect("remote")])
@@ -119,21 +262,29 @@ describe("mergeCanvasDocuments", () => {
 
 		expect(result.ok).toBe(true)
 		if (!result.ok) return
+		const mergedImage = result.mergedCanvas.elements?.[0] as ImageElement
 		expect(result.mergedCanvas.elements).toEqual([
 			expect.objectContaining({
 				id: "same",
 				x: 10,
 				y: 20,
-				status: "completed",
-				src: "./images/result.png",
-				imageGenerationTaskMeta: expect.objectContaining({
-					file_path: "./images/result.png",
-				}),
-				generateImageRequest: expect.objectContaining({
-					reference_images: ["./images/ref.png"],
-				}),
+				contents: [
+					expect.objectContaining({
+						status: "completed",
+						src: "./images/result.png",
+						imageGenerationTaskMeta: expect.objectContaining({
+							file_path: "./images/result.png",
+						}),
+						generateImageRequest: expect.objectContaining({
+							reference_images: ["./images/ref.png"],
+						}),
+					}),
+				],
 			}),
 		])
+		expect(mergedImage.contents[0]).toEqual(
+			expect.objectContaining({ src: "./images/result.png", status: "completed" }),
+		)
 	})
 
 	it("merges local layout fields with remote video generation request on the same element", () => {
@@ -176,14 +327,18 @@ describe("mergeCanvasDocuments", () => {
 				id: "same",
 				width: 160,
 				height: 90,
-				status: "completed",
-				src: "./videos/result.mp4",
-				generateVideoRequest: expect.objectContaining({
-					video_id: "video-task-1",
-					inputs: expect.objectContaining({
-						reference_videos: [{ path: "./videos/ref.mp4" }],
+				contents: [
+					expect.objectContaining({
+						status: "completed",
+						src: "./videos/result.mp4",
+						generateVideoRequest: expect.objectContaining({
+							video_id: "video-task-1",
+							inputs: expect.objectContaining({
+								reference_videos: [{ path: "./videos/ref.mp4" }],
+							}),
+						}),
 					}),
-				}),
+				],
 			}),
 		])
 	})

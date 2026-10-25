@@ -35,7 +35,9 @@ from app.core.stream.stdout_stream import StdoutStream
 from agentlang.config.config import config
 from app.magic.agent import Agent
 from app.service.agent_service import AgentService
+from app.service.sandbox_restart_coordinator import sandbox_restart_coordinator
 from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
+from app.service.follow_up_suggestion.listener import FollowUpSuggestionListener
 
 from app.service.agent_event.rag_listener_service import RagListenerService
 from app.service.agent_event.resource_cleanup_listener_service import ResourceCleanupListenerService
@@ -46,11 +48,11 @@ from app.service.memory.runtime.events.memory_event_listener import MemoryListen
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
-from app.service.agent_event.user_tool_call_listener_service import UserToolCallListenerService
 from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
-from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
+from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode, ContextType
 from app.service.cli_manager import CliManagerService
 from app.service.home_persistence_service import HomePersistenceService
+from app.service.startup_task import StartupTaskService
 from app.service.crew_downloader import (
     CrewPackageFetchError,
     CrewPackageInvalidError,
@@ -172,8 +174,8 @@ class AgentDispatcher(Base):
         MemoryListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
         ChannelStartupListenerService.register_standard_listeners(self.agent_context)
-        UserToolCallListenerService.register_standard_listeners(self.agent_context)
         ThirdPartyMessageListenerService.register_standard_listeners(self.agent_context)
+        FollowUpSuggestionListener.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
         install_tool_monitoring_listener(self.agent_context)
@@ -246,28 +248,22 @@ class AgentDispatcher(Base):
         # 保存初始化消息到文件
         from app.utils.init_client_message_util import InitClientMessageUtil
         await InitClientMessageUtil.save_init_client_message(init_message)
+        from app.service.user_context_service import UserContextService
+        UserContextService.apply_init_config(self.agent_context, init_message)
 
         self.agent_context.set_super_magic_product_context(init_message.super_magic_product_context)
 
-        # 阶段二：init_client_message.json 已就绪，触发 magic-service 模型列表加载
-        try:
-            from agentlang.config.models.model_config_manager import model_config_manager
-            from app.core.model_providers.magic_service_provider import MagicServiceProvider
-            await model_config_manager.refresh_provider(MagicServiceProvider())
-        except Exception as e:
-            logger.error(f"MagicServiceProvider refresh failed, continuing without it: {e}")
+        # 阶段二：init_client_message.json 已就绪，执行可注册的动态配置初始化器。
+        from app.service.init.config_initializers import (
+            AIAbilityConfigInitializer,
+            ModelConfigInitializer,
+        )
+        from app.service.init.initializer_registry import InitInitializerRegistry
 
-        # 阶段二：init_client_message.json 已就绪，触发 magic-service AI 能力配置加载
-        try:
-            from agentlang.config.ai_abilities.ability_config_manager import ai_ability_config_manager
-            from app.core.ai_ability_providers.magic_service_provider import MagicServiceAIAbilityProvider
-            await ai_ability_config_manager.refresh_provider(
-                MagicServiceAIAbilityProvider(
-                    (init_message.dynamic_config or {}).get("ai_abilities")
-                )
-            )
-        except Exception as e:
-            logger.error(f"MagicServiceAIAbilityProvider refresh failed, continuing without it: {e}")
+        initializer_registry = InitInitializerRegistry()
+        initializer_registry.register(ModelConfigInitializer())
+        initializer_registry.register(AIAbilityConfigInitializer(init_message.dynamic_config))
+        await initializer_registry.run(self.agent_context)
 
         # 从 init_message.metadata 提取并设置关键字段
         if init_message.metadata:
@@ -315,51 +311,73 @@ class AgentDispatcher(Base):
         # ========== 资源初始化阶段 - 仅首次执行 ==========
         if self.is_workspace_initialized:
             logger.info("工作区已经初始化过，跳过资源创建和工作区初始化")
+        else:
+            logger.info("首次初始化工作区，开始创建资源...")
+
+            # HTTP订阅流 - 通过环境变量控制是否启用
+            enable_http_stream = os.getenv("ENABLE_HTTP_SUBSCRIPTION_STREAM", "true").lower() == "true"
+            configs = init_message.message_subscription_config or []
+            if configs and not self.http_streams:
+                if enable_http_stream:
+                    for subscription_config in configs:
+                        stream = HTTPSubscriptionStream(subscription_config)
+                        self.http_streams.append(stream)
+                        self.agent_context.add_stream(stream)
+                    logger.info(f"创建和添加了 {len(self.http_streams)} 个 HTTP订阅流")
+                else:
+                    logger.info("HTTP订阅流已通过环境变量 ENABLE_HTTP_SUBSCRIPTION_STREAM 禁用，跳过创建")
+
+            # 设置聊天历史目录
+            # if init_message.chat_history_dir:
+            #     self.agent_context.set_chat_history_dir(init_message.chat_history_dir)
+            #     logger.info(f"从 init_message 设置聊天历史目录: {init_message.chat_history_dir}")
+
+            fetch_history = getattr(init_message, "fetch_history", True)
+            if fetch_history:
+                await self.agent_service.init_workspace(agent_context=self.agent_context, fetch_history=True)
+            else:
+                logger.info("客户端请求跳过远端聊天历史下载")
+                await self.agent_service.init_workspace(agent_context=self.agent_context, fetch_history=False)
+
+            # 改为按需加载agent，不再预先创建
+            self.is_workspace_initialized = True
+
+            # 标记 init 事件已发送（非预启动场景）
+            # 只有在 skip_init_messages 不为 True 时才标记已发送
+            # 因为如果 skip_init_messages=True，init 事件实际上没有发送
+            metadata = self.agent_context.get_init_client_message_metadata()
+            if metadata and metadata.skip_init_messages is True:
+                logger.info("工作区初始化完成（预启动场景，init 事件未发送）")
+            else:
+                # 非预启动场景，init_workspace 方法已发送 init 事件
+                if not self.init_event_dispatched:
+                    self.set_init_event_dispatched(True)
+                    logger.info("工作区初始化完成，标记 init 事件已发送（非预启动场景）")
+                else:
+                    logger.info("工作区初始化完成")
+
+        await self.on_runtime_ready()
+
+    async def on_runtime_ready(self) -> None:
+        """
+        系统完成工作区、ChatHistory 和 Horizon 恢复后，触发 runtime-ready 事项。
+
+        MOCK DEMO：此时系统已经具备接收消息的条件，但没有伪造真实用户消息；
+        如果 Horizon 存在 pending resumption，只提交一条内部 `/resume`。
+        """
+        if not self.is_workspace_initialized:
             return
-
-        logger.info("首次初始化工作区，开始创建资源...")
-
-        # HTTP订阅流 - 通过环境变量控制是否启用
-        enable_http_stream = os.getenv("ENABLE_HTTP_SUBSCRIPTION_STREAM", "true").lower() == "true"
-        configs = init_message.message_subscription_config or []
-        if configs and not self.http_streams:
-            if enable_http_stream:
-                for subscription_config in configs:
-                    stream = HTTPSubscriptionStream(subscription_config)
-                    self.http_streams.append(stream)
-                    self.agent_context.add_stream(stream)
-                logger.info(f"创建和添加了 {len(self.http_streams)} 个 HTTP订阅流")
-            else:
-                logger.info("HTTP订阅流已通过环境变量 ENABLE_HTTP_SUBSCRIPTION_STREAM 禁用，跳过创建")
-
-        # 设置聊天历史目录
-        # if init_message.chat_history_dir:
-        #     self.agent_context.set_chat_history_dir(init_message.chat_history_dir)
-        #     logger.info(f"从 init_message 设置聊天历史目录: {init_message.chat_history_dir}")
-
-        fetch_history = getattr(init_message, "fetch_history", True)
-        if fetch_history:
-            await self.agent_service.init_workspace(agent_context=self.agent_context, fetch_history=True)
-        else:
-            logger.info("客户端请求跳过远端聊天历史下载")
-            await self.agent_service.init_workspace(agent_context=self.agent_context, fetch_history=False)
-
-        # 改为按需加载agent，不再预先创建
-        self.is_workspace_initialized = True
-
-        # 标记 init 事件已发送（非预启动场景）
-        # 只有在 skip_init_messages 不为 True 时才标记已发送
-        # 因为如果 skip_init_messages=True，init 事件实际上没有发送
-        metadata = self.agent_context.get_init_client_message_metadata()
-        if metadata and metadata.skip_init_messages is True:
-            logger.info("工作区初始化完成（预启动场景，init 事件未发送）")
-        else:
-            # 非预启动场景，init_workspace 方法已发送 init 事件
-            if not self.init_event_dispatched:
-                self.set_init_event_dispatched(True)
-                logger.info("工作区初始化完成，标记 init 事件已发送（非预启动场景）")
-            else:
-                logger.info("工作区初始化完成")
+        # TODO：runtime-ready 处理项增多后，改为可注册的生命周期监听机制，
+        # 避免不同业务继续直接堆叠在本方法中。当前承载两项，不提前引入抽象：
+        # 1. 启动任务：在后台按顺序运行用户登记的脚本（如重装依赖），不等待结果；
+        # 2. 重启后续办（resumption）：Agent 主动重启沙盒前在 Horizon 记下的未完成事项，
+        #    新进程就绪后自动提交一条内部 /resume，让 Agent 接着完成。
+        try:
+            StartupTaskService.get_instance().start()
+        except Exception:
+            logger.exception("启动任务后台调度失败")
+        from app.service.agent_resumption_service import AgentResumptionService
+        await AgentResumptionService.resume_pending(self)
 
     @staticmethod
     def _agent_mode_value(agent_mode: Union[AgentMode, str]) -> str:
@@ -487,6 +505,9 @@ class AgentDispatcher(Base):
         last_dc = dict(last.get("dynamic_config") or {})
         last_dc.pop("image_model", None)
         last_dc.pop("video_model", None)
+        # 新消息缺省时不要继承上一条 false；显式继续运行可沿用快照中的状态。
+        if message.context_type != ContextType.CONTINUE:
+            last_dc.pop("enable_web_search", None)
         last_dc = remove_execution_source_from_dynamic_config(last_dc)
         current_dc = message.dynamic_config or {}
         if last_dc:
@@ -500,7 +521,7 @@ class AgentDispatcher(Base):
                 logger.debug(f"从上次 dispatch 快照恢复 agent 配置失败: {e}")
 
     async def _save_last_dispatch_message(self, message: ChatClientMessage) -> None:
-        """保存本次 dispatch 的完整消息快照到文件（.chat_history/last_dispatch_message.json）。"""
+        """保存本次 dispatch 的完整消息快照到本地 .chat_history。"""
         from app.utils.async_file_utils import async_write_json
         new_data = self._remove_model_selection_fields(message.model_dump(mode="json"))
         # 合并策略：以上次快照为基础，新值非 None 才覆盖，防止空值抹掉已存的有效配置
@@ -509,7 +530,10 @@ class AgentDispatcher(Base):
         # dynamic_config 做深合并：第三方 IM 消息只携带 agent_code 等部分字段，
         # 避免整个 key 覆盖导致 message_version / agent_code 等配置丢失。
         # 模型续传不依赖此快照，统一由 session_config + ModelSelectionPolicy 处理。
-        existing_dc = existing.get("dynamic_config") or {}
+        existing_dc = dict(existing.get("dynamic_config") or {})
+        # 保存本次有效搜索偏好；旧协议的新消息缺省时必须清掉旧值，
+        # 否则下一次 resume 会从快照重新拾起上一个请求的开关。
+        existing_dc.pop("enable_web_search", None)
         new_dc = new_data.get("dynamic_config") or {}
         if existing_dc or new_dc:
             merged["dynamic_config"] = {**existing_dc, **new_dc}
@@ -553,7 +577,13 @@ class AgentDispatcher(Base):
 
         return cleaned
 
-    async def submit_message(self, message: ChatClientMessage) -> None:
+    async def submit_message(
+        self,
+        message: ChatClientMessage,
+        *,
+        resumption_id: Optional[str] = None,
+        resumption_run_id: Optional[str] = None,
+    ) -> None:
         """
         Standard entry point for channel adapters to submit an inbound message.
 
@@ -567,8 +597,11 @@ class AgentDispatcher(Base):
         agent_context.register_run_cleanup() immediately after this method returns —
         it will run when the new run ends or is interrupted.
         """
+        sandbox_restart_coordinator.ensure_accepting_runs(self.agent_context.context_id)
         await self.agent_context.stop_run(reason="new message")
+        sandbox_restart_coordinator.ensure_accepting_runs()
         self.agent_context.reset_run_state()
+        self.agent_context.set_resumption_context(resumption_id, resumption_run_id)
 
         task = asyncio.create_task(self._run_dispatch_task(message))
 
@@ -683,14 +716,12 @@ class AgentDispatcher(Base):
         # 确保 magic-service AI 能力配置已加载，失败不阻断 chat。
         try:
             from agentlang.config.ai_abilities.ability_config_manager import ai_ability_config_manager
-            from app.core.ai_ability_providers.magic_service_provider import MagicServiceAIAbilityProvider
-            dynamic_ai_abilities = (message.dynamic_config or {}).get("ai_abilities")
-            ability_provider = MagicServiceAIAbilityProvider(dynamic_ai_abilities)
-            if isinstance(dynamic_ai_abilities, Mapping) and dynamic_ai_abilities:
-                await ai_ability_config_manager.refresh_provider(ability_provider)
-            else:
-                await ai_ability_config_manager.ensure_provider_loaded(ability_provider)
-            ai_ability_config_manager.maybe_refresh_in_background(ability_provider.provider_type)
+            from app.core.ai_ability_providers.magic_service_provider import PROVIDER_TYPE
+            from app.service.init.config_initializers import AIAbilityConfigInitializer
+
+            await AIAbilityConfigInitializer(message.dynamic_config).run(self.agent_context)
+            # 后台刷新只更新共享 AI 能力配置，不覆盖当前任务已经固定的提示词快照。
+            ai_ability_config_manager.maybe_refresh_in_background(PROVIDER_TYPE)
         except Exception as e:
             logger.warning(f"dispatch_message: AI ability provider check failed, continuing: {e}")
 
@@ -724,6 +755,10 @@ class AgentDispatcher(Base):
         try:
             target = self._build_agent_target(message.agent_mode, agent_code)
             agent = await self.switch_agent(target)
+            profile = message.agent.profile if message.agent is not None else None
+            self.agent_context.set_user_facing_agent_name(
+                target, (profile.user_facing_name or "") if profile is not None else "",
+            )
         except asyncio.CancelledError:
             self.agent_context.set_agent_profile(previous_profile)
             raise
@@ -808,6 +843,7 @@ class AgentDispatcher(Base):
             session_video_model=self._session_video_model(current_session_config, last_session_config),
         ))
         agent.agent_context.model_context.apply_selection(selection)
+        agent.agent_context.set_reasoning_effort((message.dynamic_config or {}).get("reasoning_effort"))
         logger.info(
             "[AgentDispatcher] 已应用模型选择: "
             f"text={selection.text_model_id}, "

@@ -64,7 +64,7 @@ class ClawProjectStore {
 
 export class ClawPlaygroundRootStore {
 	readonly topicStore = new TopicStore()
-	readonly projectFilesStore = new ProjectFilesStore()
+	readonly projectFilesStore = new ProjectFilesStore("claw")
 	readonly mentionPanelStore = createMentionPanelStore(this.projectFilesStore)
 	readonly projectStore = new ClawProjectStore(this.projectFilesStore)
 	readonly workspaceStore = new ClawWorkspaceStore()
@@ -351,7 +351,6 @@ export class ClawPlaygroundRootStore {
 			let topics = response.list ?? []
 			let selectedTopic =
 				topics.find((topic) => topic.id === project.current_topic_id) ?? topics[0] ?? null
-
 			if (!selectedTopic) {
 				selectedTopic = await SuperMagicApi.createTopic({
 					project_id: project.id,

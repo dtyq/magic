@@ -6,6 +6,7 @@
  * 纯 class，不依赖 React，由 useIframeFS hook 持有实例。
  */
 
+import type { FileAccessContext } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import { getIframeDownloadUrl } from "../iframeApi"
 import {
 	FS_MESSAGE_TYPES,
@@ -51,7 +52,7 @@ export type UploadFn = (params: {
 	path: string
 	fileSize?: number
 	parentId?: string
-}) => Promise<unknown>
+}) => Promise<FSFileItem>
 
 /**
  * 更新已存在文件内容的函数签名。
@@ -115,6 +116,8 @@ export interface IframeFSConfig {
 	appConfig: HTMLAppConfig | null
 	/** 项目 ID，用于删除等需要 project_id 的操作 */
 	projectId?: string
+	/** 项目上下文不可用时返回给 iframe 的语义化错误。 */
+	projectContextUnavailableError?: string
 	/** 创建新文件时使用的上传函数（文件不存在时走此路径） */
 	uploadFn: UploadFn
 	/** 更新已存在文件内容的函数（文件已存在时走此路径，不重新上传 OSS） */
@@ -154,6 +157,7 @@ export interface IframeFSConfig {
 	 * 删除 appRoot 外的 project-scope 文件/目录前，让宿主弹出二次确认。
 	 */
 	confirmProjectDeleteFn?: ConfirmProjectDeleteFn
+	getFileAccess?: () => FileAccessContext | null
 	/** 执行高风险能力前的授权检查。未提供时保持旧行为。 */
 	authorizePermission?: (scope: HtmlPermissionScope) => Promise<boolean>
 }
@@ -167,6 +171,7 @@ const MAX_BLOB_WRITE_BYTES = 500 * 1024 * 1024
 
 export class IframeFSService {
 	private readonly cfg: IframeFSConfig
+	private readonly pendingFiles = new Map<string, FSFileItem | null>()
 	/** 应用根目录（从入口路径派生，末尾含 /） */
 	readonly appRootDir: string
 	/** 文件别名映射（来自 appConfig.files） */
@@ -257,11 +262,27 @@ export class IframeFSService {
 	destroy() {
 		this.watchService.destroy()
 		this.dirCache.clear()
+		this.pendingFiles.clear()
 	}
 
 	/** 供 hook 在 fileList 变化时调用，保持内部引用最新 */
 	updateFileList(newFileList: FSFileItem[]) {
-		this.cfg.fileList = newFileList
+		// Attachment notifications can lag behind successful mutations. Keep the confirmed
+		// local result until an incoming snapshot acknowledges it, then release it.
+		const incoming = new Map(newFileList.map((item) => [item.file_id, item]))
+		for (const [id, pending] of this.pendingFiles) {
+			const item = incoming.get(id)
+			if (
+				pending === null ? !item : item?.relative_file_path === pending.relative_file_path
+			) {
+				this.pendingFiles.delete(id)
+			} else if (pending) {
+				incoming.set(id, pending)
+			} else {
+				incoming.delete(id)
+			}
+		}
+		this.cfg.fileList = [...incoming.values()]
 	}
 
 	// ─── 内部处理 ────────────────────────────────────────────────────────────────
@@ -302,7 +323,10 @@ export class IframeFSService {
 				})
 			}
 
-			const urls = await getIframeDownloadUrl([item.file_id])
+			const urls = await getIframeDownloadUrl(
+				[item.file_id],
+				this.cfg.getFileAccess?.() ?? null,
+			)
 			const url = urls?.[0]?.url
 			if (!url) throw new Error("Failed to get download URL")
 
@@ -376,12 +400,13 @@ export class IframeFSService {
 				const file = new File([blob], fileName, { type: blob.type })
 				const parentId = await this.ensureParentDirs(resolved)
 
-				await this.cfg.uploadFn({
+				const uploaded = await this.cfg.uploadFn({
 					file,
 					path: this.toUploadPath(resolved),
 					fileSize: blob.size,
 					parentId,
 				})
+				this.recordFile(uploaded)
 			}
 
 			this.send({ type: FS_MESSAGE_TYPES.WRITE_RESPONSE, requestId, success: true })
@@ -455,12 +480,13 @@ export class IframeFSService {
 				})
 				const parentId = await this.ensureParentDirs(resolved)
 
-				await this.cfg.uploadFn({
+				const uploaded = await this.cfg.uploadFn({
 					file,
 					path: this.toUploadPath(resolved),
 					fileSize: blob.size,
 					parentId,
 				})
+				this.recordFile(uploaded)
 			}
 
 			this.send({ type: replyType, requestId, success: true })
@@ -558,7 +584,10 @@ export class IframeFSService {
 				})
 			}
 
-			const urls = await getIframeDownloadUrl([item.file_id])
+			const urls = await getIframeDownloadUrl(
+				[item.file_id],
+				this.cfg.getFileAccess?.() ?? null,
+			)
 			const url = urls?.[0]?.url
 			if (!url) throw new Error("Failed to get file URL")
 
@@ -623,6 +652,8 @@ export class IframeFSService {
 			const serverPath = await this.assertServerPath(item, projectId, resolved)
 			await this.confirmProjectDeleteIfNeeded(serverPath, false)
 			await this.cfg.deleteFn({ file_id: item.file_id, project_id: projectId })
+			this.removeFiles([item.file_id])
+			this.clearDirCacheForPath(resolved)
 			this.send({ type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE, requestId, success: true })
 		} catch (err) {
 			this.send({
@@ -731,6 +762,8 @@ export class IframeFSService {
 				file_ids: Array.from(fileIds),
 				project_id: projectId,
 			})
+
+			this.removeFiles(fileIds)
 
 			// 清理 dirCache 中相关条目
 			for (const key of Array.from(this.dirCache.keys())) {
@@ -1044,17 +1077,16 @@ export class IframeFSService {
 	}
 
 	private buildDirEntries(resolvedDir: string, originalDir: string): FSDirEntry[] {
-		return this.listDirectDirItems(resolvedDir)
-			.map(({ item, path }) => {
-				const name = item.file_name || path.split("/").pop() || path
-				const entry: FSDirEntry = {
-					name,
-					path: this.toIframeVisiblePath(path, originalDir),
-					isDirectory: item.is_directory ?? false,
-				}
-				if (item.updated_at) entry.updatedAt = item.updated_at
-				return entry
-			})
+		return this.listDirectDirItems(resolvedDir).map(({ item, path }) => {
+			const name = item.file_name || path.split("/").pop() || path
+			const entry: FSDirEntry = {
+				name,
+				path: this.toIframeVisiblePath(path, originalDir),
+				isDirectory: item.is_directory ?? false,
+			}
+			if (item.updated_at) entry.updatedAt = item.updated_at
+			return entry
+		})
 	}
 
 	private toIframeVisiblePath(resolvedPath: string, originalDir: string): string {
@@ -1206,19 +1238,50 @@ export class IframeFSService {
 		const newBase = this.normalizeWorkspacePath(newPath)
 		const oldPrefix = `${oldBase}/`
 		const newName = newBase.split("/").pop()
+		const changed: FSFileItem[] = []
 
 		for (const item of this.cfg.fileList) {
 			const currentPath = this.normalizeWorkspacePath(item.relative_file_path)
 			if (currentPath === oldBase) {
-				item.relative_file_path = newBase
-				if (newName) item.file_name = newName
+				changed.push({ ...item, relative_file_path: newBase, file_name: newName })
 			} else if (currentPath.startsWith(oldPrefix)) {
-				item.relative_file_path = `${newBase}/${currentPath.slice(oldPrefix.length)}`
+				changed.push({
+					...item,
+					relative_file_path: `${newBase}/${currentPath.slice(oldPrefix.length)}`,
+				})
 			}
 		}
+		this.recordFiles(changed)
 
 		this.clearDirCacheForPath(oldBase)
 		this.clearDirCacheForPath(newBase)
+	}
+
+	private recordFile(item: FSFileItem) {
+		this.recordFiles([item])
+	}
+
+	private recordFiles(items: FSFileItem[]) {
+		const changed = new Map<string, FSFileItem>()
+		for (const item of items) {
+			if (!item?.file_id || !item.relative_file_path) {
+				throw new Error("Uploaded file metadata is missing")
+			}
+			this.assertInFileScope(item)
+			changed.set(item.file_id, item)
+		}
+		for (const [id, item] of changed) this.pendingFiles.set(id, item)
+		// Renaming a large directory must scan the host list only once.
+		this.cfg.fileList = [
+			...this.cfg.fileList.filter((item) => !changed.has(item.file_id)),
+			...changed.values(),
+		]
+	}
+
+	private removeFiles(ids: Iterable<string>) {
+		const removed = new Set(ids)
+		for (const id of removed) this.pendingFiles.set(id, null)
+		this.cfg.fileList = this.cfg.fileList.filter((item) => !removed.has(item.file_id))
 	}
 
 	private clearDirCacheForPath(path: string) {
@@ -1271,6 +1334,12 @@ export class IframeFSService {
 			// 3. 目录不存在，调用 mkdirFn 创建
 			const dirName = parentSegments[i]
 			const result = await this.cfg.mkdirFn({ name: dirName, parentId })
+			this.recordFile({
+				file_id: result.file_id,
+				relative_file_path: pathUpToHere,
+				file_name: dirName,
+				is_directory: true,
+			})
 			this.dirCache.set(pathUpToHere, result.file_id)
 			parentId = result.file_id
 		}
@@ -1283,6 +1352,9 @@ export class IframeFSService {
 	}
 
 	private async ensurePermission(scope: HtmlPermissionScope): Promise<boolean> {
+		if ((scope === "fs.project.read" || scope === "fs.project.write") && !this.cfg.projectId) {
+			throw new Error(this.cfg.projectContextUnavailableError || "No project selected")
+		}
 		if (!this.cfg.authorizePermission) return true
 		return this.cfg.authorizePermission(scope)
 	}

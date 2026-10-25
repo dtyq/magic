@@ -10,6 +10,8 @@ import {
 	applyOptimisticTopicRunningState,
 	handleArrivedTopicStatusChange,
 	shouldCheckAttachmentsOnTaskStatus,
+	shouldSyncTopicStatusAfterForegroundMessageReconciliation,
+	syncTopicStatusAfterForegroundMessageReconciliation,
 	syncTopicStatusPatch,
 } from "../topicStatusSyncService"
 
@@ -17,6 +19,15 @@ vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		getTopicsStatus: vi.fn(),
 		markTopicReadProgress: vi.fn(),
+	},
+}))
+
+vi.mock("@/pages/superMagic/stores", () => ({
+	superMagicStore: {
+		topicMeta: new Map<string, unknown>(),
+		buffer: new Map<string, { messages: unknown[] }>(),
+		hasPendingTopicExecution: vi.fn(() => false),
+		isTopicStreaming: vi.fn(() => false),
 	},
 }))
 
@@ -271,5 +282,60 @@ describe("topicStatusSyncService", () => {
 				},
 			)
 		})
+	})
+
+	it("shouldSyncTopicStatusAfterForegroundMessageReconciliation matches explicit non-terminal statuses", () => {
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "visible",
+		})
+
+		expect(
+			shouldSyncTopicStatusAfterForegroundMessageReconciliation({
+				chatTopicId: "chat-topic-1",
+				localTaskStatus: TaskStatus.RUNNING,
+			}),
+		).toBe(true)
+		expect(
+			shouldSyncTopicStatusAfterForegroundMessageReconciliation({
+				chatTopicId: "chat-topic-1",
+				localTaskStatus: TaskStatus.FINISHED,
+			}),
+		).toBe(false)
+	})
+
+	it("syncTopicStatusAfterForegroundMessageReconciliation merges finished status for stale running topics", async () => {
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			value: "visible",
+		})
+		const scopedTopicStore = new TopicStore()
+		const topic = createTopicPatch({
+			id: "topic-foreground-sync",
+			taskStatus: TaskStatus.RUNNING,
+		})
+		scopedTopicStore.setTopics([topic])
+		scopedTopicStore.setSelectedTopic(topic)
+		vi.mocked(SuperMagicApi.getTopicsStatus).mockResolvedValue({
+			list: [
+				{
+					id: "topic-foreground-sync",
+					status: "finished",
+					has_unread: false,
+				},
+			],
+		})
+
+		await syncTopicStatusAfterForegroundMessageReconciliation({
+			topicStore: scopedTopicStore,
+			topicId: "topic-foreground-sync",
+			chatTopicId: "chat-topic-1",
+			localTaskStatus: TaskStatus.RUNNING,
+		})
+
+		expect(SuperMagicApi.getTopicsStatus).toHaveBeenCalledWith({
+			topic_ids: ["topic-foreground-sync"],
+		})
+		expect(scopedTopicStore.selectedTopic?.task_status).toBe(TaskStatus.FINISHED)
 	})
 })

@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Linear — A high-performance issue tracker and product planning platform built on near-black canvas and lavender voltage.">
+  <title>Linear — Purpose-Built for Modern Product Teams</title>
+  <style>
+    :root {
+      --primary: #5e6ad2;
+      --primary-hover: #828fff;
+      --primary-glow: rgba(94, 106, 210, 0.35);
+      --canvas: #010102;
+      --surface-1: #0b0c0e;
+      --surface-2: #121316;
+      --surface-3: #18191d;
+      --hairline: #23252a;
+      --hairline-strong: #343741;
+      --ink: #f7f8f8;
+      --ink-muted: #8a8f98;
+      --ink-dim: #555962;
+      --semantic-green: #22c55e;
+      --semantic-yellow: #eab308;
+      --semantic-red: #ef4444;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      --font-mono: "SF Mono", Monaco, "Cascadia Code", monospace;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-full: 9999px;
+      --shell: 1220px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: var(--canvas); color: var(--ink); scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin: 0 auto; }
+
+    /* Topbar */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(1, 1, 2, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--hairline);
+    }
+    .topbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 22px; height: 22px; border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #5e6ad2 0%, #3b4382 100%);
+      display: grid; place-items: center; box-shadow: 0 0 14px var(--primary-glow);
+    }
+    .brand-name {
+      font-size: 16px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink);
+    }
+    .nav-links { display: flex; align-items: center; gap: 26px; font-size: 13px; font-weight: 500; color: var(--ink-muted); }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-actions { display: flex; align-items: center; gap: 14px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--primary); color: #ffffff; border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 0 20px rgba(94, 106, 210, 0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+    }
+    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-secondary {
+      background: var(--surface-2); color: var(--ink); border-color: var(--hairline-strong);
+    }
+    .btn-secondary:hover { background: var(--surface-3); border-color: var(--ink-muted); }
+
+    /* Hero Section - Optimized for 16:10 Cover at 0.35 scale */
+    .hero {
+      position: relative; padding: clamp(48px, 6vw, 76px) 0 32px;
+      text-align: center;
+      background: radial-gradient(ellipse 65% 50% at 50% 0%, rgba(94, 106, 210, 0.16), transparent 70%);
+    }
+    .hero-kicker {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 14px; border-radius: var(--radius-full);
+      background: rgba(94, 106, 210, 0.1); border: 1px solid rgba(94, 106, 210, 0.25);
+      font-size: 12px; font-weight: 500; color: var(--primary-hover);
+      margin-bottom: 22px;
+    }
+    .hero-title {
+      font-size: clamp(38px, 6vw, 74px);
+      font-weight: 600; line-height: 1.05; letter-spacing: -0.04em;
+      max-width: 860px; margin: 0 auto 20px;
+    }
+    .hero-subtitle {
+      font-size: clamp(16px, 1.8vw, 20px); line-height: 1.5; color: var(--ink-muted);
+      max-width: 620px; margin: 0 auto 32px;
+    }
+    .hero-actions { display: flex; justify-content: center; gap: 14px; margin-bottom: 48px; }
+
+    /* Linear Workspace / Issue Triage Mockup */
+    .workspace-window {
+      max-width: 1040px; margin: 0 auto;
+      background: var(--surface-1); border: 1px solid var(--hairline-strong);
+      border-radius: var(--radius-lg); overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.05);
+      text-align: left;
+    }
+    .window-header {
+      height: 42px; background: #08090a; border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+    }
+    .window-dots { display: flex; gap: 7px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #26282c; }
+    .window-search {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-dim);
+      background: var(--surface-2); border: 1px solid var(--hairline);
+      padding: 4px 12px; border-radius: var(--radius-sm);
+    }
+    .window-body {
+      display: grid; grid-template-columns: 200px 1fr;
+      min-height: 340px;
+    }
+    .window-sidebar {
+      background: #08090a; border-right: 1px solid var(--hairline); padding: 16px 12px;
+    }
+    .sidebar-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--ink-dim); letter-spacing: 0.1em; margin-bottom: 8px; }
+    .sidebar-item {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted);
+      padding: 6px 10px; border-radius: var(--radius-sm); margin-bottom: 4px; cursor: pointer;
+    }
+    .sidebar-item.active { background: var(--surface-2); color: var(--ink); font-weight: 500; }
+    .window-content { padding: 20px 24px; }
+    .cycle-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--hairline);
+    }
+    .cycle-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .cycle-badge { background: rgba(94, 106, 210, 0.15); color: var(--primary-hover); font-size: 11px; padding: 2px 8px; border-radius: var(--radius-full); font-weight: 600; }
+    .cycle-progress { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+
+    /* Issue List Rows */
+    .issue-list { display: flex; flex-direction: column; gap: 8px; }
+    .issue-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); transition: border-color 0.2s ease;
+    }
+    .issue-row:hover { border-color: var(--primary); }
+    .issue-left { display: flex; align-items: center; gap: 12px; }
+    .issue-id { font-family: var(--font-mono); font-size: 11px; color: var(--ink-dim); }
+    .issue-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-green { background: var(--semantic-green); box-shadow: 0 0 6px var(--semantic-green); }
+    .status-yellow { background: var(--semantic-yellow); }
+    .status-dim { background: var(--ink-dim); }
+    .issue-right { display: flex; align-items: center; gap: 12px; }
+    .priority-tag { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: var(--radius-sm); background: rgba(239, 68, 68, 0.12); color: #f87171; }
+    .assignee-avatar { width: 20px; height: 20px; border-radius: 50%; background: #3b4252; display: grid; place-items: center; font-size: 9px; }
+
+    /* Feature Grid Section */
+    .section { padding: clamp(56px, 7vw, 96px) 0; border-top: 1px solid var(--hairline); }
+    .section-head { margin-bottom: 40px; text-align: left; }
+    .section-tag { font-size: 11px; font-family: var(--font-mono); color: var(--primary-hover); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px; display: block; }
+    .section-h2 { font-size: clamp(26px, 3.5vw, 40px); font-weight: 600; letter-spacing: -0.03em; }
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .feature-card {
+      background: var(--surface-1); border: 1px solid var(--hairline);
+      border-radius: var(--radius-md); padding: 28px; display: flex; flex-direction: column;
+      justify-content: space-between; min-height: 220px; transition: all 0.25s ease;
+    }
+    .feature-card:hover {
+      border-color: var(--hairline-strong); transform: translateY(-3px);
+      box-shadow: 0 16px 36px rgba(0,0,0,0.5);
+    }
+    .card-icon {
+      width: 36px; height: 36px; border-radius: var(--radius-sm);
+      background: var(--surface-3); border: 1px solid var(--hairline);
+      display: grid; place-items: center; margin-bottom: 18px; color: var(--primary-hover);
+    }
+    .card-title { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .card-text { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+
+    /* Tokens Spec Bar */
+    .spec-strip {
+      margin-top: 48px; padding: 18px 24px; background: var(--surface-1);
+      border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+      font-size: 11px; font-family: var(--font-mono); color: var(--ink-muted);
+    }
+    .tokens-group { display: flex; align-items: center; gap: 16px; }
+    .token-chip { display: flex; align-items: center; gap: 8px; }
+    .chip-box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.2); }
+
+    /* Footer */
+    footer { padding: 48px 0; border-top: 1px solid var(--hairline); font-size: 12px; color: var(--ink-dim); }
+    .footer-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .nav-links { display: none; }
+      .window-body { grid-template-columns: 1fr; }
+      .window-sidebar { display: none; }
+      .feature-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <div class="brand-wrap">
+        <div class="brand-logo">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="4" y1="18" x2="14" y2="18"/>
+          </svg>
+        </div>
+        <span class="brand-name">Linear</span>
+      </div>
+      <nav class="nav-links" aria-label="Product navigation">
+        <a href="#features">Features</a>
+        <a href="#method">Method</a>
+        <a href="#customers">Customers</a>
+        <a href="#changelog">Changelog</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="#top" style="font-size: 13px; color: var(--ink-muted);">Log in</a>
+        <a href="#top" class="btn btn-primary">Sign up</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO SECTION -->
+    <section class="hero" id="top">
+      <div class="shell">
+        <div class="hero-kicker">
+          <span>Linear 2026.4 Release</span>
+          <span style="opacity:0.5">·</span>
+          <span>Async Workspaces</span>
+        </div>
+        <h1 class="hero-title">Linear is a purpose-built tool for modern product teams.</h1>
+        <p class="hero-subtitle">
+          Streamline software projects, sprints, and roadmap initiatives with sub-50ms sync, keyboard shortcuts, and zero friction.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#features">Get started free</a>
+          <a class="btn btn-secondary" href="#features">Open Command Menu <kbd style="font-family:var(--font-mono); font-size:11px; padding:2px 6px; background:#1e2025; border-radius:3px;">⌘K</kbd></a>
+        </div>
+
+        <!-- LINEAR WORKSPACE / ISSUE TRIAGE MOCKUP -->
+        <div class="workspace-window">
+          <div class="window-header">
+            <div class="window-dots">
+              <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+            <div class="window-search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <span>Search issues, cycles, or teams...</span>
+              <kbd style="font-family:var(--font-mono); font-size:10px; background:#18191d; padding:1px 4px; border-radius:2px;">/</kbd>
+            </div>
+            <div style="font-family:var(--font-mono); font-size:11px; color:var(--ink-dim);">SYNCED (28ms)</div>
+          </div>
+
+          <div class="window-body">
+            <!-- Sidebar -->
+            <aside class="window-sidebar">
+              <div class="sidebar-label">Active Workspace</div>
+              <div class="sidebar-item active">
+                <span>⚡</span>
+                <span>Active Cycle 48</span>
+              </div>
+              <div class="sidebar-item">
+                <span>📦</span>
+                <span>Backlog (34)</span>
+              </div>
+              <div class="sidebar-item">
+                <span>🎯</span>
+                <span>Q3 Roadmap</span>
+              </div>
+              <div class="sidebar-label" style="margin-top:16px;">Teams</div>
+              <div class="sidebar-item">
+                <span>●</span>
+                <span>Core Engine</span>
+              </div>
+              <div class="sidebar-item">
+                <span>●</span>
+                <span>Design System</span>
+              </div>
+            </aside>
+
+            <!-- Main Stream -->
+            <div class="window-content">
+              <div class="cycle-header">
+                <div class="cycle-title">
+                  <span>Cycle 48 Sprint</span>
+                  <span class="cycle-badge">In Progress</span>
+                </div>
+                <div class="cycle-progress">18 of 22 Issues Resolved · 82% Completed</div>
+              </div>
+
+              <!-- Issue items -->
+              <div class="issue-list">
+                <div class="issue-row">
+                  <div class="issue-left">
+                    <div class="status-dot status-green"></div>
+                    <span class="issue-id">LIN-1420</span>
+                    <span class="issue-title">Optimistic mutation cache for low-latency list updates</span>
+                  </div>
+                  <div class="issue-right">
+                    <span class="priority-tag">Urgent</span>
+                    <div class="assignee-avatar">AL</div>
+                  </div>
+                </div>
+
+                <div class="issue-row">
+                  <div class="issue-left">
+                    <div class="status-dot status-yellow"></div>
+                    <span class="issue-id">LIN-1418</span>
+                    <span class="issue-title">Virtual canvas hardware acceleration fallback</span>
+                  </div>
+                  <div class="issue-right">
+                    <span style="font-size:10px; font-weight:600; padding:2px 6px; background:#1e2025; color:var(--ink-muted); border-radius:var(--radius-sm);">High</span>
+                    <div class="assignee-avatar">KW</div>
+                  </div>
+                </div>
+
+                <div class="issue-row">
+                  <div class="issue-left">
+                    <div class="status-dot status-dim"></div>
+                    <span class="issue-id">LIN-1415</span>
+                    <span class="issue-title">User keyboard shortcut customization mapping layer</span>
+                  </div>
+                  <div class="issue-right">
+                    <span style="font-size:10px; font-weight:600; padding:2px 6px; background:#1e2025; color:var(--ink-muted); border-radius:var(--radius-sm);">Medium</span>
+                    <div class="assignee-avatar">MR</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CORE FEATURES -->
+    <section class="section" id="features">
+      <div class="shell">
+        <div class="section-head">
+          <span class="section-tag">High-Velocity Engineering</span>
+          <h2 class="section-h2">Designed to keep engineers in the flow.</h2>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="card-icon">⚡</div>
+            <div>
+              <h3 class="card-title">Sub-50ms Latency</h3>
+              <p class="card-text">Every action is locally applied and asynchronously synchronized. The app never makes you wait on spinners.</p>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="card-icon">⌨️</div>
+            <div>
+              <h3 class="card-title">Keyboard First</h3>
+              <p class="card-text">Command palette, quick assignment, status shifts, and filter search are reachable instantly without touching the mouse.</p>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="card-icon">🔄</div>
+            <div>
+              <h3 class="card-title">Git & PR Automation</h3>
+              <p class="card-text">Branches automatically update issue states from In Progress to Review to Done when pull requests merge.</p>
+            </div>
+          </article>
+        </div>
+
+        <!-- Tokens Showcase Strip -->
+        <div class="spec-strip">
+          <div class="tokens-group">
+            <span style="color:var(--ink-dim); text-transform:uppercase;">Design Tokens:</span>
+            <div class="token-chip"><div class="chip-box" style="background:#5e6ad2;"></div><span>Primary #5e6ad2</span></div>
+            <div class="token-chip"><div class="chip-box" style="background:#010102;"></div><span>Canvas #010102</span></div>
+            <div class="token-chip"><div class="chip-box" style="background:#0b0c0e;"></div><span>Surface #0b0c0e</span></div>
+          </div>
+          <div>
+            <span>RADIUS: 8PX · FONT: SF PRO / LINEAR SANS</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-content">
+      <span>Linear Orbit Inc. · Built for high performance product engineering</span>
+      <span>2026 Production Design Preview</span>
+    </div>
+  </footer>
+</body>
+</html>

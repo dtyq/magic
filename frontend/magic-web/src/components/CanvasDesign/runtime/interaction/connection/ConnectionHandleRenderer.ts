@@ -1,9 +1,14 @@
 import Konva from "konva"
+import type { ConnectionOrigin } from "../../shared/connectionOrigin"
 import type { Rect } from "../../shared/ids"
 
-export type ConnectionHandleSide = "left" | "right"
-export type ConnectionHandleInteractionState = "idle" | "hover" | "active"
+export type ConnectionHandleSide = ConnectionOrigin["side"]
+export type ConnectionHandleInteractionState = "idle" | "hover" | "active" | "disabled"
 export type ConnectionHandleHitRegion = Rect & { side: ConnectionHandleSide }
+
+export type ConnectionHandleOverlayOrigin =
+	| Omit<Extract<ConnectionOrigin, { kind: "element" }>, "side">
+	| Omit<Extract<ConnectionOrigin, { kind: "selection" }>, "side" | "boundingRect">
 
 interface ConnectionHandleCanvasMetrics {
 	radius: number
@@ -20,6 +25,8 @@ export class ConnectionHandleRenderer {
 	public static readonly HANDLE_CIRCLE_NAME = "connection-drag-handle-circle"
 	public static readonly HANDLE_PLUS_HORIZONTAL_NAME = "connection-drag-handle-plus-horizontal"
 	public static readonly HANDLE_PLUS_VERTICAL_NAME = "connection-drag-handle-plus-vertical"
+	public static readonly HANDLE_ORIGIN_ATTR = "connectionHandleOrigin"
+	public static readonly HANDLE_DISABLED_ATTR = "connectionHandleDisabled"
 
 	private static readonly HANDLE_RADIUS_PX = 9
 	private static readonly HANDLE_OFFSET_PX = 20
@@ -30,10 +37,18 @@ export class ConnectionHandleRenderer {
 	private static readonly HANDLE_HOVER_FILL = "#F7F7F7"
 	private static readonly HANDLE_ACTIVE_FILL = "#EDEDED"
 	private static readonly HANDLE_INTERACTION_STROKE = "#0A0A0A"
+	private static readonly HANDLE_DISABLED_FILL = "#F5F5F5"
+	private static readonly HANDLE_DISABLED_STROKE = "#B8B8B8"
+	private static readonly HANDLE_DISABLED_OPACITY = 0.45
 	private static readonly HANDLE_HOVER_SHADOW_OPACITY = 0.12
 	private static readonly HANDLE_ACTIVE_SHADOW_OPACITY = 0.18
 
-	public createOverlay(elementId: string, rect: Rect, stageScale: number): Konva.Group {
+	public createOverlay(
+		origin: ConnectionHandleOverlayOrigin,
+		rect: Rect,
+		stageScale: number,
+		disabledSides: readonly ConnectionHandleSide[] = [],
+	): Konva.Group {
 		const group = new Konva.Group({
 			name: ConnectionHandleRenderer.OVERLAY_GROUP_NAME,
 			listening: true,
@@ -44,7 +59,7 @@ export class ConnectionHandleRenderer {
 			this.createHandleNode("left"),
 			this.createHandleNode("right"),
 		)
-		this.updateOverlay(group, elementId, rect, stageScale)
+		this.updateOverlay(group, origin, rect, stageScale, disabledSides)
 		return group
 	}
 
@@ -61,6 +76,7 @@ export class ConnectionHandleRenderer {
 			circle.setAttrs({
 				fill: style.fill,
 				stroke: style.stroke,
+				opacity: style.opacity,
 				shadowColor: "rgba(0, 0, 0, 0.22)",
 				shadowBlur: style.shadowOpacity > 0 ? radius * 0.25 : 0,
 				shadowOffsetX: 0,
@@ -76,15 +92,27 @@ export class ConnectionHandleRenderer {
 		plusNodes.forEach((node) => {
 			if (node instanceof Konva.Line) {
 				node.stroke(style.stroke)
+				node.opacity(style.opacity)
 			}
 		})
 	}
 
+	public setHandleDisabledState(handle: Konva.Group, disabled: boolean): void {
+		handle.setAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR, disabled)
+		handle.listening(!disabled)
+		const currentState = this.getHandleInteractionState(handle)
+		this.setHandleInteractionState(
+			handle,
+			disabled ? "disabled" : currentState === "disabled" ? "idle" : currentState,
+		)
+	}
+
 	public updateOverlay(
 		group: Konva.Group,
-		elementId: string,
+		origin: ConnectionHandleOverlayOrigin,
 		rect: Rect,
 		stageScale: number,
+		disabledSides: readonly ConnectionHandleSide[] = [],
 	): void {
 		const metrics = this.resolveScreenSpaceHandleMetrics(stageScale)
 		const centerY = rect.y + rect.height / 2
@@ -92,30 +120,32 @@ export class ConnectionHandleRenderer {
 		const rightHitRegion = this.getHandleHitRegion(rect, stageScale, "right")
 
 		this.updateCorridorNode(group, {
-			elementId,
+			origin,
 			...leftHitRegion,
 		})
 		this.updateCorridorNode(group, {
-			elementId,
+			origin,
 			...rightHitRegion,
 		})
 		this.updateHandleNode(group, {
-			elementId,
+			origin,
 			side: "left",
 			x: rect.x - metrics.offset,
 			y: centerY,
 			radius: metrics.radius,
 			strokeWidth: metrics.strokeWidth,
 			plusHalfSize: metrics.plusHalfSize,
+			disabled: disabledSides.includes("left"),
 		})
 		this.updateHandleNode(group, {
-			elementId,
+			origin,
 			side: "right",
 			x: rect.x + rect.width + metrics.offset,
 			y: centerY,
 			radius: metrics.radius,
 			strokeWidth: metrics.strokeWidth,
 			plusHalfSize: metrics.plusHalfSize,
+			disabled: disabledSides.includes("right"),
 		})
 	}
 
@@ -187,7 +217,7 @@ export class ConnectionHandleRenderer {
 	private updateCorridorNode(
 		root: Konva.Group,
 		options: {
-			elementId: string
+			origin: ConnectionHandleOverlayOrigin
 			side: ConnectionHandleSide
 			x: number
 			y: number
@@ -200,7 +230,11 @@ export class ConnectionHandleRenderer {
 			.find((node) => node.getAttr("connectionHandleSide") === options.side)
 		if (!(corridor instanceof Konva.Rect)) return
 
-		corridor.id(options.elementId)
+		const elementId =
+			options.origin.kind === "element"
+				? options.origin.elementId
+				: options.origin.elementIds[0]
+		corridor.id(elementId ?? "")
 		corridor.setAttrs({
 			x: options.x,
 			y: options.y,
@@ -209,20 +243,21 @@ export class ConnectionHandleRenderer {
 			fill: "rgba(0, 0, 0, 0)",
 			listening: true,
 		})
-		corridor.setAttr("elementId", options.elementId)
+		this.setOriginAttr(corridor, options.origin)
 		corridor.setAttr("connectionHandleSide", options.side)
 	}
 
 	private updateHandleNode(
 		root: Konva.Group,
 		options: {
-			elementId: string
+			origin: ConnectionHandleOverlayOrigin
 			side: ConnectionHandleSide
 			x: number
 			y: number
 			radius: number
 			strokeWidth: number
 			plusHalfSize: number
+			disabled: boolean
 		},
 	): void {
 		const handle = root
@@ -231,9 +266,13 @@ export class ConnectionHandleRenderer {
 		if (!(handle instanceof Konva.Group)) return
 		const interactionState = this.getHandleInteractionState(handle)
 
-		handle.id(options.elementId)
+		const elementId =
+			options.origin.kind === "element"
+				? options.origin.elementId
+				: options.origin.elementIds[0]
+		handle.id(elementId ?? "")
 		handle.position({ x: options.x, y: options.y })
-		handle.setAttr("elementId", options.elementId)
+		this.setOriginAttr(handle, options.origin)
 		handle.setAttr("connectionHandleSide", options.side)
 
 		const circle = handle.findOne(`.${ConnectionHandleRenderer.HANDLE_CIRCLE_NAME}`)
@@ -278,23 +317,43 @@ export class ConnectionHandleRenderer {
 		}
 
 		this.setHandleInteractionState(handle, interactionState)
+		this.setHandleDisabledState(handle, options.disabled)
 	}
 
 	private getHandleInteractionState(handle: Konva.Group): ConnectionHandleInteractionState {
 		const state = handle.getAttr("connectionHandleInteractionState")
-		return state === "hover" || state === "active" ? state : "idle"
+		return state === "hover" || state === "active" || state === "disabled" ? state : "idle"
+	}
+
+	private setOriginAttr(node: Konva.Node, origin: ConnectionHandleOverlayOrigin): void {
+		node.setAttr(
+			ConnectionHandleRenderer.HANDLE_ORIGIN_ATTR,
+			origin.kind === "element"
+				? { ...origin }
+				: { ...origin, elementIds: [...origin.elementIds] },
+		)
 	}
 
 	private resolveHandleInteractionStyle(state: ConnectionHandleInteractionState): {
 		fill: string
 		stroke: string
 		shadowOpacity: number
+		opacity: number
 	} {
+		if (state === "disabled") {
+			return {
+				fill: ConnectionHandleRenderer.HANDLE_DISABLED_FILL,
+				stroke: ConnectionHandleRenderer.HANDLE_DISABLED_STROKE,
+				shadowOpacity: 0,
+				opacity: ConnectionHandleRenderer.HANDLE_DISABLED_OPACITY,
+			}
+		}
 		if (state === "active") {
 			return {
 				fill: ConnectionHandleRenderer.HANDLE_ACTIVE_FILL,
 				stroke: ConnectionHandleRenderer.HANDLE_INTERACTION_STROKE,
 				shadowOpacity: ConnectionHandleRenderer.HANDLE_ACTIVE_SHADOW_OPACITY,
+				opacity: 1,
 			}
 		}
 		if (state === "hover") {
@@ -302,12 +361,14 @@ export class ConnectionHandleRenderer {
 				fill: ConnectionHandleRenderer.HANDLE_HOVER_FILL,
 				stroke: ConnectionHandleRenderer.HANDLE_INTERACTION_STROKE,
 				shadowOpacity: ConnectionHandleRenderer.HANDLE_HOVER_SHADOW_OPACITY,
+				opacity: 1,
 			}
 		}
 		return {
 			fill: ConnectionHandleRenderer.HANDLE_FILL,
 			stroke: ConnectionHandleRenderer.HANDLE_STROKE,
 			shadowOpacity: 0,
+			opacity: 1,
 		}
 	}
 

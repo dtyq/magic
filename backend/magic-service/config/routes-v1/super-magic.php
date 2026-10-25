@@ -57,6 +57,7 @@ Router::addGroup(
             Router::get('/queries', [ProjectApi::class, 'index']);
             // 获取用户参与的项目列表（支持协作项目过滤）
             Router::post('/participated', [ProjectApi::class, 'getParticipatedProjects']);
+            Router::post('/{id}/visit', [ProjectApi::class, 'visit']);
             // 获取项目详情
             Router::get('/{id}', [ProjectApi::class, 'show']);
             // 创建项目
@@ -77,8 +78,6 @@ Router::addGroup(
             Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
             // 获取附件列表
             Router::get('/{id}/cloud-files', [ProjectApi::class, 'getCloudFiles']);
-            // 复制项目
-            Router::post('/fork', [ProjectApi::class, 'fork']);
             // 查询复制状态
             Router::get('/{id}/fork-status', [ProjectApi::class, 'forkStatus']);
             // 移动项目到另一个工作区
@@ -161,6 +160,8 @@ Router::addGroup(
             Router::get('/published/queries', [MicroAppProjectApi::class, 'publishedList']);
             // 根据项目 ID 获取或补建微应用映射
             Router::get('/by-project/{projectId}', [MicroAppProjectApi::class, 'showByProject']);
+            Router::get('/{appId}/runtime-project', [MicroAppProjectApi::class, 'getRuntimeProject']);
+            Router::post('/{appId}/runtime-project', [MicroAppProjectApi::class, 'ensureRuntimeProject']);
             // 根据 app_id 获取微应用项目映射
             Router::get('/{appId}', [MicroAppProjectApi::class, 'show']);
             // 发布微应用
@@ -171,8 +172,11 @@ Router::addGroup(
 
         // 微应用业务接口，仅使用 app_id 作为对外标识
         Router::addGroup('/micro-apps', static function () {
+            Router::post('/{appId}/transfer', [MicroAppProjectApi::class, 'transfer']);
             // 获取当前用户可访问的微应用列表
             Router::get('/queries', [MicroAppProjectApi::class, 'list']);
+            // Mention 面板可引用的已发布微应用
+            Router::get('/mention', [MicroAppProjectApi::class, 'mentionList']);
             // 编辑微应用名称和封面
             Router::put('/{appId}', [MicroAppProjectApi::class, 'update']);
             // 删除微应用及其对应项目
@@ -275,6 +279,8 @@ Router::addGroup(
             Router::post('', [MessageApi::class, 'createMessageQueue']);
             // 修改消息队列
             Router::put('/{id}', [MessageApi::class, 'updateMessageQueue']);
+            Router::post('/{id}/restore', [MessageApi::class, 'restoreMessageQueue']);
+            Router::patch('/{id}/position', [MessageApi::class, 'moveMessageQueue']);
             // 删除消息队列
             Router::delete('/{id}', [MessageApi::class, 'deleteMessageQueue']);
             // 查询消息队列
@@ -302,6 +308,7 @@ Router::addGroup(
         });
 
         Router::addGroup('/file', static function () {
+            Router::post('/resolve-references', [FileApi::class, 'resolveReferences']);
             // 获取项目文件上传STS Token
             Router::get('/project-upload-token', [FileApi::class, 'getProjectUploadToken']);
             // 获取话题文件上传STS Token
@@ -360,6 +367,8 @@ Router::addGroup(
             Router::post('/init', [SandboxApi::class, 'initSandboxByAuthorization']);
             // 获取沙盒状态
             Router::get('/status', [SandboxApi::class, 'getSandboxStatus']);
+            // 重启话题绑定的沙盒（普通项目按升级语义执行）
+            Router::put('/restart', [SandboxApi::class, 'restartSandbox']);
             // 预启动沙箱
             Router::post('/pre-warm', [SandboxPreWarmApi::class, 'preWarmSandbox']);
             // 取消沙箱保活
@@ -391,6 +400,9 @@ Router::addGroup(
             Router::put('/{id}', [SuperAgentMemoryApi::class, 'agentUpdateMemory']);
             Router::delete('/{id}', [SuperAgentMemoryApi::class, 'deleteMemory']);
         });
+
+        // 记录当前用户访问微应用
+        Router::post('/micro-apps/{appId}/visit', [MicroAppProjectApi::class, 'recordVisit']);
 
         // 文件相关
         Router::addGroup('/file', static function () {
@@ -455,4 +467,12 @@ Router::addGroup(
         });
     },
     ['middleware' => [UserAuthMiddleware::class]]
+);
+
+Router::addGroup(
+    '/api/v2/super-agent',
+    static function () {
+        Router::post('/topics/{id}/messages', [TopicApi::class, 'getMessagesByTopicIdV2']);
+    },
+    ['middleware' => [SandboxUserAuthMiddleware::class]]
 );

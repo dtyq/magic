@@ -23,6 +23,8 @@ export interface IncrementalUpdateContext {
 	clearManualSaveMark?: (fileId: string) => void
 	getSlideEditingState?: (fileId: string) => boolean
 	notifyServerUpdate?: (fileId: string, content: string) => void
+	matchesLocalSave?: (fileId: string, content: string) => boolean
+	hasPendingSave?: (fileId: string) => boolean
 	isCurrent?: () => boolean
 }
 
@@ -31,6 +33,8 @@ export interface IncrementalUpdateContext {
  * Handles incremental updates to slides (add, remove, reorder, update)
  */
 export class PPTIncrementalUpdateService {
+	private stagedRemoteFileIds = new Set<string>()
+
 	constructor(
 		private pathMappingService: PPTPathMappingService,
 		private screenshotService: SlideScreenshotService,
@@ -41,17 +45,17 @@ export class PPTIncrementalUpdateService {
 		return context.isCurrent?.() !== false
 	}
 
-	private flattenAttachmentItems(list: AttachmentItem[] | undefined): AttachmentItem[] {
-		if (!Array.isArray(list)) return []
-		const result: AttachmentItem[] = []
-		for (const item of list) {
-			result.push(item)
-			const children = (item as AttachmentItem & { children?: AttachmentItem[] }).children
-			if (Array.isArray(children) && children.length > 0) {
-				result.push(...this.flattenAttachmentItems(children))
-			}
+	async flushStagedRemoteUpdates(context: IncrementalUpdateContext): Promise<void> {
+		if (this.stagedRemoteFileIds.size === 0) return
+		const remaining = new Set<string>()
+		const ready = new Set<string>()
+		for (const fileId of this.stagedRemoteFileIds) {
+			if (context.hasPendingSave?.(fileId)) remaining.add(fileId)
+			else ready.add(fileId)
 		}
-		return result
+		this.stagedRemoteFileIds = remaining
+		if (ready.size === 0) return
+		await this.handleFileUpdates(ready, context)
 	}
 
 	private collectAttachmentItemsByFileIds(
@@ -81,7 +85,8 @@ export class PPTIncrementalUpdateService {
 	private getScopedAttachmentItems(list: AttachmentItem[] | undefined): AttachmentItem[] {
 		const pptFolderFileIds = this.pathMappingService.getPPTFolderFileIds()
 		if (pptFolderFileIds.size === 0) {
-			return this.flattenAttachmentItems(list)
+			// An empty folder index must not watch the whole project tree.
+			return []
 		}
 		return this.collectAttachmentItemsByFileIds(list, pptFolderFileIds)
 	}
@@ -408,24 +413,34 @@ export class PPTIncrementalUpdateService {
 		const editingSlides: Array<{ fileId: string; index: number; isManuallySaved: boolean }> = []
 
 		context.slides.forEach((slide, index) => {
-			const fileId = this.pathMappingService.getFileIdByPath(slide.path)
+			const fileId =
+				this.pathMappingService.getFileIdByPath(slide.path) ||
+				this.pathMappingService.extractFileIdFromPath(slide.path)
+			if (fileId && !this.pathMappingService.getFileIdByPath(slide.path)) {
+				this.pathMappingService.setPathFileIdMapping(slide.path, fileId)
+			}
 			if (fileId && updatedFileIds.has(fileId)) {
 				const isManuallySaved = context.isSlideManuallySaved?.(fileId) || false
 				const isEditing = context.getSlideEditingState?.(fileId) || false
+				const hasPendingSave = context.hasPendingSave?.(fileId) || false
 
-				// For slides that stay in edit mode after save, inspect the new content
-				// so only the save echo is ignored and real remote updates still surface.
 				if (isEditing) {
 					editingSlides.push({ fileId, index, isManuallySaved })
 					this.logger.info("检测到正在编辑的幻灯片有更新，通知用户而非自动重新加载", {
 						operation: "handleFileUpdates",
 						metadata: { fileId, index, isManuallySaved },
 					})
+				} else if (hasPendingSave) {
+					this.stagedRemoteFileIds.add(fileId)
+					this.logger.info("暂存远程更新，等待本地保存队列空闲后再应用", {
+						operation: "handleFileUpdates",
+						metadata: { fileId, index },
+					})
 				} else if (isManuallySaved) {
 					manuallySavedFileIds.add(fileId)
 					this.logger.info("检测到手动保存的幻灯片，跳过重新加载", {
 						operation: "handleFileUpdates",
-						metadata: { fileId, index },
+						metadata: { fileId, index, hasPendingSave },
 					})
 				} else {
 					// Not editing, normal reload
@@ -435,9 +450,21 @@ export class PPTIncrementalUpdateService {
 			}
 		})
 
+		const clearManualSaveMarks = () => {
+			if (!context.clearManualSaveMark || manuallySavedFileIds.size === 0) return
+			manuallySavedFileIds.forEach((fileId) => {
+				context.clearManualSaveMark?.(fileId)
+				this.logger.info("清除手动保存标记", {
+					operation: "handleFileUpdates",
+					metadata: { fileId },
+				})
+			})
+		}
+
 		// Fetch new URLs for all updated files (including editing slides)
 		const allFileIdsToFetch = [...fileIdsToFetch, ...editingSlides.map((s) => s.fileId)]
 		if (allFileIdsToFetch.length === 0) {
+			clearManualSaveMarks()
 			return
 		}
 
@@ -460,6 +487,10 @@ export class PPTIncrementalUpdateService {
 					const loadMethod = context.loadSlideContentSilently || context.loadSlideContent
 					const newContent = await loadMethod(newUrl, currentIndex)
 					if (!this.isContextCurrent(context)) return
+					const isQueueEcho =
+						typeof newContent === "string" &&
+						!!newContent &&
+						context.matchesLocalSave?.(fileId, newContent) === true
 					const isManualSaveEcho =
 						isManuallySaved &&
 						typeof newContent === "string" &&
@@ -474,7 +505,7 @@ export class PPTIncrementalUpdateService {
 						})
 					}
 
-					if (isManualSaveEcho) {
+					if (isManualSaveEcho || isQueueEcho) {
 						this.logger.info("检测到编辑态手动保存回流，忽略冲突提示", {
 							operation: "handleFileUpdates",
 							metadata: { fileId, index: currentIndex },
@@ -526,15 +557,9 @@ export class PPTIncrementalUpdateService {
 
 				if (newUrl) {
 					slide.url = newUrl
-					slide.loadingState = "idle"
-					slide.rawContent = undefined
-					slide.content = undefined
-
-					// Clear cache for slides that need reload
+					// Keep the current HTML and thumbnail visible while the new file downloads.
 					const cacheKey = slide.url || `slide-${index}`
 					this.screenshotService.clearCache(cacheKey)
-					slide.thumbnailUrl = undefined
-					slide.thumbnailLoading = false
 				}
 			})
 		})
@@ -569,16 +594,7 @@ export class PPTIncrementalUpdateService {
 		}
 		if (!this.isContextCurrent(context)) return
 
-		// Clear manual save marks for skipped slides
-		if (context.clearManualSaveMark && manuallySavedFileIds.size > 0) {
-			manuallySavedFileIds.forEach((fileId) => {
-				context.clearManualSaveMark?.(fileId)
-				this.logger.info("清除手动保存标记", {
-					operation: "handleFileUpdates",
-					metadata: { fileId },
-				})
-			})
-		}
+		clearManualSaveMarks()
 	}
 
 	/**
@@ -618,17 +634,23 @@ export class PPTIncrementalUpdateService {
 					}
 					if (!this.isContextCurrent(context)) return
 
-					// Generate screenshot if needed
-					if (context.autoLoadAndGenerate) {
-						const screenshotIndex = targetFileId
-							? context.slides.findIndex(
-									(slide) =>
-										this.pathMappingService.getFileIdByPath(slide.path) ===
-										targetFileId,
-								)
-							: context.slides.findIndex((slide) => slide.path === targetPath)
-						const stableScreenshotIndex =
-							screenshotIndex === -1 ? index : screenshotIndex
+					const screenshotIndex = targetFileId
+						? context.slides.findIndex(
+								(slide) =>
+									this.pathMappingService.getFileIdByPath(slide.path) ===
+									targetFileId,
+							)
+						: context.slides.findIndex((slide) => slide.path === targetPath)
+					const stableScreenshotIndex = screenshotIndex === -1 ? index : screenshotIndex
+					// The stale thumbnail stays visible during reload, so slides that have one
+					// must refresh it even in lazy mode; ensure* would skip them.
+					const hasStaleThumbnail = Boolean(
+						context.slides[stableScreenshotIndex]?.thumbnailUrl,
+					)
+
+					if (hasStaleThumbnail) {
+						await context.generateSlideScreenshot(stableScreenshotIndex)
+					} else if (context.autoLoadAndGenerate) {
 						if (context.ensureSlideScreenshot) {
 							await context.ensureSlideScreenshot(stableScreenshotIndex)
 						} else {

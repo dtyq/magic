@@ -2,7 +2,7 @@ import type { ComponentType } from "react"
 
 export { getMobileSettingsPointsPurchaseState, groupPointsRecords } from "./pointsRecords"
 import MobileSettingsOrderHistoryUnavailable from "./components/OrderHistoryUnavailable"
-import type { PointsRecordItem } from "./types"
+import type { MobileSettingsPointsOverview, PointsRecordItem } from "./types"
 
 export interface MobileSettingsOrderHistoryPanelProps {
 	embedded?: boolean
@@ -88,4 +88,19 @@ export async function uploadMobileSettingsFeedbackImages(files: File[]) {
 export async function submitMobileSettingsFeedback(params: MobileSettingsFeedbackSubmitParams) {
 	void params
 	return false
+}
+
+/** Return an empty overview in the open-source baseline, which has no enterprise points API. */
+export function getMobileSettingsPointsOverview(): MobileSettingsPointsOverview {
+	return {
+		role: "personal",
+		primaryPoints: null,
+		personalQuota: null,
+		hasLoadedData: false,
+	}
+}
+
+/** Keep the shared baseline refreshable without introducing an enterprise-only network dependency. */
+export async function refreshMobileSettingsPoints(): Promise<MobileSettingsPointsOverview | null> {
+	return null
 }

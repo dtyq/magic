@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Airtable — Relational Database Grid & Work Platform</title>
+  <style>
+    :root {
+      --primary: #181d26;
+      --canvas: #ffffff;
+      --surface-soft: #f8fafc;
+      --surface-header: #f4f5f7;
+      --surface-cell-hover: #f1f5f9;
+      --hairline: #e2e8f0;
+      --hairline-dark: #cbd5e1;
+      --ink: #181d26;
+      --body: #333840;
+      --muted: #64748b;
+      --link: #1b61c9;
+      --sig-coral: #aa2d00;
+      --sig-forest: #0a2e0e;
+      --sig-cream: #f5e9d4;
+      --sig-peach: #fcab79;
+      --sig-mint: #a8d8c4;
+      --sig-yellow: #f4d35e;
+      /* Status Tag Palette */
+      --tag-blue-bg: #dbeafe; --tag-blue-text: #1e40af;
+      --tag-purple-bg: #f3e8ff; --tag-purple-text: #6b21a8;
+      --tag-green-bg: #dcfce7; --tag-green-text: #166534;
+      --tag-coral-bg: #fee2e2; --tag-coral-text: #991b1b;
+      --tag-yellow-bg: #fef9c3; --tag-yellow-text: #854d0e;
+      --tag-peach-bg: #ffedd5; --tag-peach-text: #9a3412;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --font-mono: "SF Mono", Monaco, "JetBrains Mono", Menlo, Consolas, monospace;
+      --radius-xs: 3px;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-pill: 9999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-soft); color: var(--ink); font-family: var(--font);
+      font-size: 12px; line-height: 1.4; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    }
+    .airtable-app { display: flex; flex-direction: column; height: 100vh; min-height: 620px; }
+
+    /* Top Base Header */
+    .base-header {
+      height: 48px; background: #2563eb; color: #fff; display: flex;
+      align-items: center; justify-content: space-between; padding: 0 16px; user-select: none; z-index: 20;
+    }
+    .base-title-box { display: flex; align-items: center; gap: 10px; }
+    .airtable-logo { width: 22px; height: 18px; fill: #fff; cursor: pointer; }
+    .base-name { font-weight: 700; font-size: 14px; letter-spacing: -0.2px; display: flex; align-items: center; gap: 6px; }
+    .base-badge { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 600; }
+    .base-actions { display: flex; align-items: center; gap: 8px; }
+    .btn-header {
+      background: rgba(255,255,255,0.15); border: none; color: #fff; padding: 5px 12px;
+      border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; cursor: pointer;
+    }
+    .btn-header.share { background: #ffffff; color: #181d26; }
+
+    /* View Switcher Bar */
+    .view-switcher-bar {
+      height: 38px; background: #ffffff; border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 12px; user-select: none;
+    }
+    .view-tabs { display: flex; align-items: center; gap: 2px; }
+    .v-tab {
+      display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-xs);
+      font-size: 11px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .v-tab:hover { background: var(--surface-soft); color: var(--ink); }
+    .v-tab.active { color: var(--link); font-weight: 700; border-bottom-color: var(--link); background: #eff6ff; }
+
+    /* Toolbar: Filter / Sort / Group / Color */
+    .table-toolbar {
+      height: 38px; background: #ffffff; border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 14px; user-select: none; font-size: 11px;
+    }
+    .tb-left, .tb-right { display: flex; align-items: center; gap: 10px; }
+    .tool-chip {
+      display: flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm);
+      color: var(--body); cursor: pointer; transition: 0.1s;
+    }
+    .tool-chip:hover { background: var(--surface-soft); color: var(--ink); }
+    .tool-chip.active-filter { background: #eff6ff; color: var(--link); font-weight: 600; }
+    .search-box {
+      display: flex; align-items: center; gap: 6px; background: var(--surface-soft);
+      border: 1px solid var(--hairline); border-radius: var(--radius-sm); padding: 3px 8px; font-size: 11px; color: var(--muted);
+    }
+
+    /* Spreadsheet Grid Container */
+    .grid-container {
+      flex: 1; overflow: auto; background: #ffffff; position: relative;
+    }
+    .grid-table {
+      width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px;
+    }
+
+    /* Column Headers */
+    .grid-th {
+      height: 32px; background: var(--surface-header); border-right: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline-dark); padding: 0 10px; font-weight: 600;
+      color: var(--body); text-align: left; white-space: nowrap; user-select: none;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .th-content { display: flex; align-items: center; gap: 6px; }
+    .th-icon { width: 12px; height: 12px; fill: var(--muted); flex-shrink: 0; }
+
+    /* Cells */
+    .grid-td {
+      height: 36px; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+      padding: 0 10px; vertical-align: middle; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+    }
+    .grid-row:hover .grid-td { background: var(--surface-cell-hover); }
+    .row-num {
+      width: 38px; text-align: center; color: var(--muted); background: var(--surface-soft);
+      font-family: var(--font-mono); font-size: 10px; user-select: none;
+    }
+
+    /* Cell Component Elements */
+    .record-primary { font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+    .primary-icon { width: 12px; height: 12px; fill: var(--link); }
+
+    /* Assignee Collaborator Avatars */
+    .collab-chip { display: flex; align-items: center; gap: 6px; }
+    .collab-ava {
+      width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 8px;
+      font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .ava-sk { background: #6366f1; }
+    .ava-mr { background: #0ea5e9; }
+    .ava-em { background: #ec4899; }
+    .ava-al { background: #10b981; }
+
+    /* Single Select Colored Tags */
+    .status-tag {
+      display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-pill);
+      font-size: 10px; font-weight: 600;
+    }
+    .tag-in-progress { background: var(--tag-blue-bg); color: var(--tag-blue-text); }
+    .tag-review { background: var(--tag-purple-bg); color: var(--tag-purple-text); }
+    .tag-shipped { background: var(--tag-green-bg); color: var(--tag-green-text); }
+    .tag-blocked { background: var(--tag-coral-bg); color: var(--tag-coral-text); }
+
+    /* Multi-select Tags */
+    .multi-tags { display: flex; gap: 4px; align-items: center; }
+    .pill-tag {
+      padding: 1px 6px; border-radius: var(--radius-pill); font-size: 9px; font-weight: 600;
+    }
+
+    /* Linked Record Chip */
+    .linked-chip {
+      display: inline-flex; align-items: center; gap: 5px; background: #f1f5f9;
+      border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: var(--radius-sm);
+      font-size: 10px; font-weight: 600; color: #1e293b; text-decoration: none;
+    }
+    .linked-chip:hover { border-color: var(--link); color: var(--link); }
+
+    /* Attachment Thumbnails */
+    .attach-chip {
+      display: inline-flex; align-items: center; gap: 4px; background: var(--surface-soft);
+      border: 1px solid var(--hairline); border-radius: var(--radius-xs); padding: 2px 6px; font-size: 10px;
+    }
+    .thumb-square { width: 14px; height: 14px; border-radius: 2px; background: #60a5fa; flex-shrink: 0; }
+
+    /* Footer Grid Summary Bar */
+    .grid-summary-bar {
+      height: 32px; background: var(--surface-header); border-top: 1px solid var(--hairline-dark);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+      font-size: 11px; color: var(--muted); user-select: none;
+    }
+    .summary-stats { display: flex; gap: 16px; font-weight: 600; color: var(--body); }
+  </style>
+</head>
+<body>
+  <div class="airtable-app">
+    <!-- Top Airtable Base Header -->
+    <header class="base-header">
+      <div class="base-title-box">
+        <!-- Airtable Tri-Color Mark -->
+        <svg class="airtable-logo" viewBox="0 0 40 32">
+          <path d="M18.4 1.4C19.1.5 20.3 0 21.5 0h14.8c1.6 0 2.9 1.3 2.9 2.9v10.9c0 1.6-1.3 2.9-2.9 2.9H21.5c-1.2 0-2.4-.5-3.1-1.4L18.4 1.4z" fill="#FCB400"/>
+          <path d="M1.2 15.6c-.8-1-1.2-2.2-1.2-3.5V3.8C0 2.2 1.3.9 2.9.9h12.5c1.6 0 2.9 1.3 2.9 2.9v8.3c0 1.3-.4 2.5-1.2 3.5L1.2 15.6z" fill="#18BFFF"/>
+          <path d="M17.1 19.3L1.2 30.6c-.8.6-1.2 1.5-1.2 2.5v15c0 1.6 1.3 2.9 2.9 2.9h34.2c1.6 0 2.9-1.3 2.9-2.9V33.1c0-1-.4-1.9-1.2-2.5L22.9 19.3c-1.7-1.2-4.1-1.2-5.8 0z" fill="#ED3F43"/>
+        </svg>
+        <div class="base-name">
+          <span>Product Launch &amp; GTM Hub 2026</span>
+          <span class="base-badge">PRO</span>
+        </div>
+      </div>
+
+      <div class="base-actions">
+        <button class="btn-header">⚡ Automations (8)</button>
+        <button class="btn-header">Interfaces</button>
+        <button class="btn-header share">Share Base</button>
+      </div>
+    </header>
+
+    <!-- View Switcher Tabs -->
+    <nav class="view-switcher-bar">
+      <div class="view-tabs">
+        <div class="v-tab active">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z"/></svg>
+          <span>All Deliverables (Grid)</span>
+        </div>
+        <div class="v-tab">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H6V7h3v10zm5 0h-3V7h3v10zm5-4h-3V7h3v6z"/></svg>
+          <span>Pipeline (Kanban)</span>
+        </div>
+        <div class="v-tab">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></svg>
+          <span>Asset Gallery</span>
+        </div>
+        <div class="v-tab">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/></svg>
+          <span>Launch Calendar</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Filter / Group / Sort Toolbar -->
+    <div class="table-toolbar">
+      <div class="tb-left">
+        <div class="tool-chip active-filter">
+          <span>Filter: Status is not "Archived"</span>
+        </div>
+        <div class="tool-chip">
+          <span>Group: by Sprint ▾</span>
+        </div>
+        <div class="tool-chip">
+          <span>Sort: Due Date (Ascending)</span>
+        </div>
+        <div class="tool-chip">
+          <span>Color: by Priority</span>
+        </div>
+      </div>
+      <div class="tb-right">
+        <div class="search-box">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <span>Find in view...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Relational Database Spreadsheet Table -->
+    <main class="grid-container">
+      <table class="grid-table">
+        <colgroup>
+          <col style="width: 38px;">
+          <col style="width: 220px;">
+          <col style="width: 140px;">
+          <col style="width: 120px;">
+          <col style="width: 170px;">
+          <col style="width: 160px;">
+          <col style="width: 100px;">
+          <col style="width: 110px;">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="grid-th row-num">#</th>
+            <th class="grid-th">
+              <div class="th-content">
+                <svg class="th-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                <span>Deliverable Item</span>
+              </div>
+            </th>
+            <th class="grid-th">
+              <div class="th-content">
+                <svg class="th-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                <span>Assignee</span>
+              </div>
+            </th>
+            <th class="grid-th">
+              <div class="th-content">
+                <svg class="th-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <span>Status (Select)</span>
+              </div>
+            </th>
+            <th class="grid-th">
+              <div class="th-content">
+                <svg class="th-icon" viewBox="0 0 24 24"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
+                <span>Tags (Multi-Select)</span>
+              </div>
+            </th>
+            <th class="grid-th">
+              <div class="th-content">
+                <svg class="th-icon" viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+                <span>Linked Records</span>
+              </div>
+            </th>
+            <th class="grid-th">
+              <div class="th-content">
+                <svg class="th-icon" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+                <span>Due Date</span>
+              </div>
+            </th>
+            <th class="grid-th">
+              <div class="th-content">
+                <svg class="th-icon" viewBox="0 0 24 24"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+                <span>Budget</span>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Row 1 -->
+          <tr class="grid-row">
+            <td class="grid-td row-num">1</td>
+            <td class="grid-td">
+              <div class="record-primary">
+                <svg class="primary-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2z"/></svg>
+                <span>Interactive Design System Spec</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <div class="collab-chip">
+                <div class="collab-ava ava-sk">SK</div>
+                <span>Sophia Kim</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <span class="status-tag tag-review">Design Review</span>
+            </td>
+            <td class="grid-td">
+              <div class="multi-tags">
+                <span class="pill-tag" style="background:#e0e7ff; color:#3730a3;">Design</span>
+                <span class="pill-tag" style="background:#fce7f3; color:#9d174d;">Figma</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <a href="#" class="linked-chip">🔗 Core UI Library</a>
+            </td>
+            <td class="grid-td">Oct 14, 2026</td>
+            <td class="grid-td" style="font-family:var(--font-mono); font-weight:600;">$24,500</td>
+          </tr>
+
+          <!-- Row 2 -->
+          <tr class="grid-row">
+            <td class="grid-td row-num">2</td>
+            <td class="grid-td">
+              <div class="record-primary">
+                <svg class="primary-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2z"/></svg>
+                <span>Automated Workflow Connectors</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <div class="collab-chip">
+                <div class="collab-ava ava-mr">MR</div>
+                <span>Marcus Roy</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <span class="status-tag tag-in-progress">In Progress</span>
+            </td>
+            <td class="grid-td">
+              <div class="multi-tags">
+                <span class="pill-tag" style="background:#dcfce7; color:#166534;">API</span>
+                <span class="pill-tag" style="background:#ffedd5; color:#9a3412;">Backend</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <a href="#" class="linked-chip">🔗 Enterprise Sync</a>
+            </td>
+            <td class="grid-td">Oct 20, 2026</td>
+            <td class="grid-td" style="font-family:var(--font-mono); font-weight:600;">$48,000</td>
+          </tr>
+
+          <!-- Row 3 -->
+          <tr class="grid-row">
+            <td class="grid-td row-num">3</td>
+            <td class="grid-td">
+              <div class="record-primary">
+                <svg class="primary-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2z"/></svg>
+                <span>Relational Schema Migration v4</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <div class="collab-chip">
+                <div class="collab-ava ava-al">AL</div>
+                <span>Alex Lee</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <span class="status-tag tag-shipped">Shipped</span>
+            </td>
+            <td class="grid-td">
+              <div class="multi-tags">
+                <span class="pill-tag" style="background:#e0f2fe; color:#0369a1;">Database</span>
+                <span class="pill-tag" style="background:#f3e8ff; color:#6b21a8;">Infra</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <a href="#" class="linked-chip">🔗 Postgres Engine</a>
+            </td>
+            <td class="grid-td">Oct 02, 2026</td>
+            <td class="grid-td" style="font-family:var(--font-mono); font-weight:600;">$32,000</td>
+          </tr>
+
+          <!-- Row 4 -->
+          <tr class="grid-row">
+            <td class="grid-td row-num">4</td>
+            <td class="grid-td">
+              <div class="record-primary">
+                <svg class="primary-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2z"/></svg>
+                <span>Security SAML SSO Integration</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <div class="collab-chip">
+                <div class="collab-ava ava-em">EM</div>
+                <span>Elena M.</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <span class="status-tag tag-blocked">Blocked</span>
+            </td>
+            <td class="grid-td">
+              <div class="multi-tags">
+                <span class="pill-tag" style="background:#fee2e2; color:#991b1b;">Security</span>
+                <span class="pill-tag" style="background:#fef9c3; color:#854d0e;">Auth</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <a href="#" class="linked-chip">🔗 Okta Identity</a>
+            </td>
+            <td class="grid-td">Oct 28, 2026</td>
+            <td class="grid-td" style="font-family:var(--font-mono); font-weight:600;">$18,200</td>
+          </tr>
+
+          <!-- Row 5 -->
+          <tr class="grid-row">
+            <td class="grid-td row-num">5</td>
+            <td class="grid-td">
+              <div class="record-primary">
+                <svg class="primary-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2z"/></svg>
+                <span>Mobile App Biometric Auth</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <div class="collab-chip">
+                <div class="collab-ava ava-sk">SK</div>
+                <span>Sophia Kim</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <span class="status-tag tag-in-progress">In Progress</span>
+            </td>
+            <td class="grid-td">
+              <div class="multi-tags">
+                <span class="pill-tag" style="background:#e0e7ff; color:#3730a3;">Mobile</span>
+                <span class="pill-tag" style="background:#dcfce7; color:#166534;">iOS</span>
+              </div>
+            </td>
+            <td class="grid-td">
+              <a href="#" class="linked-chip">🔗 Client: Acme</a>
+            </td>
+            <td class="grid-td">Nov 04, 2026</td>
+            <td class="grid-td" style="font-family:var(--font-mono); font-weight:600;">$61,500</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+
+    <!-- Bottom Summary Bar -->
+    <footer class="grid-summary-bar">
+      <div>
+        <span>5 records selected (28 total)</span>
+      </div>
+      <div class="summary-stats">
+        <span>Sum: $184,200</span>
+        <span>Average: $36,840</span>
+        <span style="color:#166534;">● All Views Synced</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,11 +1,14 @@
+import MagicSpin from "@/components/base/MagicSpin"
+import type { TextFileSession, TextReadOnlyPreview } from "../../types"
+import DetailEmpty from "../../components/DetailEmpty"
 import { useFileData } from "@/pages/superMagic/hooks/useFileData"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import CommonHeaderV2 from "../../components/CommonHeaderV2"
+import { TextSaveStatus } from "../../components/TextSaveStatus"
 import { Input } from "antd"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
-import { shadow } from "@/utils/shadow"
-import AIOptimization from "@/pages/superMagic/components/Detail/components/AIOptimization"
+import { useAIEditMenuItems } from "@/pages/superMagic/components/Detail/components/EditToolbar/useAIEditMenuItems"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import CommonFooter from "../../components/CommonFooter"
 import Deleted from "../../components/Deleted"
@@ -17,8 +20,12 @@ import magicToast from "@/components/base/MagicToaster/utils"
 import useExportMenuItems from "../HTML/useExportMenuItems"
 import { exportHtmlToImage, type ImageExportFormat } from "@magic-web/html2image"
 import { textToHtml } from "../../../../utils/textToHtml"
+import { FileAccessProvider } from "@/pages/superMagic/providers/FileAccessProvider"
 
 export default function Text(props: any) {
+	const textFileSession: TextFileSession | undefined = props.textFileSession
+	const isTabActive: boolean = props.isTabActive ?? true
+	const readOnlyPreview: TextReadOnlyPreview | undefined = props.readOnlyPreview
 	const {
 		type,
 		data,
@@ -35,7 +42,7 @@ export default function Text(props: any) {
 		fileContent,
 		currentFile,
 		detailMode,
-		isEditMode,
+		isEditMode: requestedEditMode,
 		saveEditContent,
 		setIsEditMode,
 		allowEdit,
@@ -48,12 +55,15 @@ export default function Text(props: any) {
 		attachments,
 		exportFile,
 		isExporting,
+		headerRenderMode,
 	} = props
+	const isEditMode = !readOnlyPreview && requestedEditMode
 
 	const { file_id } = data
 	const { t } = useTranslation("super")
 
 	const {
+		loading: fileLoading,
 		fileData: initialContent,
 		fileVersion,
 		changeFileVersion,
@@ -62,7 +72,12 @@ export default function Text(props: any) {
 		fetchFileVersions,
 		isNewestVersion,
 		isDeleted,
+		loadError: fileLoadError,
+		refreshFile,
 	} = useFileData({
+		enabled: !readOnlyPreview,
+		loadContent: !textFileSession,
+		isTabActive,
 		file_id,
 		updatedAt,
 		isEditing: isEditMode,
@@ -73,14 +88,23 @@ export default function Text(props: any) {
 	const isMobile = useIsMobile()
 	const textAreaRef = useRef<any>(null)
 
-	const [content, setContent] = useState<string>("")
-	const [editingContent, setEditingContent] = useState<string>("")
+	const [localContent, setContent] = useState<string>("")
+	const content =
+		readOnlyPreview?.content ??
+		(fileVersion !== undefined
+			? (initialContent ?? textFileSession?.content ?? "")
+			: (textFileSession?.content ?? localContent))
+	const loading = textFileSession?.loading ?? fileLoading
+	const [localDraft, setLocalDraft] = useState<string>("")
+	const editingContent = textFileSession?.draft ?? localDraft
+	const setEditingContent = textFileSession?.setDraft ?? setLocalDraft
 
 	// 初始化 content
 	useEffect(() => {
+		if (textFileSession || readOnlyPreview) return
 		const displayContent = fileContent || initialContent
 		setContent(displayContent || "")
-	}, [fileContent, initialContent])
+	}, [fileContent, initialContent, textFileSession, readOnlyPreview])
 
 	// 当进入编辑模式时，自动聚焦到 TextArea
 	useEffect(() => {
@@ -94,18 +118,30 @@ export default function Text(props: any) {
 
 	// 按钮处理函数
 	const handleEdit = useMemoizedFn(() => {
+		if (readOnlyPreview) return
 		if (setIsEditMode) {
 			setIsEditMode(true)
 			// 初始化编辑内容
-			setEditingContent(content || "")
+			if (!textFileSession) setEditingContent(content || "")
 		}
 	})
 
 	const handleSave = useMemoizedFn(async () => {
+		if (readOnlyPreview) return
+		if (textFileSession) return textFileSession.save()
 		if ((editingContent || editingContent === "") && editingContent !== content) {
-			// 保存文本编辑内容，使用 shadow 函数加密
-			const enable_shadow = true
-			await saveEditContent?.(editingContent, file_id, enable_shadow, fetchFileVersions)
+			// 编辑器提交的是原始正文，关闭解码避免误处理正文中的协议前缀。
+			const enable_shadow = false
+			// Feedback is the top-right save chip, so skip the centered toast.
+			await saveEditContent?.(
+				editingContent,
+				file_id,
+				enable_shadow,
+				fetchFileVersions,
+				undefined,
+				false,
+				{ silent: true },
+			)
 			// 更新 content 状态
 			setContent(editingContent)
 		}
@@ -143,6 +179,7 @@ export default function Text(props: any) {
 
 	// 当 viewMode 变化时，退出编辑模式
 	useEffect(() => {
+		if (textFileSession) return
 		if (setIsEditMode && isEditMode) {
 			setIsEditMode(false)
 		}
@@ -207,54 +244,76 @@ export default function Text(props: any) {
 		isExporting: isExporting || isExportingImage,
 		showButtonText: true,
 		supportPPT: false,
-		showExportImage: true,
+		showExportImage: !readOnlyPreview,
 		showExportPdf: false,
+	})
+
+	const aiEditMenuItems = useAIEditMenuItems({
+		file: textFileSession ? data : undefined,
+		attachmentList,
+		fileId: data?.file_id,
+		enabled:
+			!readOnlyPreview &&
+			!!allowEdit &&
+			!isMobile &&
+			!isEditMode &&
+			isNewestVersion &&
+			isTabActive,
 	})
 
 	const headerActionConfig = useMemo<HeaderActionConfig>(
 		() => ({
+			overrides: readOnlyPreview
+				? { refresh: { onClick: readOnlyPreview.refresh } }
+				: textFileSession
+					? {
+							refresh: {
+								onClick: textFileSession.refresh,
+								disabled: loading || textFileSession.saving || isEditMode,
+							},
+						}
+					: undefined,
 			customActions: [
 				{
 					key: "text-export-dropdown",
 					zone: "secondary",
 					after: "download",
-					visible: () => !isMobile && allowDownload !== false,
+					visible: () => !readOnlyPreview && !isMobile && allowDownload !== false,
 					render: () => ExportDropdownButton,
 				},
 				{
-					key: "text-ai-optimization",
-					zone: "primary",
+					key: "text-edit-actions",
+					zone: "secondary",
+					before: "refresh",
 					visible: () =>
 						Boolean(
+							!readOnlyPreview &&
+							setIsEditMode &&
 							allowEdit &&
 							!isMobile &&
-							data?.file_id &&
-							!isEditMode &&
+							file_id &&
 							isNewestVersion,
-						),
-					render: (context) => (
-						<AIOptimization
-							attachmentList={attachmentList}
-							file_id={data?.file_id}
-							showButtonText={context.showButtonText}
-						/>
-					),
-				},
-				{
-					key: "text-edit-actions",
-					zone: "primary",
-					visible: () =>
-						Boolean(
-							setIsEditMode && allowEdit && !isMobile && file_id && isNewestVersion,
 						),
 					render: (context) => (
 						<FileEditButtons
 							isEditMode={isEditMode}
-							isSaving={false}
+							isSaving={textFileSession?.saving ?? false}
+							interactionDisabled={Boolean(
+								textFileSession &&
+								(loading || textFileSession.loadError || !isTabActive),
+							)}
 							showButtonText={context.showButtonText}
 							onEdit={handleEdit}
-							onSave={handleSave}
-							onSaveAndExit={handleSaveAndExit}
+							onSave={
+								textFileSession
+									? () => handleSave().catch(() => undefined)
+									: handleSave
+							}
+							onSaveAndExit={
+								textFileSession
+									? () => handleSaveAndExit().catch(() => undefined)
+									: handleSaveAndExit
+							}
 							onCancel={handleCancel}
 						/>
 					),
@@ -262,6 +321,10 @@ export default function Text(props: any) {
 			],
 		}),
 		[
+			textFileSession,
+			loading,
+			isTabActive,
+			readOnlyPreview,
 			allowDownload,
 			allowEdit,
 			isMobile,
@@ -282,16 +345,16 @@ export default function Text(props: any) {
 	const headerContext = {
 		type,
 		onFullscreen,
-		onDownload: () => onDownload?.(file_id, fileVersion),
+		onDownload: () => onDownload?.(file_id, readOnlyPreview ? data.file_version : fileVersion),
 		isFromNode,
 		isFullscreen,
 		viewMode,
 		onViewModeChange,
-		onCopy,
-		fileContent: fileContent || content,
+		onCopy: readOnlyPreview ? undefined : onCopy,
+		fileContent: readOnlyPreview ? content : fileContent || content,
 		currentFile,
 		detailMode,
-		showDownload: false,
+		showDownload: Boolean(readOnlyPreview) && allowDownload !== false,
 		isEditMode,
 		fileVersion,
 		isNewestFileVersion: isNewestVersion,
@@ -301,10 +364,12 @@ export default function Text(props: any) {
 		quitEditMode,
 		allowEdit,
 		actionConfig: headerActionConfig,
+		extraMoreMenuItems: aiEditMenuItems,
 		attachments,
+		renderMode: headerRenderMode,
 	}
 
-	return (
+	const preview = (
 		<div
 			className={cn(
 				documentFlowFullscreen
@@ -313,9 +378,25 @@ export default function Text(props: any) {
 			)}
 		>
 			{showFileHeader && <CommonHeaderV2 {...headerContext} />}
-			{isEditMode ? (
+			{!readOnlyPreview && (
+				<TextSaveStatus fileId={file_id} textFileSession={textFileSession} />
+			)}
+			{textFileSession?.loadError || fileLoadError ? (
+				<DetailEmpty
+					title={t("common.fileNotFoundOrLoadFailed")}
+					onRetry={textFileSession?.refresh ?? refreshFile}
+				/>
+			) : textFileSession && loading ? (
+				<div
+					data-testid="text-file-session-loading"
+					className="flex min-h-0 flex-1 items-center justify-center bg-background"
+				>
+					<MagicSpin spinning />
+				</div>
+			) : isEditMode ? (
 				<Input.TextArea
 					ref={textAreaRef}
+					disabled={textFileSession?.saving}
 					value={editingContent}
 					onChange={(e) => {
 						setEditingContent(e.target.value)
@@ -350,7 +431,7 @@ export default function Text(props: any) {
 				</div>
 			)}
 			{/* 底部 */}
-			{showFooter && (
+			{showFooter && !readOnlyPreview && (
 				<CommonFooter
 					fileVersion={fileVersion}
 					changeFileVersion={changeFileVersion}
@@ -362,5 +443,12 @@ export default function Text(props: any) {
 				/>
 			)}
 		</div>
+	)
+
+	// 只读仅限制内容修改与历史还原；继承分享、下载等原有权限。
+	return readOnlyPreview ? (
+		<FileAccessProvider options={{ versionHistory: false }}>{preview}</FileAccessProvider>
+	) : (
+		preview
 	)
 }

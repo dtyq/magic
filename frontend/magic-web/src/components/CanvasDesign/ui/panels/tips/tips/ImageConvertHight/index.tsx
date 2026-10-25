@@ -5,11 +5,11 @@ import { TipBarEscHint } from "../TipBarEscHint/index"
 
 export default function ImageConvertHight() {
 	const { t } = useCanvasDesignI18n()
-	const { setSubElementTooltip } = useCanvasUI()
+	const { setActiveToolSession } = useCanvasUI()
 
 	const handleEsc = useCallback(() => {
-		setSubElementTooltip(null)
-	}, [setSubElementTooltip])
+		setActiveToolSession(null)
+	}, [setActiveToolSession])
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {

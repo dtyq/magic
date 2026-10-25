@@ -9,6 +9,7 @@ namespace App\Domain\ModelGateway\Event;
 
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Infrastructure\Core\AbstractEvent;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use DateTime;
 use Hyperf\Odin\Api\Response\Usage;
 
@@ -19,6 +20,8 @@ class ImageGeneratedEvent extends AbstractEvent
      * 有些生图 provider 按 token 计费，返回 usage 时通过该字段传递给审计/计费链路。
      */
     public ?Usage $usage = null;
+
+    protected ?string $eventId = null;
 
     protected string $organizationCode;
 
@@ -95,6 +98,16 @@ class ImageGeneratedEvent extends AbstractEvent
      * @var array<int, array{url: string}>
      */
     protected array $generatedImages = [];
+
+    public function __construct(?string $eventId = null)
+    {
+        $this->eventId = $eventId ?: (string) IdGenerator::getSnowId();
+    }
+
+    public function getEventId(): string
+    {
+        return $this->eventId ??= (string) ($this->businessParams['event_id'] ?? IdGenerator::getSnowId());
+    }
 
     /**
      * @return array<int, array{url: string}>
@@ -215,6 +228,9 @@ class ImageGeneratedEvent extends AbstractEvent
     public function setBusinessParams(array $businessParams): void
     {
         $this->businessParams = $businessParams;
+        if (! empty($businessParams['event_id'])) {
+            $this->eventId = (string) $businessParams['event_id'];
+        }
     }
 
     public function getUsage(): ?Usage

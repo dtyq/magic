@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { LayerElement } from "../../../document/types"
+import type { FrameElement, ImageElement, LayerElement } from "../../../document/types"
 import type { BaseElement } from "../BaseElement"
 import { CanvasDocumentIndex } from "../CanvasDocumentIndex"
 
@@ -9,17 +9,36 @@ function createElement(data: LayerElement): BaseElement {
 	} as unknown as BaseElement
 }
 
+function image(id: string, x = 0, y = 0): ImageElement {
+	return {
+		id,
+		type: "image",
+		x,
+		y,
+		activeContentId: `${id}-content`,
+		mainContentId: `${id}-content`,
+		contents: [{ contentId: `${id}-content` }],
+	}
+}
+
+function frame(id: string, children: LayerElement[]): FrameElement {
+	return {
+		id,
+		type: "frame",
+		activeContentId: `${id}-content`,
+		mainContentId: `${id}-content`,
+		contents: [{ contentId: `${id}-content` }],
+		children,
+	}
+}
+
 describe("CanvasDocumentIndex", () => {
 	it("indexes root elements and direct parents", () => {
-		const child: LayerElement = { id: "child", type: "image", x: 0, y: 0 }
-		const frame: LayerElement = {
-			id: "frame",
-			type: "frame",
-			children: [child],
-		}
-		const root: LayerElement = { id: "root", type: "image", x: 100, y: 100 }
+		const child = image("child")
+		const frameElement = frame("frame", [child])
+		const root = image("root", 100, 100)
 		const elements = new Map<string, BaseElement>([
-			["frame", createElement(frame)],
+			["frame", createElement(frameElement)],
 			["child", createElement(child)],
 			["root", createElement(root)],
 		])
@@ -33,14 +52,10 @@ describe("CanvasDocumentIndex", () => {
 	})
 
 	it("rebuilds after topology changes are marked dirty", () => {
-		let child: LayerElement = { id: "child", type: "image", x: 0, y: 0 }
-		let frame: LayerElement = {
-			id: "frame",
-			type: "frame",
-			children: [child],
-		}
+		let child = image("child")
+		let frameElement = frame("frame", [child])
 		const elements = new Map<string, BaseElement>([
-			["frame", createElement(frame)],
+			["frame", createElement(frameElement)],
 			["child", createElement(child)],
 		])
 		const index = new CanvasDocumentIndex()
@@ -48,27 +63,35 @@ describe("CanvasDocumentIndex", () => {
 		expect(index.getParentId(elements, "child")).toBe("frame")
 
 		child = { ...child, x: 300 }
-		frame = { ...frame, children: [] }
-		elements.set("frame", createElement(frame))
+		frameElement = { ...frameElement, children: [] }
+		elements.set("frame", createElement(frameElement))
 		elements.set("child", createElement(child))
-		index.markDirty()
+		index.markTopologyDirty()
 
 		expect(index.getParentId(elements, "child")).toBeUndefined()
 		expect(index.getRootElementIds(elements)).toEqual(["frame", "child"])
 	})
 
+	it("keeps topology revision stable for ordinary invalidation", () => {
+		const index = new CanvasDocumentIndex()
+
+		expect(index.getTopologyRevision()).toBe(0)
+		index.markDirty()
+		expect(index.getTopologyRevision()).toBe(0)
+
+		index.markTopologyDirty()
+		expect(index.getTopologyRevision()).toBe(1)
+		index.markDirty()
+		expect(index.getTopologyRevision()).toBe(1)
+
+		index.clear()
+		expect(index.getTopologyRevision()).toBe(2)
+	})
+
 	it("keeps first parent wins semantics and ignores missing child instances", () => {
-		const sharedChild: LayerElement = { id: "shared", type: "image", x: 0, y: 0 }
-		const firstFrame: LayerElement = {
-			id: "first-frame",
-			type: "frame",
-			children: [sharedChild, { id: "missing", type: "image" }],
-		}
-		const secondFrame: LayerElement = {
-			id: "second-frame",
-			type: "frame",
-			children: [sharedChild],
-		}
+		const sharedChild = image("shared")
+		const firstFrame = frame("first-frame", [sharedChild, image("missing")])
+		const secondFrame = frame("second-frame", [sharedChild])
 		const elements = new Map<string, BaseElement>([
 			["first-frame", createElement(firstFrame)],
 			["second-frame", createElement(secondFrame)],

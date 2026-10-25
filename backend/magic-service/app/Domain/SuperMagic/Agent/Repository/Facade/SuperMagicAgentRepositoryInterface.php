@@ -14,13 +14,21 @@ use App\Infrastructure\Core\ValueObject\Page;
 
 interface SuperMagicAgentRepositoryInterface
 {
-    public function getByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?SuperMagicAgentEntity;
+    public function getByCode(SuperMagicAgentDataIsolation $dataIsolation, string $code, bool $forUpdate = false): ?SuperMagicAgentEntity;
 
     /**
      * @param array<string> $codes
      * @return array<string, SuperMagicAgentEntity>
      */
     public function findByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array;
+
+    /**
+     * 跨组织按 code 查询 Agent。Agent code 全局唯一，供公开市场 Agent 解析资源所属组织。
+     *
+     * @param array<string> $codes
+     * @return array<string, SuperMagicAgentEntity>
+     */
+    public function findByCodesWithoutOrganizationFilter(array $codes): array;
 
     /**
      * @return array{total: int, list: array<SuperMagicAgentEntity>}

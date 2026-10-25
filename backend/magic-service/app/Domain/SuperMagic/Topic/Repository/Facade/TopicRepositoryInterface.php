@@ -18,6 +18,8 @@ interface TopicRepositoryInterface
      */
     public function getTopicById(int $id): ?TopicEntity;
 
+    public function getTopicByIdForUpdate(int $id): ?TopicEntity;
+
     public function getTopicByTopicIdAndUserId(int $topicId, string $userId): ?TopicEntity;
 
     /**
@@ -50,6 +52,15 @@ interface TopicRepositoryInterface
         string $orderBy = 'id',
         string $orderDirection = 'desc'
     ): array;
+
+    /**
+     * 根据条件获取话题ID列表（仅取 id，不构造实体）.
+     *
+     * @param array $conditions 查询条件，如 ['project_id' => 1, 'workspace_id' => 2]
+     * @param bool $withTrashed 是否包含已软删的话题
+     * @return int[] 话题ID列表
+     */
+    public function getTopicIdsByCondition(array $conditions, bool $withTrashed = false): array;
 
     /**
      * 创建话题.
@@ -105,6 +116,8 @@ interface TopicRepositoryInterface
 
     public function findHiddenTopicByProjectAndUser(int $projectId, string $userId): ?TopicEntity;
 
+    public function findHiddenTopicByProjectUserAndMode(int $projectId, string $userId, string $topicMode): ?TopicEntity;
+
     /**
      * 查找用户在指定项目下的隐藏话题（根据隐藏类型）.
      *
@@ -140,7 +153,8 @@ interface TopicRepositoryInterface
         string $keyword = '',
         int $page = 1,
         int $pageSize = 20,
-        int $maxTotal = 999
+        int $maxTotal = 999,
+        array $topicTypes = []
     ): array;
 
     /**

@@ -18,7 +18,6 @@ use App\Domain\SuperMagic\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentOptimizationType;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Infrastructure\Util\ShadowCode\ShadowCode;
-use App\Interfaces\SuperMagic\Agent\Assembler\BuiltinSkillAssembler;
 use App\Interfaces\SuperMagic\Agent\Assembler\BuiltinToolAssembler;
 use App\Interfaces\SuperMagic\Agent\Assembler\SuperMagicAgentAssembler;
 use App\Interfaces\SuperMagic\Agent\DTO\BuiltinToolDTO;
@@ -143,14 +142,6 @@ class SuperMagicAgentOldApi extends AbstractSuperMagicApi
     public function tools()
     {
         return BuiltinToolAssembler::createToolCategoryListDTO();
-    }
-
-    /**
-     * 获取内置 skill 列表.
-     */
-    public function skills()
-    {
-        return BuiltinSkillAssembler::createSkillListDTO();
     }
 
     /**

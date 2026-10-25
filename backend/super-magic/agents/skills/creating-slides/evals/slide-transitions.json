@@ -1,0 +1,70 @@
+{
+  "skill_name": "creating-slides",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Give every slide a 0.4-second fade.",
+      "expected_output": "Read the current deck and call update_slide_transitions with set_default, fade, duration_ms 400, easing ease-in-out, clear_overrides true and the exact expected_slides array. Keep HTML static. Use one operations array in a single Code Mode tool call."
+    },
+    {
+      "id": 2,
+      "prompt": "Make page three push left in 0.3 seconds.",
+      "expected_output": "Read slides, resolve the third page to its existing path and set only that path to push/300/ease-in-out/left, carrying the read slides as expected_slides. Use one operations array in a single Code Mode tool call."
+    },
+    {
+      "id": 3,
+      "prompt": "Remove all transitions.",
+      "expected_output": "Set the deck default to effect none with clear_overrides true. Do not just clear overrides, and do not include duration, direction or easing. Use one operations array in a single Code Mode tool call."
+    },
+    {
+      "id": 4,
+      "prompt": "Shorten the text on page four. The deck already has transitions.",
+      "expected_output": "Change only content. Preserve default, page overrides and explicit none settings; do not call update_slide_transitions."
+    },
+    {
+      "id": 5,
+      "prompt": "Apply the selected visual template while keeping the content and playback settings.",
+      "expected_output": "Follow slide-template-replacement. Preserve all transitions metadata in place or in the sibling copy; map renamed slide paths explicitly. Do not adopt a template playback policy."
+    },
+    {
+      "id": 6,
+      "prompt": "Add a custom JavaScript spiral transition.",
+      "expected_output": "Explain the supported effects and choose an alternative only with clear user intent. Do not inject scripts/CSS/keyframes or bypass validation."
+    },
+    {
+      "id": 7,
+      "prompt": "Page three should fade, but the tool reports a changed slide order.",
+      "expected_output": "Reread and resolve the requested page again; do not retry the old full-file payload or use generic file writes."
+    },
+    {
+      "id": 8,
+      "prompt": "The transition save timed out. Try it again immediately.",
+      "expected_output": "Read the tool content and verify the current deck before deciding whether anything remains to change. Do not blindly resubmit; an unknown outcome may already be committed."
+    },
+    {
+      "id": 9,
+      "prompt": "Create a new presentation without any animation instructions.",
+      "expected_output": "Create static slides without adding transitions metadata. Do not default new slides to fade."
+    },
+    {
+      "id": 10,
+      "prompt": "Stop the transition update.",
+      "expected_output": "Cancel the operation through the normal interruption mechanism. Do not claim rollback of a save already submitted to the service."
+    },
+    {
+      "id": 11,
+      "prompt": "Use fade as the default, push on page two, and zoom on page three.",
+      "expected_output": "Read the deck once to resolve the page paths. Make one update_slide_transitions call containing set_default first and two set_slides operations. Do not save the default or pages separately."
+    },
+    {
+      "id": 12,
+      "prompt": "Apply a fade to pages two and three, and restore page four to the default.",
+      "expected_output": "Send one operations batch containing a set_slides group for pages two and three and a clear_overrides operation for page four. Preserve the default and all other overrides."
+    },
+    {
+      "id": 13,
+      "prompt": "One batch operation returned an unknown save result. Continue with another update to the same deck.",
+      "expected_output": "Stop dependent writes, reread the deck and check settings that already committed. Resolve only remaining changes; do not resubmit the previous batch or use a generic file writer."
+    }
+  ]
+}

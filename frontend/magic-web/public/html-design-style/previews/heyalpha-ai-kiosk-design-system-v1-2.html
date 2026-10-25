@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeyAlpha — Physical AI Kiosk Design System v1.2</title>
+  <style>
+    :root {
+      --primary: #8B5E3C;
+      --primary-dark: #6D472B;
+      --primary-light: #F2EAE3;
+      --interaction: #2BA8A2;
+      --interaction-dark: #208782;
+      --interaction-light: #E6F6F5;
+      --accent: #FFD23F;
+      --accent-dark: #E5B810;
+      --bg-surface: #F7F5F2;
+      --card-surface: #FFFFFF;
+      --card-border: #E8E2D9;
+      --text-main: #2D2621;
+      --text-muted: #7A7067;
+      --text-subtle: #A3998F;
+      --success: #22C55E;
+      --error: #EF4444;
+      --warning: #F59E0B;
+      --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", Menlo, monospace;
+      --radius-kiosk: 24px;
+      --radius-card: 16px;
+      --radius-pill: 9999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #24201D;
+      color: var(--text-main);
+      font-family: var(--font-display);
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .kiosk-chassis { width: 100%; max-width: 1160px; background: var(--bg-surface); border-radius: var(--radius-kiosk); box-shadow: 0 25px 60px rgba(0,0,0,0.55), 0 0 0 10px #181513; overflow: hidden; display: flex; flex-direction: column; }
+    .kiosk-header { background: var(--card-surface); border-bottom: 2px solid var(--card-border); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; min-height: 56px; }
+    .kiosk-brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--primary); color: #FFF; display: flex; align-items: center; justify-content: center; }
+    .brand-title { font-size: 19px; font-weight: 800; color: var(--primary-dark); }
+    .brand-loc { font-size: 11.5px; color: var(--text-muted); font-weight: 600; }
+    .kiosk-telemetry-cluster { display: flex; align-items: center; gap: 14px; }
+    .kiosk-mode-pill { background: var(--interaction-light); border: 1.5px solid var(--interaction); color: var(--interaction-dark); padding: 5px 12px; border-radius: var(--radius-pill); font-size: 11.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--interaction); animation: pulse-ring 1.8s infinite; }
+    @keyframes pulse-ring { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .lang-selector { display: flex; gap: 4px; }
+    .lang-btn { min-height: 48px; padding: 0 14px; border: 1.5px solid var(--card-border); background: var(--card-surface); border-radius: 8px; font-size: 12.5px; font-weight: 700; color: var(--text-main); cursor: pointer; }
+    .lang-btn.active { background: var(--primary); color: #FFF; border-color: var(--primary); }
+    .kiosk-body { padding: 20px; display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+    .left-panel { display: flex; flex-direction: column; gap: 16px; }
+    .ai-voice-hero { background: linear-gradient(135deg, #FFFDFB 0%, #F5ECE3 100%); border: 2px solid #EAD8C7; border-radius: var(--radius-card); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .ai-state-indicator { display: flex; align-items: center; justify-content: space-between; }
+    .ai-badge { font-size: 11px; font-weight: 700; background: rgba(43,168,162,0.15); color: var(--interaction-dark); padding: 3px 10px; border-radius: var(--radius-pill); }
+    .flight-context { font-family: var(--mono); font-size: 11.5px; color: var(--primary-dark); font-weight: 600; }
+    .kiosk-headline { font-size: 26px; font-weight: 800; line-height: 1.25; color: var(--primary-dark); }
+    .voice-prompt-bubble { background: #FFFFFF; border: 2px solid var(--interaction); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; }
+    .mic-button { min-width: 52px; min-height: 52px; border-radius: 50%; background: var(--interaction); color: #FFFFFF; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 5px rgba(43,168,162,0.25); animation: mic-wave 2s infinite ease-in-out; cursor: pointer; }
+    @keyframes mic-wave { 0%, 100% { box-shadow: 0 0 0 4px rgba(43,168,162,0.25); } 50% { box-shadow: 0 0 0 12px rgba(43,168,162,0.0); } }
+    .voice-transcript { flex: 1; }
+    .transcript-quote { font-size: 15.5px; font-weight: 600; color: var(--text-main); }
+    .transcript-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+    .waveform-visualizer { display: flex; align-items: center; gap: 3px; height: 24px; }
+    .wave-bar { width: 3px; background: var(--interaction); border-radius: 2px; animation: wave-bar 1.2s infinite ease-in-out; }
+    .wb-1 { height: 10px; animation-delay: 0.1s; }
+    .wb-2 { height: 20px; animation-delay: 0.25s; }
+    .wb-3 { height: 15px; animation-delay: 0.4s; }
+    .wb-4 { height: 22px; animation-delay: 0.15s; }
+    .wb-5 { height: 12px; animation-delay: 0.3s; }
+    @keyframes wave-bar { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1.0); } }
+
+    .category-scroll { display: flex; gap: 10px; }
+    .category-tab { min-height: 48px; padding: 0 16px; background: var(--card-surface); border: 1.5px solid var(--card-border); border-radius: var(--radius-pill); font-size: 13px; font-weight: 700; color: var(--text-main); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .category-tab.active { background: var(--primary); color: #FFFFFF; border-color: var(--primary); }
+    .items-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .food-card { background: var(--card-surface); border: 1.5px solid var(--card-border); border-radius: var(--radius-card); padding: 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+    .food-card.highlighted { border: 2px solid var(--interaction); box-shadow: 0 6px 16px rgba(43,168,162,0.12); }
+    .food-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .food-tag { font-size: 10.5px; font-weight: 700; background: var(--primary-light); color: var(--primary-dark); padding: 2px 7px; border-radius: 4px; text-transform: uppercase; }
+    .food-title { font-size: 15.5px; font-weight: 700; color: var(--text-main); margin-top: 3px; }
+    .food-meta { font-size: 12px; color: var(--text-muted); line-height: 1.35; }
+    .food-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--card-border); }
+    .food-price { font-size: 18px; font-weight: 800; color: var(--primary-dark); }
+    .btn-add { min-height: 48px; padding: 0 16px; background: var(--accent); color: var(--primary-dark); border: none; border-radius: var(--radius-pill); font-size: 13.5px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .right-bay { display: flex; flex-direction: column; gap: 16px; }
+    .scanner-bay-card { background: #1C1917; color: #FFF; border-radius: var(--radius-card); padding: 16px; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
+    .scanner-title { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+    .barcode-target-window { width: 200px; height: 95px; border: 2px dashed rgba(255,210,63,0.5); border-radius: 10px; position: relative; margin: 8px 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); overflow: hidden; }
+    .scan-laser-line { position: absolute; width: 100%; height: 3px; background: #EF4444; box-shadow: 0 0 10px #EF4444; animation: laser-sweep 2.2s infinite ease-in-out; }
+    @keyframes laser-sweep { 0% { top: 10%; } 50% { top: 85%; } 100% { top: 10%; } }
+    .barcode-art { width: 120px; height: 40px; }
+    .scanner-instruction { font-size: 11.5px; color: #A8A29E; }
+    .order-cart-card { background: var(--card-surface); border: 1.5px solid var(--card-border); border-radius: var(--radius-card); padding: 16px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+    .cart-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid var(--card-border); padding-bottom: 10px; }
+    .cart-title { font-size: 16px; font-weight: 800; color: var(--primary-dark); }
+    .cart-count { background: var(--primary); color: #FFF; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: var(--radius-pill); }
+    .cart-list { display: flex; flex-direction: column; gap: 10px; }
+    .cart-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .cart-item-title { font-weight: 700; color: var(--text-main); }
+    .cart-item-opt { font-size: 11px; color: var(--text-muted); }
+    .cart-total-box { background: var(--bg-surface); border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+    .btn-pay-now { min-height: 50px; width: 100%; background: var(--interaction); color: #FFFFFF; border: none; border-radius: var(--radius-pill); font-size: 15px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .kiosk-footer-safety { background: #EFECE6; border-top: 1px solid var(--card-border); padding: 8px 20px; display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Physical Kiosk Outer Bezel Chassis -->
+  <div class="kiosk-chassis">
+
+    <!-- Top Touchscreen Header Bar (First 500px High Impact) -->
+    <header class="kiosk-header">
+      <div class="kiosk-brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">HeyAlpha Kiosk</div>
+          <div class="brand-loc">Terminal 2 &bull; Gate B14 Express Lounge</div>
+        </div>
+      </div>
+
+      <div class="kiosk-telemetry-cluster">
+        <div class="kiosk-mode-pill">
+          <div class="pulse-dot"></div>
+          AI ASSIST VOICE READY
+        </div>
+        <div class="lang-selector">
+          <button class="lang-btn active">EN</button>
+          <button class="lang-btn">FR</button>
+          <button class="lang-btn">中文</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Kiosk Content Area Split -->
+    <div class="kiosk-body">
+
+      <!-- Left Column: Conversational Ordering -->
+      <section class="left-panel">
+
+        <!-- AI Voice Recognition Active Card -->
+        <div class="ai-voice-hero">
+          <div class="ai-state-indicator">
+            <span class="ai-badge">HeyAlpha Conversational Agent</span>
+            <span class="flight-context">FLIGHT AC-829 &bull; DEPARTS IN 48M</span>
+          </div>
+
+          <h1 class="kiosk-headline">What would you like before your flight?</h1>
+
+          <!-- Live Mic Listening Box -->
+          <div class="voice-prompt-bubble">
+            <button class="mic-button" title="Touch or speak now">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+              </svg>
+            </button>
+            <div class="voice-transcript">
+              <div class="transcript-quote">"Double espresso and an artisan avocado toast to go, please."</div>
+              <div class="transcript-sub">AI transcribed with 99.4% confidence &bull; Modifying order #304</div>
+            </div>
+            <div class="waveform-visualizer">
+              <div class="wave-bar wb-1"></div>
+              <div class="wave-bar wb-2"></div>
+              <div class="wave-bar wb-3"></div>
+              <div class="wave-bar wb-4"></div>
+              <div class="wave-bar wb-5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Scroll (Min 48px Touch Targets) -->
+        <div class="category-scroll">
+          <button class="category-tab active">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            Espresso &amp; Brews
+          </button>
+          <button class="category-tab">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg>
+            Gate Express Bites
+          </button>
+          <button class="category-tab">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10M7 12h10M7 17h10"/></svg>
+            Travel Comfort Kits
+          </button>
+        </div>
+
+        <!-- Food Intelligence Cards Grid -->
+        <div class="items-grid">
+          <!-- Item 1 (Voice Suggested) -->
+          <div class="food-card highlighted">
+            <div>
+              <div class="food-header">
+                <span class="food-tag" style="background: var(--interaction-light); color: var(--interaction-dark);">Voice Selected</span>
+                <span style="font-size: 12px; font-weight: 700; color: var(--success);">Ready in 3m</span>
+              </div>
+              <div class="food-title">Artisan Avocado &amp; Sourdough</div>
+              <div class="food-meta">Whipped citrus ricotta, toasted pumpkin seeds, poached free-range egg.</div>
+            </div>
+            <div class="food-footer">
+              <div class="food-price">$14.50</div>
+              <button class="btn-add">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add 1
+              </button>
+            </div>
+          </div>
+
+          <!-- Item 2 -->
+          <div class="food-card">
+            <div>
+              <div class="food-header">
+                <span class="food-tag">Single Origin</span>
+                <span style="font-size: 12px; font-weight: 700; color: var(--success);">Ready in 90s</span>
+              </div>
+              <div class="food-title">Double Ristretto Flat White</div>
+              <div class="food-meta">Colombian Huila beans, velvety microfoam with oat or whole milk.</div>
+            </div>
+            <div class="food-footer">
+              <div class="food-price">$5.75</div>
+              <button class="btn-add">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add 1
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Barcode Scan Bay & Cart -->
+      <aside class="right-bay">
+
+        <!-- Boarding Pass Scan Bay Hardware Module -->
+        <div class="scanner-bay-card">
+          <div class="scanner-title">Boarding Pass Scanner</div>
+          <div class="barcode-target-window">
+            <div class="scan-laser-line"></div>
+            <!-- Barcode Vector Graphic -->
+            <svg class="barcode-art" viewBox="0 0 140 44" fill="#FFFFFF">
+              <rect x="4" y="2" width="4" height="40"/>
+              <rect x="12" y="2" width="2" height="40"/>
+              <rect x="18" y="2" width="6" height="40"/>
+              <rect x="28" y="2" width="3" height="40"/>
+              <rect x="34" y="2" width="5" height="40"/>
+              <rect x="44" y="2" width="2" height="40"/>
+              <rect x="50" y="2" width="7" height="40"/>
+              <rect x="62" y="2" width="3" height="40"/>
+              <rect x="68" y="2" width="5" height="40"/>
+              <rect x="76" y="2" width="2" height="40"/>
+              <rect x="82" y="2" width="8" height="40"/>
+              <rect x="94" y="2" width="3" height="40"/>
+              <rect x="100" y="2" width="6" height="40"/>
+              <rect x="110" y="2" width="2" height="40"/>
+              <rect x="116" y="2" width="5" height="40"/>
+              <rect x="126" y="2" width="4" height="40"/>
+            </svg>
+          </div>
+          <div class="scanner-instruction">
+            Hold boarding pass QR code or barcode 5 inches below the optical sensor bay.
+          </div>
+        </div>
+
+        <!-- Touch Order Cart Summary -->
+        <div class="order-cart-card">
+          <div class="cart-header">
+            <div class="cart-title">Your Tray Order</div>
+            <span class="cart-count">2 ITEMS</span>
+          </div>
+
+          <div class="cart-list">
+            <div class="cart-item">
+              <div>
+                <div class="cart-item-title">Artisan Avocado &amp; Sourdough</div>
+                <div class="cart-item-opt">Poached egg &bull; Extra chili flakes</div>
+              </div>
+              <strong style="color: var(--primary-dark);">$14.50</strong>
+            </div>
+
+            <div class="cart-item">
+              <div>
+                <div class="cart-item-title">Double Ristretto Flat White</div>
+                <div class="cart-item-opt">Oat Milk &bull; No sugar &bull; 12oz</div>
+              </div>
+              <strong style="color: var(--primary-dark);">$5.75</strong>
+            </div>
+          </div>
+
+          <div class="cart-total-box">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">TOTAL DUE (INC. TAX)</div>
+              <div style="font-size: 24px; font-weight: 800; color: var(--primary-dark);">$20.25</div>
+            </div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--success); text-align: right;">
+              Gate Delivery: Row 14C
+            </div>
+          </div>
+
+          <!-- 54px High Touch Target Checkout Button -->
+          <button class="btn-pay-now">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            Tap to Pay with Apple Pay / Card
+          </button>
+        </div>
+
+      </aside>
+    </div>
+
+    <!-- Kiosk Physical Machine Footer Strip -->
+    <footer class="kiosk-footer-safety">
+      <div>Hardware Station: KIOSK-B14-AC &bull; Optical Sensor: Active (Calibrated) &bull; Audio Array: Beamforming Stereo</div>
+      <div>Session Timeout: <strong>42s</strong> &bull; Need help? Wave hand or tap Accessibility</div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

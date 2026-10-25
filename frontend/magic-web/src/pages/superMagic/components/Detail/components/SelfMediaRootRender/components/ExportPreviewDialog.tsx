@@ -11,7 +11,7 @@ import {
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
 import { Label } from "@/components/shadcn-ui/label"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import CardFrame from "./CardFrame"
 import type { CardFrameRef } from "./CardFrame"
 import ExportOptionsSections from "./ExportOptionsSections"

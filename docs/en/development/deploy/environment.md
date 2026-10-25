@@ -131,7 +131,7 @@ MAGIC_API_DEFAULT_ACCESS_TOKEN=
 MAGIC_PRIVILEGED_PASSWORD=
 
 # Super admin permission configuration
-SUPER_WHITELISTS={"privilege_send_message":["13800000000","13900000000"]}
+SUPER_WHITELISTS={"privilege_send_message":["13800000000","13800000018"]}
 # Organization management backend permission whitelist
 ORGANIZATION_WHITELISTS={}
 ```

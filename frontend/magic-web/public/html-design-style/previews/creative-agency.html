@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATELIER VANGUARD — Creative Direction & Digital Architecture</title>
+  <style>
+    :root {
+      --primary: #0A0A0A;
+      --primary-inv: #F5F5F0;
+      --bg: #F5F5F0;
+      --bg-dark: #0A0A0A;
+      --border: #D4D4CD;
+      --border-dark: #262624;
+      --text-pri: #0A0A0A;
+      --text-sec: #52524E;
+      --text-mut: #8A8A85;
+      --accent: #E63B2E;
+      --font-display: "Playfair Display", Georgia, serif;
+      --font-sans: "Satoshi", "DM Sans", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      background: var(--bg);
+      color: var(--text-pri);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.5;
+      border-top: 4px solid var(--accent);
+      overflow-x: hidden;
+    }
+    .top-bar {
+      border-bottom: 1px solid var(--border);
+      padding: 7px 32px;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-sec);
+      background: #ECECE6;
+    }
+    .live-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      background: var(--accent);
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: pulse 1.6s infinite ease-in-out;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+    header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--primary);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .logo {
+      padding: 18px 32px;
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      border-right: 1px solid var(--primary);
+      text-decoration: none;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo sup { font-family: var(--font-mono); font-size: 10px; color: var(--accent); }
+    .nav-links { display: flex; list-style: none; }
+    .nav-links a {
+      display: flex;
+      align-items: center;
+      height: 100%;
+      padding: 0 24px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-pri);
+      text-decoration: none;
+      border-left: 1px solid var(--border);
+      transition: 0.15s;
+    }
+    .nav-links a:hover, .nav-links a.active { background: var(--primary); color: #fff; }
+    .nav-cta { background: var(--accent)!important; color: #fff!important; border-left: 1px solid var(--primary)!important; }
+    
+    /* Hero Editorial Section (Dense first 500px) */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      border-bottom: 1px solid var(--primary);
+      min-height: 440px;
+    }
+    .hero-info {
+      padding: 36px 40px;
+      border-right: 1px solid var(--primary);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hero-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 4.4vw, 64px);
+      font-weight: 800;
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+    }
+    .hero-title em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .hero-p { font-size: 14px; line-height: 1.5; color: var(--text-sec); }
+    .hero-quote {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-mut);
+      border-left: 2px solid var(--primary);
+      padding-left: 12px;
+    }
+
+    /* Oversized Showreel Banner with Video Timecode */
+    .showreel {
+      background: #000;
+      color: #FFF;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      min-height: 420px;
+    }
+    .reel-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.85;
+    }
+    .reel-top {
+      position: relative;
+      z-index: 2;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    }
+    .rec-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(230,59,46,0.2);
+      border: 1px solid var(--accent);
+      padding: 2px 7px;
+    }
+    .timecode { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; color: #FFF; }
+    .reel-center {
+      position: relative;
+      z-index: 3;
+      margin: auto;
+      text-align: center;
+      cursor: pointer;
+    }
+    .play-btn {
+      width: 60px;
+      height: 60px;
+      border: 1px solid rgba(255,255,255,0.4);
+      background: rgba(10,10,10,0.7);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 10px;
+      transition: 0.2s;
+    }
+    .reel-center:hover .play-btn { background: var(--accent); border-color: var(--accent); transform: scale(1.08); }
+    .reel-center h3 { font-family: var(--font-display); font-size: 20px; }
+    .reel-center p { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.15em; color: rgba(255,255,255,0.6); }
+    .reel-bottom {
+      position: relative;
+      z-index: 2;
+      padding: 14px 20px;
+      background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, transparent 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .scrubber { width: 100%; height: 3px; background: rgba(255,255,255,0.25); position: relative; }
+    .scrubber-bar { width: 44%; height: 100%; background: var(--accent); position: relative; }
+    .scrubber-dot { position: absolute; right: 0; top: -4px; width: 10px; height: 10px; background: #fff; }
+    .reel-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* Ticker */
+    .ticker {
+      border-bottom: 1px solid var(--primary);
+      background: var(--primary);
+      color: var(--primary-inv);
+      padding: 10px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      display: flex;
+    }
+    .ticker-in {
+      display: flex;
+      gap: 36px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      animation: move 24s linear infinite;
+    }
+    .ticker-in span::after { content: " ■"; color: var(--accent); font-size: 8px; }
+    @keyframes move { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    /* Client Showcase Matrix */
+    .section-head {
+      padding: 32px 40px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .section-head h2 { font-family: var(--font-display); font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+    .section-head p { font-family: var(--font-mono); font-size: 11px; color: var(--text-sec); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; }
+    .filters { display: flex; border: 1px solid var(--primary); }
+    .filter-tab {
+      padding: 6px 14px;
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .filter-tab:last-child { border-right: none; }
+    .filter-tab.active, .filter-tab:hover { background: var(--primary); color: #fff; }
+
+    .client-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--primary);
+    }
+    .client-card {
+      border-right: 1px solid var(--primary);
+      border-bottom: 1px solid var(--primary);
+      background: var(--bg);
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 270px;
+      cursor: pointer;
+      transition: background 0.18s;
+    }
+    .client-card:nth-child(3n) { border-right: none; }
+    .client-card:hover { background: #FFFFFF; }
+    .client-card:hover .arrow { color: var(--accent); transform: translate(3px, -3px); }
+    .card-top { display: flex; justify-content: space-between; margin-bottom: 16px; }
+    .card-idx { font-family: var(--font-mono); font-size: 10px; color: var(--text-mut); }
+    .arrow { font-size: 16px; transition: 0.2s; }
+    .client-vis {
+      height: 80px;
+      background: #EAEAE4;
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .client-vis svg { width: 100%; height: 100%; }
+    .client-card h4 { font-family: var(--font-display); font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .client-card p { font-size: 12px; color: var(--text-sec); line-height: 1.5; margin-bottom: 12px; }
+    .tag-row { display: flex; gap: 6px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .tag { font-family: var(--font-mono); font-size: 9px; background: #E8E8E2; padding: 2px 7px; color: var(--text-sec); }
+
+    /* Footer */
+    footer { background: var(--bg-dark); color: var(--primary-inv); padding: 40px 40px 24px; }
+    .footer-row { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; border-bottom: 1px solid var(--border-dark); padding-bottom: 32px; margin-bottom: 20px; }
+    .footer-row h2 { font-family: var(--font-display); font-size: 34px; line-height: 1.1; }
+    .rfp-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 13px 26px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .rfp-btn:hover { background: #CC2E22; }
+    .footer-bot { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: #71716D; }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <div><span class="live-dot"></span>STUDIO LIVE — ZURICH / TOKYO / NEW YORK</div>
+    <div>SHOWREEL SYSTEM REEL_2026_09 · 4K 60P RAW ARCHIVE</div>
+    <div>INDEX: ATELIER-VANGUARD-01</div>
+  </div>
+
+  <header>
+    <a href="#" class="logo">VANGUARD <sup>ATELIER</sup></a>
+    <ul class="nav-links">
+      <li><a href="#showreel" class="active">Showreel</a></li>
+      <li><a href="#clients">Roster</a></li>
+      <li><a href="#contact" class="nav-cta">Initiate Brief →</a></li>
+    </ul>
+  </header>
+
+  <!-- Hero Editorial Section (Dense first 500px) -->
+  <section class="hero">
+    <div class="hero-info">
+      <div>
+        <div class="hero-tag">Direction & Architecture / Vol. 14 Autumn 2026</div>
+        <h1 class="hero-title">We architect <em>unforgiving</em> aesthetic capital for culture titans.</h1>
+      </div>
+      <div class="hero-split">
+        <p class="hero-p">Pentagram discipline meets algorithmic kinetic typography. We dissolve the boundary between brutalist graphic rigor and autonomous computational media.</p>
+        <div class="hero-quote">"The work speaks — the interface listens. Strict 0px geometries, monochrome rigor, zero ornament."</div>
+      </div>
+    </div>
+
+    <!-- Oversized Showreel Banner with Video Timecode -->
+    <div class="showreel" id="showreel">
+      <svg class="reel-svg" viewBox="0 0 600 420" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="#070707"/>
+        <line x1="40" y1="210" x2="560" y2="210" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <line x1="300" y1="30" x2="300" y2="390" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <polygon points="120,340 300,90 480,340" fill="none" stroke="#E63B2E" stroke-width="1.8"/>
+        <polygon points="160,340 300,140 440,340" fill="rgba(230,59,46,0.12)" stroke="#52524E" stroke-width="1"/>
+        <circle cx="300" cy="90" r="7" fill="#E63B2E"/>
+        <text x="50" y="380" fill="#18181B" font-family="Georgia, serif" font-size="110" font-weight="900">VGD</text>
+      </svg>
+
+      <div class="reel-top">
+        <div class="rec-box"><span class="live-dot" style="margin:0;"></span>REC [LIVE SYNC]</div>
+        <div class="timecode">00:04:18:22</div>
+        <div style="color:var(--accent); font-weight:700;">4K RAW 60FPS</div>
+      </div>
+
+      <div class="reel-center">
+        <div class="play-btn">
+          <svg width="18" height="20" viewBox="0 0 18 20" fill="none"><path d="M17 10L1 19.5263L1 0.47372L17 10Z" fill="#FFF"/></svg>
+        </div>
+        <h3>GLOBAL SHOWREEL '26</h3>
+        <p>Click to Stream Raw Cut (03:42)</p>
+      </div>
+
+      <div class="reel-bottom">
+        <div class="scrubber">
+          <div class="scrubber-bar"><div class="scrubber-dot"></div></div>
+        </div>
+        <div class="reel-meta">
+          <span>SCENE 08 // SEQUENCE: TOKYO EXPO</span>
+          <span>SHUTTER: 1/120 · 35MM T1.5</span>
+          <span>STEREO 48KHZ 24-BIT</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Kinetic Ticker Strip -->
+  <div class="ticker">
+    <div class="ticker-in">
+      <span>BALENCIAGA COUTURE CAMPAIGN</span>
+      <span>MUSEUM OF MODERN ART MONOGRAPH</span>
+      <span>POLESTAR SPATIAL INTERFACE</span>
+      <span>ACNE STUDIOS FLAGSHIP SOUNDSCAPE</span>
+      <span>RIMOWA TITANIUM CATALOGUE</span>
+      <span>BOTTEGA VENETA BIENNALE EXHIBIT</span>
+      <span>BALENCIAGA COUTURE CAMPAIGN</span>
+      <span>MUSEUM OF MODERN ART MONOGRAPH</span>
+    </div>
+  </div>
+
+  <!-- Interactive Client Showcase Matrix -->
+  <section id="clients">
+    <div class="section-head">
+      <div>
+        <h2>Client Showcase & Commission Roster</h2>
+        <p>Direct Commissions across Luxury, Architecture, Digital Culture & Publishing</p>
+      </div>
+      <div class="filters">
+        <button class="filter-tab active">All Work (03)</button>
+        <button class="filter-tab">Fashion & Luxury</button>
+        <button class="filter-tab">Spatial & Arch</button>
+      </div>
+    </div>
+
+    <div class="client-grid">
+      <!-- 1 -->
+      <div class="client-card">
+        <div>
+          <div class="card-top"><span class="card-idx">ROSTER_01 // 2026</span><span class="arrow">↗</span></div>
+          <div class="client-vis">
+            <svg viewBox="0 0 260 70"><rect width="100%" height="100%" fill="#0A0A0A"/><text x="50%" y="60%" text-anchor="middle" fill="#F5F5F0" font-family="'Playfair Display', serif" font-size="20" font-weight="900" letter-spacing="3">BALENCIAGA</text></svg>
+          </div>
+          <h4>Balenciaga</h4>
+          <p>Global omni-channel physical-digital runway identity and volumetric lookbook engine.</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag">Art Direction</span>
+          <span class="tag">Interactive 3D</span>
+          <span class="tag">Identity</span>
+        </div>
+      </div>
+
+      <!-- 2 -->
+      <div class="client-card">
+        <div>
+          <div class="card-top"><span class="card-idx">ROSTER_02 // 2026</span><span class="arrow">↗</span></div>
+          <div class="client-vis">
+            <svg viewBox="0 0 260 70"><rect width="100%" height="100%" fill="#E8E8E3"/><circle cx="130" cy="35" r="28" fill="#0A0A0A"/><text x="130" y="42" text-anchor="middle" fill="#FFF" font-family="monospace" font-size="15" font-weight="700">MoMA</text></svg>
+          </div>
+          <h4>MoMA New York</h4>
+          <p>Retrospective archive typography system, bespoke monoline glyphs, and permanent installation guide.</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag">Typography</span>
+          <span class="tag">Exhibition</span>
+          <span class="tag">Monograph</span>
+        </div>
+      </div>
+
+      <!-- 3 -->
+      <div class="client-card">
+        <div>
+          <div class="card-top"><span class="card-idx">ROSTER_03 // 2025</span><span class="arrow">↗</span></div>
+          <div class="client-vis">
+            <svg viewBox="0 0 260 70"><rect width="100%" height="100%" fill="#111113"/><polygon points="130,12 136,32 156,35 136,38 130,58 124,38 104,35 124,32" fill="#E63B2E"/><text x="130" y="65" text-anchor="middle" fill="#888" font-family="monospace" font-size="7" letter-spacing="2">POLESTAR</text></svg>
+          </div>
+          <h4>Polestar Performance</h4>
+          <p>Next-gen instrument cluster dashboard UX and real-time kinetic navigation shaders.</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag">Automotive HMI</span>
+          <span class="tag">Design System</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Brutalist Footer -->
+  <footer id="contact">
+    <div class="footer-row">
+      <h2>Have an ambitious cultural proposition?</h2>
+      <div>
+        <p style="color:#A3A39E; font-size:13px; margin-bottom:16px; line-height:1.5;">We take on 8 selected commissions every calendar cycle. Inquiries are vetted by the partners directly.</p>
+        <button class="rfp-btn">Initiate RFP Dialogue →</button>
+      </div>
+    </div>
+    <div class="footer-bot">
+      <div>© 2026 ATELIER VANGUARD CREATIVE AGENCY LLC.</div>
+      <div>PENTAGRAM / COLLINS / BASE DESIGN HERITAGE</div>
+      <div>WCAG 2.1 AA COMPLIANT · 0PX SHARP SPEC</div>
+    </div>
+  </footer>
+</body>
+</html>

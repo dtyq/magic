@@ -2,6 +2,7 @@ import { t as i18nT } from "i18next"
 import { useTranslation } from "react-i18next"
 import { useMemo, type ReactNode, type FC } from "react"
 import { createRoot } from "react-dom/client"
+import { Loader2 } from "lucide-react"
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 import type { ButtonProps as AntdButtonProps } from "antd"
 import {
@@ -11,14 +12,13 @@ import {
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { convertButtonProps } from "./utils"
 import { useStyles } from "./styles"
 import { Modal as AntdModal } from "antd"
 import ThemeProvider from "@/providers/ThemeProvider"
 import {
 	acquireOverlayZIndex,
-	getOverlayScopeBaseZIndex,
 	type OverlayZIndexEntry,
 } from "@/utils/overlayZIndex/overlayStackManager"
 
@@ -81,6 +81,8 @@ function MagicModalDesktop({
 	centered = true,
 	okButtonProps,
 	cancelButtonProps,
+	destroyOnClose,
+	destroyOnHidden,
 	...props
 }: MagicModalDesktopProps) {
 	const { t } = useTranslation("interface")
@@ -115,6 +117,7 @@ function MagicModalDesktop({
 			centered={centered}
 			okButtonProps={convertedOkButtonProps}
 			cancelButtonProps={convertedCancelButtonProps}
+			destroyOnHidden={destroyOnHidden ?? destroyOnClose}
 			{...props}
 		/>
 	)
@@ -180,6 +183,8 @@ function createImperativeModal(
 	const root = createRoot(container)
 
 	let currentConfig = { ...config }
+	let pending = false
+	let destroyed = false
 	let overlayEntry: OverlayZIndexEntry | null = null
 
 	/** 释放命令式弹窗占用的全局 overlay 层级，避免影响后续 MagicPopup / Modal。 */
@@ -189,6 +194,8 @@ function createImperativeModal(
 	}
 
 	const destroy = () => {
+		if (destroyed) return
+		destroyed = true
 		releaseOverlayEntry()
 		root.unmount()
 		if (container.parentNode) {
@@ -197,6 +204,7 @@ function createImperativeModal(
 	}
 
 	const render = (props: ModalFuncProps) => {
+		if (destroyed) return
 		const {
 			title,
 			content,
@@ -241,16 +249,26 @@ function createImperativeModal(
 					: sizeWidthMap[effectiveSize]
 
 		const handleOk = async () => {
-			if (onOk) {
-				const result = onOk()
-				if (result instanceof Promise) {
+			// Lock synchronously, including clicks before React paints the loading state.
+			if (pending || destroyed) return
+			pending = true
+			try {
+				const result = onOk?.()
+				if (result && typeof result.then === "function") {
+					render(currentConfig)
 					await result
 				}
+				destroy()
+			} catch {
+				// Callers report operation errors; keep the confirmation available for retry.
+			} finally {
+				pending = false
+				if (!destroyed) render(currentConfig)
 			}
-			destroy()
 		}
 
 		const handleCancel = () => {
+			if (pending || destroyed) return
 			onCancel?.()
 			destroy()
 		}
@@ -272,7 +290,10 @@ function createImperativeModal(
 							"bg-destructive/10 text-destructive hover:bg-destructive/20",
 					)}
 					{...convertButtonProps(okButtonProps as Record<string, unknown>)}
+					disabled={pending || okButtonProps?.disabled}
+					aria-busy={pending}
 				>
+					{pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
 					{okText}
 				</Button>
 			)
@@ -288,6 +309,7 @@ function createImperativeModal(
 					className={cn(effectiveSize === "sm" && "flex-1")}
 					onClick={handleCancel}
 					{...convertButtonProps(cancelButtonProps as Record<string, unknown>)}
+					disabled={pending || cancelButtonProps?.disabled}
 				>
 					{cancelText}
 				</Button>
@@ -322,18 +344,13 @@ function createImperativeModal(
 			footerNode = defaultFooterNode
 		}
 
-		// Mobile uses the global overlay stack so nested MagicPopup / Sheet stay ordered.
-		// PC honors the caller zIndex literally so fixed z-dropdown (1000) can sit above modal content.
-		let resolvedContentZIndex: number
-		if (isMobile) {
-			if (!overlayEntry) {
-				overlayEntry = acquireOverlayZIndex({ zIndex })
-			}
-			// DialogContent mirrors style.zIndex onto overlay; contentZIndex keeps mask above lower sheets.
-			resolvedContentZIndex = overlayEntry.contentZIndex
-		} else {
-			resolvedContentZIndex = zIndex ?? getOverlayScopeBaseZIndex("global")
+		// Imperative confirms sit in a new React tree, so they cannot read overlay context.
+		// Acquire from the global stack so they stay above an open file preview.
+		if (!overlayEntry) {
+			overlayEntry = acquireOverlayZIndex({ zIndex })
 		}
+		// DialogContent copies style.zIndex onto the mask; +1 keeps content above it.
+		const resolvedContentZIndex = overlayEntry.contentZIndex
 
 		root.render(
 			<ThemeProvider>
@@ -343,7 +360,8 @@ function createImperativeModal(
 						overlayClassName={cn(`z-dialog`)}
 						style={{ width: normalizedWidth, zIndex: resolvedContentZIndex }}
 						showCloseButton={
-							typeof closable === "boolean" ? closable : !closable?.disabled
+							!pending &&
+							(typeof closable === "boolean" ? closable : !closable?.disabled)
 						}
 						onPointerDownOutside={(event) => {
 							if (!maskClosable) {

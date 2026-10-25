@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { VideoElement } from "../../elements/video/VideoElement"
-import { VideoResourceManager } from "../video/VideoResourceManager"
+import { isUsableVideoPosterSource, VideoResourceManager } from "../video/VideoResourceManager"
 
 function deferred<T>() {
 	let resolve!: (value: T) => void
@@ -75,6 +75,8 @@ describe("VideoResourceManager", () => {
 			metadata: { duration: 1, videoWidth: 100, videoHeight: 100 },
 		}
 		const entry = {
+			referencePath: "./videos/a.mp4",
+			resourceIdentity: "videos/a.mp4",
 			ossSrc: "/virtual/videos/a.mp4",
 			resourceVersion: "v1",
 			resource: previousResource,
@@ -129,6 +131,8 @@ describe("VideoResourceManager", () => {
 			metadata: { duration: 1, videoWidth: 100, videoHeight: 100 },
 		}
 		const entry = {
+			referencePath: "./videos/a.mp4",
+			resourceIdentity: "videos/a.mp4",
 			ossSrc: "https://oss.test/expired.mp4",
 			ossSrcFromCachedFallback: false,
 			sourceUrl: "https://oss.test/expired.mp4",
@@ -168,7 +172,7 @@ describe("VideoResourceManager", () => {
 		expect(eventEmitter.emit).toHaveBeenCalledWith({
 			type: "resource:video:load-failed",
 			data: {
-				path: "videos/a.mp4",
+				path: "./videos/a.mp4",
 				reason: "load-error",
 				preservePreview: true,
 			},
@@ -176,7 +180,7 @@ describe("VideoResourceManager", () => {
 		;(manager.canvas as { canvasFileUploadManager: unknown }).canvasFileUploadManager = {
 			shouldDeferRemoteResourceLoad: vi.fn(() => false),
 		}
-		manager.canonicalResourcePath = vi.fn((path: string) => path)
+		manager.getResourceIdentity = vi.fn((path: string) => path)
 		manager.getOrCreateEntry = vi.fn(() => entry)
 		manager.clearExpiredOssSrc = vi.fn()
 		manager.applyVirtualResourceBypass = vi.fn()
@@ -212,7 +216,7 @@ describe("VideoResourceManager", () => {
 		const manager = Object.create(VideoResourceManager.prototype) as Record<string, unknown>
 		manager.destroyed = false
 		manager.diagnostics = { increment: vi.fn() }
-		manager.canonicalResourcePath = vi.fn(() => "videos/a.mp4")
+		manager.getResourceIdentity = vi.fn(() => "videos/a.mp4")
 		manager.getOrCreateEntry = vi.fn(() => entry)
 		manager.refreshVideoResourceFromNetwork = refreshVideoResourceFromNetwork
 
@@ -274,8 +278,54 @@ describe("VideoResourceManager", () => {
 
 		expect(result).toBeNull()
 		expect(entry.resource).toBeNull()
-		expect(stalePoster.width).toBe(0)
-		expect(stalePoster.height).toBe(0)
+		expect(stalePoster.width).toBe(1)
+		expect(stalePoster.height).toBe(1)
+		expect(isUsableVideoPosterSource(stalePoster)).toBe(false)
+	})
+
+	it("detaches scene-graph consumers before releasing a poster", () => {
+		const poster = document.createElement("canvas")
+		poster.width = 48
+		poster.height = 24
+		let currentImage: unknown = poster
+		const image = vi.fn(function (nextImage?: unknown) {
+			if (arguments.length > 0) currentImage = nextImage
+			return currentImage
+		})
+		const matchingNode = {
+			getClassName: () => "Image",
+			getChildren: () => [],
+			image,
+		}
+		const eventEmitter = {
+			emit: vi.fn((event: { type: string }) => {
+				if (event.type === "resource:video:will-release") {
+					expect(currentImage).toBe(poster)
+				}
+			}),
+		}
+		const manager = Object.create(VideoResourceManager.prototype) as Record<string, unknown>
+		manager.canvas = {
+			eventEmitter,
+			getAllLayers: () => new Map([["content", { getChildren: () => [matchingNode] }]]),
+		} as never
+
+		;(
+			manager as unknown as {
+				releaseResource: (
+					resource: { poster: HTMLCanvasElement; metadata: unknown },
+					context: { path: string; reason: string },
+				) => void
+			}
+		).releaseResource(
+			{ poster, metadata: {} },
+			{ path: "videos/a.mp4", reason: "viewport-far" },
+		)
+
+		expect(currentImage).toBeUndefined()
+		expect(poster.width).toBe(1)
+		expect(poster.height).toBe(1)
+		expect(isUsableVideoPosterSource(poster)).toBe(false)
 	})
 
 	it("marks preview decode failures as preservable during refresh", async () => {
@@ -300,6 +350,8 @@ describe("VideoResourceManager", () => {
 			eventEmitter,
 		}
 		const entry = {
+			referencePath: "./videos/a.mp4",
+			resourceIdentity: "videos/a.mp4",
 			ossSrc: "https://oss.test/refreshed.mp4",
 			resource: null,
 			resourceNeedsReload: true,
@@ -330,7 +382,7 @@ describe("VideoResourceManager", () => {
 		expect(eventEmitter.emit).toHaveBeenCalledWith({
 			type: "resource:video:load-failed",
 			data: {
-				path: "videos/a.mp4",
+				path: "./videos/a.mp4",
 				reason: "load-error",
 				preservePreview: true,
 			},
@@ -342,7 +394,11 @@ describe("VideoResourceManager", () => {
 		const needsResourceReload = vi.fn(() => true)
 		const element = Object.create(VideoElement.prototype) as Record<string, unknown>
 		Object.defineProperty(element, "isDestroyed", { value: false })
-		element.data = { src: "./videos/a.mp4" }
+		element.data = {
+			contents: [{ contentId: "video-content", src: "./videos/a.mp4" }],
+			activeContentId: "video-content",
+			mainContentId: "video-content",
+		}
 		element.renderer = { hasPreview: vi.fn(() => true) }
 		element.canvas = { videoResourceManager: { needsResourceReload } }
 		element.loadPreviewFromPath = loadPreviewFromPath
@@ -363,6 +419,8 @@ describe("VideoResourceManager", () => {
 			poster.width = 768
 			poster.height = 768
 			entries.set(`videos/${index}.mp4`, {
+				referencePath: `videos/${index}.mp4`,
+				resourceIdentity: `videos/${index}.mp4`,
 				resource: {
 					poster,
 					metadata: { duration: 1, videoWidth: 768, videoHeight: 768 },
@@ -374,7 +432,7 @@ describe("VideoResourceManager", () => {
 		manager.destroyed = false
 		manager.entries = entries
 		manager.canvas = { eventEmitter }
-		manager.canonicalResourcePath = vi.fn((path: string) => path)
+		manager.getResourceIdentity = vi.fn((path: string) => path)
 		;(
 			manager as unknown as {
 				enforcePosterBudget: (retainedPaths: ReadonlySet<string>) => void

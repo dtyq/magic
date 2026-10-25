@@ -4,6 +4,8 @@ import type { FileItem } from "@/pages/superMagic/components/Detail/components/F
 import type { DesignData } from "../../types"
 import { migrateLoadedDesignDataPaths } from "../designPathTransitionMigration"
 import { generateMagicProjectJsContent } from "../utils"
+import { parseMagicProjectConfigContent } from "@/pages/superMagic/utils/magicProjectConfigParser"
+import { decompressCanvasData } from "../magicProjectCompression"
 
 const DESIGN_A = "新建画布A"
 
@@ -19,17 +21,20 @@ function fileItem(fileId: string, relativeFilePath: string): FileItem {
 }
 
 function designWithImagePath(src: string): DesignData {
+	const contentId = "image-1-content-1"
 	return {
 		type: "design",
 		name: DESIGN_A,
-		version: "1.0.0",
+		version: "3.0.0",
 		canvas: {
 			elements: [
 				{
 					id: "image-1",
 					type: "image",
-					src,
 					zIndex: 1,
+					activeContentId: contentId,
+					mainContentId: contentId,
+					contents: [{ contentId, src }],
 				} as LayerElement,
 			],
 		},
@@ -37,10 +42,22 @@ function designWithImagePath(src: string): DesignData {
 }
 
 function getImageSrc(data: DesignData): string {
-	return (data.canvas?.elements?.[0] as { src: string }).src
+	const element = data.canvas?.elements?.[0] as { contents?: Array<{ src?: string }> }
+	return element.contents?.[0]?.src ?? ""
 }
 
 describe("design path transition migration", () => {
+	it("preserves opaque asset references", () => {
+		const data = designWithImagePath("asset://virtual-human-asset-id")
+
+		migrateLoadedDesignDataPaths(data, {
+			designProjectBasePath: DESIGN_A,
+			flatAttachments: [],
+		})
+
+		expect(getImageSrc(data)).toBe("asset://virtual-human-asset-id")
+	})
+
 	it("repairs a legacy bare resource only when the current design owns it", () => {
 		const data = designWithImagePath("images/cat.png")
 
@@ -103,7 +120,13 @@ describe("design path transition migration", () => {
 			},
 		)
 
-		expect(currentCanvasContent).toContain("./images/cat.png")
-		expect(workspaceRootContent).toContain('"src": "/images/cat.png"')
+		const readSrc = (content: string) => {
+			const config = parseMagicProjectConfigContent(content) as { canvas: string }
+			const canvas = decompressCanvasData(config.canvas) as DesignData["canvas"]
+			const element = canvas?.elements?.[0]
+			return element?.type === "image" ? element.contents[0]?.src : undefined
+		}
+		expect(readSrc(currentCanvasContent)).toBe("./images/cat.png")
+		expect(readSrc(workspaceRootContent)).toBe("/images/cat.png")
 	})
 })

@@ -1,17 +1,17 @@
 import { useMemo } from "react"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import type { MagicClawItem } from "@/apis"
 import type { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
 import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
 import { getAvatarUrl } from "@/utils/avatar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getMagiClawTemplateAvatarConfig } from "../../MagiClawPage/MagiClawTemplateAvatar"
 
 interface UseClawPlaygroundMessageListContextValueParams {
 	setSelectedTopic: (topic: Topic) => void
 	magicClaw?: MagicClawItem | null
-	projectFilesStore?: ProjectFilesStore
+	projectFilesStore: ProjectFilesStore
 }
 
 /** Shared MessageListProvider value for Claw playground (desktop + mobile). */

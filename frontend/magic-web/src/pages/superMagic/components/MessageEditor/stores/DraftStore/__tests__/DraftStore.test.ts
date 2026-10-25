@@ -73,11 +73,51 @@ describe("DraftStore", () => {
 		})
 	})
 
+	it("strips pending canvas mentions before saving a draft", () => {
+		store.isDraftReady = true
+		const content = {
+			type: "doc",
+			content: [
+				{
+					type: "paragraph",
+					content: [
+						{ type: "text", text: "Keep " },
+						{
+							type: "mention",
+							attrs: {
+								type: "project_file",
+								data: { file_id: "pending", file_name: "pending.png" },
+								pending: true,
+							},
+						},
+					],
+				},
+			],
+		}
+
+		store.handleContentChange({ value: content, isComposing: false })
+
+		expect(mockDraftManager.saveDraft).toHaveBeenCalledWith({
+			workspaceId: "workspace",
+			projectId: "project",
+			topicId: "topic",
+			value: {
+				type: "doc",
+				content: [
+					{
+						type: "paragraph",
+						content: [{ type: "text", text: "Keep " }],
+					},
+				],
+			},
+		})
+	})
+
 	it("should reset sending guard after createSentDraft", async () => {
 		vi.useFakeTimers()
 
 		store.isSendingGuard = true
-		mockDraftManager.createSentDraft.mockResolvedValue({} as any)
+		mockDraftManager.createSentDraft.mockResolvedValue(undefined)
 
 		await store.createSentDraft({ value: createContent("sent") })
 

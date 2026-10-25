@@ -4,7 +4,8 @@ import useTopicModel from "../useTopicModel"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"
 import { ModelStatusEnum, type ModelItem } from "../../types"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
-import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 
 // Mock dependencies
 vi.mock("@/services/superMagic/topicModel", () => ({
@@ -20,6 +21,8 @@ vi.mock("@/services/superMagic/topicModel", () => ({
 vi.mock("@/services/superMagic/SuperMagicModeService", () => ({
 	default: {
 		firstModeIdentifier: "general",
+		defaultAgentCode: "SMA-default",
+		isModeValid: vi.fn((mode: string) => mode === "SMA-default"),
 		getModelGroupsByMode: vi.fn(() => []),
 		getImageModelGroupsByMode: vi.fn(() => []),
 		getVideoModelGroupsByMode: vi.fn(() => []),
@@ -94,6 +97,75 @@ describe("useTopicModel", () => {
 	})
 
 	describe("context synchronization", () => {
+		it("uses the composer employee for every model catalog and updates it on switch", () => {
+			const { rerender } = renderHook(
+				({ agentCode }) =>
+					useTopicModel({
+						selectedTopic: { id: "topic-1", agent_code: "SMA-history" } as Topic,
+						selectedProject: project1,
+						topicMode: TopicMode.CustomAgent,
+						agentCode,
+						topicModelStore: mockTopicModelStore,
+					}),
+				{ initialProps: { agentCode: "SMA-default" } },
+			)
+
+			for (const agentCode of ["SMA-default", "SMA-next"]) {
+				if (agentCode === "SMA-next") rerender({ agentCode })
+				for (const getGroups of [
+					superMagicModeService.getModelGroupsByMode,
+					superMagicModeService.getImageModelGroupsByMode,
+					superMagicModeService.getVideoModelGroupsByMode,
+				]) {
+					expect(getGroups).toHaveBeenLastCalledWith(TopicMode.CustomAgent, agentCode)
+				}
+				expect(mockTopicModelStore.setCurrentContext).toHaveBeenLastCalledWith(
+					"topic-1",
+					"project-1",
+					TopicMode.CustomAgent,
+					agentCode,
+				)
+			}
+		})
+
+		it("uses the default custom agent catalog for a new chat", () => {
+			renderHook(() =>
+				useTopicModel({
+					selectedTopic: null,
+					selectedProject: null,
+					topicMode: TopicMode.CustomAgent,
+					topicModelStore: mockTopicModelStore,
+				}),
+			)
+
+			expect(superMagicModeService.getModelGroupsByMode).toHaveBeenCalledWith(
+				TopicMode.CustomAgent,
+				"SMA-default",
+			)
+			expect(mockTopicModelStore.setCurrentContext).toHaveBeenCalledWith(
+				undefined,
+				"",
+				TopicMode.CustomAgent,
+				"SMA-default",
+			)
+		})
+
+		it("keeps the selected topic agent ahead of the platform default", () => {
+			renderHook(() =>
+				useTopicModel({
+					selectedTopic: { id: "topic-1", agent_code: "SMA-topic" } as Topic,
+					selectedProject: project1,
+					topicMode: TopicMode.CustomAgent,
+					topicModelStore: mockTopicModelStore,
+				}),
+			)
+
+			expect(superMagicModeService.getModelGroupsByMode).toHaveBeenCalledWith(
+				TopicMode.CustomAgent,
+				"SMA-topic",
+			)
+		})
+
 		it("should sync context to Store when props change", () => {
 			const { rerender } = renderHook(
 				({ selectedTopic, selectedProject, topicMode }) =>

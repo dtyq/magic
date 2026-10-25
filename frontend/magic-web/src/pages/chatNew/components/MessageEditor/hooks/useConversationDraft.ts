@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useDebounceFn, useMemoizedFn } from "ahooks"
 import { omit } from "lodash-es"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import type { MagicRichEditorRef } from "@/components/base/MagicRichEditor"
 
 /** Services */
@@ -132,7 +132,11 @@ function useConversationDraft({
 				setFiles(draftFiles)
 
 				// Update empty state
-				const text = runActiveEditor(editorRef.current?.editor, (editor) => editor.getText(), "")
+				const text = runActiveEditor(
+					editorRef.current?.editor,
+					(editor) => editor.getText(),
+					"",
+				)
 				setIsEmpty?.(!text)
 			} else {
 				// Clear editor if no draft

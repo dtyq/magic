@@ -9,28 +9,18 @@ import type { DesignAttachmentIndex } from "./designAttachmentIndex"
 import {
 	collectAttachmentMatchesAmongCandidates,
 	type CandidateMatch,
-	type FileItemLookupResult,
 	type ResolvedPathCandidate,
-	lookupAttachmentAmongCandidates as lookupAttachmentAmongCandidatesInternal,
-	lookupAttachmentForSingleNormalizedPath as lookupAttachmentForSingleNormalizedPathInternal,
 } from "./internal/designAttachmentLookup"
 import {
-	createDesignWorkspacePathExists,
-	isDesignDslCanvasRelativeResourcePath,
-	isRelativeDesignDslPath,
-	normalizeDesignApiPath,
-	normalizeDesignAttachmentPathForCanvas,
 	normalizeDesignStoragePathForCanvas,
 	normalizeMagicProjectDirToBase,
 	resolveDesignDslPathCandidatesToWorkspaceRelative,
-	resolveDesignDslPathToWorkspaceAbsoluteByCandidates,
-	resolveDesignDslPathToWorkspaceRelative,
 	resolveStrictDesignDslCanvasResourceCandidates,
 	rewriteLayerElementsPathsForMagicProjectSave,
 	type DesignDslPathRewrite,
 } from "./internal/designPathPrimitives"
 
-export type DesignPathMode = "strict-current-canvas" | "legacy-recovery"
+type DesignPathMode = "strict-current-canvas" | "legacy-recovery"
 
 export interface DesignPathContext {
 	/** 画布目录路径段，与 magic.project.js 同级，例如 `新建画布`。 */
@@ -40,13 +30,13 @@ export interface DesignPathContext {
 	attachmentIndex?: DesignAttachmentIndex | null
 }
 
-export interface ResolveDesignAttachmentMatch {
+interface ResolveDesignAttachmentMatch {
 	fileItem: FileItem
 	resolvedPath: string
 	normalizedPath: string
 }
 
-export type DesignPathOperationResolution =
+type DesignPathOperationResolution =
 	| {
 			status: "found"
 			resolvedPath: string
@@ -60,9 +50,7 @@ export type DesignPathOperationResolution =
 			candidates: ResolvedPathCandidate[]
 	  }
 
-export type ResolveDesignAttachmentCandidateResult = FileItemLookupResult
-
-export type ResolveDesignAttachmentResult =
+type ResolveDesignAttachmentResult =
 	| {
 			status: "found"
 			fileItem: FileItem
@@ -148,7 +136,7 @@ function toAttachmentMatches(matches: CandidateMatch[]): ResolveDesignAttachment
  * 写入 magic.project.js / Canvas storage 的路径。
  * 当前画布资源统一收口为 `./images|videos|audios/...`，其他工作区资源使用 `/...`。
  */
-export function toDesignDslPath(rawPath: string, ctx: DesignPathContext = {}): string {
+function toDesignDslPath(rawPath: string, ctx: DesignPathContext = {}): string {
 	return normalizeDesignStoragePathForCanvas(rawPath, ctx.designProjectBasePath)
 }
 
@@ -169,19 +157,10 @@ export function toDesignDslPathFromWorkspacePath(
 }
 
 /**
- * 与附件树 `relative_file_path` 对齐的 workspace-relative 路径。
- */
-export function toWorkspaceRelativePath(rawPath: string, ctx: DesignPathContext = {}): string {
-	const strictCandidates = getStrictCurrentCanvasWorkspaceCandidates(rawPath, ctx)
-	if (strictCandidates.length > 0) return strictCandidates[0]
-	return resolveDesignDslPathToWorkspaceRelative(rawPath, ctx.designProjectBasePath)
-}
-
-/**
  * 与附件树 `relative_file_path` 对齐的候选路径。
  *
- * strict-current-canvas 下，`./images/a.png` 与历史 `images/a.png` 只解析到当前画布目录。
- * legacy-recovery 才展开历史多候选，供旧数据恢复入口显式使用。
+ * strict-current-canvas 只接受显式 `./images/a.png` 当前画布路径。
+ * 历史裸 `images/a.png` 必须进入 legacy-recovery，由附件证据决定实际归属。
  */
 export function toWorkspaceRelativeCandidates(
 	rawPath: string,
@@ -190,71 +169,11 @@ export function toWorkspaceRelativeCandidates(
 ): string[] {
 	const mode = options?.mode ?? "strict-current-canvas"
 	if (mode === "strict-current-canvas") {
+		if (isLegacyBareDesignResourcePath(rawPath)) return []
 		const strictCandidates = getStrictCurrentCanvasWorkspaceCandidates(rawPath, ctx)
 		if (strictCandidates.length > 0) return strictCandidates
 	}
 	return resolveDesignDslPathCandidatesToWorkspaceRelative(rawPath, ctx.designProjectBasePath)
-}
-
-export function getResolvedPathCandidates(
-	rawPath: string,
-	designProjectBasePath?: string,
-): ResolvedPathCandidate[] {
-	return toResolvedPathCandidates(
-		toWorkspaceRelativeCandidates(rawPath, {
-			designProjectBasePath,
-		}),
-	)
-}
-
-/**
- * 请求后端时使用的 workspace absolute API 路径，形如 `/画布/images/a.png`。
- */
-export function toWorkspaceAbsoluteApiPath(
-	rawPath: string,
-	ctx: DesignPathContext = {},
-	options?: {
-		mode?: DesignPathMode
-		ensureTrailingSlash?: boolean
-		pathExists?: (workspaceRelativePath: string) => boolean
-	},
-): string {
-	const mode = options?.mode ?? "strict-current-canvas"
-	if (mode === "strict-current-canvas") {
-		const strictCandidates = getStrictCurrentCanvasWorkspaceCandidates(rawPath, ctx)
-		const strictCandidate = strictCandidates[0]
-		if (strictCandidate) {
-			let absolutePath = `/${normalizeWorkspacePathKey(strictCandidate)}`
-			if (options?.ensureTrailingSlash && !absolutePath.endsWith("/")) {
-				absolutePath = `${absolutePath}/`
-			}
-			return absolutePath
-		}
-	}
-
-	return resolveDesignDslPathToWorkspaceAbsoluteByCandidates(rawPath, ctx.designProjectBasePath, {
-		ensureTrailingSlash: options?.ensureTrailingSlash,
-		pathExists:
-			options?.pathExists ??
-			(ctx.flatAttachments
-				? createDesignWorkspacePathExists(ctx.flatAttachments)
-				: undefined),
-	})
-}
-
-/**
- * 仍要求无前导 `/` 的设计接口参数。
- */
-export function toDesignApiPath(
-	rawPath: string,
-	ctx: DesignPathContext = {},
-	options?: { ensureTrailingSlash?: boolean },
-): string {
-	return normalizeDesignApiPath(rawPath, ctx.designProjectBasePath, options)
-}
-
-export function isRelativeDesignPath(rawPath: string): boolean {
-	return isRelativeDesignDslPath(rawPath)
 }
 
 /**
@@ -271,7 +190,6 @@ export function resolveDesignAttachment(
 
 	const matches = collectAttachmentMatchesAmongCandidates(
 		candidates,
-		rawPath,
 		ctx.flatAttachments ?? [],
 		ctx.attachmentIndex,
 	)
@@ -315,8 +233,11 @@ export function resolveDesignPathForOperation(
 		}
 	}
 
-	const hasAttachmentContext = Boolean(ctx.attachmentIndex || ctx.flatAttachments?.length)
-	if (!hasAttachmentContext && ctx.attachmentsReady !== true) {
+	const attachmentsReady =
+		ctx.attachmentsReady !== undefined
+			? ctx.attachmentsReady
+			: Array.isArray(ctx.flatAttachments)
+	if (!attachmentsReady) {
 		return { status: "attachments-pending", candidates }
 	}
 
@@ -332,83 +253,6 @@ export function resolveDesignPathForOperation(
 	}
 
 	return { status: resolved.status, candidates }
-}
-
-/**
- * 仅供文件型 API 参数调用。目录仍保留显式当前画布语义，不能用附件文件列表推断。
- */
-export function toWorkspaceAbsoluteApiPathForOperation(
-	rawPath: string,
-	ctx: DesignPathContext & { attachmentsReady?: boolean } = {},
-	options?: { ensureTrailingSlash?: boolean },
-): string | null {
-	// 带尾斜杠的是目录参数；附件索引只表达文件存在性，不能拿它猜目录位置。
-	if (!isLegacyBareDesignResourcePath(rawPath) || options?.ensureTrailingSlash) {
-		return toWorkspaceAbsoluteApiPath(rawPath, ctx, options)
-	}
-
-	const resolved = resolveDesignPathForOperation(rawPath, ctx)
-	if (resolved.status !== "found") return null
-	if (isRemoteOrSpecialPath(resolved.resolvedPath)) return resolved.resolvedPath
-
-	let absolutePath = `/${stripPathEdgeSlashes(resolved.resolvedPath)}`
-	if (options?.ensureTrailingSlash && !absolutePath.endsWith("/")) {
-		absolutePath = `${absolutePath}/`
-	}
-	return absolutePath
-}
-
-export function resolveDesignAttachmentForNormalizedPath(
-	normalizedPath: string,
-	rawPath: string,
-	ctx: DesignPathContext = {},
-): FileItem | null {
-	return lookupAttachmentForSingleNormalizedPathInternal(
-		normalizedPath,
-		rawPath,
-		ctx.flatAttachments ?? [],
-		ctx.attachmentIndex,
-	)
-}
-
-export function resolveDesignAttachmentFromCandidates(
-	candidates: ResolvedPathCandidate[],
-	rawPath: string,
-	ctx: DesignPathContext = {},
-): ResolveDesignAttachmentCandidateResult | null {
-	return lookupAttachmentAmongCandidatesInternal(
-		candidates,
-		rawPath,
-		ctx.flatAttachments ?? [],
-		ctx.attachmentIndex,
-	)
-}
-
-export function getDesignPathFileName(rawPath: string): string {
-	const trimmed = rawPath.trim()
-	if (!trimmed) return ""
-	const withoutQuery = trimmed.split(/[?#]/)[0] ?? ""
-	const pathname = (() => {
-		try {
-			return new URL(withoutQuery).pathname
-		} catch {
-			return withoutQuery
-		}
-	})()
-	return pathname.replace(/\\/g, "/").split("/").pop() ?? ""
-}
-
-export function isCurrentCanvasResourcePath(rawPath: string, ctx: DesignPathContext = {}): boolean {
-	const trimmed = rawPath.trim()
-	if (!trimmed || isRemoteOrSpecialPath(trimmed)) return false
-	if (isDesignDslCanvasRelativeResourcePath(trimmed)) return true
-
-	const base = normalizeWorkspacePathKey(ctx.designProjectBasePath || "")
-	if (!base) return false
-	const normalizedPath = normalizeWorkspacePathKey(trimmed)
-	if (!normalizedPath.startsWith(`${base}/`)) return false
-	const resourcePath = normalizedPath.slice(base.length + 1)
-	return isDesignDslCanvasRelativeResourcePath(resourcePath)
 }
 
 export function toDesignProjectBasePath(

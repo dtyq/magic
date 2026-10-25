@@ -38,6 +38,87 @@ class ProviderModelPricingTemplateAppServiceTest extends TestCase
         );
     }
 
+    public function testVolcengineArkVideoTemplateIncludes4kTokenObjects(): void
+    {
+        $config = require dirname(__DIR__, 5) . '/config/autoload/provider_model_pricing_templates.php';
+        $template = null;
+        foreach ($config['templates'] as $item) {
+            if ($item['code'] === BillingType::VolcengineArkVideoResolutionReferenceVideoTokenMatrix->value) {
+                $template = $item;
+                break;
+            }
+        }
+
+        self::assertIsArray($template);
+        $billingObjects = array_column($template['items'], 'billing_object');
+        self::assertContains(BillingObject::videoToken('4k')->value, $billingObjects);
+        self::assertContains(BillingObject::videoTokenCost('4k')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoToken('4k')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoTokenCost('4k')->value, $billingObjects);
+    }
+
+    public function testDashScopeWanUsesAliyunWanDurationTemplate(): void
+    {
+        $config = require dirname(__DIR__, 5) . '/config/autoload/provider_model_pricing_templates.php';
+        $service = new ProviderModelPricingTemplateAppService($config);
+
+        $templates = $service->queries(Category::VGM, ProviderCode::DashScope, 'wan3.0-video');
+
+        self::assertSame([
+            BillingType::AliyunWanVideoDurationPricing->value,
+        ], array_column($templates, 'code'));
+        self::assertContains([
+            'provider_code' => ProviderCode::DashScope->value,
+            'category' => Category::VGM->value,
+            'template_codes' => [BillingType::AliyunWanVideoDurationPricing->value],
+        ], $config['provider_templates']);
+
+        $billingObjects = array_column($templates[0]['items'], 'billing_object');
+        self::assertCount(12, $billingObjects);
+        self::assertContains(BillingObject::videoDuration('480p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoDurationCost('480p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoDuration('480p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoDurationCost('480p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoDuration('720p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoDurationCost('720p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoDuration('720p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoDurationCost('720p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoDuration('1080p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoDurationCost('1080p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoDuration('1080p')->value, $billingObjects);
+        self::assertContains(BillingObject::videoReferenceVideoDurationCost('1080p')->value, $billingObjects);
+
+        self::assertSame(
+            [BillingType::AliyunWanVideoDurationPricing->value],
+            array_column($service->queries(Category::VGM, ProviderCode::DashScope, 'wan3.0-video-prime'), 'code')
+        );
+    }
+
+    public function testGeminiOmniUsesDedicatedTokenTemplate(): void
+    {
+        $config = require dirname(__DIR__, 5) . '/config/autoload/provider_model_pricing_templates.php';
+        $service = new ProviderModelPricingTemplateAppService($config);
+
+        $templates = $service->queries(Category::VGM, ProviderCode::Gemini, 'gemini-omni-1.1-flash');
+
+        self::assertSame([BillingType::GeminiOmniVideoTokensPricing->value], array_column($templates, 'code'));
+        $billingObjects = array_column($templates[0]['items'], 'billing_object');
+        self::assertSame([
+            BillingObject::INPUT_TOKEN,
+            BillingObject::INPUT_COST,
+            BillingObject::OUTPUT_TOKEN,
+            BillingObject::OUTPUT_COST,
+            BillingObject::THOUGHT_TOKEN,
+            BillingObject::THOUGHT_TOKEN_COST,
+            BillingObject::videoToken('default')->value,
+            BillingObject::videoTokenCost('default')->value,
+        ], $billingObjects);
+        self::assertSame(
+            [BillingType::GeminiOmniVideoTokensPricing->value],
+            array_column($service->queries(Category::VGM, ProviderCode::Gemini), 'code')
+        );
+    }
+
     public function testQueriesFallsBackToCategoryDefaultsWhenProviderTemplateMissing(): void
     {
         $service = new ProviderModelPricingTemplateAppService($this->templatesConfig());
@@ -56,6 +137,25 @@ class ProviderModelPricingTemplateAppServiceTest extends TestCase
 
         self::assertCount(1, $templates);
         self::assertSame(BillingType::Seedream5ProImage->value, $templates[0]['code']);
+    }
+
+    public function testGeminiImageTokenTemplateLabelsDescribeTextUsage(): void
+    {
+        $config = require dirname(__DIR__, 5) . '/config/autoload/provider_model_pricing_templates.php';
+        $template = null;
+        foreach ($config['templates'] as $item) {
+            if ($item['code'] === BillingType::ImageTokensWithThought->value) {
+                $template = $item;
+                break;
+            }
+        }
+
+        self::assertIsArray($template);
+        $labels = array_column($template['items'], 'label', 'billing_object');
+        self::assertSame('文本输入 Token', $labels[BillingObject::IMAGE_INPUT_TOKEN]);
+        self::assertSame('文本输入 Token 成本', $labels[BillingObject::IMAGE_INPUT_TOKEN_COST]);
+        self::assertSame('文本｜思考输出 Token', $labels[BillingObject::THOUGHT_TOKEN]);
+        self::assertSame('文本｜思考输出 Token 成本', $labels[BillingObject::THOUGHT_TOKEN_COST]);
     }
 
     public function testQueriesSkipsModelSpecificTemplateWhenModelIdMissing(): void

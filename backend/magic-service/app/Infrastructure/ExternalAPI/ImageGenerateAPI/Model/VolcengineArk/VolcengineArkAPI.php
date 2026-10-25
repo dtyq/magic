@@ -18,7 +18,7 @@ class VolcengineArkAPI
 {
     use ImagePayloadLogSanitizerTrait;
 
-    protected const REQUEST_TIMEOUT = 300;
+    protected const REQUEST_TIMEOUT = 1200;
 
     protected const API_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
 

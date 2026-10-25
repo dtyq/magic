@@ -1,5 +1,8 @@
 import Konva from "konva"
-import type { RectangleElement as RectangleElementData } from "../../document/types"
+import type {
+	RectangleElement as RectangleElementData,
+	ShapeElementContent,
+} from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
 import { BaseElement } from "../core/BaseElement"
 import type { Canvas } from "../../core/Canvas"
@@ -49,19 +52,27 @@ export class RectangleElement extends BaseElement<RectangleElementData> {
 			width,
 			height,
 			zIndex,
-			fill: defaultConfig.fill,
-			cornerRadius: defaultConfig.cornerRadius,
+			activeContentId: `${id}-content-1`,
+			mainContentId: `${id}-content-1`,
+			contents: [
+				{
+					contentId: `${id}-content-1`,
+					fill: defaultConfig.fill,
+					cornerRadius: defaultConfig.cornerRadius,
+				},
+			],
 		}
 	}
 
 	render(): Konva.Rect {
+		const content = this.getActiveContent<ShapeElementContent>()
 		const rect = new Konva.Rect({
 			width: this.data.width,
 			height: this.data.height,
-			fill: this.data.fill,
-			stroke: this.data.stroke,
-			strokeWidth: this.data.strokeWidth,
-			cornerRadius: this.data.cornerRadius,
+			fill: content?.fill,
+			stroke: content?.stroke,
+			strokeWidth: content?.strokeWidth,
+			cornerRadius: content?.cornerRadius,
 		})
 
 		this.finalizeNode(rect)
@@ -69,6 +80,7 @@ export class RectangleElement extends BaseElement<RectangleElementData> {
 	}
 
 	update(newData: RectangleElementData): boolean {
+		const content = this.getActiveContent<ShapeElementContent>(newData)
 		this.data = newData
 
 		// 矩形元素不需要重新渲染，所有属性都可以通过 setAttrs 更新
@@ -80,10 +92,10 @@ export class RectangleElement extends BaseElement<RectangleElementData> {
 			this.node.setAttrs({
 				width: newData.width,
 				height: newData.height,
-				fill: newData.fill,
-				stroke: newData.stroke,
-				strokeWidth: newData.strokeWidth,
-				cornerRadius: newData.cornerRadius,
+				fill: content?.fill,
+				stroke: content?.stroke,
+				strokeWidth: content?.strokeWidth,
+				cornerRadius: content?.cornerRadius,
 			})
 		}
 

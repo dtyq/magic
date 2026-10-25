@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\MagicBase\Support;
 
+use App\Application\SuperMagic\Project\Service\PublishedMicroAppFileAccessService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\MagicBase\Entity\MagicBaseColumnEntity;
@@ -41,6 +42,7 @@ readonly class MagicBaseAccessControl
         private ProjectMemberDomainService $projectMemberDomainService,
         private MagicDepartmentUserDomainService $departmentUserDomainService,
         private MicroAppRepositoryInterface $microAppRepository,
+        private PublishedMicroAppFileAccessService $publishedMicroAppFileAccessService,
     ) {
     }
 
@@ -55,12 +57,63 @@ readonly class MagicBaseAccessControl
     public function requireReadableTable(MagicUserAuthorization $authorization, int $projectId, int $tableId): MagicBaseTableAccessContext
     {
         $this->requireReadableProject($authorization, $projectId);
-        return $this->loadTableContext($authorization, $projectId, $tableId);
+        $context = $this->loadTableContext($authorization, $projectId, $tableId);
+        if (! $this->canReadTable($context)) {
+            $this->forbidden('magicbase.table_read_denied');
+        }
+        return $context;
+    }
+
+    public function canReadTable(MagicBaseTableAccessContext $context): bool
+    {
+        return $this->permissionDomainService->canReadTable(
+            $context->getActor(),
+            $context->getTable(),
+            $context->getAccess()->getTablePermissions(),
+            $context->getAccess()->isManager()
+        );
+    }
+
+    public function filterReadableTables(MagicUserAuthorization $authorization, int $projectId, MagicBaseEntityCollection $tables): MagicBaseEntityCollection
+    {
+        $actor = $this->buildActorContext($authorization, $projectId);
+        $projectAdmins = $this->metadataDomainService->listProjectAdmins($authorization->getOrganizationCode(), $projectId);
+        $projectManager = $this->hasProjectDataAdminRole($authorization, $projectId);
+        $readable = [];
+        foreach ($tables as $table) {
+            if (! $table instanceof MagicBaseTableEntity) {
+                continue;
+            }
+            $tableId = (int) $table->getId();
+            $permissions = $this->metadataDomainService->listTablePermissions($authorization->getOrganizationCode(), $tableId);
+            $admins = $this->metadataDomainService->listTableAdmins($authorization->getOrganizationCode(), $tableId);
+            $manager = $projectManager || $this->permissionDomainService->isManager($actor, $projectAdmins, $admins, $permissions);
+            if ($this->permissionDomainService->canReadTable($actor, $this->enrichTableScope($table), $permissions, $manager)) {
+                $readable[] = $table;
+            }
+        }
+        return new MagicBaseEntityCollection($readable);
     }
 
     public function requireInsertableTable(MagicUserAuthorization $authorization, int $projectId, int $tableId): MagicBaseTableAccessContext
     {
-        return $this->requireWritableTable($authorization, $projectId, $tableId);
+        $context = $this->requireDataWritableTable($authorization, $projectId, $tableId);
+        if (! $this->permissionDomainService->canInsertTable(
+            $context->getActor(),
+            $context->getTable(),
+            $context->getAccess()->getTablePermissions(),
+            $context->getAccess()->isManager()
+        )) {
+            $this->forbidden('magicbase.row_insert_denied');
+        }
+        return $context;
+    }
+
+    /** 业务数据写入可使用发布授权；表结构和权限管理仍要求协作角色。 */
+    public function requireDataWritableTable(MagicUserAuthorization $authorization, int $projectId, int $tableId): MagicBaseTableAccessContext
+    {
+        $this->requireProjectRole($authorization, $projectId, MemberRole::EDITOR, 'magicbase.project_data_access_denied', true);
+        return $this->loadTableContext($authorization, $projectId, $tableId);
     }
 
     public function requireWritableTable(MagicUserAuthorization $authorization, int $projectId, int $tableId): MagicBaseTableAccessContext
@@ -95,17 +148,17 @@ readonly class MagicBaseAccessControl
 
     public function requireReadableProject(MagicUserAuthorization $authorization, int $projectId): void
     {
-        $this->requireProjectRole($authorization, $projectId, MemberRole::VIEWER, '无项目访问权限');
+        $this->requireProjectRole($authorization, $projectId, MemberRole::VIEWER, 'magicbase.project_access_denied', true);
     }
 
     public function requireWritableProject(MagicUserAuthorization $authorization, int $projectId): void
     {
-        $this->requireProjectRole($authorization, $projectId, MemberRole::EDITOR, '无项目编辑权限');
+        $this->requireProjectRole($authorization, $projectId, MemberRole::EDITOR, 'magicbase.project_edit_denied');
     }
 
     public function requireManageableProject(MagicUserAuthorization $authorization, int $projectId): void
     {
-        $this->requireProjectRole($authorization, $projectId, MemberRole::MANAGE, '无项目管理权限');
+        $this->requireProjectRole($authorization, $projectId, MemberRole::MANAGE, 'magicbase.project_manage_denied');
     }
 
     public function requireReadableRow(MagicUserAuthorization $authorization, MagicBaseTableAccessContext $context, int $recordId): MagicBaseRowEntity
@@ -118,7 +171,7 @@ readonly class MagicBaseAccessControl
             $context->getAccess()->getRowPermissions((int) $row->getRecordId()),
             $context->getAccess()->isManager()
         )) {
-            $this->forbidden('无记录读取权限');
+            $this->forbidden('magicbase.row_read_denied');
         }
         return $row;
     }
@@ -133,7 +186,7 @@ readonly class MagicBaseAccessControl
             $context->getAccess()->getRowPermissions((int) $row->getRecordId()),
             $context->getAccess()->isManager()
         )) {
-            $this->forbidden('无记录编辑权限');
+            $this->forbidden('magicbase.row_edit_denied');
         }
         return $row;
     }
@@ -148,7 +201,7 @@ readonly class MagicBaseAccessControl
             $context->getAccess()->getRowPermissions((int) $row->getRecordId()),
             $context->getAccess()->isManager()
         )) {
-            $this->forbidden('无记录删除权限');
+            $this->forbidden('magicbase.row_delete_denied');
         }
         return $row;
     }
@@ -170,7 +223,7 @@ readonly class MagicBaseAccessControl
                 $context->getAccess()->getColumnPermissions((int) $column->getId()),
                 $context->getAccess()->isManager()
             )) {
-                $this->forbidden('无字段编辑权限');
+                $this->forbidden('magicbase.column_edit_denied');
             }
         }
     }
@@ -323,9 +376,10 @@ readonly class MagicBaseAccessControl
         int $projectId,
         MemberRole $requiredRole,
         string $deniedMessage,
+        bool $allowRuntimeAccess = false,
     ): ProjectEntity {
         $project = $this->getProjectOrFail($projectId);
-        if (MagicBaseRuntimeProjectAccessContext::hasShareAccess($projectId)) {
+        if ($allowRuntimeAccess && MagicBaseRuntimeProjectAccessContext::hasShareAccess($projectId)) {
             return $project;
         }
         if (! $this->isSameOrganization($authorization, $project)) {
@@ -346,6 +400,16 @@ readonly class MagicBaseAccessControl
             if ($departmentMember->getRole()->isHigherOrEqualThan($requiredRole)) {
                 return $project;
             }
+        }
+
+        // 发布授权只用于应用数据操作，不转换为协作者或管理员。
+        if ($allowRuntimeAccess
+            && $this->publishedMicroAppFileAccessService->canAccessProject(
+                $projectId,
+                $authorization->getId(),
+                $authorization->getOrganizationCode()
+            )) {
+            return $project;
         }
 
         $this->forbidden($deniedMessage);

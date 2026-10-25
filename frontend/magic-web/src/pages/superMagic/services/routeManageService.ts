@@ -4,6 +4,7 @@ import type { ViewTransitionConfig } from "@/types/viewTransition"
 import { getWorkspaceStateSessionStorageKey } from "../utils/sessionStorage"
 import { ProjectListItem } from "../pages/Workspace/types"
 import { isOtherCollaborationProject, SHARE_WORKSPACE_ID } from "../constants"
+import { isAiCanvasProject } from "../utils/isAiCanvasProject"
 import { userStore } from "@/models/user"
 import { routesMatch, routesPathMatch } from "@/routes/history/helpers"
 import { baseHistory, history } from "@/routes/history"
@@ -26,6 +27,7 @@ export interface NavigateToStateParams {
 	workspaceId?: string | null
 	projectId?: string | null
 	topicId?: string | null
+	state?: Record<string, unknown> | null
 	viewTransition?: boolean | ViewTransitionConfig
 }
 
@@ -118,6 +120,50 @@ class RouteManageService {
 			default:
 				return baseRoute
 		}
+	}
+
+	/**
+	 * Whether the project opens at the AI canvas address (desktop only). The mode comes from the
+	 * given project or the loaded project lists; an unknown project keeps the generic route, and
+	 * the project pages redirect it once its details load.
+	 */
+	private isAiCanvasRouteProject(projectId?: string | null, project?: ProjectListItem | null) {
+		if (interfaceStore.isMobile || !projectId) return false
+
+		const target =
+			(project?.id === projectId ? project : null) ??
+			(projectStore.selectedProject?.id === projectId
+				? projectStore.selectedProject
+				: null) ??
+			projectStore.projects.find((item) => item.id === projectId) ??
+			Array.from(projectStore.projectsByWorkspace.values())
+				.flat()
+				.find((item) => item.id === projectId)
+
+		return isAiCanvasProject(target)
+	}
+
+	/**
+	 * AI canvas addresses carry no topic, so switching topics inside the same canvas keeps the
+	 * URL: navigating to the address already shown would only stack a duplicate history entry.
+	 */
+	private navigateToAiCanvasProject(
+		projectId: string,
+		options: Pick<MagicNavigateParams, "state" | "replace" | "viewTransition"> = {},
+	) {
+		const match = routesMatch(baseHistory.location.pathname)
+		if (
+			match?.route.name === RouteName.AiCanvasProjectState &&
+			match.params?.projectId === projectId
+		) {
+			return
+		}
+
+		this.safeNavigate({
+			name: RouteName.AiCanvasProjectState,
+			params: { projectId },
+			...options,
+		})
 	}
 
 	/**
@@ -267,6 +313,7 @@ class RouteManageService {
 		workspaceId,
 		projectId,
 		topicId,
+		state,
 		viewTransition = false,
 	}: NavigateToStateParams) => {
 		if (isUndefined(workspaceId) && isUndefined(projectId) && isUndefined(topicId)) return
@@ -281,6 +328,7 @@ class RouteManageService {
 
 		// 2. 如果传入的参数与当前路由参数相同，则不进行任何操作
 		if (
+			state === undefined &&
 			workspaceId == param_workspaceId &&
 			projectId == param_projectId &&
 			topicId == param_topicId
@@ -323,7 +371,17 @@ class RouteManageService {
 			)
 
 			// 移动端，话题通过 popup 显示，不需要跳转，更新 store 即可
-			if (!interfaceStore.isMobile) {
+			if (
+				!interfaceStore.isMobile &&
+				!this.shouldPreserveChatRoute(superMagicWorkspaceState.projectId) &&
+				this.isAiCanvasRouteProject(superMagicWorkspaceState.projectId)
+			) {
+				this.navigateToAiCanvasProject(superMagicWorkspaceState.projectId, {
+					state,
+					viewTransition: param_topicId ? false : viewTransition,
+					replace: !!param_topicId,
+				})
+			} else if (!interfaceStore.isMobile) {
 				// Keep chat URL only while updating the same chat project, not when switching contexts.
 				const chatRouteName = this.shouldPreserveChatRoute(
 					superMagicWorkspaceState.projectId,
@@ -337,12 +395,23 @@ class RouteManageService {
 						projectId: superMagicWorkspaceState.projectId,
 						topicId: superMagicWorkspaceState.topicId,
 					},
+					state,
 					viewTransition: param_topicId ? false : viewTransition,
 					replace: !!param_topicId,
 				})
 			}
 
 			// 5.2 工作区存在，项目存在，话题不存在
+		} else if (
+			superMagicWorkspaceState.workspaceId &&
+			superMagicWorkspaceState.projectId &&
+			!this.shouldPreserveChatRoute(superMagicWorkspaceState.projectId) &&
+			this.isAiCanvasRouteProject(superMagicWorkspaceState.projectId)
+		) {
+			this.navigateToAiCanvasProject(superMagicWorkspaceState.projectId, {
+				state,
+				viewTransition,
+			})
 		} else if (superMagicWorkspaceState.workspaceId && superMagicWorkspaceState.projectId) {
 			const projectRouteName = this.shouldPreserveChatRoute(
 				superMagicWorkspaceState.projectId,
@@ -355,6 +424,7 @@ class RouteManageService {
 				params: {
 					projectId: superMagicWorkspaceState.projectId,
 				},
+				state,
 				viewTransition,
 				replace: false,
 			})
@@ -366,6 +436,7 @@ class RouteManageService {
 					query: {
 						tab: MobileTabParam.Super,
 					},
+					state,
 					viewTransition,
 					replace: false,
 				})
@@ -375,6 +446,7 @@ class RouteManageService {
 					params: {
 						workspaceId: superMagicWorkspaceState.workspaceId,
 					},
+					state,
 					viewTransition,
 					replace: false,
 				})
@@ -388,10 +460,12 @@ class RouteManageService {
 					query: {
 						tab: MobileTabParam.Super,
 					},
+					state,
 				})
 			} else {
 				this.safeNavigate({
 					name: this.getRouteName(RouteName.Super),
+					state,
 					viewTransition,
 					replace: false,
 				})
@@ -426,7 +500,7 @@ class RouteManageService {
 		return ProjectTopicMapCache.get(userInfo, projectId)
 	}
 
-	navigateToHome(replace?: boolean) {
+	navigateToHome(replace?: boolean, query?: Record<string, string>) {
 		// 更新缓存：清空所有状态
 		const userInfo = userStore.user.userInfo
 		WorkspaceStateCache.set(userInfo, {
@@ -435,16 +509,19 @@ class RouteManageService {
 			topicId: null,
 		})
 		UserWorkspaceMapCache.set(userInfo, null)
+		const queryProps = query && Object.keys(query).length > 0 ? { query } : {}
 
 		if (interfaceStore.isMobile) {
 			this.safeNavigate({
 				name: RouteName.MobileHome,
+				...queryProps,
 				viewTransition: false,
 				replace,
 			})
 		} else {
 			this.safeNavigate({
 				name: this.getRouteName(RouteName.Super),
+				...queryProps,
 				viewTransition: false,
 				replace,
 			})
@@ -506,8 +583,9 @@ class RouteManageService {
 	/**
 	 * Navigate to workspace page
 	 * @param workspaceId Workspace ID
+	 * @param query Search params that must survive the navigation (for example agentCode)
 	 */
-	navigateToWorkspace(workspaceId: string, replace?: boolean) {
+	navigateToWorkspace(workspaceId: string, replace?: boolean, query?: Record<string, string>) {
 		const { workspaceId: param_workspaceId, projectId: param_projectId } =
 			this.getCurrentRouteParams()
 
@@ -538,6 +616,7 @@ class RouteManageService {
 			this.safeNavigate({
 				name: RouteName.MobileTabs,
 				query: {
+					...query,
 					tab: currentTab,
 				},
 				viewTransition,
@@ -549,6 +628,7 @@ class RouteManageService {
 				params: {
 					workspaceId,
 				},
+				...(query && Object.keys(query).length > 0 ? { query } : {}),
 				viewTransition,
 				replace,
 			})
@@ -571,6 +651,11 @@ class RouteManageService {
 				projectId: project.id,
 			})
 			baseHistory.replace(targetPath)
+		} else if (this.isAiCanvasRouteProject(project.id, project)) {
+			this.navigateToAiCanvasProject(project.id, {
+				viewTransition: { direction: "right" },
+				replace: true,
+			})
 		} else {
 			this.safeNavigate({
 				name: this.getRouteName(RouteName.SuperWorkspaceProjectState),
@@ -585,7 +670,11 @@ class RouteManageService {
 		}
 	}
 
-	navigateToProject(project: ProjectListItem, replace?: boolean) {
+	navigateToProject(
+		project: ProjectListItem,
+		replace?: boolean,
+		state?: Record<string, unknown> | null,
+	) {
 		const { workspaceId: param_workspaceId, projectId: param_projectId } =
 			this.getCurrentRouteParams()
 
@@ -633,17 +722,44 @@ class RouteManageService {
 		// 		replace,
 		// 	})
 		// }
+		if (this.isAiCanvasRouteProject(project.id, project)) {
+			this.navigateToAiCanvasProject(project.id, { viewTransition, state, replace })
+			return
+		}
+
 		this.safeNavigate({
 			name: this.getRouteName(RouteName.SuperWorkspaceProjectState),
 			params: {
 				projectId: project.id,
 			},
 			viewTransition,
+			state,
 			replace,
 		})
 	}
 
-	navigateToChatProject(project: ProjectListItem, topicId?: string, replace?: boolean) {
+	navigateToClawPlayground(clawCode: string, replace?: boolean) {
+		this.safeNavigate({
+			name: RouteName.ClawPlayground,
+			params: { code: clawCode },
+			replace,
+		})
+	}
+
+	navigateToMicroApp(appId: string, replace?: boolean) {
+		this.safeNavigate({
+			name: RouteName.MicroApp,
+			params: { appId },
+			replace,
+		})
+	}
+
+	navigateToChatProject(
+		project: ProjectListItem,
+		topicId?: string,
+		replace?: boolean,
+		state?: Record<string, unknown> | null,
+	) {
 		const targetTopicId = topicId || undefined
 		const currentParams = this.getCurrentRouteParams()
 		const currentRouteName = this.getCurrentMatchedRouteName()
@@ -693,11 +809,16 @@ class RouteManageService {
 				topicId: targetTopicId,
 			},
 			viewTransition,
+			state,
 			replace: shouldReplace,
 		})
 	}
 
-	navigateToCollaborationProject(project: ProjectListItem, replace?: boolean) {
+	navigateToCollaborationProject(
+		project: ProjectListItem,
+		replace?: boolean,
+		state?: Record<string, unknown> | null,
+	) {
 		const {
 			workspaceId: param_workspaceId,
 			projectId: param_projectId,
@@ -729,6 +850,7 @@ class RouteManageService {
 				projectId: project.id,
 			},
 			viewTransition,
+			state,
 			replace,
 		})
 	}
@@ -786,11 +908,13 @@ class RouteManageService {
 		projectId,
 		topicId,
 		replace = false,
+		state,
 	}: {
 		workspaceId: string
 		projectId: string
 		topicId: string
 		replace?: boolean
+		state?: Record<string, unknown> | null
 	}) {
 		// 更新缓存：完整状态（工作区 + 项目 + 话题）
 		const userInfo = userStore.user.userInfo
@@ -842,12 +966,13 @@ class RouteManageService {
 				params: {
 					projectId,
 				},
+				state,
 				replace,
 			})
 		} else if (this.shouldPreserveChatRoute(projectId)) {
 			const currentProject = projectStore.selectedProject
 			if (currentProject?.id === projectId) {
-				this.navigateToChatProject(currentProject, topicId, replace)
+				this.navigateToChatProject(currentProject, topicId, replace, state)
 				return
 			}
 
@@ -857,8 +982,11 @@ class RouteManageService {
 					projectId,
 					topicId,
 				},
+				state,
 				replace,
 			})
+		} else if (this.isAiCanvasRouteProject(projectId)) {
+			this.navigateToAiCanvasProject(projectId, { state, replace })
 		} else {
 			this.safeNavigate({
 				name: this.getRouteName(RouteName.SuperWorkspaceProjectTopicState),
@@ -866,6 +994,7 @@ class RouteManageService {
 					projectId,
 					topicId,
 				},
+				state,
 				replace,
 			})
 		}
@@ -883,6 +1012,9 @@ class RouteManageService {
 		// redirecting away from non-workspace routes (e.g. /market/crew).
 		if (!this.isSuperRoute()) return
 		if (interfaceStore.isMobile && this.isCurrentMobileHomeRoute()) return
+		// Keep the deep-link query until the homepage hook has resolved access and
+		// hired the employee; rewriting the route here would erase the request first.
+		if (new URLSearchParams(baseHistory.location.search).has("agentCode")) return
 
 		const currentWorkspace = workspaceStore.selectedWorkspace
 		const currentProject = projectStore.selectedProject
@@ -935,7 +1067,8 @@ class RouteManageService {
 			match?.route.name === RouteName.SuperWorkspaceState ||
 			match?.route.name === RouteName.SuperChatProjectState ||
 			match?.route.name === RouteName.SuperWorkspaceProjectState ||
-			match?.route.name === RouteName.SuperWorkspaceProjectTopicState
+			match?.route.name === RouteName.SuperWorkspaceProjectTopicState ||
+			match?.route.name === RouteName.AiCanvasProjectState
 		)
 	}
 }

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react"
 import type { FolderConflictInfo } from "../utils/folderConflictHandler"
 
-type FolderConflictChoice = "keep-both" | "merge" | "cancel"
+type FolderConflictChoice = "keep-both" | "replace" | "merge" | "cancel"
 
 export function useFolderConflictHandler() {
 	const [modalVisible, setModalVisible] = useState(false)
@@ -11,8 +11,10 @@ export function useFolderConflictHandler() {
 	const [conflictsMap, setConflictsMap] = useState<Map<string, FolderConflictInfo>>(new Map())
 	const [currentIndex, setCurrentIndex] = useState(0)
 	const [keepBothIds, setKeepBothIds] = useState<string[]>([])
+	const [replaceIds, setReplaceIds] = useState<string[]>([])
 	const resolveRef = useRef<
-		((value: { keepBothIds: string[]; shouldProceed: boolean }) => void) | null
+		| ((value: { keepBothIds: string[]; replaceIds: string[]; shouldProceed: boolean }) => void)
+		| null
 	>(null)
 
 	const reset = useCallback(() => {
@@ -23,6 +25,7 @@ export function useFolderConflictHandler() {
 		setConflictsMap(new Map())
 		setCurrentIndex(0)
 		setKeepBothIds([])
+		setReplaceIds([])
 	}, [])
 
 	const showConflictAtIndex = useCallback(
@@ -42,10 +45,14 @@ export function useFolderConflictHandler() {
 	const checkConflicts = useCallback(
 		(
 			conflicts: Map<string, FolderConflictInfo>,
-		): Promise<{ keepBothIds: string[]; shouldProceed: boolean }> => {
+		): Promise<{
+			keepBothIds: string[]
+			replaceIds: string[]
+			shouldProceed: boolean
+		}> => {
 			return new Promise((resolve) => {
 				if (conflicts.size === 0) {
-					resolve({ keepBothIds: [], shouldProceed: true })
+					resolve({ keepBothIds: [], replaceIds: [], shouldProceed: true })
 					return
 				}
 
@@ -61,8 +68,12 @@ export function useFolderConflictHandler() {
 	)
 
 	const complete = useCallback(
-		(nextKeepBothIds: string[], shouldProceed: boolean) => {
-			resolveRef.current?.({ keepBothIds: nextKeepBothIds, shouldProceed })
+		(nextKeepBothIds: string[], nextReplaceIds: string[], shouldProceed: boolean) => {
+			resolveRef.current?.({
+				keepBothIds: nextKeepBothIds,
+				replaceIds: nextReplaceIds,
+				shouldProceed,
+			})
 			resolveRef.current = null
 			reset()
 		},
@@ -74,22 +85,31 @@ export function useFolderConflictHandler() {
 			setModalVisible(false)
 
 			if (choice === "cancel") {
-				complete([], false)
+				complete([], [], false)
 				return
 			}
 
 			const currentId = conflictIds[currentIndex]
 			let nextKeepBothIds = [...keepBothIds]
+			let nextReplaceIds = [...replaceIds]
 
 			if (choice === "keep-both" && currentId) {
 				nextKeepBothIds.push(currentId)
+			}
+			if (choice === "replace" && currentId) {
+				nextReplaceIds.push(currentId)
 			}
 
 			if (applyToAll) {
 				const remainingIds = conflictIds.slice(currentIndex + 1)
 				if (choice === "keep-both") {
 					nextKeepBothIds = [...nextKeepBothIds, ...remainingIds]
-					complete(nextKeepBothIds, true)
+					complete(nextKeepBothIds, nextReplaceIds, true)
+					return
+				}
+				if (choice === "replace") {
+					nextReplaceIds = [...nextReplaceIds, ...remainingIds]
+					complete(nextKeepBothIds, nextReplaceIds, true)
 					return
 				}
 
@@ -98,12 +118,13 @@ export function useFolderConflictHandler() {
 					return conflict && !conflict.canMerge
 				})
 				if (nextNonMergeableOffset === -1) {
-					complete(nextKeepBothIds, true)
+					complete(nextKeepBothIds, nextReplaceIds, true)
 					return
 				}
 
 				const nextIndex = currentIndex + 1 + nextNonMergeableOffset
 				setKeepBothIds(nextKeepBothIds)
+				setReplaceIds(nextReplaceIds)
 				showConflictAtIndex(nextIndex, conflictIds, conflictsMap)
 				return
 			}
@@ -111,11 +132,12 @@ export function useFolderConflictHandler() {
 			const nextIndex = currentIndex + 1
 			if (nextIndex < conflictIds.length) {
 				setKeepBothIds(nextKeepBothIds)
+				setReplaceIds(nextReplaceIds)
 				showConflictAtIndex(nextIndex, conflictIds, conflictsMap)
 				return
 			}
 
-			complete(nextKeepBothIds, true)
+			complete(nextKeepBothIds, nextReplaceIds, true)
 		},
 		[
 			complete,
@@ -123,6 +145,7 @@ export function useFolderConflictHandler() {
 			conflictsMap,
 			currentIndex,
 			keepBothIds,
+			replaceIds,
 			showConflictAtIndex,
 		],
 	)
@@ -134,6 +157,7 @@ export function useFolderConflictHandler() {
 		totalConflicts: conflictIds.length,
 		checkConflicts,
 		handleKeepBoth: (applyToAll: boolean) => handleChoice("keep-both", applyToAll),
+		handleReplace: (applyToAll: boolean) => handleChoice("replace", applyToAll),
 		handleMerge: (applyToAll: boolean) => handleChoice("merge", applyToAll),
 		handleCancel: () => handleChoice("cancel", false),
 	}

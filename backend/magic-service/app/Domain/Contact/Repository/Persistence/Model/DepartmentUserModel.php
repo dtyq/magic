@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Contact\Repository\Persistence\Model;
 
+use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\DbConnection\Model\Model;
 
 /**
@@ -18,6 +19,8 @@ use Hyperf\DbConnection\Model\Model;
  */
 class DepartmentUserModel extends Model
 {
+    use SoftDeletes;
+
     /**
      * The table associated with the model.
      */

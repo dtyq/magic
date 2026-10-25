@@ -17,6 +17,7 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\SuperMagic\Task\Constant\AgentConstant;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -35,37 +36,49 @@ class ChatAppService extends AbstractAppService
         $this->logger = $loggerFactory->get(get_class($this));
     }
 
-    /**
-     * Initializes Magic Chat conversation and topic.
-     * This method sets up the necessary chat infrastructure for a "Super Magic" interaction.
-     * It fetches/creates an AI user, then gets/creates a conversation for the current user
-     * with this AI user, and finally generates a topic ID for this conversation.
-     *
-     * @param DataIsolation $dataIsolation data isolation context
-     * @return array an array containing the chat conversation ID and chat conversation topic ID
-     * @throws Throwable if any error occurs during the process
-     */
-    public function initMagicChatConversation(DataIsolation $dataIsolation): array
+    /** @return array{sender_conversation_id: string, receiver_conversation_id: string} */
+    public function getOrCreateMagicChatConversationPair(DataIsolation $dataIsolation): array
     {
-        $aiUserEntity = $this->getOrCreateSuperMagicUser($dataIsolation);
-        $currentUserId = $dataIsolation->getCurrentUserId();
-        $aiUserId = $aiUserEntity->getUserId();
-        $this->logger->info(sprintf('Getting or creating conversation for user ID: %s with AI user ID: %s in organization: %s', $currentUserId, $aiUserId, $dataIsolation->getCurrentOrganizationCode()));
+        if (Db::connection()->transactionLevel() !== 0) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话身份创建不能嵌套业务事务');
+        }
+        $aiUser = $this->getOrCreateSuperMagicUser($dataIsolation);
+        return $this->magicConversationDomainService->getOrCreateConversationPair($dataIsolation, $aiUser->getUserId());
+    }
 
-        // Initialize conversation and topic for user
-        $senderConversationEntity = $this->magicConversationDomainService->getOrCreateConversation(
-            $currentUserId,
-            $aiUserId,
-            ConversationType::Ai
+    /**
+     * @param array{sender_conversation_id: string, receiver_conversation_id: string} $pair
+     * @return array{chat_conversation_id: string, receive_conversation_id: string, chat_topic_id: string}
+     */
+    public function createMagicChatTopicForConversationPair(DataIsolation $dataIsolation, array $pair): array
+    {
+        if (Db::connection()->transactionLevel() < 1) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '话题创建必须在业务事务内执行');
+        }
+        $sender = $this->magicConversationDomainService->getConversationById($pair['sender_conversation_id'], $dataIsolation);
+        $receiver = $this->magicConversationDomainService->getConversationByIdWithoutCheck($pair['receiver_conversation_id']);
+        $aiUser = $this->userDomainService->getByAiCode($dataIsolation, AgentConstant::SUPER_MAGIC_CODE);
+        if ($receiver === null || $aiUser === null || $sender->getReceiveType() !== ConversationType::Ai
+            || $receiver->getReceiveType() !== ConversationType::User
+            || $sender->getReceiveId() !== $aiUser->getUserId()) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话对不属于当前用户与 Super Magic');
+        }
+        $topicId = $this->topicDomainService->createConversationTopicPair($sender->getId(), $receiver->getId());
+        return [
+            'chat_conversation_id' => $sender->getId(),
+            'receive_conversation_id' => $receiver->getId(),
+            'chat_topic_id' => $topicId,
+        ];
+    }
+
+    /** @param array{chat_conversation_id: string, receive_conversation_id: string, chat_topic_id: string} $context */
+    public function setMagicChatDefaultTopic(array $context): void
+    {
+        $this->topicDomainService->setConversationDefaultTopicPair(
+            $context['chat_conversation_id'],
+            $context['receive_conversation_id'],
+            $context['chat_topic_id']
         );
-        $this->logger->info(sprintf('Conversation obtained/created with ID: %s for user ID: %s, AI user ID: %s', $senderConversationEntity->getId(), $currentUserId, $aiUserId));
-
-        // The number '3' here might refer to a specific type or flag for topic generation.
-        // It's advisable to replace magic numbers with named constants if possible.
-        $topicId = $this->topicDomainService->agentSendMessageGetTopicId($senderConversationEntity, 3);
-        $this->logger->info(sprintf('Topic ID obtained/created for conversation ID %s: %s', $senderConversationEntity->getId(), $topicId));
-
-        return [$senderConversationEntity->getId(), $topicId];
     }
 
     /**

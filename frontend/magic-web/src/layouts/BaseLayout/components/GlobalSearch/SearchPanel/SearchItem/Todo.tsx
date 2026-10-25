@@ -1,15 +1,13 @@
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconCircleCheckFilled } from "@tabler/icons-react"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
 import HighlightText from "../HighlightText"
 
 function Todo() {
-	const { styles } = useSearchItemCommonStyles()
-
 	return (
 		<div className={styles.item}>
 			<div className={styles.icon}>
-				<MagicIcon size={20} component={IconCircleCheckFilled} style={{ flex: "none" }} />
+				<MagicIcon size={20} component={IconCircleCheckFilled} className="flex-none" />
 			</div>
 			<div className={styles.wrapper}>
 				<div className={styles.title}>

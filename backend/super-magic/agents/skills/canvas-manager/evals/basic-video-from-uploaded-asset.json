@@ -1,0 +1,7 @@
+{
+  "id": "basic-video-from-uploaded-asset",
+  "prompt": "Generate one promotional video from an uploaded product image.",
+  "expected_reference": "references/video-generation.md",
+  "expected_tools": ["estimate_canvas_content_points", "add_canvas_elements"],
+  "constraints": ["An uploaded reference image does not select professional video production.", "Load references/video-generation.md only. Do not load professional-video-production.md.", "Use row_incremental layout.", "Do not create professional-production Connections, a storyboard, shot reference images, or a video-edit.", "Do not ask whether to start a storyboard workflow."]
+}

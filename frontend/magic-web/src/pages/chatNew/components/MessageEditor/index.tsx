@@ -9,10 +9,10 @@ import { useKeyPress, useMemoizedFn, useMount, useAsyncEffect } from "ahooks"
 
 /** React相关 */
 import { useMemo, useRef, useState, useEffect } from "react"
-import type { HTMLAttributes } from "react"
+import type { ClipboardEvent, HTMLAttributes } from "react"
 
 /** 类型定义 */
-import type { JSONContent, UseEditorOptions } from "@tiptap/react"
+import type { JSONContent, UseEditorOptions } from "@/infrastructure/editors/tiptap/react"
 import type { ReportFileUploadsResponse } from "@/apis/modules/file"
 import type { EmojiInfo } from "@/components/base/MagicEmojiPanel/types"
 import type { MagicRichEditorRef } from "@/components/base/MagicRichEditor"
@@ -78,6 +78,13 @@ import useNavigate from "@/routes/hooks/useNavigate"
 import { MessageReceiveType } from "@/types/chat"
 import { RouteName } from "@/routes/constants"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
+import {
+	claimCanvasClipboardPasteEvent,
+	getCanvasClipboardPasteController,
+	hasCanvasClipboardMimeType,
+	CanvasDesignClipboard,
+	type CanvasClipboardAsset,
+} from "@/components/CanvasDesign/public/clipboard"
 
 export interface SendData {
 	jsonValue: JSONContent | undefined
@@ -146,7 +153,16 @@ const MessageEditor = observer(function MessageEditor({
 	const topicId = ConversationStore.currentConversation?.current_topic_id
 
 	const editorRef = useRef<MagicRichEditorRef>(null)
+	const isMountedRef = useRef(false)
+	const canvasClipboardEpochRef = useRef(0)
 	const [isEmpty, setIsEmpty] = useState<boolean>(true)
+
+	useEffect(() => {
+		isMountedRef.current = true
+		return () => {
+			isMountedRef.current = false
+		}
+	}, [])
 
 	const { value, setValue, isValidContent } = EditorStore
 
@@ -237,6 +253,49 @@ const MessageEditor = observer(function MessageEditor({
 		maxUploadCount: MAX_UPLOAD_COUNT,
 		onFilesChange: () => draftCallbackRef.current(),
 		editorRef,
+	})
+
+	const handleCanvasClipboardPaste = useMemoizedFn((event: ClipboardEvent<HTMLDivElement>) => {
+		const clipboardData = event.clipboardData
+		if (!clipboardData) return
+		const hasCanvasMime = hasCanvasClipboardMimeType(event.nativeEvent)
+		const nativeFiles = CanvasDesignClipboard.readAllEventFilesSnapshot(event.nativeEvent)
+		if (!hasCanvasMime && nativeFiles.length > 0) {
+			if (!claimCanvasClipboardPasteEvent(event.nativeEvent)) return
+			event.preventDefault()
+			event.stopPropagation()
+			void onFileChange(nativeFiles)
+			return
+		}
+		if (
+			!hasCanvasMime &&
+			Array.from(clipboardData.types).some((type) => {
+				const normalized = type.trim().toLowerCase()
+				return normalized === "text/plain" || normalized === "text/html"
+			})
+		) {
+			return
+		}
+
+		void getCanvasClipboardPasteController().paste(
+			event.nativeEvent,
+			{
+				control: "message-editor",
+				acceptedTypes: ["image", "video", "audio"],
+				maxCount: Math.max(0, MAX_UPLOAD_COUNT - files.length),
+				sessionId: `${conversationId ?? ""}:${topicId ?? ""}:${canvasClipboardEpochRef.current}`,
+			},
+			{
+				onAsset: (asset: CanvasClipboardAsset) =>
+					asset.file ? onFileChange([asset.file], { forceAttachment: true }) : undefined,
+				isSessionCurrent: (sessionId) =>
+					isMountedRef.current &&
+					sessionId ===
+						`${conversationId ?? ""}:${topicId ?? ""}:${canvasClipboardEpochRef.current}` &&
+					ConversationStore.currentConversation?.id === conversationId &&
+					ConversationStore.currentConversation?.current_topic_id === topicId,
+			},
+		)
 	})
 
 	/** ========================== Draft Hook ========================== */
@@ -330,8 +389,7 @@ const MessageEditor = observer(function MessageEditor({
 															file_id: files[0].file_id,
 															file_name: files[0].file_name,
 															file_size: files[0].file_size,
-															file_extension:
-																files[0].file_extension,
+															file_extension: files[0].file_extension,
 														},
 													},
 												],
@@ -682,6 +740,7 @@ const MessageEditor = observer(function MessageEditor({
 	const sendDisabled = (isEmpty && !files.length) || uploading
 
 	const handleAfterSend = useMemoizedFn(() => {
+		canvasClipboardEpochRef.current += 1
 		if (clearAfterSend) {
 			setIsEmpty(true)
 			runActiveEditor(editorRef.current?.editor, (editor) => {
@@ -689,11 +748,7 @@ const MessageEditor = observer(function MessageEditor({
 			})
 			if (residencyContent.length > 0) {
 				runActiveEditor(editorRef.current?.editor, (editor) => {
-					editor
-						.chain()
-						.focus()
-						.insertContent(cloneDeep(residencyContent))
-						.run()
+					editor.chain().focus().insertContent(cloneDeep(residencyContent)).run()
 				})
 			}
 
@@ -717,6 +772,7 @@ const MessageEditor = observer(function MessageEditor({
 	})
 
 	const handleBeforeSend = useMemoizedFn(async () => {
+		canvasClipboardEpochRef.current += 1
 		try {
 			const conversationId = ConversationStore.currentConversation?.id
 
@@ -830,6 +886,7 @@ const MessageEditor = observer(function MessageEditor({
 					onCompositionStart={AiCompletionService.onCompositionStart}
 					onCompositionEnd={AiCompletionService.onCompositionEnd}
 					editorProps={editorProps}
+					onPasteCapture={handleCanvasClipboardPaste}
 					enterBreak={sendWhenEnter}
 					onPasteFileFail={handlePasteFileFail}
 				/>

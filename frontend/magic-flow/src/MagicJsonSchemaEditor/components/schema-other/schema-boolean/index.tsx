@@ -1,5 +1,5 @@
 import { Col, Row, Select } from 'antd';
-import _ from 'lodash';
+import { cloneDeep } from 'lodash-es'
 import React, { ReactElement, useContext } from 'react';
 import Schema from '../../../types/Schema';
 import { EditorContext } from '../../editor';
@@ -17,7 +17,7 @@ const changeOtherValue = (
   change: (newValue: Schema) => void,
 ) => {
   const valueForChange = value === 'true';
-  const newData = _.cloneDeep(data);
+  const newData = cloneDeep(data);
   if (typeof value === 'undefined') {
     // @ts-ignore
     delete newData[name];

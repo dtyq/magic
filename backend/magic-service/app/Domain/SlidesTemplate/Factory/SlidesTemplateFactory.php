@@ -17,6 +17,10 @@ class SlidesTemplateFactory
         $entity = new SlidesTemplateEntity();
         $entity->setId($model->id);
         $entity->setOrganizationCode($model->organization_code);
+        $entity->setOwnerType($model->owner_type ?? null);
+        $entity->setOwnerId($model->owner_id ?? null);
+        $entity->setProjectId($model->project_id);
+        $entity->setProjectDirectoryId($model->project_directory_id);
         $entity->setCode($model->code);
         $entity->setSourceType($model->source_type ?? null);
         $entity->setCategoryCode($model->category_code ?? null);

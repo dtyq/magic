@@ -92,6 +92,7 @@ class ServiceConfigTest extends BaseTest
         $config->setScope('read write');
         $config->setAuthorizationUrl('https://api.github.com/oauth/authorize');
         $config->setAuthorizationContentType('application/json');
+        $config->setAuthorizationMethod('get');
 
         $this->assertEquals('client123', $config->getClientId());
         $this->assertEquals('secret456', $config->getClientSecret());
@@ -99,6 +100,7 @@ class ServiceConfigTest extends BaseTest
         $this->assertEquals('read write', $config->getScope());
         $this->assertEquals('https://api.github.com/oauth/authorize', $config->getAuthorizationUrl());
         $this->assertEquals('application/json', $config->getAuthorizationContentType());
+        $this->assertEquals('GET', $config->getAuthorizationMethod());
 
         // Test toArray
         $expected = [
@@ -108,6 +110,7 @@ class ServiceConfigTest extends BaseTest
             'scope' => 'read write',
             'authorization_url' => 'https://api.github.com/oauth/authorize',
             'authorization_content_type' => 'application/json',
+            'authorization_method' => 'GET',
             'issuer_url' => '',
             'redirect_uri' => '',
             'use_pkce' => true,

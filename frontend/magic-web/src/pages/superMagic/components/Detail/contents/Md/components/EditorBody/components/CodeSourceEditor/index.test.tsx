@@ -5,7 +5,7 @@ import { formatLongCurlDataRawForPreview } from "./preview-content"
 
 const monacoEditorProps = vi.hoisted(() => vi.fn())
 
-vi.mock("@/lib/monacoEditor", () => ({
+vi.mock("@/infrastructure/editors/monaco", () => ({
 	MonacoEditor: (props: Record<string, unknown>) => {
 		monacoEditorProps(props)
 		return <div data-testid="monaco-editor" />
@@ -50,6 +50,29 @@ describe("CodeSourceEditor", () => {
 			expect.objectContaining({
 				options: expect.objectContaining({
 					wordWrap: "on",
+				}),
+			}),
+		)
+	})
+
+	it("disables expensive Monaco decorations for large files", () => {
+		render(
+			<CodeSourceEditor
+				language="markdown"
+				content="# Large document"
+				isLargeFile
+				isEditMode
+			/>,
+		)
+
+		expect(monacoEditorProps).toHaveBeenCalledWith(
+			expect.objectContaining({
+				options: expect.objectContaining({
+					largeFileOptimizations: true,
+					folding: false,
+					colorDecorators: false,
+					links: false,
+					bracketPairColorization: { enabled: false },
 				}),
 			}),
 		)

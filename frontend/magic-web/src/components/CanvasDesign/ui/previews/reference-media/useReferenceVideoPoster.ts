@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
-import { useCanvas } from "../../../app/providers/CanvasProvider"
-import { useCanvasEvent } from "../../../app/hooks/canvas"
+import { useOptionalCanvas } from "../../../app/providers/CanvasProvider"
+import { useCanvasEventWithInstance } from "../../../app/hooks/canvas"
 import { clonePosterCanvas } from "./clonePosterCanvas"
 export type ReferenceVideoPosterLoadState = "loading" | "ready" | "error"
 
@@ -12,21 +12,30 @@ export interface UseReferenceVideoPosterResult {
 	ossSrc: string | null
 }
 
+interface UseReferenceVideoPosterOptions {
+	enabled?: boolean
+}
+
 /**
  * 按项目 path 拉取视频解码结果（与画布 VideoResourceManager 同源）
  */
-export function useReferenceVideoPoster(path: string): UseReferenceVideoPosterResult {
-	const { canvas } = useCanvas()
+export function useReferenceVideoPoster(
+	path: string,
+	options?: UseReferenceVideoPosterOptions,
+): UseReferenceVideoPosterResult {
+	const enabled = options?.enabled ?? true
+	const canvas = useOptionalCanvas()
 	const [posterClone, setPosterClone] = useState<HTMLCanvasElement | null>(null)
 	const [ossSrc, setOssSrc] = useState<string | null>(null)
 	const [loadState, setLoadState] = useState<ReferenceVideoPosterLoadState>("loading")
 	const [retryToken, setRetryToken] = useState(0)
 
-	useCanvasEvent(
+	useCanvasEventWithInstance(
+		canvas,
 		"resource:remote-load-deferral-released",
 		useCallback(
 			({ data }) => {
-				if (!canvas) return
+				if (!canvas || !enabled) return
 				const pathKey =
 					canvas.canvasFileUploadManager.getRemoteResourceLoadDeferralKey(path)
 				if (!pathKey || pathKey !== data.key) {
@@ -34,13 +43,13 @@ export function useReferenceVideoPoster(path: string): UseReferenceVideoPosterRe
 				}
 				setRetryToken((value) => value + 1)
 			},
-			[canvas, path],
+			[canvas, enabled, path],
 		),
-		[canvas, path],
+		[canvas, enabled, path],
 	)
 
 	useEffect(() => {
-		if (!canvas) {
+		if (!canvas || !enabled || !path) {
 			setPosterClone(null)
 			setOssSrc(null)
 			setLoadState("error")
@@ -82,7 +91,7 @@ export function useReferenceVideoPoster(path: string): UseReferenceVideoPosterRe
 		return () => {
 			cancelled = true
 		}
-	}, [canvas, path, retryToken])
+	}, [canvas, enabled, path, retryToken])
 
 	return { loadState, posterClone, ossSrc }
 }

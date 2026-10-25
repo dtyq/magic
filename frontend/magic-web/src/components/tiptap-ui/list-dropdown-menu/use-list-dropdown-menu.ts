@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
@@ -13,7 +13,7 @@ import { ListOrderedIcon } from "@/components/tiptap-icons/list-ordered-icon"
 import { ListTodoIcon } from "@/components/tiptap-icons/list-todo-icon"
 
 // --- Lib ---
-import { isNodeInSchema } from "@/lib/tiptap-utils"
+import { isNodeInSchema } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Tiptap UI ---
 import {

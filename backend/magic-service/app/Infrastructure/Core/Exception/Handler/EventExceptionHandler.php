@@ -28,7 +28,7 @@ class EventExceptionHandler extends AbstractExceptionHandler
         $data = Json::encode([
             'code' => $throwable->getCode() ?: 6000,
             'message' => $throwable->getMessage(),
-            'data' => new stdClass(),
+            'data' => $throwable->getData() ?? new stdClass(),
             'error' => [],
         ]);
 

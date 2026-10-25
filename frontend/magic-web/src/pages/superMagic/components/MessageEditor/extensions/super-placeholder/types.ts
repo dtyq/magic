@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 
 // Super Placeholder 节点属性
 export interface SuperPlaceholderAttrs {
@@ -18,7 +18,7 @@ export interface SuperPlaceholderOptions {
 }
 
 // 命令类型声明
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		superPlaceholder: {
 			insertSuperPlaceholder: (attrs: Partial<SuperPlaceholderAttrs>) => ReturnType

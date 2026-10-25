@@ -19,4 +19,13 @@ enum DesignErrorCode: int
 
     #[ErrorMessage('design.third_party_service_error')]
     case ThirdPartyServiceError = 14001;
+
+    #[ErrorMessage('design.html_design_style.invalid_style_code')]
+    case InvalidStyleCode = 14002;
+
+    #[ErrorMessage('design.html_design_style.style_source_not_found')]
+    case StyleSourceNotFound = 14003;
+
+    #[ErrorMessage('design.html_design_style.style_source_read_failed')]
+    case StyleSourceReadFailed = 14004;
 }

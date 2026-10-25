@@ -39,6 +39,7 @@ class MessageQueueModel extends AbstractModel
      */
     protected array $fillable = [
         'id',
+        'sort_order',
         'user_id',
         'organization_code',
         'project_id',
@@ -70,6 +71,7 @@ class MessageQueueModel extends AbstractModel
      */
     protected array $casts = [
         'id' => 'integer',
+        'sort_order' => 'integer',
         'project_id' => 'integer',
         'topic_id' => 'integer',
         'status' => 'integer',

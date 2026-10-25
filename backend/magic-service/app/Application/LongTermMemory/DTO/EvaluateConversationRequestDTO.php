@@ -19,4 +19,14 @@ class EvaluateConversationRequestDTO extends AbstractDTO
     public string $conversationContent;
 
     public array $tags = [];
+
+    /**
+     * 模型调用来源。
+     */
+    public string $sourceId = '';
+
+    /**
+     * 模型调用关联的业务对象标识。
+     */
+    public string $businessId = '';
 }

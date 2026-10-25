@@ -1,5 +1,5 @@
 import { memo, type MouseEvent } from "react"
-import { Ellipsis, MessageCircleMore, Rocket, Settings2, Trash2 } from "lucide-react"
+import { Copy, Ellipsis, MessageCircleMore, Rocket, Settings2, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import {
@@ -30,6 +30,7 @@ interface CreatedCrewCardProps {
 	onNavigate?: (event: MouseEvent<HTMLElement>) => void
 	onEdit?: (agentCode: string) => void
 	onConversation?: (agentCode: string) => void
+	onCopyUsageLink?: (agentCode: string) => void
 	onUpgrade?: (agentCode: string) => void
 	onPublishToStore?: (agentCode: string) => void
 	onDelete?: (agentCode: string) => void
@@ -41,6 +42,7 @@ function CreatedCrewCard({
 	onNavigate,
 	onEdit,
 	onConversation,
+	onCopyUsageLink,
 	onUpgrade,
 	onPublishToStore,
 	onDelete,
@@ -48,6 +50,7 @@ function CreatedCrewCard({
 	const isDeleteAction = onDelete != null
 	const canOpenConversation =
 		Boolean(employee.latestPublishedAt?.trim()) && onConversation != null
+	const canCopyUsageLink = canOpenConversation && onCopyUsageLink != null
 	const { t } = useTranslation("crew/market")
 	const { t: tCrewCreate } = useTranslation("crew/create")
 	const publishTargetLabel = resolveMyCrewPublishTargetLabel(employee.publishTargetType, t)
@@ -145,6 +148,15 @@ function CreatedCrewCard({
 												aria-hidden
 											/>
 											{t("myCrewPage.openConversation")}
+										</DropdownMenuItem>
+									) : null}
+									{canCopyUsageLink ? (
+										<DropdownMenuItem
+											onClick={() => onCopyUsageLink?.(employee.agentCode)}
+											data-testid="my-crew-card-menu-copy-usage-link"
+										>
+											<Copy className="size-4 shrink-0" aria-hidden />
+											{t("myCrewPage.copyUsageLink")}
 										</DropdownMenuItem>
 									) : null}
 									{employee.needUpgrade ? (

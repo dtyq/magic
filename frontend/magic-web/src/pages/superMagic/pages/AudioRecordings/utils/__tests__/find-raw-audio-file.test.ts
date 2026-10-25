@@ -15,6 +15,19 @@ describe("findRawAudioFile", () => {
 		expect(file?.file_id).toBe(MOCK_AUDIO_FILE_ID_ALT)
 	})
 
+	it("recognizes an Opus recording artifact as the preferred raw audio file", () => {
+		const list = [
+			{
+				file_id: MOCK_AUDIO_FILE_ID,
+				file_name: "mock-recording.opus",
+				file_extension: "opus",
+			},
+		]
+
+		const file = findRawAudioFile(list, MOCK_AUDIO_FILE_ID)
+		expect(file?.file_id).toBe(MOCK_AUDIO_FILE_ID)
+	})
+
 	it("falls back to the first visible audio extension when preferred id is missing", () => {
 		const list = [
 			{
@@ -23,7 +36,11 @@ describe("findRawAudioFile", () => {
 				file_extension: "mp3",
 				is_hidden: true,
 			},
-			{ file_id: MOCK_AUDIO_FILE_ID, file_name: "recording.m4a", file_extension: "m4a" },
+			{
+				file_id: MOCK_AUDIO_FILE_ID,
+				file_name: "mock-recording.opus",
+				file_extension: "opus",
+			},
 		]
 
 		const file = findRawAudioFile(list, "missing-id")
@@ -37,6 +54,12 @@ describe("findRawAudioFile", () => {
 		]
 
 		expect(findRawAudioFile(list)).toBeNull()
+	})
+
+	it("recognizes raw audio files", () => {
+		const list = [{ file_id: "raw-audio", file_name: "recording.raw", file_extension: "raw" }]
+
+		expect(findRawAudioFile(list)?.file_id).toBe("raw-audio")
 	})
 
 	it("falls back when preferred id points to a hidden audio file", () => {

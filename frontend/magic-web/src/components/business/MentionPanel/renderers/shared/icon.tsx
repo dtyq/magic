@@ -2,11 +2,15 @@ import type { MentionItemRendererContext } from "../types"
 import { MentionItemType } from "../../types"
 import { MentionPanelItemType } from "../../runtime/builtin/panel-item-types"
 import {
+	renderCustomMentionIcon,
 	renderMentionFileIcon,
 	renderMentionFolderIcon,
 	renderMentionMappedIcon,
 } from "../../runtime/builtin/domains/shared/render-utils"
 
+/**
+ * Resolves the appropriate icon element for a MentionPanel item based on its type and attributes.
+ */
 export function renderMentionItemIcon(context: MentionItemRendererContext) {
 	const { item, platform } = context
 	const { icon, type } = item
@@ -26,6 +30,11 @@ export function renderMentionItemIcon(context: MentionItemRendererContext) {
 		typeof icon === "string"
 	) {
 		return renderMentionFileIcon(context)
+	}
+
+	// Prioritize custom mention items and groups to ensure custom URLs and tokens are handled cleanly
+	if (item.iconUrl || item.metadata?.customMention || item.metadata?.customMentionGroup) {
+		return renderCustomMentionIcon(context)
 	}
 
 	if (icon === "file-folder") {

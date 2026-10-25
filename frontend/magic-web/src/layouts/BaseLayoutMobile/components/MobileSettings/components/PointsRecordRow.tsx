@@ -1,13 +1,14 @@
 import { ChevronRight, Gift, MessageCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import {
 	formatPointsRecordAmount,
 	getPointsRecordDirection,
 	getPointsRecordListTime,
 	getPointsRecordListTitle,
+	getPointsRecordRemarkText,
 } from "../pointsRecordDisplay"
 import type { PointsRecordItem } from "../types"
 
@@ -63,6 +64,7 @@ export function MobileSettingsPointsRecordRow(props: {
 		t("topic.unnamedTopic", { ns: "super" }),
 	)
 	const listTime = getPointsRecordListTime(item.updatedAt)
+	const remarkText = getPointsRecordRemarkText(item.remark)
 	const formattedAmount = formatPointsRecordAmount(item.amount)
 
 	return (
@@ -79,6 +81,11 @@ export function MobileSettingsPointsRecordRow(props: {
 					<div className="truncate text-[15px] font-medium leading-5 text-foreground">
 						{listTitle}
 					</div>
+					{remarkText ? (
+						<div className="line-clamp-2 text-[12px] leading-4 text-muted-foreground">
+							{remarkText}
+						</div>
+					) : null}
 					<div className="text-[12px] leading-4 text-muted-foreground">{listTime}</div>
 				</div>
 

@@ -6,8 +6,7 @@
  */
 
 import { MagicApiLogger } from "./MagicApiLogger"
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
-import { getParentOrigin } from "@dtyq/html-sandbox/utils/parentOrigin"
+import { BaseRuntimeBridgeApiPlugin, getParentOrigin } from "@dtyq/html-sandbox"
 
 export class MagicInputApi extends BaseRuntimeBridgeApiPlugin {
 	constructor() {

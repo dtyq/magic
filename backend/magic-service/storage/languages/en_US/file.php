@@ -5,6 +5,17 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'open_api' => [
+        'invalid_id' => ':field must be a valid positive integer ID',
+        'files_must_be_list' => 'files must be a list',
+        'duplicate_file_key' => 'Duplicate file_key in the same batch',
+        'invalid_upload' => 'The uploaded file is invalid or incomplete',
+        'upload_too_large' => 'File exceeds the backend upload limit; use STS direct upload',
+        'key_out_of_scope' => 'File is outside the project upload scope',
+        'upload_not_completed' => 'File upload has not completed',
+        'head_failed' => 'Unable to verify uploaded file; please retry',
+        'registration_failed' => 'File registration failed',
+    ],
     'file_not_found' => 'File not found',
     'file_exist' => 'File already exists',
     'illegal_file_key' => 'Illegal file key',
@@ -47,6 +58,7 @@ return [
 
     // File version related
     'cannot_version_directory' => 'Cannot create version for directory',
+    'cannot_version_file' => 'Cannot create version for this file space',
     'version_create_failed' => 'Failed to create file version',
     'access_denied' => 'Access denied',
 
@@ -66,4 +78,31 @@ return [
     'batch_move_failed' => 'Batch move operation failed',
     'batch_copy_failed' => 'Batch copy operation failed',
     'directory_copy_not_supported_yet' => 'Directory copy is not supported yet, please use batch copy instead',
+    'batch_save_failed' => 'Operation failed',
+    'batch_save_locked' => 'Batch save locked',
+    'cannot_generate_url_for_directory' => 'Cannot generate url for directory',
+    'cannot_rollback_directory' => 'Cannot rollback directory',
+    'check_batch_status_failed' => 'Operation failed',
+    'directory_creation_locked' => 'Directory creation locked',
+    'file_collection_empty_or_not_found' => 'Resource not found',
+    'file_permission_denied' => 'File permission denied',
+    'get_tree_failed' => 'Operation failed',
+    'get_urls_by_path_failed' => 'Operation failed',
+    'get_urls_by_token_failed' => 'Operation failed',
+    'get_urls_failed' => 'Operation failed',
+    'illegal_file_name' => 'Illegal file name',
+    'move_operation_busy' => 'Move operation busy',
+    'not_found' => 'Resource not found: :name',
+    'operation_failed' => 'Operation failed',
+    'parent_file_not_found' => 'Resource not found',
+    'rollback_failed' => 'Operation failed',
+    'root_directory_not_found' => 'Resource not found',
+    'root_not_found' => 'Resource not found',
+
+    'batch_file_ids_or_topic_id_required' => 'Value is required',
+    'batch_topic_id_invalid' => 'Invalid value',
+    'delete_failed' => 'Operation failed',
+    'multiple_projects_not_allowed' => 'Multiple projects not allowed',
+    'sandbox_not_ready' => 'Sandbox not ready',
+    'sandbox_save_failed' => 'Operation failed',
 ];

@@ -23,6 +23,7 @@ from ..constants import (
     VISUAL_RESULTS_DIRNAME,
 )
 from ..models import DocumentAssetType
+from ..output.markdown_asset_link_resolver import MarkdownAssetLinkResolver
 from ..structure.range_parser import RangeParser
 from .reading_state import ReadingStateStore
 
@@ -302,10 +303,16 @@ class DocumentImageUnderstander:
                         written_to_chunk = True
                         written_chunk_path = chunk_path_text
                         continue
-                    if result["asset_path"] not in content:
+                    matching_links = MarkdownAssetLinkResolver.matching_links(
+                        output_dir,
+                        chunk_path,
+                        result["asset_path"],
+                    )
+                    image_link = next((link for link in matching_links if f"]({link})" in content), None)
+                    if image_link is None:
                         continue
                     block = DocumentImageUnderstander._chunk_visual_block(marker, result)
-                    image_line_pattern = re.compile(rf"^.*!\[[^\]]*]\({re.escape(result['asset_path'])}\).*$", re.MULTILINE)
+                    image_line_pattern = re.compile(rf"^.*!\[[^\]]*]\({re.escape(image_link)}\).*$", re.MULTILINE)
                     match = image_line_pattern.search(content)
                     if match:
                         updated = content[:match.end()] + "\n\n" + block + content[match.end():]

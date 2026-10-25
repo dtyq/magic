@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import { JSONContent } from "@tiptap/react"
+import { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
 import { Loader2 } from "lucide-react"
@@ -28,7 +28,11 @@ import { useTopicDetailPanelController } from "@/pages/superMagic/pages/TopicPag
 import { useTopicFiles } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicFiles"
 import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
-import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import {
+	isTopicTaskRunning,
+	isTopicWaitingForUser,
+	TaskStatus,
+} from "@/pages/superMagic/pages/Workspace/types"
 import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
 import { createMessageEditorDraftKey } from "@/pages/superMagic/components/MessageEditor/utils/draftKey"
 import { userStore } from "@/models/user"
@@ -79,7 +83,11 @@ import {
 	useOptionalSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 import { useMobileKnowledgeBasePreview } from "@/pages/superMagic/hooks/useMobileKnowledgeBasePreview"
+import { useMobileMicroAppPreview } from "@/pages/superMagic/hooks/useMobileMicroAppPreview"
 import KnowledgeBasePreviewPopup from "@/pages/superMagic/components/KnowledgeBasePreviewPopup"
+import MicroAppPreviewPopup from "@/pages/superMagic/components/MicroAppPreviewPopup"
+import { HostConversationProvider } from "@/pages/superMagic/contexts/HostConversationContext"
+import { useClawConversationAnalytics } from "./hooks/useClawConversationAnalytics"
 
 interface ClawMobileConversationPanelRef {
 	sendSkillInstallPrompt: (content: JSONContent) => void
@@ -111,6 +119,7 @@ const ClawMobileConversationPanel = observer(
 			const store = useClawPlaygroundStore()
 			const selectedProject = store.selectedProject
 			const selectedTopic = store.selectedTopic
+			useClawConversationAnalytics(selectedTopic?.id)
 			const topicStore = store.topicStore
 			const attachments = store.projectFilesStore.workspaceFileTree
 			const [stopEventLoading, setStopEventLoading] = useState(false)
@@ -137,8 +146,9 @@ const ClawMobileConversationPanel = observer(
 					}
 				},
 			})
+			const isTaskRunning = showLoading || isTopicTaskRunning(selectedTopic)
 			const canInterruptTask =
-				showLoading || selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
+				isTaskRunning || selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
 
 			const {
 				handlePullMoreMessage,
@@ -152,7 +162,8 @@ const ClawMobileConversationPanel = observer(
 				projectId: selectedProject?.id,
 				topicId: selectedTopic?.id,
 				agentCode: clawCode,
-				isTaskRunning: showLoading,
+				isTaskRunning,
+				isWaitingForUser: isTopicWaitingForUser(selectedTopic),
 				isEmptyStatus: false,
 				isShowLoadingInit: isMessagesInitialLoading,
 			})
@@ -309,27 +320,21 @@ const ClawMobileConversationPanel = observer(
 						<div className="mb-2">
 							<MessageQueue
 								queue={messageQueue.queue}
+								editorRef={messageQueue.editorRef}
 								queueStats={messageQueue.queueStats}
-								editingQueueItem={messageQueue.editingQueueItem}
 								onRemoveMessage={messageQueue.removeFromQueue}
 								onSendMessage={messageQueue.sendQueuedMessage}
 								onStartEdit={messageQueue.startEditQueueItem}
-								onCancelEdit={messageQueue.cancelEditQueueItem}
+								onWithdraw={messageQueue.withdrawQueueItem}
+								onMove={messageQueue.moveQueueItem}
+								isOperationPending={messageQueue.isQueueOperationPending}
 								variant="mobile"
 							/>
 						</div>
 					) : null
 
 				return { messageQueueNode }
-			}, [
-				messageQueue.queue,
-				messageQueue.queueStats,
-				messageQueue.editingQueueItem,
-				messageQueue.removeFromQueue,
-				messageQueue.sendQueuedMessage,
-				messageQueue.startEditQueueItem,
-				messageQueue.cancelEditQueueItem,
-			])
+			}, [messageQueue])
 
 			const editorContext = useMemo<SceneEditorContext>(() => {
 				return {
@@ -363,11 +368,8 @@ const ClawMobileConversationPanel = observer(
 						})
 						return mergedParams
 					},
-					queueContext: {
-						editingQueueItem: messageQueue.editingQueueItem,
-						addToQueue: messageQueue.addToQueue,
-						finishEditQueueItem: messageQueue.finishEditQueueItem,
-					},
+					editorRef: messageQueue.editorRef,
+					queueContext: messageQueue,
 				}
 			}, [
 				clawCode,
@@ -386,9 +388,7 @@ const ClawMobileConversationPanel = observer(
 				store.workspaceStore.setSelectedWorkspace,
 				topicModelStore,
 				topicStore,
-				messageQueue.editingQueueItem,
-				messageQueue.addToQueue,
-				messageQueue.finishEditQueueItem,
+				messageQueue,
 			])
 
 			const messageListProviderValue = useClawPlaygroundMessageListContextValue({
@@ -451,7 +451,7 @@ const ClawMobileConversationPanel = observer(
 						<ClawMobileInputContainer
 							editorContext={editorContext}
 							editorNodes={mobileEditorNodes}
-							isTaskRunning={showLoading}
+							isTaskRunning={canInterruptTask}
 							onNewChat={handleClawNewChatSlash}
 							onOpenFilesDrawer={onOpenFilesDrawer}
 							onOpenSkillsDrawer={onOpenSkillsDrawer}
@@ -654,6 +654,18 @@ function ClawPlaygroundMobile() {
 		closePlaybackTab: () => {
 			void 0
 		},
+		openKnowledgeBaseTab: () => {
+			void 0
+		},
+		openMicroAppTab: () => {
+			void 0
+		},
+		enterPreviewFullscreen: () => {
+			void 0
+		},
+		exitPreviewFullscreen: () => {
+			void 0
+		},
 	})
 
 	const syncMobileDetailRef = useMemoizedFn(() => {
@@ -732,13 +744,13 @@ function ClawPlaygroundMobile() {
 		handleFileClick,
 		topicFilesProps,
 		attachmentList,
+		subscribeMicroAppTab: false,
 	})
 	const knowledgeBasePreviewState = useMobileKnowledgeBasePreview()
+	const microAppPreviewState = useMobileMicroAppPreview()
 
 	const resolveTopicFileRowDecoration = useMemoizedFn(
-		createClawPlaygroundFileRowDecorationResolver({
-			t: tSuper,
-		}),
+		createClawPlaygroundFileRowDecorationResolver(selectedProject?.id),
 	)
 
 	useEffect(() => {
@@ -788,104 +800,112 @@ function ClawPlaygroundMobile() {
 	}
 
 	const content = (
-		<div
-			className="flex h-full min-h-0 w-full flex-col bg-mobile-background"
-			data-testid="claw-playground-mobile-root"
-		>
-			{dialog}
-			<ClawMobileHeader
-				magicClaw={store.magicClaw}
-				onBack={handleBack}
-				onOpenMoreSheet={() => setMoreSheetOpen(true)}
-			/>
-
-			<div className="min-h-0 flex-1 overflow-hidden">
-				<ClawMobileConversationPanel
-					ref={conversationPanelRef}
-					clawCode={code}
-					detailPanelVisible={false}
-					onOpenFilesDrawer={() => setFilesDrawerOpen(true)}
-					onOpenSkillsDrawer={() => setSkillsDrawerOpen(true)}
-					onTerminalTopicStatusChange={checkAttachmentsNowDebounced}
+		<HostConversationProvider selectedProject={selectedProject} topicStore={store.topicStore}>
+			<div
+				className="flex h-full min-h-0 w-full flex-col bg-mobile-background"
+				data-testid="claw-playground-mobile-root"
+			>
+				{dialog}
+				<ClawMobileHeader
+					magicClaw={store.magicClaw}
+					onBack={handleBack}
+					onOpenMoreSheet={() => setMoreSheetOpen(true)}
 				/>
+
+				<div className="min-h-0 flex-1 overflow-hidden">
+					<ClawMobileConversationPanel
+						ref={conversationPanelRef}
+						clawCode={code}
+						detailPanelVisible={false}
+						onOpenFilesDrawer={() => setFilesDrawerOpen(true)}
+						onOpenSkillsDrawer={() => setSkillsDrawerOpen(true)}
+						onTerminalTopicStatusChange={checkAttachmentsNowDebounced}
+					/>
+				</div>
+
+				<ClawMobileFilesDrawer
+					open={filesDrawerOpen}
+					onClose={() => setFilesDrawerOpen(false)}
+					clawName={store.magicClaw?.name}
+					topicFilesProps={{
+						...topicFilesPropsWithPanel,
+						fileHelpContext: selectedProject?.id
+							? { kind: "claw", projectId: String(selectedProject.id) }
+							: { kind: "unknown" },
+					}}
+					resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
+				/>
+
+				<ClawMobileMoreSheet
+					magicClaw={store.magicClaw}
+					open={moreSheetOpen}
+					displayStatus={store.magicClaw?.status}
+					isSandboxActionLoading={isSandboxActionLoading}
+					isUpgradingSandbox={store.isUpgradingSandbox}
+					onOpenChange={setMoreSheetOpen}
+					onViewFiles={() => setFilesDrawerOpen(true)}
+					onEditInfo={() => setEditDialogOpen(true)}
+					onRestart={handleRestart}
+					onStart={handleStart}
+					onStop={handleStop}
+					onUpgradeSandbox={() => {
+						if (store.magicClaw) {
+							handleConfirmUpgradeSandbox(store.magicClaw)
+						}
+					}}
+					onFeedback={handleOpenClawFeedback}
+				/>
+
+				<MobileSettingsFeedbackSheet
+					open={feedbackSheetOpen}
+					onClose={closeClawFeedback}
+					prefill={feedbackPrefill}
+				/>
+
+				<MagiClawEditDialog
+					claw={store.magicClaw}
+					open={editDialogOpen}
+					onOpenChange={setEditDialogOpen}
+					isSubmitting={isUpdating}
+					onSubmit={handleUpdateClaw}
+				/>
+
+				<ClawMobileSkillsDrawer
+					open={skillsDrawerOpen}
+					onClose={() => setSkillsDrawerOpen(false)}
+					headerSubtitle={clawDisplayName}
+					overrideInstall={async ({ content }) => {
+						conversationPanelRef.current?.sendSkillInstallPrompt(content)
+					}}
+				/>
+
+				<PreviewDetailPopup
+					ref={previewDetailPopupRef}
+					setUserSelectDetail={setUserSelectDetail}
+					selectedTopic={selectedTopic}
+					selectedProject={selectedProject}
+					projectId={selectedProject.id}
+					onOpenNewPopup={(detail, tree, list) => {
+						linkPreviewPopupRef.current?.open(detail, tree, list)
+					}}
+				/>
+				<PreviewDetailPopup
+					ref={linkPreviewPopupRef}
+					selectedTopic={selectedTopic}
+					selectedProject={selectedProject}
+					projectId={selectedProject.id}
+					setUserSelectDetail={(detail: PreviewDetail | null) => {
+						if (!detail) return
+						linkPreviewPopupRef.current?.open(detail, attachments, attachmentList)
+					}}
+					onClose={() => {
+						void 0
+					}}
+				/>
+				<KnowledgeBasePreviewPopup state={knowledgeBasePreviewState} />
+				<MicroAppPreviewPopup state={microAppPreviewState} />
 			</div>
-
-			<ClawMobileFilesDrawer
-				open={filesDrawerOpen}
-				onClose={() => setFilesDrawerOpen(false)}
-				clawName={store.magicClaw?.name}
-				topicFilesProps={topicFilesPropsWithPanel}
-				resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
-			/>
-
-			<ClawMobileMoreSheet
-				magicClaw={store.magicClaw}
-				open={moreSheetOpen}
-				displayStatus={store.magicClaw?.status}
-				isSandboxActionLoading={isSandboxActionLoading}
-				isUpgradingSandbox={store.isUpgradingSandbox}
-				onOpenChange={setMoreSheetOpen}
-				onViewFiles={() => setFilesDrawerOpen(true)}
-				onEditInfo={() => setEditDialogOpen(true)}
-				onRestart={handleRestart}
-				onStart={handleStart}
-				onStop={handleStop}
-				onUpgradeSandbox={() => {
-					if (store.magicClaw) {
-						handleConfirmUpgradeSandbox(store.magicClaw)
-					}
-				}}
-				onFeedback={handleOpenClawFeedback}
-			/>
-
-			<MobileSettingsFeedbackSheet
-				open={feedbackSheetOpen}
-				onClose={closeClawFeedback}
-				prefill={feedbackPrefill}
-			/>
-
-			<MagiClawEditDialog
-				claw={store.magicClaw}
-				open={editDialogOpen}
-				onOpenChange={setEditDialogOpen}
-				isSubmitting={isUpdating}
-				onSubmit={handleUpdateClaw}
-			/>
-
-			<ClawMobileSkillsDrawer
-				open={skillsDrawerOpen}
-				onClose={() => setSkillsDrawerOpen(false)}
-				headerSubtitle={clawDisplayName}
-				overrideInstall={async ({ content }) => {
-					conversationPanelRef.current?.sendSkillInstallPrompt(content)
-				}}
-			/>
-
-			<PreviewDetailPopup
-				ref={previewDetailPopupRef}
-				setUserSelectDetail={setUserSelectDetail}
-				selectedTopic={selectedTopic}
-				selectedProject={selectedProject}
-				projectId={selectedProject.id}
-				onOpenNewPopup={(detail, tree, list) => {
-					linkPreviewPopupRef.current?.open(detail, tree, list)
-				}}
-			/>
-			<PreviewDetailPopup
-				ref={linkPreviewPopupRef}
-				selectedTopic={selectedTopic}
-				selectedProject={selectedProject}
-				projectId={selectedProject.id}
-				setUserSelectDetail={(detail: PreviewDetail | null) => {
-					if (!detail) return
-					linkPreviewPopupRef.current?.open(detail, attachments, attachmentList)
-				}}
-				onClose={() => {
-					void 0
-				}}
-			/>
-			<KnowledgeBasePreviewPopup state={knowledgeBasePreviewState} />
-		</div>
+		</HostConversationProvider>
 	)
 
 	// ClawPlayground can render under standalone routes; wrap with mobile shell there so swipe gestures stay available.

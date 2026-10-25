@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
 		"allowImportingTsExtensions": true,
+		"customConditions": ["magic-web-source"],
 		"isolatedModules": true,
 		"jsx": "react-jsx",
 		"lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
@@ -16,19 +17,8 @@
 			"@admin-enterprise/*": ["./packages/magic-admin/enterprise/src/*"],
 			"@admin/*": ["./packages/magic-admin/src/*"],
 			"@customer/*": ["./customer/src/*"],
-			"@dtyq/html-sandbox": ["./packages/html-sandbox/src/index.ts"],
-			"@dtyq/html-sandbox/*": ["./packages/html-sandbox/src/*"],
-			"@dtyq/html-sandbox/index.html": ["./packages/html-sandbox/index.html"],
-			"@dtyq/html-sandbox/runtime": ["./packages/html-sandbox/src/runtime/index.ts"],
-			"@dtyq/html-sandbox/runtime/RuntimeLogger": [
-				"./packages/html-sandbox/src/runtime/RuntimeLogger.ts"
-			],
-			"@dtyq/html-sandbox/runtime/RuntimePlugin": [
-				"./packages/html-sandbox/src/runtime/RuntimePlugin.ts"
-			],
-			"@dtyq/html-sandbox/runtime/api": ["./packages/html-sandbox/src/runtime/api/index.ts"],
-			"@dtyq/html-sandbox/telemetry": ["./packages/html-sandbox/src/telemetry/index.ts"],
 			"@dtyq/magic-admin": ["./packages/magic-admin/src/index.ts"],
+			"@dtyq/magic-admin-v2": ["./packages/magic-admin-v2/src/index.ts"],
 			"@dtyq/magic-admin/ServiceIcon": [
 				"./packages/magic-admin/src/pages/PlatformPackage/components/ServiceIcon/index.tsx"
 			],
@@ -37,9 +27,13 @@
 			"@dtyq/magic-admin/provider": [
 				"./packages/magic-admin/src/provider/AdminProvider/index.tsx"
 			],
+			"@dtyq/magic-admin/utils/tablerIconLoader": [
+				"./packages/magic-admin/src/utils/tablerIconLoader.tsx"
+			],
 			"@dtyq/x-markdown": ["./packages/x-markdown/src/index.ts"],
 			"@dtyq/x-markdown/*": ["./packages/x-markdown/src/*"],
 			"@enterprise/*": ["./enterprise/src/*"],
+			"@magic-admin-v2/*": ["./packages/magic-admin-v2/src/*"],
 			"@magic-web/html2image": ["./packages/html2image/src/index.ts"],
 			"@magic-web/html2pdf": ["./packages/html2pdf/src/index.ts"],
 			"@magic/html2pptx": ["./packages/html2pptx/src/index.ts"]

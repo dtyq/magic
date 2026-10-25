@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>African Mobile-First — FinTech P2P &amp; Offline USSD Transfer</title>
+  <style>
+    :root {
+      --primary: #005f8e;
+      --primary-hover: #004d73;
+      --primary-dark: #003d5c;
+      --primary-light: #e8f4f8;
+      --indigo-deep: #0a192f;
+      --accent: #ffb703;
+      --accent-dark: #cc9200;
+      --accent-light: #fff8e1;
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --surface-warm: #f8f7f4;
+      --border: #e2e2e2;
+      --border-strong: #c8c8c8;
+      --text-primary: #111827;
+      --text-secondary: #4b5563;
+      --text-muted: #6b7280;
+      --success: #16a34a;
+      --success-light: #f0fdf4;
+      --warning: #ca8a04;
+      --warning-light: #fefce8;
+      --whatsapp: #25d366;
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      --r-xl: 20px;
+      --r-full: 9999px;
+      --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f172a;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 24px 16px;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Outer Mobile Device Frame for Crisp 16:10 Thumbnail */
+    .viewport-container {
+      width: 100%;
+      max-width: 480px;
+      background: var(--bg);
+      border-radius: var(--r-xl);
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      border: 2px solid #1e293b;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Hardware / Cellular Status Bar */
+    .device-status-bar {
+      background: var(--indigo-deep);
+      color: #ffffff;
+      padding: 10px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .carrier-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .signal-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 12px;
+    }
+    .signal-bar {
+      width: 3px;
+      background: #ffffff;
+      border-radius: 1px;
+    }
+    .bar-1 { height: 4px; }
+    .bar-2 { height: 7px; }
+    .bar-3 { height: 10px; }
+    .bar-4 { height: 12px; }
+    .net-pill {
+      background: var(--accent);
+      color: var(--indigo-deep);
+      font-size: 9.5px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: var(--r-sm);
+    }
+    .battery-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .battery-icon {
+      width: 18px;
+      height: 9px;
+      border: 1.5px solid #ffffff;
+      border-radius: 2px;
+      padding: 1px;
+      position: relative;
+    }
+    .battery-icon::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: 2px;
+      width: 2px;
+      height: 3px;
+      background: #ffffff;
+      border-radius: 0 1px 1px 0;
+    }
+    .battery-fill {
+      width: 78%;
+      height: 100%;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+    /* Offline-First Operational Banner */
+    .offline-banner {
+      background: #0284c7;
+      color: #ffffff;
+      padding: 7px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-bottom: 2px solid var(--accent);
+    }
+    .offline-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(255, 183, 3, 0.4);
+    }
+    /* App Brand Header */
+    .fintech-header {
+      background: var(--indigo-deep);
+      padding: 16px 20px 20px;
+      color: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-emblem {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      color: var(--indigo-deep);
+      border-radius: var(--r-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 15px;
+    }
+    .ussd-quickcode {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 4px 8px;
+      border-radius: var(--r-full);
+      color: var(--accent);
+      font-weight: 700;
+    }
+    /* Main Balance & Account Card: High Sunlight Contrast */
+    .balance-hero {
+      background: linear-gradient(135deg, var(--indigo-deep) 0%, var(--primary-dark) 100%);
+      color: #ffffff;
+      padding: 20px;
+      border-bottom: 3px solid var(--accent);
+    }
+    .balance-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.75);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .balance-amount {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .currency-tag {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .balance-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      font-size: 11.5px;
+      color: rgba(255, 255, 255, 0.85);
+    }
+    /* Action Rails (M-Pesa Style Grid) */
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 14px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .action-button {
+      background: var(--surface-warm);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 10px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+      cursor: pointer;
+      min-height: 52px;
+    }
+    .action-button.active {
+      background: var(--accent-light);
+      border-color: var(--accent);
+    }
+    .action-icon {
+      width: 22px;
+      height: 22px;
+      color: var(--primary);
+    }
+    .action-text {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    /* P2P Instant Transfer Sheet */
+    .transfer-panel {
+      padding: 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .badge-instant {
+      background: var(--success-light);
+      color: var(--success);
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: var(--r-sm);
+      border: 1px solid rgba(22, 163, 74, 0.3);
+    }
+    .recipient-card {
+      background: var(--surface-warm);
+      border: 1.5px solid var(--border-strong);
+      border-radius: var(--r-lg);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .recipient-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--r-full);
+      background: var(--primary);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .recipient-info {
+      flex: 1;
+    }
+    .recipient-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .recipient-phone {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-secondary);
+    }
+    .input-group {
+      margin-bottom: 14px;
+    }
+    .input-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .amount-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .currency-affix {
+      position: absolute;
+      left: 14px;
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--primary);
+    }
+    .amount-input {
+      width: 100%;
+      height: 48px;
+      padding: 8px 14px 8px 54px;
+      font-family: var(--font-sans);
+      font-size: 20px;
+      font-weight: 800;
+      border: 2px solid var(--border-strong);
+      border-radius: var(--r-md);
+      color: var(--text-primary);
+      background: #ffffff;
+    }
+    /* Touch Action CTA 48px Height */
+    .btn-transfer {
+      width: 100%;
+      height: 48px;
+      background: var(--accent);
+      color: var(--indigo-deep);
+      border: none;
+      border-radius: var(--r-md);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(255, 183, 3, 0.35);
+    }
+    .btn-transfer:active {
+      background: var(--accent-dark);
+    }
+    /* Transaction Ledger */
+    .ledger-container {
+      padding: 16px;
+      background: var(--bg);
+      flex: 1;
+    }
+    .ledger-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 12px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .item-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .icon-wrap {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--r-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-out {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    .icon-in {
+      background: var(--success-light);
+      color: var(--success);
+    }
+    .tx-party {
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .tx-status-tag {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .tx-right {
+      text-align: right;
+    }
+    .tx-val {
+      font-weight: 800;
+      font-size: 13.5px;
+    }
+    .tx-val.neg { color: #dc2626; }
+    .tx-val.pos { color: var(--success); }
+    /* Bottom Navigation Tab Bar (48px Touch Standard) */
+    .tab-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      height: 56px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 10px;
+    }
+    .tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .tab-item.active {
+      color: var(--primary);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="viewport-container">
+
+    <!-- Hardware Status Bar with Cellular Signal -->
+    <div class="device-status-bar">
+      <div class="carrier-info">
+        <div class="signal-bars">
+          <div class="signal-bar bar-1"></div>
+          <div class="signal-bar bar-2"></div>
+          <div class="signal-bar bar-3"></div>
+          <div class="signal-bar bar-4"></div>
+        </div>
+        <span>SAFARICOM 4G</span>
+        <span class="net-pill">3G EDGE</span>
+      </div>
+      <div style="font-weight:700;">14:38</div>
+      <div class="battery-pill">
+        <span>78%</span>
+        <div class="battery-icon"><div class="battery-fill"></div></div>
+      </div>
+    </div>
+
+    <!-- Offline-First Operational Status -->
+    <div class="offline-banner">
+      <div class="offline-badge">
+        <span class="pulse-dot"></span>
+        <span>Offline Mode Enabled (SMS Fallback Active)</span>
+      </div>
+      <span style="font-family:var(--font-mono);font-size:10px;">QUEUE: 2 TX</span>
+    </div>
+
+    <!-- App Brand Top Bar -->
+    <div class="fintech-header">
+      <div class="brand-title">
+        <div class="brand-emblem">M</div>
+        <span>BomaPay Mobile</span>
+      </div>
+      <div class="ussd-quickcode">USSD *384#</div>
+    </div>
+
+    <!-- High-Contrast Balance Card -->
+    <div class="balance-hero">
+      <div class="balance-label">Total Liquid SME Balance</div>
+      <div class="balance-amount">
+        <span class="currency-tag">KES</span>
+        <span>48,250.00</span>
+      </div>
+      <div class="balance-meta">
+        <span>Daily Limit: KES 150,000</span>
+        <span style="color:var(--accent);font-weight:700;">● M-PESA TILL #884021</span>
+      </div>
+    </div>
+
+    <!-- Fast Action Rail -->
+    <div class="action-grid">
+      <div class="action-button active">
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+        <span class="action-text">Send P2P</span>
+      </div>
+      <div class="action-button">
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+        <span class="action-text">Buy Goods</span>
+      </div>
+      <div class="action-button">
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span class="action-text">Pay Bill</span>
+      </div>
+      <div class="action-button">
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 12h8M12 8v8"/>
+        </svg>
+        <span class="action-text">Top-Up</span>
+      </div>
+    </div>
+
+    <!-- P2P Instant Mobile Transfer Form -->
+    <div class="transfer-panel">
+      <div class="section-title">
+        <span>Instant Recipient</span>
+        <span class="badge-instant">ZERO FEE P2P</span>
+      </div>
+
+      <div class="recipient-card">
+        <div class="recipient-avatar">MS</div>
+        <div class="recipient-info">
+          <div class="recipient-name">Mama Sarah Fresh Produce</div>
+          <div class="recipient-phone">+254 712 849 201 · Till 49021</div>
+        </div>
+        <span style="color:var(--success);font-size:11px;font-weight:700;">VERIFIED</span>
+      </div>
+
+      <div class="input-group">
+        <div class="input-label">
+          <span>Amount to Transfer</span>
+          <span style="color:var(--primary);font-weight:700;">Max: KES 48,250</span>
+        </div>
+        <div class="amount-box">
+          <span class="currency-affix">KES</span>
+          <input type="text" class="amount-input" value="3,450.00" readonly>
+        </div>
+      </div>
+
+      <button class="btn-transfer">
+        <span>Confirm Transfer via USSD</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+          <polyline points="12 5 19 12 12 19"></polyline>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Ledger / Recent Activity -->
+    <div class="ledger-container">
+      <div class="section-title" style="margin-bottom:8px;">
+        <span>Recent Operational Activity</span>
+        <span style="font-size:11px;color:var(--text-secondary);">Last synced 14:35</span>
+      </div>
+
+      <div class="ledger-item">
+        <div class="item-left">
+          <div class="icon-wrap icon-out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+          </div>
+          <div>
+            <div class="tx-party">Mama Sarah Wholesale</div>
+            <div class="tx-status-tag">REF: QHK492LF · M-PESA CONFIRMED</div>
+          </div>
+        </div>
+        <div class="tx-right">
+          <div class="tx-val neg">- KES 3,450.00</div>
+          <div style="font-size:10px;color:var(--text-muted);">Today, 14:32</div>
+        </div>
+      </div>
+
+      <div class="ledger-item">
+        <div class="item-left">
+          <div class="icon-wrap icon-in">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 7L7 17M7 17H17M7 17V7"/></svg>
+          </div>
+          <div>
+            <div class="tx-party">Boma Dairy Co-op</div>
+            <div class="tx-status-tag">SMS FALLBACK SYNC · OFFLINE READY</div>
+          </div>
+        </div>
+        <div class="tx-right">
+          <div class="tx-val pos">+ KES 12,800.00</div>
+          <div style="font-size:10px;color:var(--text-muted);">Today, 11:15</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="tab-bar">
+      <a href="#" class="tab-item active">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span>Wallet</span>
+      </a>
+      <a href="#" class="tab-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <span>Lipa Till</span>
+      </a>
+      <a href="#" class="tab-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>USSD Log</span>
+      </a>
+      <a href="#" class="tab-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+
+  </div>
+
+</body>
+</html>

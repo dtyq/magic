@@ -26,8 +26,8 @@ export class StorageInspector {
 	snapshot(): StorageData {
 		return {
 			cookies: this.readCookies(),
-			localStorage: this.readStorage(window.localStorage),
-			sessionStorage: this.readStorage(window.sessionStorage),
+			localStorage: this.readStorage("localStorage"),
+			sessionStorage: this.readStorage("sessionStorage"),
 			indexedDB: [], // populated async, see snapshotAsync
 		}
 	}
@@ -67,9 +67,11 @@ export class StorageInspector {
 
 	// ─── localStorage / sessionStorage ───────────────────────────────────
 
-	private readStorage(storage: Storage): Record<string, string> {
+	private readStorage(name: "localStorage" | "sessionStorage"): Record<string, string> {
 		const result: Record<string, string> = {}
 		try {
+			// Sandboxed origins can throw before a Storage object is even returned.
+			const storage = window[name]
 			for (let i = 0; i < storage.length; i++) {
 				const key = storage.key(i)
 				if (key !== null) {

@@ -1,9 +1,8 @@
-import { IconEdit } from "@douyinfe/semi-icons"
+import { IconCircleMinus, IconCirclePlus, IconPencil } from "@tabler/icons-react"
 import { Checkbox, Col, Row, Select, Switch, Tooltip } from "antd"
-import { IconCircleMinus, IconCirclePlus } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import i18next from "i18next"
-import _ from "lodash"
+import { get, omit, set } from "lodash-es"
 import React, { ReactElement, useContext, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react"
@@ -91,7 +90,7 @@ const SchemaItem = observer((props: SchemaItemProp): ReactElement | null => {
 	// 获取父级字段
 	const parentKeys = getParentKey(prefix)
 	const parentField = parentKeys.length
-		? _.get(mobxContext.schema, parentKeys)
+		? get(mobxContext.schema, parentKeys)
 		: mobxContext.schema
 
 	const { allowExpression, expressionSource } = context
@@ -217,7 +216,7 @@ const SchemaItem = observer((props: SchemaItemProp): ReactElement | null => {
 	 */
 	const judgeIsEqualObject = () => {
 		const curKeys = [...getPrefix()]
-		const oldValue = _.get(mobxContext.schema, [...curKeys], null)
+		const oldValue = get(mobxContext.schema, [...curKeys], null)
 		// console.log(JSON.parse(JSON.stringify(oldValue)), JSON.parse(JSON.stringify(value)))
 		return JSON.stringify(oldValue) === JSON.stringify(value)
 	}
@@ -251,7 +250,7 @@ const SchemaItem = observer((props: SchemaItemProp): ReactElement | null => {
 	}, [propertiesLength, isLastSchemaItem])
 
 	const isChecked = useMemo(() => {
-		const inExportFields = _.get(exportFields.schema, [...getPrefix()], false)
+		const inExportFields = get(exportFields.schema, [...getPrefix()], false)
 
 		return !!inExportFields
 	}, [exportFields.schema, getPrefix])
@@ -266,16 +265,16 @@ const SchemaItem = observer((props: SchemaItemProp): ReactElement | null => {
 			if (type === "delete" && keys.length === 0) return
 			if (curKey) {
 				beforeKeys.push(curKey)
-				const curFieldSchema = _.get(exportFields.schema, [...beforeKeys], null)
+				const curFieldSchema = get(exportFields.schema, [...beforeKeys], null)
 				if (curKey !== "properties") {
 					/** 如果不是properties时，需要携带上字段的其他参数 */
 					if (!curFieldSchema) {
-						const curKeysArguments = _.get(mobxContext.schema, [...beforeKeys], null)
+						const curKeysArguments = get(mobxContext.schema, [...beforeKeys], null)
 						if (curKeysArguments) {
 							/** 路径上的不需要properties，最后一个field需要携带上properties属性 */
 							const withoutPropertiesArgs =
 								keys.length > 0
-									? (_.omit(curKeysArguments, "properties") as any)
+									? (omit(curKeysArguments, "properties") as any)
 									: curKeysArguments
 							exportFields.changeValue({
 								keys: beforeKeys,
@@ -294,14 +293,14 @@ const SchemaItem = observer((props: SchemaItemProp): ReactElement | null => {
 
 					const parentSchemaKeys = [...beforeKeys].slice(0, -1)
 					/** 以实际表单的为参考 */
-					const parentRealSchema = _.get(mobxContext.schema, [...parentSchemaKeys], null)
-					const parentExportSchema = _.get(
+					const parentRealSchema = get(mobxContext.schema, [...parentSchemaKeys], null)
+					const parentExportSchema = get(
 						exportFields.schema,
 						[...parentSchemaKeys],
 						null,
 					)
 					/** 将不存在当前需要导出的properties字段的required字段过滤掉 */
-					_.set(
+					set(
 						parentExportSchema,
 						["required"],
 						parentRealSchema?.required?.filter((requiredKey: string) => {
@@ -316,7 +315,7 @@ const SchemaItem = observer((props: SchemaItemProp): ReactElement | null => {
 
 	const updateExportFields = useMemoizedFn(() => {
 		const curKeys = [...getPrefix()]
-		const currentExportField = _.get(mobxContext.schema, [...curKeys], null)
+		const currentExportField = get(mobxContext.schema, [...curKeys], null)
 		if (isChecked) {
 			exportFields.deleteField({ keys: curKeys })
 		}
@@ -484,7 +483,9 @@ const SchemaItem = observer((props: SchemaItemProp): ReactElement | null => {
 							<Col span={DescCol}>
 								<MagicInput
 									suffix={
-										<IconEdit
+										<IconPencil
+											size={16}
+											stroke={1.8}
 											className="input-icon-editor"
 											onClick={() => handleShowEdit("description")}
 										/>

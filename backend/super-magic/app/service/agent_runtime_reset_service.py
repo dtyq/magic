@@ -13,6 +13,7 @@ from agentlang.logger import get_logger
 from app.core.context.agent_context import AgentContext
 from app.core.context.agent_context_registry import AgentContextRegistry
 from app.service.user_tool_call_service import UserToolCallService
+from app.tools.file_edit_store import FileEditStore
 
 logger = get_logger(__name__)
 
@@ -88,6 +89,9 @@ class AgentRuntimeResetService:
                 if horizon is not None:
                     await horizon.on_context_reset()
                     result.horizon_reset = True
+
+            # 范围编号绑定当前上下文；/new 或压缩后清除旧编号，避免复用过期位置。
+            await FileEditStore.clear_context(agent_context)
 
             return result
         except Exception as e:

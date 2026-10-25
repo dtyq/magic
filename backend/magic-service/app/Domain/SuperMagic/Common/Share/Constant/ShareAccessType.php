@@ -29,6 +29,18 @@ enum ShareAccessType: int
     }
 
     /**
+     * 获取分享类型的国际化文案 key，供异常占位符二次翻译。
+     */
+    public function getI18nKey(): string
+    {
+        return match ($this) {
+            self::TeamShare => 'share.share_method_team',
+            self::Internet => 'share.share_method_public',
+            self::PasswordProtected => 'share.share_method_password',
+        };
+    }
+
+    /**
      * 检查是否需要密码保护（密码必填）.
      */
     public function needsPassword(): bool

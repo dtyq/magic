@@ -1,29 +1,57 @@
+import MobileTopicTypeFilter from "@/pages/superMagicMobile/components/TopicTypeFilter"
+import TopicListFeedback from "@/pages/superMagic/components/TopicTypeFilter/TopicListFeedback"
+import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
+import { useTopicTypeFilter } from "@/pages/superMagic/hooks/useTopicTypeFilter"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Check, MessageCircle, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Button } from "@/components/shadcn-ui/button"
 import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
+import { getFallbackTopicModeIdentifier } from "@/services/superMagic/DefaultAgentSelectionService"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
-import { cn } from "@/lib/utils"
+import ModeTag from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/components/TopicsPopup/components/TopicItem/components/ModeTag"
+import { cn } from "@/utils/cn"
 
 interface MicroAppTopicPickerProps {
 	open: boolean
+	projectId: string
 	topics: Topic[]
 	selectedTopicId?: string
 	onSelect: (topic: Topic) => void
 	onClose: () => void
+	/** Preview/published lists show the employee icon for each topic. */
+	showModeIcon?: boolean
 }
 
 /** 微应用移动端话题选择使用独立底部列表，不引入桌面历史话题面板。 */
 export default function MicroAppTopicPicker({
 	open,
-	topics,
+	projectId,
+	topics: storeTopics,
 	selectedTopicId,
 	onSelect,
 	onClose,
+	showModeIcon = false,
 }: MicroAppTopicPickerProps) {
 	const { t } = useTranslation("super")
+	const [topicType, setTopicType] = useTopicTypeFilter(projectId)
+	const {
+		displayTopics: topics,
+		total,
+		isLoading,
+		error,
+		reload,
+		hasMore,
+		loadMore,
+	} = usePaginatedTopics({
+		enabled: open,
+		projectId,
+		storeTopics,
+		topicType,
+		pageSize: 100,
+	})
 
 	return (
 		<MagicPopup
@@ -45,10 +73,17 @@ export default function MicroAppTopicPicker({
 						</p>
 						<p className="text-xs text-muted-foreground">
 							{t("microAppPage.mobileConversation.topicCount", {
-								count: topics.length,
+								count: total,
 							})}
 						</p>
 					</div>
+					{open && (
+						<MobileTopicTypeFilter
+							key={projectId}
+							value={topicType}
+							onChange={setTopicType}
+						/>
+					)}
 					<Button
 						type="button"
 						variant="ghost"
@@ -61,8 +96,21 @@ export default function MicroAppTopicPicker({
 					</Button>
 				</header>
 
-				<div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-2">
-					{topics.length === 0 ? (
+				<ScrollArea
+					key={`${projectId}:${topicType}`}
+					className="min-h-0 flex-1"
+					viewportClassName="px-3 py-2"
+				>
+					{error ? (
+						<TopicListFeedback error={error} onRetry={reload} />
+					) : isLoading ? (
+						<div
+							role="status"
+							className="p-4 text-center text-sm text-muted-foreground"
+						>
+							{t("common.loading")}
+						</div>
+					) : topics.length === 0 ? (
 						<div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
 							{t("microAppPage.mobileConversation.noTopics")}
 						</div>
@@ -90,6 +138,17 @@ export default function MicroAppTopicPicker({
 											iconSizeClass="size-5"
 											data-testid="micro-app-mobile-topic-icon"
 										/>
+										{showModeIcon ? (
+											<span data-testid="micro-app-mobile-topic-mode-icon">
+												<ModeTag
+													mode={
+														topic.topic_mode ||
+														getFallbackTopicModeIdentifier()
+													}
+													agentCode={topic.agent_code}
+												/>
+											</span>
+										) : null}
 										<div className="min-w-0 flex-1">
 											<p className="truncate text-sm font-medium text-foreground">
 												{topic.topic_name || t("topic.unnamedTopic")}
@@ -106,7 +165,12 @@ export default function MicroAppTopicPicker({
 							})}
 						</div>
 					)}
-				</div>
+					{hasMore && (
+						<Button variant="ghost" className="w-full" onClick={() => void loadMore()}>
+							{t("topicTypeFilter.more")}
+						</Button>
+					)}
+				</ScrollArea>
 			</div>
 		</MagicPopup>
 	)

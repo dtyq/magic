@@ -60,6 +60,10 @@
 		}
 	},
 	"approval": {
+		"agent": "审批代理",
+		"center": "审批中心",
+		"delegate": "智能委托",
+		"initiate": "发起审批",
 		"title": "审批"
 	},
 	"drive": {

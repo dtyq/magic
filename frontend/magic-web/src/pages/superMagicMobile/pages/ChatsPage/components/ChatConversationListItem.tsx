@@ -78,7 +78,7 @@ export function ChatConversationListItem({
 			onOpen={onOpen}
 			onClose={onClose}
 			onRowClick={() => onClick(item)}
-			data-testid={`mobile-chats-page-item-${item.id}`}
+			data-testid="mobile-chats-page-item"
 		>
 			{/* 行内容：与 SwipeActionRow children 配合，整体作为可左移的内容层 */}
 			<div className="flex h-16 w-full items-center gap-2 rounded-[14px] px-3 py-[10px]">

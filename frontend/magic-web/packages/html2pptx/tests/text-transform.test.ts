@@ -7,7 +7,6 @@ import type { ElementNode } from "../src/ir/dom"
 import { parseTextNodes } from "../src/parsers/parseText"
 import { CSS_IDENTITY_TRANSFORM } from "../src/shared/transform-measurement"
 import { getGlobalTransform } from "../src/shared/unit"
-import { parseRichTextNodes } from "../enterprise/src/parsers/parseRichText"
 
 const originalDOMMatrix = globalThis.DOMMatrix
 const originalGetClientRects = Range.prototype.getClientRects
@@ -216,7 +215,7 @@ describe("editable text transform safety", () => {
 		expect(element.style.scale).toBe("1.5")
 	})
 
-	it("finds browser lines before rotating sole-owner and rich text", () => {
+	it("finds browser lines before rotating sole-owner text", () => {
 		installDOMMatrix()
 		document.body.innerHTML = `
 			<div id="rotated-lines" style="width: 100px; height: 40px; font: 20px/20px Arial; word-break: break-all; transform: matrix(0, 1, -1, 0, 0, 0); transform-origin: 0 0">ABCDEFGH</div>
@@ -257,17 +256,11 @@ describe("editable text transform safety", () => {
 		const base = { type: "", x: 0, y: 0, w: 0, h: 0, zOrder: 1 }
 
 		const plain = parseTextNodes(rowNode, base, config)
-		const rich = parseRichTextNodes(rowNode, base, config, {
-			elementNodeMap: new Map(collected.map((node) => [node.element, node])),
-		})
-
-		for (const result of [plain[0], rich[0]]) {
-			expect(result.rotate).toBe(90)
-			expect(Array.isArray(result.text)).toBe(true)
-			if (!Array.isArray(result.text)) throw new Error("visual-line runs expected")
-			expect(result.text.map((run) => run.text)).toEqual(["ABCD", "EFGH"])
-			expect(result.text[1].options?.softBreakBefore).toBe(true)
-		}
+		expect(plain[0].rotate).toBe(90)
+		expect(Array.isArray(plain[0].text)).toBe(true)
+		if (!Array.isArray(plain[0].text)) throw new Error("visual-line runs expected")
+		expect(plain[0].text.map((run) => run.text)).toEqual(["ABCD", "EFGH"])
+		expect(plain[0].text[1].options?.softBreakBefore).toBe(true)
 		expect(row.style.transform).toBe("matrix(0, 1, -1, 0, 0, 0)")
 	})
 })

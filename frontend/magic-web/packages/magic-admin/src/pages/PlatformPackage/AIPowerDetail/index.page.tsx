@@ -91,7 +91,21 @@ function AIPowerDetailPage() {
 
 	const getAvailableProviderList = (powerCode?: string, apiProviders?: unknown) => {
 		const defaultList = powerCode ? DefaultProviderListMap[powerCode] || [] : []
-		return filterDeprecatedProviderList(mergeProviderList(apiProviders, defaultList), powerCode)
+		// 兼容能力配置从旧版平铺结构迁移到 providers 结构时的历史数据。
+		// 旧配置没有 provider 字段，直接合并到默认 provider，避免保存凭证时丢失已有配置。
+		const normalizedProviders =
+			apiProviders &&
+			typeof apiProviders === "object" &&
+			!Array.isArray(apiProviders) &&
+			!isProviderConfig(apiProviders)
+				? defaultList.length > 0
+					? [{ ...defaultList[0], ...(apiProviders as Record<string, unknown>) }]
+					: apiProviders
+				: apiProviders
+		return filterDeprecatedProviderList(
+			mergeProviderList(normalizedProviders, defaultList),
+			powerCode,
+		)
 	}
 
 	const { runAsync: saveDetail, loading: saveLoading } = useRequest(

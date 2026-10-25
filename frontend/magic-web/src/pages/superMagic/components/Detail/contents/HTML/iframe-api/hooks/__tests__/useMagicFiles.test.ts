@@ -2,6 +2,8 @@ import { renderHook, act } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { useMagicFiles } from "../useMagicFiles"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
 
 const defaultAgentSelectionMock = vi.hoisted(() => ({
 	modeIdentifier: "general",
@@ -19,6 +21,7 @@ vi.mock("@/components/base/MagicToaster/utils", () => ({
 		loading: vi.fn(),
 		success: vi.fn(),
 		error: vi.fn(),
+		warning: vi.fn(),
 		destroy: vi.fn(),
 	},
 }))
@@ -63,6 +66,11 @@ vi.mock("@/pages/superMagic/services", () => ({
 	},
 }))
 
+vi.mock("@/pages/superMagic/utils/isChatWorkspaceProject", () => ({
+	isCachedChatWorkspaceProject: (project?: { workspace_id?: string } | null) =>
+		project?.workspace_id === "chat-ws",
+}))
+
 vi.mock("@/pages/superMagic/stores/core", () => ({
 	topicStore: {
 		setSelectedTopic: vi.fn(),
@@ -76,12 +84,15 @@ vi.mock("@/pages/superMagic/utils/api", () => ({
 	getTemporaryDownloadUrl: vi.fn(),
 }))
 
+// File downloads now enter through the access-bound client; keep the network
+// dependency mocked while exercising the real useMagicFiles request/response flow.
+vi.mock("@/pages/superMagic/fileAccess/fileApi", async () => {
+	const { getTemporaryDownloadUrl } = await import("@/pages/superMagic/utils/api")
+	return { useFileApi: () => ({ getTemporaryDownloadUrl }) }
+})
+
 vi.mock("@/pages/superMagic/utils/handleFIle", () => ({
 	downloadFileWithAnchor: vi.fn(),
-}))
-
-vi.mock("mobx", () => ({
-	runInAction: vi.fn((fn: () => void) => fn()),
 }))
 
 vi.mock("@/utils/pubsub", () => ({
@@ -111,6 +122,15 @@ function makeIframeRef(postMessage = vi.fn()) {
 }
 
 const targetOrigin = "https://sandbox.example.com"
+
+function makeTopicStore(overrides: Partial<TopicStore> = {}) {
+	return {
+		topics: [],
+		setTopics: vi.fn(),
+		setSelectedTopic: vi.fn(),
+		...overrides,
+	} as unknown as TopicStore
+}
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -203,6 +223,48 @@ describe("useMagicFiles", () => {
 					requestId: "req-1",
 					success: false,
 					error: "No project selected",
+				}),
+				targetOrigin,
+			)
+		})
+
+		it("分享场景在授权前返回项目上下文提示", async () => {
+			const authorizePermission = vi.fn()
+			const projectContextError = "分享场景下，该功能暂不支持，可尝试通过协作的方式进行分享。"
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					targetOrigin,
+					selectedProject: null,
+					projectContextUnavailableError: projectContextError,
+					uploadImageFileToProject,
+					authorizePermission,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicUploadFiles({
+					type: "MAGIC_UPLOAD_FILES_REQUEST",
+					requestId: "req-share-context",
+					files: [
+						{
+							base64: "data",
+							filename: "a.txt",
+							path: "./a.txt",
+							fileSize: 4,
+							fileType: "text/plain",
+						},
+					],
+				})
+			})
+
+			expect(authorizePermission).not.toHaveBeenCalled()
+			expect(iframePostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "MAGIC_UPLOAD_FILES_RESPONSE",
+					requestId: "req-share-context",
+					success: false,
+					error: projectContextError,
 				}),
 				targetOrigin,
 			)
@@ -473,6 +535,7 @@ describe("useMagicFiles", () => {
 					iframeRef,
 					targetOrigin,
 					selectedProject: { id: "proj-1", workspace_id: "ws-1" },
+					topicStore: makeTopicStore(),
 					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
 					uploadImageFileToProject,
 				}),
@@ -542,6 +605,7 @@ describe("useMagicFiles", () => {
 					iframeRef,
 					targetOrigin,
 					selectedProject: { id: "proj-1", workspace_id: "ws-1" },
+					topicStore: makeTopicStore(),
 					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
 					uploadImageFileToProject,
 				}),
@@ -589,6 +653,7 @@ describe("useMagicFiles", () => {
 					iframeRef,
 					targetOrigin,
 					selectedProject: { id: "proj-1", workspace_id: "ws-1" },
+					topicStore: makeTopicStore(),
 					attachmentList: [{ relative_file_path: "b.csv", file_id: "f-2" }],
 					uploadImageFileToProject,
 				}),
@@ -608,6 +673,316 @@ describe("useMagicFiles", () => {
 					requestId: "req-8",
 					success: false,
 					error: "Failed to create topic",
+				}),
+				targetOrigin,
+			)
+		})
+
+		it("uses the explicit project and scoped topic store", async () => {
+			const { SuperMagicApi } = await import("@/apis")
+			const { default: SuperMagicService } = await import("@/pages/superMagic/services")
+			const scopedSelectedTopic = vi.fn()
+			const scopedSetTopics = vi.fn()
+			const scopedTopicStore = {
+				topics: [{ id: "old-topic" }],
+				setTopics: scopedSetTopics,
+				setSelectedTopic: scopedSelectedTopic,
+			} as unknown as TopicStore
+
+			vi.mocked(SuperMagicApi.createTopic).mockResolvedValueOnce({
+				id: "topic-scoped",
+			} as any)
+			vi.useFakeTimers()
+
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					targetOrigin,
+					projectId: "explicit-project",
+					selectedProject: { id: "explicit-project", workspace_id: "ws-1" },
+					topicStore: scopedTopicStore,
+					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
+					uploadImageFileToProject,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicAddFilesToMessage({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+					requestId: "req-scoped",
+					filePaths: ["a.csv"],
+				})
+			})
+
+			expect(SuperMagicApi.createTopic).toHaveBeenCalledWith(
+				expect.objectContaining({ project_id: "explicit-project" }),
+			)
+			expect(scopedSelectedTopic).toHaveBeenCalledWith(
+				expect.objectContaining({ id: "topic-scoped" }),
+			)
+			expect(scopedSetTopics).toHaveBeenCalledWith([
+				expect.objectContaining({ id: "topic-scoped" }),
+				{ id: "old-topic" },
+			])
+			expect(SuperMagicService.route.navigateToState).not.toHaveBeenCalled()
+
+			vi.useRealTimers()
+		})
+
+		it("creates the topic in the host project while reading files from origin", async () => {
+			const { SuperMagicApi } = await import("@/apis")
+			vi.mocked(SuperMagicApi.createTopic).mockResolvedValueOnce({
+				id: "topic-host",
+			} as any)
+			vi.useFakeTimers()
+
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					targetOrigin,
+					projectId: "project-from-preview",
+					selectedProject: { id: "project-current", workspace_id: "ws-1" },
+					topicStore: makeTopicStore(),
+					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
+					uploadImageFileToProject,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicAddFilesToMessage({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+					requestId: "req-host",
+					filePaths: ["a.csv"],
+				})
+			})
+
+			expect(SuperMagicApi.createTopic).toHaveBeenCalledWith(
+				expect.objectContaining({ project_id: "project-current" }),
+			)
+
+			vi.useRealTimers()
+		})
+
+		it("rejects addFilesToMessage when the host project is missing", async () => {
+			const { SuperMagicApi } = await import("@/apis")
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					targetOrigin,
+					projectId: "project-from-preview",
+					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
+					uploadImageFileToProject,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicAddFilesToMessage({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+					requestId: "req-no-host",
+					filePaths: ["a.csv"],
+				})
+			})
+
+			expect(SuperMagicApi.createTopic).not.toHaveBeenCalled()
+			expect(iframePostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
+					requestId: "req-no-host",
+					success: false,
+					error: "No project selected",
+				}),
+				targetOrigin,
+			)
+		})
+
+		it("rejects addFilesToMessage when the topic store is missing", async () => {
+			const { SuperMagicApi } = await import("@/apis")
+			const { topicStore } = await import("@/pages/superMagic/stores/core")
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					targetOrigin,
+					projectId: "project-from-preview",
+					selectedProject: { id: "project-current", workspace_id: "ws-1" },
+					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
+					uploadImageFileToProject,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicAddFilesToMessage({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+					requestId: "req-no-store",
+					filePaths: ["a.csv"],
+				})
+			})
+
+			expect(SuperMagicApi.createTopic).not.toHaveBeenCalled()
+			expect(topicStore.setSelectedTopic).not.toHaveBeenCalled()
+			expect(iframePostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
+					requestId: "req-no-store",
+					success: false,
+					error: "No topic store",
+				}),
+				targetOrigin,
+			)
+		})
+
+		it.each([
+			["MagiClaw", TopicMode.MagiClaw],
+			["Chat", TopicMode.Chat],
+		] as const)(
+			"adds files to the current %s topic instead of creating a new one",
+			async (_label, projectMode) => {
+				const { SuperMagicApi } = await import("@/apis")
+				const { addMultipleFilesToCurrentChat } =
+					await import("@/pages/superMagic/utils/topics")
+				const { default: pubsub } = await import("@/utils/pubsub")
+				const setSelectedTopic = vi.fn()
+				const setTopics = vi.fn()
+				const currentTopic = { id: "host-topic-1" }
+
+				const { result } = renderHook(() =>
+					useMagicFiles({
+						iframeRef,
+						targetOrigin,
+						selectedProject: {
+							id: "proj-1",
+							workspace_id: "ws-1",
+							project_mode: projectMode,
+						},
+						topicStore: makeTopicStore({
+							topics: [currentTopic],
+							selectedTopic: currentTopic as never,
+							setTopics,
+							setSelectedTopic,
+						}),
+						attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
+						uploadImageFileToProject,
+					}),
+				)
+
+				await act(async () => {
+					await result.current.handleMagicAddFilesToMessage({
+						type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+						requestId: "req-reuse-topic",
+						filePaths: ["a.csv"],
+					})
+				})
+
+				expect(SuperMagicApi.createTopic).not.toHaveBeenCalled()
+				expect(setSelectedTopic).not.toHaveBeenCalled()
+				expect(setTopics).not.toHaveBeenCalled()
+				expect(pubsub.publish).not.toHaveBeenCalled()
+				expect(addMultipleFilesToCurrentChat).toHaveBeenCalledOnce()
+				expect(iframePostMessage).toHaveBeenCalledWith(
+					expect.objectContaining({
+						type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
+						requestId: "req-reuse-topic",
+						success: true,
+					}),
+					targetOrigin,
+				)
+			},
+		)
+
+		it("adds files to the current Chat workspace topic even without Chat project_mode", async () => {
+			const { SuperMagicApi } = await import("@/apis")
+			const { addMultipleFilesToCurrentChat } =
+				await import("@/pages/superMagic/utils/topics")
+			const { default: pubsub } = await import("@/utils/pubsub")
+			const setSelectedTopic = vi.fn()
+			const setTopics = vi.fn()
+			const currentTopic = { id: "host-topic-2" }
+			defaultAgentSelectionMock.isAvailable = false
+
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					targetOrigin,
+					selectedProject: {
+						id: "proj-1",
+						workspace_id: "chat-ws",
+						project_mode: TopicMode.General,
+					},
+					topicStore: makeTopicStore({
+						topics: [currentTopic],
+						selectedTopic: currentTopic as never,
+						setTopics,
+						setSelectedTopic,
+					}),
+					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
+					uploadImageFileToProject,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicAddFilesToMessage({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+					requestId: "req-chat-ws-reuse",
+					filePaths: ["a.csv"],
+					agentMode: "invalid-agent",
+				})
+			})
+
+			expect(SuperMagicApi.createTopic).not.toHaveBeenCalled()
+			expect(setSelectedTopic).not.toHaveBeenCalled()
+			expect(setTopics).not.toHaveBeenCalled()
+			expect(pubsub.publish).not.toHaveBeenCalled()
+			expect(addMultipleFilesToCurrentChat).toHaveBeenCalledOnce()
+			expect(magicToast.warning).toHaveBeenCalledWith(
+				expect.objectContaining({
+					key: "html-iframe-specified-agent-unavailable",
+				}),
+			)
+			expect(iframePostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
+					requestId: "req-chat-ws-reuse",
+					success: true,
+				}),
+				targetOrigin,
+			)
+		})
+
+		it("rejects MagiClaw addFilesToMessage when the unique topic is missing", async () => {
+			const { SuperMagicApi } = await import("@/apis")
+			const { addMultipleFilesToCurrentChat } =
+				await import("@/pages/superMagic/utils/topics")
+
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					targetOrigin,
+					selectedProject: {
+						id: "proj-1",
+						workspace_id: "ws-1",
+						project_mode: TopicMode.MagiClaw,
+					},
+					topicStore: makeTopicStore({ selectedTopic: null as never }),
+					attachmentList: [{ relative_file_path: "a.csv", file_id: "f-1" }],
+					uploadImageFileToProject,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicAddFilesToMessage({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
+					requestId: "req-claw-no-topic",
+					filePaths: ["a.csv"],
+				})
+			})
+
+			expect(SuperMagicApi.createTopic).not.toHaveBeenCalled()
+			expect(addMultipleFilesToCurrentChat).not.toHaveBeenCalled()
+			expect(iframePostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
+					requestId: "req-claw-no-topic",
+					success: false,
+					error: "No topic selected",
 				}),
 				targetOrigin,
 			)

@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from "mobx"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import {
 	FieldPanelConfig,
 	FieldItem,

@@ -88,6 +88,8 @@ class BatchSaveProjectFilesRequestDTO extends AbstractRequestDTO
             'files.*.pre_file_id' => 'nullable|integer|min:-1',
             'files.*.source' => 'nullable|integer|min:0',
             'files.*.storage_type' => 'nullable|string|max:50',
+            'files.*.topic_id' => ['nullable', 'string', 'regex:/^[1-9][0-9]*$/'],
+            'files.*.task_id' => ['nullable', 'string', 'regex:/^[1-9][0-9]*$/'],
         ];
     }
 

@@ -11,13 +11,14 @@ import {
 } from "@/components/shadcn-ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn-ui/avatar"
 import { RadioGroup, RadioGroupItem } from "@/components/shadcn-ui/radio-group"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type {
 	ThirdPartyAccountConflictContext,
 	ThirdPartyAccountConflictDecision,
 	ThirdPartyAccountIdentity,
 } from "@/services/app/types/thirdPartyAccountReconcile"
 import { Login } from "@/types/login"
+import { getAvatarUrl } from "@/utils/avatar"
 
 interface ThirdPartyAccountConflictModalProps extends ThirdPartyAccountConflictContext {
 	onDecision: (decision: ThirdPartyAccountConflictDecision) => void
@@ -47,7 +48,7 @@ function AccountCard({
 			data-testid={testId}
 		>
 			<Avatar className="size-10">
-				<AvatarImage src={user.avatar} alt={user.name} />
+				<AvatarImage src={getAvatarUrl(user.avatar, 40)} alt={user.name} />
 				<AvatarFallback className="text-sm text-muted-foreground">
 					{user.name.slice(0, 1).toUpperCase()}
 				</AvatarFallback>

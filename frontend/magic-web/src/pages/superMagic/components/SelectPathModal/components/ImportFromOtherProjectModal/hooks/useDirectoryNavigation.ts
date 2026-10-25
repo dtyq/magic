@@ -48,8 +48,6 @@ export function useDirectoryNavigation(options: UseDirectoryNavigationOptions = 
 		try {
 			const res = await loadProjectAttachmentsData({
 				projectId,
-				temporaryToken:
-					(window as Window & { temporary_token?: string }).temporary_token || "",
 			})
 			setAttachments(res?.tree || [])
 			setPath([])

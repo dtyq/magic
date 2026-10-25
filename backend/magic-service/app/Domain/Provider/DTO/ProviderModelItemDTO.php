@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO;
 
+use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Infrastructure\Core\AbstractDTO;
 
 /**
@@ -39,6 +40,8 @@ class ProviderModelItemDTO extends AbstractDTO
     protected ?array $serviceProviderConfig = null;
 
     protected ?array $imageSizeConfig = null;
+
+    protected ?VideoGenerationConfig $videoGenerationConfig = null;
 
     public function getId(): string
     {
@@ -193,6 +196,17 @@ class ProviderModelItemDTO extends AbstractDTO
     public function setImageSizeConfig(?array $imageSizeConfig): self
     {
         $this->imageSizeConfig = empty($imageSizeConfig) ? null : $imageSizeConfig;
+        return $this;
+    }
+
+    public function getVideoGenerationConfig(): ?VideoGenerationConfig
+    {
+        return $this->videoGenerationConfig;
+    }
+
+    public function setVideoGenerationConfig(?VideoGenerationConfig $videoGenerationConfig): self
+    {
+        $this->videoGenerationConfig = $videoGenerationConfig;
         return $this;
     }
 }

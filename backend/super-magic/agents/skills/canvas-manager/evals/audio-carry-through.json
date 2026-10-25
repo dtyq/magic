@@ -1,0 +1,14 @@
+{
+  "id": "audio-carry-through",
+  "prompt": "Generate a 15-second product video. Narration: 'This bottle keeps drinks cold for 24 hours.' Calm female voice, light ice-clink sound effects.",
+  "expected_reference": "references/video-generation.md",
+  "expected_tools": ["estimate_canvas_content_points", "add_canvas_elements"],
+  "constraints": [
+    "Keep the complete narration text, speaker or voice, tone, and sound-effect description in the generation prompt.",
+    "Set content.audioPolicy to generate on the direct video request.",
+    "Do not use mute or omit audioPolicy when the user requested sound.",
+    "Do not drop audio requirements in favor of visual description only.",
+    "Do not add audioPolicy to the point-estimate request.",
+    "Do not pass generate on a compose request."
+  ]
+}

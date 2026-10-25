@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { toInspectorOverlayRect } from "../geometry"
+import {
+	fromInspectorOverlayRect,
+	toInspectorOverlayRect,
+	toInspectorOverlayVisualRect,
+} from "../geometry"
 
 describe("ElementInspector overlay geometry", () => {
 	it("does not apply the phone-shell scale twice", () => {
@@ -72,5 +76,29 @@ describe("ElementInspector overlay geometry", () => {
 		)
 
 		expect(rect).toEqual({ top: 35, left: 37.5, width: 75, height: 30 })
+	})
+
+	it("converts a drawn overlay region back to iframe coordinates", () => {
+		const geometry = {
+			iframeRect: { top: 120, left: 130, width: 200, height: 400 },
+			iframeSize: { width: 400, height: 800 },
+			containerRect: { top: 100, left: 100, width: 250, height: 450 },
+			containerSize: { width: 500, height: 900 },
+			fallbackScale: 1,
+		}
+
+		expect(
+			fromInspectorOverlayRect({ top: 100, left: 100, width: 100, height: 20 }, geometry),
+		).toEqual({ top: 60, left: 40, width: 100, height: 20 })
+	})
+
+	it("maps the iframe visual bounds without applying the iframe zoom again", () => {
+		expect(
+			toInspectorOverlayVisualRect(
+				{ top: 75, left: 150, width: 600, height: 450 },
+				{ top: 0, left: 0, width: 1200, height: 900 },
+				{ width: 800, height: 600 },
+			),
+		).toEqual({ top: 50, left: 100, width: 400, height: 300 })
 	})
 })

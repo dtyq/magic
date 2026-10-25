@@ -7,9 +7,10 @@
 import json
 import re
 import uuid
+from enum import StrEnum
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
 
 from agentlang.config.config import config
 from agentlang.config.models.model_config import model_config_utils
@@ -30,7 +31,7 @@ ASSISTANT_TOOL_CONTENT_PLACEHOLDER = "我将继续执行任务"
 # ==============================================================================
 # 聊天记录压缩配置数据类
 # ==============================================================================
-FALLBACK_USER_FACING_MAX_CONTEXT_TOKENS = 200_000
+FALLBACK_USER_FACING_MAX_CONTEXT_TOKENS = 300_000
 FALLBACK_DEFAULT_COMPACTION_THRESHOLD_TOKENS = 180_000
 FALLBACK_MIN_COMPACTION_THRESHOLD_TOKENS = 100_000
 FALLBACK_MAX_COMPACTION_THRESHOLD_TOKENS = 180_000
@@ -39,11 +40,24 @@ FALLBACK_CONTEXT_USAGE_RATIO = 0.9
 
 @dataclass(frozen=True)
 class ContextWindowRule:
-    """按模型关键词匹配用户可见上下文窗口。"""
+    """同一模型名称的关键词、版本共同决定旧模型或成本例外窗口。"""
 
     name: str
     user_facing_max_context_tokens: int
     model_keywords: tuple[str, ...]
+    version_patterns: tuple[re.Pattern[str], ...]
+    version_lt: tuple[int, ...] | None = None
+    versions: tuple[tuple[int, ...], ...] = ()
+
+
+def _parse_model_version(value: str) -> tuple[int, ...]:
+    """按整数分段比较；4 与 4.0 等价，4.10 大于 4.6，不能使用浮点数。"""
+    if not re.fullmatch(r"[0-9]+(?:[.-][0-9]+)*", value):
+        raise ValueError(f"Invalid model version: {value}")
+    parts = [int(part) for part in re.split(r"[.-]", value)]
+    while len(parts) > 1 and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts)
 
 
 def _parse_token_count(value: Any) -> Optional[int]:
@@ -120,11 +134,37 @@ def _load_context_window_rules_from_config() -> List[ContextWindowRule]:
         if not model_keywords:
             raise ValueError(f"context_window.tiers[{index}].model_keywords cannot be empty")
 
+        raw_patterns = raw_rule.get("version_patterns")
+        if not isinstance(raw_patterns, list) or not raw_patterns:
+            raise ValueError(f"context_window.tiers[{index}].version_patterns must be a nonempty list")
+        patterns: list[re.Pattern[str]] = []
+        for pattern in raw_patterns:
+            if not isinstance(pattern, str) or not pattern.strip():
+                raise ValueError(f"context_window.tiers[{index}].version_patterns must contain strings")
+            patterns.append(re.compile(pattern, re.IGNORECASE))
+
+        raw_version_lt = raw_rule.get("version_lt")
+        version_lt: tuple[int, ...] | None = None
+        if raw_version_lt is not None:
+            if not isinstance(raw_version_lt, str):
+                raise ValueError(f"context_window.tiers[{index}].version_lt must be a string")
+            version_lt = _parse_model_version(raw_version_lt)
+        raw_versions = raw_rule.get("versions", [])
+        if not isinstance(raw_versions, list) or any(not isinstance(v, str) for v in raw_versions):
+            raise ValueError(f"context_window.tiers[{index}].versions must be a list of strings")
+        versions = tuple(_parse_model_version(version) for version in raw_versions)
+        if version_lt is not None or versions:
+            if any("version" not in pattern.groupindex for pattern in patterns):
+                raise ValueError(f"context_window.tiers[{index}] patterns must capture 'version'")
+
         rules.append(
             ContextWindowRule(
                 name=name,
                 user_facing_max_context_tokens=user_facing_max_context_tokens,
                 model_keywords=model_keywords,
+                version_patterns=tuple(patterns),
+                version_lt=version_lt,
+                versions=versions,
             )
         )
 
@@ -143,31 +183,72 @@ def resolve_default_user_facing_max_context_tokens() -> int:
     return _resolve_default_user_facing_max_context_tokens()
 
 
-def _collect_model_match_texts(*model_ids: Any) -> List[str]:
-    """收集用于上下文窗口规则匹配的模型文本。"""
-    candidates: List[Any] = list(model_ids)
-    for candidate in list(candidates):
-        if not candidate or not str(candidate).strip():
-            continue
-        model_config = model_config_utils.get_model_config(str(candidate).strip())
-        if not model_config:
-            continue
-        metadata = model_config.metadata or {}
-        candidates.extend([
-            model_config.model_id,
-            model_config.name,
-            model_config.provider,
-            model_config.resolved_model_id,
-            metadata.get("label"),
-            metadata.get("api_model"),
-            metadata.get("profile"),
-        ])
-
+def _collect_model_match_texts(
+    model_id: str,
+    *,
+    resolved_model_id: str | None = None,
+    model_name: str | None = None,
+) -> List[str]:
+    """真实 ID／api_model／profile 优先，内部 ID 不可识别时再使用名称与 label。"""
+    candidates: list[object] = [resolved_model_id]
+    model_configs = [
+        model_config_utils.get_model_config(candidate.strip())
+        for candidate in (resolved_model_id, model_id)
+        if candidate and candidate.strip()
+    ]
+    for model_config in model_configs:
+        if model_config is not None:
+            metadata = model_config.metadata or {}
+            candidates.extend([
+                model_config.resolved_model_id,
+                metadata.get("api_model"),
+                metadata.get("profile"),
+            ])
+    candidates.extend(
+        model_config.model_id for model_config in model_configs if model_config is not None
+    )
+    candidates.extend([model_id, model_name])
+    for model_config in model_configs:
+        if model_config is not None:
+            candidates.extend([
+                model_config.name,
+                (model_config.metadata or {}).get("label"),
+            ])
     return list(dict.fromkeys(
-        str(value).strip().lower()
+        value.strip().lower()
         for value in candidates
-        if value and str(value).strip()
+        if isinstance(value, str) and value.strip()
     ))
+
+
+def _match_context_window_rule(
+    rules: List[ContextWindowRule],
+    match_texts: List[str],
+) -> ContextWindowRule | None:
+    """先判断可信名称，再判断规则；新版本不能被低优先级的旧别名覆盖。"""
+    for text in match_texts:
+        recognized = False
+        for rule in rules:
+            keywords_match = all(keyword.lower() in text for keyword in rule.model_keywords)
+            for pattern in rule.version_patterns:
+                match = pattern.search(text)
+                if match is None:
+                    continue
+                recognized = True
+                if not keywords_match:
+                    continue
+                if rule.version_lt is not None or rule.versions:
+                    version = _parse_model_version(match.group("version"))
+                    if rule.version_lt is not None and version >= rule.version_lt:
+                        continue
+                    if rule.versions and version not in rule.versions:
+                        continue
+                return rule
+            # 已识别型号但名称没有数字版本时使用默认，不能猜成旧版本。
+            recognized = recognized or keywords_match
+        if recognized:
+            return None
+    return None
 
 @dataclass(frozen=True)
 class CompactionThresholdResult:
@@ -245,7 +326,7 @@ class CompactionConfig:
 
     # 模型缺失或没有 agent_model_id 时使用 default_compaction_threshold_tokens；有模型时先读取
     # max_context_tokens，再按「命中 context_window_rules 则使用该用户可见窗口，
-    # 否则使用模型物理窗口」乘以 context_usage_ratio 计算。若模型容量不小于
+    # 否则使用产品默认窗口，并限制到模型物理容量」乘以 context_usage_ratio 计算。若模型容量不小于
     # min_compaction_threshold_tokens，结果至少为 min_compaction_threshold_tokens，
     # 最后不超过模型物理窗口。
     default_compaction_threshold_tokens: int = FALLBACK_DEFAULT_COMPACTION_THRESHOLD_TOKENS
@@ -324,30 +405,19 @@ class CompactionConfig:
         """收集用于匹配上下文窗口规则的模型文本。"""
         return _collect_model_match_texts(model_id)
 
-    def _get_model_match_texts(self) -> List[str]:
-        """收集用于匹配上下文窗口规则的基准模型文本。"""
-        return self._get_model_match_texts_for_model(self.agent_model_id)
-
     def _match_context_window_rule_for_model(
         self,
         model_id: str,
         match_texts: List[str],
     ) -> Optional[ContextWindowRule]:
         """根据用户可见上下文窗口规则匹配命中项。"""
-        for rule in self.context_window_rules:
-            for keyword in rule.model_keywords:
-                keyword_lower = keyword.lower()
-                if any(keyword_lower in text for text in match_texts):
-                    logger.info(
-                        f"模型 {model_id} 命中上下文窗口 {rule.user_facing_max_context_tokens:,} "
-                        f"(strategy={rule.name}, keyword={keyword})"
-                    )
-                    return rule
-        return None
-
-    def _match_context_window_rule(self, match_texts: List[str]) -> Optional[ContextWindowRule]:
-        """根据基准模型文本匹配用户可见上下文窗口规则。"""
-        return self._match_context_window_rule_for_model(self.agent_model_id, match_texts)
+        rule = _match_context_window_rule(self.context_window_rules, match_texts)
+        if rule is not None:
+            logger.info(
+                f"模型 {model_id} 命中上下文窗口 {rule.user_facing_max_context_tokens:,} "
+                f"(strategy={rule.name})"
+            )
+        return rule
 
     def resolve_threshold_for_model(
         self,
@@ -363,7 +433,9 @@ class CompactionConfig:
                 used_default=True,
             )
 
-        max_context_tokens = model_config_utils.get_max_context_tokens(model_id, default=0)
+        max_context_tokens = model_config_utils.get_max_context_tokens(
+            model_id or resolved_model_id or "", default=0,
+        )
         if max_context_tokens <= 0:
             logger.warning(
                 f"无法获取模型 {model_id} 的 max_context_tokens，"
@@ -385,9 +457,10 @@ class CompactionConfig:
             threshold_context_tokens = (
                 matched_rule.user_facing_max_context_tokens
                 if matched_rule is not None
-                else max_context_tokens
+                else _resolve_default_user_facing_max_context_tokens()
             )
             matched_rule_name = matched_rule.name if matched_rule is not None else None
+        threshold_context_tokens = min(threshold_context_tokens, max_context_tokens)
         threshold = int(threshold_context_tokens * self.context_usage_ratio)
 
         if max_context_tokens >= self.min_compaction_threshold_tokens:
@@ -643,6 +716,102 @@ class SystemMessage:
             created_at=data.get("timestamp", datetime.now().isoformat()),
         )
 
+
+class TextContentPartDict(TypedDict, total=False):
+    """文本内容片段持久化后的字典结构。"""
+
+    type: Literal["text"]
+    text: str
+    include_in_fallback: bool
+
+
+class ImageRefContentPartDict(TypedDict):
+    """本地图片引用内容片段持久化后的字典结构。"""
+
+    type: Literal["image_ref"]
+    path: str
+
+
+UserMessageContentPartDict = Union[TextContentPartDict, ImageRefContentPartDict]
+
+
+@dataclass
+class UserMessageContentPart:
+    """用户消息中的规范化内容片段，只承载文本或本地图片引用。"""
+
+    type: Literal["text", "image_ref"]
+    text: Optional[str] = None
+    path: Optional[str] = None
+    include_in_fallback: bool = True
+
+    def __post_init__(self) -> None:
+        """校验内容片段的固定字段，避免产生无法渲染的半结构化对象。"""
+        if self.type == "text":
+            if self.text is None:
+                raise ValueError("text content part requires text")
+            self.path = None
+        elif self.type == "image_ref":
+            if not self.path:
+                raise ValueError("image_ref content part requires path")
+            self.text = None
+            self.include_in_fallback = True
+        else:
+            raise ValueError(f"Unsupported user message content part type: {self.type}")
+
+    @classmethod
+    def text_part(
+        cls,
+        text: str,
+        *,
+        include_in_fallback: bool = True,
+    ) -> "UserMessageContentPart":
+        """创建文本内容片段，并指定非原生视觉回退时是否保留。"""
+        return cls(
+            type="text",
+            text=text,
+            include_in_fallback=include_in_fallback,
+        )
+
+    @classmethod
+    def image_ref(cls, path: str) -> "UserMessageContentPart":
+        """创建本地图片引用；工作区内可转 URL，外部绝对路径使用 base64。"""
+        return cls(type="image_ref", path=path)
+
+    def to_dict(self) -> UserMessageContentPartDict:
+        """将内容片段转换为历史文件使用的稳定字典格式。"""
+        if self.type == "text":
+            assert self.text is not None
+            result: TextContentPartDict = {"type": "text", "text": self.text}
+            if not self.include_in_fallback:
+                result["include_in_fallback"] = False
+            return result
+
+        assert self.path is not None
+        result: ImageRefContentPartDict = {"type": "image_ref", "path": self.path}
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "UserMessageContentPart":
+        """从历史文件中的字典恢复内容片段。"""
+        if not isinstance(data, dict):
+            raise TypeError("content part must be a dictionary")
+        part_type = data.get("type")
+        if part_type == "text":
+            text = data.get("text")
+            if not isinstance(text, str):
+                raise ValueError("text content part requires a string text")
+            include_in_fallback = data.get("include_in_fallback", True)
+            if not isinstance(include_in_fallback, bool):
+                raise ValueError("include_in_fallback must be a boolean")
+            return cls.text_part(text, include_in_fallback=include_in_fallback)
+        if part_type == "image_ref":
+            path = data.get("path")
+            if not isinstance(path, str) or not path.strip():
+                raise ValueError("image_ref content part requires a non-empty string path")
+            return cls.image_ref(path)
+        raise ValueError(f"Unsupported user message content part type: {part_type}")
+
+
 @dataclass
 class UserMessage:
     """用户消息"""
@@ -652,6 +821,29 @@ class UserMessage:
     show_in_ui: bool = True
     # 消息来源标记：None = 真实用户输入；"horizon" = AgentHorizon 注入；其他值供扩展使用
     source: Optional[str] = None
+    # 规范化的多模态内容片段；历史只保存文本和 image_ref，不保存 Provider payload。
+    # 放在既有字段之后，避免破坏外部对 UserMessage 的位置参数构造。
+    content_parts: Optional[List[UserMessageContentPart]] = None
+    # None 表示未做原生视觉裁剪；False 表示整个 user 消息不进入原生视觉请求。
+    include_in_native_visual: Optional[bool] = None
+
+    def __post_init__(self) -> None:
+        """规范化内容片段对象，并兼容旧代码传入的历史字典结构。"""
+        if self.content_parts is not None:
+            normalized_parts: List[UserMessageContentPart] = []
+            for part in self.content_parts:
+                if isinstance(part, UserMessageContentPart):
+                    normalized_parts.append(part)
+                elif isinstance(part, dict):
+                    normalized_parts.append(UserMessageContentPart.from_dict(part))
+                else:
+                    raise TypeError(f"Unsupported user message content part: {type(part)!r}")
+            self.content_parts = normalized_parts
+        if self.include_in_native_visual is not None and not isinstance(
+            self.include_in_native_visual,
+            bool,
+        ):
+            raise ValueError("include_in_native_visual must be a boolean or None")
 
     def to_dict(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {
@@ -663,6 +855,10 @@ class UserMessage:
         }
         if self.source is not None:
             d["source"] = self.source
+        if self.content_parts is not None:
+            d["content_parts"] = [part.to_dict() for part in self.content_parts]
+        if self.include_in_native_visual is not None:
+            d["include_in_native_visual"] = self.include_in_native_visual
         return d
 
     def to_llm_dict(self) -> Dict[str, Any]:
@@ -676,12 +872,17 @@ class UserMessage:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "UserMessage":
         """从字典创建用户消息对象"""
+        raw_parts = data.get("content_parts")
+        if raw_parts is not None and not isinstance(raw_parts, list):
+            raise TypeError("content_parts must be a list")
         return cls(
             content=data.get("content", ""),
             role=data.get("role", "user"),
             show_in_ui=data.get("show_in_ui", True),
             created_at=data.get("timestamp", datetime.now().isoformat()),
             source=data.get("source"),
+            content_parts=[UserMessageContentPart.from_dict(part) for part in (raw_parts or [])] or None,
+            include_in_native_visual=data.get("include_in_native_visual"),
         )
 
 @dataclass
@@ -855,6 +1056,22 @@ class AssistantMessage:
 
         return msg
 
+class ContextSource(StrEnum):
+    """内部归类提示；不进入模型消息或改变工具执行语义。"""
+    SKILLS = "skills"
+    MCP = "mcp"
+    MIXED = "mixed"
+
+    @classmethod
+    def from_value(cls, value: object) -> "ContextSource | None":
+        if not isinstance(value, str):
+            return None
+        try:
+            return cls(value)
+        except ValueError:
+            return None
+
+
 @dataclass
 class ToolMessage:
     """工具执行结果消息"""
@@ -866,12 +1083,15 @@ class ToolMessage:
     show_in_ui: bool = True # <--- 重命名并设置默认值 (中断提示会在 append 时设为 False)
     duration_ms: Optional[float] = None # 内部存储为毫秒 float
 
+    context_source: ContextSource | None = None
+
     def to_dict(self) -> Dict[str, Any]:
         result = {
             "id": str(uuid.uuid4()), # 运行时 ID
             "timestamp": self.created_at,
             "role": self.role,
             "content": self.content,
+            "context_source": self.context_source,
             "tool_call_id": self.tool_call_id,
             "system": self.system,
             "show_in_ui": self.show_in_ui,
@@ -894,6 +1114,7 @@ class ToolMessage:
         """从字典创建工具消息对象"""
         return cls(
             content=data.get("content", ""),
+            context_source=ContextSource.from_value(data.get("context_source")),
             tool_call_id=data.get("tool_call_id", ""),
             role=data.get("role", "tool"),
             system=data.get("system"), # 可以为 None
@@ -934,31 +1155,34 @@ def resolve_user_facing_max_context_tokens(
     *,
     resolved_model_id: Optional[str] = None,
     model_name: Optional[str] = None,
+    max_context_tokens: int | None = None,
 ) -> Optional[int]:
     """计算 `model_id` 对外暴露的最大上下文 token 容量。
 
     与 [CompactionConfig._calculate_model_based_threshold] 保持取值口径一致：
-      1. 优先命中 config.yaml 的 `context_window.tiers`，返回该规则的
+      1. 优先命中 config.yaml 的 `context_window.tiers`，使用该规则的
          `user_facing_max_context_tokens`。
       2. 未命中时统一回退到 `context_window.default_user_facing_max_context_tokens`，
          避免使用模型原始物理窗口造成前端展示与系统对外口径不一致。
+      3. 有有效物理容量时取较小值；运行时容量优先于静态配置。
 
     供压缩以外的消费者（如消息工厂的实时 token_usage 输出）复用，避免重复实现查表逻辑。
     """
     default_context_tokens = _resolve_default_user_facing_max_context_tokens()
-    if not (model_id or resolved_model_id or model_name):
-        return default_context_tokens
+    user_facing_context_tokens = default_context_tokens
     try:
         # auto 本身不表达具体模型，必须把运行时解析结果和配置别名都纳入匹配。
-        match_texts = _collect_model_match_texts(resolved_model_id, model_name, model_id)
+        match_texts = _collect_model_match_texts(
+            model_id, resolved_model_id=resolved_model_id, model_name=model_name,
+        )
         rules = _load_context_window_rules_from_config()
-        for rule in rules:
-            for keyword in rule.model_keywords:
-                keyword_lower = keyword.lower()
-                if any(keyword_lower in text for text in match_texts):
-                    return rule.user_facing_max_context_tokens
-
-        return default_context_tokens
+        rule = _match_context_window_rule(rules, match_texts)
+        if rule is not None:
+            user_facing_context_tokens = rule.user_facing_max_context_tokens
     except Exception as e:
         logger.warning(f"resolve_user_facing_max_context_tokens 失败 model_id={model_id}: {e}")
-        return default_context_tokens
+    if max_context_tokens is None:
+        max_context_tokens = model_config_utils.get_max_context_tokens(model_id, default=0)
+    if max_context_tokens > 0:
+        return min(user_facing_context_tokens, max_context_tokens)
+    return user_facing_context_tokens

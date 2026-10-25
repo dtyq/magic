@@ -7,12 +7,22 @@ declare(strict_types=1);
 
 namespace App\Interfaces\SuperMagic\Project\DTO\Request;
 
+use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectSortMode;
+
 /**
  * Get participated projects request DTO
  * Used to receive request parameters for getting user participated projects list.
  */
 class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
 {
+    public ?string $sortMode = null;
+
+    public ?string $sortField = null;
+
+    public string $sortDirection = 'desc';
+
+    public string $projectType = 'all';
+
     /**
      * Whether to show collaboration projects.
      */
@@ -22,6 +32,46 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
      * Whether to show hidden projects. Default 0 means hidden projects are filtered out.
      */
     public int $showHidden = 0;
+
+    /**
+     * Whether recent queries should include special project modes.
+     */
+    public int $includeSpecial = 0;
+
+    public function setSortDirection(?string $sortDirection): void
+    {
+        $this->sortDirection = $sortDirection ?? 'desc';
+    }
+
+    public function setProjectType(?string $projectType): void
+    {
+        $this->projectType = $projectType ?? 'all';
+    }
+
+    public function getSortField(): ?string
+    {
+        return $this->sortField;
+    }
+
+    public function getSortDirection(): string
+    {
+        return $this->sortDirection;
+    }
+
+    public function getProjectType(): string
+    {
+        return $this->projectType;
+    }
+
+    public function setSortMode(?string $sortMode): void
+    {
+        $this->sortMode = $sortMode;
+    }
+
+    public function getSortMode(): ?ProjectSortMode
+    {
+        return $this->sortMode === null ? null : ProjectSortMode::from($this->sortMode);
+    }
 
     /**
      * Get show collaboration flag.
@@ -55,6 +105,16 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
         $this->showHidden = (int) $showHidden;
     }
 
+    public function getIncludeSpecial(): bool
+    {
+        return (bool) $this->includeSpecial;
+    }
+
+    public function setIncludeSpecial(int|string $includeSpecial): void
+    {
+        $this->includeSpecial = (int) $includeSpecial;
+    }
+
     /**
      * Get validation rules.
      */
@@ -65,6 +125,11 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
         return array_merge($parentRules, [
             'show_collaboration' => 'nullable|integer|in:0,1',
             'show_hidden' => 'nullable|integer|in:0,1',
+            'include_special' => 'nullable|integer|in:0,1',
+            'sort_mode' => 'nullable|string|in:workspace,recent',
+            'sort_field' => 'nullable|string|in:last_active_at,updated_at,created_at',
+            'sort_direction' => 'nullable|string|in:asc,desc',
+            'project_type' => 'nullable|string|in:all,general,claw,micro-app,agent,skill',
         ]);
     }
 
@@ -80,6 +145,8 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
             'show_collaboration.in' => 'Show collaboration must be 0 or 1',
             'show_hidden.integer' => 'Show hidden must be an integer',
             'show_hidden.in' => 'Show hidden must be 0 or 1',
+            'include_special.integer' => 'Include special must be an integer',
+            'include_special.in' => 'Include special must be 0 or 1',
         ]);
     }
 }

@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zapier — Visual Automation Flow Builder</title>
+  <style>
+    :root {
+      --primary: #ff4f00;
+      --primary-hover: #e04500;
+      --on-primary: #fffefb;
+      --ink: #201515;
+      --ink-soft: #2f2a26;
+      --ink-mid: #36342e;
+      --body: #605d52;
+      --body-mid: #939084;
+      --mute: #c5c0b1;
+      --canvas: #fffefb;
+      --canvas-soft: #f8f4f0;
+      --hairline: #eae4db;
+      --success: #00875a;
+      --font-display: "Degular Display", Inter, -apple-system, sans-serif;
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-pill: 9999px;
+      --shadow-node: 0 4px 16px rgba(32, 21, 21, 0.08), 0 1px 3px rgba(32, 21, 21, 0.04);
+      --shadow-node-active: 0 0 0 2px var(--primary), 0 8px 24px rgba(255, 79, 0, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans); background: #f0eae1; color: var(--ink);
+      line-height: 1.45; -webkit-font-smoothing: antialiased; padding: 16px;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; border: none; background: none; cursor: pointer; }
+
+    /* Main Zapier Studio Window Shell */
+    .studio-container {
+      max-width: 1260px; margin: 0 auto; background: var(--canvas);
+      border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      box-shadow: 0 20px 50px rgba(32, 21, 21, 0.14); overflow: hidden;
+      display: flex; flex-direction: column; min-height: 720px;
+    }
+
+    /* Top Studio Navigation Bar */
+    .studio-header {
+      height: 58px; background: var(--canvas); border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+      position: relative; z-index: 20;
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .zapier-brand {
+      display: flex; align-items: center; gap: 6px; font-family: var(--font-display);
+      font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -0.5px;
+    }
+    .zap-asterisk {
+      width: 24px; height: 24px; background: var(--primary); color: #fff;
+      border-radius: 6px; display: grid; place-items: center; font-size: 20px; font-weight: 900; line-height: 1;
+    }
+
+    .zap-status-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+      background: #e6f6ee; border: 1px solid #b8ebd0; border-radius: var(--radius-pill);
+      font-size: 12px; font-weight: 700; color: var(--success);
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+
+    .zap-name-wrap { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .run-history-badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+      background: var(--canvas-soft); border: 1px solid var(--hairline); border-radius: var(--radius-pill);
+      font-size: 12px; font-weight: 600; color: var(--ink-soft);
+    }
+    .btn-test {
+      padding: 8px 16px; border: 1px solid var(--ink); border-radius: var(--radius-md);
+      font-size: 13px; font-weight: 600; color: var(--ink);
+    }
+    .btn-publish {
+      padding: 8px 20px; background: var(--primary); color: var(--on-primary);
+      border-radius: var(--radius-md); font-size: 13px; font-weight: 700;
+      transition: background 0.15s;
+    }
+    .btn-publish:hover { background: var(--primary-hover); }
+
+    /* Builder Layout Split */
+    .builder-layout {
+      display: grid; grid-template-columns: 1fr 340px; flex: 1; min-height: 662px;
+    }
+
+    /* Visual Flow Canvas Area */
+    .flow-canvas {
+      background: var(--canvas-soft); padding: 32px 20px; overflow-y: auto;
+      display: flex; flex-direction: column; align-items: center;
+      background-image: radial-gradient(var(--mute) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Node Card Component */
+    .flow-node {
+      width: 460px; background: #ffffff; border: 1px solid var(--hairline);
+      border-radius: var(--radius-md); box-shadow: var(--shadow-node);
+      overflow: hidden; transition: all 0.15s; position: relative;
+    }
+    .flow-node:hover { box-shadow: 0 6px 20px rgba(32,21,21,0.12); }
+    .flow-node.active-node {
+      box-shadow: var(--shadow-node-active); border-color: var(--primary);
+    }
+
+    .node-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-bottom: 1px solid var(--hairline); background: #fffdfb;
+    }
+    .node-step-badge {
+      display: inline-flex; align-items: center; gap: 8px; font-size: 12px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .step-badge-trigger {
+      background: rgba(255, 79, 0, 0.12); color: var(--primary); padding: 3px 8px; border-radius: 4px;
+    }
+    .step-badge-action {
+      background: #eef2ff; color: #4338ca; padding: 3px 8px; border-radius: 4px;
+    }
+    .node-app-icon {
+      width: 24px; height: 24px; border-radius: 5px; display: grid; place-items: center;
+      font-weight: 800; font-size: 13px; color: #fff;
+    }
+    .app-typeform { background: #262627; }
+    .app-slack { background: #4a154b; }
+    .app-hubspot { background: #ff7a59; }
+
+    .node-status-check {
+      font-size: 12px; font-weight: 600; color: var(--success); display: flex; align-items: center; gap: 4px;
+    }
+
+    .node-body { padding: 16px; }
+    .node-title { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .node-event { font-size: 13px; color: var(--body); margin-bottom: 10px; }
+
+    .node-config-box {
+      background: var(--canvas-soft); border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; color: var(--ink-soft);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .config-row { display: flex; gap: 6px; align-items: baseline; }
+    .config-label { font-weight: 600; color: var(--body); }
+    .data-pill {
+      display: inline-flex; align-items: center; gap: 4px; background: #fff;
+      border: 1px solid #dcd5cc; padding: 1px 7px; border-radius: var(--radius-pill);
+      font-family: var(--font-mono); font-size: 11px; color: var(--primary); font-weight: 600;
+    }
+
+    /* Dotted Connecting Line */
+    .connector-line-wrap {
+      display: flex; flex-direction: column; align-items: center; height: 48px; position: relative;
+    }
+    .dotted-vertical-line {
+      width: 2px; height: 100%; border-left: 2px dashed #b8b0a5;
+    }
+    .connector-plus-btn {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 24px; height: 24px; border-radius: 50%; background: #ffffff;
+      border: 1px solid #b8b0a5; display: grid; place-items: center;
+      font-size: 14px; font-weight: 700; color: var(--body); box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .connector-plus-btn:hover {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+    }
+
+    /* Right Step Inspector Drawer */
+    .step-inspector {
+      background: #ffffff; border-left: 1px solid var(--hairline);
+      padding: 20px; display: flex; flex-direction: column; gap: 16px;
+    }
+    .inspector-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+    .inspector-sub { font-size: 13px; color: var(--body); }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+    .form-input {
+      padding: 9px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+      font-size: 13px; color: var(--ink); background: var(--canvas);
+    }
+
+    .mapping-input-box {
+      border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+      padding: 8px 10px; font-size: 13px; background: #fff; display: flex; flex-wrap: wrap; gap: 6px;
+    }
+
+    .test-result-card {
+      background: #f4faf6; border: 1px solid #cce8d9; border-radius: var(--radius-sm);
+      padding: 12px; font-size: 12px; color: #1e4620;
+    }
+    .test-result-title { font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+
+    /* Bottom Run History Drawer Strip */
+    .run-history-strip {
+      background: #faf7f2; border-top: 1px solid var(--hairline);
+      padding: 10px 20px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px;
+    }
+    .recent-runs { display: flex; align-items: center; gap: 16px; }
+    .run-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); }
+
+    /* Design Tokens Strip */
+    .zapier-spec-strip {
+      max-width: 1260px; margin: 12px auto 28px; background: #ffffff;
+      border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      padding: 10px 18px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; flex-wrap: wrap; gap: 10px;
+    }
+    .token-chip { display: flex; align-items: center; gap: 5px; font-family: var(--font-mono); }
+    .color-swatch { width: 11px; height: 11px; border-radius: 2px; }
+
+    @media (max-width: 960px) {
+      .builder-layout { grid-template-columns: 1fr; }
+      .step-inspector { display: none; }
+      .flow-node { width: 100%; max-width: 460px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Zapier Visual Flow Studio Window -->
+  <div class="studio-container">
+
+    <!-- Header Navigation -->
+    <header class="studio-header">
+      <div class="header-left">
+        <div class="zapier-brand">
+          <div class="zap-asterisk">_</div>
+          <span>zapier</span>
+        </div>
+
+        <div class="zap-status-pill">
+          <span class="status-dot"></span>
+          <span>ON</span>
+        </div>
+
+        <div class="zap-name-wrap">
+          <span>Typeform Leads ➔ Slack Alert + HubSpot Contact</span>
+          <span style="color:var(--body-mid); font-size:13px; cursor:pointer;">✎</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="run-history-badge">
+          <span>⚡ 4,892 runs</span>
+          <span>·</span>
+          <span>99.98% success</span>
+        </div>
+        <button class="btn-test">Test Flow</button>
+        <button class="btn-publish">Publish Zap</button>
+      </div>
+    </header>
+
+    <!-- Builder Workspace Split -->
+    <div class="builder-layout">
+
+      <!-- Center Flow Canvas Area -->
+      <main class="flow-canvas">
+
+        <!-- Node 1: Trigger Node (Typeform) -->
+        <article class="flow-node">
+          <div class="node-header">
+            <div class="node-step-badge">
+              <span class="step-badge-trigger">1. TRIGGER</span>
+              <div class="node-app-icon app-typeform">T</div>
+              <span>Typeform</span>
+            </div>
+            <div class="node-status-check">
+              <span>✓</span>
+              <span>Test Succeeded</span>
+            </div>
+          </div>
+
+          <div class="node-body">
+            <h3 class="node-title">New Lead in Typeform</h3>
+            <p class="node-event">Event: New Entry Submitted · Form: Enterprise Demo 2026</p>
+
+            <div class="node-config-box">
+              <div class="config-row">
+                <span class="config-label">Form ID:</span>
+                <span>typeform_demo_req_prod</span>
+              </div>
+              <div class="config-row">
+                <span class="config-label">Payload:</span>
+                <span class="data-pill">demo.person02@example.com</span>
+                <span class="data-pill">Acme Global</span>
+                <span class="data-pill">$120k ARR</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Connector Line 1 -->
+        <div class="connector-line-wrap">
+          <div class="dotted-vertical-line"></div>
+          <button class="connector-plus-btn" title="Add action or delay">＋</button>
+        </div>
+
+        <!-- Node 2: Action Node 1 (Slack) -->
+        <article class="flow-node active-node">
+          <div class="node-header">
+            <div class="node-step-badge">
+              <span class="step-badge-action">2. ACTION</span>
+              <div class="node-app-icon app-slack">#</div>
+              <span>Slack</span>
+            </div>
+            <div class="node-status-check">
+              <span>✓</span>
+              <span>Configured</span>
+            </div>
+          </div>
+
+          <div class="node-body">
+            <h3 class="node-title">Send Channel Message in Slack</h3>
+            <p class="node-event">Event: Send Channel Message · Channel: #sales-leads</p>
+
+            <div class="node-config-box">
+              <div class="config-row">
+                <span class="config-label">Channel:</span>
+                <span>#sales-leads</span>
+              </div>
+              <div class="config-row">
+                <span class="config-label">Message:</span>
+                <span>🔥 New Lead: </span>
+                <span class="data-pill">{{1. Full Name}}</span>
+                <span>from</span>
+                <span class="data-pill">{{1. Company}}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Connector Line 2 -->
+        <div class="connector-line-wrap">
+          <div class="dotted-vertical-line"></div>
+          <button class="connector-plus-btn" title="Add action or branch">＋</button>
+        </div>
+
+        <!-- Node 3: Action Node 2 (HubSpot) -->
+        <article class="flow-node">
+          <div class="node-header">
+            <div class="node-step-badge">
+              <span class="step-badge-action">3. ACTION</span>
+              <div class="node-app-icon app-hubspot">H</div>
+              <span>HubSpot</span>
+            </div>
+            <div class="node-status-check">
+              <span>✓</span>
+              <span>Ready</span>
+            </div>
+          </div>
+
+          <div class="node-body">
+            <h3 class="node-title">Create or Update Contact in HubSpot</h3>
+            <p class="node-event">Event: Create or Update Contact · CRM Pipeline: Inbound Enterprise</p>
+
+            <div class="node-config-box">
+              <div class="config-row">
+                <span class="config-label">Email:</span>
+                <span class="data-pill">{{1. Work Email}}</span>
+              </div>
+              <div class="config-row">
+                <span class="config-label">Lifecycle:</span>
+                <span>Sales Qualified Lead (SQL)</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </main>
+
+      <!-- Right Step Details Inspector Drawer -->
+      <aside class="step-inspector">
+        <div>
+          <h4 class="inspector-title">Action Configuration</h4>
+          <p class="inspector-sub">Step 2: Send Channel Message in Slack</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Destination Channel</label>
+          <input class="form-input" value="#sales-leads" readonly>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Message Template</label>
+          <div class="mapping-input-box">
+            <span>🔥 Inbound Lead: </span>
+            <span class="data-pill">{{1.Full Name}}</span>
+            <span>({{1.Work Email}})</span>
+            <span>ARR Tier: </span>
+            <span class="data-pill">{{1.Budget}}</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Bot Identity</label>
+          <input class="form-input" value="Zapier Lead Automation Bot" readonly>
+        </div>
+
+        <div class="test-result-card">
+          <div class="test-result-title">
+            <span>✅</span>
+            <span>Test Successful</span>
+          </div>
+          <p>Payload delivered to Slack channel #sales-leads in 142ms. HTTP 200 OK.</p>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- Bottom Run History Strip -->
+    <footer class="run-history-strip">
+      <div class="recent-runs">
+        <strong style="color:var(--ink);">RUN HISTORY:</strong>
+        <div class="run-item">
+          <span style="color:var(--success);">●</span>
+          <span>12:31 PM · 3 steps · 182ms (Success)</span>
+        </div>
+        <div class="run-item">
+          <span style="color:var(--success);">●</span>
+          <span>11:45 AM · 3 steps · 194ms (Success)</span>
+        </div>
+      </div>
+      <div>
+        <span>Next trigger poll: in 45s</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Design Tokens Strip -->
+  <div class="zapier-spec-strip">
+    <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      <strong>ZAPIER DESIGN TOKENS:</strong>
+      <div class="token-chip"><span class="color-swatch" style="background:#ff4f00;"></span><span>#ff4f00 zap orange</span></div>
+      <div class="token-chip"><span class="color-swatch" style="background:#201515;"></span><span>#201515 coffee ink</span></div>
+      <div class="token-chip"><span class="color-swatch" style="background:#fffefb; border:1px solid #ccc;"></span><span>#fffefb canvas</span></div>
+      <div class="token-chip"><span class="color-swatch" style="background:#f8f4f0;"></span><span>#f8f4f0 warm cream</span></div>
+    </div>
+    <div>
+      <span>DEGULAR DISPLAY + INTER · 12PX NODE RADIUS</span>
+    </div>
+  </div>
+
+</body>
+</html>

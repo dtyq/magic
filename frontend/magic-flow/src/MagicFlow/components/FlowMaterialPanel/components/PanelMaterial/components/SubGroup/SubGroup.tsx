@@ -121,7 +121,7 @@ function SubGroup({ subGroup, getGroupNodeList, materialFn }: SubGroupProps) {
 	return (
 		<div className={clsx(styles.subGroup, `${prefix}sub-group`)}>
 			<Collapse
-				expandIcon={() => <IconChevronDown color="#1C1D2399" size={20} />}
+					expandIcon={() => <IconChevronDown color="#1C1D2399" size={16} />}
 				activeKey={activeKey}
 				onChange={handleCollapseChange}
 			>

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useCenteredHorizontalScroll } from "../../hooks/useCenteredHorizontalScroll"
 import {
 	useSlidesPreviewNavigation,
 	useSlidesPreviewWheelNavigation,
 } from "../../hooks/useSlidesPreviewNavigation"
+import { getSlidesTemplatePreviewImageUrl } from "@/pages/superMagic/pages/SlidesTemplates/slidesTemplateImages"
 
 interface SlidesPresetPreviewPagesProps {
 	className?: string
@@ -40,28 +41,30 @@ function SlidesPresetPreviewPages({
 	thumbnailButtonClassName,
 	title,
 }: SlidesPresetPreviewPagesProps) {
-	const pageKey = useMemo(() => pages.join("\n"), [pages])
+	const previewPages = useMemo(() => pages.map(getSlidesTemplatePreviewImageUrl), [pages])
+	const pageKey = useMemo(() => previewPages.join("\n"), [previewPages])
 	const previewStageRef = useRef<HTMLDivElement | null>(null)
 	const { activeIndex, canSwitch, goToNext, goToPage, goToPrevious } = useSlidesPreviewNavigation(
 		{
 			enabled: keyboardEnabled,
 			initialIndex,
 			onEscape,
-			pageCount: pages.length,
+			pageCount: previewPages.length,
 			resetKey: `${resetKey ?? ""}:${pageKey}`,
 		},
 	)
-	const activePage = pages[activeIndex] ?? pages[0]
+	const activePage = previewPages[activeIndex] ?? previewPages[0]
 	const { scrollContainerRef, setItemRef } = useCenteredHorizontalScroll({
 		activeKey: String(activeIndex),
-		itemCount: pages.length,
+		itemCount: previewPages.length,
 	})
 
 	useEffect(() => {
-		if (!pages.length || typeof window === "undefined") return
+		if (!previewPages.length || typeof window === "undefined") return
 
-		const preloadImages = pages.map((page) => {
+		const preloadImages = previewPages.map((page) => {
 			const image = new window.Image()
+			image.crossOrigin = "anonymous"
 			image.decoding = "async"
 			image.src = page
 			return image
@@ -73,7 +76,7 @@ function SlidesPresetPreviewPages({
 				image.onerror = null
 			})
 		}
-	}, [pageKey, pages])
+	}, [pageKey, previewPages])
 
 	useSlidesPreviewWheelNavigation({
 		containerRef: previewStageRef,
@@ -82,7 +85,7 @@ function SlidesPresetPreviewPages({
 		onPrevious: goToPrevious,
 	})
 
-	if (pages.length && activePage) {
+	if (previewPages.length && activePage) {
 		return (
 			<div className={cn("flex min-h-0 flex-col gap-3 overflow-hidden", className)}>
 				<div className="relative w-full shrink-0">
@@ -95,6 +98,7 @@ function SlidesPresetPreviewPages({
 						data-testid={`${dataTestIdPrefix}-pages`}
 					>
 						<img
+							crossOrigin="anonymous"
 							src={activePage}
 							alt={`${title} ${activeIndex + 1}`}
 							className="size-full object-contain"
@@ -106,7 +110,7 @@ function SlidesPresetPreviewPages({
 						className="absolute bottom-0 right-0 text-sm font-medium text-neutral-500"
 						data-testid={`${dataTestIdPrefix}-page-index`}
 					>
-						{activeIndex + 1} / {pages.length}
+						{activeIndex + 1} / {previewPages.length}
 					</div>
 				</div>
 				{canSwitch && showThumbnails ? (
@@ -144,7 +148,7 @@ function SlidesPresetPreviewPages({
 							</div>
 						)}
 					>
-						{pages.map((page, index) => (
+						{previewPages.map((page, index) => (
 							<div
 								key={`${page}-${index}`}
 								ref={(element) => setItemRef(String(index), element)}
@@ -163,6 +167,7 @@ function SlidesPresetPreviewPages({
 									)}
 								>
 									<img
+										crossOrigin="anonymous"
 										src={page}
 										alt=""
 										className="size-full object-cover"

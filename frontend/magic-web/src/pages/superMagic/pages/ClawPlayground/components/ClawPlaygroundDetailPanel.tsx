@@ -44,6 +44,11 @@ export function ClawPlaygroundDetailPanel({
 
 	return (
 		<Detail
+			fileHelpContext={
+				selectedProject?.id
+					? { kind: "claw", projectId: String(selectedProject.id) }
+					: { kind: "unknown" }
+			}
 			ref={detailRef}
 			disPlayDetail={userSelectDetail}
 			userSelectDetail={userSelectDetail}

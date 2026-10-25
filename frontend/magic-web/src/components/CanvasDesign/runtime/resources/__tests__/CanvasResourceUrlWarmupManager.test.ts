@@ -3,30 +3,60 @@ import { EventEmitter } from "../../core/EventEmitter"
 import { ElementTypeEnum, type LayerElement } from "../../document/types"
 import type { Canvas } from "../../core/Canvas"
 import { CanvasResourceUrlWarmupManager } from "../scheduler/CanvasResourceUrlWarmupManager"
+import { createTestResourceReferenceResolver } from "../../../public/__tests__/testResourceReferenceResolver"
+import type { ResolveCanvasResourceReference } from "../../../public/resource-reference"
 
 function createImage(id: string, src: string): LayerElement {
+	const contentId = `${id}-content`
 	return {
 		id,
 		type: ElementTypeEnum.Image,
-		src,
+		contents: [{ contentId, src }],
+		activeContentId: contentId,
+		mainContentId: contentId,
 	}
 }
 
 function createVideo(id: string, src: string): LayerElement {
+	const contentId = `${id}-content`
 	return {
 		id,
 		type: ElementTypeEnum.Video,
-		src,
+		contents: [{ contentId, src }],
+		activeContentId: contentId,
+		mainContentId: contentId,
 	}
 }
 
-function createCanvasMock(elements: Record<string, LayerElement>, getFileInfo = vi.fn()) {
+function createAudio(id: string, src: string): LayerElement {
+	const contentId = `${id}-content`
+	return {
+		id,
+		type: ElementTypeEnum.Audio,
+		contents: [{ contentId, src }],
+		activeContentId: contentId,
+		mainContentId: contentId,
+	}
+}
+
+function createCanvasMock(
+	elements: Record<string, LayerElement>,
+	getFileInfo = vi.fn(),
+	resolveResourceReference: ResolveCanvasResourceReference = createTestResourceReferenceResolver(),
+	getAssetResourceInfo = vi.fn(),
+) {
 	const eventEmitter = new EventEmitter()
 	const imageResourceManager = {
 		markResourceLoadFailed: vi.fn(),
 	}
 	return {
 		id: "canvas-1",
+		getEffectiveContent: vi.fn((elementId: string) =>
+			elements[elementId]?.contents?.find(
+				(content) => content.contentId === elements[elementId]?.activeContentId,
+			),
+		),
+		getEffectiveContentId: vi.fn((elementId: string) => elements[elementId]?.activeContentId),
 		eventEmitter,
 		elementManager: {
 			getElementsDict: vi.fn(() => elements),
@@ -36,9 +66,12 @@ function createCanvasMock(elements: Record<string, LayerElement>, getFileInfo = 
 			config: {
 				methods: {
 					getFileInfo,
-					resolveAbsolutePath: (path: string) => `/project/${path.replace(/^\.\/+/, "")}`,
+					resolveResourceReference,
 				},
 			},
+		},
+		assetResourceManager: {
+			getResource: getAssetResourceInfo,
 		},
 		imageResourceManager,
 		resourceScheduler: {
@@ -101,6 +134,59 @@ describe("CanvasResourceUrlWarmupManager", () => {
 			queuedCount: 0,
 			warmingCount: 0,
 		})
+		manager.destroy()
+	})
+
+	it("leaves audio URL admission to the visibility manager", async () => {
+		const getFileInfo = vi.fn(async (path: string) => ({
+			src: `https://example.test/${path}`,
+			fileName: path,
+		}))
+		const elements = {
+			audio: createAudio("audio", "./audios/a.mp3"),
+		}
+		const manager = new CanvasResourceUrlWarmupManager({
+			canvas: createCanvasMock(elements, getFileInfo) as unknown as Canvas,
+		})
+
+		manager.warmupCurrentDocument("test")
+		await flushWarmupTimer()
+
+		expect(getFileInfo).not.toHaveBeenCalled()
+		expect(manager.getSnapshot()).toMatchObject({
+			registeredElementCount: 0,
+			trackedPathCount: 0,
+		})
+		manager.destroy()
+	})
+
+	it("warms valid asset paths through the asset manager without calling getFileInfo", async () => {
+		const getFileInfo = vi.fn()
+		const getAssetResourceInfo = vi.fn().mockResolvedValue({
+			assetId: "asset-image",
+			mediaType: "image",
+			fileUrl: "https://assets.test/image.png",
+		})
+		const elements = {
+			image: createImage("image", "asset://asset-image"),
+		}
+		const manager = new CanvasResourceUrlWarmupManager({
+			canvas: createCanvasMock(
+				elements,
+				getFileInfo,
+				createTestResourceReferenceResolver(),
+				getAssetResourceInfo,
+			) as unknown as Canvas,
+		})
+
+		manager.warmupCurrentDocument("asset")
+		await flushWarmupTimer()
+
+		expect(getAssetResourceInfo).toHaveBeenCalledWith("asset-image", {
+			priority: "background",
+		})
+		expect(getFileInfo).not.toHaveBeenCalled()
+		expect(manager.getSnapshot()).toMatchObject({ readyCount: 1, successCount: 1 })
 		manager.destroy()
 	})
 
@@ -192,7 +278,7 @@ describe("CanvasResourceUrlWarmupManager", () => {
 		}))
 		const elements = {
 			imageA: createImage("imageA", "./images/a.png"),
-			imageB: createImage("imageB", "images/a.png"),
+			imageB: createImage("imageB", "/画布A/images/a.png"),
 		}
 		const manager = new CanvasResourceUrlWarmupManager({
 			canvas: createCanvasMock(elements, getFileInfo) as unknown as Canvas,
@@ -205,6 +291,60 @@ describe("CanvasResourceUrlWarmupManager", () => {
 		expect(manager.getSnapshot()).toMatchObject({
 			trackedPathCount: 1,
 			registeredElementCount: 2,
+			readyCount: 1,
+		})
+		manager.destroy()
+	})
+
+	it("rebuilds identity keys and ref counts when resolver semantics change", async () => {
+		const getFileInfo = vi.fn(async (path: string) => ({
+			src: `https://example.test/${path}`,
+			fileName: path,
+		}))
+		const elements = {
+			image: createImage("image", "images/a.png"),
+		}
+		const canvas = createCanvasMock(
+			elements,
+			getFileInfo,
+			createTestResourceReferenceResolver({
+				currentCanvasWorkspacePath: "/画布A",
+				attachmentsReady: false,
+			}),
+		)
+		const manager = new CanvasResourceUrlWarmupManager({
+			canvas: canvas as unknown as Canvas,
+		})
+
+		manager.warmupCurrentDocument("attachments-pending")
+		expect(
+			Array.from((manager as unknown as { entries: Map<string, unknown> }).entries.keys()),
+		).toEqual(["image\0unresolved:images/a.png"])
+
+		canvas.magicConfigManager.config.methods.resolveResourceReference =
+			createTestResourceReferenceResolver({
+				currentCanvasWorkspacePath: "/画布A",
+				attachmentsReady: true,
+				attachmentPathsByFileId: {
+					image: "/画布A/images/a.png",
+				},
+			})
+		manager.handleResourceReferenceResolverChanged()
+
+		const internalManager = manager as unknown as {
+			entries: Map<string, unknown>
+			pathRefCounts: Map<string, number>
+		}
+		expect(Array.from(internalManager.entries.keys())).toEqual([
+			"image\0workspace:/画布A/images/a.png",
+		])
+		expect(Array.from(internalManager.pathRefCounts.values())).toEqual([1])
+
+		await flushWarmupTimer()
+		expect(getFileInfo).toHaveBeenCalledTimes(1)
+		expect(manager.getSnapshot()).toMatchObject({
+			registeredElementCount: 1,
+			trackedPathCount: 1,
 			readyCount: 1,
 		})
 		manager.destroy()

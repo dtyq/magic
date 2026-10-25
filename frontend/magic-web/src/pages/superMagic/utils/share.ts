@@ -1,6 +1,7 @@
 import { ResourceType, ShareType } from "../components/Share/types"
 import { clipboard } from "@/utils/clipboard-helpers"
-import { downloadFileContent, getTemporaryDownloadUrl } from "./api"
+import { downloadFileContent } from "./api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import i18n from "i18next"
 import { SuperMagicApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -39,6 +40,7 @@ export const copyFileContent = async (
 	fileId: string,
 	fileContent?: string,
 	fileVersion?: number,
+	fileApi?: Pick<FileApi, "getTemporaryDownloadUrl">,
 ) => {
 	const file = fileList.find((f) => f.file_id === fileId)
 	if (!fileId && !fileContent) return
@@ -51,18 +53,26 @@ export const copyFileContent = async (
 		} else if (file?.content && !fileVersion) {
 			textToCopy = file.content
 		} else {
+			if (!fileApi) {
+				magicToast.info(t("common.noContentToCopy"))
+				return
+			}
 			try {
-				const response = await getTemporaryDownloadUrl({
+				const response = await fileApi.getTemporaryDownloadUrl({
 					file_ids: [fileId],
 					file_versions: fileVersion
 						? {
-							[fileId]: fileVersion,
-						}
+								[fileId]: fileVersion,
+							}
 						: undefined,
 				})
 				const downloadUrl = response?.[0]?.url
 				if (downloadUrl) {
-					textToCopy = await downloadFileContent(downloadUrl)
+					const downloadedContent = await downloadFileContent(downloadUrl)
+					if (typeof downloadedContent !== "string") {
+						throw new Error("Downloaded file content is not text")
+					}
+					textToCopy = downloadedContent
 				} else {
 					magicToast.info(t("common.noContentToCopy"))
 					return

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Green Deck — VC Investor Pitch Deck: TAM/SAM/SOM & 10x ARR Hockey Stick</title>
+  <style>
+    :root {
+      --primary-forest: #15803d;
+      --forest-dark: #14532d;
+      --forest-deep: #052e16;
+      --forest-light: #dcfce7;
+      --forest-soft: #f0fdf4;
+      --emerald-accent: #10b981;
+      --cream-bg: #FCFBF7;
+      --cream-surface: #F7F4EC;
+      --cream-border: #E8E2D5;
+      --cream-card: #FFFFFF;
+      --ink-charcoal: #0F172A;
+      --ink-muted: #64748B;
+      --ink-dim: #94A3B8;
+      --gold-accent: #B45309;
+      --gold-soft: #FEF3C7;
+      --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1612;
+      color: var(--ink-charcoal);
+      font-family: var(--font-sans);
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    /* 16:9 Slide Canvas */
+    .slide-canvas {
+      width: 100%;
+      max-width: 1140px;
+      aspect-ratio: 16 / 9;
+      background: var(--cream-bg);
+      border-radius: 6px;
+      box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Top Strip */
+    .slide-top-stripe {
+      height: 5px;
+      background: linear-gradient(90deg, var(--forest-dark) 0%, var(--primary-forest) 50%, var(--emerald-accent) 80%, #ca8a04 100%);
+    }
+
+    /* Slide Header */
+    .slide-header {
+      padding: 20px 42px 12px;
+      position: relative;
+    }
+
+    .slide-meta-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .series-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary-forest);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .series-badge::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background: var(--primary-forest);
+      border-radius: 50%;
+    }
+
+    .round-tag {
+      background: var(--gold-soft);
+      color: var(--gold-accent);
+      border: 1px solid rgba(180, 83, 9, 0.25);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .header-main-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .slide-title {
+      font-size: 25px;
+      font-weight: 800;
+      color: var(--forest-deep);
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+
+    .slide-desc {
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-top: 3px;
+      font-weight: 500;
+    }
+
+    .kpi-pills {
+      display: flex;
+      gap: 8px;
+    }
+
+    .kpi-pill {
+      background: var(--cream-card);
+      border: 1px solid var(--cream-border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .kpi-pill-val {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--primary-forest);
+      line-height: 1.1;
+    }
+
+    .kpi-pill-lbl {
+      font-size: 9px;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .header-hairline {
+      height: 1px;
+      background: var(--cream-border);
+      margin: 10px 42px 0;
+    }
+
+    /* Main Slide Body */
+    .slide-body {
+      flex: 1;
+      padding: 16px 42px 14px;
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    /* Left Card: TAM/SAM/SOM */
+    .market-card {
+      background: var(--cream-surface);
+      border: 1px solid var(--cream-border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--forest-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .card-subtitle {
+      font-size: 10px;
+      color: var(--ink-muted);
+    }
+
+    /* SVG Concentric Circles */
+    .tam-svg-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 4px 0 10px;
+    }
+
+    .tam-svg {
+      width: 100%;
+      max-width: 290px;
+      height: 160px;
+    }
+
+    /* Market Metrics Stack */
+    .market-metrics-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .tam-metric-box {
+      background: var(--cream-card);
+      border: 1px solid var(--cream-border);
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+      border-top: 3px solid var(--primary-forest);
+    }
+
+    .tam-metric-box.som {
+      border-top-color: var(--forest-dark);
+      background: #F4FAF5;
+    }
+
+    .tam-tag {
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--ink-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .tam-num {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--forest-deep);
+      margin-top: 1px;
+    }
+
+    .tam-desc {
+      font-size: 8px;
+      color: var(--ink-muted);
+      margin-top: 1px;
+    }
+
+    /* Right Card: 10x ARR Hockey Stick */
+    .growth-card {
+      background: var(--cream-surface);
+      border: 1px solid var(--cream-border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .growth-chart-wrap {
+      width: 100%;
+      height: 150px;
+      margin: 4px 0 8px;
+    }
+
+    .growth-chart-wrap svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    /* Unit Economics Strip */
+    .unit-economics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .econ-card {
+      background: var(--cream-card);
+      border: 1px solid var(--cream-border);
+      border-radius: 6px;
+      padding: 7px 8px;
+    }
+
+    .econ-lbl {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+    }
+
+    .econ-val {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--primary-forest);
+      margin-top: 1px;
+    }
+
+    .econ-sub {
+      font-size: 8px;
+      color: var(--ink-dim);
+    }
+
+    /* Investor Highlights */
+    .investor-quote-box {
+      background: var(--forest-soft);
+      border: 1px solid rgba(21, 128, 61, 0.2);
+      border-radius: 6px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .quote-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--primary-forest);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .quote-text {
+      font-size: 9.5px;
+      color: var(--forest-deep);
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    /* Slide Footer */
+    .slide-footer {
+      height: 34px;
+      padding: 0 42px;
+      border-top: 1px solid var(--cream-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--ink-muted);
+      background: var(--cream-bg);
+    }
+
+    .footer-brand {
+      font-weight: 800;
+      color: var(--forest-dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .footer-brand svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .footer-center {
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: #475569;
+    }
+
+    .footer-slide-idx {
+      font-weight: 700;
+      color: var(--primary-forest);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="slide-canvas">
+    <div class="slide-top-stripe"></div>
+
+    <!-- Header Section -->
+    <header class="slide-header">
+      <div class="slide-meta-bar">
+        <span class="series-badge">Series B Investor Pitch Deck • Slide 04</span>
+        <span class="round-tag">$25M Growth Equity Round</span>
+      </div>
+
+      <div class="header-main-row">
+        <div>
+          <h1 class="slide-title">Market Opportunity &amp; 10x ARR Inflection</h1>
+          <p class="slide-desc">Decarbonization OS &amp; Enterprise Automated ESG Grid Compliance Platform</p>
+        </div>
+
+        <div class="kpi-pills">
+          <div class="kpi-pill">
+            <span class="kpi-pill-val">142%</span>
+            <span class="kpi-pill-lbl">Net Retention</span>
+          </div>
+          <div class="kpi-pill">
+            <span class="kpi-pill-val">84.5%</span>
+            <span class="kpi-pill-lbl">Gross Margin</span>
+          </div>
+          <div class="kpi-pill">
+            <span class="kpi-pill-val">5.4 mo</span>
+            <span class="kpi-pill-lbl">CAC Payback</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="header-hairline"></div>
+
+    <!-- Slide Body -->
+    <main class="slide-body">
+      
+      <!-- Left: Concentric Circles TAM/SAM/SOM -->
+      <section class="market-card">
+        <div class="card-head">
+          <span class="card-title">Market Sizing (TAM / SAM / SOM)</span>
+          <span class="card-subtitle">Global ESG &amp; Climate SaaS</span>
+        </div>
+
+        <div class="tam-svg-wrap">
+          <!-- Concentric SVG Circles -->
+          <svg class="tam-svg" viewBox="0 0 320 180" fill="none">
+            <!-- TAM Outer Ring -->
+            <circle cx="160" cy="95" r="76" fill="#15803d" fill-opacity="0.08" stroke="#15803d" stroke-width="1.2" stroke-dasharray="3 3" />
+            <!-- SAM Middle Ring -->
+            <circle cx="160" cy="95" r="50" fill="#15803d" fill-opacity="0.16" stroke="#15803d" stroke-width="1.5" />
+            <!-- SOM Inner Core -->
+            <circle cx="160" cy="95" r="26" fill="#15803d" fill-opacity="0.85" stroke="#14532d" stroke-width="2" />
+
+            <!-- SOM Center Text -->
+            <text x="160" y="92" font-size="11" font-weight="800" fill="#FFFFFF" text-anchor="middle">$3.6B</text>
+            <text x="160" y="103" font-size="7" font-weight="700" fill="#DCFCE7" text-anchor="middle">SOM (5.6%)</text>
+
+            <!-- SAM Callout Pointer & Label -->
+            <line x1="205" y1="75" x2="250" y2="45" stroke="#15803d" stroke-width="1" />
+            <circle cx="205" cy="75" r="2.5" fill="#15803d" />
+            <rect x="235" y="32" width="75" height="24" rx="4" fill="#FFFFFF" stroke="#E8E2D5" stroke-width="1" />
+            <text x="240" y="44" font-size="8" font-weight="700" fill="#15803d">SAM: $18.4B</text>
+            <text x="240" y="52" font-size="7" fill="#64748B">Enterprise ESG</text>
+
+            <!-- TAM Callout Pointer & Label -->
+            <line x1="105" y1="45" x2="55" y2="28" stroke="#15803d" stroke-width="1" stroke-dasharray="2 2" />
+            <circle cx="105" cy="45" r="2.5" fill="#15803d" />
+            <rect x="12" y="16" width="76" height="24" rx="4" fill="#FFFFFF" stroke="#E8E2D5" stroke-width="1" />
+            <text x="17" y="28" font-size="8" font-weight="700" fill="#14532d">TAM: $64.0B</text>
+            <text x="17" y="36" font-size="7" fill="#64748B">Global Decarb Grid</text>
+
+            <!-- Bottom Growth Vector -->
+            <path d="M120 165 C140 155 180 155 200 165" stroke="#B45309" stroke-width="1.2" stroke-dasharray="2 2" />
+            <text x="160" y="174" font-size="8" font-weight="700" fill="#B45309" text-anchor="middle">CAGR 34.2% (2024-2030)</text>
+          </svg>
+        </div>
+
+        <div class="market-metrics-row">
+          <div class="tam-metric-box">
+            <div class="tam-tag">TAM</div>
+            <div class="tam-num">$64.0B</div>
+            <div class="tam-desc">Total Addressable</div>
+          </div>
+          <div class="tam-metric-box">
+            <div class="tam-tag">SAM</div>
+            <div class="tam-num">$18.4B</div>
+            <div class="tam-desc">Tier-1 Automated</div>
+          </div>
+          <div class="tam-metric-box som">
+            <div class="tam-tag" style="color: var(--primary-forest);">SOM</div>
+            <div class="tam-num" style="color: var(--primary-forest);">$3.6B</div>
+            <div class="tam-desc">Immediate Target</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: 10x ARR Hockey Stick Curve -->
+      <section class="growth-card">
+        <div class="card-head">
+          <span class="card-title">10x ARR Growth Inflection ($M)</span>
+          <span class="card-subtitle">Zero to $42.0M ARR in 36 Months</span>
+        </div>
+
+        <div class="growth-chart-wrap">
+          <!-- Hockey Stick Curve SVG -->
+          <svg viewBox="0 0 460 140" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#15803d" stop-opacity="0.32" />
+                <stop offset="70%" stop-color="#15803d" stop-opacity="0.06" />
+                <stop offset="100%" stop-color="#15803d" stop-opacity="0.0" />
+              </linearGradient>
+            </defs>
+
+            <!-- Horizontal Grid lines -->
+            <line x1="30" y1="20" x2="430" y2="20" stroke="#E8E2D5" stroke-width="0.8" stroke-dasharray="2 2" />
+            <line x1="30" y1="55" x2="430" y2="55" stroke="#E8E2D5" stroke-width="0.8" stroke-dasharray="2 2" />
+            <line x1="30" y1="90" x2="430" y2="90" stroke="#E8E2D5" stroke-width="0.8" stroke-dasharray="2 2" />
+            <line x1="30" y1="120" x2="430" y2="120" stroke="#64748B" stroke-width="1" />
+
+            <!-- Y-Axis labels -->
+            <text x="24" y="23" font-size="8" fill="#94A3B8" text-anchor="end">$45M</text>
+            <text x="24" y="58" font-size="8" fill="#94A3B8" text-anchor="end">$20M</text>
+            <text x="24" y="93" font-size="8" fill="#94A3B8" text-anchor="end">$5M</text>
+
+            <!-- Shaded Area Under Hockey Stick -->
+            <path d="M 45 116 L 140 113 L 230 106 L 320 62 L 410 22 L 410 120 L 45 120 Z" fill="url(#curveGradient)" />
+
+            <!-- Main Hockey Stick Curve Path -->
+            <path d="M 45 116 Q 160 114 240 102 T 330 58 T 410 22" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" />
+
+            <!-- Data Nodes & Tooltip Callouts -->
+            <!-- 2022 Node: $1.2M -->
+            <circle cx="45" cy="116" r="3.5" fill="#FFFFFF" stroke="#15803d" stroke-width="2" />
+            <text x="45" y="132" font-size="8" font-weight="600" fill="#64748B" text-anchor="middle">2022</text>
+            <text x="45" y="110" font-size="8" font-weight="700" fill="#14532d" text-anchor="middle">$1.2M</text>
+
+            <!-- 2023 Node: $4.8M -->
+            <circle cx="160" cy="112" r="3.5" fill="#FFFFFF" stroke="#15803d" stroke-width="2" />
+            <text x="160" y="132" font-size="8" font-weight="600" fill="#64748B" text-anchor="middle">2023</text>
+            <text x="160" y="104" font-size="8" font-weight="700" fill="#14532d" text-anchor="middle">$4.8M</text>
+
+            <!-- 2024 Node (Series A Inflection): $16.5M -->
+            <circle cx="280" cy="85" r="4.5" fill="#10B981" stroke="#FFFFFF" stroke-width="2" />
+            <text x="280" y="132" font-size="8" font-weight="600" fill="#64748B" text-anchor="middle">2024</text>
+            <rect x="250" y="66" width="60" height="15" rx="3" fill="#14532D" />
+            <text x="280" y="77" font-size="8" font-weight="800" fill="#FFFFFF" text-anchor="middle">$16.5M ARR</text>
+
+            <!-- 2025 Current Node: $42.0M -->
+            <circle cx="410" cy="22" r="5.5" fill="#15803d" stroke="#FFFFFF" stroke-width="2.5" />
+            <text x="410" y="132" font-size="8" font-weight="700" fill="#15803d" text-anchor="middle">2025 Run-Rate</text>
+            <rect x="365" y="4" width="70" height="16" rx="3" fill="#15803d" />
+            <text x="400" y="15" font-size="9" font-weight="800" fill="#FFFFFF" text-anchor="middle">★ $42.0M (10x)</text>
+          </svg>
+        </div>
+
+        <!-- Unit Economics Grid -->
+        <div class="unit-economics-grid">
+          <div class="econ-card">
+            <div class="econ-lbl">ARR Scale</div>
+            <div class="econ-val">$42.0M</div>
+            <div class="econ-sub">+255% YoY</div>
+          </div>
+          <div class="econ-card">
+            <div class="econ-lbl">Rule of 40</div>
+            <div class="econ-val">68%</div>
+            <div class="econ-sub">Top 2% Decile</div>
+          </div>
+          <div class="econ-card">
+            <div class="econ-lbl">Magic Number</div>
+            <div class="econ-val">1.75x</div>
+            <div class="econ-sub">GTM Efficiency</div>
+          </div>
+          <div class="econ-card">
+            <div class="econ-lbl">Net Burn</div>
+            <div class="econ-val">0.38x</div>
+            <div class="econ-sub">Cash Flow Positive Q4</div>
+          </div>
+        </div>
+
+        <div class="investor-quote-box">
+          <div class="quote-icon">✓</div>
+          <div class="quote-text">
+            <strong>Expansion Velocity:</strong> 94% of Fortune 500 pilots expanded to multi-year enterprise enterprise-tier contracts within 90 days.
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Slide Footer -->
+    <footer class="slide-footer">
+      <div class="footer-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 2L2 7L12 12L22 7L12 2Z" />
+          <path d="M2 17L12 22L22 17" />
+          <path d="M2 12L12 17L22 12" />
+        </svg>
+        <span>GREEN DECK VENTURE CAPITAL PRESENTATION</span>
+      </div>
+      <div class="footer-center">CONFIDENTIAL &amp; PROPRIETARY — FOR QUALIFIED INVESTORS ONLY</div>
+      <div class="footer-slide-idx">Slide 04 / 14</div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

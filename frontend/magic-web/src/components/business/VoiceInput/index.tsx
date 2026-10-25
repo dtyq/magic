@@ -12,8 +12,7 @@ import { useTranslation } from "react-i18next"
 import { useVoiceInput, getHotkeyDisplayText } from "./hooks"
 import type { VoiceInputProps, VoiceInputRef } from "./types"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Mic } from "lucide-react"
 import type { AudioChunkParams } from "@/services/voiceToText"
 
@@ -242,7 +241,6 @@ export const VoiceInput = memo(
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<button
-							id={GuideTourElementId.VoiceInputButton}
 							type="button"
 							className={cn(
 								"relative flex items-center justify-center rounded-md border-0 transition-all",
@@ -252,10 +250,10 @@ export const VoiceInput = memo(
 								"bg-fill text-foreground dark:bg-sidebar dark:text-foreground dark:hover:bg-muted dark:hover:text-foreground",
 								// recording / processing
 								(status === "recording" || status === "processing") &&
-								"bg-orange-50 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400",
+									"bg-orange-50 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400",
 								// error
 								status === "error" &&
-								"bg-destructive text-destructive-foreground opacity-90 dark:bg-destructive dark:text-destructive-foreground",
+									"bg-destructive text-destructive-foreground opacity-90 dark:bg-destructive dark:text-destructive-foreground",
 								className,
 							)}
 							onClick={handleClick}

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marblecrest — Heritage Publishing, Fine Antiques &amp; Private Salon</title>
+  <style>
+    :root {
+      --dark-green: #0d1b15;
+      --forest-deep: #13271f;
+      --forest-card: #183329;
+      --gold: #d4af37;
+      --gold-light: #f3e5ab;
+      --gold-deep: #b8860b;
+      --marble-light: #f5f5f0;
+      --marble-white: #ffffff;
+      --charcoal: #27272a;
+      --text-muted: #8a9990;
+      --border-gold: rgba(212, 175, 55, 0.35);
+      --border-subtle: rgba(255, 255, 255, 0.1);
+      
+      --font-serif: "Cormorant Garamond", Garamond, Baskerville, "Times New Roman", serif;
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "IBM Plex Mono", "Courier New", monospace;
+      
+      --radius-sm: 1px;
+      --radius-md: 2px;
+      --radius-lg: 4px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--dark-green);
+      color: var(--marble-light);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      background-image: 
+        radial-gradient(ellipse at 20% 0%, rgba(20, 50, 38, 0.6) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 100%, rgba(13, 27, 21, 0.9) 0%, transparent 70%);
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Top Imperial Folio Strip */
+    .top-heritage-strip {
+      border-bottom: 1px solid var(--border-gold);
+      padding: 8px 36px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(13, 27, 21, 0.95);
+    }
+    .heritage-gold-tag {
+      color: var(--gold);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Masthead with Bespoke Seal SVG */
+    .masthead-wrap {
+      padding: 28px 36px;
+      border-bottom: 1px solid var(--border-gold);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(19, 39, 31, 0.7);
+      backdrop-filter: blur(8px);
+    }
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .bespoke-seal {
+      width: 58px;
+      height: 58px;
+    }
+    .brand-text-col {
+      display: flex;
+      flex-direction: column;
+    }
+    .brand-name {
+      font-family: var(--font-serif);
+      font-size: clamp(32px, 4.2vw, 46px);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 0.9;
+      color: var(--marble-white);
+      text-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+    }
+    .brand-subtitle {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 2.2px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-top: 4px;
+    }
+
+    .masthead-nav {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+    .masthead-nav a {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--marble-light);
+      padding: 6px 0;
+      position: relative;
+    }
+    .masthead-nav a:hover { color: var(--gold); }
+    .masthead-nav a.active { color: var(--gold); border-bottom: 1px solid var(--gold); }
+
+    .btn-gold-foil {
+      background: linear-gradient(135deg, #d4af37 0%, #f3e5ab 50%, #b8860b 100%);
+      color: var(--dark-green);
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      padding: 10px 22px;
+      border: 1px solid var(--gold);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(212, 175, 55, 0.25);
+    }
+
+    /* Shell */
+    .shell {
+      max-width: 1340px;
+      margin: 0 auto;
+      padding: 32px 36px 64px;
+    }
+
+    /* 16:10 Primary Heritage Dossier Grid */
+    .dossier-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 36px;
+      align-items: start;
+    }
+
+    /* Left Hero Heritage Feature Card */
+    .hero-heritage-card {
+      background: var(--forest-card);
+      border: 1px solid var(--border-gold);
+      border-radius: var(--radius-md);
+      padding: 36px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    }
+    .hero-heritage-card::before {
+      content: "";
+      position: absolute;
+      top: 3px; left: 3px; right: 3px; bottom: 3px;
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      pointer-events: none;
+    }
+
+    .roman-numeral-kicker {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--gold);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .reserve-badge {
+      border: 1px solid var(--gold);
+      padding: 3px 10px;
+      font-size: 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    .hero-heritage-title {
+      font-family: var(--font-serif);
+      font-size: clamp(34px, 4.4vw, 52px);
+      font-weight: 600;
+      line-height: 1.08;
+      letter-spacing: 0.02em;
+      color: var(--marble-white);
+    }
+    .hero-heritage-deck {
+      font-family: var(--font-serif);
+      font-size: 19px;
+      font-style: italic;
+      line-height: 1.55;
+      color: var(--gold-light);
+      max-width: 90%;
+    }
+
+    /* Intricate Gold Astrolabe SVG Illustration Box */
+    .artifact-visual-box {
+      width: 100%;
+      height: 270px;
+      background: #09130e;
+      border: 1px solid var(--border-gold);
+      border-radius: var(--radius-sm);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .artifact-svg { width: 100%; height: 100%; position: absolute; }
+
+    .provenance-tag {
+      position: absolute;
+      bottom: 12px;
+      left: 16px;
+      background: rgba(13, 27, 21, 0.9);
+      border: 1px solid var(--border-gold);
+      padding: 6px 14px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--gold);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    /* Lot Description & Bidding Meta */
+    .lot-action-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border-gold);
+      padding-top: 20px;
+      margin-top: 8px;
+    }
+    .estimate-block {
+      display: flex;
+      flex-direction: column;
+    }
+    .estimate-lbl {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .estimate-val {
+      font-family: var(--font-serif);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--gold);
+    }
+    .lot-provenance-text {
+      font-size: 13.5px;
+      color: #b0c0b7;
+      line-height: 1.6;
+      max-width: 60%;
+    }
+
+    /* Right Column: Private Archive Dossier */
+    .sidebar-archive {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .archive-box {
+      background: var(--forest-deep);
+      border: 1px solid var(--border-gold);
+      border-radius: var(--radius-md);
+      padding: 24px;
+    }
+    .archive-box-title {
+      font-family: var(--font-serif);
+      font-size: 18px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      border-bottom: 1px solid var(--border-gold);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .lot-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .lot-item {
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .lot-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--gold);
+      letter-spacing: 1.5px;
+    }
+    .lot-name {
+      font-family: var(--font-serif);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--marble-white);
+      line-height: 1.3;
+    }
+    .lot-est {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Private Salon Membership Box */
+    .salon-box {
+      background: #09130e;
+      border: 1px solid var(--gold);
+      padding: 22px;
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .salon-title {
+      font-family: var(--font-serif);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--marble-white);
+    }
+    .salon-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Lower Trio Curated Exhibition */
+    .lower-lots-trio {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      margin-top: 36px;
+    }
+    .curated-card {
+      background: var(--forest-deep);
+      border: 1px solid var(--border-gold);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .curated-num {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--gold);
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+    }
+    .curated-title {
+      font-family: var(--font-serif);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--marble-white);
+      line-height: 1.25;
+    }
+    .curated-desc {
+      font-size: 13px;
+      color: #9ab0a5;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 960px) {
+      .dossier-grid { grid-template-columns: 1fr; }
+      .lower-lots-trio { grid-template-columns: 1fr; }
+      .masthead-nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Imperial Folio Strip -->
+  <aside class="top-heritage-strip">
+    <div>MARBLECREST HERITAGE ARCHIVE · VOLUME LXXXVIII · LOT CATALOGUE MMXXVI</div>
+    <div class="heritage-gold-tag">
+      <span>PRIVATE SALON REGISTRY</span>
+      <span>·</span>
+      <span>LONDON · GENEVA · MILAN</span>
+    </div>
+  </aside>
+
+  <!-- Masthead with Bespoke Heraldic Seal SVG -->
+  <header class="masthead-wrap">
+    <div class="brand-cluster">
+      <svg class="bespoke-seal" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer Gold Shield Ring -->
+        <circle cx="50" cy="50" r="46" stroke="#d4af37" stroke-width="1.5"/>
+        <circle cx="50" cy="50" r="42" stroke="#d4af37" stroke-width="0.75" stroke-dasharray="2 2"/>
+        
+        <!-- Heraldic Shield -->
+        <path d="M 50 18 L 74 28 C 74 60, 50 78, 50 78 C 50 78, 26 60, 26 28 Z" fill="#0d1b15" stroke="#d4af37" stroke-width="1.5"/>
+        
+        <!-- Crown & Laurel Accents -->
+        <path d="M 40 38 L 44 48 L 50 42 L 56 48 L 60 38 L 62 52 L 38 52 Z" fill="#d4af37"/>
+        <circle cx="50" cy="62" r="3" fill="#d4af37"/>
+
+        <!-- Roman Monogram -->
+        <text x="50" y="93" fill="#d4af37" font-family="'Cormorant Garamond', serif" font-size="8" letter-spacing="1" text-anchor="middle">EST. MDCCCXLII</text>
+      </svg>
+
+      <div class="brand-text-col">
+        <h1 class="brand-name">Marblecrest</h1>
+        <span class="brand-subtitle">RARE EDITIONS, FINE ANTIQUITIES &amp; PRIVATE ARCHIVES</span>
+      </div>
+    </div>
+
+    <nav>
+      <ul class="masthead-nav">
+        <li><a href="#" class="active">LOT CATALOGUE</a></li>
+        <li><a href="#">PROVENANCE</a></li>
+        <li><a href="#">PRIVATE TREATY</a></li>
+        <li><a href="#">ACQUISITION SALON</a></li>
+      </ul>
+    </nav>
+
+    <button class="btn-gold-foil">REQUEST PRIVATE DOSSIER</button>
+  </header>
+
+  <!-- Shell -->
+  <main class="shell">
+
+    <!-- 16:10 Primary Heritage Dossier Grid -->
+    <div class="dossier-grid">
+
+      <!-- Hero Masterpiece Lot Card -->
+      <article class="hero-heritage-card">
+        <div class="roman-numeral-kicker">
+          <span>LOT VII // PRIVATE COLLECTION OF DUKE OF WESTMINSTER</span>
+          <span class="reserve-badge">RESERVE CONFIRMED</span>
+        </div>
+
+        <h2 class="hero-heritage-title">
+          The Florentine Celestial Astrolabe &amp; Brass Planisphere
+        </h2>
+
+        <p class="hero-heritage-deck">
+          Attributed to the atelier of Giovan Battista Giusti (circa MDLXXXIV). Commissioned for the private observatory of Cosimo I de’ Medici.
+        </p>
+
+        <!-- Intricate Astrolabe Visual Box -->
+        <div class="artifact-visual-box">
+          <svg class="artifact-svg" viewBox="0 0 720 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="goldShimmer" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#d4af37" stop-opacity="0.3"/>
+                <stop offset="60%" stop-color="#b8860b" stop-opacity="0.1"/>
+                <stop offset="100%" stop-color="#09130e" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="100%" height="100%" fill="#09130e"/>
+            <circle cx="360" cy="135" r="120" fill="url(#goldShimmer)"/>
+
+            <!-- Astrolabe Concentric Rings -->
+            <circle cx="360" cy="135" r="110" stroke="#d4af37" stroke-width="2"/>
+            <circle cx="360" cy="135" r="102" stroke="#d4af37" stroke-width="0.75" stroke-dasharray="3 3"/>
+            <circle cx="360" cy="135" r="80" stroke="#f3e5ab" stroke-width="1.2"/>
+            <circle cx="360" cy="135" r="50" stroke="#d4af37" stroke-width="1"/>
+
+            <!-- Zodiac pointers & Rete pointers -->
+            <path d="M 360 25 L 360 245 M 250 135 L 470 135" stroke="#d4af37" stroke-width="0.8" opacity="0.6"/>
+            <path d="M 282 57 L 438 213 M 438 57 L 282 213" stroke="#d4af37" stroke-width="0.8" opacity="0.4"/>
+
+            <!-- Intricate Rete pointers -->
+            <polygon points="360,55 365,75 355,75" fill="#d4af37"/>
+            <polygon points="440,135 420,130 420,140" fill="#d4af37"/>
+            <polygon points="360,215 355,195 365,195" fill="#d4af37"/>
+            <polygon points="280,135 300,140 300,130" fill="#d4af37"/>
+
+            <!-- Central Gilded Axis Pin -->
+            <circle cx="360" cy="135" r="8" fill="#d4af37"/>
+            <circle cx="360" cy="135" r="3" fill="#09130e"/>
+
+            <!-- Roman Coordinates -->
+            <text x="360" y="48" fill="#f3e5ab" font-family="'Cormorant Garamond', serif" font-size="12" text-anchor="middle">HORA XII</text>
+            <text x="360" y="232" fill="#f3e5ab" font-family="'Cormorant Garamond', serif" font-size="12" text-anchor="middle">HORA VI</text>
+          </svg>
+
+          <div class="provenance-tag">
+            VERIFIED PROVENANCE // FLORENTINE DUCAL ARCHIVES DEED NO. 4882
+          </div>
+        </div>
+
+        <div class="lot-action-row">
+          <div class="estimate-block">
+            <span class="estimate-lbl">AUCTION ESTIMATE</span>
+            <span class="estimate-val">£2,400,000 — £3,200,000</span>
+          </div>
+          <p class="lot-provenance-text">
+            Preserved in intact fireproof walnut casket with handwritten astronomical observations by Father Vincenzo Viviani (1622–1703).
+          </p>
+        </div>
+      </article>
+
+      <!-- Right Column: Curated Lots & Private Salon -->
+      <aside class="sidebar-archive">
+        
+        <section class="archive-box">
+          <h3 class="archive-box-title">
+            <span>CURATED LOTS</span>
+            <span style="font-size:12px; font-family:var(--font-mono);">MMXXVI</span>
+          </h3>
+
+          <ul class="lot-list">
+            <li class="lot-item">
+              <span class="lot-num">LOT VIII // CARTOGRAPHY</span>
+              <a href="#" class="lot-name">Illuminated Vellum Portolan Chart of the Levant (1492)</a>
+              <span class="lot-est">EST: £1,200,000 — £1,600,000</span>
+            </li>
+
+            <li class="lot-item">
+              <span class="lot-num">LOT IX // RARE BINDINGS</span>
+              <a href="#" class="lot-name">First Folio Shakespeare (1623), Pforzheimer Copy</a>
+              <span class="lot-est">EST: £4,500,000 — £6,000,000</span>
+            </li>
+
+            <li class="lot-item">
+              <span class="lot-num">LOT X // ILLUMINATED MS</span>
+              <a href="#" class="lot-name">Book of Hours of Jeanne de France (Burgundian Atelier)</a>
+              <span class="lot-est">EST: £850,000 — £1,100,000</span>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Private Salon Membership Box -->
+        <section class="salon-box">
+          <h3 class="salon-title">The Marblecrest Heritage Salon</h3>
+          <p class="salon-desc">
+            Admittance to private preview viewings in Geneva, Mayfair, and Zurich is extended strictly by patron recommendation or institutional sponsorship.
+          </p>
+          <button class="btn-gold-foil" style="width:100%; margin-top:8px;">INQUIRE FOR MEMBERSHIP</button>
+        </section>
+
+      </aside>
+
+    </div>
+
+    <!-- Lower Exhibition Trio -->
+    <section class="lower-lots-trio">
+      <article class="curated-card">
+        <span class="curated-num">PROVENANCE ESSAY // LOT XI</span>
+        <h4 class="curated-title">The Royal Goldsmiths of the Austro-Hungarian Crown</h4>
+        <p class="curated-desc">An archival investigation into the secret hallmark registries preserved in the subterranean crypts of Saint Stephen’s Cathedral.</p>
+      </article>
+
+      <article class="curated-card">
+        <span class="curated-num">CONSERVATION REPORT // LOT XII</span>
+        <h4 class="curated-title">Non-Destructive Spectrometry of Renaissance Enamels</h4>
+        <p class="curated-desc">How ultraviolet fluorescence and synchrotron analysis confirmed the sixteenth-century Limoges workshop lineage.</p>
+      </article>
+
+      <article class="curated-card">
+        <span class="curated-num">PATRON SALON // PRIVATE TREATY</span>
+        <h4 class="curated-title">Direct Acquisition of Ducal Tapestry Collections</h4>
+        <p class="curated-desc">Facilitating museum-grade acquisitions between noble European houses and international cultural trusts.</p>
+      </article>
+    </section>
+
+  </main>
+
+</body>
+</html>

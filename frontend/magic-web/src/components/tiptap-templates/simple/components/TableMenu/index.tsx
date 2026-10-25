@@ -1,6 +1,6 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import {

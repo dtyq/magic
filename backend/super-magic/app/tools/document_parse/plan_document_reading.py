@@ -63,10 +63,18 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
             "",
             f"- Recommended action: `{plan['recommended_action']}`",
             f"- Recommended mode: `{plan['recommended_mode']}`",
+            f"- Recommended asset strategy: `{plan.get('recommended_asset_strategy', 'auto')}`",
+            f"- Strategy confidence: `{(plan.get('asset_strategy_context') or {}).get('confidence', 'unknown')}`",
+            f"- Strategy decision: `{(plan.get('asset_strategy_context') or {}).get('decision_mode', 'automatic')}`",
+            f"- Score margin: `{(plan.get('asset_strategy_context') or {}).get('score_margin', 0)}`",
             f"- Recommended range: `{plan.get('recommended_range') or 'not specified'}`",
             f"- Reason: {plan.get('reason')}",
             f"- State: `{plan.get('state_path')}`",
         ])
+        if plan.get("asset_strategy_reason"):
+            content += f"\n- Asset strategy reason: {plan['asset_strategy_reason']}"
+        if plan.get("asset_strategy_requires_confirmation"):
+            content += "\n- User confirmation: ask_user is recommended before extraction."
         if plan.get("risks"):
             content += "\n" + "\n".join(f"- Risk: {risk}" for risk in plan["risks"])
         return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info=plan)

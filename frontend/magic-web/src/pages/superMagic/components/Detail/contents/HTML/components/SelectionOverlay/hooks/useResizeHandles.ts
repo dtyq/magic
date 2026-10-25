@@ -11,6 +11,7 @@ interface UseResizeHandlesOptions {
 	setSelectedInfo: Dispatch<SetStateAction<SelectedInfo | null>>
 	setHoveredRect: Dispatch<SetStateAction<ElementRect | null>>
 	setIsSelectionMode: Dispatch<SetStateAction<boolean>>
+	onPreviewSize?: (size: { width: string; height: string }) => void
 }
 
 interface PointerCaptureState {
@@ -79,6 +80,7 @@ export function useResizeHandles({
 	setSelectedInfo,
 	setHoveredRect,
 	setIsSelectionMode,
+	onPreviewSize,
 }: UseResizeHandlesOptions) {
 	const selectedInfoRef = useRef<SelectedInfo | null>(null)
 	const isResizingRef = useRef(false)
@@ -284,18 +286,21 @@ export function useResizeHandles({
 				}
 			})
 
-			// Schedule batch style update to iframe
-			scheduleResizeUpdate(
-				selectedInfoRef.current.selector,
-				buildResizeStyles(
-					selectedInfoRef.current,
-					resizeHandleRef.current,
-					nextWidth,
-					nextHeight,
-				),
+			const previewStyles = buildResizeStyles(
+				selectedInfoRef.current,
+				resizeHandleRef.current,
+				nextWidth,
+				nextHeight,
 			)
+			onPreviewSize?.({
+				width: previewStyles.width,
+				height: previewStyles.height,
+			})
+
+			// Schedule batch style update to iframe
+			scheduleResizeUpdate(selectedInfoRef.current.selector, previewStyles)
 		},
-		[getScaleFactor, scheduleResizeUpdate, setSelectedInfo, stopResize],
+		[getScaleFactor, onPreviewSize, scheduleResizeUpdate, setSelectedInfo, stopResize],
 	)
 
 	const startResize = useCallback(
@@ -439,7 +444,7 @@ export function useResizeHandles({
 				directionY: 0,
 				style: {
 					top: "50%",
-					right: -2,
+					right: -1,
 					transform: "translate(50%, -50%)",
 				},
 			},
@@ -450,7 +455,7 @@ export function useResizeHandles({
 				directionY: 1,
 				style: {
 					left: "50%",
-					bottom: -2,
+					bottom: -1,
 					transform: "translate(-50%, 50%)",
 				},
 			},
@@ -460,8 +465,8 @@ export function useResizeHandles({
 				directionX: 1,
 				directionY: 1,
 				style: {
-					right: -2,
-					bottom: -2,
+					right: -1,
+					bottom: -1,
 					transform: "translate(50%, 50%)",
 				},
 			},

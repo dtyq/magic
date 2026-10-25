@@ -34,6 +34,7 @@ const defaultProps = {
 	onOpenInNewWindow: vi.fn(),
 	onRename: vi.fn(),
 	onDelete: vi.fn(),
+	canRename: true,
 }
 
 describe("MicroAppCard actions", () => {
@@ -59,6 +60,40 @@ describe("MicroAppCard actions", () => {
 	})
 
 	it.each(["desktop", "mobile"] as const)(
+		"shows collaborator management only when explicitly allowed on %s",
+		async (variant) => {
+			const onManageCollaborators = vi.fn()
+			render(
+				<MicroAppCard
+					{...defaultProps}
+					variant={variant}
+					canManageCollaborators
+					onManageCollaborators={onManageCollaborators}
+				/>,
+			)
+
+			if (variant === "desktop") {
+				fireEvent.contextMenu(screen.getByTestId("micro-app-card"))
+			} else {
+				fireEvent.click(screen.getByTestId("micro-app-card-more"))
+			}
+
+			fireEvent.click(await screen.findByText("microAppsPage.actions.manageCollaborators"))
+			await waitFor(() => expect(onManageCollaborators).toHaveBeenCalledTimes(1))
+		},
+	)
+
+	it("hides collaborator management when capability is not available", async () => {
+		const onManageCollaborators = vi.fn()
+		render(<MicroAppCard {...defaultProps} onManageCollaborators={onManageCollaborators} />)
+
+		fireEvent.contextMenu(screen.getByTestId("micro-app-card"))
+		expect(
+			screen.queryByText("microAppsPage.actions.manageCollaborators"),
+		).not.toBeInTheDocument()
+	})
+
+	it.each(["desktop", "mobile"] as const)(
 		"hides the delete action on %s when deletion is not allowed",
 		async (variant) => {
 			render(<MicroAppCard {...defaultProps} variant={variant} canDelete={false} />)
@@ -70,6 +105,21 @@ describe("MicroAppCard actions", () => {
 			}
 
 			expect(screen.queryByText("microAppsPage.actions.deleteApp")).not.toBeInTheDocument()
+		},
+	)
+
+	it.each(["desktop", "mobile"] as const)(
+		"hides the rename action on %s when renaming is not allowed",
+		async (variant) => {
+			render(<MicroAppCard {...defaultProps} variant={variant} canRename={false} />)
+
+			if (variant === "desktop") {
+				fireEvent.contextMenu(screen.getByTestId("micro-app-card"))
+			} else {
+				fireEvent.click(screen.getByTestId("micro-app-card-more"))
+			}
+
+			expect(screen.queryByText("microAppsPage.actions.rename")).not.toBeInTheDocument()
 		},
 	)
 })

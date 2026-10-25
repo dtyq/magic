@@ -32,21 +32,21 @@ class SkillMarketListResponseDTO implements JsonSerializable
     private int $pageSize;
 
     /**
-     * 总记录数.
+     * 总记录数（不需要时为空）.
      */
-    private int $total;
+    private ?int $total;
 
     /**
      * @param SkillMarketListItemDTO[] $list 技能列表
      * @param int $page 当前页码
      * @param int $pageSize 每页数量
-     * @param int $total 总记录数
+     * @param null|int $total 总记录数（不需要时传 null）
      */
     public function __construct(
         array $list,
         int $page,
         int $pageSize,
-        int $total
+        ?int $total = null
     ) {
         $this->list = $list;
         $this->page = $page;
@@ -56,11 +56,15 @@ class SkillMarketListResponseDTO implements JsonSerializable
 
     public function jsonSerialize(): array
     {
-        return [
-            'list' => array_map(fn ($item) => $item->jsonSerialize(), $this->list),
+        $payload = [
+            'list' => array_map(static fn ($item) => $item->jsonSerialize(), $this->list),
             'page' => $this->page,
             'page_size' => $this->pageSize,
-            'total' => $this->total,
         ];
+        if ($this->total !== null) {
+            $payload['total'] = $this->total;
+        }
+
+        return $payload;
     }
 }

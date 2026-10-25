@@ -1,7 +1,7 @@
 import { Flex, Button } from "antd"
 import { useStyles } from "./styles"
 import { useMemoizedFn } from "ahooks"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useTranslation } from "react-i18next"
 import { openAgentCommonModal } from "@/components/Agent/AgentCommonModal"
 import AgentTools from "@/components/Agent/AgentTools/AgentTools"
@@ -25,7 +25,7 @@ export function SSEPanel(props: { details?: Flow.Mcp.Detail }) {
 		details?.id,
 	)
 
-	/** 设置 MCP 权限 */
+	/** Configure MCP permissions. */
 	const triggerAgentAuthorizationTools = useMemoizedFn(() => {
 		openAgentCommonModal({
 			width: 880,
@@ -35,7 +35,7 @@ export function SSEPanel(props: { details?: Flow.Mcp.Detail }) {
 		})
 	})
 
-	/** 工具导入 */
+	/** Import tools. */
 	const onToolsOpen = useMemoizedFn(() => {
 		openAgentCommonModal({
 			width: 800,
@@ -77,7 +77,11 @@ export function SSEPanel(props: { details?: Flow.Mcp.Detail }) {
 								count: tools?.list?.length || 0,
 							})}
 						</div>
-						<MagicScrollBar className={styles.scroll} autoHide={false}>
+						<ScrollArea
+							className={styles.scroll}
+							viewportClassName={styles.scrollViewport}
+							type="always"
+						>
 							{tools?.list?.map((item) => (
 								<ToolItem
 									key={item.id}
@@ -92,7 +96,7 @@ export function SSEPanel(props: { details?: Flow.Mcp.Detail }) {
 									onVersionUpdate={onVersionUpdate}
 								/>
 							))}
-						</MagicScrollBar>
+						</ScrollArea>
 					</div>
 				</>
 			)}

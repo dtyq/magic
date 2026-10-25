@@ -3,6 +3,7 @@ import { useMemoizedFn } from "ahooks"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { DetailRef } from "../../../components/Detail"
 import type { RefObject } from "react"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 
 interface UseTopicFilesParams {
 	selectedProject: any
@@ -15,6 +16,7 @@ interface UseTopicFilesParams {
 	setUserSelectDetail: (detail: any) => void
 	detailRef: RefObject<DetailRef>
 	isReadOnly: boolean
+	projectFilesStore: ProjectFilesStore
 }
 
 interface UseTopicFilesReturn {
@@ -34,6 +36,7 @@ interface UseTopicFilesReturn {
 		projects: any[]
 		workspaces: any[]
 		isInProject: boolean
+		projectFilesStore: ProjectFilesStore
 	}
 	setActiveFileId: (fileId: string | null) => void
 }
@@ -53,6 +56,7 @@ export function useTopicFiles({
 	setUserSelectDetail,
 	detailRef,
 	isReadOnly,
+	projectFilesStore,
 }: UseTopicFilesParams): UseTopicFilesReturn {
 	// Track the currently active file ID
 	const [activeFileId, setActiveFileId] = useState<string | null>(null)
@@ -107,6 +111,7 @@ export function useTopicFiles({
 			projects,
 			workspaces,
 			isInProject: true,
+			projectFilesStore,
 		}),
 		[
 			attachments,
@@ -120,6 +125,7 @@ export function useTopicFiles({
 			selectedProject,
 			projects,
 			workspaces,
+			projectFilesStore,
 		],
 	)
 

@@ -39,9 +39,10 @@ function CreateProjectInput({ workspaceId, onCancel, onCreated }: CreateProjectI
 			onValueChange={setProjectName}
 			onSubmit={handleSubmit}
 			onCancel={onCancel}
-			placeholder={t("sidebar:project.enterName")}
+			placeholder={t("super:sidebarPanels.projectName")}
 			disabled={isCreating}
-			containerClassName="px-2"
+			containerClassName="pr-2"
+			inputClassName="px-2"
 			containerTestId={`sidebar-create-project-input-${workspaceId}`}
 			inputTestId={`sidebar-create-project-name-input-${workspaceId}`}
 			submitButtonTestId={`sidebar-create-project-submit-button-${workspaceId}`}

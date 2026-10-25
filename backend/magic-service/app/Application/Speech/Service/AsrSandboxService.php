@@ -11,12 +11,15 @@ use App\Application\Speech\Assembler\AsrAssembler;
 use App\Application\Speech\DTO\AsrSandboxMergeResultDTO;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Application\Speech\Enum\AsrTaskStatusEnum;
+use App\Application\Speech\Enum\AsrTopicModeEnum;
 use App\Application\Speech\Enum\SandboxAsrStatusEnum;
 use App\Application\SuperMagic\Common\Service\AbstractAppService;
 use App\Domain\Asr\Constants\AsrConfig;
+use App\Domain\Asr\Service\AsrTaskDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\InitializationMetadataDTO;
+use App\Domain\SuperMagic\Task\Entity\ValueObject\SandboxRootFileIds;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskContext;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskStatus;
 use App\Domain\SuperMagic\Task\Service\AgentDomainService;
@@ -52,6 +55,7 @@ class AsrSandboxService extends AbstractAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
+        private readonly AsrTaskDomainService $asrTaskDomainService,
     ) {
     }
 
@@ -120,6 +124,8 @@ class AsrSandboxService extends AbstractAppService
         if (! $response->isSuccess()) {
             ExceptionBuilder::throw(AsrErrorCode::SandboxTaskCreationFailed, '', ['message' => $response->message]);
         }
+
+        $this->syncAudioFormatFromResponse($taskStatus, $response);
 
         $taskStatus->sandboxTaskCreated = true;
 
@@ -309,7 +315,7 @@ class AsrSandboxService extends AbstractAppService
                     'new_sandbox_id' => $actualSandboxId,
                 ]);
 
-                $mergeResult = $this->callSandboxFinishAndWait($dataIsolation, $taskStatus, $fileTitle);
+                $mergeResult = $this->callSandboxFinishAndWait($dataIsolation, $taskStatus, $fileTitle, true);
                 $taskStatus->updateStatus($targetStatus);
 
                 return $mergeResult;
@@ -328,6 +334,22 @@ class AsrSandboxService extends AbstractAppService
 
         $statusString = $queryResponse->getStatus();
         $status = SandboxAsrStatusEnum::fromString($statusString) ?? SandboxAsrStatusEnum::ERROR;
+
+        // super-magic 已进入 error 时，recover 需要重新提交 finish；
+        // super-magic finish 接口会先原子重置任务并启动新一轮监听。
+        // force_reset=true 会忽略并清零沙箱侧重试计数，救回重试耗尽后无法再触发的任务。
+        if ($status->isError()) {
+            $this->logger->warning('finish-recording 恢复：沙箱任务已失败，重新提交 finish 重试', [
+                'task_key' => $taskStatus->taskKey,
+                'sandbox_id' => $sandboxId,
+                'error_message' => $queryResponse->getErrorMessage(),
+            ]);
+
+            $mergeResult = $this->callSandboxFinishAndWait($dataIsolation, $taskStatus, $fileTitle, true);
+            $taskStatus->updateStatus($targetStatus);
+
+            return $mergeResult;
+        }
 
         $completedResult = $this->checkResponseStatus(
             $queryResponse,
@@ -353,7 +375,7 @@ class AsrSandboxService extends AbstractAppService
             'status' => $status->value,
         ]);
 
-        $mergeResult = $this->callSandboxFinishAndWait($dataIsolation, $taskStatus, $fileTitle);
+        $mergeResult = $this->callSandboxFinishAndWait($dataIsolation, $taskStatus, $fileTitle, true);
         $taskStatus->updateStatus($targetStatus);
 
         return $mergeResult;
@@ -376,12 +398,14 @@ class AsrSandboxService extends AbstractAppService
      * @param DataIsolation $dataIsolation per-call user identity (token must be stamped)
      * @param AsrTaskStatusDTO $taskStatus 任务状态
      * @param string $intelligentTitle 智能标题（用于重命名）
+     * @param bool $forceReset 是否强制重置沙箱侧重试计数（手动重新合并场景）
      * @return AsrSandboxMergeResultDTO 合并结果
      */
     private function callSandboxFinishAndWait(
         DataIsolation $dataIsolation,
         AsrTaskStatusDTO $taskStatus,
-        string $intelligentTitle
+        string $intelligentTitle,
+        bool $forceReset = false
     ): AsrSandboxMergeResultDTO {
         $sandboxId = $taskStatus->sandboxId;
 
@@ -393,7 +417,8 @@ class AsrSandboxService extends AbstractAppService
         $audioConfig = new AsrAudioConfig(
             sourceDir: $taskStatus->tempHiddenDirectory,  // 如: .asr_recordings/session_xxx
             targetDir: $taskStatus->displayDirectory,     // 如: 录音总结_20251027_230949
-            outputFilename: $intelligentTitle              // 如: 被讨厌的勇气
+            outputFilename: $intelligentTitle,             // 如: 被讨厌的勇气
+            fileShardCount: $taskStatus->fileShardCount
         );
 
         // 构建笔记文件配置对象（需要重命名）
@@ -416,6 +441,7 @@ class AsrSandboxService extends AbstractAppService
         $this->logger->info('准备提交沙箱 ASR 合并', [
             'task_key' => $taskStatus->taskKey,
             'intelligent_title' => $intelligentTitle,
+            'force_reset' => $forceReset,
             'audio_config' => $audioConfig->toArray(),
             'note_file_config' => $noteFileConfig?->toArray(),
             'transcript_file_config' => $transcriptFileConfig?->toArray(),
@@ -434,7 +460,8 @@ class AsrSandboxService extends AbstractAppService
             $audioConfig,
             $noteFileConfig,
             $transcriptFileConfig,
-            $markerFileConfig
+            $markerFileConfig,
+            $forceReset
         );
 
         if ($this->isTransportFailureResponse($response)) {
@@ -587,6 +614,8 @@ class AsrSandboxService extends AbstractAppService
         float $finishStartTime,
         int $attempt
     ): ?AsrSandboxMergeResultDTO {
+        $this->syncAudioFormatFromResponse($taskStatus, $response);
+
         // 检查是否为完成状态（包含 completed 和 finished）
         if ($status->isCompleted()) {
             // 计算总耗时
@@ -619,6 +648,16 @@ class AsrSandboxService extends AbstractAppService
         }
 
         return null;
+    }
+
+    private function syncAudioFormatFromResponse(AsrTaskStatusDTO $taskStatus, AsrRecorderResponse $response): void
+    {
+        $audioFormat = $response->getAudioFormat();
+        if ($audioFormat === null) {
+            return;
+        }
+
+        $this->asrTaskDomainService->setAudioFormat($taskStatus, $audioFormat);
     }
 
     /**
@@ -711,7 +750,15 @@ class AsrSandboxService extends AbstractAppService
                 skipInitMessage: true
             );
 
-            $actualSandboxId = $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
+            $actualSandboxId = $this->agentDomainService->ensureSandboxInitialized(
+                $dataIsolation,
+                $agentContext,
+                // ASR 属于工具执行场景，不挂载 .topic 话题目录，只挂 project/user 空间
+                new SandboxRootFileIds(
+                    (string) $this->taskFileDomainService->getProjectRootFileId($projectEntity->getId()),
+                    (string) $this->taskFileDomainService->findOrCreateUserRootDirectory($userId, $organizationCode)
+                )
+            );
 
             $this->logger->info('[ASR][Sandbox] 沙箱初始化完成（带锁保护）', [
                 'task_key' => $taskStatus->taskKey,
@@ -767,7 +814,11 @@ class AsrSandboxService extends AbstractAppService
         // 1) 任务状态里已有 sandbox_topic_id，且存在则复用
         if (! empty($taskStatus->sandboxTopicId)) {
             $existing = $this->topicDomainService->getTopicById((int) $taskStatus->sandboxTopicId);
-            if ($existing) {
+            if ($existing
+                && $existing->isHidden()
+                && $existing->getProjectId() === $projectId
+                && $existing->getUserId() === $userId
+                && $existing->getTopicMode() === AsrTopicModeEnum::AUDIO_MERGE->value) {
                 return (int) $taskStatus->sandboxTopicId;
             }
 
@@ -779,7 +830,11 @@ class AsrSandboxService extends AbstractAppService
         }
 
         // 2) 查找当前用户+项目的隐藏话题，存在则复用
-        $hidden = $this->topicDomainService->findHiddenTopicByProjectAndUser($projectId, $userId);
+        $hidden = $this->topicDomainService->findHiddenTopicByProjectUserAndMode(
+            $projectId,
+            $userId,
+            AsrTopicModeEnum::AUDIO_MERGE->value
+        );
         if ($hidden) {
             return $hidden->getId();
         }

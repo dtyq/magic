@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maison de l'Observatoire — Luxury Suite Reservation</title>
+<style>
+:root {
+--cream-bg: #FAF7F2;
+--cream-surface: #FFFFFF;
+--cream-muted: #F3ECE1;
+--gold-primary: #C5A880;
+--gold-dark: #9E7D47;
+--gold-deep: #785E32;
+--gold-light: #F7F2EA;
+--gold-border: #E5D8C5;
+--text-charcoal: #1C1917;
+--text-muted: #57534E;
+--text-soft: #78716C;
+--emerald: #059669;
+--font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+--font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+--font-mono: 'JetBrains Mono', 'Courier New', monospace;
+--radius-sm: 4px;
+--radius-md: 8px;
+--radius-lg: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background-color: var(--cream-bg);
+color: var(--text-charcoal);
+font-family: var(--font-sans);
+font-size: 13px;
+line-height: 1.5;
+-webkit-font-smoothing: antialiased;
+}
+.top-header {
+height: 60px;
+background: #FFFFFF;
+border-bottom: 1px solid var(--gold-border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 0 32px;
+}
+.brand-crest {
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.crest-symbol {
+width: 30px;
+height: 30px;
+border: 1px solid var(--gold-primary);
+display: flex;
+align-items: center;
+justify-content: center;
+color: var(--gold-dark);
+font-family: var(--font-serif);
+font-size: 15px;
+font-weight: 700;
+border-radius: 2px;
+}
+.hotel-name {
+font-family: var(--font-serif);
+font-size: 16px;
+letter-spacing: 2px;
+text-transform: uppercase;
+color: var(--text-charcoal);
+font-weight: 700;
+}
+.hotel-sub {
+font-size: 10px;
+letter-spacing: 1px;
+color: var(--gold-dark);
+text-transform: uppercase;
+}
+.concierge-pill {
+display: flex;
+align-items: center;
+gap: 8px;
+font-size: 11px;
+color: var(--gold-dark);
+font-weight: 600;
+letter-spacing: 0.5px;
+}
+.booking-wrapper {
+max-width: 1360px;
+margin: 0 auto;
+padding: 18px 24px;
+display: flex;
+flex-direction: column;
+gap: 18px;
+}
+/* 3-Step Luxury Suite Reservation Stepper */
+.stepper-container {
+background: #FFFFFF;
+border: 1px solid var(--gold-border);
+border-radius: var(--radius-md);
+padding: 12px 20px;
+display: grid;
+grid-template-columns: 1fr 1.2fr 1fr;
+gap: 16px;
+align-items: center;
+box-shadow: 0 2px 8px rgba(158, 125, 71, 0.05);
+}
+.step-item {
+display: flex;
+align-items: center;
+gap: 10px;
+position: relative;
+}
+.step-num {
+width: 26px;
+height: 26px;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 11px;
+font-weight: 700;
+font-family: var(--font-mono);
+flex-shrink: 0;
+}
+.step-item.completed .step-num {
+background: var(--gold-light);
+color: var(--gold-deep);
+border: 1px solid var(--gold-primary);
+}
+.step-item.active .step-num {
+background: var(--gold-primary);
+color: #FFFFFF;
+box-shadow: 0 0 10px rgba(197, 168, 128, 0.5);
+}
+.step-item.upcoming .step-num {
+background: #F5F5F4;
+color: var(--text-soft);
+border: 1px solid #E7E5E4;
+}
+.step-text .step-label {
+font-size: 10px;
+text-transform: uppercase;
+letter-spacing: 1px;
+color: var(--text-soft);
+}
+.step-text .step-title {
+font-size: 12px;
+font-weight: 700;
+color: var(--text-charcoal);
+}
+.step-item.active .step-title {
+color: var(--gold-dark);
+}
+/* First 500px Focal Grid: Suite Showcase & Price Summary Drawer */
+.reservation-grid {
+display: grid;
+grid-template-columns: 1.55fr 1fr;
+gap: 18px;
+align-items: start;
+}
+.suite-card {
+background: #FFFFFF;
+border: 1px solid var(--gold-border);
+border-radius: var(--radius-md);
+overflow: hidden;
+box-shadow: 0 4px 16px rgba(158, 125, 71, 0.08);
+display: flex;
+flex-direction: column;
+}
+.suite-header-band {
+padding: 16px 20px;
+border-bottom: 1px solid var(--gold-border);
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+background: #FDFAF5;
+}
+.suite-title {
+font-family: var(--font-serif);
+font-size: 24px;
+font-weight: 700;
+color: var(--text-charcoal);
+margin-bottom: 4px;
+}
+.suite-eyebrow {
+font-size: 11px;
+text-transform: uppercase;
+letter-spacing: 1.5px;
+color: var(--gold-dark);
+font-weight: 600;
+}
+.suite-price-badge {
+text-align: right;
+}
+.price-num {
+font-family: var(--font-mono);
+font-size: 24px;
+font-weight: 700;
+color: var(--gold-deep);
+}
+.price-unit {
+font-size: 11px;
+color: var(--text-soft);
+}
+/* Architectural Suite Vector Visualization */
+.suite-visual-panel {
+padding: 16px 20px;
+background: linear-gradient(180deg, #FAF6F0 0%, #FFFFFF 100%);
+border-bottom: 1px solid var(--gold-border);
+}
+.suite-vector-svg {
+width: 100%;
+height: 180px;
+border: 1px solid #ECE3D4;
+border-radius: var(--radius-sm);
+background: #FCFAF7;
+}
+/* Specs bar */
+.specs-strip {
+display: grid;
+grid-template-columns: repeat(4, 1fr);
+gap: 8px;
+padding: 12px 20px;
+background: #FBF8F3;
+border-bottom: 1px solid var(--gold-border);
+font-size: 11px;
+}
+.spec-entry span {
+display: block;
+font-size: 9px;
+text-transform: uppercase;
+color: var(--text-soft);
+letter-spacing: 0.5px;
+}
+.spec-entry strong {
+font-weight: 600;
+color: var(--text-charcoal);
+}
+/* Interactive Amenity Pills */
+.amenity-section {
+padding: 16px 20px;
+}
+.amenity-heading {
+font-size: 11px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 1px;
+color: var(--gold-dark);
+margin-bottom: 10px;
+}
+.amenity-pill-grid {
+display: flex;
+flex-wrap: wrap;
+gap: 8px;
+}
+.amenity-pill {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+padding: 6px 12px;
+background: #FAF6F0;
+border: 1px solid var(--gold-border);
+border-radius: 9999px;
+font-size: 11px;
+color: var(--text-charcoal);
+cursor: pointer;
+transition: all 0.2s;
+}
+.amenity-pill.selected {
+background: var(--gold-primary);
+color: #FFFFFF;
+border-color: var(--gold-dark);
+box-shadow: 0 2px 8px rgba(197, 168, 128, 0.4);
+}
+/* Right Sticky Price Summary Drawer */
+.summary-drawer {
+background: #FFFFFF;
+border: 1px solid var(--gold-border);
+border-radius: var(--radius-md);
+box-shadow: 0 4px 16px rgba(158, 125, 71, 0.08);
+position: sticky;
+top: 76px;
+overflow: hidden;
+}
+.drawer-header {
+padding: 14px 18px;
+border-bottom: 1px solid var(--gold-border);
+background: #FAF7F2;
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.drawer-title {
+font-family: var(--font-serif);
+font-size: 15px;
+font-weight: 700;
+color: var(--text-charcoal);
+}
+.drawer-body {
+padding: 18px;
+display: flex;
+flex-direction: column;
+gap: 12px;
+}
+.line-item {
+display: flex;
+justify-content: space-between;
+font-size: 12px;
+color: var(--text-muted);
+}
+.line-item strong {
+color: var(--text-charcoal);
+font-family: var(--font-mono);
+}
+.line-divider {
+height: 1px;
+background: var(--gold-border);
+margin: 4px 0;
+}
+.total-item {
+display: flex;
+justify-content: space-between;
+align-items: baseline;
+font-size: 14px;
+font-weight: 700;
+color: var(--text-charcoal);
+}
+.total-amount {
+font-family: var(--font-mono);
+font-size: 26px;
+font-weight: 800;
+color: var(--gold-deep);
+}
+.guarantee-box {
+background: #FDFBF8;
+border: 1px dashed var(--gold-primary);
+border-radius: var(--radius-sm);
+padding: 8px 10px;
+font-size: 11px;
+color: var(--text-muted);
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.btn-gold-reserve {
+width: 100%;
+padding: 12px 18px;
+background: linear-gradient(135deg, var(--gold-primary) 0%, var(--gold-dark) 100%);
+color: #FFFFFF;
+border: none;
+border-radius: var(--radius-sm);
+font-family: var(--font-sans);
+font-size: 12px;
+font-weight: 700;
+letter-spacing: 1.5px;
+text-transform: uppercase;
+cursor: pointer;
+box-shadow: 0 4px 14px rgba(158, 125, 71, 0.35);
+transition: all 0.2s;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
+}
+.btn-gold-reserve:hover {
+background: linear-gradient(135deg, #d3b78f 0%, #aa874e 100%);
+}
+/* Curated Add-ons Lower Row */
+.addons-row {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 14px;
+}
+.addon-card {
+background: #FFFFFF;
+border: 1px solid var(--gold-border);
+border-radius: var(--radius-md);
+padding: 14px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.addon-title {
+font-weight: 700;
+font-size: 12px;
+color: var(--text-charcoal);
+}
+.addon-price {
+font-family: var(--font-mono);
+font-weight: 700;
+color: var(--gold-deep);
+font-size: 13px;
+}
+</style>
+</head>
+<body>
+<!-- Boutique Hotel Top Navigation -->
+<header class="top-header">
+<div class="brand-crest">
+<div class="crest-symbol">M</div>
+<div>
+<div class="hotel-name">Maison de l'Observatoire</div>
+<div class="hotel-sub">Luxury Alpine Retreat &amp; Thermal Spa · Saint-Moritz</div>
+</div>
+</div>
+<div class="concierge-pill">
+<span>✦ RELAIS &amp; CHÂTEAUX MEMBER</span>
+<span style="color: var(--gold-border);">|</span>
+<span>24H CONCIERGE: +41 81 838 4000</span>
+</div>
+</header>
+<main class="booking-wrapper">
+<!-- 3-Step Luxury Suite Reservation Stepper -->
+<div class="stepper-container">
+<div class="step-item completed">
+<div class="step-num">✓</div>
+<div class="step-text">
+<div class="step-label">Step 01 · Confirmed</div>
+<div class="step-title">Dates: Oct 14 – Oct 19 (5 Nights) · 2 Adults</div>
+</div>
+</div>
+<div class="step-item active">
+<div class="step-num">02</div>
+<div class="step-text">
+<div class="step-label">Step 02 · In Progress</div>
+<div class="step-title">Suite Select: Grand Penthouse Atelier</div>
+</div>
+</div>
+<div class="step-item upcoming">
+<div class="step-num">03</div>
+<div class="step-text">
+<div class="step-label">Step 03 · Next</div>
+<div class="step-title">Guest Details &amp; Concierge Preferences</div>
+</div>
+</div>
+</div>
+<!-- First 500px Focal Grid: Suite Showcase & Price Summary Drawer -->
+<div class="reservation-grid">
+<!-- Left Column: Luxury Suite Details -->
+<div class="suite-card">
+<div class="suite-header-band">
+<div>
+<div class="suite-eyebrow">PENTHOUSE COLLECTION · LEVEL 18</div>
+<div class="suite-title">The Grand Penthouse Atelier</div>
+<div style="font-size: 12px; color: var(--text-muted);">
+Uninterrupted panoramic vistas of Lake Saint-Moritz &amp; Piz Rosatsch
+</div>
+</div>
+<div class="suite-price-badge">
+<div class="price-num">$1,450</div>
+<div class="price-unit">per night / exclusive of tax</div>
+</div>
+</div>
+<!-- Architectural Suite Vector Illustration -->
+<div class="suite-visual-panel">
+<svg class="suite-vector-svg" viewBox="0 0 640 180">
+<!-- Background luxury room silhouette -->
+<rect x="10" y="10" width="620" height="160" rx="3" fill="#FDFBF7" stroke="#E7E0D3" />
+<!-- Panoramic floor-to-ceiling glass window wall -->
+<rect x="25" y="20" width="280" height="140" fill="#F4F8FA" stroke="#D1E2E8" stroke-width="1.5" />
+<line x1="95" y1="20" x2="95" y2="160" stroke="#CBD5E1" stroke-width="1" />
+<line x1="165" y1="20" x2="165" y2="160" stroke="#CBD5E1" stroke-width="1" />
+<line x1="235" y1="20" x2="235" y2="160" stroke="#CBD5E1" stroke-width="1" />
+<!-- Distant Mountain Peaks in Window -->
+<polygon points="35,160 85,80 145,160" fill="#E2E8F0" opacity="0.6" />
+<polygon points="115,160 185,60 255,160" fill="#CBD5E1" opacity="0.7" />
+<polygon points="215,160 270,95 300,160" fill="#E2E8F0" opacity="0.5" />
+<text x="35" y="40" font-family="serif" font-size="9" fill="#94A3B8">PANORAMIC ALPINE VISTA</text>
+<!-- Freestanding Soaking Copper Tub by Window -->
+<ellipse cx="230" cy="130" rx="38" ry="18" fill="#F5E6D3" stroke="#C5A880" stroke-width="1.5" />
+<ellipse cx="230" cy="128" rx="32" ry="12" fill="#E0F2FE" opacity="0.7" />
+<text x="190" y="158" font-family="sans-serif" font-size="8" fill="#9E7D47" font-weight="bold">SOAKING COPPER TUB</text>
+<!-- King Bed Suite Area -->
+<rect x="330" y="40" width="130" height="100" rx="3" fill="#FAF6F0" stroke="#DDD4C4" stroke-width="1.5" />
+<!-- Pillows -->
+<rect x="340" y="48" width="50" height="22" rx="2" fill="#FFFFFF" stroke="#DDD4C4" />
+<rect x="400" y="48" width="50" height="22" rx="2" fill="#FFFFFF" stroke="#DDD4C4" />
+<!-- Bed Throw / Cashmere Blanket -->
+<rect x="330" y="100" width="130" height="40" rx="2" fill="#C5A880" opacity="0.4" />
+<text x="350" y="90" font-family="serif" font-size="10" fill="#785E32">CUSTOM KING BED</text>
+<!-- Natural Wood Fireplace -->
+<rect x="485" y="35" width="125" height="110" rx="3" fill="#F3ECE1" stroke="#C5A880" stroke-width="1.5" />
+<rect x="510" y="70" width="75" height="60" rx="2" fill="#292524" />
+<!-- Fire Flame Glow -->
+<circle cx="547" cy="105" r="16" fill="#F97316" opacity="0.6" />
+<circle cx="547" cy="105" r="8" fill="#FDE047" opacity="0.9" />
+<text x="495" y="55" font-family="serif" font-size="9" fill="#785E32" font-weight="bold">WOOD-BURNING HEARTH</text>
+</svg>
+</div>
+<!-- Suite Specifications -->
+<div class="specs-strip">
+<div class="spec-entry">
+<span>SUITE AREA</span>
+<strong>1,850 sq.ft (172 m²)</strong>
+</div>
+<div class="spec-entry">
+<span>BEDDING</span>
+<strong>1 Grand Emperor King</strong>
+</div>
+<div class="spec-entry">
+<span>TERRACE</span>
+<strong>Wrap-Around 45 m²</strong>
+</div>
+<div class="spec-entry">
+<span>HOSPITALITY</span>
+<strong>24h Private Butler</strong>
+</div>
+</div>
+<!-- Interactive Amenity Pills -->
+<div class="amenity-section">
+<div class="amenity-heading">SIGNATURE SUITE PRIVILEGES &amp; AMENITIES</div>
+<div class="amenity-pill-grid">
+<div class="amenity-pill selected">
+<span>✦</span> Wrap-Around Alpine Terrace
+</div>
+<div class="amenity-pill selected">
+<span>🛁</span> Freestanding Copper Soaking Tub
+</div>
+<div class="amenity-pill selected">
+<span>🛎️</span> Dedicated Private Butler
+</div>
+<div class="amenity-pill selected">
+<span>🍾</span> Krug Grande Cuvée Welcome
+</div>
+<div class="amenity-pill selected">
+<span>🔥</span> Natural Wood-Burning Hearth
+</div>
+<div class="amenity-pill">
+<span>🚗</span> Mercedes Maybach Chauffeur
+</div>
+<div class="amenity-pill">
+<span>⚡</span> Starlink Ultra-Speed Wi-Fi
+</div>
+<div class="amenity-pill">
+<span>🧖</span> Thermal Bath Sanctuary Access
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Price Summary Drawer -->
+<aside class="summary-drawer">
+<div class="drawer-header">
+<div class="drawer-title">Reservation Folio Summary</div>
+<span style="font-size: 11px; color: var(--emerald); font-weight: 700;">BEST RATE GUARANTEED</span>
+</div>
+<div class="drawer-body">
+<div class="line-item">
+<span>Grand Penthouse Atelier (5 Nights)</span>
+<strong>$7,250.00</strong>
+</div>
+<div class="line-item">
+<span>Rate: $1,450.00 / night × 5</span>
+<span style="color: var(--text-soft); font-size: 11px;">Standard Suite Rate</span>
+</div>
+<div class="line-item">
+<span>Gourmet Alpine Breakfast (Daily)</span>
+<strong style="color: var(--emerald);">COMPLIMENTARY</strong>
+</div>
+<div class="line-item">
+<span>Thermal Spa &amp; Sanctuary Pass</span>
+<strong style="color: var(--emerald);">INCLUDED</strong>
+</div>
+<div class="line-item">
+<span>Hospitality &amp; Tourism Tax (10%)</span>
+<strong>$725.00</strong>
+</div>
+<div class="line-divider"></div>
+<div class="total-item">
+<div>
+<div>TOTAL STAY INVESTMENT</div>
+<div style="font-size: 10px; color: var(--text-soft); font-weight: normal;">All taxes &amp; resort privileges included</div>
+</div>
+<div class="total-amount">$7,975.00</div>
+</div>
+<div class="guarantee-box">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--gold-dark); flex-shrink: 0;">
+<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+</svg>
+<span><strong>FLEXIBLE CANCELLATION:</strong> Full refund guaranteed up to 48 hours prior to arrival.</span>
+</div>
+<button class="btn-gold-reserve">
+CONFIRM SUITE &amp; ENTER GUEST DETAILS
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<line x1="5" y1="12" x2="19" y2="12"></line>
+<polyline points="12 5 19 12 12 19"></polyline>
+</svg>
+</button>
+</div>
+</aside>
+</div>
+<!-- Lower Section: Bespoke Curated Add-ons -->
+<div class="addons-row">
+<div class="addon-card">
+<div>
+<div class="addon-title">Bernina Glacier Helicopter Flight</div>
+<div style="font-size: 11px; color: var(--text-soft);">Private 45-min glacier landing</div>
+</div>
+<div class="addon-price">+$850</div>
+</div>
+<div class="addon-card">
+<div>
+<div class="addon-title">Grand Cru Sommelier Vault Tasting</div>
+<div style="font-size: 11px; color: var(--text-soft);">5 rare vintages paired with truffles</div>
+</div>
+<div class="addon-price">+$340</div>
+</div>
+<div class="addon-card">
+<div>
+<div class="addon-title">Engadin Alpine Thermal Bath Ritual</div>
+<div style="font-size: 11px; color: var(--text-soft);">Private evening mineral spring bath</div>
+</div>
+<div class="addon-price">+$220</div>
+</div>
+</div>
+</main>
+</body>
+</html>

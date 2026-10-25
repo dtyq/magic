@@ -1,6 +1,6 @@
 import { IconArrowRight } from "@tabler/icons-react"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface SuggestItemProps {
 	index: number

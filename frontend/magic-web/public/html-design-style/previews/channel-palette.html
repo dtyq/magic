@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHANNEL PALETTE // Broadcast Television EPG & Live Channel Guide</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=JetBrains+Mono:wght@500;700&display=swap');
+    :root {
+      --tv-canvas: #0b0d17; --tv-surface: #141726; --tv-surface-elevated: #1d2136;
+      --tv-border: #282c44; --tv-border-light: rgba(255,255,255,0.08);
+      --cp-aubergine: #4A154B; --cp-aubergine-light: #611f69;
+      --cp-sky: #36C5F0; --cp-green: #2EB67D; --cp-yellow: #ECB22E; --cp-red: #E01E5A;
+      --tv-text: #ffffff; --tv-text-muted: #8c90a4;
+      --font-display: 'Lato', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: var(--tv-canvas); color: var(--tv-text); font-family: var(--font-display); line-height: 1.4; -webkit-font-smoothing: antialiased; padding: 16px; min-height: 100vh; }
+    .epg-header { display: flex; justify-content: space-between; align-items: center; background: var(--tv-surface); border: 1px solid var(--tv-border); border-radius: 8px; padding: 10px 20px; margin-bottom: 14px; }
+    .brand-group { display: flex; align-items: center; gap: 12px; }
+    .brand-logo-badge { background: linear-gradient(135deg, var(--cp-aubergine) 0%, var(--cp-red) 100%); padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: 900; letter-spacing: 0.1em; color: #fff; display: flex; align-items: center; gap: 6px; }
+    .brand-title { font-size: 16px; font-weight: 900; letter-spacing: 0.04em; }
+    .system-clock { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--cp-sky); display: flex; align-items: center; gap: 14px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cp-green); display: inline-block; box-shadow: 0 0 8px var(--cp-green); }
+    .epg-category-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+    .epg-cat-pill { background: var(--tv-surface); border: 1px solid var(--tv-border); color: var(--tv-text-muted); border-radius: 9999px; padding: 6px 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; transition: all 0.15s; }
+    .epg-cat-pill:hover { color: #fff; border-color: var(--cp-sky); }
+    .epg-cat-pill.active { background: var(--cp-aubergine); color: #fff; border-color: var(--cp-sky); box-shadow: 0 0 10px rgba(54,197,240,0.3); }
+    .hero-split-view { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 16px; margin-bottom: 16px; }
+    .live-player-card { background: #000; border: 1px solid var(--tv-border); border-radius: 10px; position: relative; overflow: hidden; min-height: 290px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 12px 30px rgba(0,0,0,0.6); }
+    .video-canvas-art { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+    .player-top-overlay { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 100%); }
+    .live-badge { background: var(--cp-red); color: #fff; font-size: 11px; font-weight: 900; padding: 3px 8px; border-radius: 3px; display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.06em; }
+    .live-dot { width: 6px; height: 6px; background: #fff; border-radius: 50%; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+    .channel-callout { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--cp-sky); background: rgba(0,0,0,0.6); padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(54,197,240,0.3); }
+    .player-center-play { position: relative; z-index: 2; align-self: center; width: 52px; height: 52px; background: rgba(74, 21, 75, 0.7); backdrop-filter: blur(8px); border: 1px solid var(--cp-sky); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 0 20px rgba(54,197,240,0.4); }
+    .player-bottom-overlay { position: relative; z-index: 2; padding: 14px 16px; background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, transparent 100%); }
+    .playing-title-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .now-title { font-size: 16px; font-weight: 800; letter-spacing: 0.02em; }
+    .time-rem { font-family: var(--font-mono); font-size: 11px; color: var(--cp-yellow); }
+    .progress-bar-container { width: 100%; height: 6px; background: rgba(255,255,255,0.2); border-radius: 9999px; overflow: hidden; margin-bottom: 8px; }
+    .progress-bar-fill { width: 48%; height: 100%; background: linear-gradient(90deg, var(--cp-sky), var(--cp-green)); box-shadow: 0 0 8px var(--cp-sky); }
+    .video-tech-tags { display: flex; gap: 6px; font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.75); }
+    .tech-tag { background: rgba(255,255,255,0.12); padding: 2px 6px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); }
+    .now-info-card { background: var(--tv-surface); border: 1px solid var(--tv-border); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+    .synopsis-header { font-size: 11px; font-weight: 700; color: var(--cp-sky); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+    .program-headline { font-size: 22px; font-weight: 900; line-height: 1.2; margin-bottom: 8px; }
+    .rating-meta-row { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--tv-text-muted); margin-bottom: 12px; }
+    .imdb-badge { background: var(--cp-yellow); color: #000; font-weight: 900; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+    .synopsis-body { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.85); margin-bottom: 14px; }
+    .next-up-cue { background: var(--tv-surface-elevated); border-left: 3px solid var(--cp-sky); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 11.5px; margin-bottom: 14px; }
+    .remote-actions { display: flex; gap: 10px; }
+    .btn-watch { flex: 1; background: linear-gradient(135deg, var(--cp-sky) 0%, #1e88e5 100%); color: #0b0d17; border: none; border-radius: 6px; padding: 10px; font-size: 13px; font-weight: 800; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-rec { background: rgba(224, 30, 90, 0.15); color: var(--cp-red); border: 1px solid var(--cp-red); border-radius: 6px; padding: 10px 14px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .epg-table-frame { background: var(--tv-surface); border: 1px solid var(--tv-border); border-radius: 10px; overflow: hidden; position: relative; }
+    .epg-time-header { display: grid; grid-template-columns: 160px repeat(4, 1fr); background: #0f1220; border-bottom: 1px solid var(--tv-border); font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--cp-sky); }
+    .time-slot { padding: 10px 14px; border-right: 1px solid var(--tv-border-light); text-align: left; }
+    .channel-row { display: grid; grid-template-columns: 160px 1fr; border-bottom: 1px solid var(--tv-border-light); position: relative; }
+    .channel-row:last-child { border-bottom: none; }
+    .channel-id-cell { background: #111424; padding: 10px 14px; display: flex; align-items: center; gap: 10px; border-right: 1px solid var(--tv-border); }
+    .ch-logo-pill { font-size: 10px; font-weight: 900; padding: 3px 6px; border-radius: 3px; color: #fff; }
+    .ch-name { font-size: 12px; font-weight: 700; }
+    .ch-num { font-family: var(--font-mono); font-size: 10px; color: var(--tv-text-muted); }
+    .programs-track { display: grid; grid-template-columns: repeat(4, 1fr); position: relative; }
+    .prog-block { padding: 10px 14px; border-right: 1px solid var(--tv-border-light); position: relative; background: transparent; display: flex; flex-direction: column; justify-content: center; transition: background 0.15s; }
+    .prog-block:hover { background: rgba(255,255,255,0.04); }
+    .prog-block.active-now { background: rgba(74, 21, 75, 0.35); border-left: 2px solid var(--cp-sky); }
+    .prog-title { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prog-genre { font-size: 10px; color: var(--tv-text-muted); margin-top: 2px; }
+    .prog-minibar { position: absolute; bottom: 0; left: 0; height: 3px; background: var(--cp-sky); }
+    .now-indicator-line { position: absolute; top: 0; bottom: 0; left: calc(160px + (100% - 160px) * 0.18); width: 2px; background: var(--cp-red); box-shadow: 0 0 8px var(--cp-red); z-index: 10; pointer-events: none; }
+    .now-indicator-tag { position: absolute; top: 2px; left: -14px; background: var(--cp-red); color: #fff; font-size: 8px; font-weight: 900; padding: 1px 4px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top EPG Ribbon -->
+  <header class="epg-header">
+    <div class="brand-group">
+      <div class="brand-logo-badge">
+        <span>▲</span>
+        <span>CHANNEL PALETTE</span>
+      </div>
+      <div class="brand-title">BROADCAST EPG GUIDE v9.4</div>
+    </div>
+    <div class="system-clock">
+      <span><span class="status-dot"></span> LIVE SATELLITE FEED</span>
+      <span>8:15 PM EST</span>
+      <span style="color:var(--cp-yellow);">TUNER 01: LOCKED</span>
+    </div>
+  </header>
+
+  <!-- Category Pills Bar -->
+  <div class="epg-category-bar">
+    <button class="epg-cat-pill active">All Channels</button>
+    <button class="epg-cat-pill">Cinema Premium</button>
+    <button class="epg-cat-pill">Live Sports</button>
+    <button class="epg-cat-pill">News 24/7</button>
+    <button class="epg-cat-pill">Documentary</button>
+    <button class="epg-cat-pill">Music & Culture</button>
+  </div>
+
+  <!-- Hero Section: Live Video Preview Player Thumbnail & Program Details (Top 500px) -->
+  <section class="hero-split-view">
+    
+    <!-- Left: Live Video Preview Player Card -->
+    <div class="live-player-card">
+      <!-- High-Fidelity Cinematic Sci-Fi Event Horizon Vector Canvas -->
+      <svg class="video-canvas-art" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <radialGradient id="spaceGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#36C5F0" stop-opacity="0.6"/>
+            <stop offset="40%" stop-color="#4A154B" stop-opacity="0.8"/>
+            <stop offset="85%" stop-color="#0b0d17" stop-opacity="1"/>
+          </radialGradient>
+          <linearGradient id="diskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ECB22E"/>
+            <stop offset="50%" stop-color="#36C5F0"/>
+            <stop offset="100%" stop-color="#E01E5A"/>
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="#0b0d17"/>
+        <circle cx="200" cy="120" r="140" fill="url(#spaceGlow)"/>
+        <!-- Distant Stars -->
+        <circle cx="45" cy="40" r="1.2" fill="#fff" opacity="0.8"/>
+        <circle cx="95" cy="80" r="1" fill="#fff" opacity="0.6"/>
+        <circle cx="340" cy="50" r="1.5" fill="#fff" opacity="0.9"/>
+        <circle cx="310" cy="180" r="1" fill="#fff" opacity="0.7"/>
+        <circle cx="120" cy="200" r="1.2" fill="#fff" opacity="0.8"/>
+        <!-- Black Hole Accretion Disk Ring -->
+        <ellipse cx="200" cy="120" rx="130" ry="32" fill="none" stroke="url(#diskGrad)" stroke-width="6" opacity="0.85" />
+        <!-- Event Horizon Sphere -->
+        <circle cx="200" cy="120" r="42" fill="#000000" stroke="#36C5F0" stroke-width="1.5" />
+        <!-- Gravitational Lensing Arc -->
+        <path d="M 120 110 C 120 70, 280 70, 280 110" fill="none" stroke="url(#diskGrad)" stroke-width="4" opacity="0.9"/>
+      </svg>
+
+      <!-- Player Top Bar Overlay -->
+      <div class="player-top-overlay">
+        <span class="live-badge"><span class="live-dot"></span> LIVE FEED</span>
+        <span class="channel-callout">CH 104 • HBO CINEMA HD</span>
+      </div>
+
+      <!-- Center Play Icon -->
+      <div class="player-center-play">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#36C5F0"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+      </div>
+
+      <!-- Player Bottom Progress Overlay -->
+      <div class="player-bottom-overlay">
+        <div class="playing-title-row">
+          <span class="now-title">Interstellar: Singularity Edition</span>
+          <span class="time-rem">45m / 120m (75m rem)</span>
+        </div>
+        <!-- Glowing Playing Progress Bar -->
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill"></div>
+        </div>
+        <div class="video-tech-tags">
+          <span class="tech-tag" style="color:var(--cp-sky);">4K UHD</span>
+          <span class="tech-tag" style="color:var(--cp-yellow);">HDR10+</span>
+          <span class="tech-tag">DOLBY ATMOS 7.1</span>
+          <span class="tech-tag">CC ENG</span>
+          <span class="tech-tag">TV-MA</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Program Details & Remote Control Actions -->
+    <div class="now-info-card">
+      <div>
+        <div class="synopsis-header">NOW PLAYING ON CH 104</div>
+        <h2 class="program-headline">Interstellar: Singularity Edition</h2>
+        <div class="rating-meta-row">
+          <span class="imdb-badge">IMDb 8.9</span>
+          <span>2026 Remaster</span>
+          <span>2h 49m</span>
+          <span>Sci-Fi / Space Epic</span>
+        </div>
+        <p class="synopsis-body">
+          A team of explorers travel through a newly discovered wormhole near Saturn in an attempt to ensure humanity's survival across uncharted planetary systems.
+        </p>
+        <div class="next-up-cue">
+          <span style="color:var(--tv-text-muted); font-size:10px; font-weight:700;">UP NEXT AT 9:30 PM:</span><br>
+          <strong style="color:#ffffff;">Blade Runner 2049 [Director's Cut]</strong> • 4K Cinema
+        </div>
+      </div>
+
+      <div class="remote-actions">
+        <button class="btn-watch">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Watch Fullscreen</span>
+        </button>
+        <button class="btn-rec">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--cp-red);display:inline-block;"></span>
+          <span>Record (REC)</span>
+        </button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Bottom: Time-Slotted Program Guide Grid Matrix (EPG Table) -->
+  <div class="epg-table-frame">
+    <!-- Red Time Marker Line -->
+    <div class="now-indicator-line">
+      <span class="now-indicator-tag">NOW</span>
+    </div>
+
+    <!-- Time Slot Header -->
+    <div class="epg-time-header">
+      <div class="time-slot" style="color:var(--tv-text-muted);">CHANNEL</div>
+      <div class="time-slot">8:00 PM</div>
+      <div class="time-slot">8:30 PM</div>
+      <div class="time-slot">9:00 PM</div>
+      <div class="time-slot">9:30 PM</div>
+    </div>
+
+    <!-- Channel Row 1: HBO Cinema -->
+    <div class="channel-row">
+      <div class="channel-id-cell">
+        <span class="ch-logo-pill" style="background:var(--cp-aubergine);">HBO</span>
+        <div><div class="ch-name">HBO Cinema</div><div class="ch-num">CH 104 • 4K</div></div>
+      </div>
+      <div class="programs-track">
+        <div class="prog-block active-now" style="grid-column: span 3;">
+          <div class="prog-title">Interstellar: Singularity Edition</div>
+          <div class="prog-genre">Sci-Fi Epic • PG-13 (8:00 PM - 9:30 PM)</div>
+          <div class="prog-minibar" style="width:48%;"></div>
+        </div>
+        <div class="prog-block">
+          <div class="prog-title">Blade Runner 2049</div>
+          <div class="prog-genre">Neo-Noir • 9:30 PM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Channel Row 2: ESPN Live -->
+    <div class="channel-row">
+      <div class="channel-id-cell">
+        <span class="ch-logo-pill" style="background:#cc0000;">ESPN</span>
+        <div><div class="ch-name">ESPN Sports</div><div class="ch-num">CH 102 • HD</div></div>
+      </div>
+      <div class="programs-track">
+        <div class="prog-block active-now" style="grid-column: span 2;">
+          <div class="prog-title">NBA Primetime: Finals Game 6</div>
+          <div class="prog-genre">Live Basketball • Q3 84-82</div>
+          <div class="prog-minibar" style="width:65%;"></div>
+        </div>
+        <div class="prog-block" style="grid-column: span 2;">
+          <div class="prog-title">SportsCenter Post-Game Live</div>
+          <div class="prog-genre">Studio Analysis • 9:00 PM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Channel Row 3: National Geographic -->
+    <div class="channel-row">
+      <div class="channel-id-cell">
+        <span class="ch-logo-pill" style="background:var(--cp-yellow); color:#000;">NAT</span>
+        <div><div class="ch-name">Nat Geo Wild</div><div class="ch-num">CH 103 • HD</div></div>
+      </div>
+      <div class="programs-track">
+        <div class="prog-block active-now">
+          <div class="prog-title">Mariana Trench Expedition</div>
+          <div class="prog-genre">Nature Documentary</div>
+          <div class="prog-minibar" style="width:40%;"></div>
+        </div>
+        <div class="prog-block">
+          <div class="prog-title">Predators of Serengeti</div>
+          <div class="prog-genre">Wildlife Series • 8:30 PM</div>
+        </div>
+        <div class="prog-block" style="grid-column: span 2;">
+          <div class="prog-title">Cosmos: Planetary Horizons</div>
+          <div class="prog-genre">Science & Space • 9:00 PM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Channel Row 4: BBC World News -->
+    <div class="channel-row">
+      <div class="channel-id-cell">
+        <span class="ch-logo-pill" style="background:var(--cp-red);">BBC</span>
+        <div><div class="ch-name">BBC World</div><div class="ch-num">CH 105 • HD</div></div>
+      </div>
+      <div class="programs-track">
+        <div class="prog-block active-now">
+          <div class="prog-title">Global News Hour Live</div>
+          <div class="prog-genre">International News</div>
+          <div class="prog-minibar" style="width:50%;"></div>
+        </div>
+        <div class="prog-block">
+          <div class="prog-title">World Business Report</div>
+          <div class="prog-genre">Finance & Markets</div>
+        </div>
+        <div class="prog-block">
+          <div class="prog-title">HARDtalk Global</div>
+          <div class="prog-genre">Political Debates</div>
+        </div>
+        <div class="prog-block">
+          <div class="prog-title">BBC Tech Click</div>
+          <div class="prog-genre">Technology Review</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

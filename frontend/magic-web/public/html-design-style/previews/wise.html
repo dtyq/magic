@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wise: The Fast, Cheap Way to Send Money Abroad</title>
+  <style>
+    :root {
+      --primary: #9fe870;
+      --on-primary: #0e0f0c;
+      --primary-active: #cdffad;
+      --primary-neutral: #c5edab;
+      --primary-pale: #e2f6d5;
+      --ink: #0e0f0c;
+      --ink-deep: #163300;
+      --body: #454745;
+      --mute: #868685;
+      --canvas: #ffffff;
+      --canvas-soft: #e8ebe6;
+      --positive: #2ead4b;
+      --positive-deep: #054d28;
+      --negative: #d03238;
+      --font-display: "Wise Sans", "Inter", -apple-system, system-ui, sans-serif;
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-xl: 24px;
+      --radius-pill: 9999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--canvas-soft);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .shell { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+    /* Top Nav */
+    .nav-bar {
+      height: 68px;
+      background: var(--canvas-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(14, 15, 12, 0.08);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-left, .nav-right { display: flex; align-items: center; }
+    .nav-left { gap: 32px; }
+    .brand-group { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    .wise-flag {
+      width: 28px;
+      height: 28px;
+      background: var(--primary);
+      border-radius: var(--radius-sm);
+      display: grid;
+      place-items: center;
+    }
+    .wise-word { font-family: var(--font-display); font-size: 24px; font-weight: 900; color: var(--ink); letter-spacing: -0.5px; }
+    .nav-links { display: flex; gap: 20px; list-style: none; font-size: 14px; font-weight: 600; color: var(--ink); }
+    .nav-item { cursor: pointer; }
+    .nav-right { gap: 12px; }
+    .btn-login { background: transparent; border: none; font-size: 14px; font-weight: 600; color: var(--ink); padding: 10px 18px; border-radius: var(--radius-xl); cursor: pointer; }
+    .btn-register {
+      background: var(--primary);
+      color: var(--on-primary);
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 11px 22px;
+      border-radius: var(--radius-xl);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-register:hover { background: var(--primary-active); }
+
+    /* Multi-currency Balance Ticker */
+    .currency-pills-bar {
+      padding: 16px 0 8px;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+    }
+    .curr-pill {
+      background: var(--canvas);
+      border: 1px solid rgba(14,15,12,0.06);
+      border-radius: var(--radius-pill);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .curr-flag { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--canvas-soft); }
+    .curr-balance { font-weight: 700; color: var(--ink); }
+
+    /* Hero Section */
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 40px;
+      padding: 32px 0 64px;
+      align-items: center;
+    }
+    .hero-copy h1 {
+      font-family: var(--font-display);
+      font-size: clamp(40px, 4.8vw, 68px);
+      font-weight: 900;
+      line-height: 1.02;
+      letter-spacing: -1.8px;
+      color: var(--ink);
+      margin-bottom: 20px;
+    }
+    .hero-copy p {
+      font-size: 18px;
+      line-height: 1.5;
+      color: var(--body);
+      margin-bottom: 32px;
+      max-width: 500px;
+    }
+
+    /* Calculator Card */
+    .calc-card {
+      background: var(--canvas);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      box-shadow: 0 16px 36px rgba(14, 15, 12, 0.06);
+      border: 1px solid rgba(14, 15, 12, 0.08);
+    }
+    .input-row-block {
+      border: 1px solid rgba(14, 15, 12, 0.15);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fafbfa;
+      transition: border-color 0.15s;
+    }
+    .input-row-block:focus-within { border-color: var(--ink); background: #fff; }
+    .calc-label { font-size: 12px; color: var(--mute); font-weight: 500; display: block; margin-bottom: 2px; }
+    .calc-amount-input {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 700;
+      border: none;
+      background: transparent;
+      outline: none;
+      color: var(--ink);
+      width: 140px;
+    }
+    .currency-selector-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--canvas);
+      border: 1px solid rgba(14,15,12,0.12);
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* Fee Breakdown Step Ladder */
+    .calc-steps {
+      position: relative;
+      padding: 16px 0 16px 36px;
+    }
+    .calc-steps::before {
+      content: "";
+      position: absolute;
+      left: 17px;
+      top: 14px;
+      bottom: 14px;
+      width: 2px;
+      background: rgba(14, 15, 12, 0.12);
+    }
+    .step-item {
+      position: relative;
+      font-size: 13px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .step-item:last-child { margin-bottom: 0; }
+    .step-dot {
+      position: absolute;
+      left: -24px;
+      top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--canvas);
+      border: 2px solid var(--ink);
+    }
+    .step-val { font-weight: 600; color: var(--ink); }
+
+    .savings-pill {
+      background: var(--primary-pale);
+      border: 1px solid var(--primary-neutral);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      margin: 16px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+    .savings-strong { font-weight: 700; color: var(--positive-deep); }
+    .bank-comparison { font-size: 12px; color: var(--body); }
+
+    .btn-send-money {
+      width: 100%;
+      height: 52px;
+      background: var(--primary);
+      color: var(--on-primary);
+      border: none;
+      border-radius: var(--radius-xl);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.15s;
+    }
+    .btn-send-money:hover { background: var(--primary-active); }
+
+    /* Digital Debit Card Mockup */
+    .card-showcase-wrap { display: flex; flex-direction: column; gap: 24px; }
+    .debit-card-mockup {
+      width: 100%;
+      height: 230px;
+      background: linear-gradient(135deg, #a7f375 0%, #9fe870 50%, #89d854 100%);
+      border-radius: 20px;
+      padding: 24px 28px;
+      color: var(--ink);
+      position: relative;
+      box-shadow: 0 20px 40px rgba(159, 232, 112, 0.3), 0 2px 8px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      transform: rotate(-1.5deg);
+      transition: transform 0.2s ease;
+    }
+    .debit-card-mockup:hover { transform: rotate(0deg) scale(1.02); }
+    .card-watermark {
+      position: absolute;
+      right: -20px;
+      bottom: -30px;
+      font-family: var(--font-display);
+      font-size: 140px;
+      font-weight: 900;
+      opacity: 0.12;
+      pointer-events: none;
+    }
+    .card-top { display: flex; justify-content: space-between; align-items: center; }
+    .card-chip {
+      width: 44px;
+      height: 32px;
+      background: linear-gradient(135deg, #ffe082 0%, #ffd54f 50%, #ffca28 100%);
+      border-radius: 6px;
+      border: 1px solid rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .card-chip::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: rgba(0,0,0,0.2);
+    }
+    .card-nfc { width: 22px; height: 22px; }
+    .card-number {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin: 12px 0 4px;
+    }
+    .card-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+    .cardholder-name { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card-expires { font-size: 11px; font-weight: 600; }
+    .card-visa { font-family: var(--font-display); font-size: 22px; font-weight: 900; }
+
+    /* Comparison Table Band */
+    .comparison-section {
+      background: var(--canvas);
+      border-radius: var(--radius-xl);
+      padding: 36px;
+      margin-bottom: 48px;
+    }
+    .comp-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+    .comp-table th { text-align: left; padding: 12px 16px; border-bottom: 2px solid var(--canvas-soft); color: var(--mute); font-weight: 600; }
+    .comp-table td { padding: 14px 16px; border-bottom: 1px solid var(--canvas-soft); }
+    .wise-row { background: var(--primary-pale); font-weight: 600; }
+    .wise-row td:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
+    .wise-row td:last-child { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+
+    /* Footer */
+    .wise-footer {
+      background: var(--ink);
+      color: var(--canvas-soft);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 40px 36px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="nav-bar">
+    <div class="shell" style="display: flex; justify-content: space-between; width: 100%;">
+      <div class="nav-left">
+        <a href="#" class="brand-group">
+          <div class="wise-flag">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0E0F0C" stroke-width="2.5"><path d="M4 15l8-8 8 8"/></svg>
+          </div>
+          <span class="wise-word">wise</span>
+        </a>
+        <ul class="nav-links">
+          <li class="nav-item">Personal</li>
+          <li class="nav-item">Business</li>
+          <li class="nav-item">Features</li>
+          <li class="nav-item">Pricing</li>
+        </ul>
+      </div>
+      <div class="nav-right">
+        <button class="btn-login">Log in</button>
+        <button class="btn-register">Register</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- Multi-Currency Account Ticker -->
+    <div class="currency-pills-bar">
+      <div class="curr-pill">
+        <div class="curr-flag">🇪🇺</div>
+        <div><span>EUR</span> <span class="curr-balance">4,250.80 €</span></div>
+      </div>
+      <div class="curr-pill">
+        <div class="curr-flag">🇬🇧</div>
+        <div><span>GBP</span> <span class="curr-balance">1,890.45 £</span></div>
+      </div>
+      <div class="curr-pill">
+        <div class="curr-flag">🇺🇸</div>
+        <div><span>USD</span> <span class="curr-balance">3,120.00 $</span></div>
+      </div>
+      <div class="curr-pill">
+        <div class="curr-flag">🇯🇵</div>
+        <div><span>JPY</span> <span class="curr-balance">480,000 ¥</span></div>
+      </div>
+    </div>
+
+    <!-- Hero Section: Headline + Calculator + Debit Card -->
+    <section class="hero-split">
+      <div class="hero-copy">
+        <h1>Money without borders. Fast & fair.</h1>
+        <p>Save up to 8x compared to regular high street banks when sending money abroad, spending with your card, or receiving payments.</p>
+
+        <!-- Digital Debit Card Mockup -->
+        <div class="card-showcase-wrap">
+          <div class="debit-card-mockup">
+            <div class="card-watermark">wise</div>
+            <div class="card-top">
+              <div class="card-chip"></div>
+              <svg class="card-nfc" viewBox="0 0 24 24" fill="none" stroke="#0E0F0C" stroke-width="2"><path d="M8.5 16.5a5 5 0 0 1 0-7"/><path d="M12 19a8.5 8.5 0 0 0 0-14"/><path d="M15.5 21.5a12 12 0 0 0 0-19"/></svg>
+            </div>
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Digital Debit</div>
+              <div class="card-number">•••• •••• •••• 8492</div>
+            </div>
+            <div class="card-bottom">
+              <div>
+                <div class="cardholder-name">Alexandra Chen</div>
+                <div class="card-expires">EXPIRES 08/29</div>
+              </div>
+              <div class="card-visa">VISA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real Exchange Rate Comparison Calculator -->
+      <div class="calc-card">
+        <div style="margin-bottom: 14px; font-weight: 700; font-size: 16px;">Exchange Rate Calculator</div>
+
+        <!-- From Amount -->
+        <div class="input-row-block">
+          <div>
+            <span class="calc-label">You send exactly</span>
+            <input type="text" class="calc-amount-input" value="1,000">
+          </div>
+          <div class="currency-selector-badge">
+            <span>🇬🇧</span>
+            <span>GBP</span>
+            <span>▼</span>
+          </div>
+        </div>
+
+        <!-- Transparent Fee Breakdown -->
+        <div class="calc-steps">
+          <div class="step-item">
+            <div class="step-dot"></div>
+            <span>3.42 GBP Our transparent fee</span>
+            <span class="step-val">- £3.42</span>
+          </div>
+          <div class="step-item">
+            <div class="step-dot"></div>
+            <span>996.58 GBP Amount we'll convert</span>
+            <span class="step-val">£996.58</span>
+          </div>
+          <div class="step-item">
+            <div class="step-dot"></div>
+            <span>1.17762 Mid-market rate (guaranteed 48h)</span>
+            <span class="step-val" style="color: var(--positive-deep);">1.17762</span>
+          </div>
+        </div>
+
+        <!-- To Amount -->
+        <div class="input-row-block" style="background: var(--primary-pale); border-color: var(--primary);">
+          <div>
+            <span class="calc-label" style="color: var(--ink-deep); font-weight: 600;">Recipient gets</span>
+            <input type="text" class="calc-amount-input" value="1,174.20" readonly style="color: var(--ink-deep);">
+          </div>
+          <div class="currency-selector-badge" style="background: #fff;">
+            <span>🇪🇺</span>
+            <span>EUR</span>
+            <span>▼</span>
+          </div>
+        </div>
+
+        <!-- Transparent Fee Comparison Callout -->
+        <div class="savings-pill">
+          <div>
+            <span class="savings-strong">You save £25.08 with Wise</span>
+            <div class="bank-comparison">Wise fee $3.42 vs bank average $28.50</div>
+          </div>
+          <span style="font-size: 18px;">🎉</span>
+        </div>
+
+        <!-- Action Button -->
+        <button class="btn-send-money">
+          Send money now
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- Transparent Comparison Section -->
+    <section class="comparison-section">
+      <h2 style="font-family: var(--font-display); font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">See how much you can save</h2>
+      <p style="color: var(--body); font-size: 14px; margin-top: 4px;">Comparing sending 1,000 GBP to EUR on September 19, 2026</p>
+
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Exchange Rate</th>
+            <th>Transfer Fee</th>
+            <th>Recipient Gets</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="wise-row">
+            <td><strong>Wise</strong></td>
+            <td>1.17762 (Mid-market)</td>
+            <td>$3.42 (£2.70)</td>
+            <td><strong>1,174.20 EUR</strong></td>
+          </tr>
+          <tr>
+            <td>Barclays Bank</td>
+            <td>1.14120 (-3.1%)</td>
+            <td>$28.50 (£22.50)</td>
+            <td>1,114.80 EUR</td>
+          </tr>
+          <tr>
+            <td>HSBC UK</td>
+            <td>1.14450 (-2.8%)</td>
+            <td>$25.00 (£19.80)</td>
+            <td>1,121.60 EUR</td>
+          </tr>
+          <tr>
+            <td>PayPal</td>
+            <td>1.12900 (-4.1%)</td>
+            <td>$18.20 (£14.40)</td>
+            <td>1,098.40 EUR</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="wise-footer">
+      <div>
+        <span style="font-family: var(--font-display); font-weight: 900; font-size: 16px;">wise</span>
+        <span style="margin-left: 12px; color: var(--mute);">Regulated by the FCA as an Electronic Money Institution</span>
+      </div>
+      <div>160+ Countries • 40+ Currencies • 16M+ Customers</div>
+    </footer>
+  </main>
+
+</body>
+</html>

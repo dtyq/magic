@@ -8,6 +8,11 @@
 # 4. 此文件会被提交到Git，不要在此文件中暴露任何敏感信息
 # =====================================================
 
+wechat:
+  # 本地保守正文预算，超出后交由 Agent 分段，不是服务端官方限制。
+  text_max_bytes: 4000
+  text_file_max_bytes: 1048576
+
 browser:
   # 浏览器后端：local_playwright、remote_playwright 或 chrome_extension。
   # 未配置时，本地环境使用 local_playwright，其他环境使用 remote_playwright。
@@ -109,65 +114,160 @@ llm:
   # 第一阶梯：流式
   # > 设 600s 等同于禁用 per-chunk 超时检测，由总超时兜底
   # > 原因：Claude/AWS 渠道流式卡顿后仍可恢复，缩短此值会误杀正常请求 2026-04-12
-  stream_first_chunk_timeout_seconds: 600  # 首包超时
+  stream_first_chunk_timeout_seconds: 180  # 首包超时
   stream_chunk_timeout_seconds: 600        # chunk 间隔超时
   # 第二阶梯：非流式退避重试
   non_stream_timeout_seconds: 600          # 非流式请求超时
   backoff_max_retries: 5                   # 最大退避重试次数
+  # 原生视觉请求连续返回 4xx 后，当前沙箱将当前模型降级为非视觉；2 表示第三次请求使用非视觉。
+  native_visual_400_failure_threshold: ${LLM_NATIVE_VISUAL_400_FAILURE_THRESHOLD:-2}
+  # Chat 用户消息首批原生视觉图片数；不约束 visual_understanding 追加消息。
+  # -1 表示 Chat 首批不限制，0 表示 Chat 图片不直接进入原生视觉。
+  native_visual_max_image_refs: ${LLM_NATIVE_VISUAL_MAX_IMAGE_REFS:-10}
+  # 历史加当前合计允许保留的原生视觉图片总数。超过后，历史里的原生视觉 user 消息全部不再带图；当前消息不受影响。
+  # -1 表示不限制，0 表示历史消息都不直接发送原生视觉图片。
+  native_visual_max_history_image_refs: ${LLM_NATIVE_VISUAL_MAX_HISTORY_IMAGE_REFS:-20}
+  # 单次原生视觉请求的 Base64 图片总字节数上限；-1 表示不限制。
+  native_visual_max_image_bytes: ${LLM_NATIVE_VISUAL_MAX_IMAGE_BYTES:--1}
+  # 原生视觉 Base64 进程内缓存的最大条目数。
+  native_visual_cache_max_entries: ${LLM_NATIVE_VISUAL_CACHE_MAX_ENTRIES:-32}
+  # 原生视觉 Base64 进程内缓存的最大总字节数。
+  native_visual_cache_max_bytes: ${LLM_NATIVE_VISUAL_CACHE_MAX_BYTES:-134217728}
 
 # 用户可见上下文窗口配置
 #
 # 这里配置的是产品对外展示和压缩策略共同使用的上下文窗口档位。
-# Python 只负责按模型关键词匹配档位，并用 context_usage_ratio 计算压缩阈值。
+# Python 按同一名称的全部关键词与数字版本匹配，并用 context_usage_ratio 计算压缩阈值。
+# 未命中默认 300K，实际不超过运行时物理容量；不再为每个新型号维护大窗口白名单。
 context_window:
-  default_user_facing_max_context_tokens: 200000
+  default_user_facing_max_context_tokens: 300000
   compaction:
     default_compaction_threshold_tokens: 180000
     min_compaction_threshold_tokens: 100000
     max_compaction_threshold_tokens: 180000
     context_usage_ratio: 0.9
   tiers:
-    # 200K 档：产品对外按 200K 展示，压缩阈值由 context_usage_ratio 派生。
-    # Claude 关键词同时兼容两种命名顺序（历史遗留的命名不规范问题）。
-    - name: context_window_200k
+    # 版本按整数分段比较：4=4.0，4.10>4.6；version_lt 是严格小于。
+    # 模式同时接受 claude-sonnet-4.5、claude-4.5-sonnet 和官方 4-5 写法，八位日期不进入版本。
+    - name: claude_sonnet_legacy
       user_facing_max_context_tokens: 200000
-      model_keywords:
-        - claude-sonnet-4.6
-        - claude-4.6-sonnet
-        - claude-opus-4.6
-        - claude-4.6-opus
-        - claude-sonnet-4.5
-        - claude-4.5-sonnet
-        - claude-sonnet-4
-        - claude-4-sonnet
-        - gemini-3-pro
-        - gemini-3-pro-preview
-        - gemini-3.1-pro
-        - gemini-3.1-pro-preview
-        # Step / MiMo 系列上下文窗口待确认，先保守归入 200K 档。
-        - step-3.5-flash
-        - mimo-v2.5
+      model_keywords: [claude, sonnet]
+      version_lt: "4.6"
+      version_patterns: &claude_version_patterns
+        - 'claude[-_ ]+(?:sonnet|opus|haiku)[-_ ]+(?P<version>[0-9]+(?:\.[0-9]+|-[0-9]{1,2}(?![0-9]))*)(?![0-9.])'
+        - 'claude[-_ ]+(?P<version>[0-9]+(?:\.[0-9]+|-[0-9]{1,2}(?![0-9]))*)[-_ ]+(?:sonnet|opus|haiku)(?:[-_ ]|$)'
+    - name: claude_opus_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [claude, opus]
+      version_lt: "4.6"
+      version_patterns: *claude_version_patterns
+    - name: claude_haiku_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [claude, haiku]
+      version_lt: "5.5"
+      version_patterns: *claude_version_patterns
+    - name: glm_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [glm]
+      version_lt: "5.2"
+      version_patterns:
+        - 'glm[-_ ]+(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])(?![-_ ]?(?:v|vision|image|audio)(?:[-_ ]|$))'
+    - name: minimax_m_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [minimax]
+      version_lt: "3.0"
+      version_patterns:
+        - 'minimax[-_ ]+m(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    - name: kimi_k_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [kimi]
+      version_lt: "3.0"
+      version_patterns:
+        - 'kimi[-_ ]+k(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    - name: mimo_flash_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [mimo, flash]
+      version_lt: "2.5"
+      version_patterns: &mimo_version_patterns
+        - 'mimo[-_ ]+v(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    - name: deepseek_v_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [deepseek]
+      version_lt: "4.0"
+      version_patterns:
+        - 'deepseek[-_ ]+v(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    - name: doubao_seed_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [doubao, seed]
+      version_lt: "2.0"
+      version_patterns: &doubao_version_patterns
+        - 'doubao[-_ ]+seed[-_ ]+(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
 
-    # 256K 档：产品对外按 256K 展示，压缩阈值由 context_usage_ratio 派生。
-    # 子串匹配：如 gpt-5.x 覆盖 mini/nano，doubao-seed-2.0 覆盖 pro/lite/code。
-    - name: context_window_256k
+    # 大容量不代表没有长上下文加价。versions 只列已知成本例外，不推断未来版本的价格。
+    # Gemini Pro 输入超过 200K 会整单跳档；GPT 5.4/5.5 超过 272K 会跳档，保留原 256K 余量。
+    # 90% 压缩触发点不是最终请求的严格计费上限，检查后仍可能加入自动读取与 Horizon 内容。
+    - name: gemini_pro_cost_limit
+      user_facing_max_context_tokens: 200000
+      model_keywords: [gemini, pro]
+      versions: ["3", "3.1"]
+      version_patterns:
+        - 'gemini[-_ ]+(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    - name: gpt_cost_limit
       user_facing_max_context_tokens: 256000
-      model_keywords:
-        - claude-opus-4.8
-        - gpt-5.5
-        - gpt-5.4
-        - glm-5.2
-        - qwen3.7-max
-        - qwen3.7-plus
-        - qwen3.6-plus
-        - qwen3.5-plus
-        - qwen3.5-flash
-        - qwen-plus
-        - doubao-seed-2.0
-        - deepseek-v4
-        - deepseek-v4-flash
-        - kimi-k2
-        - gemini-3-flash
+      model_keywords: [gpt]
+      versions: ["5.4", "5.5"]
+      version_patterns:
+        - 'gpt[-_ ]+(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    # Qwen 已知 Plus／Flash 在 256K 以上存在阶梯价，地域与快照影响实际费率。
+    - name: qwen_plus_cost_limit
+      user_facing_max_context_tokens: 256000
+      model_keywords: [qwen, plus]
+      versions: ["3.5", "3.6", "3.7"]
+      version_patterns: &qwen_version_patterns
+        - 'qwen[-_ ]*(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    - name: qwen_flash_cost_limit
+      user_facing_max_context_tokens: 256000
+      model_keywords: [qwen, flash]
+      versions: ["3.5"]
+      version_patterns: *qwen_version_patterns
+    - name: qwen_plus_alias_cost_limit
+      user_facing_max_context_tokens: 256000
+      model_keywords: [qwen, plus]
+      version_patterns:
+        - 'qwen-plus(?:-|$)'
+
+    # 以下已知型号的容量／渠道价格仍待确认，保留现有小窗口；不猜测下一大窗口版本。
+    - name: qwen_max_legacy
+      user_facing_max_context_tokens: 200000
+      model_keywords: [qwen, max]
+      versions: ["3"]
+      version_patterns: *qwen_version_patterns
+    - name: qwen_coder_cost_pending
+      user_facing_max_context_tokens: 200000
+      model_keywords: [qwen, coder, plus]
+      versions: ["3"]
+      version_patterns: *qwen_version_patterns
+    - name: step_flash_capacity_pending
+      user_facing_max_context_tokens: 200000
+      model_keywords: [step, flash]
+      versions: ["3.5", "3.7"]
+      version_patterns:
+        - 'step[-_ ]+(?P<version>[0-9]+(?:\.[0-9]+)*)(?![0-9.])'
+    - name: mimo_cost_pending
+      user_facing_max_context_tokens: 200000
+      model_keywords: [mimo]
+      versions: ["2.5"]
+      version_patterns: *mimo_version_patterns
+    - name: mimo_pro_cost_pending
+      user_facing_max_context_tokens: 200000
+      model_keywords: [mimo, pro]
+      versions: ["2"]
+      version_patterns: *mimo_version_patterns
+    - name: doubao_seed_capacity_pending
+      user_facing_max_context_tokens: 256000
+      model_keywords: [doubao, seed]
+      versions: ["2.0"]
+      version_patterns: *doubao_version_patterns
 
 # 自定义默认模型。没有管理后台模型列表时，auto 必须能在 providers.*.models 中解析到。
 default_model: auto
@@ -339,6 +439,13 @@ model_profiles:
       currency: "USD"
 
 agent:
+  im_progress_initial_seconds: 60
+  im_progress_max_seconds: 240
+  # 只限制最终模型正文；预览先取前几行，再限制估算 token，单行也受限。
+  tool_result:
+    max_inline_tokens: 20000
+    max_preview_lines: 5
+    max_preview_tokens: 1000
   # Allow LLM to call multiple tools in a single response
   enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-true}
   # Execute multiple tool calls in parallel vs sequential (only applies when multi_tool_calls is enabled)
@@ -348,14 +455,25 @@ agent:
   # Whether the agent loop should auto-retry after non-terminal exceptions
   enable_agent_loop_retry: ${AGENT_ENABLE_AGENT_LOOP_RETRY:-false}
 
+# Canvas 生成请求的 provider 并发上限
+canvas:
+  generation_max_concurrency: ${CANVAS_GENERATION_MAX_CONCURRENCY:-4}
+
 # 图片生成服务配置
 image_generator:
   text_to_image_platform: ${TEXT_TO_IMAGE_PLATFORM}
   text_to_image_api_base_url: ${TEXT_TO_IMAGE_API_BASE_URL}
   text_to_image_access_key: ${TEXT_TO_IMAGE_ACCESS_KEY}
   text_to_image_secret_key: ${TEXT_TO_IMAGE_SECRET_KEY}
+  # 是否将本地参考图转换为 Base64 Data URL 后传给生图服务
+  use_base64_reference_images: ${IMAGE_GENERATOR_USE_BASE64_REFERENCE_IMAGES:-false}
   image_to_image_model: ${IMAGE_TO_IMAGE_MODEL:-doubao-seedream-4-0-250828}
   text_to_image_model: ${TEXT_TO_IMAGE_MODEL:-doubao-seedream-4-0-250828}
+
+# 视频生成服务配置
+video_generator:
+  # 是否将本地视频生成参考图片转换为 Base64 结构后传给视频生成服务
+  use_base64_reference_images: ${VIDEO_GENERATOR_USE_BASE64_REFERENCE_IMAGES:-false}
 
 bing:
   search_api_key: "${BING_SUBSCRIPTION_KEY}"
@@ -457,6 +575,11 @@ sandbox:
   idle_monitor_enabled: "${ENABLE_AGENT_IDLE_MONITOR:-true}"
   agent_idle_timeout: "${AGENT_IDLE_TIMEOUT:-1200}"
   idle_monitor_interval: "${IDLE_MONITOR_INTERVAL:-60}"
+  shutdown:
+    # 优雅退出超时：关闭服务时，等待已有连接和请求正常结束的最长时间。
+    graceful_shutdown_timeout_seconds: "${SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS:-10}"
+    # 强制退出超时：从首次收到退出请求开始计时，到期仍未退出则强制结束进程。
+    force_shutdown_timeout_seconds: "${SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS:-25}"
   # 是否将 init_client_message 中的 authorization 转发为额外的 USER-Authorization header
   # true: API Key 使用 config.yaml 的 api_key，额外添加 USER-Authorization header（值为 authorization）
   # false: 标准 LLM 认证流程，只使用 config.yaml 的 api_key，不转发 USER-Authorization header
@@ -488,33 +611,196 @@ pdf_understanding:
 audio_understanding:
   api_key: "${VOICE_UNDERSTANDING_API_KEY}"
   api_base_url: "${VOICE_UNDERSTANDING_API_BASE_URL}"
+  # 连续查询失败达到此值才结束；合法响应后重置计数，不重发已提交任务。
+  max_consecutive_query_failures: 5
+  format_preparation_enabled: true
+  duration_validation_enabled: true
+  canonical_fallback_enabled: true
+  max_fallback_attempts: 1
 
 # Checkpoint管理配置
 checkpoint:
-  # 最大保留的checkpoint数量
-  max_count: ${CHECKPOINT_MAX_COUNT:-10}
+  # 最大保留的checkpoint数量，实际保留 max_count + 1 个以支持撤回 max_count 个消息
+  max_count: ${CHECKPOINT_MAX_COUNT:-3}
 
   # 是否启用自动清理功能
   auto_cleanup: ${CHECKPOINT_AUTO_CLEANUP:-true}
 
-# 聊天记录统计与清理。默认全部为空，只统计，不删除用户历史。
+# 聊天记录统计与清理，作用于本地 .chat_history，随既有归档上传持久化。
 chat_history_cleanup:
   completed_subagent_max_age_days: null
   completed_subagent_max_count: null
   compacted_max_age_days: null
   compacted_max_count: null
   total_max_bytes: null
-  llm_request_max_age_days: null
-  llm_request_max_count: null
-  llm_request_max_bytes: null
+
+# 完整排查存档的独立数量配额，运行期仍使用本地目录。
+diagnostic_retention:
+  llm_failed_max_count: 3
+  memory_after_run_max_count: 3
+
+# 两阶段范围编辑返回给模型的命中片段上限。
+file_edit:
+  range_preview_max_tokens: 2000
+  range_preview_context_lines: 3
+
+# .runtime 清理默认值。
+# 容量字段支持 MB、MiB、KB、KiB 等写法；本项目的 MB 和 MiB 都按 1024 进制换算。
+runtime_cleanup:
+  # 发布前供审查的本地 Skill 快照；服务端准备凭据独立在 24 小时后过期。
+  skill_publish:
+    max_age_hours: 24
+    max_directory_count: 32
+    target_directory_count: 24
+    max_total_size: 500MiB
+    target_total_size: 400MiB
+
+  # 自动结果文件由独立 owner 按容量和存活时间清理。
+  tool_results:
+    max_file_size: 8MiB
+    max_file_count: 128
+    target_file_count: 96
+    max_total_size: 256MiB
+    target_total_size: 192MiB
+    max_age_days: 7
+
+  bg_shell:
+    max_age_days: 7
+    max_file_count: 50
+    target_file_count: 40
+    max_total_size: 256MB
+    target_total_size: 192MB
+    max_file_size: 8MB
+    head_keep_size: 1MB
+    tail_keep_size: 1MB
+
+  mcp_outputs:
+    max_age_days: 7
+    max_file_count: 128
+    target_file_count: 96
+    max_total_size: 256MB
+    target_total_size: 192MB
+    result_size_threshold: 8KB
+
+  oauth2_callback:
+    max_age_hours: 24
+    max_file_count: 128
+    target_file_count: 96
+
+  snippets:
+    max_age_days: 7
+    max_file_count: 64
+    target_file_count: 48
+    max_total_size: 16MB
+    target_total_size: 12MB
+
+  # 原生视觉图片 Base64 的跨 run 复用缓存。
+  # 一个缓存项最大约 512KB（data URL 上限）+ JSON 开销，512 项与 256MB 高水位大致对应。
+  native_visual_cache:
+    max_age_days: 7
+    max_file_count: 512
+    target_file_count: 384
+    max_total_size: 256MB
+    target_total_size: 192MB
+
+  # 两阶段文件编辑的短期范围和失败内容，绑定当前 AgentContext。
+  file_edits:
+    max_age_days: 7
+    max_file_count: 128
+    target_file_count: 96
+    max_total_size: 256MiB
+    target_total_size: 192MiB
+
+  llm_request:
+    max_file_count: 10
+
+  background_compact:
+    max_age_days: 7
+
+  memory_after_run:
+    max_age_days: 7
+
+  slide_template_maker:
+    max_age_days: 3
+    max_directory_count: 16
+
+  # 追加问题的本地查询副本。产品查询仍走 magic-service。
+  follow_up_suggestions:
+    max_age_days: 7
+    max_file_count: 64
+    target_file_count: 48
+
+# 启动任务：每次沙盒启动后在后台按顺序执行 .workspace/.magic/startup/ 下登记的脚本。
+startup_task:
+  # 单个任务默认与最大运行时长（秒）；最大值不能超过后台 shell 任务 1 小时的存活上限。
+  default_timeout_seconds: 900
+  max_timeout_seconds: 3600
+  # 前台观察多久后转为后台任务；转后台后 Agent 可以用 shell_await 查看输出。
+  background_after_seconds: 1
+
+# Horizon 的展示额度与 5 MiB 文件扫描保护相互独立。
+# 例：普通文件每份最多 4K，重要规则文件每份最多 16K；所有文件变化合计仍受 24K 约束。
+# 整条通知还包含目录、浏览器和运行时事实，最后统一受 context_max_tokens 约束。
+horizon:
+  file_change_max_tokens: ${HORIZON_FILE_CHANGE_MAX_TOKENS:-4000}
+  important_file_change_max_tokens: ${HORIZON_IMPORTANT_FILE_CHANGE_MAX_TOKENS:-16000}
+  file_changes_max_tokens: ${HORIZON_FILE_CHANGES_MAX_TOKENS:-24000}
+  context_max_tokens: ${HORIZON_CONTEXT_MAX_TOKENS:-32000}
+  # 快照额度决定后续 Diff 可保留多少原文，不是单次读取或单次展示的额度。
+  file_snapshot_max_tokens: ${HORIZON_FILE_SNAPSHOT_MAX_TOKENS:-128000}
+  # 比较正文，diff 达到全文的此比例时优先真实读取全文；不计算包装的理解成本。
+  full_read_ratio: ${HORIZON_FULL_READ_RATIO:-0.8}
+
+# 默认挂载规则在应用层声明，来源优先级和实际文件读取仍由 Skill 加载器处理。
+# mount_when 表示默认提供知识，allow_exclude 表示 Agent 能否排除，preload_files 表示直接展开正文。
+# 例：关闭自动记忆不撤下 memory；用户主动要求整理时仍需要这些知识。
+skills:
+  runtime:
+    - name: compact-chat-history
+      mount_when: always
+      allow_exclude: false
+      preload_files: []
+      disable_skill_on_preload_failure: false
+    - name: memory
+      mount_when: always
+      allow_exclude: true
+      preload_files: [SKILL.md]
+      # 声明不等于加载成功；必需正文失败时只停用该 Skill，主任务继续。
+      disable_skill_on_preload_failure: true
+    - name: file-bundle
+      mount_when: always
+      allow_exclude: true
+      preload_files: []
+      disable_skill_on_preload_failure: false
 
 # 文件记忆运行时配置
 memory:
+  memory_md:
+    # 每份全局／普通项目主文件独立计算；目标不是最低长度，也不单独触发整理。
+    target_tokens: ${MEMORY_MD_TARGET_TOKENS:-10000}
+    # 严格超过才请求整体重组；只限制自动展示，不限制保存用户文件。
+    max_tokens: ${MEMORY_MD_MAX_TOKENS:-16000}
+  file_tree_change_context:
+    # 从记忆根计算：日期文件在第 5 层，按 Skill 拆分的日内事件详情在第 6 层。
+    scan_depth: ${MEMORY_FILE_TREE_SCAN_DEPTH:-6}
+    # 只限制文件树首次发现和变更通知的上下文，不读取 notes 正文，不改变真实目录。
+    max_tokens: ${MEMORY_FILE_TREE_CHANGE_CONTEXT_MAX_TOKENS:-2000}
+    preferred_paths: [MEMORY.md, notes, notes/references, notes/timeline]
+    # 偏好和时间目录只影响展示；未知命名仍参与扫描，不要求模型严格照模板建立目录。
+    timeline_paths: [notes/timeline]
   after_run:
+    # 这里只决定何时派生记忆任务，不决定每次是否全库整理；超限判断与整理政策分别在预算和 Skill。
     # 累计达到指定数量的有效主任务后触发一次完整 fork 提取
-    extraction_task_threshold: ${MEMORY_AFTER_RUN_EXTRACTION_TASK_THRESHOLD:-3}
+    extraction_task_threshold: ${MEMORY_AFTER_RUN_EXTRACTION_TASK_THRESHOLD:-5}
     # 未达到阈值时，连续 10 分钟无操作后触发一次完整 fork 提取
     extraction_idle_timeout_seconds: ${MEMORY_AFTER_RUN_EXTRACTION_IDLE_TIMEOUT_SECONDS:-600}
+
+# 追加问题是允许失败的辅助生成，超时只限制后台请求，不推迟主任务完成通知。
+follow_up_suggestions:
+  # 达到 10 个有效循环迭代后提前生成；未达阈值的短任务在正常完成时生成。
+  min_effective_loops: ${FOLLOW_UP_SUGGESTIONS_MIN_EFFECTIVE_LOOPS:-10}
+  model_timeout_seconds: ${FOLLOW_UP_SUGGESTIONS_MODEL_TIMEOUT_SECONDS:-60}
+  report_timeout_seconds: ${FOLLOW_UP_SUGGESTIONS_REPORT_TIMEOUT_SECONDS:-5}
 
 # =====================================================
 # AI Ability Configuration (AI能力配置)
@@ -606,6 +892,10 @@ ai_abilities:
   # 当前仅保留能力配置，供后续 AFTER_MAIN_AGENT_RUN 提取机制使用
   memory:
     model_id: "${MEMORY_MODEL_ID:-deepseek-v4-flash}"
+
+  # 人设访谈能力：persona_chat 工具扮演 AI 受访者回答访谈问题
+  persona_chat:
+    model_id: "${PERSONA_CHAT_MODEL_ID:-}"
 
 # =====================================================
 # Web Scraping 网页爬取配置

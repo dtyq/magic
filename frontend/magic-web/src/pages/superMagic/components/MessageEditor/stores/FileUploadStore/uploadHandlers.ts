@@ -2,7 +2,7 @@ import { t } from "i18next"
 import { runInAction } from "mobx"
 import { FileApi, SuperMagicApi } from "@/apis"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { superMagicUploadTokenService } from "../../services/UploadTokenService"
 import {
 	AttachmentSource,
@@ -152,6 +152,8 @@ export function createUploadHandlers(context: UploadHandlersContext): UploadHand
 					saveRes = batchSaveResult
 						? {
 								...batchSaveResult,
+								relative_file_path:
+									batchSaveResult.relative_file_path || file.defaultRelativePath,
 								is_hidden: true,
 							}
 						: undefined

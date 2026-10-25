@@ -2,6 +2,7 @@ import { initializeService, getServiceInstance } from "@/services/recordSummary/
 import { useMemoizedFn } from "ahooks"
 import recordingSummaryStore from "@/stores/recordingSummary"
 import { GetRecordingSummaryResultResponse } from "@/apis/modules/superMagic/recordSummary"
+import { isCancelRecordDialogDismissedError } from "./internal/cancelRecordDialogError"
 import { useCancelRecordDialogs } from "./internal/useCancelRecordDialogs"
 
 function useCancelRecord({
@@ -73,7 +74,20 @@ function useCancelRecord({
 		})
 	})
 
-	return { cancelRecord }
+	/**
+	 * For click handlers that do not await the result: a dismissed dialog is a normal user choice,
+	 * so it must not surface as an unhandled promise rejection. Other errors still propagate.
+	 */
+	const cancelRecordFromUI = useMemoizedFn(async () => {
+		try {
+			await cancelRecord()
+		} catch (error) {
+			if (isCancelRecordDialogDismissedError(error)) return
+			throw error
+		}
+	})
+
+	return { cancelRecord, cancelRecordFromUI }
 }
 
 export default useCancelRecord

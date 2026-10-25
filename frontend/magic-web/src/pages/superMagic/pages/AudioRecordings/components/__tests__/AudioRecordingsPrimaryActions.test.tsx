@@ -61,7 +61,6 @@ function renderPrimaryActions(
 	const onStartRecording = vi.fn()
 	const onOpenSettings = vi.fn()
 	const onImportFiles = vi.fn()
-
 	render(
 		<AudioRecordingsPrimaryActions
 			onStartRecording={onStartRecording}
@@ -105,6 +104,19 @@ describe("AudioRecordingsPrimaryActions", () => {
 
 		fireEvent.click(screen.getByTestId("audio-recordings-start-recording-button"))
 		expect(handlers.onStartRecording).toHaveBeenCalledTimes(1)
+	})
+
+	it("does not render a separate force-start action", () => {
+		renderPrimaryActions()
+		expect(
+			screen.queryByTestId("audio-recordings-force-start-recording-button"),
+		).not.toBeInTheDocument()
+	})
+
+	it("disables the recording action while start preparation is running", () => {
+		renderPrimaryActions({ isStartingRecording: true })
+
+		expect(screen.getByTestId("audio-recordings-start-recording-button")).toBeDisabled()
 	})
 
 	it("opens the stable file picker when clicking the import audio button", () => {

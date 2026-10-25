@@ -3,9 +3,9 @@
 	"aliases": {
 		"components": "@/components/shadcn-ui",
 		"hooks": "@/hooks",
-		"lib": "@/lib",
+		"lib": "@/utils",
 		"ui": "@/components/shadcn-ui",
-		"utils": "@/lib/utils"
+		"utils": "@/utils/cn"
 	},
 	"iconLibrary": "lucide",
 	"registries": {},

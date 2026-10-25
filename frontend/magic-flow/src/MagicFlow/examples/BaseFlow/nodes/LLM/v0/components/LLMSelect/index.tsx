@@ -69,8 +69,8 @@ export default function LLMSelect({
 			suffixIcon={
 				showLLMSuffixIcon ? (
 					<div className={styles.suffixIcon}>
-						<IconAdjustmentsHorizontal color="#1C1D23" />
-						<IconChevronDown />
+						<IconAdjustmentsHorizontal color="#1C1D23" size={18} />
+						<IconChevronDown size={16} />
 					</div>
 				) : null
 			}

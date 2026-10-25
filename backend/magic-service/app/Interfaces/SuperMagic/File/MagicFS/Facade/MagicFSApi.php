@@ -12,9 +12,13 @@ use App\Application\SuperMagic\File\Service\MagicFSFileAppService;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\SuperMagic\Common\Support\Facade\AbstractApi;
 use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\CreateFileRequestDTO;
+use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\GetFileTreeChangesBatchRequestDTO;
+use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\GetFileTreeChangesRequestDTO;
 use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\GetFileTreeRequestDTO;
 use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\GetFileVersionsRequestDTO;
+use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\ListChildrenPageRequestDTO;
 use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\ListFilesRequestDTO;
+use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\RenameFileRequestDTO;
 use App\Interfaces\SuperMagic\File\MagicFS\DTO\Request\UpdateFileRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -53,6 +57,20 @@ class MagicFSApi extends AbstractApi
     }
 
     /**
+     * List one bounded page of direct children.
+     * POST /api/v1/open-api/magicfs/files/{id}/children.
+     */
+    public function listChildrenPage(string $id): array
+    {
+        $authorization = $this->getCurrentUser();
+        $requestDTO = ListChildrenPageRequestDTO::fromRequest($this->request, $id);
+
+        return $this->magicFSFileAppService
+            ->listChildrenPage($authorization, $id, $requestDTO)
+            ->toArray();
+    }
+
+    /**
      * 获取文件信息
      * POST /api/v1/files/{id}/queries.
      */
@@ -76,6 +94,32 @@ class MagicFSApi extends AbstractApi
         $responseDTO = $this->magicFSFileAppService->getFileVersion($authorization, $id);
 
         return $responseDTO->toArray();
+    }
+
+    /**
+     * 获取挂载文件树的精准变更。
+     * GET /api/v1/open-api/magicfs/files/{id}/changes.
+     */
+    public function getFileTreeChanges(string $id): array
+    {
+        $authorization = $this->getCurrentUser();
+        $requestDTO = GetFileTreeChangesRequestDTO::fromRequest($this->request);
+
+        return $this->magicFSFileAppService
+            ->getFileTreeChanges($authorization, $id, $requestDTO)
+            ->toArray();
+    }
+
+    /**
+     * 批量获取多个文件树的精准变更（推送不可用时的合并轮询入口）。
+     * POST /api/v1/open-api/magicfs/changes/batch.
+     */
+    public function getFileTreeChangesBatch(): array
+    {
+        $authorization = $this->getCurrentUser();
+        $requestDTO = GetFileTreeChangesBatchRequestDTO::fromRequest($this->request);
+
+        return $this->magicFSFileAppService->getFileTreeChangesBatch($authorization, $requestDTO);
     }
 
     /**
@@ -129,6 +173,25 @@ class MagicFSApi extends AbstractApi
         $responseDTO = $this->magicFSFileAppService->updateFile($authorization, $id, $requestDTO);
 
         return $responseDTO->toArray();
+    }
+
+    /**
+     * Rename a file onto a destination, with an explicit collision policy.
+     *
+     * POST /api/v1/open-api/magicfs/files/{id}/rename.
+     *
+     * Separate from updateFile because a rename carries an identity decision
+     * ("whose row survives when the name is taken?") that a partial update
+     * cannot express.
+     */
+    public function renameFile(string $id): array
+    {
+        $authorization = $this->getCurrentUser();
+        $requestDTO = RenameFileRequestDTO::fromRequest($this->request);
+
+        return $this->magicFSFileAppService
+            ->renameFile($authorization, $id, $requestDTO)
+            ->toArray();
     }
 
     /**

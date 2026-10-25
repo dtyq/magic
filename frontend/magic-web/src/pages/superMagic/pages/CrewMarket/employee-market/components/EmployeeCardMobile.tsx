@@ -11,7 +11,7 @@ import { Building2, MessageCircle, ShieldCheck, UserPlus } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
 import type { StoreAgentView } from "@/services/crew/CrewService"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	isEmployeeMarketPrimaryActionDisabled,
 	isOfficialPublisherType,

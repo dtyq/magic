@@ -16,7 +16,10 @@ const tableToolNames = [
 const microAppToolNames = [
 	"micro_app_plan",
 	"query_magicbase_rows",
+	"batch_get_magicbase_rows",
+	"get_magicbase_row",
 	"create_magicbase_row",
+	"update_magicbase_row",
 	"batch_create_magicbase_rows",
 	"delete_magicbase_row",
 	"batch_delete_magicbase_rows",

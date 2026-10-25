@@ -1,6 +1,6 @@
 {
 	"name": "@magic/html2pptx",
-	"version": "1.0.1",
+	"version": "2.0.0",
 	"private": false,
 	"description": "Convert HTML content to PPTX slides",
 	"homepage": "https://github.com/dtyq/magic/tree/master/frontend/magic-web/packages/html2pptx#readme",
@@ -28,8 +28,15 @@
 		"dist"
 	],
 	"scripts": {
+		"benchmark": "pnpm run benchmark:browser -- --profile baseline --target source",
+		"benchmark:browser": "node --import tsx ./benchmarks/browser/run.ts",
+		"benchmark:dist": "pnpm run benchmark:browser -- --profile baseline --target dist",
+		"benchmark:node": "node --expose-gc --import tsx ./benchmarks/node/run.ts",
+		"benchmark:smoke": "pnpm run benchmark:node -- --profile quick --slides 1 --iterations 1 --warmup 0 && pnpm run benchmark:browser -- --profile quick --target source --slides 1 --iterations 1 --warmup 0",
+		"benchmark:source": "pnpm run benchmark:browser -- --profile baseline --target source",
 		"build": "pnpm exec vite build --config ./vite.config.ts --mode production && pnpm run build:types",
 		"build:types": "tsc -p ./tsconfig.json --emitDeclarationOnly",
+		"ci:streaming": "pnpm run typecheck && pnpm run test && pnpm run build",
 		"dev": "pnpm exec vite --config ./vite.config.ts",
 		"prepare": "pnpm run build",
 		"prepublishOnly": "pnpm run typecheck && pnpm run test && pnpm run build",
@@ -37,20 +44,24 @@
 		"test": "pnpm exec vitest run --config ./vitest.config.ts",
 		"test:update": "pnpm exec vitest run --config ./vitest.config.ts -u",
 		"test:watch": "pnpm exec vitest --config ./vitest.config.ts",
-		"typecheck": "tsc -p ./tsconfig.json --noEmit && tsc -p ./vite/tsconfig.json --noEmit"
+		"typecheck": "tsc -p ./tsconfig.json --noEmit && tsc -p ./benchmarks/tsconfig.json --noEmit"
 	},
 	"devDependencies": {
 		"@types/node": "^22.13.10",
-		"@zumer/snapdom": "^2.0.2",
-		"pptxgenjs": "^4.0.1",
+		"@zumer/snapdom": "^2.24.17",
+		"jszip": "^3.10.1",
+		"postcss-value-parser": "4.2.0",
+		"pptxgenjs": "4.0.1",
+		"puppeteer": "24.32.0",
 		"tsx": "^4.21.0",
 		"typescript": "^5.4.5",
 		"vite": "^8.0.3",
 		"vitest": "^3.2.4"
 	},
 	"peerDependencies": {
-		"@zumer/snapdom": "^2.0.2",
-		"pptxgenjs": "^4.0.1"
+		"@zumer/snapdom": "^2.24.17",
+		"postcss-value-parser": "4.2.0",
+		"pptxgenjs": "4.0.1"
 	},
 	"publishConfig": {
 		"access": "public"

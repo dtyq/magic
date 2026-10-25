@@ -175,4 +175,41 @@ class MagicUserSettingRepository extends AbstractMagicContactRepository implemen
         $magicUserSettingEntity->setId($model->id);
         return $magicUserSettingEntity;
     }
+
+    public function getByOrganizationCode(string $organizationCode, string $key): ?MagicUserSettingEntity
+    {
+        $model = $this->findOrganizationSetting($organizationCode, $key);
+
+        return $model ? MagicUserSettingFactory::createEntity($model) : null;
+    }
+
+    public function saveByOrganizationCode(string $organizationCode, MagicUserSettingEntity $magicUserSettingEntity): MagicUserSettingEntity
+    {
+        $model = $this->findOrganizationSetting($organizationCode, $magicUserSettingEntity->getKey());
+
+        if (! $model) {
+            $model = new UserSettingModel();
+        } else {
+            $magicUserSettingEntity->setId($model->id);
+        }
+
+        $magicUserSettingEntity->setOrganizationCode($organizationCode);
+        $magicUserSettingEntity->setUserId(null);
+        $magicUserSettingEntity->setMagicId(null);
+        $model->fill(MagicUserSettingFactory::createModel($magicUserSettingEntity));
+        $model->save();
+
+        $magicUserSettingEntity->setId($model->id);
+        return $magicUserSettingEntity;
+    }
+
+    private function findOrganizationSetting(string $organizationCode, string $key): ?UserSettingModel
+    {
+        return UserSettingModel::query()
+            ->where('organization_code', $organizationCode)
+            ->whereNull('user_id')
+            ->whereNull('magic_id')
+            ->where('key', $key)
+            ->first();
+    }
 }

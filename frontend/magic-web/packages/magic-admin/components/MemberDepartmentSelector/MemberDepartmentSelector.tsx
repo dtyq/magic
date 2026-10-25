@@ -1,13 +1,15 @@
 import { memo, useEffect, useState } from "react"
-import type {
-	LocaleType,
-	Pagination,
-	SelectedPath,
-	TreeNode,
-	User,
-	UserSelectorProps,
-} from "@feb/user-selector"
-import { UserSelector, AppearanceProvider, NodeType } from "@dtyq/user-selector"
+import {
+	UserSelector,
+	AppearanceProvider,
+	NodeType,
+	type LocaleType,
+	type Pagination,
+	type SelectedPath,
+	type TreeNode,
+	type User,
+	type UserSelectorProps,
+} from "@dtyq/user-selector"
 import "@dtyq/user-selector/style.css"
 import { useDebounce, useMemoizedFn } from "ahooks"
 import { uniqBy } from "lodash-es"
@@ -44,13 +46,13 @@ export type MemberDepartmentSelectorProps = Omit<
 }
 
 /**
- * 成员部门选择器【使用组建包@feb/user-selector】
+ * 成员部门选择器【使用组件包 @dtyq/user-selector】
  * @param isConvertToUser 是否将部门转换成人员
  * @param onOk 确定回调
  * @param onCancel 取消回调
  * @param onFetchData 获取部门用户数据
  * @param searchUser 搜索用户操作
- * @param props 其他属性，参考@feb/user-selector内UserSelectorProps
+ * @param props 其他属性，参考 @dtyq/user-selector 内 UserSelectorProps
  */
 
 const MemberDepartmentSelector = ({

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mountain View Bright — Material You &amp; Material 3 Design System</title>
+  <style>
+    :root {
+      --google-blue: #4285F4;
+      --google-blue-hover: #3367D6;
+      --google-blue-tonal: #D2E3FC;
+      --google-blue-on-tonal: #185ABC;
+      --google-green: #34A853;
+      --google-green-tonal: #CEEAD6;
+      --google-green-on-tonal: #0D652D;
+      --google-yellow: #FBBC04;
+      --google-yellow-tonal: #FEF7E0;
+      --google-yellow-on-tonal: #7C5800;
+      --google-red: #EA4335;
+      --google-red-tonal: #FCE8E6;
+      --google-red-on-tonal: #A50E0E;
+      --bg: #FFFFFF;
+      --surface: #F8F9FA;
+      --surface-variant: #F1F3F4;
+      --text-primary: #202124;
+      --text-secondary: #5F6368;
+      --border: #DADCE0;
+      --font-display: "Plus Jakarta Sans", Roboto, -apple-system, sans-serif;
+      --font-body: Roboto, -apple-system, sans-serif;
+      --font-mono: "Roboto Mono", monospace;
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-pill: 9999px;
+      --shadow-1: 0 1px 2px rgba(60,64,67,0.2), 0 1px 3px 1px rgba(60,64,67,0.1);
+      --shadow-2: 0 1px 3px rgba(60,64,67,0.25), 0 4px 8px 3px rgba(60,64,67,0.12);
+      --shadow-3: 0 4px 12px rgba(60,64,67,0.2), 0 8px 24px 6px rgba(60,64,67,0.12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #F8F9FA;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 40px;
+    }
+
+    .app-bar { height: 56px; background: var(--bg); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .brand-logo-group { display: flex; align-items: center; gap: 10px; }
+    .google-dots { display: flex; gap: 4px; align-items: center; }
+    .g-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .brand-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--text-primary); }
+    .m3-pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; background: var(--google-blue-tonal); color: var(--google-blue-on-tonal); border-radius: var(--radius-pill); }
+    .search-pill-container { flex: 1; max-width: 480px; margin: 0 20px; }
+    .search-pill { height: 42px; background: var(--surface-variant); border-radius: var(--radius-pill); padding: 0 16px; display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow-1); }
+    .search-input { flex: 1; background: transparent; border: none; font-size: 13.5px; color: var(--text-primary); outline: none; }
+    .search-actions { display: flex; gap: 10px; align-items: center; color: var(--text-secondary); }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #4285F4 25%, #34A853 50%, #FBBC04 75%, #EA4335 100%); display: flex; align-items: center; justify-content: center; padding: 2px; }
+    .user-avatar-inner { width: 100%; height: 100%; background: #FFFFFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--google-blue); }
+    .container { max-width: 1260px; margin: 16px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
+    .palette-strip { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-1); }
+    .palette-label { font-family: var(--font-display); font-size: 11.5px; font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+    .chips-cluster { display: flex; gap: 8px; }
+    .tonal-chip { padding: 3px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; }
+    .chip-blue { background: var(--google-blue-tonal); color: var(--google-blue-on-tonal); }
+    .chip-green { background: var(--google-green-tonal); color: var(--google-green-on-tonal); }
+    .chip-yellow { background: var(--google-yellow-tonal); color: var(--google-yellow-on-tonal); }
+    .chip-red { background: var(--google-red-tonal); color: var(--google-red-on-tonal); }
+    .widgets-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .widget-card { border-radius: var(--radius-lg); padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between; min-height: 200px; box-shadow: var(--shadow-1); }
+    .widget-blue { background: var(--google-blue-tonal); color: var(--google-blue-on-tonal); }
+    .widget-green { background: var(--google-green-tonal); color: var(--google-green-on-tonal); }
+    .widget-yellow { background: var(--google-yellow-tonal); color: var(--google-yellow-on-tonal); }
+    .widget-head { display: flex; justify-content: space-between; align-items: flex-start; }
+    .widget-loc { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+    .widget-sub { font-size: 11.5px; opacity: 0.85; margin-top: 1px; }
+    .weather-temp-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
+    .temp-degree { font-family: var(--font-display); font-size: 42px; font-weight: 800; line-height: 1; }
+    .weather-stats-pill-row { display: flex; gap: 6px; }
+    .stat-pill { background: rgba(255,255,255,0.65); padding: 3px 8px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; color: var(--google-blue-on-tonal); }
+    .thermo-circle-box { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; }
+    .thermo-val { font-family: var(--font-display); font-size: 38px; font-weight: 800; line-height: 1; }
+    .thermo-controls { display: flex; gap: 5px; }
+    .btn-circle-action { width: 34px; height: 34px; border-radius: 50%; border: none; background: #FFFFFF; color: var(--google-green-on-tonal); font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-1); }
+    .home-toggle-row { display: flex; gap: 6px; }
+    .btn-tonal-chip { background: #FFFFFF; border: none; border-radius: var(--radius-pill); padding: 5px 10px; font-size: 11.5px; font-weight: 700; color: var(--google-green-on-tonal); cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: var(--shadow-1); }
+    .event-card-inner { background: #FFFFFF; border-radius: var(--radius-md); padding: 10px 12px; margin: 6px 0; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 2px; }
+    .event-time { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--google-red); }
+    .event-title { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .btn-join-meet { background: var(--google-blue); color: #FFF; border: none; border-radius: var(--radius-pill); padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .bottom-split-grid { display: grid; grid-template-columns: 8fr 4fr; gap: 16px; }
+    .tasks-panel { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 10px; }
+    .panel-head-row { display: flex; justify-content: space-between; align-items: center; }
+    .panel-title { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .task-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--surface); border-radius: 10px; border: 1px solid var(--border); font-size: 13px; }
+    .task-left { display: flex; align-items: center; gap: 10px; }
+    .m3-checkbox { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--google-blue); background: var(--google-blue); display: flex; align-items: center; justify-content: center; color: #FFF; font-size: 11px; }
+    .m3-checkbox.unchecked { background: transparent; border-color: var(--text-secondary); }
+    .device-panel { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 10px; }
+    .battery-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+    .battery-bar-track { height: 7px; background: var(--surface-variant); border-radius: 4px; overflow: hidden; margin-top: 3px; }
+    .battery-bar-fill { height: 100%; background: var(--google-green); border-radius: 4px; }
+    .floating-fab { position: fixed; bottom: 20px; right: 24px; background: var(--google-blue-tonal); color: var(--google-blue-on-tonal); border: none; border-radius: 14px; padding: 12px 18px; display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 13px; font-weight: 700; box-shadow: var(--shadow-3); cursor: pointer; z-index: 100; }
+
+    .floating-fab:hover {
+      background: #C2D9FA;
+      box-shadow: 0 6px 16px rgba(60,64,67,0.3);
+      transform: scale(1.03);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Material 3 App Bar -->
+  <header class="app-bar">
+    <div class="brand-logo-group">
+      <div class="google-dots">
+        <div class="g-dot" style="background:var(--google-blue);"></div>
+        <div class="g-dot" style="background:var(--google-red);"></div>
+        <div class="g-dot" style="background:var(--google-yellow);"></div>
+        <div class="g-dot" style="background:var(--google-green);"></div>
+      </div>
+      <div class="brand-title">Mountain View Bright</div>
+      <span class="m3-pill">MATERIAL YOU 3.0</span>
+    </div>
+
+    <!-- M3 Search Pill -->
+    <div class="search-pill-container">
+      <div class="search-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" type="text" value="Search widgets, Google Assistant actions..." readonly>
+        <div class="search-actions">
+          <!-- Voice Mic Icon -->
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--google-blue)" stroke-width="2.2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          <!-- Lens Icon -->
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--google-red)" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><rect x="3" y="3" width="18" height="18" rx="5"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="user-avatar">
+      <div class="user-avatar-inner">G</div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Material 3 Dynamic Tonal Palette Color Strip -->
+    <section class="palette-strip">
+      <div class="palette-label">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24"/></svg>
+        DYNAMIC ALGORITHMIC TONAL HARMONY
+      </div>
+      <div class="chips-cluster">
+        <div class="tonal-chip chip-blue">Primary Tonal (#D2E3FC)</div>
+        <div class="tonal-chip chip-green">Eco Secondary (#CEEAD6)</div>
+        <div class="tonal-chip chip-yellow">Warm Tertiary (#FEF7E0)</div>
+        <div class="tonal-chip chip-red">Accent Warning (#FCE8E6)</div>
+      </div>
+    </section>
+
+    <!-- First 500px High-Impact: Android Material You Widget Grid -->
+    <section class="widgets-grid">
+
+      <!-- Widget 1: Weather (Tonal Blue) -->
+      <div class="widget-card widget-blue">
+        <div class="widget-head">
+          <div>
+            <div class="widget-loc">Mountain View, CA</div>
+            <div class="widget-sub">Mostly Sunny &bull; AQI 24 (Good)</div>
+          </div>
+          <!-- Sun Icon SVG -->
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--google-blue-on-tonal)" stroke-width="2.2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+          </svg>
+        </div>
+
+        <div class="weather-temp-row">
+          <div class="temp-degree">22°C</div>
+          <div style="text-align: right; font-size: 12px; font-weight: 600;">
+            <div>H: 26° &bull; L: 14°</div>
+            <div style="opacity: 0.85;">Humidity: 48%</div>
+          </div>
+        </div>
+
+        <div class="weather-stats-pill-row">
+          <div class="stat-pill">UV Index: 3</div>
+          <div class="stat-pill">Wind: 8 mph NW</div>
+        </div>
+      </div>
+
+      <!-- Widget 2: Nest Smart Home & Thermostat (Tonal Green) -->
+      <div class="widget-card widget-green">
+        <div class="widget-head">
+          <div>
+            <div class="widget-loc">Living Room Nest</div>
+            <div class="widget-sub">Eco Temperature Active</div>
+          </div>
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--google-green-on-tonal)" stroke-width="2.2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+        </div>
+
+        <div class="thermo-circle-box">
+          <div class="thermo-val">20.5°</div>
+          <div class="thermo-controls">
+            <button class="btn-circle-action">-</button>
+            <button class="btn-circle-action">+</button>
+          </div>
+        </div>
+
+        <div class="home-toggle-row">
+          <button class="btn-tonal-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            Eco Mode
+          </button>
+          <button class="btn-tonal-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/></svg>
+            Lights (3 On)
+          </button>
+        </div>
+      </div>
+
+      <!-- Widget 3: Google Agenda & Meet (Tonal Yellow) -->
+      <div class="widget-card widget-yellow">
+        <div class="widget-head">
+          <div>
+            <div class="widget-loc">Next Meeting in 18m</div>
+            <div class="widget-sub">Google Calendar Sync</div>
+          </div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--google-yellow-on-tonal)" stroke-width="2.2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+        </div>
+
+        <div class="event-card-inner">
+          <span class="event-time">14:00 - 15:00 &bull; TODAY</span>
+          <div class="event-title">Quarterly UX &amp; Design Token Sync</div>
+        </div>
+
+        <button class="btn-join-meet">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          Join with Google Meet
+        </button>
+      </div>
+
+    </section>
+
+    <!-- Secondary Split: Tasks & Connected Devices -->
+    <section class="bottom-split-grid">
+      <div class="tasks-panel">
+        <div class="panel-head-row">
+          <div class="panel-title">Google Tasks &bull; Mountain View Project</div>
+          <span style="font-size:12px; font-weight:700; color:var(--google-blue);">3 of 4 Completed</span>
+        </div>
+
+        <div class="task-row">
+          <div class="task-left">
+            <div class="m3-checkbox">&#10003;</div>
+            <span style="text-decoration:line-through; color:var(--text-secondary);">Define Material You dynamic seed tokens</span>
+          </div>
+          <span style="font-size:11.5px; color:var(--text-secondary); font-family:var(--font-mono);">DONE</span>
+        </div>
+
+        <div class="task-row">
+          <div class="task-left">
+            <div class="m3-checkbox">&#10003;</div>
+            <span style="text-decoration:line-through; color:var(--text-secondary);">Verify WCAG AA contrast for tonal surface containers</span>
+          </div>
+          <span style="font-size:11.5px; color:var(--text-secondary); font-family:var(--font-mono);">DONE</span>
+        </div>
+
+        <div class="task-row">
+          <div class="task-left">
+            <div class="m3-checkbox unchecked"></div>
+            <strong>Deploy Android 15 widget layout prototypes</strong>
+          </div>
+          <span style="font-size:11.5px; font-weight:700; color:var(--google-blue); font-family:var(--font-mono);">IN PROGRESS</span>
+        </div>
+      </div>
+
+      <div class="device-panel">
+        <div class="panel-head-row">
+          <div class="panel-title">Pixel &amp; Nest Ecosystem</div>
+          <span style="font-size:12px; font-weight:700; color:var(--google-green);">Connected</span>
+        </div>
+
+        <div>
+          <div class="battery-row">
+            <span>Pixel 9 Pro</span>
+            <strong style="color:var(--google-green);">88% &bull; Charging</strong>
+          </div>
+          <div class="battery-bar-track">
+            <div class="battery-bar-fill" style="width:88%;"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:4px;">
+          <div class="battery-row">
+            <span>Pixel Buds Pro 2</span>
+            <strong style="color:var(--google-green);">94% &bull; In Ear</strong>
+          </div>
+          <div class="battery-bar-track">
+            <div class="battery-bar-fill" style="width:94%;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Extended Floating Action Button (FAB) -->
+  <button class="floating-fab">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Material Widget
+  </button>
+
+</body>
+</html>

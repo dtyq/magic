@@ -6,6 +6,8 @@ Parameter class for third-party IM inbound message persistence API.
 
 from typing import Any, Dict, Optional
 
+from agentlang.utils.metadata import MetadataUtil
+
 from ..kernel.magic_service_parameter import MagicServiceAbstractParameter
 
 
@@ -27,12 +29,16 @@ class IngestThirdPartyMessageParameter(MagicServiceAbstractParameter):
         source_message_id: str,
         source_conversation_id: Optional[str] = None,
         source_sender_id: Optional[str] = None,
+        attachments: Optional[list[dict[str, Any]]] = None,
+        mentions: Optional[list[dict[str, Any]]] = None,
     ):
         super().__init__()
         self.authorization = authorization
         self.project_id = project_id
         self.topic_id = topic_id
         self.rich_text_content = rich_text_content
+        self.attachments = attachments or []
+        self.mentions = mentions or []
         self.topic_pattern = topic_pattern
         self.model_id = model_id
         self.enable_web_search = enable_web_search
@@ -43,28 +49,31 @@ class IngestThirdPartyMessageParameter(MagicServiceAbstractParameter):
         self.source_sender_id = source_sender_id
 
     def to_body(self) -> Dict[str, Any]:
+        message_content: Dict[str, Any] = {
+            "content": self.rich_text_content,
+            "instructs": [{"value": "normal"}],
+            "extra": {
+                "super_agent": {
+                    "mentions": self.mentions,
+                    "chat_mode": "normal",
+                    "topic_pattern": self.topic_pattern,
+                    "model": {"model_id": self.model_id},
+                    "enable_web_search": self.enable_web_search,
+                    "image_model": {"model_id": self.image_model_id},
+                    "source": {
+                        "channel": self.source_channel,
+                        "message_id": self.source_message_id,
+                    },
+                },
+            },
+        }
+        if self.attachments:
+            message_content["attachments"] = self.attachments
         body: Dict[str, Any] = {
             "project_id": self.project_id,
             "topic_id": self.topic_id,
             "message_type": "rich_text",
-            "message_content": {
-                "content": self.rich_text_content,
-                "instructs": [{"value": "normal"}],
-                "extra": {
-                    "super_agent": {
-                        "mentions": [],
-                        "chat_mode": "normal",
-                        "topic_pattern": self.topic_pattern,
-                        "model": {"model_id": self.model_id},
-                        "enable_web_search": self.enable_web_search,
-                        "image_model": {"model_id": self.image_model_id},
-                        "source": {
-                            "channel": self.source_channel,
-                            "message_id": self.source_message_id,
-                        },
-                    }
-                },
-            },
+            "message_content": message_content,
         }
         # TODO: sync conversation_id and sender_id when magic-service starts consuming them
         # source = body["message_content"]["extra"]["super_agent"]["source"]
@@ -85,6 +94,7 @@ class IngestThirdPartyMessageParameter(MagicServiceAbstractParameter):
         }
         if self._request_id:
             headers["request-id"] = self._request_id
+        MetadataUtil.add_sandbox_id_header(headers)
         return headers
 
     def validate(self) -> None:

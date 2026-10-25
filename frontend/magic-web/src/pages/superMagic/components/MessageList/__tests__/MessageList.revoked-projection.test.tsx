@@ -26,24 +26,12 @@ vi.mock("@/components/base-mobile/ScrollEdgeFade", () => ({
 	}),
 }))
 
-vi.mock("@/components/shadcn-ui/scroll-area", () => ({
-	ScrollArea: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
 vi.mock("@/components/shadcn-ui/button", () => ({
 	Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
 }))
 
 vi.mock("@/components/shadcn-ui/spinner", () => ({
 	Spinner: () => null,
-}))
-
-vi.mock("@/pages/superMagic/components/MessageList/hooks/useAutoScroll", () => ({
-	useAutoScroll: () => ({
-		showBackToLatest: false,
-		scrollToBottom: vi.fn(),
-		notifyPullMoreStarted: vi.fn(),
-	}),
 }))
 
 vi.mock("@/pages/superMagic/components/MessageList/hooks/useVirtualMessageScroll", () => ({
@@ -57,30 +45,6 @@ vi.mock("@/pages/superMagic/components/MessageList/hooks/useVirtualMessageScroll
 
 vi.mock("@/pages/superMagic/components/MessageList/components/Nodes", () => ({
 	Node: () => null,
-}))
-
-vi.mock("@/pages/superMagic/components/MessageList/MessageTurnGroupList", () => ({
-	USER_MESSAGE_ROW_CLASS: "user-message-row",
-	USER_MESSAGE_STICKY_OVERLAY_CLASS: "user-message-sticky-overlay",
-	getUserMessageStickyTopClass: () => "user-message-sticky-top",
-	MessageTurnGroupList: ({
-		groups,
-		renderNode,
-	}: {
-		groups: Array<{
-			key: string
-			items: Array<{ node: SuperMagicMessageItem; index: number }>
-		}>
-		renderNode: (item: { node: SuperMagicMessageItem; index: number }) => React.ReactNode
-	}) => (
-		<div data-testid="normal-message-stream">
-			{groups.flatMap((group) =>
-				group.items.map((item) => (
-					<div key={`${group.key}-${item.index}`}>{renderNode(item)}</div>
-				)),
-			)}
-		</div>
-	),
 }))
 
 vi.mock("@/pages/superMagic/components/MessageList/components/VirtualMessageList", () => ({

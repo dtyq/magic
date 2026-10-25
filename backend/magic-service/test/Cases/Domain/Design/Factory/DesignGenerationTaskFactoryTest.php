@@ -41,4 +41,23 @@ class DesignGenerationTaskFactoryTest extends TestCase
         $this->assertArrayNotHasKey('video', $entity->getRequestPayload()['inputs']);
         $this->assertArrayNotHasKey('video', $entity->getInputPayload());
     }
+
+    public function testCreateCanvasCompositionTaskKeepsCompositionPayload(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'composition-1',
+            'generation_type' => 'canvas_composition',
+            'file_dir' => '/canvas/videos/',
+            'composition' => [
+                'videos' => [['path' => '/canvas/videos/a.mp4']],
+                'audios' => [],
+            ],
+        ]);
+        $dto->validForCanvasComposition();
+
+        $entity = DesignGenerationTaskFactory::createVideoTask($dto);
+
+        $this->assertSame('/canvas/videos/a.mp4', $entity->getRequestPayload()['composition']['videos'][0]['path']);
+    }
 }

@@ -22,12 +22,6 @@ vi.mock("@/apis", () => ({
 	},
 }))
 
-vi.mock("../../utils/designPath", () => ({
-	toWorkspaceAbsoluteApiPathForOperation: vi.fn((imagePath: string) =>
-		imagePath.startsWith("./") ? `/workspace/${imagePath.slice(2)}` : imagePath,
-	),
-}))
-
 describe("useImagePromptCompletion", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -64,10 +58,10 @@ describe("useImagePromptCompletion", () => {
 		expect(completeImagePrompt).toHaveBeenCalledWith({
 			project_id: "project-1",
 			user_prompt: "请根据商品图补全文生背景提示词",
-			reference_images: ["/workspace/product-a.png"],
+			reference_images: ["/design/product-a.png"],
 			reference_image_options: [
 				{
-					path: "/workspace/product-a.png",
+					path: "/design/product-a.png",
 					crop: { x: 1, y: 2, width: 3, height: 4 },
 				},
 			],

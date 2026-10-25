@@ -1,4 +1,4 @@
-import { IconChevronDown, IconChevronRight } from "@douyinfe/semi-icons"
+import { IconChevronDown, IconChevronRight } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import clsx from "clsx"
 import React, { ReactElement, useMemo, useRef, useState } from "react"

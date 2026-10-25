@@ -11,23 +11,14 @@ use App\Infrastructure\Core\AbstractRequestDTO;
 
 class UpdateAgentMarketCategoryRequestAdminDTO extends AbstractRequestDTO
 {
-    public ?int $categoryId = null;
-
     /** @var null|array<int, null|int|string> */
     public ?array $categoryIds = null;
 
     private array $provided = [];
 
-    public function setCategoryId(null|int|string $value): void
-    {
-        $this->categoryId = $value === null ? null : (int) $value;
-        $this->provided['category_id'] = true;
-    }
-
     public function setCategoryIds(?array $value): void
     {
         $this->categoryIds = $value;
-        $this->categoryId = $this->getPrimaryCategoryId();
         $this->provided['category_ids'] = true;
     }
 
@@ -38,23 +29,17 @@ class UpdateAgentMarketCategoryRequestAdminDTO extends AbstractRequestDTO
             return $this->normalizeCategoryIds($this->categoryIds);
         }
 
-        return $this->categoryId === null ? [] : [$this->categoryId];
-    }
-
-    public function getPrimaryCategoryId(): ?int
-    {
-        return $this->getCategoryIds()[0] ?? null;
+        return [];
     }
 
     public function hasCategoryInput(): bool
     {
-        return isset($this->provided['category_id']) || isset($this->provided['category_ids']);
+        return isset($this->provided['category_ids']);
     }
 
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'category_id' => 'nullable|integer',
             'category_ids' => 'nullable|array|max:100',
             'category_ids.*' => 'integer|min:1',
         ];

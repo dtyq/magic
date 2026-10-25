@@ -12,10 +12,17 @@ import { AudioEncodingError } from "../types/RecorderErrors"
  * WAVEncoder 将 PCM 数据编码为带有正确头部的 WAV 格式
  */
 export class WAVEncoder implements AudioEncoder {
+	/** WAV encoding does not require asynchronous runtime initialization. */
+	initialize(): Promise<void> {
+		return Promise.resolve()
+	}
+
+	/** Return the MIME type used by the existing upload and recovery paths. */
 	getMimeType(): string {
 		return "audio/wav"
 	}
 
+	/** Encode one mono PCM chunk into a self-contained WAV file. */
 	encode(chunkData: AudioChunkData): EncodedAudioChunk {
 		try {
 			const { pcmData, sampleRate, bitRate } = chunkData
@@ -63,6 +70,21 @@ export class WAVEncoder implements AudioEncoder {
 		} catch (error) {
 			throw new AudioEncodingError("Failed to encode audio to WAV format", error as Error)
 		}
+	}
+
+	/** WAV encoding completes synchronously inside encode, so there is nothing to drain. */
+	flush(): Promise<void> {
+		return Promise.resolve()
+	}
+
+	/** WAV encoding owns no external resources. */
+	close(): Promise<void> {
+		return Promise.resolve()
+	}
+
+	/** Identify the persisted format for session locking. */
+	getFormat(): "wav" {
+		return "wav"
 	}
 
 	/**

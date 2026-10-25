@@ -1,7 +1,7 @@
 import React from "react"
-import { Editor, JSONContent } from "@tiptap/react"
+import { Editor, JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { IconArrowUp, IconArrowUpDashed } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import FlexBox from "@/components/base/FlexBox"
 import MagicIcon from "@/components/base/MagicIcon"
 import { isEmptyJSONContent } from "../utils"
@@ -15,6 +15,8 @@ import SuperMagicVoiceInput from "../components/VoiceInput"
 import InterruptButton from "../components/InterruptButton"
 import UploadHoverPanelButton from "../components/UploadHoverPanelButton"
 import TokenUsageButton from "../components/TokenUsageButton"
+import CommandMenuButton from "../components/WechatChatHistory/CommandMenuButton"
+import type { WechatChatImportController } from "../hooks/useWechatChatImport"
 
 // Types
 import { ToolbarButton, MessageEditorSize } from "../types"
@@ -65,11 +67,16 @@ export interface ButtonRendererContext {
 	isEditingQueueItem: boolean
 	isUploadingFiles: boolean
 	voiceInputEnabled: boolean
+	commandMenu?: Pick<
+		WechatChatImportController,
+		"available" | "activeId" | "menu" | "openCommandMenu" | "dismissMenu"
+	>
 
 	// Data
 	selectedTopic?: Topic | null
 	selectedProject?: ProjectListItem | null
 	topicMode?: TopicMode
+	agentCode?: string | null
 	mentionPanelStore: MentionPanelStore
 	mcpButtonConfig: MCPButtonRenderConfig
 
@@ -133,6 +140,15 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 				)}
 			/>
 		) : null,
+	[ToolbarButton.SLASH_COMMAND]: (ctx) =>
+		ctx.commandMenu?.available && ctx.tiptapEditor?.isEditable && !ctx.commandMenu.activeId ? (
+			<CommandMenuButton
+				open={ctx.commandMenu.menu !== null}
+				iconSize={ctx.topBarIconSize}
+				onOpen={ctx.commandMenu.openCommandMenu}
+				onDismiss={ctx.commandMenu.dismissMenu}
+			/>
+		) : null,
 	[ToolbarButton.MODEL_SWITCH]: (ctx) =>
 		ctx.modelSwitch ?? (
 			<ModelSwitchContainer
@@ -140,6 +156,7 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 				selectedTopic={ctx.selectedTopic}
 				selectedProject={ctx.selectedProject}
 				topicMode={ctx.topicMode}
+				agentCode={ctx.agentCode}
 				showName
 				showBorder={false}
 				placement="top"
@@ -251,6 +268,7 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 					data-disabled={ctx.sendButtonDisabled}
 					data-loading={ctx.showLoading || ctx.sendButtonLoading}
 					data-queue-editing={ctx.isEditingQueueItem}
+					data-guide-anchor="message-editor-send-button"
 				>
 					{ctx.sendButtonLoading ? (
 						<Spinner className="animate-spin" size={16} />
@@ -307,6 +325,8 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 			<TokenUsageButton
 				tokenUsed={Number(tokenUsage?.total_tokens || ctx.selectedTopic?.token_used)}
 				maxContextTokens={tokenUsage?.max_context_tokens}
+				compactionThresholdTokens={tokenUsage?.compaction_threshold_tokens}
+				inputBreakdown={tokenUsage?.input_breakdown}
 				iconSize={ctx.topBarIconSize}
 				size={ctx.size}
 				onCompressContext={ctx.handleCompressContext}

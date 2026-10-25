@@ -44,6 +44,8 @@ interface AgentVersionRepositoryInterface
         string $code
     ): ?AgentVersionEntity;
 
+    public function findByIdForUpdate(SuperMagicAgentDataIsolation $dataIsolation, int $id): ?AgentVersionEntity;
+
     /**
      * 批量取当前生效版本（is_current_version = 1）.
      *
@@ -59,6 +61,14 @@ interface AgentVersionRepositoryInterface
      * @return array<string, AgentVersionEntity>
      */
     public function findLatestPublishedByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array;
+
+    /**
+     * 跨组织查询当前已发布且面向公开范围的版本。
+     *
+     * @param array<string> $codes
+     * @return array<string, AgentVersionEntity>
+     */
+    public function findLatestPublishedByCodesWithoutOrganizationFilter(array $codes): array;
 
     /**
      * 在指定 code 集合内每 code 取一条版本（由 AgentVersionQuery.is_current_versions、published_only 等决定），支持关键词与分页.
@@ -141,7 +151,8 @@ interface AgentVersionRepositoryInterface
         string $code,
         ?PublishTargetType $publishTargetType = null,
         ?ReviewStatus $reviewStatus = null,
-        Page $page = new Page()
+        Page $page = new Page(),
+        bool $includePublishing = false
     ): array;
 
     /**

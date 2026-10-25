@@ -1,4 +1,4 @@
-import { Flex, Input } from "antd"
+import { Input } from "antd"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import SettingStore from "@/stores/setting"
@@ -7,41 +7,21 @@ import { useMemoizedFn, useUpdateEffect } from "ahooks"
 import { useMemo, useState } from "react"
 import MagicButton from "@/components/base/MagicButton"
 import { MagicUserApi } from "@/apis"
-import { createStyles, useTheme } from "antd-style"
+import { cn } from "@/utils/cn"
 import { service } from "@/services"
 import type { UserService } from "@/services/user/UserService"
 import magicToast from "@/components/base/MagicToaster/utils"
 
-const useStyles = createStyles(({ css, token }) => ({
-	nickname: css`
-		border: 1px solid ${token.colorBorder};
-		border-radius: ${token.borderRadiusLG}px;
-		width: 200px;
-		padding-right: 4px;
-
-		&:focus-within {
-			border-color: ${token.colorPrimary};
-		}
-	`,
-	input: css`
-		flex: 1;
-		padding-right: 4px;
-		padding-left: 8px;
-	`,
-}))
-
 const NickName = observer(function NickName() {
 	const { t } = useTranslation("interface")
 	const { userInfo: info } = useUserInfo()
-	const { styles } = useStyles()
-	const { magicColorUsages } = useTheme()
 
 	const [value, setValue] = useState(info?.nickname)
 	const [showEdit, setShowEdit] = useState(false)
 
 	const { canUpdateNickname } = SettingStore
 
-	// 值变化时，判断显示编辑按钮
+	// Show confirmation only after the local nickname differs from the saved profile.
 	useUpdateEffect(() => {
 		setShowEdit(value !== info?.nickname)
 	}, [value])
@@ -79,15 +59,14 @@ const NickName = observer(function NickName() {
 	}, [canUpdateNickname, handleConfirm, showEdit, submitting, t])
 
 	return (
-		<Flex
-			align="center"
-			className={styles.nickname}
-			style={{
-				backgroundColor: canUpdateNickname ? undefined : magicColorUsages.fill[0],
-			}}
+		<div
+			className={cn(
+				"flex w-[200px] items-center rounded-[8px] border border-border pr-1 focus-within:border-primary",
+				!canUpdateNickname && "bg-fill dark:bg-white/10",
+			)}
 		>
 			<Input
-				className={styles.input}
+				className="flex-1 !pl-2 !pr-1"
 				variant="borderless"
 				value={value}
 				placeholder={t("setting.nickNamePlaceholder")}
@@ -97,7 +76,7 @@ const NickName = observer(function NickName() {
 				}}
 			/>
 			{suffix}
-		</Flex>
+		</div>
 	)
 })
 

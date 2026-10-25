@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	bootstrapWorkboxCacheRuntime,
+	enforceAppStaticExpiration,
 	isCacheableFeaturedSlidesTemplateImage,
 	isCacheableSlidesTemplateImage,
 	type WorkboxRouteContext,
@@ -10,7 +11,9 @@ import {
 	CACHE_TTL_15_DAYS,
 	CACHE_TTL_7_DAYS,
 	FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_NAME,
+	FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 	SLIDES_TEMPLATE_IMAGE_CACHE_NAME,
+	SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 } from "../sw-constants"
 
 function createContext(
@@ -33,16 +36,28 @@ describe("slides template image cache route", () => {
 
 	it("accepts only explicitly marked image requests", () => {
 		const ordinaryContext = createContext(
-			"https://storage.example.com/template.webp?swCache=slides-template-image",
+			"https://storage.example.com/template.webp?swCache=slides-template-image-v2",
 		)
 		const featuredContext = createContext(
-			"https://storage.example.com/template.webp?swCache=featured-slides-template-image",
+			"https://storage.example.com/template.webp?swCache=featured-slides-template-image-v2",
 		)
 
 		expect(isCacheableSlidesTemplateImage(ordinaryContext)).toBe(true)
 		expect(isCacheableFeaturedSlidesTemplateImage(ordinaryContext)).toBe(false)
 		expect(isCacheableFeaturedSlidesTemplateImage(featuredContext)).toBe(true)
 		expect(isCacheableSlidesTemplateImage(featuredContext)).toBe(false)
+	})
+
+	it("does not route legacy markers into the v2 cache buckets", () => {
+		const ordinaryLegacyContext = createContext(
+			"https://storage.example.com/template.webp?swCache=slides-template-image",
+		)
+		const featuredLegacyContext = createContext(
+			"https://storage.example.com/template.webp?swCache=featured-slides-template-image",
+		)
+
+		expect(isCacheableSlidesTemplateImage(ordinaryLegacyContext)).toBe(false)
+		expect(isCacheableFeaturedSlidesTemplateImage(featuredLegacyContext)).toBe(false)
 	})
 
 	it("rejects unmarked images and non-image requests", () => {
@@ -54,7 +69,7 @@ describe("slides template image cache route", () => {
 		expect(
 			isCacheableSlidesTemplateImage(
 				createContext(
-					"https://storage.example.com/template.webp?swCache=slides-template-image",
+					"https://storage.example.com/template.webp?swCache=slides-template-image-v2",
 					{
 						destination: "script",
 					},
@@ -64,7 +79,7 @@ describe("slides template image cache route", () => {
 		expect(
 			isCacheableSlidesTemplateImage(
 				createContext(
-					"https://storage.example.com/template.webp?swCache=slides-template-image",
+					"https://storage.example.com/template.webp?swCache=slides-template-image-v2",
 					{
 						method: "POST",
 					},
@@ -73,10 +88,14 @@ describe("slides template image cache route", () => {
 		).toBe(false)
 	})
 
-	it("allows opaque image responses in the dedicated cache", () => {
+	it("only caches CORS-readable image responses", () => {
 		const cacheFirstOptions: Record<string, unknown>[] = []
 		const cacheableResponseOptions: Record<string, unknown>[] = []
 		const expirationOptions: Record<string, unknown>[] = []
+		const cacheExpirationConstructors: Array<{
+			cacheName: string
+			options: Record<string, unknown>
+		}> = []
 
 		class CacheFirst {
 			constructor(options: Record<string, unknown>) {
@@ -93,6 +112,11 @@ describe("slides template image cache route", () => {
 				expirationOptions.push(options)
 			}
 		}
+		class CacheExpiration {
+			constructor(cacheName: string, options: Record<string, unknown>) {
+				cacheExpirationConstructors.push({ cacheName, options })
+			}
+		}
 		class CacheableResponsePlugin {
 			constructor(options: Record<string, unknown>) {
 				cacheableResponseOptions.push(options)
@@ -104,7 +128,7 @@ describe("slides template image cache route", () => {
 			setConfig: vi.fn(),
 			routing: { registerRoute: vi.fn() },
 			strategies: { CacheFirst, StaleWhileRevalidate },
-			expiration: { ExpirationPlugin },
+			expiration: { ExpirationPlugin, CacheExpiration },
 			cacheableResponse: { CacheableResponsePlugin },
 		})
 
@@ -136,14 +160,50 @@ describe("slides template image cache route", () => {
 		).toBeLessThan(
 			cacheFirstOptions.findIndex((options) => options.cacheName === APP_IMAGE_CACHE_NAME),
 		)
-		expect(cacheableResponseOptions).toContainEqual({ statuses: [0, 200] })
+		expect(cacheableResponseOptions).toContainEqual({ statuses: [200] })
+		expect(cacheableResponseOptions).not.toContainEqual({ statuses: [0, 200] })
+		expect(SLIDES_TEMPLATE_IMAGE_CACHE_NAME).toContain("-v2")
+		expect(FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_NAME).toContain("-v2")
 		expect(expirationOptions).toContainEqual({
-			maxEntries: 300,
+			maxEntries: FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 			maxAgeSeconds: CACHE_TTL_15_DAYS,
+			purgeOnQuotaError: true,
 		})
 		expect(expirationOptions).toContainEqual({
-			maxEntries: 500,
+			maxEntries: SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 			maxAgeSeconds: CACHE_TTL_7_DAYS,
+			purgeOnQuotaError: true,
 		})
+
+		expect(SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES).toBe(60)
+		expect(FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES).toBe(40)
+
+		expect(cacheExpirationConstructors).toContainEqual({
+			cacheName: "magic-web-app-static-assets-v2",
+			options: { maxEntries: 4000, maxAgeSeconds: 14 * 24 * 60 * 60 },
+		})
+	})
+
+	it("serializes static expiration enforcement for native warmup writes", async () => {
+		let expireCalls = 0
+		let resolveExpiration: (() => void) | null = null
+		const expirationManager = {
+			updateTimestamp: vi.fn(async () => undefined),
+			expireEntries: vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						expireCalls += 1
+						resolveExpiration = resolve
+					}),
+			),
+		}
+
+		const firstRun = enforceAppStaticExpiration(expirationManager)
+		const secondRun = enforceAppStaticExpiration(expirationManager)
+
+		expect(expirationManager.expireEntries).toHaveBeenCalledTimes(1)
+		resolveExpiration?.()
+		await Promise.all([firstRun, secondRun])
+		expect(expireCalls).toBe(1)
 	})
 })

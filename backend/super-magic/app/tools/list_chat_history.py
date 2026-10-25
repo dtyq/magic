@@ -7,6 +7,7 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from app.core.context.agent_context import AgentContext
+from app.core.entity.message.server_message import ToolDetail
 from app.service.chat_history_query_service import (
     ChatHistoryQueryService,
     HistoryType,
@@ -15,6 +16,15 @@ from app.service.chat_history_query_service import (
 )
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.tools.subagent_runtime_models import SubagentStatus
+from app.tools.utils.chat_history_display import (
+    HistoryDisplayError,
+    action,
+    build_list_detail,
+    classify_error,
+    error_result_info,
+    timezone_name,
+    translate,
+)
 
 
 class ListChatHistoryParams(BaseToolParams):
@@ -51,23 +61,34 @@ class ListChatHistory(BaseTool[ListChatHistoryParams]):
     async def execute(self, tool_context: ToolContext, params: ListChatHistoryParams) -> ToolResult:
         context = tool_context.get_extension_typed("agent_context", AgentContext)
         if context is None or context.is_subagent_context():
-            return ToolResult.error("Chat history lookup is available only to the main Agent.")
+            return ToolResult.error(
+                "Chat history lookup is available only to the main Agent.",
+                extra_info=error_result_info(HistoryDisplayError.UNAVAILABLE),
+                use_custom_remark=True,
+            )
 
+        time_range = None
         try:
+            time_range = parse_time_range(params.time_range, context.get_user_timezone())
             service = _build_service(context)
             result = await service.describe_files(
                 history_types=params.history_types,
-                time_range=parse_time_range(params.time_range, context.get_user_timezone()),
+                time_range=time_range,
                 statuses=params.statuses,
                 parent_agent_ids=params.parent_agent_ids,
                 pattern=params.pattern,
                 limit=params.limit,
             )
         except Exception as exc:
-            return ToolResult.error(f"Chat history list failed: {exc}")
+            return ToolResult.error(
+                f"Chat history list failed: {exc}",
+                extra_info=error_result_info(classify_error(exc)),
+                use_custom_remark=True,
+            )
 
         files = result["files"]
         lines = [
+            f"History root (read-only): {result['history_root']}",
             f"Found {result['total']} matching history files. Returned {result['returned']}."
         ]
         counts = result["counts"]
@@ -102,7 +123,49 @@ class ListChatHistory(BaseTool[ListChatHistoryParams]):
                 if item.get("result_preview"):
                     line += f" | result={item['result_preview']}"
             lines.append(line)
-        return ToolResult(content="\n".join(lines), data=result)
+        tool_result = ToolResult(content="\n".join(lines), data=result)
+        tool_result.extra_info["history_display_time_range"] = time_range
+        return tool_result
+
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return {
+            "tool_name": tool_name,
+            "action": action(tool_name),
+            "remark": translate("list.before"),
+        }
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: dict[str, object] | None = None,
+    ) -> ToolDetail:
+        return build_list_detail(result, timezone_name(tool_context.get_extension_typed("agent_context", AgentContext)))
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        if not result.ok:
+            remark = translate("list.failed")
+        else:
+            data = result.data
+            if data.get("returned", 0) == 0:
+                remark = translate("list.empty")
+            else:
+                remark = translate("list.after", returned=data.get("returned", 0), total=data.get("total", 0))
+            if data.get("truncated"):
+                remark += " " + translate("list.truncated")
+        return {"tool_name": tool_name, "action": action(tool_name), "remark": remark}
 
 
 def _build_service(context: AgentContext) -> ChatHistoryQueryService:

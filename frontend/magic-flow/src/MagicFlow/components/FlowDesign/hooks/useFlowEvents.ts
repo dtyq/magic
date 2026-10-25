@@ -9,7 +9,7 @@ import { NodeSchema } from "@/MagicFlow/register/node"
 import { generateSnowFlake } from "@/common/utils/snowflake"
 import { useEffect, useRef, useState } from "react"
 import { Edge, Node, NodeDragHandler, XYPosition, useReactFlow, useStoreApi, useUpdateNodeInternals } from "reactflow"
-import _ from "lodash"
+import { pick } from "lodash-es"
 import { useExternalConfig } from "@/MagicFlow/context/ExternalContext/useExternal"
 import { FlowDesignerEvents, renderSkeletonRatio } from "@/MagicFlow/constants"
 import useViewport from "../../common/hooks/useViewport"
@@ -209,7 +209,7 @@ export default function useFlowEvents ({ resetLastLayoutData, resetCanLayout, cu
 		// 		newParentNode.style.width = newParentNode.width
 		// 		newParentNode.height = childBounds.height + MIN_DISTANCE * 2 + TOP_GAP // @ts-ignore
 		// 		newParentNode.style.height = newParentNode.height
-		// 		console.log("parent", _.pick(newParentNode, ['width', 'height']))
+		// 		console.log("parent", pick(newParentNode, ['width', 'height']))
 		// 		setNodes(prevNodes => prevNodes.map(n => n.id === newParentNode.id ? newParentNode : n));
 		// 	}
 			

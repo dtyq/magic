@@ -3,6 +3,11 @@ import { ImageStaticLoader } from "../../resources/image/ImageStaticLoader"
 import type { TFunction } from "../../../public/i18n-types"
 import { LAYOUT, IMAGE_CONFIG, COLORS } from "../../elements/image/ImageElement.config"
 import type { Canvas } from "../../core/Canvas"
+import {
+	applyPlaceholderTextLayout,
+	createPlaceholderTextNode,
+	type PlaceholderTextNodeResult,
+} from "./placeholderTextLayout"
 
 /**
  * 居中图标+文本配置
@@ -27,6 +32,27 @@ export interface CenteredIconTextConfig {
 	/** Canvas 实例（用于检查工具状态） */
 	canvas?: Canvas
 }
+
+interface CenteredIconTextRuntimeState {
+	text: string
+	withBackground: boolean
+	isErrorState: boolean
+	hasRetryButton: boolean
+	retryText?: string
+}
+
+interface CenteredIconTextResolvedLayout {
+	inverseScale: { x: number; y: number }
+	effectiveScale: { x: number; y: number }
+	iconY: number
+	textContainerY: number
+	textResult: PlaceholderTextNodeResult
+	retryResult?: PlaceholderTextNodeResult
+	totalContentHeight: number
+}
+
+const centeredIconTextRuntimeState = new WeakMap<Konva.Group, CenteredIconTextRuntimeState>()
+const PLACEHOLDER_VERTICAL_INSET = 16
 
 /**
  * 渲染工具类
@@ -153,6 +179,42 @@ export class RenderUtils {
 	}
 
 	/**
+	 * 更新图片的 contain 布局：保持原始宽高比并完整显示，剩余空间由容器背景填充。
+	 * 与 updateBackgroundImageLayout 的 cover 语义分开，避免预览图被中心裁剪。
+	 */
+	public static updateContainedImageLayout(
+		imageNode: Konva.Image,
+		width: number,
+		height: number,
+	): void {
+		imageNode.position({ x: 0, y: 0 })
+		imageNode.width(width)
+		imageNode.height(height)
+
+		const image = imageNode.image()
+		const imageSize = image ? RenderUtils.getBackgroundImageSize(image) : undefined
+		if (!imageSize || width <= 0 || height <= 0) {
+			return
+		}
+
+		const scale = Math.min(width / imageSize.width, height / imageSize.height)
+		const renderedWidth = imageSize.width * scale
+		const renderedHeight = imageSize.height * scale
+		imageNode.position({
+			x: (width - renderedWidth) / 2,
+			y: (height - renderedHeight) / 2,
+		})
+		imageNode.width(renderedWidth)
+		imageNode.height(renderedHeight)
+		imageNode.crop({
+			x: 0,
+			y: 0,
+			width: imageSize.width,
+			height: imageSize.height,
+		})
+	}
+
+	/**
 	 * 创建背景图片节点（使用 cover 模式裁剪）
 	 * @param group 父容器
 	 * @param width 容器宽度
@@ -207,6 +269,133 @@ export class RenderUtils {
 		return hitNode
 	}
 
+	private static resolveCenteredIconTextLayout(
+		group: Konva.Group,
+		width: number,
+		height: number,
+		config: {
+			text: string
+			textColor: string
+			withBackground: boolean
+			isErrorState: boolean
+			t?: TFunction
+			hasGenerateImageRequest: boolean
+			retryText?: string
+		},
+	): CenteredIconTextResolvedLayout {
+		const inverseScale = RenderUtils.getInverseScale(group)
+		const iconHeight = IMAGE_CONFIG.ICON_SIZE
+		const retryLineSpacing = LAYOUT.TEXT_PADDING_Y + 4
+		const isImageLoadError =
+			config.isErrorState && RenderUtils.isImageResourceErrorText(config.text, config.t)
+		const hasRetryButton =
+			config.isErrorState && config.hasGenerateImageRequest && !isImageLoadError
+		const createTextResult = (
+			text: string,
+			fill: string,
+			name: string,
+			maxHeight?: number,
+		): PlaceholderTextNodeResult =>
+			createPlaceholderTextNode({
+				text,
+				availableWidth: width,
+				inverseScaleX: inverseScale.x,
+				fontSize: LAYOUT.TEXT_FONT_SIZE,
+				fontFamily: LAYOUT.TEXT_FONT_FAMILY,
+				maxHeight,
+				paddingX: config.withBackground ? LAYOUT.TEXT_PADDING_X : 0,
+				paddingY: config.withBackground ? LAYOUT.TEXT_PADDING_Y : 0,
+				fill,
+				name,
+				listening: name === "decorator-error-retry-button",
+			})
+
+		let textResult = createTextResult(
+			config.text,
+			config.textColor,
+			config.isErrorState ? "placeholder-error-text" : "placeholder-text",
+		)
+		const retryResult = hasRetryButton
+			? createTextResult(
+					config.retryText ?? "",
+					COLORS.ERROR_RETRY_TEXT,
+					"decorator-error-retry-button",
+				)
+			: undefined
+
+		const getTextBlockHeight = (): number => {
+			if (config.isErrorState) {
+				return (
+					textResult.layout.textHeight +
+					(retryResult ? retryLineSpacing + retryResult.layout.textHeight : 0)
+				)
+			}
+			return config.withBackground
+				? textResult.layout.backgroundHeight
+				: textResult.layout.textHeight
+		}
+
+		const getTotalContentHeight = (): number =>
+			iconHeight + LAYOUT.ICON_TEXT_SPACING + getTextBlockHeight()
+		const availableHeight = Math.max(1, height - PLACEHOLDER_VERTICAL_INSET * 2)
+		const resolveFitScale = (totalHeight: number): number => {
+			const scaledHeight = totalHeight * inverseScale.y
+			if (scaledHeight <= availableHeight) return 1
+			return Math.max(LAYOUT.MIN_CONTENT_SCALE, availableHeight / scaledHeight)
+		}
+
+		let totalContentHeight = getTotalContentHeight()
+		let fitScale = resolveFitScale(totalContentHeight)
+
+		if (
+			fitScale === LAYOUT.MIN_CONTENT_SCALE &&
+			totalContentHeight * inverseScale.y > availableHeight
+		) {
+			const occupiedHeight =
+				iconHeight +
+				LAYOUT.ICON_TEXT_SPACING +
+				(retryResult ? retryLineSpacing + retryResult.layout.textHeight : 0)
+			const availableTextHeight =
+				availableHeight / (inverseScale.y * LAYOUT.MIN_CONTENT_SCALE)
+			const maxTextHeight = Math.max(
+				1,
+				availableTextHeight -
+					occupiedHeight -
+					(config.withBackground ? LAYOUT.TEXT_PADDING_Y * 2 : 0),
+			)
+
+			textResult = createTextResult(
+				config.text,
+				config.textColor,
+				config.isErrorState ? "placeholder-error-text" : "placeholder-text",
+				maxTextHeight,
+			)
+			totalContentHeight = getTotalContentHeight()
+			fitScale = resolveFitScale(totalContentHeight)
+		}
+
+		const effectiveScale = {
+			x: inverseScale.x * fitScale,
+			y: inverseScale.y * fitScale,
+		}
+		const scaledTotalHeight = totalContentHeight * effectiveScale.y
+		const iconY = (height - scaledTotalHeight) / 2
+		const textContainerY =
+			iconY +
+			IMAGE_CONFIG.ICON_SIZE * effectiveScale.y +
+			LAYOUT.ICON_TEXT_SPACING * effectiveScale.y
+
+		return {
+			inverseScale,
+			effectiveScale,
+			iconY,
+			textContainerY,
+			textResult,
+			retryResult,
+			totalContentHeight,
+		}
+	}
+
 	/**
 	 * 创建居中的图标和文本布局（不受缩放影响）
 	 * @param group 父容器
@@ -232,273 +421,124 @@ export class RenderUtils {
 			hasGenerateImageRequest = false,
 			canvas,
 		} = config
-
+		const retryText = t ? t("image.errorRetry", "点击重试") : "点击重试"
 		const iconImage = await RenderUtils.imageLoader.loadImage(iconSrc)
+		const resolved = RenderUtils.resolveCenteredIconTextLayout(group, width, height, {
+			text,
+			textColor,
+			withBackground,
+			isErrorState,
+			t,
+			hasGenerateImageRequest,
+			retryText,
+		})
+		const { effectiveScale, iconY, textContainerY, textResult, retryResult } = resolved
+		const contentGroup = new Konva.Group({ listening: false })
+		const iconSize = IMAGE_CONFIG.ICON_SIZE
+		const scaledIconWidth = iconSize * effectiveScale.x
 
-		// 获取反向缩放比例
-		const inverseScale = RenderUtils.getInverseScale(group)
-
-		const iconWidth = IMAGE_CONFIG.ICON_SIZE
-		const iconHeight = IMAGE_CONFIG.ICON_SIZE
-		const retryLineSpacing = LAYOUT.TEXT_PADDING_Y + 4
-
-		// 创建临时文本节点以获取文本尺寸
-		let textWidth: number
-		let textHeight: number
-
-		if (isErrorState) {
-			// 检查是否有 generateImageRequest，决定如何计算文本宽度
-			const isImageLoadError = RenderUtils.isImageResourceErrorText(text, t)
-
-			if (hasGenerateImageRequest && !isImageLoadError) {
-				// 有 generateImageRequest 且不是图片加载失败：错误消息与重试按钮分两行布局
-				const tempErrorTextNode = new Konva.Text({
-					text: text,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					listening: false,
-				})
-				const retryText = t ? t("image.errorRetry", "点击重试") : "点击重试"
-				const tempRetryNode = new Konva.Text({
-					text: retryText,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					listening: false,
-				})
-				textWidth = Math.max(tempErrorTextNode.width(), tempRetryNode.width())
-				textHeight = tempErrorTextNode.height() + retryLineSpacing + tempRetryNode.height()
-			} else {
-				// 没有 generateImageRequest 或是图片加载失败：只计算单个错误文本的宽度
-				const tempTextNode = new Konva.Text({
-					text,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					listening: false,
-				})
-				textWidth = tempTextNode.width()
-				textHeight = tempTextNode.height()
-			}
-		} else {
-			const tempTextNode = new Konva.Text({
-				text,
-				fontSize: LAYOUT.TEXT_FONT_SIZE,
-				fontFamily: LAYOUT.TEXT_FONT_FAMILY,
+		contentGroup.add(
+			new Konva.Image({
+				image: iconImage,
+				width: iconSize,
+				height: iconSize,
+				x: (width - scaledIconWidth) / 2,
+				y: iconY,
+				scaleX: effectiveScale.x,
+				scaleY: effectiveScale.y,
 				listening: false,
-			})
-			textWidth = tempTextNode.width()
-			textHeight = tempTextNode.height()
-		}
+			}),
+		)
 
-		// 计算布局（使用原始尺寸）
-		let bgHeight = textHeight
-		let bgWidth = textWidth
-
-		if (withBackground) {
-			bgWidth += LAYOUT.TEXT_PADDING_X * 2
-			bgHeight += LAYOUT.TEXT_PADDING_Y * 2
-		}
-
-		const totalContentHeight = iconHeight + LAYOUT.ICON_TEXT_SPACING + bgHeight
-
-		// 创建内容容器 Group，应用反向缩放
-		const contentGroup = new Konva.Group({
-			listening: false,
-		})
-
-		// 计算缩放后的实际尺寸
-		const scaledIconWidth = iconWidth * inverseScale.x
-		const scaledIconHeight = iconHeight * inverseScale.y
-		const scaledBgWidth = bgWidth * inverseScale.x
-		const scaledSpacing = LAYOUT.ICON_TEXT_SPACING * inverseScale.y
-		const scaledTotalHeight = totalContentHeight * inverseScale.y
-
-		// 计算居中位置
-		const iconY = (height - scaledTotalHeight) / 2
-
-		// 添加图标
-		const iconNode = new Konva.Image({
-			image: iconImage,
-			width: iconWidth,
-			height: iconHeight,
-			x: (width - scaledIconWidth) / 2,
-			y: iconY,
-			scaleX: inverseScale.x,
-			scaleY: inverseScale.y,
-			listening: false,
-		})
-		contentGroup.add(iconNode)
-
-		// 添加文本（可选背景）
-		const textContainerY = iconY + scaledIconHeight + scaledSpacing
-
-		// 错误状态：不显示背景，根据错误类型显示不同内容
 		if (isErrorState) {
-			const isImageLoadError = RenderUtils.isImageResourceErrorText(text, t)
+			const errorText = textResult.node
+			errorText.x((width - textResult.layout.nodeWidth * effectiveScale.x) / 2)
+			errorText.y(textContainerY)
+			errorText.scale({ x: effectiveScale.x, y: effectiveScale.y })
+			contentGroup.add(errorText)
 
-			if (isImageLoadError || !hasGenerateImageRequest) {
-				// 图片加载失败或没有 generateImageRequest：只显示错误文本，不显示重试按钮
-				const errorText = new Konva.Text({
-					text: text,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					fill: COLORS.ERROR_TEXT,
-					width: textWidth,
-					align: "center",
-					x: (width - textWidth * inverseScale.x) / 2,
-					y: textContainerY,
-					scaleX: inverseScale.x,
-					scaleY: inverseScale.y,
-					listening: false,
-				})
-				contentGroup.add(errorText)
-			} else {
-				// 图像生成失败且有 generateImageRequest：错误消息与重试按钮分两行居中显示
-				const retryText = t ? t("image.errorRetry", "点击重试") : "点击重试"
-				const tempErrorTextNode = new Konva.Text({
-					text: text,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					listening: false,
-				})
-				const tempRetryNode = new Konva.Text({
-					text: retryText,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					listening: false,
-				})
-				const errorTextWidth = tempErrorTextNode.width()
-				const errorTextHeight = tempErrorTextNode.height()
-				const retryTextWidth = tempRetryNode.width()
-				const retryY =
-					textContainerY + (errorTextHeight + retryLineSpacing) * inverseScale.y
-
-				// 创建错误消息文本
-				const errorText = new Konva.Text({
-					text: text,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					fill: COLORS.ERROR_TEXT,
-					x: (width - errorTextWidth * inverseScale.x) / 2,
-					y: textContainerY,
-					scaleX: inverseScale.x,
-					scaleY: inverseScale.y,
-					listening: false,
-				})
-				contentGroup.add(errorText)
-
-				// 创建可点击的重试按钮文本（单独一行）
-				const retryButton = new Konva.Text({
-					text: retryText,
-					fontSize: LAYOUT.TEXT_FONT_SIZE,
-					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-					fill: COLORS.ERROR_RETRY_TEXT,
-					x: 0,
-					y: 0,
-					scaleX: inverseScale.x,
-					scaleY: inverseScale.y,
-					listening: true,
-					name: "decorator-error-retry-button",
-				})
-
-				// 创建重试按钮的容器 group
+			if (retryResult) {
+				const retryButton = retryResult.node
+				retryButton.x(0)
+				retryButton.y(0)
+				retryButton.scale({ x: effectiveScale.x, y: effectiveScale.y })
 				const retryButtonGroup = new Konva.Group({
-					x: (width - retryTextWidth * inverseScale.x) / 2,
-					y: retryY,
+					x: (width - retryResult.layout.nodeWidth * effectiveScale.x) / 2,
+					y:
+						textContainerY +
+						(textResult.layout.textHeight + LAYOUT.TEXT_PADDING_Y + 4) *
+							effectiveScale.y,
 					listening: true,
 					name: "decorator-error-retry-button-group",
 				})
-
 				retryButtonGroup.add(retryButton)
 
-				// 添加 hover 效果（只有在选择工具下才生效）
 				retryButton.on("mouseenter", () => {
-					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) {
-						return
-					}
+					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) return
 					retryButton.opacity(COLORS.ERROR_RETRY_HOVER_OPACITY)
-					if (canvas) {
-						canvas.cursorManager.setTemporary("pointer")
-					}
+					canvas?.cursorManager.setTemporary("pointer")
 					group.getLayer()?.batchDraw()
 				})
-
 				retryButton.on("mouseleave", () => {
-					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) {
-						return
-					}
+					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) return
 					retryButton.opacity(1)
-					if (canvas) {
-						canvas.cursorManager.restoreToolCursor()
-					}
+					canvas?.cursorManager.restoreToolCursor()
 					group.getLayer()?.batchDraw()
 				})
 
-				// 添加点击事件（只有在选择工具下才能点击）
 				const handleRetry = (e: Konva.KonvaEventObject<MouseEvent>) => {
-					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) {
-						return
-					}
+					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) return
 					e.cancelBubble = true
-					if (e.evt) {
-						e.evt.stopPropagation()
-						e.evt.stopImmediatePropagation()
-					}
+					e.evt?.stopPropagation()
+					e.evt?.stopImmediatePropagation()
 					onRetry?.()
 				}
-
 				retryButton.on("mousedown", handleRetry)
 				retryButton.on("click tap", handleRetry)
-
-				// 将重试按钮组直接添加到主 group
 				group.add(retryButtonGroup)
 				retryButtonGroup.moveToTop()
 			}
 		} else if (withBackground) {
-			// 非错误状态且需要背景
-			const textContainerX = (width - scaledBgWidth) / 2
+			const backgroundX = (width - textResult.layout.backgroundWidth * effectiveScale.x) / 2
 			const textBackground = new Konva.Rect({
-				x: textContainerX,
+				x: backgroundX,
 				y: textContainerY,
-				width: bgWidth,
-				height: bgHeight,
+				width: textResult.layout.backgroundWidth,
+				height: textResult.layout.backgroundHeight,
 				fill: COLORS.LOADING_BG,
 				cornerRadius: IMAGE_CONFIG.CORNER_RADIUS,
-				scaleX: inverseScale.x,
-				scaleY: inverseScale.y,
+				scaleX: effectiveScale.x,
+				scaleY: effectiveScale.y,
 				listening: false,
+				name: "placeholder-text-bg",
 			})
 			contentGroup.add(textBackground)
 
-			const textNode = new Konva.Text({
-				text,
-				fontSize: LAYOUT.TEXT_FONT_SIZE,
-				fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-				fill: textColor,
-				x: textContainerX + LAYOUT.TEXT_PADDING_X * inverseScale.x,
-				y: textContainerY + LAYOUT.TEXT_PADDING_Y * inverseScale.y,
-				scaleX: inverseScale.x,
-				scaleY: inverseScale.y,
-				listening: false,
-			})
+			const textNode = textResult.node
+			textNode.x(
+				backgroundX +
+					(LAYOUT.TEXT_PADDING_X +
+						(textResult.layout.textWidth - textResult.layout.nodeWidth) / 2) *
+						effectiveScale.x,
+			)
+			textNode.y(textContainerY + LAYOUT.TEXT_PADDING_Y * effectiveScale.y)
+			textNode.scale({ x: effectiveScale.x, y: effectiveScale.y })
 			contentGroup.add(textNode)
 		} else {
-			// 非错误状态且不需要背景
-			const textNode = new Konva.Text({
-				text,
-				fontSize: LAYOUT.TEXT_FONT_SIZE,
-				fontFamily: LAYOUT.TEXT_FONT_FAMILY,
-				fill: textColor,
-				width: textWidth,
-				align: "center",
-				x: (width - textWidth * inverseScale.x) / 2,
-				y: textContainerY,
-				scaleX: inverseScale.x,
-				scaleY: inverseScale.y,
-				listening: false,
-			})
+			const textNode = textResult.node
+			textNode.x((width - textResult.layout.nodeWidth * effectiveScale.x) / 2)
+			textNode.y(textContainerY)
+			textNode.scale({ x: effectiveScale.x, y: effectiveScale.y })
 			contentGroup.add(textNode)
 		}
 
+		centeredIconTextRuntimeState.set(contentGroup, {
+			text,
+			withBackground,
+			isErrorState,
+			hasRetryButton: Boolean(retryResult),
+			retryText: retryResult ? retryText : undefined,
+		})
 		group.add(contentGroup)
 		return contentGroup
 	}
@@ -516,137 +556,75 @@ export class RenderUtils {
 		width: number,
 		height: number,
 	): void {
-		// 获取新的反向缩放比例
-		const inverseScale = RenderUtils.getInverseScale(parentGroup)
+		const state = centeredIconTextRuntimeState.get(contentGroup)
+		if (!state) return
 
-		// 重新计算布局参数
-		const iconWidth = IMAGE_CONFIG.ICON_SIZE
-		const iconHeight = IMAGE_CONFIG.ICON_SIZE
-		const retryLineSpacing = LAYOUT.TEXT_PADDING_Y + 4
-		const scaledIconWidth = iconWidth * inverseScale.x
-		const scaledIconHeight = iconHeight * inverseScale.y
-		const scaledSpacing = LAYOUT.ICON_TEXT_SPACING * inverseScale.y
+		const resolved = RenderUtils.resolveCenteredIconTextLayout(parentGroup, width, height, {
+			text: state.text,
+			textColor: state.isErrorState ? COLORS.ERROR_TEXT : COLORS.LOADING_TEXT,
+			withBackground: state.withBackground,
+			isErrorState: state.isErrorState,
+			hasGenerateImageRequest: state.hasRetryButton,
+			retryText: state.retryText,
+		})
+		const { effectiveScale, iconY, textContainerY, textResult, retryResult } = resolved
+		const iconNode = contentGroup.findOne<Konva.Image>(
+			(node: Konva.Node) => node instanceof Konva.Image,
+		)
+		const textNode = contentGroup.findOne<Konva.Text>(
+			state.isErrorState ? ".placeholder-error-text" : ".placeholder-text",
+		)
+		const backgroundNode = contentGroup.findOne<Konva.Rect>(".placeholder-text-bg")
+		if (!iconNode || !textNode) return
 
-		let iconNode: Konva.Image | undefined
-		const textNodes: Konva.Text[] = []
-		let textBackground: Konva.Rect | undefined
-		let retryButtonGroup: Konva.Group | undefined
-		let retryButton: Konva.Text | undefined
-
-		// 收集 contentGroup 中的节点
 		contentGroup.children?.forEach((child) => {
-			if (child instanceof Konva.Image) {
-				iconNode = child
-			} else if (child instanceof Konva.Text) {
-				textNodes.push(child)
-			} else if (child instanceof Konva.Rect) {
-				textBackground = child
-			}
+			child.scale({ x: effectiveScale.x, y: effectiveScale.y })
 		})
+		applyPlaceholderTextLayout(textNode, textResult)
+		iconNode.x((width - IMAGE_CONFIG.ICON_SIZE * effectiveScale.x) / 2)
+		iconNode.y(iconY)
 
-		// 从主 group 中查找重试按钮组
-		parentGroup.children?.forEach((child) => {
-			if (
-				child instanceof Konva.Group &&
-				child.name() === "decorator-error-retry-button-group"
-			) {
-				retryButtonGroup = child
-				const retryBtn = child.findOne(
-					(node: Konva.Node) => node.name() === "decorator-error-retry-button",
-				) as Konva.Text | undefined
-				if (retryBtn) {
-					retryButton = retryBtn
-				}
+		if (state.isErrorState) {
+			textNode.x((width - textResult.layout.nodeWidth * effectiveScale.x) / 2)
+			textNode.y(textContainerY)
+
+			const retryButtonGroup = parentGroup.findOne<Konva.Group>(
+				".decorator-error-retry-button-group",
+			)
+			const retryButton = retryButtonGroup?.findOne<Konva.Text>(
+				".decorator-error-retry-button",
+			)
+			if (retryButtonGroup && retryButton && retryResult) {
+				applyPlaceholderTextLayout(retryButton, retryResult)
+				retryButton.scale({ x: effectiveScale.x, y: effectiveScale.y })
+				retryButton.x(0)
+				retryButton.y(0)
+				retryButtonGroup.x((width - retryResult.layout.nodeWidth * effectiveScale.x) / 2)
+				retryButtonGroup.y(
+					textContainerY +
+						(textResult.layout.textHeight + LAYOUT.TEXT_PADDING_Y + 4) *
+							effectiveScale.y,
+				)
 			}
-		})
-
-		// 更新 contentGroup 中所有节点的缩放
-		contentGroup.children?.forEach((child) => {
-			if (child instanceof Konva.Node) {
-				child.scaleX(inverseScale.x)
-				child.scaleY(inverseScale.y)
-			}
-		})
-
-		// 更新重试按钮组的缩放（如果存在）
-		if (retryButtonGroup && retryButton) {
-			retryButtonGroup.children?.forEach((child) => {
-				if (child instanceof Konva.Node) {
-					child.scaleX(inverseScale.x)
-					child.scaleY(inverseScale.y)
-				}
-			})
+			return
 		}
 
-		// 重新计算布局
-		if (iconNode && textNodes.length > 0) {
-			// 如果有重试按钮（错误状态），需要特殊处理（无背景）
-			if (retryButton && retryButtonGroup && textNodes.length === 1) {
-				const errorText = textNodes[0]
-				if (errorText) {
-					const errorTextWidth = errorText.width()
-					const errorTextHeight = errorText.height()
-					const retryWidth = retryButton.width()
-					const retryHeight = retryButton.height()
-					const textHeight = errorTextHeight + retryLineSpacing + retryHeight
-
-					const totalContentHeight = iconHeight + LAYOUT.ICON_TEXT_SPACING + textHeight
-					const scaledTotalHeight = totalContentHeight * inverseScale.y
-
-					// 重新计算 icon 位置
-					const iconY = (height - scaledTotalHeight) / 2
-					iconNode.x((width - scaledIconWidth) / 2)
-					iconNode.y(iconY)
-
-					// 重新计算文本位置（分两行居中对齐）
-					const textContainerY = iconY + scaledIconHeight + scaledSpacing
-
-					// 错误消息文本位置
-					errorText.x((width - errorTextWidth * inverseScale.x) / 2)
-					errorText.y(textContainerY)
-
-					// 重试按钮组位置（错误消息下一行）
-					retryButtonGroup.x((width - retryWidth * inverseScale.x) / 2)
-					retryButtonGroup.y(
-						textContainerY + (errorTextHeight + retryLineSpacing) * inverseScale.y,
-					)
-				}
-			} else {
-				// 普通单文本节点的情况
-				const textNode = textNodes[0]
-				let bgHeight = textNode.height()
-				let bgWidth = textNode.width()
-
-				if (textBackground) {
-					bgWidth += LAYOUT.TEXT_PADDING_X * 2
-					bgHeight += LAYOUT.TEXT_PADDING_Y * 2
-				}
-
-				const totalContentHeight = iconHeight + LAYOUT.ICON_TEXT_SPACING + bgHeight
-				const scaledTotalHeight = totalContentHeight * inverseScale.y
-
-				// 重新计算 icon 位置
-				const iconY = (height - scaledTotalHeight) / 2
-				iconNode.x((width - scaledIconWidth) / 2)
-				iconNode.y(iconY)
-
-				// 重新计算文本位置
-				const textContainerY = iconY + scaledIconHeight + scaledSpacing
-
-				if (textBackground) {
-					const scaledBgWidth = bgWidth * inverseScale.x
-					const textContainerX = (width - scaledBgWidth) / 2
-					textBackground.x(textContainerX)
-					textBackground.y(textContainerY)
-
-					textNode.x(textContainerX + LAYOUT.TEXT_PADDING_X * inverseScale.x)
-					textNode.y(textContainerY + LAYOUT.TEXT_PADDING_Y * inverseScale.y)
-				} else {
-					const textWidth = textNode.width()
-					textNode.x((width - textWidth * inverseScale.x) / 2)
-					textNode.y(textContainerY)
-				}
-			}
+		if (backgroundNode) {
+			backgroundNode.width(textResult.layout.backgroundWidth)
+			backgroundNode.height(textResult.layout.backgroundHeight)
+			const backgroundX = (width - textResult.layout.backgroundWidth * effectiveScale.x) / 2
+			backgroundNode.x(backgroundX)
+			backgroundNode.y(textContainerY)
+			textNode.x(
+				backgroundX +
+					(LAYOUT.TEXT_PADDING_X +
+						(textResult.layout.textWidth - textResult.layout.nodeWidth) / 2) *
+						effectiveScale.x,
+			)
+			textNode.y(textContainerY + LAYOUT.TEXT_PADDING_Y * effectiveScale.y)
+		} else {
+			textNode.x((width - textResult.layout.nodeWidth * effectiveScale.x) / 2)
+			textNode.y(textContainerY)
 		}
 	}
 }

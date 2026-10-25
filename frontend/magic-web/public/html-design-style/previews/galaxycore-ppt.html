@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GalaxyCore Semiconductor — CMOS Image Sensor Wafer Yield & Foundry Revenue</title>
+  <style>
+    :root {
+      --brand-blue: #002693;
+      --cyan: #00C0E6;
+      --orange: #FA770F;
+      --sky-blue: #0A7CFF;
+      --neutral-gray: #7F7F7F;
+      --gray-light: #F4F6F9;
+      --gray-border: #E2E6EC;
+      --text-black: #000000;
+      --text-muted: #595959;
+      --white: #FFFFFF;
+      --font-family: 'MiSans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0B1120;
+      color: var(--text-black);
+      font-family: var(--font-family);
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .deck-viewport {
+      width: 100%;
+      max-width: 1140px;
+      aspect-ratio: 16 / 9;
+      background: var(--white);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    .slide-top-bar {
+      height: 5px;
+      background: linear-gradient(90deg, var(--brand-blue) 0%, var(--brand-blue) 65%, var(--sky-blue) 85%, var(--orange) 100%);
+    }
+    .slide-header {
+      padding: 20px 40px 12px;
+      position: relative;
+    }
+    .header-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--brand-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .section-badge::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      background: var(--orange);
+      border-radius: 2px;
+    }
+    .corp-ticker {
+      font-size: 11px;
+      color: var(--neutral-gray);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+    }
+    .slide-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .slide-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-black);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .slide-subtitle {
+      font-size: 12px;
+      color: var(--neutral-gray);
+      font-weight: 500;
+      margin-top: 3px;
+    }
+    .header-tags { display: flex; gap: 8px; }
+    .tag-chip {
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--white);
+    }
+    .tag-blue { background: var(--brand-blue); }
+    .tag-cyan { background: var(--cyan); color: #022b3a; }
+    .tag-orange { background: var(--orange); }
+    .header-divider {
+      height: 1px;
+      background: var(--neutral-gray);
+      opacity: 0.35;
+      margin: 10px 40px 0;
+    }
+    .slide-body {
+      flex: 1;
+      padding: 16px 40px 14px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+      align-items: stretch;
+    }
+    .wafer-panel {
+      background: var(--gray-light);
+      border: 1px solid var(--gray-border);
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .panel-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--brand-blue);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .wafer-spec-chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      background: #E6F8FC;
+      color: #007791;
+      border: 1px solid rgba(0, 192, 230, 0.4);
+      border-radius: 3px;
+    }
+    .wafer-schematic-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 4px 0 10px;
+    }
+    .wafer-svg {
+      width: 165px;
+      height: 165px;
+      filter: drop-shadow(0 6px 14px rgba(0, 38, 147, 0.12));
+    }
+    .metrics-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: auto;
+    }
+    .metric-card {
+      background: var(--white);
+      border: 1px solid var(--gray-border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      border-left: 3px solid var(--brand-blue);
+    }
+    .metric-card.highlight {
+      border-left-color: var(--orange);
+      background: #FFFDF9;
+    }
+    .metric-label {
+      font-size: 10px;
+      color: var(--neutral-gray);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .metric-val {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--brand-blue);
+      line-height: 1.2;
+      margin-top: 2px;
+    }
+    .metric-card.highlight .metric-val { color: var(--orange); }
+    .metric-sub { font-size: 9px; color: var(--neutral-gray); margin-top: 1px; }
+    .foundry-panel { display: flex; flex-direction: column; gap: 12px; }
+    .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .kpi-box {
+      background: var(--white);
+      border: 1px solid var(--gray-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .kpi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+    .kpi-title { font-size: 10px; font-weight: 700; color: var(--neutral-gray); text-transform: uppercase; }
+    .kpi-delta { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; background: #E8F7EC; color: #15803D; }
+    .kpi-value { font-size: 20px; font-weight: 800; color: var(--brand-blue); letter-spacing: -0.02em; }
+    .kpi-foot { font-size: 9px; color: var(--neutral-gray); margin-top: 2px; }
+    .chart-container {
+      background: var(--gray-light);
+      border: 1px solid var(--gray-border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .chart-title { font-size: 11px; font-weight: 700; color: var(--text-black); }
+    .chart-legend { display: flex; gap: 12px; font-size: 10px; font-weight: 600; color: var(--neutral-gray); }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 7px; height: 7px; border-radius: 2px; }
+    .bar-chart-wrap { width: 100%; height: 95px; }
+    .bar-chart-wrap svg { width: 100%; height: 100%; }
+    .bullet-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .bullet-card {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      background: var(--white);
+      border: 1px solid var(--gray-border);
+      padding: 8px 10px;
+      border-radius: 6px;
+    }
+    .bullet-num {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: var(--brand-blue);
+      color: var(--white);
+      font-size: 10px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .bullet-num.num-orange { background: var(--orange); }
+    .bullet-text h4 { font-size: 10px; font-weight: 700; color: var(--text-black); margin-bottom: 2px; }
+    .bullet-text p { font-size: 9px; color: var(--text-muted); line-height: 1.3; }
+    .slide-footer {
+      height: 34px;
+      padding: 0 40px;
+      border-top: 1px solid var(--gray-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--neutral-gray);
+      background: var(--white);
+    }
+    .footer-left { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--brand-blue); }
+    .footer-center { font-weight: 600; letter-spacing: 0.06em; color: #333333; }
+    .footer-right { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+    .version-tag { color: var(--orange); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="deck-viewport">
+    <div class="slide-top-bar"></div>
+
+    <header class="slide-header">
+      <div class="header-meta">
+        <span class="section-badge">Foundry Operations & Technology Roadmap</span>
+        <span class="corp-ticker">GALAXYCORE SEMICONDUCTOR • 688728.SH</span>
+      </div>
+      <div class="slide-title-row">
+        <div>
+          <h1 class="slide-title">12-Inch 55nm BSI Wafer Yield & Foundry Revenue</h1>
+          <p class="slide-subtitle">High-Density Sub-Micron CMOS Image Sensor (CIS) Fab Performance & Quarterly Allocation</p>
+        </div>
+        <div class="header-tags">
+          <span class="tag-chip tag-blue">300mm Line</span>
+          <span class="tag-chip tag-cyan">Stack CIS</span>
+          <span class="tag-chip tag-orange">Yield 99.4%</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="header-divider"></div>
+
+    <main class="slide-body">
+      <!-- Left Column: Silicon Wafer Schematic & Yield Stats -->
+      <section class="wafer-panel">
+        <div class="panel-header">
+          <span class="panel-title">Wafer Test Mapping</span>
+          <span class="wafer-spec-chip">300mm / 55nm BSI</span>
+        </div>
+
+        <div class="wafer-schematic-wrap">
+          <svg class="wafer-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="waferGrad" cx="45%" cy="40%" r="55%">
+                <stop offset="0%" stop-color="#F2F8FD" />
+                <stop offset="65%" stop-color="#D9E7F5" />
+                <stop offset="100%" stop-color="#002693" stop-opacity="0.75" />
+              </radialGradient>
+              <pattern id="dieGrid" width="8" height="8" patternUnits="userSpaceOnUse">
+                <rect width="7.2" height="7.2" fill="#FFFFFF" fill-opacity="0.7" stroke="#002693" stroke-width="0.35" rx="0.4" />
+                <rect x="2" y="2" width="3.2" height="3.2" fill="#00C0E6" fill-opacity="0.3" />
+              </pattern>
+            </defs>
+
+            <circle cx="100" cy="100" r="94" fill="#E2E8F0" stroke="#002693" stroke-width="2.5" />
+            <circle cx="100" cy="100" r="91" fill="url(#waferGrad)" />
+            <path d="M96 9 Q100 13 104 9" stroke="#002693" stroke-width="2" fill="#E2E8F0" />
+            <circle cx="100" cy="100" r="85" fill="url(#dieGrid)" />
+
+            <!-- Highlighted Defect-Free Prime Dice Cluster -->
+            <g stroke="#002693" stroke-width="0.6">
+              <rect x="76" y="76" width="15" height="15" fill="#00C0E6" fill-opacity="0.8" rx="1" />
+              <rect x="93" y="76" width="15" height="15" fill="#002693" fill-opacity="0.85" rx="1" />
+              <rect x="110" y="76" width="15" height="15" fill="#00C0E6" fill-opacity="0.8" rx="1" />
+              <rect x="76" y="93" width="15" height="15" fill="#002693" fill-opacity="0.9" rx="1" />
+              <rect x="93" y="93" width="15" height="15" fill="#FA770F" fill-opacity="0.95" rx="1" />
+              <rect x="110" y="93" width="15" height="15" fill="#002693" fill-opacity="0.85" rx="1" />
+              <rect x="76" y="110" width="15" height="15" fill="#00C0E6" fill-opacity="0.8" rx="1" />
+              <rect x="93" y="110" width="15" height="15" fill="#002693" fill-opacity="0.85" rx="1" />
+              <rect x="110" y="110" width="15" height="15" fill="#00C0E6" fill-opacity="0.8" rx="1" />
+            </g>
+
+            <!-- Test Probe Alignment Coordinates -->
+            <line x1="100.5" y1="20" x2="100.5" y2="180" stroke="#FA770F" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.7" />
+            <line x1="20" y1="100.5" x2="180" y2="100.5" stroke="#FA770F" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.7" />
+            <circle cx="100.5" cy="100.5" r="3" fill="#FA770F" stroke="#FFFFFF" stroke-width="1" />
+            <circle cx="100.5" cy="100.5" r="6" stroke="#FA770F" stroke-width="0.6" stroke-dasharray="1.5 1.5" />
+          </svg>
+        </div>
+
+        <div class="metrics-summary-grid">
+          <div class="metric-card highlight">
+            <div class="metric-label">Prime Wafer Yield</div>
+            <div class="metric-val">99.4%</div>
+            <div class="metric-sub">▲ +0.7% vs Target 98.7%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Defect Density (D0)</div>
+            <div class="metric-val">0.038</div>
+            <div class="metric-sub">defects/cm² (Class 10)</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Fab Cycle Time</div>
+            <div class="metric-val">36.5d</div>
+            <div class="metric-sub">55nm Stacked BSI Fab</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Gross Dies / Wafer</div>
+            <div class="metric-val">1,842</div>
+            <div class="metric-sub">50MP 0.7μm CIS Format</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Revenue Breakdown & Foundry KPIs -->
+      <section class="foundry-panel">
+        <div class="kpi-row">
+          <div class="kpi-box">
+            <div class="kpi-header">
+              <span class="kpi-title">FY25 Foundry Rev</span>
+              <span class="kpi-delta">+28.4% YoY</span>
+            </div>
+            <div class="kpi-value">¥8.42B</div>
+            <div class="kpi-foot">Annual shipments: 2.15B units</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-header">
+              <span class="kpi-title">Q4 Wafer Out</span>
+              <span class="kpi-delta">102% Util</span>
+            </div>
+            <div class="kpi-value">52.8k</div>
+            <div class="kpi-foot">12-inch wafers monthly run-rate</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-header">
+              <span class="kpi-title">Blended ASP</span>
+              <span class="kpi-delta">+14.2%</span>
+            </div>
+            <div class="kpi-value">$3.85</div>
+            <div class="kpi-foot">Driven by 50MP OIS penetration</div>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <div class="chart-header">
+            <span class="chart-title">Quarterly Foundry Revenue by Sensor Class (¥ Millions)</span>
+            <div class="chart-legend">
+              <div class="legend-item">
+                <span class="legend-dot" style="background: var(--brand-blue)"></span>
+                <span>Mobile (32M-50M)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot" style="background: var(--cyan)"></span>
+                <span>Auto ADAS</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot" style="background: var(--orange)"></span>
+                <span>IoT Sensing</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-chart-wrap">
+            <svg viewBox="0 0 520 90" preserveAspectRatio="none">
+              <line x1="36" y1="10" x2="500" y2="10" stroke="#E2E6EC" stroke-width="0.8" stroke-dasharray="2 2" />
+              <line x1="36" y1="40" x2="500" y2="40" stroke="#E2E6EC" stroke-width="0.8" stroke-dasharray="2 2" />
+              <line x1="36" y1="70" x2="500" y2="70" stroke="#7F7F7F" stroke-width="1" />
+
+              <text x="30" y="13" font-size="8" fill="#7F7F7F" text-anchor="end">2,500</text>
+              <text x="30" y="43" font-size="8" fill="#7F7F7F" text-anchor="end">1,500</text>
+
+              <!-- Q1 Bars -->
+              <g transform="translate(65, 0)">
+                <rect x="0" y="24" width="54" height="10" fill="#FA770F" rx="2" />
+                <rect x="0" y="36" width="54" height="14" fill="#00C0E6" rx="2" />
+                <rect x="0" y="52" width="54" height="18" fill="#002693" rx="2" />
+                <text x="27" y="19" font-size="9" font-weight="700" fill="#002693" text-anchor="middle">¥1,720M</text>
+                <text x="27" y="82" font-size="8" font-weight="600" fill="#7F7F7F" text-anchor="middle">Q1 2025</text>
+              </g>
+
+              <!-- Q2 Bars -->
+              <g transform="translate(180, 0)">
+                <rect x="0" y="18" width="54" height="11" fill="#FA770F" rx="2" />
+                <rect x="0" y="31" width="54" height="16" fill="#00C0E6" rx="2" />
+                <rect x="0" y="49" width="54" height="21" fill="#002693" rx="2" />
+                <text x="27" y="14" font-size="9" font-weight="700" fill="#002693" text-anchor="middle">¥1,940M</text>
+                <text x="27" y="82" font-size="8" font-weight="600" fill="#7F7F7F" text-anchor="middle">Q2 2025</text>
+              </g>
+
+              <!-- Q3 Bars -->
+              <g transform="translate(295, 0)">
+                <rect x="0" y="11" width="54" height="13" fill="#FA770F" rx="2" />
+                <rect x="0" y="26" width="54" height="19" fill="#00C0E6" rx="2" />
+                <rect x="0" y="47" width="54" height="23" fill="#002693" rx="2" />
+                <text x="27" y="7" font-size="9" font-weight="700" fill="#002693" text-anchor="middle">¥2,280M</text>
+                <text x="27" y="82" font-size="8" font-weight="600" fill="#7F7F7F" text-anchor="middle">Q3 2025</text>
+              </g>
+
+              <!-- Q4 Bars -->
+              <g transform="translate(410, 0)">
+                <rect x="0" y="5" width="54" height="15" fill="#FA770F" rx="2" />
+                <rect x="0" y="22" width="54" height="22" fill="#00C0E6" rx="2" />
+                <rect x="0" y="46" width="54" height="24" fill="#002693" rx="2" />
+                <text x="27" y="1" font-size="9" font-weight="800" fill="#FA770F" text-anchor="middle">¥2,480M</text>
+                <text x="27" y="82" font-size="8" font-weight="600" fill="#7F7F7F" text-anchor="middle">Q4 2025 (F)</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <div class="bullet-row">
+          <div class="bullet-card">
+            <span class="bullet-num">1</span>
+            <div class="bullet-text">
+              <h4>BSI Stacking Yield Breakthrough</h4>
+              <p>Self-developed micro-trench isolation achieved 99.4% yield on 300mm line, reducing unit cost by 18.3%.</p>
+            </div>
+          </div>
+          <div class="bullet-card">
+            <span class="bullet-num num-orange">2</span>
+            <div class="bullet-text">
+              <h4>Automotive CIS Ramp Acceleration</h4>
+              <p>AEC-Q100 certified 2.5MP/8.3MP ADAS sensors topped 450k units/mo across Tier-1 cockpit systems.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <svg width="16" height="12" viewBox="0 0 18 14" fill="none">
+          <path d="M1 7C3.5 2.5 7 1 9 1C11 1 14.5 2.5 17 7C14.5 11.5 11 13 9 13C7 13 3.5 11.5 1 7Z" stroke="#002693" stroke-width="1.8"/>
+          <circle cx="9" cy="7" r="3" fill="#FA770F"/>
+        </svg>
+        <span>GALAXYCORE SEMICONDUCTOR</span>
+      </div>
+      <div class="footer-center">CONFIDENTIAL &amp; PROPRIETARY — STRICTLY FOR BOARD AUDIT</div>
+      <div class="footer-right">
+        <span>Slide 04 / 18</span>
+        <span class="version-tag">VER 3.2.0-RELEASE</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

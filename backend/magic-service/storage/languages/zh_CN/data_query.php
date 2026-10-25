@@ -10,4 +10,6 @@ return [
     'driver_not_available' => '天气驱动 [:label] 不可用',
     'no_enabled_provider' => '未找到已启用的天气服务商配置',
     'request_failed' => '数据查询请求失败',
+    'invalid_response' => '参数无效',
+    'location_required' => '参数不能为空',
 ];

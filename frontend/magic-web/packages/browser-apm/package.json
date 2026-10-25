@@ -1,0 +1,72 @@
+{
+	"name": "@dtyq/browser-apm",
+	"version": "1.0.0",
+	"description": "Passive browser HTTP, resource, performance and uncaught error monitoring",
+	"keywords": [
+		"browser",
+		"monitoring",
+		"apm",
+		"aliyun",
+		"volcengine",
+		"arms",
+		"dataflux",
+		"guance",
+		"apmplus"
+	],
+	"type": "module",
+	"exports": {
+		".": {
+			"magic-web-source": "./src/index.ts",
+			"types": "./dist/esm/index.d.ts",
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.cjs"
+		}
+	},
+	"main": "./dist/cjs/index.cjs",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/esm/index.d.ts",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "pnpm exec vite build && tsc -p ./tsconfig.build.json --emitDeclarationOnly",
+		"dev": "vite",
+		"lint": "eslint src --ext .ts,.tsx",
+		"prepublishOnly": "pnpm run build && pnpm run test",
+		"test": "pnpm exec vitest run --config ./vitest.config.ts",
+		"test:coverage": "pnpm exec vitest run --config ./vitest.config.ts --coverage",
+		"typecheck": "tsc -p ./tsconfig.json --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^22.16.4",
+		"@typescript-eslint/eslint-plugin": "^5.36.1",
+		"@typescript-eslint/parser": "^5.36.1",
+		"eslint": "^8.0.0",
+		"jsdom": "^26.1.0",
+		"typescript": "^5.4.5",
+		"vite": "^8.0.3",
+		"vitest": "^3.2.4"
+	},
+	"peerDependencies": {
+		"@apmplus/integrations": "^2.7.2",
+		"@apmplus/web": "^2.10.3",
+		"@arms/rum-browser": "^0.0.37",
+		"@cloudcare/browser-rum": "3.3.6"
+	},
+	"peerDependenciesMeta": {
+		"@apmplus/integrations": {
+			"optional": true
+		},
+		"@apmplus/web": {
+			"optional": true
+		},
+		"@arms/rum-browser": {
+			"optional": true
+		},
+		"@cloudcare/browser-rum": {
+			"optional": true
+		}
+	}
+}

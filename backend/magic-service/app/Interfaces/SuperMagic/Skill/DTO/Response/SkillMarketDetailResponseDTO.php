@@ -32,6 +32,7 @@ class SkillMarketDetailResponseDTO implements JsonSerializable
         private readonly bool $isAdded,
         private readonly bool $isCreator,
         private readonly bool $isFeatured,
+        private readonly array $categoryIds = [],
     ) {
     }
 
@@ -55,6 +56,7 @@ class SkillMarketDetailResponseDTO implements JsonSerializable
             'is_added' => $this->isAdded,
             'is_creator' => $this->isCreator,
             'is_featured' => $this->isFeatured,
+            'category_ids' => array_map('strval', $this->categoryIds),
         ];
     }
 }

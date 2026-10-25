@@ -13,7 +13,7 @@ const { getPlatformInfo, processHtmlContent } = require("./html-utils")
 const seoMiddleware = async (req, res, next) => {
 	let htmlTemplate
 	try {
-		htmlTemplate = getHtmlTemplate()
+		htmlTemplate = getHtmlTemplate("index", req.get("user-agent"))
 	} catch (error) {
 		logger.error("nodeServer", "Failed to read index.html:", error)
 		return next(error)

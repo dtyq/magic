@@ -1,9 +1,10 @@
 import { ChatApi } from "@/apis"
 import { EventType } from "@/types/chat"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { Topic } from "../pages/Workspace/types"
 
 /** Debounce for interrupt taps (matches legacy pub/sub UX). */
-export const SUPER_MAGIC_INTERRUPT_DEBOUNCE_MS = 3000
+export const SUPER_MAGIC_INTERRUPT_DEBOUNCE_MS = 300
 
 function generateUniqueId(): string {
 	const timestamp = Date.now().toString(36)
@@ -50,6 +51,8 @@ export async function sendSuperMagicInterruptMessage(
 		// ChatApi typing omits super_magic_instruction message shape
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		await ChatApi.chat(EventType.Intermediate, interruptChatPayload as any)
+		// 中断已下发：画布上仍在生成的图片节点收敛为终止态（保留节点，由 Design 侧消费）
+		pubsub.publish(PubSubEvents.Terminate_Generating_Images)
 	} catch (error) {
 		console.error("发送终止消息失败:", error)
 	}

@@ -3,7 +3,7 @@ import { Ellipsis } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { Separator } from "@/components/shadcn-ui/separator"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { UserSkillView } from "@/services/skills/SkillsService"
 import {
 	getMySkillCardCopy,

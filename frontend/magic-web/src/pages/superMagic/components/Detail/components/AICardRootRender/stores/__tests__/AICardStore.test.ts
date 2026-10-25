@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { createShareFileAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { createFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { AICardStore } from "../AICardStore"
 
 vi.mock("@/pages/superMagic/utils/api", () => ({
@@ -117,6 +119,24 @@ describe("AICardStore", () => {
 
 		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
 		expect(store.cards[0]?.latestHtmlFileId).toBe("latest-html")
+	})
+
+	it("fetches magic.project.js through the injected access-bound fileApi", async () => {
+		const shareAccess = createShareFileAccess({
+			token: "share-token",
+			projectId: "share-project",
+		})
+		const store = new AICardStore(createFileApi(shareAccess))
+
+		await store.sync("folder", createAttachmentTree())
+
+		// The share identity must reach the leaf; without it the read fails closed.
+		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
+		expect(getTemporaryDownloadUrl).toHaveBeenCalledWith({
+			file_ids: ["config"],
+			access: shareAccess,
+		})
+		expect(store.projectConfig?.name).toBe("Daily Card")
 	})
 
 	it("parses magic.project.js with multiline template literal fields", async () => {

@@ -11,7 +11,7 @@ import type { SourceBindingNode } from "@/types/source-binding"
 import { SourceType, ParentType, ProviderType, SourceBindingNodeType } from "@/types/source-binding"
 import FoldIcon from "@/pages/superMagic/assets/svg/file-folder.svg"
 import { CheckboxState } from "@/pages/superMagic/components/Share/FileSelector/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export interface WikiFileSelectorProps {
 	/** 知识库引用ID */

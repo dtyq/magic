@@ -40,6 +40,8 @@ class AsrTaskStatusDTO
     // 文件ID（数据库中的实际ID）
     public ?string $audioFileId = null; // 音频文件ID（写入magic_super_agent_task_files表后返回的ID）
 
+    public ?string $audioFormat = null; // 任务音频格式（录音任务仅支持 wav/opus）
+
     // note 文件信息
     public ?string $noteFileName = null; // note文件名（与音频文件在同一目录，为空表示无笔记文件）
 
@@ -70,6 +72,9 @@ class AsrTaskStatusDTO
 
     // ASR 沙箱专用隐藏话题ID（与总结用 topicId 区分）
     public ?int $sandboxTopicId = null;
+
+    // ASR 沙箱对应的 magic_super_agent_task 主键
+    public ?int $sandboxTaskId = null;
 
     // 录音目录信息
     public ?string $tempHiddenDirectory = null; // 隐藏目录路径（存放分片文件）
@@ -126,9 +131,14 @@ class AsrTaskStatusDTO
 
     public ?string $uploadGeneratedTitle = null; // upload-tokens 生成的标题（用于 summary 复用）
 
+    public ?string $summaryGeneratedTitle = null; // summary 阶段生成的标题（用于 MQ 重试复用）
+
     public ?string $finishOutputFilename = null; // finish 提交给沙箱的输出文件名（不含扩展名）
 
     public ?string $expectedAudioFileName = null; // finish 预期生成的音频文件名
+
+    // 客户端声明的最终音频分片总数；历史客户端未提供时保持 null
+    public ?int $fileShardCount = null;
 
     // ===== 新增：异步阶段管理字段 =====
     public ?string $currentPhase = null; // 当前阶段：merging|summarizing
@@ -148,6 +158,7 @@ class AsrTaskStatusDTO
         $this->status = AsrTaskStatusEnum::fromString($data['status'] ?? 'failed');
         $this->filePath = self::getStringValue($data, ['file_path', 'filePath', 'file_name', 'fileName']);
         $this->audioFileId = self::getStringValue($data, ['audio_file_id', 'audioFileId']);
+        $this->audioFormat = self::getStringValue($data, ['audio_format', 'audioFormat']);
         $this->noteFileName = self::getStringValue($data, ['note_file_name', 'noteFileName']);
         $this->noteFileId = self::getStringValue($data, ['note_file_id', 'noteFileId']);
         $this->markerFileName = self::getStringValue($data, ['marker_file_name', 'markerFileName']);
@@ -157,6 +168,7 @@ class AsrTaskStatusDTO
         $this->projectId = self::getStringValue($data, ['project_id', 'projectId']);
         $this->topicId = self::getStringValue($data, ['topic_id', 'topicId']);
         $this->sandboxTopicId = self::getIntValue($data, ['sandbox_topic_id', 'sandboxTopicId']);
+        $this->sandboxTaskId = self::getIntValue($data, ['sandbox_task_id', 'sandboxTaskId']);
 
         // 录音目录信息（自动清洗为相对路径）
         $this->tempHiddenDirectory = self::extractRelativePath(
@@ -198,8 +210,10 @@ class AsrTaskStatusDTO
         $this->markerContent = self::getStringValue($data, ['marker_content', 'markerContent']);
         $this->language = $data['language'] ?? null;
         $this->uploadGeneratedTitle = self::getStringValue($data, ['upload_generated_title', 'uploadGeneratedTitle']);
+        $this->summaryGeneratedTitle = self::getStringValue($data, ['summary_generated_title', 'summaryGeneratedTitle']);
         $this->finishOutputFilename = self::getStringValue($data, ['finish_output_filename', 'finishOutputFilename']);
         $this->expectedAudioFileName = self::getStringValue($data, ['expected_audio_file_name', 'expectedAudioFileName']);
+        $this->fileShardCount = self::getIntValue($data, ['file_shard_count', 'fileShardCount']);
 
         // 异步阶段管理字段
         $this->currentPhase = self::getStringValue($data, ['current_phase', 'currentPhase']);
@@ -223,13 +237,14 @@ class AsrTaskStatusDTO
      */
     public function toArray(): array
     {
-        return [
+        $data = [
             'task_key' => $this->taskKey,
             'user_id' => $this->userId,
             'organization_code' => $this->organizationCode,
             'status' => $this->status->value,
             'file_path' => $this->filePath,
             'audio_file_id' => $this->audioFileId,
+            'audio_format' => $this->audioFormat,
             'note_file_name' => $this->noteFileName,
             'note_file_id' => $this->noteFileId,
             'marker_file_name' => $this->markerFileName,
@@ -237,6 +252,7 @@ class AsrTaskStatusDTO
             'project_id' => $this->projectId,
             'topic_id' => $this->topicId,
             'sandbox_topic_id' => $this->sandboxTopicId,
+            'sandbox_task_id' => $this->sandboxTaskId,
             'temp_hidden_directory' => $this->tempHiddenDirectory,
             'display_directory' => $this->displayDirectory,
             'temp_hidden_directory_id' => $this->tempHiddenDirectoryId,
@@ -266,6 +282,7 @@ class AsrTaskStatusDTO
             'marker_content' => $this->markerContent,
             'language' => $this->language,
             'upload_generated_title' => $this->uploadGeneratedTitle,
+            'summary_generated_title' => $this->summaryGeneratedTitle,
             'finish_output_filename' => $this->finishOutputFilename,
             'expected_audio_file_name' => $this->expectedAudioFileName,
             // 异步阶段管理字段
@@ -274,6 +291,12 @@ class AsrTaskStatusDTO
             'phase_percent' => $this->phasePercent,
             'phase_error' => $this->phaseError,
         ];
+
+        if ($this->fileShardCount !== null) {
+            $data['file_shard_count'] = $this->fileShardCount;
+        }
+
+        return $data;
     }
 
     /**
@@ -406,9 +429,17 @@ class AsrTaskStatusDTO
     private static function getIntValue(array $data, array $keys, ?int $default = null): ?int
     {
         foreach ($keys as $key) {
-            if (isset($data[$key])) {
-                return (int) $data[$key];
+            if (! array_key_exists($key, $data)) {
+                continue;
             }
+
+            $value = $data[$key];
+            if ($value === null || $value === '') {
+                return $default;
+            }
+
+            $value = (int) $value;
+            return $value > 0 ? $value : $default;
         }
         return $default;
     }

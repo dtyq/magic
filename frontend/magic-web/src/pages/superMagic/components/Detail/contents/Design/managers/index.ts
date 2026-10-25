@@ -15,12 +15,13 @@ export { DesignVersionManager } from "./DesignVersionManager"
 export {
 	DesignRemoteListener,
 	type ApplyRemoteDesignDataFn,
-	type CheckRemoteUpdateFn,
 	type FetchRemoteDesignDataFn,
 	type LoadAndApplyRemoteFn,
 } from "./DesignRemoteListener"
 export {
 	type DesignRemoteUpdateListenerMode,
+	type DesignCurrentFileLoadResult,
+	type PendingDesignUpgrade,
 	type DesignConflict,
 	type DesignConflictReason,
 	type DesignElementConflict,

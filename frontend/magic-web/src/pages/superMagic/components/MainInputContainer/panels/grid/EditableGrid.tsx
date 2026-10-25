@@ -11,7 +11,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { GripVertical } from "lucide-react"
 import { EditableGridCard } from "./EditableGridCard"
 import type { IdentifiedOptionItem } from "../types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface EditableGridProps {
 	items: IdentifiedOptionItem[]

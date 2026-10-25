@@ -1,10 +1,9 @@
 import { memo, lazy, Suspense } from "react"
-import { useOrganizationSwitchPanelStyles } from "./styles.panel"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import GlobalSidebarStore from "@/stores/display/GlobalSidebarStore"
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconPlus } from "@tabler/icons-react"
-import MagicButton from "@/components/base/MagicButton"
+import { Button } from "@/components/shadcn-ui/button"
 import { functionHub } from "@/services/common/FunctionHub"
 import { DefaultFunction } from "@/services/common/FunctionHub/registerDefault"
 import { useMemoizedFn } from "ahooks"
@@ -17,7 +16,6 @@ const OrganizationSwitch = lazy(() => import("./OrganizationSwitch"))
 
 const OrganizationSwitchPanelComponent = () => {
 	const { isOrganizationSwitchOpen } = GlobalSidebarStore
-	const { styles } = useOrganizationSwitchPanelStyles()
 	const { t } = useTranslation("interface")
 	const { t: tSuper } = useTranslation("super")
 
@@ -55,7 +53,7 @@ const OrganizationSwitchPanelComponent = () => {
 			destroyOnClose
 			// 组织切换可从移动端设置 Sheet 内打开，默认高于 Sheet 的 z-[1100]，并支持业务场景临时抬升。
 			zIndex={GlobalSidebarStore.organizationSwitchZIndex}
-			bodyClassName={styles.panelContainer}
+			bodyClassName="flex h-[80vh] flex-col justify-between overflow-hidden"
 			onClose={handleClose}
 		>
 			{/* Title with Icon */}
@@ -79,16 +77,11 @@ const OrganizationSwitchPanelComponent = () => {
 					onClose={handleClose}
 				/>
 			</Suspense>
-			<div className={styles.footer}>
-				<MagicButton
-					type="text"
-					block
-					icon={<MagicIcon component={IconPlus} size={20} />}
-					onClick={handleAddAccount}
-					style={{ gap: 4 }}
-				>
+			<div className="flex items-center justify-center self-stretch border-t border-border bg-white px-4 py-2.5 dark:bg-neutral-800">
+				<Button variant="ghost" className="w-full gap-1" onClick={handleAddAccount}>
+					<MagicIcon component={IconPlus} size={20} />
 					{t("sider.addAccount")}
-				</MagicButton>
+				</Button>
 			</div>
 		</MagicPopup>
 	)

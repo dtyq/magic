@@ -1,4 +1,4 @@
-import dayjs, { type Dayjs } from "dayjs"
+import dayjs, { type Dayjs } from "@admin/infrastructure/vendors/dayjs"
 import type {
 	BuildCustomRelativeRangeArgs,
 	CommonAbsolutePresetRange,

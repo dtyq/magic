@@ -13,7 +13,7 @@ interface UseCrewPublishGuardParams {
 	isInitializing: boolean
 	readOnly?: boolean
 	projectId?: string
-	openPublishingStep: () => void
+	openPublishingStep: () => void | Promise<void>
 }
 
 export function useCrewPublishGuard({
@@ -53,7 +53,7 @@ export function useCrewPublishGuard({
 			})
 			if (!isMarkdownSynced) magicToast.warning(t("errors.syncIdentityMarkdownFailed"))
 
-			openPublishingStep()
+			await openPublishingStep()
 		} finally {
 			setIsPublishingPending(false)
 		}
@@ -63,7 +63,7 @@ export function useCrewPublishGuard({
 		if (readOnly) return
 		void (async () => {
 			if (layout.activeDetailKey === CREW_EDIT_STEP.Publishing) {
-				openPublishingStep()
+				await openPublishingStep()
 				return
 			}
 			if (isPublishingPending) return

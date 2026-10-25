@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\SuperMagic\Agent\DTO\Request;
 
+use Hyperf\HttpServer\Contract\RequestInterface;
+
 use function Hyperf\Translation\__;
 
 /**
@@ -14,6 +16,25 @@ use function Hyperf\Translation\__;
  */
 class UpdateAgentInfoRequestDTO extends CreateAgentRequestDTO
 {
+    /**
+     * 请求中实际提交的字段，用于区分未提交字段和显式空值。
+     *
+     * @var array<string, bool>
+     */
+    private array $providedFields = [];
+
+    public static function fromRequest(RequestInterface $request): static
+    {
+        $dto = parent::fromRequest($request);
+        $dto->providedFields = array_fill_keys(array_keys($request->all()), true);
+        return $dto;
+    }
+
+    public function hasField(string $field): bool
+    {
+        return isset($this->providedFields[$field]);
+    }
+
     /**
      * 获取验证规则.
      */

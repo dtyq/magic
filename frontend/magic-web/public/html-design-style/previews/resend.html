@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resend — Email for Developers</title>
+<style>:root{--canvas:#000000;--surface-card:#0a0a0c;--surface-elevated:#101012;--surface-deep:#06060a;--hairline:rgba(255,255,255,0.06);--hairline-strong:rgba(255,255,255,0.14);--divider-soft:rgba(255,255,255,0.04);--primary:#fcfdff;--primary-on:#000000;--ink:#fcfdff;--body:rgba(252,253,255,0.86);--charcoal:rgba(252,253,255,0.7);--mute:#a1a4a5;--ash:#888e90;--accent-orange:#ff801f;--accent-blue:#3b9eff;--accent-blue-glow:rgba(59,158,255,0.2);--accent-green:#11ff99;--accent-green-glow:rgba(17,255,153,0.18);--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--radius-full:9999px;--font-serif:'Domaine Display',Georgia,'Times New Roman',serif;--font-sans:'ABC Favorit','Inter',-apple-system,BlinkMacSystemFont,sans-serif;--font-mono:'Geist Mono','JetBrains Mono',ui-monospace,Menlo,monospace;} *{box-sizing:border-box;margin:0;padding:0;} html,body{background:var(--canvas);color:var(--ink);font-family:var(--font-sans);line-height:1.5;-webkit-font-smoothing:antialiased;} a{color:inherit;text-decoration:none;} .atmospheric-glow{position:absolute;top:0;left:50%;transform:translateX(-50%);width:960px;height:440px;background:radial-gradient(ellipse 65% 45% at 50% 0%,rgba(255,128,31,0.14) 0%,var(--accent-blue-glow) 45%,transparent 75%);filter:blur(60px);pointer-events:none;z-index:0;} header{position:sticky;top:0;z-index:50;background:rgba(0,0,0,0.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--hairline);height:58px;} .header-inner{max-width:1240px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:100%;} .brand-group{display:flex;align-items:center;gap:12px;} .resend-logo{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:600;letter-spacing:-0.02em;} .resend-icon{width:20px;height:20px;border-radius:4px;background:#ffffff;display:flex;align-items:center;justify-content:center;} .resend-icon svg{width:13px;height:13px;fill:#000000;} .nav-links{display:flex;align-items:center;gap:22px;font-size:13.5px;color:var(--charcoal);} .nav-link:hover,.nav-link.active{color:var(--ink);} .nav-link.active{font-weight:500;} .header-actions{display:flex;align-items:center;gap:14px;} .status-badge{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mute);padding:4px 10px;border-radius:var(--radius-full);border:1px solid var(--hairline);} .status-dot{width:7px;height:7px;border-radius:50%;background:var(--accent-green);box-shadow:0 0 8px var(--accent-green);} .btn-white{background:var(--primary);color:var(--primary-on);font-size:13px;font-weight:600;padding:6px 14px;border-radius:var(--radius-md);border:none;cursor:pointer;transition:opacity 0.15s;} .btn-white:hover{opacity:0.9;} .container{max-width:1240px;margin:0 auto;padding:28px 24px 50px;position:relative;z-index:1;} .hero-header{margin-bottom:30px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;} .hero-title-group h1{font-family:var(--font-serif);font-size:clamp(34px,4.5vw,52px);font-weight:400;line-height:1.05;letter-spacing:-1.2px;margin-bottom:8px;} .hero-title-group p{color:var(--charcoal);font-size:15px;max-width:560px;line-height:1.5;} .hero-cta-group{display:flex;align-items:center;gap:10px;} .btn-ghost{background:var(--surface-elevated);color:var(--ink);font-size:13px;font-weight:500;padding:7px 15px;border-radius:var(--radius-md);border:1px solid var(--hairline-strong);cursor:pointer;} .metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;} .metric-card{background:var(--surface-card);border:1px solid var(--hairline-strong);border-radius:var(--radius-lg);padding:18px 20px;display:flex;flex-direction:column;} .metric-label-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;} .metric-title{font-size:12.5px;color:var(--mute);} .metric-pill{font-size:11px;font-family:var(--font-mono);font-weight:600;padding:2px 7px;border-radius:var(--radius-full);background:rgba(17,255,153,0.1);color:var(--accent-green);border:1px solid rgba(17,255,153,0.25);} .metric-value{font-size:26px;font-weight:500;letter-spacing:-0.03em;color:var(--ink);line-height:1.15;} .metric-footnote{font-size:11.5px;color:var(--ash);margin-top:4px;} .chart-card{background:var(--surface-card);border:1px solid var(--hairline-strong);border-radius:var(--radius-lg);padding:18px 20px;margin-bottom:22px;} .chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;} .chart-title-wrap h3{font-size:14px;font-weight:600;} .chart-title-wrap span{font-size:11.5px;color:var(--mute);} .chart-legend{display:flex;align-items:center;gap:14px;font-size:11.5px;color:var(--mute);} .legend-item{display:flex;align-items:center;gap:6px;} .legend-dot{width:7px;height:7px;border-radius:50%;} .chart-svg-wrap{width:100%;height:120px;} .chart-svg-wrap svg{width:100%;height:100%;} .showcase-grid{display:grid;grid-template-columns:1.15fr 0.85fr;gap:16px;margin-bottom:22px;} .code-window{background:var(--surface-deep);border:1px solid var(--hairline-strong);border-radius:var(--radius-lg);overflow:hidden;display:flex;flex-direction:column;} .code-chrome{background:var(--surface-card);border-bottom:1px solid var(--hairline);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;} .traffic-lights{display:flex;align-items:center;gap:6px;} .t-dot{width:9px;height:9px;border-radius:50%;} .t-red{background:#ff5f56;} .t-yellow{background:#ffbd2e;} .t-green{background:#27c93f;} .code-tab{font-family:var(--font-mono);font-size:12px;color:var(--body);display:flex;align-items:center;gap:6px;} .code-body{padding:16px;font-family:var(--font-mono);font-size:11.5px;line-height:1.6;color:#a1a4a5;overflow-x:auto;} .syn-import,.syn-from{color:#f43f5e;} .syn-str{color:#38bdf8;} .syn-comp{color:#c084fc;} .syn-attr{color:#fbbf24;} .syn-fn{color:#60a5fa;} .email-mockup-wrapper{background:var(--surface-card);border:1px solid var(--hairline-strong);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;} .mockup-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;} .mockup-badge{font-size:11px;font-weight:500;color:var(--mute);display:flex;align-items:center;gap:6px;} .rendered-email-card{background:#ffffff;color:#111827;border-radius:var(--radius-md);padding:20px 18px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.4);flex:1;display:flex;flex-direction:column;} .email-brand-logo{font-size:12.5px;font-weight:800;letter-spacing:-0.02em;color:#000000;margin-bottom:14px;display:flex;align-items:center;gap:6px;} .email-brand-logo span.square{width:11px;height:11px;background:#000000;border-radius:2px;} .email-h1{font-size:17px;font-weight:700;line-height:1.3;color:#111827;margin-bottom:6px;} .email-p{font-size:12.5px;color:#4b5563;line-height:1.5;margin-bottom:14px;} .email-btn{display:inline-block;background:#000000;color:#ffffff;font-size:12px;font-weight:600;padding:7px 14px;border-radius:5px;text-decoration:none;align-self:flex-start;margin-bottom:16px;} .email-footer{font-size:10.5px;color:#9ca3af;line-height:1.45;border-top:1px solid #f3f4f6;padding-top:10px;margin-top:auto;} .token-card{background:var(--surface-card);border:1px solid var(--hairline-strong);border-radius:var(--radius-lg);padding:16px 20px;} .token-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;} .token-card-header h4{font-size:13.5px;font-weight:600;} .token-table{width:100%;border-collapse:collapse;font-size:12px;} .token-table th{text-align:left;padding:7px 8px;font-size:10.5px;color:var(--ash);font-weight:500;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--hairline);} .token-table td{padding:10px 8px;border-bottom:1px solid var(--divider-soft);color:var(--body);} .key-name{font-weight:600;color:var(--ink);} .key-val-box{display:inline-flex;align-items:center;gap:6px;background:var(--surface-deep);border:1px solid var(--hairline-strong);padding:3px 8px;border-radius:5px;font-family:var(--font-mono);font-size:11px;color:var(--mute);} .copy-icon{cursor:pointer;color:var(--ash);} .copy-icon:hover{color:var(--ink);} .perm-pill{font-size:10px;padding:2px 6px;border-radius:var(--radius-full);background:rgba(59,158,255,0.1);color:var(--accent-blue);border:1px solid rgba(59,158,255,0.25);font-weight:500;} .status-cell{display:flex;align-items:center;gap:5px;} .status-dot-sm{width:6px;height:6px;border-radius:50%;background:var(--accent-green);} .btn-action-ghost{background:transparent;color:var(--mute);font-size:11px;border:1px solid var(--hairline);padding:2px 8px;border-radius:4px;cursor:pointer;} .btn-action-ghost:hover{color:var(--ink);border-color:var(--hairline-strong);} </style>
+</head>
+<body>
+<div class="atmospheric-glow"></div>
+
+<!-- Top Navigation -->
+<header>
+  <div class="header-inner">
+    <div class="brand-group">
+      <div class="resend-logo">
+        <div class="resend-icon">
+          <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm3 3v10h10V7H7zm2 2h6v2H9V9zm0 4h6v2H9v-2z"/></svg>
+        </div>
+        <span>Resend</span>
+      </div>
+    </div>
+
+    <nav class="nav-links">
+      <a class="nav-link active" href="#">Overview</a>
+      <a class="nav-link" href="#">Emails</a>
+      <a class="nav-link" href="#">Analytics</a>
+      <a class="nav-link" href="#">Audiences</a>
+      <a class="nav-link" href="#">API Keys</a>
+      <a class="nav-link" href="#">Settings</a>
+    </nav>
+
+    <div class="header-actions">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span>Operational</span>
+      </div>
+      <button class="btn-white">Send Email</button>
+    </div>
+  </div>
+</header>
+
+<!-- Main Container -->
+<div class="container">
+  <!-- Hero Section -->
+  <div class="hero-header">
+    <div class="hero-title-group">
+      <h1>Email for developers.</h1>
+      <p>The best way to reach humans instead of spam folders. Programmatic email infrastructure powered by React Email.</p>
+    </div>
+    <div class="hero-cta-group">
+      <button class="btn-ghost">View Documentation</button>
+      <button class="btn-white">+ Create API Key</button>
+    </div>
+  </div>
+
+  <!-- Key Metrics Row -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label-row">
+        <span class="metric-title">Deliverability</span>
+        <span class="metric-pill">+0.24%</span>
+      </div>
+      <div class="metric-value">99.85%</div>
+      <div class="metric-footnote">Benchmark: 94.2%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label-row">
+        <span class="metric-title">Emails Delivered</span>
+        <span class="metric-pill">Active</span>
+      </div>
+      <div class="metric-value">1,248,920</div>
+      <div class="metric-footnote">Last 30 days &bull; 0.01% bounce</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label-row">
+        <span class="metric-title">Average Latency</span>
+        <span class="metric-pill" style="background: rgba(59,158,255,0.1); color: var(--accent-blue); border: 1px solid rgba(59,158,255,0.25);">p95</span>
+      </div>
+      <div class="metric-value">182ms</div>
+      <div class="metric-footnote">Global edge dispatch</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label-row">
+        <span class="metric-title">Complaint Rate</span>
+        <span class="metric-pill">Optimal</span>
+      </div>
+      <div class="metric-value">0.008%</div>
+      <div class="metric-footnote">Target &lt; 0.100%</div>
+    </div>
+  </div>
+
+  <!-- Email Delivery Analytics Chart -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title-wrap">
+        <h3>Real-time Delivery Analytics</h3>
+        <span>Telemetry recorded over the last 14 days</span>
+      </div>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--accent-blue);"></div>
+          <span>Sent (1.25M)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--accent-green);"></div>
+          <span>Delivered (99.85%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SVG Area Line Chart -->
+    <div class="chart-svg-wrap">
+      <svg viewBox="0 0 1000 130" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3b9eff" stop-opacity="0.28"/>
+            <stop offset="100%" stop-color="#3b9eff" stop-opacity="0.0"/>
+          </linearGradient>
+          <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#11ff99" stop-opacity="0.22"/>
+            <stop offset="100%" stop-color="#11ff99" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <line x1="0" y1="20" x2="1000" y2="20" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4 4"/>
+        <line x1="0" y1="60" x2="1000" y2="60" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4 4"/>
+        <line x1="0" y1="100" x2="1000" y2="100" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4 4"/>
+
+        <path d="M0,85 Q90,60 180,68 T360,46 T540,64 T720,34 T900,38 L1000,28 L1000,130 L0,130 Z" fill="url(#blueGrad)"/>
+        <path d="M0,87 Q90,62 180,70 T360,48 T540,66 T720,36 T900,40 L1000,30 L1000,130 L0,130 Z" fill="url(#greenGrad)"/>
+
+        <path d="M0,85 Q90,60 180,68 T360,46 T540,64 T720,34 T900,38 L1000,28" fill="none" stroke="#3b9eff" stroke-width="2.2"/>
+        <path d="M0,87 Q90,62 180,70 T360,48 T540,66 T720,36 T900,40 L1000,30" fill="none" stroke="#11ff99" stroke-width="2"/>
+
+        <circle cx="720" cy="36" r="4" fill="#11ff99" stroke="#000000" stroke-width="2"/>
+        <circle cx="1000" cy="28" r="4" fill="#3b9eff" stroke="#000000" stroke-width="2"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Code + Preview Showcase -->
+  <div class="showcase-grid">
+    <div class="code-window">
+      <div class="code-chrome">
+        <div class="traffic-lights">
+          <div class="t-dot t-red"></div>
+          <div class="t-dot t-yellow"></div>
+          <div class="t-dot t-green"></div>
+        </div>
+        <div class="code-tab">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          welcome-email.tsx
+        </div>
+        <div style="font-size: 11px; color: var(--ash);">React Email</div>
+      </div>
+      <div class="code-body">
+<span class="syn-import">import</span> { <span class="syn-comp">Html</span>, <span class="syn-comp">Body</span>, <span class="syn-comp">Container</span>, <span class="syn-comp">Heading</span>, <span class="syn-comp">Text</span>, <span class="syn-comp">Button</span> } <span class="syn-from">from</span> <span class="syn-str">'@react-email/components'</span>;
+
+<span class="syn-import">export default function</span> <span class="syn-fn">WelcomeEmail</span>({ name = <span class="syn-str">"Alex"</span> }) {
+  <span class="syn-import">return</span> (
+    &lt;<span class="syn-comp">Html</span> lang=<span class="syn-str">"en"</span>&gt;
+      &lt;<span class="syn-comp">Body</span> <span class="syn-attr">style</span>={styles.main}&gt;
+        &lt;<span class="syn-comp">Container</span> <span class="syn-attr">style</span>={styles.container}&gt;
+          &lt;<span class="syn-comp">Heading</span> <span class="syn-attr">style</span>={styles.heading}&gt;
+            Welcome to Acme Cloud, {name}!
+          &lt;/<span class="syn-comp">Heading</span>&gt;
+          &lt;<span class="syn-comp">Text</span> <span class="syn-attr">style</span>={styles.paragraph}&gt;
+            Your dedicated SMTP cluster and API credentials have been provisioned.
+          &lt;/<span class="syn-comp">Text</span>&gt;
+          &lt;<span class="syn-comp">Button</span> <span class="syn-attr">href</span>=<span class="syn-str">"https://acme.dev/start"</span> <span class="syn-attr">style</span>={styles.btn}&gt;
+            Open Cloud Console &rarr;
+          &lt;/<span class="syn-comp">Button</span>&gt;
+        &lt;/<span class="syn-comp">Container</span>&gt;
+      &lt;/<span class="syn-comp">Body</span>&gt;
+    &lt;/<span class="syn-comp">Html</span>&gt;
+  );
+}
+      </div>
+    </div>
+
+    <!-- Email Inset Card -->
+    <div class="email-mockup-wrapper">
+      <div class="mockup-header">
+        <span class="mockup-badge">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          Rendered Email Output
+        </span>
+        <span style="font-size: 11px; color: var(--ash);">HTML &bull; 600px Max</span>
+      </div>
+
+      <div class="rendered-email-card">
+        <div class="email-brand-logo">
+          <span class="square"></span>
+          ACME PLATFORM
+        </div>
+        <h2 class="email-h1">Welcome aboard, Alex!</h2>
+        <p class="email-p">
+          Your production API keys and SMTP credentials have been generated. You can now dispatch transactional emails with zero cold starts.
+        </p>
+        <a href="#" class="email-btn">Open Cloud Console &rarr;</a>
+        <div class="email-footer">
+          Acme Corporation &bull; 548 Market St, San Francisco, CA 94104<br>
+          Don't want to receive these emails? Unsubscribe anytime.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Token Management Row -->
+  <div class="token-card">
+    <div class="token-card-header">
+      <h4>Production API Keys &amp; SMTP Credentials</h4>
+      <button class="btn-ghost" style="padding: 4px 10px; font-size: 11.5px;">+ New Key</button>
+    </div>
+    <table class="token-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Key Value</th>
+          <th>Permissions</th>
+          <th>Created</th>
+          <th>Status</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="key-name">Production Main</span></td>
+          <td>
+            <div class="key-val-box">
+              <span>re_9x8F2kL...7bX1</span>
+              <svg class="copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </div>
+          </td>
+          <td><span class="perm-pill">Full Access</span></td>
+          <td>Sep 12, 2026</td>
+          <td>
+            <div class="status-cell">
+              <div class="status-dot-sm"></div>
+              <span>Active</span>
+            </div>
+          </td>
+          <td style="text-align: right;">
+            <button class="btn-action-ghost">Revoke</button>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="key-name">Staging Ingestion</span></td>
+          <td>
+            <div class="key-val-box">
+              <span>re_2a7B1mV...4zC9</span>
+              <svg class="copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </div>
+          </td>
+          <td><span class="perm-pill">Sending Only</span></td>
+          <td>Sep 18, 2026</td>
+          <td>
+            <div class="status-cell">
+              <div class="status-dot-sm"></div>
+              <span>Active</span>
+            </div>
+          </td>
+          <td style="text-align: right;">
+            <button class="btn-action-ghost">Revoke</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

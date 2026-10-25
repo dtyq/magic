@@ -1,13 +1,12 @@
-import { ReactRenderer } from "@tiptap/react"
-import { exitSuggestion, type SuggestionOptions, type SuggestionProps } from "@tiptap/suggestion"
+import { ReactRenderer } from "@/infrastructure/editors/tiptap/react"
+import {
+	exitSuggestion,
+	type SuggestionOptions,
+	type SuggestionProps,
+} from "@/infrastructure/editors/tiptap/suggestion"
 
 // Types
-import {
-	McpMentionData,
-	MentionItemType,
-	type MentionItem,
-	type MentionSelectContext,
-} from "../types"
+import type { MentionItem, MentionSelectContext } from "../types"
 import type {
 	MentionPanelPluginOptions,
 	MentionPanelRendererProps,
@@ -16,10 +15,6 @@ import type {
 
 // Components
 import MentionPanelRenderer from "./MentionPanelRenderer"
-import {
-	checkMCPOAuth,
-	MCPOAuthType,
-} from "@/components/Agent/MCP/AgentSettings/AgentPanel/MCPPanel/helpers"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
 // 仅在用户刚输入 "@" 的短时间窗口内，允许空查询触发面板
@@ -46,6 +41,12 @@ export function createMentionPanelSuggestion(
 		catalogBehavior,
 		viewMode,
 		galleryOptions,
+		enableMultiSelect,
+		canToggleMultiSelectItem,
+		multiSelectNavigationPolicy,
+		selectionScopeId,
+		selectionSummary,
+		getSelectionSummary,
 		trailingTextAfterInsert,
 		canSelectItem,
 	} = options
@@ -54,6 +55,10 @@ export function createMentionPanelSuggestion(
 		getInitialLoadOptions ? getInitialLoadOptions() : initialLoadOptions
 	const resolveInitialNavigationStack = () =>
 		getInitialNavigationStack ? getInitialNavigationStack() : initialNavigationStack
+	// Resolve volatile host state when the panel opens/updates; the extension itself
+	// must remain stable because MessageEditor recreates Tiptap when its identity changes.
+	const resolveSelectionSummary = () =>
+		getSelectionSummary ? getSelectionSummary() : selectionSummary
 
 	return {
 		// 触发建议面板的字符
@@ -71,31 +76,19 @@ export function createMentionPanelSuggestion(
 		// 只允许“本次输入 @”触发首次激活，避免光标落在历史 @ 后输入文本时自动弹出
 		allow: ({ editor, range, isActive }) => {
 			const enabled = editor.storage.mention?.enabled ?? true
-			if (!enabled) {
-				return false
-			}
-
 			const lastAtInputPos = editor.storage.mention?.lastAtInputPos ?? -1
+			const lastAtInputAt = editor.storage.mention?.lastAtInputAt ?? 0
+			const isInActivationWindow =
+				Date.now() - lastAtInputAt <= MENTION_INPUT_ACTIVATION_WINDOW_MS
 			// 激活过程中如果 range 漂移到其他 @，也要立即阻断
-			if (isActive) {
-				return range.from === lastAtInputPos
-			}
+			const result =
+				enabled &&
+				(isActive
+					? range.from === lastAtInputPos
+					: isInActivationWindow && range.from === lastAtInputPos)
 
-			if (!isActive) {
-				const lastAtInputAt = editor.storage.mention?.lastAtInputAt ?? 0
-				const isInActivationWindow =
-					Date.now() - lastAtInputAt <= MENTION_INPUT_ACTIVATION_WINDOW_MS
-
-				return isInActivationWindow && range.from === lastAtInputPos
-			}
-
-			return true
+			return result
 		},
-
-		// 开发环境下打开 suggestion debug 日志
-		...(process.env.NODE_ENV === "development" && {
-			debug: true,
-		}),
 
 		// Items function - required by Tiptap suggestion
 		items: () => [],
@@ -167,48 +160,6 @@ export function createMentionPanelSuggestion(
 					shouldSuppressLifecycleExit = true
 				}
 				if (!editor || !range) return
-
-				if (item.type === MentionItemType.MCP && !context?.mcpValidated) {
-					// 先 blur 一下，避免在 OAuth 过程中，键盘还能输入
-					runActiveEditor(editor, (activeEditor) => {
-						activeEditor.chain().blur().run()
-					})
-
-					// Temporarily disable keyboard shortcuts during OAuth
-					if (component) {
-						component.updateProps({
-							...component.props,
-							disableKeyboardShortcuts: true,
-						})
-					}
-
-					try {
-						const res = await checkMCPOAuth(item.data as McpMentionData)
-
-						if (res === MCPOAuthType.validationFailed) {
-							// Remove the @ character and query text when validation fails
-							runActiveEditor(editor, (activeEditor) => {
-								activeEditor.chain().focus().deleteRange(range).run()
-							})
-							// Close the panel
-							handleExit?.()
-							return
-						}
-						// 如果验证成功，则让 store 内部刷新 MCP 列表
-						void dataService?.dispatch({
-							kind: "effect",
-							effect: "refresh-mcp",
-						})
-					} finally {
-						// Re-enable keyboard shortcuts after OAuth
-						if (component) {
-							component.updateProps({
-								...component.props,
-								disableKeyboardShortcuts: false,
-							})
-						}
-					}
-				}
 
 				const insertContent = getInsertedContent(item)
 				const inserted = runActiveEditor(
@@ -308,6 +259,11 @@ export function createMentionPanelSuggestion(
 							catalogBehavior,
 							viewMode,
 							galleryOptions,
+							enableMultiSelect,
+							canToggleMultiSelectItem,
+							multiSelectNavigationPolicy,
+							selectionScopeId,
+							selectionSummary: resolveSelectionSummary(),
 							onSelect: handleSelect,
 							onExit: handleExit,
 							disableKeyboardShortcuts,
@@ -372,6 +328,11 @@ export function createMentionPanelSuggestion(
 							catalogBehavior,
 							viewMode,
 							galleryOptions,
+							enableMultiSelect,
+							canToggleMultiSelectItem,
+							multiSelectNavigationPolicy,
+							selectionScopeId,
+							selectionSummary: resolveSelectionSummary(),
 							onSelect: handleSelect,
 							onExit: handleExit,
 							disableKeyboardShortcuts,

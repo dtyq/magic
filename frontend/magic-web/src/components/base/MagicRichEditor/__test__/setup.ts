@@ -94,7 +94,7 @@ export const mockSetup = () => {
 	vi.resetAllMocks()
 
 	// 模拟 TipTap 的依赖
-	vi.mock("@tiptap/react", () => ({
+	vi.mock("@/infrastructure/editors/tiptap/react", () => ({
 		useEditor: vi.fn().mockImplementation((config) => {
 			// 条件性地调用onUpdate回调
 			if (config && config.onUpdate && !config.hasCalledUpdate) {
@@ -204,7 +204,7 @@ export const mockSetup = () => {
 	}))
 
 	// 模拟扩展模块
-	vi.mock("@tiptap/starter-kit", () => ({
+	vi.mock("@/infrastructure/editors/tiptap/starter-kit", () => ({
 		default: {
 			configure: vi.fn().mockImplementation(() => {
 				// 添加明确类型标注
@@ -225,15 +225,15 @@ export const mockSetup = () => {
 		},
 	}))
 
-	vi.mock("@tiptap/extension-highlight", () => ({
+	vi.mock("@/infrastructure/editors/tiptap/extension-highlight", () => ({
 		default: {},
 	}))
 
-	vi.mock("@tiptap/extension-text-align", () => ({
+	vi.mock("@/infrastructure/editors/tiptap/extension-text-align", () => ({
 		default: {},
 	}))
 
-	vi.mock("@tiptap/extension-text-style", () => ({
+	vi.mock("@/infrastructure/editors/tiptap/extension-text-style", () => ({
 		default: {},
 	}))
 
@@ -273,7 +273,7 @@ export const mockSetup = () => {
 }
 
 // Mock StarterKit
-vi.mock("@tiptap/starter-kit", () => {
+vi.mock("@/infrastructure/editors/tiptap/starter-kit", () => {
 	return {
 		default: {
 			configure: () => ({

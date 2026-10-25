@@ -1,6 +1,6 @@
 import type { ParsedKeyboardEvent, ValidationResult } from "../components/ShortcutKeysList/types"
 import type { ShortcutKeyConfig } from "../components/ShortcutKeysList/constants"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("ShortcutUtils", { enableConfig: { console: false } })
 

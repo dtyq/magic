@@ -161,9 +161,11 @@ class ProviderModelPermissionResolver
                 $isVideo => MagicResourceEnum::PLATFORM_MODEL_VIDEO->value,
                 default => MagicResourceEnum::PLATFORM_MODEL_TEXT->value,
             },
-            CheckProviderModelPermission::SCOPE_WORKSPACE => $isImage
-                ? MagicResourceEnum::WORKSPACE_MODEL_IMAGE->value
-                : MagicResourceEnum::WORKSPACE_MODEL_TEXT->value,
+            CheckProviderModelPermission::SCOPE_WORKSPACE => match (true) {
+                $isImage => MagicResourceEnum::WORKSPACE_MODEL_IMAGE->value,
+                $isVideo => MagicResourceEnum::WORKSPACE_MODEL_VIDEO->value,
+                default => MagicResourceEnum::WORKSPACE_MODEL_TEXT->value,
+            },
             default => throw new InvalidArgumentException('Unknown provider model permission scope: ' . $scope),
         };
     }

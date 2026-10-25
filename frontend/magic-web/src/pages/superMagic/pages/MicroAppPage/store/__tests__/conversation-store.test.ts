@@ -18,7 +18,7 @@ vi.mock("@/pages/superMagic/services/messageSendRenameTask", () => ({
 	takeProjectRenameTask: mocks.takeProjectRenameTask,
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({ error: vi.fn() }),
 	},

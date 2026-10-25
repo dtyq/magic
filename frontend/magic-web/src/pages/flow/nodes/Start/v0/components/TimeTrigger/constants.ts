@@ -1,4 +1,4 @@
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import i18next from "i18next"
 
 export const WEEK_MAP: { [key: number]: string } = {

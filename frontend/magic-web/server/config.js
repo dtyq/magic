@@ -25,6 +25,7 @@ module.exports.rootPath = path.resolve(__dirname)
 const envVarWhitelist = [
 	"MAGIC_APP_ENV",
 	"MAGIC_IS_PRIVATE_DEPLOY",
+	"MAGIC_MICRO_APP_ENABLED",
 	"MAGIC_TEAMSHARE_BASE_URL",
 	"MAGIC_SOCKET_BASE_URL",
 	"MAGIC_SERVICE_BASE_URL",
@@ -53,6 +54,8 @@ const envVarWhitelist = [
 	"MAGIC_ENABLE_API_CACHE",
 	"MAGIC_SW_MODE",
 	"MAGIC_HTML_SANDBOX_URL",
+	"AGENT_REFERENCED_PROJECT_MOUNT_BASE_PATH",
+	"AGENT_USER_HOME_PATH",
 ]
 
 /**

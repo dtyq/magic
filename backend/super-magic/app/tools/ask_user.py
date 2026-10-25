@@ -1,14 +1,23 @@
 """ask_user 工具：向用户提问并暂停当前 Agent 轮次。"""
 
+import hashlib
 import json
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Literal, Optional, Tuple
+from xml.sax.saxutils import escape
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
+from app.i18n import i18n
+from app.tools.ask_user_parser import (
+    AskUserQuestionParseError,
+    QuestionRepair,
+    parse_questions_xml_with_report,
+)
 from app.core.entity.message.server_message import (
     AskUserQuestionContent,
     AskUserResultContent,
@@ -25,22 +34,47 @@ from app.tools.core.tool_decorator import tool
 
 logger = get_logger(__name__)
 
-# Python 侧内部超时（秒），与 PHP 侧 Redis TTL=3600s 配合
-ASK_USER_TIMEOUT_MIN_SECONDS = 10 * 60
-ASK_USER_TIMEOUT_MAX_SECONDS = 30 * 60
-ASK_USER_TIMEOUT_DEFAULT_SECONDS = 10 * 60
+# 用户可见的等待策略只有两档：默认一直等待，简单选择题最多等待 60 秒。
+ASK_USER_TIMEOUT_SECONDS = 60
+ASK_USER_NO_TIMEOUT = 0
 ASK_USER_POLICY_SKIP_SECONDS = 1
 
+
+@dataclass
+class _AskUserPreparation:
+    """同次调用私有的解析状态，不接受模型通过工具参数伪造。"""
+
+    fingerprint: str
+    questions: List[dict]
+    repairs: tuple[QuestionRepair, ...] = ()
+    error_code: str = ""
+    repair_notified: bool = False
+    bound_preparation_id: str = ""
+    ready: bool = False
+
+
 class AskUserParams(BaseToolParams):
+    prepared_tool_call_id: str | None = Field(
+        default=None,
+        description="Bind a prepared operation, including skill publication. Omit questions: the runtime supplies the exact confirmation question. Never invent a confirmation ID.",
+    )
     questions: str = Field(
+        default="",
         description="""<!--zh: 用 XML 格式描述要问用户的问题。支持 type: confirm / input / select / multi_select。每个问题用 <question> 标签包裹。-->
 Questions in XML format. Wrap each question in a <question> tag with a `type` attribute (confirm / input / select / multi_select). For select/multi_select, add <option> children. Optional attributes: default, placeholder, min, max.""",
     )
-    timeout: int = Field(
-        default=ASK_USER_TIMEOUT_DEFAULT_SECONDS,
-        description="""<!--zh: 等待用户回答的超时秒数（600~1800，即 10~30 分钟）。根据问题复杂程度自行判断：简单确认填 600，需要用户思考或输入内容填 900~1200，涉及复杂决策或需要用户查阅资料填 1200~1800。-->
-How many seconds to wait for the user's answer (600–1800, i.e. 10–30 minutes). Choose based on the complexity of the question: 600 for simple confirmations, 900–1200 when the user needs to think or type content, 1200–1800 for complex decisions or when the user may need to look something up.""",
+    timeout: Optional[Literal[60]] = Field(
+        default=None,
+        description="""<!--zh: 可选等待时间。默认不传，表示一直等用户回答；只有简单的是否确认或单选、每题都有安全默认值时才传 60。包含输入题、需要思考或会明显影响后续方向的问题不要传 timeout。-->
+Optional response deadline. Omit it by default to wait for the user indefinitely. Set it to 60 only for simple confirm or single-select questions where every question has a safe default. Omit timeout for input questions, questions that need thought, or decisions that can materially change the next steps.""",
     )
+
+
+    @model_validator(mode="after")
+    def require_questions_or_preparation(self) -> "AskUserParams":
+        if not self.questions and not self.prepared_tool_call_id:
+            raise ValueError("questions is required unless prepared_tool_call_id is supplied")
+        return self
 
 
 @tool()
@@ -68,6 +102,12 @@ class AskUserTool(BaseUserToolCallTool[AskUserParams]):
 3. shell 中带删除语义的命令（rm、find -delete 等）——先 dry-run 列出受影响文件，用日常语言向用户解释结果，confirm 后再执行
 4. 发送消息、调用外部 API 等不可撤回操作——说明将发送的内容和目标，confirm
 5. 修改系统配置、环境变量、定时任务——说明变更内容和可能影响，confirm
+
+等待时间策略（必须遵守）：
+- 默认不传 timeout，表示一直等用户回答。
+- 只有简单的 confirm 或单选 select，且每道题都有安全默认值时，才传 timeout=60。
+- input、多题填写、需要用户思考或会明显影响后续方向的问题，不传 timeout。
+- 不要使用其它等待时长。用户需要较长时间时，宁可一直等待，也不要替用户决定。
 
 问题撰写要求（适用于所有类型的提问）：
 - 假设用户不懂技术，使用日常语言，不要只贴命令或裸路径
@@ -112,7 +152,7 @@ questions 参数的 XML 格式示例：
 
 支持的类型：confirm、input、select、multi_select。
 select/multi_select 会自动追加一个"其他"自由输入选项。
-可用 default 属性设置超时或用户跳过时的回退值。
+使用 timeout=60 时，必须为每道题设置安全的 default 属性；不设置 timeout 时不要依赖默认值自动结束问题。
 -->
 When to call ask_user:
 - Must-know information that cannot be reasonably inferred (target path, credentials, format preference, etc.)
@@ -126,6 +166,12 @@ Destructive / irreversible operation rules (MUST confirm even when the user casu
 3. Shell commands with delete semantics (rm, find -delete, etc.) — dry-run first to list affected files, explain the result in plain language, then confirm before executing.
 4. Sending messages or calling external APIs (non-reversible) — describe what will be sent and to where, then confirm.
 5. Changing system config, env vars, or cron jobs — explain the change and potential impact, then confirm.
+
+Response deadline policy (MUST follow):
+- Omit timeout by default; wait for the user indefinitely.
+- Set timeout=60 only for simple confirm or single-select questions where every question has a safe default.
+- Omit timeout for input questions, multi-question forms, questions that need thought, or decisions that can materially change the next steps.
+- Do not use any other deadline. When the user may need more time, keep waiting instead of deciding for them.
 
 How to write good questions (applies to ALL question types, not only destructive confirmations):
 - Assume the user may not be technical. Use everyday language; do not paste raw commands or bare paths.
@@ -172,36 +218,98 @@ Features to enable:
 
 Allowed types: confirm, input, select, multi_select.
 For select/multi_select, the system auto-appends an "Other" free-input option.
-Use the `default` attribute to set a fallback when the user times out or skips.
+When using timeout=60, every question must have a safe `default` attribute. Without timeout, do not rely on an automatic fallback.
 """
 
-    user_tool_call_timeout = ASK_USER_TIMEOUT_DEFAULT_SECONDS
+    user_tool_call_timeout: Optional[int] = None
 
     async def _prepare(self, tool_context: ToolContext) -> None:
-        """Parse questions XML and store for BEFORE_TOOL_CALL card and execute."""
-        from app.tools.ask_user_parser import parse_questions_xml
+        """准备完整问卷，保留同次解析身份及可恢复格式的修复报告。"""
 
+        cached_preparation = tool_context.get_extension("ask_user_preparation")
+        if isinstance(cached_preparation, _AskUserPreparation):
+            cached_preparation.ready = False
         raw_xml = tool_context.arguments.get("questions", "")
-        tool_context.arguments["parsed_questions"] = parse_questions_xml(raw_xml)
-        tool_context.arguments["status"] = "pending"
-
         source = self._get_execution_source(tool_context)
+        prepared_id = tool_context.arguments.get("prepared_tool_call_id")
+        if prepared_id and is_ask_user_allowed_source(source):
+            from app.service.prepared_operation_confirmation import PreparedOperationConfirmation
+
+            confirmation = PreparedOperationConfirmation.from_tool(tool_context)
+            prepared = await confirmation.read(str(prepared_id))
+            raw_xml = f'<question type="confirm">{escape(prepared.question)}</question>'
+            tool_context.arguments["questions"] = raw_xml
+        arguments = tool_context.arguments
+        fingerprint = hashlib.sha256(raw_xml.encode("utf-8")).hexdigest()
+        preparation = tool_context.get_extension("ask_user_preparation")
+        if not isinstance(preparation, _AskUserPreparation) or preparation.fingerprint != fingerprint:
+            preparation = _AskUserPreparation(fingerprint=fingerprint, questions=[])
+            try:
+                parsed = parse_questions_xml_with_report(raw_xml)
+                preparation.questions = parsed.questions
+                preparation.repairs = parsed.repairs
+                if not parsed.questions:
+                    preparation.error_code = "missing_questions"
+            except AskUserQuestionParseError as error:
+                preparation.error_code = error.code
+                logger.warning(f"ask_user 问卷无法完整解析: 类别={error.code}, 题序={error.question_index}")
+            tool_context.register_extension("ask_user_preparation", preparation)
+        arguments["parsed_questions"] = preparation.questions
+        arguments["status"] = "pending" if preparation.questions else "error"
+        if not preparation.questions:
+            return
+
         policy_blocked = not is_ask_user_allowed_source(source)
         tool_context.arguments["ask_user_policy_blocked"] = policy_blocked
         tool_context.arguments["ask_user_policy_source"] = source.value
 
         if policy_blocked:
+            preparation.ready = True
             tool_context.arguments["expires_at"] = int(time.time()) + ASK_USER_POLICY_SKIP_SECONDS
             return
 
-        # 用大模型指定的超时覆盖基类写入的默认值，限制在 [600, 1800] 秒内
+        if prepared_id:
+            parsed = tool_context.arguments["parsed_questions"]
+            # 同次展示重读仍验证快照权限，但不能重复绑定已进入 waiting 的操作。
+            if preparation.bound_preparation_id != str(prepared_id):
+                await confirmation.bind(str(prepared_id), tool_context.tool_call_id, parsed[0]["sub_id"])
+                preparation.bound_preparation_id = str(prepared_id)
+            # 准备好的操作等待真人决定，不以超时答案代替确认。
+            tool_context.arguments["expires_at"] = 0
+            preparation.ready = True
+            return
+
+        preparation.ready = True
+        # 默认一直等待；只有简单选择题才允许使用 60 秒。
+        tool_context.arguments["expires_at"] = ASK_USER_NO_TIMEOUT
         raw_timeout = tool_context.arguments.get("timeout")
-        if raw_timeout is not None:
-            clamped = max(
-                ASK_USER_TIMEOUT_MIN_SECONDS,
-                min(ASK_USER_TIMEOUT_MAX_SECONDS, int(raw_timeout)),
-            )
-            tool_context.arguments["expires_at"] = int(time.time()) + clamped
+        if raw_timeout != ASK_USER_TIMEOUT_SECONDS:
+            return
+
+        if self._allows_short_timeout(tool_context.arguments["parsed_questions"]):
+            tool_context.arguments["expires_at"] = int(time.time()) + ASK_USER_TIMEOUT_SECONDS
+            return
+
+        logger.warning(
+            "ask_user timeout=60 ignored because questions require more than a quick choice; "
+            "waiting indefinitely instead"
+        )
+
+    @staticmethod
+    def _allows_short_timeout(parsed_questions: List[dict]) -> bool:
+        """只允许简单选择题使用短等待，避免截断用户输入或重要决策。"""
+        if not parsed_questions:
+            return False
+        for question in parsed_questions:
+            interaction_type = question.get("interaction_type")
+            default_value = question.get("default_value")
+            if interaction_type not in {"confirm", "select"}:
+                return False
+            if not isinstance(default_value, str) or not default_value.strip():
+                return False
+            if interaction_type == "select" and default_value not in (question.get("options") or []):
+                return False
+        return True
 
     @staticmethod
     def _get_execution_source(tool_context: ToolContext) -> SuperMagicExecutionSource:
@@ -219,6 +327,7 @@ Use the `default` attribute to set a fallback when the user times out or skips.
         """
         return {
             "parsed_questions": tool_context.arguments.get("parsed_questions", []),
+            "prepared_tool_call_id": tool_context.arguments.get("prepared_tool_call_id"),
             "policy_blocked": bool(tool_context.arguments.get("ask_user_policy_blocked", False)),
             "policy_source": tool_context.arguments.get(
                 "ask_user_policy_source",
@@ -231,13 +340,53 @@ Use the `default` attribute to set a fallback when the user times out or skips.
         tool_context: ToolContext,
         params: AskUserParams,
     ) -> ToolResult:
-        if not tool_context.arguments.get("parsed_questions"):
-            return ToolResult.error(
-                "The ask_user arguments contain no valid <question> element. "
-                "Retry with one or more valid question blocks.",
-                use_custom_remark=False,
-            )
-        return await super().execute(tool_context, params)
+        """完整问卷才注册等待；修复通知不会改变已注册成功的业务结果。"""
+        preparation = tool_context.get_extension("ask_user_preparation")
+        if not isinstance(preparation, _AskUserPreparation) or not preparation.ready or not preparation.questions:
+            if isinstance(preparation, _AskUserPreparation) and preparation.error_code:
+                message = (
+                    "The ask_user questions could not be fully parsed. No questionnaire was registered. "
+                    "Retry with complete question blocks, non-empty question text, and complete options for choice questions."
+                )
+            else:
+                message = (
+                    "The ask_user questionnaire was not prepared. No questionnaire was registered. "
+                    "Check the operation preparation and execution permissions before retrying."
+                )
+            return ToolResult.error(message, use_custom_remark=False)
+        result = await super().execute(tool_context, params)
+        if result.ok and not tool_context.arguments.get("ask_user_policy_blocked"):
+            self._notify_question_repairs(tool_context)
+        return result
+
+    def _notify_question_repairs(self, tool_context: ToolContext) -> None:
+        """将本次修复事实排入 Horizon，等待下一次正常上下文注入。"""
+        arguments = tool_context.arguments
+        preparation = tool_context.get_extension("ask_user_preparation")
+        if not isinstance(preparation, _AskUserPreparation) or not preparation.repairs or preparation.repair_notified:
+            return
+        kinds = sorted({repair.kind.value for repair in preparation.repairs})
+        descriptions = {
+            "wrong_close": "incorrect question-closing tags",
+            "missing_close": "missing question-closing tags",
+            "stray_container_close": "an unpaired outer closing tag",
+        }
+        repair_summary = ", ".join(descriptions[kind] for kind in kinds)
+        question_count = len(arguments["parsed_questions"])
+        content = (
+            f"Your ask_user call {tool_context.tool_call_id} contained formatting issues "
+            f"({repair_summary}). The runtime repaired them and prepared all {question_count} questions. "
+            "The normal user-response flow continues; do not retry this call because of the formatting issue. "
+            "Next time, explicitly close each question with the question closing tag, not its type name, "
+            "and keep any outer container tags paired."
+        )
+        try:
+            self.get_horizon(tool_context).push_notification("ask_user", escape(content))
+            preparation.repair_notified = True
+            logger.info(f"ask_user 格式已修复: 调用={tool_context.tool_call_id}, 题数={question_count}, 类别={','.join(kinds)}")
+        except Exception:
+            # 用户已获得完整问卷，提示入队失败不能触发重复注册或工具失败。
+            logger.warning("ask_user 修复提示入队失败，保留正常问卷等待状态")
 
     def build_result_builder(self, tool_data: dict) -> ResultBuilder:
         """返回将用户回答转为模型上下文的闭包。
@@ -269,12 +418,18 @@ Use the `default` attribute to set a fallback when the user times out or skips.
         return f"[ASK_USER:{tool_call_id}] {n} question(s) sent to user, waiting for response."
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: dict = None) -> Optional[ToolDetail]:
-        """Build the AFTER_TOOL_CALL detail card from result.extra_info."""
+        """将有效结果转为问卷详情，将不可恢复输入展示为本地化错误。"""
+        preparation = tool_context.get_extension("ask_user_preparation") if tool_context else None
+        if result and not result.ok and isinstance(preparation, _AskUserPreparation) and preparation.error_code:
+            return ToolDetail(type=DisplayType.TEXT, data={
+                "message": i18n.translate("ask_user.invalid_questions", category="tool.messages"),
+            })
         if not result or not result.extra_info:
             return None
-        status = result.extra_info.get("status")
-        answers = result.extra_info.get("answers", {})
-        questions = result.extra_info.get("questions", [])
+        extra_info = result.extra_info
+        status = extra_info.get("status")
+        answers = extra_info.get("answers", {})
+        questions = extra_info.get("questions", [])
         if not status:
             return None
         question_id = tool_context.tool_call_id if tool_context else ""
@@ -285,12 +440,16 @@ Use the `default` attribute to set a fallback when the user times out or skips.
                 status=status,
                 questions=questions,
                 answers=answers,
+                remark=extra_info.get("remark") or None,
             ),
         )
 
-    async def get_before_tool_detail(self, tool_context: ToolContext, arguments: dict = None) -> ToolDetail:
-        """Build the BEFORE_TOOL_CALL detail card for ask_user."""
+    async def get_before_tool_detail(self, tool_context: ToolContext, arguments: dict = None) -> Optional[ToolDetail]:
+        """仅发布准备完成的正式问卷，不把空列表伪装成可答状态。"""
         parsed = (arguments or {}).get("parsed_questions", [])
+        preparation = tool_context.get_extension("ask_user_preparation")
+        if not isinstance(preparation, _AskUserPreparation) or not preparation.ready or not parsed:
+            return None
         return ToolDetail(
             type=DisplayType.ASK_USER,
             data=AskUserQuestionContent(
@@ -311,9 +470,11 @@ def build_ask_user_result_builder(
 ):
     """返回 ask_user 专属的 result_builder 闭包。
 
-    result_builder(response_status, answer_json) -> (content, extra_info)
+    result_builder(response_status, answer_json, remark) -> (content, extra_info)
     """
-    def result_builder(response_status: str, answer_json: str) -> Tuple[str, Dict[str, Any]]:
+    def result_builder(response_status: str, answer_json: str, remark: str = "") -> Tuple[str, Dict[str, Any]]:
+        # 兼容直接调用 builder 的旧代码，并避免异常类型影响答案解析。
+        normalized_remark = remark.strip() if isinstance(remark, str) else ""
         try:
             answers: dict = json.loads(answer_json) if answer_json else {}
         except (json.JSONDecodeError, TypeError):
@@ -326,7 +487,10 @@ def build_ask_user_result_builder(
                 questions=parsed_questions,
                 response_status=response_status,
                 answers=answers,
+                remark=normalized_remark,
             )
+        if policy_blocked and normalized_remark:
+            content = f"{content}\n<remark>{_xml_escape(normalized_remark)}</remark>"
         extra_info = {
             "status": response_status,
             "answers": answers,
@@ -334,6 +498,8 @@ def build_ask_user_result_builder(
             "policy_blocked": policy_blocked,
             "policy_source": policy_source,
         }
+        if normalized_remark:
+            extra_info["remark"] = normalized_remark
         return content, extra_info
 
     return result_builder
@@ -350,6 +516,11 @@ def _normalize_answer_keys(parsed_questions: List[dict], answers: dict) -> dict:
 
     if len(answers) != len(parsed_questions):
         return answers
+
+    # q-2 可能先于 q-0 被填写；明确的位置键优先，不能依赖字典插入顺序。
+    position_keys = [f"q-{index}" for index in range(len(parsed_questions))]
+    if all(key in answers for key in position_keys):
+        return {question["sub_id"]: answers[key] for question, key in zip(parsed_questions, position_keys)}
 
     normalized = {}
     for question, answer in zip(parsed_questions, answers.values()):
@@ -398,6 +569,7 @@ def _humanize_batch(
     questions: List[dict],
     response_status: str,
     answers: dict,
+    remark: str = "",
 ) -> str:
     """将用户回答转换为 XML 结构化文本，供模型推理。
 
@@ -416,6 +588,8 @@ def _humanize_batch(
             else:
                 has_no_default = True
                 lines.append('<answer missing="true"/>')
+        if remark:
+            lines.append(f"<remark>{_xml_escape(remark)}</remark>")
         lines.append("</ask_user_result>")
         if has_no_default:
             lines.append("Some answers are missing with no default value. Decide whether to abort the related operation.")
@@ -437,5 +611,7 @@ def _humanize_batch(
             lines.append(f"<answer>{items}</answer>")
         else:
             lines.append(f"<answer>{_xml_escape(str(ans))}</answer>")
+    if remark:
+        lines.append(f"<remark>{_xml_escape(remark)}</remark>")
     lines.append("</ask_user_result>")
     return "\n".join(lines)

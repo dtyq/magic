@@ -1,7 +1,9 @@
 import type { LocateProjectFileActionOptions, UserAction, ViewActionOptions } from "../types"
 import type { Canvas } from "../../core/Canvas"
 import { ElementTypeEnum } from "../../document/types"
+import { getActiveContent, getActiveImageContent } from "../../document/elementContent"
 import { getCanvasResourceFileName } from "../../shared/path/canvasResourcePath"
+import { isElementReplacing } from "../mediaReplacementGuards"
 
 interface SelectedMediaFile {
 	src: string
@@ -28,21 +30,37 @@ function resolveMediaElementFile(
 
 	const element = canvas.elementManager.getElementData(resolvedElementId)
 	if (!element) return null
-	if (element.type !== ElementTypeEnum.Image && element.type !== ElementTypeEnum.Video)
+	if (
+		element.type !== ElementTypeEnum.Image &&
+		element.type !== ElementTypeEnum.Video &&
+		element.type !== ElementTypeEnum.Audio
+	)
 		return null
-	if (!element.src) return null
-	if (!isLocatableProjectFilePath(element.src)) return null
+	const src =
+		typeof canvas.getEffectiveContent === "function"
+			? (canvas.getEffectiveContent(element.id) as { src?: string } | undefined)?.src
+			: element.type === ElementTypeEnum.Image
+				? getActiveImageContent(element).src
+				: getActiveContent(element)?.src
+	if (!src) return null
+	if (!isLocatableProjectFilePath(src)) return null
 
 	const entry =
 		element.type === ElementTypeEnum.Image
-			? canvas.imageResourceManager.getEntry(element.src)
+			? canvas.imageResourceManager.getEntry(src)
 			: undefined
-	const fileName = entry?.fileName || getCanvasResourceFileName(element.src) || undefined
+	const fileName = entry?.fileName || getCanvasResourceFileName(src) || undefined
 
 	return {
-		src: element.src,
+		src,
 		fileName,
 	}
+}
+
+function resolveMediaElementId(canvas: Canvas, elementId?: string | null): string | null {
+	if (elementId) return elementId
+	const selectedIds = canvas.selectionManager.getSelectedIds()
+	return selectedIds.length === 1 ? selectedIds[0] : null
 }
 
 export function resolveProjectFileLocationTarget(
@@ -121,12 +139,16 @@ export const viewActions: UserAction[] = [
 		id: "view.locate-project-file",
 		category: "view",
 		canExecute: (canvas, options?: LocateProjectFileActionOptions) => {
+			const elementId = resolveMediaElementId(canvas, options?.elementId)
 			return (
 				!!canvas.magicConfigManager.config?.methods?.locateProjectFile &&
+				!isElementReplacing(canvas, elementId) &&
 				resolveMediaElementFile(canvas, options?.elementId) !== null
 			)
 		},
 		execute: async (canvas, options?: LocateProjectFileActionOptions) => {
+			const elementId = resolveMediaElementId(canvas, options?.elementId)
+			if (isElementReplacing(canvas, elementId)) return
 			const locateProjectFile = canvas.magicConfigManager.config?.methods?.locateProjectFile
 			if (!locateProjectFile) return
 

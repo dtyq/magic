@@ -1,9 +1,8 @@
 import type { FileItem, TabItem, WebsitePreset } from "../types"
+import { isInternationalEnv } from "@/utils/env"
 import baiduImagesIcon from "../assets/website-presets/baidu-images.png"
 import bingImagesIcon from "../assets/website-presets/bing-images.svg"
 import pexelsIcon from "../assets/website-presets/pexels.png"
-import xiaohongshuIcon from "../assets/website-presets/xiaohongshu.png"
-import zcoolIcon from "../assets/website-presets/zcool.png"
 
 export const WEBSITE_TAB_PREFIX = "website:"
 export const COMMON_WEBSITE_PRESETS_STORAGE_KEY = "magic:files-viewer:common-website-presets"
@@ -17,20 +16,6 @@ export type SaveCommonWebsitePresetResult =
 	| { status: "invalid" }
 
 export const WEBSITE_PRESETS: WebsitePreset[] = [
-	{
-		id: "letsmagic-nano-banana-pro-prompts",
-		titleKey: "fileViewer.website.presets.nanoBananaPro.title",
-		descriptionKey: "fileViewer.website.presets.nanoBananaPro.description",
-		icon: "nano-banana-pro",
-		url: "https://www.letsmagic.cn/nano-banana-pro-prompts",
-	},
-	{
-		id: "letsmagic-gpt-image-2-prompts",
-		titleKey: "fileViewer.website.presets.gptImage2.title",
-		descriptionKey: "fileViewer.website.presets.gptImage2.description",
-		icon: "gpt-image-2",
-		url: "https://www.letsmagic.cn/gpt-image-2-prompts",
-	},
 	{
 		id: "baidu-images",
 		titleKey: "fileViewer.website.presets.baiduImages.title",
@@ -46,20 +31,6 @@ export const WEBSITE_PRESETS: WebsitePreset[] = [
 		url: "https://www.bing.com/images/search",
 	},
 	{
-		id: "xiaohongshu",
-		titleKey: "fileViewer.website.presets.xiaohongshu.title",
-		descriptionKey: "fileViewer.website.presets.xiaohongshu.description",
-		iconSrc: xiaohongshuIcon,
-		url: "https://www.xiaohongshu.com/",
-	},
-	// {
-	// 	id: "zcool",
-	// 	titleKey: "fileViewer.website.presets.zcool.title",
-	// 	descriptionKey: "fileViewer.website.presets.zcool.description",
-	// 	iconSrc: zcoolIcon,
-	// 	url: "https://www.zcool.com.cn/",
-	// },
-	{
 		id: "pexels",
 		titleKey: "fileViewer.website.presets.pexels.title",
 		descriptionKey: "fileViewer.website.presets.pexels.description",
@@ -67,6 +38,12 @@ export const WEBSITE_PRESETS: WebsitePreset[] = [
 		url: "https://www.pexels.com/",
 	},
 ]
+
+export function getWebsitePresets(isInternational = isInternationalEnv()) {
+	if (!isInternational) return WEBSITE_PRESETS
+
+	return WEBSITE_PRESETS.filter((preset) => preset.id !== "baidu-images")
+}
 
 function normalizeWebsiteUrl(rawUrl: string) {
 	const trimmedUrl = rawUrl.trim()

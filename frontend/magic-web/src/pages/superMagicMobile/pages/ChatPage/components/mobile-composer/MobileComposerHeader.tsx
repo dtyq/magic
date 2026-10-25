@@ -3,7 +3,10 @@ import type { ReactNode } from "react"
 import CurrentSceneBadge from "@/pages/superMagic/components/MainInputContainer/components/SelectedSkillBadge"
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import { SCENE_INPUT_IDS } from "@/pages/superMagic/components/MainInputContainer/constants"
-import { sceneStateStore } from "@/pages/superMagic/components/MainInputContainer/stores"
+import {
+	sceneStateStore as globalSceneStateStore,
+	useOptionalSceneStateStore,
+} from "@/pages/superMagic/components/MainInputContainer/stores"
 import SceneSwitcher from "@/pages/superMagic/components/MainInputContainer/components/SceneSwitcher"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
@@ -39,6 +42,7 @@ function MobileComposerHeaderComponent({
 	sceneControlNode,
 	onModeChange,
 }: MobileComposerHeaderProps) {
+	const sceneStateStore = useOptionalSceneStateStore() ?? globalSceneStateStore
 	const selectedScene = sceneStateStore.currentScene
 	const shouldShowSelector = showModelSelector || (showModeSelector && selectorVariant !== "claw")
 	const effectiveSelectorVariant = showModelSelector ? "claw" : selectorVariant

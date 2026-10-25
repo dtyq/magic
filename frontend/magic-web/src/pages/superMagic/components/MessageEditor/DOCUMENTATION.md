@@ -445,7 +445,7 @@
 
 ### 3. **外部依赖**
 
-- `@tiptap/react` - 富文本编辑器
+- `@/infrastructure/editors/tiptap/react` - 富文本编辑器
 - `ahooks` - React Hooks 工具库
 - `mobx-react-lite` - MobX React 集成
 - `pubsub` - 事件发布订阅

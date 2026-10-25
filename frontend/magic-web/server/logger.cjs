@@ -8,7 +8,7 @@ const logger = bunyan.createLogger({
 		// 输出到文件
 		{ level: "info", path: "./error.log" },
 		// 输出到控制台
-		{ level: "error", stream: process.stdout },
+		{ level: "info", stream: process.stdout },
 	],
 })
 

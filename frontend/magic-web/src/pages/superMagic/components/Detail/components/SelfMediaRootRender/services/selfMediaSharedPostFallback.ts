@@ -1,4 +1,4 @@
-import { getFileContentById } from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { SelfMediaPlatform } from "../../../types"
 import type { SelfMediaPost, SelfMediaPostEntry, SelfMediaPostManifest } from "../types"
 import {
@@ -69,17 +69,19 @@ export function buildSharedPostSourceKey(candidates: SharedPostCandidate[]): str
 export async function loadSharedPosts(
 	candidates: SharedPostCandidate[],
 	allFiles: AttachmentNode[],
+	fileApi: Pick<FileApi, "getFileContentById">,
 ): Promise<LoadedSharedPost[]> {
-	return Promise.all(candidates.map((candidate) => loadSharedPost(candidate, allFiles)))
+	return Promise.all(candidates.map((candidate) => loadSharedPost(candidate, allFiles, fileApi)))
 }
 
 async function loadSharedPost(
 	candidate: SharedPostCandidate,
 	allFiles: AttachmentNode[],
+	fileApi: Pick<FileApi, "getFileContentById">,
 ): Promise<LoadedSharedPost> {
 	if (!candidate.postFile.file_id) throw new Error("postManifestMissing")
 
-	const content = (await getFileContentById(candidate.postFile.file_id, {
+	const content = (await fileApi.getFileContentById(candidate.postFile.file_id, {
 		responseType: "text",
 	})) as string
 	const manifest = parsePostManifest(content)
@@ -109,8 +111,7 @@ function resolveSharedPostPlatform(
 	manifest: SelfMediaPostManifest,
 ): SelfMediaPlatform {
 	const folderDisplayConfig = candidate.postFolder?.display_config as
-		| Record<string, unknown>
-		| undefined
+		Record<string, unknown> | undefined
 	const manifestRecord = manifest as SelfMediaPostManifest & { platform?: unknown }
 	const explicit =
 		coerceSelfMediaPlatform(folderDisplayConfig?.platform) ||

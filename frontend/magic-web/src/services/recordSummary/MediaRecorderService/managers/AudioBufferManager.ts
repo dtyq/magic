@@ -12,6 +12,8 @@ import type {
 import { BufferOperationError } from "../types/RecorderErrors"
 import type { LoggerInterface } from "../types/RecorderDependencies"
 
+const CHUNK_TIMEOUT_LOG_COOLDOWN_MS = 60_000
+
 /**
  * Events fired by AudioBufferManager
  * AudioBufferManager 触发的事件
@@ -20,6 +22,27 @@ export interface AudioBufferManagerEvents {
 	onChunkReady?: (chunkData: AudioChunkData) => void
 	onProgress?: (duration: number, totalSamples: number) => void
 	onChunkTimeout?: (expectedTime: number, actualTime: number, chunkIndex: number) => void
+}
+
+/**
+ * Runtime diagnostics for chunk production.
+ * 分片生产链路的运行时诊断信息。
+ */
+export interface AudioBufferDiagnostics {
+	sessionId?: string
+	addDataCalls: number
+	emptyDataCalls: number
+	lastDataTimestamp: number | null
+	lastDataSamples: number
+	lastDataSampleRate: number
+	lastChunkTimestamp: number | null
+	lastChunkElapsedTime: number | null
+	currentChunkIndex: number
+	bufferDuration: number
+	bufferSamples: number
+	audioContextState: AudioContextState | "unavailable"
+	audioContextTime: number | null
+	lastCheckTime: number | null
 }
 
 /**
@@ -43,12 +66,19 @@ export class AudioBufferManager {
 	private lastCheckTime: number = 0 // AudioContext.currentTime of last chunk
 	private recordingStartTime: number = 0 // AudioContext.currentTime when recording started
 	private lastKnownSampleRate: number = 48000 // Default sample rate
+	private addDataCalls = 0
+	private emptyDataCalls = 0
+	private lastDataTimestamp: number | null = null
+	private lastDataSamples = 0
+	private lastDataSampleRate = 0
+	private lastChunkTimeoutLogTimestamp: number | null = null
 
 	constructor(
 		private readonly config: RecorderCoreConfig,
 		private readonly events: AudioBufferManagerEvents,
 		private readonly logger: LoggerInterface,
 		audioContext?: AudioContext,
+		private readonly sessionId?: string,
 	) {
 		// Pre-calculate initial capacity based on chunk duration and typical sample rate
 		// Assume max 48kHz sample rate for safe pre-allocation
@@ -68,6 +98,14 @@ export class AudioBufferManager {
 	 */
 	addData(buffer: Int16Array, sampleRate: number): void {
 		try {
+			this.addDataCalls++
+			this.lastDataTimestamp = Date.now()
+			this.lastDataSamples = buffer.length
+			this.lastDataSampleRate = sampleRate
+			if (buffer.length === 0) {
+				this.emptyDataCalls++
+			}
+
 			// Record sample rate for silence generation
 			this.lastKnownSampleRate = sampleRate
 
@@ -79,6 +117,7 @@ export class AudioBufferManager {
 
 				if (elapsedTime >= this.config.chunkDuration) {
 					this.logger.log("Audio-callback-driven chunk generation", {
+						sessionId: this.sessionId,
 						elapsedTime,
 						currentTime,
 						lastCheckTime: this.lastCheckTime,
@@ -207,16 +246,6 @@ export class AudioBufferManager {
 	 * @param fillSilence - Whether to fill silence if buffer is insufficient
 	 */
 	private flushBuffer(sampleRate: number, fillSilence: boolean = false): void {
-		// Update chunk time tracking
-		const now = Date.now()
-		this.lastChunkTime = now
-		this.currentChunkIndex++
-
-		// Update AudioContext-based time tracking
-		if (this.audioContext) {
-			this.lastCheckTime = this.audioContext.currentTime
-		}
-
 		const arrayTotalSamples = this.audioBuffer.reduce((sum, buf) => sum + buf.length, 0)
 		const totalSampleCount = arrayTotalSamples + this.bufferOffset
 
@@ -228,6 +257,16 @@ export class AudioBufferManager {
 			return
 		}
 
+		// Update chunk time tracking only when a chunk will actually be produced.
+		const now = Date.now()
+		this.lastChunkTime = now
+		this.currentChunkIndex++
+
+		// Update AudioContext-based time tracking
+		if (this.audioContext) {
+			this.lastCheckTime = this.audioContext.currentTime
+		}
+
 		try {
 			let mergedBuffer: Int16Array
 
@@ -235,6 +274,7 @@ export class AudioBufferManager {
 			if (fillSilence && totalSampleCount < expectedSamplesForChunk) {
 				const silenceSamples = expectedSamplesForChunk - totalSampleCount
 				this.logger.log("Filling silence to meet chunk duration", {
+					sessionId: this.sessionId,
 					existingSamples: totalSampleCount,
 					silenceSamples,
 					totalSamples: expectedSamplesForChunk,
@@ -318,9 +358,13 @@ export class AudioBufferManager {
 			}
 
 			this.logger.log("Buffer flushed", {
+				sessionId: this.sessionId,
 				samples: mergedBuffer.length,
 				duration: actualDuration,
 				sampleRate,
+				chunkIndex: this.currentChunkIndex - 1,
+				addDataCalls: this.addDataCalls,
+				lastDataTimestamp: this.lastDataTimestamp,
 				arrayBuffers: this.audioBuffer.length,
 				preallocatedOffset: this.bufferOffset,
 				silenceFilled: fillSilence && totalSampleCount < expectedSamplesForChunk,
@@ -354,7 +398,7 @@ export class AudioBufferManager {
 	 * Force flush current buffer regardless of duration
 	 * 强制清空当前缓冲区，无论时长如何
 	 */
-	forceFlush(sampleRate: number): void {
+	forceFlush(sampleRate: number = this.lastKnownSampleRate): void {
 		if (this.audioBuffer.length > 0 || this.bufferOffset > 0) {
 			this.flushBuffer(sampleRate, false)
 		}
@@ -365,9 +409,13 @@ export class AudioBufferManager {
 	 * 获取当前缓冲区状态
 	 */
 	getBufferState(): AudioBufferData {
-		const totalSamples = this.audioBuffer.reduce((sum, buf) => sum + buf.length, 0)
+		const buffers = [...this.audioBuffer]
+		if (this.preallocatedBuffer && this.bufferOffset > 0) {
+			buffers.push(this.preallocatedBuffer.slice(0, this.bufferOffset))
+		}
+		const totalSamples = buffers.reduce((sum, buf) => sum + buf.length, 0)
 		return {
-			buffers: [...this.audioBuffer],
+			buffers,
 			duration: this.bufferDuration,
 			totalSamples,
 		}
@@ -384,6 +432,7 @@ export class AudioBufferManager {
 		this.bufferOffset = 0
 		this.preallocatedBuffer = null
 		this.sampleDataChunk = null
+		this.lastChunkTimeoutLogTimestamp = null
 		this.logger.log("Buffer cleared")
 	}
 
@@ -415,16 +464,24 @@ export class AudioBufferManager {
 			const now = Date.now()
 			const elapsedTime = (now - this.lastChunkTime) / 1000 // seconds
 
-			if (elapsedTime > timeoutThreshold) {
+			if (
+				elapsedTime > timeoutThreshold &&
+				(this.lastChunkTimeoutLogTimestamp === null ||
+					now - this.lastChunkTimeoutLogTimestamp >= CHUNK_TIMEOUT_LOG_COOLDOWN_MS)
+			) {
+				this.lastChunkTimeoutLogTimestamp = now
+				const diagnostics = this.getDiagnostics(now)
 				this.logger.error({
 					eventKey: "chunk_generation_timeout",
 					errorKind: "timeout",
 					message: "Chunk generation timeout detected",
 					context: {
+						sessionId: this.sessionId,
 						expectedInterval: this.config.chunkDuration,
 						actualElapsed: elapsedTime,
 						lastChunkIndex: this.currentChunkIndex,
 						bufferDuration: this.bufferDuration,
+						...diagnostics,
 					},
 				})
 
@@ -433,6 +490,7 @@ export class AudioBufferManager {
 				this.logger.report({
 					namespace: "recordingChunkTimeout",
 					data: {
+						sessionId: this.sessionId,
 						description: "录音分片生成超时",
 						expectedChunkInterval: this.config.chunkDuration,
 						actualElapsedTime: elapsedTime,
@@ -449,8 +507,38 @@ export class AudioBufferManager {
 					elapsedTime,
 					this.currentChunkIndex,
 				)
+			} else if (elapsedTime <= timeoutThreshold) {
+				this.lastChunkTimeoutLogTimestamp = null
 			}
 		}, checkInterval)
+	}
+
+	/**
+	 * Return a snapshot that explains why a chunk may not have been produced.
+	 * 返回用于解释分片未生成原因的状态快照。
+	 */
+	getDiagnostics(now: number = Date.now()): AudioBufferDiagnostics {
+		const bufferSamples =
+			this.audioBuffer.reduce((sum, buffer) => sum + buffer.length, 0) + this.bufferOffset
+		const audioContextTime = this.audioContext?.currentTime ?? null
+		const lastChunkElapsedTime = this.lastChunkTime ? (now - this.lastChunkTime) / 1000 : null
+
+		return {
+			sessionId: this.sessionId,
+			addDataCalls: this.addDataCalls,
+			emptyDataCalls: this.emptyDataCalls,
+			lastDataTimestamp: this.lastDataTimestamp,
+			lastDataSamples: this.lastDataSamples,
+			lastDataSampleRate: this.lastDataSampleRate,
+			lastChunkTimestamp: this.lastChunkTime || null,
+			lastChunkElapsedTime,
+			currentChunkIndex: this.currentChunkIndex,
+			bufferDuration: this.bufferDuration,
+			bufferSamples,
+			audioContextState: this.audioContext?.state ?? "unavailable",
+			audioContextTime,
+			lastCheckTime: this.audioContext ? this.lastCheckTime : null,
+		}
 	}
 
 	/**
@@ -487,6 +575,7 @@ export class AudioBufferManager {
 
 		if (elapsedTime >= this.config.chunkDuration) {
 			this.logger.log("Worker-driven chunk generation (silence period)", {
+				sessionId: this.sessionId,
 				elapsedTime,
 				currentTime,
 				lastCheckTime: this.lastCheckTime,
@@ -517,6 +606,7 @@ export class AudioBufferManager {
 
 		this.lastChunkTime = Date.now()
 		this.currentChunkIndex = 0
+		this.lastChunkTimeoutLogTimestamp = null
 	}
 
 	/**

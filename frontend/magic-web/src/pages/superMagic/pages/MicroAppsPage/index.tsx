@@ -1,100 +1,55 @@
 import { lazy, Suspense, useCallback, useRef, useState } from "react"
 import { motion, useReducedMotion } from "framer-motion"
+import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
-import { Loader2, Search } from "lucide-react"
-import type { MicroAppListScope } from "@/apis/modules/superMagic"
+import { Loader2, Plus, Search, X } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
-import { Skeleton } from "@/components/shadcn-ui/skeleton"
-import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import {
-	MicroAppEmptyIllustration,
-	MicroAppSearchEmptyIllustration,
-} from "@/pages/superMagic/components/MicroAppStateIllustration"
+import GuideTourWrapper from "@/pages/superMagic/components/LazyGuideTour"
+import { HomeOnboardingAnchor } from "@/pages/superMagic/components/LazyGuideTour/GuideTourManager"
 import { RouteName } from "@/routes/constants"
 import useNavigate from "@/routes/hooks/useNavigate"
-import MicroAppCard from "./components/MicroAppCard"
 import MicroAppCreatePrompt from "./components/MicroAppCreatePrompt"
 import MicroAppFloatingBackdrop from "./components/MicroAppFloatingBackdrop"
 import MicroAppHeroTitle from "./components/MicroAppHeroTitle"
 import MicroAppKeyboardCable from "./components/MicroAppKeyboardCable"
-import MicroAppListActionDialogs from "./components/MicroAppListActionDialogs"
-import MicroAppLoadErrorState from "./components/MicroAppLoadErrorState"
-import { useMicroAppListItemActions } from "./hooks/useMicroAppListItemActions"
+import MicroAppLibraryLayout from "./components/MicroAppLibraryLayout"
+import MicroAppLibraryPanel from "./components/MicroAppLibraryPanel"
 import { useMicroAppsPage } from "./hooks/useMicroAppsPage"
+import { useCreateMicroApp } from "./hooks/useCreateMicroApp"
 
 const MicroAppsPageMobile = lazy(() => import("./index.mobile"))
 const MicroAppsListPageMobile = lazy(() => import("./list.mobile"))
 
-function formatAppTime(value: string | null | undefined): string {
-	if (!value) return ""
-	const date = new Date(value)
-	return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
-}
-
-function EmptyState({
-	title,
-	description,
-	searching,
-}: {
-	title: string
-	description: string
-	searching: boolean
-}) {
-	const Illustration = searching ? MicroAppSearchEmptyIllustration : MicroAppEmptyIllustration
-
-	return (
-		<div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl border border-border/70 bg-muted/[0.08] px-6 py-8 text-center">
-			<Illustration size="md" />
-			<div className="space-y-1">
-				<p className="text-sm font-semibold text-foreground">{title}</p>
-				<p className="text-sm text-muted-foreground">{description}</p>
-			</div>
-		</div>
-	)
-}
-
-function MicroAppsGridLoading() {
-	return (
-		<div
-			className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-			data-testid="micro-apps-loading"
-		>
-			{[1, 2, 3, 4, 5, 6].map((item) => (
-				<div key={item} className="overflow-hidden rounded-2xl border border-border/70">
-					<Skeleton className="aspect-[16/10] w-full rounded-none" />
-					<div className="space-y-2 p-4">
-						<Skeleton className="h-4 w-3/5" />
-						<Skeleton className="h-3 w-2/5" />
-					</div>
-				</div>
-			))}
-		</div>
-	)
-}
-
-function MicroAppsPageDesktop() {
+const MicroAppsPageDesktop = observer(function MicroAppsPageDesktop() {
 	const { t } = useTranslation("super")
 	const navigate = useNavigate()
-	const {
-		workspace,
-		apps,
-		scope,
-		setScope,
+	const library = useMicroAppsPage({ initialScope: "created", retainResults: true })
+	const { workspace } = library
+	const [keyword, setKeyword] = useState("")
+	const searching = Boolean(keyword.trim())
+	const accessLibrary = useMicroAppsPage({
+		initialScope: "recent",
+		retainResults: true,
+		loadWorkspace: false,
+	})
+	const searchLibrary = useMicroAppsPage({
+		initialScope: "all",
+		searchAll: true,
+		loadWorkspace: false,
 		keyword,
-		setKeyword,
-		loading,
-		loadingMore,
-		hasMore,
-		error,
-		refresh,
-		loadMore,
-		renameApp,
-		deleteApp,
-	} = useMicroAppsPage()
-	const itemActions = useMicroAppListItemActions({ renameApp, deleteApp })
+		enabled: searching,
+	})
+	const { refresh: refreshDevelopment } = library
+	const { refresh: refreshAccess } = accessLibrary
+	const refreshLibraries = useCallback(() => {
+		refreshDevelopment()
+		refreshAccess()
+	}, [refreshDevelopment, refreshAccess])
+	const libraryRef = useRef<HTMLElement>(null)
+
 	const [promptFocused, setPromptFocused] = useState(false)
 	const reduceMotion = Boolean(useReducedMotion())
 	const [keyboardConnectorReady, setKeyboardConnectorReady] = useState(reduceMotion)
@@ -105,19 +60,17 @@ function MicroAppsPageDesktop() {
 	const heroContentRef = useRef<HTMLDivElement>(null)
 	const cableStartRef = useRef<HTMLSpanElement>(null)
 	const cableEndRef = useRef<HTMLSpanElement>(null)
-
-	const handleOpenApp = useCallback(
-		(appId: string) => {
-			navigate({ name: RouteName.MicroApp, params: { appId } })
-		},
+	const handleCreated = useCallback(
+		(appId: string) => navigate({ name: RouteName.MicroApp, params: { appId } }),
 		[navigate],
 	)
+	const { createApp, creating } = useCreateMicroApp(workspace?.id, handleCreated)
 
 	return (
 		<ScrollArea
 			viewportRef={scrollContainerRef}
 			viewportClassName="[&>div]:!block [&>div]:h-full"
-			className="m-2 h-[calc(100%_-_16px)] w-[calc(100%_-_16px)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm"
+			className="m-2 h-[calc(100%_-_16px)] w-[calc(100%_-_16px)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm [&>[data-slot=scroll-area-scrollbar]]:pointer-events-none [&>[data-slot=scroll-area-scrollbar]]:opacity-0"
 			data-testid="micro-apps-page"
 		>
 			<section
@@ -164,18 +117,47 @@ function MicroAppsPageDesktop() {
 					>
 						<MicroAppCreatePrompt
 							workspace={workspace}
-							onCreated={handleOpenApp}
+							onCreated={handleCreated}
 							onFocusChange={setPromptFocused}
 							keyboardPortRef={cableEndRef}
 							keyboardConnectorReady={keyboardConnectorReady}
 							keyboardConnectorVisible={keyboardConnectorVisible}
 						/>
 					</motion.div>
+					<div className="mt-6 flex justify-center">
+						<Button
+							type="button"
+							variant="ghost"
+							className="cursor-pointer transition-colors duration-150 hover:bg-foreground/5 active:bg-foreground/10 disabled:pointer-events-none motion-reduce:transition-none dark:hover:bg-foreground/10 dark:active:bg-foreground/15"
+							onClick={createApp}
+							disabled={!workspace?.id || creating}
+							data-testid="micro-apps-direct-create"
+						>
+							{creating ? (
+								<Loader2 className="size-4 animate-spin" aria-hidden />
+							) : (
+								<Plus className="size-4" aria-hidden />
+							)}
+							{creating
+								? t("microAppsPage.creating")
+								: t("microAppsPage.createBlankApp")}
+						</Button>
+					</div>
 				</div>
 			</section>
 
-			<main className="mx-auto w-full max-w-[1320px] px-6 py-10">
-				<div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+			{/*
+			 * The library fills the outer viewport: its toolbar stays above independent list scrollers.
+			 * The onboarding tour's last step highlights this whole "应用空间" region — heading,
+			 * search box, create button and both panels — so the anchor goes on the section rather
+			 * than on any control inside it.
+			 */}
+			<main
+				ref={libraryRef}
+				data-guide-anchor={HomeOnboardingAnchor.MicroAppsLibrary}
+				className="mx-auto flex h-full min-h-0 w-full max-w-[1480px] flex-col px-6 py-5 [container-type:inline-size]"
+			>
+				<div className="z-10 mb-3 flex shrink-0 flex-wrap items-end justify-between gap-4 bg-background">
 					<div>
 						<h2 className="text-xl font-semibold tracking-tight text-foreground">
 							{t("microAppsPage.galleryTitle")}
@@ -185,128 +167,90 @@ function MicroAppsPageDesktop() {
 						</p>
 					</div>
 					<div className="flex flex-wrap items-center justify-end gap-3">
-						<div className="relative w-64">
+						<div className="relative w-56">
 							<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 							<Input
 								value={keyword}
 								onChange={(event) => setKeyword(event.target.value)}
+								onFocus={() => {
+									const viewport = scrollContainerRef.current
+									const section = libraryRef.current
+									if (viewport && section)
+										viewport.scrollTop +=
+											section.getBoundingClientRect().top -
+											viewport.getBoundingClientRect().top
+								}}
+								onKeyDown={(event) => {
+									if (event.key === "Escape") setKeyword("")
+								}}
 								placeholder={t("microAppsPage.searchPlaceholder")}
-								className="h-9 pl-9"
+								aria-label={t("microAppsPage.searchPlaceholder")}
+								className="h-9 rounded-xl bg-card/70 pl-9 pr-9"
 								data-testid="micro-apps-search"
 							/>
-						</div>
-						<Tabs
-							value={scope}
-							onValueChange={(value) => setScope(value as MicroAppListScope)}
-						>
-							<TabsList className="grid w-[320px] grid-cols-3 rounded-xl">
-								<TabsTrigger value="all" data-testid="micro-apps-scope-all">
-									{t("microAppsPage.scopeAll")}
-								</TabsTrigger>
-								<TabsTrigger value="created" data-testid="micro-apps-scope-created">
-									{t("microAppsPage.scopeCreated")}
-								</TabsTrigger>
-								<TabsTrigger
-									value="collaborated"
-									data-testid="micro-apps-scope-collaborated"
+							{keyword ? (
+								<button
+									type="button"
+									aria-label={t("microAppsPage.clearSearch")}
+									onClick={() => setKeyword("")}
+									className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 								>
-									{t("microAppsPage.scopeCollaborated")}
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
+									<X className="size-4" />
+								</button>
+							) : null}
+						</div>
+						<Button
+							type="button"
+							variant="default"
+							className="h-9 shrink-0 bg-black px-4 text-white hover:bg-black/90"
+							onClick={createApp}
+							disabled={!workspace?.id || creating}
+							aria-label={t("microAppsPage.createApp")}
+							title={t("microAppsPage.createApp")}
+							aria-busy={creating}
+							data-testid="micro-apps-gallery-create"
+						>
+							{creating ? (
+								<Loader2 className="size-4 animate-spin" aria-hidden />
+							) : (
+								<Plus className="size-4" aria-hidden />
+							)}
+							{creating ? t("microAppsPage.creating") : t("microAppsPage.createApp")}
+						</Button>
 					</div>
 				</div>
 
-				{loading ? <MicroAppsGridLoading /> : null}
-
-				{!loading && error ? (
-					<MicroAppLoadErrorState
-						title={t("microAppsPage.errorTitle")}
-						description={t("microAppsPage.errorDescription")}
-						actionLabel={t("microAppsPage.refresh")}
-						onRetry={refresh}
-					/>
-				) : null}
-
-				{!loading && !error && apps.length === 0 ? (
-					<EmptyState
-						searching={Boolean(keyword)}
-						title={
-							keyword
-								? t("microAppsPage.noSearchResults")
-								: t("microAppsPage.emptyTitle")
-						}
-						description={
-							keyword
-								? t("microAppsPage.noSearchResultsDescription")
-								: t("microAppsPage.emptyDescription")
-						}
-					/>
-				) : null}
-
-				{!loading && !error && apps.length > 0 ? (
-					<div
-						className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-						data-testid="micro-apps-list"
-					>
-						{apps.map((app) => (
-							<MicroAppCard
-								key={app.app_id}
-								id={app.app_id}
-								title={app.app_name || t("project.unnamedProject")}
-								description={app.app_description}
-								meta={
-									app.updated_at
-										? t("microAppsPage.updatedAt", {
-												date: formatAppTime(app.updated_at),
-											})
-										: t("microAppsPage.draftBadge")
-								}
-								coverUrl={app.cover_url}
-								statusLabel={
-									app.publish_status === "published"
-										? t("microAppsPage.statusPublished")
-										: t("microAppsPage.statusUnpublished")
-								}
-								onClick={() => handleOpenApp(app.app_id)}
-								onOpenInNewWindow={() => itemActions.openInNewWindow(app)}
-								onRename={() => itemActions.openRename(app)}
-								onDelete={() => itemActions.openDelete(app)}
-								canDelete={app.can_delete}
-								testId={`micro-apps-app-${app.app_id}`}
+				{/* Keep both panels mounted so clearing search restores their pages and scroll positions. */}
+				<div hidden={searching} className="min-h-0 flex-1">
+					<MicroAppLibraryLayout
+						development={
+							<MicroAppLibraryPanel
+								model={library}
+								onChanged={accessLibrary.refresh}
 							/>
-						))}
-					</div>
-				) : null}
-
-				{!loading && !error && hasMore ? (
-					<div className="mt-8 flex justify-center">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={loadMore}
-							disabled={loadingMore}
-							data-testid="micro-apps-load-more"
-						>
-							{loadingMore ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-							{t("microAppsPage.loadMore")}
-						</Button>
+						}
+						access={
+							<MicroAppLibraryPanel
+								model={accessLibrary}
+								access
+								onChanged={library.refresh}
+							/>
+						}
+					/>
+				</div>
+				{searching ? (
+					<div className="min-h-0 flex-1">
+						<MicroAppLibraryPanel
+							model={searchLibrary}
+							search
+							onChanged={refreshLibraries}
+						/>
 					</div>
 				) : null}
 			</main>
-			<MicroAppListActionDialogs
-				renameTarget={itemActions.renameTarget}
-				deleteTarget={itemActions.deleteTarget}
-				renaming={itemActions.renaming}
-				deleting={itemActions.deleting}
-				onCloseRename={itemActions.closeRename}
-				onCloseDelete={itemActions.closeDelete}
-				onConfirmRename={itemActions.confirmRename}
-				onConfirmDelete={itemActions.confirmDelete}
-			/>
 		</ScrollArea>
 	)
-}
+})
 
 interface MicroAppsPageProps {
 	mobileView?: "home" | "list"
@@ -329,5 +273,14 @@ export default function MicroAppsPage({ mobileView = "home" }: MicroAppsPageProp
 		)
 	}
 
-	return <MicroAppsPageDesktop />
+	return (
+		<>
+			<MicroAppsPageDesktop />
+			{/*
+			 * The "了解微应用创建流程" tour highlights the creation prompt and the app library of this
+			 * page, so it is mounted alongside the desktop layout.
+			 */}
+			<GuideTourWrapper isMobile={false} page="micro-apps" />
+		</>
+	)
 }

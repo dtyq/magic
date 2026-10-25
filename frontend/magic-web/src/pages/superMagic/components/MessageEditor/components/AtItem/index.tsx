@@ -15,12 +15,12 @@ import {
 	DirectoryMentionData,
 	MentionItemType,
 	ProjectFileMentionData,
+	UserFileMentionData,
 	UploadFileMentionData,
 } from "@/components/business/MentionPanel/types"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { type TooltipProps } from "antd"
 import { memo, useState, useCallback } from "react"
-import { ImageInProjectFile, ImageInUploadFile } from "./components/AtItemPreviewImage"
 import { showMobileImagePreview } from "./components/MobileImagePreview"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useTranslation } from "react-i18next"
@@ -30,13 +30,27 @@ import {
 } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import { CustomFolderMagicIcon } from "@/pages/superMagic/components/TopicFilesButton/components/CustomFolderMagicIcon"
 import projectFilesStore from "@/stores/projectFiles"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { MentionTooltipWrapper } from "./components/MentionTooltipWrapper"
-import { JSONContent } from "@tiptap/core"
+import MentionMediaIcon from "./components/MentionMediaIcon"
+import { useMentionMediaSource } from "../MentionMedia/useMentionMediaSource"
+import {
+	DEFAULT_FILE_MENTION_RENDER_CONFIG,
+	getFileMentionRenderType,
+	isFileMentionFeatureEnabled,
+	type FileMentionRenderConfig,
+} from "../MentionMedia/fileMentionRenderConfig"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { type MarkerClickScene } from "../../hooks/useMarkerClickHandler"
 import MarkerAtItem from "../MentionNodes/marker/MarkerAtItem"
 import { observer } from "mobx-react-lite"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
+import {
+	getFileReferenceIdentityKey,
+	resolveFileReference,
+} from "@/pages/superMagic/services/userFileReferenceResolver"
+import { openUserFileReference } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
+import magicToast from "@/components/base/MagicToaster/utils"
 
 interface AtItemProps {
 	data: TiptapMentionAttributes
@@ -61,6 +75,8 @@ interface AtItemProps {
 	messageContent?: JSONContent | string | Record<string, unknown>
 	/** 消息列表作用域内的附件 store；未传时保持全局 store 行为 */
 	projectFilesStore?: ProjectFilesStore
+	/** 控制所有文件 Mention 的 Icon 与 Tooltip 展示类型。 */
+	fileMentionRenderConfig?: FileMentionRenderConfig
 }
 
 function AtItem({
@@ -79,6 +95,7 @@ function AtItem({
 	markerClickScene,
 	messageContent,
 	projectFilesStore: projectFilesStoreInstance,
+	fileMentionRenderConfig = DEFAULT_FILE_MENTION_RENDER_CONFIG,
 }: AtItemProps) {
 	// 判断是否在消息列表中：消息列表中不会传递 onRemove
 	const isInMessageList = !onRemove
@@ -90,6 +107,14 @@ function AtItem({
 	const displayName = getMentionDisplayName(data)
 	const icon = getMentionIcon(data)
 	const description = getMentionDescription(data)
+	const mentionMediaSource = useMentionMediaSource({
+		data,
+		uploadFile:
+			data.type === MentionItemType.UPLOAD_FILE
+				? (data.data as UploadFileMentionData).file
+				: null,
+		enabled: true,
+	})
 
 	// 检查是否为上传文件且有上传进度
 	const isUploadFile = data.type === MentionItemType.UPLOAD_FILE
@@ -100,6 +125,21 @@ function AtItem({
 	const isUploadError = uploadData?.upload_status === "error"
 
 	const handleClick = (item: TiptapMentionAttributes) => {
+		if (item.type === MentionItemType.USER_FILE) {
+			const identity = getFileReferenceIdentityKey()
+			void resolveFileReference({ file_id: (item.data as UserFileMentionData).file_id })
+				.then((result) => {
+					if (identity !== getFileReferenceIdentityKey()) return
+					if (result.status === "resolved" && result.reference.space_type === "user")
+						openUserFileReference(result.reference)
+					else magicToast.error(t("common.fileNotFoundOrLoadFailed"))
+				})
+				.catch(() => {
+					if (identity === getFileReferenceIdentityKey())
+						magicToast.error(t("common.fileNotFoundOrLoadFailed"))
+				})
+			return
+		}
 		if (!onFileClick) {
 			if (item.type === MentionItemType.PROJECT_FILE) {
 				const data = item.data as ProjectFileMentionData
@@ -132,10 +172,11 @@ function AtItem({
 		}
 
 		switch (item.type) {
-			case MentionItemType.PROJECT_FILE:
+			case MentionItemType.PROJECT_FILE: {
 				// const result = handleProjectFileMention(item.data as ProjectFileMentionData, t)
 				onFileClick?.(item.data)
 				break
+			}
 			default:
 				break
 		}
@@ -238,25 +279,25 @@ function AtItem({
 				) : (
 					<SkillIcon size={iconSize} />
 				)
-			case MentionItemType.PROJECT_FILE:
+			case MentionItemType.PROJECT_FILE: {
 				const item = data.data as ProjectFileMentionData
-				const extension = item.file_extension || item.file_name.split(".").pop() || ""
-				const type = getFileType(extension)
-				if (type === "image" && item.file_id) {
+				const isThumbnailMedia =
+					mentionMediaSource.mediaType === "image" ||
+					mentionMediaSource.mediaType === "video"
+				if (isThumbnailMedia) {
 					return (
-						<ImageInProjectFile
-							fileId={item.file_id}
-							fileName={item.file_name}
+						<MentionMediaIcon
+							type={MentionItemType.PROJECT_FILE}
+							data={item}
 							size={iconSize}
-							fallback={<TSIcon type="ts-image" size={iconSize.toString()} />}
+							mediaSource={mentionMediaSource}
 						/>
 					)
 				}
 
+				const extension = item.file_extension || item.file_name.split(".").pop() || ""
 				const fileNode = projectFilesStore.workspaceFilesList.find((f) => {
-					if (item.file_id) {
-						return f.file_id === item.file_id
-					}
+					if (item.file_id) return f.file_id === item.file_id
 					if (item.file_path) {
 						return (
 							normalizePath(f.relative_file_path || "") ===
@@ -268,40 +309,46 @@ function AtItem({
 				const fileDisplayConfig = fileNode?.display_config
 
 				if (fileDisplayConfig?.type === "custom") {
-					// 优先使用 _customFolderId（入口文件需从原始 custom 文件夹解析 icon）
 					const customFolderId = (fileDisplayConfig as any)?._customFolderId
 					const targetFolderId = customFolderId || fileNode?.parent_id
-
 					const targetNode = targetFolderId
 						? projectFilesStore.getFolderData(targetFolderId)
 						: null
-					const childrenItems = (targetNode?.children as unknown[]) || []
 
 					return (
 						<CustomFolderMagicIcon
 							displayConfig={fileDisplayConfig}
-							childrenItems={childrenItems}
+							childrenItems={(targetNode?.children as unknown[]) || []}
 							size={iconSize}
 							typeFallback="custom"
 						/>
 					)
 				}
 
-				const fileIconType = getFileTreeIconType(
-					fileNode || {
-						...item,
-						display_config: fileDisplayConfig,
-						file_extension: extension,
-					},
-				)
 				return (
 					<MagicFileIcon
-						type={fileIconType || (icon as string) || extension}
+						type={getFileTreeIconType(
+							fileNode || {
+								...item,
+								display_config: fileDisplayConfig,
+								file_extension: extension,
+							},
+						)}
 						size={iconSize}
 					/>
 				)
+			}
 			case MentionItemType.MEMORY_FILE:
 				return <MagicFileIcon type={icon as string} size={iconSize} />
+			case MentionItemType.USER_FILE:
+				return (
+					<MentionMediaIcon
+						type={MentionItemType.USER_FILE}
+						data={data.data as UserFileMentionData}
+						size={iconSize}
+						mediaSource={mentionMediaSource}
+					/>
+				)
 			case MentionItemType.TOOL:
 				return icon ? (
 					<img
@@ -318,20 +365,24 @@ function AtItem({
 				) : (
 					<ToolIcon size={iconSize} />
 				)
-			case MentionItemType.UPLOAD_FILE:
+			case MentionItemType.UPLOAD_FILE: {
 				const uploadData = data.data as UploadFileMentionData
 				const file = uploadData.file
-				const fileExtension = uploadData.file_extension || file?.type.split("/").pop() || ""
-				if (file && getFileType(fileExtension) === "image") {
+				const isThumbnailMedia =
+					mentionMediaSource.mediaType === "image" ||
+					mentionMediaSource.mediaType === "video"
+				if (file && isThumbnailMedia) {
 					return (
-						<ImageInUploadFile
-							file={file}
-							fileName={uploadData.file_name}
+						<MentionMediaIcon
+							type={MentionItemType.UPLOAD_FILE}
+							data={uploadData}
 							size={iconSize}
+							mediaSource={mentionMediaSource}
 						/>
 					)
 				}
 				return <MagicFileIcon type={icon as string} size={iconSize} />
+			}
 			case MentionItemType.FOLDER:
 				const directoryData = data.data as DirectoryMentionData
 				const directoryDisplayConfig = directoryData?.directory_metadata
@@ -381,6 +432,7 @@ function AtItem({
 					/>
 				)
 			case MentionItemType.MEMORY_DIRECTORY:
+			case MentionItemType.USER_DIRECTORY:
 				return (
 					<img
 						src={FoldIcon}
@@ -408,6 +460,17 @@ function AtItem({
 	const renderNameSuffix = () => {
 		return null
 	}
+	const isFileMention =
+		data.type === MentionItemType.PROJECT_FILE ||
+		data.type === MentionItemType.UPLOAD_FILE ||
+		data.type === MentionItemType.USER_FILE
+	const fileRenderType = isFileMention
+		? getFileMentionRenderType(mentionMediaSource.mediaType)
+		: null
+	const shouldRenderIcon =
+		!isFileMention ||
+		isFileMentionFeatureEnabled("icon", fileRenderType ?? "other", fileMentionRenderConfig)
+	const renderedIcon = shouldRenderIcon ? renderIcon() : null
 
 	const content = (
 		<div
@@ -431,7 +494,9 @@ function AtItem({
 				/>
 			)}
 			<div className="relative z-10 flex w-full flex-1 items-center gap-1">
-				<div className="relative flex items-center justify-center">{renderIcon()}</div>
+				{renderedIcon ? (
+					<div className="relative flex items-center justify-center">{renderedIcon}</div>
+				) : null}
 				<span
 					className={cn(
 						"flex min-w-0 items-center text-[10px] leading-[13px] text-foreground md:text-xs md:leading-4",
@@ -482,6 +547,8 @@ function AtItem({
 			isInMessageList={isInMessageList}
 			placement={placement}
 			tooltipProps={tooltipProps}
+			mediaSource={mentionMediaSource}
+			fileMentionRenderConfig={fileMentionRenderConfig}
 		>
 			{content}
 		</MentionTooltipWrapper>

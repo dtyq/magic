@@ -1,9 +1,9 @@
-import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
-import { forwardRef, useImperativeHandle, useRef } from "react"
 import type {
-	MentionSelectItem,
-	MentionSelectRef,
-} from "@/components/business/MentionSelect"
+	SuggestionKeyDownProps,
+	SuggestionProps,
+} from "@/infrastructure/editors/tiptap/suggestion"
+import { forwardRef, useImperativeHandle, useRef } from "react"
+import type { MentionSelectItem, MentionSelectRef } from "@/components/business/MentionSelect"
 import MentionSelect from "@/components/business/MentionSelect"
 
 export type MentionListRef = {

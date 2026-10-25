@@ -7,9 +7,13 @@ import {
 	EmptyTitle,
 	EmptyDescription,
 } from "@/components/shadcn-ui/empty"
+import { Button } from "@/components/shadcn-ui/button"
 import { DetailEmptyIcon } from "./DetailEmptyIcon"
 
-export default memo(function DetailEmpty() {
+export default memo(function DetailEmpty({
+	title,
+	onRetry,
+}: { title?: string; onRetry?: () => void } = {}) {
 	const { t } = useTranslation("super")
 
 	return (
@@ -19,11 +23,18 @@ export default memo(function DetailEmpty() {
 					<DetailEmptyIcon />
 				</EmptyMedia>
 				<EmptyTitle className="text-base font-semibold text-gray-900">
-					{t("detail.emptyState.title")}
+					{title ?? t("detail.emptyState.title")}
 				</EmptyTitle>
-				<EmptyDescription className="text-sm text-gray-500">
-					{t("detail.emptyState.description")}
-				</EmptyDescription>
+				{!title && (
+					<EmptyDescription className="text-sm text-gray-500">
+						{t("detail.emptyState.description")}
+					</EmptyDescription>
+				)}
+				{onRetry && (
+					<Button variant="outline" onClick={onRetry}>
+						{t("common.retry")}
+					</Button>
+				)}
 			</EmptyHeader>
 		</Empty>
 	)

@@ -12,7 +12,6 @@ import useRights from "@admin/hooks/useRights"
 import { PERMISSION_KEY_MAP } from "@admin/const/common"
 import { useOpenModal } from "@admin/hooks/useOpenModal"
 import { useIsMobile } from "@admin/hooks/useIsMobile"
-import { useAdmin } from "@admin/provider/AdminProvider"
 import { useAdminStore } from "@admin/stores/admin"
 import { useStyles } from "./styles"
 import ModalList from "../ModalList"
@@ -40,7 +39,6 @@ const ServiceProviderDetail = ({
 
 	const { AIManageApi } = useApis()
 
-	const { isPrivateDeployment } = useAdmin()
 	const { isOfficialOrg } = useAdminStore()
 
 	const { id } = useParams()
@@ -119,18 +117,7 @@ const ServiceProviderDetail = ({
 
 	const hasEditRight = isOfficialOrg ? hasOfficialPermission : hasNonOfficialPermission
 
-	const showEditButton = useMemo(() => {
-		// 官方组织
-		if (isOfficialOrg) {
-			const isPrivate = isPrivateDeployment
-			// 非私有化环境且是官方类型，无权限操作
-			if (!isPrivate && isOfficial) {
-				return false
-			}
-		}
-		// 个人版本组织有权限, 其他组织通过权限控制
-		return hasEditRight
-	}, [isOfficialOrg, hasEditRight, isPrivateDeployment, isOfficial])
+	const showEditButton = hasEditRight
 
 	const title = useMemo(
 		() => (
@@ -279,12 +266,7 @@ const ServiceProviderDetail = ({
 					is2LineClamp={false}
 				/>
 				<Divider className={styles.divider} />
-				<ApiConfig
-					data={data}
-					lang={langConfig}
-					isOfficial={isOfficial}
-					onLangSave={onLangSave}
-				/>
+				<ApiConfig data={data} lang={langConfig} onLangSave={onLangSave} />
 				<Flex justify={hasDeleteButton ? "space-between" : "flex-end"} align="center">
 					{hasDeleteButton && (
 						<MagicButton danger onClick={onDelete} className={styles.deleteButton}>

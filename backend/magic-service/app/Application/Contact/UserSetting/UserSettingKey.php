@@ -29,6 +29,9 @@ enum UserSettingKey: string
     // 平台设置（平台信息、Logo、Favicon、i18n 等）
     case PlatformSettings = 'PlatformSettings';
 
+    // 组织页面身份水印配置
+    case IdentityWatermark = 'IdentityWatermark';
+
     // 智能体排序配置
     case SuperMagicAgentSort = 'SuperMagicAgentSort';
 

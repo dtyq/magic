@@ -5,7 +5,7 @@ import { memo, useEffect, useState } from "react"
 import { getJSBridge } from "@/utils/bridge/utils"
 import { createStyles } from "antd-style"
 import { nanoid } from "nanoid"
-import { loadMermaid } from "@/lib/mermaid"
+import { loadMermaid } from "@/infrastructure/vendors/mermaid"
 import { convertSvgToPng } from "@/utils/image"
 import MagicMermaid from "."
 

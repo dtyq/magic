@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace App\Application\SuperMagic\Common\Share\Service;
 
+use App\Application\Permission\Service\FunctionPermissionAppService;
 use App\Application\SuperMagic\Common\Share\Factory\ShareableResourceFactory;
 use App\Application\SuperMagic\File\Service\FileManagementAppService;
+use App\Application\SuperMagic\File\Service\TaskFileAuthorizationService;
 use App\Application\SuperMagic\Message\Chat\Service\ChatAppService;
 use App\Application\SuperMagic\Project\Event\Publish\ProjectForkPublisher;
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
@@ -31,12 +33,16 @@ use App\Domain\SuperMagic\Common\Share\Service\ResourceShareAccessLogDomainServi
 use App\Domain\SuperMagic\Common\Share\Service\ResourceShareCopyLogDomainService;
 use App\Domain\SuperMagic\Common\Share\Service\ResourceShareDomainService;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileSpaceType;
 use App\Domain\SuperMagic\File\Repository\Facade\TaskFileRepositoryInterface;
 use App\Domain\SuperMagic\File\Service\AudioProjectDomainService;
 use App\Domain\SuperMagic\File\Service\FileCollectionDomainService;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
+use App\Domain\SuperMagic\Project\Entity\ValueObject\MemberRole;
+use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectMode;
 use App\Domain\SuperMagic\Project\Event\ForkProjectStartEvent;
 use App\Domain\SuperMagic\Project\Event\ProjectForkEvent;
+use App\Domain\SuperMagic\Project\Repository\Facade\MicroAppRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectForkRepositoryInterface;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
 use App\Domain\SuperMagic\Project\Service\ProjectMemberDomainService;
@@ -67,7 +73,9 @@ use App\Interfaces\SuperMagic\Common\Share\DTO\Request\FindSimilarShareRequestDT
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetFilesByIdsRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareCopyLogsRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareDetailDTO;
+use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareDetailV2DTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareFilesRequestDTO;
+use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareFilesV2RequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareStatisticsRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\ResourceListRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Response\CopyResourceFilesResponseDTO;
@@ -97,6 +105,12 @@ use function Hyperf\Translation\trans;
  */
 class ResourceShareAppService extends AbstractShareAppService
 {
+    private const SHARE_V2_MAX_DIRECTORY_QUERIES = 1000;
+
+    private const SHARE_V2_MAX_CURSOR_STATES = 10000;
+
+    private const SHARE_V2_MAX_CURSOR_BYTES = 1024 * 1024;
+
     protected LoggerInterface $logger;
 
     public function __construct(
@@ -108,6 +122,7 @@ class ResourceShareAppService extends AbstractShareAppService
         private readonly TopicRepositoryInterface $topicRepository,
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly TaskFileAuthorizationService $taskFileAuthorizationService,
         private readonly FileDomainService $fileDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly ProjectMemberDomainService $projectMemberDomainService,
@@ -124,33 +139,47 @@ class ResourceShareAppService extends AbstractShareAppService
         private readonly ResourceShareAccessLogDomainService $accessLogDomainService,
         private readonly ResourceShareCopyLogDomainService $copyLogDomainService,
         private readonly ProjectForkRepositoryInterface $projectForkRepository,
+        private readonly MicroAppRepositoryInterface $microAppRepository,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
         private readonly ShareUrlBuilder $shareUrlBuilder,
-        private readonly RequestInterface $request
+        private readonly RequestInterface $request,
+        private readonly FunctionPermissionAppService $functionPermissionAppService,
+        private readonly ShareNotificationAppService $shareNotificationAppService
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
+    }
+
+    /** Check the real micro-app manager before delegating the link write to its owner. */
+    public function assertMicroAppShareAllowed(MagicUserAuthorization $authorization, int $shareType): void
+    {
+        $this->assertAllowed($authorization, 'micro_app', $shareType);
     }
 
     /**
      * 创建分享.
      *
-     * @param MagicUserAuthorization $userAuthorization 当前用户
-     * @param CreateShareRequestDTO $dto 创建分享请求DTO
      * @return ShareItemDTO 分享项目DTO
      * @throws Exception 创建分享异常
      */
-    public function createShare(MagicUserAuthorization $userAuthorization, CreateShareRequestDTO $dto): ShareItemDTO
+    public function createShare(MagicUserAuthorization $userAuthorization, CreateShareRequestDTO $dto, ?string $resourceKind = null): ShareItemDTO
     {
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 验证资源类型
         $resourceType = ResourceType::from($dto->resourceType);
+        if (in_array($resourceType, [ResourceType::Project, ResourceType::Topic], true)) {
+            $this->assertAllowed($userAuthorization, $resourceKind ?? $resourceType->getBusinessName(), $dto->shareType);
+        }
 
         // 统一查询一次已存在的分享（如果存在），避免重复查询
         // 用于区分创建场景和更新场景，以及获取数据库中的原值
-        // 只用 resource_id 查询，不校验 resource_type，避免类型转换(13↔12)时查询失败
+        // Match the record saveShare will update, including type conversions and
+        // deleted shares, and authorize it before any file collection is changed.
         $existingShare = $this->shareDomainService->getShareByResourceIdWithTrashed($dto->resourceId);
+        if ($existingShare) {
+            $this->shareDomainService->assertShareOwnership($existingShare, $userId, $organizationCode);
+        }
 
         // 校验 file_ids 必填条件（问题2修复：使用 hasField() 判断，区分"不传"和"传空数组"）
         $isFileCollectionType = $resourceType === ResourceType::FileCollection;
@@ -267,14 +296,11 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         // 4. 验证资源所有者权限（只允许项目创建者分享，协作者不允许）
-        if ($existingShare) {
-            if ($existingShare->getCreatedUid() !== $userId) {
-                ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.no_permission_to_share', [$resourceId]);
-            }
-        } else {
-            if (! $factory->hasSharePermission($realResourceId, $userId, $organizationCode)) {
-                ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.no_permission_to_share', [$resourceId]);
-            }
+        // This check must also run when updating an existing share. The existing
+        // record is selected from caller-controlled input and cannot authorize a
+        // different real resource (notably project_id for Project shares).
+        if (! $factory->hasSharePermission($realResourceId, $userId, $organizationCode)) {
+            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.no_permission_to_share', [$resourceId]);
         }
 
         // 5. 校验 share_type=5 时密码必填
@@ -407,6 +433,15 @@ class ResourceShareAppService extends AbstractShareAppService
             $projectId
         );
 
+        // 分享事实落库成功后，由统一消息服务处理新增收件人通知。
+        // 适配器同时维护已通知收件人快照，更新分享时只发布新增差集。
+        $extraBeforeNotification = $savedEntity->getExtra();
+        $this->shareNotificationAppService->publishRecipientsAdded($existingShare, $savedEntity);
+        if ($savedEntity->getExtra() !== $extraBeforeNotification) {
+            // 适配器可能只更新了 extra 快照；保存一次即可，不修改分享业务字段。
+            $this->shareDomainService->saveShareByEntity($savedEntity);
+        }
+
         $shareDto = $this->shareAssembler->toDto($savedEntity);
 
         if (in_array($resourceType, [ResourceType::FileCollection, ResourceType::File, ResourceType::Project], true)) {
@@ -442,7 +477,12 @@ class ResourceShareAppService extends AbstractShareAppService
         $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 调用领域服务的取消分享方法
-        return $this->shareDomainService->cancelShare($shareId, $userId, $organizationCode);
+        $share = $this->shareDomainService->getShareById($shareId);
+        $result = $this->shareDomainService->cancelShare($shareId, $userId, $organizationCode);
+        if ($result && $share !== null) {
+            $this->shareNotificationAppService->publishWithdrawn($share);
+        }
+        return $result;
     }
 
     /**
@@ -480,6 +520,7 @@ class ResourceShareAppService extends AbstractShareAppService
 
         // 调用领域服务的取消分享方法
         $this->shareDomainService->saveShareByEntity($shareEntity);
+        $this->shareNotificationAppService->publishWithdrawn($shareEntity);
         return true;
     }
 
@@ -540,6 +581,9 @@ class ResourceShareAppService extends AbstractShareAppService
 
         if (! empty($entitiesToSave)) {
             $this->shareDomainService->batchSaveShareEntities(array_values($entitiesToSave));
+            foreach ($entitiesToSave as $entity) {
+                $this->shareNotificationAppService->publishWithdrawn($entity);
+            }
         }
 
         return [];
@@ -551,6 +595,8 @@ class ResourceShareAppService extends AbstractShareAppService
         if (empty($shareEntity)) {
             ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.not_found', [$shareCode]);
         }
+
+        $this->assertHistoricalShareOwnerPermission($shareEntity);
 
         // 验证分享访问权限, 支持跨组织访问
         $this->shareDomainService->validateShareAccess(
@@ -579,6 +625,9 @@ class ResourceShareAppService extends AbstractShareAppService
         if (empty($shareEntity)) {
             ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.not_found', [$shareCode]);
         }
+
+        // A link created before a permission change must not bypass the owner's current policy.
+        $this->assertHistoricalShareOwnerPermission($shareEntity);
 
         // 验证分享访问权限
         $this->shareDomainService->validateShareAccess(
@@ -613,12 +662,28 @@ class ResourceShareAppService extends AbstractShareAppService
         $actualResourceId = $shareEntity->getRealResourceId();
         $extra = $shareEntity->getExtra() ?? [];
 
+        $resourceContent = $detailDTO instanceof GetShareDetailV2DTO
+            ? $factory->getResourceContentByCursor(
+                $actualResourceId,
+                $shareEntity->getCreatedUid(),
+                $shareEntity->getOrganizationCode(),
+                $detailDTO->getAfterId(),
+                $detailDTO->getLimit()
+            )
+            : $factory->getResourceContent(
+                $actualResourceId,
+                $shareEntity->getCreatedUid(),
+                $shareEntity->getOrganizationCode(),
+                $detailDTO->getPage(),
+                $detailDTO->getPageSize()
+            );
+
         // 构建返回数据
         $result = [
             'resource_type' => $resourceType->value, // 使用枚举的整数值，而不是枚举对象
             'resource_name' => $shareEntity->getResourceName() ?: $factory->getResourceNameForDetail($shareEntity) ?: '', // 优先使用数据库中的 resource_name，如果为空则从资源获取
             'project_id' => $shareEntity->getProjectId() !== null ? (string) $shareEntity->getProjectId() : null,
-            'temporary_token' => AccessTokenUtil::generate((string) $shareEntity->getId(), $shareEntity->getOrganizationCode()),
+            'temporary_token' => AccessTokenUtil::generateForShare($shareEntity),
             'default_open_file_id' => $shareEntity->getDefaultOpenFileId() !== null ? (string) $shareEntity->getDefaultOpenFileId() : null,
             'extra' => $extra,
             'share_project' => $shareEntity->isShareProject(),
@@ -627,13 +692,7 @@ class ResourceShareAppService extends AbstractShareAppService
             'updated_at' => DateFormatUtil::formatExpireAt($shareEntity->getUpdatedAt()),
             'expire_at' => DateFormatUtil::formatExpireAt($shareEntity->getExpireAt()),
             'view_count' => $shareEntity->getViewCount(),
-            'data' => $factory->getResourceContent(
-                $actualResourceId,
-                $shareEntity->getCreatedUid(),
-                $shareEntity->getOrganizationCode(),
-                $detailDTO->getPage(),
-                $detailDTO->getPageSize()
-            ),
+            'data' => $resourceContent,
         ];
 
         // 类型转换：将内部类型12（Project）转换为外部类型13（FileCollection）+ share_project=true
@@ -874,6 +933,39 @@ class ResourceShareAppService extends AbstractShareAppService
         return $this->getFilesFromProject($projectId, $organizationCode, $dataIsolation, $dto, $workDir);
     }
 
+    /** Cursor-paginated share files. V2 is independent from the legacy full-tree endpoint. */
+    public function getShareFilesV2(?MagicUserAuthorization $userAuthorization, string $shareCode, GetShareFilesV2RequestDTO $dto): array
+    {
+        $shareEntity = $this->shareDomainService->getValidShareByCode($shareCode);
+        if (! $shareEntity) {
+            ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.not_found', [$shareCode]);
+        }
+        $this->shareDomainService->validateShareAccess(
+            $shareEntity,
+            $userAuthorization?->getId(),
+            $userAuthorization?->getOrganizationCode(),
+            $shareCode
+        );
+        if (! empty($shareEntity->getPassword()) && $dto->password !== PasswordCrypt::decrypt($shareEntity->getPassword())) {
+            ExceptionBuilder::throw(ShareErrorCode::PASSWORD_ERROR, 'share.password_error', [$shareCode]);
+        }
+
+        $scopeVersion = $this->getShareV2ScopeVersion($shareEntity);
+        if ($dto->scopeVersion !== null && $dto->scopeVersion !== $scopeVersion) {
+            ExceptionBuilder::throw(ShareErrorCode::PARAMETER_CHECK_FAILURE, 'share.scope_version_expired');
+        }
+
+        $type = ResourceType::tryFrom($shareEntity->getResourceType());
+        $result = match ($type) {
+            ResourceType::Project => $this->getProjectShareFilesV2($shareEntity, $dto),
+            ResourceType::FileCollection, ResourceType::File => $this->getCollectionShareFilesV2($shareEntity, $dto),
+            ResourceType::Topic => $this->getTopicShareFilesV2($shareEntity, $dto),
+            default => throw new InvalidArgumentException('Resource type does not support file listing'),
+        };
+        $result['scope_version'] = $scopeVersion;
+        return $result;
+    }
+
     /**
      * 复制资源文件到新项目.
      *
@@ -1034,9 +1126,12 @@ class ResourceShareAppService extends AbstractShareAppService
         );
         $expandedFileIds = $requestedFileIds;
         if ($directoryIds !== []) {
+            // 拷贝需要保留目录结构，子目录ID也必须包含在展开结果中，
+            // 否则消费端组树时子目录下的文件会因找不到父节点而被平铺到目标目录
             $descendantIds = $this->taskFileDomainService->getAllChildrenFileIdsByDirectoryIds(
                 $directoryIds,
-                $sourceProjectId
+                $sourceProjectId,
+                includeDirectories: true
             );
             if ($allowedFileIds !== null) {
                 $descendantIds = array_values(array_intersect($descendantIds, $allowedFileIds));
@@ -1323,17 +1418,12 @@ class ResourceShareAppService extends AbstractShareAppService
         string $resourceId,
         DataIsolation $dataIsolation
     ): ShareMembersResponseDTO {
-        // 1. 获取分享信息
-        $shareEntity = $this->shareDomainService->getShareByResourceId($resourceId);
-
-        if ($shareEntity === null) {
-            ExceptionBuilder::throw(ShareErrorCode::NOT_FOUND, 'share.not_found', [$resourceId]);
-        }
-
-        // 2. 权限验证：只有分享创建者可以查看成员列表
-        if ($shareEntity->getCreatedUid() !== $userAuthorization->getId()) {
-            ExceptionBuilder::throw(ShareErrorCode::PERMISSION_DENIED, 'share.permission_denied', [$resourceId]);
-        }
+        // 取消分享后仍需回显成员配置；与分享设置复用创建者和组织权限校验。
+        $shareEntity = $this->validateSharePermission(
+            $userAuthorization,
+            $resourceId,
+            'share.permission_denied'
+        );
 
         // 3. 获取 target_ids
         $targetIds = $shareEntity->getTargetIdsArray();
@@ -1610,8 +1700,538 @@ class ResourceShareAppService extends AbstractShareAppService
         // 1. 从DTO获取文件ID数组
         $fileIds = $dto->getFileIds();
 
-        // 2. 调用Domain层批量查询,直接返回Entity数组
-        return $this->shareDomainService->getFilesByIds($fileIds);
+        // 2. 仅允许项目分享者读取项目文件，按实际项目归属批量鉴权。
+        return $this->taskFileAuthorizationService->authorizeFilesByIds(
+            $userAuthorization,
+            $fileIds,
+            MemberRole::EDITOR,
+            false,
+        );
+    }
+
+    private function getShareV2ScopeVersion(ResourceShareEntity $shareEntity): string
+    {
+        $parts = [
+            (string) $shareEntity->getResourceType(),
+            $shareEntity->getResourceId(),
+            (string) $shareEntity->getScopeVersion(),
+        ];
+        $type = ResourceType::tryFrom($shareEntity->getResourceType());
+        if (in_array($type, [ResourceType::File, ResourceType::FileCollection], true)) {
+            $collection = $this->fileCollectionDomainService->getFileCollection((int) $shareEntity->getResourceId());
+            $parts[] = (string) ($collection?->getScopeVersion() ?? 1);
+        }
+        return implode(':', $parts);
+    }
+
+    private function getProjectShareFilesV2(ResourceShareEntity $shareEntity, GetShareFilesV2RequestDTO $dto): array
+    {
+        $projectId = (int) $shareEntity->getProjectId();
+        $root = $this->taskFileDomainService->getRootFile($projectId);
+        if ($root === null) {
+            return ['list' => [], 'next_parent_ids' => [], 'has_more' => false];
+        }
+
+        $queue = $dto->nextParentIds;
+        $list = [];
+        if ($queue === []) {
+            $list[] = $this->formatShareCursorRow($root->toArray(), $shareEntity->getOrganizationCode());
+            $queue[] = [
+                'kind' => 'children',
+                'parent_id' => (string) $root->getFileId(),
+                'after_sort' => null,
+                'after_file_id' => null,
+            ];
+        }
+
+        $remaining = max(0, $dto->pageSize - count($list));
+        $queryCount = 0;
+        while ($remaining > 0 && $queue !== [] && $queryCount < self::SHARE_V2_MAX_DIRECTORY_QUERIES) {
+            $state = array_shift($queue);
+            if (($state['kind'] ?? 'children') !== 'children') {
+                throw new InvalidArgumentException('entry cursor is not valid for a project share');
+            }
+
+            ++$queryCount;
+            $rows = $this->taskFileDomainService->getProjectFileChildrenByParentCursor(
+                $projectId,
+                (int) $state['parent_id'],
+                StorageType::WORKSPACE->value,
+                $state['after_sort'],
+                $state['after_file_id'] === null ? null : (int) $state['after_file_id'],
+                $remaining + 1,
+                [],
+            );
+            $take = array_slice($rows, 0, $remaining);
+            $last = null;
+            foreach ($take as $row) {
+                $last = (array) $row;
+                $list[] = $this->formatShareCursorRow($last, $shareEntity->getOrganizationCode());
+                --$remaining;
+                if ((bool) ($last['is_directory'] ?? false)) {
+                    $queue[] = [
+                        'kind' => 'children',
+                        'parent_id' => (string) $last['file_id'],
+                        'after_sort' => null,
+                        'after_file_id' => null,
+                    ];
+                }
+            }
+            if (count($rows) > count($take) && $last !== null) {
+                array_unshift($queue, [
+                    'kind' => 'children',
+                    'parent_id' => (string) $state['parent_id'],
+                    'after_sort' => (int) $last['sort'],
+                    'after_file_id' => (string) $last['file_id'],
+                ]);
+                break;
+            }
+        }
+
+        return $this->appendShareV2Ancestors(
+            ['list' => $list, 'next_parent_ids' => array_values($queue), 'has_more' => $queue !== []],
+            $projectId,
+            $shareEntity->getOrganizationCode()
+        );
+    }
+
+    private function getCollectionShareFilesV2(ResourceShareEntity $shareEntity, GetShareFilesV2RequestDTO $dto): array
+    {
+        $collectionId = (int) $shareEntity->getResourceId();
+        $projectId = (int) ($shareEntity->getProjectId() ?? 0);
+        if ($projectId <= 0) {
+            $projectId = (int) ($this->getProjectIdFromFileCollection($collectionId) ?? 0);
+        }
+        if ($projectId <= 0) {
+            return ['list' => [], 'next_parent_ids' => [], 'has_more' => false];
+        }
+
+        $queue = $dto->nextParentIds;
+        if ($queue === []) {
+            $queue[] = ['kind' => 'entry', 'after_id' => '0'];
+        }
+        $list = [];
+        $remaining = $dto->pageSize;
+        $queryCount = 0;
+
+        while ($remaining > 0 && $queue !== [] && $queryCount < self::SHARE_V2_MAX_DIRECTORY_QUERIES) {
+            $state = array_shift($queue);
+            $kind = $state['kind'] ?? 'children';
+            if ($kind === 'entry') {
+                ++$queryCount;
+                $items = $this->fileCollectionDomainService->getFilesByCollectionIdCursor(
+                    $collectionId,
+                    (int) $state['after_id'],
+                    $remaining + 1
+                );
+                $entryLimit = $remaining + 1;
+                $scanned = 0;
+                $lastItem = null;
+                $fileIds = array_map(static fn ($item): string => $item->getFileId(), $items);
+                $entities = $this->taskFileDomainService->getFilesByIds($fileIds, $projectId);
+                $entitiesById = [];
+                foreach ($entities as $entity) {
+                    $entitiesById[(string) $entity->getFileId()] = $entity;
+                }
+                foreach ($items as $item) {
+                    if ($remaining <= 0) {
+                        break;
+                    }
+                    ++$scanned;
+                    $lastItem = $item;
+                    $entity = $entitiesById[$item->getFileId()] ?? null;
+                    if ($entity === null) {
+                        continue;
+                    }
+                    $list[] = $this->formatShareCursorRow($entity->toArray(), $shareEntity->getOrganizationCode());
+                    --$remaining;
+                    if ($entity->getIsDirectory()) {
+                        $queue[] = [
+                            'kind' => 'children',
+                            'parent_id' => (string) $entity->getFileId(),
+                            'after_sort' => null,
+                            'after_file_id' => null,
+                        ];
+                    }
+                }
+                if ($lastItem !== null && ($scanned < count($items) || count($items) >= $entryLimit)) {
+                    array_unshift($queue, ['kind' => 'entry', 'after_id' => (string) $lastItem->getId()]);
+                    break;
+                }
+                continue;
+            }
+
+            if ($kind !== 'children') {
+                throw new InvalidArgumentException('unsupported collection cursor kind');
+            }
+            $parentId = (int) $state['parent_id'];
+            if (! $this->isCollectionDirectoryAuthorized($collectionId, $projectId, $parentId)) {
+                throw new InvalidArgumentException('directory is outside the collection share scope');
+            }
+            ++$queryCount;
+            $rows = $this->taskFileDomainService->getProjectFileChildrenByParentCursor(
+                $projectId,
+                $parentId,
+                StorageType::WORKSPACE->value,
+                $state['after_sort'],
+                $state['after_file_id'] === null ? null : (int) $state['after_file_id'],
+                $remaining + 1,
+                [],
+            );
+            $take = array_slice($rows, 0, $remaining);
+            $last = null;
+            foreach ($take as $row) {
+                $last = (array) $row;
+                $list[] = $this->formatShareCursorRow($last, $shareEntity->getOrganizationCode());
+                --$remaining;
+                if ((bool) ($last['is_directory'] ?? false)) {
+                    $queue[] = ['kind' => 'children', 'parent_id' => (string) $last['file_id'], 'after_sort' => null, 'after_file_id' => null];
+                }
+            }
+            if (count($rows) > count($take) && $last !== null) {
+                array_unshift($queue, [
+                    'kind' => 'children',
+                    'parent_id' => (string) $parentId,
+                    'after_sort' => (int) $last['sort'],
+                    'after_file_id' => (string) $last['file_id'],
+                ]);
+                break;
+            }
+        }
+
+        return $this->appendShareV2Ancestors(
+            ['list' => $list, 'next_parent_ids' => array_values($queue), 'has_more' => $queue !== []],
+            $projectId,
+            $shareEntity->getOrganizationCode()
+        );
+    }
+
+    private function getTopicShareFilesV2(ResourceShareEntity $shareEntity, GetShareFilesV2RequestDTO $dto): array
+    {
+        $topicId = (int) $shareEntity->getResourceId();
+        $topic = $this->topicDomainService->getTopicById($topicId);
+        if ($topic === null) {
+            return ['list' => [], 'next_parent_ids' => [], 'has_more' => false];
+        }
+        $projectId = (int) $topic->getProjectId();
+        if ($shareEntity->isViewFileListEnabled()) {
+            return $this->getProjectShareFilesV2($shareEntity->setProjectId((string) $projectId), $dto);
+        }
+        $root = $this->taskFileDomainService->getTopicRootDirectory($projectId, $topicId, $shareEntity->getOrganizationCode());
+        if ($root === null) {
+            return ['list' => [], 'next_parent_ids' => [], 'has_more' => false];
+        }
+        $queue = $dto->nextParentIds ?: [['kind' => 'entry', 'after_id' => '0']];
+        $list = [];
+        $remaining = $dto->pageSize;
+        while ($remaining > 0 && $queue !== []) {
+            $state = array_shift($queue);
+            if (($state['kind'] ?? 'entry') !== 'entry') {
+                throw new InvalidArgumentException('children cursor is not valid when topic file list is disabled');
+            }
+            $rows = $this->taskFileDomainService->getTopicFilesByCursor($topicId, $root->getFileId(), (int) $state['after_id'], $remaining + 1);
+            $take = array_slice($rows, 0, $remaining);
+            $last = null;
+            foreach ($take as $entity) {
+                $last = $entity;
+                if ($entity->getIsHidden()) {
+                    continue;
+                }
+                $list[] = $this->formatShareCursorRow($entity->toArray(), $shareEntity->getOrganizationCode());
+                --$remaining;
+            }
+            if (count($rows) > count($take) && $last !== null) {
+                array_unshift($queue, ['kind' => 'entry', 'after_id' => (string) $last->getFileId()]);
+                break;
+            }
+        }
+        return $this->appendShareV2Ancestors(
+            ['list' => $list, 'next_parent_ids' => array_values($queue), 'has_more' => $queue !== []],
+            $projectId,
+            $shareEntity->getOrganizationCode(),
+            true
+        );
+    }
+
+    private function isCollectionDirectoryAuthorized(int $collectionId, int $projectId, int $directoryId): bool
+    {
+        $chain = $this->taskFileDomainService->getFilesWithParentsByIds([$directoryId], $projectId);
+        if ($chain === []) {
+            return false;
+        }
+        $chainIds = array_map(static fn (TaskFileEntity $entity): string => (string) $entity->getFileId(), $chain);
+        return $this->fileCollectionDomainService->getFilesByCollectionIdAndFileIds($collectionId, $chainIds) !== [];
+    }
+
+    private function appendShareV2Ancestors(
+        array $result,
+        int $projectId,
+        string $organizationCode,
+        bool $filterHidden = false
+    ): array {
+        $this->assertShareV2QueueSize($result['next_parent_ids'] ?? []);
+        $rows = $result['list'] ?? [];
+        $contentIds = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['file_id'], $rows)));
+        if ($contentIds === []) {
+            return $result;
+        }
+        $entities = $this->taskFileDomainService->getFilesWithParentsByIds($contentIds, $projectId);
+        $entityMap = [];
+        foreach ($entities as $entity) {
+            $entityMap[(string) $entity->getFileId()] = $entity;
+        }
+        // The child query and the parent-chain query must describe the same
+        // snapshot. If a content row disappears between them (deleted,
+        // moved to another project, or filtered by a scope condition), do not
+        // silently turn a non-empty page into an empty successful response.
+        $missingContentIds = array_values(array_filter(
+            $contentIds,
+            static fn (int $contentId): bool => ! array_key_exists((string) $contentId, $entityMap)
+        ));
+        if ($missingContentIds !== []) {
+            throw new InvalidArgumentException('share file content is missing');
+        }
+        $requiredAncestorIds = [];
+        $visibleContentIds = [];
+        foreach ($contentIds as $contentId) {
+            $currentId = (string) $contentId;
+            $visited = [];
+            $depth = 0;
+            $path = [];
+            $hasHiddenAncestor = false;
+            while (isset($entityMap[$currentId])) {
+                if (isset($visited[$currentId]) || ++$depth > 15) {
+                    throw new InvalidArgumentException('share file parent chain is invalid');
+                }
+                $visited[$currentId] = true;
+                $path[] = $currentId;
+                // The project root is a tree boundary, not a user-visible
+                // content node. Historical data may mark it hidden; that
+                // flag must not hide every descendant in the shared tree.
+                $isProjectRoot = $entityMap[$currentId]->getParentId() === null
+                    && $entityMap[$currentId]->getIsDirectory()
+                    && $entityMap[$currentId]->getSpaceType() === FileSpaceType::PROJECT->value
+                    && $entityMap[$currentId]->getFileName() === '/';
+                if ($filterHidden && $entityMap[$currentId]->getIsHidden() && ! $isProjectRoot) {
+                    $hasHiddenAncestor = true;
+                }
+                $parentId = $entityMap[$currentId]->getParentId();
+                if ($parentId === null || $parentId <= 0) {
+                    break;
+                }
+                $parentKey = (string) $parentId;
+                if (! isset($entityMap[$parentKey])) {
+                    throw new InvalidArgumentException('share file parent chain is broken');
+                }
+                $currentId = $parentKey;
+            }
+            if ($hasHiddenAncestor) {
+                continue;
+            }
+            $visibleContentIds[] = $contentId;
+            foreach (array_slice($path, 1) as $ancestorId) {
+                $requiredAncestorIds[$ancestorId] = true;
+            }
+        }
+
+        $rows = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => in_array((int) $row['file_id'], $visibleContentIds, true)
+        ));
+        $existing = [];
+        foreach ($rows as $row) {
+            $existing[(string) $row['file_id']] = true;
+        }
+        $ancestorCount = 0;
+        foreach ($entities as $entity) {
+            $entityId = (string) $entity->getFileId();
+            $isProjectRoot = $entity->getParentId() === null
+                && $entity->getIsDirectory()
+                && $entity->getSpaceType() === FileSpaceType::PROJECT->value
+                && $entity->getFileName() === '/';
+            if (! isset($requiredAncestorIds[$entityId])
+                || ($filterHidden && $entity->getIsHidden() && ! $isProjectRoot)
+                || isset($existing[$entityId])) {
+                continue;
+            }
+            if (++$ancestorCount > min(count($visibleContentIds) * 15, 5000)) {
+                throw new InvalidArgumentException('share file ancestor limit exceeded');
+            }
+            $rows[] = $this->formatShareCursorRow($entity->toArray(), $organizationCode);
+            $existing[$entityId] = true;
+        }
+        // Aligned with the project attachments V2 row shape: file_url stays '' and
+        // relative_file_path is not emitted. The web tree builder rebuilds paths from
+        // parent_id + file_name. Restore the batch enrichment below if a client needs
+        // the V1-compatible fields again.
+        // $result['list'] = $this->enrichShareV2Rows($rows, $organizationCode);
+        $result['list'] = $rows;
+        return $result;
+    }
+
+    private function assertShareV2QueueSize(array $queue): void
+    {
+        if (count($queue) > self::SHARE_V2_MAX_CURSOR_STATES
+            || strlen((string) json_encode($queue)) > self::SHARE_V2_MAX_CURSOR_BYTES) {
+            throw new InvalidArgumentException('share cursor is too large');
+        }
+    }
+
+    // Disabled: the web client no longer reads file_url / relative_file_path from share V2 rows,
+    // and the project attachments V2 rows do not compute them either. Kept as a comment so the
+    // V1-compatible fields can be restored without rewriting the logic.
+    //
+    // | Field              | Now (aligned with attachments V2) | If restored                      |
+    // | file_url           | ''                                | one getLinks() batch per page    |
+    // | relative_file_path | not emitted                       | parent_id chain joined by '/'    |
+    //
+    // Restoring also requires re-enabling the 'relative_file_path' key in formatShareCursorRow()
+    // and the enrichShareV2Rows() call in appendShareV2Ancestors().
+    //
+    // /**
+    //  * Add the V1-compatible URL and relative path fields in one batch per page.
+    //  * The cursor query remains free of per-row object-storage lookups.
+    //  */
+    // private function enrichShareV2Rows(array $rows, string $organizationCode): array
+    // {
+    //     if ($rows === []) {
+    //         return $rows;
+    //     }
+    //
+    //     $fileKeys = array_values(array_unique(array_filter(
+    //         array_map(static fn (array $row): string => (string) ($row['file_key'] ?? ''), $rows),
+    //         static fn (string $fileKey): bool => $fileKey !== ''
+    //     )));
+    //     $links = $fileKeys === []
+    //         ? []
+    //         : $this->fileDomainService->getLinks($organizationCode, $fileKeys, StorageBucketType::Public);
+    //     $rowMap = [];
+    //     foreach ($rows as $row) {
+    //         $rowMap[(string) $row['file_id']] = $row;
+    //     }
+    //
+    //     foreach ($rows as &$row) {
+    //         $fileKey = (string) ($row['file_key'] ?? '');
+    //         $link = $links[$fileKey] ?? null;
+    //         $row['file_url'] = $link?->getUrl() ?? '';
+    //         $row['relative_file_path'] = $this->buildShareV2RelativePath($row, $rowMap);
+    //     }
+    //     unset($row);
+    //     return $rows;
+    // }
+    //
+    // private function buildShareV2RelativePath(array $row, array $rowMap): string
+    // {
+    //     $parts = [];
+    //     $currentId = (string) ($row['file_id'] ?? '');
+    //     $visited = [];
+    //     for ($depth = 0; $depth < 15 && $currentId !== '' && isset($rowMap[$currentId]); ++$depth) {
+    //         if (isset($visited[$currentId])) {
+    //             return '';
+    //         }
+    //         $visited[$currentId] = true;
+    //         $name = (string) ($rowMap[$currentId]['file_name'] ?? '');
+    //         if ($name !== '' && $name !== '/') {
+    //             array_unshift($parts, $name);
+    //         }
+    //         $parentId = (string) ($rowMap[$currentId]['parent_id'] ?? '');
+    //         if ($parentId === '' || $parentId === '0') {
+    //             break;
+    //         }
+    //         $currentId = $parentId;
+    //     }
+    //     return implode('/', $parts);
+    // }
+
+    private function assertHistoricalShareOwnerPermission(ResourceShareEntity $shareEntity): void
+    {
+        $resourceType = ResourceType::tryFrom($shareEntity->getResourceType());
+        $resourceKind = match ($resourceType) {
+            ResourceType::Topic => ResourceType::Topic->getBusinessName(),
+            ResourceType::Project => $this->microAppRepository->findByResourceIdWithTrashed($shareEntity->getResourceId()) !== null
+                ? 'micro_app'
+                : ResourceType::Project->getBusinessName(),
+            default => null,
+        };
+        if ($resourceKind === null) {
+            return;
+        }
+
+        if ($resourceType === ResourceType::Topic && $shareEntity->getShareType() === ShareAccessType::TeamShare->value) {
+            ExceptionBuilder::throw(ShareErrorCode::SHARE_OWNER_PERMISSION_REVOKED, 'share.share_owner_permission_revoked', []);
+        }
+
+        $owner = $this->magicUserDomainService->getUserById($shareEntity->getCreatedUid());
+        if ($owner === null) {
+            ExceptionBuilder::throw(ShareErrorCode::SHARE_OWNER_PERMISSION_REVOKED, 'share.share_owner_permission_revoked', []);
+        }
+
+        // 访问已有分享时，应提示链接失效，而不是让访问者“换一种分享方式”。
+        if (! $this->isShareMethodAllowed(
+            MagicUserAuthorization::fromUserEntity($owner),
+            $resourceKind,
+            $shareEntity->getShareType()
+        )) {
+            ExceptionBuilder::throw(ShareErrorCode::SHARE_OWNER_PERMISSION_REVOKED, 'share.share_owner_permission_revoked', []);
+        }
+    }
+
+    private function formatShareCursorRow(array $row, string $organizationCode): array
+    {
+        $fileKey = (string) ($row['file_key'] ?? '');
+        return [
+            'file_id' => (string) ($row['file_id'] ?? ''),
+            'task_id' => (string) ($row['task_id'] ?? ''),
+            'project_id' => (string) ($row['project_id'] ?? ''),
+            'topic_id' => (string) ($row['topic_id'] ?? ''),
+            'parent_id' => (string) ($row['parent_id'] ?? ''),
+            'file_type' => (string) ($row['file_type'] ?? ''),
+            'file_name' => (string) ($row['file_name'] ?? ''),
+            'file_extension' => (string) ($row['file_extension'] ?? ''),
+            'file_key' => $fileKey,
+            'file_size' => (int) ($row['file_size'] ?? 0),
+            'file_url' => '',
+            // Same as ProjectAppService::formatAttachmentRowV2(): the row carries no relative path.
+            // 'relative_file_path' => (string) ($row['relative_file_path'] ?? ''),
+            'is_hidden' => (bool) ($row['is_hidden'] ?? false),
+            'is_directory' => (bool) ($row['is_directory'] ?? false),
+            'sort' => (int) ($row['sort'] ?? 0),
+            'source' => (int) ($row['source'] ?? 0),
+            'updated_at' => (string) ($row['updated_at'] ?? ''),
+            'display_config' => FileMetadataUtil::decodeJsonObject($row['display_config'] ?? null),
+            'metadata' => FileMetadataUtil::decodeJsonObject($row['metadata'] ?? null),
+        ];
+    }
+
+    private function isShareMethodAllowed(
+        MagicUserAuthorization $userAuthorization,
+        string $resourceKind,
+        int $shareType
+    ): bool {
+        $prefix = in_array($resourceKind, ['micro_app', ResourceType::Topic->getBusinessName(), ResourceType::Project->getBusinessName()], true) ? $resourceKind : ResourceType::Project->getBusinessName();
+        $shareFunctionCode = match ($shareType) {
+            ShareAccessType::TeamShare->value => $prefix . '.share_team',
+            ShareAccessType::Internet->value => $prefix . '.share_public',
+            ShareAccessType::PasswordProtected->value => $prefix . '.share_password',
+            default => null,
+        };
+
+        return $shareFunctionCode === null
+            || $this->functionPermissionAppService->checkPermission($userAuthorization, $shareFunctionCode);
+    }
+
+    private function assertAllowed(
+        MagicUserAuthorization $userAuthorization,
+        string $resourceKind,
+        int $shareType
+    ): void {
+        if (! $this->isShareMethodAllowed($userAuthorization, $resourceKind, $shareType)) {
+            ExceptionBuilder::throw(
+                ShareErrorCode::SHARE_METHOD_NOT_ALLOWED,
+                'share.share_method_not_allowed',
+                ['shareType' => ShareAccessType::tryFrom($shareType)?->getI18nKey() ?? (string) $shareType]
+            );
+        }
     }
 
     /**
@@ -2271,7 +2891,8 @@ class ResourceShareAppService extends AbstractShareAppService
                     $allEntities = $this->taskFileDomainService->getFilesWithParentsByIds(array_merge([$fileId], $childFileIds), $projectId);
 
                     // 过滤系统目录（如 .magic 及其子文件）
-                    $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
+                    // 暂不过滤系统目录（如 .magic 及其子文件）
+                    // $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
 
                     // Convert all entities to DTO list once to avoid duplicate relative_file_path calculation
                     // Both list and tree share the same pre-computed array elements, ensuring consistency
@@ -2306,15 +2927,8 @@ class ResourceShareAppService extends AbstractShareAppService
             }
 
             // 过滤系统目录（如 .magic 及其子文件）
-            $folderEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($folderEntities, ['.magic']);
-
-            if (empty($folderEntities)) {
-                return [
-                    'list' => [],
-                    'tree' => [],
-                    'total' => 0,
-                ];
-            }
+            // 暂不过滤系统目录（如 .magic 及其子文件）
+            // $folderEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($folderEntities, ['.magic']);
 
             // 转换为TaskFileItemDTO格式
             $list = $this->convertEntitiesToDtoList($folderEntities, $organizationCode);
@@ -2334,7 +2948,7 @@ class ResourceShareAppService extends AbstractShareAppService
                 $taskFileDto->updatedAt = $fileEntity->getUpdatedAt();
                 $taskFileDto->topicId = (string) $fileEntity->getTopicId();
                 $relativePathMap = $this->buildRelativePathsByParentIds([$fileEntity]);
-                $taskFileDto->relativeFilePath = $relativePathMap[$fileEntity->getFileId()] ?? $fileEntity->getFileKey();
+                $taskFileDto->relativeFilePath = $relativePathMap[$fileEntity->getFileId()] ?? '';
                 $taskFileDto->isDirectory = $fileEntity->getIsDirectory();
                 $taskFileDto->displayConfig = FileMetadataUtil::decodeJsonObject($fileEntity->getDisplayConfig());
                 $taskFileDto->metadata = $taskFileDto->displayConfig;
@@ -2364,15 +2978,9 @@ class ResourceShareAppService extends AbstractShareAppService
 
         // 普通文件的情况：只返回文件本身
         // 过滤系统目录（如 .magic 及其子文件）
-        $entities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames([$fileEntity], ['.magic']);
-        if (empty($entities)) {
-            return [
-                'list' => [],
-                'tree' => [],
-                'total' => 0,
-            ];
-        }
-
+        $entities = [$fileEntity];
+        // 暂不过滤系统目录（如 .magic 及其子文件）
+        // $entities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames([$fileEntity], ['.magic']);
         // 转换为TaskFileItemDTO格式
         $list = $this->convertEntitiesToDtoList([$fileEntity], $organizationCode);
 
@@ -2431,15 +3039,8 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         // 过滤系统目录（如 .magic 及其子文件）
-        $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
-
-        if (empty($allEntities)) {
-            return [
-                'list' => [],
-                'tree' => [],
-                'total' => 0,
-            ];
-        }
+        // 暂不过滤系统目录（如 .magic 及其子文件）
+        // $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
 
         $fileIdSet = array_flip($originalFileIds);
 
@@ -2521,15 +3122,8 @@ class ResourceShareAppService extends AbstractShareAppService
             $taskFileDto->updatedAt = $entity->getUpdatedAt();
             $taskFileDto->topicId = (string) $entity->getTopicId();
 
-            // 优先使用 parent_id 父链构建相对路径，保证路径层级与文件树一致。
-            $relativePath = $relativePathMap[$entity->getFileId()] ?? '';
-            if ($relativePath === '') {
-                // 兼容兜底：父链缺失时沿用旧逻辑，避免返回空路径。
-                $relativePath = ! empty($workDir)
-                    ? WorkDirectoryUtil::getRelativeFilePath($fileKey, $workDir)
-                    : $fileKey;
-            }
-            $taskFileDto->relativeFilePath = $relativePath;
+            // 展示路径只由 parent_id 链生成；file_key 仅用于对象存储定位。
+            $taskFileDto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? '';
 
             $taskFileDto->isDirectory = $entity->getIsDirectory();
             $taskFileDto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
@@ -2643,7 +3237,8 @@ class ResourceShareAppService extends AbstractShareAppService
         $allEntities = RelativeFilePathUtil::filterByValidParentChain($allEntities);
 
         // 过滤系统目录（如 .magic 及其子文件）
-        $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
+        // 暂不过滤系统目录（如 .magic 及其子文件）
+        // $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
 
         // 转换为DTO列表（会自动过滤根目录）
         $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode, $workDir);
@@ -2726,7 +3321,8 @@ class ResourceShareAppService extends AbstractShareAppService
         $allEntities = RelativeFilePathUtil::filterByValidParentChain($allEntities);
 
         // 过滤系统目录（如 .magic 及其子文件）
-        $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
+        // 暂不过滤系统目录（如 .magic 及其子文件）
+        // $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
 
         $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode, $workDir);
         $total = count($allList);
@@ -3008,7 +3604,8 @@ class ResourceShareAppService extends AbstractShareAppService
 
         return array_values(array_unique(array_merge(
             $originalFileIds,
-            $this->taskFileDomainService->getAllChildrenFileIdsByDirectoryIds($directoryIds, $sourceProjectId)
+            // 授权范围需包含子目录ID，与 batchCopySharedFiles 的展开逻辑保持一致
+            $this->taskFileDomainService->getAllChildrenFileIdsByDirectoryIds($directoryIds, $sourceProjectId, includeDirectories: true)
         )));
     }
 
@@ -3047,8 +3644,11 @@ class ResourceShareAppService extends AbstractShareAppService
         // 确定目标项目名称
         $projectName = $targetProjectName ?? $sourceProjectEntity->getProjectName();
 
-        Db::beginTransaction();
+        $transactionOpen = false;
         try {
+            $conversationPair = $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation);
+            Db::beginTransaction();
+            $transactionOpen = true;
             // 发布 fork 开始检查事件
             AsyncEventUtil::dispatch(new ForkProjectStartEvent(
                 $dataIsolation->getCurrentOrganizationCode(),
@@ -3066,7 +3666,8 @@ class ResourceShareAppService extends AbstractShareAppService
                 $targetWorkspaceId,
                 $projectName,
                 $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode()
+                $dataIsolation->getCurrentOrganizationCode(),
+                ProjectMode::GENERAL->value
             );
 
             // 初始化项目成员和设置
@@ -3086,18 +3687,25 @@ class ResourceShareAppService extends AbstractShareAppService
             // 创建工作目录
             $workDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $forkProjectEntity->getId());
 
-            // 初始化 Magic Chat 会话
-            [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
+            // Prepare IM topics without changing the shared conversation default.
+            $pendingDefault = $this->chatAppService->createMagicChatTopicForConversationPair($dataIsolation, $conversationPair);
 
             // 创建默认话题
             $topicEntity = $this->topicDomainService->createTopic(
                 $dataIsolation,
                 $workspaceEntity->getId(),
                 $forkProjectEntity->getId(),
-                $chatConversationId,
-                $chatConversationTopicId,
+                $pendingDefault['chat_conversation_id'],
+                $pendingDefault['chat_topic_id'],
                 '',
                 $workDir
+            );
+            $this->taskFileDomainService->findOrCreateTopicRootDirectory(
+                $forkProjectEntity->getId(),
+                $topicEntity->getId(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $forkProjectEntity->getUserOrganizationCode()
             );
             $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
 
@@ -3120,7 +3728,7 @@ class ResourceShareAppService extends AbstractShareAppService
                 $topicEntity->getId()
             );
 
-            // 发布异步文件迁移事件（新增：传递文件ID列表）
+            // Build the async file migration event; it is published after the commit
             $event = new ProjectForkEvent(
                 $sourceProjectId,
                 $forkProjectEntity->getId(),
@@ -3129,22 +3737,46 @@ class ResourceShareAppService extends AbstractShareAppService
                 $forkProjectRecordEntity->getId(),
                 $fileIds  // 新增: 传递文件ID列表
             );
-            $publisher = new ProjectForkPublisher($event);
-            $this->producer->produce($publisher);
 
-            $this->logger->info(sprintf('Published fork event, event ID: %s', $event->getEventId()));
-
+            $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
             Db::commit();
+            $transactionOpen = false;
 
             // 返回复制结果
             $responseDto = CopyResourceFilesResponseDTO::fromEntity($forkProjectRecordEntity);
             $responseDto->projectMode = $forkProjectEntity->getProjectMode();
-
-            return $responseDto->toArray();
         } catch (Throwable $e) {
-            Db::rollBack();
+            if ($transactionOpen) {
+                Db::rollBack();
+            }
             $this->logger->error('Copy resource files failed, error: ' . $e->getMessage());
             throw $e;
+        }
+
+        // The consumer reads the forked project on its own connection, so the event may only be
+        // published once the transaction is committed and those rows are visible to it.
+        $this->publishProjectForkEvent($event);
+
+        return $responseDto->toArray();
+    }
+
+    /**
+     * Publish the fork event, marking the fork record as failed when the message cannot be sent,
+     * so the client stops polling a progress that would never advance.
+     */
+    private function publishProjectForkEvent(ProjectForkEvent $event): void
+    {
+        try {
+            $this->producer->produce(new ProjectForkPublisher($event));
+            $this->logger->info(sprintf('Published fork event, event ID: %s', $event->getEventId()));
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to publish fork event, fork record ID: %d, event ID: %s, error: %s',
+                $event->getForkRecordId(),
+                $event->getEventId(),
+                $e->getMessage()
+            ));
+            $this->projectDomainService->markForkRecordFailed($event->getForkRecordId(), 'File migration failed');
         }
     }
 

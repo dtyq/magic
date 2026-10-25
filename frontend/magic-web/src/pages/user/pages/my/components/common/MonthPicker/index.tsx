@@ -1,7 +1,7 @@
 import { HTMLAttributes, useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cva } from "class-variance-authority"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 

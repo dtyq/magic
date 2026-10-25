@@ -61,7 +61,7 @@ async def get_file_version_history(request: FileVersionRequest) -> BaseResponse:
 
     Retrieves the complete version history of a file using git log.
     The file_key should be a path relative to the git repository root.
-    The git_directory specifies which git repository to use (e.g., '.workspace', '.chat_history').
+    The git_directory specifies which git repository to use (e.g., '.workspace', '.topic/chat_history').
 
     Args:
         request: FileVersionRequest object containing file_key and optional git_directory

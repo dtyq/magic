@@ -1,6 +1,5 @@
-import type { HttpClient } from "@/apis/core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
-import { genRequestUrl } from "@/utils/http"
 import { getLocalePreferredKeys, resolveLocalizedText } from "@/utils/locale"
 
 import {
@@ -96,13 +95,16 @@ export interface CrewIconObject {
 
 /** Resolve CrewIconObject to a display URL string. */
 export function resolveCrewIconUrl(icon: CrewIconObject | null | undefined): string {
-	if (!icon) return ""
-	return icon.url ?? icon.value ?? ""
+	if (icon?.url) return icon.url
+	return icon?.value && /^https?:\/\//i.test(icon.value) ? icon.value : ""
 }
 
 /** A single playbook base data (used in list views) */
 export interface CrewPlayBookBaseData {
-	name_i18n: CrewI18nText
+	/** Resolved display name returned by agent query list endpoints. */
+	name?: string
+	/** Legacy localized name retained for detail/compatibility payloads. */
+	name_i18n?: CrewI18nText
 	/** Emoji or icon key */
 	icon: string | null
 	theme_color: string | null
@@ -136,8 +138,10 @@ export interface GetStoreAgentsParams {
 	page?: number
 	page_size?: number
 	keyword?: string
-	/** Filter by category ID; omit for all */
+	/** Filter by category ID in the UI; converted to category_ids for the API. */
 	category_id?: string
+	/** API query field; supports multiple category IDs. */
+	category_ids?: Array<string | number>
 	/** Filter by market source; omit to include both public and organization markets. */
 	market_type?: StoreAgentMarketType
 }
@@ -151,9 +155,14 @@ export interface StoreAgentItem {
 	agent_code: string
 	user_code?: string | null
 	is_featured?: boolean
-	name_i18n: CrewI18nText
-	role_i18n: CrewI18nArrayText
-	description_i18n: CrewI18nText
+	/** Resolved display fields returned by newer market query responses. */
+	name?: string
+	role?: string
+	description?: string
+	/** Localized fields returned by older/current API deployments. */
+	name_i18n?: CrewI18nText
+	role_i18n?: CrewI18nArrayText | null
+	description_i18n?: CrewI18nText | null
 	/** Agent icon object (url, type, color) */
 	icon: CrewIconObject | null
 	/** Icon type: 1=icon, 2=image */
@@ -165,7 +174,9 @@ export interface StoreAgentItem {
 	publisher?: CrewPublisher | null
 	/** Market source returned by the store-agent query. */
 	market_type: StoreAgentMarketType
-	category_id: string | null
+	category_ids?: string[]
+	/** Legacy response field retained for older servers. */
+	category_id?: string | null
 	/** Whether the current user has added this agent */
 	is_added: boolean
 	/** Latest market version code */
@@ -218,18 +229,26 @@ export interface CrewAgentCreatorInfo {
 /** Single user agent item */
 export interface AgentItem {
 	id: string
+	project_id?: string | null
 	/** Crew unique code (magic_super_magic_agents.code) */
 	code: string
 	user_role?: CollaboratorPermission
-	name_i18n: CrewI18nText
-	role_i18n: CrewI18nArrayText
-	description_i18n: CrewI18nText
+	/** Display fields returned by newer agent query responses. */
+	name?: string
+	role?: string
+	description?: string
+	/** Localized fields returned by older/current API deployments. */
+	name_i18n?: CrewI18nText
+	role_i18n?: CrewI18nArrayText | null
+	description_i18n?: CrewI18nText | null
 	/** Agent icon object (url, type, color) */
 	icon: CrewIconObject | null
 	/** Icon type: 1=icon, 2=image */
 	icon_type: CrewIconType
 	playbooks: CrewPlayBookBaseData[]
 	source_type: CrewSourceType
+	/** Canonical source value returned by agent query list endpoints. */
+	source: string
 	/** Current user's display source for this agent (returned by list endpoints). */
 	origin: CrewAgentOrigin
 	/** Publish visibility for the current agent. */
@@ -377,6 +396,31 @@ export interface PublishAgentResponse {
 	published_at: string
 }
 
+/** Async publish task lifecycle status (ZIP packing / upload). */
+export type AsyncPublishTaskStatus = "processing" | "ready" | "failed"
+
+/** Response for async agent publish create / check. */
+export interface AsyncPublishTaskResponse {
+	publish_task_id: string
+	status: AsyncPublishTaskStatus
+	progress: number | null
+	resource_type?: "agent" | "skill"
+	resource_code?: string
+	organization_code?: string
+	publisher_user_id?: string
+	version_id?: number | string
+	task_key?: string
+	sandbox_id?: string
+	file_key?: string | null
+	error?: string | null
+	created_at?: number
+	updated_at?: number
+}
+
+export interface CheckAgentPublishParams {
+	publish_task_id: string
+}
+
 // ======================== Update Agent Info (API 5) ========================
 
 /** Request body for updating agent basic info */
@@ -388,6 +432,8 @@ export interface UpdateAgentInfoParams {
 	/** Icon object; value="" clears the icon */
 	icon?: CrewIconObject
 	icon_type?: CrewIconType
+	/** Object-storage key for an uploaded image. */
+	file_key?: string | null
 }
 
 // ======================== Update Agent Skills (API 6, 6.1, 6.2) ========================
@@ -620,35 +666,33 @@ export interface ReorderPlaybooksParams {
 
 // ======================== API Generator ========================
 
-export const generateCrewApi = (fetch: HttpClient) => ({
+export const generateCrewApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * Get store agent category list.
 	 * Returns all categories with crew count for the current organization.
 	 */
 	getStoreAgentCategories(params: GetStoreCategoriesParams = {}) {
 		return fetch.get<GetStoreCategoriesResponse>(
-			genRequestUrl("/api/v2/super-magic/agent-market/categories", {}, params),
+			"/api/v2/super-magic/agent-market/categories",
+			{ params: { ...params } },
 		)
 	},
 
 	/**
 	 * Get store agents list (marketplace).
-	 * POST with body: page, page_size, keyword, category_id, market_type.
+	 * POST with body: page, page_size, keyword, category_ids, market_type.
 	 * Results include is_added and allow_delete flags for each agent.
 	 * @param params Request body
 	 */
 	getStoreAgents(params: GetStoreAgentsParams = {}) {
-		const { page = 1, page_size = 20, keyword, category_id, market_type } = params
-		return fetch.post<GetStoreAgentsResponse>(
-			genRequestUrl("/api/v2/super-magic/agent-market/queries"),
-			{
-				page,
-				page_size,
-				keyword,
-				category_id,
-				...(market_type ? { market_type } : {}),
-			},
-		)
+		const { page = 1, page_size = 20, keyword, category_id, category_ids, market_type } = params
+		return fetch.post<GetStoreAgentsResponse>("/api/v2/super-magic/agent-market/queries", {
+			page,
+			page_size,
+			keyword,
+			category_ids: category_ids ?? (category_id ? [category_id] : undefined),
+			...(market_type ? { market_type } : {}),
+		})
 	},
 
 	/**
@@ -657,9 +701,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param code Market agent code
 	 */
 	getStoreAgentMarketDetail({ code }: { code: string }) {
-		return fetch.get<StoreAgentMarketDetailResponse>(
-			genRequestUrl("/api/v2/super-magic/agent-market/${code}", { code }),
-		)
+		return fetch.get<StoreAgentMarketDetailResponse>(`/api/v2/super-magic/agent-market/${code}`)
 	},
 
 	/**
@@ -671,14 +713,11 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 */
 	getCreatedAgents(params: GetAgentsParams = {}) {
 		const { page = 1, page_size = 20, keyword } = params
-		return fetch.post<GetCreatedAgentsResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/queries/created"),
-			{
-				page,
-				page_size,
-				keyword,
-			},
-		)
+		return fetch.post<GetCreatedAgentsResponse>("/api/v2/super-magic/agents/queries/created", {
+			page,
+			page_size,
+			keyword,
+		})
 	},
 
 	/**
@@ -691,7 +730,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	getHiredAgents(params: GetAgentsParams = {}) {
 		const { page = 1, page_size = 20, keyword } = params
 		return fetch.post<GetHiredAgentsResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/queries/market-installed"),
+			"/api/v2/super-magic/agents/queries/market-installed",
 			{
 				page,
 				page_size,
@@ -710,7 +749,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	getTeamSharedAgents(params: GetAgentsParams = {}) {
 		const { page = 1, page_size = 20, keyword } = params
 		return fetch.post<GetTeamSharedAgentsResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/queries/team-shared"),
+			"/api/v2/super-magic/agents/queries/team-shared",
 			{
 				page,
 				page_size,
@@ -723,10 +762,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * Set home featured frequent agents order (agent codes).
 	 */
 	updateFeaturedFrequentAgents(params: { codes: string[] }) {
-		return fetch.put<unknown>(
-			genRequestUrl("/api/v2/super-magic/agents/featured/frequent"),
-			params,
-		)
+		return fetch.put<unknown>("/api/v2/super-magic/agents/featured/frequent", params)
 	},
 
 	/**
@@ -735,7 +771,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Agent creation payload
 	 */
 	createAgent(params: CreateAgentParams) {
-		return fetch.post<CreateAgentResponse>(genRequestUrl("/api/v2/super-magic/agents"), params)
+		return fetch.post<CreateAgentResponse>("/api/v2/super-magic/agents", params)
 	},
 
 	/**
@@ -745,15 +781,13 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param code Agent unique code
 	 */
 	getAgentDetail({ code }: { code: string }) {
-		return fetch.get<AgentDetailResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}", { code }),
-		)
+		return fetch.get<AgentDetailResponse>(`/api/v2/super-magic/agents/${code}`)
 	},
 
 	/** Checks whether an agent exists and is usable by the current user. */
 	checkAgentAccess({ code }: { code: string }) {
 		return fetch.post<AgentAccessCheckResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/access-check"),
+			"/api/v2/super-magic/agents/access-check",
 			{ code },
 			{ enableErrorMessagePrompt: false },
 		)
@@ -767,7 +801,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Fields to update
 	 */
 	updateAgentInfo({ code, ...params }: { code: string } & UpdateAgentInfoParams) {
-		return fetch.put<[]>(genRequestUrl("/api/v2/super-magic/agents/${code}", { code }), params)
+		return fetch.put<[]>(`/api/v2/super-magic/agents/${code}`, params)
 	},
 
 	/**
@@ -777,7 +811,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param code Agent unique code
 	 */
 	deleteAgent({ code }: { code: string }) {
-		return fetch.delete<[]>(genRequestUrl("/api/v2/super-magic/agents/${code}", { code }))
+		return fetch.delete<[]>(`/api/v2/super-magic/agents/${code}`)
 	},
 
 	/**
@@ -787,10 +821,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param code Agent unique code
 	 */
 	upgradeAgent({ code }: { code: string }) {
-		return fetch.put<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/upgrade", { code }),
-			{},
-		)
+		return fetch.put<[]>(`/api/v2/super-magic/agents/${code}/upgrade`, {})
 	},
 
 	/**
@@ -800,8 +831,29 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 */
 	publishAgent({ code, ...params }: { code: string } & PublishAgentParams) {
 		return fetch.post<PublishAgentResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/publish", { code }),
+			`/api/v2/super-magic/agents/${code}/publish`,
 			params,
+		)
+	},
+
+	/**
+	 * Create an async agent publish task (returns quickly; poll checkAgentPublish for result).
+	 * Request body matches the sync publish endpoint.
+	 */
+	publishAgentAsync({ code, ...params }: { code: string } & PublishAgentParams) {
+		return fetch.post<AsyncPublishTaskResponse>(
+			`/api/v2/super-magic/agents/${code}/publish/async`,
+			params,
+		)
+	},
+
+	/**
+	 * Poll async agent publish task status by publish_task_id.
+	 */
+	checkAgentPublish({ code, publish_task_id }: { code: string } & CheckAgentPublishParams) {
+		return fetch.get<AsyncPublishTaskResponse>(
+			`/api/v2/super-magic/agents/${code}/publish/check`,
+			{ params: { publish_task_id } },
 		)
 	},
 
@@ -811,7 +863,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 */
 	getAgentPublishPrefill({ code }: { code: string }) {
 		return fetch.get<PublishAgentPrefillResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/publish/prefill", { code }),
+			`/api/v2/super-magic/agents/${code}/publish/prefill`,
 		)
 	},
 
@@ -821,9 +873,9 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Query params
 	 */
 	getAgentVersions({ code, ...params }: { code: string } & GetAgentVersionsParams) {
-		return fetch.get<GetAgentVersionsResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/versions", { code }, params),
-		)
+		return fetch.get<GetAgentVersionsResponse>(`/api/v2/super-magic/agents/${code}/versions`, {
+			params: { ...params },
+		})
 	},
 
 	/**
@@ -832,10 +884,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param code Agent unique code
 	 */
 	offlineAgent({ code }: { code: string }) {
-		return fetch.put<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/offline", { code }),
-			{},
-		)
+		return fetch.put<[]>(`/api/v2/super-magic/agents/${code}/offline`, {})
 	},
 
 	/**
@@ -846,10 +895,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Skills code list to bind
 	 */
 	updateAgentSkills({ code, ...params }: { code: string } & UpdateAgentSkillsParams) {
-		return fetch.put<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/skills", { code }),
-			params,
-		)
+		return fetch.put<[]>(`/api/v2/super-magic/agents/${code}/skills`, params)
 	},
 
 	/**
@@ -859,10 +905,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Skill codes to add
 	 */
 	addAgentSkills({ code, ...params }: { code: string } & AddAgentSkillsParams) {
-		return fetch.post<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/skills", { code }),
-			params,
-		)
+		return fetch.post<[]>(`/api/v2/super-magic/agents/${code}/skills`, params)
 	},
 
 	/**
@@ -873,10 +916,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Skill codes to remove
 	 */
 	deleteAgentSkills({ code, ...params }: { code: string } & DeleteAgentSkillsParams) {
-		return fetch.delete<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/skills", { code }),
-			params,
-		)
+		return fetch.delete<[]>(`/api/v2/super-magic/agents/${code}/skills`, params)
 	},
 
 	/**
@@ -885,9 +925,9 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Query parameters
 	 */
 	getMentionSkills(params: GetMentionSkillsParams = {}) {
-		return fetch.get<MentionSkillItem[]>(
-			genRequestUrl("/api/v2/super-magic/agents/mention-skills", {}, params),
-		)
+		return fetch.get<MentionSkillItem[]>("/api/v2/super-magic/agents/mention-skills", {
+			params: { ...params },
+		})
 	},
 
 	/**
@@ -898,11 +938,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param options Optional shared HTTP prompt behavior for this call.
 	 */
 	hireStoreAgent({ code }: { code: string }, options?: { enableErrorMessagePrompt?: boolean }) {
-		return fetch.post<[]>(
-			genRequestUrl("/api/v2/super-magic/agent-market/${code}/hire", { code }),
-			{},
-			options,
-		)
+		return fetch.post<[]>(`/api/v2/super-magic/agent-market/${code}/hire`, {}, options)
 	},
 
 	/**
@@ -912,13 +948,9 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Optional enabled filter
 	 */
 	getAgentPlaybooks({ code, ...params }: { code: string } & GetPlaybooksParams) {
-		return fetch.get<PlaybookItem[]>(
-			genRequestUrl(
-				"/api/v2/super-magic/agents/${code}/playbooks",
-				{ code },
-				{ enabled: params.enabled },
-			),
-		)
+		return fetch.get<PlaybookItem[]>(`/api/v2/super-magic/agents/${code}/playbooks`, {
+			params: { enabled: params.enabled },
+		})
 	},
 
 	/**
@@ -928,7 +960,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 */
 	createAgentPlaybook({ code, ...params }: { code: string } & CreatePlaybookParams) {
 		return fetch.post<CreatePlaybookResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/playbooks", { code }),
+			`/api/v2/super-magic/agents/${code}/playbooks`,
 			params,
 		)
 	},
@@ -945,13 +977,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 		playbookId,
 		...params
 	}: { code: string; playbookId: string } & UpdatePlaybookParams) {
-		return fetch.put<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/playbooks/${playbookId}", {
-				code,
-				playbookId,
-			}),
-			params,
-		)
+		return fetch.put<[]>(`/api/v2/super-magic/agents/${code}/playbooks/${playbookId}`, params)
 	},
 
 	/**
@@ -960,12 +986,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param playbookId Playbook ID
 	 */
 	deleteAgentPlaybook({ code, playbookId }: { code: string; playbookId: string }) {
-		return fetch.delete<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/playbooks/${playbookId}", {
-				code,
-				playbookId,
-			}),
-		)
+		return fetch.delete<[]>(`/api/v2/super-magic/agents/${code}/playbooks/${playbookId}`)
 	},
 
 	/**
@@ -980,10 +1001,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 		...params
 	}: { code: string; playbookId: string } & TogglePlaybookEnabledParams) {
 		return fetch.put<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/playbooks/${playbookId}/enabled", {
-				code,
-				playbookId,
-			}),
+			`/api/v2/super-magic/agents/${code}/playbooks/${playbookId}/enabled`,
 			params,
 		)
 	},
@@ -995,10 +1013,7 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 * @param params Ordered list of playbook IDs
 	 */
 	reorderAgentPlaybooks({ code, ...params }: { code: string } & ReorderPlaybooksParams) {
-		return fetch.put<[]>(
-			genRequestUrl("/api/v2/super-magic/agents/${code}/playbooks/reorder", { code }),
-			params,
-		)
+		return fetch.put<[]>(`/api/v2/super-magic/agents/${code}/playbooks/reorder`, params)
 	},
 
 	/**
@@ -1009,9 +1024,12 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 	 */
 	getUnifiedAgentList(params: GetUnifiedAgentListParams = {}) {
 		const { page = 1, page_size = 20, keyword, scope = "all", sort = "updated_at" } = params
-		return fetch.post<GetUnifiedAgentListResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/queries"),
-			{ page, page_size, keyword, scope, sort },
-		)
+		return fetch.post<GetUnifiedAgentListResponse>("/api/v2/super-magic/agents/queries", {
+			page,
+			page_size,
+			keyword,
+			scope,
+			sort,
+		})
 	},
 })

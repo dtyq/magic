@@ -2,6 +2,10 @@ import { act, renderHook } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { useBatchDownload } from "../useBatchDownload"
 import type { AttachmentItem } from "../types"
+import type { PropsWithChildren } from "react"
+import { FileAccessProvider } from "@/pages/superMagic/providers/FileAccessProvider"
+import { SuperMagicApi } from "@/apis"
+import { runClientBatchDocumentExport } from "../../modules/client-batch-export"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
@@ -72,14 +76,6 @@ vi.mock("@/pages/superMagic/hooks/useShareRoute", () => ({
 	}),
 }))
 
-vi.mock("@/pages/superMagic/providers/file-action-visibility-provider", () => ({
-	useFileActionVisibility: () => ({
-		hideCopyTo: false,
-		hideMoveTo: false,
-		hideShareFile: false,
-	}),
-}))
-
 vi.mock("@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip", () => ({
 	default: () => null,
 }))
@@ -112,14 +108,21 @@ vi.mock("@/apis", () => ({
 		deleteFiles: vi.fn(),
 		createBatchDownload: vi.fn(),
 		checkBatchDownloadStatus: vi.fn(),
-		exportPdfOrPpt: vi.fn(),
-		checkExportPdfOrPptStatus: vi.fn(),
 	},
+}))
+
+vi.mock("../../modules/client-batch-export", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../../modules/client-batch-export")>()),
+	runClientBatchDocumentExport: vi.fn(),
 }))
 
 vi.mock("../../MessageList/components/MessageAttachment/utils", () => ({
 	getAppEntryFile: vi.fn(),
 }))
+
+// Selection traversal is real; chat and drag actions are unrelated to batch file operations.
+vi.mock("@/pages/superMagic/utils/topics", () => ({}))
+vi.mock("@/pages/superMagic/components/MessageEditor/utils/drag", () => ({}))
 
 function makeFolderWithFile(): AttachmentItem[] {
 	// Build a non-empty folder because the PC regression happens on folder rows with children.
@@ -142,6 +145,83 @@ function makeFolderWithFile(): AttachmentItem[] {
 }
 
 describe("useBatchDownload", () => {
+	it.each([true, false])(
+		"honors download permission %s for personal files without a project",
+		async (download) => {
+			const onDownloadSelected = vi.fn().mockResolvedValue(undefined)
+			const wrapper = ({ children }: PropsWithChildren) => (
+				<FileAccessProvider permissions={{ download }}>{children}</FileAccessProvider>
+			)
+			const { result } = renderHook(
+				() =>
+					useBatchDownload({
+						fileScope: "user",
+						onDownloadSelected,
+						getItemId: (item) => item.file_id || "",
+						selectedItems: new Set(["file-1"]),
+						setSelectedItems: vi.fn(),
+						filteredFiles: makeFolderWithFile(),
+						removeFile: vi.fn(),
+						allowEdit: true,
+						isInProject: false,
+						allowCopyTo: true,
+						allowCopy: false,
+					}),
+				{ wrapper },
+			)
+			await act(async () => {
+				await result.current.handleBatchDownload()
+			})
+			expect(onDownloadSelected).toHaveBeenCalledTimes(download ? 1 : 0)
+			if (download) {
+				expect(onDownloadSelected).toHaveBeenCalledWith([
+					expect.objectContaining({ file_id: "file-1" }),
+				])
+			}
+			const menuKeys = result.current.batchMenuItems?.map((item) => item?.key)
+			expect(menuKeys).toContain("move")
+			expect(menuKeys).not.toContain("copy")
+			expect(menuKeys).not.toContain("export-pdf")
+			expect(menuKeys).not.toContain("export-ppt")
+		},
+	)
+	it("blocks batch download, export and sharing even when callbacks are invoked directly", async () => {
+		const onBatchShareClick = vi.fn()
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<FileAccessProvider permissions={{ download: false, export: false, share: false }}>
+				{children}
+			</FileAccessProvider>
+		)
+		const { result } = renderHook(
+			() =>
+				useBatchDownload({
+					projectId: "project-1",
+					getItemId: (item) => item.file_id || "",
+					selectedItems: new Set(["file-1"]),
+					setSelectedItems: vi.fn(),
+					filteredFiles: makeFolderWithFile(),
+					removeFile: vi.fn(),
+					onBatchShareClick,
+					allowEdit: true,
+					isInProject: true,
+				}),
+			{ wrapper },
+		)
+		await act(async () => {
+			await result.current.handleBatchDownload()
+			await result.current.handleExportDocument("pdf")
+			await result.current.handleExportDocument("pptx")
+			result.current.handleBatchShare()
+		})
+		expect(SuperMagicApi.createBatchDownload).not.toHaveBeenCalled()
+		expect(runClientBatchDocumentExport).not.toHaveBeenCalled()
+		expect(onBatchShareClick).not.toHaveBeenCalled()
+		expect(
+			result.current.batchMenuItems?.some(
+				(item) => item?.key === "download" || item?.key === "share",
+			),
+		).toBe(false)
+	})
 	it("opens the cross-project selector before the project list is loaded", () => {
 		const openMoveModal = vi.fn()
 		const openBatchMove = vi.fn()

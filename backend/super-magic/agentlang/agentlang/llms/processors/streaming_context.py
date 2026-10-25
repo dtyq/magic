@@ -11,6 +11,7 @@ from openai.types.chat import ChatCompletionChunk
 from openai.types.completion_usage import CompletionUsage
 
 from agentlang.interface.context import AgentContextInterface
+from agentlang.llms.token_usage.models import ContextInputBreakdown
 
 from .processor_config import ProcessorConfig
 
@@ -42,6 +43,8 @@ class StreamProcessContext:
 
     # Event control
     enable_llm_response_events: bool = True
+
+    input_breakdown: ContextInputBreakdown | None = None
 
     @property
     def should_trigger_events(self) -> bool:

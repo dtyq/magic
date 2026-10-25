@@ -22,8 +22,15 @@ export interface MobileCrossProjectConfig {
 	workspaces?: Array<Pick<Workspace, "id" | "name" | "project_count" | "workspace_type">>
 	includeSpecialWorkspaces?: boolean
 	allowWorkspaceSubmit?: boolean
-	selectionMode?: "destination" | "mention"
+	selectionMode?: "destination" | "mention" | "import"
 	excludeProjectIds?: string[]
+}
+
+/** 按目录读取的来源；根与子节点必须属于同一已授权空间。 */
+export interface DirectorySource {
+	root: AttachmentItem
+	identityKey: string
+	loadChildren: (parentId: string, signal: AbortSignal) => Promise<AttachmentItem[]>
 }
 
 export interface SelectDirectoryModalProps {
@@ -38,7 +45,8 @@ export interface SelectDirectoryModalProps {
 	placeholder?: string
 	emptyDataTip?: string
 	tips?: string
-	projectId: string
+	projectId?: string
+	directorySource?: DirectorySource
 	attachments?: AttachmentItem[]
 	okText?: string
 	cancelText?: string

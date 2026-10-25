@@ -24,6 +24,8 @@ use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\DeleteDataType;
 use App\Domain\SuperMagic\Common\RecycleBin\Enum\RecycleBinResourceType;
 use App\Domain\SuperMagic\Common\RecycleBin\Service\RecycleBinDomainService;
+use App\Domain\SuperMagic\Project\Event\ProjectsBatchDeletedEvent;
+use App\Domain\SuperMagic\Project\Event\ProjectsBatchMovedEvent;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
 use App\Domain\SuperMagic\Project\Service\ProjectMemberDomainService;
 use App\Domain\SuperMagic\Task\Constant\AgentConstant;
@@ -53,6 +55,7 @@ use App\Interfaces\SuperMagic\Workspace\DTO\Response\WorkspaceListResponseDTO;
 use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -81,7 +84,8 @@ class WorkspaceAppService extends AbstractAppService
         protected FileCleanupAppService $fileCleanupAppService,
         protected FileDomainService $fileDomainService,
         protected LongTermMemoryDomainService $longTermMemoryDomainService,
-        protected RecycleBinDomainService $recycleBinDomainService
+        protected RecycleBinDomainService $recycleBinDomainService,
+        protected EventDispatcherInterface $eventDispatcher
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
     }
@@ -109,7 +113,9 @@ class WorkspaceAppService extends AbstractAppService
             $requestDTO->pageSize,
             $requestDTO->orderBy,
             $requestDTO->sort,
-            $dataIsolation
+            $dataIsolation,
+            true,
+            $requestDTO->getPinPriority()
         );
 
         // 设置默认值
@@ -256,12 +262,32 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         $workspaceId = (int) $requestDTO->getWorkspaceId();
-        $this->workspaceDomainService->updateWorkspace(
-            $dataIsolation,
-            $workspaceId,
-            $requestDTO->getWorkspaceName(),
-            $requestDTO->getIsPinned()
-        );
+        if ($requestDTO->getWorkspaceName() !== '' || $requestDTO->getIsPinned() !== null) {
+            $this->workspaceDomainService->updateWorkspace(
+                $dataIsolation,
+                $workspaceId,
+                $requestDTO->getWorkspaceName(),
+                $requestDTO->getIsPinned()
+            );
+        }
+
+        // Keep the legacy `pre_workspace_id: null` first-position behavior,
+        // while treating an explicitly null `next_workspace_id` as a no-op.
+        if ($requestDTO->preWorkspaceIdProvided && $requestDTO->nextWorkspaceIdProvided) {
+            $this->logger->warning('Both pre_workspace_id and next_workspace_id were provided; pre_workspace_id wins', [
+                'workspace_id' => $workspaceId,
+            ]);
+        }
+        if ($requestDTO->preWorkspaceIdProvided
+            || ($requestDTO->nextWorkspaceIdProvided && $requestDTO->getNextWorkspaceId() !== null)
+        ) {
+            $this->workspaceDomainService->moveWorkspace(
+                $dataIsolation,
+                $workspaceId,
+                $requestDTO->getPreWorkspaceId(),
+                $requestDTO->preWorkspaceIdProvided ? null : $requestDTO->getNextWorkspaceId()
+            );
+        }
 
         // Get updated workspace entity
         $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
@@ -377,6 +403,7 @@ class WorkspaceAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 调用领域服务执行删除
+        $deletedProjects = [];
         Db::beginTransaction();
         try {
             // 先获取工作区信息(用于记录到回收站)
@@ -402,6 +429,7 @@ class WorkspaceAppService extends AbstractAppService
             $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
 
             // 删除工作区下的项目
+            $deletedProjects = $this->projectDomainService->getProjectsForWorkspaceDeletion($workspaceId);
             $this->projectDomainService->deleteProjectsByWorkspaceId($dataIsolation, $workspaceId);
 
             // 删除工作的话题
@@ -442,6 +470,11 @@ class WorkspaceAppService extends AbstractAppService
             throw $e;
         }
 
+        // Publish only after commit so cleanup cannot act on rolled-back deletions.
+        if ($deletedProjects !== []) {
+            $this->eventDispatcher->dispatch(new ProjectsBatchDeletedEvent($deletedProjects, $userAuthorization));
+        }
+
         return true;
     }
 
@@ -463,8 +496,18 @@ class WorkspaceAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // Execute detach within transaction
+        $projects = [];
         Db::beginTransaction();
         try {
+            $projectIds = $this->projectDomainService->getProjectIdsByWorkspaceId($dataIsolation, $workspaceId);
+            $projects = $projectIds === []
+                ? []
+                : $this->projectDomainService->getProjectsWithAuth(
+                    $projectIds,
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                );
+
             // Delete workspace (with permission validation inside)
             $this->workspaceDomainService->deleteWorkspace($dataIsolation, $workspaceId);
 
@@ -483,6 +526,13 @@ class WorkspaceAppService extends AbstractAppService
             throw $e;
         }
 
+        foreach ($projects as $project) {
+            $project->setWorkspaceId(null);
+        }
+        if ($projects !== []) {
+            $this->eventDispatcher->dispatch(new ProjectsBatchMovedEvent($projects, $userAuthorization));
+        }
+
         return true;
     }
 
@@ -494,6 +544,8 @@ class WorkspaceAppService extends AbstractAppService
      */
     /**
      * 获取话题的消息列表.
+     *
+     * @deprecated Use TopicAppService::getMessagesByTopicId() instead. Kept for existing callers.
      *
      * @param int $topicId 话题ID
      * @param int $page 页码

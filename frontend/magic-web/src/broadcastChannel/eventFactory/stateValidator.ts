@@ -1,7 +1,7 @@
 import { userStore } from "@/models/user"
 import { User } from "@/types/user"
 import type { PendingSwitchOperation } from "./modalStateManager"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("stateValidator")
 

@@ -70,7 +70,11 @@ export function useTopicMessages({
 	const [showLoading, setShowLoading] = useState(false)
 	const [isShowLoadingInit, setIsShowLoadingInit] = useState(false)
 	const [isMessagesInitialLoading, setIsMessagesInitialLoading] = useState(() =>
-		Boolean(selectedTopic?.id && selectedTopic?.chat_topic_id && selectedTopic?.chat_conversation_id),
+		Boolean(
+			selectedTopic?.id &&
+			selectedTopic?.chat_topic_id &&
+			selectedTopic?.chat_conversation_id,
+		),
 	)
 
 	// Clean up on unmount
@@ -253,7 +257,11 @@ export function useTopicMessages({
 
 	const updateTopicMessages = useMemoizedFn(
 		({ writeIntent = "replace" }: { writeIntent?: MessageWriteIntent } = {}) => {
-			if (selectedTopic?.id && selectedTopic?.chat_topic_id && selectedTopic?.chat_conversation_id) {
+			if (
+				selectedTopic?.id &&
+				selectedTopic?.chat_topic_id &&
+				selectedTopic?.chat_conversation_id
+			) {
 				pullMessage({
 					conversation_id: selectedTopic.chat_conversation_id,
 					chat_topic_id: selectedTopic.chat_topic_id,

@@ -6,7 +6,7 @@ import { memo, useMemo, useRef, useEffect, useState } from "react"
 import EmptyFallback from "@/pages/chatNew/components/ChatSubSider/components/EmptyFallback"
 import { cx } from "antd-style"
 import VirtualList from "rc-virtual-list"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ChatContentProps {
 	style?: React.CSSProperties

@@ -12,7 +12,11 @@ interface UseModelSwitchLogicProps {
 	onBeforeOpen?: () => Promise<void> | void
 }
 
-export function useModelSwitchLogic({ onModelClick, onBeforeOpen }: UseModelSwitchLogicProps) {
+export function useModelSwitchLogic({
+	onModelClick,
+	onBeforeOpen,
+	shouldCloseOnSelect,
+}: UseModelSwitchLogicProps) {
 	const [isOpen, setIsOpen] = useState(false)
 	const [searchKeyword, setSearchKeyword] = useState("")
 	const isMobile = useIsMobile()
@@ -23,7 +27,7 @@ export function useModelSwitchLogic({ onModelClick, onBeforeOpen }: UseModelSwit
 	const { isOpeningModal, handleModelClick, resetIsOpeningModal } = useModelSwitchSelection({
 		onModelClick,
 		onModelSelected: () => {
-			if (isMobile) {
+			if (shouldCloseOnSelect ?? isMobile) {
 				setIsOpen(false)
 			}
 			setSearchKeyword("")
@@ -71,9 +75,20 @@ export function useModelSwitchLogic({ onModelClick, onBeforeOpen }: UseModelSwit
 				const itemRect = selectedItem.getBoundingClientRect()
 				const scrollTop = scrollContainer.scrollTop
 				const itemOffsetTop = itemRect.top - containerRect.top + scrollTop
+				// 桌面分组标题吸顶，选中行要停在标题下方，否则会被标题盖住；移动端标题不吸顶，高度按 0 计。
+				const groupHeader = scrollContainer.querySelector<HTMLElement>(
+					"[data-model-switch-group-header]",
+				)
+				const stickyHeaderHeight =
+					groupHeader && getComputedStyle(groupHeader).position === "sticky"
+						? groupHeader.offsetHeight
+						: 0
+				const visibleTop = containerRect.top + stickyHeaderHeight
+				// 选中行已经完整可见时不滚动，列表保持在开头，靠前的分组也能看到。
+				if (itemRect.top >= visibleTop && itemRect.bottom <= containerRect.bottom) return
 
 				scrollContainer.scrollTo({
-					top: itemOffsetTop,
+					top: Math.max(0, itemOffsetTop - stickyHeaderHeight),
 					behavior: "smooth",
 				})
 			}, SCROLL_TO_SELECTED_DELAY_MS)

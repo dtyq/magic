@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { CollaborationProjectListItem, ProjectListItem } from "../../pages/Workspace/types"
 import { isWorkspaceShortcutProject } from "../../constants"
 import CollaborationShortCut from "../CollaborationShortCut"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Users } from "lucide-react"
 
 export interface CollaborationProjectTagProps {

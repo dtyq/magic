@@ -173,7 +173,7 @@ class MagicClawApi extends AbstractApi
         $requestContext->setUserAuthorization($authorization);
 
         $dto = QueryMagicClawListRequestDTO::fromRequest($this->request);
-        $result = $this->magicClawAppService->queries($authorization, $dto->getPage(), $dto->getPageSize());
+        $result = $this->magicClawAppService->queries($authorization, $dto->getPage(), $dto->getPageSize(), $dto->getKeyword());
 
         $list = [];
         foreach ($result['list'] as $item) {
@@ -181,7 +181,7 @@ class MagicClawApi extends AbstractApi
                 $item['entity'],
                 $item['status'],
                 $item['topic_id'] ?? null,
-                (bool) ($item['need_upgrade'] ?? false)
+                $item['need_upgrade'] ?? null
             );
         }
 
@@ -325,7 +325,7 @@ class MagicClawApi extends AbstractApi
         $dataIsolation = DataIsolation::create($authorization->getOrganizationCode(), $authorization->getId());
         $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
 
-        $sandboxId = $this->agentAppService->restartSandbox($dataIsolation, (int) $topicId);
+        $sandboxId = $this->agentAppService->restartMagicClawSandbox($dataIsolation, (int) $topicId);
 
         return ['sandbox_id' => $sandboxId];
     }

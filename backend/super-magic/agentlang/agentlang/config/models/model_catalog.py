@@ -2,6 +2,7 @@
 from typing import Any, Dict
 
 from agentlang.config.models.model_profile import ModelProfile
+from agentlang.config.models.model_config import parse_bool_value
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,7 +29,8 @@ def _profile_from_override(profile_key: str, raw: Dict[str, Any], model_type: st
         type=str(model_type or raw.get("type", "llm")),
         max_context_tokens=int(raw.get("max_context_tokens", 128000)),
         max_output_tokens=int(raw.get("max_output_tokens", 8192)),
-        supports_tool_use=bool(raw.get("supports_tool_use", True)),
+        supports_tool_use=parse_bool_value(raw.get("supports_tool_use"), default=True),
+        supports_multimodal=parse_bool_value(raw.get("supports_multimodal")),
         pricing=_dict_or_empty(raw.get("pricing")),
         metadata=_dict_or_empty(raw.get("metadata")),
     )

@@ -5,7 +5,7 @@ import { measureManualPerfAsyncOperation } from "@/utils/manualPerfLogger"
 import projectFilesStoreDefault, { type ProjectFilesStore } from "@/stores/projectFiles"
 import type { AttachmentItem } from "../components/TopicFilesButton/hooks"
 import { measureAttachmentFetch } from "../utils/attachmentPerf"
-import { loadProjectAttachments } from "../services"
+import { loadProjectAttachments } from "../services/projectAttachmentsLoader"
 import {
 	clearProjectAttachmentsLastUpdated,
 	getProjectAttachmentsLastUpdated,

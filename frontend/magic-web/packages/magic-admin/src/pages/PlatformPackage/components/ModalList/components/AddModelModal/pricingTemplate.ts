@@ -87,6 +87,9 @@ const resolveUnitKey = (
 		if (billingType === AiManage.BillingType.VideoTokens || billingType.includes("Token")) {
 			return UNIT_KEY_MAP.MillionTokens
 		}
+		if (billingObject.includes("reference_image") || billingObject.includes("count")) {
+			return UNIT_KEY_MAP.PerImage
+		}
 		return UNIT_KEY_MAP.PerSecond
 	}
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useMemoizedFn } from "ahooks"
-import { Editor } from "@tiptap/react"
+import { Editor } from "@/infrastructure/editors/tiptap/react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { MentionItemType, CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
 import {
@@ -11,7 +11,7 @@ import {
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import type { SuperMagicMarkerDataUpdatedPayload } from "@/pages/superMagic/events/markers"
 import { SuperMagicMarkerManager } from "@/pages/superMagic/components/Detail/contents/Design/marker-manager"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { hasLoadingMarkerInContent } from "../utils/mention"
 
 interface UseMessageEditorMarkerOptions {

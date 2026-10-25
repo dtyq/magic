@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { assign, clone, cloneDeep, get, pick, set, unset, update } from 'lodash-es'
 import { makeAutoObservable } from 'mobx';
 import { AppendPosition, JSONPATH_JOIN_CHAR, SchemaValueSplitor } from '../constants';
 import {
@@ -54,18 +54,18 @@ export default class SchemaDescription {
     customFieldName?: string;
   }): void {
     let fieldName = '';
-    let clonedSchema = _.clone(this.schema);
-    const currentField = _.get(clonedSchema, keys, {});
+    let clonedSchema = clone(this.schema);
+    const currentField = get(clonedSchema, keys, {});
 
 	const parentKeys = keys.slice(0, -1)
-	let parentField = _.get(clonedSchema, parentKeys)
+	let parentField = get(clonedSchema, parentKeys)
 	if(parentKeys.length == 0) parentField = clonedSchema
 	//  处理数组添加字成员情况
 	if(parentField?.type === FormItemType.Array) {
 		fieldName = `${Object.keys(currentField || {}).length}`
-		clonedSchema = _.update(clonedSchema, keys, (n) =>
-			_.assign(n, {
-				[fieldName]: _.cloneDeep(parentField.items),
+		clonedSchema = update(clonedSchema, keys, (n) =>
+			assign(n, {
+				[fieldName]: cloneDeep(parentField.items),
 			}),
 		);
 	}else {
@@ -78,8 +78,8 @@ export default class SchemaDescription {
 			}
 		}
 		if (currentField !== undefined) {
-			clonedSchema = _.update(clonedSchema, keys, (n) =>
-				_.assign(n, {
+			clonedSchema = update(clonedSchema, keys, (n) =>
+				assign(n, {
 				[fieldName]: getDefaultSchema('string'),
 				}),
 			);
@@ -91,8 +91,8 @@ export default class SchemaDescription {
   }
 
   deleteField({ keys }: { keys: string[] }): void {
-    const clonedSchema = _.clone(this.schema);
-    _.unset(clonedSchema, keys);
+    const clonedSchema = clone(this.schema);
+    unset(clonedSchema, keys);
     this.schema = clonedSchema;
   }
 
@@ -105,13 +105,13 @@ export default class SchemaDescription {
     name?: string;
     position: AppendPosition;
   }): void {
-    const clonedSchema = _.clone(this.schema);
-    const propertiesData = _.get(this.schema, keys);
+    const clonedSchema = clone(this.schema);
+    const propertiesData = get(this.schema, keys);
     
     // 获取父级字段类型
     const parentKeys = getParentKey(keys);
     const parentField = parentKeys.length
-      ? _.get(this.schema, parentKeys)
+      ? get(this.schema, parentKeys)
       : this.schema;
     
     // 根据父级类型确定fieldName
@@ -147,16 +147,16 @@ export default class SchemaDescription {
         }
       }
     } else {
-      newPropertiesData = _.assign(propertiesData, {
+      newPropertiesData = assign(propertiesData, {
         [fieldName]: getDefaultSchema(fieldType),
       });
     }
     // 默认是添加到下一个节点
-    let newSchema = _.update(clonedSchema, keys, () => newPropertiesData);
+    let newSchema = update(clonedSchema, keys, () => newPropertiesData);
     // 如果指定添加到尾部时的处理路径
     if (position === AppendPosition.Tail) {
-      newSchema = _.update(clonedSchema, keys, (n) =>
-        _.assign(n, newPropertiesData),
+      newSchema = update(clonedSchema, keys, (n) =>
+        assign(n, newPropertiesData),
       );
     }
     // this.schema = addRequiredFields(newSchema, keys, fieldName);
@@ -167,15 +167,15 @@ export default class SchemaDescription {
     // 获取父级字段
     const parentKeys = getParentKey(keys);
     const parentField = parentKeys.length
-      ? _.get(this.schema, parentKeys)
+      ? get(this.schema, parentKeys)
       : this.schema;
 
     const isSameItemsType = itemsType === parentField?.items?.type
     if (parentField.type === value && isSameItemsType) {
       return;
     }
-    const clonedSchema = _.clone(this.schema);
-    const extendsProps = _.pick(parentField, ['description', 'title'])
+    const clonedSchema = clone(this.schema);
+    const extendsProps = pick(parentField, ['description', 'title'])
 
     const newParentDataItem: Schema = {
       ...getDefaultSchema(value, itemsType),
@@ -184,7 +184,7 @@ export default class SchemaDescription {
     if (parentKeys.length === 0) {
       this.schema = { ...newParentDataItem };
     } else {
-       _.set(clonedSchema, parentKeys, newParentDataItem);
+       set(clonedSchema, parentKeys, newParentDataItem);
        this.schema = {...this.schema}
     }
   }
@@ -201,9 +201,9 @@ export default class SchemaDescription {
     fields?: Schema
   }): void {
     if(!fields) return
-    const cloneFields = _.cloneDeep(fields)
-    const clonedSchema = _.clone(this.schema);
-    const propertiesData = _.get(this.schema, keys);
+    const cloneFields = cloneDeep(fields)
+    const clonedSchema = clone(this.schema);
+    const propertiesData = get(this.schema, keys);
     let newPropertiesData: Record<string, Schema> = {};
 
     if (name) {
@@ -219,17 +219,17 @@ export default class SchemaDescription {
       }
     } else {
       // 直接导入所有属性
-      newPropertiesData = _.assign(propertiesData, {
+      newPropertiesData = assign(propertiesData, {
         ...cloneFields.properties
       });
     }
     
     // 默认是添加到下一个节点
-    let newSchema = _.update(clonedSchema, keys, () => newPropertiesData);
+    let newSchema = update(clonedSchema, keys, () => newPropertiesData);
     // 如果指定添加到尾部时的处理路径
     if (position === AppendPosition.Tail) {
-      newSchema = _.update(clonedSchema, keys, (n) =>
-        _.assign(n, newPropertiesData),
+      newSchema = update(clonedSchema, keys, (n) =>
+        assign(n, newPropertiesData),
       );
     }
     this.schema = newSchema
@@ -246,7 +246,7 @@ export default class SchemaDescription {
   }): void {
     const parentKeys: string[] = getParentKey(keys);
     const parentData = parentKeys.length
-      ? _.get(this.schema, parentKeys)
+      ? get(this.schema, parentKeys)
       : this.schema;
     const requiredArray: string[] = [].concat(parentData.required || []);
     const requiredFieldIndex = requiredArray.indexOf(name);
@@ -259,8 +259,8 @@ export default class SchemaDescription {
       requiredArray.push(name);
     }
     parentKeys.push('required');
-    const clonedSchema = _.clone(this.schema);
-    this.schema = _.set(clonedSchema, parentKeys, requiredArray);
+    const clonedSchema = clone(this.schema);
+    this.schema = set(clonedSchema, parentKeys, requiredArray);
   }
 
   changeName({
@@ -275,12 +275,12 @@ export default class SchemaDescription {
     // 获取父级字段
     const parentKeys = getParentKey(keys);
     const parentField = parentKeys.length
-      ? _.get(this.schema, parentKeys)
+      ? get(this.schema, parentKeys)
       : this.schema;
 
-    let clonedSchema = _.clone(this.schema);
+    let clonedSchema = clone(this.schema);
     let requiredData = [].concat(parentField.required || []);
-    const propertiesData = _.get(clonedSchema, keys);
+    const propertiesData = get(clonedSchema, keys);
     const newPropertiesData = {};
 
     const curData = propertiesData[name];
@@ -307,7 +307,7 @@ export default class SchemaDescription {
 
     parentKeys.push('required');
 
-    clonedSchema = _.set(clonedSchema, parentKeys, requiredData);
+    clonedSchema = set(clonedSchema, parentKeys, requiredData);
     for (const i in propertiesData) {
       if (i === name) {
         // @ts-ignore
@@ -317,7 +317,7 @@ export default class SchemaDescription {
         newPropertiesData[i] = propertiesData[i];
       }
     }
-    this.schema = _.set(clonedSchema, keys, newPropertiesData);
+    this.schema = set(clonedSchema, keys, newPropertiesData);
   }
 
   changeValue({
@@ -327,9 +327,9 @@ export default class SchemaDescription {
     keys: string[];
     value: string | boolean | { mock: string } | InputExpressionValue;
   }): void {
-	const newSchema = _.clone(this.schema);
+	const newSchema = clone(this.schema);
 	if (value) {
-		_.set(newSchema, keys, value);
+		set(newSchema, keys, value);
 		this.schema = { ...newSchema };
 	} else {
 		this.deleteField({ keys });
@@ -337,14 +337,14 @@ export default class SchemaDescription {
   }
 
   requireAll({ required }: { required: boolean }): void {
-    const newSchema = _.clone(this.schema);
+    const newSchema = clone(this.schema);
     this.schema = handleSchemaRequired(newSchema, required);
   }
 
   setOpenValue({ key, value }: { key: string[]; value?: boolean }): void {
-    const clonedState = _.clone(this.open);
+    const clonedState = clone(this.open);
     const keys = key.join(JSONPATH_JOIN_CHAR);
-    const status = value === undefined ? !_.get(this.open, [keys]) : value;
-    this.open = _.set(clonedState, [keys], status);
+    const status = value === undefined ? !get(this.open, [keys]) : value;
+    this.open = set(clonedState, [keys], status);
   }
 }

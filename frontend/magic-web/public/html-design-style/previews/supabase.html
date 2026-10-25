@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supabase — The Open Source Firebase Alternative</title>
+<style>
+:root {
+--canvas: #1c1c1c;
+--canvas-deep: #141414;
+--canvas-soft: #222222;
+--surface: #262626;
+--surface-subtle: #1e1e1e;
+--surface-hover: #2e2e2e;
+--border: #2e2e2e;
+--border-light: #383838;
+--border-subtle: #242424;
+--primary: #3ecf8e;
+--primary-deep: #24b47e;
+--primary-soft: #4ade80;
+--primary-glow: rgba(62, 207, 142, 0.25);
+--ink: #ededed;
+--ink-muted: #8e8e8e;
+--ink-dim: #5c5c5c;
+--on-primary: #171717;
+--accent-violet: #8b5cf6;
+--accent-blue: #3b82f6;
+--font-sans: "Circular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+--radius-xs: 4px;
+--radius-sm: 6px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--radius-full: 9999px;
+--max-w: 1160px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+.container { width: min(var(--max-w), calc(100% - 40px)); margin: 0 auto; }
+.emerald-glow {
+position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 920px; height: 440px;
+background: radial-gradient(ellipse 65% 50% at 50% 0%, rgba(62, 207, 142, 0.18) 0%, rgba(36, 180, 126, 0.08) 50%, transparent 75%);
+filter: blur(48px); pointer-events: none; z-index: 0;
+}
+header {
+position: sticky; top: 0; z-index: 100; background: rgba(28, 28, 28, 0.85); backdrop-filter: blur(16px);
+border-bottom: 1px solid var(--border);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand-wrap { display: flex; align-items: center; gap: 12px; }
+.brand-logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+.supabase-bolt { width: 22px; height: 22px; fill: var(--primary); filter: drop-shadow(0 0 6px rgba(62,207,142,0.4)); }
+.badge-tag {
+font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: var(--radius-full);
+background: rgba(62,207,142,0.12); color: var(--primary); border: 1px solid rgba(62,207,142,0.3);
+}
+.nav-links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--ink-muted); }
+.nav-links a:hover { color: var(--ink); }
+.nav-actions { display: flex; align-items: center; gap: 12px; }
+.btn {
+display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 16px;
+border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.15s;
+}
+.btn-primary {
+background: var(--primary); color: #171717; border: 1px solid var(--primary);
+box-shadow: 0 0 20px rgba(62, 207, 142, 0.35);
+}
+.btn-primary:hover { background: var(--primary-soft); transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--border-light); }
+.btn-secondary:hover { background: var(--surface-hover); border-color: var(--ink-muted); }
+.hero { position: relative; z-index: 1; padding: 36px 0 20px; text-align: center; }
+.announcement {
+display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: var(--radius-full);
+background: rgba(62,207,142,0.08); border: 1px solid rgba(62,207,142,0.25); font-size: 12px; color: #bfeacf; margin-bottom: 20px;
+}
+.spark { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+.hero-h1 {
+font-size: clamp(34px, 5.2vw, 62px); font-weight: 700; line-height: 1.08; letter-spacing: -0.04em; max-width: 860px; margin: 0 auto 16px;
+}
+.emerald-text { color: var(--primary); text-shadow: 0 0 24px rgba(62, 207, 142, 0.4); }
+.hero-desc { font-size: 16px; color: var(--ink-muted); max-width: 640px; margin: 0 auto 24px; line-height: 1.55; }
+.hero-actions { display: flex; justify-content: center; gap: 12px; margin-bottom: 36px; }
+.workspace-window {
+max-width: 1060px; margin: 0 auto; background: var(--canvas-deep); border: 1px solid var(--border);
+border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 28px 80px rgba(0,0,0,0.85); text-align: left;
+}
+.window-header {
+padding: 10px 16px; background: #181818; border-bottom: 1px solid var(--border);
+display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.window-tabs { display: flex; align-items: center; gap: 4px; }
+.tab-item {
+display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: var(--radius-xs);
+font-size: 12px; color: var(--ink-muted); cursor: pointer; transition: 0.15s; border: 1px solid transparent;
+}
+.tab-item.active { background: var(--surface); color: var(--ink); border-color: var(--border); font-weight: 600; }
+.tab-item:hover:not(.active) { color: var(--ink); background: rgba(255,255,255,0.03); }
+.server-status {
+display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-dim);
+}
+.table-toolbar {
+padding: 10px 16px; background: var(--surface-subtle); border-bottom: 1px solid var(--border);
+display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 12px;
+}
+.filter-box {
+display: flex; align-items: center; gap: 8px; background: var(--canvas-deep); border: 1px solid var(--border);
+padding: 4px 10px; border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted);
+}
+.table-wrap { overflow-x: auto; background: var(--canvas-deep); }
+table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); text-align: left; }
+th {
+padding: 8px 14px; background: #161616; color: var(--ink-muted); font-size: 11px; font-weight: 600;
+border-bottom: 1px solid var(--border); border-right: 1px solid var(--border-subtle); white-space: nowrap;
+}
+th .col-type { font-size: 9px; color: var(--ink-dim); font-weight: normal; margin-left: 4px; }
+td {
+padding: 9px 14px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border-subtle);
+color: var(--ink); white-space: nowrap;
+}
+tr:hover td { background: rgba(255,255,255,0.02); }
+.uuid-cell { color: #818cf8; }
+.badge-role {
+display: inline-block; padding: 2px 7px; border-radius: var(--radius-xs); font-size: 10px; font-weight: 600;
+}
+.role-pro { background: rgba(62,207,142,0.15); color: var(--primary); border: 1px solid rgba(62,207,142,0.3); }
+.role-team { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+.role-admin { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+.bool-true { color: var(--primary); font-weight: 600; }
+.split-sql-view {
+border-top: 1px solid var(--border); background: #141414; padding: 16px;
+display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px;
+}
+.sql-panel {
+background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm);
+padding: 14px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6;
+}
+.sql-head {
+display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.sql-kw { color: #f472b6; font-weight: 600; }
+.sql-fn { color: #60a5fa; }
+.sql-str { color: #3ecf8e; }
+.sql-comm { color: var(--ink-dim); font-style: italic; }
+.api-panel {
+background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm);
+padding: 14px; display: flex; flex-direction: column; justify-content: space-between;
+}
+.key-box {
+background: var(--canvas-deep); border: 1px solid var(--border); border-radius: var(--radius-xs);
+padding: 6px 10px; margin-top: 6px; font-family: var(--font-mono); font-size: 11px; display: flex; justify-content: space-between;
+}
+.feature-section { padding: 48px 0 32px; border-top: 1px solid var(--border); margin-top: 48px; }
+.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; }
+.feat-card {
+background: var(--canvas-deep); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 22px; transition: 0.2s;
+}
+.feat-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+.feat-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); background: rgba(62,207,142,0.1); color: var(--primary); display: grid; place-items: center; margin-bottom: 14px; }
+.feat-h { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.feat-p { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+.spec-bar {
+margin-top: 36px; padding: 14px 18px; background: var(--canvas-deep); border: 1px solid var(--border);
+border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;
+flex-wrap: wrap; gap: 10px; font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);
+}
+.tokens-list { display: flex; gap: 14px; flex-wrap: wrap; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 4px; }
+footer { padding: 32px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--ink-dim); margin-top: 40px; }
+.footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 860px) { .nav-links { display: none; } .split-sql-view, .feat-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="emerald-glow"></div>
+<header>
+<div class="container nav-inner">
+<div class="brand-wrap">
+<a href="#" class="brand-logo" aria-label="Supabase">
+<svg class="supabase-bolt" viewBox="0 0 24 24">
+<path d="M13.4 2.1a1 1 0 0 0-1.1.2l-10 11a1 1 0 0 0 .7 1.7h7.2l-2.2 7a1 1 0 0 0 1.7.9l11-12a1 1 0 0 0-.7-1.7H13l2-6.2a1 1 0 0 0-1.6-.9z"/>
+</svg>
+<span>Supabase</span>
+</a>
+<span class="badge-tag">Postgres v16.4</span>
+</div>
+<nav class="nav-links">
+<a href="#database">Database</a>
+<a href="#auth">Auth</a>
+<a href="#storage">Storage</a>
+<a href="#functions">Edge Functions</a>
+<a href="#realtime">Realtime</a>
+<a href="#pricing">Pricing</a>
+</nav>
+<div class="nav-actions">
+<a href="#signin" class="btn btn-secondary">Sign In</a>
+<a href="#start" class="btn btn-primary">Start your project</a>
+</div>
+</div>
+</header>
+<main>
+<section class="hero">
+<div class="container">
+<div class="announcement">
+<span class="spark"></span>
+<span>Launch Week 12: Declarative Schemas & Branching</span>
+</div>
+<h1 class="hero-h1">
+Build in a weekend.
+<br>
+<span class="emerald-text">Scale to millions.</span>
+</h1>
+<p class="hero-desc">
+Supabase is an open source Firebase alternative. Dedicated Postgres database, Row Level Security, instant APIs, Auth, and Storage.
+</p>
+<div class="hero-actions">
+<a href="#start" class="btn btn-primary" style="padding: 10px 22px; font-size: 14px;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+Start your project
+</a>
+<a href="#docs" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+Documentation
+</a>
+</div>
+<div class="workspace-window">
+<div class="window-header">
+<div class="window-tabs">
+<div class="tab-item active">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+<span>public.users</span>
+</div>
+<div class="tab-item">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+<span>02_security_policies.sql</span>
+</div>
+<div class="tab-item">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+<span>Auth & RLS</span>
+</div>
+<div class="tab-item">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+<span>API Keys</span>
+</div>
+</div>
+<div class="server-status">
+<span class="spark"></span>
+<span>aws-eu-central-1.pooler.supabase.com:5432 · 5,420 req/s · RLS Enforced</span>
+</div>
+</div>
+<div class="table-toolbar">
+<div class="tb-left">
+<div class="filter-box">
+<span style="color:var(--primary);">FILTER</span>
+<span>role = 'pro'</span>
+</div>
+<div class="filter-box">
+<span style="color:#60a5fa;">SORT</span>
+<span>created_at DESC</span>
+</div>
+<span style="color:var(--ink-dim); font-size:11px;">Showing 4 of 48,290 records</span>
+</div>
+<div class="tb-right">
+<button class="btn btn-secondary" >+ Insert Row</button>
+<button class="btn btn-secondary" >Export CSV</button>
+</div>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>id <span class="col-type">uuid [PK]</span></th>
+<th>email <span class="col-type">varchar</span></th>
+<th>created_at <span class="col-type">timestamptz</span></th>
+<th>role <span class="col-type">text</span></th>
+<th>is_verified <span class="col-type">bool</span></th>
+<th>stripe_customer_id <span class="col-type">varchar</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="uuid-cell">e8b7c934-29ad-4f11-89d1-0f73c6812891</td>
+<td>demo.person04@example.com</td>
+<td >2026-09-19 04:12:33+00</td>
+<td><span class="badge-role role-pro">pro</span></td>
+<td><span class="bool-true">✓ true</span></td>
+<td >cus_NX89a7f21a</td>
+</tr>
+<tr>
+<td class="uuid-cell">73a019ff-68cd-4012-bd22-b572e90412e8</td>
+<td>demo.person17@example.com</td>
+<td >2026-09-19 03:55:10+00</td>
+<td><span class="badge-role role-admin">admin</span></td>
+<td><span class="bool-true">✓ true</span></td>
+<td >cus_PX9912bc04</td>
+</tr>
+<tr>
+<td class="uuid-cell">19b434ee-0981-42ab-9271-eef11082390a</td>
+<td>demo.person07@example.com</td>
+<td >2026-09-19 02:40:48+00</td>
+<td><span class="badge-role role-team">team</span></td>
+<td><span class="bool-true">✓ true</span></td>
+<td >cus_LL34419aa1</td>
+</tr>
+<tr>
+</tbody>
+</table>
+</div>
+<div class="split-sql-view">
+<div class="sql-panel">
+<div class="sql-head">
+<span style="font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px;">
+<span style="color:var(--primary);">●</span> SQL Policy: RLS Security Enforcement
+</span>
+<span class="badge-tag">ACTIVE (0ms penalty)</span>
+</div>
+<div>
+<span class="sql-comm">-- 1. Enable Row Level Security (RLS) on sensitive profiles</span><br>
+<span class="sql-kw">ALTER TABLE</span> public.users <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;<br><br>
+<span class="sql-comm">-- 2. Define granular policy: isolate customer records to owner token</span><br>
+<span class="sql-kw">CREATE POLICY</span> <span class="sql-str">"Users can only read and update own data"</span><br>
+<span class="sql-kw">ON</span> public.users <span class="sql-kw">FOR ALL</span><br>
+<span class="sql-kw">TO</span> authenticated<br>
+<span class="sql-kw">USING</span> ( <span class="sql-fn">auth.uid</span>() = id )<br>
+<span class="sql-kw">WITH CHECK</span> ( <span class="sql-fn">auth.uid</span>() = id );
+</div>
+</div>
+<div class="api-panel">
+<div>
+<div style="font-size:12px; font-weight:600; margin-bottom:8px; display:flex; justify-content:space-between;">
+<span>Project API Keys</span>
+<span style="color:var(--primary); font-family:var(--font-mono); font-size:10px;">REST v1 Auto-Generated</span>
+</div>
+<div style="font-size:10px; color:var(--ink-muted); margin-bottom:4px;">anon public (Browser Safe):</div>
+<div class="key-box">
+<span style="color:#60a5fa;">sbp_live_anon_98af...29a</span>
+<span style="color:var(--primary); cursor:pointer;">Copy</span>
+</div>
+<div style="font-size:10px; color:var(--ink-muted); margin-top:10px; margin-bottom:4px;">service_role (Server-side bypass):</div>
+<div class="key-box">
+<span style="color:#ef4444;">sbp_secret_••••••••••••••••</span>
+<span >Reveal</span>
+</div>
+</div>
+<div style="font-size:11px; font-family:var(--font-mono); color:var(--ink-muted); padding-top:10px; border-top:1px solid var(--border);">
+Endpoint: <span style="color:#fff;">https://acme.supabase.co</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="feature-section" id="database">
+<div class="container">
+<div style="text-align:center;">
+<div style="font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.14em; color:var(--primary); margin-bottom:6px;">Infrastructure Architecture</div>
+<h2 style="font-size: clamp(22px, 3vw, 32px); font-weight:700; letter-spacing:-0.03em;">Every project is a dedicated Postgres instance.</h2>
+</div>
+<div class="feat-grid">
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+</div>
+<div class="feat-h">100% Portable PostgreSQL</div>
+<div class="feat-p">No proprietary database engines or vendor lock-in. Direct pgvector AI embeddings, PostGIS extensions, and standard connection pooler support.</div>
+</div>
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+</div>
+<div class="feat-h">Declarative Row Level Security</div>
+<div class="feat-p">Enforce user isolation and data governance directly at the database engine layer. Eliminates complex middle-tier authentication handlers.</div>
+</div>
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+</div>
+<div class="feat-h">Sub-20ms Realtime Listeners</div>
+<div class="feat-p">Transform your database into a reactive message bus. Listen to PostgreSQL write-ahead log changes instantly across millions of connected clients.</div>
+</div>
+</div>
+<div class="spec-bar">
+<div class="tokens-list">
+<span><span class="swatch" style="background:#1c1c1c; border:1px solid #444;"></span>--canvas: #1c1c1c</span>
+<span><span class="swatch" style="background:#3ecf8e;"></span>--primary: #3ecf8e</span>
+<span><span class="swatch" style="background:#24b47e;"></span>--primary-deep: #24b47e</span>
+<span><span class="swatch" style="background:#8b5cf6;"></span>--accent-violet: #8b5cf6</span>
+<span><span class="swatch" style="background:#3b82f6;"></span>--accent-blue: #3b82f6</span>
+</div>
+<div>Tokens: Circular Display · Charcoal & Emerald Voltage</div>
+</div>
+</div>
+</section>
+</main>
+<footer>
+<div class="container footer-row">
+<div style="display:flex; align-items:center; gap:8px;">
+<svg class="supabase-bolt" style="width:14px; height:14px;" viewBox="0 0 24 24">
+<path d="M13.4 2.1a1 1 0 0 0-1.1.2l-10 11a1 1 0 0 0 .7 1.7h7.2l-2.2 7a1 1 0 0 0 1.7.9l11-12a1 1 0 0 0-.7-1.7H13l2-6.2a1 1 0 0 0-1.6-.9z"/>
+</svg>
+<span>© 2026 Supabase Inc. Open source and built on Postgres.</span>
+</div>
+<div style="display:flex; gap:16px;">
+<a href="#">System Status</a>
+<a href="#">Privacy</a>
+<a href="#">Security</a>
+<a href="#">Documentation</a>
+</div>
+</div>
+</footer>
+</body>
+</html>

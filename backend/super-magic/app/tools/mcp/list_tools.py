@@ -6,7 +6,7 @@ from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
-from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.entity.message.server_message import ToolDetail
 from app.i18n import i18n
 from app.mcp.manager import ensure_server_connected
 from app.tools.core import BaseToolParams, tool
@@ -56,11 +56,12 @@ class McpListTools(BaseMcpTool[McpListToolsParams]):
     async def get_tool_detail(
         self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
     ) -> Optional[ToolDetail]:
-        if not result.content or result.content.startswith("No ") or not result.ok:
+        if result.ok and (not result.content or result.content.startswith("No ")):
             return None
-        return ToolDetail(
-            type=DisplayType.MD,
-            data=FileContent(file_name="mcp_tools.md", content=result.content),
+        return self._build_mcp_tool_detail(
+            result,
+            file_name="mcp_tools.md",
+            error_title="MCP tool listing failed",
         )
 
     async def execute(

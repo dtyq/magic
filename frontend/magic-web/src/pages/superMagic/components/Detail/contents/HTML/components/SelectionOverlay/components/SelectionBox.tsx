@@ -1,13 +1,13 @@
 import { memo } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import type { ElementRect, SelectedInfo, ResizeHandleConfig } from "../types"
+import type { ElementRect, ResizeHandleConfig } from "../types"
+import type { GapAxis, GapHandleFrame } from "../utils/gapHandleLayout"
 import { HTML_EDITOR_Z_INDEX } from "../../../constants/z-index"
 import { ControlHandles } from "./ControlHandles"
-import { SmallSelectionHint } from "./SmallSelectionHint"
+import { SelectionMarks } from "./SelectionMarks"
 import { shouldShowActionHandles } from "../utils/size-detection"
+import { SELECTION_FRAME_SHADOW } from "./selectionChrome"
 
 interface SelectionBoxProps {
-	info: SelectedInfo
 	/** Overlay-local rect used for drawing absolute-positioned UI. */
 	transformedRect: ElementRect
 	/** Viewport rect used by pointer interactions such as rotation. */
@@ -27,6 +27,9 @@ interface SelectionBoxProps {
 		containerElement: HTMLElement | null,
 	) => void
 	onResizeHandleMouseDown: (event: React.PointerEvent, handle: ResizeHandleConfig) => void
+	gapHandles?: GapHandleFrame[]
+	onGapHandlePointerDown?: (event: React.PointerEvent, axis: GapAxis) => void
+	isGapDragging?: boolean
 	onDelete: (event: React.PointerEvent) => void
 	onDuplicate: (event: React.PointerEvent) => void
 }
@@ -35,7 +38,6 @@ interface SelectionBoxProps {
  * Single selection box with optional control handles
  */
 export const SelectionBox = memo(function SelectionBox({
-	info,
 	transformedRect,
 	viewportRect,
 	isMultiSelect,
@@ -48,6 +50,9 @@ export const SelectionBox = memo(function SelectionBox({
 	onMoveHandleMouseDown,
 	onRotateHandleMouseDown,
 	onResizeHandleMouseDown,
+	gapHandles = [],
+	onGapHandlePointerDown,
+	isGapDragging = false,
 	onDelete,
 	onDuplicate,
 }: SelectionBoxProps) {
@@ -55,64 +60,41 @@ export const SelectionBox = memo(function SelectionBox({
 	const showActions = shouldShowActionHandles(transformedRect)
 
 	return (
-		<>
-			<motion.div
-				key={info.selector}
-				className="pointer-events-none absolute border-2 border-primary"
-				initial={{ opacity: 0, scale: 0.97 }}
-				animate={{
-					opacity: isMultiSelect ? 0.7 : 1,
-					scale: 1,
-					rotate: transform
-						? parseFloat(transform.match(/rotate\(([^)]+)deg\)/)?.[1] || "0")
-						: 0,
-				}}
-				exit={{ opacity: 0, scale: 0.97 }}
-				transition={{
-					duration: 0.12,
-					ease: [0.4, 0, 0.2, 1], // Custom cubic-bezier for snappy animation
-				}}
-				layout="position"
-				style={{
-					top: `${transformedRect.top}px`,
-					left: `${transformedRect.left}px`,
-					width: `${transformedRect.width}px`,
-					height: `${transformedRect.height}px`,
-					boxShadow: isMultiSelect
-						? "0 0 0 2px rgb(var(--primary-rgb) / 0.1)"
-						: "0 0 0 4px rgb(var(--primary-rgb) / 0.1)",
-					zIndex: HTML_EDITOR_Z_INDEX.OVERLAY.SELECTION_HIGHLIGHT,
-					transformOrigin: "center center",
-				}}
-			>
-				{/* Only show handles in single-select mode */}
-				{isOnlySelected && isSelectionMode && (
-					<ControlHandles
-						isMoving={isMoving}
-						onMoveHandleMouseDown={onMoveHandleMouseDown}
-						onDuplicate={onDuplicate}
-						onDelete={onDelete}
-						resizeHandles={resizeHandles}
-						onResizeHandleMouseDown={onResizeHandleMouseDown}
-						rotation={rotation}
-						onRotateHandleMouseDown={onRotateHandleMouseDown}
-						transformedRect={viewportRect}
-						containerElement={containerElement}
-						showActionHandles={showActions}
-					/>
-				)}
-			</motion.div>
-
-			{/* Show hint when selection is too small (outside the transformed box) */}
-			<AnimatePresence mode="wait">
-				{isOnlySelected && isSelectionMode && !showActions && (
-					<SmallSelectionHint
-						key={`hint-${info.selector}`}
-						show={true}
-						rect={transformedRect}
-					/>
-				)}
-			</AnimatePresence>
-		</>
+		<div
+			className="group/selection pointer-events-none absolute"
+			data-testid="html-editor-selection-box"
+			style={{
+				top: `${transformedRect.top}px`,
+				left: `${transformedRect.left}px`,
+				width: `${transformedRect.width}px`,
+				height: `${transformedRect.height}px`,
+				boxShadow: SELECTION_FRAME_SHADOW,
+				opacity: isMultiSelect ? 0.7 : 1,
+				zIndex: HTML_EDITOR_Z_INDEX.OVERLAY.SELECTION_HIGHLIGHT,
+				transform,
+				transformOrigin: "center center",
+			}}
+		>
+			<SelectionMarks />
+			{/* Only show handles in single-select mode */}
+			{isOnlySelected && isSelectionMode && (
+				<ControlHandles
+					isMoving={isMoving}
+					onMoveHandleMouseDown={onMoveHandleMouseDown}
+					onDuplicate={onDuplicate}
+					onDelete={onDelete}
+					resizeHandles={resizeHandles}
+					onResizeHandleMouseDown={onResizeHandleMouseDown}
+					gapHandles={gapHandles}
+					onGapHandlePointerDown={onGapHandlePointerDown}
+					isGapDragging={isGapDragging}
+					rotation={rotation}
+					onRotateHandleMouseDown={onRotateHandleMouseDown}
+					transformedRect={viewportRect}
+					containerElement={containerElement}
+					showActionHandles={showActions}
+				/>
+			)}
+		</div>
 	)
 })

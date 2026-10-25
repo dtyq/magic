@@ -12,7 +12,7 @@ import { Tooltip } from "antd"
 import { IconHelp } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import clsx from "clsx"
-import _ from "lodash"
+import { get } from "lodash-es"
 import React from "react"
 import { Edge, useReactFlow } from "reactflow"
 import { useFlowInteractionActions } from "../../FlowDesign/context/FlowInteraction/useFlowInteraction"
@@ -113,7 +113,7 @@ export default function PopupNode({ node, showIcon = true, inGroup }: PopupNodeP
 		const extraEdgeConfig = getExtraEdgeConfigBySourceNode(sourceNode)
 		if (target && source) {
 			// 新节点的分支端点id（如果有的话）
-			const defaultBranchId = _.get(
+			const defaultBranchId = get(
 				node,
 				[paramsName.params, "branches", 0, "branch_id"],
 				sourceHandle,

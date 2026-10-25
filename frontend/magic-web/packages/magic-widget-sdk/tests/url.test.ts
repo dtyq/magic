@@ -74,6 +74,37 @@ describe("buildWidgetIframeUrl", () => {
 		expect(url.searchParams.getAll(WIDGET_QUERY_CONFIG)).toHaveLength(1)
 	})
 
+	it("keeps custom Mention groups out of the initial URL payload", () => {
+		const url = buildWidgetIframeUrl(
+			{
+				page: { type: "crew", crewId: "crew-dynamic-url" },
+				config: {
+					layout: "desktop",
+					panel: {
+						customGroups: [
+							{
+								id: "group-url",
+								label: "URL group",
+								items: [{ id: "item-url", type: "card", text: "URL fixture" }],
+							},
+						],
+					},
+				},
+			},
+			{
+				fallbackAppOrigin: "https://widget-app.example.invalid",
+				instanceId: "widget-dynamic-url",
+				hostOrigin: "https://widget-host.example.invalid",
+				renderMode: "inline",
+			},
+		)
+
+		expect(JSON.parse(url.searchParams.get(WIDGET_QUERY_CONFIG) ?? "null")).toEqual({
+			layout: "desktop",
+		})
+		expect(url.searchParams.get("magicWidgetRenderMode")).toBe("inline")
+	})
+
 	it("uses the private deployment code as the crew route segment", () => {
 		const url = buildWidgetIframeUrl(
 			{

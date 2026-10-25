@@ -122,6 +122,7 @@
 			"dataStatistics": "数据看板",
 			"digitalEmployeeAnalysis": "数字员工分析",
 			"employeePublishReview": "员工发布审核",
+			"fileProductionAnalysis": "文件产出分析",
 			"internalEmployeeSkill": "内部员工及技能",
 			"manage": "应用配置",
 			"memberAnalysis": "成员分析",
@@ -138,6 +139,7 @@
 			"oaApproval": "OA 审批",
 			"oaApprovalDataAnalytics": "数据统计",
 			"oaApprovalDataView": "数据查看",
+			"oaApprovalDesign": "审批模板设计",
 			"oaApprovalLimitedTime": "限时审批",
 			"oaApprovalManagement": "所有审批",
 			"oaApprovalMultiLang": "设置多语言",
@@ -162,6 +164,7 @@
 			"storeManage": "门店管理",
 			"userGroup": "用户组"
 		},
+		"function": "功能",
 		"iam": "IAM 配置",
 		"platform": "平台管理",
 		"platformSubMenu": {

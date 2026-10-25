@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SkillEditAttachmentItem } from "../store/types"
 
 interface AttachmentExplorerProps {

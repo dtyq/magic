@@ -145,6 +145,13 @@ readonly class MagicBaseMongoRowQueryRepository implements MagicBaseRowQueryRepo
             $filter = ['$and' => [$filter, $permissionFilter]];
         }
 
+        foreach ($query->getColumnReadScopes() as $scope) {
+            $columnFilter = $this->buildDynamicScopeFilter($query, $scope);
+            if ($columnFilter !== []) {
+                $filter = ['$and' => [$filter, $columnFilter ?? ['record_id' => ['$in' => []]]]];
+            }
+        }
+
         $fieldFilter = $this->queryCompiler->compileFilter($query->getFilter());
         if ($fieldFilter !== []) {
             $filter = ['$and' => [$filter, $fieldFilter]];
@@ -180,9 +187,9 @@ readonly class MagicBaseMongoRowQueryRepository implements MagicBaseRowQueryRepo
     /**
      * @return null|array<string, mixed>
      */
-    private function buildDynamicScopeFilter(MagicBaseRowQuery $query): ?array
+    private function buildDynamicScopeFilter(MagicBaseRowQuery $query, ?string $scope = null): ?array
     {
-        return match ($query->getRowReadScope()) {
+        return match ($scope ?? $query->getRowReadScope()) {
             MagicBaseConst::SCOPE_PUBLIC => [],
             MagicBaseConst::SCOPE_PRIVATE_USER => $query->getActorUserId() === ''
                 ? ['record_id' => ['$in' => []]]

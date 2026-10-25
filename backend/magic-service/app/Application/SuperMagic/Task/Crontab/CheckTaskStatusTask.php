@@ -158,6 +158,23 @@ readonly class CheckTaskStatusTask
         $taskUpdated = false;
         $topicUpdated = false;
 
+        // 查询沙箱期间，消息处理可能已经把任务切换为等待用户。重新读取最新任务
+        // 状态，避免用本轮检查开始时的 RUNNING 快照覆盖 WAITING_FOR_USER。
+        $latestTask = $this->taskRepository->getTaskById($task->getId());
+        if ($latestTask?->getStatus() === TaskStatus::WAITING_FOR_USER) {
+            $this->logger->info(sprintf(
+                '任务已进入等待用户状态，跳过沙箱异常收口: task_id=%s, topic_id=%s, sandbox_status=%s',
+                $task->getId(),
+                $task->getTopicId(),
+                $sandboxStatus
+            ));
+            return [
+                'taskUpdated' => false,
+                'topicUpdated' => false,
+                'status' => TaskStatus::WAITING_FOR_USER,
+            ];
+        }
+
         // 判断沙箱状态
         if ($sandboxStatus === SandboxStatus::NOT_FOUND) {
             // 沙箱不存在，更新任务状态为ERROR

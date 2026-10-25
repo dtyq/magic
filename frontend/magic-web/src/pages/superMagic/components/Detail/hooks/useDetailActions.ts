@@ -1,5 +1,7 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { downloadFileContent } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { downloadFileWithAnchor, getFileType } from "@/pages/superMagic/utils/handleFIle"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { FilesViewerRef } from "../components/FilesViewer"
@@ -37,6 +39,7 @@ export function useDetailActions({
 	filesViewerRef?: React.RefObject<FilesViewerRef>
 }) {
 	const [isFullscreen, setIsFullscreen] = useState(false)
+	const { permissions: access } = useFileAccess()
 	// 判断是否来自Node点击
 	const isFromNode = disPlayDetail?.isFromNode || false
 	const [currentIndex, setCurrentIndex] = useState<number>(-1)
@@ -47,6 +50,9 @@ export function useDetailActions({
 	const [isFileShare, setIsFileShare] = useState(false)
 	const { pathname } = useLocation()
 	const { isShareRoute } = useShareRoute()
+	// Bind the ambient share/session identity so preview/download requests work on
+	// share pages instead of failing closed.
+	const fileApi = useFileApi()
 
 	const [attachmentsVersionMap, setAttachmentsVersionMap] = useState<Map<string, number>>(
 		new Map(),
@@ -124,44 +130,73 @@ export function useDetailActions({
 
 	// 处理打开文件
 	const handleOpenFile = (item: any) => {
+		if (!access.view || !access.preview) return
 		if (!item || !item.file_id) return
 		const fileVersion = attachmentsVersionMap.get(item.file_id)
-		getTemporaryDownloadUrl({
-			file_ids: [item.file_id],
-			file_versions: fileVersion ? { [item.file_id]: fileVersion } : undefined,
-		}).then((res: any) => {
-			downloadFileContent(res[0]?.url).then((data: any) => {
-				const fileName = item.display_filename || item.file_name || item.filename
-				const type = getFileType(item.file_extension)
-				if (type) {
-					setUserSelectDetail?.({
-						type,
-						data: {
-							content: data,
-							file_name: fileName,
-							file_url: res[0]?.url,
-							file_extension: item.file_extension,
-							file_id: item.file_id,
-							file_size: item.file_size,
-							display_config: item?.display_config,
-						},
-						currentFileId: item.file_id,
-						// 保持与当前上下文相同的附件列表
-						attachments:
-							disPlayDetail?.attachments && Array.isArray(disPlayDetail.attachments)
-								? disPlayDetail.attachments
-								: attachments,
-					})
-				} else {
-					setUserSelectDetail?.({
-						type: DetailType.NotSupport,
-						data: {
-							text: "暂不支持预览该文件,请下载该文件",
-						},
-					})
-				}
+		// 未知格式由预览入口有界读取，不能在识别前先下载完整文件。
+		if (getFileType(item.file_extension || "") === DetailType.NotSupport) {
+			setUserSelectDetail?.({
+				type: DetailType.NotSupport,
+				data: {
+					file_id: item.file_id,
+					file_name: item.display_filename || item.file_name || item.filename,
+					file_extension: item.file_extension,
+					file_size: item.file_size,
+					is_directory: item.is_directory,
+					project_id: item.project_id,
+					updated_at: item.updated_at,
+					resource_version: item.resource_version,
+					version: item.version,
+					file_version: fileVersion,
+					display_config: item.display_config,
+				},
+				currentFileId: item.file_id,
+				attachments:
+					disPlayDetail?.attachments && Array.isArray(disPlayDetail.attachments)
+						? disPlayDetail.attachments
+						: attachments,
 			})
-		})
+			return
+		}
+		fileApi
+			.getTemporaryDownloadUrl({
+				file_ids: [item.file_id],
+				file_versions: fileVersion ? { [item.file_id]: fileVersion } : undefined,
+			})
+			.then((res: any) => {
+				downloadFileContent(res[0]?.url).then((data: any) => {
+					const fileName = item.display_filename || item.file_name || item.filename
+					const type = getFileType(item.file_extension)
+					if (type) {
+						setUserSelectDetail?.({
+							type,
+							data: {
+								content: data,
+								file_name: fileName,
+								file_url: res[0]?.url,
+								file_extension: item.file_extension,
+								file_id: item.file_id,
+								file_size: item.file_size,
+								display_config: item?.display_config,
+							},
+							currentFileId: item.file_id,
+							// 保持与当前上下文相同的附件列表
+							attachments:
+								disPlayDetail?.attachments &&
+								Array.isArray(disPlayDetail.attachments)
+									? disPlayDetail.attachments
+									: attachments,
+						})
+					} else {
+						setUserSelectDetail?.({
+							type: DetailType.NotSupport,
+							data: {
+								text: "暂不支持预览该文件,请下载该文件",
+							},
+						})
+					}
+				})
+			})
 	}
 
 	// 处理切换到上一个文件
@@ -191,24 +226,29 @@ export function useDetailActions({
 		fileVersion?: number,
 		mode = "download" as DownloadImageMode,
 	) => {
+		if (!access.download) return
 		if (fileId) {
-			getTemporaryDownloadUrl({
-				file_ids: [fileId],
-				file_versions: fileVersion ? { [fileId]: fileVersion } : undefined,
-				download_mode: mode,
-				is_download: true,
-			}).then((res: any) => {
-				downloadFileWithAnchor(res[0]?.url)
-			})
-		} else {
-			if (disPlayDetail?.data?.file_name && disPlayDetail?.currentFileId) {
-				getTemporaryDownloadUrl({
-					file_ids: [disPlayDetail?.currentFileId],
+			fileApi
+				.getTemporaryDownloadUrl({
+					file_ids: [fileId],
+					file_versions: fileVersion ? { [fileId]: fileVersion } : undefined,
 					download_mode: mode,
 					is_download: true,
-				}).then((res: any) => {
+				})
+				.then((res: any) => {
 					downloadFileWithAnchor(res[0]?.url)
 				})
+		} else {
+			if (disPlayDetail?.data?.file_name && disPlayDetail?.currentFileId) {
+				fileApi
+					.getTemporaryDownloadUrl({
+						file_ids: [disPlayDetail?.currentFileId],
+						download_mode: mode,
+						is_download: true,
+					})
+					.then((res: any) => {
+						downloadFileWithAnchor(res[0]?.url)
+					})
 			}
 		}
 	}

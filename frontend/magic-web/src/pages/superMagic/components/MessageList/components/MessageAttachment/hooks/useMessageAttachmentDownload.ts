@@ -1,10 +1,11 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useMessageListContext } from "@/pages/superMagic/components/MessageList/context"
 import { useDownloadProgress } from "@/pages/superMagic/hooks/useDownloadProgress"
 import { DownloadImageMode } from "@/pages/superMagic/pages/Workspace/types"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import {
 	mergeStaticDependencyFileIds,
@@ -16,11 +17,15 @@ import type { AttachmentProps } from "../type"
 /** Downloads message attachments with registered dependencies. */
 export function useMessageAttachmentDownload(messageAttachments?: AttachmentProps[]) {
 	const { t } = useTranslation("super")
+	const { permissions: access } = useFileAccess()
 	const { projectFilesStore } = useMessageListContext()
 	const downloadProgress = useDownloadProgress()
+	// Bind the ambient share/session identity so attachment downloads work on share
+	// previews instead of failing closed.
+	const fileApi = useFileApi()
 
 	const downloadOriginalFile = useMemoizedFn(async (fileId: string) => {
-		const res = await getTemporaryDownloadUrl({
+		const res = await fileApi.getTemporaryDownloadUrl({
 			file_ids: [fileId],
 			is_download: true,
 			download_mode: DownloadImageMode.Download,
@@ -29,6 +34,7 @@ export function useMessageAttachmentDownload(messageAttachments?: AttachmentProp
 	})
 
 	return useMemoizedFn(async (fileId: string) => {
+		if (!access.download) return
 		const projectAttachments = projectFilesStore?.workspaceFilesList || []
 		const projectFile = projectAttachments.find((file) => file.file_id === fileId)
 		const messageFile = messageAttachments?.find((file) => file.file_id === fileId)
@@ -49,6 +55,7 @@ export function useMessageAttachmentDownload(messageAttachments?: AttachmentProp
 			const result = await resolveSingleDocumentStaticDependencies({
 				fileIds: [fileId],
 				attachments,
+				fileApi,
 			})
 			const fileIds = mergeStaticDependencyFileIds([fileId], result.dependencyFileIds, true)
 

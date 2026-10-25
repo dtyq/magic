@@ -67,6 +67,49 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         return $model->update($workspaceEntity->toArray());
     }
 
+    public function updateSortOrder(int $workspaceId, ?int $sortOrder): bool
+    {
+        return $this->model::query()
+            ->where('id', $workspaceId)
+            ->whereNull('deleted_at')
+            ->update(['sort_order' => $sortOrder]) > 0;
+    }
+
+    public function getUserWorkspaceSortOrders(string $userId, ?int $excludeWorkspaceId = null): array
+    {
+        $query = $this->model::query()
+            ->where('user_id', $userId)
+            ->where('is_archived', 0)
+            ->whereNull('deleted_at');
+        if ($excludeWorkspaceId !== null) {
+            $query->where('id', '<>', $excludeWorkspaceId);
+        }
+
+        return $query->orderByRaw('CASE WHEN sort_order IS NULL THEN 0 ELSE 1 END ASC')
+            ->orderByRaw('CASE WHEN sort_order IS NULL THEN id END DESC')
+            ->orderByRaw('CASE WHEN sort_order IS NOT NULL THEN sort_order END ASC')
+            ->lockForUpdate()
+            ->get(['id', 'sort_order'])
+            ->map(fn ($model) => [
+                'id' => (int) $model->id,
+                'sort_order' => $model->sort_order !== null ? (int) $model->sort_order : null,
+            ])
+            ->all();
+    }
+
+    public function batchUpdateSortOrders(array $sortOrders): int
+    {
+        $updated = 0;
+        foreach ($sortOrders as $workspaceId => $sortOrder) {
+            $updated += (int) $this->model::query()
+                ->where('id', (int) $workspaceId)
+                ->whereNull('deleted_at')
+                ->update(['sort_order' => $sortOrder]);
+        }
+
+        return $updated;
+    }
+
     /**
      * 获取工作区详情.
      */
@@ -159,7 +202,9 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         int $page = 1,
         int $pageSize = 10,
         string $orderBy = 'id',
-        string $orderDirection = 'desc'
+        string $orderDirection = 'desc',
+        bool $enableManualOrdering = true,
+        bool $pinPriority = false
     ): array {
         $query = $this->model::query();
 
@@ -182,8 +227,8 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         // 获取总数
         $total = $query->count();
 
-        // 排序和分页：置顶始终优先，再按用户指定字段排序
-        $this->applyWorkspaceSorting($query, $orderBy, $orderDirection);
+        // 排序和分页：侧边栏使用动态段 + 手工段后再分页。
+        $this->applyWorkspaceSorting($query, $orderBy, $orderDirection, $enableManualOrdering, $pinPriority);
         $list = $query
             ->offset(($page - 1) * $pageSize)
             ->limit($pageSize)
@@ -351,6 +396,7 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         $entity->setName((string) $model->name);
         $entity->setIsArchived((int) $model->is_archived);
         $entity->setIsPinned((int) ($model->is_pinned ?? 0));
+        $entity->setSortOrder($model->sort_order !== null ? (int) $model->sort_order : null);
         $entity->setCreatedUid((string) $model->created_uid);
         $entity->setUpdatedUid((string) $model->updated_uid);
         $entity->setCreatedAt($model->created_at ? (string) $model->created_at : null);
@@ -364,9 +410,14 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         return $entity;
     }
 
-    private function applyWorkspaceSorting(ModelBuilder $query, string $orderBy, string $orderDirection): void
-    {
-        $allowedOrderBy = ['id', 'updated_at'];
+    private function applyWorkspaceSorting(
+        ModelBuilder $query,
+        string $orderBy,
+        string $orderDirection,
+        bool $enableManualOrdering = true,
+        bool $pinPriority = false
+    ): void {
+        $allowedOrderBy = ['id', 'created_at', 'updated_at'];
         $allowedOrderDirection = ['asc', 'desc'];
         $orderBy = strtolower($orderBy);
         $orderDirection = strtolower($orderDirection);
@@ -379,7 +430,23 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
             $orderDirection = 'desc';
         }
 
-        $query->orderBy('is_pinned', 'desc')
-            ->orderBy($orderBy, $orderDirection);
+        if ($pinPriority) {
+            $query->orderBy('is_pinned', 'desc');
+        }
+
+        if (! $enableManualOrdering) {
+            // Compatibility path for non-sidebar consumers such as the knowledge-base RPC.
+            $query->orderBy($orderBy, $orderDirection);
+            return;
+        }
+
+        // Keep legacy order parameters for compatibility, but use manual ordering first
+        // and creation time as the default dynamic order.
+        $query->orderByRaw('CASE WHEN sort_order IS NULL THEN 0 ELSE 1 END ASC');
+        $dynamicOrderBy = $orderBy === 'created_at' ? 'id' : $orderBy;
+        $query->orderByRaw("CASE WHEN sort_order IS NULL THEN {$dynamicOrderBy} END {$orderDirection}");
+        $query->orderByRaw('CASE WHEN sort_order IS NULL THEN id END DESC');
+        $query->orderByRaw('CASE WHEN sort_order IS NOT NULL THEN sort_order END ASC');
+        $query->orderBy('id', 'asc');
     }
 }

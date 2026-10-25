@@ -30,6 +30,11 @@ export interface ProjectAttachmentsV2Snapshot {
 
 export interface ProjectAttachmentsV2BuilderOptions {
 	locale?: string
+	/**
+	 * Keep is_hidden files in the snapshot for path lookup (recording notes).
+	 * Default false so file panels keep the original visible-only tree.
+	 */
+	includeHidden?: boolean
 }
 
 function isExplicitRootContainer(row: AttachmentItem) {
@@ -47,8 +52,8 @@ function normalizeRow(row: AttachmentItem): AttachmentItem | null {
 export function createProjectAttachmentsV2Builder(
 	options: ProjectAttachmentsV2BuilderOptions = {},
 ) {
-	// nodeById stores normalized visible nodes; childrenByParentId stores ids only.
-	// Each snapshot rebuilds fresh tree objects without mutating committed UI nodes.
+	// nodeById stores normalized nodes; hidden rows are omitted unless includeHidden.
+	// childrenByParentId stores ids only. Each snapshot rebuilds fresh tree objects.
 	const nodeById = new Map<string, AttachmentItem>()
 	const childrenByParentId = new Map<string, Set<string>>()
 	const seenFileIds = new Set<string>()
@@ -82,7 +87,10 @@ export function createProjectAttachmentsV2Builder(
 
 			if (normalized.is_hidden) {
 				hiddenFilteredCount += 1
-				continue
+				// Opt-in lookup snapshots keep hidden content except the virtual root.
+				if (!options.includeHidden || isExplicitRootContainer(normalized)) {
+					continue
+				}
 			}
 
 			if (seenFileIds.has(fileId)) {

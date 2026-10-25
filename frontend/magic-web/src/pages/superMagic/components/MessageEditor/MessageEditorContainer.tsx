@@ -1,5 +1,13 @@
-import type { Editor, JSONContent } from "@tiptap/react"
-import { forwardRef, useEffect, useCallback, useMemo, useRef } from "react"
+import type { Editor, JSONContent } from "@/infrastructure/editors/tiptap/react"
+import {
+	forwardRef,
+	useEffect,
+	useCallback,
+	useMemo,
+	useRef,
+	useState,
+	type ClipboardEvent,
+} from "react"
 import { useTranslation } from "react-i18next"
 import { useAsyncEffect, useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
@@ -49,6 +57,9 @@ import { insertMentionFromDroppedData } from "./utils/drag"
 import { runActiveEditor, useLatestActiveEditor } from "./utils/editorLifecycle"
 import useEditorPromptCarousel from "./hooks/useEditorPromptCarousel"
 import useChooseUploadDirModal from "./hooks/useChooseUploadDirModal"
+import { useMixedClipboardPaste } from "./hooks/useMixedClipboardPaste"
+import { isWechatChatText } from "./extensions/wechat-chat-history/parser"
+import { isInternationalEnv, isPrivateDeployment } from "@/utils/env"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"
 import { resolveModelTopicMode } from "./utils/modelTopicMode"
 import type { Topic } from "../../pages/Workspace/types"
@@ -56,11 +67,14 @@ import useSharedDataFromApp from "./hooks/useSharedDataFromApp"
 import type { VoiceInputRef } from "@/components/business/VoiceInput"
 import useMessageEditorPubSub from "./hooks/useMessageEditorPubSub"
 import { useMessageEditorMarker } from "./hooks/useMessageEditorMarker"
+import { useCanvasPendingMentionBridge } from "./hooks/useCanvasPendingMentionBridge"
 import { resolveMessageEditorModules } from "./utils/moduleConfig"
 import { userStore } from "@/models/user"
 import { useTaskInterrupt } from "../../hooks/useTaskInterrupt"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 import {
+	containsCanonicalWorkspaceLink,
+	hasMagicClipboardData,
 	createPastedTextFile,
 	shouldConvertPastedTextToAttachment,
 } from "./utils/pastedTextAttachment"
@@ -71,6 +85,22 @@ import {
 	resolveMessageSendModels,
 	type ResolvedMessageSendModels,
 } from "./utils/messageSendModelFallback"
+import {
+	claimCanvasClipboardPasteEvent,
+	getCanvasClipboardPasteController,
+	hasCanvasClipboardMimeType,
+	CanvasDesignClipboard,
+	type CanvasClipboardAsset,
+	type CanvasClipboardTextSnapshot,
+} from "@/components/CanvasDesign/public/clipboard"
+
+function isClipboardMediaFile(file: File): boolean {
+	const mimeType = file.type.trim().toLowerCase()
+	if (/^(image|video|audio)\//.test(mimeType)) return true
+	return /\.(png|jpe?g|gif|webp|bmp|avif|heic|heif|svg|mp4|mov|webm|avi|mkv|m4v|mp3|wav|ogg|m4a|aac|flac)$/i.test(
+		file.name,
+	)
+}
 
 export type MessageEditorRef = MessageEditorRefType & {
 	/**
@@ -102,6 +132,7 @@ export const MessageEditorContainer = observer(
 				stopEventLoading,
 				selectedTopic,
 				selectedProject,
+				selectedWorkspace,
 				draftKey,
 				size = "default",
 				modules,
@@ -109,6 +140,7 @@ export const MessageEditorContainer = observer(
 				sendButtonLoading = false,
 				topicMode,
 				modelTopicMode,
+				agentCode,
 				onFocus,
 				onBlur,
 				onReady,
@@ -125,6 +157,7 @@ export const MessageEditorContainer = observer(
 				projectFilesStore,
 				topicModelStore,
 				layoutConfig,
+				headerContent,
 				enableMessageSendByContent = false,
 				skipInitialDraftRestore = false,
 			},
@@ -178,6 +211,9 @@ export const MessageEditorContainer = observer(
 				topicModelStore,
 			})
 
+			const sendScope = `${selectedProject?.id ?? ""}:${selectedTopic?.id ?? ""}`
+			const sendScopeRef = useRef(sendScope)
+			sendScopeRef.current = sendScope
 			const isMountedRef = useRef(true)
 			const modelWaitAbortControllerRef = useRef<AbortController | null>(null)
 			const isProjectContext = Boolean(selectedProject?.id)
@@ -191,10 +227,20 @@ export const MessageEditorContainer = observer(
 			})
 
 			const fileUploadStore = store.fileUploadStore
+			const canvasClipboardEpochRef = useRef(0)
+			const [isPreparingPaste, setIsPreparingPaste] = useState(false)
+			const getCanvasClipboardSessionId = useMemoizedFn(
+				() =>
+					`${draftKey?.workspaceId ?? selectedWorkspace?.id ?? ""}:${selectedProject?.id ?? selectedTopic?.project_id ?? draftKey?.projectId ?? ""}:${selectedTopic?.id ?? draftKey?.topicId ?? ""}:${canvasClipboardEpochRef.current}`,
+			)
 			const tiptapEditorRef = useRef<Editor | null>(null)
 			const shouldSkipMentionRemoveSyncRef = useRef(false)
+			const promoteCanvasPendingMentionsRef = useRef<(() => void) | null>(null)
 
 			const getEditor = useMemoizedFn(() => tiptapEditorRef.current)
+			const promoteCanvasPendingMentions = useMemoizedFn(() => {
+				promoteCanvasPendingMentionsRef.current?.()
+			})
 			const runWithoutMentionRemoveSync = useMemoizedFn((callback: () => void) => {
 				shouldSkipMentionRemoveSyncRef.current = true
 				try {
@@ -276,6 +322,7 @@ export const MessageEditorContainer = observer(
 
 			const canSendMessage = useMemo(() => {
 				if (!sendEnabled) return false
+				if (isPreparingPaste) return false
 				if (hasLoadingMarker) return false
 				if (isEditingQueueItem) {
 					return isAllFilesUploaded && !isSending && !sendButtonLoading
@@ -285,6 +332,7 @@ export const MessageEditorContainer = observer(
 				return hasContent && isAllFilesUploaded && !isSending && !sendButtonLoading
 			}, [
 				hasLoadingMarker,
+				isPreparingPaste,
 				isEditingQueueItem,
 				store.editorStore.value,
 				isAllFilesUploaded,
@@ -296,7 +344,11 @@ export const MessageEditorContainer = observer(
 
 			const sendButtonDisabled = !canSendMessage
 
-			const { addFilesWithDir, UploadModal } = useChooseUploadDirModal({
+			const {
+				addFilesWithDir,
+				UploadModal,
+				onModalClose: cancelPendingUpload,
+			} = useChooseUploadDirModal({
 				addFiles: _addFiles,
 				selectedProject,
 				attachments,
@@ -304,6 +356,21 @@ export const MessageEditorContainer = observer(
 				validateFileCount,
 			})
 			const uploadModal = uploadEnabled ? UploadModal : null
+			const pasteFilesWithText = useMixedClipboardPaste({
+				getEditor,
+				getSessionId: getCanvasClipboardSessionId,
+				getFiles: () => fileUploadStore.files,
+				addFiles: addFilesWithDir,
+				cancelPendingUpload,
+				isProjectContext,
+				onPreparingChange: setIsPreparingPaste,
+				wechatChatEnabled:
+					uploadEnabled &&
+					shouldEnableMention &&
+					!isInternationalEnv() &&
+					!isPrivateDeployment(),
+				onWechatImported: (id) => wechatChat.onImported(id),
+			})
 
 			const addFiles = useMemoizedFn(async (files: File[]) => {
 				if (!uploadEnabled) return
@@ -319,6 +386,14 @@ export const MessageEditorContainer = observer(
 					voiceInputRef.current.stopRecording()
 				}
 			})
+
+			// 普通话题不一定显式注入文件 Store；Mention Store 已绑定当前作用域的文件列表。
+			const getWorkspaceFilesList = useMemoizedFn(
+				() => projectFilesStore?.workspaceFilesList ?? mentionPanelStore.workspaceFilesList,
+			)
+			const getCurrentProjectId = useMemoizedFn(
+				() => selectedTopic?.project_id ?? selectedProject?.id ?? draftKey?.projectId,
+			)
 
 			const { isDragOver, dragEvents } = useDragUpload({
 				enableFileDrop: uploadEnabled,
@@ -346,6 +421,7 @@ export const MessageEditorContainer = observer(
 				if (isMobile) resetDocumentScrollPosition()
 			})
 			const handleFocus = useMemoizedFn(() => {
+				promoteCanvasPendingMentions()
 				setIsEditorFocused(true)
 				onFocus?.()
 			})
@@ -357,6 +433,7 @@ export const MessageEditorContainer = observer(
 			)
 
 			const handleSend = useMessageSendHandler({
+				isSendSuspended: () => wechatChat.isOpen(),
 				voiceInputRef,
 				canSendMessage,
 				hasLoadingMarker,
@@ -367,10 +444,15 @@ export const MessageEditorContainer = observer(
 				onSend,
 				topicMode,
 				collectMentionItemsFromEditor,
+				promoteCanvasPendingMentions,
+				onSendStart: () => {
+					canvasClipboardEpochRef.current += 1
+				},
 				isMountedRef,
 			})
 
-			const { tiptapEditor, domRef } = useMessageEditor({
+			const { tiptapEditor, domRef, wechatChat } = useMessageEditor({
+				wechatChatEnabled: uploadEnabled && shouldEnableMention,
 				value: store.editorStore.value,
 				onSend: handleSend,
 				placeholder: promptCarouselConfigured ? "" : placeholder,
@@ -399,9 +481,44 @@ export const MessageEditorContainer = observer(
 				mentionPanelStore,
 				isAllowedMention: isAllowedEditorMention,
 				shouldSkipRemoveSync: () => shouldSkipMentionRemoveSyncRef.current,
+				shouldSkipMentionValidation: () => store.editorStore.preserveMentionValidation,
+				isTrustedMention: (attrs) => store.editorStore.isTrustedMention(attrs),
 				shouldRestoreRemovedMention,
+				getWorkspaceFilesList,
+				getCurrentProjectId,
 			})
 			const activeEditorRef = useLatestActiveEditor(tiptapEditor)
+			const canvasSelectionMentionScope = useMemo(
+				() => ({
+					workspaceId: selectedWorkspace?.id ?? draftKey?.workspaceId,
+					projectId:
+						selectedTopic?.project_id ?? selectedProject?.id ?? draftKey?.projectId,
+					topicId: selectedTopic?.id ?? draftKey?.topicId,
+				}),
+				[
+					draftKey?.projectId,
+					draftKey?.topicId,
+					draftKey?.workspaceId,
+					selectedProject?.id,
+					selectedTopic?.id,
+					selectedTopic?.project_id,
+					selectedWorkspace?.id,
+				],
+			)
+			const { promotePending: promoteCanvasPending } = useCanvasPendingMentionBridge({
+				editor: tiptapEditor,
+				enabled: shouldEnableMention,
+				scope: canvasSelectionMentionScope,
+			})
+
+			useEffect(() => {
+				promoteCanvasPendingMentionsRef.current = promoteCanvasPending
+				return () => {
+					if (promoteCanvasPendingMentionsRef.current === promoteCanvasPending) {
+						promoteCanvasPendingMentionsRef.current = null
+					}
+				}
+			}, [promoteCanvasPending])
 
 			useEffect(() => {
 				tiptapEditorRef.current = tiptapEditor
@@ -425,12 +542,20 @@ export const MessageEditorContainer = observer(
 				}
 			}, [])
 
-			const updateContent = useMemoizedFn((content: JSONContent | undefined) => {
-				store.editorStore.updateContent(content)
-			})
+			const updateContent = useMemoizedFn(
+				(
+					content: JSONContent | undefined,
+					options?: { preserveMentionValidation?: boolean },
+				) => {
+					store.editorStore.updateContent(content, options)
+				},
+			)
 
 			const handleSendMessageByContent = useMemoizedFn(
 				async (data: SendMessageByContentPayload) => {
+					if (data.targetProjectId && data.targetProjectId !== selectedProject?.id) return
+					if (data.tryClaim && !data.tryClaim()) return
+					const requestScope = sendScopeRef.current
 					let models: ResolvedMessageSendModels | null
 					try {
 						models = await resolveMessageSendModels({
@@ -441,6 +566,7 @@ export const MessageEditorContainer = observer(
 							signal: modelWaitAbortControllerRef.current?.signal,
 						})
 					} catch (error) {
+						data.onHandled?.(false)
 						if (
 							error instanceof MessageSendModelWaitError &&
 							error.reason === "aborted"
@@ -450,21 +576,38 @@ export const MessageEditorContainer = observer(
 						magicToast.error(t("messageEditor.modelLoadFailed"))
 						return
 					}
-					if (!models) {
+					// A model load may finish after the user has switched projects or topics.
+					if (
+						data.targetProjectId &&
+						(!isMountedRef.current || requestScope !== sendScopeRef.current)
+					) {
+						data.onHandled?.(false)
+						return
+					}
+					if (!models || !onSend) {
+						data.onHandled?.(false)
 						magicToast.error(t("messageEditor.pleaseSelectModel"))
 						return
 					}
-					onSend?.({
-						value: data.jsonContent,
-						mentionItems:
-							data.mentionItems ?? collectMentionItemsFromContent(data.jsonContent),
-						selectedModel: models.selectedModel,
-						selectedImageModel: models.selectedImageModel,
-						selectedVideoModel: models.selectedVideoModel,
-						topicMode: data.topicMode ?? topicMode,
-						shouldClearEditorAfterSend: data.shouldClearEditorAfterSend,
-						extra: data.extra,
-					})
+					try {
+						const accepted = await onSend({
+							value: data.jsonContent,
+							mentionItems:
+								data.mentionItems ??
+								collectMentionItemsFromContent(data.jsonContent),
+							selectedModel: models.selectedModel,
+							selectedImageModel: models.selectedImageModel,
+							selectedVideoModel: models.selectedVideoModel,
+							topicMode: data.topicMode ?? topicMode,
+							shouldClearEditorAfterSend: data.shouldClearEditorAfterSend,
+							extra: data.extra,
+							targetTopic: data.targetTopic,
+						})
+						data.onHandled?.(accepted !== false)
+					} catch (error) {
+						if (!data.onHandled) throw error
+						data.onHandled(false)
+					}
 				},
 			)
 
@@ -479,6 +622,9 @@ export const MessageEditorContainer = observer(
 				updateContent,
 				enableMessageSendByContent,
 				onSendMessageByContent: handleSendMessageByContent,
+				onSendCurrentContent: handleSend,
+				projectId: selectedProject?.id ?? draftKey?.projectId,
+				topicId: selectedTopic?.id ?? draftKey?.topicId,
 			})
 
 			useSharedDataFromApp({
@@ -492,6 +638,7 @@ export const MessageEditorContainer = observer(
 			})
 
 			const clearContent = useMemoizedFn(() => {
+				canvasClipboardEpochRef.current += 1
 				clearAllMarkers()
 
 				setValue(undefined)
@@ -502,6 +649,7 @@ export const MessageEditorContainer = observer(
 			})
 
 			const clearContentAfterSend = useMemoizedFn(() => {
+				canvasClipboardEpochRef.current += 1
 				shouldSkipMentionRemoveSyncRef.current = true
 				try {
 					clearAllMarkers()
@@ -671,21 +819,163 @@ export const MessageEditorContainer = observer(
 			})
 
 			const handlePaste = useCallback(
-				(e: React.ClipboardEvent) => {
+				(e: ClipboardEvent) => {
 					const clipboardData = e.clipboardData
 					if (!clipboardData) return
-
-					const files = Array.from(clipboardData.files)
-
-					if (uploadEnabled && files.length > 0) {
+					const nativeEvent = e.nativeEvent
+					const hasCanvasMime = hasCanvasClipboardMimeType(nativeEvent)
+					const nativeFiles = CanvasDesignClipboard.readAllEventFilesSnapshot(nativeEvent)
+					const targetProjectId = selectedProject?.id ?? selectedTopic?.project_id
+					const hasClipboardTextOrHtml = Array.from(clipboardData.types ?? []).some(
+						(type) => {
+							const normalized = type.trim().toLowerCase()
+							return normalized === "text/plain" || normalized === "text/html"
+						},
+					)
+					if (hasCanvasMime && !uploadEnabled) {
+						if (!claimCanvasClipboardPasteEvent(nativeEvent)) return
 						e.preventDefault()
 						e.stopPropagation()
-						addFiles(files)
+						return
+					}
+					const shouldPreferCanvasBundle =
+						!hasCanvasMime &&
+						uploadEnabled &&
+						shouldEnableMention &&
+						Boolean(targetProjectId) &&
+						nativeFiles.length > 0 &&
+						nativeFiles.every(isClipboardMediaFile)
+
+					if (
+						hasCanvasMime ||
+						shouldPreferCanvasBundle ||
+						(nativeFiles.length === 0 && !hasClipboardTextOrHtml)
+					) {
+						const existingResourceKeys = collectMentionItemsFromEditor().flatMap(
+							(item) => {
+								const data = item.attrs.data as {
+									file_id?: string
+									file_path?: string
+									relative_file_path?: string
+								}
+								return [
+									data.file_id,
+									data.file_path,
+									data.relative_file_path,
+								].filter((value): value is string => Boolean(value?.trim()))
+							},
+						)
+						void getCanvasClipboardPasteController().paste(
+							nativeEvent,
+							{
+								control: "message-editor",
+								acceptedTypes: ["image", "video", "audio"],
+								projectId: targetProjectId,
+								hasProjectContext: isProjectContext,
+								preferPrivateBundleWithNativeFallback: shouldPreferCanvasBundle,
+								maxCount: Math.max(
+									0,
+									fileUploadStore.maxUploadCount - fileUploadStore.files.length,
+								),
+								existingResourceKeys,
+								sessionId: getCanvasClipboardSessionId(),
+							},
+							{
+								onExternalFile: async (
+									asset: CanvasClipboardAsset,
+									clipboard: CanvasClipboardTextSnapshot,
+								) => {
+									if (!asset.file) return
+									if (asset.file.size > fileUploadStore.maxUploadSize) {
+										throw new Error("file-size-limit")
+									}
+									if (!shouldPreferCanvasBundle) {
+										await _addFiles([asset.file], undefined, {
+											useTempDirectory: true,
+											isCanvasClipboard: true,
+										})
+										return
+									}
+									pasteFilesWithText(clipboardData, [asset.file], clipboard)
+								},
+								onAsset: async (asset: CanvasClipboardAsset) => {
+									if (
+										asset.reference?.kind === "project" &&
+										asset.reference.fileId &&
+										asset.reference.projectPath
+									) {
+										const fileName = asset.reference.fileName || asset.fileName
+										const fileExtension = fileName.split(".").pop() ?? ""
+										const mention: TiptapMentionAttributes = {
+											type: MentionItemType.PROJECT_FILE,
+											data: {
+												file_id: asset.reference.fileId,
+												file_name: fileName,
+												file_path: asset.reference.projectPath,
+												relative_file_path: asset.reference.projectPath,
+												file_extension: fileExtension,
+												file_size: 0,
+												project_id:
+													selectedProject?.id ??
+													selectedTopic?.project_id,
+											},
+										}
+										tiptapEditorRef.current?.commands.insertContent({
+											type: "mention",
+											attrs: mention,
+										})
+										store.fileUploadStore.addPendingProjectFileReferences([
+											mention,
+										])
+										onMentionInsertItems?.([mention])
+										return
+									}
+									if (!asset.file) return
+									if (asset.file.size > fileUploadStore.maxUploadSize) {
+										throw new Error("file-size-limit")
+									}
+									await _addFiles([asset.file], undefined, {
+										useTempDirectory: true,
+										isCanvasClipboard: true,
+									})
+								},
+								isSessionCurrent: (sessionId) =>
+									isMountedRef.current &&
+									sessionId === getCanvasClipboardSessionId(),
+							},
+						)
+						return
+					}
+
+					const files = nativeFiles
+
+					if (uploadEnabled && files.length > 0) {
+						if (!claimCanvasClipboardPasteEvent(nativeEvent)) return
+						e.preventDefault()
+						e.stopPropagation()
+						if (shouldEnableMention) {
+							pasteFilesWithText(clipboardData, files)
+						} else {
+							addFiles(files)
+						}
 						return
 					}
 
 					if (!uploadEnabled || !shouldEnableMention) return
+					if (
+						wechatChat.available &&
+						!hasMagicClipboardData(clipboardData) &&
+						isWechatChatText(clipboardData.getData("text/plain"))
+					) {
+						if (!claimCanvasClipboardPasteEvent(nativeEvent)) return
+						e.preventDefault()
+						e.stopPropagation()
+						pasteFilesWithText(clipboardData, [])
+						return
+					}
+					if (containsCanonicalWorkspaceLink(clipboardData)) return
 					if (!shouldConvertPastedTextToAttachment(clipboardData)) return
+					if (!claimCanvasClipboardPasteEvent(nativeEvent)) return
 
 					const text = clipboardData.getData("text/plain")
 					const textFile = createPastedTextFile({ text })
@@ -700,8 +990,18 @@ export const MessageEditorContainer = observer(
 				[
 					_addFiles,
 					addFiles,
+					pasteFilesWithText,
+					wechatChat.available,
+					collectMentionItemsFromEditor,
+					getCanvasClipboardSessionId,
 					ensureProjectContextForPastedText,
+					fileUploadStore,
+					isProjectContext,
+					onMentionInsertItems,
+					selectedProject?.id,
+					selectedTopic?.project_id,
 					shouldEnableMention,
+					store.fileUploadStore,
 					uploadEnabled,
 				],
 			)
@@ -813,17 +1113,19 @@ export const MessageEditorContainer = observer(
 				shouldEnableMention,
 				uploadEnabled,
 				sendEnabled,
-				sendButtonDisabled,
+				sendButtonDisabled: sendButtonDisabled || wechatChat.activeId !== null,
 				sendButtonLoading,
 				showLoading,
 				isTaskRunning,
 				isUploadingFiles: !isAllFilesUploaded,
 				voiceInputEnabled,
+				commandMenu: wechatChat,
 				stopEventLoading: effectiveStopEventLoading,
 				isEditingQueueItem: isEditingQueueItem ?? false,
 				selectedTopic,
 				selectedProject,
 				topicMode: resolveModelTopicMode(topicMode, modelTopicMode),
+				agentCode,
 				mentionPanelStore,
 				mcpButtonConfig,
 				handleSelectMentionItem,
@@ -857,8 +1159,11 @@ export const MessageEditorContainer = observer(
 					store={store}
 					className={className}
 					containerClassName={containerClassName}
+					headerContent={headerContent}
 					size={size}
 					tiptapEditor={tiptapEditor}
+					getWorkspaceFilesList={getWorkspaceFilesList}
+					getCurrentProjectId={getCurrentProjectId}
 					domRef={domRef}
 					isDragOver={isDragOver}
 					dragEvents={dragEvents}
@@ -874,6 +1179,7 @@ export const MessageEditorContainer = observer(
 					uploadModal={uploadModal}
 					promptCarouselNode={promptCarouselNode}
 					showAiCompletion={effectiveAiCompletionEnabled}
+					wechatChat={wechatChat}
 				/>
 			)
 		},

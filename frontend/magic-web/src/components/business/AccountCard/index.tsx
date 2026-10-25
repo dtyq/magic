@@ -1,6 +1,6 @@
 import { memo, useCallback } from "react"
 import { observer } from "mobx-react-lite"
-import { Flex, Skeleton } from "antd"
+import { Flex } from "antd"
 import { useMemoizedFn } from "ahooks"
 
 // Types
@@ -10,7 +10,7 @@ import type { AccountCardProps } from "./types"
 import { useOrganizationSwitchStyles } from "./styles"
 import ComponentRender from "@/components/ComponentRender"
 import { DefaultComponents } from "@/components/ComponentRender/config/defaultComponents"
-import { keyBy } from "lodash-es"
+import { getAccountOrganizationOptions } from "./organizationOptions"
 import { useTranslation } from "react-i18next"
 import { useUserInfo } from "@/models/user/hooks"
 import { User } from "@/types/user"
@@ -37,7 +37,8 @@ const AccountCardComponent = (props: AccountCardProps) => {
 
 	// Check if organization is selected
 	const isOrganizationSelected = useCallback(
-		(organization: User.MagicOrganization) => {
+		(organization?: User.MagicOrganization) => {
+			if (!organization) return false
 			return (
 				userInfo?.user_id === organization?.magic_user_id &&
 				userInfo?.organization_code === organization?.magic_organization_code
@@ -56,7 +57,7 @@ const AccountCardComponent = (props: AccountCardProps) => {
 		return phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")
 	}
 
-	const validOrgs = keyBy(account.organizations, "third_platform_organization_code")
+	const organizationOptions = getAccountOrganizationOptions(account)
 
 	return (
 		<div className={styles.accountCard}>
@@ -88,16 +89,14 @@ const AccountCardComponent = (props: AccountCardProps) => {
 
 				{/* Organization List */}
 				<Flex vertical className={styles.organizationList}>
-					{account.teamshareOrganizations?.map((organization) => {
-						const magicOrganization = validOrgs[organization.organization_code]
-
+					{organizationOptions.map(({ organization, magicOrganization }) => {
 						const isSelected = isOrganizationSelected(magicOrganization)
 
 						return (
 							<ComponentRender
 								key={
 									magicOrganization?.magic_organization_code ??
-									organization.organization_code
+									organization?.organization_code
 								}
 								componentName={DefaultComponents.OrganizationItem}
 								loadingFallback={
@@ -107,7 +106,7 @@ const AccountCardComponent = (props: AccountCardProps) => {
 										gap={10}
 										key={
 											magicOrganization?.magic_organization_code ??
-											organization.organization_code
+											organization?.organization_code
 										}
 									>
 										<AntdSkeleton.Avatar

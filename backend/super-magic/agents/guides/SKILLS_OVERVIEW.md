@@ -41,10 +41,10 @@ my-skill/
 ```yaml
 skills:
   preload:
-    - name: canvas-designer
+    - name: canvas-manager
       files:
         - SKILL.md
-        - reference/image-search.md   # reference 文件也可以 preload
+        - references/image-search.md   # reference 文件也可以 preload
 ```
 
 被 preload 的 Skill **不再出现**在 `available_skills` 列表中。
@@ -64,7 +64,7 @@ skills:
   excluded_skills:    # 从 system_skills 中排除
     - some-skill
   preload:            # 预加载（可来自任意来源）
-    - name: canvas-designer
+    - name: canvas-manager
       files:
         - SKILL.md
 ```

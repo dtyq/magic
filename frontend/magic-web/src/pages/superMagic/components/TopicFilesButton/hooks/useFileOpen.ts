@@ -1,3 +1,4 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useCallback } from "react"
 import type { AttachmentItem } from "./types"
 import { getFileType } from "../../../utils/handleFIle"
@@ -26,9 +27,11 @@ export interface NodeFile {
  */
 export function useFileOpen(options: UseFileOpenOptions = {}) {
 	const { onFileClick, setUserSelectDetail, attachments } = options
+	const { permissions: access } = useFileAccess()
 
 	const handleOpenFile = useCallback(
 		(item: AttachmentItem) => {
+			if (!access.view || !access.preview) return
 			// If it's a folder, do nothing
 			if (item.is_directory) return
 
@@ -64,10 +67,11 @@ export function useFileOpen(options: UseFileOpenOptions = {}) {
 				})
 			}
 		},
-		[onFileClick, setUserSelectDetail, attachments],
+		[onFileClick, setUserSelectDetail, attachments, access.view, access.preview],
 	)
 
 	const handleNodeFile = (node: NodeFile) => {
+		if (!access.view || !access.preview) return
 		const { data, type } = node
 		if (type) {
 			const fileExtension = data.file_name?.split(".")?.pop()

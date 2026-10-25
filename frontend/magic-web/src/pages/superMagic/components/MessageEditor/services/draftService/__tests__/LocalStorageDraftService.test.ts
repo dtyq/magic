@@ -3,7 +3,7 @@ import { LocalStorageDraftService } from "../LocalStorageDraftService"
 import type { DraftKey, DraftData } from "../../../types"
 
 // Mock user store
-vi.mock("@/opensource/models/user", () => ({
+vi.mock("@/models/user", () => ({
 	userStore: {
 		user: {
 			userInfo: {
@@ -91,14 +91,14 @@ describe("LocalStorageDraftService", () => {
 			expect(storedData.updatedAt).toBeDefined()
 		})
 
-		it("should skip saving when data is equal to latest version", async () => {
-			// Mock loadLatestDraftVersion to return existing data
+		it("should skip saving when data is equal to current draft", async () => {
+			// Mock loadDraft to return existing data
 			const existingData: DraftData = {
 				...testDraftData,
 				createdAt: Date.now() - 1000,
 				updatedAt: Date.now() - 500,
 			}
-			vi.spyOn(service, "loadLatestDraftVersion").mockResolvedValue(existingData)
+			vi.spyOn(service, "loadDraft").mockResolvedValue(existingData)
 
 			await service.saveDraft(testKey, testDraftData)
 
@@ -106,8 +106,8 @@ describe("LocalStorageDraftService", () => {
 			expect(localStorageMock.setItem).not.toHaveBeenCalled()
 		})
 
-		it("should save when data is different from latest version", async () => {
-			// Mock loadLatestDraftVersion to return different data
+		it("should save when data is different from current draft", async () => {
+			// Mock loadDraft to return different data
 			const existingData: DraftData = {
 				...testDraftData,
 				value: {
@@ -122,15 +122,15 @@ describe("LocalStorageDraftService", () => {
 				createdAt: Date.now() - 1000,
 				updatedAt: Date.now() - 500,
 			}
-			vi.spyOn(service, "loadLatestDraftVersion").mockResolvedValue(existingData)
+			vi.spyOn(service, "loadDraft").mockResolvedValue(existingData)
 
 			await service.saveDraft(testKey, testDraftData)
 
 			expect(localStorageMock.setItem).toHaveBeenCalledTimes(1)
 		})
 
-		it("should save when no latest version exists", async () => {
-			vi.spyOn(service, "loadLatestDraftVersion").mockResolvedValue(null)
+		it("should save when no current draft exists", async () => {
+			vi.spyOn(service, "loadDraft").mockResolvedValue(null)
 
 			await service.saveDraft(testKey, testDraftData)
 
@@ -148,7 +148,7 @@ describe("LocalStorageDraftService", () => {
 				}),
 			)
 
-			vi.spyOn(service, "loadLatestDraftVersion").mockResolvedValue(null)
+			vi.spyOn(service, "loadDraft").mockResolvedValue(null)
 
 			await service.saveDraft(testKey, {
 				...testDraftData,

@@ -13,6 +13,7 @@ import {
 	type ProjectAttachmentsChangeOperationCounts,
 	toProcessedAttachmentTree,
 	toProcessedSortedAttachmentData,
+	shouldReprocessDisplayConfigAfterChanges,
 } from "./changeReducerUtils"
 
 export type { ProjectAttachmentsChangeOperationCounts } from "./changeReducerUtils"
@@ -500,9 +501,9 @@ export function applyProjectAttachmentsChangesToTree(
 		) {
 			parentId = ""
 		}
-        if(Array.from(treeIndex.nodeById).length === 0) {
-            parentId = ""
-        }
+		if (Array.from(treeIndex.nodeById).length === 0) {
+			parentId = ""
+		}
 		if (!isRootAttachmentParent(parentId) && !treeIndex.nodeById.has(parentId)) {
 			// Missing parent would create an orphan node, so use full refresh.
 			skippedCount += 1
@@ -551,7 +552,10 @@ export function applyProjectAttachmentsChangesToTree(
 	}
 
 	const sortedData = buildSortedTreeDataFromIndex(treeIndex, options.locale)
-	const processed = toProcessedSortedAttachmentData(sortedData.tree, sortedData.list)
+	const shouldReprocessDisplayConfig = shouldReprocessDisplayConfigAfterChanges(changes)
+	const processed = shouldReprocessDisplayConfig
+		? toProcessedSortedAttachmentData(sortedData.tree, sortedData.list)
+		: sortedData
 	return {
 		...processed,
 		appliedCount,

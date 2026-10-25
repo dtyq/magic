@@ -43,7 +43,7 @@ export const PluginWindowHeader = memo(function PluginWindowHeader({
 				<span className={styles.pluginWindowTitle} title={label}>
 					{label}
 				</span>
-				<Tooltip>
+				<Tooltip delayDuration={200}>
 					<TooltipTrigger asChild>
 						<button type="button" aria-label="Help">
 							<CircleQuestionMark size={16} />

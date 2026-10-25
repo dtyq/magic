@@ -6,10 +6,11 @@ import { IconClockHour4, IconCopy } from "@tabler/icons-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/utils"
-import dayjs from "@/lib/dayjs"
+import { cn } from "@/utils/cn"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { useTranslation } from "react-i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { MESSAGE_LIST_VIEWPORT_SELECTOR } from "../../../message-list-viewport"
 
 // 全局tooltip管理器
 class GlobalTooltipManager {
@@ -113,6 +114,36 @@ const tooltipItem = cn(
 	"shadow-md",
 )
 
+/** Minimum page-left gutter that can host the time chip without covering the column. */
+const TIME_TOOLTIP_MIN_LEFT_GUTTER_PX = 100
+/** Top header band that should not be covered by the time chip. */
+const TIME_TOOLTIP_HEADER_SAFE_TOP_PX = 100
+
+/** Shows the time tooltip only when the iframe/page left gutter is wide enough. */
+export function shouldShowTimeTooltipByGutter(pageLeftGutter: number): boolean {
+	return pageLeftGutter >= TIME_TOOLTIP_MIN_LEFT_GUTTER_PX
+}
+
+/**
+ * Measures the empty space from the iframe/page viewport left (x = 0)
+ * to the centered message column, not the hovered node box.
+ */
+export function getTimeTooltipPageLeftGutter(fromElement: HTMLElement | null): number {
+	if (!fromElement) return 0
+
+	let parent: HTMLElement | null = fromElement
+	while (parent) {
+		if (parent.classList.contains("message-list-container")) {
+			const viewport = parent.querySelector(MESSAGE_LIST_VIEWPORT_SELECTOR)
+			const column = viewport?.firstElementChild as HTMLElement | undefined
+			return (column ?? parent).getBoundingClientRect().left
+		}
+		parent = parent.parentElement
+	}
+
+	return fromElement.getBoundingClientRect().left
+}
+
 interface UseTimeTooltipOptions {
 	timestamp?: number
 	shouldShow?: boolean
@@ -200,7 +231,7 @@ export function useTimeTooltip({
 		if (!messageContainerRef.current) return false
 
 		const containerRect = messageContainerRef.current
-		const leftSidebarWidth = 100 // 左侧栏宽度，可以根据需要调整
+		const leftSidebarWidth = TIME_TOOLTIP_MIN_LEFT_GUTTER_PX
 
 		// 尝试找到消息列表的滚动容器
 		let scrollContainer: HTMLElement | null = null
@@ -217,7 +248,7 @@ export function useTimeTooltip({
 		}
 
 		// 计算消息体的可见区域边界
-		const viewportTop = 100 // 消息头部高度
+		const viewportTop = TIME_TOOLTIP_HEADER_SAFE_TOP_PX
 		let viewportBottom = window.innerHeight
 
 		// 如果找到了滚动容器，使用滚动容器的边界
@@ -288,30 +319,33 @@ export function useTimeTooltip({
 		const rect = element.getBoundingClientRect()
 		messageContainerRef.current = rect
 
-		// 计算并设置固定的tooltip位置，使用鼠标进入时的Y位置
-		const fixedPosition = calculateFixedTooltipPosition(rect, event.clientY)
-		setTooltipPosition(fixedPosition)
-
-		// 设置300ms延迟显示定时器
 		if (showDelayTimerRef.current) {
 			clearTimeout(showDelayTimerRef.current)
+			showDelayTimerRef.current = null
 		}
 
-		showDelayTimerRef.current = setTimeout(() => {
-			// 尝试在全局管理器中注册tooltip
-			const canShow = tooltipManager.showTooltip(
-				tooltipIdRef.current,
-				timestamp || 0,
-				textContent,
-				enableCopyMessage,
-				{ x: fixedPosition.x, y: fixedPosition.y },
-				handleCopyMessage,
-			)
+		// Skip the time chip when the centered column leaves no left gutter, e.g. a narrow iframe.
+		if (shouldShowTimeTooltipByGutter(getTimeTooltipPageLeftGutter(element))) {
+			const fixedPosition = calculateFixedTooltipPosition(rect, event.clientY)
+			setTooltipPosition(fixedPosition)
 
-			if (canShow) {
-				setShouldShowTooltip(true)
-			}
-		}, 16)
+			showDelayTimerRef.current = setTimeout(() => {
+				const canShow = tooltipManager.showTooltip(
+					tooltipIdRef.current,
+					timestamp || 0,
+					textContent,
+					enableCopyMessage,
+					{ x: fixedPosition.x, y: fixedPosition.y },
+					handleCopyMessage,
+				)
+
+				if (canShow) {
+					setShouldShowTooltip(true)
+				}
+			}, 16)
+		} else {
+			setShouldShowTooltip(false)
+		}
 
 		// 添加全局鼠标移动监听器，仅用于检测悬停区域（不再更新tooltip位置）
 		const handleGlobalMouseMove = (e: globalThis.MouseEvent) => {
@@ -381,7 +415,11 @@ export function useTimeTooltip({
 
 	const handleInnerMouseEnter = useMemoizedFn(() => {
 		setIsInnerHovered(true)
-		setShouldShowTooltip(true)
+
+		const pageLeftGutter = getTimeTooltipPageLeftGutter(dom)
+		if (shouldShow && shouldShowTimeTooltipByGutter(pageLeftGutter)) {
+			setShouldShowTooltip(true)
+		}
 
 		// 清除隐藏定时器
 		if (hideDelayTimerRef.current) {
@@ -429,15 +467,24 @@ export function useTimeTooltip({
 				const rect = dom.getBoundingClientRect()
 				messageContainerRef.current = rect
 
-				// 重新计算固定的tooltip位置，保持原有的Y位置相对关系
-				const newPosition = calculateFixedTooltipPosition(rect)
-				setTooltipPosition(newPosition)
+				if (!shouldShowTimeTooltipByGutter(getTimeTooltipPageLeftGutter(dom))) {
+					tooltipManager.hideTooltip(tooltipIdRef.current)
+					if (showDelayTimerRef.current) {
+						clearTimeout(showDelayTimerRef.current)
+						showDelayTimerRef.current = null
+					}
+					setShouldShowTooltip(false)
+				} else {
+					// 重新计算固定的tooltip位置，保持原有的Y位置相对关系
+					const newPosition = calculateFixedTooltipPosition(rect)
+					setTooltipPosition(newPosition)
 
-				// 更新全局管理器中的位置
-				tooltipManager.updatePosition(tooltipIdRef.current, {
-					x: newPosition.x,
-					y: newPosition.y,
-				})
+					// 更新全局管理器中的位置
+					tooltipManager.updatePosition(tooltipIdRef.current, {
+						x: newPosition.x,
+						y: newPosition.y,
+					})
+				}
 
 				// 检查鼠标是否还在扩展的悬停区域内
 				const { x: mouseX, y: mouseY } = globalMousePositionRef.current
@@ -464,15 +511,24 @@ export function useTimeTooltip({
 				const rect = dom.getBoundingClientRect()
 				messageContainerRef.current = rect
 
-				// 重新计算固定的tooltip位置，保持原有的Y位置相对关系
-				const newPosition = calculateFixedTooltipPosition(rect)
-				setTooltipPosition(newPosition)
+				if (!shouldShowTimeTooltipByGutter(getTimeTooltipPageLeftGutter(dom))) {
+					tooltipManager.hideTooltip(tooltipIdRef.current)
+					if (showDelayTimerRef.current) {
+						clearTimeout(showDelayTimerRef.current)
+						showDelayTimerRef.current = null
+					}
+					setShouldShowTooltip(false)
+				} else {
+					// 重新计算固定的tooltip位置，保持原有的Y位置相对关系
+					const newPosition = calculateFixedTooltipPosition(rect)
+					setTooltipPosition(newPosition)
 
-				// 更新全局管理器中的位置
-				tooltipManager.updatePosition(tooltipIdRef.current, {
-					x: newPosition.x,
-					y: newPosition.y,
-				})
+					// 更新全局管理器中的位置
+					tooltipManager.updatePosition(tooltipIdRef.current, {
+						x: newPosition.x,
+						y: newPosition.y,
+					})
+				}
 
 				// 窗口大小变化时，重新检查鼠标位置
 				const { x: mouseX, y: mouseY } = globalMousePositionRef.current
@@ -538,16 +594,20 @@ export function useTimeTooltip({
 			return null
 		}
 
-		// 检查消息容器是否在可视区域内
-		// 只有当消息完全在页面顶部消息头部区域之上时才隐藏
 		if (messageContainerRef.current) {
 			const containerRect = messageContainerRef.current
-			// 如果消息容器的底部都在消息头部区域之上，则隐藏tooltip
-			if (containerRect.bottom < 100) return null
+			const pageLeftGutter = getTimeTooltipPageLeftGutter(dom)
+			// Hide when the page left gutter is too narrow, or the message is under the header.
+			if (
+				!shouldShowTimeTooltipByGutter(pageLeftGutter) ||
+				containerRect.bottom < TIME_TOOLTIP_HEADER_SAFE_TOP_PX
+			) {
+				return null
+			}
 		}
 
 		// 确保tooltip不会显示在屏幕顶部之上
-		const safeTop = Math.max(100, tooltipPosition.y)
+		const safeTop = Math.max(TIME_TOOLTIP_HEADER_SAFE_TOP_PX, tooltipPosition.y)
 
 		return createPortal(
 			<div

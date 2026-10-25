@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { NodeType, type TreeNode } from "@dtyq/user-selector"
@@ -29,6 +29,7 @@ import {
 	canUseNativeShare,
 	shareToNativeTarget,
 } from "@/pages/superMagic/components/Share/utils/nativeShare"
+import { analyticsService } from "@/services/analytics"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type {
 	MobileShareItem,
@@ -41,6 +42,11 @@ import type {
 } from "../types"
 import { buildShareClipboardText } from "../utils/buildShareClipboardText"
 import { isOrganizationShareScopeAll } from "@/pages/superMagic/components/ShareManagement/utils/shareScopeSummary"
+import { ensureOrganizationAllMembersShareConfirmed } from "@/pages/superMagic/components/Share/utils/organizationShareConfirm"
+import {
+	DEFAULT_NEW_ORGANIZATION_SHARE_RANGE,
+	isOrganizationDesignatedShareIncomplete,
+} from "@/pages/superMagic/components/Share/utils/organizationShareGuards"
 import { isPartialFileShare, isWholeProjectShare } from "../utils/shareScope"
 import {
 	buildRecordingShareSelection,
@@ -48,18 +54,31 @@ import {
 	mergeRecordingShareFileIds,
 } from "@/pages/superMagic/pages/AudioRecordings/utils/build-recording-share-selection"
 import { isAudioProjectMode } from "@/services/audioRecordings/audioProjectMode"
+import { resolveShareDocumentDependencies } from "@/pages/superMagic/components/Share/FileShareModal/hooks/resolveShareDocumentDependencies"
+import { useShareTypePermissions } from "@/pages/superMagic/components/Share/hooks/useShareTypePermissions"
+import { useSharePermissionResource } from "@/pages/superMagic/components/Share/SharePermissionResourceContext"
+import {
+	canCreateShareType,
+	isFreePlanFromSubscription,
+	pickDefaultShareType,
+} from "@/pages/superMagic/components/Share/utils/sharePlanRestrictions"
+import { userStore } from "@/models/user"
 
 /**
  * Constructs the base default values for the share form.
  * `shareName` will be overridden by `buildDefaultShareNameForSheet` when the Sheet opens the creation page.
  */
-function createInitialFormState(isAudioRecordingScene = false): ProjectShareFormState {
+function createInitialFormState(
+	isAudioRecordingScene = false,
+	isFreePlan = false,
+): ProjectShareFormState {
 	return {
 		shareName: "",
-		shareType: ShareType.PasswordProtected,
+		// Password protection is a paid-plan feature, so a free organization must not start on it.
+		shareType: isFreePlan ? ShareType.Public : ShareType.PasswordProtected,
 		shareExpiry: null,
 		password: generateSharePassword(),
-		shareRange: "all",
+		shareRange: DEFAULT_NEW_ORGANIZATION_SHARE_RANGE,
 		shareTargets: [],
 		advancedSettings: {
 			allowCopy: true,
@@ -145,7 +164,14 @@ function createSelectedHierarchyNode(item: AttachmentItem): SelectedFileHierarch
 
 	return {
 		id: itemId,
-		name: item.name || item.file_name || item.display_filename || item.filename || "",
+		// Prefer the recording-only UI label while preserving original attachment identity.
+		name:
+			item.share_display_name ||
+			item.name ||
+			item.file_name ||
+			item.display_filename ||
+			item.filename ||
+			"",
 		isDirectory: Boolean(item.is_directory),
 		fileExtension: item.file_extension,
 		children: (item.children || [])
@@ -401,8 +427,18 @@ function buildDefaultOpenFileScope({
 
 const DINGTALK_AVATAR_SIZE_SUFFIX_PATTERN = /@\d+w_\d+h$/
 
+/** Treat members-API `type` and selector `dataType` as the same person-vs-department signal. */
+function isShareMemberUser(node: Partial<TreeNode>): boolean {
+	return node.type === "User" || node.dataType === NodeType.User
+}
+
+/**
+ * Align a share member with selector nodes.
+ * The members API returns `type` and omits selector `dataType`; without that field the
+ * edit list renders a department icon and resubmits the user id as a department target.
+ */
 function normalizeDetailMemberNode(node: TreeNode): TreeNode {
-	const isUser = node.type === "User" || node.dataType === NodeType.User
+	const isUser = isShareMemberUser(node)
 	const normalizedId = isUser ? node.user_id || node.id : node.department_id || node.id
 	const normalizedAvatarUrl =
 		typeof node.avatar_url === "string" &&
@@ -413,6 +449,7 @@ function normalizeDetailMemberNode(node: TreeNode): TreeNode {
 	return {
 		...node,
 		id: normalizedId,
+		dataType: node.dataType || (isUser ? NodeType.User : NodeType.Department),
 		avatar_url: normalizedAvatarUrl,
 	}
 }
@@ -429,6 +466,8 @@ export function useProjectShareSheet({
 	projectName,
 	attachments,
 	attachmentList,
+	dependencyAttachments,
+	dependencyBundleRootPath,
 	fileMap,
 	defaultSelectedFileIds,
 	defaultOpenFileId,
@@ -474,13 +513,120 @@ export function useProjectShareSheet({
 		text: string
 	} | null>(null)
 	const [canNativeShare] = useState(() => canUseNativeShare())
+	const isFreePlan = isFreePlanFromSubscription(userStore.user.organizationSubscriptionInfo)
 	const [formState, setFormState] = useState<ProjectShareFormState>(() =>
-		createInitialFormState(isAudioRecordingScene),
+		createInitialFormState(isAudioRecordingScene, isFreePlan),
 	)
 	const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
+	const [recordingDependencyFileIds, setRecordingDependencyFileIds] = useState<string[]>([])
+	const [recordingDependencyAnalysisLoading, setRecordingDependencyAnalysisLoading] =
+		useState(false)
+	// Keep the latest analysis promise available so submission can await the exact current inputs.
+	const recordingDependencyAnalysisRef = useRef<{
+		selectedFileIds: string[]
+		attachments: NonNullable<ProjectShareSheetProps["dependencyAttachments"]>
+		bundleRootPath?: string
+		promise: ReturnType<typeof resolveShareDocumentDependencies>
+	} | null>(null)
 	const [userDefaultOpenFileId, setUserDefaultOpenFileId] = useState<string | undefined>()
 	const [defaultOpenFilePickerOpen, setDefaultOpenFilePickerOpen] = useState(false)
 	const activeMode = editingShareMode || effectiveMode
+	const sharePermissionResource = useSharePermissionResource()
+	const shareTypePermissions = useShareTypePermissions(sharePermissionResource)
+	// The owning project or micro-app page supplies one permission group for both whole-resource
+	// and child-file shares, so every mobile entry point exposes the same administrator choices.
+	const shouldControlShareType = activeMode === "project" || activeMode === "file"
+	const permittedShareTypes = useMemo(() => {
+		if (!shouldControlShareType || shareTypePermissions.isLoading) return undefined
+		return shareTypePermissions.permittedShareTypes
+	}, [
+		shareTypePermissions.isLoading,
+		shareTypePermissions.permittedShareTypes,
+		shouldControlShareType,
+	])
+	const isSelectedShareTypePermitted =
+		permittedShareTypes === undefined || permittedShareTypes.includes(formState.shareType)
+	const recordingDependencyAnalysisEnabled =
+		isAudioRecordingScene &&
+		Boolean(dependencyAttachments) &&
+		Boolean(dependencyBundleRootPath?.trim())
+
+	useEffect(() => {
+		if (
+			!open ||
+			editResourceId ||
+			permittedShareTypes === undefined ||
+			permittedShareTypes.length === 0
+		) {
+			return
+		}
+
+		setFormState((prev) => {
+			// A method the administrator allows but the plan forbids must not survive either: the card
+			// would be hidden or disabled while the submission still carried the method.
+			if (
+				permittedShareTypes.includes(prev.shareType) &&
+				canCreateShareType(prev.shareType, isFreePlan)
+			) {
+				return prev
+			}
+			// Nothing satisfies both gates: keep the current method and let the sheet explain it.
+			const nextShareType = pickDefaultShareType(permittedShareTypes, isFreePlan)
+			if (nextShareType === undefined) return prev
+			return { ...prev, shareType: nextShareType }
+		})
+	}, [editResourceId, formState.shareType, isFreePlan, open, permittedShareTypes])
+
+	useEffect(() => {
+		if (!recordingDependencyAnalysisEnabled || !dependencyAttachments) {
+			recordingDependencyAnalysisRef.current = null
+			setRecordingDependencyFileIds([])
+			setRecordingDependencyAnalysisLoading(false)
+			return
+		}
+
+		let cancelled = false
+		setRecordingDependencyAnalysisLoading(true)
+		const analysisPromise = resolveShareDocumentDependencies({
+			selectedFileIds,
+			attachments: dependencyAttachments,
+			bundleRootPath: dependencyBundleRootPath,
+			requireBundleRootPath: true,
+		})
+		recordingDependencyAnalysisRef.current = {
+			selectedFileIds: [...selectedFileIds],
+			attachments: dependencyAttachments,
+			bundleRootPath: dependencyBundleRootPath,
+			promise: analysisPromise,
+		}
+		void analysisPromise
+			.then((result) => {
+				if (cancelled) return
+				setRecordingDependencyFileIds(result.dependencyFileIds)
+				if (result.missingResourcePaths.length > 0) {
+					console.warn("Some recording share resources could not be resolved", result)
+				}
+			})
+			.catch((error) => {
+				if (!cancelled) {
+					console.warn("Recording share dependency analysis failed", error)
+					setRecordingDependencyFileIds([])
+				}
+			})
+			.finally(() => {
+				if (!cancelled) setRecordingDependencyAnalysisLoading(false)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [
+		dependencyAttachments,
+		dependencyBundleRootPath,
+		isAudioRecordingScene,
+		recordingDependencyAnalysisEnabled,
+		selectedFileIds,
+	])
 
 	const shareProject = useShareProject({
 		attachments: shareableAttachments,
@@ -636,8 +782,16 @@ export function useProjectShareSheet({
 					? initialSelectedShare.file_ids || []
 					: defaultSelectedFileIds || [],
 		)
+		const initialFormState = createInitialFormState(isAudioRecordingScene, isFreePlan)
+		// The open-reset effect runs after permission normalization on first mount; apply the
+		// permission- and plan-aware default here so it cannot restore a hidden option. When nothing
+		// satisfies both gates, the plan-aware base default (never password on a free plan) stays.
+		const initialShareType =
+			pickDefaultShareType(permittedShareTypes ?? [], isFreePlan) ??
+			initialFormState.shareType
 		setFormState({
-			...createInitialFormState(isAudioRecordingScene),
+			...initialFormState,
+			shareType: initialShareType,
 			shareName: initialSelectedShare
 				? ""
 				: buildDefaultShareNameForSheet({
@@ -851,14 +1005,16 @@ export function useProjectShareSheet({
 	})
 
 	const confirmMemberSelector = useMemoizedFn((value: TreeNode[]) => {
-		setSelectedMemberNodes(value)
+		// Selector echoes can keep members-API `type` and drop `dataType`; classify before writing targets.
+		const normalizedMembers = value.map((item) => normalizeDetailMemberNode(item))
+		setSelectedMemberNodes(normalizedMembers)
 		setMemberSelectorOpen(false)
 		setFormState((prev) => ({
 			...prev,
-			// For mobile, selecting members implies sharing with a designated scope, preventing fallback to organization-wide visibility during submission.
-			shareRange: value.length > 0 ? "designated" : "all",
-			shareTargets: value.map((item) => ({
-				target_type: item.dataType === NodeType.User ? "User" : "Department",
+			// Keep explicit "all team" choice; designated scope stays designated even when the list is empty.
+			shareRange: prev.shareRange === "all" ? "all" : DEFAULT_NEW_ORGANIZATION_SHARE_RANGE,
+			shareTargets: normalizedMembers.map((item) => ({
+				target_type: isShareMemberUser(item) ? "User" : "Department",
 				target_id: item.id,
 				name: item.name,
 				avatar_url: item.avatar_url,
@@ -933,6 +1089,19 @@ export function useProjectShareSheet({
 
 	const submitCreateShare = useMemoizedFn(async () => {
 		const isEditing = Boolean(editResourceId)
+		if (shouldControlShareType && !isSelectedShareTypePermitted) {
+			magicToast.error(t("share.currentShareMethodUnavailable"))
+			return
+		}
+		// Backstop for the paid-plan gate: a new mobile share must never be created with a
+		// plan-disabled method. Editing an existing share keeps that share's own method.
+		if (
+			!isEditing &&
+			shouldControlShareType &&
+			!canCreateShareType(formState.shareType, isFreePlan)
+		) {
+			return
+		}
 		const selectedIdsForSubmission = [...effectiveSelectedFileIds]
 		// Desktop behavior keeps the selected default file in the share scope even when it was picked from elsewhere.
 		if (
@@ -949,14 +1118,52 @@ export function useProjectShareSheet({
 			return
 		}
 
-		// Recording shares keep the visible picker unchanged and only augment the payload
-		// so readonly/share pages always receive the bundle entry files they depend on.
-		const submittedFileIds = isAudioRecordingScene
-			? mergeRecordingShareFileIds(selectedIdsForSubmission, recordingRequiredFileIds)
-			: selectedIdsForSubmission
+		if (
+			isOrganizationDesignatedShareIncomplete(
+				formState.shareType,
+				formState.shareRange,
+				formState.shareTargets.length,
+			)
+		) {
+			magicToast.error(t("share.organizationDesignatedMembersRequired"))
+			return
+		}
+
+		const confirmed = await ensureOrganizationAllMembersShareConfirmed(
+			formState.shareType,
+			formState.shareRange,
+			t,
+		)
+		if (!confirmed) return
 
 		setSaving(true)
 		try {
+			// Await the current recording analysis so the payload cannot use stale dependency state.
+			let dependencyFileIds = recordingDependencyFileIds
+			if (recordingDependencyAnalysisEnabled && dependencyAttachments) {
+				const currentAnalysis = recordingDependencyAnalysisRef.current
+				if (
+					!currentAnalysis ||
+					currentAnalysis.attachments !== dependencyAttachments ||
+					currentAnalysis.bundleRootPath !== dependencyBundleRootPath ||
+					currentAnalysis.selectedFileIds.length !== selectedFileIds.length ||
+					!currentAnalysis.selectedFileIds.every(
+						(fileId, index) => fileId === selectedFileIds[index],
+					)
+				) {
+					throw new Error("Recording dependency analysis is not ready")
+				}
+				dependencyFileIds = (await currentAnalysis.promise).dependencyFileIds
+			}
+
+			// Recording shares keep the visible picker unchanged and augment only the submitted payload.
+			const submittedFileIds = isAudioRecordingScene
+				? mergeRecordingShareFileIds(
+						mergeRecordingShareFileIds(selectedIdsForSubmission, dependencyFileIds),
+						recordingRequiredFileIds,
+					)
+				: selectedIdsForSubmission
+
 			// Reuse the existing resource for edits and allocate a new ID only for creation.
 			let resourceId = editResourceId
 			if (!resourceId) {
@@ -985,7 +1192,12 @@ export function useProjectShareSheet({
 							projectName: projectName || t("common.untitledProject"),
 						})
 			const resourceName = formState.shareName.trim() || fallbackShareName
-
+			if (!isEditing) {
+				analyticsService.report("content_share_attempted", {
+					resourceType: ResourceType.FileCollection,
+					shareProject: !isAudioRecordingScene && activeMode === "project",
+				})
+			}
 			await SuperMagicApi.createOrUpdateShareResource({
 				resource_id: resourceId,
 				resource_type: ResourceType.FileCollection,
@@ -1004,7 +1216,7 @@ export function useProjectShareSheet({
 								target_id: target.target_id,
 							}))
 						: undefined,
-				password,
+				...(formState.shareType === ShareType.Organization ? {} : { password }),
 				file_ids: submittedFileIds,
 				default_open_file_id: isAudioRecordingScene
 					? undefined
@@ -1132,6 +1344,11 @@ export function useProjectShareSheet({
 		setEditingShareMode(shareModeForEdit)
 		setEditLoading(true)
 		setFileSelectorOpen(false)
+		// Clear the previous share draft before loading the selected share's authoritative settings.
+		setSelectedFileIds([])
+		setUserDefaultOpenFileId(undefined)
+		setSelectedMemberNodes([])
+		setDetailMemberNodes([])
 		setViewStack(["linkDetail"])
 		setView("edit")
 
@@ -1159,10 +1376,9 @@ export function useProjectShareSheet({
 				const targetIds = settings?.target_ids || []
 				const memberNodes = targetIds.map((target) => {
 					const matched = (membersResponse.members || []).find((member) => {
-						const memberId =
-							member.type === "User" || member.dataType === NodeType.User
-								? member.user_id || member.id
-								: member.department_id || member.id
+						const memberId = isShareMemberUser(member)
+							? member.user_id || member.id
+							: member.department_id || member.id
 						return memberId === target.target_id
 					})
 					if (matched) return normalizeDetailMemberNode(matched)
@@ -1254,6 +1470,7 @@ export function useProjectShareSheet({
 		shareMode: activeMode === "file" ? ShareMode.File : ShareMode.Project,
 		view,
 		viewStack,
+		isFreePlan,
 		projectName,
 		projectId,
 		formState,
@@ -1261,7 +1478,13 @@ export function useProjectShareSheet({
 		selectedShare,
 		loading: projectShareList.loading || fileShareList.loading,
 		saving,
-		isCheckingShare: activeMode === "project" ? shareProject.isCheckingShare : false,
+		isCheckingShare:
+			activeMode === "project"
+				? shareProject.isCheckingShare
+				: recordingDependencyAnalysisLoading,
+		permittedShareTypes,
+		shareTypePermissionLoading: shouldControlShareType && shareTypePermissions.isLoading,
+		isSelectedShareTypePermitted,
 		advancedOpen,
 		defaultSelectedFileIds: effectiveSelectedFileIds,
 		selectedFileIds,

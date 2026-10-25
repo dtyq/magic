@@ -3,15 +3,24 @@ import { useMessageSend } from "@/pages/chatNew/components/MessageEditor/hooks/u
 import useConversationDraft from "@/pages/chatNew/components/MessageEditor/hooks/useConversationDraft"
 import DragOverlay from "@/pages/superMagic/components/MessageEditor/components/DragOverlay"
 import { useMemoizedFn, useMount, useUpdateEffect } from "ahooks"
-import { Editor, EditorContent, JSONContent } from "@tiptap/react"
+import { Editor, EditorContent, JSONContent } from "@/infrastructure/editors/tiptap/react"
 import AiCompletionService from "@/services/chat/editor/AiCompletionService"
 import { useMessageEditor } from "./hooks/useMessageEditor"
-import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+import {
+	forwardRef,
+	memo,
+	useEffect,
+	useImperativeHandle,
+	useMemo,
+	useRef,
+	useState,
+	type ClipboardEvent,
+} from "react"
 import SuperMagicVoiceInput from "@/pages/superMagic/components/MessageEditor/components/VoiceInput"
 import { VoiceInputRef } from "@/components/business/VoiceInput"
 import CurrentChatAgentTip from "./components/CurrentChatAgentTip"
 import UploadAction from "@/components/base/UploadAction"
-import { IconArrowUp, IconFileUpload } from "@tabler/icons-react"
+import { IconArrowUp } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import FlexBox from "@/components/base/FlexBox"
 import MagicIcon from "@/components/base/MagicIcon"
@@ -43,7 +52,7 @@ import TabIcon from "@/pages/superMagic/components/MessageEditor/assets/tab.svg"
 import AiCompletionTip from "@/pages/chatNew/components/MessageEditor/components/AiCompletionTip"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MagicTooltip } from "@/components/base"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	isEditorActive,
 	runActiveEditor,
@@ -61,6 +70,13 @@ import {
 	messageEditorToolBarButton,
 } from "./message-editor-classes"
 import { Upload } from "lucide-react"
+import {
+	claimCanvasClipboardPasteEvent,
+	getCanvasClipboardPasteController,
+	hasCanvasClipboardMimeType,
+	CanvasDesignClipboard,
+	type CanvasClipboardAsset,
+} from "@/components/CanvasDesign/public/clipboard"
 
 interface MessageEditorProps {
 	enableSwitchAgent?: boolean
@@ -69,6 +85,8 @@ interface MessageEditorProps {
 	placeholder?: string
 	size?: "default" | "small" | "mobile"
 }
+
+const MAX_UPLOAD_COUNT = 20
 
 export interface MessageEditorRef {
 	editor: Editor | null
@@ -85,11 +103,20 @@ function MessageEditor(
 
 	const { value, setValue: _setValue } = EditorStore
 	const [editorReady, setEditorReady] = useState(false)
+	const isMountedRef = useRef(false)
+	const canvasClipboardEpochRef = useRef(0)
 	const settingContent = useRef(false)
 	const [agent, setAgent] = useState<UserAvailableAgentInfo>()
 
 	const conversationId = ConversationStore.currentConversation?.id
 	const topicId = ConversationStore.currentConversation?.current_topic_id || ""
+
+	useEffect(() => {
+		isMountedRef.current = true
+		return () => {
+			isMountedRef.current = false
+		}
+	}, [])
 
 	useUpdateEffect(() => {
 		setAgent(undefined)
@@ -133,7 +160,7 @@ function MessageEditor(
 
 	/** 文件上传 */
 	const { files, setFiles, onFileChange, uploadFilesForSend } = useFileUpload({
-		maxUploadCount: 20,
+		maxUploadCount: MAX_UPLOAD_COUNT,
 		editorRef: { current: { editor: tiptapEditor } },
 		onFilesChange: stableOnFilesChange,
 	})
@@ -162,22 +189,54 @@ function MessageEditor(
 
 	/** 拖拽状态管理 */
 	const { isDragOver, dragEvents } = useDragUpload({
-		onFilesDropped: onFileChange,
+		onFilesDropped: (files) => onFileChange(files),
 	})
 
 	/**
 	 * 粘贴上传
 	 */
-	const handlePaste = useMemoizedFn((e: React.ClipboardEvent) => {
+	const handlePaste = useMemoizedFn((e: ClipboardEvent<HTMLDivElement>) => {
 		const clipboardData = e.clipboardData
 		if (!clipboardData) return
+		const hasCanvasMime = hasCanvasClipboardMimeType(e.nativeEvent)
+		const nativeFiles = CanvasDesignClipboard.readAllEventFilesSnapshot(e.nativeEvent)
+		if (
+			hasCanvasMime ||
+			(nativeFiles.length === 0 &&
+				!Array.from(clipboardData.types).some((type) => {
+					const normalized = type.trim().toLowerCase()
+					return normalized === "text/plain" || normalized === "text/html"
+				}))
+		) {
+			void getCanvasClipboardPasteController().paste(
+				e.nativeEvent,
+				{
+					control: "message-editor",
+					acceptedTypes: ["image", "video", "audio"],
+					maxCount: Math.max(0, MAX_UPLOAD_COUNT - files.length),
+					sessionId: `${conversationId ?? ""}:${topicId ?? ""}:${canvasClipboardEpochRef.current}`,
+				},
+				{
+					onAsset: (asset: CanvasClipboardAsset) =>
+						asset.file
+							? onFileChange([asset.file], { forceAttachment: true })
+							: undefined,
+					isSessionCurrent: (sessionId) =>
+						isMountedRef.current &&
+						sessionId ===
+							`${conversationId ?? ""}:${topicId ?? ""}:${canvasClipboardEpochRef.current}` &&
+						ConversationStore.currentConversation?.id === conversationId &&
+						ConversationStore.currentConversation?.current_topic_id === topicId,
+				},
+			)
+			return
+		}
 
-		// 检查是否有文件
-		const files = Array.from(clipboardData.files)
-
-		if (files.length > 0) {
+		if (nativeFiles.length > 0) {
+			if (!claimCanvasClipboardPasteEvent(e.nativeEvent)) return
 			e.preventDefault()
-			onFileChange(files)
+			e.stopPropagation()
+			onFileChange(nativeFiles)
 		}
 	})
 
@@ -223,6 +282,7 @@ function MessageEditor(
 
 	/** 发送后清理 */
 	const resetContent = useMemoizedFn(() => {
+		canvasClipboardEpochRef.current += 1
 		runActiveEditor(activeEditorRef.current, (editor) => {
 			editor.chain().clearContent().run()
 		})
@@ -261,6 +321,7 @@ function MessageEditor(
 			}
 		},
 		onBeforeSend: async () => {
+			canvasClipboardEpochRef.current += 1
 			if (enableSwitchAgent && conversationId) {
 				const res = await ChatApi.createTopic(undefined, conversationId)
 				ConversationService.switchTopic(
@@ -273,10 +334,7 @@ function MessageEditor(
 
 	handleSendRef.current = () => {
 		const content = runActiveEditor(activeEditorRef.current, (editor) => editor.getJSON())
-		handleSend(
-			content as JSONContent,
-			content ? isOnlyText(content as JSONContent) : true,
-		)
+		handleSend(content as JSONContent, content ? isOnlyText(content as JSONContent) : true)
 	}
 
 	ConversationBotDataService.updateProps({
@@ -323,7 +381,7 @@ function MessageEditor(
 			onDragLeave={dragEvents.onDragLeave}
 			onDragOver={dragEvents.onDragOver}
 			onDrop={dragEvents.onDrop}
-			onPaste={handlePaste}
+			onPasteCapture={handlePaste}
 			data-testid="chat-message-editor-container"
 		>
 			{enableSwitchAgent ? (

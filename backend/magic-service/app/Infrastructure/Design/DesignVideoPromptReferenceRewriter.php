@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Design;
 
 use App\Infrastructure\Util\File\ImageBase64DataUriParser;
+use App\Infrastructure\Util\File\ProviderAssetUri;
 
 readonly class DesignVideoPromptReferenceRewriter
 {
@@ -69,7 +70,7 @@ readonly class DesignVideoPromptReferenceRewriter
             }
 
             $uri = (string) ($reference[self::FIELD_URI] ?? '');
-            if (ImageBase64DataUriParser::isValid($uri)) {
+            if (ImageBase64DataUriParser::isValid($uri) || ProviderAssetUri::isValid($uri)) {
                 continue;
             }
 

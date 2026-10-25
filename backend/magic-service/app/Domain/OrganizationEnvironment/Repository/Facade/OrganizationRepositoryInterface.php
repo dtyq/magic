@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\OrganizationEnvironment\Repository\Facade;
 
 use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSearchField;
 use App\Infrastructure\Core\ValueObject\Page;
 
 /**
@@ -47,6 +48,18 @@ interface OrganizationRepositoryInterface
      * @return array{total: int, list: OrganizationEntity[]}
      */
     public function queries(Page $page, ?array $filters = null): array;
+
+    /**
+     * 按指定字段搜索组织。
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: OrganizationEntity[]}
+     */
+    public function searchOrganizations(
+        Page $page,
+        OrganizationSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array;
 
     /**
      * 删除组织.

@@ -1,3 +1,6 @@
+import type { FileAccessContext } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { getFileAccessIdentityKey } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import {
 	getTemporaryDownloadUrl,
 	type GetTemporaryDownloadUrlItem,
@@ -10,20 +13,29 @@ interface ResolveCachedResourceUrlsOptions {
 	imageFileIds: Set<string>
 	fileUpdatedAtMap: Map<string, string>
 	imageProcessOptions?: ImageProcessOptions
+	access?: FileAccessContext | null
+	fileApi?: FileApi
 }
 
-const originalUrlCacheManager = new UrlCacheManager()
+const originalUrlCacheManagers = new Map<string, UrlCacheManager>()
 const processedImageUrlCacheManagers = new Map<string, UrlCacheManager>()
 
-function getProcessedImageUrlCacheManager(options?: ImageProcessOptions): UrlCacheManager {
-	if (!options) return originalUrlCacheManager
+function getUrlCacheManager(identityKey: string, options?: ImageProcessOptions): UrlCacheManager {
+	if (!options) {
+		const cached = originalUrlCacheManagers.get(identityKey)
+		if (cached) return cached
+		const manager = new UrlCacheManager()
+		originalUrlCacheManagers.set(identityKey, manager)
+		return manager
+	}
 
 	const signature = buildImageProcessQuery(options)
-	const cachedManager = processedImageUrlCacheManagers.get(signature)
+	const cacheKey = `${identityKey}:${signature}`
+	const cachedManager = processedImageUrlCacheManagers.get(cacheKey)
 	if (cachedManager) return cachedManager
 
 	const manager = new UrlCacheManager()
-	processedImageUrlCacheManagers.set(signature, manager)
+	processedImageUrlCacheManagers.set(cacheKey, manager)
 	return manager
 }
 
@@ -32,10 +44,15 @@ export async function resolveCachedResourceUrls({
 	imageFileIds,
 	fileUpdatedAtMap,
 	imageProcessOptions,
+	access,
+	fileApi,
 }: ResolveCachedResourceUrlsOptions): Promise<GetTemporaryDownloadUrlItem[]> {
+	const identityKey = fileApi?.identityKey ?? getFileAccessIdentityKey(access)
+	const requestUrls = fileApi?.getTemporaryDownloadUrl ?? getTemporaryDownloadUrl
 	const imageIds = fileIds.filter((id) => imageFileIds.has(id))
 	const otherIds = fileIds.filter((id) => !imageFileIds.has(id))
-	const imageUrlCacheManager = getProcessedImageUrlCacheManager(imageProcessOptions)
+	const imageUrlCacheManager = getUrlCacheManager(identityKey, imageProcessOptions)
+	const originalUrlCacheManager = getUrlCacheManager(identityKey)
 	const { cached: cachedImageUrls, missing: missingImageIds } =
 		imageUrlCacheManager.getCachedUrls(imageIds, fileUpdatedAtMap)
 	const { cached: cachedOtherUrls, missing: missingOtherIds } =
@@ -43,15 +60,19 @@ export async function resolveCachedResourceUrls({
 
 	const [fetchedImageUrls, fetchedOtherUrls] = await Promise.all([
 		missingImageIds.length > 0
-			? getTemporaryDownloadUrl({
+			? requestUrls({
 					file_ids: missingImageIds,
+					access: access ?? undefined,
 					...(imageProcessOptions && {
 						options: { xMagicImageProcess: imageProcessOptions },
 					}),
 				}).then((result) => result || [])
 			: Promise.resolve([]),
 		missingOtherIds.length > 0
-			? getTemporaryDownloadUrl({ file_ids: missingOtherIds }).then((result) => result || [])
+			? requestUrls({
+					file_ids: missingOtherIds,
+					access: access ?? undefined,
+				}).then((result) => result || [])
 			: Promise.resolve([]),
 	])
 

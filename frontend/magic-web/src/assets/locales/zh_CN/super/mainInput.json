@@ -2,11 +2,9 @@
 	"addSheet": {
 		"actions": {
 			"mention": "提及",
-			"plugin": "插件",
-			"skills": "技能",
+			"plugin": "连接器",
 			"webSearch": "网页搜索"
 		},
-		"addButton": "添加",
 		"closeAriaLabel": "关闭添加到对话弹窗",
 		"media": {
 			"camera": "相机",
@@ -15,11 +13,13 @@
 		},
 		"title": "添加到对话"
 	},
-	"analyzeData": {
-		"placeholder": "描述你想创建的网站。\n按 Enter 发送；Shift + Enter 换行"
-	},
 	"attachments": {
 		"removeAriaLabel": "移除 {{fileName}}"
+	},
+	"chatHome": {
+		"placeholder": "描述你的需求或上传文件，我会和你一起找到答案。\nEnter 发送；Shift + Enter 换行",
+		"subtitle": "和 AI 一起想一想",
+		"title": "今天有什么问题，我们一起聊聊？"
 	},
 	"chatInput": {
 		"helpText": "按 Enter 发送；Shift + Enter 换行",
@@ -32,19 +32,28 @@
 		"title": "对话设置"
 	},
 	"crewSelectModal": {
-		"empty": {
-			"all": "暂无可用数字员工",
-			"my": "暂无我的数字员工",
-			"official": "暂无官方数字员工"
-		},
 		"tab": {
 			"my": "我的",
 			"official": "官方"
 		},
 		"title": "选择你的数字员工"
 	},
-	"pluginTips": {
-		"connectTools": "连接你的工具"
+	"homeMode": {
+		"chat": "对话",
+		"label": "切换对话或任务",
+		"task": "任务"
+	},
+	"mobileHome": {
+		"chatPlaceholder": "描述你的需求或上传文件，我会和你一起找到答案。",
+		"chooseWorkspace": "选择工作区",
+		"createWorkspace": "新建工作区",
+		"destination": "创建到工作区：{{name}}",
+		"loadMore": "加载更多",
+		"loading": "加载中…",
+		"noWorkspaces": "暂无工作区",
+		"retry": "重试",
+		"searchWorkspaces": "搜索工作区",
+		"workspaceUnavailable": "工作区不可用，请重新选择"
 	},
 	"promotionalBanner": {
 		"upgradeMessage": "升级享受一整年无限制的高级 AI 服务。"

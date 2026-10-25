@@ -7,8 +7,7 @@
  */
 
 import { MagicApiLogger } from "./MagicApiLogger"
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
-import { getParentOrigin } from "@dtyq/html-sandbox/utils/parentOrigin"
+import { BaseRuntimeBridgeApiPlugin, getParentOrigin } from "@dtyq/html-sandbox"
 
 interface LLMMessage {
 	role: string
@@ -38,6 +37,16 @@ export class MagicLLMApi extends BaseRuntimeBridgeApiPlugin {
 		if (!window.Magic) window.Magic = {}
 		if (window.Magic.llm) return
 		this.logger.info("install")
+		const sendRequest = (payload: Record<string, unknown>, cleanup: () => void) => {
+			try {
+				window.parent.postMessage(payload, getParentOrigin())
+			} catch (error) {
+				// A synchronous clone failure never receives a host reply. Dispose the
+				// listener immediately, including streams that cannot return a cancel handle.
+				cleanup()
+				throw error
+			}
+		}
 
 		window.Magic.llm = {
 			/**
@@ -68,6 +77,7 @@ export class MagicLLMApi extends BaseRuntimeBridgeApiPlugin {
 							error?: string
 						}>,
 					) => {
+						if (!this.isHostMessage(event)) return
 						if (!event.data || event.data.requestId !== requestId) return
 						if (event.data.type !== "MAGIC_LLM_GET_MODELS_RESPONSE") return
 						clearTimeout(timer)
@@ -88,12 +98,15 @@ export class MagicLLMApi extends BaseRuntimeBridgeApiPlugin {
 						}
 					}
 					window.addEventListener("message", handler)
-					window.parent.postMessage(
+					sendRequest(
 						{
 							type: "MAGIC_LLM_GET_MODELS_REQUEST",
 							requestId,
 						},
-						getParentOrigin(),
+						() => {
+							clearTimeout(timer)
+							window.removeEventListener("message", handler)
+						},
 					)
 				})
 			},
@@ -129,6 +142,7 @@ export class MagicLLMApi extends BaseRuntimeBridgeApiPlugin {
 							error?: string
 						}>,
 					) => {
+						if (!this.isHostMessage(event)) return
 						if (!event.data || event.data.requestId !== requestId) return
 						if (event.data.type !== "MAGIC_LLM_CHAT_RESPONSE") return
 						clearTimeout(timer)
@@ -149,14 +163,17 @@ export class MagicLLMApi extends BaseRuntimeBridgeApiPlugin {
 						}
 					}
 					window.addEventListener("message", handler)
-					window.parent.postMessage(
+					sendRequest(
 						{
 							type: "MAGIC_LLM_CHAT_REQUEST",
 							requestId,
 							messages,
 							options: options ?? {},
 						},
-						getParentOrigin(),
+						() => {
+							clearTimeout(timer)
+							window.removeEventListener("message", handler)
+						},
 					)
 				})
 			},
@@ -187,6 +204,7 @@ export class MagicLLMApi extends BaseRuntimeBridgeApiPlugin {
 						error?: string
 					}>,
 				) => {
+					if (!this.isHostMessage(event)) return
 					if (!event.data || event.data.requestId !== requestId) return
 					if (aborted) return
 
@@ -215,14 +233,14 @@ export class MagicLLMApi extends BaseRuntimeBridgeApiPlugin {
 					}
 				}
 				window.addEventListener("message", handler)
-				window.parent.postMessage(
+				sendRequest(
 					{
 						type: "MAGIC_LLM_STREAM_REQUEST",
 						requestId,
 						messages,
 						options: { ...(options ?? {}), stream: true },
 					},
-					getParentOrigin(),
+					() => window.removeEventListener("message", handler),
 				)
 
 				return () => {

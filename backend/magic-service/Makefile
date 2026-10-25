@@ -16,18 +16,23 @@ dev:
 		printf '%s\n' '未找到 lsof，无法在启动前检测端口占用。'; \
 		exit 1; \
 	fi; \
+	workspace_app_host="$${APP_HOST:-}"; \
+	workspace_app_ws_host="$${APP_WS_HOST:-}"; \
 	if [ -f .env ]; then \
 		set -a; \
 		. ./.env; \
 		set +a; \
 	fi; \
+	if [ -n "$$workspace_app_host" ]; then export APP_HOST="$$workspace_app_host"; fi; \
+	if [ -n "$$workspace_app_ws_host" ]; then export APP_WS_HOST="$$workspace_app_ws_host"; fi; \
 	http_port="$${HTTP_PORT:-9501}"; \
 	websocket_port="$${WEBSOCKET_PORT:-9502}"; \
+	mock_http_port="$${MOCK_HTTP_PORT:-9503}"; \
 	crontab_enable="$${CRONTAB_ENABLE:-true}"; \
 	ports="http:$$http_port"; \
 	case "$$(printf '%s' "$$crontab_enable" | tr '[:upper:]' '[:lower:]')" in \
 		true|'(true)'|1|yes|on) ;; \
-		*) ports="$$ports socket-io:$$websocket_port mock-http-service:9503" ;; \
+		*) ports="$$ports socket-io:$$websocket_port mock-http-service:$$mock_http_port" ;; \
 	esac; \
 	all_pids=''; \
 	for entry in $$ports; do \
@@ -116,11 +121,6 @@ dev:
 				terminate_go_tree "$$pid"; \
 			done; \
 		fi; \
-	fi
-	@pids=$$(ps aux | grep -i php | grep -vEi "phpstorm|grep" | awk '{print $$2}'); \
-	if [ -n "$$pids" ]; then \
-		echo "Stopping existing PHP processes: $$pids"; \
-		echo "$$pids" | xargs kill -9 2>/dev/null || true; \
 	fi
 	@IPC_SOCKET=$${IPC_ENGINE_SOCKET:-$$PWD/runtime/magic_engine.sock}; \
 	rm -f "$$IPC_SOCKET"; \

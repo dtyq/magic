@@ -8,7 +8,7 @@ import type {
 	MentionPanelRendererRef,
 	MentionSelectHandler,
 } from "./types"
-import type { SuggestionKeyDownProps } from "@tiptap/suggestion"
+import type { SuggestionKeyDownProps } from "@/infrastructure/editors/tiptap/suggestion"
 import { PanelState } from "../types"
 
 // Components
@@ -37,6 +37,11 @@ const MentionPanelRenderer = observer(
 			catalogBehavior,
 			viewMode,
 			galleryOptions,
+			enableMultiSelect,
+			canToggleMultiSelectItem,
+			multiSelectNavigationPolicy,
+			selectionScopeId,
+			selectionSummary,
 			onSelect,
 			onExit,
 			disableKeyboardShortcuts = false,
@@ -128,6 +133,11 @@ const MentionPanelRenderer = observer(
 						catalogBehavior={catalogBehavior}
 						viewMode={viewMode}
 						galleryOptions={galleryOptions}
+						enableMultiSelect={enableMultiSelect}
+						canToggleMultiSelectItem={canToggleMultiSelectItem}
+						multiSelectNavigationPolicy={multiSelectNavigationPolicy}
+						selectionScopeId={selectionScopeId}
+						selectionSummary={selectionSummary}
 						onSelect={handleSelect}
 						onClose={handleClose}
 						searchPlaceholder={t.searchPlaceholder}

@@ -2,7 +2,7 @@ import MagicModal from "@/components/base/MagicModal"
 import { reaction } from "mobx"
 import { userStore } from "@/models/user"
 import { User } from "@/types/user"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("modalStateManager")
 

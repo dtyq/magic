@@ -9,8 +9,9 @@ import useToolsPanel from "./hooks/useToolsPanel"
 import React, { Suspense } from "react"
 import styles from "./ToolsPanel.module.less"
 import { ToolsPanelProvider } from "./context/ToolsPanelProvider"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
-// 使用React.lazy动态导入ToolSetList组件
+// Load tool cards only when the panel has results.
 const ToolSetList = React.lazy(() => import("./components/ToolSetList"))
 
 type ToolsPanelModalProps = {
@@ -69,32 +70,35 @@ export default function ToolsPanel({
 						</Flex>
 					</Flex>
 				</Flex>
-				{filteredUseableToolSets.length > 0 && (
-					<Suspense
-						fallback={
-							<Flex justify="center" style={{ padding: "20px" }}>
-								<Spin />
+				{/* Keep search and sorting fixed while the tool cards scroll. */}
+				<ScrollArea className={styles.list} viewportClassName={styles.viewport}>
+					{filteredUseableToolSets.length > 0 && (
+						<Suspense
+							fallback={
+								<Flex justify="center" style={{ padding: "20px" }}>
+									<Spin />
+								</Flex>
+							}
+						>
+							<ToolSetList
+								filteredUseableToolSets={filteredUseableToolSets}
+								selectedTools={selectedTools}
+							/>
+						</Suspense>
+					)}
+					{filteredUseableToolSets.length === 0 && (
+						<Flex vertical gap={4} align="center" justify="center" flex={1}>
+							<Flex align="center" justify="center">
+								<Avatar src={ToolsEmptyImage} size={140} />
 							</Flex>
-						}
-					>
-						<ToolSetList
-							filteredUseableToolSets={filteredUseableToolSets}
-							selectedTools={selectedTools}
-						/>
-					</Suspense>
-				)}
-				{filteredUseableToolSets.length === 0 && (
-					<Flex vertical gap={4} align="center" justify="center" flex={1}>
-						<Flex align="center" justify="center">
-							<Avatar src={ToolsEmptyImage} size={140} />
+							<div className={styles.emptyTips}>
+								{interfaceT("flow.emptyTips", {
+									title: interfaceT("flow.tools"),
+								})}
+							</div>
 						</Flex>
-						<div className={styles.emptyTips}>
-							{interfaceT("flow.emptyTips", {
-								title: interfaceT("flow.tools"),
-							})}
-						</div>
-					</Flex>
-				)}
+					)}
+				</ScrollArea>
 			</ToolsPanelProvider>
 		</MagicModal>
 	)

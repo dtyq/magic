@@ -1,20 +1,19 @@
-import { genRequestUrl } from "@/utils/http"
-import { HttpClient, RequestConfig } from "../core/HttpClient"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
 
 import { AppMenuItem, GlobalConfig, SettingsAll, GetSettingsGlobalDataResponse } from "../types"
 import { LongMemory } from "@/types/longMemory"
 import { buildImageProcessQuery } from "@/utils/image-processing"
 
-export const generateGlobalApi = (fetch: HttpClient) => ({
+export const generateGlobalApi = (fetch: ServiceHttpClient) => ({
 	getGlobalConfig() {
-		return fetch.get<GlobalConfig>(genRequestUrl("/api/v1/settings/global"), {
+		return fetch.get<GlobalConfig>("/api/v1/settings/global", {
 			enableAuthorizationVerification: false,
 		})
 	},
 	updateGlobalConfig(
 		data: Pick<GlobalConfig, "is_maintenance" | "maintenance_type" | "maintenance_description">,
 	) {
-		return fetch.put(genRequestUrl("/api/v1/settings/global"), data)
+		return fetch.put("/api/v1/settings/global", data)
 	},
 
 	/**
@@ -24,7 +23,7 @@ export const generateGlobalApi = (fetch: HttpClient) => ({
 	 * @returns GlobalConfig & { default_icons: string }
 	 */
 	getSettingsAll(options?: Pick<RequestConfig, "skipAppInitWait">) {
-		return fetch.get<SettingsAll>(genRequestUrl("/api/v1/settings/all"), {
+		return fetch.get<SettingsAll>("/api/v1/settings/all", {
 			headers: {
 				"X-Magic-Image-Process": buildImageProcessQuery({
 					format: "webp",
@@ -39,7 +38,7 @@ export const generateGlobalApi = (fetch: HttpClient) => ({
 	 * GET /api/v1/settings/menu-modules
 	 */
 	getAppMenuModules() {
-		return fetch.get<AppMenuItem[]>(genRequestUrl("/api/v1/settings/menu-modules"))
+		return fetch.get<AppMenuItem[]>("/api/v1/settings/menu-modules")
 	},
 
 	/**
@@ -64,9 +63,6 @@ export const generateGlobalApi = (fetch: HttpClient) => ({
 			with_builtin: boolean
 		}
 	}) {
-		return fetch.post<GetSettingsGlobalDataResponse>(
-			genRequestUrl("/api/v1/settings/global/data"),
-			data,
-		)
+		return fetch.post<GetSettingsGlobalDataResponse>("/api/v1/settings/global/data", data)
 	},
 })

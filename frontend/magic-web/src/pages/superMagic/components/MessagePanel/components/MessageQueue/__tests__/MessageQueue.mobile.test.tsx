@@ -1,16 +1,14 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { describe, expect, it, vi } from "vitest"
 
 import MessageQueue from "../index"
 import type { QueuedMessage } from "../../../hooks/useMessageQueue"
 
-vi.mock("../components/CollapsibleText", () => ({
-	default: ({ content }: { content: JSONContent | string }) => (
-		<div data-testid="mock-collapsible-text">
-			{typeof content === "string" ? content : JSON.stringify(content)}
-		</div>
-	),
+// RichText 会挂载 ProseMirror 视图，这里保留真实的 CollapsibleText（折叠盒契约），
+// 只把富文本渲染器换成占位节点。
+vi.mock("@/pages/superMagic/components/MessageList/components/Text/components/RichText", () => ({
+	default: () => <div data-testid="mock-rich-text" />,
 }))
 
 vi.mock("react-i18next", () => ({
@@ -20,7 +18,9 @@ vi.mock("react-i18next", () => ({
 				"messageQueue.mobile.title": "队列中",
 				"messageQueue.mobile.count": `${values?.count ?? 0} 条`,
 				"messageQueue.mobile.emptyContent": "⋯",
-				"messageQueue.editMessage": "编辑消息",
+				"messageQueue.edit": "编辑消息",
+				"messageQueue.withdraw": "撤下",
+				"messageQueue.delete": "从队列移除",
 				"messageQueue.exitEdit": "退出编辑",
 				"messageQueue.submitNow": "立即发送",
 				"messageQueue.removeFromQueue": "从队列移除",
@@ -51,6 +51,25 @@ function createQueueItem(id: string, text: string): QueuedMessage {
 		mentionItems: [],
 		timestamp: 1000,
 		status: "pending",
+	}
+}
+
+/** Build an AI 选取元素 document in the serialized form the queue stores. */
+function createInspectorContent(): JSONContent {
+	return {
+		type: "doc",
+		content: [
+			{
+				type: "paragraph",
+				content: [
+					{ type: "text", text: "<magic-selection>" },
+					{ type: "text", text: "Type: html" },
+					{ type: "text", text: "\\nSelector: #app" },
+					{ type: "text", text: "</magic-selection>" },
+					{ type: "text", text: "这个标题的样式对不对" },
+				],
+			},
+		],
 	}
 }
 
@@ -90,11 +109,11 @@ describe("MessageQueue mobile variant", () => {
 					createQueueItem("queue-item-gamma", "Mock queued task gamma"),
 				]}
 				queueStats={queueStats}
-				editingQueueItem={null}
 				onRemoveMessage={vi.fn()}
 				onSendMessage={vi.fn()}
 				onStartEdit={vi.fn()}
-				onCancelEdit={vi.fn()}
+				onWithdraw={vi.fn()}
+				onMove={vi.fn()}
 			/>,
 		)
 
@@ -120,11 +139,11 @@ describe("MessageQueue mobile variant", () => {
 					createQueueItem("queue-item-gamma", "Mock queued task gamma"),
 				]}
 				queueStats={queueStats}
-				editingQueueItem={null}
 				onRemoveMessage={onRemoveMessage}
 				onSendMessage={onSendMessage}
 				onStartEdit={onStartEdit}
-				onCancelEdit={vi.fn()}
+				onWithdraw={vi.fn()}
+				onMove={vi.fn()}
 			/>,
 		)
 
@@ -138,9 +157,9 @@ describe("MessageQueue mobile variant", () => {
 
 		const rowScope = within(firstRow as HTMLElement)
 		const actions = [
-			rowScope.getByTestId("mobile-message-queue-edit-button"),
-			rowScope.getByTestId("mobile-message-queue-send-button"),
-			rowScope.getByTestId("mobile-message-queue-remove-button"),
+			rowScope.getByTestId("on-start-edit"),
+			rowScope.getByTestId("on-send-message"),
+			rowScope.getByTestId("on-remove-message"),
 		]
 		expect(actions.map((button) => button.getAttribute("aria-label"))).toEqual([
 			"编辑消息",
@@ -171,20 +190,54 @@ describe("MessageQueue mobile variant", () => {
 					processing: 0,
 					failed: 0,
 				}}
-				editingQueueItem={null}
 				onRemoveMessage={vi.fn()}
 				onSendMessage={vi.fn()}
 				onStartEdit={vi.fn()}
-				onCancelEdit={vi.fn()}
+				onWithdraw={vi.fn()}
+				onMove={vi.fn()}
 			/>,
 		)
 
-		expect(screen.getByText("Mock queued task alpha")).toBeInTheDocument()
-		expect(screen.getByText("Mock queued task beta")).toBeInTheDocument()
+		const rows = screen.getAllByTestId("mobile-message-queue-item")
+		expect(rows).toHaveLength(2)
+		expect(rows[0]).toHaveTextContent("Mock queued task alpha")
+		expect(rows[1]).toHaveTextContent("Mock queued task beta")
 	})
 
-	it("disables cancel editing while the edited queue item is saving", () => {
-		const onCancelEdit = vi.fn()
+	it("renders the queued preview through the shared rich-text fold", () => {
+		render(
+			<MessageQueue
+				variant="mobile"
+				queue={[
+					{
+						...createQueueItem("queue-item-alpha", ""),
+						content: createInspectorContent(),
+					},
+				]}
+				queueStats={{
+					total: 1,
+					pending: 1,
+					processing: 0,
+					failed: 0,
+				}}
+				onRemoveMessage={vi.fn()}
+				onSendMessage={vi.fn()}
+				onStartEdit={vi.fn()}
+				onWithdraw={vi.fn()}
+				onMove={vi.fn()}
+			/>,
+		)
+
+		// 移动端与桌面共用 CollapsibleText：AI 选取元素、文件提及都需要节点视图，
+		// 只有纯文本摘要会把它们渲染成原始标记。
+		expect(screen.getByTestId("collapsible-text")).toBeInTheDocument()
+		// 纯文本摘要若被直接渲染，正文里会出现 `<magic-selection>` 序列化标记。
+		expect(screen.queryByText(/<magic-selection>/)).toBeNull()
+		expect(screen.getByText(/这个标题的样式对不对/)).toBeInTheDocument()
+	})
+
+	it("disables queue actions while a queue operation is saving", () => {
+		const onStartEdit = vi.fn()
 		const editingItem = {
 			...createQueueItem("queue-item-alpha", "Mock queued task alpha"),
 			isEditingLoading: true,
@@ -200,20 +253,20 @@ describe("MessageQueue mobile variant", () => {
 					processing: 0,
 					failed: 0,
 				}}
-				editingQueueItem={editingItem}
+				isOperationPending
 				onRemoveMessage={vi.fn()}
 				onSendMessage={vi.fn()}
-				onStartEdit={vi.fn()}
-				onCancelEdit={onCancelEdit}
+				onStartEdit={onStartEdit}
+				onWithdraw={vi.fn()}
+				onMove={vi.fn()}
 			/>,
 		)
 
-		const cancelButton = screen.getByTestId("mobile-message-queue-cancel-edit-button")
-		expect(cancelButton).toBeDisabled()
-		expect(screen.getByTestId("mobile-message-queue-editing-loading")).toBeInTheDocument()
+		const editButton = screen.getByTestId("on-start-edit")
+		expect(editButton).toBeDisabled()
 
-		fireEvent.click(cancelButton)
-		expect(onCancelEdit).not.toHaveBeenCalled()
+		fireEvent.click(editButton)
+		expect(onStartEdit).not.toHaveBeenCalled()
 	})
 
 	it("shows mention fallback preview text when mention data has no display name", () => {
@@ -232,14 +285,17 @@ describe("MessageQueue mobile variant", () => {
 					processing: 0,
 					failed: 0,
 				}}
-				editingQueueItem={null}
 				onRemoveMessage={vi.fn()}
 				onSendMessage={vi.fn()}
 				onStartEdit={vi.fn()}
-				onCancelEdit={vi.fn()}
+				onWithdraw={vi.fn()}
+				onMove={vi.fn()}
 			/>,
 		)
 
-		expect(screen.getByText("@File")).toBeInTheDocument()
+		// 可见正文已改走富文本节点（提及渲染成节点视图），这里校验的是预览摘要文案：
+		// mention 没有展示名时必须退化成 @File，不能变成空串（空串会让整行退化成占位符）。
+		const row = screen.getByTestId("mobile-message-queue-item")
+		expect(row.querySelector('[aria-hidden="true"] span')?.textContent).toBe("@File")
 	})
 })

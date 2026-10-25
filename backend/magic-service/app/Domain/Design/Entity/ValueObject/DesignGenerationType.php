@@ -11,4 +11,5 @@ enum DesignGenerationType: string
 {
     case TEXT_TO_VIDEO = 'text_to_video';
     case IMAGE_TO_VIDEO = 'image_to_video';
+    case CANVAS_COMPOSITION = 'canvas_composition';
 }

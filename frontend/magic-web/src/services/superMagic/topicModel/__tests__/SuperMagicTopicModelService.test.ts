@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
-import superMagicTopicModelService from "../SuperMagicTopicModelService"
+import superMagicTopicModelService, {
+	getTopicModelContextKey,
+} from "../SuperMagicTopicModelService"
 import topicModelStore from "@/stores/superMagic/topicModelStore"
 import { ModelStatusEnum, type ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
 import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
@@ -28,9 +30,15 @@ vi.mock("../../SuperMagicModeService", () => ({
 	default: {
 		getModelListByMode: vi.fn(() => []),
 		getImageModelListByMode: vi.fn(() => []),
+		getVideoModelListByMode: vi.fn(() => []),
 		resolveLanguageModelByMode: vi.fn(async () => null),
 		resolveImageModelByMode: vi.fn(async () => null),
+		resolveVideoModelByMode: vi.fn(async () => null),
+		// The cascade only waits for the crew list while its availability is unknown.
+		isModeAvailabilityResolved: true,
 	},
+	resolveModeMapKey: (topicMode: string, agentCode?: string | null) =>
+		topicMode === "custom_agent" && agentCode ? agentCode : topicMode,
 }))
 
 import { SuperMagicApi } from "@/apis"
@@ -118,8 +126,8 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			await superMagicTopicModelService.saveModel(topicId, projectId, langModel2, undefined)
 			expect(SuperMagicApi.saveSuperMagicTopicModel).not.toHaveBeenCalled()
 
-			// 500ms later, user selects image model
-			vi.advanceTimersByTime(500)
+			// Stay inside the 500ms debounce window
+			vi.advanceTimersByTime(100)
 			await superMagicTopicModelService.saveModel(
 				topicId,
 				projectId,
@@ -131,12 +139,19 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			// 1 second passes with no new operations
 			vi.advanceTimersByTime(1000)
 
-			// Now API should be called once with final model combination
-			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledTimes(1)
+			// Topic save also updates the project default
+			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledTimes(2)
 			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledWith({
 				cache_id: topicId,
 				model_id: "claude-3",
 				image_model_id: "dall-e-3",
+				video_model_id: undefined,
+			})
+			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledWith({
+				cache_id: "project_id_project-1",
+				model_id: "claude-3",
+				image_model_id: "dall-e-3",
+				video_model_id: undefined,
 			})
 		})
 
@@ -153,17 +168,16 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			)
 			expect(SuperMagicApi.saveSuperMagicTopicModel).not.toHaveBeenCalled()
 
-			// Only 500ms passed, but user switches topic
-			vi.advanceTimersByTime(500)
+			// Stay inside the debounce window, then flush the topic immediately
+			vi.advanceTimersByTime(200)
 			await superMagicTopicModelService.flushAll(topicId)
 
-			// API should be called immediately despite debounce not finished
-			// Called once for the topic (project is handled through backfill in fetchTopicModel)
 			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledTimes(1)
 			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledWith({
 				cache_id: topicId,
 				model_id: "gpt-4",
 				image_model_id: undefined,
+				video_model_id: undefined,
 			})
 		})
 
@@ -194,7 +208,19 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 
 			// After debounce delay
 			vi.advanceTimersByTime(1000)
-			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledTimes(1)
+			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledTimes(2)
+			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledWith({
+				cache_id: topicId,
+				model_id: "gpt-4",
+				image_model_id: undefined,
+				video_model_id: undefined,
+			})
+			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledWith({
+				cache_id: "project_id_project-1",
+				model_id: "gpt-4",
+				image_model_id: undefined,
+				video_model_id: undefined,
+			})
 		})
 
 		it("should handle API failure gracefully", async () => {
@@ -246,6 +272,13 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			topicModelStore.setSelectedLanguageModel(validModel)
 
 			topicModelStore.setCurrentContext("topic-1", "project-1", generalMode)
+			topicModelStore.markCurrentContextLoaded(
+				getTopicModelContextKey({
+					topicId: "topic-1",
+					projectId: "project-1",
+					topicMode: generalMode,
+				}),
+			)
 
 			// Validate for mode (should keep the model)
 			await superMagicTopicModelService.validateSelectedModels(topicModelStore)
@@ -271,6 +304,13 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			// Set an invalid model
 			topicModelStore.setSelectedLanguageModel(invalidModel)
 			topicModelStore.setCurrentContext("topic-1", "project-1", generalMode)
+			topicModelStore.markCurrentContextLoaded(
+				getTopicModelContextKey({
+					topicId: "topic-1",
+					projectId: "project-1",
+					topicMode: generalMode,
+				}),
+			)
 
 			// Validate for mode (should switch to valid model)
 			await superMagicTopicModelService.validateSelectedModels(topicModelStore)
@@ -308,6 +348,13 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 
 			topicModelStore.setSelectedLanguageModel(customModel)
 			topicModelStore.setCurrentContext("topic-1", "project-1", generalMode)
+			topicModelStore.markCurrentContextLoaded(
+				getTopicModelContextKey({
+					topicId: "topic-1",
+					projectId: "project-1",
+					topicMode: generalMode,
+				}),
+			)
 
 			await superMagicTopicModelService.validateSelectedModels(topicModelStore)
 
@@ -355,6 +402,13 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 
 			topicModelStore.setSelectedLanguageModel(customModel)
 			topicModelStore.setCurrentContext("topic-1", "project-1", generalMode)
+			topicModelStore.markCurrentContextLoaded(
+				getTopicModelContextKey({
+					topicId: "topic-1",
+					projectId: "project-1",
+					topicMode: generalMode,
+				}),
+			)
 
 			await superMagicTopicModelService.validateSelectedModels(topicModelStore)
 
@@ -399,6 +453,7 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 				},
 			)
 
+			topicModelStore.setCurrentContext("topic-1", "project-1", generalMode)
 			await superMagicTopicModelService.fetchTopicModel(
 				"topic-1",
 				"project-1",
@@ -431,9 +486,8 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			// Flush all
 			await superMagicTopicModelService.flushAll()
 
-			// Both topics should be saved (one call per topic)
-			// Project level is handled through backfill in fetchTopicModel
-			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledTimes(2)
+			// Two topics, each also updates its project default
+			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledTimes(4)
 		})
 
 		it("should flush specific topic only", async () => {
@@ -461,6 +515,7 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 				cache_id: "topic-1",
 				model_id: "gpt-4",
 				image_model_id: undefined,
+				video_model_id: undefined,
 			})
 		})
 	})
@@ -484,6 +539,36 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			// Advance time - API should not be called
 			vi.advanceTimersByTime(2000)
 			expect(SuperMagicApi.saveSuperMagicTopicModel).not.toHaveBeenCalled()
+		})
+
+		it("keeps the shared project save for another topic", async () => {
+			const secondModel = { ...mockLanguageModel, model_id: "claude-3" }
+
+			await superMagicTopicModelService.saveModel(
+				"topic-1",
+				"project-1",
+				mockLanguageModel,
+				undefined,
+			)
+			await superMagicTopicModelService.saveModel(
+				"topic-2",
+				"project-1",
+				secondModel,
+				undefined,
+			)
+
+			superMagicTopicModelService.cleanup("topic-1")
+			await superMagicTopicModelService.flushAll()
+
+			expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledWith({
+				cache_id: "project_id_project-1",
+				model_id: secondModel.model_id,
+				image_model_id: undefined,
+				video_model_id: undefined,
+			})
+			expect(SuperMagicApi.saveSuperMagicTopicModel).not.toHaveBeenCalledWith(
+				expect.objectContaining({ cache_id: "topic-1" }),
+			)
 		})
 	})
 

@@ -12,6 +12,7 @@
 	"concurrent": "Concurrency",
 	"concurrentDesc": "Please enter the concurrency allowed for this provider",
 	"concurrentPlaceholder": "Please enter concurrency",
+	"endpoint": "Endpoint",
 	"hotWords": "Hot Words",
 	"hotWordsDesc": "Multiple hot words support newlines",
 	"hotWordsPlaceholder": "Please enter your hot words (multiple hot words separated by newlines)",
@@ -21,9 +22,11 @@
 	"pleaseSelectService": "Please select a provider",
 	"powerConfig": "Power Configuration",
 	"powerModel": "Power Model",
+	"projectName": "Project Name",
 	"prompt": "Prompt",
 	"promptDesc": "Please enter the prompt for the ability model, leave blank to use the default prompt",
 	"promptPlaceholder": "Please enter the prompt",
+	"region": "Region",
 	"replacementWords": "Replacement Words",
 	"replacementWordsDesc": "Multiple replacement words support newlines",
 	"replacementWordsPlaceholder": "Please enter your replacement words (multiple replacement words separated by newlines)",
@@ -31,7 +34,10 @@
 	"secretKeyPlaceholder": "Please enter your Secret Key",
 	"service": "Provider",
 	"serviceConfig": "Provider Configuration",
+	"serviceName": "Service",
 	"skPlaceholder": "Please enter your SK",
+	"useDefaultPlaceholder": "Defaults to {{value}}",
 	"userInputUrl": "API URL",
-	"userInputUrlPlaceholder": "Please enter the API URL"
+	"userInputUrlPlaceholder": "Please enter the API URL",
+	"version": "Version"
 }

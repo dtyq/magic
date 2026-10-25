@@ -11,9 +11,10 @@ from app.utils.runtime_storage import (
     RuntimeEvictionPolicy,
     ensure_runtime_directory,
     evict_runtime_files,
+    get_runtime_config_int,
+    get_runtime_config_size_bytes,
     trigger_opportunistic_cleanup,
 )
-
 
 CURRENT_MODEL_ENV_NAME = "SUPER_MAGIC_CURRENT_MODEL_ID"
 _TOOL_CALL_USAGE_PATTERN = re.compile(r"\btool\.call\s*\(")
@@ -23,13 +24,34 @@ class SnippetEnvironment:
     """代码片段子进程环境变量构建辅助类。"""
 
     _active_scripts: ClassVar[set[Path]] = set()
-    _eviction_policy: ClassVar[RuntimeEvictionPolicy] = RuntimeEvictionPolicy(
-        max_entries=64,
-        target_entries=48,
-        max_total_bytes=16 * 1024 * 1024,
-        target_total_bytes=12 * 1024 * 1024,
-        max_age_seconds=7 * 24 * 60 * 60,
-    )
+
+    @staticmethod
+    def _load_eviction_policy() -> RuntimeEvictionPolicy:
+        return RuntimeEvictionPolicy(
+            max_entries=get_runtime_config_int(
+                "runtime_cleanup.snippets.max_file_count",
+                minimum=1,
+            ),
+            target_entries=get_runtime_config_int(
+                "runtime_cleanup.snippets.target_file_count",
+                minimum=0,
+            ),
+            max_total_bytes=get_runtime_config_size_bytes(
+                "runtime_cleanup.snippets.max_total_size",
+                minimum=1,
+            ),
+            target_total_bytes=get_runtime_config_size_bytes(
+                "runtime_cleanup.snippets.target_total_size",
+                minimum=0,
+            ),
+            max_age_seconds=get_runtime_config_int(
+                "runtime_cleanup.snippets.max_age_days",
+                minimum=1,
+            )
+            * 24
+            * 60
+            * 60,
+        )
 
     @staticmethod
     def resolve_working_dir(workspace_dir: str, cwd: str | None) -> Path:
@@ -63,7 +85,7 @@ class SnippetEnvironment:
             f"snippets:{capability}",
             lambda: evict_runtime_files(
                 runtime_dir,
-                policy=SnippetEnvironment._eviction_policy,
+                policy=SnippetEnvironment._load_eviction_policy(),
                 suffixes=(".py",),
                 protected_paths=frozenset(SnippetEnvironment._active_scripts),
             ),

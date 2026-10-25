@@ -1,6 +1,6 @@
 import { platformKey } from "@/utils/storage"
 import Dexie from "dexie"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { DataContextDb } from "./types"
 
 const logger = Logger.createLogger("data-context-db")

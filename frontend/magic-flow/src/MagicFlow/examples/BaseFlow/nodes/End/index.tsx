@@ -6,7 +6,7 @@ import { ShowColumns } from "@/MagicJsonSchemaEditor/constants"
 import { MagicJsonSchemaEditor } from "@/index"
 import { Form } from "antd"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { set } from "lodash-es"
 import React, { useMemo } from "react"
 import usePrevious from "../../common/hooks/usePrevious"
 import styles from "./index.module.less"
@@ -25,10 +25,10 @@ export default function End() {
 
 		Object.entries(changeValues).forEach(([changeKey, changeValue]) => {
 			if (changeKey === "output") {
-				_.set(currentNodeConfig, ["output", "form", "structure"], changeValue as Schema)
+				set(currentNodeConfig, ["output", "form", "structure"], changeValue as Schema)
 				return
 			}
-			_.set(currentNodeConfig, ["params", changeKey], changeValue)
+			set(currentNodeConfig, ["params", changeKey], changeValue)
 		})
 
 		updateNodeConfig({

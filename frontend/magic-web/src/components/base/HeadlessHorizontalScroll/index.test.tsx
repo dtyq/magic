@@ -25,6 +25,38 @@ function firePointerEvent(
 }
 
 describe("HeadlessHorizontalScroll", () => {
+	it("keeps vertical overflow clipped by default", () => {
+		render(
+			<HeadlessHorizontalScroll scrollContainerProps={{ "data-testid": "scroller" }}>
+				<div>Content</div>
+			</HeadlessHorizontalScroll>,
+		)
+
+		const scroller = screen.getByTestId("scroller")
+		const root = scroller.parentElement
+
+		expect(root).toHaveClass("overflow-hidden")
+		expect(root).not.toHaveClass("overflow-visible")
+	})
+
+	// Verify the mobile filter-bar opt-in changes only the outer clipping behavior.
+	it("allows vertical overflow when explicitly enabled", () => {
+		render(
+			<HeadlessHorizontalScroll
+				allowVerticalOverflow
+				scrollContainerProps={{ "data-testid": "scroller" }}
+			>
+				<div>Content</div>
+			</HeadlessHorizontalScroll>,
+		)
+
+		const scroller = screen.getByTestId("scroller")
+		const root = scroller.parentElement
+
+		expect(root).toHaveClass("overflow-visible")
+		expect(root).not.toHaveClass("overflow-hidden")
+	})
+
 	it("scrolls horizontally while the pointer is held and dragged", () => {
 		render(
 			<HeadlessHorizontalScroll scrollContainerProps={{ "data-testid": "scroller" }}>

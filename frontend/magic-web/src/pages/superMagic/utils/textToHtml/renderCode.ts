@@ -1,4 +1,4 @@
-import { highlight, languages } from "@/lib/prismjs"
+import { highlight, languages } from "@/infrastructure/vendors/prismjs"
 import { wrapInHtmlTemplate, type TemplateOptions } from "./baseTemplate"
 
 export interface RenderCodeOptions extends Partial<TemplateOptions> {

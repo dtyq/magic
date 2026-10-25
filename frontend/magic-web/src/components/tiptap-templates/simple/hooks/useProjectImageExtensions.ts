@@ -1,12 +1,12 @@
 import { useMemo } from "react"
-import type { AnyExtension } from "@tiptap/react"
+import type { AnyExtension } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 import { projectImageStorage } from "@/services/tiptap-image-project"
 import {
 	SaveImageToProjectExtension,
 	ImageUploadErrorType,
 } from "@/components/tiptap-node/project-image-node"
-import { MAX_FILE_SIZE } from "@/lib/tiptap-utils"
+import { MAX_FILE_SIZE } from "@/infrastructure/editors/tiptap/utils"
 import ProjectImageNode from "@/components/tiptap-node/project-image-node/project-image-node-extension"
 import type { ProjectImageUrlResolver } from "@/components/tiptap-node/project-image-node/project-image-node-extension"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -60,16 +60,18 @@ export interface UseProjectImageExtensionsOptions {
 	/**
 	 * Custom success handler
 	 */
-	onSuccess?: (relativePath: string) => void
+	onSuccess?: (relativePath: string) => void | Promise<void>
 
 	/**
 	 * Async callback to resolve or create the images folder and return its file_id.
 	 * Called before each upload to ensure the image is saved in the correct directory.
-	 * If not provided or returns undefined, the file will be saved without a parent (root level).
+	 * When requireImagesFolderParentId is true, returning undefined is treated as an
+	 * upload error so recording images cannot silently fall back to the project root.
 	 * @param folderPath - The calculated folder path (e.g. "docs/images")
-	 * @returns The file_id of the images folder, or undefined to fall back to root
+	 * @returns The file_id of the images folder, or undefined when it cannot be resolved
 	 */
 	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
+	requireImagesFolderParentId?: boolean
 }
 
 /**
@@ -99,6 +101,7 @@ export function useProjectImageExtensions(
 		onStorageUnavailable: customOnStorageUnavailable,
 		onSuccess: customOnSuccess,
 		resolveImagesFolderParentId,
+		requireImagesFolderParentId,
 	} = options
 
 	const { t } = useTranslation("tiptap")
@@ -118,6 +121,7 @@ export function useProjectImageExtensions(
 				folderPath,
 				maxSize,
 				resolveImagesFolderParentId,
+				requireImagesFolderParentId,
 				onError: (error) => {
 					// Allow custom error handler to override default behavior
 					if (customOnError) {
@@ -189,10 +193,8 @@ export function useProjectImageExtensions(
 						magicToast.warning(t("projectImage.errors.storageUnavailable"))
 					}
 				},
-				onSuccess: (relativePath) => {
-					if (customOnSuccess) {
-						customOnSuccess(relativePath)
-					}
+				onSuccess: async (relativePath) => {
+					await customOnSuccess?.(relativePath)
 					// No need to show success message as image is already visible in editor
 					console.log("Project image uploaded:", relativePath)
 				},
@@ -219,6 +221,7 @@ export function useProjectImageExtensions(
 		customOnStorageUnavailable,
 		customOnSuccess,
 		resolveImagesFolderParentId,
+		requireImagesFolderParentId,
 		t,
 	])
 

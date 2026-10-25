@@ -288,3 +288,33 @@ async def test_initialize_does_not_raise_when_full_link_fails(tmp_path, monkeypa
     assert (home_dir / ".local" / "share").is_dir()
     assert not (home_dir / ".dws").exists()
     assert not (home_dir / ".magic").exists()
+
+
+@pytest.mark.asyncio
+async def test_initialize_keeps_data_when_home_resolves_to_user_home_dir(tmp_path, monkeypatch):
+    # HOME 经软链指向 USER_HOME_DIR：link 与 target 写法不同，但解析后是同一目录。
+    # 此时 .magic 已经是承载数据的真实目录，必须原样保留；把它当作"本地残留"
+    # 清理掉会直接删除用户持久化数据，并留下指向自身的软链。
+    user_home_dir = tmp_path / "user-home"
+    home_dir = tmp_path / "home"
+    user_home_dir.mkdir()
+    home_dir.symlink_to(user_home_dir, target_is_directory=True)
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
+
+    magic_dir = user_home_dir / ".magic"
+    magic_dir.mkdir()
+    marker = magic_dir / "keep-me.json"
+    marker.write_text("persisted", encoding="utf-8")
+
+    async def skip_partial_dir(cls, **kwargs):
+        return None
+
+    monkeypatch.setattr(HomePersistenceService, "_ensure_partial_dir", skip_partial_dir)
+
+    await HomePersistenceService.initialize_from_environment()
+
+    assert marker.read_text(encoding="utf-8") == "persisted"
+    assert magic_dir.is_dir()
+    assert not magic_dir.is_symlink()
+    assert not (home_dir / ".magic").is_symlink()

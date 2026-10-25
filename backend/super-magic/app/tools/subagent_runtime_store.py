@@ -201,3 +201,28 @@ class SubagentRuntimeStore:
             if document.subagent is not None:
                 states.append(document.subagent)
         return states
+
+    @classmethod
+    async def find_states_by_agent_ids(cls, agent_ids: list[str]) -> dict[str, list[SubagentSessionState]]:
+        """一次扫描目录，批量查多个 agent_id 的会话状态；未命中的 agent_id 对应空列表。
+
+        等待 80 个子 Agent 时逐个调用 find_states_by_agent_id 会把同一个目录扫 80 遍。
+        """
+        states_by_id: dict[str, list[SubagentSessionState]] = {agent_id: [] for agent_id in agent_ids}
+        chat_history_dir = PathManager.get_subagents_chat_history_dir()
+        if not states_by_id or not await async_exists(chat_history_dir):
+            return states_by_id
+        session_dir_names = sorted(
+            entry.name
+            for entry in await async_scandir(chat_history_dir)
+            if entry.is_dir() and entry.name.endswith(">")
+        )
+        for session_dir_name in session_dir_names:
+            agent_name, _, id_part = session_dir_name.rpartition("<")
+            agent_id = id_part[:-1]
+            if not agent_name or agent_id not in states_by_id:
+                continue
+            document = await cls.load_document(agent_name, agent_id)
+            if document.subagent is not None:
+                states_by_id[agent_id].append(document.subagent)
+        return states_by_id

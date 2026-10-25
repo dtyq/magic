@@ -73,13 +73,14 @@ class AdminSkillAssembler
     public function createQueryMarketsResponseDTO(
         array $markets,
         Page $page,
-        int $total
+        int $total,
+        array $categoryIdsMap = []
     ): QuerySkillMarketsResponseAdminDTO {
         $publisherUserMap = $this->buildPublisherUserMapByMarket($markets);
         $organizationMap = $this->buildOrganizationMapByMarket($markets);
 
         $list = array_map(
-            fn (SkillMarketEntity $entity) => $this->createMarketListItemDTO($entity, $publisherUserMap, $organizationMap),
+            fn (SkillMarketEntity $entity) => $this->createMarketListItemDTO($entity, $publisherUserMap, $organizationMap, $categoryIdsMap[$entity->getId() ?? 0] ?? []),
             $markets
         );
 
@@ -283,7 +284,8 @@ class AdminSkillAssembler
     private function createMarketListItemDTO(
         SkillMarketEntity $entity,
         array $publisherUserMap,
-        array $organizationMap
+        array $organizationMap,
+        array $categoryIds = []
     ): SkillMarketListItemAdminDTO {
         $publisher = PublisherInfoAdminDTO::empty();
         $publisherUserId = $entity->getPublisherId();
@@ -313,9 +315,9 @@ class AdminSkillAssembler
             logo: $entity->getLogo(),
             publisherId: $entity->getPublisherId(),
             publisherType: $entity->getPublisherType()->value,
-            categoryId: $entity->getCategoryId(),
+            categoryIds: $categoryIds,
             publishStatus: $entity->getPublishStatus()->value,
-            installCount: $entity->getInstallCount(),
+            installCount: $entity->getTotalInstallCount(),
             sortOrder: $entity->getSortOrder(),
             isFeatured: $entity->isFeatured(),
             isHidden: $entity->isHidden(),

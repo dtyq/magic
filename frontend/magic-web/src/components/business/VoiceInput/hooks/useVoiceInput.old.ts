@@ -5,7 +5,7 @@ import type { VoiceInputConfig, VoiceInputStatus, VoiceResult } from "../types"
 import { ChatApi } from "@/apis"
 import { useMicrophonePermission } from "@/hooks/useMicrophonePermission"
 import { useMemoizedFn } from "ahooks"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { userStore } from "@/models/user"
 import { env } from "@/utils/env"
 

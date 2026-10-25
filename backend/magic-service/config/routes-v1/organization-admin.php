@@ -6,10 +6,16 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Admin\Facade\AppMenu\OrganizationAppMenuAdminApi;
+use App\Interfaces\Admin\Facade\OrganizationIdentityWatermarkApi;
 use App\Interfaces\Provider\Facade\OrganizationServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/organization/admin', static function () {
+    Router::addGroup('/identity-watermark', static function () {
+        Router::get('', [OrganizationIdentityWatermarkApi::class, 'show']);
+        Router::put('', [OrganizationIdentityWatermarkApi::class, 'update']);
+    });
+
     Router::addGroup('/service-providers', static function () {
         // 服务商管理
         Router::get('', [OrganizationServiceProviderApi::class, 'getServiceProviders']);

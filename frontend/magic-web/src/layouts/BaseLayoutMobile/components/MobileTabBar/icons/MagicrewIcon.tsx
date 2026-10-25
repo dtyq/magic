@@ -13,7 +13,7 @@ function MagicrewIcon({ active = false, size = 20 }: TabIconProps) {
 			>
 				<mask
 					id="mask0_15485_42025"
-					style={{ maskType: "alpha" }}
+					className="[mask-type:alpha]"
 					maskUnits="userSpaceOnUse"
 					x="0"
 					y="0"
@@ -45,7 +45,7 @@ function MagicrewIcon({ active = false, size = 20 }: TabIconProps) {
 		>
 			<mask
 				id="mask0_15485_43168"
-				style={{ maskType: "alpha" }}
+				className="[mask-type:alpha]"
 				maskUnits="userSpaceOnUse"
 				x="0"
 				y="0"

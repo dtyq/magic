@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Intercom — Customer Service & Fin AI Messenger</title>
+  <style>
+    :root {
+      --primary: #111111;
+      --intercom-blue: #0057ff;
+      --intercom-blue-hover: #0046d1;
+      --fin-orange: #ff5600;
+      --dark-navy: #0a192f;
+      --dark-navy-deep: #060e1a;
+      --teal-navy: #0d2137;
+      --canvas: #f5f1ec;
+      --surface: #ffffff;
+      --surface-card: #f9f9fa;
+      --hairline: #d3cec6;
+      --hairline-soft: #ebe7e1;
+      --ink: #111111;
+      --ink-muted: #626260;
+      --ink-subtle: #7b7b78;
+      --success: #0bdf50;
+      --font-family: "Saans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "SaansMono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --shadow-widget: 0 24px 64px rgba(10, 25, 47, 0.22), 0 4px 16px rgba(0, 0, 0, 0.08);
+      --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family); background: var(--canvas); color: var(--ink);
+      line-height: 1.45; -webkit-font-smoothing: antialiased; padding: 16px;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; border: none; background: none; cursor: pointer; }
+
+    /* Shell Layout */
+    .intercom-shell { max-width: 1260px; margin: 0 auto; }
+
+    /* Top Platform Dashboard Bar */
+    .platform-bar {
+      background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      padding: 10px 20px; display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px; box-shadow: var(--shadow-card);
+    }
+    .platform-brand { display: flex; align-items: center; gap: 10px; }
+    .intercom-mark {
+      width: 26px; height: 26px; background: var(--intercom-blue); border-radius: 6px;
+      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 15px;
+    }
+    .platform-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+    .platform-links { display: flex; align-items: center; gap: 18px; font-size: 13px; font-weight: 500; color: var(--ink-muted); }
+    .platform-links a.active { color: var(--intercom-blue); font-weight: 600; }
+    .agent-status-pill {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600;
+      padding: 5px 12px; background: #eafaf1; border-radius: var(--radius-pill); color: #0d6832;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+
+    /* Main Grid: Left Help Center Context & Right Interactive Messenger */
+    .main-workspace-grid {
+      display: grid; grid-template-columns: 1fr 440px; gap: 24px; align-items: start;
+    }
+
+    /* Left Side: Help Center & Fin Performance Metrics */
+    .help-overview-panel {
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    .banner-hero-card {
+      background: linear-gradient(135deg, var(--dark-navy) 0%, var(--teal-navy) 100%);
+      border-radius: var(--radius-lg); padding: 28px; color: #ffffff;
+      box-shadow: 0 10px 30px rgba(10, 25, 47, 0.15); position: relative; overflow: hidden;
+    }
+    .banner-hero-card::after {
+      content: ""; position: absolute; top: -50px; right: -50px; width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(0, 87, 255, 0.4), transparent 70%); border-radius: 50%;
+    }
+    .fin-pill {
+      display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 86, 0, 0.2);
+      border: 1px solid var(--fin-orange); padding: 4px 10px; border-radius: var(--radius-pill);
+      font-size: 11px; font-weight: 700; color: #ff8c42; margin-bottom: 12px;
+    }
+    .banner-hero-card h2 {
+      font-size: 26px; font-weight: 700; line-height: 1.2; margin-bottom: 8px;
+    }
+    .banner-hero-card p {
+      font-size: 14px; opacity: 0.85; max-width: 520px; line-height: 1.5;
+    }
+
+    /* Metrics 3-up */
+    .metrics-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .metric-card {
+      background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      padding: 16px; box-shadow: var(--shadow-card);
+    }
+    .metric-val { font-size: 24px; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+    .metric-lbl { font-size: 12px; color: var(--ink-muted); font-weight: 500; }
+
+    /* Knowledge Base Articles List */
+    .kb-articles-box {
+      background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      padding: 18px; box-shadow: var(--shadow-card);
+    }
+    .kb-header { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+    .kb-item {
+      display: flex; align-items: center; justify-content: space-between; padding: 10px 0;
+      border-bottom: 1px solid var(--hairline-soft); font-size: 13px; color: var(--ink);
+    }
+    .kb-item:last-child { border-bottom: none; }
+    .kb-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: var(--radius-pill);
+      background: #eef2ff; color: var(--intercom-blue); font-weight: 600;
+    }
+
+    /* Right Side: Customer Messenger Widget */
+    .messenger-widget {
+      background: #ffffff; border: 1px solid var(--hairline); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-widget); overflow: hidden; display: flex; flex-direction: column;
+      min-height: 640px;
+    }
+
+    /* Messenger Dark Navy Header */
+    .messenger-header {
+      background: linear-gradient(135deg, var(--dark-navy) 0%, var(--dark-navy-deep) 100%);
+      padding: 20px 20px 16px; color: #ffffff; border-bottom: 1px solid rgba(255,255,255,0.08);
+      position: relative;
+    }
+    .messenger-team-row {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+    }
+    .avatar-stack { display: flex; align-items: center; }
+    .agent-avatar {
+      width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--dark-navy);
+      display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff;
+      margin-left: -8px; position: relative;
+    }
+    .agent-avatar:first-child { margin-left: 0; }
+    .avatar-fin {
+      background: linear-gradient(135deg, var(--fin-orange), #ff8c42);
+      box-shadow: 0 0 10px rgba(255,86,0,0.4);
+    }
+    .avatar-human { background: #3b82f6; }
+    .online-indicator {
+      position: absolute; bottom: 0; right: 0; width: 9px; height: 9px;
+      border-radius: 50%; background: var(--success); border: 2px solid var(--dark-navy);
+    }
+
+    .widget-actions { display: flex; gap: 8px; }
+    .w-btn { color: rgba(255,255,255,0.6); font-size: 16px; }
+
+    .messenger-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .messenger-subtitle { font-size: 12px; color: rgba(255,255,255,0.7); display: flex; align-items: center; gap: 6px; }
+
+    /* Help Center Search Bar */
+    .messenger-search-bar {
+      margin-top: 14px; position: relative;
+    }
+    .search-input-box {
+      width: 100%; padding: 9px 12px 9px 34px; background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2); border-radius: var(--radius-md);
+      color: #ffffff; font-size: 12px; outline: none;
+    }
+    .search-input-box::placeholder { color: rgba(255,255,255,0.6); }
+    .search-icon-pos {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      font-size: 13px; color: rgba(255,255,255,0.6);
+    }
+
+    .quick-chips-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .search-chip {
+      font-size: 10px; padding: 3px 8px; border-radius: var(--radius-pill);
+      background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.9);
+    }
+
+    /* Messenger Conversation Stream */
+    .messenger-body {
+      flex: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+      background: #fdfdfd;
+    }
+
+    /* Fin AI Message Bubble */
+    .chat-bubble-fin {
+      display: flex; gap: 10px; align-items: flex-start; max-width: 90%;
+    }
+    .fin-mini-avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--fin-orange);
+      color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; flex-shrink: 0;
+    }
+    .bubble-content-fin {
+      background: #f0f2f5; border-radius: 14px; border-top-left-radius: 2px;
+      padding: 10px 14px; font-size: 13px; color: var(--ink); line-height: 1.45;
+    }
+
+    /* User Message Bubble */
+    .chat-bubble-user {
+      align-self: flex-end; max-width: 85%;
+      background: var(--intercom-blue); color: #ffffff; border-radius: 14px;
+      border-top-right-radius: 2px; padding: 10px 14px; font-size: 13px; line-height: 1.4;
+    }
+
+    /* Fin Instant Answer Card */
+    .instant-answer-card {
+      background: #ffffff; border: 1px solid #dce2ee; border-radius: var(--radius-md);
+      box-shadow: 0 4px 14px rgba(0, 87, 255, 0.08); overflow: hidden; margin-top: 4px;
+    }
+    .answer-card-header {
+      background: linear-gradient(90deg, #f0f5ff 0%, #fff7f2 100%);
+      padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--intercom-blue);
+      display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #eef2f8;
+    }
+    .answer-card-body { padding: 12px; font-size: 13px; color: var(--ink); line-height: 1.5; }
+    .answer-source-strip {
+      background: #f8fafc; border-top: 1px solid #eef2f8; padding: 8px 12px;
+      font-size: 11px; color: var(--ink-muted); display: flex; align-items: center; justify-content: space-between;
+    }
+    .feedback-pills { display: flex; gap: 6px; }
+    .f-pill {
+      font-size: 11px; padding: 2px 8px; border-radius: 12px;
+      border: 1px solid var(--hairline-soft); background: #fff; cursor: pointer;
+    }
+
+    /* Human Agent Status Banner */
+    .agent-status-banner {
+      background: #f0f7ff; border: 1px solid #c8e1ff; border-radius: var(--radius-sm);
+      padding: 8px 12px; font-size: 12px; color: var(--ink); display: flex; align-items: center; gap: 8px;
+    }
+
+    /* Messenger Input Composer */
+    .messenger-footer {
+      border-top: 1px solid var(--hairline-soft); padding: 12px 16px; background: #ffffff;
+    }
+    .input-row { display: flex; align-items: center; gap: 8px; }
+    .msg-text-input {
+      flex: 1; border: 1px solid var(--hairline-soft); border-radius: 20px;
+      padding: 8px 14px; font-size: 13px; outline: none; background: #fafafa;
+    }
+    .msg-send-btn {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--intercom-blue);
+      color: #fff; display: grid; place-items: center; font-size: 14px;
+    }
+
+    /* Messenger Bottom Navigation Tabs */
+    .messenger-nav-tabs {
+      display: flex; border-top: 1px solid var(--hairline-soft); background: #fafafa;
+    }
+    .m-tab {
+      flex: 1; padding: 8px 0; text-align: center; font-size: 11px; font-weight: 600;
+      color: var(--ink-muted); cursor: pointer;
+    }
+    .m-tab.active { color: var(--intercom-blue); font-weight: 700; }
+
+    /* Design Tokens Strip */
+    .intercom-tokens-strip {
+      margin-top: 18px; background: #ffffff; border: 1px solid var(--hairline);
+      border-radius: var(--radius-md); padding: 10px 18px; display: flex; align-items: center;
+      justify-content: space-between; font-size: 11px; flex-wrap: wrap; gap: 10px;
+    }
+    .token-chip { display: flex; align-items: center; gap: 5px; font-family: var(--font-mono); }
+    .swatch { width: 11px; height: 11px; border-radius: 2px; }
+
+    @media (max-width: 900px) {
+      .main-workspace-grid { grid-template-columns: 1fr; }
+      .messenger-widget { max-width: 480px; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="intercom-shell">
+
+    <!-- Top Platform Header -->
+    <header class="platform-bar">
+      <div class="platform-brand">
+        <div class="intercom-mark">i</div>
+        <span class="platform-title">Intercom Support Operations</span>
+      </div>
+
+      <nav class="platform-links">
+        <a href="#" class="active">Overview</a>
+        <a href="#">Fin AI Agent</a>
+        <a href="#">Help Center</a>
+        <a href="#">Inbox</a>
+        <a href="#">Analytics</a>
+      </nav>
+
+      <div class="agent-status-pill">
+        <span class="status-dot"></span>
+        <span>Fin AI &amp; 3 Agents Online</span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="main-workspace-grid">
+
+      <!-- Left Side Overview Context -->
+      <section class="help-overview-panel">
+
+        <div class="banner-hero-card">
+          <div class="fin-pill">
+            <span>⚡ FIN AI ASSISTANT</span>
+          </div>
+          <h2>Instant answers for every customer inquiry.</h2>
+          <p>Fin resolves complex technical questions instantly using your verified knowledge base, reducing ticket queues by up to 80%.</p>
+        </div>
+
+        <div class="metrics-row">
+          <div class="metric-card">
+            <div class="metric-val" style="color:var(--intercom-blue);">78.4%</div>
+            <div class="metric-lbl">Fin AI Resolution Rate</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" style="color:var(--fin-orange);">42s</div>
+            <div class="metric-lbl">Median Resolution Time</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val" style="color:var(--success);">96.8%</div>
+            <div class="metric-lbl">Customer CSAT Score</div>
+          </div>
+        </div>
+
+        <div class="kb-articles-box">
+          <div class="kb-header">Popular Knowledge Base Articles</div>
+          <div class="kb-item">
+            <span>Configuring Custom Webhook Endpoints &amp; Subscriptions</span>
+            <span class="kb-tag">API &amp; Integrations</span>
+          </div>
+          <div class="kb-item">
+            <span>SSO / SAML 2.0 Identity Provider Setup Guide</span>
+            <span class="kb-tag">Security</span>
+          </div>
+          <div class="kb-item">
+            <span>Automated Conversation Routing Rules for Enterprise</span>
+            <span class="kb-tag">Workflows</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Right Side: Intercom Customer Messenger Widget -->
+      <aside class="messenger-widget">
+
+        <!-- Dark Navy / Teal Header -->
+        <div class="messenger-header">
+          <div class="messenger-team-row">
+            <div class="avatar-stack">
+              <div class="agent-avatar avatar-fin">Fin</div>
+              <div class="agent-avatar avatar-human">SL</div>
+              <div class="agent-avatar avatar-human" style="background:#10b981;">DM</div>
+              <span class="online-indicator"></span>
+            </div>
+            <div class="widget-actions">
+              <button class="w-btn">⋯</button>
+              <button class="w-btn">−</button>
+            </div>
+          </div>
+
+          <h3 class="messenger-title">Support &amp; Fin AI</h3>
+          <div class="messenger-subtitle">
+            <span style="color:var(--success);">●</span>
+            <span>Fin AI &amp; 3 teammates active · Replies in under 1m</span>
+          </div>
+
+          <!-- Help Center Search -->
+          <div class="messenger-search-bar">
+            <span class="search-icon-pos">🔍</span>
+            <input class="search-input-box" placeholder="Search help or ask Fin AI...">
+            <div class="quick-chips-row">
+              <span class="search-chip">API Webhooks</span>
+              <span class="search-chip">Pricing FAQ</span>
+              <span class="search-chip">Fin AI Setup</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Conversation Stream -->
+        <div class="messenger-body">
+
+          <!-- Fin Greeting -->
+          <div class="chat-bubble-fin">
+            <div class="fin-mini-avatar">Fin</div>
+            <div class="bubble-content-fin">
+              👋 Hi there! I'm Fin, your AI assistant. How can I help you today?
+            </div>
+          </div>
+
+          <!-- User Inquiry -->
+          <div class="chat-bubble-user">
+            Can I connect custom webhook endpoints to automate ticket resolution?
+          </div>
+
+          <!-- Fin Instant Answer Card -->
+          <div class="chat-bubble-fin">
+            <div class="fin-mini-avatar">Fin</div>
+            <div style="flex:1;">
+              <div class="instant-answer-card">
+                <div class="answer-card-header">
+                  <span>⚡</span>
+                  <span>Instant Answer from Knowledge Base</span>
+                </div>
+                <div class="answer-card-body">
+                  Yes! You can configure outbound webhook subscriptions in <strong>Settings &gt; Integrations &gt; Webhooks</strong>. Fin can also subscribe to custom payload events to automatically route or resolve tickets via our REST API.
+                </div>
+                <div class="answer-source-strip">
+                  <span>📄 Docs: Webhooks &amp; REST Event Subscriptions</span>
+                  <div class="feedback-pills">
+                    <button class="f-pill">👍 Helpful</button>
+                    <button class="f-pill">👎 Talk to human</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agent Avatar Status Banner -->
+          <div class="agent-status-banner">
+            <span style="color:var(--success);">●</span>
+            <span>Sarah from Customer Support is on standby if you need human help</span>
+          </div>
+
+        </div>
+
+        <!-- Composer Footer -->
+        <div class="messenger-footer">
+          <div class="input-row">
+            <input class="msg-text-input" placeholder="Ask a question or reply to Fin...">
+            <button class="msg-send-btn">➤</button>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="messenger-nav-tabs">
+          <div class="m-tab">🏠 Home</div>
+          <div class="m-tab active">💬 Messages (1)</div>
+          <div class="m-tab">❓ Help</div>
+          <div class="m-tab">📢 News</div>
+        </div>
+
+      </aside>
+
+    </div>
+
+    <!-- Design Tokens Strip -->
+    <div class="intercom-tokens-strip">
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <strong>INTERCOM DESIGN TOKENS:</strong>
+        <div class="token-chip"><span class="swatch" style="background:#0057ff;"></span><span>#0057ff intercom blue</span></div>
+        <div class="token-chip"><span class="swatch" style="background:#0a192f;"></span><span>#0a192f dark navy</span></div>
+        <div class="token-chip"><span class="swatch" style="background:#ff5600;"></span><span>#ff5600 fin orange</span></div>
+        <div class="token-chip"><span class="swatch" style="background:#f5f1ec;"></span><span>#f5f1ec cream ground</span></div>
+      </div>
+      <div>
+        <span>SAANS TYPOGRAPHY · FIN AI ASSISTANT · MESSENGER 16PX RADIUS</span>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

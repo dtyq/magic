@@ -1,4 +1,4 @@
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 export function isDocumentVisible() {
 	return document.visibilityState === "visible"

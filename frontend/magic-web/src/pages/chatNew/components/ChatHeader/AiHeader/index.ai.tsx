@@ -13,7 +13,7 @@ import { IconMessageTopic } from "@/enhance/tabler/icons-react"
 import conversationService from "@/services/chat/conversation/ConversationService"
 import type Conversation from "@/models/chat/conversation"
 import MagicAvatar from "@/components/base/MagicAvatar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	chatHeaderClassName,
 	chatHeaderExtraSectionButtonActiveClassName,

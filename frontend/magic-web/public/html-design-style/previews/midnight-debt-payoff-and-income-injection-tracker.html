@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Midnight — Debt Snowball Payoff &amp; Income Injection Tracker</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --surface: #18181b;
+      --surface-hover: #27272a;
+      --border: #2e2e33;
+      --lime: #10b981;
+      --lime-glow: rgba(16, 185, 129, 0.2);
+      --amber: #f59e0b;
+      --amber-soft: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+      --radius-card: 12px;
+      --radius-pill: 9999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 30px;
+    }
+
+    .nav-bar { height: 52px; background: #111114; border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; }
+    .brand-cluster { display: flex; align-items: center; gap: 10px; }
+    .brand-icon { width: 32px; height: 32px; border-radius: 6px; background: rgba(16, 185, 129, 0.15); border: 1px solid var(--lime); display: flex; align-items: center; justify-content: center; color: var(--lime); }
+    .brand-name { font-size: 16px; font-weight: 700; }
+    .brand-name span { color: var(--lime); }
+    .nav-tag { font-size: 10px; font-family: var(--font-mono); background: #1f1f23; padding: 2px 6px; border-radius: 4px; color: var(--text-secondary); }
+    .nav-right-meta { display: flex; align-items: center; gap: 12px; }
+    .snowball-active-pill { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: var(--lime); padding: 3px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 5px; font-family: var(--font-mono); }
+    .btn-inject-quick { background: var(--lime); color: #09090b; border: none; border-radius: 6px; padding: 5px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+    .container { max-width: 1300px; margin: 14px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 14px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+    .metric-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--lime); }
+    .metric-card.amber::after { background: var(--amber); }
+    .metric-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+    .metric-val { font-family: var(--font-mono); font-size: 26px; font-weight: 700; color: #FFF; margin: 3px 0 1px; }
+    .metric-sub { font-family: var(--font-mono); font-size: 11px; color: var(--lime); display: flex; align-items: center; gap: 4px; }
+    .metric-sub.amber { color: var(--amber); }
+    .chart-injection-split { display: grid; grid-template-columns: 8fr 4fr; gap: 14px; }
+    .chart-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; }
+    .panel-title { font-size: 13.5px; font-weight: 600; color: #FFF; display: flex; align-items: center; gap: 6px; }
+    .chart-legend { display: flex; gap: 12px; font-size: 11px; font-family: var(--font-mono); }
+    .legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+    .dot-legend { width: 7px; height: 7px; border-radius: 2px; }
+    .svg-curve { width: 100%; height: 190px; display: block; }
+    .injection-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .injection-status-box { background: #111114; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+    .injection-bar-head { display: flex; justify-content: space-between; font-size: 11.5px; }
+    .injection-bar-track { height: 7px; background: #27272a; border-radius: 4px; overflow: hidden; }
+    .injection-bar-fill { height: 100%; width: 84%; background: var(--lime); border-radius: 4px; }
+    .income-source-list { display: flex; flex-direction: column; gap: 6px; }
+    .income-item { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; background: #131316; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; }
+    .income-title { color: var(--text-primary); font-weight: 500; }
+    .income-amount { font-family: var(--font-mono); font-weight: 700; color: var(--lime); }
+    .debts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .debt-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .debt-card.target { border: 1.5px solid var(--lime); box-shadow: 0 0 14px var(--lime-glow); }
+    .debt-top { display: flex; justify-content: space-between; align-items: center; }
+    .debt-name { font-size: 13px; font-weight: 700; color: #FFF; }
+    .apr-badge { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .debt-balance-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .debt-balance { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: #FFF; }
+    .debt-orig { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary); }
+    .debt-progress-track { height: 5px; background: #27272a; border-radius: 3px; overflow: hidden; }
+    .debt-progress-fill { height: 100%; background: var(--lime); border-radius: 3px; }
+    .debt-meta-footer { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); }
+    .warning-due { color: var(--amber); font-weight: 600; }
+    .ledger-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 16px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    th {
+      color: var(--text-secondary);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tr:hover td { background: var(--surface-hover); }
+    .mono { font-family: var(--font-mono); }
+    .tag-type { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); }
+    .type-injection { background: rgba(16, 185, 129, 0.15); color: var(--lime); }
+    .type-snowball { background: rgba(245, 158, 11, 0.15); color: var(--amber); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="nav-bar">
+    <div class="brand-cluster">
+      <div class="brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      </div>
+      <div class="brand-name">Midnight <span>Snowball</span></div>
+      <span class="nav-tag">ACCELERATED RECOVERY ENGINE</span>
+    </div>
+
+    <div class="nav-right-meta">
+      <div class="snowball-active-pill">
+        <span>SNOWBALL BUDGET:</span> <strong>+$650.00 / mo</strong>
+      </div>
+      <button class="btn-inject-quick">+ Inject Income</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Top 500px High-Impact KPIs -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-head">
+          <span>Remaining Debt</span>
+          <span style="font-family:var(--font-mono); font-weight:700; color:var(--lime);">41.2% PAID</span>
+        </div>
+        <div class="metric-val">$34,820</div>
+        <div class="metric-sub">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          -$1,420 from last month
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-head">
+          <span>Monthly Payoff Budget</span>
+          <span style="font-family:var(--font-mono); color:var(--text-secondary);">ACCELERATED</span>
+        </div>
+        <div class="metric-val">$1,250 <small style="font-size:14px;color:var(--text-secondary);font-weight:400">/mo</small></div>
+        <div class="metric-sub">
+          $600 min + $650 snowball injection
+        </div>
+      </div>
+
+      <div class="metric-card amber">
+        <div class="metric-head">
+          <span>Debt-Free Milestone</span>
+          <span style="font-family:var(--font-mono); font-weight:700; color:var(--amber);">-3.7 YEARS</span>
+        </div>
+        <div class="metric-val" style="color:var(--amber);">Aug 2027</div>
+        <div class="metric-sub amber">
+          Saving $9,430 in compounding APR
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-head">
+          <span>Active Pipelines</span>
+          <span style="font-family:var(--font-mono); font-weight:700; color:var(--lime);">TARGET #1</span>
+        </div>
+        <div class="metric-val">3 <small style="font-size:14px;color:var(--text-secondary);font-weight:400">accounts</small></div>
+        <div class="metric-sub">
+          Focus: Chase Sapphire ($4,200)
+        </div>
+      </div>
+    </section>
+
+    <!-- Payoff Curve & Side-Income Injection Split -->
+    <div class="chart-injection-split">
+
+      <!-- Snowball Payoff Decay Curve -->
+      <section class="chart-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+            Snowball Acceleration vs. Minimum Payments Baseline
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="dot-legend" style="background:var(--lime);"></div>Accelerated Snowball (2027)</div>
+            <div class="legend-item"><div class="dot-legend" style="background:#52525b;"></div>Minimums Only (2031)</div>
+          </div>
+        </div>
+
+        <!-- SVG Vector Payoff Timeline Curve -->
+        <svg class="svg-curve" viewBox="0 0 740 200" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="limeCurveGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Grid Lines -->
+          <line x1="40" y1="170" x2="720" y2="170" stroke="#27272a" stroke-width="1"/>
+          <line x1="40" y1="125" x2="720" y2="125" stroke="#27272a" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="40" y1="80" x2="720" y2="80" stroke="#27272a" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="40" y1="35" x2="720" y2="35" stroke="#27272a" stroke-width="1" stroke-dasharray="3 3"/>
+
+          <!-- Y-axis -->
+          <text x="32" y="174" fill="#a1a1aa" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">$0</text>
+          <text x="32" y="129" fill="#a1a1aa" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">$20k</text>
+          <text x="32" y="84" fill="#a1a1aa" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">$40k</text>
+          <text x="32" y="39" fill="#a1a1aa" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">$60k</text>
+
+          <!-- Baseline Minimum Payments Curve (Slower decay to 2031) -->
+          <path d="M 40 38 Q 220 55 380 85 T 560 120 T 720 155" fill="none" stroke="#52525b" stroke-width="2" stroke-dasharray="4 4"/>
+
+          <!-- Accelerated Snowball Curve Area & Line -->
+          <path d="M 40 38 Q 160 55 260 85 T 380 125 T 490 170 L 40 170 Z" fill="url(#limeCurveGrad)"/>
+          <path d="M 40 38 Q 160 55 260 85 T 380 125 T 490 170" fill="none" stroke="#10b981" stroke-width="2.5"/>
+
+          <!-- Current Point Marker (Now) -->
+          <circle cx="260" cy="85" r="4.5" fill="#10b981" stroke="#09090b" stroke-width="2"/>
+          <text x="260" y="74" fill="#10b981" font-size="10" font-family="'JetBrains Mono'" font-weight="700" text-anchor="middle">NOW ($34.8k)</text>
+
+          <!-- Debt Free Marker 2027 -->
+          <circle cx="490" cy="170" r="4.5" fill="#10b981" stroke="#09090b" stroke-width="2"/>
+          <text x="490" y="160" fill="#10b981" font-size="10" font-family="'JetBrains Mono'" font-weight="700" text-anchor="middle">Aug 2027 (Free)</text>
+
+          <!-- X-axis Labels -->
+          <text x="40" y="188" fill="#a1a1aa" font-size="9.5" font-family="'JetBrains Mono'">2024</text>
+          <text x="180" y="188" fill="#a1a1aa" font-size="9.5" font-family="'JetBrains Mono'">2025</text>
+          <text x="330" y="188" fill="#a1a1aa" font-size="9.5" font-family="'JetBrains Mono'">2026</text>
+          <text x="490" y="188" fill="#10b981" font-size="9.5" font-family="'JetBrains Mono'" font-weight="700">2027 (Goal)</text>
+          <text x="680" y="188" fill="#52525b" font-size="9.5" font-family="'JetBrains Mono'">2031 (Min)</text>
+        </svg>
+      </section>
+
+      <!-- Side-Income Injection Module -->
+      <aside class="injection-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="18" x2="12" y2="20"/><line x1="12" y1="4" x2="12" y2="6"/></svg>
+            Side-Income Injection
+          </div>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--lime);font-weight:700;">ACTIVE</span>
+        </div>
+
+        <div class="injection-status-box">
+          <div class="injection-bar-head">
+            <span style="color:var(--text-secondary);">September Goal ($1,000)</span>
+            <strong style="font-family:var(--font-mono);color:var(--lime);">$840 (84%)</strong>
+          </div>
+          <div class="injection-bar-track">
+            <div class="injection-bar-fill"></div>
+          </div>
+        </div>
+
+        <div class="income-source-list">
+          <div class="income-item">
+            <div>
+              <div class="income-title">Upwork UI Contract</div>
+              <span style="font-size:10.5px;color:var(--text-secondary);">Direct Snowball Injected</span>
+            </div>
+            <span class="income-amount">+$520.00</span>
+          </div>
+
+          <div class="income-item">
+            <div>
+              <div class="income-title">Consulting Advisory</div>
+              <span style="font-size:10.5px;color:var(--text-secondary);">Direct Snowball Injected</span>
+            </div>
+            <span class="income-amount">+$320.00</span>
+          </div>
+        </div>
+
+        <button class="btn-inject-quick" style="width:100%;padding:10px;font-size:12.5px;">
+          + Direct Injection to Chase Sapphire
+        </button>
+      </aside>
+
+    </div>
+
+    <!-- Active Debt Pipelines (Cards with APR & Progress) -->
+    <section class="debts-grid">
+
+      <!-- Debt 1: Chase Sapphire (Active Target) -->
+      <div class="debt-card target">
+        <div class="debt-top">
+          <div class="debt-name">1. Chase Sapphire Reserve</div>
+          <span class="apr-badge">24.99% APR</span>
+        </div>
+        <div class="debt-balance-row">
+          <div class="debt-balance">$4,200</div>
+          <div class="debt-orig">Original: $8,500</div>
+        </div>
+        <div class="debt-progress-track">
+          <div class="debt-progress-fill" style="width: 50.6%;"></div>
+        </div>
+        <div class="debt-meta-footer">
+          <span>Min: $140 + Snowball: $650</span>
+          <span class="warning-due">Due in 2 days</span>
+        </div>
+      </div>
+
+      <!-- Debt 2: Discover It -->
+      <div class="debt-card">
+        <div class="debt-top">
+          <div class="debt-name">2. Discover It Cashback</div>
+          <span class="apr-badge">18.24% APR</span>
+        </div>
+        <div class="debt-balance-row">
+          <div class="debt-balance">$8,420</div>
+          <div class="debt-orig">Original: $12,000</div>
+        </div>
+        <div class="debt-progress-track">
+          <div class="debt-progress-fill" style="width: 29.8%; background:#52525b;"></div>
+        </div>
+        <div class="debt-meta-footer">
+          <span>Min Pay: $210 / mo</span>
+          <span>Due in 14 days</span>
+        </div>
+      </div>
+
+      <!-- Debt 3: Auto Loan -->
+      <div class="debt-card">
+        <div class="debt-top">
+          <div class="debt-name">3. Credit Union Auto Loan</div>
+          <span class="apr-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;">6.49% APR</span>
+        </div>
+        <div class="debt-balance-row">
+          <div class="debt-balance">$22,200</div>
+          <div class="debt-orig">Original: $28,000</div>
+        </div>
+        <div class="debt-progress-track">
+          <div class="debt-progress-fill" style="width: 20.7%; background:#52525b;"></div>
+        </div>
+        <div class="debt-meta-footer">
+          <span>Min Pay: $250 / mo</span>
+          <span>Due in 22 days</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Audited Transaction Ledger -->
+    <section class="ledger-panel">
+      <div class="panel-header" style="margin-bottom:10px;">
+        <div class="panel-title">Audited Double-Entry Snowball Ledger</div>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">POSTGRES ACID SYNCED</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Description / Source</th>
+            <th>Target Debt</th>
+            <th>Amount Paid</th>
+            <th>New Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">Sep 18, 2026</td>
+            <td><span class="tag-type type-injection">EXTRA INJECTION</span></td>
+            <td>Freelance Sprint Payout #44</td>
+            <td>Chase Sapphire Reserve</td>
+            <td class="mono" style="color:var(--lime);font-weight:700;">+$520.00</td>
+            <td class="mono">$4,200.00</td>
+          </tr>
+          <tr>
+            <td class="mono">Sep 14, 2026</td>
+            <td><span class="tag-type type-snowball">SNOWBALL ROLLOVER</span></td>
+            <td>Monthly Extra Allocation</td>
+            <td>Chase Sapphire Reserve</td>
+            <td class="mono" style="color:var(--lime);font-weight:700;">+$650.00</td>
+            <td class="mono">$4,720.00</td>
+          </tr>
+          <tr>
+            <td class="mono">Sep 02, 2026</td>
+            <td><span class="tag-type" style="background:#27272a;color:var(--text-secondary)">MINIMUM PAYMENT</span></td>
+            <td>Scheduled Auto-Pay</td>
+            <td>Discover It Cashback</td>
+            <td class="mono">$210.00</td>
+            <td class="mono">$8,420.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+
+</body>
+</html>

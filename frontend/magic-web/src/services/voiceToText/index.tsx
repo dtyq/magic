@@ -6,7 +6,7 @@ import { userStore } from "@/models/user"
 import { env } from "@/utils/env"
 import { VoiceResult } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { createPersistenceStorage } from "./PersistenceManager"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { merge } from "lodash-es"
 
 const DEFAULT_CONFIG: VoiceInputConfig = {
@@ -447,9 +447,6 @@ class VoiceToTextService {
 			logger.log(this.createLogPayload("开始录音：创建新的录制会话"))
 		}
 
-		// Queue state management is now handled in Worker
-		this.updateStatus("recording")
-
 		if (!this.audioProcessor?.isRecording) {
 			try {
 				await this.audioProcessor?.start(this.externalAudioStream ?? undefined)
@@ -461,11 +458,16 @@ class VoiceToTextService {
 					message: "开始录音失败：启动音频处理器失败",
 					context: this.createLogContext(),
 				})
+				// A failed microphone start must end the ASR session too. Otherwise its
+				// idle timeout retries the connection and reopens the recording UI.
+				this.disconnect()
 				throw error
 			}
 		}
 
 		this.isRecording = true
+		// Permission prompts are still startup; only a running microphone is recording.
+		this.updateStatus("recording")
 
 		// 保存当前会话状态
 		await this.saveCurrentSession()

@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest"
 import type { Canvas } from "../../../../runtime/core/Canvas"
+import type { VideoInputModeConfig } from "../../../../public/magic-types"
+import { createTestResourceReferenceResolver } from "../../../../public/__tests__/testResourceReferenceResolver"
 import {
 	type CanvasConnection,
+	type AudioElement,
 	ElementTypeEnum,
 	type FrameElement,
+	type GroupElement,
+	type ImageElement as ImageElementData,
 	type LayerElement,
+	type RectangleElement,
+	type TextElement,
+	type VideoElement,
 } from "../../../../runtime/document/types"
 import {
 	collectLinkedFrameSourceElements,
@@ -13,7 +21,7 @@ import {
 	createLinkedUpstreamSourceId,
 	dedupeLinkedMediaItemsByPath,
 	getLinkedMediaReferenceIdentity,
-	mergeLinkedMediaPaths,
+	mergeLinkedMediaPathsWithResolver,
 	mergeLinkedMediaReferences,
 	resolveLinkedMediaDisplay,
 	resolveLinkedMediaAssociation,
@@ -24,26 +32,65 @@ import {
 	type LinkedEditorMediaCandidate,
 	type ResolveLinkedMediaAssociationOptions,
 } from "../linkedEditorInputs"
+import { validateReferenceAssetsByLimits } from "../../../../runtime/media-editors/video/reference-asset-limits"
 
-function textElement(id: string, text: string, zIndex = 0): LayerElement {
+const resolveDesignAResourceReference = createTestResourceReferenceResolver()
+
+function textElement(id: string, text: string, zIndex = 0): TextElement {
 	return {
 		id,
 		type: ElementTypeEnum.Text,
 		zIndex,
-		content: [{ children: [{ type: "text", text }] }],
+		activeContentId: `${id}-content-1`,
+		mainContentId: `${id}-content-1`,
+		contents: [
+			{ contentId: `${id}-content-1`, content: [{ children: [{ type: "text", text }] }] },
+		],
 	}
 }
 
-function imageElement(id: string, src: string, zIndex = 0): LayerElement {
-	return { id, type: ElementTypeEnum.Image, zIndex, src }
+function imageElement(id: string, src: string, zIndex = 0): ImageElementData {
+	return {
+		id,
+		type: ElementTypeEnum.Image,
+		zIndex,
+		activeContentId: `${id}-content-1`,
+		mainContentId: `${id}-content-1`,
+		contents: [{ contentId: `${id}-content-1`, src }],
+	}
 }
 
-function videoElement(id: string, src: string, zIndex = 0): LayerElement {
-	return { id, type: ElementTypeEnum.Video, zIndex, src }
+function videoElement(id: string, src: string, zIndex = 0): VideoElement {
+	return {
+		id,
+		type: ElementTypeEnum.Video,
+		zIndex,
+		activeContentId: `${id}-content-1`,
+		mainContentId: `${id}-content-1`,
+		contents: [{ contentId: `${id}-content-1`, src }],
+	}
+}
+
+function audioElement(id: string, src?: string, zIndex = 0): AudioElement {
+	return {
+		id,
+		type: ElementTypeEnum.Audio,
+		zIndex,
+		activeContentId: `${id}-content-1`,
+		mainContentId: `${id}-content-1`,
+		contents: [{ contentId: `${id}-content-1`, ...(src ? { src } : {}) }],
+	}
 }
 
 function createCanvasStub(elements: LayerElement[], connections: CanvasConnection[]): Canvas {
-	const elementById = new Map(elements.map((element) => [element.id, element]))
+	const elementById = new Map<string, LayerElement>()
+	const register = (element: LayerElement) => {
+		elementById.set(element.id, element)
+		if ("children" in element && Array.isArray(element.children)) {
+			element.children.forEach(register)
+		}
+	}
+	elements.forEach(register)
 	return {
 		connectionManager: {
 			getUpstreamConnections: (elementId: string) =>
@@ -56,19 +103,191 @@ function createCanvasStub(elements: LayerElement[], connections: CanvasConnectio
 }
 
 describe("linked frame source collection", () => {
+	it("resolves linked image inputs from the main Content", () => {
+		const source: ImageElementData = {
+			id: "source-image",
+			type: ElementTypeEnum.Image,
+			activeContentId: "dsl-active",
+			mainContentId: "associated-content",
+			contents: [
+				{ contentId: "dsl-active", src: "./images/dsl-active.png" },
+				{
+					contentId: "associated-content",
+					src: "./images/associated.png",
+					crop: { x: 10, y: 20, width: 300, height: 200 },
+				},
+			],
+		}
+		const target = videoElement("target", "./videos/target.mp4")
+		const canvas = createCanvasStub(
+			[source, target],
+			[{ id: "image-video", sourceElementId: source.id, targetElementId: target.id }],
+		)
+
+		const [item] = resolveLinkedEditorInputs({
+			canvas,
+			targetElementId: target.id,
+			targetKind: "video",
+		}).mediaItems
+
+		expect(item).toMatchObject({
+			path: "./images/associated.png",
+			sourceCrop: { x: 10, y: 20, width: 300, height: 200 },
+			sourceContentId: "associated-content",
+		})
+	})
+
+	it("resolves text, video, and audio downstream inputs from their main Contents", () => {
+		const text = textElement("source-text", "active prompt")
+		text.contents.push({
+			contentId: "source-text-main",
+			content: [{ children: [{ type: "text", text: "main prompt" }] }],
+		})
+		text.mainContentId = "source-text-main"
+
+		const video = videoElement("source-video", "./videos/active.mp4")
+		video.contents.push({ contentId: "source-video-main", src: "./videos/main.mp4" })
+		video.mainContentId = "source-video-main"
+
+		const audio = audioElement("source-audio", "./audios/active.mp3")
+		audio.contents.push({ contentId: "source-audio-main", src: "./audios/main.mp3" })
+		audio.mainContentId = "source-audio-main"
+
+		const target = videoElement("target", "./videos/target.mp4")
+		const canvas = createCanvasStub(
+			[text, video, audio, target],
+			[text, video, audio].map((source) => ({
+				id: `${source.id}-connection`,
+				sourceElementId: source.id,
+				targetElementId: target.id,
+			})),
+		)
+
+		const result = resolveLinkedEditorInputs({
+			canvas,
+			targetElementId: target.id,
+			targetKind: "video",
+			mediaPolicy: { supportedKinds: ["video", "audio"] },
+		})
+
+		expect(result.connectedSourceElementIds).toEqual([text.id, video.id, audio.id])
+		expect(result.textPrompt).toContain("main prompt")
+		expect(result.textPrompt).not.toContain("active prompt")
+		expect(result.mediaItems).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					sourceElementId: video.id,
+					path: "./videos/main.mp4",
+					sourceContentId: "source-video-main",
+				}),
+				expect.objectContaining({
+					sourceElementId: audio.id,
+					path: "./audios/main.mp3",
+					sourceContentId: "source-audio-main",
+				}),
+			]),
+		)
+	})
+
+	it("collects direct and framed audio candidates for video targets", () => {
+		const directAudio = audioElement("direct-audio", "./audios/direct.mp3")
+		const framedAudio = audioElement("framed-audio", "./audios/framed.wav")
+		const frame: FrameElement = {
+			id: "audio-frame",
+			type: ElementTypeEnum.Frame,
+			activeContentId: "audio-frame-content-1",
+			mainContentId: "audio-frame-content-1",
+			contents: [{ contentId: "audio-frame-content-1" }],
+			children: [framedAudio],
+		}
+		const target = videoElement("target", "./videos/target.mp4")
+		const canvas = createCanvasStub(
+			[directAudio, framedAudio, frame, target],
+			[
+				{
+					id: "direct-audio-connection",
+					sourceElementId: directAudio.id,
+					targetElementId: target.id,
+				},
+				{
+					id: "frame-connection",
+					sourceElementId: frame.id,
+					targetElementId: target.id,
+				},
+			],
+		)
+
+		const result = resolveLinkedEditorInputs({
+			canvas,
+			targetElementId: target.id,
+			targetKind: "video",
+			mediaPolicy: { supportedKinds: ["audio"], maxCountByKind: { audio: 2 } },
+		})
+
+		expect(result.mediaItems).toEqual([
+			expect.objectContaining({
+				connectionId: "direct-audio-connection",
+				kind: "audio",
+				path: "./audios/direct.mp3",
+				status: "inactive",
+			}),
+			expect.objectContaining({
+				connectionId: createLinkedFrameSourceId("frame-connection", "framed-audio"),
+				kind: "audio",
+				path: "./audios/framed.wav",
+				status: "inactive",
+			}),
+		])
+	})
+
+	it("marks audio without src as missing and keeps it unsupported for image targets", () => {
+		const source = audioElement("audio-source")
+		const target = imageElement("target", "./images/target.png")
+		const canvas = createCanvasStub(
+			[source, target],
+			[{ id: "audio-image", sourceElementId: source.id, targetElementId: target.id }],
+		)
+
+		const [item] = resolveLinkedEditorInputs({
+			canvas,
+			targetElementId: target.id,
+			targetKind: "image",
+			mediaPolicy: { supportedKinds: ["audio"] },
+		}).mediaItems
+
+		expect(item).toMatchObject({
+			kind: "audio",
+			status: "inactive",
+			reason: "unsupported-type",
+		})
+	})
+
 	it("recursively collects consumable visible descendants in stable z-index order", () => {
 		const frame: FrameElement = {
 			id: "frame-source",
 			type: ElementTypeEnum.Frame,
+			activeContentId: "frame-source-content-1",
+			mainContentId: "frame-source-content-1",
+			contents: [{ contentId: "frame-source-content-1" }],
 			children: [
 				textElement("text-top", "top", 20),
-				{
+				<GroupElement>{
 					id: "nested-group",
 					type: ElementTypeEnum.Group,
 					zIndex: 10,
+					activeContentId: "nested-group-content-1",
+					mainContentId: "nested-group-content-1",
+					contents: [{ contentId: "nested-group-content-1" }],
 					children: [imageElement("image", "/images/a.png", 1)],
 				},
-				{ id: "shape", type: ElementTypeEnum.Rectangle, zIndex: 15 },
+				<RectangleElement>{
+					id: "shape",
+					type: ElementTypeEnum.Rectangle,
+					zIndex: 15,
+					activeContentId: "shape-content-1",
+					mainContentId: "shape-content-1",
+					contents: [{ contentId: "shape-content-1" }],
+				},
 				{ ...videoElement("hidden-video", "/videos/a.mp4", 30), visible: false },
 			],
 		}
@@ -90,11 +309,52 @@ describe("linked frame source collection", () => {
 		])
 	})
 
+	it("expands a directly connected Group root into image inputs", () => {
+		const group: GroupElement = {
+			id: "group-source",
+			type: ElementTypeEnum.Group,
+			activeContentId: "group-source-content-1",
+			mainContentId: "group-source-content-1",
+			contents: [{ contentId: "group-source-content-1" }],
+			children: [imageElement("group-image", "/images/group.png")],
+		}
+		const target = videoElement("target", "/videos/target.mp4")
+		const canvas = createCanvasStub(
+			[group, target],
+			[
+				{
+					id: "group-connection",
+					sourceElementId: group.id,
+					targetElementId: target.id,
+				},
+			],
+		)
+
+		expect(
+			resolveLinkedEditorInputs({
+				canvas,
+				targetElementId: target.id,
+				targetKind: "video",
+				mediaPolicy: { supportedKinds: ["image"] },
+			}).mediaItems,
+		).toEqual([
+			expect.objectContaining({
+				connectionId: createLinkedFrameSourceId("group-connection", "group-image"),
+				sourceElementId: "group-image",
+				rootSourceElementId: "group-source",
+				path: "/images/group.png",
+			}),
+		])
+	})
+
 	it("expands an upstream frame and lets a direct element connection win deduplication", () => {
 		const sharedImage = imageElement("shared-image", "/images/shared.png", 1)
 		const frame: FrameElement = {
 			id: "frame-source",
 			type: ElementTypeEnum.Frame,
+			activeContentId: "frame-source-content-1",
+			mainContentId: "frame-source-content-1",
+			contents: [{ contentId: "frame-source-content-1" }],
 			children: [
 				textElement("frame-text", "frame prompt", 0),
 				sharedImage,
@@ -196,7 +456,13 @@ describe("linked upstream source collection", () => {
 
 	it("continues through non-consumable graph nodes", () => {
 		const elementA = textElement("A", "A")
-		const elementB: LayerElement = { id: "B", type: ElementTypeEnum.Rectangle }
+		const elementB: RectangleElement = {
+			id: "B",
+			type: ElementTypeEnum.Rectangle,
+			activeContentId: "B-content-1",
+			mainContentId: "B-content-1",
+			contents: [{ contentId: "B-content-1" }],
+		}
 		const elementC = videoElement("C", "/videos/c.mp4")
 		const canvas = createCanvasStub(
 			[elementA, elementB, elementC],
@@ -289,6 +555,13 @@ describe("resolveLinkedMediaItems", () => {
 		path: "/images/source.png",
 		fileName: "source.png",
 	}
+	const videoCandidate: LinkedEditorMediaCandidate = {
+		connectionId: "connection-video",
+		sourceElementId: "video-source",
+		kind: "video",
+		path: "/videos/source.mp4",
+		fileName: "source.mp4",
+	}
 
 	it("marks supported linked media as active", () => {
 		expect(
@@ -300,6 +573,37 @@ describe("resolveLinkedMediaItems", () => {
 				},
 			}),
 		).toEqual([expect.objectContaining({ status: "active" })])
+	})
+
+	it("allows linked media to build a variant incrementally", () => {
+		const modeConfig: VideoInputModeConfig = {
+			supported_fields: ["reference_images", "reference_videos"],
+			variants: [
+				{
+					code: "image-and-video",
+					limits: {
+						reference_images: { min: 1, max: 1 },
+						reference_videos: { min: 1, max: 1 },
+					},
+				},
+			],
+		}
+
+		const result = resolveLinkedMediaItems([imageCandidate, videoCandidate], {
+			targetKind: "video",
+			mediaPolicy: {
+				supportedKinds: ["image", "video"],
+				validateActiveReferences: (references) => {
+					const hasMaxIssue = validateReferenceAssetsByLimits(
+						modeConfig,
+						references.map((reference) => ({ assetType: reference.kind })),
+					).some((issue) => issue.rule === "max" && issue.reason !== "variant")
+					return hasMaxIssue ? "over-limit" : null
+				},
+			},
+		})
+
+		expect(result.map((item) => item.status)).toEqual(["active", "active"])
 	})
 
 	it("keeps source crop on active linked media", () => {
@@ -334,11 +638,34 @@ describe("resolveLinkedMediaItems", () => {
 		).toEqual([expect.objectContaining({ status: "inactive", reason: "over-limit" })])
 	})
 
-	it("normalizes equivalent resource paths for identity checks", () => {
-		expect(getLinkedMediaReferenceIdentity("./images/source.png")).toBe("images/source.png")
-		expect(mergeLinkedMediaPaths(["./images/source.png"], ["/images/source.png"])).toEqual([
-			"./images/source.png",
-		])
+	it("normalizes only host-proven current-canvas aliases", () => {
+		expect(
+			getLinkedMediaReferenceIdentity("./images/source.png", resolveDesignAResourceReference),
+		).toBe("workspace:/画布A/images/source.png")
+		expect(
+			mergeLinkedMediaPathsWithResolver(
+				resolveDesignAResourceReference,
+				["./images/source.png"],
+				["/画布A/images/source.png"],
+			),
+		).toEqual(["./images/source.png"])
+	})
+
+	it("keeps workspace-root and current-canvas linked media separate with host identity", () => {
+		expect(
+			mergeLinkedMediaPathsWithResolver(
+				resolveDesignAResourceReference,
+				["./images/source.png"],
+				["/images/source.png"],
+			),
+		).toEqual(["./images/source.png", "/images/source.png"])
+		expect(
+			mergeLinkedMediaPathsWithResolver(
+				resolveDesignAResourceReference,
+				["./images/source.png"],
+				["/画布A/images/source.png"],
+			),
+		).toEqual(["./images/source.png"])
 	})
 
 	it("marks duplicate linked media as inactive", () => {
@@ -450,32 +777,36 @@ describe("mergeLinkedMediaReferences", () => {
 		expect(
 			mergeLinkedMediaReferences(
 				[{ kind: "image", path: "./images/source.png" }],
-				[{ kind: "image", path: "/images/source.png", sourceCrop }],
+				[{ kind: "image", path: "/画布A/images/source.png", sourceCrop }],
+				resolveDesignAResourceReference,
 			),
-		).toEqual([{ kind: "image", path: "/images/source.png", sourceCrop }])
+		).toEqual([{ kind: "image", path: "/画布A/images/source.png", sourceCrop }])
 	})
 })
 
 describe("dedupeLinkedMediaItemsByPath", () => {
 	it("shows one item per resource and keeps the selected connection", () => {
-		const items = dedupeLinkedMediaItemsByPath([
-			{
-				connectionId: "connection-1",
-				sourceElementId: "source-1",
-				kind: "image",
-				path: "./images/shared.png",
-				status: "inactive",
-				selected: false,
-			},
-			{
-				connectionId: "connection-2",
-				sourceElementId: "source-2",
-				kind: "image",
-				path: "/images/shared.png",
-				status: "active",
-				selected: true,
-			},
-		])
+		const items = dedupeLinkedMediaItemsByPath(
+			[
+				{
+					connectionId: "connection-1",
+					sourceElementId: "source-1",
+					kind: "image",
+					path: "./images/shared.png",
+					status: "inactive",
+					selected: false,
+				},
+				{
+					connectionId: "connection-2",
+					sourceElementId: "source-2",
+					kind: "image",
+					path: "/画布A/images/shared.png",
+					status: "active",
+					selected: true,
+				},
+			],
+			resolveDesignAResourceReference,
+		)
 
 		expect(items).toHaveLength(1)
 		expect(items[0]).toEqual(expect.objectContaining({ connectionId: "connection-2" }))
@@ -483,12 +814,38 @@ describe("dedupeLinkedMediaItemsByPath", () => {
 })
 
 describe("resolveLinkedMediaDisplay", () => {
+	it("hides media rejected by the existing type or mode policy", () => {
+		const unsupportedItems = [
+			{
+				connectionId: "unsupported-type",
+				sourceElementId: "video-source",
+				kind: "video" as const,
+				path: "/videos/source.mp4",
+				status: "inactive" as const,
+				reason: "unsupported-type" as const,
+			},
+			{
+				connectionId: "unsupported-mode",
+				sourceElementId: "audio-source",
+				kind: "audio" as const,
+				path: "/audios/source.mp3",
+				status: "inactive" as const,
+				reason: "unsupported-mode" as const,
+			},
+		]
+
+		expect(resolveLinkedMediaDisplay([], () => "", unsupportedItems)).toEqual({
+			manualItems: [],
+			linkedItems: [],
+		})
+	})
+
 	it("uses the linked card as the single display item for a manually mentioned resource", () => {
 		const linkedItem = {
 			connectionId: "connection-image",
 			sourceElementId: "image-source",
 			kind: "image" as const,
-			path: "/images/shared.png",
+			path: "/画布A/images/shared.png",
 			status: "inactive" as const,
 			selected: false,
 		}
@@ -496,6 +853,7 @@ describe("resolveLinkedMediaDisplay", () => {
 			[{ path: "./images/shared.png", fileName: "shared.png" }],
 			(item) => item.path,
 			[linkedItem],
+			resolveDesignAResourceReference,
 		)
 
 		expect(result.manualItems).toEqual([])
@@ -534,9 +892,10 @@ describe("resolveLinkedMediaAssociation", () => {
 					path: "./images/source.png",
 				},
 			],
-			mentionedPaths: ["/images/source.png"],
+			mentionedPaths: ["/画布A/images/source.png"],
 			targetKind: "image",
 			mediaPolicy: { supportedKinds: ["image"] },
+			resolveResourceReference: resolveDesignAResourceReference,
 		})
 
 		expect(result.items[0]?.selected).toBe(true)
@@ -576,12 +935,13 @@ describe("resolveLinkedMediaAssociation", () => {
 					connectionId: "connection-second",
 					sourceElementId: "image-second",
 					kind: "image",
-					path: "/images/source.png",
+					path: "/画布A/images/source.png",
 				},
 			],
-			mentionedPaths: ["images/source.png"],
+			mentionedPaths: ["/画布A/images/source.png"],
 			targetKind: "image",
 			mediaPolicy: { supportedKinds: ["image"] },
+			resolveResourceReference: resolveDesignAResourceReference,
 		})
 
 		expect(result.items).toHaveLength(1)
@@ -600,9 +960,10 @@ describe("resolveLinkedMediaAssociation", () => {
 					path: "./images/source.png",
 				},
 			],
-			mentionedPaths: ["/images/source.png"],
+			mentionedPaths: ["/画布A/images/source.png"],
 			targetKind: "video",
 			mediaPolicy: { supportedKinds: ["video"] },
+			resolveResourceReference: resolveDesignAResourceReference,
 		})
 
 		expect(result.items[0]).toEqual(
@@ -632,9 +993,10 @@ describe("resolveLinkedMediaAssociation", () => {
 					path: "./images/second.png",
 				},
 			],
-			mentionedPaths: ["/images/first.png", "/images/second.png"],
+			mentionedPaths: ["/画布A/images/first.png", "/画布A/images/second.png"],
 			targetKind: "image",
 			mediaPolicy: { supportedKinds: ["image"], maxTotalCount: 1 },
+			resolveResourceReference: resolveDesignAResourceReference,
 		})
 
 		expect(result.items).toEqual([
@@ -665,9 +1027,10 @@ describe("resolveLinkedMediaAssociation", () => {
 			targetKind: "image",
 			mediaPolicy: {
 				supportedKinds: ["image"],
-				manualReferences: [{ kind: "image", path: "/images/source.png" }],
+				manualReferences: [{ kind: "image", path: "/画布A/images/source.png" }],
 				maxTotalCount: 1,
 			},
+			resolveResourceReference: resolveDesignAResourceReference,
 		} satisfies Omit<ResolveLinkedMediaAssociationOptions, "mentionedPaths">
 		const result = resolveLinkedMediaAssociation({
 			...associationOptions,
@@ -684,7 +1047,7 @@ describe("resolveLinkedMediaAssociation", () => {
 
 		const checkedResult = resolveLinkedMediaAssociation({
 			...associationOptions,
-			mentionedPaths: ["/images/source.png"],
+			mentionedPaths: ["/画布A/images/source.png"],
 		})
 		expect(checkedResult.items[0]?.selected).toBe(true)
 		expect(checkedResult.activeMediaReferences).toEqual([
@@ -708,12 +1071,13 @@ describe("resolveLinkedMediaAssociation", () => {
 				},
 			],
 			mentionedPaths: [],
-			manualReferences: [{ kind: "image", path: "/images/source.png" }],
+			manualReferences: [{ kind: "image", path: "/画布A/images/source.png" }],
 			targetKind: "image",
 			mediaPolicy: {
 				supportedKinds: ["image"],
 				maxTotalCount: 1,
 			},
+			resolveResourceReference: resolveDesignAResourceReference,
 		})
 
 		expect(result.items[0]).toEqual(
@@ -724,7 +1088,7 @@ describe("resolveLinkedMediaAssociation", () => {
 			}),
 		)
 		expect(result.activeMediaReferences).toEqual([
-			{ kind: "image", path: "/images/source.png" },
+			{ kind: "image", path: "/画布A/images/source.png" },
 		])
 	})
 })
@@ -810,8 +1174,13 @@ describe("resolveLinkedMediaPolicySelection", () => {
 
 	it("keeps a selected linked resource active when it is also manually mentioned", () => {
 		const sourceCrop = { x: 4, y: 8, width: 200, height: 120 }
+		const canvasAbsoluteCandidate = {
+			...firstImageCandidate,
+			path: "/画布A/images/source-1.png",
+			sourceCrop,
+		}
 		const result = resolveLinkedMediaPolicySelection(
-			[{ ...firstImageCandidate, sourceCrop }],
+			[canvasAbsoluteCandidate],
 			[firstImageCandidate.connectionId],
 			{
 				targetKind: "image",
@@ -820,6 +1189,7 @@ describe("resolveLinkedMediaPolicySelection", () => {
 					manualReferences: [{ kind: "image", path: "./images/source-1.png" }],
 					maxTotalCount: 1,
 				},
+				resolveResourceReference: resolveDesignAResourceReference,
 			},
 		)
 
@@ -831,7 +1201,80 @@ describe("resolveLinkedMediaPolicySelection", () => {
 			}),
 		])
 		expect(result.activeMediaReferences).toEqual([
-			{ kind: "image", path: firstImageCandidate.path, sourceCrop },
+			{ kind: "image", path: canvasAbsoluteCandidate.path, sourceCrop },
+		])
+	})
+
+	it("keeps workspace-root and current-canvas candidates separately selected", () => {
+		const workspaceRootCandidate: LinkedEditorMediaCandidate = {
+			...firstImageCandidate,
+			path: "/images/shared.png",
+		}
+		const currentCanvasCandidate: LinkedEditorMediaCandidate = {
+			...secondImageCandidate,
+			path: "./images/shared.png",
+		}
+		const result = resolveLinkedMediaPolicySelection(
+			[workspaceRootCandidate, currentCanvasCandidate],
+			[workspaceRootCandidate.connectionId, currentCanvasCandidate.connectionId],
+			{
+				targetKind: "image",
+				mediaPolicy: { supportedKinds: ["image"], maxTotalCount: 2 },
+				resolveResourceReference: resolveDesignAResourceReference,
+			},
+		)
+
+		expect(result.items).toEqual([
+			expect.objectContaining({
+				connectionId: workspaceRootCandidate.connectionId,
+				selected: true,
+				status: "active",
+			}),
+			expect.objectContaining({
+				connectionId: currentCanvasCandidate.connectionId,
+				selected: true,
+				status: "active",
+			}),
+		])
+		expect(result.activeMediaReferences).toEqual([
+			{ kind: "image", path: "/images/shared.png", sourceCrop: undefined },
+			{ kind: "image", path: "./images/shared.png", sourceCrop: undefined },
+		])
+	})
+
+	it("still deduplicates host-equivalent canvas paths", () => {
+		const canvasAbsoluteCandidate: LinkedEditorMediaCandidate = {
+			...firstImageCandidate,
+			path: "/画布A/images/shared.png",
+		}
+		const currentCanvasCandidate: LinkedEditorMediaCandidate = {
+			...secondImageCandidate,
+			path: "./images/shared.png",
+		}
+		const result = resolveLinkedMediaPolicySelection(
+			[canvasAbsoluteCandidate, currentCanvasCandidate],
+			[canvasAbsoluteCandidate.connectionId, currentCanvasCandidate.connectionId],
+			{
+				targetKind: "image",
+				mediaPolicy: { supportedKinds: ["image"], maxTotalCount: 2 },
+				resolveResourceReference: resolveDesignAResourceReference,
+			},
+		)
+
+		expect(result.items).toEqual([
+			expect.objectContaining({
+				connectionId: canvasAbsoluteCandidate.connectionId,
+				selected: true,
+				status: "active",
+			}),
+			expect.objectContaining({
+				connectionId: currentCanvasCandidate.connectionId,
+				selected: false,
+				selectionDisabledReason: "duplicate",
+			}),
+		])
+		expect(result.activeMediaReferences).toEqual([
+			{ kind: "image", path: "/画布A/images/shared.png", sourceCrop: undefined },
 		])
 	})
 

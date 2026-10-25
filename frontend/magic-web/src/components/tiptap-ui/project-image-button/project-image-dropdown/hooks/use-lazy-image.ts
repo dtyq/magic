@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import type { GetTemporaryDownloadUrlItem } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { useMemoizedFn } from "ahooks"
 
 /**
  * Hook for lazy loading image URLs using Intersection Observer
@@ -9,9 +11,30 @@ import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
  */
 export function useLazyImage(fileId: string) {
 	const [url, setUrl] = useState<string | null>(null)
+	const [resource, setResource] = useState<GetTemporaryDownloadUrlItem | null>(null)
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<Error | null>(null)
 	const ref = useRef<HTMLDivElement>(null)
+	const refreshAttemptRef = useRef(false)
+	const fileApi = useFileApi()
+	const refresh = useMemoizedFn(async () => {
+		if (refreshAttemptRef.current) return null
+		refreshAttemptRef.current = true
+		let result: GetTemporaryDownloadUrlItem[]
+		try {
+			result = await fileApi.requestSharedMediaUrls([fileId], { forceRefresh: true })
+		} catch {
+			return null
+		}
+		const next = result[0] ?? null
+		setResource(next)
+		setUrl(next?.url ?? null)
+		return next
+	})
+
+	useEffect(() => {
+		refreshAttemptRef.current = false
+	}, [fileId])
 
 	useEffect(() => {
 		// Don't fetch if we already have the URL or are currently loading
@@ -23,9 +46,11 @@ export function useLazyImage(fileId: string) {
 					setLoading(true)
 					setError(null)
 
-					getTemporaryDownloadUrl({ file_ids: [fileId] })
+					fileApi
+						.requestSharedMediaUrls([fileId])
 						.then((result) => {
 							if (result?.[0]?.url) {
+								setResource(result[0])
 								setUrl(result[0].url)
 							} else {
 								setError(new Error("Failed to get image URL"))
@@ -52,7 +77,7 @@ export function useLazyImage(fileId: string) {
 		return () => {
 			observer.disconnect()
 		}
-	}, [fileId, url, loading])
+	}, [fileApi, fileId, url, loading])
 
-	return { ref, url, loading, error }
+	return { ref, url, resource, loading, error, refresh }
 }

@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ActionButtonConfig } from "@/pages/superMagicMobile/components/ActionsPopup/types"
 
 const MENU_WIDTH = 208

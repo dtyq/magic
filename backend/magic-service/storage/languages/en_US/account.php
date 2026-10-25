@@ -9,4 +9,5 @@ return [
     'register_failed' => 'Account registration failed',
     'request_too_frequent' => 'Too many requests',
     'login_env_not_support' => 'Login is not supported in the current environment',
+    'super_magic_already_created' => 'Resource already exists',
 ];

@@ -2,6 +2,7 @@ import { TaskStatus, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import type { MouseEvent } from "react"
 
 export interface NodeProps {
+	contentMode?: "full" | "answer" | "process"
 	node: any
 	/** 新版本点击事件 */
 	onClick?: () => void

@@ -23,11 +23,18 @@ use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
 use Hyperf\Odin\Api\Response\EmbeddingResponse;
 
+/**
+ * OpenAI 兼容协议入口，接收请求并组装模型网关响应。
+ */
 class OpenAIProxyApi extends AbstractOpenApi
 {
     #[Inject]
     protected LLMAppService $llmAppService;
 
+    /**
+     * 处理聊天请求，reasoning_effort 原样交给 Odin 校验和映射。
+     * 非 null reasoning_effort 优先于旧 thinking；省略或为 null 时回退旧配置或模型默认值。
+     */
     public function chatCompletions(RequestInterface $request)
     {
         $requestData = $request->all();
@@ -72,10 +79,18 @@ class OpenAIProxyApi extends AbstractOpenApi
         $accessToken = $this->getAccessToken();
         $withInfo = (bool) $this->request->input('with_info', false);
         $withDynamicModels = (bool) $this->request->input('with_dynamic_models', false);
+        $withOrganizationModels = (bool) $this->request->input('with_organization_models', false);
         $type = ModelListType::fromRequest($this->request->input('type', ''));
         $businessParams = $this->getBusinessParamsFromContext();
 
-        $list = $this->llmAppService->models($accessToken, $withInfo, $type, $businessParams, withDynamicModels: $withDynamicModels);
+        $list = $this->llmAppService->models(
+            $accessToken,
+            $withInfo,
+            $type,
+            $businessParams,
+            withDynamicModels: $withDynamicModels,
+            withOrganizationModels: $withOrganizationModels,
+        );
         return LLMAssembler::createModels($list, $withInfo);
     }
 

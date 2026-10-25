@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { isEmpty } from "lodash-es"
 import { useTranslation } from "react-i18next"
 import pubsub from "@/utils/pubsub"
-import { filterClickableMessage } from "../../../utils/handleMessage"
+import { filterPanelMessage } from "../../../utils/handleMessage"
+import { isInlineToolDetail } from "../../../utils/toolDetailDisplay"
 import { reaction } from "mobx"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
@@ -88,7 +89,7 @@ function useToolSteps({
 			messages.forEach((message) => {
 				const node = superMagicStore.getMessageNode(message?.super_message_id) as
 					ToolNodeSnapshot | undefined
-				if (!filterClickableMessage(node)) {
+				if (!filterPanelMessage(node)) {
 					return
 				}
 				if (isEmpty(node?.tool?.detail)) {
@@ -113,6 +114,7 @@ function useToolSteps({
 				// Check if message has steps information
 				if (node?.steps && Array.isArray(node.steps)) {
 					node.steps.forEach((step: any, index: number) => {
+						if (isInlineToolDetail(step.detail || step.tool?.detail)) return
 						if (step?.tool || step?.action || step?.name) {
 							steps.push({
 								id: step.id || `step-${node.id}-${index}`,

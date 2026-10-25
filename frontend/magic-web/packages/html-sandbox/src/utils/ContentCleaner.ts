@@ -3,6 +3,10 @@
  * Cleans injected editor elements from HTML
  */
 
+import { normalizeSafeHref } from "./safeUrl"
+import { removeRuntimeNodes, SOURCE_NODE_ATTRIBUTE } from "./sourceNodes"
+import { PPT_BUILD_MARKERS_ATTRIBUTE } from "../features/PPTBuildMarkers"
+
 export class ContentCleaner {
 	/**
 	 * Clean serialized document HTML without modifying author-owned inline styles.
@@ -10,12 +14,16 @@ export class ContentCleaner {
 	static cleanDocument(html: string): string {
 		const parser = new DOMParser()
 		const doc = parser.parseFromString(html, "text/html")
+		removeRuntimeNodes(doc)
 
 		// Remove injected elements
 		this.removeInjectedElements(doc)
 
 		// Clean editing attributes
 		this.cleanEditingAttributes(doc)
+
+		// Apply the same href policy used by editor commands before persisting HTML.
+		this.cleanUnsafeHrefAttributes(doc)
 
 		// Serialize document
 		return this.serializeDocument(doc)
@@ -25,6 +33,9 @@ export class ContentCleaner {
 	 * Remove injected elements
 	 */
 	private static removeInjectedElements(doc: Document): void {
+		doc.querySelectorAll(`[${PPT_BUILD_MARKERS_ATTRIBUTE}]`).forEach((element) =>
+			element.remove(),
+		)
 		// Remove all elements with data-injected attribute
 		const injected = doc.querySelectorAll("[data-injected]")
 		injected.forEach((el) => {
@@ -44,6 +55,9 @@ export class ContentCleaner {
 	private static cleanEditingAttributes(doc: Document): void {
 		const editingClasses = ["__editor-selected", "__editor-hover"]
 		const editingAttributes = [
+			"data-magic-editor-node-id",
+			"data-magic-ppt-build-hidden",
+			SOURCE_NODE_ATTRIBUTE,
 			"contenteditable",
 			"data-text-editing",
 			"data-previous-content",
@@ -62,6 +76,32 @@ export class ContentCleaner {
 		// Clean html and body attributes
 		doc.documentElement?.removeAttribute("data-injected")
 		doc.body?.removeAttribute("data-injected")
+	}
+
+	private static cleanUnsafeHrefAttributes(doc: Document): void {
+		doc.querySelectorAll<HTMLElement>("a[href], area[href], [data-magic-href]").forEach(
+			(element) => {
+				for (const attribute of ["href", "data-magic-href"]) {
+					const href = element.getAttribute(attribute)
+					if (href === null) continue
+					try {
+						const normalizedHref = normalizeSafeHref(href)
+						if (normalizedHref === null) element.removeAttribute(attribute)
+						else element.setAttribute(attribute, normalizedHref)
+					} catch {
+						element.removeAttribute(attribute)
+					}
+				}
+
+				if (element.getAttribute("target") !== "_blank") return
+				const relTokens = new Set(
+					(element.getAttribute("rel") ?? "").split(/\s+/).filter(Boolean),
+				)
+				relTokens.add("noopener")
+				relTokens.add("noreferrer")
+				element.setAttribute("rel", Array.from(relTokens).join(" "))
+			},
+		)
 	}
 
 	/**

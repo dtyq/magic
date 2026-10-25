@@ -31,10 +31,11 @@ import { Badge } from "@/components/shadcn-ui/badge"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Input } from "@/components/shadcn-ui/input"
 import { Separator } from "@/components/shadcn-ui/separator"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Switch } from "@/components/shadcn-ui/switch"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import type {
 	GuideItem,
 	LocaleText,
@@ -284,7 +285,11 @@ export const QuickStartPanel = observer(function QuickStartPanel() {
 			</div>
 
 			{/* Content list */}
-			<div className="flex min-h-0 flex-1 flex-col overflow-auto rounded-lg border border-border">
+			{/* Keep the empty state centered in the available list height. */}
+			<ScrollArea
+				className="grid min-h-0 flex-1 rounded-lg border border-border"
+				viewportClassName="h-auto min-h-0 [&>div]:!flex [&>div]:min-h-full [&>div]:flex-col"
+			>
 				{filteredItems.length === 0 ? (
 					<EmptyState
 						title={t("playbook.edit.quickStart.empty.title")}
@@ -307,7 +312,7 @@ export const QuickStartPanel = observer(function QuickStartPanel() {
 						readOnly={readOnly}
 					/>
 				)}
-			</div>
+			</ScrollArea>
 
 			{/* Edit / Create dialog */}
 			{readOnly ? null : (

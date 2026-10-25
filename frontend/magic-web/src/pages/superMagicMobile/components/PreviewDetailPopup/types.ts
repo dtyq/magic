@@ -17,6 +17,8 @@ export interface PreviewDetailPopupRef {
 		attachmentTree: AttachmentItem[],
 		attachmentList: AttachmentItem[],
 	) => void
+	/** Refreshes the file context without closing or reopening the current preview. */
+	updateAttachments: (attachmentTree: AttachmentItem[], attachmentList: AttachmentItem[]) => void
 }
 
 export interface PreviewDetailPopupProps {
@@ -42,4 +44,11 @@ export interface PreviewDetailPopupProps {
 	allowEdit?: boolean
 	onPreviewFileChange?: (fileId: string | null) => void
 	onPreviewFullscreenChange?: (isFullscreen: boolean) => void
+	/** Raise above another open dialog, such as the file manager or conversation sheet. */
+	zIndex?: number
+	/**
+	 * Renders the preview in place (filling its parent) instead of a bottom sheet, e.g. the AI
+	 * canvas tab of the H5 project page. It owns no overlay layer and has no close action.
+	 */
+	inline?: boolean
 }

@@ -15,6 +15,8 @@ final class DirectoryData extends AbstractDTO implements MentionDataInterface
 {
     use NormalizePathTrait;
 
+    protected ?string $directoryId;
+
     protected ?string $directoryPath;
 
     protected ?string $directoryName;
@@ -34,7 +36,20 @@ final class DirectoryData extends AbstractDTO implements MentionDataInterface
         if ($directoryPath === null) {
             return null;
         }
+        if (str_starts_with($directoryPath, '~/')) {
+            return $directoryPath;
+        }
         return $this->normalizePath($directoryPath);
+    }
+
+    public function getDirectoryId(): ?string
+    {
+        return $this->directoryId ?? null;
+    }
+
+    public function setDirectoryId(?string $directoryId): void
+    {
+        $this->directoryId = $directoryId;
     }
 
     public function getDirectoryName(): ?string

@@ -1,4 +1,7 @@
 import { getNormalizedImageProcessCrop } from "../image/imageCropUtils"
+import { createOrientedImageBitmapFromBlob } from "../image/imageSourceUtils"
+import { getEraserMaskStrokeStyle } from "../image/eraserMaskOperations"
+import { decodeEraserStrokeMode } from "./submitImageWorkerProtocol"
 import type {
 	SubmitImageSourceDimensions,
 	SubmitImageWorkerEraseRequest,
@@ -39,7 +42,7 @@ async function decodeImageBitmap(ossSrc: string): Promise<ImageBitmap> {
 		throw new Error(`Fetch failed: ${response.status}`)
 	}
 	const blob = await response.blob()
-	return createImageBitmap(blob)
+	return createOrientedImageBitmapFromBlob(blob)
 }
 
 function getSourceDimensionsFromRequest(
@@ -101,18 +104,21 @@ async function handleErase(
 	outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
 	outputContext.save()
 	outputContext.scale(sourceCrop.width / elementWidth, sourceCrop.height / elementHeight)
-	outputContext.strokeStyle = "#fff"
 	outputContext.lineCap = "round"
 	outputContext.lineJoin = "round"
 
-	const { meta, points } = request.strokes
+	const { meta, modes, points } = request.strokes
 	for (let i = 0; i < meta.length; i += 3) {
+		const strokeIndex = i / 3
 		const pointOffset = meta[i]
 		const pointCount = meta[i + 1]
 		const radius = meta[i + 2]
 		if (pointCount <= 0) continue
 
 		outputContext.beginPath()
+		outputContext.strokeStyle = getEraserMaskStrokeStyle(
+			decodeEraserStrokeMode(modes[strokeIndex]),
+		)
 		outputContext.lineWidth = radius * 2
 
 		const firstPointIndex = pointOffset * 2

@@ -93,6 +93,7 @@ export function createPastedUploadFileReferences(
 				isVirtualReference: true,
 				defaultRelativePath: data.relative_file_path,
 				isHidden: data.is_hidden,
+				isCanvasClipboard: data.is_canvas_clipboard,
 				result: {
 					key: data.file_path,
 					name: data.file_name,

@@ -1,7 +1,8 @@
 import { useMemo } from "react"
 import { useAreaCodes, useGlobalLanguage } from "@/models/config/hooks"
 import MagicSelect, { type OptionType } from "@/components/base/MagicSelect"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import type { Config } from "@/models/config/types"
 
 interface PhoneStateCodeSelectProps {
 	value: string
@@ -11,6 +12,9 @@ interface PhoneStateCodeSelectProps {
 	/** 移动端区号选择抽屉可能嵌在高层级 Sheet 内，允许调用方指定 Portal 层级。 */
 	popupZIndex?: number
 	dataTestId?: string
+	/** A login view may supply its own configuration without changing global defaults. */
+	areaCodes?: Config.AreaCodeOption[]
+	onRequestOptions?: () => void
 }
 
 function PhoneStateCodeSelect({
@@ -20,8 +24,11 @@ function PhoneStateCodeSelect({
 	disabled,
 	popupZIndex,
 	dataTestId,
+	areaCodes: suppliedAreaCodes,
+	onRequestOptions,
 }: PhoneStateCodeSelectProps) {
-	const { areaCodes } = useAreaCodes()
+	const { areaCodes: globalAreaCodes } = useAreaCodes()
+	const areaCodes = suppliedAreaCodes ?? globalAreaCodes
 	const language = useGlobalLanguage(false)
 
 	const phoneOptions = useMemo<OptionType[]>(() => {
@@ -48,7 +55,10 @@ function PhoneStateCodeSelect({
 					root: { minWidth: "fit-content" },
 				},
 			}}
-			onClick={(e) => e.stopPropagation()}
+			onClick={(e) => {
+				e.stopPropagation()
+				onRequestOptions?.()
+			}}
 			labelRender={(option) => <div className="text-sm">{option.value}</div>}
 			optionRender={(option) => (
 				<div key={option.value} className="text-sm">

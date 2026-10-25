@@ -16,18 +16,22 @@ import type {
 import type { PluginGenerateAndPlaceParams } from "../runtime-protocol/v1/index"
 import {
 	collectObstacleRects,
-	findGeneratedMediaGridPositions,
 	layerElementToObstacleRect,
 } from "../../../../runtime/shared/placement/findNonOverlappingPlacement"
+import { findGeneratedMediaGridPositions } from "../../../../runtime/shared/placement/placementEngine"
 import {
 	ElementTypeEnum,
 	type ImageElement,
 	type LayerElement,
 } from "../../../../runtime/document/types"
 import {
-	toWeakCanvasResourcePath,
-	areCanvasResourcePathsSame,
-	stripCurrentDirectoryPrefix,
+	getActiveImageContent,
+	isImageElementContent,
+	updateImageContent,
+} from "../../../../runtime/document/elementContent"
+import {
+	areCanvasHostResourceReferencesSame,
+	getCanvasHostResourceReferenceIdentity,
 } from "../../../../runtime/shared/path/canvasResourcePath"
 import type { Rect } from "../../../../runtime/shared/ids"
 import {
@@ -63,8 +67,11 @@ export async function generatePluginImages(
 		sourceElementByAssetKey?: PluginSourceElementMap
 	} = {},
 ) {
-	if (canvas.readonly) {
-		throw new Error("Canvas is readonly.")
+	if (
+		!canvas.permissionManager.can("sideEffect.generate") ||
+		!canvas.permissionManager.can("document.write")
+	) {
+		throw new Error("Canvas does not allow document generation.")
 	}
 	const methods = canvas.magicConfigManager.config?.methods
 	if (!methods?.generateImages || !methods?.getImageGenerationResults) {
@@ -137,6 +144,15 @@ export async function generatePluginImages(
 			.createImageElementsAtPositions(positions, imageSize.width, imageSize.height, {
 				temporary: true,
 			})
+		const targetContentIdByElementId = new Map<string, string>()
+		for (const elementId of nextElementIds) {
+			const element = canvas.elementManager.getElementData(elementId)
+			if (!element || !isImageElementContent(element) || !element.activeContentId) {
+				canvas.elementManager.batchDelete(nextElementIds)
+				throw new Error(`Image Content target ${elementId} not found`)
+			}
+			targetContentIdByElementId.set(elementId, element.activeContentId)
+		}
 
 		// 提交确认前只写 Canvas RuntimeManager；Element/DSL/历史/剪贴板均不包含任务身份。
 		nextElementIds.forEach((elementId) => {
@@ -152,6 +168,7 @@ export async function generatePluginImages(
 			failurePolicy: "remove-placeholder",
 			targets: nextElementIds.map((elementId, index) => ({
 				elementId,
+				contentId: targetContentIdByElementId.get(elementId) as string,
 				outputIndex: index + 1,
 				generateImageRequest: {
 					...generateImageRequest,
@@ -172,48 +189,67 @@ export async function generatePluginImages(
 			throw error
 		}
 
-		const committedElementIds = nextElementIds.filter(
-			(elementId) =>
-				canvas.generationRuntimeManager.isCurrent(attemptId, elementId) &&
-				canvas.elementManager.hasElement(elementId),
-		)
+		const committedElementIds = nextElementIds.filter((elementId) => {
+			const contentId = targetContentIdByElementId.get(elementId)
+			return (
+				canvas.generationRuntimeManager.isCurrent(attemptId, elementId, contentId) &&
+				canvas.elementManager.hasElement(elementId)
+			)
+		})
 		if (committedElementIds.length === 0) {
 			return []
 		}
 
 		// 只有批量提交成功后，才原子写入正式字段并允许剩余目标进入 DSL。
 		try {
+			const committedContentIds: string[] = []
 			const confirmed = canvas.generationAttemptCoordinator.confirmAttempt(
 				attemptId,
 				committedElementIds.map((elementId) => {
 					const outputIndex = nextElementIds.indexOf(elementId) + 1
+					const element = canvas.elementManager.getElementData(elementId)
+					const contentId = targetContentIdByElementId.get(elementId)
+					if (
+						!contentId ||
+						!element ||
+						!isImageElementContent(element) ||
+						!element.contents.some((content) => content.contentId === contentId)
+					) {
+						throw new Error(`Image Content target ${elementId} not found`)
+					}
+					const nextElement = updateImageContent(element, contentId, {
+						status: "processing",
+						errorMessage: undefined,
+						generateImageRequest,
+						imageGenerationTaskMeta: createBatchImageTaskMeta({
+							imageId: batchImageId,
+							outputIndex,
+							outputCount: count,
+						}),
+					})
+					committedContentIds.push(contentId)
 					return {
 						elementId,
+						contentId,
 						persistedPatch: {
-							status: "processing",
-							errorMessage: undefined,
-							generateImageRequest,
-							imageGenerationTaskMeta: createBatchImageTaskMeta({
-								imageId: batchImageId,
-								outputIndex,
-								outputCount: count,
-							}),
+							contents: nextElement.contents,
 						},
 					}
 				}),
 			)
 			if (!confirmed) return []
+			const batchPollingManager = new ImageBatchPollingManager({
+				canvas,
+				imageId: batchImageId,
+				elementIds: committedElementIds,
+				contentIds: committedContentIds,
+				registry: canvas.imageBatchPollingRegistry,
+			})
+			void batchPollingManager.start()
 		} catch (error) {
 			canvas.generationAttemptCoordinator.rejectAttempt(attemptId)
 			throw error
 		}
-		const batchPollingManager = new ImageBatchPollingManager({
-			canvas,
-			imageId: batchImageId,
-			elementIds: committedElementIds,
-			registry: canvas.imageBatchPollingRegistry,
-		})
-		void batchPollingManager.start()
 
 		return committedElementIds
 	})
@@ -255,12 +291,20 @@ function isVisibleCanvasElement(canvas: Canvas, element: LayerElement): boolean 
 	return canvas.permissionManager.isVisible(element)
 }
 
+function getEffectiveImageContent(canvas: Canvas, element: ImageElement) {
+	return (
+		(canvas.getEffectiveContent?.(element.id) as
+			| ReturnType<typeof getActiveImageContent>
+			| undefined) ?? getActiveImageContent(element)
+	)
+}
+
 /** 获取画布里可作为引用来源的可见图片元素。 */
 function getImageElements(canvas: Canvas): ImageElement[] {
 	return flattenLayerElements(canvas.elementManager.getAllElements()).filter(
 		(element): element is ImageElement =>
 			element.type === ElementTypeEnum.Image &&
-			Boolean(element.src) &&
+			Boolean(getEffectiveImageContent(canvas, element).src) &&
 			isVisibleCanvasElement(canvas, element),
 	)
 }
@@ -277,35 +321,32 @@ function getImageElementById(canvas: Canvas, elementId: string | undefined): Ima
 		return null
 	}
 	const imageElement = element as ImageElement
-	if (!imageElement.src) return null
+	if (!getEffectiveImageContent(canvas, imageElement).src) return null
 	return imageElement
 }
 
 /** 用路径/URL 反查画布图片，覆盖插件只回传 reference 字符串的场景。 */
 function resolveImageElementByReference(canvas: Canvas, reference: string): ImageElement | null {
-	const resolveAbsolutePath = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
 	return (
 		getImageElements(canvas).find((element) => {
-			if (!element.src) return false
-			return areCanvasResourcePathsSame(element.src, reference, resolveAbsolutePath)
+			const active = getEffectiveImageContent(canvas, element)
+			if (!active.src) return false
+			return areCanvasHostResourceReferencesSame(canvas, active.src, reference)
 		}) ?? null
 	)
 }
 
 /** 判断图片是否是生成任务产物；这类元素不能作为下一次生成的来源兜底。 */
-function isGeneratedImageElement(element: ImageElement): boolean {
-	return Boolean(
-		element.generateImageRequest ||
-		element.imageGenerationTaskMeta ||
-		element.generateHightImageRequest,
-	)
+function isGeneratedImageElement(canvas: Canvas, element: ImageElement): boolean {
+	const active = getEffectiveImageContent(canvas, element)
+	return Boolean(active.generateImageRequest || active.imageGenerationTaskMeta)
 }
 
 /** 当插件没有带来源映射时，用当前选中的非生成图片作为最后兜底来源。 */
 function getSelectedSourceImageElement(canvas: Canvas): ImageElement | null {
 	const selectedImageId = canvas.selectionManager.getSelectedIds().find((elementId) => {
 		const element = getImageElementById(canvas, elementId)
-		return element && !isGeneratedImageElement(element)
+		return element && !isGeneratedImageElement(canvas, element)
 	})
 	return getImageElementById(canvas, selectedImageId)
 }
@@ -322,15 +363,17 @@ function getPluginReferenceKeys(params: PluginGenerateAndPlaceParams): string[] 
 	return [...referenceImages, ...referenceOptionPaths]
 }
 
-/** 归一化引用 key，避免 "./foo.png" 与 "foo.png" 被识别成两组生成结果。 */
-function normalizePluginReferenceKey(reference: string): string {
-	return stripCurrentDirectoryPrefix(toWeakCanvasResourcePath(reference.trim()))
-}
-
 /** 去重并排序后的引用 key 用于生成稳定的落点分组 key。 */
-function getNormalizedPluginReferenceKeys(params: PluginGenerateAndPlaceParams): string[] {
+function getNormalizedPluginReferenceKeys(
+	canvas: Canvas,
+	params: PluginGenerateAndPlaceParams,
+): string[] {
 	return Array.from(
-		new Set(getPluginReferenceKeys(params).map(normalizePluginReferenceKey).filter(Boolean)),
+		new Set(
+			getPluginReferenceKeys(params)
+				.map((reference) => getCanvasHostResourceReferenceIdentity(canvas, reference))
+				.filter(Boolean),
+		),
 	).sort()
 }
 
@@ -354,10 +397,10 @@ function stableStringify(value: unknown): string {
 }
 
 /** 提取影响历史网格续排的生成配置；prompt/model/aspect_ratio 不参与画布排布分组。 */
-function getGenerationPlacementKey(request: PluginGenerateAndPlaceParams): string {
+function getGenerationPlacementKey(canvas: Canvas, request: PluginGenerateAndPlaceParams): string {
 	return stableStringify({
 		resolution: request.resolution,
-		references: getNormalizedPluginReferenceKeys(request),
+		references: getNormalizedPluginReferenceKeys(canvas, request),
 		image_generation_config: request.image_generation_config ?? {},
 	})
 }
@@ -368,16 +411,17 @@ function collectMatchingGeneratedGridRects(
 	elements: LayerElement[],
 	request: GenerateImageRequest,
 ): Rect[] {
-	const targetPlacementKey = getGenerationPlacementKey(request)
+	const targetPlacementKey = getGenerationPlacementKey(canvas, request)
 	return flattenLayerElements(elements).flatMap((element) => {
 		if (element.type !== ElementTypeEnum.Image || !isVisibleCanvasElement(canvas, element)) {
 			return []
 		}
 		const imageElement = element as ImageElement
-		if (!imageElement.generateImageRequest || !isGeneratedImageElement(imageElement)) {
+		const active = getEffectiveImageContent(canvas, imageElement)
+		if (!active.generateImageRequest || !isGeneratedImageElement(canvas, imageElement)) {
 			return []
 		}
-		if (getGenerationPlacementKey(imageElement.generateImageRequest) !== targetPlacementKey) {
+		if (getGenerationPlacementKey(canvas, active.generateImageRequest) !== targetPlacementKey) {
 			return []
 		}
 		const rect = layerElementToObstacleRect(imageElement)
@@ -399,7 +443,11 @@ function resolvePluginSourceElement(
 	sourceElementByAssetKey?: PluginSourceElementMap,
 ): ImageElement | null {
 	const references = getPluginReferenceKeys(params)
-	const sourceElementId = resolvePluginSourceElementId(sourceElementByAssetKey, references)
+	const sourceElementId = resolvePluginSourceElementId(
+		sourceElementByAssetKey,
+		references,
+		canvas.magicConfigManager.config?.methods?.resolveResourceReference,
+	)
 	const sourceElement = getImageElementById(canvas, sourceElementId)
 	if (sourceElement) return sourceElement
 

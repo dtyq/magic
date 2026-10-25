@@ -41,6 +41,8 @@ interface AddModelModalProps extends OpenableProps<Omit<MagicModalProps, "onOk">
 	serviceId?: string
 	/* 服务商编码 */
 	providerCode?: AiModel.ServiceProvider | string
+	/* 是否为官方服务商 */
+	isOfficialProvider?: boolean
 	/* 服务商类别 */
 	category?: AiModel.ServiceProviderCategory | null
 	/* 模型详情 */
@@ -59,6 +61,7 @@ export const AddModelModal = memo(
 		rawInfo,
 		category,
 		providerCode,
+		isOfficialProvider,
 		modelType,
 		actionType,
 		onOk,
@@ -94,11 +97,13 @@ export const AddModelModal = memo(
 		const isLLM = category === AiModel.ServiceProviderCategory.LLM
 		const isCopy = actionType === "copy"
 		const isEdit = actionType === "edit"
+		/* 官方组织下的官方模型由平台自动同步，编辑时仅允许改负载权重 */
+		const isOfficialSyncedEdit = Boolean(isOfficialOrg && isOfficialProvider && isEdit)
 		const requiresDetail = Boolean(rawInfo?.id && !isCopy)
 		const providerCodeToUse = providerCode || info?.provider_code
 		/* 是否需要请求定价模板 */
 		const shouldRequestPricingTemplates = Boolean(
-			isOfficialOrg && category && providerCodeToUse,
+			isOfficialOrg && category && providerCodeToUse && !isOfficialSyncedEdit,
 		)
 		const innerModelType = Form.useWatch(["model_type"], form)
 		const selectedIcon = Form.useWatch(["icon"], form)
@@ -127,7 +132,7 @@ export const AddModelModal = memo(
 			},
 		)
 
-		const { run: getModelDetail } = useRequest(
+		const { run: getModelDetail, loading: modelDetailLoading } = useRequest(
 			(id: string) =>
 				isOfficialOrg
 					? AIManageApi.getModelDetail(id)
@@ -155,7 +160,9 @@ export const AddModelModal = memo(
 		)
 
 		useMount(() => {
-			getIcons()
+			if (!isOfficialSyncedEdit) {
+				getIcons()
+			}
 			// 编辑模型时获取模型详情
 			if (rawInfo?.id && !isCopy) {
 				getModelDetail(rawInfo.id)
@@ -193,7 +200,10 @@ export const AddModelModal = memo(
 
 		/* 定价模板是否准备好 */
 		const pricingReady =
-			!isOfficialOrg || !category || (pricingTemplatesLoaded && !pricingTemplatesLoading)
+			isOfficialSyncedEdit ||
+			!isOfficialOrg ||
+			!category ||
+			(pricingTemplatesLoaded && !pricingTemplatesLoading)
 		/* 模型详情是否准备好 */
 		const detailReady = !requiresDetail || !!info
 		/* 是否准备好 */
@@ -207,9 +217,16 @@ export const AddModelModal = memo(
 				info,
 				modelType,
 				category,
-				defaultPricingTemplate,
+				defaultPricingTemplate: isOfficialSyncedEdit ? undefined : defaultPricingTemplate,
 			})
-		}, [hydrationReady, info, modelType, category, defaultPricingTemplate])
+		}, [
+			hydrationReady,
+			info,
+			modelType,
+			category,
+			defaultPricingTemplate,
+			isOfficialSyncedEdit,
+		])
 
 		// 使用表单变更检测hook
 		const { hasChanges, resetChangeDetection } = useFormChangeDetection({
@@ -367,6 +384,16 @@ export const AddModelModal = memo(
 
 		// 构建提交参数
 		const buildSubmitPayload = useMemoizedFn((values: any) => {
+			if (isOfficialSyncedEdit && info) {
+				const { created_at: _createdAt, extra: _extra, ...restInfo } = info
+				return {
+					...restInfo,
+					load_balancing_weight: values.load_balancing_weight,
+					service_provider_config_id: serviceId,
+					category,
+				}
+			}
+
 			const { model_power = [], config = {}, ...restValues } = values
 			const modelPowerSet = new Set<AiModel.ModelPower>(model_power)
 			const currentPricingTemplate = findPricingTemplateByBillingType(
@@ -398,6 +425,9 @@ export const AddModelModal = memo(
 								AiModel.ModelPower.SupportVision,
 							),
 							support_deep_think: modelPowerSet.has(AiModel.ModelPower.SupportThink),
+							reasoning_effort_levels: config.reasoning_effort_levels,
+							reasoning_effort_default: config.reasoning_effort_default,
+							chat_api: config.chat_api || AiModel.ChatApi.ChatCompletions,
 							creativity:
 								config.temperature_type === AiModel.ModelTemperatureType.Recommended
 									? config.temperature
@@ -443,6 +473,7 @@ export const AddModelModal = memo(
 
 		const onInnerOk = async () => {
 			if (isSubmitting) return
+			if (!hydrationReady) return
 
 			let validationPassed = false
 			try {
@@ -509,148 +540,180 @@ export const AddModelModal = memo(
 					centered
 					open={open}
 					title={title}
-					width={860}
+					width={isOfficialSyncedEdit ? 600 : 860}
 					onOk={onInnerOk}
 					onCancel={onInnerCancel}
 					afterClose={innerAfterClose}
 					{...props}
+					okButtonProps={{
+						...props.okButtonProps,
+						disabled: !hydrationReady || isSubmitting || props.okButtonProps?.disabled,
+						loading:
+							Boolean(requiresDetail && !info && modelDetailLoading) ||
+							props.okButtonProps?.loading,
+					}}
 					panelRef={modalPanelRef}
 				>
 					<Form className={styles.form} colon={false} form={form} requiredMark={false}>
-						{isOfficialOrg && (
-							<MagicSuspense>
-								<ImportModelCard
-									form={form}
-									selectedModelId={selectedModelId}
-									importSourceLoading={importSourceLoading}
-									importStatus={importStatus}
-									actionType={actionType}
-									onQueryImportSources={handleQueryImportSources}
-									onResetToBlank={handleResetToBlank}
-								/>
-							</MagicSuspense>
-						)}
-
-						{/* 模型类型 */}
-						{isLLM && (
-							<Form.Item
-								className={cx(styles.formItem, styles.required)}
-								label={t("form.modelType")}
-								rules={[{ required: true, message: "" }]}
-								name="model_type"
-								initialValue={modelTypeOptions[0]?.value}
-							>
-								<MagicSelect options={modelTypeOptions} />
-							</Form.Item>
-						)}
-
-						{/* 模型标识 */}
-						<Form.Item
-							className={cx(styles.formItem, styles.required)}
-							label={t("form.modelId")}
-						>
-							<ModelSelect form={form} />
-						</Form.Item>
-
-						{/* 模型部署名称 */}
-						<Form.Item
-							label={t("form.modelName")}
-							className={cx(styles.formItem, styles.required)}
-						>
-							<Flex gap={6} vertical>
-								<Form.Item
-									name="model_version"
-									noStyle
-									rules={[{ required: true, message: "" }]}
-								>
-									<Input placeholder={t("form.modelNamePlaceholder")} />
-								</Form.Item>
-								<div className={styles.desc}>{t("form.modelNameDesc")}</div>
-							</Flex>
-						</Form.Item>
-						{/* 模型展示图标 */}
-						<Form.Item
-							name="icon"
-							label={t("form.modelDisplayIcon")}
-							className={styles.formItem}
-						>
-							<ModelIcons
-								icons={icons}
-								setIcons={setIcons}
-								selectedIcon={selectedIcon}
-								handleSelectIcon={handleSelectIcon}
-							/>
-						</Form.Item>
-
-						{/* 模型展示名称 */}
-						<Form.Item label={t("form.modelDisplayName")} className={styles.formItem}>
-							<Flex gap={6}>
-								<Form.Item
-									name="name"
-									noStyle
-									rules={[{ max: 50, message: t("form.modelNameMax") }]}
-								>
-									<Input
-										placeholder={t("form.modelDisplayNamePlaceholder")}
-										onChange={(e) => {
-											updateLangConfig("name", {
-												zh_CN: e.target.value,
-											})
-										}}
-									/>
-								</Form.Item>
-								<MultiLangSetting
-									supportLangs={[LanguageType.en_US]}
-									info={langConfig.name}
-									onSave={(value) => {
-										updateLangConfig("name", value)
-									}}
-								/>
-							</Flex>
-						</Form.Item>
-
-						{/* 模型描述 */}
-						<Form.Item label={t("form.modelDescription")} className={styles.formItem}>
-							<Flex gap={6}>
-								<Form.Item name="description" noStyle>
-									<Input.TextArea
-										placeholder={tCommon("pleaseInputPlaceholder", {
-											name: t("form.modelDescription"),
-										})}
-										rows={4}
-										onChange={(e) => {
-											updateLangConfig("description", {
-												zh_CN: e.target.value,
-											})
-										}}
-									/>
-								</Form.Item>
-								<MultiLangSetting
-									supportLangs={[LanguageType.en_US]}
-									info={langConfig.description}
-									onSave={(value) => {
-										updateLangConfig("description", value)
-									}}
-								/>
-							</Flex>
-						</Form.Item>
-
-						{/* LLM模型配置 */}
-						{isLLM && (
-							<MagicSuspense>
-								<LlmModelConfig innerModelType={innerModelType} form={form} />
-							</MagicSuspense>
-						)}
-
-						{/* 官方模型配置 */}
-						{isOfficialOrg && category && (
+						{isOfficialSyncedEdit ? (
 							<MagicSuspense>
 								<OfficialModelConfig
-									category={category}
+									category={category!}
 									pricingTemplates={pricingTemplates}
-									loading={pricingTemplatesLoading}
+									loading={false}
+									loadWeightOnly
+									readOnlyModelFields={{
+										modelId: info?.model_id,
+									}}
 								/>
 							</MagicSuspense>
+						) : (
+							<>
+								{isOfficialOrg && (
+									<MagicSuspense>
+										<ImportModelCard
+											form={form}
+											selectedModelId={selectedModelId}
+											importSourceLoading={importSourceLoading}
+											importStatus={importStatus}
+											actionType={actionType}
+											onQueryImportSources={handleQueryImportSources}
+											onResetToBlank={handleResetToBlank}
+										/>
+									</MagicSuspense>
+								)}
+
+								{/* 模型类型 */}
+								{isLLM && (
+									<Form.Item
+										className={cx(styles.formItem, styles.required)}
+										label={t("form.modelType")}
+										rules={[{ required: true, message: "" }]}
+										name="model_type"
+										initialValue={modelTypeOptions[0]?.value}
+									>
+										<MagicSelect options={modelTypeOptions} />
+									</Form.Item>
+								)}
+
+								{/* 模型标识 */}
+								<Form.Item
+									className={cx(styles.formItem, styles.required)}
+									label={t("form.modelId")}
+								>
+									<ModelSelect form={form} />
+								</Form.Item>
+
+								{/* 模型部署名称 */}
+								<Form.Item
+									label={t("form.modelName")}
+									className={cx(styles.formItem, styles.required)}
+								>
+									<Flex gap={6} vertical>
+										<Form.Item
+											name="model_version"
+											noStyle
+											rules={[{ required: true, message: "" }]}
+										>
+											<Input placeholder={t("form.modelNamePlaceholder")} />
+										</Form.Item>
+										<div className={styles.desc}>{t("form.modelNameDesc")}</div>
+									</Flex>
+								</Form.Item>
+								{/* 模型展示图标 */}
+								<Form.Item
+									name="icon"
+									label={t("form.modelDisplayIcon")}
+									className={styles.formItem}
+								>
+									<ModelIcons
+										icons={icons}
+										setIcons={setIcons}
+										selectedIcon={selectedIcon}
+										handleSelectIcon={handleSelectIcon}
+									/>
+								</Form.Item>
+
+								{/* 模型展示名称 */}
+								<Form.Item
+									label={t("form.modelDisplayName")}
+									className={styles.formItem}
+								>
+									<Flex gap={6}>
+										<Form.Item
+											name="name"
+											noStyle
+											rules={[{ max: 50, message: t("form.modelNameMax") }]}
+										>
+											<Input
+												placeholder={t("form.modelDisplayNamePlaceholder")}
+												onChange={(e) => {
+													updateLangConfig("name", {
+														zh_CN: e.target.value,
+													})
+												}}
+											/>
+										</Form.Item>
+										<MultiLangSetting
+											supportLangs={[LanguageType.en_US]}
+											info={langConfig.name}
+											onSave={(value) => {
+												updateLangConfig("name", value)
+											}}
+										/>
+									</Flex>
+								</Form.Item>
+
+								{/* 模型描述 */}
+								<Form.Item
+									label={t("form.modelDescription")}
+									className={styles.formItem}
+								>
+									<Flex gap={6}>
+										<Form.Item name="description" noStyle>
+											<Input.TextArea
+												placeholder={tCommon("pleaseInputPlaceholder", {
+													name: t("form.modelDescription"),
+												})}
+												rows={4}
+												onChange={(e) => {
+													updateLangConfig("description", {
+														zh_CN: e.target.value,
+													})
+												}}
+											/>
+										</Form.Item>
+										<MultiLangSetting
+											supportLangs={[LanguageType.en_US]}
+											info={langConfig.description}
+											onSave={(value) => {
+												updateLangConfig("description", value)
+											}}
+										/>
+									</Flex>
+								</Form.Item>
+
+								{/* LLM模型配置 */}
+								{isLLM && (
+									<MagicSuspense>
+										<LlmModelConfig
+											innerModelType={innerModelType}
+											form={form}
+										/>
+									</MagicSuspense>
+								)}
+
+								{/* 官方模型配置 */}
+								{isOfficialOrg && category && (
+									<MagicSuspense>
+										<OfficialModelConfig
+											category={category}
+											pricingTemplates={pricingTemplates}
+											loading={pricingTemplatesLoading}
+										/>
+									</MagicSuspense>
+								)}
+							</>
 						)}
 					</Form>
 				</MagicModal>

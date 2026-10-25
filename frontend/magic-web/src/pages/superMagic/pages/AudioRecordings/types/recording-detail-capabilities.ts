@@ -13,7 +13,7 @@ export type RecordingDetailTabKey =
 
 /** Capability matrix injected by owner/share shells so the workbench stays context-agnostic. */
 export interface RecordingDetailCapabilities {
-	viewMode: "owner" | "share"
+	viewMode: "owner" | "folder" | "share"
 	canRename: boolean
 	canDelete: boolean
 	canMoveGroup: boolean
@@ -23,6 +23,31 @@ export interface RecordingDetailCapabilities {
 	canExport: boolean
 	canEditSpeakers: boolean
 	visibleTabKeys: RecordingDetailTabKey[]
+}
+
+/** Project-folder entry hides project management actions while preserving speaker-name editing. */
+export const FOLDER_RECORDING_DETAIL_CAPABILITIES: RecordingDetailCapabilities = {
+	viewMode: "folder",
+	canRename: false,
+	canDelete: false,
+	canMoveGroup: false,
+	canGenerateSummary: false,
+	canManageShare: false,
+	canCopyToProject: false,
+	canExport: false,
+	canEditSpeakers: true,
+	visibleTabKeys: [
+		"summary",
+		"topics",
+		"highlights",
+		"insights",
+		"mindmap",
+		"metrics",
+		"followup",
+		"power_dynamics",
+		"intent",
+		"notes",
+	],
 }
 
 /** Owner entry capabilities for the PC/H5 recording detail workbench. */

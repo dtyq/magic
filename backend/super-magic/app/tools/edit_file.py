@@ -9,6 +9,9 @@
 - 相似文本建议
 """
 
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+
+from app.core.entity.message.server_message import OperationResultChanges, OperationResultStatus
 from app.i18n import i18n
 import os
 import re
@@ -16,22 +19,27 @@ import difflib
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import aiofiles
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
-from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.entity.message.server_message import DisplayType, ToolDetail
+from app.core.context.agent_context import AgentContext
+from app.core.horizon.agent_horizon import VALIDATION_ERROR_NOT_READ
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
+from app.tools.file_edit_store import FileEditStore
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 from app.utils.line_number_handler import LineNumberHandler
 from app.utils.diff_generator import DiffGenerator
 from app.utils.punctuation_matcher import PunctuationMatcher
 from app.utils.input_diagnoser import InputDiagnoser
-from app.utils.async_file_utils import async_exists
+from app.utils.async_file_utils import async_exists, async_write_text
+from app.tools.utils.file_change_stats import (
+    FileChangeMetrics, FileTextSnapshot, format_file_change_metrics, measure_text, read_text_snapshot,
+)
 from app.service.html_app_memory_service import is_html_app_memory_path
 
 logger = get_logger(__name__)
@@ -80,7 +88,8 @@ class EditFile(AbstractFileTool[EditFileParams], WorkspaceTool[EditFileParams]):
         return """\
 <!--zh
 使用编辑工具前：
-- 使用 read_file 工具了解文件的内容和上下文。如果你最近已读过文件且未被他人修改，可以基于你的知识直接编辑
+- 文件必须已有观察记录：read_file/read_files、grep_search 或可识别的单文件 shell 查看均可登记；用户提供片段不等于记录。局部读取不限制编辑位置
+- 已有记录且掌握精确目标时无需重复读取；版本变化后，仅 expected_replacements=1 且目标仍唯一匹配时允许编辑。其它情况按错误提示读取；判断依赖周边内容时也应读取
 - 验证目录路径正确
 - 如果 old_string 匹配多个位置且未指定 expected_replacements，工具将失败
 - 如果指定了 expected_replacements，匹配数量不等于它时工具将失败
@@ -91,13 +100,14 @@ class EditFile(AbstractFileTool[EditFileParams], WorkspaceTool[EditFileParams]):
 重要：完全按照文件中出现的方式复制文本，包括标点符号样式。
 
 多次编辑同一文件时：
-- 开始时读取文件一次以识别所有编辑位置
+- 开始时获取所需的精确内容，已有观察记录与足够上下文时不重复读取
 - 使用 multi_edit_file 在一次操作中应用所有更改（首选）
 - 或按顺序应用编辑而不在编辑之间重新读取文件
 - 不要在每次成功编辑后重新读取文件 - 这会浪费 token
 -->
 Before using edit tool:
-- Use the read_file tool to understand the file's contents and context. If you've already read the file recently and it hasn't been modified by others, you can edit directly based on your knowledge
+- The file must have a recorded observation from read_file/read_files, grep_search, or a recognized single-file shell view; user-provided snippets do not create a record. Partial reads do not restrict edit locations
+- With a record and exact target text, do not read again just to satisfy the tool. If the version changed, editing is allowed only when expected_replacements=1 and the target still matches exactly once. Otherwise follow the error's reading guidance; also read when your decision depends on surrounding content
 - Verify the directory path is correct
 - The tool will fail if old_string matches multiple locations and expected_replacements isn't specified
 - The tool will fail if the number of matches doesn't equal expected_replacements when it's specified
@@ -108,7 +118,7 @@ Before using edit tool:
 IMPORTANT: Copy text exactly as it appears in the file, including punctuation style.
 
 When editing the same file multiple times:
-- Read the file ONCE at the beginning to identify ALL edit locations
+- Obtain the exact content you need at the beginning; do not repeat a read when a record and sufficient context already exist
 - Use multi_edit_file to apply all changes in one operation (preferred)
 - OR apply edits sequentially without re-reading the file between edits
 - DO NOT re-read the file after each successful edit - this wastes tokens
@@ -173,14 +183,15 @@ When editing the same file multiple times:
                           "Use write_file to create new files."
                 )
 
-            # Verify file hasn't been modified externally
-            is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
-            if not is_valid:
+            # 内部读取只服务本次匹配，不能替代编辑前必须已有的观察记录。
+            horizon = self.get_horizon(tool_context)
+            if not await horizon.is_file_tracked(file_path):
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult.error(error_message)
+                return ToolResult.error(VALIDATION_ERROR_NOT_READ)
 
             # Read file content
-            original_content = await self._read_file(file_path)
+            original_snapshot = await self._read_file(file_path)
+            original_content = original_snapshot.content
 
             # Count occurrences
             occurrences = original_content.count(params.old_string)
@@ -252,7 +263,7 @@ When editing the same file multiple times:
                     error_msg += "SOLUTIONS:\n"
                     error_msg += "1. Read current file content around the target snippet to check if it has been modified, then retry with latest text\n"
                     error_msg += "2. Check character-by-character alignment (whitespace, indentation, punctuation, newlines)\n"
-                    error_msg += "3. If multiple attempts fail and edit_file_range is available, try it for range-anchored replacement\n"
+                    error_msg += "3. For large replacements, call find_file_ranges first, then submit its range IDs together in the edit_file_ranges edits list\n"
                     error_msg += "4. As a last resort, use shell commands or a Python script for precise edits"
 
                 # Check for excessive escaping and add warning at the end
@@ -268,7 +279,22 @@ When editing the same file multiple times:
                         "Remove the extra escape characters from your strings."
                     )
 
-                return ToolResult.error(error_msg)
+                replacement_id = await self._save_failed_replacement(
+                    tool_context,
+                    file_path=file_path,
+                    value=params.new_string,
+                )
+                if replacement_id:
+                    error_msg += (
+                        "\n\nGenerated replacement text was saved as replacement_id="
+                        f"{replacement_id}. After calling find_file_ranges again, pass that replacement_id "
+                        "in an edit_file_ranges edits item with the new range_id, instead of sending the long text again."
+                    )
+
+                return ToolResult.error(
+                    error_msg,
+                    data={"replacement_id": replacement_id} if replacement_id else {},
+                )
 
             # Handle count mismatch
             if occurrences != params.expected_replacements:
@@ -286,14 +312,51 @@ When editing the same file multiple times:
                 if locations:
                     error_msg += f"Match locations:\n{locations}"
 
-                return ToolResult.error(error_msg)
+                replacement_id = await self._save_failed_replacement(
+                    tool_context,
+                    file_path=file_path,
+                    value=params.new_string,
+                )
+                if replacement_id:
+                    error_msg += (
+                        "\n\nGenerated replacement text was saved as replacement_id="
+                        f"{replacement_id}. After calling find_file_ranges again, pass that replacement_id "
+                        "in an edit_file_ranges edits item with the new range_id, instead of sending the long text again."
+                    )
+
+                return ToolResult.error(
+                    error_msg,
+                    data={"replacement_id": replacement_id} if replacement_id else {},
+                )
 
             # Perform replacement
             new_content = original_content.replace(params.old_string, params.new_string, params.expected_replacements)
 
+            # 目标唯一时允许已观察文件的版本变化；多次替换仍要求原版本未变。
+            is_valid, error_message = await horizon.validate_file_not_modified(
+                file_path, allow_changed=occurrences == 1 and params.expected_replacements == 1,
+            )
+            if not is_valid:
+                tool_context.set_metadata("error_type", "edit_file.error_file_modified")
+                replacement_id = await self._save_failed_replacement(
+                    tool_context,
+                    file_path=file_path,
+                    value=params.new_string,
+                )
+                if replacement_id:
+                    error_message += (
+                        "\n\nGenerated replacement text was saved as replacement_id="
+                        f"{replacement_id}. After calling find_file_ranges again, pass that replacement_id "
+                        "in an edit_file_ranges edits item with the new range_id, instead of sending the long text again."
+                    )
+                return ToolResult.error(
+                    error_message,
+                    data={"replacement_id": replacement_id} if replacement_id else {},
+                )
+
             # Write new content with file versioning (triggers events and updates timestamp)
             async with self._file_versioning_context(tool_context, file_path):
-                await self._write_file(file_path, new_content)
+                new_content = await self._write_file(file_path, new_content)
 
             # Syntax check
             syntax_result = await SyntaxChecker.check_syntax(str(file_path), new_content)
@@ -302,12 +365,17 @@ When editing the same file multiple times:
                 errors_str = "\n".join(syntax_result.errors)
                 ai_warnings.append(f"WARNING: Syntax errors detected in the modified file:\n{errors_str}")
 
-            # Generate summary diff for LLM (ToolResult content)
-            summary_diff = DiffGenerator.generate_summary_diff(
-                original_content,
-                new_content,
-                str(file_path.name)
+            """
+            Calculate stats
+            在真实替换与末尾换行处理后只计算一次，原摘要、用户 Diff 旁的数字与 Token 反馈共用。
+            匹配是否成功仍由原替换逻辑决定，用量数字不参与编辑权限或内容正确性判断。
+            """
+            stats = DiffGenerator.calculate_change_stats(
+                original_content, new_content, old_size=original_snapshot.metrics.byte_count,
             )
+
+            # Generate summary diff for LLM (ToolResult content)
+            summary_diff = DiffGenerator.generate_summary_diff(str(file_path.name), stats)
 
             # Generate full diff for user display (get_tool_detail)
             full_diff = DiffGenerator.generate_unified_diff(
@@ -315,9 +383,6 @@ When editing the same file multiple times:
                 new_content,
                 str(file_path.name)
             )
-
-            # Calculate stats
-            stats = DiffGenerator.calculate_change_stats(original_content, new_content)
 
             # Format output
             absolute_path = file_path.resolve()
@@ -341,6 +406,12 @@ When editing the same file multiple times:
                 output += "\n--- Change Summary ---\n"
                 output += summary_diff
 
+            # 原摘要继续提供全部行数／字节事实；计数只追加 Token，不替代原有信息。
+            output += "\n" + format_file_change_metrics(
+                FileChangeMetrics(original_snapshot.metrics, measure_text(new_content, stats['new_size'])),
+                include_bytes=False,
+            )
+
             # Add AI warnings if any
             if ai_warnings:
                 output += "\n\n" + "\n\n".join(ai_warnings)
@@ -352,6 +423,9 @@ When editing the same file multiple times:
             return ToolResult(
                 content=output,
                 extra_info={
+                    "added_lines": stats["added_lines"],
+                    "deleted_lines": stats["deleted_lines"],
+                    "modified_lines": stats["modified_lines"],
                     "diff": full_diff,  # Store full diff for get_tool_detail
                     "file_path": str(file_path),
                     "replacements": params.expected_replacements
@@ -365,26 +439,47 @@ When editing the same file multiple times:
                 error="The edit_file tool encountered an unexpected error. "
                       "First re-read current file content around the target snippet to check if it has been modified, then retry with latest text. "
                       "Then check exact character alignment (whitespace/punctuation/newlines). "
-                      "If multiple attempts fail and edit_file_range is available, try it. "
+                      "For a large replacement, call find_file_ranges and then edit_file_ranges. "
                       "As a last resort, use shell commands (e.g., sed/awk; avoid piping sed to cat -A for multi-byte characters) "
                       "or write a Python script."
             )
 
 
 
-    async def _read_file(self, file_path: Path) -> str:
-        """Read file content"""
-        async with aiofiles.open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            return await f.read()
+    async def _read_file(self, file_path: Path) -> FileTextSnapshot:
+        """
+        Read file content
 
-    async def _write_file(self, file_path: Path, content: str) -> None:
+        原文继续参与匹配，同一次读取留下真实字节数，避免为新增反馈再读一遍文件。
+        """
+        return await read_text_snapshot(file_path)
+
+    async def _write_file(self, file_path: Path, content: str) -> str:
         """Write file content"""
         # Ensure content ends with newline (if not empty)
         if content and not content.endswith('\n'):
             content += '\n'
 
-        async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
-            await f.write(content)
+        await async_write_text(file_path, content)
+        return content
+
+    async def _save_failed_replacement(
+        self,
+        tool_context: ToolContext,
+        *,
+        file_path: Path,
+        value: str,
+    ) -> str | None:
+        try:
+            context = tool_context.get_extension_typed("agent_context", AgentContext)
+            return await FileEditStore.save_replacement(
+                context,
+                file_path=file_path,
+                value=value,
+            )
+        except Exception as error:
+            logger.warning("Could not save failed edit replacement: %s", error)
+            return None
 
     def _find_similar_strings(self, content: str, search_string: str, max_suggestions: int = 5) -> str:
         """Find similar strings in content for suggestions"""
@@ -460,12 +555,25 @@ When editing the same file multiple times:
         markdown_content += diff_content
         markdown_content += "\n```"
 
-        return ToolDetail(
+        report = ToolDetail(
             type=DisplayType.MD,  # Use Markdown display type
-            data=FileContent(
+            data=await self._build_file_content(
+                file_path=file_path,
                 file_name=f"{file_name}.diff",
                 content=markdown_content
             )
+        )
+
+        return ToolDetailFactory.create_operation_result_detail(
+            [ToolDetailFactory.create_file_result_item(
+                file_path, self.base_dir, OperationResultStatus.SUCCESS,
+                changes=OperationResultChanges(
+                    added_lines=int(result.extra_info.get("added_lines", 0)),
+                    deleted_lines=int(result.extra_info.get("deleted_lines", 0)),
+                    modified_lines=int(result.extra_info.get("modified_lines", 0)),
+                ),
+            )],
+            report=report, stage="edit",
         )
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:

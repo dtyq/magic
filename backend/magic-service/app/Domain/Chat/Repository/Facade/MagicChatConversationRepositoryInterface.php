@@ -21,6 +21,13 @@ interface MagicChatConversationRepositoryInterface
 
     public function getConversationById(string $conversationId): ?MagicConversationEntity;
 
+    public function getConversationByIdentity(MagicConversationEntity $identity, bool $includeDeleted = false): ?MagicConversationEntity;
+
+    /** @return array<string, MagicConversationEntity> */
+    public function getConversationsByIdsForUpdate(array $ids): array;
+
+    public function updateDefaultTopicId(string $id, string $topicId): void;
+
     /**
      * @return MagicConversationEntity[]
      */

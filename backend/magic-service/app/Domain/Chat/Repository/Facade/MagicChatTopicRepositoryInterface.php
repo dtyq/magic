@@ -32,6 +32,8 @@ interface MagicChatTopicRepositoryInterface
 
     public function getTopicEntity(MagicTopicEntity $magicTopicDTO): ?MagicTopicEntity;
 
+    public function getTopicForConversationForUpdate(string $conversationId, string $topicId): ?MagicTopicEntity;
+
     public function createTopicMessage(MagicTopicMessageEntity $topicMessageDTO): MagicTopicMessageEntity;
 
     public function createTopicMessages(array $data): bool;

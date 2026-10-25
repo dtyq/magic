@@ -260,7 +260,8 @@ Plan content must be concrete enough for user approval:
 
 
 def build_plan_result_builder(plan: Dict[str, Any], expires_at: int) -> ResultBuilder:
-    def result_builder(response_status: str, answer_json: str) -> Tuple[str, Dict[str, Any]]:
+    def result_builder(response_status: str, answer_json: str, remark: str = "") -> Tuple[str, Dict[str, Any]]:
+        """构造计划审批结果；remark 属于 ask_user，本工具保持忽略。"""
         status = normalize_plan_status(response_status)
         response = parse_plan_response(answer_json)
         title = plan.get("title") or "Implementation plan"

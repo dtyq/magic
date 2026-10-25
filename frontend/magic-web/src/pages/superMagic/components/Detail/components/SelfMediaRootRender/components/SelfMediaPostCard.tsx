@@ -2,7 +2,7 @@ import { type CSSProperties, useCallback, useEffect, useState } from "react"
 import { BarChart3, ClipboardCheck, MoreHorizontal } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import MagicTooltip from "@/components/base/MagicTooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ScheduledTask } from "@/types/scheduledTask"
 import type { SelfMediaPlatform } from "../../../types"
 import type {
@@ -120,9 +120,9 @@ function SelfMediaPostCard({
 	onSetPostPublishStatus,
 	publishedLinkAutoOpenSignal,
 }: SelfMediaPostCardProps) {
-	const { t } = useTranslation("super")
+	const { t, i18n } = useTranslation("super")
 	const { platform, index } = item
-	const engagementItems = getEngagementItems(opsMetrics)
+	const engagementItems = getEngagementItems(opsMetrics, i18n?.language)
 	const { containerRef: cardRef, width: cardWidth } = useMeasuredContainerWidth<HTMLDivElement>()
 	const normalizedPublishedUrl = publishedUrl?.trim() || ""
 	const [localPublishedUrl, setLocalPublishedUrl] = useState(normalizedPublishedUrl)
@@ -235,8 +235,8 @@ function SelfMediaPostCard({
 		>
 			<div
 				className={cn(
-					"self-media-post-card-button group relative isolate flex h-full min-h-[168px] w-full flex-col gap-3 rounded-[22px] bg-[#ffffff] p-4 pb-[76px] text-left shadow-[inset_0_1px_rgba(255,255,255,0.75),0_10px_30px_rgba(47,43,36,0.06)] transition-transform hover:-translate-y-0.5",
-					isCardComfortable && "min-h-[192px] rounded-[24px] p-[20px] pb-[76px]",
+					"self-media-post-card-button group relative isolate flex h-full min-h-[168px] w-full flex-col gap-3 rounded-[22px] bg-[#ffffff] p-4 pb-[80px] text-left shadow-[inset_0_1px_rgba(255,255,255,0.75),0_10px_30px_rgba(47,43,36,0.06)] transition-transform hover:-translate-y-0.5",
+					isCardComfortable && "min-h-[192px] rounded-[24px] p-[20px] pb-[80px]",
 				)}
 			>
 				<button
@@ -288,7 +288,7 @@ function SelfMediaPostCard({
 					<div
 						className={cn(
 							"self-media-post-card-engagement pointer-events-none relative z-10 flex min-h-5 flex-nowrap items-center gap-x-3 overflow-hidden whitespace-nowrap pt-1 text-[12px] font-[500] text-[#71717a]",
-							isCardComfortable && "gap-x-4 pr-24",
+							isCardComfortable && "gap-x-4",
 						)}
 						data-testid={`self-media-home-post-engagement-${postId}`}
 					>
@@ -306,10 +306,7 @@ function SelfMediaPostCard({
 					</div>
 				) : null}
 				<div
-					className={cn(
-						"self-media-post-card-actions absolute bottom-4 left-4 right-4 z-20 flex max-w-none flex-nowrap items-center justify-end gap-2 whitespace-nowrap",
-						isCardComfortable && "right-[16px]",
-					)}
+					className="self-media-post-card-actions pointer-events-auto absolute bottom-4 left-4 right-4 z-20 flex min-w-0 max-w-none flex-wrap items-center justify-end gap-1.5"
 					data-label-mode={shouldShowActionLabels ? "expanded" : "compact"}
 					data-testid={`self-media-home-post-actions-${postId}`}
 				>

@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface MicroAppPublishedSectionProps {
+	className?: string
 	mobile: boolean
 	publishedAtText: string
 	accessUrl: string
@@ -16,6 +17,7 @@ interface MicroAppPublishedSectionProps {
 
 /** 展示已发布状态与复制入口，始终放在发布弹窗表单的最上方。 */
 export default function MicroAppPublishedSection({
+	className,
 	mobile,
 	publishedAtText,
 	accessUrl,
@@ -27,11 +29,14 @@ export default function MicroAppPublishedSection({
 
 	return (
 		<div
-			className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-950/20"
+			className={cn(
+				"rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-950/20",
+				className,
+			)}
 			data-testid="micro-app-published-section"
 		>
-			<div className="flex items-center gap-3">
-				<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+			<div className="flex items-center gap-2">
+				<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
 					<Rocket className="size-4" />
 				</div>
 				<div>
@@ -48,66 +53,54 @@ export default function MicroAppPublishedSection({
 				</div>
 			</div>
 			{accessUrl ? (
-				<div
-					className="mt-4 rounded-lg border border-border/80 bg-background/90 p-3 shadow-sm dark:bg-background/80"
-					data-testid="micro-app-publish-quick-share"
-				>
+				<div className="mt-2" data-testid="micro-app-publish-quick-share">
+					<div className="relative">
+						<Input
+							readOnly
+							value={accessUrl}
+							className="h-9 min-w-0 bg-background pr-28 text-xs"
+							data-testid="micro-app-publish-access-url"
+						/>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="absolute right-1 top-1 h-7 gap-1.5 px-2"
+							onClick={onCopyAccessUrl}
+							disabled={hasUnsavedPublishedChanges}
+							aria-describedby={
+								hasUnsavedPublishedChanges
+									? "micro-app-publish-settings-changed"
+									: undefined
+							}
+							data-testid="micro-app-publish-copy-link"
+						>
+							<Copy className="size-3.5" />
+							{t("microAppPage.publish.copyLink")}
+						</Button>
+					</div>
 					<div
 						className={cn(
-							"flex gap-3",
-							mobile ? "flex-col items-stretch" : "items-center justify-between",
+							"mt-2 flex items-center justify-between gap-2",
+							mobile && "flex-col items-start",
 						)}
 					>
-						<div className="min-w-0">
-							<p className="text-sm font-medium text-foreground">
-								{t("microAppPage.publish.quickShareTitle")}
-							</p>
-							<p className="mt-0.5 text-xs text-muted-foreground">
-								{t("microAppPage.publish.quickShareDescription")}
-							</p>
-						</div>
-						<div className="flex shrink-0 items-center gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className={cn("h-8 gap-1.5", mobile && "flex-1")}
-								onClick={onCopyAccessUrl}
-								disabled={hasUnsavedPublishedChanges}
-								aria-describedby={
-									hasUnsavedPublishedChanges
-										? "micro-app-publish-settings-changed"
-										: undefined
-								}
-								data-testid="micro-app-publish-copy-link"
-							>
-								<Copy className="size-3.5" />
-								{t("microAppPage.publish.copyLink")}
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								className={cn("h-8 gap-1.5", mobile && "flex-1")}
-								onClick={onCopyShareText}
-								disabled={hasUnsavedPublishedChanges}
-								aria-describedby={
-									hasUnsavedPublishedChanges
-										? "micro-app-publish-settings-changed"
-										: undefined
-								}
-								data-testid="micro-app-publish-copy-share-text"
-							>
-								<Copy className="size-3.5" />
-								{t("microAppPage.publish.copyShareText")}
-							</Button>
-						</div>
+						<p className="text-xs text-muted-foreground">
+							{t("microAppPage.publish.quickShareDescription")}
+						</p>
+						<Button
+							type="button"
+							size="sm"
+							variant="default"
+							className="h-8 shrink-0 gap-1.5"
+							onClick={onCopyShareText}
+							disabled={hasUnsavedPublishedChanges}
+							data-testid="micro-app-publish-copy-share-text"
+						>
+							<Copy className="size-3.5" />
+							{t("microAppPage.publish.copyShareText")}
+						</Button>
 					</div>
-					<Input
-						readOnly
-						value={accessUrl}
-						className="mt-3 h-9 min-w-0 bg-background"
-						data-testid="micro-app-publish-access-url"
-					/>
 					{hasUnsavedPublishedChanges ? (
 						<p
 							id="micro-app-publish-settings-changed"

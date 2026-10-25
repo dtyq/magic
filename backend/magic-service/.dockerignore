@@ -37,6 +37,9 @@ volumes/
 docs/
 *.md
 !README.md
+# 内置 HTML 设计风格源文必须随镜像发布
+!storage/html-design-style/**/*.md
+!storage/html-design-style/*.md
 
 # 其他
 docker/

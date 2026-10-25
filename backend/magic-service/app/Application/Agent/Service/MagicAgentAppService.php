@@ -47,7 +47,6 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
-use InvalidArgumentException;
 use JetBrains\PhpStorm\Deprecated;
 use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -735,20 +734,36 @@ class MagicAgentAppService extends AbstractAppService
         return $oldInstruct !== $newInstruct;
     }
 
-    public function getDetailByUserId(string $userId): ?MagicAgentVersionEntity
+    public function getDetailByUserId(string $userId, MagicUserAuthorization $authorization): ?MagicAgentVersionEntity
     {
-        $magicUserEntity = $this->magicUserDomainService->getUserById($userId);
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setCurrentUserId($authorization->getId());
+        $magicUserEntity = $this->magicUserDomainService->getUserByIds([$userId], $dataIsolation)[0] ?? null;
         if ($magicUserEntity === null) {
-            throw new InvalidArgumentException('user is empty');
+            return null;
         }
         $magicId = $magicUserEntity->getMagicId();
         $accountEntity = $this->magicAccountDomainService->getAccountInfoByMagicId($magicId);
         if ($accountEntity === null) {
-            throw new InvalidArgumentException('account is empty');
+            return null;
         }
         $aiCode = $accountEntity->getAiCode();
         // 根据 aiCode(flowCode)
-        return $this->magicAgentVersionDomainService->getAgentByFlowCode($aiCode);
+        $agentVersion = $this->magicAgentVersionDomainService->getAgentByFlowCode($aiCode);
+        if ($agentVersion === null || $agentVersion->getOrganizationCode() !== $authorization->getOrganizationCode()) {
+            return null;
+        }
+
+        if ($agentVersion->getReleaseScope() === MagicAgentReleaseStatus::PERSONAL_USE->value) {
+            if ($agentVersion->getCreatedUid() !== $authorization->getId()) {
+                return null;
+            }
+        } elseif (empty($this->filterVisibleAgents([$agentVersion], $authorization->getId(), $authorization->getOrganizationCode()))) {
+            return null;
+        }
+
+        return $agentVersion;
     }
 
     /**

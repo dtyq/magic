@@ -6,7 +6,13 @@ import type {
 } from "@/components/CanvasDesign/public/magic-types"
 import type { BatchSaveInfo } from "@/stores/folderUpload/types"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { toDesignDslPath } from "./designPath"
+import {
+	hasCurrentDirectoryPrefix,
+	normalizePathSeparators,
+	stripCurrentDirectoryPrefix,
+	stripPathEdgeSlashes,
+} from "@/components/CanvasDesign/runtime/shared/path/canvasResourcePath"
+import { resolveDesignWorkspaceStoragePath } from "./designResourceReferenceResolver"
 
 /**
  * 包含 file_id 的上传图片响应类型
@@ -21,14 +27,24 @@ function normalizeUploadResponsePath(params: {
 	uploadSubDir: UploadSubDirType
 	fileName: string
 	designProjectBasePath?: string
-}): string {
+}): string | undefined {
 	const { rawPath, uploadSubDir, fileName, designProjectBasePath } = params
-	const normalized = toDesignDslPath(rawPath, { designProjectBasePath })
+	const normalized = normalizePathSeparators(rawPath.trim())
+	if (!normalized) return undefined
+
 	const uploadSubDirPath = `${uploadSubDir}/${fileName}`.replace(/\/+/g, "/")
-	if (normalized === uploadSubDirPath || normalized.startsWith(`${uploadSubDir}/`)) {
-		return normalized.startsWith("./") ? normalized : `./${normalized}`
+	const isCurrentCanvasUploadPath =
+		hasCurrentDirectoryPrefix(normalized) ||
+		normalized === uploadSubDirPath ||
+		normalized.startsWith(`${uploadSubDir}/`)
+	let workspacePath = normalized
+	if (isCurrentCanvasUploadPath) {
+		const currentCanvasPath = stripPathEdgeSlashes(designProjectBasePath || "")
+		if (!currentCanvasPath) return undefined
+		workspacePath = `${currentCanvasPath}/${stripCurrentDirectoryPrefix(normalized)}`
 	}
-	return normalized
+
+	return resolveDesignWorkspaceStoragePath(workspacePath, { designProjectBasePath })
 }
 
 /**
@@ -167,14 +183,17 @@ export async function processBatchSavedFiles(params: {
 			apiPath && apiPath.endsWith(savedFile.file_name) && apiPath.includes("/")
 				? apiPath
 				: relativeFilePath
-		const filePath = normalizeUploadResponsePath({
-			rawPath,
-			uploadSubDir,
-			fileName: savedFile.file_name,
-			designProjectBasePath,
-		})
-
 		try {
+			const filePath = normalizeUploadResponsePath({
+				rawPath,
+				uploadSubDir,
+				fileName: savedFile.file_name,
+				designProjectBasePath,
+			})
+			if (!filePath) {
+				throw new Error(t("design.errors.designResourcePathUnresolved"))
+			}
+
 			// 如果 API 返回了 file_id，直接使用，无需再次调用 getFileInfo
 			if (savedFile.file_id) {
 				// 直接通过 file_id 获取文件信息（包含下载 URL）
@@ -234,6 +253,7 @@ export async function processBatchSavedFiles(params: {
  */
 export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 	onProgress: (taskId: string, state: { progress?: number }) => void
+	onFileProgress: (taskId: string, file: File, progress: number) => void
 	onBatchSaveComplete: (batchSaveInfo: BatchSaveInfo) => Promise<void>
 	onComplete: () => void
 	onError: (taskId: string, error: Error) => void
@@ -302,6 +322,13 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 			if (state.progress !== undefined) {
 				setUploadProgress(state.progress)
 			}
+		},
+		onFileProgress: (_taskId: string, file: File, progress: number) => {
+			const uploadFile =
+				Array.from(fileNameToUploadFileMap.values()).find(
+					(candidate) => candidate.file === file,
+				) || fileNameToUploadFileMap.get(file.name)
+			uploadFile?.onUploadProgress?.(progress)
 		},
 
 		onBatchSaveComplete: async (batchSaveInfo: BatchSaveInfo) => {

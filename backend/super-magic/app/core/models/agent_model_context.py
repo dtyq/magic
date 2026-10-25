@@ -51,6 +51,8 @@ class AgentModelContext:
     _compact_text_model_active: bool = field(default=False, init=False, repr=False)
     _compact_text_model_fallback_consumed: bool = field(default=False, init=False, repr=False)
     _last_logged_text_model_id: Optional[str] = field(default=None, init=False, repr=False)
+    _native_visual_400_failure_count: int = field(default=0, init=False, repr=False)
+    _native_visual_fallback_applied: bool = field(default=False, init=False, repr=False)
 
     def set_configured_text_model(self, model_id: str) -> None:
         """设置 Agent 文件中声明的默认文本模型 ID。"""
@@ -90,6 +92,42 @@ class AgentModelContext:
     def video_model_id(self) -> Optional[str]:
         """返回当前生效视频模型 ID。"""
         return self.video.model_id
+
+    def disable_multimodal_for_model(self, model_id: str) -> None:
+        """在当前沙箱内存配置中关闭指定模型的原生多模态能力。"""
+        normalized = normalize_model_id(model_id)
+        if not normalized:
+            return
+
+        from agentlang.config.models.model_config_manager import model_config_manager
+
+        model_config_manager.disable_multimodal(normalized)
+        if self._resolved_text_state is not None and self._resolved_text_state.model_id == normalized:
+            self._resolved_text_state.config.supports_multimodal = False
+
+    @property
+    def native_visual_400_failure_count(self) -> int:
+        """返回当前模型原生视觉请求连续 HTTP 4xx 的次数。"""
+        return self._native_visual_400_failure_count
+
+    @property
+    def native_visual_fallback_applied(self) -> bool:
+        """返回当前模型是否已经执行过原生视觉降级。"""
+        return self._native_visual_fallback_applied
+
+    def record_native_visual_400_failure(self) -> int:
+        """记录一次原生视觉 HTTP 4xx，返回累计次数。"""
+        self._native_visual_400_failure_count += 1
+        return self._native_visual_400_failure_count
+
+    def mark_native_visual_fallback_applied(self) -> None:
+        """标记当前模型已经执行过原生视觉降级。"""
+        self._native_visual_fallback_applied = True
+
+    def reset_native_visual_400_state(self) -> None:
+        """清理当前模型的原生视觉 4xx 计数和降级标记。"""
+        self._native_visual_400_failure_count = 0
+        self._native_visual_fallback_applied = False
 
     def media_model_payload(self) -> JsonObject:
         """返回图片和视频模型合并后的媒体模型 payload。"""

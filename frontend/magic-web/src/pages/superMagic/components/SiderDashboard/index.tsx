@@ -17,12 +17,14 @@ import SiderDashboardItem, { SiderDashboardItemRef } from "./SiderDashboardItem"
 import MagicIcon from "@/components/base/MagicIcon"
 import { useSuperMagicDropdown } from "../SuperMagicDropdown"
 import { useMemo, useState, useCallback, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { DashboardItemData } from "./types"
 import useData from "./useData"
 import { IconOpenWindow } from "@/enhance/tabler/icons-react"
 import FileTree from "./FileTree"
 
 export default function SiderDashboard() {
+	const { t } = useTranslation("super")
 	const { list, setList, expandedKeys, setExpandedKeys, checkedList, setCheckedList } = useData()
 
 	const [searchValue, setSearchValue] = useState("")
@@ -203,7 +205,7 @@ export default function SiderDashboard() {
 			if (dashboardItem.type === "dashboard") {
 				items.push(
 					{
-						label: "打开看板",
+						label: t("siderDashboard.openBoard"),
 						key: "openDashboard",
 						icon: <MagicIcon component={IconOpenWindow} stroke={2} size={18} />,
 						onClick: () => onOpenDashboard(dashboardItem),
@@ -212,7 +214,7 @@ export default function SiderDashboard() {
 						type: "divider" as const,
 					},
 					{
-						label: "替换文件",
+						label: t("siderDashboard.replaceFile"),
 						key: "replaceFile",
 						icon: <MagicIcon component={IconUpload} stroke={2} size={18} />,
 						onClick: () => onReplaceFile(dashboardItem),
@@ -221,7 +223,7 @@ export default function SiderDashboard() {
 			} else if (dashboardItem.type === "folder") {
 				items.push(
 					{
-						label: "打开文件",
+						label: t("siderDashboard.openFile"),
 						key: "openFile",
 						icon: <MagicIcon component={IconOpenWindow} stroke={2} size={18} />,
 						onClick: () => onOpenFile(dashboardItem),
@@ -234,7 +236,7 @@ export default function SiderDashboard() {
 
 			items.push(
 				{
-					label: "重命名",
+					label: t("siderDashboard.rename"),
 					key: "rename",
 					icon: <MagicIcon component={IconEdit} stroke={2} size={18} />,
 					onClick: () => onRename(dashboardItem),
@@ -243,13 +245,13 @@ export default function SiderDashboard() {
 					type: "divider" as const,
 				},
 				{
-					label: "添加到当前会话",
+					label: t("siderDashboard.addToCurrentChat"),
 					key: "addToCurrentChat",
 					icon: <MagicIcon component={IconMessageCircleShare} stroke={2} size={18} />,
 					onClick: () => onAddToCurrentChat(dashboardItem),
 				},
 				{
-					label: "添加到新会话",
+					label: t("siderDashboard.addToNewChat"),
 					key: "addToNewChat",
 					icon: <MagicIcon component={IconMessageCirclePlus} stroke={2} size={18} />,
 					onClick: () => onAddToNewChat(dashboardItem),
@@ -262,24 +264,24 @@ export default function SiderDashboard() {
 			if (dashboardItem.type === "dashboard") {
 				items.push(
 					{
-						label: "下载文件",
+						label: t("siderDashboard.downloadFile"),
 						key: "download",
 						icon: <MagicIcon component={IconDownload} stroke={2} size={18} />,
 						children: [
 							{
-								label: "下载原始文件",
+								label: t("siderDashboard.downloadOriginal"),
 								key: "downloadOriginal",
 								onClick: () => onDownloadOriginal(dashboardItem),
 							},
 							{
-								label: "下载 PDF 格式",
+								label: t("siderDashboard.downloadPdf"),
 								key: "downloadPdf",
 								onClick: () => onDownloadPdf(dashboardItem),
 							},
 						],
 					},
 					{
-						label: "分享看板",
+						label: t("siderDashboard.shareBoard"),
 						key: "shareDashboard",
 						icon: <MagicIcon component={IconShare} stroke={2} size={18} />,
 						onClick: () => onShareDashboard(dashboardItem),
@@ -288,7 +290,7 @@ export default function SiderDashboard() {
 			}
 
 			items.push({
-				label: "复制至云盘",
+				label: t("siderDashboard.copyToCloud"),
 				key: "copyToCloud",
 				icon: <MagicIcon component={IconCloudShare} stroke={2} size={18} />,
 				onClick: () => onCopyToCloud(dashboardItem),
@@ -297,14 +299,14 @@ export default function SiderDashboard() {
 			// 根据收藏状态显示对应的菜单项
 			if (dashboardItem.isFavorite) {
 				items.push({
-					label: "从收藏中移除",
+					label: t("siderDashboard.removeFavorite"),
 					key: "removeFromFavorite",
 					icon: <MagicIcon component={IconStar} stroke={2} size={18} />,
 					onClick: () => onRemoveFromFavorite(dashboardItem),
 				})
 			} else {
 				items.push({
-					label: "添加收藏",
+					label: t("siderDashboard.addFavorite"),
 					key: "addToFavorite",
 					icon: <MagicIcon component={IconStar} stroke={2} size={18} />,
 					onClick: () => onAddToFavorite(dashboardItem),
@@ -318,7 +320,7 @@ export default function SiderDashboard() {
 				{
 					key: "delete",
 					danger: true,
-					label: "删除",
+					label: t("siderDashboard.delete"),
 					icon: (
 						<MagicIcon
 							component={IconTrash}
@@ -340,7 +342,7 @@ export default function SiderDashboard() {
 			{dropdownContent}
 			<div className="flex shrink-0 items-center justify-end border-b border-gray-200 px-1.5 py-2">
 				<div className="flex items-center gap-2">
-					<Tooltip title="添加目录">
+					<Tooltip title={t("siderDashboard.addDirectory")}>
 						<ActionButton size={20} className="rounded" onClick={onAddFolder}>
 							<MagicIcon
 								className="stroke-gray-400"
@@ -350,7 +352,7 @@ export default function SiderDashboard() {
 							/>
 						</ActionButton>
 					</Tooltip>
-					<Tooltip title="下载文件">
+					<Tooltip title={t("siderDashboard.downloadFile")}>
 						<ActionButton size={20} className="rounded" onClick={onDownload}>
 							<MagicIcon
 								className="stroke-gray-400"
@@ -365,7 +367,7 @@ export default function SiderDashboard() {
 			<div className="flex flex-1 flex-col">
 				<div className="flex-none px-1.5 pb-1">
 					<Input
-						placeholder="搜索看板"
+						placeholder={t("siderDashboard.searchBoard")}
 						value={searchValue}
 						onChange={(e) => setSearchValue(e.target.value)}
 					/>
@@ -413,7 +415,7 @@ export default function SiderDashboard() {
 									/>
 								)
 							}}
-							emptyText="暂无数据看板"
+							emptyText={t("siderDashboard.emptyBoard")}
 						/>
 					</div>
 				</div>

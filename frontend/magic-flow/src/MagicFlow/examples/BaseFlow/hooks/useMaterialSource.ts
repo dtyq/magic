@@ -1,7 +1,7 @@
 import { MagicFlow } from '@/MagicFlow/types/flow'
 import React, { useMemo, useState } from 'react'
 import { mockFlowList } from '../mock/flowList'
-import _ from 'lodash'
+import { cloneDeep } from 'lodash-es'
 import { MaterialGroup } from '@/MagicFlow/context/MaterialSourceContext/MaterialSourceContext'
 import { mockToolSets } from '../mock/toolsets'
 
@@ -17,7 +17,7 @@ export default function useMaterialSource() {
             searchListFn: async (keyword: string) => {
                 const list = await Promise.resolve(mockFlowList)
                 // @ts-ignore
-                setSubFlowList(_.cloneDeep(list))
+                setSubFlowList(cloneDeep(list))
             }
             
         }
@@ -54,7 +54,7 @@ export default function useMaterialSource() {
                     return result
                 }, [] as MaterialGroup[]))
                 // @ts-ignore
-                setToolGroups(_.cloneDeep(list))
+                setToolGroups(cloneDeep(list))
             }
         }
     }, [toolGroup])

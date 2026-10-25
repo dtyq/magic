@@ -241,14 +241,22 @@ def visual_query_detail(result: ToolResult, arguments: Mapping[str, object]) -> 
     analysis = string(result.data.get("analysis")).strip()
     query = string(arguments.get("query")).strip()
     details = field("browser.detail.label.query", escape_markdown(query)) if query else ""
+    visual_status = (
+        message("browser.detail.native_visual_attached")
+        if result.data.get("native_visual") is True
+        else analysis or message("browser.detail.no_visual_analysis")
+    )
     return join_sections(
         [
-            section("browser.detail.heading.result", message("browser.detail.result.visual_analysis")),
+            section(
+                "browser.detail.heading.result",
+                message("browser.detail.result.visual_analysis"),
+            ),
             page_section(page_data(result)),
             section("browser.detail.heading.details", details),
             section(
                 "browser.detail.heading.analysis",
-                analysis or message("browser.detail.no_visual_analysis"),
+                visual_status,
             ),
         ]
     )

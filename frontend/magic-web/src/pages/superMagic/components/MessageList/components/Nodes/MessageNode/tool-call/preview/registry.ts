@@ -54,6 +54,7 @@ const toolRemarkPreviewStrategies: Readonly<Record<string, ToolRemarkPreviewStra
 	write_file: filePathFilenameRemarkStrategy,
 	edit_file: filePathFilenameRemarkStrategy,
 	multi_edit_file: filePathFilenameRemarkStrategy,
+	find_file_ranges: filePathFilenameRemarkStrategy,
 	read_files: readFilesRemarkStrategy,
 	run_python_snippet: purposeRemarkStrategy,
 	shell_exec: commandRemarkStrategy,

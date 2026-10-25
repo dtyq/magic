@@ -69,12 +69,16 @@ class MagicClawRepository extends SuperMagicAbstractRepository implements MagicC
             ->delete();
     }
 
-    public function getList(string $userId, string $organizationCode, int $page, int $pageSize): array
+    public function getList(string $userId, string $organizationCode, int $page, int $pageSize, string $keyword = ''): array
     {
         $builder = $this->magicClawModel::query()
             ->where('user_id', $userId)
             ->where('organization_code', $organizationCode)
             ->orderByDesc('created_at');
+
+        if ($keyword !== '') {
+            $builder->where('name', 'like', '%' . $keyword . '%');
+        }
 
         $total = $builder->count();
 
@@ -126,6 +130,32 @@ class MagicClawRepository extends SuperMagicAbstractRepository implements MagicC
             ->where('project_id', $projectId)
             ->first();
         return $model ? $this->modelToEntity($model) : null;
+    }
+
+    public function getByProjectIds(array $projectIds): array
+    {
+        $projectIds = array_values(array_unique(array_filter(
+            array_map('intval', $projectIds),
+            static fn (int $projectId): bool => $projectId > 0
+        )));
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        $models = $this->magicClawModel::query()
+            ->whereIn('project_id', $projectIds)
+            ->get();
+
+        $claws = [];
+        foreach ($models as $model) {
+            $entity = $this->modelToEntity($model);
+            $projectId = $entity->getProjectId();
+            if ($projectId !== null) {
+                $claws[$projectId] = $entity;
+            }
+        }
+
+        return $claws;
     }
 
     private function modelToEntity(MagicClawModel $model): MagicClawEntity

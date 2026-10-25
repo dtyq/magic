@@ -35,6 +35,11 @@ enum ResourceType: int
      */
     case SKILL = 2;
 
+    /**
+     * 资产库素材（个人资产记 USER，官方公开资产记 ORGANIZATION）.
+     */
+    case ASSET = 5;
+
     public static function make(mixed $type): ResourceType
     {
         if (! is_int($type)) {

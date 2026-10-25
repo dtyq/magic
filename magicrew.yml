@@ -30,8 +30,6 @@ subtrees:
     prefix: backend/rule-engine-core
   sdk-base:
     prefix: backend/sdk-base
-  super-magic-module:
-    prefix: backend/super-magic-module
   task-scheduler:
     prefix: backend/task-scheduler
   sandbox:

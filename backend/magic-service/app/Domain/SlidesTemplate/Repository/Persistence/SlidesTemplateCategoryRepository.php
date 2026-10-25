@@ -10,6 +10,7 @@ namespace App\Domain\SlidesTemplate\Repository\Persistence;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateCategoryEntity;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateDataIsolation;
 use App\Domain\SlidesTemplate\Entity\ValueObject\Query\SlidesTemplateCategoryQuery;
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateOwnerType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateStatus;
 use App\Domain\SlidesTemplate\Factory\SlidesTemplateCategoryFactory;
 use App\Domain\SlidesTemplate\Repository\Facade\SlidesTemplateCategoryRepositoryInterface;
@@ -66,6 +67,7 @@ class SlidesTemplateCategoryRepository extends AbstractRepository implements Sli
     {
         $builder = $this->createBuilder($dataIsolation, SlidesTemplateCategoryModel::query());
         $this->applyQuery($builder, $query);
+        $this->applyOnlyWithTemplatesFilter($builder, $dataIsolation, $query);
         $builder->orderBy('sort', 'desc')->orderBy('id', 'desc');
 
         $data = $this->getByPage($builder, $page);
@@ -204,14 +206,43 @@ class SlidesTemplateCategoryRepository extends AbstractRepository implements Sli
 
     private function joinEnabledTemplates(Builder $builder, SlidesTemplateDataIsolation $dataIsolation): void
     {
-        $organizationCodes = array_values(array_filter($dataIsolation->getOrganizationCodes()));
+        $organizationCodes = array_values(array_filter($dataIsolation->getOfficialOrganizationCodes()));
         $builder->leftJoin('magic_slides_templates AS t', static function (JoinClause $join) use ($organizationCodes): void {
             $join->on('t.category_code', '=', 'magic_slides_template_categories.code')
+                ->on('t.organization_code', '=', 'magic_slides_template_categories.organization_code')
+                ->on('t.owner_id', '=', 't.organization_code')
+                ->where('t.owner_type', '=', SlidesTemplateOwnerType::Official->value)
                 ->where('t.status', '=', SlidesTemplateStatus::Enabled->value)
                 ->whereNull('t.deleted_at');
 
             if ($organizationCodes !== []) {
                 $join->whereIn('t.organization_code', $organizationCodes);
+            }
+        });
+    }
+
+    private function applyOnlyWithTemplatesFilter(
+        Builder $builder,
+        SlidesTemplateDataIsolation $dataIsolation,
+        SlidesTemplateCategoryQuery $query
+    ): void {
+        if (! $query->isOnlyWithTemplates()) {
+            return;
+        }
+
+        $organizationCodes = array_values(array_filter($dataIsolation->getOfficialOrganizationCodes()));
+        $builder->whereExists(static function ($existsQuery) use ($organizationCodes): void {
+            $existsQuery->selectRaw('1')
+                ->from('magic_slides_templates AS t')
+                ->whereColumn('t.category_code', 'magic_slides_template_categories.code')
+                ->whereColumn('t.organization_code', 'magic_slides_template_categories.organization_code')
+                ->where('t.owner_type', SlidesTemplateOwnerType::Official->value)
+                ->whereColumn('t.owner_id', 't.organization_code')
+                ->where('t.status', SlidesTemplateStatus::Enabled->value)
+                ->whereNull('t.deleted_at');
+
+            if ($organizationCodes !== []) {
+                $existsQuery->whereIn('t.organization_code', $organizationCodes);
             }
         });
     }

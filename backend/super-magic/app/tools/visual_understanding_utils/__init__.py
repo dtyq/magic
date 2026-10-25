@@ -34,6 +34,14 @@ from .image_conversion_utils import (
     local_file_to_base64,
     convert_unsupported_format_to_jpeg,
 )
+from .image_compression_service import ImageCompressionService
+
+# Image Base64 file cache
+from .image_base64_cache import (
+    CachedImageBase64,
+    ImageBase64Cache,
+    ImageBase64CacheKey,
+)
 
 # Image compression utilities
 from .image_compress_utils import (
@@ -91,6 +99,11 @@ __all__ = [
     # Image conversion
     'local_file_to_base64',
     'convert_unsupported_format_to_jpeg',
+    'ImageCompressionService',
+    # Image Base64 cache
+    'CachedImageBase64',
+    'ImageBase64Cache',
+    'ImageBase64CacheKey',
     # Image compression
     'should_compress_image',
     'compress_image',

@@ -53,6 +53,7 @@ db.sqlite3-journal
 # IDE 相关
 .idea/
 .vscode/
+.zcode/
 *.swp
 *.swo
 *~
@@ -66,6 +67,7 @@ db.sqlite3-journal
 .env.test.local
 .env.production.local
 .output/
+.topic/
 .chat_history/
 .workspace/
 .mount/
@@ -80,9 +82,9 @@ config/mcp.json
 .compare/
 config/config.local.yaml
 config/dynamic_config.yaml
+.checkpoints/
 .client_message/
 config/tool_definitions.json
-.checkpoints/
 .cursor/
 .refers/
 .user/
@@ -100,6 +102,7 @@ cache/
 .tmp/
 docs
 .runtime/
+.box/
 .clawhub
 
 # agent 的临时文件

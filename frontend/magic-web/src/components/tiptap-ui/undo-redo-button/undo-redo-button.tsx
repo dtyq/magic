@@ -3,20 +3,14 @@
 import * as React from "react"
 
 // --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
+import { parseShortcutKeys } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 
 // --- Tiptap UI ---
-import type {
-	UndoRedoAction,
-	UseUndoRedoConfig,
-} from "@/components/tiptap-ui/undo-redo-button"
-import {
-	UNDO_REDO_SHORTCUT_KEYS,
-	useUndoRedo,
-} from "@/components/tiptap-ui/undo-redo-button"
+import type { UndoRedoAction, UseUndoRedoConfig } from "@/components/tiptap-ui/undo-redo-button"
+import { UNDO_REDO_SHORTCUT_KEYS, useUndoRedo } from "@/components/tiptap-ui/undo-redo-button"
 
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button"

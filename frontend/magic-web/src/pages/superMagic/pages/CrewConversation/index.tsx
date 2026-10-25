@@ -1,3 +1,4 @@
+import { FileAccessProvider } from "@/pages/superMagic/providers/FileAccessProvider"
 import { lazy, Suspense } from "react"
 import { Loader2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
@@ -16,7 +17,11 @@ const CrewConversationMobile = lazy(() => import("./index.mobile"))
 
 interface CrewConversationLayoutContentProps {
 	layout: "desktop" | "mobile"
-	widgetContext: { instanceId: string; hostOrigin: string } | null
+	widgetContext: {
+		instanceId: string
+		hostOrigin: string
+		renderMode?: "inline" | "floating"
+	} | null
 	widgetConfig: MagicWidgetConfig
 }
 
@@ -79,7 +84,11 @@ function CrewConversationPage() {
 	const { config, embedContext } = useMagicWidgetConfig()
 	const routeOrganizationCode = getCrewConversationRouteOrganizationCode(search)
 	const widgetContext = embedContext
-		? { instanceId: embedContext.instanceId, hostOrigin: embedContext.hostOrigin }
+		? {
+				instanceId: embedContext.instanceId,
+				hostOrigin: embedContext.hostOrigin,
+				renderMode: embedContext.renderMode,
+			}
 		: null
 	// The route deployment is resolved before the organization guard runs, so organization
 	// switching cannot select an account from another SaaS or private environment.
@@ -114,4 +123,12 @@ function CrewConversationPage() {
 	)
 }
 
-export default observer(CrewConversationPage)
+const ObservedPage = observer(CrewConversationPage)
+
+export default function FileAccessPage() {
+	return (
+		<FileAccessProvider>
+			<ObservedPage />
+		</FileAccessProvider>
+	)
+}

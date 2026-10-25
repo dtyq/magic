@@ -26,6 +26,19 @@ class FileCollectionEntity
 
     private ?string $deletedAt = null;
 
+    private int $scopeVersion = 1;
+
+    public function getScopeVersion(): int
+    {
+        return $this->scopeVersion;
+    }
+
+    public function setScopeVersion(int $scopeVersion): self
+    {
+        $this->scopeVersion = max(1, $scopeVersion);
+        return $this;
+    }
+
     public function getId(): int
     {
         return $this->id;

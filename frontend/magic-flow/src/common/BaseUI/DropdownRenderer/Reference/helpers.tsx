@@ -1,6 +1,6 @@
 import { ExpressionSource, LabelTypeMap } from "@/MagicExpressionWidget/types"
 import { TreeDataNode } from "antd"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import React from "react"
 import { Splitor } from "./constants"
 
@@ -62,7 +62,7 @@ export const getRelationExpandKeys = (
 // 获取所有与用户输入相关的数据源
 export const getRelationDataSource = (dataSource: ExpressionSource, title: string) => {
 	const relationDataSource = [] as ExpressionSource
-	const cloneDataSource = _.cloneDeep(dataSource)
+	const cloneDataSource = cloneDeep(dataSource)
 
 	cloneDataSource.forEach((item) => {
 		// console.log(title, item)

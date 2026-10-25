@@ -3,7 +3,7 @@ import { createStyles } from "antd-style"
 export const useStyles = createStyles(({ css }) => ({
 	terminal: css`
 		border-radius: 8px;
-		background-color: #000000;
+		height: 200px;
 		overflow: hidden;
 		min-height: 200px;
 		position: relative;

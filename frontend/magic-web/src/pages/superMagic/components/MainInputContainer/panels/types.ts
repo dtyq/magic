@@ -87,14 +87,21 @@ export interface OptionItem {
 	height?: number
 	aspect_ratio?: number
 	usage_count?: number
+	is_favorite?: boolean
+	status?: number
 	sort?: number
 	colors?: string[]
 	tags?: OptionItemTag[]
+	project?: {
+		id: string
+		directory_id: string
+	} | null
 }
 
 export interface OptionItemTag {
 	id?: string
 	code: string
+	name?: string
 	name_i18n?: LocaleTextMap
 	sort?: number
 }
@@ -165,12 +172,7 @@ export interface FieldPanelConfig extends BasePanelConfig {
 
 /** Click action type for a guide item */
 export type ClickActionType =
-	| "no_action"
-	| "focus_input"
-	| "ai_enhancement"
-	| "fill_content"
-	| "open_url"
-	| "upload_file"
+	"no_action" | "focus_input" | "ai_enhancement" | "fill_content" | "open_url" | "upload_file"
 
 /** Execution method when click action fills/sends content */
 export type ExecutionMethodType = "send_immediately" | "insert_to_input"

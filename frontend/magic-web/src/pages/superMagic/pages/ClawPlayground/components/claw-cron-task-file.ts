@@ -1,5 +1,6 @@
+import { Cron } from "croner"
 import yaml from "js-yaml"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { SuperMagicApi } from "@/apis"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { loadProjectAttachments } from "@/pages/superMagic/services"
@@ -32,6 +33,10 @@ export type ClawCronScheduleType =
 
 export const CLAW_CRON_RECURRING_CYCLE = {
 	Daily: "daily",
+	Weekdays: "weekdays",
+	Weekly: "weekly",
+	Monthly: "monthly",
+	Custom: "custom",
 } as const
 
 export type ClawCronRecurringCycle =
@@ -54,6 +59,14 @@ export interface ClawCronTaskDraft {
 	interval?: ClawCronIntervalParts | null
 	recurringCycle?: ClawCronRecurringCycle | null
 	recurringTime?: string | null
+	/** 0-6, 0 is Sunday. */
+	recurringWeekdays?: number[] | null
+	/** 1-31 */
+	recurringMonthDays?: number[] | null
+	/** Editable expression for the custom cycle. */
+	recurringExpr?: string | null
+	/** Expression read from the task file; written back verbatim when the schedule is unchanged. */
+	recurringSourceExpr?: string | null
 	endAt?: string | null
 	agentCode?: string | null
 	modelId?: string | null
@@ -231,22 +244,233 @@ function deleteCachedClawCronTaskContent(fileId?: string | null) {
 	clawCronTaskContentCache.delete(String(fileId))
 }
 
-function buildDailyCronExpression(time: string) {
-	const [hours = "00", minutes = "00"] = time.split(":")
-	return `${Number(minutes)} ${Number(hours)} * * *`
+export interface ClawCronRecurringConfig {
+	cycle: ClawCronRecurringCycle
+	/** HH:mm, ignored by the custom cycle. */
+	time: string
+	weekdays: number[]
+	monthDays: number[]
+	/** Expression used by the custom cycle. */
+	expr: string
 }
 
-function parseDailyCronExpression(expr?: string | null) {
-	if (!expr) return null
+const WORKDAYS = [1, 2, 3, 4, 5]
+const WEEKDAY_NAME_MAP: Record<string, number> = {
+	SUN: 0,
+	MON: 1,
+	TUE: 2,
+	WED: 3,
+	THU: 4,
+	FRI: 5,
+	SAT: 6,
+}
 
-	const [minute, hour, dayOfMonth, month, dayOfWeek] = expr.trim().split(/\s+/)
-	if (!minute || !hour || !dayOfMonth || !month || !dayOfWeek) return null
-	if (dayOfMonth !== "*" || month !== "*" || dayOfWeek !== "*") return null
+function isSameNumberList(left: number[], right: number[]) {
+	if (left.length !== right.length) return false
+	return left.every((value, index) => value === right[index])
+}
 
-	return {
-		cycle: CLAW_CRON_RECURRING_CYCLE.Daily,
+/**
+ * Parses plain lists and ranges such as `1,3,5`, `1-5` or `MON-FRI`.
+ * Steps, `L`, `W`, `#` and `?` return null so the expression falls back to the custom cycle.
+ */
+function parseCronNumberList(
+	field: string,
+	range: { min: number; max: number },
+	nameMap?: Record<string, number>,
+) {
+	function parseValue(raw: string) {
+		const upper = raw.toUpperCase()
+		if (nameMap && upper in nameMap) return nameMap[upper]
+		if (!/^\d+$/.test(raw)) return null
+		const value = Number(raw)
+		if (value < range.min || value > range.max) return null
+		return value
+	}
+
+	const values = new Set<number>()
+	for (const item of field.split(",")) {
+		const [startRaw, endRaw, ...rest] = item.split("-")
+		if (!startRaw || rest.length) return null
+
+		const start = parseValue(startRaw)
+		const end = endRaw === undefined ? start : parseValue(endRaw)
+		if (start === null || end === null || start > end) return null
+
+		for (let value = start; value <= end; value += 1) values.add(value)
+	}
+
+	return [...values].sort((left, right) => left - right)
+}
+
+function parseCronWeekdays(field: string) {
+	// Cron allows 7 as an alias of Sunday.
+	const values = parseCronNumberList(field, { min: 0, max: 7 }, WEEKDAY_NAME_MAP)
+	if (!values) return null
+	return [...new Set(values.map((value) => (value === 7 ? 0 : value)))].sort(
+		(left, right) => left - right,
+	)
+}
+
+function parseCronClockField(field: string, max: number) {
+	if (!/^\d+$/.test(field)) return null
+	const value = Number(field)
+	return value <= max ? value : null
+}
+
+/**
+ * Maps a cron expression onto the form cycles.
+ *
+ * | Expression        | Cycle    |
+ * | `30 9 * * *`      | daily    |
+ * | `0 9 * * 1-5`     | weekdays |
+ * | `0 9 * * MON,WED` | weekly   |
+ * | `0 9 1,15 * *`    | monthly  |
+ *
+ * Anything the form cannot represent exactly (steps, several hours, month limits,
+ * day-of-month and day-of-week both set, `L`, six fields…) becomes custom and keeps the raw text.
+ */
+export function parseCronExpression(expr: string): ClawCronRecurringConfig {
+	const normalizedExpr = expr.trim()
+	const customConfig: ClawCronRecurringConfig = {
+		cycle: CLAW_CRON_RECURRING_CYCLE.Custom,
+		time: "",
+		weekdays: [],
+		monthDays: [],
+		expr: normalizedExpr,
+	}
+
+	const fields = normalizedExpr.split(/\s+/)
+	if (fields.length !== 5) return customConfig
+
+	const [minuteField, hourField, dayOfMonthField, monthField, dayOfWeekField] = fields
+	const minute = parseCronClockField(minuteField, 59)
+	const hour = parseCronClockField(hourField, 23)
+	if (minute === null || hour === null || monthField !== "*") return customConfig
+
+	const baseConfig = {
+		...customConfig,
 		time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
 	}
+
+	if (dayOfMonthField === "*" && dayOfWeekField === "*")
+		return { ...baseConfig, cycle: CLAW_CRON_RECURRING_CYCLE.Daily }
+
+	if (dayOfMonthField === "*") {
+		const weekdays = parseCronWeekdays(dayOfWeekField)
+		if (!weekdays) return customConfig
+		if (isSameNumberList(weekdays, WORKDAYS))
+			return { ...baseConfig, cycle: CLAW_CRON_RECURRING_CYCLE.Weekdays }
+		return { ...baseConfig, cycle: CLAW_CRON_RECURRING_CYCLE.Weekly, weekdays }
+	}
+
+	if (dayOfWeekField === "*") {
+		const monthDays = parseCronNumberList(dayOfMonthField, { min: 1, max: 31 })
+		if (!monthDays) return customConfig
+		return { ...baseConfig, cycle: CLAW_CRON_RECURRING_CYCLE.Monthly, monthDays }
+	}
+
+	return customConfig
+}
+
+export function buildCronExpression(config: ClawCronRecurringConfig) {
+	if (config.cycle === CLAW_CRON_RECURRING_CYCLE.Custom) return config.expr.trim()
+
+	const [hours = "00", minutes = "00"] = config.time.split(":")
+	const clock = `${Number(minutes)} ${Number(hours)}`
+
+	if (config.cycle === CLAW_CRON_RECURRING_CYCLE.Weekdays) return `${clock} * * 1-5`
+	if (config.cycle === CLAW_CRON_RECURRING_CYCLE.Weekly) {
+		const weekdays = [...config.weekdays].sort((left, right) => left - right)
+		const weekdayField = isSameNumberList(weekdays, WORKDAYS) ? "1-5" : weekdays.join(",")
+		return `${clock} * * ${weekdayField}`
+	}
+	if (config.cycle === CLAW_CRON_RECURRING_CYCLE.Monthly) {
+		const monthDays = [...config.monthDays].sort((left, right) => left - right)
+		return `${clock} ${monthDays.join(",")} * *`
+	}
+
+	return `${clock} * * *`
+}
+
+function isSameRecurringConfig(left: ClawCronRecurringConfig, right: ClawCronRecurringConfig) {
+	if (left.cycle !== right.cycle) return false
+	if (left.cycle === CLAW_CRON_RECURRING_CYCLE.Custom)
+		return left.expr.split(/\s+/).join(" ") === right.expr.split(/\s+/).join(" ")
+
+	return (
+		left.time === right.time &&
+		isSameNumberList(
+			[...left.weekdays].sort((a, b) => a - b),
+			[...right.weekdays].sort((a, b) => a - b),
+		) &&
+		isSameNumberList(
+			[...left.monthDays].sort((a, b) => a - b),
+			[...right.monthDays].sort((a, b) => a - b),
+		)
+	)
+}
+
+/**
+ * Writes the original expression back when the user did not change the schedule,
+ * so `MON-FRI` stays `MON-FRI` instead of being rewritten as `1-5`.
+ */
+export function resolveCronExpression(config: ClawCronRecurringConfig, sourceExpr?: string | null) {
+	const normalizedSourceExpr = sourceExpr?.trim()
+	if (
+		normalizedSourceExpr &&
+		isSameRecurringConfig(parseCronExpression(normalizedSourceExpr), config)
+	)
+		return normalizedSourceExpr
+
+	return buildCronExpression(config)
+}
+
+function resolveRecurringCronExpression(draft: ClawCronTaskDraft) {
+	return resolveCronExpression(
+		{
+			cycle: draft.recurringCycle || getDefaultClawCronRecurringCycle(),
+			time: draft.recurringTime || dayjs(draft.startAt).format("HH:mm"),
+			weekdays: draft.recurringWeekdays || [],
+			monthDays: draft.recurringMonthDays || [],
+			expr: draft.recurringExpr || "",
+		},
+		draft.recurringSourceExpr,
+	)
+}
+
+/**
+ * Returns upcoming run times, or null when the expression cannot be previewed.
+ * Only five-field expressions are evaluated: croner reads a sixth field as leading seconds
+ * while the backend croniter reads it as trailing seconds, so their schedules would differ.
+ */
+export function getClawCronNextRuns(params: {
+	expr: string
+	timezone: string
+	startAt?: string | null
+	count: number
+}) {
+	const { expr, timezone, startAt, count } = params
+	const normalizedExpr = expr.trim()
+	if (normalizedExpr.split(/\s+/).length !== 5) return null
+
+	try {
+		const job = new Cron(normalizedExpr, { paused: true, timezone })
+		// nextRuns excludes `previous` itself; step back one second so a run exactly at startAt counts.
+		const previous =
+			startAt && dayjs(startAt).isAfter(dayjs())
+				? dayjs(startAt).subtract(1, "second").toDate()
+				: undefined
+		const runs = job.nextRuns(count, previous)
+		job.stop()
+		return runs.length ? runs : null
+	} catch {
+		return null
+	}
+}
+
+export function isValidClawCronExpression(expr: string, timezone: string) {
+	return Boolean(getClawCronNextRuns({ expr, timezone, count: 1 }))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -292,14 +516,10 @@ function buildClawCronSchedule(
 	}
 
 	if (draft.scheduleType === CLAW_CRON_SCHEDULE_TYPE.Recurring) {
-		const resolvedRecurringTime = draft.recurringTime || dayjs(draft.startAt).format("HH:mm")
 		return {
 			...scheduleBase,
 			kind: "cron",
-			expr:
-				draft.recurringCycle === CLAW_CRON_RECURRING_CYCLE.Daily
-					? buildDailyCronExpression(resolvedRecurringTime)
-					: buildDailyCronExpression(resolvedRecurringTime),
+			expr: resolveRecurringCronExpression(draft),
 			tz: draft.timezone,
 			...(includeStartAt ? { start_at: draft.startAt } : {}),
 			...(draft.endAt ? { end_at: draft.endAt } : {}),
@@ -391,61 +611,16 @@ export function patchClawCronTaskMarkdown(params: {
 }
 
 export function buildClawCronTaskMarkdown(
-	{
-		taskName,
-		prompt,
-		enabled,
-		timezone,
-		startAt,
-		scheduleType,
-		interval,
-		recurringCycle,
-		recurringTime,
-		endAt,
-		agentCode,
-		modelId,
-		imageModelId,
-	}: ClawCronTaskDraft,
+	draft: ClawCronTaskDraft,
 	options: BuildClawCronTaskMarkdownOptions = {},
 ) {
 	const frontmatter = {
 		created_at: toClawCronIsoString(new Date()),
-		enabled,
-		name: taskName,
-		timezone,
-		schedule: buildClawCronSchedule(
-			{
-				taskName,
-				prompt,
-				enabled,
-				timezone,
-				startAt,
-				scheduleType,
-				interval,
-				recurringCycle,
-				recurringTime,
-				endAt,
-				agentCode,
-				modelId,
-				imageModelId,
-			},
-			options,
-		),
-		payload: buildClawCronPayload({
-			taskName,
-			prompt,
-			enabled,
-			timezone,
-			startAt,
-			scheduleType,
-			interval,
-			recurringCycle,
-			recurringTime,
-			endAt,
-			agentCode,
-			modelId,
-			imageModelId,
-		}),
+		enabled: draft.enabled,
+		name: draft.taskName,
+		timezone: draft.timezone,
+		schedule: buildClawCronSchedule(draft, options),
+		payload: buildClawCronPayload(draft),
 	}
 
 	const frontmatterContent = yaml.dump(frontmatter, {
@@ -454,7 +629,7 @@ export function buildClawCronTaskMarkdown(
 		sortKeys: false,
 	})
 
-	return `---\n${frontmatterContent}---\n\n${prompt.trim()}`
+	return `---\n${frontmatterContent}---\n\n${draft.prompt.trim()}`
 }
 
 export function parseClawCronTaskMarkdown(params: {
@@ -519,7 +694,8 @@ export function parseClawCronTaskMarkdown(params: {
 	}
 
 	if (scheduleKind === "cron") {
-		const parsedRecurringConfig = parseDailyCronExpression(frontmatter.schedule.expr)
+		const sourceExpr = String(frontmatter.schedule.expr || "").trim()
+		const recurringConfig = parseCronExpression(sourceExpr)
 		const resolvedStartAt = frontmatter.schedule.start_at || createdAt
 
 		return {
@@ -527,8 +703,12 @@ export function parseClawCronTaskMarkdown(params: {
 			scheduleType: CLAW_CRON_SCHEDULE_TYPE.Recurring,
 			startAt: resolvedStartAt,
 			interval: null,
-			recurringCycle: parsedRecurringConfig?.cycle || getDefaultClawCronRecurringCycle(),
-			recurringTime: parsedRecurringConfig?.time || dayjs(resolvedStartAt).format("HH:mm"),
+			recurringCycle: recurringConfig.cycle,
+			recurringTime: recurringConfig.time || dayjs(resolvedStartAt).format("HH:mm"),
+			recurringWeekdays: recurringConfig.weekdays,
+			recurringMonthDays: recurringConfig.monthDays,
+			recurringExpr: sourceExpr,
+			recurringSourceExpr: sourceExpr,
 			endAt: frontmatter.schedule.end_at || null,
 		}
 	}
@@ -537,10 +717,8 @@ export function parseClawCronTaskMarkdown(params: {
 }
 
 async function getProjectAttachments(projectId: string) {
-	const temporaryToken = (window as Window & { temporary_token?: string }).temporary_token || ""
 	return loadProjectAttachments({
 		projectId,
-		temporaryToken,
 	})
 }
 

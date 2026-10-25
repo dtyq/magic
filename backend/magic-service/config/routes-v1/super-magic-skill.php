@@ -17,6 +17,9 @@ Router::addGroup('/api/v1', static function () {
         // 获取市场技能库列表
         Router::post('/queries', [SkillMarketApi::class, 'queries']);
 
+        // 获取市场技能分类树
+        Router::get('/categories', [SkillMarketApi::class, 'getCategories']);
+
         // 获取市场技能详情
         Router::get('/{code}', [SkillMarketApi::class, 'show']);
     });
@@ -25,13 +28,13 @@ Router::addGroup('/api/v1', static function () {
         // 获取用户技能列表
         Router::post('/queries', [SkillApi::class, 'queries']);
 
-        // 获取我创建的技能列表
+        // 待废弃：获取我创建的技能列表，请改用 /queries 并传入 scope=created
         Router::post('/queries/created', [SkillApi::class, 'queriesCreated']);
 
-        // 获取团队共享的技能列表
+        // 待废弃：获取团队共享的技能列表，请改用 /queries 并传入 scope=team_shared
         Router::post('/queries/team-shared', [SkillApi::class, 'queriesTeamShared']);
 
-        // 获取从市场安装的技能列表
+        // 待废弃：获取从市场安装的技能列表，请改用 /queries 并传入 scope=market_installed
         Router::post('/queries/market-installed', [SkillApi::class, 'queriesMarketInstalled']);
 
         // 从 Agent 创建空技能
@@ -63,6 +66,8 @@ Router::addGroup('/api/v1', static function () {
 
         // 发布技能版本
         Router::post('/{code}/publish', [SkillApi::class, 'publishSkill']);
+        Router::post('/{code}/publish/async', [SkillApi::class, 'publishSkillAsync']);
+        Router::get('/{code}/publish/check', [SkillApi::class, 'checkPublishAsync']);
 
         // 下架技能版本
         //        Router::put('/{code}/offline', [SkillApi::class, 'offlineSkill']);
@@ -74,6 +79,7 @@ Router::addGroup('/api/v1', static function () {
         Router::post('/last-versions/queries', [SkillApi::class, 'queryLatestPublishedVersions']);
 
         // 获取技能协作者列表
+        Router::post('/{code}/transfer', [SkillApi::class, 'transfer']);
         Router::get('/{code}/collaborators', [SkillCollaboratorApi::class, 'index']);
 
         // 新增技能协作者

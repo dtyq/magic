@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { NodeType } from "@dtyq/user-selector"
 import { ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import ProjectShareCreateView from "../components/ProjectShareCreateView"
 import type { ProjectShareSheetController } from "../types"
@@ -22,8 +23,66 @@ vi.mock("react-i18next", () => ({
 }))
 
 vi.mock("@/components/business/MemberDepartmentSelector", () => ({
-	default: () => null,
+	default: ({
+		open,
+		selectedValues,
+		onSelectChange,
+		onCancel,
+		onOk,
+	}: {
+		open?: boolean
+		selectedValues?: Array<{ id: string; name?: string; dataType?: number }>
+		onSelectChange?: (values: Array<{ id: string; name?: string; dataType?: number }>) => void
+		onCancel?: () => void
+		onOk?: (values: Array<{ id: string; name?: string; dataType?: number }>) => void
+	}) => {
+		if (!open) return null
+		return (
+			<div data-testid="mock-member-department-selector">
+				<span data-testid="mock-member-selector-count">{selectedValues?.length ?? 0}</span>
+				<button
+					type="button"
+					data-testid="mock-member-selector-select"
+					onClick={() =>
+						onSelectChange?.([
+							...(selectedValues || []),
+							{ id: "user-mock-added", name: "Added Mock User", dataType: 1 },
+						])
+					}
+				>
+					Select
+				</button>
+				<button
+					type="button"
+					data-testid="mock-member-selector-cancel"
+					onClick={() => {
+						// MobileUserSelector resets selection to empty on cancel
+						onSelectChange?.([])
+						onCancel?.()
+					}}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					data-testid="mock-member-selector-ok"
+					onClick={() => onOk?.(selectedValues || [])}
+				>
+					OK
+				</button>
+			</div>
+		)
+	},
 }))
+
+vi.mock(
+	"@/pages/superMagic/pages/AudioRecordings/components/recording-share/RecordingShareContentPicker",
+	() => ({
+		RecordingShareContentPicker: () => (
+			<div data-testid="mock-recording-share-content-picker" />
+		),
+	}),
+)
 
 vi.mock(
 	"@/pages/superMagic/components/TopicFilesButton/components/MobileAttachmentRowIcon",
@@ -157,6 +216,58 @@ describe("ProjectShareCreateView", () => {
 		expect(
 			screen.getByTestId("project-share-sheet-create-floating-bar-scroll-spacer"),
 		).toBeInTheDocument()
+	})
+
+	it("高级设置展示纯净模式，默认关闭，点击后保留其它设置并开启", () => {
+		const controller = createController({
+			formState: {
+				...createController().formState,
+				advancedSettings: { allowCopy: false, hideCreatorInfo: true },
+			},
+		})
+
+		render(<ProjectShareCreateView controller={controller} />)
+
+		const row = screen.getByTestId("project-share-sheet-pure-mode-row")
+		expect(row).toHaveTextContent("share.pureMode")
+		expect(row).toHaveTextContent("share.pureModeDescription")
+		expect(row.querySelector("[role='switch']")).toHaveAttribute("aria-checked", "false")
+
+		fireEvent.click(row)
+
+		expect(controller.setAdvancedSettings).toHaveBeenCalledWith({
+			allowCopy: false,
+			hideCreatorInfo: true,
+			pureMode: true,
+		})
+	})
+
+	it("纯净模式已开启时展示开启状态，点击后关闭", () => {
+		const controller = createController({
+			formState: {
+				...createController().formState,
+				advancedSettings: { pureMode: true },
+			},
+		})
+
+		render(<ProjectShareCreateView controller={controller} />)
+
+		const row = screen.getByTestId("project-share-sheet-pure-mode-row")
+		expect(row.querySelector("[role='switch']")).toHaveAttribute("aria-checked", "true")
+
+		fireEvent.click(row)
+
+		expect(controller.setAdvancedSettings).toHaveBeenCalledWith({ pureMode: false })
+	})
+
+	it("录音分享的内联文件选择模式同样展示纯净模式，与 Web 保持一致", () => {
+		render(
+			<ProjectShareCreateView
+				controller={createController({ enableInlineFileSelection: true })}
+			/>,
+		)
+
+		expect(screen.getByTestId("project-share-sheet-pure-mode-row")).toBeInTheDocument()
 	})
 
 	it("文件模式会展示固定文案的已选文件区块，并支持展开文件夹层级", () => {
@@ -376,5 +487,275 @@ describe("ProjectShareCreateView", () => {
 		fireEvent.click(trigger)
 
 		expect(openDefaultOpenFilePicker).toHaveBeenCalledTimes(1)
+	})
+
+	it("项目分享只展示管理员允许的分享方式", () => {
+		render(
+			<ProjectShareCreateView
+				controller={createController({
+					permittedShareTypes: [ShareType.Public],
+					isSelectedShareTypePermitted: true,
+				})}
+			/>,
+		)
+
+		expect(
+			screen.getByTestId(`project-share-sheet-type-${ShareType.Public}`),
+		).toBeInTheDocument()
+		expect(
+			screen.queryByTestId(`project-share-sheet-type-${ShareType.PasswordProtected}`),
+		).not.toBeInTheDocument()
+		expect(
+			screen.queryByTestId(`project-share-sheet-type-${ShareType.Organization}`),
+		).not.toBeInTheDocument()
+	})
+
+	it("编辑时保留但禁用已经失权的当前分享方式", () => {
+		render(
+			<ProjectShareCreateView
+				controller={createController({
+					view: "edit",
+					isEditing: true,
+					formState: {
+						...createController().formState,
+						shareType: ShareType.PasswordProtected,
+					},
+					permittedShareTypes: [ShareType.Public],
+					isSelectedShareTypePermitted: false,
+				})}
+			/>,
+		)
+
+		expect(
+			screen.getByTestId(`project-share-sheet-type-${ShareType.PasswordProtected}`),
+		).toBeDisabled()
+		expect(screen.getByText("share.currentShareMethodUnavailable")).toBeInTheDocument()
+	})
+
+	it("管理员未开放任何项目分享方式时显示提示并收起其余表单项", () => {
+		render(
+			<ProjectShareCreateView
+				controller={createController({
+					mode: "file",
+					advancedOpen: true,
+					selectedFileCount: 2,
+					selectedFileItems: [
+						{ file_id: "file-1", name: "fictional-a.md", is_directory: false },
+					],
+					selectedFileHierarchy: [
+						{
+							id: "file-1",
+							name: "fictional-a.md",
+							isDirectory: false,
+							children: [],
+						},
+					],
+					defaultOpenFileId: "file-1",
+					defaultOpenFileItem: {
+						file_id: "file-1",
+						name: "fictional-a.md",
+						file_name: "fictional-a.md",
+						file_extension: "md",
+						is_directory: false,
+					},
+					defaultOpenFileCandidates: [
+						{
+							file_id: "file-1",
+							name: "fictional-a.md",
+							file_extension: "md",
+							is_directory: false,
+						},
+					],
+					permittedShareTypes: [],
+					isSelectedShareTypePermitted: false,
+				})}
+			/>,
+		)
+
+		expect(screen.getByText("share.noAvailableShareMethods")).toBeInTheDocument()
+		// 全部分享方式被管控后，除「分享方式 + 红字提示」外的附属内容对用户没有意义，不再渲染。
+		expect(screen.getByTestId("project-share-sheet-type-grid")).toBeInTheDocument()
+		expect(screen.queryByTestId("project-share-sheet-name-input")).not.toBeInTheDocument()
+		expect(
+			screen.queryByTestId("project-share-sheet-default-open-file-trigger"),
+		).not.toBeInTheDocument()
+		expect(screen.queryByTestId("project-share-sheet-expiry-trigger")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("project-share-sheet-password-input")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("project-share-sheet-advanced-trigger")).not.toBeInTheDocument()
+		expect(
+			screen.queryByTestId("project-share-sheet-selected-files-trigger"),
+		).not.toBeInTheDocument()
+		expect(screen.queryByText("projectShare.typePublic")).not.toBeInTheDocument()
+		// 底部占位仍保留，避免固定底栏盖住内容。
+		expect(
+			screen.getByTestId("project-share-sheet-create-floating-bar-scroll-spacer"),
+		).toBeInTheDocument()
+	})
+
+	it("内联文件选择模式下管理员未开放分享方式时同样收起内容选择器", () => {
+		const { unmount } = render(
+			<ProjectShareCreateView
+				controller={createController({
+					mode: "file",
+					enableInlineFileSelection: true,
+					permittedShareTypes: [ShareType.Public],
+					isSelectedShareTypePermitted: true,
+				})}
+			/>,
+		)
+
+		// 对照组：有可用分享方式时内容选择器正常展示，确保下面的隐藏断言不是假绿。
+		expect(screen.getByTestId("mock-recording-share-content-picker")).toBeInTheDocument()
+
+		unmount()
+
+		render(
+			<ProjectShareCreateView
+				controller={createController({
+					mode: "file",
+					enableInlineFileSelection: true,
+					permittedShareTypes: [],
+					isSelectedShareTypePermitted: false,
+				})}
+			/>,
+		)
+
+		expect(screen.queryByTestId("mock-recording-share-content-picker")).not.toBeInTheDocument()
+		expect(screen.getByText("share.noAvailableShareMethods")).toBeInTheDocument()
+	})
+
+	it("preserves confirmed members when cancelling the member selector modal", () => {
+		// Mock callbacks to verify whether cancel triggers commit or close actions
+		const closeMemberSelector = vi.fn()
+		const confirmMemberSelector = vi.fn()
+		const initialMembers = [
+			{
+				id: "user-mock-1",
+				name: "Mock Member One",
+				dataType: NodeType.User,
+			},
+			{
+				id: "user-mock-2",
+				name: "Mock Member Two",
+				dataType: NodeType.User,
+			},
+		]
+
+		render(
+			<ProjectShareCreateView
+				controller={createController({
+					memberSelectorOpen: true,
+					selectedMemberNodes: initialMembers,
+					closeMemberSelector,
+					confirmMemberSelector,
+					formState: {
+						...createController().formState,
+						shareType: ShareType.Organization,
+					},
+				})}
+			/>,
+		)
+
+		// Verify the staged selector is opened with the current confirmed members
+		expect(screen.getByTestId("mock-member-selector-count")).toHaveTextContent("2")
+
+		// Simulate adding a user inside the picker modal
+		fireEvent.click(screen.getByTestId("mock-member-selector-select"))
+		expect(screen.getByTestId("mock-member-selector-count")).toHaveTextContent("3")
+
+		// Click cancel (simulating MobileUserSelector clearing selection on cancel and closing)
+		fireEvent.click(screen.getByTestId("mock-member-selector-cancel"))
+
+		// Selector closes without committing unconfirmed staged selection
+		expect(closeMemberSelector).toHaveBeenCalledTimes(1)
+		expect(confirmMemberSelector).not.toHaveBeenCalled()
+	})
+
+	it("commits all staged members when clicking confirm in member selector", () => {
+		// Verify that confirming the picker commits both initial and newly selected members
+		const confirmMemberSelector = vi.fn()
+		const initialMembers = [
+			{
+				id: "user-mock-1",
+				name: "Mock Member One",
+				dataType: NodeType.User,
+			},
+		]
+
+		render(
+			<ProjectShareCreateView
+				controller={createController({
+					memberSelectorOpen: true,
+					selectedMemberNodes: initialMembers,
+					confirmMemberSelector,
+					formState: {
+						...createController().formState,
+						shareType: ShareType.Organization,
+					},
+				})}
+			/>,
+		)
+
+		expect(screen.getByTestId("mock-member-selector-count")).toHaveTextContent("1")
+
+		// Select an additional member and confirm
+		fireEvent.click(screen.getByTestId("mock-member-selector-select"))
+		fireEvent.click(screen.getByTestId("mock-member-selector-ok"))
+
+		expect(confirmMemberSelector).toHaveBeenCalledWith([
+			{
+				id: "user-mock-1",
+				name: "Mock Member One",
+				dataType: NodeType.User,
+			},
+			{
+				id: "user-mock-added",
+				name: "Added Mock User",
+				dataType: 1,
+			},
+		])
+	})
+
+	it("directly removes a member from confirmed list when clicking remove icon on card", () => {
+		// Verify clicking the remove button on member card calls confirmMemberSelector with remaining members
+		const confirmMemberSelector = vi.fn()
+		const initialMembers = [
+			{
+				id: "user-mock-1",
+				name: "Mock Member One",
+				dataType: NodeType.User,
+			},
+			{
+				id: "user-mock-2",
+				name: "Mock Member Two",
+				dataType: NodeType.User,
+			},
+		]
+
+		render(
+			<ProjectShareCreateView
+				controller={createController({
+					selectedMemberNodes: initialMembers,
+					confirmMemberSelector,
+					formState: {
+						...createController().formState,
+						shareType: ShareType.Organization,
+					},
+				})}
+			/>,
+		)
+
+		const removeButtons = screen.getAllByTestId("project-share-sheet-member-remove-button")
+		expect(removeButtons).toHaveLength(2)
+
+		fireEvent.click(removeButtons[0])
+
+		expect(confirmMemberSelector).toHaveBeenCalledWith([
+			{
+				id: "user-mock-2",
+				name: "Mock Member Two",
+				dataType: NodeType.User,
+			},
+		])
 	})
 })

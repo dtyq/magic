@@ -9,6 +9,7 @@ const ASK_USER_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 
 interface AskUserDraftCachePayload {
 	answers: AskUserDraftAnswers
+	remark?: string
 	expiresAt: number
 }
 
@@ -42,6 +43,10 @@ function hasMeaningfulAnswer(answers: AskUserDraftAnswers) {
 	})
 }
 
+function hasMeaningfulDraft(answers: AskUserDraftAnswers, remark?: string) {
+	return hasMeaningfulAnswer(answers) || Boolean(remark?.trim())
+}
+
 export function buildAskUserDraftCacheKey({
 	questionId,
 	topicId,
@@ -65,6 +70,25 @@ export function readAskUserDraftAnswers(cacheKey: string): AskUserDraftAnswers |
 	if (!cacheKey || !canUseLocalStorage()) return null
 
 	try {
+		const payload = readAskUserDraftPayload(cacheKey)
+		if (!payload) return null
+		return payload.answers
+	} catch (error) {
+		console.error(error)
+		clearAskUserDraftAnswers(cacheKey)
+		return null
+	}
+}
+
+export function readAskUserDraftRemark(cacheKey: string) {
+	const payload = readAskUserDraftPayload(cacheKey)
+	return typeof payload?.remark === "string" ? payload.remark : ""
+}
+
+function readAskUserDraftPayload(cacheKey: string): AskUserDraftCachePayload | null {
+	if (!cacheKey || !canUseLocalStorage()) return null
+
+	try {
 		const raw = window.localStorage.getItem(cacheKey)
 		if (!raw) return null
 
@@ -75,7 +99,11 @@ export function readAskUserDraftAnswers(cacheKey: string): AskUserDraftAnswers |
 			return null
 		}
 
-		return answers
+		return {
+			answers,
+			remark: typeof payload.remark === "string" ? payload.remark : "",
+			expiresAt: payload.expiresAt,
+		}
 	} catch (error) {
 		console.error(error)
 		clearAskUserDraftAnswers(cacheKey)
@@ -83,11 +111,16 @@ export function readAskUserDraftAnswers(cacheKey: string): AskUserDraftAnswers |
 	}
 }
 
-export function writeAskUserDraftAnswers(cacheKey: string, answers: AskUserDraftAnswers) {
+export function writeAskUserDraftAnswers(
+	cacheKey: string,
+	answers: AskUserDraftAnswers,
+	remark = "",
+) {
 	if (!cacheKey || !canUseLocalStorage()) return
 
 	const normalizedAnswers = normalizeAnswers(answers)
-	if (!normalizedAnswers || !hasMeaningfulAnswer(normalizedAnswers)) {
+	const normalizedRemark = typeof remark === "string" ? remark : ""
+	if (!normalizedAnswers || !hasMeaningfulDraft(normalizedAnswers, normalizedRemark)) {
 		clearAskUserDraftAnswers(cacheKey)
 		return
 	}
@@ -95,6 +128,7 @@ export function writeAskUserDraftAnswers(cacheKey: string, answers: AskUserDraft
 	try {
 		const payload: AskUserDraftCachePayload = {
 			answers: normalizedAnswers,
+			...(normalizedRemark.trim() ? { remark: normalizedRemark } : {}),
 			expiresAt: Date.now() + ASK_USER_DRAFT_TTL_MS,
 		}
 		window.localStorage.setItem(cacheKey, JSON.stringify(payload))

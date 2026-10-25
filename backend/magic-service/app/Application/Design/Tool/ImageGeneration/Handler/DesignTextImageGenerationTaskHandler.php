@@ -39,7 +39,7 @@ class DesignTextImageGenerationTaskHandler extends AbstractDesignImageGeneration
         $dto = new TextGenerateImageDTO();
         $this->applyMagicAccessToken($dto);
         $dto->setModel($entity->getModelId());
-        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation));
+        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation, $entity->getProjectId()));
         $dto->setPrompt($this->resolvePromptForGeneration($entity));
         $dto->setN($entity->getGenerateNum());
 
@@ -52,6 +52,9 @@ class DesignTextImageGenerationTaskHandler extends AbstractDesignImageGeneration
         }
         if ($entity->getImageGenerationConfig() !== null) {
             $dto->setImageGenerationConfig($entity->getImageGenerationConfig());
+        }
+        if ($entity->getExtra() !== null) {
+            $dto->setExtra($entity->getExtra());
         }
 
         return $this->narrowToOpenAiFormatImageResponse($this->llmAppService->textGenerateImageV2($dto));

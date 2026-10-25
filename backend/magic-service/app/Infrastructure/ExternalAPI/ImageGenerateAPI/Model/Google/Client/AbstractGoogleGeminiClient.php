@@ -171,10 +171,6 @@ abstract class AbstractGoogleGeminiClient implements GoogleGeminiInterface
                     }
                 }
 
-                if ($response->getStatusCode() === 404) {
-                    throw new Exception(__('image_generate.google_gemini_model_or_endpoint_not_found'));
-                }
-
                 $result = Json::decode($response->getBody()->getContents());
                 if ($statusCode === 200) {
                     $this->logger->info('Google Gemini API usage', [
@@ -184,7 +180,13 @@ abstract class AbstractGoogleGeminiClient implements GoogleGeminiInterface
                 }
 
                 $errorMessage = $result['error']['message'] ?? __('image_generate.http_error', ['status' => $statusCode]);
-                throw new Exception(__('image_generate.api_request_failed_with_error', ['error' => $errorMessage]));
+                $this->logger->error('Google Gemini API provider error', [
+                    'status_code' => $statusCode,
+                    'error' => $errorMessage,
+                ]);
+                // Keep the provider message as the previous exception. The model layer converts
+                // the visible error to the generic image-generation failure message.
+                throw new Exception($errorMessage);
             } catch (Exception $e) {
                 // 如果是最后一次尝试，或者非 401 错误
                 $this->logger->error('Google Gemini API 请求失败', [

@@ -91,6 +91,9 @@ class FileCollectionDomainService
         // 4. 如果有文件ID，添加到文件集（无论文件集是否存在都需要执行）
         if (! empty($fileIds)) {
             $this->addFilesToCollection($entity->getId(), $fileIds);
+        } elseif ($isExistingCollection) {
+            // 空文件集也必须推进范围版本。
+            $this->fileCollectionRepository->touch($entity->getId(), $userId);
         }
 
         return $entity;
@@ -115,7 +118,11 @@ class FileCollectionDomainService
         }
 
         // 批量插入
-        return $this->fileCollectionItemRepository->batchInsert($items);
+        $result = $this->fileCollectionItemRepository->batchInsert($items);
+        if ($result) {
+            $this->fileCollectionRepository->touch($collectionId);
+        }
+        return $result;
     }
 
     /**
@@ -143,7 +150,11 @@ class FileCollectionDomainService
             foreach ($itemsToDelete as $item) {
                 $item->setDeletedAt(date('Y-m-d H:i:s'));
             }
-            return $this->fileCollectionItemRepository->batchInsert($itemsToDelete);
+            $result = $this->fileCollectionItemRepository->batchInsert($itemsToDelete);
+            if ($result) {
+                $this->fileCollectionRepository->touch($collectionId);
+            }
+            return $result;
         }
 
         return true;
@@ -169,6 +180,22 @@ class FileCollectionDomainService
     public function getFilesByCollectionId(int $collectionId): array
     {
         return $this->fileCollectionItemRepository->getByCollectionId($collectionId);
+    }
+
+    /**
+     * Get collection entries using the stable item id cursor.
+     */
+    public function getFilesByCollectionIdCursor(int $collectionId, int $afterId, int $limit): array
+    {
+        return $this->fileCollectionItemRepository->getByCollectionIdCursor($collectionId, $afterId, $limit);
+    }
+
+    /**
+     * Check whether file IDs are direct entries of a collection.
+     */
+    public function getFilesByCollectionIdAndFileIds(int $collectionId, array $fileIds): array
+    {
+        return $this->fileCollectionItemRepository->getByCollectionIdAndFileIds($collectionId, $fileIds);
     }
 
     /**

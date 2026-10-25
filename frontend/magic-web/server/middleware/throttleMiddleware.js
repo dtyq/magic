@@ -14,8 +14,14 @@ const throttleMiddleware = (req, res, next) => {
 	}
 	// If request count exceeds limit, return 429 status code
 	if (requestCount >= THROTTLE_LIMIT) {
-		return res.status(200).json({
-			code: 1000,
+		res.setHeader(
+			"Retry-After",
+			String(
+				Math.max(1, Math.ceil((THROTTLE_WINDOW - currentTime + windowStartTime) / 1000)),
+			),
+		)
+		return res.status(429).json({
+			code: 429,
 			message: "Too many requests, please try again later.",
 		})
 	}

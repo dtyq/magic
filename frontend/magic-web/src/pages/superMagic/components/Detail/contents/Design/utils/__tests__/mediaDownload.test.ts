@@ -25,7 +25,7 @@ class FakeZip {
 	}
 }
 
-vi.mock("@/lib/jszip", () => ({
+vi.mock("@/infrastructure/vendors/jszip", () => ({
 	loadJSZip: vi.fn().mockResolvedValue(FakeZip),
 }))
 

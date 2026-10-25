@@ -5,9 +5,14 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'magic_claw_reconciliation_stale' => '权限策略已变更，请刷新后重试。',
+    'magic_claw_reconciliation_busy' => '权限正在更新，请稍后重试。',
+    'magic_claw_runtime_denied' => '龙虾已被管理员停用。恢复使用权限后，请手动启动。',
     'resource' => [
+        'model_multiplier' => '模型倍率',
         'admin' => '管理后台',
         'admin_ai' => 'AI管理',
+        'admin_setting' => '系统设置',
         'admin_safe' => '安全与权限',
         'safe_function_permission' => '功能权限',
         'safe_admin' => '组织管理员',
@@ -18,6 +23,8 @@ return [
         'admin_ai_model' => '大模型',
         'admin_ai_image' => '智能绘图',
         'ai_ability' => '能力管理',
+        'ai_application' => '组织应用菜单',
+        'admin_setting_identity_watermark' => '页面身份水印',
         'admin_ai_agent' => '数字员工',
         'admin_ai_skill' => 'Skill',
         'ai_mode' => '模式',
@@ -57,15 +64,14 @@ return [
         'platform_setting_maintenance' => '维护管理',
         'platform_setting_application' => '应用菜单',
         'platform_slides_template' => '幻灯片模板',
+        'platform_asset' => '素材库',
         'platform_organization' => '组织管理',
         'platform_organization_list' => '组织列表',
         'platform_user_list' => '平台用户列表',
     ],
-    // 顶层错误与校验
     'validate_failed' => '验证失败',
     'business_exception' => '业务异常',
     'access_denied' => '无权限访问',
-    // 组织相关错误（PermissionErrorCode 42***）
     'organization_code_required' => '组织编码必填',
     'organization_name_required' => '组织名称必填',
     'organization_industry_type_required' => '组织行业类型必填',
@@ -112,6 +118,9 @@ return [
             'skill' => '技能',
             'agent' => '数字员工',
             'magic_claw' => '龙虾',
+            'micro_app' => '微应用',
+            'topic' => '话题',
+            'project' => '项目',
         ],
         'functions' => [
             'skill_create' => [
@@ -131,13 +140,21 @@ return [
                 'description' => '发布助理到团队入口。',
             ],
             'magic_claw_access' => [
-                'name' => '龙虾入口访问',
-                'description' => '访问 Magic Claw 模块入口。',
+                'name' => '龙虾使用权限',
+                'description' => '收回权限会停止相关成员的龙虾及自动运行；已保存的数据保留，重新授权后需手动启动。',
             ],
             'magic_claw_create' => [
                 'name' => '龙虾创建',
                 'description' => '创建 Magic Claw 入口。',
             ],
+            'micro_app_share_public' => ['name' => '微应用公开分享', 'description' => '允许微应用使用公开访问方式分享。'],
+            'micro_app_share_password' => ['name' => '微应用密码分享', 'description' => '允许微应用使用密码保护方式分享。'],
+            'micro_app_share_team' => ['name' => '微应用团队分享', 'description' => '允许微应用分享给团队成员。'],
+            'project_share_public' => ['name' => '项目公开分享', 'description' => '允许项目使用公开访问方式分享。'],
+            'project_share_password' => ['name' => '项目密码分享', 'description' => '允许项目使用密码保护方式分享。'],
+            'project_share_team' => ['name' => '项目团队分享', 'description' => '允许项目分享给团队成员。'],
+            'topic_share_public' => ['name' => '话题公开分享', 'description' => '允许话题使用公开访问方式分享。'],
+            'topic_share_password' => ['name' => '话题密码分享', 'description' => '允许话题使用密码保护方式分享。'],
         ],
         'binding_scope_label' => [
             'all_users_available' => '全员可用',
@@ -163,5 +180,10 @@ return [
         'visibility_config_invalid' => '可见性配置参数错误',
         'only_organization_admin_can_configure_visibility' => '只有组织管理员可以配置可见性',
         'visibility_type_2_requires_users_or_departments' => '部分可见时，必须至少指定一个用户或部门',
+        'user_not_in_organization' => '用户不在当前组织中',
+        'user_not_organization_admin' => '请求处理失败：:userId',
     ],
+    'generic_error' => '权限异常',
+    'invalid_is_display' => '参数无效',
+    'invalid_status' => '参数无效',
 ];

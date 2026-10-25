@@ -26,7 +26,10 @@ import { normalizePath } from "../utils/utils"
 import { useTranslation } from "react-i18next"
 import { resolveDesignImagesFileDirWithSlash } from "./resolveDesignImagesFileDirWithSlash"
 import { toCanvasGenerateHightImageResponse } from "./useHighImageGeneration"
-import { toWorkspaceAbsoluteApiPathForOperation } from "../utils/designPath"
+import {
+	resolveDesignCanvasResourceApiUri,
+	resolveDesignWorkspaceStoragePath,
+} from "../utils/designResourceReferenceResolver"
 import {
 	syncFileInfoAfterGenerationComplete,
 	syncFileInfosAfterGenerationComplete,
@@ -52,10 +55,12 @@ function toSingleGenerateImageResponse(
 		reference_images: request.reference_images ?? [],
 		status: response.status,
 		error_message: response.error_message,
-		created_at: "",
+		created_at: response.started_at ?? "",
 		updated_at: "",
 		file_url: firstImage?.file_url ?? null,
 		id: response.image_id,
+		expected_finished_at: response.expected_finished_at,
+		started_at: response.started_at,
 	}
 }
 
@@ -75,10 +80,12 @@ function toSingleImageGenerationResultResponse(
 		reference_images: [],
 		status: response.status,
 		error_message: response.error_message,
-		created_at: "",
+		created_at: response.started_at ?? "",
 		updated_at: "",
 		file_url: firstImage?.file_url ?? "",
 		id: response.image_id,
+		started_at: response.started_at,
+		expected_finished_at: response.expected_finished_at,
 	}
 }
 
@@ -296,28 +303,28 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 			)
 
 			if (result.status === "completed" && result.file_url && result.file_name) {
-				let filePath = ""
-				if (result.file_dir) {
-					const normalizedDir = normalizePath(result.file_dir)
-					filePath = normalizedDir
-						? `${normalizedDir}/${result.file_name}`
-						: result.file_name
-				} else {
-					filePath = result.file_name
-				}
-
-				await syncFileInfoAfterGenerationComplete({
-					projectId,
-					filePath,
-					fileUrl: result.file_url,
-					fileName: result.file_name,
-					setFileInfoCache,
+				const normalizedDir = normalizePath(result.file_dir || "")
+				const workspacePath = normalizedDir
+					? `${normalizedDir}/${result.file_name}`
+					: result.file_name
+				const filePath = resolveDesignWorkspaceStoragePath(workspacePath, {
+					designProjectBasePath,
 				})
+
+				if (filePath) {
+					await syncFileInfoAfterGenerationComplete({
+						projectId,
+						filePath,
+						fileUrl: result.file_url,
+						fileName: result.file_name,
+						setFileInfoCache,
+					})
+				}
 			}
 
 			return result
 		},
-		[projectId, setFileInfoCache, t],
+		[designProjectBasePath, projectId, setFileInfoCache, t],
 	)
 
 	/* 查询多图生成结果 */
@@ -341,15 +348,26 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 			const result = await SuperMagicApi.getImageGenerationResults(requestParams)
 
 			if (result.status === "completed" && result.file_dir && result.images.length > 0) {
+				const normalizedDir = normalizePath(result.file_dir)
 				const files = result.images
 					.filter((image) => image.file_url && image.file_name)
-					.map((image) => ({
-						filePath: normalizePath(result.file_dir)
-							? `${normalizePath(result.file_dir)}/${image.file_name}`
-							: image.file_name,
-						fileUrl: image.file_url as string,
-						fileName: image.file_name,
-					}))
+					.flatMap((image) => {
+						const workspacePath = normalizedDir
+							? `${normalizedDir}/${image.file_name}`
+							: image.file_name
+						const filePath = resolveDesignWorkspaceStoragePath(workspacePath, {
+							designProjectBasePath,
+						})
+						return filePath
+							? [
+									{
+										filePath,
+										fileUrl: image.file_url as string,
+										fileName: image.file_name,
+									},
+								]
+							: []
+					})
 
 				await syncFileInfosAfterGenerationComplete({
 					projectId,
@@ -360,7 +378,7 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 
 			return result as ImageGenerationResultsResponse
 		},
-		[projectId, setFileInfoCache, t],
+		[designProjectBasePath, projectId, setFileInfoCache, t],
 	)
 
 	return {
@@ -379,7 +397,7 @@ function resolveReferenceImagePath(params: {
 	getErrorMessage: () => string
 }): string {
 	const { imagePath, designProjectBasePath, flatAttachments, getErrorMessage } = params
-	const resolved = toWorkspaceAbsoluteApiPathForOperation(imagePath, {
+	const resolved = resolveDesignCanvasResourceApiUri(imagePath, {
 		designProjectBasePath,
 		flatAttachments,
 	})

@@ -4,6 +4,7 @@ import {
 	buildShareRecordingCapabilities,
 	buildShareRecordingMagicProjectConfig,
 	isAudioProjectMode,
+	resolveAudioFolderShareTarget,
 	shouldRenderAudioRecordingShareShell,
 } from "../share-recording-detail"
 
@@ -28,11 +29,18 @@ function createAttachment(overrides: Partial<AttachmentItem> = {}): AttachmentIt
 }
 
 describe("share recording detail helpers", () => {
-	it("recognizes audio project mode and requires attachments before rendering the audio share shell", () => {
+	it("mounts the audio share shell when the share carries an audio-marked bundle directory", () => {
+		// The bundle directory row carries the audio display config that recording shares expose.
+		const bundleFolder = createAttachment({
+			file_id: "bundle-folder-mock",
+			file_name: "mock-recording-folder",
+			is_directory: true,
+			display_config: { type: "audio" },
+		})
 		expect(
 			shouldRenderAudioRecordingShareShell({
 				projectMode: "audio",
-				attachments: { tree: [createAttachment()], list: [createAttachment()] },
+				attachments: { tree: [bundleFolder], list: [bundleFolder] },
 			}),
 		).toBe(true)
 		expect(
@@ -43,6 +51,40 @@ describe("share recording detail helpers", () => {
 		).toBe(false)
 		expect(isAudioProjectMode("audio")).toBe(true)
 		expect(isAudioProjectMode("chat")).toBe(false)
+	})
+
+	it("keeps a plain file share inside an audio project on the ordinary file preview", () => {
+		// The recording workbench cannot render plain files, so sharing one must not open an empty workbench.
+		const meetingNotes = createAttachment({
+			file_id: "plain-notes-mock",
+			file_name: "meeting-notes.md",
+		})
+		expect(
+			shouldRenderAudioRecordingShareShell({
+				projectMode: "audio",
+				attachments: { tree: [meetingNotes], list: [meetingNotes] },
+			}),
+		).toBe(false)
+	})
+
+	it("still mounts the audio share shell when only the bundle ancestor row arrives in the flat list", () => {
+		// Cursor pages can deliver the bundle directory without any nested tree shape.
+		const transcript = createAttachment({
+			file_id: "bundle-transcript-mock",
+			file_name: "transcript.md",
+		})
+		const audioFolder = createAttachment({
+			file_id: "bundle-folder-mock",
+			file_name: "mock-recording-folder",
+			is_directory: true,
+			display_config: { type: "audio" },
+		})
+		expect(
+			shouldRenderAudioRecordingShareShell({
+				projectMode: "audio",
+				attachments: { tree: [], list: [audioFolder, transcript] },
+			}),
+		).toBe(true)
 	})
 
 	it("uses parsed magic.project.js metadata before falling back to audio directory display_config metadata", () => {
@@ -110,5 +152,41 @@ describe("share recording detail helpers", () => {
 			canExport: true,
 		})
 		expect(buildShareRecordingCapabilities(false).canExport).toBe(false)
+	})
+
+	it("resolves an explicitly selected audio folder through a nested shared entry", () => {
+		const audioFolder = createAttachment({
+			file_id: "audio-folder-mock",
+			file_name: "mock-recording-folder",
+			is_directory: true,
+			parent_id: "project-root-mock",
+			display_config: { type: "audio" },
+		})
+		const indexFile = createAttachment({
+			file_id: "audio-index-mock",
+			file_name: "index.html",
+			file_extension: "html",
+			parent_id: "audio-folder-mock",
+			display_config: { type: "audio" },
+		})
+		audioFolder.children = [indexFile]
+
+		expect(
+			resolveAudioFolderShareTarget({
+				tree: [audioFolder],
+				defaultOpenFileId: "audio-index-mock",
+			}),
+		).toBe(indexFile)
+	})
+
+	it("does not auto-select an audio folder when the ordinary share has no target", () => {
+		const audioFolder = createAttachment({
+			file_id: "audio-folder-mock",
+			file_name: "mock-recording-folder",
+			is_directory: true,
+			display_config: { type: "audio" },
+		})
+
+		expect(resolveAudioFolderShareTarget({ tree: [audioFolder] })).toBeUndefined()
 	})
 })

@@ -18,7 +18,7 @@ function createPlugin(runtimeCode: string): CanvasDesignPlugin {
 
 async function runPluginSrcDoc(runtimeCode: string) {
 	const srcDoc = createPluginSrcDoc(createPlugin(runtimeCode), "zh-CN", "token-1", {
-		readonly: false,
+		accessMode: "edit",
 	})
 	if (!srcDoc) throw new Error("Expected srcDoc.")
 	const iframe = document.createElement("iframe")

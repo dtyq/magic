@@ -4,7 +4,13 @@ import { fileExtFromPath } from "@/pages/superMagic/components/MessageList/utils
 import { decodePartialJsonString } from "../../preview/streamingJsonStringField"
 
 export type WriteFileContentBlockType =
-	"heading" | "paragraph" | "list" | "blockquote" | "table" | "code" | "plain"
+	| "heading"
+	| "paragraph"
+	| "list"
+	| "blockquote"
+	| "table"
+	| "code"
+	| "plain"
 
 export type WriteFileContentBlockRenderMode = "markdown" | "code" | "plain"
 

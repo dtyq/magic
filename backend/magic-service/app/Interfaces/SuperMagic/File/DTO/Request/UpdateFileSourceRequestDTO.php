@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\SuperMagic\File\DTO\Request;
 
+use App\Domain\SuperMagic\File\Entity\ValueObject\TaskFileSource;
 use App\Infrastructure\Core\AbstractRequestDTO;
 
 /**
@@ -56,7 +57,7 @@ class UpdateFileSourceRequestDTO extends AbstractRequestDTO
             'file_id.min' => 'File ID must be greater than 0',
             'source.required' => 'Source cannot be empty',
             'source.integer' => 'Source must be an integer',
-            'source.min' => 'Source must be a non-negative integer',
+            'source.in' => 'Source must be a valid TaskFileSource value',
         ];
     }
 }

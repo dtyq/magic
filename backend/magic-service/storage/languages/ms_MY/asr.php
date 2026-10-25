@@ -121,6 +121,7 @@ return [
 
     // Nama fail berkaitan
     'file_names' => [
+        'recording_at' => 'Rakaman pada :time',
         'recording_prefix' => 'Rakaman',
         'merged_audio_prefix' => 'Fail Rakaman',
         'original_recording' => 'Fail Rakaman Asal',
@@ -154,10 +155,16 @@ return [
         'summary_middle_with_note' => ' kandungan rakaman dan ',
         'summary_suffix_with_note' => ' kandungan nota saya menjadi artifak super',
         // i18n mesej ringkasan semula
-        'resummary_prefix' => 'Sila ringkaskan semula projek rakaman sedia ada ini: ',
+        'resummary_prefix' => 'Sila ringkaskan semula ',
         'resummary_note_middle' => '. Sila rujuk fail nota/konteks sedia ada ini: ',
         'resummary_base_instruction' => '. Baca hanya magic.project.js, transkrip dan nota sebagai sumber utama. Jangan jalankan semula ASR, jangan pecahkan audio dan jangan ubah audio, transcript atau notes. Jangan baca fail terbitan lama seperti summary, topics, insights, highlights, followup, intent, power_dynamics, metrics atau mindmap.',
         'resummary_scope_instruction' => 'Panggil analyze_audio_project dengan analysis_scope=":analysis_scope" dan jangan hantar specified_analysis_types.',
         'resummary_specified_instruction' => 'Panggil analyze_audio_project dengan specified_analysis_types=:specified_analysis_types.',
+        // Awalan/akhiran i18n ringkasan semula (tanpa nota)
+        'resummary_suffix' => ' kandungan rakaman. Sila abaikan hasil ringkasan lama, analisis semula rakaman dan hasilkan artifak super yang baharu sepenuhnya. Tidak perlu menjalankan semula transkripsi audio.',
+        // Awalan/akhiran i18n ringkasan semula (dengan nota)
+        'resummary_prefix_with_note' => 'Sila ringkaskan semula ',
+        'resummary_middle_with_note' => ' kandungan rakaman dan ',
+        'resummary_suffix_with_note' => ' kandungan nota saya. Sila abaikan hasil ringkasan lama, analisis semula rakaman bersama nota dan hasilkan artifak super yang baharu sepenuhnya. Tidak perlu menjalankan semula transkripsi audio.',
     ],
 ];

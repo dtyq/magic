@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "v
 import { SeqRecordType, type SeqRecord } from "@/apis/modules/chat/types"
 import { getMessageNodeKey } from "@/pages/superMagic/components/MessageList/helpers"
 import { SuperMagicStore } from "@/pages/superMagic/stores"
+import {
+	getRawMessageNode,
+	transformRawMessage,
+} from "@/pages/superMagic/stores/message-transforms"
 import type { RawSuperMagicMessageEnvelope } from "@/pages/superMagic/stores/types"
 import {
 	ConversationMessageStatus,
@@ -214,6 +218,32 @@ describe("SuperMagic 协议身份字段", () => {
 })
 
 describe("SuperMagicStore / SuperMessage ID 黑盒契约", () => {
+	it("normalizes a type-less general_agent_card envelope before deriving identity", () => {
+		const envelope = createFinalEnvelope({
+			appMessageId: "assistant-revision",
+			superMessageId: "assistant-logical-id",
+			correlationId: "correlation-1",
+			seqId: "10",
+			content: "assistant content",
+		})
+		const message = envelope.seq.message as unknown as Record<string, unknown>
+		message.general_agent_card = message.super_magic_message
+		delete message.type
+		delete message.super_magic_message
+
+		const node = getRawMessageNode(message as never)
+		const transformed = transformRawMessage(envelope.seq as never)
+
+		expect(node).toMatchObject({
+			role: "assistant",
+			super_message_id: "assistant-logical-id",
+		})
+		expect(transformed).toMatchObject({
+			app_message_id: "assistant-revision",
+			super_message_id: "assistant-logical-id",
+			role: "assistant",
+		})
+	})
 	beforeEach(() => {
 		vi.useFakeTimers()
 	})

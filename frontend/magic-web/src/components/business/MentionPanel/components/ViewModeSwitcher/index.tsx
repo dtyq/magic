@@ -1,6 +1,6 @@
 import { memo } from "react"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Grid2X2, List } from "lucide-react"
 import type { I18nTexts } from "../../i18n/types"
 import { MentionPanelViewMode } from "../../types"

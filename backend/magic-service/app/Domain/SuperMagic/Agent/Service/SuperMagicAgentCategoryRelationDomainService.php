@@ -35,21 +35,15 @@ class SuperMagicAgentCategoryRelationDomainService
     }
 
     /** @return int[] */
-    public function getVersionCategoryIds(int $agentVersionId, ?int $fallbackCategoryId = null): array
+    public function getVersionCategoryIds(int $agentVersionId): array
     {
-        return $this->withFallback(
-            $this->relationRepository->findCategoryIds(AgentCategoryRelationType::AgentVersion, $agentVersionId),
-            $fallbackCategoryId
-        );
+        return $this->normalizeCategoryIds($this->relationRepository->findCategoryIds(AgentCategoryRelationType::AgentVersion, $agentVersionId));
     }
 
     /** @return int[] */
-    public function getMarketCategoryIds(int $agentMarketId, ?int $fallbackCategoryId = null): array
+    public function getMarketCategoryIds(int $agentMarketId): array
     {
-        return $this->withFallback(
-            $this->relationRepository->findCategoryIds(AgentCategoryRelationType::AgentMarket, $agentMarketId),
-            $fallbackCategoryId
-        );
+        return $this->normalizeCategoryIds($this->relationRepository->findCategoryIds(AgentCategoryRelationType::AgentMarket, $agentMarketId));
     }
 
     /**
@@ -141,15 +135,5 @@ class SuperMagicAgentCategoryRelationDomainService
             'common.not_found',
             ['label' => implode(',', $missingIds)]
         );
-    }
-
-    /** @param int[] $categoryIds */
-    private function withFallback(array $categoryIds, ?int $fallbackCategoryId): array
-    {
-        if ($categoryIds !== []) {
-            return $this->normalizeCategoryIds($categoryIds);
-        }
-
-        return $fallbackCategoryId === null ? [] : [$fallbackCategoryId];
     }
 }

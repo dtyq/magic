@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\File\Facade\Admin\FileApi;
+use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1', static function () {
@@ -22,6 +23,13 @@ Router::addGroup('/api/v1', static function () {
         Router::post('/delete-business-file', [FileApi::class, 'deleteBusinessFile']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);
+
+Router::addGroup('/api/v1', static function () {
+    Router::addGroup('/file', static function () {
+        Router::post('/public-upload-token', [FileApi::class, 'getPublicUploadToken']);
+        Router::post('/private-upload-token', [FileApi::class, 'getPrivateUploadToken']);
+    });
+}, ['middleware' => [RequestContextMiddleware::class, UserAuthMiddleware::class]]);
 
 Router::addGroup('/api/v1', static function () {
     Router::addGroup('/file', static function () {

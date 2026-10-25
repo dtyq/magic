@@ -10,6 +10,7 @@ function createService(overrides?: Partial<IframeAgentConfig>) {
 		createTopicAndSend: vi.fn(async () => ({ topicId: "topic-1" })),
 		sendMessage: vi.fn(async () => undefined),
 		enableWriteOperations: true,
+		projectId: "project-1",
 		...overrides,
 	}
 	const service = new IframeAgentService(cfg)
@@ -59,5 +60,30 @@ describe("IframeAgentService", () => {
 				success: false,
 			}),
 		)
+	})
+
+	it("returns a context error without opening authorization", async () => {
+		const projectContextError = "Share mode does not support project APIs"
+		const authorizePermission = vi.fn()
+		const { service, postToIframe, cfg } = createService({
+			projectId: undefined,
+			projectContextUnavailableError: projectContextError,
+			authorizePermission,
+		})
+
+		await service.handleMessage(AGENT_MESSAGE_TYPES.SEND_MESSAGE_REQUEST, {
+			type: AGENT_MESSAGE_TYPES.SEND_MESSAGE_REQUEST,
+			requestId: "req-share-context",
+			message: "Continue",
+		})
+
+		expect(authorizePermission).not.toHaveBeenCalled()
+		expect(cfg.sendMessage).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith({
+			type: AGENT_MESSAGE_TYPES.SEND_MESSAGE_RESPONSE,
+			requestId: "req-share-context",
+			success: false,
+			error: projectContextError,
+		})
 	})
 })

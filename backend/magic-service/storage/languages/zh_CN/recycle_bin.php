@@ -5,6 +5,20 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'preview' => [
+        'unavailable' => '回收站文件已不可用或你已无权访问。',
+        'expired' => '回收站文件已过期。',
+        'directory' => '回收站文件夹不支持内容预览。',
+    ],
+    'query' => [
+        'project_invalid' => '无法确定文件所属项目，请重新打开项目回收站。',
+        'time_required' => '请指定删除时间范围后查询文件名称。',
+        'time_invalid' => '删除时间格式无效，请重新选择。',
+        'time_range_invalid' => '结束时间必须晚于开始时间，查询跨度不能超过允许范围。',
+        'mode_invalid' => '项目回收站查询条件无效，请重新查询。',
+        'cursor_invalid' => '查询条件已变化或翻页位置无效，请重新查询。',
+        'count_keyword_invalid' => '名称搜索请使用带时间范围的文件查询。',
+    ],
     'resource_type' => [
         'workspace' => '工作区',
         'project' => '项目',

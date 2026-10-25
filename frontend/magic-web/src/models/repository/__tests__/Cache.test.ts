@@ -1,15 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { Storage } from "../Cache"
 
-// Mock platformKey utility
+const { reportCaughtStorageFailure: reportCaughtStorageFailureMock } = vi.hoisted(() => ({
+	reportCaughtStorageFailure: vi.fn(),
+}))
+
+vi.mock("@/utils/storage", () => ({
+	platformKey: (key: string) => `mock-platform-${key}`,
+}))
 vi.mock("@/opensource/utils/storage", () => ({
 	platformKey: (key: string) => `mock-platform-${key}`,
 }))
+vi.mock("@/app/services/storage/storageFailure", () => ({
+	reportCaughtStorageFailure: reportCaughtStorageFailureMock,
+}))
 
 describe("Cache (Storage)", () => {
-	// 保存原始的 localStorage
-	let originalLocalStorage: Storage
-
 	beforeEach(() => {
 		// 清空 localStorage
 		localStorage.clear()
@@ -297,44 +303,34 @@ describe("Cache (Storage)", () => {
 		})
 
 		describe("JSON 序列化错误", () => {
-			it("应该在序列化失败时使用原始值", () => {
-				// Arrange - 创建一个循环引用对象（无法序列化为 JSON）
-				const circularObj: any = { name: "test" }
+			it("应该在序列化失败时上报且不写入损坏值", () => {
+				const circularObj: { name: string; self?: unknown } = { name: "test" }
 				circularObj.self = circularObj
 
-				// Act
-				const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 				Storage.set("circular", circularObj)
 
-				// Assert
-				expect(consoleSpy).toHaveBeenCalled()
-
-				// Cleanup
-				consoleSpy.mockRestore()
+				expect(reportCaughtStorageFailureMock).toHaveBeenCalled()
+				expect(Storage.get("circular")).toEqual({})
 			})
 		})
 
 		describe("localStorage 配额错误", () => {
 			it("应该能够处理存储配额超限的情况", () => {
-				// Arrange - Mock localStorage.setItem 使其抛出配额错误
-				const setItemSpy = vi
-					.spyOn(window.localStorage, "setItem")
-					.mockImplementationOnce(() => {
-						throw new DOMException("QuotaExceededError")
-					})
-
-				// 捕获 console.error 调用
-				const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
-
-				// Act
-				Storage.set("large-data", { data: "x".repeat(10000000) })
-
-				// Assert - 应该记录错误
-				expect(consoleSpy).toHaveBeenCalled()
-
-				// Cleanup
-				setItemSpy.mockRestore()
-				consoleSpy.mockRestore()
+				vi.stubGlobal("localStorage", {
+					getItem: vi.fn(() => null),
+					setItem: vi.fn(() => {
+						throw new DOMException("quota exceeded", "QuotaExceededError")
+					}),
+					removeItem: vi.fn(),
+					clear: vi.fn(),
+					key: vi.fn(() => null),
+					get length() {
+						return 0
+					},
+				})
+				expect(() => Storage.set("large-data", { data: "ok" })).not.toThrow()
+				expect(reportCaughtStorageFailureMock).toHaveBeenCalled()
+				vi.unstubAllGlobals()
 			})
 		})
 	})
@@ -428,7 +424,7 @@ describe("Cache (Storage)", () => {
 
 		it("应该能够处理空数组", () => {
 			// Arrange
-			const emptyArray: any[] = []
+			const emptyArray: unknown[] = []
 
 			// Act
 			Storage.set("empty-array", emptyArray)

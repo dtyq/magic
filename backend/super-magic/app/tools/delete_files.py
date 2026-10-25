@@ -1,7 +1,8 @@
-from app.i18n import i18n
-import os
+import re
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List
 
 from pydantic import Field
 
@@ -10,12 +11,42 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.file import safe_delete
-from app.core.entity.message.server_message import ToolDetail
+from app.core.entity.message.server_message import (
+    DisplayType,
+    FileContent,
+    OperationResultListContent,
+    OperationResultItem,
+    OperationResultKind,
+    OperationResultStatus,
+    ToolDetail,
+)
+from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
+from app.utils.async_file_utils import async_exists, async_is_dir
 
 logger = get_logger(__name__)
+
+# 最多 8 项原位展开；长清单使用既有 Markdown 详情，避免撑长聊天。
+MAX_INLINE_DELETE_ITEMS = 8
+
+
+class DeleteFileError(str, Enum):
+    NOT_FOUND = "delete_file.reason_not_found"
+    PERMISSION_DENIED = "delete_file.reason_permission_denied"
+    INVALID_PATH = "delete_file.reason_invalid_path"
+    DELETE_FAILED = "delete_file.reason_failed"
+
+
+@dataclass(frozen=True)
+class DeleteFileResult:
+    """删除时保存的事实；详情不再查询已删除对象，诊断原文只提供给模型。"""
+
+    path: str
+    kind: OperationResultKind
+    error: DeleteFileError | None = None
+    error_detail: str = ""
 
 
 class DeleteFilesParams(BaseToolParams):
@@ -68,12 +99,12 @@ Before using delete_files:
             ToolResult: 包含操作结果
         """
         try:
-            deleted_files = []
-            errors = []
+            file_results: list[DeleteFileResult] = []
 
             for file_path_str in params.file_paths:
                 # 初始化显示路径，默认使用输入路径
                 display_path = file_path_str
+                kind = OperationResultKind.TEXT
 
                 try:
                     # 使用基类方法获取安全文件路径
@@ -90,13 +121,18 @@ Before using delete_files:
                         display_path = file_path_str
 
                     # 检查文件是否存在
-                    if not file_path.exists():
-                        errors.append(f"文件不存在: {display_path}")
+                    if not await async_exists(file_path):
+                        file_results.append(DeleteFileResult(
+                            path=display_path,
+                            kind=kind,
+                            error=DeleteFileError.NOT_FOUND,
+                            error_detail="Path does not exist",
+                        ))
                         continue
 
                     # 判断是文件还是目录
-                    is_directory = file_path.is_dir()
-                    file_type = "目录" if is_directory else "文件"
+                    is_directory = await async_is_dir(file_path)
+                    kind = OperationResultKind.DIRECTORY if is_directory else OperationResultKind.FILE
 
                     # 记录文件路径用于后续触发事件
                     file_path_str_full = str(file_path)
@@ -111,63 +147,131 @@ Before using delete_files:
                     # 触发文件删除事件
                     await self._dispatch_file_event(tool_context, file_path_str_full, EventType.FILE_DELETED)
 
-                    deleted_files.append(f"{display_path} ({file_type})")
+                    file_results.append(DeleteFileResult(path=display_path, kind=kind))
 
                 except Exception as e:
                     logger.exception(f"删除文件失败: {file_path_str}: {e!s}")
-                    errors.append(f"{display_path}: {e!s}")
+                    if isinstance(e, FileNotFoundError):
+                        error = DeleteFileError.NOT_FOUND
+                    elif isinstance(e, PermissionError):
+                        error = DeleteFileError.PERMISSION_DENIED
+                    elif isinstance(e, ValueError):
+                        error = DeleteFileError.INVALID_PATH
+                    else:
+                        error = DeleteFileError.DELETE_FAILED
+                    file_results.append(DeleteFileResult(
+                        path=display_path, kind=kind, error=error, error_detail=str(e),
+                    ))
 
             # 构建结果信息
+            deleted_files = [
+                f"{item.path} ({item.kind.value})" for item in file_results if item.error is None
+            ]
+            errors = [
+                f"{item.path}: {item.error_detail}" for item in file_results if item.error is not None
+            ]
+            extra_info = {"delete_results": file_results}
             if errors and not deleted_files:
                 # 全部失败
-                return ToolResult.error(f"批量删除失败:\n" + "\n".join(errors))
+                return ToolResult.error(
+                    "No files or directories were deleted:\n" + "\n".join(errors),
+                    extra_info=extra_info,
+                    use_custom_remark=True,
+                )
             elif errors and deleted_files:
                 # 部分成功
-                success_info = f"成功删除 {len(deleted_files)} 个文件:\n" + "\n".join(deleted_files)
-                error_info = f"失败 {len(errors)} 个文件:\n" + "\n".join(errors)
-                return ToolResult(content=f"{success_info}\n\n{error_info}")
+                success_info = f"Deleted {len(deleted_files)} files or directories:\n" + "\n".join(deleted_files)
+                error_info = f"Failed to delete {len(errors)} files or directories:\n" + "\n".join(errors)
+                return ToolResult(content=f"{success_info}\n\n{error_info}", extra_info=extra_info)
             else:
                 # 全部成功
-                return ToolResult(content=f"成功删除 {len(deleted_files)} 个文件:\n" + "\n".join(deleted_files))
+                return ToolResult(
+                    content=f"Deleted {len(deleted_files)} files or directories:\n" + "\n".join(deleted_files),
+                    extra_info=extra_info,
+                )
 
         except Exception as e:
             logger.exception(f"批量删除文件失败: {e!s}")
             return ToolResult.error("Failed to delete files")
 
+    @staticmethod
+    def _get_file_results(result: ToolResult) -> list[DeleteFileResult]:
+        # 执行器在工具开始前失败时可能没有逐项结果，不能拿输入清单补造成功。
+        items = result.extra_info.get("delete_results")
+        if not isinstance(items, list) or not all(isinstance(item, DeleteFileResult) for item in items):
+            return []
+        return items
 
-
-    def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
+    def _get_remark_content(self, result: ToolResult, arguments: dict[str, object] | None = None) -> str:
         """获取备注内容"""
-        if not arguments or "file_paths" not in arguments:
-            return i18n.translate("read_file.not_found", category="tool.messages")
+        items = self._get_file_results(result)
+        if not items:
+            return i18n.translate("delete_file.detail_unavailable", category="tool.messages")
+        if len(items) == 1:
+            status = self._get_item_message(items[0])
+            return i18n.translate(
+                "delete_file.single_result", category="tool.messages",
+                file_name=Path(items[0].path).name, status=status,
+            )
+        failed = sum(item.error is not None for item in items)
+        if failed == 0:
+            return i18n.translate("delete_file.deleted_count", category="tool.messages", count=len(items))
+        if failed == len(items):
+            return i18n.translate("delete_file.failed_count", category="tool.messages", count=failed)
+        return i18n.translate(
+            "delete_file.partial_result", category="tool.messages", deleted=len(items) - failed, failed=failed,
+        )
 
-        file_paths = arguments["file_paths"]
-        if not file_paths:
-            return i18n.translate("read_file.not_found", category="tool.messages")
+    @staticmethod
+    def _get_item_message(item: DeleteFileResult) -> str:
+        key = "delete_file.deleted" if item.error is None else "delete_file.not_deleted"
+        return i18n.translate(key, category="tool.messages")
 
-        if len(file_paths) == 1:
-            return os.path.basename(file_paths[0])
-        else:
-            return f"{len(file_paths)}个文件"
+    async def get_tool_detail(
+        self, tool_context: ToolContext, result: ToolResult, arguments: dict[str, object] | None = None,
+    ) -> ToolDetail:
+        items = self._get_file_results(result)
+        title = i18n.translate("delete_file.detail_title", category="tool.messages")
+        if not items:
+            return ToolDetail(
+                type=DisplayType.MD,
+                data=FileContent(
+                    file_name=f"{title}.md",
+                    content=i18n.translate("delete_file.detail_unavailable", category="tool.messages"),
+                ),
+            )
 
-    async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
+        display_items = [OperationResultItem(
+            label=item.path,
+            kind=item.kind,
+            status=OperationResultStatus.SUCCESS if item.error is None else OperationResultStatus.ERROR,
+            message=self._get_item_message(item),
+            description=i18n.translate(item.error.value, category="tool.messages") if item.error else "",
+        ) for item in items]
+        if len(display_items) <= MAX_INLINE_DELETE_ITEMS:
+            return ToolDetail(type=DisplayType.OPERATION_RESULT_LIST, data=OperationResultListContent(items=display_items))
+
+        # 报告与卡片共用同一份结果，完整保留顺序、失败项和脱敏原因。
+        lines = [f"## {title}", "", self._get_remark_content(result), ""]
+        for item in display_items:
+            # 动态代码分隔符使文件名中的反引号、链接和 HTML 都保持普通文本。
+            fence = "`" * (max((len(match.group()) for match in re.finditer(r"`+", item.label)), default=0) + 1)
+            label = item.label.replace("\n", " ").replace("\r", " ")
+            lines.append(f"- {fence} {label} {fence} — {item.message}")
+            if item.description:
+                lines.append(f"  {item.description}")
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(file_name=f"{title}.md", content="\n".join(lines)),
+        )
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float,
+        arguments: dict[str, object] | None = None,
+    ) -> dict[str, str]:
         """
         获取工具调用后的友好动作和备注
         """
-        if not result.ok:
-            file_paths = arguments.get("file_paths", []) if arguments else []
-            if file_paths:
-                if len(file_paths) == 1:
-                    file_desc = file_paths[0]
-                else:
-                    file_desc = f"{len(file_paths)}个文件"
-            else:
-                file_desc = "未知文件"
-            return {
-                "action": i18n.translate("delete_files", category="tool.actions"),
-                "remark": i18n.translate("delete_file.error", category="tool.messages", file_path=file_desc)
-            }
-
         return {
             "action": i18n.translate("delete_files", category="tool.actions"),
             "remark": self._get_remark_content(result, arguments)

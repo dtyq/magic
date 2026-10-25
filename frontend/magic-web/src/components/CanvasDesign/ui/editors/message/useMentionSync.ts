@@ -6,8 +6,11 @@ import type { UploadFileResponse } from "../../../public/magic-types"
 import type { MatchableMentionItem } from "./tiptap/contentUtils"
 import {
 	getCanvasResourceFileName,
-	getCanvasResourceIdentity,
+	getCanvasResourceReferenceIdentity,
 } from "../../../runtime/shared/path/canvasResourcePath"
+import type { MessageEditorMentionChangeContext } from "./MessageEditor"
+import { reconcileMentionPathsWithPersistedReferences } from "./mentionPathReconciliation"
+import { reconcileProtectedReferencePaths } from "./reference-assets/referenceBinding"
 
 interface UseMentionSyncOptions {
 	canvas: Canvas | null
@@ -30,6 +33,27 @@ interface UseMentionSyncOptions {
 	mentionSyncAddOnly?: boolean
 }
 
+/** Keep distinct resolver identities; never merge slots by file name. */
+export function collectMentionPathsToAdd(
+	reconciledPaths: string[],
+	currentPathByIdentity: Map<string, string>,
+	getResourceIdentity: (path?: string) => string,
+): string[] {
+	const pathsToAddIdentities = new Set<string>()
+	return reconciledPaths.filter((path) => {
+		const identity = getResourceIdentity(path)
+		if (
+			!identity ||
+			currentPathByIdentity.has(identity) ||
+			pathsToAddIdentities.has(identity)
+		) {
+			return false
+		}
+		pathsToAddIdentities.add(identity)
+		return true
+	})
+}
+
 /**
  * 将编辑器中的 mention 路径同步到元素的参考文件列表的 hook
  *
@@ -50,10 +74,20 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 	} = options
 
 	const syncVersionRef = useRef(0)
+	const previousPromptRef = useRef<{ elementId: string; prompt: string } | null>(null)
 
 	const syncMentionPaths = useCallback(
-		(paths: string[], currentPrompt: string) => {
+		(paths: string[], currentPrompt: string, context: MessageEditorMentionChangeContext) => {
+			const previousPrompt =
+				previousPromptRef.current?.elementId === elementId
+					? previousPromptRef.current.prompt
+					: undefined
+			previousPromptRef.current = { elementId, prompt: currentPrompt }
 			if (!canvas) return
+			const resolveResourceReference =
+				canvas.magicConfigManager.config?.methods?.resolveResourceReference
+			const getResourceIdentity = (path?: string) =>
+				getCanvasResourceReferenceIdentity(path, resolveResourceReference)
 
 			// 保护：paths 为空但 currentPrompt 中仍有 @ 时，可能是 @ 尚未解析为 mention 节点，不执行
 			if (paths.length === 0 && /@/.test(currentPrompt)) {
@@ -61,56 +95,61 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 			}
 
 			const elementInstance = canvas.elementManager.getElementInstance(elementId)
-			if (!(
-				elementInstance instanceof ImageElementClass ||
-				elementInstance instanceof VideoElementClass
-			)) {
+			if (
+				!(
+					elementInstance instanceof ImageElementClass ||
+					elementInstance instanceof VideoElementClass
+				)
+			) {
 				return
 			}
 
 			const currentInfos = elementInstance.getReferenceImageInfos()
+			const effectiveProtectedReferencePaths = reconcileProtectedReferencePaths({
+				referenceFileInfos: currentInfos,
+				protectedReferencePaths,
+				currentPrompt,
+				previousPrompt,
+				source: context.source,
+				resolveResourceReference,
+			})
+			const reconciledPaths = reconcileMentionPathsWithPersistedReferences({
+				incomingPaths: paths,
+				persistedPaths: currentInfos.map((info) => info.path),
+				source: context.source,
+				resolveResourceReference,
+			})
 			const currentPathByIdentity = new Map(
-				currentInfos.map((info) => [getCanvasResourceIdentity(info.path), info.path]),
+				currentInfos.map((info) => [getResourceIdentity(info.path), info.path]),
 			)
-			const mentionedPathIdentities = new Set(paths.map(getCanvasResourceIdentity))
+			const mentionedPathIdentities = new Set(reconciledPaths.map(getResourceIdentity))
 			const protectedPathIdentities = new Set(
-				protectedReferencePaths.map(getCanvasResourceIdentity),
+				effectiveProtectedReferencePaths.map(getResourceIdentity),
 			)
 			const findMatchableItem = (path: string) => {
-				const identity = getCanvasResourceIdentity(path)
-				return matchableItems.find(
-					(item) => getCanvasResourceIdentity(item.path) === identity,
-				)
+				const identity = getResourceIdentity(path)
+				return matchableItems.find((item) => getResourceIdentity(item.path) === identity)
 			}
 
-			const pathsToAddIdentities = new Set<string>()
-			let pathsToAdd = paths.filter((path) => {
-				const identity = getCanvasResourceIdentity(path)
-				if (
-					!identity ||
-					currentPathByIdentity.has(identity) ||
-					pathsToAddIdentities.has(identity)
-				) {
-					return false
-				}
-				pathsToAddIdentities.add(identity)
-				return true
-			})
+			let pathsToAdd = collectMentionPathsToAdd(
+				reconciledPaths,
+				currentPathByIdentity,
+				getResourceIdentity,
+			)
 			const pathsToRemove = mentionSyncAddOnly
 				? []
 				: currentInfos
 						.map((info) => info.path)
 						.filter(
 							(path) =>
-								!mentionedPathIdentities.has(getCanvasResourceIdentity(path)) &&
-								!protectedPathIdentities.has(getCanvasResourceIdentity(path)),
+								!mentionedPathIdentities.has(getResourceIdentity(path)) &&
+								!protectedPathIdentities.has(getResourceIdentity(path)),
 						)
-
 			// 限制场景下过滤 pathsToAdd
 			if (isReferenceFileLimitReached && maxReferenceFiles !== undefined) {
 				const currentPathsArray = currentInfos.map((info) => info.path)
 				pathsToAdd = pathsToAdd.filter((path) => {
-					if (currentPathByIdentity.has(getCanvasResourceIdentity(path))) return true
+					if (currentPathByIdentity.has(getResourceIdentity(path))) return true
 					const matchableItem = findMatchableItem(path)
 					if (matchableItem?.disabled) return false
 					const currentCount = currentPathsArray.length - pathsToRemove.length
@@ -147,7 +186,6 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 					})
 				}
 			})
-
 			// 同步从 Element 拉取到 React state
 			syncFromElement()
 

@@ -28,6 +28,8 @@
 	"generateWebLimitDesc": "控制单个用户最大生成网站的数量上限",
 	"immediate": "即时发放",
 	"isPointRecharge": "是否可充值积分",
+	"microAppLimit": "微应用项目数量上限",
+	"microAppLimitDesc": "控制组织可创建的微应用项目数量上限",
 	"monthly": "每月发放",
 	"monthlyExpiration": "当月有效",
 	"monthlySubscription": "月度订阅",

@@ -9,10 +9,13 @@ namespace App\Domain\SlidesTemplate\Entity;
 
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateTagNodeType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateTagStatus;
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Infrastructure\Core\AbstractEntity;
 
 class SlidesTemplateTagEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     protected ?int $id = null;
 
     protected string $organizationCode = '';
@@ -146,6 +149,16 @@ class SlidesTemplateTagEntity extends AbstractEntity
     {
         $this->nameI18n = $nameI18n;
         return $this;
+    }
+
+    public function getI18nName(string $language): string
+    {
+        return $this->resolveI18nText($this->nameI18n, $language);
+    }
+
+    public function getI18nDescription(string $language): string
+    {
+        return $this->resolveI18nText($this->descriptionI18n, $language);
     }
 
     public function getDescriptionI18n(): array

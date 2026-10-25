@@ -37,7 +37,10 @@ class RichTextMessage extends AbstractAttachmentMessage implements TextContentIn
     {
         $attachmentIds = $this->getAttachmentIds();
         // 检查富文本中是否有图片
-        $content = $this->getContent();
+        $content = TiptapUtil::sanitizeContent($this->getContent());
+        if ($content === '') {
+            return $attachmentIds;
+        }
         $editor = new Editor([
             'extensions' => [
                 new ImageNode(),

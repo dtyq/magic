@@ -5,7 +5,6 @@ import {
 	useEffect,
 	useMemo,
 	useRef,
-	useState,
 	useSyncExternalStore,
 	type ReactNode,
 } from "react"
@@ -14,14 +13,16 @@ import { resolveSafePreviewUrl } from "@/pages/superMagic/components/Detail/comp
 import { getPreviewFileUrlWatermarkSignature } from "@/utils/aiWatermarkPreviewFileUrlMode"
 import { getAiWatermarkPreferenceUserKey } from "@/utils/aiWatermarkPreferenceCache"
 import type { AttachmentItem } from "../hooks/types"
+import { useFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	cancelProjectFileImagePreviewRequest,
 	deleteProjectFileImagePreviewCacheItem,
 	getProjectFileImagePreviewCacheItem,
-	getProjectFileImagePreviewMemoryCacheItem,
+	isProjectFileImagePreviewDirectUrlUsable,
 	PROJECT_FILE_IMAGE_PREVIEW_RENDITION_KEY,
 	requestProjectFileImagePreview,
 	requestProjectFileImagePreviewBatch,
+	seedProjectFileImagePreviewDirectUrls,
 } from "./projectFileImagePreviewCoordinator"
 
 type PreviewStatus = "idle" | "loading" | "loaded" | "error" | "unavailable"
@@ -32,6 +33,10 @@ export interface ProjectFileImagePreviewSource {
 	cacheKey: string
 	fileName: string
 	directThumbnailUrl?: string
+	directThumbnailExpiresAt?: string
+	fileVersion?: number
+	updatedAt?: string
+	resourceVersion?: string
 }
 
 interface PreviewState {
@@ -52,9 +57,6 @@ interface ProjectFileImagePreviewManager {
 const imageExtSet = new Set(IMAGE_EXTENSIONS.map((ext) => normalizeFileExtension(ext)))
 const THUMBNAIL_BATCH_DELAY_MS = 32
 const THUMBNAIL_BATCH_SIZE = 50
-const TOOLTIP_IMAGE_MAX_WIDTH = 320
-const TOOLTIP_IMAGE_MAX_HEIGHT = 320
-const TOOLTIP_IMAGE_MIN_LONG_EDGE = 160
 const EMPTY_PREVIEW_STATE: PreviewState = { status: "idle" }
 const PREVIEW_CACHE_RESOURCE_FIELD_NAMES = [
 	"id",
@@ -127,6 +129,42 @@ function resolveDirectThumbnailUrl(item: AttachmentItem): string {
 	return pickStringUrlField(item, "thumbnail_url") || pickStringUrlField(item, "preview_url")
 }
 
+function resolveDirectThumbnailExpiresAt(item: AttachmentItem): string | undefined {
+	const value = item.expires_at ?? item.expiresAt
+	return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
+
+function resolveAttachmentFileVersion(item: AttachmentItem): number | undefined {
+	const value = item.file_version
+	if (typeof value === "number" && Number.isFinite(value)) return value
+	if (typeof value === "string" && value.trim() !== "") {
+		const parsed = Number(value)
+		return Number.isFinite(parsed) ? parsed : undefined
+	}
+	return undefined
+}
+
+function resolveAttachmentUpdatedAt(item: AttachmentItem): string | undefined {
+	const value = item.updated_at ?? item.updatedAt ?? item.modified_at ?? item.modify_time
+	return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
+
+function resolveAttachmentResourceVersion(item: AttachmentItem): string | undefined {
+	const explicit = item.resource_version ?? item.resourceVersion ?? item.version
+	if (explicit !== undefined && explicit !== null && String(explicit).trim() !== "") {
+		return String(explicit)
+	}
+	return undefined
+}
+
+function seedDirectPreviewSourceIfNeeded(
+	source: ProjectFileImagePreviewSource,
+	fileApi: Pick<FileApi, "identityKey" | "requestSharedMediaUrls">,
+): void {
+	if (!source.directThumbnailUrl) return
+	seedProjectFileImagePreviewDirectUrls([source], { fileApi })
+}
+
 function getAttachmentDisplayNameFallback(item: AttachmentItem): string {
 	return item.display_filename || item.file_name || item.filename || item.name || ""
 }
@@ -144,6 +182,7 @@ export function resolveProjectFileImagePreviewSource(
 	if (!fileId && !directThumbnailUrl) return null
 
 	const fileName = getAttachmentDisplayNameFallback(item)
+	const updatedAt = resolveAttachmentUpdatedAt(item)
 	const cacheKey = [
 		fileId,
 		extension,
@@ -163,11 +202,17 @@ export function resolveProjectFileImagePreviewSource(
 		cacheKey,
 		fileName,
 		directThumbnailUrl: directThumbnailUrl || undefined,
+		directThumbnailExpiresAt: directThumbnailUrl
+			? resolveDirectThumbnailExpiresAt(item)
+			: undefined,
+		fileVersion: resolveAttachmentFileVersion(item),
+		updatedAt,
+		resourceVersion: resolveAttachmentResourceVersion(item),
 	}
 }
 
-function getMemoryCachedPreviewUrl(cacheKey: string): string | undefined {
-	return getProjectFileImagePreviewMemoryCacheItem(cacheKey)?.url
+function getCachedPreviewUrl(source: ProjectFileImagePreviewSource): string | undefined {
+	return getProjectFileImagePreviewCacheItem(source)?.url
 }
 
 function collectCurrentPreviewKeys(items: AttachmentItem[]): Set<string> {
@@ -188,36 +233,20 @@ function collectCurrentPreviewKeys(items: AttachmentItem[]): Set<string> {
 function shouldRequestPreview(
 	source: ProjectFileImagePreviewSource,
 	states: ReadonlyMap<string, PreviewState>,
-	pendingKeys: ReadonlySet<string>,
+	pendingKeys: { has(cacheKey: string): boolean },
+	imageErrorRetryAttemptedKeys?: ReadonlySet<string>,
 ) {
 	if (!source.fileId) return false
-	if (source.directThumbnailUrl) return false
-	if (getMemoryCachedPreviewUrl(source.cacheKey)) return false
+	if (isProjectFileImagePreviewDirectUrlUsable(source)) return false
+	if (getCachedPreviewUrl(source)) return false
 	if (pendingKeys.has(source.cacheKey)) return false
 
 	const state = states.get(source.cacheKey)
+	// After one image-error forceRefresh, keep the terminal error and do not auto-retry.
+	if (state?.status === "error" && imageErrorRetryAttemptedKeys?.has(source.cacheKey)) {
+		return false
+	}
 	return !state || state.status === "idle" || state.status === "error"
-}
-
-function resolveTooltipImageSize(naturalWidth: number, naturalHeight: number) {
-	if (naturalWidth <= 0 || naturalHeight <= 0) {
-		return {
-			width: TOOLTIP_IMAGE_MIN_LONG_EDGE,
-			height: TOOLTIP_IMAGE_MIN_LONG_EDGE,
-		}
-	}
-
-	const maxScale = Math.min(
-		TOOLTIP_IMAGE_MAX_WIDTH / naturalWidth,
-		TOOLTIP_IMAGE_MAX_HEIGHT / naturalHeight,
-	)
-	const minScale = TOOLTIP_IMAGE_MIN_LONG_EDGE / Math.max(naturalWidth, naturalHeight)
-	const scale = Math.min(maxScale, Math.max(minScale, 1))
-
-	return {
-		width: Math.round(naturalWidth * scale),
-		height: Math.round(naturalHeight * scale),
-	}
 }
 
 export function useProjectFileImagePreviewManager({
@@ -231,14 +260,20 @@ export function useProjectFileImagePreviewManager({
 		Map<string, { source: ProjectFileImagePreviewSource; count: number }>
 	>(new Map())
 	const mountedSourcesFingerprintRef = useRef("")
-	const pendingKeysRef = useRef<Set<string>>(new Set())
+	const pendingKeysRef = useRef<Map<string, number>>(new Map())
 	const thumbnailQueueRef = useRef<Map<string, ProjectFileImagePreviewSource>>(new Map())
 	const thumbnailFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const previewStatesRef = useRef<Map<string, PreviewState>>(new Map())
 	const previewListenersRef = useRef<Map<string, Set<() => void>>>(new Map())
 	const disposedRef = useRef(false)
+	// One forceRefresh per cacheKey after <img> onError; broken URLs otherwise loop forever.
+	const imageErrorRetryAttemptedKeysRef = useRef<Set<string>>(new Set())
+	// Boundary identity: thumbnail requests must carry the ambient share token so
+	// share-page previews are not emptied by the leaf guard.
+	const fileApi = useFileApi()
 
 	const currentPreviewKeys = useMemo(() => collectCurrentPreviewKeys(attachments), [attachments])
+
 	const isSourceAdmitted = useCallback((cacheKey: string) => {
 		return mountedSourceKeysRef.current.has(cacheKey) || visibleSourcesRef.current.has(cacheKey)
 	}, [])
@@ -276,22 +311,25 @@ export function useProjectFileImagePreviewManager({
 	)
 	const hydrateCachedPreview = useCallback(
 		(source: ProjectFileImagePreviewSource) => {
-			if (!getProjectFileImagePreviewCacheItem(source.cacheKey)) return false
+			if (!getProjectFileImagePreviewCacheItem(source, { fileApi })) return false
 
 			notifyPreviewKeys([source.cacheKey])
 			return true
 		},
-		[notifyPreviewKeys],
+		[notifyPreviewKeys, fileApi],
 	)
 	const getPreviewState = useCallback((source: ProjectFileImagePreviewSource): PreviewState => {
-		if (source.directThumbnailUrl) {
+		const state = previewStatesRef.current.get(source.cacheKey)
+		if (state) return state
+
+		const cachedPreviewUrl = getCachedPreviewUrl(source)
+		if (cachedPreviewUrl) return { status: "loaded", url: cachedPreviewUrl }
+
+		if (isProjectFileImagePreviewDirectUrlUsable(source)) {
 			return { status: "loaded", url: source.directThumbnailUrl }
 		}
 
-		const cachedPreviewUrl = getMemoryCachedPreviewUrl(source.cacheKey)
-		if (cachedPreviewUrl) return { status: "loaded", url: cachedPreviewUrl }
-
-		return previewStatesRef.current.get(source.cacheKey) || EMPTY_PREVIEW_STATE
+		return EMPTY_PREVIEW_STATE
 	}, [])
 	const getPreviewSnapshot = useCallback(
 		(source: ProjectFileImagePreviewSource) => {
@@ -315,15 +353,27 @@ export function useProjectFileImagePreviewManager({
 	}, [])
 
 	const requestPreviewSources = useCallback(
-		(sources: ProjectFileImagePreviewSource[], options?: { prebatched?: boolean }) => {
+		(
+			sources: ProjectFileImagePreviewSource[],
+			options?: {
+				prebatched?: boolean
+				forceRefresh?: boolean
+				allowAttachmentListUrl?: boolean
+			},
+		) => {
 			const requestSources = sources.filter((source) => source.fileId)
 			if (requestSources.length === 0) return
 
 			const pendingKeys = pendingKeysRef.current
+			const isStrictRefresh =
+				Boolean(options?.forceRefresh) || options?.allowAttachmentListUrl === false
 			const nextPendingSources = requestSources.filter((source) => {
-				if (pendingKeys.has(source.cacheKey)) return false
-				if (getMemoryCachedPreviewUrl(source.cacheKey)) return false
-				pendingKeys.add(source.cacheKey)
+				const alreadyPending = pendingKeys.has(source.cacheKey)
+				// Strict refresh must still reach the coordinator so it can chain
+				// behind an in-flight normal exchange instead of being dropped.
+				if (alreadyPending && !isStrictRefresh) return false
+				if (!options?.forceRefresh && getCachedPreviewUrl(source)) return false
+				pendingKeys.set(source.cacheKey, (pendingKeys.get(source.cacheKey) ?? 0) + 1)
 				return true
 			})
 			if (nextPendingSources.length === 0) return
@@ -332,10 +382,16 @@ export function useProjectFileImagePreviewManager({
 				nextPendingSources.map((source) => [source.cacheKey, { status: "loading" }]),
 			)
 
+			const requestOptions = {
+				...options,
+				fileApi,
+			}
 			const request = options?.prebatched
-				? requestProjectFileImagePreviewBatch(nextPendingSources)
+				? requestProjectFileImagePreviewBatch(nextPendingSources, requestOptions)
 				: Promise.all(
-						nextPendingSources.map((source) => requestProjectFileImagePreview(source)),
+						nextPendingSources.map((source) =>
+							requestProjectFileImagePreview(source, requestOptions),
+						),
 					)
 
 			void request
@@ -375,11 +431,13 @@ export function useProjectFileImagePreviewManager({
 				})
 				.finally(() => {
 					for (const source of nextPendingSources) {
-						pendingKeys.delete(source.cacheKey)
+						const nextCount = (pendingKeys.get(source.cacheKey) ?? 1) - 1
+						if (nextCount <= 0) pendingKeys.delete(source.cacheKey)
+						else pendingKeys.set(source.cacheKey, nextCount)
 					}
 				})
 		},
-		[applyPreviewStateChanges, isSourceAdmitted],
+		[applyPreviewStateChanges, isSourceAdmitted, fileApi],
 	)
 
 	const flushThumbnailQueue = useCallback(() => {
@@ -413,7 +471,7 @@ export function useProjectFileImagePreviewManager({
 		(sources: ProjectFileImagePreviewSource[]) => {
 			let queued = false
 			for (const source of sources) {
-				if (source.directThumbnailUrl || !source.fileId) continue
+				if (isProjectFileImagePreviewDirectUrlUsable(source) || !source.fileId) continue
 				if (thumbnailQueueRef.current.has(source.cacheKey)) continue
 				thumbnailQueueRef.current.set(source.cacheKey, source)
 				queued = true
@@ -464,6 +522,7 @@ export function useProjectFileImagePreviewManager({
 					source,
 					previewStatesRef.current,
 					pendingKeysRef.current,
+					imageErrorRetryAttemptedKeysRef.current,
 				)
 			})
 			if (requestableSources.length > 0) enqueueThumbnailSources(requestableSources)
@@ -483,9 +542,15 @@ export function useProjectFileImagePreviewManager({
 				}
 
 				visibleSourcesRef.current.set(source.cacheKey, { source, count: 1 })
+				seedDirectPreviewSourceIfNeeded(source)
 				if (hydrateCachedPreview(source)) return
 				if (
-					shouldRequestPreview(source, previewStatesRef.current, pendingKeysRef.current)
+					shouldRequestPreview(
+						source,
+						previewStatesRef.current,
+						pendingKeysRef.current,
+						imageErrorRetryAttemptedKeysRef.current,
+					)
 				) {
 					enqueueThumbnailSources([source])
 				}
@@ -513,6 +578,12 @@ export function useProjectFileImagePreviewManager({
 			if (!currentPreviewKeys.has(cacheKey)) staleStateChanges.push([cacheKey, undefined])
 		}
 		if (staleStateChanges.length > 0) applyPreviewStateChanges(staleStateChanges)
+
+		for (const cacheKey of Array.from(imageErrorRetryAttemptedKeysRef.current)) {
+			if (!currentPreviewKeys.has(cacheKey)) {
+				imageErrorRetryAttemptedKeysRef.current.delete(cacheKey)
+			}
+		}
 	}, [applyPreviewStateChanges, currentPreviewKeys])
 
 	useEffect(() => {
@@ -520,32 +591,47 @@ export function useProjectFileImagePreviewManager({
 		return () => {
 			disposedRef.current = true
 			if (thumbnailFlushTimerRef.current) clearTimeout(thumbnailFlushTimerRef.current)
-			for (const cacheKey of Array.from(pendingKeysRef.current)) {
+			for (const cacheKey of Array.from(pendingKeysRef.current.keys())) {
 				releasePendingPreviewRequest(cacheKey)
 			}
 			previewListenersRef.current.clear()
+			imageErrorRetryAttemptedKeysRef.current.clear()
 		}
 	}, [releasePendingPreviewRequest])
 
 	const markPreviewImageError = useCallback(
 		(source: ProjectFileImagePreviewSource) => {
-			if (source.directThumbnailUrl || getMemoryCachedPreviewUrl(source.cacheKey)) return
-
-			deleteProjectFileImagePreviewCacheItem(source.cacheKey)
-			applyPreviewStateChanges([[source.cacheKey, undefined]])
-			if (isSourceAdmitted(source.cacheKey)) requestPreviewSources([source])
+			const alreadyRetried = imageErrorRetryAttemptedKeysRef.current.has(source.cacheKey)
+			const willForceRefresh = isSourceAdmitted(source.cacheKey) && !alreadyRetried
+			deleteProjectFileImagePreviewCacheItem(source, { fileApi })
+			applyPreviewStateChanges([[source.cacheKey, { status: "error" }]])
+			// Broken thumbnail URLs must not force-refresh forever while the row stays visible.
+			if (!willForceRefresh) return
+			imageErrorRetryAttemptedKeysRef.current.add(source.cacheKey)
+			void requestPreviewSources([source], {
+				forceRefresh: true,
+				allowAttachmentListUrl: false,
+			})
 		},
-		[applyPreviewStateChanges, isSourceAdmitted, requestPreviewSources],
+		[applyPreviewStateChanges, isSourceAdmitted, requestPreviewSources, fileApi],
 	)
 
 	const ensurePreview = useCallback(
 		(source: ProjectFileImagePreviewSource) => {
+			seedDirectPreviewSourceIfNeeded(source, fileApi)
 			if (hydrateCachedPreview(source)) return
-			if (shouldRequestPreview(source, previewStatesRef.current, pendingKeysRef.current)) {
+			if (
+				shouldRequestPreview(
+					source,
+					previewStatesRef.current,
+					pendingKeysRef.current,
+					imageErrorRetryAttemptedKeysRef.current,
+				)
+			) {
 				requestPreviewSources([source])
 			}
 		},
-		[hydrateCachedPreview, requestPreviewSources],
+		[hydrateCachedPreview, requestPreviewSources, fileApi],
 	)
 
 	return useMemo(
@@ -607,7 +693,7 @@ export function useProjectFileImagePreviewState(
 		const currentSource = sourceRef.current
 		if (!currentSource) return "unavailable\0"
 		if (manager) return manager.getPreviewSnapshot(currentSource)
-		return currentSource.directThumbnailUrl
+		return isProjectFileImagePreviewDirectUrlUsable(currentSource)
 			? `loaded\0${currentSource.directThumbnailUrl}`
 			: "idle\0"
 	}, [manager?.getPreviewSnapshot, source?.cacheKey, source?.directThumbnailUrl])
@@ -616,94 +702,8 @@ export function useProjectFileImagePreviewState(
 
 	if (!source) return null
 	if (manager) return manager.getPreviewState(source)
-	if (source.directThumbnailUrl) {
+	if (isProjectFileImagePreviewDirectUrlUsable(source)) {
 		return { status: "loaded", url: source.directThumbnailUrl }
 	}
 	return EMPTY_PREVIEW_STATE
-}
-
-export function ProjectFileImagePreviewTooltipContent({
-	source,
-	onPreviewUnavailable,
-}: {
-	source: ProjectFileImagePreviewSource
-	onPreviewUnavailable?: () => void
-}) {
-	const manager = useProjectFileImagePreviewContext()
-	const previewState = useProjectFileImagePreviewState(source)
-	const [previewImageSize, setPreviewImageSize] = useState<{
-		width: number
-		height: number
-	} | null>(null)
-	const [imageFailed, setImageFailed] = useState(false)
-
-	useEffect(() => {
-		setPreviewImageSize(null)
-		setImageFailed(false)
-	}, [previewState?.url, source.cacheKey])
-
-	if (!manager || !previewState) return null
-	if (previewState.status === "error" || previewState.status === "unavailable" || imageFailed) {
-		return null
-	}
-
-	return (
-		<div
-			className="inline-flex max-w-none flex-col whitespace-nowrap pb-1.5"
-			data-testid="project-file-image-preview-tooltip"
-		>
-			<div
-				className="mb-2 max-w-none whitespace-nowrap leading-5"
-				data-testid="project-file-image-preview-tooltip-title"
-			>
-				{source.fileName}
-			</div>
-			{previewState.url ? (
-				<img
-					key={previewState.url}
-					src={previewState.url}
-					alt=""
-					className="block self-center rounded-sm object-contain"
-					style={{
-						...(previewImageSize
-							? {
-									width: previewImageSize.width,
-									height: previewImageSize.height,
-								}
-							: {
-									maxWidth: TOOLTIP_IMAGE_MAX_WIDTH,
-									maxHeight: TOOLTIP_IMAGE_MAX_HEIGHT,
-									minWidth: TOOLTIP_IMAGE_MIN_LONG_EDGE,
-								}),
-					}}
-					loading="lazy"
-					decoding="async"
-					referrerPolicy="no-referrer"
-					onLoad={(event) => {
-						setPreviewImageSize(
-							resolveTooltipImageSize(
-								event.currentTarget.naturalWidth,
-								event.currentTarget.naturalHeight,
-							),
-						)
-					}}
-					onError={() => {
-						setImageFailed(true)
-						onPreviewUnavailable?.()
-						manager.markPreviewImageError(source)
-					}}
-					data-testid="project-file-image-preview-tooltip-image"
-				/>
-			) : (
-				<div
-					className="animate-pulse self-center rounded-sm bg-background/20 motion-reduce:animate-none"
-					style={{
-						width: TOOLTIP_IMAGE_MIN_LONG_EDGE,
-						height: TOOLTIP_IMAGE_MIN_LONG_EDGE,
-					}}
-					data-testid="project-file-image-preview-tooltip-loading"
-				/>
-			)}
-		</div>
-	)
 }

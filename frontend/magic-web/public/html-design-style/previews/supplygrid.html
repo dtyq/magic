@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SupplyGrid — Global Supply Chain & Freight Logistics</title>
+<style>
+:root {
+--primary: #475569;
+--navy-dark: #0F172A;
+--navy-surface: #1E293B;
+--secondary: #2563EB;
+--orange: #D97706;
+--orange-accent: #EA580C;
+--bg: #F8FAFC;
+--surface: #FFFFFF;
+--border: #E2E8F0;
+--border-dark: #CBD5E1;
+--text-main: #0F172A;
+--text-muted: #64748B;
+--text-light: #94A3B8;
+--success-bg: #DCFCE7;
+--success-text: #16A34A;
+--info-bg: #DBEAFE;
+--info-text: #2563EB;
+--warning-bg: #FEF3C7;
+--warning-text: #D97706;
+--font-head: 'Roboto Slab', Georgia, serif;
+--font-body: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+--font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+--radius-sm: 2px;
+--radius-md: 4px;
+--radius-pill: 9999px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background-color: var(--bg);
+color: var(--text-main);
+font-family: var(--font-body);
+font-size: 13px;
+line-height: 1.45;
+-webkit-font-smoothing: antialiased;
+}
+/* Top Operational Bar */
+.op-header {
+background: var(--navy-dark);
+color: #fff;
+height: 50px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 0 24px;
+border-bottom: 2px solid var(--orange);
+}
+.brand-wrap {
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.brand-mark {
+background: var(--orange);
+color: #fff;
+font-weight: 900;
+font-family: var(--font-head);
+padding: 3px 7px;
+border-radius: var(--radius-sm);
+font-size: 14px;
+letter-spacing: 0.5px;
+}
+.brand-title {
+font-family: var(--font-head);
+font-size: 16px;
+font-weight: 700;
+color: #fff;
+letter-spacing: 0.5px;
+}
+.brand-title span { color: var(--orange); }
+.header-kpi-bar {
+display: flex;
+align-items: center;
+gap: 20px;
+font-size: 12px;
+}
+.kpi-item {
+display: flex;
+align-items: center;
+gap: 6px;
+color: #CBD5E1;
+}
+.kpi-item strong {
+color: #fff;
+font-family: var(--font-mono);
+font-size: 13px;
+}
+.status-dot-pulse {
+width: 7px;
+height: 7px;
+background: var(--success-text);
+border-radius: 50%;
+box-shadow: 0 0 6px var(--success-text);
+}
+/* Main Container */
+.dashboard-layout {
+max-width: 1400px;
+margin: 0 auto;
+padding: 16px 20px;
+display: flex;
+flex-direction: column;
+gap: 16px;
+}
+/* First 500px Focal Hero Section */
+.hero-tracker-grid {
+display: grid;
+grid-template-columns: 1.35fr 1fr;
+gap: 16px;
+align-items: stretch;
+}
+.card {
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: var(--radius-md);
+box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+display: flex;
+flex-direction: column;
+}
+.card-header {
+padding: 10px 14px;
+border-bottom: 1px solid var(--border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+background: #FAFBFD;
+}
+.card-title {
+font-family: var(--font-head);
+font-size: 14px;
+font-weight: 700;
+color: var(--navy-dark);
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.card-body {
+padding: 14px;
+flex: 1;
+}
+/* Container Details Header */
+.container-id-banner {
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+margin-bottom: 14px;
+}
+.id-col h1 {
+font-family: var(--font-head);
+font-size: 20px;
+font-weight: 700;
+color: var(--navy-dark);
+margin-bottom: 2px;
+}
+.id-sub {
+font-family: var(--font-mono);
+font-size: 11px;
+color: var(--text-muted);
+}
+.badge-chip {
+display: inline-flex;
+align-items: center;
+gap: 4px;
+padding: 4px 10px;
+border-radius: var(--radius-pill);
+font-size: 11px;
+font-weight: 600;
+}
+.badge-info { background: var(--info-bg); color: var(--info-text); }
+.badge-success { background: var(--success-bg); color: var(--success-text); }
+.badge-warning { background: var(--warning-bg); color: var(--warning-text); }
+/* Customs Clearance Official Seal Badge */
+.customs-clearance-bar {
+display: flex;
+align-items: center;
+justify-content: space-between;
+background: #F0FDF4;
+border: 1px solid #BBF7D0;
+border-radius: var(--radius-md);
+padding: 8px 12px;
+margin-bottom: 14px;
+}
+.seal-info {
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.seal-icon {
+width: 22px;
+height: 22px;
+background: var(--success-text);
+color: #fff;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 11px;
+font-weight: bold;
+}
+.seal-title {
+font-size: 12px;
+font-weight: 700;
+color: #14532D;
+}
+.seal-meta {
+font-family: var(--font-mono);
+font-size: 10px;
+color: #15803D;
+}
+.ace-badge {
+font-family: var(--font-mono);
+font-size: 10px;
+background: #DCFCE7;
+color: #166534;
+border: 1px solid #86EFAC;
+padding: 2px 6px;
+border-radius: var(--radius-sm);
+font-weight: 600;
+}
+/* Multimodal Route Stepper (Vessel -> Rail -> Truck) */
+.timeline-wrapper {
+margin-top: 12px;
+padding: 12px;
+background: var(--bg);
+border: 1px solid var(--border);
+border-radius: var(--radius-md);
+}
+.timeline-title {
+font-size: 11px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+color: var(--text-muted);
+margin-bottom: 10px;
+display: flex;
+justify-content: space-between;
+}
+.stepper-row {
+display: grid;
+grid-template-columns: 1fr 1fr 1fr;
+gap: 8px;
+position: relative;
+}
+.stepper-node {
+background: #fff;
+border: 1px solid var(--border);
+border-radius: var(--radius-md);
+padding: 10px;
+position: relative;
+}
+.stepper-node.current {
+border-color: var(--secondary);
+box-shadow: 0 0 0 1px var(--secondary);
+}
+.node-type {
+font-size: 10px;
+font-weight: 700;
+text-transform: uppercase;
+color: var(--secondary);
+display: flex;
+align-items: center;
+gap: 4px;
+margin-bottom: 4px;
+}
+.node-title {
+font-family: var(--font-head);
+font-size: 12px;
+font-weight: 700;
+color: var(--navy-dark);
+margin-bottom: 2px;
+}
+.node-loc {
+font-family: var(--font-mono);
+font-size: 10px;
+color: var(--text-muted);
+}
+.node-status-bar {
+margin-top: 8px;
+height: 4px;
+background: var(--border);
+border-radius: 2px;
+overflow: hidden;
+}
+.node-fill {
+height: 100%;
+background: var(--secondary);
+}
+/* Vessel Live Tracker Widget */
+.vessel-panel {
+display: flex;
+flex-direction: column;
+gap: 12px;
+}
+.vessel-hero-banner {
+background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy-surface) 100%);
+color: #fff;
+padding: 12px 14px;
+border-radius: var(--radius-md);
+position: relative;
+}
+.vessel-tag {
+font-size: 10px;
+font-weight: 700;
+color: var(--orange);
+text-transform: uppercase;
+letter-spacing: 1px;
+}
+.vessel-name {
+font-family: var(--font-head);
+font-size: 18px;
+font-weight: 700;
+margin-top: 2px;
+}
+.vessel-specs {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 8px;
+margin-top: 10px;
+padding-top: 8px;
+border-top: 1px solid rgba(255, 255, 255, 0.1);
+font-size: 11px;
+}
+.spec-item span {
+display: block;
+color: var(--text-light);
+font-size: 9px;
+text-transform: uppercase;
+}
+.spec-item strong {
+font-family: var(--font-mono);
+color: #fff;
+}
+.eta-highlight-box {
+background: #FFFBEB;
+border: 1px solid #FDE68A;
+border-radius: var(--radius-md);
+padding: 10px 12px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+}
+.eta-left {
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.eta-big {
+font-family: var(--font-mono);
+font-size: 24px;
+font-weight: 800;
+color: var(--orange-accent);
+line-height: 1;
+}
+.eta-desc {
+font-size: 11px;
+color: #92400E;
+}
+.telemetry-pills {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 8px;
+}
+.telem-pill {
+background: #fff;
+border: 1px solid var(--border);
+border-radius: var(--radius-md);
+padding: 8px 10px;
+font-size: 11px;
+}
+.telem-pill .lbl {
+color: var(--text-muted);
+font-size: 10px;
+display: block;
+}
+.telem-pill .val {
+font-family: var(--font-mono);
+font-weight: 600;
+color: var(--navy-dark);
+font-size: 12px;
+}
+/* Dense Data Table Section */
+.table-container {
+background: #fff;
+border: 1px solid var(--border);
+border-radius: var(--radius-md);
+overflow: hidden;
+}
+.table-header-controls {
+padding: 10px 14px;
+border-bottom: 1px solid var(--border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+background: #FAFBFD;
+}
+.filter-tabs {
+display: flex;
+gap: 6px;
+}
+.filter-tab {
+padding: 4px 10px;
+border: 1px solid var(--border);
+background: #fff;
+border-radius: var(--radius-md);
+font-size: 11px;
+font-weight: 500;
+color: var(--primary);
+cursor: pointer;
+}
+.filter-tab.active {
+background: var(--primary);
+color: #fff;
+border-color: var(--primary);
+}
+.data-table {
+width: 100%;
+border-collapse: collapse;
+font-size: 12px;
+}
+.data-table th {
+background: #F1F5F9;
+color: var(--primary);
+font-size: 10px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+text-align: left;
+padding: 8px 12px;
+border-bottom: 1px solid var(--border);
+}
+.data-table td {
+padding: 9px 12px;
+border-bottom: 1px solid var(--border);
+color: var(--text-main);
+}
+.data-table tr:hover td {
+background: #F8FAFC;
+}
+.cell-mono {
+font-family: var(--font-mono);
+font-weight: 600;
+color: var(--navy-dark);
+}
+.route-arrow {
+color: var(--text-light);
+margin: 0 4px;
+}
+</style>
+</head>
+<body>
+<!-- Top Operational Bar -->
+<header class="op-header">
+<div class="brand-wrap">
+<div class="brand-mark">SG</div>
+<div class="brand-title">SUPPLY<span>GRID</span> <span style="font-size: 11px; font-weight: normal; color: #94A3B8;">| FREIGHT CONTROL</span></div>
+</div>
+<div class="header-kpi-bar">
+<div class="kpi-item">
+<span class="status-dot-pulse"></span>
+<span>SYSTEM OPERATIONAL</span>
+</div>
+<div class="kpi-item">
+<span>ACTIVE SHIPMENTS:</span>
+<strong>1,428</strong>
+</div>
+<div class="kpi-item">
+<span>CRITICAL DELAYS:</span>
+<strong style="color: var(--orange-accent);">3</strong>
+</div>
+<div class="kpi-item" style="color: #94A3B8; font-family: var(--font-mono);">
+UTC 09:02:14
+</div>
+</div>
+</header>
+<main class="dashboard-layout">
+<!-- First 500px Focal Hero Section: Shipment Tracker & Vessel Telemetry -->
+<div class="hero-tracker-grid">
+<!-- Left Card: Ocean Container Details & Multimodal Route -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+<path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+</svg>
+SHIPMENT DISPATCH CONSOLE
+</div>
+<span class="badge-chip badge-info">IN TRANSIT · PRIORITY</span>
+</div>
+<div class="card-body">
+<div class="container-id-banner">
+<div class="id-col">
+<h1>MSCU-892104-7</h1>
+<div class="id-sub">BOL: BL-77920119-HKG · 40FT HIGH CUBE REEFER</div>
+</div>
+<div style="text-align: right;">
+<span style="font-size: 10px; color: var(--text-muted); display: block;">CARRIER</span>
+<strong style="font-size: 13px; color: var(--navy-dark);">Mediterranean Shipping Co</strong>
+</div>
+</div>
+<!-- US Customs Official Seal Badge -->
+<div class="customs-clearance-bar">
+<div class="seal-info">
+<div class="seal-icon">✓</div>
+<div>
+<div class="seal-title">CUSTOMS CLEARED: US CBP FORM 7501</div>
+<div class="seal-meta">ENTRY: #994-2019481-2 · FISCAL RELEASE CONFIRMED</div>
+</div>
+</div>
+<span class="ace-badge">ACE VERIFIED</span>
+</div>
+<!-- Multimodal Route Timeline: Vessel -> Rail -> Truck -->
+<div class="timeline-wrapper">
+<div class="timeline-title">
+<span>MULTIMODAL ROUTE TIMELINE</span>
+<span>ESTIMATED TRANSIT: 14 DAYS TOTAL</span>
+</div>
+<div class="stepper-row">
+<!-- Vessel Step (Current) -->
+<div class="stepper-node current">
+<div class="node-type">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<path d="M2 20a2.4 2.4 0 0 0 2 1 2.4 2.4 0 0 0 2-1 2.4 2.4 0 0 1 2-1 2.4 2.4 0 0 1 2 1 2.4 2.4 0 0 0 2 1 2.4 2.4 0 0 0 2-1 2.4 2.4 0 0 1 2-1 2.4 2.4 0 0 1 2 1 2.4 2.4 0 0 0 2 1 2.4 2.4 0 0 0 2-1"></path>
+<path d="M4 18L3 12h18l-1 6"></path>
+<path d="M7 12V6h10v6"></path>
+</svg>
+STAGE 1: VESSEL
+</div>
+<div class="node-title">Ever Fortune</div>
+<div class="node-loc">Shanghai ➔ Long Beach</div>
+<div class="node-status-bar">
+<div class="node-fill" style="width: 92%;"></div>
+</div>
+<div style="font-size: 10px; color: var(--secondary); font-weight: 700; margin-top: 4px;">APPROACHING BERTH</div>
+</div>
+<!-- Rail Step -->
+<div class="stepper-node">
+<div class="node-type" style="color: var(--text-muted);">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<rect x="4" y="3" width="16" height="16" rx="2"></rect>
+<path d="M4 11h16"></path>
+<path d="M12 3v8"></path>
+<path d="m8 19-2 3"></path>
+<path d="m16 19 2 3"></path>
+</svg>
+STAGE 2: RAIL
+</div>
+<div class="node-title">BNSF Intermodal</div>
+<div class="node-loc">LGB Terminal ➔ Chicago Hub</div>
+<div class="node-status-bar">
+<div class="node-fill" style="width: 0%;"></div>
+</div>
+<div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">SCHEDULED (58H)</div>
+</div>
+<!-- Truck Step -->
+<div class="stepper-node">
+<div class="node-type" style="color: var(--text-muted);">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<rect x="1" y="3" width="15" height="13"></rect>
+<polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+<circle cx="5.5" cy="18.5" r="2.5"></circle>
+<circle cx="18.5" cy="18.5" r="2.5"></circle>
+</svg>
+STAGE 3: TRUCK
+</div>
+<div class="node-title">Apex Drayage Fleet</div>
+<div class="node-loc">Inland Hub ➔ Aurora DC-04</div>
+<div class="node-status-bar">
+<div class="node-fill" style="width: 0%;"></div>
+</div>
+<div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">FINAL MILE</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Card: Ocean Vessel Status & ETA -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<circle cx="12" cy="12" r="10"></circle>
+<polygon points="12 6 12 12 16 14"></polygon>
+</svg>
+VESSEL POSITIONING &amp; ETA
+</div>
+<span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">IMO: 9811002</span>
+</div>
+<div class="card-body vessel-panel">
+<!-- Vessel Hero Banner -->
+<div class="vessel-hero-banner">
+<div class="vessel-tag">CONTAINER SHIP · 24,000 TEU</div>
+<div class="vessel-name">Vessel: Ever Fortune</div>
+<div class="vessel-specs">
+<div class="spec-item">
+<span>FLAG</span>
+<strong>Panama</strong>
+</div>
+<div class="spec-item">
+<span>SPEED</span>
+<strong>19.4 kts</strong>
+</div>
+<div class="spec-item">
+<span>DRAFT</span>
+<strong>14.8 m</strong>
+</div>
+</div>
+</div>
+<!-- Highlight ETA Box -->
+<div class="eta-highlight-box">
+<div class="eta-left">
+<div class="eta-big">14h</div>
+<div>
+<div style="font-weight: 700; color: #78350F; font-size: 12px;">ESTIMATED TIME OF ARRIVAL</div>
+<div class="eta-desc">Port of Long Beach, Pier G · Berth 232</div>
+</div>
+</div>
+<span class="badge-chip badge-warning">ON TIME</span>
+</div>
+<!-- Cargo Telemetry Readings -->
+<div class="telemetry-pills">
+<div class="telem-pill">
+<span class="lbl">REEFER TEMP SETPOINT</span>
+<span class="val" style="color: var(--secondary);">-18.2°C (ACT: -18.1°C)</span>
+</div>
+<div class="telem-pill">
+<span class="lbl">GROSS CARGO WEIGHT</span>
+<span class="val">26,480 KG</span>
+</div>
+<div class="telem-pill">
+<span class="lbl">PORT CONGESTION DWELL</span>
+<span class="val" style="color: var(--success-text);">1.4 DAYS (LOW)</span>
+</div>
+<div class="telem-pill">
+<span class="lbl">SECURITY TAMPER SEAL</span>
+<span class="val">#SL-99410-X (INTACT)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Lower Operational Section: Active Fleet Shipments Data Table -->
+<div class="table-container">
+<div class="table-header-controls">
+<div style="display: flex; align-items: center; gap: 12px;">
+<strong style="font-family: var(--font-head); font-size: 14px; color: var(--navy-dark);">ACTIVE FLEET SHIPMENTS</strong>
+<span style="font-size: 11px; color: var(--text-muted);">Showing 4 of 1,428 tracked containers</span>
+</div>
+<div class="filter-tabs">
+<button class="filter-tab active">All Active</button>
+<button class="filter-tab">Ocean Freight</button>
+<button class="filter-tab">Rail Intermodal</button>
+<button class="filter-tab">Customs Hold (3)</button>
+</div>
+</div>
+<table class="data-table">
+<thead>
+<tr>
+<th>CONTAINER / BL</th>
+<th>CARRIER &amp; VESSEL</th>
+<th>ORIGIN &rarr; DESTINATION</th>
+<th>MODALITY</th>
+<th>CUSTOMS</th>
+<th>STATUS</th>
+<th>ETA (UTC)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="cell-mono">MSCU-892104-7<br><span style="font-size: 10px; color: var(--text-muted);">BL-77920119</span></td>
+<td><strong>Ever Fortune</strong><br><span style="font-size: 11px; color: var(--text-muted);">MSC Mediterranean</span></td>
+<td>Shanghai (CNSHA) <span class="route-arrow">&rarr;</span> Long Beach (USLGB)</td>
+<td><span class="badge-chip badge-info">Ocean Vessel</span></td>
+<td><span class="badge-chip badge-success">CLEARED (ACE)</span></td>
+<td><span class="badge-chip badge-info">In Transit</span></td>
+<td class="cell-mono" style="color: var(--orange-accent);">14h (23:45)</td>
+</tr>
+<tr>
+<td class="cell-mono">CMAU-419082-1<br><span style="font-size: 10px; color: var(--text-muted);">BL-88192301</span></td>
+<td><strong>CMA CGM Palais</strong><br><span style="font-size: 11px; color: var(--text-muted);">CMA CGM Group</span></td>
+<td>Rotterdam (NLRTM) <span class="route-arrow">&rarr;</span> Newark (USNWK)</td>
+<td><span class="badge-chip badge-info">Ocean Vessel</span></td>
+<td><span class="badge-chip badge-success">CLEARED (ACE)</span></td>
+<td><span class="badge-chip badge-info">In Transit</span></td>
+<td class="cell-mono">3d 08h</td>
+</tr>
+<tr>
+<td class="cell-mono">BNSF-772109-0<br><span style="font-size: 10px; color: var(--text-muted);">BL-33019842</span></td>
+<td><strong>BNSF Freight #401</strong><br><span style="font-size: 11px; color: var(--text-muted);">Transcon Express</span></td>
+<td>Long Beach Rail <span class="route-arrow">&rarr;</span> Chicago Hub (USCHI)</td>
+<td><span class="badge-chip" style="background:#F1F5F9; color:#475569;">Rail Intermodal</span></td>
+<td><span class="badge-chip badge-success">INSPECTION OK</span></td>
+<td><span class="badge-chip badge-info">Moving</span></td>
+<td class="cell-mono">42h</td>
+</tr>
+<tr>
+<td class="cell-mono">HAPU-551029-4<br><span style="font-size: 10px; color: var(--text-muted);">BL-11094821</span></td>
+<td><strong>Hamburg Express</strong><br><span style="font-size: 11px; color: var(--text-muted);">Hapag-Lloyd</span></td>
+<td>Singapore (SGSIN) <span class="route-arrow">&rarr;</span> Tacoma (USTAC)</td>
+<td><span class="badge-chip badge-info">Ocean Vessel</span></td>
+<td><span class="badge-chip badge-warning">DOC REVIEW</span></td>
+<td><span class="badge-chip badge-warning">Inspection</span></td>
+<td class="cell-mono">6d 12h</td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+</body>
+</html>

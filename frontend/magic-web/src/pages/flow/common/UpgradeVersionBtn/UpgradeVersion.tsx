@@ -101,7 +101,10 @@ export default function UpgradeVersionBtn() {
 				title={t("common.confirmToUpdateVersion", { ns: "flow" })}
 				onConfirm={onNodeVersionUpdate}
 			>
-				<Tooltip title="当前节点处于旧版本，点击升级节点版本" placement="bottom">
+				<Tooltip
+					title={t("common.upgradeNodeVersionTooltip", { ns: "flow" })}
+					placement="bottom"
+				>
 					<IconCircleArrowUp className={styles.arrowUp} size={20} />
 				</Tooltip>
 			</Popconfirm>

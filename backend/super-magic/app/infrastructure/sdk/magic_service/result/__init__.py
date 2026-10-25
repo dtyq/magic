@@ -8,14 +8,17 @@ Result classes for Magic Service API responses.
 
 from .ai_ability_runtime_config_result import AiAbilityRuntimeConfigItem, AiAbilityRuntimeConfigResult
 from .agent_details_result import AgentDetailsResult, Tool
+from .get_user_info_result import GetUserInfoResult
 from .message_schedule_result import MessageScheduleResult
 from .oauth2_callback_relay_result import OAuth2CallbackRelayResult
+from .mcp_authorization_credential_result import MCPAuthorizationCredentialResult
 from .agent_openapi_result import AgentOpenApiResult, AgentSkillInfo
-from .update_agent_result import UpdateAgentResult
+from .update_crew_result import UpdateCrewResult
 from .skill_file_urls_result import SkillFileUrlsResult, SkillFileUrlItem
 from .import_skill_result import ImportSkillResult
 from .share_result import ShareResourceIdResult, ShareResult, CancelShareResult, FindSimilarSharesResult, ShareListResult
 from .latest_published_skill_versions_result import LatestPublishedSkillVersionsResult, LatestPublishedSkillVersionItem
+from .html_design_style_source_result import HtmlDesignStyleSourceResult
 from .ingest_third_party_message_result import IngestThirdPartyMessageResult
 from .scan_wav_result import ScanWavResult  # TEMP: scan-wav workaround, remove when MagicFS auto-refreshes
 from .search_knowledge_result import SearchKnowledgeResult
@@ -30,15 +33,17 @@ from .magicbase_row_result import (
 )
 
 __all__ = [  # noqa: RUF022 - 保留既有导出顺序
+    'GetUserInfoResult',
     'AiAbilityRuntimeConfigResult',
     'AiAbilityRuntimeConfigItem',
     'AgentDetailsResult',
     'Tool',
     'MessageScheduleResult',
     'OAuth2CallbackRelayResult',
+    'MCPAuthorizationCredentialResult',
     'AgentOpenApiResult',
     'AgentSkillInfo',
-    'UpdateAgentResult',
+    'UpdateCrewResult',
     'SkillFileUrlsResult',
     'SkillFileUrlItem',
     'ImportSkillResult',
@@ -49,6 +54,7 @@ __all__ = [  # noqa: RUF022 - 保留既有导出顺序
     'ShareListResult',
     'LatestPublishedSkillVersionsResult',
     'LatestPublishedSkillVersionItem',
+    'HtmlDesignStyleSourceResult',
     'IngestThirdPartyMessageResult',
     'ScanWavResult',
     'SearchKnowledgeResult',

@@ -8,10 +8,10 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from agentlang.environment import Environment
-from pydantic import BaseModel, Field, validator
-
+from pydantic import BaseModel, Field, root_validator, validator
 from app.core.config.communication_config import MessageSubscriptionConfig, STSTokenRefreshConfig
 from app.core.entity.message.message import MessageType
+from app.core.entity.message.personal_preferences import PersonalPreferences
 
 
 class Department(BaseModel):
@@ -26,6 +26,7 @@ class User(BaseModel):
     """用户信息"""
 
     id: Optional[str] = None
+    third_platform_id: str = Field(default="", strict=True)
     nickname: Optional[str] = None
     real_name: Optional[str] = None
     work_number: Optional[str] = None
@@ -33,6 +34,11 @@ class User(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     departments: Optional[List[Department]] = Field(default_factory=list)
+
+    @validator("third_platform_id", pre=True)
+    def normalize_third_platform_id(cls, value):
+        """保留来源用户 ID，历史 null 按无法确定处理。"""
+        return "" if value is None else value
 
 
 class Metadata(BaseModel):
@@ -57,6 +63,31 @@ class Metadata(BaseModel):
         default=None,
         description="是否跳过发送初始化相关的聊天消息（BEFORE_INIT 和 AFTER_INIT 事件的消息），存在且为 true 时才跳过",
     )
+    personal_preferences: PersonalPreferences = Field(
+        default_factory=PersonalPreferences,
+        description="当前 CHAT 携带的用户个人偏好",
+    )
+
+    @root_validator(pre=True)
+    def migrate_legacy_long_term_memory_field(cls, values):
+        """将历史顶层长期记忆字段转换为个人偏好对象，仅用于输入兼容。"""
+        if not isinstance(values, dict):
+            return values
+        if "personal_preferences" in values or "long_term_memory_enabled" not in values:
+            return values
+
+        migrated_values = dict(values)
+        migrated_values["personal_preferences"] = {
+            "long_term_memory_enabled": values["long_term_memory_enabled"],
+        }
+        return migrated_values
+
+    @validator("personal_preferences", pre=True, always=True)
+    def validate_personal_preferences(cls, value):
+        """个人偏好缺失或结构非法时使用默认配置。"""
+        if isinstance(value, PersonalPreferences) or isinstance(value, dict):
+            return value
+        return {}
 
 
 class SuperMagicWorkspaceContext(BaseModel):
@@ -132,10 +163,13 @@ class AgentMode(str, Enum):
     SUMMARY_CHAT = "summary-chat"  # 音频纪要聊天模式，使用audio-chat.agent
     SUMMARY_VIDEO = "summary-video"  # 视频分析模式，使用video.agent
     DESIGN = "design"         # 画布设计模式，使用design.agent
+    CANVAS = "canvas"         # Canvas 管理模式，使用canvas.agent
+    VIDEO_PRODUCTION = "video-production"  # 视频制作模式，使用video-production.agent
     TEST = "test"  # 工具模式，使用tool.agent
     CREW_CREATOR = "crew-creator"  # Crew管理模式，使用crew-creator.agent
     SKILL_CREATOR = "skill-creator"  # Skill 创作模式，使用skill-creator.agent
     MICRO_APP = "micro-app"  # 微应用开发模式，使用micro-app.agent
+    PERSONA_RESEARCH = "persona_research"  # AI 消费者研究模式，使用persona-research.agent
     CUSTOM_AGENT = "custom_agent"  # 自定义 Agent 运行模式，需配合 agent_code
     MAGICLAW = "magiclaw"  # Magic Claw 模式，从 agents/claws/<claw_code>/ 编译运行
 
@@ -150,10 +184,13 @@ class AgentMode(str, Enum):
             AgentMode.SUMMARY_CHAT: "audio-chat",  # 模式名称保持summary-chat，但使用audio-chat.agent文件
             AgentMode.SUMMARY_VIDEO: "video",  # 模式名称保持summary-video，但使用video.agent文件
             AgentMode.DESIGN: "design",  # 画布设计模式
+            AgentMode.CANVAS: "canvas",  # Canvas 管理模式
+            AgentMode.VIDEO_PRODUCTION: "video-production",  # 视频制作模式
             AgentMode.TEST: "test",
             AgentMode.CREW_CREATOR: "crew-creator",
             AgentMode.SKILL_CREATOR: "skill-creator",
             AgentMode.MICRO_APP: "micro-app",  # 微应用开发模式
+            AgentMode.PERSONA_RESEARCH: "persona-research",  # AI 消费者研究模式
             AgentMode.CUSTOM_AGENT: "custom_agent",
             AgentMode.MAGICLAW: "magiclaw",
         }
@@ -220,6 +257,12 @@ class ChatClientMessage(ClientMessage):
         default=False,
         description="是否在处理完本条消息后更新 session 配置（model_id/image_model 等）。仅前端 chat 消息设为 True，第三方 IM 渠道消息保持默认 False，避免覆盖已有配置。",
     )
+
+    @property
+    def web_search_enabled(self) -> Optional[bool]:
+        """只解析显式布尔状态；旧消息不注入默认开启，以免抵消 prompt 中的关闭约束。"""
+        value = (self.dynamic_config or {}).get("enable_web_search")
+        return value if isinstance(value, bool) else None
 
     @validator("mcp_config", pre=True)
     def validate_mcp_config(cls, v):
@@ -300,6 +343,7 @@ class InitAgentProfile(BaseModel):
     description: Optional[str] = None
     role: Optional[str] = None
     template_code: Optional[str] = None
+    user_facing_name: Optional[str] = None
 
 
 class InitAgentConfig(BaseModel):

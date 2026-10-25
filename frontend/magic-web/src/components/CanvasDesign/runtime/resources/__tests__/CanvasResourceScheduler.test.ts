@@ -211,6 +211,102 @@ describe("CanvasResourceScheduler", () => {
 		])
 	})
 
+	it("isolates viewport audio preloads from explicit playback acquires", async () => {
+		const scheduler = new CanvasResourceScheduler()
+		const preloadA = createDeferred<string>()
+		const preloadB = createDeferred<string>()
+		const preloadC = createDeferred<string>()
+		const playback = createDeferred<string>()
+		const started: string[] = []
+
+		const promises = [
+			scheduler.run(
+				"audio:preload",
+				() => {
+					started.push("preload-a")
+					return preloadA.promise
+				},
+				{ source: "test", priority: "visible" },
+			),
+			scheduler.run(
+				"audio:preload",
+				() => {
+					started.push("preload-b")
+					return preloadB.promise
+				},
+				{ source: "test", priority: "visible" },
+			),
+			scheduler.run(
+				"audio:preload",
+				() => {
+					started.push("preload-c")
+					return preloadC.promise
+				},
+				{ source: "test", priority: "visible" },
+			),
+			scheduler.run(
+				"audio:playback-acquire",
+				() => {
+					started.push("playback")
+					return playback.promise
+				},
+				{ source: "test", priority: "critical" },
+			),
+		]
+
+		expect(started).toEqual(["preload-a", "preload-b", "playback"])
+		expect(scheduler.getSnapshot().queuedByKind["audio:preload"]).toBe(1)
+
+		preloadA.resolve("preload-a")
+		await promises[0]
+		await flushMicrotasks()
+		expect(started).toContain("preload-c")
+
+		preloadB.resolve("preload-b")
+		preloadC.resolve("preload-c")
+		playback.resolve("playback")
+		await expect(Promise.all(promises)).resolves.toEqual([
+			"preload-a",
+			"preload-b",
+			"preload-c",
+			"playback",
+		])
+	})
+
+	it("runs only one audio waveform decode at a time", async () => {
+		const scheduler = new CanvasResourceScheduler()
+		const first = createDeferred<string>()
+		const second = createDeferred<string>()
+		const started: string[] = []
+		const promises = [
+			scheduler.run(
+				"audio:waveform-decode",
+				() => {
+					started.push("first")
+					return first.promise
+				},
+				{ source: "test", priority: "visible" },
+			),
+			scheduler.run(
+				"audio:waveform-decode",
+				() => {
+					started.push("second")
+					return second.promise
+				},
+				{ source: "test", priority: "visible" },
+			),
+		]
+
+		expect(started).toEqual(["first"])
+		expect(scheduler.getSnapshot().queuedByKind["audio:waveform-decode"]).toBe(1)
+		first.resolve("first")
+		await promises[0]
+		await flushMicrotasks()
+		expect(started).toEqual(["first", "second"])
+		second.resolve("second")
+		await expect(Promise.all(promises)).resolves.toEqual(["first", "second"])
+	})
+
 	it("rejects queued tasks when destroyed", async () => {
 		const scheduler = new CanvasResourceScheduler()
 		const activeA = createDeferred<string>()

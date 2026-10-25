@@ -5,14 +5,7 @@
 		"confirm": "Confirm",
 		"reset": "Reset"
 	},
-	"dialog": {
-		"close": "Close dialog"
-	},
-	"drawer": {
-		"close": "Close drawer"
-	},
 	"select": {
-		"auto": "Auto",
 		"clear": "Clear selection",
 		"empty": "No options",
 		"placeholder": "Please select"

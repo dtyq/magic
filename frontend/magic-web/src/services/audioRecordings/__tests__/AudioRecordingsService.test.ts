@@ -1,3 +1,4 @@
+import { assertProjectDeletionAllowed } from "@/services/recordSummary/projectDeletionRecordingGuard"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SuperMagicApi } from "@/apis"
 import type { AudioProjectApiItem } from "@/types/audioProject"
@@ -54,6 +55,16 @@ function createApiItem(
 }
 
 describe("AudioRecordingsService", () => {
+	it("does not issue any batch delete when an unfinished recording blocks one project", async () => {
+		const error = new Error("unfinished recording")
+		vi.mocked(assertProjectDeletionAllowed).mockImplementationOnce(() => {
+			throw error
+		})
+		await expect(
+			new AudioRecordingsService().batchDeleteProjects(["project-active", "project-2"]),
+		).rejects.toBe(error)
+		expect(SuperMagicApi.batchDeleteProjects).not.toHaveBeenCalled()
+	})
 	const service = new AudioRecordingsService()
 
 	beforeEach(() => {
@@ -170,3 +181,7 @@ describe("AudioRecordingsService", () => {
 		})
 	})
 })
+
+vi.mock("@/services/recordSummary/projectDeletionRecordingGuard", () => ({
+	assertProjectDeletionAllowed: vi.fn(),
+}))

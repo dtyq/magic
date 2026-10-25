@@ -11,8 +11,6 @@ use App\Infrastructure\Core\AbstractRequestDTO;
 
 class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
 {
-    private ?int $categoryId = null;
-
     /** @var null|array<int, null|int|string> */
     private ?array $categoryIds = null;
 
@@ -34,18 +32,10 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
 
     private array $provided = [];
 
-    public function setCategoryId(null|int|string $value): void
-    {
-        $this->categoryId = $value === null ? null : (int) $value;
-        $this->provided['category_id'] = true;
-    }
-
     public function setCategoryIds(?array $value): void
     {
         $this->categoryIds = $value;
-        $this->categoryId = $this->getPrimaryCategoryId();
         $this->provided['category_ids'] = true;
-        $this->provided['category_id'] = true;
     }
 
     public function setSortOrder(null|int|string $value): void
@@ -100,7 +90,6 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
     public function getUpdatePayload(): array
     {
         $values = [
-            'category_id' => $this->categoryId,
             'category_ids' => $this->getCategoryIds(),
             'sort_order' => $this->sortOrder,
             'is_featured' => $this->isFeatured,
@@ -111,10 +100,6 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
             'icon' => $this->icon,
             'icon_type' => $this->iconType,
         ];
-        if (isset($this->provided['category_id']) && ! isset($this->provided['category_ids'])) {
-            $this->provided['category_ids'] = true;
-        }
-
         return array_filter($values, fn ($value, string $key) => isset($this->provided[$key]), ARRAY_FILTER_USE_BOTH);
     }
 
@@ -126,7 +111,6 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'category_id' => 'sometimes|nullable|integer',
             'category_ids' => 'sometimes|nullable|array|max:100',
             'category_ids.*' => 'integer|min:1',
             'sort_order' => 'sometimes|nullable|integer',
@@ -152,12 +136,7 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
             return $this->normalizeCategoryIds($this->categoryIds);
         }
 
-        return $this->categoryId === null ? [] : [$this->categoryId];
-    }
-
-    private function getPrimaryCategoryId(): ?int
-    {
-        return $this->getCategoryIds()[0] ?? null;
+        return [];
     }
 
     /** @param array<int, null|int|string> $categoryIds */

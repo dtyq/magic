@@ -74,13 +74,13 @@ graph TD
    Server[server/middleware/serviceWorkerMiddleware.js] -->|Take over /sw.js in kill/off mode| SW
 ```
 
-- **[sw-constants.ts](../../src/workers/service-worker/sw-constants.ts)**: **Single Source of Truth**. Defines all 7 official cache bucket names, TTL constants, API cache path matching rules (`CACHEABLE_API_RULES`), and path extraction decision functions (`isCacheableApiRequest`).
-- **[sw-cache.ts](../../src/apis/clients/interceptor/sw-cache.ts)**: Main thread common request interceptor.
-- **[cache-runtime.ts](../../src/workers/service-worker/cache-runtime.ts)**: SW-side Workbox bucket routing definitions, SWR/CacheFirst strategy registration, and the custom 200 success response filtering plugin (`apiBusinessCacheablePlugin`).
-- **[sw-runtime.ts](../../src/workers/service-worker/sw-runtime.ts)**: SW-side lifecycle Feature routing table distribution.
-- **[register.ts](../../src/workers/service-worker/register.ts)**: Page-side registration, `MAGIC_SW_MODE` gating, SKIP_WAITING activation, and reloading control.
-- **[serviceWorkerMiddleware.js](../../server/middleware/serviceWorkerMiddleware.js)**: Server-side `/sw.js` takeover for `kill` and `off` modes, including `MAGIC_SW_CLEAR_CACHES` parsing.
-- **[src/sw.ts](../../src/sw.ts)**: Very thin SW entry responsible for bootstrap initialization.
+- **[sw-constants.ts](../../../src/workers/service-worker/sw-constants.ts)**: **Single Source of Truth**. Defines all 7 official cache bucket names, TTL constants, API cache path matching rules (`CACHEABLE_API_RULES`), and path extraction decision functions (`isCacheableApiRequest`).
+- **[sw-cache.ts](../../../src/apis/clients/interceptor/sw-cache.ts)**: Main thread common request interceptor.
+- **[cache-runtime.ts](../../../src/workers/service-worker/cache-runtime.ts)**: SW-side Workbox bucket routing definitions, SWR/CacheFirst strategy registration, and the custom 200 success response filtering plugin (`apiBusinessCacheablePlugin`).
+- **[sw-runtime.ts](../../../src/workers/service-worker/sw-runtime.ts)**: SW-side lifecycle Feature routing table distribution.
+- **[register.ts](../../../src/workers/service-worker/register.ts)**: Page-side registration, `MAGIC_SW_MODE` gating, SKIP_WAITING activation, and reloading control.
+- **[serviceWorkerMiddleware.js](../../../server/middleware/serviceWorkerMiddleware.js)**: Server-side `/sw.js` takeover for `kill` and `off` modes, including `MAGIC_SW_CLEAR_CACHES` parsing.
+- **[src/sw.ts](../../../src/sw.ts)**: Very thin SW entry responsible for bootstrap initialization.
 
 ---
 
@@ -89,13 +89,13 @@ graph TD
 When developing or maintaining SW in this repository, you must strictly follow the steps below.
 
 ### SOP A: Add Whitelist API Cache
-1. Open [sw-constants.ts](../../src/workers/service-worker/sw-constants.ts) and append the path rule to the `CACHEABLE_API_RULES` array. If it is a regular expression, it must start with `^` and end with `$` (e.g., `/^\/api\/v1\/settings\/(all|menu-modules)$/`).
+1. Open [sw-constants.ts](../../../src/workers/service-worker/sw-constants.ts) and append the path rule to the `CACHEABLE_API_RULES` array. If it is a regular expression, it must start with `^` and end with `$` (e.g., `/^\/api\/v1\/settings\/(all|menu-modules)$/`).
 2. Confirm the sender of the API: if it is a newly encapsulated HttpClient or a non-default client, ensure that `swCacheRequestInterceptor` is registered in its constructor or `setupInterceptors`. Do not assume that editing `sw-constants.ts` alone is always sufficient.
 3. If the cached API response contains other custom success statuses (or raw responses) besides the success code `1000`, ensure that `cacheWillUpdate` on the SW side (located in `cache-runtime.ts`) contains the normal validation for this property to prevent caching failures due to `json.code !== 1000`.
 
 ### SOP B: Modify or Add Static Resource Bucket
-1. Define the new `CACHE_NAME` and matching regex in [sw-constants.ts](../../src/workers/service-worker/sw-constants.ts), and add the new bucket name to the `MANAGED_APP_CACHE_NAMES` array (to prevent accidental deletion during the activation cleanup phase).
-2. Register the routing rules using `registerRoute` in [cache-runtime.ts](../../src/workers/service-worker/cache-runtime.ts), and configure the capacity and TTL limits of `ExpirationPlugin`.
+1. Define the new `CACHE_NAME` and matching regex in [sw-constants.ts](../../../src/workers/service-worker/sw-constants.ts), and add the new bucket name to the `MANAGED_APP_CACHE_NAMES` array (to prevent accidental deletion during the activation cleanup phase).
+2. Register the routing rules using `registerRoute` in [cache-runtime.ts](../../../src/workers/service-worker/cache-runtime.ts), and configure the capacity and TTL limits of `ExpirationPlugin`.
 
 ### SOP C: Automated Verification Flow after Changes
 After modifying any SW-related constants, matching rules, or interceptors, **the following verification must be executed before submission**:

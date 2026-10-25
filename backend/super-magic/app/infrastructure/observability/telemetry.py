@@ -536,7 +536,7 @@ def setup_telemetry(
 
     if disable_metrics_export:
         # Metrics export is disabled - don't create any metric exporter or reader
-        logger.warning("[OpenTelemetry] Metrics export disabled via OTEL_DISABLE_METRICS_EXPORT")
+        logger.info("[OpenTelemetry] Metrics export disabled via OTEL_DISABLE_METRICS_EXPORT")
         # Create a minimal MeterProvider without any readers (no export)
         _meter_provider = MeterProvider(resource=resource, metric_readers=[])
         metrics.set_meter_provider(_meter_provider)

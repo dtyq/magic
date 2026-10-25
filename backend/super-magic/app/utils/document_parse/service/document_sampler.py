@@ -17,6 +17,7 @@ from app.utils.async_file_utils import async_mkdir, async_write_text
 from ..constants import SAMPLES_DIRNAME
 from ..models import ExtractionResult
 from ..structure.range_parser import RangeParser, compact_numeric_ranges
+from .asset_strategy import AssetStrategyResolver
 from .document_extractor import DocumentExtractor
 from .document_inspector import DocumentInspector
 from .reading_state import ReadingStateStore
@@ -34,6 +35,7 @@ class DocumentSampler:
         ranges: str | None = None,
         max_units: int = 5,
         include_images: bool = True,
+        goal: str = "",
     ) -> dict[str, Any]:
         profile = await DocumentInspector().inspect(input_path)
         max_units = max(1, min(int(max_units or 5), 20))
@@ -55,8 +57,10 @@ class DocumentSampler:
         else:
             content = self._sample_content_from_profile(profile)
 
-        text_signal = self._text_signal(content)
+        text_signal = self._text_signal(content, extraction)
         recommendations = self._recommend(profile.file_type, profile.unit_type, text_signal, include_images)
+        strategy_context = AssetStrategyResolver.build_context(profile, text_signal, goal)
+        recommendations = [*recommendations, self._strategy_recommendation(strategy_context)]
         sample_name = self._sample_file_name(profile.unit_type, sample_range)
         sample_path = samples_dir / sample_name
         await async_write_text(sample_path, content)
@@ -78,7 +82,11 @@ class DocumentSampler:
                     "has_extractable_text": text_signal["has_extractable_text"],
                     "image_dominant": text_signal["image_dominant"],
                     "image_count": text_signal["image_count"],
-                }
+                    "embedded_image_count": text_signal["embedded_image_count"],
+                    "reusable_candidate_count": text_signal["reusable_candidate_count"],
+                    "filtered_image_count": text_signal["filtered_image_count"],
+                },
+                "strategy_context": strategy_context,
             },
         )
 
@@ -89,6 +97,7 @@ class DocumentSampler:
             "content": content,
             "text_signal": text_signal,
             "recommendations": recommendations,
+            "strategy_context": strategy_context,
             "state": state,
             "extraction": extraction,
         }
@@ -145,7 +154,7 @@ class DocumentSampler:
         return "\n".join(lines).strip() + "\n"
 
     @staticmethod
-    def _text_signal(content: str) -> dict[str, Any]:
+    def _text_signal(content: str, extraction: ExtractionResult | None = None) -> dict[str, Any]:
         image_count = len(re.findall(r"!\[[^\]]*]\([^)]+\)", content))
         text = re.sub(r"!\[[^\]]*]\([^)]+\)", "", content)
         text = text.replace("(本页未提取到文本)", "")
@@ -154,11 +163,28 @@ class DocumentSampler:
         text = re.sub(r"^-\s+`[^`]+`.*$", "", text, flags=re.MULTILINE)
         body_chars = len(re.sub(r"\s+", "", text))
         has_extractable_text = body_chars >= 40
+        assets = extraction.assets if extraction else []
+        embedded_image_count = sum(
+            1 for asset in assets if asset.asset_type in {"embedded_image", "image"}
+        )
+        skipped_images = (extraction.metadata.get("skipped_images") or []) if extraction else []
+        reasons = {str(item.get("reason")) for item in skipped_images if item.get("reason")}
+        reason_counts = {
+            reason: sum(1 for item in skipped_images if item.get("reason") == reason)
+            for reason in reasons
+        }
         return {
             "body_chars": body_chars,
             "image_count": image_count,
             "has_extractable_text": has_extractable_text,
             "image_dominant": image_count > 0 and not has_extractable_text,
+            "embedded_image_count": embedded_image_count,
+            "reusable_candidate_count": embedded_image_count,
+            "filtered_image_count": len(skipped_images),
+            "duplicate_image_count": reason_counts.get("duplicate repeated image kept once", 0),
+            "decorative_image_count": reason_counts.get("invalid decorative line image", 0),
+            "transparent_image_count": reason_counts.get("invalid transparent image", 0),
+            "solid_image_count": reason_counts.get("invalid solid or blank image", 0),
         }
 
     @staticmethod
@@ -177,6 +203,16 @@ class DocumentSampler:
         if include_images:
             return ["Inspect assets and choose understand_document_images only for images needed by the goal."]
         return ["Build the index and choose a narrower range for the next read."]
+
+    @staticmethod
+    def _strategy_recommendation(strategy_context: dict[str, Any]) -> str:
+        """把策略建议转换为主 Agent 可直接理解的下一步提示。"""
+
+        strategy = strategy_context.get("recommended_strategy") or "auto"
+        reason = strategy_context.get("reason") or ""
+        if strategy_context.get("requires_user_confirmation"):
+            return f"Recommended asset strategy: `{strategy}`. Call ask_user when the user has not specified an asset preference. Reason: {reason}"
+        return f"Recommended asset strategy: `{strategy}`. Reason: {reason}"
 
     @staticmethod
     def _sample_file_name(unit_type: str, sample_range: str | None) -> str:

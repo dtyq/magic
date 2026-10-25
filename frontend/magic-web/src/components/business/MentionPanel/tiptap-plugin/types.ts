@@ -1,9 +1,13 @@
-import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
-import type { Editor, ReactNodeViewProps } from "@tiptap/react"
+import type {
+	SuggestionKeyDownProps,
+	SuggestionProps,
+} from "@/infrastructure/editors/tiptap/suggestion"
+import type { Editor, ReactNodeViewProps } from "@/infrastructure/editors/tiptap/react"
 import type { ComponentType } from "react"
 import type {
 	McpMentionData,
 	AgentMentionData,
+	MicroAppMentionData,
 	SkillMentionData,
 	MentionData,
 	MentionItem,
@@ -11,6 +15,8 @@ import type {
 	PanelState,
 	MentionPanelGalleryOptions,
 	MentionPanelLoadStateOptions,
+	MentionPanelMultiSelectNavigationPolicy,
+	MentionPanelSelectionSummary,
 	MentionPanelViewMode,
 	NavigationItem,
 	UploadFileMentionData,
@@ -20,7 +26,10 @@ import type {
 	DirectoryMentionData,
 	MemoryDirectoryMentionData,
 	MemoryFileMentionData,
+	UserFileMentionData,
+	UserDirectoryMentionData,
 	CanvasMarkerMentionData,
+	TextMentionData,
 	DataService,
 	MentionSelectContext,
 } from "../types"
@@ -37,6 +46,17 @@ import i18n from "i18next"
 export interface TiptapMentionAttributes {
 	type: MentionItem["type"]
 	data: MentionItem["data"]
+	/**
+	 * Marks a Canvas-derived mention as a temporary preview that has not yet
+	 * entered the formal mention lifecycle. Pending mentions are excluded from
+	 * drafts and send payloads, and rendered with reduced opacity until promoted.
+	 */
+	pending?: boolean
+	/**
+	 * Runtime-only owner identifier for a pending mention node. The Canvas bridge
+	 * uses it to replace or promote only the temporary nodes it created.
+	 */
+	pendingId?: string
 }
 
 export interface MentionListItem {
@@ -75,6 +95,12 @@ export interface MentionPanelRendererProps {
 	catalogBehavior?: MentionPanelCatalogBehavior
 	viewMode?: MentionPanelViewMode
 	galleryOptions?: MentionPanelGalleryOptions
+	enableMultiSelect?: boolean
+	/** Limits which rows can be staged when the host enables multi-select. */
+	canToggleMultiSelectItem?: (item: MentionItem) => boolean
+	multiSelectNavigationPolicy?: MentionPanelMultiSelectNavigationPolicy
+	selectionScopeId?: string
+	selectionSummary?: MentionPanelSelectionSummary
 	onSelect: (item: MentionItem, context?: MentionSelectContext) => void
 	onExit: () => void
 	disableKeyboardShortcuts?: boolean
@@ -108,6 +134,14 @@ export interface MentionPanelPluginOptions {
 	catalogBehavior?: MentionPanelCatalogBehavior
 	viewMode?: MentionPanelViewMode
 	galleryOptions?: MentionPanelGalleryOptions
+	enableMultiSelect?: boolean
+	/** Limits which rows can be staged when the host enables multi-select. */
+	canToggleMultiSelectItem?: (item: MentionItem) => boolean
+	multiSelectNavigationPolicy?: MentionPanelMultiSelectNavigationPolicy
+	selectionScopeId?: string
+	selectionSummary?: MentionPanelSelectionSummary
+	/** Resolve dynamic selection counts when the editor extension remains stable. */
+	getSelectionSummary?: () => MentionPanelSelectionSummary | undefined
 	onInsert?: (item: MentionItem) => void
 	onInsertItems?: (items: MentionItem[]) => void
 	onRemove?: (item: TiptapMentionAttributes, stillExists: boolean) => void
@@ -118,6 +152,10 @@ export interface MentionPanelPluginOptions {
 	nodeViewRenderers?: Partial<Record<MentionItemType, MentionNodeViewRenderer>>
 	/** 恢复内容期间跳过 doc→mentionItems 同步，避免与 restoreMentionItems 冲突 */
 	shouldSkipInsertSync?: () => boolean
+	/** Allows trusted programmatic content restoration to keep existing Mention nodes intact. */
+	shouldSkipMentionValidation?: () => boolean
+	/** Allows trusted restored nodes to survive follow-up ReactNodeView transactions. */
+	isTrustedMention?: (attrs: TiptapMentionAttributes) => boolean
 	/** 程序化清空期间跳过 mention 删除同步，避免误判为用户删除 */
 	shouldSkipRemoveSync?: () => boolean
 	/** 删除后需要先恢复的 mention，用于等待外部确认后再真正删除 */
@@ -160,6 +198,8 @@ export function getMentionUniqueId(attrs: TiptapMentionAttributes | null | undef
 			return `mcp:${(data as McpMentionData)?.id || ""}`
 		case MentionItemType.AGENT:
 			return `agent:${(data as AgentMentionData)?.agent_id || ""}`
+		case MentionItemType.MICRO_APP:
+			return `micro-app:${(data as MicroAppMentionData)?.app_id || ""}`
 		case MentionItemType.SKILL:
 			return `skill:${(data as SkillMentionData)?.id || ""}`
 		case MentionItemType.PROJECT_FILE:
@@ -170,6 +210,10 @@ export function getMentionUniqueId(attrs: TiptapMentionAttributes | null | undef
 			return `memory-file:${(data as MemoryFileMentionData)?.file_id || ""}/${
 				(data as MemoryFileMentionData)?.file_path || ""
 			}`
+		case MentionItemType.USER_FILE:
+			return `user-file:${(data as UserFileMentionData)?.file_id || ""}`
+		case MentionItemType.USER_DIRECTORY:
+			return `user-directory:${(data as UserDirectoryMentionData)?.directory_id || ""}`
 		case MentionItemType.MEMORY_DIRECTORY:
 			return `memory-directory:${(data as MemoryDirectoryMentionData)?.directory_id || ""}/${
 				(data as MemoryDirectoryMentionData)?.directory_path || ""
@@ -199,6 +243,8 @@ export function getMentionUniqueId(attrs: TiptapMentionAttributes | null | undef
 			const markLabel = markerData?.label || ""
 			const result = [markId, markNumber, markLabel].filter(Boolean).join(":")
 			return `marker:${result}`
+		case MentionItemType.TEXT:
+			return `text:${(data as TextMentionData)?.id || ""}`
 		default:
 			return `unknown:${JSON.stringify(attrs.data)}`
 	}
@@ -234,6 +280,8 @@ export function getMentionDisplayName(
 			return (data?.name as string) || "MCP"
 		case MentionItemType.AGENT:
 			return (data?.agent_name as string) || "Agent"
+		case MentionItemType.MICRO_APP:
+			return (data?.app_name as string) || "Micro app"
 		case MentionItemType.SKILL:
 			return (data?.name as string) || "Skill"
 		case MentionItemType.PROJECT_FILE: {
@@ -244,6 +292,10 @@ export function getMentionDisplayName(
 		}
 		case MentionItemType.MEMORY_FILE:
 			return `${memoryPrefix}:${(data?.file_name as string) || "File"}`
+		case MentionItemType.USER_FILE:
+			return (data?.file_name as string) || "File"
+		case MentionItemType.USER_DIRECTORY:
+			return (data?.directory_name as string) || "Folder"
 		case MentionItemType.MEMORY_DIRECTORY:
 			return `${memoryPrefix}:${(data?.directory_name as string) || "Folder"}`
 		case MentionItemType.UPLOAD_FILE:
@@ -264,6 +316,8 @@ export function getMentionDisplayName(
 			const markerData = normalizeCanvasMarkerMentionData(data)
 			if (markerData?.loading === true) return t ? t("common.loading", "加载中...") : ""
 			return markerData?.label || "Marker"
+		case MentionItemType.TEXT:
+			return (data?.label as string) || "Text"
 		default:
 			return "Unknown"
 	}
@@ -280,13 +334,18 @@ export function getMentionDescription(attrs: TiptapMentionAttributes | null | un
 			return (data?.description as string) || ""
 		case MentionItemType.AGENT:
 			return (data?.agent_description as string) || ""
+		case MentionItemType.MICRO_APP:
+			return ""
 		case MentionItemType.SKILL:
 			return (data?.description as string) || ""
 		case MentionItemType.PROJECT_FILE:
 		case MentionItemType.UPLOAD_FILE:
 		case MentionItemType.MEMORY_FILE:
 			return (data?.file_path as string) || ""
+		case MentionItemType.USER_FILE:
+			return (data?.file_path as string) || ""
 		case MentionItemType.FOLDER:
+		case MentionItemType.USER_DIRECTORY:
 		case MentionItemType.MEMORY_DIRECTORY:
 			return (data?.directory_path as string) || ""
 		case MentionItemType.TOOL:
@@ -298,6 +357,8 @@ export function getMentionDescription(attrs: TiptapMentionAttributes | null | un
 			return markerData
 				? getSelectedCanvasMarkerMentionSuggestion(markerData)?.label || ""
 				: ""
+		case MentionItemType.TEXT:
+			return (data?.text as string) || ""
 		default:
 			return ""
 	}
@@ -314,11 +375,15 @@ export function getMentionIcon(attrs: TiptapMentionAttributes | null | undefined
 			return (data as McpMentionData)?.icon as string
 		case MentionItemType.AGENT:
 			return (data as AgentMentionData)?.agent_avatar as string
+		case MentionItemType.MICRO_APP:
+			// Cover URLs are not part of the mention node payload; the renderer provides the fallback icon.
+			return ""
 		case MentionItemType.SKILL:
 			return (data as SkillMentionData)?.icon as string
 		case MentionItemType.PROJECT_FILE:
 		case MentionItemType.UPLOAD_FILE:
 		case MentionItemType.MEMORY_FILE:
+		case MentionItemType.USER_FILE:
 			return (
 				(data as ProjectFileMentionData | UploadFileMentionData | MemoryFileMentionData)
 					?.file_extension ||
@@ -336,6 +401,7 @@ export function getMentionIcon(attrs: TiptapMentionAttributes | null | undefined
 		case MentionItemType.PROJECT:
 		case MentionItemType.FOLDER:
 		case MentionItemType.MEMORY_DIRECTORY:
+		case MentionItemType.USER_DIRECTORY:
 			return "ts-folder"
 		default:
 			return "ts-attachment"
@@ -343,7 +409,7 @@ export function getMentionIcon(attrs: TiptapMentionAttributes | null | undefined
 }
 
 // Command type declarations
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		mention: {
 			updateMentionLanguage: (language: string) => ReturnType
@@ -355,7 +421,7 @@ declare module "@tiptap/react" {
 }
 
 // Storage type declarations
-declare module "@tiptap/core" {
+declare module "@/infrastructure/editors/tiptap/core" {
 	interface Storage {
 		mention?: {
 			language: Language

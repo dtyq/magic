@@ -82,6 +82,11 @@ class ProjectShareableResource implements ResourceFactoryInterface
         }
     }
 
+    public function getResourceContentByCursor(string $resourceId, string $userId, string $organizationCode, ?int $afterId, int $limit): array
+    {
+        return $this->getResourceContent($resourceId, $userId, $organizationCode, 1, $limit);
+    }
+
     /**
      * Get project name.
      */

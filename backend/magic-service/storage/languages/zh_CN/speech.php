@@ -17,6 +17,11 @@ return [
             'invalid_response_format' => '大模型ASR响应格式无效',
             'submit_exception' => '调用大模型ASR提交任务时发生异常',
             'query_exception' => '调用大模型ASR查询结果时发生异常',
+            'api_error' => '操作失败：:error_message、:request_id、:status_code',
+        ],
+        'flash' => [
+            'get_text_exception' => '请求处理失败：:original_error',
+            'invalid_response_format' => '参数无效',
         ],
     ],
 ];

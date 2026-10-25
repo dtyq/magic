@@ -128,14 +128,15 @@ class FixMagicHiddenFilesCommand extends HyperfCommand
             $chunks = array_chunk($uniqueIds, self::BATCH_SIZE);
 
             foreach ($chunks as $chunk) {
-                $affected = Db::table(self::TABLE)
-                    ->whereIn('file_id', $chunk)
-                    ->where('is_hidden', 1)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'is_hidden' => 0,
-                        'updated_at' => $updatedAt,
-                    ]);
+                // Keep this maintenance write on the same repository path as
+                // online mutations.  It publishes one precise update event
+                // per changed node and commits the journal/head counters in
+                // the same transaction as is_hidden.
+                $affected = $this->taskFileRepository->batchUpdateIsHidden(
+                    $chunk,
+                    false,
+                    $updatedAt
+                );
                 $totalAffected += $affected;
             }
 

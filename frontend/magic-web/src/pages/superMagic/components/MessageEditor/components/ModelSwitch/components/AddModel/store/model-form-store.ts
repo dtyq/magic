@@ -2,20 +2,24 @@ import { makeAutoObservable } from "mobx"
 import {
 	MODEL_TYPE_LLM,
 	MODEL_TYPE_IMAGE,
+	MODEL_TYPE_VIDEO,
+	type ServiceProviderCategory,
 	type SaveAiModelParams,
 } from "@/apis/modules/org-ai-model-provider"
 import type { ModelInfo } from "../types"
 
-export type AddModelType = "text" | "image"
+export type AddModelType = "text" | "image" | "video"
 
-const CATEGORY_MAP: Record<AddModelType, "llm" | "vlm"> = {
+const CATEGORY_MAP: Record<AddModelType, ServiceProviderCategory> = {
 	text: "llm",
 	image: "vlm",
+	video: "vgm",
 }
 
 const MODEL_TYPE_MAP: Record<AddModelType, number> = {
 	text: MODEL_TYPE_LLM,
 	image: MODEL_TYPE_IMAGE,
+	video: MODEL_TYPE_VIDEO,
 }
 
 export class ModelFormStore {
@@ -32,7 +36,7 @@ export class ModelFormStore {
 		makeAutoObservable(this)
 	}
 
-	get category(): "llm" | "vlm" {
+	get category(): ServiceProviderCategory {
 		return CATEGORY_MAP[this.addModelType]
 	}
 
@@ -79,7 +83,7 @@ export class ModelFormStore {
 
 	openEditModel(model: ModelInfo) {
 		this.editingModel = model
-		this.addModelType = this.inferAddModelType(model.model_type)
+		this.addModelType = this.inferAddModelType(model)
 		this.selectedProviderId = model.service_provider_config_id
 		this.providerModelId = model.model_version || model.model_id
 		this.modelName = model.name ?? ""
@@ -88,7 +92,7 @@ export class ModelFormStore {
 	/** Apply fetched model detail to form (used after API fetch) */
 	applyEditModelDetail(detail: ModelInfo) {
 		this.editingModel = detail
-		this.addModelType = this.inferAddModelType(detail.model_type)
+		this.addModelType = this.inferAddModelType(detail)
 		this.selectedProviderId = detail.service_provider_config_id
 		this.providerModelId = detail.model_version || detail.model_id
 		this.modelName = detail.name ?? ""
@@ -108,8 +112,15 @@ export class ModelFormStore {
 		this.modelConfig = {}
 	}
 
-	private inferAddModelType(modelType: number): AddModelType {
-		if (modelType === MODEL_TYPE_IMAGE) return "image"
-		return "text"
+	/**
+	 * 编辑时按 category 推断模型类型（llm=文本、vlm=生图、vgm=视频），与模型列表的归类一致；
+	 * model_type 不可靠（例如 vlm 模型可能返回 1），不参与判断。
+	 * 缺少或无法识别 category 的模型不在列表中显示，这里也不猜测类型，保持表单当前类型。
+	 */
+	private inferAddModelType(model: Pick<ModelInfo, "category">): AddModelType {
+		if (model.category === "llm") return "text"
+		if (model.category === "vlm") return "image"
+		if (model.category === "vgm") return "video"
+		return this.addModelType
 	}
 }

@@ -1,4 +1,4 @@
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { SuperMagicApi } from "@/apis"
 import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
 import globalTopicStore, { TopicStore } from "@/pages/superMagic/stores/core/topic"

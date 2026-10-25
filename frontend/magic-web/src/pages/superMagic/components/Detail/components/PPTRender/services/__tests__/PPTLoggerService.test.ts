@@ -5,7 +5,7 @@ const projectLoggerMocks = vi.hoisted(() => ({
 	error: vi.fn(),
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => projectLoggerMocks,
 	},

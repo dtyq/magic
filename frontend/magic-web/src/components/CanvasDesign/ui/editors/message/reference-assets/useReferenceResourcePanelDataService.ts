@@ -2,13 +2,21 @@ import { useCallback, useRef, useState } from "react"
 import { peekProjectAttachmentDragHoverPlainText } from "./projectAttachmentDragHoverBridge"
 import type { MentionDataServicePort } from "../../../../public/props"
 import type {
+	ReferenceAssetFileClass,
 	ReferenceAssetPerTypeLimits,
 	ReferenceAssetTypeCounts,
 	ReferenceResourceFileInfo,
 	ReferenceResourceTypeFilter,
 } from "./reference-resource.types"
-import { classifyReferenceAssetFile } from "./referenceResourceSelection"
-import { toReferenceResourcePathCandidates } from "../../../../runtime/shared/path/canvasResourcePath"
+import {
+	classifyReferenceAssetFile,
+	filterReferenceResourcePanelBatchItems,
+} from "./referenceResourceSelection"
+import { getCanvasResourceReferenceIdentity } from "../../../../runtime/shared/path/canvasResourcePath"
+import type {
+	CanvasResourceReferenceResolution,
+	ResolveCanvasResourceReference,
+} from "../../../../public/resource-reference"
 import { useCanvasReferenceMentionRuntime } from "./useCanvasReferenceMentionRuntime"
 import { CANVAS_REFERENCE_MENTION_ITEM_TYPE } from "./canvasReferenceMention.constants"
 
@@ -29,6 +37,8 @@ interface UseReferenceResourcePanelDataServiceOptions {
 export interface ReferenceDropProjectFile {
 	path: string
 	fileName: string
+	fileId?: string
+	source?: number
 }
 
 export const REFERENCE_RESOURCE_DROP_STATUS = {
@@ -59,9 +69,8 @@ export interface ReferenceDropMatchableItem {
 	disabled?: boolean
 }
 
-export interface ReferenceResourcePathCandidateOptions {
-	resolveResourcePathCandidates?: (path: string) => string[]
-	normalizeResourcePathForStorage?: (path: string) => string
+export interface ReferenceResourceResolutionOptions {
+	resolveResourceReference: ResolveCanvasResourceReference
 }
 
 interface UseReferenceResourceDropOptions {
@@ -455,6 +464,8 @@ function parseTabProjectFile(data: unknown): ReferenceDropProjectFile | null {
 	return {
 		path: relativePath,
 		fileName,
+		fileId: typeof fileData?.file_id === "string" ? fileData.file_id : undefined,
+		source: typeof fileData?.source === "number" ? fileData.source : undefined,
 	}
 }
 
@@ -482,6 +493,8 @@ function parseAttachmentFile(data: unknown): ReferenceDropProjectFile | null {
 	return {
 		path: relativePath,
 		fileName,
+		fileId: typeof data.file_id === "string" ? data.file_id : undefined,
+		source: typeof data.source === "number" ? data.source : undefined,
 	}
 }
 
@@ -518,13 +531,6 @@ function parseProjectFilesFromTextPayload(payload: string): ReferenceDropProject
 	}
 }
 
-export function getProjectFilePathCandidates(
-	path: string,
-	options?: ReferenceResourcePathCandidateOptions,
-): string[] {
-	return toReferenceResourcePathCandidates(path, options)
-}
-
 export function getRemainingReferenceResourceSlots(
 	maxReferenceFiles: number | undefined,
 	currentReferenceFileCount: number,
@@ -533,52 +539,33 @@ export function getRemainingReferenceResourceSlots(
 	return Math.max(maxReferenceFiles - currentReferenceFileCount, 0)
 }
 
-export function normalizeProjectDropFiles(
-	files: ReferenceDropProjectFile[],
-	matchableItems: ReferenceDropMatchableItem[],
-	currentReferenceFiles: string[],
-	options?: ReferenceResourcePathCandidateOptions,
-): ReferenceDropProjectFile[] {
-	const matchableItemMap = new Map(
-		matchableItems
-			.map((item) => [item.path, item] as const)
-			.filter((entry) => Boolean(entry[0])),
-	)
-	const currentReferenceFileSet = new Set(currentReferenceFiles)
+function resolveProjectDropFile(
+	file: ReferenceDropProjectFile,
+	resolveResourceReference: ResolveCanvasResourceReference,
+): CanvasResourceReferenceResolution {
+	if (file.fileId) {
+		return resolveResourceReference({
+			namespace: "attachment",
+			fileId: file.fileId,
+			source: file.source,
+		})
+	}
 
-	return files.map((file) => {
-		const resolvedPath =
-			getProjectFilePathCandidates(file.path, options).find(
-				(candidate) =>
-					matchableItemMap.has(candidate) || currentReferenceFileSet.has(candidate),
-			) || file.path
-		if (resolvedPath === file.path) return file
-		return {
-			...file,
-			path: resolvedPath,
-		}
-	})
+	return resolveResourceReference(
+		{ namespace: "workspace-path", path: file.path },
+		{ requireAttachment: true },
+	)
 }
 
 export function normalizeProjectDropFilesForStorage(
 	files: ReferenceDropProjectFile[],
-	matchableItems: ReferenceDropMatchableItem[],
-	currentReferenceFiles: string[],
-	options?: ReferenceResourcePathCandidateOptions,
+	options: ReferenceResourceResolutionOptions,
 ): ReferenceDropProjectFile[] {
-	const normalizedFiles = normalizeProjectDropFiles(
-		files,
-		matchableItems,
-		currentReferenceFiles,
-		options,
-	)
-	const normalizeResourcePathForStorage = options?.normalizeResourcePathForStorage
-	if (!normalizeResourcePathForStorage) return normalizedFiles
-
-	return normalizedFiles.map((file) => ({
-		...file,
-		path: normalizeResourcePathForStorage(file.path),
-	}))
+	return files.flatMap((file) => {
+		const resolution = resolveProjectDropFile(file, options.resolveResourceReference)
+		if (resolution.status !== "resolved") return []
+		return [{ ...file, path: resolution.storagePath }]
+	})
 }
 
 export function checkProjectReferenceResourceDrop(options: {
@@ -588,7 +575,13 @@ export function checkProjectReferenceResourceDrop(options: {
 	currentReferenceFiles: string[]
 	maxReferenceFiles?: number
 	rejectExistingFiles?: boolean
-	resolveResourcePathCandidates?: (path: string) => string[]
+	assetLimits?: ReferenceAssetPerTypeLimits
+	currentAssetCounts?: ReferenceAssetTypeCounts
+	canAcceptNextAsset?: (
+		fileClass: ReferenceAssetFileClass,
+		currentAssetCounts: ReferenceAssetTypeCounts,
+	) => boolean
+	resolveResourceReference: ResolveCanvasResourceReference
 }): ReferenceResourceDropCheckResult {
 	const {
 		isDropEnabled,
@@ -597,7 +590,10 @@ export function checkProjectReferenceResourceDrop(options: {
 		currentReferenceFiles,
 		maxReferenceFiles,
 		rejectExistingFiles = false,
-		resolveResourcePathCandidates,
+		assetLimits,
+		currentAssetCounts,
+		canAcceptNextAsset,
+		resolveResourceReference,
 	} = options
 	if (!isDropEnabled) {
 		return {
@@ -606,23 +602,38 @@ export function checkProjectReferenceResourceDrop(options: {
 		}
 	}
 
-	const matchableItemMap = new Map(
-		matchableItems
-			.map((item) => [item.path, item] as const)
-			.filter((entry) => Boolean(entry[0])),
+	const matchableItemByIdentity = new Map<string, ReferenceDropMatchableItem>()
+	for (const item of matchableItems) {
+		if (!item.path) continue
+		const identity = getCanvasResourceReferenceIdentity(item.path, resolveResourceReference)
+		if (!identity) continue
+		const existing = matchableItemByIdentity.get(identity)
+		if (!existing || (existing.disabled && !item.disabled)) {
+			matchableItemByIdentity.set(identity, item)
+		}
+	}
+	const currentReferenceIdentitySet = new Set(
+		currentReferenceFiles
+			.map((path) => getCanvasResourceReferenceIdentity(path, resolveResourceReference))
+			.filter(Boolean),
 	)
-	const currentReferenceFileSet = new Set(currentReferenceFiles)
-	const normalizedFiles = normalizeProjectDropFiles(
-		files,
-		matchableItems,
-		currentReferenceFiles,
-		{
-			resolveResourcePathCandidates,
-		},
+	const resolvedFiles = files.map((file) => ({
+		file,
+		resolution: resolveProjectDropFile(file, resolveResourceReference),
+	}))
+	if (resolvedFiles.some(({ resolution }) => resolution.status !== "resolved")) {
+		return {
+			accepted: false,
+			status: REFERENCE_RESOURCE_DROP_STATUS.notAvailable,
+		}
+	}
+
+	const resolvedIdentities = resolvedFiles.map(({ resolution }) =>
+		resolution.status === "resolved" ? resolution.identity : "",
 	)
-	const nextNewFileCount = normalizedFiles.filter(
-		(file) => !currentReferenceFileSet.has(file.path),
-	).length
+	const nextNewFileCount = new Set(
+		resolvedIdentities.filter((identity) => !currentReferenceIdentitySet.has(identity)),
+	).size
 	const remainingSlots = getRemainingReferenceResourceSlots(
 		maxReferenceFiles,
 		currentReferenceFiles.length,
@@ -634,10 +645,29 @@ export function checkProjectReferenceResourceDrop(options: {
 			status: REFERENCE_RESOURCE_DROP_STATUS.limitExceeded,
 		}
 	}
+	if (assetLimits && currentAssetCounts) {
+		const acceptedByLimits = filterReferenceResourcePanelBatchItems({
+			items: resolvedFiles.map(({ file }) => ({
+				data: {
+					file_path: file.path,
+					file_name: file.fileName,
+				},
+			})),
+			currentReferenceFiles,
+			maxReferenceFiles,
+			assetLimits,
+			currentAssetCounts,
+			canAcceptNextAsset,
+			resolveResourceReference,
+		})
+		if (acceptedByLimits.length === 0) {
+			return { accepted: false, status: REFERENCE_RESOURCE_DROP_STATUS.limitExceeded }
+		}
+	}
 
-	const isAccepted = normalizedFiles.every((file) => {
-		if (rejectExistingFiles && currentReferenceFileSet.has(file.path)) return false
-		const matchableItem = matchableItemMap.get(file.path)
+	const isAccepted = resolvedIdentities.every((identity) => {
+		if (rejectExistingFiles && currentReferenceIdentitySet.has(identity)) return false
+		const matchableItem = matchableItemByIdentity.get(identity)
 		return Boolean(matchableItem && !matchableItem.disabled)
 	})
 
@@ -646,10 +676,15 @@ export function checkProjectReferenceResourceDrop(options: {
 			accepted: true,
 		}
 	}
+	const hasUnavailableFile = resolvedIdentities.some(
+		(identity) => !matchableItemByIdentity.has(identity),
+	)
 
 	return {
 		accepted: false,
-		status: REFERENCE_RESOURCE_DROP_STATUS.unsupportedType,
+		status: hasUnavailableFile
+			? REFERENCE_RESOURCE_DROP_STATUS.notAvailable
+			: REFERENCE_RESOURCE_DROP_STATUS.unsupportedType,
 	}
 }
 
@@ -661,6 +696,10 @@ export function checkLocalReferenceResourceDrop(options: {
 	maxReferenceFiles?: number
 	assetLimits?: ReferenceAssetPerTypeLimits
 	currentAssetCounts?: ReferenceAssetTypeCounts
+	canAcceptNextAsset?: (
+		fileClass: ReferenceAssetFileClass,
+		currentAssetCounts: ReferenceAssetTypeCounts,
+	) => boolean
 }): ReferenceResourceDropCheckResult {
 	const {
 		isDropEnabled,
@@ -670,6 +709,7 @@ export function checkLocalReferenceResourceDrop(options: {
 		maxReferenceFiles,
 		assetLimits,
 		currentAssetCounts,
+		canAcceptNextAsset,
 	} = options
 	if (!isDropEnabled) {
 		return {
@@ -677,7 +717,21 @@ export function checkLocalReferenceResourceDrop(options: {
 			status: REFERENCE_RESOURCE_DROP_STATUS.notAvailable,
 		}
 	}
-	if (!areFilesAcceptedByAccept(files, accept)) {
+	const acceptTokens = (accept || "")
+		.split(",")
+		.map((token) => token.trim().toLowerCase())
+		.filter(Boolean)
+	const acceptedFiles =
+		acceptTokens.length === 0
+			? files
+			: files.filter((file) =>
+					isFileDescriptorAcceptedByAcceptTokens(
+						file.name.toLowerCase(),
+						file.type.toLowerCase(),
+						acceptTokens,
+					),
+				)
+	if (acceptedFiles.length === 0) {
 		return {
 			accepted: false,
 			status: REFERENCE_RESOURCE_DROP_STATUS.unsupportedType,
@@ -694,32 +748,37 @@ export function checkLocalReferenceResourceDrop(options: {
 	// 按类型细分校验（当 assetLimits 可用时）
 	if (assetLimits && currentAssetCounts) {
 		const nextCounts = { ...currentAssetCounts }
-		for (const file of files) {
-			const fileClass = classifyReferenceAssetFile({ fileName: file.name })
-			if (fileClass === "image") nextCounts.images++
-			else if (fileClass === "video") nextCounts.videos++
-			else if (fileClass === "audio") nextCounts.audios++
+		let hasPotentiallyAcceptedFile = false
+		for (const file of acceptedFiles) {
+			const fileClass = classifyReferenceAssetFile({
+				fileName: file.name,
+				mimeType: file.type,
+			})
+			const nextTotal = nextCounts.images + nextCounts.videos + nextCounts.audios + 1
+			const typeAllowed =
+				fileClass === "image"
+					? !Number.isFinite(assetLimits.reference_images.max) ||
+						nextCounts.images + 1 <= assetLimits.reference_images.max
+					: fileClass === "video"
+						? !Number.isFinite(assetLimits.reference_videos.max) ||
+							nextCounts.videos + 1 <= assetLimits.reference_videos.max
+						: fileClass === "audio"
+							? !Number.isFinite(assetLimits.reference_audios.max) ||
+								nextCounts.audios + 1 <= assetLimits.reference_audios.max
+							: false
+			if (
+				fileClass !== "unknown" &&
+				(!canAcceptNextAsset || canAcceptNextAsset(fileClass, nextCounts)) &&
+				(!Number.isFinite(assetLimits.total.max) || nextTotal <= assetLimits.total.max) &&
+				typeAllowed
+			) {
+				hasPotentiallyAcceptedFile = true
+				if (fileClass === "image") nextCounts.images += 1
+				else if (fileClass === "video") nextCounts.videos += 1
+				else if (fileClass === "audio") nextCounts.audios += 1
+			}
 		}
-		const nextTotal = nextCounts.images + nextCounts.videos + nextCounts.audios
-		if (Number.isFinite(assetLimits.total.max) && nextTotal > assetLimits.total.max) {
-			return { accepted: false, status: REFERENCE_RESOURCE_DROP_STATUS.limitExceeded }
-		}
-		if (
-			Number.isFinite(assetLimits.reference_images.max) &&
-			nextCounts.images > assetLimits.reference_images.max
-		) {
-			return { accepted: false, status: REFERENCE_RESOURCE_DROP_STATUS.limitExceeded }
-		}
-		if (
-			Number.isFinite(assetLimits.reference_videos.max) &&
-			nextCounts.videos > assetLimits.reference_videos.max
-		) {
-			return { accepted: false, status: REFERENCE_RESOURCE_DROP_STATUS.limitExceeded }
-		}
-		if (
-			Number.isFinite(assetLimits.reference_audios.max) &&
-			nextCounts.audios > assetLimits.reference_audios.max
-		) {
+		if (!hasPotentiallyAcceptedFile) {
 			return { accepted: false, status: REFERENCE_RESOURCE_DROP_STATUS.limitExceeded }
 		}
 		return { accepted: true }
@@ -747,6 +806,10 @@ export function getReferenceResourceHoverState(options: {
 	maxReferenceFiles?: number
 	assetLimits?: ReferenceAssetPerTypeLimits
 	currentAssetCounts?: ReferenceAssetTypeCounts
+	canAcceptNextAsset?: (
+		fileClass: ReferenceAssetFileClass,
+		currentAssetCounts: ReferenceAssetTypeCounts,
+	) => boolean
 }): ReferenceResourceDropCheckResult {
 	const {
 		isDropEnabled,
@@ -754,6 +817,7 @@ export function getReferenceResourceHoverState(options: {
 		maxReferenceFiles,
 		assetLimits,
 		currentAssetCounts,
+		canAcceptNextAsset,
 	} = options
 	if (!isDropEnabled) {
 		return {
@@ -778,7 +842,18 @@ export function getReferenceResourceHoverState(options: {
 		const audioRemaining = Number.isFinite(assetLimits.reference_audios.max)
 			? assetLimits.reference_audios.max - currentAssetCounts.audios
 			: Infinity
-		if (imageRemaining <= 0 && videoRemaining <= 0 && audioRemaining <= 0) {
+		const hasAvailableKind = (
+			[
+				["image", imageRemaining],
+				["video", videoRemaining],
+				["audio", audioRemaining],
+			] as const
+		).some(
+			([kind, remaining]) =>
+				remaining > 0 &&
+				(!canAcceptNextAsset || canAcceptNextAsset(kind, currentAssetCounts)),
+		)
+		if (!hasAvailableKind) {
 			return { accepted: false, status: REFERENCE_RESOURCE_DROP_STATUS.limitExceeded }
 		}
 		return { accepted: true }
@@ -809,6 +884,10 @@ export function getReferenceResourceLocalHoverState(options: {
 	maxReferenceFiles?: number
 	assetLimits?: ReferenceAssetPerTypeLimits
 	currentAssetCounts?: ReferenceAssetTypeCounts
+	canAcceptNextAsset?: (
+		fileClass: ReferenceAssetFileClass,
+		currentAssetCounts: ReferenceAssetTypeCounts,
+	) => boolean
 }): ReferenceResourceDropCheckResult {
 	const {
 		isDropEnabled,
@@ -818,6 +897,7 @@ export function getReferenceResourceLocalHoverState(options: {
 		maxReferenceFiles,
 		assetLimits,
 		currentAssetCounts,
+		canAcceptNextAsset,
 	} = options
 	const base = getReferenceResourceHoverState({
 		isDropEnabled,
@@ -825,6 +905,7 @@ export function getReferenceResourceLocalHoverState(options: {
 		maxReferenceFiles,
 		assetLimits,
 		currentAssetCounts,
+		canAcceptNextAsset,
 	})
 	if (!base.accepted) return base
 	if (dataTransfer) {

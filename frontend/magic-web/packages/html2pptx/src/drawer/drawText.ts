@@ -49,7 +49,7 @@ export function drawText(slide: Slide, node: PPTTextNode): void {
 		align,
 		valign,
 		shadow: shadow ?? undefined,
-		// The IR uses CSS order [top, right, bottom, left]. PptxGenJS 4.x
+		// The IR uses CSS order [top, right, bottom, left]. PptxGenJS
 		// serializes text margins in [left, right, bottom, top] order.
 		margin: toPptxTextMargin(margin ?? [0, 0, 0, 0]),
 		wrap: node.wrap ?? true,

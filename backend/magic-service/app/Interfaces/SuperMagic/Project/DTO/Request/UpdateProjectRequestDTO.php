@@ -151,7 +151,7 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     {
         return [
             'workspace_id' => 'nullable|integer',
-            'project_name' => 'nullable|string|max:100',
+            'project_name' => 'nullable|string|max:255',
             'default_join_permission' => 'nullable|string|max:100',
             'is_collaboration_enabled' => 'nullable|boolean',
             'project_description' => 'nullable|string|max:500',
@@ -167,7 +167,7 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     {
         return [
             'workspace_id.integer' => 'Workspace ID must be an integer',
-            'project_name.max' => 'Project name cannot exceed 100 characters',
+            'project_name.max' => 'Project name cannot exceed 255 characters',
             'project_description.max' => 'Project description cannot exceed 500 characters',
             'project_mode.max' => 'Project mode cannot exceed 50 characters',
             'target_workspace_id.max' => 'Target workspace ID cannot exceed 64 characters',

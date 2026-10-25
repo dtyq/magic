@@ -29,10 +29,13 @@ export interface MagicProjectConfig {
 export interface RecordingDetailFileRef {
 	type: string
 	fileName: string
-	file: AttachmentItem
+	/** Config can describe a file before the backend attachment exists. */
+	file?: AttachmentItem
 }
 
 export interface RecordingDetailFileMap {
+	/** Root path of the recording bundle used to scope shared document dependencies. */
+	bundleRootPath?: string
 	audio?: AttachmentItem
 	transcript?: AttachmentItem
 	notes?: AttachmentItem

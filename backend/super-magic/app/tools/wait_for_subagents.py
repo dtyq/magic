@@ -7,7 +7,7 @@ from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
-from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
+from app.core.entity.message.server_message import SubagentsPhase, ToolDetail
 from app.i18n import i18n
 from app.path_manager import PathManager
 from app.tools.call_subagent import AgentDisplayKind, _display_subject_from_payload
@@ -23,10 +23,20 @@ from app.tools.subagent_runtime_models import (
 )
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import SubagentSessionHandle, subagent_session_manager
+from app.tools.subagent_wait_progress import (
+    IN_FLIGHT_STATUSES,
+    LAST_ACTIVITY_MAX_CHARS,
+    AgentProgressItem,
+    build_progress_detail,
+    build_progress_message,
+    build_stopping_message,
+    get_last_assistant_message,
+    load_progress_items,
+    result_display_label,
+    start_progress_reporting,
+    stop_progress_reporting,
+)
 from app.utils.async_file_utils import async_exists, async_read_json
-
-# 超时时返回给父 Agent 的进度快照最大字符数
-_LAST_ACTIVITY_MAX_CHARS = 500
 
 # 无限等待（timeout=-1）的最大兜底时间：60 分钟
 _MAX_INFINITE_WAIT_SECONDS = 3600.0
@@ -39,7 +49,7 @@ _POLL_INTERVAL = 1.0
 class WaitForSubagentsParams(BaseToolParams):
     agent_ids: List[str] = Field(
         ...,
-        description="Exact final agent_ids returned by background call_subagent calls."
+        description="Exact final session IDs returned by background call_subagent calls. The parameter name is retained for compatibility."
     )
     timeout: float = Field(
         30.0,
@@ -78,36 +88,35 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
 
     async def execute(self, tool_context: ToolContext, params: WaitForSubagentsParams) -> ToolResult:
         # Phase 1: resolve agent_ids to handles or immediate error results
-        resolved: list[tuple[str, str | None, SubagentSessionHandle | None, SubagentQueryResult | None]] = []
-        for agent_id in params.agent_ids:
-            states = await SubagentRuntimeStore.find_states_by_agent_id(agent_id)
-            if not states:
-                resolved.append((agent_id, None, None, SubagentQueryResult(
+        resolved: list[ResolvedAgent] = []
+        for item in await load_progress_items(params.agent_ids):
+            agent_id = item.agent_id
+            if item.status == SubagentQueryStatus.NOT_FOUND:
+                resolved.append(ResolvedAgent(item, error_result=SubagentQueryResult(
                     agent_id=agent_id,
                     status=SubagentQueryStatus.NOT_FOUND,
+                    session_id=agent_id,
                     error=f"No sub-agent session found with id: {agent_id}",
                 )))
                 continue
-            if len(states) > 1:
-                resolved.append((agent_id, None, None, SubagentQueryResult(
+            if item.status == SubagentQueryStatus.AMBIGUOUS:
+                resolved.append(ResolvedAgent(item, error_result=SubagentQueryResult(
                     agent_id=agent_id,
                     status=SubagentQueryStatus.AMBIGUOUS,
+                    session_id=agent_id,
                     error=f"Multiple sub-agent sessions found with id: {agent_id}. agent_id must be unique.",
                 )))
                 continue
-            state = states[0]
-            handle = await subagent_session_manager.get_handle(state.agent_name, agent_id)
-            resolved.append((agent_id, state.agent_name, handle, None))
+            handle = await subagent_session_manager.get_handle(item.agent_name, agent_id)
+            resolved.append(ResolvedAgent(item, handle=handle))
 
         # Phase 2: kill 或 wait
         running_task_refs: dict[asyncio.Task, tuple[str, str]] = {
-            handle.task: (agent_name, agent_id)
-            for (agent_id, agent_name, handle, err) in resolved
-            if err is None
-            and agent_name is not None
-            and handle is not None
-            and handle.is_running()
-            and handle.task is not None
+            entry.handle.task: (entry.progress.agent_name, entry.progress.agent_id)
+            for entry in resolved
+            if entry.handle is not None
+            and entry.handle.is_running()
+            and entry.handle.task is not None
         }
 
         if params.kill:
@@ -132,28 +141,42 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
                     return ToolResult.error(
                         f"Invalid pattern: {e}. Pattern must be valid Python regex syntax."
                     )
-            wait_result = await _wait_for_tasks(
-                running_task_refs, params.timeout, tool_context, compiled_pattern,
+            progress_items = [entry.progress for entry in resolved]
+            progress_task = start_progress_reporting(
+                self,
+                tool_context,
+                _build_wait_action([item.display_payload() for item in progress_items]),
+                progress_items,
+                {entry.progress.agent_id: entry.handle for entry in resolved if entry.handle is not None},
             )
+            try:
+                wait_result = await _wait_for_tasks(
+                    running_task_refs, params.timeout, tool_context, compiled_pattern,
+                )
+            finally:
+                await stop_progress_reporting(progress_task)
         else:
             wait_result = None
 
         # Phase 3: read final state for each resolved agent
         results: list[SubagentQueryResult] = []
-        for agent_id, agent_name, handle, error_result in resolved:
-            if error_result is not None:
-                results.append(error_result)
+        for entry in resolved:
+            if entry.error_result is not None:
+                results.append(entry.error_result)
                 continue
+            handle = entry.handle
+            agent_name = entry.progress.agent_name
+            agent_id = entry.progress.agent_id
             async with handle.state_lock:
                 state = await SubagentRuntimeStore.load_state(agent_name, agent_id)
                 # 子 agent task 已停但状态仍是进行中，说明任务已丢失或进程已重启。
-                if state.status in _IN_FLIGHT_STATUSES and not handle.is_running():
+                if state.status in IN_FLIGHT_STATUSES and not handle.is_running():
                     _mark_missing_inflight_as_interrupted(state)
                     await SubagentRuntimeStore.save_state(state)
             # 超时但仍在运行时，附上最近一条 assistant 消息作为进度快照
             last_activity = None
             matched_content = None
-            if state.status in _IN_FLIGHT_STATUSES:
+            if state.status in IN_FLIGHT_STATUSES:
                 # pattern 匹配的 agent 用 matched_content，其余用 last_activity
                 if (
                     wait_result is not None
@@ -162,10 +185,11 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
                 ):
                     matched_content = wait_result.matched_content
                 else:
-                    last_activity = await _get_last_assistant_message(state.agent_name, agent_id)
+                    last_activity = await get_last_assistant_message(state.agent_name, agent_id)
             results.append(SubagentQueryResult(
                 agent_id=agent_id,
                 agent_name=state.agent_name,
+                session_id=agent_id,
                 task_label=state.task_label,
                 display_name=state.display_name,
                 status=state.status,
@@ -180,6 +204,23 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
             data={"results": [asdict(result) for result in results]},
         )
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Dict:
+        args = arguments or {}
+        items = await load_progress_items(_agent_ids_from_arguments(args))
+        action = _build_wait_action([item.display_payload() for item in items])
+        if not items:
+            return {"action": action, "remark": ""}
+        remark = build_stopping_message(items) if args.get("kill") else build_progress_message(items)
+        return {"action": action, "remark": remark}
+
+    async def get_before_tool_detail(
+        self, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Optional[ToolDetail]:
+        items = await load_progress_items(_agent_ids_from_arguments(arguments or {}))
+        return build_progress_detail(items, elapsed_seconds=0, phase=SubagentsPhase.WAITING)
+
     async def get_tool_detail(
         self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
     ) -> Optional[ToolDetail]:
@@ -187,69 +228,18 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
             return None
 
         data = result.data if isinstance(result.data, dict) else {}
-        items = data.get("results", [])
-        if not items:
+        results = data.get("results", [])
+        if not results:
             return None
 
-        t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
-        _status_emoji: Dict[str, str] = {
-            "done": "✅", "error": "❌", "interrupted": "⚠️",
-            "running": "⏳", "pending": "⏳",
-            "not_found": "🔍", "ambiguous": "❓",
-        }
-        sections = []
-        for item in items:
-            agent_name = item.get("agent_name", "")
-            agent_id = item.get("agent_id", "")
-            status = item.get("status", "")
-            agent_result = item.get("result") or ""
-            error = item.get("error") or ""
-
-            status_emoji = _status_emoji.get(status, "🔄")
-            label = _result_display_label(item)
-            subject = _display_subject_from_payload(agent_name, item)
-            if label and subject.name and label != subject.name:
-                header = f"=== {label} / {subject.name} / {agent_id} ==="
-            elif label:
-                header = f"=== {label} / {agent_id} ==="
-            else:
-                header = f"=== {agent_id} ==="
-            lines = [header]
-            if status:
-                lines.append(f"{t('status')}: {status_emoji} {status}")
-            if agent_result:
-                lines.append(f"\n{t('result')}:\n{agent_result}")
-            if error:
-                lines.append(f"\n{t('error')}: {error}")
-            sections.append("\n".join(lines))
-
-        if not sections:
-            return None
-
-        agent_count = len(items)
-        args = arguments or {}
-        is_kill = args.get("kill", False)
-        pattern_arg = args.get("pattern")
-        if is_kill:
-            command = (
-                f"wait_for_subagents --kill ({agent_count} agents)"
-                if agent_count > 1
-                else f"wait_for_subagents --kill {items[0].get('agent_id', '')}"
-            )
-        elif pattern_arg:
-            target = f"({agent_count} agents)" if agent_count > 1 else items[0].get("agent_id", "")
-            command = f"wait_for_subagents --pattern '{pattern_arg}' {target}"
-        elif agent_count > 1:
-            command = f"wait_for_subagents ({agent_count} agents)"
-        else:
-            command = f"wait_for_subagents {items[0].get('agent_id', '')}"
-        return ToolDetail(
-            type=DisplayType.TERMINAL,
-            data=TerminalContent(
-                command=command,
-                output="\n\n".join(sections),
-                exit_code=_resolve_terminal_exit_code(items),
-            ),
+        # 会话状态里有开始和结束时间，结果里没有；再读一次小文件换每行的耗时
+        items = await load_progress_items([str(item.get("agent_id") or "") for item in results])
+        for item, query_result in zip(items, results):
+            _apply_query_result(item, query_result)
+        return build_progress_detail(
+            items,
+            elapsed_seconds=int(result.execution_time or 0),
+            phase=SubagentsPhase.SETTLED,
         )
 
     async def get_after_tool_call_friendly_action_and_remark(
@@ -271,7 +261,7 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
             action = _build_wait_action(results)
             if len(results) == 1 and results[0].get("agent_name"):
                 item = results[0]
-                label = _result_display_label(item)
+                label = result_display_label(item)
                 status = item.get("status", "")
                 if status in {SubagentStatus.PENDING, SubagentStatus.RUNNING}:
                     summary = i18n.translate("call_subagent.running", category="tool.messages", agent_name=label)
@@ -289,10 +279,42 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
                 else:
                     summary = f"{label}: {status}"
             else:
-                summary = ", ".join(f"{_result_display_label(item)}: {item['status']}" for item in results)
+                summary = ", ".join(f"{result_display_label(item)}: {item['status']}" for item in results)
             return {"action": action, "remark": summary}
         except Exception:
             return {"action": action, "remark": ""}
+
+
+@dataclass
+class ResolvedAgent:
+    """Phase 1 的解析结果：要么拿到可等待的会话 handle，要么拿到立即返回的错误。
+
+    progress 同时是进度卡片的数据源，等待期间由刷新任务原地更新状态。
+    """
+
+    progress: AgentProgressItem
+    handle: Optional[SubagentSessionHandle] = None
+    error_result: Optional[SubagentQueryResult] = None
+
+
+def _agent_ids_from_arguments(arguments: Dict[str, Any]) -> list[str]:
+    """before 钩子拿到的是未经校验的原始参数，类型不对时按没有处理。"""
+    agent_ids = arguments.get("agent_ids")
+    if not isinstance(agent_ids, list):
+        return []
+    return [str(agent_id) for agent_id in agent_ids if agent_id]
+
+
+def _apply_query_result(item: AgentProgressItem, query_result: dict[str, Any]) -> None:
+    """结果卡以 execute 的最终结果为准，会话文件只补开始和结束时间。"""
+    item.status = str(query_result.get("status") or item.status)
+    item.result = query_result.get("result")
+    item.error = query_result.get("error")
+    item.last_activity = (
+        query_result.get("matched_content") or query_result.get("last_activity")
+        if item.is_in_flight
+        else None
+    )
 
 
 @dataclass
@@ -436,6 +458,7 @@ async def _interrupt_and_read_state(agent_name: str, agent_id: str, reason: str)
     state = await SubagentRuntimeStore.load_state(agent_name, agent_id)
     return SubagentQueryResult(
         agent_id=agent_id,
+        session_id=agent_id,
         agent_name=state.agent_name,
         task_label=state.task_label,
         display_name=state.display_name,
@@ -459,30 +482,10 @@ def _build_interrupted_subagent_notice(results: list[SubagentQueryResult]) -> st
     return "\n".join(lines)
 
 
-_IN_FLIGHT_STATUSES = {
-    SubagentStatus.PENDING,
-    SubagentStatus.RUNNING,
-}
-
-
 def _mark_missing_inflight_as_interrupted(state: SubagentSessionState) -> None:
     state.status = SubagentStatus.INTERRUPTED
     state.last_error = state.last_error or "process_restarted_or_task_missing"
     state.finished_at = state.finished_at or utc_now()
-
-
-def _resolve_terminal_exit_code(items: list[dict[str, Any]]) -> int:
-    statuses = {item.get("status", "") for item in items}
-    if statuses & {
-        SubagentQueryStatus.NOT_FOUND,
-        SubagentQueryStatus.AMBIGUOUS,
-        SubagentStatus.ERROR,
-        SubagentStatus.INTERRUPTED,
-    }:
-        return 1
-    if statuses & _IN_FLIGHT_STATUSES:
-        return 124
-    return 0
 
 
 def _build_wait_action(items: list[dict[str, Any]]) -> str:
@@ -492,19 +495,6 @@ def _build_wait_action(items: list[dict[str, Any]]) -> str:
     ):
         return i18n.translate("wait_for_subagents.crew", category="tool.actions")
     return i18n.translate("wait_for_subagents", category="tool.actions")
-
-
-def _result_display_label(item: dict[str, Any]) -> str:
-    task_label = str(item.get("task_label") or "").strip()
-    if task_label:
-        return task_label
-
-    agent_name = str(item.get("agent_name") or "")
-    subject = _display_subject_from_payload(agent_name, item)
-    if subject.name:
-        return subject.name
-
-    return str(item.get("agent_id") or "")
 
 
 def _query_result_label(result: SubagentQueryResult) -> str:
@@ -578,32 +568,9 @@ async def _scan_messages_for_pattern(
                 and pattern.search(msg["content"])
             ):
                 content = msg["content"].strip()
-                if len(content) > _LAST_ACTIVITY_MAX_CHARS:
-                    content = content[:_LAST_ACTIVITY_MAX_CHARS] + "..."
+                if len(content) > LAST_ACTIVITY_MAX_CHARS:
+                    content = content[:LAST_ACTIVITY_MAX_CHARS] + "..."
                 return (agent_id, agent_name, content)
-    return None
-
-
-async def _get_last_assistant_message(agent_name: str, agent_id: str) -> Optional[str]:
-    """从子 Agent 的聊天历史文件中读取最后一条有内容的 assistant 消息，用于超时时的进度快照。"""
-    chat_file = PathManager.get_subagent_chat_history_dir(agent_name, agent_id) / f"{agent_name}<{agent_id}>.json"
-    try:
-        if not await async_exists(chat_file):
-            return None
-        data = await async_read_json(chat_file)
-        if not isinstance(data, list):
-            return None
-        for msg in reversed(data):
-            if not isinstance(msg, dict) or msg.get("role") != "assistant":
-                continue
-            content = msg.get("content")
-            if content and isinstance(content, str) and content.strip():
-                content = content.strip()
-                if len(content) > _LAST_ACTIVITY_MAX_CHARS:
-                    content = content[:_LAST_ACTIVITY_MAX_CHARS] + "..."
-                return content
-    except Exception:
-        pass
     return None
 
 
@@ -620,14 +587,15 @@ def _build_results_text(
     for i, result in enumerate(results, 1):
         label = _query_result_label(result)
         parts = [f"[{i}/{total}] {label}: {result.status}"]
-        if result.agent_name or result.agent_id:
-            parts.append(f"Sub-agent: {result.agent_name or ''}/{result.agent_id}")
-            if result.agent_name and result.agent_id:
+        session_id = result.session_id or result.agent_id
+        if result.agent_name or session_id:
+            parts.append(f"Sub-agent: {result.agent_name or ''}/{session_id}")
+            if result.agent_name and session_id:
                 # 等待结果可能在创建调用之后的另一轮才进入上下文，因此再次写出最终 ID，
                 # 防止模型只记住最初请求的基础名称而无法正确恢复该会话。
                 parts.append(
                     f"To continue this exact session, call call_subagent with "
-                    f"agent_id `{result.agent_id}`, resume=true, and fork=false."
+                    f"session_id `{session_id}`, resume=true, and fork=false."
                 )
 
         if result.error:
@@ -645,31 +613,32 @@ def _build_results_text(
         sections.append("\n".join(parts))
 
     # 尾部决策引导：告诉模型仍在运行的 agent 必须被处理
-    running_labels = [_query_result_label(r) for r in results if r.status in _IN_FLIGHT_STATUSES]
+    running_labels = [_query_result_label(r) for r in results if r.status in IN_FLIGHT_STATUSES]
     if running_labels:
         reason = wait_result.reason if wait_result else None
         labels_str = ", ".join(running_labels)
         if reason == "pattern_matched":
             sections.append(
                 f"--- {len(running_labels)} agent(s) still running after pattern match ({labels_str}). "
-                "Sub-agents keep running after a match. You must either: "
-                "(1) call wait_for_subagents again to continue monitoring, or "
-                "(2) use kill=True to terminate. Do not leave running agents unattended."
+                "A pattern match is progress, not completion. Call wait_for_subagents again "
+                "and process the final results before finishing the parent task. "
+                "Use kill=True only when the delegated work is no longer needed."
             )
         elif reason == "timeout":
             sections.append(
                 f"--- {len(running_labels)} agent(s) still running after timeout ({labels_str}). "
-                "Timeout is NOT failure — the agents are still working. You must either: "
-                "(1) call wait_for_subagents again to keep waiting, or "
-                "(2) use kill=True to terminate. "
-                "Unattended agents run indefinitely and consume resources."
+                "Timeout is not failure or completion — the agents are still working. "
+                "Call wait_for_subagents again and process the final results before "
+                "finishing the parent task. Use kill=True only when the delegated work "
+                "is no longer needed."
             )
         else:
             # timeout=0 快照或其他场景
             sections.append(
                 f"--- {len(running_labels)} agent(s) still running ({labels_str}). "
-                "Use wait_for_subagents with timeout > 0 to wait for completion, "
-                "or kill=True to terminate."
+                "Use wait_for_subagents with timeout > 0 and process the final results "
+                "before finishing the parent task. Use kill=True only when the delegated "
+                "work is no longer needed."
             )
 
     return "\n\n".join(sections)

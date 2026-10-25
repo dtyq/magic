@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react"
 
 interface TypingHintProps {

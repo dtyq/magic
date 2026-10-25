@@ -7,9 +7,15 @@ import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/
 import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { StoredAudioChunk } from "@/services/recordSummary/MediaRecorderService/AudioChunkDB"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
+import type {
+	RecordingEncodingPolicy,
+	RecordingEncodingSnapshot,
+} from "@/services/recordSummary/MediaRecorderService/types/RecorderTypes"
 
 // 录制状态枚举
-export type RecordingStatus = "init" | "recording" | "paused"
+export type RecordingStatus = "init" | "recording" | "paused" | "server_cancelled"
+
+export type ServerTerminationSource = "server_auto_summary" | "server_task_ended"
 
 // 分片状态枚举
 export type ChunkStatus = "pending" | "uploading" | "uploaded" | "failed"
@@ -27,6 +33,7 @@ export interface RecordingSession {
 		deviceInfo?: string
 		userAgent?: string
 		audioFormat?: string
+		recordingEncoding?: RecordingEncodingSnapshot
 		sampleRate?: number
 	}
 	userId: string
@@ -83,6 +90,12 @@ export interface RecordingSession {
 	 * Missing means legacy sessions keep the historical default of enabled.
 	 */
 	transcriptionEnabled?: boolean
+	/** Server-side termination metadata for sessions kept for export/audit. */
+	termination?: {
+		source: ServerTerminationSource
+		code?: number
+		at: number
+	}
 }
 
 // 合并后的分片数据
@@ -133,7 +146,7 @@ export interface UploadEvents {
 	onError: (taskId: string, error: Error) => void
 	onRetry: (taskId: string, retryCount: number) => void
 	/** 当任务结束时调用（错误码 43200） */
-	onTaskEnd?: (sessionId: string) => void
+	onTaskEnd?: (sessionId: string, code?: number) => void | Promise<void>
 	/** 当网络离线时调用，提示用户数据已保存 */
 	onNetworkOffline?: (sessionId: string, pendingChunksCount: number) => void
 	/** 当网络恢复在线时调用，包含待上传分片数量 */
@@ -198,8 +211,8 @@ export interface AudioSourceConfig {
 
 // Media recorder configuration (using recorder-core for WAV recording)
 export interface MediaRecorderConfig {
-	mimeType?: string // Default: 'audio/wav' (recorder-core uses WAV format)
-	audioBitsPerSecond?: number // Audio bitrate (default: 256000 for 16kHz * 16bit)
+	mimeType?: string // Default: 'audio/ogg; codecs=opus' with WAV fallback
+	audioBitsPerSecond?: number // Target compressed bitrate; WAV fallback remains PCM
 	timeslice?: number // Recording chunk duration in ms (default: 10000 for 10 seconds)
 	autoRestartDelayMs?: number // Auto-restart delay (not used in recorder-core)
 	maxAutoRestartAttempts?: number // Max auto-restart attempts (not used in recorder-core)
@@ -207,6 +220,8 @@ export interface MediaRecorderConfig {
 	enableNoiseSuppression?: boolean // Enable noise suppression
 	autoGainControl?: boolean // Enable automatic gain control
 	audioSource?: AudioSourceConfig // Audio source configuration, default microphone only
+	encodingPolicy?: RecordingEncodingPolicy // Encoder priority for newly created sessions
+	lockedEncoding?: RecordingEncodingSnapshot // Persisted session format used during recovery
 }
 
 // Media recorder events (extends chunk manager events)

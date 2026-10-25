@@ -1,0 +1,22 @@
+{
+	"name": "magic-widget-sdk-e2e",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Standalone Playwright E2E suite for the deployed Magic Widget SDK",
+	"type": "module",
+	"scripts": {
+		"test:e2e": "playwright test widget-contract.spec.ts",
+		"test:e2e:auth": "WIDGET_E2E_STORAGE_STATE= PWDEBUG=1 playwright test auth.setup.spec.ts --grep @auth",
+		"test:e2e:report": "playwright show-report ./playwright-report",
+		"test:e2e:smoke": "playwright test widget-contract.spec.ts --grep \"renders all standard Header actions\"",
+		"test:e2e:ui": "playwright test --ui",
+		"typecheck": "tsc -p ./tsconfig.json --noEmit"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.63.0",
+		"@types/node": "^22.13.10",
+		"dotenv": "^16.4.7",
+		"typescript": "^5.4.5"
+	},
+	"packageManager": "pnpm@10.6.5"
+}

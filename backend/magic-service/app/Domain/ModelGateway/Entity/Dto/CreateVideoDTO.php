@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -169,7 +170,8 @@ class CreateVideoDTO extends AbstractRequestDTO
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
         }
 
-        if ($this->prompt === '') {
+        // 样片成片不传提示词：提示词由样片任务继承，调用方只给样片任务 ID。
+        if ($this->prompt === '' && ! $this->isDraftTaskRequest()) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'prompt is required');
         }
 
@@ -200,6 +202,14 @@ class CreateVideoDTO extends AbstractRequestDTO
         }
 
         return null;
+    }
+
+    /**
+     * 是否为样片成片请求：只由 input_mode 判定。
+     */
+    private function isDraftTaskRequest(): bool
+    {
+        return $this->inputMode === VideoInputMode::DraftTask->value;
     }
 
     private function assertTopLevelArrayField(string $field): void

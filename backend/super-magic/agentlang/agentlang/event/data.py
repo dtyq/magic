@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Dict, List, Optional, Any
 
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall, ChatCompletion
@@ -44,6 +45,39 @@ class AfterLlmResponseEventData(BaseEventData):
     llm_response_message: ChatCompletionMessage  # 大模型返回的消息内容
     show_in_ui: bool = True  # 是否在UI中显示
     token_usage: Optional[TokenUsage] = None
+
+
+class BeforeLlmRetryEventData(BaseEventData):
+    """大模型重试前事件。
+
+    仅在请求失败、准备进入重试决策时抛出。监听器可回写 allow_retry 等字段
+    覆盖默认重试策略。这是内部事件，不推前端。
+    """
+
+    agent_context: Any  # AgentContext，监听器通过 model_context 读写模型状态
+    model_id: str
+    use_stream: bool
+    backoff_retry_count: int
+    streaming_disabled: bool
+    request_contains_native_images: bool
+    supports_multimodal: bool
+    exception: Exception
+    is_context_window_exceeded: bool = False
+    status_code: Optional[int] = None
+
+    # 监听器回写：None 表示沿用重试循环的默认策略
+    allow_retry: Optional[bool] = None
+    disable_streaming: bool = False
+    skip_backoff: bool = False
+    reason: str = ""
+
+
+class AfterLlmRequestSucceededEventData(BaseEventData):
+    """大模型请求成功事件，内部使用，不推前端。"""
+
+    agent_context: Any  # AgentContext，监听器通过 model_context 清理失败计数
+    model_id: str = ""
+    use_stream: bool = False
 
 
 class BeforeAgentThinkEventData(BaseEventData):
@@ -163,6 +197,43 @@ class AfterMainAgentRunEventData(BaseEventData):
     agent_name: str
     agent_state: str
     query: str
+
+
+class AgentLoopOutcome(str, Enum):
+    """单轮主循环的结果。只有 normal 计入追加问题的有效轮数。"""
+
+    NORMAL = "normal"
+    MAINTENANCE = "maintenance"
+    RESTORED = "restored"
+    WAITING_FOR_USER = "waiting_for_user"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+
+
+def resolve_completed_loop_outcome(
+    *,
+    restored: bool,
+    waiting_for_user: bool,
+    maintenance: bool,
+) -> AgentLoopOutcome:
+    """根据本轮已完成的路径确定结果。等待用户优先于维护和恢复。"""
+    if waiting_for_user:
+        return AgentLoopOutcome.WAITING_FOR_USER
+    if maintenance:
+        return AgentLoopOutcome.MAINTENANCE
+    if restored:
+        return AgentLoopOutcome.RESTORED
+    return AgentLoopOutcome.NORMAL
+
+
+class AfterAgentLoopEventData(BaseEventData):
+    """每一轮 agent loop 结束后的事件数据。"""
+
+    agent_context: AgentContextInterface
+    agent_name: str
+    loop_index: int
+    effective_loop_count: int
+    outcome: AgentLoopOutcome
 
 
 class ChatHistoryChangedEventData(BaseEventData):

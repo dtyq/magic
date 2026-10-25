@@ -1,40 +1,15 @@
-import {
-	hasCurrentDirectoryPrefix,
-	isCanvasResourceRootPath,
-	isRemoteOrSpecialPath,
-	stripPathEdgeSlashes,
-} from "@/components/CanvasDesign/runtime/shared/path/canvasResourcePath"
 import type { LayerElement } from "@/components/CanvasDesign/runtime/document/types"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { DesignData } from "../types"
 import type { DesignAttachmentIndex } from "./designAttachmentIndex"
-import {
-	resolveDesignAttachment,
-	toDesignDslPath,
-	toDesignDslPathFromWorkspacePath,
-	toWorkspaceRelativeCandidates,
-	rewriteLayerElementsToDesignDslPaths,
-} from "./designPath"
+import { rewriteLayerElementsToDesignDslPaths } from "./designPath"
+import { resolveDesignCanvasResourceReference } from "./designResourceReferenceResolver"
 
 export interface DesignPathTransitionMigrationContext {
 	designProjectBasePath?: string
 	flatAttachments?: FileItem[]
+	attachmentsReady?: boolean
 	attachmentIndex?: DesignAttachmentIndex | null
-}
-
-function isLegacyBareCanvasResourcePath(path: string): boolean {
-	const trimmed = path.trim()
-	return (
-		Boolean(trimmed) &&
-		!trimmed.startsWith("/") &&
-		!hasCurrentDirectoryPrefix(trimmed) &&
-		!isRemoteOrSpecialPath(trimmed) &&
-		isCanvasResourceRootPath(trimmed)
-	)
-}
-
-function areSameWorkspacePath(left: string, right: string): boolean {
-	return stripPathEdgeSlashes(left) === stripPathEdgeSlashes(right)
 }
 
 /**
@@ -53,32 +28,13 @@ export function normalizeDesignPathForTransitionMigration(
 	const designProjectBasePath = context.designProjectBasePath?.trim()
 	if (!designProjectBasePath) return path
 
-	const attachmentContext = {
+	const resolution = resolveDesignCanvasResourceReference(path, {
 		designProjectBasePath,
 		flatAttachments: context.flatAttachments,
+		attachmentsReady: context.attachmentsReady,
 		attachmentIndex: context.attachmentIndex,
-	}
-
-	if (!isLegacyBareCanvasResourcePath(path)) {
-		return toDesignDslPath(path, attachmentContext)
-	}
-
-	// 附件尚未就绪时不猜测，等后续加载/刷新或用户下一次保存再处理。
-	if (!context.flatAttachments?.length && !context.attachmentIndex) return path
-
-	const currentCanvasCandidate = toWorkspaceRelativeCandidates(path, attachmentContext)[0]
-	if (!currentCanvasCandidate) return path
-
-	const resolved = resolveDesignAttachment(path, attachmentContext, {
-		mode: "legacy-recovery",
 	})
-	if (resolved.status !== "found") return path
-
-	if (areSameWorkspacePath(resolved.resolvedPath, currentCanvasCandidate)) {
-		return toDesignDslPath(path, attachmentContext)
-	}
-
-	return toDesignDslPathFromWorkspacePath(resolved.resolvedPath, attachmentContext)
+	return resolution.status === "resolved" ? resolution.storagePath : path
 }
 
 export function rewriteDesignLayerPathsForTransitionMigration(

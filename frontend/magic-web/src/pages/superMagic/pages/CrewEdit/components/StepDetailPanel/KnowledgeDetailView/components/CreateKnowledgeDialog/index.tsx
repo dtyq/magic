@@ -11,7 +11,7 @@ import { Input } from "@/components/shadcn-ui/input"
 import { Textarea } from "@/components/shadcn-ui/textarea"
 import { Label } from "@/components/shadcn-ui/label"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { CrewKnowledge } from "@/types/crew-knowledge"
 import {
 	KNOWLEDGE_CREATE_LABEL_COL_CLASS,

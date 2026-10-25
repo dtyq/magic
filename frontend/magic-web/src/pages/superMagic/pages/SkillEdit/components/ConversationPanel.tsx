@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
-import { JSONContent } from "@tiptap/react"
+import { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import ConversationPanelScaffold from "@/pages/superMagic/components/ConversationPanelScaffold"
 import ConversationEmptyState from "@/pages/superMagic/components/ConversationPanelScaffold/ConversationEmptyState"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
@@ -15,7 +15,11 @@ import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { messageSendService } from "@/pages/superMagic/services/messageSendFlowService"
-import { type ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import {
+	isTopicTaskRunning,
+	isTopicWaitingForUser,
+	type ProjectListItem,
+} from "@/pages/superMagic/pages/Workspace/types"
 import { TopicMode } from "../../Workspace/TopicMode"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { userStore } from "@/models/user"
@@ -78,7 +82,7 @@ function ConversationPanel({
 		onTopicDetailLoaded: topicStore.updateTopic,
 	})
 
-	const { topicModelStore } = useTopicModel({
+	useTopicModel({
 		selectedTopic,
 		selectedProject,
 		topicMode: TopicMode.Default,
@@ -101,12 +105,14 @@ function ConversationPanel({
 		onConversationGeneratingChange: conversation.setConversationGenerating,
 		onTopicMessagesChange: handleTopicMessagesChange,
 	})
+	const isTaskRunning = showLoading || isTopicTaskRunning(selectedTopic)
 
 	const messageQueue = useMessageQueue({
 		projectId: selectedProject?.id,
 		topicId: selectedTopic?.id,
 		agentCode: selectedTopic?.agent_code,
-		isTaskRunning: showLoading,
+		isTaskRunning,
+		isWaitingForUser: isTopicWaitingForUser(selectedTopic),
 		isEmptyStatus: false,
 		isShowLoadingInit: isMessagesInitialLoading,
 	})
@@ -146,26 +152,20 @@ function ConversationPanel({
 				<div className="mb-2">
 					<MessageQueue
 						queue={messageQueue.queue}
+						editorRef={messageQueue.editorRef}
 						queueStats={messageQueue.queueStats}
-						editingQueueItem={messageQueue.editingQueueItem}
 						onRemoveMessage={messageQueue.removeFromQueue}
 						onSendMessage={messageQueue.sendQueuedMessage}
 						onStartEdit={messageQueue.startEditQueueItem}
-						onCancelEdit={messageQueue.cancelEditQueueItem}
+						onWithdraw={messageQueue.withdrawQueueItem}
+						onMove={messageQueue.moveQueueItem}
+						isOperationPending={messageQueue.isQueueOperationPending}
 					/>
 				</div>
 			) : null
 
 		return { messageQueueNode }
-	}, [
-		messageQueue.queue,
-		messageQueue.queueStats,
-		messageQueue.editingQueueItem,
-		messageQueue.removeFromQueue,
-		messageQueue.sendQueuedMessage,
-		messageQueue.startEditQueueItem,
-		messageQueue.cancelEditQueueItem,
-	])
+	}, [messageQueue])
 
 	const editorContext = useMemo<SceneEditorContext>(() => {
 		return {
@@ -184,12 +184,14 @@ function ConversationPanel({
 			layoutConfig: DEFAULT_LAYOUT_CONFIG,
 			showLoading,
 			onSendComplete: ({ success, currentProject, currentTopic }) => {
+				const resolvedProject = currentProject ?? selectedProject
+				const resolvedTopic = currentTopic ?? topicStore.selectedTopic
 				if (!success) return
 
 				applyOptimisticTopicRunningState({
 					topicStore,
-					topic: currentTopic ?? topicStore.selectedTopic,
-					project: currentProject ?? selectedProject,
+					topic: resolvedTopic,
+					project: resolvedProject,
 				})
 			},
 			mergeSendParams: ({ defaultParams }) => {
@@ -198,11 +200,8 @@ function ConversationPanel({
 				})
 				return mergedParams
 			},
-			queueContext: {
-				editingQueueItem: messageQueue.editingQueueItem,
-				addToQueue: messageQueue.addToQueue,
-				finishEditQueueItem: messageQueue.finishEditQueueItem,
-			},
+			editorRef: messageQueue.editorRef,
+			queueContext: messageQueue,
 			size: detailPanelVisible ? "small" : "default",
 		}
 	}, [
@@ -213,9 +212,7 @@ function ConversationPanel({
 		projectFilesStore,
 		attachments,
 		showLoading,
-		messageQueue.editingQueueItem,
-		messageQueue.addToQueue,
-		messageQueue.finishEditQueueItem,
+		messageQueue,
 		detailPanelVisible,
 	])
 
@@ -248,6 +245,7 @@ function ConversationPanel({
 					topicStore={topicStore}
 					topicActions={topicActions}
 					hideTopicListModeIcon
+					hideTopicTypeFilter
 					historyTriggerMode={historyTriggerMode}
 					isHistoryPanelOpen={isHistoryPanelOpen}
 					onToggleHistoryPanel={onToggleHistoryPanel}

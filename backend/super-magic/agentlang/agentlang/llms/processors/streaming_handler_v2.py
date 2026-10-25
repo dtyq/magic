@@ -1,10 +1,11 @@
 """
 V2 流式响应处理器。
 
-V2 流式处理：直传 LLM raw chunk，流结束统一触发一次 after_agent_reply。
+V2 流式处理：把 LLM raw chunk 按语义聚合成连续传输包后推送，流结束统一触发一次 after_agent_reply。
 
 与 V1 的核心差异：
-- 不拆分 reasoning / content 两条流，每个 chunk 原样透传
+- 不拆分 reasoning / content 两条流
+- 前几个传输包仍逐个发送，高频阶段合并连续同阶段增量
 - 不触发 BEFORE/AFTER_AGENT_THINK 事件
 - 不触发 per-phase 的 BEFORE_AGENT_REPLY 事件
 - 流结束后统一触发一次 AFTER_AGENT_REPLY（含完整 content + reasoning + tool_calls）
@@ -24,11 +25,13 @@ from openai.types.completion_usage import CompletionUsage
 
 from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError, STREAMING_PASSTHROUGH_EXCEPTIONS
 from agentlang.interface.context import AgentContextInterface
+from agentlang.llms.token_usage.models import ContextInputBreakdown
 from agentlang.logger import get_logger
 from agentlang.streaming.interface import StreamingInterface
 from agentlang.streaming.models import ChunkData, ChunkDelta, ChunkMetadata, ChunkStatus
 
 from .processor_config import ProcessorConfig
+from .streaming_chunk_aggregator import V2ChunkTransport
 from .streaming_context import StreamProcessContext, StreamProcessResult
 from .streaming_context_base import StreamResponseHandlerBase
 from .streaming_log_util import StreamingLogger, SLOW_CHUNK_THRESHOLD, VERY_SLOW_CHUNK_THRESHOLD
@@ -59,7 +62,7 @@ def _build_super_magic_chunk(
         first_id: 首个有效 chunk 的 id（复用）
         first_created: 首个有效 chunk 的 created（复用）
         correlation_id: 本次流的关联 ID
-        chunk_index: chunk 序号（0-based）
+        chunk_index: 占位序号。真正发给前端的连续 `i` 由聚合器在 flush 时写入。
         label_resolver: 可选的工具名 -> 标签文案查询函数，有值时注入到 function.label
 
     Returns:
@@ -197,7 +200,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
     """
     V2 流式响应处理器。
 
-    直传 LLM raw chunk，流结束后统一触发一次 AFTER_AGENT_REPLY 事件。
+    按语义聚合后推送 raw chunk，流结束后统一触发一次 AFTER_AGENT_REPLY 事件。
     不拆分 reasoning / content，不管理 Think 事件。
     """
 
@@ -242,7 +245,6 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
         # V2 chunk 追踪
         first_id: Optional[str] = None
         first_created: Optional[int] = None
-        chunk_push_index: int = 0  # 推送序号（0-based，跳过 usage-only chunk）
 
         # 流式收集
         collected_chunks: List[ChatCompletionChunk] = []
@@ -260,11 +262,27 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
         chunk_timeout = processor_config.stream_chunk_timeout_seconds or CHUNK_TIMEOUT
         last_chunk = None
 
+        async def push_aggregated_chunk(super_magic_chunk: Dict[str, Any], chunk_index: int) -> None:
+            await _push_raw_chunk(
+                streaming_driver=streaming_driver,
+                super_magic_chunk=super_magic_chunk,
+                request_id=request_id,
+                correlation_id=correlation_id,
+                message_id=reply_message_id,
+                chunk_index=chunk_index,
+            )
+
+        # 传输层负责：首段直发、高频合并、finish 立即 flush、给前端连续的 i
+        transport = V2ChunkTransport(
+            push_chunk=push_aggregated_chunk,
+            request_id=request_id,
+        )
+
         try:
             async def process_stream():
                 nonlocal state, collected_chunks, finish_reason, usage
                 nonlocal last_chunk_time, base_time, last_chunk
-                nonlocal first_id, first_created, chunk_push_index
+                nonlocal first_id, first_created
 
                 stream_iter = aiter(stream)
                 while True:
@@ -387,18 +405,10 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                                         first_id=effective_first_id,
                                         first_created=effective_first_created,
                                         correlation_id=correlation_id,
-                                        chunk_index=chunk_push_index,
+                                        chunk_index=0,
                                         label_resolver=label_resolver,
                                     )
-                                    await _push_raw_chunk(
-                                        streaming_driver=streaming_driver,
-                                        super_magic_chunk=super_magic_chunk,
-                                        request_id=request_id,
-                                        correlation_id=correlation_id,
-                                        message_id=reply_message_id,
-                                        chunk_index=chunk_push_index,
-                                    )
-                                    chunk_push_index += 1
+                                    await transport.accept(super_magic_chunk)
 
                                 # 检查完成状态
                                 if finish_reason is not None and not state.finish_reason_received:
@@ -424,6 +434,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                                     raise StreamInterruptedError(
                                         chunk_count=state.received_chunk_count,
                                         total_elapsed_seconds=total_elapsed,
+                                        emitted_text_chars=len(state.reasoning_text) + len(state.content_text),
                                     ) from e
                                 else:
                                     StreamingLogger.log_stream_normal_end(
@@ -438,6 +449,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                                     chunk_count=state.received_chunk_count,
                                     chunk_timeout_seconds=effective_chunk_timeout,
                                     total_elapsed_seconds=total_elapsed,
+                                    emitted_text_chars=len(state.reasoning_text) + len(state.content_text),
                                 )
                             except STREAMING_PASSTHROUGH_EXCEPTIONS:
                                 raise
@@ -479,6 +491,9 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                     f"No stream data received - server may have returned an error: {stream_error}"
                 ) from stream_error
             raise
+        finally:
+            # 中断、超时或异常时也要把已缓冲的增量发出去，避免前端卡在缺口上。
+            await transport.close()
 
         # 基础校验
         if not state.has_received_chunks():
@@ -496,11 +511,20 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
             raise StreamInterruptedError(
                 chunk_count=state.received_chunk_count,
                 total_elapsed_seconds=total_elapsed,
+                emitted_text_chars=len(state.reasoning_text) + len(state.content_text),
             )
 
         stream_end_time = time.time()
         total_stream_time = stream_end_time - stream_start_time
-        StreamingLogger.log_stream_stats(request_id, state, correlation_id, total_stream_time, finish_reason)
+        StreamingLogger.log_stream_stats(
+            request_id,
+            state,
+            correlation_id,
+            total_stream_time,
+            finish_reason,
+            aggregated_source_chunks=transport.source_chunk_count,
+            aggregated_emitted_chunks=transport.emitted_count,
+        )
 
         # ===== 流结束：统一触发一次 after_agent_reply =====
         # 中断时若已收到文本内容，也需触发以确保落库（对齐 V1 行为）。
@@ -515,6 +539,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                 state=state,
                 usage=usage,
                 collected_chunks=collected_chunks,
+                input_breakdown=context.input_breakdown,
                 interrupted=state.interrupted_by_signal,
             )
 
@@ -537,6 +562,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
         usage: Optional[CompletionUsage],
         collected_chunks: List[ChatCompletionChunk],
         interrupted: bool = False,
+        input_breakdown: ContextInputBreakdown | None = None,
     ) -> None:
         """流结束后统一触发一次 AFTER_AGENT_REPLY 事件，携带完整 content + reasoning + tool_calls。
 
@@ -568,6 +594,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
             if usage:
                 try:
                     token_usage = TokenUsage.from_response(usage)
+                    token_usage.input_breakdown = input_breakdown
                     # 补充 model 信息和最大上下文 token 数，from_response 仅解析原始 token 计数
                     token_usage.model_id = model_id
                     token_usage.model_name = processor_config.model_name or model_id

@@ -24,7 +24,6 @@ export const useStyles = createStyles(
 				width: 100%;
 				padding: 20px;
 				display: flex;
-				flex-direction: column;
 				gap: 10px;
 				background-color: ${token.magicColorUsages.bg[0]};
 				border-radius: 8px;

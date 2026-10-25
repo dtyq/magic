@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warp — The Intelligent Terminal for Modern Devs</title>
+<style>
+:root {
+  --canvas: #2b2622;
+  --canvas-deep: #201c19;
+  --canvas-soft: #383330;
+  --canvas-elevated: #443e3a;
+  --border: #3f3a36;
+  --border-light: #524c47;
+  --hairline: #38322e;
+  --ink: #f7f5f0;
+  --body: #c9c0ad;
+  --body-strong: #dad2c1;
+  --mute: #aea69c;
+  --accent-cyan: #22d3ee;
+  --accent-amber: #f59e0b;
+  --accent-emerald: #10b981;
+  --accent-rose: #f43f5e;
+  --accent-violet: #a855f7;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --max-w: 1200px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+/* NAV */
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: var(--canvas-deep);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brand-logo svg {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+.brand-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+.brand-version {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  background: var(--canvas-soft);
+  color: var(--mute);
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+}
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.nav-link {
+  font-size: 13px;
+  color: var(--body);
+  transition: color 0.15s;
+}
+.nav-link:hover { color: var(--ink); }
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.btn-secondary {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--canvas-soft);
+  color: var(--ink);
+  cursor: pointer;
+}
+.btn-primary {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--canvas);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* HERO SECTION */
+.hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 56px 24px 36px;
+  text-align: center;
+}
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--canvas-soft);
+  border: 1px solid var(--border-light);
+  padding: 5px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  color: var(--body-strong);
+  margin-bottom: 24px;
+}
+.pill-badge .dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent-cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+.hero-title {
+  font-size: 52px;
+  font-weight: 400;
+  letter-spacing: -1.4px;
+  line-height: 1.12;
+  margin-bottom: 18px;
+  color: var(--ink);
+}
+.hero-title em {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 58px;
+  font-weight: 400;
+  color: #fce7cf;
+}
+.hero-desc {
+  max-width: 640px;
+  margin: 0 auto 30px;
+  font-size: 16px;
+  color: var(--body);
+  line-height: 1.6;
+}
+.hero-cta-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 40px;
+}
+.os-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mute);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* TERMINAL WORKBENCH PREVIEW (FIRST 500PX HERO IMPACT) */
+.terminal-window {
+  max-width: 1060px;
+  margin: 0 auto 60px;
+  background: var(--canvas-deep);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  overflow: hidden;
+  text-align: left;
+}
+.window-titlebar {
+  background: #25211e;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.window-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ctrl-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.ctrl-close { background: #ef4444; }
+.ctrl-min { background: #f59e0b; }
+.ctrl-max { background: #10b981; }
+
+.tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 20px;
+}
+.term-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+}
+.term-tab.active {
+  background: var(--canvas-soft);
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+.term-tab .tab-icon {
+  font-size: 13px;
+}
+.window-status-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--body);
+}
+.git-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--canvas-soft);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  color: var(--accent-cyan);
+}
+
+/* TERMINAL BODY */
+.terminal-canvas {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #201c19;
+}
+
+/* WARP BLOCK 1 */
+.warp-block {
+  background: #282420;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.warp-block:hover {
+  border-color: var(--border-light);
+}
+.block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.15);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.block-command {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.prompt-symbol {
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+.cmd-text {
+  color: var(--ink);
+  font-weight: 500;
+}
+.block-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--mute);
+  font-size: 11px;
+}
+.exit-code {
+  color: var(--accent-emerald);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.block-content {
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--body-strong);
+}
+
+/* WARP AI PROMPT BLOCK */
+.ai-block {
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  background: #2d2630;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(168, 85, 247, 0.12);
+  border-bottom: 1px solid rgba(168, 85, 247, 0.2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d8b4fe;
+  font-weight: 600;
+}
+.ai-badge svg {
+  width: 14px;
+  height: 14px;
+  fill: #c084fc;
+}
+.ai-body {
+  padding: 16px 18px;
+}
+.ai-question {
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-solution {
+  background: #1e1922;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ai-code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #38bdf8;
+}
+.ai-action-btn {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  background: #9333ea;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-xs);
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* TERMINAL BOTTOM INPUT BAR */
+.active-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #2b2622;
+  border: 1px solid var(--accent-cyan);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.15);
+}
+.input-prompt-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+.input-field-mock {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  flex: 1;
+}
+.cursor-blink {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  background: var(--ink);
+  vertical-align: middle;
+  animation: blink 1s infinite;
+}
+@keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+.key-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--canvas-soft);
+  color: var(--mute);
+  padding: 3px 7px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+}
+
+/* FEATURE BENTO GRID */
+.features-grid {
+  max-width: var(--max-w);
+  margin: 0 auto 80px;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.feat-card {
+  background: var(--canvas-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.feat-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+}
+.feat-icon-box {
+  width: 38px;
+  height: 38px;
+  background: var(--canvas-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.feat-icon-box svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--ink);
+}
+.feat-title {
+  font-size: 17px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.feat-desc {
+  font-size: 13px;
+  color: var(--body);
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.feat-preview {
+  background: var(--canvas-deep);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* STATS ROW */
+.stats-strip {
+  max-width: var(--max-w);
+  margin: 0 auto 60px;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.stat-box {
+  background: var(--canvas-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  text-align: center;
+}
+.stat-val {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  margin-bottom: 4px;
+}
+.stat-lbl {
+  font-size: 12px;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* FOOTER */
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: var(--canvas-deep);
+  padding: 40px 24px;
+  font-size: 12px;
+  color: var(--mute);
+}
+.footer-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer-copy {
+  font-family: var(--font-mono);
+}
+</style>
+</head>
+<body>
+
+<!-- TOP NAVIGATION -->
+<nav class="top-nav">
+  <div class="brand-group">
+    <div class="brand-logo">
+      <svg viewBox="0 0 24 24">
+        <path d="M4 6h16v3H4zm0 5h16v3H4zm0 5h10v3H4z"/>
+      </svg>
+    </div>
+    <span class="brand-name">Warp</span>
+    <span class="brand-version">v0.2026.04</span>
+  </div>
+  <div class="nav-menu">
+    <a href="#" class="nav-link">Product</a>
+    <a href="#" class="nav-link">Warp AI</a>
+    <a href="#" class="nav-link">Workflows</a>
+    <a href="#" class="nav-link">Docs</a>
+    <a href="#" class="nav-link">Changelog</a>
+  </div>
+  <div class="nav-actions">
+    <button class="btn-secondary">Sign In</button>
+    <button class="btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      Download Free
+    </button>
+  </div>
+</nav>
+
+<!-- HERO SECTION -->
+<section class="hero">
+  <div class="pill-badge">
+    <span class="dot"></span>
+    <span>Warp Drive 2.0 now available for modern engineering teams</span>
+  </div>
+  <h1 class="hero-title">
+    The terminal for the<br>
+    <em>21st century engineer.</em>
+  </h1>
+  <p class="hero-desc">
+    Rebuilt in native Rust with modern block architecture, full mouse interaction, collaborative workflows, and seamless AI assistance baked into your workflow.
+  </p>
+  <div class="hero-cta-group">
+    <button class="btn-primary" style="padding: 10px 24px; font-size: 14px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      Download for macOS
+    </button>
+    <button class="btn-secondary" style="padding: 10px 20px; font-size: 14px;">
+      View Linux & Windows Beta
+    </button>
+  </div>
+  <div class="os-pill">
+    <span>Rust Native (Metal Accelerated)</span> • <span>Fast Sub-millisecond Rendering</span> • <span>Zero Electron Bloat</span>
+  </div>
+</section>
+
+<!-- TERMINAL WORKBENCH (BENCHMARK THUMBNAIL FOCUS) -->
+<section style="padding: 0 24px;">
+  <div class="terminal-window">
+    <!-- Window Bar -->
+    <div class="window-titlebar">
+      <div class="window-controls">
+        <span class="ctrl-dot ctrl-close"></span>
+        <span class="ctrl-dot ctrl-min"></span>
+        <span class="ctrl-dot ctrl-max"></span>
+        <div class="tab-strip">
+          <div class="term-tab active">
+            <span class="tab-icon">⚡</span>
+            <span>magic-cluster: prod-k8s</span>
+          </div>
+          <div class="term-tab">
+            <span class="tab-icon">📦</span>
+            <span>backend-service (dev)</span>
+          </div>
+        </div>
+      </div>
+      <div class="window-status-tools">
+        <div class="git-pill">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+          <span>main</span>
+          <span style="color:var(--mute)">[+3 ~1]</span>
+        </div>
+        <span>mem: 38MB</span>
+        <span>latency: 0.4ms</span>
+      </div>
+    </div>
+
+    <!-- Terminal Canvas -->
+    <div class="terminal-canvas">
+      <!-- Warp Block 1: Deployment & Health check -->
+      <div class="warp-block">
+        <div class="block-header">
+          <div class="block-command">
+            <span class="prompt-symbol">❯</span>
+            <span class="cmd-text">kubectl rollout status deployment/magic-engine-v2 -n production</span>
+          </div>
+          <div class="block-meta">
+            <span class="exit-code">✓ 0</span>
+            <span>0.84s</span>
+            <span>12:34:10</span>
+          </div>
+        </div>
+        <div class="block-content">
+          <div style="color: var(--accent-emerald);">Waiting for deployment "magic-engine-v2" rollout to finish: 14 of 16 updated replicas are available...</div>
+          <div style="color: var(--accent-emerald);">deployment "magic-engine-v2" successfully rolled out to 16/16 edge nodes.</div>
+          <div style="color: var(--mute); margin-top: 4px;">Health check: HTTP/2 200 OK — Global p99 latency 14.2ms.</div>
+        </div>
+      </div>
+
+      <!-- Warp Block 2: Warp AI Prompt Assistant -->
+      <div class="ai-block">
+        <div class="ai-header">
+          <div class="ai-badge">
+            <svg viewBox="0 0 24 24"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+            <span>Warp AI Assistant</span>
+          </div>
+          <span style="color: var(--mute); font-size: 11px;">Model: Claude 3.5 Sonnet Engine</span>
+        </div>
+        <div class="ai-body">
+          <div class="ai-question">
+            <span style="color: var(--accent-violet);">?</span>
+            <span>How do I filter high-memory PostgreSQL container logs from the last 15 minutes?</span>
+          </div>
+          <div class="ai-solution">
+            <div class="ai-code">
+              docker logs postgres-primary --since 15m 2&gt;&amp;1 | grep -E "out of memory|shared_buffers"
+            </div>
+            <button class="ai-action-btn">
+              <span>Insert (↵)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Input Block -->
+      <div class="active-input-bar">
+        <span class="input-prompt-label">warp-terminal ~/workspace/magic ❯</span>
+        <div class="input-field-mock">
+          <span>pnpm test:e2e --filter=@magic/edge-runtime</span>
+          <span class="cursor-blink"></span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <span class="key-hint"># Ask AI (Ctrl+R)</span>
+          <span class="key-hint">⌘K Palette</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BENTO FEATURE CARDS -->
+<section class="features-grid">
+  <div class="feat-card">
+    <div>
+      <div class="feat-icon-box">
+        <svg viewBox="0 0 24 24"><path d="M3 3h18v4H3V3zm0 7h18v4H3v-4zm0 7h18v4H3v-4z"/></svg>
+      </div>
+      <h3 class="feat-title">Block Architecture</h3>
+      <p class="feat-desc">Commands and outputs are grouped into distinct, interactive blocks that you can bookmark, share, copy, or review instantly.</p>
+    </div>
+    <div class="feat-preview" style="color: var(--accent-cyan);">
+      ❯ echo "Blocks let you click anywhere"
+    </div>
+  </div>
+
+  <div class="feat-card">
+    <div>
+      <div class="feat-icon-box">
+        <svg viewBox="0 0 24 24"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+      </div>
+      <h3 class="feat-title">Native Warp AI</h3>
+      <p class="feat-desc">Get shell commands generated and explained from natural language, debug errors with one click, and automate tedious sysadmin steps.</p>
+    </div>
+    <div class="feat-preview" style="color: #c084fc;">
+      Ctrl+R to trigger intelligent auto-completion
+    </div>
+  </div>
+
+  <div class="feat-card">
+    <div>
+      <div class="feat-icon-box">
+        <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+      </div>
+      <h3 class="feat-title">Collaborative Workflows</h3>
+      <p class="feat-desc">Save parameterized playbooks and share command routines with your team via Warp Drive, eliminating outdated wikis.</p>
+    </div>
+    <div class="feat-preview" style="color: var(--accent-emerald);">
+      warp drive list --team=infra-sre
+    </div>
+  </div>
+</section>
+
+<!-- STATS STRIP -->
+<section class="stats-strip">
+  <div class="stat-box">
+    <div class="stat-val">120 FPS</div>
+    <div class="stat-lbl">Metal GPU Rendering</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-val">&lt; 1ms</div>
+    <div class="stat-lbl">Input Keystroke Latency</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-val">1.2M+</div>
+    <div class="stat-lbl">Active Developers</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-val">100%</div>
+    <div class="stat-lbl">Rust Memory Safety</div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-copy">
+      © 2026 Warp Technologies, Inc. • All rights reserved.
+    </div>
+    <div style="display: flex; gap: 20px; font-size: 11px;">
+      <a href="#">Privacy Policy</a>
+      <a href="#">Security &amp; SOC2</a>
+      <a href="#">GitHub</a>
+      <a href="#">Discord Community</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

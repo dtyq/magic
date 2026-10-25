@@ -54,6 +54,10 @@ class MCPServerConfig(BaseModel):
     # 配置来源
     source: MCPConfigSource = Field(MCPConfigSource.UNKNOWN, description="配置来源")
 
+    # Magic Service 凭据引用
+    auth_type: int = Field(0, description="Magic Service MCP 鉴权类型")
+    mcp_server_code: Optional[str] = Field(None, description="Magic Service MCP Server code")
+
     # 服务器选项
     server_options: Optional[Dict[str, Any]] = Field(
         None, description="服务器选项，包含 label_name、tools 等自定义配置"

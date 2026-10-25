@@ -7,11 +7,9 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Struct;
 
-use App\Infrastructure\ExternalAPI\Image\ImageAsset;
-
 /**
  * 图片处理管线中的运行时上下文。
- * 它同时保存当前图片资产、处理配置以及处理后的中间/最终结果。
+ * 它同时保存当前图片的本地路径/媒体信息、处理配置以及处理后的中间/最终结果。
  */
 final class ImageProcessContext
 {
@@ -28,23 +26,10 @@ final class ImageProcessContext
     private string $uploadedMimeType = '';
 
     public function __construct(
-        private ImageAsset $asset,
         private string $localFilePath = '',
+        private string $mimeType = '',
+        private ?string $provider = null,
     ) {
-        // 本地文件资产默认直接复用其路径，避免后续处理器重复判断。
-        if ($this->localFilePath === '' && $this->asset->isLocalFile()) {
-            $this->localFilePath = $this->asset->getValue();
-        }
-    }
-
-    public function getAsset(): ImageAsset
-    {
-        return $this->asset;
-    }
-
-    public function setAsset(ImageAsset $asset): void
-    {
-        $this->asset = $asset;
     }
 
     public function getLocalFilePath(): string
@@ -59,12 +44,12 @@ final class ImageProcessContext
 
     public function getMimeType(): string
     {
-        return $this->asset->getMimeType();
+        return $this->mimeType;
     }
 
     public function getProvider(): ?string
     {
-        return $this->asset->getProvider();
+        return $this->provider;
     }
 
     public function getOrganizationCode(): string

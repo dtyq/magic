@@ -1,4 +1,4 @@
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import type { NativeStreamStatus } from "@/platform/native"
 
 const logger = Logger.createLogger("StreamChunkManager", { enableConfig: { console: false } })

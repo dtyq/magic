@@ -83,16 +83,17 @@ def test_build_video_model_info_includes_compact_input_mode_rules():
     )
 
     assert 'model="kling-v3-omni"' in info
-    assert 'duration="3|4|5"' in info
+    assert 'duration_type="options"' in info
+    assert 'durations="3|4|5"' in info
     assert 'size=' not in info
     assert 'default_size=' not in info
     assert 'no_size=' not in info
-    assert '<mode name="standard" task="generate" fields="prompt" duration="3|4|5" resolution="720p|1080p|4k" aspect_ratio="16:9|9:16"/>' in info
-    assert '<mode name="omni_reference" task="generate" fields="prompt,reference_image_paths,reference_video_paths" max_count="7" duration="3|4|5" resolution="720p|1080p|4k" aspect_ratio="16:9|9:16">' in info
-    assert '<rule name="images_only" reference_image_paths="0-7" reference_video_paths="0" duration="3|4|5" resolution="720p|1080p|4k" aspect_ratio="16:9|9:16"/>' in info
-    assert '<rule name="image_and_video" reference_image_paths="0-6" reference_video_paths="0-1" duration="3|4|5" resolution="720p|1080p" aspect_ratio="16:9|9:16"/>' in info
-    assert '<mode name="video_edit" task="edit" fields="prompt,reference_video_paths" max_count="7" no_duration="true" resolution="720p|1080p" no_aspect_ratio="true">' in info
-    assert '<rule name="video_only" reference_video_paths="1" no_aspect_ratio="true" avoid_resolution="4k" no_duration="true" resolution="720p|1080p"/>' in info
+    assert '<mode name="standard" task="generate" fields="prompt" duration_type="options" durations="3|4|5" resolution="720p|1080p|4k" aspect_ratio="16:9|9:16"/>' in info
+    assert '<mode name="omni_reference" task="generate" fields="prompt,reference_image_paths,reference_video_paths" max_count="7" duration_type="options" durations="3|4|5" resolution="720p|1080p|4k" aspect_ratio="16:9|9:16">' in info
+    assert '<rule name="images_only" reference_image_paths="0-7" reference_video_paths="0" duration_type="options" durations="3|4|5" resolution="720p|1080p|4k" aspect_ratio="16:9|9:16"/>' in info
+    assert '<rule name="image_and_video" reference_image_paths="0-6" reference_video_paths="0-1" duration_type="options" durations="3|4|5" resolution="720p|1080p" aspect_ratio="16:9|9:16"/>' in info
+    assert '<mode name="video_edit" task="edit" fields="prompt,reference_video_paths" max_count="7" duration_type="options" resolution="720p|1080p" no_aspect_ratio="true">' in info
+    assert '<rule name="video_only" reference_video_paths="1" no_aspect_ratio="true" avoid_resolution="4k" duration_type="options" resolution="720p|1080p"/>' in info
 
 
 def test_build_video_model_info_keeps_selected_model_without_config():
@@ -103,6 +104,9 @@ def test_build_video_model_info_keeps_selected_model_without_config():
     assert info.strip().endswith("/>")
     assert 'model="kling-v3-omni"' in malformed_info
     assert malformed_info.strip().endswith("/>")
+    assert 'native_mute="false"' in info
+    assert 'mute_fallback="compose"' in info
+    assert 'audio_output="unknown"' in info
 
 
 def test_build_video_model_info_handles_invalid_generation_constraint_types():
@@ -139,8 +143,8 @@ def test_build_video_model_info_handles_invalid_generation_constraint_types():
         video_generation_config,
     )
 
-    assert '<mode name="omni_reference" task="generate" fields="prompt,reference_image_paths" duration="5" no_resolution="true" aspect_ratio="16:9">' in info
-    assert '<rule name="images_only" reference_image_paths="0-1" duration="5" no_resolution="true" aspect_ratio="16:9"/>' in info
+    assert '<mode name="omni_reference" task="generate" fields="prompt,reference_image_paths" duration_type="options" durations="5" no_resolution="true" aspect_ratio="16:9">' in info
+    assert '<rule name="images_only" reference_image_paths="0-1" duration_type="options" durations="5" no_resolution="true" aspect_ratio="16:9"/>' in info
 
 
 def test_build_video_model_info_does_not_expose_generate_audio_as_tool_param():
@@ -161,6 +165,16 @@ def test_build_video_model_info_does_not_expose_generate_audio_as_tool_param():
 
     assert "generate_audio" not in info
     assert "support=" not in info
+    assert 'audio_output="supported"' in info
+
+
+def test_build_video_model_info_marks_explicit_audio_limitations_only():
+    info = VideoModelConfigService.build_video_model_info(
+        "mock-video-model",
+        {"generation": {"supports_generate_audio": False}},
+    )
+
+    assert 'audio_output="unsupported"' in info
 
 
 def test_build_video_model_info_does_not_expose_option_as_tool_param():
@@ -217,7 +231,7 @@ async def test_sync_to_horizon_updates_real_horizon_video_model_context(tmp_path
     assert "<media_model_info>" in context
     assert 'model="kling-v3-omni"' in context
     assert 'size=' not in context
-    assert '<mode name="standard" task="generate" fields="prompt" duration="5" resolution="720p" aspect_ratio="16:9"/>' in context
+    assert '<mode name="standard" task="generate" fields="prompt" duration_type="options" durations="5" resolution="720p" aspect_ratio="16:9"/>' in context
     assert "Use video modes to choose reference fields and avoid unsupported combinations." in context
     assert "prompt MUST bind assets by list order" in context
     assert "reference_image_paths[0]->[image1]" in context

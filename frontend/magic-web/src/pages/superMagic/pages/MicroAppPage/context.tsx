@@ -19,8 +19,12 @@ export function AppStoreProvider({ children }: AppStoreProviderProps) {
 	return <AppStoreContext.Provider value={store}>{children}</AppStoreContext.Provider>
 }
 
+export function useOptionalAppStore(): AppRootStore | null {
+	return useContext(AppStoreContext)
+}
+
 export function useAppStore(): AppRootStore {
-	const store = useContext(AppStoreContext)
+	const store = useOptionalAppStore()
 	if (!store) throw new Error("useAppStore must be used within <AppStoreProvider>")
 	return store
 }

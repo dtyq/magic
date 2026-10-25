@@ -1,4 +1,4 @@
-# Crew Agent File Format Specification
+# Crew Agent File Format Specification (Authoritative Reference)
 
 This document defines the format, field descriptions, and examples for each custom employee (Crew Agent) definition file.
 When editing employee configuration, you must strictly follow these format specifications.
@@ -11,11 +11,17 @@ YAML header carries agent-level metadata; the body defines the role description.
 
 ### YAML Header Fields
 
-| Field | Description | Maps to |
-|-------|-------------|---------|
-| `name` | Employee name | `AgentProfile.name` |
-| `role` | Employee role | `AgentProfile.role` |
-| `description` | Employee description | `AgentProfile.description` |
+| Field | Description | Maps to | Required |
+|-------|-------------|---------|----------|
+| `name` | Employee name | `AgentProfile.name` | **Yes** |
+| `role` | Employee role | `AgentProfile.role` | **Yes** |
+| `description` | Employee description | `AgentProfile.description` | **Yes** |
+| `icon` | Employee logo path (e.g. `.magic/logo.png` or `.magic/logo.jpg`) | `AgentProfile.icon` | Optional |
+
+### Strict Header Rules & Prohibitions
+
+- **Standard fields ONLY**: Use strictly `name`, `role`, `description`, `icon`. Absolutely DO NOT generate any multilingual or translated field variants such as `name_cn`, `name_en`, `role_cn`, `role_en`, `description_cn`, `description_en`, `name-cn`, etc.
+- **Fixed avatar location**: When `icon` is specified, it must point directly to `.magic/logo.png` or `.magic/logo.jpg`. Never use arbitrary directory paths (e.g., `assets/`, `images/`) or custom filenames.
 
 ### AgentProfile Rendering Rules
 
@@ -29,6 +35,7 @@ YAML header carries agent-level metadata; the body defines the role description.
 name: Research Assistant
 role: Academic Researcher
 description: A professional research assistant for academic work
+icon: .magic/logo.png
 ---
 
 You are a professional academic research assistant, skilled in
@@ -42,30 +49,19 @@ Body content is injected into the `<identity>` section of the compiled `.agent` 
 
 ---
 
-## 2. AGENTS.md — Core Operation Instructions (Recommended)
+## 2. AGENTS.md — Workflow Reference Guide (Authoritative Specification)
 
-This employee's specific workflow and rules. **No YAML header**, pure Markdown content.
-
-### Example
-
-```markdown
-## Workflow
-1. Upon receiving a research task, first conduct literature search (at least 3 keyword sets)
-2. Filter and analyze search results
-3. Generate a structured research report with citations
-
-## Special Rules
-- All citations must include sources
-- Prefer Python for data analysis
-- Reports default to HTML format
-```
+Defines this employee's standard operating procedures (SOPs) and rules. **No YAML header**, pure Markdown content. The workflow must clearly state what to do, what the input is, what the output is, and which tool or skill to call for every step.
 
 ### Writing Guidelines
 
-- Prioritize instructions (most important first)
-- Use numbered lists; each instruction should be independent and verifiable
-- Include decision logic (if/then/else); specify priority conflict resolution
-- Define output formats and quality requirements
+- Start with a concise overview of the workflow's purpose, applicable scenarios, and overall sequence.
+- Organize the workflow as SOP steps in execution order; every step must state what to do, its input, its output, and the tool or skill to call.
+- Specify input sources and types, including user text, uploaded images, uploaded files, existing workspace files, and outputs from previous steps.
+- Specify output types and formats, such as Markdown files, HTML files, structured data, execution commands, or directly viewable results.
+- Put tool or skill calls in the steps where they are used; do not provide only a generic list at the end.
+- Include if/then/else decision logic for missing inputs, unsupported formats, and tool failures.
+- Define a verifiable completion condition for every step, along with rules and output quality requirements.
 
 ### Compilation Target
 
@@ -73,9 +69,9 @@ Injected into the `<agents>` section of the compiled `.agent` file.
 
 ---
 
-## 3. SOUL.md — Personality and Behavior Guidelines (Optional)
+## 3. SOUL.md — Personality, Aesthetic, and Behavior Guidelines (Optional)
 
-Defines the employee's personality and behavior guidelines. **No YAML header**, pure Markdown content.
+Defines the employee's personality, aesthetic preferences, and behavior guidelines. **No YAML header**, pure Markdown content.
 
 ### Example
 
@@ -93,6 +89,7 @@ Defines the employee's personality and behavior guidelines. **No YAML header**, 
 ### Writing Guidelines
 
 - Summarize core personality with 3-5 keywords, each with concrete behavioral descriptions
+- Define the employee's aesthetic preferences, including presentation, expression, and creative style
 - Communication style must be actionable ("formal but accessible" over "friendly")
 - Behavior guidelines should clearly define boundaries and forbidden zones
 
@@ -122,7 +119,8 @@ tools:
   - shell_exec
   - write_file
   - edit_file
-  - edit_file_range
+  - find_file_ranges
+  - edit_file_ranges
   - delete_files
 ---
 
@@ -138,6 +136,8 @@ tools:
 - YAML `tools` list → appends extra tools
 - YAML `exclude_builtin_tools` list → removes specific tools from the builtin baseline
 - No TOOLS.md provided → uses default tool set from `crew.template.agent`
+
+Range editing uses `find_file_ranges` and `edit_file_ranges` together. Excluding either removes both from the builtin baseline. Explicit entries in `tools` are added after exclusions: `edit_file_ranges` includes its required finder, while `find_file_ranges` alone remains read-only.
 
 ### Notes
 
@@ -248,7 +248,7 @@ description: "English description of what this skill does and when to trigger"
 ---
 ```
 
-By default, write definition files in one language. If the user explicitly requests multiple languages, use ordinary language-specific sections with clear headings. Do not use HTML comment annotations for translations.
+Write definition files in one selected language. Do not create translations, language-specific duplicate sections, or HTML comment annotations for translations.
 
 Example:
 

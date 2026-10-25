@@ -6,6 +6,7 @@ import {
 	registerPluginSourceElementByKey,
 	resolvePluginSourceElementId,
 } from "../pluginSourceElements"
+import { createTestResourceReferenceResolver } from "../../../../../public/__tests__/testResourceReferenceResolver"
 
 describe("pluginSourceElements", () => {
 	it("hydrates resolved assets by returned asset keys instead of input index", () => {
@@ -28,5 +29,43 @@ describe("pluginSourceElements", () => {
 
 		expect(asset.sourceElementId).toBe("element-b")
 		expect(resolvePluginSourceElementId(sourceElementByAssetKey, [asset.url])).toBe("element-b")
+	})
+
+	it("does not collide current-canvas aliases across resolver contexts", () => {
+		const sourceElementByAssetKey = new Map<string, string>()
+		const canvasAResolver = createTestResourceReferenceResolver({
+			currentCanvasWorkspacePath: "/画布A",
+		})
+		const canvasBResolver = createTestResourceReferenceResolver({
+			currentCanvasWorkspacePath: "/画布B",
+		})
+
+		registerPluginSourceElementByKey(
+			sourceElementByAssetKey,
+			"./images/x.png",
+			"element-a",
+			canvasAResolver,
+		)
+		registerPluginSourceElementByKey(
+			sourceElementByAssetKey,
+			"./images/x.png",
+			"element-b",
+			canvasBResolver,
+		)
+
+		expect(
+			resolvePluginSourceElementId(
+				sourceElementByAssetKey,
+				["/画布A/images/x.png"],
+				canvasAResolver,
+			),
+		).toBe("element-a")
+		expect(
+			resolvePluginSourceElementId(
+				sourceElementByAssetKey,
+				["/画布B/images/x.png"],
+				canvasBResolver,
+			),
+		).toBe("element-b")
 	})
 })

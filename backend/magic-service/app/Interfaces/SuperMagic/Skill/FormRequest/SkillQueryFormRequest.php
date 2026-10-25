@@ -27,9 +27,13 @@ class SkillQueryFormRequest extends FormRequest
             'keyword' => 'nullable|string|max:255',
             'source_type' => 'nullable|string',
             'publisher_type' => 'nullable|string|in:USER,OFFICIAL,VERIFIED_CREATOR,PARTNER,OFFICIAL_BUILTIN',
+            'scope' => 'nullable|string|in:all,created,team_shared,collaborated,market_installed',
+            'is_featured' => 'nullable|boolean',
             // 市场技能库等场景：按 skill_code 批量过滤（不传则不限定）
             'codes' => 'nullable|array|max:1000',
             'codes.*' => 'nullable|string|max:64',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'string',
         ];
     }
 
@@ -44,6 +48,7 @@ class SkillQueryFormRequest extends FormRequest
             'keyword' => trans('skill.keyword'),
             'source_type' => trans('skill.source_type'),
             'publisher_type' => trans('skill.publisher_type'),
+            'scope' => trans('skill.scope'),
         ];
     }
 
@@ -65,10 +70,14 @@ class SkillQueryFormRequest extends FormRequest
             'keyword.max' => trans('skill.keyword_too_long'),
             'source_type.in' => trans('skill.invalid_source_type'),
             'publisher_type.in' => trans('skill.publisher_type_invalid'),
+            'scope.in' => trans('skill.invalid_scope'),
+            'is_featured.boolean' => trans('validation.boolean', ['attribute' => 'is_featured']),
             'codes.array' => trans('skill.query_codes_must_be_array'),
             'codes.max' => trans('skill.query_codes_too_many'),
             'codes.*.string' => trans('skill.query_codes_item_must_be_string'),
             'codes.*.max' => trans('skill.query_codes_item_too_long'),
+            'category_ids.array' => trans('validation.array', ['attribute' => 'category_ids']),
+            'category_ids.*.string' => trans('validation.string', ['attribute' => 'category_ids']),
         ];
     }
 

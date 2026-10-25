@@ -1,0 +1,68 @@
+{
+  "valid": [
+    {
+      "name": "empty",
+      "plain": "",
+      "v1": "SHADOWED_",
+      "v2": "SHADOWED2_"
+    },
+    {
+      "name": "ascii",
+      "plain": "Hello \\uc800 \"test\"\n",
+      "v1": "SHADOWED_;m77Uz=AQqnnz-!mh!-\n",
+      "v2": "SHADOWED2_O203N1V6PUFRcW5uei0hbWghLQo="
+    },
+    {
+      "name": "unicode",
+      "plain": "\uc800\ub294 \ub9e4\uc9c1 \u1000\u10d0\u1780\u1200 \u4e2d\u6587 \u65e5\u672c\u8a9e e\u0301\ud840\udc00\ud834\udd1e",
+      "v1": null,
+      "v2": "SHADOWED2_7aGB6ouVeuqmpe2mgHrggYHggpHgn4HgiYF65bms55eGeueWpOedremrn3ptzYDxoYGB8ZyFnw=="
+    },
+    {
+      "name": "legacy_unicode",
+      "plain": "\uc548\ub155\ud558\uc138\uc694 \u4e2d\u6587",
+      "v1": "SHADOWED_\ud509\ua114\uc519\ud179\ud6d5z\u5e6c\u75c6",
+      "v2": "SHADOWED2_7ZSJ6oSU7JSZ7YW57ZuVeuW5rOeXhg=="
+    },
+    {
+      "name": "prefixes",
+      "plain": "SHADOWED_hello SHADOWED2_data SHADOWED3_unknown",
+      "v1": "SHADOWED_i;6e)1teH\\m77Uzi;6e)1te|H*8!8zi;6e)1teMHAFpFU&F",
+      "v2": "SHADOWED2_aTs2ZSkxdGVIXG03N1V6aTs2ZSkxdGV8SCo4ITh6aTs2ZSkxdGVNSEFGcEZVJkY="
+    },
+    {
+      "name": "bom",
+      "plain": "\ufeff\uc800\ufeff",
+      "v1": null,
+      "v2": "SHADOWED2_7rq+7aGB7rq+"
+    },
+    {
+      "name": "json",
+      "plain": "{\"version\":\"1.0.0\",\"structure\":{\"string\":\"\uc800\"}}",
+      "v1": null,
+      "v2": "SHADOWED2_Ti15bSdoWVVGLU8tPzBuMG4tKC1oISdBUSFBJ20tT04taCEnWUYuLU8t7aGBLWpq"
+    },
+    {
+      "name": "code",
+      "plain": "return ['label' => '\uc800'];",
+      "v1": null,
+      "v2": "SHADOWED2_J20hQSdGemRyNzhTbTdyekwgenLtoYFyRyU="
+    },
+    {
+      "name": "html",
+      "plain": "<p>\uc800\ub294 \ub9e4\uc9c1</p>",
+      "v1": null,
+      "v2": "SHADOWED2_ZnYg7aGB6ouVeuqmpe2mgGZ+diA="
+    }
+  ],
+  "invalid": [
+    "SHADOWED2_!",
+    "SHADOWED2_A",
+    "SHADOWED2_YQ",
+    "SHADOWED2_YQ===",
+    "SHADOWED2_Y R==",
+    "SHADOWED2_YR==",
+    "SHADOWED2_/g==",
+    "SHADOWED3_YQ=="
+  ]
+}

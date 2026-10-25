@@ -3,8 +3,11 @@
  *
  * 向 iframe 内注入 Agent 交互扩展 API：
  *   - window.Magic.agent.getAgents()           — 获取当前可用的员工（Agent）列表
- *   - window.Magic.project.createTopicAndSend() — 新建话题并发送消息
+ *   - window.Magic.project.createTopicAndSend() — 发送消息（多话题会新建）
  *   - window.Magic.project.sendMessage()        — 在当前话题发送消息
+ *
+ * 单话题宿主（龙虾 / 对话）上 createTopicAndSend 会发到当前话题，
+ * 并忽略 options.agentId，沿用 claw/chat 自己的 agent。
  *
  * 向后兼容（deprecated）：
  *   - window.Magic.getAgents()
@@ -14,7 +17,7 @@
  * 所有操作通过 postMessage 委托给主站（parent window）处理。
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
+import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox"
 import { MagicApiLogger } from "./MagicApiLogger"
 
 export interface AgentInfo {
@@ -31,7 +34,7 @@ export interface AgentInfo {
 }
 
 export interface CreateTopicAndSendOptions {
-	/** 指定 Agent ID (mode.identifier) */
+	/** 指定 Agent。单话题宿主（龙虾/对话）会忽略，沿用当前会话。 */
 	agentId?: string
 	/** 指定模型 ID */
 	model?: string

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { getTemporaryDownloadUrl, downloadFileContent } from "@/pages/superMagic/utils/api"
+import { useFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { BrandImageItem } from "../types"
 import type { AttachmentNode } from "../../../services"
 import { CARD_THUMBNAIL_IMAGE_PROCESS } from "../../../constants/imageProcess"
@@ -47,28 +47,18 @@ function findFileIdByRelativePath(
  * then parallel blob downloads.
  */
 async function batchLoadPreviewUrls(
+	fileApi: Pick<FileApi, "getFileContentById">,
 	items: Array<{ id: string; fileId: string }>,
 ): Promise<PreviewResult[]> {
 	if (!items.length) return []
 
-	const fileIds = items.map((i) => i.fileId)
-
-	// Single batched get-file-url request
-	const downloadUrls = await getTemporaryDownloadUrl({
-		file_ids: fileIds,
-		options: { xMagicImageProcess: CARD_THUMBNAIL_IMAGE_PROCESS },
-	})
-
-	if (!downloadUrls || !Array.isArray(downloadUrls)) return []
-
-	const urlMap = new Map(downloadUrls.map((item) => [item.file_id, item.url]))
-
-	// Download blobs in parallel
 	const results = await Promise.allSettled(
 		items.map(async ({ id, fileId }) => {
-			const url = urlMap.get(fileId)
-			if (!url) return null
-			const blob = (await downloadFileContent(url, { responseType: "blob" })) as Blob
+			const blob = (await fileApi.getFileContentById(fileId, {
+				responseType: "blob",
+				xMagicImageProcess: CARD_THUMBNAIL_IMAGE_PROCESS,
+			})) as Blob
+			if (!blob) return null
 			return { id, previewUrl: URL.createObjectURL(blob) }
 		}),
 	)
@@ -83,6 +73,7 @@ export function useBrandImagePreviewHydration({
 	brandImages,
 	onBrandImagesChange,
 }: UseBrandImagePreviewHydrationParams) {
+	const fileApi = useFileApi()
 	const previewUrlsRef = useRef(new Map<string, string>())
 	const [hydratingImageIds, setHydratingImageIds] = useState<Set<string>>(new Set())
 	// Track which image IDs have been hydrated or are in-flight to prevent re-triggering
@@ -130,7 +121,7 @@ export function useBrandImagePreviewHydration({
 			return next
 		})
 
-		void batchLoadPreviewUrls(itemsWithFileId)
+		void batchLoadPreviewUrls(fileApi, itemsWithFileId)
 			.then((hydratedItems) => {
 				if (!hydratedItems.length) return
 
@@ -169,7 +160,7 @@ export function useBrandImagePreviewHydration({
 		return () => {
 			cancelled = true
 		}
-	}, [attachmentList, brandImages, onBrandImagesChange])
+	}, [attachmentList, brandImages, onBrandImagesChange, fileApi])
 
 	useEffect(() => {
 		const currentPreviewUrls = previewUrlsRef.current

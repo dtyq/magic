@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revolut — One app, all things money</title>
+  <style>
+    :root {
+      --canvas-dark: #000000;
+      --surface-deep: #0a0a0a;
+      --surface-elevated: #16181a;
+      --surface-hover: #222529;
+      --primary: #494fdf;
+      --primary-bright: #4f55f1;
+      --primary-deep: #3a40c4;
+      --on-dark: #ffffff;
+      --on-dark-mute: rgba(255, 255, 255, 0.72);
+      --hairline-dark: rgba(255, 255, 255, 0.12);
+      --divider-soft: rgba(255, 255, 255, 0.06);
+      --accent-teal: #00a87e;
+      --accent-pink: #e61e49;
+      --accent-light-blue: #007bc2;
+      --accent-light-green: #428619;
+      --accent-warning: #ec7e00;
+      --font-display: "Aeonik Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--canvas-dark);
+      color: var(--on-dark);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    .shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+    /* Top Navigation */
+    .nav-bar {
+      height: 64px;
+      background: var(--canvas-dark);
+      border-bottom: 1px solid var(--divider-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-left { display: flex; align-items: center; gap: 32px; }
+    .brand-mark { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .brand-logo-r {
+      width: 28px;
+      height: 28px;
+      background: #ffffff;
+      color: #000000;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 19px;
+      line-height: 1;
+    }
+    .brand-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; }
+    .nav-menu { display: flex; gap: 24px; list-style: none; font-size: 14px; font-weight: 500; color: var(--on-dark-mute); }
+    .nav-item:hover { color: #ffffff; cursor: pointer; }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .btn-login { background: transparent; border: none; color: #ffffff; font-size: 14px; font-weight: 600; padding: 8px 16px; cursor: pointer; }
+    .btn-get-app {
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 22px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-get-app:hover { background: #e2e2e7; }
+
+    /* Hero Section */
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 40px;
+      padding: 48px 0 32px;
+      align-items: center;
+    }
+    .hero-copy h1 {
+      font-family: var(--font-display);
+      font-size: clamp(48px, 5.5vw, 84px);
+      font-weight: 500;
+      line-height: 1.0;
+      letter-spacing: -2px;
+      margin-bottom: 24px;
+      color: #ffffff;
+    }
+    .hero-copy p {
+      font-size: 18px;
+      color: var(--on-dark-mute);
+      line-height: 1.55;
+      max-width: 500px;
+      margin-bottom: 32px;
+    }
+    .hero-ctas { display: flex; gap: 14px; align-items: center; }
+    .btn-hero-white {
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      font-size: 16px;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.15s;
+    }
+    .btn-hero-white:hover { transform: translateY(-1px); }
+    .btn-hero-outline {
+      background: transparent;
+      color: #ffffff;
+      border: 1px solid var(--hairline-dark);
+      font-size: 16px;
+      font-weight: 600;
+      padding: 13px 28px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+    }
+
+    /* Premium Metal Card Mockup with Holographic Shine */
+    .metal-card-stage {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      perspective: 1000px;
+    }
+    .metal-card {
+      width: 100%;
+      max-width: 440px;
+      height: 275px;
+      border-radius: var(--radius-lg);
+      background: radial-gradient(circle at 30% 30%, #303338 0%, #17181c 65%, #0d0e10 100%);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 26px 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255,255,255,0.05);
+      transform: rotateY(-8deg) rotateX(4deg);
+      transition: transform 0.3s ease;
+    }
+    .metal-card:hover { transform: rotateY(0deg) rotateX(0deg) scale(1.02); }
+
+    /* Holographic / Iridescent Sheen Layer */
+    .holographic-sheen {
+      position: absolute;
+      top: -100%;
+      left: -50%;
+      right: -50%;
+      bottom: -100%;
+      background: linear-gradient(
+        115deg,
+        transparent 20%,
+        rgba(255, 0, 128, 0.12) 35%,
+        rgba(0, 240, 255, 0.18) 48%,
+        rgba(255, 230, 0, 0.14) 55%,
+        rgba(150, 0, 255, 0.12) 65%,
+        transparent 80%
+      );
+      pointer-events: none;
+      transform: rotate(25deg);
+    }
+    .metal-brushed-lines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.015) 0px,
+        rgba(255, 255, 255, 0.015) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+    }
+    .card-row-top { display: flex; justify-content: space-between; align-items: center; z-index: 2; }
+    .card-emv-chip {
+      width: 48px;
+      height: 36px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #d4d7dc 0%, #8b9098 50%, #b8bcc4 100%);
+      border: 1px solid rgba(0,0,0,0.4);
+      position: relative;
+    }
+    .card-emv-chip::after {
+      content: "";
+      position: absolute;
+      inset: 8px 12px;
+      border: 1px solid rgba(0,0,0,0.25);
+      border-radius: 2px;
+    }
+    .metal-tier-badge {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      color: rgba(255, 255, 255, 0.85);
+      text-transform: uppercase;
+    }
+    .card-mid-logo {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: rgba(255, 255, 255, 0.9);
+      z-index: 2;
+    }
+    .card-row-bot { display: flex; justify-content: space-between; align-items: flex-end; z-index: 2; }
+    .card-holder { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.9); }
+    .card-brand-circles { display: flex; }
+    .circ-1 { width: 28px; height: 28px; border-radius: 50%; background: #eb001b; opacity: 0.9; }
+    .circ-2 { width: 28px; height: 28px; border-radius: 50%; background: #f79e1b; margin-left: -12px; opacity: 0.9; }
+
+    /* 3-Column Bento Cards Grid */
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      padding: 32px 0 64px;
+    }
+    .bento-card {
+      background: var(--surface-elevated);
+      border: 1px solid var(--hairline-dark);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 260px;
+      transition: border-color 0.15s;
+    }
+    .bento-card:hover { border-color: rgba(255,255,255,0.25); }
+    .bento-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .bento-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-md);
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+    }
+    .bento-title { font-size: 20px; font-weight: 600; color: #ffffff; margin-bottom: 6px; }
+    .bento-desc { font-size: 13px; color: var(--on-dark-mute); line-height: 1.5; }
+
+    /* Vault Goals Progress */
+    .vault-progress-track {
+      background: var(--surface-deep);
+      height: 10px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin: 18px 0 10px;
+    }
+    .vault-progress-fill {
+      height: 100%;
+      width: 80%;
+      background: linear-gradient(90deg, #00a87e, #494fdf);
+      border-radius: var(--radius-full);
+    }
+    .vault-stats { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; }
+    .vault-spare-change {
+      margin-top: 14px;
+      background: rgba(0, 168, 126, 0.12);
+      color: var(--accent-teal);
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Fractional Stock Investment Card */
+    .stock-metric-row { display: flex; justify-content: space-between; align-items: baseline; margin: 12px 0 16px; }
+    .stock-price { font-size: 24px; font-weight: 700; color: #ffffff; }
+    .stock-return { font-size: 13px; font-weight: 600; color: var(--accent-teal); }
+    .stock-mini-chart { width: 100%; height: 50px; margin-bottom: 12px; }
+    .stock-btn-row { display: flex; gap: 8px; }
+    .stock-btn {
+      flex: 1;
+      height: 36px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-stock-buy { background: #ffffff; color: #000000; }
+    .btn-stock-sell { background: var(--surface-hover); color: #ffffff; }
+
+    /* Travel Insurance Toggle */
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-top: 1px solid var(--divider-soft);
+      border-bottom: 1px solid var(--divider-soft);
+      margin: 16px 0;
+    }
+    .switch {
+      width: 48px;
+      height: 28px;
+      background: var(--accent-teal);
+      border-radius: var(--radius-full);
+      padding: 3px;
+      cursor: pointer;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .switch-knob {
+      width: 22px;
+      height: 22px;
+      background: #ffffff;
+      border-radius: 50%;
+    }
+    .insurance-perk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--on-dark-mute); margin-bottom: 6px; }
+
+    /* Footer */
+    .revolut-footer {
+      border-top: 1px solid var(--divider-soft);
+      padding: 40px 0 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--on-dark-mute);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="nav-bar">
+    <div class="shell" style="display: flex; justify-content: space-between; width: 100%;">
+      <div class="nav-left">
+        <a href="#" class="brand-mark">
+          <div class="brand-logo-r">R</div>
+          <span class="brand-title">Revolut</span>
+        </a>
+        <ul class="nav-menu">
+          <li class="nav-item">Personal</li>
+          <li class="nav-item">Business</li>
+          <li class="nav-item">Company</li>
+          <li class="nav-item">Metal</li>
+        </ul>
+      </div>
+      <div class="nav-right">
+        <button class="btn-login">Log in</button>
+        <button class="btn-get-app">Get Revolut</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- Hero Section -->
+    <section class="hero-split">
+      <div class="hero-copy">
+        <h1>Banking & Beyond.</h1>
+        <p>Join 70+ million users worldwide. Spend abroad in 150+ currencies at real exchange rates, invest from $1, and unlock premium lifestyle benefits.</p>
+        <div class="hero-ctas">
+          <button class="btn-hero-white">
+            Choose your plan
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+          <button class="btn-hero-outline">Compare benefits</button>
+        </div>
+      </div>
+
+      <!-- Premium Metal Card Mockup with Holographic Shine -->
+      <div class="metal-card-stage">
+        <div class="metal-card">
+          <div class="holographic-sheen"></div>
+          <div class="metal-brushed-lines"></div>
+          
+          <div class="card-row-top">
+            <div class="card-emv-chip"></div>
+            <span class="metal-tier-badge">REVOLUT METAL</span>
+          </div>
+
+          <div class="card-mid-logo">Revolut</div>
+
+          <div class="card-row-bot">
+            <div>
+              <div class="card-holder">Marcus Vance</div>
+              <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px;">VIRTUAL DISPOSABLE ACTIVE</div>
+            </div>
+            <div class="card-brand-circles">
+              <div class="circ-1"></div>
+              <div class="circ-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bento Grid of Key Features -->
+    <section class="bento-grid">
+
+      <!-- 1. Automated Vault Savings Goals -->
+      <div class="bento-card">
+        <div>
+          <div class="bento-card-header">
+            <div class="bento-icon" style="background: rgba(0, 168, 126, 0.15); color: var(--accent-teal);">🔒</div>
+            <span style="font-size: 12px; color: var(--on-dark-mute); font-weight: 600;">VAULT</span>
+          </div>
+          <div class="bento-title">Japan Trip 2026</div>
+          <div class="bento-desc">Automated personal savings vault with spare change accelerator.</div>
+
+          <div class="vault-progress-track">
+            <div class="vault-progress-fill"></div>
+          </div>
+          <div class="vault-stats">
+            <span style="color: #ffffff;">$2,400.00 saved</span>
+            <span style="color: var(--on-dark-mute); font-weight: 500;">Goal: $3,000.00</span>
+          </div>
+        </div>
+
+        <div class="vault-spare-change">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Spare change 3x roundups active (+ $14.20/wk)</span>
+        </div>
+      </div>
+
+      <!-- 2. Fractional Stock Investment Card -->
+      <div class="bento-card">
+        <div>
+          <div class="bento-card-header">
+            <div class="bento-icon" style="background: rgba(73, 79, 223, 0.15); color: var(--primary-bright);">📈</div>
+            <span style="font-size: 12px; color: var(--on-dark-mute); font-weight: 600;">STOCKS</span>
+          </div>
+          <div class="bento-title">Fractional Investing</div>
+          <div class="bento-desc">Own slices of global leaders starting from as little as $1.</div>
+
+          <div class="stock-metric-row">
+            <div>
+              <div style="font-size: 12px; color: var(--on-dark-mute);">Portfolio Value</div>
+              <div class="stock-price">$1,850.40</div>
+            </div>
+            <div class="stock-return">+34.20% (+$471.20)</div>
+          </div>
+
+          <!-- Mini SVG Spline Chart -->
+          <div class="stock-mini-chart">
+            <svg width="100%" height="100%" viewBox="0 0 280 50" preserveAspectRatio="none">
+              <path d="M 0 45 C 50 40, 80 48, 120 25 C 160 8, 200 30, 240 12 L 280 4" fill="none" stroke="#00a87e" stroke-width="2.5"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="stock-btn-row">
+          <button class="stock-btn btn-stock-buy">Buy NVDA</button>
+          <button class="stock-btn btn-stock-sell">Trade</button>
+        </div>
+      </div>
+
+      <!-- 3. Travel Insurance Toggle -->
+      <div class="bento-card">
+        <div>
+          <div class="bento-card-header">
+            <div class="bento-icon" style="background: rgba(0, 123, 194, 0.15); color: var(--accent-light-blue);">🛡️</div>
+            <span style="font-size: 12px; color: var(--accent-teal); font-weight: 700;">COVERED</span>
+          </div>
+          <div class="bento-title">Travel Insurance</div>
+          <div class="bento-desc">Global protection that activates seamlessly when you leave home.</div>
+
+          <div class="toggle-row">
+            <div>
+              <div style="font-size: 14px; font-weight: 600; color: #ffffff;">Automatic Travel Cover</div>
+              <div style="font-size: 12px; color: var(--on-dark-mute);">Worldwide medical & trip protection</div>
+            </div>
+            <div class="switch">
+              <div class="switch-knob"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="insurance-perk">
+            <span style="color: var(--accent-teal);">✓</span>
+            <span>Emergency medical up to £10,000,000</span>
+          </div>
+          <div class="insurance-perk">
+            <span style="color: var(--accent-teal);">✓</span>
+            <span>SmartDelay complimentary lounge pass</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Global Footer -->
+    <footer class="revolut-footer">
+      <div>
+        <strong>Revolut Ltd</strong> — Authorized by the Prudential Regulation Authority & regulated by the Financial Conduct Authority.
+      </div>
+      <div>70M+ Users • 160+ Countries • 0 Foreign Transaction Fees</div>
+    </footer>
+  </main>
+
+</body>
+</html>

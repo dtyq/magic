@@ -1,16 +1,22 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import type { HTMLAttributes } from "react"
+import { createRef, forwardRef, useImperativeHandle, type HTMLAttributes } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
 	mockSilentRefreshSidebarLoadedCaches,
 	mockRefreshResourceStatus,
 	mockFetchWorkspaces,
+	mockRefreshChats,
+	mockSearchWorkspaces,
+	mockSearchProjects,
 	workspaceStoreMock,
 } = vi.hoisted(() => ({
 	mockSilentRefreshSidebarLoadedCaches: vi.fn(),
 	mockRefreshResourceStatus: vi.fn(),
 	mockFetchWorkspaces: vi.fn(),
+	mockRefreshChats: vi.fn().mockResolvedValue(undefined),
+	mockSearchWorkspaces: vi.fn().mockResolvedValue({ list: [], total: 0 }),
+	mockSearchProjects: vi.fn().mockResolvedValue({ list: [], total: 0 }),
 	workspaceStoreMock: {
 		workspaces: [] as Array<{ id: string; name: string; workspace_status?: string }>,
 		selectedWorkspace: null as { id: string } | null,
@@ -18,6 +24,11 @@ const {
 	},
 }))
 
+const locationState = vi.hoisted(() => ({ pathname: "/global/super" }))
+vi.mock("react-router", async (importOriginal) => ({
+	...(await importOriginal<typeof import("react-router")>()),
+	useLocation: () => locationState,
+}))
 vi.mock("mobx-react-lite", () => ({
 	observer: (component: unknown) => component,
 }))
@@ -30,9 +41,33 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@/stores/layout", () => ({
 	sidebarStore: {
+		workspacesExpanded: true,
+		expandedWorkspaces: new Set(),
+		navigationScrollPositions: new Map(),
+		selectNavigationSection: vi.fn(),
 		setActiveWorkspace: vi.fn(),
 		setWorkspaceExpanded: vi.fn(),
 	},
+}))
+
+vi.mock("@/apis", () => ({
+	SuperMagicApi: {
+		getWorkspaces: mockSearchWorkspaces,
+		getProjectsWithCollaboration: mockSearchProjects,
+	},
+}))
+vi.mock("../useWorkspaceListDnd", () => ({ useWorkspaceListDnd: () => ({}) }))
+vi.mock("../ProjectPinBoundaryConfirmDialog", () => ({
+	useProjectPinBoundaryConfirmation: () => ({}),
+}))
+vi.mock("@/pages/superMagic/services/workspaceListSearchInvalidation", () => ({
+	subscribeWorkspaceSearchInvalidation: () => () => undefined,
+}))
+vi.mock("../../ChatWorkspaceItem", () => ({
+	default: forwardRef(function ChatWorkspace({ searchKeyword }: { searchKeyword: string }, ref) {
+		useImperativeHandle(ref, () => ({ refresh: mockRefreshChats }), [])
+		return <div data-testid="chat-workspace" data-search={searchKeyword} />
+	}),
 }))
 
 vi.mock("@/pages/superMagic/stores/core/workspace", () => ({
@@ -88,7 +123,7 @@ vi.mock("@/components/shadcn-ui/sidebar", () => ({
 	),
 }))
 
-vi.mock("@/lib/utils", () => ({
+vi.mock("@/utils/cn", () => ({
 	cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(" "),
 }))
 
@@ -97,11 +132,11 @@ vi.mock("@/utils/testid", () => ({
 }))
 
 /**
- * The sidebar refresh button should only trigger the silent sidebar cache refresh
- * so the UI no longer performs an extra status-only polling request.
+ * The workspace toolbar coordinates project caches and conversations without status-only polling.
  */
 describe("WorkspaceList", () => {
 	beforeEach(() => {
+		locationState.pathname = "/global/super"
 		vi.clearAllMocks()
 		workspaceStoreMock.workspaces = [
 			{
@@ -122,10 +157,34 @@ describe("WorkspaceList", () => {
 		vi.stubGlobal("cancelAnimationFrame", vi.fn())
 	})
 
-	it("refresh button only triggers the silent sidebar cache refresh", async () => {
+	it.each(["/global/super/new-chat", "/global/super/chat/project-1"])(
+		"does not auto-expand the cached workspace on %s",
+		async (pathname) => {
+			locationState.pathname = pathname
+			const { default: WorkspaceList } = await import("../WorkspaceList")
+			const { sidebarStore } = await import("@/stores/layout")
+			render(
+				<WorkspaceList
+					scrollRef={createRef()}
+					scrollAreaRef={createRef()}
+					onOpenManager={vi.fn()}
+				/>,
+			)
+			expect(sidebarStore.setActiveWorkspace).not.toHaveBeenCalled()
+			expect(sidebarStore.setWorkspaceExpanded).not.toHaveBeenCalled()
+			expect(workspaceStoreMock.selectedWorkspace).toEqual({ id: "workspace-1" })
+		},
+	)
+	it("refresh button refreshes both sidebar caches and conversations", async () => {
 		const { default: WorkspaceList } = await import("../WorkspaceList")
 
-		render(<WorkspaceList />)
+		render(
+			<WorkspaceList
+				scrollRef={createRef()}
+				scrollAreaRef={createRef()}
+				onOpenManager={vi.fn()}
+			/>,
+		)
 
 		fireEvent.click(screen.getByTestId("sidebar-workspace-list-refresh"))
 
@@ -134,5 +193,34 @@ describe("WorkspaceList", () => {
 		})
 		expect(mockFetchWorkspaces).not.toHaveBeenCalled()
 		expect(mockRefreshResourceStatus).not.toHaveBeenCalled()
+		expect(mockRefreshChats).toHaveBeenCalledTimes(1)
+	})
+
+	it("shares committed search text with conversations and clears it on exit", async () => {
+		const { default: WorkspaceList } = await import("../WorkspaceList")
+		render(
+			<WorkspaceList
+				scrollRef={createRef()}
+				scrollAreaRef={createRef()}
+				onOpenManager={vi.fn()}
+			/>,
+		)
+		fireEvent.click(screen.getByTestId("sidebar-workspace-list-search"))
+		const input = screen.getByTestId("sidebar-workspace-list-search-input")
+		fireEvent.compositionStart(input)
+		fireEvent.change(input, { target: { value: "计划" } })
+		expect(screen.getByTestId("chat-workspace")).toHaveAttribute("data-search", "")
+		fireEvent.compositionEnd(input)
+		expect(screen.getByTestId("chat-workspace")).toHaveAttribute("data-search", "计划")
+		await waitFor(() =>
+			expect(mockSearchWorkspaces).toHaveBeenCalledWith(
+				expect.objectContaining({ workspace_name: "计划" }),
+			),
+		)
+		expect(mockSearchProjects).toHaveBeenCalledWith(
+			expect.objectContaining({ project_name: "计划" }),
+		)
+		fireEvent.click(screen.getByTestId("sidebar-workspace-list-search-close"))
+		expect(screen.getByTestId("chat-workspace")).toHaveAttribute("data-search", "")
 	})
 })

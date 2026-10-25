@@ -20,7 +20,9 @@ readonly class VideoBillingDetailsResolver
      * @var array<string, array{size: string, width: int, height: int}>
      */
     private const array BILLING_RESOLUTION_DIMENSIONS = [
+        '360p' => ['size' => '640x360', 'width' => 640, 'height' => 360],
         '480p' => ['size' => '854x480', 'width' => 854, 'height' => 480],
+        '768p' => ['size' => '1366x768', 'width' => 1366, 'height' => 768],
         '720p' => ['size' => '1280x720', 'width' => 1280, 'height' => 720],
         '1080p' => ['size' => '1920x1080', 'width' => 1920, 'height' => 1080],
         '2k' => ['size' => '2560x1440', 'width' => 2560, 'height' => 1440],
@@ -62,12 +64,16 @@ readonly class VideoBillingDetailsResolver
     public function resolveFromMetadataWithFallback(VideoMediaMetadata $metadata, VideoQueueOperationEntity $operation): array
     {
         $details = $this->resolveFromMetadata($metadata);
-        if ($details['resolution'] !== null) {
-            return $details;
+        $requestedResolution = $this->resolveResolutionCandidate([
+            $operation->getRawRequest()['generation']['resolution'] ?? null,
+        ]);
+        if ($requestedResolution !== null) {
+            // 计费档位以请求的统一 resolution 为准，媒体文件尺寸只用于记录实际输出尺寸。
+            $details['resolution'] = $requestedResolution;
         }
 
-        $fallbackDetails = $this->resolveFromFallback($operation);
-        if ($fallbackDetails['resolution'] !== null) {
+        if ($details['resolution'] === null) {
+            $fallbackDetails = $this->resolveFromFallback($operation);
             $details['resolution'] = $fallbackDetails['resolution'];
         }
 

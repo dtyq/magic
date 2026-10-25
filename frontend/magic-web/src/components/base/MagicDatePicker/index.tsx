@@ -1,5 +1,5 @@
 import { type DatePickerProps } from "antd"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import MagicDatePickerDesktop from "./MagicDatePickerDesktop"
 import MagicDatePickerMobile from "./MagicDatePickerMobile"

@@ -79,9 +79,10 @@ export interface MobileFloatPanelProps {
 	currentDocumentPath: string
 	folderPath: string
 	urlResolver: (relativePath: string) => Promise<string>
-	onImageUploadSuccess?: (relativePath: string) => void
+	onImageUploadSuccess?: (relativePath: string) => void | Promise<void>
 	editorRef?: React.RefObject<SimpleEditorRef>
 	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
+	requireImagesFolderParentId?: boolean
 }
 
 function MobileFloatPanel(props: MobileFloatPanelProps) {
@@ -124,9 +125,11 @@ function MobileFloatPanel(props: MobileFloatPanelProps) {
 		recordSummaryFileStore,
 		currentDocumentPath,
 		folderPath,
+		onImageUploadSuccess,
 		urlResolver,
 		editorRef,
 		resolveImagesFolderParentId,
+		requireImagesFolderParentId,
 	} = props
 
 	const { handleTouchDown, isDragging, isSnapping, elementRef } = useTouchDraggable({
@@ -393,8 +396,9 @@ function MobileFloatPanel(props: MobileFloatPanelProps) {
 							urlResolver={urlResolver}
 							className={styles.editorBody}
 							folderPath={folderPath}
-							onImageUploadSuccess={checkNowDebounced}
+							onImageUploadSuccess={onImageUploadSuccess}
 							resolveImagesFolderParentId={resolveImagesFolderParentId}
+							requireImagesFolderParentId={requireImagesFolderParentId}
 							editorRef={editorRef}
 							placeholder={t("recordingSummary.ui.editorPlaceholder")}
 						/>

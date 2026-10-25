@@ -10,6 +10,7 @@ namespace HyperfTest\Cases\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\ErrorCode\VideoGenerateErrorCode;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use GuzzleHttp\Client;
@@ -24,6 +25,16 @@ use RuntimeException;
 class CloudswayVeoVideoAdapterTest extends TestCase
 {
     private const string ENDPOINT_ID = 'LCnVzCkkMnVulyrz';
+
+    public function testResolvesPersonalModelByItsModelVersion(): void
+    {
+        $adapter = new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class)));
+
+        $this->assertNotNull($adapter->resolveGenerationConfig(
+            'veo-3.1-generate-preview',
+            'org-1_veo-3.1-generate-preview',
+        ));
+    }
 
     public function testResolveGenerationConfigForFastModelHidesUnsupportedReferenceImages(): void
     {
@@ -66,6 +77,20 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $this->assertSame([
             'reference_images_requires_duration_seconds' => 8,
         ], $config->toArray()['constraints']);
+    }
+
+    public function testResolveGenerationConfigForPersonalProModelExposesReferenceImages(): void
+    {
+        $adapter = new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class)));
+
+        $config = $adapter->resolveGenerationConfig(
+            'veo-3.1-generate-preview',
+            'org-1_veo-3.1-generate-preview',
+        );
+
+        $this->assertNotNull($config);
+        $this->assertContains('reference_images', $config->toArray()['supported_inputs']);
+        $this->assertSame(3, $config->toArray()['reference_images']['max_count']);
     }
 
     public function testBuildProviderPayloadMapsPromptFramesReferenceImagesAndGeneration(): void
@@ -416,7 +441,7 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $adapter = new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class)));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('cloudsway endpoint id missing');
+        $this->expectExceptionMessage(VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
 
         $adapter->query(
             new VideoQueueOperationEntity(

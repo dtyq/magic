@@ -16,7 +16,7 @@ import {
 	ContextMenuSubTrigger,
 	ContextMenuSubContent,
 } from "@/components/shadcn-ui/context-menu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ConvertOptions {
 	onClick?: (info: { key: string; keyPath?: string[]; domEvent?: Event }) => void

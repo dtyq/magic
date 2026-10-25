@@ -2,10 +2,16 @@ import type { RecordingTopicSection } from "../types/recording-detail"
 import { parseRecordingTimeToSeconds } from "./time"
 
 /**
- * Pastel fallback palette aligned with the recording-detail prototype chapter themes.
- * Used only when the topics markdown header omits an explicit `#hex` color token.
+ * Saturated chapter colors copied from the legacy audio HTML preview (`topicColorPalette`).
+ * Markdown headers may include a pastel `#hex`, but that token is for the model prompt only.
+ * Dots and the waveform line use this palette by chapter order so the colors stay visible.
  */
-const TOPIC_COLORS_FALLBACK = ["#e0e0e0", "#a8d5f7", "#c5e1a5", "#ffd9b3", "#d4c5f0", "#ffccbc"]
+const TOPIC_COLOR_PALETTE = ["#0d6efd", "#198754", "#ffc107", "#dc3545", "#0dcaf0", "#6f42c1"]
+
+/** Picks the display color for a chapter. Index 0 is blue; index 6 wraps back to blue. */
+function resolveTopicDisplayColor(index: number): string {
+	return TOPIC_COLOR_PALETTE[index % TOPIC_COLOR_PALETTE.length]
+}
 
 /** Normalizes generated topic ids so they are safe as React keys and DOM data attributes. */
 function normalizeTopicId(rawId: string, index: number): string {
@@ -30,13 +36,14 @@ export function parseTopicsMarkdown(markdown: string): RecordingTopicSection[] {
 
 /** Parses one topic block into summary copy and clickable related-dialogue items. */
 function parseTopicBlock(block: string, index: number): RecordingTopicSection | null {
-	// Header format: `### 📌 {id} | {name} | {#hex}` — hex is optional (prototype-aligned).
+	// Header format: `### 📌 {id} | {name} | {#hex}`. The hex is optional and is not used for display.
 	const headerMatch = block.match(
 		/^### 📌 (\S+)\s*\|\s*([^|\n]+?)(?:\s*\|\s*(#[0-9a-fA-F]{3,8}))?\s*$/m,
 	)
 	if (!headerMatch) return null
 
-	const [, rawId, rawName, rawColor] = headerMatch
+	// Hex in the header is ignored. Display color follows chapter order, same as the HTML preview.
+	const [, rawId, rawName] = headerMatch
 	const h4Lines = block.match(/^####\s+.+$/gm) ?? []
 	const summaryTitle = h4Lines[0]?.replace(/^####\s*/, "").trim() ?? ""
 	const itemsTitle = h4Lines[1]?.replace(/^####\s*/, "").trim() ?? ""
@@ -55,7 +62,7 @@ function parseTopicBlock(block: string, index: number): RecordingTopicSection | 
 	return {
 		id: normalizeTopicId(rawId, index),
 		name: rawName.trim(),
-		color: rawColor?.trim() ?? TOPIC_COLORS_FALLBACK[index % TOPIC_COLORS_FALLBACK.length],
+		color: resolveTopicDisplayColor(index),
 		summaryTitle,
 		summaryText: cleanSummary,
 		summarySpeakers,

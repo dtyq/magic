@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 
 export type MaybeEditor = Editor | null | undefined
 

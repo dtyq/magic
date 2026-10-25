@@ -14,6 +14,7 @@ enum WebScrapeProvider: string
 {
     case Cloudsway = 'cloudsway';
     case Magic = 'magic';
+    case DeepSeek = 'deepseek';
 
     /**
      * 获取提供商名称.
@@ -23,6 +24,7 @@ enum WebScrapeProvider: string
         return match ($this) {
             self::Cloudsway => 'Cloudsway',
             self::Magic => 'Magic',
+            self::DeepSeek => 'DeepSeek',
         };
     }
 
@@ -34,6 +36,7 @@ enum WebScrapeProvider: string
         return match ($this) {
             self::Cloudsway => 'Cloudsway网页爬取服务',
             self::Magic => 'Magic网页爬取服务（私有化环境）',
+            self::DeepSeek => 'DeepSeek网页抓取服务',
         };
     }
 
@@ -47,6 +50,7 @@ enum WebScrapeProvider: string
         return match ($this) {
             self::Cloudsway => ['name', 'enable', 'request_url', 'api_key'],
             self::Magic => ['name', 'enable', 'request_url', 'api_key'],
+            self::DeepSeek => ['name', 'enable', 'request_url', 'api_key'],
         };
     }
 
@@ -60,6 +64,7 @@ enum WebScrapeProvider: string
         return match ($this) {
             self::Cloudsway => ['timeout'],
             self::Magic => ['timeout'],
+            self::DeepSeek => ['timeout'],
         };
     }
 
@@ -83,6 +88,13 @@ enum WebScrapeProvider: string
                 'api_key' => 'your_access_token_here',
                 'timeout' => 30,
             ],
+            self::DeepSeek => [
+                'name' => 'deepseek',
+                'enable' => false,
+                'request_url' => 'https://api.deepseek.com/v1/tools/fetch',
+                'api_key' => 'your_api_key_here',
+                'timeout' => 30,
+            ],
         };
     }
 
@@ -94,6 +106,7 @@ enum WebScrapeProvider: string
         return match ($this) {
             self::Cloudsway => CloudswayWebScrape::class,
             self::Magic => MagicWebScrape::class,
+            self::DeepSeek => DeepSeekWebScrape::class,
         };
     }
 

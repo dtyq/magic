@@ -7,9 +7,6 @@ import type {
 	PPTTableNode,
 	PPTTextNode,
 } from "./node"
-import type { SlideConfig } from "../api/options"
-import type { ResourceLoadError } from "../api/options"
-import type { EmbedFontInput } from "../api/font"
 
 /**
  * Serialization layer: PPT node shapes and wrappers used across the worker boundary.
@@ -40,42 +37,6 @@ export type SerializablePPTNode =
 	| SerializablePPTBorderLineNode
 	| SerializablePPTMediaNode
 
-// ============================================================================
-// Worker message contract
-// ============================================================================
-
-export interface PackagePresentationInput {
-	config: SlideConfig
-	fileName: string
-	slides: SerializablePPTNode[][]
-	/** Background color for each slide (hex without #), aligned with slides */
-	slideBackgrounds?: (string | null)[]
-	/** Fonts to embed, passed in as ArrayBuffers downloaded by the main thread in advance */
-	embedFonts?: EmbedFontInput[]
-}
-
-export interface PackagePresentationWorkerRequest {
-	type: "package"
-	payload: PackagePresentationInput
-}
-
-export interface PackagePresentationWorkerSuccess {
-	type: "success"
-	buffer: ArrayBuffer
-	/** Recoverable image/resource failures collected inside the packaging worker. */
-	resourceErrors?: ResourceLoadError[]
-}
-
-export interface PackagePresentationWorkerError {
-	type: "error"
-	error: string
-}
-
-export type PackagePresentationWorkerResponse =
-	| PackagePresentationWorkerSuccess
-	| PackagePresentationWorkerError
-
-// ============================================================================
 // Node to serializable node
 // ============================================================================
 

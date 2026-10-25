@@ -535,6 +535,23 @@ export function useDragMove({
 		}
 	}, [debug])
 
+	const resetDragVisualState = useCallback(() => {
+		hideMoveIndicator()
+		document.body.classList.remove("dragging-files")
+		setDragState({
+			draggingFileIds: [],
+			draggingItems: [],
+			dropTargetFolderId: null,
+			isDragging: false,
+			indicatorPosition: null,
+			dragOperation: null,
+			isDragOverRoot: false,
+			isExternalDrag: false,
+			dragIndicatorType: null,
+		})
+		dragCounterRef.current.clear()
+	}, [hideMoveIndicator])
+
 	const updateDragHoverState = useCallback(
 		(
 			nextHoverState: Pick<
@@ -631,33 +648,11 @@ export function useDragMove({
 	// 拖拽结束
 	const handleDragEnd = useCallback(() => {
 		if (debug) {
-			console.log("🏁 拖拽结束", {
-				remainingCounters: Object.fromEntries(dragCounterRef.current),
-			})
+			console.log("🏁 拖拽结束")
 		}
 
-		// 强制隐藏移动提示
-		hideMoveIndicator()
-
-		// 恢复 tooltips 显示
-		document.body.classList.remove("dragging-files")
-
-		// 重置状态
-		setDragState({
-			draggingFileIds: [],
-			draggingItems: [],
-			dropTargetFolderId: null,
-			isDragging: false,
-			indicatorPosition: null,
-			dragOperation: null,
-			isDragOverRoot: false,
-			isExternalDrag: false,
-			dragIndicatorType: null,
-		})
-
-		// 清空拖拽计数器（强制清理，防止 leave 事件丢失）
-		dragCounterRef.current.clear()
-	}, [debug, hideMoveIndicator])
+		resetDragVisualState()
+	}, [debug, resetDragVisualState])
 
 	// 拖拽进入目标
 	const handleDragEnter = useCallback(
@@ -1160,23 +1155,23 @@ export function useDragMove({
 					return
 				}
 
-				try {
-					if (debug) {
-						console.log("📦 执行文件移动:", {
-							fileIds,
-							targetFolder: actualTarget?.file_name || "根目录",
-							targetFolderId,
-						})
-					}
-
-					await onMoveFiles?.(fileIds, targetFolderId)
-				} catch (error) {
-					console.error("文件移动失败:", error)
-					magicToast.error(t("topicFiles.dragMove.moveFailed", "文件移动失败"))
-				} finally {
-					// 清空拖拽计数器
-					dragCounterRef.current.clear()
+				if (debug) {
+					console.log("📦 执行文件移动:", {
+						fileIds,
+						targetFolder: actualTarget?.file_name || "根目录",
+						targetFolderId,
+					})
 				}
+
+				// Reset drag UI immediately; defer move submit to avoid blocking paint.
+				resetDragVisualState()
+
+				setTimeout(() => {
+					void onMoveFiles?.(fileIds, targetFolderId).catch((error) => {
+						console.error("文件移动失败:", error)
+						magicToast.error(t("topicFiles.dragMove.moveFailed", "文件移动失败"))
+					})
+				}, 0)
 				return
 			}
 
@@ -1211,6 +1206,7 @@ export function useDragMove({
 			allowExternalDrop,
 			handleExternalFilesDrop,
 			hideMoveIndicator,
+			resetDragVisualState,
 			t,
 			debug,
 			dragState.draggingItems,

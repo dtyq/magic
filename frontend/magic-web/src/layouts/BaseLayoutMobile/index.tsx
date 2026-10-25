@@ -4,7 +4,7 @@ import { useMemoizedFn } from "ahooks"
 import MemberCardStore from "@/stores/display/MemberCardStore"
 import { KeepAliveRoute } from "@/constants/keepAliveRoutes"
 import { useKeepAlive } from "@/hooks/router/useKeepAlive"
-import { useStyles } from "./styles"
+import { cn } from "@/utils/cn"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { OrganizationSwitchPanel } from "./components/OrganizationSwitch"
 import { lazy, Suspense, useMemo } from "react"
@@ -39,7 +39,6 @@ const keepAliveRoutes: KeepAliveRoute[] = [RoutePathMobile.MobileTabs]
 const BaseLayoutMobile = () => {
 	const navigate = useNavigate()
 	const location = useLocation()
-	const { styles, cx } = useStyles()
 	const antdMobileLocale = useAntdMobileLocale()
 	const { isUp: isSoftKeyboardOpen } = useMonitorSoftKeyboard({
 		// Restore the bottom safe area as soon as keyboard dismissal begins to avoid a second layout jump.
@@ -95,17 +94,15 @@ const BaseLayoutMobile = () => {
 			<MobileDocumentThemeProvider>
 				<GlobalSafeAreaSync />
 				<MobileDocumentThemeSync />
-				<div className={styles.root}>
+				{/* Match the page and safe-area background to avoid gray seams on mobile. */}
+				<div className="flex h-full flex-col overflow-hidden bg-mobile-background">
 					<GlobalSafeArea direction="top" />
 					<MaintenanceNotice />
 					<div
-						className={cx(styles.container, {
-							[styles.view]: hasVisibleTabBar,
-							[styles.noGlobalSafeAreaWithoutTabBar]:
+						className={cn("min-h-0 flex-1 bg-mobile-background", {
+							"h-full":
 								(!shouldShowTabBar || !interfaceStore.mobileTabBarVisible) &&
 								isNoGlobalSafeArea,
-							[styles.noGlobalSafeAreaWithTabBar]:
-								hasVisibleTabBar && isNoGlobalSafeArea,
 						})}
 						onClick={handleClick}
 					>

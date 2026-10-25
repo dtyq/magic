@@ -7,10 +7,11 @@ import MagicModal from "@/components/base/MagicModal"
 import { Button } from "@/components/shadcn-ui/button"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import SuperMagicService from "@/pages/superMagic/services"
 import { workspaceStore } from "@/pages/superMagic/stores/core"
 import IconWorkspace from "@/pages/superMagic/components/icons/IconWorkspace"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 interface ChatSaveAsProjectModalProps {
 	open: boolean
@@ -46,7 +47,7 @@ function ChatSaveAsProjectModal({
 	useEffect(() => {
 		if (!open) return
 
-		setProjectName(defaultProjectName)
+		setProjectName(defaultProjectName.slice(0, 100))
 		void SuperMagicService.workspace.fetchWorkspaces({ page: 1 })
 	}, [defaultProjectName, open])
 
@@ -64,7 +65,7 @@ function ChatSaveAsProjectModal({
 
 	/** Submit save-as payload after validating required fields. */
 	const handleConfirm = useMemoizedFn(() => {
-		const trimmedName = projectName.trim()
+		const trimmedName = projectName.trim().slice(0, 100)
 		if (!trimmedName || !selectedWorkspaceId || isSubmitting) return
 
 		onConfirm({
@@ -121,9 +122,10 @@ function ChatSaveAsProjectModal({
 					<span className="text-sm font-medium text-foreground">
 						{t("chat.workspaceLabel")}
 					</span>
-					<div
-						className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border p-1"
-						data-testid="chat-save-as-project-workspace-list"
+					<ScrollArea
+						className="min-h-0 flex-1 rounded-lg border border-border"
+						viewportClassName="p-1 [&>div]:!flex [&>div]:flex-col [&>div]:gap-0.5"
+						viewportProps={{ "data-testid": "chat-save-as-project-workspace-list" }}
 					>
 						{selectableWorkspaces.length === 0 ? (
 							<div className="px-3 py-6 text-center text-sm text-muted-foreground">
@@ -155,7 +157,7 @@ function ChatSaveAsProjectModal({
 								</div>
 							))
 						)}
-					</div>
+					</ScrollArea>
 				</div>
 			</div>
 
@@ -165,7 +167,12 @@ function ChatSaveAsProjectModal({
 				</Button>
 				<Button
 					className="h-9 px-4"
-					disabled={!projectName.trim() || !selectedWorkspaceId || isSubmitting}
+					disabled={
+						!projectName.trim() ||
+						projectName.length > 100 ||
+						!selectedWorkspaceId ||
+						isSubmitting
+					}
 					onClick={handleConfirm}
 					data-testid="chat-save-as-project-confirm"
 				>

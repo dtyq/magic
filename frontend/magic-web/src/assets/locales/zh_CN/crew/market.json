@@ -14,6 +14,115 @@
 		"starCrew": "明星员工",
 		"techDev": "技术开发"
 	},
+	"connectors": {
+		"add": "添加",
+		"added": "已添加",
+		"addedList": "已安装的",
+		"available": "可用",
+		"category": "连接器分类",
+		"close": "关闭连接器面板",
+		"collapseDescription": "收起",
+		"create": "创建连接器",
+		"createForm": {
+			"addParameter": "添加参数",
+			"close": "关闭",
+			"descriptionPlaceholder": "例如：用于访问外部服务",
+			"editTitle": "编辑 MCP 连接器",
+			"env": "环境变量",
+			"headersLabel": "Headers",
+			"iconHint": "PNG/JPG，建议尺寸 100×100",
+			"importToolsRequired": "导入工具不可为空",
+			"jsonHint": "JSON MCP 配置",
+			"key": "键",
+			"loadFailed": "连接器配置加载失败",
+			"loading": "加载中…",
+			"mcpAuthorization": "OAuth 2.0（MCP 服务授权）",
+			"mcpAuthorizationLabels": {
+				"additionalParams": "额外授权参数",
+				"applicationType": "应用类型",
+				"authorizationEndpoint": "授权端点（Authorization Endpoint）",
+				"authorizationServerUrl": "授权服务器地址（Authorization Server URL）",
+				"clientId": "Client ID",
+				"clientMetadataUrl": "客户端元数据地址（Client Metadata URL）",
+				"clientSecret": "客户端密钥（Client Secret）",
+				"registrationEndpoint": "客户端注册端点（Registration Endpoint）",
+				"registrationMode": "客户端注册方式",
+				"resource": "受保护资源地址（Resource）",
+				"resourceMetadataUrl": "资源元数据地址（Resource Metadata URL）",
+				"scope": "授权范围（Scope）",
+				"tokenEndpoint": "Token 端点（Token Endpoint）",
+				"tokenEndpointAuthMethod": "Token 端点认证方式"
+			},
+			"name": "名称",
+			"namePlaceholder": "例如：我的连接器",
+			"oauthLabels": {
+				"authorizationContentType": "Authorization Content Type",
+				"authorizationMethod": "Token Request Method",
+				"authorizationUrl": "Authorization URL",
+				"clientId": "Client ID",
+				"clientSecret": "Client Secret",
+				"clientUrl": "Client URL",
+				"scope": "Scope"
+			},
+			"oauthRequired": "请输入 {{name}}",
+			"registrationModes": {
+				"auto": "自动发现",
+				"cimd": "客户端元数据（CIMD）",
+				"dcr": "动态注册（DCR）",
+				"pre_registered": "预注册（Pre-registered）"
+			},
+			"removeRow": "移除参数",
+			"saveFailed": "保存失败",
+			"saving": "保存中…",
+			"title": "创建 MCP 连接器",
+			"type": "类型",
+			"uploadIcon": "上传图标",
+			"uploading": "上传中…",
+			"url": "服务地址 (URL)",
+			"urlPlaceholder": "例如：https://example.com"
+		},
+		"createMcp": "创建 MCP 连接器",
+		"createSuccess": "创建连接器成功",
+		"delete": "删除",
+		"deleteConfirm": {
+			"confirm": "删除",
+			"description": "删除后无法恢复，请谨慎操作。",
+			"title": "确认删除「{{name}}」？"
+		},
+		"deleteFailed": "删除连接器失败",
+		"deleteSuccess": "删除连接器成功",
+		"description": "描述",
+		"descriptionFallback": "暂无描述",
+		"disable": "禁用",
+		"disabled": "已禁用",
+		"edit": "编辑",
+		"editConfig": "修改配置",
+		"editSuccess": "连接器更新成功",
+		"empty": "暂无连接器",
+		"enable": "启用",
+		"enabled": "已启用",
+		"expandDescription": "展开",
+		"install": "安装连接器",
+		"installShort": "安装",
+		"loadFailed": "连接器加载失败，请重试",
+		"mine": "我的连接器",
+		"moreActionsAria": "更多操作",
+		"official": "官方连接器",
+		"offline": "离线",
+		"remove": "移除",
+		"retry": "重试",
+		"saveAndAdd": "保存并添加",
+		"saveConfig": "保存配置",
+		"searchAria": "搜索连接器",
+		"searchPlaceholder": "搜索连接器",
+		"searchSheetTitle": "搜索连接器",
+		"status": "状态",
+		"statusUpdateFailed": "状态更新失败",
+		"subtitle": "探索并管理可用的 AI 连接器",
+		"title": "连接器",
+		"updatedAt": "更新于 {{dateTime}}",
+		"updatedAtLabel": "更新于"
+	},
 	"conversation": "对话",
 	"createCrew": "创建员工",
 	"crewConversation": {
@@ -85,6 +194,7 @@
 		"publisherVerified": "认证创作者"
 	},
 	"hire": "雇用",
+	"hireMoreCrew": "雇佣更多员工",
 	"importSkill": {
 		"buttons": {
 			"back": "上一步",
@@ -105,7 +215,8 @@
 			"browseFiles": "浏览文件",
 			"browseFolder": "浏览文件夹",
 			"browseHint": "或点击浏览文件/文件夹（一次最多导入 1 项，文件仅支持 .zip 或 .skill 格式）",
-			"dragDrop": "拖拽文件或文件夹到此处"
+			"dragDrop": "拖拽文件或文件夹到此处",
+			"fileRequirement": "上传文件须为 .zip 或 .skill 格式"
 		},
 		"identity": {
 			"description": "描述",
@@ -150,6 +261,7 @@
 		"runSearch": "搜索",
 		"searchSheetTitle": "搜索员工"
 	},
+	"moreCrewTooltip": "更多员工",
 	"myCrew": "我的员工",
 	"myCrewPage": {
 		"addSheet": {
@@ -167,6 +279,9 @@
 			"title": "添加员工"
 		},
 		"badgeUpdated": "待更新",
+		"copyUsageLink": "复制使用链接",
+		"copyUsageLinkFailed": "复制使用链接失败",
+		"copyUsageLinkSuccess": "使用链接已复制",
 		"crewType": {
 			"ariaLabel": "员工类型",
 			"collaborated": "我协作的",
@@ -311,6 +426,7 @@
 		"subscribe": "订阅",
 		"subtitle": "您的专属专业技能集合。",
 		"tabs": {
+			"collaborated": "我协作的",
 			"createdByMe": "我创建的",
 			"fromSkillsLibrary": "来自技能库",
 			"sharedByTeam": "团队共享"
@@ -323,10 +439,94 @@
 		"updatedAt": "更新于 {{date}}"
 	},
 	"noMoreData": "没有更多数据。",
-	"noResults": "暂无结果。",
+	"noResults": "暂无结果",
+	"officialSkillImport": {
+		"adminOnly": "管理员",
+		"buttons": {
+			"cancel": "取消",
+			"changeFile": "更换文件",
+			"confirm": "确认上传",
+			"importNow": "立即导入",
+			"next": "下一步"
+		},
+		"close": "关闭官方技能上传",
+		"createNew": "新建",
+		"defaultSource": "官方",
+		"description": "将官方 Skill 发布到技能库。支持单个完善信息上传，也支持已有 file_key 的批量导入。",
+		"direct": {
+			"failed": "{{count}} 个失败",
+			"fileKeysHint": "每行一个 file_key，也支持用英文逗号分隔。多个文件将使用下面同一份元信息依次导入。",
+			"fileKeysLabel": "文件 Key",
+			"fileKeysPlaceholder": "组织编码/.../skills/example.zip",
+			"progress": "已处理 {{done}} / {{total}}",
+			"warningDescription": "直接导入不会经过解析和预览，请确认 file_key 已存在于私有对象存储，且下面的名称、描述和版本适用于这些 Skill。",
+			"warningTitle": "适用于已有 file_key 的批量导入"
+		},
+		"errors": {
+			"categoriesFailed": "分类加载失败，请稍后重试。",
+			"fileKeysRequired": "请至少填写一个 file_key。",
+			"fileTooLarge": "Skill 压缩包不能超过 100 MB。",
+			"importFailed": "官方 Skill 导入失败，请稍后重试。",
+			"invalidFile": "仅支持 .zip 或 .skill 文件。",
+			"parseFailed": "官方 Skill 解析失败，请检查压缩包内是否包含有效的 SKILL.md。",
+			"requiredFields": "请完善版本、英文名称和英文描述。"
+		},
+		"fields": {
+			"category": "分类",
+			"categoryHint": "可多选",
+			"descriptionPlaceholder": "请输入官方 Skill 描述",
+			"featured": "精选",
+			"featuredHint": "展示在精选区域",
+			"hidden": "隐藏",
+			"hiddenHint": "不在技能库展示",
+			"loadingCategories": "正在加载分类...",
+			"namePlaceholder": "请输入官方 Skill 名称",
+			"noCategories": "暂无可用分类",
+			"offline": "下线",
+			"published": "立即发布",
+			"sortOrder": "排序值",
+			"sourcePlaceholder": "例如：Magi 官方团队",
+			"status": "市场状态",
+			"version": "版本"
+		},
+		"footerHint": "导入后可在技能库继续维护市场信息",
+		"modes": {
+			"direct": "直接导入",
+			"manual": "手动上传"
+		},
+		"steps": {
+			"completeInfo": "完善信息",
+			"selectFile": "选择文件"
+		},
+		"success": {
+			"batch": "已成功导入 {{count}} 个官方 Skill。",
+			"created": "官方 Skill 创建成功。",
+			"partial": "成功导入 {{success}} 个，{{failed}} 个失败。",
+			"updated": "官方 Skill 更新成功。"
+		},
+		"title": "上传官方 Skill",
+		"updateExisting": "更新",
+		"upload": {
+			"browse": "选择压缩包",
+			"dropHint": "仅支持 .zip 或 .skill，压缩包及解压后总大小不超过 100 MB",
+			"dropTitle": "拖拽官方 Skill 压缩包到这里",
+			"remove": "移除文件"
+		}
+	},
 	"pptEmployee": {
 		"delivered": "已制作 {{marker}} 页",
 		"deliveredPrivate": "已制作 {{marker}} 套"
+	},
+	"publishScopeNotice": {
+		"attachmentsLoadFailed": "项目文件仍在加载，暂时无法确认发布范围，请稍后重试。",
+		"cancel": "取消",
+		"confirm": "请确认需要发布的文件位于该目录内。",
+		"continue": "继续发布",
+		"intro": "当前项目中存在发布范围外的文件。",
+		"morePaths": "还有 {{count}} 个路径未显示",
+		"outsidePathsLabel": "发布范围外的路径",
+		"scopeLabel": "本次发布范围",
+		"title": "请确认发布文件范围"
 	},
 	"skillDetailDialog": {
 		"collapse": "收起",
@@ -379,7 +579,9 @@
 		"publishPanel": {
 			"actions": {
 				"cancel": "取消",
-				"publish": "发布"
+				"publish": "发布",
+				"publishing": "发布中…",
+				"publishingWithProgress": "发布中 {{progress}}%"
 			},
 			"create": {
 				"channelChangeConfirm": {
@@ -512,44 +714,68 @@
 				"ensureSkillConfigFailed": "自动生成 skill_config.yaml 失败，请稍后重试",
 				"noValidSkillForPublish": "未找到有效的技能目录（需存在 .magic/skills/<名称>/SKILL.md），无法发布",
 				"publishFailed": "发布失败，请稍后重试",
+				"publishInProgress": "已有发布任务正在处理中，请等待完成后再提交新的发布内容",
 				"publishNeedsProject": "未关联项目工作区，无法发布",
-				"publishSuccess": "发布成功"
+				"publishSuccess": "发布成功",
+				"publishTaskExpired": "发布任务不存在或已过期，请重新发布",
+				"publishTimeout": "发布处理时间较长，请稍后在版本列表中查看结果，或重新发起发布"
 			}
 		},
 		"untitledSkill": "未命名技能"
 	},
 	"skillsLibrary": {
+		"actionFailed": "技能操作失败，请稍后重试",
+		"addFailed": "添加技能失败，请稍后重试",
 		"addToMySkills": "添加到我的技能",
 		"added": "已添加",
-		"aiSearchPlaceholder": "输入关键词或描述您需要的技能",
+		"adding": "添加中",
+		"aiSearchPlaceholder": "搜索技能、能力或使用场景",
+		"allSkills": "全部技能",
 		"authorFallback": "用户名",
+		"categoriesLoadFailed": "分类加载失败",
+		"category": "分类",
+		"community": "社区",
 		"createMenu": {
 			"createViaChat": "通过对话创建",
 			"createViaChatDesc": "通过对话构建强大的技能",
 			"createViaChatFailed": "创建技能失败，请稍后重试。",
 			"importFromGithub": "从 GitHub 导入",
 			"importFromGithubDesc": "直接从公开的 GitHub 仓库导入技能",
+			"importOfficialSkill": "上传官方 Skill",
+			"importOfficialSkillDesc": "管理员上传并维护官方技能",
 			"importSkill": "导入技能",
 			"importSkillDesc": "上传 .Skill、.Zip 或文件夹"
 		},
 		"createSkill": "创建技能",
 		"featured": "精选",
+		"featuredLoadFailed": "精选技能加载失败，请重试。",
+		"featuredSkills": "精选技能",
+		"installCount": "{{formattedCount}} 次安装",
+		"installCountLabel": "安装数",
+		"loadFailed": "技能加载失败，请重试",
 		"mySkills": "我的技能",
 		"noMoreData": "没有更多数据。",
 		"official": "官方",
+		"refreshFeatured": "换一换",
 		"removeFromMySkills": "从我的技能中移除",
+		"retryFeatured": "重试",
+		"retrySkills": "重试",
 		"searchAria": "搜索技能",
 		"searchSheetTitle": "搜索技能",
-		"subtitle": "探索新能力，为你的数字员工装备技能。",
-		"title": "技能库",
+		"subtitle": "探索并安装适合你的 AI 技能",
+		"title": "技能",
 		"updatedAt": "更新于 {{dateTime}}",
-		"upgrade": "升级"
+		"updatedAtLabel": "更新于",
+		"upgrade": "升级",
+		"uploadOfficialSkill": "上传官方 Skill"
 	},
 	"subtitle": "发现并雇用你的专属数字员工。",
 	"tabs": {
+		"connectors": "连接器",
 		"crewMarket": "员工市场",
+		"digitalEmployees": "数字员工",
 		"organizationShared": "组织共享",
-		"skillsLibrary": "技能库"
+		"skillsLibrary": "技能"
 	},
 	"title": "数字员工市场",
 	"updateSkill": {

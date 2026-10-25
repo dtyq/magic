@@ -18,6 +18,7 @@ import type {
 	CanvasReferenceElementsContext,
 	ProjectAttachmentMentionNode,
 } from "@/components/CanvasDesign/public/props"
+import type { ResolveCanvasResourceReference } from "@/components/CanvasDesign/public/resource-reference"
 import type {
 	ReferenceAssetPerTypeLimits,
 	ReferenceAssetTypeCounts,
@@ -36,7 +37,7 @@ import {
 	type ActiveCanvasElementsContext,
 	type CanvasElementResolvedFile,
 } from "@/components/business/MentionPanel/runtime/builtin/domains/canvas-elements"
-import { isCurrentCanvasResourcePath, toWorkspaceRelativeCandidates } from "../utils/designPath"
+import { resolveCanvasStorageResourceReference } from "@/components/CanvasDesign/runtime/shared/path/canvasResourcePath"
 
 function getExtension(name: string): string {
 	const idx = name.lastIndexOf(".")
@@ -131,28 +132,15 @@ interface AttachmentFileEntry {
 	extension?: string
 	fileId: string
 	displayConfig?: ProjectAttachmentMentionNode["display_config"]
-	ancestorFolderKeys: string[]
 }
 
 interface AttachmentFileLookup {
 	files: AttachmentFileEntry[]
-	byNormalizedPath: Map<string, AttachmentFileEntry>
 	byNormalizedPathEntries: Map<string, AttachmentFileEntry[]>
-	byNormalizedFileId: Map<string, AttachmentFileEntry>
+	byFileId: Map<string, AttachmentFileEntry>
 }
 
-function getFolderLookupKeys(node: ProjectAttachmentMentionNode): string[] {
-	return Array.from(
-		new Set(
-			[node.id, node.path].map((value) => normalizeFolderLookupKey(value)).filter(Boolean),
-		),
-	)
-}
-
-function flattenAttachmentFiles(
-	nodes: ProjectAttachmentMentionNode[],
-	ancestorFolderKeys: string[] = [],
-): AttachmentFileEntry[] {
+function flattenAttachmentFiles(nodes: ProjectAttachmentMentionNode[]): AttachmentFileEntry[] {
 	const out: AttachmentFileEntry[] = []
 	for (const n of nodes) {
 		if (!n.isDirectory) {
@@ -162,17 +150,11 @@ function flattenAttachmentFiles(
 				extension: n.extension,
 				fileId: n.fileId,
 				displayConfig: n.display_config,
-				ancestorFolderKeys,
 			})
 			continue
 		}
 		if (n.children?.length) {
-			out.push(
-				...flattenAttachmentFiles(n.children, [
-					...ancestorFolderKeys,
-					...getFolderLookupKeys(n),
-				]),
-			)
+			out.push(...flattenAttachmentFiles(n.children))
 		}
 	}
 	return out
@@ -191,6 +173,8 @@ export interface LimitInfo {
 	referenceFileInfos?: ReferenceResourceFileInfo[]
 	assetLimits?: ReferenceAssetPerTypeLimits
 	currentAssetCounts?: ReferenceAssetTypeCounts
+	/** 宿主资源解析器，用于资源同一性比较。 */
+	resolveResourceReference?: ResolveCanvasResourceReference
 	/** 面包屑等文案用；搜索列表右侧路径与 MessageEditor 一致，由 MentionPanel renderer 根据 file_path 计算 */
 	projectFilesPathPrefix?: string
 	/** 设计根目录显示名，副标题为 `{prefix}/{父路径}`（与 workspace renderer 约定 metadata 键） */
@@ -209,7 +193,6 @@ export class CanvasDesignMentionDataService implements DataService {
 	private readonly canvasElementsStore = new MentionPanelCanvasElementsStore()
 	private canvasElementsRootFolderId?: string
 	private attachmentFileLookup: AttachmentFileLookup | null = null
-	private canvasElementsRootBasePathCache: string | null | undefined
 
 	constructor(initialAttachmentRoots: ProjectAttachmentMentionNode[]) {
 		this.attachmentRoots = initialAttachmentRoots
@@ -242,9 +225,6 @@ export class CanvasDesignMentionDataService implements DataService {
 
 	setCanvasReferenceElementsContext(context: CanvasReferenceElementsContext | undefined): void {
 		const nextRootFolderId = context?.rootFolderId
-		if (this.canvasElementsRootFolderId !== nextRootFolderId) {
-			this.canvasElementsRootBasePathCache = undefined
-		}
 		this.canvasElementsRootFolderId = nextRootFolderId
 		this.canvasElementsStore.setActiveContext(
 			context
@@ -291,24 +271,15 @@ export class CanvasDesignMentionDataService implements DataService {
 
 	private invalidateAttachmentLookup(): void {
 		this.attachmentFileLookup = null
-		this.canvasElementsRootBasePathCache = undefined
 	}
 
 	private getAttachmentFileLookup(): AttachmentFileLookup {
 		if (this.attachmentFileLookup) return this.attachmentFileLookup
 
 		const files = flattenAttachmentFiles(this.attachmentRoots)
-		const byNormalizedPath = new Map<string, AttachmentFileEntry>()
 		const byNormalizedPathEntries = new Map<string, AttachmentFileEntry[]>()
-		const byNormalizedFileId = new Map<string, AttachmentFileEntry>()
+		const byFileId = new Map<string, AttachmentFileEntry>()
 
-		const addFirst = (
-			map: Map<string, AttachmentFileEntry>,
-			key: string,
-			file: AttachmentFileEntry,
-		) => {
-			if (key && !map.has(key)) map.set(key, file)
-		}
 		const addPathEntry = (key: string, file: AttachmentFileEntry) => {
 			if (!key) return
 			const bucket = byNormalizedPathEntries.get(key)
@@ -321,80 +292,41 @@ export class CanvasDesignMentionDataService implements DataService {
 
 		for (const file of files) {
 			const normalizedPath = normalizeCanvasElementResourcePath(file.path)
-			const normalizedFileId = normalizeCanvasElementResourcePath(file.fileId)
-			addFirst(byNormalizedPath, normalizedPath, file)
 			addPathEntry(normalizedPath, file)
-			addFirst(byNormalizedFileId, normalizedFileId, file)
+			if (file.fileId && !byFileId.has(file.fileId)) {
+				byFileId.set(file.fileId, file)
+			}
 		}
 
 		this.attachmentFileLookup = {
 			files,
-			byNormalizedPath,
 			byNormalizedPathEntries,
-			byNormalizedFileId,
+			byFileId,
 		}
 		return this.attachmentFileLookup
 	}
 
 	private findAttachmentFileBySrc(src: string): AttachmentFileEntry | null {
-		const normalizedSrc = normalizeCanvasElementResourcePath(src)
-		if (!normalizedSrc) return null
-
 		const attachmentLookup = this.getAttachmentFileLookup()
-		const rootBasePath = this.getCanvasElementsRootBasePath()
-		const strictCandidates =
-			rootBasePath &&
-			isCurrentCanvasResourcePath(src, { designProjectBasePath: rootBasePath })
-				? toWorkspaceRelativeCandidates(src, { designProjectBasePath: rootBasePath })
-				: null
+		const resolveResourceReference = this.limitInfoGetter?.()?.resolveResourceReference
+		if (!resolveResourceReference) return null
 
-		if (strictCandidates) {
-			for (const candidate of strictCandidates) {
-				const exact = attachmentLookup.byNormalizedPath.get(
-					normalizeCanvasElementResourcePath(candidate),
-				)
-				if (exact) return exact
-			}
-			const rootRelativeExact = (
-				attachmentLookup.byNormalizedPathEntries.get(normalizedSrc) ?? []
-			).find((file) => this.isAttachmentFileInCanvasElementsRoot(file))
-			if (rootRelativeExact) return rootRelativeExact
+		const resolution = resolveCanvasStorageResourceReference(src, resolveResourceReference, {
+			requireAttachment: true,
+		})
+		if (resolution.status !== "resolved" || resolution.resourceKind !== "workspace-file") {
 			return null
 		}
 
-		const exact =
-			attachmentLookup.byNormalizedPath.get(normalizedSrc) ??
-			attachmentLookup.byNormalizedFileId.get(normalizedSrc)
-		if (exact) return exact
-
-		return null
-	}
-
-	private isAttachmentFileInCanvasElementsRoot(file: AttachmentFileEntry): boolean {
-		const rootKeys = [
-			normalizeFolderLookupKey(this.canvasElementsRootFolderId),
-			normalizeFolderLookupKey(this.getCanvasElementsRootBasePath()),
-		].filter((key): key is string => Boolean(key))
-		if (rootKeys.length === 0) return false
-
-		return rootKeys.some((rootKey) => file.ancestorFolderKeys.includes(rootKey))
-	}
-
-	private getCanvasElementsRootBasePath(): string | undefined {
-		if (this.canvasElementsRootBasePathCache !== undefined) {
-			return this.canvasElementsRootBasePathCache || undefined
+		if (resolution.attachmentId) {
+			const byFileId = attachmentLookup.byFileId.get(resolution.attachmentId)
+			if (byFileId) return byFileId
 		}
 
-		const rootFolderId = this.canvasElementsRootFolderId
-		if (!rootFolderId) {
-			this.canvasElementsRootBasePathCache = null
-			return undefined
-		}
-
-		const rootFolder = findFolderNode(this.attachmentRoots, rootFolderId)
-		const basePath = normalizeCanvasElementResourcePath(rootFolder?.path || rootFolderId)
-		this.canvasElementsRootBasePathCache = basePath || null
-		return basePath || undefined
+		const workspacePath = normalizeCanvasElementResourcePath(resolution.workspacePath || "")
+		if (!workspacePath) return null
+		const matches = attachmentLookup.byNormalizedPathEntries.get(workspacePath) ?? []
+		return matches.length === 1 ? matches[0] : null
 	}
 
 	private getCanvasElementsRootItem(t?: I18nTexts): MentionItem | null {
@@ -462,6 +394,7 @@ export class CanvasDesignMentionDataService implements DataService {
 			currentAssetCounts: limitInfo.currentAssetCounts,
 			candidatePaths: [file.rawPath, file.filePath, file.fileId],
 			currentReferenceFiles: limitInfo.currentReferenceFiles,
+			resolveResourceReference: limitInfo.resolveResourceReference,
 		})
 	}
 
@@ -608,6 +541,7 @@ export class CanvasDesignMentionDataService implements DataService {
 					!isReferenceResourceCurrentlySelected(
 						candidates,
 						limitInfo.currentReferenceFiles,
+						limitInfo.resolveResourceReference,
 					),
 			}
 		})

@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MARA VOSS — Independent Art Director & Digital Designer</title>
+  <style>
+    :root {
+      --primary: #0c0b09;
+      --on-primary: #f4efe6;
+      --ink: #0c0b09;
+      --ink-soft: #1b1a16;
+      --cream: #f4efe6;
+      --cream-dim: #ece6da;
+      --warm: #d9d2c4;
+      --accent-r: #d4412a;
+      --accent-y: #efc440;
+      --accent-b: #2750d6;
+      --muted: #7e7668;
+      --muted-lt: #afa89a;
+      --font-serif: "Instrument Serif", "Playfair Display", "Didot", Georgia, serif;
+      --font-sans: "Syne", "DM Sans", -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      background-color: var(--cream);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Accolades Top Marquee Bar */
+    .accolades-strip {
+      background: var(--ink);
+      color: var(--on-primary);
+      padding: 10px 0;
+      overflow: hidden;
+      white-space: nowrap;
+      display: flex;
+      border-bottom: 1px solid var(--ink-soft);
+    }
+    .accolades-track {
+      display: flex;
+      gap: 36px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      animation: ribbonScroll 28s linear infinite;
+    }
+    .accolades-track span {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .accolades-track .star { color: var(--accent-y); font-size: 12px; }
+    .accolades-track .tag-badge {
+      background: var(--accent-r);
+      color: #FFF;
+      padding: 2px 6px;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+    }
+    @keyframes ribbonScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* Navigation */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 56px;
+      border-bottom: 1px solid var(--warm);
+      background: var(--cream);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--ink);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-dot { width: 8px; height: 8px; background: var(--accent-r); border-radius: 50%; }
+    .nav-links { display: flex; gap: 36px; list-style: none; }
+    .nav-links a {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      position: relative;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover, .nav-links a.active { color: var(--ink); }
+    .nav-links a.active::after {
+      content: "";
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent-r);
+    }
+    .nav-btn {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      background: var(--ink);
+      color: var(--on-primary);
+      padding: 10px 22px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .nav-btn:hover { background: var(--accent-r); }
+
+    /* Hero Section (Dense First 500px Viewport) */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 48px;
+      padding: 56px 56px 64px;
+      border-bottom: 1px solid var(--warm);
+      align-items: center;
+    }
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }
+    .hero-meta .status-avail {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent-r);
+    }
+    .hero-meta .dot { width: 6px; height: 6px; background: var(--accent-r); border-radius: 50%; }
+    .hero-headline {
+      font-family: var(--font-serif);
+      font-size: clamp(52px, 6.2vw, 88px);
+      font-weight: 400;
+      line-height: 0.92;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin-bottom: 26px;
+    }
+    .hero-headline em {
+      font-style: italic;
+      color: var(--ink-soft);
+      border-bottom: 2px solid var(--accent-y);
+    }
+    .hero-sub {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 520px;
+      line-height: 1.65;
+      margin-bottom: 32px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .btn-fill {
+      background: var(--ink);
+      color: var(--on-primary);
+      padding: 14px 30px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: background 0.2s;
+      border: 1px solid var(--ink);
+    }
+    .btn-fill:hover { background: var(--accent-r); border-color: var(--accent-r); }
+    .btn-outline {
+      background: transparent;
+      color: var(--ink);
+      padding: 14px 28px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-decoration: none;
+      border: 1px solid var(--ink);
+      transition: 0.2s;
+    }
+    .btn-outline:hover { background: var(--ink); color: var(--on-primary); }
+
+    /* Hero Featured Frame with Yellow Offset Board */
+    .hero-frame-wrap {
+      position: relative;
+    }
+    .hero-frame-shadow {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: -14px;
+      bottom: -14px;
+      background: var(--accent-y);
+      z-index: 1;
+    }
+    .hero-card {
+      position: relative;
+      z-index: 2;
+      background: var(--cream-dim);
+      border: 1px solid var(--ink);
+      padding: 24px;
+    }
+    .hero-card-media {
+      height: 250px;
+      background: #0c0b09;
+      margin-bottom: 18px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hero-card-media svg { width: 100%; height: 100%; }
+    .hero-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .card-title {
+      font-family: var(--font-serif);
+      font-size: 26px;
+      font-weight: 400;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .card-meta {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .badge-fwa {
+      background: var(--accent-r);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 8px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* Carousel Case Studies Section */
+    .carousel-section {
+      padding: 64px 56px;
+      border-bottom: 1px solid var(--warm);
+    }
+    .carousel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 36px;
+    }
+    .carousel-header h2 {
+      font-family: var(--font-serif);
+      font-size: 44px;
+      font-weight: 400;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+    .carousel-pills {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      background: var(--cream-dim);
+      color: var(--ink);
+      border: 1px solid var(--warm);
+      cursor: pointer;
+      transition: 0.18s;
+    }
+    .pill:hover, .pill.active {
+      background: var(--ink);
+      color: var(--on-primary);
+      border-color: var(--ink);
+    }
+    .pill.pill-accent {
+      color: var(--accent-r);
+      border-color: var(--accent-r);
+    }
+
+    /* Carousel 3-Card Grid */
+    .case-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+    .case-card {
+      background: var(--cream-dim);
+      border: 1px solid var(--warm);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.25s, border-color 0.25s;
+      cursor: pointer;
+    }
+    .case-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--ink);
+    }
+    .case-thumb {
+      height: 180px;
+      background: #1B1A16;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .case-thumb svg { width: 100%; height: 100%; }
+    .case-award-tag {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(12,11,9,0.85);
+      backdrop-filter: blur(4px);
+      color: var(--accent-y);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      padding: 3px 8px;
+      text-transform: uppercase;
+      border: 1px solid rgba(239,196,64,0.4);
+    }
+    .case-info h3 {
+      font-family: var(--font-serif);
+      font-size: 24px;
+      font-weight: 400;
+      line-height: 1.15;
+      margin-bottom: 6px;
+    }
+    .case-info p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .case-tags-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding-top: 12px;
+      border-top: 1px solid var(--warm);
+    }
+    .case-tag-item {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      background: var(--cream);
+      color: var(--muted);
+    }
+    .case-tag-item.blue { color: var(--accent-b); }
+    .case-tag-item.red { color: var(--accent-r); }
+
+    /* Accolades Showcase Grid */
+    .awards-section {
+      padding: 56px 56px 64px;
+      background: var(--ink-soft);
+      color: var(--on-primary);
+    }
+    .awards-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 1px solid rgba(244,239,230,0.15);
+      padding-bottom: 20px;
+      margin-bottom: 32px;
+    }
+    .awards-header h2 {
+      font-family: var(--font-serif);
+      font-size: 38px;
+      font-weight: 400;
+    }
+    .awards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+    .award-card {
+      border: 1px solid rgba(244,239,230,0.12);
+      padding: 24px;
+      background: rgba(255,255,255,0.02);
+    }
+    .award-year {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: var(--accent-y);
+      margin-bottom: 8px;
+    }
+    .award-title {
+      font-family: var(--font-serif);
+      font-size: 22px;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    .award-org {
+      font-size: 12px;
+      color: var(--muted-lt);
+      letter-spacing: 0.05em;
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 56px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--cream);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Accolades Infinite Ribbon -->
+  <div class="accolades-strip">
+    <div class="accolades-track">
+      <span><span class="star">★</span> AWWWARDS SITE OF THE DAY <span class="tag-badge">SOTD</span></span>
+      <span><span class="star">★</span> FWA OF THE DAY WINNER</span>
+      <span><span class="star">★</span> CANNES LION BRONZE DESIGN</span>
+      <span><span class="star">★</span> THE WEBBY AWARDS NOMINEE</span>
+      <span><span class="star">★</span> SITE OF THE MONTH WINNER</span>
+      <span><span class="star">★</span> AWWWARDS SITE OF THE DAY <span class="tag-badge">SOTD</span></span>
+      <span><span class="star">★</span> FWA OF THE DAY WINNER</span>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <header>
+    <a href="#" class="brand">
+      <span class="brand-dot"></span>
+      MARA VOSS <sup>ATELIER</sup>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#work" class="active">Selected Works</a></li>
+      <li><a href="#awards">Accolades</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+    <a href="#contact" class="nav-btn">Available for Q4</a>
+  </header>
+
+  <!-- Hero Section (High Contrast First 500px) -->
+  <section class="hero">
+    <div>
+      <div class="hero-meta">
+        <span>Art Direction & Spatial UX</span>
+        <span>/</span>
+        <span class="status-avail"><span class="dot"></span> Open to Global Commissions</span>
+      </div>
+      <h1 class="hero-headline">
+        Designing <em>sculptural</em> digital artifacts that define cultural gravity.
+      </h1>
+      <p class="hero-sub">
+        Independent practice operating at the intersection of haute couture, computational typography, and luxury e-commerce. Recipient of 18 international industry honors.
+      </p>
+      <div class="hero-actions">
+        <a href="#work" class="btn-fill">Explore Archive (14)</a>
+        <a href="#contact" class="btn-outline">Curriculum Vitae</a>
+      </div>
+    </div>
+
+    <!-- Featured Case Study with Yellow Accent Board -->
+    <div class="hero-frame-wrap">
+      <div class="hero-frame-shadow"></div>
+      <div class="hero-card">
+        <div class="hero-card-media">
+          <svg viewBox="0 0 400 250" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#0C0B09"/>
+            <circle cx="200" cy="125" r="75" stroke="#efc440" stroke-width="1.5" fill="none"/>
+            <circle cx="200" cy="125" r="45" stroke="#d4412a" stroke-width="2" stroke-dasharray="8 6" fill="none"/>
+            <line x1="80" y1="125" x2="320" y2="125" stroke="rgba(244,239,230,0.15)"/>
+            <text x="200" y="132" text-anchor="middle" fill="#F4EFE6" font-family="'Instrument Serif', Georgia, serif" font-size="28" font-style="italic">L’Ombre Noire</text>
+          </svg>
+        </div>
+        <div class="hero-card-footer">
+          <div>
+            <div class="card-meta">CASE 01 // EDITORIAL LOOKBOOK</div>
+            <h3 class="card-title">L’Ombre Noire Haute Horlogerie</h3>
+          </div>
+          <span class="badge-fwa">Awwwards SOTD</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Case Study Carousel & Filters -->
+  <section class="carousel-section" id="work">
+    <div class="carousel-header">
+      <div>
+        <h2>Featured Commissions & Studies</h2>
+      </div>
+      <div class="carousel-pills">
+        <button class="pill active">All Works (03)</button>
+        <button class="pill">Haute Horlogerie</button>
+        <button class="pill">Spatial Audio</button>
+        <button class="pill pill-accent">Awwwards SOTD</button>
+      </div>
+    </div>
+
+    <div class="case-grid">
+      <!-- Case 1 -->
+      <div class="case-card">
+        <div>
+          <div class="case-thumb">
+            <span class="case-award-tag">Awwwards SOTD</span>
+            <svg viewBox="0 0 300 180"><rect width="100%" height="100%" fill="#141310"/><polygon points="150,30 230,150 70,150" stroke="#d4412a" stroke-width="2" fill="none"/><text x="150" y="110" text-anchor="middle" fill="#F4EFE6" font-family="Georgia, serif" font-size="20">AURA V</text></svg>
+          </div>
+          <div class="case-info">
+            <h3>Aura V — Spatial Audio Synthesizer</h3>
+            <p>WebAudio generative acoustics interface with real-time waveform displacement.</p>
+          </div>
+        </div>
+        <div class="case-tags-row">
+          <span class="case-tag-item red">Awwwards SOTD</span>
+          <span class="case-tag-item">Spatial Computing</span>
+          <span class="case-tag-item">WebGL</span>
+        </div>
+      </div>
+
+      <!-- Case 2 -->
+      <div class="case-card">
+        <div>
+          <div class="case-thumb">
+            <span class="case-award-tag">FWA of Day</span>
+            <svg viewBox="0 0 300 180"><rect width="100%" height="100%" fill="#1A1814"/><circle cx="150" cy="90" r="50" stroke="#efc440" stroke-width="2" fill="none"/><text x="150" y="96" text-anchor="middle" fill="#F4EFE6" font-family="Georgia, serif" font-size="18">KINETIC</text></svg>
+          </div>
+          <div class="case-info">
+            <h3>Kinetic Edition — Architectural Monograph</h3>
+            <p>Bespoke digital editorial publishing format exploring brutalist Swiss brutalism.</p>
+          </div>
+        </div>
+        <div class="case-tags-row">
+          <span class="case-tag-item blue">FWA Winner</span>
+          <span class="case-tag-item">Editorial</span>
+          <span class="case-tag-item">Monochrome</span>
+        </div>
+      </div>
+
+      <!-- Case 3 -->
+      <div class="case-card">
+        <div>
+          <div class="case-thumb">
+            <span class="case-award-tag">Cannes Bronze</span>
+            <svg viewBox="0 0 300 180"><rect width="100%" height="100%" fill="#0D1117"/><line x1="40" y1="90" x2="260" y2="90" stroke="#2750d6" stroke-width="3"/><text x="150" y="96" text-anchor="middle" fill="#F4EFE6" font-family="Georgia, serif" font-size="18">SYNAPSE</text></svg>
+          </div>
+          <div class="case-info">
+            <h3>Synapse — Autonomous Neural Graph</h3>
+            <p>Interactive machine learning vector visualization tool for scientific researchers.</p>
+          </div>
+        </div>
+        <div class="case-tags-row">
+          <span class="case-tag-item blue">Cannes Lion</span>
+          <span class="case-tag-item">Data Vis</span>
+          <span class="case-tag-item">3D Vectors</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Award Accolades Showcase Grid -->
+  <section class="awards-section" id="awards">
+    <div class="awards-header">
+      <h2>Accolades & Industry Recognition</h2>
+      <div style="font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted-lt);">18 TOTAL GLOBAL HONORS</div>
+    </div>
+    <div class="awards-grid">
+      <div class="award-card">
+        <div class="award-year">2026 // ANNUAL</div>
+        <div class="award-title">Site of the Day × 6</div>
+        <div class="award-org">Awwwards International</div>
+      </div>
+      <div class="award-card">
+        <div class="award-year">2025 // ANNUAL</div>
+        <div class="award-title">FWA of the Day × 4</div>
+        <div class="award-org">Favourite Website Awards</div>
+      </div>
+      <div class="award-card">
+        <div class="award-year">2025 // FESTIVAL</div>
+        <div class="award-title">Bronze Lion Winner</div>
+        <div class="award-org">Cannes Lions Festival</div>
+      </div>
+      <div class="award-card">
+        <div class="award-year">2024 // NOMINEE</div>
+        <div class="award-title">Best Visual Design</div>
+        <div class="award-org">The Webby Awards NY</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div>© 2026 MARA VOSS ATELIER. ALL RIGHTS RESERVED.</div>
+    <div>INSTRUMENT SERIF · SYNE MONOCHROME SPEC</div>
+    <div>BASEL / BERLIN / REYKJAVIK</div>
+  </footer>
+
+</body>
+</html>

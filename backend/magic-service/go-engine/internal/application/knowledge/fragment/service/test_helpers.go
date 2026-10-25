@@ -1,6 +1,7 @@
 package fragapp
 
 import (
+	"context"
 	"testing"
 
 	fragdto "magic/internal/application/knowledge/fragment/dto"
@@ -38,6 +39,19 @@ type AppServiceForTestOptions struct {
 	PermissionReader          kbaccess.PermissionReader
 	DefaultEmbeddingModel     string
 	Logger                    *logging.SugaredLogger
+}
+
+// KnowledgeAccessBatchOperationsForTest 暴露统一知识库权限批量判定，供应用层回归测试使用。
+func (s *FragmentAppService) KnowledgeAccessBatchOperationsForTest(
+	ctx context.Context,
+	actor kbaccess.Actor,
+	knowledgeBaseCodes []string,
+) (map[string]kbaccess.Operation, error) {
+	service := s.knowledgeAccessService()
+	if service == nil {
+		return map[string]kbaccess.Operation{}, nil
+	}
+	return service.BatchOperations(ctx, actor, knowledgeBaseCodes)
 }
 
 // NewFragmentAppServiceForTest 构造仅用于测试的片段应用服务。

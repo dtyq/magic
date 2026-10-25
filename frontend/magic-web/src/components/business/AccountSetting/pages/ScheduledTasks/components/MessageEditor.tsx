@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import DefaultMessageEditorContainer from "@/pages/superMagic/components/MainInputContainer/components/editors/DefaultMessageEditorContainer"
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import {
@@ -26,7 +26,7 @@ import type { ProjectFilesStore } from "@/stores/projectFiles"
 import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { getFallbackTopicModeIdentifier } from "@/services/superMagic/DefaultAgentSelectionService"
 import { collectMentionItemsFromContent } from "@/pages/superMagic/components/MessageEditor/services/uploadMentionService"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 type StoredModelItem = Partial<ModelItem> & Pick<ModelItem, "model_id">
 
@@ -75,6 +75,8 @@ export interface MessageEditorProps {
 	projectFilesStore?: ProjectFilesStore
 	showModeToggle?: boolean
 	allowChangeMode?: boolean
+	/** Controls the mobile edge used by the mode selector owned by this editor. */
+	modeToggleMobilePosition?: "bottom" | "top"
 	enableAiCompletion?: boolean
 	selectedModel?: ModelItem | null
 	selectedImageModel?: StoredModelItem | null
@@ -111,6 +113,7 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(function 
 		projectFilesStore,
 		showModeToggle = false,
 		allowChangeMode = true,
+		modeToggleMobilePosition,
 		enableAiCompletion = false,
 		selectedModel: selectedModelProp = null,
 		selectedImageModel: selectedImageModelProp = null,
@@ -219,6 +222,17 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(function 
 
 	useImperativeHandle(ref, () => {
 		return {
+			getDraftKey: () => editorStore.draftStore.getDraftKey(),
+			beginDraftSwitch: editorStore.draftStore.beginDraftSwitch,
+			endDraftSwitch: editorStore.draftStore.endDraftSwitch,
+			prepareQueueDraft: (draft) => editorStore.draftStore.prepareQueueDraft(draft),
+			restoreQueueDraft: (draft, activate) =>
+				editorStore.draftStore.restoreQueueDraft(draft, activate),
+			getQueueDraft: () => editorStore.draftStore.getQueueDraft(),
+			subscribeQueueDraft: (listener) => editorStore.draftStore.subscribeQueueDraft(listener),
+			keepQueueDraft: () => editorStore.draftStore.keepQueueDraft(),
+			completeQueueDraft: (syncId, value) =>
+				editorStore.draftStore.completeQueueDraft(syncId, value),
 			get editor() {
 				return innerRef.current?.editor ?? null
 			},
@@ -308,6 +322,7 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(function 
 						topicMode={resolvedTopicMode}
 						agentCode={agentCode}
 						allowChangeMode={allowChangeMode}
+						mobilePopupPosition={modeToggleMobilePosition}
 						onModeChange={setTopicMode}
 					/>
 				) : null}

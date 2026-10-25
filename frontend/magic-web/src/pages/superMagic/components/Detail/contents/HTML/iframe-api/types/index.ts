@@ -555,6 +555,7 @@ export interface AgentCreateTopicAndSendRequest {
 	requestId: string
 	/** 纯文本消息或完整的 tiptap JSON 文档（可包含 mention 节点） */
 	message: string | TiptapJSONContent
+	/** 指定 Agent。单话题宿主（龙虾/对话）会忽略，沿用当前会话。 */
 	agentId?: string
 	model?: string
 }

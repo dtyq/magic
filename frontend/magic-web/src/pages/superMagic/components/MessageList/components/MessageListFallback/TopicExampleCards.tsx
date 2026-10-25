@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { useTopicExamples } from "@/pages/superMagic/components/MessagePanel/components/TopicExamples/hooks/useTopicExamples"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { SupportLocales } from "@/constants/locale"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import { isPrivateDeployment } from "@/utils/env"
 
 interface TopicExampleCardsProps {
@@ -58,8 +58,7 @@ function TopicExampleCardsComponent({ topicMode, onCardClick }: TopicExampleCard
 					{exampleList.map((example, index) => {
 						const theme = CARD_THEMES[index % CARD_THEMES.length]
 						const currentLocale = i18n.language as
-							| SupportLocales.zhCN
-							| SupportLocales.enUS
+							SupportLocales.zhCN | SupportLocales.enUS
 						const title = example.title[currentLocale] || example.title.zh_CN
 						const content = example.content[currentLocale] || example.content.zh_CN
 

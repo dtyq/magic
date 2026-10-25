@@ -70,3 +70,11 @@ export function hasKnowledgeBaseTabTarget(
 ) {
 	return !!((payload.knowledgeBaseId && payload.documentCode) || payload.fileKey)
 }
+
+/**
+ * Open a published micro-app preview tab from a mention click.
+ */
+export interface SuperMagicOpenMicroAppTabPayload {
+	appId: string
+	appName?: string
+}

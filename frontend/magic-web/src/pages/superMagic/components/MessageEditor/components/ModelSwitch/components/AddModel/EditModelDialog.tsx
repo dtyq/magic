@@ -72,7 +72,7 @@ function EditModelDialog() {
 						onBeforeTest={() => setSubmitted(true)}
 						onLoadingChange={setIsTestingConnectivity}
 					/>
-					<div className="flex items-center gap-1.5">
+					<div className="ml-auto flex items-center gap-1.5">
 						<Button
 							variant="outline"
 							onClick={() => store.closeEditModel()}

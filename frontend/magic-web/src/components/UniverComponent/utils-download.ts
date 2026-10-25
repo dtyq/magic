@@ -1,4 +1,5 @@
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import type { FileAccessContext } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import { transformUniverToExcel } from "./utils-export"
 import { transformUniverToDocx } from "./utils-export-docx"
@@ -40,13 +41,14 @@ export async function downloadUniverFile(params: {
 	fileId: string
 	fileName: string
 	fileExtension: string
+	access?: FileAccessContext
 }): Promise<void> {
-	const { fileId, fileName, fileExtension } = params
+	const { fileId, fileName, fileExtension, access } = params
 	const fileType = getFileTypeByExtension(fileExtension)
 
 	if (fileType === "unknown") {
 		// 如果不是 Univer 支持的文件类型，直接使用原始下载
-		const res = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+		const res = await getTemporaryDownloadUrl({ file_ids: [fileId], access })
 		if (res[0]?.url) {
 			downloadFileWithAnchor(res[0].url)
 		}
@@ -55,7 +57,7 @@ export async function downloadUniverFile(params: {
 
 	try {
 		// 1. 获取文件下载 URL
-		const res = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+		const res = await getTemporaryDownloadUrl({ file_ids: [fileId], access })
 		if (!res[0]?.url) {
 			throw new Error("无法获取文件下载链接")
 		}

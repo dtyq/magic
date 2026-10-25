@@ -29,6 +29,14 @@ class ExternalStreamableHttpServiceConfig extends ExternalSSEServiceConfig
             $instance->setOauth2Config(Oauth2Config::fromArray($array['oauth2_config']));
         }
 
+        $authorizationConfig = $array['mcp_authorization_config']
+            ?? $array['mcpAuthorizationConfig']
+            ?? $array['mcpauthorizationconfig']
+            ?? null;
+        if (is_array($authorizationConfig)) {
+            $instance->setMcpAuthorizationConfig($authorizationConfig);
+        }
+
         return $instance;
     }
 }

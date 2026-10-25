@@ -1,3 +1,5 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
+import { filterFileAccessMenuItems } from "../utils/file-access-menu"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -20,6 +22,7 @@ import {
 	IconChevronsDown,
 	IconChevronsUp,
 } from "@tabler/icons-react"
+import { Presentation } from "lucide-react"
 import IconOpenWindow from "@/enhance/tabler/icons-react/icons/IconOpenWindow"
 import MagicIcon from "@/components/base/MagicIcon"
 import { Flex } from "antd"
@@ -38,7 +41,6 @@ import {
 	type SingleFileDownloadHandlers,
 } from "../utils/build-single-file-download-menu"
 import { createFileMenuItems } from "../components/hooks/useFileMenuItems"
-import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 import { normalizeMenuItems, type TopicFilesMenuItem } from "../utils/menu-items"
 import { isMagicSystemFolder } from "../utils/magic-system-folder"
 import type { AttachmentIndex } from "../utils/attachmentIndex"
@@ -49,6 +51,10 @@ import {
 	detectCanvasProjectOperationRisk,
 	getCanvasProjectOperationImpact,
 } from "../utils/canvasProjectOperationRisk"
+import {
+	isConvertiblePresentationFile,
+	isSlidesTemplateFolder,
+} from "../utils/slides-template-folder"
 
 type MenuItem = TopicFilesMenuItem
 
@@ -58,9 +64,10 @@ interface UseContextMenuOptions {
 	handleImportFromOtherProject?: (item?: AttachmentItem) => void
 	handleShareItem?: (item: AttachmentItem) => void
 	handleDeleteItem: (item: AttachmentItem) => void
+	handleDeleteWithConfirm?: (item: AttachmentItem) => void
+	handleOpenDirectory?: (item: AttachmentItem) => void
 	handleDownloadOriginal: (item: AttachmentItem, mode?: DownloadImageMode) => void
 	handleDownloadPdf: (item: AttachmentItem, folderChildren?: AttachmentItem[]) => void
-	handleDownloadPpt: (item: AttachmentItem) => void
 	handleDownloadPptx: (item: AttachmentItem, folderChildren?: AttachmentItem[]) => void
 	handleDownloadImage?: (item: AttachmentItem, format: "png" | "jpeg") => void
 	handleOpenFile: (item: AttachmentItem) => void
@@ -109,6 +116,10 @@ interface UseContextMenuOptions {
 	handleToggleFolderContents?: (item: AttachmentItem) => void
 	/** Full attachment tree for mobile hierarchy delete confirmation */
 	attachments?: AttachmentItem[]
+	/** Desktop-only action for a recognized standard slide template folder. */
+	handleSaveSlidesTemplate?: (item: AttachmentItem) => void
+	/** Desktop-only action for converting a slide folder or PPT/PPTX/POTX file. */
+	handleConvertToSlidesTemplate?: (item: AttachmentItem) => void
 }
 
 interface MapDownloadMenuToContextOptions {
@@ -142,6 +153,19 @@ function mapDownloadMenuToContextItems(
 			? mapDownloadMenuToContextItems(entry.children, options)
 			: undefined,
 	}))
+}
+
+function createConvertToSlidesTemplateMenuItem(
+	item: AttachmentItem,
+	onConvert: (item: AttachmentItem) => void,
+	label: string,
+): MenuItem {
+	return {
+		key: "convertToSlidesTemplate",
+		label,
+		icon: <Presentation className="size-4" aria-hidden="true" data-testid="ppt-menu-icon" />,
+		onClick: () => onConvert(item),
+	}
 }
 
 /** Append download entries from the shared builder onto a context menu list. */
@@ -268,11 +292,15 @@ function hasDisplayConfigInAncestors(item: AttachmentItem, treeIndex?: Attachmen
  * useContextMenu - 处理右键菜单配置
  */
 export function useContextMenu(options: UseContextMenuOptions) {
+	const {
+		permissions: access,
+		options: { copyTo, createNewTopic, moveTo },
+	} = useFileAccess()
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
 	const isMobile = useIsMobile()
 	const { deleteConfirmNode, openDeleteConfirm } = useMobileDeleteConfirmSheet()
-	const { hideCopyTo, hideCreateNewTopic, hideMoveTo, hideShareFile } = useFileActionVisibility()
+
 	const {
 		handleUploadFile,
 		handleUploadFolder,
@@ -283,7 +311,6 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		handleDownloadNoWaterMark,
 		preloadWaterMarkFreeModal,
 		handleDownloadPdf,
-		handleDownloadPpt,
 		handleDownloadPptx,
 		handleDownloadImage,
 		handleOpenFile,
@@ -315,9 +342,15 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		isFolderContentsExpanded,
 		handleToggleFolderContents,
 		attachments = [],
+		handleSaveSlidesTemplate,
+		handleConvertToSlidesTemplate,
 	} = options
 
 	const openDeleteConfirmWithCanvasRisk = async (item: AttachmentItem) => {
+		if (options.handleDeleteWithConfirm) {
+			options.handleDeleteWithConfirm(item)
+			return
+		}
 		const isFolder = Boolean(item.is_directory)
 		const isMagicFolder = Boolean(isFolder && isMagicSystemFolder(item))
 		const canvasRisk = await detectCanvasProjectOperationRisk({
@@ -451,11 +484,26 @@ export function useContextMenu(options: UseContextMenuOptions) {
 	// 生成菜单项
 	const getMenuItems = (item: AttachmentItem): MenuItem[] => {
 		const menuItems: MenuItem[] = []
+		if (item.is_directory && options.handleOpenDirectory) {
+			menuItems.push({
+				key: "openFile",
+				label: t("topicFiles.contextMenu.openFile"),
+				icon: <MagicIcon component={IconOpenWindow} stroke={2} size={18} />,
+				onClick: () => options.handleOpenDirectory?.(item),
+			})
+		}
+		if (handleAddToCurrentChat && !handleAddToNewChat) {
+			menuItems.push({
+				key: "addToCurrentChat",
+				label: t("topicFiles.contextMenu.addToCurrentChat"),
+				icon: <MagicIcon component={IconMessageCircleShare} stroke={2} size={18} />,
+				onClick: () => handleAddToCurrentChat(item),
+			})
+		}
 		const downloadIcon = <MagicIcon component={IconDownload} stroke={2} size={18} />
 		const downloadHandlers: SingleFileDownloadHandlers = {
 			handleDownloadOriginal,
 			handleDownloadPdf,
-			handleDownloadPpt,
 			handleDownloadPptx,
 			handleDownloadImage,
 			handleDownloadNoWaterMark,
@@ -480,6 +528,29 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		if (item.is_directory && "children" in item) {
 			const parentPath = getFolderPath(item)
 			const key = item.file_id
+			const isSlidesTemplate = isSlidesTemplateFolder(item)
+			const slidesTemplateMenuItem: MenuItem | undefined = !isMobile
+				? isSlidesTemplate && handleSaveSlidesTemplate
+					? {
+							key: "saveSlidesTemplate",
+							label: t("topicFiles.contextMenu.saveSlidesTemplate"),
+							icon: (
+								<Presentation
+									className="size-4"
+									aria-hidden="true"
+									data-testid="ppt-menu-icon"
+								/>
+							),
+							onClick: () => handleSaveSlidesTemplate(item),
+						}
+					: item.display_config?.type === "slide" && handleConvertToSlidesTemplate
+						? createConvertToSlidesTemplateMenuItem(
+								item,
+								handleConvertToSlidesTemplate,
+								t("topicFiles.contextMenu.convertToSlidesTemplate"),
+							)
+						: undefined
+				: undefined
 			const folderEntry =
 				treeIndex?.getEntryById(item.file_id) ||
 				treeIndex?.getEntryByKey(getAttachmentKey(item))
@@ -553,6 +624,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							},
 						]
 					: []),
+				...(slidesTemplateMenuItem
+					? [{ type: "divider" as const }, slidesTemplateMenuItem]
+					: []),
 				{ type: "divider" as const },
 				{
 					key: "rename",
@@ -561,7 +635,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					onClick: () => handleStartRename(item),
 					disabled: isMoving,
 				},
-				...(handleMoveFile && !hideMoveTo
+				...(handleMoveFile && moveTo
 					? [
 							{
 								key: "moveFile",
@@ -574,7 +648,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							},
 						]
 					: []),
-				...(onCopyFile && !hideCopyTo
+				...(onCopyFile && copyTo
 					? [
 							{
 								key: "copyFile",
@@ -617,7 +691,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								onClick: () => handleAddMultipleFilesToNewChat?.(),
 							},
 						].filter((menuItem) =>
-							hideCreateNewTopic ? menuItem.key !== "addSelectedToNewChat" : true,
+							!createNewTopic ? menuItem.key !== "addSelectedToNewChat" : true,
 						)
 					: handleAddToCurrentChat && handleAddToNewChat
 						? [
@@ -684,7 +758,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 									onClick: () => handleAddToNewChat(item),
 								},
 							].filter((menuItem) =>
-								hideCreateNewTopic ? menuItem.key !== "addToNewChat" : true,
+								!createNewTopic ? menuItem.key !== "addToNewChat" : true,
 							)
 						: []),
 				{ type: "divider" as const },
@@ -703,7 +777,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					return downloadMenuItems
 				})(),
 				{ type: "divider" as const },
-				...(handleShareItem && !hideShareFile
+				...(handleShareItem && access.share
 					? [
 							{
 								key: "share",
@@ -776,8 +850,18 @@ export function useContextMenu(options: UseContextMenuOptions) {
 				},
 			)
 
-			return normalizeMenuItems(filterMenuItems?.(menuItems, item) || menuItems)
+			return normalizeMenuItems(
+				filterFileAccessMenuItems(filterMenuItems?.(menuItems, item) || menuItems, access),
+			)
 		} else {
+			const convertPresentationMenuItem: MenuItem | undefined =
+				!isMobile && handleConvertToSlidesTemplate && isConvertiblePresentationFile(item)
+					? createConvertToSlidesTemplateMenuItem(
+							item,
+							handleConvertToSlidesTemplate,
+							t("topicFiles.contextMenu.convertToSlidesTemplate"),
+						)
+					: undefined
 			// 文件菜单
 			menuItems.push(
 				{
@@ -786,6 +870,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					icon: <MagicIcon component={IconOpenWindow} stroke={2} size={18} />,
 					onClick: () => handleOpenFile(item),
 				},
+				...(convertPresentationMenuItem
+					? [{ type: "divider" as const }, convertPresentationMenuItem]
+					: []),
 				{ type: "divider" as const },
 				{
 					key: "rename",
@@ -794,7 +881,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					onClick: () => handleStartRename(item),
 					disabled: isMoving,
 				},
-				...(handleMoveFile && !hideMoveTo
+				...(handleMoveFile && moveTo
 					? [
 							{
 								key: "moveFile",
@@ -807,7 +894,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							},
 						]
 					: []),
-				...(onCopyFile && !hideCopyTo
+				...(onCopyFile && copyTo
 					? [
 							{
 								key: "copyFile",
@@ -861,7 +948,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								onClick: () => handleAddMultipleFilesToNewChat?.(),
 							},
 						].filter((menuItem) =>
-							hideCreateNewTopic ? menuItem.key !== "addSelectedToNewChat" : true,
+							!createNewTopic ? menuItem.key !== "addSelectedToNewChat" : true,
 						)
 					: handleAddToCurrentChat && handleAddToNewChat
 						? [
@@ -928,7 +1015,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 									onClick: () => handleAddToNewChat(item),
 								},
 							].filter((menuItem) =>
-								hideCreateNewTopic ? menuItem.key !== "addToNewChat" : true,
+								!createNewTopic ? menuItem.key !== "addToNewChat" : true,
 							)
 						: []),
 				{ type: "divider" as const },
@@ -947,7 +1034,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 
 			menuItems.push(
 				{ type: "divider" as const },
-				...(handleShareItem && !hideShareFile
+				...(handleShareItem && access.share
 					? [
 							{
 								key: "share",
@@ -999,7 +1086,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 			)
 		}
 
-		return normalizeMenuItems(filterMenuItems?.(menuItems, item) || menuItems)
+		return normalizeMenuItems(
+			filterFileAccessMenuItems(filterMenuItems?.(menuItems, item) || menuItems, access),
+		)
 	}
 
 	return {

@@ -19,6 +19,7 @@ from app.core.ai_ability_configs.configs import (
     VideoUnderstandingAbilityConfig,
     VisualUnderstandingAbilityConfig,
     JsonRepairValidationAbilityConfig,
+    FollowUpQuestionsAbilityConfig,
 )
 
 logger = get_logger(__name__)
@@ -36,6 +37,7 @@ _ABILITY_CONFIG_CLASSES: Dict[str, Type[BaseAIAbilityConfig]] = {
     SkillRerankAbilityConfig.ability_key_value: SkillRerankAbilityConfig,
     AgentRerankAbilityConfig.ability_key_value: AgentRerankAbilityConfig,
     JsonRepairValidationAbilityConfig.ability_key_value: JsonRepairValidationAbilityConfig,
+    FollowUpQuestionsAbilityConfig.ability_key_value: FollowUpQuestionsAbilityConfig,
 }
 
 

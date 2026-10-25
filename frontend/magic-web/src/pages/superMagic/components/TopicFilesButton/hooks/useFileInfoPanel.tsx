@@ -16,6 +16,7 @@ export function useFileInfoPanel() {
 
 	return {
 		handleShowInfo,
+		handleCloseInfoPanel,
 		fileInfoPanel: (
 			<FileInfoPanel
 				open={Boolean(infoItem)}

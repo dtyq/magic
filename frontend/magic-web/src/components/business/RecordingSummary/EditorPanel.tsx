@@ -1,8 +1,7 @@
 import { forwardRef, useImperativeHandle } from "react"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import "./EditorPanelAnimations.css"
-import { BlockedStateView } from "@/components/business/RecordingSummary/internal/editorPanel/BlockedStateView"
 import { IdleStateView } from "@/components/business/RecordingSummary/internal/editorPanel/IdleStateView"
 import { RecordingStateView } from "@/components/business/RecordingSummary/internal/editorPanel/RecordingStateView"
 import { useRecordSummaryEditorPanelController } from "@/components/business/RecordingSummary/internal/editorPanel/useRecordSummaryEditorPanelController"
@@ -22,10 +21,21 @@ export type {
 	RecordSummaryEditorPanelRef,
 } from "@/components/business/RecordingSummary/internal/editorPanel/types"
 
+/** Render the recording editor state while preserving the parent conversation height contract. */
 export const RecordSummaryEditorPanel = forwardRef<
 	RecordSummaryEditorPanelRef,
 	RecordSummaryEditorPanelProps
->(({ containerClassName, taskDataNode, messageQueueNode, iconSize = 20, ...props }, ref) => {
+>(function RecordSummaryEditorPanel(
+	{
+		containerClassName,
+		taskDataNode,
+		messageQueueNode,
+		iconSize = 20,
+		fillHeight = false,
+		...props
+	},
+	ref,
+) {
 	const {
 		WaveformComponent,
 		ProjectSelectorComponent,
@@ -36,10 +46,8 @@ export const RecordSummaryEditorPanel = forwardRef<
 		editorModeSwitch,
 		handleCancelUpload,
 		handleCompleteRecordingWithSummary,
-		handleOpenCurrentRecording,
 		handleStartRecording,
 		handleUploadFile,
-		isCurrentRecording,
 		isMediaRecorderNotSupported,
 		isModelReady,
 		isOtherTabRecording,
@@ -55,6 +63,7 @@ export const RecordSummaryEditorPanel = forwardRef<
 		panelMode,
 		saveSuperMagicTopicModel,
 		selectedProjectId,
+		allowSelectRecordingProject,
 		size,
 		uploading,
 		uploadProgress,
@@ -86,34 +95,18 @@ export const RecordSummaryEditorPanel = forwardRef<
 				onCancel={cancelRecord}
 				onSummarize={handleCompleteRecordingWithSummary}
 			/>
-		) : panelMode === "blocked" ? (
-			<BlockedStateView
-				size={size}
-				isSmall={isSmall}
-				uploading={uploading}
-				uploadProgress={uploadProgress}
-				isMediaRecorderNotSupported={isMediaRecorderNotSupported}
-				isOtherTabRecording={isOtherTabRecording}
-				isRecording={isRecording}
-				isPaused={isPaused}
-				isCurrentRecording={isCurrentRecording}
-				leftToolbar={leftToolbar}
-				editorModeSwitch={editorModeSwitch}
-				isTaskRunning={isTaskRunning}
-				iconSize={iconSize}
-				onInterrupt={onInterrupt}
-				onCancelUpload={handleCancelUpload}
-				onUploadFile={handleUploadFile}
-				onOpenCurrentRecording={handleOpenCurrentRecording}
-			/>
 		) : (
 			<IdleStateView
 				size={size}
 				isSmall={isSmall}
 				iconSize={iconSize}
 				selectedProjectId={selectedProjectId}
+				allowSelectRecordingProject={allowSelectRecordingProject}
 				isStartingRecord={isStartingRecord}
 				isModelReady={isModelReady}
+				isRecordingBlocked={panelMode === "blocked"}
+				isMediaRecorderNotSupported={isMediaRecorderNotSupported}
+				isOtherTabRecording={isOtherTabRecording}
 				uploading={uploading}
 				uploadProgress={uploadProgress}
 				leftToolbar={leftToolbar}
@@ -124,6 +117,7 @@ export const RecordSummaryEditorPanel = forwardRef<
 				onStartRecording={handleStartRecording}
 				onCancelUpload={handleCancelUpload}
 				onUploadFile={handleUploadFile}
+				fillHeight={fillHeight}
 			/>
 		)
 
@@ -133,6 +127,7 @@ export const RecordSummaryEditorPanel = forwardRef<
 				className={cn(
 					"flex flex-col rounded-2xl border border-border bg-white p-2.5",
 					isMobile && "rounded-none border-none",
+					fillHeight && panelMode !== "recording" && "min-h-0 flex-1",
 					containerClassName,
 				)}
 			>

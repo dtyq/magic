@@ -1,3 +1,4 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import {
 	IconRefresh,
 	IconDownload,
@@ -41,6 +42,7 @@ export function DesignHeaderActions(props: DesignHeaderActionsProps) {
 		versionMenuTrigger,
 		allowDownload = true,
 	} = props
+	const { permissions: access } = useFileAccess()
 	const { styles } = useStyles()
 
 	const handleRefresh = async () => {
@@ -53,7 +55,7 @@ export function DesignHeaderActions(props: DesignHeaderActionsProps) {
 	}
 
 	const handleShare = () => {
-		if (onShare) {
+		if (access.share && onShare) {
 			onShare()
 		}
 	}
@@ -65,7 +67,7 @@ export function DesignHeaderActions(props: DesignHeaderActionsProps) {
 	}
 
 	const handleDownload = async () => {
-		if (!onDownload || isDownloading) return
+		if (!access.download || !allowDownload || !onDownload || isDownloading) return
 		try {
 			await onDownload()
 		} catch (error) {
@@ -85,7 +87,7 @@ export function DesignHeaderActions(props: DesignHeaderActionsProps) {
 			>
 				<IconRefresh size={16} stroke={1.5} />
 			</ActionButton>
-			{allowDownload && (
+			{allowDownload && access.download && (
 				<ActionButton
 					className={styles.actionButton}
 					onClick={isDownloading ? undefined : handleDownload}
@@ -97,7 +99,7 @@ export function DesignHeaderActions(props: DesignHeaderActionsProps) {
 					<IconDownload size={16} stroke={1.5} />
 				</ActionButton>
 			)}
-			{!isShareRoute && (
+			{!isShareRoute && access.share && (
 				<ActionButton className={styles.actionButton} onClick={handleShare}>
 					<IconShare3 size={16} stroke={1.5} />
 				</ActionButton>

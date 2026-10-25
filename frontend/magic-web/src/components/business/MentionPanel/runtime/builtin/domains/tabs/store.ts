@@ -15,6 +15,13 @@ import type { TabItem } from "@/pages/superMagic/components/Detail/components/Fi
 import type { MentionFilePreviewSourceRow } from "../file-preview/preview-utils"
 import { createProjectFileMentionData } from "../../../../utils/projectReferenceMention"
 
+type MentionTabItem = TabItem & {
+	data?: {
+		appId?: string
+		appName?: string
+	}
+}
+
 export class MentionPanelTabsStore {
 	currentTabs: TabItem[] = []
 	private readonly getFolderMentionItemsFromTab: MentionTabsStoreDependencies["getFolderMentionItemsFromTab"]
@@ -35,7 +42,28 @@ export class MentionPanelTabsStore {
 			.sort((a, b) => (b.active_at || 0) - (a.active_at || 0))
 	}
 
-	tabToMentionItem(tab: TabItem): MentionItem {
+	tabToMentionItem(tab: MentionTabItem): MentionItem {
+		if (tab.type === "micro_app") {
+			// Published micro-app tabs intentionally have no fileData. Preserve their
+			// app identity so the micro-app renderer can provide its product icon.
+			const appId = typeof tab.data?.appId === "string" ? tab.data.appId.trim() : ""
+			if (appId) {
+				const appName =
+					typeof tab.data?.appName === "string"
+						? tab.data.appName.trim() || tab.title
+						: tab.title
+				return {
+					id: `micro-app:${appId}`,
+					name: appName,
+					type: MentionItemType.MICRO_APP,
+					data: { app_id: appId, app_name: appName },
+					hasChildren: false,
+					isFolder: false,
+					tags: ["tab"],
+				}
+			}
+		}
+
 		const data = {
 			type: MentionItemType.PROJECT_FILE,
 			data: createProjectFileMentionData(tab.fileData, {
@@ -58,6 +86,7 @@ export class MentionPanelTabsStore {
 			description,
 			type: MentionItemType.PROJECT_FILE,
 			data: data.data,
+			displayConfig: tab.fileData.display_config,
 			icon,
 			hasChildren: false,
 			isFolder: false,

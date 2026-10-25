@@ -6,7 +6,7 @@ import {
 	MicroAppPermissionIllustration,
 	MicroAppRetryIllustration,
 } from "@/pages/superMagic/components/MicroAppStateIllustration"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface MicroAppFallbackStateProps {
 	variant: "load" | "permission"

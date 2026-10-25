@@ -1,7 +1,7 @@
 import type { Link, Parent, PhrasingContent, Root, Text } from "mdast"
 import { parseRecordingTimeToSeconds } from "./time"
 
-const TIME_TEXT_REGEX = /(?<!\]\()(\d{1,3}:[0-5]\d(?::[0-5]\d)?)/g
+const TIME_TEXT_REGEX = /(\d{1,3}:[0-5]\d(?::[0-5]\d)?)/g
 const RECORDING_TIME_TEXT_EXACT_REGEX = /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/
 const MARKDOWN_MAGIC_TIME_LINK_REGEX = /\[([^\]]+)]\(magic-time:\/\/\/?([^)]+)\)/g
 const CODED_MAGIC_TIME_LINK_REGEX = /`\\?\[([^\\\]]+)\\?]\??\\?\(magic-time:\/\/\/?([^\\)]+)\\?\)`/g
@@ -190,7 +190,10 @@ export function injectMarkdownTimeLinks(markdown: string): string {
 		})
 
 	return withPlaceholders
-		.replace(TIME_TEXT_REGEX, (match) => {
+		.replace(TIME_TEXT_REGEX, (match, _time: string, offset: number, source: string) => {
+			// Check the prefix in code: regex lookbehind prevents older WebKit from loading this module.
+			if (source.slice(offset - 2, offset) === "](") return match
+
 			const seconds = parseRecordingTimeToSeconds(match)
 			return `[${match}](magic-time://${seconds})`
 		})

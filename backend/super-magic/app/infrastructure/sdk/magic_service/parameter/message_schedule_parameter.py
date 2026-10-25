@@ -14,7 +14,7 @@ class TimeConfig:
     # Open API 支持的调度类型
     TYPE_NO_REPEAT = 'no_repeat'          # 不重复，需要 day（YYYY-MM-DD）+ time
     TYPE_DAILY_REPEAT = 'daily_repeat'    # 每天，需要 time
-    TYPE_WEEKLY_REPEAT = 'weekly_repeat'  # 每周，需要 day（0-6，0=周日）+ time
+    TYPE_WEEKLY_REPEAT = 'weekly_repeat'  # 每周，需要 day（0-6，0=周一，与 magic-service 后端约定一致）+ time
     TYPE_MONTHLY_REPEAT = 'monthly_repeat'  # 每月，需要 day（1-31）+ time
 
     def __init__(
@@ -31,7 +31,7 @@ class TimeConfig:
             time: 执行时间，格式 'HH:MM'，如 '9:00'
             day: 日期/星期/日号，含义随类型不同：
                  - no_repeat:      具体日期，格式 'YYYY-MM-DD'
-                 - weekly_repeat:  星期几，'0'=周日 ... '6'=周六
+                 - weekly_repeat:  星期几，'0'=周一 ... '6'=周日
                  - monthly_repeat: 几号，'1'-'31'
                  - daily_repeat:   不需要
         """

@@ -1,9 +1,8 @@
+import ScheduledTaskDialog from "@/components/business/AccountSetting/pages/ScheduledTasks/components/ScheduledTaskDialog"
 import { ScheduledTask } from "@/types/scheduledTask"
 import { ScheduledTasksModifyRef } from "../types/ScheduledTasksModify"
-import { useModalStyles } from "../styles"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import MagicModal from "@/components/base/MagicModal"
 import mentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { getSuperIdState } from "@/pages/superMagic/utils/query"
@@ -27,7 +26,6 @@ export interface ScheduledTasksModifyModalState {
 
 export function useScheduledTasksModifyModal() {
 	const { t } = useTranslation("interface")
-	const { styles } = useModalStyles({ runningRecord: false })
 	const modifyRef = useRef<ScheduledTasksModifyRef>(null)
 	const rawProjectRef = useRef<ProjectListItem | null>(null)
 	const superIdState = getSuperIdState()
@@ -41,7 +39,7 @@ export function useScheduledTasksModifyModal() {
 	}, [state.visible])
 
 	function openCreateModal(
-		onSubmit: (task: ScheduledTask.UpdateTask) => void,
+		onSubmit: (task: ScheduledTask.UpdateTask, callback?: () => void) => void | Promise<void>,
 		initialValues?: Partial<ScheduledTask.UpdateTask>,
 	) {
 		setState({
@@ -54,7 +52,7 @@ export function useScheduledTasksModifyModal() {
 
 	function openEditModal(
 		task: ScheduledTask.UpdateTask,
-		onSubmit: (task: ScheduledTask.UpdateTask) => void,
+		onSubmit: (task: ScheduledTask.UpdateTask, callback?: () => void) => void | Promise<void>,
 	) {
 		setState({
 			visible: true,
@@ -83,7 +81,7 @@ export function useScheduledTasksModifyModal() {
 	}
 
 	function handleFormSubmit(values: ScheduledTask.UpdateTask) {
-		state.onSubmit?.(values, closeModal)
+		return state.onSubmit?.(values, closeModal)
 	}
 
 	function getInitialValues(): Partial<FormValues> {
@@ -93,20 +91,14 @@ export function useScheduledTasksModifyModal() {
 	}
 
 	const content = (
-		<MagicModal
-			centered
-			className={styles.modal}
+		<ScheduledTaskDialog
 			open={state.visible}
-			onCancel={closeModal}
-			footer={null}
-			width={460}
+			onClose={closeModal}
 			title={
 				state.mode === "edit"
 					? t("chat.timedTask.editTimedTask")
 					: t("chat.timedTask.createTask")
 			}
-			destroyOnHidden
-			classNames={{ content: "p-0" }}
 		>
 			<Suspense
 				fallback={
@@ -123,7 +115,7 @@ export function useScheduledTasksModifyModal() {
 					mode={state.mode}
 				/>
 			</Suspense>
-		</MagicModal>
+		</ScheduledTaskDialog>
 	)
 
 	return {

@@ -4,7 +4,7 @@ import { Search } from "lucide-react"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
 import { Input } from "@/components/shadcn-ui/input"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	ALL_LUCIDE_ICON_KEBAB_NAMES,
 	LucideLazyIcon,

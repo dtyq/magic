@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { useProjectTopicConversationActions } from "../useProjectTopicConversationActions"
 
+const isPrivateDeploymentMock = vi.hoisted(() => vi.fn(() => false))
 const updateCurrentActionItemMock = vi.fn()
 const renameTopicMock = vi.fn()
 const shareTopicMock = vi.fn()
@@ -13,6 +14,24 @@ vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
 		t: (key: string) => key,
 	}),
+}))
+
+vi.mock("@/utils/env", () => ({
+	isPrivateDeployment: isPrivateDeploymentMock,
+}))
+
+vi.mock("@/pages/superMagic/stores/core", () => ({
+	topicStore: {
+		setSelectedTopic: vi.fn(),
+	},
+}))
+
+vi.mock("@/pages/superMagic/constants", () => ({
+	isCollaborationProject: () => false,
+}))
+
+vi.mock("@/routes/hooks/useNavigate", () => ({
+	default: () => vi.fn(),
 }))
 
 vi.mock("@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/hooks", () => ({
@@ -44,6 +63,7 @@ vi.mock("@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/hooks", () =
 describe("useProjectTopicConversationActions", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		isPrivateDeploymentMock.mockReturnValue(false)
 	})
 
 	it("orders project-topic action groups and disables feedback when handler is missing", () => {
@@ -165,6 +185,32 @@ describe("useProjectTopicConversationActions", () => {
 		expect(
 			findAction(result.current.conversationActionGroups, "feedback-conversation")?.disabled,
 		).toBe(false)
+	})
+
+	it("omits feedback action in private deployments", () => {
+		isPrivateDeploymentMock.mockReturnValue(true)
+		const { result } = renderHook(() =>
+			useProjectTopicConversationActions({
+				selectedProject: createProject(),
+				selectedTopic: createTopic("topic-private"),
+				topics: [createTopic("topic-private"), createTopic("topic-other")],
+				onOpenConversationFeedback: vi.fn(),
+			}),
+		)
+
+		expect(
+			findAction(result.current.conversationActionGroups, "feedback-conversation"),
+		).toBeUndefined()
+		expect(
+			result.current.conversationActionGroups.map((group) =>
+				group.actions.map((action) => action.key),
+			),
+		).toEqual([
+			["view-files"],
+			["pin-topic", "share-topic"],
+			["rename-topic", "enter-project"],
+			["delete-topic"],
+		])
 	})
 
 	it("opens conversation feedback and closes action sheet from feedback action", () => {

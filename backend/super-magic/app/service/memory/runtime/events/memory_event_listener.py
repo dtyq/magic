@@ -8,6 +8,7 @@ from agentlang.event.data import AfterMainAgentRunEventData
 from agentlang.event.event import Event, EventType
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
+from app.service.memory.policies.memory_skill_policy import is_memory_maintenance_enabled
 
 if TYPE_CHECKING:
     from app.core.context.agent_context import AgentContext
@@ -72,5 +73,10 @@ class MemoryListenerService:
 
     @staticmethod
     def _is_enabled(agent_context: "AgentContext") -> bool:
-        """限定文件记忆生命周期只服务主 Agent，包括 Claw 主 Agent。"""
-        return agent_context.is_main_agent_context()
+        """
+        仅为主 Agent 启用；通用 Agent 尊重开关，Claw 保持原有行为。
+
+        事件监听器只决定是否进入自动流程；不能把此判断传播成用户手动记忆工具的权限。
+        开关、Skill 实际可用性与 Claw 例外集中在同一政策函数，防止多个入口各写一套解释。
+        """
+        return is_memory_maintenance_enabled(agent_context)

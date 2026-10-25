@@ -19,7 +19,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
+import { cn } from "@/utils/cn"
 import type {
 	AudioProjectSortBy,
 	AudioProjectSortOrder,
@@ -138,49 +139,51 @@ function AudioRecordingGroupFilter({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="max-h-[360px] w-max min-w-[240px] max-w-[320px] overflow-y-auto"
+				className="max-h-[360px] w-max min-w-[240px] max-w-[320px] overflow-hidden"
 			>
-				{/* Match the standard filter dropdown color while keeping regular item weight. */}
-				<DropdownMenuItem
-					onClick={() => onGroupChange(ALL_RECORDING_GROUP_ID)}
-					className="flex items-center justify-between gap-3 font-normal"
-					data-testid="audio-recordings-group-all"
-				>
-					<span>{t("super:mobile.recordingEntry.groupSheet.all")}</span>
-					<span className="text-xs tabular-nums text-muted-foreground">
-						{totalGroupCount}
-					</span>
-				</DropdownMenuItem>
-
-				{/* Virtual Item: Ungrouped */}
-				<DropdownMenuItem
-					onClick={() => onGroupChange(UNGROUPED_RECORDING_GROUP_ID)}
-					className="flex items-center justify-between gap-3 font-normal"
-					data-testid="audio-recordings-group-ungrouped"
-				>
-					<span>{t("super:mobile.recordingEntry.groupSheet.ungrouped")}</span>
-					<span className="text-xs tabular-nums text-muted-foreground">
-						{ungroupedCount}
-					</span>
-				</DropdownMenuItem>
-
-				{/* Custom folder items */}
-				{groups.map((group) => (
+				{/* Reserve space for group management outside the bounded options viewport. */}
+				<ScrollArea viewportClassName="h-auto max-h-[min(312px,calc(var(--radix-dropdown-menu-content-available-height)-48px))] [&>div]:!block">
+					{/* Match the standard filter dropdown color while keeping regular item weight. */}
 					<DropdownMenuItem
-						key={group.id}
-						onClick={() => onGroupChange(group.id)}
+						onClick={() => onGroupChange(ALL_RECORDING_GROUP_ID)}
 						className="flex items-center justify-between gap-3 font-normal"
-						data-testid={`audio-recordings-group-custom-${group.id}`}
+						data-testid="audio-recordings-group-all"
 					>
-						<span className="min-w-0 flex-1 truncate">
-							{resolveRecordingGroupDisplayName(group.name, unnamedGroupLabel)}
-						</span>
-						<span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-							{group.projectCount}
+						<span>{t("super:mobile.recordingEntry.groupSheet.all")}</span>
+						<span className="text-xs tabular-nums text-muted-foreground">
+							{totalGroupCount}
 						</span>
 					</DropdownMenuItem>
-				))}
 
+					{/* Virtual Item: Ungrouped */}
+					<DropdownMenuItem
+						onClick={() => onGroupChange(UNGROUPED_RECORDING_GROUP_ID)}
+						className="flex items-center justify-between gap-3 font-normal"
+						data-testid="audio-recordings-group-ungrouped"
+					>
+						<span>{t("super:mobile.recordingEntry.groupSheet.ungrouped")}</span>
+						<span className="text-xs tabular-nums text-muted-foreground">
+							{ungroupedCount}
+						</span>
+					</DropdownMenuItem>
+
+					{/* Custom folder items */}
+					{groups.map((group) => (
+						<DropdownMenuItem
+							key={group.id}
+							onClick={() => onGroupChange(group.id)}
+							className="flex items-center justify-between gap-3 font-normal"
+							data-testid={`audio-recordings-group-custom-${group.id}`}
+						>
+							<span className="min-w-0 flex-1 truncate">
+								{resolveRecordingGroupDisplayName(group.name, unnamedGroupLabel)}
+							</span>
+							<span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+								{group.projectCount}
+							</span>
+						</DropdownMenuItem>
+					))}
+				</ScrollArea>
 				<DropdownMenuSeparator />
 
 				{/* Manage Action Trigger */}

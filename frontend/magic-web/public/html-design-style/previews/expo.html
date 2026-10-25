@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expo — Create universal native apps with React</title>
+<style>
+:root {
+--canvas: #0f1117;
+--canvas-deep: #0a0c10;
+--canvas-soft: #161922;
+--surface: #1d2230;
+--surface-subtle: #181d28;
+--surface-hover: #262c3e;
+--border: #272f42;
+--border-light: #36415a;
+--border-glow: rgba(124, 58, 237, 0.4);
+--violet: #7c3aed;
+--violet-light: #a78bfa;
+--violet-soft: #c4b5fd;
+--violet-glow: rgba(124, 58, 237, 0.28);
+--ink: #f8fafc;
+--ink-muted: #94a3b8;
+--ink-dim: #64748b;
+--emerald: #10b981;
+--blue: #38bdf8;
+--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+--font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+--radius-sm: 6px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--radius-full: 9999px;
+--max-w: 1160px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+.container { width: min(var(--max-w), calc(100% - 40px)); margin: 0 auto; }
+.atmosphere-glow {
+position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 980px; height: 440px;
+background: radial-gradient(ellipse 65% 50% at 50% 0%, rgba(124, 58, 237, 0.24) 0%, rgba(56, 189, 248, 0.08) 50%, transparent 75%);
+filter: blur(48px); pointer-events: none; z-index: 0;
+}
+header {
+position: sticky; top: 0; z-index: 100; background: rgba(15, 17, 23, 0.88); backdrop-filter: blur(16px);
+border-bottom: 1px solid var(--border);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand-wrap { display: flex; align-items: center; gap: 12px; }
+.brand-logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+.expo-logo { width: 22px; height: 20px; fill: #ffffff; }
+.badge-sdk {
+font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full);
+background: rgba(124, 58, 237, 0.15); color: var(--violet-light); border: 1px solid rgba(124, 58, 237, 0.35);
+}
+.nav-links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--ink-muted); }
+.nav-links a:hover { color: var(--ink); }
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+.btn {
+display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 16px;
+border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.15s;
+}
+.btn-violet {
+background: var(--violet); color: #ffffff; border: 1px solid var(--violet-light);
+box-shadow: 0 0 20px var(--violet-glow);
+}
+.btn-violet:hover { background: #6d28d9; transform: translateY(-1px); }
+.btn-secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--border-light); }
+.btn-secondary:hover { background: var(--surface-hover); border-color: var(--violet-light); }
+.hero { position: relative; z-index: 1; padding: 36px 0 20px; text-align: center; }
+.announcement {
+display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px; border-radius: var(--radius-full);
+background: rgba(124, 58, 237, 0.1); border: 1px solid rgba(124, 58, 237, 0.3); font-size: 12px; color: var(--violet-soft); margin-bottom: 18px;
+}
+.glow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--violet-light); box-shadow: 0 0 8px var(--violet-light); }
+.hero-h1 {
+font-size: clamp(34px, 5.2vw, 62px); font-weight: 700; line-height: 1.08; letter-spacing: -0.04em; max-width: 880px; margin: 0 auto 16px;
+}
+.violet-gradient-text {
+background: linear-gradient(135deg, #a78bfa 0%, #c084fc 50%, #38bdf8 100%);
+-webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-desc { font-size: 16px; color: var(--ink-muted); max-width: 640px; margin: 0 auto 24px; line-height: 1.55; }
+.hero-actions { display: flex; justify-content: center; gap: 12px; margin-bottom: 36px; }
+.simulator-window {
+max-width: 1080px; margin: 0 auto; background: var(--canvas-deep); border: 1px solid var(--border);
+border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 30px 90px rgba(0,0,0,0.85); text-align: left;
+}
+.window-header {
+padding: 10px 18px; background: #131722; border-bottom: 1px solid var(--border);
+display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.sim-tabs { display: flex; align-items: center; gap: 6px; }
+.tab-btn {
+display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: var(--radius-sm);
+font-size: 12px; color: var(--ink-muted); cursor: pointer; transition: 0.15s; border: 1px solid transparent;
+}
+.tab-btn.active { background: var(--surface); color: var(--ink); border-color: var(--border-light); font-weight: 600; }
+.sim-body {
+display: grid; grid-template-columns: 310px 1fr; gap: 24px; padding: 24px; background: var(--canvas-soft);
+}
+.phone-mockup {
+width: 290px; height: 490px; background: #000000; border: 3px solid #2d3748; border-radius: 36px;
+overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.7), inset 0 0 0 2px rgba(255,255,255,0.1);
+position: relative; display: flex; flex-direction: column; margin: 0 auto;
+}
+.dynamic-island {
+width: 80px; height: 18px; background: #000; border-radius: 20px; margin: 8px auto 0;
+display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+.phone-screen { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; font-size: 12px; }
+.screen-header { display: flex; justify-content: space-between; align-items: center; }
+.balance-card {
+background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+border: 1px solid rgba(167, 139, 250, 0.3); border-radius: 14px; padding: 14px;
+}
+.balance-amt { font-size: 22px; font-weight: 700; color: #fff; font-family: var(--font-mono); margin: 4px 0 10px; }
+.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.action-btn { background: rgba(255,255,255,0.12); padding: 6px; border-radius: 8px; text-align: center; font-size: 11px; font-weight: 600; }
+.tx-item {
+display: flex; align-items: center; justify-content: space-between; padding: 8px 10px;
+background: #111827; border-radius: 10px; border: 1px solid #1f2937; font-size: 11px;
+}
+.right-workspace { display: flex; flex-direction: column; gap: 18px; }
+.qr-modal {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 18px; display: grid; grid-template-columns: 140px 1fr; gap: 18px; align-items: center;
+}
+.qr-box {
+width: 130px; height: 130px; background: #ffffff; border-radius: var(--radius-sm);
+padding: 8px; display: grid; place-items: center;
+}
+.qr-meta { display: flex; flex-direction: column; gap: 6px; }
+.tunnel-url {
+font-family: var(--font-mono); font-size: 11px; background: var(--canvas-deep);
+border: 1px solid var(--border); padding: 5px 8px; border-radius: var(--radius-sm);
+color: var(--violet-light); display: flex; justify-content: space-between; align-items: center;
+}
+.eas-console {
+background: var(--canvas-deep); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 16px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6;
+}
+.eas-title {
+display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+padding-bottom: 8px; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--ink);
+}
+.log-success { color: var(--emerald); font-weight: 600; }
+.log-info { color: var(--blue); }
+.feature-section { padding: 48px 0 32px; border-top: 1px solid var(--border); margin-top: 48px; }
+.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; }
+.feat-card {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+padding: 22px; transition: 0.2s;
+}
+.feat-card:hover { border-color: var(--violet-light); transform: translateY(-2px); }
+.feat-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); background: rgba(124, 58, 237, 0.15); color: var(--violet-light); display: grid; place-items: center; margin-bottom: 14px; }
+.feat-h { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.feat-p { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+.spec-bar {
+margin-top: 36px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border);
+border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;
+flex-wrap: wrap; gap: 10px; font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);
+}
+.tokens-list { display: flex; gap: 14px; flex-wrap: wrap; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 4px; }
+footer { padding: 32px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--ink-dim); margin-top: 40px; }
+.footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 880px) { .nav-links { display: none; } .sim-body, .qr-modal, .feat-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="atmosphere-glow"></div>
+<header>
+<div class="container nav-inner">
+<div class="brand-wrap">
+<a href="#" class="brand-logo" aria-label="Expo">
+<svg class="expo-logo" viewBox="0 0 100 80">
+<path d="M50 0L0 80h30l20-35 20 35h30L50 0z"/>
+</svg>
+<span>Expo</span>
+</a>
+<span class="badge-sdk">SDK 52 · React Native 0.76</span>
+</div>
+<nav class="nav-links">
+<a href="#eas">EAS Build</a>
+<a href="#router">Expo Router</a>
+<a href="#snack">Snack</a>
+<a href="#showcase">Showcase</a>
+<a href="#docs">Docs</a>
+</nav>
+<div class="nav-actions">
+<a href="#signin" class="btn btn-secondary">Sign In</a>
+<a href="#start" class="btn btn-violet">Get Started</a>
+</div>
+</div>
+</header>
+<main>
+<section class="hero">
+<div class="container">
+<div class="announcement">
+<span class="glow-dot"></span>
+<span>New Architecture: Hermes Engine & TurboModules</span>
+</div>
+<h1 class="hero-h1">
+The Universal React Platform.
+<br>
+<span class="violet-gradient-text">iOS, Android & Web.</span>
+</h1>
+<p class="hero-desc">
+Unified React framework and cloud infrastructure (EAS) to build, test, and ship universal mobile apps.
+</p>
+<div class="hero-actions">
+<a href="#start" class="btn btn-violet" style="padding: 10px 22px; font-size: 14px;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+Create an Expo Project
+</a>
+<a href="#snack" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px;">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+Play in Browser Snack
+</a>
+</div>
+<div class="simulator-window">
+<div class="window-header">
+<div class="sim-tabs">
+<div class="tab-btn active">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.87c.62-.75 1.04-1.8 1.01-2.87-.96.04-2.12.64-2.79 1.43-.59.69-1.1 1.77-.96 2.83 1.07.08 2.12-.54 2.74-1.39z"/></svg>
+<span>iOS iPhone 16 Pro</span>
+</div>
+<div class="tab-btn">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4126 13.8533 8.1 12 8.1s-3.5902.3126-5.1367.8497L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+<span>Android Pixel 9</span>
+</div>
+<div class="tab-btn">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+<span>Web Safari</span>
+</div>
+</div>
+<div style="font-family:var(--font-mono); font-size:11px; color:#10b981; display:flex; align-items:center; gap:6px;">
+<span style="width:6px; height:6px; border-radius:50%; background:#10b981; box-shadow:0 0 6px #10b981;"></span>
+<span>Fast Refresh: Active (24ms)</span>
+</div>
+</div>
+<div class="sim-body">
+<div class="phone-mockup">
+<div class="dynamic-island">
+<span style="width:6px; height:6px; border-radius:50%; background:#10b981; margin-right:4px;"></span>
+<span style="color:#fff; font-size:9px; font-family:var(--font-mono);">Expo Go</span>
+</div>
+<div class="phone-screen">
+<div class="screen-header">
+<span style="font-weight:700; font-size:14px;">VoltPay Native</span>
+<span style="font-size:10px; color:var(--violet-light); font-weight:600;">SDK 52</span>
+</div>
+<div class="balance-card">
+<div style="font-size:10px; color:#c4b5fd;">Portfolio Balance</div>
+<div class="balance-amt">$24,850.40</div>
+<div class="quick-actions">
+<div class="action-btn">↑ Send</div>
+<div class="action-btn" style="background:var(--violet);">+ Add Cash</div>
+</div>
+</div>
+<div style="font-size:11px; font-weight:600; color:var(--ink-muted); margin-top:2px;">Recent Native Events</div>
+<div class="tx-item">
+<div style="display:flex; align-items:center; gap:6px;">
+<div style="width:18px; height:18px; border-radius:50%; background:#374151; display:grid; place-items:center; font-size:9px;">⚡</div>
+<span>Stripe Apple Pay</span>
+</div>
+<span style="color:#10b981; font-family:var(--font-mono);">+$450.00</span>
+</div>
+<div class="tx-item">
+<div style="display:flex; align-items:center; gap:6px;">
+<div style="width:18px; height:18px; border-radius:50%; background:#374151; display:grid; place-items:center; font-size:9px;">📍</div>
+<span>GeoLocation Sync</span>
+</div>
+<span style="color:var(--ink-dim); font-family:var(--font-mono);">12ms</span>
+</div>
+</div>
+</div>
+<div class="right-workspace">
+<div class="qr-modal">
+<div class="qr-box">
+<svg viewBox="0 0 100 100" width="114" height="114" fill="#0f1117">
+<rect x="10" y="10" width="24" height="24" rx="3"/>
+<rect x="14" y="14" width="16" height="16" fill="#fff" rx="2"/>
+<rect x="18" y="18" width="8" height="8" rx="1"/>
+<rect x="66" y="10" width="24" height="24" rx="3"/>
+<rect x="70" y="14" width="16" height="16" fill="#fff" rx="2"/>
+<rect x="74" y="18" width="8" height="8" rx="1"/>
+<rect x="10" y="66" width="24" height="24" rx="3"/>
+<rect x="14" y="70" width="16" height="16" fill="#fff" rx="2"/>
+<rect x="18" y="74" width="8" height="8" rx="1"/>
+<rect x="42" y="12" width="6" height="6"/><rect x="52" y="18" width="6" height="6"/>
+<rect x="42" y="28" width="6" height="6"/><rect x="52" y="38" width="6" height="6"/>
+<rect x="22" y="42" width="6" height="6"/><rect x="34" y="52" width="6" height="6"/>
+<rect x="66" y="44" width="6" height="6"/><rect x="78" y="54" width="6" height="6"/>
+<rect x="44" y="66" width="6" height="6"/><rect x="54" y="76" width="6" height="6"/>
+<rect x="66" y="74" width="6" height="6"/><rect x="80" y="82" width="6" height="6"/>
+</svg>
+</div>
+<div class="qr-meta">
+<div style="font-size:14px; font-weight:700; color:#fff;">Scan with Expo Go</div>
+<div style="font-size:12px; color:var(--ink-muted);">Open iOS Camera or Android Expo App to launch instantly on your physical device.</div>
+<div class="tunnel-url">
+<span>exp://u.expo.dev/7b8c-99fa-universal</span>
+<span style="color:#a78bfa; cursor:pointer;">Copy</span>
+</div>
+</div>
+</div>
+<div class="eas-console">
+<div class="eas-title">
+<span style="display:flex; align-items:center; gap:6px;">
+<span style="color:#10b981;">●</span> EAS Build: @acme/voltpay (Production Release)
+</span>
+<span style="color:#a78bfa;">BUILD ID: eas-894c21</span>
+</div>
+<div>
+<span class="log-success">✔</span> Resolved dependencies with bun.lockb (1.2s)<br>
+<span class="log-success">✔</span> Generated Native Modules with Expo Prebuild (ios/ & android/) (3.8s)<br>
+<span class="log-success">✔</span> Bundled Hermes Bytecode with Metro Turbo (2.4s)<br>
+<span class="log-info">ℹ</span> Artifact generated: <span style="color:#fff;">voltpay-release.ipa & .aab</span> (Ready for TestFlight & Play Store)
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="feature-section" id="eas">
+<div class="container">
+<div style="text-align:center;">
+<div style="font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.14em; color:var(--violet-light); margin-bottom:6px;">Expo Application Services</div>
+<h2 style="font-size: clamp(22px, 3vw, 32px); font-weight:700; letter-spacing:-0.03em;">Zero-configuration native workflows.</h2>
+</div>
+<div class="feat-grid">
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+</div>
+<div class="feat-h">EAS Build in Cloud</div>
+<div class="feat-p">Compile iOS and Android native binaries in high-speed cloud infrastructure without owning a Mac or installing gigabytes of local toolchains.</div>
+</div>
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+</div>
+<div class="feat-h">EAS Over-The-Air Update</div>
+<div class="feat-p">Push critical bug fixes and UI updates directly to user devices in seconds, bypassing store review queues with deterministic rollback controls.</div>
+</div>
+<div class="feat-card">
+<div class="feat-icon">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+</div>
+<div class="feat-h">Expo File-Based Router</div>
+<div class="feat-p">Next.js-style file-based routing adapted for native transitions, universal deep linking, gestures, and server-side static rendering on Web.</div>
+</div>
+</div>
+<div class="spec-bar">
+<div class="tokens-list">
+<span><span class="swatch" style="background:#0f1117; border:1px solid #444;"></span>--canvas: #0f1117</span>
+<span><span class="swatch" style="background:#7c3aed;"></span>--violet: #7c3aed</span>
+<span><span class="swatch" style="background:#a78bfa;"></span>--violet-light: #a78bfa</span>
+<span><span class="swatch" style="background:#10b981;"></span>--emerald: #10b981</span>
+<span><span class="swatch" style="background:#38bdf8;"></span>--blue: #38bdf8</span>
+</div>
+<div>Tokens: Inter Sans · Dark Slate & Violet Voltage</div>
+</div>
+</div>
+</section>
+</main>
+<footer>
+<div class="container footer-row">
+<div style="display:flex; align-items:center; gap:8px;">
+<svg class="expo-logo" style="width:14px; height:12px;" viewBox="0 0 100 80"><path d="M50 0L0 80h30l20-35 20 35h30L50 0z"/></svg>
+<span>© 2026 650 Industries, Inc. Built for Universal React.</span>
+</div>
+<div style="display:flex; gap:16px;">
+<a href="#">Status</a>
+<a href="#">Privacy</a>
+<a href="#">Terms</a>
+<a href="#">Changelog</a>
+</div>
+</div>
+</footer>
+</body>
+</html>

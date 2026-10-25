@@ -1,40 +1,24 @@
-import { isEmpty, pick } from "lodash-es"
-import { DisabledDetailToolTypes } from "@/pages/superMagic/components/Detail/constants"
+import { pick } from "lodash-es"
 import { getToolDesignProjectInfo } from "@/pages/superMagic/components/Detail/contents/Design/utils/toolDesignProjectInfo"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import {
-	resolveToolFileId,
-	selectSourceFileFromTool,
+	getToolCardInteractionTarget,
+	selectToolFile,
 	selectToolDetail,
 } from "../../toolDetailSelection"
 import type { ToolCallViewModel } from "./types"
 
-const DESIGN_TOOL_NAMES = new Set([
-	"create_design_project",
-	"create_canvas_element",
-	"update_canvas_element",
-	"batch_create_canvas_elements",
-	"batch_update_canvas_elements",
-	"reorder_canvas_elements",
-	"query_canvas_overview",
-	"query_canvas_element",
-	"generate_images_to_canvas",
-	"search_images_to_canvas",
-	"generate_videos_to_canvas",
-	"query_video_generation",
-	"create_canvas",
-	"generate_canvas_images",
-	"generate_canvas_videos",
-])
-
 interface HandleToolCallInteractionOptions {
 	toolData: ToolCallViewModel
 	onSelectDetail?: (detail: unknown) => void
+	filesStore?: ProjectFilesStore
 }
 
 export function handleToolCallInteraction({
 	toolData,
 	onSelectDetail,
+	filesStore,
 }: HandleToolCallInteractionOptions) {
 	const toolInfo = pick(toolData, ["name", "url", "action", "remark", "id"])
 	const newDetail = {
@@ -43,15 +27,16 @@ export function handleToolCallInteraction({
 		attachments: toolData.attachments,
 	}
 
-	if (
-		(toolData.name && DisabledDetailToolTypes.includes(toolData.name)) ||
-		isEmpty(toolData.detail)
-	)
-		return
+	const target = getToolCardInteractionTarget(toolData.name, toolData.detail)
+	if (target.type === "disabled" || target.type === "inline") return
 
-	if (toolData.name && DESIGN_TOOL_NAMES.has(toolData.name)) {
-		const { designProjectId, designProject, elements } = getToolDesignProjectInfo(toolData)
+	if (target.type === "canvas") {
+		const { designProjectId, designProject, elements } = getToolDesignProjectInfo(
+			toolData,
+			filesStore,
+		)
 		const canvasDesignId = String(designProjectId || "")
+		if (!canvasDesignId) return
 		pubsub.publish(PubSubEvents.Open_File_Tab, {
 			...designProject,
 			fileId: canvasDesignId,
@@ -70,13 +55,14 @@ export function handleToolCallInteraction({
 		return
 	}
 
-	const fileId = resolveToolFileId((newDetail as { data?: unknown }).data)
-	if (fileId) {
-		selectSourceFileFromTool({
+	if (
+		selectToolFile({
 			detail: newDetail,
-			fileId,
+			target,
 			onSelectDetail,
+			filesStore,
 		})
+	) {
 		return
 	}
 

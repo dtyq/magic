@@ -5,7 +5,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import { AppMenuIconType } from "@/apis/types"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
 import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { AppsPageEntry } from "../hooks/useAppsPage"
 
 interface AppsPageViewProps {

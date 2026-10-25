@@ -2,6 +2,7 @@ import { render } from "@testing-library/react"
 import { useEffect, useState, type ReactNode } from "react"
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router"
 import { vi } from "vitest"
+import { resetMicroAppInstallPromptCapture } from "@/services/microAppInstallPrompt"
 import MicroAppSharePage from "../index"
 
 interface TestUserInfo {
@@ -34,8 +35,10 @@ interface TestPreviewFile {
 
 interface TestHtmlPreviewProps {
 	data: TestPreviewFile
+	projectId?: string
 	openFileTab?: (file: TestPreviewFile) => void
 	virtualStorageMarkerId?: string
+	isSharePreview?: boolean
 	onHtmlPermissionManagerChange?: (manager: { open: () => void } | null) => void
 }
 
@@ -51,7 +54,7 @@ const mocks = vi.hoisted(() => ({
 	resolvePublishedMicroApp: vi.fn(),
 	checkShareResourcePassword: vi.fn(),
 	getShareResource: vi.fn(),
-	getShareResourceFiles: vi.fn(),
+	loadShareFilesV2: vi.fn(),
 	getTemporaryDownloadUrl: vi.fn(),
 	historyReplace: vi.fn(),
 	openOrganizationSwitch: vi.fn(),
@@ -76,12 +79,28 @@ export function getMicroAppSharePageMocks() {
 }
 
 vi.mock("@/apis", () => ({
+	// The share-permission hooks read these codes at module scope, so the mock must expose them.
+	FUNCTION_PERMISSION_CODE: {
+		MicroAppSharePassword: "micro_app.share_password",
+		MicroAppSharePublic: "micro_app.share_public",
+		MicroAppShareTeam: "micro_app.share_team",
+		ProjectSharePassword: "project.share_password",
+		ProjectSharePublic: "project.share_public",
+		ProjectShareTeam: "project.share_team",
+		TopicSharePassword: "topic.share_password",
+		TopicSharePublic: "topic.share_public",
+	},
 	SuperMagicApi: {
 		resolvePublishedMicroApp: mocks.resolvePublishedMicroApp,
 		checkShareResourcePassword: mocks.checkShareResourcePassword,
 		getShareResource: mocks.getShareResource,
-		getShareResourceFiles: mocks.getShareResourceFiles,
+		getMicroAppRuntimeProject: vi.fn().mockResolvedValue({ exists: false }),
+		ensureMicroAppRuntimeProject: vi.fn(),
 	},
+}))
+
+vi.mock("@/pages/share/services/shareFilesLoader", () => ({
+	loadShareFilesV2: mocks.loadShareFilesV2,
 }))
 
 vi.mock("react-i18next", () => ({
@@ -208,27 +227,41 @@ vi.mock("@/pages/share/components/WorkspaceButton", () => ({
 }))
 
 vi.mock("@/pages/share/components", () => ({
+	// 与真实 ErrorDisplay 的契约一致：只有传了 onBack 才会渲染「返回」按钮。
 	ErrorDisplay: ({
 		errorMessage,
 		illustration,
+		onBack,
 	}: {
 		errorMessage?: string
 		illustration?: ReactNode
+		onBack?: () => void
 	}) => (
 		<div data-testid="mock-error-display">
 			{illustration}
 			{errorMessage}
+			{onBack ? (
+				<button type="button" data-testid="error-display-retry-button" onClick={onBack}>
+					back
+				</button>
+			) : null}
 		</div>
 	),
 	PasswordVerification: () => <div data-testid="mock-password-verification" />,
 	ShareEmptyState: () => <div data-testid="mock-share-empty-state" />,
 }))
 
+vi.mock("@/pages/superMagic/pages/MicroAppPage/components/AppConversationPanel", () => ({
+	default: () => <div data-testid="app-conversation-panel" />,
+}))
+
 vi.mock("@/pages/superMagic/components/Detail/contents/HTML", () => ({
 	default: function MockHtmlPreview({
 		data,
+		projectId,
 		openFileTab,
 		virtualStorageMarkerId,
+		isSharePreview,
 		onHtmlPermissionManagerChange,
 	}: TestHtmlPreviewProps) {
 		const [mountedFileId] = useState(data.file_id)
@@ -246,7 +279,9 @@ vi.mock("@/pages/superMagic/components/Detail/contents/HTML", () => ({
 		return (
 			<div
 				data-testid="mock-html-preview"
+				data-project-id={projectId}
 				data-virtual-storage-marker-id={virtualStorageMarkerId}
+				data-is-share-preview={isSharePreview ? "true" : "false"}
 			>
 				<span>{data.file_name}</span>
 				<span data-testid="mock-mounted-file-id">{mountedFileId}</span>
@@ -268,6 +303,7 @@ vi.mock("@/pages/superMagic/components/Detail/contents/HTML", () => ({
 }))
 
 export function renderPage(path = "/micro-app/app-1") {
+	window.history.replaceState({}, "", path)
 	function TestRouteControls() {
 		const navigate = useNavigate()
 		return (
@@ -293,7 +329,11 @@ export function renderPage(path = "/micro-app/app-1") {
 
 export function resetMicroAppSharePageMocks() {
 	vi.clearAllMocks()
-	window.localStorage.clear()
+	localStorage.clear()
+	sessionStorage.clear()
+	resetMicroAppInstallPromptCapture()
+	window.history.replaceState({}, "", "/")
+	document.head.querySelectorAll("link[data-micro-app-install]").forEach((link) => link.remove())
 	mocks.authorization.current = ""
 	mocks.isMobile.current = false
 	mocks.hasHtmlPermissionDeclarations.current = false
@@ -319,7 +359,7 @@ export function resetMicroAppSharePageMocks() {
 			project_name: "Demo App",
 		},
 	})
-	mocks.getShareResourceFiles.mockResolvedValue({
+	mocks.loadShareFilesV2.mockResolvedValue({
 		tree: [
 			{
 				file_id: "app-json-1",

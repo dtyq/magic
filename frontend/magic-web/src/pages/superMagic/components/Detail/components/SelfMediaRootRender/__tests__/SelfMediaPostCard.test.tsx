@@ -5,9 +5,10 @@ import type { SelfMediaPlatformPostItem } from "../stores/SelfMediaStore"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
+		i18n: { language: "en" },
 		t: (key: string) =>
 			({
-				"detail.selfMedia.home.dataSyncNow": "Sync now",
+				"detail.selfMedia.home.dataSyncNow": "Sync",
 				"detail.selfMedia.home.autoSync": "Auto sync",
 				"detail.selfMedia.home.autoSyncDescription": "Run on a schedule",
 				"detail.selfMedia.home.autoSyncStatus": "Status",
@@ -19,8 +20,8 @@ vi.mock("react-i18next", () => ({
 				"detail.selfMedia.home.autoSyncSave": "Save auto sync",
 				"detail.selfMedia.home.autoSyncTurnOff": "Turn off auto sync",
 				"detail.selfMedia.home.loadingAutoSync": "Loading auto sync",
-				"detail.selfMedia.home.bindPublishedLink": "Connect published link",
-				"detail.selfMedia.home.editPublishedLink": "Change published link",
+				"detail.selfMedia.home.bindPublishedLink": "Add link",
+				"detail.selfMedia.home.editPublishedLink": "Edit link",
 				"detail.selfMedia.home.publishedLinkInput": "Published content link",
 				"detail.selfMedia.home.publishedLinkPlaceholder": "Paste the link",
 				"detail.selfMedia.home.loadingPublishedLink": "Loading link...",
@@ -131,9 +132,7 @@ describe("SelfMediaPostCard", () => {
 			"data-label-mode",
 			"expanded",
 		)
-		expect(screen.getByTestId("self-media-home-post-ops-data-post-1")).toHaveTextContent(
-			"Sync now",
-		)
+		expect(screen.getByTestId("self-media-home-post-ops-data-post-1")).toHaveTextContent("Sync")
 	})
 
 	it("expands card controls after the card width is measured", async () => {
@@ -163,7 +162,13 @@ describe("SelfMediaPostCard", () => {
 				"expanded",
 			)
 			expect(screen.getByTestId("self-media-home-post-actions-post-1")).toHaveClass(
-				"flex-nowrap",
+				"flex-wrap",
+			)
+			expect(
+				screen.getByTestId("self-media-home-post-actions-post-1").className,
+			).not.toContain("flex-nowrap")
+			expect(screen.getByTestId("self-media-home-post-actions-post-1").className).toContain(
+				"absolute",
 			)
 			expect(
 				screen.getByTestId("self-media-home-post-actions-post-1").className,
@@ -204,7 +209,7 @@ describe("SelfMediaPostCard", () => {
 		expect(card).toHaveClass("h-full")
 		expect(surface).toHaveClass("h-full")
 		expect(surface).toHaveClass("min-h-[168px]")
-		expect(surface).toHaveClass("pb-[76px]")
+		expect(surface).toHaveClass("pb-[80px]")
 	})
 
 	it("keeps engagement metrics on one line", () => {
@@ -223,7 +228,7 @@ describe("SelfMediaPostCard", () => {
 
 		const engagement = screen.getByTestId("self-media-home-post-engagement-post-1")
 
-		expect(engagement).toHaveTextContent("Reads 12708")
+		expect(engagement).toHaveTextContent("Reads 12.7k")
 		expect(engagement).toHaveTextContent("Likes 130")
 		expect(engagement).toHaveTextContent("Comments 12")
 		expect(engagement).toHaveClass("flex-nowrap", "overflow-hidden", "whitespace-nowrap")
@@ -231,6 +236,25 @@ describe("SelfMediaPostCard", () => {
 		for (const metric of Array.from(engagement.children)) {
 			expect(metric).toHaveClass("shrink-0", "whitespace-nowrap")
 		}
+	})
+
+	it("localizes compact metric units instead of showing Chinese wan in English", () => {
+		renderCard({
+			opsMetrics: {
+				version: 1,
+				updatedAt: "2026-06-14T10:00:00.000Z",
+				source: "real-platform",
+				metrics: {
+					likes: "2.6w",
+					comments: 312,
+				},
+			},
+		})
+
+		const engagement = screen.getByTestId("self-media-home-post-engagement-post-1")
+		expect(engagement).toHaveTextContent("Likes 26k")
+		expect(engagement).toHaveTextContent("Comments 312")
+		expect(engagement).not.toHaveTextContent("2.6w")
 	})
 
 	it("treats loaded ops metrics as published evidence when the source artifact is stale", () => {
@@ -253,7 +277,7 @@ describe("SelfMediaPostCard", () => {
 		})
 
 		expect(screen.getByTestId("self-media-home-post-engagement-post-1")).toHaveTextContent(
-			"Reads 4747",
+			"Reads 4.7k",
 		)
 		expect(
 			screen.queryByTestId("self-media-home-post-bind-link-post-1"),
@@ -394,7 +418,7 @@ describe("SelfMediaPostCard", () => {
 		})
 		expect(screen.getByTestId("self-media-home-post-open-post-1").parentElement).toHaveClass(
 			"min-h-[192px]",
-			"pb-[76px]",
+			"pb-[80px]",
 		)
 		expect(artifacts).toHaveClass("mt-3")
 		expect(artifacts.className).not.toContain("absolute")
@@ -410,7 +434,7 @@ describe("SelfMediaPostCard", () => {
 		renderCard({ onPostPublishRefresh })
 
 		const trigger = screen.getByTestId("self-media-home-post-ops-data-post-1")
-		expect(trigger).toHaveAttribute("aria-label", "Sync now")
+		expect(trigger).toHaveAttribute("aria-label", "Sync")
 
 		fireEvent.click(trigger)
 		await waitFor(() => expect(onPostPublishRefresh).toHaveBeenCalledTimes(1))
@@ -500,7 +524,7 @@ describe("SelfMediaPostCard", () => {
 
 		const trigger = screen.getByTestId("self-media-home-post-ops-data-post-1")
 		expect(trigger).toHaveAttribute("aria-label", "Auto sync")
-		expect(trigger).not.toHaveTextContent("Sync now")
+		expect(trigger.textContent?.trim()).not.toBe("Sync")
 
 		fireEvent.click(trigger)
 

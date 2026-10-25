@@ -1,0 +1,129 @@
+/*
+ * Folding the entry card cannot be animated as a size change. The open card is a 310px grid and the
+ * folded one an auto-width pill, and neither `width: auto` nor a `display` swap interpolates — the
+ * box has to jump.
+ *
+ * The motion therefore runs in two parts, and only one of them is an *entrance*:
+ *
+ * - Opening needs nothing else. A box growing out of the corner is what the eye expects when
+ *   something gets bigger, so `nb-entry-unfold` alone reads as the pill having opened up.
+ * - Folding is the other way round. The card has to be *seen* leaving, or it reads as having been
+ *   yanked off the screen between two frames — which is what `nb-entry-leave` is for. It runs on the
+ *   card's own box, and the component holds that box for exactly as long as this animation takes
+ *   (`ENTRY_FOLD_OUT_MS` in `index.tsx`) before swapping the pill in.
+ *
+ * The two halves meet on `opacity: 0.35`: the exit stops there and the pill's own entrance starts
+ * there, so the swap is a hand-off rather than a frame with nothing on the corner.
+ *
+ * Class names are global (this is a plain stylesheet, not a module), so they carry a prefix.
+ */
+.nb-entry-fold {
+	animation: nb-entry-fold 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+	transform-origin: top right;
+}
+
+.nb-entry-unfold {
+	animation: nb-entry-unfold 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+	transform-origin: top right;
+}
+
+/*
+ * The card's own children are the grid cells, so the body fade is hung off the unfold class rather
+ * than repeated on every cell — the card is the only thing that knows which state it is in.
+ */
+.nb-entry-unfold > * {
+	animation: nb-entry-body-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nb-entry-pill-in {
+	animation: nb-entry-pill-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+ * The card on its way out, applied to the box holding it and its fold control so the two leave
+ * together. `forwards` only matters if the swap lands a frame early: the card is already at its last
+ * keyframe by then and must not flash back to full size for it.
+ */
+.nb-entry-leaving {
+	animation: nb-entry-leave 0.15s cubic-bezier(0.4, 0, 1, 1) forwards;
+	transform-origin: top right;
+}
+
+/*
+ * Scaling about the top-right corner rather than the centre. The card is pinned to that corner
+ * (`right-4 top-20`), so the fold reads as the card shrinking into it and the unfold as it growing
+ * back out; scaling about the centre barely registers at these factors anyway.
+ */
+@keyframes nb-entry-fold {
+	from {
+		opacity: 0.35;
+		transform: scale(0.86);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes nb-entry-unfold {
+	from {
+		opacity: 0.62;
+		transform: scale(0.972);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/*
+ * A short slide, no scale: the pill's box is already scaling up from 0.86 around it, and stacking a
+ * second reduction inside that made the icon and the two figures arrive visibly squashed.
+ */
+@keyframes nb-entry-pill-in {
+	from {
+		opacity: 0;
+		transform: translateX(6px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes nb-entry-body-in {
+	from {
+		opacity: 0;
+		transform: translateY(-5px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/*
+ * Eased in rather than out: the card accelerates as it goes, which is what "leaving" looks like.
+ * It stops at 0.35 rather than at nothing so that the pill's entrance can pick up from the same
+ * value — see the note at the top of the file.
+ */
+@keyframes nb-entry-leave {
+	from {
+		opacity: 1;
+		transform: none;
+	}
+	to {
+		opacity: 0.35;
+		transform: scale(0.9);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.nb-entry-fold,
+	.nb-entry-unfold,
+	.nb-entry-unfold > *,
+	.nb-entry-pill-in,
+	.nb-entry-leaving {
+		animation: none;
+	}
+}

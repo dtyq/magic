@@ -6,8 +6,11 @@ import CommonFooter from "../../components/CommonFooter"
 import MagicPdfRender from "@/components/base/MagicPdfRender"
 import MagicSpin from "@/components/base/MagicSpin"
 import FlexBox from "@/components/base/FlexBox"
+import DetailEmpty from "../../components/DetailEmpty"
+import { useTranslation } from "react-i18next"
 
 export default function PDFViewer(props: any) {
+	const { t } = useTranslation("super")
 	const { styles, cx } = useStyles()
 	const {
 		type,
@@ -39,6 +42,8 @@ export default function PDFViewer(props: any) {
 	const { file_id } = data
 	const {
 		fileUrl,
+		loadError,
+		refreshFile,
 		fileVersion,
 		changeFileVersion,
 		fileVersionsList,
@@ -90,7 +95,9 @@ export default function PDFViewer(props: any) {
 					allowEdit={allowEdit}
 				/>
 			)}
-			{fileUrl ? (
+			{loadError ? (
+				<DetailEmpty title={t("common.fileNotFoundOrLoadFailed")} onRetry={refreshFile} />
+			) : fileUrl ? (
 				<MagicPdfRender
 					file={fileUrl}
 					height={documentFlowFullscreen ? "auto" : "100%"}

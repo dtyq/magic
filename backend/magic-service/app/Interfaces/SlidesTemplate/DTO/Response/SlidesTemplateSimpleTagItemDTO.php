@@ -15,6 +15,8 @@ class SlidesTemplateSimpleTagItemDTO extends AbstractDTO
 
     public string $code = '';
 
+    public string $name = '';
+
     public I18nTextDTO $nameI18n;
 
     public int $sort = 0;
@@ -43,6 +45,16 @@ class SlidesTemplateSimpleTagItemDTO extends AbstractDTO
     public function setCode(?string $code): void
     {
         $this->code = $code ?? '';
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(?string $name): void
+    {
+        $this->name = $name ?? '';
     }
 
     public function getNameI18n(): I18nTextDTO

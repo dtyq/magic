@@ -172,8 +172,46 @@ class TOSTest extends CloudFileBaseTest
             'cache' => false,
         ]);
 
-        $this->assertContentDisposition($attachmentUrl, 'attachment; filename="text.css"');
-        $this->assertContentDisposition($inlineUrl, 'inline; filename="text.css"');
+        $this->assertContentDisposition($attachmentUrl, 'attachment; filename="text.css"; filename*=UTF-8\'\'text.css');
+        $this->assertContentDisposition($inlineUrl, 'inline; filename="text.css"; filename*=UTF-8\'\'text.css');
+    }
+
+    /**
+     * 验证 TOS 真实下载链接支持中文下载名称.
+     */
+    public function testGetLinkWithChineseDownloadName(): void
+    {
+        $filesystem = $this->getFilesystem();
+        $downloadName = '测试中文文件名.md';
+
+        $link = $filesystem->getLink('easy-file/tos_demo.png', $downloadName, 7200, [
+            'cache' => false,
+        ]);
+
+        $this->assertSame($downloadName, $link->getDownloadName());
+        $this->assertContentDisposition(
+            $link->getUrl(),
+            'attachment; filename="download.md"; filename*=UTF-8\'\'' . rawurlencode($downloadName)
+        );
+    }
+
+    /**
+     * 验证 TOS 真实下载链接保留英文下载名称.
+     */
+    public function testGetLinkWithEnglishDownloadName(): void
+    {
+        $filesystem = $this->getFilesystem();
+        $downloadName = 'test-download.md';
+
+        $link = $filesystem->getLink('easy-file/tos_demo.png', $downloadName, 7200, [
+            'cache' => false,
+        ]);
+
+        $this->assertSame($downloadName, $link->getDownloadName());
+        $this->assertContentDisposition(
+            $link->getUrl(),
+            'attachment; filename="' . $downloadName . '"; filename*=UTF-8\'\'' . $downloadName
+        );
     }
 
     /**

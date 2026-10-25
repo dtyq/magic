@@ -34,16 +34,16 @@ function CreateWorkspaceInput({ onCancel, onCreated }: CreateWorkspaceInputProps
 			onValueChange={setWorkspaceName}
 			onSubmit={handleSubmit}
 			onCancel={onCancel}
-			placeholder={t("super:workspace.createWorkspaceTip")}
+			placeholder={t("super:workspace.workspaceName")}
 			disabled={isCreating}
-			containerClassName="px-1"
+			containerClassName="mb-1 px-2"
 			containerTestId="sidebar-create-workspace-input"
 			inputTestId="sidebar-create-workspace-name-input"
 			submitButtonTestId="sidebar-create-workspace-submit-button"
 			cancelButtonTestId="sidebar-create-workspace-cancel-button"
 			submitButtonAriaLabel={t("common.confirm")}
 			cancelButtonAriaLabel={t("common.cancel")}
-			inputClassName="my-1"
+			inputClassName="px-2"
 		/>
 	)
 }

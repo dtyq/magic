@@ -45,3 +45,9 @@ module.exports = async () => {
 
 	return pendingRequest
 }
+
+module.exports.resetCache = () => {
+	cachedData = null
+	cacheTimestamp = null
+	pendingRequest = null
+}

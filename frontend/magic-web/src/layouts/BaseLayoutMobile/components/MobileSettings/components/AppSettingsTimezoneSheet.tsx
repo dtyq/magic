@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next"
 
 import { Input } from "@/components/shadcn-ui/input"
 import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTimezone, useTimezoneList } from "@/providers/TimezoneProvider/hooks"
 
 import {

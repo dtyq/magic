@@ -5,6 +5,7 @@ import { LayoutList, Loader2 } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Textarea } from "@/components/shadcn-ui/textarea"
 import { Separator } from "@/components/shadcn-ui/separator"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { KnowledgeApi } from "@/apis"
 import type { Knowledge } from "@/types/knowledge"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -18,14 +19,13 @@ interface RecallTestViewProps {
 }
 
 /**
- * 召回测试视图组件
- * 用于测试知识库的检索召回能力
+ * Test retrieval recall against the selected knowledge base.
  */
 export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) {
 	const { t } = useTranslation("crew/create")
 	const { knowledge } = useCrewEditStore()
 
-	// 获取当前知识库信息
+	// Resolve the selected knowledge base from the crew editor's store.
 	const currentKnowledge = useMemo(
 		() =>
 			knowledge.knowledgeList.find(
@@ -34,9 +34,9 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 		[knowledge.knowledgeList, knowledgeCode],
 	)
 
-	// 测试文本
+	// Test query.
 	const [testText, setTestText] = useState("")
-	// 测试结果
+	// Recall results.
 	const [results, setResults] = useState<{
 		total: number
 		list: Knowledge.FragmentItem[]
@@ -44,16 +44,16 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 		total: 0,
 		list: [],
 	})
-	// 加载状态
+	// Loading state.
 	const [recallLoading, setRecallLoading] = useState(false)
 
-	// 处理输入文本变更
+	// Update the test query.
 	const handleTextChange = useMemoizedFn((e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		setTestText(e.target.value)
 	})
 
 	/**
-	 * 执行测试
+	 * Run the recall test.
 	 */
 	const handleTest = useMemoizedFn(async () => {
 		if (!testText.trim()) {
@@ -82,14 +82,14 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 		}
 	})
 
-	// 防抖处理
+	// Prevent repeated submissions while the user clicks the test button.
 	const { run: debouncedHandleTest } = useDebounceFn(handleTest, {
 		wait: 300,
 		leading: true,
 		trailing: false,
 	})
 
-	// 计算结果提示文本
+	// Build the result count label.
 	const resultsHeaderText = useMemo(() => {
 		return t("recallTest.recallParagraphs", { count: results.total })
 	}, [results.total, t])
@@ -106,7 +106,7 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 
 			{/* Content */}
 			<div className="mt-3.5 flex min-h-0 flex-1 gap-5 overflow-hidden">
-				{/* 左侧面板 - 测试输入 */}
+				{/* Left panel: test input */}
 				<div className="flex min-w-0 flex-1 flex-col">
 					<div className="mb-3">
 						<h3 className="mb-1 text-base font-semibold">{t("recallTest.title")}</h3>
@@ -115,7 +115,7 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 						</p>
 					</div>
 
-					{/* 输入区域 */}
+					{/* Query input */}
 					<div className="mb-4 overflow-hidden rounded-lg border shadow-sm">
 						<div className="bg-muted/50 px-3 py-2">
 							<h4 className="text-sm font-medium">{t("recallTest.sourceText")}</h4>
@@ -138,32 +138,36 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 
 				<Separator orientation="vertical" className="h-auto" />
 
-				{/* 右侧面板 - 测试结果 */}
+				{/* Right panel: recall results */}
 				<div className="flex min-w-0 flex-1 flex-col">
-					{/* 结果头部 */}
+					{/* Result header */}
 					<div className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground">
 						<LayoutList className="size-4" />
 						<span>{resultsHeaderText}</span>
 					</div>
 
-					{/* 结果内容区域 */}
-					<div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/20">
+					{/* Result content */}
+					{/* Fill the viewport to keep loading and empty results centered. */}
+					<ScrollArea
+						className="grid min-h-0 flex-1 rounded-lg border bg-muted/20"
+						viewportClassName="h-auto min-h-0 [&>div]:!flex [&>div]:min-h-full [&>div]:flex-col"
+					>
 						{recallLoading ? (
-							<div className="flex h-full flex-col items-center justify-center gap-3">
+							<div className="flex flex-1 flex-col items-center justify-center gap-3">
 								<Loader2 className="size-8 animate-spin text-primary" />
 								<p className="text-sm text-muted-foreground">
 									{t("recallTest.loading")}
 								</p>
 							</div>
 						) : (
-							<div className="min-w-0 space-y-3 p-4">
+							<div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
 								{results.list.length > 0 ? (
 									results.list.map((item) => (
 										<div
 											key={item.id}
 											className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-background p-4 shadow-sm transition-shadow hover:shadow-md"
 										>
-											{/* 片段头部信息 */}
+											{/* Fragment metadata */}
 											<div className="mb-2 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 												<LayoutList className="size-4" />
 												<span>{t("recallTest.segment")}</span>
@@ -182,12 +186,12 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 												</span>
 											</div>
 
-											{/* 片段内容 */}
+											{/* Fragment content */}
 											<div className="mb-3 min-w-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
 												{item.content}
 											</div>
 
-											{/* 文档信息 */}
+											{/* Document information */}
 											<div className="flex min-w-0 max-w-full items-center gap-1.5 text-xs text-muted-foreground">
 												{getExternalFileIconByType(item.document_type, 16)}
 												<span className="min-w-0 truncate">
@@ -197,13 +201,13 @@ export function RecallTestView({ knowledgeCode, onClose }: RecallTestViewProps) 
 										</div>
 									))
 								) : (
-									<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+									<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
 										{t("recallTest.noResults")}
 									</div>
 								)}
 							</div>
 						)}
-					</div>
+					</ScrollArea>
 				</div>
 			</div>
 		</div>

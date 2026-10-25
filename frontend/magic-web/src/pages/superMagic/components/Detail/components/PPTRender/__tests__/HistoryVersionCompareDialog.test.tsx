@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import HistoryVersionCompareDialog from "../components/HistoryVersionCompareDialog"
 
 const capturedRendererProps = vi.hoisted(() => ({
-	latest: [] as Array<{ isPptRender?: boolean }>,
-	history: [] as Array<{ isPptRender?: boolean }>,
+	latest: [] as Array<{ isPptRender?: boolean; disableHtmlAppPermissions?: boolean }>,
+	history: [] as Array<{ isPptRender?: boolean; disableHtmlAppPermissions?: boolean }>,
 }))
 
 vi.mock("react-i18next", () => ({
@@ -94,13 +94,23 @@ vi.mock("../../../contents/HTML/IsolatedHTMLRenderer", async () => {
 	return {
 		__esModule: true,
 		default: React.forwardRef(function MockIsolatedHTMLRenderer(
-			props: { isPptRender?: boolean; fileId?: string },
+			props: {
+				isPptRender?: boolean
+				fileId?: string
+				disableHtmlAppPermissions?: boolean
+			},
 			_ref,
 		) {
 			if (props.fileId?.includes("-latest")) {
-				capturedRendererProps.latest.push({ isPptRender: props.isPptRender })
+				capturedRendererProps.latest.push({
+					isPptRender: props.isPptRender,
+					disableHtmlAppPermissions: props.disableHtmlAppPermissions,
+				})
 			} else {
-				capturedRendererProps.history.push({ isPptRender: props.isPptRender })
+				capturedRendererProps.history.push({
+					isPptRender: props.isPptRender,
+					disableHtmlAppPermissions: props.disableHtmlAppPermissions,
+				})
 			}
 			return <div data-testid="isolated-html-renderer" />
 		}),
@@ -139,11 +149,20 @@ describe("HistoryVersionCompareDialog", () => {
 		expect(capturedRendererProps.history[0]?.isPptRender).toBe(false)
 	})
 
+	it("disables HTML app permissions in both comparison previews", () => {
+		render(<HistoryVersionCompareDialog {...defaultProps} isPptRender={false} />)
+
+		expect(capturedRendererProps.latest[0]?.disableHtmlAppPermissions).toBe(true)
+		expect(capturedRendererProps.history[0]?.disableHtmlAppPermissions).toBe(true)
+	})
+
 	it("uses isPptRender=true by default for ppt content", () => {
 		render(<HistoryVersionCompareDialog {...defaultProps} />)
 
 		expect(capturedRendererProps.latest[0]?.isPptRender).toBe(true)
 		expect(capturedRendererProps.history[0]?.isPptRender).toBe(true)
+		expect(capturedRendererProps.latest[0]?.disableHtmlAppPermissions).toBe(true)
+		expect(capturedRendererProps.history[0]?.disableHtmlAppPermissions).toBe(true)
 	})
 
 	it("renders description as subtitle under modal title", () => {
@@ -264,7 +283,9 @@ describe("HistoryVersionCompareDialog", () => {
 		expect(headerActions).toContainElement(
 			screen.getByTestId("history-version-fullscreen-version-select"),
 		)
-		expect(headerActions).toContainElement(screen.getByTestId("history-version-fullscreen-close"))
+		expect(headerActions).toContainElement(
+			screen.getByTestId("history-version-fullscreen-close"),
+		)
 		expect(screen.getByTestId("history-version-compare-dialog-footer")).toBeInTheDocument()
 		expect(screen.getByTestId("ppt-history-version-compare-dialog-cancel")).toBeVisible()
 		expect(screen.getByTestId("ppt-history-version-compare-dialog-confirm")).toBeVisible()

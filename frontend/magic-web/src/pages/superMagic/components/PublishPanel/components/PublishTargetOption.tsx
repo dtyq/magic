@@ -4,7 +4,7 @@ import { Building2, CircleUserRound, UsersRound } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Separator } from "@/components/shadcn-ui/separator"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getInternalTargetUiKey } from "../publishCopy"
 import type { PublishInternalTarget } from "../types"
 

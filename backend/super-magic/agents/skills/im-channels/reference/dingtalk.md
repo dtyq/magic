@@ -10,6 +10,10 @@ Create a bot application on the DingTalk Open Platform and obtain:
 
 Also enable **Stream mode** for the bot on the DingTalk Open Platform.
 
+## Receiving messages
+
+Pictures, files, voice, video, rich text pictures, and forwarded chat records are downloaded when the callback provides a download code. A forwarded chat record is materialized as a Markdown attachment; if DingTalk delivers a leaving text event immediately before the record, the two events are aggregated into one logical user message and the leaving text remains the message content. Voice recognition text is preserved when present. Cards and forwarded content without downloadable resources receive an explicit placeholder; ask the user to resend the text or file separately. Temporary network failures are retried up to three attempts. Check bot message-download access if attachments fail while text works.
+
 ## Credential Collection
 
 Ask the user in sequence:

@@ -69,8 +69,8 @@ export const getComponent = (type: string) => {
 		[FormItemType.String]: <MagicInput.TextArea />,
 		[FormItemType.Boolean]: <Switch />,
 		[FormItemType.Integer]: <MagicInput type="number" />,
-		[FormItemType.Array]: <div>暂不支持选择数组</div>,
-		[FormItemType.Object]: <div>暂不支持选择对象</div>,
+		[FormItemType.Array]: <div>{i18next.t("common.unsupportedArray", { ns: "flow" })}</div>,
+		[FormItemType.Object]: <div>{i18next.t("common.unsupportedObject", { ns: "flow" })}</div>,
 	}
 	return componentMap?.[type as FormItemType]
 }

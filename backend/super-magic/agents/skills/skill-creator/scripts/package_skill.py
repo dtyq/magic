@@ -24,9 +24,11 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-import _skill_scripts_bootstrap  # noqa: F401
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
-from quick_validate import validate_skill  # noqa: E402
+from quick_validate import validate_skill
 
 # ---------------------------------------------------------------------------
 # Packaging config

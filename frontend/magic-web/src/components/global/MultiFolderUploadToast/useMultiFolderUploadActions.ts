@@ -1,10 +1,22 @@
 import { useTranslation } from "react-i18next"
-import { useCallback } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { multiFolderUploadStore } from "@/stores/folderUpload"
 import MagicModal from "../../base/MagicModal"
 import { useParams } from "react-router"
 import superMagicService from "@/pages/superMagic/services"
-import { projectStore } from "@/pages/superMagic/stores/core"
+import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
+import { UploadSource } from "@/pages/superMagic/components/MessageEditor/hooks/useFileUpload"
+import { reaction } from "mobx"
+import type { FolderUploadTask } from "@/stores/folderUpload/types"
+import projectFilesStore from "@/stores/projectFiles"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { getFileReferenceIdentityKey } from "@/pages/superMagic/services/userFileReferenceResolver"
+import {
+	registerWaitForNextAttachmentsRefreshForProject,
+	waitForNextFullAttachmentsRefreshForProject,
+} from "@/pages/superMagic/services/attachmentsTopicSync"
+import { addFileToCurrentChat, canAddFileToCurrentChat } from "@/pages/superMagic/utils/topics"
+import type { FileMentionTargetScope } from "@/pages/superMagic/events/message"
 import magicToast from "@/components/base/MagicToaster/utils"
 
 /**
@@ -18,6 +30,161 @@ export const useMultiFolderUploadActions = ({
 }) => {
 	const { t } = useTranslation("super")
 	const params = useParams<{ projectId?: string }>()
+	const [pendingAction, setPendingAction] = useState<{
+		taskId: string
+		action: "locate" | "mention"
+	} | null>(null)
+	const actionRef = useRef<{ key: string; controller: AbortController } | null>(null)
+	const cancelFileAction = useCallback(() => {
+		actionRef.current?.controller.abort()
+		actionRef.current = null
+		setPendingAction(null)
+	}, [])
+	useEffect(() => {
+		const dispose = reaction(
+			() => [
+				getFileReferenceIdentityKey(),
+				projectStore.selectedProject?.id,
+				topicStore.selectedTopic?.id,
+			],
+			cancelFileAction,
+		)
+		return () => {
+			dispose()
+			actionRef.current?.controller.abort()
+		}
+	}, [cancelFileAction])
+
+	const canOperateUploadedTarget = (task: FolderUploadTask) =>
+		Boolean(
+			task.state.isCompleted &&
+			!task.state.isError &&
+			task.state.errorFiles === 0 &&
+			task.uploadedTarget &&
+			task.uploadIdentityKey &&
+			task.uploadIdentityKey === getFileReferenceIdentityKey() &&
+			!task.options.onlyUpload &&
+			!task.options.fileScope &&
+			!task.options.silent &&
+			task.options.source === UploadSource.ProjectFile,
+		)
+	const getMentionScope = (task: FolderUploadTask): FileMentionTargetScope | null => {
+		if (
+			!task.uploadIdentityKey ||
+			!canOperateUploadedTarget(task) ||
+			task.uploadedTarget?.isDirectory ||
+			params.projectId !== task.projectId ||
+			projectStore.selectedProject?.id !== task.projectId
+		)
+			return null
+		return {
+			projectId: task.projectId,
+			topicId: topicStore.selectedTopic?.id || null,
+			identityKey: task.uploadIdentityKey,
+		}
+	}
+	const getMentionDisabledReason = (task: FolderUploadTask): string | undefined => {
+		if (task.projectId !== params.projectId) return t("folderUpload.actions.switchProjectFirst")
+		const scope = getMentionScope(task)
+		if (!scope || !canAddFileToCurrentChat(scope))
+			return t("folderUpload.actions.noEditableChat")
+		return undefined
+	}
+
+	const prepareUploadedFile = async (task: FolderUploadTask, signal: AbortSignal) => {
+		const isCurrent = () =>
+			!signal.aborted &&
+			canOperateUploadedTarget(task) &&
+			projectStore.selectedProject?.id === task.projectId
+		if (!isCurrent()) throw new DOMException("Cancelled", "AbortError")
+		const fileId = task.uploadedTarget?.fileId
+		if (!fileId) throw new Error("Uploaded target unavailable")
+		let item = projectFilesStore.filePresentationIndex.attachments.getItemById(fileId)
+		if (!item) {
+			const options = { signal }
+			if (projectFilesStore.attachmentLoadState?.status === "loading") {
+				await registerWaitForNextAttachmentsRefreshForProject(task.projectId, options)
+			} else {
+				await waitForNextFullAttachmentsRefreshForProject(task.projectId, options)
+			}
+			if (!isCurrent()) throw new DOMException("Cancelled", "AbortError")
+			if (projectFilesStore.attachmentLoadState?.status !== "ready")
+				throw new Error("Attachment load failed")
+			item = projectFilesStore.filePresentationIndex.attachments.getItemById(fileId)
+		}
+		if (!item) throw new Error("Uploaded target unavailable")
+		return item
+	}
+
+	const runFileAction = async (task: FolderUploadTask, action: "locate" | "mention") => {
+		const target = task.uploadedTarget
+		const identityKey = task.uploadIdentityKey
+		if (!target || !identityKey || !canOperateUploadedTarget(task)) return
+		const key = `${task.id}:${action}`
+		if (actionRef.current?.key === key) return
+		cancelFileAction()
+		const controller = new AbortController()
+		actionRef.current = { key, controller }
+		setPendingAction({ taskId: task.id, action })
+		try {
+			if (action === "locate" && params.projectId !== task.projectId) {
+				await superMagicService.switchProjectById(
+					task.projectId,
+					{ enableErrorMessagePrompt: false },
+					undefined,
+					{
+						uploadedFileTarget: {
+							projectId: task.projectId,
+							fileId: target.fileId,
+							identityKey,
+						},
+					},
+				)
+				return
+			}
+			const scope = action === "mention" ? getMentionScope(task) : null
+			if (action === "mention" && (!scope || !canAddFileToCurrentChat(scope))) {
+				magicToast.info(t("folderUpload.actions.noEditableChat"))
+				return
+			}
+			const fileItem = await prepareUploadedFile(task, controller.signal)
+			if (action === "mention" && scope) {
+				await addFileToCurrentChat({ fileItem, autoFocus: true, targetScope: scope })
+				return
+			}
+			await new Promise<void>((resolve, reject) => {
+				const finish = (status: "located" | "unavailable" | "cancelled") => {
+					clearTimeout(timeoutId)
+					controller.signal.removeEventListener("abort", onAbort)
+					if (status === "located") resolve()
+					else if (status === "cancelled")
+						reject(new DOMException("Cancelled", "AbortError"))
+					else reject(new Error("Target unavailable in file tree"))
+				}
+				const onAbort = () => finish("cancelled")
+				const timeoutId = setTimeout(() => {
+					finish("unavailable")
+					controller.abort()
+				}, 15_000)
+				controller.signal.addEventListener("abort", onAbort, { once: true })
+				pubsub.publish(PubSubEvents.Locate_File_In_Tree, target.fileId, {
+					projectId: task.projectId,
+					exact: true,
+					signal: controller.signal,
+					onResult: finish,
+				})
+			})
+		} catch (error) {
+			if (!(error instanceof DOMException && error.name === "AbortError")) {
+				magicToast.error(t("folderUpload.actions.targetUnavailable"))
+			}
+		} finally {
+			if (actionRef.current?.controller === controller) {
+				actionRef.current = null
+				setPendingAction(null)
+			}
+		}
+	}
 
 	/**
 	 * 统一的关闭逻辑
@@ -27,6 +194,7 @@ export const useMultiFolderUploadActions = ({
 	 */
 	const handleClose = useCallback(
 		(onConfirmedClose?: () => void) => {
+			cancelFileAction()
 			const { hasActiveTasks } = multiFolderUploadStore
 
 			setTimeout(() => {
@@ -53,7 +221,7 @@ export const useMultiFolderUploadActions = ({
 				multiFolderUploadStore.clearAllTasksManually()
 			}
 		},
-		[resetComponentState, t],
+		[resetComponentState, t, cancelFileAction],
 	)
 
 	/**
@@ -211,6 +379,11 @@ export const useMultiFolderUploadActions = ({
 	}, [])
 
 	return {
+		pendingAction,
+		canOperateUploadedTarget,
+		getMentionDisabledReason,
+		handleLocateUploadedTarget: (task: FolderUploadTask) => runFileAction(task, "locate"),
+		handleMentionUploadedFile: (task: FolderUploadTask) => runFileAction(task, "mention"),
 		handleClose,
 		handleRetry,
 		handleRetryFile,

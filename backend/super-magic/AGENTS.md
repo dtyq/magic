@@ -2,6 +2,8 @@
 
 本文件适用于整个 `super-magic` 项目。
 
+本项目只支持 Linux/macOS。代码、路径处理和运行命令按 POSIX 语义实现，不主动增加 Windows 盘符、UNC 路径、反斜杠分隔符转换或 Windows 专属运行分支。
+
 ## 1. 先贴合项目，再考虑抽象
 
 - 优先复用现有命名、目录、机制、文件结构
@@ -13,6 +15,52 @@
 - 不要为了"未来可能需要"而提前引入复杂抽象
 - 不要写没有新增语义的包装层
 - 抽象只有在满足以下至少一项时才成立：新增语义、屏蔽复杂性、减少重复决策、显著降低错误率
+- AGENTS.md 只保留影响全项目开发的长期规则；具体模块的行为、配置、阈值和设计原因写在对应代码注释中。
+- 修改既有机制前先理解调用关系和历史约束；不要借局部需求改变无关的权限、性能保护、异常恢复或生命周期。
+
+### 用行为对照和具体例子解释代码
+
+- 注释应让维护者看懂业务含义、判断依据和行为边界，不只复述函数名或语法。涉及开关、自动与手动操作、状态流转、部分完成或容易混淆的职责时，主动用简短对照表、前后示例或数据流程解释。
+- 不以注释越少越好为目标。关键取舍要写清楚；简单赋值不逐行解释，同一规则放在职责归属处，避免到处重复。示例使用通用业务和具体输入／结果，不依赖当前对话背景。
+- 注释只描述真实契约和已确认的取舍。不要用低概率假设堆砌复杂解释，也不要为了让注释成立而增加无必要的检查或状态。
+
+示例一：说明开关影响什么、保留什么。
+
+```python
+# | 操作         | 自动同步关闭后             |
+# | 定时同步     | 不再自动执行               |
+# | 用户手动同步 | 仍可执行，遵守原有权限     |
+# 开关只控制自动调度，不改变同步能力和访问权限。
+```
+
+示例二：用具体结果说明状态含义。
+
+```python
+# 例：批量处理 4 项，3 项成功、1 项失败。
+# 保留 3 项已完成结果，同时返回失败项及原因；不能把整批标成全部成功。
+```
+
+### 用行为对照和具体例子解释代码
+
+- 注释应让维护者看懂业务含义、判断依据和行为边界，不只复述函数名或语法。涉及开关、自动与手动操作、状态流转、部分完成或容易混淆的职责时，主动用简短对照表、前后示例或数据流程解释。
+- 不以注释越少越好为目标。关键取舍要写清楚；简单赋值不逐行解释，同一规则放在职责归属处，避免到处重复。示例使用通用业务和具体输入／结果，不依赖当前对话背景。
+- 注释只描述真实契约和已确认的取舍。不要用低概率假设堆砌复杂解释，也不要为了让注释成立而增加无必要的检查或状态。
+
+示例一：说明开关影响什么、保留什么。
+
+```python
+# | 操作         | 自动同步关闭后             |
+# | 定时同步     | 不再自动执行               |
+# | 用户手动同步 | 仍可执行，遵守原有权限     |
+# 开关只控制自动调度，不改变同步能力和访问权限。
+```
+
+示例二：用具体结果说明状态含义。
+
+```python
+# 例：批量处理 4 项，3 项成功、1 项失败。
+# 保留 3 项已完成结果，同时返回失败项及原因；不能把整批标成全部成功。
+```
 
 ## 3. 明确区分内容受众
 
@@ -57,6 +105,9 @@ return ToolResult.error("转换失败", extra_info={"path": "/tmp/file"})    # �
 - 大型 `data` 不得完整打印进模型上下文。应在代码中完成筛选、聚合或校验，只输出结论、相关证据和后续所需的少量精确字段
 - 工具实现不能因为已经返回 `data` 就降低 `content` 质量；两者服务不同用途，`content` 必须始终能独立支持模型理解和继续决策
 - `ok=False` 不表示代码必须立即终止。调用方应先保留或输出 `content`，再根据步骤间的依赖关系决定重试、改用其它路径、继续独立步骤或向用户说明；只有该结果是后续步骤的必要前置时才终止管线
+
+- 面向不同受众的结果转换，应在各自统一出口处理；不得原地改写其它消费者仍持有的共享对象，也不得改变业务状态或调度信号。
+- 截断、预览或文件化都必须说明完整性；不能把交付成功当成业务成功，也不能为恢复输出自动重复有副作用的操作。
 
 ## 4. 给你（当前这个助手）的规则
 
@@ -278,6 +329,95 @@ return ToolResult.error("转换失败", extra_info={"path": "/tmp/file"})    # �
 | 创建目录 | `async_mkdir` |
 | 检查存在 | `async_exists` |
 | 获取 stat | `async_stat` |
+
+## 11. `.topic` / `.workspace` 网络挂载文件写入规范
+
+`.topic` 和 `.workspace` 通常通过 AGFS 挂载，底层文件对象会映射到
+`magic_super_agent_task_files`。在这些目录中，文件系统操作不只是本地磁盘操作：
+一次 `create + rename/replace` 可能被 AGFS/magic-service 记录为“创建新的
+file_id，再软删除旧记录”。因此，**同一个逻辑文件的重复覆盖不能默认使用临时文件
+加 rename/replace**。
+
+### 11.1 默认目标
+
+- 同一个逻辑路径（同一父目录、同一文件名）应尽量复用已有的活跃文件记录和 `file_id`。
+- 文件内容应先在本地临时目录完整生成、校验，再写回网络挂载目录。
+- 写回网络挂载目录时，优先对已有目标执行直接覆盖写；不要为了“原子替换”在挂载目录
+  中创建额外临时文件。
+- 只有在确认 AGFS 对该类文件的原位写入仍会生成新 `file_id` 时，才引入
+  magic-service/AGFS 的按 `file_id` 更新内容接口。
+
+### 11.2 推荐写法
+
+适用于 `merged_metadata.json`、任务状态 JSON、checkpoint 等可完整生成的小文件：
+
+```text
+本地临时目录生成完整内容
+    -> 本地 JSON/大小/业务字段校验
+    -> 直接覆盖 .workspace 或 .topic 中的已有目标文件
+    -> 等待远端文件稳定
+    -> 校验远端大小；JSON 文件再尝试解析
+```
+
+适用于大文件：
+
+- 在本地 ASR 缓存或其他本地临时目录完成合并；
+- 最后一次性直接写回已有远端目标；
+- 写回后等待文件稳定并校验大小；
+- 不要在 `.workspace` 中先写 `.tmp_*`，再 rename 到正式文件名。
+
+### 11.3 禁止或需评审的写法
+
+在 `.topic` / `.workspace` 中，以下写法默认禁止，除非有明确的 AGFS 语义验证和评审记录：
+
+- `open(temp, "w")` 后执行 `os.replace(temp, target)`；
+- `Path.replace()`、`Path.rename()`、`os.rename()` 将临时文件替换正式文件；
+- 通过“删除旧文件，再创建同名新文件”实现更新；
+- 每次状态更新都生成随机临时文件名；
+- 为了避免半写文件，在网络挂载目录引入额外 sidecar 文件，但没有定义清理和生命周期；
+- 直接修改 `magic_super_agent_task_files` 做去重或修复历史数据。
+
+注意：本地磁盘上的原子写入模式不一定适用于 AGFS。是否“原子”不能只看 POSIX
+接口名称，必须看 AGFS 对 `create`、`write`、`truncate`、`rename`、`unlink` 的
+落库语义。
+
+### 11.4 错误事件和处理要求
+
+文件写入失败、远端状态不一致或发现重复记录时，必须记录结构化日志，至少包含：
+
+- `workspace_type`：`.topic` 或 `.workspace`；
+- `file_path`、`parent_id`、`file_name`；
+- `operation`：`create`、`direct_overwrite`、`rename`、`replace`、`delete`；
+- `task_key` / `topic_id`（如果有）；
+- `local_size`、`remote_size`、`file_id`（如果有）；
+- 重试次数和最终结果。
+
+建议使用以下事件分类，便于告警和排查：
+
+- `NETWORK_FILE_WRITE_FAILED`：网络文件写入或复制失败；
+- `NETWORK_FILE_NOT_READY`：远端文件未达到稳定状态或大小不完整；
+- `NETWORK_FILE_CONTENT_INVALID`：JSON/元数据内容解析失败；
+- `NETWORK_FILE_REPLACE_FORBIDDEN`：在网络挂载目录执行了临时文件替换；
+- `NETWORK_FILE_DUPLICATE_RECORD_SUSPECTED`：同一父目录和文件名在短时间内出现多个 file_id；
+- `NETWORK_FILE_CHECKPOINT_INCONSISTENT`：checkpoint 文件只存在一部分，或 metadata 与内容不匹配。
+
+处理原则：
+
+1. 直接覆盖失败时可以重试，但不能先无条件删除旧的活跃文件；
+2. 发现旧目标存在时，失败清理只能删除本次新建的残留文件，不能删除旧版本；
+3. checkpoint 不完整时，先停止增量合并并重新校验，不要继续制造新的替换记录；
+4. 线上发现重复记录时，先保留数据库和 AGFS 操作证据，再决定是否清理，禁止直接 SQL 去重；
+5. 新增网络文件写入路径时，必须补充测试，证明重复更新不会调用远端 `rename/replace`。
+
+### 11.5 验收指标
+
+每个新增或修改的网络文件写入功能至少验证：
+
+- 连续更新同一文件多次后，活跃 `file_id` 数量为 1；
+- `created_at` 不因内容更新持续增加，`updated_at` 正常变化；
+- 写入失败不会删除原有可用文件；
+- 读取方不会把半截 JSON 当成有效状态；
+- 任务完成后的源目录清理不会误删最终产物或其他任务文件。
 | 遍历目录 | `async_scandir`（返回 DirEntry，判断类型无需额外 stat）/ `async_iterdir`（返回 Path） |
 
 ## 11. 新功能必须支持用户中断（Cancel）机制
@@ -355,6 +495,18 @@ finally:
 
 `.runtime/` 不得作为用户交付或业务持久存储。只有用户需要长期保留、下载、展示或继续编辑的最终文件才写入当前 `.workspace/`。不要因为路径以点开头、应用层不展示或会执行删除，就假设 MagicFS 不会记录或计费。
 
+### 17.1 Agent 活动会话目录
+
+- `.topic/` 是网络文件系统挂载。Agent 会频繁读写 history、session、Horizon、token usage 等会话文件；每次网络文件操作的往返延迟会累积到运行耗时，异步 I/O 也不能消除这项成本。
+- 主 Agent 和普通子 Agent 使用配置的 `.chat_history/`、`.chat_history/subagents/`；后台压缩、Memory After Run 等临时会话使用 `.runtime/<capability>/`。通过 `PathManager` 获取目录，使用项目异步文件 API 操作；聊天历史归档不识别存储后端，不因平台配置根软链接而拒绝执行。禁止把活动 `chat_history_dir` 指向 `.topic/`，包括经软链接指向该目录。
+- `.topic/chat_history/` 只作启动恢复和交接源：先恢复活动目录再运行，持久化沿用现有 checkpoint 和归档上传流程。需要跨沙盒保留的排查资料由 owner 在内容生成完成后按保留策略低频存档；持久化需求不改变活动目录的用途。
+
+### 17.2 有限保留的排查档案
+
+- `.topic/archives/<capability>/` 集中保存完整生成的排查资料，各能力只清理自己的目录。LLM 失败日志由 `debug_logger` 直接写入 `archives/llm_requests/`，默认保留最近 3 份完整日志；写入成功后才淘汰旧档案，不使用网络目录内的临时文件替换。
+- Memory After Run 继续在 `.runtime/memory_after_run/` 运行，结束后由 `ChatHistoryArchiveService` 保存整次会话到配置的 `.chat_history/subagents/` 并主动上传。`ChatHistoryCleanupService` 独立保留最近 3 次完整终态运行，成功、失败、中断都计入；普通子 Agent 的年龄、数量和总容量规则不淘汰这组档案。
+- runtime 源文件仍按原规则清理。有限副本使用 `diagnostic_retention` 配额，不放宽 runtime helper 的路径边界；会话复制与远端上传结果分别报告。3 份／3 次限制活跃档案数量，不限制 checkpoint 历史和云端累计空间。
+
 ## 18. 工作区文件转 URL 必须走统一入口
 
 `.workspace/` 下的本地文件转可访问 URL，统一调用：
@@ -408,6 +560,35 @@ xattr 缺失说明文件尚未与对象存储同步完成，应直接抛错让�
 | Magic 文件系统与目录边界 | `agents/guides/MAGIC_FILE_SYSTEM_GUIDE.md` | 新增运行文件、聊天记录、checkpoint、workspace 或 runtime 数据时，确认目录归属和持久化边界 |
 
 ## 20. 每次改动前自检
+
+### 运行周期术语
+
+| 术语 | 本项目中的含义 | 边界 |
+|---|---|---|
+| 业务任务 Task | Magic Service 的任务记录；metadata.super_magic_task_id | 与一次运行有关联，恢复和系统运行时不能假设严格一一对应 |
+| 完整 Agent Loop／Main Run | 主 Agent 接受一次 AgentRunRequest，完成其中全部推理、工具调用和结果检查，直到终态 | 对应 Claude Code、Codex 产品交互层的一个 Turn |
+| 核心循环 | Agent._handle_agent_loop | 负责 Loop 内反复执行；外层还有会话准备和清理 |
+| 循环迭代 | 核心循环中的一个重复步骤 | 一个完整 Loop 可以有多次迭代 |
+| 模型请求 LLM request | 对模型服务的一次请求 | 重试、压缩或内部调用不能视为主 Loop 完成 |
+| 工具批次 | 一次模型输出中的工具调用及执行结果 | 不是完整主运行的边界 |
+| asyncio.Task | Python 并发调度对象 | 不能与业务 Task 或 Main Run 混用 |
+
+例如：用户提出问题 → 模型调用工具 → 检查结果并再次调用工具 → 最终回复，
+是一次完整 Agent Loop，即一次 Main Run。用户资料首次查询后，只在完整主 Loop
+正常结束时自动刷新一次，不随内部工具批次、重试或附件发送次数刷新。
+
+外部术语必须注明来源和层次。Claude Agent SDK 的 turn 表示 Loop 内一次模型／工具往返，
+比产品层 Turn 小；外层 Goal、定时或主动 Loop 又可能跨多个 Main Run。
+此对应关系不要求重命名现有代码、事件或新增 loop_id／turn_id。
+
+官方定义：
+
+- [Claude Code 团队：Getting started with loops](https://x.com/ClaudeDevs/status/2074208949205881033)：重复工作直到满足停止条件；普通提示触发的全过程称为 agentic loop。
+- [Claude Code Glossary：Turn](https://code.claude.com/docs/en/glossary#turn)：从用户发消息到完成回复，期间允许任意多次工具调用。
+- [Codex App Server：Core primitives](https://developers.openai.com/codex/app-server/#core-primitives)：一个用户请求及其后续 Agent 工作。
+- [Claude Agent SDK：Turns and messages](https://code.claude.com/docs/en/agent-sdk/agent-loop#turns-and-messages)：turn 是 Loop 内一次往返。
+
+### 修改检查
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？

@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import { useFileShare } from "../../CommonHeader/hooks"
@@ -25,7 +25,9 @@ export function useSelfMediaPostShare({
 }: UseSelfMediaPostShareOptions) {
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
-	const { hideShareFile } = useFileActionVisibility()
+	const {
+		permissions: { share },
+	} = useFileAccess()
 	const shareAttachments = attachments as AttachmentItem[] | undefined
 	const {
 		shareModalVisible,
@@ -46,7 +48,7 @@ export function useSelfMediaPostShare({
 		setExistingShareInfo,
 		closeSimilarSharesDialog,
 	} = useFileShare({ attachments: shareAttachments })
-	const canShare = enabled && !hideShareFile
+	const canShare = enabled && share
 
 	const sharePost = useCallback(
 		async (target: SelfMediaPlatformPostItem) => {

@@ -80,6 +80,13 @@ export function getBaseViteConfig(projectRoot: string): UserConfig {
 				"@admin-components": resolve(projectRoot, "./components/index.ts"),
 			},
 		},
+		css: {
+			// Keep the package build self-contained: Vite otherwise walks up to the
+			// workspace root and applies magic-web's application-level PostCSS config.
+			postcss: {
+				plugins: [],
+			},
+		},
 		build: {
 			target: "es2015",
 			cssMinify: "esbuild",

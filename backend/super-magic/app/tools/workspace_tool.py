@@ -46,6 +46,8 @@ class WorkspaceTool(BaseTool[T]):
     def resolve_path(self, filepath: str) -> Path:
         """相对路径解析到 workspace，绝对路径直接使用。"""
         p = Path(filepath)
+        if filepath == "~" or filepath.startswith("~/"):
+            return p.expanduser()
         return p if p.is_absolute() else self.base_dir / p
 
     def resolve_path_fuzzy(self, file_path_str: str) -> PathResolution:

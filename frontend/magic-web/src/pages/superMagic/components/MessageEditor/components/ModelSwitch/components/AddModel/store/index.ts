@@ -1,6 +1,9 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import { OrgAiModelProviderApi } from "@/apis"
-import type { SaveAiModelParams } from "@/apis/modules/org-ai-model-provider"
+import type {
+	SaveAiModelParams,
+	ServiceProviderCategory,
+} from "@/apis/modules/org-ai-model-provider"
 import type { LlmModelItem } from "@/apis/modules/superMagic"
 import type {
 	ModelInfo,
@@ -9,20 +12,15 @@ import type {
 	ServiceProvider,
 } from "../types"
 import { validateProviderFieldValue, normalizeProviderFieldKey } from "../providerFieldConfigs"
-import { ModelFormStore } from "./model-form-store"
+import { ModelFormStore, type AddModelType } from "./model-form-store"
 import { ProviderFormStore } from "./provider-form-store"
 import { ProviderResourceStore } from "./provider-resource-store"
 import { MyModelsStore } from "./my-models-store"
 
-export type AddModelType = "text" | "image"
+export type { AddModelType } from "./model-form-store"
 
 interface ConfirmDeleteModelOptions {
 	onSuccess?: () => Promise<void> | void
-}
-
-const CATEGORY_MAP: Record<AddModelType, "llm" | "vlm"> = {
-	text: "llm",
-	image: "vlm",
 }
 
 export function buildMatchedModelConfig(
@@ -77,7 +75,7 @@ export class AddModelStore {
 	get editingModel(): ModelInfo | null {
 		return this.modelForm.editingModel
 	}
-	get category(): "llm" | "vlm" {
+	get category(): ServiceProviderCategory {
 		return this.modelForm.category
 	}
 	get modelType(): number {
@@ -145,7 +143,9 @@ export class AddModelStore {
 	get providerTemplates(): ProviderTemplateOption[] {
 		return this.providerResource.providerTemplates
 	}
-	get providerTemplatesCache(): Partial<Record<"llm" | "vlm", ProviderTemplateOption[]>> {
+	get providerTemplatesCache(): Partial<
+		Record<ServiceProviderCategory, ProviderTemplateOption[]>
+	> {
 		return this.providerResource.providerTemplatesCache
 	}
 	get isLoadingProviders(): boolean {
@@ -154,7 +154,7 @@ export class AddModelStore {
 	get isLoadingTemplates(): boolean {
 		return this.providerResource.isLoadingTemplates
 	}
-	get serviceProvidersCache(): Partial<Record<"llm" | "vlm", ServiceProvider[]>> {
+	get serviceProvidersCache(): Partial<Record<ServiceProviderCategory, ServiceProvider[]>> {
 		return this.providerResource.serviceProvidersCache
 	}
 
@@ -163,6 +163,9 @@ export class AddModelStore {
 	}
 	get isLoadingMyModels(): boolean {
 		return this.myModelsStore.isLoadingMyModels
+	}
+	get hasLoadedMyModels(): boolean {
+		return this.myModelsStore.hasLoadedMyModels
 	}
 	get deletingModelId(): string | null {
 		return this.myModelsStore.deletingModelId
@@ -252,7 +255,7 @@ export class AddModelStore {
 		const prev = this.modelForm.addModelType
 		this.modelForm.setAddModelType(type)
 		if (prev !== type) {
-			void this.loadOrgAiModelProviders(CATEGORY_MAP[type])
+			void this.loadOrgAiModelProviders(this.modelForm.category)
 		}
 	}
 
@@ -300,7 +303,7 @@ export class AddModelStore {
 		this.syncSelectedProvider()
 	}
 
-	loadOrgAiModelProviders = async (category: "llm" | "vlm") => {
+	loadOrgAiModelProviders = async (category: ServiceProviderCategory) => {
 		await this.providerResource.loadProviders(category)
 		runInAction(() => {
 			this.syncSelectedProvider()
@@ -330,7 +333,7 @@ export class AddModelStore {
 		return false
 	}
 
-	loadOrgAiModelProviderTemplates = async (category: "llm" | "vlm") => {
+	loadOrgAiModelProviderTemplates = async (category: ServiceProviderCategory) => {
 		await this.providerResource.loadTemplates(category)
 	}
 
@@ -506,7 +509,7 @@ export class AddModelStore {
 		}
 	}
 
-	loadMyModels = async () => {
-		await this.myModelsStore.loadMyModels()
+	loadMyModels = async (force = true) => {
+		await this.myModelsStore.loadMyModels(force)
 	}
 }

@@ -16,7 +16,8 @@ use function Hyperf\Translation\__;
  */
 class UpdateSkillMarketRequestAdminDTO extends AbstractRequestDTO
 {
-    protected ?int $categoryId = null;
+    /** @var null|int[] */
+    protected ?array $categoryIds = null;
 
     protected ?int $sortOrder = null;
 
@@ -24,14 +25,14 @@ class UpdateSkillMarketRequestAdminDTO extends AbstractRequestDTO
 
     protected ?bool $isHidden = null;
 
-    public function setCategoryId(null|int|string $value): void
-    {
-        $this->categoryId = $value === null ? null : (int) $value;
-    }
-
     public function setSortOrder(null|int|string $value): void
     {
         $this->sortOrder = $value === null ? null : (int) $value;
+    }
+
+    public function setCategoryIds(?array $value): void
+    {
+        $this->categoryIds = $value === null ? null : array_values(array_unique(array_map('intval', $value)));
     }
 
     public function setIsFeatured(null|bool|int|string $value): void
@@ -66,7 +67,7 @@ class UpdateSkillMarketRequestAdminDTO extends AbstractRequestDTO
 
     /**
      * @return array{
-     *     category_id?: int,
+     *     category_ids?: int[],
      *     sort_order?: int,
      *     is_featured?: bool,
      *     is_hidden?: bool
@@ -75,8 +76,8 @@ class UpdateSkillMarketRequestAdminDTO extends AbstractRequestDTO
     public function getUpdatePayload(): array
     {
         $payload = [];
-        if ($this->categoryId !== null) {
-            $payload['category_id'] = $this->categoryId;
+        if ($this->categoryIds !== null) {
+            $payload['category_ids'] = $this->categoryIds;
         }
         if ($this->sortOrder !== null) {
             $payload['sort_order'] = $this->sortOrder;
@@ -93,8 +94,7 @@ class UpdateSkillMarketRequestAdminDTO extends AbstractRequestDTO
 
     public function hasUpdates(): bool
     {
-        return $this->categoryId !== null
-            || $this->sortOrder !== null
+        return $this->categoryIds !== null || $this->sortOrder !== null
             || $this->isFeatured !== null
             || $this->isHidden !== null;
     }
@@ -102,7 +102,8 @@ class UpdateSkillMarketRequestAdminDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'category_id' => 'sometimes|nullable|integer',
+            'category_ids' => 'sometimes|array|max:100',
+            'category_ids.*' => 'integer|min:1',
             'sort_order' => 'sometimes|nullable|integer',
             'is_featured' => 'sometimes|boolean',
             'is_hidden' => 'sometimes|boolean',
@@ -112,7 +113,6 @@ class UpdateSkillMarketRequestAdminDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'category_id.integer' => __('validation.integer', ['attribute' => 'category_id']),
             'sort_order.integer' => __('validation.integer', ['attribute' => 'sort_order']),
             'is_featured.boolean' => __('validation.boolean', ['attribute' => 'is_featured']),
             'is_hidden.boolean' => __('validation.boolean', ['attribute' => 'is_hidden']),

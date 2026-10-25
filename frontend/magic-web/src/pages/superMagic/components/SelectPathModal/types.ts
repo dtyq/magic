@@ -73,6 +73,8 @@ export interface CrossProjectFileOperationModalProps {
 	workspaces: Workspace[]
 	fileIds: string[]
 	sourceAttachments: AttachmentItem[]
+	/** Whether the source page is still streaming the current project's attachment tree. */
+	sourceAttachmentsLoading?: boolean
 	initialPath?: AttachmentItem[]
 	includeFixedWorkspaces?: boolean
 	closeOnSubmit?: boolean
@@ -125,11 +127,12 @@ export interface ProjectResourceSelectorModalProps extends Omit<
 	CrossProjectFileOperationModalProps,
 	"onSubmit"
 > {
-	selectionMode?: "destination" | "mention"
+	selectionMode?: "destination" | "mention" | "import"
 	excludeProjectIds?: string[]
 	emptyDirectoryDescription?: string
 	emptyDirectoryActionLabel?: string | null
-	onSubmit: (data: ProjectResourceSelectorSubmitData) => void
+	submitting?: boolean
+	onSubmit: (data: ProjectResourceSelectorSubmitData) => void | Promise<void>
 }
 
 export interface ImportFromOtherProjectModalProps {

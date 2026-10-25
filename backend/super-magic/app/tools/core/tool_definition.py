@@ -23,8 +23,8 @@ class ToolDefinition:
     # 基本信息
     name: str
     description: str
-    module_path: str  # 工具类所在模块路径，如 "app.tools.append_to_file"
-    class_name: str   # 工具类名，如 "AppendToFile"
+    module_path: str  # 工具类所在模块路径，如 "app.tools.write_file"
+    class_name: str   # 工具类名，如 "WriteFile"
 
     # 参数定义（JSON Schema格式）
     parameters_schema: Optional[Dict[str, Any]] = None

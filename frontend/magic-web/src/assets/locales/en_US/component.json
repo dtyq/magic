@@ -1,29 +1,15 @@
 {
 	"bootstrap": {
 		"initFailed": "Initialization Failed",
-		"initializing": "Initializing...",
-		"retry": "Retry",
-		"retryHint": "Please try again later"
-	},
-	"freePointsReward": {
-		"description": "Today's reward points expire at midnight. Come back tomorrow for more!",
-		"pointsCredited": "Points Credited",
-		"title": "Login Reward",
-		"useNow": "Use Now"
+		"retry": "Retry"
 	},
 	"magicDatePicker": {
 		"selectDate": "Select date"
 	},
 	"magicDocxRender": {
-		"actions": {
-			"download": "Download File",
-			"fullscreen": "Toggle Fullscreen",
-			"reload": "Reload"
-		},
 		"dropdown": {
 			"download": "Download",
 			"fullscreen": "Fullscreen",
-			"navigation": "Navigation",
 			"nextSection": "Next Section",
 			"prevSection": "Previous Section",
 			"reload": "Reload",
@@ -32,44 +18,31 @@
 			"zoomScale": "Zoom:"
 		},
 		"error": {
-			"failedToLoad": "Failed to load DOCX file",
-			"networkError": "Network Error",
-			"renderError": "Render Error",
-			"unknown": "Unknown Error"
+			"failedToLoad": "Failed to load DOCX file"
 		},
 		"navigation": {
 			"nextSection": "Next Section",
-			"prevSection": "Previous Section",
-			"sectionInfo": "Section {{current}} of {{total}}",
-			"sectionInput": "Section Number"
+			"prevSection": "Previous Section"
 		},
 		"status": {
-			"downloadUnavailable": "Unable to download this document",
-			"fileTooLarge": "File too large. Maximum size is 50MB.",
-			"invalidFileType": "Invalid file type. Only .docx files are supported.",
-			"loadFailed": "Failed to load, please try again",
 			"loading": "Loading DOCX file...",
-			"loadingProgress": "Loading Progress",
-			"noFile": "Please select a DOCX file to preview",
-			"retry": "Retry",
-			"sectionLoadFailed": "Section failed to load"
+			"retry": "Retry"
 		},
 		"toolbar": {
 			"download": "Download",
 			"fullscreen": "Fullscreen (F11)",
 			"moreActions": "More Actions",
-			"nextSection": "Next Section (→)",
-			"prevSection": "Previous Section (←)",
-			"reload": "Reload",
-			"zoomIn": "Zoom In (+)",
-			"zoomOut": "Zoom Out (-)"
+			"reload": "Reload"
 		},
 		"zoom": {
-			"scaleInput": "Scale Input",
 			"zoomIn": "Zoom In",
-			"zoomOut": "Zoom Out",
-			"zoomScale": "Zoom Scale"
+			"zoomOut": "Zoom Out"
 		}
+	},
+	"magicMarpit": {
+		"firstPage": "First slide",
+		"nextPage": "Next slide",
+		"prevPage": "Previous slide"
 	},
 	"magicPdfRender": {
 		"dropdown": {
@@ -82,12 +55,6 @@
 			"zoom": "Zoom:",
 			"zoomIn": "Zoom In",
 			"zoomOut": "Zoom Out"
-		},
-		"pageInfo": {
-			"currentPage": "Page {{current}}",
-			"pageNumber": "Page",
-			"scale": "Scale",
-			"totalPages": "of {{total}}"
 		},
 		"placeholders": {
 			"pageNumber": "Page {{number}}",

@@ -1,6 +1,6 @@
-import { Extension } from "@tiptap/react"
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state"
-import type { EditorView } from "@tiptap/pm/view"
+import { Extension } from "@/infrastructure/editors/tiptap/react"
+import { Plugin, PluginKey, TextSelection } from "@/infrastructure/editors/tiptap/pm-state"
+import type { EditorView } from "@/infrastructure/editors/tiptap/pm-view"
 import type { ImageStorageInterface } from "@/services/tiptap-image-storage"
 import { validateImageFile, normalizeImageName } from "@/services/tiptap-image-storage"
 
@@ -205,15 +205,15 @@ export const SaveImageToStorageExtension = Extension.create<SaveImageToStorageOp
 		return {
 			insertStorageImageFromFile:
 				(file: File) =>
-					({ view }) => {
-						handleImageFiles([file], view, this.options)
-						return true
-					},
+				({ view }) => {
+					handleImageFiles([file], view, this.options)
+					return true
+				},
 		}
 	},
 })
 
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		saveImageToStorage: {
 			/**

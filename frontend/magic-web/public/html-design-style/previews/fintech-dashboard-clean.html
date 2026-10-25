@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Norr Bank — Scandinavian Clean Fintech</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+:root {
+--primary: #0052CC; --primary-hover: #003D99; --primary-light: #E6F0FF;
+--bg: #F7F8FA; --surface: #FFFFFF; --surface-sec: #F0F2F5;
+--border: #E1E4E8; --border-strong: #C8CCD2;
+--text-pri: #0D1117; --text-sec: #424A53; --text-muted: #8B949E;
+--positive: #1A7F37; --positive-light: #DAFBE1;
+--negative: #CF222E; --negative-light: #FFEBE9;
+--slate-card: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+--font-ui: 'Inter', -apple-system, sans-serif;
+--font-mono: 'JetBrains Mono', monospace;
+--r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-full: 9999px;
+--shadow-sm: 0 1px 3px rgba(13,17,23,0.05);
+--shadow-md: 0 4px 14px rgba(13,17,23,0.08);
+--shadow-card: 0 12px 28px rgba(15,23,42,0.25);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text-pri); font-family: var(--font-ui); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.mono { font-family: var(--font-mono); }
+.header { background: var(--surface); border-bottom: 1px solid var(--border); height: 56px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -0.2px; color: var(--text-pri); text-decoration: none; }
+.brand-mark { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--text-pri); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.nav-links { display: flex; gap: 20px; list-style: none; }
+.nav-link { color: var(--text-sec); font-size: 13px; font-weight: 500; cursor: pointer; padding: 4px 0; }
+.nav-link.active { color: var(--primary); font-weight: 600; border-bottom: 2px solid var(--primary); }
+.hdr-right { display: flex; align-items: center; gap: 12px; }
+.user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface-sec); border: 1px solid var(--border); padding: 4px 10px; border-radius: var(--r-full); font-size: 12px; font-weight: 500; }
+.avatar-sm { width: 22px; height: 22px; border-radius: 50%; background: #334155; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+.main-wrap { max-width: 1180px; margin: 24px auto; padding: 0 24px; }
+.greeting-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; }
+.greeting-title { font-size: 13px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.bal-hero { font-family: var(--font-mono); font-size: 36px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.1; margin: 4px 0; }
+.growth-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--positive-light); color: var(--positive); font-family: var(--font-mono); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); }
+.transfer-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 18px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
+.section-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; }
+.contact-row { display: flex; align-items: center; gap: 12px; overflow-x: auto; }
+.contact-pill { display: flex; align-items: center; gap: 8px; background: var(--surface-sec); border: 1px solid var(--border); padding: 5px 12px 5px 6px; border-radius: var(--r-full); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.contact-pill:hover { border-color: var(--primary); background: var(--primary-light); }
+.contact-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+.contact-name { font-size: 12px; font-weight: 600; }
+.btn-add-contact { width: 32px; height: 32px; border-radius: 50%; border: 1px dashed var(--border-strong); background: transparent; color: var(--text-sec); display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; flex-shrink: 0; }
+.grid-2col { display: grid; grid-template-columns: 460px 1fr; gap: 24px; }
+.card-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-sm); }
+.card-mockup { width: 100%; height: 240px; border-radius: 16px; background: var(--slate-card); color: #fff; padding: 22px 24px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-card); position: relative; overflow: hidden; }
+.card-mockup::before { content: ""; position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%); }
+.card-top { display: flex; justify-content: space-between; align-items: center; }
+.card-brand { font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: #f1f5f9; }
+.chip-wrap { display: flex; align-items: center; gap: 14px; margin: 12px 0; }
+.emv-chip { width: 38px; height: 28px; border-radius: 4px; background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%); border: 1px solid #94a3b8; position: relative; }
+.emv-chip::after { content: ""; position: absolute; top: 7px; left: 0; right: 0; height: 14px; border-top: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8; }
+.wave-icon { opacity: 0.75; }
+.card-num { font-family: var(--font-mono); font-size: 18px; font-weight: 500; letter-spacing: 2px; color: #f8fafc; }
+.card-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+.card-holder-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; }
+.card-holder-name { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; margin-top: 2px; }
+.card-exp { font-family: var(--font-mono); font-size: 12px; font-weight: 600; text-align: right; }
+.card-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.card-act-btn { background: var(--surface-sec); border: 1px solid var(--border); padding: 8px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; text-align: center; cursor: pointer; color: var(--text-sec); }
+.card-act-btn:hover { color: var(--text-pri); border-color: var(--border-strong); }
+.spend-header { display: flex; justify-content: space-between; align-items: baseline; margin: 20px 0 10px; }
+.spend-total { font-family: var(--font-mono); font-size: 18px; font-weight: 600; }
+.seg-bar { width: 100%; height: 10px; border-radius: var(--r-full); background: var(--surface-sec); display: flex; overflow: hidden; margin-bottom: 14px; }
+.seg-item { height: 100%; }
+.cat-list { display: flex; flex-direction: column; gap: 8px; }
+.cat-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.cat-left { display: flex; align-items: center; gap: 8px; }
+.cat-dot { width: 8px; height: 8px; border-radius: 50%; }
+.cat-amt { font-family: var(--font-mono); font-weight: 600; }
+.cat-pct { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-left: 6px; }
+.tx-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow-sm); }
+.tx-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.tx-title { font-size: 15px; font-weight: 600; }
+.tx-group { display: flex; flex-direction: column; }
+.tx-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.tx-row:last-child { border-bottom: none; }
+.tx-left { display: flex; align-items: center; gap: 12px; }
+.tx-cat-icon { width: 36px; height: 36px; border-radius: var(--r-md); background: var(--surface-sec); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.tx-merchant { font-weight: 600; font-size: 13px; }
+.tx-desc { font-size: 11px; color: var(--text-muted); }
+.tx-right { text-align: right; }
+.tx-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+.tx-val.neg { color: var(--text-pri); }
+.tx-val.pos { color: var(--positive); }
+.tx-date { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.account-strip { background: var(--surface-sec); border-radius: var(--r-md); padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+
+  <!-- Top Header --><header class="header"><div style="display:flex; align-items:center; gap:28px;"><a href="#" class="brand"><div class="brand-mark">N</div><span>NORR BANK</span></a><ul class="nav-links"><li class="nav-link active">Overview</li><li class="nav-link">Accounts</li><li class="nav-link">Cards</li><li class="nav-link">Transfers</li><li class="nav-link">Wealth</li></ul></div><div class="hdr-right"><div class="user-pill"><div class="avatar-sm">HL</div><span>Henrik Lindberg</span><span style="color:var(--text-muted); font-size:10px;">🇸🇪</span></div></div></header><main class="main-wrap"><!-- Greeting & Overview Strip --><div class="greeting-row"><div><div class="greeting-title">Good Morning, Henrik</div><div class="bal-hero">€28,450.40</div><div class="growth-pill">▲ +€1,420.00 (+5.2%) this month</div></div><div style="display:flex; gap:8px;"><button style="background:var(--primary); color:#fff; border:none; font-weight:600; font-size:13px; padding:8px 16px; border-radius:var(--r-sm); cursor:pointer;">+ Add Money</button><button style="background:var(--surface); border:1px solid var(--border-strong); color:var(--text-pri); font-weight:600; font-size:13px; padding:8px 16px; border-radius:var(--r-sm); cursor:pointer;">Transfer</button></div></div><!-- Instant Money Transfer Contact Pills --><section class="transfer-section"><div class="section-lbl">Instant Nordic Transfer (Swish & SEPA Direct)</div><div class="contact-row"><div class="contact-pill"><div class="contact-avatar" style="background:#3b82f6;">AL</div><span class="contact-name">Astrid Lind</span></div><div class="contact-pill"><div class="contact-avatar" style="background:#10b981;">FH</div><span class="contact-name">Freja Holm</span></div><div class="contact-pill"><div class="contact-avatar" style="background:#8b5cf6;">LL</div><span class="contact-name">Lukas Lindqvist</span></div><div class="contact-pill"><div class="contact-avatar" style="background:#f59e0b;">ME</div><span class="contact-name">Magnus Eklund</span></div><div class="contact-pill"><div class="contact-avatar" style="background:#ec4899;">EB</div><span class="contact-name">Elena Berg</span></div><div class="contact-pill"><div class="contact-avatar" style="background:#64748b;">SN</div><span class="contact-name">Sophia N.</span></div><button class="btn-add-contact">+</button></div></section><!-- Main 2-Column Grid --><div class="grid-2col"><!-- Left Column: Nordic Card & Spending Breakdown --><div><!-- Card Mockup Panel --><div class="card-panel"><div class="card-mockup"><div class="card-top"><div class="card-brand">NORR • PRIVATE</div><svg class="wave-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 16.5a5 5 0 010-9M12 19a8.5 8.5 0 000-14M15.5 21.5a12 12 0 000-19"/></svg></div><div class="chip-wrap"><div class="emv-chip"></div></div><div class="card-num">•••• •••• •••• 8492</div><div class="card-bottom"><div><div class="card-holder-lbl">Cardholder</div><div class="card-holder-name">HENRIK LINDBERG</div></div><div><div class="card-holder-lbl">Expires</div><div class="card-exp">09/29</div></div></div></div><div class="card-actions"><button class="card-act-btn">🔒 Freeze Card</button><button class="card-act-btn">📱 Apple Pay</button><button class="card-act-btn">⚙️ Card Limits</button></div><!-- Monthly Spending Breakdown --><div class="spend-header"><div><div class="section-lbl" style="margin:0;">September Spending</div><div class="spend-total">€3,420.00 <span style="font-size:12px; color:var(--text-muted); font-weight:400;">/ €4,000 budget</span></div></div><span class="mono" style="font-size:12px; color:var(--positive); font-weight:600;">85.5% on track</span></div><!-- Segmented Progress Bar --><div class="seg-bar"><div class="seg-item" style="width:36.5%; background:#3b82f6;"></div><div class="seg-item" style="width:18.7%; background:#f59e0b;"></div><div class="seg-item" style="width:14.9%; background:#10b981;"></div><div class="seg-item" style="width:12.3%; background:#8b5cf6;"></div><div class="seg-item" style="width:9.4%; background:#ec4899;"></div><div class="seg-item" style="width:8.2%; background:#64748b;"></div></div><!-- Categories List --><div class="cat-list"><div class="cat-row"><div class="cat-left"><div class="cat-dot" style="background:#3b82f6;"></div><span>Housing & Living</span></div><div><span class="cat-amt">€1,250.00</span><span class="cat-pct">36.5%</span></div></div><div class="cat-row"><div class="cat-left"><div class="cat-dot" style="background:#f59e0b;"></div><span>Dining & Social</span></div><div><span class="cat-amt">€640.00</span><span class="cat-pct">18.7%</span></div></div><div class="cat-row"><div class="cat-left"><div class="cat-dot" style="background:#10b981;"></div><span>Groceries & Organic</span></div><div><span class="cat-amt">€510.00</span><span class="cat-pct">14.9%</span></div></div><div class="cat-row"><div class="cat-left"><div class="cat-dot" style="background:#8b5cf6;"></div><span>Travel & SJ Rail</span></div><div><span class="cat-amt">€420.00</span><span class="cat-pct">12.3%</span></div></div><div class="cat-row"><div class="cat-left"><div class="cat-dot" style="background:#ec4899;"></div><span>Wellness & Spa</span></div><div><span class="cat-amt">€320.00</span><span class="cat-pct">9.4%</span></div></div></div></div></div><!-- Right Column: Recent Transactions Feed --><div><div class="tx-panel"><div class="account-strip"><div><div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Checking Account IBAN</div><div class="mono" style="font-size:12px; font-weight:600; color:var(--text-pri);">SE82 5000 9200 4812 9901</div></div><span style="font-size:11px; color:var(--primary); font-weight:600; cursor:pointer;">Copy IBAN</span></div><div class="tx-head"><span class="tx-title">Recent Activity</span><span style="font-size:12px; color:var(--primary); font-weight:600; cursor:pointer;">See All 38 →</span></div><div class="tx-group"><!-- Item 1 --><div class="tx-row"><div class="tx-left"><div class="tx-cat-icon">🎵</div><div><div class="tx-merchant">Spotify AB</div><div class="tx-desc">Family Subscription • Stockholm</div></div></div><div class="tx-right"><div class="tx-val neg">-€12.99</div><div class="tx-date">Today, 14:20</div></div></div><!-- Item 2 --><div class="tx-row"><div class="tx-left"><div class="tx-cat-icon">🛍️</div><div><div class="tx-merchant">Acne Studios</div><div class="tx-desc">Norrmalm Flagship • Fashion</div></div></div><div class="tx-right"><div class="tx-val neg">-€340.00</div><div class="tx-date">Today, 11:05</div></div></div><!-- Item 3 --><div class="tx-row"><div class="tx-left"><div class="tx-cat-icon">☕</div><div><div class="tx-merchant">Joe &amp; The Juice</div><div class="tx-desc">Stureplan • Food &amp; Beverage</div></div></div><div class="tx-right"><div class="tx-val neg">-€8.50</div><div class="tx-date">Yesterday</div></div></div><!-- Item 4 (Income) --><div class="tx-row"><div class="tx-left"><div class="tx-cat-icon" style="background:var(--positive-light); color:var(--positive);">💼</div><div><div class="tx-merchant">Klarna AB</div><div class="tx-desc">Consulting Dividend / Payout</div></div></div><div class="tx-right"><div class="tx-val pos">+€1,850.00</div><div class="tx-date">Sep 17</div></div></div><!-- Item 5 --><div class="tx-row"><div class="tx-left"><div class="tx-cat-icon">⚡</div><div><div class="tx-merchant">Nordic Clean Energy</div><div class="tx-desc">Hydroelectric Utility • Autumn</div></div></div><div class="tx-right"><div class="tx-val neg">-€142.30</div><div class="tx-date">Sep 16</div></div></div><!-- Item 6 --><div class="tx-row"><div class="tx-left"><div class="tx-cat-icon">🍷</div><div><div class="tx-merchant">Systembolaget</div><div class="tx-desc">Vasastan • Grocery &amp; Drinks</div></div></div><div class="tx-right"><div class="tx-val neg">-€64.20</div><div class="tx-date">Sep 15</div></div></div></div></div></div></div></main>
+
+</body>
+</html>

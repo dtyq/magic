@@ -6,6 +6,11 @@ import { afterEach, describe, expect, it } from "vitest"
 import { drawTable } from "../src/drawer/drawTable"
 import type { PPTTableNode } from "../src/ir/node"
 import { extractCellTextRuns } from "../src/parsers/table/cellText"
+import {
+	asStreamingPptxPresentation,
+	concatPptxChunks,
+	createCollectingPptxDestination,
+} from "./streaming-test-utils"
 
 afterEach(() => {
 	document.body.innerHTML = ""
@@ -59,8 +64,9 @@ describe("PowerPoint table XML", () => {
 
 		drawTable(slide, node)
 
-		const output = await pptx.write({ outputType: "arraybuffer" })
-		const zip = await JSZip.loadAsync(output as ArrayBuffer)
+		const { destination, chunks } = createCollectingPptxDestination()
+		await asStreamingPptxPresentation(pptx).writeTo({ destination })
+		const zip = await JSZip.loadAsync(concatPptxChunks(chunks))
 		const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string")
 		if (!slideXml) throw new Error("slide1.xml is required")
 
@@ -101,8 +107,9 @@ describe("PowerPoint table XML", () => {
 
 		drawTable(slide, node)
 
-		const output = await pptx.write({ outputType: "arraybuffer" })
-		const zip = await JSZip.loadAsync(output as ArrayBuffer)
+		const { destination, chunks } = createCollectingPptxDestination()
+		await asStreamingPptxPresentation(pptx).writeTo({ destination })
+		const zip = await JSZip.loadAsync(concatPptxChunks(chunks))
 		const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string")
 		if (!slideXml) throw new Error("slide1.xml is required")
 

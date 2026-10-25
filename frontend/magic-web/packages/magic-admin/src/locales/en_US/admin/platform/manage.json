@@ -28,6 +28,8 @@
 	"generateWebLimitDesc": "Controls the maximum number of websites a user can generate",
 	"immediate": "Immediate",
 	"isPointRecharge": "Is it possible to recharge points",
+	"microAppLimit": "Micro App Project Limit",
+	"microAppLimitDesc": "Controls the maximum number of micro app projects an organization can create",
 	"monthly": "Monthly",
 	"monthlyExpiration": "Valid for Current Month",
 	"monthlySubscription": "Monthly Subscription",

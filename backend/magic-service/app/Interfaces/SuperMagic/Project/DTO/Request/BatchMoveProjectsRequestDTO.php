@@ -30,6 +30,14 @@ class BatchMoveProjectsRequestDTO extends AbstractRequestDTO
      */
     public string $targetWorkspaceId = '';
 
+    public ?string $preProjectId = null;
+
+    public ?string $nextProjectId = null;
+
+    public bool $preProjectIdProvided = false;
+
+    public bool $nextProjectIdProvided = false;
+
     /**
      * Get project IDs.
      */
@@ -64,6 +72,24 @@ class BatchMoveProjectsRequestDTO extends AbstractRequestDTO
         return $this->targetWorkspaceId === '';
     }
 
+    public function getPreProjectId(): ?int
+    {
+        if ($this->preProjectId === null || $this->preProjectId === '') {
+            return null;
+        }
+
+        return (int) $this->preProjectId;
+    }
+
+    public function getNextProjectId(): ?int
+    {
+        if ($this->nextProjectId === null || $this->nextProjectId === '') {
+            return null;
+        }
+
+        return (int) $this->nextProjectId;
+    }
+
     /**
      * Get validation rules.
      */
@@ -73,6 +99,8 @@ class BatchMoveProjectsRequestDTO extends AbstractRequestDTO
             'project_ids' => 'required|array|min:1|max:20',
             'project_ids.*' => 'required|string',
             'target_workspace_id' => 'present|string|max:64',
+            'pre_project_id' => 'nullable|string',
+            'next_project_id' => 'nullable|string',
         ];
     }
 

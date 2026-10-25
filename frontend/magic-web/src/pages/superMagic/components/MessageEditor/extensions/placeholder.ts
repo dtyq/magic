@@ -1,9 +1,9 @@
-import { Editor, Extension, isNodeEmpty } from "@tiptap/core"
-import { Node as ProsemirrorNode } from "@tiptap/pm/model"
-import { Plugin, PluginKey } from "@tiptap/pm/state"
-import { Decoration, DecorationSet } from "@tiptap/pm/view"
+import { Editor, Extension, isNodeEmpty } from "@/infrastructure/editors/tiptap/core"
+import { Node as ProsemirrorNode } from "@/infrastructure/editors/tiptap/pm-model"
+import { Plugin, PluginKey } from "@/infrastructure/editors/tiptap/pm-state"
+import { Decoration, DecorationSet } from "@/infrastructure/editors/tiptap/pm-view"
 
-declare module "@tiptap/core" {
+declare module "@/infrastructure/editors/tiptap/core" {
 	interface Commands<ReturnType> {
 		placeholder: {
 			/**
@@ -212,7 +212,8 @@ export const Placeholder = Extension.create<
 
 						doc.descendants((node, pos) => {
 							const hasAnchor = anchor >= pos && anchor <= pos + node.nodeSize
-							const isEmpty = !node.isLeaf && isNodeEmpty(node)
+							// 空段落可以显示输入提示；空卡片等结构容器不能承载提示，否则会与自身界面重叠。
+							const isEmpty = node.isTextblock && isNodeEmpty(node)
 
 							if (
 								(hasAnchor || !this.options.showOnlyCurrent) &&

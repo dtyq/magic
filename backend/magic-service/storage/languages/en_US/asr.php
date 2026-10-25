@@ -134,6 +134,7 @@ return [
 
     // File names related
     'file_names' => [
+        'recording_at' => 'Recording at :time',
         'recording_prefix' => 'Recording',
         'merged_audio_prefix' => 'Recording File',
         'original_recording' => 'Original Recording',
@@ -169,11 +170,17 @@ return [
         'summary_middle_with_note' => ' recording content and ',
         'summary_suffix_with_note' => ' my note content into a super artifact',
         // Re-summary message i18n
-        'resummary_prefix' => 'Please re-summarize this existing recording project: ',
+        'resummary_prefix' => 'Please re-summarize ',
         'resummary_note_middle' => '. Please refer to this existing note/context file: ',
         'resummary_base_instruction' => '. Read only magic.project.js, transcript, and notes as first-hand sources. Do not rerun ASR, do not split audio, and do not modify audio, transcript, or notes. Do not read old derived files such as summary, topics, insights, highlights, followup, intent, power_dynamics, metrics, or mindmap.',
         'resummary_scope_instruction' => 'Call analyze_audio_project with analysis_scope=":analysis_scope" and do not pass specified_analysis_types.',
         'resummary_specified_instruction' => 'Call analyze_audio_project with specified_analysis_types=:specified_analysis_types.',
+        // Re-summary prefix/suffix i18n (without note)
+        'resummary_suffix' => ' recording content. Please ignore the old summary artifacts, re-analyze the recording and generate a brand-new super artifact. No need to re-transcribe the audio.',
+        // Re-summary prefix/suffix i18n (with note)
+        'resummary_prefix_with_note' => 'Please re-summarize ',
+        'resummary_middle_with_note' => ' recording content and ',
+        'resummary_suffix_with_note' => ' my note content. Please ignore the old summary artifacts, re-analyze the recording together with the notes and generate a brand-new super artifact. No need to re-transcribe the audio.',
     ],
 
     // Exception messages i18n
@@ -237,5 +244,10 @@ return [
         'upload_not_allowed' => 'Current task status does not allow file upload',
         'status_report_not_allowed' => 'Current task status does not allow status report',
         'summary_not_allowed' => 'Current task status does not allow initiating summary',
+    ],
+    'sts_token' => [
+        'missing_jwt_token' => 'Missing jwt token',
+        'parse_response_failed' => 'Operation failed',
+        'request_failed' => 'Operation failed',
     ],
 ];

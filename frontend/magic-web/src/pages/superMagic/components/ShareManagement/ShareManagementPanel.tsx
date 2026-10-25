@@ -11,7 +11,11 @@ import { getSearchPlaceholder } from "./utils/searchPlaceholder"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/shadcn-ui/select"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn-ui/input-group"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import {
+	PROJECT_PANEL_HEADER_CLASSNAME,
+	PROJECT_PANEL_TITLE_CLASSNAME,
+} from "../ProjectSider/panelChrome"
 
 interface ShareManagementPanelProps {
 	projectId?: string
@@ -75,14 +79,8 @@ function ShareManagementPanel({ projectId, className }: ShareManagementPanelProp
 	return (
 		<div className={cn("flex h-full flex-col gap-0.5", className)}>
 			{/* Header */}
-			<div
-				className="flex items-center justify-between px-2"
-				data-slot="project-panel-header"
-			>
-				<span
-					className="text-sm font-semibold leading-[1.333] text-foreground"
-					data-slot="project-panel-title"
-				>
+			<div className={PROJECT_PANEL_HEADER_CLASSNAME} data-slot="project-panel-header">
+				<span className={PROJECT_PANEL_TITLE_CLASSNAME} data-slot="project-panel-title">
 					{t("shareManagement.title")}
 				</span>
 				<div data-slot="project-panel-tabs">

@@ -1,8 +1,8 @@
-import { Heading as TiptapHeading } from "@tiptap/extension-heading"
-import { mergeAttributes } from "@tiptap/core"
-import { Plugin, PluginKey } from "@tiptap/pm/state"
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model"
-import type { EditorView } from "@tiptap/pm/view"
+import { Heading as TiptapHeading } from "@/infrastructure/editors/tiptap/extension-heading"
+import { mergeAttributes } from "@/infrastructure/editors/tiptap/core"
+import { Plugin, PluginKey } from "@/infrastructure/editors/tiptap/pm-state"
+import type { Node as ProseMirrorNode } from "@/infrastructure/editors/tiptap/pm-model"
+import type { EditorView } from "@/infrastructure/editors/tiptap/pm-view"
 import { generateUniqueSlug } from "@/utils/slug"
 
 /**

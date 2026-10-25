@@ -7,6 +7,8 @@ export type {
 	MentionDataServicePort,
 	MentionExtensionCtor,
 	MentionExtensionOptions,
+	ReferenceResourcePanelAssetType,
 	ReferenceResourcePanelRenderer,
 	ReferenceResourcePanelRendererProps,
+	ReferenceResourcePanelSelectionSummary,
 } from "./props"

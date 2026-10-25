@@ -1,4 +1,5 @@
-import { compareVersions } from "@/lib/dingTalkAPI"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
+import { compareVersions } from "@/infrastructure/external-sdk/ding-talk"
 import { Login } from "@/types/login"
 import { configStore } from "@/models/config"
 import type { ThirdPartyLoginStrategy } from "../../types"
@@ -64,7 +65,7 @@ export const DingTalkLoginStrategy: ThirdPartyLoginStrategy = {
 	 */
 	getAuthCode: (
 		deployCode: string,
-		options?: Pick<import("@/apis/core/HttpClient").RequestConfig, "skipAppInitWait">,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
 	): Promise<string> => {
 		void options
 		// eslint-disable-next-line no-async-promise-executor

@@ -14,6 +14,7 @@ readonly class MagicBaseRowQuery
      * @param list<string> $actorDepartmentIds
      * @param list<int> $staticReadableRecordIds
      * @param array<string, string> $fieldTypes data type keyed by dynamic column_key
+     * @param list<string> $columnReadScopes scopes required by filtered, sorted or relation key columns
      */
     public function __construct(
         private string $dataOrganizationCode,
@@ -32,6 +33,7 @@ readonly class MagicBaseRowQuery
         private array $staticReadableRecordIds,
         private array $fieldTypes,
         private bool $includeTotal,
+        private array $columnReadScopes = [],
     ) {
     }
 
@@ -125,5 +127,11 @@ readonly class MagicBaseRowQuery
     public function includeTotal(): bool
     {
         return $this->includeTotal;
+    }
+
+    /** @return list<string> */
+    public function getColumnReadScopes(): array
+    {
+        return $this->columnReadScopes;
     }
 }

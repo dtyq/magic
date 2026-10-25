@@ -7,10 +7,16 @@ import type { ShareExtraData } from "./types"
 import { ShareType, ResourceType } from "./types"
 import { SuperMagicApi } from "@/apis"
 import { generateSharePassword, generateTopicShareMessageText } from "./utils"
+import { analyticsService } from "@/services/analytics"
 import { useUpdateEffect } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers"
 import { canUseNativeShare, shareToNativeTarget } from "./utils/nativeShare"
+import {
+	isTopicShareTypePermitted,
+	resolveTopicPasswordEnabled,
+	useTopicShareTypePermissions,
+} from "./hooks/useTopicShareTypePermissions"
 
 interface MobileTopicShareProps {
 	shareContext?: {
@@ -57,30 +63,43 @@ function TopicSettingsRow({
 	checked,
 	onCheckedChange,
 	testId,
+	disabled = false,
 }: {
 	label: string
 	checked: boolean
 	onCheckedChange: (value: boolean) => void
 	testId: string
+	disabled?: boolean
 }) {
 	return (
 		<div
 			role="button"
-			tabIndex={0}
-			onClick={() => onCheckedChange(!checked)}
+			tabIndex={disabled ? -1 : 0}
+			aria-disabled={disabled}
+			onClick={() => {
+				// 管理员限制的分享方式不允许在整行点击时被切换。
+				if (disabled) return
+				onCheckedChange(!checked)
+			}}
 			// 保持整行可点击，减少移动端误触开关本体的成本。
 			onKeyDown={(event) => {
+				if (disabled) return
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault()
 					onCheckedChange(!checked)
 				}
 			}}
-			className="flex h-12 w-full items-center gap-3 px-3.5 active:opacity-70"
+			className={
+				disabled
+					? "flex h-12 w-full items-center gap-3 px-3.5 opacity-50"
+					: "flex h-12 w-full items-center gap-3 px-3.5 active:opacity-70"
+			}
 			data-testid={testId}
 		>
 			<div className="flex-1 text-left text-base leading-5 text-foreground">{label}</div>
 			<Switch
 				checked={checked}
+				disabled={disabled}
 				className="pointer-events-none shrink-0"
 				data-testid="mobile-topic-share-switch"
 			/>
@@ -105,6 +124,27 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 		setShareEnabled(type === ShareType.Public || type === ShareType.PasswordProtected)
 	}, [type])
 
+	// 话题分享继承所属页面（项目 / 微应用）的分享权限组，与文件、项目分享保持一致。
+	const topicSharePermissions = useTopicShareTypePermissions()
+	const permittedTopicShareTypes = topicSharePermissions.permittedTypes
+	// 权限请求落地前可用方式未知，此时不允许写入，避免发出被管控的分享方式。
+	const isPermissionPending = topicSharePermissions.isLoading
+	// 已保存的分享保留自身方式，方式被关闭时只提示、不改写。
+	const isCurrentShareTypePermitted = isTopicShareTypePermitted(
+		shareEnabled ? (type as ShareType) : undefined,
+		permittedTopicShareTypes,
+	)
+	// 关闭既有分享不依赖权限，只有开启时才需要先拿到可用方式。
+	const isShareToggleDisabled =
+		topicSharePermissions.hasNoPermittedShareType || (isPermissionPending && !shareEnabled)
+	// 管理员关闭全部话题分享方式后，除主开关外的内容都不可用，直接隐藏，避免展示无法操作的入口。
+	const isShareDetailHidden = topicSharePermissions.hasNoPermittedShareType
+	const isPasswordToggleDisabled =
+		isPermissionPending ||
+		isShareToggleDisabled ||
+		topicSharePermissions.isPasswordSwitchLocked ||
+		!isCurrentShareTypePermitted
+
 	// 分享链接
 	const shareUrl = useMemo(() => {
 		if (extraData?.shareUrl) {
@@ -127,7 +167,9 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 	])
 
 	const resourceId = shareContext?.resource_id
-	const passwordEnabled = extraData?.passwordEnabled ?? true
+	const passwordEnabled = isCurrentShareTypePermitted
+		? resolveTopicPasswordEnabled(extraData?.passwordEnabled ?? true, topicSharePermissions)
+		: (extraData?.passwordEnabled ?? true)
 
 	const sanitizedShareUrl = useMemo(() => {
 		if (!shareUrl) {
@@ -179,13 +221,30 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 	 */
 	const handleShareToggle = useCallback(
 		async (checked: boolean) => {
+			// 开启分享需要已知的可用方式，权限未就绪前保持原状。
+			if (checked && isPermissionPending) return
+
 			setShareEnabled(checked)
 
 			if (checked) {
-				const isPasswordProtected = extraData?.passwordEnabled ?? true
-				const newShareType = isPasswordProtected
+				const newShareType = passwordEnabled
 					? ShareType.PasswordProtected
 					: ShareType.Public
+
+				// 管理员未开放分享方式时保持关闭，避免写入不可用的分享。
+				if (isShareToggleDisabled) {
+					magicToast.error(t("share.noAvailableShareMethods"))
+					setShareEnabled(false)
+					return
+				}
+
+				if (!isTopicShareTypePermitted(newShareType, permittedTopicShareTypes)) {
+					magicToast.error(t("share.currentShareMethodUnavailable"))
+					setShareEnabled(false)
+					return
+				}
+
+				const isPasswordProtected = passwordEnabled
 				const password = isPasswordProtected
 					? extraData?.password || generateSharePassword()
 					: undefined
@@ -200,6 +259,9 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 
 				if (resourceId) {
 					try {
+						analyticsService.report("content_share_attempted", {
+							resourceType: ResourceType.Topic,
+						})
 						await SuperMagicApi.createOrUpdateShareResource({
 							resource_id: resourceId,
 							resource_type: ResourceType.Topic,
@@ -234,7 +296,18 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 				}
 			}
 		},
-		[buildShareExtraPayload, extraData, onSaveSuccess, resourceId, setExtraData, t],
+		[
+			buildShareExtraPayload,
+			extraData,
+			onSaveSuccess,
+			resourceId,
+			setExtraData,
+			t,
+			passwordEnabled,
+			isShareToggleDisabled,
+			isPermissionPending,
+			permittedTopicShareTypes,
+		],
 	)
 
 	/**
@@ -242,7 +315,19 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 	 */
 	const handlePasswordToggle = useCallback(
 		async (checked: boolean) => {
+			// 管理员限制的分享方式不可切换。
+			if (isPasswordToggleDisabled) return
+
 			const newShareType = checked ? ShareType.PasswordProtected : ShareType.Public
+
+			if (
+				shareEnabled &&
+				!isTopicShareTypePermitted(newShareType, permittedTopicShareTypes)
+			) {
+				magicToast.error(t("share.currentShareMethodUnavailable"))
+				return
+			}
+
 			const nextExtraData = {
 				...(extraData || {}),
 				passwordEnabled: checked,
@@ -270,7 +355,17 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 				}
 			}
 		},
-		[buildShareExtraPayload, extraData, onSaveSuccess, resourceId, setExtraData, t],
+		[
+			buildShareExtraPayload,
+			extraData,
+			onSaveSuccess,
+			resourceId,
+			setExtraData,
+			t,
+			isPasswordToggleDisabled,
+			shareEnabled,
+			permittedTopicShareTypes,
+		],
 	)
 
 	const handleCopyShareUrl = useCallback(() => {
@@ -304,16 +399,26 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 			<CardGroup testId="mobile-topic-share-toggle-card">
 				<div
 					role="button"
-					tabIndex={0}
-					onClick={() => void handleShareToggle(!shareEnabled)}
+					tabIndex={isShareToggleDisabled ? -1 : 0}
+					aria-disabled={isShareToggleDisabled}
+					onClick={() => {
+						// 管理员未开放分享方式时保持关闭。
+						if (isShareToggleDisabled) return
+						void handleShareToggle(!shareEnabled)
+					}}
 					// 通过整行点击承载主开关，减少触控时对开关热区的依赖。
 					onKeyDown={(event) => {
+						if (isShareToggleDisabled) return
 						if (event.key === "Enter" || event.key === " ") {
 							event.preventDefault()
 							void handleShareToggle(!shareEnabled)
 						}
 					}}
-					className="flex h-12 items-center gap-3 px-3.5 active:opacity-70"
+					className={
+						isShareToggleDisabled
+							? "flex h-12 items-center gap-3 px-3.5 opacity-50"
+							: "flex h-12 items-center gap-3 px-3.5 active:opacity-70"
+					}
 					data-testid="mobile-topic-share-toggle-row"
 				>
 					<div className="flex-1 text-base leading-5 text-foreground">
@@ -321,13 +426,24 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 					</div>
 					<Switch
 						checked={shareEnabled}
+						disabled={isShareToggleDisabled}
 						className="pointer-events-none shrink-0"
 						data-testid="mobile-topic-share-switch-2"
 					/>
 				</div>
 			</CardGroup>
 
-			{shareEnabled ? (
+			{isShareDetailHidden ? (
+				<p
+					className="px-0.5 text-sm text-destructive"
+					role="alert"
+					data-testid="mobile-topic-share-no-method-hint"
+				>
+					{t("share.noAvailableShareMethods")}
+				</p>
+			) : null}
+
+			{shareEnabled && !isShareDetailHidden ? (
 				<div className="space-y-2.5">
 					<div className="space-y-2">
 						<SectionLabel>{t("share.conversationLink")}</SectionLabel>
@@ -350,7 +466,24 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 								checked={passwordEnabled}
 								onCheckedChange={(value) => void handlePasswordToggle(value)}
 								testId="mobile-topic-share-password-toggle-row"
+								disabled={isPasswordToggleDisabled}
 							/>
+							{!isCurrentShareTypePermitted ? (
+								<p
+									className="px-3.5 pb-3 text-sm text-destructive"
+									role="alert"
+									data-testid="mobile-topic-share-permission-hint"
+								>
+									{t("share.currentShareMethodUnavailable")}
+								</p>
+							) : isPasswordToggleDisabled ? (
+								<p
+									className="px-3.5 pb-3 text-sm text-muted-foreground"
+									data-testid="mobile-topic-share-permission-locked-hint"
+								>
+									{t("share.shareMethodRestrictedByAdmin")}
+								</p>
+							) : null}
 							{passwordEnabled ? (
 								<>
 									{/* 将密码展示保留在同一容器内，避免切换时出现断层。 */}

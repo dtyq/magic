@@ -1,12 +1,12 @@
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 
 // --- Lib ---
-import { isMarkInSchema, isNodeTypeSelected } from "@/lib/tiptap-utils"
+import { isMarkInSchema, isNodeTypeSelected } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Icons ---
 import { BoldIcon } from "@/components/tiptap-icons/bold-icon"
@@ -68,13 +68,20 @@ export const MARK_SHORTCUT_KEYS: Record<Mark, string> = {
  */
 export function canToggleMark(editor: Editor | null, type: Mark): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isMarkInSchema(type, activeEditor) || isNodeTypeSelected(activeEditor, ["image"]))
-				return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (
+					!isMarkInSchema(type, activeEditor) ||
+					isNodeTypeSelected(activeEditor, ["image"])
+				)
+					return false
 
-			return activeEditor.can().toggleMark(type)
-		}, false) ?? false
+				return activeEditor.can().toggleMark(type)
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -83,10 +90,14 @@ export function canToggleMark(editor: Editor | null, type: Mark): boolean {
  */
 export function isMarkActive(editor: Editor | null, type: Mark): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			return activeEditor.isActive(type)
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				return activeEditor.isActive(type)
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -97,9 +108,13 @@ export function toggleMark(editor: Editor | null, type: Mark): boolean {
 	if (!canToggleMark(editor, type)) return false
 
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			return activeEditor.chain().focus().toggleMark(type).run()
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				return activeEditor.chain().focus().toggleMark(type).run()
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -114,16 +129,20 @@ export function shouldShowButton(props: {
 	const { editor, type, hideWhenUnavailable } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isMarkInSchema(type, activeEditor)) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!isMarkInSchema(type, activeEditor)) return false
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canToggleMark(activeEditor, type)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canToggleMark(activeEditor, type)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }

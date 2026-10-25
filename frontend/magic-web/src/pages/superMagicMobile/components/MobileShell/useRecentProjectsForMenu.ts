@@ -110,11 +110,14 @@ async function requestRecentProjects(page: number): Promise<{
 	chatWorkspaceId: string | null
 }> {
 	const [projectsResult, chatWorkspaceId] = await Promise.all([
-		SuperMagicApi.getProjects({
+		// Same list as the web sidebar's "Recent" (recentProjectsStore): ordered by last visit, with
+		// collaboration and special projects and their permission fields, so badges match.
+		SuperMagicApi.getProjectsWithCollaboration({
 			page,
 			page_size: RECENT_PROJECTS_PAGE_SIZE,
-			order_by: "updated_at",
-			sort: "desc",
+			show_collaboration: 1,
+			sort_mode: "recent",
+			include_special: 1,
 		}).catch((error) => {
 			console.error("Failed to load recent projects for mobile menu:", error)
 			return { list: [], total: 0 }

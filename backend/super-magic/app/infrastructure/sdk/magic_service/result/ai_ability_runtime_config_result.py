@@ -35,6 +35,8 @@ class AiAbilityRuntimeConfigResult(AbstractResult):
 
     def _parse_data(self) -> None:
         """Parse response data."""
+        global_system_prompt = self.get("global_system_prompt", "")
+        self.global_system_prompt = global_system_prompt if isinstance(global_system_prompt, str) else ""
         ai_abilities = self.get("ai_abilities", {})
         self.ai_abilities: Dict[str, AiAbilityRuntimeConfigItem] = {}
         if not isinstance(ai_abilities, dict):
@@ -56,6 +58,10 @@ class AiAbilityRuntimeConfigResult(AbstractResult):
         """Return AI ability runtime config mapping."""
         return self.ai_abilities
 
+    def get_global_system_prompt(self) -> str:
+        """Return the global system prompt."""
+        return self.global_system_prompt
+
     def _parse_enabled(self, value: Any) -> bool:
         """Parse enabled value."""
         if isinstance(value, bool):
@@ -71,4 +77,5 @@ class AiAbilityRuntimeConfigResult(AbstractResult):
                 ability_key: item.to_dict()
                 for ability_key, item in self.ai_abilities.items()
             },
+            "global_system_prompt": self.global_system_prompt,
         }

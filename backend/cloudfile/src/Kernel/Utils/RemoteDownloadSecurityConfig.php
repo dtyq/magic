@@ -12,17 +12,17 @@ namespace Dtyq\CloudFile\Kernel\Utils;
  */
 class RemoteDownloadSecurityConfig
 {
-    public const string LEVEL_STRICT = 'strict';
+    public const LEVEL_STRICT = 'strict';
 
-    public const string LEVEL_STANDARD = 'standard';
+    public const LEVEL_STANDARD = 'standard';
 
-    public const string LEVEL_COMPATIBLE = 'compatible';
+    public const LEVEL_COMPATIBLE = 'compatible';
 
-    private const int|float DEFAULT_MAX_DOWNLOAD_SIZE = 100 * 1024 * 1024;
+    private const DEFAULT_MAX_DOWNLOAD_SIZE = 100 * 1024 * 1024;
 
-    private const int DEFAULT_MAX_REDIRECTS = 3;
+    private const DEFAULT_MAX_REDIRECTS = 3;
 
-    private const array DEFAULT_IP_PROTECTION = [
+    private const DEFAULT_IP_PROTECTION = [
         'block_private_ip' => true,
         'block_loopback_ip' => true,
         'block_link_local_ip' => true,

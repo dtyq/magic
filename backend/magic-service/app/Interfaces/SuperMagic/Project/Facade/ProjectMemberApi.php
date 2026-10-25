@@ -104,6 +104,8 @@ class ProjectMemberApi extends AbstractApi
 
         // 1. 转换为RequestDTO并自动验证
         $requestDTO = UpdateProjectPinRequestDTO::fromRequest($this->request);
+        $requestDTO->preProjectIdProvided = $this->request->has('pre_project_id');
+        $requestDTO->nextProjectIdProvided = $this->request->has('next_project_id');
 
         // 2. 委托给Application层处理
         $this->projectMemberAppService->updateProjectPin($requestContext, (int) $project_id, $requestDTO);

@@ -5,6 +5,7 @@ import {
 	COMPRESSED_JPEG_QUALITY,
 	getCompressedQuality,
 } from "./imagePreviewConstants"
+import { createOrientedImageBitmapFromBlob } from "./imageSourceUtils"
 
 export { LOW_DISPLAY_MAX_SIZE, TOOLTIP_PREVIEW_MIN_SIZE } from "./imagePreviewConstants"
 
@@ -13,12 +14,12 @@ export { LOW_DISPLAY_MAX_SIZE, TOOLTIP_PREVIEW_MIN_SIZE } from "./imagePreviewCo
  */
 export function calculateTooltipBoundedPreviewSize(
 	imageInfo: { naturalWidth: number; naturalHeight: number } | undefined,
+	maxSize = TOOLTIP_PREVIEW_MIN_SIZE,
 ): { width?: number; height?: number } {
 	if (!imageInfo) {
 		return {}
 	}
 
-	const maxSize = TOOLTIP_PREVIEW_MIN_SIZE
 	const { naturalWidth, naturalHeight } = imageInfo
 
 	if (naturalWidth <= maxSize && naturalHeight <= maxSize) {
@@ -134,7 +135,7 @@ export async function bitmapToDataUrl(bitmap: ImageBitmap, quality: number): Pro
  */
 export async function generateLowDisplayFromBlob(blob: Blob): Promise<string> {
 	return scheduleIdleTask(async () => {
-		const bitmap = await createImageBitmap(blob, {
+		const bitmap = await createOrientedImageBitmapFromBlob(blob, {
 			resizeWidth: LOW_DISPLAY_MAX_SIZE,
 			resizeQuality: "high",
 		})
@@ -147,7 +148,7 @@ export async function generateLowDisplayFromBlob(blob: Blob): Promise<string> {
  */
 export async function generateTooltipPreviewFromBlob(blob: Blob): Promise<string> {
 	return scheduleIdleTask(async () => {
-		const bitmap = await createImageBitmap(blob, {
+		const bitmap = await createOrientedImageBitmapFromBlob(blob, {
 			resizeWidth: TOOLTIP_PREVIEW_MIN_SIZE,
 			resizeQuality: "high",
 		})
@@ -163,7 +164,7 @@ export async function generateCompressedFromBlob(
 	blob: Blob,
 ): Promise<{ dataUrl: string; width: number; height: number }> {
 	return scheduleIdleTask(async () => {
-		const bitmap = await createImageBitmap(blob)
+		const bitmap = await createOrientedImageBitmapFromBlob(blob)
 		const width = bitmap.width
 		const height = bitmap.height
 		const pixelCount = width * height

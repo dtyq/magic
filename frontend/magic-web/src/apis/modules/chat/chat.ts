@@ -1,5 +1,3 @@
-import { genRequestUrl } from "@/utils/http"
-
 import type {
 	ConversationFromService,
 	GroupConversationDetail,
@@ -37,11 +35,11 @@ import type {
 import { isString } from "lodash-es"
 import type { Bot, WithPage } from "@/types/bot"
 import type { TaskListParams, UserTask, CreateTaskParams, ListData } from "@/types/chat/task"
-import type { HttpClient } from "../../core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import type { ChatWebSocket } from "../../clients/chatWebSocket"
 import { fetchPaddingData } from "@/utils/request"
 
-export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
+export const generateChatApi = (fetch: ServiceHttpClient, socket: ChatWebSocket) => ({
 	/**
 	 * 登录
 	 * @param authorization 授权
@@ -157,7 +155,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 		},
 	) {
 		return fetch.post<PaginationResponse<ConversationFromService>>(
-			genRequestUrl("/api/v1/im/conversations/queries"),
+			"/api/v1/im/conversations/queries",
 			{ ids, ...options },
 			{ enableRequestUnion: true },
 		)
@@ -169,9 +167,9 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	messagePull(data: { page_token: string }) {
-		return fetch.get<PaginationResponse<SeqRecord<CMessage>>>(
-			genRequestUrl("/api/v1/im/messages/page", {}, data),
-		)
+		return fetch.get<PaginationResponse<SeqRecord<CMessage>>>("/api/v1/im/messages/page", {
+			params: { ...data },
+		})
 	},
 
 	/**
@@ -181,7 +179,8 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	messagePullCurrent(data: { page_token: string }) {
 		return fetch.get<PaginationResponse<{ type: "seq"; seq: SeqResponse<CMessage> }>>(
-			genRequestUrl("/api/v1/im/messages", {}, data),
+			"/api/v1/im/messages",
+			{ params: { ...data } },
 		)
 	},
 
@@ -259,10 +258,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	getMagicTopicName(conversation_id: string, id: string) {
 		return fetch.put<GetMagicTopicNameResponse>(
-			genRequestUrl("/api/v1/im/conversations/${conversationId}/topics/${topicId}/name", {
-				conversationId: conversation_id,
-				topicId: id,
-			}),
+			`/api/v1/im/conversations/${conversation_id}/topics/${id}/name`,
 		)
 	},
 
@@ -273,9 +269,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	getTopicList(conversationId: string) {
 		return fetch.post<ConversationTopic[]>(
-			genRequestUrl("/api/v1/im/conversations/${conversationId}/topics/queries", {
-				conversationId,
-			}),
+			`/api/v1/im/conversations/${conversationId}/topics/queries`,
 		)
 	},
 
@@ -287,7 +281,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	getTopicMessages(topicIds: string | string[]) {
 		const topic_ids = isString(topicIds) ? [topicIds] : topicIds
 
-		return fetch.post(genRequestUrl("/api/v2/magic/topic/messages"), { topic_ids })
+		return fetch.post("/api/v2/magic/topic/messages", { topic_ids })
 	},
 
 	/**
@@ -333,7 +327,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	createGroupConversation(data: CreateGroupConversationParams) {
 		return fetch.post<{ type: "seq"; seq: SeqResponse<GroupCreateMessage> }>(
-			genRequestUrl("/api/v1/contact/groups"),
+			"/api/v1/contact/groups",
 			data,
 		)
 	},
@@ -345,7 +339,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	getGroupConversationDetails(data: { group_ids: string[]; page_token?: string }) {
 		return fetch.post<PaginationResponse<GroupConversationDetail>>(
-			genRequestUrl("/api/v1/contact/groups/queries"),
+			"/api/v1/contact/groups/queries",
 			data,
 		)
 	},
@@ -357,13 +351,12 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	getGroupConversationMembers(data: { group_id: string; page_token?: string }) {
 		return fetch.get<PaginationResponse<GroupConversationMember>>(
-			genRequestUrl(
-				"/api/v1/contact/groups/${id}/members",
-				{ id: data.group_id },
-				{
+			`/api/v1/contact/groups/${data.group_id}/members`,
+			{
+				params: {
 					page_token: data.page_token,
 				},
-			),
+			},
 		)
 	},
 
@@ -373,9 +366,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	getMessageReceiveList(messageId: string) {
-		return fetch.get<MessageReceiveListResponse>(
-			genRequestUrl("/api/v1/im/messages/${messageId}/recipients", { messageId }),
-		)
+		return fetch.get<MessageReceiveListResponse>(`/api/v1/im/messages/${messageId}/recipients`)
 	},
 
 	/**
@@ -384,10 +375,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	addGroupUsers(data: { group_id: string; user_ids?: string[]; department_ids?: string[] }) {
-		return fetch.post(
-			genRequestUrl("/api/v1/contact/groups/${id}/members", { id: data.group_id }),
-			data,
-		)
+		return fetch.post(`/api/v1/contact/groups/${data.group_id}/members`, data)
 	},
 
 	/**
@@ -419,9 +407,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	leaveGroup(data: { group_id: string }) {
-		return fetch.delete(
-			genRequestUrl("/api/v1/contact/groups/${id}/members/self", { id: data.group_id }),
-		)
+		return fetch.delete(`/api/v1/contact/groups/${data.group_id}/members/self`)
 	},
 
 	/**
@@ -430,10 +416,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	kickGroupUsers(data: { group_id: string; user_ids: string[] }) {
-		return fetch.delete(
-			genRequestUrl("/api/v1/contact/groups/${id}/members", { id: data.group_id }),
-			data,
-		)
+		return fetch.delete(`/api/v1/contact/groups/${data.group_id}/members`, data)
 	},
 
 	/**
@@ -442,7 +425,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	removeGroup(data: { group_id: string }) {
-		return fetch.delete(genRequestUrl("/api/v1/contact/groups/${id}", { id: data.group_id }))
+		return fetch.delete(`/api/v1/contact/groups/${data.group_id}`)
 	},
 
 	/**
@@ -451,10 +434,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	updateGroupInfo(data: { group_id: string; group_name?: string; group_avatar?: string }) {
-		return fetch.put<GroupConversationDetail>(
-			genRequestUrl("/api/v1/contact/groups/${id}", { id: data.group_id }),
-			data,
-		)
+		return fetch.put<GroupConversationDetail>(`/api/v1/contact/groups/${data.group_id}`, data)
 	},
 
 	/**
@@ -464,7 +444,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	getChatFileUrls(data: { file_id: string; message_id: string }[]) {
 		return fetch.post<Record<string, ChatFileUrlData>>(
-			genRequestUrl("/api/v1/im/files/download-urls/queries"),
+			"/api/v1/im/files/download-urls/queries",
 			data,
 		)
 	},
@@ -539,9 +519,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 		signal?: AbortSignal,
 	) {
 		return fetch.post<GetConversationAiAutoCompletionResponse>(
-			genRequestUrl("/api/v1/im/conversations/${conversationId}/completions", {
-				conversationId: data.conversation_id,
-			}),
+			`/api/v1/im/conversations/${data.conversation_id}/completions`,
 			data,
 			{ signal },
 		)
@@ -549,16 +527,13 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 
 	/**
 	 * 获取 AI 自动补全(支持会话和话题为空)
+	 * TODO: 确认是否需要 query。旧调用的路径参数未被使用，暂保留仅通过 body 发送 data。
 	 * @param data
 	 * @returns
 	 */
 	getAiAutoCompletion(data: { conversation_id: string; topic_id: string; message: string }) {
 		return fetch.post<GetConversationAiAutoCompletionResponse>(
-			genRequestUrl("/api/v1/im/typing/completions", {
-				conversationId: data.conversation_id,
-				topicId: data.topic_id,
-				message: data.message,
-			}),
+			"/api/v1/im/typing/completions",
 			data,
 		)
 	},
@@ -569,9 +544,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	getAiAssistantBotInfo(data: { user_id: string }) {
-		return fetch.get<Bot.Detail["botEntity"]>(
-			genRequestUrl("/api/v1/agents/versions/${userId}/user", { userId: data.user_id }),
-		)
+		return fetch.get<Bot.Detail["botEntity"]>(`/api/v1/agents/versions/${data.user_id}/user`)
 	},
 
 	/**
@@ -585,9 +558,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 		instructs?: Record<string, unknown>
 	}) {
 		return fetch.post<{ instructs?: Record<string, unknown> }>(
-			genRequestUrl("/api/v1/im/conversations/${conversationId}/instructs", {
-				conversationId: data.conversation_id,
-			}),
+			`/api/v1/im/conversations/${data.conversation_id}/instructs`,
 			data,
 		)
 	},
@@ -599,9 +570,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	getConversationMessages(conversationId: string, data: GetConversationMessagesParams) {
 		return fetch.post<PaginationResponse<SeqRecord<ConversationQueryMessage>>>(
-			genRequestUrl("/api/v1/im/conversations/${conversationId}/messages/queries", {
-				conversationId,
-			}),
+			`/api/v1/im/conversations/${conversationId}/messages/queries`,
 			data,
 		)
 	},
@@ -623,7 +592,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 */
 	batchGetConversationMessages(arg0: { conversation_ids?: string[]; limit?: number }) {
 		return fetch.post<Record<string, SeqRecord<ConversationMessage>[]>>(
-			genRequestUrl("/api/v1/im/conversations/messages/queries"),
+			"/api/v1/im/conversations/messages/queries",
 			arg0,
 		)
 	},
@@ -637,9 +606,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 		return fetchPaddingData(
 			(params) => {
 				return fetch.post<PaginationResponse<SeqRecord<ConversationMessage>>>(
-					genRequestUrl("/api/v1/im/messages/app-message-ids/${appMessageId}/queries", {
-						appMessageId,
-					}),
+					`/api/v1/im/messages/app-message-ids/${appMessageId}/queries`,
 					params,
 				)
 			},
@@ -654,7 +621,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	getTaskList(data: TaskListParams) {
-		return fetch.get<ListData<UserTask>>(genRequestUrl("/api/v1/user/task", {}, { ...data }))
+		return fetch.get<ListData<UserTask>>("/api/v1/user/task", { params: { ...data } })
 	},
 
 	/**
@@ -663,7 +630,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	getTask(id: string) {
-		return fetch.get<null>(genRequestUrl("/api/v1/user/task/${id}", { id }))
+		return fetch.get<null>(`/api/v1/user/task/${id}`)
 	},
 
 	/**
@@ -673,10 +640,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	updateTask(data: UserTask) {
-		return fetch.put<ListData<UserTask>>(
-			genRequestUrl("/api/v1/user/task/${id}", { id: data.id }),
-			data,
-		)
+		return fetch.put<ListData<UserTask>>(`/api/v1/user/task/${data.id}`, data)
 	},
 
 	/**
@@ -685,7 +649,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	deleteTask(id: string) {
-		return fetch.delete<null>(genRequestUrl("/api/v1/user/task/${id}", { id }))
+		return fetch.delete<null>(`/api/v1/user/task/${id}`)
 	},
 
 	/**
@@ -694,14 +658,14 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 	 * @returns
 	 */
 	createTask(data: CreateTaskParams) {
-		return fetch.post<boolean>(genRequestUrl("/api/v1/user/task"), data)
+		return fetch.post<boolean>("/api/v1/user/task", data)
 	},
 
-	/** 获取语音输入 token */
-	getVoiceInputToken({
-		duration = 300,
-		refresh = false,
-	}: { duration?: number; refresh?: boolean } = {}) {
+	/**
+	 * 获取语音输入 token
+	 * TODO: 确认 duration、refresh 是否应作为 query。旧调用误放在路径参数中，暂保留不发送行为。
+	 */
+	getVoiceInputToken(_options: { duration?: number; refresh?: boolean } = {}) {
 		return fetch.get<{
 			token: string
 			app_id: string
@@ -711,12 +675,7 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 				user_id: string
 				organization_code: string
 			}
-		}>(
-			genRequestUrl("/api/v1/asr/tokens", {
-				duration,
-				refresh: refresh ? "true" : "false",
-			}),
-		)
+		}>("/api/v1/asr/tokens")
 	},
 	/** 获取可用AI助理列表 */
 	async getAssistantAvailableList({
@@ -728,17 +687,12 @@ export const generateChatApi = (fetch: HttpClient, socket: ChatWebSocket) => ({
 		pageSize: number
 		keyword?: string
 	}) {
-		return fetch.get<WithPage<UserAvailableAgentInfo[]>>(
-			genRequestUrl(
-				"/api/v1/agents/chat-mode/available",
-				{},
-				{
-					page,
-					page_size: pageSize,
-					agent_name: keyword,
-				},
-			),
-			{},
-		)
+		return fetch.get<WithPage<UserAvailableAgentInfo[]>>("/api/v1/agents/chat-mode/available", {
+			params: {
+				page,
+				page_size: pageSize,
+				agent_name: keyword,
+			},
+		})
 	},
 })

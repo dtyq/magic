@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor"
-import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor"
+import { LazySimpleEditor } from "@/components/tiptap-templates/simple/lazy-simple-editor"
+import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/types"
 
 interface IdentityPromptPanelProps {
 	open: boolean
@@ -23,6 +23,7 @@ export function IdentityPromptPanel({
 }: IdentityPromptPanelProps) {
 	const { t } = useTranslation("crew/create")
 	const editorRef = useRef<SimpleEditorRef>(null)
+	const pendingResetRef = useRef(false)
 	const [draft, setDraft] = useState(initialValue)
 
 	useEffect(() => {
@@ -35,8 +36,21 @@ export function IdentityPromptPanel({
 
 	const handleReset = useCallback(() => {
 		setDraft(initialValue)
-		editorRef.current?.setContent(initialValue)
+		if (editorRef.current) {
+			editorRef.current.setContent(initialValue)
+		} else {
+			pendingResetRef.current = true
+		}
 	}, [initialValue])
+
+	const handleEditorReady = useCallback(
+		(editor: SimpleEditorRef) => {
+			if (!pendingResetRef.current) return
+			editor.setContent(initialValue)
+			pendingResetRef.current = false
+		},
+		[initialValue],
+	)
 
 	const handleClose = useCallback(() => {
 		onClose()
@@ -70,8 +84,9 @@ export function IdentityPromptPanel({
 					</div>
 
 					<div className="mx-3 my-2 min-h-0 flex-1 overflow-auto rounded-md border border-border">
-						<SimpleEditor
+						<LazySimpleEditor
 							ref={editorRef}
+							onReady={handleEditorReady}
 							content={initialValue}
 							onContentChange={setDraft}
 							enableDragHandle={false}

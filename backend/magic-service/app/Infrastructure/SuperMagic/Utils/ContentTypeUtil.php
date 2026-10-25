@@ -45,6 +45,7 @@ class ContentTypeUtil
         'flac' => 'audio/flac',
         'aac' => 'audio/aac',
         'ogg' => 'audio/ogg',
+        'opus' => 'audio/ogg',
         'wma' => 'audio/x-ms-wma',
         'm4a' => 'audio/mp4',
 
@@ -122,7 +123,7 @@ class ContentTypeUtil
         'mp4', 'webm',
 
         // Audio
-        'mp3', 'wav', 'ogg', 'm4a',
+        'mp3', 'wav', 'ogg', 'opus', 'm4a',
     ];
 
     /**

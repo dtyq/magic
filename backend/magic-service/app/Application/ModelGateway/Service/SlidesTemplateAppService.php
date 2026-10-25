@@ -9,16 +9,23 @@ namespace App\Application\ModelGateway\Service;
 
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
 use App\Domain\ModelGateway\Entity\Dto\SlidesTemplateFileUrlRequestDTO;
+use App\Domain\ModelGateway\Entity\Dto\SlidesTemplateTaxonomyRequestDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateDataIsolation;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateEntity;
+use App\Domain\SlidesTemplate\Entity\ValueObject\Query\SlidesTemplateCategoryQuery;
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateCategoryStatus;
 use App\Domain\SlidesTemplate\Event\SlidesTemplateUsedEvent;
+use App\Domain\SlidesTemplate\Service\SlidesTemplateCategoryDomainService;
 use App\Domain\SlidesTemplate\Service\SlidesTemplateDomainService;
+use App\Domain\SlidesTemplate\Service\SlidesTemplateTagDomainService;
 use App\ErrorCode\SlidesTemplateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Interfaces\SlidesTemplate\Assembler\SlidesTemplateTaxonomyAssembler;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Hyperf\Di\Annotation\Inject;
 
@@ -28,6 +35,38 @@ class SlidesTemplateAppService extends AbstractLLMAppService
 {
     #[Inject]
     protected SlidesTemplateDomainService $slidesTemplateDomainService;
+
+    #[Inject]
+    protected SlidesTemplateCategoryDomainService $slidesTemplateCategoryDomainService;
+
+    #[Inject]
+    protected SlidesTemplateTagDomainService $slidesTemplateTagDomainService;
+
+    /**
+     * @return array{categories: array<int, array<string, mixed>>, groups: array<int, array<string, mixed>>, tags: array<int, array<string, mixed>>}
+     */
+    public function getTaxonomy(SlidesTemplateTaxonomyRequestDTO $requestDTO): array
+    {
+        $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken(
+            $requestDTO->getAccessToken(),
+            $requestDTO->getBusinessParams()
+        );
+        $dataIsolation = $this->createSlidesTemplateDataIsolation($modelGatewayDataIsolation);
+        $dataIsolation->setContainOfficialOrganization(true);
+
+        $query = new SlidesTemplateCategoryQuery();
+        $query->setStatus(SlidesTemplateCategoryStatus::Enabled->value);
+        $query->setOnlyWithTemplates(false);
+        $categories = $this->slidesTemplateCategoryDomainService->queries(
+            $dataIsolation,
+            $query,
+            Page::createNoPage()
+        )['list'] ?? [];
+
+        $groups = $this->slidesTemplateTagDomainService->queriesTree($dataIsolation);
+
+        return SlidesTemplateTaxonomyAssembler::createCatalogDTO($categories, $groups);
+    }
 
     public function getTemplateFileUrl(SlidesTemplateFileUrlRequestDTO $requestDTO, string $code): SlidesTemplateEntity
     {
@@ -59,7 +98,7 @@ class SlidesTemplateAppService extends AbstractLLMAppService
     {
         $fileLinks = $this->getPrivateFileLinks($template->getOrganizationCode(), [$template->getTemplateFileKey()]);
         $fileLink = $fileLinks[$template->getTemplateFileKey()] ?? null;
-        if (! $fileLink instanceof FileLink) {
+        if (! $fileLink instanceof FileLink || trim($fileLink->getUrl()) === '') {
             ExceptionBuilder::throw(SlidesTemplateErrorCode::FILE_URL_GENERATE_FAILED);
         }
         $template->setTemplateFileUrl($fileLink->getUrl());

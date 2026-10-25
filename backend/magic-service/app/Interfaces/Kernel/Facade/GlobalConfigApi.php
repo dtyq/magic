@@ -15,6 +15,7 @@ use App\Application\Flow\Service\MagicFlowAppService;
 use App\Application\Kernel\DTO\PlatformSettings;
 use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
+use App\Application\Kernel\Service\IdentityWatermarkAppService;
 use App\Application\Kernel\Service\MagicSettingAppService;
 use App\Application\Kernel\Service\PlatformSettingsAppService;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
@@ -31,6 +32,7 @@ use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\Context\RequestCoContext;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Infrastructure\Util\Redis\GlobalConfigCacheUtil;
 use App\Interfaces\Agent\Assembler\AgentAssembler;
@@ -85,6 +87,7 @@ class GlobalConfigApi extends AbstractApi
     public function __construct(
         private readonly MagicSettingAppService $magicSettingAppService,
         private readonly BootstrapStatusService $bootstrapStatusService,
+        private readonly IdentityWatermarkAppService $identityWatermarkAppService,
     ) {
     }
 
@@ -103,7 +106,7 @@ class GlobalConfigApi extends AbstractApi
             // 忽略平台设置异常，避免影响全局配置读取
         }
 
-        return $result;
+        return $this->appendOrganizationIdentityWatermark($result);
     }
 
     public function getAllGlobalConfig(): array
@@ -112,7 +115,7 @@ class GlobalConfigApi extends AbstractApi
         $cachedData = GlobalConfigCacheUtil::get(GlobalConfigCacheUtil::getGlobalConfigKey());
         if ($cachedData !== false) {
             $this->logger->info('Global config - cache hit');
-            return $cachedData;
+            return $this->appendOrganizationIdentityWatermark($cachedData);
         }
         $result = [];
         // 合并平台设置
@@ -153,7 +156,7 @@ class GlobalConfigApi extends AbstractApi
             // 忽略平台设置异常，避免影响全局配置读取
         }
 
-        return $result;
+        return $this->appendOrganizationIdentityWatermark($result);
     }
 
     # ## 性能优化版本,合并多个API为一个,减少前端HTTP的请求数量
@@ -515,6 +518,11 @@ class GlobalConfigApi extends AbstractApi
             'minimal_logo' => $minimalLogo,
             'default_language' => (string) ($settings['default_language'] ?? 'zh_CN'),
             'footer' => PlatformSettings::fromArray($settings)->getFooter(),
+            'watermark' => (array) ($settings['watermark'] ?? [
+                'enabled' => false,
+                'fields' => ['real_name'],
+                'depth' => 'light',
+            ]),
         ];
         foreach (['name_i18n', 'title_i18n', 'keywords_i18n', 'description_i18n'] as $key) {
             if (isset($settings[$key])) {
@@ -522,6 +530,31 @@ class GlobalConfigApi extends AbstractApi
             }
         }
         return $resp;
+    }
+
+    private function appendOrganizationIdentityWatermark(array $result): array
+    {
+        $authorization = RequestCoContext::getUserAuthorization();
+        if ($authorization === null || $authorization->getOrganizationCode() === '') {
+            return $result;
+        }
+
+        try {
+            $effective = $this->identityWatermarkAppService
+                ->getEffective($authorization->getOrganizationCode())['effective_watermark'];
+            if (isset($result['platform_settings']) && is_array($result['platform_settings'])) {
+                $result['platform_settings']['watermark'] = $effective;
+            } else {
+                $result['watermark'] = $effective;
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('Failed to append organization identity watermark', [
+                'organization_code' => $authorization->getOrganizationCode(),
+                'exception' => $e,
+            ]);
+        }
+
+        return $result;
     }
 
     private function appendBootstrapState(array $result): array

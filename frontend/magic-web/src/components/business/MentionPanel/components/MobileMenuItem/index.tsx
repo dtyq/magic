@@ -33,13 +33,14 @@ const MobileMenuItem = memo(function MobileMenuItem(props: MenuItemProps) {
 
 	const { styles, cx } = useMobileStyles()
 	const renderer = useMentionItemRenderer(item.type)
-	const filePreviewById = useMentionItemRenderContextValue()
+	const { filePreviewById, filePresentationOptions } = useMentionItemRenderContextValue()
 	const rendererContext = {
 		item,
 		t,
 		isSearch,
 		platform: "mobile" as const,
 		filePreviewById,
+		filePresentationOptions,
 	}
 	const hasRightArrow =
 		!item.tags?.includes("history") &&

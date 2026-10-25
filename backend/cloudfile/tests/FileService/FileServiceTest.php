@@ -94,6 +94,116 @@ class FileServiceTest extends CloudFileBaseTest
         $this->assertEmpty($list);
     }
 
+    /**
+     * 使用真实 FileService 配置验证批量预签名 URL 请求。
+     */
+    public function testGetPreSignedUrlsByCredentialWithRealFileServiceRequest(): void
+    {
+        $filesystem = $this->getFilesystem();
+        $credentialPolicy = new CredentialPolicy([
+            'sts' => true,
+            'roleSessionName' => 'batch-presigned-url-test',
+        ]);
+
+        $urls = $filesystem->getPreSignedUrlsByCredential(
+            $credentialPolicy,
+            [
+                [
+                    'object_key' => 'easy-file/file-service.txt',
+                    'options' => [
+                        'filename' => 'batch-file-service.txt',
+                    ],
+                ],
+                [
+                    'object_key' => 'easy-file/test.txt',
+                    'options' => [
+                        'filename' => 'batch-test.txt',
+                        'download' => false,
+                    ],
+                ],
+            ],
+            $this->getOptions([
+                'expires' => 600,
+            ])
+        );
+
+        $this->assertCount(2, $urls);
+        $this->assertArrayHasKey('easy-file/file-service.txt', $urls);
+        $this->assertArrayHasKey('easy-file/test.txt', $urls);
+
+        foreach ($urls as $url) {
+            $parsedUrl = parse_url($url);
+            $this->assertIsArray($parsedUrl);
+            $this->assertSame('https', $parsedUrl['scheme'] ?? null);
+            $this->assertNotEmpty($parsedUrl['host'] ?? null);
+
+            $query = [];
+            parse_str((string) ($parsedUrl['query'] ?? ''), $query);
+            $this->assertArrayHasKey('x-oss-signature', $query);
+        }
+
+        $this->assertContentDisposition($urls['easy-file/file-service.txt'], 'attachment; filename="batch-file-service.txt"; filename*=UTF-8\'\'batch-file-service.txt');
+        $this->assertContentDisposition($urls['easy-file/test.txt'], 'inline; filename="batch-test.txt"; filename*=UTF-8\'\'batch-test.txt');
+    }
+
+    /**
+     * 验证 FileService 真实临时凭证链路支持中文下载名称.
+     */
+    public function testGetPreSignedUrlByCredentialWithChineseDownloadName(): void
+    {
+        $filesystem = $this->getFilesystem();
+        $credentialPolicy = new CredentialPolicy([
+            'sts' => true,
+            'roleSessionName' => 'chinese-download-name-test',
+        ]);
+        $downloadName = '测试中文文件名.md';
+
+        $url = $filesystem->getPreSignedUrlByCredential(
+            $credentialPolicy,
+            'easy-file/file-service.txt',
+            $this->getOptions([
+                'filename' => $downloadName,
+                'expires' => 600,
+            ])
+        );
+
+        var_dump($url);
+
+        $this->assertIsString($url);
+        $this->assertContentDisposition(
+            $url,
+            'attachment; filename="download.md"; filename*=UTF-8\'\'' . rawurlencode($downloadName)
+        );
+    }
+
+    /**
+     * 验证 FileService 真实临时凭证链路保留英文下载名称.
+     */
+    public function testGetPreSignedUrlByCredentialWithEnglishDownloadName(): void
+    {
+        $filesystem = $this->getFilesystem();
+        $credentialPolicy = new CredentialPolicy([
+            'sts' => true,
+            'roleSessionName' => 'english-download-name-test',
+        ]);
+        $downloadName = 'test-download.md';
+
+        $url = $filesystem->getPreSignedUrlByCredential(
+            $credentialPolicy,
+            'easy-file/file-service.txt',
+            $this->getOptions([
+                'filename' => $downloadName,
+                'expires' => 600,
+            ])
+        );
+
+        $this->assertIsString($url);
+        $this->assertContentDisposition(
+            $url,
+            'attachment; filename="' . $downloadName . '"; filename*=UTF-8\'\'' . $downloadName
+        );
+    }
+
     public function testSimpleUpload()
     {
         $filesystem = $this->getFilesystem();

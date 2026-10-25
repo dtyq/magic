@@ -20,6 +20,7 @@ readonly class AsrSandboxMergeResultDTO
         public ?int $duration = null,
         public ?int $fileSize = null,
         public ?string $errorMessage = null,
+        public ?string $audioFormat = null,
         public array $responseData = [],
     ) {
     }
@@ -38,6 +39,7 @@ readonly class AsrSandboxMergeResultDTO
             duration: $response['duration'] ?? null,
             fileSize: $response['file_size'] ?? null,
             errorMessage: $response['error_message'] ?? null,
+            audioFormat: self::resolveAudioFormat($response),
             responseData: is_array($response['response_data'] ?? null) ? $response['response_data'] : [],
         );
     }
@@ -69,7 +71,30 @@ readonly class AsrSandboxMergeResultDTO
             'duration' => $this->duration,
             'file_size' => $this->fileSize,
             'error_message' => $this->errorMessage,
+            'audio_format' => $this->audioFormat,
             'response_data' => $this->responseData,
         ];
+    }
+
+    private static function resolveAudioFormat(array $response): ?string
+    {
+        $responseData = is_array($response['response_data'] ?? null) ? $response['response_data'] : [];
+        $files = is_array($responseData['files'] ?? null) ? $responseData['files'] : [];
+        $audioFile = is_array($files['audio_file'] ?? null) ? $files['audio_file'] : [];
+        $format = $response['audio_format']
+            ?? $responseData['audio_format']
+            ?? $audioFile['audio_format']
+            ?? $audioFile['format']
+            ?? null;
+        if (! is_string($format) || trim($format) === '') {
+            $format = is_string($response['file_path'] ?? null)
+                ? pathinfo($response['file_path'], PATHINFO_EXTENSION)
+                : null;
+        }
+        if (! is_string($format)) {
+            return null;
+        }
+        $format = strtolower(ltrim(trim($format), '.'));
+        return in_array($format, ['wav', 'opus'], true) ? $format : null;
     }
 }

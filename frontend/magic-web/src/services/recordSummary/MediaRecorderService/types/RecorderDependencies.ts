@@ -85,4 +85,4 @@ export function createDefaultDependencies(logger: LoggerInterface): RecorderDepe
 		logger,
 	}
 }
-import type { StructuredErrorInput } from "@/utils/log/errorReport"
+import type { StructuredErrorInput } from "@/infrastructure/logger"

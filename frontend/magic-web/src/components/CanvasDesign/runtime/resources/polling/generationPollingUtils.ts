@@ -3,6 +3,37 @@ import {
 	type GenerationStatus as GenerationStatusValue,
 } from "../../../public/magic-types"
 
+export const INVALID_GENERATED_RESOURCE_PATH_ERROR = "generated-resource-path-unresolved"
+
+/** Keeps internal polling failures out of user-visible element error text. */
+export function resolveGenerationErrorMessage(
+	errorMessage: string | null | undefined,
+	localizedFallback: string,
+): string {
+	if (!errorMessage || errorMessage === INVALID_GENERATED_RESOURCE_PATH_ERROR) {
+		return localizedFallback
+	}
+	return errorMessage
+}
+
+export function getGenerationResultStatusPatch(
+	status: GenerationStatusValue,
+	errorMessage: string | null | undefined,
+	hasResolvedResource: boolean,
+): { status: GenerationStatusValue; errorMessage?: string } {
+	if (status === GenerationStatus.Completed && !hasResolvedResource) {
+		return {
+			status: GenerationStatus.Failed,
+			errorMessage: INVALID_GENERATED_RESOURCE_PATH_ERROR,
+		}
+	}
+
+	return {
+		status,
+		errorMessage: errorMessage ?? undefined,
+	}
+}
+
 /**
  * 根据文件名提取更稳定的展示名，去除结尾的时间戳/数字后缀。
  */

@@ -1,36 +1,42 @@
-import { useCallback, useEffect, useRef, type RefObject } from "react"
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
+import type { CanvasDocument } from "@/components/CanvasDesign/runtime/document/types"
+import {
+	getImageContentById,
+	isImageElementContent,
+} from "@/components/CanvasDesign/runtime/document/elementContent"
+import type { CanvasDesignRef } from "@/components/CanvasDesign/public/props"
 import type {
-	CanvasDocument,
-	ImageElement,
-	LayerElement,
-} from "@/components/CanvasDesign/runtime/document/types"
-import type {
-	CanvasDesignDataChangeMeta,
-	CanvasDesignRef,
-} from "@/components/CanvasDesign/public/props"
+	CanvasImageFileRename,
+	CanvasImageRenameFile,
+	CanvasImageRenameMethods,
+} from "@/components/CanvasDesign/public/magic-types"
+import { GenerationStatus } from "@/components/CanvasDesign/public/magic-types"
+import type { ResolveCanvasResourceReference } from "@/components/CanvasDesign/public/resource-reference"
 import { SuperMagicApi } from "@/apis"
-import magicToast from "@/components/base/MagicToaster/utils"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
-import type { DesignAttachmentIndex } from "../utils/designAttachmentIndex"
+import {
+	buildDesignAttachmentIndex,
+	type DesignAttachmentIndex,
+} from "../utils/designAttachmentIndex"
 import { validateFilename } from "@/utils/filename-validator"
-import { resolveDesignAttachment, toDesignDslPathFromWorkspacePath } from "../utils/designPath"
-import { compareDesignData, normalizePath, splitFileName } from "../utils/utils"
-import { replaceCanvasFilePathReferences } from "../utils/replace-canvas-file-path-references"
+import { normalizePath } from "../utils/utils"
+import {
+	getCanvasFilePathReplacementResult,
+	type CanvasFilePathReplacementResult,
+} from "../utils/replace-canvas-file-path-references"
 import { registerWaitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
+import {
+	resolveDesignCanvasResourceFileItem,
+	resolveDesignResourceReference,
+	type DesignResourceReferenceResolverContext,
+} from "../utils/designResourceReferenceResolver"
 
-const GENERIC_CLIPBOARD_IMAGE_FILE_NAME_PATTERN =
-	/^image(?:\(\d+\))?\.(png|jpg|jpeg|webp|gif|bmp)$/i
-
-interface PendingImageFileRenameTask {
-	fileId: string
-	targetFileName: string
-}
-
-interface UseCanvasImageFileRenameSyncOptions {
+interface Options {
 	canvasDesignRef: RefObject<CanvasDesignRef | null>
 	currentCanvasData?: CanvasDocument
 	flatAttachments: FileItem[]
+	attachmentsReady?: boolean
 	attachmentIndex?: DesignAttachmentIndex | null
 	designProjectBasePath?: string
 	projectId?: string
@@ -38,394 +44,323 @@ interface UseCanvasImageFileRenameSyncOptions {
 	updateAttachments: () => void
 }
 
-interface UseCanvasImageFileRenameSyncReturn {
-	handleCanvasDesignDataChange: (
-		canvasData: CanvasDocument,
-		meta?: CanvasDesignDataChangeMeta,
-	) => void
+function fileName(file: FileItem): string {
+	return file.file_name || file.display_filename || file.filename || ""
 }
 
-function isGenericClipboardImageFileName(fileName: string): boolean {
-	return GENERIC_CLIPBOARD_IMAGE_FILE_NAME_PATTERN.test(fileName.trim())
+function parentPath(path: string): string {
+	const normalized = normalizePath(path)
+	const index = normalized.lastIndexOf("/")
+	return index < 0 ? "" : normalized.slice(0, index)
 }
 
-function buildTargetFileName(elementName: string, originalFileName: string): string {
-	const { extension } = splitFileName(originalFileName)
-	return `${elementName}${extension}`
-}
-
-function getFileDisplayName(fileItem: FileItem | null | undefined): string {
-	if (!fileItem) return ""
-	return fileItem.file_name || fileItem.display_filename || fileItem.filename || ""
-}
-
-function getParentDirectoryPath(filePath: string): string {
-	const normalizedFilePath = normalizePath(filePath)
-	const lastSlashIndex = normalizedFilePath.lastIndexOf("/")
-	if (lastSlashIndex === -1) return ""
-	return normalizedFilePath.slice(0, lastSlashIndex)
-}
-
-function getPathFileName(filePath: string | null | undefined): string {
-	const normalizedFilePath = normalizePath(filePath || "")
-	if (!normalizedFilePath) return ""
-
-	const lastSlashIndex = normalizedFilePath.lastIndexOf("/")
-	if (lastSlashIndex === -1) return normalizedFilePath
-	return normalizedFilePath.slice(lastSlashIndex + 1)
-}
-
-function buildFallbackRelativeFilePath(filePath: string, nextFileName: string): string {
-	const normalizedFilePath = normalizePath(filePath)
-	if (!normalizedFilePath) return nextFileName
-
-	const parentDirectoryPath = getParentDirectoryPath(normalizedFilePath)
-	if (!parentDirectoryPath) return nextFileName
-
-	return `${parentDirectoryPath}/${nextFileName}`
-}
-
-function isRenamedFileItemFresh(
-	fileItem: FileItem | null | undefined,
-	targetFileName: string,
-): boolean {
-	if (!fileItem) return false
-	if (getFileDisplayName(fileItem) === targetFileName) return true
-	return getPathFileName(fileItem.relative_file_path) === targetFileName
-}
-
-function hasDuplicateSiblingFileName(
-	flatAttachments: FileItem[],
-	fileId: string,
-	targetFileName: string,
-	parentDirectoryPath: string,
-): boolean {
-	return flatAttachments.some((item) => {
-		if (item.is_directory || item.file_id === fileId) return false
-		if (getFileDisplayName(item) !== targetFileName) return false
-		return getParentDirectoryPath(item.relative_file_path || "") === parentDirectoryPath
-	})
-}
-
-function collectElementsByIds(
-	elements: LayerElement[] | undefined,
-	elementIds: readonly string[],
-): Map<string, LayerElement> {
-	const result = new Map<string, LayerElement>()
-	const remainingIds = new Set(elementIds)
-	if (!elements?.length || remainingIds.size === 0) return result
-
-	const traverse = (items: LayerElement[]): boolean => {
-		for (const item of items) {
-			if (remainingIds.has(item.id)) {
-				result.set(item.id, item)
-				remainingIds.delete(item.id)
-				if (remainingIds.size === 0) return true
-			}
-			if ("children" in item && item.children && traverse(item.children)) {
-				return true
+export function useCanvasImageFileRenameSync(options: Options): CanvasImageRenameMethods {
+	const { t } = useTranslation("super")
+	// 请求等待期间始终读取最新画布与附件，不能把打开面板时的整份文档写回。
+	const latest = useRef(options)
+	latest.current = options
+	const queue = useRef<Promise<void>>(Promise.resolve())
+	const pending = useRef(new Map<string, Promise<CanvasImageRenameFile>>())
+	const referenceUpdates = useRef(
+		new Map<string, (document: CanvasDocument) => CanvasFilePathReplacementResult>(),
+	)
+	// 请求结果未知时，等待新的附件快照再允许重试，避免把超时当作未写入。
+	const uncertain = useRef(new Map<string, FileItem | undefined>())
+	const contextRevision = useRef(0)
+	const contextCache = useRef<{
+		attachments: FileItem[]
+		index?: DesignAttachmentIndex | null
+		basePath?: string
+		ready?: boolean
+		revision: number
+		value: DesignResourceReferenceResolverContext
+	}>()
+	// 已由接口确认、但附件快照尚未跟上的结果，避免刷新延迟导致重复写入。
+	const confirmed = useRef(
+		new Map<string, { file: CanvasImageRenameFile; previousName: string }>(),
+	)
+	useEffect(() => {
+		for (const [id, record] of confirmed.current) {
+			const attachment = options.flatAttachments.find((item) => item.file_id === id)
+			if (attachment && fileName(attachment) !== record.previousName) {
+				confirmed.current.delete(id)
+				contextRevision.current += 1
 			}
 		}
-		return false
-	}
+	}, [options.flatAttachments])
 
-	traverse(elements)
-	return result
-}
+	const context = useCallback(() => {
+		const snapshot = latest.current
+		const cached = contextCache.current
+		if (
+			cached &&
+			cached.attachments === snapshot.flatAttachments &&
+			cached.index === snapshot.attachmentIndex &&
+			cached.basePath === snapshot.designProjectBasePath &&
+			cached.ready === snapshot.attachmentsReady &&
+			cached.revision === contextRevision.current
+		)
+			return cached.value
+		const flatAttachments = confirmed.current.size
+			? snapshot.flatAttachments.map((item) => {
+					const record = confirmed.current.get(item.file_id)
+					if (!record || fileName(item) !== record.previousName) return item
+					const file = record.file
+					return {
+						...item,
+						file_name: file.fileName,
+						relative_file_path: file.parentPath
+							? `${file.parentPath}/${file.fileName}`
+							: file.fileName,
+					}
+				})
+			: snapshot.flatAttachments
+		// 附件与确认结果未变化时复用索引，避免每一行和每次输入都重新扫描万级文件列表。
+		const value = {
+			flatAttachments,
+			attachmentsReady: snapshot.attachmentsReady,
+			attachmentIndex: confirmed.current.size
+				? buildDesignAttachmentIndex(flatAttachments)
+				: snapshot.attachmentIndex,
+			designProjectBasePath: snapshot.designProjectBasePath,
+		}
+		contextCache.current = {
+			attachments: snapshot.flatAttachments,
+			index: snapshot.attachmentIndex,
+			basePath: snapshot.designProjectBasePath,
+			ready: snapshot.attachmentsReady,
+			revision: contextRevision.current,
+			value,
+		}
+		return value
+	}, [])
 
-export function useCanvasImageFileRenameSync(
-	options: UseCanvasImageFileRenameSyncOptions,
-): UseCanvasImageFileRenameSyncReturn {
-	const {
-		canvasDesignRef,
-		currentCanvasData,
-		flatAttachments,
-		attachmentIndex,
-		designProjectBasePath,
-		projectId,
-		persistCanvasData,
-		updateAttachments,
-	} = options
-	const { t } = useTranslation("super")
-
-	const previousCanvasDataRef = useRef<CanvasDocument | undefined>(currentCanvasData)
-	const latestCanvasDataRef = useRef<CanvasDocument | undefined>(currentCanvasData)
-	const flatAttachmentsRef = useRef<FileItem[]>(flatAttachments)
-	const attachmentIndexRef = useRef<DesignAttachmentIndex | null | undefined>(attachmentIndex)
-	const designProjectBasePathRef = useRef(designProjectBasePath)
-	const isApplyingSyncedCanvasUpdateRef = useRef(false)
-	const queuedTaskKeysRef = useRef<Set<string>>(new Set())
-	const queueRef = useRef<Promise<void>>(Promise.resolve())
-
-	useEffect(() => {
-		previousCanvasDataRef.current = currentCanvasData
-		latestCanvasDataRef.current = currentCanvasData
-	}, [currentCanvasData])
-
-	useEffect(() => {
-		flatAttachmentsRef.current = flatAttachments
-	}, [flatAttachments])
-
-	useEffect(() => {
-		designProjectBasePathRef.current = designProjectBasePath
-	}, [designProjectBasePath])
-
-	useEffect(() => {
-		attachmentIndexRef.current = attachmentIndex
-	}, [attachmentIndex])
-
-	const syncImageFileRename = useCallback(
-		async (task: PendingImageFileRenameTask) => {
-			const currentAttachments = flatAttachmentsRef.current
-			const currentFileItem =
-				currentAttachments.find(
-					(item) => !item.is_directory && item.file_id === task.fileId,
-				) ?? null
-			if (!currentFileItem) return
-
-			const currentFileName = getFileDisplayName(currentFileItem)
-			if (!currentFileName || currentFileName === task.targetFileName) return
-
-			const validationResult = validateFilename(task.targetFileName, false, { t })
-			if (!validationResult.isValid) {
-				magicToast.error(
-					validationResult.errorMessage || t("topicFiles.contextMenu.renameFailed"),
-				)
-				return
+	const resolveImageRenameFile = useCallback(
+		(path: string): CanvasImageRenameFile | undefined => {
+			const matched = resolveDesignCanvasResourceFileItem(path, context())
+			if (matched?.file_id) {
+				const cached = confirmed.current.get(matched.file_id)
+				if (cached) return cached.file
+				const name = fileName(matched)
+				if (!name) return undefined
+				return {
+					fileId: matched.file_id,
+					fileName: name,
+					sourcePath: path,
+					parentPath: parentPath(matched.relative_file_path || name),
+				}
 			}
+			return [...confirmed.current.values()].find((record) => record.file.sourcePath === path)
+				?.file
+		},
+		[context],
+	)
 
-			const parentDirectoryPath = getParentDirectoryPath(
-				currentFileItem.relative_file_path || "",
+	const validateImageFileRenames = useCallback(
+		(changes: readonly CanvasImageFileRename[]): Record<string, string> => {
+			const errors: Record<string, string> = {}
+			const destinations = new Map<string, string>()
+			const canvas = latest.current.canvasDesignRef.current?.getCanvasInstance()
+			for (const change of changes) {
+				if (uncertain.current.has(change.fileId)) {
+					const fresh = latest.current.flatAttachments.find(
+						(item) => item.file_id === change.fileId,
+					)
+					if (!fresh || fresh === uncertain.current.get(change.fileId)) {
+						errors[change.fileId] = t("design.rename.verifyResult")
+						continue
+					}
+					uncertain.current.delete(change.fileId)
+				}
+				const element = canvas?.elementManager.getElementData(change.elementId)
+				const content =
+					element && isImageElementContent(element)
+						? getImageContentById(element, change.contentId)
+						: undefined
+				const file = content?.src ? resolveImageRenameFile(content.src) : undefined
+				if (
+					!content ||
+					content.status === GenerationStatus.Pending ||
+					content.status === GenerationStatus.Processing ||
+					!canvas?.permissionManager.canRename(element) ||
+					!file ||
+					file.fileId !== change.fileId
+				) {
+					errors[change.fileId] = t("design.rename.fileUnavailable")
+					continue
+				}
+				if (file.fileName !== change.expectedName && file.fileName !== change.targetName) {
+					errors[change.fileId] = t("design.rename.fileChanged")
+					continue
+				}
+				const validation = validateFilename(change.targetName, false, { t })
+				if (!validation.isValid) {
+					errors[change.fileId] =
+						validation.errorMessage || t("topicFiles.contextMenu.renameFailed")
+					continue
+				}
+				const destination = `${file.parentPath}/${change.targetName}`
+				const other = destinations.get(destination)
+				if (other && other !== file.fileId) {
+					errors[other] = errors[file.fileId] = t(
+						"topicFiles.contextMenu.newFile.duplicateError",
+					)
+				}
+				destinations.set(destination, file.fileId)
+				const duplicate = latest.current.flatAttachments.some((item) => {
+					if (item.is_directory || item.file_id === file.fileId) return false
+					const currentName =
+						confirmed.current.get(item.file_id)?.file.fileName || fileName(item)
+					return (
+						currentName === change.targetName &&
+						parentPath(item.relative_file_path || currentName) === file.parentPath
+					)
+				})
+				if (duplicate)
+					errors[file.fileId] = t("topicFiles.contextMenu.newFile.duplicateError")
+			}
+			return errors
+		},
+		[resolveImageRenameFile, t],
+	)
+
+	const performRename = useCallback(
+		async (change: CanvasImageFileRename): Promise<CanvasImageRenameFile> => {
+			const error = validateImageFileRenames([change])[change.fileId]
+			if (error) throw new Error(error)
+			const { canvasDesignRef, projectId, updateAttachments } = latest.current
+			const canvas = canvasDesignRef.current?.getCanvasInstance()
+			const element = canvas?.elementManager.getElementData(change.elementId)
+			const content =
+				element && isImageElementContent(element)
+					? getImageContentById(element, change.contentId)
+					: undefined
+			const file = content?.src ? resolveImageRenameFile(content.src) : undefined
+			if (!file) throw new Error(t("design.rename.fileUnavailable"))
+			const updateReferences = () => {
+				const replace = referenceUpdates.current.get(file.fileId)
+				if (!replace) return
+				const document =
+					canvasDesignRef.current?.exportCurrentDocument() ||
+					latest.current.currentCanvasData
+				if (!document) throw new Error(t("design.rename.fileRenamedSaveFailed"))
+				const replacement = replace(document)
+				if (replacement.status === "unsafe")
+					throw new Error(t("design.rename.fileRenamedSaveFailed"))
+				if (replacement.canvasData !== document) {
+					latest.current.persistCanvasData(replacement.canvasData)
+					canvasDesignRef.current?.updateData(replacement.canvasData, {
+						historyPolicy: "exclude",
+					})
+				}
+				canvas?.historyManager.applyExternalFileRename(
+					(snapshot) => replace(snapshot).canvasData,
+				)
+				referenceUpdates.current.delete(file.fileId)
+			}
+			// 文件接口成功、画布更新失败时，重试只修复引用，不重复请求文件改名。
+			if (file.fileName === change.targetName) {
+				updateReferences()
+				return file
+			}
+			updateReferences()
+			const currentFile = latest.current.flatAttachments.find(
+				(item) => item.file_id === file.fileId,
 			)
-			if (
-				hasDuplicateSiblingFileName(
-					currentAttachments,
-					task.fileId,
-					task.targetFileName,
-					parentDirectoryPath,
-				)
-			) {
-				magicToast.error(t("topicFiles.contextMenu.newFile.duplicateError"))
-				return
+			if (!currentFile) throw new Error(t("design.rename.fileUnavailable"))
+			const oldPath = file.parentPath ? `${file.parentPath}/${file.fileName}` : file.fileName
+			const targetPath = file.parentPath
+				? `${file.parentPath}/${change.targetName}`
+				: change.targetName
+			const resolverContext = context()
+			const resolveResourceReference: ResolveCanvasResourceReference = (
+				input,
+				inputOptions,
+			) => resolveDesignResourceReference(input, resolverContext, inputOptions)
+			const target = resolveResourceReference({
+				namespace: "workspace-path",
+				path: targetPath,
+			})
+			const document =
+				canvasDesignRef.current?.exportCurrentDocument() || latest.current.currentCanvasData
+			if (target.status !== "resolved" || !document)
+				throw new Error(t("design.rename.fileUnavailable"))
+			const replacementOptions = {
+				preserveAssetReferences: true,
+				oldWorkspaceRelativePath: oldPath,
+				newCanvasPath: target.storagePath,
+				resolveResourceReference,
 			}
+			if (
+				getCanvasFilePathReplacementResult(document, replacementOptions).status === "unsafe"
+			)
+				throw new Error(t("topicFiles.contextMenu.renameFailed"))
 
+			let requestError: unknown
 			try {
 				await SuperMagicApi.renameFile({
-					file_id: task.fileId,
-					target_name: task.targetFileName,
+					file_id: file.fileId,
+					target_name: change.targetName,
 				})
 			} catch (error) {
-				const errorMessage =
-					error instanceof Error && error.message
-						? error.message
-						: t("topicFiles.contextMenu.renameFailed")
-				magicToast.error(errorMessage)
-				return
+				requestError = error
 			}
-
 			updateAttachments()
 			try {
 				await registerWaitForNextAttachmentsRefreshForProject(projectId, {
 					timeoutMs: 15_000,
 				})
 			} catch {
-				// 超时仍继续用当前 flatAttachments / 回退路径
+				/* 超时仍继续用当前 flatAttachments / 回退路径 */
 			}
-
-			const refreshedAttachments = flatAttachmentsRef.current
-			const renamedFileItem =
-				refreshedAttachments.find(
-					(item) => !item.is_directory && item.file_id === task.fileId,
-				) ?? null
-
-			const oldWorkspaceRelativePath =
-				currentFileItem.relative_file_path || currentFileItem.file_name || currentFileName
-			const fallbackRenamedRelativeFilePath = buildFallbackRelativeFilePath(
-				currentFileItem.relative_file_path || currentFileName,
-				task.targetFileName,
+			const refreshed = latest.current.flatAttachments.find(
+				(item) => item.file_id === file.fileId,
 			)
-			const isRefreshedFileFresh = isRenamedFileItemFresh(
-				renamedFileItem,
-				task.targetFileName,
+			const refreshedName = refreshed ? fileName(refreshed) : undefined
+			// 超时可能已写入：只能在附件确认目标名称后继续，不能把未知结果直接当成可安全重试。
+			if (requestError && refreshedName !== change.targetName) {
+				if (!refreshed || refreshed === currentFile)
+					uncertain.current.set(file.fileId, refreshed)
+				throw new Error(
+					refreshed && refreshed !== currentFile && requestError instanceof Error
+						? requestError.message
+						: t("design.rename.verifyResult"),
+				)
+			}
+			const nextFile = {
+				...file,
+				fileName: change.targetName,
+				sourcePath: target.storagePath,
+			}
+			confirmed.current.set(file.fileId, { file: nextFile, previousName: file.fileName })
+			contextRevision.current += 1
+			referenceUpdates.current.set(file.fileId, (document) =>
+				getCanvasFilePathReplacementResult(document, replacementOptions),
 			)
-			const renamedRelativeFilePath =
-				isRefreshedFileFresh && renamedFileItem?.relative_file_path
-					? renamedFileItem.relative_file_path
-					: fallbackRenamedRelativeFilePath
-			if (!oldWorkspaceRelativePath || !renamedRelativeFilePath) return
-
-			const latestCanvasData = latestCanvasDataRef.current
-			if (!latestCanvasData) return
-
-			const nextCanvasPath = toDesignDslPathFromWorkspacePath(renamedRelativeFilePath, {
-				designProjectBasePath: designProjectBasePathRef.current,
-			})
-			const nextCanvasData = replaceCanvasFilePathReferences(latestCanvasData, {
-				oldWorkspaceRelativePath,
-				newCanvasPath: nextCanvasPath,
-				designProjectBasePath: designProjectBasePathRef.current,
-			})
-			if (nextCanvasData === latestCanvasData) return
-
-			latestCanvasDataRef.current = nextCanvasData
-			previousCanvasDataRef.current = nextCanvasData
-			persistCanvasData(nextCanvasData)
-
-			if (!canvasDesignRef.current) return
-
-			isApplyingSyncedCanvasUpdateRef.current = true
-			canvasDesignRef.current.updateData(nextCanvasData)
+			updateReferences()
+			return nextFile
 		},
-		[canvasDesignRef, persistCanvasData, projectId, t, updateAttachments],
+		[context, resolveImageRenameFile, t, validateImageFileRenames],
 	)
 
-	const enqueueRenameTask = useCallback(
-		(task: PendingImageFileRenameTask) => {
-			const taskKey = `${task.fileId}\0${task.targetFileName}`
-			if (queuedTaskKeysRef.current.has(taskKey)) return
-
-			queuedTaskKeysRef.current.add(taskKey)
-			queueRef.current = queueRef.current
-				.catch(() => undefined)
-				.then(async () => {
-					try {
-						await syncImageFileRename(task)
-					} finally {
-						queuedTaskKeysRef.current.delete(taskKey)
-					}
-				})
-		},
-		[syncImageFileRename],
-	)
-
-	const handleCanvasDesignDataChange = useCallback(
-		(canvasData: CanvasDocument, meta?: CanvasDesignDataChangeMeta) => {
-			latestCanvasDataRef.current = canvasData
-
-			if (isApplyingSyncedCanvasUpdateRef.current) {
-				isApplyingSyncedCanvasUpdateRef.current = false
-				previousCanvasDataRef.current = canvasData
-				return
-			}
-
-			const previousCanvasData = previousCanvasDataRef.current
-			previousCanvasDataRef.current = canvasData
-			if (!previousCanvasData) return
-
-			const processImageNameChange = (
-				oldElement: ImageElement | undefined,
-				newElement: ImageElement | undefined,
-			) => {
-				if (oldElement?.type !== "image" || newElement?.type !== "image") return
-				if ((oldElement.name || "").trim() === (newElement.name || "").trim()) return
-
-				const nextElementName = (newElement.name || "").trim()
-				if (!nextElementName) return
-
-				const sourcePath = newElement.src || oldElement.src
-				if (!sourcePath) return
-
-				const matchedFileItem = resolveDesignAttachment(
-					sourcePath,
-					{
-						flatAttachments: flatAttachmentsRef.current,
-						designProjectBasePath: designProjectBasePathRef.current,
-						attachmentIndex: attachmentIndexRef.current,
-					},
-					{ mode: "strict-current-canvas" },
-				)
-				if (matchedFileItem.status !== "found" || !matchedFileItem.fileItem.file_id) return
-
-				const currentFileName = getFileDisplayName(matchedFileItem.fileItem)
-				if (!currentFileName || !isGenericClipboardImageFileName(currentFileName)) return
-
-				const targetFileName = buildTargetFileName(nextElementName, currentFileName)
-				if (!targetFileName || targetFileName === currentFileName) return
-
-				enqueueRenameTask({
-					fileId: matchedFileItem.fileItem.file_id,
-					targetFileName,
-				})
-			}
-
-			const processImageNameChangePatch = (
-				change: NonNullable<CanvasDesignDataChangeMeta["elementNameChanges"]>[number],
-			) => {
-				if (change.elementType !== "image") return
-				if ((change.oldName || "").trim() === (change.newName || "").trim()) return
-
-				const nextElementName = (change.newName || "").trim()
-				if (!nextElementName) return
-
-				const sourcePath = change.newSrc || change.oldSrc
-				if (!sourcePath) return
-
-				const matchedFileItem = resolveDesignAttachment(
-					sourcePath,
-					{
-						flatAttachments: flatAttachmentsRef.current,
-						designProjectBasePath: designProjectBasePathRef.current,
-						attachmentIndex: attachmentIndexRef.current,
-					},
-					{ mode: "strict-current-canvas" },
-				)
-				if (matchedFileItem.status !== "found" || !matchedFileItem.fileItem.file_id) return
-
-				const currentFileName = getFileDisplayName(matchedFileItem.fileItem)
-				if (!currentFileName || !isGenericClipboardImageFileName(currentFileName)) return
-
-				const targetFileName = buildTargetFileName(nextElementName, currentFileName)
-				if (!targetFileName || targetFileName === currentFileName) return
-
-				enqueueRenameTask({
-					fileId: matchedFileItem.fileItem.file_id,
-					targetFileName,
-				})
-			}
-
-			const elementNameChanges = meta?.elementNameChanges
-			if (elementNameChanges?.length) {
-				elementNameChanges.forEach(processImageNameChangePatch)
-				return
-			}
-
-			const changedElementIds = meta?.changedElementIds
-			if (changedElementIds?.length) {
-				const uniqueChangedElementIds = Array.from(new Set(changedElementIds))
-				const oldElementsById = collectElementsByIds(
-					previousCanvasData.elements,
-					uniqueChangedElementIds,
-				)
-				const newElementsById = collectElementsByIds(
-					canvasData.elements,
-					uniqueChangedElementIds,
-				)
-				uniqueChangedElementIds.forEach((elementId) => {
-					processImageNameChange(
-						oldElementsById.get(elementId) as ImageElement | undefined,
-						newElementsById.get(elementId) as ImageElement | undefined,
-					)
-				})
-				return
-			}
-
-			const diff = compareDesignData(
-				{ type: "design", name: "", version: "1.0.0", canvas: previousCanvasData },
-				{ type: "design", name: "", version: "1.0.0", canvas: canvasData },
+	const renameImageFile = useCallback(
+		(change: CanvasImageFileRename) => {
+			const key = `${change.fileId}\0${change.targetName}`
+			const current = pending.current.get(key)
+			if (current) return current
+			const task = queue.current.catch(() => undefined).then(() => performRename(change))
+			pending.current.set(key, task)
+			queue.current = task.then(
+				() => undefined,
+				() => undefined,
 			)
-			if (!diff.modified.length) return
-
-			diff.modified.forEach((change) => {
-				processImageNameChange(
-					change.oldElement as ImageElement | undefined,
-					change.newElement as ImageElement | undefined,
-				)
-			})
+			void task.finally(() => pending.current.delete(key)).catch(() => undefined)
+			return task
 		},
-		[enqueueRenameTask],
+		[performRename],
 	)
-
-	return {
-		handleCanvasDesignDataChange,
-	}
+	return useMemo(
+		() => ({ resolveImageRenameFile, validateImageFileRenames, renameImageFile }),
+		[resolveImageRenameFile, validateImageFileRenames, renameImageFile],
+	)
 }

@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from "react"
 import { BookMarked, FileUp, FolderDot, TextCursorInput } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicDropdown from "@/components/base/MagicDropdown"
 
 interface DocumentAddDropdownProps {

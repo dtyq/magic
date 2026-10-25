@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automobili Lamborghini — Revuelto | From Now On</title>
+  <style>
+    :root {
+      --abyss: #000000;
+      --charcoal: #202020;
+      --dark-iron: #181818;
+      --lambo-gold: #ffc000;
+      --lambo-gold-dark: #917300;
+      --verde-mantis: #00ff66;
+      --giallo-auge: #ffd700;
+      --cyan-pulse: #29abe2;
+      --pure-white: #ffffff;
+      --smoke: #f5f5f5;
+      --ash: #7d7d7d;
+      --hairline: #202020;
+      --font-lambo: "LamboType", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--abyss);
+      color: var(--smoke);
+      font-family: var(--font-lambo);
+      font-weight: 400;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Hexagonal Top Navigation */
+    .lambo-nav {
+      position: sticky; top: 0; z-index: 100;
+      height: 64px; background: rgba(0,0,0,0.92);
+      border-bottom: 1px solid var(--charcoal);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px;
+    }
+    .nav-menu-trigger {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 14px; font-weight: 400; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--pure-white); cursor: pointer;
+    }
+    .bull-logo-wrap { width: 36px; height: 42px; }
+    .nav-actions { display: flex; align-items: center; gap: 20px; color: var(--pure-white); }
+
+    /* Hero Cathedral of Darkness - First 500px Viewport */
+    .lambo-hero {
+      position: relative; min-height: 560px;
+      padding: 44px 48px 50px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; border-bottom: 1px solid var(--charcoal);
+      background: radial-gradient(circle at 50% 30%, #151815 0%, #000000 70%);
+      overflow: hidden;
+    }
+
+    /* Ambient Hexagonal Grid Overlay */
+    .hex-bg-pattern {
+      position: absolute; inset: 0; pointer-events: none; opacity: 0.12;
+      background-image: radial-gradient(#00ff66 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .hero-tag {
+      font-size: 13px; font-weight: 400; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--lambo-gold); margin-bottom: 12px;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .hero-title {
+      font-size: clamp(38px, 6vw, 82px); font-weight: 400;
+      line-height: 0.94; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--pure-white); margin-bottom: 16px;
+    }
+    .hero-sub {
+      max-width: 680px; font-size: 16px; color: var(--ash);
+      line-height: 1.5; margin-bottom: 32px;
+    }
+
+    /* CTA Group - Zero Border-Radius */
+    .cta-group { display: flex; gap: 18px; justify-content: center; align-items: center; z-index: 2; }
+    
+    .btn-lambo-gold {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 52px; padding: 0 36px; background: var(--lambo-gold);
+      color: #000000; font-size: 15px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; border-radius: 0; border: none; cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .btn-lambo-gold:hover { background: var(--lambo-gold-dark); color: #ffffff; }
+
+    .btn-lambo-ghost {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 52px; padding: 0 32px; background: transparent;
+      color: var(--pure-white); font-size: 14px; font-weight: 400; letter-spacing: 1px;
+      text-transform: uppercase; border-radius: 0; border: 1px solid rgba(255,255,255,0.5);
+      cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-lambo-ghost:hover { border-color: var(--verde-mantis); color: var(--verde-mantis); }
+
+    /* Hexagonal Floating Pause Button (Bottom Right) */
+    .hex-pause-btn {
+      position: absolute; bottom: 28px; right: 48px;
+      width: 44px; height: 44px; cursor: pointer; z-index: 10;
+    }
+
+    /* Revuelto V12 Hybrid Supercar Stats Strip */
+    .revuelto-stats-strip {
+      max-width: 1320px; margin: 0 auto; display: grid;
+      grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--charcoal);
+    }
+    .stat-cell {
+      padding: 34px 24px; text-align: center; border-right: 1px solid var(--charcoal);
+      background: var(--abyss); position: relative;
+    }
+    .stat-cell:last-child { border-right: none; }
+    .stat-cell::after {
+      content: ""; position: absolute; bottom: 0; left: 25%; right: 25%; height: 2px;
+      background: var(--charcoal); transition: background 0.3s;
+    }
+    .stat-cell:hover::after { background: var(--verde-mantis); }
+
+    .stat-num {
+      font-size: clamp(32px, 4vw, 54px); font-weight: 400;
+      line-height: 1.0; text-transform: uppercase; color: var(--pure-white); margin-bottom: 6px;
+    }
+    .stat-unit { font-size: 20px; color: var(--lambo-gold); margin-left: 4px; }
+    .stat-title {
+      font-size: 12px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--pure-white); margin-bottom: 4px;
+    }
+    .stat-sub { font-size: 13px; color: var(--ash); }
+
+    /* Carbon Monofuselage Chassis Breakdown */
+    .chassis-section {
+      max-width: 1320px; margin: 0 auto; padding: 72px 48px;
+      border-bottom: 1px solid var(--charcoal);
+    }
+    .chassis-header { text-align: center; margin-bottom: 44px; }
+    .chassis-eyebrow {
+      font-size: 12px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--verde-mantis); margin-bottom: 8px;
+    }
+    .chassis-title {
+      font-size: 36px; font-weight: 400; text-transform: uppercase;
+      color: var(--pure-white); line-height: 1.1; margin-bottom: 12px;
+    }
+    .chassis-desc { max-width: 640px; margin: 0 auto; color: var(--ash); font-size: 15px; }
+
+    .chassis-diagram-grid {
+      display: grid; grid-template-columns: 1.25fr 1fr; gap: 36px; align-items: center;
+    }
+    .chassis-svg-card {
+      background: var(--charcoal); border: 1px solid #282828;
+      border-radius: 0; padding: 28px; position: relative;
+    }
+    .monofuselage-svg { width: 100%; height: 260px; }
+
+    .chassis-spec-list { display: flex; flex-direction: column; gap: 20px; }
+    .chassis-spec-item {
+      padding: 16px; background: var(--dark-iron); border-left: 3px solid var(--lambo-gold);
+    }
+    .chassis-spec-name {
+      font-size: 16px; font-weight: 700; text-transform: uppercase;
+      color: var(--pure-white); margin-bottom: 4px;
+    }
+    .chassis-spec-detail { font-size: 13.5px; color: var(--ash); line-height: 1.5; }
+
+    /* Hexagonal Aero Components Grid */
+    .aero-grid {
+      max-width: 1320px; margin: 0 auto; padding: 64px 48px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
+      border-bottom: 1px solid var(--charcoal);
+    }
+    .aero-card {
+      background: var(--dark-iron); border: 1px solid var(--charcoal);
+      border-radius: 0; padding: 28px;
+    }
+    .aero-icon-hex { width: 36px; height: 36px; margin-bottom: 16px; }
+    .aero-card-title {
+      font-size: 19px; font-weight: 400; text-transform: uppercase;
+      color: var(--pure-white); margin-bottom: 10px;
+    }
+    .aero-card-body { font-size: 13.5px; color: var(--ash); line-height: 1.55; }
+
+    /* Sant'Agata Bolognese Footer */
+    .lambo-footer {
+      max-width: 1320px; margin: 0 auto; padding: 56px 48px 40px;
+      text-align: center;
+    }
+    .footer-bull-wrap { margin-bottom: 20px; display: inline-block; }
+    .footer-links { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
+    .footer-link {
+      font-size: 12px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--ash); transition: color 0.2s;
+    }
+    .footer-link:hover { color: var(--lambo-gold); }
+    .footer-legal { font-size: 12px; color: #494949; max-width: 600px; margin: 0 auto; line-height: 1.5; }
+
+    @media (max-width: 900px) {
+      .lambo-nav { padding: 0 20px; }
+      .revuelto-stats-strip { grid-template-columns: repeat(2, 1fr); }
+      .stat-cell:nth-child(2) { border-right: none; }
+      .chassis-diagram-grid, .aero-grid { grid-template-columns: 1fr; }
+      .hex-pause-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="lambo-nav">
+    <div class="nav-menu-trigger">
+      <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+        <line x1="0" y1="1" x2="18" y2="1" stroke="#ffffff" stroke-width="2"/>
+        <line x1="0" y1="6" x2="18" y2="6" stroke="#ffffff" stroke-width="2"/>
+        <line x1="0" y1="11" x2="18" y2="11" stroke="#ffffff" stroke-width="2"/>
+      </svg>
+      <span>Menu</span>
+    </div>
+
+    <!-- Lamborghini Gold Shield Bull Logo SVG -->
+    <div class="bull-logo-wrap">
+      <svg viewBox="0 0 36 42" fill="none">
+        <!-- Shield Contour -->
+        <polygon points="18,1 35,6 35,28 18,41 1,28 1,6" stroke="#ffc000" stroke-width="1.8" fill="#000000"/>
+        <!-- Raging Bull Silhouette Vector -->
+        <path d="M11 20 Q15 14 20 15 Q25 12 28 17 Q25 22 21 24 Q16 26 11 20 Z" fill="#ffc000"/>
+        <line x1="18" y1="5" x2="18" y2="10" stroke="#ffc000" stroke-width="1"/>
+      </svg>
+    </div>
+
+    <div class="nav-actions">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </div>
+  </header>
+
+  <!-- Hero Section (First 500px Viewport) -->
+  <section class="lambo-hero">
+    <div class="hex-bg-pattern"></div>
+    <div class="hero-tag">Sant'Agata Bolognese · HPEV Hybrid V12</div>
+    <h1 class="hero-title">Revuelto</h1>
+    <p class="hero-sub">
+      From now on: the paradigm shift. 1,015 CV naturally aspirated 6.5L V12 combined with three electric motors and carbon monofuselage architecture.
+    </p>
+
+    <!-- Sharp 0px Rectangular CTAs -->
+    <div class="cta-group">
+      <button class="btn-lambo-gold">Discover More</button>
+      <button class="btn-lambo-ghost">Start Configuration</button>
+    </div>
+
+    <!-- Hexagonal Video Pause Control -->
+    <div class="hex-pause-btn">
+      <svg viewBox="0 0 44 44" fill="none">
+        <polygon points="22,2 40,12 40,32 22,42 4,32 4,12" stroke="#ffffff" stroke-width="1.5" fill="rgba(0,0,0,0.5)"/>
+        <line x1="17" y1="16" x2="17" y2="28" stroke="#ffffff" stroke-width="2"/>
+        <line x1="27" y1="16" x2="27" y2="28" stroke="#ffffff" stroke-width="2"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- Revuelto Supercar Stats Strip -->
+  <section class="revuelto-stats-strip">
+    <div class="stat-cell">
+      <div class="stat-num">1,015<span class="stat-unit">CV</span></div>
+      <div class="stat-title">Combined Output</div>
+      <div class="stat-sub">V12 + 3 E-Motors</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">2.5<span class="stat-unit">S</span></div>
+      <div class="stat-title">0 – 100 KM/H</div>
+      <div class="stat-sub">Launch Control Active</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">&gt;350<span class="stat-unit">KM/H</span></div>
+      <div class="stat-title">Terminal Speed</div>
+      <div class="stat-sub">Active Aerodynamics</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">&lt;7.0<span class="stat-unit">S</span></div>
+      <div class="stat-title">0 – 200 KM/H</div>
+      <div class="stat-sub">Pure Electric Torque Fill</div>
+    </div>
+  </section>
+
+  <!-- Carbon Monofuselage Chassis Section -->
+  <section class="chassis-section">
+    <div class="chassis-header">
+      <div class="chassis-eyebrow">Forged Composites Technology</div>
+      <h2 class="chassis-title">Carbon Monofuselage Breakdown</h2>
+      <p class="chassis-desc">
+        A revolutionary chassis architecture delivering +25% torsional stiffness over the Aventador with a 10% weight reduction.
+      </p>
+    </div>
+
+    <div class="chassis-diagram-grid">
+      <!-- Monofuselage Architectural SVG -->
+      <div class="chassis-svg-card">
+        <svg class="monofuselage-svg" viewBox="0 0 500 260" fill="none">
+          <defs>
+            <linearGradient id="chassisGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00ff66" stop-opacity="0.8"/>
+              <stop offset="50%" stop-color="#ffc000" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="#00ff66" stroke-opacity="0.8"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Front Forged Carbon Frame -->
+          <polygon points="50,130 90,70 160,70 180,130 160,190 90,190" stroke="#00ff66" stroke-width="2" fill="#141c14"/>
+          <text x="115" y="135" font-family="'LamboType', sans-serif" font-size="10" font-weight="700" fill="#00ff66" text-anchor="middle">FRONT CONE</text>
+
+          <!-- Central Monocoque Passenger Tub -->
+          <polygon points="180,130 200,50 340,50 360,130 340,210 200,210" stroke="#ffc000" stroke-width="2.5" fill="#1f1e18"/>
+          <!-- Central Lithium-Ion Battery Tunnel -->
+          <rect x="230" y="115" width="80" height="30" fill="#29abe2" stroke="#ffffff" stroke-width="1"/>
+          <text x="270" y="134" font-family="'LamboType', sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">3.8 KWH BATTERY</text>
+
+          <!-- Rear V12 Mid-Engine Bay & 8-Speed DCT -->
+          <polygon points="360,130 380,65 460,75 480,130 460,185 380,195" stroke="#ffffff" stroke-width="2" fill="#18181a"/>
+          <circle cx="410" cy="130" r="22" stroke="#ffc000" stroke-width="1.8" stroke-dasharray="3 3"/>
+          <text x="410" y="134" font-family="'LamboType', sans-serif" font-size="9" font-weight="700" fill="#ffc000" text-anchor="middle">6.5L V12</text>
+
+          <!-- Ypsilon Aerodynamic Flow Paths -->
+          <path d="M50 130 L180 50 L340 50 L460 75" stroke="#00ff66" stroke-width="1" stroke-dasharray="3 4"/>
+          <path d="M50 130 L180 210 L340 210 L460 185" stroke="#00ff66" stroke-width="1" stroke-dasharray="3 4"/>
+
+          <text x="270" y="245" font-family="'LamboType', sans-serif" font-size="11" font-weight="700" fill="#7d7d7d" text-anchor="middle">
+            TORSIO-STIFFNESS: 61,000 NM/DEGREE · +25% INCREASE
+          </text>
+        </svg>
+      </div>
+
+      <!-- Spec Highlights -->
+      <div class="chassis-spec-list">
+        <div class="chassis-spec-item">
+          <div class="chassis-spec-name">Forged Composites Tub</div>
+          <div class="chassis-spec-detail">Made from carbon fibers soaked in resin and cured in heated presses, enabling complex structural geometries unattainable via woven carbon.</div>
+        </div>
+        <div class="chassis-spec-item" style="border-left-color: var(--verde-mantis);">
+          <div class="chassis-spec-name">Central Battery Backbone</div>
+          <div class="chassis-spec-detail">The high-voltage battery occupies the central structural tunnel formerly reserved for the transmission shaft, maintaining optimal 44:56 weight distribution.</div>
+        </div>
+        <div class="chassis-spec-item" style="border-left-color: var(--cyan-pulse);">
+          <div class="chassis-spec-name">Transverse 8-Speed DCT</div>
+          <div class="chassis-spec-detail">Positioned transversely behind the longitudinal V12 engine to liberate cabin legroom and shorten rear packaging overhangs.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hexagonal Ypsilon Aero Grid -->
+  <section class="aero-grid">
+    <div class="aero-card">
+      <svg class="aero-icon-hex" viewBox="0 0 36 36" fill="none">
+        <polygon points="18,2 34,10 34,26 18,34 2,26 2,10" stroke="#00ff66" stroke-width="2"/>
+        <path d="M12 14 L18 20 L24 14 M18 20 V26" stroke="#00ff66" stroke-width="1.8"/>
+      </svg>
+      <h3 class="aero-card-title">Y-Shape Aero Matrix</h3>
+      <p class="aero-card-body">The distinctive front DRLs, side air blades, and hexagonal tailpipes establish a coherent aerodynamic language channeling +61% rear downforce.</p>
+    </div>
+
+    <div class="aero-card">
+      <svg class="aero-icon-hex" viewBox="0 0 36 36" fill="none">
+        <polygon points="18,2 34,10 34,26 18,34 2,26 2,10" stroke="#ffc000" stroke-width="2"/>
+        <line x1="10" y1="18" x2="26" y2="18" stroke="#ffc000" stroke-width="2"/>
+      </svg>
+      <h3 class="aero-card-title">Active Rear Wing</h3>
+      <p class="aero-card-body">Three automated aerodynamic positions: Low Drag for straight-line terminal velocity, High Downforce for cornering stability, and Airbrake deceleration.</p>
+    </div>
+
+    <div class="aero-card">
+      <svg class="aero-icon-hex" viewBox="0 0 36 36" fill="none">
+        <polygon points="18,2 34,10 34,26 18,34 2,26 2,10" stroke="#29abe2" stroke-width="2"/>
+        <circle cx="18" cy="18" r="6" stroke="#29abe2" stroke-width="1.8"/>
+      </svg>
+      <h3 class="aero-card-title">Torque Vectoring 2.0</h3>
+      <p class="aero-card-body">Twin electric motors on the front axle individually distribute torque in milliseconds, eliminating understeer and optimizing apex agility.</p>
+    </div>
+  </section>
+
+  <!-- Sant'Agata Bolognese Footer -->
+  <footer class="lambo-footer">
+    <div class="footer-bull-wrap">
+      <svg width="28" height="32" viewBox="0 0 36 42" fill="none">
+        <polygon points="18,1 35,6 35,28 18,41 1,28 1,6" stroke="#7d7d7d" stroke-width="1.5" fill="none"/>
+        <path d="M11 20 Q15 14 20 15 Q25 12 28 17 Q25 22 21 24 Q16 26 11 20 Z" fill="#7d7d7d"/>
+      </svg>
+    </div>
+    <div class="footer-links">
+      <a href="#" class="footer-link">Revuelto</a>
+      <a href="#" class="footer-link">Temerario</a>
+      <a href="#" class="footer-link">Urus SE</a>
+      <a href="#" class="footer-link">Motorsport</a>
+      <a href="#" class="footer-link">Ad Personam</a>
+    </div>
+    <div class="footer-legal">
+      © 2026 Automobili Lamborghini S.p.A. A sole shareholder company part of Audi Group. Fuel consumption and emission values: Combined: 10.3 l/100km; CO2 combined: 276 g/km (WLTP).
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -13,6 +13,7 @@ use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\LongTermMemory\Service\LongTermMemoryAppService as MagicServiceLongTermMemoryAppService;
 use App\Application\ModelGateway\Service\ModelConfigAppService;
 use App\Domain\Chat\Entity\ValueObject\LLMModelEnum;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\SuperMagic\Common\Event\CheckLongTermMemoryEvent;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -91,6 +92,8 @@ class CheckLongTermMemoryEventSubscriber implements ListenerInterface
                 'modelName' => $modelName,
                 'conversationContent' => $conversationContent,
                 'appId' => AppCodeEnum::SUPER_MAGIC->value,
+                'sourceId' => SourceId::SUPER_MAGIC,
+                'businessId' => $event->getChatTopicId() ?: $event->getConversationId(),
             ]);
             // 调用 magic-service 的长期记忆评估服务
             $this->getLongTermMemoryApp()->evaluateAndCreateMemory($dto, $authorization);

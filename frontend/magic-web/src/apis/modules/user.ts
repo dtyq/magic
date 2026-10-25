@@ -1,11 +1,10 @@
 import type { User } from "@/types/user"
 import type { VerificationCode } from "@/constants/bussiness"
-import { genRequestUrl } from "@/utils/http"
 import { isNil, isUndefined, omitBy } from "lodash-es"
 import type { Login } from "@/types/login"
 import { configStore } from "@/models/config"
 
-import type { HttpClient, RequestConfig } from "../core/HttpClient"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
 import { Common } from "@/types/common"
 import { env } from "@/utils/env"
 
@@ -43,7 +42,7 @@ export interface TeamshareUserInfo {
 	}[][]
 }
 
-export const generateUserApi = (fetch: HttpClient) => ({
+export const generateUserApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * @description 登录
 	 * @param {Login.LoginType} type 登录类型
@@ -72,7 +71,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 */
 	sendEmailVerificationCode(email: string, type: string, token: string) {
 		return fetch.post<Login.UserLoginsResponse>(
-			genRequestUrl("/v4/user/send-email"),
+			"/v4/user/send-email",
 			{ email, type },
 			{
 				enableRequestUnion: true,
@@ -90,7 +89,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	loginByEmail(values: Login.EmailVerificationCodeFormValues) {
-		return fetch.post<Login.UserLoginsResponse>(genRequestUrl("/v4/user/login-email"), values, {
+		return fetch.post<Login.UserLoginsResponse>("/v4/user/login-email", values, {
 			enableRequestUnion: true,
 			enableAuthorization: false,
 		})
@@ -104,7 +103,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	//  * @returns
 	//  */
 	// logout(data: { device: Common.DeviceInfo }, headers?: HeadersInit, signal?: AbortSignal) {
-	// 	return fetch.post<Login.UserLoginsResponse>(genRequestUrl("/v4/users/logout"), data, {
+	// 	return fetch.post<Login.UserLoginsResponse>("/v4/users/logout", data, {
 	// 		headers,
 	// 		signal,
 	// 		enableRequestUnion: true,
@@ -118,7 +117,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	dingtalkAppLogin(values: Login.DingTalkAppLoginFormValues) {
-		return fetch.post<Login.UserLoginsResponse>(genRequestUrl("/v4/user/magic/login"), values, {
+		return fetch.post<Login.UserLoginsResponse>("/v4/user/magic/login", values, {
 			enableRequestUnion: true,
 			enableAuthorization: false,
 		})
@@ -132,7 +131,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		values: Login.ThirdPartyLoginsFormValues | Login.WechatOfficialAccountLoginsFormValues,
 		options?: Omit<RequestConfig, "url" | "body">,
 	) {
-		return fetch.post<Login.UserLoginsResponse>(genRequestUrl("/v4/user/fast_login"), values, {
+		return fetch.post<Login.UserLoginsResponse>("/v4/user/fast_login", values, {
 			enableErrorMessagePrompt: false,
 			enableRequestUnion: true,
 			enableAuthorization: false,
@@ -145,7 +144,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	getUserDevices() {
-		return fetch.get<User.UserDeviceInfo[]>(genRequestUrl("/v4/users/login/devices"))
+		return fetch.get<User.UserDeviceInfo[]>("/v4/users/login/devices")
 	},
 
 	/**
@@ -162,7 +161,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		const url =
 			(!isNil(deployCode) ? clusterConfig?.[deployCode]?.services?.keewoodAPI?.url : "") || ""
 
-		return fetch.get<User.ThirdPlatformUserInfo>(url + genRequestUrl("/v4/users/info"), {
+		return fetch.get<User.ThirdPlatformUserInfo>(url + "/v4/users/info", {
 			headers: headers ?? {},
 			enableRequestUnion: true,
 			...options,
@@ -183,7 +182,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		const url =
 			(!isNil(deployCode) ? clusterConfig?.[deployCode]?.services?.keewoodAPI?.url : "") || ""
 
-		return fetch.get<User.UserOrganization[]>(url + genRequestUrl("/v4/users/organizations"), {
+		return fetch.get<User.UserOrganization[]>(url + "/v4/users/organizations", {
 			headers: headers ?? {},
 			enableRequestUnion: true,
 			...options,
@@ -197,7 +196,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	logoutDevices(code: string, id: string) {
-		return fetch.post(genRequestUrl("/v4/users/logout/device"), { code, id })
+		return fetch.post("/v4/users/logout/device", { code, id })
 	},
 
 	/**
@@ -207,13 +206,9 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	getUsersVerificationCode(type: VerificationCode, phone?: string) {
-		return fetch.post(
-			genRequestUrl("/v4/users/send_sms"),
-			omitBy({ type, phone }, isUndefined),
-			{
-				enableRequestUnion: true,
-			},
-		)
+		return fetch.post("/v4/users/send_sms", omitBy({ type, phone }, isUndefined), {
+			enableRequestUnion: true,
+		})
 	},
 
 	/**
@@ -229,17 +224,13 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		state_code?: string,
 		token?: string,
 	) {
-		return fetch.post(
-			genRequestUrl("/v4/user/send-sms"),
-			omitBy({ type, phone, state_code }, isUndefined),
-			{
-				enableRequestUnion: true,
-				enableAuthorization: false,
-				headers: {
-					["X-Captcha-Token"]: token || "",
-				},
+		return fetch.post("/v4/user/send-sms", omitBy({ type, phone, state_code }, isUndefined), {
+			enableRequestUnion: true,
+			enableAuthorization: false,
+			headers: {
+				["X-Captcha-Token"]: token || "",
 			},
-		)
+		})
 	},
 
 	/**
@@ -250,7 +241,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	changePassword(code: string, new_password: string, repeat_new_password: string) {
-		return fetch.put(genRequestUrl("/v4/users/pwd"), {
+		return fetch.put("/v4/users/pwd", {
 			code,
 			new_password,
 			repeat_new_password,
@@ -266,7 +257,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns
 	 */
 	changePhone(code: string, new_phone: string, new_phone_code: string, state_code: string) {
-		return fetch.put(genRequestUrl("/v4/users/phone"), {
+		return fetch.put("/v4/users/phone", {
 			code,
 			new_phone,
 			new_phone_code,
@@ -284,7 +275,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 			ticket: string
 			expire_seconds: number
 			url: string
-		}>(env("MAGIC_SERVICE_KEEWOOD_BASE_URL", true) + genRequestUrl("/v4/user/wechat/qrcode"), {
+		}>(env("MAGIC_SERVICE_KEEWOOD_BASE_URL", true) + "/v4/user/wechat/qrcode", {
 			signal,
 			enableRequestUnion: true,
 			enableAuthorization: false,
@@ -300,7 +291,8 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	getWechatLoginStatus(sceneValue: string, signal: AbortSignal) {
 		return fetch.get<{
 			status: string
-		}>(genRequestUrl("/v4/user/wechat/login/status", {}, { scene_value: sceneValue }), {
+		}>("/v4/user/wechat/login/status", {
+			params: { scene_value: sceneValue },
 			signal,
 			enableErrorMessagePrompt: false,
 			enableRequestUnion: true,
@@ -316,7 +308,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @param {string} params.state_code 国家代码，如 +86
 	 */
 	sendSmsCode(params: { type: string; phone: string; state_code: string }) {
-		return fetch.post(genRequestUrl("/v4/user/send_sms"), params, {
+		return fetch.post("/v4/user/send_sms", params, {
 			enableAuthorization: false,
 		})
 	},
@@ -340,15 +332,11 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		state_code: string
 		device: Common.DeviceInfo
 	}) {
-		return fetch.post<Login.UserLoginsResponse>(
-			genRequestUrl("/v4/user/bind_account"),
-			params,
-			{
-				enableErrorMessagePrompt: false,
-				enableRequestUnion: true,
-				enableAuthorization: false,
-			},
-		)
+		return fetch.post<Login.UserLoginsResponse>("/v4/user/bind_account", params, {
+			enableErrorMessagePrompt: false,
+			enableRequestUnion: true,
+			enableAuthorization: false,
+		})
 	},
 
 	/**
@@ -360,7 +348,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns {Promise<any>}
 	 */
 	updateUserInfo(params: { avatar_url: string; nickname: string; timezone?: string | null }) {
-		return fetch.post(genRequestUrl("/api/v1/contact/users/me"), params)
+		return fetch.post("/api/v1/contact/users/me", params)
 	},
 
 	/**
@@ -368,9 +356,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @returns {Promise<{ permission: boolean }>}
 	 */
 	getUserUpdatePermission() {
-		return fetch.get<{ permission: boolean }>(
-			genRequestUrl("/api/v1/contact/users/me/update-permission"),
-		)
+		return fetch.get<{ permission: boolean }>("/api/v1/contact/users/me/update-permission")
 	},
 
 	/**

@@ -30,6 +30,8 @@ export namespace Common {
 		agentId?: string
 		/** 是否默认登录方式 */
 		default?: boolean
+		/** 飞书 OAuth 打开方式：popup（桌面弹窗）或 redirect（当前页面重定向） */
+		oauthMode?: "popup" | "redirect"
 	}
 
 	/** 私有化登录 - 服务配置 */
@@ -70,6 +72,8 @@ export namespace Common {
 		redirect_url?: string
 		name_zh?: string
 		name_en?: string
+		/** 飞书 OAuth 打开方式：popup（桌面弹窗）或 redirect（当前页面重定向） */
+		oauthMode?: "popup" | "redirect"
 	}
 
 	/** 私有化部署配置 */

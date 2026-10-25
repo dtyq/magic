@@ -6,6 +6,7 @@ const getApprovalShare = require("../apis/getApprovalShare")
 const getFileInfo = require("../apis/getFileInfo")
 const getShareForm = require("../apis/getShareForm")
 const getMicroAppProjectName = require("../apis/getMicroAppProjectName")
+const getPublishedMicroApp = require("../apis/getPublishedMicroApp")
 
 class SEO {
 	/** 微应用分享页和编辑页 */
@@ -31,6 +32,15 @@ class SEO {
 			description: title,
 			keywords: title,
 		}
+	}
+
+	/** 获取已发布微应用的 SEO；查询异常由中间件兜底返回基础 HTML。 */
+	async publishedMicroApp(req, res, next) {
+		const { appId } = req.params
+		if (!appId) throw new Error("appId is required")
+
+		await getPublishedMicroApp(appId)
+		return this.microApp(req, res, next)
 	}
 
 	/** 分享话题 */
@@ -145,9 +155,61 @@ class SEO {
 		}
 	}
 
-	/** 审批 */
-	async approval(req, res, next) {
-		const { id, access_token } = req.query
+	/** 发起审批 */
+	async approvalInitiate(req, res, next) {
+		return {
+			title: req.__("approval.initiate"),
+			description: req.__("approval.initiate"),
+			keywords: req.__("approval.initiate"),
+			useDefaultPlatformTitle: true,
+		}
+	}
+
+	/** 审批中心 */
+	async approvalCenter(req, res, next) {
+		return {
+			title: req.__("approval.center"),
+			description: req.__("approval.center"),
+			keywords: req.__("approval.center"),
+			useDefaultPlatformTitle: true,
+		}
+	}
+
+	/** 智能委托 */
+	async approvalDelegate(req, res, next) {
+		return {
+			title: req.__("approval.delegate"),
+			description: req.__("approval.delegate"),
+			keywords: req.__("approval.delegate"),
+			useDefaultPlatformTitle: true,
+		}
+	}
+
+	/** 审批代理 */
+	async approvalAgent(req, res, next) {
+		return {
+			title: req.__("approval.agent"),
+			description: req.__("approval.agent"),
+			keywords: req.__("approval.agent"),
+			useDefaultPlatformTitle: true,
+		}
+	}
+
+	/** 审批列表 */
+	async approvalList(req) {
+		const title = req.__("approval.center")
+		return {
+			title,
+			description: title,
+			keywords: title,
+			useDefaultPlatformTitle: true,
+		}
+	}
+
+	/** 审批详情 */
+	async approvalDetail(req) {
+		const { access_token } = req.query
+		const id = req.params.id || req.query.id
 		const { clusterCode } = req.params
 
 		if (!id) {
@@ -165,6 +227,12 @@ class SEO {
 			description: data?.title || req.__("approval.title"),
 			keywords: data?.title || req.__("approval.title"),
 		}
+	}
+
+	/** 审批入口；无 ID 时返回审批列表，兼容 query.id 旧分享链接。 */
+	async approval(req, res, next) {
+		if (req.params.id || req.query.id) return this.approvalDetail(req, res, next)
+		return this.approvalList(req, res, next)
 	}
 
 	/** 云文档 */

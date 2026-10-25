@@ -24,5 +24,6 @@ return [
         'secret_key' => '密钥',
         'conversation_id' => '会话ID',
         'enabled' => '是否启用',
+        'api_key_name' => '请求处理失败：:label',
     ],
 ];

@@ -38,7 +38,7 @@ vi.mock("../../services/SlideScreenshotService", () => ({
 	getScreenshotService: () => mockState.screenshotService,
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			warn: vi.fn(),
@@ -87,6 +87,7 @@ function createStore(
 		mainFileId: "main-file",
 		mainFileName: "index.html",
 		logger: { enabled: false },
+		fileUpdateDebounceMs: 0,
 		...config,
 	})
 	return { store, ...deck }
@@ -526,27 +527,21 @@ describe("PPTStore content lazy loading", () => {
 		expect(store.loadingProgress).toBe(100)
 	})
 
-	it("waits for the replacement active-page load after a non-active attachment update", async () => {
+	it("keeps the active-page load when a non-active attachment updates", async () => {
 		const { store, paths, attachmentList } = createStore(2)
 		stores.push(store)
+		let resolveActiveDownload: (content: string) => void = () => undefined
 		let initialSignal: AbortSignal | undefined
-		let resolveReplacementDownload: (content: string) => void = () => undefined
-		mockState.downloadFileContent
-			.mockImplementationOnce(
-				(_url: string, options: { signal?: AbortSignal }) =>
-					new Promise<string>((_resolve, reject) => {
-						initialSignal = options.signal
-						options.signal?.addEventListener("abort", () => {
-							reject(new DOMException("The operation was aborted", "AbortError"))
-						})
-					}),
-			)
-			.mockImplementationOnce(
-				() =>
-					new Promise<string>((resolve) => {
-						resolveReplacementDownload = resolve
-					}),
-			)
+		mockState.downloadFileContent.mockImplementationOnce(
+			(_url: string, options: { signal?: AbortSignal }) =>
+				new Promise<string>((resolve, reject) => {
+					initialSignal = options.signal
+					resolveActiveDownload = resolve
+					options.signal?.addEventListener("abort", () => {
+						reject(new DOMException("The operation was aborted", "AbortError"))
+					})
+				}),
+		)
 
 		const initialUpdate = store.updateConfig({
 			displayConfig: { slides: paths },
@@ -561,13 +556,8 @@ describe("PPTStore content lazy loading", () => {
 			),
 		})
 
-		await vi.waitFor(() => expect(initialSignal?.aborted).toBe(true))
-		await vi.waitFor(() =>
-			expect(mockState.downloadFileContent.mock.calls.length).toBeGreaterThan(1),
-		)
-		expect(store.isInitializing).toBe(true)
-
-		resolveReplacementDownload("<main>replacement active slide</main>")
+		expect(initialSignal?.aborted).toBe(false)
+		resolveActiveDownload("<main>active slide</main>")
 		await Promise.all([initialUpdate, latestUpdate])
 
 		expect(store.slides[store.activeIndex]?.loadingState).toBe("loaded")

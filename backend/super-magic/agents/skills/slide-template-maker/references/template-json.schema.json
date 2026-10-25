@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic HTML Slide Template",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "template_id",
+    "category_code",
+    "tag_codes",
+    "label",
+    "description",
+    "files",
+    "slides",
+    "source",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "template_id": {
+      "type": "string",
+      "description": "Final ID with the six-character uppercase hexadecimal suffix returned by create_slide_template_project.",
+      "pattern": "^SLIDE-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+    },
+    "category_code": {
+      "type": "string",
+      "pattern": "^(PPT|SLIDE)-CATE-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "tag_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "label": { "$ref": "#/$defs/bilingualText" },
+    "description": { "$ref": "#/$defs/bilingualText" },
+    "files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visual_spec", "theme_css", "slides_dir", "images_dir"],
+      "properties": {
+        "visual_spec": { "type": "string", "const": "visual-spec.md" },
+        "theme_css": { "type": "string", "const": "theme.css" },
+        "slides_dir": { "type": "string", "const": "slides" },
+        "images_dir": { "type": "string", "const": "images" }
+      }
+    },
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "title", "layout", "description"],
+        "properties": {
+          "file": {
+            "type": "string",
+            "pattern": "^slides/(?:[a-z][a-z0-9]*(?:-[a-z0-9]+)*|[\\u3400-\\u4DBF\\u4E00-\\u9FFF][\\u3400-\\u4DBF\\u4E00-\\u9FFF0-9]*(?:-[\\u3400-\\u4DBF\\u4E00-\\u9FFF0-9]+)*)\\.html$"
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "layout": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "description": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "method", "file", "canvas"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["original", "derived"] },
+        "method": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "brief-generator",
+            "image-rebuild",
+            "html-import",
+            "visual-reconstruction",
+            "project-extract"
+          ]
+        },
+        "file": { "type": "string", "pattern": "^[^/\\\\]*$" },
+        "canvas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 320, "maximum": 8192 },
+            "height": { "type": "integer", "minimum": 180, "maximum": 8192 }
+          }
+        }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "bilingualText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zh_CN", "en_US"],
+      "properties": {
+        "zh_CN": { "type": "string", "minLength": 1 },
+        "en_US": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

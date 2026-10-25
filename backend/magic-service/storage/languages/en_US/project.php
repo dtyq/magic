@@ -65,4 +65,23 @@ return [
     'collaboration_updated' => 'Project collaboration settings updated',
     'batch_permission_updated' => 'Batch permission updated successfully',
     'batch_members_deleted' => 'Batch members deleted successfully',
+    'access_denied' => 'Access denied',
+    'cannot_modify_creator_permission' => 'Cannot modify creator permission',
+    'create_project_too_frequent' => 'Create project too frequent',
+    'fork_already_running' => 'Fork already running',
+    'not_found' => 'Resource not found',
+    'pin' => [
+        'is_pin_must_be_boolean' => 'Is pin must be boolean',
+        'is_pin_required' => 'Value is required',
+    ],
+    'project_id_required' => 'Value is required',
+    'project_update_failed' => 'Operation failed',
+    'setting' => [
+        'project_id_required' => 'Value is required',
+        'user_id_required' => 'Value is required',
+    ],
+    'special_key_required' => 'Value is required',
+
+    'fork_access_denied' => 'Access denied',
+    'fork_not_found' => 'Resource not found',
 ];

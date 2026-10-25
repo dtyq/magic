@@ -1,6 +1,7 @@
 import { Check, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { UNGROUPED_RECORDING_GROUP_ID } from "@/services/audioRecordings/RecordingGroupsConstants"
 import { resolveRecordingGroupDisplayName } from "@/services/audioRecordings/resolveRecordingGroupDisplayName"
 import type { MobileRecordingGroup } from "./MobileRecordingGroupSheet"
@@ -86,32 +87,41 @@ export function MobileRecordingMoveGroupSheet({
 				onClick: handleClose,
 				testId: "mobile-recording-move-group-close",
 			}}
-			className="max-h-[78vh] gap-0 rounded-t-[14px] border-0 bg-muted p-0"
-			bodyClassName="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-[14px] py-[10px]"
+			// Keep destination focus from scrolling the fixed action header.
+			className="max-h-[78vh] gap-0 rounded-t-[14px] border-0 bg-muted p-0 supports-[overflow:clip]:overflow-clip"
+			bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0 supports-[overflow:clip]:overflow-clip"
 			style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 			data-testid="mobile-recording-move-group-sheet"
 		>
-			<div className="w-full shrink-0 overflow-hidden rounded-lg bg-card">
-				{groups.map((group) => (
-					<div key={group.id}>
-						<MoveGroupRow
-							label={resolveRecordingGroupDisplayName(group.name, unnamedGroupLabel)}
-							count={group.projectCount}
-							selected={selectedGroupId === group.id}
-							dataTestId="mobile-recording-move-group-option"
-							onClick={() => handleSelect(group.id)}
-						/>
-						<div className="h-px w-full bg-border" />
-					</div>
-				))}
-				<MoveGroupRow
-					label={t("mobile.recordingEntry.groupSheet.ungrouped")}
-					count={ungroupedCount}
-					selected={selectedGroupId === UNGROUPED_RECORDING_GROUP_ID}
-					dataTestId="mobile-recording-move-group-option-ungrouped"
-					onClick={() => handleSelect(UNGROUPED_RECORDING_GROUP_ID)}
-				/>
-			</div>
+			<ScrollArea
+				className="grid min-h-0 flex-1"
+				viewportClassName="h-auto min-h-0 px-[14px] py-[10px] [&>div]:!block"
+			>
+				<div className="w-full shrink-0 overflow-hidden rounded-lg bg-card">
+					{groups.map((group) => (
+						<div key={group.id}>
+							<MoveGroupRow
+								label={resolveRecordingGroupDisplayName(
+									group.name,
+									unnamedGroupLabel,
+								)}
+								count={group.projectCount}
+								selected={selectedGroupId === group.id}
+								dataTestId="mobile-recording-move-group-option"
+								onClick={() => handleSelect(group.id)}
+							/>
+							<div className="h-px w-full bg-border" />
+						</div>
+					))}
+					<MoveGroupRow
+						label={t("mobile.recordingEntry.groupSheet.ungrouped")}
+						count={ungroupedCount}
+						selected={selectedGroupId === UNGROUPED_RECORDING_GROUP_ID}
+						dataTestId="mobile-recording-move-group-option-ungrouped"
+						onClick={() => handleSelect(UNGROUPED_RECORDING_GROUP_ID)}
+					/>
+				</div>
+			</ScrollArea>
 		</MagicPopup>
 	)
 }

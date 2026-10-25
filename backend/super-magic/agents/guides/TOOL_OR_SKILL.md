@@ -113,10 +113,10 @@ CodeModeOnly 单活不承诺这种切换能力。若未来要改成可直接挂�
 ```yaml
 skills:
   preload:
-    - name: canvas-designer
+    - name: canvas-manager
       files:
         - SKILL.md
-        - reference/image-search.md
+        - references/image-search.md
 ```
 
 **常见误用：** 某个工具的参数格式复杂（如 XML），开发者以为"在 `get_prompt_hint()` 里写清楚就够了"——但 `get_prompt_hint()` 只在工具出现在 tools 列表时才对模型可见，如果这个工具是通过 Skill 调用的，模型根本看不到。正确做法是把说明写进 SKILL.md 或 `reference/` 里对应的文件。反过来，把本应写进 SKILL.md 的内容塞进 `get_prompt_hint()`，在 Skill 路径下同样无效。

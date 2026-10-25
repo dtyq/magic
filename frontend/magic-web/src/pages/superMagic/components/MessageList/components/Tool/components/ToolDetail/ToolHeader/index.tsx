@@ -1,8 +1,14 @@
+import { FileResourceIcon } from "@/pages/superMagic/components/TopicFilesButton/components/FileResourceIcon"
+import { resolveFilePresentation } from "@/pages/superMagic/components/TopicFilesButton/utils/file-presentation"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import { useMessageListContext } from "@/pages/superMagic/components/MessageList/context"
 import { Flex } from "antd"
+import { observer } from "mobx-react-lite"
 import { useStyles } from "./styles"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
 
 interface ToolHeaderProps {
+	file?: AttachmentItem
 	extension?: string
 	title?: string
 	icon?: React.ReactNode
@@ -11,7 +17,8 @@ interface ToolHeaderProps {
 	headerClassName?: string
 }
 
-export default function ToolHeader({
+function ToolHeader({
+	file,
 	extension,
 	title,
 	icon,
@@ -20,6 +27,7 @@ export default function ToolHeader({
 	headerClassName,
 }: ToolHeaderProps) {
 	const { styles, cx } = useStyles()
+	const { projectFilesStore } = useMessageListContext()
 
 	return (
 		<Flex
@@ -31,7 +39,18 @@ export default function ToolHeader({
 				{showTitle && (
 					<>
 						<div className={styles.icon}>
-							{icon || <MagicFileIcon size={20} type={extension} />}
+							{icon ||
+								(file ? (
+									<FileResourceIcon
+										presentation={resolveFilePresentation(file, {
+											context: projectFilesStore?.filePresentationContext,
+											index: projectFilesStore?.filePresentationIndex,
+										})}
+										size={20}
+									/>
+								) : (
+									<MagicFileIcon size={20} type={extension} />
+								))}
 						</div>
 						<span
 							className={styles.title}
@@ -46,3 +65,5 @@ export default function ToolHeader({
 		</Flex>
 	)
 }
+
+export default observer(ToolHeader)

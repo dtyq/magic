@@ -9,7 +9,7 @@ import { Dialog, DialogContent } from "@/components/shadcn-ui/dialog"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	crewService,
 	type AgentDetailView,

@@ -1,6 +1,8 @@
 """LLM处理器配置类"""
 
 from typing import Optional, Dict, Any
+from collections.abc import Callable, Mapping
+from agentlang.llms.token_usage.models import ContextInputBreakdown
 from dataclasses import dataclass
 from ...streaming.drivers.socketio.config import SocketIODriverConfig
 from ...streaming.message_builder import MessageBuilderInterface
@@ -49,6 +51,8 @@ class ProcessorConfig:
 
     non_stream_timeout_seconds: Optional[int] = None
     """非流式请求超时"""
+
+    context_usage_estimator: Callable[[Mapping[str, object]], ContextInputBreakdown | None] | None = None
 
     @classmethod
     def create_default(cls) -> 'ProcessorConfig':

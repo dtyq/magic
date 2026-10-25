@@ -7,7 +7,7 @@ from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
-from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.entity.message.server_message import ToolDetail
 from app.i18n import i18n
 from app.mcp.manager import ensure_server_connected
 from app.tools.core import BaseToolParams, tool
@@ -55,11 +55,10 @@ class McpGetToolSchema(BaseMcpTool[McpGetToolSchemaParams]):
     async def get_tool_detail(
         self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
     ) -> Optional[ToolDetail]:
-        if not result.content or not result.ok:
-            return None
-        return ToolDetail(
-            type=DisplayType.MD,
-            data=FileContent(file_name="mcp_tool_schema.md", content=result.content),
+        return self._build_mcp_tool_detail(
+            result,
+            file_name="mcp_tool_schema.md",
+            error_title="MCP tool schema failed",
         )
 
     async def execute(
@@ -99,7 +98,7 @@ class McpGetToolSchema(BaseMcpTool[McpGetToolSchemaParams]):
                 lines.append(f"## {t_name}")
                 if t_info.description:
                     lines.append(f"Description: {t_info.description}")
-                lines.append(f"Input schema:")
+                lines.append("Input schema:")
                 lines.append(f"```json\n{json_mod.dumps(t_info.inputSchema, indent=2, ensure_ascii=False)}\n```")
             else:
                 lines.append(f"## {t_name}")

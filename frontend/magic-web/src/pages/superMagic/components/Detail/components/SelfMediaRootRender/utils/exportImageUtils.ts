@@ -1,6 +1,6 @@
 import * as htmlToImage from "html-to-image"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
-import { logger as rootLogger } from "@/utils/log"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { logger as rootLogger } from "@/infrastructure/logger"
 import type { CardFrameRef } from "../components/CardFrame"
 import {
 	WECHAT_COVER_BASE_HEIGHT,
@@ -162,8 +162,11 @@ function canvasToImageBlob(
 	})
 }
 
-async function loadImageFromFileId(fileId: string): Promise<HTMLImageElement> {
-	const urls = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+async function loadImageFromFileId(
+	fileApi: Pick<FileApi, "getTemporaryDownloadUrl">,
+	fileId: string,
+): Promise<HTMLImageElement> {
+	const urls = await fileApi.getTemporaryDownloadUrl({ file_ids: [fileId] })
 	const url = urls?.[0]?.url
 	if (!url) throw new Error("Cover image URL is unavailable")
 	const response = await fetch(url, { credentials: "omit" })
@@ -213,12 +216,13 @@ export async function stitchWechatCoverImagesToBlob(args: {
 	heroFileId?: string
 	pixelRatio: number
 	format: SelfMediaExportFormat
+	fileApi: Pick<FileApi, "getTemporaryDownloadUrl">
 }): Promise<Blob> {
-	const { thumbnailFileId, heroFileId, pixelRatio, format } = args
+	const { thumbnailFileId, heroFileId, pixelRatio, format, fileApi } = args
 	if (!thumbnailFileId || !heroFileId) throw new Error("Cover images are missing")
 	const [squareImage, horizontalImage] = await Promise.all([
-		loadImageFromFileId(thumbnailFileId),
-		loadImageFromFileId(heroFileId),
+		loadImageFromFileId(fileApi, thumbnailFileId),
+		loadImageFromFileId(fileApi, heroFileId),
 	])
 	const targetHeight = Math.max(1, Math.round(WECHAT_COVER_BASE_HEIGHT * pixelRatio))
 	const squareWidth = targetHeight

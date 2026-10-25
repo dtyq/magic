@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo, useState } from "react"
 import { Globe, ChevronDown, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import { Input } from "@/components/shadcn-ui/input"
 

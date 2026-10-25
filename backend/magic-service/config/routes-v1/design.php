@@ -29,7 +29,7 @@ Router::addGroup('/api/v1', static function () {
         // 识别图片标记位置的内容
         Router::post('/identify-image-mark', [DesignApi::class, 'identifyImageMark']);
 
-        // 获取图片转高清配置信息
+        // Deprecated: use GET /api/v1/ai-abilities/availability instead.
         Router::get('/convert-high/config', [DesignApi::class, 'imageConvertHighConfig']);
 
         // 去背景

@@ -11,13 +11,11 @@ import {
 import { getLatestNodeVersion, getReferencePrefix, judgeIsVariableNode } from "@/MagicFlow/utils"
 import { getFormTypeToTitle } from "@/MagicJsonSchemaEditor/constants"
 import Schema from "@/MagicJsonSchemaEditor/types/Schema"
-import { IconTreeTriangleDown } from "@douyinfe/semi-icons"
+import { IconCaretDownFilled, IconChevronRight, IconVariable } from "@tabler/icons-react"
 import { Tooltip, Tree, TreeDataNode } from "antd"
-import { Icon } from "@iconify/react"
-import { IconChevronRight } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import i18next from "i18next"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import React, { useMemo, useRef } from "react"
 import SearchInput from "../SearchInput"
 import FunctionTips from "./components/FunctionTips"
@@ -222,7 +220,7 @@ const CascaderDropdown = ({
 							</Tooltip>
 							{!isNode && (
 								<Transformer source={tmpItem} onSelect={onSelect}>
-									<IconChevronRight className="right" />
+									<IconChevronRight className="right" size={16} />
 								</Transformer>
 							)}
 						</>
@@ -236,7 +234,7 @@ const CascaderDropdown = ({
 							<span className="center">{typeString}</span>
 							{!isNode && (
 								<Transformer source={tmpItem} onSelect={onSelect}>
-									<IconChevronRight className="right" />
+									<IconChevronRight className="right" size={16} />
 								</Transformer>
 							)}
 						</>
@@ -251,7 +249,7 @@ const CascaderDropdown = ({
 				const isConstant = tmpItem?.isConstant
 				const isSpecialType = isVariableNode || isConstant
 				const icon = !tmpItem.isRoot ? (
-					<Icon icon="tabler:variable" className="icon-variable" strokeWidth={2} />
+					<IconVariable className="icon-variable" size={14} stroke={2} />
 				) : (
 					<span className={`icon-app ${isSpecialType ? "is-variable-icon" : ""}`}>
 						{node?.icon}
@@ -316,7 +314,7 @@ const CascaderDropdown = ({
 					onExpand={onExpand}
 					expandedKeys={expandedKeys}
 					autoExpandParent={autoExpandParent}
-					switcherIcon={<IconTreeTriangleDown />}
+					switcherIcon={<IconCaretDownFilled size={14} />}
 					virtual
 					// 占据整行
 					blockNode
@@ -325,7 +323,7 @@ const CascaderDropdown = ({
 						// 如果不可选中，默认点击为展开和折叠
 						if (!node.selectable) {
 							e.preventDefault()
-							const cloneKeys = _.cloneDeep(expandedKeys)
+							const cloneKeys = cloneDeep(expandedKeys)
 							const index = cloneKeys.findIndex((key) => node.key === key)
 							if (node.expanded) {
 								if (index === -1) return

@@ -6,6 +6,7 @@ from app.tools.channel.connect_wecom_bot import ConnectWecomBot
 from app.tools.channel.connect_wechat_bot import ConnectWechatBot
 from app.tools.channel.get_im_channel_status import GetIMChannelStatus
 from app.tools.channel.wait_wechat_login import WaitWechatLogin
+from app.tools.channel.send_wechat_message import SendWechatMessage
 
 __all__ = [
     "ConnectDingTalkBot",
@@ -14,4 +15,5 @@ __all__ = [
     "ConnectWechatBot",
     "GetIMChannelStatus",
     "WaitWechatLogin",
+    "SendWechatMessage",
 ]

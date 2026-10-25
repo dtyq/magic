@@ -11,6 +11,79 @@ from loguru import logger
 
 from app.path_manager import PathManager
 
+# 默认音频格式：历史任务均为 wav，作为未知格式的回退值
+DEFAULT_AUDIO_FORMAT = "wav"
+
+# 支持的音频分片格式（任务内格式同质：一个任务从首片到末片只用一种格式）
+SUPPORTED_AUDIO_FORMATS = ("wav", "opus")
+
+
+def normalize_audio_format(audio_format: str | None) -> str:
+    """
+    归一化音频格式，空值或不支持的格式回退为 wav（兼容历史任务）
+
+    Args:
+        audio_format: 原始格式字符串（可带点、大小写不敏感、可为 None）
+
+    Returns:
+        str: 归一化后的格式（wav / opus）
+    """
+    fmt = (audio_format or "").strip().lower().lstrip(".")
+    return fmt if fmt in SUPPORTED_AUDIO_FORMATS else DEFAULT_AUDIO_FORMAT
+
+
+def validate_audio_format_for_write(audio_format: str | None) -> str:
+    """Validate a format before pinning it to a newly observed task.
+
+    Read paths may use :func:`normalize_audio_format` for legacy states.  A
+    write path must not silently turn a bad client value into WAV because that
+    can pin a task to the wrong merge/checkpoint format.
+    """
+    fmt = (audio_format or "").strip().lower().lstrip(".")
+    if not fmt:
+        raise ValueError("Audio format is required")
+    if fmt not in SUPPORTED_AUDIO_FORMATS:
+        raise ValueError(f"Unsupported audio format: {audio_format}")
+    return fmt
+
+
+def build_merged_filename(audio_format: str | None) -> str:
+    """
+    按任务音频格式构建 merged 文件名（merged.wav / merged.opus）
+
+    Args:
+        audio_format: 任务音频格式，None 时回退 wav（兼容历史检查点）
+
+    Returns:
+        str: merged 文件名
+    """
+    return f"merged.{normalize_audio_format(audio_format)}"
+
+
+def resolve_audio_format_from_directory(source_dir: Path, state_format: str | None) -> str | None:
+    """Resolve a task format without hiding conflicting merged artifacts."""
+    merged_wav = source_dir / "merged.wav"
+    merged_opus = source_dir / "merged.opus"
+    wav_exists = merged_wav.exists()
+    opus_exists = merged_opus.exists()
+    if wav_exists and opus_exists:
+        raise ValueError("Conflicting merged audio files: merged.wav and merged.opus")
+
+    if state_format is not None:
+        resolved_state = validate_audio_format_for_write(state_format)
+        if (resolved_state == "wav" and opus_exists) or (resolved_state == "opus" and wav_exists):
+            raise ValueError(
+                f"Task format {resolved_state} conflicts with existing merged file "
+                f"{('merged.opus' if opus_exists else 'merged.wav')}"
+            )
+        return resolved_state
+
+    if opus_exists:
+        return "opus"
+    if wav_exists:
+        return "wav"
+    return None
+
 
 def check_ffmpeg_installed() -> bool:
     """

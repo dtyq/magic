@@ -5,11 +5,12 @@ import {
 	CONNECTION_CREATE_NODE_SPACING,
 	collectConnectedElementSiblingRects,
 	resolveConnectionCreateContextWithOriginRect,
+	resolveConnectionCreateCenterPoint,
 	resolveConnectionCreateTopLeftPoint,
 	resolveConnectedElementCreateTopLeftPoint,
 	resolveNonOverlappingConnectionCreateTopLeftPoint,
 	type ConnectionCreatePlacementContext,
-} from "../connectionCreatePlacement"
+} from "../../../../runtime/shared/placement/connectionCreatePlacement"
 
 describe("connectionCreatePlacement", () => {
 	const rightHandleContext: ConnectionCreatePlacementContext = {
@@ -26,6 +27,21 @@ describe("connectionCreatePlacement", () => {
 	}
 	const size = { width: 300, height: 100 }
 	const gap = 1024
+
+	it("places handle-created nodes outside the source element on both sides", () => {
+		expect(resolveConnectionCreateTopLeftPoint(rightHandleContext, size, gap)).toEqual({
+			x: 1924,
+			y: 450,
+		})
+		expect(resolveConnectionCreateTopLeftPoint(leftHandleContext, size, gap)).toEqual({
+			x: -1224,
+			y: 450,
+		})
+		expect(resolveConnectionCreateCenterPoint(leftHandleContext, size, gap)).toEqual({
+			x: -1074,
+			y: 500,
+		})
+	})
 
 	it("keeps the original placement when there is no collision", () => {
 		expect(

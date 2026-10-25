@@ -3,7 +3,8 @@ import { X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
+import { cn } from "@/utils/cn"
 
 interface SlidesTemplateMobileFilterPopupAction {
 	label: string
@@ -63,21 +64,25 @@ function SlidesTemplateMobileFilterPopup({
 				icon: <X />,
 				ariaLabel: closeLabel,
 				onClick: handleClose,
+				testId: "slides-template-mobile-filter-close",
 			}}
 			headerTrailingAction={headerTrailingAction}
-			className={cn("max-h-[85dvh] rounded-t-[14px] border-0 bg-muted p-0", className)}
-			bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+			className={cn(
+				// Keep the viewport cap in Chrome 100, which predates dynamic viewport units.
+				"max-h-[85vh] rounded-t-[14px] border-0 bg-muted p-0 supports-[height:100dvh]:max-h-[85dvh] supports-[overflow:clip]:overflow-clip",
+				className,
+			)}
+			bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0 supports-[overflow:clip]:overflow-clip"
 			style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 		>
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-				<div
-					className={cn(
-						"flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-3 pt-2",
-						contentClassName,
-					)}
+				<ScrollArea
+					className={cn("grid min-h-0 flex-1 px-3 pb-3 pt-2", contentClassName)}
+					// Stretch the content wrapper so split filter panels retain their own scroll regions.
+					viewportClassName="h-auto min-h-0 [&>div]:!flex [&>div]:h-full [&>div]:flex-col"
 				>
 					{children}
-				</div>
+				</ScrollArea>
 				{secondaryAction && confirmAction ? (
 					<div className="flex shrink-0 gap-1.5 px-3 pb-3">
 						<Button

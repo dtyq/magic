@@ -12,6 +12,7 @@ use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderConfigModel;
+use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Aes\AesUtil;
 use Hyperf\Codec\Json;
 use Hyperf\Contract\TranslatorInterface;
@@ -39,6 +40,32 @@ class ProviderConfigAssembler
         $translator = di(TranslatorInterface::class);
         $serviceProviderConfigEntity->i18n($translator->getLocale());
         return $serviceProviderConfigEntity;
+    }
+
+    /**
+     * @param array{total: int, list: array<int, array<string, mixed>>} $result
+     * @return array{page: int, page_size: int, total: string, list: array<int, array<string, string>>}
+     */
+    public static function toSearchPage(array $result, Page $page): array
+    {
+        return [
+            'page' => $page->getPage(),
+            'page_size' => $page->getPageNum(),
+            'total' => (string) $result['total'],
+            'list' => array_map(static function (array $providerConfig): array {
+                $response = [
+                    'service_provider_config_id' => (string) ($providerConfig['service_provider_config_id'] ?? ''),
+                ];
+
+                foreach (['service_provider_id', 'provider_name', 'provider_alias'] as $field) {
+                    if (array_key_exists($field, $providerConfig)) {
+                        $response[$field] = (string) $providerConfig[$field];
+                    }
+                }
+
+                return $response;
+            }, $result['list']),
+        ];
     }
 
     public static function toEntities(array $serviceProviderConfigs): array

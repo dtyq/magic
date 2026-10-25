@@ -17,6 +17,7 @@ import {
 	type ImageElement,
 	type CanvasDesignPlugin,
 } from "../../../../runtime/document/types"
+import { getActiveImageContent } from "../../../../runtime/document/elementContent"
 import { useImageLowUrl } from "../../../../app/hooks/resources/useImageUrls"
 import {
 	createCanvasAssetDragSessionId,
@@ -85,11 +86,15 @@ function getImagePreviewItem(canvas: Canvas, elementId: string): DragPreviewItem
 	const element = canvas.elementManager.getElementData(elementId)
 	if (!element || element.type !== ElementTypeEnum.Image) return null
 	const imageElement = element as ImageElement
-	if (!imageElement.src) return null
+	const activeContent =
+		(canvas.getEffectiveContent?.(imageElement.id) as
+			| ReturnType<typeof getActiveImageContent>
+			| undefined) ?? getActiveImageContent(imageElement)
+	if (!activeContent.src) return null
 	return {
 		id: elementId,
 		name: imageElement.name || "Image",
-		src: imageElement.src,
+		src: activeContent.src,
 	}
 }
 
@@ -401,7 +406,11 @@ export function useCanvasImageExternalDragToPlugin({
 					}
 					// 拖入插件的文件可能随后作为 reference_images 回到宿主，提前记录文件 key 与画布元素的关系。
 					files.forEach((file) => {
-						registerPluginFileAssetSource(sourceElementByAssetKeyRef.current, file)
+						registerPluginFileAssetSource(
+							sourceElementByAssetKeyRef.current,
+							file,
+							canvas.magicConfigManager.config?.methods?.resolveResourceReference,
+						)
 					})
 					postPluginMessage({
 						type: "magic-canvas-plugin:canvas-asset-drop",

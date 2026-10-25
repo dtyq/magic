@@ -174,7 +174,10 @@ export function buildSelfMediaOpsMetricDrillDowns(
 			title: "互动拆解",
 			subtitle: "看互动总量与待跟进文章",
 			rows: [
-				{ label: "总互动", value: formatSelfMediaCompactNumber(overview.totalEngagement) },
+				{
+					label: "总互动",
+					value: formatSelfMediaCompactNumber(overview.totalEngagement, "zh-CN"),
+				},
 				{ label: "低互动", value: weakestPost?.title ?? "暂无低互动样本" },
 				{ label: "待办事项", value: `${overview.nextActions.length} 项` },
 			],

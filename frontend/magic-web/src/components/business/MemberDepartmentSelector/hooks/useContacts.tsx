@@ -1,5 +1,5 @@
 import type Conversation from "@/models/chat/conversation"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { sortBy } from "lodash-es"
 import { useCallback } from "react"
 import { getUserName } from "@/utils/modules/chat"

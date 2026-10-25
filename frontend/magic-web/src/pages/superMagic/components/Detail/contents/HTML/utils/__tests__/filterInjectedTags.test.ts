@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest"
 import { filterInjectedTags, preserveOriginalTrailingNewline } from "../index"
 
 describe("filterInjectedTags", () => {
+	it("does not persist source-node provenance markers", () => {
+		const html =
+			'<html data-magic-source-node=""><body data-magic-source-node=""><p data-magic-source-node="">Fixed</p><p>Dynamic</p></body></html>'
+		const cleaned = filterInjectedTags(html, new Map())
+		expect(cleaned).toContain("<p>Fixed</p>")
+		expect(cleaned).not.toContain("Dynamic")
+		expect(cleaned).not.toContain("data-magic-source-node")
+	})
 	it("should restore the backend-provided EOF newline after DOM serialization removes it", () => {
 		const serializedHtml = "<!DOCTYPE html>\n<html><head></head><body></body></html>"
 		const originalSourceCode = `${serializedHtml}\n`

@@ -1,4 +1,4 @@
-import { Link2, Maximize2, PlusIcon, X } from "lucide-react"
+import { Link2, PlusIcon, X } from "lucide-react"
 import {
 	Fragment,
 	useCallback,
@@ -11,16 +11,20 @@ import {
 	type RefCallback,
 } from "react"
 import ReferenceMediaPreview from "../../previews/reference-media/index"
-import * as TooltipPrimitive from "@radix-ui/react-tooltip"
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../primitives/shadcn/tooltip"
-import { usePortalContainer } from "../../primitives/custom/PortalContainerContext"
+import { Tooltip, TooltipTrigger } from "../../primitives/shadcn/tooltip"
+import ResourcePathTooltipContent from "../../primitives/custom/ResourcePathTooltipContent"
 import { Checkbox } from "../../primitives/shadcn/checkbox"
+import { VideoSolidPlay } from "../../primitives/icons"
 import styles from "./SourceList.module.css"
 import { cn } from "../../../runtime/shared/lib/utils"
 import { getMediaResourcePathKind } from "../../../runtime/resources/media-common/mediaResourcePathKind"
-import { getCanvasResourceFileName } from "../../../runtime/shared/path/canvasResourcePath"
-import type { MediaResourceFullscreenPreviewItem } from "../../fullscreen/media-resource/index"
+import {
+	getCanvasResourceAvailability,
+	getCanvasResourceFileName,
+} from "../../../runtime/shared/path/canvasResourcePath"
 import type { CropConfig } from "../../../runtime/document/types"
+import type { CanvasAssetMediaType } from "../../../public/magic-types"
+import type { ResolveCanvasResourceReference } from "../../../public/resource-reference"
 
 const DEFAULT_OVERLAY_SLOT_ORDINALS: [number, number] = [0, 1]
 
@@ -36,6 +40,7 @@ export interface SourceListSelectionOption {
 export interface SourceListSlotOption {
 	kind: "slot"
 	label: string
+	disabled?: boolean
 	secondaryLabel?: string
 	value: string
 	slotIndex: number
@@ -44,6 +49,8 @@ export interface SourceListSlotOption {
 	/** 已选资源路径，有值时渲染预览 + hover 删除，不再使用默认「+」内容 */
 	resourcePath?: string
 	resourceFileName?: string
+	/** asset:// 路径没有扩展名时，用资产元数据覆盖路径推断。 */
+	resourceMediaType?: CanvasAssetMediaType | null
 	/** 已配置资源的状态标签，例如首帧/尾帧分配状态 */
 	resourceStatusLabel?: string
 	sourceCrop?: CropConfig
@@ -56,9 +63,6 @@ export interface SourceListSlotOption {
 	onRemoveResource?: () => void
 	/** 删除按钮无障碍标签 */
 	removeResourceAriaLabel?: string
-	onPreviewResource?: (resource: MediaResourceFullscreenPreviewItem) => void
-	/** 预览按钮无障碍标签 */
-	previewResourceAriaLabel?: string
 }
 
 /**
@@ -102,12 +106,12 @@ interface SourceListProps {
 	className?: string
 	style?: CSSProperties
 	renderItem?: (params: SourceListRenderItemParams) => ReactNode
+	resolveResourceReference?: ResolveCanvasResourceReference
 }
 
 /** 视频/图片编辑器顶部素材槽位列表（首帧 / 尾帧 / 参考素材等） */
 export default function SourceList(props: SourceListProps) {
-	const { className, style, options, renderItem } = props
-	const portalContainer = usePortalContainer()
+	const { className, style, options, renderItem, resolveResourceReference } = props
 
 	const entries = options ?? []
 	const slotEntries = entries.filter(isSourceListSlotOption)
@@ -210,17 +214,19 @@ export default function SourceList(props: SourceListProps) {
 								""
 							: ""
 					const resourceKind = resourcePath
-						? getMediaResourcePathKind(resourcePath)
+						? getMediaResourcePathKind(resourcePath, {
+								mediaType: entry.resourceMediaType,
+							})
 						: "other"
-					const previewResource =
-						resourcePath && resourceKind !== "other"
-							? ({
-									path: resourcePath,
-									fileName: resourceDisplayName,
-									kind: resourceKind,
-									crop: entry.sourceCrop,
-								} satisfies MediaResourceFullscreenPreviewItem)
-							: null
+					const resourceAvailability = getCanvasResourceAvailability(
+						resourcePath,
+						resolveResourceReference,
+					)
+					const hasMediaTooltip = Boolean(
+						resourcePath &&
+						resourceKind !== "other" &&
+						resourceAvailability !== "deleted",
+					)
 					const handleSlotClick =
 						entry.selection && !entry.selection.disabled
 							? () => entry.selection?.onCheckedChange(!entry.selection.checked)
@@ -231,10 +237,13 @@ export default function SourceList(props: SourceListProps) {
 								<ReferenceMediaPreview
 									path={resourcePath}
 									fileName={resourceDisplayName}
+									mediaType={entry.resourceMediaType}
 									fillParent
 									objectFit="contain"
 									inlineOriginal
 									sourceCrop={entry.sourceCrop}
+									enableTooltip={hasMediaTooltip}
+									tooltipSide="top"
 								/>
 							</div>
 							{entry.isLinked ? (
@@ -242,33 +251,19 @@ export default function SourceList(props: SourceListProps) {
 									<Link2 size={11} className={styles.sourceItemLinkedIconSvg} />
 								</span>
 							) : null}
+							{resourceKind === "video" ? (
+								<span
+									className={styles.sourceItemVideoBadge}
+									data-testid="source-list-video-indicator"
+									aria-hidden
+								>
+									<VideoSolidPlay size={10} />
+								</span>
+							) : null}
 							{entry.resourceStatusLabel ? (
 								<span className={styles.sourceItemStatusLabel}>
 									{entry.resourceStatusLabel}
 								</span>
-							) : null}
-							{previewResource && entry.onPreviewResource ? (
-								<button
-									type="button"
-									className={styles.sourceItemPreviewButton}
-									aria-label={
-										entry.previewResourceAriaLabel ?? resourceDisplayName
-									}
-									onPointerDown={(e) => {
-										e.stopPropagation()
-									}}
-									onClick={(e) => {
-										e.preventDefault()
-										e.stopPropagation()
-										entry.onPreviewResource?.(previewResource)
-									}}
-								>
-									<Maximize2
-										size={14}
-										className={styles.sourceItemPreviewIcon}
-										aria-hidden
-									/>
-								</button>
 							) : null}
 							{entry.selection ? (
 								<Checkbox
@@ -333,29 +328,22 @@ export default function SourceList(props: SourceListProps) {
 						</div>
 					)
 
-					const contentNode = hasResource ? (
-						<Tooltip delayDuration={400}>
-							<TooltipTrigger asChild>
-								<div className={styles.sourceItemTooltipTrigger}>
-									{slotItemNode}
-								</div>
-							</TooltipTrigger>
-							<TooltipPrimitive.Portal container={portalContainer || undefined}>
-								<TooltipContent
-									side="top"
-									sideOffset={6}
-									className="w-max max-w-[85vw] overflow-hidden border-black bg-black text-white"
-								>
-									<span className="block overflow-hidden text-ellipsis whitespace-nowrap text-left">
-										{resourceDisplayName}
-									</span>
-									<TooltipPrimitive.Arrow className="fill-black" />
-								</TooltipContent>
-							</TooltipPrimitive.Portal>
-						</Tooltip>
-					) : (
-						slotItemNode
-					)
+					const contentNode =
+						hasResource && !hasMediaTooltip ? (
+							<Tooltip delayDuration={200}>
+								<TooltipTrigger asChild>
+									<div className={styles.sourceItemTooltipTrigger}>
+										{slotItemNode}
+									</div>
+								</TooltipTrigger>
+								<ResourcePathTooltipContent
+									path={resourcePath}
+									displayName={resourceDisplayName}
+								/>
+							</Tooltip>
+						) : (
+							slotItemNode
+						)
 
 					return <Fragment key={entry.value}>{contentNode}</Fragment>
 				})}

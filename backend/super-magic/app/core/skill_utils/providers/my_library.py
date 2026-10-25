@@ -1,8 +1,6 @@
 """MyLibrary Provider：从平台「我的技能库」检索并安装 skill（SDK）"""
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
 
 from agentlang.logger import get_logger
 from app.core.skill_utils.providers.base import (
@@ -22,6 +20,11 @@ class MyLibraryProvider(SkillProvider):
 
     id = SkillProviderId.MY_LIBRARY
     supports_browse = True
+
+    def __init__(self, *, agent_code: str | None = None, agent_draft: bool = False, expected_name: str | None = None):
+        self.agent_code = agent_code
+        self.agent_draft = agent_draft
+        self.expected_name = expected_name
 
     async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
         from app.infrastructure.sdk.magic_service.factory import create_magic_service_sdk_with_defaults
@@ -116,6 +119,8 @@ class MyLibraryProvider(SkillProvider):
             file_url, install_name, item_version = await self._resolve_download_url(skill_code)
             item_version = item_version or version
 
+        if self.expected_name is not None and install_name != self.expected_name:
+            raise ValueError("Skill package name no longer matches its declared reference.")
         return await self._download_zip(file_url, install_name, skill_code, version=item_version)
 
     async def resolve_latest(self, ref: SkillCandidate | str) -> str | None:
@@ -127,9 +132,8 @@ class MyLibraryProvider(SkillProvider):
             )
 
             sdk = create_magic_service_sdk_with_defaults()
-            result = await asyncio.to_thread(
-                sdk.skill.query_latest_published_versions,
-                GetLatestPublishedSkillVersionsParameter(codes=[skill_code]),
+            result = await sdk.skill.query_latest_published_versions_async(
+                GetLatestPublishedSkillVersionsParameter(codes=[skill_code], agent_code=self.agent_code, agent_draft=self.agent_draft),
             )
             items = result.get_items()
             if items:
@@ -148,9 +152,8 @@ class MyLibraryProvider(SkillProvider):
         )
 
         sdk = create_magic_service_sdk_with_defaults()
-        result = await asyncio.to_thread(
-            sdk.skill.query_latest_published_versions,
-            GetLatestPublishedSkillVersionsParameter(codes=[skill_code]),
+        result = await sdk.skill.query_latest_published_versions_async(
+            GetLatestPublishedSkillVersionsParameter(codes=[skill_code], agent_code=self.agent_code, agent_draft=self.agent_draft),
         )
         items = result.get_items()
         if not items:
@@ -165,29 +168,6 @@ class MyLibraryProvider(SkillProvider):
         return item.file_url, install_name, item_version
 
     async def _download_zip(self, file_url: str, install_name: str, skill_code: str, version: str | None = None) -> FetchedSkill:
-        """下载 zip 到临时目录并返回 FetchedSkill"""
-        import tempfile
-
-        from app.core.skill_utils.skillhub import _download_zip_and_install, _find_skill_root
-        from app.utils.async_file_utils import async_copytree, async_rmtree
-
-        tmp_dir = Path(tempfile.mkdtemp(prefix="skill_my_library_"))
-        install_dir = tmp_dir / install_name
-        try:
-            await asyncio.to_thread(_download_zip_and_install, file_url, install_dir)
-            skill_root = _find_skill_root(install_dir) or install_dir
-            persist_tmp = Path(tempfile.mkdtemp(prefix="skill_my_library_persist_"))
-            dest = persist_tmp / skill_root.name
-            await async_copytree(skill_root, dest)
-            return FetchedSkill(
-                local_path=dest,
-                version=version or "unknown",
-                source_url=file_url.split("?")[0],  # 去掉签名参数
-                install_name=install_name,
-            )
-        except Exception as e:
-            if not isinstance(e, RuntimeError):
-                raise RuntimeError(f"[my_library] 下载安装失败 '{skill_code}': {e}") from e
-            raise
-        finally:
-            await async_rmtree(tmp_dir)
+        """限量异步下载并在本地运行目录解包，中断时清理已写文件。"""
+        from app.core.skill_utils.safe_download import download_skill_zip
+        return await download_skill_zip(file_url, install_name, version or "unknown")

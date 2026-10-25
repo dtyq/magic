@@ -4,7 +4,7 @@ import { observer } from "mobx-react-lite"
 import { Badge } from "@/components/shadcn-ui/badge"
 import superMagicService from "@/pages/superMagic/services"
 import { projectStore } from "@/pages/superMagic/stores/core"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ProjectNameBadgeProps {
 	projectId?: string

@@ -15,6 +15,18 @@ use App\Domain\OrganizationEnvironment\Entity\MagicEnvironmentEntity;
 interface MagicContactIdMappingRepositoryInterface
 {
     /**
+     * 按当前组织、来源平台和有效环境反查账户的第三方用户映射。
+     *
+     * @return list<MagicThirdPlatformIdMappingEntity>
+     */
+    public function getScopedUserIdsMapping(
+        MagicEnvironmentEntity $environment,
+        string $magicId,
+        string $magicOrganizationCode,
+        PlatformType $platformType
+    ): array;
+
+    /**
      * 获取第三方平台部门ID的映射关系.
      *
      * @param string[] $thirdDepartmentIds

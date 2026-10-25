@@ -36,6 +36,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $created_at 创建时间
  * @property string $updated_at 更新时间
  * @property null|string $deleted_at 删除时间
+ * @property int $scope_version 分享范围版本
  */
 class ResourceShareModel extends AbstractModel
 {
@@ -76,6 +77,7 @@ class ResourceShareModel extends AbstractModel
         'project_id',
         'is_enabled',
         'share_project',
+        'scope_version',
         'deleted_at',
     ];
 
@@ -95,6 +97,7 @@ class ResourceShareModel extends AbstractModel
         'is_enabled' => 'boolean',
         'is_password_enabled' => 'boolean',
         'share_project' => 'boolean',
+        'scope_version' => 'integer',
         'expire_days' => 'integer',
         'created_at' => 'string',
         'updated_at' => 'string',

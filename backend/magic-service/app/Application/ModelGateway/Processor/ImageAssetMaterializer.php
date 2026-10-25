@@ -8,19 +8,23 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Processor;
 
 use App\Application\ModelGateway\Struct\ImageProcessContext;
-use App\Infrastructure\ExternalAPI\Image\ImageAsset;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundResult;
-use App\Infrastructure\Util\File\SecureImageDownloader;
+use App\Infrastructure\Util\File\ImageFileInspector;
 use App\Infrastructure\Util\File\TemporaryFileManager;
+use Dtyq\CloudFile\Kernel\Struct\DownloadedRemoteFile;
+use Dtyq\CloudFile\Kernel\Utils\SafeRemoteFileDownloader;
+use InvalidArgumentException;
+use Throwable;
 
 /**
- * 把去背景 driver 的专属结果统一转成平台内部可继续处理的图片资产。
- * 该类是“外部协议”进入“通用图片处理管线”的桥接点。
+ * 把去背景 driver 的专属结果统一转成平台内部可继续处理的图片。
+ * 该类是“外部协议”进入“通用图片处理管线”的桥接点，并统一持有图片链路的下载入口。
  */
 final class ImageAssetMaterializer
 {
     public function __construct(
-        private readonly SecureImageDownloader $secureImageDownloader,
+        private readonly ImageFileInspector $imageFileInspector,
+        private readonly SafeRemoteFileDownloader $downloader,
     ) {
     }
 
@@ -36,28 +40,42 @@ final class ImageAssetMaterializer
             $temporaryFileManager->add($result->getValue());
 
             return new ImageProcessContext(
-                asset: ImageAsset::fromLocalFile(
-                    $result->getValue(),
-                    $result->getMimeType(),
-                    $result->getProvider(),
-                    $result->getSize(),
-                ),
                 localFilePath: $result->getValue(),
+                mimeType: $result->getMimeType(),
+                provider: $result->getProvider(),
             );
         }
 
-        $materializedAsset = $this->secureImageDownloader->download($result->getValue());
-        $temporaryFileManager->add($materializedAsset->getValue());
+        $downloadedFile = $this->downloadRemoteImage($result->getValue());
+        $temporaryFileManager->add($downloadedFile->getRealPath());
 
         return new ImageProcessContext(
-            asset: new ImageAsset(
-                type: $materializedAsset->getType(),
-                value: $materializedAsset->getValue(),
-                mimeType: $materializedAsset->getMimeType(),
-                provider: $result->getProvider() ?? $materializedAsset->getProvider(),
-                size: $materializedAsset->getSize(),
-            ),
-            localFilePath: $materializedAsset->getValue(),
+            localFilePath: $downloadedFile->getRealPath(),
+            mimeType: $downloadedFile->getMimeType(),
+            provider: $result->getProvider(),
         );
+    }
+
+    /**
+     * 安全下载远程图片到本地临时文件，并确认它确实是图片。
+     * driver 结果物化与用户输入图下载共用这一入口，保证防护策略与错误语义一致。
+     */
+    public function downloadRemoteImage(string $imageUrl): DownloadedRemoteFile
+    {
+        try {
+            $downloadedFile = $this->downloader->download($imageUrl);
+        } catch (Throwable $throwable) {
+            // 下载器抛的是第三方异常，这里统一转换成图片链路的业务异常，便于上层给出用户可读报错。
+            throw new InvalidArgumentException('image_generate.image_download_failed', previous: $throwable);
+        }
+
+        try {
+            $this->imageFileInspector->assertImageFile($downloadedFile->getRealPath());
+        } catch (Throwable $throwable) {
+            @unlink($downloadedFile->getRealPath());
+            throw $throwable;
+        }
+
+        return $downloadedFile;
     }
 }

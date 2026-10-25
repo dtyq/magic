@@ -1,3 +1,5 @@
+import type { TextFileSession } from "../../types"
+import DetailEmpty from "../../components/DetailEmpty"
 import CommonHeaderV2 from "@/pages/superMagic/components/Detail/components/CommonHeaderV2"
 import { useStyles } from "./style"
 import { Flex } from "antd"
@@ -6,8 +8,9 @@ import { useFileData } from "@/pages/superMagic/hooks/useFileData"
 import CodeEditor from "@/components/base/CodeEditor"
 import { shadow } from "@/utils/shadow"
 import { useMemoizedFn } from "ahooks"
-import AIOptimization from "@/pages/superMagic/components/Detail/components/AIOptimization"
+import { useAIEditMenuItems } from "@/pages/superMagic/components/Detail/components/EditToolbar/useAIEditMenuItems"
 import CommonFooter from "../../components/CommonFooter"
+import { TextSaveStatus } from "../../components/TextSaveStatus"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import Deleted from "../../components/Deleted"
 import useSaveHandlerRegistration from "../../hooks/useSaveHandlerRegistration"
@@ -30,6 +33,8 @@ export interface CodeViewerExtensionContext {
 export type CodeViewerExtensionRenderer = (context: CodeViewerExtensionContext) => ReactNode
 
 export default function CodeViewer(props: any) {
+	const textFileSession: TextFileSession | undefined = props.textFileSession
+	const isTabActive: boolean = props.isTabActive ?? true
 	const {
 		data,
 		attachments,
@@ -81,8 +86,13 @@ export default function CodeViewer(props: any) {
 		fetchFileVersions,
 		isNewestVersion,
 		isDeleted,
-		loading,
+		loadError: fileLoadError,
+		refreshFile,
+		loading: fileLoading,
 	} = useFileData({
+		enabled: true,
+		loadContent: !textFileSession,
+		isTabActive,
 		file_id,
 		updatedAt,
 		isEditing: isEditMode,
@@ -91,14 +101,22 @@ export default function CodeViewer(props: any) {
 		disabledUrlCache: isPlaybackMode,
 	})
 
-	const [content, setContent] = useState<string>("")
-	const [editingCodeContent, setEditingCodeContent] = useState<string>("")
+	const [localContent, setContent] = useState<string>("")
+	const content =
+		fileVersion !== undefined
+			? (fileData ?? textFileSession?.content ?? "")
+			: (textFileSession?.content ?? localContent)
+	const loading = textFileSession?.loading ?? fileLoading
+	const [localDraft, setLocalDraft] = useState<string>("")
+	const editingCodeContent = textFileSession?.draft ?? localDraft
+	const setEditingCodeContent = textFileSession?.setDraft ?? setLocalDraft
 	const isPureShareCodePreview = documentFlowFullscreen && !isEditMode
 	// Use the fetched value immediately so pure-share rendering does not wait for state mirroring.
 	const pureShareCodeContent = displayContent || fileData || content
 
 	// 初始化 content
 	useEffect(() => {
+		if (textFileSession) return
 		const initialContent = displayContent ? displayContent : fileData
 		setContent(initialContent || "")
 	}, [displayContent, fileData])
@@ -108,19 +126,24 @@ export default function CodeViewer(props: any) {
 		if (setIsEditMode) {
 			setIsEditMode(true)
 			// 初始化编辑内容
-			setEditingCodeContent(content || "")
+			if (!textFileSession) setEditingCodeContent(content || "")
 		}
 	})
 
 	const handleSave = useMemoizedFn(async () => {
+		if (textFileSession) return textFileSession.save()
 		if (editingCodeContent && editingCodeContent !== content) {
 			// 保存代码编辑内容，使用 shadow 函数加密
 			const enable_shadow = true
+			// Feedback is the top-right save chip, so skip the centered toast.
 			await saveEditContent?.(
 				shadow(editingCodeContent),
 				file_id,
 				enable_shadow,
 				fetchFileVersions,
+				undefined,
+				false,
+				{ silent: true },
 			)
 			// 更新 content 状态
 			setContent(editingCodeContent)
@@ -159,6 +182,7 @@ export default function CodeViewer(props: any) {
 
 	// 当 viewMode 变化时，退出编辑模式
 	useEffect(() => {
+		if (textFileSession) return
 		if (setIsEditMode && isEditMode) {
 			setIsEditMode(false)
 		}
@@ -225,13 +249,27 @@ export default function CodeViewer(props: any) {
 		handleExportImage,
 		isExporting: isExporting || isExportingImage,
 		showButtonText: true,
-		supportPPT: false,
 		showExportImage: true,
 		showExportPdf: false,
 	})
 
+	const aiEditMenuItems = useAIEditMenuItems({
+		file: textFileSession ? data : undefined,
+		attachmentList,
+		fileId: data?.file_id,
+		enabled: !!allowEdit && !isMobile && !isEditMode && isNewestVersion && isTabActive,
+	})
+
 	const headerActionConfig = useMemo<HeaderActionConfig>(
 		() => ({
+			overrides: textFileSession
+				? {
+						refresh: {
+							onClick: textFileSession.refresh,
+							disabled: loading || textFileSession.saving || isEditMode,
+						},
+					}
+				: undefined,
 			customActions: [
 				{
 					key: "code-export-dropdown",
@@ -241,27 +279,9 @@ export default function CodeViewer(props: any) {
 					render: () => ExportDropdownButton,
 				},
 				{
-					key: "code-ai-optimization",
-					zone: "primary",
-					visible: () =>
-						Boolean(
-							allowEdit &&
-							!isMobile &&
-							data?.file_id &&
-							!isEditMode &&
-							isNewestVersion,
-						),
-					render: (context) => (
-						<AIOptimization
-							attachmentList={attachmentList}
-							file_id={data?.file_id}
-							showButtonText={context.showButtonText}
-						/>
-					),
-				},
-				{
 					key: "code-edit-actions",
-					zone: "primary",
+					zone: "secondary",
+					before: "refresh",
 					visible: () =>
 						Boolean(
 							setIsEditMode && allowEdit && !isMobile && file_id && isNewestVersion,
@@ -269,11 +289,23 @@ export default function CodeViewer(props: any) {
 					render: (context) => (
 						<FileEditButtons
 							isEditMode={isEditMode}
-							isSaving={false}
+							isSaving={textFileSession?.saving ?? false}
+							interactionDisabled={Boolean(
+								textFileSession &&
+								(loading || textFileSession.loadError || !isTabActive),
+							)}
 							showButtonText={context.showButtonText}
 							onEdit={handleEdit}
-							onSave={handleSave}
-							onSaveAndExit={handleSaveAndExit}
+							onSave={
+								textFileSession
+									? () => handleSave().catch(() => undefined)
+									: handleSave
+							}
+							onSaveAndExit={
+								textFileSession
+									? () => handleSaveAndExit().catch(() => undefined)
+									: handleSaveAndExit
+							}
 							onCancel={handleCancel}
 						/>
 					),
@@ -281,6 +313,9 @@ export default function CodeViewer(props: any) {
 			],
 		}),
 		[
+			textFileSession,
+			loading,
+			isTabActive,
 			allowDownload,
 			allowEdit,
 			attachmentList,
@@ -321,8 +356,10 @@ export default function CodeViewer(props: any) {
 			allowEdit,
 			attachments,
 			actionConfig: headerActionConfig,
+			extraMoreMenuItems: aiEditMenuItems,
 		}),
 		[
+			aiEditMenuItems,
 			allowDownload,
 			allowEdit,
 			attachments,
@@ -363,7 +400,23 @@ export default function CodeViewer(props: any) {
 			tabIndex={-1}
 		>
 			{showFileHeader && <CommonHeaderV2 {...headerContext} />}
-			{isPureShareCodePreview ? (
+			<TextSaveStatus fileId={file_id} textFileSession={textFileSession} />
+			{textFileSession?.loadError || fileLoadError ? (
+				<DetailEmpty
+					title={t("common.fileNotFoundOrLoadFailed")}
+					onRetry={textFileSession?.refresh ?? refreshFile}
+				/>
+			) : textFileSession && loading ? (
+				<Flex
+					flex={1}
+					align="center"
+					justify="center"
+					className="min-h-0 bg-background"
+					data-testid="text-file-session-loading"
+				>
+					<MagicSpin spinning />
+				</Flex>
+			) : isPureShareCodePreview ? (
 				loading ? (
 					<Flex
 						align="center"
@@ -381,7 +434,7 @@ export default function CodeViewer(props: any) {
 				)
 			) : isEditMode ? (
 				<CodeEditor
-					content={content || ""}
+					content={textFileSession?.draft ?? content ?? ""}
 					fileName={file_name || "file"}
 					isEditMode={isEditMode}
 					onChange={(value) => {
@@ -389,6 +442,7 @@ export default function CodeViewer(props: any) {
 					}}
 					height="100%"
 					showLineNumbers={true}
+					editorOptions={textFileSession?.saving ? { readOnly: true } : undefined}
 					theme="light"
 				/>
 			) : isDeleted ? (

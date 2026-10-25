@@ -23,7 +23,7 @@ vi.mock("../../../../contents/HTML/utils/full-content", () => ({
 	getFullContent: (content: string) => content,
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			warn: vi.fn(),

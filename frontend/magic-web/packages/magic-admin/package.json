@@ -43,6 +43,10 @@
 		"./ServiceIcon": {
 			"types": "./dist/types/src/pages/PlatformPackage/components/ServiceIcon/index.d.ts",
 			"import": "./dist/src/pages/PlatformPackage/components/ServiceIcon/index.js"
+		},
+		"./utils/tablerIconLoader": {
+			"types": "./dist/types/src/utils/tablerIconLoader.d.ts",
+			"import": "./dist/src/utils/tablerIconLoader.js"
 		}
 	},
 	"main": "dist/index.js",
@@ -98,12 +102,12 @@
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@dtyq/eslint-config": "~0.0.10",
-		"@dtyq/upload-sdk": "~0.0.9",
+		"@dtyq/upload-sdk": "~0.0.12",
 		"@semantic-release/changelog": "^6.0.1",
 		"@semantic-release/git": "^10.0.1",
 		"@semantic-release/gitlab": "^9.4.1",
 		"@semantic-release/npm": "^9.0.1",
-		"@tabler/icons-react": "^3.38.0",
+		"@tabler/icons-react": "~3.46.0",
 		"@types/lodash-es": "^4.17.12",
 		"@types/node": "^25.0.10",
 		"@types/react": "^18.3.2",
@@ -116,9 +120,11 @@
 		"axios": "^1.8.4",
 		"commitlint": "21.0.1",
 		"dayjs": "^1.11.13",
+		"eslint": "^8.23.0",
 		"husky": "^9.1.7",
 		"i18next": "^24.2.2",
 		"i18next-resources-to-backend": "^1.2.1",
+		"jszip": "^3.10.1",
 		"less": "^4.3.0",
 		"libphonenumber-js": "^1.12.7",
 		"lint-staged": "^15.4.3",
@@ -160,8 +166,7 @@
 		"dayjs": ">= 1.11.0",
 		"i18next": ">= 23.0.0",
 		"libphonenumber-js": ">= 1.12.7",
-		"lodash-es": ">= 4.17.0",
-		"lodash": ">= 4.17.0",
+		"lodash-es": "^4.17.21",
 		"lucide-react": ">= 0.577.0",
 		"nanoid": ">= 5.1.5",
 		"react": ">= 17.0.0",

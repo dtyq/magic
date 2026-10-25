@@ -1,3 +1,4 @@
+import { FileAccessProvider } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { lazy, Suspense } from "react"
 import { useMemoizedFn } from "ahooks"
@@ -13,6 +14,8 @@ import EditionActivityModal from "@/components/business/EditionActivity/Modal"
 import { MobileImagePreviewProvider } from "@/pages/superMagic/components/MessageEditor/components/AtItem/components/MobileImagePreview"
 import { projectStore, topicStore, workspaceStore } from "../../stores/core"
 import ProjectOrganizationAccessBoundary from "../../components/ProjectOrganizationAccessBoundary"
+import SuperMagicDebugMenu from "../../components/SuperMagicDebugMenu"
+import type { ProjectRouteRestoreOptions } from "../../hooks/useProjectOrganizationAccessRouteRestore"
 
 const MainLayoutDesktop = lazy(() => import("./index.desktop"))
 const MainLayoutMobile = lazy(() => import("@/pages/superMagicMobile/layout/MainLayout"))
@@ -25,28 +28,36 @@ function MainLayout() {
 
 	useProjectTitle()
 
-	const restoreStateFromPathname = useMemoizedFn((pathname: string) => {
-		const stateParams = resolveSuperPopRefreshParams(pathname)
-		if (!stateParams) return
+	const restoreStateFromPathname = useMemoizedFn(
+		(pathname: string, options?: ProjectRouteRestoreOptions) => {
+			const stateParams = resolveSuperPopRefreshParams(pathname)
+			if (!stateParams) return
 
-		const needsRestore =
-			Boolean(
-				stateParams.workspaceId &&
-				workspaceStore.selectedWorkspace?.id !== stateParams.workspaceId,
-			) ||
-			Boolean(
-				stateParams.projectId && projectStore.selectedProject?.id !== stateParams.projectId,
-			) ||
-			Boolean(stateParams.topicId && topicStore.selectedTopic?.id !== stateParams.topicId)
+			const needsRestore =
+				Boolean(!stateParams.projectId && projectStore.selectedProject) ||
+				Boolean(!stateParams.projectId && topicStore.selectedTopic) ||
+				Boolean(
+					stateParams.projectId && !stateParams.topicId && topicStore.selectedTopic,
+				) ||
+				Boolean(
+					stateParams.workspaceId &&
+					workspaceStore.selectedWorkspace?.id !== stateParams.workspaceId,
+				) ||
+				Boolean(
+					stateParams.projectId &&
+					projectStore.selectedProject?.id !== stateParams.projectId,
+				) ||
+				Boolean(stateParams.topicId && topicStore.selectedTopic?.id !== stateParams.topicId)
 
-		if (!needsRestore) return
+			if (!needsRestore) return
 
-		if (isMobile) {
-			SuperMagicService.refreshState(stateParams)
-		} else {
-			SuperMagicService.initializeState(stateParams)
-		}
-	})
+			if (isMobile) {
+				void SuperMagicService.refreshState({ ...stateParams, ...options })
+			} else {
+				void SuperMagicService.initializeState({ ...stateParams, ...options })
+			}
+		},
+	)
 
 	// 暂时注释掉，因为 appInitPromise 会在 app 初始化完成后自动触发
 	// 后续需要再恢复
@@ -75,8 +86,15 @@ function MainLayout() {
 			<GuideTourWrapper isMobile={isMobile} />
 			{/* 私有化部署不显示活动弹窗 */}
 			{!isPrivateDeployment() && <EditionActivityModal />}
+			<SuperMagicDebugMenu />
 		</ProjectOrganizationAccessBoundary>
 	)
 }
 
-export default MainLayout
+export default function FileAccessPage() {
+	return (
+		<FileAccessProvider>
+			<MainLayout />
+		</FileAccessProvider>
+	)
+}

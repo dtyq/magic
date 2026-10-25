@@ -4,6 +4,14 @@
  */
 
 /**
+ * Signed OSS URLs must retain a small usable window after a caller receives
+ * them. This gives clipboard writes and the following paste/download time to
+ * complete instead of handing consumers a link that is technically valid but
+ * about to expire.
+ */
+export const OSS_URL_EXPIRY_SAFETY_WINDOW_MS = 30_000
+
+/**
  * 解析 expires_at 字符串为时间戳
  * @param expiresAt 格式: 2026-03-03 11:14:03
  * @returns 时间戳（毫秒），解析失败返回 null
@@ -23,4 +31,17 @@ export function parseExpiresAt(expiresAt: string | undefined): number | null {
 export function isOssExpired(expiresAtTs: number | null): boolean {
 	if (expiresAtTs === null) return false
 	return Date.now() >= expiresAtTs
+}
+
+/**
+ * Treat a signed URL inside the safety window as unusable for new work.
+ * Missing legacy expiry metadata remains compatible with the existing TTL
+ * fallback owned by the URL cache.
+ */
+export function isOssExpiring(
+	expiresAt: string | undefined,
+	safetyWindowMs = OSS_URL_EXPIRY_SAFETY_WINDOW_MS,
+): boolean {
+	const expiresAtTs = parseExpiresAt(expiresAt)
+	return expiresAtTs !== null && expiresAtTs - Date.now() <= safetyWindowMs
 }

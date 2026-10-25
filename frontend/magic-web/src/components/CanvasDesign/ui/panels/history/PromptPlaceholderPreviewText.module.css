@@ -1,17 +1,43 @@
-.placeholderButton {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
+.placeholderButton,
+.opaquePlaceholder {
+	/*
+	 * These are text mentions, not flex-layout controls. Keeping them as
+	 * inline-flex makes a wrapped long filename distribute each line using
+	 * `justify-content: center`, which visually centers continuation lines.
+	 */
+	display: inline !important;
 	padding: 0 4px;
 	color: rgb(37 99 235);
 	font-weight: 500;
 	font-size: inherit;
 	line-height: 20px;
+	text-align: left;
 	vertical-align: baseline;
+	white-space: normal !important;
+	word-break: break-all;
+	overflow-wrap: anywhere;
+}
+
+.placeholderButton {
 	border: none;
 	border-radius: 0;
 	outline: none;
 	cursor: pointer;
+}
+
+.opaquePlaceholder {
+	cursor: default;
+}
+
+.deletedPlaceholder {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 4px;
+	color: rgb(220 38 38);
+	font-weight: 500;
+	font-size: inherit;
+	line-height: 20px;
+	vertical-align: baseline;
 }
 
 /* .placeholderButton:hover {

@@ -115,7 +115,8 @@ describe("useCreateTopicListener", () => {
 		renderHook(() => useCreateTopicListener())
 
 		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1] as
-			((payload?: { topicMode?: TopicMode }) => void) | undefined
+			| ((payload?: { topicMode?: TopicMode }) => void)
+			| undefined
 		expect(handler).toBeTypeOf("function")
 
 		topicStoreMock.selectedTopic = latestTopic
@@ -134,7 +135,8 @@ describe("useCreateTopicListener", () => {
 		renderHook(() => useCreateTopicListener())
 
 		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1] as
-			((payload?: { topicMode?: TopicMode }) => void) | undefined
+			| ((payload?: { topicMode?: TopicMode }) => void)
+			| undefined
 		expect(handler).toBeTypeOf("function")
 
 		handler?.({ topicMode: "SMA-employee-code-2" as TopicMode })
@@ -160,7 +162,8 @@ describe("useCreateTopicListener", () => {
 		renderHook(() => useCreateTopicListener())
 
 		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1] as
-			((payload?: { topicMode?: TopicMode }) => void) | undefined
+			| ((payload?: { topicMode?: TopicMode }) => void)
+			| undefined
 		handler?.({ topicMode: "configured-agent" as TopicMode })
 
 		expect(SuperMagicService.handleCreateTopic).toHaveBeenCalledWith({
@@ -234,7 +237,8 @@ describe("useCreateTopicListener", () => {
 		renderHook(() => useCreateTopicListener({ topicStore: topicStoreMock as any }))
 
 		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1] as
-			((payload?: { topicMode?: TopicMode }) => void) | undefined
+			| ((payload?: { topicMode?: TopicMode }) => void)
+			| undefined
 		expect(handler).toBeTypeOf("function")
 
 		handler?.({ topicMode: "ip-manager" as TopicMode })
@@ -248,6 +252,32 @@ describe("useCreateTopicListener", () => {
 					topic_mode: "ip-manager",
 					agent_code: undefined,
 				},
+			})
+		})
+	})
+
+	it("targets the newly created scoped topic when sending after creation", async () => {
+		renderHook(() => useCreateTopicListener({ topicStore: topicStoreMock as any }))
+
+		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1] as
+			| ((payload?: {
+					topicMode?: TopicMode
+					afterCreate?: { content: { type: string; content: any[] }; send?: boolean }
+			  }) => void)
+			| undefined
+		const content = { type: "doc", content: [] }
+		handler?.({ afterCreate: { content, send: true } })
+
+		await waitFor(() => {
+			expect(pubsub.publish).toHaveBeenCalledWith(PubSubEvents.Send_Message_by_Content, {
+				jsonContent: content,
+				topicMode: undefined,
+				selectedModel: undefined,
+				selectedImageModel: undefined,
+				selectedVideoModel: undefined,
+				shouldClearEditorAfterSend: undefined,
+				extra: undefined,
+				targetTopic: expect.objectContaining({ id: "topic-new" }),
 			})
 		})
 	})

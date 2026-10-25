@@ -49,6 +49,13 @@ enum WorkspaceType: string
     case UserSpecial = 'user_special';
 
     /**
+     * AI canvas workspace type for the dedicated AI canvas entry.
+     * Each user has at most one AI canvas workspace per organization.
+     * Managed programmatically via the app workspace endpoint; not user-selectable via API.
+     */
+    case AiCanvas = 'ai-canvas';
+
+    /**
      * Get all available workspace types (including internal types).
      *
      * @return array<string>
@@ -63,6 +70,7 @@ enum WorkspaceType: string
             self::Chat->value,
             self::MicroApp->value,
             self::UserSpecial->value,
+            self::AiCanvas->value,
         ];
     }
 

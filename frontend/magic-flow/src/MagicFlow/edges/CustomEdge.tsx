@@ -1,4 +1,4 @@
-import { IconPlus } from "@douyinfe/semi-icons"
+import { IconPlus } from "@tabler/icons-react"
 import { Popover } from "antd"
 import { useUpdateEffect } from "ahooks"
 import clsx from "clsx"
@@ -134,6 +134,8 @@ function CustomEdgeComponent({
 						open={popupOpen}
 					>
 						<IconPlus
+							size={16}
+							stroke={2}
 							className={clsx(styles.addIcon, `${prefix}add-icon`)}
 							style={{
 								background: style?.stroke,

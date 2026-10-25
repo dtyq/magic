@@ -5,6 +5,11 @@ import type {
 	ImageResourceWorkerResponse,
 	ImageResourceWorkerReadyMessage,
 } from "./imageResource.worker"
+import {
+	DEFAULT_MEDIA_DECODE_CONCURRENT_PIXEL_BUDGET,
+	getMediaDecodePriorityRank,
+	type MediaDecodePriority,
+} from "../offline-cache/MediaDecodePixelBudget"
 
 interface ImageResourceWorkerOwnerInfo {
 	ownerId: string
@@ -14,22 +19,41 @@ interface ImageResourceWorkerOwnerInfo {
 
 interface PendingWorkerRequest {
 	ownerId: string
+	request: ImageResourceWorkerRequest
 	resolve: (response: ImageResourceWorkerResponse) => void
 	reject: (error: Error) => void
 	signal?: AbortSignal
 	abortListener?: () => void
+	priority: MediaDecodePriority
+	pixelCost: number
+	sequence: number
 }
 
 export interface ImageResourceWorkerClientLease {
 	send(
 		request: ImageResourceWorkerRequest,
-		options?: { signal?: AbortSignal },
+		options?: ImageResourceWorkerSendOptions,
 	): Promise<ImageResourceWorkerResponse>
+	getSnapshot(): ImageResourceWorkerClientSnapshot
 	release(error?: Error): void
 	cancelAll(error?: Error): void
 }
 
+export interface ImageResourceWorkerClientSnapshot {
+	activeRequestCount: number
+	activePixelCost: number
+	queuedRequestCount: number
+}
+
+export interface ImageResourceWorkerSendOptions {
+	signal?: AbortSignal
+	priority?: MediaDecodePriority
+	pixelCost?: number
+}
+
 const WORKER_TERMINATE_DELAY_MS = 30 * 1000
+const MAX_ACTIVE_WORKER_REQUESTS = 4
+const MAX_ACTIVE_DECODE_PIXELS = DEFAULT_MEDIA_DECODE_CONCURRENT_PIXEL_BUDGET
 
 function isWorkerReadyMessage(
 	message: ImageResourceWorkerMessage,
@@ -37,14 +61,20 @@ function isWorkerReadyMessage(
 	return "type" in message && message.type === "ready"
 }
 
-class SharedImageResourceWorkerClient {
+export class ImageResourceWorkerClient {
 	private static prewarmRequestIdSeed = 0
 
 	private worker: Worker | null = null
 	private terminateTimer: ReturnType<typeof setTimeout> | null = null
 	private readonly activeOwners = new Map<string, ImageResourceWorkerOwnerInfo>()
 	private readonly pendingRequests = new Map<string, PendingWorkerRequest>()
+	private readonly queuedRequestIds: string[] = []
+	private readonly activeRequests = new Map<string, { pixelCost: number }>()
+	private activePixelCost = 0
+	private requestSequence = 0
 	private prewarmPromise: Promise<void> | null = null
+
+	constructor(private readonly createWorker: () => Worker = () => new ImageResourceWorker()) {}
 
 	public prewarm(reason: string): Promise<void> {
 		if (typeof Worker !== "function") return Promise.resolve()
@@ -56,16 +86,19 @@ class SharedImageResourceWorkerClient {
 			managerInstanceId: 0,
 		}
 		const lease = this.acquire(owner)
-		const requestId = `prewarm-${++SharedImageResourceWorkerClient.prewarmRequestIdSeed}`
+		const requestId = `prewarm-${++ImageResourceWorkerClient.prewarmRequestIdSeed}`
 		const startedAt = Date.now()
 
 		const promise = lease
-			.send({
-				type: "warmup",
-				requestId: `${requestId}:${reason}`,
-				mainThreadSentAt: startedAt,
-				variant: "preview",
-			})
+			.send(
+				{
+					type: "warmup",
+					requestId: `${requestId}:${reason}`,
+					mainThreadSentAt: startedAt,
+					variant: "preview",
+				},
+				{ priority: "background" },
+			)
 			.then(() => undefined)
 			.catch(() => undefined)
 			.finally(() => {
@@ -86,6 +119,7 @@ class SharedImageResourceWorkerClient {
 		let released = false
 		return {
 			send: (request, options) => this.send(owner, request, options),
+			getSnapshot: () => this.getSnapshot(),
 			cancelAll: (error) => {
 				this.cancelOwnerRequests(
 					owner.ownerId,
@@ -100,10 +134,18 @@ class SharedImageResourceWorkerClient {
 		}
 	}
 
+	public getSnapshot(): ImageResourceWorkerClientSnapshot {
+		return {
+			activeRequestCount: this.activeRequests.size,
+			activePixelCost: this.activePixelCost,
+			queuedRequestCount: this.queuedRequestIds.length,
+		}
+	}
+
 	private send(
 		owner: ImageResourceWorkerOwnerInfo,
 		request: ImageResourceWorkerRequest,
-		options?: { signal?: AbortSignal },
+		options?: ImageResourceWorkerSendOptions,
 	): Promise<ImageResourceWorkerResponse> {
 		if (!this.activeOwners.has(owner.ownerId)) {
 			return Promise.reject(new Error("ImageResourceWorkerClient owner released"))
@@ -122,36 +164,111 @@ class SharedImageResourceWorkerClient {
 			const abortListener = () => {
 				this.cancelRequest(request.requestId, createAbortError())
 			}
-			this.pendingRequests.set(request.requestId, {
+			const pending: PendingWorkerRequest = {
 				ownerId: owner.ownerId,
+				request,
 				resolve,
 				reject,
 				signal: options?.signal,
 				abortListener,
-			})
-			options?.signal?.addEventListener("abort", abortListener, { once: true })
-			try {
-				const transferables: Transferable[] = []
-				if (request.type === "encode-persistent-low" && request.imageSource) {
-					transferables.push(request.imageSource)
-				}
-				if (transferables.length > 0) {
-					this.getWorker().postMessage(request, { transfer: transferables })
-				} else {
-					this.getWorker().postMessage(request)
-				}
-			} catch (error) {
-				request.imageSource?.close()
-				this.removePendingRequest(request.requestId)
-				reject(error instanceof Error ? error : new Error(String(error)))
+				priority: options?.priority ?? "background",
+				pixelCost: Math.max(0, Math.ceil(options?.pixelCost ?? 0)),
+				sequence: ++this.requestSequence,
 			}
+			this.pendingRequests.set(request.requestId, pending)
+			options?.signal?.addEventListener("abort", abortListener, { once: true })
+			this.queuedRequestIds.push(request.requestId)
+			this.pump()
 		})
+	}
+
+	private pump(): void {
+		if (this.pendingRequests.size === 0) return
+		while (this.activeRequests.size < MAX_ACTIVE_WORKER_REQUESTS) {
+			this.sortQueuedRequests()
+			const queueIndex = this.findRunnableRequestIndex()
+			if (queueIndex < 0) return
+			const requestId = this.queuedRequestIds.splice(queueIndex, 1)[0]
+			const pending = this.pendingRequests.get(requestId)
+			if (!pending) continue
+			this.postRequest(requestId, pending)
+		}
+	}
+
+	private sortQueuedRequests(): void {
+		this.queuedRequestIds.sort((leftId, rightId) => {
+			const left = this.pendingRequests.get(leftId)
+			const right = this.pendingRequests.get(rightId)
+			if (!left || !right) return 0
+			const priorityDiff =
+				getMediaDecodePriorityRank(left.priority) -
+				getMediaDecodePriorityRank(right.priority)
+			return priorityDiff !== 0 ? priorityDiff : left.sequence - right.sequence
+		})
+	}
+
+	private findRunnableRequestIndex(): number {
+		while (this.queuedRequestIds.length > 0) {
+			const requestId = this.queuedRequestIds[0]
+			if (this.pendingRequests.has(requestId)) break
+			this.queuedRequestIds.shift()
+		}
+		const firstRequestId = this.queuedRequestIds[0]
+		if (!firstRequestId) return -1
+		const firstPending = this.pendingRequests.get(firstRequestId)
+		if (!firstPending) return -1
+		const firstPriorityRank = getMediaDecodePriorityRank(firstPending.priority)
+
+		for (let index = 0; index < this.queuedRequestIds.length; index += 1) {
+			const requestId = this.queuedRequestIds[index]
+			const pending = this.pendingRequests.get(requestId)
+			if (!pending) continue
+			// Never let a lower-priority request overtake the highest-priority queue band.
+			if (getMediaDecodePriorityRank(pending.priority) !== firstPriorityRank) break
+			if (
+				this.activeRequests.size === 0 ||
+				this.activePixelCost + pending.pixelCost <= MAX_ACTIVE_DECODE_PIXELS
+			) {
+				return index
+			}
+		}
+
+		return -1
+	}
+
+	private postRequest(requestId: string, pending: PendingWorkerRequest): void {
+		try {
+			const worker = this.getWorker()
+			this.activeRequests.set(requestId, { pixelCost: pending.pixelCost })
+			this.activePixelCost += pending.pixelCost
+			const transferables: Transferable[] = []
+			if (pending.request.type === "encode-persistent-low" && pending.request.imageSource) {
+				transferables.push(pending.request.imageSource)
+			}
+			if (transferables.length > 0) {
+				worker.postMessage(pending.request, { transfer: transferables })
+			} else {
+				worker.postMessage(pending.request)
+			}
+		} catch (error) {
+			this.releaseActiveRequest(requestId)
+			pending.request.imageSource?.close()
+			this.removePendingRequest(requestId)
+			pending.reject(error instanceof Error ? error : new Error(String(error)))
+		}
+	}
+
+	private releaseActiveRequest(requestId: string): void {
+		const active = this.activeRequests.get(requestId)
+		if (!active) return
+		this.activeRequests.delete(requestId)
+		this.activePixelCost = Math.max(0, this.activePixelCost - active.pixelCost)
 	}
 
 	private getWorker(): Worker {
 		if (this.worker) return this.worker
 
-		const worker = new ImageResourceWorker()
+		const worker = this.createWorker()
 		this.worker = worker
 
 		worker.onmessage = (event: MessageEvent<ImageResourceWorkerMessage>) => {
@@ -164,13 +281,16 @@ class SharedImageResourceWorkerClient {
 			}
 
 			const { requestId } = message
+			this.releaseActiveRequest(requestId)
 			const pending = this.pendingRequests.get(requestId)
 			if (!pending) {
 				message.imageSource?.close()
+				this.pump()
 				return
 			}
 			this.removePendingRequest(requestId)
 			pending.resolve(message)
+			this.pump()
 		}
 
 		worker.onerror = (event) => {
@@ -204,14 +324,32 @@ class SharedImageResourceWorkerClient {
 	}
 
 	private rejectAll(error: Error): void {
-		this.pendingRequests.forEach((_, requestId) => {
-			this.cancelRequest(requestId, error)
+		const activeRequestIds = new Set(this.activeRequests.keys())
+		const requests = [...this.pendingRequests.entries()]
+		this.pendingRequests.clear()
+		this.queuedRequestIds.length = 0
+		this.activeRequests.clear()
+		this.activePixelCost = 0
+		requests.forEach(([requestId, pending]) => {
+			if (pending.abortListener) {
+				pending.signal?.removeEventListener("abort", pending.abortListener)
+			}
+			if (!activeRequestIds.has(requestId)) pending.request.imageSource?.close()
+			pending.reject(error)
 		})
 	}
 
 	private cancelRequest(requestId: string, error: Error): void {
+		const queueIndex = this.queuedRequestIds.indexOf(requestId)
+		if (queueIndex >= 0) this.queuedRequestIds.splice(queueIndex, 1)
 		const pending = this.removePendingRequest(requestId)
 		if (!pending) return
+		pending.reject(error)
+		if (queueIndex >= 0) {
+			pending.request.imageSource?.close()
+			this.pump()
+			return
+		}
 		try {
 			this.worker?.postMessage({
 				type: "cancel",
@@ -221,7 +359,6 @@ class SharedImageResourceWorkerClient {
 		} catch {
 			// A terminating worker cannot receive a cancellation message; rejecting the caller is enough.
 		}
-		pending.reject(error)
 	}
 
 	private removePendingRequest(requestId: string): PendingWorkerRequest | undefined {
@@ -254,6 +391,9 @@ class SharedImageResourceWorkerClient {
 		this.cancelScheduledTerminate()
 		this.worker.terminate()
 		this.worker = null
+		this.queuedRequestIds.length = 0
+		this.activeRequests.clear()
+		this.activePixelCost = 0
 	}
 }
 
@@ -263,7 +403,7 @@ function createAbortError(): Error {
 	return error
 }
 
-const sharedImageResourceWorkerClient = new SharedImageResourceWorkerClient()
+const sharedImageResourceWorkerClient = new ImageResourceWorkerClient()
 
 export function acquireImageResourceWorkerClient(
 	owner: ImageResourceWorkerOwnerInfo,

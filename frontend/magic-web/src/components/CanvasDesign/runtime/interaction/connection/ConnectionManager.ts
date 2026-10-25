@@ -1,15 +1,24 @@
 import type { Canvas } from "../../core/Canvas"
-import type { CanvasConnection, CanvasDocument } from "../../document/types"
+import { getActiveContent, updateContent } from "../../document/elementContent"
 import type { CanvasDocumentPatch } from "../../document/patch"
+import {
+	ElementTypeEnum,
+	type CanvasConnection,
+	type CanvasDocument,
+	type VideoEditElementContent,
+} from "../../document/types"
 import type { Rect } from "../../shared/ids"
 import { generateConnectionId } from "../../shared/ids"
 import { ConnectionHitTestService } from "./ConnectionHitTestService"
 import { ConnectionRenderer } from "./ConnectionRenderer"
 import { ConnectionStore } from "./ConnectionStore"
+import { collectConnectedVideoEditInputs } from "./connectedInputSources"
 
 export class ConnectionManager {
 	private canvas: Canvas
 	private store = new ConnectionStore()
+	/** 仅用于运行时预览的连接，元素转正后才允许进入文档持久化。 */
+	private runtimeConnectionIds = new Set<string>()
 	private selectedConnectionIds: Set<string> = new Set()
 	private selectedElementIdsForConnectionHighlight: Set<string> = new Set()
 	private renderer: ConnectionRenderer
@@ -26,7 +35,11 @@ export class ConnectionManager {
 	}
 
 	public loadDocument(doc: CanvasDocument): void {
+		this.runtimeConnectionIds.clear()
 		this.store.load(this.filterExistingConnections(doc.connections ?? []))
+		this.syncVideoEditInputs(
+			this.store.getConnections().map((connection) => connection.targetElementId),
+		)
 		this.hitTester.invalidateAll()
 		this.selectedElementIdsForConnectionHighlight.clear()
 		this.clearSelectedConnections({ render: false })
@@ -134,6 +147,7 @@ export class ConnectionManager {
 			targetElementId: connection.targetElementId,
 		})
 		this.hitTester.invalidateConnections([id])
+		this.syncVideoEditInputs([connection.targetElementId])
 		this.emitChangeAndRender({ changedConnectionIds: [id] })
 		return id
 	}
@@ -175,8 +189,113 @@ export class ConnectionManager {
 			targetElementId,
 		})
 		this.hitTester.invalidateConnections([id])
+		this.syncVideoEditInputs([targetElementId])
 		this.emitChangeAndRender({ changedConnectionIds: [id] })
 		return { status: "created", connectionId: id }
+	}
+
+	/** 创建仅运行时可见的连接，允许连接到临时元素，但不会写入 DSL。 */
+	public connectRuntimeElements(options: { sourceElementId: string; targetElementId: string }):
+		| { status: "created"; connectionId: string }
+		| {
+				status: "invalid"
+				reason: "self" | "missing-element" | "already-connected" | "reverse-existing"
+		  } {
+		const { sourceElementId, targetElementId } = options
+		if (sourceElementId === targetElementId) return { status: "invalid", reason: "self" }
+		if (!this.hasElement(sourceElementId) || !this.hasElement(targetElementId)) {
+			return { status: "invalid", reason: "missing-element" }
+		}
+		if (this.hasConnection(sourceElementId, targetElementId)) {
+			return { status: "invalid", reason: "already-connected" }
+		}
+		if (this.hasReverseConnection(sourceElementId, targetElementId)) {
+			return { status: "invalid", reason: "reverse-existing" }
+		}
+
+		const connectionId = generateConnectionId()
+		if (!this.store.add({ id: connectionId, sourceElementId, targetElementId })) {
+			return { status: "invalid", reason: "already-connected" }
+		}
+		this.runtimeConnectionIds.add(connectionId)
+		this.hitTester.invalidateConnections([connectionId])
+		this.rerenderNow()
+		return { status: "created", connectionId }
+	}
+
+	/** 将运行时连接升级为正式连接，并触发一次文档变更事件。 */
+	public promoteRuntimeConnection(connectionId: string): boolean {
+		if (!this.runtimeConnectionIds.delete(connectionId)) return false
+		if (!this.store.hasConnectionId(connectionId)) return false
+		this.hitTester.invalidateConnections([connectionId])
+		this.emitChangeAndRender({ changedConnectionIds: [connectionId] })
+		return true
+	}
+
+	/**
+	 * 原子创建多条连接。先对整批边做完整预检，任意一条非法时不修改连接存储，
+	 * 成功时只发出一次 connection:change。
+	 */
+	public connectElementsBatch(options: {
+		edges: Array<{
+			sourceElementId: string
+			targetElementId: string
+		}>
+	}):
+		| { status: "created"; connectionIds: string[] }
+		| {
+				status: "invalid"
+				reason:
+					| "empty"
+					| "self"
+					| "missing-element"
+					| "temporary-element"
+					| "already-connected"
+					| "reverse-existing"
+					| "duplicate"
+		  } {
+		const edges = options.edges
+		if (edges.length === 0) return { status: "invalid", reason: "empty" }
+
+		const plannedPairs = new Set<string>()
+		for (const edge of edges) {
+			const { sourceElementId, targetElementId } = edge
+			if (sourceElementId === targetElementId) return { status: "invalid", reason: "self" }
+			if (!this.hasElement(sourceElementId) || !this.hasElement(targetElementId)) {
+				return { status: "invalid", reason: "missing-element" }
+			}
+			if (!this.canPersistConnection(edge)) {
+				return { status: "invalid", reason: "temporary-element" }
+			}
+
+			const pair = `${sourceElementId}\u0000${targetElementId}`
+			const reversePair = `${targetElementId}\u0000${sourceElementId}`
+			if (plannedPairs.has(pair)) return { status: "invalid", reason: "duplicate" }
+			if (plannedPairs.has(reversePair))
+				return { status: "invalid", reason: "reverse-existing" }
+			if (this.hasConnection(sourceElementId, targetElementId)) {
+				return { status: "invalid", reason: "already-connected" }
+			}
+			if (this.hasReverseConnection(sourceElementId, targetElementId)) {
+				return { status: "invalid", reason: "reverse-existing" }
+			}
+			plannedPairs.add(pair)
+		}
+
+		const connectionIds: string[] = []
+		for (const edge of edges) {
+			const id = generateConnectionId()
+			connectionIds.push(id)
+			this.store.add({
+				id,
+				sourceElementId: edge.sourceElementId,
+				targetElementId: edge.targetElementId,
+			})
+		}
+		this.hitTester.invalidateConnections(connectionIds)
+		this.syncVideoEditInputs(edges.map((edge) => edge.targetElementId))
+		this.emitChangeAndRender({ changedConnectionIds: connectionIds })
+		return { status: "created", connectionIds }
 	}
 
 	public replaceConnectionSelection(
@@ -264,13 +383,20 @@ export class ConnectionManager {
 		connectionIds: string[],
 		options?: { emitChange?: boolean },
 	): string[] {
+		const affectedTargetElementIds = this.store
+			.getConnectionsByIds(connectionIds)
+			.map((connection) => connection.targetElementId)
 		const deletedConnectionIds = this.store.removeConnections(connectionIds)
 		if (deletedConnectionIds.length === 0) {
 			return []
 		}
+		deletedConnectionIds.forEach((connectionId) =>
+			this.runtimeConnectionIds.delete(connectionId),
+		)
 
 		this.hitTester.invalidateConnections(deletedConnectionIds)
 		this.removeSelectedConnectionIds(deletedConnectionIds, { render: false })
+		this.syncVideoEditInputs(affectedTargetElementIds)
 		if (options?.emitChange === false) {
 			this.rerenderNow()
 			return deletedConnectionIds
@@ -283,13 +409,21 @@ export class ConnectionManager {
 		elementId: string,
 		options?: { emitChange?: boolean },
 	): void {
-		const deletedConnectionIds = this.store.removeConnectionsByElementId(elementId)
+		const connectionIds = this.store.getConnectionIdsByElementId(elementId)
+		const affectedTargetElementIds = this.store
+			.getConnectionsByIds(connectionIds)
+			.map((connection) => connection.targetElementId)
+		const deletedConnectionIds = this.store.removeConnections(connectionIds)
 		if (deletedConnectionIds.length === 0) {
 			return
 		}
+		deletedConnectionIds.forEach((connectionId) =>
+			this.runtimeConnectionIds.delete(connectionId),
+		)
 
 		this.hitTester.invalidateConnections(deletedConnectionIds)
 		this.removeSelectedConnectionIds(deletedConnectionIds, { render: false })
+		this.syncVideoEditInputs(affectedTargetElementIds)
 		if (options?.emitChange === false) {
 			this.rerenderNow()
 			return
@@ -298,6 +432,9 @@ export class ConnectionManager {
 	}
 
 	public clear(options?: { emitChange?: boolean }): void {
+		const affectedTargetElementIds = this.store
+			.getConnections()
+			.map((connection) => connection.targetElementId)
 		this.clearSelectedConnections({ render: false })
 		if (this.store.isEmpty()) {
 			this.renderer.clear()
@@ -306,7 +443,9 @@ export class ConnectionManager {
 
 		const deletedConnectionIds = this.store.getConnectionIds()
 		this.store.clear()
+		this.runtimeConnectionIds.clear()
 		this.hitTester.invalidateAll()
+		this.syncVideoEditInputs(affectedTargetElementIds)
 		if (options?.emitChange === false) {
 			this.renderer.clear()
 			return
@@ -328,6 +467,7 @@ export class ConnectionManager {
 		this.unsubscribers = []
 		this.renderer.destroy()
 		this.store.clear()
+		this.runtimeConnectionIds.clear()
 		this.hitTester.invalidateAll()
 		this.selectedConnectionIds.clear()
 		this.selectedElementIdsForConnectionHighlight.clear()
@@ -354,6 +494,19 @@ export class ConnectionManager {
 		}
 		const rerenderAfterElementGeometryChange = (event: { data: { elementId: string } }) => {
 			this.hitTester.invalidateElements([event.data.elementId])
+			this.rerenderNow()
+		}
+		const rerenderAfterBatchElementUpdate = (event: { data?: { elementIds?: string[] } }) => {
+			// ElementManager coalesces a batch into one event. Invalidate only the
+			// affected endpoint geometry when the producer provides IDs; older callers
+			// may still emit undefined, which conservatively keeps the old full flush.
+			const elementIds = event.data?.elementIds ?? []
+			if (elementIds.length > 0) this.hitTester.invalidateElements(elementIds)
+			else this.hitTester.invalidateAll()
+			this.rerenderNow()
+		}
+		const clearHoverAndRerender = () => {
+			this.renderer.clearHover()
 			this.rerenderNow()
 		}
 		const scheduleTransformRerender = (event: { data: { elementIds?: string[] } }) => {
@@ -391,6 +544,8 @@ export class ConnectionManager {
 			this.canvas.eventEmitter.on("connection:change", rerenderAfterConnectionChange),
 			this.canvas.eventEmitter.on("document:loaded", rerender),
 			this.canvas.eventEmitter.on("document:restored", rerender),
+			this.canvas.eventEmitter.on("permission:changed", clearHoverAndRerender),
+			this.canvas.eventEmitter.on("tool:change", clearHoverAndRerender),
 			this.canvas.eventEmitter.on("canvas:clear", clearSelection),
 			this.canvas.eventEmitter.on(
 				"element:select",
@@ -402,6 +557,7 @@ export class ConnectionManager {
 			),
 			this.canvas.eventEmitter.on("element:updated", rerenderAfterElementGeometryChange),
 			this.canvas.eventEmitter.on("element:rerendered", rerenderAfterElementGeometryChange),
+			this.canvas.eventEmitter.on("element:batchupdated", rerenderAfterBatchElementUpdate),
 			this.canvas.eventEmitter.on("elements:transform:dragmove", scheduleTransformRerender),
 			this.canvas.eventEmitter.on(
 				"elements:transform:anchorDragmove",
@@ -616,10 +772,74 @@ export class ConnectionManager {
 		})
 	}
 
+	/**
+	 * Reconciles persisted VideoEdit order with the current connection graph.
+	 * Existing connected videos keep their user order; new connections append.
+	 */
+	private syncVideoEditInputs(targetElementIds: Iterable<string>): void {
+		const elementManager = this.canvas.elementManager
+		const uniqueTargetIds = new Set(targetElementIds)
+		uniqueTargetIds.forEach((targetElementId) => {
+			const target = elementManager.getElementData(targetElementId)
+			if (!target || target.type !== ElementTypeEnum.VideoEdit) return
+
+			const content = getActiveContent<VideoEditElementContent>(target)
+			if (!content) return
+			const connected = collectConnectedVideoEditInputs(this.canvas, targetElementId)
+			const connectedSet = new Set(connected.videoElementIds)
+			const nextVideoSequence: string[] = []
+			;(content.videoSequence ?? []).forEach((elementId) => {
+				if (connectedSet.has(elementId) && !nextVideoSequence.includes(elementId)) {
+					nextVideoSequence.push(elementId)
+				}
+			})
+			connected.videoElementIds.forEach((elementId) => {
+				if (!nextVideoSequence.includes(elementId)) nextVideoSequence.push(elementId)
+			})
+			const connectedAudioSet = new Set(connected.audioElementIds)
+			const nextAudioSequence: string[] = []
+			;(content.audioSequence ?? []).forEach((elementId) => {
+				if (connectedAudioSet.has(elementId) && !nextAudioSequence.includes(elementId)) {
+					nextAudioSequence.push(elementId)
+				}
+			})
+			connected.audioElementIds.forEach((elementId) => {
+				if (!nextAudioSequence.includes(elementId)) nextAudioSequence.push(elementId)
+			})
+
+			const currentSequence = content.videoSequence ?? []
+			const currentAudioSequence = content.audioSequence ?? []
+			if (
+				currentSequence.length === nextVideoSequence.length &&
+				currentSequence.every(
+					(elementId, index) => elementId === nextVideoSequence[index],
+				) &&
+				currentAudioSequence.length === nextAudioSequence.length &&
+				currentAudioSequence.every(
+					(elementId, index) => elementId === nextAudioSequence[index],
+				)
+			) {
+				return
+			}
+
+			const next = updateContent(target, target.activeContentId ?? undefined, {
+				videoSequence: nextVideoSequence,
+				audioSequence: nextAudioSequence,
+			})
+			if (next !== target) elementManager.update(targetElementId, { contents: next.contents })
+		})
+	}
+
+	/** Reconciles every VideoEdit after element and connection documents are loaded. */
+	public normalizeVideoEditInputs(): void {
+		this.syncVideoEditInputs(this.canvas.elementManager.getAllElementIds())
+	}
+
 	private getRenderableConnections(): CanvasConnection[] {
 		return this.store.getConnections().filter((connection) => {
 			return (
-				this.canPersistConnection(connection) &&
+				(this.runtimeConnectionIds.has(connection.id) ||
+					this.canPersistConnection(connection)) &&
 				this.isElementVisible(connection.sourceElementId) &&
 				this.isElementVisible(connection.targetElementId)
 			)

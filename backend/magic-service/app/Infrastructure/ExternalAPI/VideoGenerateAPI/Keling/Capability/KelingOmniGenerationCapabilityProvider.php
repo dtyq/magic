@@ -80,12 +80,16 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
     public function supportsModel(string $modelVersion, string $modelId): bool
     {
         $normalizedModelId = strtolower(trim($modelId));
+        $normalizedModelVersion = strtolower(trim($modelVersion));
+        $normalizedModelIds = array_map('strtolower', self::MODEL_IDS);
+        $normalizedModelVersions = array_map('strtolower', self::MODEL_VERSIONS);
+
         if ($normalizedModelId !== '') {
-            return in_array($normalizedModelId, self::MODEL_IDS, true)
-                || in_array(strtolower(trim($modelVersion)), self::MODEL_VERSIONS, true);
+            return in_array($normalizedModelId, $normalizedModelIds, true)
+                || in_array($normalizedModelVersion, $normalizedModelVersions, true);
         }
 
-        return in_array(strtolower(trim($modelVersion)), self::MODEL_VERSIONS, true);
+        return in_array($normalizedModelVersion, $normalizedModelVersions, true);
     }
 
     public function resolveGenerationConfig(string $modelVersion, string $modelId): ?VideoGenerationConfig
@@ -98,20 +102,15 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
             // 生成参数使用当前可灵 Omni 的公开能力边界。
             'generation' => [
                 'aspect_ratios' => ['16:9', '9:16', '1:1'],
-                'durations' => [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                'duration_type' => 'range',
+                'durations' => ['min' => 3, 'max' => 15, 'step' => 1],
                 'default_duration_seconds' => self::DEFAULT_DURATION_SECONDS,
                 'resolutions' => ['720p', '1080p', '4k'],
                 'sizes' => self::SUPPORTED_SIZES,
                 'default_resolution' => self::MODE_TO_RESOLUTION[self::DEFAULT_MODE],
-                'supports_seed' => false,
                 'supports_watermark' => true,
                 'supports_negative_prompt' => true,
                 'supports_generate_audio' => true,
-                'supports_person_generation' => false,
-                'supports_enhance_prompt' => false,
-                'supports_compression_quality' => false,
-                'supports_resize_mode' => false,
-                'supports_sample_count' => false,
             ],
             // input_modes 给前端展示用，同时携带提交时需要的 task 信息。
             'input_modes' => [

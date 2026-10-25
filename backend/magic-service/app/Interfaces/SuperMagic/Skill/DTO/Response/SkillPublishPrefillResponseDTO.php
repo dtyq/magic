@@ -17,10 +17,12 @@ class SkillPublishPrefillResponseDTO extends AbstractDTO
 {
     public function __construct(
         private readonly string $version,
+        private readonly string $description,
         private readonly array $versionDescriptionI18n,
         private readonly ?string $publishTargetType,
         private readonly ?array $publishTargetValue,
         private readonly bool $exportFileFromProject = true,
+        private readonly array $categoryIds = [],
     ) {
     }
 
@@ -28,10 +30,13 @@ class SkillPublishPrefillResponseDTO extends AbstractDTO
     {
         return [
             'version' => $this->version,
+            'description' => $this->description,
+            // Deprecated: clients should use the localized description field.
             'version_description_i18n' => $this->versionDescriptionI18n,
             'publish_target_type' => $this->publishTargetType,
             'publish_target_value' => $this->publishTargetValue,
             'export_file_from_project' => $this->exportFileFromProject,
+            'category_ids' => array_map('strval', $this->categoryIds),
         ];
     }
 }

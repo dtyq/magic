@@ -18,7 +18,7 @@ import { Field, FieldError, FieldLabel } from "@/components/shadcn-ui/field"
 import { Input } from "@/components/shadcn-ui/input"
 import MagicModal from "@/components/base/MagicModal"
 import PhoneStateCodeSelect from "@/components/other/PhoneStateCodeSelect"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ChangePhoneModalProps {
 	open: boolean
@@ -151,7 +151,7 @@ export function ChangePhoneModal({
 					<Input
 						value={newPhone}
 						onChange={(event) => {
-							setNewPhone(event.target.value)
+							setNewPhone(event.target.value.trim())
 							setErrors((prev) => ({ ...prev, newPhone: undefined }))
 						}}
 						placeholder={resolveToString(t("form.required"), {

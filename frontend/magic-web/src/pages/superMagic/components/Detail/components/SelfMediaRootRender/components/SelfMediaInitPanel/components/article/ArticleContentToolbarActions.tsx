@@ -1,7 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from "react"
 import { FileText, Smartphone } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import AiActionButton from "../ai/AiActionButton"
 import { selfMediaOverlayStyles } from "../../../selfMediaOverlayStyles"
 

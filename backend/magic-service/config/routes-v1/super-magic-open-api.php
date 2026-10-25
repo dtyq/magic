@@ -4,24 +4,29 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
+use App\Interfaces\Contact\Facade\Open\MagicContactSandboxApi;
+use App\Interfaces\MCP\Facade\OpenApi\MCPAuthorizationCredentialApi;
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
 use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
 use App\Interfaces\SuperMagic\Agent\Facade\OpenApi\OpenSuperMagicAgentApi;
 use App\Interfaces\SuperMagic\Agent\Facade\Sandbox\SkillSandboxApi;
 use App\Interfaces\SuperMagic\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use App\Interfaces\SuperMagic\Common\Share\Facade\ShareApi;
+use App\Interfaces\SuperMagic\Design\Facade\Sandbox\HtmlDesignStyleSandboxApi;
 use App\Interfaces\SuperMagic\File\Facade\InternalApi\FileApi;
 use App\Interfaces\SuperMagic\File\Facade\OpenApi\OpenFileApi;
 use App\Interfaces\SuperMagic\Message\Facade\OpenApi\OpenMessageScheduleApi;
 use App\Interfaces\SuperMagic\Project\Facade\OpenApi\OpenMicroAppApi;
 use App\Interfaces\SuperMagic\Project\Facade\OpenApi\OpenProjectApi;
 use App\Interfaces\SuperMagic\Task\Facade\InternalApi\AiAbilityApi;
+use App\Interfaces\SuperMagic\Task\Facade\InternalApi\FollowUpSuggestionApi;
 use App\Interfaces\SuperMagic\Task\Facade\InternalApi\SandboxApi as InternalSandboxApi;
 use App\Interfaces\SuperMagic\Task\Facade\InternalApi\TaskApi as InternalTaskApi;
 use App\Interfaces\SuperMagic\Task\Facade\OpenApi\OAuth2CallbackRelayApi;
 use App\Interfaces\SuperMagic\Task\Facade\OpenApi\OAuth2CallbackRelayPublicApi;
 use App\Interfaces\SuperMagic\Task\Facade\OpenApi\OpenTaskApi;
 use App\Interfaces\SuperMagic\Task\Facade\SandboxApi;
+use App\Interfaces\SuperMagic\Topic\Facade\OpenApi\OpenTopicApi;
 use App\Interfaces\SuperMagic\Workspace\Facade\OpenApi\OpenWorkspaceApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -55,9 +60,15 @@ Router::addGroup(
         Router::put('/upgrade', [InternalSandboxApi::class, 'upgradeSandbox']);
         // 检查沙箱镜像版本（当前版本 vs 最新版本）
         Router::get('/version-check', [InternalSandboxApi::class, 'checkSandboxVersion']);
+        Router::post('/follow-up-suggestions', [FollowUpSuggestionApi::class, 'report']);
+
+        Router::get('/contact/users/search', [MagicContactSandboxApi::class, 'searchUsers']);
+        Router::get('/contact/departments/search', [MagicContactSandboxApi::class, 'searchDepartments']);
 
         // 文件管理相关
         Router::addGroup('/file', static function () {
+            Router::post('/upload', [OpenFileApi::class, 'uploadProjectFile']);
+            Router::post('/project/batch-save', [OpenFileApi::class, 'batchSaveProjectFiles']);
             // 创建文件版本
             Router::post('/versions', [FileApi::class, 'createFileVersion']);
             // 获取文件最新版本
@@ -80,6 +91,9 @@ Router::addGroup(
         Router::addGroup('/ai-abilities', static function () {
             Router::get('/runtime-config', [AiAbilityApi::class, 'runtimeConfig']);
         });
+
+        // MCP Authorization 运行时凭据
+        Router::get('/mcp/authorization/credential/{code}', [MCPAuthorizationCredentialApi::class, 'getCredential']);
 
         // 分享管理相关
         Router::addGroup('/share/resources', static function () {
@@ -120,6 +134,10 @@ Router::addGroup(
             Router::delete('/{code}/skills', [SuperMagicAgentSandboxApi::class, 'removeAgentSkills']);
         });
 
+        Router::addGroup('/assistants', static function () {
+            Router::post('/assistant-execute', [SuperMagicAgentSandboxApi::class, 'executeAssistant']);
+        });
+
         // OAuth2 callback payload 内部操作接口
         Router::addGroup('/oauth2', static function () {
             Router::get('/callback-relay/fetch-callback', [OAuth2CallbackRelayApi::class, 'fetchCallback']);
@@ -128,6 +146,15 @@ Router::addGroup(
 
         // 技能相关
         Router::addGroup('/skills', static function () {
+            Router::post('', [SkillSandboxApi::class, 'create']);
+            Router::get('/by-project/{projectId}', [SkillSandboxApi::class, 'byProject']);
+            Router::get('/{code}', [SkillSandboxApi::class, 'detail']);
+            Router::get('/{code}/publish/prefill', [SkillSandboxApi::class, 'prefill']);
+            Router::get('/{code}/versions', [SkillSandboxApi::class, 'versions']);
+            Router::post('/{code}/publish/prepare', [SkillSandboxApi::class, 'prepare']);
+            Router::get('/{code}/publish/prepare/check', [SkillSandboxApi::class, 'checkPreparation']);
+            Router::post('/{code}/publish', [SkillSandboxApi::class, 'publish']);
+            Router::get('/{code}/publish/check', [SkillSandboxApi::class, 'checkPublish']);
             // 获取用户技能列表
             Router::post('/queries', [SkillSandboxApi::class, 'queries']);
             // 批量查询当前用户技能的最新已发布当前版本
@@ -142,6 +169,11 @@ Router::addGroup(
         Router::addGroup('/skill-market', static function () {
             // 获取市场技能库列表
             Router::post('/queries', [SkillSandboxApi::class, 'queriesMarket']);
+        });
+
+        // HTML 设计风格源文，供 super-magic 内部 Skill 调用
+        Router::addGroup('/html-design-styles', static function () {
+            Router::get('/{styleCode}/source', [HtmlDesignStyleSandboxApi::class, 'getSource']);
         });
     },
     ['middleware' => [SandboxUserAuthMiddleware::class]]
@@ -166,6 +198,10 @@ Router::addGroup(
         // 数字员工相关
         Router::addGroup('/agents', static function () {
             Router::get('/featured/sort-list', [OpenSuperMagicAgentApi::class, 'sortListQueries']);
+            // Hire a digital employee from the market.
+            Router::post('/{code}/hire', [OpenSuperMagicAgentApi::class, 'hireAgent']);
+            // Fire a digital employee using the existing deletion rules.
+            Router::post('/{code}/fire', [OpenSuperMagicAgentApi::class, 'fireAgent']);
             Router::get('/{code}/models', [OpenSuperMagicAgentApi::class, 'getModels']);
             Router::get('/{code}/default-config', [OpenSuperMagicAgentApi::class, 'getDefaultConfig']);
         });
@@ -210,6 +246,18 @@ Router::addGroup(
             Router::get('/queries', [OpenProjectApi::class, 'index']);
             // 获取项目附件列表
             Router::post('/{id}/attachments', [OpenProjectApi::class, 'getProjectAttachments']);
+        });
+
+        // 话题管理
+        Router::addGroup('/topics', static function () {
+            // 获取话题详情
+            Router::get('/{id}', [OpenTopicApi::class, 'getTopic']);
+            // 创建话题
+            Router::post('', [OpenTopicApi::class, 'createTopic']);
+            // 更新话题
+            Router::put('/{id}', [OpenTopicApi::class, 'updateTopic']);
+            // 删除话题（逻辑删除）
+            Router::post('/delete', [OpenTopicApi::class, 'deleteTopic']);
         });
 
         // 消息定时任务

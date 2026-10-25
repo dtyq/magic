@@ -7,25 +7,25 @@ import { useMemoizedFn } from "ahooks"
  */
 export function useDeferUntilFileTabsCacheLoaded(projectId: string | undefined) {
 	const readyRef = useRef(false)
-	const pendingRef = useRef<(() => void) | null>(null)
+	const pendingCallbacksRef = useRef(new Map<string, () => void>())
 	const projectIdRef = useRef(projectId)
 	projectIdRef.current = projectId
 
 	useEffect(() => {
 		readyRef.current = false
-		pendingRef.current = null
+		pendingCallbacksRef.current.clear()
 	}, [projectId])
 
 	const onFileTabsCacheLoaded = useMemoizedFn((loadedProjectId: string) => {
 		const current = projectIdRef.current
 		if (!current || loadedProjectId !== current) return
 		readyRef.current = true
-		const pending = pendingRef.current
-		pendingRef.current = null
-		if (pending) window.setTimeout(pending, 0)
+		const pendingCallbacks = Array.from(pendingCallbacksRef.current.values())
+		pendingCallbacksRef.current.clear()
+		pendingCallbacks.forEach((callback) => window.setTimeout(callback, 0))
 	})
 
-	const scheduleWhenTabsCacheReady = useMemoizedFn((fn: () => void) => {
+	const scheduleWhenTabsCacheReady = useMemoizedFn((fn: () => void, channel = "default") => {
 		if (!projectIdRef.current) {
 			window.setTimeout(fn, 0)
 			return
@@ -34,7 +34,7 @@ export function useDeferUntilFileTabsCacheLoaded(projectId: string | undefined) 
 			window.setTimeout(fn, 0)
 			return
 		}
-		pendingRef.current = fn
+		pendingCallbacksRef.current.set(channel, fn)
 	})
 
 	return { onFileTabsCacheLoaded, scheduleWhenTabsCacheReady }

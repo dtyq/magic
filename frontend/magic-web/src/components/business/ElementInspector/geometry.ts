@@ -12,6 +12,34 @@ interface SizeLike {
 	height: number
 }
 
+/**
+ * Convert a visual DOM rectangle into the layout coordinates used by the host overlay.
+ * The iframe's own transform is intentionally not part of this conversion: the visual
+ * rectangle already contains that transform, while only an outer shell transform needs
+ * to be removed for absolute positioning in the overlay.
+ */
+export function toInspectorOverlayVisualRect(
+	visualRect: RectLike,
+	containerRect: RectLike,
+	containerSize: SizeLike,
+): InspectedElementRect {
+	const containerScaleX =
+		containerRect.width > 0 && containerSize.width > 0
+			? containerRect.width / containerSize.width
+			: 1
+	const containerScaleY =
+		containerRect.height > 0 && containerSize.height > 0
+			? containerRect.height / containerSize.height
+			: 1
+
+	return {
+		left: (visualRect.left - containerRect.left) / containerScaleX,
+		top: (visualRect.top - containerRect.top) / containerScaleY,
+		width: visualRect.width / containerScaleX,
+		height: visualRect.height / containerScaleY,
+	}
+}
+
 interface InspectorOverlayGeometry {
 	iframeRect: RectLike
 	iframeSize: SizeLike
@@ -94,5 +122,24 @@ export function toInspectorOverlayRect(
 			rect.top * vertical.relativeScale,
 		width: rect.width * horizontal.relativeScale,
 		height: rect.height * vertical.relativeScale,
+	}
+}
+
+/** Convert a rectangle drawn in the host overlay back to iframe viewport pixels. */
+export function fromInspectorOverlayRect(
+	rect: InspectedElementRect,
+	geometry: InspectorOverlayGeometry,
+): InspectedElementRect {
+	const { horizontal, vertical } = getOverlayAxes(geometry)
+	const iframeLeft =
+		(geometry.iframeRect.left - geometry.containerRect.left) / horizontal.containerScale
+	const iframeTop =
+		(geometry.iframeRect.top - geometry.containerRect.top) / vertical.containerScale
+
+	return {
+		left: Math.max(0, (rect.left - iframeLeft) / horizontal.relativeScale),
+		top: Math.max(0, (rect.top - iframeTop) / vertical.relativeScale),
+		width: Math.max(0, rect.width / horizontal.relativeScale),
+		height: Math.max(0, rect.height / vertical.relativeScale),
 	}
 }

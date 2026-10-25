@@ -1,5 +1,6 @@
 import SuperMagicDropdown from "./SuperMagicDropdown"
 import { useState, useRef, useEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import {
 	createEventHandler,
 	createSmartEventHandler,
@@ -345,7 +346,8 @@ export default function useSuperMagicDropdown<T = unknown>({
 
 	return {
 		open,
-		dropdownContent,
+		// client 坐标属于视口；锚点放到 body，避免侧栏 transform 改变 fixed 的坐标原点。
+		dropdownContent: createPortal(dropdownContent, document.body),
 		delegateProps,
 	}
 }

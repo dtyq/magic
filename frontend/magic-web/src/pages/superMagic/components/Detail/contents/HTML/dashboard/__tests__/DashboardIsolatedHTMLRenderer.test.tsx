@@ -6,6 +6,10 @@ vi.mock("@/utils/env", () => ({
 	env: vi.fn(() => ""),
 }))
 
+vi.mock("@/pages/superMagic/fileAccess/fileApi", () => ({
+	useFileApi: () => ({ getTemporaryDownloadUrl: vi.fn() }),
+}))
+
 vi.mock("antd-style", () => ({
 	createStyles: () => () => ({
 		styles: {

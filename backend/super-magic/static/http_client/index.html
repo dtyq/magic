@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>超级麦吉调试客户端</title>
-    <link rel="stylesheet" href="css/styles.css?v=debug-file-edit-20260806-2">
+    <link rel="stylesheet" href="css/styles.css?v=reply-order-2">
+    <link rel="stylesheet" href="css/model_picker.css?v=unified-model-picker-6">
 </head>
 
 <body>
@@ -27,6 +28,26 @@
                 <div class="form-group">
                     <label for="authToken">鉴权 Token:</label>
                     <input type="text" id="authToken" placeholder="User-Authorization，留空则取上传配置中的 authorization">
+                </div>
+                <div class="debug-preference-row">
+                    <div class="debug-preference-copy">
+                        <label for="longTermMemoryToggle">长期记忆</label>
+                        <small>控制通用长期记忆的自动读取和自动提取</small>
+                    </div>
+                    <label class="toggle-switch" title="长期记忆开关">
+                        <input type="checkbox" id="longTermMemoryToggle" checked>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                </div>
+                <div class="debug-preference-row">
+                    <div class="debug-preference-copy">
+                        <label for="followUpSuggestionsToggle">追加问题</label>
+                        <small>聊天结束后生成可继续追问的问题，并在本页查询</small>
+                    </div>
+                    <label class="toggle-switch" title="追加问题开关">
+                        <input type="checkbox" id="followUpSuggestionsToggle" checked>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
                 </div>
                 <div class="connection-buttons">
                     <button id="subscribeBtn" class="btn secondary">建立消息订阅</button>
@@ -77,10 +98,14 @@
                     <div id="mcpJsonView" style="display:none">
                         <div class="mcp-json-toolbar">
                             <span class="mcp-json-hint">填写 mcpServers 的值，切换列表模式时自动同步</span>
-                            <button class="mcp-expand-btn" id="mcpExpandBtn" title="全屏编辑">⤢</button>
+                            <div class="mcp-json-toolbar-actions">
+                                <button type="button" class="mcp-template-btn" id="mcpMagicServiceTemplateBtn">Magic Service 授权模板</button>
+                                <button class="mcp-expand-btn" id="mcpExpandBtn" title="全屏编辑">⤢</button>
+                            </div>
                         </div>
                         <textarea id="mcpJsonInput" class="config-textarea mcp-json-textarea"
-                            placeholder='{"服务器名称": {"type": "http", "url": "https://...", "token": ""}}'></textarea>
+                            placeholder='{"服务器名称": {"type": "http", "url": "https://...", "auth_type": 2, "mcp_server_code": "magic-service 中的 MCP Server code"}}'></textarea>
+                        <div class="mcp-json-auth-hint">Magic Service 授权配置：填写 <code>auth_type: 2</code> 和 <code>mcp_server_code</code>，建连时会使用初始化配置中的用户授权向 magic-service 获取运行时 token。初始化配置中的 <code>magic_service_host</code>、<code>metadata.authorization</code> 和 <code>metadata.organization_code</code> 也必须有效。</div>
                     </div>
                 </div>
             </div>
@@ -144,6 +169,11 @@
                 <div class="file-preview-tabbar">
                     <div id="filePreviewTabs" class="file-preview-tabs" role="tablist" aria-label="文件预览"></div>
                     <div class="file-preview-actions">
+                        <div id="filePreviewMarkdownMode" class="file-preview-mode-switch" role="group"
+                            aria-label="Markdown 显示模式" style="display:none">
+                            <button type="button" class="file-preview-mode-btn active" data-markdown-mode="rendered">渲染</button>
+                            <button type="button" class="file-preview-mode-btn" data-markdown-mode="source">原文</button>
+                        </div>
                         <button id="filePreviewEditBtn" class="file-preview-action-btn" title="编辑文本文件"
                             style="display:none">编辑</button>
                         <button id="filePreviewSaveBtn" class="file-preview-action-btn file-preview-save-btn"
@@ -152,6 +182,8 @@
                             style="display:none">取消</button>
                         <button id="filePreviewRenderBtn" class="file-preview-action-btn" title="渲染 HTML 预览"
                             style="display:none">渲染预览</button>
+                        <button id="filePreviewCanvasDataToggleBtn" class="file-preview-action-btn"
+                            title="切换画布数据展示方式" style="display:none">显示原始压缩数据</button>
                         <button id="filePreviewOpenBtn" class="file-preview-action-btn" title="在新窗口打开">新窗口打开</button>
                         <button id="filePreviewClose" class="file-preview-close" title="关闭当前预览">✕</button>
                     </div>
@@ -201,6 +233,8 @@
                                 <option value="summary-chat">summary-chat — 音频纪要聊天</option>
                                 <option value="summary-video">summary-video — 视频分析</option>
                                 <option value="design">design — 画布设计</option>
+                                <option value="canvas">canvas — Canvas 管理</option>
+                                <option value="video-production">video-production — 视频制作</option>
                                 <option value="test">test — 工具测试</option>
                                 <option value="skill">skill — Skill 模式</option>
                                 <option value="crew-creator">crew-creator — Crew 管理</option>
@@ -231,6 +265,20 @@
                             <input type="text" id="modelIdInput" class="model-id-input" placeholder="Model ID (留空默认)">
                             <select id="modelIdSelect" class="agent-mode-select" style="display:none">
                                 <option value="">选择文本模型（留空默认）</option>
+                            </select>
+                        </div>
+
+                        <!-- 调试思考强度固定提供七档，不依赖模型能力接口；默认不传递。 -->
+                        <div class="model-config" id="reasoningEffortGroup">
+                            <select id="reasoningEffortSelect" class="agent-mode-select" aria-label="思考强度">
+                                <option value="" selected>思考强度（不传递）</option>
+                                <option value="none">关闭（none）</option>
+                                <option value="minimal">最低（minimal）</option>
+                                <option value="low">低（low）</option>
+                                <option value="medium">中（medium）</option>
+                                <option value="high">高（high）</option>
+                                <option value="xhigh">超高（xhigh）</option>
+                                <option value="max">极致（max）</option>
                             </select>
                         </div>
 
@@ -371,7 +419,7 @@
                 </div>
             </div>
             <textarea id="mcpModalJsonInput" class="mcp-modal-textarea"
-                placeholder='{"服务器名称": {"type": "http", "url": "https://...", "token": ""}}'></textarea>
+                placeholder='{"服务器名称": {"type": "http", "url": "https://...", "auth_type": 2, "mcp_server_code": "magic-service 中的 MCP Server code"}}'></textarea>
         </div>
     </div>
 
@@ -397,7 +445,8 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="js/micro_app_runtime.js?v=debug-workspace-files-7"></script>
-    <script src="js/client.js?v=debug-file-edit-20260806-3"></script>
+    <script src="js/model_picker.js?v=unified-model-picker-4"></script>
+    <script src="js/client.js?v=reasoning-effort-1"></script>
 </body>
 
 </html>

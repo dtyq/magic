@@ -11,6 +11,7 @@ use App\Application\Mode\Service\ModeAppService;
 use App\Application\SuperMagic\Agent\Service\ImportAgentAppService;
 use App\Application\SuperMagic\Agent\Service\SuperMagicAgentAccessAppService;
 use App\Application\SuperMagic\Agent\Service\SuperMagicAgentAppService;
+use App\Application\SuperMagic\Common\Transfer\ResourceTransferAppService;
 use App\Application\SuperMagic\Project\DTO\Request\CreateAgentProjectRequestDTO;
 use App\Application\SuperMagic\Project\Service\ProjectAppService;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectMode;
@@ -27,6 +28,7 @@ use App\Interfaces\SuperMagic\Agent\DTO\Request\QueryAgentListRequestDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Request\QueryAgentsRequestDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Request\QueryAgentVersionsRequestDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Request\UpdateAgentInfoRequestDTO;
+use App\Interfaces\SuperMagic\Common\DTO\Request\TransferResourceRequestDTO;
 use App\Interfaces\SuperMagic\Common\Support\Facade\AbstractApi;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
@@ -51,11 +53,24 @@ class SuperMagicAgentApi extends AbstractApi
     #[Inject]
     protected ModeAppService $modeAppService;
 
+    #[Inject]
+    protected ResourceTransferAppService $resourceTransferAppService;
+
     public function __construct(
         protected RequestInterface $request,
         private readonly ProjectAppService $projectAppService,
     ) {
         parent::__construct($request);
+    }
+
+    public function transfer(string $code): array
+    {
+        return $this->resourceTransferAppService->transfer(
+            $this->getAuthorization(),
+            $code,
+            true,
+            TransferResourceRequestDTO::fromRequest($this->request)
+        );
     }
 
     public function getFeatured(): array
@@ -508,6 +523,22 @@ class SuperMagicAgentApi extends AbstractApi
         $response['sandbox_id'] = $publishResult->sandboxId;
 
         return $response;
+    }
+
+    /** 创建异步发布任务。 */
+    public function publishAgentAsync(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = PublishAgentRequestDTO::fromRequest($this->request);
+        return $this->superMagicAgentAppService->createAsyncPublishAgent($authorization, $code, $requestDTO);
+    }
+
+    /** 查询异步发布任务。 */
+    public function checkPublishAsync(string $code): array
+    {
+        $authorization = $this->getAuthorization();
+        $taskId = (string) $this->request->input('publish_task_id', $this->request->input('task_id', ''));
+        return $this->superMagicAgentAppService->checkAsyncPublishAgent($authorization, $code, $taskId);
     }
 
     public function getPublishPrefill(string $code): array

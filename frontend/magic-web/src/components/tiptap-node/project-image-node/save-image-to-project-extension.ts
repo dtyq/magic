@@ -29,9 +29,9 @@
  * 4. Update node with final path on success
  * 5. Handle errors according to error type
  */
-import { Extension } from "@tiptap/react"
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state"
-import type { EditorView } from "@tiptap/pm/view"
+import { Extension } from "@/infrastructure/editors/tiptap/react"
+import { Plugin, PluginKey, TextSelection } from "@/infrastructure/editors/tiptap/pm-state"
+import type { EditorView } from "@/infrastructure/editors/tiptap/pm-view"
 import type { ProjectImageStorageInterface } from "@/services/tiptap-image-project"
 import { normalizeImageName } from "@/services/tiptap-image-storage"
 import { handleCustomDragData } from "./drag-handlers"
@@ -90,16 +90,19 @@ export interface SaveImageToProjectOptions {
 	/**
 	 * Success callback
 	 */
-	onSuccess?: (relativePath: string) => void
+	onSuccess?: (relativePath: string) => void | Promise<void>
 
 	/**
 	 * Async callback to resolve or create the images folder and return its file_id.
 	 * Called before each upload to determine the correct parent_id for saveFileToProject.
-	 * If not provided or returns undefined, the file will be saved without a parent (root level).
+	 * When requireImagesFolderParentId is true, returning undefined is treated as an
+	 * upload error. Otherwise the existing root-level fallback is preserved.
 	 * @param folderPath - The calculated folder path (e.g. "docs/images")
-	 * @returns The file_id of the images folder, or undefined to fall back to root
+	 * @returns The file_id of the images folder, or undefined when it cannot be resolved
 	 */
 	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
+	/** Fail instead of falling back to the project root when the parent is missing. */
+	requireImagesFolderParentId?: boolean
 }
 
 const saveImageToProjectPluginKey = new PluginKey("saveImageToProject")
@@ -284,6 +287,7 @@ async function handleSingleImageUpload(
 		onError,
 		onSuccess,
 		resolveImagesFolderParentId,
+		requireImagesFolderParentId,
 	} = options
 
 	// Calculate actual folder path
@@ -301,10 +305,18 @@ async function handleSingleImageUpload(
 			lastModified: file.lastModified,
 		})
 
-		// Resolve the parent folder file_id before uploading
+		// Resolve the parent folder file_id before uploading.
+		// Non-required mode keeps the project-root fallback on resolver errors.
 		const parentFolderId = resolveImagesFolderParentId
-			? await resolveImagesFolderParentId(folderPath).catch(() => undefined)
+			? await resolveImagesFolderParentId(folderPath).catch((error) => {
+					if (requireImagesFolderParentId) throw error
+					console.error("Failed to resolve image folder:", error)
+					return undefined
+				})
 			: undefined
+		if (requireImagesFolderParentId && resolveImagesFolderParentId && !parentFolderId) {
+			throw new Error(ImageUploadErrorType.UPLOAD_FAILED)
+		}
 
 		// Create abort controller for cancellation support
 		const controller = new AbortController()
@@ -345,7 +357,12 @@ async function handleSingleImageUpload(
 		uploadingFiles.delete(tempSrc)
 		uploadControllers.delete(tempSrc)
 
-		onSuccess?.(finalPath)
+		try {
+			// A refresh callback must not turn a completed upload into an upload error.
+			await onSuccess?.(finalPath)
+		} catch (callbackError) {
+			console.error("Project image success callback failed:", callbackError)
+		}
 	} catch (error) {
 		const errorMessage =
 			error instanceof Error ? error.message : ImageUploadErrorType.UPLOAD_FAILED
@@ -519,10 +536,18 @@ export const SaveImageToProjectExtension = Extension.create<SaveImageToProjectOp
 								// Use editor commands to insert content, which will trigger Markdown extension
 								if (editor) {
 									// Use chain API to ensure the operation is added to history
-									const inserted = runActiveEditor(editor, (activeEditor) => {
-										activeEditor.chain().focus().insertContent(textToPaste).run()
-										return true
-									}, false)
+									const inserted = runActiveEditor(
+										editor,
+										(activeEditor) => {
+											activeEditor
+												.chain()
+												.focus()
+												.insertContent(textToPaste)
+												.run()
+											return true
+										},
+										false,
+									)
 									if (!inserted) view.pasteText(textToPaste)
 								} else {
 									// Fallback to pasteText if editor instance is not available
@@ -740,7 +765,7 @@ export const SaveImageToProjectExtension = Extension.create<SaveImageToProjectOp
 	},
 })
 
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		saveImageToProject: {
 			/**
@@ -757,7 +782,7 @@ declare module "@tiptap/react" {
 	}
 }
 
-declare module "@tiptap/core" {
+declare module "@/infrastructure/editors/tiptap/core" {
 	interface EditorStorage {
 		saveImageToProject: {
 			projectId: string

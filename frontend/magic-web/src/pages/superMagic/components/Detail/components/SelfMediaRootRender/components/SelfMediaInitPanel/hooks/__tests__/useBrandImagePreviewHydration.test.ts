@@ -71,6 +71,7 @@ describe("useBrandImagePreviewHydration", () => {
 			expect(getFileContentById).toHaveBeenCalledWith("file-1", {
 				responseType: "blob",
 				xMagicImageProcess: CARD_THUMBNAIL_IMAGE_PROCESS,
+				access: undefined,
 			})
 			expect(onBrandImagesChange).toHaveBeenCalledWith([
 				expect.objectContaining({
@@ -107,6 +108,7 @@ describe("useBrandImagePreviewHydration", () => {
 			expect(getFileContentById).toHaveBeenCalledWith("file-2", {
 				responseType: "blob",
 				xMagicImageProcess: CARD_THUMBNAIL_IMAGE_PROCESS,
+				access: undefined,
 			})
 			expect(onBrandImagesChange).toHaveBeenCalled()
 		})

@@ -1,8 +1,18 @@
 import type { Canvas } from "../../core/Canvas"
 import { ElementTypeEnum, type ImageElement } from "../../document/types"
+import {
+	getActiveContent,
+	getActiveImageContentId,
+	getContentById,
+} from "../../document/elementContent"
 import { isCanvasUIComponentNode } from "../../shared/dom/domGuards"
 import { calculateNodesRect } from "../../shared/ids"
-import { EraserRenderer, type EraserPoint, type EraserStroke } from "./EraserRenderer"
+import {
+	EraserRenderer,
+	type EraserPoint,
+	type EraserStroke,
+	type EraserStrokeMode,
+} from "./EraserRenderer"
 import type { CanvasPointerInput } from "../input/index"
 import { ImageEditingSession } from "../image-editing/ImageEditingSession"
 
@@ -26,8 +36,11 @@ export class EraserManager {
 	private canvas: Canvas
 
 	private erasingElementId: string | null = null
+	private erasingContentId: string | null = null
 	private radius = medianRadius(MIN_RADIUS, MAX_RADIUS)
+	private mode: EraserStrokeMode = "erase"
 	private strokes: EraserStroke[] = []
+	private redoStrokes: EraserStroke[] = []
 	private eraserRenderer: EraserRenderer | null = null
 	private editingSession: ImageEditingSession | null = null
 
@@ -52,6 +65,8 @@ export class EraserManager {
 	}
 
 	private setupEventListeners(): void {
+		this.canvas.eventEmitter.on("keyboard:alt:down", this.handleAltDown)
+		this.canvas.eventEmitter.on("keyboard:alt:up", this.handleAltUp)
 		this.escapeHandler = () => {
 			if (this.erasingElementId) {
 				this.cancelEraser()
@@ -75,6 +90,8 @@ export class EraserManager {
 	}
 
 	private removeEventListeners(): void {
+		this.canvas.eventEmitter.off("keyboard:alt:down", this.handleAltDown)
+		this.canvas.eventEmitter.off("keyboard:alt:up", this.handleAltUp)
 		if (this.escapeHandler) {
 			this.canvas.eventEmitter.off("keyboard:escape", this.escapeHandler)
 			this.escapeHandler = undefined
@@ -88,6 +105,9 @@ export class EraserManager {
 			this.elementDeselectHandler = undefined
 		}
 	}
+
+	private readonly handleAltDown = (): void => this.setMode("restore")
+	private readonly handleAltUp = (): void => this.setMode("erase")
 
 	private setupPositionListeners(): void {
 		this.viewportScaleHandler = () => this.syncPresentation()
@@ -216,9 +236,12 @@ export class EraserManager {
 			type: "eraser:sessionUpdate",
 			data: {
 				elementId: this.erasingElementId,
+				contentId: this.erasingContentId ?? undefined,
 				radius: this.radius,
 				strokeCount: this.strokes.length,
 				canUndo: this.canUndo(),
+				canRedo: this.canRedo(),
+				mode: this.mode,
 			},
 		})
 	}
@@ -356,7 +379,12 @@ export class EraserManager {
 		this.eraserRenderer.beginStroke(pointer)
 	}
 
-	public enterEraserMode(elementId: string): void {
+	public enterEraserMode(elementId: string, contentId?: string): void {
+		if (
+			!this.canvas.permissionManager.can("document.write") ||
+			!this.canvas.permissionManager.can("sideEffect.generate")
+		)
+			return
 		if (this.erasingElementId === elementId) return
 
 		const elementData = this.canvas.elementManager.getElementData(elementId)
@@ -365,6 +393,7 @@ export class EraserManager {
 		}
 
 		const imageElement = elementData as ImageElement
+		if (contentId && getActiveImageContentId(imageElement) !== contentId) return
 		if ((imageElement.width ?? 0) <= 0 || (imageElement.height ?? 0) <= 0) {
 			return
 		}
@@ -378,7 +407,10 @@ export class EraserManager {
 		this.canvas.selectionManager.deselectAll()
 
 		this.erasingElementId = elementId
+		this.erasingContentId = contentId ?? getActiveContent(imageElement)?.contentId ?? null
 		this.strokes = []
+		this.redoStrokes = []
+		this.mode = "erase"
 		this.isPointerDown = false
 		this.isCursorVisible = false
 
@@ -443,10 +475,14 @@ export class EraserManager {
 
 	public exitEraserMode(shouldRestore: boolean): void {
 		if (!this.erasingElementId) {
+			this.strokes = []
+			this.redoStrokes = []
+			this.mode = "erase"
 			return
 		}
 
 		const elementId = this.erasingElementId
+		const contentId = this.erasingContentId
 
 		this.removePositionListeners()
 		this.isPointerDown = false
@@ -459,7 +495,10 @@ export class EraserManager {
 		this.canvas.cursorManager.exitEraserMode()
 
 		this.erasingElementId = null
+		this.erasingContentId = null
 		this.strokes = []
+		this.redoStrokes = []
+		this.mode = "erase"
 		this.editingSession?.destroy()
 		this.editingSession = null
 		this.canvas.imageEditingCoordinator.deactivate("eraser", elementId)
@@ -467,7 +506,11 @@ export class EraserManager {
 
 		this.canvas.eventEmitter.emit({
 			type: "eraser:exit",
-			data: { elementId, restored: shouldRestore },
+			data: {
+				elementId,
+				contentId: contentId ?? undefined,
+				restored: shouldRestore,
+			},
 		})
 	}
 
@@ -477,6 +520,16 @@ export class EraserManager {
 		this.radius = nextRadius
 		this.canvas.cursorManager.updateEraserCursorRadius(nextRadius)
 		this.emitSessionUpdate()
+	}
+
+	public setMode(mode: EraserStrokeMode): void {
+		if (this.mode === mode) return
+		this.mode = mode
+		this.emitSessionUpdate()
+	}
+
+	public getMode(): EraserStrokeMode {
+		return this.mode
 	}
 
 	public getRadius(): number {
@@ -493,17 +546,32 @@ export class EraserManager {
 	public pushStroke(stroke: EraserStroke): void {
 		if (!this.erasingElementId || stroke.points.length === 0) return
 		this.strokes = [...this.strokes, stroke]
+		this.redoStrokes = []
 		this.emitSessionUpdate()
 	}
 
 	public undoLastStroke(): void {
 		if (!this.erasingElementId || this.strokes.length === 0) return
+		const lastStroke = this.strokes[this.strokes.length - 1]
 		this.strokes = this.strokes.slice(0, -1)
+		this.redoStrokes = [...this.redoStrokes, lastStroke]
+		this.emitSessionUpdate()
+	}
+
+	public redoLastStroke(): void {
+		if (!this.erasingElementId || this.redoStrokes.length === 0) return
+		const lastStroke = this.redoStrokes[this.redoStrokes.length - 1]
+		this.redoStrokes = this.redoStrokes.slice(0, -1)
+		this.strokes = [...this.strokes, lastStroke]
 		this.emitSessionUpdate()
 	}
 
 	public canUndo(): boolean {
 		return this.strokes.length > 0
+	}
+
+	public canRedo(): boolean {
+		return this.redoStrokes.length > 0
 	}
 
 	public getStrokes(): EraserStroke[] {
@@ -524,13 +592,33 @@ export class EraserManager {
 	public getSessionSnapshot() {
 		return {
 			elementId: this.erasingElementId,
+			contentId: this.erasingContentId ?? undefined,
 			radius: this.radius,
+			mode: this.mode,
 			strokes: this.getStrokes(),
 		}
 	}
 
 	public confirmEraser(): void {
 		if (!this.erasingElementId) {
+			return
+		}
+		if (
+			!this.canvas.permissionManager.can("document.write") ||
+			!this.canvas.permissionManager.can("sideEffect.generate")
+		) {
+			this.cancelEraser()
+			return
+		}
+		const element = this.canvas.elementManager.getElementData(this.erasingElementId)
+		if (
+			!element ||
+			element.type !== ElementTypeEnum.Image ||
+			!this.erasingContentId ||
+			getActiveImageContentId(element as ImageElement) !== this.erasingContentId ||
+			!getContentById(element, this.erasingContentId)
+		) {
+			this.cancelEraser()
 			return
 		}
 
@@ -558,6 +646,10 @@ export class EraserManager {
 		this.removeEventListeners()
 		if (this.erasingElementId) {
 			this.exitEraserMode(true)
+			return
 		}
+		this.strokes = []
+		this.redoStrokes = []
+		this.mode = "erase"
 	}
 }

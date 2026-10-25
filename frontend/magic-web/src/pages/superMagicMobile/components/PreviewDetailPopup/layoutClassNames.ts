@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /** Keep the mobile preview within the safe viewport while filling the available height. */
 export const MOBILE_PREVIEW_SHEET_CLASSNAME = cn(

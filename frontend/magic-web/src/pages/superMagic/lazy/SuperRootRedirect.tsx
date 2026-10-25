@@ -30,7 +30,11 @@ export default function SuperRootRedirect() {
 	// Replace before paint so Super init cannot win the race to legacy mobile-tabs.
 	useLayoutEffect(() => {
 		if (!shouldRedirectToMobileHome) return
-		history.replace({ name: RouteName.MobileHome })
+		const query = Object.fromEntries(new URLSearchParams(baseHistory.location.search))
+		history.replace({
+			name: RouteName.MobileHome,
+			...(Object.keys(query).length > 0 ? { query } : {}),
+		})
 	}, [shouldRedirectToMobileHome])
 
 	useEffect(() => {
@@ -46,7 +50,15 @@ export default function SuperRootRedirect() {
 			(cachedProjectId ? ProjectTopicMapCache.get(userInfo, cachedProjectId) : null) ||
 			null
 
-		const query = Object.fromEntries(new URL(window.location.href).searchParams)
+		const query = Object.fromEntries(new URLSearchParams(baseHistory.location.search))
+		const hasPendingAgentCode = Boolean(query.agentCode?.trim())
+
+		// Agent usage links must mount the homepage parser, so skip cached project/topic
+		// restoration and let navigateToHome resolve a normal workspace while carrying the query.
+		if (hasPendingAgentCode) {
+			void SuperMagicService.navigateToHome(undefined, query)
+			return
+		}
 
 		if (cachedProjectId && topicIdResolved) {
 			navigate({

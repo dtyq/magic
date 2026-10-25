@@ -31,17 +31,18 @@ class SandboxDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = ''): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', string $topicSpaceRootFileId = ''): string
     {
         $this->logger->info('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
             'project_space_root_file_id' => $projectSpaceRootFileId,
             'user_space_root_file_id' => $userSpaceRootFileId,
+            'topic_space_root_file_id' => $topicSpaceRootFileId,
             'authorization_provided' => ($dataIsolation->getUserAuthorizationToken() ?? '') !== '',
         ]);
 
-        $result = $this->gateway->createSandbox($dataIsolation, $projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId);
+        $result = $this->gateway->createSandbox($dataIsolation, $projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $topicSpaceRootFileId);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->info('[Sandbox][App] Gateway result analysis', [

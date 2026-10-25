@@ -47,11 +47,12 @@ class ApiKeyKelingTransportTest extends TestCase
             ->method('create')
             ->willReturn($httpClient);
 
+        $logger = new KelingRecordingLogger();
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->expects($this->once())
             ->method('get')
             ->with(KelingVideoClient::class)
-            ->willReturn(new KelingRecordingLogger());
+            ->willReturn($logger);
 
         $transport = new ApiKeyKelingTransport(new KelingVideoClient($clientFactory, $loggerFactory));
         $transport->submitOmniVideo(
@@ -65,6 +66,12 @@ class ApiKeyKelingTransportTest extends TestCase
             ['prompt' => 'test'],
             ['video_id' => 'video-1']
         );
+
+        $this->assertSame(['prompt' => 'test'], $logger->records[0]['context']['payload']);
+        $this->assertSame([
+            'code' => 0,
+            'data' => ['task_id' => 'task-1'],
+        ], $logger->records[1]['context']['response']);
     }
 
     public function testQueryOmniVideoBuildsCloudswayOmniPath(): void
@@ -91,11 +98,12 @@ class ApiKeyKelingTransportTest extends TestCase
             ->method('create')
             ->willReturn($httpClient);
 
+        $logger = new KelingRecordingLogger();
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->expects($this->once())
             ->method('get')
             ->with(KelingVideoClient::class)
-            ->willReturn(new KelingRecordingLogger());
+            ->willReturn($logger);
 
         $transport = new ApiKeyKelingTransport(new KelingVideoClient($clientFactory, $loggerFactory));
         $transport->queryOmniVideo(
@@ -109,6 +117,11 @@ class ApiKeyKelingTransportTest extends TestCase
             'task-123',
             ['video_id' => 'video-1']
         );
+
+        $this->assertSame([
+            'code' => 0,
+            'data' => ['task_status' => 'processing'],
+        ], $logger->records[1]['context']['response']);
     }
 
     public function testSubmitV3VideoBuildsTextToVideoPath(): void

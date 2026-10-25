@@ -172,4 +172,28 @@ describe("MobileShellRecentItemRow", () => {
 			screen.queryByTestId("mobile-workspaces-page-recent-actions-project-from-api-1"),
 		).not.toBeInTheDocument()
 	})
+
+	it("shows the same marks as the web recent rows (type, pinned, collaboration)", () => {
+		renderRow({
+			project: {
+				...baseItem.project,
+				project_mode: "ai-canvas",
+				is_pinned: true,
+				tag: "collaboration",
+				user_role: "owner",
+			} as MobileShellMenuRecentItem["project"],
+		})
+
+		// One 14px size for every mark (see RECENT_PROJECT_MARK_CLASS_NAME).
+		expect(screen.getByTestId("project-type-tag").style.width).toBe("14px")
+		expect(screen.getByTestId("project-item-pinned-tag")).toHaveClass("h-3.5", "w-3.5")
+		expect(screen.getByTestId("super-collaboration-project-tag")).toHaveClass("h-3.5", "w-3.5")
+	})
+
+	it("shows no marks for an ordinary project", () => {
+		renderRow()
+
+		expect(screen.queryByTestId("project-type-tag")).toBeNull()
+		expect(screen.queryByTestId("super-collaboration-project-tag")).toBeNull()
+	})
 })

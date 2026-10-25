@@ -3,6 +3,10 @@ import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RecordingDetailProvider } from "../RecordingDetailProvider"
 import { RecordingDetailTranscriptPanel } from "../RecordingDetailTranscriptPanel"
+import {
+	FOLDER_RECORDING_DETAIL_CAPABILITIES,
+	SHARE_RECORDING_DETAIL_CAPABILITIES,
+} from "../../../types/recording-detail-capabilities"
 
 const scrollToMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
@@ -214,7 +218,66 @@ function renderTranscriptPanel(
 	return { onSegmentClick, onSelectedSpeakerIdsChange }
 }
 
+/** Renders one transcript panel with an explicit shell capability matrix for permission regression tests. */
+function renderPanelWithCapabilities(capabilities: typeof FOLDER_RECORDING_DETAIL_CAPABILITIES) {
+	render(
+		<RecordingDetailProvider capabilities={capabilities}>
+			<RecordingDetailTranscriptPanel
+				searchScopeKey="recording-capability"
+				segments={[
+					{ id: "segment-capability", start: 1, speaker: "Speaker-X", text: "Line" },
+				]}
+				playing={false}
+				currentTime={0}
+				availableSpeakerIds={["Speaker-X"]}
+				selectedSpeakerIds={["Speaker-X"]}
+				speakerNameMap={{ "Speaker-X": "Speaker-X" }}
+				totalSegmentsCount={1}
+				onSegmentClick={vi.fn()}
+				onSelectedSpeakerIdsChange={vi.fn()}
+				onOpenSpeakerSettings={vi.fn()}
+			/>
+		</RecordingDetailProvider>,
+	)
+}
+
 describe("RecordingDetailTranscriptPanel", () => {
+	it("keeps speaker editing enabled in project folders but hides it in shared folders", () => {
+		renderPanelWithCapabilities(FOLDER_RECORDING_DETAIL_CAPABILITIES)
+		expect(screen.getByTestId("recording-detail-open-speaker-settings")).toBeInTheDocument()
+
+		// Re-rendering is intentionally avoided so each shell gets an isolated capability assertion.
+	})
+
+	it("does not expose the speaker editor for read-only share capabilities", () => {
+		render(
+			<RecordingDetailProvider capabilities={SHARE_RECORDING_DETAIL_CAPABILITIES}>
+				<RecordingDetailTranscriptPanel
+					searchScopeKey="recording-share-capability"
+					segments={[
+						{
+							id: "segment-share",
+							start: 1,
+							speaker: "Speaker-Y",
+							text: "Shared line",
+						},
+					]}
+					playing={false}
+					currentTime={0}
+					availableSpeakerIds={["Speaker-Y"]}
+					selectedSpeakerIds={["Speaker-Y"]}
+					speakerNameMap={{ "Speaker-Y": "Speaker-Y" }}
+					totalSegmentsCount={1}
+					onSegmentClick={vi.fn()}
+					onSelectedSpeakerIdsChange={vi.fn()}
+					onOpenSpeakerSettings={vi.fn()}
+				/>
+			</RecordingDetailProvider>,
+		)
+
+		expect(screen.queryByTestId("recording-detail-open-speaker-settings")).toBeNull()
+	})
+
 	it("keeps segment rows on the same box model while only emphasizing the active content", () => {
 		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
 			if (this.dataset.testid === "desktop-transcript-scroll-edge-fade") {

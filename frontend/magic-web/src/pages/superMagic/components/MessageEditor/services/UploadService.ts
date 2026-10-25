@@ -1,9 +1,10 @@
 import { Upload, type UploadConfig, type UploadCallBack } from "@dtyq/upload-sdk"
+import { SuperMagicApi } from "@/apis"
 import { RequestMethod as OpenSourceRequestMethod } from "@/apis/constant"
 import { userStore } from "@/models/user"
 import { env } from "@/utils/env"
 import { genRequestUrl } from "@/utils/http"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { groupBy } from "lodash-es"
 import { normalizeUploadProgress } from "../utils/uploadProgress"
 
@@ -90,13 +91,59 @@ export class UploadService<F extends UploadFileLike> {
 		onBeforeUpload?.()
 		onUploadStateChange?.(true)
 
+		let snowflakeIds: string[] = []
+		try {
+			const response = await SuperMagicApi.getSnowflakeIds({
+				count: fileList.length,
+			})
+			snowflakeIds = response.ids ?? []
+		} catch (error) {
+			onUploadStateChange?.(false)
+			logger.error({
+				eventKey: "upload_snowflake_ids_failed",
+				errorKind: "unknown",
+				error,
+				message: "failed to get snowflake ids",
+			})
+			fileList.forEach((fileData) => {
+				if (fileData.status === "done" && fileData.result) return
+				const attemptId: UploadAttemptId = Symbol(fileData.name)
+				onInit?.(fileData, {}, attemptId)
+				onFail?.(fileData, error, attemptId)
+			})
+			return {
+				fullfilled: [],
+				rejected: fileList
+					.filter((fileData) => !(fileData.status === "done" && fileData.result))
+					.map((fileData) => ({
+						status: "rejected" as const,
+						reason: {
+							uploadFile: fileData,
+							message: error instanceof Error ? error.message : String(error),
+						},
+					})),
+			}
+		}
+
 		const promises = fileList.map(
 			(fileData, fileIndex) =>
 				new Promise<UploadResponse>((resolve, reject) => {
 					const attemptId: UploadAttemptId = Symbol(fileData.name)
-					const fileName = fileData.name
+					const originalFileName = fileData.name
+					const uploadFileName = snowflakeIds[fileIndex]
 					if (fileData.status === "done" && fileData.result) {
 						resolve(fileData.result)
+						return
+					}
+
+					if (!uploadFileName) {
+						const error = new Error("upload missing snowflake id")
+						onInit?.(fileData, {}, attemptId)
+						onFail?.(fileData, error, attemptId)
+						reject({
+							message: error.message,
+							uploadFile: fileData,
+						})
 						return
 					}
 
@@ -106,7 +153,7 @@ export class UploadService<F extends UploadFileLike> {
 							eventKey: "upload_missing_file_body_failed",
 							errorKind: "invalid_state",
 							message: "upload missing file body",
-							context: { fileIndex, fileName },
+							context: { fileIndex, fileName: originalFileName },
 						})
 						reject(new Error("file is required"))
 						return
@@ -122,7 +169,7 @@ export class UploadService<F extends UploadFileLike> {
 						{
 							url: uploadUrl,
 							file,
-							fileName,
+							fileName: uploadFileName,
 							method: OpenSourceRequestMethod.POST,
 							headers: {
 								"Content-Type": "application/json",
@@ -146,7 +193,7 @@ export class UploadService<F extends UploadFileLike> {
 
 					const wrappedCancel = () => {
 						cancel?.()
-						logger.warn("upload cancelled", { fileName })
+						logger.warn("upload cancelled", { fileName: originalFileName })
 						reject(new Error("Upload cancelled"))
 					}
 
@@ -159,7 +206,7 @@ export class UploadService<F extends UploadFileLike> {
 						}
 						const response = {
 							key: res.data.path,
-							name: fileName,
+							name: originalFileName,
 							size: fileData.file?.size ?? 0,
 						}
 						onSuccess?.(fileData, response, attemptId)
@@ -172,7 +219,7 @@ export class UploadService<F extends UploadFileLike> {
 							errorKind: "unknown",
 							error: err,
 							message: "upload failed",
-							context: { fileSize: fileData.file?.size, fileName },
+							context: { fileSize: fileData.file?.size, fileName: originalFileName },
 						})
 						onFail?.(fileData, err, attemptId)
 						reject({

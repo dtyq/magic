@@ -1,6 +1,7 @@
 import { isEmpty } from "lodash-es"
 import { DisabledDetailToolTypes } from "../components/Detail/constants"
 import { MessageStatus } from "../pages/Workspace/types"
+import { isInlineToolDetail } from "./toolDetailDisplay"
 
 export const messageFilter = (item: any) => {
 	if (item?.event === "before_main_agent_run" || item?.event === "before_agent_reply") {
@@ -54,6 +55,23 @@ function getImStatus(node: ImStatusSource | undefined, message?: ImStatusSource)
 // 过滤出可以点击的工具卡片消息，且消息未撤回
 export const filterClickableMessageWithoutRevoked = (node: any, message?: ImStatusSource) => {
 	return filterClickableMessage(node) && getImStatus(node, message) !== MessageStatus.REVOKED
+}
+
+/** 卡片内可展开的结果保留在聊天中，不参与中间详情的自动选择和回放。 */
+export const filterPanelMessage = (node: unknown): boolean => {
+	if (!filterClickableMessage(node)) return false
+	const message = node as { tool: { detail: unknown } }
+	return !isInlineToolDetail(message.tool.detail)
+}
+
+export const filterPanelMessageWithoutRevoked = (
+	node: unknown,
+	message?: ImStatusSource,
+): boolean => {
+	return (
+		filterPanelMessage(node) &&
+		getImStatus(node as ImStatusSource, message) !== MessageStatus.REVOKED
+	)
 }
 
 export const filterMessagesWithAttachments = (node: any, message?: ImStatusSource) => {

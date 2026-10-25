@@ -1,7 +1,7 @@
 import { isMagicApp } from "@/utils/devices"
 import { getNativePort } from "@/platform/native"
 import { useMemoizedFn } from "ahooks"
-import { logger } from "@/utils/log"
+import { logger } from "@/infrastructure/logger"
 
 function useChangeAppLocale() {
 	const changeAppLocale = useMemoizedFn(async (language: string) => {

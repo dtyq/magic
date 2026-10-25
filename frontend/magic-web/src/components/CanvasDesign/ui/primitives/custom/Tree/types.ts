@@ -20,10 +20,14 @@ export interface RenderNodeContext {
 	isSelected: boolean
 }
 
+export type TreeSelectionMode = "replace" | "toggle"
+
 export interface TreeProps<T extends TreeData = TreeData> {
 	data: TreeNode<T>[]
 	selectedIds?: string[]
 	hoveredIds?: string[]
+	/** replace: single click replaces selection; toggle: every click toggles membership */
+	selectionMode?: TreeSelectionMode
 	onSelect?: (nodes: TreeNode<T>[], selectedIds: string[]) => void
 	expandedIds?: Set<string>
 	onToggle?: (id: string) => void
@@ -35,6 +39,8 @@ export interface TreeProps<T extends TreeData = TreeData> {
 	virtualOverscan?: number
 	initialScrollTop?: number
 	onScrollTopChange?: (scrollTop: number) => void
+	/** Renders before the expand toggle (e.g. multi-select checkbox aligned with header). */
+	renderLeading?: (node: TreeNode<T>, context: RenderNodeContext) => React.ReactNode
 	renderNode?: (node: TreeNode<T>, context: RenderNodeContext) => React.ReactNode
 	onContextMenu?: (event: React.MouseEvent, node: TreeNode<T>) => void
 	onDoubleClick?: (event: React.MouseEvent, node: TreeNode<T>) => void
@@ -52,6 +58,7 @@ export interface TreeNodeItemProps<T extends TreeData = TreeData> {
 	renderChildren?: boolean
 	onToggle: (id: string) => void
 	onSelect?: (node: TreeNode<T>, isMultiSelect: boolean) => void
+	renderLeading?: (node: TreeNode<T>, context: RenderNodeContext) => React.ReactNode
 	renderNode?: (node: TreeNode<T>, context: RenderNodeContext) => React.ReactNode
 	onContextMenu?: (event: React.MouseEvent, node: TreeNode<T>) => void
 	onDoubleClick?: (event: React.MouseEvent, node: TreeNode<T>) => void

@@ -4,17 +4,19 @@ import { useSize } from "ahooks"
 import { Col, Empty, Input, Row } from "antd"
 import { cx } from "antd-style"
 import { memo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useStyles as useCommonStyles } from "../FileManager/styles"
 import { useStyles } from "./styles"
 import useData from "./useData"
 
 export default memo(function DeployedWebsites() {
+	const { t } = useTranslation("super")
 	const { styles } = useStyles()
 	const { styles: commonStyles } = useCommonStyles()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const containerSize = useSize(containerRef)
 	const [searchKeywords, setSearchKeywords] = useState("")
-	const { data, loading, setData } = useData({ searchKeywords })
+	const { data, loading } = useData({ searchKeywords })
 
 	const content = data.length ? (
 		<div className={styles.dataContainer}>
@@ -30,13 +32,13 @@ export default memo(function DeployedWebsites() {
 								</div>
 								<div className={styles.itemFooter}>
 									<MagicButton type="link" className={styles.button}>
-										打开链接
+										{t("deployedWebsites.openLink")}
 									</MagicButton>
 									<MagicButton type="link" className={styles.button}>
-										设置权限
+										{t("deployedWebsites.setPermission")}
 									</MagicButton>
 									<MagicButton type="link" danger className={styles.button}>
-										删除
+										{t("deployedWebsites.delete")}
 									</MagicButton>
 								</div>
 							</div>
@@ -47,17 +49,17 @@ export default memo(function DeployedWebsites() {
 		</div>
 	) : (
 		<div className={commonStyles.emptyWrapper}>
-			<Empty description="暂无创建的网站" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+			<Empty description={t("deployedWebsites.empty")} image={Empty.PRESENTED_IMAGE_SIMPLE} />
 		</div>
 	)
 
 	return (
 		<div className={commonStyles.pageContainer}>
-			<div className={commonStyles.title}>创建的网站</div>
-			<div className={commonStyles.description}>管理您通过超级麦吉生成的网站</div>
+			<div className={commonStyles.title}>{t("deployedWebsites.title")}</div>
+			<div className={commonStyles.description}>{t("deployedWebsites.subtitle")}</div>
 			<div className={commonStyles.formHeader}>
 				<Input
-					placeholder="搜索网站"
+					placeholder={t("deployedWebsites.searchPlaceholder")}
 					className={commonStyles.searchInput}
 					value={searchKeywords}
 					onChange={(event) => {

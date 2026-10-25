@@ -1,6 +1,6 @@
 import { initMermaidDb } from "@/database/mermaid"
 import type { MermaidDb } from "@/database/mermaid/types"
-import { RenderResult } from "mermaid"
+import { RenderResult } from "@/infrastructure/vendors/mermaid"
 
 const MERMAID_ERROR_SVG = "<g></g></svg>"
 

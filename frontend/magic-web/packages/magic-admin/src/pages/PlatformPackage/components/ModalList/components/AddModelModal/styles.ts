@@ -46,6 +46,13 @@ export const useStyles = createStyles(({ isDarkMode, prefixCls, css, token }) =>
 		inputNumber: css`
 			width: 88%;
 		`,
+		// 思考配置缩进至所属能力内部，避免被理解为独立模型参数。
+		reasoningConfig: css`
+			padding-left: 24px;
+			.${prefixCls}-form-item {
+				margin-bottom: 0;
+			}
+		`,
 		checkboxGroup: css`
 			display: flex;
 			flex-direction: column;
@@ -108,9 +115,9 @@ export const useStyles = createStyles(({ isDarkMode, prefixCls, css, token }) =>
 				}
 				.${prefixCls}-select-selection-item {
 					padding-inline-start: 36px;
-					color: ${isDarkMode
-						? token.magicColorScales.grey[4]
-						: token.magicColorUsages.text[0]};
+					color: ${
+						isDarkMode ? token.magicColorScales.grey[4] : token.magicColorUsages.text[0]
+					};
 				}
 			}
 		`,

@@ -5,6 +5,8 @@ interface ImportMetaEnv {
 	readonly MAGIC_APP_ENV?: "saas-test" | "saas-pre" | "saas-prod" | "international-prod"
 	/** 是否私有化部署 */
 	readonly MAGIC_IS_PRIVATE_DEPLOY?: "true" | "false"
+	/** 微应用开关；未配置时沿用部署默认值 */
+	readonly MAGIC_MICRO_APP_ENABLED?: "true" | "false"
 	/** WebSocket连接地址 */
 	readonly MAGIC_SOCKET_BASE_URL?: string
 	/** SSO登录地址 */
@@ -61,6 +63,10 @@ interface ImportMetaEnv {
 	readonly MAGIC_CDNHOST?: string
 	/** iframe HTML 渲染站地址（跨域时主应用 iframe src 指向此 URL，如 https://localhost:4173 或 http://localhost:4173） */
 	readonly MAGIC_HTML_SANDBOX_URL?: string
+	/** Agent 沙盒中的跨项目文件挂载根路径 */
+	readonly AGENT_REFERENCED_PROJECT_MOUNT_BASE_PATH?: string
+	/** Agent 沙盒实际 HOME；自定义镜像需与沙盒保持一致 */
+	readonly AGENT_USER_HOME_PATH?: string
 	/** 私有化部署环境 ID，用于标识当前编辑的哪一个私有化环境 */
 	readonly MAGIC_DEPLOYMENT_ID?: string
 	/** 云服务商“应用性能全链路监控” */

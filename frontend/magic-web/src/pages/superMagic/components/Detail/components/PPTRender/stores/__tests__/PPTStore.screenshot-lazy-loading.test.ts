@@ -1,186 +1,176 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { runInAction } from "mobx"
 import { createPPTStore } from "../PPTStore"
 import type { PPTStore } from "../PPTStore"
+import type { SlideItem } from "../../PPTSidebar/types"
 
-const screenshotServiceMock = vi.hoisted(() => ({
-	generateScreenshot: vi.fn(async () => "blob:mock-thumbnail"),
-	cancelPreviewGenerations: vi.fn(),
-	releaseScreenshot: vi.fn(),
-	clearCache: vi.fn(),
-	getCacheStats: vi.fn(() => ({ size: 0, urls: [] })),
-	reset: vi.fn(),
-	dispose: vi.fn(),
+const mockState = vi.hoisted(() => ({
+	downloadFileContent: vi.fn(),
+	getTemporaryDownloadUrl: vi.fn(),
+	processHtmlContent: vi.fn(),
+	screenshotService: {
+		generateScreenshot: vi.fn(async (key: string) => `blob:${key}`),
+		cancelPreviewGenerations: vi.fn(),
+		releaseScreenshot: vi.fn(),
+		clearCache: vi.fn(),
+		getCacheStats: vi.fn(() => ({ size: 0, urls: [] })),
+		reset: vi.fn(),
+		dispose: vi.fn(),
+	},
 }))
 
-// Mock the services
-vi.mock("../../services/SlideLoaderService")
-vi.mock("../../services/SlideProcessorService")
+vi.mock("@/pages/superMagic/utils/api", () => ({
+	downloadFileContent: mockState.downloadFileContent,
+	getTemporaryDownloadUrl: mockState.getTemporaryDownloadUrl,
+}))
+
+vi.mock("@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor", () => ({
+	processHtmlContent: mockState.processHtmlContent,
+	collectFileIdsFromHtml: vi.fn(() => new Set()),
+}))
+
+vi.mock("../../../../contents/HTML/utils/full-content", () => ({
+	decodeHTMLEntities: (content: string) => content,
+	fallbackImageBase64: "data:image/png;base64,",
+	getFullContent: (content: string) => content,
+}))
+
 vi.mock("../../services/SlideScreenshotService", () => ({
-	createScreenshotService: () => screenshotServiceMock,
-	getScreenshotService: () => screenshotServiceMock,
+	createScreenshotService: () => mockState.screenshotService,
+	getScreenshotService: () => mockState.screenshotService,
 }))
-vi.mock("../../services/PPTLogger")
 
-describe("PPTStore - Screenshot Lazy Loading", () => {
-	let store: PPTStore
+vi.mock("@/infrastructure/logger", () => ({
+	logger: {
+		createLogger: () => ({
+			warn: vi.fn(),
+			error: vi.fn(),
+		}),
+	},
+}))
+
+vi.mock("@/assets/locales/locale-adapters", () => ({
+	getLocaleModules: () => ({}),
+	getAdminLocaleModules: () => ({}),
+	loadFallbackLocale: vi.fn(),
+	loadMagicFlowLocale: vi.fn(),
+}))
+
+function createDeck(count: number) {
+	const paths = Array.from({ length: count }, (_, index) => `slide-${index}.html`)
+	const attachmentList = [
+		{
+			file_id: "main-file",
+			file_name: "index.html",
+			relative_file_path: "deck/index.html",
+		},
+		...paths.map((path, index) => ({
+			file_id: `file-${index}`,
+			file_name: path,
+			relative_file_path: `deck/${path}`,
+		})),
+	]
+	return { paths, attachmentList }
+}
+
+function createStore(count: number, config: { autoLoadAndGenerate?: boolean } = {}) {
+	const deck = createDeck(count)
+	const store = createPPTStore({
+		attachments: [],
+		attachmentList: deck.attachmentList,
+		mainFileId: "main-file",
+		mainFileName: "index.html",
+		logger: { enabled: false },
+		enableCache: false,
+		fileUpdateDebounceMs: 0,
+		...config,
+	})
+	return { store, ...deck }
+}
+
+function setIdleSlides(store: PPTStore, count: number): SlideItem[] {
+	const slides = Array.from({ length: count }, (_, index) => {
+		const path = `slide-${index}.html`
+		store.pathMappingService.setPathFileIdMapping(path, `file-${index}`)
+		return {
+			id: `slide-${index}`,
+			path,
+			url: `https://example.com/file-${index}.html`,
+			index,
+			loadingState: "idle" as const,
+		}
+	})
+	store.setSlides(slides, true)
+	return slides
+}
+
+describe("PPTStore screenshot demand", () => {
+	const stores: PPTStore[] = []
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		mockState.getTemporaryDownloadUrl.mockImplementation(async ({ file_ids }) =>
+			file_ids.map((fileId: string) => ({
+				file_id: fileId,
+				url: `https://example.com/${fileId}.html`,
+			})),
+		)
+		mockState.downloadFileContent.mockImplementation(
+			async (url: string) => `<main>${url}</main>`,
+		)
+		mockState.processHtmlContent.mockImplementation(async ({ content }) => ({
+			processedContent: content,
+		}))
 	})
 
 	afterEach(() => {
-		store?.reset()
+		stores.splice(0).forEach((store) => store.dispose())
 	})
 
-	describe("screenshotStrategy configuration", () => {
-		it('should default to "eager" strategy when not specified', () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-			})
-
-			// @ts-ignore - access private config for testing
-			expect(store.config.screenshotStrategy).toBe("eager")
+	describe("autoLoadAndGenerate", () => {
+		it("enables automatic preview by default", () => {
+			const { store } = createStore(1)
+			stores.push(store)
+			expect(store.isAutomaticLoadingEnabled).toBe(true)
 		})
 
-		it('should use "viewport" strategy when specified', () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "viewport",
-			})
-
-			// @ts-ignore - access private config for testing
-			expect(store.config.screenshotStrategy).toBe("viewport")
-		})
-
-		it('should use "lazy" strategy when specified', () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "lazy",
-			})
-
-			// @ts-ignore - access private config for testing
-			expect(store.config.screenshotStrategy).toBe("lazy")
-		})
-
-		it("should maintain backward compatibility with autoLoadAndGenerate", () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				autoLoadAndGenerate: false,
-			})
-
-			// @ts-ignore - access private config for testing
-			expect(store.config.autoLoadSlides).toBe(false)
+		it("disables automatic preview when autoLoadAndGenerate is false", () => {
+			const { store } = createStore(1, { autoLoadAndGenerate: false })
+			stores.push(store)
+			expect(store.isAutomaticLoadingEnabled).toBe(false)
 		})
 	})
 
-	describe("screenshot generation based on strategy", () => {
-		it('should generate all screenshots immediately with "eager" strategy', async () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "eager",
-			})
+	describe("initialize does not generate every thumbnail", () => {
+		it("only screenshots the active slide on init", async () => {
+			const { store, paths } = createStore(3)
+			stores.push(store)
 
-			const generateAllScreenshotsSpy = vi.spyOn(store, "generateAllScreenshots")
+			await store.initializeSlides(paths)
 
-			// Initialize slides
-			await store.initializeSlides([
-				"slides/page1.html",
-				"slides/page2.html",
-				"slides/page3.html",
-			])
-
-			// Wait for slides to load (mocked behavior)
-			await new Promise((resolve) => setTimeout(resolve, 100))
-
-			// With eager strategy, generateAllScreenshots should be called
-			expect(generateAllScreenshotsSpy).toHaveBeenCalled()
+			expect(mockState.screenshotService.generateScreenshot).toHaveBeenCalledTimes(1)
+			expect(store.slides[0]?.thumbnailUrl).toBeDefined()
+			expect(store.slides[1]?.thumbnailUrl).toBeUndefined()
+			expect(store.slides[2]?.thumbnailUrl).toBeUndefined()
 		})
 
-		it('should NOT generate screenshots automatically with "viewport" strategy', async () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "viewport",
-			})
+		it("does not screenshot on init when automatic loading is disabled", async () => {
+			const { store, paths } = createStore(3, { autoLoadAndGenerate: false })
+			stores.push(store)
 
-			const generateAllScreenshotsSpy = vi.spyOn(store, "generateAllScreenshots")
+			await store.initializeSlides(paths)
 
-			// Initialize slides
-			await store.initializeSlides([
-				"slides/page1.html",
-				"slides/page2.html",
-				"slides/page3.html",
-			])
-
-			// Wait for slides to load (mocked behavior)
-			await new Promise((resolve) => setTimeout(resolve, 100))
-
-			// With viewport strategy, generateAllScreenshots should NOT be called
-			expect(generateAllScreenshotsSpy).not.toHaveBeenCalled()
-		})
-
-		it('should NOT generate screenshots automatically with "lazy" strategy', async () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "lazy",
-			})
-
-			const generateAllScreenshotsSpy = vi.spyOn(store, "generateAllScreenshots")
-
-			// Initialize slides
-			await store.initializeSlides([
-				"slides/page1.html",
-				"slides/page2.html",
-				"slides/page3.html",
-			])
-
-			// Wait for slides to load (mocked behavior)
-			await new Promise((resolve) => setTimeout(resolve, 100))
-
-			// With lazy strategy, generateAllScreenshots should NOT be called
-			expect(generateAllScreenshotsSpy).not.toHaveBeenCalled()
+			expect(mockState.screenshotService.generateScreenshot).not.toHaveBeenCalled()
+			expect(store.slides.every((slide) => !slide.thumbnailUrl)).toBe(true)
 		})
 	})
 
-	describe("manual screenshot generation", () => {
-		it("should generate screenshot on demand for specific slide", async () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "viewport",
-			})
+	describe("on-demand screenshot generation", () => {
+		it("generates a screenshot for a loaded slide", async () => {
+			const { store } = createStore(3, { autoLoadAndGenerate: false })
+			stores.push(store)
+			setIdleSlides(store, 3)
 
-			// Initialize slides
-			await store.initializeSlides([
-				"slides/page1.html",
-				"slides/page2.html",
-				"slides/page3.html",
-			])
-
-			// Manually set slide content for testing
 			runInAction(() => {
 				if (store.slides[0]) {
 					store.slides[0].content = "<div>Test content</div>"
@@ -188,30 +178,18 @@ describe("PPTStore - Screenshot Lazy Loading", () => {
 				}
 			})
 
-			// Request screenshot generation for slide 0
 			await store.generateSlideScreenshot(0)
 
-			// Check that the slide has thumbnail loading state set
-			expect(store.slides[0]?.thumbnailLoading).toBeDefined()
+			expect(mockState.screenshotService.generateScreenshot).toHaveBeenCalledTimes(1)
+			expect(store.slides[0]?.thumbnailUrl).toBe("blob:https://example.com/file-0.html")
+			expect(store.slides[0]?.thumbnailLoading).toBe(false)
 		})
 
-		it("should allow selective screenshot generation", async () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "lazy",
-			})
+		it("generates only the requested slide screenshot", async () => {
+			const { store } = createStore(3, { autoLoadAndGenerate: false })
+			stores.push(store)
+			setIdleSlides(store, 3)
 
-			// Initialize slides
-			await store.initializeSlides([
-				"slides/page1.html",
-				"slides/page2.html",
-				"slides/page3.html",
-			])
-
-			// Manually set slide content for testing
 			runInAction(() => {
 				store.slides.forEach((slide, index) => {
 					slide.content = `<div>Slide ${index + 1}</div>`
@@ -219,68 +197,62 @@ describe("PPTStore - Screenshot Lazy Loading", () => {
 				})
 			})
 
-			// Generate screenshot only for slide 1
 			await store.generateSlideScreenshot(1)
 
-			// Only slide 1 should have triggered screenshot generation
-			expect(store.slides[0]?.thumbnailLoading).toBeUndefined()
-			expect(store.slides[1]?.thumbnailLoading).toBeDefined()
-			expect(store.slides[2]?.thumbnailLoading).toBeUndefined()
+			expect(mockState.screenshotService.generateScreenshot).toHaveBeenCalledTimes(1)
+			expect(store.slides[0]?.thumbnailUrl).toBeUndefined()
+			expect(store.slides[1]?.thumbnailUrl).toBe("blob:https://example.com/file-1.html")
+			expect(store.slides[2]?.thumbnailUrl).toBeUndefined()
+		})
+
+		it("screenshots only the visible sidebar range", async () => {
+			const { store } = createStore(5, { autoLoadAndGenerate: false })
+			stores.push(store)
+			setIdleSlides(store, 5)
+
+			store.updateVisibleSlidePreviews([1, 2])
+
+			await vi.waitFor(() => {
+				expect(store.slides[1]?.thumbnailUrl).toBeDefined()
+				expect(store.slides[2]?.thumbnailUrl).toBeDefined()
+			})
+			expect(store.slides[0]?.thumbnailUrl).toBeUndefined()
+			expect(store.slides[3]?.thumbnailUrl).toBeUndefined()
+			expect(store.slides[4]?.thumbnailUrl).toBeUndefined()
 		})
 	})
 
-	describe("new slide insertion with lazy loading", () => {
-		it('should NOT auto-generate screenshot for new slides with "viewport" strategy', async () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "viewport",
+	describe("new slide insertion", () => {
+		it("does not screenshot a newly inserted idle slide", async () => {
+			const { store } = createStore(2, { autoLoadAndGenerate: false })
+			stores.push(store)
+			setIdleSlides(store, 2)
+
+			await store.insertSlide(0, "after", {
+				path: "slide-2.html",
+				url: "https://example.com/file-2.html",
+				fileId: "file-2",
 			})
 
-			// Initialize slides
-			await store.initializeSlides(["slides/page1.html", "slides/page2.html"])
-
-			const generateSlideScreenshotSpy = vi.spyOn(store, "generateSlideScreenshot")
-
-			// Insert a new slide
-			const newSlideData = {
-				path: "slides/page3.html",
-				url: "https://example.com/slides/page3.html",
-				fileId: "file3",
-			}
-
-			await store.insertSlide(0, "after", newSlideData)
-
-			// With viewport strategy, screenshot should NOT be generated automatically
-			expect(generateSlideScreenshotSpy).not.toHaveBeenCalled()
+			expect(mockState.screenshotService.generateScreenshot).not.toHaveBeenCalled()
+			expect(store.slides).toHaveLength(3)
+			expect(store.slides[1]?.thumbnailUrl).toBeUndefined()
 		})
 
-		it('should auto-generate screenshot for new slides with "eager" strategy', async () => {
-			store = createPPTStore({
-				attachments: [],
-				attachmentList: [],
-				mainFileId: "test-file",
-				mainFileName: "test.html",
-				screenshotStrategy: "eager",
+		it("does not generate all thumbnails after inserting a slide", async () => {
+			const { store } = createStore(2)
+			stores.push(store)
+			setIdleSlides(store, 2)
+
+			await store.insertSlide(0, "after", {
+				path: "slide-2.html",
+				url: "https://example.com/file-2.html",
+				fileId: "file-2",
 			})
 
-			// Initialize slides
-			await store.initializeSlides(["slides/page1.html", "slides/page2.html"])
-
-			// Insert a new slide (screenshot generation is part of the insertion callback)
-			const newSlideData = {
-				path: "slides/page3.html",
-				url: "https://example.com/slides/page3.html",
-				fileId: "file3",
-			}
-
-			// With eager strategy, the insertion callback should trigger screenshot generation
-			await store.insertSlide(0, "after", newSlideData)
-
-			// Verify that the new slide was inserted (exact behavior depends on callback implementation)
-			expect(store.slides.length).toBeGreaterThan(2)
+			expect(store.slides).toHaveLength(3)
+			expect(store.slides[1]?.thumbnailUrl).toBeUndefined()
+			expect(store.slides[2]?.thumbnailUrl).toBeUndefined()
 		})
 	})
 })

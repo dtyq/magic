@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Resource and navigation interception</title>
+		<script data-fixture-helper></script>
+	</head>
+	<body>
+		<h2>Resources, nested iframe and navigation</h2>
+		<div id="resource-target">CSS target</div>
+		<script>
+			;(async function () {
+				await Fixture.test(
+					"relative fetch resolves through the host and returns a real response",
+					async () => {
+						const response = await fetch("./resource.json")
+						Fixture.equal(response.ok, true)
+						Fixture.equal(await response.json(), { message: "real resource" })
+					},
+				)
+				await Fixture.test("XHR uses the same resource mapping", async () => {
+					const value = await new Promise((resolve, reject) => {
+						const xhr = new XMLHttpRequest()
+						xhr.open("GET", "./resource.json")
+						xhr.onload = () => {
+							try {
+								resolve(JSON.parse(xhr.responseText))
+							} catch (error) {
+								reject(error)
+							}
+						}
+						xhr.onerror = () => reject(Error("XHR failed"))
+						xhr.send()
+					})
+					Fixture.equal(value, { message: "real resource" })
+				})
+				await Fixture.test(
+					"XHR sends method, body and repeated headers through native HTTP",
+					async () => {
+						const send = (marker) =>
+							new Promise((resolve, reject) => {
+								const xhr = new XMLHttpRequest()
+								xhr.open("POST", "./resource-xhr.json")
+								xhr.setRequestHeader("X-Fixture-Id", marker)
+								xhr.setRequestHeader("X-Fixture-Values", "one")
+								xhr.setRequestHeader("X-Fixture-Values", "two")
+								xhr.onload = () => {
+									try {
+										resolve(JSON.parse(xhr.responseText))
+									} catch (error) {
+										reject(error)
+									}
+								}
+								xhr.onerror = () => reject(Error("Header echo failed"))
+								xhr.timeout = 5000
+								xhr.ontimeout = () => reject(Error("Header echo timed out"))
+								Fixture.equal(xhr.send("fixture body"), undefined)
+							})
+						const values = await Promise.all([send("first"), send("shared")])
+						values.push(await send("cached"))
+						Fixture.equal(
+							values,
+							["first", "shared", "cached"].map((marker) => ({
+								method: "POST",
+								body: "fixture body",
+								marker,
+								values: "one, two",
+							})),
+						)
+					},
+				)
+				await Fixture.test(
+					"XHR lookup failure dispatches loadend and the same object can retry",
+					async () => {
+						const xhr = new XMLHttpRequest()
+						let loadCount = 0
+						let loadEndCount = 0
+						xhr.addEventListener("load", () => {
+							loadCount += 1
+						})
+						xhr.addEventListener("loadend", () => {
+							loadEndCount += 1
+						})
+						const sendAndWait = (body) =>
+							new Promise((resolve) => {
+								xhr.addEventListener("loadend", resolve, { once: true })
+								Fixture.equal(xhr.send(body), undefined)
+							})
+						xhr.open("GET", "./missing-retry-fixture.json")
+						await sendAndWait()
+						Fixture.equal(xhr.status, 404)
+						Fixture.equal(xhr.readyState, 4)
+						Fixture.equal([loadCount, loadEndCount], [1, 1])
+						xhr.open("POST", "./resource-xhr.json")
+						Fixture.equal(xhr.readyState, 1)
+						Fixture.equal(xhr.status, 0)
+						xhr.setRequestHeader("X-Fixture-Id", "reused-after-missing")
+						await sendAndWait("retry body")
+						Fixture.equal(xhr.status, 200)
+						Fixture.equal(JSON.parse(xhr.responseText), {
+							method: "POST",
+							body: "retry body",
+							marker: "reused-after-missing",
+							values: "",
+						})
+						Fixture.equal([loadCount, loadEndCount], [2, 2])
+					},
+				)
+				await Fixture.test(
+					"XHR abort while resolving ends once and never reaches the server",
+					async () => {
+						const prefix = crypto.randomUUID()
+						const events = []
+						const xhr = new XMLHttpRequest()
+						xhr.open("GET", "./resource-abort.json")
+						xhr.setRequestHeader("X-Fixture-Id", prefix + "-cancelled")
+						for (const name of ["abort", "loadend", "load", "error"])
+							xhr.addEventListener(name, () => events.push(name))
+						Fixture.equal(xhr.send(), undefined)
+						xhr.abort()
+						xhr.abort()
+						Fixture.equal(events, ["abort", "loadend"])
+						// A live waiter shares the lookup and proves its response has arrived.
+						const live = await fetch("./resource-abort.json", {
+							headers: { "X-Fixture-Id": prefix + "-active" },
+						})
+						Fixture.equal((await live.json()).marker, prefix + "-active")
+						const state = new URL("/resource-test-state", live.url)
+						state.searchParams.set("prefix", prefix)
+						Fixture.equal(await (await fetch(state.href)).json(), [prefix + "-active"])
+						Fixture.equal(events, ["abort", "loadend"])
+					},
+				)
+				await Fixture.test("dynamic script executes after URL resolution", async () => {
+					const script = document.createElement("script")
+					script.src = "./resource.js"
+					document.body.appendChild(script)
+					await Fixture.waitFor(() => window.dynamicResourceLoaded === true)
+				})
+				await Fixture.test("dynamic stylesheet applies after URL resolution", async () => {
+					const link = document.createElement("link")
+					link.rel = "stylesheet"
+					link.setAttribute("href", "./resource.css")
+					document.head.appendChild(link)
+					await Fixture.waitFor(
+						() =>
+							getComputedStyle(document.getElementById("resource-target")).color ===
+							"rgb(1, 2, 3)",
+					)
+				})
+				await Fixture.test("dynamic image loads with native dimensions", async () => {
+					const image = document.createElement("img")
+					image.src = "./resource.svg"
+					document.body.appendChild(image)
+					await Fixture.waitFor(() => image.complete && image.naturalWidth === 4)
+				})
+				await Fixture.test(
+					"connected style textContent and Text.data resolve relative images",
+					async () => {
+						const style = document.createElement("style")
+						document.head.appendChild(style)
+						await new Promise((resolve) => setTimeout(resolve, 0))
+						style.textContent =
+							'#resource-target{background-image:url("./resource.svg")}'
+						await Fixture.waitFor(() =>
+							style.textContent.includes("/resolved-assets/resource.svg"),
+						)
+						const text = style.firstChild
+						text.data = '#resource-target{border-image-source:url("./resource.svg")}'
+						await Fixture.waitFor(() =>
+							style.textContent.includes("/resolved-assets/resource.svg"),
+						)
+						if (
+							!getComputedStyle(
+								document.getElementById("resource-target"),
+							).borderImageSource.includes("/resolved-assets/resource.svg")
+						)
+							throw Error("Updated stylesheet was not applied")
+						style.firstChild.appendData(
+							'#resource-target{background-image:url("./resource.svg")}',
+						)
+						await Fixture.waitFor(() =>
+							getComputedStyle(
+								document.getElementById("resource-target"),
+							).backgroundImage.includes("/resolved-assets/resource.svg"),
+						)
+						style.remove()
+					},
+				)
+				await Fixture.test(
+					"nested relative HTML becomes srcdoc and executes its own script",
+					async () => {
+						const nested = document.createElement("iframe")
+						nested.src = "./nested.html"
+						document.body.appendChild(nested)
+						await Fixture.waitFor(
+							() => nested.contentDocument?.body?.dataset.nested === "executed",
+						)
+						if (!nested.srcdoc)
+							throw Error("Nested HTML bypassed the content interceptor")
+					},
+				)
+				await Fixture.test(
+					"links, window.open and location.href route to the host without unloading",
+					async () => {
+						const anchor = document.createElement("a")
+						anchor.href = "./next.html?via=anchor"
+						anchor.textContent = "Open"
+						document.body.appendChild(anchor)
+						anchor.click()
+						window.open("./next.html?via=open", "_blank")
+						window.location.href = "./next.html?via=location"
+						Fixture.equal(document.title, "Resource and navigation interception")
+					},
+				)
+				await Fixture.test("hash navigation stays inside the document", async () => {
+					window.location.href = "#section"
+					Fixture.equal(location.hash, "#section")
+				})
+				Fixture.done()
+			})()
+		</script>
+	</body>
+</html>

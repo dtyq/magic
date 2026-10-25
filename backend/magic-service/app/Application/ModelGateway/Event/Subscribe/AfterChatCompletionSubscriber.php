@@ -17,7 +17,7 @@ use Hyperf\Odin\Constants\ModelType;
 use Hyperf\Odin\Event\AfterChatCompletionsEvent;
 use Hyperf\Odin\Event\AfterChatCompletionsStreamEvent;
 
-#[AsyncListener]
+#[AsyncListener(driver: 'coroutine')]
 #[Listener]
 class AfterChatCompletionSubscriber implements ListenerInterface
 {
@@ -49,8 +49,8 @@ class AfterChatCompletionSubscriber implements ListenerInterface
             );
         }
 
-        $modelVersion = $completionRequest->getModel();
         $businessParams = $completionRequest->getBusinessParams();
+        $modelVersion = (string) ($businessParams['model_version'] ?? $completionRequest->getModel());
         $businessParams['response_duration'] = $event->getDuration();
         $modelId = empty($businessParams['model_id']) ? $modelVersion : $businessParams['model_id'];
         // 添加原始 model_id（目前用于识别是否动态模型）到 businessParams，用于计费服务

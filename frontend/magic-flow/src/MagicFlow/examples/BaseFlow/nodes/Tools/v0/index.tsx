@@ -3,7 +3,7 @@ import { useCurrentNode } from "@/MagicFlow/nodes/common/context/CurrentNode/use
 import MagicSelect from "@/common/BaseUI/Select"
 import { Form } from "antd"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import React, { useMemo } from "react"
 import NodeOutputWrap from "../../../common/NodeOutputWrap/NodeOutputWrap"
 import usePrevious from "../../../common/hooks/usePrevious"
@@ -35,7 +35,7 @@ export default function ToolsV0() {
 
 	const initialValues = useMemo(() => {
 		const nodeParams = {
-			..._.cloneDeep(templateMap[customNodeType.Tools].v0.params),
+			...cloneDeep(templateMap[customNodeType.Tools].v0.params),
 			...currentNode?.params,
 		}
 		return {

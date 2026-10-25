@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { Editor } from "@tiptap/react"
+import { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 import type {
 	SlashMenuConfig,

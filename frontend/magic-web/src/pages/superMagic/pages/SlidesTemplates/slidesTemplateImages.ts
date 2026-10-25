@@ -7,8 +7,7 @@ import {
 } from "@/utils/tos-image"
 
 const CARD_IMAGE_WIDTH = 720
-const PREVIEW_AMBIENT_IMAGE_WIDTH = 960
-const PREVIEW_THUMBNAIL_IMAGE_WIDTH = 360
+const PREVIEW_IMAGE_WIDTH = 1920
 
 function applyTosImageProcess(imageUrl: string | undefined, width: number, quality: number) {
 	if (!imageUrl || !isTosPublicImageUrl(imageUrl)) return imageUrl
@@ -33,10 +32,10 @@ export function getSlidesTemplateCardImageUrl(imageUrl: string | undefined) {
 	return applyTosImageProcess(imageUrl, CARD_IMAGE_WIDTH, 82)
 }
 
-export function getSlidesTemplatePreviewAmbientImageUrl(imageUrl: string | undefined) {
-	return applyTosImageProcess(imageUrl, PREVIEW_AMBIENT_IMAGE_WIDTH, 84)
-}
-
-export function getSlidesTemplatePreviewThumbnailImageUrl(imageUrl: string | undefined) {
-	return applyTosImageProcess(imageUrl, PREVIEW_THUMBNAIL_IMAGE_WIDTH, 78)
+/**
+ * Normalizes every image used by the detail preview to one full-preview variant.
+ * The same URL is shared by the stage, ambient background, preloader, and thumbnail rail.
+ */
+export function getSlidesTemplatePreviewImageUrl(imageUrl: string | undefined) {
+	return applyTosImageProcess(imageUrl, PREVIEW_IMAGE_WIDTH, 84)
 }

@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/user-selector",
-	"version": "0.1.14",
+	"version": "0.1.15",
 	"description": "React user selector components for organization and member selection.",
 	"keywords": [
 		"react",
@@ -95,7 +95,6 @@
 		"@tabler/icons-react": "^3.31.0",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
-		"@types/lodash": "^4.17.4",
 		"@types/lodash-es": "^4.17.12",
 		"@types/react": "^18.3.2",
 		"@types/react-dom": "^18.3.0",
@@ -122,7 +121,7 @@
 		"husky": "^9.0.11",
 		"jsdom": "^25.0.1",
 		"lint-staged": "^15.2.2",
-		"lodash-es": "^4.17.23",
+		"lodash-es": "^4.17.21",
 		"lucide-react": "^0.562.0",
 		"next-themes": "^0.4.6",
 		"postcss": "^8.4.38",
@@ -160,7 +159,7 @@
 		"@radix-ui/react-tooltip": ">=1 <2",
 		"@tabler/icons-react": ">=3 <4",
 		"ahooks": ">=3 <4",
-		"lodash-es": ">=4 <5",
+		"lodash-es": "^4.17.21",
 		"lucide-react": ">=0.562 <1",
 		"next-themes": ">=0.4 <1",
 		"react": ">=18 <20",

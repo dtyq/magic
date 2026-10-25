@@ -40,7 +40,8 @@ class CrewAgentCacheState:
 class CrewAgentCacheManager:
     """Manage `.agent` cache freshness for runtime-compiled crew agents."""
 
-    MANIFEST_VERSION = 1
+    # 名称兼容会改变默认工具的排除结果，必须从原 TOOLS.md 重新编译一次。
+    MANIFEST_VERSION = 2
 
     def manifest_file(self, agent_code: str) -> Path:
         agent_file = PathManager.get_compiled_agent_file(agent_code)

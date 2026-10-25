@@ -15,6 +15,8 @@ use App\Domain\SuperMagic\Project\Event\ProjectHiddenStatusUpdatedEvent;
 use App\Domain\SuperMagic\Project\Event\ProjectMovedEvent;
 use App\Domain\SuperMagic\Project\Event\ProjectsBatchDeletedEvent;
 use App\Domain\SuperMagic\Project\Event\ProjectsBatchMovedEvent;
+use App\Domain\SuperMagic\Project\Event\ProjectTransferredEvent;
+use App\Domain\SuperMagic\Project\Event\ProjectUpdatedEvent;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Event\Annotation\Listener;
@@ -48,6 +50,8 @@ class UngroupedProjectCountCacheSubscriber implements ListenerInterface
             ProjectDeletedEvent::class,
             ProjectHiddenStatusUpdatedEvent::class,
             ProjectMovedEvent::class,
+            ProjectTransferredEvent::class,
+            ProjectUpdatedEvent::class,
             ProjectsBatchDeletedEvent::class,
             ProjectsBatchMovedEvent::class,
         ];
@@ -64,6 +68,8 @@ class UngroupedProjectCountCacheSubscriber implements ListenerInterface
                 $event instanceof ProjectDeletedEvent => $this->handleSingleProject($event->getProjectEntity(), $event->getUserAuthorization()),
                 $event instanceof ProjectHiddenStatusUpdatedEvent => $this->handleHiddenStatusUpdated($event),
                 $event instanceof ProjectMovedEvent => $this->handleSingleProject($event->getProjectEntity(), $event->getUserAuthorization()),
+                $event instanceof ProjectTransferredEvent => $this->handleTransferred($event),
+                $event instanceof ProjectUpdatedEvent => $this->handleSingleProject($event->getProjectEntity(), $event->getUserAuthorization()),
                 $event instanceof ProjectsBatchDeletedEvent => $this->handleBatchProjects($event->getProjectEntities(), $event->getUserAuthorization()),
                 $event instanceof ProjectsBatchMovedEvent => $this->handleBatchProjects($event->getProjectEntities(), $event->getUserAuthorization()),
                 default => null,
@@ -80,10 +86,9 @@ class UngroupedProjectCountCacheSubscriber implements ListenerInterface
 
     private function handleSingleProject(ProjectEntity $projectEntity, MagicUserAuthorization $userAuthorization): void
     {
-        $this->clearCacheByMode(
-            $userAuthorization->getId(),
-            $userAuthorization->getOrganizationCode(),
-            $projectEntity->getProjectMode()
+        $this->clearAudioCache(
+            $projectEntity->getUserId() ?: $userAuthorization->getId(),
+            $projectEntity->getUserOrganizationCode() ?: $userAuthorization->getOrganizationCode()
         );
     }
 
@@ -92,53 +97,46 @@ class UngroupedProjectCountCacheSubscriber implements ListenerInterface
      */
     private function handleBatchProjects(array $projectEntities, MagicUserAuthorization $userAuthorization): void
     {
-        $modes = [];
-        foreach ($projectEntities as $projectEntity) {
-            $mode = $this->normalizeProjectMode($projectEntity->getProjectMode());
-            if ($mode !== null) {
-                $modes[$mode->value] = $mode;
-            }
-        }
-
-        foreach ($modes as $mode) {
-            $this->clearCache($userAuthorization->getId(), $userAuthorization->getOrganizationCode(), $mode);
-        }
-    }
-
-    private function clearCacheByMode(string $userId, string $organizationCode, ?string $projectMode): void
-    {
-        $mode = $this->normalizeProjectMode($projectMode);
-        if ($mode === null) {
+        if ($projectEntities === []) {
             return;
         }
 
-        $this->clearCache($userId, $organizationCode, $mode);
+        $scopes = [];
+        foreach ($projectEntities as $projectEntity) {
+            $userId = $projectEntity->getUserId() ?: $userAuthorization->getId();
+            $organizationCode = $projectEntity->getUserOrganizationCode() ?: $userAuthorization->getOrganizationCode();
+            $scopes[$userId . ':' . $organizationCode] = [$userId, $organizationCode];
+        }
+
+        foreach ($scopes as [$userId, $organizationCode]) {
+            $this->clearAudioCache($userId, $organizationCode);
+        }
+    }
+
+    private function handleTransferred(ProjectTransferredEvent $event): void
+    {
+        $organizationCode = $event->getOrganizationCode();
+        $this->clearAudioCache($event->getFromUserId(), $organizationCode);
+
+        if ($event->getToUserId() !== $event->getFromUserId()) {
+            $this->clearAudioCache($event->getToUserId(), $organizationCode);
+        }
     }
 
     private function handleHiddenStatusUpdated(ProjectHiddenStatusUpdatedEvent $event): void
     {
-        $this->clearCacheByMode(
+        $this->clearAudioCache(
             $event->getUserId(),
-            $event->getUserOrganizationCode(),
-            $event->getProjectMode()
+            $event->getUserOrganizationCode()
         );
     }
 
-    private function clearCache(string $userId, string $organizationCode, ProjectMode $projectMode): void
+    private function clearAudioCache(string $userId, string $organizationCode): void
     {
         $this->projectDomainService->clearUngroupedProjectCountCacheByMode(
             $userId,
             $organizationCode,
-            $projectMode
+            ProjectMode::AUDIO
         );
-    }
-
-    private function normalizeProjectMode(?string $projectMode): ?ProjectMode
-    {
-        if ($projectMode === null || $projectMode === '') {
-            return null;
-        }
-
-        return ProjectMode::tryFrom($projectMode);
     }
 }

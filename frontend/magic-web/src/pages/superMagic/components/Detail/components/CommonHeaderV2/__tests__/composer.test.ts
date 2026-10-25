@@ -12,6 +12,7 @@ function createContext(overrides: Partial<ActionContext> = {}): ActionContext {
 		isShareRoute: false,
 		isFromNode: false,
 		isFullscreen: false,
+		isFullscreenMode: false,
 		isEditMode: false,
 		detailMode: "files",
 		showDownload: true,
@@ -95,4 +96,21 @@ describe("composeHeaderActions", () => {
 		expect(keys).not.toContain("prev")
 		expect(keys).not.toContain("next")
 	})
+})
+
+it("allows read-only sharing without granting edit capability", () => {
+	const context = createContext({ allowEdit: false, shareInReadOnly: true })
+	const actions = composeHeaderActions(context)
+	expect(actions.map((action) => action.key)).toContain("share")
+	expect(context.allowEdit).toBe(false)
+	expect(
+		composeHeaderActions({ ...context, shareInReadOnly: false }).map((action) => action.key),
+	).not.toContain("share")
+})
+it("keeps scope-level share denial effective in read-only mode", () => {
+	const actions = composeHeaderActions(
+		createContext({ allowEdit: false, shareInReadOnly: true }),
+		{ hideDefaults: ["share"] },
+	)
+	expect(actions.map((action) => action.key)).not.toContain("share")
 })

@@ -1,4 +1,4 @@
-import { NodeViewWrapper } from "@tiptap/react"
+import { NodeViewWrapper } from "@/infrastructure/editors/tiptap/react"
 import { memo, useCallback, type MouseEvent } from "react"
 import {
 	getMentionDisplayName,
@@ -50,7 +50,10 @@ function MarkerMentionNodeView({ attrs, deleteNode, selected }: MentionNodeViewR
 	)
 
 	const handleMouseDown = useCallback((event: MouseEvent) => {
+		// Mentions are atomic nodes; prevent the browser and ProseMirror from
+		// turning a pointer drag into a text selection.
 		event.preventDefault()
+		event.stopPropagation()
 	}, [])
 
 	const chip = (
@@ -69,10 +72,12 @@ function MarkerMentionNodeView({ attrs, deleteNode, selected }: MentionNodeViewR
 	return (
 		<NodeViewWrapper
 			as="span"
-			className="magic-mention-node magic-mention-node--marker inline-flex align-top"
+			className="magic-mention-node magic-mention-node--marker inline-flex cursor-grab select-none align-top active:cursor-grabbing"
 			contentEditable={false}
 			data-type={attrs.type}
 			data-data={JSON.stringify(attrs.data || {})}
+			draggable={false}
+			data-magic-editor-node
 			onMouseDown={handleMouseDown}
 		>
 			<span className="px-1">

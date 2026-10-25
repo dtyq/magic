@@ -19,6 +19,30 @@ else:
 
 ---
 
+## Agent Context
+
+### get_user_language
+
+Get the language code for the current Agent task. Skills can call this tool directly when loaded. Code Mode can call the same tool through `sdk.tool`.
+
+**Schema:**
+
+```json
+{}
+```
+
+```python
+from sdk.tool import tool
+
+result = tool.call('get_user_language', {})
+if result.ok and result.data:
+  language = result.data['language']
+```
+
+The returned `data.language` is an open language code such as `zh_CN`, `en_US`, or another language supported by the caller. Do not enforce a fixed allowlist in skills.
+
+---
+
 ## Web Search & Fetch
 
 ### web_search
@@ -30,27 +54,38 @@ Works without a browser.
 
 ```json
 {
-  "topic_id": "string (required) — Use the same topic_id for the same search topic to deduplicate results",
-  "requirements_xml": "string (required) — XML-formatted search requirements, see example below"
+  "search_group_name": "string (required) — Short name you create for related searches. Reuse the exact name within a group; choose a new name for a separate group. Labels results without deduplication. Do not use the platform conversation ID.",
+  "requirements": [
+    {
+      "name": "string (required, non-empty)",
+      "query": "string (required, non-empty)",
+      "limit": "integer (optional, default 10, range 1–20)",
+      "offset": "integer (optional, default 0, minimum 0)",
+      "language": "string (optional, default zh-CN)",
+      "region": "string (optional, default CN)",
+      "time_period": "day | week | month | year (optional; omit for no time restriction)"
+    }
+  ]
 }
 ```
+
+`requirements` is a required non-empty array of objects, not a serialized string. Each item runs one search. Invalid fields reject the call before searching.
 
 ```python
 from sdk.tool import tool
 
 result = tool.call('web_search', {
-    "topic_id": "skill-research",
-    "requirements_xml": """<requirements>
-    <requirement>
-        <name>Travel Planning Best Practices</name>
-        <query>travel itinerary generation AI best practices 2024</query>
-        <limit>10</limit>
-    </requirement>
-</requirements>"""
+    "search_group_name": "skill-research",
+    "requirements": [
+        {
+            "name": "Travel Planning Best Practices",
+            "query": "travel itinerary generation AI best practices",
+            "limit": 10
+        }
+    ]
 })
 
-if result.ok:
-    print(result.content)
+print(result.content)
 ```
 
 ### read_webpages_as_markdown
@@ -311,25 +346,37 @@ Search for high-quality images by keyword. Returned count may be less than reque
 
 ```json
 {
-  "topic_id": "string (required) — Use the same topic_id for the same search topic to deduplicate images",
-  "requirements_xml": "string (required) — XML-formatted image search requirements, see example below"
+  "search_group_name": "string (required) — Short name you create for related searches. Reuse the exact name within a group; choose a new name for a separate group. Images are deduplicated within each group. Do not use the platform conversation ID.",
+  "requirements": [
+    {
+      "name": "string (required, non-empty)",
+      "query": "string (required, non-empty)",
+      "visual_understanding_prompt": "string (required, non-empty) — Analyze image content, not clarity",
+      "requirement_explanation": "string (required, non-empty) — Intended use and specific visual features",
+      "expected_aspect_ratio": "string (required, non-empty) — For example, 16:9 or 3:4",
+      "count": "integer (optional, default 20, range 1–50)"
+    }
+  ]
 }
 ```
+
+`requirements` is a required non-empty array of objects, not a serialized string. Each item runs one search. Filtering may return fewer images than requested.
 
 ```python
 from sdk.tool import tool
 
 result = tool.call('image_search', {
-    "topic_id": "travel-report-images",
-    "requirements_xml": """<requirements>
-    <requirement>
-        <name>Tokyo City Skyline</name>
-        <query>Tokyo city skyline night 2024</query>
-        <visual_understanding_prompt>Confirm this is a Tokyo city nightscape with sufficient clarity for a report cover</visual_understanding_prompt>
-        <requirement_explanation>Needed for travel report cover; requires high-definition Tokyo city nightscape</requirement_explanation>
-        <expected_aspect_ratio>16:9</expected_aspect_ratio>
-        <count>5</count>
-    </requirement>
-</requirements>"""
+    "search_group_name": "travel-report-images",
+    "requirements": [
+        {
+            "name": "City Skyline",
+            "query": "city skyline night panorama",
+            "visual_understanding_prompt": "Confirm this is an urban nightscape with an unobstructed skyline.",
+            "requirement_explanation": "Use a city nightscape as the travel report cover.",
+            "expected_aspect_ratio": "16:9",
+            "count": 5
+        }
+    ]
 })
+print(result.content)
 ```

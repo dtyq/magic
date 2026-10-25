@@ -36,6 +36,8 @@ interface HtmlPermissionManagerDialogProps {
 		ttlMs: HtmlPermissionTtl,
 	) => Promise<HtmlPermissionSnapshot>
 	onRevokeAll: () => Promise<HtmlPermissionSnapshot>
+	/** Marks the current app code as reviewed for every grant (keeps expiry). */
+	onAcknowledgeCodeChanges: () => Promise<HtmlPermissionSnapshot>
 }
 
 export default function HtmlPermissionManagerDialog({
@@ -47,6 +49,7 @@ export default function HtmlPermissionManagerDialog({
 	onRevoke,
 	onUpdateTtl,
 	onRevokeAll,
+	onAcknowledgeCodeChanges,
 }: HtmlPermissionManagerDialogProps) {
 	const { t, i18n } = useTranslation("super")
 	const [snapshot, setSnapshot] = useState<HtmlPermissionSnapshot | null>(null)
@@ -55,6 +58,7 @@ export default function HtmlPermissionManagerDialog({
 	const [revokingScope, setRevokingScope] = useState<HtmlPermissionScope | null>(null)
 	const [updatingScope, setUpdatingScope] = useState<HtmlPermissionScope | null>(null)
 	const [revokingAll, setRevokingAll] = useState(false)
+	const [acknowledging, setAcknowledging] = useState(false)
 	const [now, setNow] = useState(() => Date.now())
 
 	const dateFormatter = useMemo(
@@ -149,6 +153,18 @@ export default function HtmlPermissionManagerDialog({
 		}
 	}
 
+	const handleAcknowledge = async () => {
+		setAcknowledging(true)
+		try {
+			setSnapshot(await onAcknowledgeCodeChanges())
+			magicToast.success(t("htmlEditor.permissionManager.codeBanner.acknowledgeSuccess"))
+		} catch {
+			magicToast.error(t("htmlEditor.permissionManager.codeBanner.acknowledgeFailed"))
+		} finally {
+			setAcknowledging(false)
+		}
+	}
+
 	const declaredCount =
 		snapshot?.permissions.filter((item) => item.declarationStatus === "declared").length ?? 0
 	const visiblePermissions = useMemo(
@@ -171,8 +187,11 @@ export default function HtmlPermissionManagerDialog({
 			? t("htmlEditor.permissionManager.noActivePermissions")
 			: t("htmlEditor.permissionManager.noDeclaredPermissions")
 	const permissionMutationInProgress = Boolean(
-		authorizingScope || revokingScope || updatingScope || revokingAll,
+		authorizingScope || revokingScope || updatingScope || revokingAll || acknowledging,
 	)
+	const showCodeBanner =
+		Boolean(snapshot) &&
+		((snapshot?.codeChangedGrantCount ?? 0) > 0 || (snapshot?.needsReconfirmCount ?? 0) > 0)
 	const getDiagnosticText = useCallback(
 		(diagnostic: HtmlPermissionDiagnostic) => {
 			switch (diagnostic.code) {
@@ -290,6 +309,61 @@ export default function HtmlPermissionManagerDialog({
 													))}
 												</ul>
 											</AlertDescription>
+										</div>
+									</Alert>
+								) : null}
+
+								{showCodeBanner && snapshot ? (
+									<Alert
+										className="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+										data-testid="html-permission-code-banner"
+									>
+										<AlertCircle />
+										<div className="min-w-0 space-y-2">
+											<AlertTitle className="line-clamp-none">
+												{t("htmlEditor.permissionManager.codeBanner.title")}
+											</AlertTitle>
+											<AlertDescription className="text-amber-800 dark:text-amber-200">
+												{snapshot.needsReconfirmCount > 0
+													? t(
+															"htmlEditor.permissionManager.codeBanner.descriptionWithReconfirm",
+															{ count: snapshot.needsReconfirmCount },
+														)
+													: t(
+															"htmlEditor.permissionManager.codeBanner.descriptionReadOnly",
+														)}
+											</AlertDescription>
+											<div className="flex flex-wrap gap-2 pt-1">
+												<Button
+													size="sm"
+													variant="outline"
+													disabled={permissionMutationInProgress}
+													onClick={() => void handleAcknowledge()}
+												>
+													{acknowledging ? (
+														<Loader2
+															size={14}
+															className="animate-spin"
+														/>
+													) : (
+														<ShieldCheck size={14} />
+													)}
+													{t(
+														"htmlEditor.permissionManager.codeBanner.acknowledge",
+													)}
+												</Button>
+												<Button
+													size="sm"
+													variant="outline"
+													disabled={permissionMutationInProgress}
+													onClick={() => void handleRevokeAll()}
+												>
+													<Trash2 size={14} />
+													{t(
+														"htmlEditor.permissionManager.codeBanner.revokeAll",
+													)}
+												</Button>
+											</div>
 										</div>
 									</Alert>
 								) : null}

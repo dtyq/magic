@@ -85,6 +85,8 @@ export namespace User {
 		status: string | number
 		nickname: string
 		real_name: string
+		employee_no?: string
+		department?: string
 		avatar: string
 		organization_code: string
 		phone?: string

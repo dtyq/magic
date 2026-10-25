@@ -5,6 +5,7 @@ import { useStyles } from "./styles"
 import MobileTabBar, { TabBarItem } from "./components/MobileTabBar"
 import MobileHeader from "./components/MobileHeader"
 import GlobalSafeArea from "@/layouts/BaseLayoutMobile/components/GlobalSafeArea"
+import { AdminAuthContentLoading } from "@dtyq/magic-admin/components"
 import {
 	withAuthMiddleware,
 	RouteName,
@@ -18,7 +19,7 @@ import { useTranslation } from "react-i18next"
 import { useMemo } from "react"
 import { useAntdMobileLocale } from "@/hooks/useAntdMobileLocale"
 
-const BaseLayoutMobile = () => {
+const BaseLayoutMobile = ({ authLoading }: { authLoading?: boolean }) => {
 	const { styles } = useStyles()
 	const navigate = useNavigate()
 	const { t } = useTranslation("admin/common")
@@ -46,7 +47,7 @@ const BaseLayoutMobile = () => {
 			<GlobalSafeArea direction="top" />
 			<MobileHeader onClick={() => navigate({ name: RouteName.AdminHome })} />
 			<div className={styles.container}>
-				<Outlet />
+				{authLoading ? <AdminAuthContentLoading /> : <Outlet />}
 			</div>
 			<MobileTabBar tabItems={tabItems} />
 			<GlobalSafeArea direction="bottom" />

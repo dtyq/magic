@@ -2,7 +2,8 @@ import { createStyles } from "antd-style"
 
 export const useStyles = createStyles(({ css, token, responsive }) => ({
 	messageList: css`
-		padding-top: 10px;
+		/* Avoid adding an extra top gap around the embedded message list. */
+		padding-top: 0;
 
 		${responsive.mobile} {
 			padding-top: 0;

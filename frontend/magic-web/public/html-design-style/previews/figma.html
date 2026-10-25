@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1.0">
+ <title>Figma — UI Design Workspace & Design Systems</title>
+ <style>
+:root{
+ --canvas:#1e1e1e;
+ --panel:#2c2c2c;
+ --panel-top:#242424;
+ --border:#383838;
+ --hover:#333333;
+ --blue:#0d99ff;
+ --purple:#9747ff;
+ --ink:#ffffff;
+ --muted:#888888;
+ --lime:#dceeb1;
+ --lilac:#c5b0f4;
+ --cream:#f4ecd6;
+ --mint:#c8e6cd;
+ --pink:#efd4d4;
+ --magenta:#ff3d8b;
+ --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+ --mono:"SF Mono",Monaco,"JetBrains Mono",monospace;
+}
+ *{box-sizing:border-box;margin:0;padding:0}
+ body{background:var(--canvas);color:var(--ink);font-family:var(--font);font-size:11px;line-height:1.4;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+ .figma-app{display:flex;flex-direction:column;height:100vh;min-height:600px}
+ .toolbar{height:42px;background:var(--panel-top);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 12px;user-select:none;z-index:20}
+ .t-left,.t-right{display:flex;align-items:center;gap:10px}
+ .f-logo{width:18px;height:26px}
+ .doc-title{font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px}
+ .doc-dir{color:var(--muted)}
+ .tool-dock{display:flex;gap:2px;background:var(--panel);padding:2px 5px;border-radius:6px;border:1px solid var(--border)}
+ .t-btn{width:26px;height:26px;border-radius:4px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#aaa;cursor:pointer}
+ .t-btn:hover{background:var(--hover);color:#fff}
+ .t-btn.active{background:var(--blue);color:#fff}
+ .t-btn svg{width:13px;height:13px;fill:currentColor}
+ .avatars{display:flex;margin-right:4px}
+ .ava{width:22px;height:22px;border-radius:50%;border:2px solid var(--panel-top);margin-left:-5px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff}
+ .btn-share{background:var(--blue);color:#fff;border:none;padding:4px 12px;border-radius:9999px;font-weight:600;font-size:11px;cursor:pointer}
+ .btn-present{width:24px;height:24px;border-radius:4px;background:var(--panel);border:1px solid var(--border);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+ .workbench{display:flex;flex:1;overflow:hidden;position:relative}
+ .panel-left,.panel-right{width:220px;background:var(--panel);display:flex;flex-direction:column;flex-shrink:0;user-select:none}
+ .panel-left{border-right:1px solid var(--border)}
+ .panel-right{border-left:1px solid var(--border);overflow-y:auto}
+ .tabs{display:flex;border-bottom:1px solid var(--border);background:var(--panel-top)}
+ .tab{flex:1;padding:7px 0;text-align:center;font-weight:600;color:var(--muted);cursor:pointer}
+ .tab.active{color:#fff;border-bottom:2px solid var(--blue);background:var(--panel)}
+ .pages-strip{padding:6px 10px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border);color:#bbb}
+ .tree{flex:1;overflow-y:auto;padding:4px 0}
+ .tree-row{display:flex;align-items:center;padding:3px 8px;cursor:pointer;color:#bbb;gap:6px}
+ .tree-row:hover{background:var(--hover);color:#fff}
+ .tree-row.selected{background:rgba(13,153,255,0.16);color:#fff;border-left:2px solid var(--blue)}
+ .tree-row.comp{color:var(--purple)}
+ .tree-icon{width:11px;height:11px;flex-shrink:0;fill:currentColor}
+ .in-1{padding-left:18px}
+ .in-2{padding-left:30px}
+ .canvas{flex:1;background:#181818;background-image:radial-gradient(rgba(255,255,255,0.08) 1px,transparent 1px);background-size:18px 18px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+ .ruler-x{position:absolute;top:0;left:0;right:0;height:14px;background:#202020;border-bottom:1px solid var(--border);display:flex;gap:60px;padding-left:40px;font-family:var(--mono);font-size:8px;color:var(--muted)}
+ .ruler-y{position:absolute;top:14px;left:0;bottom:0;width:14px;background:#202020;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:60px;padding-top:40px;font-family:var(--mono);font-size:8px;color:var(--muted)}
+ .artboard-box{position:relative}
+ .artboard-tag{position:absolute;top:-20px;left:0;font-size:10px;color:var(--muted);display:flex;gap:6px}
+ .artboard{width:320px;height:440px;background:#ffffff;border-radius:18px;box-shadow:0 16px 48px rgba(0,0,0,0.8);position:relative;overflow:hidden;display:flex;flex-direction:column;color:#000}
+ .phone-status{height:26px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:9px}
+ .phone-notch{width:76px;height:14px;background:#000;border-radius:0 0 8px 8px}
+ .phone-bar{padding:6px 14px;display:flex;align-items:center;justify-content:space-between}
+ .phone-title{font-weight:900;font-size:13px}
+ .phone-btn{background:#000;color:#fff;padding:3px 9px;border-radius:9999px;font-size:9px;font-weight:600}
+ .selected-card{margin:8px 12px;background:var(--lime);border-radius:12px;padding:12px;position:relative;outline:2px solid var(--blue)}
+ .h-pt{position:absolute;width:6px;height:6px;background:#fff;border:1.5px solid var(--blue);z-index:10}
+ .h-tl{top:-3px;left:-3px}.h-tr{top:-3px;right:-3px}.h-bl{bottom:-3px;left:-3px}.h-br{bottom:-3px;right:-3px}
+ .dim-pill{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);background:var(--blue);color:#fff;font-family:var(--mono);font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;z-index:12}
+ .guide-line{position:absolute;left:-14px;right:-14px;top:50%;border-top:1px dashed #ff3b30;pointer-events:none}
+ .guide-num{position:absolute;right:-26px;top:-6px;background:#ff3b30;color:#fff;font-family:var(--mono);font-size:7px;padding:1px 3px;border-radius:2px}
+ .card-lilac{margin:6px 12px;padding:9px 12px;background:var(--lilac);border-radius:10px;display:flex;align-items:center;justify-content:space-between}
+ .cursor-box{position:absolute;z-index:25;pointer-events:none;display:flex;flex-direction:column;gap:2px}
+ .c-tag{padding:1px 5px;border-radius:3px 6px 6px 6px;font-size:8px;font-weight:700;color:#fff;width:max-content}
+ .sec-block{padding:8px 10px;border-bottom:1px solid var(--border)}
+ .sec-head{font-weight:700;color:#fff;display:flex;justify-content:space-between;margin-bottom:6px;font-size:10px}
+ .align-row{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin-bottom:6px}
+ .a-btn{height:20px;background:transparent;border:none;border-radius:2px;color:#aaa;cursor:pointer;display:flex;align-items:center;justify-content:center}
+ .a-btn:hover{background:var(--hover);color:#fff}
+ .grid-props{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+ .field{background:var(--panel-top);border:1px solid var(--border);border-radius:3px;height:22px;display:flex;align-items:center;padding:0 5px;gap:4px;font-family:var(--mono);font-size:9px}
+ .field-lbl{color:var(--muted)}
+ .auto-box{background:var(--panel-top);border:1px solid var(--border);border-radius:4px;padding:5px 6px;display:flex;flex-direction:column;gap:3px;font-size:9px}
+ .swatch-row{display:flex;align-items:center;gap:6px;margin-top:4px}
+ .swatch{width:14px;height:14px;border-radius:2px;border:1px solid rgba(255,255,255,0.2)}
+ .bottom-bar{background:#111;border-top:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;justify-content:space-between;font-size:9px}
+ .tokens{display:flex;gap:6px;align-items:center}
+ .t-chip{padding:2px 6px;border-radius:9999px;font-weight:700;color:#000}
+ </style>
+</head>
+<body>
+ <div class="figma-app">
+ <!-- Top Bar -->
+ <header class="toolbar">
+ <div class="t-left">
+ <svg class="f-logo" viewBox="0 0 38 57" fill="none">
+ <path d="M19 28.5C19 23.25 23.25 19 28.5 19C33.75 19 38 23.25 38 28.5C38 33.75 33.75 38 28.5 38C23.25 38 19 33.75 19 28.5Z" fill="#1ABCFE"/>
+ <path d="M0 47.5C0 42.25 4.25 38 9.5 38H19V47.5C19 52.75 14.75 57 9.5 57C4.25 57 0 52.75 0 47.5Z" fill="#0ACF83"/>
+ <path d="M19 0V19H28.5C33.75 19 38 14.75 38 9.5C38 4.25 33.75 0 28.5 0H19Z" fill="#FF7262"/>
+ <path d="M0 9.5C0 14.75 4.25 19 9.5 19H19V0H9.5C4.25 0 0 4.25 0 9.5Z" fill="#F24E1E"/>
+ <path d="M0 28.5C0 33.75 4.25 38 9.5 38H19V19H9.5C4.25 19 0 23.25 0 28.5Z" fill="#A259FF"/>
+ </svg>
+ <div class="doc-title">
+ <span class="doc-dir">Design Systems /</span>
+ <span>Mobile Checkout Flow</span>
+ <svg width="11" height="11" viewBox="0 0 24 24" fill="#666"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+ </div>
+ </div>
+ <div class="tool-dock">
+ <button class="t-btn active" title="Move (V)"><svg viewBox="0 0 24 24"><path d="M4 0l16 12.28-6.78 1.07 4.42 8.77-3.57 1.8-4.42-8.77-5.65 4.85z"/></svg></button>
+ <button class="t-btn" title="Frame (F)"><svg viewBox="0 0 24 24"><path d="M5 2h2v3h10V2h2v3h3v2h-3v10h3v2h-3v3h-2v-3H7v3H5v-3H2v-2h3V7H2V5h3V2zm2 5v10h10V7H7z"/></svg></button>
+ <button class="t-btn" title="Pen (P)"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+ <button class="t-btn" title="Text (T)"><svg viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4z"/></svg></button>
+ <button class="t-btn" title="Hand (H)"><svg viewBox="0 0 24 24"><path d="M18 11V6c0-1.66-1.34-3-3-3s-3 1.34-3 3v5h-1V4c0-1.66-1.34-3-3-3S5 2.34 5 4v9.5l-3.5-3.5L0 11.5 6.5 18H17c2.76 0 5-2.24 5-5v-2h-4z"/></svg></button>
+ <button class="t-btn" title="Comment (C)"><svg viewBox="0 0 24 24"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z"/></svg></button>
+ </div>
+ <div class="t-right">
+ <div class="avatars">
+ <div class="ava" style="background:#ff5e3a;z-index:3;">AL</div>
+ <div class="ava" style="background:#9747ff;z-index:2;">SL</div>
+ <div class="ava" style="background:#10b981;z-index:1;">EM</div>
+ </div>
+ <button class="btn-share">Share</button>
+ <div class="btn-present"><svg width="9" height="9" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+ <span style="color:#aaa;font-size:10px;">100% ▾</span>
+ </div>
+ </header>
+
+ <!-- Workspace -->
+ <div class="workbench">
+ <!-- Left Panel -->
+ <aside class="panel-left">
+ <div class="tabs">
+ <div class="tab active">Layers</div>
+ <div class="tab">Assets</div>
+ </div>
+ <div class="pages-strip">
+ <span>Page 1 / Checkout</span>
+ <span>▾</span>
+ </div>
+ <div class="tree">
+ <div class="tree-row">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+ <span># Mobile Checkout Artboard</span>
+ </div>
+ <div class="tree-row in-1">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M5 2h2v3h10V2h2v3h3v2h-3v10h3v2h-3v3h-2v-3H7v3H5v-3H2v-2h3V7H2V5h3V2z"/></svg>
+ <span>StatusBar / Dark</span>
+ </div>
+ <div class="tree-row in-1 comp">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 12l4 4-4 4-4-4 4-4z"/></svg>
+ <span>❖ Header Navigation</span>
+ </div>
+ <div class="tree-row in-1 selected">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2z"/></svg>
+ <span>AutoLayout:Lime Hero</span>
+ </div>
+ <div class="tree-row in-2">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4z"/></svg>
+ <span>T "SYSTEMS ARCHITECTURE"</span>
+ </div>
+ <div class="tree-row in-2">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M5 4v3h5.5v12h3V7H19V4z"/></svg>
+ <span>T "Craft without limits"</span>
+ </div>
+ <div class="tree-row in-2 comp">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4z"/></svg>
+ <span>❖ Pill CTA Button</span>
+ </div>
+ <div class="tree-row in-1">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2z"/></svg>
+ <span>Frame:Lilac Notes</span>
+ </div>
+ <div class="tree-row in-1 comp">
+ <svg class="tree-icon" viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4z"/></svg>
+ <span>❖ Bottom Tab Bar</span>
+ </div>
+ </div>
+ </aside>
+
+ <!-- Center Canvas -->
+ <main class="canvas">
+ <div class="ruler-x"><span>0</span><span>100</span><span>200</span><span>300</span><span>400</span></div>
+ <div class="ruler-y"><span>0</span><span>100</span><span>200</span><span>300</span><span>400</span></div>
+
+ <div class="artboard-box">
+ <div class="artboard-tag">
+ <span>Mobile / Checkout Frame</span>
+ <span style="font-family:var(--mono);color:#666;">320 × 440</span>
+ </div>
+
+ <div class="artboard">
+ <div class="phone-status">
+ <span>9:41</span>
+ <div class="phone-notch"></div>
+ <span>5G 100%</span>
+ </div>
+ <div class="phone-bar">
+ <span class="phone-title">Figma Studio</span>
+ <div class="phone-btn">Get Started</div>
+ </div>
+
+ <!-- Glowing Selection Bounding Box -->
+ <div class="selected-card">
+ <div class="guide-line"><div class="guide-num">24px</div></div>
+ <div class="h-pt h-tl"></div><div class="h-pt h-tr"></div>
+ <div class="h-pt h-bl"></div><div class="h-pt h-br"></div>
+ <div class="dim-pill">W:296 H:126</div>
+
+ <div style="font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:0.5px;opacity:0.8;margin-bottom:2px;">SYSTEMS ARCHITECTURE</div>
+ <div style="font-size:14px;font-weight:700;line-height:1.2;margin-bottom:8px;">Craft without limits.</div>
+ <div style="display:flex;gap:5px;">
+ <span style="background:#000;color:#fff;padding:3px 9px;border-radius:9999px;font-size:8px;font-weight:700;">Explore Tokens</span>
+ <span style="background:#fff;color:#000;padding:3px 9px;border-radius:9999px;font-size:8px;font-weight:700;border:1px solid #ddd;">Read Spec</span>
+ </div>
+ </div>
+
+ <div class="card-lilac">
+ <div>
+ <div style="font-size:7px;font-weight:700;text-transform:uppercase;opacity:0.7;">PROMO BANNER</div>
+ <div style="font-size:11px;font-weight:700;">Release Notes 2026</div>
+ </div>
+ <span style="background:var(--magenta);color:#fff;padding:3px 7px;border-radius:9999px;font-size:8px;font-weight:700;">Save spot</span>
+ </div>
+
+ <div style="padding:4px 12px;">
+ <div style="padding:7px 9px;background:#f7f7f5;border-radius:8px;display:flex;justify-content:space-between;font-size:9px;font-weight:600;">
+ <span>Vector Icon Library</span>
+ <span style="color:var(--blue);">Synced ↗</span>
+ </div>
+ </div>
+ </div>
+
+ <!-- Multiplayer Cursors -->
+ <div class="cursor-box" style="top:150px;left:40px;">
+ <svg width="12" height="12" viewBox="0 0 24 24" fill="#0d99ff"><path d="M4 0l16 12.28-6.78 1.07 4.42 8.77-3.57 1.8-4.42-8.77-5.65 4.85z"/></svg>
+ <div class="c-tag" style="background:#0d99ff;">Alex (Dev):Check padding</div>
+ </div>
+ <div class="cursor-box" style="bottom:60px;right:20px;">
+ <svg width="12" height="12" viewBox="0 0 24 24" fill="#ff3d8b"><path d="M4 0l16 12.28-6.78 1.07 4.42 8.77-3.57 1.8-4.42-8.77-5.65 4.85z"/></svg>
+ <div class="c-tag" style="background:#ff3d8b;">Sarah:LGTM 🚀</div>
+ </div>
+ </div>
+ </main>
+
+ <!-- Right Panel -->
+ <aside class="panel-right">
+ <div class="tabs">
+ <div class="tab active">Design</div>
+ <div class="tab">Prototype</div>
+ <div class="tab">Inspect</div>
+ </div>
+ <div class="sec-block">
+ <div class="align-row">
+ <button class="a-btn">|◀</button><button class="a-btn">▶|◀</button><button class="a-btn">▶|</button>
+ <button class="a-btn">▲</button><button class="a-btn">▼▲</button><button class="a-btn">▼</button>
+ </div>
+ <div class="grid-props">
+ <div class="field"><span class="field-lbl">X</span><span>12</span></div>
+ <div class="field"><span class="field-lbl">Y</span><span>44</span></div>
+ <div class="field"><span class="field-lbl">W</span><span>296</span></div>
+ <div class="field"><span class="field-lbl">H</span><span>126</span></div>
+ <div class="field"><span class="field-lbl">∠</span><span>0°</span></div>
+ <div class="field"><span class="field-lbl">⤹</span><span>12</span></div>
+ </div>
+ </div>
+ <div class="sec-block">
+ <div class="sec-head"><span>Auto layout</span><span>−</span></div>
+ <div class="auto-box">
+ <div style="display:flex;justify-content:space-between;"><span>Direction</span><span style="font-weight:700;color:#fff;">Vertical ↓</span></div>
+ <div style="display:flex;justify-content:space-between;"><span>Gap</span><span>8px</span></div>
+ <div style="display:flex;justify-content:space-between;"><span>Padding</span><span>12px,12px</span></div>
+ </div>
+ </div>
+ <div class="sec-block">
+ <div class="sec-head"><span>Fill</span><span>+</span></div>
+ <div class="swatch-row">
+ <div class="swatch" style="background:var(--lime);"></div>
+ <span style="font-family:var(--mono);font-size:9px;">#DCEEB1</span>
+ <span style="color:#aaa;font-size:8px;margin-left:auto;">100%</span>
+ </div>
+ </div>
+ <div class="sec-block">
+ <div class="sec-head"><span>Stroke</span><span>+</span></div>
+ <div class="swatch-row">
+ <div class="swatch" style="background:#000;"></div>
+ <span style="font-family:var(--mono);font-size:9px;">#000000</span>
+ <span style="color:#aaa;font-size:8px;margin-left:auto;">1px Inside</span>
+ </div>
+ </div>
+ <div class="sec-block">
+ <div class="sec-head"><span>Effects</span><span>+</span></div>
+ <div style="display:flex;justify-content:space-between;color:#aaa;font-size:9px;">
+ <span>Drop shadow (0,4,16,6%)</span>
+ <span>👁</span>
+ </div>
+ </div>
+ <div class="sec-block">
+ <div class="sec-head"><span>Export</span><span>+</span></div>
+ <button style="width:100%;background:var(--panel-top);border:1px solid var(--border);color:#fff;padding:4px;border-radius:3px;font-size:9px;font-weight:700;cursor:pointer;">
+ Export Hero Card (SVG)
+ </button>
+ </div>
+ </aside>
+ </div>
+
+ <!-- Bottom Bar -->
+ <footer class="bottom-bar">
+ <div class="tokens">
+ <span style="color:#888;font-weight:700;">Tokens:</span>
+ <div class="t-chip" style="background:var(--lime);">Lime #DCEEB1</div>
+ <div class="t-chip" style="background:var(--lilac);">Lilac #C5B0F4</div>
+ <div class="t-chip" style="background:var(--cream);">Cream #F4ECD6</div>
+ <div class="t-chip" style="background:var(--mint);">Mint #C8E6CD</div>
+ <div class="t-chip" style="background:var(--pink);">Pink #EFD4D4</div>
+ </div>
+ <div style="color:#888;display:flex;gap:8px;">
+ <span>figmaSans 340/540</span>
+ <span>•</span>
+ <span>Pill CTAs:9999px</span>
+ <span>•</span>
+ <span style="color:#10b981;">● 14 Components Synced</span>
+ </div>
+ </footer>
+ </div>
+</body>
+</html>

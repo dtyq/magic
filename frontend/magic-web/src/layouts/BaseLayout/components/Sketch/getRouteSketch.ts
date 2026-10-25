@@ -1,5 +1,5 @@
 import { RouteName } from "@/routes/constants"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { routeSketchMap } from "./routeSketchMap"
 
 export type RouteSketchMap = Partial<

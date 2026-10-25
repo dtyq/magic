@@ -2,7 +2,7 @@ import magicToast from "@/components/base/MagicToaster/utils"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Button } from "@/components/shadcn-ui/button"
 import { Textarea } from "@/components/shadcn-ui/textarea"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import DefaultTool from "@/pages/superMagic/components/MessageList/components/Nodes/ToolCall/tools/DefaultTool"
 import type {
 	DefaultToolProps,
@@ -11,7 +11,7 @@ import type {
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
 import { sendUserToolCallReply } from "@/pages/superMagic/services/askUserToolReplyService"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { IconLoader2 } from "@tabler/icons-react"
 import { CheckCircle2, ChevronDown, ClipboardList, PencilLine, XCircle } from "lucide-react"
 import { observer } from "mobx-react-lite"

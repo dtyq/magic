@@ -168,6 +168,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
         $extras = [
             'chain' => $chain,
             'original_model_id' => (string) ($bp['original_model_id'] ?? ''),
+            'previous_exceptions' => $bp['previous_exceptions'] ?? [],
         ];
         if ($status->isFail()) {
             $extras = InvocationDetailInfo::withFailureReason($extras, (string) ($bp['failure_reason'] ?? ''));
@@ -203,14 +204,13 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 
     private function buildImageGeneratedUsage(ImageGeneratedEvent $event, AuditStatus $status, array $businessParams): array
     {
-        if ($status->isFail()) {
-            return [];
-        }
-
         $usage = [
             'count' => (int) ($businessParams['image_count'] ?? 0),
+            'image_count' => (int) ($businessParams['image_count'] ?? $event->getImageCount()),
             'output_image_count' => (int) ($businessParams['image_count'] ?? 0),
             'reference_image_count' => (int) ($businessParams['reference_image_count'] ?? $event->getReferenceImageCount()),
+            'resolution' => $event->getResolution(),
+            'size' => $event->getImageSize(),
         ];
         $tokenUsage = $event->getUsage();
         if ($tokenUsage === null || $tokenUsage->getTotalTokens() <= 0) {
@@ -240,6 +240,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
                 [
                     'chain' => $chain,
                     'original_model_id' => (string) ($bp['original_model_id'] ?? ''),
+                    'previous_exceptions' => $bp['previous_exceptions'] ?? [],
                 ],
                 (string) ($bp['failure_reason'] ?? ''),
             ),
@@ -278,14 +279,22 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             (string) ($bp['app_id'] ?? ''),
             (string) ($bp['source_id'] ?? ''),
             (string) ($bp['provider_model_id'] ?? $event->getProviderModelId()),
-            ['original_model_id' => $originalModelId],
+            [
+                'original_model_id' => $originalModelId,
+                'previous_exceptions' => $bp['previous_exceptions'] ?? [],
+            ],
         );
 
         // 视频默认带次数与成片时长；若事件含 provider token 用量则一并写入，与对话类审计结构对齐供计费回写
         $usage = [
             'count' => 1,
             'duration_seconds' => $event->getDurationSeconds(),
+            'resolution' => $event->getResolution(),
+            'size' => $event->getSize(),
+            'width' => $event->getWidth(),
+            'height' => $event->getHeight(),
             'has_audio_output' => $event->hasAudioOutput(),
+            ...$event->getVideoReferenceMaterial(),
         ];
         $completionTokens = $event->getCompletionTokens();
         $totalTokens = $event->getTotalTokens();
@@ -293,6 +302,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             $usage['completion_tokens'] = $completionTokens;
             $resolvedTotal = $totalTokens ?? $completionTokens;
             $usage['total_tokens'] = $resolvedTotal;
+            $usage['thought_tokens'] = $event->getThoughtTokens();
+        }
+        $billingTokenUsage = $event->getBillingTokenUsage();
+        if (is_array($billingTokenUsage)) {
+            $usage = [...$usage, ...$billingTokenUsage];
         }
 
         $this->persistAudit(
@@ -331,7 +345,10 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             (string) ($bp['source_id'] ?? ''),
             $event->getProviderModelId(),
             InvocationDetailInfo::withFailureReason(
-                ['original_model_id' => $originalModelId],
+                [
+                    'original_model_id' => $originalModelId,
+                    'previous_exceptions' => $bp['previous_exceptions'] ?? [],
+                ],
                 (string) ($bp['failure_reason'] ?? ''),
             ),
         );

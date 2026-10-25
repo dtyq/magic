@@ -51,6 +51,12 @@
     }
   }
 
+  // Chromium may unwrap an empty inline code element after Backspace. This is
+  // ProseMirror's contentDOM: keep it as a block so subsequent input stays tracked.
+  pre > code[data-node-view-content-react] {
+    display: block;
+  }
+
   // Links in code should inherit code color
   code a {
     color: inherit;
@@ -72,6 +78,23 @@
     pre[class*="language-"] {
       text-shadow: none !important;
       color: rgb(51, 51, 51);
+    }
+  }
+
+  .diff-code-block-node-view.diff-code-wrapped {
+    .diff-code {
+      overflow-x: hidden;
+    }
+
+    .diff-code > code {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+  }
+
+  .diff-code-block-node-view.diff-code-unwrapped {
+    .diff-code {
+      overflow-x: auto;
     }
   }
 

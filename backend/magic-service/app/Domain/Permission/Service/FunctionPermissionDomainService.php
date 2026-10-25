@@ -197,7 +197,7 @@ readonly class FunctionPermissionDomainService
 
         $policyMap = $this->listPolicies($dataIsolation);
         $userDepartmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId(
-            ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
+            new ContactDataIsolation(['current_organization_code' => $dataIsolation->getCurrentOrganizationCode(), 'current_user_id' => $dataIsolation->getCurrentUserId()]),
             $userId,
             true
         );
@@ -211,7 +211,7 @@ readonly class FunctionPermissionDomainService
         return $allowed;
     }
 
-    public function checkPermission(PermissionDataIsolation $dataIsolation, string $userId, string $functionCode): bool
+    public function checkPermission(PermissionDataIsolation $dataIsolation, string $userId, string $functionCode, bool $freshMembership = false): bool
     {
         if (! FunctionPermissionCatalog::exists($functionCode)) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid function code');
@@ -244,9 +244,10 @@ readonly class FunctionPermissionDomainService
         }
 
         $userDepartmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId(
-            ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId()),
+            new ContactDataIsolation(['current_organization_code' => $dataIsolation->getCurrentOrganizationCode(), 'current_user_id' => $dataIsolation->getCurrentUserId()]),
             $userId,
-            true
+            true,
+            ! $freshMembership
         );
 
         return array_intersect($departmentIds, $userDepartmentIds) !== [];

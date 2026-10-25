@@ -4,10 +4,11 @@ import os
 import re
 import tempfile
 import uuid
-import zipfile
+from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from agentlang.agent.models import AgentRunRequest
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import AfterInitEventData, BeforeInitEventData
 from agentlang.environment import Environment
@@ -16,6 +17,7 @@ from app.core.context.agent_context import AgentContext
 from app.core.stream.base import Stream
 from app.infrastructure.storage.base import BaseFileProcessor
 from app.infrastructure.storage.factory import StorageFactory
+from app.infrastructure.checkpoint.remote_sync import CheckpointRemoteSync
 from agentlang.logger import get_logger
 from app.magic.agent import Agent
 from app.path_manager import PathManager
@@ -24,16 +26,25 @@ from app.service.attachment_service import AttachmentService
 from app.core.entity.project_archive import ProjectArchiveInfo
 from app.utils.init_client_message_util import InitClientMessageUtil
 from app.utils.path_utils import get_workspace_dir
-from app.utils.path_utils import get_storage_dir
 from app.service.asr.asr_context_diff_service import AsrContextDiffService
 from app.service.channel_context_service import ChannelContextService
 from app.core.client_context import ClientContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
 from app.service.video_model_config_service import VideoModelConfigService
+from app.service.sandbox_restart_coordinator import sandbox_restart_coordinator
 from app.service.cli_manager.service import CliManagerService
 from app.service.cli_status import CliStatusFactory
 from app.core.base_service import Base
 from app.service.mention import MentionContextBuilder
+from app.service.mention.utils.micro_app_prompt import (
+    format_bound_micro_app_scope_context,
+    sync_micro_app_project_scope_from_prompt,
+)
+from app.service.topic_persistence import (
+    TopicPersistenceManager,
+    get_chat_history_excluded_dir_names,
+    safe_extract_archive,
+)
 
 logger = get_logger(__name__)
 
@@ -48,6 +59,23 @@ class AgentService(Base):
         super().__init__()
         # 初始化mention上下文构建器（复用实例，避免每次调用都创建）
         self._mention_builder = MentionContextBuilder()
+        self._background_tasks: set[asyncio.Task[None]] = set()
+
+    def _schedule_background_task(self, coroutine: Coroutine[Any, Any, None], *, name: str) -> None:
+        """Schedule a maintenance coroutine without delaying the startup path."""
+        task = asyncio.create_task(coroutine, name=name)
+        self._background_tasks.add(task)
+
+        def _finish(completed_task: asyncio.Task[None]) -> None:
+            self._background_tasks.discard(completed_task)
+            try:
+                completed_task.result()
+            except asyncio.CancelledError:
+                return
+            except Exception as error:
+                logger.warning("后台维护任务失败: %s", error)
+
+        task.add_done_callback(_finish)
 
 
     def is_support_fetch_workspace(self) -> bool:
@@ -138,38 +166,67 @@ class AgentService(Base):
         """
         Download and extract workspace with separated archive support
 
+        恢复顺序契约（承重墙，勿改）：聊天历史必须先于 checkpoint manifest
+        落地。沙箱内 `.chat_history/` 是 localfs 空间的挂载，其 checkpoint
+        hook 只在 manifest 存在且 current_checkpoint_id 有效时记账——恢复
+        阶段（解压 zip / topic 恢复 / 清空）发生在 manifest 下载之前，此时
+        hook 因"无 manifest"静默跳过，恢复出的文件不会被记成 created。
+        若把 manifest 下载挪到聊天历史恢复之前，整个聊天历史会被灌进上一
+        会话的旧 checkpoint（一次全量帧拷贝 + 语义污染）。
+
         Args:
             agent_context: Agent context containing storage configuration
 
         Raises:
             Exception: If download or extraction fails
         """
-        try:
-            # Initialize storage service
-            sts_token_refresh = agent_context.get_init_client_message_sts_token_refresh()
-            metadata = agent_context.get_metadata()
-            platform_type = agent_context.get_init_client_message_platform_type()
+        persistence = TopicPersistenceManager(PathManager.get_project_root())
+        await asyncio.to_thread(persistence.ensure_directories)
+        self._schedule_background_task(
+            persistence.cleanup_legacy_llm_requests_dir(),
+            name="topic-legacy-llm-requests-cleanup",
+        )
+        local_chat_history_dir = PathManager.get_chat_history_dir()
+        await asyncio.to_thread(local_chat_history_dir.mkdir, parents=True, exist_ok=True)
 
-            storage_service = await StorageFactory.get_storage(
-                sts_token_refresh=sts_token_refresh, metadata=metadata, platform=platform_type
+        metadata = agent_context.get_metadata()
+        topic_id = metadata.get("topic_id") or metadata.get("chat_topic_id")
+        healthy = await asyncio.to_thread(persistence.is_healthy, topic_id)
+        agent_context.set_topic_persistence_healthy(healthy)
+
+        if not self.is_support_fetch_workspace():
+            await self._replace_local_chat_history_with_empty(local_chat_history_dir)
+            logger.info("不支持获取工作空间，跳过下载")
+            return
+
+        topic_chat_history_ready = await asyncio.to_thread(persistence.has_chat_history_data)
+        if topic_chat_history_ready:
+            await asyncio.to_thread(
+                persistence.restore_topic_chat_history, local_chat_history_dir
             )
+            logger.info("已从 .topic/chat_history 恢复本地聊天历史")
+        # checkpoint 不纳入 .topic 持久卷：重启后只拉小体积 manifest，
+        # checkpoint 数据在需要回滚时按需从远端拉取对应归档。
+        sts_token_refresh = agent_context.get_init_client_message_sts_token_refresh()
+        platform_type = agent_context.get_init_client_message_platform_type()
+        storage_service = await StorageFactory.get_storage(
+            sts_token_refresh=sts_token_refresh, metadata=metadata, platform=platform_type
+        )
 
-            # Check if we should fetch workspace
-            if not self.is_support_fetch_workspace():
-                logger.info("不支持获取工作空间，跳过下载")
-                return
+        if not topic_chat_history_ready:
+            await self._replace_local_chat_history_with_empty(local_chat_history_dir)
+            chat_ready = await self._download_and_extract_chat_history_archive(
+                storage_service, agent_context, target_dir=local_chat_history_dir
+            )
+            if not chat_ready:
+                logger.warning("聊天记录未能从远程归档恢复，将使用空的本地聊天记录")
 
-            # Always try to download chat history, as it's independent of the manifest
-            await self._download_and_extract_chat_history_archive(storage_service, agent_context)
+        # 顺序契约的最后一步：聊天历史恢复完成后才写回 manifest（见方法
+        # docstring）。download_manifest 还会把 activity 置为 restore，让
+        # hook 跳过 manifest 恢复后到首个新 checkpoint 之间窗口的记账。
+        await self._download_and_extract_checkpoints_archive(storage_service, agent_context)
 
-            # Always try to download checkpoints, as it's independent of the manifest
-            await self._download_and_extract_checkpoints_archive(storage_service, agent_context)
-
-            logger.info("聊天历史和checkpoints处理完成")
-
-        except Exception as e:
-            logger.error(f"下载和解压工作区时出错: {e}")
-            raise  # 直接抛出异常，不进行兜底处理
+        logger.info("聊天历史和checkpoints处理完成")
 
     async def _download_remote_manifest(
         self, agent_context: AgentContext, storage_service
@@ -295,7 +352,13 @@ class AgentService(Base):
         logger.info(f"工作区是最新版本: {local_workspace.version}")
         return False
 
-    async def _download_and_extract_chat_history_archive(self, storage_service, agent_context: AgentContext) -> None:
+    async def _download_and_extract_chat_history_archive(
+        self,
+        storage_service,
+        agent_context: AgentContext,
+        *,
+        target_dir: Optional[Path] = None,
+    ) -> bool:
         """
         Download and extract chat history archive
 
@@ -305,10 +368,11 @@ class AgentService(Base):
         """
         try:
             # Get topic_id from agent_context. If not present, skip download.
-            topic_id = agent_context.get_metadata().get("topic_id")
+            metadata = agent_context.get_metadata()
+            topic_id = metadata.get("topic_id") or metadata.get("chat_topic_id")
             if not topic_id:
                 logger.warning("agent_context 中没有 topic_id，跳过下载聊天历史")
-                return
+                return False
 
             # Construct the object name using the topic_id
             chat_history_object_name = f"chat_history_{topic_id}.zip"
@@ -346,7 +410,7 @@ class AgentService(Base):
                 logger.warning(
                     f"聊天历史归档在存储中不存在: {chat_history_object_key} (如果是新话题, 没有聊天历史归档)"
                 )
-                return
+                return True
 
             # Stream archive directly to a temporary file to avoid loading
             # the whole object into memory.
@@ -365,87 +429,54 @@ class AgentService(Base):
                 f"流式写入 {written_bytes} 字节)"
             )
 
-            # Extract archive
-            chat_history_dir = PathManager.get_chat_history_dir()
-            with zipfile.ZipFile(temp_file_path, "r") as zip_ref:
-                num_files = len(zip_ref.namelist())
-                logger.info(f"聊天历史压缩包包含 {num_files} 个文件")
-                # Ensure chat history directory exists (without clearing)
-                os.makedirs(chat_history_dir, exist_ok=True)
-                logger.info(f"聊天历史目录已准备就绪: {chat_history_dir}")
-                logger.info(f"解压聊天历史归档到: {chat_history_dir}")
-                zip_ref.extractall(chat_history_dir)
-                extracted_count = len(os.listdir(chat_history_dir))
-                logger.info(f"聊天历史解压完成，包含 {extracted_count} 个文件/目录")
+            # .chat_history 是活动会话目录，跨沙盒恢复依赖已上传的归档。
+            # 调用方在远程恢复前已经通过 _replace_local_chat_history_with_empty()
+            # 清空该目录，因此远程归档可以直接解压到正式活动目录。
+            target_dir = target_dir or PathManager.get_chat_history_dir()
+            target_dir.mkdir(parents=True, exist_ok=True)
+            extracted_count = await asyncio.to_thread(
+                safe_extract_archive,
+                temp_file_path,
+                target_dir,
+                skip_top_levels=get_chat_history_excluded_dir_names(),
+                strip_top_level=".chat_history",
+            )
+            logger.info(f"聊天历史解压完成，处理 {extracted_count} 个条目")
+            return True
         except Exception as e:
             logger.error(f"下载和解压聊天历史时出错: {e}")
+            return False
         finally:
             # Clean up temporary file
             if "temp_file_path" in locals() and os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
 
+    async def _replace_local_chat_history_with_empty(self, target_dir: Path) -> None:
+        """Clear local history through the same replacement path used by restores.
+
+        运行期聊天历史目录在沙箱内是指向 localfs 挂载的 symlink，原地
+        清空内容（保留 symlink/挂载点本身），不能走整目录 rename 替换
+        （容器 overlay → FUSE 跨设备 EXDEV）。
+        """
+        await asyncio.to_thread(TopicPersistenceManager.clear_directory, target_dir)
+
     async def _download_and_extract_checkpoints_archive(self, storage_service, agent_context: AgentContext) -> None:
         """
-        Download and extract checkpoints archive
+        Download and restore checkpoint manifest only.
 
-        Args:
-            storage_service: Storage service instance
-            agent_context: Agent context
+        沙箱重启后只拉取小体积的 checkpoint manifest；checkpoint 数据
+        （文件快照、聊天历史快照）在需要回滚时再按需从远端拉取对应归档。
         """
         try:
-            # Get topic_id from agent_context. If not present, skip download.
             topic_id = agent_context.get_metadata().get("topic_id")
             if not topic_id:
                 logger.info("No topic_id in agent_context, skipping checkpoints download")
                 return
 
-            # Construct the object key using the topic_id
-            checkpoints_object_name = f"checkpoints_{topic_id}.zip"
-            base_path = get_storage_dir(storage_service.credentials)
-            checkpoints_dir_name = InitClientMessageUtil.get_checkpoints_dir()
-            dir_path = BaseFileProcessor.combine_path(base_path, checkpoints_dir_name)
-            checkpoints_object_key = BaseFileProcessor.combine_path(dir_path, checkpoints_object_name)
-
-            # Check if object exists
-            if not await storage_service.exists(checkpoints_object_key):
-                logger.info(f"Checkpoints archive not found: {checkpoints_object_key}")
-                return
-
-            logger.info(f"Downloading checkpoints archive: {checkpoints_object_key}")
-
-            # Stream archive directly to a temporary file to avoid loading
-            # a multi-GB object into memory (otherwise the agent container
-            # easily hits its 2Gi memory limit and gets OOMKilled).
-            temp_file = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
-            temp_file_path = temp_file.name
-            temp_file.close()
-
-            await storage_service.download_file_by_stream(
-                key=checkpoints_object_key,
-                dest_path=temp_file_path,
-            )
-            file_size = os.path.getsize(temp_file_path)
-
-            # Extract archive
-            checkpoints_dir = PathManager.get_checkpoints_dir()
-            with zipfile.ZipFile(temp_file_path, "r") as zip_ref:
-                infos = zip_ref.infolist()
-                total_uncompressed = sum(info.file_size for info in infos)
-                total_compressed = sum(info.compress_size for info in infos)
-
-                os.makedirs(checkpoints_dir, exist_ok=True)
-                zip_ref.extractall(checkpoints_dir)
-                logger.info(
-                    f"Checkpoints restored to {checkpoints_dir}: "
-                    f"{len(infos)} files, {file_size / (1024 * 1024):.2f} MiB compressed "
-                    f"-> {total_uncompressed / (1024 * 1024):.2f} MiB uncompressed"
-                )
+            sync = CheckpointRemoteSync(storage_service, topic_id)
+            await sync.download_manifest()
         except Exception as e:
-            logger.error(f"Failed to download and extract checkpoints: {e}")
-        finally:
-            # Clean up temporary file
-            if "temp_file_path" in locals() and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
+            logger.error(f"Failed to download checkpoint manifest: {e}")
 
     async def init_workspace(
         self,
@@ -474,24 +505,25 @@ class AgentService(Base):
         before_init_data = BeforeInitEventData(tool_context=tool_context)
         await agent_context.dispatch_event(EventType.BEFORE_INIT, before_init_data)
 
-        # 初始化OSS凭证
-        sts_token_refresh = agent_context.get_init_client_message_sts_token_refresh()
-        metadata = agent_context.get_metadata()
-
-        # 获取平台类型，优先使用客户端消息中指定的平台
-        platform_type = agent_context.get_init_client_message_platform_type()
-
-        await StorageFactory.get_storage(sts_token_refresh=sts_token_refresh, metadata=metadata, platform=platform_type)
-
         if fetch_history:
             await self.download_and_extract_chat_history_and_checkpoints(agent_context)
         else:
-            logger.info("fetch_history disabled, skip downloading remote chat history and checkpoints")
+            # 显式跳过历史恢复时也必须清空活动目录，避免复用进程/工作区中残留的上一轮历史。
+            local_chat_history_dir = PathManager.get_chat_history_dir()
+            await self._replace_local_chat_history_with_empty(local_chat_history_dir)
+            logger.info("fetch_history disabled, skip restoring remote/topic chat history and checkpoints")
 
         # Horizon 对象早于持久目录创建。必须在 ZIP 解压或挂载目录准备完成后重载，
         # 再启动会写入 Horizon 的 CLI 探测，避免把“文件暂时不存在”固定成空 baseline。
         await agent_context.horizon.reload_from_store()
         CliManagerService.schedule_initial_status_detection(agent_context)
+
+        # 恢复先于接收回答；失败时保留话题可用性，未恢复的旧问题仍由回执入口拒绝。
+        from app.service.user_tool_call_service import UserToolCallService
+        try:
+            await UserToolCallService.get_instance().restore_pending_from_disk(agent_context)
+        except Exception as e:
+            logger.warning("User tool call recovery failed; initialization continues: %s", e, exc_info=True)
 
         # 触发初始化后事件
         after_init_data = AfterInitEventData(tool_context=tool_context, agent_context=agent_context, success=True)
@@ -509,6 +541,7 @@ class AgentService(Base):
         agent_context = agent.agent_context
         chat_client_message = agent_context.get_chat_client_message()
         query = chat_client_message.prompt
+        await sync_micro_app_project_scope_from_prompt(query)
 
         # ASR 录音纪要聊天模式：注入上下文 Diff
         try:
@@ -526,18 +559,26 @@ class AgentService(Base):
             logger.error(f"{ASR_CHAT_LOG_PREFIX} injectContextFailed error={e}")
             # 失败不影响聊天主流程
 
-        # 处理mentions信息（顶部引用区）- 添加到用户prompt中
-        mentions = getattr(chat_client_message, "mentions", [])
+        # Inject structured mentions from the request payload (legacy clients).
+        mentions = getattr(chat_client_message, "mentions", None) or []
         if mentions:
             mentions_context = await self._build_mentions_context(mentions, agent_context)
             query = f"{mentions_context}\n\n---\n\n{query}"
-            logger.info(f"已将{len(mentions)}个mentions添加到用户prompt中")
+            logger.info(f"Injected {len(mentions)} mention(s) into query")
+        else:
+            bound_context = await format_bound_micro_app_scope_context()
+            if bound_context:
+                query = f"{bound_context}\n\n---\n\n{query}"
+                logger.info("Injected bound micro-app scope into follow-up query")
 
         # 处理输入框内联引用（[@file_path:格式）
         query = agent._process_user_input_with_mentions(query, [])
 
         # 追加渠道专属上下文片段（如微信消息携带的媒体文件路径），不支持的渠道返回空串不影响
         query = ChannelContextService.append_channel_context(query, chat_client_message)
+
+        # 原生视觉消费 mention 模块提取出的工作区或挂载目录图片路径。
+        image_refs = await self._mention_builder.extract_image_refs(mentions, agent_context)
 
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
@@ -561,19 +602,37 @@ class AgentService(Base):
             agent.agent_context.horizon,
         )
 
-        # 每次用户消息前刷新工作区文件树，让 horizon 检测用户上传/删除文件等变化
-        try:
-            await agent.refresh_workspace_files()
-        except Exception as _e:
-            logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
-
+        """
+        文件树刷新放在 Agent 每轮准备 Horizon 的入口；只在用户消息入口刷新会漏掉工具新增文件。
+        这里不重复扫描，让首轮和后续工具轮使用同一个观察时机。
+        """
         await CliStatusFactory.wait_initial(agent_context)
 
+        run_succeeded = False
         try:
-            await agent.run_main_agent(query)
+            request = AgentRunRequest(query=query, image_refs=image_refs)
+            await agent.run_main_agent(request)
+            run_succeeded = agent.is_agent_finished()
         finally:
-            # 持久化聊天记录·
-            asyncio.create_task(FileStorageListenerService._archive_and_upload_project(agent_context))
+            try:
+                await sandbox_restart_coordinator.prepare_pending_restart(
+                    agent_context=agent_context,
+                    run_succeeded=run_succeeded,
+                )
+                # 持久化聊天记录·
+                await FileStorageListenerService._archive_and_upload_project(agent_context)
+            except asyncio.CancelledError:
+                await sandbox_restart_coordinator.cancel_pending_restart(agent_context.context_id)
+                raise
+            except Exception as exc:
+                if not sandbox_restart_coordinator.has_pending_restart(agent_context.context_id):
+                    raise
+                # 重启用于恢复异常环境；归档失败保留日志，不把它变成重启门槛。
+                logger.warning("Agent run finalization failed: %s", exc, exc_info=True)
+            await sandbox_restart_coordinator.dispatch_pending_restart(
+                agent_context=agent_context,
+                run_succeeded=run_succeeded,
+            )
 
     def create_agent_context(
         self,

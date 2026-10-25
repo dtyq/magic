@@ -4,6 +4,8 @@
  */
 
 import MarkdownIt from "markdown-it"
+import DOMPurify from "dompurify"
+import type { SourceReplacement } from "./components/EditorBody/source-location"
 
 // Export shared utilities from image-url-resolver
 export {
@@ -133,6 +135,7 @@ const allowedRawHtmlTags = new Set([
 	"u",
 	"ul",
 	"var",
+	"video",
 	"wbr",
 ])
 
@@ -165,14 +168,80 @@ const urlAttributeNames = new Set([
 	"manifest",
 	"usemap",
 ])
-const multiUrlAttributeNames = new Set(["srcset", "ping"])
 const safeUrlProtocols = new Set(["http", "https", "mailto", "tel"])
+const safeInlineStylePropertyPatterns = [
+	/^background(?:-color)?$/,
+	/^border(?:-(?:top|right|bottom|left))?(?:-(?:color|style|width))?$/,
+	/^border-radius$/,
+	/^border-(?:top|right|bottom|left)-(?:left|right)-radius$/,
+	/^(?:margin|padding)(?:-(?:top|right|bottom|left))?$/,
+	/^font-(?:family|size|style|weight)$/,
+	/^text-(?:align|decoration|indent|transform)$/,
+	/^(?:display|max-width|max-height)$/,
+	/^(?:color|letter-spacing|line-height|vertical-align|white-space)$/,
+]
+const safeCssColorPattern =
+	/^(?:#[\da-f]{3,8}|[a-z]+|(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\([\d\s.,%+\-/]+\))$/i
+const spacingPropertyPattern = /^(?:margin|padding)(?:-(?:top|right|bottom|left))?$/
+const borderWidthPropertyPattern = /^border(?:-(?:top|right|bottom|left))?(?:-width)?$/
+const borderLonghandWidthPropertyPattern = /^border-(?:top|right|bottom|left)-width$/
+const borderRadiusPropertyPattern =
+	/^border(?:-radius|-(?:top|right|bottom|left)-(?:left|right)-radius)$/
+const unsafeCssValuePattern =
+	/[\\{}]|\/\*|\*\/|!\s*important|url\s*\(|expression\s*\(|@import|behavior\s*:|-moz-binding|(?:calc|clamp|var|env)\s*\(/i
 const MAX_PROBE_CANDIDATES = 2048
 const MAX_PROBE_MARKDOWN_LENGTH = 4 * 1024 * 1024
 const MAX_RAW_HTML_TOKEN_COUNT = 4096
 const MAX_RAW_HTML_TOTAL_BYTES = 512 * 1024
 const htmlRiskAttributePresencePattern =
-	/\s+(?:on[a-z][\w:-]*|srcdoc|style|href|src|xlink:href|action|formaction|poster|background|cite|manifest|usemap|srcset|ping)\s*=/i
+	/\s+(?:on[a-z][\w:-]*|srcdoc|autoplay|style|href|src|xlink:href|action|formaction|poster|background|cite|manifest|usemap|srcset|ping)(?:\s*=|\s|>)/i
+
+const safeHtmlSanitizeConfig = {
+	ALLOWED_TAGS: Array.from(allowedRawHtmlTags),
+	ALLOWED_ATTR: [
+		"alt",
+		"cite",
+		"class",
+		"controls",
+		"height",
+		"href",
+		"loading",
+		"max",
+		"media",
+		"min",
+		"open",
+		"poster",
+		"preload",
+		"rel",
+		"src",
+		"start",
+		"style",
+		"target",
+		"title",
+		"type",
+		"value",
+		"width",
+		"playsinline",
+	],
+	ALLOW_DATA_ATTR: true,
+	ALLOW_UNKNOWN_PROTOCOLS: false,
+	FORBID_TAGS: Array.from(protectedHtmlTags),
+	FORBID_ATTR: ["autoplay", "onerror", "onclick", "onload", "srcdoc"],
+} as const
+
+DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
+	const attributeName = data.attrName.toLowerCase()
+	if (attributeName === "style" && !isSafeInlineStyle(data.attrValue)) {
+		data.keepAttr = false
+		return
+	}
+	if (
+		urlAttributeNames.has(attributeName) &&
+		!isSafeUrlAttribute(attributeName, data.attrValue)
+	) {
+		data.keepAttr = false
+	}
+})
 
 function escapeHtml(value: string): string {
 	return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -202,7 +271,7 @@ function removeProtocolWhitespaceAndControls(value: string): string {
 		.join("")
 }
 
-function isSafeUrlAttribute(attributeName: string, value: string): boolean {
+export function isSafeUrlAttribute(attributeName: string, value: string): boolean {
 	const normalizedValue = removeProtocolWhitespaceAndControls(value)
 	if (!normalizedValue) return true
 
@@ -219,48 +288,210 @@ function isSafeUrlAttribute(attributeName: string, value: string): boolean {
 	)
 }
 
-function hasDangerousHtmlAttributes(html: string): boolean {
-	if (typeof DOMParser === "undefined") {
-		// Rendering without a DOM parser is uncommon for this client-only flow.
-		// Fall back conservatively rather than allowing an encoded value through.
-		return htmlRiskAttributePresencePattern.test(html)
+function isBoundedCssLength(
+	value: string,
+	options: { maxPx: number; maxRelative: number; allowNegative?: boolean },
+): boolean {
+	if (/^0(?:\.0+)?$/.test(value)) return true
+
+	const match = value.match(/^(-?(?:\d+(?:\.\d+)?|\.\d+))(px|rem|em)$/i)
+	if (!match) return false
+
+	const amount = Number(match[1])
+	if (!Number.isFinite(amount) || (!options.allowNegative && amount < 0)) return false
+
+	const absoluteAmount = Math.abs(amount)
+	return match[2].toLowerCase() === "px"
+		? absoluteAmount <= options.maxPx
+		: absoluteAmount <= options.maxRelative
+}
+
+function isSafeSpacingValue(property: string, value: string): boolean {
+	const values = value.split(/\s+/)
+	if (values.length === 0 || values.length > 4) return false
+
+	return values.every(
+		(item) =>
+			(property.startsWith("margin") && item.toLowerCase() === "auto") ||
+			isBoundedCssLength(item, { maxPx: 128, maxRelative: 8 }),
+	)
+}
+
+function isSafeBorderWidthValue(value: string): boolean {
+	const values = value.split(/\s+/)
+	if (values.length === 0 || values.length > 4) return false
+
+	return values.every(
+		(item) =>
+			/^(?:thin|medium|thick)$/i.test(item) ||
+			isBoundedCssLength(item, { maxPx: 16, maxRelative: 1 }),
+	)
+}
+
+function hasUnsafeBorderWidth(value: string): boolean {
+	const dimensions = value.match(/(?:^|[\s/])(-?(?:\d+(?:\.\d+)?|\.\d+)[a-z%]+)/gi) ?? []
+	return dimensions.some(
+		(dimension) => !isBoundedCssLength(dimension.trim(), { maxPx: 16, maxRelative: 1 }),
+	)
+}
+
+function isSafeBoundedSizeValue(value: string): boolean {
+	const minMatch = value.match(/^min\(\s*([^,]+)\s*,\s*([^)]+)\s*\)$/i)
+	if (minMatch) {
+		return [minMatch[1], minMatch[2]].every((part) => {
+			const normalizedPart = part.trim()
+			const percentage = normalizedPart.match(/^(\d+(?:\.\d+)?|\.\d+)%$/)
+			if (percentage) return Number(percentage[1]) <= 100
+			return isBoundedCssLength(normalizedPart, { maxPx: 2048, maxRelative: 128 })
+		})
 	}
 
-	const document = new DOMParser().parseFromString(html, "text/html")
-	let inspectedRiskAttribute = false
+	const percentage = value.match(/^(\d+(?:\.\d+)?|\.\d+)%$/)
+	if (percentage) return Number(percentage[1]) <= 100
+	return isBoundedCssLength(value, { maxPx: 2048, maxRelative: 128 })
+}
 
-	for (const element of Array.from(document.querySelectorAll("*"))) {
-		for (const attribute of Array.from(element.attributes)) {
-			const attributeName = attribute.name.toLowerCase()
-			if (attributeName.startsWith("on") || attributeName === "srcdoc") return true
+function isSafeBorderRadiusValue(value: string): boolean {
+	const values = value.split(/[\s/]+/).filter(Boolean)
+	if (values.length === 0 || values.length > 8) return false
 
-			// Untrusted inline CSS can cover the application UI, intercept clicks,
-			// or imitate trusted dialogs without using script or external URLs.
-			if (attributeName === "style") return true
+	return values.every((item) => {
+		const percentage = item.match(/^(\d+(?:\.\d+)?|\.\d+)%$/)
+		if (percentage) return Number(percentage[1]) <= 100
+		return isBoundedCssLength(item, { maxPx: 128, maxRelative: 8 })
+	})
+}
 
-			if (multiUrlAttributeNames.has(attributeName)) return true
+function isSafeInlineStyleValue(property: string, value: string): boolean {
+	if (unsafeCssValuePattern.test(value)) return false
 
-			if (urlAttributeNames.has(attributeName)) {
-				inspectedRiskAttribute = true
-				if (!isSafeUrlAttribute(attributeName, attribute.value)) return true
-			}
+	if (
+		property === "background" ||
+		property === "background-color" ||
+		property === "color" ||
+		property.endsWith("-color")
+	) {
+		return safeCssColorPattern.test(value)
+	}
+	if (spacingPropertyPattern.test(property)) return isSafeSpacingValue(property, value)
+	if (borderRadiusPropertyPattern.test(property)) return isSafeBorderRadiusValue(value)
+	if (property === "border-width" || borderLonghandWidthPropertyPattern.test(property)) {
+		return isSafeBorderWidthValue(value)
+	}
+	if (borderWidthPropertyPattern.test(property) && hasUnsafeBorderWidth(value)) return false
+	if (property === "font-size") {
+		return (
+			/^(?:xx-small|x-small|small|medium|large|x-large|xx-large)$/i.test(value) ||
+			isBoundedCssLength(value, { maxPx: 96, maxRelative: 6 })
+		)
+	}
+	if (property === "line-height") {
+		if (/^normal$/i.test(value)) return true
+		if (/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value)) {
+			const amount = Number(value)
+			return amount >= 0.5 && amount <= 3
+		}
+		return isBoundedCssLength(value, { maxPx: 128, maxRelative: 8 })
+	}
+	if (property === "text-indent") {
+		return isBoundedCssLength(value, { maxPx: 128, maxRelative: 8 })
+	}
+	if (property === "display") return /^(?:block|inline|inline-block)$/i.test(value)
+	if (property === "max-width" || property === "max-height") {
+		return isSafeBoundedSizeValue(value)
+	}
+	if (property === "letter-spacing") {
+		return (
+			/^normal$/i.test(value) ||
+			isBoundedCssLength(value, { maxPx: 16, maxRelative: 1, allowNegative: true })
+		)
+	}
+
+	// Remaining allowed properties are keyword/string based. Disallow functions
+	// and viewport/container units so they cannot indirectly create unbounded UI.
+	return !/[a-z-]+\s*\(|(?:vh|vw|vmin|vmax|svh|svw|lvh|lvw|dvh|dvw|cqh|cqw|cqi|cqb)\b/i.test(
+		value,
+	)
+}
+
+export function isSafeInlineStyle(styleValue: string): boolean {
+	if (!styleValue.trim()) return true
+
+	// Validate the authored declarations instead of enumerating CSSStyleDeclaration.
+	// Browsers differ in whether shorthand properties such as `border` and
+	// `margin` are exposed as authored shorthands or expanded longhands. Using
+	// the authored form keeps the safety decision deterministic across browsers.
+	const declarations: string[] = []
+	let start = 0
+	let quote: "'" | '"' | null = null
+	let parentheses = 0
+
+	for (let index = 0; index < styleValue.length; index += 1) {
+		const character = styleValue[index]
+		if (quote) {
+			if (character === quote && styleValue[index - 1] !== "\\") quote = null
+			continue
+		}
+		if (character === "'" || character === '"') {
+			quote = character
+			continue
+		}
+		if (character === "(") parentheses += 1
+		if (character === ")") parentheses -= 1
+		if (character === ";" && parentheses === 0) {
+			declarations.push(styleValue.slice(start, index))
+			start = index + 1
 		}
 	}
+	if (quote || parentheses !== 0) return false
+	declarations.push(styleValue.slice(start))
 
-	// If malformed/container-sensitive HTML prevented DOMParser from exposing a
-	// risky attribute, prefer rendering it as code instead of trusting raw text.
-	return !inspectedRiskAttribute && htmlRiskAttributePresencePattern.test(html)
+	for (const declaration of declarations) {
+		if (!declaration.trim()) continue
+		const separator = declaration.indexOf(":")
+		if (separator <= 0) return false
+
+		const property = declaration.slice(0, separator).trim().toLowerCase()
+		const value = declaration.slice(separator + 1).trim()
+		if (!value || !safeInlineStylePropertyPatterns.some((pattern) => pattern.test(property))) {
+			return false
+		}
+		if (!isSafeInlineStyleValue(property, value)) return false
+	}
+
+	return declarations.some((declaration) => declaration.trim() !== "")
+}
+
+function hasDangerousHtmlContent(html: string): boolean {
+	if (typeof window === "undefined") return htmlRiskAttributePresencePattern.test(html)
+
+	// DOMPurify intentionally removes some elements before adding an entry to
+	// `removed` (notably script/style and unsupported namespaces). Inspect the
+	// parsed fragment as well so those removals cannot be mistaken for a safe
+	// empty result. The template fragment avoids treating the document's
+	// synthetic html/head/body wrappers as authored tags.
+	const template = window.document.createElement("template")
+	template.innerHTML = html
+	for (const element of Array.from(template.content.querySelectorAll("*"))) {
+		if (!allowedRawHtmlTags.has(element.tagName.toLowerCase())) return true
+	}
+
+	DOMPurify.removed = []
+	DOMPurify.sanitize(html, safeHtmlSanitizeConfig)
+	// DOMPurify parses fragments through a temporary BODY element. That
+	// container is reported in `removed` for every sanitize call, including
+	// completely safe HTML, so checking the array length would turn all raw
+	// HTML into code. Only removed attributes/elements from the authored
+	// fragment represent a policy violation; ignore the parser container.
+	return DOMPurify.removed.some((entry) => {
+		if (entry.attribute) return true
+		const elementName = entry.element?.tagName?.toLowerCase()
+		return !!elementName && elementName !== "body"
+	})
 }
 
 function shouldRenderHtmlAsCode(html: string): boolean {
-	const tagNames = Array.from(html.matchAll(/<\s*\/?\s*([a-z][\w:-]*)\b/gi)).map((match) =>
-		match[1].toLowerCase(),
-	)
-
-	return (
-		tagNames.some((tagName) => !allowedRawHtmlTags.has(tagName)) ||
-		hasDangerousHtmlAttributes(html)
-	)
+	return hasDangerousHtmlContent(html)
 }
 
 function shouldRenderHtmlAsCodeCached(html: string, cache: Map<string, boolean>): boolean {
@@ -544,20 +775,32 @@ function mergeSourceRanges(ranges: SourceRange[]): SourceRange[] {
 function applySourceReplacements(
 	markdown: string,
 	replacements: Array<{ range: SourceRange; replacement: string }>,
+	onReplacements?: (ranges: SourceReplacement[]) => void,
 ): string {
 	const sortedReplacements = [...replacements].sort(
 		(left, right) => left.range.start - right.range.start,
 	)
 	const parts: string[] = []
 	let sourceCursor = 0
+	let outputCursor = 0
+	const ranges: SourceReplacement[] = []
 
 	for (const { range, replacement } of sortedReplacements) {
 		if (range.start < sourceCursor) continue
+		outputCursor += range.start - sourceCursor
+		ranges.push({
+			sourceStart: range.start,
+			sourceEnd: range.end,
+			start: outputCursor,
+			end: outputCursor + replacement.length,
+		})
+		outputCursor += replacement.length
 		parts.push(markdown.slice(sourceCursor, range.start), replacement)
 		sourceCursor = range.end
 	}
 
 	parts.push(markdown.slice(sourceCursor))
+	onReplacements?.(ranges)
 	return parts.join("")
 }
 
@@ -567,18 +810,35 @@ function applySourceReplacements(
  *
  * The same markdown-it grammar used by the renderer identifies code blocks,
  * inline code, and raw HTML, so code samples are intentionally left untouched.
- * This is a display hardening step, not a general-purpose HTML sanitizer.
+ * DOMPurify supplies the maintained HTML/attribute policy; the source-range
+ * pass below preserves the product behavior of showing rejected fragments as
+ * literal code instead of silently dropping them.
  */
-export function escapeDangerousInvisibleHtmlTags(markdown: string): string {
+export function escapeDangerousInvisibleHtmlTags(
+	markdown: string,
+	onReplacements?: (ranges: SourceReplacement[]) => void,
+): string {
+	onReplacements?.([])
+	const escapeDocument = () =>
+		applySourceReplacements(
+			markdown,
+			[
+				{
+					range: { start: 0, end: markdown.length },
+					replacement: `<pre><code>${escapeHtml(markdown)}</code></pre>`,
+				},
+			],
+			onReplacements,
+		)
 	if (!markdown) return markdown
 	if (markdown.length > MAX_PROBE_MARKDOWN_LENGTH) {
-		return `<pre><code>${escapeHtml(markdown)}</code></pre>`
+		return escapeDocument()
 	}
 
 	const tokens = markdownParser.parse(markdown, {}) as MarkdownToken[]
 	const rawHtmlWorkload = collectRawHtmlWorkload(tokens)
 	if (!rawHtmlWorkload) {
-		return `<pre><code>${escapeHtml(markdown)}</code></pre>`
+		return escapeDocument()
 	}
 
 	const riskCache = new Map<string, boolean>()
@@ -594,7 +854,7 @@ export function escapeDangerousInvisibleHtmlTags(markdown: string): string {
 		riskCache,
 	)
 	if (locatedInlineRanges === null) {
-		return `<pre><code>${escapeHtml(markdown)}</code></pre>`
+		return escapeDocument()
 	}
 
 	const inlineRanges = createInlineCodeRanges(locatedInlineRanges, riskCache)
@@ -605,7 +865,7 @@ export function escapeDangerousInvisibleHtmlTags(markdown: string): string {
 		})
 	}
 
-	return applySourceReplacements(markdown, replacements)
+	return applySourceReplacements(markdown, replacements, onReplacements)
 }
 
 /**

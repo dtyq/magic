@@ -259,6 +259,110 @@ describe("useMentionPanel", () => {
 		})
 	})
 
+	it("should enter the micro app catalog instead of selecting the category", async () => {
+		const microAppCategory: MentionItem = {
+			id: MentionPanelBuiltinItemId.MICRO_APPS,
+			type: MentionItemType.MICRO_APP,
+			name: "Micro Apps",
+			hasChildren: true,
+			isFolder: true,
+		}
+		const microAppItems: MentionItem[] = [
+			{
+				id: "app-1",
+				type: MentionItemType.MICRO_APP,
+				name: "Published App",
+				data: {
+					app_id: "app-1",
+					app_name: "Published App",
+				},
+			},
+		]
+		const onSelect = vi.fn()
+		const dataService: MockDataService = {
+			preLoadList: vi.fn(),
+			removeFromHistory: vi.fn(),
+			dispatch: vi.fn(async (request: MentionStoreRequest) => {
+				if (request.kind === "default") return { items: [microAppCategory] }
+				if (
+					request.kind === "catalog" &&
+					request.catalogId === MentionPanelCatalogId.MICRO_APPS
+				) {
+					return { items: microAppItems }
+				}
+
+				return {}
+			}),
+		}
+		const { result } = renderHook(() =>
+			useMentionPanel({
+				dataService,
+				onSelect,
+				t: en,
+				catalogBehavior: defaultMentionPanelCatalogBehavior,
+			}),
+		)
+
+		await waitFor(() => {
+			expect(result.current.state.items).toEqual([microAppCategory])
+		})
+
+		await act(async () => {
+			await result.current.actions.confirmSelection()
+		})
+
+		await waitFor(() => {
+			expect(result.current.state.currentState).toBe(PanelState.CATALOG)
+			expect(result.current.state.navigationStack[0]?.catalogId).toBe(
+				MentionPanelCatalogId.MICRO_APPS,
+			)
+			expect(result.current.state.items).toEqual(microAppItems)
+			expect(onSelect).not.toHaveBeenCalled()
+		})
+	})
+
+	it("should mark an installed MCP direct selection as validated", async () => {
+		const mcpItem: MentionItem = {
+			id: "miro",
+			type: MentionItemType.MCP,
+			name: "Miro",
+			data: {
+				id: "miro",
+				name: "Miro",
+				icon: "",
+				require_fields: [],
+			},
+		}
+		const dataService: MockDataService = {
+			preLoadList: vi.fn(),
+			removeFromHistory: vi.fn(),
+			dispatch: vi.fn(async (request: MentionStoreRequest) => {
+				if (request.kind === "default") return { items: [mcpItem] }
+				return {}
+			}),
+		}
+		const onSelect = vi.fn()
+		const { result } = renderHook(() =>
+			useMentionPanel({
+				dataService,
+				onSelect,
+				t: en,
+				catalogBehavior: defaultMentionPanelCatalogBehavior,
+			}),
+		)
+
+		await waitFor(() => expect(result.current.state.items).toEqual([mcpItem]))
+
+		await act(async () => {
+			await result.current.actions.confirmSelection()
+		})
+
+		expect(onSelect).toHaveBeenCalledWith(
+			mcpItem,
+			expect.objectContaining({ mcpValidated: true }),
+		)
+	})
+
 	it("should keep catalog search results after filtering current items", async () => {
 		const catalogAgents: MentionItem[] = [
 			{

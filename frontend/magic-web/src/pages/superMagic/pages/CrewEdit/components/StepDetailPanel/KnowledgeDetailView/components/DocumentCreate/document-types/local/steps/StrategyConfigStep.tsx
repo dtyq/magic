@@ -30,7 +30,7 @@ import {
 	type PreprocessingRule,
 } from "../../../constants"
 import type { LocalDocumentStore } from "../../../store"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /**
  * StrategyConfigStep组件Props

@@ -84,6 +84,8 @@ export const DEFAULT_THEME: MentionPanelTheme = {
 }
 
 // Icon mappings for different item types (using TSIcon names)
+export const DEFAULT_CUSTOM_MENTION_ICON = "ts-doc-file"
+
 export const ICON_MAPPINGS: Record<string, string> = {
 	"file-folder": "ts-folder",
 	"file-sharefolder": "ts-folder-share",

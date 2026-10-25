@@ -12,14 +12,18 @@ import {
 } from "react"
 import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import { filterInjectedTags, preserveOriginalTrailingNewline } from "./utils"
+import { getHtmlSandboxRuntimeUrl } from "./utils/html-sandbox-runtime-url"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { superMagicUploadTokenService } from "@/pages/superMagic/components/MessageEditor/services/UploadTokenService"
 import { genFileData } from "@/pages/chatNew/components/MessageEditor/components/InputFiles/utils"
 import { useUpload } from "@/hooks/useUploadFiles"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { useTranslation } from "react-i18next"
 import { addContentToChat } from "@/pages/superMagic/components/Detail/components/AIOptimization/utils"
 import { decodeHTMLEntities, getFullContent } from "./utils/full-content"
+import { syncDevicePreviewScrollbars } from "./utils/device-preview-scrollbars"
 import { extractStaticDependencies } from "./utils/extractDependencies"
 import {
 	buildHtmlVirtualStorageNamespace,
@@ -39,10 +43,10 @@ import {
 import {
 	HTML_SANDBOX_TELEMETRY_MESSAGE,
 	normalizeHtmlSandboxTelemetryMessage,
-} from "@dtyq/html-sandbox/telemetry"
+} from "@dtyq/html-sandbox"
 import { useMediaScenario } from "./media/useMediaScenario"
 import { handleMediaImageUrlRequest, MEDIA_MESSAGE_TYPES } from "./media/utils"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { StylePanel } from "./components/StylePanel"
 import type { HTMLEditorV2Ref, SaveResult } from "./iframe-bridge/types/props"
 import type {
@@ -50,15 +54,21 @@ import type {
 	ImageUploadResultPayload,
 } from "./iframe-bridge/types/messages"
 import { useHTMLEditorV2 } from "./hooks/useHTMLEditorV2"
+import { preserveSlideNotesFromSource } from "../../components/PPTRender/utils/slideNotes"
 import { useImageDrop } from "./hooks/useImageDrop"
 import { SelectionOverlay } from "./components/SelectionOverlay"
 import { DropOverlay } from "./components/DropOverlay"
 import { useZoomControls } from "./hooks/useZoomControls"
 import { StylePanelStoreProvider } from "./iframe-bridge/contexts/StylePanelContext"
-import { TAILWIND_Z_INDEX_CLASSES } from "./constants/z-index"
 import { DevConsolePanel } from "./components/DevConsole"
+import { ElementContextPanel } from "./components/ElementContextPanel"
+import { DOMTreePanel } from "./components/DOMTreePanel"
+import { EditorSidebar } from "./components/EditorSidebar"
+import { shouldCollapseStylesOnBlur } from "./components/EditorSidebar/sidebarSelection"
+import { MoreStylesPanel } from "./components/StylePanel/MoreStylesPanel"
 import type { DevConsoleLayout } from "./components/DevConsole/types"
 import { useDevConsole } from "./hooks/useDevConsole"
+import { usePreviewDocumentRevision } from "./hooks/usePreviewDocumentRevision"
 import { platformKey } from "@/utils/storage"
 import { waitForProjectAttachmentChange } from "@/pages/superMagic/utils/projectAttachments/attachmentMutationWaiter"
 import { useCurrentHtmlFileInfo } from "./hooks/useCurrentHtmlFileInfo"
@@ -68,10 +78,52 @@ import {
 	ElementInspectorOverlay,
 } from "@/components/business/ElementInspector"
 import type { CanonicalContentDimensions } from "./utils/slide-dimensions"
+import { DevicePreviewViewport } from "../../components/DevicePreview/DevicePreviewViewport"
+import { DEFAULT_DEVICE_PREVIEW } from "../../components/DevicePreview/constants"
+import type { DevicePreviewControls } from "../../components/DevicePreview/types"
+import { getIframeFileList } from "./utils/file-utils"
+
+/**
+ * Nested HTML documents may relay navigation directly to the host window. Check
+ * that such a source actually belongs to the current iframe before accepting it.
+ */
+function isNestedIframeSource(
+	rootWindow: Window | null | undefined,
+	source: MessageEventSource | null,
+): boolean {
+	if (!rootWindow || !source || source === rootWindow) return false
+
+	const visited = new Set<Window>()
+	const visit = (currentWindow: Window): boolean => {
+		if (visited.has(currentWindow)) return false
+		visited.add(currentWindow)
+
+		try {
+			for (let index = 0; index < currentWindow.frames.length; index += 1) {
+				const childWindow = currentWindow.frames[index]
+				if (childWindow === source) return true
+				if (visit(childWindow)) return true
+			}
+		} catch {
+			// Cross-origin frame trees expose only a restricted WindowProxy surface.
+			// If the tree cannot be inspected, fail closed for nested messages.
+			return false
+		}
+
+		return false
+	}
+
+	return visit(rootWindow)
+}
+
 export interface IsolatedHTMLRendererRef {
 	getIframeElement: () => HTMLIFrameElement | null
 	getEditorRef: () => React.RefObject<HTMLEditorV2Ref> | null
+	/** Close the element context panel without leaving HTML edit mode. */
+	closeElementContextPanel?: () => boolean
 	resetContent: () => void
+	/** Recreate the iframe document so page scripts and animations run from the start. */
+	restartDocument?: () => void
 	updateContent: (
 		newContent: string,
 		options?: {
@@ -85,8 +137,14 @@ export interface IsolatedHTMLRendererRef {
 	startInspector: () => void
 	/** Stop element inspector mode */
 	stopInspector: () => void
-	/** Start element inspector in append mode (selection appends element info to current editor) */
+	/** Ask the user before discarding pending AI selection targets. */
+	requestInspectorExit?: () => Promise<boolean>
+	/** Consume Escape when the AI selection flow is active. */
+	consumeInspectorEscape?: () => boolean
+	/** Start element inspector in append mode (selection enters the multi-target draft flow) */
 	startInspectorAppend: () => void
+	/** Start immediate element selection and append the Tiptap detail node to the input. */
+	startInspectorQuickSelect?: () => void
 }
 //HTML预览增强组件 iframe里面的内容尺寸，用于计算缩放比例
 export interface IsolatedHTMLRendererContentMetrics {
@@ -109,9 +167,19 @@ import {
 	deduplicateFilePath,
 	type ProjectAttachmentNode,
 } from "./utils/file-utils"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { useFetchInterceptionCache } from "./hooks/useFetchInterceptionCache"
-import { POST_MESSAGE_TARGET_STRATEGIES, type OnFetchIntercepted } from "./utils/fetchInterceptor"
+import {
+	KEYBOARD_MESSAGE_TYPES,
+	POST_MESSAGE_TARGET_STRATEGIES,
+	type OnFetchIntercepted,
+} from "./utils/fetchInterceptor"
+import { getHtmlNavigationKey, isHtmlPreviewShellNavigation } from "./utils/html-navigation"
+import {
+	HtmlNavigationRuntimeService,
+	type HtmlNavigationRuntimeRequest,
+} from "./utils/html-navigation-runtime"
+import { useIframeI18n } from "./iframe-api/hooks/useIframeI18n"
 import { useIframeFS } from "./iframe-api/hooks/useIframeFS"
 import { useIframeLLM } from "./iframe-api/hooks/useIframeLLM"
 import { useIframeDatabase } from "./iframe-api/hooks/useIframeDatabase"
@@ -137,14 +205,31 @@ import { env } from "@/utils/env"
 import { userStore } from "@/models/user"
 import { ContactApi } from "@/apis"
 import MagicModal from "@/components/base/MagicModal"
+import {
+	getHtmlNavigationIntent,
+	type HtmlNavigationIntent,
+	type HtmlNavigationRequest,
+} from "./utils/html-navigation"
+import type { HtmlPermissionScope } from "./iframe-api/types"
+import { PPTBuildPanel } from "./components/PPTBuildPanel/PPTBuildPanel"
+import { useHostConversation } from "@/pages/superMagic/contexts/HostConversationContext"
+
+const ignoreDevicePreviewChange = () => undefined
 
 interface IsolatedHTMLRendererProps {
+	buildPanelOpen?: boolean
+	onBuildPanelOpenChange?: (open: boolean) => void
+	onBuildSave?: () => Promise<boolean>
+	devicePreview?: DevicePreviewControls & { enabled: boolean }
+	onDeviceContentScaledChange?: (scaled: boolean) => void
 	content: string
 	/** API 返回的最原始 HTML 内容（未经 processHtmlContent 处理） */
 	rawSourceCode?: string
 	sandboxType?: "iframe" | "shadow-dom"
 	className?: string
 	isPptRender?: boolean
+	/** A visible PPT transition layer must paint without resuming its media yet. */
+	isPlaybackPaused?: boolean
 	isFullscreen?: boolean
 	/** Expands a pure-share iframe into the page instead of a viewport-scrolling shell. */
 	documentFlowFullscreen?: boolean
@@ -158,16 +243,27 @@ interface IsolatedHTMLRendererProps {
 		enable_shadow?: boolean,
 		fetchFileVersions?: (fileId: string) => void,
 		isPPTEditMode?: boolean,
-	) => Promise<void>
+	) => Promise<boolean | void>
 	onSaveReady?: (triggerSave: () => Promise<SaveResult | undefined>) => void
 	fileId?: string
+	/** HTML 内部导航请求的运行时 URL 状态。 */
+	htmlNavigation?: HtmlNavigationRequest
 	/** 跨多个 HTML 文件共享存储时使用的稳定标记；未传时继续按当前文件隔离。 */
 	virtualStorageMarkerId?: string
 	filePathMapping: Map<string, string>
 	/** 当前 HTML 所在目录，用于相对资源解析、上传默认目录等历史逻辑。 */
 	htmlRelativeFolderPath?: string
-	openNewTab: (fileId: string, path: string, autoEdit?: boolean) => void
-	selectedProject?: any
+	openNewTab: (
+		fileId: string,
+		path: string,
+		autoEdit?: boolean,
+		intent?: HtmlNavigationIntent,
+	) => void
+	/** origin 项目 ID：文件/库所在项目。host 来自 HostConversationProvider。 */
+	projectId?: string
+	/** 发布微应用身份，由宿主注入，用于自动添加可信 @micro_app mention。 */
+	microAppId?: string
+	microAppName?: string
 	attachmentList?: any[]
 	setSlideContents?: (slideContents: Map<number, string>) => void
 	slideIndex?: number
@@ -177,6 +273,8 @@ interface IsolatedHTMLRendererProps {
 	/** Mount target for `createPortal` (e.g. save/cancel) at style toolbar’s right */
 	toolbarEndRef?: Ref<HTMLDivElement | null>
 	isVisible?: boolean
+	/** Hide portaled chrome when this instance is not interactive. */
+	isTabActive?: boolean
 	iframeClassName?: string
 	containIframeOverscroll?: boolean //控制HTML预览增强组件内部是否启用
 	hideVerticalScroll?: boolean
@@ -199,12 +297,20 @@ interface IsolatedHTMLRendererProps {
 	devConsoleEnabled?: boolean
 	/** AI 选取（appendToEditor）状态变化回调 */
 	onAppendPickingChange?: (picking: boolean) => void
+	/** 即时元素选取状态变化回调 */
+	onQuickSelectionChange?: (picking: boolean) => void
 	/** 元素选取状态变化回调 */
 	onInspectorActiveChange?: (active: boolean) => void
 	/** Enable content-level inspector fallback for renderers without runtime support. */
 	enableInlineInspectorFallback?: boolean
 	/** Parent-owned controller used by the HTML detail toolbar and runtime. */
 	permissionController?: HtmlAppPermissionController
+	/** Comparison previews render HTML but must not request or use app permissions. */
+	disableHtmlAppPermissions?: boolean
+}
+
+function isProjectScopedPermission(scope: HtmlPermissionScope): boolean {
+	return scope.startsWith("project.") || scope.startsWith("fs.project.")
 }
 
 function isHtmlImagesUploadPath(path: string): boolean {
@@ -357,12 +463,21 @@ function getContextUserName(user: MagicContextUser): string {
 // Internal component that uses the StylePanelStore context
 const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHTMLRendererProps>(
 	(props, ref) => {
+		const fileAccess = useFileAccess()
+		const fileApi = useFileApi()
+		const getFileAccess = useMemoizedFn(() => fileAccess)
 		const {
+			devicePreview,
+			onDeviceContentScaledChange,
 			content,
 			rawSourceCode,
 			sandboxType = "iframe",
 			className,
 			isPptRender,
+			buildPanelOpen = false,
+			onBuildPanelOpenChange,
+			onBuildSave,
+			isPlaybackPaused = false,
 			isFullscreen,
 			documentFlowFullscreen = false,
 			documentFlowContentHeight = 0,
@@ -371,17 +486,21 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			saveEditContent,
 			onSaveReady,
 			fileId,
+			htmlNavigation,
 			virtualStorageMarkerId,
 			filePathMapping,
 			openNewTab,
 			htmlRelativeFolderPath,
-			selectedProject,
+			projectId,
+			microAppId,
+			microAppName,
 			attachmentList,
 			isPlaybackMode,
 			toolbarClassName,
 			toolbarEndRef,
 			iframeClassName,
 			isVisible,
+			isTabActive,
 			containIframeOverscroll = false,
 			hideVerticalScroll = false,
 			enableScalingHeightCalculation = false,
@@ -399,11 +518,25 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			onDevConsoleClose,
 			devConsoleEnabled,
 			onAppendPickingChange,
+			onQuickSelectionChange,
 			onInspectorActiveChange,
 			enableInlineInspectorFallback = false,
 			permissionController,
+			disableHtmlAppPermissions = false,
 		} = props
+		// host：用户当前所在项目；发布页通过 Provider 按需创建运行项目。
+		const {
+			selectedProject,
+			topicStore: scopedTopicStore,
+			ensureConversation,
+			requestPreviewMode,
+			requireAuthentication,
+		} = useHostConversation()
+		// origin：文件/库所在项目。发布预览传微应用原项目，普通预览回落到 host。
+		const runtimeProjectId = projectId ?? selectedProject?.id
 		const externalRenderSiteUrl = useMemo(() => env("MAGIC_HTML_SANDBOX_URL"), [])
+		// The shared shell can load the runtime bundle built by this host deployment.
+		const htmlSandboxRuntimeUrl = useMemo(() => getHtmlSandboxRuntimeUrl(), [])
 		const htmlSandboxShellUrl = useMemo(
 			() => externalRenderSiteUrl || "/husky.html",
 			[externalRenderSiteUrl],
@@ -448,9 +581,94 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			}
 		}, [documentFlowContentHeight, documentFlowFullscreen, isMobile])
 		const containerRef = useRef<HTMLDivElement>(null)
+		// Inspector controls belong to the visible canvas column, outside the zoomable
+		// scroll container, so manual zoom and its scroll correction cannot move them.
+		const inspectorViewportRef = useRef<HTMLDivElement>(null)
+		// Keep the scaling viewport limited to the canvas column. The DOM tree is a
+		// sibling column and must not be included in PPT auto-fit measurements.
+		const canvasViewportRef = useRef<HTMLDivElement>(null)
+		const deviceContentRef = useRef<HTMLDivElement>(null)
+		const [deviceDisplayScale, setDeviceDisplayScale] = useState(1)
+		const devicePreviewEnabled = devicePreview?.enabled === true
 		const contentWrapperRef = useRef<HTMLDivElement>(null)
 		const scrollContainerRef = useRef<HTMLDivElement>(null)
 		const iframeRef = useRef<HTMLIFrameElement>(null)
+		const supportsDevicePreview = devicePreview !== undefined
+		const syncDeviceScrollbars = useMemoizedFn(() => {
+			if (!supportsDevicePreview || sandboxType !== "iframe") return
+			syncDevicePreviewScrollbars(iframeRef.current, iframeTargetOrigin, devicePreviewEnabled)
+		})
+		// 模式只同步呈现状态；文档重新注入后由 contentLoaded 再应用，不能为此刷新 iframe。
+		useEffect(() => {
+			syncDeviceScrollbars()
+		}, [devicePreviewEnabled, supportsDevicePreview, sandboxType, syncDeviceScrollbars])
+		const inspectorCapturePrewarmRef = useRef<(() => Promise<boolean>) | null>(null)
+		const registerInspectorCapturePrewarm = useCallback(
+			(prewarm: (() => Promise<boolean>) | null) => {
+				inspectorCapturePrewarmRef.current = prewarm
+			},
+			[],
+		)
+		// Keep the editor bridge ref above callbacks and effects that reference it.
+		// Declaring it later would put those dependency arrays in the temporal dead zone.
+		const editorRef = useRef<HTMLEditorV2Ref>(null)
+		const navigationRequestSequenceRef = useRef(0)
+		const lastPreparedContentKeyRef = useRef<string | null>(null)
+		const navigationRuntimeService = useMemo(
+			() =>
+				new HtmlNavigationRuntimeService({
+					send: (request: HtmlNavigationRuntimeRequest) => {
+						const contentWindow = iframeRef.current?.contentWindow
+						if (!contentWindow) {
+							throw new Error("iframe contentWindow is unavailable")
+						}
+
+						contentWindow.postMessage(
+							{
+								type: "setContent",
+								content: request.content,
+								locationSearch: request.locationSearch,
+								locationAnchor: request.locationAnchor,
+								runtimeUrl: request.runtimeUrl,
+								navigationRequestId: request.requestId,
+							},
+							iframeTargetOrigin,
+						)
+					},
+				}),
+			[iframeTargetOrigin],
+		)
+		const htmlNavigationKey = useMemo(
+			() => getHtmlNavigationKey(htmlNavigation),
+			[htmlNavigation],
+		)
+
+		const [iframeLoaded, setIframeLoaded] = useState(false)
+		const [sidebarOpen, setSidebarOpen] = useState(false)
+		const [structureExpanded, setStructureExpanded] = useState(true)
+		const [stylesExpanded, setStylesExpanded] = useState(true)
+		const [domTreeRevision, setDomTreeRevision] = useState(0)
+		const handleToggleSidebar = useCallback(() => {
+			onBuildPanelOpenChange?.(false)
+			setSidebarOpen((open) => !open)
+		}, [onBuildPanelOpenChange])
+		const handleRevealMoreStyles = useCallback(() => {
+			onBuildPanelOpenChange?.(false)
+			setSidebarOpen(true)
+			setStylesExpanded(true)
+		}, [onBuildPanelOpenChange])
+		const [contentInjected, setContentInjected] = useState(false) // 标记内容是否已注入到 iframe
+		const { revision: previewDocumentRevision, restart: restartPreviewDocument } =
+			usePreviewDocumentRevision(content, isEditMode)
+		const iframeRuntimeKey = `${fileId || "html"}:${sandboxType}:${htmlSandboxShellUrl}:${htmlNavigationKey}:${previewDocumentRevision}`
+		const [loadedDocumentRevision, setLoadedDocumentRevision] = useState(iframeRuntimeKey)
+		// Reset readiness in the same render as the new iframe key; no effect may
+		// inject into a newly created Window using the preceding shell's readiness.
+		if (loadedDocumentRevision !== iframeRuntimeKey) {
+			setLoadedDocumentRevision(iframeRuntimeKey)
+			setIframeLoaded(false)
+			setContentInjected(false)
+		}
 		useEffect(() => {
 			const iframe = iframeRef.current
 			if (!iframe) return
@@ -458,10 +676,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			iframe.setAttribute("allowfullscreen", "true")
 			iframe.setAttribute("webkitallowfullscreen", "true")
 			iframe.setAttribute("mozallowfullscreen", "true")
-		}, [])
-
-		const [iframeLoaded, setIframeLoaded] = useState(false)
-		const [contentInjected, setContentInjected] = useState(false) // 标记内容是否已注入到 iframe
+		}, [iframeRuntimeKey])
 		const [processedSourceCode, setProcessedSourceCode] = useState<string | undefined>(
 			undefined,
 		) // 预处理后的 HTML 源码（供 DevConsole Sources 面板展示）
@@ -469,7 +684,6 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			useState<VirtualStorageRuntimeContext | null>(null)
 		const hasRenderedOnceRef = useRef(false) // 跟踪 iframe 是否至少已渲染一次
 		const hasNotifiedRenderReadyRef = useRef(false)
-		const hasIframeI18nSubscriberRef = useRef(false)
 		const renderLifecycleRef = useRef(createIframeRenderLifecycleState())
 		// Fallback timer: unblocks scaling when sandbox never sends contentMetrics
 		const contentMetricsFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -481,6 +695,69 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			width: number
 			height: number
 		} | null>(null)
+		const [selectedElementViewportRect, setSelectedElementViewportRect] = useState<{
+			top: number
+			left: number
+			width: number
+			height: number
+			selector?: string
+		} | null>(null)
+		const [isContextPanelDismissed, setIsContextPanelDismissed] = useState(false)
+		const selectedElementSelector = selectedElementViewportRect?.selector
+		const previousSelectedSelectorRef = useRef<string | undefined>(undefined)
+
+		useEffect(() => {
+			const nextSelector = selectedElementSelector
+			if (shouldCollapseStylesOnBlur(previousSelectedSelectorRef.current, nextSelector)) {
+				setStylesExpanded(false)
+			}
+			previousSelectedSelectorRef.current = nextSelector
+		}, [selectedElementSelector])
+
+		// Keep the selected element and edit mode when the user dismisses the panel.
+		// A different selection starts a fresh contextual-panel session.
+		useEffect(() => {
+			setIsContextPanelDismissed(false)
+		}, [isEditMode, selectedElementSelector])
+
+		const closeElementContextPanel = useMemoizedFn(() => {
+			if (!isEditMode || !selectedElementSelector || isContextPanelDismissed) return false
+			setIsContextPanelDismissed(true)
+			return true
+		})
+
+		const handleCanvasPointerDown = useCallback(
+			(event: React.PointerEvent<HTMLDivElement>) => {
+				if (!isEditMode || !selectedElementSelector) return
+				const target = event.target
+				if (!(target instanceof Element)) return
+				// Selection handles and the iframe own their pointer interactions. Only
+				// clicks on the canvas area outside the iframe should clear selection.
+				if (
+					target.closest(
+						"iframe, [data-html-selection-overlay], [data-html-context-panel], [data-html-drop-overlay]",
+					)
+				) {
+					return
+				}
+				void editorRef.current?.resetEditorState()
+			},
+			[editorRef, isEditMode, selectedElementSelector],
+		)
+
+		// Escape pressed while focus is in the parent document (for example, a panel
+		// input) should have the same local-dismiss behavior as Escape from the iframe.
+		useEffect(() => {
+			const handleKeyDown = (event: KeyboardEvent) => {
+				if (event.key !== "Escape") return
+				if (!closeElementContextPanel()) return
+				event.preventDefault()
+				event.stopImmediatePropagation()
+			}
+
+			window.addEventListener("keydown", handleKeyDown, true)
+			return () => window.removeEventListener("keydown", handleKeyDown, true)
+		}, [closeElementContextPanel])
 		const [scalingContentMetrics, setScalingContentMetrics] = useState<{
 			contentWidth: number
 			contentHeight: number
@@ -500,6 +777,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			getIframeStyle,
 		} = useZoomControls({
 			containerRef,
+			measurementRef: devicePreviewEnabled ? deviceContentRef : canvasViewportRef,
 			iframeRef,
 			isPptRender,
 			isFullscreen,
@@ -517,6 +795,17 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			manualScale,
 			onManualScaleChange,
 		})
+		// 内容适配仍用原 scaleRatio；宿主指针与浮层使用内容比例 × 设备显示比例。
+		const effectiveScaleRatio = devicePreviewEnabled
+			? (shouldApplyScaling ? scaleRatio : 1) * deviceDisplayScale
+			: scaleRatio
+		const deviceLayoutKey =
+			devicePreviewEnabled && devicePreview
+				? `${devicePreview.config.width}:${devicePreview.config.height}:${devicePreview.config.showFrame}:${devicePreview.config.profile}:${devicePreview.config.fold?.posture}:${deviceDisplayScale}`
+				: ""
+		useEffect(() => {
+			onDeviceContentScaledChange?.(shouldApplyScaling)
+		}, [shouldApplyScaling, onDeviceContentScaledChange])
 
 		useEffect(() => {
 			if (isPptRender && isScaleReady) {
@@ -606,7 +895,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				clearTimeout(contentMetricsFallbackTimerRef.current)
 				contentMetricsFallbackTimerRef.current = null
 			}
-		}, [clearRenderLifecycleTimeout, content, startRenderLifecycleSession])
+		}, [clearRenderLifecycleTimeout, content, iframeRuntimeKey, startRenderLifecycleSession])
 
 		const notifyRenderReady = useMemoizedFn(() => {
 			if (hasNotifiedRenderReadyRef.current) return
@@ -631,11 +920,23 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			const newScale = scaleRatio + scaleChange
 			handleScaleChange(newScale)
 		})
+		const handleEditorContentChanged = useMemoizedFn(() => {
+			setDomTreeRevision((current) => current + 1)
+		})
+
+		const prepareVisualSaveContent = useMemoizedFn((nextContent: string) => {
+			// Notes can be saved while this iframe retains a body draft. Keep the latest
+			// host metadata without rewriting the document or resetting that draft.
+			const contentWithNotes =
+				isPptRender && typeof rawSourceCode === "string"
+					? preserveSlideNotesFromSource(nextContent, rawSourceCode)
+					: nextContent
+			return preserveOriginalTrailingNewline(contentWithNotes, rawSourceCode)
+		})
 
 		// V2 编辑机制相关
-		const editorRef = useRef<HTMLEditorV2Ref>(null)
-		// Preserve the API source's EOF newline for both current and legacy visual save paths.
-		const saveEditContentWithOriginalTrailingNewline = useMemoizedFn(
+		// The legacy iframe save message also needs the host's current metadata.
+		const savePreparedEditContent = useMemoizedFn(
 			async (
 				nextContent: string,
 				nextFileId?: string,
@@ -645,7 +946,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			) => {
 				if (!saveEditContent) return
 				return saveEditContent(
-					preserveOriginalTrailingNewline(nextContent, rawSourceCode),
+					prepareVisualSaveContent(nextContent),
 					nextFileId,
 					enableShadow,
 					fetchFileVersions,
@@ -653,20 +954,26 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				)
 			},
 		)
-		useHTMLEditorV2({
+		const { isEditorReady } = useHTMLEditorV2({
 			iframeRef,
-			isEditMode,
+			isEditMode: isEditMode && !buildPanelOpen,
+			isPPTBuildMode:
+				Boolean(isPptRender && buildPanelOpen) &&
+				isVisible !== false &&
+				isTabActive !== false,
 			sandboxType,
 			iframeLoaded,
 			contentInjected,
 			targetOrigin: iframeTargetOrigin,
-			scaleRatio,
-			saveEditContent: saveEditContentWithOriginalTrailingNewline,
+			scaleRatio: effectiveScaleRatio,
+			saveEditContent,
+			prepareSaveContent: prepareVisualSaveContent,
 			fileId,
 			filePathMapping,
 			editorRef,
 			isPptRender,
 			onZoomRequest: handleIframeZoomRequest,
+			onContentChanged: handleEditorContentChanged,
 		})
 
 		// 使用 media scenario hook
@@ -801,7 +1108,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		}, [devConsoleEnabled, setDevConsoleEnabled])
 
 		// Element inspector (independent, can be triggered from DevConsole or elsewhere)
-		const elementInspector = useElementInspector({ iframeRef })
+		const elementInspector = useElementInspector({
+			iframeRef,
+			targetOrigin: iframeTargetOrigin,
+		})
 		const inspectorFileInfo = useMemo(() => {
 			if (!fileId) return undefined
 			const file = findAttachmentByFileId(
@@ -815,12 +1125,38 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			hideInfoCard: inspectorHideInfoCard,
 			startInToolbarMode,
 			startInAppendMode,
+			startInQuickSelectionMode,
+			selectionMode: inspectorSelectionMode,
+			updateSelectionMode: updateInspectorSelectionMode,
+			captureScreenshotTarget: captureInspectorScreenshotTarget,
+			attachElementScreenshot: attachInspectorElementScreenshot,
 			isAppendPicking,
-		} = useInspectorToolbarMode(elementInspector, t, inspectorFileInfo)
+			isQuickSelecting,
+			activeTarget: inspectorActiveTarget,
+			draftInstruction: inspectorDraftInstruction,
+			setDraftInstruction: setInspectorDraftInstruction,
+			confirmTarget: confirmInspectorTarget,
+			cancelTarget: cancelInspectorTarget,
+			pendingTargets: inspectorPendingTargets,
+			submitState: inspectorSubmitState,
+			submitError: inspectorSubmitError,
+			editPendingTarget: editInspectorPendingTarget,
+			removePendingTarget: removeInspectorPendingTarget,
+			submitPendingTargets: submitInspectorPendingTargets,
+			resetSelection: resetInspectorSelection,
+			requestExit: requestInspectorExit,
+			consumeEscape: consumeInspectorEscape,
+		} = useInspectorToolbarMode(elementInspector, t, inspectorFileInfo, {
+			disableTargetScroll: Boolean(isPptRender),
+		})
 
 		useEffect(() => {
 			onAppendPickingChange?.(isAppendPicking)
 		}, [isAppendPicking, onAppendPickingChange])
+
+		useEffect(() => {
+			onQuickSelectionChange?.(isQuickSelecting)
+		}, [isQuickSelecting, onQuickSelectionChange])
 
 		useEffect(() => {
 			onInspectorActiveChange?.(elementInspector.active)
@@ -829,7 +1165,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		const { upload } = useUpload<any>({
 			url: superMagicUploadTokenService.getUploadTokenUrl,
 			body: {
-				project_id: selectedProject?.id ?? "",
+				project_id: runtimeProjectId ?? "",
 				expires: 3600,
 			},
 			rewriteFileName: false,
@@ -841,7 +1177,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		})
 
 		const ensureHtmlImagesDirectoryId = useMemoizedFn(async () => {
-			if (!selectedProject?.id) throw new Error("No project selected")
+			if (!runtimeProjectId) throw new Error("No project selected")
 
 			const htmlDirectoryPath = getHtmlDirectoryPath(currentHtmlFilePath)
 			const imagesDirectoryPath = `${htmlDirectoryPath}images`
@@ -856,7 +1192,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			if (existingDirectory?.file_id) return existingDirectory.file_id
 
 			const res = await createIframeFile({
-				project_id: selectedProject.id,
+				project_id: runtimeProjectId,
 				parent_id: currentHtmlFileInfo.parentId || htmlDirectory?.file_id || "",
 				file_name: "images",
 				is_directory: true,
@@ -878,7 +1214,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				fileSize?: number
 				parentId?: string
 			}) => {
-				if (!selectedProject?.id) {
+				if (!runtimeProjectId) {
 					throw new Error("No project selected")
 				}
 
@@ -892,7 +1228,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					(isHtmlImagesUploadPath(path) ? await ensureHtmlImagesDirectoryId() : undefined)
 
 				const token = await superMagicUploadTokenService.getUploadToken(
-					selectedProject.id,
+					runtimeProjectId,
 					cleanPathValue || "",
 				)
 				const newFiles = Array.from([file]).map(genFileData)
@@ -911,7 +1247,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					: resolvedPath
 
 				const saveRes = await superMagicUploadTokenService.saveFileToProject({
-					project_id: selectedProject.id,
+					project_id: runtimeProjectId,
 					parent_id: resolvedParentId,
 					file_key: uploadedKey,
 					file_name: deduplicatedFileName || file.name,
@@ -927,6 +1263,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				}
 
 				return {
+					file_id: saveRes.file_id,
+					relative_file_path: saveRes.relative_file_path,
 					uploadedRelativeFilePath: saveRes.relative_file_path,
 					storedRelativeFilePath: toStoredRelativePath(saveRes.relative_file_path),
 				}
@@ -937,7 +1275,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		const { isDragOver, isGlobalDragActive, dragOverHandlers } = useImageDrop({
 			iframeRef,
 			isEditMode,
-			scaleRatio,
+			scaleRatio: effectiveScaleRatio,
 			relative_file_path: htmlRelativeFolderPath,
 			attachmentList,
 			filePathMapping,
@@ -951,49 +1289,55 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		// 消息列表预览这类只依赖预处理结果的场景，不需要再启用运行时相对路径拦截，
 		// 避免把不在附件树里的原始相对路径也带进通用业务拦截链。
 		// 扁平化 attachmentList，供 IframeFS 使用
-		const flatFileList = useMemo(() => {
-			const seen = new Set<string>()
-			const result: { file_id: string; relative_file_path: string; updated_at?: string }[] =
-				[]
-			const flatten = (items: any[]) => {
-				for (const item of items) {
-					if (item.file_id && item.relative_file_path) {
-						const key = item.relative_file_path.replace(/^\/+/, "")
-						if (!seen.has(key)) {
-							seen.add(key)
-							result.push(item)
-						}
-					}
-					if (item.children?.length) flatten(item.children)
-				}
-			}
-			if (attachmentList?.length) flatten(attachmentList)
-			return result
-		}, [attachmentList])
+		const flatFileList = useMemo(() => getIframeFileList(attachmentList), [attachmentList])
 		const fallbackPermissionController = useHtmlAppPermissions({
 			content,
 			rawSourceCode,
 			relativeFilePath: htmlEntryFilePath,
-			projectId: selectedProject?.id,
+			projectId: runtimeProjectId,
 			fileList: flatFileList,
-			enabled: !permissionController,
+			enabled: !permissionController && !disableHtmlAppPermissions,
 		})
 		const { htmlAppConfig, authorizeHtmlPermission, authorizeHtmlPermissions } =
 			permissionController || fallbackPermissionController
+		const authorizeRuntimePermission = useMemoizedFn(async (scope: HtmlPermissionScope) => {
+			if (disableHtmlAppPermissions) return false
+			return authorizeHtmlPermission(scope)
+		})
+		const projectContextUnavailableError = t("htmlEditor.projectContextUnavailable")
+		const previewModeCancelledError = t("microAppPage.conversation.switchToPreviewCancelled")
+		const authorizeProjectPermission = useMemoizedFn(async (scope: HtmlPermissionScope) => {
+			if (disableHtmlAppPermissions) return false
+			// Login confirmation precedes app permissions and never creates a runtime project.
+			if (scope === "project.message.write") await requireAuthentication?.()
+			if (scope === "project.message.write" && requestPreviewMode) {
+				if (!(await requestPreviewMode())) throw new Error(previewModeCancelledError)
+				return true
+			}
+			// 分享页没有可授权的项目上下文，先返回明确原因，避免先弹授权再失败。
+			if (!runtimeProjectId && isProjectScopedPermission(scope)) {
+				throw new Error(projectContextUnavailableError)
+			}
+			return authorizeRuntimePermission(scope)
+		})
 
 		const { handleFSMessage } = useIframeFS({
 			iframeRef,
+			runtimeRevision: iframeRuntimeKey,
 			targetOrigin: iframeTargetOrigin,
 			entryPath: htmlEntryFilePath,
 			fileList: flatFileList,
 			appConfig: htmlAppConfig,
-			projectId: selectedProject?.id,
+			projectId: runtimeProjectId,
+			projectContextUnavailableError: !runtimeProjectId
+				? projectContextUnavailableError
+				: undefined,
 			uploadFn: uploadImageFileToProject,
 			saveContentFn: ({ file_id, content }) => saveIframeFileContent([{ file_id, content }]),
 			mkdirFn: useMemoizedFn(async ({ name, parentId }) => {
-				if (!selectedProject?.id) throw new Error("No project selected")
+				if (!runtimeProjectId) throw new Error("No project selected")
 				const res = await createIframeFile({
-					project_id: selectedProject.id,
+					project_id: runtimeProjectId,
 					parent_id: parentId,
 					file_name: name,
 					is_directory: true,
@@ -1017,7 +1361,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			verifyFileFn: useMemoizedFn(async ({ file_id, project_id }) =>
 				getIframeFileInfo(file_id, project_id),
 			),
-			authorizePermission: authorizeHtmlPermission,
+			authorizePermission: authorizeProjectPermission,
 			confirmProjectDeleteFn: useMemoizedFn(
 				({ path, isDirectory, appRootDir, operation }) =>
 					new Promise<boolean>((resolve) => {
@@ -1055,24 +1399,38 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 						})
 					}),
 			),
+			getFileAccess,
 		})
 
 		const { handleLLMMessage } = useIframeLLM({
 			iframeRef,
+			runtimeRevision: iframeRuntimeKey,
 			targetOrigin: iframeTargetOrigin,
 			baseUrl: (env("MAGIC_SERVICE_BASE_URL") as string) || "",
 			getAuthorization: () => userStore.user.authorization?.trim() || "",
 			getOrganizationCode: () => userStore.user.organizationCode?.trim() || "",
-			authorizePermission: authorizeHtmlPermission,
+			authorizePermission: authorizeRuntimePermission,
 		})
 
 		const { handleDatabaseMessage } = useIframeDatabase({
 			iframeRef,
-			projectId: selectedProject?.id,
+			projectId: runtimeProjectId,
+			projectContextUnavailableError: !runtimeProjectId
+				? projectContextUnavailableError
+				: undefined,
+			getFileAccess,
 		})
 
-		const { getAgentList, createTopicAndSend, sendMessage } = useIframeAgentActions()
+		// origin + 传入的 store + host 项目；hook 内不再读全局 store
+		const { getAgentList, createTopicAndSend, sendMessage } = useIframeAgentActions(
+			runtimeProjectId,
+			scopedTopicStore,
+			selectedProject,
+			{ microAppId, microAppName },
+			ensureConversation,
+		)
 
+		// 会话写操作按 host 鉴权：分享页没有当前项目时不可发消息
 		const { handleAgentMessage } = useIframeAgent({
 			iframeRef,
 			targetOrigin: iframeTargetOrigin,
@@ -1080,7 +1438,12 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			createTopicAndSend,
 			sendMessage,
 			enableWriteOperations: true,
-			authorizePermission: authorizeHtmlPermission,
+			projectId: selectedProject?.id || (ensureConversation ? "runtime-pending" : undefined),
+			projectContextUnavailableError:
+				!selectedProject?.id && !ensureConversation
+					? projectContextUnavailableError
+					: undefined,
+			authorizePermission: authorizeProjectPermission,
 		})
 
 		const { handleUserInfoMessage } = useIframeUserInfo({
@@ -1102,10 +1465,12 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				}
 			}),
 			authorizeUserInfo: useMemoizedFn(({ scopes, reason }) =>
-				authorizeHtmlPermissions(scopes, {
-					reason,
-					presentation: "userInfo",
-				}),
+				disableHtmlAppPermissions
+					? Promise.resolve(false)
+					: authorizeHtmlPermissions(scopes, {
+							reason,
+							presentation: "userInfo",
+						}),
 			),
 		})
 
@@ -1118,15 +1483,22 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			}
 		}, [fileId, isDynamicInterceptionEnabled, postMessageTargetStrategy])
 
+		// upload/download 走 origin；addFilesToMessage 走 host + 传入的 store
 		const { handleMagicUploadFiles, handleMagicAddFilesToMessage, handleMagicDownloadFiles } =
 			useMagicFiles({
 				iframeRef,
 				targetOrigin: iframeTargetOrigin,
 				selectedProject,
+				projectId: runtimeProjectId,
+				projectContextUnavailableError: !runtimeProjectId
+					? projectContextUnavailableError
+					: undefined,
+				topicStore: scopedTopicStore,
+				ensureConversation,
 				attachmentList,
 				htmlRelativeFolderPath,
 				uploadImageFileToProject,
-				authorizePermission: authorizeHtmlPermission,
+				authorizePermission: authorizeProjectPermission,
 			})
 
 		// 监听 iframe 准备就绪并初始化内容
@@ -1137,15 +1509,17 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 				setIframeLoaded(false)
 				setContentInjected(false)
-
-				// 同源和跨域统一通过 URL shell 自举，避免维护两套 shell 初始化流程。
+				navigationRuntimeService.resetShell()
+				lastPreparedContentKeyRef.current = null
+				// 业务 query/hash 不拼接到远程 shell URL：远程 shell 可能对 query 做签名校验。
+				// 导航状态变化时通过 key 创建新的 shell 实例，避免复用旧 document 的 History 状态。
 				if (iframe.getAttribute("src") !== htmlSandboxShellUrl) {
 					iframe.src = htmlSandboxShellUrl
 				}
 			} catch (error) {
 				console.error("初始化iframe内容时出错:", error)
 			}
-		}, [htmlSandboxShellUrl])
+		}, [htmlNavigationKey, htmlSandboxShellUrl, navigationRuntimeService, iframeRuntimeKey])
 
 		const getMarkerId = useMemoizedFn(() => {
 			if (!attachmentList || !fileId) return fileId
@@ -1167,12 +1541,12 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		})
 		const getStorageMarkerId = useMemoizedFn(() => virtualStorageMarkerId || getMarkerId())
 
+		// 虚拟存储按 project + file 隔离，不按话题隔离：切换/新建话题不应重建沙箱存储。
 		useEffect(() => {
 			let cancelled = false
 			const markerId = getStorageMarkerId()
 			const namespace = buildHtmlVirtualStorageNamespace({
-				projectId: selectedProject?.id,
-				topicId: selectedProject?.current_topic_id,
+				projectId: runtimeProjectId,
 				fileId: markerId || fileId,
 			})
 
@@ -1191,9 +1565,9 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			// attachmentList,
 			fileId,
 			getStorageMarkerId,
-			selectedProject?.current_topic_id,
-			selectedProject?.id,
+			runtimeProjectId,
 			virtualStorageMarkerId,
+			iframeRuntimeKey,
 		])
 
 		useEffect(() => {
@@ -1211,31 +1585,19 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			return () => {
 				virtualStorageRegistry.unregister(registeredContext)
 			}
-		}, [iframeLoaded, iframeTargetOrigin, virtualStorageContext])
+		}, [iframeLoaded, iframeTargetOrigin, virtualStorageContext, iframeRuntimeKey])
 
 		const reloadIframeContent = () => {
+			resetInspectorSelection()
 			pubsub.publish(PubSubEvents.Super_Magic_Detail_Refresh)
 		}
 
-		const notifyIframeI18nLang = useMemoizedFn(
-			(source: "subscribe_ack" | "language_changed", requestId?: string) => {
-				const currentLang = i18n.resolvedLanguage || i18n.language || "zh-CN"
-				if (!iframeRef.current?.contentWindow) return
-
-				iframeRef.current.contentWindow.postMessage(
-					{
-						type: "MAGIC_I18N_LANG_SUBSCRIBE",
-						requestId,
-						success: true,
-						results: {
-							lang: currentLang,
-							source,
-						},
-					},
-					iframeTargetOrigin,
-				)
-			},
-		)
+		const notifyIframeI18nLang = useIframeI18n({
+			iframeRef,
+			targetOrigin: iframeTargetOrigin,
+			i18n,
+			enabled: sandboxType === "iframe",
+		})
 
 		const handleIframeElementLoad = useMemoizedFn(() => {
 			reportRenderLifecycleStage("shell_loaded")
@@ -1247,9 +1609,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			})
 		})
 
-		const refreshIframeContent = useMemoizedFn(() => {
+		const refreshIframeContent = useMemoizedFn((options?: { force?: boolean }) => {
 			if (!virtualStorageContext) return
-			hasIframeI18nSubscriberRef.current = false
 			// 解码HTML实体
 			let decodedContent = decodeHTMLEntities(content)
 
@@ -1260,29 +1621,49 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 			// 根据HTML文件上下文确定标记ID：如果父目录存在metadata则使用父目录ID，否则使用文件ID
 			const markerId = getStorageMarkerId()
+			const contentKey = [
+				content,
+				htmlNavigationKey,
+				markerId || "",
+				virtualStorageContext.renderId || "",
+			].join("\u0000")
+
+			if (!options?.force && lastPreparedContentKeyRef.current === contentKey) {
+				return
+			}
+
+			navigationRequestSequenceRef.current += 1
+			const navigationRequestId = `${fileId || "html"}:${navigationRequestSequenceRef.current}`
 			// 创建完整HTML内容
 			const fullContent = getFullContent(decodedContent, markerId, {
+				devicePreviewScrollbars: supportsDevicePreview ? devicePreviewEnabled : undefined,
 				dynamicInterception: dynamicResourceInterceptionConfig,
 				containOverscroll: containIframeOverscroll,
 				hideVerticalScroll,
 				reportContentMetrics: documentFlowFullscreen,
 				contentMetricsTargetOrigin,
 				disableParentClickBridge: disableIframeDocumentClickBridge,
+				enableTouchPinchZoom: isPptRender,
 				enableInlineInspectorFallback,
 				postMessageTargetStrategy,
 				virtualStorage: virtualStorageContext,
+				locationSearch: htmlNavigation?.search || "",
+				locationAnchor: htmlNavigation?.hash || "",
+				navigationRequestId,
+				navigationBasePath: htmlEntryFilePath,
 			})
-
-			// 发送内容到iframe
+			const request = {
+				requestId: navigationRequestId,
+				content: fullContent,
+				locationSearch: htmlNavigation?.search || "",
+				locationAnchor: htmlNavigation?.hash || "",
+				runtimeUrl: htmlSandboxRuntimeUrl,
+			}
+			lastPreparedContentKeyRef.current = contentKey
+			// shell 未 ready 时只保存最新请求，ready 后再发送。
 			try {
-				if (iframeRef.current && iframeRef.current.contentWindow) {
-					iframeRef.current.contentWindow.postMessage(
-						{
-							type: "setContent",
-							content: fullContent,
-						},
-						iframeTargetOrigin,
-					)
+				const sendResult = navigationRuntimeService.submit(request)
+				if (sendResult === "sent") {
 					reportRenderLifecycleStage("set_content_sent", {
 						fullContentLength: fullContent.length,
 						markerId,
@@ -1290,12 +1671,6 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							dynamicResourceInterceptionConfig?.enable,
 						),
 					})
-					setProcessedSourceCode(fullContent)
-				} else {
-					reportRenderLifecycleStage("set_content_failed", {
-						reason: "iframe_or_content_window_unavailable",
-					})
-					console.error("iframe或contentWindow不可用")
 				}
 			} catch (postError) {
 				reportRenderLifecycleStage("set_content_failed", {
@@ -1306,6 +1681,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				})
 				console.error("发送消息到iframe时出错:", postError)
 			}
+			setProcessedSourceCode(fullContent)
 		})
 
 		// 使用 fetch 拦截缓存 hook（必须在 refreshIframeContent 定义之后）
@@ -1348,6 +1724,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			() => ({
 				getIframeElement: () => iframeRef.current,
 				getEditorRef: () => editorRef,
+				closeElementContextPanel,
+				requestInspectorExit,
+				consumeInspectorEscape,
+				restartDocument: restartPreviewDocument,
 				resetContent: () => {
 					// Clear edit history
 					if (editorRef.current) {
@@ -1355,8 +1735,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							console.error("清除编辑历史失败:", error)
 						})
 					}
-					// Refresh iframe content to original state
-					refreshIframeContent()
+					// Explicit reset discards the current document, including script state.
+					restartPreviewDocument()
 				},
 				updateContent: async (
 					newContent: string,
@@ -1365,7 +1745,6 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 						restoreSelectionMode?: boolean
 					},
 				) => {
-					hasIframeI18nSubscriberRef.current = false
 					// Save current edit mode state before updating content
 					const wasInEditMode = isEditMode
 					// 默认恢复；仅显式传 false 时不恢复
@@ -1391,29 +1770,40 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					// 根据HTML文件上下文确定标记ID
 					const markerId = getStorageMarkerId()
 					if (!virtualStorageContext) return
+					navigationRequestSequenceRef.current += 1
+					const navigationRequestId = `${fileId || "html"}:${navigationRequestSequenceRef.current}`
 					// 创建完整HTML内容
 					const fullContent = getFullContent(decodedContent, markerId, {
+						devicePreviewScrollbars: supportsDevicePreview
+							? devicePreviewEnabled
+							: undefined,
 						dynamicInterception: dynamicResourceInterceptionConfig,
 						containOverscroll: containIframeOverscroll,
 						hideVerticalScroll,
 						reportContentMetrics: documentFlowFullscreen,
 						contentMetricsTargetOrigin,
 						disableParentClickBridge: disableIframeDocumentClickBridge,
+						enableTouchPinchZoom: isPptRender,
 						enableInlineInspectorFallback,
 						postMessageTargetStrategy,
 						virtualStorage: virtualStorageContext,
+						locationSearch: htmlNavigation?.search || "",
+						locationAnchor: htmlNavigation?.hash || "",
+						navigationRequestId,
+						navigationBasePath: htmlEntryFilePath,
 					})
-					// 发送内容到iframe
+					const request = {
+						requestId: navigationRequestId,
+						content: fullContent,
+						locationSearch: htmlNavigation?.search || "",
+						locationAnchor: htmlNavigation?.hash || "",
+						runtimeUrl: htmlSandboxRuntimeUrl,
+					}
+
 					try {
-						if (iframeRef.current && iframeRef.current.contentWindow) {
+						if (iframeRef.current?.contentWindow) {
 							console.log("更新html内容为新版本")
-							iframeRef.current.contentWindow.postMessage(
-								{
-									type: "setContent",
-									content: fullContent,
-								},
-								iframeTargetOrigin,
-							)
+							navigationRuntimeService.submit(request)
 
 							// Re-enter selection mode after iframe content is replaced
 							// Wait for iframe runtime to be ready, then restore edit mode
@@ -1452,31 +1842,60 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				},
 				stopInspector: () => {
 					elementInspector.stop()
+					resetInspectorSelection()
 				},
 				startInspectorAppend: () => {
-					startInAppendMode()
+					void (async () => {
+						const prepare = inspectorCapturePrewarmRef.current
+						const ready = prepare ? await prepare() : true
+						if (!ready) return
+						startInAppendMode()
+					})()
+				},
+				startInspectorQuickSelect: () => {
+					void (async () => {
+						const prepare = inspectorCapturePrewarmRef.current
+						const ready = prepare ? await prepare() : true
+						if (!ready) return
+						startInQuickSelectionMode()
+					})()
 				},
 			}),
 			[
 				containIframeOverscroll,
+				closeElementContextPanel,
+				contentMetricsTargetOrigin,
 				disableIframeDocumentClickBridge,
+				devicePreviewEnabled,
+				supportsDevicePreview,
 				documentFlowFullscreen,
 				dynamicResourceInterceptionConfig,
+				fileId,
+				htmlSandboxRuntimeUrl,
 				getStorageMarkerId,
 				hideVerticalScroll,
 				injectMediaScript,
 				isEditMode,
 				isMediaScenario,
+				isPptRender,
+				htmlNavigation?.hash,
+				htmlNavigation?.search,
 				refreshIframeContent,
+				restartPreviewDocument,
+				htmlEntryFilePath,
 				editorRef,
 				handleFetchIntercepted,
-				iframeTargetOrigin,
+				navigationRuntimeService,
 				postMessageTargetStrategy,
+				requestInspectorExit,
 				devConsole.toggle,
 				elementInspector,
 				enableInlineInspectorFallback,
+				consumeInspectorEscape,
 				startInAppendMode,
+				startInQuickSelectionMode,
 				startInToolbarMode,
+				resetInspectorSelection,
 				virtualStorageContext,
 			],
 		)
@@ -1566,7 +1985,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 						)
 					}
 
-					void waitForProjectAttachmentChange(selectedProject?.id, {
+					void waitForProjectAttachmentChange(runtimeProjectId, {
 						operations: ["add"],
 						matchMode: "project-any-apply",
 						fallback: "full-refresh",
@@ -1635,40 +2054,6 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			})
 		}
 
-		// 创建消息监听器
-		const iframeMessageTypes = useMemo(
-			() =>
-				new Set<string>([
-					"iframeReady",
-					"pageLoaded",
-					"contentLoaded",
-					"domReady",
-					"renderComplete",
-					"pageFullyLoaded",
-					"contentMetrics",
-					"linkClicked",
-					"DOWNLOAD_IMAGE",
-					"REQUEST_IMAGE_UPLOAD",
-					"AI_OPTIMIZATION_ACTION",
-					"DOM_CLICK",
-					"saveContent",
-					"MAGIC_RELOAD_REQUEST",
-					"MAGIC_SET_INPUT_MESSAGE",
-					"MAGIC_UPLOAD_FILES_REQUEST",
-					"MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
-					"MAGIC_DOWNLOAD_FILES_REQUEST",
-					"MAGIC_GET_AGENTS_REQUEST",
-					"MAGIC_CREATE_TOPIC_AND_SEND_REQUEST",
-					"MAGIC_SEND_MESSAGE_REQUEST",
-					"MAGIC_I18N_LANG_SUBSCRIBE",
-					"DRAG_POSITION_RESPONSE",
-					HTML_SANDBOX_TELEMETRY_MESSAGE,
-					MEDIA_MESSAGE_TYPES.SPEAKER_EDITED,
-					MEDIA_MESSAGE_TYPES.IMAGE_URL_REQUEST,
-				]),
-			[],
-		)
-
 		const buildMessageLogContext = useMemoizedFn(
 			(
 				event: MessageEvent,
@@ -1694,41 +2079,86 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const handleMessage = useMemoizedFn(async (event: MessageEvent) => {
 			const messageType = typeof event.data?.type === "string" ? event.data.type : ""
+			const messageRequestId =
+				typeof event.data?.navigationRequestId === "string"
+					? event.data.navigationRequestId
+					: ""
 			const isExpectedSource = event.source === iframeRef.current?.contentWindow
 			const isExpectedOrigin = event.origin === iframeTargetOrigin
-			const isAllowedType = messageType ? iframeMessageTypes.has(messageType) : false
-			const shouldStrictlyValidatePreviewSource =
-				Boolean(messageType) &&
-				[
-					"iframeReady",
-					"pageLoaded",
-					"contentLoaded",
-					"domReady",
-					"renderComplete",
-					"pageFullyLoaded",
-					"contentMetrics",
-				].includes(messageType)
 			const isAllowedTelemetryOrigin =
 				messageType === HTML_SANDBOX_TELEMETRY_MESSAGE &&
 				Boolean(event.origin) &&
 				(event.origin === iframeTargetOrigin || event.origin === window.location.origin)
+			// Nested same-origin documents relay navigation through the host window. They
+			// also report telemetry. Both cases must come from a verified descendant;
+			// nested documents cannot invoke host capabilities that mutate the application.
+			const isExpectedNestedSource =
+				(messageType === "linkClicked" || messageType === HTML_SANDBOX_TELEMETRY_MESSAGE) &&
+				isNestedIframeSource(iframeRef.current?.contentWindow, event.source)
+			const isTrustedNestedMessage =
+				isExpectedNestedSource &&
+				((messageType === "linkClicked" && isExpectedOrigin) || isAllowedTelemetryOrigin)
+			const isTrustedMessage =
+				(isExpectedSource && isExpectedOrigin) || isTrustedNestedMessage
 
-			// 只处理来自iframe的消息，兼容钉钉 WebView source 不一致
-			if (!isExpectedSource && !isAllowedType) {
+			// All host capabilities require the exact iframe source and origin. The only
+			// exceptions are verified nested navigation and telemetry, whose source is a
+			// descendant window rather than the top-level iframe window.
+			if (!isTrustedMessage) {
 				if (messageType === "linkClicked" || Boolean(event.data?.href)) {
 					logger.report(
-						"忽略 iframe link 消息：source 不匹配且类型不在白名单",
+						"忽略 iframe 消息：source 或 origin 不匹配",
 						buildMessageLogContext(event, messageType, {
 							isExpectedSource,
-							isAllowedType,
+							isExpectedOrigin,
 						}),
 					)
 				}
 				return
 			}
 
-			if (shouldStrictlyValidatePreviewSource && (!isExpectedSource || !isExpectedOrigin))
+			// 回收站 HTML 只展示保留内容，不授予嵌入页面操作宿主项目或会话的能力。
+			if (
+				fileAccess?.kind === "recycle-bin" &&
+				([
+					"MAGIC_FS_",
+					"MAGIC_DB_",
+					"MAGIC_LLM_",
+					"MAGIC_CREATE_TOPIC_",
+					"MAGIC_SEND_MESSAGE_",
+					"MAGIC_UPLOAD_FILES_",
+					"MAGIC_ADD_FILES_TO_MESSAGE_",
+					"MAGIC_DOWNLOAD_FILES_",
+				].some((prefix) => messageType.startsWith(prefix)) ||
+					messageType === "MAGIC_SET_INPUT_MESSAGE")
+			) {
+				if (messageType.endsWith("_REQUEST"))
+					iframeRef.current?.contentWindow?.postMessage(
+						{
+							type: messageType.replace(/_REQUEST$/, "_RESPONSE"),
+							requestId: event.data.requestId,
+							success: false,
+							error: "Recycle bin content is read-only",
+						},
+						iframeTargetOrigin,
+					)
 				return
+			}
+			const requestBoundMessageTypes = [
+				"contentLoaded",
+				"domReady",
+				"renderComplete",
+				"pageFullyLoaded",
+				"contentMetrics",
+			]
+			if (
+				requestBoundMessageTypes.includes(messageType) &&
+				messageRequestId &&
+				navigationRuntimeService.getCurrentRequestId() &&
+				!navigationRuntimeService.acceptsMessage(messageRequestId)
+			) {
+				return
+			}
 
 			// 检查是否是 EditorBridge 协议消息（由 MessageBridge 处理）
 			// MessageBridge 的监听器会先处理新协议消息（有 version 字段的）
@@ -1737,6 +2167,18 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				// 新协议消息，由 MessageBridge 处理，这里跳过
 				// 注意：MessageBridge 的监听器和这个监听器都会收到消息
 				// MessageBridge 会处理新协议消息，这里只处理旧协议消息
+				return
+			}
+
+			// The legacy iframe keyboard bridge sends Escape as a cancel message.
+			// Dismiss the contextual style panel first; only the next Escape should
+			// reach the page-level edit cancel handler.
+			if (
+				messageType === KEYBOARD_MESSAGE_TYPES.CANCEL &&
+				event.data?.source === KEYBOARD_MESSAGE_TYPES.SOURCE &&
+				closeElementContextPanel()
+			) {
+				event.stopImmediatePropagation()
 				return
 			}
 
@@ -1764,6 +2206,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					reportRenderLifecycleStage("iframe_ready", {
 						origin: event.origin,
 					})
+					navigationRuntimeService.markShellReady()
 					setIframeLoaded(true)
 				} else if (event.data && event.data.type === "pageLoaded") {
 					// Shell load 后再次兜底置为 ready，避免早期 iframeReady 丢失。
@@ -1771,8 +2214,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 						origin: event.origin,
 						isExpectedSource,
 					})
+					navigationRuntimeService.markShellReady()
 					setIframeLoaded(true)
 				} else if (event.data && event.data.type === "contentLoaded") {
+					syncDeviceScrollbars()
 					// 内容已写入iframe，但可能还未完成渲染
 					reportRenderLifecycleStage("content_loaded")
 					// 如果处于编辑模式，重置 contentInjected 状态以触发脚本重新注入
@@ -1884,7 +2329,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							"回放模式忽略 iframe 链接点击",
 							buildMessageLogContext(event, messageType, {
 								isExpectedSource,
-								isAllowedType,
+								isExpectedOrigin,
 							}),
 						)
 						return
@@ -1892,9 +2337,25 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 					const href = typeof event.data?.href === "string" ? event.data.href : ""
 					const autoEdit = event.data?.autoEdit === true
-
+					// Ignore husky/shell rewrites after cancel resetContent.
+					if (isHtmlPreviewShellNavigation(href, htmlSandboxShellUrl)) {
+						logger.report(
+							"忽略 iframe 预览壳重写导航",
+							buildMessageLogContext(event, messageType, {
+								isExpectedSource,
+								isExpectedOrigin,
+								href,
+							}),
+						)
+						return
+					}
 					try {
-						openNewTab(fileId || "", href, autoEdit)
+						openNewTab(
+							fileId || "",
+							href,
+							autoEdit,
+							getHtmlNavigationIntent(event.data),
+						)
 					} catch (error) {
 						logger.error({
 							eventKey: "process_iframe_failed",
@@ -1904,7 +2365,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							// 保留历史上报中的完整链接和错误详情，便于定位 iframe 跳转失败。
 							context: buildMessageLogContext(event, messageType, {
 								isExpectedSource,
-								isAllowedType,
+								isExpectedOrigin,
 								href,
 								autoEdit,
 							}),
@@ -1930,7 +2391,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							"忽略跨实例图片上传消息：source 不匹配",
 							buildMessageLogContext(event, messageType, {
 								isExpectedSource,
-								isAllowedType,
+								isExpectedOrigin,
 							}),
 						)
 						return
@@ -1957,7 +2418,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					console.log("收到旧版保存消息 (V1)", event.data)
 					if (saveEditContent && typeof saveEditContent === "function") {
 						const newContent = filterInjectedTags(event.data.content, filePathMapping)
-						saveEditContentWithOriginalTrailingNewline(newContent, String(fileId))
+						savePreparedEditContent(newContent, String(fileId))
 					}
 				} else if (event.data && event.data.type === MEDIA_MESSAGE_TYPES.SPEAKER_EDITED) {
 					// 处理媒体说话人编辑事件
@@ -1967,7 +2428,12 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					event.data.type === MEDIA_MESSAGE_TYPES.IMAGE_URL_REQUEST
 				) {
 					// 处理marked.js图片路径解析请求
-					await handleMediaImageUrlRequest(event, attachmentList || [], fileId || "")
+					await handleMediaImageUrlRequest(
+						event,
+						attachmentList || [],
+						fileId || "",
+						fileApi,
+					)
 				} else if (event.data?.type?.startsWith("MAGIC_FS_")) {
 					// 处理 window.Magic.fs.* 请求
 					await handleFSMessage(event.data.type, event.data)
@@ -1991,8 +2457,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					// 处理 window.Magic.user.getInfo() 请求
 					await handleUserInfoMessage(event.data.type, event.data)
 				} else if (event.data && event.data.type === "MAGIC_RELOAD_REQUEST") {
-					// 处理 window.Magic.reload() 请求
-					reloadIframeContent()
+					// Reload only the requesting document, even when its source is unchanged.
+					// Reuse the fresh-Window lifecycle instead of refreshing unrelated file tabs.
+					resetInspectorSelection()
+					restartPreviewDocument()
 				} else if (event.data && event.data.type === "MAGIC_SET_INPUT_MESSAGE") {
 					// 处理 window.Magic.setInputMessage() 请求
 					const message = event.data.message
@@ -2011,12 +2479,13 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				} else if (event.data && event.data.type === "MAGIC_I18N_LANG_SUBSCRIBE") {
 					// 处理 window.Magic.i18n.subscribe() 请求
 					const payload = event.data as MagicI18nLangSubscribeRequest
-					hasIframeI18nSubscriberRef.current = true
 					notifyIframeI18nLang("subscribe_ack", payload.requestId)
 				}
 
 				if (event.data && event.data.originalKey === "Escape") {
-					pubsub.publish(PubSubEvents.Exit_Fullscreen)
+					if (!closeElementContextPanel()) {
+						pubsub.publish(PubSubEvents.Exit_Fullscreen)
+					}
 				}
 			} catch (error) {
 				logger.error({
@@ -2026,7 +2495,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					message: "处理 iframe message 失败",
 					context: buildMessageLogContext(event, messageType, {
 						isExpectedSource,
-						isAllowedType,
+						isExpectedOrigin,
 					}),
 				})
 			}
@@ -2065,6 +2534,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			injectIframeContent("content_changed")
 		}, [
 			content,
+			htmlNavigation,
 			iframeLoaded,
 			htmlSandboxShellUrl,
 			injectIframeContent,
@@ -2105,30 +2575,23 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			iframeRef.current.contentWindow.postMessage(
 				{
 					type: "setAnimationState",
-					paused: !isVisible,
+					paused: !isVisible || isPlaybackPaused,
 				},
 				iframeTargetOrigin,
 			)
-		}, [contentInjected, iframeTargetOrigin, isPptRender, isVisible, sandboxType])
-
-		useEffect(() => {
-			if (sandboxType !== "iframe") return
-
-			const handleLanguageChanged = () => {
-				if (!hasIframeI18nSubscriberRef.current) return
-				notifyIframeI18nLang("language_changed")
-			}
-
-			i18n.on("languageChanged", handleLanguageChanged)
-			return () => {
-				i18n.off("languageChanged", handleLanguageChanged)
-			}
-		}, [i18n, notifyIframeI18nLang, sandboxType])
+		}, [
+			contentInjected,
+			iframeTargetOrigin,
+			isPptRender,
+			isVisible,
+			isPlaybackPaused,
+			sandboxType,
+		])
 
 		useLayoutEffect(() => {
-			window.addEventListener("message", handleMessage)
+			window.addEventListener("message", handleMessage, true)
 			return () => {
-				window.removeEventListener("message", handleMessage)
+				window.removeEventListener("message", handleMessage, true)
 			}
 			//eslint-disable-next-line react-hooks/exhaustive-deps
 		}, [])
@@ -2138,19 +2601,14 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			if (isMediaScenario) {
 				// Media场景直接保存说话人配置
 				saveMediaConfiguration()
-			} else if (isEditMode && editorRef.current) {
+			} else if ((isEditMode || buildPanelOpen) && editorRef.current) {
 				// 使用新的编辑机制 V2 保存
 				try {
 					const saveResult = await editorRef.current.save()
-					// Keep the returned baseline identical to the content sent through the save callback.
-					const savedCleanContent = preserveOriginalTrailingNewline(
-						saveResult.cleanContent,
-						rawSourceCode,
-					)
 					console.log("[IsolatedHTMLRenderer] 保存结果:", {
 						success: saveResult.success,
 						fileId: saveResult.fileId,
-						contentLength: savedCleanContent.length,
+						contentLength: saveResult.cleanContent.length,
 					})
 
 					if (!saveResult.success) {
@@ -2158,10 +2616,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					}
 
 					// Return the exact saved content so conflict detection uses the correct baseline.
-					return {
-						...saveResult,
-						cleanContent: savedCleanContent,
-					}
+					return saveResult
 				} catch (error) {
 					console.error("保存内容时出错:", error)
 					throw error
@@ -2182,7 +2637,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				className={cx(
 					styles.rendererContainer,
 					hideVerticalScroll && styles.hiddenScrollbar,
-					"relative flex min-h-0 w-full flex-1",
+					"relative flex min-h-0 w-full flex-1 bg-muted/25 dark:bg-muted/10",
 					className,
 				)}
 				style={{
@@ -2198,169 +2653,392 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							: undefined,
 				}}
 			>
-				{/* 工具栏 - 固定在顶部，不滚动 */}
-				{sandboxType === "iframe" && isEditMode && (
-					<>
-						<StylePanel
-							editorRef={editorRef as React.RefObject<HTMLEditorV2Ref>}
-							disabled={isSaving}
-							toolbarEndRef={toolbarEndRef}
-							className={cn(
-								"w-full flex-shrink-0",
-								isPptRender &&
-									`absolute left-1/2 ${TAILWIND_Z_INDEX_CLASSES.TOOLBAR.STYLE_PANEL} top-[10px] w-[98%] -translate-x-1/2 rounded-lg border border-border bg-card/95 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60`,
-								toolbarClassName,
-							)}
-						/>
-					</>
-				)}
-
-				{/* 可滚动内容容器 */}
-				<div
-					ref={containerRef}
-					className={cx(
-						hideVerticalScroll && styles.hiddenScrollbar,
-						isPptRender && isManualZoom && styles.pptManualZoomScrollbar,
-						cn(
-							documentFlowFullscreen
-								? "relative w-full"
-								: "relative flex min-h-0 w-full flex-1 flex-col",
-							devConsole.enabled && devConsoleLayout === "right"
-								? "flex-row"
-								: "flex-col",
-							shouldApplyScaling && isFullscreen && "bg-black",
-							shouldApplyScaling && !isFullscreen && "bg-[#eee] dark:bg-[#1c1c1c]",
-						),
-					)}
-					style={{
-						overflow: documentFlowFullscreen
-							? "visible"
-							: hideVerticalScroll
-								? "hidden"
-								: shouldApplyScaling
-									? isManualZoom
-										? "auto"
-										: "hidden"
-									: "auto",
-						minHeight: documentFlowFullscreen ? "100dvh" : 0,
-					}}
-				>
-					{/* 内容包装器，使用 flex 居中 iframe */}
-					<div
-						ref={contentWrapperRef}
-						className={
-							documentFlowFullscreen
-								? "relative w-full"
-								: "relative min-h-0 w-full flex-1"
-						}
-						style={documentFlowFullscreen ? undefined : getContentWrapperStyle()}
-					>
-						{sandboxType === "iframe" ? (
+				<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+					{/* 顶部工具栏与下方工作区共享同一个编辑器外框。 */}
+					{sandboxType === "iframe" &&
+						isEditMode &&
+						!buildPanelOpen &&
+						isVisible !== false &&
+						isTabActive !== false && (
 							<>
-								<iframe
-									ref={iframeRef}
+								<StylePanel
+									variant="global"
+									editorRef={editorRef as React.RefObject<HTMLEditorV2Ref>}
+									disabled={isSaving}
+									sidebarOpen={sidebarOpen}
+									onToggleSidebar={handleToggleSidebar}
+									toolbarEndRef={toolbarEndRef}
 									className={cn(
-										styles.iframe,
-										documentFlowFullscreen
-											? "w-full flex-shrink-0 border-none"
-											: "h-full w-full flex-shrink-0 border-none",
-										iframeClassName,
+										"!w-auto flex-shrink-0 border-b border-border/70 bg-card",
+										toolbarClassName,
 									)}
-									title="Isolated HTML Content"
-									src={htmlSandboxShellUrl}
-									onLoad={handleIframeElementLoad}
-									onError={handleIframeElementError}
-									sandbox="allow-scripts allow-modals allow-forms allow-same-origin allow-popups allow-downloads allow-pointer-lock allow-orientation-lock allow-presentation"
-									allow="fullscreen; autoplay; picture-in-picture; encrypted-media; web-share; clipboard-write"
-									allowFullScreen
-									translate="no"
-									style={
-										documentFlowIframeStyle ||
-										getIframeStyle(hasRenderedOnceRef.current)
-									}
-									data-testid="isolated-html-content-iframe"
 								/>
-								{/* 选择覆盖层 - 在父窗口中渲染元素高亮 */}
-								{isEditMode && (
-									<SelectionOverlay
-										containerRef={contentWrapperRef}
-										scrollContainerRef={scrollContainerRef}
-										iframeRef={iframeRef}
-										editorRef={editorRef}
-										scaleRatio={scaleRatio}
-										isPptRender={shouldApplyScaling}
-										disabled={isSaving}
-										onSelectedElementChange={setSelectedElementRect}
-									/>
-								)}
-								{/* 拖拽放置覆盖层 - 拖拽图片时显示 */}
-								{isEditMode && isGlobalDragActive && (
-									<DropOverlay
-										visible={isDragOver}
-										onDragEnter={dragOverHandlers.onDragEnter}
-										onDragOver={dragOverHandlers.onDragOver}
-										onDragLeave={dragOverHandlers.onDragLeave}
-										onDrop={dragOverHandlers.onDrop}
-									/>
-								)}
-								{/* 元素检查覆盖层 - 独立于编辑模式 */}
-								<ElementInspectorOverlay
-									active={elementInspector.active}
-									iframeRef={iframeRef}
-									hoveredElement={elementInspector.hoveredElement}
-									selectedElement={elementInspector.selectedElement}
-									onClearSelection={elementInspector.clearSelection}
-									onInsertToConsole={(code) => {
-										devConsole.executeCode(code)
-									}}
-									onSendToAgent={(content) => {
-										pubsub.publish(PubSubEvents.Set_Input_Message, content)
-									}}
-									hideInfoCard={inspectorHideInfoCard}
-									scaleRatio={scaleRatio}
+								<ElementContextPanel
+									editorRef={editorRef as React.RefObject<HTMLEditorV2Ref>}
+									anchor={selectedElementViewportRect}
+									selector={selectedElementViewportRect?.selector}
+									open={!isContextPanelDismissed}
+									disabled={isSaving}
+									boundaryRef={canvasViewportRef}
+									onRevealMoreStyles={handleRevealMoreStyles}
 								/>
 							</>
-						) : (
-							<div className={styles.shadowHost} translate="no" />
 						)}
+
+					<div className="relative flex min-h-0 min-w-0 flex-1">
+						<div
+							ref={inspectorViewportRef}
+							className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+						>
+							{/* 可滚动内容容器 */}
+							<div
+								ref={containerRef}
+								className={cx(
+									hideVerticalScroll && styles.hiddenScrollbar,
+									isPptRender && isManualZoom && styles.pptManualZoomScrollbar,
+									cn(
+										documentFlowFullscreen
+											? "relative w-full"
+											: "relative flex min-h-0 w-full flex-1 flex-col",
+										devConsole.enabled && devConsoleLayout === "right"
+											? "flex-row"
+											: "flex-col",
+										shouldApplyScaling && isFullscreen && "bg-black",
+										shouldApplyScaling &&
+											isEditMode &&
+											!isFullscreen &&
+											"bg-muted/45 dark:bg-muted/20",
+										!shouldApplyScaling &&
+											isEditMode &&
+											"bg-muted/25 dark:bg-muted/10",
+									),
+								)}
+								style={{
+									overflow: documentFlowFullscreen
+										? "visible"
+										: hideVerticalScroll
+											? "hidden"
+											: shouldApplyScaling
+												? isManualZoom
+													? "auto"
+													: "hidden"
+												: "auto",
+									minHeight: documentFlowFullscreen ? "100dvh" : 0,
+								}}
+							>
+								{/* 工作区按真实列布局，DOM 树不会覆盖或参与画布缩放计算。 */}
+								<div className="flex min-h-0 min-w-0 flex-1">
+									<div
+										ref={canvasViewportRef}
+										onPointerDown={handleCanvasPointerDown}
+										data-testid={
+											isVisible !== false ? "html-editor-canvas" : undefined
+										}
+										className={
+											documentFlowFullscreen
+												? "relative w-full min-w-0"
+												: "relative min-h-0 min-w-0 flex-1"
+										}
+									>
+										<DevicePreviewViewport
+											enabled={devicePreviewEnabled}
+											config={devicePreview?.config ?? DEFAULT_DEVICE_PREVIEW}
+											setConfig={
+												devicePreview?.setConfig ??
+												ignoreDevicePreviewChange
+											}
+											active={
+												devicePreviewEnabled &&
+												devicePreview?.active !== false &&
+												isTabActive !== false &&
+												isVisible !== false
+											}
+											identity={devicePreview?.identity || fileId || ""}
+											contentRef={deviceContentRef}
+											onDisplayScaleChange={setDeviceDisplayScale}
+										>
+											{/* 内容包装器，使用 flex 居中 iframe */}
+											<div
+												ref={contentWrapperRef}
+												className={
+													documentFlowFullscreen
+														? "relative w-full"
+														: "relative min-h-0 w-full flex-1"
+												}
+												style={
+													documentFlowFullscreen
+														? undefined
+														: getContentWrapperStyle()
+												}
+											>
+												{sandboxType === "iframe" ? (
+													<>
+														{/*
+														 * 远程 shell URL 不能携带业务 query，因为 shell 服务可能会校验这些参数。
+														 * 每次导航状态变化时重新创建 shell：复用同一个 iframe 并调用
+														 * document.open/document.write 可能保留旧的 History URL，导致下一个
+														 * HTML 文档仍然读取到之前的 query。
+														 */}
+														<iframe
+															key={iframeRuntimeKey}
+															ref={iframeRef}
+															className={cn(
+																styles.iframe,
+																documentFlowFullscreen
+																	? "w-full flex-shrink-0 border-none"
+																	: "h-full w-full flex-shrink-0 border-none",
+																iframeClassName,
+															)}
+															title="Isolated HTML Content"
+															src={htmlSandboxShellUrl}
+															onLoad={handleIframeElementLoad}
+															onError={handleIframeElementError}
+															sandbox="allow-scripts allow-modals allow-forms allow-same-origin allow-popups allow-downloads allow-pointer-lock allow-orientation-lock allow-presentation"
+															allow="fullscreen; autoplay; microphone; camera; picture-in-picture; encrypted-media; web-share; clipboard-write"
+															allowFullScreen
+															translate="no"
+															style={
+																documentFlowIframeStyle ||
+																getIframeStyle(
+																	hasRenderedOnceRef.current,
+																)
+															}
+															data-testid={
+																isVisible !== false
+																	? "isolated-html-content-iframe"
+																	: undefined
+															}
+														/>
+														{/* 拖拽放置覆盖层 - 拖拽图片时显示 */}
+														{isEditMode &&
+															isVisible !== false &&
+															isGlobalDragActive && (
+																<DropOverlay
+																	visible={isDragOver}
+																	onDragEnter={
+																		dragOverHandlers.onDragEnter
+																	}
+																	onDragOver={
+																		dragOverHandlers.onDragOver
+																	}
+																	onDragLeave={
+																		dragOverHandlers.onDragLeave
+																	}
+																	onDrop={dragOverHandlers.onDrop}
+																/>
+															)}
+													</>
+												) : (
+													<div
+														className={styles.shadowHost}
+														translate="no"
+													/>
+												)}
+											</div>
+										</DevicePreviewViewport>
+										{sandboxType === "iframe" && (
+											<>
+												{/* 选择覆盖层 - 在父窗口中渲染元素高亮 */}
+												{(isEditMode || buildPanelOpen) &&
+													isVisible !== false && (
+														<SelectionOverlay
+															containerRef={
+																devicePreviewEnabled
+																	? canvasViewportRef
+																	: contentWrapperRef
+															}
+															readOnly={buildPanelOpen || !isEditMode}
+															scrollContainerRef={scrollContainerRef}
+															iframeRef={iframeRef}
+															editorRef={editorRef}
+															scaleRatio={effectiveScaleRatio}
+															isPptRender={
+																shouldApplyScaling ||
+																devicePreviewEnabled
+															}
+															layoutKey={deviceLayoutKey}
+															disabled={isSaving}
+															onSelectedElementChange={
+																setSelectedElementRect
+															}
+															onSelectedElementViewportChange={
+																setSelectedElementViewportRect
+															}
+															onElementMoveStart={() =>
+																setIsContextPanelDismissed(true)
+															}
+															onElementMoveEnd={() =>
+																setIsContextPanelDismissed(true)
+															}
+														/>
+													)}
+												{/* 元素检查覆盖层 - 独立于编辑模式 */}
+												{isVisible !== false && (
+													<ElementInspectorOverlay
+														layoutKey={deviceLayoutKey}
+														active={elementInspector.active}
+														iframeRef={iframeRef}
+														hoveredElement={
+															elementInspector.hoveredElement
+														}
+														selectedElement={
+															elementInspector.selectedElement
+														}
+														trackedRects={elementInspector.trackedRects}
+														iframeScrollOffset={
+															elementInspector.iframeScrollOffset ??
+															undefined
+														}
+														onClearSelection={
+															elementInspector.clearSelection
+														}
+														onInsertToConsole={(code) => {
+															devConsole.executeCode(code)
+														}}
+														onSendToAgent={(content) => {
+															pubsub.publish(
+																PubSubEvents.Set_Input_Message,
+																content,
+															)
+														}}
+														hideInfoCard={inspectorHideInfoCard}
+														multiSelectionActive={isAppendPicking}
+														activeTarget={inspectorActiveTarget}
+														draftInstruction={inspectorDraftInstruction}
+														onDraftInstructionChange={
+															setInspectorDraftInstruction
+														}
+														onConfirmTarget={confirmInspectorTarget}
+														onCancelTarget={cancelInspectorTarget}
+														pendingTargets={inspectorPendingTargets}
+														submitState={inspectorSubmitState}
+														submitError={inspectorSubmitError}
+														onEditPendingTarget={
+															isAppendPicking
+																? editInspectorPendingTarget
+																: undefined
+														}
+														onRemovePendingTarget={
+															isAppendPicking
+																? removeInspectorPendingTarget
+																: undefined
+														}
+														onSubmitPendingTargets={
+															isAppendPicking
+																? submitInspectorPendingTargets
+																: undefined
+														}
+														selectionMode={inspectorSelectionMode}
+														onSelectionModeChange={
+															updateInspectorSelectionMode
+														}
+														pendingPanelTopOffset={16}
+														panelContainerRef={inspectorViewportRef}
+														iframeTargetOrigin={iframeTargetOrigin}
+														screenshotSupported
+														onCaptureScreenshot={
+															captureInspectorScreenshotTarget
+														}
+														onCaptureElementScreenshot={
+															isAppendPicking || isQuickSelecting
+																? attachInspectorElementScreenshot
+																: undefined
+														}
+														onCapturePrewarmReady={
+															registerInspectorCapturePrewarm
+														}
+														onExitMultiSelection={
+															isAppendPicking
+																? resetInspectorSelection
+																: undefined
+														}
+														scaleRatio={effectiveScaleRatio}
+													/>
+												)}
+											</>
+										)}
+									</div>
+								</div>
+								{/* DevTools 调试台 - 根据用户选择停靠在 iframe 底部或右侧 */}
+								{sandboxType === "iframe" && devConsole.enabled && (
+									<DevConsolePanel
+										consoleEntries={devConsole.consoleEntries}
+										networkEntries={enrichedNetworkEntries}
+										apiCallEntries={devConsole.apiCallEntries}
+										messageEntries={devConsole.messageEntries}
+										storageSnapshot={devConsole.storageSnapshot}
+										storageLoading={devConsole.storageLoading}
+										sourceCode={content}
+										rawSourceCode={rawSourceCode}
+										processedSourceCode={processedSourceCode}
+										dependencyEntries={allDependencyEntries}
+										activeTab={devConsole.activeTab}
+										onTabChange={devConsole.setActiveTab}
+										onClearConsole={devConsole.clearConsole}
+										onClearNetwork={devConsole.clearNetwork}
+										onClearApiCalls={devConsole.clearApiCalls}
+										onClearMessages={devConsole.clearMessages}
+										onSendErrorToAgent={devConsole.sendErrorToAgent}
+										onExecuteCode={devConsole.executeCode}
+										onRequestCompletions={devConsole.requestCompletions}
+										onRequestStorageSnapshot={devConsole.requestStorageSnapshot}
+										onRefreshHtml={reloadIframeContent}
+										consoleErrorCount={devConsole.consoleErrorCount}
+										networkErrorCount={devConsole.networkErrorCount}
+										apiCallErrorCount={devConsole.apiCallErrorCount}
+										layout={devConsoleLayout}
+										onLayoutChange={handleDevConsoleLayoutChange}
+										onClose={() => {
+											setDevConsoleEnabled(false)
+											onDevConsoleClose?.()
+										}}
+										inspectorActive={elementInspector.active}
+										onToggleInspector={elementInspector.toggle}
+									/>
+								)}
+							</div>
+						</div>
+						{sandboxType === "iframe" &&
+						isPptRender &&
+						isVisible !== false &&
+						isTabActive !== false &&
+						buildPanelOpen &&
+						isEditorReady ? (
+							<PPTBuildPanel
+								editorRef={editorRef}
+								contentRevision={domTreeRevision}
+								disabled={isSaving}
+								onCommit={isEditMode ? undefined : onBuildSave}
+								onClose={() => onBuildPanelOpenChange?.(false)}
+							/>
+						) : null}
+						{!buildPanelOpen &&
+						sandboxType === "iframe" &&
+						isEditMode &&
+						isVisible !== false &&
+						sidebarOpen ? (
+							<EditorSidebar
+								structureExpanded={structureExpanded}
+								stylesExpanded={stylesExpanded}
+								onStructureExpandedChange={setStructureExpanded}
+								onStylesExpandedChange={setStylesExpanded}
+								structure={
+									<DOMTreePanel
+										editorRef={editorRef as React.RefObject<HTMLEditorV2Ref>}
+										visible
+										selectedSelector={selectedElementSelector}
+										contentRevision={domTreeRevision}
+									/>
+								}
+								styles={
+									<MoreStylesPanel
+										editorRef={editorRef as React.RefObject<HTMLEditorV2Ref>}
+										disabled={isSaving}
+									/>
+								}
+							/>
+						) : null}
 					</div>
-					{/* DevTools 调试台 - 根据用户选择停靠在 iframe 底部或右侧 */}
-					{sandboxType === "iframe" && devConsole.enabled && (
-						<DevConsolePanel
-							consoleEntries={devConsole.consoleEntries}
-							networkEntries={enrichedNetworkEntries}
-							apiCallEntries={devConsole.apiCallEntries}
-							messageEntries={devConsole.messageEntries}
-							storageSnapshot={devConsole.storageSnapshot}
-							storageLoading={devConsole.storageLoading}
-							sourceCode={content}
-							rawSourceCode={rawSourceCode}
-							processedSourceCode={processedSourceCode}
-							dependencyEntries={allDependencyEntries}
-							activeTab={devConsole.activeTab}
-							onTabChange={devConsole.setActiveTab}
-							onClearConsole={devConsole.clearConsole}
-							onClearNetwork={devConsole.clearNetwork}
-							onClearApiCalls={devConsole.clearApiCalls}
-							onClearMessages={devConsole.clearMessages}
-							onSendErrorToAgent={devConsole.sendErrorToAgent}
-							onExecuteCode={devConsole.executeCode}
-							onRequestCompletions={devConsole.requestCompletions}
-							onRequestStorageSnapshot={devConsole.requestStorageSnapshot}
-							onRefreshHtml={reloadIframeContent}
-							consoleErrorCount={devConsole.consoleErrorCount}
-							networkErrorCount={devConsole.networkErrorCount}
-							apiCallErrorCount={devConsole.apiCallErrorCount}
-							layout={devConsoleLayout}
-							onLayoutChange={handleDevConsoleLayoutChange}
-							onClose={() => {
-								setDevConsoleEnabled(false)
-								onDevConsoleClose?.()
-							}}
-							inspectorActive={elementInspector.active}
-							onToggleInspector={elementInspector.toggle}
-						/>
-					)}
 				</div>
 			</div>
 		)

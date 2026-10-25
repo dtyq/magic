@@ -1,17 +1,18 @@
 """第三方 IM 入站统一构建与分发。"""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+from pathlib import Path
 from typing import Any, Optional
 
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
-
 from app.core.entity.event.third_party_message_event import ThirdPartyMessageReceivedEventData
 from app.core.entity.message.client_message import ChatClientMessage
 from app.path_manager import PathManager
-from app.utils.async_file_utils import async_read_json
+from app.utils.async_file_utils import async_read_json, get_file_id_from_xattr, get_s3_key_from_xattr
 
 logger = get_logger(__name__)
 
@@ -42,6 +43,12 @@ def _normalize_text(value: Any) -> Optional[str]:
     return normalized or None
 
 
+def _resolve_topic_id(init_metadata: Any) -> Optional[str]:
+    """优先使用 SuperMagic topic 主键，兼容旧 metadata 的 chat_topic_id。"""
+    return (
+        _normalize_text(getattr(init_metadata, "topic_id", None))
+        or _normalize_text(getattr(init_metadata, "chat_topic_id", None))
+    )
 
 async def _resolve_agent_name(agent_context: Any) -> str:
     """获取真实 agent name。
@@ -66,7 +73,7 @@ async def _resolve_agent_name(agent_context: Any) -> str:
 async def _load_runtime_config_from_session(agent_context: Any) -> dict[str, Any]:
     """从持久化 session.json 读取上次会话的运行配置。
 
-    session.json 保存在 .chat_history/ 目录下，项目重启后仍然存在。
+    session.json 保存在本地 .chat_history/ 目录下，项目重启时由启动恢复流程准备。
     优先使用 current 块，null 字段回落到 last 块。
     """
     try:
@@ -86,16 +93,44 @@ async def _load_runtime_config_from_session(agent_context: Any) -> dict[str, Any
         return {}
 
 
-def _build_rich_text_document(text: str) -> str:
+def _build_project_file_mention(attachment: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "mention",
+        "attrs": {
+            "id": None,
+            "label": None,
+            "mentionSuggestionChar": "@",
+            "type": "project_file",
+            "data": {
+                "file_id": attachment.get("file_id"),
+                "file_key": attachment.get("file_key"),
+                "file_path": attachment.get("file_path"),
+                "relative_file_path": attachment.get("relative_file_path"),
+                "file_name": attachment.get("file_name") or attachment.get("filename"),
+                "file_extension": attachment.get("file_extension", ""),
+                "file_size": attachment.get("file_size", 0),
+                "is_hidden": False,
+                "project_id": attachment.get("project_id"),
+            },
+            "pending": False,
+            "pendingId": None,
+        },
+    }
+
+
+def _build_rich_text_document(text: str, attachments: list[dict[str, Any]] | None = None) -> str:
+    mention_nodes = [_build_project_file_mention(attachment) for attachment in attachments or []]
     paragraphs: list[dict[str, Any]] = []
-    for line in text.splitlines():
+    lines = [line for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
         if not line.strip():
             continue
+        content = ([*mention_nodes] if index == 0 else []) + [{"type": "text", "text": line}]
         paragraphs.append(
             {
                 "type": "paragraph",
                 "attrs": {"suggestion": ""},
-                "content": [{"type": "text", "text": line}],
+                "content": content,
             }
         )
 
@@ -104,11 +139,58 @@ def _build_rich_text_document(text: str) -> str:
             {
                 "type": "paragraph",
                 "attrs": {"suggestion": ""},
-                "content": [{"type": "text", "text": text}],
+                "content": [*mention_nodes, {"type": "text", "text": text}] if text else mention_nodes,
             }
         )
 
     return json.dumps({"type": "doc", "content": paragraphs}, ensure_ascii=False)
+
+
+async def _build_channel_attachments(media: list[dict[str, Any]], project_id: str) -> list[dict[str, Any]]:
+    """从已上传到工作区的 IM 媒体读取 MagicFS 元数据，返回消息附件契约。"""
+    if not media:
+        return []
+
+    attachments: list[dict[str, Any]] = []
+    for item in media:
+        relative_path = str(item.get("relative_path") or "").strip()
+        if not relative_path:
+            continue
+        try:
+            path = PathManager.get_workspace_dir() / relative_path
+            file_id, file_key = await asyncio.gather(
+                get_file_id_from_xattr(path),
+                get_s3_key_from_xattr(path),
+            )
+            if not file_id or not file_key:
+                logger.warning(f"[ThirdPartyMessage] 媒体缺少 MagicFS xattr: {relative_path}")
+                continue
+            file_name = str(item.get("file_name") or Path(relative_path).name)
+            extension = Path(file_name).suffix.lstrip(".")
+            attachments.append(
+                {
+                    "type": "project_file",
+                    "file_id": file_id,
+                    "file_key": file_key,
+                    "file_name": file_name,
+                    "file_path": relative_path,
+                    "relative_file_path": relative_path,
+                    "project_id": project_id,
+                    "filename": file_name,
+                    "display_filename": file_name,
+                    "file_extension": extension,
+                    "file_size": int(item.get("size_bytes") or 0),
+                    "file_tag": "user_upload",
+                    "storage_type": "workspace",
+                }
+            )
+        except Exception as error:
+            # xattr 读取失败不能阻断文本消息入库；当前轮 Agent 仍可使用本地 channel_context。
+            logger.warning(
+                f"[ThirdPartyMessage] 媒体 xattr 读取失败: path={relative_path}, "
+                f"error_type={type(error).__name__}"
+            )
+    return attachments
 
 
 class ThirdPartyMessagePayloadBuilder:
@@ -140,10 +222,7 @@ class ThirdPartyMessagePayloadBuilder:
 
         authorization = _normalize_text(getattr(init_metadata, "authorization", None))
         project_id = _normalize_text(getattr(init_metadata, "project_id", None))
-        topic_id = (
-            _normalize_text(getattr(init_metadata, "chat_topic_id", None))
-            or _normalize_text(getattr(init_metadata, "topic_id", None))
-        )
+        topic_id = _resolve_topic_id(init_metadata)
         if not authorization or not project_id or not topic_id:
             logger.warning(
                 f"[ThirdPartyMessage] {channel} 缺少持久化所需 metadata "
@@ -155,6 +234,10 @@ class ThirdPartyMessagePayloadBuilder:
         if not plain_text:
             logger.warning(f"[ThirdPartyMessage] {channel} 空消息跳过持久化事件")
             return None
+
+        channel_media = (chat_message.channel_context or {}).get("channel_media", [])
+        attachments = await _build_channel_attachments(channel_media, project_id)
+        mentions = [_build_project_file_mention(attachment) for attachment in attachments]
 
         session_config = await _load_runtime_config_from_session(agent_context)
         model_id = _normalize_text(session_config.get("model_id"))
@@ -190,7 +273,9 @@ class ThirdPartyMessagePayloadBuilder:
             source_sender_id=_normalize_text(source_sender_id),
             local_message_id=chat_message.message_id,
             plain_text=plain_text,
-            rich_text_content=_build_rich_text_document(plain_text),
+            rich_text_content=_build_rich_text_document(plain_text, attachments),
+            attachments=attachments,
+            mentions=mentions,
             project_id=project_id,
             topic_id=topic_id,
             topic_pattern=topic_pattern,

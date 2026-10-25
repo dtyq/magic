@@ -1,8 +1,7 @@
 import { prefix } from "@/MagicFlow/constants"
 import { MagicFlow } from "@/MagicFlow/types/flow"
-import { IconUploadError } from "@douyinfe/semi-icons"
+import { IconAlertCircleFilled, IconCopy, IconTrash } from "@tabler/icons-react"
 import { Flex, Popconfirm } from "antd"
-import { IconCopy, IconTrash } from "@tabler/icons-react"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
 import clsx from "clsx"
 import i18next from "i18next"
@@ -45,7 +44,7 @@ export default function SelectionTools({
 	return show ? (
 		<Flex className={clsx(styles.groupWrap, `${prefix}group-wrap`)}>
 			<div className={clsx(styles.controlItem, `${prefix}control-item`)} onClick={onCopy}>
-				<IconCopy stroke={1} />
+				<IconCopy size={16} stroke={1.8} />
 				{i18next.t("common.copy", { ns: "magicFlow" })}
 			</div>
 			<svg className={clsx(styles.line, `${prefix}line`)}>
@@ -54,14 +53,14 @@ export default function SelectionTools({
 			<Popconfirm
 				title={i18next.t("flow.confirm2DeleteNodes", { ns: "magicFlow" })}
 				onConfirm={() => onDelete()}
-				icon={<IconUploadError style={{ color: "rgb(255, 24, 9)" }} />}
+				icon={<IconAlertCircleFilled style={{ color: "rgb(255, 24, 9)" }} />}
 				okButtonProps={{ danger: true }}
 				okText={i18next.t("common.confirm", { ns: "magicFlow" })}
 				cancelText={i18next.t("common.cancel", { ns: "magicFlow" })}
 			>
 				{/* @ts-ignore */}
 				<div className={clsx(styles.controlItem, `${prefix}control-item`)}>
-					<IconTrash stroke={1} />
+					<IconTrash size={16} stroke={1.8} />
 					{i18next.t("common.delete", { ns: "magicFlow" })}
 				</div>
 			</Popconfirm>

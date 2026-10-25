@@ -8,6 +8,7 @@ import useStyles from "./styles"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { cx } from "antd-style"
 import ShortcutKey from "./components/ShortcutKey"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 function ShortcutKeysList() {
 	const { t } = useTranslation("super")
@@ -17,22 +18,22 @@ function ShortcutKeysList() {
 
 	const shortcutKeysData = getShortcutKeysData(t)
 
-	// 处理打开弹窗
+	// Open the shortcuts panel.
 	const handleOpen = () => {
 		setVisible(true)
 	}
 
-	// 处理关闭弹窗
+	// Close the shortcuts panel.
 	const handleClose = () => {
 		setVisible(false)
 	}
 
-	// 渲染快捷键项
+	// Render shortcut keys.
 	const renderShortcutKey = (keys: string[]) => {
 		return <ShortcutKey keys={keys} />
 	}
 
-	// 渲染快捷键组
+	// Render a shortcut group.
 	const renderShortcutGroup = (group: ShortcutKeyGroup) => {
 		return (
 			<div className={styles.shortcutGroup} key={group.title}>
@@ -53,14 +54,14 @@ function ShortcutKeysList() {
 		)
 	}
 
-	// 注册弹窗状态为上下文，供快捷键处理函数使用
+	// Expose current panel state to shortcut handlers.
 	useRegisterContext("shortcutKeysPanel", () => ({
 		visible,
 		handleOpen,
 		handleClose,
 	}))
 
-	// 注册快捷键 - 使用上下文获取最新状态
+	// Read current panel state when the shortcut runs.
 	useRegisterShortcut(ShortcutActions.VIEW_SHORTCUTS, (context) => {
 		const panel = context.shortcutKeysPanel
 		if (panel?.visible) {
@@ -70,10 +71,10 @@ function ShortcutKeysList() {
 		}
 	})
 
-	// 自动聚焦到弹窗
+	// Focus the panel after opening.
 	useEffect(() => {
 		if (visible && modalRef.current) {
-			// 添加小延时确保DOM完全渲染
+			// Wait for the panel DOM to render before focusing.
 			const timer = setTimeout(() => {
 				modalRef.current?.focus()
 			}, 50)
@@ -82,7 +83,7 @@ function ShortcutKeysList() {
 		}
 	}, [visible])
 
-	// 全局键盘事件监听
+	// Close the open panel on Escape.
 	useEffect(() => {
 		const handleGlobalKeyDown = (e: KeyboardEvent) => {
 			if (visible && e.key === "Escape") {
@@ -99,7 +100,7 @@ function ShortcutKeysList() {
 		}
 	}, [visible])
 
-	// 处理点击外部关闭
+	// Close on clicks outside the panel.
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
 			if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
@@ -116,7 +117,7 @@ function ShortcutKeysList() {
 		}
 	}, [visible])
 
-	// 订阅全局事件，用于清除超级麦吉的工作区状态缓存
+	// Toggle the panel from the shared shortcut event.
 	useEffect(() => {
 		pubsub.subscribe(PubSubEvents.Show_Shortcut_Keys, () => {
 			setVisible((prev) => !prev)
@@ -136,12 +137,18 @@ function ShortcutKeysList() {
 						</div>
 						<div className={styles.title}>{t("shortcut.shortcutKeys")}</div>
 					</div>
-					<div className={styles.headerRight} onClick={handleClose} data-testid="handle-close">
+					<div
+						className={styles.headerRight}
+						onClick={handleClose}
+						data-testid="handle-close"
+					>
 						<IconX size={24} stroke={1.5} />
 					</div>
 				</div>
 
-				<div className={styles.content}>{shortcutKeysData.map(renderShortcutGroup)}</div>
+				<ScrollArea className={styles.content} viewportClassName={styles.viewport}>
+					{shortcutKeysData.map(renderShortcutGroup)}
+				</ScrollArea>
 			</div>
 		</div>
 	)

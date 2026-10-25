@@ -16,6 +16,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property float $use_amount
  * @property int $use_token
  * @property string $model
+ * @property string $model_version
  * @property string $user_id
  * @property string $app_code
  * @property string $organization_code
@@ -33,6 +34,7 @@ class MsgLogModel extends Model
         'use_amount',
         'use_token',
         'model',
+        'model_version',
         'user_id',
         'app_code',
         'organization_code',
@@ -54,6 +56,7 @@ class MsgLogModel extends Model
         'use_amount' => 'float',
         'use_token' => 'int',
         'model' => 'string',
+        'model_version' => 'string',
         'user_id' => 'string',
         'app_code' => 'string',
         'organization_code' => 'string',

@@ -135,7 +135,8 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
         AsrAudioConfig $audioConfig,
         ?AsrNoteFileConfig $noteFileConfig = null,
         ?AsrTranscriptFileConfig $transcriptFileConfig = null,
-        ?AsrMarkerFileConfig $markerFileConfig = null
+        ?AsrMarkerFileConfig $markerFileConfig = null,
+        bool $forceReset = false
     ): AsrRecorderResponse {
         // 构建请求数据（V2 结构化版本）
         $requestData = [
@@ -159,6 +160,11 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
             $requestData['marker_file'] = $markerFileConfig->toArray();
         }
 
+        // 手动「重新合并」时强制重置沙箱侧重试计数
+        if ($forceReset) {
+            $requestData['force_reset'] = true;
+        }
+
         try {
             $this->logger->info('ASR Recorder: Finishing task (V2)', [
                 'sandbox_id' => $sandboxId,
@@ -168,6 +174,7 @@ class AsrRecorderService extends AbstractSandboxOS implements AsrRecorderInterfa
                 'note_file_config' => $noteFileConfig?->toArray(),
                 'transcript_file_config' => $transcriptFileConfig?->toArray(),
                 'marker_file_config' => $markerFileConfig?->toArray(),
+                'force_reset' => $forceReset,
             ]);
 
             // 调用沙箱 API

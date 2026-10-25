@@ -46,6 +46,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\ModelGateway\Service\ModelConfigDomainService;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\ErrorCode\ChatErrorCode;
@@ -622,7 +623,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
                 'organization_id' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                 'business_id' => $conversationId,
-                'source_id' => 'rename_topic',
+                'source_id' => SourceId::RENAME_TOPIC,
                 'task_type' => 'text_completion',
             ]
         );
@@ -1104,7 +1105,7 @@ class MagicChatMessageAppService extends MagicSeqAppService
                 'organization_id' => $dataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'business_id' => $topicId ?: $conversationId,
-                'source_id' => 'summary_content',
+                'source_id' => SourceId::SUMMARY_CONTENT,
             ],
         );
 

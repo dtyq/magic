@@ -13,9 +13,11 @@ use App\Domain\Chat\Entity\ValueObject\FriendStatus;
 use App\Domain\Contact\DTO\FriendQueryDTO;
 use App\Domain\Contact\Entity\AccountEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Contact\Entity\ValueObject\AccountStatus;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\PlatformType;
 use App\Domain\Contact\Entity\ValueObject\UserOption;
+use App\Domain\Contact\Entity\ValueObject\UserSearchField;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\OrganizationEnvironment\Entity\MagicEnvironmentEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
@@ -142,6 +144,12 @@ class MagicUserDomainService extends AbstractContactDomainService
         return $this->userRepository->getUserByIdsAndOrganizations($ids, [$dataIsolation->getCurrentOrganizationCode()], $column);
     }
 
+    /** @return array<MagicUserEntity> */
+    public function getUserByIdsInOrganization(array $ids, string $organizationCode): array
+    {
+        return $this->userRepository->getUserByIdsAndOrganizations($ids, [$organizationCode]);
+    }
+
     public function getUserByPageToken(string $pageToken = '', int $pageSize = 50): array
     {
         return $this->userRepository->getUserByPageToken($pageToken, $pageSize);
@@ -154,6 +162,26 @@ class MagicUserDomainService extends AbstractContactDomainService
     {
         $userIds = array_values(array_unique($userIds));
         return $this->userRepository->getByUserIds($dataIsolation->getCurrentOrganizationCode(), $userIds);
+    }
+
+    /**
+     * @return MagicUserEntity[]
+     */
+    public function getActiveUsersByOrganization(string $organizationCode): array
+    {
+        return $this->userRepository->getActiveUsersByOrganization($organizationCode);
+    }
+
+    /** @return list<string> */
+    public function getActiveUserIdsByOrganization(string $organizationCode, ?string $afterUserId = null, int $limit = 500): array
+    {
+        return $this->userRepository->getActiveUserIdsByOrganization($organizationCode, $afterUserId, $limit);
+    }
+
+    /** @return array<string, MagicUserEntity> */
+    public function getActiveUsersByIds(string $organizationCode, array $userIds): array
+    {
+        return $this->userRepository->getActiveUsersByIds($organizationCode, $userIds);
     }
 
     public function searchFriend(string $keyword): array
@@ -364,6 +392,21 @@ class MagicUserDomainService extends AbstractContactDomainService
         return $this->userRepository->queriesPlatformUsers($page, $filters);
     }
 
+    /**
+     * 按指定字段搜索用户。
+     *
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: array<int, array<string, mixed>>}
+     */
+    public function searchUsers(
+        Page $page,
+        UserSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array {
+        return $this->userRepository->searchUsers($page, $searchField, $keyword, $organizationCodeFilter);
+    }
+
     public function addUserManual(string $userId, string $userManual): void
     {
         $this->userRepository->addUserManual($userId, $userManual);
@@ -408,6 +451,11 @@ class MagicUserDomainService extends AbstractContactDomainService
             }
 
             $magicId = $magicUserToken->getTypeRelationValue();
+
+            $account = $this->accountRepository->getAccountInfoByMagicId($magicId);
+            if ($account->getStatus() !== AccountStatus::Normal) {
+                ExceptionBuilder::throw(ChatErrorCode::AUTHORIZATION_INVALID);
+            }
 
             // 查询用户并处理组织关系，查询麦吉用户
             $magicUserEntities = $this->userRepository->getUserByMagicIds([$magicId]);
@@ -554,18 +602,21 @@ class MagicUserDomainService extends AbstractContactDomainService
      */
     public function getUsersDetailByAccountFromAuthorization(string $authorization, ?string $organizationCode = null): array
     {
-        // Verify if token is of account type
-        $tokenDTO = new MagicTokenEntity();
-        $tokenDTO->setType(MagicTokenType::Account);
-        $tokenDTO->setToken(MagicTokenEntity::getShortToken($authorization));
-        $magicToken = $this->magicTokenRepository->queryTokenEntity($tokenDTO->getType(), $tokenDTO->getToken());
+        $magicId = $this->getAccountMagicIdByAuthorization($authorization);
 
-        if ($magicToken === null || $magicToken->getType() !== MagicTokenType::Account) {
+        // Authorization can be supplied directly to this cross-organization
+        // endpoint, so validate the account status before either query path.
+        $accountEntity = $this->accountRepository->getAccountInfoByMagicId($magicId);
+        if ($accountEntity === null) {
+            return [];
+        }
+        if ($accountEntity->getStatus() !== AccountStatus::Normal) {
             ExceptionBuilder::throw(ChatErrorCode::AUTHORIZATION_INVALID);
         }
 
-        // Get account's magic_id
-        $magicId = $magicToken->getTypeRelationValue();
+        if (app_env() === 'saas-pre') {
+            $this->assertAccountUsersOrganizationAllowed($magicId);
+        }
 
         // Get users under this account, optionally filtered by organization
         if ($organizationCode) {
@@ -577,12 +628,6 @@ class MagicUserDomainService extends AbstractContactDomainService
         }
 
         if (empty($magicUserEntities)) {
-            return [];
-        }
-
-        // Get account information
-        $accountEntity = $this->accountRepository->getAccountInfoByMagicId($magicId);
-        if ($accountEntity === null) {
             return [];
         }
 
@@ -676,6 +721,50 @@ class MagicUserDomainService extends AbstractContactDomainService
     protected function releaseLock(string $lockKey, string $owner): void
     {
         $this->locker->release($lockKey, $owner);
+    }
+
+    /**
+     * Check whether the account belongs to at least one configured organization.
+     * The check is intentionally independent of the requested organization code:
+     * the allowlist controls environment access, not response filtering.
+     */
+    private function assertAccountUsersOrganizationAllowed(string $magicId): void
+    {
+        $organizationWhitelist = config('contact.account_users_organization_whitelist', []);
+        if (! is_array($organizationWhitelist) || $organizationWhitelist === []) {
+            return;
+        }
+
+        $userOrganizationCodes = $this->userRepository->getUserOrganizationsByMagicId($magicId);
+        if (array_intersect($organizationWhitelist, $userOrganizationCodes) !== []) {
+            return;
+        }
+
+        // 2179 is ACCOUNT_NO_PERMISSION in the current web client. Keep this
+        // code so the existing account-unauthorized logout flow is triggered,
+        // while using an organization-specific message for diagnostics/UI.
+        ExceptionBuilder::throw(UserErrorCode::TOKEN_NOT_FOUND, 'user.organization_not_authorize');
+    }
+
+    /**
+     * Resolve and validate an account token.
+     *
+     * @throws Throwable
+     */
+    private function getAccountMagicIdByAuthorization(string $authorization): string
+    {
+        // Verify if token is of account type
+        $tokenDTO = new MagicTokenEntity();
+        $tokenDTO->setType(MagicTokenType::Account);
+        $tokenDTO->setToken(MagicTokenEntity::getShortToken($authorization));
+        $magicToken = $this->magicTokenRepository->queryTokenEntity($tokenDTO->getType(), $tokenDTO->getToken());
+
+        if ($magicToken === null || $magicToken->getType() !== MagicTokenType::Account) {
+            ExceptionBuilder::throw(ChatErrorCode::AUTHORIZATION_INVALID);
+        }
+
+        // Get account's magic_id
+        return $magicToken->getTypeRelationValue();
     }
 
     /**

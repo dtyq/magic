@@ -13,7 +13,7 @@ import {
 	registerStartNodeType,
 	registerVariableNodeTypes,
 } from "@/MagicFlow/register/node"
-import { IconArrowLeftFromArc } from "@tabler/icons-react"
+import { IconLogin2 } from "@tabler/icons-react"
 import React from "react"
 import { customNodeType } from "../constants"
 import { generateNodeVersionSchema } from "./version"
@@ -102,7 +102,7 @@ export const installAllNodes = () => {
 					groupName: "多维表格",
 					desc: "",
 					color: "#32C436",
-					icon: <IconArrowLeftFromArc color="#fff" stroke={2} size={18} />,
+					icon: <IconLogin2 color="#fff" stroke={2} size={18} />,
 					nodeTypes: [customNodeType.LLM, customNodeType.Tools, customNodeType.If],
 				},
 			],

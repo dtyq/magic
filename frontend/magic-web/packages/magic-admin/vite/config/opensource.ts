@@ -12,6 +12,8 @@ export function getOpensourceEditionConfig(_projectRoot: string): UserConfig {
 		plugins: [
 			react(),
 			dts({
+				// 共享预览模块位于包外，固定声明根目录以保持公开类型路径稳定。
+				entryRoot: _projectRoot,
 				include: ["./src", "./components"],
 				tsconfigPath: "./tsconfig.build.json",
 				outDir: "dist/types",

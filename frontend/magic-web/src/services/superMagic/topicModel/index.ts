@@ -1,5 +1,8 @@
 // Topic Model Services
-export { default as superMagicTopicModelService } from "./SuperMagicTopicModelService"
+export {
+	default as superMagicTopicModelService,
+	getTopicModelContextKey,
+} from "./SuperMagicTopicModelService"
 export { default as superMagicTopicModelCacheService } from "./SuperMagicTopicModelCacheService"
 export type { CachedModelData } from "./SuperMagicTopicModelCacheService"
 

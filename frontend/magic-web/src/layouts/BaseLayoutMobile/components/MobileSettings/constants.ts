@@ -1,15 +1,16 @@
 /** 设置 Sheet 在 MagicPopup 全局栈中的起始基准，嵌套层由栈自动递增（步长 10）。 */
 export const MOBILE_SETTINGS_SHEET_Z_INDEX = 1100
 
+// Retain a vh fallback for the Chrome 100 DingTalk WebView.
 export const MOBILE_SETTINGS_SHEET_CLASSNAME =
-	"flex max-h-[calc(100dvh-0.5rem)] flex-col overflow-hidden rounded-t-2xl border-0 bg-muted p-0 shadow-2xl shadow-black/10"
+	"flex max-h-[calc(100vh-0.5rem)] supports-[height:100dvh]:max-h-[calc(100dvh-0.5rem)] flex-col overflow-hidden rounded-t-2xl border-0 bg-muted p-0 shadow-2xl shadow-black/10"
 
 /**
  * Root settings sheet height: default 98vh, capped by viewport minus top safe area.
  * Important sizing overrides MagicPopup's auto height so content cannot change the sheet height.
  */
 export const MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME =
-	"!h-[98dvh] !max-h-[calc(100dvh-var(--safe-area-inset-top)-0.5rem)] data-[vaul-drawer-direction=bottom]:!mt-[max(0.5rem,var(--safe-area-inset-top))]"
+	"!h-[98vh] !max-h-[calc(100vh-var(--safe-area-inset-top)-0.5rem)] supports-[height:100dvh]:!h-[98dvh] supports-[height:100dvh]:!max-h-[calc(100dvh-var(--safe-area-inset-top)-0.5rem)] data-[vaul-drawer-direction=bottom]:!mt-[max(0.5rem,var(--safe-area-inset-top))]"
 
 /** Nested settings sheets (points detail, order history, timezone, etc.) share the same default height. */
 export const MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME = MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME

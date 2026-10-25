@@ -1,9 +1,8 @@
 import { useState } from "react"
-import { ChevronsUpDown, MessageCirclePlus } from "lucide-react"
+import { ChevronsUpDown } from "lucide-react"
 import { Trans, useTranslation } from "react-i18next"
 import { isString } from "lodash-es"
-import { cn } from "@/lib/utils"
-import { MagicIcon } from "@/components/base"
+import { cn } from "@/utils/cn"
 import BlackPurpleButton from "@/components/other/BlackPurpleButton"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
@@ -34,8 +33,6 @@ interface ModeSelectorProps {
 	/** 与桌面 ModeToggle 一致的数据源；不传时回退为 roleStore（兼容旧用法） */
 	editorContext?: SceneEditorContext
 }
-
-const TopicPlusIcon = <MagicIcon component={MessageCirclePlus} size={18} color="currentColor" />
 
 export default observer(function ModeSelector({
 	className,
@@ -180,9 +177,9 @@ export default observer(function ModeSelector({
 									/>
 								)}
 							</div>
+							{/* Text-only CTA: skip the lucide icon so copy stays centered without a blank 18px slot. */}
 							<BlackPurpleButton
 								onClick={handleCreateNewTopic}
-								icon={TopicPlusIcon}
 								data-testid="mobile-mode-selector-create-topic-button"
 							>
 								<span className="text-xs font-normal leading-4">

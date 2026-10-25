@@ -20,7 +20,7 @@ import { getPromptPlainText } from "../../AICardRootRender/hooks/aiCardScheduleM
 import { compactAICardNotification } from "../../AICardRootRender/utils/aiCardNotification"
 import { createAICardViaTopic } from "../services/aiCardCreate"
 import { selfMediaOverlayStyles } from "./selfMediaOverlayStyles"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 
 const AI_CARD_TOPIC_PATTERN = "ip-manager"
 

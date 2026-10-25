@@ -39,14 +39,17 @@
 	background-color: white;
 	border: 1px solid var(--base-border, #e5e5e5);
 	border-radius: var(--border-radius-rounded-sm, 6px);
-	box-shadow: var(--shadow-xs-1-offset-x, 0) var(--shadow-xs-1-offset-y, 1px)
+	box-shadow:
+		var(--shadow-xs-1-offset-x, 0) var(--shadow-xs-1-offset-y, 1px)
 			var(--shadow-xs-1-blur-radius, 2px) var(--shadow-xs-1-spread-radius, -1px)
 			var(--shadow-xs-1-color, rgb(0 0 0 / 10%)),
 		var(--shadow-xs-2-offset-x, 0) var(--shadow-xs-2-offset-y, 1px)
 			var(--shadow-xs-2-blur-radius, 2px) var(--shadow-xs-2-spread-radius, -2px)
 			var(--shadow-xs-2-color, rgb(0 0 0 / 10%));
 	cursor: pointer;
-	transition: box-shadow 0.2s ease, background-color 0.2s ease;
+	transition:
+		box-shadow 0.2s ease,
+		background-color 0.2s ease;
 	user-select: none;
 }
 
@@ -102,15 +105,6 @@
 	cursor: pointer;
 }
 
-.sourceItemPreviewable {
-	cursor: pointer;
-}
-
-.sourceItemPreviewable:focus-visible {
-	outline: 2px solid rgb(var(--primary-rgb));
-	outline-offset: 2px;
-}
-
 .sourceItemInnerFilled {
 	position: absolute;
 	display: flex;
@@ -140,7 +134,10 @@
 	transform: translate(50%, -50%) scale(0.92);
 	cursor: pointer;
 	opacity: 0;
-	transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease,
+	transition:
+		opacity 0.15s ease,
+		transform 0.15s ease,
+		box-shadow 0.15s ease,
 		background-color 0.15s ease;
 	pointer-events: none;
 }
@@ -153,7 +150,9 @@
 .sourceItemRemoveIcon {
 	flex-shrink: 0;
 	color: rgb(var(--muted-foreground-rgb));
-	transition: color 0.12s ease, opacity 0.12s ease;
+	transition:
+		color 0.12s ease,
+		opacity 0.12s ease;
 }
 
 .sourceItemRemoveButton:hover .sourceItemRemoveIcon {
@@ -162,47 +161,6 @@
 
 .sourceItemRemoveButton:active .sourceItemRemoveIcon {
 	opacity: 0.92;
-}
-
-.sourceItemPreviewButton {
-	position: absolute;
-	right: 2px;
-	bottom: 2px;
-	z-index: 2;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 20px;
-	height: 20px;
-	margin: 0;
-	padding: 0;
-	color: #fafafa;
-	background: rgb(0 0 0 / 48%);
-	border: none;
-	border-radius: 8px;
-	transform: scale(0.96);
-	cursor: pointer;
-	opacity: 0;
-	transition: opacity 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
-	pointer-events: none;
-}
-
-.sourceItemPreviewButton:hover {
-	background: rgb(0 0 0 / 64%);
-}
-
-.sourceItemPreviewButton:active {
-	transform: scale(0.9);
-}
-
-.sourceItemPreviewButton:focus-visible {
-	outline: 2px solid rgb(var(--primary-rgb));
-	outline-offset: 2px;
-}
-
-.sourceItemPreviewIcon {
-	flex-shrink: 0;
-	color: currentcolor;
 }
 
 .sourceItemSelectionCheckbox {
@@ -238,6 +196,24 @@
 	flex-shrink: 0;
 }
 
+/* 视频资源左下角播放标识：仅表达媒体类型，不响应鼠标事件 */
+.sourceItemVideoBadge {
+	position: absolute;
+	left: 2px;
+	bottom: 2px;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	color: #fafafa;
+	background: rgb(0 0 0 / 56%);
+	border-radius: 999px;
+	box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+	pointer-events: none;
+}
+
 .sourceItemStatusLabel {
 	position: absolute;
 	right: 2px;
@@ -265,13 +241,6 @@
 	pointer-events: auto;
 }
 
-.sourceItemHasResource:hover .sourceItemPreviewButton,
-.sourceItemHasResource:focus-within .sourceItemPreviewButton {
-	transform: scale(1);
-	opacity: 1;
-	pointer-events: auto;
-}
-
 .sourceItemHasResource:hover .sourceItemRemoveButton:active,
 .sourceItemHasResource:focus-within .sourceItemRemoveButton:active {
 	box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
@@ -281,12 +250,6 @@
 @media (hover: none), (pointer: coarse), (any-pointer: coarse) {
 	.sourceItemHasResource .sourceItemRemoveButton {
 		transform: translate(50%, -50%) scale(1);
-		opacity: 1;
-		pointer-events: auto;
-	}
-
-	.sourceItemHasResource .sourceItemPreviewButton {
-		transform: scale(1);
 		opacity: 1;
 		pointer-events: auto;
 	}

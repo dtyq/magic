@@ -14,7 +14,6 @@ use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Agent\Service\MagicAgentVersionDomainService;
 use App\Domain\Chat\Service\MagicChatFileDomainService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicAccountDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
@@ -70,11 +69,6 @@ abstract class AbstractFlowAppService extends AbstractKernelAppService
         protected readonly KnowledgeBaseStrategyInterface $knowledgeBaseStrategy,
         protected readonly Redis $redis,
     ) {
-    }
-
-    protected function createContactDataIsolation(FlowDataIsolation $dataIsolation): ContactDataIsolation
-    {
-        return ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
     }
 
     protected function getFlowAndValidateOperation(FlowDataIsolation $dataIsolation, string $flowCode, string $checkOperation): MagicFlowEntity

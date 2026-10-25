@@ -1,6 +1,6 @@
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { UploadFile } from "@/components/CanvasDesign/public/magic-types"
-import { collectFilesInDirectory, generateUniqueDesignFileName } from "./utils"
+import { collectAllFilesInDirectory, generateUniqueDesignFileName } from "./utils"
 
 interface PrepareFilesForUploadParams {
 	uploadFiles: UploadFile[]
@@ -47,7 +47,7 @@ function getAllExistingFileNames(
 
 	// 获取目标目录下已存在的文件
 	const existingFilesInDirectory = attachments
-		? collectFilesInDirectory(attachments, suffixDir)
+		? collectAllFilesInDirectory(attachments, suffixDir)
 		: []
 
 	// 添加已存在文件的文件名
@@ -74,7 +74,7 @@ function getExistingFileSizesByName(
 ): Map<string, Set<number>> {
 	const existingFileSizesByName = new Map<string, Set<number>>()
 	const existingFilesInDirectory = attachments
-		? collectFilesInDirectory(attachments, suffixDir)
+		? collectAllFilesInDirectory(attachments, suffixDir)
 		: []
 
 	for (const existingFile of existingFilesInDirectory) {
@@ -115,7 +115,7 @@ export function prepareFilesForUpload(
 		const shouldUseUniqueFileName =
 			!overwrite || hasDifferentExistingFile || hasSameBatchFileName
 
-		// 系统拖拽/粘贴可能出现同名不同内容文件；此时强制改名，避免覆盖或回调按文件名串线。
+		// 调用方明确禁止覆盖、同名文件大小不同或批内重名时统一改名。
 		if (shouldUseUniqueFileName) {
 			const newFileName = generateUniqueDesignFileName(file.name, occupiedNames)
 

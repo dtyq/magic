@@ -8,8 +8,8 @@ vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
 		t: (key: string) =>
 			({
-				"detail.selfMedia.home.bindPublishedLink": "Connect published link",
-				"detail.selfMedia.home.editPublishedLink": "Change published link",
+				"detail.selfMedia.home.bindPublishedLink": "Add link",
+				"detail.selfMedia.home.editPublishedLink": "Edit link",
 				"detail.selfMedia.home.publishedLinkInput": "Published content link",
 				"detail.selfMedia.home.publishedLinkPlaceholder": "Paste the link",
 				"detail.selfMedia.home.loadingPublishedLink": "Loading link...",
@@ -87,6 +87,6 @@ describe("SelfMediaPostPublishedLinkPopover mobile", () => {
 		expect(
 			screen.getByTestId("self-media-home-post-bind-link-input-post-1"),
 		).toBeInTheDocument()
-		expect(screen.getByTestId("mock-mobile-popup")).toHaveTextContent("Connect published link")
+		expect(screen.getByTestId("mock-mobile-popup")).toHaveTextContent("Add link")
 	})
 })

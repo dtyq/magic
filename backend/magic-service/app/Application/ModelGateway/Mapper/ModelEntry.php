@@ -19,7 +19,14 @@ readonly class ModelEntry
         private ModelAttributes $attributes,
         private ImageModel|OdinModel|VideoModel $model,
         private ?array $extra = null,
+        private ?string $reasoningEffortDefault = null,
     ) {
+    }
+
+    /** 读取实际模型默认值，不修改共享 Odin 客户端。 */
+    public function getReasoningEffortDefault(): ?string
+    {
+        return $this->reasoningEffortDefault;
     }
 
     public function getKey(): string

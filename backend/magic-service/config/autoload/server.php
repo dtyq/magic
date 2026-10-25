@@ -12,6 +12,7 @@ use Hyperf\Server\SwowServer;
 use function Hyperf\Support\env;
 
 $httpPort = (int) env('HTTP_PORT', 9501);
+$mockHttpPort = (int) env('MOCK_HTTP_PORT', 9503);
 ! defined('LOCAL_HTTP_URL') && define('LOCAL_HTTP_URL', 'http://127.0.1:' . $httpPort);
 
 $servers = [
@@ -41,7 +42,7 @@ $servers = [
         'name' => 'mock-http-service',
         'type' => ServerInterface::SERVER_HTTP,
         'host' => '0.0.0.0',
-        'port' => 9503,
+        'port' => $mockHttpPort,
         'callbacks' => [
             Event::ON_REQUEST => ['mock-http-service', 'onRequest'],
         ],

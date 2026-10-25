@@ -12,10 +12,12 @@ use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\SuperMagic\Skill\Service\AdminSkillAppService;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
+use App\Interfaces\SuperMagic\Common\DTO\Request\ReindexVectorIndexRequestDTO;
 use App\Interfaces\SuperMagic\Common\Support\Facade\AbstractApi;
 use App\Interfaces\SuperMagic\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use App\Interfaces\SuperMagic\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
 use App\Interfaces\SuperMagic\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
+use App\Interfaces\SuperMagic\Skill\DTO\Request\UpdateSkillMarketCategoryRequestAdminDTO;
 use App\Interfaces\SuperMagic\Skill\DTO\Request\UpdateSkillMarketRequestAdminDTO;
 use App\Interfaces\SuperMagic\Skill\DTO\Request\UpdateSkillMarketSortOrderRequestAdminDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -51,6 +53,32 @@ class AdminSkillApi extends AbstractApi
         $requestDTO = QuerySkillMarketsRequestAdminDTO::fromRequest($this->request);
 
         return $this->adminSkillAppService->queryMarkets($requestContext, $requestDTO)->toArray();
+    }
+
+    /**
+     * 重建 Skill 市场向量索引.
+     *
+     * 可选参数 force_re_embedding：为 true 时，若向量集合维度与模型实际输出维度不一致，会删除集合并按实际维度重建后全量重灌。
+     */
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET, MagicOperationEnum::EDIT)]
+    public function reindexMarketVectors(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = ReindexVectorIndexRequestDTO::fromRequest($this->request);
+
+        return $this->adminSkillAppService->reindexMarketVectors(
+            $requestContext,
+            $requestDTO->getForceReEmbedding(),
+        );
+    }
+
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET, MagicOperationEnum::EDIT)]
+    public function repairSkillFileUrls(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $this->adminSkillAppService->repairSkillFileUrlsAsync($this->getAuthorization());
+        return [];
     }
 
     /**
@@ -94,6 +122,15 @@ class AdminSkillApi extends AbstractApi
         $requestDTO = UpdateSkillMarketRequestAdminDTO::fromRequest($this->request);
         $this->adminSkillAppService->updateMarket($requestContext, $id, $requestDTO);
 
+        return [];
+    }
+
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET, MagicOperationEnum::EDIT)]
+    public function updateMarketCategory(RequestContext $requestContext, int $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $requestDTO = UpdateSkillMarketCategoryRequestAdminDTO::fromRequest($this->request);
+        $this->adminSkillAppService->updateMarketCategory($requestContext, $id, $requestDTO->getCategoryIds());
         return [];
     }
 

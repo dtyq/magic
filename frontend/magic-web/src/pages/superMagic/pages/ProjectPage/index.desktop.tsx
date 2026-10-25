@@ -1,4 +1,5 @@
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { runInAction } from "mobx"
 import { useDeepCompareEffect, useDebounceFn, useUpdateEffect, useMemoizedFn } from "ahooks"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Detail, { type DetailRef } from "../../components/Detail"
@@ -34,11 +35,14 @@ import { loadProjectAttachments } from "../../services"
 import { isAbortError, useLatestAbortableRequest } from "../../hooks/useLatestAbortableRequest"
 import { useProjectFirstAttachmentRender } from "../../hooks/useProjectFirstAttachmentRender"
 import { isAudioProjectMode } from "../AudioRecordings/utils/is-audio-project-mode"
+import { HostConversationProvider } from "../../contexts/HostConversationContext"
 import type {
 	SuperMagicOpenFileTabPayload,
 	SuperMagicOpenKnowledgeBaseTabPayload,
+	SuperMagicOpenMicroAppTabPayload,
 } from "../../events/openFileTab"
 import type { SuperMagicOpenPlaybackTabPayload } from "../../events/openPlaybackTab"
+import { useSlidesTemplateNavigation } from "../../hooks/useSlidesTemplateNavigation"
 
 // 项目页组件
 function ProjectPage() {
@@ -104,6 +108,13 @@ function ProjectPage() {
 		setUserSelectDetail(null)
 	}, [selectedProject?.id])
 
+	useSlidesTemplateNavigation({
+		selectedProjectId: selectedProject?.id,
+		attachments,
+		openTemplateFile: (templateItem) => detailRef.current?.openFileTab?.(templateItem),
+		setUserSelectDetail,
+	})
+
 	useEffect(() => {
 		const handleOpenFileTab = (data: SuperMagicOpenFileTabPayload) => {
 			// 使用setTimeout确保DOM更新后再打开tab
@@ -123,15 +134,22 @@ function ProjectPage() {
 				detailRef.current?.openKnowledgeBaseTab?.(data)
 			}, 100)
 		}
+		const handleOpenMicroAppTab = (data: SuperMagicOpenMicroAppTabPayload) => {
+			setTimeout(() => {
+				detailRef.current?.openMicroAppTab?.(data)
+			}, 100)
+		}
 
 		pubsub.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 		pubsub.subscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
 		pubsub.subscribe(PubSubEvents.Open_Knowledge_Base_Tab, handleOpenKnowledgeBaseTab)
+		pubsub.subscribe(PubSubEvents.Open_Micro_App_Tab, handleOpenMicroAppTab)
 
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 			pubsub.unsubscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
 			pubsub.unsubscribe(PubSubEvents.Open_Knowledge_Base_Tab, handleOpenKnowledgeBaseTab)
+			pubsub.unsubscribe(PubSubEvents.Open_Micro_App_Tab, handleOpenMicroAppTab)
 		}
 	}, [])
 
@@ -199,6 +217,7 @@ function ProjectPage() {
 			let didCommitFinalSnapshot = false
 
 			try {
+				projectFilesStore.setAttachmentLoadStatus(projectId, "loading")
 				pubsub.publish(PubSubEvents.Update_Attachments_Loading, true)
 				withAttachmentsRefreshWaitersResolved(
 					projectId,
@@ -220,15 +239,24 @@ function ProjectPage() {
 												{ tree, list },
 												{ preserveList: true },
 											)
-										setAttachments(processedData.tree)
-										setAttachmentList(processedData.list)
-										projectFilesStore.setWorkspaceFileTree(processedData.tree, {
-											list: processedData.list,
-											source: `ProjectPage.batch.${phase}`,
+										runInAction(() => {
+											setAttachments(processedData.tree)
+											setAttachmentList(processedData.list)
+											projectFilesStore.setWorkspaceFileTree(
+												processedData.tree,
+												{
+													list: processedData.list,
+													source: `ProjectPage.batch.${phase}`,
+												},
+											)
+											if (isFinal) {
+												didCommitFinalSnapshot = true
+												projectFilesStore.setAttachmentLoadStatus(
+													projectId,
+													"ready",
+												)
+											}
 										})
-										if (isFinal) {
-											didCommitFinalSnapshot = true
-										}
 									}
 								: undefined,
 						}),
@@ -241,14 +269,17 @@ function ProjectPage() {
 								)
 								return
 							}
-							if (!didCommitFinalSnapshot) {
-								setAttachments(res.tree)
-								setAttachmentList(res.list)
-								projectFilesStore.setWorkspaceFileTree(res.tree, {
-									list: res.list,
-									source: "ProjectPage.load_result",
-								})
-							}
+							runInAction(() => {
+								if (!didCommitFinalSnapshot) {
+									setAttachments(res.tree)
+									setAttachmentList(res.list)
+									projectFilesStore.setWorkspaceFileTree(res.tree, {
+										list: res.list,
+										source: "ProjectPage.load_result",
+									})
+								}
+								projectFilesStore.setAttachmentLoadStatus(projectId, "ready")
+							})
 							GlobalMentionPanelStore.finishLoadAttachmentsPromise(projectId)
 						})
 						.catch((error: unknown) => {
@@ -261,8 +292,8 @@ function ProjectPage() {
 								return
 							}
 							console.error("Failed to fetch attachments:", error)
-							setAttachments([])
-							projectFilesStore.setWorkspaceFileTree([])
+							// 读取失败不能证明文件被删除，保留已交付快照供当前预览继续使用。
+							projectFilesStore.setAttachmentLoadStatus(projectId, "error")
 						})
 						.finally(() => {
 							request.release()
@@ -274,9 +305,10 @@ function ProjectPage() {
 				)
 			} catch (error) {
 				if (isAbortError(error)) return
+				if (!request.isCurrent()) return
 				console.error("Failed to fetch attachments:", error)
-				setAttachments([])
-				projectFilesStore.setWorkspaceFileTree([])
+				// 读取失败不能证明文件被删除，保留已交付快照供当前预览继续使用。
+				projectFilesStore.setAttachmentLoadStatus(projectId, "error")
 				resolveAttachmentsRefreshWaitersForProject(projectId)
 				callback?.()
 			}
@@ -348,74 +380,84 @@ function ProjectPage() {
 	const renderMessagePanel = useMemoizedFn(() => null)
 
 	return (
-		<TopicDesktopPanels
-			containerClassName={styles.container}
-			detailPanelClassName={styles.detailPanel}
-			isDetailPanelFullscreen={false}
-			sidebar={
-				<div className="flex h-full flex-col gap-2" data-testid="workspace-sidebar-wrapper">
-					{hideProjectCard ? null : (
-						<ProjectCardContainer
-							selectedProject={selectedProject}
-							selectedWorkspace={selectedWorkspace}
+		<HostConversationProvider selectedProject={selectedProject} topicStore={topicStore}>
+			<TopicDesktopPanels
+				containerClassName={styles.container}
+				detailPanelClassName={styles.detailPanel}
+				isDetailPanelFullscreen={false}
+				enableProjectCollapse={!hideProjectCard}
+				sidebar={({ onCollapse, isCollapsed }) => (
+					<div
+						className="flex h-full flex-col gap-2"
+						data-testid="workspace-sidebar-wrapper"
+					>
+						{hideProjectCard ? null : (
+							<ProjectCardContainer
+								onCollapse={onCollapse}
+								isPanelVisible={!isCollapsed}
+								selectedProject={selectedProject}
+								selectedWorkspace={selectedWorkspace}
+							/>
+						)}
+						<ProjectSider
+							items={[
+								{
+									key: "topicFiles",
+									title: t("topicFiles.title"),
+									icon: <Files size={16} />,
+									content: (
+										<TopicFilesButton
+											attachments={attachments as any}
+											setUserSelectDetail={(detail: any) => {
+												console.log("到顶层了", detail)
+												setUserSelectDetail(detail)
+											}}
+											onFileClick={handleFileClick}
+											projectId={selectedProject?.id}
+											activeFileId={activeFileId}
+											selectedTopic={selectedTopic}
+											onAttachmentsChange={setAttachments}
+											selectedProject={selectedProject}
+											selectedWorkspace={selectedWorkspace}
+											allowEdit={false}
+											isInProject
+										/>
+									),
+								},
+							]}
+							className="flex-1 overflow-hidden rounded-lg border border-border bg-background"
 						/>
-					)}
-					<ProjectSider
-						items={[
-							{
-								key: "topicFiles",
-								title: t("topicFiles.title"),
-								icon: <Files size={16} />,
-								content: (
-									<TopicFilesButton
-										attachments={attachments as any}
-										setUserSelectDetail={(detail: any) => {
-											console.log("到顶层了", detail)
-											setUserSelectDetail(detail)
-										}}
-										onFileClick={handleFileClick}
-										projectId={selectedProject?.id}
-										activeFileId={activeFileId}
-										selectedTopic={selectedTopic}
-										onAttachmentsChange={setAttachments}
-										selectedProject={selectedProject}
-										selectedWorkspace={selectedWorkspace}
-										allowEdit={false}
-										isInProject
-									/>
-								),
-							},
-						]}
-						className="flex-1 overflow-hidden rounded-lg border border-border bg-background"
+					</div>
+				)}
+				detailPanel={(fileSidebarControl) => (
+					<Detail
+						fileSidebarControl={fileSidebarControl}
+						attachmentLoadState={projectFilesStore.attachmentLoadState}
+						ref={detailRef}
+						disPlayDetail={disPlayDetail}
+						userSelectDetail={userSelectDetail}
+						setUserSelectDetail={setUserSelectDetail}
+						attachments={attachments}
+						attachmentList={attachmentList}
+						topicId={selectedTopic?.id}
+						baseShareUrl={`${window.location.origin}/share`}
+						currentTopicStatus={currentTopicStatus}
+						messages={[]}
+						autoDetail={autoDetail}
+						allowEdit={false}
+						selectedTopic={selectedTopic}
+						selectedProject={selectedProject}
+						activeFileId={activeFileId}
+						onActiveFileChange={setActiveFileId}
+						showFallbackWhenEmpty
 					/>
-				</div>
-			}
-			detailPanel={
-				<Detail
-					ref={detailRef}
-					disPlayDetail={disPlayDetail}
-					userSelectDetail={userSelectDetail}
-					setUserSelectDetail={setUserSelectDetail}
-					attachments={attachments}
-					attachmentList={attachmentList}
-					topicId={selectedTopic?.id}
-					baseShareUrl={`${window.location.origin}/share`}
-					currentTopicStatus={currentTopicStatus}
-					messages={[]}
-					autoDetail={autoDetail}
-					allowEdit={false}
-					selectedTopic={selectedTopic}
-					selectedProject={selectedProject}
-					activeFileId={activeFileId}
-					onActiveFileChange={setActiveFileId}
-					showFallbackWhenEmpty
-				/>
-			}
-			isReadOnly={isReadOnly}
-			showProjectResizeHandle={showProjectResizeHandle}
-			shouldShowDetailPanel={shouldShowDetailPanel}
-			renderMessagePanel={renderMessagePanel}
-		/>
+				)}
+				isReadOnly={isReadOnly}
+				showProjectResizeHandle={showProjectResizeHandle}
+				shouldShowDetailPanel={shouldShowDetailPanel}
+				renderMessagePanel={renderMessagePanel}
+			/>
+		</HostConversationProvider>
 	)
 }
 

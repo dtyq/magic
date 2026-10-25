@@ -46,9 +46,9 @@ function MySkillsPageMobile() {
 		handleTabValueChange,
 		tabCount,
 		isCreatedByMeTab,
+		isCollaboratedTab,
 		isFromSkillsLibraryTab,
 	} = useMySkillsTabs({ variant: "mobile" })
-	const isTeamSharedTab = !isCreatedByMeTab && !isFromSkillsLibraryTab
 	const cardVariant: MySkillCardVariant = isCreatedByMeTab
 		? "created"
 		: isFromSkillsLibraryTab
@@ -167,7 +167,7 @@ function MySkillsPageMobile() {
 		const actions: ActionsPopup.ActionButtonConfig[] = []
 		const teamPermissions = resolveTeamSharedSkillPermissions(selectedSkill.userRole)
 
-		if (isCreatedByMeTab || (isTeamSharedTab && teamPermissions.canEdit)) {
+		if (isCreatedByMeTab || (isCollaboratedTab && teamPermissions.canEdit)) {
 			actions.push({
 				key: "edit",
 				label: t("mySkills.edit"),
@@ -176,7 +176,7 @@ function MySkillsPageMobile() {
 			})
 		}
 
-		if (isCreatedByMeTab || (isTeamSharedTab && teamPermissions.canDelete)) {
+		if (isCreatedByMeTab || (isCollaboratedTab && teamPermissions.canDelete)) {
 			actions.push({
 				key: "delete",
 				label: t("mySkills.delete"),
@@ -207,7 +207,7 @@ function MySkillsPageMobile() {
 		handleRemoveInstalledSkill,
 		isCreatedByMeTab,
 		isFromSkillsLibraryTab,
-		isTeamSharedTab,
+		isCollaboratedTab,
 		selectedSkill,
 		t,
 	])
@@ -300,7 +300,11 @@ function MySkillsPageMobile() {
 						>
 							<TabsList
 								className={`grid h-9 w-full max-w-[440px] ${
-									tabCount === 2 ? "grid-cols-2" : "grid-cols-3"
+									tabCount === 2
+										? "grid-cols-2"
+										: tabCount === 4
+											? "grid-cols-4"
+											: "grid-cols-3"
 								}`}
 								data-testid="my-skills-mobile-tabs-list"
 							>
@@ -346,13 +350,13 @@ function MySkillsPageMobile() {
 									const teamPermissions = resolveTeamSharedSkillPermissions(
 										skill.userRole,
 									)
-									const canOpenTeamSharedMenu =
-										isTeamSharedTab &&
+									const canOpenCollaboratedMenu =
+										isCollaboratedTab &&
 										(teamPermissions.canEdit || teamPermissions.canDelete)
 									const canOpenMoreMenu =
 										isCreatedByMeTab ||
 										isFromSkillsLibraryTab ||
-										canOpenTeamSharedMenu
+										canOpenCollaboratedMenu
 
 									return (
 										<MySkillCardMobile

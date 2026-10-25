@@ -9,9 +9,9 @@ import {
 	useState,
 } from "react"
 import { snapdom } from "@zumer/snapdom"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { ImageProcessOptions } from "@/utils/image-processing"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import { processHtmlContent } from "../../../contents/HTML/htmlProcessor"
 import { flattenAttachments } from "../../../contents/HTML/utils"
@@ -122,14 +122,16 @@ async function loadCardFrameSource({
 	currentFileName,
 	relativeFolderPath,
 	imageProcessOptions,
+	fileApi,
 }: {
 	fileId: string
 	attachmentList?: SelfMediaAttachmentNode[]
 	currentFileName?: string
 	relativeFolderPath: string
 	imageProcessOptions?: ImageProcessOptions
+	fileApi: FileApi
 }): Promise<CardFrameSourceResult> {
-	const urls = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+	const urls = await fileApi.getTemporaryDownloadUrl({ file_ids: [fileId] })
 	const url = urls?.[0]?.url
 	if (!url) throw new Error("noCardUrl")
 	const resp = await fetch(url, { cache: "no-store", credentials: "omit" })
@@ -146,6 +148,7 @@ async function loadCardFrameSource({
 			fileName: currentFileName,
 			html_relative_path: relativeFolderPath,
 			xMagicImageProcess: imageProcessOptions,
+			fileApi,
 		})
 		processedContent = processedResult.processedContent || html
 	}
@@ -177,6 +180,7 @@ const CardFrame = forwardRef<CardFrameRef, CardFrameProps>(function CardFrame(
 	ref,
 ) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const frameRef = useRef<HTMLDivElement>(null)
 	const iframeRef = useRef<HTMLIFrameElement>(null)
 	const contentResizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -224,14 +228,21 @@ const CardFrame = forwardRef<CardFrameRef, CardFrameProps>(function CardFrame(
 	const stableAttachmentList = stableAttachmentListRef.current.list
 	const cacheKey = useMemo(
 		() =>
-			createCardFrameCacheKey({
+			`${fileApi.identityKey}:${createCardFrameCacheKey({
 				fileId,
 				version,
 				relativeFolderPath,
 				attachmentSignature,
 				imageProcessSignature,
-			}),
-		[attachmentSignature, fileId, imageProcessSignature, version, relativeFolderPath],
+			})}`,
+		[
+			attachmentSignature,
+			fileApi.identityKey,
+			fileId,
+			imageProcessSignature,
+			version,
+			relativeFolderPath,
+		],
 	)
 	const scale =
 		contentSize.width > 0 && containerWidth > 0
@@ -290,6 +301,7 @@ const CardFrame = forwardRef<CardFrameRef, CardFrameProps>(function CardFrame(
 						currentFileName: currentFile?.file_name,
 						relativeFolderPath,
 						imageProcessOptions,
+						fileApi,
 					}),
 				)
 				if (cancelled) return
@@ -311,6 +323,7 @@ const CardFrame = forwardRef<CardFrameRef, CardFrameProps>(function CardFrame(
 		cardId,
 		currentFile?.file_name,
 		fileId,
+		fileApi,
 		imageProcessOptions,
 		imageProcessSignature,
 		version,

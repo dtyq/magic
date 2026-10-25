@@ -1,7 +1,7 @@
 import type { MouseEventHandler } from "react"
 import type { LucideIcon } from "lucide-react"
 import MagicTooltip from "@/components/base/MagicTooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface SelfMediaPostActionButtonProps {
 	label: string
@@ -10,6 +10,19 @@ interface SelfMediaPostActionButtonProps {
 	onClick: MouseEventHandler<HTMLButtonElement>
 	dataTestId: string
 	variant?: "default" | "primary"
+}
+
+export function getSelfMediaPostActionClassName(
+	showLabel: boolean,
+	variant: "default" | "primary" = "default",
+) {
+	return cn(
+		"inline-flex h-9 shrink-0 items-center justify-center rounded-full text-[12px] font-[700] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+		showLabel ? "gap-1 px-2.5" : "w-9",
+		variant === "primary"
+			? "bg-[#18181b] text-[#ffffff] hover:bg-[#27272a]"
+			: "bg-[#f4f4f5] text-[#18181b] hover:bg-[#e4e4e7]",
+	)
 }
 
 function SelfMediaPostActionButton({
@@ -24,13 +37,7 @@ function SelfMediaPostActionButton({
 		<MagicTooltip title={showLabel ? undefined : label}>
 			<button
 				type="button"
-				className={cn(
-					"inline-flex h-9 items-center justify-center rounded-full text-[12px] font-[700] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-					showLabel ? "gap-1.5 px-3" : "w-9",
-					variant === "primary"
-						? "bg-[#18181b] text-[#ffffff] hover:bg-[#27272a]"
-						: "bg-[#f4f4f5] text-[#18181b] hover:bg-[#e4e4e7]",
-				)}
+				className={getSelfMediaPostActionClassName(showLabel, variant)}
 				aria-label={label}
 				onClick={onClick}
 				data-testid={dataTestId}

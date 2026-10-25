@@ -1,3 +1,4 @@
+import type { FileHelpContext } from "@/pages/superMagic/components/TopicFilesButton/utils/magic-system-folder"
 import {
 	memo,
 	useRef,
@@ -10,12 +11,18 @@ import {
 } from "react"
 import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
+import userFilesStore from "@/stores/userFiles"
+import type { AttachmentItem } from "../../../TopicFilesButton/hooks/types"
 import { IconMenu2, IconX } from "@tabler/icons-react"
+import { FolderTree } from "lucide-react"
+import { clipboard } from "@/utils/clipboard-helpers"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { useFileInfoPanel } from "../../../TopicFilesButton/hooks/useFileInfoPanel"
+import { copyAttachmentPath } from "../../../TopicFilesButton/utils/attachmentPath"
 import { Tooltip } from "antd"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import useFullscreenMode from "@/hooks/useFullscreenMode"
-import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -27,6 +34,7 @@ import type { FilesViewerProps, FilesViewerRef, TabItem as TabItemType } from ".
 
 // Hooks
 import { useFilesViewer } from "./hooks/useFilesViewer"
+import { useTabDrag } from "./hooks/useTabDrag"
 import { useTabContextMenu } from "./hooks/useTabContextMenu"
 import { useTabCache } from "./hooks/useTabCache"
 
@@ -44,7 +52,7 @@ import WebsitePresetMenu from "./components/WebsitePresetMenu"
 import CommonWebsitePresetDialog, {
 	type CommonWebsitePresetFormValues,
 } from "./components/CommonWebsitePresetDialog"
-import StablePPTPortalSurface from "./components/StablePPTPortalSurface"
+import StablePreviewPortalSurface from "./components/StablePreviewPortalSurface"
 import {
 	COMMON_WEBSITE_PRESETS_LIMIT,
 	getWebsiteTabData,
@@ -56,6 +64,7 @@ import {
 	FILE_VIEWER_FULLSCREEN_VIEWPORT_CLASS_NAME,
 	shouldUseFileViewerFullscreenSafeArea,
 } from "./utils/fullscreenSafeArea"
+import { PLAYBACK_TAB_ID } from "./utils/tabConstants"
 import { shouldUsePPTRootRender } from "../../utils/file"
 
 // 获取文件路径用作tooltip的工具函数
@@ -91,8 +100,16 @@ const FilesViewer = memo(
 		forwardRef<FilesViewerRef, FilesViewerProps>((props, ref) => {
 			// Props are passed directly to hook
 			const tabAttachments = props.attachments ?? props.attachmentList
+			const ownerId = props.selectedProject?.id ?? props.projectId
+			const fileHelpContext = useMemo<FileHelpContext>(
+				() =>
+					props.fileHelpContext ??
+					(ownerId
+						? { kind: "project", projectId: String(ownerId) }
+						: { kind: "unknown" }),
+				[props.fileHelpContext, ownerId],
+			)
 			const { t } = useTranslation("super")
-			const { isShareRoute } = useShareRoute()
 			const isUrlFullscreenMode = useFullscreenMode()
 			const isFullscreenMode = Boolean(props.forceFullscreenMode) || isUrlFullscreenMode
 			const [expandPanelVisible, setExpandPanelVisible] = useState(false)
@@ -109,33 +126,71 @@ const FilesViewer = memo(
 				isAwaitingProjectAttachments,
 				openFileTab,
 				openWebsiteTab,
-				closeFileTab,
+				closeFileTab: closeFileTabState,
 				switchToTab,
-				clearAllTabs,
-				closeOtherTabs,
-				closeTabsToRight,
+				clearAllTabs: clearAllTabsState,
+				closeOtherTabs: closeOtherTabsState,
+				closeTabsToRight: closeTabsToRightState,
 				getRenderProps,
 				fullscreenFileId,
 				handleRefresh,
-				handleTabDragStart,
-				handleTabDragEnd,
-				handleTabDragOver,
-				handleTabDrop,
-				draggedTab,
-				dragOverIndex,
-				dragDirection,
+				reorderTabs,
 				openPlaybackTab,
 				closePlaybackTab,
 				isPlaybackTab,
 				openKnowledgeBaseTab,
 				closeKnowledgeBaseTab,
 				isKnowledgeBaseTab,
+				openMicroAppTab,
+				closeMicroAppTab,
+				isPublishedMicroAppTab,
 				handleFileFullscreen,
 				handleExitFullscreen,
 				enterPreviewFullscreen,
 				exitPreviewFullscreen,
 				getCheckBeforeClose,
+				getTabFileContext,
+				getFileManagerState,
+				updateFileManagerState,
+				isShareRoute,
+				isMagicShareRoute,
 			} = useFilesViewer(props)
+			// Route state covers topic/pure/Magic shares; the prop covers file-share callers during setup.
+			const shouldRenderQuickOpen = !isShareRoute && !isMagicShareRoute && !props.isFileShare
+			const tabsRef = useRef(tabs)
+			tabsRef.current = tabs
+			const closingBatchTabsRef = useRef(false)
+			const { handleShowInfo, fileInfoPanel } = useFileInfoPanel()
+
+			const handleFileInfo = (tabId: string) => {
+				const context = getTabFileContext(tabId)
+				if (context?.canShowInfo) handleShowInfo(context.item)
+			}
+			const handleCopyFileName = async (tabId: string) => {
+				const context = getTabFileContext(tabId)
+				if (!context?.fileName) return
+				try {
+					await clipboard.writeText(context.fileName)
+					magicToast.success(t("fileViewer.tabs.copyFileNameSuccess"))
+				} catch {
+					magicToast.error(t("fileViewer.tabs.copyFileNameFailed"))
+				}
+			}
+			const handleCopyFilePath = async (tabId: string) => {
+				const context = getTabFileContext(tabId)
+				if (context?.canCopyPath) await copyAttachmentPath({ item: context.item, t })
+			}
+			const handleLocateFile = (tabId: string) => {
+				const context = getTabFileContext(tabId)
+				if (context?.canLocate) {
+					pubsub.publish(PubSubEvents.Locate_File_In_Tree, context.item.file_id)
+				}
+			}
+			const { isDragging, handleDragStart, handleDragEnd } = useTabDrag({
+				tabs,
+				containerRef: tabsContainerRef,
+				onReorder: reorderTabs,
+			})
 
 			// 使用缓存 Hook
 			const {
@@ -147,7 +202,7 @@ const FilesViewer = memo(
 				cachedTabIds,
 			} = useTabCache({
 				maxCacheSize: 10,
-				enableCache: !isShareRoute,
+				enableCache: true,
 				cacheOfficeFiles: true,
 			})
 
@@ -173,43 +228,134 @@ const FilesViewer = memo(
 			// })
 			// -----------------注册快捷键-----------------
 
+			const confirmTabClosures = async (tabIds: string[]) => {
+				for (const tabId of tabIds) {
+					const tab = tabsRef.current.find((candidate) => candidate.id === tabId)
+					if (!tab || tab.closeable === false) continue
+
+					const checkBeforeClose = getCheckBeforeClose(tabId)
+					if (checkBeforeClose && !(await checkBeforeClose())) return false
+				}
+				return true
+			}
+
+			const runConfirmedTabClose = async (options: {
+				tabIds: string[]
+				close: () => void
+				isStillValid?: () => boolean
+				clearCacheAfter?: boolean
+			}) => {
+				if (closingBatchTabsRef.current) return false
+				closingBatchTabsRef.current = true
+				try {
+					if (!(await confirmTabClosures(options.tabIds))) return false
+					if (options.isStillValid && !options.isStillValid()) return false
+
+					options.close()
+					if (options.clearCacheAfter) clearCache()
+					return true
+				} finally {
+					closingBatchTabsRef.current = false
+				}
+			}
+
 			// 处理 tab 关闭时的缓存清理
 			const handleTabClose = async (tabId: string) => {
-				// Get checkBeforeClose function for this tab/file
-				const checkBeforeClose = getCheckBeforeClose(tabId)
-
-				// If tab has checkBeforeClose method, call it first
-				if (checkBeforeClose && typeof checkBeforeClose === "function") {
-					const canClose = await checkBeforeClose()
-					if (!canClose) {
-						// User canceled the close operation
-						return
-					}
-				}
-
-				closeFileTab(tabId)
-				removeFromCache(tabId)
+				await runConfirmedTabClose({
+					tabIds: [tabId],
+					close: () => {
+						closeFileTabState(tabId)
+						removeFromCache(tabId)
+					},
+				})
 			}
 
 			// 处理所有 tabs 关闭时的缓存清理
 			const handleClearAllTabs = async () => {
-				// Check if any tab has unsaved changes
-				for (const tab of tabs) {
-					if (tab.closeable === false) continue
+				const candidates = tabsRef.current
+					.filter((tab) => tab.closeable !== false)
+					.map((tab) => tab.id)
+				await runConfirmedTabClose({
+					tabIds: candidates,
+					close: clearAllTabsState,
+					clearCacheAfter: true,
+				})
+			}
 
-					const checkBeforeClose = getCheckBeforeClose(tab.id)
-
-					if (checkBeforeClose && typeof checkBeforeClose === "function") {
-						const canClose = await checkBeforeClose()
-						if (!canClose) {
-							// User canceled the operation
-							return
-						}
-					}
+			const handleCloseTabsToLeft = async (tabId: string) => {
+				if (closingBatchTabsRef.current) return
+				const targetIndex = tabsRef.current.findIndex((tab) => tab.id === tabId)
+				if (targetIndex <= 0) return
+				const candidates = tabsRef.current
+					.slice(0, targetIndex)
+					.filter((tab) => tab.closeable !== false)
+					.map((tab) => tab.id)
+				if (candidates.length === 0) return
+				try {
+					// 先完成这一批的编辑确认；取消时不关闭前面已确认的标签。
+					await runConfirmedTabClose({
+						tabIds: candidates,
+						isStillValid: () => tabsRef.current.some((tab) => tab.id === tabId),
+						close: () => {
+							for (const candidateId of candidates) {
+								closeFileTabState(candidateId)
+								removeFromCache(candidateId)
+							}
+							switchToTab(tabId)
+						},
+					})
+				} catch {
+					magicToast.error(t("fileViewer.tabs.closeFailed"))
 				}
+			}
 
-				clearAllTabs()
-				clearCache()
+			const handleCloseOtherTabs = async (tabId: string) => {
+				if (closingBatchTabsRef.current) return
+				const candidates =
+					tabId === PLAYBACK_TAB_ID
+						? tabsRef.current
+								.filter((tab) => tab.closeable !== false)
+								.map((tab) => tab.id)
+						: tabsRef.current
+								.filter((tab) => tab.id !== tabId && tab.closeable !== false)
+								.map((tab) => tab.id)
+				await runConfirmedTabClose({
+					tabIds: candidates,
+					isStillValid: () =>
+						tabId === PLAYBACK_TAB_ID ||
+						tabsRef.current.some((tab) => tab.id === tabId),
+					close: () => {
+						closeOtherTabsState(tabId)
+						for (const candidateId of candidates) removeFromCache(candidateId)
+					},
+				})
+			}
+
+			const handleCloseTabsToRight = async (tabId: string) => {
+				if (closingBatchTabsRef.current) return
+				const targetIndex = tabsRef.current.findIndex((tab) => tab.id === tabId)
+				const candidates =
+					tabId === PLAYBACK_TAB_ID
+						? tabsRef.current
+								.filter((tab) => tab.closeable !== false)
+								.map((tab) => tab.id)
+						: targetIndex < 0
+							? []
+							: tabsRef.current
+									.slice(targetIndex + 1)
+									.filter((tab) => tab.closeable !== false)
+									.map((tab) => tab.id)
+				if (candidates.length === 0) return
+				await runConfirmedTabClose({
+					tabIds: candidates,
+					isStillValid: () =>
+						tabId === PLAYBACK_TAB_ID ||
+						tabsRef.current.some((tab) => tab.id === tabId),
+					close: () => {
+						closeTabsToRightState(tabId)
+						for (const candidateId of candidates) removeFromCache(candidateId)
+					},
+				})
 			}
 
 			// Handle refresh tab action
@@ -270,24 +416,36 @@ const FilesViewer = memo(
 				hideContextMenu,
 			} = useTabContextMenu({
 				tabs,
+				getFileContext: getTabFileContext,
 				actions: {
 					closeFileTab: handleTabClose,
-					closeOtherTabs,
-					closeTabsToRight,
+					closeOtherTabs: handleCloseOtherTabs,
+					closeTabsToLeft: handleCloseTabsToLeft,
+					closeTabsToRight: handleCloseTabsToRight,
 					clearAllTabs: handleClearAllTabs,
 					refreshTab: handleRefreshTab,
 					addWebsiteToCommon: handleAddWebsiteToCommon,
+					showFileInfo: handleFileInfo,
+					copyFileName: handleCopyFileName,
+					copyFilePath: handleCopyFilePath,
+					locateFile: handleLocateFile,
 				},
 			})
+
+			const handlePreviewCollapse = () => {
+				setExpandPanelVisible(false)
+				hideContextMenu()
+				props.onPreviewCollapse?.()
+			}
 
 			// 暴露组件方法
 			useImperativeHandle(ref, () => ({
 				openFileTab,
-				closeFileTab,
+				closeFileTab: handleTabClose,
 				switchToTab,
-				clearAllTabs,
-				closeOtherTabs,
-				closeTabsToRight,
+				clearAllTabs: handleClearAllTabs,
+				closeOtherTabs: handleCloseOtherTabs,
+				closeTabsToRight: handleCloseTabsToRight,
 				isFullscreen: !!fullscreenFileId,
 				// 暴露缓存相关方法
 				getCacheStats,
@@ -299,6 +457,8 @@ const FilesViewer = memo(
 				// Knowledge base tab相关方法
 				openKnowledgeBaseTab,
 				closeKnowledgeBaseTab,
+				openMicroAppTab,
+				closeMicroAppTab,
 				enterPreviewFullscreen,
 				exitPreviewFullscreen,
 				// Website tab相关方法
@@ -318,7 +478,7 @@ const FilesViewer = memo(
 				// Tab ids may contain file-path characters that are invalid inside CSS selectors.
 				const activeTabElement = Array.from(
 					container.querySelectorAll<HTMLElement>("[data-tab-id]"),
-				).find((element) => element.dataset.tabId === activeTab.id)
+				).find((element) => element.dataset.tabId === activeTab?.id)
 
 				if (activeTabElement) {
 					// 计算目标tab相对于容器的位置
@@ -333,34 +493,28 @@ const FilesViewer = memo(
 						behavior: "smooth",
 					})
 				}
-			}, [activeTab, tabs])
+			}, [activeTab?.id, tabs.length])
 
 			// 渲染tab项
-			const renderTabItem = (tab: TabItemType, index: number) => {
+			const renderTabItem = (tab: TabItemType) => {
 				const isActive = activeTab?.id === tab.id
-				const isDragging = draggedTab?.id === tab.id
-				const isDragOver = dragOverIndex === index
 				const isPlayback = isPlaybackTab(tab.id)
 
 				return (
 					<TabItem
 						key={tab.id}
 						tab={tab}
-						index={index}
 						allTabs={tabs}
 						isActive={isActive}
 						isDragging={isDragging}
-						isDragOver={isDragOver}
-						dragDirection={dragDirection || undefined}
 						isPlayback={isPlayback}
 						contextMenuState={contextMenuState}
 						attachments={tabAttachments}
+						context={fileHelpContext}
 						onSwitchToTab={switchToTab}
 						onCloseTab={handleTabClose}
-						onDragStart={handleTabDragStart}
-						onDragEnd={handleTabDragEnd}
-						onDragOver={handleTabDragOver}
-						onDrop={handleTabDrop}
+						onDragStart={handleDragStart}
+						onDragEnd={handleDragEnd}
 					/>
 				)
 			}
@@ -389,6 +543,7 @@ const FilesViewer = memo(
 							<FileTabMagicIcon
 								tab={tab}
 								attachments={tabAttachments}
+								context={fileHelpContext}
 								isPlayback={isPlayback}
 								size={12}
 							/>
@@ -426,6 +581,25 @@ const FilesViewer = memo(
 				}),
 				[effectiveIsFullscreen, isDocumentFlowFullscreen, otherProps],
 			)
+			const fileSidebarButton = props.fileSidebarControl?.isCollapsed ? (
+				<Tooltip
+					title={t("sidebarPanels.expandFiles")}
+					placement="bottom"
+					trigger={["hover", "focus"]}
+				>
+					<button
+						ref={props.fileSidebarControl.triggerRef}
+						type="button"
+						className="mx-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-background shadow-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+						onClick={props.fileSidebarControl.onToggle}
+						aria-label={t("sidebarPanels.expandFiles")}
+						data-testid="file-viewer-expand-files"
+					>
+						<FolderTree size={16} />
+					</button>
+				</Tooltip>
+			) : null
+
 			const shouldUseSafeAreaFullscreen = shouldUseFileViewerFullscreenSafeArea()
 			const currentRenderPropsRef = useRef(currentRenderProps)
 			currentRenderPropsRef.current = currentRenderProps
@@ -435,14 +609,20 @@ const FilesViewer = memo(
 
 				return [
 					currentTab.id,
-					currentTab.refreshKey || "",
+					("refreshKey" in currentTab && currentTab.refreshKey) || "",
 					currentTab.fileData.file_id || "",
 					currentTab.fileData.updated_at || "",
 					String(effectiveIsFullscreen),
 					String(isDocumentFlowFullscreen),
 					String(otherProps.type || ""),
 					String(otherProps.updatedAt || ""),
+					currentTab.fileData.htmlNavigation?.filePath || "",
+					currentTab.fileData.htmlNavigation?.search || "",
+					currentTab.fileData.htmlNavigation?.hash || "",
+					currentTab.fileData.htmlNavigation?.anchor || "",
 					props.activeFileId || "",
+					props.attachmentLoadState?.projectId || "",
+					props.attachmentLoadState?.status || "",
 					props.showFileFooter ? "1" : "0",
 				].join("|")
 			}, [
@@ -451,7 +631,13 @@ const FilesViewer = memo(
 				isDocumentFlowFullscreen,
 				otherProps.type,
 				otherProps.updatedAt,
+				currentTab?.fileData.htmlNavigation?.filePath,
+				currentTab?.fileData.htmlNavigation?.search,
+				currentTab?.fileData.htmlNavigation?.hash,
+				currentTab?.fileData.htmlNavigation?.anchor,
 				props.activeFileId,
+				props.attachmentLoadState?.projectId,
+				props.attachmentLoadState?.status,
 				props.showFileFooter,
 			])
 			const shouldShowDetailEmpty =
@@ -466,6 +652,12 @@ const FilesViewer = memo(
 				}
 			}, [currentTabId, currentRenderCacheKey, addToCache])
 
+			const editingUserFiles = [...userFilesStore.editingFileIds].join(":")
+			const editingUserFileIds = useMemo(
+				() => new Set(editingUserFiles.split(":")),
+				[editingUserFiles],
+			)
+
 			// 判断是否应该渲染某个 tab
 			const shouldRenderTab = useCallback(
 				(tab: any) => {
@@ -473,13 +665,18 @@ const FilesViewer = memo(
 					const isCached = cachedTabIds.includes(tab.id)
 
 					// 只渲染活跃的 tab 和缓存中的 tab
-					return isActive || isCached
+					return (
+						isActive ||
+						isCached ||
+						(tab.fileData.space_type === "user" &&
+							editingUserFileIds.has(tab.fileData.file_id))
+					)
 				},
-				[activeTab?.id, cachedTabIds],
+				[activeTab?.id, cachedTabIds, editingUserFileIds],
 			)
 
-			// 渲染活跃和缓存的 tabs。PPTRootRender tabs 会被放入稳定的 body Portal，
-			// 避免 FilesViewer 在普通 DOM 与全屏 Portal 间切换时销毁 PPTStore。
+			// 每个 Tab 只生成一个 TabCache。非文档流模式统一放入稳定 body Portal，
+			// 文档流模式统一保留在当前文档树中，避免同一 Tab 同时出现在两条渲染链路。
 			const cachedTabRenders = useMemo(() => {
 				const filteredTabs = tabs.filter(shouldRenderTab)
 
@@ -488,9 +685,16 @@ const FilesViewer = memo(
 					const cachedProps = getFromCache(tab.id)
 
 					// 如果没有缓存，使用当前 tab 的属性
-					const renderProps = isActive
-						? currentRenderProps
-						: cachedProps || currentRenderProps
+					const renderProps =
+						tab.fileData.space_type === "user"
+							? {
+									...getRenderProps(tab),
+									isFullscreen: effectiveIsFullscreen,
+									documentFlowFullscreen: isDocumentFlowFullscreen,
+								}
+							: isActive
+								? currentRenderProps
+								: cachedProps || currentRenderProps
 
 					// 判断是否是演示模式tab，如果是则构建playbackProps
 					const isPlayback = isPlaybackTab(tab.id)
@@ -539,15 +743,48 @@ const FilesViewer = memo(
 					// 判断是否是知识库tab
 					const isKbTab = isKnowledgeBaseTab(tab.id)
 					const knowledgeBaseData = isKbTab ? (tab as any).data : undefined
-					const usesStablePptPortal =
-						!props.documentFlowFullscreen &&
-						shouldUsePPTRootRender(renderProps.type, renderProps.data)
-
+					const isMicroAppTab = isPublishedMicroAppTab(tab.id)
+					const microAppData = isMicroAppTab ? (tab as any).data : undefined
 					return {
 						isActive,
-						usesStablePptPortal,
 						node: (
 							<TabCache
+								onOpenProjectRecycle={(projectId) =>
+									openFileTab({
+										file_manager: {
+											spaceType: "project",
+											projectId,
+											area: "recycle",
+										},
+									})
+								}
+								getFileManagerState={getFileManagerState}
+								onFileManagerStateChange={updateFileManagerState}
+								managerProps={{
+									projectFilesStore: props.projectFilesStore,
+									attachments: (props.attachments ?? []) as AttachmentItem[],
+									selectedProject: props.selectedProject,
+									selectedTopic: props.selectedTopic,
+									allowEdit: props.allowEdit,
+									allowDownload: props.allowDownload,
+									loading: isAwaitingProjectAttachments,
+									attachmentLoadState: props.attachmentLoadState,
+									onFileClick: openFileTab,
+									onPreviewFile: (file, activate) =>
+										openFileTab(file, false, activate),
+									onPreviewRemoved: (ids) => {
+										const tabIds = ids.map((id) => `recycle-bin:${id}`)
+										// 一批恢复共用关闭确认，避免单项并发关闭被批次锁跳过。
+										void runConfirmedTabClose({
+											tabIds,
+											close: () =>
+												tabIds.forEach((id) => {
+													closeFileTabState(id)
+													removeFromCache(id)
+												}),
+										})
+									},
+								}}
 								key={tab.id}
 								tab={tab as any}
 								isActive={isActive}
@@ -559,7 +796,9 @@ const FilesViewer = memo(
 								playbackProps={playbackProps}
 								hideTabBar={props.hideTabBar}
 								knowledgeBaseData={knowledgeBaseData}
-								fillPortalSurface={usesStablePptPortal}
+								microAppData={microAppData}
+								fillPortalSurface={!isDocumentFlowFullscreen}
+								onCloseTab={handleTabClose}
 							/>
 						),
 					}
@@ -576,24 +815,28 @@ const FilesViewer = memo(
 				shouldRenderTab,
 				cachedTabIds,
 				isPlaybackTab,
+				isKnowledgeBaseTab,
+				isPublishedMicroAppTab,
 				props,
 				props.autoDetail,
 				props.userSelectDetail,
 				openFileTab,
+				handleTabClose,
 			])
 			const inlineCachedTabs = cachedTabRenders
-				.filter((entry) => !entry.usesStablePptPortal)
+				.filter(() => isDocumentFlowFullscreen)
 				.map((entry) => entry.node)
-			const stablePptCachedTabs = cachedTabRenders
-				.filter((entry) => entry.usesStablePptPortal)
+			const stableCachedTabs = cachedTabRenders
+				.filter(() => !isDocumentFlowFullscreen)
 				.map((entry) => entry.node)
-			const hasActiveStablePptTab = cachedTabRenders.some(
-				(entry) => entry.usesStablePptPortal && entry.isActive,
+			const hasStableTabs = stableCachedTabs.length > 0
+			const hasActiveStableTab =
+				Boolean(currentTab) && !isDocumentFlowFullscreen && !isRestoringFileTabs
+			const isActivePptPreview = Boolean(
+				currentTab &&
+				shouldUsePPTRootRender(currentRenderProps.type, currentRenderProps.data),
 			)
-			const hasStablePptTabs = stablePptCachedTabs.length > 0
-			const shouldShowStablePptSurface =
-				hasActiveStablePptTab && Boolean(currentTab) && !isRestoringFileTabs
-			const [stablePptSurfaceAnchor, setStablePptSurfaceAnchor] =
+			const [stablePreviewSurfaceAnchor, setStablePreviewSurfaceAnchor] =
 				useState<HTMLDivElement | null>(null)
 
 			const viewer = (
@@ -621,30 +864,62 @@ const FilesViewer = memo(
 						)}
 					>
 						{/* Tab Bar — hidden in immersive read-only mode (e.g. audio recording detail) */}
+						{tabs.length === 0 &&
+							fileSidebarButton &&
+							!effectiveIsFullscreen &&
+							!props.hideTabBar && (
+								<div className="flex h-11 shrink-0 items-center border-b border-border bg-accent">
+									{fileSidebarButton}
+								</div>
+							)}
 						{tabs.length > 0 && !effectiveIsFullscreen && !props.hideTabBar && (
-							<div className="relative flex h-11 items-center bg-accent">
+							<div className="relative flex h-11 shrink-0 items-center bg-accent">
+								{fileSidebarButton}
 								<HeadlessHorizontalScroll
 									className="h-full min-w-0 flex-1"
 									controlBackground="rgb(var(--accent-rgb))"
 									scrollContainerClassName="no-scrollbar flex h-full w-full items-center overflow-x-auto overflow-y-hidden px-1 gap-0.5"
 									scrollContainerRef={tabsContainerRef}
+									dragIgnoreSelector="[data-tab-id], button, a, input, [role='button']"
 									onScrollContainerContextMenu={handleContainerContextMenu}
 								>
-									{tabs.map((tab, index) => renderTabItem(tab, index))}
+									{tabs.map(renderTabItem)}
 								</HeadlessHorizontalScroll>
 
-								<WebsitePresetMenu onOpenWebsiteTab={openWebsiteTab} />
+								{shouldRenderQuickOpen ? (
+									<WebsitePresetMenu
+										onOpenWebsiteTab={openWebsiteTab}
+										onOpenMicroAppTab={openMicroAppTab}
+										onOpenFileTab={openFileTab}
+										fileAttachments={tabAttachments}
+									/>
+								) : null}
 
 								{/* 展开按钮 */}
 								<DropdownMenu
 									open={expandPanelVisible}
 									onOpenChange={setExpandPanelVisible}
 								>
-									<DropdownMenuTrigger asChild>
-										<div className="relative mx-1 flex size-7 shrink-0 cursor-pointer select-none items-center justify-center rounded-md transition-all duration-200 hover:bg-black/10">
-											<MagicIcon component={IconMenu2} size={18} />
-										</div>
-									</DropdownMenuTrigger>
+									<Tooltip
+										title={
+											expandPanelVisible
+												? null
+												: t("fileViewer.tabs.openTabs")
+										}
+										placement="bottom"
+										trigger={["hover", "focus"]}
+										mouseEnterDelay={0.3}
+									>
+										<DropdownMenuTrigger asChild>
+											<button
+												type="button"
+												aria-label={t("fileViewer.tabs.openTabs")}
+												className="relative mx-1 flex size-7 shrink-0 cursor-pointer select-none items-center justify-center rounded-md transition-all duration-200 hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+											>
+												<MagicIcon component={IconMenu2} size={18} />
+											</button>
+										</DropdownMenuTrigger>
+									</Tooltip>
 									<DropdownMenuContent
 										align="end"
 										className="max-h-[300px] w-[180px] overflow-y-auto p-1"
@@ -653,13 +928,31 @@ const FilesViewer = memo(
 									</DropdownMenuContent>
 								</DropdownMenu>
 
-								{/* 关闭所有 tab 按钮 */}
-								{hasCloseableTabs ? (
+								{props.onPreviewCollapse ? (
+									<Tooltip
+										title={t("fileViewer.tabs.collapsePreview")}
+										placement="bottom"
+										trigger={["hover", "focus"]}
+										mouseEnterDelay={0.3}
+									>
+										<button
+											type="button"
+											className="relative mr-1 flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+											aria-label={t("fileViewer.tabs.collapsePreview")}
+											aria-expanded={true}
+											onClick={handlePreviewCollapse}
+											data-files-viewer-collapse-preview
+										>
+											<MagicIcon component={IconX} size={16} />
+										</button>
+									</Tooltip>
+								) : hasCloseableTabs ? (
 									<Tooltip
 										title={t("shortcut.closeAllTabs")}
 										placement="bottom"
 										mouseEnterDelay={0.3}
 									>
+										{/* 关闭所有 tab 按钮 */}
 										<div
 											className="relative mr-1 flex size-7 shrink-0 cursor-pointer select-none items-center justify-center rounded-md transition-all duration-200 hover:bg-black/10"
 											onClick={handleClearAllTabs}
@@ -701,13 +994,16 @@ const FilesViewer = memo(
 									</div>
 								) : (
 									<>
-										{/* Non-PPT tabs keep the existing FilesViewer rendering path. */}
+										{/* Cached preview tabs use stable body portals outside document-flow share mode. */}
 										{inlineCachedTabs}
-										{hasActiveStablePptTab ? (
+										{hasActiveStableTab ? (
 											<div
-												ref={setStablePptSurfaceAnchor}
+												ref={setStablePreviewSurfaceAnchor}
 												className="relative min-h-0 flex-1"
-												data-files-viewer-ppt-anchor="true"
+												data-files-viewer-preview-anchor="true"
+												data-files-viewer-ppt-anchor={
+													isActivePptPreview ? "true" : undefined
+												}
 											/>
 										) : null}
 									</>
@@ -720,9 +1016,9 @@ const FilesViewer = memo(
 				</div>
 			)
 
-			// Fixed fullscreen layers can be trapped by transformed workspace ancestors, so they
-			// need a body portal. PPT TabCache nodes are a stable sibling Portal and survive this
-			// inline/body switch; document-flow fullscreen stays in the share document tree.
+			// Fixed fullscreen layers can be trapped by transformed workspace ancestors, so the
+			// viewer shell uses a body portal. Preview TabCache nodes live in the single stable
+			// sibling Portal; document-flow fullscreen stays in the share document tree.
 			const viewerLayer =
 				effectiveIsFullscreen &&
 				!isDocumentFlowFullscreen &&
@@ -732,22 +1028,35 @@ const FilesViewer = memo(
 
 			return (
 				<>
-					<StablePPTPortalSurface
-						anchor={stablePptSurfaceAnchor}
+					<StablePreviewPortalSurface
+						anchor={stablePreviewSurfaceAnchor}
 						borderRadius={
+							// The preview is portaled to document.body, so the detail card's
+							// rounded-lg cannot clip it. Keep the card's bottom corners here,
+							// unless the page frames the surface itself (AI canvas).
 							effectiveIsFullscreen
 								? "0px"
-								: props.hideTabBar
-									? "0.5rem"
-									: "0px 0px 0.5rem 0.5rem"
+								: (props.previewSurfaceFrame?.radius ??
+									(props.hideTabBar ? "0.5rem" : "0px 0px 0.5rem 0.5rem"))
 						}
-						enabled={Boolean(currentTab) && !isRestoringFileTabs && hasStablePptTabs}
+						outlineColor={
+							effectiveIsFullscreen
+								? undefined
+								: props.previewSurfaceFrame?.outlineColor
+						}
+						overlay={effectiveIsFullscreen ? undefined : props.previewSurfaceOverlay}
+						className={
+							effectiveIsFullscreen ? undefined : props.previewSurfaceFrame?.className
+						}
+						enabled={Boolean(currentTab) && !isRestoringFileTabs && hasStableTabs}
 						isFullscreen={effectiveIsFullscreen}
-						visible={shouldShowStablePptSurface}
+						isPpt={isActivePptPreview}
+						visible={hasActiveStableTab && !props.isPreviewCollapsed}
 					>
-						{stablePptCachedTabs}
-					</StablePPTPortalSurface>
+						{stableCachedTabs}
+					</StablePreviewPortalSurface>
 					{viewerLayer}
+					{fileInfoPanel}
 				</>
 			)
 		}),

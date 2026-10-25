@@ -88,6 +88,65 @@ class DesignVideoInputPayloadPreparerTest extends TestCase
         ], DesignVideoInputPayloadPreparer::prepareInputs($dto));
     }
 
+    public function testPrepareInputsPreservesProviderAssetUris(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'video-provider-assets',
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'prompt' => '人物面对镜头介绍产品',
+            'file_dir' => '2121/videos',
+            'inputs' => [
+                'reference_images' => [[
+                    'uri' => 'asset://avatar-image-001',
+                    'type' => 'asset',
+                ]],
+                'reference_videos' => [[
+                    'uri' => 'asset://avatar-video-001',
+                ]],
+                'reference_audios' => [[
+                    'uri' => 'asset://avatar-audio-001',
+                ]],
+                'frames' => [[
+                    'role' => 'start',
+                    'uri' => 'asset://avatar-frame-001',
+                ]],
+            ],
+        ]);
+
+        $this->assertSame([
+            'reference_images' => [[
+                'uri' => 'asset://avatar-image-001',
+                'type' => 'asset',
+            ]],
+            'reference_videos' => [[
+                'uri' => 'asset://avatar-video-001',
+            ]],
+            'reference_audios' => [[
+                'uri' => 'asset://avatar-audio-001',
+            ]],
+            'frames' => [[
+                'role' => 'start',
+                'uri' => 'asset://avatar-frame-001',
+            ]],
+        ], DesignVideoInputPayloadPreparer::prepareInputs($dto));
+    }
+
+    public function testPrepareInputsStillRejectsProviderAssetUriAsFileDirectory(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'video-invalid-file-dir',
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'prompt' => '人物面对镜头介绍产品',
+            'file_dir' => 'asset://not-a-directory',
+        ]);
+
+        $this->expectException(Throwable::class);
+
+        DesignVideoInputPayloadPreparer::sanitizeDtoForCreate($dto);
+    }
+
     public function testPrepareInputsRejectsMissingReferenceVideoUri(): void
     {
         $dto = new DesignVideoCreateDTO([

@@ -12,6 +12,7 @@ export function useOrganization() {
 		magicOrganizationMap: userStore.user.magicOrganizationMap,
 		teamshareOrganizationCode: userStore.user.teamshareOrganizationCode,
 		organizationListReady: userStore.user.organizationListReady,
+		isPersonalOrganization: userStore.user.isPersonalOrganization,
 	})
 
 	useEffect(() => {
@@ -22,6 +23,9 @@ export function useOrganization() {
 				magicOrganizationMap: userStore.user.magicOrganizationMap,
 				teamshareOrganizationCode: userStore.user.teamshareOrganizationCode,
 				organizationListReady: userStore.user.organizationListReady,
+				// 与其余字段一同订阅：个人版 / 团队组织决定若干功能的可见性，读它的人不该
+				// 只拿到挂载那一刻的值。
+				isPersonalOrganization: userStore.user.isPersonalOrganization,
 			}),
 			(org) => setOrganizationMeta(org),
 			{
@@ -36,5 +40,6 @@ export function useOrganization() {
 		magicOrganizationMap: organizationMeta.magicOrganizationMap,
 		teamshareOrganizationCode: organizationMeta.teamshareOrganizationCode,
 		organizationListReady: organizationMeta.organizationListReady,
+		isPersonalOrganization: organizationMeta.isPersonalOrganization,
 	}
 }

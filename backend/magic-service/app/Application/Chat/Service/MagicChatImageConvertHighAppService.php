@@ -23,6 +23,7 @@ use App\Domain\Chat\Service\MagicChatFileDomainService;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\Annotation\ErrorMessage;
@@ -82,6 +83,10 @@ class MagicChatImageConvertHighAppService extends AbstractAIImageAppService
         }
         $referText = $this->getReferTextByContentForAIImage($referContent);
         $reqDTO->setReferText($referText);
+        if ($reqDTO->getToolCode() === '') {
+            $reqDTO->setToolCode($reqDTO->getSourceId());
+        }
+        $reqDTO->setSourceId(SourceId::SUPER_MAGIC);
         $dataIsolation = $this->createDataIsolation($requestContext->getUserAuthorization());
         $requestContext->setDataIsolation($dataIsolation);
         $reqDTO->setAppMessageId((string) $this->idGenerator->generate());

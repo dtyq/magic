@@ -6,7 +6,7 @@ import { addAlphaToHex } from "@/utils/color"
 import DragUpload from "./components/DragUpload"
 import IconList from "./components/IconList"
 import { IconType } from "../AgentSelector/types"
-import { TablerIcon } from "@/utils/tablerIconLoader"
+import { TablerIcon } from "@dtyq/magic-admin/utils/tablerIconLoader"
 import { useMemoizedFn, useMount } from "ahooks"
 import { useImmer } from "use-immer"
 

@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { useReducedMotion } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { EditorPromptCarouselConfig } from "../types"
 
 const DEFAULT_TYPING_INTERVAL_MS = 45

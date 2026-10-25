@@ -65,6 +65,14 @@ export const getDefaultModelInfo = ({
 						max_output_tokens: 64000,
 						temperature: 0.7,
 						temperature_type: AiModel.ModelTemperatureType.Recommended,
+						chat_api: AiModel.ChatApi.ChatCompletions,
+						// 仅初始化新建表单，历史模型直接回显后端配置。
+						reasoning_effort_levels: [
+							"low",
+							"medium",
+							"high",
+						] as AiModel.ReasoningEffort[],
+						reasoning_effort_default: null,
 					}
 				: {}),
 		},
@@ -112,6 +120,7 @@ export const buildAddModelInitialValues = ({
 					? AiModel.ModelTemperatureType.Recommended
 					: AiModel.ModelTemperatureType.Fixed,
 				temperature: config.creativity || config.temperature,
+				chat_api: config.chat_api || AiModel.ChatApi.ChatCompletions,
 			},
 		}
 	}

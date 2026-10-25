@@ -1,5 +1,6 @@
 import type { ElementNode, ComputedStyleInfo } from "../ir/dom"
 import { hasVisibleBackground, isGradientBackground } from "./color"
+import { extractCssImageUrls } from "./css-image-url"
 import { splitByTopLevelComma } from "./string"
 
 /** Elements inside tables, handled by the TABLE element */
@@ -116,7 +117,7 @@ export function hasBackgroundImage(node: ElementNode): boolean {
 
 	if (bgImage.includes("gradient")) return false
 
-	return bgImage.includes("url(")
+	return extractCssImageUrls(bgImage).length > 0
 }
 
 /**

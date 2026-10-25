@@ -5,7 +5,7 @@ import { IconAlertCircleFilled, IconCircleCheckFilled } from "@tabler/icons-reac
 import { useMemoizedFn } from "ahooks"
 import clsx from "clsx"
 import i18next from "i18next"
-import _ from "lodash"
+import { cloneDeep, pick } from "lodash-es"
 import React, { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import styles from "../index.module.less"
@@ -26,7 +26,7 @@ export default function useFlowHeader() {
 		const nodes = getNodes()
 		const edges = getEdges()
 
-		let config = _.cloneDeep(flow)
+		let config = cloneDeep(flow)
 
 		const nodeIds = nodes.map((n) => n.id)
 
@@ -40,7 +40,7 @@ export default function useFlowHeader() {
 
 		config.nodes = configNodes
 		config.edges = edges.map((edge) =>
-			_.pick(edge, ["id", "source", "target", "sourceHandle", "targetHandle"]),
+			pick(edge, ["id", "source", "target", "sourceHandle", "targetHandle"]),
 		)
 		config.description = description
 		return { ...config, enabled }

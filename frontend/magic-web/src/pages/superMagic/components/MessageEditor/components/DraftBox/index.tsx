@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react"
 import { IconX, IconClock, IconTrash, IconInbox } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import type { DraftData } from "../../types"
+import magicToast from "@/components/base/MagicToaster/utils"
 import MagicModal from "@/components/base/MagicModal"
 import { useDeepCompareEffect } from "ahooks"
 import { formatTime } from "@/utils/string"
@@ -35,7 +36,8 @@ import {
 	draftBoxModalBodyVariants,
 } from "./variants"
 import type { DraftStore } from "../../stores"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 interface DraftBoxProps {
 	draftStore: DraftStore
@@ -84,9 +86,12 @@ function DraftBoxComponent({
 		})
 	}
 
-	const handleUseDraft = (draft: DraftData) => {
-		draftStore.useDraft(draft)
-		setVisible(false)
+	const handleUseDraft = async (draft: DraftData) => {
+		try {
+			if (await draftStore.useDraft(draft)) setVisible(false)
+		} catch {
+			magicToast.error(t("messageQueue.draftSaveFailed"))
+		}
 	}
 
 	useEffect(() => {
@@ -102,7 +107,14 @@ function DraftBoxComponent({
 	const size = isMobile ? "mobile" : "default"
 
 	const content = (
-		<div className={draftBoxContainerVariants()}>
+		<div
+			className={cn(
+				draftBoxContainerVariants(),
+				// Reserve the popup handle and safe areas so only draft entries scroll on mobile.
+				isMobile &&
+					"h-auto max-h-[calc(100vh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-60px)]",
+			)}
+		>
 			{/* Header */}
 			<div className={draftBoxHeaderVariants({ size })}>
 				<div className={draftBoxHeaderLeftVariants()}>
@@ -128,7 +140,14 @@ function DraftBoxComponent({
 
 			{/* Content */}
 			<div className={draftBoxContentVariants()}>
-				<div className={draftBoxScrollContainerVariants({ size })}>
+				<ScrollArea
+					className="grid min-h-0 flex-1"
+					viewportClassName={cn(
+						draftBoxScrollContainerVariants({ size }),
+						// Grid stretch resolves the viewport height even when the popup is sized by max-height.
+						"h-auto min-h-0",
+					)}
+				>
 					<div className={draftBoxScrollContentVariants()}>
 						{loading ? (
 							<div className={draftBoxEmptyStateVariants()}>
@@ -194,7 +213,7 @@ function DraftBoxComponent({
 							))
 						)}
 					</div>
-				</div>
+				</ScrollArea>
 				<div className={draftBoxTipVariants({ size })}>{t("draftBox.retentionTip")}</div>
 			</div>
 		</div>
@@ -219,7 +238,13 @@ function DraftBoxComponent({
 				)}
 			</button>
 			{isMobile ? (
-				<MagicPopup visible={visible} onClose={() => setVisible(false)}>
+				<MagicPopup
+					visible={visible}
+					onClose={() => setVisible(false)}
+					// Keep focus and keyboard scrolling inside the viewport, including above the drawer spacer.
+					className="supports-[overflow:clip]:overflow-clip"
+					bodyClassName="min-h-0 overflow-hidden supports-[overflow:clip]:overflow-clip"
+				>
 					{content}
 				</MagicPopup>
 			) : (

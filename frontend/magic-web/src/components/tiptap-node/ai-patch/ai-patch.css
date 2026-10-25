@@ -1,0 +1,41 @@
+.ai-patch-removed {
+	background-color: color-mix(in srgb, #ef4444 16%, transparent);
+	text-decoration: line-through;
+}
+
+.ai-patch-preview,
+.ai-patch-added {
+	background-color: color-mix(in srgb, #22c55e 18%, transparent);
+	text-decoration: none;
+}
+
+/* Only changed ranges animate; the editor and unchanged text keep their geometry. */
+.ai-patch-removing {
+	animation: ai-patch-disappear 180ms ease-out forwards;
+}
+
+.ai-patch-added {
+	animation: ai-patch-appear 220ms ease-out;
+}
+
+@keyframes ai-patch-disappear {
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes ai-patch-appear {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ai-patch-removing,
+	.ai-patch-added {
+		animation: none;
+	}
+}

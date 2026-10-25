@@ -3,7 +3,7 @@
 import * as React from "react"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { clipboard } from "@/utils/clipboard-helpers"
-import { type Editor } from "@tiptap/react"
+import { type Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---

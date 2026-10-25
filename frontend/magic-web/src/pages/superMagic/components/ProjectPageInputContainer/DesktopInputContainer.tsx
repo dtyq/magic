@@ -1,4 +1,4 @@
-import { GuideTourElementId } from "../LazyGuideTour"
+import type { ReactNode } from "react"
 import { ScenePanelVariant } from "../MainInputContainer/components/LazyScenePanel/types"
 import CurrentSceneBadge from "../MainInputContainer/components/SelectedSkillBadge"
 import { SCENE_INPUT_IDS, INPUT_CONTAINER_MIN_HEIGHT } from "../MainInputContainer/constants"
@@ -6,7 +6,7 @@ import { SceneStateProvider, SceneStateStore } from "../MainInputContainer/store
 import { ModeToggle } from "../TopicMode"
 import LazyScenePanel from "../MainInputContainer/components/LazyScenePanel"
 import SelfMediaComposerConfigPanel from "../MainInputContainer/components/SelfMediaComposerConfigPanel"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	SceneEditorContext,
 	SceneEditorNodes,
@@ -26,6 +26,8 @@ interface DesktopInputContainerProps {
 	shouldShowSceneControls: boolean
 	containerRef?: React.RefObject<HTMLDivElement>
 	className?: string
+	fillHeight?: boolean
+	inputResizeHandle?: ReactNode
 	classNames?: {
 		container?: string
 		editorWrapper?: string
@@ -45,6 +47,8 @@ function DesktopInputContainer({
 	shouldShowSceneControls,
 	containerRef,
 	className,
+	fillHeight = false,
+	inputResizeHandle,
 	classNames,
 	editorSize,
 	isFocused,
@@ -65,6 +69,7 @@ function DesktopInputContainer({
 	const containerClassName = cn(
 		"relative flex w-full flex-none flex-col items-start gap-2 self-stretch",
 		"rounded-2xl border border-border bg-sidebar p-2",
+		fillHeight && "h-full min-h-0",
 		getEditorSpanClass(editorSize),
 		className,
 		classNames?.container,
@@ -73,25 +78,36 @@ function DesktopInputContainer({
 	if (isActive && InvalidModeFallback) {
 		return (
 			<SceneStateProvider store={sceneStateStore} variant={ScenePanelVariant.TopicPage}>
-				<div
-					ref={containerRef}
-					id={GuideTourElementId.MessagePanel}
-					className={cn(containerClassName, "bg-muted")}
-				>
-					<div className="flex w-full flex-col gap-2 [&:empty]:hidden">
+				<div ref={containerRef} className={cn(containerClassName, "bg-muted")}>
+					<div
+						className="flex w-full shrink-0 flex-col gap-2 [&:empty]:hidden"
+						data-conversation-input-accessory
+					>
+						{/* Keep fixed task chrome outside the editor's shrinkable flex region. */}
 						{editorNodes?.taskDataNode}
 						{editorNodes?.messageQueueNode}
 					</div>
-					<div className={cn("w-full", classNames?.editorWrapper)}>
+					<div
+						className={cn(
+							"relative w-full",
+							fillHeight && "min-h-0 flex-1",
+							classNames?.editorWrapper,
+						)}
+					>
+						{inputResizeHandle}
 						<div
 							className={cn(
 								"z-[2] flex flex-col gap-2 overflow-hidden border border-transparent",
+								fillHeight && "h-full min-h-0",
 								classNames?.editor,
 							)}
 							data-testid="message-panel-input-group"
 						>
 							<div
-								className="flex h-full items-center justify-center [&>div]:w-full"
+								className={cn(
+									"flex h-full items-center justify-center [&>div]:w-full",
+									fillHeight && "min-h-0 flex-1 [&>div]:h-full",
+								)}
 								style={{
 									minHeight: INPUT_CONTAINER_MIN_HEIGHT.InvalidModeFallback,
 								}}
@@ -107,71 +123,86 @@ function DesktopInputContainer({
 
 	return (
 		<SceneStateProvider store={sceneStateStore} variant={ScenePanelVariant.TopicPage}>
-			<div
-				ref={containerRef}
-				id={GuideTourElementId.MessagePanel}
-				className={containerClassName}
-			>
-				<div className="flex w-full flex-col gap-2 [&:empty]:hidden">
+			<div ref={containerRef} className={containerClassName}>
+				<div
+					className="flex w-full shrink-0 flex-col gap-2 [&:empty]:hidden"
+					data-conversation-input-accessory
+				>
+					{/* Keep fixed task chrome outside the editor's shrinkable flex region. */}
 					{editorNodes?.taskDataNode}
 					{editorNodes?.messageQueueNode}
 				</div>
+				{/* 把手归属于头像及编辑区，始终位于队列之后，且不占正文高度。 */}
 				{shouldShowHeaderControls ? (
-					<div className="flex w-full items-center gap-4 overflow-hidden">
-						{shouldShowModeToggle ? (
-							<ModeToggle
-								size={editorSize}
-								topicMode={editorContext.topicMode}
-								agentCode={
-									editorContext.agentCode ??
-									editorContext.selectedTopic?.agent_code
-								}
-								allowChangeMode={
-									editorContext.allowChangeMode ??
-									((editorContext.messagesLength ?? 0) > 0 ? false : true)
-								}
-								useChatTerminology={editorContext.useChatTerminology}
-								onModeChange={editorContext.setTopicMode}
-							/>
-						) : null}
-						{shouldShowModeToggle && shouldShowSceneControls ? (
-							<div className="h-[60%] w-[1px] bg-border"></div>
-						) : null}
-						{shouldShowSceneControls ? (
-							<>
-								{shouldShowCurrentSceneBadge && currentScene ? (
-									<CurrentSceneBadge
-										scene={currentScene}
-										variant="outlineButton"
-										onClose={() => sceneStateStore.setCurrentScene(null)}
-									/>
-								) : (
-									<div
-										id={SCENE_INPUT_IDS.SCENES_SWITCHER}
-										className="min-w-0 flex-1"
-									></div>
-								)}
-							</>
-						) : null}
+					<div className="relative w-full shrink-0">
+						{inputResizeHandle}
+						<div className="flex w-full items-center gap-4 overflow-hidden">
+							{shouldShowModeToggle ? (
+								<ModeToggle
+									size={editorSize}
+									topicMode={editorContext.topicMode}
+									agentCode={
+										editorContext.agentCode ??
+										editorContext.selectedTopic?.agent_code
+									}
+									allowChangeMode={
+										editorContext.allowChangeMode ??
+										((editorContext.messagesLength ?? 0) > 0 ? false : true)
+									}
+									useChatTerminology={editorContext.useChatTerminology}
+									onModeChange={editorContext.setTopicMode}
+								/>
+							) : null}
+							{shouldShowModeToggle && shouldShowSceneControls ? (
+								<div className="h-[60%] w-[1px] bg-border"></div>
+							) : null}
+							{shouldShowSceneControls ? (
+								<>
+									{shouldShowCurrentSceneBadge && currentScene ? (
+										<CurrentSceneBadge
+											scene={currentScene}
+											variant="outlineButton"
+											onClose={() => sceneStateStore.setCurrentScene(null)}
+										/>
+									) : (
+										<div
+											id={SCENE_INPUT_IDS.SCENES_SWITCHER}
+											className="min-w-0 flex-1"
+										></div>
+									)}
+								</>
+							) : null}
+						</div>
 					</div>
 				) : null}
-				<div className={cn("w-full", classNames?.editorWrapper)}>
+				<div
+					className={cn(
+						"relative w-full",
+						fillHeight && "min-h-0 flex-1",
+						classNames?.editorWrapper,
+					)}
+				>
+					{!shouldShowHeaderControls && inputResizeHandle}
 					<div
 						className={cn(
 							"z-[2] flex flex-col gap-2 overflow-hidden border border-transparent",
+							fillHeight && "h-full min-h-0",
 							classNames?.editor,
 							isFocused && "border-blue-500",
 						)}
 						data-testid="message-panel-input-group"
 					>
 						<div
-							className={cn("flex flex-col", {
+							className={cn("flex flex-col", fillHeight && "min-h-0 flex-1", {
 								"gap-1.5": editorSize !== "default",
 							})}
 						>
 							<div
 								id={SCENE_INPUT_IDS.INPUT_CONTAINER}
-								className="flex h-full items-center justify-center [&>div]:w-full"
+								className={cn(
+									"flex h-full items-center justify-center [&>div]:w-full",
+									fillHeight && "min-h-0 flex-1 [&>div]:h-full",
+								)}
 								style={{ minHeight: INPUT_CONTAINER_MIN_HEIGHT.TopicPage }}
 							></div>
 						</div>

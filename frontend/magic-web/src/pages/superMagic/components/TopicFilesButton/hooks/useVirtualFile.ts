@@ -34,11 +34,14 @@ interface VirtualFileItem {
 }
 
 interface UseVirtualFileOptions {
+	resolveSiblings?: (parentPath?: string) => Promise<AttachmentItem[]>
+	allowDotStart?: boolean
+	isCurrent?: () => boolean
 	attachments: AttachmentItem[]
-	setExpandedKeys: (expandedKeys: React.Key[]) => void
+	setExpandedKeys?: (expandedKeys: React.Key[]) => void
 	// 修改：文件上传回调，允许返回创建结果
 	onFileCreate?: (file: File, suffixDir?: string) => Promise<any>
-	expandedKeys: React.Key[]
+	expandedKeys?: React.Key[]
 	// 添加直接更新attachments的回调
 	onAttachmentsChange?: (attachments: AttachmentItem[]) => void
 }
@@ -88,13 +91,15 @@ const addFileToAttachments = (
  */
 export function useVirtualFile(options: UseVirtualFileOptions) {
 	const { t } = useTranslation("super")
-	const { attachments, setExpandedKeys, expandedKeys } = options
+	const { attachments, setExpandedKeys, expandedKeys = [] } = options
 	const [virtualFile, setVirtualFile] = useState<VirtualFileItem | null>(null)
 	const [editingVirtualId, setEditingVirtualId] = useState<string | null>(null)
 	const [virtualFileName, setVirtualFileName] = useState("")
 	const [errorMessage, setErrorMessage] = useState("")
 	const virtualInputRef = useRef<InputRef>(null)
 	const hasFocusedRef = useRef(false)
+	const creatingRef = useRef(false)
+	const [isCreating, setIsCreating] = useState(false)
 
 	// 聚焦并选择文件名的统一处理函数
 	const focusAndSelectFileName = (inputRef: InputRef) => {
@@ -193,7 +198,9 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 
 	// 确认虚拟文件创建
 	const confirmVirtualFile = async () => {
-		if (!editingVirtualId || !virtualFile) return
+		if (!editingVirtualId || !virtualFile || creatingRef.current) return
+		const isCurrent = options.isCurrent ?? (() => true)
+		if (!isCurrent()) return
 
 		const trimmedName = virtualFileName.trim()
 
@@ -204,7 +211,10 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 		}
 
 		// 文件名校验
-		const validationResult = validateFilename(trimmedName, false, { t })
+		const validationResult = validateFilename(trimmedName, false, {
+			t,
+			allowDotStart: options.allowDotStart,
+		})
 		if (!validationResult.isValid) {
 			setErrorMessage("")
 			setTimeout(() => {
@@ -214,7 +224,10 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 		}
 
 		// 检查是否重复
-		if (checkDuplicateFileName(trimmedName, attachments, virtualFile.parentPath)) {
+		if (
+			!options.resolveSiblings &&
+			checkDuplicateFileName(trimmedName, attachments, virtualFile.parentPath)
+		) {
 			setErrorMessage("")
 			setTimeout(() => {
 				setErrorMessage(t("topicFiles.contextMenu.newFile.duplicateError"))
@@ -222,7 +235,17 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 			return
 		}
 
+		creatingRef.current = true
+		setIsCreating(true)
 		try {
+			if (options.resolveSiblings) {
+				const siblings = await options.resolveSiblings(virtualFile.parentPath)
+				if (!isCurrent()) return
+				if (checkDuplicateFileName(trimmedName, siblings)) {
+					setErrorMessage(t("topicFiles.contextMenu.newFile.duplicateError"))
+					return
+				}
+			}
 			// 获取文件内容模板（与移动端项目详情创建共用单一数据源）
 			const extension = PRESET_FILE_EXTENSION_MAP[virtualFile.type]
 			const content = PRESET_FILE_INITIAL_CONTENT[virtualFile.type]
@@ -235,7 +258,7 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 
 			// 计算上传目录
 			const targetSuffixDir = virtualFile.parentPath
-				? virtualFile.parentPath.substring(1)
+				? virtualFile.parentPath.replace(/^\//, "")
 				: ""
 
 			console.log("创建虚拟文件:", {
@@ -250,6 +273,7 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 			// 调用文件上传回调
 			if (options.onFileCreate) {
 				const result = await options.onFileCreate(file, targetSuffixDir)
+				if (!isCurrent()) return
 
 				// 显示成功提示
 				magicToast.success(t("topicFiles.contextMenu.createFileSuccess"))
@@ -281,9 +305,15 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 				clearVirtualFile()
 			}
 		} catch (error) {
+			if (!isCurrent()) return
 			console.error("创建文件失败:", error)
-			setErrorMessage("创建文件失败，请重试")
+			setErrorMessage(error instanceof Error ? error.message : t("userSpace.operationFailed"))
 			// 失败时不清理虚拟文件，让用户可以看到错误并重新尝试
+		} finally {
+			if (isCurrent()) {
+				creatingRef.current = false
+				setIsCreating(false)
+			}
 		}
 	}
 
@@ -372,6 +402,8 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 
 	// 重置虚拟文件状态
 	const resetVirtualFile = () => {
+		creatingRef.current = false
+		setIsCreating(false)
 		setVirtualFile(null)
 		setEditingVirtualId(null)
 		setVirtualFileName("")
@@ -379,6 +411,7 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 	}
 
 	return {
+		isCreating,
 		// 状态
 		virtualFiles,
 		editingVirtualId,

@@ -1,12 +1,12 @@
 import * as React from "react"
-import { type Editor } from "@tiptap/react"
+import { type Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 
 // --- Lib ---
-import { isNodeTypeSelected } from "@/lib/tiptap-utils"
+import { isNodeTypeSelected } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Icons ---
 import { Redo2Icon } from "@/components/tiptap-icons/redo2-icon"
@@ -58,12 +58,16 @@ export const historyIcons = {
  */
 export function canExecuteUndoRedoAction(editor: Editor | null, action: UndoRedoAction): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (isNodeTypeSelected(activeEditor, ["image"])) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (isNodeTypeSelected(activeEditor, ["image"])) return false
 
-			return action === "undo" ? activeEditor.can().undo() : activeEditor.can().redo()
-		}, false) ?? false
+				return action === "undo" ? activeEditor.can().undo() : activeEditor.can().redo()
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -74,10 +78,14 @@ export function executeUndoRedoAction(editor: Editor | null, action: UndoRedoAct
 	if (!canExecuteUndoRedoAction(editor, action)) return false
 
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			const chain = activeEditor.chain().focus()
-			return action === "undo" ? chain.undo().run() : chain.redo().run()
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				const chain = activeEditor.chain().focus()
+				return action === "undo" ? chain.undo().run() : chain.redo().run()
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -92,15 +100,19 @@ export function shouldShowButton(props: {
 	const { editor, hideWhenUnavailable, action } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canExecuteUndoRedoAction(activeEditor, action)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canExecuteUndoRedoAction(activeEditor, action)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }

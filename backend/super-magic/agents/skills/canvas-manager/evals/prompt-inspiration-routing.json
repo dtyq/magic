@@ -1,0 +1,7 @@
+{
+  "id": "prompt-inspiration-routing",
+  "prompt": "The user has no visual direction and asks for inspiration before creating a Canvas image.",
+  "expected_reference": "references/prompt-library.md",
+  "expected_tools": ["search_canvas_image_prompts"],
+  "constraints": ["Prompt search is read-only.", "Do not create an Element until the user chooses or confirms a direction."]
+}

@@ -2,7 +2,7 @@ import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { CheckCircle2, Loader2 } from "lucide-react"
 import { FileUploadCard } from "../FileUploadCard"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { UploadStatus } from "../../constants"
 
 /**

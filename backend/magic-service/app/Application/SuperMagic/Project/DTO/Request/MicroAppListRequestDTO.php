@@ -66,7 +66,7 @@ class MicroAppListRequestDTO extends AbstractRequestDTO
             'page' => 'nullable|integer|min:1',
             'page_size' => 'nullable|integer|min:1|max:100',
             'keyword' => 'nullable|string|max:100',
-            'scope' => 'nullable|string|in:all,created,collaborated',
+            'scope' => 'nullable|string|in:all,created,collaborated,accessible,recent',
         ];
     }
 
@@ -76,7 +76,7 @@ class MicroAppListRequestDTO extends AbstractRequestDTO
             'page.min' => 'Page must be greater than 0',
             'page_size.max' => 'Page size cannot exceed 100',
             'keyword.max' => 'Keyword cannot exceed 100 characters',
-            'scope.in' => 'Scope must be all, created, or collaborated',
+            'scope.in' => 'Scope must be all, created, collaborated, accessible, or recent',
         ];
     }
 }

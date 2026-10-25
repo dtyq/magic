@@ -90,6 +90,8 @@ export default function vitePluginMagicAdminSource({
 		if (subpath === "") return resolveAdminLogical("index")
 		if (subpath === "components") return path.join(componentsRoot, "index.ts")
 		if (subpath === "provider") return resolveAdminLogical("provider/AdminProvider")
+		if (subpath === "utils/tablerIconLoader")
+			return resolveAdminLogical("utils/tablerIconLoader")
 		if (subpath === "locales") return resolveAdminLogical("locales")
 		if (subpath === "ServiceIcon")
 			return resolveAdminLogical("pages/PlatformPackage/components/ServiceIcon")

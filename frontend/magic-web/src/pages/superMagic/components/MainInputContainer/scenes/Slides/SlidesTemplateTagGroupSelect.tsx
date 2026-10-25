@@ -10,10 +10,10 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useLocaleText } from "../../panels/hooks/useLocaleText"
 import SlidesTemplateMobileFilterOption from "./SlidesTemplateMobileFilterOption"
-import type { SlidesTemplateTagGroupItem } from "./slidesTemplateState"
+import { getSlidesTemplateName, type SlidesTemplateTagGroupItem } from "./slidesTemplateState"
 import SlidesTemplateMobileFilterPopup from "./SlidesTemplateMobileFilterPopup"
 
 interface SlidesTemplateTagGroupSelectProps {
@@ -36,7 +36,7 @@ function SlidesTemplateTagGroupSelect({
 	const selectedTags = tagGroup.tags.filter((tag) => selectedTagCodeSet.has(tag.code))
 	const visibleSelectedTags = selectedTags.slice(0, 3)
 	const hiddenSelectedTags = selectedTags.slice(3)
-	const groupName = lt(tagGroup.name_i18n)
+	const groupName = lt(getSlidesTemplateName(tagGroup))
 	const unselectedLabel = t("playbook.edit.presets.unselected")
 
 	function toggleSelectedTag(tagCode: string) {
@@ -72,7 +72,7 @@ function SlidesTemplateTagGroupSelect({
 			aria-label={`${groupName}: ${
 				selectedTags.length === 0
 					? unselectedLabel
-					: selectedTags.map((tag) => lt(tag.name_i18n)).join(", ")
+					: selectedTags.map((tag) => lt(getSlidesTemplateName(tag))).join(", ")
 			}`}
 			aria-expanded={isMobile ? isMobilePanelOpen : undefined}
 			data-testid={`slides-template-tag-group-trigger-${tagGroup.code}`}
@@ -88,7 +88,7 @@ function SlidesTemplateTagGroupSelect({
 						className="max-w-28 truncate rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-primary"
 						data-testid={`slides-template-tag-group-selected-value-${tag.code}`}
 					>
-						{lt(tag.name_i18n)}
+						{lt(getSlidesTemplateName(tag))}
 					</span>
 				</span>
 			))}
@@ -100,7 +100,7 @@ function SlidesTemplateTagGroupSelect({
 							data-testid={`slides-template-tag-group-overflow-tooltip-${tagGroup.code}`}
 						>
 							{hiddenSelectedTags.map((tag) => (
-								<span key={tag.code}>{lt(tag.name_i18n)}</span>
+								<span key={tag.code}>{lt(getSlidesTemplateName(tag))}</span>
 							))}
 						</div>
 					}
@@ -149,7 +149,7 @@ function SlidesTemplateTagGroupSelect({
 							return (
 								<SlidesTemplateMobileFilterOption
 									key={tag.code}
-									label={lt(tag.name_i18n)}
+									label={lt(getSlidesTemplateName(tag))}
 									selected={isSelected}
 									onClick={() => toggleDraftSelectedTag(tag.code)}
 									data-testid={`slides-template-tag-mobile-option-${tag.code}`}
@@ -182,7 +182,7 @@ function SlidesTemplateTagGroupSelect({
 							onCheckedChange={() => toggleSelectedTag(tag.code)}
 							onSelect={(event) => event.preventDefault()}
 						>
-							{lt(tag.name_i18n)}
+							{lt(getSlidesTemplateName(tag))}
 						</DropdownMenuCheckboxItem>
 					)
 				})}

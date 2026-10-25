@@ -22,6 +22,7 @@ Router::addGroup('/v1', function () {
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
     Router::post('/videos', [VideoApi::class, 'create']);
+    Router::post('/videos/estimate-points', [VideoApi::class, 'estimatePoints']);
     Router::get('/videos/{id}', [VideoApi::class, 'get']);
     // @deprecated Use /v2/search instead - supports multiple search engines
     Router::get('/search', [OpenAIProxyApi::class, 'bingSearch']);
@@ -34,6 +35,9 @@ Router::addGroup('/v1', function () {
 Router::addGroup('/v2', function () {
     // Image generation endpoint - creates images from text prompts
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
+    // Async image generation endpoint - creates a task and returns immediately
+    Router::post('/images/generation-tasks', [ImageProxyApi::class, 'createGenerationTask']);
+    Router::get('/images/generation-tasks/{id}', [ImageProxyApi::class, 'getGenerationTask']);
     // Image edit endpoint - edits images with prompts and optional masks
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
     // Image convert-high endpoint - upscales or enhances input images

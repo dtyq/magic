@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runway — Gen-3 Alpha Cinematic Video Studio</title>
+  <style>
+    :root {
+      --bg-black: #000000;
+      --bg-surface: #121214;
+      --border-dark: #27272a;
+      --text-white: #ffffff;
+      --text-slate: #767d88;
+      --text-muted: #a7a7a7;
+      --accent-cyan: #4cc9f0;
+      --accent-amber: #ffb703;
+      --font-sans: "abcNormal", Inter, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-black); color: var(--text-white);
+      font-family: var(--font-sans); line-height: 1.3; -webkit-font-smoothing: antialiased;
+    }
+    header {
+      height: 52px; border-bottom: 1px solid var(--border-dark);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+      position: sticky; top: 0; z-index: 50; background: rgba(0,0,0,0.95);
+    }
+    .brand-section { display: flex; align-items: center; gap: 20px; }
+    .brand-logo {
+      display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500;
+      color: #fff; text-decoration: none;
+    }
+    .gen3-tag {
+      font-size: 10.5px; font-weight: 500; text-transform: uppercase;
+      color: var(--text-muted); background: #141416; border: 1px solid var(--border-dark);
+      padding: 2px 7px; border-radius: 4px;
+    }
+    .nav-links { display: flex; gap: 18px; font-size: 13px; }
+    .nav-links a { color: var(--text-slate); text-decoration: none; }
+    .nav-links a:hover, .nav-links a.active { color: #fff; }
+    .btn-ghost {
+      background: transparent; border: 1px solid var(--border-dark); color: #fff;
+      font-size: 12.5px; padding: 5px 12px; border-radius: 4px; cursor: pointer;
+    }
+    .btn-white {
+      background: #fff; color: #000; font-size: 12.5px; font-weight: 600;
+      padding: 5px 14px; border-radius: 4px; border: none; cursor: pointer;
+    }
+    .studio-shell { max-width: 1400px; margin: 0 auto; padding: 16px 20px 32px; }
+    .studio-grid { display: grid; grid-template-columns: 1fr 320px; gap: 16px; margin-bottom: 16px; }
+
+    .viewport-card {
+      background: var(--bg-surface); border: 1px solid var(--border-dark);
+      border-radius: 6px; overflow: hidden;
+    }
+    .viewport-header {
+      height: 36px; background: #09090b; border-bottom: 1px solid var(--border-dark);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 14px;
+      font-size: 10.5px; color: var(--text-slate); text-transform: uppercase;
+    }
+    .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; display: inline-block; }
+
+    .canvas-frame {
+      position: relative; width: 100%; height: 380px; background: #050505;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .hud-overlay {
+      position: absolute; top: 12px; left: 14px; right: 14px;
+      display: flex; justify-content: space-between; pointer-events: none; z-index: 5;
+    }
+    .hud-pill {
+      background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 4px; padding: 3px 8px; font-size: 10.5px; font-family: var(--font-mono);
+    }
+
+    .timeline-box { background: #09090b; border-top: 1px solid var(--border-dark); padding: 10px 14px; }
+    .timeline-top {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; font-size: 11px; color: var(--text-slate);
+    }
+    .play-btn {
+      width: 26px; height: 26px; border-radius: 4px; background: #1a1a1e;
+      border: 1px solid var(--border-dark); color: #fff; cursor: pointer; display: grid; place-items: center;
+    }
+    .track {
+      height: 36px; background: #101014; border: 1px solid var(--border-dark);
+      border-radius: 4px; position: relative; cursor: pointer;
+    }
+    .track-clip {
+      position: absolute; left: 10%; width: 75%; top: 4px; bottom: 4px;
+      background: linear-gradient(90deg, rgba(76,201,240,0.2) 0%, rgba(255,183,3,0.2) 100%);
+      border: 1px solid rgba(76,201,240,0.5); border-radius: 3px;
+      display: flex; align-items: center; padding: 0 8px; font-size: 9.5px;
+    }
+    .keyframe {
+      position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(45deg);
+      width: 8px; height: 8px; background: #fff; border: 1px solid var(--accent-amber); z-index: 4;
+    }
+    .playhead { position: absolute; left: 45%; top: -3px; bottom: -3px; width: 2px; background: #fff; z-index: 8; }
+    .playhead::before { content: ""; position: absolute; top: -2px; left: -4px; width: 10px; height: 5px; background: #fff; border-radius: 1px; }
+
+    .sidebar { display: flex; flex-direction: column; gap: 14px; }
+    .panel-card {
+      background: var(--bg-surface); border: 1px solid var(--border-dark);
+      border-radius: 6px; padding: 14px;
+    }
+    .panel-title {
+      font-size: 10.5px; font-weight: 500; text-transform: uppercase;
+      color: var(--text-slate); margin-bottom: 8px; display: flex; justify-content: space-between;
+    }
+    .prompt-box {
+      width: 100%; height: 72px; background: #09090b; border: 1px solid var(--border-dark);
+      border-radius: 4px; padding: 8px; font-size: 11.5px; line-height: 1.4; color: #fff;
+      resize: none; outline: none;
+    }
+    .compass {
+      display: flex; align-items: center; justify-content: center; height: 90px;
+      background: #09090b; border: 1px solid var(--border-dark); border-radius: 4px;
+      margin: 8px 0; position: relative;
+    }
+    .compass-ring {
+      width: 66px; height: 66px; border: 1px dashed #3a3a40; border-radius: 50%;
+      position: relative; display: grid; place-items: center;
+    }
+    .compass-dot {
+      width: 10px; height: 10px; background: #fff; border-radius: 50%;
+      position: absolute; transform: translate(12px, -10px);
+    }
+    .axis { position: absolute; font-size: 8.5px; color: var(--text-slate); font-family: var(--font-mono); }
+    .ax-t { top: 2px; } .ax-b { bottom: 2px; } .ax-l { left: 4px; } .ax-r { right: 4px; }
+
+    .sliders-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .slider-cell { background: #09090b; border: 1px solid var(--border-dark); border-radius: 4px; padding: 8px; }
+    .slider-lbl { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-muted); margin-bottom: 4px; }
+    .slider-in { width: 100%; height: 3px; appearance: none; background: #2a2a30; border-radius: 2px; outline: none; }
+    .slider-in::-webkit-slider-thumb { appearance: none; width: 9px; height: 9px; border-radius: 50%; background: #fff; cursor: pointer; }
+
+    .takes-box {
+      background: var(--bg-surface); border: 1px solid var(--border-dark); border-radius: 6px; padding: 14px;
+    }
+    .takes-top { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-slate); text-transform: uppercase; margin-bottom: 10px; }
+    .takes-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .take-tile { background: #09090b; border: 1px solid var(--border-dark); border-radius: 4px; overflow: hidden; }
+    .take-tile.active { border-color: #fff; }
+    .take-thumb { width: 100%; height: 80px; }
+    .take-info { padding: 6px 8px; display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); }
+
+    footer {
+      border-top: 1px solid var(--border-dark); padding: 18px; text-align: center;
+      font-size: 10.5px; color: var(--text-slate);
+    }
+    @media (max-width: 960px) {
+      .studio-grid { grid-template-columns: 1fr; }
+      .takes-row { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand-section">
+      <a href="#runway" class="brand-logo">
+        <svg width="20" height="16" viewBox="0 0 32 26" fill="none">
+          <rect x="2" y="3" width="28" height="20" rx="3" stroke="#fff" stroke-width="2"/>
+          <circle cx="10" cy="13" r="3" fill="#fff"/>
+          <polygon points="18,10 24,13 18,16" fill="#fff"/>
+        </svg>
+        <span>RUNWAY</span>
+      </a>
+      <span class="gen3-tag">GEN-3 ALPHA VIDEO ENGINE</span>
+      <nav class="nav-links">
+        <a href="#studio" class="active">Video Studio</a>
+        <a href="#camera">Camera Motion</a>
+        <a href="#motion-brush">Motion Brush</a>
+      </nav>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn-ghost">Export 4K ProRes</button>
+      <button class="btn-white">Generate Frame (10s) →</button>
+    </div>
+  </header>
+
+  <main class="studio-shell">
+    <div class="studio-grid">
+      <div class="viewport-card">
+        <div class="viewport-header">
+          <div style="display:flex; align-items:center; gap:6px; color:#fff;">
+            <span class="rec-dot"></span>
+            <span>GEN-3 ALPHA • CINEMATIC 2.39:1 • 24.0 FPS</span>
+          </div>
+          <div>SEED: 8943209 • CFG: 7.5</div>
+        </div>
+
+        <div class="canvas-frame">
+          <div class="hud-overlay">
+            <div class="hud-pill">CAM: 35mm Anamorphic T1.5 • Volumetric Fog</div>
+            <div class="hud-pill">MOTION: +6.4 • PAN RIGHT + ROLL 4.2°</div>
+          </div>
+
+          <svg viewBox="0 0 800 380" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#020308"/>
+                <stop offset="60%" stop-color="#0e1326"/>
+                <stop offset="100%" stop-color="#2a1428"/>
+              </linearGradient>
+              <linearGradient id="neon" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#4cc9f0"/>
+                <stop offset="50%" stop-color="#7209b7"/>
+                <stop offset="100%" stop-color="#f72585"/>
+              </linearGradient>
+            </defs>
+            <rect width="800" height="380" fill="url(#sky)"/>
+            <polygon points="120,380 160,180 200,380" fill="#080b14"/>
+            <polygon points="210,380 240,110 270,380" fill="#0c101c"/>
+            <polygon points="340,380 360,70 390,380" fill="#111728"/>
+            <polygon points="410,380 440,130 470,380" fill="#0a0e1a"/>
+            <polygon points="560,380 600,80 630,380" fill="#0a0d18"/>
+            <polygon points="650,380 680,210 710,380" fill="#070a12"/>
+            <circle cx="360" cy="70" r="2.5" fill="#4cc9f0"/>
+            <circle cx="240" cy="110" r="2" fill="#f72585"/>
+            <circle cx="600" cy="80" r="2" fill="#ffb703"/>
+            <path d="M 0 320 Q 200 290 400 310 T 800 300 L 800 380 L 0 380 Z" fill="#0b172a" opacity="0.85"/>
+            <polygon points="200,325 580,305 640,314 170,335" fill="#0f172a"/>
+            <line x1="200" y1="326" x2="640" y2="308" stroke="url(#neon)" stroke-width="4"/>
+            <line x1="120" y1="332" x2="260" y2="327" stroke="#4cc9f0" stroke-width="1.5" stroke-opacity="0.8"/>
+            <line x1="180" y1="338" x2="380" y2="326" stroke="#f72585" stroke-width="1.2" stroke-opacity="0.8"/>
+            <line x1="450" y1="312" x2="720" y2="302" stroke="#ffb703" stroke-width="1.8" stroke-opacity="0.9"/>
+            <line x1="80" y1="314" x2="720" y2="314" stroke="#4cc9f0" stroke-width="0.75" stroke-opacity="0.6"/>
+            <ellipse cx="400" cy="314" rx="70" ry="1.5" fill="#fff" fill-opacity="0.9"/>
+          </svg>
+        </div>
+
+        <div class="timeline-box">
+          <div class="timeline-top">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <button class="play-btn">
+                <svg width="9" height="11" viewBox="0 0 10 12" fill="#fff"><polygon points="1,1 9,6 1,11"/></svg>
+              </button>
+              <span style="font-family:var(--font-mono); color:#fff; font-size:11.5px;">00:03:14 / 00:10:00</span>
+            </div>
+            <span>CAMERA KEYFRAMES (3 SET)</span>
+          </div>
+          <div class="track">
+            <div class="track-clip"><span>CLIP_GEN3_CYBERPUNK_01.MP4</span></div>
+            <div class="keyframe" style="left: 12%;"></div>
+            <div class="keyframe" style="left: 45%;"></div>
+            <div class="keyframe" style="left: 82%;"></div>
+            <div class="playhead"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar">
+        <div class="panel-card">
+          <div class="panel-title">
+            <span>Prompt Director</span>
+            <span style="color:var(--accent-cyan);">GEN-3 ALPHA</span>
+          </div>
+          <textarea class="prompt-box">Cinematic 35mm anamorphic wide shot of high-speed maglev train cutting through misty neon cyberpunk metropolis at dusk, volumetric fog, anamorphic lens flare, motion blur, 8K raw photorealistic.</textarea>
+          <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:10px; color:var(--text-slate);">
+            <span>Weight: 1.0</span>
+            <span>Style: Film Photographic</span>
+          </div>
+        </div>
+
+        <div class="panel-card" id="camera">
+          <div class="panel-title">
+            <span>Camera Motion Direction</span>
+            <span>XYZ AXIS</span>
+          </div>
+          <div class="compass">
+            <span class="axis ax-t">TILT UP</span>
+            <span class="axis ax-b">TILT DOWN</span>
+            <span class="axis ax-l">PAN L</span>
+            <span class="axis ax-r">PAN R</span>
+            <div class="compass-ring"><div class="compass-dot"></div></div>
+          </div>
+          <div class="sliders-grid">
+            <div class="slider-cell">
+              <div class="slider-lbl"><span>Pan (X)</span><span style="color:#fff;">+3.8</span></div>
+              <input type="range" class="slider-in" min="-10" max="10" value="4">
+            </div>
+            <div class="slider-cell">
+              <div class="slider-lbl"><span>Tilt (Y)</span><span style="color:#fff;">-1.4</span></div>
+              <input type="range" class="slider-in" min="-10" max="10" value="-2">
+            </div>
+            <div class="slider-cell">
+              <div class="slider-lbl"><span>Roll (Z)</span><span style="color:#fff;">+4.2°</span></div>
+              <input type="range" class="slider-in" min="-180" max="180" value="15">
+            </div>
+            <div class="slider-cell">
+              <div class="slider-lbl"><span>Zoom</span><span style="color:#fff;">1.45×</span></div>
+              <input type="range" class="slider-in" min="1" max="5" value="2">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="takes-box">
+      <div class="takes-top">
+        <span>Generated Takes &amp; Keyframe Variations (Batch #492)</span>
+        <span>4 TAKES GENERATED</span>
+      </div>
+      <div class="takes-row">
+        <div class="take-tile active">
+          <div class="take-thumb" style="background: linear-gradient(135deg, #0e1326 0%, #7209b7 60%, #ff7b00 100%);"></div>
+          <div class="take-info"><span>Take 01 (Hero)</span><span style="color:#fff;">10.0s</span></div>
+        </div>
+        <div class="take-tile">
+          <div class="take-thumb" style="background: linear-gradient(135deg, #020308 0%, #150824 60%, #4cc9f0 100%);"></div>
+          <div class="take-info"><span>Take 02 (Wide)</span><span>10.0s</span></div>
+        </div>
+        <div class="take-tile">
+          <div class="take-thumb" style="background: linear-gradient(135deg, #111728 0%, #0d1222 60%, #f72585 100%);"></div>
+          <div class="take-info"><span>Take 03 (Low Angle)</span><span>10.0s</span></div>
+        </div>
+        <div class="take-tile">
+          <div class="take-thumb" style="background: linear-gradient(135deg, #080b14 0%, #2a1428 60%, #ffb703 100%);"></div>
+          <div class="take-info"><span>Take 04 (FPV)</span><span>10.0s</span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Runway AI, Inc. • Gen-3 Alpha &amp; Next-Gen World Models • Building tools to simulate the world through imagination, art and aesthetics.
+  </footer>
+</body>
+</html>

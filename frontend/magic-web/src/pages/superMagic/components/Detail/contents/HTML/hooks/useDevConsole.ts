@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import i18next from "i18next"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { MentionItemType } from "@/components/business/MentionPanel/types"

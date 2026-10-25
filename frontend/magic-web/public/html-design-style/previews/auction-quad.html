@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AUCTION QUAD // Fine Art & Rare Collectibles Live Auction</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    :root {
+      --mahogany: #1A0D0E;
+      --mahogany-mid: #2A1517;
+      --mahogany-card: #221213;
+      --gold: #D4AF37;
+      --gold-light: #F3E5AB;
+      --gold-dim: #996515;
+      --gold-border: rgba(212, 175, 55, 0.3);
+      --red-urgent: #E53238;
+      --blue-bid: #0064D2;
+      --green-seal: #86B817;
+      --ivory: #FDFBF7;
+      --text-muted: #A39697;
+      --font-display: 'Cormorant Garamond', Georgia, serif;
+      --font-body: 'DM Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--mahogany);
+      color: var(--ivory);
+      font-family: var(--font-body);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Live Floor Bidding Status Ribbon */
+    .floor-ribbon {
+      background: #12090A;
+      border-bottom: 1px solid var(--gold-border);
+      padding: 7px 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      color: var(--gold-light);
+    }
+    .live-indicator { display: flex; align-items: center; gap: 8px; }
+    .live-dot { width: 7px; height: 7px; background: var(--red-urgent); border-radius: 50%; box-shadow: 0 0 8px var(--red-urgent); animation: blk 1.4s infinite; }
+    @keyframes blk { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+    /* Navigation */
+    header.auction-nav {
+      position: sticky; top: 0; z-index: 90;
+      background: rgba(26, 13, 14, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--gold-border);
+      padding: 0 28px; height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand-title {
+      font-family: var(--font-display); font-size: 24px; font-weight: 700;
+      letter-spacing: 0.16em; text-transform: uppercase; color: var(--ivory);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .quad-dots { display: flex; gap: 3px; }
+    .quad-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot-blue { background: var(--blue-bid); }
+    .dot-red { background: var(--red-urgent); }
+    .dot-yellow { background: var(--gold); }
+    .dot-green { background: var(--green-seal); }
+
+    .nav-links { display: flex; gap: 24px; list-style: none; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .nav-links a:hover, .nav-links a.active { color: var(--gold); }
+
+    .paddle-btn {
+      background: var(--gold); color: #12090A; border: none; border-radius: 9999px;
+      padding: 7px 18px; font-weight: 800; font-size: 12px; letter-spacing: 0.04em;
+      cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1260px; margin: 0 auto; padding: 22px 20px 44px;
+    }
+
+    /* Hero Live Lot Section (Top 500px High-Impact Area) */
+    .hero-lot {
+      display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 28px;
+      background: radial-gradient(circle at 40% 40%, #2A1517 0%, #1E0E10 70%, #15090A 100%);
+      border: 1px solid var(--gold-border); border-radius: 6px;
+      padding: 24px 28px; box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+      margin-bottom: 28px;
+    }
+
+    /* Left Art Display */
+    .art-display {
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .lot-header-row {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+    }
+    .lot-num {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      color: var(--gold); letter-spacing: 0.1em;
+    }
+    .provenance-seal {
+      background: rgba(212, 175, 55, 0.12); border: 1px solid var(--gold);
+      border-radius: 9999px; padding: 4px 12px; display: inline-flex;
+      align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold-light);
+    }
+    .provenance-seal svg { width: 12px; height: 12px; fill: var(--gold); }
+
+    .canvas-frame-box {
+      height: 290px; background: #0A0506; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; position: relative;
+      border: 6px solid #281A12; box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 8px 24px rgba(0,0,0,0.6);
+    }
+
+    /* Right Live Bidding Control Panel */
+    .bid-panel {
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .timer-alert-pill {
+      background: rgba(229, 50, 56, 0.15); border: 1px solid var(--red-urgent);
+      border-radius: 4px; padding: 6px 12px; display: flex; justify-content: space-between;
+      align-items: center; font-size: 11px; font-weight: 700; margin-bottom: 8px;
+    }
+    .timer-val { font-family: var(--font-mono); color: var(--red-urgent); font-size: 13px; }
+
+    .item-artist {
+      font-family: var(--font-display); font-size: 28px; font-weight: 700;
+      color: var(--ivory); line-height: 1.15; margin-bottom: 4px;
+    }
+    .item-art-title {
+      font-family: var(--font-display); font-size: 18px; font-style: italic;
+      color: var(--gold-light); margin-bottom: 8px;
+    }
+    .item-provenance-desc {
+      font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.15); padding-bottom: 10px;
+    }
+
+    /* Current High Bid Card */
+    .current-bid-card {
+      background: #140A0B; border: 1px solid var(--gold-border);
+      border-radius: 6px; padding: 12px 16px; margin-bottom: 14px;
+    }
+    .bid-label-row {
+      display: flex; justify-content: space-between; font-size: 10px;
+      font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px;
+    }
+    .bid-amount {
+      font-family: var(--font-display); font-size: 36px; font-weight: 700;
+      color: var(--gold-light); text-shadow: 0 0 16px rgba(212, 175, 55, 0.25);
+    }
+    .bidder-tag { font-family: var(--font-mono); font-size: 11px; color: var(--blue-bid); font-weight: 700; }
+
+    /* Quick Bid Increment Buttons */
+    .increments-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;
+    }
+    .btn-inc {
+      background: #2D181A; border: 1px solid var(--gold-border); color: var(--ivory);
+      border-radius: 9999px; padding: 8px 6px; font-family: var(--font-mono);
+      font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-inc:hover {
+      background: var(--gold); color: #12090A; border-color: var(--gold); transform: translateY(-1px);
+    }
+
+    /* Main Bid CTA */
+    .btn-place-bid {
+      height: 48px; background: linear-gradient(135deg, #0064D2 0%, #004FB3 100%);
+      color: #FFFFFF; border: none; border-radius: 9999px; font-size: 13px;
+      font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 8px; box-shadow: 0 6px 18px rgba(0, 100, 210, 0.4); transition: all 0.2s;
+    }
+    .btn-place-bid:hover { transform: translateY(-1px); }
+
+    /* Upcoming Lots Grid */
+    .section-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin: 24px 0 12px; border-bottom: 1px solid var(--gold-border); padding-bottom: 6px;
+    }
+    .section-head h3 { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--ivory); }
+    .section-head span { font-size: 10px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .lots-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .lot-card {
+      background: var(--mahogany-card); border: 1px solid rgba(212, 175, 55, 0.2);
+      border-radius: 6px; padding: 12px; transition: all 0.2s;
+    }
+    .lot-card:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.6); }
+    .lot-thumb {
+      height: 110px; background: #120809; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
+    }
+    .lot-card h4 { font-family: var(--font-display); font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+    .lot-meta { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; }
+    .lot-foot { display: flex; justify-content: space-between; align-items: center; }
+    .lot-estimate { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--gold); }
+    .btn-track {
+      background: transparent; border: 1px solid var(--gold-border); color: var(--ivory);
+      border-radius: 9999px; padding: 3px 10px; font-size: 10px; font-weight: 700; cursor: pointer;
+    }
+    .btn-track:hover { border-color: var(--gold); color: var(--gold); }
+
+    footer.auction-footer {
+      border-top: 1px solid var(--gold-border); padding: 20px 18px;
+      display: flex; justify-content: space-between; font-size: 10px;
+      color: var(--text-muted); margin-top: 32px;
+    }
+
+    @media (max-width: 860px) {
+      .hero-lot { grid-template-columns: 1fr; }
+      .lots-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Live Floor Status Ribbon -->
+  <div class="floor-ribbon">
+    <div class="live-indicator">
+      <span class="live-dot"></span>
+      <span>SALESROOM 01 // EVENING MARQUEE AUCTION: IMPRESSIONIST &amp; MODERN ART</span>
+    </div>
+    <div>PADDLE ID #884 ACTIVE • SALINAS SALON SALEROOM BROADCAST</div>
+  </div>
+
+  <!-- Navigation -->
+  <header class="auction-nav">
+    <div class="brand-title">
+      <div class="quad-dots">
+        <span class="quad-dot dot-blue"></span>
+        <span class="quad-dot dot-red"></span>
+        <span class="quad-dot dot-yellow"></span>
+        <span class="quad-dot dot-green"></span>
+      </div>
+      <span>AUCTION QUAD</span>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="#" class="active">Live Lots</a></li>
+      <li><a href="#">Catalogue</a></li>
+      <li><a href="#">Valuations</a></li>
+      <li><a href="#">Private Sales</a></li>
+    </ul>
+
+    <button class="paddle-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+      </svg>
+      <span>Paddle #884 Verified</span>
+    </button>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="container">
+
+    <!-- Hero Live Auction Lot Section -->
+    <section class="hero-lot">
+      
+      <!-- Artwork Visual Display -->
+      <div class="art-display">
+        <div class="lot-header-row">
+          <span class="lot-num">LOT 148 // EVENING SALE</span>
+          
+          <!-- Provenance Verification Seal -->
+          <div class="provenance-seal">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+            </svg>
+            <span>Verified Provenance Seal</span>
+          </div>
+        </div>
+
+        <!-- Ornate Museum Canvas Frame -->
+        <div class="canvas-frame-box">
+          <svg viewBox="0 0 360 250" width="100%" height="100%">
+            <defs>
+              <linearGradient id="goldMoulding" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#E5C189" />
+                <stop offset="50%" stop-color="#B8860B" />
+                <stop offset="100%" stop-color="#664614" />
+              </linearGradient>
+              <radialGradient id="mistSky" cx="50%" cy="30%" r="70%">
+                <stop offset="0%" stop-color="#E0D2C7" />
+                <stop offset="45%" stop-color="#9FA8A3" />
+                <stop offset="75%" stop-color="#596869" />
+                <stop offset="100%" stop-color="#2D3B3C" />
+              </radialGradient>
+              <linearGradient id="waterReflect" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#596869" />
+                <stop offset="60%" stop-color="#344344" />
+                <stop offset="100%" stop-color="#1B2627" />
+              </linearGradient>
+            </defs>
+
+            <!-- Ornate Beveled Outer Frame -->
+            <rect x="15" y="15" width="330" height="220" fill="none" stroke="url(#goldMoulding)" stroke-width="12" />
+            <rect x="23" y="23" width="314" height="204" fill="none" stroke="#12090A" stroke-width="3" />
+
+            <!-- Canvas Artwork (Impressionist Mist River Seine) -->
+            <rect x="26" y="26" width="308" height="198" fill="url(#mistSky)" />
+
+            <!-- Distant Misty Riverbank Trees -->
+            <path d="M26 125 Q 90 115 170 122 Q 240 112 334 125 L 334 140 L 26 140 Z" fill="#434F4F" opacity="0.8" />
+            <path d="M40 120 Q 55 90 70 120" fill="#364242" opacity="0.6" />
+            <path d="M90 122 Q 110 82 130 122" fill="#364242" opacity="0.6" />
+            <path d="M230 122 Q 250 85 270 122" fill="#364242" opacity="0.6" />
+
+            <!-- Soft Sun / Morning Mist Disc -->
+            <circle cx="190" cy="85" r="22" fill="#FCEFD2" opacity="0.75" />
+
+            <!-- River Seine Water Surface -->
+            <rect x="26" y="138" width="308" height="86" fill="url(#waterReflect)" />
+            
+            <!-- Water Reflections & Impasto Brush Strokes -->
+            <ellipse cx="190" cy="155" rx="20" ry="2" fill="#FCEFD2" opacity="0.6" />
+            <ellipse cx="190" cy="170" rx="35" ry="3" fill="#FCEFD2" opacity="0.45" />
+            <ellipse cx="190" cy="188" rx="55" ry="3" fill="#FCEFD2" opacity="0.3" />
+
+            <!-- Wooden Skiff / Rowing Boat Silhouette -->
+            <path d="M120 165 Q 145 170 170 165 Q 165 174 125 174 Z" fill="#1C140E" />
+            <line x1="144" y1="154" x2="144" y2="168" stroke="#1C140E" stroke-width="2" />
+            <circle cx="144" cy="152" r="3" fill="#1C140E" />
+
+            <!-- Brass Plaque on Bottom Frame -->
+            <rect x="110" y="224" width="140" height="15" rx="2" fill="#D4AF37" stroke="#855C1B" stroke-width="1" />
+            <text x="180" y="234" fill="#12090A" font-family="'Cormorant Garamond', serif" font-size="7.5" font-weight="700" letter-spacing="1.5" text-anchor="middle">CLAUDE MONET • 1897</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right Live Bidding Panel -->
+      <div class="bid-panel">
+        <div>
+          <!-- Countdown Urgency -->
+          <div class="timer-alert-pill">
+            <span>⏱️ BIDDING CLOSING SHORTLY</span>
+            <span class="timer-val">02m : 44s</span>
+          </div>
+
+          <h1 class="item-artist">Claude Monet (1840–1926)</h1>
+          <div class="item-art-title">Matinée Brumeuse sur la Seine, 1897</div>
+          <p class="item-provenance-desc">
+            Oil on canvas, 81.5 × 92.3 cm. Signed &amp; dated lower right. Provenance: Galerie Durand-Ruel, Paris; Collection of Arthur Sachs, New York; Private Collection, Geneva.
+          </p>
+
+          <!-- Current Bid Lockup -->
+          <div class="current-bid-card">
+            <div class="bid-label-row">
+              <span>CURRENT HIGH BID</span>
+              <span class="bidder-tag">FLOOR BIDDER #884</span>
+            </div>
+            <div class="bid-amount">$145,000</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Reserve Met • Next Acceptable Bid: $150,000</div>
+          </div>
+
+          <!-- Bid Increment Buttons [+$5k, +$10k, +$25k] -->
+          <div class="increments-row">
+            <button class="btn-inc">+ $5,000</button>
+            <button class="btn-inc">+ $10,000</button>
+            <button class="btn-inc">+ $25,000</button>
+          </div>
+        </div>
+
+        <!-- Place Bid CTA -->
+        <button class="btn-place-bid">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span>Submit Bid — $150,000 USD</span>
+        </button>
+
+      </div>
+
+    </section>
+
+    <!-- Accompanying Lots Grid -->
+    <div class="section-head">
+      <h3>Upcoming Lots in this Session</h3>
+      <span>Live Bidding Active</span>
+    </div>
+
+    <div class="lots-grid">
+      <!-- Lot 1 -->
+      <div class="lot-card">
+        <div class="lot-thumb">
+          <svg width="60" height="60" viewBox="0 0 100 100">
+            <path d="M40 85 L60 85 L64 45 L58 20 L42 20 L36 45 Z" fill="#6EE7B7" stroke="#059669" stroke-width="1.5" />
+            <ellipse cx="50" cy="20" rx="8" ry="3" fill="#A7F3D0" />
+          </svg>
+        </div>
+        <h4>Imperial Ming Celadon Vase</h4>
+        <div class="lot-meta">Lot 149 • Longquan Kilns • 14th Century</div>
+        <div class="lot-foot"><span class="lot-estimate">Est. $80,000 - $120,000</span><button class="btn-track">Track</button></div>
+      </div>
+
+      <!-- Lot 2 -->
+      <div class="lot-card">
+        <div class="lot-thumb">
+          <svg width="60" height="60" viewBox="0 0 100 100">
+            <line x1="50" y1="15" x2="50" y2="85" stroke="#92400E" stroke-width="4" stroke-linecap="round" />
+            <circle cx="50" cy="18" r="5" fill="#78350F" />
+            <line x1="42" y1="40" x2="58" y2="40" stroke="#92400E" stroke-width="2.5" />
+          </svg>
+        </div>
+        <h4>Alberto Giacometti Bronze</h4>
+        <div class="lot-meta">Lot 150 • 'Homme qui marche' Study</div>
+        <div class="lot-foot"><span class="lot-estimate">Est. $250,000 - $350,000</span><button class="btn-track">Track</button></div>
+      </div>
+
+      <!-- Lot 3 -->
+      <div class="lot-card">
+        <div class="lot-thumb">
+          <svg width="60" height="60" viewBox="0 0 100 100">
+            <rect x="30" y="20" width="40" height="58" rx="2" fill="#451A03" stroke="#D4AF37" stroke-width="1.5" />
+            <rect x="34" y="24" width="32" height="50" fill="none" stroke="#D4AF37" stroke-width="0.8" />
+          </svg>
+        </div>
+        <h4>Shakespeare First Folio 1623</h4>
+        <div class="lot-meta">Lot 151 • Complete Plays • Contemporary Calf</div>
+        <div class="lot-foot"><span class="lot-estimate">Est. $1,200,000+</span><button class="btn-track">Track</button></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="auction-footer">
+    <div>© 2026 AUCTION QUAD GROUP PLC • LONDON • NEW YORK • GENEVA • HONG KONG</div>
+    <div>AUTHENTICITY &amp; PROVENANCE GUARANTEED • LICENSED AUCTIONEERS</div>
+  </footer>
+
+</body>
+</html>

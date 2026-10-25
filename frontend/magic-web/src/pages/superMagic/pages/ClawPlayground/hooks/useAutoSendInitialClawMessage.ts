@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { useEffect, useRef, useSyncExternalStore } from "react"
 import chatWebSocket from "@/apis/clients/chatWebSocket"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"

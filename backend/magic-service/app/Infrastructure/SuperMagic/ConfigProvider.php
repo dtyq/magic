@@ -16,10 +16,13 @@ use App\Application\SuperMagic\Common\Share\Adapter\TopicShareableResource;
 use App\Application\SuperMagic\Common\Share\Factory\ShareableResourceFactory;
 use App\Application\SuperMagic\Common\Share\Service\ResourceShareAppService;
 use App\Application\SuperMagic\File\Service\FileProcessAppService;
+use App\Application\SuperMagic\File\Service\MagicFSChangePublisher;
 use App\Application\SuperMagic\Message\Service\HandleAgentMessageAppService;
 use App\Application\SuperMagic\Message\Service\MessageQueueAppService;
 use App\Application\SuperMagic\Message\Service\MessageScheduleAppService;
+use App\Application\SuperMagic\Task\Contract\SandboxRebuildPortInterface;
 use App\Application\SuperMagic\Task\Service\AgentAppService;
+use App\Application\SuperMagic\Task\Service\AgentSandboxRebuildAdapter;
 use App\Domain\SuperMagic\Agent\Repository\Facade\AgentCategoryRelationRepositoryInterface;
 use App\Domain\SuperMagic\Agent\Repository\Facade\AgentCategoryRepositoryInterface;
 use App\Domain\SuperMagic\Agent\Repository\Facade\AgentMarketRepositoryInterface;
@@ -48,17 +51,20 @@ use App\Domain\SuperMagic\Common\Share\Repository\Persistence\ResourceShareCopyL
 use App\Domain\SuperMagic\Common\Share\Repository\Persistence\ResourceShareRepository;
 use App\Domain\SuperMagic\Common\Share\Service\ResourceShareAccessLogDomainService;
 use App\Domain\SuperMagic\Common\Share\Service\ResourceShareCopyLogDomainService;
+use App\Domain\SuperMagic\File\Contract\FileTreeChangePublisherInterface;
 use App\Domain\SuperMagic\File\Repository\Facade\AudioMarkerRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Facade\AudioProjectRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Facade\BatchDownloadPackRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Facade\FileCollectionItemRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Facade\FileCollectionRepositoryInterface;
+use App\Domain\SuperMagic\File\Repository\Facade\TaskFileCleanupRecordRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Facade\TaskFileRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Facade\TaskFileVersionRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Persistence\AudioMarkerRepository;
 use App\Domain\SuperMagic\File\Repository\Persistence\AudioProjectRepository;
 use App\Domain\SuperMagic\File\Repository\Persistence\FileCollectionItemRepository;
 use App\Domain\SuperMagic\File\Repository\Persistence\FileCollectionRepository;
+use App\Domain\SuperMagic\File\Repository\Persistence\TaskFileCleanupRecordRepository;
 use App\Domain\SuperMagic\File\Repository\Persistence\TaskFileRepository;
 use App\Domain\SuperMagic\File\Repository\Persistence\TaskFileVersionRepository;
 use App\Domain\SuperMagic\File\Service\TaskFileVersionDomainService;
@@ -74,6 +80,7 @@ use App\Domain\SuperMagic\Message\Repository\Persistence\TaskMessageRepository;
 use App\Domain\SuperMagic\Message\Repository\Persistence\TokenUsageRecordRepository;
 use App\Domain\SuperMagic\Message\Service\MessageScheduleDomainService;
 use App\Domain\SuperMagic\Project\Repository\Facade\MicroAppRepositoryInterface;
+use App\Domain\SuperMagic\Project\Repository\Facade\MicroAppVisitRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectForkRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectMemberRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectMemberSettingRepositoryInterface;
@@ -81,6 +88,7 @@ use App\Domain\SuperMagic\Project\Repository\Facade\ProjectOperationLogRepositor
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Facade\TransferLogRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Persistence\MicroAppRepository;
+use App\Domain\SuperMagic\Project\Repository\Persistence\MicroAppVisitRepository;
 use App\Domain\SuperMagic\Project\Repository\Persistence\ProjectForkRepository;
 use App\Domain\SuperMagic\Project\Repository\Persistence\ProjectMemberRepository;
 use App\Domain\SuperMagic\Project\Repository\Persistence\ProjectMemberSettingRepository;
@@ -88,11 +96,13 @@ use App\Domain\SuperMagic\Project\Repository\Persistence\ProjectOperationLogRepo
 use App\Domain\SuperMagic\Project\Repository\Persistence\ProjectRepository;
 use App\Domain\SuperMagic\Project\Repository\Persistence\TransferLogRepository;
 use App\Domain\SuperMagic\Project\Service\ProjectOperationLogDomainService;
+use App\Domain\SuperMagic\Skill\Repository\Facade\SkillCategoryRelationRepositoryInterface;
 use App\Domain\SuperMagic\Skill\Repository\Facade\SkillCategoryRepositoryInterface;
 use App\Domain\SuperMagic\Skill\Repository\Facade\SkillMarketRepositoryInterface;
 use App\Domain\SuperMagic\Skill\Repository\Facade\SkillRepositoryInterface;
 use App\Domain\SuperMagic\Skill\Repository\Facade\SkillVersionRepositoryInterface;
 use App\Domain\SuperMagic\Skill\Repository\Facade\UserSkillRepositoryInterface;
+use App\Domain\SuperMagic\Skill\Repository\Persistence\SkillCategoryRelationRepository;
 use App\Domain\SuperMagic\Skill\Repository\Persistence\SkillCategoryRepository;
 use App\Domain\SuperMagic\Skill\Repository\Persistence\SkillMarketRepository;
 use App\Domain\SuperMagic\Skill\Repository\Persistence\SkillRepository;
@@ -134,6 +144,9 @@ class ConfigProvider
                 UserAiWatermarkPolicyInterface::class => DefaultUserAiWatermarkPolicy::class,
                 // 添加接口到实现类的映射
                 TaskFileRepositoryInterface::class => TaskFileRepository::class,
+                // magicfs change feed：journal 追加点只依赖 domain 端口，推送实现放在 application 层
+                FileTreeChangePublisherInterface::class => MagicFSChangePublisher::class,
+                TaskFileCleanupRecordRepositoryInterface::class => TaskFileCleanupRecordRepository::class,
                 TaskFileVersionRepositoryInterface::class => TaskFileVersionRepository::class,
                 TopicRepositoryInterface::class => TopicRepository::class,
                 TaskRepositoryInterface::class => TaskRepository::class,
@@ -147,6 +160,8 @@ class ConfigProvider
                 ProjectMemberSettingRepositoryInterface::class => ProjectMemberSettingRepository::class,
                 // 添加SandboxOS相关服务的依赖注入
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
+                // 沙箱重启编排依赖"重建单话题沙箱"的能力端口，生产实现是 AgentAppService 适配器
+                SandboxRebuildPortInterface::class => AgentSandboxRebuildAdapter::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
                 FileConverterInterface::class => FileConverterService::class,
                 BatchDownloadPackRepositoryInterface::class => BatchDownloadPackRepository::class,
@@ -204,12 +219,14 @@ class ConfigProvider
                 AudioMarkerRepositoryInterface::class => AudioMarkerRepository::class,
                 AudioProjectRepositoryInterface::class => AudioProjectRepository::class,
                 MicroAppRepositoryInterface::class => MicroAppRepository::class,
+                MicroAppVisitRepositoryInterface::class => MicroAppVisitRepository::class,
 
                 // Skill 相关 Repository
                 SkillRepositoryInterface::class => SkillRepository::class,
                 SkillVersionRepositoryInterface::class => SkillVersionRepository::class,
                 SkillMarketRepositoryInterface::class => SkillMarketRepository::class,
                 SkillCategoryRepositoryInterface::class => SkillCategoryRepository::class,
+                SkillCategoryRelationRepositoryInterface::class => SkillCategoryRelationRepository::class,
                 UserSkillRepositoryInterface::class => UserSkillRepository::class,
 
                 // recycle bin 回收站

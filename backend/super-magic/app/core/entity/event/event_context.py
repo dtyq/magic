@@ -5,11 +5,23 @@
 """
 
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.entity.attachment import Attachment
+
+
+class OutboundMessageRecord(BaseModel):
+    """一次明确投递的事实；正文展示与工具状态分开，避免修改用户正文。"""
+
+    delivery_id: str
+    channel: str
+    status: Literal["sent", "failed", "unknown"]
+    content: str = ""
+    attachments: list[Attachment] = Field(default_factory=list)
+    error_code: str = ""
+    message_id: str = ""
 
 
 class EventContext(BaseModel):
@@ -23,6 +35,10 @@ class EventContext(BaseModel):
     """
     # 预定义的上下文字段
     attachments: List[Attachment] = Field(default_factory=list)
+    outbound_messages: list[OutboundMessageRecord] = Field(default_factory=list)
+    outbound_message_ids: list[str] = Field(default_factory=list)
+    flushed_outbound_ids: set[str] = Field(default_factory=set)
+    outbound_mirror_failed: bool = False
 
     # 事件上下文的ID
     id: str = Field(default_factory=str)

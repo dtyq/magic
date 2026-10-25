@@ -2,14 +2,17 @@ import type {
 	GenerateImageRequest,
 	CanvasDesignMethods,
 	MagicPermissions,
-	GenerateHightImageRequest,
 	ImageGenerationTaskMeta,
 	IdentifyImageMarkResponse,
 	GenerateVideoRequest,
 	VideoGenerationResultMeta,
 	GenerationStatus,
+	CanvasAssetComplianceStatus,
+	StoredVideoEditorDraft,
 } from "../../public/magic-types"
 import type { TFunction } from "../../public/i18n-types"
+import type { CanvasAccessMode, CanvasCapability } from "../../public/props"
+import type { NameLabelIconResolver } from "../interaction/labels/nameLabelTypes"
 
 /** 裁剪矩形配置 */
 export interface CropConfig {
@@ -44,6 +47,8 @@ export interface ExtendFrameConfig {
 
 /** 扩展编辑态会话数据 */
 export interface ExtendSession {
+	/** 进入扩展会话时锁定的图片 Content，避免异步确认写错版本。 */
+	contentId?: string
 	frame: ExtendFrameConfig
 }
 
@@ -71,8 +76,8 @@ export interface CanvasConfig {
 	scopeElement?: HTMLElement
 	/** 设计项目 ID，用于隔离画布级缓存、SW 离线资源与跨画布粘贴校验 */
 	id: string
-	/** 默认只读模式 */
-	defaultReadyonly?: boolean
+	accessMode?: CanvasAccessMode
+	capabilities?: Partial<Record<CanvasCapability, boolean>>
 	/** Magic 配置 */
 	magic?: {
 		methods?: CanvasDesignMethods
@@ -80,6 +85,8 @@ export interface CanvasConfig {
 	}
 	/** Plugin configuration injected by the host application. */
 	plugins?: CanvasDesignPluginModuleConfig
+	/** 可选的名称标签图标 resolver；不传时名称标签保持纯文本。 */
+	nameLabelIconResolver?: NameLabelIconResolver
 	/** 获取设备形态、布局和输入能力，如果未提供则使用默认检测 */
 	getDevice?: () => CanvasDeviceInfo
 	/** 翻译函数 */
@@ -94,6 +101,7 @@ export const ToolTypeEnum = {
 	Frame: "frame", // 画框
 	ImageGenerator: "image-generator", // 图像生成
 	VideoGenerator: "video-generator", // 视频生成
+	AudioGenerator: "audio-generator", // 音频生成
 	Marker: "Marker", // 标记
 	Rect: "rect", // 矩形形状
 	Ellipse: "ellipse", // 圆形形状
@@ -130,10 +138,20 @@ export const ElementTypeEnum = {
 	Star: "star",
 	/** 视频 */
 	Video: "video",
+	/** 音频 */
+	Audio: "audio",
+	/** 分镜 */
+	Storyboard: "storyboard",
+	/** 视频编辑 */
+	VideoEdit: "video-edit",
 } as const
 
 /** 元素类型 */
 export type ElementType = (typeof ElementTypeEnum)[keyof typeof ElementTypeEnum]
+
+/** 可直接替换资源的画布媒体元素类型。 */
+export type MediaElementType =
+	typeof ElementTypeEnum.Image | typeof ElementTypeEnum.Video | typeof ElementTypeEnum.Audio
 
 /** 边框位置类型 */
 export type StrokePosition = "inside" | "center" | "outside"
@@ -188,23 +206,40 @@ export interface BaseElementProps {
 	interactionConfig?: InteractionConfig
 }
 
+/** 节点内容的最小公共结构。内容类型由所属 Element 的顶层 type 决定。 */
+export interface ElementContentBase {
+	contentId: string
+}
+
+/** 所有 v3 节点统一使用的内容容器结构。 */
+export interface ContentElementProps<TContent extends ElementContentBase> extends BaseElementProps {
+	/** 当前渲染和编辑的内容 */
+	activeContentId: string | null
+	/** 提供给连接、导出和下游任务的稳定内容 */
+	mainContentId: string | null
+	/** 按创建顺序保存的内容列表 */
+	contents: TContent[]
+}
+
+export interface FrameElementContent extends ElementContentBase {}
+
+export interface GroupElementContent extends ElementContentBase {}
+
 /** 画框元素 */
-export interface FrameElement extends BaseElementProps {
+export interface FrameElement extends ContentElementProps<FrameElementContent> {
 	type: typeof ElementTypeEnum.Frame
 	/** 子元素 */
 	children?: LayerElement[]
 }
 
 /** 组元素 */
-export interface GroupElement extends BaseElementProps {
+export interface GroupElement extends ContentElementProps<GroupElementContent> {
 	type: typeof ElementTypeEnum.Group
 	/** 子元素 */
 	children?: LayerElement[]
 }
 
-/** 矩形元素 */
-export interface RectangleElement extends BaseElementProps {
-	type: typeof ElementTypeEnum.Rectangle
+export interface ShapeElementContent extends ElementContentBase {
 	/** 填充色 */
 	fill?: string
 	/** 描边色 */
@@ -215,43 +250,31 @@ export interface RectangleElement extends BaseElementProps {
 	cornerRadius?: number
 }
 
+/** 矩形元素 */
+export interface RectangleElement extends ContentElementProps<ShapeElementContent> {
+	type: typeof ElementTypeEnum.Rectangle
+}
+
 /** 星形元素 */
-export interface StarElement extends BaseElementProps {
-	type: typeof ElementTypeEnum.Star
-	/** 填充色 */
-	fill?: string
-	/** 描边色 */
-	stroke?: string
-	/** 描边宽度 */
-	strokeWidth?: number
-	/** 圆角半径 */
-	cornerRadius?: number
+export interface StarElementContent extends ShapeElementContent {
 	/** 边数 */
 	sides?: number
 	/** 内凹比例（0-1） */
 	innerRadiusRatio?: number
 }
 
+export interface StarElement extends ContentElementProps<StarElementContent> {
+	type: typeof ElementTypeEnum.Star
+}
+
 /** 圆形元素 */
-export interface EllipseElement extends BaseElementProps {
+export interface EllipseElement extends ContentElementProps<ShapeElementContent> {
 	type: typeof ElementTypeEnum.Ellipse
-	/** 填充色 */
-	fill?: string
-	/** 描边色 */
-	stroke?: string
-	/** 描边宽度 */
-	strokeWidth?: number
 }
 
 /** 三角形元素 */
-export interface TriangleElement extends BaseElementProps {
+export interface TriangleElement extends ContentElementProps<ShapeElementContent> {
 	type: typeof ElementTypeEnum.Triangle
-	/** 填充色 */
-	fill?: string
-	/** 描边色 */
-	stroke?: string
-	/** 描边宽度 */
-	strokeWidth?: number
 }
 
 /** 富文本样式 */
@@ -305,20 +328,40 @@ export interface RichTextParagraph {
 	}
 }
 
-/** 文本元素 */
-export interface TextElement extends BaseElementProps {
-	type: typeof ElementTypeEnum.Text
+export interface TextElementContent extends ElementContentBase {
 	/** 富文本内容（段落数组） */
 	content?: RichTextParagraph[]
 	/** 默认文本样式（作为基础样式） */
 	defaultStyle?: TextStyle
 }
 
-/** 图片元素 */
-export interface ImageElement extends BaseElementProps {
-	type: typeof ElementTypeEnum.Image
+/** 文本元素 */
+export interface TextElement extends ContentElementProps<TextElementContent> {
+	type: typeof ElementTypeEnum.Text
+}
+
+/** 图片节点中可独立切换的内容 */
+export interface ImageElementContent extends ElementContentBase {
+	/** 人工废稿标记，仅属于此版本，不改变生成状态或主版本。 */
+	discarded?: boolean
+	/** 只用于等待超时展示，不改变后端生成状态；任务更换时独立计时。 */
+	generationTiming?: {
+		startedAt: number
+		imageId?: string
+		source: "submitted" | "server" | "observed"
+	}
+	/** 大模型对当前图片 Content 的理解结果；重字段由 sidecar 拆分保存。 */
+	visualUnderstanding?: unknown
 	/** 图片源(用来换取 ossSrc 的临时 path) */
 	src?: string
+	/** 当前图片 Content 绑定的素材库资产 ID；不替代 src。 */
+	assetId?: string
+	/** 未绑定素材时，元素自己记录的合规状态。已绑定 assetId 后以素材服务为准。 */
+	complianceStatus?: CanvasAssetComplianceStatus
+	/** 未绑定素材时的合规失败原因。 */
+	complianceFailedReason?: string | null
+	/** 旧版 workspace 合规流程的检查字段；新流程创建素材后统一写入 assetId。 */
+	complianceCheckId?: string
 	/** 状态 */
 	status?: GenerationStatus
 	/** 错误信息 */
@@ -327,17 +370,27 @@ export interface ImageElement extends BaseElementProps {
 	generateImageRequest?: GenerateImageRequest
 	/** 图片生成任务元数据（用于高清放大 / 去背景 / 橡皮擦 / 扩图） */
 	imageGenerationTaskMeta?: ImageGenerationTaskMeta
-	/** @deprecated 仅用于兼容旧版高清放大数据，新的持久化请使用 imageGenerationTaskMeta */
-	generateHightImageRequest?: GenerateHightImageRequest
 	/** 源图裁剪区域 */
 	crop?: CropConfig
 }
 
-/** 视频元素 */
-export interface VideoElement extends BaseElementProps {
-	type: typeof ElementTypeEnum.Video
+export interface ImageElement extends ContentElementProps<ImageElementContent> {
+	type: typeof ElementTypeEnum.Image
+}
+
+export interface VideoElementContent extends ElementContentBase {
+	/** 大模型对当前视频 Content 的理解结果；重字段由 sidecar 拆分保存。 */
+	visualUnderstanding?: unknown
 	/** 视频源(用来换取 ossSrc 的临时 path) */
 	src?: string
+	/** 当前视频 Content 绑定的素材库资产 ID；不替代 src。 */
+	assetId?: string
+	/** 未绑定素材时，元素自己记录的合规状态。已绑定 assetId 后以素材服务为准。 */
+	complianceStatus?: CanvasAssetComplianceStatus
+	/** 未绑定素材时的合规失败原因。 */
+	complianceFailedReason?: string | null
+	/** 旧版 workspace 合规流程的检查字段；新流程创建素材后统一写入 assetId。 */
+	complianceCheckId?: string
 	/** 视频状态 */
 	status?: GenerationStatus
 	/** 错误信息 */
@@ -346,12 +399,84 @@ export interface VideoElement extends BaseElementProps {
 	// poster?: string
 	/** 视频生成请求参数（请求成功后保存） */
 	generateVideoRequest?: GenerateVideoRequest
+	/** 未提交的视频编辑配置，用于重新打开画布后恢复输入。 */
+	videoEditorDraft?: StoredVideoEditorDraft
 	/** 视频生成结果元信息（计费、生成参数与运行时间） */
 	videoGenerationResultMeta?: VideoGenerationResultMeta
 }
 
-/** 可上传/下载的文件类元素（图片、视频等），用于 uploadFiles / downloadFiles 等接口 */
-export type CanvasFileElement = ImageElement | VideoElement
+/** 视频元素 */
+export interface VideoElement extends ContentElementProps<VideoElementContent> {
+	type: typeof ElementTypeEnum.Video
+}
+
+export interface AudioElementContent extends ElementContentBase {
+	/** 音频源（用来换取可播放 URL 的临时 path） */
+	src?: string
+	/** 当前音频 Content 绑定的素材库资产 ID；不替代 src。 */
+	assetId?: string
+}
+
+/** 音频元素（仅支持上传资源，不持久化播放或上传状态） */
+export interface AudioElement extends ContentElementProps<AudioElementContent> {
+	type: typeof ElementTypeEnum.Audio
+}
+
+/** 分镜单镜头 */
+export interface StoryboardShot {
+	/** 镜头唯一标识 */
+	id: string
+	/** 画面描述 */
+	description: string
+	/** 稳定关联的输出图片元素 ID；缺省表示尚未创建输出元素 */
+	outputImageElementId?: string
+}
+
+/** 分镜统一使用的图片生成配置 */
+export type StoryboardGenerationConfig = Pick<
+	GenerateImageRequest,
+	"model_id" | "size" | "resolution" | "image_generation_config"
+>
+
+export interface StoryboardElementContent extends ElementContentBase {
+	/** 对全部分镜生效的图片生成配置 */
+	generationConfig?: StoryboardGenerationConfig
+	/** 按展示顺序保存的分镜列表；文档校验与元素工厂会保证运行态存在 */
+	shots?: StoryboardShot[]
+}
+
+/** 分镜元素 */
+export interface StoryboardElement extends ContentElementProps<StoryboardElementContent> {
+	type: typeof ElementTypeEnum.Storyboard
+}
+
+export interface VideoEditElementContent extends ElementContentBase {
+	/** 按编辑顺序排列的视频元素 ID；成员资格仍由 CanvasConnection 表达。 */
+	videoSequence?: string[]
+	/** 按编辑顺序排列的音频元素 ID；成员资格仍由 CanvasConnection 表达。 */
+	audioSequence?: string[]
+}
+
+/** 视频编辑节点；输入成员由 CanvasConnection 表达，顺序由 Content 中的 sequence 表达。 */
+export interface VideoEditElement extends ContentElementProps<VideoEditElementContent> {
+	type: typeof ElementTypeEnum.VideoEdit
+}
+
+/** 所有节点 Content 的联合类型；Content 本身不重复保存节点 type。 */
+export type ElementContent =
+	| FrameElementContent
+	| GroupElementContent
+	| ShapeElementContent
+	| StarElementContent
+	| TextElementContent
+	| ImageElementContent
+	| VideoElementContent
+	| AudioElementContent
+	| StoryboardElementContent
+	| VideoEditElementContent
+
+/** 可上传/下载的文件类元素（图片、视频、音频），用于 uploadFiles / downloadFiles 等接口 */
+export type CanvasFileElement = ImageElement | VideoElement | AudioElement
 
 /** 图层元素联合类型 */
 export type LayerElement =
@@ -364,6 +489,34 @@ export type LayerElement =
 	| TextElement
 	| ImageElement
 	| VideoElement
+	| AudioElement
+	| StoryboardElement
+	| VideoEditElement
+
+/**
+ * ElementManager 的业务更新契约。
+ *
+ * 外壳字段直接合并到 Element；Content 业务字段由 ElementManager 路由到提交时的
+ * active Content。id/type 不属于该类型，运行时仍会防御 JavaScript 调用绕过类型的情况。
+ */
+export type ElementUpdatePatch = Partial<Omit<BaseElementProps, "id" | "type">> &
+	Partial<
+		Pick<
+			ContentElementProps<ElementContentBase>,
+			"contents" | "activeContentId" | "mainContentId"
+		>
+	> & {
+		children?: LayerElement[]
+	} & Partial<
+		Omit<ImageElementContent, "contentId"> &
+			Omit<VideoElementContent, "contentId"> &
+			Omit<AudioElementContent, "contentId"> &
+			Omit<TextElementContent, "contentId"> &
+			Omit<ShapeElementContent, "contentId"> &
+			Omit<StarElementContent, "contentId"> &
+			Omit<StoryboardElementContent, "contentId"> &
+			Omit<VideoEditElementContent, "contentId">
+	>
 
 /** 视口状态 */
 export interface ViewportState {
@@ -394,6 +547,8 @@ export interface MarkerCommon {
 	filePath?: string
 	/** 关联的元素ID */
 	elementId: string
+	/** Marker 创建时绑定的图片 Content ID */
+	contentId?: string
 	/** 标记创建/更新时对应的图片裁剪信息 */
 	elementCrop?: CropConfigWithoutDisplaySize
 	/** 标记在元素内的相对X位置（0-1，相对于元素宽度的比例） */

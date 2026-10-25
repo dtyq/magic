@@ -9,7 +9,7 @@
 		0 2px 0 #d2d2cf,
 		0 5px 0 #a4a5a1,
 		0 8px 0 #686b67,
-		0 16px 22px -10px rgba(29, 33, 36, 0.34),
+		0 16px 26px -12px rgba(29, 33, 36, 0.28),
 		inset 0 1px 0 rgba(255, 255, 255, 0.95),
 		inset 0 0 0 3px rgba(255, 255, 255, 0.48),
 		inset 3px 0 0 rgba(255, 255, 255, 0.32),
@@ -31,7 +31,8 @@
 		0 3px 0 #cacac7,
 		0 6px 0 #878985,
 		0 10px 0 #4e514e,
-		0 22px 30px -10px rgba(29, 33, 36, 0.46) !important;
+		0 20px 30px -12px rgba(29, 33, 36, 0.32),
+		0 0 24px rgba(255, 255, 255, 0.5) !important;
 }
 
 :global(.dark) .retroEnterKeyScope {
@@ -466,6 +467,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.retroEnterKeyScope {
+		transition: none;
+	}
+
 	.retroEnterKeyScope :global([data-testid="super-message-editor-header"] button),
 	.retroEnterKeyScope :global([data-testid="super-message-editor-toolbar"] button),
 	.retroEnterKeyScope :global([data-testid="super-message-editor-model-switch-mobile"]) {

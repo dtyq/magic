@@ -1,11 +1,9 @@
 import { Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { LoginValueKey } from "@/pages/login/constants"
-import { buildLoginRedirectSearchParams } from "@/pages/login/utils/loginRedirect"
-import { RouteName } from "@/routes/constants"
-import { convertSearchParams } from "@/routes/history/helpers"
 import useNavigate from "@/routes/hooks/useNavigate"
+import { authEventBus } from "@/services/auth/AuthEventBus"
+import { AuthEventName } from "@/services/auth/AuthEvents"
 import type { CrewConversationStatus } from "../store/root-store"
 
 interface CrewStateViewProps {
@@ -17,20 +15,16 @@ interface CrewStateViewProps {
 export default function CrewStateView({ status, onRetry }: CrewStateViewProps) {
 	const { t } = useTranslation("crew/market")
 	const navigate = useNavigate()
-	/** Opens the login page while preserving the Crew page as the post-login destination. */
+	/**
+	 * Requests authentication recovery through the auth domain so login routing
+	 * and return-url handling remain centralized for every business entrypoint.
+	 */
 	const handleRelogin = () => {
-		const redirectUrl = new URL(window.location.href).searchParams.get(
-			LoginValueKey.REDIRECT_URL,
-		)
-		navigate({
-			name: RouteName.Login,
-			query: convertSearchParams(
-				buildLoginRedirectSearchParams({
-					currentHref: window.location.href,
-					redirectTarget: redirectUrl ?? window.location.href,
-				}),
-			),
-			replace: true,
+		authEventBus.emit(AuthEventName.RequestLogin, {
+			reason: "manual",
+			source: "crew",
+			returnTo: window.location.href,
+			preserveQuery: true,
 		})
 	}
 

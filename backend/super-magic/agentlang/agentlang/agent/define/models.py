@@ -44,10 +44,15 @@ class SkillsConfig:
     preload: List[SkillPreloadEntry] = field(default_factory=list)
 
     def is_empty(self) -> bool:
+        """
+        仅声明 preload 也表示需要 Skill；否则会被当作空配置，连预加载文件都不会去发现。
+        例：配置只写 memory 的 SKILL.md，不必再重复列一次同名 system_skills。
+        """
         return (
             not self.system_skills
             and not self.crew_skills
             and not self.workspace_skills
+            and not self.preload
         )
 
     def get_system_skill_names(self) -> List[str]:

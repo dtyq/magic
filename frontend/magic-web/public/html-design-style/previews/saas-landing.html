@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forma — High-Converting Workflow Platform for Modern Software Teams</title>
+  <style>
+    :root {
+      --primary: #2d6a4f;
+      --primary-hover: #245f47;
+      --primary-light: #e5f1eb;
+      --primary-mid: #c4dece;
+      --primary-text: #163d2c;
+      --bg: #f8f7f5;
+      --surface: #ffffff;
+      --border: #e4e1db;
+      --border-subtle: #edeae4;
+      --border-strong: #d2cfc8;
+      --text-primary: #18170f;
+      --text-secondary: #64625c;
+      --text-tertiary: #9c9a96;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 14px;
+      --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'DM Mono', Consolas, Menlo, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text-primary);
+      font-family: var(--font-sans); font-size: 15px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Top Nav */
+    .forma-nav {
+      height: 64px; background: rgba(248, 247, 245, 0.9); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center;
+      justify-content: space-between; padding: 0 40px; position: sticky; top: 0; z-index: 100;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 32px; }
+    .brand-logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px; letter-spacing: -0.3px; }
+    .brand-mark { width: 22px; height: 22px; border-radius: 5px; background: var(--primary); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; }
+    .nav-links { display: flex; gap: 24px; list-style: none; font-size: 14px; font-weight: 400; color: var(--text-secondary); }
+    .nav-links a:hover { color: var(--text-primary); }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+
+    /* Buttons */
+    .btn {
+      font-size: 13.5px; font-weight: 500; padding: 9px 18px; border-radius: var(--radius-lg);
+      border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--primary); color: #ffffff;
+      box-shadow: 0 2px 8px rgba(45, 106, 79, 0.25);
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost {
+      background: transparent; color: var(--text-primary); border-color: var(--border);
+    }
+    .btn-ghost:hover { background: var(--surface); border-color: var(--border-strong); }
+
+    /* Hero Section (Dense First 500px Impact) */
+    .hero-wrap {
+      max-width: 1200px; margin: 0 auto; padding: 48px 32px 32px; text-align: center;
+    }
+    .announcement-pill {
+      display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 9999px;
+      font-size: 12.5px; font-weight: 400; color: var(--text-secondary); margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .pill-tag {
+      background: var(--primary-light); color: var(--primary-text); font-family: var(--font-mono);
+      font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 9999px;
+    }
+    .hero-headline {
+      font-size: clamp(38px, 5.5vw, 64px); font-weight: 300; line-height: 1.07;
+      letter-spacing: -0.02em; color: var(--text-primary); margin-bottom: 18px;
+    }
+    .hero-headline strong { font-weight: 500; }
+    .hero-sub {
+      font-size: 18px; font-weight: 300; line-height: 1.6; color: var(--text-secondary);
+      max-width: 680px; margin: 0 auto 28px;
+    }
+    .hero-cta-group { display: flex; justify-content: center; gap: 12px; align-items: center; margin-bottom: 40px; }
+
+    /* Interactive Feature Demo Widget (App Frame Preview) */
+    .demo-frame {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.05); overflow: hidden; text-align: left;
+      margin-bottom: 48px;
+    }
+    .frame-top-bar {
+      height: 40px; background: #faf9f7; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+    }
+    .window-dots { display: flex; gap: 6px; }
+    .window-dot { width: 10px; height: 10px; border-radius: 50%; background: #e0ded8; }
+    .frame-address {
+      font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary);
+      background: #fff; padding: 3px 12px; border-radius: 4px; border: 1px solid var(--border-subtle);
+    }
+
+    /* Inner Workflow Builder Visual */
+    .workflow-canvas {
+      padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    .flow-step-stack { display: flex; flex-direction: column; gap: 10px; }
+    .flow-node {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .flow-node.active-step {
+      background: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(45, 106, 79, 0.1);
+    }
+    .node-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+    .node-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+    .node-badge {
+      font-family: var(--font-mono); font-size: 10px; padding: 2px 6px; border-radius: 4px;
+      background: var(--primary-light); color: var(--primary-text); font-weight: 600;
+    }
+
+    .telemetry-preview {
+      background: #faf9f7; border: 1px solid var(--border-subtle); border-radius: 8px;
+      padding: 16px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .telemetry-head { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px; }
+
+    /* Customer Proof Logo Carousel */
+    .proof-section { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 36px 32px; background: #fff; text-align: center; }
+    .proof-heading { font-family: var(--font-mono); font-size: 11.5px; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 1px; margin-bottom: 22px; }
+    .logo-carousel { display: flex; justify-content: center; gap: 48px; align-items: center; flex-wrap: wrap; }
+    .brand-logo-item { font-size: 18px; font-weight: 700; color: var(--text-secondary); opacity: 0.75; letter-spacing: -0.5px; }
+
+    /* Interactive Pricing Toggle & 3 Tiers */
+    .pricing-section { max-width: 1160px; margin: 60px auto; padding: 0 32px; text-align: center; }
+    .pricing-toggle-wrap { display: inline-flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 9999px; padding: 4px; margin-bottom: 40px; }
+    .toggle-btn { padding: 6px 16px; border-radius: 9999px; font-size: 13px; font-weight: 500; cursor: pointer; }
+    .toggle-btn.active { background: var(--primary); color: #fff; }
+    .save-pill { background: var(--primary-light); color: var(--primary-text); font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 9999px; }
+
+    .pricing-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: left; }
+    .price-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl);
+      padding: 28px; display: flex; flex-direction: column; position: relative;
+    }
+    .price-card.featured {
+      border: 2px solid var(--primary); box-shadow: 0 8px 24px rgba(45, 106, 79, 0.08);
+    }
+    .card-top-tag {
+      position: absolute; top: -12px; left: 24px; background: var(--primary); color: #fff;
+      font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 9999px;
+    }
+    .tier-title { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+    .tier-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+    .tier-amount { font-size: 38px; font-weight: 300; line-height: 1; color: var(--text-primary); margin-bottom: 4px; }
+    .tier-amount span { font-size: 14px; font-weight: 400; color: var(--text-secondary); }
+    .tier-features { list-style: none; margin: 20px 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--text-secondary); }
+    .tier-features li { display: flex; align-items: center; gap: 8px; }
+    .tier-features li::before { content: '✓'; color: var(--primary); font-weight: 700; }
+
+    /* Footer */
+    .forma-footer { border-top: 1px solid var(--border); padding: 36px 40px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-secondary); }
+
+    @media (max-width: 900px) {
+      .workflow-canvas, .pricing-cards-grid { grid-template-columns: 1fr; }
+      .logo-carousel { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="forma-nav">
+    <div class="nav-brand">
+      <div class="brand-logo">
+        <div class="brand-mark">F</div>
+        <span>Forma</span>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#demo">Interactive Demo</a></li>
+        <li><a href="#proof">Customers</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+      </ul>
+    </div>
+    <div class="nav-actions">
+      <a href="#login" style="font-size: 13.5px; color: var(--text-secondary); margin-right: 6px;">Sign In</a>
+      <button class="btn btn-primary">Start Free Trial</button>
+    </div>
+  </header>
+
+  <!-- Hero Section (First 500px High-Converting Viewport) -->
+  <section class="hero-wrap">
+    <div class="announcement-pill">
+      <span class="pill-tag">NEW</span>
+      <span>Announcing Forma 2.0: AI-Assisted Workflow Automation</span>
+      <span style="color: var(--primary); font-weight: 600;">Explore &rarr;</span>
+    </div>
+
+    <h1 class="hero-headline">
+      Software architecture designed for<br><strong>speed and clarity.</strong>
+    </h1>
+    <p class="hero-sub">
+      Automate mission-critical workflows, synchronize data pipelines across distributed stacks, and monitor runtime telemetry with zero configuration overhead.
+    </p>
+
+    <div class="hero-cta-group">
+      <button class="btn btn-primary" style="padding: 12px 24px; font-size: 14.5px;">
+        Start Free 14-Day Trial
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <button class="btn btn-ghost" style="padding: 12px 22px; font-size: 14.5px;">Book Product Demo</button>
+    </div>
+
+    <!-- Interactive Feature Demo Widget (Application Preview) -->
+    <div class="demo-frame" id="demo">
+      <div class="frame-top-bar">
+        <div class="window-dots">
+          <div class="window-dot"></div>
+          <div class="window-dot"></div>
+          <div class="window-dot"></div>
+        </div>
+        <div class="frame-address">https://app.forma.dev/workflows/wf_9824_sync</div>
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--primary); font-weight: 600;">● Active 100%</div>
+      </div>
+
+      <div class="workflow-canvas">
+        <div class="flow-step-stack">
+          <div class="flow-node">
+            <div>
+              <div class="node-title">1. Webhook Trigger</div>
+              <div class="node-meta">Stripe Checkout Session Completed</div>
+            </div>
+            <span class="node-badge">2ms</span>
+          </div>
+
+          <div class="flow-node active-step">
+            <div>
+              <div class="node-title">2. AI Entity Extraction & Enrichment</div>
+              <div class="node-meta">Gemini Flash · Schema Validation Passed</div>
+            </div>
+            <span class="node-badge" style="background: #2d6a4f; color: #fff;">Running (8ms)</span>
+          </div>
+
+          <div class="flow-node">
+            <div>
+              <div class="node-title">3. Multi-Region Database Commit</div>
+              <div class="node-meta">PostgreSQL Managed Node (us-east & eu-west)</div>
+            </div>
+            <span class="node-badge">Queued</span>
+          </div>
+        </div>
+
+        <div class="telemetry-preview">
+          <div>
+            <div class="telemetry-head">Runtime Execution Telemetry</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+              <div style="background: #fff; padding: 10px; border-radius: 6px; border: 1px solid var(--border-subtle);">
+                <div style="font-size: 10px; color: var(--text-tertiary);">EXECUTION LATENCY</div>
+                <div style="font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--primary);">12.4 ms</div>
+              </div>
+              <div style="background: #fff; padding: 10px; border-radius: 6px; border: 1px solid var(--border-subtle);">
+                <div style="font-size: 10px; color: var(--text-tertiary);">ERROR RATE</div>
+                <div style="font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: #10B981;">0.00%</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary);">
+            Status: <strong>All 14 unit test assertions verified</strong>. Ready for instant promotion.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Customer Proof Logo Carousel -->
+  <section class="proof-section" id="proof">
+    <div class="proof-heading">Trusted by engineering leaders at global technology companies</div>
+    <div class="logo-carousel">
+      <div class="brand-logo-item">Stripe</div>
+      <div class="brand-logo-item">Linear</div>
+      <div class="brand-logo-item">Vercel</div>
+      <div class="brand-logo-item">Supabase</div>
+      <div class="brand-logo-item">Retool</div>
+      <div class="brand-logo-item">Figma</div>
+    </div>
+  </section>
+
+  <!-- Interactive Pricing Section -->
+  <section class="pricing-section" id="pricing">
+    <h2 style="font-size: 32px; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 8px;">
+      Predictable pricing for teams of any scale.
+    </h2>
+    <p style="font-size: 15px; color: var(--text-secondary); margin-bottom: 24px;">
+      No surprise usage bills. Upgrade or downgrade anytime with prorated billing.
+    </p>
+
+    <!-- Pricing Toggle -->
+    <div class="pricing-toggle-wrap">
+      <div class="toggle-btn">Monthly</div>
+      <div class="toggle-btn active">Annual Billing <span class="save-pill">Save 20%</span></div>
+    </div>
+
+    <!-- 3 Tiers -->
+    <div class="pricing-cards-grid">
+      <!-- Tier 1 -->
+      <div class="price-card">
+        <div class="tier-title">Starter</div>
+        <div class="tier-desc">Essential workflow automation for fast-moving early stage founders.</div>
+        <div class="tier-amount">$24 <span>/ mo</span></div>
+        <ul class="tier-features">
+          <li>Up to 50,000 monthly executions</li>
+          <li>10 concurrent workflow nodes</li>
+          <li>Community Discord & standard SLA</li>
+          <li>14-day execution audit history</li>
+        </ul>
+        <button class="btn btn-ghost" style="margin-top: auto; width: 100%; justify-content: center;">Start Free Trial</button>
+      </div>
+
+      <!-- Tier 2 (Featured) -->
+      <div class="price-card featured">
+        <div class="card-top-tag">MOST POPULAR</div>
+        <div class="tier-title">Growth</div>
+        <div class="tier-desc">Advanced pipelines and AI features for scaling engineering organizations.</div>
+        <div class="tier-amount" style="color: var(--primary);">$64 <span>/ mo</span></div>
+        <ul class="tier-features">
+          <li><strong>500,000 monthly executions</strong></li>
+          <li><strong>50 concurrent workflow nodes</strong></li>
+          <li>AI enrichment models (Gemini Flash)</li>
+          <li>Priority 24/7 engineering support</li>
+          <li>SOC 2 Type II compliance export</li>
+        </ul>
+        <button class="btn btn-primary" style="margin-top: auto; width: 100%; justify-content: center;">Get Started</button>
+      </div>
+
+      <!-- Tier 3 -->
+      <div class="price-card">
+        <div class="tier-title">Enterprise</div>
+        <div class="tier-desc">Dedicated infrastructure, SAML SSO, and custom VPC deployments.</div>
+        <div class="tier-amount">$199 <span>/ mo</span></div>
+        <ul class="tier-features">
+          <li>Unlimited workflow executions</li>
+          <li>Dedicated VPC & custom region</li>
+          <li>Okta & Azure AD SAML 2.0 SSO</li>
+          <li>Dedicated Customer Success Manager</li>
+          <li>99.99% Uptime SLA guarantee</li>
+        </ul>
+        <button class="btn btn-ghost" style="margin-top: auto; width: 100%; justify-content: center;">Talk to Sales</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="forma-footer">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div class="brand-mark" style="width: 18px; height: 18px; font-size: 9px;">F</div>
+      <span style="font-weight: 600; color: var(--text-primary);">Forma Systems Inc.</span>
+      <span>&copy; 2026. All rights reserved.</span>
+    </div>
+    <div style="display: flex; gap: 20px;">
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#terms">Terms of Service</a>
+      <a href="#security">Security</a>
+      <a href="#status">System Status</a>
+    </div>
+  </footer>
+
+</body>
+</html>

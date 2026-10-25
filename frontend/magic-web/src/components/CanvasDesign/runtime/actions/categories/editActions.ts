@@ -1,19 +1,37 @@
-import type { UserAction, EditActionOptions } from "../types"
+import type {
+	UserAction,
+	EditActionOptions,
+	DuplicateActionOptions,
+	DeleteImageFileActionOptions,
+} from "../types"
 import { ElementTypeEnum } from "../../document/types"
+import { selectionContainsReplacingMedia } from "../mediaReplacementGuards"
+import { canDeleteSelectedImageFile, executeDeleteImageFile } from "../imageFileDeletion"
 
 /**
  * 编辑操作相关的用户动作
  */
 export const editActions: UserAction[] = [
 	{
+		id: "edit.duplicate",
+		category: "edit",
+		canExecute: (canvas, options?: DuplicateActionOptions) =>
+			canvas.clipboardManager.canDuplicate(options?.elementIds),
+		execute: async (canvas, options?: DuplicateActionOptions) => {
+			await canvas.clipboardManager.duplicate(options?.elementIds)
+		},
+	} satisfies UserAction<"edit.duplicate", DuplicateActionOptions>,
+	{
 		id: "edit.copy",
 		category: "edit",
 		canExecute: (canvas) => {
+			if (!canvas.permissionManager.can("sideEffect.copy")) return false
 			// 必须有选中的元素
 			const selectedIds = canvas.selectionManager.getSelectedIds()
 			return selectedIds.length > 0
 		},
 		execute: (canvas) => {
+			if (!canvas.permissionManager.can("sideEffect.copy")) return
 			canvas.clipboardManager.copy()
 		},
 	},
@@ -21,8 +39,10 @@ export const editActions: UserAction[] = [
 		id: "edit.copy-png",
 		category: "edit",
 		canExecute: (canvas) => {
+			if (!canvas.permissionManager.can("sideEffect.copy")) return false
 			const selectedIds = canvas.selectionManager.getSelectedIds()
 			if (selectedIds.length === 0) return false
+			if (selectionContainsReplacingMedia(canvas)) return false
 			// 检查是否所有选中元素都支持PNG导出
 			const selectedElements = selectedIds.map((id) => {
 				const element = canvas.elementManager.getElementData(id)
@@ -43,8 +63,9 @@ export const editActions: UserAction[] = [
 			return allowed
 		},
 		execute: async (canvas) => {
+			if (!canvas.permissionManager.can("sideEffect.copy")) return
 			const selectedIds = canvas.selectionManager.getSelectedIds()
-			if (selectedIds.length > 0) {
+			if (selectedIds.length > 0 && !selectionContainsReplacingMedia(canvas)) {
 				await canvas.clipboardManager.copyElementsAsPNG(selectedIds)
 			}
 		},
@@ -54,7 +75,7 @@ export const editActions: UserAction[] = [
 		category: "edit",
 		canExecute: (canvas) => {
 			// 非只读模式下可以粘贴
-			return !canvas.readonly
+			return canvas.permissionManager.can("document.write")
 		},
 		execute: async (canvas, options?: EditActionOptions) => {
 			// 两条入口都会走到这里：
@@ -70,7 +91,7 @@ export const editActions: UserAction[] = [
 		id: "edit.delete",
 		category: "edit",
 		canExecute: (canvas) => {
-			if (canvas.readonly) return false
+			if (!canvas.permissionManager.can("document.delete")) return false
 			if (canvas.connectionManager.hasSelectedConnection()) return true
 
 			// 非只读模式且有选中的元素
@@ -90,11 +111,20 @@ export const editActions: UserAction[] = [
 		},
 	},
 	{
+		id: "edit.delete-image-file",
+		category: "edit",
+		canExecute: (canvas, options?: DeleteImageFileActionOptions) =>
+			canDeleteSelectedImageFile(canvas, options),
+		execute: (canvas, options?: DeleteImageFileActionOptions) => {
+			executeDeleteImageFile(canvas, options)
+		},
+	} satisfies UserAction<"edit.delete-image-file", DeleteImageFileActionOptions>,
+	{
 		id: "edit.undo",
 		category: "edit",
 		canExecute: (canvas) => {
 			// 非只读模式且有可撤销的历史
-			if (canvas.readonly) return false
+			if (!canvas.permissionManager.can("document.write")) return false
 			if (canvas.textEditingManager.isEditing()) {
 				return canvas.textEditingManager.canUndo()
 			}
@@ -113,7 +143,7 @@ export const editActions: UserAction[] = [
 		category: "edit",
 		canExecute: (canvas) => {
 			// 非只读模式且有可重做的历史
-			if (canvas.readonly) return false
+			if (!canvas.permissionManager.can("document.write")) return false
 			if (canvas.textEditingManager.isEditing()) {
 				return canvas.textEditingManager.canRedo()
 			}

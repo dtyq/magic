@@ -11,7 +11,7 @@ import VerificationCodeInput from "@/components/business/VerificationCodeInput"
 import { Input } from "@/components/shadcn-ui/input"
 import { VerificationCode } from "@/constants/bussiness"
 import { encryptPhoneWithCountryCode } from "@/utils/phone"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 

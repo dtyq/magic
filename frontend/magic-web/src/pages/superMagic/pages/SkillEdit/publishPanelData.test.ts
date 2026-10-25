@@ -18,6 +18,7 @@ describe("buildPublishParamsFromDraft", () => {
 		).toEqual({
 			version: "1.0.0",
 			version_description_i18n: {
+				default: "First release",
 				zh_CN: "First release",
 				en_US: "First release",
 			},
@@ -44,6 +45,7 @@ describe("buildPublishParamsFromDraft", () => {
 		).toEqual({
 			version: "2.0.0",
 			version_description_i18n: {
+				default: "Library release",
 				zh_CN: "Library release",
 				en_US: "Library release",
 			},
@@ -70,6 +72,7 @@ describe("buildPublishParamsFromDraft", () => {
 		).toEqual({
 			version: "2.1.0",
 			version_description_i18n: {
+				default: "Private release",
 				zh_CN: "Private release",
 				en_US: "Private release",
 			},
@@ -96,12 +99,35 @@ describe("buildPublishParamsFromDraft", () => {
 		).toEqual({
 			version: "3.0.0",
 			version_description_i18n: {
+				default: "Internal beta",
 				zh_CN: "Internal beta",
 				en_US: "Internal beta",
 			},
 			publish_target_type: "MEMBER",
 			publish_target_value: {
 				department_ids: ["dept-1"],
+			},
+		})
+	})
+
+	it("preserves the default version description locale", () => {
+		expect(
+			buildPublishParamsFromDraft({
+				version: "3.1.0",
+				details: {
+					default: "默认版本说明",
+					zh_CN: "中文版本说明",
+					en_US: "English release notes",
+				},
+				publishTo: "MARKET",
+				internalTarget: "PRIVATE",
+				specificMembers: [],
+			}),
+		).toMatchObject({
+			version_description_i18n: {
+				default: "默认版本说明",
+				zh_CN: "中文版本说明",
+				en_US: "English release notes",
 			},
 		})
 	})
@@ -195,6 +221,34 @@ describe("buildPublishParamsFromDraft", () => {
 				type: "department",
 			},
 		])
+	})
+
+	it("uses resolved version details for market version detail", () => {
+		const data = createSkillEditPublishPanelData({
+			skill: null,
+			versions: [
+				{
+					id: "version-market",
+					version: "1.0.0",
+					publish_status: "UNPUBLISHED",
+					review_status: "UNDER_REVIEW",
+					publish_target_type: "MARKET",
+					publish_target_value: null,
+					publisher: null,
+					published_at: null,
+					is_current_version: false,
+					version_description: "Resolved release notes",
+					version_description_i18n: {
+						zh_CN: "旧的本地化版本说明",
+						en_US: "Old localized release notes",
+					},
+				},
+			],
+			currentPublisherName: "Alice",
+			t: ((key: string) => key) as never,
+		})
+
+		expect(data.historyRecords[0]?.versionDetails).toBe("Resolved release notes")
 	})
 
 	it("maps invalidated market review status into publish history", () => {

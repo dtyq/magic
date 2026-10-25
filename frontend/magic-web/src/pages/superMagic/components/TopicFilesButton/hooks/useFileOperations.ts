@@ -1,13 +1,13 @@
-import { useState, useCallback } from "react"
+import { useFileAccess as useFilePermissions } from "@/pages/superMagic/providers/FileAccessProvider"
+import { createElement, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import type { AttachmentItem } from "./types"
 import { createShareHandler } from "../utils/createShareHandler"
-import { getTemporaryDownloadUrl, downloadFileContent } from "../../../utils/api"
+import { downloadFileContent } from "../../../utils/api"
 import { UploadSource, useFileUpload } from "../../MessageEditor/hooks/useFileUpload"
 import { handleShareFunction } from "../../../utils/share"
 import { ShareType, ResourceType } from "../../Share/types"
 import { downloadFileWithAnchor } from "../../../utils/handleFIle"
-import { exportSingleFileToPpt } from "../utils/exportSingleFile"
 import { prepareHtmlPagesForExport } from "@/utils/htmlExportPrepare"
 import { isMarkdownFileName } from "@/utils/pdfFileType"
 import { ROOT_FILE_ID } from "../constant"
@@ -16,18 +16,26 @@ import { multiFolderUploadStore } from "@/stores/folderUpload"
 import type { BatchSaveInfo } from "@/stores/folderUpload/types"
 import { DownloadImageMode, ProjectListItem } from "../../../pages/Workspace/types"
 import { useFileOpen } from "./useFileOpen"
-import { SuperMagicApi } from "@/apis"
+import { MagicFSApi, SuperMagicApi } from "@/apis"
 import { useDuplicateFileHandler } from "./useDuplicateFileHandler"
 import { useMemoizedFn } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { uploadLogger } from "../utils/uploadLogger"
-import { exportPPTX } from "@magic/html2pptx"
 import {
 	prepareExportSlides,
+	prepareFileExportSlides,
+	resolvePptExportSlides,
+	iterateExportSlides,
+	iterateSingleExportSlide,
 	prepareSingleSlideExport,
 } from "@/pages/superMagic/services/pptService"
 import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
 import { createPptxResourceErrorCollector } from "@/pages/superMagic/utils/pptxResourceErrors"
+import {
+	publishPptxExportFailure,
+	publishPptxExportIssues,
+} from "@/pages/superMagic/utils/pptxExportIssues"
+import type { ExportIssue } from "@magic/html2pptx"
 import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 import { hasPPTMetadata } from "@/pages/superMagic/components/Detail/utils/file"
 import {
@@ -36,10 +44,12 @@ import {
 } from "@/pages/superMagic/components/Detail/contents/HTML/utils/slide-dimensions"
 import { getAppEntryFile } from "../../MessageList/components/MessageAttachment/utils"
 import { waitForProjectAttachmentChange } from "@/pages/superMagic/utils/projectAttachments/attachmentMutationWaiter"
-import { exportHtmlToImage } from "@magic-web/html2image"
 import { textToHtml } from "../../../utils/textToHtml"
 import { createUploadRefreshCoordinator } from "../utils/uploadRefreshController"
-import { createDesignProjectFiles } from "../../Detail/contents/Design/utils/designProjectCreation"
+import {
+	createDesignProjectFiles,
+	DesignProjectCreationError,
+} from "../../Detail/contents/Design/utils/designProjectCreation"
 import { createSelfMediaProject as createSelfMediaProjectAction } from "./projectCreators/createSelfMediaProject"
 import { createAICardProject as createAICardProjectAction } from "./projectCreators/createAICardProject"
 import {
@@ -47,12 +57,30 @@ import {
 	type DocumentExport,
 } from "@/pages/superMagic/services/documentExport"
 import type { DownloadProgressController } from "@/pages/superMagic/hooks/useDownloadProgress"
+import { Button } from "antd"
+import {
+	assertPptxExportAvailable,
+	formatPptxStreamingProgress,
+	iteratePreparedPptxPages,
+	openPptxDestination,
+	PptxExportUnavailableError,
+	startPptxStreamingExportFromFactory,
+} from "@/pages/superMagic/services/pptxStreamingExport"
 import {
 	mergeStaticDependencyFileIds,
 	resolveSingleDocumentStaticDependencies,
 	supportsStaticDependencies,
 } from "@/pages/superMagic/utils/staticDependencies"
 import type { FileScope } from "@/apis/modules/fileScope"
+import type { FileAccessContext } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { getShareAccessToken } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { checkDuplicateFileName } from "../utils/checkDuplicateFileName"
+import { toUserAttachment } from "../../UserSpace/services/userSpaceFileService"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
+import { requestProjectAttachmentsFullRefresh } from "@/pages/superMagic/services/attachmentsTopicSync"
 
 // 工具函数：从attachments中递归删除指定ID的文件/文件夹
 const removeItemFromAttachments = (
@@ -181,13 +209,16 @@ const downloadOnlyOfficeFile = async (
 	fileId: string,
 	fileExtension: string,
 	attachments: AttachmentItem[] | undefined,
-	mode?: DownloadImageMode,
+	mode: DownloadImageMode | undefined,
+	access: FileAccessContext | null | undefined,
+	fileApi: FileApi,
 ): Promise<void> => {
-	// 获取文件下载 URL
-	const res = await getTemporaryDownloadUrl({
+	// 获取文件下载 URL；fileApi 已绑定环境身份，access 仍作为逐次调用覆盖保留
+	const res = await fileApi.getTemporaryDownloadUrl({
 		file_ids: [fileId],
 		download_mode: mode,
 		is_download: true,
+		access: access ?? undefined,
 	})
 	if (!res[0]?.url) {
 		throw new Error("无法获取文件下载地址")
@@ -228,6 +259,7 @@ const downloadOnlyOfficeFile = async (
 }
 
 export interface UseFileOperationsOptions {
+	beforeUpload?: (files: File[], target?: AttachmentItem) => Promise<boolean>
 	setUserSelectDetail?: (detail: any) => void
 	onFileClick?: (fileItem: any) => void
 	attachments?: AttachmentItem[]
@@ -235,13 +267,18 @@ export interface UseFileOperationsOptions {
 	projectId?: string
 	/** 文件上传凭证所属的特殊空间。 */
 	fileScope?: FileScope
+	resolveCreateParent?: (parentPath?: string) => Promise<string>
+	onNodeCreated?: (file: AttachmentItem) => Promise<AttachmentItem>
+	isCurrent?: () => boolean
 	getItemId?: (item: AttachmentItem) => string
 	onFileDelete?: (fileId: string) => Promise<void>
 	// 新增：文件创建成功回调
 	onFileCreated?: (fileItem: any) => void
-	onUpdateAttachments?: () => void
+	onUpdateAttachments?: (sourceProjectId?: string) => void
 	// 添加直接更新attachments的回调
 	onAttachmentsChange?: (attachments: AttachmentItem[]) => void
+	/** Project-scoped store used to reconcile a just-created Canvas across all file surfaces. */
+	projectFilesStore?: ProjectFilesStore
 	selectedProject?: ProjectListItem
 	// 外部传入的共享 duplicateFileHandler（可选）
 	duplicateFileHandler?: ReturnType<typeof useDuplicateFileHandler>
@@ -267,6 +304,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		onFileCreated,
 		onUpdateAttachments,
 		onAttachmentsChange,
+		projectFilesStore,
 		selectedProject,
 		duplicateFileHandler: externalDuplicateHandler,
 		selectedItems,
@@ -274,6 +312,12 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		downloadProgress,
 	} = options
 	const { t } = useTranslation("super")
+	const { permissions: access } = useFilePermissions()
+	const fileAccess = useFileAccess()
+	// Bind the ambient share/session identity for the download-url leaves; the
+	// export services below still receive the legacy `access` override.
+	const fileApi = useFileApi()
+	const shareToken = getShareAccessToken(fileAccess)
 	const waitForAttachmentMutation = useMemoizedFn(
 		(options: {
 			fileIds?: string[]
@@ -344,7 +388,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				uploadType: "file",
 				projectFiles: attachments || [],
 				uploadFileCount: files.length,
-				onUpdateAttachments,
+				onUpdateAttachments: () => onUpdateAttachments?.(projectId),
 			})
 			const currentProjectFileCount = refreshCoordinator.currentProjectFileCount
 			// 获取父文件夹路径
@@ -454,12 +498,17 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 	// 文件夹上传处理函数（所有文件作为一个任务）
 	const processFolderUpload = useCallback(
-		async (files: File[], suffixDir?: string, parentIdOverride?: string) => {
+		async (
+			files: File[],
+			suffixDir?: string,
+			parentIdOverride?: string,
+			displayName?: string,
+		) => {
 			const refreshCoordinator = createUploadRefreshCoordinator({
 				uploadType: "folder",
 				projectFiles: attachments || [],
 				uploadFileCount: files.length,
-				onUpdateAttachments,
+				onUpdateAttachments: () => onUpdateAttachments?.(projectId),
 			})
 			const currentProjectFileCount = refreshCoordinator.currentProjectFileCount
 			// 获取父文件夹ID
@@ -493,6 +542,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 					taskId: "",
 					storageType: "workspace",
 					source: UploadSource.ProjectFile,
+					displayName,
 					// 文件夹任务完成时的回调
 					onComplete: (taskId: string) => {
 						console.log(`📁 Folder upload task ${taskId} completed`)
@@ -581,6 +631,8 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 	// 创建文件的实际实现 - 供useVirtualFile调用
 	const createFileAndUpload = async (file: File, suffixDir?: string) => {
+		if (fileScope === "user")
+			return createUserNode(file.name, false, suffixDir ? `/${suffixDir}` : undefined)
 		if (!projectId) {
 			throw new Error("项目ID不能为空")
 		}
@@ -640,6 +692,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 	// 创建文件夹的实际实现 - 供useVirtualFolder调用
 	const createFolderAndUpload = async (folderName: string, parentPath?: string) => {
+		if (fileScope === "user") return createUserNode(folderName, true, parentPath)
 		if (!projectId) {
 			throw new Error("项目ID不能为空")
 		}
@@ -683,6 +736,45 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		}
 	}
 
+	const createUserNode = async (
+		name: string,
+		isDirectory: boolean,
+		parentPath?: string,
+	): Promise<AttachmentItem> => {
+		const isCurrent = options.isCurrent ?? (() => true)
+		const assertCurrent = () => {
+			if (!isCurrent()) throw new DOMException("Identity changed", "AbortError")
+		}
+		assertCurrent()
+		const resolvedParentId = options.resolveCreateParent
+			? await options.resolveCreateParent(parentPath)
+			: getParentIdFromPath(parentPath)
+		assertCurrent()
+		if (!resolvedParentId) throw new Error("User directory is unavailable")
+		const parentId = String(resolvedParentId)
+		const { files } = await MagicFSApi.listFiles({ scope: "user", parent_id: parentId })
+		assertCurrent()
+		if (
+			checkDuplicateFileName(
+				name,
+				files.map((item) => toUserAttachment(item, "")),
+			)
+		)
+			throw new Error(t("topicFiles.contextMenu.newFile.duplicateError"))
+		const { file } = await MagicFSApi.createFile({
+			name,
+			parent_id: parentId,
+			is_directory: isDirectory,
+			space_type: "user",
+		})
+		assertCurrent()
+		const created = toUserAttachment(file, "")
+		const result = options.onNodeCreated ? await options.onNodeCreated(created) : created
+		onUpdateAttachments?.()
+		if (!isDirectory) onFileCreated?.(result)
+		return result
+	}
+
 	const createDesignProject = async (folderName: string, parentPath?: string) => {
 		if (!projectId) {
 			throw new Error("项目ID不能为空")
@@ -690,23 +782,69 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 		const projectKey = `${Date.now()}-${Math.random()}`
 		setCreatingFiles((prev) => new Set(prev).add(projectKey))
+		const refreshCreatedDesignProject = () => {
+			if (onUpdateAttachments) {
+				onUpdateAttachments()
+				return
+			}
+			requestProjectAttachmentsFullRefresh({
+				projectId,
+				reason: "created-design-project",
+			})
+		}
 
 		try {
+			if (options.isCurrent && !options.isCurrent())
+				throw new DOMException("Identity changed", "AbortError")
 			// 获取父文件夹ID
 			const parent_id = getParentIdFromPath(parentPath)
+			if (parentPath && !parent_id) {
+				throw new Error("父文件夹不存在，无法创建画布")
+			}
 
-			const { folder } = await createDesignProjectFiles({
+			const created = await createDesignProjectFiles({
 				projectId,
 				parentId: parent_id,
 				folderName,
 			})
+			if (options.isCurrent && !options.isCurrent())
+				throw new DOMException("Identity changed", "AbortError")
 
-			onUpdateAttachments?.()
+			projectFilesStore?.registerCreatedDesignProject({
+				projectId,
+				folderId: String(created.folder.file_id),
+				configFileId: String(created.magicProjectFile.file_id),
+				parentId: parent_id,
+				folderName,
+				status: "confirmed",
+			})
+
+			refreshCreatedDesignProject()
 
 			magicToast.success(t("topicFiles.contextMenu.createDesignSuccess"))
 
-			return folder
+			return created.folder
 		} catch (error) {
+			if (options.isCurrent && !options.isCurrent()) {
+				throw new DOMException("Identity changed", "AbortError")
+			}
+			if (error instanceof DesignProjectCreationError && error.outcome === "ambiguous") {
+				const folderId = error.context?.folder?.file_id ?? error.context?.folder?.id
+				const configFileId =
+					error.context?.magicProjectFile?.file_id ?? error.context?.magicProjectFile?.id
+				if (folderId && configFileId) {
+					projectFilesStore?.registerCreatedDesignProject({
+						projectId,
+						folderId: String(folderId),
+						configFileId: String(configFileId),
+						parentId: error.context?.parentId,
+						folderName,
+						status: "ambiguous",
+					})
+				}
+				refreshCreatedDesignProject()
+			}
+			if (error instanceof DOMException && error.name === "AbortError") throw error
 			magicToast.error(t("topicFiles.contextMenu.createDesignFailed"))
 			throw error
 		} finally {
@@ -749,6 +887,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		// 创建隐藏的文件输入框
 		const input = document.createElement("input")
 		input.type = "file"
+		if (options.beforeUpload) input.oncancel = () => input.remove()
 		input.multiple = true
 		input.style.display = "none"
 
@@ -758,6 +897,10 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			if (fileList && fileList.length > 0) {
 				const files = Array.from(fileList)
 
+				if (options.beforeUpload && !(await options.beforeUpload(files, item))) {
+					input.remove()
+					return
+				}
 				console.log("选择的文件:", files)
 				console.log("上传目标路径:", targetPath)
 				console.log("计算的suffixDir:", targetSuffixDir)
@@ -789,6 +932,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		// 创建隐藏的文件输入框
 		const input = document.createElement("input")
 		input.type = "file"
+		if (options.beforeUpload) input.oncancel = () => input.remove()
 		input.multiple = true
 		input.webkitdirectory = true
 		input.style.display = "none"
@@ -800,6 +944,10 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				const files = Array.from(fileList)
 
 				// 通过同名检测处理文件夹上传（使用 processFolderUpload 创建单个任务）
+				if (options.beforeUpload && !(await options.beforeUpload(files, item))) {
+					input.remove()
+					return
+				}
 				await duplicateFileHandler.handleFilesWithDuplicateCheck(
 					files,
 					targetSuffixDir,
@@ -819,6 +967,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 	// 分享操作
 	const handleShareItem = useCallback(
 		(item: AttachmentItem) => {
+			if (!access.share) return
 			if (!selectedItems || !filteredFiles) {
 				// 如果没有选中项或文件列表，只分享当前文件
 				const clickedItemId = item.file_id || ""
@@ -843,7 +992,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				})
 			}
 		},
-		[selectedItems, filteredFiles, getItemId, selectedProject?.project_name],
+		[access.share, selectedItems, filteredFiles, getItemId, selectedProject?.project_name],
 	)
 
 	// 处理分享保存
@@ -887,6 +1036,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			// 更新 attachments 列表
 			const updatedAttachments = removeItemFromAttachments(attachments || [], fileId)
 			onAttachmentsChange?.(updatedAttachments)
+			projectFilesStore?.clearCreatedDesignProject(fileId)
 
 			// 调用删除回调
 			if (onFileDelete) {
@@ -970,7 +1120,8 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 	// Registered dependency parsers make linked resources part of the default download.
 	const handleDownloadOriginal = async (item: AttachmentItem, mode?: DownloadImageMode) => {
-		if (supportsStaticDependencies(item)) {
+		if (!access.download) return
+		if (fileScope !== "user" && supportsStaticDependencies(item)) {
 			await downloadDocumentWithDependencies(item)
 			return
 		}
@@ -978,9 +1129,19 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		await downloadOriginalFile(item, mode)
 	}
 
+	const downloadSelectedFiles = async (files: AttachmentItem[]) => {
+		const isCurrent = options.isCurrent ?? (() => true)
+		for (const file of files) {
+			if (!isCurrent()) return
+			if (fileScope === "user" && file.is_directory) continue
+			await handleDownloadOriginal(file)
+		}
+	}
+
 	// 下载PDF格式（Markdown 走 markdown 导出；HTML 走 exportPDF；仅 display_config.type === "slide" 时传 pptMode）
 	const handleDownloadPdf = useCallback(
 		async (item: AttachmentItem, folderChildren?: AttachmentItem[]) => {
+			if (!access.export) return
 			if (!item.file_id) return
 
 			const documentExporter = documentExportService.get()
@@ -1037,6 +1198,8 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 								fileId: entryFileId,
 								fileName: entryFileName,
 								attachmentList: attachments ?? [],
+								access: fileAccess ?? undefined,
+								fileApi,
 							})
 						: await prepareExportSlides({
 								slidePaths,
@@ -1044,6 +1207,8 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 								mainFileId: entryFileId,
 								mainFileName: entryFileName,
 								displayConfig: mergedDisplayConfig,
+								access: fileAccess ?? undefined,
+								fileApi,
 							})
 
 					if (!result.htmlSlides.some(Boolean)) {
@@ -1062,6 +1227,8 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						fileName: entryFileName,
 						attachmentList: attachments ?? [],
 						displayConfig: mergedDisplayConfig,
+						access: fileAccess ?? undefined,
+						fileApi,
 					})
 
 					const handle = documentExporter.exportPages(preparedHtmlSlides, {
@@ -1107,6 +1274,8 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 							fileId: item.file_id,
 							fileName: item.file_name,
 							attachmentList: attachments ?? [],
+							access: fileAccess ?? undefined,
+							fileApi,
 						})
 
 						if (!result.htmlSlides.some(Boolean)) {
@@ -1125,6 +1294,8 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 							fileName: item.file_name,
 							attachmentList: attachments ?? [],
 							displayConfig: mergedDisplayConfig,
+							access: fileAccess ?? undefined,
+							fileApi,
 						})
 
 						await documentExporter.exportPages(preparedHtmlSlides, {
@@ -1177,39 +1348,13 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				})
 			}
 		},
-		[t, attachments],
+		[access.export, t, attachments, fileApi, fileAccess],
 	)
 
-	// 下载PPT格式
-	const handleDownloadPpt = useCallback(
-		(item: AttachmentItem) => {
-			if (item.file_id) {
-				const onStart = () => {
-					setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
-				}
-				const onEnd = () => {
-					setExportingFiles((prev) => {
-						const newSet = new Set(prev)
-						newSet.delete(item.file_id || "")
-						return newSet
-					})
-				}
-				exportSingleFileToPpt({
-					fileId: item.file_id,
-					projectId,
-					t,
-					onStart,
-					onEnd,
-					onError: onEnd,
-				})
-			}
-		},
-		[projectId, t],
-	)
-
-	// 导出可编辑PPTX（前端 html2pptx，通过 prepareExportSlides 服务准备数据）
+	// 导出 PPTX（前端 html2pptx streaming-only）
 	const handleDownloadPptx = useCallback(
 		async (item: AttachmentItem, folderChildren?: AttachmentItem[]) => {
+			if (!access.export) return
 			if (!item.file_id) return
 
 			const toastId = createRandomUuidV4()
@@ -1218,88 +1363,157 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			const metadata = item.metadata as
 				{ type?: string; slides?: string[]; [key: string]: unknown } | undefined
 			const mergedDisplayConfig = displayConfig || metadata
-			const slidePaths: string[] = Array.isArray(mergedDisplayConfig?.slides)
+			let slidePaths: string[] = Array.isArray(mergedDisplayConfig?.slides)
 				? mergedDisplayConfig.slides
 				: []
+			const isSlideProject = mergedDisplayConfig?.type === "slide" || slidePaths.length > 0
 			const isSingleFile = !slidePaths.length
 			const autoSize = !hasPPTMetadata(item)
+			const attachmentScope = folderChildren?.length
+				? folderChildren
+				: item.children?.length
+					? item.children
+					: (attachments ?? [])
+			// A slide folder owns display_config, but its entry HTML owns the readable file id.
+			// Preserve both instead of replacing the project with index.html and losing slidePaths.
+			const entryFile = isSlideProject
+				? getAppEntryFile(attachmentScope, mergedDisplayConfig)
+				: item
+			const fileId = entryFile?.file_id || ""
+			const sourceFileName = String(entryFile?.file_name || item.file_name || "index.html")
+			const fileName = String(
+				mergedDisplayConfig?.name || item.file_name || "export",
+			).replace(/\.html?$/i, "")
+			let destinationLease: Awaited<ReturnType<typeof openPptxDestination>> = null
 
-			let exportHandle: ReturnType<typeof exportPPTX> | null = null
+			let cancelExport: (() => void) | null = null
 			const resourceErrors = createPptxResourceErrorCollector(t)
+			const exportIssues: ExportIssue[] = []
+			const getExportToastContent = (progressText: string) =>
+				createElement(
+					"div",
+					{ style: { display: "flex", alignItems: "center", gap: 8 } },
+					createElement("span", null, progressText),
+					createElement(
+						Button,
+						{
+							type: "default",
+							size: "small",
+							danger: true,
+							onClick: () => cancelExport?.(),
+						},
+						t("topicFiles.exportCancel"),
+					),
+				)
 			setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
 
 			try {
+				if (!fileId) {
+					magicToast.error(t("topicFiles.entryFileNotFound"))
+					return
+				}
+
+				assertPptxExportAvailable({ pageCount: isSingleFile ? 1 : slidePaths.length })
+				destinationLease = await openPptxDestination({
+					suggestedName: String(
+						mergedDisplayConfig?.name || item.file_name || "export",
+					).replace(/\.html?$/i, ""),
+				})
+				if (!destinationLease) return
+
+				if (!isSingleFile) {
+					const resolved = await resolvePptExportSlides({
+						slidePaths,
+						displayConfig: mergedDisplayConfig,
+						attachmentList: attachmentScope,
+						mainFileId: fileId,
+						fileApi,
+						access: fileAccess ?? undefined,
+					})
+					slidePaths = resolved.slidePaths
+					if (!slidePaths.length) throw new Error("No visible slides to export")
+				}
 				magicToast.loading({
 					key: toastId,
-					content: t("topicFiles.exporting"),
+					content: getExportToastContent(t("topicFiles.exporting")),
 					duration: 0,
 				})
 
-				const result = isSingleFile
-					? await prepareSingleSlideExport({
-							fileId: item.file_id,
-							fileName: item.file_name,
-							attachmentList: attachments ?? [],
-						})
-					: await prepareExportSlides({
-							slidePaths,
-							attachmentList: folderChildren?.length
-								? folderChildren
-								: (attachments ?? []),
-							mainFileId: item.file_id,
-							mainFileName: item.file_name,
-							displayConfig: mergedDisplayConfig,
-						})
-
-				if (!result.htmlSlides.some(Boolean)) {
-					magicToast.error({
+				{
+					const pptFontResolver = documentExportService.get()?.getPptFontResolver?.()
+					const destination = destinationLease.destination
+					const streamingHandle = startPptxStreamingExportFromFactory(
+						(signal) => {
+							const source = isSingleFile
+								? iterateSingleExportSlide({
+										fileId,
+										fileName: sourceFileName,
+										attachmentList: attachments ?? [],
+										access: fileAccess ?? undefined,
+										fileApi,
+										signal,
+									})
+								: iterateExportSlides({
+										slidePaths,
+										configResolved: true,
+										attachmentList: attachmentScope,
+										mainFileId: fileId,
+										mainFileName: sourceFileName,
+										displayConfig: mergedDisplayConfig,
+										access: fileAccess ?? undefined,
+										fileApi,
+										signal,
+									})
+							return iteratePreparedPptxPages(source, {
+								attachments: attachments ?? [],
+								fileId,
+								fileName: sourceFileName,
+								attachmentList: attachments ?? [],
+								displayConfig: mergedDisplayConfig,
+								signal,
+							})
+						},
+						(firstPage) => ({
+							fileName,
+							destination,
+							outputPolicy: "file-stream",
+							pageCount: isSingleFile ? 1 : slidePaths.length,
+							autoSize,
+							config: createPptxSlideConfig(
+								resolvePptScaleContentDimensions(firstPage.html),
+							),
+							skipFailedPages: true,
+							fontResolver: pptFontResolver,
+							logger: pptxExternalLogger,
+							logLevel: "warn",
+							onResourceLoadError: resourceErrors.onResourceLoadError,
+							onExportIssue: (issue) => exportIssues.push(issue),
+							onProgress: (progress) => {
+								magicToast.loading({
+									key: toastId,
+									content: getExportToastContent(
+										formatPptxStreamingProgress(
+											t("topicFiles.exporting"),
+											progress,
+										),
+									),
+									duration: 0,
+								})
+							},
+						}),
+					)
+					cancelExport = streamingHandle.cancel
+					await streamingHandle.promise
+					publishPptxExportIssues(exportIssues, { fileId, fileName })
+					magicToast.success({
 						key: toastId,
-						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						content: t("topicFiles.exportSuccess"),
 						duration: 1000,
 					})
 					return
 				}
-
-				const preparedHtmlSlides = await prepareHtmlPagesForExport({
-					pages: result.htmlSlides,
-					attachments: attachments ?? [],
-					fileId: item.file_id,
-					fileName: item.file_name,
-					attachmentList: attachments ?? [],
-					displayConfig: mergedDisplayConfig,
-				})
-				const pptFontResolver = documentExportService.get()?.getPptFontResolver?.()
-				const pptxConfig = createPptxSlideConfig(
-					resolvePptScaleContentDimensions(preparedHtmlSlides[0]),
-				)
-
-				exportHandle = exportPPTX(preparedHtmlSlides, {
-					fileName: result.fileName,
-					skipFailedPages: true,
-					autoSize,
-					config: pptxConfig,
-					fontResolver: pptFontResolver,
-					logger: pptxExternalLogger,
-					logLevel: "warn",
-					onResourceLoadError: resourceErrors.onResourceLoadError,
-					onSlideProgress: ({ index, total }) => {
-						const progress = total > 1 ? ` (${index + 1}/${total})` : ""
-						magicToast.loading({
-							key: toastId,
-							content: `${t("topicFiles.exporting")}${progress}`,
-							duration: 0,
-						})
-					},
-				})
-
-				await exportHandle.promise
-
-				magicToast.success({
-					key: toastId,
-					content: t("topicFiles.exportSuccess"),
-					duration: 1000,
-				})
 			} catch (error: unknown) {
+				await destinationLease?.abort(error).catch(() => undefined)
 				const isAbort = (error as { name?: string } | null)?.name === "AbortError"
 				if (isAbort) {
 					magicToast.info({
@@ -1308,10 +1522,14 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						duration: 1000,
 					})
 				} else {
+					publishPptxExportFailure(exportIssues, error, { fileId, fileName })
 					magicToast.error({
 						key: toastId,
-						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
-						duration: 1000,
+						content:
+							error instanceof PptxExportUnavailableError
+								? error.message
+								: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: error instanceof PptxExportUnavailableError ? 3000 : 1000,
 					})
 					reportPptxExportError(error, {
 						fileId: item.file_id,
@@ -1327,12 +1545,13 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				})
 			}
 		},
-		[t, attachments],
+		[access.export, t, attachments, fileApi, fileAccess],
 	)
 
 	// 导出 HTML / 文本类文件 为图片（PNG / JPEG）
 	const handleDownloadImage = useCallback(
 		async (item: AttachmentItem, format: "png" | "jpeg" = "png") => {
+			if (!access.export) return
 			if (!item.file_id) return
 
 			const toastId = createRandomUuidV4()
@@ -1346,11 +1565,15 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			try {
 				const ext = (item.file_extension || "").toLowerCase()
 				const isHtml = ext === "html" || ext === "htm"
+				// 文件树始终挂载，图片导出引擎仅在本操作内加载，失败沿用原有状态清理。
+				const { exportHtmlToImage } = await import("@magic-web/html2image")
 
 				if (!isHtml) {
 					// 文本类文件（md, txt, code）使用 exportTextToImage
 					const [urlItem] =
-						(await getTemporaryDownloadUrl({ file_ids: [item.file_id] })) ?? []
+						(await fileApi.getTemporaryDownloadUrl({
+							file_ids: [item.file_id],
+						})) ?? []
 					if (!urlItem?.url) {
 						magicToast.error({
 							key: toastId,
@@ -1391,10 +1614,13 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 					}).promise
 				} else {
 					// HTML 文件使用原有逻辑
-					const result = await prepareSingleSlideExport({
+					const result = await prepareFileExportSlides({
 						fileId: item.file_id,
+						displayConfig: (item.display_config || item.metadata) as any,
 						fileName: item.file_name,
 						attachmentList: attachments ?? [],
+						access: fileAccess ?? undefined,
+						fileApi,
 					})
 
 					if (!result.htmlSlides.some(Boolean)) {
@@ -1410,8 +1636,11 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						pages: result.htmlSlides,
 						attachments: attachments ?? [],
 						fileId: item.file_id,
+						displayConfig: (item.display_config || item.metadata) as any,
 						fileName: item.file_name,
 						attachmentList: attachments ?? [],
+						access: fileAccess ?? undefined,
+						fileApi,
 					})
 
 					await exportHtmlToImage({
@@ -1458,7 +1687,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				})
 			}
 		},
-		[t, attachments],
+		[access.export, t, attachments, fileApi, fileAccess],
 	)
 
 	// 文件下载功能 - 支持单个文件或多个文件
@@ -1470,6 +1699,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			isFolder?: boolean,
 			downloadName?: string,
 		) => {
+			if (!access.download) return
 			const fileIds = Array.isArray(file_id) ? file_id : [file_id]
 			const folderDownloadToastId = isFolder ? createRandomUuidV4() : undefined
 
@@ -1493,12 +1723,19 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 					// 如果是 OnlyOffice 文件，使用专门的下载方法
 					if (isOnlyOfficeFile) {
-						await downloadOnlyOfficeFile(fileIds[0], ext, attachments, mode)
+						await downloadOnlyOfficeFile(
+							fileIds[0],
+							ext,
+							attachments,
+							mode,
+							fileAccess,
+							fileApi,
+						)
 						return
 					}
 
 					// 非 OnlyOffice 文件，使用原来的下载方式
-					const res = await getTemporaryDownloadUrl({
+					const res = await fileApi.getTemporaryDownloadUrl({
 						file_ids: fileIds,
 						download_mode: mode,
 						is_download: true,
@@ -1516,6 +1753,9 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						projectId,
 						fileIds,
 						fileName: downloadName,
+						// Share pages have no login session; the batch-download create/check
+						// requests are authorized by the share token only.
+						token: shareToken || undefined,
 						label: t("topicFiles.downloading"),
 						onSuccess: () => {
 							magicToast.success({
@@ -1551,6 +1791,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 					SuperMagicApi.createBatchDownload({
 						project_id: projectId,
 						file_ids: fileIds,
+						token: shareToken || undefined,
 					})
 						.then((data) => {
 							if (data.status === "ready" && data.download_url) {
@@ -1573,6 +1814,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 										const checkData =
 											await SuperMagicApi.checkBatchDownloadStatus(
 												data.batch_key,
+												shareToken || undefined,
 											)
 										if (checkData?.status === "ready") {
 											clearInterval(timer)
@@ -1649,6 +1891,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			const result = await resolveSingleDocumentStaticDependencies({
 				fileIds: [item.file_id],
 				attachments: attachments || [],
+				fileApi,
 			})
 			const effectiveFileIds = mergeStaticDependencyFileIds(
 				[item.file_id],
@@ -1679,9 +1922,15 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		}
 	})
 
-	// 移动文件或文件夹
+	// Move a file or folder.
 	const handleMoveFile = useCallback(
-		async (fileId: string, targetParentId: string, preFileId?: string) => {
+		async (
+			fileId: string,
+			targetParentId: string,
+			preFileId?: string,
+			keepBothFileIds?: string[],
+			showLoadingToast = true,
+		) => {
 			if (!fileId) {
 				magicToast.error(t("topicFiles.error.moveFileParamsRequired"))
 				return false
@@ -1691,13 +1940,16 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			let data: any = null
 
 			try {
-				// 显示移动进度
-				magicToast.loading({ content: t("topicFiles.moving"), duration: 0 })
+				// Use Toast unless the caller owns progress UI.
+				if (showLoadingToast) {
+					magicToast.loading({ content: t("topicFiles.moving"), duration: 0 })
+				}
 
 				data = await SuperMagicApi.moveFile({
 					file_id: fileId,
 					target_parent_id: targetParentId || ROOT_FILE_ID,
 					pre_file_id: preFileId,
+					keep_both_file_ids: keepBothFileIds,
 				})
 
 				// 如果直接完成
@@ -1793,6 +2045,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 	)
 
 	return {
+		downloadSelectedFiles,
 		// 文件操作
 		handleUploadFile,
 		handleUploadFolder,
@@ -1800,14 +2053,13 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		handleDeleteItem,
 		handleDownloadOriginal,
 		handleDownloadPdf,
-		handleDownloadPpt,
 		handleDownloadPptx,
 		handleDownloadImage,
 		handleDownloadFile,
 		handleOpenFile,
 		handleMoveFile,
 		// 分享相关
-		shareModalVisible,
+		shareModalVisible: shareModalVisible && access.share,
 		setShareModalVisible,
 		shareFileInfo,
 		setShareFileInfo,

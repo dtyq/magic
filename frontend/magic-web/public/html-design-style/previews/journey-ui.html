@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Journey UI — Customer Lifecycle &amp; Conversion Funnel Map</title>
+  <style>
+    :root {
+      --primary-gold: #CA8A04;
+      --gold-border: #DAA520;
+      --gold-glow: rgba(202, 138, 4, 0.3);
+      --gold-subtle: rgba(202, 138, 4, 0.12);
+      --secondary-red: #991B1B;
+      --tertiary-purple: #581C87;
+      --bg-dark: #1A0F0A;
+      --surface: #2C1A10;
+      --surface-elevated: #3D2517;
+      --text-parchment: #F5E6D3;
+      --text-muted: #BFA98A;
+      --border-medieval: #5C3D2E;
+      --border-accent: rgba(202, 138, 4, 0.35);
+      --success: #22C55E;
+      --warning: #CA8A04;
+      --error: #991B1B;
+      --font-headline: 'Cinzel', Georgia, serif;
+      --font-body: 'Spectral', 'Times New Roman', serif;
+      --font-mono: 'Fira Code', 'Courier New', monospace;
+      --radius-sm: 2px;
+      --radius-default: 4px;
+      --shadow-gold: 0 4px 16px rgba(202, 138, 4, 0.22);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(202, 138, 4, 0.08) 0%, transparent 60%),
+        linear-gradient(to bottom, rgba(26, 15, 10, 0.8), rgba(26, 15, 10, 0.98));
+      color: var(--text-parchment);
+      font-family: var(--font-body);
+      font-size: 13.5px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 24px;
+    }
+
+    /* Ornate Medieval Header */
+    .quest-header {
+      background: rgba(44, 26, 16, 0.95);
+      border-bottom: 1px solid var(--border-medieval);
+      border-top: 2px solid var(--primary-gold);
+      height: 52px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .crest-icon {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--gold-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary-gold);
+      background: var(--surface-elevated);
+      box-shadow: 0 0 10px var(--gold-glow);
+    }
+
+    .brand-title {
+      font-family: var(--font-headline);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--primary-gold);
+      text-transform: uppercase;
+    }
+
+    .header-chips {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .quest-chip {
+      font-family: var(--font-headline);
+      font-size: 10.5px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-medieval);
+      background: var(--surface);
+      color: var(--text-muted);
+    }
+    .quest-chip.active {
+      border-color: var(--primary-gold);
+      color: var(--primary-gold);
+      box-shadow: 0 0 8px var(--gold-glow);
+    }
+
+    /* Main Viewport Container */
+    .journey-container {
+      max-width: 1340px;
+      margin: 16px auto 0;
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* First 500px Impact: Visual Customer Lifecycle Funnel Stages */
+    .funnel-main-card {
+      background: var(--surface);
+      border: 1px solid var(--border-medieval);
+      border-top: 2px solid var(--primary-gold);
+      border-radius: var(--radius-default);
+      padding: 20px;
+      box-shadow: var(--shadow-gold);
+    }
+
+    .funnel-headline-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-medieval);
+    }
+
+    .funnel-title {
+      font-family: var(--font-headline);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-parchment);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 4 Lifecycle Stages Grid */
+    .funnel-stages-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      position: relative;
+    }
+
+    .stage-card {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-default);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .stage-card:hover {
+      border-color: var(--primary-gold);
+      box-shadow: var(--shadow-gold);
+      transform: translateY(-2px);
+    }
+
+    .stage-step-num {
+      font-family: var(--font-headline);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      color: var(--primary-gold);
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .stage-name {
+      font-family: var(--font-headline);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-parchment);
+    }
+
+    .stage-metric-val {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary-gold);
+      line-height: 1.1;
+    }
+
+    .stage-metric-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .stage-progress-track {
+      height: 4px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .stage-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-gold), #DAA520);
+    }
+
+    /* Drop-off Analytics Ribbon Between Stages */
+    .dropoff-analytics-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border-medieval);
+    }
+
+    .dropoff-box {
+      background: rgba(26, 15, 10, 0.6);
+      border: 1px solid var(--border-medieval);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .dropoff-rate-badge {
+      color: #F87171;
+      font-weight: 700;
+      background: rgba(153, 27, 27, 0.25);
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+
+    /* Persona Avatar Cards Section */
+    .persona-section-title {
+      font-family: var(--font-headline);
+      font-size: 14px;
+      letter-spacing: 1px;
+      color: var(--primary-gold);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .personas-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .persona-card {
+      background: var(--surface);
+      border: 1px solid var(--border-medieval);
+      border-radius: var(--radius-default);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .persona-header-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .persona-crest-avatar {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--gold-border);
+      background: var(--surface-elevated);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-headline);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary-gold);
+      box-shadow: 0 0 10px var(--gold-glow);
+    }
+
+    .persona-details h4 {
+      font-family: var(--font-headline);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-parchment);
+    }
+
+    .persona-tagline {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .persona-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: var(--surface-elevated);
+      padding: 8px 10px;
+      border: 1px solid var(--border-medieval);
+      font-size: 11px;
+    }
+
+    .persona-cta-btn {
+      background: var(--primary-gold);
+      color: #1A0F0A;
+      border: 1px solid var(--gold-border);
+      padding: 7px 14px;
+      font-family: var(--font-headline);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .persona-cta-btn:hover {
+      background: #B8780A;
+      box-shadow: 0 0 14px var(--gold-glow);
+    }
+
+    @media (max-width: 900px) {
+      .funnel-stages-row { grid-template-columns: repeat(2, 1fr); }
+      .personas-grid { grid-template-columns: 1fr; }
+      .dropoff-analytics-strip { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Ornate Header -->
+  <header class="quest-header">
+    <div class="brand-group">
+      <div class="crest-icon">✦</div>
+      <span class="brand-title">QUEST UI &bull; LIFECYCLE MAP</span>
+      <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">FUNNEL_ORCHESTRATION</span>
+    </div>
+
+    <div class="header-chips">
+      <div class="quest-chip active">CAMPAIGN: REALM CONQUEST</div>
+      <div class="quest-chip">ALLIANCE TIER: EPIC</div>
+    </div>
+  </header>
+
+  <main class="journey-container">
+    
+    <!-- First 500px Impact: Visual Lifecycle Funnel Stages -->
+    <section class="funnel-main-card">
+      <div class="funnel-headline-row">
+        <div class="funnel-title">
+          <span>Customer Adventurer Funnel Journey</span>
+        </div>
+        <span style="font-family: var(--font-mono); font-size: 11px; color: var(--primary-gold);">OVERALL CONVERSION: 7.82%</span>
+      </div>
+
+      <!-- 4 Lifecycle Stages -->
+      <div class="funnel-stages-row">
+        <!-- Stage 1: Awareness -->
+        <div class="stage-card">
+          <div class="stage-step-num">
+            <span>STAGE I</span>
+            <span>BEACON</span>
+          </div>
+          <div class="stage-name">Awareness</div>
+          <div class="stage-metric-val">248,500</div>
+          <p class="stage-metric-desc">Adventurers observing lore, campaign scrolls, and public heraldry.</p>
+          <div class="stage-progress-track">
+            <div class="stage-progress-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Stage 2: Evaluation -->
+        <div class="stage-card">
+          <div class="stage-step-num">
+            <span>STAGE II</span>
+            <span>TRIAL</span>
+          </div>
+          <div class="stage-name">Evaluation</div>
+          <div class="stage-metric-val">68,200</div>
+          <p class="stage-metric-desc">Trial quests initiated, artifact specs inspected, pricing reviewed.</p>
+          <div class="stage-progress-track">
+            <div class="stage-progress-fill" style="width: 68%;"></div>
+          </div>
+        </div>
+
+        <!-- Stage 3: Purchase -->
+        <div class="stage-card">
+          <div class="stage-step-num">
+            <span>STAGE III</span>
+            <span>COVENANT</span>
+          </div>
+          <div class="stage-name">Purchase</div>
+          <div class="stage-metric-val">19,450</div>
+          <p class="stage-metric-desc">Guild contracts ratified, gold tokens transacted, pacts completed.</p>
+          <div class="stage-progress-track">
+            <div class="stage-progress-fill" style="width: 38%;"></div>
+          </div>
+        </div>
+
+        <!-- Stage 4: Retention -->
+        <div class="stage-card">
+          <div class="stage-step-num">
+            <span>STAGE IV</span>
+            <span>ALLIANCE</span>
+          </div>
+          <div class="stage-name">Retention</div>
+          <div class="stage-metric-val">14,800</div>
+          <p class="stage-metric-desc">Active recurring alliance subscribers and champions of the realm.</p>
+          <div class="stage-progress-track">
+            <div class="stage-progress-fill" style="width: 24%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drop-Off Analytics Strip -->
+      <div class="dropoff-analytics-strip">
+        <div class="dropoff-box">
+          <span style="color: var(--text-muted);">Beacon &rarr; Trial:</span>
+          <span class="dropoff-rate-badge">-72.5% Drop-off</span>
+        </div>
+        <div class="dropoff-box">
+          <span style="color: var(--text-muted);">Trial &rarr; Covenant:</span>
+          <span class="dropoff-rate-badge">-71.4% Drop-off</span>
+        </div>
+        <div class="dropoff-box">
+          <span style="color: var(--text-muted);">Covenant &rarr; Alliance:</span>
+          <span style="color: var(--success); font-weight: 700;">+76.1% Retained</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Persona Avatar Cards -->
+    <div class="persona-section-title">
+      <span>Key Archetype Persona Profiles</span>
+    </div>
+
+    <div class="personas-grid">
+      <!-- Persona 1 -->
+      <div class="persona-card">
+        <div class="persona-header-row">
+          <div class="persona-crest-avatar">S</div>
+          <div class="persona-details">
+            <h4>Lady Seraphina</h4>
+            <span class="persona-tagline">Enterprise High Mage &bull; Tier IV</span>
+          </div>
+        </div>
+        <div class="persona-meta-grid">
+          <div><span style="color: var(--text-muted);">Annual Value:</span> <strong>75,000 GP</strong></div>
+          <div><span style="color: var(--text-muted);">Health Score:</span> <strong style="color: var(--success);">98/100</strong></div>
+        </div>
+        <button class="persona-cta-btn">Inspect Journey Path &rarr;</button>
+      </div>
+
+      <!-- Persona 2 -->
+      <div class="persona-card">
+        <div class="persona-header-row">
+          <div class="persona-crest-avatar">B</div>
+          <div class="persona-details">
+            <h4>Sir Brandon</h4>
+            <span class="persona-tagline">Pioneer Guildmaster &bull; Tier II</span>
+          </div>
+        </div>
+        <div class="persona-meta-grid">
+          <div><span style="color: var(--text-muted);">Annual Value:</span> <strong>24,000 GP</strong></div>
+          <div><span style="color: var(--text-muted);">Health Score:</span> <strong style="color: var(--warning);">82/100</strong></div>
+        </div>
+        <button class="persona-cta-btn">Inspect Journey Path &rarr;</button>
+      </div>
+
+      <!-- Persona 3 -->
+      <div class="persona-card">
+        <div class="persona-header-row">
+          <div class="persona-crest-avatar">R</div>
+          <div class="persona-details">
+            <h4>Rowan the Scholar</h4>
+            <span class="persona-tagline">Self-Serve Chronicler &bull; Tier I</span>
+          </div>
+        </div>
+        <div class="persona-meta-grid">
+          <div><span style="color: var(--text-muted);">Annual Value:</span> <strong>4,800 GP</strong></div>
+          <div><span style="color: var(--text-muted);">Health Score:</span> <strong style="color: var(--success);">91/100</strong></div>
+        </div>
+        <button class="persona-cta-btn">Inspect Journey Path &rarr;</button>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>

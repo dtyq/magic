@@ -11,7 +11,7 @@ import { type MouseEvent, useCallback, useEffect, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { formatNumber } from "@/utils/format"
 import { useCenteredHorizontalScroll } from "@/pages/superMagic/components/MainInputContainer/hooks/useCenteredHorizontalScroll"
 import {
@@ -31,7 +31,7 @@ import {
 	getTemplateKey,
 	getTemplatePreviewUrls,
 } from "./canvasInteraction"
-import { getSlidesTemplatePreviewThumbnailImageUrl } from "./slidesTemplateImages"
+import { getSlidesTemplatePreviewImageUrl } from "./slidesTemplateImages"
 import styles from "./SlidesTemplateInlinePreview.module.css"
 import SlidesTemplatePreviewStage from "./SlidesTemplatePreviewStage"
 import SlidesTemplateColorPalette from "./SlidesTemplateColorPalette"
@@ -53,7 +53,8 @@ const PREVIEW_BACKGROUND_CLOSE_BLOCK_SELECTOR =
 
 function getInitialPageIndex(focus: SlidesTemplatePreviewFocus, pages: string[]) {
 	if (!focus.tile.imageUrl) return 0
-	const matchedIndex = pages.findIndex((page) => page === focus.tile.imageUrl)
+	const normalizedImageUrl = getSlidesTemplatePreviewImageUrl(focus.tile.imageUrl)
+	const matchedIndex = pages.findIndex((page) => page === normalizedImageUrl)
 	return matchedIndex >= 0 ? matchedIndex : 0
 }
 
@@ -76,7 +77,10 @@ export default function SlidesTemplateInlinePreview({
 		imageUrl: colorImageUrl,
 		priority: "interactive",
 	})
-	const pages = useMemo(() => getTemplatePreviewUrls(template), [template])
+	const pages = useMemo(
+		() => getTemplatePreviewUrls(template).map(getSlidesTemplatePreviewImageUrl),
+		[template],
+	)
 	const pageKey = useMemo(() => pages.join("\n"), [pages])
 	const initialIndex = focus ? getInitialPageIndex(focus, pages) : 0
 
@@ -235,6 +239,7 @@ export default function SlidesTemplateInlinePreview({
 						>
 							{previewImageUrl ? (
 								<img
+									crossOrigin="anonymous"
 									src={previewImageUrl}
 									alt={title}
 									className="size-full object-cover"
@@ -455,9 +460,8 @@ export default function SlidesTemplateInlinePreview({
 											data-testid="slides-template-inline-preview-thumbnail"
 										>
 											<img
-												src={getSlidesTemplatePreviewThumbnailImageUrl(
-													page,
-												)}
+												crossOrigin="anonymous"
+												src={page}
 												alt=""
 												className="size-full object-cover"
 												loading={index <= 4 ? "eager" : "lazy"}

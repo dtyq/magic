@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { observer } from "mobx-react-lite"
 import { Box, ChevronRight, MoreHorizontal, Plus } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import projectStore from "@/pages/superMagic/stores/core/project"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"

@@ -4,7 +4,7 @@ import { observer } from "mobx-react-lite"
 import { service } from "@/services"
 import type { ConfigService } from "@/services/config/ConfigService"
 import type { Variant } from "antd/es/config-provider"
-import { useStyles } from "./styles"
+import { cn } from "@/utils/cn"
 import type { Config } from "@/models/config/types"
 
 interface LanguageSwitchProps {
@@ -15,7 +15,6 @@ interface LanguageSwitchProps {
 
 const LanguageSwitch = observer((props: LanguageSwitchProps) => {
 	const { className, popupClassName, variant } = props
-	const { styles, cx } = useStyles()
 
 	const lang = useGlobalLanguage()
 	const languageSelected = useGlobalLanguage(false)
@@ -24,7 +23,7 @@ const LanguageSwitch = observer((props: LanguageSwitchProps) => {
 	return (
 		<Select
 			value={lang}
-			className={cx(styles.select, className)}
+			className={cn("w-full", className)}
 			options={options}
 			variant={variant}
 			placement="bottomRight"
@@ -40,12 +39,15 @@ const LanguageSwitch = observer((props: LanguageSwitchProps) => {
 				const label = option.data.translations?.[option.data.value] ?? option.data.label
 				const tip = option.data.translations?.[languageSelected] ?? option.data.value
 				return (
-					<div className={styles.menuItem}>
-						<div className={styles.menuItemLeft}>
-							<div className={styles.menuItemTop}>
-								<span className={styles.menuItemTopName}>{label}</span>
+					<div className="flex h-8 items-center">
+						<div className="flex-1 overflow-hidden">
+							{/* Show the native language name above its translation in the current language. */}
+							<div className="flex h-5 items-center text-sm">
+								<span className="flex-[1_0_0] truncate font-semibold">{label}</span>
 							</div>
-							<div className={styles.menuItemBottom}>{tip}</div>
+							<div className="flex h-4 flex-[1_0_0] items-center text-xs text-neutral-500 dark:text-neutral-200">
+								{tip}
+							</div>
 						</div>
 					</div>
 				)

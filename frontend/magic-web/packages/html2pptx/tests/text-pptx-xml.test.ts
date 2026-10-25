@@ -3,6 +3,11 @@ import PptxGenJS from "pptxgenjs"
 import { describe, expect, it } from "vitest"
 import { drawText } from "../src/drawer/drawText"
 import type { PPTTextNode } from "../src/ir/node"
+import {
+	asStreamingPptxPresentation,
+	concatPptxChunks,
+	createCollectingPptxDestination,
+} from "./streaming-test-utils"
 
 describe("PowerPoint text XML", () => {
 	it("writes the HTML frame exactly and locks browser lines with a soft break", async () => {
@@ -30,13 +35,19 @@ describe("PowerPoint text XML", () => {
 		}
 		drawText(slide, node)
 
-		const output = await pptx.write({ outputType: "arraybuffer" })
-		const zip = await JSZip.loadAsync(output as ArrayBuffer)
+		const { destination, chunks } = createCollectingPptxDestination()
+		await asStreamingPptxPresentation(pptx).writeTo({ destination })
+		const zip = await JSZip.loadAsync(concatPptxChunks(chunks))
 		const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string")
 		if (!slideXml) throw new Error("slide1.xml is required")
 
 		expect(slideXml).toContain('<a:off x="1876425" y="4429125"/>')
 		expect(slideXml).toContain('<a:ext cx="952500" cy="266700"/>')
+		// An omitted transparency is OOXML's fully-opaque default.  A previous
+		// patched PptxGenJS build serialized it as alpha=0, making every text run
+		// invisible even though the <a:t> nodes were present.
+		expect(slideXml).toContain('<a:srgbClr val="112233"/>')
+		expect(slideXml).not.toContain('<a:srgbClr val="112233"><a:alpha val="0"/>')
 		expect(slideXml).toMatch(/<a:bodyPr[^>]*wrap="none"/)
 		expect(slideXml).toMatch(/lIns="76200"/)
 		expect(slideXml).toMatch(/tIns="38100"/)

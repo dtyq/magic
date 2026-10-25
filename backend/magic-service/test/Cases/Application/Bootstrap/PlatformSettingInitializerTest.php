@@ -30,7 +30,7 @@ class PlatformSettingInitializerTest extends TestCase
     {
         $platformSettingsAppService = Mockery::mock(PlatformSettingsAppService::class);
         $platformSettingsAppService->shouldReceive('get')->never();
-        $platformSettingsAppService->shouldReceive('save')->never();
+        $platformSettingsAppService->shouldReceive('update')->never();
 
         $initializer = new PlatformSettingInitializer($platformSettingsAppService);
         $result = $initializer->initialize([], '', '');
@@ -53,15 +53,16 @@ class PlatformSettingInitializerTest extends TestCase
                 'agent_role_name_i18n' => ['en_US' => 'Old Name'],
                 'agent_role_description_i18n' => ['en_US' => 'Old Desc'],
             ]));
-        $platformSettingsAppService->shouldReceive('save')
+        $platformSettingsAppService->shouldReceive('update')
             ->once()
-            ->with(Mockery::on(function (PlatformSettings $settings): bool {
-                $data = $settings->toArray();
+            ->with(Mockery::on(function (callable $updater): bool {
+                $data = $updater(PlatformSettings::fromArray(['global_system_prompt' => 'mock latest']))->toArray();
+                $this->assertSame('mock latest', $data['global_system_prompt']);
                 return ($data['name_i18n']['zh_CN'] ?? '') === '超级助手'
                     && ($data['agent_role_name_i18n']['zh_CN'] ?? '') === '超级助手'
                     && ($data['agent_role_description_i18n']['zh_CN'] ?? '') === '帮助你完成日常工作';
             }))
-            ->andReturnUsing(static fn (PlatformSettings $settings): PlatformSettings => $settings);
+            ->andReturnUsing(static fn (callable $updater): PlatformSettings => $updater(new PlatformSettings()));
 
         $initializer = new PlatformSettingInitializer($platformSettingsAppService);
         $result = $initializer->initialize(
@@ -88,7 +89,7 @@ class PlatformSettingInitializerTest extends TestCase
                 'agent_role_name_i18n' => ['en_US' => 'Super Assistant'],
                 'agent_role_description_i18n' => ['en_US' => 'Helps you finish daily work'],
             ]));
-        $platformSettingsAppService->shouldReceive('save')->never();
+        $platformSettingsAppService->shouldReceive('update')->never();
 
         $initializer = new PlatformSettingInitializer($platformSettingsAppService);
         $result = $initializer->initialize(
@@ -111,13 +112,14 @@ class PlatformSettingInitializerTest extends TestCase
         $platformSettingsAppService->shouldReceive('get')
             ->once()
             ->andReturn(new PlatformSettings());
-        $platformSettingsAppService->shouldReceive('save')
+        $platformSettingsAppService->shouldReceive('update')
             ->once()
-            ->with(Mockery::on(function (PlatformSettings $settings): bool {
-                $data = $settings->toArray();
+            ->with(Mockery::on(function (callable $updater): bool {
+                $data = $updater(PlatformSettings::fromArray(['global_system_prompt' => 'mock latest']))->toArray();
+                $this->assertSame('mock latest', $data['global_system_prompt']);
                 return ($data['name_i18n']['zh_CN'] ?? '') === '超级助手';
             }))
-            ->andReturnUsing(static fn (PlatformSettings $settings): PlatformSettings => $settings);
+            ->andReturnUsing(static fn (callable $updater): PlatformSettings => $updater(new PlatformSettings()));
 
         $initializer = new PlatformSettingInitializer($platformSettingsAppService);
         $result = $initializer->initialize(['name' => '超级助手'], '超级助手', '');

@@ -156,8 +156,7 @@ return [
             'rule-name' => 'custom-message',
         ],
     ],
-    'attributes' => [
-    ],
+    'attributes' => [],
     'phone_number' => 'The :attribute must be a valid phone number',
     'telephone_number' => 'The :attribute must be a valid telephone number',
     'chinese_word' => 'The :attribute must contain valid characters(chinese/english character, number, underscore)',
@@ -185,6 +184,11 @@ return [
             'required' => 'Member ID is required',
             'string' => 'Member ID must be a string',
             'max' => 'Member ID cannot exceed :max characters',
+        ],
+        'permission' => [
+            'in' => 'In',
+            'required' => 'Value is required',
+            'string' => 'String',
         ],
     ],
     'schedule_time' => [

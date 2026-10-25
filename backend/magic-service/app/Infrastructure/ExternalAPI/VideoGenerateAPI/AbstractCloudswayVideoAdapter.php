@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\ErrorCode\VideoGenerateErrorCode;
 use RuntimeException;
 
 abstract readonly class AbstractCloudswayVideoAdapter implements VideoGenerationProviderAdapterInterface
@@ -31,7 +32,7 @@ abstract readonly class AbstractCloudswayVideoAdapter implements VideoGeneration
             return $modelVersion;
         }
 
-        throw new RuntimeException('cloudsway endpoint id missing');
+        throw new ProviderVideoException(VideoGenerateErrorCode::GENERAL_ERROR, VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
     }
 
     protected function buildEndpointPath(VideoQueueOperationEntity $operation, string $suffix): string
@@ -144,24 +145,6 @@ abstract readonly class AbstractCloudswayVideoAdapter implements VideoGeneration
     {
         $operation->setAcceptedParams(array_values(array_unique($acceptedParams)));
         $operation->setIgnoredParams(array_values(array_unique($ignoredParams)));
-    }
-
-    protected function extractProviderMessage(array $response, string $fallback): string
-    {
-        foreach ([
-            is_array($response['error'] ?? null) ? ($response['error']['message'] ?? null) : null,
-            $response['message'] ?? null,
-            $response['msg'] ?? null,
-            is_array($response['data'] ?? null) ? ($response['data']['message'] ?? null) : null,
-            is_array($response['data']['error'] ?? null) ? ($response['data']['error']['message'] ?? null) : null,
-            is_array($response['data'] ?? null) ? ($response['data']['task_status_msg'] ?? null) : null,
-        ] as $candidate) {
-            if (is_string($candidate) && trim($candidate) !== '') {
-                return trim($candidate);
-            }
-        }
-
-        return $fallback;
     }
 
     protected function buildLogContext(VideoQueueOperationEntity $operation, ?string $providerTaskId = null): array

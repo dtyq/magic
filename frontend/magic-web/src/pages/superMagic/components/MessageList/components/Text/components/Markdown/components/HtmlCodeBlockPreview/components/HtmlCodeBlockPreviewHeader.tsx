@@ -1,8 +1,8 @@
 import { IconChevronUp } from "@tabler/icons-react"
-import { Check, CodeXml, Copy, Fullscreen, Monitor, Smartphone } from "lucide-react"
+import { Check, CodeXml, Copy, Fullscreen, Monitor, Smartphone, WrapText } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { HtmlCodeBlockPreviewMode } from "../types"
 import { HtmlCodeBlockPreviewHtmlIcon } from "./HtmlCodeBlockPreviewHtmlIcon"
 
@@ -14,6 +14,9 @@ interface HtmlCodeBlockPreviewHeaderProps {
 	phoneModeLabel: string
 	copyLabel: string
 	copySuccessLabel: string
+	wrapLabel: string
+	unwrapLabel: string
+	isCodeWrapped: boolean
 	viewMode: HtmlCodeBlockPreviewMode
 	isExpanded: boolean
 	isCopied: boolean
@@ -23,6 +26,7 @@ interface HtmlCodeBlockPreviewHeaderProps {
 	shouldRenderViewModeSwitcher: boolean
 	shouldRenderDesktopModeButton?: boolean
 	onCopy: () => void
+	onToggleCodeWrap: () => void
 	onOpenFullscreen: () => void
 	onToggleExpanded: () => void
 	onViewModeChange: (mode: string) => void
@@ -37,6 +41,9 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 		phoneModeLabel,
 		copyLabel,
 		copySuccessLabel,
+		wrapLabel,
+		unwrapLabel,
+		isCodeWrapped,
 		viewMode,
 		isExpanded,
 		isCopied,
@@ -46,6 +53,7 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 		shouldRenderViewModeSwitcher,
 		shouldRenderDesktopModeButton = true,
 		onCopy,
+		onToggleCodeWrap,
 		onOpenFullscreen,
 		onToggleExpanded,
 		onViewModeChange,
@@ -149,6 +157,28 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 							<TooltipContent side="top">{phoneModeLabel}</TooltipContent>
 						</Tooltip>
 					</div>
+				)}
+				{shouldRenderCopyButton && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="inline-flex">
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									aria-label={isCodeWrapped ? unwrapLabel : wrapLabel}
+									aria-pressed={isCodeWrapped}
+									onClick={onToggleCodeWrap}
+									className="h-6 w-6 rounded-sm text-foreground hover:bg-transparent hover:text-foreground"
+								>
+									<WrapText className="h-4 w-4" />
+								</Button>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="top">
+							{isCodeWrapped ? unwrapLabel : wrapLabel}
+						</TooltipContent>
+					</Tooltip>
 				)}
 				{shouldRenderCopyButton && (
 					<Tooltip>

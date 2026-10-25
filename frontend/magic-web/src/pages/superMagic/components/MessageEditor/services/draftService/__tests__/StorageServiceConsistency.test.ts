@@ -179,8 +179,8 @@ describe("Storage Service Consistency", () => {
 			}
 
 			// Mock both services to return the same existing data
-			vi.spyOn(localStorageService, "loadLatestDraftVersion").mockResolvedValue(existingData)
-			vi.spyOn(indexedDBService, "loadLatestDraftVersion").mockResolvedValue(existingData)
+			vi.spyOn(localStorageService, "loadDraft").mockResolvedValue(existingData)
+			vi.spyOn(indexedDBService, "loadDraft").mockResolvedValue(existingData)
 
 			// Both should skip saving
 			await localStorageService.saveDraft(testKey, testDraftData)
@@ -205,7 +205,7 @@ describe("Storage Service Consistency", () => {
 				updatedAt: Date.now() - 500,
 			}
 
-			vi.spyOn(localStorageService, "loadLatestDraftVersion").mockResolvedValue(differentData)
+			vi.spyOn(localStorageService, "loadDraft").mockResolvedValue(differentData)
 
 			await localStorageService.saveDraft(testKey, testDraftData)
 
@@ -213,12 +213,12 @@ describe("Storage Service Consistency", () => {
 			expect(localStorageMock.setItem).toHaveBeenCalledTimes(1)
 		})
 
-		it("LocalStorage service should save when no latest version exists", async () => {
-			vi.spyOn(localStorageService, "loadLatestDraftVersion").mockResolvedValue(null)
+		it("LocalStorage service should save when no current draft exists", async () => {
+			vi.spyOn(localStorageService, "loadDraft").mockResolvedValue(null)
 
 			await localStorageService.saveDraft(testKey, testDraftData)
 
-			// LocalStorage should attempt to save when no latest version exists
+			// LocalStorage should attempt to save when no current draft exists
 			expect(localStorageMock.setItem).toHaveBeenCalledTimes(1)
 		})
 	})

@@ -9,8 +9,8 @@ import { useApis } from "@admin/apis"
 import { PERMISSION_KEY_MAP } from "@admin/const/common"
 import useRights from "@admin/hooks/useRights"
 import { useAdmin } from "@admin/provider/AdminProvider"
-import { RouteName } from "@admin/const/routes"
 import { useOpenModal } from "@admin/hooks/useOpenModal"
+import { getServiceProviderDetailRouteName } from "@admin/pages/PlatformPackage/utils/serviceProviderRoutes"
 import { useAdminStore } from "@admin/stores/admin"
 import { useStyles } from "./styles"
 import { AddServiceModal } from "../AddServiceModal"
@@ -105,30 +105,7 @@ const ServiceProviderList = ({ category, className, style }: TabListProps) => {
 		})
 	}
 
-	const getDetailRouteName = (): RouteName => {
-		if (isOfficialOrg) {
-			switch (category) {
-				case AiModel.ServiceProviderCategory.LLM:
-					return RouteName.AdminPlatformAIModelDetails
-				case AiModel.ServiceProviderCategory.VLM:
-					return RouteName.AdminPlatformAIDrawingDetails
-				case AiModel.ServiceProviderCategory.VGM:
-					return RouteName.AdminPlatformVideoModelDetails
-				default:
-					return RouteName.AdminPlatformAIModelDetails
-			}
-		}
-		switch (category) {
-			case AiModel.ServiceProviderCategory.LLM:
-				return RouteName.AdminAIModelDetails
-			case AiModel.ServiceProviderCategory.VLM:
-				return RouteName.AdminAIDrawingDetails
-			case AiModel.ServiceProviderCategory.VGM:
-				return RouteName.AdminAIVideoDetails
-			default:
-				return RouteName.AdminAIModelDetails
-		}
-	}
+	const getDetailRouteName = () => getServiceProviderDetailRouteName(category, isOfficialOrg)
 
 	const openDetail = (id: string) => {
 		navigate({

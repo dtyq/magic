@@ -4,6 +4,7 @@ import { observer } from "mobx-react-lite"
 import { useMemoizedFn, useMount } from "ahooks"
 import { useNavigate } from "@/routes/hooks/useNavigate"
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useTranslation } from "react-i18next"
 import { useUserDevices } from "@/models/user/hooks"
 import { useDeviceLogout } from "./hooks/useDeviceLogout"
@@ -13,11 +14,11 @@ import LogoutConfirmModal from "./components/LogoutConfirmModal"
 import { getDeviceInfo } from "@/utils/devices"
 import { MagicEmpty } from "@/components/base"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import type { User } from "@/types/user"
 import type { TFunction } from "i18next"
 
-/** 登录设备页负责装配设备数据、当前设备识别和退出弹层，展示层保持轻逻辑。 */
+/** Assemble device data, current-device identity and logout confirmation at the page boundary. */
 function LoginDevices() {
 	const { i18n, t } = useTranslation("accountSetting")
 	const { t: tInterface } = useTranslation("interface")
@@ -38,7 +39,7 @@ function LoginDevices() {
 		})
 	})
 
-	// 设备分组只影响展示，不改变后端返回顺序和现有退出设备逻辑。
+	// Group devices for display without changing the API order or logout behavior.
 	const { currentDevices, otherDevices } = useMemo(() => {
 		const deviceList = devices ?? []
 		if (!currentDevice) return { currentDevices: [], otherDevices: deviceList }
@@ -49,12 +50,12 @@ function LoginDevices() {
 		}
 	}, [currentDevice, devices])
 
-	// 时间文案依赖当前用户时区和语言包，集中在页面层生成后再传给展示组件。
+	// Format device times with the account timezone and locale before passing them to the rows.
 	const getDeviceTimeLabel = useMemoizedFn((device: User.UserDeviceInfo, isCurrent: boolean) =>
 		formatDeviceTime({ device, timezone, isCurrent, t: tInterface }),
 	)
 
-	// 返回上一页
+	// Return to the previous page using the existing transition.
 	const handleBack = useMemoizedFn(() => {
 		navigate({
 			delta: -1,
@@ -84,7 +85,7 @@ function LoginDevices() {
 
 			{/* Content */}
 			<div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden px-3.5 pb-safe-bottom">
-				{/* 安全提示沿用现有文案，视觉上收敛为页面首个信息卡片。 */}
+				{/* Keep the existing security advice visible above the device list. */}
 				<div
 					className="mb-4 flex gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm leading-5 text-primary"
 					data-testid="login-devices-security-tip"
@@ -93,8 +94,12 @@ function LoginDevices() {
 					<div>{tInterface("setting.tip.loginDevicesTip")}</div>
 				</div>
 
-				{/* 设备列表 */}
-				<MagicSpin className="min-h-0 flex-1" spinning={isLoading}>
+				{/* The spin wrapper supplies a definite height to the actual device viewport. */}
+				<MagicSpin
+					className="min-h-0 flex-1"
+					innerClassName="h-full min-h-0"
+					spinning={isLoading}
+				>
 					{devices?.length === 0 ? (
 						<div
 							className="flex h-full items-center justify-center"
@@ -103,8 +108,9 @@ function LoginDevices() {
 							<MagicEmpty description={t("noData")} />
 						</div>
 					) : (
-						<div
-							className="flex h-full flex-col gap-4 overflow-y-auto pb-4"
+						<ScrollArea
+							className="h-full min-h-0"
+							viewportClassName="pb-4 [&>div]:!flex [&>div]:flex-col [&>div]:gap-4"
 							data-testid="login-devices-list"
 						>
 							{currentDevices.length > 0 ? (
@@ -136,7 +142,7 @@ function LoginDevices() {
 								onLogout={handlers.handleLogout}
 								data-testid="login-devices-other-section"
 							/>
-						</div>
+						</ScrollArea>
 					)}
 				</MagicSpin>
 			</div>
@@ -162,7 +168,7 @@ interface DeviceSectionProps {
 	"data-testid": string
 }
 
-/** 设备分组组件承载标题、卡片和空态，让页面主体保持清晰的数据装配职责。 */
+/** Render a device group while the page owns data assembly and logout state. */
 function DeviceSection(props: DeviceSectionProps) {
 	const {
 		title,
@@ -213,12 +219,12 @@ interface FormatDeviceTimeParams {
 	t: TFunction
 }
 
-/** 设备系统信息按“系统 + 版本”拼接，缺少版本时避免显示多余空白。 */
+/** Join the operating system and version without adding space for missing values. */
 function formatDeviceSystem(device: User.UserDeviceInfo) {
 	return [device.os, device.os_version].filter(Boolean).join(" ")
 }
 
-/** 用户可见设备时间按账号时区渲染，减少跨时区查看登录记录时的误读。 */
+/** Render activity times in the account timezone to avoid ambiguous login records. */
 function formatDeviceTime({ device, timezone, isCurrent, t }: FormatDeviceTimeParams) {
 	const formattedTime = dayjs(device.updated_at).isValid()
 		? dayjs(device.updated_at).tz(timezone).format("YYYY-MM-DD HH:mm")

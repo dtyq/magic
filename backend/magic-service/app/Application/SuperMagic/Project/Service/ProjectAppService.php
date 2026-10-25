@@ -37,6 +37,7 @@ use App\Domain\SuperMagic\Common\RecycleBin\Service\RecycleBinDomainService;
 use App\Domain\SuperMagic\Common\Share\Constant\ResourceType;
 use App\Domain\SuperMagic\Common\Share\Service\ResourceShareDomainService;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileSpaceType;
 use App\Domain\SuperMagic\File\Entity\ValueObject\FileType;
 use App\Domain\SuperMagic\File\Entity\ValueObject\TaskFileSource;
 use App\Domain\SuperMagic\File\Service\AudioProjectDomainService;
@@ -105,6 +106,7 @@ use App\Interfaces\SuperMagic\Project\DTO\Response\ProjectListResponseDTO;
 use App\Interfaces\SuperMagic\Topic\DTO\Request\GetSidebarTopicsRequestDTO;
 use App\Interfaces\SuperMagic\Topic\DTO\Response\SidebarTopicListResponseDTO;
 use App\Interfaces\SuperMagic\Topic\DTO\Response\TopicItemDTO;
+use Closure;
 use DirectoryIterator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\Amqp\Producer;
@@ -277,8 +279,11 @@ class ProjectAppService extends AbstractAppService
         // Extract project ID from work directory (for migration scenarios)
         $projectId = $this->extractProjectIdFromWorkDir($dataIsolation, $requestDTO->getWorkDir());
 
-        Db::beginTransaction();
+        $transactionOpen = false;
         try {
+            $conversationPair = $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation);
+            Db::beginTransaction();
+            $transactionOpen = true;
             // 1. Create project entity
             $this->logger->info('创建默认项目');
             $projectEntity = $this->projectDomainService->createProject(
@@ -294,7 +299,7 @@ class ProjectAppService extends AbstractAppService
 
             // Standard initialization flow (steps 2-6 + 8)
             $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
-            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
+            ['topic' => $topicEntity, 'pending_default' => $pendingDefault] = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $conversationPair, $dynamicParams);
 
             // 7. Initialize project root directory or bind files
             if ($requestDTO->getFiles()) {
@@ -314,7 +319,9 @@ class ProjectAppService extends AbstractAppService
                 );
             }
 
+            $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
             Db::commit();
+            $transactionOpen = false;
 
             // Dispatch project created event
             $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
@@ -325,7 +332,9 @@ class ProjectAppService extends AbstractAppService
                 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray(),
             ];
         } catch (Throwable $e) {
-            Db::rollBack();
+            if ($transactionOpen) {
+                Db::rollBack();
+            }
             $this->logger->error('Create Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
         }
@@ -404,8 +413,11 @@ class ProjectAppService extends AbstractAppService
             );
 
             // 5. 创建项目
-            Db::beginTransaction();
+            $transactionOpen = false;
             try {
+                $conversationPair = $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation);
+                Db::beginTransaction();
+                $transactionOpen = true;
                 $projectEntity = $this->projectDomainService->createProject(
                     $workspaceEntity->getId(),
                     $requestDTO->getProjectName(),
@@ -419,7 +431,7 @@ class ProjectAppService extends AbstractAppService
 
                 // 6. 初始化项目
                 $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
-                $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams, $requestDTO->getTopicMode());
+                ['pending_default' => $pendingDefault] = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $conversationPair, $dynamicParams, $requestDTO->getTopicMode());
 
                 // 7. 创建项目根目录
                 $this->taskFileDomainService->findOrCreateProjectRootDirectory(
@@ -436,7 +448,9 @@ class ProjectAppService extends AbstractAppService
                 $settingEntity->setValue(['project_id' => $projectEntity->getId()]);
                 $this->magicUserSettingDomainService->save($dataIsolation, $settingEntity);
 
+                $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
                 Db::commit();
+                $transactionOpen = false;
 
                 // 触发项目创建事件
                 $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
@@ -448,13 +462,73 @@ class ProjectAppService extends AbstractAppService
                     'is_existing' => false,
                 ];
             } catch (Throwable $e) {
-                Db::rollBack();
+                if ($transactionOpen) {
+                    Db::rollBack();
+                }
                 $this->logger->error('Create Special Project Failed, err: ' . $e->getMessage(), ['key' => $specialKey]);
                 ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
             }
         } finally {
             $this->locker->release($lockName, $lockOwner);
         }
+    }
+
+    /** Query a user-scoped special project without creating it. */
+    public function findSpecialProject(RequestContext $requestContext, string $specialKey): ?ProjectEntity
+    {
+        $dataIsolation = $this->createDataIsolation($requestContext->getUserAuthorization());
+        $setting = $this->magicUserSettingDomainService->get(
+            $dataIsolation,
+            UserSettingKey::genSuperMagicSpecialProject($specialKey),
+        );
+        $projectId = (int) ($setting?->getValue()['project_id'] ?? 0);
+        if ($projectId <= 0) {
+            return null;
+        }
+
+        $project = $this->projectRepository->findById($projectId);
+        return $project !== null && $project->getUserId() === $dataIsolation->getCurrentUserId()
+            ? $project
+            : null;
+    }
+
+    /** Create or get a micro-app runtime project with server-owned defaults. */
+    public function ensureMicroAppRuntimeProject(RequestContext $requestContext, string $specialKey): array
+    {
+        $requestDTO = new CreateSpecialProjectRequestDTO([
+            'key' => $specialKey,
+            'project_name' => $specialKey,
+            'dynamic_params' => ['agent_mode' => 'micro-app', 'message_version' => 'v2'],
+        ]);
+        $result = $this->createOrGetSpecialProject($requestContext, $requestDTO);
+        $projectId = (int) ($result['project']['id'] ?? 0);
+        $project = $projectId > 0 ? $this->projectRepository->findById($projectId) : null;
+        if ($project === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
+        }
+
+        $project = $this->normalizeMicroAppRuntimeProject($project);
+
+        return [
+            'project' => ProjectItemDTO::fromEntity($project)->toArray(),
+            'is_existing' => (bool) ($result['is_existing'] ?? false),
+        ];
+    }
+
+    public function normalizeMicroAppRuntimeProject(ProjectEntity $project): ProjectEntity
+    {
+        if (! $project->isHidden()
+            || $project->getHiddenType() !== HiddenType::MICRO_APP_RUNTIME->value
+            || $project->getSource() !== CreationSource::SYSTEM_CREATED->value) {
+            $project->setIsHidden(true)
+                ->setHiddenTypeEnum(HiddenType::MICRO_APP_RUNTIME)
+                ->setSource(CreationSource::SYSTEM_CREATED->value)
+                ->setUpdatedUid($project->getUserId())
+                ->setUpdatedAt(date('Y-m-d H:i:s'));
+            return $this->projectDomainService->saveProjectEntity($project);
+        }
+
+        return $project;
     }
 
     /**
@@ -562,6 +636,17 @@ class ProjectAppService extends AbstractAppService
             // 获取工作区信息用于写入 extra_data
             $workspaceId = $projectEntity->getWorkspaceId();
             $workspace = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
+            if ($workspaceId !== null && $workspace === null) {
+                $this->logger->warning('项目关联的工作区不存在', [
+                    'project_id' => $projectId,
+                    'workspace_id' => $workspaceId,
+                ]);
+            }
+
+            $parentInfo = $workspace === null ? null : [
+                'workspace_id' => $workspaceId,
+                'workspace_name' => $workspace->getName(),
+            ];
 
             // 记录到回收站表
             $this->recycleBinDomainService->recordDeletion(
@@ -570,12 +655,9 @@ class ProjectAppService extends AbstractAppService
                 resourceName: $projectEntity->getProjectName(),
                 ownerId: $projectEntity->getUserId(),
                 deletedBy: (string) $dataIsolation->getCurrentUserId(),
-                parentId: $projectEntity->getWorkspaceId(),
+                parentId: $workspaceId,
                 extraData: array_filter([
-                    'parent_info' => [
-                        'workspace_id' => $workspaceId,
-                        'workspace_name' => $workspace ? $workspace->getName() : '',
-                    ],
+                    'parent_info' => $parentInfo,
                     'micro_app' => $microAppRecord === null ? null : [
                         'app_id' => (string) $microAppRecord->getId(),
                         'project_id' => (string) $projectId,
@@ -903,7 +985,8 @@ class ProjectAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId(),
             $requestDTO->getQ(),
             $requestDTO->getPage(),
-            $requestDTO->getPageSize()
+            $requestDTO->getPageSize(),
+            $requestDTO->getTopicTypes()
         );
 
         return SidebarTopicListResponseDTO::fromResult($result)->toArray();
@@ -1240,8 +1323,11 @@ class ProjectAppService extends AbstractAppService
         // Validate target workspace access
         $workspaceEntity = $this->validateWorkspaceAccess($dataIsolation, $requestDTO->getTargetWorkspaceId());
 
-        Db::beginTransaction();
+        $transactionOpen = false;
         try {
+            $conversationPair = $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation);
+            Db::beginTransaction();
+            $transactionOpen = true;
             // Dispatch fork start check event
             AsyncEventUtil::dispatch(new ForkProjectStartEvent(
                 $dataIsolation->getCurrentOrganizationCode(),
@@ -1272,7 +1358,7 @@ class ProjectAppService extends AbstractAppService
             ));
 
             // Standard initialization flow (steps 2-6 + 8)
-            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $forkProjectEntity);
+            ['topic' => $topicEntity, 'pending_default' => $pendingDefault] = $this->initializeProject($dataIsolation, $workspaceEntity, $forkProjectEntity, $conversationPair);
 
             // Copy audio extension data for audio projects. The audio_file_id is
             // updated after async file migration resolves the new file ID.
@@ -1284,7 +1370,7 @@ class ProjectAppService extends AbstractAppService
 
             // 7. Skip root directory initialization (fork uses async file migration)
 
-            // Publish fork event for async file migration
+            // Build the fork event for async file migration; it is published after the commit
             $event = new ProjectForkEvent(
                 $requestDTO->getSourceProjectId(),
                 $forkProjectEntity->getId(),
@@ -1292,21 +1378,30 @@ class ProjectAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 $forkProjectRecordEntity->getId()
             );
-            $publisher = new ProjectForkPublisher($event);
-            $this->producer->produce($publisher);
-            $this->logger->info(sprintf('Published fork event, event ID: %s', $event->getEventId()));
 
+            $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
             Db::commit();
+            $transactionOpen = false;
 
-            return ForkProjectResponseDTO::fromEntity($forkProjectRecordEntity)->toArray();
+            $responseData = ForkProjectResponseDTO::fromEntity($forkProjectRecordEntity)->toArray();
         } catch (EventException $e) {
-            Db::rollBack();
+            if ($transactionOpen) {
+                Db::rollBack();
+            }
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_FORK_ACCESS_DENIED, $e->getMessage());
         } catch (Throwable $e) {
-            Db::rollBack();
+            if ($transactionOpen) {
+                Db::rollBack();
+            }
             $this->logger->error('Fork project failed, error: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             throw $e;
         }
+
+        // The consumer reads the forked project on its own connection, so the event may only be
+        // published once the transaction is committed and those rows are visible to it.
+        $this->publishForkEvent($event);
+
+        return $responseData;
     }
 
     /**
@@ -1343,7 +1438,7 @@ class ProjectAppService extends AbstractAppService
 
         try {
             // Call file domain service to handle file migration
-            $dataIsolation = DataIsolation::simpleMake($event->getOrganizationCode(), $event->getUserId());
+            $dataIsolation = $this->createContactDataIsolationByUser($event->getOrganizationCode(), $event->getUserId());
 
             $sourceProjectEntity = $this->projectDomainService->getProjectNotUserId($event->getSourceProjectId());
 
@@ -1351,7 +1446,7 @@ class ProjectAppService extends AbstractAppService
 
             $forkProjectRecordEntity = $this->projectDomainService->getForkProjectRecordById($event->getForkRecordId());
 
-            $sourceToForkFileIdMap = $this->taskFileDomainService->migrateProjectFile($dataIsolation, $sourceProjectEntity, $forkProjectEntity, $forkProjectRecordEntity, $event->getFileIds());
+            $sourceToForkFileIdMap = $this->taskFileDomainService->migrateProjectFile($dataIsolation, $sourceProjectEntity, $forkProjectEntity, $forkProjectRecordEntity, $this->createContactDataIsolationByUser($forkProjectEntity->getUserOrganizationCode(), $forkProjectEntity->getUserId()), $event->getFileIds());
             if (! empty($sourceToForkFileIdMap)) {
                 $this->audioProjectDomainService->updateForkedAudioFileIdFromMigrationMap(
                     $sourceProjectEntity->getId(),
@@ -1370,6 +1465,9 @@ class ProjectAppService extends AbstractAppService
                 $event->getForkRecordId(),
                 $e->getMessage()
             ));
+            // Failures raised before the migration itself starts leave the record untouched,
+            // so give it a terminal state instead of letting the client poll 0% forever.
+            $this->projectDomainService->markForkRecordFailed($event->getForkRecordId(), 'File migration failed');
             throw $e;
         }
     }
@@ -1410,13 +1508,29 @@ class ProjectAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId()
         );
 
+        // `pre_project_id` has priority only when both relative-position IDs
+        // have a value. An explicitly null `pre_project_id` must not suppress
+        // a valid `next_project_id`.
+        $preProjectId = $requestDTO->getPreProjectId();
+        $nextProjectId = $requestDTO->getNextProjectId();
+        if ($preProjectId !== null && $nextProjectId !== null) {
+            $this->logger->warning('Both pre_project_id and next_project_id were provided; pre_project_id wins', [
+                'project_id' => $requestDTO->getSourceProjectId(),
+            ]);
+            $nextProjectId = null;
+        }
+        $sortProvided = ($preProjectId !== null || $nextProjectId !== null);
+
         // Call domain service to handle the move
         $movedProjectEntity = $this->projectDomainService->moveProject(
             $requestDTO->getSourceProjectId(),
             $targetWorkspaceId,
             $userAuthorization->getId(),
             $requestDTO->getTargetProjectName(),
-            $requestDTO->getProjectMode()
+            $requestDTO->getProjectMode(),
+            $preProjectId,
+            $nextProjectId,
+            $sortProvided
         );
 
         $this->logger->info(sprintf(
@@ -1496,14 +1610,20 @@ class ProjectAppService extends AbstractAppService
 
         /** @var int[] $validProjectIds */
         $validProjectIds = [];
+        /** @var int[] $workspaceChangeProjectIds */
+        $workspaceChangeProjectIds = [];
         $invalidResults = [];
 
         foreach ($requestDTO->getProjectIds() as $projectId) {
             $projectIdInt = (int) $projectId;
             if (isset($projectMap[$projectIdInt])) {
                 $project = $projectMap[$projectIdInt];
-                // Check if project is already in target workspace
-                if ($project->getWorkspaceId() === $targetWorkspaceId) {
+                // A same-workspace request is valid when it explicitly carries a
+                // sorting parameter; otherwise preserve the legacy no-op rejection.
+                if ($project->getWorkspaceId() === $targetWorkspaceId
+                    && ! $requestDTO->preProjectIdProvided
+                    && ! $requestDTO->nextProjectIdProvided
+                ) {
                     $invalidResults[] = [
                         'project_id' => $projectId,
                         'success' => false,
@@ -1511,6 +1631,9 @@ class ProjectAppService extends AbstractAppService
                     ];
                 } else {
                     $validProjectIds[] = $projectIdInt;
+                    if ($project->getWorkspaceId() !== $targetWorkspaceId) {
+                        $workspaceChangeProjectIds[] = $projectIdInt;
+                    }
                 }
             } else {
                 $invalidResults[] = [
@@ -1527,10 +1650,23 @@ class ProjectAppService extends AbstractAppService
 
         if (! empty($validProjectIds)) {
             try {
-                $successResults = Db::transaction(function () use ($validProjectIds, $targetWorkspaceId, $now, $userId, $organizationCode) {
-                    // Step 4.1: Batch update projects (1 query)
-                    $updatedCount = $this->projectRepository->batchUpdateWorkspace(
-                        $validProjectIds,
+                $successResults = Db::transaction(function () use ($validProjectIds, $workspaceChangeProjectIds, $targetWorkspaceId, $now, $userId, $organizationCode, $requestDTO) {
+                    $preProjectId = $requestDTO->getPreProjectId();
+                    $nextProjectId = $requestDTO->getNextProjectId();
+                    if ($preProjectId !== null && $nextProjectId !== null) {
+                        $this->logger->warning('Both pre_project_id and next_project_id were provided in batch move; pre_project_id wins');
+                        $nextProjectId = null;
+                    }
+                    $relativeProjectId = $preProjectId ?? $nextProjectId;
+                    if ($relativeProjectId !== null
+                        && in_array($relativeProjectId, $validProjectIds, true)
+                    ) {
+                        throw new RuntimeException('Relative project cannot be included in the moved project list');
+                    }
+
+                    // Step 4.1: Batch update projects only when workspace changes.
+                    $updatedCount = $workspaceChangeProjectIds === [] ? 0 : $this->projectRepository->batchUpdateWorkspace(
+                        $workspaceChangeProjectIds,
                         $targetWorkspaceId,
                         $now
                     );
@@ -1540,8 +1676,8 @@ class ProjectAppService extends AbstractAppService
                     ]);
 
                     // Step 4.2: Batch update topics (1 query)
-                    $topicUpdatedCount = $this->topicDomainService->batchUpdateWorkspaceByProjects(
-                        $validProjectIds,
+                    $topicUpdatedCount = $workspaceChangeProjectIds === [] ? 0 : $this->topicDomainService->batchUpdateWorkspaceByProjects(
+                        $workspaceChangeProjectIds,
                         $targetWorkspaceId,
                         $now
                     );
@@ -1552,7 +1688,7 @@ class ProjectAppService extends AbstractAppService
 
                     // Step 4.3: Sync message schedule workspace.
                     $scheduleUpdatedCount = $this->messageScheduleDomainService->syncMovedProjectSchedules(
-                        $validProjectIds,
+                        $workspaceChangeProjectIds,
                         $userId,
                         $organizationCode,
                         (int) ($targetWorkspaceId ?? 0),
@@ -1566,7 +1702,7 @@ class ProjectAppService extends AbstractAppService
                     // Step 4.4: Sync owner's personal workspace binding.
                     $settingUpdatedCount = $this->projectMemberDomainService->syncOwnerProjectWorkspaceBindings(
                         $userId,
-                        $validProjectIds,
+                        $workspaceChangeProjectIds,
                         $targetWorkspaceId,
                         $organizationCode
                     );
@@ -1574,6 +1710,31 @@ class ProjectAppService extends AbstractAppService
                     $this->logger->info('Batch synced owner project workspace bindings', [
                         'updated_count' => $settingUpdatedCount,
                     ]);
+
+                    if ($preProjectId !== null || $nextProjectId !== null) {
+                        // For a `next_*_id` anchor, reverse processing keeps
+                        // the caller's project order in the final list.
+                        $sortProjectIds = $preProjectId !== null
+                            ? $validProjectIds
+                            : array_reverse($validProjectIds);
+                        $currentPreProjectId = $preProjectId;
+                        $currentNextProjectId = $nextProjectId;
+                        foreach ($sortProjectIds as $projectId) {
+                            $this->projectDomainService->applyProjectSortOrderForBatch(
+                                $userId,
+                                $organizationCode,
+                                $projectId,
+                                $targetWorkspaceId,
+                                $currentPreProjectId,
+                                $currentNextProjectId
+                            );
+                            if ($currentPreProjectId !== null) {
+                                $currentPreProjectId = $projectId;
+                            } else {
+                                $currentNextProjectId = $projectId;
+                            }
+                        }
+                    }
 
                     // Step 4.5: Build success results
                     $results = [];
@@ -1667,8 +1828,16 @@ class ProjectAppService extends AbstractAppService
             ];
         }
 
-        // Only return workspace-type files; filter at DB level to avoid loading snapshot/other files
-        $fileTree = $this->magicFSFileDomainService->getFileTree($parentId, -1, 0, StorageType::WORKSPACE->value);
+        // The project authorization above is bound to the route/token project. A
+        // caller-supplied parent_id must belong to that same project before it can
+        // be used as the root of a file-tree traversal.
+        $parentFile = $this->magicFSFileDomainService->getFileById($parentId);
+        if ((int) $parentFile->getProjectId() !== (int) $requestDTO->getProjectId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.access_denied');
+        }
+
+        // Only return project-space files; filter at DB level to avoid loading snapshot/other files
+        $fileTree = $this->magicFSFileDomainService->getFileTree($parentId, -1, 0, FileSpaceType::PROJECT->value);
         /** @var TaskFileEntity[] $entities */
         $entities = $fileTree['children'] ?? [];
         $fileTypes = $requestDTO->getFileType();
@@ -1701,7 +1870,7 @@ class ProjectAppService extends AbstractAppService
             $dto->isHidden = $entity->getIsHidden();
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
-            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? WorkDirectoryUtil::getRelativeFilePath($fileKey, $workDir);
+            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? '';
             $dto->isDirectory = $entity->getIsDirectory();
             $dto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
             $dto->metadata = $dto->displayConfig;
@@ -1823,10 +1992,16 @@ class ProjectAppService extends AbstractAppService
     // ========================================
     // Agent Project Methods
     // ========================================
+    /**
+     * Prepare conversation identities before opening the business transaction.
+     * @param null|Closure(ProjectEntity): void $beforeCommit bind the owning resource atomically with its project
+     */
     public function createAgentProject(
         RequestContext $requestContext,
         CreateAgentProjectRequestDTO $requestDTO,
-        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT
+        ProjectMode $projectMode = ProjectMode::CUSTOM_AGENT,
+        bool $setDefaultTopic = true,
+        ?Closure $beforeCommit = null
     ) {
         $this->logger->info('Starting agent project creation');
 
@@ -1834,8 +2009,21 @@ class ProjectAppService extends AbstractAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        Db::beginTransaction();
+        $transactionOpen = false;
         try {
+            $topicMode = '';
+            $agentCode = '';
+            if ($projectMode === ProjectMode::MAGICLAW) {
+                $topicMode = ProjectMode::MAGICLAW->value;
+                $agentCode = $requestDTO->getAgentCode();
+                if ($agentCode === '') {
+                    throw new InvalidArgumentException('MagicClaw agent code is required');
+                }
+            }
+
+            $conversationPair = $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation);
+            Db::beginTransaction();
+            $transactionOpen = true;
             // 1. Create project entity
             $this->logger->info(sprintf('Creating core project with mode=%s', $projectMode->value));
             $projectEntity = $this->projectDomainService->createProject(
@@ -1852,21 +2040,12 @@ class ProjectAppService extends AbstractAppService
             );
             $this->logger->info(sprintf('Created core project, projectId=%s', $projectEntity->getId()));
 
-            $topicMode = '';
-            $agentCode = '';
-            if ($projectMode === ProjectMode::MAGICLAW) {
-                $topicMode = ProjectMode::MAGICLAW->value;
-                $agentCode = $requestDTO->getAgentCode();
-                if ($agentCode === '') {
-                    throw new InvalidArgumentException('MagicClaw agent code is required');
-                }
-            }
-
             // Standard initialization flow (steps 2-6 + 8) - workspace can be null for audio projects
-            $topicEntity = $this->initializeProject(
+            ['topic' => $topicEntity, 'pending_default' => $pendingDefault] = $this->initializeProject(
                 dataIsolation: $dataIsolation,
                 workspaceEntity: null,
                 projectEntity: $projectEntity,
+                conversationPair: $conversationPair,
                 topicMode: $topicMode,
                 agentCode: $agentCode,
             );
@@ -1879,7 +2058,15 @@ class ProjectAppService extends AbstractAppService
                 $requestDTO->getInitTemplateFiles()
             );
 
+            // Resource creation/binding shares this transaction; no event escapes a failed binding.
+            $beforeCommit?->__invoke($projectEntity);
+
+            // A background skill draft must not redirect the conversation that requested it.
+            if ($setDefaultTopic) {
+                $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
+            }
             Db::commit();
+            $transactionOpen = false;
 
             // Dispatch project created event
             $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
@@ -1894,7 +2081,9 @@ class ProjectAppService extends AbstractAppService
                 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray(),
             ];
         } catch (Throwable $e) {
-            Db::rollBack();
+            if ($transactionOpen) {
+                Db::rollBack();
+            }
             $this->logger->error('Create Agent Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, trans('project.create_project_failed'));
         }
@@ -1962,8 +2151,11 @@ class ProjectAppService extends AbstractAppService
             $this->validateWorkspaceType($workspaceEntity, WorkspaceType::Audio, (int) $requestDTO->getWorkspaceId());
         }
 
-        Db::beginTransaction();
+        $transactionOpen = false;
         try {
+            $conversationPair = $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation);
+            Db::beginTransaction();
+            $transactionOpen = true;
             // 1. Create project entity (audio mode)
             $this->logger->info('Creating core project for audio');
             $projectEntity = $this->projectDomainService->createProject(
@@ -1981,7 +2173,7 @@ class ProjectAppService extends AbstractAppService
             $this->logger->info(sprintf('Created core project, projectId=%s', $projectEntity->getId()));
 
             // Standard initialization flow (steps 2-6 + 8) - workspace can be null for audio projects
-            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity);
+            ['topic' => $topicEntity, 'pending_default' => $pendingDefault] = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $conversationPair);
 
             // 7. Initialize project root directory (audio project only creates root)
             $this->taskFileDomainService->findOrCreateProjectRootDirectory(
@@ -2006,7 +2198,9 @@ class ProjectAppService extends AbstractAppService
             );
             $this->logger->info(sprintf('Created audio extension, audioProjectId=%s', $audioProjectEntity->getId()));
 
+            $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
             Db::commit();
+            $transactionOpen = false;
 
             // Dispatch project created event
             $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
@@ -2022,7 +2216,9 @@ class ProjectAppService extends AbstractAppService
                 'topic' => TopicItemDTO::fromEntity($topicEntity)->toArray(),
             ];
         } catch (Throwable $e) {
-            Db::rollBack();
+            if ($transactionOpen) {
+                Db::rollBack();
+            }
             $this->logger->error('Create Audio Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, trans('project.create_project_failed'));
         }
@@ -2481,7 +2677,12 @@ class ProjectAppService extends AbstractAppService
         $this->audioProjectDomainService->deleteAudioProjectByProjectId($projectId);
 
         // Delete core project
-        $this->projectDomainService->deleteProject($projectId, $project->getUserId());
+        if ($this->projectDomainService->deleteProject($projectId, $project->getUserId())) {
+            $this->eventDispatcher->dispatch(new ProjectDeletedEvent(
+                $project,
+                $requestContext->getUserAuthorization()
+            ));
+        }
     }
 
     /**
@@ -2516,6 +2717,26 @@ class ProjectAppService extends AbstractAppService
         }
 
         return $project;
+    }
+
+    /**
+     * Publish the fork event, marking the fork record as failed when the message cannot be sent,
+     * so the client stops polling a progress that would never advance.
+     */
+    private function publishForkEvent(ProjectForkEvent $event): void
+    {
+        try {
+            $this->producer->produce(new ProjectForkPublisher($event));
+            $this->logger->info(sprintf('Published fork event, event ID: %s', $event->getEventId()));
+        } catch (Throwable $e) {
+            $this->logger->error(sprintf(
+                'Failed to publish fork event, fork record ID: %d, event ID: %s, error: %s',
+                $event->getForkRecordId(),
+                $event->getEventId(),
+                $e->getMessage()
+            ));
+            $this->projectDomainService->markForkRecordFailed($event->getForkRecordId(), 'File migration failed');
+        }
     }
 
     private function deleteMicroAppResources(int $projectId, ?MicroAppEntity $microAppRecord = null): void
@@ -2563,8 +2784,11 @@ class ProjectAppService extends AbstractAppService
             );
         }
 
-        Db::beginTransaction();
+        $transactionOpen = false;
         try {
+            $conversationPair = $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation);
+            Db::beginTransaction();
+            $transactionOpen = true;
             $projectEntity = $this->projectDomainService->createProject(
                 $workspaceEntity->getId(),
                 $requestDTO->getProjectName(),
@@ -2572,12 +2796,12 @@ class ProjectAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 '',
                 '',
-                ProjectMode::GENERAL->value
+                ProjectMode::MICRO_APP->value
             );
             $this->logger->info(sprintf('Created micro app project, projectId=%s', $projectEntity->getId()));
 
             $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
-            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
+            ['topic' => $topicEntity, 'pending_default' => $pendingDefault] = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $conversationPair, $dynamicParams);
 
             $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                 projectId: $projectEntity->getId(),
@@ -2594,7 +2818,9 @@ class ProjectAppService extends AbstractAppService
                 $projectEntity->getCreatedUid(),
             );
 
+            $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
             Db::commit();
+            $transactionOpen = false;
 
             $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
             $this->eventDispatcher->dispatch($projectCreatedEvent);
@@ -2605,7 +2831,9 @@ class ProjectAppService extends AbstractAppService
                 'app_id' => (string) $microAppRecord->getId(),
             ];
         } catch (Throwable $e) {
-            Db::rollBack();
+            if ($transactionOpen) {
+                Db::rollBack();
+            }
             $this->logger->error('Create Micro App Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, trans('project.create_project_failed'));
         }
@@ -3069,7 +3297,7 @@ class ProjectAppService extends AbstractAppService
      *
      * This is the core initialization logic shared by all project creation methods:
      * - Get project work directory
-     * - Initialize Magic Chat Conversation
+     * - Prepare IM topics for the committed conversation pair
      * - Create default topic
      * - Update workspace with current topic and project
      * - Update project with topic and work directory
@@ -3078,25 +3306,26 @@ class ProjectAppService extends AbstractAppService
      * @param DataIsolation $dataIsolation Data isolation context
      * @param null|WorkspaceEntity $workspaceEntity Workspace entity (nullable for audio projects)
      * @param ProjectEntity $projectEntity Project entity (already created)
-     * @return TopicEntity Created topic entity
+     * @param array{sender_conversation_id: string, receiver_conversation_id: string} $conversationPair Committed conversation identities
+     * @return array{topic: TopicEntity, pending_default: array{chat_conversation_id: string, receive_conversation_id: string, chat_topic_id: string}}
      */
     private function initializeProject(
         DataIsolation $dataIsolation,
         ?WorkspaceEntity $workspaceEntity,
         ProjectEntity $projectEntity,
+        array $conversationPair,
         ?array $dynamicParams = null,
         string $topicMode = '',
         string $agentCode = ''
-    ): TopicEntity {
+    ): array {
         // 2. Get project work directory
         $workDir = WorkDirectoryUtil::getWorkDir(
             $dataIsolation->getCurrentUserId(),
             $projectEntity->getId()
         );
 
-        // 3. Initialize Magic Chat Conversation
-        [$chatConversationId, $chatConversationTopicId] = $this->chatAppService
-            ->initMagicChatConversation($dataIsolation);
+        // 3. Prepare IM topics; the transaction owner finalizes the returned default.
+        $pendingDefault = $this->chatAppService->createMagicChatTopicForConversationPair($dataIsolation, $conversationPair);
 
         // 4. Create default topic
         $this->logger->info('开始创建默认话题');
@@ -3104,8 +3333,8 @@ class ProjectAppService extends AbstractAppService
             dataIsolation: $dataIsolation,
             workspaceId: $workspaceEntity?->getId(),
             projectId: $projectEntity->getId(),
-            chatConversationId: $chatConversationId,
-            chatTopicId: $chatConversationTopicId,
+            chatConversationId: $pendingDefault['chat_conversation_id'],
+            chatTopicId: $pendingDefault['chat_topic_id'],
             topicName: '',
             workDir: $workDir,
             topicMode: $topicMode,
@@ -3115,6 +3344,13 @@ class ProjectAppService extends AbstractAppService
             hiddenType: null,
             dynamicParams: $dynamicParams,
             agentCode: $agentCode,
+        );
+        $this->taskFileDomainService->findOrCreateTopicRootDirectory(
+            $projectEntity->getId(),
+            $topicEntity->getId(),
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $projectEntity->getUserOrganizationCode()
         );
         $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
 
@@ -3149,7 +3385,7 @@ class ProjectAppService extends AbstractAppService
             $dataIsolation->getCurrentOrganizationCode()
         );
 
-        return $topicEntity;
+        return ['topic' => $topicEntity, 'pending_default' => $pendingDefault];
     }
 
     /**

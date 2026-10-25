@@ -13,7 +13,7 @@ import { isCollaborationWorkspace, SHARE_WORKSPACE_DATA } from "@/pages/superMag
 import { userStore } from "@/models/user"
 import { observer } from "mobx-react-lite"
 import MagicTabs from "@/components/base-mobile/MagicTabs"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { WorkspaceListItem, ProjectListItem, BottomActionBar } from "./components"
 import RenameModal from "./components/ActionModals/RenameModal"

@@ -1,3 +1,7 @@
+import TopicTypeFilter from "../../TopicTypeFilter"
+import TopicListFeedback from "../../TopicTypeFilter/TopicListFeedback"
+import { useTopicTypeFilter } from "../../../hooks/useTopicTypeFilter"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -9,6 +13,7 @@ import {
 	Loader2,
 	MessageCirclePlus,
 	Pencil,
+	PanelRightClose,
 	Pin,
 	PinOff,
 	RefreshCw,
@@ -19,6 +24,7 @@ import {
 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { Button } from "@/components/shadcn-ui/button"
+import { Badge } from "@/components/shadcn-ui/badge"
 import { Input } from "@/components/shadcn-ui/input"
 import {
 	DropdownMenu,
@@ -35,7 +41,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/shadcn-ui/context-menu"
 import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
 import type TopicServiceClass from "@/pages/superMagic/services/topicService"
 import SuperMagicService from "@/pages/superMagic/services"
@@ -51,6 +57,8 @@ import type { SuperAgentTopicStatusItem } from "@/apis/modules/superMagic"
 import { isNoHoverCoarsePointer } from "@/utils/devices"
 
 export interface TopicHistoryPanelContentProps {
+	onCollapse?: () => void
+	isPanelVisible?: boolean
 	topics: Topic[]
 	projectId: string
 	selectedTopicId?: string
@@ -79,6 +87,8 @@ export interface TopicHistoryPanelContentProps {
 	onUnarchiveTopic: (topicId: string) => Promise<void> | void
 	topicService?: TopicServiceClass
 	hideTopicListModeIcon?: boolean
+	/** Recording and editor histories do not offer topic-type filtering. */
+	hideTopicTypeFilter?: boolean
 	hideCreateTopicButton?: boolean
 	hideDeleteTopicButton?: boolean
 	panelClassName?: string
@@ -111,14 +121,24 @@ function TopicHistoryPanelContentInner({
 	onUnarchiveTopic,
 	topicService,
 	hideTopicListModeIcon = false,
+	hideTopicTypeFilter = false,
 	hideCreateTopicButton = false,
 	hideDeleteTopicButton = false,
 	panelClassName,
 	onClose,
+	onCollapse,
+	isPanelVisible = true,
 	closeButtonRef,
 	searchInputRef,
 }: TopicHistoryPanelContentProps) {
 	const { t } = useTranslation("super")
+	const [selectedTopicType, setTopicType] = useTopicTypeFilter(projectId)
+	// Hidden filters must not keep narrowing the list after a host switches context.
+	const topicType = hideTopicTypeFilter ? "all" : selectedTopicType
+	const listViewportRef = useRef<HTMLDivElement>(null)
+	useEffect(() => {
+		listViewportRef.current?.scrollTo?.({ top: 0 })
+	}, [topicType, projectId])
 	const [searchKeyword, setSearchKeyword] = useState("")
 	const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState("")
 	const [hoveredTopicId, setHoveredTopicId] = useState<string | null>(null)
@@ -133,9 +153,17 @@ function TopicHistoryPanelContentInner({
 		`topic-history-panel-${Math.random().toString(36).slice(2)}`,
 	)
 
+	useEffect(() => {
+		if (isPanelVisible) return
+		setOpenMenuTopicId(null)
+		setOpenContextMenuTopicId(null)
+		setHoveredTopicId(null)
+	}, [isPanelVisible])
+
 	const editInputRef = useRef<HTMLInputElement>(null)
 
 	const {
+		error: topicsError,
 		displayTopics,
 		total: topicsTotalFromServer,
 		isLoading: isLoadingTopics,
@@ -143,6 +171,8 @@ function TopicHistoryPanelContentInner({
 		reload: reloadTopics,
 		reset: resetTopics,
 	} = usePaginatedTopics({
+		enabled: isPanelVisible,
+		topicType,
 		projectId,
 		selectedTopicId,
 		storeTopics: topics,
@@ -151,6 +181,7 @@ function TopicHistoryPanelContentInner({
 	})
 	const { groups, onToggleGroup, onLoadMoreInGroup } = useTopicHistoryGroupedViewModel({
 		topics: displayTopics,
+		queryKey: `${projectId}:${topicType}:${debouncedSearchKeyword}`,
 	})
 	const visibleTopicIds = useMemo(
 		() =>
@@ -226,7 +257,7 @@ function TopicHistoryPanelContentInner({
 	}, [displayTopics])
 
 	useEffect(() => {
-		if (!projectId) return
+		if (!projectId || !isPanelVisible) return
 
 		const pollerId = topicStatusPollerIdRef.current
 		statusPollingService.startTopicStatusPolling({
@@ -250,7 +281,7 @@ function TopicHistoryPanelContentInner({
 		return () => {
 			statusPollingService.stopTopicStatusPolling(pollerId)
 		}
-	}, [projectId])
+	}, [projectId, isPanelVisible])
 
 	function getTopicWithStatusPatch(topic: Topic): Topic {
 		const patch = topicStatusPatches[topic.id]
@@ -659,6 +690,22 @@ function TopicHistoryPanelContentInner({
 					onClick={(event) => event.stopPropagation()}
 					data-testid={`message-header-history-item-context-menu-topic-${topic.id}`}
 				>
+					{canShowPinAction && (
+						<ContextMenuItem
+							onSelect={(event) => {
+								event.stopPropagation()
+								void handlePinToggle(topic)
+							}}
+							data-testid="message-header-history-context-pin"
+						>
+							{topic.is_pinned ? (
+								<PinOff className="size-4 text-muted-foreground" />
+							) : (
+								<Pin className="size-4 text-muted-foreground" />
+							)}
+							{topic.is_pinned ? t("messageHeader.unpin") : t("messageHeader.pin")}
+						</ContextMenuItem>
+					)}
 					<ContextMenuItem
 						onSelect={(event) => {
 							event.stopPropagation()
@@ -723,6 +770,8 @@ function TopicHistoryPanelContentInner({
 			)
 		}
 
+		if (topicsError) return <TopicListFeedback error={topicsError} onRetry={reloadTopics} />
+		if (groups.length === 0 && topicType !== "all") return <TopicListFeedback />
 		if (groups.length === 0) {
 			return (
 				<div
@@ -790,14 +839,37 @@ function TopicHistoryPanelContentInner({
 				className="flex h-11 shrink-0 items-center border-b border-border bg-background/80 px-2.5 backdrop-blur-lg"
 				data-testid="message-header-history-toolbar"
 			>
+				{onClose && onCollapse ? (
+					<Button
+						ref={closeButtonRef}
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="mr-1.5 size-7 shrink-0 rounded-md"
+						onClick={onCollapse}
+						aria-label={t("sidebarPanels.collapseHistory")}
+						data-testid="message-header-history-close-button"
+					>
+						<PanelRightClose className="size-4" />
+					</Button>
+				) : null}
 				<div
-					className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-foreground"
+					className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium leading-5 text-foreground"
 					data-testid="message-header-history-panel-title"
 				>
-					{t("messageHeader.topicPanelTitle", {
-						count: topicsTotalFromServer,
-					})}
+					<span className="truncate">{t("messageHeader.topicPanelTitle")}</span>
+					{/* 数量独立展示并按内容扩宽，保留完整统计值，不挤压成括号正文。 */}
+					<Badge
+						variant="secondary"
+						className="h-5 min-w-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium tabular-nums text-muted-foreground"
+						data-testid="message-header-history-topic-count"
+					>
+						{topicsTotalFromServer}
+					</Badge>
 				</div>
+				{!hideTopicTypeFilter && (
+					<TopicTypeFilter compact value={topicType} onChange={setTopicType} />
+				)}
 				{onClose ? (
 					<Button
 						type="button"
@@ -812,14 +884,14 @@ function TopicHistoryPanelContentInner({
 						<RefreshCw className={cn("size-4", isTopicListBusy && "animate-spin")} />
 					</Button>
 				) : null}
-				{onClose ? (
+				{onClose && !onCollapse ? (
 					<Button
 						ref={closeButtonRef}
 						type="button"
 						variant="ghost"
 						size="icon"
 						className="size-7 shrink-0 rounded-md"
-						onClick={() => onClose()}
+						onClick={onClose}
 						aria-label={t("button.close", { ns: "interface" })}
 						data-testid="message-header-history-close-button"
 					>
@@ -852,7 +924,11 @@ function TopicHistoryPanelContentInner({
 								onClick={() => {
 									setSearchKeyword("")
 								}}
-								aria-label={t("button.close", { ns: "interface" })}
+								aria-label={
+									onCollapse
+										? t("sidebarPanels.collapseHistory")
+										: t("button.close", { ns: "interface" })
+								}
 								data-testid="message-header-history-search-clear"
 							>
 								<X className="size-3.5" />
@@ -874,12 +950,15 @@ function TopicHistoryPanelContentInner({
 					) : null}
 				</div>
 
-				<div
-					className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2.5 pb-2.5 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/50 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1"
+				{/* Keep long topic titles within the panel instead of expanding Radix's table wrapper. */}
+				<ScrollArea
+					viewportRef={listViewportRef}
+					className="min-h-0 min-w-0 flex-1"
+					viewportClassName="px-2.5 pb-2.5 [&>div]:!block"
 					data-testid="message-header-history-list"
 				>
 					{renderListContent()}
-				</div>
+				</ScrollArea>
 			</div>
 		</div>
 	)

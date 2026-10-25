@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'image_operation_failed' => 'การประมวลผลภาพล้มเหลว โปรดลองอีกครั้งในภายหลัง',
     'image_model_settings' => [
         'quality' => [
             'label' => 'คุณภาพ',

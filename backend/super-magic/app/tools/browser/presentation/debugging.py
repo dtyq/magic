@@ -9,8 +9,10 @@ from agentlang.tools.tool_result import ToolResult
 from app.tools.browser.presentation.common import (
     MAX_DIAGNOSTIC_ENTRY_CHARS,
     MAX_DIAGNOSTIC_PREVIEW_ITEMS,
+    MAX_SCRIPT_DETAIL_CHARS,
     MAX_VALUE_PREVIEW_CHARS,
     code_block,
+    diagnostic_scope,
     display_time,
     escape_markdown,
     field,
@@ -18,20 +20,55 @@ from app.tools.browser.presentation.common import (
     message,
     page_data,
     page_section,
+    script_text,
     section,
     string,
-    diagnostic_scope,
+    user_error,
 )
 
 
-def evaluate_detail(result: ToolResult) -> str:
-    rendered = json.dumps(result.data.get("value"), ensure_ascii=False, indent=2)
-    preview = rendered[:MAX_VALUE_PREVIEW_CHARS].rstrip()
+def evaluate_detail(result: ToolResult, arguments: Mapping[str, object] | None = None) -> str:
+    normalized_arguments = arguments or {}
+    result_summary = (
+        message("browser.detail.result.evaluated")
+        if result.ok
+        else message(
+            "browser.detail.failed",
+            action=message("browser.evaluate"),
+            error=user_error(result),
+        )
+    )
     sections = [
-        section("browser.detail.heading.result", message("browser.detail.result.evaluated")),
+        section("browser.detail.heading.result", result_summary),
         page_section(page_data(result)),
-        section("browser.detail.heading.value", code_block("json", preview)),
     ]
+
+    script = script_text(normalized_arguments, "expression")
+    if script:
+        script_preview = script[:MAX_SCRIPT_DETAIL_CHARS].rstrip()
+        sections.append(
+            section(
+                "browser.detail.heading.script",
+                code_block("javascript", script_preview),
+            )
+        )
+        if len(script) > MAX_SCRIPT_DETAIL_CHARS:
+            sections.append(
+                section(
+                    "browser.detail.heading.limits",
+                    message(
+                        "browser.detail.script_truncated",
+                        limit=f"{MAX_SCRIPT_DETAIL_CHARS:,}",
+                    ),
+                )
+            )
+
+    if "value" not in result.data:
+        return join_sections(sections)
+
+    rendered = json.dumps(result.data["value"], ensure_ascii=False, indent=2)
+    value_preview = rendered[:MAX_VALUE_PREVIEW_CHARS].rstrip()
+    sections.append(section("browser.detail.heading.value", code_block("json", value_preview)))
     if len(rendered) > MAX_VALUE_PREVIEW_CHARS:
         sections.append(
             section(
@@ -44,15 +81,44 @@ def evaluate_detail(result: ToolResult) -> str:
 
 def add_init_script_detail(result: ToolResult, arguments: Mapping[str, object]) -> str:
     page = page_data(result)
-    lines = [message("browser.detail.result.init_script_registered")]
-    lines.append(message("browser.detail.init_script_next_navigation"))
-    page_id = string(result.data.get("page_id")) or string(arguments.get("page_id"))
-    if page_id:
-        lines.append(field("browser.detail.label.page_id", escape_markdown(page_id)))
+    if result.ok:
+        lines = [message("browser.detail.result.init_script_registered")]
+        lines.append(message("browser.detail.init_script_next_navigation"))
+    else:
+        lines = [
+            message(
+                "browser.detail.failed",
+                action=message("browser.add_init_script"),
+                error=user_error(result),
+            )
+        ]
+    tab_id = string(result.data.get("tab_id")) or string(arguments.get("tab_id"))
+    if tab_id:
+        lines.append(field("browser.detail.label.page_id", escape_markdown(tab_id)))
+    script = script_text(arguments, "source")
+    script_detail = script[:MAX_SCRIPT_DETAIL_CHARS].rstrip()
+    script_sections = [
+        section(
+            "browser.detail.heading.script",
+            code_block("javascript", script_detail),
+        )
+        if script
+        else "",
+        section(
+            "browser.detail.heading.limits",
+            message(
+                "browser.detail.script_truncated",
+                limit=f"{MAX_SCRIPT_DETAIL_CHARS:,}",
+            ),
+        )
+        if len(script) > MAX_SCRIPT_DETAIL_CHARS
+        else "",
+    ]
     return join_sections(
         [
             section("browser.detail.heading.result", "\n".join(lines)),
             page_section(page),
+            *script_sections,
         ]
     )
 

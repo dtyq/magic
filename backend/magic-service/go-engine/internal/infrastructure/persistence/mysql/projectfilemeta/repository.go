@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"magic/internal/infrastructure/logging"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 	"magic/internal/pkg/projectfile"
@@ -28,15 +29,20 @@ const (
 type Repository struct {
 	client  *mysqlclient.SQLCClient
 	queries *mysqlsqlc.Queries
+	logger  *logging.SugaredLogger
 }
 
 // NewRepository 创建项目文件轻量元数据仓储。
-func NewRepository(client *mysqlclient.SQLCClient) *Repository {
+func NewRepository(client *mysqlclient.SQLCClient, logger ...*logging.SugaredLogger) *Repository {
 	var queries *mysqlsqlc.Queries
 	if client != nil {
 		queries = client.Q()
 	}
-	return &Repository{client: client, queries: queries}
+	var repositoryLogger *logging.SugaredLogger
+	if len(logger) > 0 {
+		repositoryLogger = logger[0]
+	}
+	return &Repository{client: client, queries: queries, logger: repositoryLogger}
 }
 
 // FindByID 按项目文件 ID 读取轻量元数据。
@@ -89,8 +95,17 @@ func (r *Repository) ListAncestorFolderIDs(ctx context.Context, projectFileID in
 
 	links, err := r.queries.ListTaskFileParentLinksByProjectID(ctx, node.ProjectID)
 	if err != nil {
+		r.logQueryError(ctx, "project_file_ancestor_lookup", map[string]any{
+			"project_id":      node.ProjectID,
+			"project_file_id": projectFileID,
+		}, err)
 		return nil, fmt.Errorf("list task file parent links by project id: %w", err)
 	}
+	r.logQuery(ctx, "project_file_ancestor_lookup", map[string]any{
+		"project_id":      node.ProjectID,
+		"project_file_id": projectFileID,
+		"row_count":       len(links),
+	})
 	linkByFileID := make(map[uint64]mysqlsqlc.ListTaskFileParentLinksByProjectIDRow, len(links))
 	for _, link := range links {
 		linkByFileID[link.FileID] = link
@@ -149,8 +164,22 @@ func (r *Repository) ListDescendants(ctx context.Context, projectID, directoryID
 			ParentIds: taskFileParentIDParams(parentIDs),
 		})
 		if err != nil {
+			r.logQueryError(ctx, "project_file_descendant_lookup", map[string]any{
+				"project_id":           projectID,
+				"directory_id":         directoryID,
+				"parent_id_count":      len(parentIDs),
+				"parent_ids":           parentIDs,
+				"descendant_row_count": len(descendants),
+			}, err)
 			return nil, fmt.Errorf("list task file child links by parent ids: %w", err)
 		}
+		r.logQuery(ctx, "project_file_descendant_lookup", map[string]any{
+			"project_id":           projectID,
+			"directory_id":         directoryID,
+			"parent_id_count":      len(parentIDs),
+			"row_count":            len(rows),
+			"descendant_row_count": len(descendants),
+		})
 		for _, row := range rows {
 			if _, exists := seenNodes[row.FileID]; exists {
 				continue
@@ -168,6 +197,31 @@ func (r *Repository) ListDescendants(ctx context.Context, projectID, directoryID
 		}
 	}
 	return descendants, nil
+}
+
+func (r *Repository) logQuery(ctx context.Context, queryName string, fields map[string]any) {
+	if r == nil || r.logger == nil {
+		return
+	}
+	fields["query_name"] = queryName
+	r.logger.InfoContext(ctx, "Project file metadata query executed", mapToLogKeyValues(fields)...)
+}
+
+func (r *Repository) logQueryError(ctx context.Context, queryName string, fields map[string]any, err error) {
+	if r == nil || r.logger == nil {
+		return
+	}
+	fields["query_name"] = queryName
+	fields["error"] = err.Error()
+	r.logger.WarnContext(ctx, "Project file metadata query failed", mapToLogKeyValues(fields)...)
+}
+
+func mapToLogKeyValues(fields map[string]any) []any {
+	values := make([]any, 0, len(fields)*2)
+	for key, value := range fields {
+		values = append(values, key, value)
+	}
+	return values
 }
 
 func taskFileParentIDParams(parentIDs []uint64) []sql.NullInt64 {

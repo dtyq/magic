@@ -57,7 +57,7 @@ class RoleApi extends AbstractPermissionApi
         // 查询角色列表
         $result = $this->roleAppService->queries($dataIsolation, $page, $filters);
 
-        // 批量获取用户详情（每个角色仅取前5个userId）
+        // 批量获取用户详情
         $contactIsolation = ContactDataIsolation::create(
             $authorization->getOrganizationCode(),
             $authorization->getId()
@@ -68,7 +68,7 @@ class RoleApi extends AbstractPermissionApi
         $allNeedUserIds = [];
         foreach ($result['list'] as $index => $roleEntity) {
             /** @var RoleEntity $roleEntity */
-            $limitedIds = array_slice($roleEntity->getUserIds(), 0, 5);
+            $limitedIds = array_slice($roleEntity->getUserIds(), 0, 30);
             $limitedIds[] = $roleEntity->getUpdatedUid();
             $roleUserIdsMap[$index] = $limitedIds;
             $allNeedUserIds = array_merge($allNeedUserIds, $limitedIds);

@@ -44,6 +44,45 @@ class FileCollectionItemRepository extends AbstractRepository implements FileCol
         return $entities;
     }
 
+    public function getByCollectionIdCursor(int $collectionId, int $afterId, int $limit): array
+    {
+        $models = $this->model->newQuery()
+            ->where('collection_id', $collectionId)
+            ->whereNull('deleted_at')
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = $this->modelToEntity($model);
+        }
+
+        return $entities;
+    }
+
+    public function getByCollectionIdAndFileIds(int $collectionId, array $fileIds): array
+    {
+        $fileIds = array_values(array_filter(array_map('strval', $fileIds), static fn (string $id): bool => $id !== ''));
+        if ($fileIds === []) {
+            return [];
+        }
+
+        $models = $this->model->newQuery()
+            ->where('collection_id', $collectionId)
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $entities = [];
+        foreach ($models as $model) {
+            $entities[] = $this->modelToEntity($model);
+        }
+
+        return $entities;
+    }
+
     /**
      * 批量插入文件集项.
      */

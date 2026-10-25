@@ -374,7 +374,7 @@ function PhoneChangeFormView({
 						<div className="h-5 w-px bg-border" aria-hidden />
 						<Input
 							value={newPhone}
-							onChange={(event) => onNewPhoneChange(event.target.value)}
+							onChange={(event) => onNewPhoneChange(event.target.value.trim())}
 							inputMode="tel"
 							placeholder={t("setting.phoneNumberPlaceholder")}
 							disabled={isSaving}

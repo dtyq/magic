@@ -1,7 +1,7 @@
 import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useThrottleFn, useMemoizedFn } from "ahooks"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import MagicModal from "@/components/base/MagicModal"
 import MessageService from "@/services/chat/message/MessageService"
 import EditorService from "@/services/chat/editor/EditorService"

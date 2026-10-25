@@ -1,7 +1,7 @@
 import React from "react"
 import { useTranslation } from "react-i18next"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import FileError from "@/pages/superMagic/assets/svg/file_error.svg"
 
 interface DeletedProps {

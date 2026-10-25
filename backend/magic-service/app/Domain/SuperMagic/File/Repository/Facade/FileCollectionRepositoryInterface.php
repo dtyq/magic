@@ -31,6 +31,11 @@ interface FileCollectionRepositoryInterface
     public function save(FileCollectionEntity $entity): FileCollectionEntity;
 
     /**
+     * 更新文件集的修改时间，使基于文件集的游标范围版本失效。
+     */
+    public function touch(int $id, string $updatedUid = ''): bool;
+
+    /**
      * 删除文件集.
      *
      * @param int $id 文件集ID

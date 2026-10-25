@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Write an HTML page that lets users select different AI models, input questions, stream the AI reply in real time, and support cancellation mid-stream.",
-      "expected_output": "Generates an HTML file using window.Magic.llm.getModels() to populate the model dropdown (with 'auto' as default first option), window.Magic.llm.stream for streaming output, and binds the returned cancel function to a cancel button. All events use addEventListener.",
+      "expected_output": "Generates an HTML file using window.Magic.llm.getModels() to populate the model dropdown and select the first available model by default, window.Magic.llm.stream for streaming output, and binds the returned cancel function to a cancel button. All events use addEventListener.",
       "files": []
     },
     {

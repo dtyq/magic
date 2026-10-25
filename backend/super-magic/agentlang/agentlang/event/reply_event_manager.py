@@ -14,7 +14,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import AfterAgentReplyEventData, BeforeAgentReplyEventData
 from agentlang.event.event import Event, EventType
 from agentlang.interface.context import AgentContextInterface
-from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.llms.token_usage.models import TokenUsage, ContextInputBreakdown
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
@@ -96,6 +96,7 @@ class ReplyEventManager:
         content_type: str = "content",
         content: str = "",
         correlation_id: Optional[str] = None,
+        input_breakdown: ContextInputBreakdown | None = None,
     ) -> None:
         """触发智能体回复完成后事件
 
@@ -125,6 +126,7 @@ class ReplyEventManager:
 
             # 补充 model 信息和最大上下文 token 数，_extract_response_data 仅解析原始 token 计数
             if token_usage:
+                token_usage.input_breakdown = input_breakdown
                 token_usage.model_id = model_id
                 token_usage.model_name = model_name
                 try:

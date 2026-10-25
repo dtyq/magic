@@ -9,6 +9,11 @@ import type {
 } from "../../document/types"
 import { generateMarkerId } from "../../shared/ids"
 import { MarkerTypeEnum } from "../../document/types"
+import {
+	getActiveImageContentId,
+	getImageContentById,
+	isImageElementContent,
+} from "../../document/elementContent"
 import type { Canvas } from "../../core/Canvas"
 import type { IdentifyImageMarkResponse } from "../../../public/magic-types"
 import { BaseMarker } from "./markers/BaseMarker"
@@ -124,6 +129,16 @@ export class MarkerManager {
 			}
 		})
 
+		// Content 预览只改变会话展示状态；按 effective Content 重新计算
+		// marker 可见性，不能复用 element:updated（预览不会产生文档更新）。
+		this.canvas.eventEmitter.on("content:previewChanged", ({ data }) => {
+			if (!data.elementId) {
+				this.rerenderAllMarkers()
+				return
+			}
+			this.rerenderMarkersForElement(data.elementId)
+		})
+
 		// 监听viewport缩放事件，更新标记缩放（保持固定大小）
 		this.canvas.eventEmitter.on("viewport:scale", () => {
 			this.updateAllMarkerScales()
@@ -215,7 +230,11 @@ export class MarkerManager {
 				type: MarkerTypeEnum.Area,
 				id: generateMarkerId(),
 				elementId,
-				elementCrop: this.getMarkerElementCrop(elementId),
+				contentId: this.getActiveImageContentId(elementId),
+				elementCrop: this.getMarkerElementCrop(
+					elementId,
+					this.getActiveImageContentId(elementId),
+				),
 				relativeX,
 				relativeY,
 				areaWidth,
@@ -227,7 +246,11 @@ export class MarkerManager {
 				type: MarkerTypeEnum.Mark,
 				id: generateMarkerId(),
 				elementId,
-				elementCrop: this.getMarkerElementCrop(elementId),
+				contentId: this.getActiveImageContentId(elementId),
+				elementCrop: this.getMarkerElementCrop(
+					elementId,
+					this.getActiveImageContentId(elementId),
+				),
 				relativeX,
 				relativeY,
 			}
@@ -316,9 +339,12 @@ export class MarkerManager {
 		if (!this.canvas.permissionManager.canDeleteMarker()) {
 			return
 		}
+		if (this.removeMarkerData(markerId)) this.renderAllMarkers()
+	}
 
+	private removeMarkerData(markerId: string): boolean {
 		const index = this.markers.findIndex((m) => m.id === markerId)
-		if (index === -1) return
+		if (index === -1) return false
 
 		this.markers.splice(index, 1)
 		this.cropRenderOverrides.delete(markerId)
@@ -332,9 +358,15 @@ export class MarkerManager {
 
 		// 触发删除事件
 		this.canvas.eventEmitter.emit({ type: "marker:deleted", data: { id: markerId } })
+		return true
+	}
 
-		// 重新渲染所有标记（更新序号）
-		this.renderAllMarkers()
+	private removeMarkerDataList(markers: Marker[]): boolean {
+		let hasRemoved = false
+		markers.forEach((marker) => {
+			hasRemoved = this.removeMarkerData(marker.id) || hasRemoved
+		})
+		return hasRemoved
 	}
 
 	/**
@@ -342,9 +374,48 @@ export class MarkerManager {
 	 */
 	private removeMarkersByElementId(elementId: string): void {
 		const markersToRemove = this.markers.filter((m) => m.elementId === elementId)
-		markersToRemove.forEach((marker) => {
-			this.removeMarker(marker.id)
-		})
+		const hasRemoved = this.removeMarkerDataList(markersToRemove)
+		if (hasRemoved) this.renderAllMarkers()
+	}
+
+	private getActiveImageContentId(elementId: string): string | undefined {
+		const element = this.canvas.elementManager.getElementData(elementId)
+		if (element?.type !== "image") return undefined
+		return this.canvas.getEffectiveContentId(elementId) ?? getActiveImageContentId(element)
+	}
+
+	private isMarkerVisible(marker: Marker): boolean {
+		const element = this.canvas.elementManager.getElementData(marker.elementId)
+		if (!element || element.type !== "image") return true
+		if (!isImageElementContent(element)) return true
+		return marker.contentId === this.getActiveImageContentId(element.id)
+	}
+
+	/** 切换 Content 后永久清理旧 Content Marker；Marker 不进入撤销恢复。 */
+	public handleImageContentChanged(
+		elementId: string,
+		previousContentId?: string,
+		nextContentId?: string,
+	): void {
+		let hasRemoved = false
+		if (previousContentId && previousContentId !== nextContentId) {
+			hasRemoved = this.removeMarkerDataList(
+				this.markers.filter(
+					(marker) =>
+						marker.elementId === elementId && marker.contentId === previousContentId,
+				),
+			)
+		}
+		if (hasRemoved || previousContentId !== nextContentId) this.renderAllMarkers()
+	}
+
+	public removeMarkersByImageContent(elementId: string, contentId: string): void {
+		const hasRemoved = this.removeMarkerDataList(
+			this.markers.filter(
+				(marker) => marker.elementId === elementId && marker.contentId === contentId,
+			),
+		)
+		if (hasRemoved) this.renderAllMarkers()
 	}
 
 	/**
@@ -352,7 +423,9 @@ export class MarkerManager {
 	 * 用于拖拽和transform中实时更新，此时元素数据还未更新
 	 */
 	private updateMarkerPositionsRealtime(elementId: string): void {
-		const relatedMarkers = this.markers.filter((m) => m.elementId === elementId)
+		const relatedMarkers = this.markers.filter(
+			(m) => m.elementId === elementId && this.isMarkerVisible(m),
+		)
 		relatedMarkers.forEach((marker) => {
 			const instance = this.markerInstances.get(marker.id)
 			if (instance) {
@@ -367,7 +440,10 @@ export class MarkerManager {
 	 * 渲染标记
 	 */
 	private renderMarker(marker: Marker): void {
-		const index = this.markers.findIndex((m) => m.id === marker.id)
+		if (!this.isMarkerVisible(marker)) return
+		const index = this.markers
+			.filter((item) => this.isMarkerVisible(item))
+			.findIndex((m) => m.id === marker.id)
 		if (index === -1) return
 
 		const sequence = index + 1 // 序号从1开始
@@ -420,6 +496,7 @@ export class MarkerManager {
 			marker1.id !== marker2.id ||
 			marker1.type !== marker2.type ||
 			marker1.elementId !== marker2.elementId ||
+			marker1.contentId !== marker2.contentId ||
 			!this.isCropEqual(marker1.elementCrop, marker2.elementCrop) ||
 			marker1.relativeX !== marker2.relativeX ||
 			marker1.relativeY !== marker2.relativeY ||
@@ -468,10 +545,13 @@ export class MarkerManager {
 	/**
 	 * 获取标记元素的裁剪信息
 	 */
-	private getMarkerElementCrop(elementId: string): CropConfigWithoutDisplaySize | undefined {
+	private getMarkerElementCrop(
+		elementId: string,
+		contentId?: string,
+	): CropConfigWithoutDisplaySize | undefined {
 		const element = this.canvas.elementManager.getElementData(elementId)
 		if (!element || element.type !== "image") return undefined
-		return this.normalizeCrop(element.crop)
+		return this.normalizeCrop(getImageContentById(element, contentId)?.crop)
 	}
 
 	/**
@@ -510,18 +590,25 @@ export class MarkerManager {
 	 * 将标记的裁剪信息与当前元素的裁剪信息同步
 	 */
 	private withCurrentElementCrop(marker: Marker): Marker {
-		const elementCrop = this.getMarkerElementCrop(marker.elementId)
+		const nextMarker = this.withCurrentImageContent(marker)
+		const elementCrop = this.getMarkerElementCrop(nextMarker.elementId, nextMarker.contentId)
 		if (marker.type === MarkerTypeEnum.Area) {
 			return {
-				...marker,
+				...nextMarker,
 				elementCrop,
 			}
 		}
 
 		return {
-			...marker,
+			...nextMarker,
 			elementCrop,
 		}
+	}
+
+	private withCurrentImageContent(marker: Marker): Marker {
+		if (marker.contentId) return { ...marker }
+		const contentId = this.getActiveImageContentId(marker.elementId)
+		return contentId ? { ...marker, contentId } : { ...marker }
 	}
 
 	/**
@@ -663,9 +750,9 @@ export class MarkerManager {
 	 */
 	private syncMarkerElementCropsByElementId(elementId: string): void {
 		this.markers.forEach((marker) => {
-			if (marker.elementId !== elementId) return
+			if (marker.elementId !== elementId || !this.isMarkerVisible(marker)) return
 
-			const elementCrop = this.getMarkerElementCrop(marker.elementId)
+			const elementCrop = this.getMarkerElementCrop(marker.elementId, marker.contentId)
 			if (this.isCropEqual(marker.elementCrop, elementCrop)) return
 
 			marker.elementCrop = elementCrop
@@ -731,7 +818,9 @@ export class MarkerManager {
 		}
 
 		const normalizedNextElementCrop = this.normalizeCrop(nextElementCrop)
-		const relatedMarkers = this.markers.filter((marker) => marker.elementId === elementId)
+		const relatedMarkers = this.markers.filter(
+			(marker) => marker.elementId === elementId && this.isMarkerVisible(marker),
+		)
 
 		relatedMarkers.forEach((marker) => {
 			const markerRect = this.getMarkerRectInDisplaySpace(marker, originalVisibleCrop)
@@ -832,9 +921,11 @@ export class MarkerManager {
 		this.markerInstances.clear()
 
 		// 重新渲染
-		this.markers.forEach((marker) => {
-			this.renderMarker(marker)
-		})
+		this.markers
+			.filter((marker) => this.isMarkerVisible(marker))
+			.forEach((marker) => {
+				this.renderMarker(marker)
+			})
 	}
 
 	/**
@@ -953,7 +1044,7 @@ export class MarkerManager {
 			? markers.filter((marker) => this.canvas.elementManager.hasElement(marker.elementId))
 			: []
 		this.cropRenderOverrides.clear()
-		this.markers = validMarkers
+		this.markers = validMarkers.map((marker) => this.withCurrentImageContent(marker))
 		this.renderAllMarkers()
 	}
 

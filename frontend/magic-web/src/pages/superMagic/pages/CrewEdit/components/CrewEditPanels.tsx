@@ -10,7 +10,7 @@ import {
 	type ReactNode,
 } from "react"
 import { createPortal } from "react-dom"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import TopicResizeHandle from "@/pages/superMagic/pages/TopicPage/components/TopicResizeHandle"
 import type { TopicDesktopPanelsHistoryLayout } from "@/pages/superMagic/pages/TopicPage/components/TopicDesktopPanels"
 import {

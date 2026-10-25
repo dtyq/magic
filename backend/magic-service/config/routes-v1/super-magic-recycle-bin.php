@@ -14,6 +14,8 @@ Router::addGroup(
         // 获取回收站列表
         Router::get('/list', [RecycleBinApi::class, 'getRecycleBinList']);
 
+        Router::get('/{id:[0-9]+}/preview', [RecycleBinApi::class, 'previewFile']);
+
         // 获取各资源类型的回收站数量
         Router::get('/counts', [RecycleBinApi::class, 'getRecycleBinCounts']);
 

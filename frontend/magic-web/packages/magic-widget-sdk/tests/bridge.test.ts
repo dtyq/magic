@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { WidgetBridge } from "../src/bridge"
-import { WIDGET_PROTOCOL, WIDGET_PROTOCOL_VERSION } from "../src/protocol"
+import {
+	isWidgetInputContent,
+	isWidgetProtocolMessage,
+	WIDGET_PROTOCOL,
+	WIDGET_PROTOCOL_VERSION,
+} from "../src/protocol"
 import type { MagicWidget } from "../src/types"
 
 const TEST_ORIGIN = "https://magic.example.invalid"
@@ -101,6 +106,52 @@ describe("WidgetBridge", () => {
 		document.body.innerHTML = ""
 	})
 
+	it("keeps protocol validation shallow and validates input data separately", () => {
+		const validMessage = {
+			protocol: WIDGET_PROTOCOL,
+			version: WIDGET_PROTOCOL_VERSION,
+			instanceId: TEST_INSTANCE_ID,
+			requestId: "request-mock-payload",
+			type: "command",
+			command: "setInput",
+			payload: {
+				content: {
+					blocks: [
+						{
+							type: "mention",
+							metadata: "ignored-by-input-contract",
+							mention: {
+								type: "tool",
+								data: {
+									id: "tool-mock-001",
+									name: "Tool Mock",
+									unsupported: true,
+								},
+							},
+						},
+					],
+				},
+			},
+		}
+		expect(isWidgetProtocolMessage(validMessage)).toBe(true)
+		expect(isWidgetInputContent(validMessage.payload.content)).toBe(true)
+
+		const invalidContent = {
+			blocks: [
+				{ type: "mention", mention: { type: "custom", data: { invalid: new Date(0) } } },
+			],
+		}
+		expect(
+			isWidgetProtocolMessage({ ...validMessage, payload: { content: invalidContent } }),
+		).toBe(true)
+		expect(isWidgetInputContent(invalidContent)).toBe(true)
+		expect(
+			isWidgetInputContent({
+				blocks: [{ type: "mention", mention: { type: "custom", data: null } }],
+			}),
+		).toBe(false)
+	})
+
 	it("notifies agent_ready listeners and returns command results", async () => {
 		const { iframe, postMessage } = createTestIframe()
 		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID)
@@ -132,6 +183,277 @@ describe("WidgetBridge", () => {
 		)
 
 		expect(await inputPromise).toEqual({ content: "mock input" })
+	})
+
+	it("runs a host header action handler and acknowledges successful ownership", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		const handler = vi.fn().mockResolvedValue(undefined)
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID, { pin: handler })
+		const request = {
+			protocol: WIDGET_PROTOCOL,
+			version: WIDGET_PROTOCOL_VERSION,
+			instanceId: TEST_INSTANCE_ID,
+			requestId: "header-action-mock-pin",
+			type: "header_action",
+			action: "pin",
+			context: { action: "pin", topicId: "topic-mock-pin" },
+		}
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: request,
+			}),
+		)
+		await vi.waitFor(() => expect(handler).toHaveBeenCalledWith(request.context))
+		expect(postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "response",
+				requestId: request.requestId,
+				ok: true,
+				result: { headerActionHandled: true },
+			}),
+			TEST_ORIGIN,
+		)
+		bridge.destroy()
+	})
+
+	it("acknowledges that no host handler owned the action", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID)
+		const request = {
+			protocol: WIDGET_PROTOCOL,
+			version: WIDGET_PROTOCOL_VERSION,
+			instanceId: TEST_INSTANCE_ID,
+			requestId: "header-action-mock-missing",
+			type: "header_action",
+			action: "pin",
+		}
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: request,
+			}),
+		)
+
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "response",
+					requestId: request.requestId,
+					ok: true,
+					result: { headerActionHandled: false },
+				}),
+				TEST_ORIGIN,
+			),
+		)
+		bridge.destroy()
+	})
+
+	it("resolves host custom Mention search requests with the active scope", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		const search = vi.fn().mockResolvedValue([
+			{
+				groupId: "group-mock-search",
+				items: [{ id: "item-mock-search", type: "card", text: "Search result" }],
+			},
+		])
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID, {}, search)
+		const request = {
+			protocol: WIDGET_PROTOCOL,
+			version: WIDGET_PROTOCOL_VERSION,
+			instanceId: TEST_INSTANCE_ID,
+			requestId: "mention-search-mock",
+			type: "mention_search",
+			query: "result",
+			scope: { type: "global" },
+		} as const
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: request,
+			}),
+		)
+
+		await vi.waitFor(() =>
+			expect(search).toHaveBeenCalledWith(
+				expect.objectContaining({ query: "result", scope: { type: "global" } }),
+			),
+		)
+		expect(postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "response",
+				requestId: request.requestId,
+				ok: true,
+				result: {
+					customMentionSearch: [
+						expect.objectContaining({ groupId: "group-mock-search" }),
+					],
+				},
+			}),
+			TEST_ORIGIN,
+		)
+		bridge.destroy()
+	})
+
+	it("aborts an in-flight custom Mention callback when the iframe cancels it", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		let resolveSearch: ((value: MagicWidget.CustomMentionSearchResult[]) => void) | undefined
+		let callbackSignal: AbortSignal | undefined
+		const search = vi.fn(({ signal }: MagicWidget.CustomMentionSearchContext) => {
+			callbackSignal = signal
+			return new Promise<MagicWidget.CustomMentionSearchResult[]>((resolve) => {
+				resolveSearch = resolve
+			})
+		})
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID, {}, search)
+		const requestId = "mention-search-cancel-mock"
+		const request = {
+			protocol: WIDGET_PROTOCOL,
+			version: WIDGET_PROTOCOL_VERSION,
+			instanceId: TEST_INSTANCE_ID,
+			requestId,
+			type: "mention_search",
+			query: "result",
+			scope: { type: "global" },
+		} as const
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: request,
+			}),
+		)
+		await vi.waitFor(() => expect(search).toHaveBeenCalledTimes(1))
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: {
+					...request,
+					type: "mention_search_cancel",
+				},
+			}),
+		)
+
+		expect(callbackSignal?.aborted).toBe(true)
+		resolveSearch?.([])
+		await Promise.resolve()
+		expect(postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ requestId, type: "response" }),
+			TEST_ORIGIN,
+		)
+		bridge.destroy()
+	})
+
+	it("reports a failed host header action to the iframe", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		const handler = vi.fn().mockRejectedValue(new Error("Mock header action failed"))
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID, { pin: handler })
+		const request = {
+			protocol: WIDGET_PROTOCOL,
+			version: WIDGET_PROTOCOL_VERSION,
+			instanceId: TEST_INSTANCE_ID,
+			requestId: "header-action-mock-failed",
+			type: "header_action",
+			action: "pin",
+			context: { action: "pin" },
+		}
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: request,
+			}),
+		)
+
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "response",
+					requestId: request.requestId,
+					ok: false,
+					error: {
+						code: "HEADER_ACTION_FAILED",
+						message: "Mock header action failed",
+					},
+				}),
+				TEST_ORIGIN,
+			),
+		)
+		bridge.destroy()
+	})
+
+	it("preserves structured command payloads and supports payload-free sendMessage", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID)
+		dispatchLoad(iframe)
+		const structuredContent: MagicWidget.InputContent = {
+			blocks: [
+				{ type: "text", text: "Ask " },
+				{
+					type: "mention",
+					mention: {
+						type: "tool",
+						data: { id: "tool-mock-001", name: "Tool Mock" },
+					},
+				},
+			],
+		}
+
+		const setPromise = bridge.send("setInput", { content: structuredContent })
+		await Promise.resolve()
+		const setMessage = postMessage.mock.calls[0]?.[0] as {
+			requestId: string
+			payload: { content: MagicWidget.InputContent }
+		}
+		expect(setMessage.payload.content).toEqual(structuredContent)
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: {
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: TEST_INSTANCE_ID,
+					requestId: setMessage.requestId,
+					type: "response",
+					ok: true,
+				},
+			}),
+		)
+		await expect(setPromise).resolves.toBeUndefined()
+
+		postMessage.mockClear()
+		const sendPromise = bridge.send("sendMessage")
+		await Promise.resolve()
+		const sendMessage = postMessage.mock.calls[0]?.[0] as {
+			requestId: string
+			payload?: unknown
+		}
+		expect(sendMessage.payload).toBeUndefined()
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: {
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: TEST_INSTANCE_ID,
+					requestId: sendMessage.requestId,
+					type: "response",
+					ok: true,
+				},
+			}),
+		)
+		await expect(sendPromise).resolves.toBeUndefined()
 	})
 
 	it("resolves newConversation from its response without a newer READY", async () => {
@@ -279,6 +601,82 @@ describe("WidgetBridge", () => {
 		)
 
 		await expect(configPromise).resolves.toBeUndefined()
+	})
+
+	it("returns a provider-side config warning without rejecting the update", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID)
+		dispatchLoad(iframe)
+		dispatchConfigReady(iframe)
+		const configPromise = bridge.sendConfig({ layout: "desktop" })
+		await vi.waitFor(() => expect(postMessage).toHaveBeenCalledTimes(1))
+		const message = postMessage.mock.calls[0]?.[0] as { requestId: string }
+		const configWarning = {
+			code: "CUSTOM_MENTION_FILTERED" as const,
+			message: "Fixture content was filtered",
+			details: {
+				droppedGroups: 1,
+				droppedItems: 2,
+				reasons: ["MAX_GROUPS" as const],
+			},
+		}
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: {
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: TEST_INSTANCE_ID,
+					requestId: message.requestId,
+					type: "response",
+					ok: true,
+					result: { configWarning },
+				},
+			}),
+		)
+
+		await expect(configPromise).resolves.toEqual(configWarning)
+	})
+
+	it("preserves INVALID_CONFIG from a provider rejection", async () => {
+		const { iframe, postMessage } = createTestIframe()
+		const bridge = new WidgetBridge(iframe, TEST_ORIGIN, TEST_INSTANCE_ID)
+		dispatchLoad(iframe)
+		const configPromise = bridge.sendConfig({
+			panel: {
+				customGroups: [
+					{
+						id: "bridge-group",
+						label: "Bridge group",
+						items: [{ id: "bridge-item", type: "card", text: "Bridge fixture" }],
+					},
+				],
+			},
+		})
+		dispatchConfigReady(iframe)
+		await vi.waitFor(() => expect(postMessage).toHaveBeenCalledTimes(1))
+		const message = postMessage.mock.calls[0]?.[0] as { requestId: string }
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: TEST_ORIGIN,
+				source: iframe.contentWindow,
+				data: {
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: TEST_INSTANCE_ID,
+					requestId: message.requestId,
+					type: "response",
+					ok: false,
+					error: { code: "INVALID_CONFIG", message: "fixture rejection" },
+				},
+			}),
+		)
+		await expect(configPromise).rejects.toMatchObject({
+			code: "INVALID_CONFIG",
+			message: "fixture rejection",
+		})
 	})
 
 	it("preserves config readiness when the child handshake arrives before iframe load", async () => {

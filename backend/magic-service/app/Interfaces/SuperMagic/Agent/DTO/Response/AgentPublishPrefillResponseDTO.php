@@ -20,7 +20,6 @@ class AgentPublishPrefillResponseDTO extends AbstractDTO
         private readonly array $versionDescriptionI18n,
         private readonly ?string $publishTargetType,
         private readonly ?array $publishTargetValue,
-        private readonly ?int $categoryId = null,
         private readonly array $categoryIds = [],
     ) {
     }
@@ -32,7 +31,6 @@ class AgentPublishPrefillResponseDTO extends AbstractDTO
             'version_description_i18n' => $this->versionDescriptionI18n,
             'publish_target_type' => $this->publishTargetType,
             'publish_target_value' => $this->publishTargetValue,
-            'category_id' => $this->categoryId === null ? null : (string) $this->categoryId,
             'category_ids' => array_map(static fn (int $categoryId): string => (string) $categoryId, $this->categoryIds),
         ];
     }

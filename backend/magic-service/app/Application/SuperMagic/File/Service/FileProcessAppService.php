@@ -15,6 +15,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\StorageType;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileSpaceType;
 use App\Domain\SuperMagic\File\Entity\ValueObject\FileType;
 use App\Domain\SuperMagic\File\Entity\ValueObject\TaskFileSource;
 use App\Domain\SuperMagic\File\Event\FileContentSavedEvent;
@@ -151,6 +152,7 @@ class FileProcessAppService extends AbstractAppService
                 $task->getProjectId(),
                 $task->getTopicId()
             ) . '/screenshots';
+            // TODO: Topic 新空间启用时，Snapshot 物理目录应与上传、消息目录同步切换。
             $fullScreenshotDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $screenshotDir);
             if (! WorkDirectoryUtil::checkEffectiveFileKey($fullScreenshotDir, $fileKey)) {
                 $this->logger->warning('Tool Detail screenshot path does not belong to the current topic', [
@@ -324,207 +326,6 @@ class FileProcessAppService extends AbstractAppService
     }
 
     /**
-     * Batch process attachment array, check if exists by fileKey, skip if exists, save if not exists.
-     *
-     * @param array $attachments Attachment array
-     * @param string $sandboxId Sandbox ID
-     * @param string $organizationCode Organization code
-     * @param null|int $topicId Topic ID, will be retrieved from task record if not provided
-     * @return array Processing result statistics
-     */
-    public function processAttachmentsArray(array $attachments, string $sandboxId, string $organizationCode, ?int $topicId = null): array
-    {
-        $stats = [
-            'total' => count($attachments),
-            'success' => 0,
-            'skipped' => 0,
-            'error' => 0,
-            'files' => [],
-        ];
-
-        if (empty($attachments)) {
-            return $stats;
-        }
-
-        // Create data isolation object
-        $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
-        $task = null;
-        // If topicId not provided, retrieve from task record
-        if ($topicId === null) {
-            $task = $this->taskDomainService->getTaskBySandboxId($sandboxId);
-            if (empty($task)) {
-                $this->logger->error(sprintf('Unable to find task, Sandbox ID: %s', $sandboxId));
-                $stats['error'] = $stats['total'];
-                return $stats;
-            }
-            $topicId = $task->getTopicId();
-        }
-        $dataIsolation->setCurrentUserId($task->getUserId());
-
-        $this->logger->info(sprintf(
-            'Starting batch attachment processing, Sandbox ID: %s, Attachment count: %d',
-            $sandboxId,
-            $stats['total']
-        ));
-
-        Db::beginTransaction();
-        try {
-            // 对每个附件进行处理
-            foreach ($attachments as $attachment) {
-                // Ensure file_key exists
-                if (empty($attachment['file_key'])) {
-                    $this->logger->warning(sprintf(
-                        'Attachment missing file_key, Sandbox ID: %s, Attachment content: %s',
-                        $sandboxId,
-                        json_encode($attachment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                    ));
-                    ++$stats['error'];
-                    continue;
-                }
-                try {
-                    // Ensure task exists and has ID
-                    if (empty($task) || empty($task->getId())) {
-                        $this->logger->error(sprintf('Unable to find task or task ID is empty, Sandbox ID: %s', $sandboxId));
-                        ++$stats['error'];
-                        continue;
-                    }
-
-                    // Create file lock key
-                    $fileLockKey = sprintf('file_process_lock:%s', $attachment['file_key']);
-                    $lockOwner = IdGenerator::getUniqueId32();
-                    $lockExpireSeconds = 60;
-                    $lockAcquired = false;
-
-                    try {
-                        // Attempt to acquire distributed lock
-                        $lockAcquired = $this->locker->mutexLock($fileLockKey, $lockOwner, $lockExpireSeconds);
-
-                        if (! $lockAcquired) {
-                            $this->logger->warning(sprintf(
-                                'Unable to acquire file processing lock, File Key: %s, Topic ID: %d, Sandbox ID: %s',
-                                $attachment['file_key'],
-                                $topicId,
-                                $sandboxId
-                            ));
-                            ++$stats['error'];
-                            continue;
-                        }
-
-                        $this->logger->debug(sprintf(
-                            'Successfully acquired file processing lock, File Key: %s, Topic ID: %d, Lock Owner: %s',
-                            $attachment['file_key'],
-                            $topicId,
-                            $lockOwner
-                        ));
-
-                        // Check if file already exists
-                        $existingFile = $this->taskDomainService->getTaskFileByFileKey($attachment['file_key'], $topicId);
-                        if ($existingFile) {
-                            // If already exists, update timestamp and skip
-                            $existingFile->setUpdatedAt(date('Y-m-d H:i:s'));
-                            $this->taskDomainService->updateTaskFile($existingFile);
-
-                            $this->logger->info(sprintf(
-                                'Attachment already exists, updating timestamp, File Key: %s, Sandbox ID: %s',
-                                $attachment['file_key'],
-                                $sandboxId
-                            ));
-                            ++$stats['skipped'];
-                            $stats['files'][] = [
-                                'file_id' => $existingFile->getFileId(),
-                                'file_key' => $existingFile->getFileKey(),
-                                'file_name' => $existingFile->getFileName(),
-                                'storage_type' => $existingFile->getStorageType(),
-                                'status' => 'skipped',
-                            ];
-                            continue;
-                        }
-                        // If not exists, save it
-                        $taskFileEntity = $this->taskDomainService->saveTaskFileByFileKey(
-                            dataIsolation: $dataIsolation,
-                            fileKey: $attachment['file_key'],
-                            fileData: $attachment,
-                            projectId: $task->getProjectId(),
-                            topicId: $topicId,
-                            taskId: $task->getId(),
-                            fileType: $attachment['file_type'] ?? FileType::SYSTEM_AUTO_UPLOAD->value
-                        );
-                        ++$stats['success'];
-                        $stats['files'][] = [
-                            'file_id' => $taskFileEntity->getFileId(),
-                            'file_key' => $taskFileEntity->getFileKey(),
-                            'file_name' => $taskFileEntity->getFileName(),
-                            'storage_type' => $taskFileEntity->getStorageType(),
-                            'status' => 'created',
-                        ];
-                        $this->logger->info(sprintf(
-                            'Attachment saved successfully, File Key: %s, Sandbox ID: %s, File name: %s',
-                            $attachment['file_key'],
-                            $sandboxId,
-                            $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown'
-                        ));
-                    } catch (Throwable $e) {
-                        $this->logger->error(sprintf(
-                            'Processing attachment exception: %s, File Key: %s, Sandbox ID: %s',
-                            $e->getMessage(),
-                            $attachment['file_key'],
-                            $sandboxId
-                        ));
-                        ++$stats['error'];
-                        $stats['files'][] = [
-                            'file_key' => $attachment['file_key'],
-                            'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown',
-                            'status' => 'error',
-                            'error' => $e->getMessage(),
-                        ];
-                    } finally {
-                        // Ensure lock is released
-                        if ($lockAcquired) {
-                            $this->locker->release($fileLockKey, $lockOwner);
-                            $this->logger->debug(sprintf(
-                                'Released file processing lock, File Key: %s, Topic ID: %d, Lock Owner: %s',
-                                $attachment['file_key'],
-                                $topicId,
-                                $lockOwner
-                            ));
-                        }
-                    }
-                } catch (Throwable $e) {
-                    $this->logger->error(sprintf(
-                        'Processing attachment exception: %s, File Key: %s, Sandbox ID: %s',
-                        $e->getMessage(),
-                        $attachment['file_key'],
-                        $sandboxId
-                    ));
-                    ++$stats['error'];
-                    $stats['files'][] = [
-                        'file_key' => $attachment['file_key'],
-                        'file_name' => $attachment['filename'] ?? $attachment['display_filename'] ?? 'Unknown',
-                        'status' => 'error',
-                        'error' => $e->getMessage(),
-                    ];
-                }
-            }
-        } catch (Throwable $e) {
-            Db::rollBack();
-            throw $e;
-        }
-
-        Db::commit();
-
-        $this->logger->info(sprintf(
-            'Batch attachment processing completed, Sandbox ID: %s, Processing result: Total=%d, Success=%d, Skipped=%d, Failed=%d',
-            $sandboxId,
-            $stats['total'],
-            $stats['success'],
-            $stats['skipped'],
-            $stats['error']
-        ));
-
-        return $stats;
-    }
-
-    /**
      * Refresh STS Token.
      *
      * @param RefreshStsTokenRequestDTO $requestDTO Request DTO
@@ -532,21 +333,20 @@ class FileProcessAppService extends AbstractAppService
      */
     public function refreshStsToken(RefreshStsTokenRequestDTO $requestDTO): array
     {
+        $projectId = (int) $requestDTO->getProjectId();
+        if (empty($projectId)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_id_required');
+        }
+
+        // STS credentials grant access to the project's work directory. Resolve the
+        // project through the authenticated user's access scope before issuing them.
+        $projectEntity = $this->getAccessibleProject(
+            $projectId,
+            $requestDTO->getUserId(),
+            $requestDTO->getOrganizationCode(),
+        );
+
         try {
-            // Get organization code from request
-            $organizationCode = $requestDTO->getOrganizationCode();
-
-            // Get project entity by project_id from metadata
-            $projectId = (int) $requestDTO->getProjectId();
-            if (empty($projectId)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_id_required');
-            }
-
-            $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
-            if (empty($projectEntity)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.not_found');
-            }
-
             // Use project's workdir as working directory
             $projectDir = WorkDirectoryUtil::getRootDir($projectEntity->getUserId(), $projectEntity->getId());
 
@@ -556,15 +356,17 @@ class FileProcessAppService extends AbstractAppService
 
             // Create user authorization object
             $userAuthorization = new MagicUserAuthorization();
-            $userAuthorization->setOrganizationCode($organizationCode);
+            $userAuthorization->setOrganizationCode($requestDTO->getOrganizationCode());
 
             // Use unified FileAppService to get STS Token (with dual endpoint)
+            // 与沙箱初始化保持一致：凭证需同时含上传与删除权限（如 checkpoint 清理）
             return $this->fileAppService->getDualEndpointStsCredentialV2(
                 $projectEntity->getUserOrganizationCode(),
                 $storageType,
                 $projectDir,
                 $expires,
-                false
+                false,
+                ['sts_type' => 'upload_objects|del_objects']
             );
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
@@ -623,14 +425,15 @@ class FileProcessAppService extends AbstractAppService
 
     public function workspaceAttachments(WorkspaceAttachmentsRequestDTO $requestDTO): array
     {
-        $task = $this->taskDomainService->getTaskBySandboxId($requestDTO->getSandboxId());
-        if (empty($task)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.not_found');
-        }
-
         $topic = $this->topicDomainService->getTopicOnlyByChatTopicId($requestDTO->getTopicId());
         if (empty($topic)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.not_found');
+        }
+
+        // task 表无 sandbox_id 索引，改用 topic 当前任务按主键做存在性校验
+        $task = $this->taskDomainService->getTaskById((int) $topic->getCurrentTaskId());
+        if (empty($task)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TASK_NOT_FOUND, 'task.not_found');
         }
 
         if ($requestDTO->getFolder() === '.chat_history') {
@@ -1258,7 +1061,10 @@ class FileProcessAppService extends AbstractAppService
             ['size' => $result['size']]
         );
 
-        if (! $taskFileEntity->isProjectFile()) {
+        // User-space saves must notify too. Long-term memory lives there.
+        $shouldNotify = $this->taskFileDomainService->isProjectSpaceFile($taskFileEntity)
+            || $taskFileEntity->getSpaceType() === FileSpaceType::USER->value;
+        if (! $shouldNotify) {
             return $nextRevision;
         }
 

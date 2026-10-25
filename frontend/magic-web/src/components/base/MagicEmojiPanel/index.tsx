@@ -5,6 +5,7 @@ import { Flex } from "antd"
 import { colorScales } from "@/providers/ThemeProvider/colors"
 import MagicButton from "../MagicButton"
 import MagicIcon from "../MagicIcon"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 import emojiJsons from "./emojis.json"
 import EmojiSelect from "./components/EmojiSelect"
@@ -24,12 +25,18 @@ const useStyles = createStyles(({ css, token }) => {
 			overflow: hidden;
 		`,
 		emojis: css`
-			overflow-y: auto;
+			flex: 1;
+			min-height: 0;
+			display: grid;
+		`,
+		viewport: css`
+			height: auto;
+			min-height: 0;
 			padding: 10px;
-			height: 292px;
-
-			::-webkit-scrollbar {
-				width: 4px;
+			> div {
+				display: flex !important;
+				flex-wrap: wrap;
+				align-content: flex-start;
 			}
 		`,
 		active: css`
@@ -49,6 +56,7 @@ const useStyles = createStyles(({ css, token }) => {
 		footer: css`
 			width: 100%;
 			height: 44px;
+			flex-shrink: 0;
 			border-top: 1px solid ${token.magicColorUsages.border};
 			background: ${token.magicColorScales.grey[0]};
 			padding: 6px 10px;
@@ -81,9 +89,10 @@ const MagicEmojiPanel = memo(({ style, onClick }: MagicEmojiPanelProps) => {
 
 	return (
 		<Flex vertical justify="flex-end" className={styles.panel} style={style}>
-			<Flex className={styles.emojis} wrap="wrap" flex={1}>
+			{/* Keep the category controls fixed while the emoji grid scrolls. */}
+			<ScrollArea className={styles.emojis} viewportClassName={styles.viewport}>
 				{panelKey === "emoji" ? emojiList : null}
-			</Flex>
+			</ScrollArea>
 			<Flex className={styles.footer} gap={10}>
 				<MagicButton
 					type="text"

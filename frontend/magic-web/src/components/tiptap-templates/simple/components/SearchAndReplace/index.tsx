@@ -1,5 +1,5 @@
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 import {
 	IconChevronRight,
@@ -16,10 +16,16 @@ import "./search-and-replace.scss"
 interface SearchAndReplaceProps {
 	editor: Editor | null
 	visible: boolean
+	documentFlow?: boolean
 	onClose: () => void
 }
 
-export function SearchAndReplace({ editor, visible, onClose }: SearchAndReplaceProps) {
+export function SearchAndReplace({
+	editor,
+	visible,
+	documentFlow = false,
+	onClose,
+}: SearchAndReplaceProps) {
 	const { t } = useTranslation("tiptap")
 	const [showReplace, setShowReplace] = React.useState(false)
 	const searchInputRef = React.useRef<HTMLInputElement>(null)
@@ -110,7 +116,12 @@ export function SearchAndReplace({ editor, visible, onClose }: SearchAndReplaceP
 
 	return (
 		<div
-			className="search-and-replace-panel"
+			className={[
+				"search-and-replace-panel",
+				!isEditable && documentFlow && "large-markdown-search-panel-document-flow",
+			]
+				.filter(Boolean)
+				.join(" ")}
 			role="dialog"
 			aria-label={t("toolbar.searchReplace.search")}
 			onKeyDown={handlePanelKeyDown}

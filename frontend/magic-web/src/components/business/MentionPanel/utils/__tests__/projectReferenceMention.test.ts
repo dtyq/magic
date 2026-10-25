@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+	getProjectFileResourceIdentity,
+	normalizeProjectFileResourcePath,
 	resolveFolderWorkspaceEntryFromProjectFile,
 	resolveFolderWorkspaceEntryFromTab,
 } from "../projectReferenceMention"
@@ -49,6 +51,19 @@ function createEntryTab(displayConfig: Record<string, unknown> | undefined): Tab
 }
 
 describe("projectReferenceMention", () => {
+	it("uses file ids before normalized paths for resource identity", () => {
+		expect(
+			getProjectFileResourceIdentity({
+				file_id: "file-1",
+				relative_file_path: ".\\folder\\image.png/",
+			}),
+		).toBe("project-file:id:file-1")
+		expect(normalizeProjectFileResourcePath(".\\folder\\image.png/")).toBe("folder/image.png")
+		expect(
+			getProjectFileResourceIdentity({ relative_file_path: ".\\folder\\image.png/" }),
+		).toBe("project-file:path:folder/image.png")
+	})
+
 	it("resolves typed index entry files to their parent folder", () => {
 		const folder = resolveFolderWorkspaceEntryFromTab(
 			createEntryTab({ type: "dashboard" }),

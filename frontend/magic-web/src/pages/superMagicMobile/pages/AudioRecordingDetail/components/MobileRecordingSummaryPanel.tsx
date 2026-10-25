@@ -1,12 +1,21 @@
-import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react"
+import {
+	useEffect,
+	useMemo,
+	useState,
+	Suspense,
+	type CSSProperties,
+	type ReactNode,
+	type RefObject,
+} from "react"
 import { AlignLeft, Network } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicMarkmap from "@/components/base/MagicMarkmap"
 import IsolatedHTMLRenderer from "@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer"
-import { processHtmlContent } from "@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor"
 import { RecordingTokenText } from "@/pages/superMagic/pages/AudioRecordings/components/recording-detail/RecordingTokenText"
+import { useRecordingMetricsHtml } from "@/pages/superMagic/pages/AudioRecordings/hooks/useRecordingMetricsHtml"
+import MagicSpin from "@/components/base/MagicSpin"
 import type { RecordingDetailFileRef, RecordingTopicSection } from "../types"
 import { parseTopicsMarkdown } from "../utils/topics-parser"
 import { formatRecordingTime } from "../utils/time"
@@ -18,7 +27,7 @@ interface MobileRecordingSummaryPanelProps {
 	summaryFiles: RecordingDetailFileRef[]
 	summaryContent: Record<string, string | undefined>
 	attachmentList: AttachmentItem[]
-	scrollPaddingBottom: number
+	scrollPaddingBottom: CSSProperties["paddingBottom"]
 	speakerNameMap: Record<string, string>
 	onOpenSpeakerSettings: () => void
 	onTimeClick: (seconds: number, end?: number) => void
@@ -26,6 +35,10 @@ interface MobileRecordingSummaryPanelProps {
 	searchScopeRef?: RefObject<HTMLDivElement | null>
 	searchActive?: boolean
 	onActiveTypeChange?: (type: string) => void
+	/** Hides the nested summary switcher when an embedding preview owns the tab row. */
+	showTypeTabs?: boolean
+	activeType?: string
+	isGenerating?: boolean
 }
 
 /** Renders dynamic completed-summary tabs from the project file map. */
@@ -41,10 +54,15 @@ export function MobileRecordingSummaryPanel({
 	searchScopeRef,
 	searchActive = false,
 	onActiveTypeChange,
+	showTypeTabs = true,
+	activeType: controlledActiveType,
+	isGenerating = false,
 }: MobileRecordingSummaryPanelProps) {
 	const { t } = useTranslation("audioRecordings")
 	const [activeType, setActiveType] = useState<string>(summaryFiles[0]?.type ?? "")
-	const activeFile = summaryFiles.find((file) => file.type === activeType) ?? summaryFiles[0]
+	const resolvedActiveType = controlledActiveType ?? activeType
+	const activeFile =
+		summaryFiles.find((file) => file.type === resolvedActiveType) ?? summaryFiles[0]
 	const content = activeFile ? summaryContent[activeFile.type] : undefined
 
 	useEffect(() => {
@@ -62,22 +80,24 @@ export function MobileRecordingSummaryPanel({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-recording-summary-panel">
 			{/* Match the source tab header height so switching between Source and Summary never shifts content vertically. */}
-			<div className="sticky top-0 z-10 flex min-h-[68px] items-center overflow-x-auto bg-[#f7f7f8] px-4 py-3">
-				<div className="flex w-max">
-					{summaryFiles.map((file) => (
-						<SummaryTabButton
-							key={file.type}
-							active={file.type === activeFile?.type}
-							label={resolveSummaryTypeLabel(file.type, t)}
-							type={file.type}
-							onClick={() => {
-								setActiveType(file.type)
-								onActiveTypeChange?.(file.type)
-							}}
-						/>
-					))}
+			{showTypeTabs ? (
+				<div className="sticky top-0 z-10 flex min-h-[68px] items-center overflow-x-auto bg-[#f7f7f8] px-4 py-3">
+					<div className="flex w-max">
+						{summaryFiles.map((file) => (
+							<SummaryTabButton
+								key={file.type}
+								active={file.type === activeFile?.type}
+								label={resolveSummaryTypeLabel(file.type, t)}
+								type={file.type}
+								onClick={() => {
+									setActiveType(file.type)
+									onActiveTypeChange?.(file.type)
+								}}
+							/>
+						))}
+					</div>
 				</div>
-			</div>
+			) : null}
 
 			{/*
 			 * metrics tab: render directly in the panel's flex column so that flex-1
@@ -98,7 +118,9 @@ export function MobileRecordingSummaryPanel({
 							attachmentList={attachmentList}
 						/>
 					) : (
-						<PanelMessage>{t("detail.emptySummaryFile")}</PanelMessage>
+						<PanelMessage>
+							{isGenerating ? t("detail.summarizingHint") : t("detail.emptySummary")}
+						</PanelMessage>
 					)}
 				</div>
 			) : (
@@ -113,7 +135,7 @@ export function MobileRecordingSummaryPanel({
 					<div
 						ref={searchScopeRef}
 						data-search-scope="mobile-recording-summary"
-						className="min-h-full"
+						className="flex min-h-full flex-col"
 						style={{ paddingBottom: scrollPaddingBottom }}
 					>
 						{activeFile ? (
@@ -121,7 +143,11 @@ export function MobileRecordingSummaryPanel({
 								file={activeFile}
 								content={content}
 								attachmentList={attachmentList}
-								emptyText={t("detail.emptySummaryFile")}
+								emptyText={
+									isGenerating
+										? t("detail.summarizingHint")
+										: t("detail.emptySummary")
+								}
 								scrollPaddingBottom={scrollPaddingBottom}
 								searchActive={searchActive}
 								speakerNameMap={speakerNameMap}
@@ -181,13 +207,13 @@ function SummaryContent({
 	content?: string
 	attachmentList: AttachmentItem[]
 	emptyText: string
-	scrollPaddingBottom: number
+	scrollPaddingBottom: CSSProperties["paddingBottom"]
 	searchActive: boolean
 	speakerNameMap: Record<string, string>
 	onOpenSpeakerSettings: () => void
 	onTimeClick: (seconds: number, end?: number) => void
 }) {
-	if (!content?.trim()) {
+	if (!file.file || !content?.trim()) {
 		return <PanelMessage>{emptyText}</PanelMessage>
 	}
 
@@ -242,44 +268,49 @@ function MetricsHtmlContent({
 	content: string
 	attachmentList: AttachmentItem[]
 }) {
-	const [processedContent, setProcessedContent] = useState(content)
-	const [filePathMapping, setFilePathMapping] = useState<Map<string, string>>(new Map())
-
-	useEffect(() => {
-		let cancelled = false
-
-		void processHtmlContent({
+	const { t } = useTranslation("audioRecordings")
+	const { processedContent, filePathMapping, isLoading, handleRenderReady } =
+		useRecordingMetricsHtml({
 			content,
-			attachments: attachmentList,
 			attachmentList,
 			fileId: file.file.file_id,
 			fileName: file.fileName,
-		}).then((result) => {
-			if (cancelled) return
-			setProcessedContent(result.processedContent)
-			setFilePathMapping(result.filePathMapping)
 		})
-
-		return () => {
-			cancelled = true
-		}
-	}, [attachmentList, content, file.file.file_id, file.fileName])
 
 	return (
 		<div
-			className="flex min-h-0 flex-1 flex-col"
+			className="relative flex min-h-0 flex-1 flex-col"
+			aria-busy={isLoading}
 			data-testid="mobile-recording-metrics-container"
 		>
-			<IsolatedHTMLRenderer
-				content={processedContent}
-				fileId={file.file.file_id}
-				filePathMapping={filePathMapping}
-				attachmentList={attachmentList}
-				relative_file_path={file.file.relative_file_path}
-				openNewTab={() => undefined}
-				className="flex min-h-[520px] flex-1 overflow-hidden rounded-2xl bg-card"
-				iframeClassName="h-full min-h-[520px] bg-white"
-			/>
+			{/* Keep IsolatedHTMLRenderer inside a local Suspense so a suspend cannot
+			    bubble to the route LoadingFallback and blank the host page. */}
+			{processedContent ? (
+				<Suspense fallback={null}>
+					<IsolatedHTMLRenderer
+						content={processedContent}
+						fileId={file.file.file_id}
+						filePathMapping={filePathMapping}
+						attachmentList={attachmentList}
+						relative_file_path={file.file.relative_file_path}
+						openNewTab={() => undefined}
+						className="flex min-h-[520px] flex-1 overflow-hidden rounded-2xl bg-card"
+						iframeClassName="h-full min-h-[520px] bg-white"
+						onRenderReady={handleRenderReady}
+					/>
+				</Suspense>
+			) : null}
+			{isLoading ? (
+				<div
+					className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-card/80"
+					data-testid="mobile-recording-metrics-loading"
+					role="status"
+					aria-live="polite"
+				>
+					{/* Metrics HTML is already inside the detail page; use the generic loading copy. */}
+					<MagicSpin spinning tip={t("loading")} />
+				</div>
+			) : null}
 		</div>
 	)
 }
@@ -294,7 +325,7 @@ function MindmapContent({
 	onTimeClick,
 }: {
 	content: string
-	scrollPaddingBottom: number
+	scrollPaddingBottom: CSSProperties["paddingBottom"]
 	searchActive: boolean
 	speakerNameMap: Record<string, string>
 	onOpenSpeakerSettings: () => void
@@ -361,7 +392,7 @@ function MindmapViewSwitch({
 	onChange,
 }: {
 	value: "map" | "markdown"
-	bottom: number
+	bottom: CSSProperties["bottom"]
 	onChange: (value: "map" | "markdown") => void
 }) {
 	const { t } = useTranslation("audioRecordings")
@@ -418,28 +449,40 @@ function TopicsContent({
 	)
 
 	if (topics.length === 0 || !activeTopic) {
-		return <PanelMessage>{t("detail.emptySummaryFile")}</PanelMessage>
+		return <PanelMessage>{t("detail.emptySummary")}</PanelMessage>
 	}
 
 	return (
 		<div className="flex flex-col gap-4" data-testid="mobile-recording-topics-content">
 			<div className="-mx-4 overflow-x-auto px-4">
 				<div className="flex w-max gap-2">
-					{topics.map((topic) => (
-						<button
-							key={topic.id}
-							type="button"
-							className={cn(
-								"h-8 rounded-full border px-4 text-[14px] font-medium leading-none transition-colors",
-								topic.id === activeTopic.id
-									? "border-foreground bg-foreground text-background"
-									: "border-border bg-card/70 text-muted-foreground",
-							)}
-							onClick={() => setActiveTopicId(topic.id)}
-						>
-							{topic.name}
-						</button>
-					))}
+					{topics.map((topic) => {
+						const isActive = topic.id === activeTopic.id
+						return (
+							<button
+								key={topic.id}
+								type="button"
+								className={cn(
+									"inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-4 text-[14px] font-medium leading-none transition-colors",
+									isActive
+										? "border-foreground bg-foreground text-background"
+										: "border-border bg-card/70 text-muted-foreground",
+								)}
+								onClick={() => setActiveTopicId(topic.id)}
+							>
+								{/* Chapter color dot reuses the per-topic color so tabs stay visually distinct, matching the legacy HTML tab dots. */}
+								<span
+									aria-hidden
+									className={cn(
+										"size-2 shrink-0 rounded-full ring-1 ring-inset ring-black/15 dark:ring-white/25",
+										isActive && "ring-white/40 dark:ring-black/30",
+									)}
+									style={{ backgroundColor: topic.color }}
+								/>
+								{topic.name}
+							</button>
+						)
+					})}
 				</div>
 			</div>
 
@@ -531,7 +574,7 @@ function TopicsContent({
 /** Lightweight empty/error message panel for individual summary tabs. */
 function PanelMessage({ children }: { children: ReactNode }) {
 	return (
-		<div className="rounded-2xl bg-card px-6 py-16 text-center text-sm text-muted-foreground">
+		<div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-muted-foreground">
 			{children}
 		</div>
 	)

@@ -67,6 +67,11 @@ class Oauth2Config extends AbstractValueObject
      */
     protected string $authorizationContentType = 'application/json';
 
+    /**
+     * Token 请求的 HTTP 方法，默认使用 POST 兼容已有 OAuth2 配置。
+     */
+    protected string $authorizationMethod = 'POST';
+
     // Enhanced OAuth2/OIDC fields
     protected string $issuerUrl = '';
 
@@ -138,6 +143,22 @@ class Oauth2Config extends AbstractValueObject
     public function setAuthorizationContentType(string $authorizationContentType): void
     {
         $this->authorizationContentType = $authorizationContentType;
+    }
+
+    /**
+     * 获取 Token 请求的 HTTP 方法。
+     */
+    public function getAuthorizationMethod(): string
+    {
+        return $this->authorizationMethod;
+    }
+
+    /**
+     * 设置 Token 请求的 HTTP 方法。
+     */
+    public function setAuthorizationMethod(string $authorizationMethod): void
+    {
+        $this->authorizationMethod = strtoupper(trim($authorizationMethod));
     }
 
     // Enhanced OAuth2/OIDC getters and setters
@@ -278,6 +299,11 @@ class Oauth2Config extends AbstractValueObject
         if ($this->authorizationContentType !== 'application/json') {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.authorization_content_type']);
         }
+
+        // GET 请求使用 query 传递参数，POST 请求保持原有请求体行为。
+        if (! in_array($this->authorizationMethod, ['GET', 'POST'], true)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.authorization_method']);
+        }
     }
 
     public static function fromArray(array $array): self
@@ -289,6 +315,7 @@ class Oauth2Config extends AbstractValueObject
         $instance->setScope($array['scope'] ?? '');
         $instance->setAuthorizationUrl($array['authorization_url'] ?? '');
         $instance->setAuthorizationContentType($array['authorization_content_type'] ?? 'application/json');
+        $instance->setAuthorizationMethod($array['authorization_method'] ?? 'POST');
 
         // Enhanced OAuth2/OIDC fields
         $instance->setIssuerUrl($array['issuer_url'] ?? '');
@@ -313,6 +340,7 @@ class Oauth2Config extends AbstractValueObject
             'scope' => $this->scope,
             'authorization_url' => $this->authorizationUrl,
             'authorization_content_type' => $this->authorizationContentType,
+            'authorization_method' => $this->authorizationMethod,
             'issuer_url' => $this->issuerUrl,
             'redirect_uri' => $this->redirectUri,
             'use_pkce' => $this->usePKCE,

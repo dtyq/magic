@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import AudioRecordingDetailPage from "../AudioRecordingDetailPage"
 import { RouteName } from "@/routes/constants"
 import { AUDIO_RECORDINGS_PAGE_SHELL_CLASS } from "../constants/page-shell"
@@ -37,6 +37,7 @@ const shareControlsMock = vi.hoisted(() => ({
 	openManageShare: vi.fn(),
 	closeManageShare: vi.fn(),
 }))
+const saveMediaSpeakersMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const superMagicApiMock = vi.hoisted(() => ({
 	getProjectDetail: vi.fn().mockResolvedValue({
 		id: "project-alpha",
@@ -159,8 +160,10 @@ vi.mock("react-i18next", async (importOriginal) => {
 					"detail.exportSection": "Export",
 					"detail.share": "Share",
 					"detail.tabs.notes": "Notes",
-					"detail.emptyTranscript": "No transcript",
-					"detail.emptyNotes": "No notes",
+					"detail.emptyTranscript":
+						"Summarizing now. It will appear automatically when ready.",
+					"detail.emptyNotes":
+						"Summarizing now. It will appear automatically when ready.",
 					"detail.openSpeakerSettings": "Speaker settings",
 					"card.summarized": "Summarized",
 					"card.notSummarized": "Not summarized",
@@ -196,7 +199,11 @@ const mockDetailData = vi.hoisted(() => ({
 	fileMap: {
 		summaryFiles: [],
 	},
-	texts: { summary: {} },
+	texts: {
+		transcript: { content: "Speaker-mock says hello" },
+		magicProject: { fileId: "mock-magic-project-file", content: "export default {}" },
+		summary: {},
+	},
 	audioUrl: "https://example.test/audio.wav",
 	title: "Weekly sync",
 	attachmentTree: [],
@@ -297,7 +304,7 @@ vi.mock("../components/AudioRecordingGroupDialogs", () => ({
 }))
 
 vi.mock("@/pages/superMagic/components/Detail/contents/HTML/media/utils", () => ({
-	saveMediaSpeakersAndMagicProjectJs: vi.fn(),
+	saveMediaSpeakersAndMagicProjectJs: saveMediaSpeakersMock,
 }))
 
 vi.mock("@/pages/superMagic/components/Share/Modal", () => ({
@@ -340,16 +347,23 @@ vi.mock("../components/recording-detail/RecordingDetailHeader", () => ({
 vi.mock("../components/recording-detail/RecordingDetailLeftColumn", () => ({
 	RecordingDetailLeftColumn: ({
 		onPlaySegment,
+		speakerNameMap,
 	}: {
 		onPlaySegment: (segment: { id: string; start: number; end?: number; text: string }) => void
+		speakerNameMap: Record<string, string>
 	}) => (
 		<div data-testid="recording-detail-left-column">
+			<div data-testid="recording-detail-speaker-name">
+				{speakerNameMap["Speaker-mock"] ?? "Speaker-mock"}
+			</div>
 			<div data-testid="recording-detail-audio-player" />
 			<div
 				className="flex h-full min-h-full w-full flex-1 items-center justify-center"
 				data-testid="recording-detail-region-empty-slot"
 			>
-				<div data-testid="recording-detail-empty-noTranscript">No transcript</div>
+				<div data-testid="recording-detail-empty-noTranscript">
+					Summarizing now. It will appear automatically when ready.
+				</div>
 			</div>
 			<button
 				type="button"
@@ -376,7 +390,9 @@ vi.mock("../components/recording-detail/RecordingDetailRightPanel", () => ({
 				className="flex h-full min-h-full w-full flex-1 items-center justify-center"
 				data-testid="recording-detail-region-empty-slot"
 			>
-				<div data-testid="recording-detail-empty-noNotes">No notes</div>
+				<div data-testid="recording-detail-empty-noNotes">
+					Summarizing now. It will appear automatically when ready.
+				</div>
 			</div>
 		</div>
 	),
@@ -438,7 +454,26 @@ vi.mock("../components/recording-detail/RecordingDetailChatPanel", () => ({
 }))
 
 vi.mock("../components/recording-detail/RecordingDetailSpeakerDialog", () => ({
-	RecordingDetailSpeakerDialog: () => null,
+	RecordingDetailSpeakerDialog: ({
+		onValueChange,
+		onConfirm,
+	}: {
+		onValueChange: (next: Record<string, string>) => void
+		onConfirm: () => void
+	}) => (
+		<>
+			<button
+				type="button"
+				data-testid="recording-detail-edit-speaker"
+				onClick={() => onValueChange({ "Speaker-mock": "Updated speaker" })}
+			>
+				Edit speaker
+			</button>
+			<button type="button" data-testid="recording-detail-save-speakers" onClick={onConfirm}>
+				Save speakers
+			</button>
+		</>
+	),
 }))
 
 vi.mock("../components/AudioRecordingCopyDialog", () => ({
@@ -472,6 +507,9 @@ describe("AudioRecordingDetailPage", () => {
 		audioPlayerMock.playSegment.mockReset()
 		audioPlayerMock.toggle.mockReset()
 		audioPlayerMock.setPlaybackRate.mockReset()
+		mockDetailData.refresh.mockReset()
+		saveMediaSpeakersMock.mockReset()
+		saveMediaSpeakersMock.mockResolvedValue(undefined)
 		shareControlsMock.shareManagementOpen = false
 		shareControlsMock.openManageShare.mockReset()
 		shareControlsMock.closeManageShare.mockReset()
@@ -501,6 +539,21 @@ describe("AudioRecordingDetailPage", () => {
 		expect(screen.getByTestId("recording-detail-right-panel")).toBeInTheDocument()
 	})
 
+	it("silently refreshes after saving speaker names while keeping the local override", async () => {
+		render(<AudioRecordingDetailPage />)
+
+		fireEvent.click(screen.getByTestId("recording-detail-edit-speaker"))
+		fireEvent.click(screen.getByTestId("recording-detail-save-speakers"))
+
+		await waitFor(() => {
+			expect(saveMediaSpeakersMock).toHaveBeenCalled()
+			expect(mockDetailData.refresh).toHaveBeenCalledWith({ silent: true })
+		})
+		expect(screen.getByTestId("recording-detail-speaker-name")).toHaveTextContent(
+			"Updated speaker",
+		)
+	})
+
 	it("defaults the conversation rail to collapsed and persists the user's choice", () => {
 		render(<AudioRecordingDetailPage />)
 
@@ -513,15 +566,26 @@ describe("AudioRecordingDetailPage", () => {
 			minWidth: "24px",
 		})
 
+		expect(
+			screen.queryByTestId("recording-detail-conversation-resize-handle"),
+		).not.toBeInTheDocument()
+
 		fireEvent.click(screen.getByTestId("recording-detail-toggle-chat"))
 		expect(storageMock.setItem).toHaveBeenCalledWith(
 			RECORDING_DETAIL_CONVERSATION_PANEL_COLLAPSED_STORAGE_KEY,
-			"false",
+			JSON.stringify({ collapsed: false, width: RECORDING_CHAT_EXPANDED_WIDTH }),
 		)
 		expect(screen.getByTestId("recording-detail-chat-rail")).toHaveStyle({
 			width: `${RECORDING_CHAT_EXPANDED_WIDTH}px`,
 			minWidth: `${RECORDING_CHAT_EXPANDED_WIDTH}px`,
 		})
+		expect(
+			screen.getByTestId("recording-detail-conversation-resize-handle"),
+		).toBeInTheDocument()
+		expect(
+			screen.getByTestId("recording-detail-conversation-resize-handle").className,
+		).toContain("-translate-x-full")
+		expect(screen.getByTestId("recording-detail-chat-rail")).not.toHaveClass("overflow-hidden")
 	})
 
 	it("restores an expanded preference for the detail rail while attachments are still loading", () => {
@@ -711,6 +775,26 @@ describe("AudioRecordingDetailPage", () => {
 		expect(detailCard).not.toContainElement(chatRail)
 		expect(chatRail).toHaveClass("h-full", "shrink-0", "bg-sidebar")
 		expect(chatRail).not.toHaveClass("fixed", "shadow-2xl", "xl:static")
+	})
+
+	it("uses a persisted conversation width and keeps history at its fixed width", () => {
+		storageMock.getItem.mockImplementation((key: string) =>
+			key === RECORDING_DETAIL_CONVERSATION_PANEL_COLLAPSED_STORAGE_KEY
+				? JSON.stringify({ collapsed: false, width: 420 })
+				: null,
+		)
+
+		render(<AudioRecordingDetailPage />)
+
+		expect(screen.getByTestId("recording-detail-chat-rail")).toHaveStyle({
+			width: "420px",
+			minWidth: "420px",
+		})
+		fireEvent.click(screen.getByTestId("recording-detail-toggle-history"))
+		expect(screen.getByTestId("recording-detail-chat-rail")).toHaveStyle({
+			width: `${420 + RECORDING_CHAT_HISTORY_WIDTH}px`,
+			minWidth: `${420 + RECORDING_CHAT_HISTORY_WIDTH}px`,
+		})
 	})
 
 	it("closes topic history before collapsing to the project-detail narrow rail", () => {

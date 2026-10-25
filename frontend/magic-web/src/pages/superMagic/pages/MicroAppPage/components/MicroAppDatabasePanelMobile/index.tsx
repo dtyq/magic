@@ -9,6 +9,7 @@ import { Button } from "@/components/shadcn-ui/button"
 
 import MobileDatabaseTableDetail from "./MobileDatabaseTableDetail"
 import MobileDatabaseTableList from "./MobileDatabaseTableList"
+import { getMagicBaseTableDisplayName, getMagicBaseTableName } from "../MicroAppDatabasePanel/utils"
 
 interface MicroAppDatabasePanelMobileProps {
 	open: boolean
@@ -46,9 +47,13 @@ export default function MicroAppDatabasePanelMobile({
 
 	const handleClose = () => onOpenChange(false)
 	const title = selectedTable
-		? selectedTable.table_name || selectedTable.table_key
+		? getMagicBaseTableDisplayName(selectedTable)
 		: t("microAppPage.databasePanel.title")
-	const subtitle = selectedTable ? selectedTable.description || "" : projectName || ""
+	const subtitle = selectedTable
+		? getMagicBaseTableName(selectedTable) !== title
+			? getMagicBaseTableName(selectedTable)
+			: ""
+		: projectName || ""
 
 	return (
 		<MagicPopup

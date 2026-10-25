@@ -1,12 +1,12 @@
 "use client"
 
 import * as React from "react"
-import type { NodeViewProps } from "@tiptap/react"
-import { NodeViewWrapper } from "@tiptap/react"
+import type { NodeViewProps } from "@/infrastructure/editors/tiptap/react"
+import { NodeViewWrapper } from "@/infrastructure/editors/tiptap/react"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { CloseIcon } from "@/components/tiptap-icons/close-icon"
 import "@/components/tiptap-node/image-upload-node/image-upload-node.scss"
-import { focusNextNode, isValidPosition } from "@/lib/tiptap-utils"
+import { focusNextNode, isValidPosition } from "@/infrastructure/editors/tiptap/utils"
 import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 
 export interface FileItem {

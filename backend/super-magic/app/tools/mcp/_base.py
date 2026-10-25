@@ -10,6 +10,8 @@
 from abc import ABC
 from typing import Generic, Optional, TypeVar
 
+from agentlang.tools.tool_result import ToolResult
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.mcp.connection.server_manager import MCPServerManager
 from app.mcp.manager import get_global_mcp_manager, get_or_create_manager
 from app.mcp.store import get_chat_mcp_store
@@ -42,6 +44,23 @@ class BaseMcpTool(BaseTool[P], Generic[P], ABC):
     def _get_manager_or_none() -> Optional[MCPServerManager]:
         """只读地拿全局 manager，未创建时返回 None。"""
         return get_global_mcp_manager()
+
+    @staticmethod
+    def _build_mcp_tool_detail(
+        result: ToolResult,
+        file_name: str,
+        error_title: str,
+    ) -> Optional[ToolDetail]:
+        """将 MCP 工具结果转换为用户侧 Markdown 详情。"""
+        content = (result.content or "").strip()
+        if not result.ok:
+            content = f"## {error_title}\n\n{content or 'MCP tool execution failed.'}"
+        if not content:
+            return None
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(file_name=file_name, content=content),
+        )
 
     @staticmethod
     async def _ensure_server_in_manager(server_name: str) -> bool:

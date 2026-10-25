@@ -41,7 +41,7 @@ class OfficialProxyModel extends AbstractImageGenerate
         $this->apiKey = $config['api_key'] ?? '';
 
         $this->httpClient = new Client([
-            'timeout' => $config['timeout'] ?? 300,
+            RequestOptions::TIMEOUT => (float) ($config['timeout'] ?? 300),
         ]);
     }
 

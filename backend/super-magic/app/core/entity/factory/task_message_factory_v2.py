@@ -38,7 +38,7 @@ from app.core.entity.event.event import (
     AfterMcpInitEventData,
     BeforeMcpInitEventData,
 )
-from app.core.entity.event.event_context import EventContext
+from app.core.entity.event.event_context import EventContext, OutboundMessageRecord
 from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
 from app.core.entity.final_task_state import FinalTaskState, render_final_task_state_message
 from app.core.entity.message.message import MessageType
@@ -53,6 +53,7 @@ from app.core.entity.message.server_message import (
 )
 from app.core.entity.project_archive import ProjectArchiveInfo
 from app.i18n import i18n
+from app.service.tool_detail_persistence_service import ToolDetailPersistenceService
 from app.tools.core.tool_executor import tool_executor
 from app.utils.attachment_sorter import AttachmentSorter
 
@@ -114,6 +115,13 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                 )
                 if limits.contains(user_manual_max_context_tokens):
                     return user_manual_max_context_tokens
+            # usage.max_context_tokens 已可能是产品窗口，物理容量必须取当前运行时文本模型。
+            return resolve_user_facing_max_context_tokens(
+                text_model_state.model_id,
+                resolved_model_id=text_model_state.resolved_model_id,
+                model_name=text_model_state.model_name,
+                max_context_tokens=text_model_state.max_context_tokens,
+            )
         except Exception:
             pass
 
@@ -154,6 +162,22 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             if v is not None:
                 msg[k] = v
         return msg
+
+    @classmethod
+    def create_channel_outbound_message(
+        cls, agent_context: AgentContext, record: OutboundMessageRecord,
+    ) -> ServerMessage:
+        inner = cls._build_inner_message(
+            agent_context, role="assistant", correlation_id=record.delivery_id,
+            content=record.content,
+            attachments=[attachment.model_dump(mode="json") for attachment in record.attachments],
+        )
+        return cls._build_and_send(
+            agent_context, inner, status=TaskStatus.RUNNING,
+            event_type=EventType.AFTER_TOOL_CALL, correlation_id=record.delivery_id,
+            content=record.content, content_type="content", attachments=record.attachments,
+            message_id=record.message_id or None,
+        )
 
     @classmethod
     def _build_and_send(
@@ -205,7 +229,9 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                 "model_id": usage.model_id,
                 "input_tokens_details": usage.input_tokens_details.to_dict() if usage.input_tokens_details else None,
                 "max_context_tokens": current_max_context_tokens,
+                "compaction_threshold_tokens": agent_context.get_compaction_threshold_tokens() or None,
                 "request_id": correlation_id,
+                "input_breakdown": usage.input_breakdown.to_dict() if usage.input_breakdown is not None else None,
             }
             inner_message["token_usage"] = {k: v for k, v in tu.items() if v is not None}
 
@@ -394,6 +420,8 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             content=content,
             status=status.value,
         )
+        if final_task_state.model_error is not None:
+            inner["error"] = final_task_state.model_error.to_payload()
         return cls._build_and_send(
             agent_context,
             inner,
@@ -892,7 +920,10 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         remark_value = friendly.get("remark", "")
         if result and not result.ok:
             tool_status = ToolStatus.ERROR
-            if not result.use_custom_remark:
+            if (result.extra_info or {}).get("cancelled"):
+                # 用户中断导致的终态：用“已终止”措辞，避免与真正的执行失败混淆
+                remark_value = i18n.translate("tool.call_cancelled_remark", category="tool.messages")
+            elif not result.use_custom_remark:
                 remark_value = i18n.translate("tool.call_failed_remark", category="tool.messages")
         else:
             tool_status = ToolStatus.FINISHED
@@ -918,6 +949,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             detail=tool_detail,
             attachments=attachments,
         )
+        await ToolDetailPersistenceService.persist(tool_obj)
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
@@ -983,6 +1015,8 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
 
         tool_call_id = cls._make_tool_call_id(event.data.correlation_id)
         tool_status = ToolStatus.FINISHED if status != TaskStatus.ERROR else ToolStatus.ERROR
+        final_attachments = [] if status == TaskStatus.WAITING_FOR_USER else attachments
+        final_project_archive = None if status == TaskStatus.WAITING_FOR_USER else project_archive
         # waiting_for_user 时 content 故意为空，但 tool.action 需给前端可读的摘要
         tool_action = (
             i18n.translate("task.waiting_for_user", category="tool.messages")
@@ -994,7 +1028,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             name="finish_task",
             action=tool_action,
             status=tool_status,
-            attachments=attachments if attachments else None,
+            attachments=final_attachments if final_attachments else None,
         )
 
         inner = cls._build_inner_message(
@@ -1012,8 +1046,8 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             event_type=EventType.AFTER_MAIN_AGENT_RUN,
             correlation_id=event.data.correlation_id,
             token_used=token_used,
-            attachments=attachments,
-            project_archive=project_archive,
+            attachments=final_attachments,
+            project_archive=final_project_archive,
             content=content,
         )
 

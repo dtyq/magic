@@ -44,6 +44,20 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
 
     protected ?string $status = null;
 
+    /** 业务通知事件，用于页面提示等不渲染正文的消息。 */
+    protected ?string $event = null;
+
+    /**
+     * 提醒卡片的结构化数据；实时发送和历史消息序列化都需要保留。
+     */
+    protected ?array $data = null;
+
+    /**
+     * 模型终态的公开恢复信息，不包含上游诊断原文。
+     * @var null|array{code: string, subject?: array{type: string, model_id: string, model_name?: string}, actions: list<array{type: string}>}
+     */
+    protected ?array $error = null;
+
     /**
      * 附件信息。
      */
@@ -87,6 +101,9 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
             'usage' => $this->usage,
             'token_usage' => $this->tokenUsage,
             'status' => $this->status,
+            'data' => $this->data,
+            'event' => $this->event,
+            'error' => $this->error,
         ];
 
         return $filterNull ? array_filter($data, fn ($value) => ! is_null($value)) : $data;

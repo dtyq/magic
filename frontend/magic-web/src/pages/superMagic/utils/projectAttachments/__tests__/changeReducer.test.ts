@@ -14,6 +14,8 @@ vi.mock("../../attachmentDataProcessor", () => ({
 	},
 }))
 
+import { AttachmentDataProcessor } from "../../attachmentDataProcessor"
+
 function attachment(overrides: Partial<AttachmentItem>): AttachmentItem {
 	return {
 		file_id: "",
@@ -66,6 +68,37 @@ describe("applyProjectAttachmentsChangesToTree", () => {
 		expect(result.fallbackRequired).toBe(false)
 		expect(result.tree[0].children?.map((item) => item.file_id)).toEqual(["file2", "file10"])
 		expect(result.list.map((item) => item.file_id)).toEqual(["folder", "file2", "file10"])
+	})
+
+	it("skips display_config reprocess for regular file move updates", () => {
+		vi.mocked(AttachmentDataProcessor.processAttachmentData).mockClear()
+		const tree = [
+			attachment({
+				file_id: "folder",
+				file_name: "Docs",
+				is_directory: true,
+				type: "directory",
+				children: [
+					attachment({ file_id: "file1", parent_id: "folder", file_name: "a.txt" }),
+				],
+			}),
+		]
+
+		const result = applyProjectAttachmentsChangesToTree(tree, [
+			change({
+				operation: "update",
+				file_id: "file1",
+				file: attachment({
+					file_id: "file1",
+					parent_id: "folder",
+					file_name: "a.txt",
+					updated_at: "2",
+				}) as unknown as FileItem,
+			}),
+		])
+
+		expect(result.fallbackRequired).toBe(false)
+		expect(AttachmentDataProcessor.processAttachmentData).not.toHaveBeenCalled()
 	})
 
 	it("updates an existing file without changing siblings", () => {

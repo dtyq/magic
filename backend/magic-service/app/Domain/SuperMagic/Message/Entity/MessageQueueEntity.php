@@ -21,6 +21,8 @@ class MessageQueueEntity extends AbstractEntity
      */
     protected int $id = 0;
 
+    protected int $sortOrder = 0;
+
     /**
      * @var string User ID
      */
@@ -100,6 +102,17 @@ class MessageQueueEntity extends AbstractEntity
     public function setId(int $id): self
     {
         $this->id = $id;
+        return $this;
+    }
+
+    public function getSortOrder(): int
+    {
+        return $this->sortOrder;
+    }
+
+    public function setSortOrder(int $sortOrder): self
+    {
+        $this->sortOrder = $sortOrder;
         return $this;
     }
 

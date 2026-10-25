@@ -31,7 +31,7 @@ function getPluginDirs() {
 describe("static CanvasDesign plugins", () => {
 	it("declare version and required capabilities without exposing contributions", () => {
 		const pluginDirs = getPluginDirs()
-		expect(pluginDirs).toHaveLength(22)
+		expect(pluginDirs).toHaveLength(25)
 
 		for (const pluginDir of pluginDirs) {
 			const manifest = JSON.parse(

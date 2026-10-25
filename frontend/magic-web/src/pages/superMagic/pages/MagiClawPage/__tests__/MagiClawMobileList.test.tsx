@@ -12,12 +12,6 @@ vi.mock("react-i18next", async (importOriginal) => {
 	}
 })
 
-vi.mock("../components/DefaultMagiClawAvatar", () => ({
-	DefaultMagiClawAvatar: function MockDefaultMagiClawAvatar() {
-		return <span data-testid="default-magi-claw-avatar" />
-	},
-}))
-
 vi.mock("../MagiClawMobileListItem", () => ({
 	MagiClawMobileListItem: function MockMagiClawMobileListItem() {
 		return <div data-testid="magi-claw-mobile-list-item" />

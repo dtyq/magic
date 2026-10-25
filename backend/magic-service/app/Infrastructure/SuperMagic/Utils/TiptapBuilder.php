@@ -63,4 +63,20 @@ class TiptapBuilder
     {
         return self::toJson(self::fromPlainText($text));
     }
+
+    public static function plainTextWithMentionsToJson(string $text, array $nodes): string
+    {
+        $doc = self::fromPlainText($text);
+        if ($nodes !== []) {
+            $content = [];
+            foreach ($nodes as $node) {
+                if ($content !== []) {
+                    $content[] = ['type' => 'text', 'text' => ' '];
+                }
+                $content[] = $node;
+            }
+            $doc['content'][] = ['type' => 'paragraph', 'content' => $content];
+        }
+        return self::toJson($doc);
+    }
 }

@@ -10,8 +10,9 @@
  */
 
 import { useState, useRef, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { Mic, Sparkles, Square } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useVoiceInput } from "@/components/business/VoiceInput/hooks"
 import { useMicrophonePermission } from "@/hooks/useMicrophonePermission"
 import { Button } from "@/components/shadcn-ui/button"
@@ -57,6 +58,7 @@ export default function AiInputBox({
 	referenceFiles,
 	onReferenceFilesChange,
 }: AiInputBoxProps) {
+	const { t } = useTranslation("super")
 	const [isPolishing, setIsPolishing] = useState(false)
 	const [internalModel, setInternalModel] = useState<string>("")
 	const abortRef = useRef<AbortController | null>(null)
@@ -127,7 +129,14 @@ export default function AiInputBox({
 
 	return (
 		<div className={cn("space-y-1.5", className)}>
-			{label && <label className="mb-1 block text-xs font-semibold" data-testid="ai-input-box-label">{label}</label>}
+			{label && (
+				<label
+					className="mb-1 block text-xs font-semibold"
+					data-testid="ai-input-box-label"
+				>
+					{label}
+				</label>
+			)}
 
 			{/* Unified field: textarea + toolbar */}
 			<div className="overflow-hidden rounded-lg border bg-card shadow-xs transition-all focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
@@ -174,7 +183,7 @@ export default function AiInputBox({
 							label={
 								<>
 									<Sparkles size={12} />
-									<span>润色</span>
+									<span>{t("selfMedia.polish")}</span>
 								</>
 							}
 							loadingLabel={
@@ -193,7 +202,7 @@ export default function AiInputBox({
 											strokeDasharray="20 10"
 										/>
 									</svg>
-									<span>润色中…</span>
+									<span>{t("selfMedia.polishing")}</span>
 								</>
 							}
 							variant="outline"

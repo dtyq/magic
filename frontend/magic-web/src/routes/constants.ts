@@ -28,6 +28,8 @@ export enum RouteName {
 	MobileHome = "MobileHome",
 	/** 超级麦吉 - 对话列表（移动端一级页） */
 	SuperChatsList = "SuperChatsList",
+	/** Desktop blank conversation composer; no project exists until sending. */
+	SuperChatHome = "SuperChatHome",
 	/** 超级麦吉 - 应用目录（移动端首期独立页） */
 	SuperApps = "SuperApps",
 	/**  */
@@ -46,6 +48,15 @@ export enum RouteName {
 	MicroApp = "MicroApp",
 	/** 微应用发布访问页 */
 	MicroAppShare = "MicroAppShare",
+	/** AI 研究首页 */
+	PersonaResearch = "PersonaResearch",
+	/** AI 研究人设库 */
+	PersonaResearchPersonas = "PersonaResearchPersonas",
+	/** AI 研究报告模板库 */
+	PersonaResearchTemplates = "PersonaResearchTemplates",
+	PersonaResearchStudies = "PersonaResearchStudies",
+	/** AI 研究工作台（一次研究对应一个话题） */
+	PersonaResearchStudy = "PersonaResearchStudy",
 	/** 协作邀请 */
 	CollaborationInvite = "CollaborationInvite",
 	/** 用户 - 个人中心（移动端） */
@@ -90,6 +101,8 @@ export enum RouteName {
 	CrewMarketCrew = "CrewMarketCrew",
 	/** Crew Market - Skills 子页 */
 	CrewMarketSkills = "CrewMarketSkills",
+	/** Crew Market - Connectors 子页 */
+	CrewMarketMcp = "CrewMarketMcp",
 	/** Crew Edit - 编辑 Crew（创建后跳转或编辑现有） */
 	CrewEdit = "CrewEdit",
 	/** Skill Edit - 编辑 Skill */
@@ -104,6 +117,10 @@ export enum RouteName {
 	CrewConversation = "CrewConversation",
 	/** MagiClaw - 超级龙虾 */
 	MagiClaw = "MagiClaw",
+	/** AI Canvas - AI 画布首页 */
+	AiCanvas = "AiCanvas",
+	/** AI Canvas Project - AI 画布项目页 */
+	AiCanvasProjectState = "AiCanvasProjectState",
 	/** Audio Recordings - 录音与纪要列表 */
 	AudioRecordings = "AudioRecordings",
 	/** Audio Recording Detail - 录音与纪要详情 */

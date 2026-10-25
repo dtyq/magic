@@ -12,6 +12,7 @@ import { getVisibleAppMenuItems, openAppMenuItem, resolveAppMenuName } from "@/u
 type AppsSubMenuProps = {
 	children: ReactNode
 	visible?: boolean
+	onOpenChange?: (open: boolean) => void
 }
 
 /** 侧栏子菜单图标沿用现有 Icon / 图片双形态渲染，保证桌面与移动端目录来源一致。 */
@@ -31,8 +32,12 @@ function AppMenuIcon({ item, displayName }: { item: AppMenuItem; displayName: st
 }
 
 /** 桌面侧栏 Apps 子菜单继续复用统一 app-menu helper，避免与独立 Apps 页面行为分叉。 */
-function AppsSubMenu({ children, visible = true }: AppsSubMenuProps) {
+function AppsSubMenu({ children, visible = true, onOpenChange }: AppsSubMenuProps) {
 	const [open, setOpen] = useState(false)
+	useEffect(() => {
+		onOpenChange?.(open)
+	}, [open, onOpenChange])
+	useEffect(() => () => onOpenChange?.(false), [onOpenChange])
 	const { i18n } = useTranslation()
 
 	const { data: menuItems = [], loading } = useRequest(() => GlobalApi.getAppMenuModules(), {
@@ -60,8 +65,7 @@ function AppsSubMenu({ children, visible = true }: AppsSubMenuProps) {
 
 	const renderPopup = () => (
 		<div
-			className="flex w-[240px] flex-col gap-1 rounded-md border border-border bg-popover p-1"
-			style={{ boxShadow: "0px 1px 2px 0px rgba(0, 0, 0, 0.05)" }}
+			className="flex w-[240px] flex-col gap-1 rounded-md border border-border bg-popover p-1 shadow-xs"
 			data-testid="sidebar-apps-submenu-popup"
 		>
 			{loading && (

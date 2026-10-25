@@ -17,6 +17,8 @@ class ThirdPartyMessageReceivedEventData(BaseEventData):
     local_message_id: str
     plain_text: str
     rich_text_content: str
+    attachments: list[dict[str, Any]]
+    mentions: list[dict[str, Any]]
     project_id: str
     topic_id: str
     topic_pattern: str

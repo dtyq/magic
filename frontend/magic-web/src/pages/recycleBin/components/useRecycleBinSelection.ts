@@ -5,9 +5,16 @@ import { filterItemsByTab } from "./recycle-bin-domain"
 interface UseRecycleBinSelectionParams {
 	items: RecycleBinItem[]
 	activeTabId?: string
+	autoSelectLoaded?: boolean
+	resetKey?: string
 }
 
-export function useRecycleBinSelection({ items, activeTabId }: UseRecycleBinSelectionParams) {
+export function useRecycleBinSelection({
+	items,
+	activeTabId,
+	autoSelectLoaded = true,
+	resetKey,
+}: UseRecycleBinSelectionParams) {
 	const [selectedIds, setSelectedIds] = useState<string[]>([])
 	const [isSelectAllActive, setIsSelectAllActive] = useState(false)
 
@@ -20,7 +27,7 @@ export function useRecycleBinSelection({ items, activeTabId }: UseRecycleBinSele
 	useEffect(() => {
 		setIsSelectAllActive(false)
 		setSelectedIds([])
-	}, [activeTabId])
+	}, [activeTabId, resetKey])
 
 	useEffect(() => {
 		setSelectedIds((prev) => prev.filter((id) => items.some((item) => item.id === id)))
@@ -51,7 +58,7 @@ export function useRecycleBinSelection({ items, activeTabId }: UseRecycleBinSele
 			return
 		}
 
-		setIsSelectAllActive(true)
+		setIsSelectAllActive(autoSelectLoaded)
 		setSelectedIds(visibleItemIds)
 	}
 

@@ -51,6 +51,10 @@ export interface SuperMagicEventMessageRef {
 	imStatus: string
 	/** SuperMessage node 状态；负责 Assistant/Tool 执行与流生命周期。 */
 	superStatus?: string
+	/** 消息携带的业务通知事件。 */
+	event?: string
+	/** 通知对应的用户工具调用 ID，用于恢复原问题的交互。 */
+	toolCallId?: string
 	/** @deprecated 兼容字段；等同 imStatus，不能作为执行状态使用。 */
 	status: string
 	/** canonical 消息携带的 send_time 数值。 */

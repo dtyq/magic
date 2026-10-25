@@ -243,6 +243,9 @@ export function useSelfMediaInspector({
 			selectedElement,
 			t("stylePanel.inspector.agentPromptTitle"),
 			fileInfo,
+			undefined,
+			undefined,
+			t,
 		)
 		setSelectedElement(null)
 

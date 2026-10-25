@@ -9,11 +9,104 @@ Use this skill when an HTML micro-app needs persistent data, current-user identi
 
 MagicBase has three operation surfaces:
 
-- Schema work is done by agent tools before HTML generation: `query_magicbase_tables`, `get_magicbase_table`, `create_magicbase_table`, `create_magicbase_column`, `update_magicbase_table_permissions`, `delete_magicbase_table`, `update_magicbase_column`, and `delete_magicbase_column`.
-- Explicit agent-side data maintenance uses `query_magicbase_rows`, `create_magicbase_row`, `batch_create_magicbase_rows`, `delete_magicbase_row`, and `batch_delete_magicbase_rows`.
+- Schema work runs through Code Mode tools before HTML generation: `query_magicbase_tables`, `get_magicbase_table`, `create_magicbase_table`, `create_magicbase_column`, `update_magicbase_table_permissions`, `delete_magicbase_table`, `update_magicbase_column`, and `delete_magicbase_column`.
+- Explicit agent-side data maintenance runs through Code Mode tools: `query_magicbase_rows`, `get_magicbase_row`, `batch_get_magicbase_rows`, `create_magicbase_row`, `update_magicbase_row`, `batch_create_magicbase_rows`, `delete_magicbase_row`, and `batch_delete_magicbase_rows`.
 - Runtime row operations are done inside HTML with `window.Magic.db`, using real table IDs returned by MagicBase tools.
 
 Do not expose schema creation inside HTML pages. HTML code should only read and write rows on tables that already exist.
+
+## Code Mode Execution
+
+Every agent-side tool above is Code Mode only. They are not mounted directly, so never try to call them as ordinary tools and never declare them in an agent `tools:` list.
+
+Call them from the `run_sdk_snippet` tool by passing code in its `python_code` parameter. Inside that code, import the tool proxy and call the tool by name:
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+result = tool.call("query_magicbase_tables", {})
+if not result.ok:
+    raise SystemExit(result.content)
+print(result.content)
+""")
+```
+
+Rules for these calls:
+
+- Always check `result.ok` before using the result.
+- Read `result.content` first; it always explains the actual state in one place. Use `result.data` only when you need exact structured values such as real `table_id`, `column_id`, or `record_id` for later steps.
+- For multi-step schema work, keep the real IDs from `result.data` instead of re-querying by name.
+- Never pass `project_id`, `authorization`, `organization_code`, `created_by`, a share token, or any other actor field. The tool reads them from the current session; providing them is an error.
+- Do not use `run_python_snippet` for MagicBase tools. It is a plain Python executor and does not provide `sdk.tool.call(...)`.
+
+Create a table and keep its real id:
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+result = tool.call("create_magicbase_table", {
+    "table_key": "orders",
+    "table_name": "Orders",
+    "columns": [
+        {"column_key": "title", "column_name": "Title", "data_type": "text", "is_required": True},
+        {"column_key": "status", "column_name": "Status", "data_type": "text", "default_value": "pending"},
+    ],
+})
+if not result.ok:
+    raise SystemExit(result.content)
+print(result.content)
+table_id = result.data["table"]["table_id"]
+print(f"TABLE_ID={table_id}")
+""")
+```
+
+Query then update one real row:
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+table_id = "<table_id>"
+found = tool.call("query_magicbase_rows", {"table_id": table_id, "page": 1, "page_size": 20})
+if not found.ok:
+    raise SystemExit(found.content)
+rows = found.data["rows"]
+if not rows:
+    raise SystemExit("No rows matched; nothing to update.")
+record_id = rows[0]["id"]
+
+updated = tool.call("update_magicbase_row", {
+    "table_id": table_id,
+    "record_id": record_id,
+    "data": {"status": "done"},
+})
+print(updated.content)
+""")
+```
+
+`query_magicbase_rows` already returns the selected readable fields; use its `data["rows"]` directly when those fields are sufficient. When several known row IDs need additional fields, use one batch query instead of calling `get_magicbase_row` repeatedly:
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+result = tool.call("batch_get_magicbase_rows", {
+    "table_id": "<table_id>",
+    "record_ids": ["<record_id_1>", "<record_id_2>"],
+    "select": ["id", "status", "created_at"],
+})
+if not result.ok:
+    raise SystemExit(result.content)
+print(result.content)
+rows = result.data["rows"]
+missing = result.data["missing_record_ids"]
+""")
+```
+
+`batch_get_magicbase_rows` accepts at most 100 numeric row IDs, preserves the requested order, and returns readable rows only. Missing IDs can mean the row does not exist or is not readable; do not treat them as an authorization verdict.
+
 
 Project memory uses `MICRO-APP.md` for the latest human-readable app memory and MagicBase data model. Do not edit it directly with file-editing tools. MagicBase schema tools maintain `.magicbase/migrations.json`; after successful table or column changes, they refresh the latest MagicBase data model in `MICRO-APP.md`. If tools report a `Pending` migration at the start of a later task, query MagicBase first so confirmable records can be repaired before more schema work. If a legacy `HTML-APP.md` exists, read it for context and migrate the memory to `MICRO-APP.md` before finishing.
 
@@ -201,6 +294,8 @@ Scope selection:
 
 Permission intent matrix:
 
+When permissions are omitted, reads are public, table inserts are disabled, and row edits/deletes and column edits are creator-only (`private_user`). Enable inserts explicitly for submission flows. For shared editing of other users' rows, configure both row edit scope and the editable columns; a row grant alone does not override column permissions. Preserve these defaults unless the user's requested collaboration requires broader access. Existing explicitly saved permissions are not changed by these defaults.
+
 | User intent | Table scope | Row scope |
 | --- | --- | --- |
 | Everyone collaborates and can edit/delete all rows | `read_scope=public`, `insert_scope=public` | `read_scope=public`, `edit_scope=public`, `delete_scope=public` |
@@ -267,14 +362,34 @@ Destructive schema changes:
 - `delete_magicbase_table` and `delete_magicbase_column` are destructive. Use them only after the user explicitly confirms the deletion in the approved plan or follow-up instruction.
 - `update_magicbase_column` expects the complete desired column definition. Call `get_magicbase_table` first, preserve unchanged values, and then pass the final `column_key`, `column_name`, `data_type`, `is_required`, default value, and any field `dynamic_permission` that should remain in effect.
 
+Schema tool reference:
+
+- `query_magicbase_tables({})` — optional `table_key` and `table_name` filter exact matches. Returns `data.tables`, each with `table_id`, `table_key`, `table_name`, and columns.
+- `get_magicbase_table({"table_id": "<id>"})` — returns the real `table_id`, columns with `column_id`, and current permissions.
+- `create_magicbase_table({...})` — requires `table_key`, `table_name`, and `columns`; optional `description`, `project_name`, and `dynamic_permissions`. Every column needs `column_key`, `column_name`, and one of `text`, `number`, `datetime`, `boolean`, `json`. Returns the real `table_id`.
+- `create_magicbase_column({...})` — requires the real `table_id` plus `column_key`, `column_name`, `data_type`; optional `is_required`, `default_value`, `dynamic_permission`.
+- `update_magicbase_column({...})` — requires the real `table_id` and `column_id` plus the complete desired `column_key`, `column_name`, `data_type`, and `is_required`. Read the table first so unchanged values and existing field permissions are preserved.
+- `update_magicbase_table_permissions({"table_id": "<id>", "dynamic_permissions": {...}})` — replaces the whole permission object; pass the complete object, not a partial patch.
+- `delete_magicbase_table({"table_id": "<id>", "confirm_delete": true})` and `delete_magicbase_column({"table_id": "<id>", "column_id": "<id>", "confirm_delete": true})` — destructive; only after explicit user confirmation.
+
+Schema tools also maintain `.magicbase/migrations.json` and refresh the MagicBase data model in `MICRO-APP.md`. Do not maintain those files with file-editing tools.
+
 Agent-side row data operations:
 
 - These tools execute through Magic Service with the current session user's `Authorization`, organization, and project context. They are subject to the same project role, table, row, column, dynamic, and static permission checks as ordinary MagicBase calls. They are not service-account or administrator bypasses.
 - The project identity comes from the tool execution context and is checked against the persisted session. Never ask the model or user to provide `project_id`, `authorization`, `organization_code`, a share token, `created_by`, or other actor fields as tool arguments.
-- Use `create_magicbase_row` or `batch_create_magicbase_rows` only when the user explicitly asks to import, initialize, backfill, or enter real business data. Do not insert demo rows merely to populate a generated page or verify CRUD.
-- Batch creation accepts at most 200 rows per call. All rows are validated before the batch write begins. Pass only dynamic business fields from the table schema; MagicBase writes system fields automatically.
-- Before deleting, call `query_magicbase_rows` to resolve the exact real row IDs and show the user the deletion scope. `delete_magicbase_row` and `batch_delete_magicbase_rows` require `confirm_delete=true` after explicit user confirmation.
+- Use `create_magicbase_row`, `update_magicbase_row`, or `batch_create_magicbase_rows` only when the user explicitly asks to import, initialize, backfill, correct, or enter real business data. Do not insert or edit demo rows merely to populate a generated page or verify CRUD.
+- Row tool reference:
+  - `query_magicbase_rows({"table_id": "<id>", "filter": {...}, "sort": [...], "page": 1, "page_size": 20, "select": [...]})` — `filter` uses operators without `$`, such as `{"status": {"eq": "open"}}`; `sort` uses `{"field": "created_at", "order": "desc"}`. Returns `data.total` and `data.rows`.
+  - `get_magicbase_row({"table_id": "<id>", "record_id": "<id>", "select": [...]})` — returns one row.
+  - `batch_get_magicbase_rows({"table_id": "<id>", "record_ids": ["<id>"], "select": [...]})` — returns up to 100 readable rows in requested ID order plus `data.missing_record_ids`; use it instead of repeated `get_magicbase_row` calls.
+  - `create_magicbase_row({"table_id": "<id>", "data": {...}, "select": [...]})` — `data` holds only dynamic column keys.
+  - `update_magicbase_row({"table_id": "<id>", "record_id": "<id>", "data": {...}, "select": [...]})` — `data` holds only the dynamic column keys that should change; never write system fields.
+  - `batch_create_magicbase_rows({"table_id": "<id>", "rows": [...], "select": [...]})` — at most 200 rows per call; all rows are validated before the write begins.
+  - `delete_magicbase_row({"table_id": "<id>", "record_id": "<id>", "confirm_delete": true})` and `batch_delete_magicbase_rows({"table_id": "<id>", "record_ids": [...], "confirm_delete": true})` — require explicit user confirmation.
+- Before deleting, call `query_magicbase_rows` to resolve the exact real row IDs and show the user the deletion scope.
 - Agent-side row mutations never update `.magicbase/migrations.json` or the MagicBase data-model section in `MICRO-APP.md`; those files describe schema, not business records.
+
 
 ---
 

@@ -5,7 +5,7 @@ import TSIcon from "@/common/BaseUI/TSIcon"
 import { Button, Dropdown, Input, Popover, Tooltip } from "antd"
 import { useMemoizedFn, useMount, useResetState, useUpdateEffect } from "ahooks"
 import i18next from "i18next"
-import _ from "lodash"
+import { last } from "lodash-es"
 import { DataSourceOption } from "../.."
 import { allMethodOptions, generateStepOptions, generateString } from "./helpers"
 import "./index.less"
@@ -86,7 +86,7 @@ const Transformer = ({ source, onSelect, children }: TransformerProps) => {
 	})
 
 	useUpdateEffect(() => {
-		const lastValue = _.last(values)
+		const lastValue = last(values)
 		if (lastValue) {
 			initStepOptions(lastValue.type)
 		} else {

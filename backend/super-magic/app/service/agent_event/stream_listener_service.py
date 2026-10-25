@@ -338,6 +338,12 @@ class StreamListenerService:
 
         factory = agent_context.get_message_factory()
 
+        event_context = event.data.tool_context.get_extension_typed("event_context", EventContext)
+        if event_context is not None:
+            await StreamListenerService.flush_channel_outbound_messages(event.data.tool_context)
+            if event_context.outbound_message_ids and isinstance(event.data.result.data, dict):
+                event.data.result.data["web_message_ids"] = list(event_context.outbound_message_ids)
+
         # 检查是否为MCP初始化事件
         if isinstance(event.data, AfterMcpInitEventData):
             # 使用MCP专用的消息创建方法
@@ -450,7 +456,29 @@ class StreamListenerService:
         return steps
 
     @staticmethod
-    async def _send_task_message(tool_context: ToolContext, task_message: Optional[ServerMessage], event: Event) -> None:
+    async def flush_channel_outbound_messages(tool_context: ToolContext) -> None:
+        """出站正文复用消息存储和流广播；记录已尝试 ID，不因镜像失败重复微信副作用。"""
+        context = tool_context.get_extension_typed("agent_context", AgentContext)
+        events = tool_context.get_extension_typed("event_context", EventContext)
+        if context is None or events is None:
+            raise ValueError("Channel delivery requires an event context.")
+        while events.outbound_messages:
+            record = events.outbound_messages.pop(0)
+            if record.delivery_id in events.flushed_outbound_ids:
+                continue
+            events.flushed_outbound_ids.add(record.delivery_id)
+            try:
+                message = context.get_message_factory().create_channel_outbound_message(context, record)
+                record.message_id = message.payload.message_id
+                events.outbound_message_ids.append(record.message_id)
+                if not await StreamListenerService._send_task_message(tool_context, message, None):
+                    events.outbound_mirror_failed = True
+            except Exception:
+                events.outbound_mirror_failed = True
+                logger.exception(f"出站消息镜像失败，保留渠道投递结果: delivery_id={record.delivery_id}")
+
+    @staticmethod
+    async def _send_task_message(tool_context: ToolContext, task_message: Optional[ServerMessage], event: Event | None) -> bool:
         """
         通过WebSocket向客户端发送任务消息
 
@@ -459,13 +487,16 @@ class StreamListenerService:
             task_message: 要发送的任务消息
         """
         if task_message is None:
-            return
+            return False
 
         if not tool_context.get_extension_typed("agent_context", AgentContext).streams:
             logger.error("agent_context.streams 为空")
-            return
+            return False
 
         agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
+        save_success = False
+        streams_succeeded = True
+        event_type = event.event_type if event is not None else EventType(task_message.payload.event)
 
         # 保存消息到历史文件
         try:
@@ -507,7 +538,8 @@ class StreamListenerService:
                 event_context.todos_changed = False
 
             # 检查是否需要注入 round 延迟（在构造消息之前）
-            await StreamListenerService._apply_round_delay_if_needed(agent_context, event)
+            if event is not None:
+                await StreamListenerService._apply_round_delay_if_needed(agent_context, event)
 
             message_json = task_message.model_dump_json()
 
@@ -515,14 +547,15 @@ class StreamListenerService:
             # 创建字典的副本进行迭代，避免在迭代过程中修改字典引发错误
             for stream_id, stream in list(agent_context.streams.items()):
                 try:
-                    if stream.should_ignore_event(event.event_type):
-                        logger.debug(f"跳过往流中写入消息，stream type: {type(stream)}, 事件类型: {event.event_type}")
+                    if stream.should_ignore_event(event_type):
+                        logger.debug(f"跳过往流中写入消息，stream type: {type(stream)}, 事件类型: {event_type}")
                         continue
 
                     logger.debug(f"开始往流中写入消息, stream type: {type(stream)}")
                     await stream.write(message_json)
                     logger.debug(f"成功往流中写入消息, stream type: {type(stream)}")
                 except Exception as e:
+                    streams_succeeded = False
                     logger.error(f"堆栈信息: {traceback.format_exc()}")
                     logger.error(f"失败往流中写入消息: {e!s}, 删除流, stream type: {type(stream)}")
                     # 如果stdoutstream或者httpstream，则不删除
@@ -533,9 +566,11 @@ class StreamListenerService:
                         tool_context.get_extension_typed("agent_context", AgentContext).remove_stream(stream)
             logger.debug(f"成功发送任务消息: {payload.message_id}")
         except Exception as e:
+            streams_succeeded = False
             # 打印堆栈信息
             logger.error(f"堆栈信息: {traceback.format_exc()}")
             logger.error(f"发送任务消息失败: {e!s}")
+        return save_success and streams_succeeded
 
     @staticmethod
     async def _apply_round_delay_if_needed(

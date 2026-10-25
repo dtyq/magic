@@ -5,7 +5,7 @@ import { superMagicStore } from "@/pages/superMagic/stores"
 import MarkdownComponent from "../../Text/components/Markdown"
 import { useStyles } from "./styles"
 import { isEmpty } from "lodash-es"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { extractCitations, trimIncompleteCitationTag } from "@/pages/superMagic/utils/citations"
 import { CitationCard } from "../../Citations"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
@@ -30,7 +30,8 @@ function AgentReply(props: NodeProps) {
 	// 1. `app_message_id` 用于从 store 中拿到这条消息节点的最新内容与事件类型，确保读取的是流式推进后的最新 node。
 	// 2. `selectedTopic.chat_topic_id` 用于读取当前话题的流式状态，判断整个会话是否仍在流式阶段。
 	const node = superMagicStore.getMessageNode(props?.node?.super_message_id) as
-		AgentReplyNode | undefined
+		| AgentReplyNode
+		| undefined
 
 	const rawContent = node?.content || ""
 	const topicId = props?.node?.topic_id || selectedTopic?.chat_topic_id || ""

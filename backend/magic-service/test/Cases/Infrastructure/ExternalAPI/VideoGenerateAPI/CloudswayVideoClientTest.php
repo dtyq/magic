@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\VideoGenerateAPI;
 
+use App\ErrorCode\VideoGenerateErrorCode;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
 use GuzzleHttp\Client;
@@ -65,8 +66,15 @@ class CloudswayVideoClientTest extends TestCase
         $this->assertSame('/v1/ai/YGNqszpCuuWLpyUt/kling/videos/text2video/866464916562530396', $logger->records[1]['context']['path']);
         $this->assertSame('video-123', $logger->records[1]['context']['context']['video_id']);
         $this->assertSame('op-123', $logger->records[1]['context']['context']['operation_id']);
-        $this->assertSame(0, $logger->records[1]['context']['response']['code']);
-        $this->assertSame('processing', $logger->records[1]['context']['response']['data']['task_status']);
+        $this->assertSame([
+            'code' => 0,
+            'message' => 'SUCCEED',
+            'data' => [
+                'task_id' => '866464916562530396',
+                'task_status' => 'processing',
+            ],
+        ], $logger->records[1]['context']['response']);
+        $this->assertArrayNotHasKey('response_keys', $logger->records[1]['context']);
         $this->assertStringNotContainsString('secret-api-key', json_encode($logger->records, JSON_THROW_ON_ERROR));
     }
 
@@ -101,7 +109,7 @@ class CloudswayVideoClientTest extends TestCase
         $client = new CloudswayVideoClient($clientFactory, $loggerFactory);
 
         $this->expectException(ProviderVideoException::class);
-        $this->expectExceptionMessage('durationSeconds must be one of [4,6,8]');
+        $this->expectExceptionMessage(VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
         try {
             $client->post(
                 'https://localhost',
@@ -112,10 +120,12 @@ class CloudswayVideoClientTest extends TestCase
             );
         } finally {
             $this->assertCount(2, $logger->records);
+            $this->assertSame(['prompt' => 'test'], $logger->records[0]['context']['payload']);
+            $this->assertArrayNotHasKey('payload_keys', $logger->records[0]['context']);
             $this->assertSame('cloudsway video post error', $logger->records[1]['message']);
             $this->assertSame('video-err-1', $logger->records[1]['context']['context']['video_id']);
             $this->assertSame('op-err-1', $logger->records[1]['context']['context']['operation_id']);
-            $this->assertSame('durationSeconds must be one of [4,6,8]', $logger->records[1]['context']['error']);
+            $this->assertSame(VideoGenerateErrorCode::GENERAL_ERROR->getMessage(), $logger->records[1]['context']['error']);
         }
     }
 }

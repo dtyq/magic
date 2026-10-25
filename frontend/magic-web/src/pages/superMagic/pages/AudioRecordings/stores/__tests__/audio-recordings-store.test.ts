@@ -935,3 +935,8 @@ describe("AudioRecordingsStore", () => {
 		expect(store.list).toHaveLength(0)
 	})
 })
+
+vi.mock("@/services/recordSummary/projectDeletionRecordingGuard", () => ({
+	assertProjectDeletionAllowed: vi.fn(),
+	ProjectDeletionBlockedByRecordingError: class extends Error {},
+}))

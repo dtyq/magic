@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest"
 import type { AttachmentItem } from "../../hooks/types"
-import { detectCanvasProjectOperationRisk } from "../canvasProjectOperationRisk"
+import {
+	canSkipCanvasProjectOperationRiskForMove,
+	detectCanvasProjectOperationRisk,
+} from "../canvasProjectOperationRisk"
+import { buildAttachmentIndex } from "../attachmentIndex"
 
 function file(
 	fileId: string,
@@ -107,6 +111,51 @@ function createCanvasTree() {
 }
 
 describe("detectCanvasProjectOperationRisk", () => {
+	test("skips the canvas guard for an ordinary folder subtree", () => {
+		const attachments: AttachmentItem[] = [
+			dir("ordinary-folder", "Documents", "Documents", [
+				dir("ordinary-images", "images", "Documents/images", [
+					file(
+						"ordinary-image",
+						"cover.png",
+						"ordinary-images",
+						"Documents/images/cover.png",
+					),
+				]),
+				file("note", "notes.txt", "ordinary-folder", "Documents/notes.txt"),
+			]),
+		]
+
+		expect(
+			canSkipCanvasProjectOperationRiskForMove(
+				["ordinary-folder"],
+				buildAttachmentIndex(attachments),
+			),
+		).toBe(true)
+	})
+
+	test("keeps the canvas guard for a canvas resource directory selected on its own", () => {
+		const tree = createCanvasTree()
+
+		expect(
+			canSkipCanvasProjectOperationRiskForMove(
+				[tree.imagesDir.file_id as string],
+				buildAttachmentIndex(tree.attachments),
+			),
+		).toBe(false)
+	})
+
+	test("keeps the canvas guard for a folder containing a canvas project", () => {
+		const tree = createCanvasTree()
+
+		expect(
+			canSkipCanvasProjectOperationRiskForMove(
+				[tree.canvasDir.file_id as string],
+				buildAttachmentIndex(tree.attachments),
+			),
+		).toBe(false)
+	})
+
 	test("warns when operating the canvas entry file", async () => {
 		const tree = createCanvasTree()
 
@@ -257,5 +306,43 @@ describe("detectCanvasProjectOperationRisk", () => {
 		})
 
 		expect(risk.shouldWarn).toBe(false)
+	})
+
+	test("uses attachmentIndex local lookups for canvas resource detection", async () => {
+		const tree = createCanvasTree()
+		const attachmentIndex = buildAttachmentIndex(tree.attachments)
+
+		const imageRisk = await detectCanvasProjectOperationRisk({
+			attachments: tree.attachments,
+			attachmentIndex,
+			fileIds: [tree.unusedImage.file_id as string],
+			operation: "move",
+		})
+		const entryRisk = await detectCanvasProjectOperationRisk({
+			attachments: tree.attachments,
+			attachmentIndex,
+			fileIds: [tree.mainFile.file_id as string],
+			operation: "move",
+		})
+		const imagesDirRisk = await detectCanvasProjectOperationRisk({
+			attachments: tree.attachments,
+			attachmentIndex,
+			fileIds: [tree.imagesDir.file_id as string],
+			operation: "move",
+		})
+		const wholeProjectRisk = await detectCanvasProjectOperationRisk({
+			attachments: tree.attachments,
+			attachmentIndex,
+			fileIds: [tree.canvasDir.file_id as string],
+			operation: "move",
+		})
+
+		expect(imageRisk.shouldWarn).toBe(true)
+		expect(imageRisk.riskTypes).toContain("canvas-resource")
+		expect(entryRisk.shouldWarn).toBe(true)
+		expect(entryRisk.riskTypes).toContain("project-entry")
+		expect(imagesDirRisk.shouldWarn).toBe(true)
+		expect(imagesDirRisk.riskTypes).toContain("canvas-resource")
+		expect(wholeProjectRisk.shouldWarn).toBe(false)
 	})
 })

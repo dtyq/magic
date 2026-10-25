@@ -86,12 +86,15 @@ class FileApi extends AbstractApi
     /**
      * Update the source of a task file.
      *
+     * @param RequestContext $requestContext 请求上下文
      * @return array Updated file info
      */
-    public function updateFileSource(): array
+    public function updateFileSource(RequestContext $requestContext): array
     {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
         $requestDTO = UpdateFileSourceRequestDTO::fromRequest($this->request);
 
-        return $this->fileManagementAppService->updateFileSource($requestDTO);
+        return $this->fileManagementAppService->updateFileSource($requestContext, $requestDTO);
     }
 }

@@ -8,14 +8,14 @@ import type {
 	ConversationMessageSend,
 } from "@/types/chat/conversation_message"
 import type { SeqResponse } from "@/types/request"
-import { generateText, generateHTML } from "@tiptap/core"
-import StarterKit from "@tiptap/starter-kit"
+import { generateText, generateHTML } from "@/infrastructure/editors/tiptap/core"
+import StarterKit from "@/infrastructure/editors/tiptap/starter-kit"
 import MagicEmojiNode from "@/components/base/MagicRichEditor/extensions/magicEmoji"
 import { MentionExtension } from "@/components/business/MentionPanel/tiptap-plugin"
 import MagicEmoji from "@/components/base/MagicEmoji"
 import { emojiFilePathCache } from "@/components/base/MagicEmojiPanel/cache"
-import TextAlign from "@tiptap/extension-text-align"
-import { TextStyle } from "@tiptap/extension-text-style"
+import TextAlign from "@/infrastructure/editors/tiptap/extension-text-align"
+import { TextStyle } from "@/infrastructure/editors/tiptap/extension-text-style"
 import { ImageExtension } from "@/components/base/MagicRichEditor/extensions/image"
 import { QuickInstructionNodeChatSubSiderExtension } from "../quick-instruction/extension"
 import { extractSourcePlaceholders } from "../ChatMessageList/components/MessageFactory/components/AiSearch/utils"
@@ -178,8 +178,8 @@ export function getMessageText(
 			return onlyText
 				? generateRichText(message.message.rich_text?.content)
 				: (findAndReplaceMagicEmoji(
-					generateRichText(message.message.rich_text?.content),
-				) as string)
+						generateRichText(message.message.rich_text?.content),
+					) as string)
 		case ConversationMessageType.Markdown:
 			return onlyText
 				? message.message.markdown?.content

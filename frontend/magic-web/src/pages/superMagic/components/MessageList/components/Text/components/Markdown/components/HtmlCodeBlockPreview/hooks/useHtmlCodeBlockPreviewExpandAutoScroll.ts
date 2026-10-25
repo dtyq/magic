@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { findMessageListViewport } from "@/pages/superMagic/components/MessageList/message-list-viewport"
 import type { HtmlCodeBlockPreviewMode } from "../types"
 
 interface UseHtmlCodeBlockPreviewExpandAutoScrollOptions {
@@ -93,7 +94,7 @@ export function useHtmlCodeBlockPreviewExpandAutoScroll(
 		const scrollTargetElement = getScrollTargetElement?.() ?? previewCardElement
 
 		const viewportElement =
-			previewCardElement.closest<HTMLElement>('[data-slot="scroll-area-viewport"]') ??
+			findMessageListViewport(previewCardElement) ??
 			findScrollableAncestor(previewCardElement)
 
 		if (!viewportElement) return

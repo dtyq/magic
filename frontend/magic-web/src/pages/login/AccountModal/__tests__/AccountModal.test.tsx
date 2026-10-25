@@ -50,7 +50,7 @@ vi.mock("@/styles/login-form-overrider", () => ({
 	}),
 }))
 
-vi.mock("@/lib/utils", () => ({
+vi.mock("@/utils/cn", () => ({
 	cn: (...classes: string[]) => classes.filter(Boolean).join(" "),
 }))
 

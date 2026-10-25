@@ -9,7 +9,7 @@ import { useGlobalSuggestion } from "@/components/settings/FollowUpSuggestionIte
 import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { useGlobalLanguage, useSupportLanguageOptions, useTheme } from "@/models/config/hooks"
 import { useTimezone, useTimezoneList } from "@/providers/TimezoneProvider/hooks"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import { MOBILE_SETTINGS_SECTION_CLASSNAME } from "../constants"
 import { MobileSettingsSheetContainer } from "./SheetContainer"

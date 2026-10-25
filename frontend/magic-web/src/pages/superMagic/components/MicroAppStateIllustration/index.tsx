@@ -1,7 +1,7 @@
 import type { ComponentType } from "react"
 import { motion, useReducedMotion } from "framer-motion"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import { ConversationEmptyScene } from "./ConversationStateScenes"
 import {

@@ -34,6 +34,9 @@ class ConnectLarkBot(BaseTool[ConnectLarkBotParams]):
     """Start the Lark bot WebSocket connection from an SDK snippet."""
 
     async def execute(self, tool_context: ToolContext, params: ConnectLarkBotParams) -> ToolResult:
+        if not tool_context.topic_id:
+            return ToolResult.error("The current topic ID is missing, so the Lark channel cannot be bound.")
+
         try:
             manager = LarkChannel.get_instance()
             await manager.connect(params.app_id, params.app_secret)
@@ -51,7 +54,7 @@ class ConnectLarkBot(BaseTool[ConnectLarkBotParams]):
             config.lark = LarkCredential(
                 app_id=params.app_id,
                 app_secret=params.app_secret,
-                sandbox_id=tool_context.sandbox_id,
+                topic_id=tool_context.topic_id,
             )
             await save_config(config)
 

@@ -1,4 +1,4 @@
-import { EditOutlined } from '@ant-design/icons';
+import { IconPencil } from '@tabler/icons-react';
 import { AutoComplete, Input } from 'antd';
 import React, { ReactElement, useState } from 'react';
 import { MOCK_SOURCE } from '../../constants';
@@ -50,7 +50,9 @@ const MockSelect = (props: MockSelectProp): ReactElement => {
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
           addonAfter={
-            <EditOutlined
+            <IconPencil
+              size={16}
+              stroke={1.8}
               className={
                 schema?.type === 'object' || schema?.type === 'array'
                   ? 'input-icon-editor-disabled'

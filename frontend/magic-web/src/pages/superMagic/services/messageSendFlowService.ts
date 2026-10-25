@@ -1,5 +1,6 @@
 import { isObject, merge } from "lodash-es"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
+import { serializeWechatChatContent } from "../components/MessageEditor/extensions/wechat-chat-history/transform"
 import { ChatApi, SuperMagicApi } from "@/apis"
 import { EventType } from "@/types/chat"
 import {
@@ -8,11 +9,12 @@ import {
 	type ConversationMessageSend,
 } from "@/types/chat/conversation_message"
 import type { SeqResponse } from "@/types/request"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import GlobalMentionPanelStore, {
 	type MentionPanelStore,
 } from "@/components/business/MentionPanel/builtin-store"
+import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { userStore } from "@/models/user"
 import {
@@ -30,12 +32,15 @@ import type { ModelItem } from "../components/MessageEditor/types"
 import type { SendMessageOptions } from "../components/MessagePanel/types"
 import {
 	MessageStatus,
+	TaskStatus,
 	type Workspace,
 	type ProjectListItem,
 	type Topic,
 } from "../pages/Workspace/types"
 import { TopicMode } from "../pages/Workspace/TopicMode"
+import { hasAiCanvasDefaultName } from "../utils/isAiCanvasProject"
 import { superMagicStore } from "../stores"
+import type { TopicStore } from "../stores/core/topic"
 import { optimisticMessageStore } from "../stores/optimisticMessageStore"
 import { getNetworkMonitor } from "@/services/recordSummary/NetworkMonitor"
 import { smartRenameTopicIfUnnamed } from "./topicRename"
@@ -43,10 +48,39 @@ import { shouldSyncChatConversationName, syncChatProjectNameOnly } from "./chatC
 import { shouldClearEditorAfterSend } from "./messageSendEditorPolicy"
 import { startMessageSendRenameTask, trackProjectRenameTask } from "./messageSendRenameTask"
 import { projectVisibleMessagesByRevokedTail } from "../utils/project-visible-messages-by-revoked-tail"
+import { analyticsService } from "@/services/analytics"
+import i18next from "i18next"
+import magicToast from "@/components/base/MagicToaster/utils"
+import { getConversationTopicModeOverride } from "./conversationTopicModeOverride"
 
 const logger = Logger.createLogger("messageSendService")
 
+/**
+ * Mirrors text Mention semantics into the legacy label field consumed by the backend text parser.
+ * The original data payload remains intact so editor rendering and history restoration keep using it.
+ */
+function normalizeTextMentionLabelsForBackend(content: JSONContent): JSONContent {
+	const normalizedContent = content.content?.map(normalizeTextMentionLabelsForBackend)
+	const attrs = content.attrs
+
+	if (content.type !== "mention" || attrs?.type !== MentionItemType.TEXT) {
+		return normalizedContent ? { ...content, content: normalizedContent } : content
+	}
+
+	const data = attrs.data
+	const text = isObject(data) && typeof data.text === "string" ? data.text.trim() : ""
+
+	return {
+		...content,
+		attrs: text ? { ...attrs, label: text } : attrs,
+		...(normalizedContent && { content: normalizedContent }),
+	}
+}
+
 export interface HandleSendParams {
+	origin?: "composer" | "model_recovery"
+	/** 异步准备结束、实际发送前重新检查来源是否仍有效，仅用于本地发送流程。 */
+	canSend?: () => boolean
 	value: JSONContent | undefined
 	mentionItems: MentionListItem[]
 	selectedModel?: ModelItem | null
@@ -56,8 +90,11 @@ export interface HandleSendParams {
 	isFromQueue?: boolean
 	queueId?: string
 	shouldClearEditorAfterSend?: boolean
+	/** Programmatic surfaces keep focus in their own input after sending. */
+	shouldFocusEditorAfterSend?: boolean
 	throwOnError?: boolean
 	extra?: Record<string, unknown>
+	targetTopic?: Topic | null
 }
 
 export interface SendContentParams {
@@ -68,9 +105,14 @@ export interface SendContentParams {
 }
 
 export interface DispatchMessageParams {
+	canSend?: () => boolean
 	content?: string
 	jsonContent?: JSONContent
 	options?: SendMessageOptions
+	/** Editor surface classification used only by analytics, never serialized to chat payloads. */
+	analyticsTopicMode?: TopicMode
+	/** Queue replay was already counted when the user enqueued the message. */
+	shouldTrackAttempt?: boolean
 	showLoading: boolean
 	selectedProject?: ProjectListItem | null
 	selectedTopic?: Topic | null
@@ -102,6 +144,7 @@ export interface SendRuntimeContext {
 	selectedProject?: ProjectListItem | null
 	selectedTopic?: Topic | null
 	selectedWorkspace?: Workspace | null
+	topicStore?: TopicStore
 	workspaceId?: string
 	updateTopicName?: (topicId: string, topicName: string) => void | Promise<void>
 	refreshProjectAfterTopicRename?: boolean
@@ -153,14 +196,18 @@ class MessageSendService {
 	}
 
 	async dispatchMessage({
+		canSend,
 		content: textContent,
 		jsonContent,
 		showLoading,
 		options,
+		analyticsTopicMode,
+		shouldTrackAttempt = true,
 		selectedProject,
 		selectedTopic,
 		context,
 	}: DispatchMessageParams): Promise<boolean> {
+		if (canSend && !canSend()) return false
 		// 发送前必须有有效话题
 		const currentProject =
 			selectedProject ?? context?.selectedProject ?? options?._tempProject ?? null
@@ -178,7 +225,10 @@ class MessageSendService {
 		const trimmedText = textContent?.trim()
 		let resolvedJson: JSONContent | undefined
 		if (isObject(jsonContent)) {
-			resolvedJson = jsonContent
+			// Preserve structured mention nodes in the rich-text payload so refreshes can restore them.
+			resolvedJson = normalizeTextMentionLabelsForBackend(
+				serializeWechatChatContent(jsonContent),
+			)
 		} else if (trimmedText) {
 			resolvedJson = buildPlainTextJSONContent(trimmedText)
 		} else {
@@ -235,34 +285,57 @@ class MessageSendService {
 		})
 
 		if (currentTopic?.id && sendOptions?.extra?.super_agent?.mentions) {
-			const mentions = sendOptions.extra.super_agent.mentions
+			const mentions = sendOptions.extra.super_agent.mentions.filter(
+				(item) => item.attrs.type !== MentionItemType.TEXT,
+			)
 			this.deps.mentionPanelStore.addMentionListItemsToHistory(mentions)
+		}
+
+		/** Builds the single pending message envelope shared by optimistic UI, recovery, and transport. */
+		const createPendingUserMessage = (messageContent: string) => ({
+			message: {
+				type: messageType,
+				[messageType]: {
+					content: messageContent,
+					/**
+					 * @deprecated follow_up 和 normal 后期将废弃，follow_up 追加对话，normal 正常新对话
+					 */
+					instructs: [{ value: showLoading ? "follow_up" : "normal" }],
+					...mergedSendOptions,
+				},
+				send_timestamp: date,
+				send_time: date,
+				sender_id: this.deps.userStore.user.userInfo?.user_id,
+				app_message_id: messageId,
+				message_id: messageId,
+				topic_id: chat_topic_id,
+			} as unknown as ConversationMessageSend["message"],
+			conversation_id: chat_conversation_id,
+		})
+
+		const pendingUserMessage = createPendingUserMessage(content)
+		const previousTopicStatus = currentTopic.task_status || currentTopic.status
+		const markLocalExecutionStarted = () => {
+			this.deps.superMagicStore.beginTopicExecution?.(chat_topic_id)
+			context?.topicStore?.mergeTopic(currentTopic.id, {
+				task_status: TaskStatus.RUNNING,
+				status: TaskStatus.RUNNING,
+			})
+		}
+		const markLocalExecutionFailed = () => {
+			this.deps.superMagicStore.failPendingTopicExecution?.(chat_topic_id)
+			if (previousTopicStatus) {
+				context?.topicStore?.mergeTopic(currentTopic.id, {
+					task_status: previousTopicStatus,
+					status: previousTopicStatus,
+				})
+			}
 		}
 
 		// 调用聊天接口发送消息
 		const sendMessage = () => {
 			const optimisticAnchor = this.deps.superMagicStore.getLatestMessageAnchor(chat_topic_id)
-			const pendingUserMessage = {
-				message: {
-					type: messageType,
-					[messageType]: {
-						content,
-						/**
-						 * @deprecated follow_up 和 normal 后期将废弃，follow_up 追加对话，normal 正常新对话
-						 */
-						instructs: [{ value: showLoading ? "follow_up" : "normal" }],
-						...mergedSendOptions,
-					},
-					send_timestamp: date,
-					send_time: date,
-					sender_id: this.deps.userStore.user.userInfo?.user_id,
-					app_message_id: messageId,
-					message_id: messageId,
-					topic_id: chat_topic_id,
-				} as unknown as ConversationMessageSend["message"],
-				conversation_id: chat_conversation_id,
-			}
-
+			// The same rich-text snapshot drives immediate rendering and the outbound request.
 			this.deps.superMagicStore.addUserMessage(chat_topic_id, pendingUserMessage)
 			optimisticMessageStore.markSending({
 				chat_topic_id,
@@ -273,7 +346,9 @@ class MessageSendService {
 				pending_message: pendingUserMessage,
 			})
 			if (getNetworkMonitor().isNetworkOffline()) {
+				markLocalExecutionFailed()
 				optimisticMessageStore.markFailed({ chat_topic_id, app_message_id: messageId })
+				this.reportSendFailure("network_offline", chat_topic_id)
 				return
 			}
 			this.deps.chatApi
@@ -282,14 +357,24 @@ class MessageSendService {
 					const responseSeq =
 						(res as { data?: { seq?: SeqResponse<ConversationQueryMessage> } })?.data
 							?.seq ?? (res as { seq?: SeqResponse<ConversationQueryMessage> })?.seq
-					if (!responseSeq?.message) return
+					if (!responseSeq?.message) {
+						markLocalExecutionFailed()
+						// Keep the sidecar consistent with the rolled-back topic status instead of waiting for the ACK timer.
+						optimisticMessageStore.markFailed({
+							chat_topic_id,
+							app_message_id: messageId,
+						})
+						this.reportSendFailure("ack_without_seq", chat_topic_id)
+						return
+					}
 					// 响应成功后替换 superMagicStore 中对应数据
 					this.deps.superMagicStore.replaceUserMessage(chat_topic_id, responseSeq)
 					optimisticMessageStore.confirm({ chat_topic_id, app_message_id: messageId })
 				})
 				.catch((error) => {
-					console.log("error", error)
+					markLocalExecutionFailed()
 					optimisticMessageStore.markFailed({ chat_topic_id, app_message_id: messageId })
+					this.reportSendFailure("chat_request_rejected", chat_topic_id, error)
 				})
 		}
 
@@ -302,6 +387,29 @@ class MessageSendService {
 			if (!isConfirmed) return false
 		}
 
+		if (canSend && !canSend()) return false
+
+		if (shouldTrackAttempt) {
+			try {
+				analyticsService.report("conversation_message_send_attempted", {
+					topicId: currentTopic.id,
+					projectId: currentProject?.id,
+					workspaceId:
+						context?.selectedWorkspace?.id ??
+						context?.workspaceId ??
+						currentProject?.workspace_id,
+					topicMode:
+						getConversationTopicModeOverride(currentTopic.id) ??
+						analyticsTopicMode ??
+						readTopicPattern(sendOptions) ??
+						currentTopic.topic_mode,
+					workspaceType: context?.selectedWorkspace?.workspace_type,
+				})
+			} catch {
+				// Analytics must never fail the send path.
+			}
+		}
+		markLocalExecutionStarted()
 		sendMessage()
 		if (context?.refreshProjectAfterTopicRename && currentProject && renameTask) {
 			trackProjectRenameTask(currentProject.id, renameTask.completion)
@@ -332,7 +440,6 @@ class MessageSendService {
 		}
 
 		setIsSending(true)
-		void tabPattern
 
 		try {
 			if (!currentProject?.id || !currentTopic?.id) {
@@ -354,12 +461,15 @@ class MessageSendService {
 
 			const followUp = showLoading && messagesLength > 1
 			const isDispatched = await this.dispatchMessage({
+				canSend: params.canSend,
 				jsonContent: params.value,
 				showLoading: followUp,
 				options: data,
 				selectedProject: currentProject,
 				selectedTopic: currentTopic,
 				context,
+				analyticsTopicMode: params.topicMode ?? tabPattern,
+				shouldTrackAttempt: !params.isFromQueue,
 			})
 			if (!isDispatched) return
 			this.deps.pubsub.publish(PubSubEvents.Message_Scroll_To_Bottom, { time: 1000 })
@@ -368,7 +478,7 @@ class MessageSendService {
 				editorRef?.clearContentAfterSend()
 			}
 
-			if (!params.isFromQueue) {
+			if (!params.isFromQueue && params.shouldFocusEditorAfterSend !== false) {
 				if (isMobile) {
 					setFocused(false)
 				} else {
@@ -396,6 +506,22 @@ class MessageSendService {
 		} finally {
 			setIsSending(false)
 		}
+	}
+
+	/**
+	 * Surfaces a failed send. The failed sidecar only renders a small icon next to the bubble, which users
+	 * overlook when the chat WebSocket cannot connect; a toast plus a log record makes the loss visible
+	 * and traceable (previously the rejection was only written to the console).
+	 */
+	private reportSendFailure(reason: string, chatTopicId: string, error?: unknown) {
+		this.deps.logger.error({
+			eventKey: "message_send_failed",
+			errorKind: "network",
+			error,
+			message: "message send failed",
+			context: { reason, chatTopicId },
+		})
+		magicToast.error(i18next.t("messageSendFailed", { ns: "super" }))
 	}
 
 	private buildSendOptions({
@@ -445,7 +571,10 @@ class MessageSendService {
 			internetSearchManager.setIsChecked(currentTopic.id, isInternetSearch)
 		}
 
-		const transformedMentionItems = transformMentions(mentionItems)
+		const structuredMentionItems = mentionItems.filter(
+			(item) => item.attrs.type !== MentionItemType.TEXT,
+		)
+		const transformedMentionItems = transformMentions(structuredMentionItems)
 
 		return {
 			extra: {
@@ -514,7 +643,9 @@ class MessageSendService {
 			return
 		}
 
-		if (!project.project_name) {
+		// AI canvas projects are created as "Untitled canvas" rather than unnamed; they are renamed
+		// the same way, and their canvas folder follows the new project name (useAiCanvasDocument).
+		if (!project.project_name || hasAiCanvasDefaultName(project)) {
 			const workspaceId =
 				(context?.workspaceId ?? context?.selectedWorkspace?.id ?? project.workspace_id) ||
 				""
@@ -538,6 +669,11 @@ function generateUniqueId(): string {
 	const timestamp = Date.now().toString(36)
 	const randomPart = Math.random().toString(36).substring(2, 15)
 	return `${timestamp}-${randomPart}`
+}
+
+function readTopicPattern(options?: SendMessageOptions): string | undefined {
+	const topicPattern = options?.extra?.super_agent?.topic_pattern
+	return typeof topicPattern === "string" ? topicPattern : undefined
 }
 
 function stripTempOptions(options?: SendMessageOptions): SendMessageOptions | undefined {

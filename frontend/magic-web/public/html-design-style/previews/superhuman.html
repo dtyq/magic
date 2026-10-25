@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+ <title>Superhuman — Lightning Fast Email</title>
+ <style>
+ :root {
+ --primary: #0e0c1f;
+ --primary-card: #171530;
+ --primary-active: #26224c;
+ --primary-border: #2c2754;
+ --canvas: #090717;
+ --surface-violet-soft: #c9b4fa;
+ --surface-teal-deep: #0e3030;
+ --surface-teal-mid: #155555;
+ --ink: #ffffff;
+ --ink-mute: #bcbac9;
+ --ink-faint: #787596;
+ --hairline-dark: #2a264a;
+ --gold: #f59e0b;
+ --font-family: "Super Sans VF", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+ --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+ --radius-sm: 6px;
+ --radius-md: 8px;
+ --radius-lg: 12px;
+ --radius-pill: 9999px;
+ --shadow-cmd: 0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201, 180, 250, 0.25);
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; }
+ body {
+ font-family: var(--font-family); background: var(--canvas); color: var(--ink);
+ line-height: 1.45; -webkit-font-smoothing: antialiased; padding: 18px;
+ }
+ a { color: inherit; text-decoration: none; }
+ button { font-family: inherit; border: none; background: none; cursor: pointer; }
+ .shell { max-width: 1260px; margin: 0 auto; }
+ .app-window {
+ background: var(--primary); border: 1px solid var(--primary-border);
+ border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+ display: flex; flex-direction: column; min-height: 720px; position: relative;
+ }
+ .top-appbar {
+ height: 56px; border-bottom: 1px solid var(--hairline-dark);
+ display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+ background: #110e26;
+ }
+ .brand-section { display: flex; align-items: center; gap: 20px; }
+ .sh-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+ .sh-diamond {
+ width: 18px; height: 18px; transform: rotate(45deg);
+ background: linear-gradient(135deg, var(--surface-violet-soft), #818cf8);
+ border-radius: 3px;
+ }
+ .inbox-tabs { display: flex; align-items: center; gap: 6px; }
+ .tab-btn {
+ padding: 6px 14px; font-size: 13px; font-weight: 500; border-radius: var(--radius-pill);
+ color: var(--ink-mute); transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+ }
+ .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
+ .tab-btn.active {
+ background: rgba(201, 180, 250, 0.15); color: #ffffff; font-weight: 600;
+ border: 1px solid rgba(201, 180, 250, 0.3);
+ }
+ .tab-count {
+ font-size: 11px; padding: 1px 6px; border-radius: 10px; background: rgba(255,255,255,0.1);
+ }
+ .tab-btn.active .tab-count {
+ background: var(--surface-violet-soft); color: var(--primary); font-weight: 700;
+ }
+ .top-tools { display: flex; align-items: center; gap: 12px; }
+ .cmd-trigger {
+ display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+ background: rgba(255, 255, 255, 0.07); border: 1px solid var(--hairline-dark);
+ border-radius: var(--radius-sm); font-size: 13px; color: var(--ink-mute); cursor: pointer;
+ }
+ .cmd-trigger kbd {
+ background: rgba(0, 0, 0, 0.4); padding: 2px 6px; border-radius: 3px; font-size: 11px; color: var(--surface-violet-soft);
+ }
+ .compose-btn {
+ background: var(--surface-violet-soft); color: var(--primary); font-size: 13px; font-weight: 700;
+ padding: 6px 14px; border-radius: var(--radius-pill); display: flex; align-items: center; gap: 6px;
+ }
+ .command-palette-bar {
+ margin: 14px 20px 0; background: #1a1638; border: 1px solid rgba(201, 180, 250, 0.3);
+ border-radius: var(--radius-md); padding: 10px 16px; display: flex; align-items: center;
+ justify-content: space-between; box-shadow: var(--shadow-cmd);
+ }
+ .cmd-input-wrap { display: flex; align-items: center; gap: 10px; flex: 1; font-size: 14px; }
+ .cmd-icon { color: var(--surface-violet-soft); font-weight: 700; font-family: var(--font-mono); }
+ .cmd-text { color: var(--ink); font-weight: 500; }
+ .cmd-placeholder { color: var(--ink-faint); }
+ .cmd-shortcuts-row { display: flex; align-items: center; gap: 10px; }
+ .chip-key {
+ display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+ color: var(--ink-mute); background: rgba(255,255,255,0.06); padding: 3px 8px;
+ border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08);
+ }
+ .chip-key kbd { font-weight: 700; color: var(--surface-violet-soft); }
+ .main-grid {
+ display: grid; grid-template-columns: 1fr 340px; flex: 1; min-height: 560px;
+ }
+ .email-column {
+ border-right: 1px solid var(--hairline-dark); display: flex; flex-direction: column;
+ }
+ .list-header-strip {
+ padding: 12px 20px; font-size: 12px; color: var(--ink-faint); font-weight: 600;
+ letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid var(--hairline-dark);
+ display: flex; justify-content: space-between; align-items: center;
+ }
+ .email-list { display: flex; flex-direction: column; }
+ .email-row {
+ display: grid; grid-template-columns: 32px 180px 1fr 90px; align-items: center;
+ gap: 12px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.04);
+ cursor: pointer; transition: background 0.12s; position: relative;
+ }
+ .email-row:hover { background: rgba(255, 255, 255, 0.03); }
+ .email-row.selected {
+ background: var(--primary-active); border-left: 3px solid var(--surface-violet-soft);
+ }
+ .row-avatar {
+ width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+ font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+ }
+ .sender-cell { font-size: 14px; font-weight: 600; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ .subject-cell { font-size: 14px; color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ .email-row.selected .subject-cell { color: #ffffff; }
+ .subject-highlight { color: #ffffff; font-weight: 600; }
+ .subject-preview { color: var(--ink-faint); margin-left: 6px; }
+ .meta-cell { text-align: right; font-size: 12px; color: var(--ink-faint); display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+ .kbd-hint {
+ background: rgba(201, 180, 250, 0.18); color: var(--surface-violet-soft);
+ font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px;
+ }
+ .star-icon { color: var(--gold); font-size: 13px; }
+ .contact-drawer {
+ background: #121029; padding: 24px 20px; display: flex; flex-direction: column;
+ gap: 20px;
+ }
+ .contact-header { display: flex; flex-direction: column; align-items: center; text-align: center; }
+ .bio-avatar-lg {
+ width: 64px; height: 64px; border-radius: 50%;
+ background: linear-gradient(135deg, #4338ca, #7c3aed);
+ color: #fff; font-size: 22px; font-weight: 800; display: grid; place-items: center;
+ margin-bottom: 12px; border: 2px solid var(--surface-violet-soft);
+ box-shadow: 0 0 20px rgba(201, 180, 250, 0.25);
+ }
+ .bio-name { font-size: 18px; font-weight: 700; color: #ffffff; margin-bottom: 4px; }
+ .bio-title { font-size: 13px; color: var(--surface-violet-soft); margin-bottom: 4px; }
+ .bio-loc { font-size: 12px; color: var(--ink-faint); }
+ .bio-social-pills { display: flex; gap: 8px; justify-content: center; }
+ .social-pill {
+ font-size: 11px; padding: 4px 10px; border-radius: var(--radius-pill);
+ background: rgba(255,255,255,0.07); border: 1px solid var(--hairline-dark);
+ color: var(--ink-mute);
+ }
+ .bio-section { border-top: 1px solid var(--hairline-dark); padding-top: 14px; }
+ .bio-section h4 { font-size: 11px; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; letter-spacing: 0.5px; }
+ .bio-desc { font-size: 12px; color: var(--ink-mute); line-height: 1.5; }
+ .stats-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+ .stat-tile {
+ background: rgba(255,255,255,0.04); border: 1px solid var(--hairline-dark);
+ border-radius: var(--radius-sm); padding: 10px; text-align: center;
+ }
+ .stat-val { font-size: 16px; font-weight: 700; color: #ffffff; }
+ .stat-lbl { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+ .contact-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+ .btn-action-primary {
+ background: var(--surface-violet-soft); color: var(--primary); font-size: 13px; font-weight: 700;
+ padding: 10px; border-radius: var(--radius-sm); text-align: center;
+ }
+ .btn-action-secondary {
+ background: rgba(255,255,255,0.06); color: #fff; font-size: 13px; font-weight: 500;
+ padding: 9px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--hairline-dark);
+ }
+ .zero-inbox-banner {
+ position: absolute; bottom: 44px; left: 24px; z-index: 20;
+ background: linear-gradient(135deg, #1b1938 0%, #0e3030 100%);
+ border: 1px solid rgba(201, 180, 250, 0.4); border-radius: var(--radius-pill);
+ padding: 8px 18px; display: flex; align-items: center; gap: 10px;
+ box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-size: 13px; font-weight: 600;
+ }
+ .zero-badge-pill {
+ background: #10b981; color: #fff; font-size: 10px; font-weight: 800;
+ padding: 2px 7px; border-radius: 10px;
+ }
+ .keyboard-legend-bar {
+ height: 36px; background: #0b091c; border-top: 1px solid var(--hairline-dark);
+ display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+ font-size: 12px; color: var(--ink-faint);
+ }
+ .legend-keys { display: flex; align-items: center; gap: 14px; }
+ .legend-key-item { display: flex; align-items: center; gap: 4px; }
+ .legend-key-item kbd {
+ background: rgba(255,255,255,0.1); color: var(--ink-mute); padding: 1px 5px;
+ border-radius: 3px; font-size: 10px; font-weight: 700;
+ }
+ .tokens-summary-bar {
+ margin-top: 14px; background: #110e26; border: 1px solid var(--hairline-dark);
+ border-radius: var(--radius-md); padding: 10px 16px; display: flex; align-items: center;
+ justify-content: space-between; font-size: 11px; flex-wrap: wrap; gap: 10px;
+ }
+ .tokens-inline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+ .t-chip { display: flex; align-items: center; gap: 5px; font-family: var(--font-mono); }
+ .t-swatch { width: 10px; height: 10px; border-radius: 2px; }
+ @media (max-width: 960px) {
+ .main-grid { grid-template-columns: 1fr; }
+ .contact-drawer { display: none; }
+ .zero-inbox-banner { display: none; }
+ }
+ </style>
+</head>
+<body>
+ <div class="shell">
+ <div class="app-window">
+ <!-- Top Bar & Split Inbox Tabs -->
+ <header class="top-appbar">
+ <div class="brand-section">
+ <div class="sh-logo">
+ <div class="sh-diamond"></div>
+ <span>SUPERHUMAN</span>
+ </div>
+ <nav class="inbox-tabs">
+ <button class="tab-btn active">
+ <span>Important</span>
+ <span class="tab-count">4</span>
+ </button>
+ <button class="tab-btn">
+ <span>Newsletters</span>
+ <span class="tab-count">12</span>
+ </button>
+ <button class="tab-btn">
+ <span>VIP &amp; Investors</span>
+ <span class="tab-count">2</span>
+ </button>
+ <button class="tab-btn">
+ <span>Team</span>
+ <span class="tab-count">5</span>
+ </button>
+ </nav>
+ </div>
+ <div class="top-tools">
+ <div class="cmd-trigger">
+ <span>Search or type</span>
+ <kbd>⌘K</kbd>
+ </div>
+ <button class="compose-btn">
+ <span>Compose</span>
+ <kbd style="font-size:10px; opacity:0.8;">C</kbd>
+ </button>
+ </div>
+ </header>
+ <!-- Floating ⌘K Command Palette Header Bar -->
+ <div class="command-palette-bar">
+ <div class="cmd-input-wrap">
+ <span class="cmd-icon">⌘K</span>
+ <span class="cmd-text">Mark Done &amp; Archive</span>
+ <span class="cmd-placeholder">— or type a command...</span>
+ </div>
+ <div class="cmd-shortcuts-row">
+ <span class="chip-key"><kbd>E</kbd> Done</span>
+ <span class="chip-key"><kbd>H</kbd> Remind</span>
+ <span class="chip-key"><kbd>S</kbd> Snooze</span>
+ <span class="chip-key"><kbd>B</kbd> Schedule</span>
+ <span class="chip-key"><kbd>↵</kbd> Open</span>
+ </div>
+ </div>
+ <!-- Main Layout: Email List + Right Bio Drawer -->
+ <div class="main-grid">
+ <!-- Email List Pane -->
+ <main class="email-column">
+ <div class="list-header-strip">
+ <span>Important Inbox · 4 unread</span>
+ <span>Sorted by Arrival ▾</span>
+ </div>
+ <div class="email-list">
+ <!-- Selected Row: Marc Andreessen -->
+ <article class="email-row selected">
+ <div class="row-avatar" style="background:#4338ca;">MA</div>
+ <div class="sender-cell">Marc Andreessen</div>
+ <div class="subject-cell">
+ <span class="subject-highlight">Series B Term Sheet &amp; Board Architecture</span>
+ <span class="subject-preview">— Reviewed ARR cohorts. Looking forward to our sync tomorrow at 9am PT...</span>
+ </div>
+ <div class="meta-cell">
+ <span class="star-icon">★</span>
+ <span>10:42 AM</span>
+ <span class="kbd-hint">↵</span>
+ </div>
+ </article>
+ <!-- Row 2: Guillermo Rauch -->
+ <article class="email-row">
+ <div class="row-avatar" style="background:#0f766e;">GR</div>
+ <div class="sender-cell">Guillermo Rauch</div>
+ <div class="subject-cell">
+ <span class="subject-highlight">Next.js Conf Keynote &amp; Real-time Preview</span>
+ <span class="subject-preview">— The latency benchmark for server canvas updates is down to 18ms...</span>
+ </div>
+ <div class="meta-cell">
+ <span>9:15 AM</span>
+ </div>
+ </article>
+ <!-- Row 3: Claire Hughes -->
+ <article class="email-row">
+ <div class="row-avatar" style="background:#b45309;">CH</div>
+ <div class="sender-cell">Claire Hughes</div>
+ <div class="subject-cell">
+ <span class="subject-highlight">Q4 Product Strategy: Autonomous AI Copilot</span>
+ <span class="subject-preview">— Finalized slide deck for Monday's executive review is ready...</span>
+ </div>
+ <div class="meta-cell">
+ <span>Yesterday</span>
+ </div>
+ </article>
+ <!-- Row 4: Satya Nadella -->
+ <article class="email-row">
+ <div class="row-avatar" style="background:#1e3a8a;">SN</div>
+ <div class="sender-cell">Satya Nadella</div>
+ <div class="subject-cell">
+ <span class="subject-highlight">Strategic Cloud &amp; Foundry Alliance</span>
+ <span class="subject-preview">— Draft press release attached for our Wednesday announcement...</span>
+ </div>
+ <div class="meta-cell">
+ <span>Sep 17</span>
+ </div>
+ </article>
+ </div>
+ </main>
+ <!-- Right Contact Bio Drawer -->
+ <aside class="contact-drawer">
+ <div class="contact-header">
+ <div class="bio-avatar-lg">MA</div>
+ <h3 class="bio-name">Marc Andreessen</h3>
+ <p class="bio-title">General Partner, a16z</p>
+ <p class="bio-loc">📍 Menlo Park, CA · PST (7:42 AM)</p>
+ </div>
+ <div class="bio-social-pills">
+ <span class="social-pill">𝕏 @pmarca</span>
+ <span class="social-pill">in /in/marcandreessen</span>
+ <span class="social-pill">a16z.com</span>
+ </div>
+ <div class="bio-section">
+ <h4>Background</h4>
+ <p class="bio-desc">Co-founder of Netscape and Andreessen Horowitz. Board member at multiple technology leaders.</p>
+ </div>
+ <div class="bio-section">
+ <h4>Thread History</h4>
+ <div class="stats-card-grid">
+ <div class="stat-tile">
+ <div class="stat-val">14</div>
+ <div class="stat-lbl">Threads Exchanged</div>
+ </div>
+ <div class="stat-tile">
+ <div class="stat-val">18m</div>
+ <div class="stat-lbl">Avg Response Time</div>
+ </div>
+ </div>
+ </div>
+ <div class="contact-actions">
+ <button class="btn-action-primary">Schedule Meeting (B)</button>
+ <button class="btn-action-secondary">Copy Contact Info</button>
+ </div>
+ </aside>
+ </div>
+ <!-- Zero Inbox Celebration Badge -->
+ <div class="zero-inbox-banner">
+ <span>🎉</span>
+ <span>Inbox Zero in Newsletters &amp; VIP!</span>
+ <span class="zero-badge-pill">128 CLEARED</span>
+ <span style="font-size:11px; color:var(--surface-violet-soft);">⚡ 48ms avg speed</span>
+ </div>
+ <!-- Keyboard Shortcuts Legend Footer -->
+ <footer class="keyboard-legend-bar">
+ <div class="legend-keys">
+ <span class="legend-key-item"><kbd>J</kbd> / <kbd>K</kbd> Navigate</span>
+ <span class="legend-key-item"><kbd>E</kbd> Done</span>
+ <span class="legend-key-item"><kbd>H</kbd> Remind</span>
+ <span class="legend-key-item"><kbd>S</kbd> Snooze</span>
+ <span class="legend-key-item"><kbd>C</kbd> Compose</span>
+ <span class="legend-key-item"><kbd>⌘K</kbd> Commands</span>
+ </div>
+ <div>
+ <span>Superhuman v2026.4 · Zero Latency</span>
+ </div>
+ </footer>
+ </div>
+ <!-- Design Tokens Strip -->
+ <div class="tokens-summary-bar">
+ <div class="tokens-inline">
+ <strong>SUPERHUMAN DESIGN TOKENS:</strong>
+ <div class="t-chip"><span class="t-swatch" style="background:#0e0c1f;"></span><span>#0e0c1f indigo deep</span></div>
+ <div class="t-chip"><span class="t-swatch" style="background:#c9b4fa;"></span><span>#c9b4fa violet soft</span></div>
+ <div class="t-chip"><span class="t-swatch" style="background:#0e3030;"></span><span>#0e3030 teal deep</span></div>
+ </div>
+ <div>
+ <span>SUPER SANS VF (WEIGHT 460/540) · TIGHT TRACKING</span>
+ </div>
+ </div>
+ </div>
+</body>
+</html>

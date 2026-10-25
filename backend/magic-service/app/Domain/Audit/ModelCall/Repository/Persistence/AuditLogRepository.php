@@ -16,9 +16,12 @@ use App\Domain\ModelGateway\Repository\Persistence\AbstractRepository;
 use App\Infrastructure\Core\AbstractEntity;
 use Hyperf\Database\Exception\QueryException;
 use Hyperf\Database\Model\Builder;
+use Hyperf\DbConnection\Db;
 
 class AuditLogRepository extends AbstractRepository implements AuditLogRepositoryInterface
 {
+    use AuditStatisticsQuery;
+
     public function create(AuditLogEntity $entity): void
     {
         $model = new AuditLogModel();
@@ -95,21 +98,14 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
 
         if (! empty($filters['type'])) {
             $builder->where('type', (string) $filters['type']);
-        } else {
-            $builder->where('type', '!=', AuditType::EMBEDDING->value);
         }
         if (! empty($filters['status'])) {
             $builder->where('status', (string) $filters['status']);
         }
-        if (! empty($filters['product_code'])) {
-            $builder->where('product_code', (string) $filters['product_code']);
-        }
-        if (! empty($filters['model_version'])) {
-            $builder->where('model_version', (string) $filters['model_version']);
-        }
-        if (! empty($filters['provider_name'])) {
-            $builder->where('provider_name', (string) $filters['provider_name']);
-        }
+        $this->applyIndexedPrefixLike($builder, 'product_code', $filters);
+        $this->applyIndexedPrefixLike($builder, 'model_version', $filters);
+        $this->applyIndexedPrefixLike($builder, 'provider_name', $filters);
+        $this->applyServiceProviderConfigFilter($builder, $filters);
         if (! empty($filters['user_id'])) {
             $builder->where('user_id', (string) $filters['user_id']);
         }
@@ -267,6 +263,7 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             $item['access_token_name'] = (string) ($item['access_token_name'] ?? '');
             $item['model_version'] = (string) ($item['model_version'] ?? '');
             $item['provider_name'] = (string) ($item['provider_name'] ?? '');
+            $item['service_provider_config_id'] = (string) ($item['service_provider_config_id'] ?? '');
         }
 
         return $list;
@@ -282,20 +279,12 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         }
 
         $builder->where('operation_time', '>=', (int) $filters['start_operation_time']);
-        $builder->where('operation_time', '<=', (int) $filters['end_operation_time']);
+        $builder->where('operation_time', '<', (int) $filters['end_operation_time']);
 
-        $builder->whereNotIn('type', [
-            AuditType::SEARCH->value,
-            AuditType::WEB_SCRAPE->value,
-            AuditType::SLIDES_TEMPLATE->value,
-        ]);
+        $builder->whereNotIn('type', $this->excludedStatisticsTypes());
 
-        if (! empty($filters['service_provider_config_id'])) {
-            $builder->where('service_provider_config_id', (int) $filters['service_provider_config_id']);
-        }
-        if (! empty($filters['product_code'])) {
-            $builder->where('product_code', (string) $filters['product_code']);
-        }
+        $this->applyServiceProviderConfigFilter($builder, $filters);
+        $this->applyIndexedPrefixLike($builder, 'product_code', $filters);
         if (! empty($filters['access_scope'])) {
             $builder->where('access_scope', (string) $filters['access_scope']);
         }
@@ -304,7 +293,8 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
     /**
      * 一次扫表同时产出 summary / trend / breakdown 所需的全部原始数据。
      * 分组粒度：(时间桶, service_provider_config_id, product_code)，
-     * 应用层再按维度做二次聚合，避免同一 WHERE 扫表三次。
+     * 应用层按真实配置 ID和模型汇总跨时间桶结果，避免同一 WHERE 扫表三次。
+     * 服务商名称在聚合后补充，真实配置 ID和统计行粒度始终保持不变。
      *
      * @return array{summary: array, trend: array, breakdown: array}
      */
@@ -312,32 +302,21 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
     {
         $startMs = (int) $filters['start_operation_time'];
         $endMs = (int) $filters['end_operation_time'];
-        $deltaMs = $endMs - $startMs;
-        $isHourly = $deltaMs <= 86400000;
 
         $builder = AuditLogModel::query();
         $this->applyStatisticsFilters($builder, $filters, $organizationCode);
 
-        $bucketExpr = $isHourly
-            ? 'FLOOR(operation_time / 3600000) * 3600000'
-            : "DATE_FORMAT(FROM_UNIXTIME(operation_time / 1000), '%Y-%m-%d')";
-
+        $bucketExpr = $startMs . ' + FLOOR((operation_time - ' . $startMs . ') / 3600000) * 3600000';
         $rows = $builder->selectRaw(
-            "{$bucketExpr} as bucket_key,
+            $bucketExpr . ' as bucket_key,
              CAST(service_provider_config_id AS CHAR) as service_provider_config_id,
              product_code,
-             COUNT(*) as cnt,
-             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as err_cnt,
-             SUM(CAST(JSON_EXTRACT(`usage`, '$.prompt_tokens') AS UNSIGNED)) as input_tokens,
-             SUM(CAST(JSON_EXTRACT(`usage`, '$.completion_tokens') AS UNSIGNED)) as output_tokens,
-             SUM(COALESCE(
-                 CAST(JSON_EXTRACT(`usage`, '$.total_tokens') AS UNSIGNED),
-                 CAST(JSON_EXTRACT(`usage`, '$.prompt_tokens') AS UNSIGNED) + CAST(JSON_EXTRACT(`usage`, '$.completion_tokens') AS UNSIGNED),
-                 0
-             )) as total_tokens",
+             COUNT(*) as requests,
+             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as errors,
+             ' . $this->usageTokenSumSql(),
             [AuditStatus::FAIL->value]
         )
-            ->groupBy('bucket_key', 'service_provider_config_id', 'product_code')
+            ->groupBy(Db::raw($bucketExpr), 'service_provider_config_id', 'product_code')
             ->get()
             ->toArray();
 
@@ -352,24 +331,24 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
 
         foreach ($rows as $r) {
             $r = (array) $r;
-            $cnt = (int) ($r['cnt'] ?? 0);
-            $errCnt = (int) ($r['err_cnt'] ?? 0);
+            $requests = (int) ($r['requests'] ?? 0);
+            $errors = (int) ($r['errors'] ?? 0);
             $inTok = (int) ($r['input_tokens'] ?? 0);
             $outTok = (int) ($r['output_tokens'] ?? 0);
             $totTok = (int) ($r['total_tokens'] ?? 0);
 
-            $summaryTotal += $cnt;
-            $summaryError += $errCnt;
+            $summaryTotal += $requests;
+            $summaryError += $errors;
             $summaryInputTokens += $inTok;
             $summaryOutputTokens += $outTok;
             $summaryTotalTokens += $totTok;
 
-            $bucketKey = $isHourly ? (int) $r['bucket_key'] : (string) $r['bucket_key'];
+            $bucketKey = (int) $r['bucket_key'];
             if (! isset($trendMap[$bucketKey])) {
                 $trendMap[$bucketKey] = ['requests' => 0, 'errors' => 0];
             }
-            $trendMap[$bucketKey]['requests'] += $cnt;
-            $trendMap[$bucketKey]['errors'] += $errCnt;
+            $trendMap[$bucketKey]['requests'] += $requests;
+            $trendMap[$bucketKey]['errors'] += $errors;
 
             $bKey = ($r['service_provider_config_id'] ?? '') . '||' . ($r['product_code'] ?? '');
             if (! isset($breakdownMap[$bKey])) {
@@ -380,8 +359,8 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
                     'error_requests' => 0,
                 ];
             }
-            $breakdownMap[$bKey]['total_requests'] += $cnt;
-            $breakdownMap[$bKey]['error_requests'] += $errCnt;
+            $breakdownMap[$bKey]['total_requests'] += $requests;
+            $breakdownMap[$bKey]['error_requests'] += $errors;
         }
 
         $breakdown = array_values($breakdownMap);
@@ -391,16 +370,9 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
                 ?: $a['product_code'] <=> $b['product_code'];
         });
 
-        if ($isHourly) {
-            $trendRows = [];
-            foreach ($trendMap as $ms => $v) {
-                $trendRows[] = ['bucket_ms' => $ms, 'requests' => $v['requests'], 'errors' => $v['errors']];
-            }
-        } else {
-            $trendRows = [];
-            foreach ($trendMap as $day => $v) {
-                $trendRows[] = ['bucket_day' => $day, 'requests' => $v['requests'], 'errors' => $v['errors']];
-            }
+        $trendRows = [];
+        foreach ($trendMap as $ms => $v) {
+            $trendRows[] = ['bucket_ms' => $ms, 'requests' => $v['requests'], 'errors' => $v['errors']];
         }
 
         return [
@@ -412,12 +384,22 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
                 'total_tokens' => $summaryTotalTokens,
             ],
             'trend' => [
-                'bucket_type' => $isHourly ? 'hour' : 'day',
+                'bucket_type' => 'hour',
                 'rows' => $trendRows,
                 'start_ms' => $startMs,
                 'end_ms' => $endMs,
             ],
             'breakdown' => $breakdown,
+        ];
+    }
+
+    /** @return list<string> */
+    private function excludedStatisticsTypes(): array
+    {
+        return [
+            AuditType::SEARCH->value,
+            AuditType::WEB_SCRAPE->value,
+            AuditType::SLIDES_TEMPLATE->value,
         ];
     }
 }

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Design\Entity\Dto;
 
+use App\Domain\Design\Entity\ValueObject\DesignGenerationType;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\ErrorCode\MagicApiErrorCode;
@@ -18,64 +19,13 @@ class DesignVideoCreateDTO extends AbstractDTO
 {
     public const array FRAME_ROLES = ['start', 'end'];
 
-    public const array AUDIO_ROLES = ['reference'];
-
     public const array REFERENCE_IMAGE_TYPES = ['asset', 'style'];
 
     public const array SERVICE_TIERS = ['default', 'flex'];
 
     private const array TOP_LEVEL_ARRAY_FIELDS = ['inputs', 'generation', 'callbacks', 'execution', 'extensions'];
 
-    private const array ROOT_ALLOWED_KEYS = [
-        'project_id',
-        'video_id',
-        'model_id',
-        'topic_id',
-        'task_id',
-        'task',
-        'input_mode',
-        'prompt',
-        'file_dir',
-        'file_name',
-        'inputs',
-        'generation',
-        'callbacks',
-        'execution',
-        'extensions',
-    ];
-
     // Design 创建入口统一使用参考输入，视频和音频参考都通过复数数组字段传入。
-    private const array INPUT_ALLOWED_KEYS = ['frames', 'reference_images', 'reference_videos', 'reference_audios', 'mask'];
-
-    private const array GENERATION_ALLOWED_KEYS = [
-        'size',
-        'mode',
-        'aspect_ratio',
-        'duration_seconds',
-        'resolution',
-        'fps',
-        'seed',
-        'sample_count',
-        'negative_prompt',
-        'generate_audio',
-        'person_generation',
-        'enhance_prompt',
-        'compression_quality',
-        'resize_mode',
-        'watermark',
-        'camera_fixed',
-        'return_last_frame',
-    ];
-
-    private const array CALLBACK_ALLOWED_KEYS = ['webhook_url'];
-
-    private const array EXECUTION_ALLOWED_KEYS = ['service_tier', 'expires_after_seconds'];
-
-    private const array FRAME_ALLOWED_KEYS = ['role', 'uri', 'source_type', 'base64_data', 'mime_type'];
-
-    private const array MEDIA_ALLOWED_KEYS = ['uri'];
-
-    private const array REFERENCE_IMAGE_ALLOWED_KEYS = ['uri', 'type', 'source_type', 'base64_data', 'mime_type'];
 
     private const array VIDEO_IMAGE_SOURCE_TYPES = ['workspace_path', 'base64'];
 
@@ -86,6 +36,8 @@ class DesignVideoCreateDTO extends AbstractDTO
     protected ?int $projectId = null;
 
     protected string $videoId = '';
+
+    protected string $generationType = '';
 
     protected string $modelId = '';
 
@@ -104,6 +56,9 @@ class DesignVideoCreateDTO extends AbstractDTO
     protected array $inputs = [];
 
     protected array $generation = [];
+
+    /** @var array{videos?: list<array{path: string}>, audios?: list<array{path: string}>} */
+    protected array $composition = [];
 
     protected array $callbacks = [];
 
@@ -153,6 +108,20 @@ class DesignVideoCreateDTO extends AbstractDTO
     public function getVideoId(): string
     {
         return $this->videoId;
+    }
+
+    /** 获取视频业务生成类型。 */
+    public function getGenerationType(): string
+    {
+        return $this->generationType;
+    }
+
+    /** 设置视频业务生成类型。 */
+    public function setGenerationType(mixed $generationType): void
+    {
+        $value = is_string($generationType) ? trim($generationType) : '';
+        $type = DesignGenerationType::tryFrom($value);
+        $this->generationType = $type === null ? '' : $type->value;
     }
 
     public function setVideoId(mixed $videoId): void
@@ -251,6 +220,11 @@ class DesignVideoCreateDTO extends AbstractDTO
             return $this->inputMode;
         }
 
+        // 样片成片只靠 task 就能确定模式，且没有任何 frames / 参考素材可供推断。
+        if ($this->isDraftTask()) {
+            return VideoInputMode::DraftTask->value;
+        }
+
         // 旧调用不传 input_mode 时，仍按输入形态推断，避免 reference_images / frames 被误判。
         if ($this->getFrames() !== []) {
             return VideoInputMode::KeyframeGuided->value;
@@ -285,6 +259,18 @@ class DesignVideoCreateDTO extends AbstractDTO
         return $this->generation;
     }
 
+    /** 设置文件列表合成参数。 */
+    public function setComposition(mixed $composition): void
+    {
+        $this->composition = $this->normalizeJsonArrayInput($composition);
+    }
+
+    /** 获取文件列表合成参数。 */
+    public function getComposition(): array
+    {
+        return $this->composition;
+    }
+
     public function setCallbacks(mixed $callbacks): void
     {
         $this->callbacks = $this->normalizeJsonArrayInput($callbacks);
@@ -313,6 +299,20 @@ class DesignVideoCreateDTO extends AbstractDTO
     public function getExtensions(): array
     {
         return $this->extensions;
+    }
+
+    /**
+     * 样片成片引用。
+     *
+     * `video_id` 为样片的视频业务 ID，`uri` 为样片的工作区相对路径；二者至少其一，
+     * 同时存在时以 `video_id` 为准，由 Design 层解析成方舟样片任务 ID。
+     *
+     * @return array<string, mixed>
+     */
+    public function getDraftTask(): array
+    {
+        $draftTask = $this->inputs['draft_task'] ?? [];
+        return is_array($draftTask) ? $draftTask : [];
     }
 
     public function getMask(): ?string
@@ -393,28 +393,28 @@ class DesignVideoCreateDTO extends AbstractDTO
         if ($this->videoId === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'video_id is required');
         }
-        if ($this->modelId === '') {
+        $isCanvasComposition = $this->generationType === DesignGenerationType::CANVAS_COMPOSITION->value;
+        if (! $isCanvasComposition && $this->modelId === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
         }
         if (! VideoTaskType::isValid($this->task)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
         }
-        if ($this->prompt === '') {
+        // 样片成片的提示词从样片任务继承，调用方不需要也不应该重新提供。
+        if (! $isCanvasComposition && ! $this->isDraftTask() && $this->prompt === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'prompt is required');
         }
-        if ($this->fileDir === '') {
+        if (! $isCanvasComposition && $this->fileDir === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'file_dir is required');
+        }
+        if ($this->generationType !== '' && DesignGenerationType::tryFrom($this->generationType) === null) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'generation_type is invalid');
         }
 
         foreach (self::TOP_LEVEL_ARRAY_FIELDS as $field) {
             $this->assertTopLevelArrayField($field);
         }
 
-        $this->assertAllowedKeys($this->rawData, self::ROOT_ALLOWED_KEYS, 'root');
-        $this->assertAllowedKeys($this->inputs, self::INPUT_ALLOWED_KEYS, 'inputs');
-        $this->assertAllowedKeys($this->generation, self::GENERATION_ALLOWED_KEYS, 'generation');
-        $this->assertAllowedKeys($this->callbacks, self::CALLBACK_ALLOWED_KEYS, 'callbacks');
-        $this->assertAllowedKeys($this->execution, self::EXECUTION_ALLOWED_KEYS, 'execution');
         $this->assertVideoInputFields();
         $this->assertGenerationFields();
         $this->assertCallbackAndExecutionFields();
@@ -437,15 +437,42 @@ class DesignVideoCreateDTO extends AbstractDTO
             $this->assertTopLevelArrayField($field);
         }
 
-        $this->assertAllowedKeys($this->rawData, self::ROOT_ALLOWED_KEYS, 'root');
-        $this->assertAllowedKeys($this->inputs, self::INPUT_ALLOWED_KEYS, 'inputs');
-        $this->assertAllowedKeys($this->generation, self::GENERATION_ALLOWED_KEYS, 'generation');
-        $this->assertAllowedKeys($this->callbacks, self::CALLBACK_ALLOWED_KEYS, 'callbacks');
-        $this->assertAllowedKeys($this->execution, self::EXECUTION_ALLOWED_KEYS, 'execution');
         $this->assertVideoInputFields();
         $this->assertGenerationFields();
         $this->assertCallbackAndExecutionFields();
         $this->assertExtensionFields();
+    }
+
+    /** 校验画布合成任务的业务字段，避免把页面请求误交给 Provider。 */
+    public function validForCanvasComposition(): void
+    {
+        if (($this->projectId ?? 0) <= 0 || $this->videoId === '') {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'project_id and video_id are required');
+        }
+        if ($this->generationType !== DesignGenerationType::CANVAS_COMPOSITION->value) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'generation_type is invalid');
+        }
+        if ($this->fileDir === '') {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'file_dir is required');
+        }
+        $videos = $this->composition['videos'] ?? null;
+        if (! is_array($videos) || $videos === []) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'design.video_generation.composition_videos_required');
+        }
+        foreach ($videos as $index => $video) {
+            $this->assertCompositionMedia($video, sprintf('composition.videos.%d', $index));
+        }
+        $audios = $this->composition['audios'] ?? [];
+        if (! is_array($audios)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'composition.audios must be an array');
+        }
+        if (count($audios) > 1) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'composition supports at most one audio');
+        }
+        foreach ($audios as $index => $audio) {
+            $this->assertCompositionMedia($audio, sprintf('composition.audios.%d', $index));
+        }
+        $this->assertGenerationFields();
     }
 
     /**
@@ -467,6 +494,10 @@ class DesignVideoCreateDTO extends AbstractDTO
             'extensions' => $this->getExtensions(),
         ];
 
+        if ($this->getComposition() !== []) {
+            $payload['composition'] = $this->getComposition();
+        }
+
         if ($this->getTopicId() !== '') {
             $payload['topic_id'] = $this->getTopicId();
         }
@@ -480,15 +511,6 @@ class DesignVideoCreateDTO extends AbstractDTO
     public function getType(): string
     {
         return 'video';
-    }
-
-    private function assertAllowedKeys(array $data, array $allowedKeys, string $path): void
-    {
-        foreach (array_keys($data) as $key) {
-            if (! is_string($key) || ! in_array($key, $allowedKeys, true)) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.%s is not supported', $path, $key));
-            }
-        }
     }
 
     private function assertTopLevelArrayField(string $field): void
@@ -520,8 +542,6 @@ class DesignVideoCreateDTO extends AbstractDTO
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.frames.%d must be an object', $index));
             }
 
-            $this->assertAllowedKeys($frame, self::FRAME_ALLOWED_KEYS, sprintf('inputs.frames.%d', $index));
-
             $role = trim((string) ($frame['role'] ?? ''));
             if (! in_array($role, self::FRAME_ROLES, true)) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.frames.%d.role is invalid', $index));
@@ -539,8 +559,6 @@ class DesignVideoCreateDTO extends AbstractDTO
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.reference_images.%d must be an object', $index));
             }
 
-            $this->assertAllowedKeys($referenceImage, self::REFERENCE_IMAGE_ALLOWED_KEYS, sprintf('inputs.reference_images.%d', $index));
-
             $this->assertImageInputSource($referenceImage, sprintf('inputs.reference_images.%d', $index));
 
             $type = trim((string) ($referenceImage['type'] ?? ''));
@@ -556,6 +574,44 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->assertMediaObject($this->inputs['mask'] ?? null, 'inputs.mask');
         $this->assertMediaObjectList($this->getReferenceVideos(), 'inputs.reference_videos');
         $this->assertMediaObjectList($this->getReferenceAudios(), 'inputs.reference_audios');
+        $this->assertDraftTaskInput();
+    }
+
+    /**
+     * 校验样片成片引用：单个对象，必须给出 video_id 或 uri 之一。
+     */
+    private function assertDraftTaskInput(): void
+    {
+        $draftTask = $this->getDraftTask();
+        if ($draftTask === []) {
+            if ($this->isDraftTask()) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.draft_task is required');
+            }
+            return;
+        }
+
+        // 样片引用是单个对象（与 inputs.mask 同构），不是列表。误传成列表时两个字段整体读不到，
+        // 不先拦下来只会退化成「video_id or uri is required」这种指向错误的提示。
+        if (array_is_list($draftTask)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.draft_task must be an object');
+        }
+
+        $videoId = trim((string) ($draftTask['video_id'] ?? ''));
+        $uri = trim((string) ($draftTask['uri'] ?? ''));
+        if ($videoId === '' && $uri === '') {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.draft_task.video_id or inputs.draft_task.uri is required');
+        }
+        if ($uri !== '' && (str_contains($uri, '://') || str_contains($uri, "\0"))) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.draft_task.uri is invalid');
+        }
+    }
+
+    /**
+     * 是否为样片成片请求：只由 input_mode 判定，task 保持 generate 即可。
+     */
+    private function isDraftTask(): bool
+    {
+        return $this->inputMode === VideoInputMode::DraftTask->value;
     }
 
     private function assertGenerationFields(): void
@@ -573,6 +629,8 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->assertOptionalBoolField($this->generation, 'watermark', 'generation.watermark');
         $this->assertOptionalStringField($this->generation, 'negative_prompt', 'generation.negative_prompt', 4096);
         $this->assertOptionalBoolField($this->generation, 'generate_audio', 'generation.generate_audio');
+        $this->assertOptionalBoolField($this->generation, 'web_search', 'generation.web_search');
+        $this->assertOptionalBoolField($this->generation, 'draft', 'generation.draft');
         $this->assertOptionalStringField($this->generation, 'person_generation', 'generation.person_generation', 50);
         $this->assertOptionalBoolField($this->generation, 'enhance_prompt', 'generation.enhance_prompt');
         $this->assertOptionalStringField($this->generation, 'compression_quality', 'generation.compression_quality', 50);
@@ -606,6 +664,7 @@ class DesignVideoCreateDTO extends AbstractDTO
     {
         $this->setProjectId($data['project_id'] ?? null);
         $this->setVideoId($data['video_id'] ?? null);
+        $this->setGenerationType($data['generation_type'] ?? null);
         $this->setModelId($data['model_id'] ?? null);
         $this->setTopicId($data['topic_id'] ?? null);
         $this->setTaskId($data['task_id'] ?? null);
@@ -616,6 +675,7 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->setFileName($data['file_name'] ?? null);
         $this->setInputs($data['inputs'] ?? null);
         $this->setGeneration($data['generation'] ?? null);
+        $this->setComposition($data['composition'] ?? null);
         $this->setCallbacks($data['callbacks'] ?? null);
         $this->setExecution($data['execution'] ?? null);
         $this->setExtensions($data['extensions'] ?? null);
@@ -630,6 +690,22 @@ class DesignVideoCreateDTO extends AbstractDTO
         return is_array($value) ? $value : [];
     }
 
+    /** 校验合成媒体对象只包含非空 workspace-relative 路径。 */
+    private function assertCompositionMedia(mixed $value, string $path): void
+    {
+        if (! is_array($value)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s must be an object', $path));
+        }
+        $mediaPath = trim((string) ($value['path'] ?? ''));
+        if ($mediaPath === '' || str_contains($mediaPath, '://') || str_contains($mediaPath, "\0")) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.path is invalid', $path));
+        }
+        $segments = explode('/', trim($mediaPath, '/'));
+        if (in_array('.', $segments, true) || in_array('..', $segments, true)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.path is invalid', $path));
+        }
+    }
+
     private function assertMediaObject(mixed $value, string $path): void
     {
         if ($value === null) {
@@ -639,8 +715,6 @@ class DesignVideoCreateDTO extends AbstractDTO
         if (! is_array($value)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s must be an object', $path));
         }
-
-        $this->assertAllowedKeys($value, self::MEDIA_ALLOWED_KEYS, $path);
 
         $uri = trim((string) ($value['uri'] ?? ''));
         if ($uri === '') {

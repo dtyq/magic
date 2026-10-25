@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mastercard — Priceless Possibilities</title>
+  <style>
+    :root {
+      --mc-red: #eb001b;
+      --mc-yellow: #f79e1b;
+      --mc-orange: #ff5f00;
+      --ink: #141413;
+      --charcoal: #262627;
+      --slate: #696969;
+      --canvas: #f3f0ee;
+      --lifted: #fcfbfa;
+      --white: #ffffff;
+      --signal-orange: #cf4500;
+      --orbit-orange: #f37338;
+      --link-blue: #3860be;
+      --font-family: "MarkForMC", "Sofia Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --radius-btn: 20px;
+      --radius-stadium: 40px;
+      --radius-pill: 999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--font-family);
+      font-size: 16px;
+      font-weight: 450;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    .shell { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+    /* Floating Nav Pill */
+    .nav-container { padding: 20px 24px 0; display: flex; justify-content: center; position: sticky; top: 0; z-index: 100; }
+    .floating-nav {
+      width: 100%;
+      max-width: 1120px;
+      height: 64px;
+      background: var(--white);
+      border-radius: var(--radius-pill);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+    }
+    .brand-cluster { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+    .mc-circles { display: flex; align-items: center; position: relative; width: 44px; height: 32px; }
+    .mc-circle-red { width: 28px; height: 28px; border-radius: 50%; background: var(--mc-red); position: absolute; left: 0; }
+    .mc-circle-yellow { width: 28px; height: 28px; border-radius: 50%; background: var(--mc-yellow); position: absolute; right: 0; }
+    .mc-overlap { width: 12px; height: 22px; background: var(--mc-orange); border-radius: 50%; position: absolute; left: 16px; opacity: 0.85; }
+    .brand-name { font-size: 20px; font-weight: 500; color: var(--ink); letter-spacing: -0.5px; }
+
+    .nav-links { display: flex; gap: 36px; list-style: none; }
+    .nav-link { font-size: 15px; font-weight: 500; color: var(--ink); letter-spacing: -0.3px; cursor: pointer; }
+    .nav-link:hover { color: var(--signal-orange); }
+
+    .btn-search-pill {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--canvas);
+      border: none;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    /* Hero Section with Orbital Arc */
+    .hero-section {
+      padding: 48px 0 32px;
+      position: relative;
+    }
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 48px;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+    .eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--signal-orange); }
+
+    .hero-copy h1 {
+      font-size: clamp(40px, 4.6vw, 64px);
+      font-weight: 500;
+      line-height: 1.05;
+      letter-spacing: -1.4px;
+      margin-bottom: 22px;
+      color: var(--ink);
+    }
+    .hero-copy p {
+      font-size: 18px;
+      line-height: 1.5;
+      color: var(--charcoal);
+      margin-bottom: 32px;
+      max-width: 520px;
+    }
+    .hero-cta-row { display: flex; gap: 16px; align-items: center; }
+    .btn-mc-primary {
+      background: var(--ink);
+      color: var(--canvas);
+      border: 1.5px solid var(--ink);
+      font-size: 15px;
+      font-weight: 500;
+      padding: 12px 28px;
+      border-radius: var(--radius-btn);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s;
+    }
+    .btn-mc-primary:hover { transform: translateY(-1px); }
+    .btn-mc-outline {
+      background: var(--white);
+      color: var(--ink);
+      border: 1.5px solid var(--ink);
+      font-size: 15px;
+      font-weight: 500;
+      padding: 12px 28px;
+      border-radius: var(--radius-btn);
+      cursor: pointer;
+    }
+
+    /* Contactless Payment Terminal Mockup */
+    .terminal-container {
+      position: relative;
+      display: flex;
+      justify-content: center;
+    }
+    .pos-terminal {
+      width: 100%;
+      max-width: 420px;
+      background: #1e1e1f;
+      border-radius: 36px;
+      padding: 28px;
+      box-shadow: 0 30px 60px rgba(20, 20, 19, 0.18);
+      border: 2px solid #2d2d30;
+      color: #ffffff;
+      position: relative;
+    }
+    .pos-display {
+      background: #0d0d0e;
+      border-radius: 20px;
+      padding: 24px;
+      border: 1px solid #333336;
+      margin-bottom: 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .nfc-wave-graphic {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 12px;
+      position: relative;
+    }
+    .pos-amount { font-size: 36px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 4px; }
+    .pos-status { font-size: 13px; font-weight: 600; color: #0ecb81; letter-spacing: 0.5px; text-transform: uppercase; }
+
+    /* Tapped Card Animation Mockup */
+    .tapping-card-badge {
+      position: absolute;
+      bottom: -18px;
+      right: -20px;
+      width: 220px;
+      background: var(--white);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.15);
+      color: var(--ink);
+      border: 1px solid var(--canvas);
+      z-index: 10;
+    }
+    .tap-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .tap-chip { width: 28px; height: 20px; border-radius: 4px; background: #e0e0e0; }
+
+    /* Biometric Tokenization Badge */
+    .token-badge {
+      background: var(--white);
+      border-radius: var(--radius-stadium);
+      padding: 32px 36px;
+      margin: 32px 0 48px;
+      border: 1px solid rgba(20, 20, 19, 0.08);
+      box-shadow: 0 12px 32px rgba(20, 20, 19, 0.04);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 32px;
+      align-items: center;
+    }
+    .token-icon-plate {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: rgba(207, 69, 0, 0.08);
+      display: grid;
+      place-items: center;
+    }
+    .token-title { font-size: 22px; font-weight: 500; letter-spacing: -0.4px; margin-bottom: 4px; color: var(--ink); }
+    .token-desc { font-size: 14px; color: var(--charcoal); }
+    .token-status-pill {
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 18px;
+      border-radius: var(--radius-pill);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Global Merchant Network Stats Grid */
+    .stats-band {
+      background: var(--lifted);
+      border-radius: var(--radius-stadium);
+      padding: 48px 40px;
+      margin-bottom: 64px;
+      border: 1px solid rgba(20, 20, 19, 0.06);
+    }
+    .stats-title-block { text-align: center; max-width: 600px; margin: 0 auto 36px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 28px;
+    }
+    .stat-item {
+      text-align: center;
+      padding: 20px;
+      background: var(--white);
+      border-radius: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.02);
+    }
+    .stat-num {
+      font-size: 38px;
+      font-weight: 500;
+      letter-spacing: -1px;
+      color: var(--ink);
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+    .stat-label { font-size: 14px; color: var(--slate); font-weight: 450; }
+
+    /* Footer */
+    .mc-footer {
+      background: var(--ink);
+      color: var(--white);
+      border-radius: 40px 40px 0 0;
+      padding: 64px 48px 48px;
+      margin-top: 48px;
+    }
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+      margin-bottom: 32px;
+    }
+    .footer-h2 { font-size: 28px; font-weight: 500; letter-spacing: -0.5px; }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Nav Pill -->
+  <div class="nav-container">
+    <nav class="floating-nav">
+      <a href="#" class="brand-cluster">
+        <div class="mc-circles">
+          <div class="mc-circle-red"></div>
+          <div class="mc-circle-yellow"></div>
+          <div class="mc-overlap"></div>
+        </div>
+        <span class="brand-name">mastercard</span>
+      </a>
+
+      <ul class="nav-links">
+        <li class="nav-link">For you</li>
+        <li class="nav-link">For business</li>
+        <li class="nav-link">For the world</li>
+        <li class="nav-link">For innovators</li>
+        <li class="nav-link">News & trends</li>
+      </ul>
+
+      <button class="btn-search-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#141413" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+    </nav>
+  </div>
+
+  <main class="shell">
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-split">
+        <div class="hero-copy">
+          <div class="eyebrow">
+            <div class="eyebrow-dot"></div>
+            <span>Global Payments Network</span>
+          </div>
+          <h1>Connecting everyone to priceless possibilities.</h1>
+          <p>We work to connect and power an inclusive, digital economy that benefits everyone, everywhere by making transactions safe, simple, smart, and accessible.</p>
+          <div class="hero-cta-row">
+            <button class="btn-mc-primary">Explore our network →</button>
+            <button class="btn-mc-outline">Learn more</button>
+          </div>
+        </div>
+
+        <!-- Contactless Payment Terminal Mockup -->
+        <div class="terminal-container">
+          <div class="pos-terminal">
+            <div class="pos-display">
+              <div class="nfc-wave-graphic">
+                <svg viewBox="0 0 100 100" fill="none" stroke="#F79E1B" stroke-width="6" stroke-linecap="round">
+                  <path d="M25 50 A25 25 0 0 1 75 50" opacity="0.3"/>
+                  <path d="M15 50 A35 35 0 0 1 85 50" opacity="0.6"/>
+                  <path d="M5 50 A45 45 0 0 1 95 50"/>
+                </svg>
+              </div>
+              <div class="pos-amount">$84.50</div>
+              <div class="pos-status">✓ Payment Approved</div>
+              <div style="font-size: 11px; color: #888; margin-top: 6px;">AUTH CODE: 849201 • EMV NFC</div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 6px;">
+              <span style="font-size: 12px; color: #888;">Contactless Reader Active</span>
+              <div class="mc-circles" style="transform: scale(0.85);">
+                <div class="mc-circle-red"></div>
+                <div class="mc-circle-yellow"></div>
+                <div class="mc-overlap"></div>
+              </div>
+            </div>
+
+            <!-- Tapped Card Animation Floating Badge -->
+            <div class="tapping-card-badge">
+              <div class="tap-header">
+                <div class="tap-chip"></div>
+                <span style="font-size: 11px; font-weight: 700; color: #666;">CONTACTLESS</span>
+              </div>
+              <div style="font-size: 13px; font-weight: 700;">World Elite •••• 4912</div>
+              <div style="font-size: 11px; color: #888; margin-top: 2px;">Biometric Verified</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Biometric Tokenization Security Badge -->
+    <section class="token-badge">
+      <div class="token-icon-plate">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#CF4500" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div>
+        <div class="token-title">Mastercard Identity Check™ & Biometric Tokenization</div>
+        <p class="token-desc">Replacing sensitive 16-digit card numbers with encrypted digital tokens. Every transaction is authenticated with on-device biometrics and backed by Zero-Liability fraud protection.</p>
+      </div>
+      <div class="token-status-pill">
+        <span>🔒</span>
+        <span>EMVCo Certified</span>
+      </div>
+    </section>
+
+    <!-- Global Merchant Network Stats -->
+    <section class="stats-band">
+      <div class="stats-title-block">
+        <h2 style="font-size: 32px; font-weight: 500; letter-spacing: -0.8px; margin-bottom: 8px;">Scale that powers the global economy</h2>
+        <p style="color: var(--slate); font-size: 15px;">Trusted across continents by consumers, merchants, and financial institutions.</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-num">100M+</div>
+          <div class="stat-label">Merchant Acceptance Locations</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">210+</div>
+          <div class="stat-label">Countries & Territories</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">3.4B</div>
+          <div class="stat-label">Cards in Global Circulation</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">160B+</div>
+          <div class="stat-label">Annual Transactions Processed</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="mc-footer">
+      <div class="footer-top">
+        <div class="footer-h2">We're always here when you need us.</div>
+        <div class="mc-circles">
+          <div class="mc-circle-red"></div>
+          <div class="mc-circle-yellow"></div>
+          <div class="mc-overlap"></div>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 13px; color: #a0a0a0;">
+        <span>© 1994–2026 Mastercard. All rights reserved.</span>
+        <span>Privacy Policy • Terms of Use • Global Site Directory</span>
+      </div>
+    </footer>
+  </main>
+
+</body>
+</html>

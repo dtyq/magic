@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\CloudFile\Kernel\Struct;
 
+use Dtyq\CloudFile\Kernel\Constant\StsType;
+
 class CredentialPolicy
 {
     /**
@@ -71,7 +73,7 @@ class CredentialPolicy
             $this->roleSessionName = (string) $config['role_session_name'];
         }
         if (isset($config['sts_type'])) {
-            $this->stsType = (string) $config['sts_type'];
+            $this->setStsType((string) $config['sts_type']);
         }
         if (isset($config['content_type'])) {
             $this->contentType = (string) $config['content_type'];
@@ -120,7 +122,27 @@ class CredentialPolicy
 
     public function setStsType(string $stsType): void
     {
-        $this->stsType = $stsType;
+        $this->stsType = StsType::join(StsType::parse($stsType));
+    }
+
+    /**
+     * 追加一个 STS 权限类型，并自动去重。
+     */
+    public function addStsType(string $stsType): void
+    {
+        $types = $this->getStsTypes();
+        $types[] = $stsType;
+        $this->setStsType(implode('|', $types));
+    }
+
+    /**
+     * 获取规范化后的 STS 权限类型。
+     *
+     * @return array<int, string>
+     */
+    public function getStsTypes(): array
+    {
+        return StsType::parse($this->stsType);
     }
 
     public function getContentType(): string

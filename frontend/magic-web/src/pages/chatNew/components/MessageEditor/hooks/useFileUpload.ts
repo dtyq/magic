@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import type { DragEvent } from "react"
 
 import { useMemoizedFn } from "ahooks"
@@ -15,7 +15,7 @@ import {
 import { Image } from "@/components/base/MagicRichEditor/extensions/image"
 import type { FileData } from "../components/InputFiles/types"
 import { genFileData } from "../components/InputFiles/utils"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import type { ReportFileUploadsResponse } from "@/apis/modules/file"
 import { FileApi } from "@/apis"
 import type { UploadResult } from "@/hooks/useUploadFiles/types"
@@ -59,7 +59,10 @@ export interface UseFileUploadReturn {
 		reportedFiles: ReportFileUploadsResponse[]
 	}>
 	/** Handle file selection/drop */
-	onFileChange: (fileList: FileList | File[]) => Promise<void>
+	onFileChange: (
+		fileList: FileList | File[],
+		options?: { forceAttachment?: boolean },
+	) => Promise<void>
 	/** Handle paste file errors */
 	handlePasteFileFail: (errors: FileError[]) => void
 	/** Handle drag and drop */
@@ -76,10 +79,17 @@ export function useFileUpload({
 	const { t } = useTranslation("interface")
 
 	const [files, setFilesRaw] = useState<FileData[]>([])
+	const filesRef = useRef(files)
+	filesRef.current = files
 
 	const setFiles = useMemoizedFn((l: FileData[] | ((prev: FileData[]) => FileData[])) => {
-		const list = typeof l === "function" ? l(files) : l
-		setFilesRaw(list.slice(0, maxUploadCount))
+		const list = typeof l === "function" ? l(filesRef.current) : l
+		const limitedList = list.slice(0, maxUploadCount)
+		// Canvas clipboard assets are submitted one-by-one so each asset can be
+		// materialized and displayed immediately. Keep the ref in sync before the
+		// next callback arrives in the same microtask turn.
+		filesRef.current = limitedList
+		setFilesRaw(limitedList)
 
 		if (list.length > maxUploadCount) {
 			magicToast.error(t("file.uploadLimit", { count: maxUploadCount }))
@@ -138,56 +148,59 @@ export function useFileUpload({
 		},
 	})
 
-	const onFileChange = useMemoizedFn(async (fileList: FileList | File[]) => {
-		const imageFiles: File[] = []
-		const otherFiles: File[] = []
+	const onFileChange = useMemoizedFn(
+		async (fileList: FileList | File[], options?: { forceAttachment?: boolean }) => {
+			const imageFiles: File[] = []
+			const otherFiles: File[] = []
+			const forceAttachment = options?.forceAttachment === true
 
-		// Categorize files: images and others using improved detection
-		for (let i = 0; i < fileList.length; i += 1) {
-			if (isValidImageFile(fileList[i])) {
-				imageFiles.push(fileList[i])
-			} else {
-				otherFiles.push(fileList[i])
+			// Categorize files: images and others using improved detection
+			for (let i = 0; i < fileList.length; i += 1) {
+				if (!forceAttachment && isValidImageFile(fileList[i])) {
+					imageFiles.push(fileList[i])
+				} else {
+					otherFiles.push(fileList[i])
+				}
 			}
-		}
 
-		// Process images and insert into editor
-		const currentEditor = editorRef?.current?.editor
-		if (imageFiles.length > 0 && isEditorActive(currentEditor)) {
-			const pos = currentEditor.state.selection.$from.pos ?? 0
-			await Promise.all(
-				imageFiles.map(async (file) => {
-					const file_extension = file.type.split("/").pop() ?? ""
-					const src = await fileToBase64(file)
+			// Process images and insert into editor
+			const currentEditor = editorRef?.current?.editor
+			if (imageFiles.length > 0 && isEditorActive(currentEditor)) {
+				const pos = currentEditor.state.selection.$from.pos ?? 0
+				await Promise.all(
+					imageFiles.map(async (file) => {
+						const file_extension = file.type.split("/").pop() ?? ""
+						const src = await fileToBase64(file)
 
-					runActiveEditor(editorRef.current?.editor, (editor) => {
-						editor.commands.insertContentAt(pos, {
-							type: Image.name,
-							attrs: {
-								src,
-								file_name: file.name,
-								file_size: file.size,
-								file_extension,
-							},
+						runActiveEditor(editorRef?.current?.editor, (editor) => {
+							editor.commands.insertContentAt(pos, {
+								type: Image.name,
+								attrs: {
+									src,
+									file_name: file.name,
+									file_size: file.size,
+									file_extension,
+								},
+							})
 						})
-					})
-				}),
-			)
-			runActiveEditor(editorRef.current?.editor, (editor) => {
-				editor.commands.focus(pos + imageFiles.length)
+					}),
+				)
+				runActiveEditor(editorRef?.current?.editor, (editor) => {
+					editor.commands.focus(pos + imageFiles.length)
+				})
+			}
+
+			// Process other files
+			if (otherFiles.length > 0) {
+				setFiles((l) => [...l, ...otherFiles.map(genFileData)])
+			}
+
+			// Focus editor after file processing
+			runActiveEditor(editorRef?.current?.editor, (editor) => {
+				editor.chain().focus().run()
 			})
-		}
-
-		// Process other files
-		if (otherFiles.length > 0) {
-			setFiles((l) => [...l, ...otherFiles.map(genFileData)])
-		}
-
-		// Focus editor after file processing
-		runActiveEditor(editorRef?.current?.editor, (editor) => {
-			editor.chain().focus().run()
-		})
-	})
+		},
+	)
 
 	const handlePasteFileFail = useMemoizedFn((errors: FileError[]) => {
 		const fileList: FileData[] = []
@@ -236,13 +249,13 @@ export function useFileUpload({
 		const reportedFiles: ReportFileUploadsResponse[] =
 			fullfilled.length > 0
 				? await FileApi.reportFileUploads(
-					fullfilled.map((d) => ({
-						file_extension: d.value.name.split(".").pop() ?? "",
-						file_key: d.value.key,
-						file_size: d.value.size,
-						file_name: d.value.name,
-					})),
-				)
+						fullfilled.map((d) => ({
+							file_extension: d.value.name.split(".").pop() ?? "",
+							file_key: d.value.key,
+							file_size: d.value.size,
+							file_name: d.value.name,
+						})),
+					)
 				: []
 
 		// Collect image nodes without file_id for batch upload

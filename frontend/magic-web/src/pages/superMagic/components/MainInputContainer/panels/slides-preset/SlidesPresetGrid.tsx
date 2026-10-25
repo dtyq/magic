@@ -3,7 +3,7 @@ import { observer } from "mobx-react-lite"
 import { motion } from "framer-motion"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { OptionItem } from "../types"
 import { localeTextToDisplayString } from "../utils"
 import SlidesPresetCard from "./SlidesPresetCard"
@@ -14,6 +14,8 @@ interface SlidesPresetGridProps {
 	selectedTemplate?: OptionItem
 	templates: OptionItem[]
 	onTemplateClick?: (template: OptionItem) => void
+	onFavoriteToggle?: (template: OptionItem) => void
+	favoritePendingCodes?: Set<string>
 	className?: string
 	isLoading?: boolean
 	isRefreshing?: boolean
@@ -24,6 +26,9 @@ interface SlidesPresetGridProps {
 	onRetryLoadMore?: () => void
 	onPreviewOpenChange?: (open: boolean) => void
 	onPreviewDetailLoad?: (template: OptionItem) => Promise<OptionItem | null>
+	onOpenProject?: (template: OptionItem) => void
+	onRemove?: (template: OptionItem) => void
+	removePendingCodes?: ReadonlySet<string>
 	showHoverDetails?: boolean
 	hoverDetailsContainer?: HTMLElement | null
 	disableEntryAnimation?: boolean
@@ -70,6 +75,8 @@ const SlidesPresetGrid = observer(
 		selectedTemplate,
 		templates,
 		onTemplateClick,
+		onFavoriteToggle,
+		favoritePendingCodes,
 		className,
 		isLoading = false,
 		isRefreshing = false,
@@ -80,6 +87,9 @@ const SlidesPresetGrid = observer(
 		onRetryLoadMore,
 		onPreviewOpenChange,
 		onPreviewDetailLoad,
+		onOpenProject,
+		onRemove,
+		removePendingCodes,
 		showHoverDetails = true,
 		hoverDetailsContainer,
 		disableEntryAnimation = false,
@@ -277,7 +287,16 @@ const SlidesPresetGrid = observer(
 					) : null}
 					{templates.map((template) => {
 						const value = localeTextToDisplayString(template.value)
-						const cardTemplate = hoverDetailTemplates.get(value) ?? template
+						const hoverDetailTemplate = hoverDetailTemplates.get(value)
+						// 详情接口只负责补充悬浮预览字段，收藏状态以当前列表数据为准。
+						// 收藏操作可能先于详情请求返回，直接使用旧详情会把乐观状态覆盖掉。
+						const cardTemplate = hoverDetailTemplate
+							? {
+									...hoverDetailTemplate,
+									is_favorite: template.is_favorite,
+									project: template.project ?? hoverDetailTemplate.project,
+								}
+							: template
 
 						return (
 							<motion.div
@@ -305,6 +324,11 @@ const SlidesPresetGrid = observer(
 									template={cardTemplate}
 									isSelected={selectedTemplateValue === value}
 									onClick={onTemplateClick}
+									onFavoriteToggle={onFavoriteToggle}
+									onOpenProject={onOpenProject}
+									onRemove={onRemove}
+									removePending={removePendingCodes?.has(value)}
+									favoritePending={favoritePendingCodes?.has(value)}
 									onPreviewClick={handlePreviewClick}
 									onPreviewPreload={handlePreviewPreload}
 									canUseHoverPreview={canUseHoverPreview}

@@ -51,6 +51,26 @@ describe("MediaDecodePixelBudget", () => {
 		expect(gate.activePixelCost).toBe(0)
 	})
 
+	it("skips an oversized request within the same priority band", async () => {
+		const gate = new MediaDecodePixelBudgetGate(10)
+		const firstRelease = await gate.acquire(8, "visible")
+		let largeResolved = false
+		const largePermit = gate.acquire(8, "visible").then((release) => {
+			largeResolved = true
+			return release
+		})
+		const smallPermit = gate.acquire(2, "visible")
+
+		const smallRelease = await smallPermit
+		expect(largeResolved).toBe(false)
+
+		smallRelease()
+		firstRelease()
+		const largeRelease = await largePermit
+		largeRelease()
+		expect(gate.activePixelCost).toBe(0)
+	})
+
 	it("removes an aborted queued permit without waiting for capacity", async () => {
 		const gate = new MediaDecodePixelBudgetGate(10)
 		const firstRelease = await gate.acquire(10, "visible")

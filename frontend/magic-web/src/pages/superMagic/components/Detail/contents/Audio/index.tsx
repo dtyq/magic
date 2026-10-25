@@ -2,7 +2,9 @@ import CommonHeaderV2 from "@/pages/superMagic/components/Detail/components/Comm
 import React, { memo, useMemo, useState, useCallback } from "react"
 import { useStyles } from "./style"
 import { useFileUrl } from "@/pages/superMagic/hooks/useFileUrl"
-import { useXgAudioPlayer } from "./hooks/useXgAudioPlayer"
+import DetailEmpty from "../../components/DetailEmpty"
+import { useTranslation } from "react-i18next"
+import { useXgAudioPlayer, type UseXgAudioPlayerMode } from "./hooks/useXgAudioPlayer"
 import { Flex } from "antd"
 import {
 	IconDownload,
@@ -23,6 +25,7 @@ function formatTime(sec: number) {
 }
 
 interface AudioPreviewProps {
+	onRefreshFile?: () => void
 	type: string
 	currentIndex: number
 	onPrevious?: () => void
@@ -55,9 +58,11 @@ interface AudioPreviewProps {
 	showFileHeader?: boolean
 	attachments?: any[]
 	allowDownload?: boolean
+	audioPlayerMode?: UseXgAudioPlayerMode
 }
 
 export function AudioPreview(props: AudioPreviewProps) {
+	const { t } = useTranslation("super")
 	const { styles } = useStyles()
 	const {
 		type,
@@ -77,10 +82,13 @@ export function AudioPreview(props: AudioPreviewProps) {
 		showFileHeader = true,
 		attachments,
 		allowDownload,
+		audioPlayerMode,
 	} = props
 
 	const { file_name, file_id } = data || {}
-	const { fileUrl } = useFileUrl({ file_id: file_id || "" })
+	const { fileUrl, hasError, fileResource, refreshFileUrl } = useFileUrl({
+		file_id: file_id || "",
+	})
 
 	// Use xgplayer audio player
 	const {
@@ -97,8 +105,12 @@ export function AudioPreview(props: AudioPreviewProps) {
 		setVolume: setPlayerVolume,
 		toggleMute,
 	} = useXgAudioPlayer({
+		fileId: file_id,
 		fileUrl,
+		fileResource,
+		refreshFileUrl,
 		fileName: file_name || "Unknown Audio",
+		audioPlayerMode,
 	})
 
 	// Local UI state - syncs with player when not dragging
@@ -241,9 +253,16 @@ export function AudioPreview(props: AudioPreviewProps) {
 	])
 
 	const handleDownload = useCallback(() => {
-		if (onDownload) onDownload()
-	}, [onDownload])
+		if (allowDownload !== false && onDownload) onDownload()
+	}, [allowDownload, onDownload])
 
+	if (hasError)
+		return (
+			<DetailEmpty
+				title={t("common.fileNotFoundOrLoadFailed")}
+				onRetry={props.onRefreshFile}
+			/>
+		)
 	return (
 		<div className={styles.mediaViewer}>
 			{showFileHeader && (
@@ -256,8 +275,7 @@ export function AudioPreview(props: AudioPreviewProps) {
 					viewMode={viewMode}
 					onViewModeChange={
 						onViewModeChange as
-						| ((mode: "code" | "desktop" | "phone") => void)
-						| undefined
+							((mode: "code" | "desktop" | "phone") => void) | undefined
 					}
 					onCopy={onCopy}
 					fileContent={fileContent}
@@ -284,8 +302,10 @@ export function AudioPreview(props: AudioPreviewProps) {
 					}}
 				/>
 
-				{/* Loading state */}
-				{isLoading && <div className={styles.loadingState}>Loading...</div>}
+				{/* Core/native mode keeps the controls visible while loading. */}
+				{isLoading && audioPlayerMode !== "core" && (
+					<div className={styles.loadingState}>Loading...</div>
+				)}
 
 				{/* Error state */}
 				{error && <div className={styles.errorState}>{error}</div>}
@@ -293,10 +313,18 @@ export function AudioPreview(props: AudioPreviewProps) {
 				{/* 自定义音频控制器 */}
 				<div
 					className={styles.audioWrapper}
-					style={error || isLoading ? { display: "none" } : undefined}
+					style={
+						error || (audioPlayerMode !== "core" && isLoading)
+							? { display: "none" }
+							: undefined
+					}
 				>
 					<Flex className={styles.controlsLeft} align="center">
-						<div className={styles.iconButton} onClick={togglePlay} data-testid="toggle-play">
+						<div
+							className={styles.iconButton}
+							onClick={togglePlay}
+							data-testid="toggle-play"
+						>
 							{isPlaying ? (
 								<IconPlayerPause size={20} color="#fff" />
 							) : (
@@ -329,7 +357,11 @@ export function AudioPreview(props: AudioPreviewProps) {
 					</Flex>
 
 					<Flex className={styles.controlsRight} align="center">
-						<div className={styles.iconButton} onClick={toggleMute} data-testid="toggle-mute">
+						<div
+							className={styles.iconButton}
+							onClick={toggleMute}
+							data-testid="toggle-mute"
+						>
 							{isMuted || volume === 0 ? (
 								<IconVolumeOff size={20} color="#fff" />
 							) : (
@@ -355,9 +387,15 @@ export function AudioPreview(props: AudioPreviewProps) {
 								/>
 							</div>
 						</div>
-						<div className={styles.iconButton} onClick={handleDownload} data-testid="handle-download">
-							<IconDownload size={20} color="#fff" />
-						</div>
+						{allowDownload !== false && onDownload && (
+							<div
+								className={styles.iconButton}
+								onClick={handleDownload}
+								data-testid="handle-download"
+							>
+								<IconDownload size={20} color="#fff" />
+							</div>
+						)}
 					</Flex>
 				</div>
 			</div>

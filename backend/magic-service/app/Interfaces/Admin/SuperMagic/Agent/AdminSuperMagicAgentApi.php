@@ -20,6 +20,7 @@ use App\Interfaces\SuperMagic\Agent\DTO\Request\UpdateAgentMarketCategoryRequest
 use App\Interfaces\SuperMagic\Agent\DTO\Request\UpdateAgentMarketRequestAdminDTO;
 use App\Interfaces\SuperMagic\Agent\DTO\Request\UpdateAgentMarketSortOrderRequestAdminDTO;
 use App\Interfaces\SuperMagic\Agent\Facade\AbstractSuperMagicApi;
+use App\Interfaces\SuperMagic\Common\DTO\Request\ReindexVectorIndexRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 
@@ -51,6 +52,22 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
         $requestDTO = QueryAgentMarketsRequestAdminDTO::fromRequest($this->request);
 
         return $this->adminAgentAppService->queryMarkets($authorization, $requestDTO)->toArray();
+    }
+
+    /**
+     * Reconcile all Agent Market vector points.
+     *
+     * 可选参数 force_re_embedding：为 true 时，若向量集合维度与模型实际输出维度不一致，会删除集合并按实际维度重建后全量重灌。
+     */
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AGENT_MARKET], MagicOperationEnum::EDIT)]
+    public function reindexMarketVectors(): array
+    {
+        $requestDTO = ReindexVectorIndexRequestDTO::fromRequest($this->request);
+
+        return $this->adminAgentAppService->reindexMarketVectors(
+            $this->getAuthorization(),
+            $requestDTO->getForceReEmbedding(),
+        );
     }
 
     /**

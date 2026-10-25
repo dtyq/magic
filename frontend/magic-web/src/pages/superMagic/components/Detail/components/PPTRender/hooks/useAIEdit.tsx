@@ -1,4 +1,12 @@
-import { useMemo, useCallback } from "react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
+import {
+	createFileReferenceMention,
+	type FileReferenceSource,
+} from "@/components/business/MentionPanel/utils/fileReferenceMention"
+import { getFileReferenceIdentityKey } from "@/pages/superMagic/services/userFileReferenceResolver"
+import topicStore from "@/pages/superMagic/stores/core/topic"
+import magicToast from "@/components/base/MagicToaster/utils"
+import { useMemo, useCallback, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import {
 	IconBrowserCheck,
@@ -9,6 +17,7 @@ import {
 } from "@tabler/icons-react"
 import { Crosshair } from "lucide-react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { ensureFileSavesSynced } from "../../../services/fileSaveQueue"
 
 interface AIEditItem {
 	key: string
@@ -19,12 +28,7 @@ interface AIEditItem {
 }
 
 interface UseAIEditOptions {
-	currentFile?: {
-		file_id?: string
-		file_name?: string
-		relative_file_path?: string
-		file_extension?: string
-	}
+	currentFile?: FileReferenceSource
 	onActionComplete?: () => void
 	/** Trigger element inspector (HTML-only). When provided, a "Select Element" item is shown. */
 	onStartInspector?: () => void
@@ -34,64 +38,75 @@ export function useAIEdit(options: UseAIEditOptions = {}) {
 	const { currentFile, onActionComplete, onStartInspector } = options
 	const { t } = useTranslation("super")
 
-	// Base content structure for file mention
-	const baseContent = useMemo(() => {
-		if (!currentFile) return null
+	const currentFileRef = useRef(currentFile)
+	currentFileRef.current = currentFile
+	const requestRef = useRef<AbortController | null>(null)
+	useEffect(() => () => requestRef.current?.abort(), [currentFile?.file_id])
 
-		return {
-			type: "paragraph",
-			content: [
-				{
-					type: "text",
-					text: t("topicFiles.fileReadPrompt"),
-				},
-				{
-					type: "mention",
-					attrs: {
-						id: null,
-						label: null,
-						mentionSuggestionChar: "@",
-						type: "project_file",
-						data: {
-							file_id: currentFile.file_id,
-							file_name: currentFile.file_name,
-							file_path: currentFile.relative_file_path,
-							file_extension: currentFile.file_extension,
-						},
-					},
-				},
-				{
-					type: "text",
-					text: t("topicFiles.fileReadContentPrompt"),
-				},
-			],
-		}
-	}, [currentFile, t])
-
-	// Insert content to chat
+	// 引用解析期间切换文件、身份或对话时，不向新的输入框插入旧文件。
 	const insertContentToChat = useCallback(
-		(content: any, extraData?: any) => {
-			if (!baseContent) return
-
-			const { hasInput } = extraData || {}
-			pubsub.publish(PubSubEvents.Add_Content_To_Chat, {
-				content: {
-					type: "doc",
-					content: [
-						{
-							...baseContent,
-							content: [...baseContent.content, ...content],
-						},
-					],
-				},
-				extraData: {
-					hasInput,
-				},
-			})
-
-			onActionComplete?.()
+		async (content: JSONContent[], extraData?: { hasInput?: boolean }) => {
+			if (!currentFile) return
+			if (currentFile.file_id && !(await ensureFileSavesSynced([currentFile.file_id]))) return
+			const topicId = topicStore.selectedTopic?.id
+			const identity = getFileReferenceIdentityKey()
+			const isUserFile =
+				currentFile.file_reference?.space_type === "user" ||
+				currentFile.space_type === "user"
+			if (isUserFile && !topicId) {
+				magicToast.info(t("userSpace.openChatFirst"))
+				return
+			}
+			requestRef.current?.abort()
+			const controller = new AbortController()
+			requestRef.current = controller
+			const isCurrent = () =>
+				!controller.signal.aborted &&
+				currentFileRef.current?.file_id === currentFile.file_id &&
+				identity === getFileReferenceIdentityKey() &&
+				topicId === topicStore.selectedTopic?.id
+			try {
+				const mention = await createFileReferenceMention(
+					currentFile,
+					undefined,
+					controller.signal,
+				)
+				if (!isCurrent()) return
+				if (!mention) {
+					magicToast.error(t("common.fileNotFoundOrLoadFailed"))
+					return
+				}
+				pubsub.publish(PubSubEvents.Add_Content_To_Chat, {
+					content: {
+						type: "doc",
+						content: [
+							{
+								type: "paragraph",
+								content: [
+									{ type: "text", text: t("topicFiles.fileReadPrompt") },
+									{
+										type: "mention",
+										attrs: {
+											id: null,
+											label: null,
+											mentionSuggestionChar: "@",
+											...mention,
+										},
+									},
+									{ type: "text", text: t("topicFiles.fileReadContentPrompt") },
+									...content,
+								],
+							},
+						],
+					},
+					extraData: { hasInput: extraData?.hasInput },
+				})
+				onActionComplete?.()
+			} catch {
+				if (isCurrent()) magicToast.error(t("common.fileNotFoundOrLoadFailed"))
+			}
 		},
-		[baseContent, onActionComplete],
+		[currentFile, onActionComplete, t],
 	)
 
 	// Create action wrapper

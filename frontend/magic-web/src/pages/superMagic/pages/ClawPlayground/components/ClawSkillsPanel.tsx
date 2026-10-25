@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import type { CrewI18nText } from "@/apis/modules/crew"

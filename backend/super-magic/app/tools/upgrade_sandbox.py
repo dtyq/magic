@@ -18,8 +18,8 @@ from app.infrastructure.magic_service.sandbox_types import (
 )
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.tools.core.sandbox_rebuild_scheduler import (
-    SANDBOX_REBUILD_DELAY_SECONDS,
-    schedule_sandbox_rebuild,
+    SANDBOX_UPGRADE_DELAY_SECONDS,
+    schedule_sandbox_upgrade,
 )
 from app.tools.core.sandbox_tool_context import SandboxToolContext, get_sandbox_tool_context
 
@@ -62,7 +62,7 @@ class UpgradeSandbox(BaseTool[UpgradeSandboxParams]):
                 extra_info={"user_error": _translate("upgrade_sandbox.error")},
             )
 
-        if not version_info["needs_update"]:
+        if version_info["needs_update"] is False:
             result: SandboxUpgradeScheduleData = {
                 "sandbox_id": sandbox_context.sandbox_id,
                 "operation": "already_current",
@@ -71,15 +71,14 @@ class UpgradeSandbox(BaseTool[UpgradeSandboxParams]):
                 "needs_update": False,
                 "delay_seconds": 0,
             }
-            content = "The current sandbox is already using the latest Agent image. No restart was performed."
+            content = "The current sandbox is already using the latest sandbox images. No restart was performed."
         else:
-            delay_seconds = SANDBOX_REBUILD_DELAY_SECONDS
+            delay_seconds = SANDBOX_UPGRADE_DELAY_SECONDS
             try:
-                schedule_sandbox_rebuild(
+                schedule_sandbox_upgrade(
                     agent_context=sandbox_context.agent_context,
                     config=sandbox_context.config,
                     sandbox_id=sandbox_context.sandbox_id,
-                    operation="upgrade",
                     delay_seconds=delay_seconds,
                     logger=logger,
                 )
@@ -94,7 +93,7 @@ class UpgradeSandbox(BaseTool[UpgradeSandboxParams]):
                 "operation": "upgrade_scheduled",
                 "current_version": version_info["current_version"],
                 "latest_version": version_info["latest_version"],
-                "needs_update": True,
+                "needs_update": version_info["needs_update"],
                 "delay_seconds": delay_seconds,
             }
             content = (
@@ -136,7 +135,7 @@ class UpgradeSandbox(BaseTool[UpgradeSandboxParams]):
             f"- {_translate('sandbox.detail.operation')}: {_operation_label(info.get('operation'))}",
             f"- {_translate('sandbox.detail.current_version')}: {_display_value(info.get('current_version'))}",
             f"- {_translate('sandbox.detail.latest_version')}: {_display_value(info.get('latest_version'))}",
-            f"- {_translate('sandbox.detail.needs_update')}: {_yes_no(bool(info.get('needs_update')))}",
+            f"- {_translate('sandbox.detail.needs_update')}: {_yes_no(info.get('needs_update'))}",
             f"- {_translate('sandbox.detail.delay_seconds')}: {_display_value(info.get('delay_seconds'))}",
         ]
         return ToolDetail(
@@ -161,7 +160,7 @@ class UpgradeSandbox(BaseTool[UpgradeSandboxParams]):
             else:
                 remark = _translate(
                     "upgrade_sandbox.scheduled",
-                    delay_seconds=info.get("delay_seconds", SANDBOX_REBUILD_DELAY_SECONDS),
+                    delay_seconds=info.get("delay_seconds", SANDBOX_UPGRADE_DELAY_SECONDS),
                 )
         return {"tool_name": tool_name, "action": _action(tool_name), "remark": remark}
 
@@ -200,7 +199,9 @@ def _display_value(value: object) -> str:
     return f"`{text}`" if text else _translate("sandbox.detail.unknown")
 
 
-def _yes_no(value: bool) -> str:
+def _yes_no(value: object) -> str:
+    if value is None:
+        return _translate("sandbox.detail.unknown")
     return _translate("sandbox.detail.yes" if value else "sandbox.detail.no")
 
 

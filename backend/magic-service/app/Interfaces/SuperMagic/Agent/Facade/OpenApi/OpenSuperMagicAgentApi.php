@@ -51,6 +51,20 @@ class OpenSuperMagicAgentApi extends AbstractApi
         return $this->openDigitalEmployeeAppService->getDefaultConfig($this->getCurrentAuthorization(), $code);
     }
 
+    public function hireAgent(string $code): array
+    {
+        $this->superMagicAgentAppService->hireAgent($this->getCurrentAuthorization(), $code);
+
+        return [];
+    }
+
+    public function fireAgent(string $code): array
+    {
+        $result = $this->superMagicAgentAppService->delete($this->getCurrentAuthorization(), $code);
+
+        return ['success' => $result];
+    }
+
     private function getCurrentAuthorization(): MagicUserAuthorization
     {
         $authorization = RequestCoContext::getUserAuthorization();

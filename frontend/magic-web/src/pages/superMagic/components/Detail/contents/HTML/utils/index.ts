@@ -1,5 +1,10 @@
 import { env } from "@/utils/env"
+import { removeRuntimeNodes, SOURCE_NODE_ATTRIBUTE } from "@dtyq/html-sandbox"
 import { normalizeConflictingBackgroundDeclarations } from "./background-style"
+import { restoreHtmlLocationHref } from "./location-href-restore"
+import valueParser from "postcss-value-parser"
+import { isRootHtmlXhtmlNamespace, serializeHtmlDocument } from "./serializeHtmlDocument"
+export { isRootHtmlXhtmlNamespace, removeRootHtmlXhtmlNamespace } from "./serializeHtmlDocument"
 // import { getEditingScript } from "./editing-script"
 
 interface ShouldPromptForServerUpdateOptions {
@@ -18,7 +23,7 @@ interface AttemptHtmlSaveFlowOptions {
 	refreshServerUpdateState: () => Promise<boolean>
 	showConflictDialog: () => void
 	checkServerUpdateBeforeSave: () => boolean
-	performSave: () => Promise<void>
+	performSave: () => Promise<boolean | void>
 	exitEditMode?: () => void
 	onRefreshServerUpdateError?: (error: unknown) => void
 }
@@ -30,7 +35,7 @@ interface AttemptHtmlSaveFlowResult {
 
 interface ConfirmHtmlConflictSaveOptions {
 	shouldExitAfterSave?: boolean
-	performSave: () => Promise<void>
+	performSave: () => Promise<boolean | void>
 	exitEditMode?: () => void
 }
 
@@ -97,11 +102,12 @@ export async function attemptHtmlSaveFlow({
 		}
 	}
 
-	await performSave()
-	if (shouldExitAfterSave) exitEditMode?.()
+	const saveResult = await performSave()
+	const didSave = saveResult !== false
+	if (shouldExitAfterSave && didSave) exitEditMode?.()
 
 	return {
-		didSave: true,
+		didSave,
 		isAwaitingConflictConfirmation: false,
 	}
 }
@@ -111,8 +117,8 @@ export async function confirmHtmlConflictSave({
 	performSave,
 	exitEditMode,
 }: ConfirmHtmlConflictSaveOptions) {
-	await performSave()
-	if (shouldExitAfterSave) exitEditMode?.()
+	const saveResult = await performSave()
+	if (shouldExitAfterSave && saveResult !== false) exitEditMode?.()
 }
 
 // 外部资源URL
@@ -224,7 +230,7 @@ interface ResourceFileTypeInfo {
 	relative_file_path?: string
 }
 
-function getResourceContentType(file: ResourceFileTypeInfo, fallbackPath: string): string {
+export function getResourceContentType(file: ResourceFileTypeInfo, fallbackPath: string): string {
 	return getContentTypeFromExtension(
 		file.file_extension || file.file_name || file.relative_file_path || fallbackPath,
 	)
@@ -382,15 +388,20 @@ export function processSlidesArray(data: {
 export function extractUrlsFromCSS(cssContent: string): string[] {
 	const urls: string[] = []
 	try {
-		// Match url() functions in CSS, supporting both quoted and unquoted URLs
-		const urlRegex = /url\(\s*['"]?([^'")]+)['"]?\s*\)/gi
-		let match
-		while ((match = urlRegex.exec(cssContent)) !== null) {
-			const url = match[1].trim()
-			if (url) {
-				urls.push(url)
-			}
-		}
+		// Parse CSS values instead of using a regex: valid filenames may contain
+		// parentheses, quotes, escaped characters, or data-URL payloads.
+		valueParser(cssContent).walk((node) => {
+			if (node.type !== "function" || node.value.toLowerCase() !== "url") return
+			const content = node.nodes
+				.filter((child) => child.type !== "space" && child.type !== "comment")
+				.map((child) =>
+					child.type === "string" ? child.value : valueParser.stringify(child),
+				)
+				.join("")
+			const url = content.trim()
+			if (url) urls.push(url)
+			return false
+		})
 	} catch (error) {
 		console.error("Error extracting URLs from CSS:", error)
 	}
@@ -622,6 +633,19 @@ export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Docume
 			rewrite: (href, parsed) => {
 				const families = parseFontFamilies(parsed)
 				if (families.length === 0) return href.replace(parsed.hostname, "fonts.loli.net")
+
+				// The internal family asset is the full CJK stylesheet. The original CSS2 endpoint
+				// serves unicode-range WOFF2 slices; the legacy mirror can return full TTF files.
+				if (
+					parsed.pathname === "/css2" &&
+					families.some((family) => family.toLowerCase() === "noto sans sc")
+				) {
+					const mirroredUrl = new URL(parsed.toString())
+					mirroredUrl.hostname = "fonts.googleapis.com"
+					mirroredUrl.searchParams.set("display", "swap")
+					return mirroredUrl.toString()
+				}
+
 				return families.map(
 					(f) => cdnHost + "/google-fonts/css/woff2/" + toSafeFontName(f) + "_woff2.css",
 				)
@@ -736,6 +760,18 @@ export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Docume
 		)
 	}
 
+	function ensureFontDisplaySwap(style: HTMLStyleElement): void {
+		const styleContent = style.textContent || ""
+		if (!styleContent.includes("@font-face")) return
+
+		// Inline author styles are under our control; add the non-blocking fallback only when
+		// the author did not already choose an explicit font-display strategy.
+		style.textContent = styleContent.replace(
+			/(@font-face\s*\{)(?![^}]*font-display\s*:)/gi,
+			"$1\n\tfont-display: swap;",
+		)
+	}
+
 	const parser = new DOMParser()
 	const htmlDoc = parser.parseFromString(content, "text/html")
 
@@ -831,6 +867,7 @@ export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Docume
 
 	for (let i = 0; i < styleElements.length; i++) {
 		const style = styleElements[i]
+		ensureFontDisplaySwap(style)
 		applyGoogleRewriteToStyle(style)
 	}
 
@@ -840,51 +877,13 @@ export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Docume
 export const handleHtCdnUrl = (content: string) =>
 	rewriteHtmlCdnWithHost(content, env("MAGIC_CDNHOST") || "")
 
-function restoreSerializedEntitiesForCdnRewrite(html: string): string {
-	const ENTITY_PATTERN = /&(?:[a-z0-9]+|#\d+|#x[0-9a-f]+);/gi
-	const el = document.createElement("div")
-	return html.replace(ENTITY_PATTERN, (entity) => {
-		el.innerHTML = entity
-		return el.textContent ?? entity
-	})
-}
-
-/**
- * Removes only the XHTML namespace copied onto the root html element.
- * Namespaces inside SVG foreignObject content are valid markup and must remain intact.
- */
-export function isRootHtmlXhtmlNamespace(attr: Attr): boolean {
-	return attr.name === "xmlns" && attr.value === "http://www.w3.org/1999/xhtml"
-}
-
-/**
- * Cleans XMLSerializer's XHTML namespace side effect from the root html tag only.
- */
-export function removeRootHtmlXhtmlNamespace(html: string): string {
-	if (!html || typeof html !== "string") return html
-
-	return html.replace(/<html\b([^>]*)>/i, (match, attrs = "") => {
-		const cleanedAttrs = attrs.replace(
-			/\s+xmlns=(["'])http:\/\/www\.w3\.org\/1999\/xhtml\1/i,
-			"",
-		)
-		return `<html${cleanedAttrs}>`
-	})
-}
-
-function serializeCdnRewrittenDocument(doc: Document): string {
-	return removeRootHtmlXhtmlNamespace(
-		restoreSerializedEntitiesForCdnRewrite(new XMLSerializer().serializeToString(doc)),
-	)
-}
-
 const REWRITE_HTML_WITH_MAGIC_CDN_CACHE_MAX = 64
 const rewriteHtmlWithMagicCdnCache = new Map<string, string>()
 
 /**
  * 仅对 HTML 做麦吉 CDN 外链替换（handleHtCdnUrl：script / link 等），
  * 不处理附件、相对路径。用于消息列表 HTML 预览等无附件场景。
- * 序列化方式与 htmlProcessor 内 serializeDocToHtml 一致。
+ * 与 htmlProcessor 共用 HTML 序列化，保留文本／属性实体及 script/style 原始内容。
  * 对相同输入字符串做有界缓存，避免在电脑/移动端预览间切换时重复执行 handleHtCdnUrl。
  */
 export function rewriteHtmlWithMagicCdn(html: string): string {
@@ -895,7 +894,7 @@ export function rewriteHtmlWithMagicCdn(html: string): string {
 
 	try {
 		const htmlDoc = handleHtCdnUrl(html)
-		const result = serializeCdnRewrittenDocument(htmlDoc)
+		const result = serializeHtmlDocument(htmlDoc)
 		rewriteHtmlWithMagicCdnCache.set(html, result)
 		if (rewriteHtmlWithMagicCdnCache.size > REWRITE_HTML_WITH_MAGIC_CDN_CACHE_MAX) {
 			const oldestKey = rewriteHtmlWithMagicCdnCache.keys().next().value
@@ -1015,6 +1014,8 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 		// 使用DOMParser解析HTML字符串
 		const parser = new DOMParser()
 		const doc = parser.parseFromString(htmlString, "text/html")
+		removeRuntimeNodes(doc)
+		restoreHtmlLocationHref(doc)
 
 		// 移除所有带有 data-injected 或历史 data-runtime 标记的元素
 		const injectedElements = doc.querySelectorAll("[data-injected], [data-runtime]")
@@ -1065,11 +1066,13 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 		const allElements = doc.querySelectorAll("*")
 		allElements.forEach((element) => {
 			// 移除编辑相关的 data 属性
+			element.removeAttribute(SOURCE_NODE_ATTRIBUTE)
 			element.removeAttribute("data-hover-toolbar")
 			element.removeAttribute("data-resize-handles")
 			element.removeAttribute("data-resize-handle")
 			element.removeAttribute("data-drag-handle")
 			element.removeAttribute("data-ai-dropdown")
+			element.removeAttribute("data-magic-ppt-build-hidden")
 			element.removeAttribute("data-ppt-editable")
 			element.removeAttribute("data-listener-added")
 
@@ -1365,6 +1368,7 @@ function filterInjectedTagsWithRegex(htmlString: string): string {
 	// 移除所有剩余的 data-injected / data-runtime 属性（不管值是什么）
 	result = result.replace(/\s+data-injected\s*=\s*["'][^"']*["']/gi, "")
 	result = result.replace(/\s+data-runtime\s*=\s*["'][^"']*["']/gi, "")
+	result = result.replace(/\s+data-magic-source-node(?:\s*=\s*["'][^"']*["'])?/gi, "")
 
 	// 清理遗留的键盘拦截器脚本（无 data-injected 属性的历史脚本）
 	result = result.replace(

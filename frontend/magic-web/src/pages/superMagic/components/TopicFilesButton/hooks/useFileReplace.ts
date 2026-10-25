@@ -13,6 +13,7 @@ import { SuperMagicApi } from "@/apis"
 import type { FileScope } from "@/apis/modules/fileScope"
 
 interface UseFileReplaceOptions {
+	beforeReplace?: (item: AttachmentItem, file: File) => Promise<boolean>
 	projectId?: string
 	/** 文件上传凭证所属的特殊空间。 */
 	fileScope?: FileScope
@@ -24,6 +25,7 @@ interface UseFileReplaceOptions {
  * 文件替换功能的共享 hook
  */
 export function useFileReplace({
+	beforeReplace,
 	projectId,
 	fileScope,
 	selectedProject,
@@ -45,6 +47,7 @@ export function useFileReplace({
 		}
 
 		try {
+			if (beforeReplace && !(await beforeReplace(item, newFile))) return
 			// 使用新的对象数组格式，传递自定义fileKey
 			const filesWithKeys: UploadFileWithKey[] = [
 				{
@@ -98,6 +101,7 @@ export function useFileReplace({
 	const handleReplaceFile = (item: AttachmentItem) => {
 		const input = document.createElement("input")
 		input.type = "file"
+		if (beforeReplace) input.oncancel = () => input.remove()
 		input.multiple = false
 		input.style.display = "none"
 		// 设置 accept 属性，限制只能选择兼容类型的文件

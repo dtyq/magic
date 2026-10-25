@@ -3,29 +3,33 @@ import type {
 	CanvasDesignRef,
 	CanvasResourceRefreshItem,
 } from "@/components/CanvasDesign/public/props"
+import type { Canvas } from "@/components/CanvasDesign/runtime/core/Canvas"
 import {
 	ElementTypeEnum,
+	type AudioElement,
 	type CanvasDocument,
 	type ImageElement,
 	type LayerElement,
 	type VideoElement,
 } from "@/components/CanvasDesign/runtime/document/types"
+import {
+	getActiveContent,
+	getActiveImageContent,
+} from "@/components/CanvasDesign/runtime/document/elementContent"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { SuperMagicFileChangeMessage } from "@/types/chat/intermediate_message"
 import type { SeqResponse } from "@/types/request"
-import { resolveDesignAttachment, toWorkspaceRelativeCandidates } from "../utils/designPath"
-import {
-	findAttachmentByNormalizedWorkspacePath,
-	normalizeCanvasAttachmentLookupPath,
-	type DesignAttachmentIndex,
-} from "../utils/designAttachmentIndex"
+import type { DesignAttachmentIndex } from "../utils/designAttachmentIndex"
 import { registerWaitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
+import { resolveDesignCanvasResourceReference } from "../utils/designResourceReferenceResolver"
+import { normalizePathSeparators } from "@/components/CanvasDesign/runtime/shared/path/canvasResourcePath"
 
 interface UseCanvasResourceRefreshOptions {
 	canvasDesignRef: RefObject<CanvasDesignRef | null>
 	canvas?: CanvasDocument
 	flatAttachments?: FileItem[]
+	attachmentsReady?: boolean
 	attachmentIndex?: DesignAttachmentIndex | null
 	designProjectBasePath?: string
 	projectId?: string
@@ -38,6 +42,7 @@ export function useCanvasResourceRefresh(options: UseCanvasResourceRefreshOption
 		canvasDesignRef,
 		canvas,
 		flatAttachments,
+		attachmentsReady,
 		attachmentIndex,
 		designProjectBasePath,
 		projectId,
@@ -47,9 +52,12 @@ export function useCanvasResourceRefresh(options: UseCanvasResourceRefreshOption
 	const resourceSnapshotRef = useRef<CanvasResourceSnapshotState | null>(null)
 
 	useEffect(() => {
+		const canvasInstance = canvasDesignRef.current?.getCanvasInstance() ?? undefined
 		const nextSnapshot = buildCanvasResourceSnapshot({
 			canvas,
+			canvasInstance,
 			flatAttachments,
+			attachmentsReady,
 			attachmentIndex,
 			designProjectBasePath,
 		})
@@ -72,6 +80,7 @@ export function useCanvasResourceRefresh(options: UseCanvasResourceRefreshOption
 		canvasDesignRef,
 		designProjectBasePath,
 		flatAttachments,
+		attachmentsReady,
 		attachmentIndex,
 		isNewestVersion,
 		isPlaybackMode,
@@ -86,8 +95,16 @@ export function useCanvasResourceRefresh(options: UseCanvasResourceRefreshOption
 			if (!Array.isArray(messageData.changes) || messageData.changes.length === 0) return
 			if (!isNewestVersion || isPlaybackMode) return
 
-			const snapshot = resourceSnapshotRef.current
-			if (!snapshot?.items.size) return
+			const snapshot = buildCanvasResourceSnapshot({
+				canvas,
+				canvasInstance: canvasDesignRef.current?.getCanvasInstance() ?? undefined,
+				flatAttachments,
+				attachmentsReady,
+				attachmentIndex,
+				designProjectBasePath,
+			})
+			resourceSnapshotRef.current = snapshot
+			if (!snapshot.items.size) return
 
 			const changedResources = getChangedCanvasResourcesFromFileChanges(
 				messageData.changes,
@@ -114,72 +131,143 @@ export function useCanvasResourceRefresh(options: UseCanvasResourceRefreshOption
 				handleFileChangeIntermediate,
 			)
 		}
-	}, [canvasDesignRef, isNewestVersion, isPlaybackMode, projectId])
+	}, [
+		canvas,
+		canvasDesignRef,
+		flatAttachments,
+		attachmentsReady,
+		attachmentIndex,
+		designProjectBasePath,
+		isNewestVersion,
+		isPlaybackMode,
+		projectId,
+	])
 }
 
-function buildCanvasResourceSnapshot(params: {
+export function buildCanvasResourceSnapshot(params: {
 	canvas?: CanvasDocument
+	canvasInstance?: Canvas
 	flatAttachments?: FileItem[]
+	attachmentsReady?: boolean
 	attachmentIndex?: DesignAttachmentIndex | null
 	designProjectBasePath?: string
 }): CanvasResourceSnapshotState {
-	const { canvas, flatAttachments, attachmentIndex, designProjectBasePath } = params
+	const {
+		canvas,
+		canvasInstance,
+		flatAttachments,
+		attachmentsReady,
+		attachmentIndex,
+		designProjectBasePath,
+	} = params
 	const items = new Map<string, CanvasResourceSnapshot>()
+	const itemsByReference = new Map<string, CanvasResourceSnapshot>()
 
 	collectCanvasResourceSnapshots({
 		elements: canvas?.elements,
+		canvasInstance,
 		flatAttachments,
+		attachmentsReady,
 		attachmentIndex,
 		designProjectBasePath,
-		snapshot: items,
+		items,
+		itemsByReference,
 	})
 
 	return {
 		items,
-		resourcesByResolvedPath: buildResourcesByResolvedPathIndex(items),
+		itemsByReference,
+		resourcesByResolvedPath: buildResourcesByResolvedPathIndex(itemsByReference),
 	}
 }
 
 function collectCanvasResourceSnapshots(params: {
 	elements?: LayerElement[]
+	canvasInstance?: Canvas
 	flatAttachments?: FileItem[]
+	attachmentsReady?: boolean
 	attachmentIndex?: DesignAttachmentIndex | null
 	designProjectBasePath?: string
-	snapshot: Map<string, CanvasResourceSnapshot>
+	items: Map<string, CanvasResourceSnapshot>
+	itemsByReference: Map<string, CanvasResourceSnapshot>
 }): void {
-	const { elements, flatAttachments, attachmentIndex, designProjectBasePath, snapshot } = params
+	const {
+		elements,
+		canvasInstance,
+		flatAttachments,
+		attachmentsReady,
+		attachmentIndex,
+		designProjectBasePath,
+		items,
+		itemsByReference,
+	} = params
 	if (!elements?.length) return
 
 	for (const element of elements) {
 		if (element.type === ElementTypeEnum.Image) {
 			addCanvasResourceSnapshot({
-				src: (element as ImageElement).src,
+				src:
+					(
+						canvasInstance?.getEffectiveContent(element.id) as
+							| { src?: string }
+							| undefined
+					)?.src ?? getActiveImageContent(element as ImageElement).src,
 				mediaType: "image",
 				flatAttachments,
+				attachmentsReady,
 				attachmentIndex,
 				designProjectBasePath,
-				snapshot,
+				items,
+				itemsByReference,
 			})
 		}
 
 		if (element.type === ElementTypeEnum.Video) {
 			addCanvasResourceSnapshot({
-				src: (element as VideoElement).src,
+				src:
+					(
+						canvasInstance?.getEffectiveContent(element.id) as
+							| { src?: string }
+							| undefined
+					)?.src ?? getActiveContent(element as VideoElement)?.src,
 				mediaType: "video",
 				flatAttachments,
+				attachmentsReady,
 				attachmentIndex,
 				designProjectBasePath,
-				snapshot,
+				items,
+				itemsByReference,
+			})
+		}
+
+		if (element.type === ElementTypeEnum.Audio) {
+			addCanvasResourceSnapshot({
+				src:
+					(
+						canvasInstance?.getEffectiveContent(element.id) as
+							| { src?: string }
+							| undefined
+					)?.src ?? getActiveContent(element as AudioElement)?.src,
+				mediaType: "audio",
+				flatAttachments,
+				attachmentsReady,
+				attachmentIndex,
+				designProjectBasePath,
+				items,
+				itemsByReference,
 			})
 		}
 
 		if ("children" in element) {
 			collectCanvasResourceSnapshots({
 				elements: element.children,
+				canvasInstance,
 				flatAttachments,
+				attachmentsReady,
 				attachmentIndex,
 				designProjectBasePath,
-				snapshot,
+				items,
+				itemsByReference,
 			})
 		}
 	}
@@ -189,61 +277,85 @@ function addCanvasResourceSnapshot(params: {
 	src?: string
 	mediaType: CanvasResourceRefreshItem["mediaType"]
 	flatAttachments?: FileItem[]
+	attachmentsReady?: boolean
 	attachmentIndex?: DesignAttachmentIndex | null
 	designProjectBasePath?: string
-	snapshot: Map<string, CanvasResourceSnapshot>
+	items: Map<string, CanvasResourceSnapshot>
+	itemsByReference: Map<string, CanvasResourceSnapshot>
 }): void {
-	const { src, mediaType, flatAttachments, attachmentIndex, designProjectBasePath, snapshot } =
-		params
+	const {
+		src,
+		mediaType,
+		flatAttachments,
+		attachmentsReady,
+		attachmentIndex,
+		designProjectBasePath,
+		items,
+		itemsByReference,
+	} = params
 	if (!src) return
 
 	const resourcePath = normalizeCanvasResourcePath(src)
 	if (!resourcePath) return
 
-	const resolvedAttachment = resolveDesignAttachment(
+	const resolution = resolveDesignCanvasResourceReference(
 		src,
 		{
 			flatAttachments,
+			attachmentsReady,
 			attachmentIndex,
 			designProjectBasePath,
 		},
-		{ mode: "strict-current-canvas" },
+		{ requireAttachment: true },
 	)
-	const resolvedCandidates = toWorkspaceRelativeCandidates(src, {
-		designProjectBasePath,
-	})
+	if (
+		resolution.status === "resolved" &&
+		(resolution.resourceKind === "external" || resolution.resourceKind === "opaque-asset")
+	)
+		return
+
 	const resolvedPath =
-		resolvedAttachment.status === "found"
-			? resolvedAttachment.resolvedPath
-			: (resolvedCandidates[0] ?? src)
-	const attachment =
-		resolvedAttachment.status === "found"
-			? resolvedAttachment.fileItem
-			: findCanvasResourceAttachment(resolvedPath, flatAttachments, attachmentIndex)
-	const key = `${mediaType}\0${resourcePath}`
+		resolution.status === "resolved" && resolution.workspacePath
+			? normalizeCanvasResourcePath(resolution.workspacePath)
+			: resourcePath
+	const identity =
+		resolution.status === "resolved"
+			? resolution.identity
+			: `unresolved:${normalizePathSeparators(src.trim())}`
+	const attachmentId = resolution.status === "resolved" ? resolution.attachmentId : undefined
+	const attachment = attachmentId
+		? (attachmentIndex?.byFileId.get(attachmentId) ??
+			flatAttachments?.find((item) => item.file_id === attachmentId))
+		: undefined
+	const identityKey = `${mediaType}\0${identity}`
+	const referenceKey = `${mediaType}\0${normalizePathSeparators(src.trim())}`
 	const signature = [
-		normalizeCanvasResourcePath(resolvedPath),
-		attachment?.file_id ?? "",
+		resolution.status,
+		identity,
+		resolvedPath,
+		attachmentId ?? "",
 		attachment?.updated_at ?? "",
 		attachment?.file_size ?? "",
 	].join("\0")
 
-	snapshot.set(key, {
+	const snapshot = {
 		path: src,
-		resolvedPath: normalizeCanvasResourcePath(resolvedPath),
+		resolvedPath,
 		mediaType,
 		signature,
-	})
+	}
+	items.set(identityKey, snapshot)
+	itemsByReference.set(referenceKey, snapshot)
 }
 
-function getChangedCanvasResources(
+export function getChangedCanvasResources(
 	previousSnapshot: CanvasResourceSnapshotState,
 	nextSnapshot: CanvasResourceSnapshotState,
 ): CanvasResourceRefreshItem[] {
 	const changedMap = new Map<string, CanvasResourceRefreshItem>()
 
-	nextSnapshot.items.forEach((nextItem, key) => {
-		const previousItem = previousSnapshot.items.get(key)
+	nextSnapshot.itemsByReference.forEach((nextItem, key) => {
+		const previousItem = previousSnapshot.itemsByReference.get(key)
 		if (!previousItem) return
 		if (previousItem.signature === nextItem.signature) return
 
@@ -256,7 +368,7 @@ function getChangedCanvasResources(
 	return Array.from(changedMap.values())
 }
 
-function getChangedCanvasResourcesFromFileChanges(
+export function getChangedCanvasResourcesFromFileChanges(
 	changes: SuperMagicFileChangeMessage["changes"],
 	snapshot: CanvasResourceSnapshotState,
 ): CanvasResourceRefreshItem[] {
@@ -294,28 +406,6 @@ function buildResourcesByResolvedPathIndex(
 	return index
 }
 
-function findCanvasResourceAttachment(
-	resolvedPath: string,
-	flatAttachments?: FileItem[],
-	attachmentIndex?: DesignAttachmentIndex | null,
-): FileItem | null {
-	const normalizedTargetPath = normalizeCanvasAttachmentLookupPath(resolvedPath)
-	if (!normalizedTargetPath) return null
-
-	const indexed = findAttachmentByNormalizedWorkspacePath(attachmentIndex, normalizedTargetPath)
-	if (indexed) return indexed
-
-	return (
-		flatAttachments?.find((item) => {
-			if (item.is_directory) return false
-			return (
-				normalizeCanvasAttachmentLookupPath(item.relative_file_path || "") ===
-				normalizedTargetPath
-			)
-		}) ?? null
-	)
-}
-
 function normalizeCanvasResourcePath(path?: string): string {
 	if (!path) return ""
 	return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
@@ -323,15 +413,16 @@ function normalizeCanvasResourcePath(path?: string): string {
 
 function isDesignMediaResourcePath(path: string): boolean {
 	const parts = normalizeCanvasResourcePath(path).split("/")
-	return parts.includes("images") || parts.includes("videos")
+	return parts.includes("images") || parts.includes("videos") || parts.includes("audios")
 }
 
-interface CanvasResourceSnapshot extends CanvasResourceRefreshItem {
+export interface CanvasResourceSnapshot extends CanvasResourceRefreshItem {
 	resolvedPath: string
 	signature: string
 }
 
-interface CanvasResourceSnapshotState {
+export interface CanvasResourceSnapshotState {
 	items: Map<string, CanvasResourceSnapshot>
+	itemsByReference: Map<string, CanvasResourceSnapshot>
 	resourcesByResolvedPath: Map<string, CanvasResourceSnapshot[]>
 }

@@ -19,6 +19,7 @@ use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\ModelGateway\Event\ImageOperationCompletedEvent;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Domain\ModelGateway\Service\ApplicationDomainService;
@@ -29,6 +30,7 @@ use App\Domain\ModelGateway\Service\UserConfigDomainService;
 use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Domain\Provider\Service\ProviderModelDomainService;
+use App\Domain\SuperMagic\Agent\Service\MagicClawRuntimePolicyDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\FileUrlProxy\TemporaryFileUrlProxyManager;
@@ -70,7 +72,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         $this->logger = $this->loggerFactory->get(static::class);
     }
 
-    public function createModelGatewayDataIsolationByAccessToken(string $inputAccessToken, array $businessParams = []): ModelGatewayDataIsolation
+    public function createModelGatewayDataIsolationByAccessToken(string $inputAccessToken, array $businessParams = [], bool $enforceRuntimePermission = true): ModelGatewayDataIsolation
     {
         if (empty($inputAccessToken)) {
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
@@ -111,13 +113,13 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
             $dataIsolation->setAppId($accessToken->getRelationId());
             $taskId = $this->getBusinessParam('magic_task_id', '', $businessParams);
             if (! empty($taskId)) {
-                $dataIsolation->setSourceId('super_magic');
+                $dataIsolation->setSourceId(SourceId::SUPER_MAGIC);
                 $dataIsolation->setBusinessId($taskId);
             }
         }
 
         if ($accessToken->getType()->isUser()) {
-            $dataIsolation->setSourceId('api_platform');
+            $dataIsolation->setSourceId(SourceId::API_PLATFORM);
         }
 
         // 设置业务参数
@@ -127,6 +129,9 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
             $dataIsolation->getSubscriptionManager()->setEnabled(false);
         }
 
+        if ($enforceRuntimePermission) {
+            di(MagicClawRuntimePolicyDomainService::class)->assertModelInvocation($dataIsolation, $businessParams);
+        }
         return $dataIsolation;
     }
 

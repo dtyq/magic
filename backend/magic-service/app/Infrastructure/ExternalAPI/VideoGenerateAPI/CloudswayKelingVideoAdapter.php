@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\ErrorCode\VideoGenerateErrorCode;
 use Hyperf\Contract\TranslatorInterface;
 
 readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
@@ -88,20 +89,15 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
             ],
             'generation' => [
                 'aspect_ratios' => self::SUPPORTED_ASPECT_RATIOS,
-                'durations' => self::SUPPORTED_DURATIONS,
+                'duration_type' => 'range',
+                'durations' => ['min' => 3, 'max' => 15, 'step' => 1],
                 'default_duration_seconds' => 5,
                 'resolutions' => self::SUPPORTED_RESOLUTIONS,
                 'sizes' => self::SUPPORTED_SIZES,
                 'default_resolution' => self::MODE_TO_RESOLUTION[self::DEFAULT_MODE],
-                'supports_seed' => false,
                 'supports_watermark' => true,
                 'supports_negative_prompt' => true,
                 'supports_generate_audio' => true,
-                'supports_person_generation' => false,
-                'supports_enhance_prompt' => false,
-                'supports_compression_quality' => false,
-                'supports_resize_mode' => false,
-                'supports_sample_count' => false,
             ],
             'input_modes' => [
                 'standard' => [
@@ -231,9 +227,7 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
             $response['data']['id'] ?? null,
         );
         if ($taskId === null) {
-            throw new ProviderVideoException(
-                $this->extractProviderMessage($response, 'cloudsway keling submit succeeded but task id missing')
-            );
+            throw new ProviderVideoException(VideoGenerateErrorCode::GENERAL_ERROR, VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
         }
 
         return $taskId;
@@ -273,11 +267,10 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
             'output' => $videoUrl === null ? [] : [
                 'video_url' => $videoUrl,
                 'provider_task_id' => $providerTaskId,
-                'provider_base_url' => rtrim($config->getBaseUrl(), '/'),
             ],
             'error' => in_array($status, ['failed', 'error'], true) ? [
                 'code' => 'PROVIDER_FAILED',
-                'message' => $this->firstNonEmptyString($data['task_status_msg'] ?? null, $detail['message'] ?? null, 'video generation failed') ?? 'video generation failed',
+                'message' => VideoGenerateErrorCode::GENERAL_ERROR->getMessage(),
                 'provider_code' => isset($detail['code']) ? (string) $detail['code'] : null,
             ] : null,
         ];

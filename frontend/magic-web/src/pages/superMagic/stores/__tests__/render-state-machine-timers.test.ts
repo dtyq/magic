@@ -210,7 +210,9 @@ function getProjectedNode(
 	store: SuperMagicStore,
 	superMessageId = SUPER_MESSAGE_A,
 ): ProjectedNode | undefined {
-	const node = store.getRenderedMessageNode(superMessageId)
+	// Render-state lookup is Topic-scoped; these helpers exercise the active Topic A unless a
+	// test explicitly uses the store API with another Topic.
+	const node = store.getRenderedMessageNode(superMessageId, TOPIC_A)
 	return node && typeof node === "object" ? (node as ProjectedNode) : undefined
 }
 
@@ -1042,7 +1044,7 @@ describe("SuperMagicStore / 渲染状态机与 Timer", () => {
 		expect(getProjectedNode(store)?.content?.length).toBeGreaterThan(firstFrameLength)
 	})
 
-	it("Final 控制面结算不等待 timer，buffer 立即排空且视觉补齐独立推进。", () => {
+	it("Final 插入活动 transport 时保留 StreamState，直到 finish_reason 后再结算。", () => {
 		const store = createStore()
 
 		for (let index = 0; index < 5; index += 1) {
@@ -1061,8 +1063,19 @@ describe("SuperMagicStore / 渲染状态机与 Timer", () => {
 			}),
 		)
 
-		expect(store.getStreamState(TOPIC_A, CORRELATION_A)).toBeUndefined()
+		expect(store.getStreamState(TOPIC_A, CORRELATION_A)).toBeDefined()
+		expect(store.getStreamState(TOPIC_A, CORRELATION_A)?.content).toBe("12345")
 		expect(store.buffer.get(TOPIC_A)?.messages).toHaveLength(0)
+		store.receiveChunk(
+			createChunk({
+				i: 5,
+				correlationId: CORRELATION_A,
+				content: "6789",
+				finishReason: "stop",
+			}),
+		)
+
+		expect(store.getStreamState(TOPIC_A, CORRELATION_A)).toBeUndefined()
 		expect(store.getMessageNode(SUPER_MESSAGE_A)).toMatchObject({ content: "123456789" })
 		advanceRendering(200)
 

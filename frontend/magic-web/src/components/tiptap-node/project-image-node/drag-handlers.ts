@@ -1,5 +1,5 @@
-import { TextSelection } from "@tiptap/pm/state"
-import type { EditorView } from "@tiptap/pm/view"
+import { TextSelection } from "@/infrastructure/editors/tiptap/pm-state"
+import type { EditorView } from "@/infrastructure/editors/tiptap/pm-view"
 import {
 	TabDragData,
 	AttachmentDragData,
@@ -161,9 +161,7 @@ export function handleCustomDragData(
 
 	try {
 		const parsedData = JSON.parse(customData) as
-			| TabDragData
-			| AttachmentDragData
-			| MultipleFilesDragData
+			TabDragData | AttachmentDragData | MultipleFilesDragData
 
 		let result = null
 		switch (parsedData.type) {

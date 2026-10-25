@@ -90,7 +90,13 @@ export default memo(function Share(props: ShareProps) {
 					resource_type: ResourceType.Topic, // 5 = Topic
 					share_type: type,
 					expire_days: shareExpiry === null ? undefined : shareExpiry,
-					password: extraData?.passwordEnabled ? extraData.password : undefined,
+					...(type === ShareType.Organization
+						? {}
+						: {
+								password: extraData?.passwordEnabled
+									? extraData.password
+									: undefined,
+							}),
 					topic_id: resourceId, // topicId = resourceId for topic sharing
 					extra: {
 						allow_copy_project_files: extraData?.allowCopy ?? true,
@@ -144,6 +150,14 @@ export default memo(function Share(props: ShareProps) {
 			} else {
 				if (onChangeType) {
 					onChangeType(newType)
+				}
+				// Organization / OnlySelf: clear passwordEnabled so leftover password
+				// from a previous PasswordProtected selection is not shown or copied.
+				if (setExtraData) {
+					setExtraData({
+						...(extraData || {}),
+						passwordEnabled: false,
+					})
 				}
 			}
 		},

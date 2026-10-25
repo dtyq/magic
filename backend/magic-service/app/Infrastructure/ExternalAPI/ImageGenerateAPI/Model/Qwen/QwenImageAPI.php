@@ -21,7 +21,7 @@ class QwenImageAPI
 {
     use ImagePayloadLogSanitizerTrait;
 
-    private const REQUEST_TIMEOUT = 120;
+    private const REQUEST_TIMEOUT = 1200;
 
     protected LoggerInterface $logger;
 
@@ -43,7 +43,7 @@ class QwenImageAPI
             $baseUrl = 'https://dashscope.aliyuncs.com/api/v1';
         }
 
-        if (str_ends_with($baseUrl, '/api/v1')) {
+        if (str_ends_with($baseUrl, '/v1')) {
             $baseUrl .= '/services/aigc/multimodal-generation/generation';
         }
 

@@ -8,7 +8,7 @@
 
 import type { RuntimePlugin } from "../RuntimePlugin"
 import { runtimeLoggerHub, type RuntimeLogger } from "../RuntimeLogger"
-import { getParentOrigin } from "../../utils/parentOrigin"
+import { isFromTrustedParent, postMessageToParent } from "../../utils/parentOrigin"
 
 export abstract class BaseRuntimeBridgeApiPlugin implements RuntimePlugin {
 	protected readonly logger: RuntimeLogger
@@ -20,6 +20,11 @@ export abstract class BaseRuntimeBridgeApiPlugin implements RuntimePlugin {
 
 	abstract install(): void
 
+	/** Use the shell's captured native parent, even after DevTools proxies window.parent. */
+	protected isHostMessage(event: MessageEvent): boolean {
+		return isFromTrustedParent(event)
+	}
+
 	/**
 	 * 向宿主窗口发起一次 postMessage 请求并等待响应。
 	 *
@@ -28,12 +33,14 @@ export abstract class BaseRuntimeBridgeApiPlugin implements RuntimePlugin {
 	 * @param timeout       超时毫秒数，默认 15000ms
 	 * @param extractResult 从响应数据中提取结果的函数；
 	 *                      若不传则默认取 `data.content ?? data`
+	 * @param transfer      可转移对象列表，用于 ArrayBuffer 等二进制数据的一次性传输
 	 */
 	protected request<T>(
 		type: string,
 		payload: Record<string, unknown>,
 		timeout = 15000,
 		extractResult?: (data: Record<string, unknown>) => T,
+		transfer?: Transferable[],
 	): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
 			const requestId = `${type}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
@@ -56,6 +63,7 @@ export abstract class BaseRuntimeBridgeApiPlugin implements RuntimePlugin {
 			}, timeout)
 
 			const handler = (event: MessageEvent<Record<string, unknown>>) => {
+				if (!this.isHostMessage(event)) return
 				if (!event.data || event.data["requestId"] !== requestId) return
 				if (event.data["type"] !== responseType) return
 				clearTimeout(timer)
@@ -92,7 +100,16 @@ export abstract class BaseRuntimeBridgeApiPlugin implements RuntimePlugin {
 				}
 			}
 			window.addEventListener("message", handler)
-			window.parent.postMessage({ type, requestId, ...payload }, getParentOrigin())
+			try {
+				postMessageToParent({ type, requestId, ...payload }, transfer)
+			} catch (error) {
+				// Structured cloning can throw synchronously. A rejected request must
+				// not retain a listener and later emit a spurious timeout.
+				clearTimeout(timer)
+				window.removeEventListener("message", handler)
+				this.logger.error("request:failure", { type, requestId, error: String(error) })
+				reject(error)
+			}
 		})
 	}
 }

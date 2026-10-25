@@ -30,9 +30,6 @@ return new class extends Migration {
             $table->string('work_dir', 255)->comment('工作区目录');
             $table->timestamps();
             $table->softDeletes();
-
-            // 创建索引
-            $table->index(['user_id', 'workspace_id'], 'idx_user_workspace');
         });
     }
 

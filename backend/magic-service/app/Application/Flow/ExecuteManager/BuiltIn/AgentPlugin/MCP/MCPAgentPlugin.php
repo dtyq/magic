@@ -81,7 +81,7 @@ class MCPAgentPlugin extends AbstractAgentPlugin
                 if ($serverConfig->getRequireFields()) {
                     continue;
                 }
-                if ($serverConfig->getAuthType()->isOAuth2()) {
+                if ($serverConfig->getAuthType()->isOAuth2() || $serverConfig->getAuthType()->isMcpAuthorization()) {
                     continue;
                 }
             }

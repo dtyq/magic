@@ -1,4 +1,4 @@
-import type { HtmlSandboxTelemetryPayload } from "@dtyq/html-sandbox/telemetry"
+import type { HtmlSandboxTelemetryPayload } from "@dtyq/html-sandbox"
 
 export const HTML_IFRAME_RENDER_LIFECYCLE_EVENT = "html_iframe_render_lifecycle"
 export const IFRAME_RENDER_TIMEOUT_MS = 30_000
@@ -26,9 +26,7 @@ export type IframeRenderLifecycleStage =
 	| "timeout"
 
 export type IframeRenderFailureType =
-	| "runtime_error"
-	| "resource_load_failed"
-	| "nested_iframe_failed"
+	"runtime_error" | "resource_load_failed" | "nested_iframe_failed"
 
 export interface IframeRenderLifecycleSource {
 	depth: number

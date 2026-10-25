@@ -1,6 +1,6 @@
 import type { MenuProps } from "antd"
 import { type ReactNode, useCallback, useMemo, useState } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import ImportSkillDialog from "@/pages/superMagic/components/ImportSkillDialog"
 import ImportSkillPublishPromptDialog from "@/pages/superMagic/components/ImportSkillPublishPromptDialog"

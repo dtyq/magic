@@ -31,9 +31,10 @@ export const Wrap = styled.div`
 			color: #333333!important;
 			height: 42px;
 			overflow: hidden;
-			.anticon {
-				font-size: 18px!important;
-				line-height: none;
+			svg {
+				width: 18px!important;
+				height: 18px!important;
+				flex: 0 0 18px;
 			}
 			.select, .next {
 				display: none;
@@ -58,7 +59,7 @@ export const Wrap = styled.div`
 				display: flex;
 				align-items: center;
 				width: calc(100% - 55px);
-				.anticon {
+				svg {
 					margin-right: 5px;
 				}
 				.text {

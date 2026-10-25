@@ -1,6 +1,5 @@
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { useGlobalLanguage, useSupportLanguageOptions } from "@/models/config/hooks"
-import { Flex } from "antd"
 import { ItemType } from "antd/es/menu/interface"
 import { useMemo } from "react"
 
@@ -22,12 +21,12 @@ function useLanguageOptions() {
 			acc.push({
 				key: item.value,
 				label: (
-					<Flex style={{ width: "100%" }} align="center" justify="space-between">
+					<div className="flex w-full items-center justify-between">
 						<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
 							{label}
 						</span>
 						{item.value === language && <Checkbox checked />}
-					</Flex>
+					</div>
 				),
 			})
 

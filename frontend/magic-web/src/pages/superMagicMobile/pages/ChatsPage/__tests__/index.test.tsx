@@ -9,6 +9,8 @@ const {
 	reloadMock,
 	optimisticRemoveMock,
 	optimisticUpdatePinMock,
+	openProjectDeleteConfirmMock,
+	useProjectListActionsMock,
 	locationStateMock,
 	navigateMock,
 } = vi.hoisted(() => ({
@@ -18,6 +20,8 @@ const {
 	reloadMock: vi.fn(),
 	optimisticRemoveMock: vi.fn(),
 	optimisticUpdatePinMock: vi.fn(),
+	openProjectDeleteConfirmMock: vi.fn(),
+	useProjectListActionsMock: vi.fn(),
 	locationStateMock: {
 		current: null as null | {
 			pendingDeletedProjectId?: string
@@ -92,11 +96,15 @@ vi.mock("@/pages/superMagic/hooks/useChatWorkspace", () => ({
 }))
 
 vi.mock("@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions", () => ({
-	useProjectListActions: () => ({
-		projectActions: [],
-		projectActionComponents: null,
-		updateCurrentActionItem: vi.fn(),
-	}),
+	useProjectListActions: (options: Record<string, unknown>) => {
+		useProjectListActionsMock(options)
+		return {
+			projectActions: [],
+			projectActionComponents: null,
+			updateCurrentActionItem: vi.fn(),
+			openProjectDeleteConfirm: openProjectDeleteConfirmMock,
+		}
+	},
 }))
 
 vi.mock("../hooks/useChatConversationList", () => ({
@@ -115,7 +123,7 @@ vi.mock("../hooks/useChatConversationList", () => ({
 				},
 			},
 		],
-		isLoading: false,
+		isInitialChatListLoading: false,
 		searchValue: "",
 		setSearchValue: vi.fn(),
 		debouncedSearchValue: "",
@@ -132,8 +140,10 @@ vi.mock("../hooks/useChatConversationList", () => ({
 vi.mock("../components/ChatConversationListView", () => ({
 	ChatConversationListView: ({
 		items,
+		onCreateChat,
 		onOpenSidebar,
 		onPin,
+		onDelete,
 	}: {
 		items: Array<{
 			id: string
@@ -141,12 +151,27 @@ vi.mock("../components/ChatConversationListView", () => ({
 			isPinned: boolean
 			project: { id: string; project_name: string; workspace_id: string }
 		}>
+		onCreateChat: () => void
 		onOpenSidebar: () => void
 		onPin?: (item: (typeof items)[number]) => void
+		onDelete?: (item: (typeof items)[number]) => void
 	}) => (
 		<div>
+			<button type="button" data-testid="chat-list-create" onClick={onCreateChat}>
+				create
+			</button>
 			<button type="button" data-testid="chat-list" onClick={onOpenSidebar}>
 				list
+			</button>
+			<button
+				type="button"
+				data-testid="chat-list-delete"
+				onClick={() => {
+					const firstItem = items[0]
+					if (firstItem) onDelete?.(firstItem)
+				}}
+			>
+				delete
 			</button>
 			<button
 				type="button"
@@ -249,6 +274,34 @@ describe("ChatsPage", () => {
 		})
 	})
 
+	it("opens the shared delete confirmation before deleting a swiped chat", async () => {
+		render(<ChatsPage />)
+
+		fireEvent.click(screen.getByTestId("chat-list-delete"))
+
+		expect(openProjectDeleteConfirmMock).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "chat-project-1" }),
+		)
+		expect(deleteProjectMock).not.toHaveBeenCalled()
+
+		const actionOptions = useProjectListActionsMock.mock.calls[0]?.[0] as {
+			onDeleteProjectConfirmed: (project: {
+				id: string
+				workspace_id: string
+			}) => Promise<void>
+		}
+		await actionOptions.onDeleteProjectConfirmed({
+			id: "chat-project-1",
+			workspace_id: "chat-workspace-1",
+		})
+
+		expect(optimisticRemoveMock).toHaveBeenCalledWith("chat-project-1")
+		expect(deleteProjectMock).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "chat-project-1" }),
+			{ selectedProjectBehavior: "navigate-home" },
+		)
+	})
+
 	it("reuses list deletion handling when returning from deleted chat detail", async () => {
 		locationStateMock.current = { pendingDeletedProjectId: "chat-project-1" }
 		reloadMock.mockResolvedValue(undefined)
@@ -265,6 +318,18 @@ describe("ChatsPage", () => {
 				viewTransition: false,
 			})
 		})
+	})
+
+	it("navigates to the existing mobile home with the default mobile transition", () => {
+		render(<ChatsPage />)
+
+		fireEvent.click(screen.getByTestId("chat-list-create"))
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			name: "MobileHome",
+			query: { homeMode: "chat" },
+		})
+		expect(reloadMock).not.toHaveBeenCalled()
 	})
 
 	it("falls back to its own shell when rendered without route shell context", () => {
@@ -284,3 +349,8 @@ describe("ChatsPage", () => {
 		expect(screen.getByTestId("chat-list")).toBeInTheDocument()
 	})
 })
+
+vi.mock("@/services/recordSummary/projectDeletionRecordingNotice", () => ({
+	canDeleteRecordingProjects: vi.fn(() => true),
+	handleRecordingProjectDeletionError: vi.fn(() => false),
+}))

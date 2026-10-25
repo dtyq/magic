@@ -6,6 +6,12 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Input } from "@/components/shadcn-ui/input"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { useWorkspaceTransferEntry } from "@/pages/superMagicMobile/pages/WorkspacesPage/hooks/useWorkspaceTransferEntry"
+import {
+	MAX_WORKSPACE_NAME_LENGTH,
+	clampProjectName,
+	isProjectNameAtLimit,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 
 interface WorkspaceMoreSheetProps {
 	isOpen: boolean
@@ -108,7 +114,7 @@ export function WorkspaceMoreSheet({
 	const handleRenamePress = useCallback(() => {
 		if (!workspace) return
 		setRenameTarget(workspace)
-		setRenameValue(workspace.name ?? "")
+		setRenameValue(clampProjectName(workspace.name ?? "", MAX_WORKSPACE_NAME_LENGTH))
 		onClose()
 		setRenameOpen(true)
 	}, [workspace, onClose])
@@ -117,7 +123,7 @@ export function WorkspaceMoreSheet({
 	 * 提交重命名后统一清理本地状态，让列表依赖 store 刷新自动回流最新名称。
 	 */
 	const handleRenameConfirm = useCallback(async () => {
-		const name = renameValue.trim()
+		const name = clampProjectName(renameValue, MAX_WORKSPACE_NAME_LENGTH)
 		if (!name || !renameTarget) return
 		await onRename(renameTarget.id, name)
 		resetState()
@@ -154,6 +160,7 @@ export function WorkspaceMoreSheet({
 					icon: <X />,
 					ariaLabel: t("common.cancel"),
 					onClick: handleMenuClose,
+					testId: "mobile-workspace-more-close-button",
 				}}
 				className="flex flex-col overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
 				bodyClassName="no-scrollbar flex flex-col gap-2.5 overflow-y-auto px-[14px] py-[10px]"
@@ -201,6 +208,7 @@ export function WorkspaceMoreSheet({
 					icon: <X />,
 					ariaLabel: t("common.cancel"),
 					onClick: handleRenameClose,
+					testId: "mobile-workspace-rename-close-button",
 				}}
 				headerTrailingAction={{
 					icon: <Check />,
@@ -208,8 +216,11 @@ export function WorkspaceMoreSheet({
 					onClick: () => {
 						void handleRenameConfirm()
 					},
-					disabled: !renameValue.trim(),
+					disabled:
+						!renameValue.trim() ||
+						isProjectNameOverLimit(renameValue, MAX_WORKSPACE_NAME_LENGTH),
 					tone: "primary",
+					testId: "mobile-workspace-rename-confirm-button",
 				}}
 				className="flex flex-col overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
 				bodyClassName="no-scrollbar flex flex-col gap-2.5 overflow-y-auto px-[14px] py-[10px]"
@@ -224,6 +235,7 @@ export function WorkspaceMoreSheet({
 						<Input
 							type="text"
 							value={renameValue}
+							maxLength={MAX_WORKSPACE_NAME_LENGTH}
 							onChange={(e) => setRenameValue(e.target.value)}
 							placeholder={t("workspace.createWorkspaceTip")}
 							autoFocus
@@ -238,6 +250,34 @@ export function WorkspaceMoreSheet({
 							}}
 						/>
 					</MenuGroup>
+					{/* Character counter and limit reminder */}
+					<div className="flex items-center justify-between px-[14px] text-xs text-muted-foreground">
+						{isProjectNameOverLimit(renameValue, MAX_WORKSPACE_NAME_LENGTH) ? (
+							<span className="text-destructive">
+								{t("chat.nameMaxLengthTip", {
+									maxLength: MAX_WORKSPACE_NAME_LENGTH,
+								})}
+							</span>
+						) : isProjectNameAtLimit(renameValue, MAX_WORKSPACE_NAME_LENGTH) ? (
+							<span>
+								{t("chat.nameMaxLengthTip", {
+									maxLength: MAX_WORKSPACE_NAME_LENGTH,
+								})}
+							</span>
+						) : (
+							<span />
+						)}
+						<span
+							className={
+								isProjectNameOverLimit(renameValue, MAX_WORKSPACE_NAME_LENGTH)
+									? "text-destructive"
+									: ""
+							}
+							data-testid="workspace-rename-sheet-char-count"
+						>
+							{renameValue.length}/{MAX_WORKSPACE_NAME_LENGTH}
+						</span>
+					</div>
 				</div>
 			</MagicPopup>
 		</>

@@ -1,5 +1,4 @@
-import type { HttpClient } from "@/apis/core/HttpClient"
-import { genRequestUrl } from "@/utils/http"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 
 export interface MagicBasePermissionScope {
 	read_scope?: string
@@ -295,13 +294,13 @@ function normalizePermissions(payload: RawPermissionsResponse): MagicBasePermiss
 	}
 }
 
-export function generateMagicBaseApi(fetch: HttpClient) {
+export function generateMagicBaseApi(fetch: ServiceHttpClient) {
 	const largeIntConfig = { parseJsonLargeIntAsString: true }
 
 	return {
 		async getTables(projectId: string): Promise<MagicBaseTable[]> {
 			const data = await fetch.get<RawMagicBaseTable[]>(
-				genRequestUrl("/api/v1/magicbase/projects/${projectId}/tables", { projectId }),
+				`/api/v1/magicbase/projects/${projectId}/tables`,
 				largeIntConfig,
 			)
 			return data.map(normalizeMagicBaseTable)
@@ -309,10 +308,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 
 		async getTable(projectId: string, tableId: string): Promise<MagicBaseTable> {
 			const data = await fetch.get<RawMagicBaseTable>(
-				genRequestUrl("/api/v1/magicbase/projects/${projectId}/tables/${tableId}", {
-					projectId,
-					tableId,
-				}),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}`,
 				largeIntConfig,
 			)
 			return normalizeMagicBaseTable(data)
@@ -324,10 +320,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 			body: MagicBaseUpdateDynamicPermissionsRequest,
 		): Promise<MagicBaseTable> {
 			const data = await fetch.patch<RawMagicBaseTable>(
-				genRequestUrl("/api/v1/magicbase/projects/${projectId}/tables/${tableId}", {
-					projectId,
-					tableId,
-				}),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}`,
 				body,
 				largeIntConfig,
 			)
@@ -340,10 +333,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 			body: MagicBaseQueryRowsRequest,
 		): Promise<MagicBaseQueryRowsResponse> {
 			return fetch.post<MagicBaseQueryRowsResponse>(
-				genRequestUrl("/api/v1/magicbase/projects/${projectId}/tables/${tableId}/query", {
-					projectId,
-					tableId,
-				}),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}/query`,
 				body,
 				largeIntConfig,
 			)
@@ -355,10 +345,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 			body: MagicBaseRowWriteRequest,
 		): Promise<MagicBaseRow> {
 			return fetch.post<MagicBaseRow>(
-				genRequestUrl("/api/v1/magicbase/projects/${projectId}/tables/${tableId}/rows", {
-					projectId,
-					tableId,
-				}),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}/rows`,
 				body,
 				largeIntConfig,
 			)
@@ -371,10 +358,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 			body: MagicBaseRowWriteRequest,
 		): Promise<MagicBaseRow> {
 			return fetch.patch<MagicBaseRow>(
-				genRequestUrl(
-					"/api/v1/magicbase/projects/${projectId}/tables/${tableId}/rows/${recordId}",
-					{ projectId, tableId, recordId },
-				),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}/rows/${recordId}`,
 				body,
 				largeIntConfig,
 			)
@@ -386,10 +370,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 			body: MagicBaseBatchDeleteRowsRequest,
 		): Promise<MagicBaseBatchDeleteRowsResponse> {
 			return fetch.post<MagicBaseBatchDeleteRowsResponse>(
-				genRequestUrl(
-					"/api/v1/magicbase/projects/${projectId}/tables/${tableId}/rows/batch-delete",
-					{ projectId, tableId },
-				),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}/rows/batch-delete`,
 				body,
 				largeIntConfig,
 			)
@@ -400,13 +381,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 			tableId: string,
 		): Promise<MagicBasePermissionsResponse> {
 			const data = await fetch.get<RawPermissionsResponse>(
-				genRequestUrl(
-					"/api/v1/magicbase/projects/${projectId}/tables/${tableId}/permissions",
-					{
-						projectId,
-						tableId,
-					},
-				),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}/permissions`,
 				largeIntConfig,
 			)
 			return normalizePermissions(data)
@@ -418,10 +393,7 @@ export function generateMagicBaseApi(fetch: HttpClient) {
 			body: MagicBaseBatchPermissionRequest,
 		): Promise<MagicBasePermissionsResponse> {
 			const data = await fetch.post<RawPermissionsResponse>(
-				genRequestUrl(
-					"/api/v1/magicbase/projects/${projectId}/tables/${tableId}/permissions/batch",
-					{ projectId, tableId },
-				),
+				`/api/v1/magicbase/projects/${projectId}/tables/${tableId}/permissions/batch`,
 				body,
 				largeIntConfig,
 			)

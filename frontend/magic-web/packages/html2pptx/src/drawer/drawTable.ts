@@ -155,7 +155,7 @@ function formatSingleBorder(border: PPTTableCellBorder): Record<string, unknown>
 	if (border.color) result.color = border.color
 	if (border.pt !== undefined) result.pt = border.pt
 	if (border.type) result.type = border.type
-	// Support border transparency (requires the pptxgenjs patch)
+	// Support border transparency through the native PptxGenJS v5 table-cell path.
 	if (border.transparency !== undefined && border.transparency > 0) {
 		result.transparency = border.transparency
 	}

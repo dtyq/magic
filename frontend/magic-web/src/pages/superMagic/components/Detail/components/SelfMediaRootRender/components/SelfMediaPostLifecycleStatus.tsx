@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SelfMediaPostOpsArtifacts } from "../services/selfMediaOpsArtifactStates"
 import type { SelfMediaPostPublishStatus } from "../types"
 

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import ModeSelector from "./ModeSelector"
 import {
 	type SceneEditorContext,
@@ -6,11 +6,11 @@ import {
 } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import { useTranslation } from "react-i18next"
 import { useEffect, useState } from "react"
-import { useEditor, EditorContent } from "@tiptap/react"
-import { Document } from "@tiptap/extension-document"
-import { Paragraph } from "@tiptap/extension-paragraph"
-import { Text } from "@tiptap/extension-text"
-import type { JSONContent } from "@tiptap/core"
+import { useEditor, EditorContent } from "@/infrastructure/editors/tiptap/react"
+import { Document } from "@/infrastructure/editors/tiptap/extension-document"
+import { Paragraph } from "@/infrastructure/editors/tiptap/extension-paragraph"
+import { Text } from "@/infrastructure/editors/tiptap/extension-text"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import InterruptButton from "@/pages/superMagic/components/MessageEditor/components/InterruptButton"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
@@ -79,7 +79,10 @@ export default function BottomInputBar({
 				{showModeSelector && <ModeSelector iconSize={28} editorContext={editorContext} />}
 
 				{/* TipTap 编辑器展示区 - 语音输入内容落点，点击只触发弹出输入框 */}
-				<div className="relative flex min-h-8 min-w-0 flex-1 items-center" data-testid="mobile-bottom-input-editor">
+				<div
+					className="relative flex min-h-8 min-w-0 flex-1 items-center"
+					data-testid="mobile-bottom-input-editor"
+				>
 					<EditorContent
 						editor={editor}
 						className={cn(

@@ -1,9 +1,39 @@
 {
+	"detail": {
+		"details": "详细信息"
+	},
+	"dragFile": {
+		"maxFiles": "单次发送最多 50 个文件",
+		"supportedTypes": "支持类型：pdf, txt, csv, docx, doc, xlsx, xls, pptx, ppt, md, mobi, epub"
+	},
+	"errorContent": {
+		"report": "上报异常错误",
+		"retry": "重试",
+		"unknown": "未知的错误原因导致无法正常渲染内容，请联系 Magic 开发团队。"
+	},
+	"group": {
+		"belongsTo": "归属于",
+		"noUserSelected": "未选择用户"
+	},
 	"interface": {
 		"home": {},
 		"login": {}
 	},
-	"userSetting": {
-		"addMember": "添加"
+	"notice": {
+		"next": "下一步"
+	},
+	"preview": {
+		"fileDrawerDesc": "低分辨率桌面下展示文件内容的右侧抽屉",
+		"filePreview": "文件预览"
+	},
+	"swipe": {
+		"more": "更多",
+		"pin": "置顶",
+		"remove": "移除",
+		"unpin": "取消置顶"
+	},
+	"voice": {
+		"holdToRecord": "按住按钮开始录音",
+		"listening": "正在聆听，请说话..."
 	}
 }

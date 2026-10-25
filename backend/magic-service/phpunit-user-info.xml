@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="test/bootstrap-isolated.php" cacheResult="false">
+    <testsuites>
+        <testsuite name="User info isolated tests">
+            <file>test/Cases/Application/Chat/Service/ThirdPlatformUserIdAppServiceTest.php</file>
+            <file>test/Cases/Domain/Chat/Repository/MagicContactIdMappingRepositoryTest.php</file>
+            <file>test/Cases/Application/Chat/Service/MagicUserInfoAppServiceTest.php</file>
+            <file>test/Cases/Domain/SuperMagic/Message/UserInfoThirdPlatformIdTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

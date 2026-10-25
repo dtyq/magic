@@ -9,6 +9,8 @@ import ReplayIcon from "../../assets/icon/replay_icon.svg"
 import { history } from "@/routes/history"
 import { RouteName } from "@/routes/constants"
 import { useUserInfo } from "@/models/user/hooks"
+import { authEventBus } from "@/services/auth/AuthEventBus"
+import { AuthEventName } from "@/services/auth/AuthEvents"
 
 interface ShareEmptyStateProps {
 	currentOrgName: string
@@ -57,7 +59,12 @@ export default function ShareEmptyState({
 							variant="outline"
 							size="sm"
 							onClick={() => {
-								history.replace({ name: RouteName.Login })
+								authEventBus.emit(AuthEventName.RequestLogin, {
+									reason: "manual",
+									source: "share",
+									returnTo: window.location.href,
+									preserveQuery: true,
+								})
 							}}
 							data-testid="share-empty-login-button"
 						>

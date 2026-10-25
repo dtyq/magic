@@ -8,7 +8,8 @@ import {
 	DropdownMenuTrigger,
 	DropdownMenuContent,
 } from "@/components/shadcn-ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import projectFilesStore from "@/stores/projectFiles"
 import { UploadCloud, FileText, Trash2, CheckCircle2, Loader2, FolderOpen } from "lucide-react"
 import ProjectFilePickerContent from "../../../components/picker/ProjectFilePickerContent"
@@ -48,6 +49,7 @@ export function BrandAssetUpload({
 	layout = "default",
 }: BrandAssetUploadProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const [showProjectPicker, setShowProjectPicker] = useState(false)
 	const [loadingProjectFile, setLoadingProjectFile] = useState(false)
@@ -79,7 +81,7 @@ export function BrandAssetUpload({
 
 			setLoadingProjectFile(true)
 			try {
-				const files = await loadProjectFilesAsFiles(pending)
+				const files = await loadProjectFilesAsFiles(pending, fileApi)
 				const uploadedPaths = pending.map((ref) => ref.filePath)
 				onFilesSelect(filesToFileList(files), uploadedPaths)
 				setShowProjectPicker(false)
@@ -91,7 +93,7 @@ export function BrandAssetUpload({
 				setLoadingProjectFile(false)
 			}
 		},
-		[onFilesSelect, selectedPaths],
+		[onFilesSelect, selectedPaths, fileApi],
 	)
 
 	const handleDropPayload = useCallback(

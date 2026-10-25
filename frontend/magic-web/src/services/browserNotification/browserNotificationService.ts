@@ -1,3 +1,4 @@
+import { browserNotificationPreference } from "./browserNotificationPreference"
 import type { BrowserNotificationPayload } from "./types"
 
 type BrowserType = "edge" | "chrome" | "firefox" | "safari" | "unknown"
@@ -38,6 +39,14 @@ export const browserNotificationService = {
 		return this.isSupported() && this.getPermission() === "granted"
 	},
 
+	/**
+	 * 用户开关已开，且浏览器 Notification.permission 为 granted。
+	 * 操作系统级通知开关前端读不到，不能据此改写用户偏好。
+	 */
+	isEffectivelyEnabled(): boolean {
+		return browserNotificationPreference.getEnabled() && this.canNotify()
+	},
+
 	async requestPermission(): Promise<NotificationPermission> {
 		const NotificationConstructor = getNotificationConstructor()
 		if (!NotificationConstructor?.requestPermission) return "denied"
@@ -57,7 +66,7 @@ export const browserNotificationService = {
 	},
 
 	show(payload: BrowserNotificationPayload): Notification | null {
-		if (!this.canNotify()) return null
+		if (!this.isEffectivelyEnabled()) return null
 
 		try {
 			const notification = new Notification(payload.title, {

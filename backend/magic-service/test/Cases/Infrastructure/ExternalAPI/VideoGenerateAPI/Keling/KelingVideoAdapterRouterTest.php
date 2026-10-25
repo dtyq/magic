@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling;
 
+use App\Domain\ModelGateway\Contract\VideoGenerationConnectivityTestableInterface;
+use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\ErrorCode\MagicApiErrorCode;
@@ -19,6 +21,10 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingV3Ge
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\TranslatorInterface;
@@ -174,6 +180,49 @@ class KelingVideoAdapterRouterTest extends TestCase
         $this->expectExceptionMessage('unsupported Keling video model: unknown-model (unknown-version)');
 
         $router->buildProviderPayload($this->createOperation('unknown-model', 'unknown-version'));
+    }
+
+    public function testRouterSupportsConnectivityTest(): void
+    {
+        $this->assertInstanceOf(VideoGenerationConnectivityTestableInterface::class, $this->createRouter());
+    }
+
+    public function testConnectivityTestDelegatesToOmniAdapter(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->willThrowException(new RequestException(
+                'invalid parameters',
+                new Request('POST', 'https://localhost/v1/ai/workspace-demo/kling/videos/omni-video'),
+                new Response(400, [], json_encode(['message' => 'invalid duration'], JSON_THROW_ON_ERROR)),
+            ));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->willReturn($httpClient);
+
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->method('get')
+            ->with(KelingVideoClient::class)
+            ->willReturn($this->createMock(LoggerInterface::class));
+
+        $router = new KelingVideoAdapterRouter(
+            new KelingOmniVideoAdapter(
+                new KelingOmniGenerationCapabilityProvider(),
+                new KelingTransportFactory(
+                    new ApiKeyKelingTransport(
+                        new KelingVideoClient($clientFactory, $loggerFactory)
+                    )
+                )
+            )
+        );
+
+        $this->assertTrue($router->testConnection(
+            new QueueExecutorConfig('https://localhost/v1/ai/workspace-demo', 'secret', 3, 20, []),
+            'kling-v3-omni',
+        ));
     }
 
     private function createRouter(): KelingVideoAdapterRouter

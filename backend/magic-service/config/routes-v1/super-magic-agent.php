@@ -78,6 +78,8 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::get('/{code}/publish/prefill', [SuperMagicAgentApi::class, 'getPublishPrefill']);
         // 发布智能体到市场。
         Router::post('/{code}/publish', [SuperMagicAgentApi::class, 'publishAgent']);
+        Router::post('/{code}/publish/async', [SuperMagicAgentApi::class, 'publishAgentAsync']);
+        Router::get('/{code}/publish/check', [SuperMagicAgentApi::class, 'checkPublishAsync']);
         //        Router::post('/{code}/export', [SuperMagicAgentApi::class, 'export']);
         //        Router::put('/{code}/project', [SuperMagicAgentApi::class, 'bindProject']);
 
@@ -105,6 +107,7 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::delete('/{code}/skills', [SuperMagicAgentApi::class, 'removeAgentSkills']);
 
         // 获取智能体协作者列表。
+        Router::post('/{code}/transfer', [SuperMagicAgentApi::class, 'transfer']);
         Router::get('/{code}/collaborators', [SuperMagicAgentCollaboratorApi::class, 'index']);
         // 新增智能体协作者。
         Router::post('/{code}/collaborators', [SuperMagicAgentCollaboratorApi::class, 'store']);

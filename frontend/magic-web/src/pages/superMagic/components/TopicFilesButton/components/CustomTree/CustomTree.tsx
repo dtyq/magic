@@ -1,3 +1,4 @@
+import { useVirtualScrollMargin } from "../../hooks/useVirtualScrollMargin"
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { cx } from "antd-style"
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual"
@@ -10,6 +11,7 @@ import {
 	type VisibleTreeScrollAnchor,
 	type VisibleTreeNodeRow,
 } from "../../utils/visibleTreeRows"
+import { scrollFileRowIntoContainer } from "../../utils/scrollFileRowIntoContainer"
 import { useStyles } from "./style"
 import {
 	measureTreeSelect,
@@ -21,6 +23,7 @@ import {
 const DEFAULT_VIRTUAL_THRESHOLD = 50
 const DESKTOP_ROW_ESTIMATE = 32
 const MOBILE_ROW_ESTIMATE = 42
+const EMPTY_VIRTUAL_ITEMS: VirtualItem[] = []
 type RowRenderVersion = string | number
 
 interface TreeNodeRowProps {
@@ -193,6 +196,7 @@ interface CustomTreeProps {
 	dragTargetKey?: React.Key | null
 	isDragTargetNode?: (node: TreeNodeData) => boolean
 	scrollElementRef?: React.RefObject<HTMLElement>
+	sharedScroll?: boolean
 	scrollToKey?: React.Key | null
 	virtualThreshold?: number
 	isMobile?: boolean
@@ -219,6 +223,7 @@ function CustomTree({
 	dragTargetKey,
 	isDragTargetNode,
 	scrollElementRef,
+	sharedScroll = false,
 	scrollToKey,
 	virtualThreshold = DEFAULT_VIRTUAL_THRESHOLD,
 	isMobile = false,
@@ -229,6 +234,9 @@ function CustomTree({
 	onDrop,
 }: CustomTreeProps) {
 	const { styles } = useStyles()
+	const { ref: treeRef, scrollMargin } = useVirtualScrollMargin(
+		sharedScroll ? scrollElementRef : undefined,
+	)
 	const selectedKeySet = useMemo(() => new Set(selectedKeys.map(String)), [selectedKeys])
 	const scrollAnchorRef = useRef<VisibleTreeScrollAnchor | null>(null)
 	const previousVisibleNodesRef = useRef<TreeNodeData[] | null>(null)
@@ -245,13 +253,20 @@ function CustomTree({
 	)
 	const rowVirtualizer = useVirtualizer({
 		count: visibleNodes.length,
+		scrollMargin,
 		getScrollElement,
 		estimateSize,
 		overscan: 8,
 		getItemKey,
 	})
-	const virtualItems = shouldVirtualize ? rowVirtualizer.getVirtualItems() : []
-	const totalSize = visibleNodes.length * rowEstimateSize
+	const virtualItems = shouldVirtualize ? rowVirtualizer.getVirtualItems() : EMPTY_VIRTUAL_ITEMS
+	// Use the virtualizer's measured layout rather than multiplying the estimate.
+	// Rows can be taller than the estimate (for example after a font/layout change),
+	// and the accumulated difference otherwise leaves the rendered rows increasingly
+	// out of sync with the scroll container near the end of a large list.
+	const totalSize = shouldVirtualize
+		? rowVirtualizer.getTotalSize()
+		: visibleNodes.length * rowEstimateSize
 	const dragTargetBlockRange = useMemo(
 		() => getDragTargetBlockRange(visibleRows, dragTargetKey),
 		[dragTargetKey, visibleRows],
@@ -298,12 +313,20 @@ function CustomTree({
 		const scrollElement = scrollElementRef?.current
 		if (!scrollElement) return
 
+		if (
+			sharedScroll &&
+			(scrollElement.scrollTop < scrollMargin ||
+				scrollElement.scrollTop >= scrollMargin + totalSize)
+		) {
+			scrollAnchorRef.current = null
+			return
+		}
 		scrollAnchorRef.current = resolveVisibleTreeScrollAnchor(
 			visibleNodes,
-			scrollElement.scrollTop,
+			Math.max(0, scrollElement.scrollTop - scrollMargin),
 			rowEstimateSize,
 		)
-	}, [rowEstimateSize, scrollElementRef, visibleNodes])
+	}, [rowEstimateSize, scrollElementRef, visibleNodes, scrollMargin, sharedScroll, totalSize])
 
 	useEffect(() => {
 		const scrollElement = scrollElementRef?.current
@@ -323,13 +346,14 @@ function CustomTree({
 		if (scrollElement && visibleNodesChanged && !scrollToKey) {
 			const anchor = scrollAnchorRef.current
 			if (anchor) {
-				const nextScrollTop = resolveVisibleTreeScrollTopForAnchor(
+				const nextTreeScrollTop = resolveVisibleTreeScrollTopForAnchor(
 					anchor,
 					visibleNodeIndexByKey,
 					rowEstimateSize,
 				)
 
-				if (nextScrollTop !== null) {
+				if (nextTreeScrollTop !== null) {
+					const nextScrollTop = nextTreeScrollTop + scrollMargin
 					const deltaPx = nextScrollTop - scrollElement.scrollTop
 					if (Math.abs(deltaPx) >= 1) {
 						const restoreMode = shouldVirtualize ? "virtualizer" : "scroll_element"
@@ -358,6 +382,7 @@ function CustomTree({
 		previousVisibleNodesRef.current = visibleNodes
 		updateScrollAnchor()
 	}, [
+		scrollMargin,
 		rowEstimateSize,
 		rowVirtualizer,
 		scrollElementRef,
@@ -387,6 +412,21 @@ function CustomTree({
 		},
 		[onSelect, selectedKeySet, selectedKeys],
 	)
+
+	// Short trees render every row, so the virtualizer never receives scrollToKey.
+	// Scroll the file-list container here, before the parent confirms the locate.
+	useLayoutEffect(() => {
+		if (!scrollToKey || shouldVirtualize) return
+		const scrollElement = scrollElementRef?.current
+		if (!scrollElement) return
+
+		const index = visibleNodeIndexByKey.get(String(scrollToKey))
+		if (index === undefined) return
+		const row = scrollElement.querySelector(`[data-index="${index}"]`)
+		if (!(row instanceof HTMLElement)) return
+
+		scrollFileRowIntoContainer(scrollElement, row)
+	}, [scrollElementRef, scrollToKey, shouldVirtualize, visibleNodeIndexByKey, visibleNodes])
 
 	useEffect(() => {
 		if (!scrollToKey || !shouldVirtualize) return
@@ -442,6 +482,7 @@ function CustomTree({
 	if (shouldVirtualize) {
 		return (
 			<div
+				ref={treeRef}
 				className={cx("magic-tree", className)}
 				style={{
 					height: `${totalSize}px`,
@@ -465,7 +506,7 @@ function CustomTree({
 								left: 0,
 								minHeight: `${rowEstimateSize}px`,
 								width: "100%",
-								transform: `translateY(${virtualItem.index * rowEstimateSize}px)`,
+								transform: `translateY(${virtualItem.start - scrollMargin}px)`,
 								zIndex: 1,
 							}}
 						>
@@ -479,6 +520,7 @@ function CustomTree({
 
 	return (
 		<div
+			ref={treeRef}
 			className={cx("magic-tree", className)}
 			style={{
 				minHeight: `${totalSize}px`,

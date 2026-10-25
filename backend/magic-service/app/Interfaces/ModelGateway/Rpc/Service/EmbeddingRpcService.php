@@ -58,7 +58,8 @@ readonly class EmbeddingRpcService
                 accessToken: $accessToken,
                 withInfo: true,
                 type: ModelListType::EMBEDDING,
-                businessParams: $businessParams
+                businessParams: $businessParams,
+                withOrganizationModels: true,
             );
             $providers = $this->mapProviders($models);
 

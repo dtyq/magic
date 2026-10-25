@@ -1,5 +1,8 @@
 import type { Canvas } from "../../core/Canvas"
-import { toCanonicalCanvasResourcePath } from "../../shared/path/canvasResourcePath"
+import {
+	getCanvasHostResourceReferenceIdentity,
+	type CanvasResourceReferenceResolverChangeOptions,
+} from "../../shared/path/canvasResourcePath"
 import { getImageResourceMaxEdge } from "../visibility/CanvasMediaViewingPolicy"
 import type {
 	ImageResourceLoadPriority,
@@ -132,6 +135,7 @@ export class CanvasImagePresentationScheduler {
 	private readonly targetElementIdsByPath = new Map<string, Set<string>>()
 	private readonly pendingTasks = new Map<string, PendingPresentationTask>()
 	private readonly subscriptionCleanups: Array<() => void> = []
+	private readonly closedImages = new WeakSet<object>()
 	private phase: ImagePresentationPhase = "idle"
 	private frameHandle: FrameHandle | null = null
 	private generation = 0
@@ -147,6 +151,13 @@ export class CanvasImagePresentationScheduler {
 			}),
 			this.canvas.eventEmitter.on("resource:image:display-loaded", ({ data }) => {
 				this.enqueueForElement(data.elementId, data.path, data.resource)
+			}),
+			this.canvas.eventEmitter.on("resource:image:will-close", ({ data }) => {
+				this.closedImages.add(data.image)
+				this.pendingTasks.forEach((task, elementId) => {
+					if (task.resource.image === data.image) this.dropPendingTask(elementId)
+				})
+				this.updateCurrentCounts()
 			}),
 		]
 	}
@@ -227,6 +238,34 @@ export class CanvasImagePresentationScheduler {
 		this.updateCurrentCounts()
 	}
 
+	public handleResourceReferenceResolverChanged(
+		options?: CanvasResourceReferenceResolverChangeOptions,
+	): void {
+		if (this.destroyed) return
+
+		const changedResourceIdentities = options?.changedResourceIdentities
+		if (!changedResourceIdentities) this.targetElementIdsByPath.clear()
+		this.targets.forEach((target, elementId) => {
+			const canonicalPath = this.canonicalPath(target.path)
+			if (
+				changedResourceIdentities &&
+				!changedResourceIdentities.has(target.canonicalPath) &&
+				!changedResourceIdentities.has(canonicalPath)
+			) {
+				return
+			}
+			if (target.canonicalPath !== canonicalPath) {
+				this.removeTargetFromPathIndex(target)
+				target.canonicalPath = canonicalPath
+				target.generation = ++this.generation
+				this.dropPendingTask(elementId)
+			}
+			this.addTargetToPathIndex(target)
+			this.enqueueBestCachedResource(target)
+		})
+		this.updateCurrentCounts()
+	}
+
 	public getSnapshot(): ImagePresentationSnapshot {
 		this.updateCurrentCounts()
 		return { ...this.stats }
@@ -248,10 +287,7 @@ export class CanvasImagePresentationScheduler {
 	}
 
 	private canonicalPath(path: string): string {
-		return toCanonicalCanvasResourcePath(
-			path,
-			this.canvas.magicConfigManager.config?.methods?.resolveAbsolutePath,
-		)
+		return getCanvasHostResourceReferenceIdentity(this.canvas, path)
 	}
 
 	private addTargetToPathIndex(target: InternalPresentationTarget): void {
@@ -304,7 +340,23 @@ export class CanvasImagePresentationScheduler {
 		this.enqueueTask(target, resource)
 	}
 
+	private releaseSupersededLowIfUnused(path: string): void {
+		const canonicalPath = this.canonicalPath(path)
+		for (const target of this.targets.values()) {
+			if (target.canonicalPath !== canonicalPath) continue
+			const consumer = this.getConsumer(target.elementId)
+			if (target.variant === "low") return
+			if (consumer?.getDisplayResourceVariant() === "low") return
+		}
+
+		const imageResourceManager = this.canvas.imageResourceManager as {
+			releaseSupersededLowIfUnused?: (resourcePath: string) => void
+		}
+		imageResourceManager.releaseSupersededLowIfUnused?.(path)
+	}
+
 	private enqueueTask(target: InternalPresentationTarget, resource: LoadedResource): boolean {
+		if (this.closedImages.has(resource.image)) return false
 		if (!this.isResourceEligible(target, resource)) return false
 		const consumer = this.getConsumer(target.elementId)
 		if (!consumer) return false
@@ -345,6 +397,7 @@ export class CanvasImagePresentationScheduler {
 		target: InternalPresentationTarget,
 		resource: LoadedResource,
 	): boolean {
+		if (this.closedImages.has(resource.image)) return false
 		if (getVariantRank(resource.variant) > getVariantRank(target.variant)) {
 			if (this.phase === "moving") this.stats.movingUpgradeDeferredCount += 1
 			return false
@@ -417,6 +470,11 @@ export class CanvasImagePresentationScheduler {
 		// A resource larger than the frame budget is still admitted alone, guaranteeing
 		// progress without combining multiple expensive Konva image swaps in one frame.
 		for (const task of tasks) {
+			if (this.closedImages.has(task.resource.image)) {
+				this.pendingTasks.delete(task.elementId)
+				this.stats.staleDropCount += 1
+				continue
+			}
 			const resourcePixels = Math.max(
 				1,
 				task.resource.sourceWidth * task.resource.sourceHeight,
@@ -442,6 +500,9 @@ export class CanvasImagePresentationScheduler {
 				continue
 			}
 			if (!consumer.applyPresentedResource(task.resource, target.variant)) continue
+			if (task.resource.variant !== "low") {
+				this.releaseSupersededLowIfUnused(target.path)
+			}
 			appliedCount += 1
 			if (task.resource.variant === "low") this.stats.appliedLowCount += 1
 			if (task.resource.variant === "preview") this.stats.appliedPreviewCount += 1

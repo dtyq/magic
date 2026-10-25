@@ -1,5 +1,5 @@
-import { Node, mergeAttributes } from "@tiptap/core"
-import { ReactNodeViewRenderer } from "@tiptap/react"
+import { Node, mergeAttributes } from "@/infrastructure/editors/tiptap/core"
+import { ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
 import type { SuperPlaceholderAttrs, SuperPlaceholderOptions } from "./types"
 import { SuperPlaceholderComponent } from "./component"
 import {

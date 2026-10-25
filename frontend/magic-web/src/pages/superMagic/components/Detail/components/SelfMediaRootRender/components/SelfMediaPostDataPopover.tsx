@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
-import { cn } from "@/lib/utils"
+import { getSelfMediaPostActionClassName } from "./SelfMediaPostActionButton"
 import { ScheduledTask } from "@/types/scheduledTask"
 import type { SelfMediaPostOpsSourcePayload } from "../services/SelfMediaFileStorageService"
 import type { SelfMediaPlatformPostItem } from "../stores/SelfMediaStore"
@@ -173,11 +173,7 @@ function SelfMediaPostDataPopover({
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className={cn(
-						"inline-flex h-9 items-center justify-center rounded-full text-[12px] font-[700] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-						showLabel ? "gap-1.5 px-3" : "w-9",
-						"bg-[#f4f4f5] text-[#18181b] hover:bg-[#e4e4e7]",
-					)}
+					className={getSelfMediaPostActionClassName(showLabel)}
 					aria-label={triggerLabel}
 					title={showLabel ? undefined : triggerLabel}
 					onMouseEnter={openAutoSyncPopover}
@@ -233,7 +229,10 @@ function SelfMediaPostDataPopover({
 								<option value="1" data-testid="self-media-post-data-popover-option">
 									{t("detail.selfMedia.home.autoSyncEnabled")}
 								</option>
-								<option value="0" data-testid="self-media-post-data-popover-option-2">
+								<option
+									value="0"
+									data-testid="self-media-post-data-popover-option-2"
+								>
 									{t("detail.selfMedia.home.autoSyncDisabled")}
 								</option>
 							</select>
@@ -248,13 +247,22 @@ function SelfMediaPostDataPopover({
 								className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
 								data-testid={`self-media-home-post-auto-sync-frequency-${postId}`}
 							>
-								<option value={ScheduledTask.ScheduleType.Daily} data-testid="self-media-post-data-popover-option-3">
+								<option
+									value={ScheduledTask.ScheduleType.Daily}
+									data-testid="self-media-post-data-popover-option-3"
+								>
 									{t("detail.selfMedia.home.autoSyncDaily")}
 								</option>
-								<option value={ScheduledTask.ScheduleType.Weekly} data-testid="self-media-post-data-popover-option-4">
+								<option
+									value={ScheduledTask.ScheduleType.Weekly}
+									data-testid="self-media-post-data-popover-option-4"
+								>
 									{t("detail.selfMedia.home.autoSyncWeekly")}
 								</option>
-								<option value={ScheduledTask.ScheduleType.Monthly} data-testid="self-media-post-data-popover-option-5">
+								<option
+									value={ScheduledTask.ScheduleType.Monthly}
+									data-testid="self-media-post-data-popover-option-5"
+								>
 									{t("detail.selfMedia.home.autoSyncMonthly")}
 								</option>
 							</select>

@@ -10,7 +10,7 @@ import {
 	IconBold,
 	IconItalic,
 } from "@tabler/icons-react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useMemoizedFn } from "ahooks"
 import { Flex, InputNumber, Select } from "antd"
 import { createStyles } from "antd-style"
@@ -78,7 +78,11 @@ export default function ToolBar({ editor, ...props }: ToolBarProps) {
 	const canUndo = runActiveEditor(editor, (activeEditor) => activeEditor.can().undo(), false)
 	const canRedo = runActiveEditor(editor, (activeEditor) => activeEditor.can().redo(), false)
 	const isBold = runActiveEditor(editor, (activeEditor) => activeEditor.isActive("bold"), false)
-	const isItalic = runActiveEditor(editor, (activeEditor) => activeEditor.isActive("italic"), false)
+	const isItalic = runActiveEditor(
+		editor,
+		(activeEditor) => activeEditor.isActive("italic"),
+		false,
+	)
 	const isLeftAlign = runActiveEditor(
 		editor,
 		(activeEditor) => activeEditor.isActive({ textAlign: "left" }),

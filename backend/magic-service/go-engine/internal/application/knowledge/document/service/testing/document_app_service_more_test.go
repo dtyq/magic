@@ -1936,11 +1936,7 @@ func TestDocumentAppServiceNotifyProjectFileChangeSkipsWithoutRealtimeBinding(t 
 	t.Parallel()
 
 	scheduler := &documentSyncSchedulerStub{}
-	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
-		hasRealtimeProjectFileDocumentSet:    true,
-		hasRealtimeProjectFileDocumentResult: false,
-	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
-	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+	metadataReader := &projectFileMetadataReaderStub{
 		metas: map[int64]*projectfile.Meta{
 			501: {
 				Status:           "active",
@@ -1951,13 +1947,21 @@ func TestDocumentAppServiceNotifyProjectFileChangeSkipsWithoutRealtimeBinding(t 
 				FileExtension:    "md",
 			},
 		},
-	})
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		hasRealtimeProjectFileDocumentSet:    true,
+		hasRealtimeProjectFileDocumentResult: false,
+	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetProjectFileMetadataReader(metadataReader)
 
 	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 501}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if scheduler.scheduleCalls != 0 {
 		t.Fatalf("expected project-file callback to be skipped, got %#v", scheduler.inputs)
+	}
+	if metadataReader.listAncestorFolderIDsCalls != 0 {
+		t.Fatalf("expected ancestor lookup to be skipped without realtime bindings, got %d", metadataReader.listAncestorFolderIDsCalls)
 	}
 }
 
@@ -4829,7 +4833,8 @@ func (s *projectFileResolverStub) GetLink(_ context.Context, projectFileID int64
 }
 
 type projectFileMetadataReaderStub struct {
-	metas map[int64]*projectfile.Meta
+	metas                      map[int64]*projectfile.Meta
+	listAncestorFolderIDsCalls int
 }
 
 func (s *projectFileMetadataReaderStub) FindByID(_ context.Context, projectFileID int64) (meta *projectfile.Meta, err error) {
@@ -4841,6 +4846,7 @@ func (s *projectFileMetadataReaderStub) FindByID(_ context.Context, projectFileI
 }
 
 func (s *projectFileMetadataReaderStub) ListAncestorFolderIDs(_ context.Context, projectFileID int64) ([]int64, error) {
+	s.listAncestorFolderIDsCalls++
 	if s == nil || s.metas == nil || projectFileID <= 0 {
 		return nil, nil
 	}

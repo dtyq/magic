@@ -1,0 +1,36 @@
+<!--zh
+## 运行环境
+当前环境：云端沙盒。下面的存储与网络规则适用。
+存储分两层，这是物理事实，不是偏好：
+- 网络存储：路径解析后位于 {{ @variable("agfs_fuse_mount_path") }}/magicfs/ 下，包括 .workspace、.topic 和挂载进来的其他项目。.workspace 由 MagicFS 挂载到对象存储，用户在界面上看到的文件就是这里的内容，会持久化保存；需要对象存储地址供远端模型或服务访问的文件，也必须先保存到这里并完成同步。每创建一个小文件约需 2 秒，写入耗时取决于文件个数而不是大小：一个几十 MB 的文件很快写完，写入大量碎文件会耗费大量时间，几万个碎文件会让整个工作区变慢。工作区还受用户套餐限制：单个项目的文件个数和总存储容量都有上限，其中总存储容量是严格的硬限制，超出后写入会失败。
+- 本地盘：其余路径，例如 $MAGIC_BOX_DIR、/tmp、~/.cache。速度快，但不向用户展示，也不能供远端访问，沙盒重启或重建后重置。若其他系统指令明确标记某个绝对路径为持久化目录，则以该说明为准。
+依赖目录和机器生成的碎文件目录按两条规则放：
+1. 目录名是 node_modules、.venv、vendor 时，在项目里直接创建并原地安装。平台会把这三类目录的内容自动放在本地盘，不需要任何重定向。
+2. 其他机器生成的碎文件目录，例如构建缓存、编译中间产物、测试和类型检查缓存，用工具自身的配置项或环境变量指到 $MAGIC_BOX_DIR 下。
+同时遵守：
+- 上传或导入进来的依赖目录不受平台保护，先删除，再让包管理器重新安装。
+- 不要在网络存储里用软链调整目录布局，这类软链不会持久保存，沙盒重启后会消失。
+- 交付给用户的构建产物放在 .workspace 里，用户才能浏览；尽量减少产物文件数，例如关闭 sourcemap、合并为少量文件。
+- 视频帧、PDF 逐页图片、切分片段等批量生成的中间文件写到 $MAGIC_BOX_DIR；只有要交付或展示给用户的少量文件才放进 .workspace。
+- 需要包管理器、构建步骤或本地服务时，如果可以使用 vibe-coding skill，先读取它；否则选择不需要安装和构建的做法。
+网络：
+- 沙盒之间没有网络隔离。本地服务默认只监听 127.0.0.1；只有服务本身校验难以猜测的强凭证、并拒绝未认证请求时，才可以监听 0.0.0.0。
+- 目前没有任何端口能从公网访问。不要把 localhost 地址或端口当作用户可以打开的结果。
+-->
+## Runtime Environment
+Runtime: cloud sandbox. The storage and network rules below apply.
+Storage has two layers. These are physical facts, not preferences:
+- Network storage: any path that resolves under `{{ @variable("agfs_fuse_mount_path") }}/magicfs/`, including `.workspace`, `.topic`, and mounted projects. MagicFS mounts `.workspace` to object storage; its files are what users see in the UI, and they persist across sessions. Files that need an object-storage URL for access by a remote model or service must also be stored there and synchronized first. Creating one small file takes about 2 seconds, so write time depends on file count, not size: a single file of tens of megabytes is written quickly, writing many tiny files takes a long time, and tens of thousands of tiny files slow down the whole workspace. The workspace is also limited by the user's plan: both the number of files per project and the total storage size are capped, and the total storage size is a strict hard limit; writes fail once it is exceeded.
+- Local disk: every other path, such as `$MAGIC_BOX_DIR`, `/tmp`, and `~/.cache`. It is fast, but hidden from users, not remotely accessible, and reset when the sandbox restarts or is rebuilt. If another system section explicitly marks an absolute path as persistent, follow that section.
+Place dependency trees and machine-generated directories of tiny files by two rules:
+1. When the directory is named `node_modules`, `.venv`, or `vendor`, create it inside the project and install in place. The platform automatically keeps the contents of these three directory names on local disk; no redirection is needed.
+2. Point every other machine-generated directory of tiny files, such as build caches, compiler intermediates, and test or type-check caches, into `$MAGIC_BOX_DIR` through the tool's own setting or environment variable.
+Also follow these constraints:
+- A dependency directory that arrived by upload or import is not protected by the platform. Delete it first, then let the package manager reinstall it.
+- Do not use symlinks in network storage to change directory layout. Such symlinks are not persisted and disappear after the sandbox restarts.
+- Keep build output delivered to the user inside `.workspace` so the user can browse it, and keep its file count low, for example by disabling sourcemaps and bundling into a few files.
+- Write bulk intermediates such as video frames, per-page PDF images, and split chunks to `$MAGIC_BOX_DIR`; place only the few files that are delivered or shown to the user in `.workspace`.
+- When a package manager, a build step, or a local server is needed, read the `vibe-coding` skill first if it is available; otherwise choose an approach that needs no installation or build.
+Network:
+- Sandboxes are not network-isolated from each other. Local servers bind `127.0.0.1` by default. Bind `0.0.0.0` only when the service itself verifies a strong, unguessable credential and rejects unauthenticated requests.
+- No port is reachable from the public internet. Never present a localhost address or port as something the user can open.

@@ -23,6 +23,7 @@ from app.utils.async_file_utils import (
 )
 
 from ..models import DocumentAsset, DocumentChunk, DocumentProfile, ExtractionResult, stable_document_id
+from ..service.asset_strategy import AssetExtractionOptions, AssetStrategyResolver
 from ..structure.asset_store import AssetStore
 from ..structure.chunk_store import ChunkStore
 from ..structure.chunker import DocumentChunker
@@ -31,6 +32,7 @@ from ..structure.image_feature_analyzer import ImageFeatureAnalyzer
 from ..structure.image_watermark_detector import ImageWatermarkDetector
 from ..structure.outline_builder import OutlineBuilder
 from ..structure.range_parser import RangeParser
+from ..structure.reusable_image_selector import ReusableImageSelector
 from ..structure.virtual_outline_builder import VirtualOutlineBuilder
 from .base import DocumentDriver
 
@@ -87,13 +89,25 @@ class GenericMarkItDownDriver(DocumentDriver):
     ) -> ExtractionResult:
         from app.utils.file_parse import get_file_parser
 
+        asset_options = self._resolve_asset_options(kwargs)
+        parser_extract_images = asset_options.extract_embedded_images
+        embedded_image_policy = asset_options.embedded_image_policy
+        strategy_execution = "native"
+        preserve_all_assets = (
+            asset_options.resolved_strategy == "full_fidelity" and asset_options.requested_strategy != "legacy"
+        )
+        if asset_options.resolved_strategy == "page_visual":
+            # 通用 Office 解析器没有统一的页面渲染器，用筛选后的内嵌资产保留视觉信息。
+            parser_extract_images = True
+            embedded_image_policy = "selected"
+            strategy_execution = "selected_embedded_assets"
         document_id = stable_document_id(path)
         temp_output = output_dir / f"{path.name}.raw.md"
         parse_result = await get_file_parser().parse(
             path,
             temp_output,
             ranges=ranges,
-            extract_images=kwargs.get("extract_images", True),
+            extract_images=parser_extract_images,
             enable_visual_understanding=False,
         )
         if not parse_result.success or not parse_result.output_file_path:
@@ -108,15 +122,16 @@ class GenericMarkItDownDriver(DocumentDriver):
             parse_result.output_images_dir,
             output_dir,
             path.stem,
-            exclude_watermark_images=kwargs.get("exclude_watermark_images", True),
-            deduplicate_repeated_images=kwargs.get("deduplicate_repeated_images", True),
+            exclude_watermark_images=kwargs.get("exclude_watermark_images", True) and not preserve_all_assets,
+            deduplicate_repeated_images=kwargs.get("deduplicate_repeated_images", True) and not preserve_all_assets,
+            embedded_image_policy=embedded_image_policy,
         )
         content = self._remove_skipped_image_links(content, parse_result.output_images_dir, skipped_images)
         content = self._rewrite_image_links_to_assets(content, parse_result.output_images_dir, assets)
         self._assign_asset_units_from_markdown(content, assets)
         content = self._append_missing_image_links(content, assets)
         chunks = DocumentChunker.chunk_text(content, path.name, ranges or "all", max_chars=max_chars)
-        chunks = await ChunkStore.write_chunks(output_dir, chunks)
+        chunks = await ChunkStore.write_chunks(output_dir, chunks, [asset.path for asset in assets])
         total_units = self._resolve_total_units(path, content, parse_result, chunks)
         processed_units = self._resolve_processed_units(ranges, total_units, chunks)
         nodes = OutlineBuilder.build_tree(HeadingDetector.detect(content)) or VirtualOutlineBuilder.by_units(self.unit_type, total_units, 1)
@@ -136,7 +151,37 @@ class GenericMarkItDownDriver(DocumentDriver):
                 "source_range": ranges or "all",
                 "skipped_images": skipped_images,
                 "skipped_watermark_images": [item for item in skipped_images if "watermark" in str(item.get("reason", ""))],
+                "asset_strategy": {**asset_options.to_dict(), "execution": strategy_execution},
             },
+        )
+
+    def _resolve_asset_options(self, kwargs: dict) -> AssetExtractionOptions:
+        """解析通用驱动的高层资产策略，并兼容旧参数。"""
+
+        if "asset_strategy" in kwargs:
+            profile = DocumentProfile(
+                source_path="",
+                file_name="",
+                file_type=self.file_type,
+                file_extension="",
+                file_size=0,
+                unit_type=self.unit_type,
+            )
+            return AssetStrategyResolver.resolve(
+                kwargs.get("asset_strategy"),
+                profile=profile,
+                goal=str(kwargs.get("goal") or ""),
+            )
+        legacy_extract_images = bool(kwargs.get("extract_images", True))
+        return AssetExtractionOptions(
+            requested_strategy="legacy",
+            resolved_strategy="full_fidelity" if legacy_extract_images else "text_only",
+            extract_embedded_images=legacy_extract_images,
+            embedded_image_policy="all" if legacy_extract_images else "none",
+            page_snapshot_policy="never",
+            visual_hint="none",
+            reason="legacy extract_images compatibility mode",
+            confidence="legacy",
         )
 
     async def _collect_image_assets(
@@ -146,6 +191,7 @@ class GenericMarkItDownDriver(DocumentDriver):
         source_prefix: str,
         exclude_watermark_images: bool = True,
         deduplicate_repeated_images: bool = True,
+        embedded_image_policy: str = "all",
     ) -> tuple[list[DocumentAsset], list[dict]]:
         if not images_dir:
             return [], []
@@ -168,11 +214,17 @@ class GenericMarkItDownDriver(DocumentDriver):
                 "height": features.get("height"),
                 "features": features,
             })
-        image_records, skipped_watermarks = ImageWatermarkDetector.split_images(
-            image_records,
-            enabled=exclude_watermark_images,
-            deduplicate_repeated_images=deduplicate_repeated_images,
-        )
+        if embedded_image_policy == "selected":
+            image_records, skipped_watermarks = ReusableImageSelector.select(
+                image_records,
+                deduplicate_repeated_images=deduplicate_repeated_images,
+            )
+        else:
+            image_records, skipped_watermarks = ImageWatermarkDetector.split_images(
+                image_records,
+                enabled=exclude_watermark_images,
+                deduplicate_repeated_images=deduplicate_repeated_images,
+            )
         if not image_records:
             return [], skipped_watermarks
         assets_dir = await AssetStore.ensure(output_dir)

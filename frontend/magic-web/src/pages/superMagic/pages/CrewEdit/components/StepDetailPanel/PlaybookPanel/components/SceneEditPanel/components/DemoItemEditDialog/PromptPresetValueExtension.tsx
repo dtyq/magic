@@ -1,12 +1,12 @@
-import { Node, mergeAttributes } from "@tiptap/core"
-import { ReactNodeViewRenderer } from "@tiptap/react"
+import { Node, mergeAttributes } from "@/infrastructure/editors/tiptap/core"
+import { ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
 import {
 	PROMPT_PRESET_VALUE_NODE_NAME,
 	PROMPT_PRESET_VALUE_TOKEN,
 } from "@/pages/superMagic/components/MainInputContainer/panels/promptRichText"
 import PromptPresetValueNodeView from "./PromptPresetValueNodeView"
 
-declare module "@tiptap/core" {
+declare module "@/infrastructure/editors/tiptap/core" {
 	interface Commands<ReturnType> {
 		promptPresetValue: {
 			insertPromptPresetValue: () => ReturnType

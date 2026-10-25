@@ -1,6 +1,5 @@
-import { IconEdit } from "@douyinfe/semi-icons"
+import { IconCirclePlus, IconPencil } from "@tabler/icons-react"
 import { Col, Row, Select, Switch, Tooltip } from "antd"
-import { IconCirclePlus } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import i18next from "i18next"
 import React, { useContext, useMemo } from "react"
@@ -200,7 +199,9 @@ export default function TopRow(props: TopRowProps) {
 							<Col span={DescCol}>
 								<MagicInput
 									suffix={
-										<IconEdit
+										<IconPencil
+											size={16}
+											stroke={1.8}
 											className="input-icon-editor"
 											onClick={() =>
 												showEdit(

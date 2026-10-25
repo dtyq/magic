@@ -658,7 +658,12 @@ func TestRabbitMQSchedulerHandleDeliveryAcksAfterDeliveryAttemptLimit(t *testing
 		runner,
 		&rabbitFakeBroker{enabled: true},
 		terminal,
-		rabbitSchedulerTestOptions{attemptStore: attemptStore},
+		rabbitSchedulerTestOptions{
+			attemptStore: attemptStore,
+			mutateConfig: func(cfg *documentsync.RabbitMQSchedulerConfig) {
+				cfg.MaxRequeueAttempts = 20
+			},
+		},
 	)
 	task := newRabbitMQDocumentSyncTask(t)
 	task.Key = "TASK-DELIVERY-LIMIT"

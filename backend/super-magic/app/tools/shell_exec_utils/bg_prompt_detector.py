@@ -20,6 +20,8 @@ _FIXED_SUBSTRINGS: list[str] = [
     "正在获取你的应用配置结果",
     # lark-cli config init --new（部分版本）：另一种等待提示
     "等待配置应用",
+    # lark-cli config init --new（英文版本）：等待浏览器完成应用配置
+    "Waiting for app configuration...",
     # 终端 QR 码渲染：U+2588 FULL BLOCK 连续填充（lark-cli / dws 等使用）
     "████████",
     # 终端 QR 码渲染：U+2584 LOWER HALF BLOCK 连续填充（wecom-cli 等使用）
@@ -28,6 +30,12 @@ _FIXED_SUBSTRINGS: list[str] = [
     "等待用户授权",
     # dws auth login --device：等待用户在浏览器完成授权（Step 2 提示 + 每轮 polling 行均含此串）
     "Waiting for user authorization",
+    # dws auth login（新版设备流）：不再带 user，仍表示等待用户授权
+    "Waiting for authorization...",
+    # dws/lark-cli：提示用户在浏览器完成二维码授权后继续等待
+    "Please complete QR code authorization in the browser.",
+    # dws PAT/权限流程：等待管理员审批授权
+    "Waiting for admin approval",
     # wecom-cli init：展示二维码后输出的最终等待行
     "等待扫码中",
 ]

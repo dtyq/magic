@@ -12,7 +12,7 @@ import ConversationStore from "@/stores/chatNew/conversation"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { useTranslation } from "react-i18next"
 import { computed } from "mobx"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const MessageRender = lazy(() =>
 	import("./components/MessageRender").then((module) => ({

@@ -126,7 +126,7 @@ func (h *magicTextHandler) buildLine(ctx context.Context, rec slog.Record, field
 		b.WriteString("]")
 	}
 	if traceID != "" {
-		b.WriteString("[")
+		b.WriteString("[trace_id:")
 		b.WriteString(traceID)
 		b.WriteString("]")
 	}

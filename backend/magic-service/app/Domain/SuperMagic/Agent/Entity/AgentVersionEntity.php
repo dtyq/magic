@@ -11,6 +11,7 @@ use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublishStatus;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublishTargetType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublishTargetValue;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\ReviewStatus;
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Hyperf\Codec\Json;
@@ -20,6 +21,8 @@ use Hyperf\Codec\Json;
  */
 class AgentVersionEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     /**
      * @var int 主键 ID（版本ID，雪花ID）
      */
@@ -127,8 +130,6 @@ class AgentVersionEntity extends AbstractEntity
 
     protected ?PublishTargetValue $publishTargetValue = null;
 
-    protected ?int $categoryId = null;
-
     /** @var int[] */
     protected array $categoryIds = [];
 
@@ -210,7 +211,6 @@ class AgentVersionEntity extends AbstractEntity
             'review_remark' => $this->reviewRemark,
             'publish_target_type' => $this->publishTargetType->value,
             'publish_target_value' => $this->publishTargetValue?->toArray(),
-            'category_id' => $this->categoryId,
             'category_ids' => $this->categoryIds,
             'version_description_i18n' => $this->versionDescriptionI18n,
             'publisher_user_id' => $this->publisherUserId,
@@ -494,38 +494,27 @@ class AgentVersionEntity extends AbstractEntity
         return $this;
     }
 
-    public function getCategoryId(): ?int
-    {
-        return $this->categoryId;
-    }
-
     /** @return int[] */
     public function getCategoryIds(): array
     {
-        if ($this->categoryIds !== []) {
-            return $this->categoryIds;
-        }
-
-        return $this->categoryId === null ? [] : [$this->categoryId];
-    }
-
-    public function setCategoryId(null|int|string $categoryId): self
-    {
-        $this->categoryId = is_string($categoryId) ? (int) $categoryId : $categoryId;
-        return $this;
+        return $this->categoryIds;
     }
 
     /** @param array<int, null|int|string> $categoryIds */
     public function setCategoryIds(array $categoryIds): self
     {
         $this->categoryIds = $this->normalizeCategoryIds($categoryIds);
-        $this->categoryId = $this->categoryIds[0] ?? null;
         return $this;
     }
 
     public function getVersionDescriptionI18n(): ?array
     {
         return $this->versionDescriptionI18n;
+    }
+
+    public function getI18nVersionDescription(string $language): string
+    {
+        return $this->resolveI18nText($this->versionDescriptionI18n, $language);
     }
 
     public function setVersionDescriptionI18n(?array $versionDescriptionI18n): self
@@ -624,15 +613,7 @@ class AgentVersionEntity extends AbstractEntity
 
     public function getI18nName(string $language): string
     {
-        if (! empty($this->nameI18n[$language])) {
-            return $this->nameI18n[$language];
-        }
-
-        if (! empty($this->nameI18n[LanguageEnum::DEFAULT->value])) {
-            return $this->nameI18n[LanguageEnum::DEFAULT->value];
-        }
-
-        return $this->name;
+        return $this->resolveI18nText($this->nameI18n, $language) ?: $this->name;
     }
 
     public function hydrateScalarTextForWrite(): void
@@ -643,15 +624,7 @@ class AgentVersionEntity extends AbstractEntity
 
     public function getI18nDescription(string $language): string
     {
-        if (! empty($this->descriptionI18n[$language])) {
-            return $this->descriptionI18n[$language];
-        }
-
-        if (! empty($this->descriptionI18n[LanguageEnum::DEFAULT->value])) {
-            return $this->descriptionI18n[LanguageEnum::DEFAULT->value];
-        }
-
-        return $this->description;
+        return $this->resolveI18nText($this->descriptionI18n, $language) ?: $this->description;
     }
 
     private function resolveWriteTextFallback(string $text, ?array $i18n): string
@@ -660,31 +633,7 @@ class AgentVersionEntity extends AbstractEntity
             return $text;
         }
 
-        $i18n = is_array($i18n) ? $i18n : [];
-        foreach ([LanguageEnum::DEFAULT->value, LanguageEnum::ZH_CN->value, LanguageEnum::EN_US->value] as $languageCode) {
-            $value = $this->normalizeI18nTextValue($i18n[$languageCode] ?? null);
-            if ($value !== '') {
-                return $value;
-            }
-        }
-
-        foreach ($i18n as $value) {
-            $value = $this->normalizeI18nTextValue($value);
-            if ($value !== '') {
-                return $value;
-            }
-        }
-
-        return '';
-    }
-
-    private function normalizeI18nTextValue(mixed $value): string
-    {
-        if (is_string($value) || is_numeric($value)) {
-            return trim((string) $value);
-        }
-
-        return '';
+        return $this->resolveI18nText($i18n, LanguageEnum::DEFAULT->value);
     }
 
     /** @param array<int, null|int|string> $categoryIds */

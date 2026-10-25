@@ -1,5 +1,5 @@
 import { PinnedTagProps } from "./types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 function PinnedTag({ className }: PinnedTagProps) {
 	return (

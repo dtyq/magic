@@ -29,7 +29,9 @@ use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Infrastructure\Util\Permission\Annotation\CheckProviderModelPermission;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\AdminProviderModelAssembler;
+use App\Interfaces\Provider\Assembler\ProviderConfigAssembler;
 use App\Interfaces\Provider\DTO\ConnectivityTestByConfigRequest;
+use App\Interfaces\Provider\DTO\ProviderConfigSearchRequest;
 use App\Interfaces\Provider\DTO\ProviderModelQueryRequest;
 use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
@@ -83,6 +85,31 @@ class ServiceProviderApi extends AbstractApi
     public function getOrganizationProvidersByCategory(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
+    }
+
+    /**
+     * 按指定字段搜索服务商配置。
+     */
+    #[CheckPermission(
+        [
+            MagicResourceEnum::PLATFORM_AI_MODEL_AUDIT_LOG,
+            MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_LOG,
+        ],
+        MagicOperationEnum::QUERY
+    )]
+    public function searchProviderConfigs(RequestInterface $request): array
+    {
+        $authorization = $this->getAuthorization();
+        $searchRequest = ProviderConfigSearchRequest::fromRequest($request);
+        $page = $searchRequest->toPage();
+        $result = $this->adminProviderAppService->searchProviderConfigs(
+            $authorization,
+            $page,
+            $searchRequest->searchField,
+            $searchRequest->keyword
+        );
+
+        return ProviderConfigAssembler::toSearchPage($result, $page);
     }
 
     // 获取服务商和模型列表

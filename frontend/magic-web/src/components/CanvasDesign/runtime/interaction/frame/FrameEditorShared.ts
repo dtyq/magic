@@ -180,6 +180,32 @@ export function updateFrameGridLines(
 	})
 }
 
+/**
+ * 更新九宫格线宽，使其在画布 viewport 缩放时保持稳定的屏幕视觉粗度。
+ * Konva 的 strokeWidth 会随 Stage 变换一起缩放，因此这里传入的是画布坐标中的反算值。
+ */
+export function updateFrameGridLineStrokeWidth(
+	overlayGroup: Konva.Group | undefined,
+	lineName: string,
+	viewportScale: number,
+): void {
+	if (!overlayGroup) return
+
+	const strokeWidth = getFrameGridLineStrokeWidth(viewportScale)
+
+	overlayGroup.find(`.${lineName}`).forEach((line) => {
+		if (line instanceof Konva.Line) {
+			line.strokeWidth(strokeWidth)
+		}
+	})
+}
+
+export function getFrameGridLineStrokeWidth(viewportScale: number): number {
+	const safeViewportScale =
+		Number.isFinite(viewportScale) && viewportScale > 0 ? Math.max(viewportScale, 0.001) : 1
+	return FRAME_EDITOR_CONFIG.GRID_LINE_STROKE_WIDTH / safeViewportScale
+}
+
 export function boxToLocalBox(container: Konva.Node | undefined, box: Box): Box | null {
 	if (!container) return null
 

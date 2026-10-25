@@ -2,16 +2,11 @@ import Konva from "konva"
 import { BaseTool, type ToolOptions, type ToolMetadata } from "./BaseTool"
 import { ElementTypeEnum, type ImageElement } from "../../document/types"
 import { ElementFactory } from "../../elements/core/ElementFactory"
-import { calculateHorizontalImageLayout, generateElementId } from "../../shared/ids"
+import { generateElementId } from "../../shared/ids"
 import {
-	collectObstacleRects,
-	findNextImageVideoPlaceholderPositionNearViewport,
-} from "../../shared/placement/findNonOverlappingPlacement"
-import {
-	getCanvasCenter,
-	getResolvedMediaPlacementConfig,
-	getViewportCanvasRect,
-} from "../../shared/placement/elementUtils"
+	resolveHorizontalPlacements,
+	resolveNearestFreeMediaPlacement,
+} from "../../shared/placement/placementEngine"
 import type { ImageModelItem } from "../../../public/magic-types"
 
 /**
@@ -195,26 +190,7 @@ export class ImageGeneratorTool extends BaseTool {
 		const imageWidth = defaultSize?.width
 		const imageHeight = defaultSize?.height
 		const imageSize = this.getImageElementSize(imageWidth, imageHeight)
-		const mediaPlacementConfig = getResolvedMediaPlacementConfig(this.canvas)
-
-		const obstacles = collectObstacleRects(
-			this.canvas.elementManager.getAllElements(),
-			(el) => {
-				return (
-					this.canvas.permissionManager.isVisible(el) &&
-					!this.canvas.permissionManager.isLocked(el)
-				)
-			},
-		)
-		const position = findNextImageVideoPlaceholderPositionNearViewport(obstacles, {
-			elementWidth: imageSize.width,
-			elementHeight: imageSize.height,
-			viewportRect: getViewportCanvasRect(this.canvas),
-			anchor: getCanvasCenter(this.canvas),
-			spacing: mediaPlacementConfig.spacing,
-			maxPerRow: mediaPlacementConfig.maxPerRow,
-			maxSearchRings: mediaPlacementConfig.maxSearchRings,
-		})
+		const position = resolveNearestFreeMediaPlacement(this.canvas, imageSize)
 
 		// 在找到的位置创建图像元素
 		this.createImageElementAt(position.x, position.y, imageSize.width, imageSize.height)
@@ -224,9 +200,10 @@ export class ImageGeneratorTool extends BaseTool {
 		centerX: number,
 		centerY: number,
 		imageModelList?: ImageModelItem[],
+		options?: ImageGeneratorElementCreateOptions,
 	): string {
 		const size = this.getImageElementSizeForModelList(imageModelList)
-		return this.createImageElementAtCenter(centerX, centerY, size.width, size.height)
+		return this.createImageElementAtCenter(centerX, centerY, size.width, size.height, options)
 	}
 
 	public getImageElementSizeForModelList(imageModelList?: ImageModelItem[]): {
@@ -239,25 +216,7 @@ export class ImageGeneratorTool extends BaseTool {
 
 	public createImageElementNearViewport(width?: number, height?: number): string {
 		const imageSize = this.getImageElementSize(width, height)
-		const mediaPlacementConfig = getResolvedMediaPlacementConfig(this.canvas)
-		const obstacles = collectObstacleRects(
-			this.canvas.elementManager.getAllElements(),
-			(el) => {
-				return (
-					this.canvas.permissionManager.isVisible(el) &&
-					!this.canvas.permissionManager.isLocked(el)
-				)
-			},
-		)
-		const position = findNextImageVideoPlaceholderPositionNearViewport(obstacles, {
-			elementWidth: imageSize.width,
-			elementHeight: imageSize.height,
-			viewportRect: getViewportCanvasRect(this.canvas),
-			anchor: getCanvasCenter(this.canvas),
-			spacing: mediaPlacementConfig.spacing,
-			maxPerRow: mediaPlacementConfig.maxPerRow,
-			maxSearchRings: mediaPlacementConfig.maxSearchRings,
-		})
+		const position = resolveNearestFreeMediaPlacement(this.canvas, imageSize)
 
 		return this.createImageElementAt(position.x, position.y, imageSize.width, imageSize.height)
 	}
@@ -269,26 +228,8 @@ export class ImageGeneratorTool extends BaseTool {
 	): string[] {
 		const nextCount = Math.max(1, count)
 		const imageSize = this.getImageElementSize(width, height)
-		const mediaPlacementConfig = getResolvedMediaPlacementConfig(this.canvas)
-		const obstacles = collectObstacleRects(
-			this.canvas.elementManager.getAllElements(),
-			(el) => {
-				return (
-					this.canvas.permissionManager.isVisible(el) &&
-					!this.canvas.permissionManager.isLocked(el)
-				)
-			},
-		)
-		const firstPosition = findNextImageVideoPlaceholderPositionNearViewport(obstacles, {
-			elementWidth: imageSize.width,
-			elementHeight: imageSize.height,
-			viewportRect: getViewportCanvasRect(this.canvas),
-			anchor: getCanvasCenter(this.canvas),
-			spacing: mediaPlacementConfig.spacing,
-			maxPerRow: mediaPlacementConfig.maxPerRow,
-			maxSearchRings: mediaPlacementConfig.maxSearchRings,
-		})
-		const positions = calculateHorizontalImageLayout(
+		const firstPosition = resolveNearestFreeMediaPlacement(this.canvas, imageSize)
+		const positions = resolveHorizontalPlacements(
 			Array.from({ length: nextCount }, () => imageSize),
 			{
 				x: firstPosition.x + imageSize.width / 2,
@@ -357,6 +298,7 @@ export class ImageGeneratorTool extends BaseTool {
 		centerY: number,
 		width?: number,
 		height?: number,
+		options?: ImageGeneratorElementCreateOptions,
 	): string {
 		const size = this.getImageElementSize(width, height)
 		return this.createImageElementAt(
@@ -364,6 +306,7 @@ export class ImageGeneratorTool extends BaseTool {
 			centerY - size.height / 2,
 			size.width,
 			size.height,
+			options,
 		)
 	}
 
@@ -379,12 +322,7 @@ export class ImageGeneratorTool extends BaseTool {
 		y: number,
 		width?: number,
 		height?: number,
-		options?: {
-			select?: boolean
-			ensureInViewport?: boolean
-			completeTask?: boolean
-			temporary?: boolean
-		},
+		options?: ImageGeneratorElementCreateOptions & { temporary?: boolean },
 	): string {
 		const size = this.getImageElementSize(width, height)
 
@@ -394,22 +332,17 @@ export class ImageGeneratorTool extends BaseTool {
 		// 获取下一个 zIndex（顶层元素的下一个 zIndex，因为新元素总是创建在顶层）
 		const newZIndex = this.canvas.elementManager.getNextZIndexInLevel()
 
-		// 获取图片元素的默认配置
-		const defaultConfig = ElementFactory.getDefaultConfig(ElementTypeEnum.Image, {
-			imageWidth: size.width,
-			imageHeight: size.height,
-		})
-
 		// 创建图片元素（使用占位图），传入左上角坐标
 		// 不传入 name，使用 getRenderName() 返回的默认名称
-		const imageElement: ImageElement = {
-			id: elementId,
-			type: ElementTypeEnum.Image,
-			x: x,
-			y: y,
-			...defaultConfig,
-			zIndex: newZIndex,
-		}
+		const imageElement = ElementFactory.createElementData(
+			ElementTypeEnum.Image,
+			elementId,
+			x,
+			y,
+			size.width,
+			size.height,
+			newZIndex,
+		) as ImageElement
 
 		if (options?.temporary) {
 			this.canvas.elementManager.createTemporaryElement(imageElement, { silent: true })
@@ -420,17 +353,8 @@ export class ImageGeneratorTool extends BaseTool {
 			this.canvas.selectionManager?.select(elementId)
 		}
 
-		// 在下一帧检查可视性；行为与图层列表点击定位保持一致
 		if (options?.ensureInViewport !== false) {
-			requestAnimationFrame(() => {
-				const isInViewport = this.canvas.viewportController.isElementInViewport([elementId])
-				if (!isInViewport) {
-					this.canvas.viewportController.moveElementToViewport([elementId], {
-						animated: true,
-						padding: { top: 50, right: 50, bottom: 50, left: 100 },
-					})
-				}
-			})
+			this.ensureElementVisible(elementId)
 		}
 
 		// 创建完成后切回选择工具
@@ -466,4 +390,10 @@ export class ImageGeneratorTool extends BaseTool {
 	public setDefaultSize(size: { width: number; height: number }): void {
 		this.cachedDefaultSize = size
 	}
+}
+
+export interface ImageGeneratorElementCreateOptions {
+	select?: boolean
+	ensureInViewport?: boolean
+	completeTask?: boolean
 }

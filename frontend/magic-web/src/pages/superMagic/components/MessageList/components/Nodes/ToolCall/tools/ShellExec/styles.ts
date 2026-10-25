@@ -118,7 +118,7 @@ export const useStyle = createStyles(({ css, token }) => {
 		`,
 		terminal: css`
 			border-radius: 8px;
-			background-color: #000000;
+			height: 200px;
 			overflow: hidden;
 			position: relative;
 			max-height: 200px !important;

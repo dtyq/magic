@@ -1,5 +1,4 @@
 import type { TFunction } from "i18next"
-import i18n from "i18next"
 import type {
 	PublishSkillParams,
 	PublishSkillPrefillResponse,
@@ -24,7 +23,6 @@ import {
 	resolvePublishAvailability,
 	sanitizeDraftForSubmission,
 } from "@/pages/superMagic/components/PublishPanel/publishAvailability"
-import { resolveLocalizedText } from "@/utils/locale"
 import type { SkillEditSkillInfo } from "./store/types"
 
 const defaultSkillPublishTo = ["INTERNAL", "MARKET"] as const
@@ -143,14 +141,16 @@ function localeTextToPublishDescriptionI18n(
 ): PublishSkillParams["version_description_i18n"] {
 	if (typeof details === "string") {
 		const value = details.trim()
-		return { zh_CN: value, en_US: value }
+		return { default: value, zh_CN: value, en_US: value }
 	}
 
 	const fallback = localeTextToDisplayString(details).trim()
-	const zh = (details.zh_CN ?? details[DEFAULT_LOCALE_KEY] ?? fallback).trim()
-	const en = (details.en_US ?? details[DEFAULT_LOCALE_KEY] ?? fallback).trim()
+	const defaultValue = (details[DEFAULT_LOCALE_KEY] ?? fallback).trim()
+	const zh = (details.zh_CN ?? defaultValue).trim()
+	const en = (details.en_US ?? defaultValue).trim()
 
 	return {
+		default: defaultValue,
 		zh_CN: zh,
 		en_US: en,
 	}
@@ -175,7 +175,7 @@ function mapVersionToHistoryRecord(
 ): PublishHistoryRecord {
 	const emptyLabel = t("skillEditPage.publishPanel.emptyValue")
 	const versionLabel = formatVersionLabel(item.version)
-	const details = pickVersionDescription(item.version_description_i18n)
+	const details = item.version_description?.trim() ?? ""
 	const publisherName = item.publisher?.name?.trim() || emptyLabel
 	const publishedAt = item.published_at?.trim() || emptyLabel
 
@@ -279,10 +279,6 @@ function mapApiTargetToInternalTarget(
 	if (apiTarget === "MEMBER") return "MEMBER"
 	if (apiTarget === "ORGANIZATION") return "ORGANIZATION"
 	return "PRIVATE"
-}
-
-function pickVersionDescription(text: SkillVersionItem["version_description_i18n"]): string {
-	return resolveLocalizedText(text as Record<string, string>, i18n.language)
 }
 
 export function formatVersionLabel(version: string) {

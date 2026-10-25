@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router"
 import { RecordSummaryNotificationProvider } from "@/components/business/RecordingSummary/components/RecordSummaryNotification"
 import LowResolutionScaleTip from "@/components/other/LowResolutionScaleTip"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { lazy, Suspense, useEffect } from "react"
 import { useChatWebSocketConnection } from "@/hooks/useChatWebSocketConnection"
 import routeManageService from "@/pages/superMagic/services/routeManageService"

@@ -26,7 +26,8 @@ interface UseUserMenuProps {
 function useUserMenu({ isPreviewMode }: UseUserMenuProps) {
 	const { t } = useTranslation("interface")
 	const { languageOptions, languageLabel } = useLanguageOptions()
-	const { isAdmin, isPersonalOrganization } = userStore.user
+	const { isAdmin, isPersonalOrganization, canAccessAdmin } = userStore.user
+	const showAdminEntry = isPersonalOrganization || isAdmin || canAccessAdmin
 
 	const menu = useMemo<MenuProps["items"]>(() => {
 		if (isPreviewMode) {
@@ -119,10 +120,10 @@ function useUserMenu({ isPreviewMode }: UseUserMenuProps) {
 				icon: <Info />,
 				"data-testid": "user-menus-about-us",
 			},
-			(isPersonalOrganization || isAdmin) && {
+			showAdminEntry && {
 				type: "divider",
 			},
-			(isPersonalOrganization || isAdmin) && {
+			showAdminEntry && {
 				label: <span data-testid="user-menus-admin">{t("sider.admin")}</span>,
 				key: UserMenuKey.Admin,
 				icon: <MagicIcon size={20} component={IconDeviceImacCog} color="currentColor" />,
@@ -139,7 +140,7 @@ function useUserMenu({ isPreviewMode }: UseUserMenuProps) {
 				"data-testid": "user-menus-logout",
 			},
 		].filter(Boolean) as ItemType[]
-	}, [isPreviewMode, t, languageLabel, languageOptions, isPersonalOrganization, isAdmin])
+	}, [isPreviewMode, t, languageLabel, languageOptions, showAdminEntry])
 
 	return { menu }
 }

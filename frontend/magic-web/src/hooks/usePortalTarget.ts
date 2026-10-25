@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 interface UsePortalTargetOptions {
 	/** Portal ID to target */
 	portalId: string
 	/** Whether to enable portal (defaults to true) */
 	enabled?: boolean
+	/** Resolve an already mounted target before paint for desktop home editor switches. */
+	resolveBeforePaint?: boolean
 }
 
 /**
@@ -21,9 +23,21 @@ interface UsePortalTargetOptions {
  * return portalTarget && createPortal(<Component />, portalTarget)
  * ```
  */
-function usePortalTarget({ portalId, enabled = true }: UsePortalTargetOptions) {
+function usePortalTarget({
+	portalId,
+	enabled = true,
+	resolveBeforePaint = false,
+}: UsePortalTargetOptions) {
 	const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
 	const hasFoundTargetRef = useRef(false)
+
+	useLayoutEffect(() => {
+		if (!resolveBeforePaint || !enabled) return
+		// The editor and its target mount in the same commit. Waiting for rAF exposes an empty
+		// composer for a frame and changes the height of the vertically centered home content.
+		const targets = document.querySelectorAll<HTMLElement>(`#${portalId}`)
+		setPortalTarget(targets.item(targets.length - 1))
+	}, [portalId, enabled, resolveBeforePaint])
 
 	useEffect(() => {
 		if (!enabled) {

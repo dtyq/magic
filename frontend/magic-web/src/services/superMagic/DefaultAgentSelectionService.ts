@@ -102,6 +102,14 @@ export function resolveAgentSelection(
 	const normalizedMode = modeIdentifier?.trim()
 	const normalizedAgentCode = normalizeAgentCode(explicitAgentCode)
 
+	if (normalizedAgentCode && normalizedMode === TopicMode.CrewCreator) {
+		return {
+			modeIdentifier: TopicMode.CrewCreator,
+			topicPattern: TopicMode.CrewCreator,
+			agentCode: normalizedAgentCode,
+		}
+	}
+
 	if (
 		normalizedAgentCode &&
 		(normalizedMode === TopicMode.CustomAgent || normalizedMode === normalizedAgentCode)

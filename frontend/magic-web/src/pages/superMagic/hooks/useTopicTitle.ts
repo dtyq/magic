@@ -51,6 +51,13 @@ export function useProjectTitle() {
 	const { t } = useTranslation("super")
 
 	useEffect(() => {
+		// Micro-app pages own their title; the global project may still belong to another page.
+		if (matchPath(`/:clusterCode${RoutePath.MicroApp}`, pathname)) return
+
+		if (matchPath(`/:clusterCode${RoutePath.SuperChatHome}`, pathname)) {
+			setMeta({ title: t("chatList.newChat") })
+			return
+		}
 		return reaction(
 			() =>
 				[

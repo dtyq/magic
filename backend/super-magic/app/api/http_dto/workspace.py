@@ -87,14 +87,25 @@ class UploadConfigRequest(BaseModel):
 class WorkspaceExportRequest(BaseModel):
     """Request body for workspace export endpoint."""
 
-    type: Literal["agent_creator", "skill_creator", "custom_agent", "custom_skill"] = Field(
-        ..., description="Export type: 'agent_creator' or 'skill_creator' (legacy: 'custom_agent' or 'custom_skill')"
+    type: Literal[
+        "agent_creator",
+        "skill_creator",
+        "slides_template_creator",
+        "custom_agent",
+        "custom_skill",
+    ] = Field(
+        ...,
+        description="Export type: agent, skill, or slides template (legacy: custom_agent/custom_skill)",
     )
     code: str = Field(
         ..., description="Unique identifier for the agent/skill (e.g. 'SMA_XXXXXX')"
     )
     upload_config: Dict[str, Any] = Field(
         ..., description="Object storage credentials and configuration (platform-specific)"
+    )
+    public_upload_config: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Public object storage credentials for slides template preview assets",
     )
     source_path: str = Field(
         "",
@@ -110,6 +121,9 @@ Relative path within the workspace root to export (e.g. 'skills/my-skill'). Defa
         description="Optional ZIP file name to upload. Defaults to '{code}_{timestamp}.zip'.",
     )
 
+    exclude_paths: list[str] = Field(default_factory=list, description="Paths relative to the exported directory to omit.")
+    skills_md_hash: str | None = Field(None, description="Expected SHA-256 of SKILLS.md for a reference-only employee export.")
+
 
 class WorkspaceExportData(BaseModel):
     """Workspace export response payload."""
@@ -119,6 +133,23 @@ class WorkspaceExportData(BaseModel):
         default_factory=dict,
         description="Extracted metadata from workspace files",
     )
+
+
+class WorkspaceExportTaskRequest(WorkspaceExportRequest):
+    """异步工作区导出请求。"""
+
+    task_key: str = Field(..., min_length=1, description="幂等任务标识")
+
+
+class WorkspaceExportTaskData(BaseModel):
+    """异步工作区导出任务状态。"""
+
+    task_key: str
+    status: str
+    progress: int | None = None
+    file_key: str | None = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
 
 
 class WorkspaceImportRequest(BaseModel):

@@ -1,6 +1,7 @@
 import { Share2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
+import { isOrganizationDesignatedShareIncomplete } from "@/pages/superMagic/components/Share/utils/organizationShareGuards"
 import type { ProjectShareSheetController } from "../types"
 import { ProjectShareActionFooter } from "./ProjectShareFloatingActionBar"
 
@@ -29,7 +30,14 @@ export function ProjectShareSheetFooter({ controller }: ProjectShareSheetFooterP
 					disabled={
 						controller.saving ||
 						controller.isCheckingShare ||
-						(controller.view === "edit" && controller.editLoading)
+						controller.shareTypePermissionLoading ||
+						controller.isSelectedShareTypePermitted === false ||
+						(controller.view === "edit" && controller.editLoading) ||
+						isOrganizationDesignatedShareIncomplete(
+							controller.formState.shareType,
+							controller.formState.shareRange,
+							controller.formState.shareTargets.length,
+						)
 					}
 					onClick={controller.submitCreateShare}
 					data-testid={

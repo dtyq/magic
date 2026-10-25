@@ -15,6 +15,7 @@ const {
 		getProjectDetail: vi.fn(),
 		fetchProjects: vi.fn(),
 		updateProjects: vi.fn(),
+		recordProjectVisit: vi.fn(),
 	},
 	workspaceServiceMock: {
 		getWorkspaceDetail: vi.fn(),
@@ -260,6 +261,24 @@ describe("SuperMagicService.refreshState", () => {
 			false,
 		)
 		expect(workspaceServiceMock.createWorkspace).not.toHaveBeenCalled()
+	})
+
+	it("passes pending deep-link query through workspace home navigation", async () => {
+		const homeWorkspace = {
+			id: "workspace-home",
+			workspace_type: "default",
+		} as Workspace
+		workspaceStoreMock.selectedWorkspace = homeWorkspace
+
+		await SuperMagicService.navigateToHome(undefined, {
+			agentCode: "SMA-test-agent",
+		})
+
+		expect(routeManageServiceMock.navigateToWorkspace).toHaveBeenCalledWith(
+			"workspace-home",
+			false,
+			{ agentCode: "SMA-test-agent" },
+		)
 	})
 })
 

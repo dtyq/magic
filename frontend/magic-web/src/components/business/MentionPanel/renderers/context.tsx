@@ -1,25 +1,32 @@
+import { MentionPanelStore } from "../runtime/builtin/store"
+import type { DataService, MentionItem, MentionItemRendererResolver } from "../types"
+import type { MentionItemRendererContext } from "./types"
 import { createContext, useContext, type PropsWithChildren } from "react"
 import { observer } from "mobx-react-lite"
-import type { MentionItem, MentionItemRendererResolver } from "../types"
 import { getBuiltinMentionItemRenderer } from "../runtime/builtin/renderer"
 import { useMentionPanelFilePreviewById } from "../runtime/builtin/domains/file-preview/useMentionPanelFilePreviewById"
 
 const MentionPanelRendererContext = createContext<MentionItemRendererResolver>(
 	getBuiltinMentionItemRenderer,
 )
-const MentionPanelRenderContextValue = createContext<Readonly<Record<string, string>>>({})
+const MentionPanelRenderContextValue = createContext<
+	Pick<MentionItemRendererContext, "filePreviewById" | "filePresentationOptions">
+>({})
 
 interface MentionPanelRendererProviderProps extends PropsWithChildren {
 	getItemRenderer: MentionItemRendererResolver
 	filePreviewById?: Readonly<Record<string, string>>
+	filePresentationOptions?: MentionItemRendererContext["filePresentationOptions"]
 }
 
 export function MentionPanelRendererProvider(props: MentionPanelRendererProviderProps) {
-	const { children, getItemRenderer, filePreviewById = {} } = props
+	const { children, getItemRenderer, filePreviewById = {}, filePresentationOptions } = props
 
 	return (
 		<MentionPanelRendererContext.Provider value={getItemRenderer}>
-			<MentionPanelRenderContextValue.Provider value={filePreviewById}>
+			<MentionPanelRenderContextValue.Provider
+				value={{ filePreviewById, filePresentationOptions }}
+			>
 				{children}
 			</MentionPanelRenderContextValue.Provider>
 		</MentionPanelRendererContext.Provider>
@@ -41,6 +48,7 @@ export function useMentionItemRenderContextValue() {
 }
 
 interface MentionPanelRootProvidersProps extends PropsWithChildren {
+	dataService?: DataService
 	getItemRenderer: MentionItemRendererResolver
 	items: MentionItem[]
 }
@@ -49,13 +57,16 @@ interface MentionPanelRootProvidersProps extends PropsWithChildren {
 export const MentionPanelRootProviders = observer(function MentionPanelRootProviders(
 	props: MentionPanelRootProvidersProps,
 ) {
-	const { getItemRenderer, items, children } = props
+	const { getItemRenderer, items, children, dataService } = props
+	const filePresentationOptions =
+		dataService instanceof MentionPanelStore ? dataService.filePresentationOptions : undefined
 	const filePreviewById = useMentionPanelFilePreviewById(items)
 
 	return (
 		<MentionPanelRendererProvider
 			getItemRenderer={getItemRenderer}
 			filePreviewById={filePreviewById}
+			filePresentationOptions={filePresentationOptions}
 		>
 			{children}
 		</MentionPanelRendererProvider>

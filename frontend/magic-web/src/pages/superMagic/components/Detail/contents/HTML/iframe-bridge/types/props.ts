@@ -1,5 +1,19 @@
-import { HistoryState, ImageActionPayload } from "./messages"
+import { DomTreeResponse, HistoryState, ImageActionPayload } from "./messages"
 import { EditorError } from "./errors"
+import type { PPTBuild } from "@dtyq/html-sandbox/utils/pptBuild"
+
+export interface PPTBuildEntry {
+	selector: string
+	label: string
+	build: PPTBuild
+	/** Latest step among configured ancestors; the element cannot show before it. */
+	ancestorStep?: number
+}
+
+export interface PPTBuildUpdate {
+	selector: string
+	build: PPTBuild | null
+}
 
 /**
  * 缩放配置
@@ -169,6 +183,11 @@ export interface SaveResult {
  * HTMLEditorV2 Ref（暴露给父组件的方法）
  */
 export interface HTMLEditorV2Ref {
+	getPPTBuilds: () => Promise<PPTBuildEntry[]>
+	updatePPTBuilds: (updates: PPTBuildUpdate[]) => Promise<void>
+	setPPTBuildMarkers: (visible: boolean) => Promise<void>
+	/** Show the slide after `steps` display steps; null restores the full page. */
+	previewPPTBuild: (steps: number | null, animate?: boolean) => Promise<void>
 	/** 获取 iframe 元素 */
 	getIframeElement: () => HTMLIFrameElement | null
 
@@ -227,7 +246,20 @@ export interface HTMLEditorV2Ref {
 	cancelBatchOperation: () => Promise<void>
 
 	/** 临时应用样式（拖动过程中调用，不记录历史） */
-	applyStylesTemporary: (selector: string, styles: Record<string, string>) => Promise<void>
+	applyStylesTemporary: (
+		selector: string,
+		styles: Record<string, string>,
+	) => Promise<{
+		rect?: { top: number; left: number; width: number; height: number }
+		childRects?: Array<{
+			top: number
+			left: number
+			width: number
+			height: number
+			position?: string
+			display?: string
+		}>
+	} | void>
 
 	/** 进入编辑模式 */
 	enterEditMode: () => Promise<void>
@@ -250,6 +282,26 @@ export interface HTMLEditorV2Ref {
 
 	/** 选择指定元素 */
 	selectElement: (selector: string) => Promise<void>
+	getDomTree: () => Promise<DomTreeResponse | null>
+	selectDomNode: (nodeId: string) => Promise<void>
+	hoverDomNode: (nodeId: string) => Promise<void>
+	clearHoveredDomNode: () => Promise<void>
+	scrollToDomNode: (nodeId: string) => Promise<void>
+	moveDomNode: (nodeId: string, targetParentId: string, targetIndex: number) => Promise<void>
+	beginDomMovePreview: (nodeId: string) => Promise<void>
+	previewDomMove: (
+		nodeId: string,
+		targetNodeId: string,
+		position: "before" | "inside" | "after",
+	) => Promise<boolean>
+	commitDomMovePreview: () => Promise<void>
+	cancelDomMovePreview: () => Promise<void>
+	insertTextNode: (parentNodeId: string, textContent: string, index?: number) => Promise<void>
+	insertImageNode: (parentNodeId: string, index?: number) => Promise<void>
+	copyDomNode: (nodeId: string) => Promise<void>
+	duplicateDomNode: (nodeId: string) => Promise<void>
+	cutDomNode: (nodeId: string) => Promise<void>
+	pasteDomNode: (targetParentId: string, targetIndex?: number) => Promise<void>
 
 	/** 获取元素的计算样式 */
 	getElementComputedStyles: (selector: string) => Promise<Record<string, string>>
@@ -266,6 +318,12 @@ export interface HTMLEditorV2Ref {
 
 	/** 获取元素的文本内容 */
 	getTextContent: (selector: string) => Promise<string>
+
+	/** 更新元素的常用 HTML 属性，空值会移除属性 */
+	updateElementAttributes: (
+		selector: string,
+		attributes: Record<string, string | null>,
+	) => Promise<void>
 
 	// ========== 元素位置调整 ==========
 	/** 设置元素位置 (基于 relative 定位) */

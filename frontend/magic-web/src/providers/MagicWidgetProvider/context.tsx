@@ -4,6 +4,7 @@ import type { MagicWidgetContextValue } from "./types"
 const DEFAULT_CONTEXT_VALUE: MagicWidgetContextValue = {
 	embedContext: null,
 	config: {},
+	requestCustomMentionSearch: async () => [],
 }
 
 const MagicWidgetContext = createContext<MagicWidgetContextValue>(DEFAULT_CONTEXT_VALUE)

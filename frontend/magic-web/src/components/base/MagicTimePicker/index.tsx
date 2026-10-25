@@ -1,5 +1,5 @@
 import { type TimePickerProps } from "antd"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import MagicTimePickerDesktop from "./MagicTimePickerDesktop"
 import MagicTimePickerMobile from "./MagicTimePickerMobile"

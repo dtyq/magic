@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iFraldas — Design System &amp; Calculadora de Chá de Bebê</title>
+  <style>
+    :root {
+      --iris: #01b6bc;
+      --iris-hover: #019296;
+      --iris-50: #e6f8f9;
+      --iris-100: #ccf0f2;
+      --iris-200: #b3e9eb;
+      --marguerite: #6f69d2;
+      --marguerite-hover: #5953a8;
+      --marguerite-50: #f0eef9;
+      --salmon: #ff8da1;
+      --salmon-50: #ffe8f6;
+      --salmon-100: #ffddee;
+      --mint-soft: #eafaf4;
+      --mint-border: #b8eed9;
+      --mint-text: #197a56;
+      --slate: #363853;
+      --slate-muted: #6c6e84;
+      --slate-light: #afafba;
+      --bg-neutral: #fafbfc;
+      --white: #ffffff;
+      --border-color: #eff1f3;
+      --r-pill: 9999px;
+      --r-card: 18px;
+      --r-sm: 8px;
+      --shadow-sm: 0 2px 4px rgba(54, 56, 83, 0.04);
+      --shadow-md: 0 8px 20px rgba(54, 56, 83, 0.07);
+      --font-heading: "Nunito", system-ui, -apple-system, sans-serif;
+      --font-body: "Poppins", system-ui, -apple-system, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-neutral);
+      color: var(--slate);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Gentle Header Navigation */
+    .ifraldas-nav {
+      background: var(--white);
+      border-bottom: 1px solid var(--border-color);
+      padding: 14px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--iris) 0%, var(--marguerite) 100%);
+      border-radius: var(--r-pill);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-family: var(--font-heading);
+      font-weight: 900;
+      font-size: 20px;
+      box-shadow: 0 4px 10px rgba(1, 182, 188, 0.25);
+    }
+    .brand-name {
+      font-family: var(--font-heading);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--slate);
+    }
+    .brand-name span { color: var(--iris); }
+    .nav-menu {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+    .nav-menu a {
+      color: var(--slate);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-menu a:hover,
+    .nav-menu a.active {
+      color: var(--iris);
+    }
+    .btn-cta-nav {
+      background: var(--iris);
+      color: var(--white);
+      font-weight: 700;
+      padding: 9px 22px;
+      border-radius: var(--r-pill);
+      text-decoration: none;
+      font-size: 13.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(1, 182, 188, 0.28);
+      transition: background 0.2s;
+    }
+    .btn-cta-nav:hover { background: var(--iris-hover); }
+    /* Hero Preview: First 500px Impactful Area */
+    .hero-container {
+      background: linear-gradient(180deg, #ffffff 0%, #f4fbfb 100%);
+      border-bottom: 1px solid var(--iris-100);
+      padding: 32px 36px 40px;
+    }
+    .hero-content-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 36px;
+      align-items: center;
+    }
+    .badge-parenting {
+      background: var(--salmon-50);
+      color: #b83d5a;
+      border: 1px solid var(--salmon-100);
+      padding: 5px 14px;
+      border-radius: var(--r-pill);
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: 38px;
+      line-height: 1.15;
+      font-weight: 800;
+      color: var(--slate);
+      margin-bottom: 14px;
+    }
+    .hero-title span {
+      color: var(--iris);
+      background: linear-gradient(120deg, rgba(1,182,188,0.15) 0%, rgba(111,105,210,0.15) 100%);
+      padding: 0 6px;
+      border-radius: 6px;
+    }
+    .hero-lead {
+      color: var(--slate-muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 22px;
+    }
+    .trust-metrics-row {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .trust-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--white);
+      border: 1px solid var(--border-color);
+      padding: 8px 14px;
+      border-radius: var(--r-pill);
+      box-shadow: var(--shadow-sm);
+    }
+    .trust-val {
+      font-family: var(--font-heading);
+      font-weight: 800;
+      color: var(--slate);
+      font-size: 15px;
+    }
+    .trust-lbl {
+      font-size: 11px;
+      color: var(--slate-muted);
+    }
+    /* Diaper Calculator Card */
+    .calc-card {
+      background: var(--white);
+      border: 1.5px solid var(--iris-200);
+      border-radius: var(--r-card);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+    }
+    .calc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+    .calc-title {
+      font-family: var(--font-heading);
+      font-size: 16.5px;
+      font-weight: 800;
+      color: var(--slate);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .size-selector-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--slate-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .pill-group {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .size-pill {
+      border: 1.5px solid var(--border-color);
+      background: var(--bg-neutral);
+      border-radius: var(--r-pill);
+      padding: 8px 4px;
+      text-align: center;
+      font-family: var(--font-heading);
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--slate);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .size-pill.active {
+      border-color: var(--iris);
+      background: var(--iris-50);
+      color: var(--iris-hover);
+    }
+    .stepper-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-neutral);
+      border: 1px solid var(--border-color);
+      padding: 10px 16px;
+      border-radius: var(--r-pill);
+      margin-bottom: 16px;
+    }
+    .stepper-ctrl {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stepper-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border-color);
+      background: var(--white);
+      color: var(--slate);
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .calc-result-box {
+      background: var(--mint-soft);
+      border: 1px solid var(--mint-border);
+      border-radius: var(--r-sm);
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .result-qty {
+      font-family: var(--font-heading);
+      font-weight: 800;
+      font-size: 18px;
+      color: var(--mint-text);
+    }
+    .btn-calc-action {
+      width: 100%;
+      background: var(--iris);
+      color: var(--white);
+      border: none;
+      padding: 12px;
+      border-radius: var(--r-pill);
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(1, 182, 188, 0.25);
+    }
+    /* Baby Milestone Timeline */
+    .section-timeline {
+      max-width: 1200px;
+      margin: 36px auto;
+      padding: 0 36px 48px;
+    }
+    .timeline-title-bar {
+      text-align: center;
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .timeline-heading {
+      font-family: var(--font-heading);
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--slate);
+    }
+    .timeline-sub {
+      color: var(--slate-muted);
+      font-size: 14px;
+      margin-top: 6px;
+    }
+    .milestone-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      position: relative;
+    }
+    .milestone-card {
+      background: var(--white);
+      border: 1px solid var(--border-color);
+      border-radius: var(--r-card);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+    }
+    .milestone-card.highlight {
+      border-color: var(--iris-200);
+      background: linear-gradient(180deg, #ffffff 0%, var(--iris-50) 100%);
+    }
+    .milestone-step {
+      font-family: var(--font-heading);
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--iris);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .milestone-name {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--slate);
+      margin-bottom: 8px;
+    }
+    .milestone-desc {
+      font-size: 12.5px;
+      color: var(--slate-muted);
+      line-height: 1.5;
+    }
+    /* Design Tokens Bar */
+    .tokens-strip {
+      max-width: 1200px;
+      margin: 0 auto 40px;
+      padding: 0 36px;
+    }
+    .tokens-card {
+      background: var(--white);
+      border: 1px solid var(--border-color);
+      border-radius: var(--r-card);
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .swatch-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .swatch-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--r-pill);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .swatch-name { font-weight: 700; font-size: 12px; color: var(--slate); }
+    .swatch-hex { font-family: var(--font-mono); font-size: 10.5px; color: var(--slate-muted); }
+    /* Footer */
+    .ifraldas-footer {
+      background: var(--white);
+      border-top: 1px solid var(--border-color);
+      padding: 24px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--slate-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Gentle Parenting Header -->
+  <header class="ifraldas-nav">
+    <div class="brand-wrap">
+      <div class="brand-logo-icon">i</div>
+      <div class="brand-name">iFraldas<span>.com.br</span></div>
+    </div>
+    <ul class="nav-menu">
+      <li><a href="#calculadora" class="active">Calculadora</a></li>
+      <li><a href="#marcos">Marcos do Bebê</a></li>
+      <li><a href="#assinatura">Assinatura Flexível</a></li>
+      <li><a href="#tokens">Design Tokens</a></li>
+    </ul>
+    <a href="#calculadora" class="btn-cta-nav">
+      <span>Criar Chá Grátis</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </header>
+
+  <!-- Hero Section: First 500px High-Impact Area -->
+  <section class="hero-container" id="calculadora">
+    <div class="hero-content-wrap">
+      <div>
+        <div class="badge-parenting">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span>Plataforma Líder de Chá de Fraldas no Brasil</span>
+        </div>
+        <h1 class="hero-title">
+          O Chá de Bebê que se transforma em <span>fraldas no seu tempo</span>.
+        </h1>
+        <p class="hero-lead">
+          Receba presentes em dinheiro ou troque por pacotes de fraldas nos tamanhos ideais
+          conforme o seu bebê cresce. Sem acumular pacotes perdidos ou fora de tamanho.
+        </p>
+        <div class="trust-metrics-row">
+          <div class="trust-pill">
+            <span class="trust-val">120.000+</span>
+            <span class="trust-lbl">Bebês Atendidos</span>
+          </div>
+          <div class="trust-pill">
+            <span class="trust-val">4.9 ★</span>
+            <span class="trust-lbl">Avaliação Mães</span>
+          </div>
+          <div class="trust-pill">
+            <span class="trust-val">100%</span>
+            <span class="trust-lbl">Troca Garantida</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diaper Subscription & Baby Care Calculator -->
+      <div class="calc-card">
+        <div class="calc-header">
+          <div class="calc-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--iris)" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+            <span>Calculadora de Fraldas &amp; Assinatura</span>
+          </div>
+          <span style="font-size:11px;font-weight:700;color:var(--iris);background:var(--iris-50);padding:3px 8px;border-radius:9999px;">PASSO 1 DE 2</span>
+        </div>
+
+        <div class="size-selector-label">
+          <span>Selecione o tamanho atual do bebê:</span>
+          <span style="color:var(--iris);">Tamanho P: 5 a 8 kg</span>
+        </div>
+
+        <div class="pill-group">
+          <div class="size-pill">RN</div>
+          <div class="size-pill active">P</div>
+          <div class="size-pill">M</div>
+          <div class="size-pill">G</div>
+          <div class="size-pill">XG</div>
+        </div>
+
+        <div class="stepper-row">
+          <span style="font-weight:600;font-size:13px;">Média de trocas por dia:</span>
+          <div class="stepper-ctrl">
+            <button class="stepper-btn">-</button>
+            <span style="font-family:var(--font-heading);font-weight:800;font-size:16px;">8 trocas</span>
+            <button class="stepper-btn">+</button>
+          </div>
+        </div>
+
+        <div class="calc-result-box">
+          <div>
+            <div style="font-size:11px;color:var(--mint-text);font-weight:600;">Consumo Estimado / Mês</div>
+            <div class="result-qty">240 fraldas (6 pacotes)</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;color:var(--mint-text);">Economia no Plano</div>
+            <div style="font-family:var(--font-heading);font-weight:800;font-size:15px;color:var(--mint-text);">R$ 184,00</div>
+          </div>
+        </div>
+
+        <button class="btn-calc-action">
+          Simular Envio Programado Gratuito
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Baby Milestone Timeline -->
+  <section class="section-timeline" id="marcos">
+    <div class="timeline-title-bar">
+      <h2 class="timeline-heading">Marcos de Crescimento do Bebê</h2>
+      <p class="timeline-sub">Planejamento inteligente da gestação aos primeiros passos com apoio dos pediatras.</p>
+    </div>
+
+    <div class="milestone-grid">
+      <div class="milestone-card">
+        <div class="milestone-step">01 · GESTAÇÃO</div>
+        <div class="milestone-name">Chá de Fraldas Virtual</div>
+        <p class="milestone-desc">Convidados compram online e você resgata conforme a necessidade sem estocar pacotes.</p>
+      </div>
+
+      <div class="milestone-card highlight">
+        <div class="milestone-step">02 · 0 A 3 MESES</div>
+        <div class="milestone-name">Primeiros 100 Dias</div>
+        <p class="milestone-desc">Trocas mais frequentes nos tamanhos RN e P com foco na pele ultra sensível e toque suave.</p>
+      </div>
+
+      <div class="milestone-card">
+        <div class="milestone-step">03 · 4 A 9 MESES</div>
+        <div class="milestone-name">Introdução Alimentar</div>
+        <p class="milestone-desc">Transição para tamanhos M e G com barreiras antivazamento duplas e absorção noturna 12h.</p>
+      </div>
+
+      <div class="milestone-card">
+        <div class="milestone-step">04 · 10+ MESES</div>
+        <div class="milestone-name">Primeiros Passinhos</div>
+        <p class="milestone-desc">Fralda-calça com ajuste elástico 360° para acompanhar a descoberta e mobilidade da criança.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Design Tokens Strip -->
+  <section class="tokens-strip" id="tokens">
+    <div class="tokens-card">
+      <div class="swatch-item">
+        <div class="swatch-circle" style="background:#01b6bc;"></div>
+        <div><div class="swatch-name">Iris Blue (Primary)</div><div class="swatch-hex">#01B6BC</div></div>
+      </div>
+      <div class="swatch-item">
+        <div class="swatch-circle" style="background:#6f69d2;"></div>
+        <div><div class="swatch-name">Marguerite (Accent)</div><div class="swatch-hex">#6F69D2</div></div>
+      </div>
+      <div class="swatch-item">
+        <div class="swatch-circle" style="background:#ff8da1;"></div>
+        <div><div class="swatch-name">Salmon Pink (Blush)</div><div class="swatch-hex">#FF8DA1</div></div>
+      </div>
+      <div class="swatch-item">
+        <div class="swatch-circle" style="background:#eafaf4;border:1px solid #b8eed9;"></div>
+        <div><div class="swatch-name">Powder Mint (Care)</div><div class="swatch-hex">#EAFAF4</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="ifraldas-footer">
+    <div><strong>iFraldas Brasil</strong> · O ecossistema de cuidado para a maternidade e paternidade moderna.</div>
+    <div>Design Tokens v2.1 · Poppins &amp; Nunito Typographic System</div>
+  </footer>
+
+</body>
+</html>

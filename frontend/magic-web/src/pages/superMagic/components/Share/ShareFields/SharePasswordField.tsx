@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Copy } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicModal from "@/components/base/MagicModal"
 import type { SharePasswordFieldProps } from "./types"
 

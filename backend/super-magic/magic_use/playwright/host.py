@@ -114,7 +114,7 @@ class PlaywrightHost:
             if self.lease_count >= limits.hard_contexts:
                 raise BrowserSDKError(
                     BrowserErrorCode.RESOURCE_LIMIT,
-                    f"Browser context hard limit reached ({limits.hard_contexts}). Close an unused Browser session first.",
+                    f"Browser context hard limit reached ({limits.hard_contexts}). Existing sessions remain available.",
                 )
             context_config = config.context
             options = self._context_options(context_config)
@@ -134,7 +134,7 @@ class PlaywrightHost:
             if self.lease_count + 1 >= limits.soft_contexts:
                 warning = (
                     f"Browser context usage is near the sandbox soft limit "
-                    f"({self.lease_count + 1}/{limits.soft_contexts}). Close unused pages or sessions."
+                    f"({self.lease_count + 1}/{limits.soft_contexts}). Reuse existing sessions for ordinary browsing."
                 )
             self._leases[lease_id] = _LeaseState(context=context)
             return PlaywrightContextLease(
@@ -150,21 +150,26 @@ class PlaywrightHost:
             state.disconnect_handler = handler
 
     def reserve_page(self, lease_id: str) -> str | None:
+        self.ensure_page_capacity(lease_id)
         state = self._require_lease(lease_id)
         limits = self._config.resources
         current = self.page_count
-        if current >= limits.hard_pages:
-            raise BrowserSDKError(
-                BrowserErrorCode.RESOURCE_LIMIT,
-                f"Browser page hard limit reached ({limits.hard_pages}). Close an unused page first.",
-            )
         state.page_count += 1
         if current + 1 >= limits.soft_pages:
             return (
                 f"Browser page usage is near the sandbox soft limit "
-                f"({current + 1}/{limits.soft_pages}). Close unused pages."
+                f"({current + 1}/{limits.soft_pages}). Reuse an existing page for ordinary navigation."
             )
         return None
+
+    def ensure_page_capacity(self, lease_id: str) -> None:
+        self._require_lease(lease_id)
+        limit = self._config.resources.hard_pages
+        if self.page_count >= limit:
+            raise BrowserSDKError(
+                BrowserErrorCode.RESOURCE_LIMIT,
+                f"Browser page hard limit reached ({limit}). Existing pages remain available for navigation.",
+            )
 
     def release_page(self, lease_id: str) -> None:
         state = self._leases.get(lease_id)

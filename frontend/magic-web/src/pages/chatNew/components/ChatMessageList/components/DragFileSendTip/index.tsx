@@ -113,9 +113,9 @@ const DragFileSendTipComponent = ({ children }: PropsWithChildren) => {
 				<MagicIcon component={IconFileUpload} size={48} color="currentColor" />
 				<span className={styles.dragEnteredMainTip}>{t("chat.input.dragFile.tip")}</span>
 				<span className={styles.dragEnteredTip}>
-					单次发送最多 50 个文件
+					{t("dragFile.maxFiles", { ns: "chat" })}
 					<br />
-					支持类型：pdf, txt, csv, docx, doc, xlsx, xls, pptx, ppt, md, mobi, epub
+					{t("dragFile.supportedTypes", { ns: "chat" })}
 				</span>
 				{loading && (
 					<MagicIcon

@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { filter, get, isEmpty, isEqual, uniqWith } from 'lodash-es'
 // @ts-ignore
 import Snowflake from 'snowflake-id';
 import { SCHEMA_TYPE, SchemaOption, getSchemaToOptionsMap } from '../constants';
@@ -20,8 +20,8 @@ export function cleanAndFilterArray<FilterType>(inputArray: FilterType[]): Filte
 
   const allowedTypes = SCHEMA_TYPE;
   // 过滤空字符串和非法类型的元素
-  const filteredArray = _.filter(inputArray, (item) => {
-    if (_.isEmpty(item)) {
+  const filteredArray = filter(inputArray, (item) => {
+    if (isEmpty(item)) {
       return false; // 过滤空字符串
     }
     return allowedTypes.includes(item as any);
@@ -29,7 +29,7 @@ export function cleanAndFilterArray<FilterType>(inputArray: FilterType[]): Filte
 
   // 使用 lodash 的 uniqWith 函数来删除重复项
   // @ts-ignore
-  const uniqueArray = _.uniqWith(filteredArray, _.isEqual);
+  const uniqueArray = uniqWith(filteredArray, isEqual);
 
   return uniqueArray;
 }
@@ -60,7 +60,7 @@ export const genRootField = (
 // 获取当前schema枚举可选的下拉数据源
 export const getSelectOptions = (schemaTypes: FormItemType[]) => {
     return schemaTypes.reduce((acc, curSchemaType) => {
-        const schemaTypeOptions = _.get(getSchemaToOptionsMap(), [curSchemaType], [])
+        const schemaTypeOptions = get(getSchemaToOptionsMap(), [curSchemaType], [])
         acc.push(...schemaTypeOptions)
         return acc
     }, [] as SchemaOption[])

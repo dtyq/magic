@@ -19,6 +19,7 @@ use App\Domain\SuperMagic\Common\Share\Entity\ResourceShareEntity;
 use App\Domain\SuperMagic\Common\Share\Service\ResourceShareDomainService;
 use App\Domain\SuperMagic\File\Constant\ProjectFileConstant;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileSpaceType;
 use App\Domain\SuperMagic\File\Entity\ValueObject\FileType;
 use App\Domain\SuperMagic\File\Entity\ValueObject\TaskFileSource;
 use App\Domain\SuperMagic\File\Event\AttachmentsProcessedEvent;
@@ -92,6 +93,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly FileAppService $fileAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly TaskFileAuthorizationService $taskFileAuthorizationService,
         private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
@@ -308,15 +310,19 @@ class FileManagementAppService extends AbstractAppService
                 $taskFileEntity->setSpaceType('user');
             }
 
-            // 通过领域服务计算排序值
-            $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
-                ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : null,
-                (int) $requestDTO->getPreFileId(),
-                $projectId
-            );
-
-            // 设置排序值
-            $taskFileEntity->setSort($sortValue);
+            // saveFile 已不再使用 sort 字段，跳过排序值计算，实体保持默认 sort。
+            // 若后续恢复使用：根层级（无 parentId）的项目空间文件需按 space_type=project 过滤，
+            // 避免 topic 空间的 .topic 根节点混入项目根层级的排序计算
+            // $sortSpaceType = empty($requestDTO->getParentId()) && $taskFileEntity->getSpaceType() === FileSpaceType::PROJECT->value
+            //     ? FileSpaceType::PROJECT->value
+            //     : null;
+            // $sortValue = $this->taskFileDomainService->calculateSortForNewFile(
+            //     ! empty($requestDTO->getParentId()) ? (int) $requestDTO->getParentId() : null,
+            //     (int) $requestDTO->getPreFileId(),
+            //     $projectId,
+            //     $sortSpaceType
+            // );
+            // $taskFileEntity->setSort($sortValue);
 
             // 调用领域服务保存文件
             $savedEntity = $this->taskFileDomainService->upsertProjectFileNode(
@@ -327,7 +333,7 @@ class FileManagementAppService extends AbstractAppService
                     operatorUserId: $dataIsolation->getCurrentUserId(),
                     operatorOrganizationCode: $dataIsolation->getCurrentOrganizationCode(),
                     taskFileEntity: $taskFileEntity,
-                    storageTypeOverride: StorageType::WORKSPACE->value,
+                    storageTypeOverride: FileSpaceType::resolveStorageType($taskFileEntity->getSpaceType())->value,
                     isHidden: $requestDTO->getIsHidden()
                 )
             );
@@ -538,6 +544,11 @@ class FileManagementAppService extends AbstractAppService
                         organizationCode: $dataIsolation->getCurrentOrganizationCode(),
                         projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
                     );
+                } else {
+                    $parentEntity = $this->taskFileDomainService->getDirectoryByIdAndProject($parentId, $projectId);
+                    if ($parentEntity === null) {
+                        ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.parent_file_not_found'));
+                    }
                 }
             } else {
                 // 用户空间没有项目根节点，必须由父目录锚定并使用文件 owner 鉴权。
@@ -562,8 +573,8 @@ class FileManagementAppService extends AbstractAppService
                 }
             }
 
-            // 根据是否为目录确定文件类型
-            $fileType = $requestDTO->getIsDirectory() ? FileType::DIRECTORY : FileType::USER_UPLOAD;
+            // 根据是否为目录确定文件类型；用户新建的文件标记为 user_create，与用户上传（user_upload）区分
+            $fileType = $requestDTO->getIsDirectory() ? FileType::DIRECTORY : FileType::USER_CREATE;
 
             try {
                 // 调用 MagicFS 领域服务创建文件（会自动发布事件）
@@ -577,8 +588,7 @@ class FileManagementAppService extends AbstractAppService
                     TaskFileSource::PROJECT_DIRECTORY,
                     null,
                     false,
-                    0,
-                    $projectId > 0 ? 'project' : 'user',
+                    0
                 );
             } catch (BusinessException $e) {
                 if ($ignoreDuplicate && $e->getCode() === MagicFSErrorCode::FILE_ALREADY_EXISTS->value) {
@@ -658,7 +668,7 @@ class FileManagementAppService extends AbstractAppService
             $this->magicFSFileDomainService->deleteFile((string) $fileId);
 
             if ($fileEntity->isProjectFile()) {
-                // 4. Dispatch the matching event so notification / asset subscribers can react.
+                // 项目空间文件才进入回收站/物理删除策略链路。
                 if ($fileEntity->getIsDirectory()) {
                     $this->eventDispatcher->dispatch(new DirectoryDeletedEvent($fileEntity, $userAuthorization));
                 } else {
@@ -712,7 +722,6 @@ class FileManagementAppService extends AbstractAppService
             $this->magicFSFileDomainService->deleteFile((string) $fileId);
 
             if ($fileEntity->isProjectFile()) {
-                // Dispatch directory deleted event
                 $dirUserAuth = new MagicUserAuthorization();
                 $dirUserAuth->setId($userAuthorization->getId());
                 $dirUserAuth->setOrganizationCode($userAuthorization->getOrganizationCode());
@@ -779,7 +788,11 @@ class FileManagementAppService extends AbstractAppService
             }
 
             // MagicFS 在指定作用域内校验并删除文件，返回删除前实体供事件使用。
-            $fileEntities = $this->magicFSFileDomainService->deleteFiles($fileIds, false, $projectId);
+            $fileEntities = $this->magicFSFileDomainService->deleteFiles(
+                $fileIds,
+                false,
+                $projectId,
+            );
 
             $this->logger->info(sprintf(
                 'Successfully batch deleted files: Project ID: %s, File count: %d',
@@ -1953,13 +1966,17 @@ class FileManagementAppService extends AbstractAppService
             Db::beginTransaction();
             try {
                 // 6. Create version snapshot (before replacement)
-                $versionEntity = $this->taskFileVersionDomainService->createFileVersion(
-                    $storageOrganizationCode,
-                    $fileEntity,
-                    $isCrossTypeReplace ? 2 : 1  // Cross-type replace uses special marker
-                );
+                $versionEntity = null;
+                $canCreateVersion = $this->taskFileVersionDomainService->canCreateVersion($fileEntity);
+                if ($canCreateVersion) {
+                    $versionEntity = $this->taskFileVersionDomainService->createFileVersion(
+                        $storageOrganizationCode,
+                        $fileEntity,
+                        $isCrossTypeReplace ? 2 : 1  // Cross-type replace uses special marker
+                    );
+                }
 
-                if (empty($versionEntity)) {
+                if ($canCreateVersion && empty($versionEntity)) {
                     $this->logger->warning('Failed to create version snapshot before replace', [
                         'file_id' => $fileId,
                     ]);
@@ -2315,8 +2332,9 @@ class FileManagementAppService extends AbstractAppService
             array_values($newWavFiles)
         );
 
-        // Bump metadata version chain so MagicFS clients detect the directory change
-        $this->magicFSFileDomainService->incrementVersionChain((string) $dirEntity->getFileId());
+        // The inserted rows announced themselves; the directory only needs its
+        // listing version moved so MagicFS clients see the directory as stale.
+        $this->magicFSFileDomainService->bumpFileTreeVersions([$dirEntity->getFileId()]);
 
         return [
             'scanned' => count($wavFileList),
@@ -2328,13 +2346,23 @@ class FileManagementAppService extends AbstractAppService
     /**
      * Update the source of a task file.
      *
+     * @param RequestContext $requestContext Request context
      * @param UpdateFileSourceRequestDTO $requestDTO Request DTO containing file_id and source
      * @return array Updated file info
      */
-    public function updateFileSource(UpdateFileSourceRequestDTO $requestDTO): array
+    public function updateFileSource(RequestContext $requestContext, UpdateFileSourceRequestDTO $requestDTO): array
     {
+        $userAuthorization = $requestContext->getUserAuthorization();
+
         $fileId = $requestDTO->getFileId();
         $source = TaskFileSource::fromValue($requestDTO->getSource());
+
+        // 鉴权前置：项目空间文件校验项目编辑权限，用户空间文件校验文件 owner。
+        $fileEntity = $this->taskFileDomainService->getById($fileId);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+        $this->getAccessibleProjectForTaskFile($fileEntity, $userAuthorization, MemberRole::EDITOR);
 
         $fileEntity = $this->taskFileDomainService->updateFileSource($fileId, $source);
 
@@ -2888,7 +2916,7 @@ class FileManagementAppService extends AbstractAppService
                             operatorUserId: $authorization->getId(),
                             operatorOrganizationCode: $organizationCode,
                             taskFileEntity: $taskFileEntity,
-                            storageTypeOverride: StorageType::WORKSPACE->value,
+                            storageTypeOverride: FileSpaceType::resolveStorageType($taskFileEntity->getSpaceType())->value,
                         ),
                     );
                     $relativePath = $this->buildRelativeFilePathForEntity($savedEntity, 0);
@@ -2917,7 +2945,12 @@ class FileManagementAppService extends AbstractAppService
      */
     private function getFileUrlsGroupedByProject(MagicUserAuthorization $authorization, array $fileIds, string $downloadMode, array $options, array $fileVersions): array
     {
-        $fileEntities = $this->taskFileDomainService->getFilesByIds($fileIds);
+        $fileEntities = $this->taskFileAuthorizationService->authorizeFilesByIds(
+            $authorization,
+            $fileIds,
+            MemberRole::VIEWER,
+            true,
+        );
         if (empty($fileEntities)) {
             return [];
         }
@@ -2935,23 +2968,14 @@ class FileManagementAppService extends AbstractAppService
                 $groupFileEntities
             );
 
-            $projectEntity = $this->getAccessibleProjectForTaskFile(
-                $groupFileEntities[0],
-                $authorization,
-                MemberRole::VIEWER,
-            );
-            if ($projectEntity === null) {
-                // 用户空间没有项目权限，逐文件校验 task_files owner 信息。
-                foreach ($groupFileEntities as $groupFileEntity) {
-                    $this->getAccessibleProjectForTaskFile(
-                        $groupFileEntity,
-                        $authorization,
-                        MemberRole::VIEWER,
-                    );
+            if ($groupFileEntities[0]->isProjectFile()) {
+                $groupProject = $this->projectDomainService->getProjectNotUserId((int) $groupProjectId);
+                if ($groupProject === null) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
                 }
-                $organizationCode = $groupFileEntities[0]->getOrganizationCode();
+                $organizationCode = $groupProject->getUserOrganizationCode();
             } else {
-                $organizationCode = $projectEntity->getUserOrganizationCode();
+                $organizationCode = $groupFileEntities[0]->getOrganizationCode();
             }
 
             $urls = $this->taskFileDomainService->getFileUrls(

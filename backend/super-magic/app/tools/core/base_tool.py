@@ -11,6 +11,7 @@ import re
 import difflib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Dict, Generic, Optional, Type, TypeVar, ClassVar, get_args, get_origin, List, Tuple
 
 from pydantic import ConfigDict, ValidationError
@@ -33,7 +34,12 @@ try:
         LogLevel,
         OpenTelemetryAttributes,
     )
-    from app.infrastructure.observability.span_utils import set_observation_io, set_span_name
+    from app.infrastructure.observability.span_utils import (
+        set_observation_io,
+        set_span_name,
+        enrich_span_with_user_context,
+        enrich_span_with_trace_correlation,
+    )
 except ImportError:
     # If OpenTelemetry is not installed, set to None
     # is_telemetry_enabled() will handle the check
@@ -46,6 +52,8 @@ except ImportError:
     LogLevel = None
     OpenTelemetryAttributes = None
     set_observation_io = lambda *a, **k: None
+    enrich_span_with_user_context = lambda *a, **k: None
+    enrich_span_with_trace_correlation = lambda *a, **k: None
 
 # 定义参数类型变量
 T = TypeVar('T', bound=BaseToolParams)
@@ -60,6 +68,17 @@ class ToolForwardRequest:
     warning: str
 
 
+class ToolResultContentMode(StrEnum):
+    """模型交付策略；失败结果和框架错误始终使用全局保护。"""
+
+    GLOBAL = "global"
+    SELF_MANAGED = "self_managed"
+    INSTRUCTION = "instruction"
+
+
+_FILE_EDIT_TOOL_NAMES = frozenset({"edit_file", "multi_edit_file", "edit_file_ranges"})
+
+
 class BaseTool(Generic[T], ABC):
     """工具基类
 
@@ -71,6 +90,7 @@ class BaseTool(Generic[T], ABC):
     params_class: ClassVar[Type[T]] = None
     # 实例运行时默认值；工具注册策略由 @tool 写入私有注册元数据。
     code_mode_only: ClassVar[bool] = False
+    result_content_mode: ClassVar[ToolResultContentMode] = ToolResultContentMode.GLOBAL
 
     # 配置项
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -334,6 +354,11 @@ class BaseTool(Generic[T], ABC):
             span_name = f"tool.{tool_name}"
             span = tracer.start_span(span_name)
             set_span_name(span, span_name)
+
+            # Enrich with user context and trace correlation, matching the FastAPI
+            # root span so this child span can be correlated across systems in Langfuse.
+            enrich_span_with_user_context(span)
+            enrich_span_with_trace_correlation(span)
 
             # Langfuse-specific: Mark as tool observation type
             span.set_attribute("observation.type", "tool")
@@ -858,10 +883,13 @@ class BaseTool(Generic[T], ABC):
             return f"Tool '{tool_name}' parameter validation failed."
 
         result = "Tool call failed\n\n" + "\n\n".join(pretty_msg_parts)
-        result += (
-            "\n\nIf arguments were too long and got truncated, "
-            "break the work into smaller pieces."
-        )
+
+        if tool_name in _FILE_EDIT_TOOL_NAMES:
+            result += (
+                "\n\nThis tool call was rejected before execution. "
+                "No file was changed and no edit from this call was applied. "
+                "Correct the parameters and retry with the current tool schema."
+            )
 
         return result
 
@@ -873,7 +901,6 @@ class BaseTool(Generic[T], ABC):
         """
         logger = get_logger(__name__)
 
-        # 注意：移除了这里的 "additionalProperties": False
         parameters = {
             "type": "object",
             "properties": {},
@@ -890,12 +917,15 @@ class BaseTool(Generic[T], ABC):
                 if 'properties' in schema:
                     parameters['properties'] = schema['properties']
 
+                if 'additionalProperties' in schema:
+                    # 保留参数模型的 extra 策略，使提供给模型的 Schema 与运行时校验一致。
+                    parameters['additionalProperties'] = schema['additionalProperties']
+
                 if 'required' in schema:
                     parameters['required'] = schema['required']
                 else:
-                    # 如果原始 schema 没有 required，则默认所有非 Optional 字段为必填
-                    if 'properties' in parameters:
-                         parameters['required'] = list(parameters['properties'].keys())
+                    # Pydantic 在没有必填字段时会省略 required，不能把所有默认字段误标为必填。
+                    parameters['required'] = self._get_required_param_names(params_class)
 
                 # 全局参数已删除，不再需要强制必填验证
 
@@ -930,6 +960,26 @@ class BaseTool(Generic[T], ABC):
         # 递归移除人类注解（唯一过滤出口）
         self._remove_annotations_recursive(result)
         return result
+
+    @staticmethod
+    def _get_required_param_names(params_class: type[BaseToolParams]) -> list[str]:
+        """按 Pydantic 字段定义恢复真正的必填参数名称。"""
+        model_fields = getattr(params_class, "model_fields", None)
+        if isinstance(model_fields, dict):
+            return [
+                name
+                for name, field in model_fields.items()
+                if field.is_required()
+            ]
+
+        legacy_fields = getattr(params_class, "__fields__", None)
+        if isinstance(legacy_fields, dict):
+            return [
+                name
+                for name, field in legacy_fields.items()
+                if bool(getattr(field, "required", False))
+            ]
+        return []
 
     @staticmethod
     def _remove_annotations_recursive(obj):

@@ -183,6 +183,12 @@ class SuperAgentExtra extends AbstractDTO
         $this->agentCode = $agentCode;
     }
 
+    /** 读取本条消息的原始强度，空值表示模型默认，合法性由 Odin 判断。 */
+    public function getReasoningEffort(): mixed
+    {
+        return $this->model['reasoning_effort'] ?? null;
+    }
+
     public function getModel(): ?array
     {
         return $this->model;
@@ -199,6 +205,7 @@ class SuperAgentExtra extends AbstractDTO
         return '';
     }
 
+    /** 原样保留模型选择和思考强度，不在消息传输层检查 Odin 档位。 */
     public function setModel(?array $model): void
     {
         $this->model = $model;

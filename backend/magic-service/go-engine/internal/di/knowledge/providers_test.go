@@ -113,6 +113,7 @@ func TestProvideServices(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			logger,
 		),
 		logger,
 		knowledge.DocumentAppRuntimeDeps{},

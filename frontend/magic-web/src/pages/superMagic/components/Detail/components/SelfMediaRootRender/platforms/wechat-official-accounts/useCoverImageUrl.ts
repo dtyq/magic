@@ -1,23 +1,32 @@
 import { useEffect, useMemo, useState } from "react"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { ImageProcessOptions } from "@/utils/image-processing"
 import { buildImageProcessQuery } from "@/utils/image-processing"
 
 const urlCache = new Map<string, Promise<string>>()
 
-function buildCacheKey(fileId: string, imageProcess?: ImageProcessOptions): string {
-	if (!imageProcess) return fileId
-	return `${fileId}::${buildImageProcessQuery(imageProcess)}`
+function buildCacheKey(
+	identityKey: string,
+	fileId: string,
+	imageProcess?: ImageProcessOptions,
+): string {
+	if (!imageProcess) return `${identityKey}::${fileId}`
+	return `${identityKey}::${fileId}::${buildImageProcessQuery(imageProcess)}`
 }
 
-function fetchUrlOnce(fileId: string, imageProcess?: ImageProcessOptions): Promise<string> {
-	const cacheKey = buildCacheKey(fileId, imageProcess)
+function fetchUrlOnce(
+	fileApi: FileApi,
+	fileId: string,
+	imageProcess?: ImageProcessOptions,
+): Promise<string> {
+	const cacheKey = buildCacheKey(fileApi.identityKey, fileId, imageProcess)
 	const cached = urlCache.get(cacheKey)
 	if (cached) return cached
-	const pending = getTemporaryDownloadUrl({
-		file_ids: [fileId],
-		...(imageProcess && { options: { xMagicImageProcess: imageProcess } }),
-	})
+	const pending = fileApi
+		.getTemporaryDownloadUrl({
+			file_ids: [fileId],
+			...(imageProcess && { options: { xMagicImageProcess: imageProcess } }),
+		})
 		.then((items) => {
 			const url = items?.[0]?.url
 			if (!url) throw new Error("noCoverUrl")
@@ -37,6 +46,7 @@ export function useCoverImageUrl(
 	enabled = true,
 	imageProcess?: ImageProcessOptions,
 ) {
+	const fileApi = useFileApi()
 	const [url, setUrl] = useState<string | null>(null)
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -59,7 +69,7 @@ export function useCoverImageUrl(
 		let cancelled = false
 		setLoading(true)
 		setError(null)
-		fetchUrlOnce(fileId, stableImageProcess)
+		fetchUrlOnce(fileApi, fileId, stableImageProcess)
 			.then((resolved) => {
 				if (cancelled) return
 				setUrl(resolved)
@@ -74,7 +84,7 @@ export function useCoverImageUrl(
 		return () => {
 			cancelled = true
 		}
-	}, [fileId, enabled, stableImageProcess])
+	}, [fileApi, fileId, enabled, stableImageProcess])
 
 	return { url, loading, error }
 }

@@ -24,8 +24,10 @@ const (
 	defaultRabbitMQPrefetch               = 1
 	defaultRabbitMQConsumerConcurrency    = 4
 	defaultMQPublishTimeout               = 5 * time.Second
-	defaultRabbitMQMaxRequeueAttempts     = 20
+	defaultRabbitMQMaxRequeueAttempts     = 3
 	defaultRabbitMQMaxDeliveryAttempts    = 10
+	defaultUnexpectedEOFBackoffBase       = time.Minute
+	defaultUnexpectedEOFBackoffMax        = 5 * time.Minute
 )
 
 var (
@@ -44,11 +46,13 @@ type rabbitMQTaskBroker interface {
 
 // RabbitMQSchedulerConfig 定义 MQ 文档调度参数。
 type RabbitMQSchedulerConfig struct {
-	QueueName           string
-	ConsumerPrefetch    int
-	ConsumerConcurrency int
-	MQPublishTimeout    time.Duration
-	MaxRequeueAttempts  int
+	QueueName                string
+	ConsumerPrefetch         int
+	ConsumerConcurrency      int
+	MQPublishTimeout         time.Duration
+	MaxRequeueAttempts       int
+	UnexpectedEOFBackoffBase time.Duration
+	UnexpectedEOFBackoffMax  time.Duration
 }
 
 // RabbitMQSchedulerDeps 聚合 RabbitMQ 调度器依赖。
@@ -61,15 +65,18 @@ type RabbitMQSchedulerDeps struct {
 	AttemptStore      DeliveryAttemptStore
 	AdmissionGate     MemoryAdmissionGate
 	NonRetryableError func(error) bool
+	RetrySleep        func(context.Context, time.Duration) error
 }
 
 // DefaultRabbitMQSchedulerConfig 返回默认 MQ 调度配置。
 func DefaultRabbitMQSchedulerConfig() RabbitMQSchedulerConfig {
 	return RabbitMQSchedulerConfig{
-		ConsumerPrefetch:    defaultRabbitMQPrefetch,
-		ConsumerConcurrency: defaultRabbitMQConsumerConcurrency,
-		MQPublishTimeout:    defaultMQPublishTimeout,
-		MaxRequeueAttempts:  defaultRabbitMQMaxRequeueAttempts,
+		ConsumerPrefetch:         defaultRabbitMQPrefetch,
+		ConsumerConcurrency:      defaultRabbitMQConsumerConcurrency,
+		MQPublishTimeout:         defaultMQPublishTimeout,
+		MaxRequeueAttempts:       defaultRabbitMQMaxRequeueAttempts,
+		UnexpectedEOFBackoffBase: defaultUnexpectedEOFBackoffBase,
+		UnexpectedEOFBackoffMax:  defaultUnexpectedEOFBackoffMax,
 	}
 }
 
@@ -86,6 +93,7 @@ type RabbitMQScheduler struct {
 	attemptStore    DeliveryAttemptStore
 	admissionGate   MemoryAdmissionGate
 	nonRetryableErr func(error) bool
+	retrySleep      func(context.Context, time.Duration) error
 
 	lifecycleMu sync.Mutex
 	runDone     chan struct{}
@@ -103,7 +111,7 @@ func NewRabbitMQScheduler(
 	}
 	config = normalizeRabbitMQSchedulerConfig(config)
 
-	return &RabbitMQScheduler{
+	scheduler := &RabbitMQScheduler{
 		runner:          runner,
 		logger:          deps.Logger,
 		broker:          deps.Broker,
@@ -115,7 +123,12 @@ func NewRabbitMQScheduler(
 		attemptStore:    deps.AttemptStore,
 		admissionGate:   deps.AdmissionGate,
 		nonRetryableErr: deps.NonRetryableError,
+		retrySleep:      deps.RetrySleep,
 	}
+	if scheduler.retrySleep == nil {
+		scheduler.retrySleep = sleepContext
+	}
+	return scheduler
 }
 
 type deliveryAttemptLogState struct {
@@ -137,6 +150,15 @@ func normalizeRabbitMQSchedulerConfig(config RabbitMQSchedulerConfig) RabbitMQSc
 	}
 	if config.MaxRequeueAttempts <= 0 {
 		config.MaxRequeueAttempts = defaults.MaxRequeueAttempts
+	}
+	if config.UnexpectedEOFBackoffBase <= 0 {
+		config.UnexpectedEOFBackoffBase = defaults.UnexpectedEOFBackoffBase
+	}
+	if config.UnexpectedEOFBackoffMax <= 0 {
+		config.UnexpectedEOFBackoffMax = defaults.UnexpectedEOFBackoffMax
+	}
+	if config.UnexpectedEOFBackoffMax < config.UnexpectedEOFBackoffBase {
+		config.UnexpectedEOFBackoffMax = config.UnexpectedEOFBackoffBase
 	}
 	return config
 }
@@ -676,7 +698,11 @@ func (s *RabbitMQScheduler) handleTaskFailure(
 	cause error,
 	attempt deliveryAttemptLogState,
 ) {
-	if s.shouldRequeueFailedTask(ctx, task, cause, attempt) {
+	retryCount, shouldRequeue := s.shouldRequeueFailedTask(ctx, task, cause, attempt)
+	if shouldRequeue {
+		if isUnexpectedEOFError(cause) {
+			s.waitUnexpectedEOFBackoff(ctx, task, cause, retryCount)
+		}
 		if err := delivery.Nack(false, true); err != nil {
 			s.logDeliveryNackError(ctx, task, err)
 		}
@@ -695,30 +721,82 @@ func (s *RabbitMQScheduler) shouldRequeueFailedTask(
 	task *Task,
 	cause error,
 	attempt deliveryAttemptLogState,
-) bool {
+) (int, bool) {
 	if task == nil {
-		return false
+		return 0, false
 	}
 	if s != nil && s.nonRetryableErr != nil && s.nonRetryableErr(cause) {
 		s.logTaskNonRetryable(ctx, task, cause)
-		return false
+		return 0, false
 	}
 	if s == nil || s.retryStore == nil {
 		s.logRetryStoreError(ctx, task, cause, "missing rabbitmq document sync retry store", nil)
-		return true
+		return 0, true
 	}
 
 	retryCount, err := s.retryStore.Increment(ctx, task.Key)
 	if err != nil {
 		s.logRetryStoreError(ctx, task, cause, "Increment rabbitmq document sync retry counter failed", err)
-		return true
+		return 0, true
 	}
 	if retryCount <= s.config.MaxRequeueAttempts {
 		s.logTaskRequeue(ctx, task, cause, retryCount, attempt)
-		return true
+		return retryCount, true
 	}
 	s.logTaskRetryExhausted(ctx, task, cause, retryCount, attempt)
-	return false
+	return retryCount, false
+}
+
+func (s *RabbitMQScheduler) waitUnexpectedEOFBackoff(
+	ctx context.Context,
+	task *Task,
+	cause error,
+	retryCount int,
+) {
+	if s == nil || retryCount <= 0 {
+		return
+	}
+	delay := unexpectedEOFBackoffDelay(retryCount, s.config.UnexpectedEOFBackoffBase, s.config.UnexpectedEOFBackoffMax)
+	if s.logger != nil {
+		s.logger.KnowledgeWarnContext(
+			ctx,
+			"Delay rabbitmq document sync retry after unexpected EOF",
+			"task_kind", taskKindForLog(task),
+			"knowledge_base_code", taskKnowledgeBaseCodeForLog(task),
+			"document_code", taskDocumentCodeForLog(task),
+			"task_key", taskKeyForLog(task),
+			"retry_count", retryCount,
+			"retry_delay", delay,
+			"error", cause,
+		)
+	}
+	if s.retrySleep != nil {
+		_ = s.retrySleep(ctx, delay)
+	}
+}
+
+func unexpectedEOFBackoffDelay(retryCount int, base, maxDelay time.Duration) time.Duration {
+	if retryCount <= 0 || base <= 0 {
+		return 0
+	}
+	if maxDelay <= 0 {
+		maxDelay = base
+	}
+	delay := base
+	for attempt := 1; attempt < retryCount; attempt++ {
+		if delay >= maxDelay/2 {
+			return maxDelay
+		}
+		delay *= 2
+	}
+	if delay > maxDelay {
+		return maxDelay
+	}
+	return delay
+}
+
+func isUnexpectedEOFError(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unexpected eof")
 }
 
 func (s *RabbitMQScheduler) logTaskNonRetryable(ctx context.Context, task *Task, cause error) {

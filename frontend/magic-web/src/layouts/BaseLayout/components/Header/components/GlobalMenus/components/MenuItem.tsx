@@ -1,6 +1,5 @@
 import type { CSSProperties } from "react"
 
-import { useStyles } from "../styles"
 import MagicBadge from "@/components/base/MagicBadge"
 import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 
@@ -14,11 +13,9 @@ interface MenuItemProps {
 }
 
 function MenuItem({ icon, label, color, maskColor, badge = false, onClick }: MenuItemProps) {
-	const { styles } = useStyles()
-
 	const iconElement = (
 		<div
-			className={styles.menuIcon}
+			className="relative z-[1] mb-1 flex items-center justify-center after:absolute after:left-0 after:top-0 after:-z-[1] after:size-6 after:translate-x-2 after:translate-y-2 after:rounded-full after:bg-[var(--mask-color)] after:content-['']"
 			style={{ color, "--mask-color": maskColor } as CSSProperties}
 		>
 			<LucideLazyIcon icon={icon} size="32" color={color} />
@@ -34,10 +31,16 @@ function MenuItem({ icon, label, color, maskColor, badge = false, onClick }: Men
 	)
 
 	return (
-		<div className={styles.menuItem} onClick={onClick}>
+		<button
+			type="button"
+			className="ease-[ease] flex cursor-pointer flex-col items-center rounded-lg px-2 py-3 text-inherit no-underline transition-all duration-200 hover:bg-[var(--magic-color-fill-tertiary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring active:scale-95"
+			onClick={onClick}
+		>
 			{badgedIcon}
-			<span className={styles.menuLabel}>{label}</span>
-		</div>
+			<span className="text-center text-sm font-normal not-italic leading-5 text-foreground/80">
+				{label}
+			</span>
+		</button>
 	)
 }
 

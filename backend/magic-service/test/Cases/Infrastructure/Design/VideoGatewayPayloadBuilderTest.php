@@ -110,6 +110,40 @@ class VideoGatewayPayloadBuilderTest extends TestCase
         $this->assertSame('https://cdn.example.com/start.jpg', $payload['inputs']['frames'][0]['uri']);
     }
 
+    public function testBuildPassesProviderAssetUrisWithoutResolvingWorkspaceFiles(): void
+    {
+        $builder = $this->createBuilder();
+
+        $entity = new DesignGenerationTaskEntity();
+        $entity->setOrganizationCode('org');
+        $entity->setProjectId(1001);
+        $entity->setRequestPayload([
+            'prompt' => '人物面对镜头介绍产品',
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'supports_image_input_url' => true,
+            'supports_provider_asset_uri' => true,
+            'inputs' => [
+                'reference_images' => [['uri' => 'asset://avatar-image-001']],
+                'reference_videos' => [['uri' => 'asset://avatar-video-001']],
+                'reference_audios' => [['uri' => 'asset://avatar-audio-001']],
+                'frames' => [['role' => 'start', 'uri' => 'asset://avatar-frame-001']],
+            ],
+        ]);
+        $entity->setInputPayload([
+            'reference_images' => [['uri' => 'asset://avatar-image-001']],
+            'reference_videos' => [['uri' => 'asset://avatar-video-001']],
+            'reference_audios' => [['uri' => 'asset://avatar-audio-001']],
+            'frames' => [['role' => 'start', 'uri' => 'asset://avatar-frame-001']],
+        ]);
+
+        $payload = $builder->build($entity);
+
+        $this->assertSame('asset://avatar-image-001', $payload['inputs']['reference_images'][0]['uri']);
+        $this->assertSame('asset://avatar-video-001', $payload['inputs']['reference_videos'][0]['uri']);
+        $this->assertSame('asset://avatar-audio-001', $payload['inputs']['reference_audios'][0]['uri']);
+        $this->assertSame('asset://avatar-frame-001', $payload['inputs']['frames'][0]['uri']);
+    }
+
     public function testBuildRewritesPromptMentionsForOmniReferenceUsingOriginalFileNames(): void
     {
         $builder = $this->createBuilder(

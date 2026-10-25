@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aurelia Systems Grid — Precision Modular Architecture</title>
+  <style>
+    :root {
+      --primary: #F59E0B;
+      --primary-hover: #D97706;
+      --primary-active: #B45309;
+      --primary-glow: rgba(245, 158, 11, 0.35);
+      --secondary: #000000;
+      --accent: #FBBF24;
+      --bg: #121214;
+      --surface: #222224;
+      --surface-elevated: #2A2A2E;
+      --surface-subtle: #1C1C1E;
+      --border: #333338;
+      --text-primary: #F4F4F5;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --grid-line: rgba(245, 158, 11, 0.07);
+      --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+      --radius-card: 16px;
+      --radius-control: 8px;
+      --radius-pill: 9999px;
+      
+      --z0-shadow: none;
+      --z1-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      --z2-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+      --z3-shadow: 0 10px 24px rgba(0, 0, 0, 0.7);
+      --z4-shadow: 0 20px 38px rgba(0, 0, 0, 0.8);
+      --z5-shadow: 0 30px 60px rgba(0, 0, 0, 0.9), 0 0 35px var(--primary-glow);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+        radial-gradient(circle at 80% 10%, rgba(245, 158, 11, 0.1) 0%, transparent 50%);
+      background-size: 32px 32px, 32px 32px, 100% 100%;
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 24px;
+    }
+    .telemetry-header {
+      background: rgba(18, 18, 20, 0.94);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      padding: 0 20px; height: 50px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand-mark {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--font-mono); font-size: 12px;
+    }
+    .brand-logo-hex {
+      width: 26px; height: 26px; border: 1.5px solid var(--primary);
+      transform: rotate(45deg); display: flex; align-items: center; justify-content: center;
+      background: rgba(245, 158, 11, 0.12); box-shadow: 0 0 10px var(--primary-glow);
+    }
+    .brand-logo-hex span { transform: rotate(-45deg); font-size: 10px; font-weight: 800; color: var(--accent); }
+    .brand-name { font-weight: 700; letter-spacing: 1.2px; color: #fff; font-size: 12.5px; }
+    .precision-coords {
+      font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+      background: var(--surface-subtle); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: var(--radius-control);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .coord-val { color: var(--accent); font-weight: 600; }
+    .pulse-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3);
+      color: var(--accent); font-family: var(--font-mono); font-size: 10.5px;
+      font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill);
+    }
+    .pulse-dot {
+      width: 6px; height: 6px; background: var(--primary); border-radius: 50%;
+      box-shadow: 0 0 8px var(--primary); animation: blink 1.8s infinite ease-in-out;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .viewport-root {
+      max-width: 1340px; margin: 16px auto 0; padding: 0 20px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .hero-matrix { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
+    .control-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 20px;
+      position: relative; overflow: hidden; box-shadow: var(--z2-shadow);
+    }
+    .section-eyebrow {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase; color: var(--primary);
+      display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+    }
+    .section-eyebrow::before { content: ""; width: 10px; height: 2px; background: var(--primary); }
+    .hero-title { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.15; color: #fff; margin-bottom: 6px; }
+    .hero-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px; }
+    .token-picker-strip {
+      background: var(--surface-subtle); border: 1px solid var(--border);
+      border-radius: var(--radius-control); padding: 10px 14px;
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .picker-label { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+    .palette-swatches { display: flex; gap: 6px; align-items: center; }
+    .color-swatch-btn {
+      width: 22px; height: 22px; border-radius: 5px; border: 2px solid transparent;
+      cursor: pointer; transition: transform 0.15s ease;
+    }
+    .color-swatch-btn:hover { transform: scale(1.15); }
+    .color-swatch-btn.active { border-color: #fff; box-shadow: 0 0 8px currentColor; }
+    .grid-density-toggle { display: flex; gap: 3px; background: var(--surface); border: 1px solid var(--border); padding: 2px; border-radius: 6px; }
+    .density-btn {
+      background: transparent; border: none; color: var(--text-muted);
+      font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+      padding: 3px 8px; border-radius: 4px; cursor: pointer;
+    }
+    .density-btn.active { background: var(--primary); color: #000; font-weight: 700; }
+    .state-showcase-title {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-secondary);
+      margin-bottom: 10px; display: flex; justify-content: space-between;
+    }
+    .button-states-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .state-cell {
+      background: var(--surface-subtle); border: 1px solid var(--border);
+      border-radius: var(--radius-control); padding: 10px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+    }
+    .state-tag { font-family: var(--font-mono); font-size: 9.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+    .aurelia-btn {
+      font-family: var(--font-display); font-size: 11.5px; font-weight: 600;
+      padding: 8px 12px; border-radius: var(--radius-control); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.2s ease; width: 100%; border: 1px solid transparent;
+    }
+    .btn-default { background: var(--primary); color: #000; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25); }
+    .btn-default:hover { background: var(--primary-hover); box-shadow: 0 4px 14px var(--primary-glow); }
+    .btn-hover-demo { background: var(--primary-hover); color: #000; box-shadow: 0 4px 14px var(--primary-glow); transform: translateY(-1px); }
+    .btn-active-demo { background: var(--primary-active); color: #fff; transform: translateY(1px); }
+    .btn-disabled-demo { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.25); border-color: rgba(255, 255, 255, 0.08); cursor: not-allowed; }
+    .elevation-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 20px;
+      display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--z2-shadow);
+    }
+    .elevation-scale-container { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .elevation-tier {
+      background: var(--surface-subtle); border: 1px solid var(--border);
+      border-radius: 6px; padding: 7px 12px;
+      display: flex; align-items: center; justify-content: space-between; transition: all 0.2s ease;
+    }
+    .elevation-tier:hover { border-color: var(--primary); transform: translateX(3px); }
+    .elevation-tier.z0 { box-shadow: var(--z0-shadow); }
+    .elevation-tier.z1 { box-shadow: var(--z1-shadow); }
+    .elevation-tier.z2 { box-shadow: var(--z2-shadow); }
+    .elevation-tier.z3 { box-shadow: var(--z3-shadow); }
+    .elevation-tier.z4 { box-shadow: var(--z4-shadow); }
+    .elevation-tier.z5 { box-shadow: var(--z5-shadow); background: var(--surface-elevated); border-color: rgba(245, 158, 11, 0.4); }
+    .elev-badge { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--accent); background: rgba(245, 158, 11, 0.15); padding: 2px 6px; border-radius: 4px; }
+    .elev-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+    .elev-spec { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-secondary); }
+    .telemetry-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .metric-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 16px 18px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .metric-top { display: flex; justify-content: space-between; align-items: center; }
+    .metric-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; color: var(--text-muted); }
+    .phi-symbol { color: var(--primary); font-family: var(--font-mono); font-weight: 700; font-size: 11px; }
+    .metric-number { font-size: 26px; font-weight: 700; color: #fff; font-family: var(--font-mono); letter-spacing: -0.5px; }
+    .metric-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 10.5px; color: var(--text-secondary); border-top: 1px solid var(--border);
+      padding-top: 6px; font-family: var(--font-mono);
+    }
+    .metric-progress-bar { height: 4px; background: rgba(255, 255, 255, 0.08); border-radius: var(--radius-pill); overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: var(--radius-pill); }
+    .waveform-strip {
+      width: 100%; height: 38px; background: var(--surface-subtle);
+      border-radius: 6px; border: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 4px; overflow: hidden;
+    }
+    .footer-status-bar {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-control); padding: 8px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted);
+    }
+    .status-highlight { color: var(--accent); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header class="telemetry-header">
+    <div class="brand-mark">
+      <div class="brand-logo-hex"><span>A</span></div>
+      <span class="brand-name">AURELIA SYSTEMS</span>
+      <span style="color: var(--text-muted); font-size: 10.5px;">MODULAR GRID v4.2</span>
+    </div>
+    <div class="precision-coords">
+      <span>AXIS <span class="coord-val">X: 104.22</span></span>
+      <span>AXIS <span class="coord-val">Y: 890.15</span></span>
+      <span>&phi; = <span class="coord-val">1.618</span></span>
+    </div>
+    <div class="header-actions">
+      <div class="pulse-badge">
+        <span class="pulse-dot"></span>
+        <span>TELEMETRY SYNCED</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="viewport-root">
+    <div class="hero-matrix">
+      <section class="control-card">
+        <div class="section-eyebrow">Aurelia Modular Foundations // Boot 09</div>
+        <h1 class="hero-title">Harmonize Golden Matrices</h1>
+        <p class="hero-desc">
+          Fortify distributed frameworks with radiant synchronization, precision spatial tokens, and tactile data pulses built on an 8px mathematical rhythm.
+        </p>
+
+        <div class="token-picker-strip">
+          <div class="picker-label">Chromatics</div>
+          <div class="palette-swatches">
+            <button class="color-swatch-btn active" style="background: #F59E0B;" title="Amber (#F59E0B)" onclick="setAureliaTheme('#F59E0B', '#FBBF24', this)"></button>
+            <button class="color-swatch-btn" style="background: #06B6D4;" title="Cyan (#06B6D4)" onclick="setAureliaTheme('#06B6D4', '#67E8F9', this)"></button>
+            <button class="color-swatch-btn" style="background: #10B981;" title="Emerald (#10B981)" onclick="setAureliaTheme('#10B981', '#34D399', this)"></button>
+            <button class="color-swatch-btn" style="background: #8B5CF6;" title="Violet (#8B5CF6)" onclick="setAureliaTheme('#8B5CF6', '#A78BFA', this)"></button>
+          </div>
+          <div class="grid-density-toggle">
+            <button class="density-btn active" onclick="setGridDensity(32, this)">32px</button>
+            <button class="density-btn" onclick="setGridDensity(16, this)">16px</button>
+            <button class="density-btn" onclick="setGridDensity(48, this)">48px</button>
+          </div>
+        </div>
+
+        <div class="state-showcase-title">
+          <span>Primary Button States</span>
+          <span style="color: var(--primary); font-size: 9.5px;">COMPONENT_BTN_V2</span>
+        </div>
+
+        <div class="button-states-grid">
+          <div class="state-cell">
+            <span class="state-tag">Default</span>
+            <button class="aurelia-btn btn-default"><span>Execute &phi;</span></button>
+          </div>
+          <div class="state-cell">
+            <span class="state-tag">Hover</span>
+            <button class="aurelia-btn btn-hover-demo"><span>Execute &phi;</span></button>
+          </div>
+          <div class="state-cell">
+            <span class="state-tag">Active</span>
+            <button class="aurelia-btn btn-active-demo"><span>Executing...</span></button>
+          </div>
+          <div class="state-cell">
+            <span class="state-tag">Disabled</span>
+            <button class="aurelia-btn btn-disabled-demo" disabled><span>Locked</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="elevation-panel">
+        <div>
+          <div class="section-eyebrow">Spatial Depth Tokens</div>
+          <h2 style="font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 2px;">Elevation Scale [z0 &ndash; z5]</h2>
+          <p style="font-size: 11.5px; color: var(--text-muted);">Calibrated shadow falloff &amp; photon radiance.</p>
+        </div>
+
+        <div class="elevation-scale-container">
+          <div class="elevation-tier z0">
+            <span class="elev-badge">z0</span>
+            <span class="elev-meta">Flat Surface</span>
+            <span class="elev-spec">none / 0px</span>
+          </div>
+          <div class="elevation-tier z1">
+            <span class="elev-badge">z1</span>
+            <span class="elev-meta">Card Inset Stroke</span>
+            <span class="elev-spec">y: 1px / b: 3px</span>
+          </div>
+          <div class="elevation-tier z2">
+            <span class="elev-badge">z2</span>
+            <span class="elev-meta">Interactive Resting</span>
+            <span class="elev-spec">y: 4px / b: 10px</span>
+          </div>
+          <div class="elevation-tier z3">
+            <span class="elev-badge">z3</span>
+            <span class="elev-meta">Popped Card Hover</span>
+            <span class="elev-spec">y: 10px / b: 24px</span>
+          </div>
+          <div class="elevation-tier z4">
+            <span class="elev-badge">z4</span>
+            <span class="elev-meta">Floating Drawer</span>
+            <span class="elev-spec">y: 20px / b: 38px</span>
+          </div>
+          <div class="elevation-tier z5">
+            <span class="elev-badge">z5</span>
+            <span class="elev-meta">Modal Radiant Glow</span>
+            <span class="elev-spec" style="color: var(--accent);">glow + 60px</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="telemetry-grid">
+      <div class="metric-card">
+        <div class="metric-top">
+          <span class="metric-label">Dimensional Topology</span>
+          <span class="phi-symbol">&phi; 1.618</span>
+        </div>
+        <div class="metric-number">99.984%</div>
+        <div class="metric-progress-bar">
+          <div class="progress-fill" style="width: 88%;"></div>
+        </div>
+        <div class="metric-footer">
+          <span>Grid Harmony</span>
+          <span style="color: var(--accent);">STABLE CLUSTER</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <span class="metric-label">Photon Data Pulses</span>
+          <span class="phi-symbol">128 kHz</span>
+        </div>
+        <div class="waveform-strip">
+          <svg width="100%" height="28" viewBox="0 0 300 28" preserveAspectRatio="none" fill="none">
+            <path d="M0,14 L30,14 L45,4 L60,24 L75,9 L90,19 L105,14 L140,14 L155,2 L170,26 L185,7 L200,21 L215,14 L250,14 L265,5 L280,23 L300,14" stroke="var(--primary)" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="155" cy="2" r="3" fill="var(--accent)"/>
+          </svg>
+        </div>
+        <div class="metric-footer">
+          <span>Jitter: &lt; 0.04ms</span>
+          <span style="color: #10B981;">LOCK ACQUIRED</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <span class="metric-label">Spatial Vector Memory</span>
+          <span class="phi-symbol">256 BITS</span>
+        </div>
+        <div class="metric-number">1,440 DP</div>
+        <div class="metric-progress-bar">
+          <div class="progress-fill" style="width: 64%;"></div>
+        </div>
+        <div class="metric-footer">
+          <span>Target Ratio</span>
+          <span style="color: var(--text-primary);">16:10 ANAMORPHIC</span>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer-status-bar">
+      <div>FRAMEWORK: <span class="status-highlight">AURELIA CORE 2026</span> &bull; SPEC: <span class="status-highlight">ISO-1618</span></div>
+      <div>RENDER LATENCY: <span style="color: #10B981;">0.41 MS</span> &bull; 60 FPS SYNC</div>
+    </footer>
+  </main>
+
+  <script>
+    function setAureliaTheme(primaryHex, accentHex, elem) {
+      document.querySelectorAll('.color-swatch-btn').forEach(b => b.classList.remove('active'));
+      elem.classList.add('active');
+      document.documentElement.style.setProperty('--primary', primaryHex);
+      document.documentElement.style.setProperty('--accent', accentHex);
+      document.documentElement.style.setProperty('--primary-glow', primaryHex + '55');
+      document.documentElement.style.setProperty('--primary-hover', primaryHex);
+    }
+    function setGridDensity(sizePx, elem) {
+      document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));
+      elem.classList.add('active');
+      document.body.style.backgroundSize = `${sizePx}px ${sizePx}px, ${sizePx}px ${sizePx}px, 100% 100%`;
+    }
+  </script>
+</body>
+</html>

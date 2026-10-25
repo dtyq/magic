@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evreghen Command Center — Mission Critical Console</title>
+<style>
+  :root {
+    --crt-bg: #050806;
+    --crt-surface: #0a110d;
+    --crt-panel: #0e1813;
+    --border-crt: #162c1e;
+    --border-crt-bright: #244b32;
+    --green-bright: #00ff66;
+    --green-mid: #00c853;
+    --green-dim: #1f5f38;
+    --green-dark: #092014;
+    --amber-bright: #ffb700;
+    --amber-glow: rgba(255, 183, 0, 0.35);
+    --red-alert: #ff3344;
+    --red-glow: rgba(255, 51, 68, 0.4);
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', ui-monospace, Menlo, monospace;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background-color: var(--crt-bg);
+    color: var(--green-bright);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  /* CRT Scanline & Phosphor Overlay */
+  body::before {
+    content: " ";
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%);
+    background-size: 100% 3px;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0.75;
+  }
+  body::after {
+    content: " ";
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(0, 255, 102, 0.04) 0%, rgba(0, 0, 0, 0.65) 90%);
+    pointer-events: none;
+    z-index: 99;
+  }
+  .console-shell {
+    position: relative;
+    z-index: 1;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 12px 18px 28px;
+  }
+  /* Top CRT Header */
+  .crt-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: var(--crt-surface);
+    border: 1px solid var(--border-crt-bright);
+    box-shadow: 0 0 12px rgba(0, 255, 102, 0.12);
+    margin-bottom: 12px;
+  }
+  .sys-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .blink-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--green-bright);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--green-bright);
+    animation: blinker 1s steps(1) infinite;
+  }
+  .blink-dot-red {
+    background: var(--red-alert);
+    box-shadow: 0 0 8px var(--red-alert);
+    animation: blinker 0.7s steps(1) infinite;
+  }
+  @keyframes blinker { 50% { opacity: 0; } }
+  .sys-status-row { display: flex; align-items: center; gap: 18px; font-size: 11px; }
+  .tag-defcon {
+    background: rgba(255, 183, 0, 0.15);
+    color: var(--amber-bright);
+    border: 1px solid var(--amber-bright);
+    padding: 2px 8px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  .tag-crit {
+    background: rgba(255, 51, 68, 0.15);
+    color: var(--red-alert);
+    border: 1px solid var(--red-alert);
+    padding: 2px 8px;
+    font-weight: 700;
+  }
+
+  /* Gauges Metric Grid */
+  .gauges-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .gauge-box {
+    background: var(--crt-surface);
+    border: 1px solid var(--border-crt);
+    padding: 10px 12px;
+    position: relative;
+    box-shadow: inset 0 0 10px rgba(0, 255, 102, 0.03);
+  }
+  .gauge-box::before {
+    content: "┌ ┐";
+    position: absolute;
+    top: 2px; right: 4px;
+    font-size: 8px;
+    color: var(--green-dim);
+  }
+  .gauge-box::after {
+    content: "└ ┘";
+    position: absolute;
+    bottom: 2px; right: 4px;
+    font-size: 8px;
+    color: var(--green-dim);
+  }
+  .gauge-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #4ade80;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .gauge-val-large {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--green-bright);
+    text-shadow: 0 0 6px rgba(0, 255, 102, 0.5);
+  }
+  .gauge-val-amber {
+    color: var(--amber-bright);
+    text-shadow: 0 0 6px var(--amber-glow);
+  }
+  .gauge-svg-wrap {
+    margin-top: 6px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .gauge-meta {
+    font-size: 9.5px;
+    color: #6ee7b7;
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Main Workspace Grid: Event Stream + Tactical Trigger Panel */
+  .main-tactical-grid {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 12px;
+  }
+  .panel-crt {
+    background: var(--crt-panel);
+    border: 1px solid var(--border-crt-bright);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-crt-bright);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  .panel-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Anomaly Detection Stream */
+  .event-stream-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+  .event-stream-table th {
+    text-align: left;
+    color: var(--green-dim);
+    padding: 4px 6px;
+    font-weight: 600;
+    font-size: 9.5px;
+    border-bottom: 1px solid var(--border-crt);
+    text-transform: uppercase;
+  }
+  .event-stream-table td {
+    padding: 6px;
+    border-bottom: 1px solid rgba(22, 44, 30, 0.7);
+  }
+  .row-crit {
+    background: rgba(255, 51, 68, 0.08);
+    color: #ff7788;
+  }
+  .row-warn {
+    background: rgba(255, 183, 0, 0.06);
+    color: var(--amber-bright);
+  }
+  .sev-pill {
+    padding: 1px 5px;
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .sev-crit { background: var(--red-alert); color: #000; }
+  .sev-warn { background: var(--amber-bright); color: #000; }
+  .sev-info { background: var(--green-dim); color: #fff; }
+
+  /* Emergency Protocol Panel */
+  .protocol-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .hazard-stripe {
+    height: 6px;
+    background: repeating-linear-gradient(
+      -45deg,
+      #ffb700,
+      #ffb700 8px,
+      #050806 8px,
+      #050806 16px
+    );
+    border: 1px solid var(--amber-bright);
+    margin-bottom: 4px;
+  }
+  .protocol-box {
+    background: rgba(255, 183, 0, 0.03);
+    border: 1px solid var(--border-crt);
+    padding: 10px;
+  }
+  .protocol-btn {
+    width: 100%;
+    padding: 10px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.15s;
+    margin-bottom: 8px;
+  }
+  .btn-omega {
+    background: rgba(255, 183, 0, 0.12);
+    color: var(--amber-bright);
+    border: 1.5px solid var(--amber-bright);
+    box-shadow: 0 0 10px rgba(255, 183, 0, 0.2);
+  }
+  .btn-omega:hover {
+    background: var(--amber-bright);
+    color: #000;
+    box-shadow: 0 0 18px rgba(255, 183, 0, 0.6);
+  }
+  .btn-scram {
+    background: rgba(255, 51, 68, 0.15);
+    color: var(--red-alert);
+    border: 1.5px solid var(--red-alert);
+    box-shadow: 0 0 10px rgba(255, 51, 68, 0.25);
+  }
+  .btn-scram:hover {
+    background: var(--red-alert);
+    color: #fff;
+    box-shadow: 0 0 20px var(--red-glow);
+  }
+  .btn-lockdown {
+    background: rgba(0, 255, 102, 0.08);
+    color: var(--green-bright);
+    border: 1px solid var(--green-mid);
+  }
+  .interlock-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: #060b08;
+    border: 1px solid var(--border-crt);
+    font-size: 10px;
+    color: #86efac;
+  }
+  .radar-container {
+    width: 100%;
+    height: 120px;
+    background: #040705;
+    border: 1px solid var(--border-crt);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  @media (max-width: 960px) {
+    .gauges-row { grid-template-columns: repeat(2, 1fr); }
+    .main-tactical-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="console-shell">
+  <!-- CRT Topbar -->
+  <header class="crt-topbar">
+    <div class="sys-badge">
+      <span class="blink-dot"></span>
+      <span>EVREGHEN // MISSION CONTROL CONSOLE</span>
+      <span style="color: var(--green-dim);">[SYS-VER 9.42-OMEGA]</span>
+    </div>
+    <div class="sys-status-row">
+      <span>GRID: ORBITAL-SECTOR-7</span>
+      <span class="tag-defcon">DEFCON 2</span>
+      <span class="tag-crit">
+        <span class="blink-dot-red" style="display:inline-block; margin-right:4px;"></span>
+        ANOMALY DETECTED
+      </span>
+      <span>T-SYNC: 17:04:42.902Z</span>
+    </div>
+  </header>
+
+  <!-- 4 Tactical Diagnostic Gauges -->
+  <div class="gauges-row">
+    <!-- Gauge 1: Core Reactor Load -->
+    <div class="gauge-box">
+      <div class="gauge-title">
+        <span>CORE DIAGNOSTICS</span>
+        <span>LOAD 94.2%</span>
+      </div>
+      <div class="gauge-val-large">412.8 <span style="font-size:12px; font-weight:400;">kPa</span></div>
+      <div class="gauge-svg-wrap">
+        <svg width="100%" height="44" viewBox="0 0 200 44">
+          <path d="M5 38 L30 38 L45 10 L60 38 L85 38 L95 24 L105 38 L140 38 L155 4 L170 38 L195 38" fill="none" stroke="#00ff66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="0" y1="38" x2="200" y2="38" stroke="#1f5f38" stroke-width="1" stroke-dasharray="3,3"/>
+        </svg>
+      </div>
+      <div class="gauge-meta">
+        <span>CRYO: 18.4 K</span>
+        <span>FLUX: NORMAL</span>
+      </div>
+    </div>
+
+    <!-- Gauge 2: Orbital Trajectory Radar -->
+    <div class="gauge-box">
+      <div class="gauge-title">
+        <span>ORBIT RETICLE</span>
+        <span style="color:var(--amber-bright);">DEV +0.42°</span>
+      </div>
+      <div class="gauge-val-large gauge-val-amber">99.98% <span style="font-size:12px; font-weight:400;">SYNC</span></div>
+      <div class="gauge-svg-wrap">
+        <svg width="60" height="44" viewBox="0 0 60 44">
+          <circle cx="30" cy="22" r="18" fill="none" stroke="#1f5f38" stroke-width="1"/>
+          <circle cx="30" cy="22" r="10" fill="none" stroke="#ffb700" stroke-width="1" stroke-dasharray="2,2"/>
+          <line x1="30" y1="2" x2="30" y2="42" stroke="#1f5f38" stroke-width="1"/>
+          <line x1="10" y1="22" x2="50" y2="22" stroke="#1f5f38" stroke-width="1"/>
+          <circle cx="38" cy="16" r="3" fill="#ff3344"/>
+        </svg>
+      </div>
+      <div class="gauge-meta">
+        <span>TARGET: SAT-04</span>
+        <span style="color:var(--red-alert);">INTERCEPT</span>
+      </div>
+    </div>
+
+    <!-- Gauge 3: Power Distribution Grid -->
+    <div class="gauge-box">
+      <div class="gauge-title">
+        <span>MAIN BUS TELEMETRY</span>
+        <span>780.4 MW</span>
+      </div>
+      <div class="gauge-val-large">98.6% <span style="font-size:12px; font-weight:400;">EFF</span></div>
+      <div class="gauge-svg-wrap">
+        <svg width="100%" height="40" viewBox="0 0 200 40">
+          <rect x="5" y="12" width="22" height="24" fill="#00ff66" opacity="0.8"/>
+          <rect x="32" y="8" width="22" height="28" fill="#00ff66" opacity="0.9"/>
+          <rect x="59" y="16" width="22" height="20" fill="#00ff66" opacity="0.7"/>
+          <rect x="86" y="6" width="22" height="30" fill="#00ff66" opacity="0.95"/>
+          <rect x="113" y="14" width="22" height="22" fill="#00ff66" opacity="0.8"/>
+          <rect x="140" y="4" width="22" height="32" fill="#ffb700" opacity="0.9"/>
+          <rect x="167" y="10" width="22" height="26" fill="#00ff66" opacity="0.85"/>
+        </svg>
+      </div>
+      <div class="gauge-meta">
+        <span>SUB-ARRAY: 07-G</span>
+        <span>THERMAL: STABLE</span>
+      </div>
+    </div>
+
+    <!-- Gauge 4: Quantum Uplink -->
+    <div class="gauge-box">
+      <div class="gauge-title">
+        <span>CRYPTO LINK</span>
+        <span>CARRIER LOCK</span>
+      </div>
+      <div class="gauge-val-large">1.42 <span style="font-size:12px; font-weight:400;">GHz</span></div>
+      <div class="gauge-svg-wrap">
+        <svg width="100%" height="40" viewBox="0 0 200 40">
+          <path d="M0 20 Q25 0, 50 20 T100 20 T150 20 T200 20" fill="none" stroke="#00ff66" stroke-width="2"/>
+          <path d="M0 20 Q25 35, 50 20 T100 20 T150 20 T200 20" fill="none" stroke="#1f5f38" stroke-width="1"/>
+        </svg>
+      </div>
+      <div class="gauge-meta">
+        <span>BER: 1.2e-9</span>
+        <span>LATENCY: 0.84ms</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Console Layout -->
+  <div class="main-tactical-grid">
+    <!-- Left: Anomaly Detection Event Stream -->
+    <div class="panel-crt">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          ANOMALY DETECTION REAL-TIME EVENT STREAM
+        </div>
+        <div style="font-size: 10px; color: var(--green-dim);">FEED RATE: 42 PKTS/SEC</div>
+      </div>
+
+      <table class="event-stream-table">
+        <thead>
+          <tr>
+            <th>TIMESTAMP</th>
+            <th>SEV</th>
+            <th>SUBSYSTEM</th>
+            <th>VECTOR / TELEMETRY EVENT</th>
+            <th>STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-crit">
+            <td>17:04:41.902</td>
+            <td><span class="sev-pill sev-crit">CRIT</span></td>
+            <td>ORBIT-SAT-04</td>
+            <td>DEVIATION +0.42° FROM GEOSTATIONARY CORRIDOR</td>
+            <td>UNRESOLVED</td>
+          </tr>
+          <tr class="row-crit">
+            <td>17:04:38.214</td>
+            <td><span class="sev-pill sev-crit">CRIT</span></td>
+            <td>CRYPTO-VAULT</td>
+            <td>QUANTUM HANDSHAKE FAIL: UNKNOWN SIGNATURE [0x9F4A]</td>
+            <td>BLOCKED</td>
+          </tr>
+          <tr class="row-warn">
+            <td>17:04:32.880</td>
+            <td><span class="sev-pill sev-warn">WARN</span></td>
+            <td>REACTOR-CHAMBER</td>
+            <td>THERMAL GRADIENT SPIKE IN MANIFOLD B (+12.4 K)</td>
+            <td>COOLING ON</td>
+          </tr>
+          <tr>
+            <td>17:04:29.155</td>
+            <td><span class="sev-pill sev-info">INFO</span></td>
+            <td>GRID-ROUTER-9</td>
+            <td>PACKET REROUTE COMPLETE VIA OPTICAL TRUNK 04</td>
+            <td>OPTIMAL</td>
+          </tr>
+          <tr>
+            <td>17:04:22.019</td>
+            <td><span class="sev-pill sev-info">INFO</span></td>
+            <td>DEFENSE-SILO-2</td>
+            <td>AUTOMATED INTEGRITY CHECK PASSED (128/128 CELLS)</td>
+            <td>STANDBY</td>
+          </tr>
+          <tr>
+            <td>17:04:14.771</td>
+            <td><span class="sev-pill sev-info">INFO</span></td>
+            <td>SPECTRAL-ARRAY</td>
+            <td>RADAR SWEEP CYCLE COMPLETED • 0 TARGETS PENETRATING</td>
+            <td>CLEARED</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Hex Inspector -->
+      <div style="margin-top: 12px; padding: 8px; background: #030604; border: 1px dashed var(--border-crt); font-size: 10px; color: #86efac;">
+        <span style="color:var(--amber-bright);">[MEMORY BUFFER 0x00FF8E]</span> 45 56 52 45 47 48 45 4E 2D 43 4D 44 2D 53 59 53 // RAW PACKET CRC: VALID
+      </div>
+    </div>
+
+    <!-- Right: Emergency Protocol Triggers -->
+    <div class="panel-crt protocol-panel">
+      <div class="hazard-stripe"></div>
+      <div class="panel-header" style="margin-bottom:6px;">
+        <div class="panel-title" style="color:var(--amber-bright);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          EMERGENCY PROTOCOL TRIGGERS
+        </div>
+        <span style="font-size:10px; color:var(--red-alert);">AUTHORIZED ONLY</span>
+      </div>
+
+      <div class="protocol-box">
+        <button class="protocol-btn btn-omega">
+          <span>⚠️ TRIGGER PROTOCOL OMEGA-7</span>
+          <span>[ARMED]</span>
+        </button>
+
+        <button class="protocol-btn btn-scram">
+          <span>🛑 EMERGENCY REACTOR SCRAM</span>
+          <span>[READY]</span>
+        </button>
+
+        <button class="protocol-btn btn-lockdown">
+          <span>🔒 DEFENSE GRID FULL LOCKDOWN</span>
+          <span>[STANDBY]</span>
+        </button>
+      </div>
+
+      <!-- Radar Display -->
+      <div class="radar-container">
+        <svg width="110" height="110" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="#1f5f38" stroke-width="1"/>
+          <circle cx="50" cy="50" r="30" fill="none" stroke="#1f5f38" stroke-width="1" stroke-dasharray="2,2"/>
+          <circle cx="50" cy="50" r="15" fill="none" stroke="#1f5f38" stroke-width="1"/>
+          <line x1="50" y1="0" x2="50" y2="100" stroke="#1f5f38" stroke-width="1"/>
+          <line x1="0" y1="50" x2="100" y2="50" stroke="#1f5f38" stroke-width="1"/>
+          <!-- Sweep line -->
+          <line x1="50" y1="50" x2="85" y2="20" stroke="#00ff66" stroke-width="2" opacity="0.9"/>
+          <!-- Target blips -->
+          <circle cx="68" cy="32" r="3" fill="#ffb700"/>
+          <circle cx="34" cy="62" r="2.5" fill="#00ff66"/>
+        </svg>
+      </div>
+
+      <!-- Security Interlocks Status -->
+      <div class="interlock-status">
+        <span>SECURITY KEY 1: [ENGAGED]</span>
+        <span style="color:var(--amber-bright);">KEY 2: [ARMED]</span>
+        <span style="color:var(--green-bright);">COMMAND LINK: OK</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -17,6 +17,7 @@ from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
 from agentlang.interface.context import AgentContextInterface
+from agentlang.llms.token_usage.models import ContextInputBreakdown
 from agentlang.event.reply_event_manager import ReplyEventManager
 from agentlang.event.think_event_manager import ThinkEventManager
 from agentlang.logger import get_logger
@@ -36,6 +37,7 @@ class RegularCallProcessor:
         request_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
         timeout_seconds: Optional[int] = None,
+        input_breakdown: ContextInputBreakdown | None = None,
     ) -> ChatCompletion:
         """使用非流式调用LLM的方法。
 
@@ -90,7 +92,8 @@ class RegularCallProcessor:
                 model_id=model_id,
                 model_name=llm_config.name,
                 request_id=request_id,
-                elapsed_time=elapsed_time
+                elapsed_time=elapsed_time,
+                input_breakdown=input_breakdown,
             )
 
         return response
@@ -102,7 +105,8 @@ class RegularCallProcessor:
         model_id: str,
         model_name: str,
         request_id: Optional[str],
-        elapsed_time: float
+        elapsed_time: float,
+        input_breakdown: ContextInputBreakdown | None = None,
     ) -> None:
         """解析完整响应，并按 V1 分阶段或 V2 原子协议触发事件。"""
         try:
@@ -137,6 +141,7 @@ class RegularCallProcessor:
                     has_reasoning=has_reasoning,
                     has_content=has_content,
                     has_tool_calls=has_tool_calls,
+                    input_breakdown=input_breakdown,
                 )
                 return
 
@@ -168,6 +173,7 @@ class RegularCallProcessor:
         has_reasoning: bool,
         has_content: bool,
         has_tool_calls: bool,
+        input_breakdown: ContextInputBreakdown | None = None,
     ) -> None:
         """按 V2 协议用完整 Assistant message 原子触发一次回复完成事件。"""
         if not (has_reasoning or has_content or has_tool_calls):
@@ -207,6 +213,7 @@ class RegularCallProcessor:
             use_stream_mode=False,
             content_type="content",
             correlation_id=correlation_id,
+            input_breakdown=input_breakdown,
         )
         logger.debug(f"[{request_id}] V2 非流式：原子 AFTER_AGENT_REPLY 已触发，correlation_id={correlation_id}")
 

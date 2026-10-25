@@ -7,6 +7,10 @@ import { useCanvasEvent, useCanvasEvents } from "./useCanvasEvent"
 interface UseCanvasDataOptions {
 	/** 精准控制 element:change 是否需要触发刷新 */
 	shouldUpdateOnElementChange?: (event: CanvasEvent<"element:change">) => boolean
+	/** 精准控制其他事件是否需要触发刷新 */
+	shouldUpdateOnEvent?: (event: CanvasEvent) => boolean
+	/** 可选的刷新调度器；未提供时保持事件触发后的同步刷新语义。 */
+	scheduleUpdate?: (update: () => void, event: CanvasEvent) => void
 }
 
 /**
@@ -31,6 +35,9 @@ export function useCanvasData<T>(
 		(...eventArgs) => {
 			for (const event of eventArgs) {
 				if (!event) continue
+				if (event.type !== "element:change" && options?.shouldUpdateOnEvent) {
+					if (!options.shouldUpdateOnEvent(event as CanvasEvent)) continue
+				}
 
 				if (event.type === "element:change") {
 					const changeEvent = event as CanvasEvent<"element:change">
@@ -38,16 +45,28 @@ export function useCanvasData<T>(
 						!options?.shouldUpdateOnElementChange ||
 						options.shouldUpdateOnElementChange(changeEvent)
 					if (shouldUpdate) {
-						forceUpdate()
+						if (options?.scheduleUpdate) {
+							options.scheduleUpdate(forceUpdate, event as CanvasEvent)
+						} else {
+							forceUpdate()
+						}
 					}
 					return
 				}
 
-				forceUpdate()
+				if (options?.scheduleUpdate) {
+					options.scheduleUpdate(forceUpdate, event as CanvasEvent)
+				} else {
+					forceUpdate()
+				}
 				return
 			}
 		},
-		[options?.shouldUpdateOnElementChange],
+		[
+			options?.scheduleUpdate,
+			options?.shouldUpdateOnElementChange,
+			options?.shouldUpdateOnEvent,
+		],
 	)
 
 	return canvas ? selector(canvas.elementManager) : null

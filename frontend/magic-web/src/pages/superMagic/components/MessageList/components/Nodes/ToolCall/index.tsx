@@ -9,18 +9,28 @@ import DefaultTool from "./tools/DefaultTool"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { filterClickableMessageWithoutRevoked } from "@/pages/superMagic/utils/handleMessage"
 import { getToolDesignProjectInfo } from "@/pages/superMagic/components/Detail/contents/Design/utils/toolDesignProjectInfo"
+import { isInlineToolDetail } from "@/pages/superMagic/utils/toolDetailDisplay"
+import OperationResultList from "../shared/OperationResultList"
 import {
-	resolveToolFileId,
-	selectSourceFileFromTool,
+	getToolCardInteractionTarget,
+	selectToolFile,
 	selectToolDetail,
 } from "../toolDetailSelection"
+import { useMessageListProjectFilesStore } from "@/pages/superMagic/components/MessageList/context"
+import { isToolCallLoading } from "../MessageNode/tool-call/types"
+import FileDownloadCard from "../shared/FileDownloadCard"
 
 function ToolCall(props: NodeProps) {
 	const { onSelectDetail } = props
+	const filesStore = useMessageListProjectFilesStore()
 	const node = superMagicStore.getMessageNode(props?.node?.super_message_id) as
 		| {
 				tool?: {
+					id?: string
 					name?: string
+					action?: string
+					remark?: string
+					status?: string
 					detail?: Record<string, unknown>
 					[key: string]: unknown
 				}
@@ -33,6 +43,7 @@ function ToolCall(props: NodeProps) {
 
 	// const { t } = useTranslation("super")
 	const toolName = typeof tool?.name === "string" ? tool.name : ""
+	const loading = isToolCallLoading({ tool })
 
 	const ToolComponent = ToolsMap?.[toolName] || DefaultTool
 
@@ -41,59 +52,48 @@ function ToolCall(props: NodeProps) {
 		data?: Record<string, unknown>
 		[key: string]: unknown
 	}) => {
-		switch (tool?.name) {
-			// 旧(保留,用于兼容旧消息)
-			case "create_design_project":
-			case "create_canvas_element":
-			case "update_canvas_element":
-			case "batch_create_canvas_elements":
-			case "batch_update_canvas_elements":
-			case "reorder_canvas_elements":
-			case "query_canvas_overview":
-			case "query_canvas_element":
-			case "generate_images_to_canvas":
-			case "search_images_to_canvas":
-			case "generate_videos_to_canvas":
-			case "query_video_generation":
-			case "create_canvas": // 新
-			case "generate_canvas_images": // 新
-			case "generate_canvas_videos": // 新
-				const { designProjectId, designProject, elements } = getToolDesignProjectInfo(tool)
-				if (!designProjectId) return
-				pubsub.publish(PubSubEvents.Open_File_Tab, {
-					...designProject,
-					fileId: designProjectId,
-				})
-				if (elements.length > 0 && designProjectId) {
-					// 延迟等待tab打开
-					setTimeout(() => {
-						pubsub.publish(PubSubEvents.Super_Magic_Focus_Canvas_Element, {
-							canvasDesignId: designProjectId,
-							elementIds: elements.map((item) => item.id),
-							selectElement: [elements[0].id],
-							animated: false,
-							padding: {
-								top: "25%",
-								right: "25%",
-								bottom: "25%",
-								left: "25%",
-							},
-						})
-					}, 200)
-				}
-				return
-			default:
-				break
-		}
-		// 兼容不同版本工具返回的文件 ID 字段，统一进入文件导航。
-		// 直接打开文件 tab 并定位到文件树
-		const fileId = resolveToolFileId(detail?.data)
-		if (fileId) {
-			selectSourceFileFromTool({
-				detail,
-				fileId,
-				onSelectDetail,
+		const target = getToolCardInteractionTarget(tool?.name, detail)
+		if (target.type === "disabled" || target.type === "inline") return
+
+		if (target.type === "canvas") {
+			const { designProjectId, designProject, elements } = getToolDesignProjectInfo(
+				tool,
+				filesStore,
+			)
+			if (!designProjectId) return
+			pubsub.publish(PubSubEvents.Open_File_Tab, {
+				...designProject,
+				fileId: designProjectId,
 			})
+			if (elements.length > 0) {
+				// 延迟等待tab打开
+				setTimeout(() => {
+					pubsub.publish(PubSubEvents.Super_Magic_Focus_Canvas_Element, {
+						canvasDesignId: designProjectId,
+						elementIds: elements.map((item) => item.id),
+						selectElement: [elements[0].id],
+						animated: false,
+						padding: {
+							top: "25%",
+							right: "25%",
+							bottom: "25%",
+							left: "25%",
+						},
+					})
+				}, 200)
+			}
+			return
+		}
+		// Resolve explicit file targets first; legacy sources retain attachment checks.
+
+		if (
+			selectToolFile({
+				detail,
+				target,
+				onSelectDetail,
+				filesStore,
+			})
+		) {
 			return
 		}
 
@@ -103,7 +103,6 @@ function ToolCall(props: NodeProps) {
 	const onProxyClick = () => {
 		const toolInfo = pick(tool, ["name", "url", "action", "remark", "id"])
 		const newDetail = { ...tool?.detail, ...toolInfo }
-		console.log("往上传递数据", newDetail, toolInfo, node)
 		if (!filterClickableMessageWithoutRevoked(node, props?.node) || isEmpty(tool?.detail)) {
 			return
 		}
@@ -111,9 +110,38 @@ function ToolCall(props: NodeProps) {
 		handleSelectDetail?.(newDetail)
 	}
 
+	if (tool && toolName === "create_client_side_file_bundle") {
+		return (
+			<FileDownloadCard
+				toolData={tool}
+				loading={loading}
+				className={props.classNames?.markdown}
+				onMouseEnter={props.onMouseEnter}
+				onMouseLeave={props.onMouseLeave}
+			/>
+		)
+	}
+
+	if (
+		tool &&
+		(isInlineToolDetail(tool.detail) ||
+			(toolName === "web_search" && tool.detail?.type === "search"))
+	) {
+		return (
+			<OperationResultList
+				toolData={tool}
+				loading={loading}
+				onSelectDetail={onSelectDetail}
+				className={props.classNames?.markdown}
+				onMouseEnter={props.onMouseEnter}
+				onMouseLeave={props.onMouseLeave}
+			/>
+		)
+	}
+
 	return (
 		<Suspense fallback={null}>
-			<ToolComponent {...props} onClick={onProxyClick} />
+			<ToolComponent {...props} loading={loading} onClick={onProxyClick} />
 		</Suspense>
 	)
 }

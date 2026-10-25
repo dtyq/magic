@@ -1,43 +1,39 @@
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import {
 	ElementTypeEnum,
+	type AudioElement,
 	type FrameElement,
 	type GroupElement,
 	type ImageElement,
 	type LayerElement,
 	type VideoElement,
 } from "@/components/CanvasDesign/runtime/document/types"
+import {
+	getContents,
+	getImageContents,
+} from "@/components/CanvasDesign/runtime/document/elementContent"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type { SuperMagicFileChangeMessage } from "@/types/chat/intermediate_message"
 import type { SeqResponse } from "@/types/request"
 import type { DesignData } from "../types"
-import type { DesignProjectManagerOptions } from "./types"
+import {
+	resolveDesignAccessMode,
+	type DesignProjectManagerOptions,
+	type DesignCurrentFileLoadResult,
+} from "./types"
 import { isSameDesignProjectPath } from "../utils/toolDesignProjectInfo"
 import {
 	registerWaitForNextAttachmentsRefreshForProject,
 	waitForNextAttachmentsRefreshForProject,
 } from "@/pages/superMagic/services/attachmentsTopicSync"
-import {
-	formatCanvasRelativeResourcePath,
-	hasCurrentDirectoryPrefix,
-	isCanvasResourceRootPath,
-	isRemoteOrSpecialPath,
-	toWeakCanvasResourcePath,
-	stripCurrentDirectoryPrefix,
-	stripPathEdgeSlashes,
-} from "@/components/CanvasDesign/runtime/shared/path/canvasResourcePath"
-import {
-	loadMagicProjectJsContent,
-	parseMagicProjectJsContent,
-	resolveDesignProjectBasePathFromAttachments,
-	normalizeDesignDataPathsAfterLoad,
-} from "../utils/utils"
+import { resolveDesignProjectBasePathFromAttachments } from "../utils/utils"
 import { buildDesignAttachmentIndex } from "../utils/designAttachmentIndex"
-import { resolveDesignAttachment } from "../utils/designPath"
-import { hydrateDesignDataDetails } from "../utils/elementDetailsIo"
-import { isV2Version } from "../utils/magicProjectCompression"
-import { SuperMagicApi } from "@/apis"
+import { resolveDesignCanvasResourceReference } from "../utils/designResourceReferenceResolver"
+import type { LoadDesignDataToRuntimeResult } from "../utils/designDataLoader"
+import type { CanvasAccessMode } from "@/components/CanvasDesign/public/props"
+import type { SuperMagicProjectAttachmentsReconciledPayload } from "@/pages/superMagic/events/files"
+import { getSharedMediaResourceScope } from "@/pages/superMagic/services/sharedMediaResourceScope"
 
 const DESIGN_ELEMENT_TOOL_NAMES = [
 	// "create_canvas_element",
@@ -64,28 +60,6 @@ interface ToolDesignData {
  * - 工作区路径：`path/to/file` 或 `/path/to/file`（与附件 relative_file_path 对齐时去掉首尾 `/`）
  * 其余（http、blob、data、`//`、file: 等）不参与附件缺失判断。
  */
-function normalizeCanvasMediaSrcForAttachmentWalk(raw: string): string | null {
-	const trimmed = raw.trim()
-	if (!trimmed) return null
-	if (isRemoteOrSpecialPath(trimmed)) return null
-	if (/^file:/i.test(trimmed)) return null
-
-	if (hasCurrentDirectoryPrefix(trimmed)) {
-		const rest = stripCurrentDirectoryPrefix(trimmed)
-		if (!rest) return null
-		return formatCanvasRelativeResourcePath(rest)
-	}
-
-	const local = toWeakCanvasResourcePath(trimmed)
-	if (isCanvasResourceRootPath(local)) {
-		return stripPathEdgeSlashes(local)
-	}
-
-	if (local.includes("/")) return stripPathEdgeSlashes(local)
-
-	return local
-}
-
 function walkCanvasMediaSources(
 	elements: LayerElement[] | undefined,
 	onSrc: (src: string) => void,
@@ -93,13 +67,19 @@ function walkCanvasMediaSources(
 	if (!elements?.length) return
 
 	for (const el of elements) {
-		if (el.type === ElementTypeEnum.Image || el.type === ElementTypeEnum.Video) {
-			const media = el as ImageElement | VideoElement
-			const s = media.src?.trim()
-			if (!s) continue
-			const normalized = normalizeCanvasMediaSrcForAttachmentWalk(s)
-			if (!normalized) continue
-			onSrc(normalized)
+		if (el.type === ElementTypeEnum.Image) {
+			for (const content of getImageContents(el)) {
+				const src = content.src?.trim()
+				if (src && !/^file:/i.test(src)) onSrc(src)
+			}
+			continue
+		}
+		if (el.type === ElementTypeEnum.Video || el.type === ElementTypeEnum.Audio) {
+			for (const content of getContents(el as VideoElement | AudioElement)) {
+				const src = content.src?.trim()
+				if (!src || /^file:/i.test(src)) continue
+				onSrc(src)
+			}
 			continue
 		}
 
@@ -119,44 +99,51 @@ function designDataHasMediaMissingFromAttachments(
 	let missing = false
 	walkCanvasMediaSources(designData.canvas?.elements, (src) => {
 		if (missing) return
-		const resolvedFile = resolveDesignAttachment(
+		const resolution = resolveDesignCanvasResourceReference(
 			src,
 			{
 				flatAttachments: storeFiles,
 				designProjectBasePath,
 				attachmentIndex: index,
+				attachmentsReady: true,
 			},
-			{ mode: "legacy-recovery" },
+			{ requireAttachment: true },
 		)
-		if (resolvedFile.status === "not-found") missing = true
+		if (resolution.status !== "resolved") missing = true
 	})
 	return missing
 }
 
-/** v2 的生成配置位于 sidecar；processing 占位符缺配置时需要等待附件树同步后重读。 */
-export function designDataHasPendingMediaWithoutGenerationRequest(designData: DesignData): boolean {
+/** 生成配置位于 sidecar；任一 processing Content 配置未同步完整时需要等待附件树后重读。 */
+export function designDataHasPendingMediaWithoutGenerationDetails(designData: DesignData): boolean {
 	let missing = false
 	const walk = (elements: LayerElement[] | undefined): void => {
 		if (!elements?.length || missing) return
 
 		for (const element of elements) {
 			if (element.type === ElementTypeEnum.Image) {
-				const image = element as ImageElement
-				if (
-					(image.status === "pending" || image.status === "processing") &&
-					!image.generateImageRequest &&
-					!image.imageGenerationTaskMeta &&
-					!image.generateHightImageRequest
-				) {
+				const hasIncompleteDetails = getImageContents(element as ImageElement).some(
+					(content) => {
+						if (content.status !== "pending" && content.status !== "processing") {
+							return false
+						}
+						if (content.imageGenerationTaskMeta) return false
+
+						const request = content.generateImageRequest
+						return !request?.start_time || !request.expected_finished_at
+					},
+				)
+				if (hasIncompleteDetails) {
 					missing = true
 					return
 				}
 			} else if (element.type === ElementTypeEnum.Video) {
-				const video = element as VideoElement
-				if (
-					(video.status === "pending" || video.status === "processing") &&
-					!video.generateVideoRequest
-				) {
+				const hasMissingRequest = getContents(element as VideoElement).some(
+					(content) =>
+						(content.status === "pending" || content.status === "processing") &&
+						!content.generateVideoRequest,
+				)
+				if (hasMissingRequest) {
 					missing = true
 					return
 				}
@@ -192,22 +179,20 @@ export type LoadAndApplyRemoteFn = (
 ) => Promise<boolean>
 
 /** 仅拉取远端设计数据，不写状态、不触画布（与等待附件并行） */
-export type FetchRemoteDesignDataFn = () => Promise<DesignData | null>
+export type FetchRemoteDesignDataFn = () => Promise<DesignCurrentFileLoadResult | null>
 
 /** 将已拉取的数据写入状态并通知画布更新；attachments 就绪后调用 */
 export type ApplyRemoteDesignDataFn = (
 	data: DesignData,
 	updateType: "message" | "revoke" | "restore",
-	options?: { remoteVersion?: number | null },
+	options?: {
+		loadResult?: LoadDesignDataToRuntimeResult
+	},
 ) => boolean
 
-export type CheckRemoteUpdateFn = () => Promise<{
-	hasUpdate: boolean
-	currentVersion: number | null
-	isCheckReliable: boolean
-}>
-
 export interface DesignRemoteListenerOptions extends DesignProjectManagerOptions {
+	/** Current lifecycle mode resolved by the Design state owner. */
+	getAccessMode?: () => CanvasAccessMode
 	getMagicProjectJsFileId: () => string | null
 	getIsViewingHistory: () => boolean
 	getDesignDataName: () => string
@@ -215,9 +200,6 @@ export interface DesignRemoteListenerOptions extends DesignProjectManagerOptions
 	loadAndApplyRemote: LoadAndApplyRemoteFn
 	fetchRemoteDesignData: FetchRemoteDesignDataFn
 	applyRemoteDesignData: ApplyRemoteDesignDataFn
-	checkRemoteUpdate: CheckRemoteUpdateFn
-	getLocalVersion: () => number | null
-	updateLocalVersion: (version: number) => void
 	updateListenerDebounceMs: number
 	setIsProcessingRevoke: (v: boolean) => void
 	setRevokeType: (v: "revoke" | "restore" | null) => void
@@ -234,19 +216,23 @@ export class DesignRemoteListener {
 	private latestLocalSaveToken = 0
 	private activeLocalSaveTokens = new Set<number>()
 	private hasPendingFileChangeDuringSave = false
-	private pendingFileChangeUpdatedAtMs: number | null = null
-	private pendingFileChangeVersion: number | null = null
-	private pendingDebouncedFileChangeUpdatedAtMs: number | null = null
-	private pendingDebouncedFileChangeVersion: number | null = null
-	private lastKnownMagicProjectJsUpdatedAtMs: number | null = null
-	private localSaveUpdatedAtMs: number | null = null
 	private projectKey: string
 	private latestRemoteApplyToken = 0
+	private pendingReconciliation: SuperMagicProjectAttachmentsReconciledPayload | null = null
+	private lastReconciledSnapshot:
+		SuperMagicProjectAttachmentsReconciledPayload["snapshot"] | null = null
 
 	constructor(options: DesignRemoteListenerOptions) {
 		this.options = options
 		this.projectKey = this.getProjectKey(options)
-		this.initializeMagicProjectJsUpdatedAtFromOptions()
+	}
+
+	private getAccessMode(): CanvasAccessMode {
+		return (
+			this.options.getAccessMode?.() ??
+			this.options.accessMode ??
+			resolveDesignAccessMode(this.options)
+		)
 	}
 
 	updateOptions(options: Partial<DesignRemoteListenerOptions>) {
@@ -255,41 +241,43 @@ export class DesignRemoteListener {
 		this.options = { ...this.options, ...options }
 		this.projectKey = this.getProjectKey(this.options)
 		if (prevProjectKey !== this.projectKey) {
+			this.pendingReconciliation = null
+			this.lastReconciledSnapshot = null
+			this.latestRemoteApplyToken += 1
+			this.fileId = null
 			this.hasPendingFileChangeDuringSave = false
-			this.pendingFileChangeUpdatedAtMs = null
-			this.pendingFileChangeVersion = null
-			this.pendingDebouncedFileChangeUpdatedAtMs = null
-			this.pendingDebouncedFileChangeVersion = null
-			this.lastKnownMagicProjectJsUpdatedAtMs = null
-			this.localSaveUpdatedAtMs = null
-			this.initializeMagicProjectJsUpdatedAtFromOptions()
 		}
 		if (this.isMounted && prevMode !== this.getListenerMode()) {
 			this.unsubscribeRemoteUpdateEvents(prevMode)
 			this.subscribeRemoteUpdateEvents()
 		}
+		this.flushPendingReconciliation()
 	}
 
 	mount(): void {
 		this.isMounted = true
-		this.initializeMagicProjectJsUpdatedAtFromOptions()
 		this.subscribeRemoteUpdateEvents()
+		pubsub.subscribe(
+			PubSubEvents.Super_Magic_Project_Attachments_Reconciled,
+			this.handleProjectAttachmentsReconciled,
+		)
 	}
 
 	unmount(): void {
 		this.isMounted = false
 		this.unsubscribeRemoteUpdateEvents()
+		pubsub.unsubscribe(
+			PubSubEvents.Super_Magic_Project_Attachments_Reconciled,
+			this.handleProjectAttachmentsReconciled,
+		)
+		this.pendingReconciliation = null
+		this.lastReconciledSnapshot = null
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer)
 			this.debounceTimer = null
 		}
 		this.activeLocalSaveTokens.clear()
 		this.hasPendingFileChangeDuringSave = false
-		this.pendingFileChangeUpdatedAtMs = null
-		this.pendingFileChangeVersion = null
-		this.pendingDebouncedFileChangeUpdatedAtMs = null
-		this.pendingDebouncedFileChangeVersion = null
-		this.localSaveUpdatedAtMs = null
 		this.latestRemoteApplyToken += 1
 	}
 
@@ -300,43 +288,11 @@ export class DesignRemoteListener {
 		return saveToken
 	}
 
-	async endLocalSave(
-		saveToken: number | null | undefined,
-		didSave: boolean,
-		savedUpdatedAt?: string | null,
-	): Promise<void> {
-		if (saveToken === null || saveToken === undefined) return
-		if (!this.activeLocalSaveTokens.has(saveToken)) return
-
+	async endLocalSave(saveToken: number | null | undefined): Promise<void> {
+		if (saveToken == null || !this.activeLocalSaveTokens.has(saveToken)) return
 		this.activeLocalSaveTokens.delete(saveToken)
 		if (this.activeLocalSaveTokens.size > 0) return
-
-		if (didSave) {
-			const savedAtMs = parseUpdatedAt(savedUpdatedAt ?? undefined)
-			if (savedAtMs !== null) {
-				this.localSaveUpdatedAtMs = savedAtMs
-			}
-			this.markMagicProjectJsUpdatedAtApplied(savedAtMs ?? this.pendingFileChangeUpdatedAtMs)
-
-			// Check if pending file change is newer than our save (real remote change)
-			const hadPendingFileChange = this.hasPendingFileChangeDuringSave
-			const pendingMs = this.pendingFileChangeUpdatedAtMs
-			const pendingVersion = this.pendingFileChangeVersion
-			this.hasPendingFileChangeDuringSave = false
-			this.pendingFileChangeUpdatedAtMs = null
-			this.pendingFileChangeVersion = null
-
-			if (
-				hadPendingFileChange &&
-				((savedAtMs !== null && pendingMs !== null && pendingMs > savedAtMs) ||
-					this.isFileVersionNewer(pendingVersion) ||
-					pendingVersion === null)
-			) {
-				void this.handleConfirmedFileChange(pendingMs, pendingVersion)
-			}
-			return
-		}
-
+		// 保存期间的通知只表示当前文件需重读，不能用时间或历史号丢弃。
 		await this.flushPendingFileChange()
 	}
 
@@ -345,7 +301,45 @@ export class DesignRemoteListener {
 	}
 
 	private getProjectKey(options: DesignRemoteListenerOptions): string {
-		return `${options.projectId ?? ""}:${options.designProjectId ?? ""}`
+		return `${options.projectId ?? ""}:${options.designProjectId ?? ""}:${options.fileApi?.identityKey ?? ""}`
+	}
+
+	private readonly handleProjectAttachmentsReconciled = (
+		payload: SuperMagicProjectAttachmentsReconciledPayload,
+	): void => {
+		if (
+			!this.isMounted ||
+			this.getAccessMode() === "share" ||
+			payload.projectId !== this.options.projectId ||
+			payload.accessScope !== getSharedMediaResourceScope() ||
+			payload.snapshot === this.lastReconciledSnapshot
+		)
+			return
+
+		this.pendingReconciliation = payload
+		this.flushPendingReconciliation()
+	}
+
+	private flushPendingReconciliation(): void {
+		const pending = this.pendingReconciliation
+		if (!this.isMounted || !pending || !this.options.getMagicProjectJsFileId()) return
+		if (pending.accessScope !== getSharedMediaResourceScope()) {
+			this.pendingReconciliation = null
+			return
+		}
+
+		// MobX 提交后 React 才把附件传进管理器。按真实列表引用等待，不能猜渲染延迟。
+		const list = this.options.flatAttachments
+		const hasCurrentAttachments = list
+			? list === pending.snapshot.list || list === pending.store.workspaceFilesList
+			: this.options.attachments === pending.snapshot.tree ||
+				this.options.attachments === pending.store.workspaceFileTree
+		if (!hasCurrentAttachments) return
+
+		this.pendingReconciliation = null
+		this.lastReconciledSnapshot = pending.snapshot
+		if (this.deferRemoteRefreshDuringSave()) return
+		this.debouncedLoadAndApply()
 	}
 
 	private subscribeRemoteUpdateEvents(): void {
@@ -397,16 +391,8 @@ export class DesignRemoteListener {
 		)
 		if (!designProjectFileChange) return
 
-		const fileUpdatedAtMs = parseUpdatedAt(designProjectFileChange.file?.updated_at)
-		const fileVersion = normalizeFileVersion(designProjectFileChange.file?.version)
-		if (this.shouldIgnoreLocalSaveEcho(fileUpdatedAtMs, fileVersion)) {
-			return
-		}
-		if (this.deferRemoteRefreshDuringSave(fileUpdatedAtMs, fileVersion)) {
-			return
-		}
-
-		void this.handleConfirmedFileChange(fileUpdatedAtMs, fileVersion)
+		if (this.deferRemoteRefreshDuringSave()) return
+		this.debouncedLoadAndApply()
 	}
 
 	private readonly handleNewMessage = (data: unknown): void => {
@@ -546,258 +532,77 @@ export class DesignRemoteListener {
 		)
 	}
 
-	private deferRemoteRefreshDuringSave(
-		fileUpdatedAtMs?: number | null,
-		fileVersion?: number | null,
-	): boolean {
+	private deferRemoteRefreshDuringSave(): boolean {
 		if (this.activeLocalSaveTokens.size === 0) return false
-
 		this.hasPendingFileChangeDuringSave = true
-		if (fileUpdatedAtMs !== null && fileUpdatedAtMs !== undefined) {
-			this.pendingFileChangeUpdatedAtMs = Math.max(
-				this.pendingFileChangeUpdatedAtMs ?? 0,
-				fileUpdatedAtMs,
-			)
-		}
-		if (fileVersion !== null && fileVersion !== undefined) {
-			this.pendingFileChangeVersion = Math.max(
-				this.pendingFileChangeVersion ?? 0,
-				fileVersion,
-			)
-		}
 		return true
 	}
 
 	private async flushPendingFileChange(): Promise<void> {
-		if (!this.isMounted) return
-		if (!this.hasPendingFileChangeDuringSave) return
-
-		const fileUpdatedAtMs = this.pendingFileChangeUpdatedAtMs
-		const fileVersion = this.pendingFileChangeVersion
+		if (!this.isMounted || !this.hasPendingFileChangeDuringSave) return
 		this.hasPendingFileChangeDuringSave = false
-		this.pendingFileChangeUpdatedAtMs = null
-		this.pendingFileChangeVersion = null
-		await this.handleConfirmedFileChange(fileUpdatedAtMs, fileVersion)
-	}
-
-	private async handleConfirmedFileChange(
-		fileUpdatedAtMs?: number | null,
-		fileVersion?: number | null,
-	): Promise<void> {
-		if (!this.isMounted) return
-
-		const updatedAtStatus = this.getFileUpdatedAtStatus(fileUpdatedAtMs)
-		if (updatedAtStatus === "newer") {
-			this.debouncedLoadAndApply(fileUpdatedAtMs, fileVersion)
-			return
-		}
-		if (updatedAtStatus === "stale") {
-			const resolvedFileVersion =
-				fileVersion ?? (await this.fetchLatestMagicProjectJsVersion())
-			if (!this.isMounted) return
-			if (this.isFileVersionNewer(resolvedFileVersion)) {
-				this.debouncedLoadAndApply(fileUpdatedAtMs, resolvedFileVersion)
-				return
-			}
-			if (resolvedFileVersion !== null) {
-				return
-			}
-		}
-
-		try {
-			const { hasUpdate, isCheckReliable, currentVersion } =
-				await this.options.checkRemoteUpdate()
-			if (!this.isMounted) return
-			if (!hasUpdate && isCheckReliable) return
-
-			this.debouncedLoadAndApply(undefined, currentVersion ?? fileVersion)
-		} catch {
-			// ignore
-		}
-	}
-
-	private getFileUpdatedAtStatus(fileUpdatedAtMs?: number | null): "newer" | "stale" | "unknown" {
-		if (fileUpdatedAtMs === null || fileUpdatedAtMs === undefined) return "unknown"
-
-		if (
-			this.lastKnownMagicProjectJsUpdatedAtMs !== null &&
-			fileUpdatedAtMs <= this.lastKnownMagicProjectJsUpdatedAtMs
-		)
-			return "stale"
-
-		return "newer"
-	}
-
-	private markMagicProjectJsUpdatedAtApplied(fileUpdatedAtMs?: number | null): void {
-		if (fileUpdatedAtMs === null || fileUpdatedAtMs === undefined) return
-
-		this.lastKnownMagicProjectJsUpdatedAtMs = Math.max(
-			this.lastKnownMagicProjectJsUpdatedAtMs ?? 0,
-			fileUpdatedAtMs,
-		)
-	}
-
-	private isFileVersionNewer(fileVersion?: number | null): boolean {
-		if (fileVersion === null || fileVersion === undefined) return false
-		const localVersion = this.options.getLocalVersion()
-		return localVersion !== null && fileVersion > localVersion
-	}
-
-	private shouldIgnoreLocalSaveEcho(
-		fileUpdatedAtMs?: number | null,
-		fileVersion?: number | null,
-	): boolean {
-		if (this.localSaveUpdatedAtMs === null) return false
-
-		if (fileUpdatedAtMs !== null && fileUpdatedAtMs !== undefined) {
-			if (fileUpdatedAtMs <= this.localSaveUpdatedAtMs) {
-				if (this.isFileVersionNewer(fileVersion)) {
-					this.localSaveUpdatedAtMs = null
-					return false
-				}
-				if (fileVersion === null || fileVersion === undefined) return false
-				this.markMagicProjectJsUpdatedAtApplied(fileUpdatedAtMs)
-				return true
-			}
-			// Newer than our save → real remote change, clear marker
-			this.localSaveUpdatedAtMs = null
-			return false
-		}
-
-		// No timestamp on incoming event → cannot determine, don't ignore
-		return false
-	}
-
-	private initializeMagicProjectJsUpdatedAtFromOptions(): void {
-		if (this.lastKnownMagicProjectJsUpdatedAtMs !== null) return
-
-		const fileUpdatedAtMs = this.getMagicProjectJsUpdatedAtFromOptions()
-		if (fileUpdatedAtMs === null) return
-
-		this.lastKnownMagicProjectJsUpdatedAtMs = fileUpdatedAtMs
+		this.debouncedLoadAndApply()
 	}
 
 	/**
 	 * file-change 链路：读远端 magic.project.js，媒体或生成配置未同步时等待附件刷新后重读；
 	 * 返回可直接 apply 的数据；返回 null 表示应由 fetchRemoteDesignData（loadLatest）兜底。
 	 */
-	private async maybePrepareRemoteDesignDataFromMagicProjectFile(): Promise<DesignData | null> {
+	private async maybePrepareRemoteDesignDataFromMagicProjectFile(): Promise<DesignCurrentFileLoadResult | null> {
 		const fid = this.options.getMagicProjectJsFileId()
 		if (!fid) return null
-
 		const dslBase = resolveDesignProjectBasePathFromAttachments(this.options)
-
-		let parsed: DesignData | null = null
-		try {
-			const content = await loadMagicProjectJsContent(fid)
-			parsed = parseMagicProjectJsContent(content)
-		} catch {
-			return null
-		}
-
-		if (!parsed) return null
-		if (dslBase) {
-			normalizeDesignDataPathsAfterLoad(parsed, dslBase, {
-				flatAttachments: this.options.flatAttachments,
-				attachmentIndex: this.options.attachmentIndex,
-			})
-		}
-		await hydrateDesignDataDetails(parsed, {
-			attachments: this.options.attachments,
-			flatAttachments: this.options.flatAttachments,
-			mainFileId: fid,
-			projectId: this.options.projectId,
-		})
-
+		const snapshot = await this.options.fetchRemoteDesignData()
+		if (!snapshot?.data) return null
 		const storeFiles = [
 			...(this.options.flatAttachments ?? []),
 			...flattenFileItems(this.options.attachments ?? []),
 		]
-
 		const hasMissingMedia = designDataHasMediaMissingFromAttachments(
-			parsed,
+			snapshot.data,
 			storeFiles,
 			dslBase,
 		)
-		const hasPendingGenerationWithoutInfo =
-			isV2Version(parsed.version) && designDataHasPendingMediaWithoutGenerationRequest(parsed)
-		if (!hasMissingMedia && !hasPendingGenerationWithoutInfo) return parsed
-
+		const hasPendingGenerationWithoutInfo = designDataHasPendingMediaWithoutGenerationDetails(
+			snapshot.data,
+		)
+		if (!hasMissingMedia && !hasPendingGenerationWithoutInfo) return snapshot
 		const projectId = this.options.projectId
-		if (!projectId) return hasMissingMedia ? null : parsed
-
+		if (!projectId) return hasMissingMedia ? null : snapshot
 		try {
 			await waitForNextAttachmentsRefreshForProject(projectId, { timeoutMs: 15_000 })
 		} catch {
 			// 生成配置同步超时不应阻塞占位符展示；媒体缺失仍沿用原有失败策略。
-			return hasMissingMedia ? null : parsed
+			return hasMissingMedia ? null : snapshot
 		}
-
-		try {
-			const content = await loadMagicProjectJsContent(fid)
-			const again = parseMagicProjectJsContent(content)
-			if (again) {
-				if (dslBase) {
-					normalizeDesignDataPathsAfterLoad(again, dslBase, {
-						flatAttachments: this.options.flatAttachments,
-						attachmentIndex: this.options.attachmentIndex,
-					})
-				}
-				await hydrateDesignDataDetails(again, {
-					attachments: this.options.attachments,
-					flatAttachments: this.options.flatAttachments,
-					mainFileId: fid,
-					projectId: this.options.projectId,
-				})
-			}
-			return again
-		} catch {
-			return null
-		}
-	}
-
-	private getMagicProjectJsUpdatedAtFromOptions(): number | null {
-		const fileId = this.options.getMagicProjectJsFileId()
-		const files = [
-			...(this.options.flatAttachments ?? []),
-			...flattenFileItems(this.options.attachments ?? []),
-		]
-		const magicProjectJs = files.find((item) => {
-			if (fileId && item.file_id === fileId) return true
-
-			return (
-				String(item.parent_id ?? "") === String(this.options.designProjectId ?? "") &&
-				item.file_name === "magic.project.js"
-			)
-		})
-
-		return parseUpdatedAt(magicProjectJs?.updated_at)
+		return this.options.fetchRemoteDesignData()
 	}
 
 	private async handleRemoteRefresh(
 		updateType: "message" | "revoke" | "restore",
-		options?: { refreshVersionsAfterApply?: boolean; fileUpdatedAtMs?: number | null },
+		options?: { refreshVersionsAfterApply?: boolean },
 	): Promise<void> {
 		if (!this.isMounted) return
+		const applyToken = this.latestRemoteApplyToken + 1
+		this.latestRemoteApplyToken = applyToken
+		const isLatestApply = () => this.isMounted && this.latestRemoteApplyToken === applyToken
 
 		if (this.options.getIsViewingHistory()) {
-			if (this.options.isShareRoute) return
+			if (this.getAccessMode() === "share") return
 
 			try {
 				await this.options.fetchAndSetVersions()
 			} catch {
 				// ignore
 			}
+			if (!isLatestApply()) return
 			return
 		}
 
-		const didApplyRemote = await this.options.loadAndApplyRemote(updateType)
-		if (didApplyRemote) {
-			this.markMagicProjectJsUpdatedAtApplied(options?.fileUpdatedAtMs)
-			await this.markRemoteVersionApplied(null)
-		}
+		await this.options.loadAndApplyRemote(updateType)
+		if (!isLatestApply()) return
 
-		if (!options?.refreshVersionsAfterApply || this.options.isShareRoute) return
+		if (!options?.refreshVersionsAfterApply || this.getAccessMode() === "share") return
 
 		try {
 			await this.options.fetchAndSetVersions()
@@ -806,142 +611,38 @@ export class DesignRemoteListener {
 		}
 	}
 
-	private async markRemoteVersionApplied(fileVersion?: number | null): Promise<void> {
-		const normalizedVersion = normalizeFileVersion(fileVersion)
-		if (normalizedVersion !== null) {
-			this.options.updateLocalVersion(normalizedVersion)
-			return
-		}
-
-		const latestVersion = await this.fetchLatestMagicProjectJsVersion()
-		if (latestVersion !== null) {
-			this.options.updateLocalVersion(latestVersion)
-		}
-	}
-
-	private async fetchLatestMagicProjectJsVersion(): Promise<number | null> {
-		if (this.options.isShareRoute) return null
-		const fid = this.options.getMagicProjectJsFileId()
-		if (!fid) return null
-
-		try {
-			const fileInfo = await SuperMagicApi.getFileInfo(
-				{ file_id: fid },
-				{ enableErrorMessagePrompt: false },
-			)
-			return normalizeFileVersion(fileInfo?.version)
-		} catch {
-			return null
-		}
-	}
-
-	private debouncedLoadAndApply(
-		fileUpdatedAtMs?: number | null,
-		fileVersion?: number | null,
-	): void {
+	private debouncedLoadAndApply(): void {
 		if (!this.isMounted) return
-
-		if (fileUpdatedAtMs !== null && fileUpdatedAtMs !== undefined) {
-			this.pendingDebouncedFileChangeUpdatedAtMs = Math.max(
-				this.pendingDebouncedFileChangeUpdatedAtMs ?? 0,
-				fileUpdatedAtMs,
-			)
-		}
-		if (fileVersion !== null && fileVersion !== undefined) {
-			this.pendingDebouncedFileChangeVersion = Math.max(
-				this.pendingDebouncedFileChangeVersion ?? 0,
-				fileVersion,
-			)
-		}
-
-		if (this.debounceTimer) {
-			clearTimeout(this.debounceTimer)
-		}
+		// 新通知到达就令在途应用失效；已有防抖负责合并后续读取。
+		this.latestRemoteApplyToken += 1
+		if (this.debounceTimer) clearTimeout(this.debounceTimer)
 		this.debounceTimer = setTimeout(() => {
-			const pendingFileUpdatedAtMs = this.pendingDebouncedFileChangeUpdatedAtMs
-			const pendingFileVersion = this.pendingDebouncedFileChangeVersion
-			this.pendingDebouncedFileChangeUpdatedAtMs = null
-			this.pendingDebouncedFileChangeVersion = null
-			if (!this.isMounted) {
-				this.debounceTimer = null
-				return
-			}
+			this.debounceTimer = null
+			if (!this.isMounted) return
 			if (this.options.getIsViewingHistory()) {
-				if (!this.options.isShareRoute) {
+				if (this.getAccessMode() !== "share")
 					void this.options.fetchAndSetVersions().catch(() => undefined)
-				}
-				this.debounceTimer = null
 				return
 			}
-			if (this.deferRemoteRefreshDuringSave(pendingFileUpdatedAtMs, pendingFileVersion)) {
-				this.debounceTimer = null
+			if (this.deferRemoteRefreshDuringSave()) return
+			if (this.getListenerMode() !== "file-change") {
+				void this.handleRemoteRefresh("message").catch(() => undefined)
 				return
 			}
-			if (this.getListenerMode() === "file-change") {
-				const pendingMs = pendingFileUpdatedAtMs
-				const applyToken = this.latestRemoteApplyToken + 1
-				this.latestRemoteApplyToken = applyToken
-
-				const isLatestApply = () =>
-					this.isMounted && this.latestRemoteApplyToken === applyToken
-
-				const run = (async () => {
-					const resolvedFileVersion =
-						pendingFileVersion ?? (await this.fetchLatestMagicProjectJsVersion())
-					if (!isLatestApply()) return
-
-					const preloaded = await this.maybePrepareRemoteDesignDataFromMagicProjectFile()
-					if (!isLatestApply()) return
-					if (preloaded) {
-						const applied = this.options.applyRemoteDesignData(preloaded, "message", {
-							remoteVersion: resolvedFileVersion,
-						})
-						if (applied) {
-							this.markMagicProjectJsUpdatedAtApplied(pendingMs ?? undefined)
-							await this.markRemoteVersionApplied(resolvedFileVersion)
-						}
-						return
-					}
-					const newData = await this.options.fetchRemoteDesignData()
-					if (!isLatestApply()) return
-					if (!newData) return
-					const applied = this.options.applyRemoteDesignData(newData, "message", {
-						remoteVersion: resolvedFileVersion,
-					})
-					if (applied) {
-						this.markMagicProjectJsUpdatedAtApplied(pendingMs ?? undefined)
-						await this.markRemoteVersionApplied(resolvedFileVersion)
-					}
-				})()
-
-				void run
-			} else {
-				void this.handleRemoteRefresh("message", {
-					fileUpdatedAtMs: pendingFileUpdatedAtMs,
+			const applyToken = this.latestRemoteApplyToken
+			const isLatestApply = () => this.isMounted && this.latestRemoteApplyToken === applyToken
+			const run = async () => {
+				let current = await this.maybePrepareRemoteDesignDataFromMagicProjectFile()
+				if (!isLatestApply()) return
+				if (!current?.data) current = await this.options.fetchRemoteDesignData()
+				if (!isLatestApply() || !current?.data) return
+				this.options.applyRemoteDesignData(current.data, "message", {
+					loadResult: current.loadResult,
 				})
 			}
-			this.debounceTimer = null
+			void run().catch(() => undefined)
 		}, this.options.updateListenerDebounceMs)
 	}
-}
-
-function parseUpdatedAt(updatedAt?: string): number | null {
-	if (!updatedAt) return null
-
-	const time = new Date(updatedAt).getTime()
-	if (Number.isNaN(time)) return null
-
-	return time
-}
-
-function normalizeFileVersion(version: unknown): number | null {
-	if (typeof version === "number") {
-		return Number.isFinite(version) ? version : null
-	}
-	if (typeof version !== "string") return null
-
-	const normalized = Number(version.trim())
-	return Number.isFinite(normalized) ? normalized : null
 }
 
 function flattenFileItems(files: FileItem[]): FileItem[] {

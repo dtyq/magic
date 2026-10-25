@@ -1,11 +1,12 @@
-import { Editor } from "@tiptap/core"
-import { Document } from "@tiptap/extension-document"
-import { Paragraph } from "@tiptap/extension-paragraph"
-import { Text } from "@tiptap/extension-text"
+import { Editor, Node } from "@/infrastructure/editors/tiptap/core"
+import { Document } from "@/infrastructure/editors/tiptap/extension-document"
+import { Paragraph } from "@/infrastructure/editors/tiptap/extension-paragraph"
+import { Text } from "@/infrastructure/editors/tiptap/extension-text"
 import { Slice } from "prosemirror-model"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin/types"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import CopyMessageExtension from "../copy-message"
 
 const mentionAttrs: TiptapMentionAttributes = {
@@ -18,6 +19,22 @@ const mentionAttrs: TiptapMentionAttributes = {
 	},
 }
 
+const MentionNode = Node.create({
+	name: "mention",
+	group: "inline",
+	inline: true,
+	atom: true,
+	addAttributes() {
+		return {
+			type: { default: null },
+			data: { default: null },
+		}
+	},
+	renderHTML() {
+		return ["span", { "data-test-mention": "" }]
+	},
+})
+
 const editors: Editor[] = []
 
 afterEach(() => {
@@ -25,14 +42,18 @@ afterEach(() => {
 	vi.restoreAllMocks()
 })
 
-function createEditor(onMentionsInsert: (items: TiptapMentionAttributes[]) => void) {
+function createEditor(
+	onMentionsInsert: (items: TiptapMentionAttributes[]) => void,
+	options: { getWorkspaceFilesList?: () => AttachmentItem[] } = {},
+) {
 	const editor = new Editor({
 		content: "",
 		extensions: [
 			Document,
 			Paragraph,
 			Text,
-			CopyMessageExtension.configure({ onMentionsInsert }),
+			MentionNode,
+			CopyMessageExtension.configure({ onMentionsInsert, ...options }),
 		],
 	})
 	editors.push(editor)
@@ -127,5 +148,98 @@ describe("CopyMessageExtension handlePaste", () => {
 
 		expect(handled).toBe(false)
 		expect(onMentionsInsert).not.toHaveBeenCalled()
+	})
+
+	it("falls back to portable markdown rematch when magic metadata cannot be decoded", () => {
+		const onMentionsInsert = vi.fn()
+		const editor = createEditor(onMentionsInsert, {
+			getWorkspaceFilesList: () => [
+				{
+					file_id: "workspace-cat-id",
+					file_name: "cat.png",
+					relative_file_path: "77/images/cat.png",
+					file_extension: "png",
+				},
+			],
+		})
+
+		const handled = getHandlePaste(editor)(
+			editor.view,
+			{
+				clipboardData: {
+					types: ["text/html", "text/plain"],
+					getData: (type: string) => {
+						if (type === "text/html") {
+							return '<div data-magic-clipboard="not-valid-base64!!!">cat</div>'
+						}
+						if (type === "text/plain") {
+							return "[cat.png](./77/images/cat.png)"
+						}
+						return ""
+					},
+				},
+			} as ClipboardEvent,
+			Slice.empty,
+		)
+
+		expect(handled).toBe(true)
+		expect(onMentionsInsert).toHaveBeenCalledWith([
+			expect.objectContaining({
+				type: MentionItemType.PROJECT_FILE,
+				data: expect.objectContaining({
+					file_id: "workspace-cat-id",
+					file_path: "77/images/cat.png",
+				}),
+			}),
+		])
+	})
+
+	it("resolves path-only Canvas mentions from workspace attachments", () => {
+		const onMentionsInsert = vi.fn()
+		const canvasAttrs: TiptapMentionAttributes = {
+			type: MentionItemType.PROJECT_FILE,
+			data: {
+				file_id: "images/cat.png",
+				file_name: "cat.png",
+				file_path: "./images/cat.png",
+				file_extension: "png",
+			},
+		}
+		const editor = createEditor(onMentionsInsert, {
+			getWorkspaceFilesList: () => [
+				{
+					file_id: "workspace-cat-id",
+					file_name: "cat.png",
+					relative_file_path: "images/cat.png",
+					file_extension: "png",
+				},
+			],
+		})
+
+		const richText = JSON.stringify({
+			type: "doc",
+			content: [
+				{
+					type: "paragraph",
+					content: [{ type: "mention", attrs: canvasAttrs }],
+				},
+			],
+		})
+		const handled = getHandlePaste(editor)(
+			editor.view,
+			createClipboardEvent(richText, [{ attrs: canvasAttrs }]),
+			Slice.empty,
+		)
+
+		expect(handled).toBe(true)
+		expect(onMentionsInsert).toHaveBeenCalledWith([
+			expect.objectContaining({
+				type: MentionItemType.PROJECT_FILE,
+				data: expect.objectContaining({
+					file_id: "workspace-cat-id",
+					file_path: "images/cat.png",
+				}),
+			}),
+		])
 	})
 })

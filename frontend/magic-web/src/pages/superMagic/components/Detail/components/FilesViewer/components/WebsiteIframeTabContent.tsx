@@ -1,7 +1,7 @@
 import { ExternalLink, RefreshCw, X } from "lucide-react"
 import { memo, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const WEBSITE_LOAD_FALLBACK_DELAY = 8000
 const WEBSITE_IFRAME_ALLOW =

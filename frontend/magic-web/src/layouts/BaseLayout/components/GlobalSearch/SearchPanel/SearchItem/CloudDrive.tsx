@@ -2,7 +2,8 @@ import type { GlobalSearch } from "@/types/search"
 import { useMemoizedFn } from "ahooks"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 import HighlightText from "../HighlightText"
 import { useMagicSearchStore } from "../../store"
 import useFileParser from "../hooks/useFileParser"
@@ -16,7 +17,6 @@ function CloudDrive(props: SearchItemCloudDriveProps) {
 	const { item } = props
 
 	const { t } = useTranslation("search")
-	const { styles, cx } = useSearchItemCommonStyles()
 
 	const closePanel = useMagicSearchStore((store) => store.closePanel)
 

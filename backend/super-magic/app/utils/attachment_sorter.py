@@ -10,7 +10,8 @@
 
 当前实现：
 - 如果 AI 调用了 finish_task 工具并传入 files 参数，则按该列表顺序排序
-- 否则回退到时间戳排序（最新修改的在前），并硬编码 index 文件优先
+- 否则回退到时间戳排序（最新修改的在前），并硬编码入口文件优先：
+  index 类文件优先，其次 template.json（幻灯片模板入口）
 
 存在的问题：
 - finish_task 工具的语义是"结束任务"，但实际上它的主要作用是指定文件展示顺序，这导致工具职责不清晰，且名字有误导性
@@ -203,19 +204,37 @@ class AttachmentSorter:
         return None
 
     @classmethod
+    def _get_entry_priority(cls, filename: str) -> int:
+        """
+        入口文件优先级：数值越小越优先。
+
+        - 0: 文件名含 index（PPT / 应用入口）
+        - 1: 精确名为 template（幻灯片模板入口 template.json）
+        - 2: 其它文件
+        """
+        basename = os.path.basename(filename)
+        filename_without_ext = os.path.splitext(basename)[0].lower()
+        if "index" in filename_without_ext:
+            return 0
+        if filename_without_ext == "template":
+            return 1
+        return 2
+
+    @classmethod
     def _get_timestamp_ordered_attachments(cls, valid_attachments: List[Attachment]) -> List[Attachment]:
         """
-        按时间戳排序附件（最新的在前），并确保 index 文件优先
+        按时间戳排序附件（最新的在前），并确保入口文件优先
 
         硬编码规则：
         - 如果存在文件名包含 "index" 的文件（不区分大小写），将其放在第一位
+        - 否则如果存在 template.json（文件名不含扩展名为 template），将其放在第一位
         - 其余文件按时间戳排序（最新的在前）
 
         Args:
             valid_attachments: 有效附件列表
 
         Returns:
-            List[Attachment]: 按时间戳排序的附件列表，index 文件在最前
+            List[Attachment]: 按时间戳排序的附件列表，入口文件在最前
         """
         if not valid_attachments:
             return []
@@ -223,24 +242,30 @@ class AttachmentSorter:
         # Step 1: 按时间戳排序（最新的在前）
         result = sorted(valid_attachments, key=lambda att: att.timestamp, reverse=True)
 
-        # Step 2: 查找 index 文件（硬编码优先逻辑）
-        index_file_idx = None
+        # Step 2: 查找入口文件（index 优先于 template.json）
+        entry_file_idx = None
+        best_priority = 2
         for idx, att in enumerate(result):
-            # 提取文件名（不含路径和扩展名）
-            basename = os.path.basename(att.filename)
-            filename_without_ext = os.path.splitext(basename)[0].lower()
+            priority = cls._get_entry_priority(att.filename)
+            if priority < best_priority:
+                best_priority = priority
+                entry_file_idx = idx
+                if priority == 0:
+                    break
 
-            if 'index' in filename_without_ext:
-                index_file_idx = idx
-                logger.info(f"Found index file: {att.filename}, moving to first position")
-                break
+        # Step 3: 如果找到入口文件，将其移到第一位
+        if entry_file_idx is not None and entry_file_idx > 0:
+            entry_file = result.pop(entry_file_idx)
+            result.insert(0, entry_file)
+            logger.info(
+                f"Found entry file: {entry_file.filename}, moving to first position "
+                f"(priority={best_priority})"
+            )
 
-        # Step 3: 如果找到 index 文件，将其移到第一位
-        if index_file_idx is not None and index_file_idx > 0:
-            index_file = result.pop(index_file_idx)
-            result.insert(0, index_file)
-
-        logger.info(f"Using fallback: {len(result)} attachments sorted by timestamp (index file prioritized)")
+        logger.info(
+            f"Using fallback: {len(result)} attachments sorted by timestamp "
+            f"(entry file prioritized)"
+        )
         return result
 
     @classmethod

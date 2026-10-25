@@ -8,189 +8,196 @@ declare(strict_types=1);
 namespace App\Domain\Contact\Entity\ValueObject;
 
 use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
-use App\Domain\SuperMagic\Task\Service\AgentDomainService;
-use App\Infrastructure\Core\AbstractObject;
+use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
+use App\Infrastructure\Util\Context\CoContext;
+use InvalidArgumentException;
 
 /**
- * 数据隔离 SaaS化
- * 目前仅有组织隔离
- * 显式传入，防止隐式传入，导致不知道哪些地方需要做隔离.
+ * Contact 领域使用的数据隔离对象。
+ *
+ * 该对象只保存隔离上下文和 Contact 扩展字段，不依赖其他领域服务。
  */
-class DataIsolation extends AbstractObject
+class DataIsolation extends BaseDataIsolation
 {
-    /**
-     * 当前的账号id. 所有账号统一注意隐私保护,不对第三方返回.
-     */
-    protected string $currentMagicId = '';
-
-    /**
-     * 当前的组织编码.
-     */
-    protected string $currentOrganizationCode = '';
-
-    /**
-     * 当前的组织下的用户id.
-     */
-    protected ?string $currentUserId = null;
-
-    /**
-     * 当前环境.
-     */
-    protected string $environment;
-
-    /**
-     * 当前应用id.
-     */
+    /** 当前应用 ID。 */
     protected ?string $currentAppId = null;
 
-    /**
-     * 第三方平台组织编码.
-     */
-    protected ?string $thirdPartyOrganizationCode = null;
-
+    /** 当前用户类型。 */
     protected ?UserType $userType = null;
 
+    /** 显式覆盖的语言。 */
     protected ?string $language = null;
 
     /**
-     * 当前用户的 User-Authorization token (sandbox-token, raw, no Bearer prefix).
-     * 用于沙箱网关透传给 in-pod super-magic agent 的 AuthMiddleware。
+     * 创建 Contact 数据隔离对象，兼容旧版数组构造方式。
      *
-     * Nullable, because warm-pool workers and other service-account-style
-     * callers do not have a per-user token; the gateway omits the
-     * User-Authorization header in that case.
-     *
-     * 默认由 DataIsolation::create() 自动填充（当 userId 不为空时通过
-     * AgentDomainService::getAuthorizationByUserId 获取）。调用方通常
-     * 无需手动设置；仅在需要覆盖或 token 获取失败后重试时手动设置。
+     * @param null|array<string, mixed>|string $currentOrganizationCode 组织编码或旧版属性数组
      */
-    protected ?string $userAuthorizationToken = null;
-
-    public function __construct(?array $data = null)
+    public function __construct(null|array|string $currentOrganizationCode = '', string $userId = '', string $magicId = '', ?array $data = null)
     {
-        if (isset($data['user_type']) && is_numeric($data['user_type'])) {
-            $data['user_type'] = UserType::from((int) $data['user_type']);
+        if ($data !== null) {
+            if ($currentOrganizationCode !== '' && $currentOrganizationCode !== null || $userId !== '' || $magicId !== '') {
+                throw new InvalidArgumentException('旧版数组与基础隔离构造参数不能同时指定');
+            }
+            $currentOrganizationCode = $data;
         }
-        $this->environment = app_env();
-        parent::__construct($data);
+        if (is_array($currentOrganizationCode)) {
+            $data = $currentOrganizationCode;
+            $userType = $data['user_type'] ?? null;
+            parent::__construct(
+                (string) ($data['current_organization_code'] ?? ''),
+                (string) ($data['current_user_id'] ?? ''),
+                (string) ($data['magic_id'] ?? $data['current_magic_id'] ?? '')
+            );
+
+            if (is_numeric($userType)) {
+                $this->setUserType(UserType::from((int) $userType));
+            } elseif ($userType instanceof UserType) {
+                $this->setUserType($userType);
+            }
+            $this->setCurrentAppId(isset($data['current_app_id']) ? (string) $data['current_app_id'] : null);
+            $this->setThirdPartyOrganizationCode($data['third_party_organization_code'] ?? null);
+            $this->setLanguage($data['language'] ?? null);
+            $this->setUserAuthorizationToken($data['user_authorization_token'] ?? null);
+            if (isset($data['environment'])) {
+                $this->setEnvironment((string) $data['environment']);
+            }
+            return;
+        }
+
+        parent::__construct((string) ($currentOrganizationCode ?? ''), $userId, $magicId);
     }
 
+    /**
+     * 创建 Contact 数据隔离对象。
+     */
+    public static function create(string $currentOrganizationCode = '', string $userId = '', string $magicId = ''): self
+    {
+        return new self($currentOrganizationCode, $userId, $magicId);
+    }
+
+    /**
+     * 创建仅包含环境信息的数据隔离对象。
+     */
+    public static function simpleMakeOnlyEnvironment(): self
+    {
+        return self::create();
+    }
+
+    /**
+     * 创建兼容旧调用方式的数据隔离对象。
+     */
+    public static function simpleMake(string $currentOrganizationCode, ?string $userId = null): self
+    {
+        return self::create($currentOrganizationCode, (string) $userId);
+    }
+
+    /**
+     * 获取用户类型；未显式设置时按当前用户查询。
+     */
     public function getUserType(): ?UserType
     {
-        if (empty($this->userType) && ! empty($this->getCurrentUserId())) {
+        if ($this->userType === null && $this->getCurrentUserId() !== '') {
             $userEntity = di(MagicUserRepositoryInterface::class)->getUserById($this->getCurrentUserId());
-            $userEntity && $this->setUserType($userEntity->getUserType());
+            if ($userEntity !== null) {
+                $this->setUserType($userEntity->getUserType());
+            }
         }
         return $this->userType;
     }
 
+    /**
+     * 设置用户类型。
+     */
     public function setUserType(?UserType $userType): void
     {
         $this->userType = $userType;
     }
 
-    public function getThirdPartyOrganizationCode(): ?string
+    /**
+     * 获取第三方组织编码。
+     */
+    public function getThirdPartyOrganizationCode(): string
     {
-        return $this->thirdPartyOrganizationCode;
+        return parent::getThirdPlatformOrganizationCode();
     }
 
-    public function setThirdPartyOrganizationCode(?string $thirdPartyOrganizationCode): void
+    /**
+     * 设置第三方组织编码。
+     */
+    public function setThirdPartyOrganizationCode(?string $thirdPartyOrganizationCode): static
     {
-        $this->thirdPartyOrganizationCode = $thirdPartyOrganizationCode;
+        return parent::setThirdPlatformOrganizationCode($thirdPartyOrganizationCode);
     }
 
-    public static function create(string $currentOrganizationCode = '', string $userId = ''): self
-    {
-        $static = new self();
-        $static->setCurrentOrganizationCode(currentOrganizationCode: $currentOrganizationCode);
-        $static->setCurrentUserId(currentUserId: $userId);
-        $agentDomainService = di(AgentDomainService::class);
-        $static->setUserAuthorizationToken($agentDomainService->getAuthorizationByUserId($userId));
-        return $static;
-    }
-
+    /**
+     * 获取兼容旧命名的 Magic ID。
+     */
     public function getCurrentMagicId(): string
     {
-        return $this->currentMagicId;
+        return $this->getMagicId();
     }
 
-    public function setCurrentMagicId(string $currentMagicId): void
+    /**
+     * 设置兼容旧命名的 Magic ID。
+     */
+    public function setCurrentMagicId(string $currentMagicId): static
     {
-        $this->currentMagicId = $currentMagicId;
+        return $this->setMagicId($currentMagicId);
     }
 
+    /**
+     * 获取当前应用 ID。
+     */
     public function getCurrentAppId(): ?string
     {
         return $this->currentAppId;
     }
 
+    /**
+     * 设置当前应用 ID。
+     */
     public function setCurrentAppId(?string $currentAppId): void
     {
         $this->currentAppId = $currentAppId;
     }
 
-    public function getCurrentOrganizationCode(): string
+    /**
+     * 设置当前组织编码。
+     */
+    public function setCurrentOrganizationCode(string $currentOrganizationCode): static
     {
-        return $this->currentOrganizationCode;
+        return parent::setCurrentOrganizationCode($currentOrganizationCode);
     }
 
-    public function setCurrentOrganizationCode(string $currentOrganizationCode): void
+    /**
+     * 设置当前用户 ID。
+     */
+    public function setCurrentUserId(?string $currentUserId): static
     {
-        $this->currentOrganizationCode = $currentOrganizationCode;
+        return parent::setCurrentUserId($currentUserId ?? '');
     }
 
-    public function getCurrentUserId(): ?string
+    /**
+     * 获取当前语言。
+     */
+    public function getLanguage(): string
     {
-        return $this->currentUserId;
+        return $this->language ?? CoContext::getLanguage();
     }
 
-    public function setCurrentUserId(?string $currentUserId): void
-    {
-        $this->currentUserId = $currentUserId;
-    }
-
-    public function getEnvironment(): string
-    {
-        return $this->environment;
-    }
-
-    public function setEnvironment(string $environment): void
-    {
-        $this->environment = $environment;
-    }
-
-    public static function simpleMake(string $currentOrganizationCode, ?string $userId = null): DataIsolation
-    {
-        return self::create($currentOrganizationCode, (string) $userId);
-    }
-
-    public static function simpleMakeOnlyEnvironment(): DataIsolation
-    {
-        return self::create();
-    }
-
-    public function isEnable(): bool
-    {
-        return true;
-    }
-
-    public function getLanguage(): ?string
-    {
-        return $this->language;
-    }
-
+    /**
+     * 设置当前语言。
+     */
     public function setLanguage(?string $language): void
     {
         $this->language = $language;
     }
 
-    public function getUserAuthorizationToken(): ?string
+    /** 身份变化时同时失效Contact的用户类型缓存。 */
+    protected function resetIdentityCapabilities(): void
     {
-        return $this->userAuthorizationToken;
-    }
-
-    public function setUserAuthorizationToken(?string $userAuthorizationToken): void
-    {
-        $this->userAuthorizationToken = $userAuthorizationToken;
+        parent::resetIdentityCapabilities();
+        $this->userType = null;
     }
 }

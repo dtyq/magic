@@ -65,4 +65,23 @@ return [
     'collaboration_updated' => '项目协作设置已更新',
     'batch_permission_updated' => '批量权限设置成功',
     'batch_members_deleted' => '批量删除成员成功',
+    'access_denied' => '无权限操作',
+    'cannot_modify_creator_permission' => '请求处理失败',
+    'create_project_too_frequent' => '请求处理失败',
+    'fork_already_running' => '请求处理失败',
+    'not_found' => '资源不存在',
+    'pin' => [
+        'is_pin_must_be_boolean' => '请求处理失败',
+        'is_pin_required' => '参数不能为空',
+    ],
+    'project_id_required' => '参数不能为空',
+    'project_update_failed' => '操作失败',
+    'setting' => [
+        'project_id_required' => '参数不能为空',
+        'user_id_required' => '参数不能为空',
+    ],
+    'special_key_required' => '参数不能为空',
+
+    'fork_access_denied' => '无权限操作',
+    'fork_not_found' => '资源不存在',
 ];

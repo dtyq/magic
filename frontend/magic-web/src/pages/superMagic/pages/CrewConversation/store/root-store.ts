@@ -16,6 +16,7 @@ import type {
 import { WorkspaceStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import { analyticsService } from "@/services/analytics"
 
 export type CrewConversationStatus =
 	"idle" | "loading" | "ready" | "invalid" | "unavailable" | "error"
@@ -140,7 +141,7 @@ export class CrewConversationStore {
 				this.agentCode = validatedAgentCode
 			})
 
-			const [{ project }] = await Promise.all([
+			const [{ project, is_existing: isExistingProject }] = await Promise.all([
 				SuperMagicApi.getSpecialProject({ key: validatedAgentCode }),
 				superMagicModeService.fetchDefaultModeModelList(),
 			])
@@ -156,6 +157,8 @@ export class CrewConversationStore {
 
 			const hydration = await this.loadProjectContext(project.id)
 			if (!this.isCurrentBootstrap(generation)) return
+
+			void isExistingProject
 
 			runInAction(() => {
 				this.hydrate(hydration)
@@ -311,12 +314,16 @@ export class CrewConversationStore {
 
 		this.isCreatingTopic = true
 		try {
+			analyticsService.report("topic_create_attempted", {
+				projectId,
+				workspaceId: this.selectedProject?.workspace_id,
+				sceneOverride: "crew",
+			})
 			const newTopic = await SuperMagicApi.createTopic({
 				project_id: projectId,
 				topic_name: "",
 			})
 			if (!newTopic?.id) return null
-
 			const topicsResponse = await SuperMagicApi.getTopicsByProjectId({
 				id: projectId,
 				page: 1,

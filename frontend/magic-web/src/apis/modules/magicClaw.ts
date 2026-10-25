@@ -1,5 +1,4 @@
-import type { HttpClient, RequestConfig } from "@/apis/core/HttpClient"
-import { genRequestUrl } from "@/utils/http"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
 import { MAGIC_CLAW_STATUS, type MagicClawStatus } from "./magicClawStatus"
 
 export type MagicClawTemplateCode = "openclaw" | "magishock"
@@ -17,6 +16,8 @@ export interface MagicClawItem {
 	template_code: MagicClawTemplateCode
 	status: MagicClawStatus
 	need_upgrade?: boolean
+	created_at?: string | null
+	updated_at?: string | null
 }
 
 export interface MagicClawListData {
@@ -56,13 +57,13 @@ export interface MagicClawSandboxVersionCheckData {
 
 const MAX_PAGE_SIZE = 100
 
-export function generateMagicClawApi(fetch: HttpClient) {
+export function generateMagicClawApi(fetch: ServiceHttpClient) {
 	return {
 		/**
 		 * Paginated Magic Claw list (sandbox auth).
 		 */
 		queryMagicClawList(
-			params?: { page?: number; page_size?: number },
+			params?: { page?: number; page_size?: number; keyword?: string },
 			config?: Omit<RequestConfig, "url" | "body">,
 		) {
 			const page = params?.page ?? 1
@@ -70,7 +71,7 @@ export function generateMagicClawApi(fetch: HttpClient) {
 			const page_size = Math.min(Math.max(1, rawSize), MAX_PAGE_SIZE)
 			return fetch.post<MagicClawListData>(
 				"/api/v1/magic-claw/queries",
-				{ page, page_size },
+				{ page, page_size, keyword: params?.keyword },
 				config,
 			)
 		},
@@ -80,29 +81,18 @@ export function generateMagicClawApi(fetch: HttpClient) {
 		},
 
 		getMagicClawByCode({ code }: { code: string }, config?: Omit<RequestConfig, "url">) {
-			return fetch.get<MagicClawItem>(
-				genRequestUrl("/api/v1/magic-claw/${code}", { code }),
-				config,
-			)
+			return fetch.get<MagicClawItem>(`/api/v1/magic-claw/${code}`, config)
 		},
 
 		updateMagicClaw(
 			{ code, ...body }: { code: string } & UpdateMagicClawBody,
 			config?: Omit<RequestConfig, "url" | "body">,
 		) {
-			return fetch.put<MagicClawItem>(
-				genRequestUrl("/api/v1/magic-claw/${code}", { code }),
-				body,
-				config,
-			)
+			return fetch.put<MagicClawItem>(`/api/v1/magic-claw/${code}`, body, config)
 		},
 
 		deleteMagicClaw({ code }: { code: string }, config?: Omit<RequestConfig, "url">) {
-			return fetch.delete<[]>(
-				genRequestUrl("/api/v1/magic-claw/${code}", { code }),
-				{},
-				config,
-			)
+			return fetch.delete<[]>(`/api/v1/magic-claw/${code}`, {}, config)
 		},
 
 		getMagicClawSandboxStatus(
@@ -110,9 +100,7 @@ export function generateMagicClawApi(fetch: HttpClient) {
 			config?: Omit<RequestConfig, "url">,
 		) {
 			return fetch.get<MagicClawSandboxStatusData>(
-				genRequestUrl("/api/v1/magic-claw/sandbox/status?topic_id=${topicId}", {
-					topicId: topic_id,
-				}),
+				`/api/v1/magic-claw/sandbox/status?topic_id=${topic_id}`,
 				config,
 			)
 		},
@@ -159,9 +147,7 @@ export function generateMagicClawApi(fetch: HttpClient) {
 			config?: Omit<RequestConfig, "url">,
 		) {
 			return fetch.get<MagicClawSandboxVersionCheckData>(
-				genRequestUrl("/api/v1/magic-claw/sandbox/version-check?topic_id=${topicId}", {
-					topicId: topic_id,
-				}),
+				`/api/v1/magic-claw/sandbox/version-check?topic_id=${topic_id}`,
 				config,
 			)
 		},

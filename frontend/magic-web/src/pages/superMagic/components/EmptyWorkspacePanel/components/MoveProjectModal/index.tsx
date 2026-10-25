@@ -1,7 +1,7 @@
 import MagicModal from "@/components/base/MagicModal"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { IconCheck, IconSearch, IconX, IconFolderPlus, IconFileSearch } from "@tabler/icons-react"
 import { Checkbox } from "antd"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -13,14 +13,15 @@ import IconWorkspace from "../../../icons/IconWorkspace"
 import { workspaceStore } from "../../../../stores/core"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
-/** Modal 内容区与 body 的 Tailwind 覆盖（无内边距、圆角与暗色背景） */
+/** Modal body and content styles, including dark mode. */
 const modalClassNames = {
 	body: "!p-0",
 	content: cn("rounded-[10px] border border-border shadow-sm", "bg-background dark:bg-card"),
 }
 
-/** 头部关闭按钮：图标按钮样式，支持 hover/focus-visible/disabled */
+/** Header close button with hover, keyboard focus and disabled states. */
 const headerCloseButtonClass = cn(
 	"inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground",
 	"hover:bg-fill active:bg-fill-secondary",
@@ -29,7 +30,7 @@ const headerCloseButtonClass = cn(
 	"[&_svg]:text-foreground",
 )
 
-/** 工具栏图标按钮（创建、搜索、关闭）：边框 + 背景，支持暗色 */
+/** Toolbar icon buttons use theme-aware borders and backgrounds. */
 const iconButtonClass = cn(
 	"inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground shadow-sm",
 	"hover:bg-fill hover:text-foreground active:bg-fill-secondary",
@@ -38,14 +39,14 @@ const iconButtonClass = cn(
 	"[&_svg]:text-foreground",
 )
 
-/** 列表项：可点击行，hover/选中态 */
+/** Workspace row with hover and selection states. */
 const contentItemBaseClass = cn(
 	"flex min-h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-transparent px-2 py-0",
 	"hover:bg-fill active:bg-fill-secondary",
 	"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 )
 
-/** 创建行内确认/取消小按钮 */
+/** Inline workspace creation actions. */
 const actionIconButtonClass = cn(
 	"inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground shadow-sm",
 	"hover:bg-fill hover:text-foreground active:bg-fill-secondary",
@@ -53,12 +54,12 @@ const actionIconButtonClass = cn(
 	"disabled:pointer-events-none disabled:opacity-50",
 )
 
-/** 勾选样式覆盖（antd Checkbox，使用主题色以支持暗黑） */
+/** Theme-aware antd checkbox overrides. */
 const checkboxWrapperClass =
 	"pointer-events-none [&_.magic-checkbox-inner]:rounded-md [&_.magic-checkbox-checked_.magic-checkbox-inner]:border-primary [&_.magic-checkbox-checked_.magic-checkbox-inner]:bg-primary"
 
 interface MoveProjectModalProps {
-	/** 仅用于类型兼容，列表始终从 workspaceStore.workspaces 读取以保证新建工作区后能同步刷新 */
+	/** Compatibility prop; the list reads workspaceStore so newly created workspaces appear. */
 	workspaces?: Workspace[]
 	selectedWorkspace?: Workspace | null
 	isMoveProjectLoading: boolean
@@ -78,17 +79,17 @@ function MoveProjectModal({
 }: MoveProjectModalProps) {
 	const { t } = useTranslation("super")
 
-	/** 始终从 store 读取，observer 才能随 fetchWorkspaces 更新而重渲染，新建工作区后列表即更新 */
+	/** Read the observable store so fetches and workspace creation refresh the list. */
 	const workspaces = workspaceStore.workspaces
 
-	/* 选中工作区 */
+	/* Selected workspace. */
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("")
-	/* 搜索工作区 */
+	/* Workspace search. */
 	const [searchValue, setSearchValue] = useState("")
 	const [isSearchOpen, setIsSearchOpen] = useState(false)
 	const searchInputRef = useRef<HTMLInputElement>(null)
 
-	/* 工作区创建逻辑 */
+	/* Workspace creation state and actions. */
 	const {
 		isCreatingWorkspace,
 		isCreatingWorkspaceLoading,
@@ -106,14 +107,14 @@ function MoveProjectModal({
 		},
 	})
 
-	/* 确保列表包含当前打开的工作区（避免 workspaces 未加载到当前工作区时缺失） */
+	/* Include the current workspace even when it has not been fetched yet. */
 	const workspacesIncludingCurrent = useMemo(() => {
 		if (!selectedWorkspace) return workspaces
 		if (workspaces.some((w) => w.id === selectedWorkspace.id)) return workspaces
 		return [selectedWorkspace, ...workspaces]
 	}, [workspaces, selectedWorkspace])
 
-	/* 过滤工作区（按搜索关键词，不再排除当前工作区以支持恢复到原工作区） */
+	/* Filter by search text while retaining the current workspace as a destination. */
 	const filteredWorkspaces = useMemo(() => {
 		return workspacesIncludingCurrent.filter((workspace) =>
 			workspace.name.toLowerCase().includes(searchValue.toLowerCase()),
@@ -144,7 +145,7 @@ function MoveProjectModal({
 		}
 	}, [isSearchOpen])
 
-	/** 确定事件 */
+	/** Confirm the selected destination. */
 	const handleConfirm = useMemoizedFn(() => {
 		onConfirm(selectedWorkspaceId)
 	})
@@ -255,10 +256,11 @@ function MoveProjectModal({
 						</>
 					)}
 				</div>
-				{/* Keep focused controls clear of the scroll viewport edges so their outer ring is not clipped. */}
-				<div
-					className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-1 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1"
-					data-testid="move-project-modal-workspace-list"
+				{/* Inset focused controls to avoid clipped rings; stretch the content wrapper to center empty states. */}
+				<ScrollArea
+					className="min-h-0 flex-1"
+					viewportClassName="py-1 [&>div]:!flex [&>div]:min-h-full [&>div]:flex-col [&>div]:gap-0.5"
+					viewportProps={{ "data-testid": "move-project-modal-workspace-list" }}
 				>
 					{isSearchEmpty ? (
 						<div
@@ -368,7 +370,7 @@ function MoveProjectModal({
 							))}
 						</>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 			<div
 				className="flex items-center justify-end gap-1.5 border-t border-border px-3 py-3 text-sm font-normal leading-5"

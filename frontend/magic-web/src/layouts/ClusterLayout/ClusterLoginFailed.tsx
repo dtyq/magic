@@ -3,6 +3,7 @@ import { PropsWithChildren, useEffect, useState } from "react"
 import { useClusterConfig } from "@/models/config/hooks"
 import { useTranslation } from "react-i18next"
 import LanguageSelect from "@/layouts/SSOLayout/components/LanguageSelect"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 interface ClusterLoginFailedProps {
 	clusterCode: string
@@ -28,15 +29,17 @@ export default function ClusterLoginFailed(props: PropsWithChildren<ClusterLogin
 	}
 
 	return (
-		<div className="flex h-full w-full flex-col bg-background">
-			<div className="mx-auto flex w-full max-w-[1200px] justify-end p-4">
+		<div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
+			<div className="mx-auto flex w-full max-w-[1200px] shrink-0 justify-end p-4">
 				<LanguageSelect />
 			</div>
-			<div
-				className="flex h-full w-full items-center justify-center"
+			{/* Keep actions reachable on short screens while centering short content. */}
+			<ScrollArea
+				className="min-h-0 w-full flex-1"
+				viewportClassName="[&>div]:!flex [&>div]:min-h-full [&>div]:items-center [&>div]:justify-center [&>div]:px-4 [&>div]:py-8 md:[&>div]:py-16"
 				data-testid="cluster-login-failed-root"
 			>
-				<div className="my-[120px] inline-flex w-[360px] flex-col items-center gap-10 md:w-[500px]">
+				<div className="flex w-full max-w-[500px] flex-col items-center gap-10">
 					<div className="w-[100px]">
 						<img src={LockIcon} alt="" />
 					</div>
@@ -51,13 +54,13 @@ export default function ClusterLoginFailed(props: PropsWithChildren<ClusterLogin
 						</span>
 					</div>
 					<div
-						className="flex h-[100px] w-[360px] shrink-0 flex-col items-center justify-center gap-2.5 rounded-[12px] border border-border bg-muted md:w-[500px]"
+						className="flex min-h-[100px] w-full shrink-0 flex-col items-center justify-center gap-2.5 rounded-[12px] border border-border bg-muted p-4"
 						data-testid="cluster-login-failed-section"
 					>
 						{children}
 					</div>
 				</div>
-			</div>
+			</ScrollArea>
 		</div>
 	)
 }

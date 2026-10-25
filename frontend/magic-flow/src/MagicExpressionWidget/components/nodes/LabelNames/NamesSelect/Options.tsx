@@ -1,6 +1,6 @@
 import { InputRef } from "antd"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { trim } from "lodash-es"
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { Names } from "../types"
 import { NamesSelectProps } from "./Select"
@@ -56,7 +56,7 @@ const SelectOptions = forwardRef<SelectOptionRef, SelectOptionsProps>((props, re
 		setInputValue(val)
 
 		if (timer.current) clearTimeout(timer.current)
-		const value = _.trim(val)
+		const value = trim(val)
 		timer.current = setTimeout(() => {
 			const filterOptions = copyOptions.filter((item) => item.label.indexOf(value) > -1)
 			setDisplayOptions(filterOptions)

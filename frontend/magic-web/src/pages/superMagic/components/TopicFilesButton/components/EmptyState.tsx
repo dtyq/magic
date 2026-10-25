@@ -13,13 +13,20 @@ import FileMenuDropdown from "./FileMenuDropdown"
 import { PresetFileType } from "../constant"
 
 interface EmptyStateProps {
+	title?: string
 	onAddFile?: (type: PresetFileType) => void
 	onAddDesign?: () => void
 	onUploadFile?: () => void
 	allowEdit?: boolean
 }
 
-function EmptyState({ onAddFile, onAddDesign, onUploadFile, allowEdit = true }: EmptyStateProps) {
+function EmptyState({
+	title,
+	onAddFile,
+	onAddDesign,
+	onUploadFile,
+	allowEdit = true,
+}: EmptyStateProps) {
 	const { t } = useTranslation("super")
 
 	return (
@@ -31,7 +38,7 @@ function EmptyState({ onAddFile, onAddDesign, onUploadFile, allowEdit = true }: 
 				>
 					<FileQuestion className="size-6" />
 				</EmptyMedia>
-				<EmptyTitle>{t("topicFiles.emptyState.title")}</EmptyTitle>
+				<EmptyTitle>{title ?? t("topicFiles.emptyState.title")}</EmptyTitle>
 				{allowEdit && (
 					<EmptyDescription>{t("topicFiles.emptyState.description")}</EmptyDescription>
 				)}

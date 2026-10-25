@@ -1,6 +1,6 @@
 import { memo, useState, useEffect } from "react"
 import { useThemeMode } from "antd-style"
-import { MonacoEditor } from "@/lib/monacoEditor"
+import { MonacoEditor } from "@/infrastructure/editors/monaco"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { CodeEditorProps } from "./types"
 import { getMonacoLanguageByFileName } from "./utils"

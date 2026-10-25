@@ -2,13 +2,26 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import type { ElementToolType } from "../../public/props"
 import { useCanvasEvent } from "../hooks/canvas/useCanvasEvent"
 
-type ElementToolStateRecord = Partial<Record<ElementToolType, unknown>>
+type ElementToolStateRecord = Record<string, unknown>
 type ElementToolStateStore = Record<string, ElementToolStateRecord>
 
 interface ElementToolStateContextValue {
-	getElementToolState: <T>(elementId: string, toolType: ElementToolType) => T | undefined
-	setElementToolState: <T>(elementId: string, toolType: ElementToolType, state: T) => void
-	clearElementToolState: (elementId: string, toolType: ElementToolType) => void
+	getElementToolState: <T>(
+		elementId: string,
+		toolType: ElementToolType,
+		contentId?: string,
+	) => T | undefined
+	setElementToolState: <T>(
+		elementId: string,
+		toolType: ElementToolType,
+		state: T,
+		contentId?: string,
+	) => void
+	clearElementToolState: (
+		elementId: string,
+		toolType: ElementToolType,
+		contentId?: string,
+	) => void
 	clearElementToolStates: (elementId: string) => void
 	clearAllElementToolStates: () => void
 }
@@ -23,45 +36,51 @@ export function ElementToolStateProvider({ children }: ElementToolStateProviderP
 	const [store, setStore] = useState<ElementToolStateStore>({})
 
 	const getElementToolState = useCallback(
-		<T,>(elementId: string, toolType: ElementToolType): T | undefined => {
-			return store[elementId]?.[toolType] as T | undefined
+		<T,>(elementId: string, toolType: ElementToolType, contentId?: string): T | undefined => {
+			const key = contentId ? `${toolType}\u0000${contentId}` : toolType
+			return store[elementId]?.[key] as T | undefined
 		},
 		[store],
 	)
 
 	const setElementToolState = useCallback(
-		<T,>(elementId: string, toolType: ElementToolType, state: T) => {
+		<T,>(elementId: string, toolType: ElementToolType, state: T, contentId?: string) => {
 			if (!elementId) return
+			const key = contentId ? `${toolType}\u0000${contentId}` : toolType
 			setStore((prev) => ({
 				...prev,
 				[elementId]: {
 					...prev[elementId],
-					[toolType]: state,
+					[key]: state,
 				},
 			}))
 		},
 		[],
 	)
 
-	const clearElementToolState = useCallback((elementId: string, toolType: ElementToolType) => {
-		if (!elementId) return
-		setStore((prev) => {
-			const elementStates = prev[elementId]
-			if (!elementStates || !(toolType in elementStates)) return prev
+	const clearElementToolState = useCallback(
+		(elementId: string, toolType: ElementToolType, contentId?: string) => {
+			if (!elementId) return
+			const key = contentId ? `${toolType}\u0000${contentId}` : toolType
+			setStore((prev) => {
+				const elementStates = prev[elementId]
+				if (!elementStates || !(key in elementStates)) return prev
 
-			const nextElementStates = { ...elementStates }
-			delete nextElementStates[toolType]
+				const nextElementStates = { ...elementStates }
+				delete nextElementStates[key]
 
-			const next = { ...prev }
-			if (Object.keys(nextElementStates).length === 0) {
-				delete next[elementId]
+				const next = { ...prev }
+				if (Object.keys(nextElementStates).length === 0) {
+					delete next[elementId]
+					return next
+				}
+
+				next[elementId] = nextElementStates
 				return next
-			}
-
-			next[elementId] = nextElementStates
-			return next
-		})
-	}, [])
+			})
+		},
+		[],
+	)
 
 	const clearElementToolStates = useCallback((elementId: string) => {
 		if (!elementId) return
@@ -114,26 +133,29 @@ export function ElementToolStateProvider({ children }: ElementToolStateProviderP
 export function useElementToolState<T>(
 	elementId: string | null | undefined,
 	toolType: ElementToolType,
+	contentId?: string,
 ) {
 	const context = useContext(ElementToolStateContext)
 	if (context === undefined) {
 		throw new Error("useElementToolState must be used within an ElementToolStateProvider")
 	}
 
-	const state = elementId ? context.getElementToolState<T>(elementId, toolType) : undefined
+	const state = elementId
+		? context.getElementToolState<T>(elementId, toolType, contentId)
+		: undefined
 
 	const setState = useCallback(
 		(nextState: T) => {
 			if (!elementId) return
-			context.setElementToolState(elementId, toolType, nextState)
+			context.setElementToolState(elementId, toolType, nextState, contentId)
 		},
-		[context, elementId, toolType],
+		[context, contentId, elementId, toolType],
 	)
 
 	const clearState = useCallback(() => {
 		if (!elementId) return
-		context.clearElementToolState(elementId, toolType)
-	}, [context, elementId, toolType])
+		context.clearElementToolState(elementId, toolType, contentId)
+	}, [context, contentId, elementId, toolType])
 
 	return {
 		state,

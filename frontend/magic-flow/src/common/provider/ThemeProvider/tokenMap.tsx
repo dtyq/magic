@@ -1,5 +1,5 @@
 import type { ColorScales, ColorUsages } from "@/common/utils/palettes"
-import { merge } from "lodash"
+import { merge } from "lodash-es"
 import type { ThemeAppearance } from "./utils"
 
 // antd4 主题配置类型

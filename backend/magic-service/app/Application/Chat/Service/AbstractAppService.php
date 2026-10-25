@@ -8,12 +8,9 @@ declare(strict_types=1);
 namespace App\Application\Chat\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
-use App\Infrastructure\Core\Traits\DataIsolationTrait;
 
 class AbstractAppService extends AbstractKernelAppService
 {
-    use DataIsolationTrait;
-
     /**
      * 公共匹配字段.
      */

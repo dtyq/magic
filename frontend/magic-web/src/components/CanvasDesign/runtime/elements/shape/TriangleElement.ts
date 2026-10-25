@@ -1,5 +1,8 @@
 import Konva from "konva"
-import type { TriangleElement as TriangleElementData } from "../../document/types"
+import type {
+	TriangleElement as TriangleElementData,
+	ShapeElementContent,
+} from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
 import { BaseElement } from "../core/BaseElement"
 import type { Canvas } from "../../core/Canvas"
@@ -49,12 +52,15 @@ export class TriangleElement extends BaseElement<TriangleElementData> {
 			width,
 			height,
 			zIndex,
-			fill: defaultConfig.fill,
+			activeContentId: `${id}-content-1`,
+			mainContentId: `${id}-content-1`,
+			contents: [{ contentId: `${id}-content-1`, fill: defaultConfig.fill }],
 		}
 	}
 
 	render(): Konva.Line | null {
 		if (!this.data.width || !this.data.height) return null
+		const content = this.getActiveContent<ShapeElementContent>()
 
 		const width = this.data.width
 		const height = this.data.height
@@ -66,9 +72,9 @@ export class TriangleElement extends BaseElement<TriangleElementData> {
 		const triangle = new Konva.Line({
 			points,
 			closed: true,
-			fill: this.data.fill,
-			stroke: this.data.stroke,
-			strokeWidth: this.data.strokeWidth,
+			fill: content?.fill,
+			stroke: content?.stroke,
+			strokeWidth: content?.strokeWidth,
 		})
 
 		this.finalizeNode(triangle)
@@ -76,6 +82,7 @@ export class TriangleElement extends BaseElement<TriangleElementData> {
 	}
 
 	update(newData: TriangleElementData): boolean {
+		const content = this.getActiveContent<ShapeElementContent>(newData)
 		this.data = newData
 
 		// 三角形元素不需要重新渲染，所有属性都可以通过 setAttrs 更新
@@ -90,9 +97,9 @@ export class TriangleElement extends BaseElement<TriangleElementData> {
 			// 更新三角形特定属性
 			this.node.setAttrs({
 				points,
-				fill: newData.fill,
-				stroke: newData.stroke,
-				strokeWidth: newData.strokeWidth,
+				fill: content?.fill,
+				stroke: content?.stroke,
+				strokeWidth: content?.strokeWidth,
 			})
 		}
 

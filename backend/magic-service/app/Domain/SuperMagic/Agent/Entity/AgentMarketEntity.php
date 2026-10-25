@@ -11,6 +11,7 @@ use App\Domain\SuperMagic\Agent\Entity\ValueObject\AgentIconType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\AgentMarketType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublisherType;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\PublishStatus;
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Infrastructure\Core\AbstractEntity;
 use Hyperf\Codec\Json;
 
@@ -19,6 +20,8 @@ use Hyperf\Codec\Json;
  */
 class AgentMarketEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     /**
      * @var int 主键 ID
      */
@@ -70,11 +73,6 @@ class AgentMarketEntity extends AbstractEntity
      * @var PublisherType 发布者类型：USER=普通用户, OFFICIAL=官方运营, VERIFIED_CREATOR=认证创作者, PARTNER=第三方机构
      */
     protected PublisherType $publisherType = PublisherType::USER;
-
-    /**
-     * @var null|int 分类 ID（预留字段，未来如有 Crew 分类表可关联）
-     */
-    protected ?int $categoryId = null;
 
     /** @var int[] */
     protected array $categoryIds = [];
@@ -146,7 +144,6 @@ class AgentMarketEntity extends AbstractEntity
             'icon_type' => $this->iconType->value,
             'publisher_id' => $this->publisherId,
             'publisher_type' => $this->publisherType->value,
-            'category_id' => $this->categoryId,
             'category_ids' => $this->categoryIds,
             'publish_status' => $this->publishStatus->value,
             'install_count' => $this->installCount,
@@ -230,6 +227,16 @@ class AgentMarketEntity extends AbstractEntity
         return $this;
     }
 
+    public function getI18nName(string $language): string
+    {
+        return $this->resolveI18nText($this->nameI18n, $language);
+    }
+
+    public function getI18nDescription(string $language): string
+    {
+        return $this->resolveI18nText($this->descriptionI18n, $language);
+    }
+
     public function getRoleI18n(): ?array
     {
         return $this->roleI18n;
@@ -281,36 +288,16 @@ class AgentMarketEntity extends AbstractEntity
         return $this;
     }
 
-    public function getCategoryId(): ?int
-    {
-        return $this->categoryId;
-    }
-
     /** @return int[] */
     public function getCategoryIds(): array
     {
-        if ($this->categoryIds !== []) {
-            return $this->categoryIds;
-        }
-
-        return $this->categoryId === null ? [] : [$this->categoryId];
-    }
-
-    public function setCategoryId(null|int|string $categoryId): self
-    {
-        if ($categoryId === null) {
-            $this->categoryId = null;
-        } else {
-            $this->categoryId = is_string($categoryId) ? (int) $categoryId : $categoryId;
-        }
-        return $this;
+        return $this->categoryIds;
     }
 
     /** @param array<int, null|int|string> $categoryIds */
     public function setCategoryIds(array $categoryIds): self
     {
         $this->categoryIds = $this->normalizeCategoryIds($categoryIds);
-        $this->categoryId = $this->categoryIds[0] ?? null;
         return $this;
     }
 

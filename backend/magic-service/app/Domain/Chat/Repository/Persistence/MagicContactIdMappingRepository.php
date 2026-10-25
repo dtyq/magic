@@ -27,6 +27,39 @@ class MagicContactIdMappingRepository implements MagicContactIdMappingRepository
     }
 
     /**
+     * 查询严格限制组织和环境的用户映射，不沿用历史跨组织反查规则。
+     *
+     * @return list<MagicThirdPlatformIdMappingEntity>
+     */
+    public function getScopedUserIdsMapping(
+        MagicEnvironmentEntity $environment,
+        string $magicId,
+        string $magicOrganizationCode,
+        PlatformType $platformType
+    ): array {
+        $environmentIds = array_values(array_filter(
+            $environment->getRelationEnvIds(),
+            static fn ($id): bool => is_int($id) && $id > 0,
+        ));
+        if ($magicId === '' || $magicOrganizationCode === '' || $environmentIds === []) {
+            return [];
+        }
+
+        $query = $this->magicContactIdMappingModel->newQuery()
+            ->where('new_id', $magicId)
+            ->where('mapping_type', ThirdPlatformIdMappingType::User->value)
+            ->where('magic_organization_code', $magicOrganizationCode)
+            ->where('third_platform_type', $platformType->value)
+            ->whereIn('magic_environment_id', $environmentIds)
+            ->whereNull('deleted_at');
+
+        return array_map(
+            static fn (array $row): MagicThirdPlatformIdMappingEntity => new MagicThirdPlatformIdMappingEntity($row),
+            $query->get()->toArray(),
+        );
+    }
+
+    /**
      * 获取第三方平台部门ID的映射关系.
      *
      * @param string[] $thirdDepartmentIds

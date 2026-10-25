@@ -1,4 +1,4 @@
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { processHtmlContent } from "../../../../contents/HTML/htmlProcessor"
 import { flattenAttachments } from "../../../../contents/HTML/utils"
 import type { FileItem } from "../../../../contents/HTML/utils/fetchInterceptor"
@@ -67,12 +67,14 @@ export async function loadWechatArticleHtml({
 	fileId,
 	attachmentList,
 	attachments,
+	fileApi,
 }: {
 	fileId: string
 	attachmentList?: PlatformComponentProps["attachmentList"]
 	attachments?: PlatformComponentProps["attachments"]
+	fileApi: FileApi
 }): Promise<LoadWechatArticleHtmlResult> {
-	const urls = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+	const urls = await fileApi.getTemporaryDownloadUrl({ file_ids: [fileId] })
 	const url = urls?.[0]?.url
 	if (!url) throw new Error("noArticleUrl")
 
@@ -98,6 +100,7 @@ export async function loadWechatArticleHtml({
 		fileName: currentFile?.file_name,
 		html_relative_path: getFileFolderPath(currentFile),
 		xMagicImageProcess: WECHAT_ARTICLE_IMAGE_PROCESS,
+		fileApi,
 	})
 
 	return {

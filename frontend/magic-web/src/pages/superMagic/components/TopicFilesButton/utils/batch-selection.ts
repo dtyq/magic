@@ -2,6 +2,7 @@ interface TopicFileSelectionOptions {
 	isSelectMode: boolean
 	allowEdit: boolean
 	allowDownload?: boolean
+	allowCopyTo?: boolean
 	hasLogin: boolean
 	allowReadonlySelection?: boolean
 }
@@ -16,12 +17,13 @@ export function shouldEnableTopicFileSelection(options: TopicFileSelectionOption
 		isSelectMode,
 		allowEdit,
 		allowDownload,
+		allowCopyTo = false,
 		hasLogin,
 		allowReadonlySelection = false,
 	} = options
 
 	if (isSelectMode) return true
-	if (allowEdit || !allowDownload) return false
+	if (allowEdit || (!allowDownload && !allowCopyTo)) return false
 	return hasLogin || allowReadonlySelection
 }
 

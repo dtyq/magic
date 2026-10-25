@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import MobileComposerHeader from "../MobileComposerHeader"
 
 vi.mock("@/pages/superMagic/components/MainInputContainer/stores", () => ({
+	useOptionalSceneStateStore: () => null,
 	sceneStateStore: {
 		currentScene: null,
 		setCurrentScene: vi.fn(),
@@ -19,8 +20,18 @@ vi.mock("@/pages/superMagic/components/MainInputContainer/components/SceneSwitch
 }))
 
 vi.mock("../MobileComposerModeSelector", () => ({
-	default: ({ selectorVariant }: { selectorVariant?: string }) => (
-		<div data-testid="mobile-mode-selector" data-selector-variant={selectorVariant} />
+	default: ({
+		selectorVariant,
+		messagesLength,
+	}: {
+		selectorVariant?: string
+		messagesLength?: number
+	}) => (
+		<div
+			data-testid="mobile-mode-selector"
+			data-selector-variant={selectorVariant}
+			data-messages-length={messagesLength === undefined ? "unset" : String(messagesLength)}
+		/>
 	),
 }))
 
@@ -46,6 +57,16 @@ describe("MobileComposerHeader", () => {
 		expect(screen.getByTestId("mobile-mode-selector")).toHaveAttribute(
 			"data-selector-variant",
 			"claw",
+		)
+	})
+
+	it("passes the topic message count down to the employee selector", () => {
+		render(<MobileComposerHeader messagesLength={2} />)
+
+		// The selector turns this into its allowChangeMode rule, so it must not be swallowed here.
+		expect(screen.getByTestId("mobile-mode-selector")).toHaveAttribute(
+			"data-messages-length",
+			"2",
 		)
 	})
 })

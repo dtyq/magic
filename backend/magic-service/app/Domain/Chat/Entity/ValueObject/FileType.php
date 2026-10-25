@@ -53,7 +53,7 @@ enum FileType: int
             // 视频
             'mp4', 'avi', 'rmvb', 'rm', 'mpg', 'mpeg', 'mpe', 'wmv', 'mkv', 'vob', 'mov', 'qt', 'flv', 'f4v', 'swf' => self::Video,
             // 音频
-            'mp3', 'wma', 'wav', 'mod', 'ra', 'cd', 'md', 'asf', 'aac', 'ape', 'mid', 'ogg', 'm4a', 'vqf' => self::Audio,
+            'mp3', 'wma', 'wav', 'mod', 'ra', 'cd', 'md', 'asf', 'aac', 'ape', 'mid', 'ogg', 'opus', 'm4a', 'vqf' => self::Audio,
             // 压缩包
             'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'cab', 'iso', 'lzh', 'ace', 'arj', 'uue', 'jar' => self::Compress,
             default => self::File,

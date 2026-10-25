@@ -6,6 +6,7 @@ import { RouteName } from "@/routes/constants"
 const mockState = vi.hoisted(() => ({
 	isMobile: false,
 	pathname: "/global/super",
+	search: "",
 	params: {} as Record<string, string | undefined>,
 	navigate: vi.fn(),
 	navigateToHome: vi.fn(),
@@ -30,6 +31,9 @@ vi.mock("@/routes/history", () => ({
 		location: {
 			get pathname() {
 				return mockState.pathname
+			},
+			get search() {
+				return mockState.search
 			},
 		},
 	},
@@ -69,6 +73,7 @@ describe("SuperRootRedirect", () => {
 	beforeEach(() => {
 		mockState.isMobile = false
 		mockState.pathname = "/global/super"
+		mockState.search = ""
 		mockState.params = {}
 		mockState.navigate.mockReset()
 		mockState.navigateToHome.mockReset()
@@ -83,5 +88,29 @@ describe("SuperRootRedirect", () => {
 		expect(mockState.replace).toHaveBeenCalledWith({ name: RouteName.MobileHome })
 		expect(mockState.navigate).not.toHaveBeenCalled()
 		expect(mockState.navigateToHome).not.toHaveBeenCalled()
+	})
+
+	it("routes desktop agent links through home resolution instead of cached project state", () => {
+		mockState.search = "?agentCode=SMA-test-agent"
+		mockState.params = {}
+
+		render(<SuperRootRedirect />)
+
+		expect(mockState.navigateToHome).toHaveBeenCalledWith(undefined, {
+			agentCode: "SMA-test-agent",
+		})
+		expect(mockState.navigate).not.toHaveBeenCalled()
+	})
+
+	it("preserves agentCode when redirecting bare /super to mobile home", () => {
+		mockState.isMobile = true
+		mockState.search = "?agentCode=SMA-test-agent"
+
+		render(<SuperRootRedirect />)
+
+		expect(mockState.replace).toHaveBeenCalledWith({
+			name: RouteName.MobileHome,
+			query: { agentCode: "SMA-test-agent" },
+		})
 	})
 })

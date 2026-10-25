@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite"
 import { IconX, IconArrowsDiagonal, IconArrowsDiagonalMinimize2 } from "@tabler/icons-react"
 import { computed } from "mobx"
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import MagicButton from "@/components/base/MagicButton"
@@ -12,7 +12,7 @@ import MessageFilePreviewService from "@/services/chat/message/MessageFilePrevie
 import MessageFilePreviewStore from "@/stores/chatNew/messagePreview/FilePreviewStore"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { AntdSkeleton } from "@/components/base"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const UniverComponent = lazy(() => import("@/components/UniverComponent"))
 const MagicPdfRender = lazy(() => import("@/components/base/MagicPdfRender"))
@@ -46,18 +46,74 @@ const ChatFilePreviewPanel = observer(function ChatFilePreviewPanel({
 	}, [previewInfo]).get()
 
 	const [data, setData] = useState<File | null>(null)
+	const [resolvedFileInfo, setResolvedFileInfo] = useState<typeof fileInfo>(null)
 	const [isFullscreen, setIsFullscreen] = useState(false)
+	const refreshAttemptRef = useRef(false)
 
 	useEffect(() => {
-		if (fileInfo?.url) {
-			fetch(fileInfo.url)
-				.then((res) => res.blob())
-				.then((blob) => {
-					const file = new File([blob], fileInfo.download_name, { type: blob.type })
-					setData(file)
-				})
+		let cancelled = false
+		setResolvedFileInfo(null)
+		const resolveFileInfo = async () => {
+			if (!previewInfo || previewInfo.src) return fileInfo
+			const result = await ChatFileService.fetchFileUrl([
+				{
+					file_id: previewInfo.file_id,
+					message_id: previewInfo.message_id || fileInfo?.message_id || "",
+				},
+			])
+			return result[previewInfo.file_id] ?? fileInfo
 		}
-	}, [fileInfo?.download_name, fileInfo?.url])
+		void resolveFileInfo().then((resolved) => {
+			if (cancelled) return
+			setResolvedFileInfo(resolved)
+			if (resolved?.url) {
+				const fetchCurrentFile = async () => {
+					let response = await fetch(resolved.url)
+					if (
+						!response.ok &&
+						previewInfo &&
+						!previewInfo.src &&
+						!refreshAttemptRef.current
+					) {
+						refreshAttemptRef.current = true
+						const refreshed = await ChatFileService.fetchFileUrl(
+							[
+								{
+									file_id: previewInfo.file_id,
+									message_id: resolved.message_id || "",
+								},
+							],
+							{ forceRefresh: true },
+						)
+						if (refreshed[previewInfo.file_id]?.url) {
+							response = await fetch(refreshed[previewInfo.file_id].url)
+						}
+					}
+					if (!response.ok)
+						throw new Error(`File preview request failed: ${response.status}`)
+					return response.blob()
+				}
+				void fetchCurrentFile().then((blob) => {
+					if (!cancelled) {
+						const file = new File([blob], resolved.download_name, {
+							type: blob.type,
+						}).catch(() => setData(null))
+						setData(file)
+					}
+				})
+			}
+		})
+		return () => {
+			cancelled = true
+			setData(null)
+		}
+	}, [fileInfo, previewInfo])
+
+	useEffect(() => {
+		refreshAttemptRef.current = false
+	}, [previewInfo?.file_id])
+
+	const effectiveFileInfo = resolvedFileInfo ?? fileInfo
 
 	// 全屏切换逻辑
 	const toggleFullscreen = () => {
@@ -65,7 +121,7 @@ const ChatFilePreviewPanel = observer(function ChatFilePreviewPanel({
 	}
 
 	const Content = () => {
-		if (!fileInfo || !data) return <MagicEmpty />
+		if (!effectiveFileInfo || !data) return <MagicEmpty />
 
 		switch (previewInfo?.file_extension) {
 			case "xlsx":

@@ -9,16 +9,21 @@ namespace Test\Cases\Interfaces\SlidesTemplate;
 
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateCategoryEntity;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateEntity;
+use App\Domain\SlidesTemplate\Entity\SlidesTemplateTagEntity;
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateOwnerType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateSourceType;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\SlidesTemplate\Assembler\SlidesTemplateAssembler;
 use App\Interfaces\SlidesTemplate\Assembler\SlidesTemplateCategoryAssembler;
+use App\Interfaces\SlidesTemplate\Assembler\SlidesTemplateTagAssembler;
 use App\Interfaces\SlidesTemplate\DTO\Response\AdminSlidesTemplateDetailDTO;
 use App\Interfaces\SlidesTemplate\DTO\Response\SlidesTemplateCountDTO;
 use App\Interfaces\SlidesTemplate\DTO\Response\SlidesTemplateFileUrlDTO;
 use App\Interfaces\SlidesTemplate\DTO\Response\SlidesTemplateListPageDTO;
 use App\Interfaces\SlidesTemplate\DTO\Response\SlidesTemplatePublicDetailDTO;
 use App\Interfaces\SlidesTemplate\DTO\Response\SlidesTemplatePublicListItemDTO;
+use App\Interfaces\SlidesTemplate\DTO\Response\UsedSlidesTemplatePublicListItemDTO;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
@@ -97,17 +102,12 @@ class SlidesTemplateAssemblerTest extends TestCase
             'page' => 2,
             'page_size' => 10,
             'list' => [[
+                'id' => '123',
                 'code' => 'PPT-65f2c8a42d7b0-12345678',
                 'source_type' => 'SYSTEM',
                 'category_code' => 'PPT-CATE-business',
-                'label' => [
-                    'zh_CN' => '职场白皮书',
-                    'en_US' => 'Corporate Whitepaper',
-                ],
-                'description' => [
-                    'zh_CN' => '适用于企业汇报。',
-                    'en_US' => 'For business reviews.',
-                ],
+                'label' => '职场白皮书',
+                'description' => '适用于企业汇报。',
                 'thumbnail_url' => 'https://signed.example/thumb.png',
                 'color' => '#112233',
                 'colors' => ['#112233', '#445566'],
@@ -115,9 +115,46 @@ class SlidesTemplateAssemblerTest extends TestCase
                 'sort' => 100,
                 'usage_count' => 215,
                 'is_official' => false,
-                'tags' => [],
+                'is_favorite' => false,
+                'status' => 1,
+                'created_at' => null,
+                'updated_at' => null,
             ]],
         ], $dto->toArray());
+    }
+
+    public function testCreateUserTemplatePageDTOIncludesProjectNavigationFieldsOnlyForUserScope(): void
+    {
+        $template = $this->makeTemplate()
+            ->setProjectId('935281873559658498')
+            ->setProjectDirectoryId('945653402610257921');
+
+        $publicItem = SlidesTemplateAssembler::createPublicListPageDTO([$template], new Page(1, 20))->toArray()['list'][0];
+        $userItem = SlidesTemplateAssembler::createPublicListPageDTO([$template], new Page(1, 20), [], true)->toArray()['list'][0];
+
+        self::assertArrayNotHasKey('project', $publicItem);
+        self::assertSame([
+            'id' => '935281873559658498',
+            'directory_id' => '945653402610257921',
+        ], $userItem['project']);
+
+        $template->setProjectId(null)->setProjectDirectoryId(null);
+        $userItemWithoutProject = SlidesTemplateAssembler::createPublicListPageDTO([$template], new Page(1, 20), [], true)->toArray()['list'][0];
+        self::assertNull($userItemWithoutProject['project']);
+    }
+
+    public function testCreatePublicListDTOUsesCurrentLanguageForLocalizedFields(): void
+    {
+        CoContext::setLanguage('en_US');
+
+        try {
+            $item = SlidesTemplateAssembler::createPublicListItemDTO($this->makeTemplate())->toArray();
+
+            self::assertSame('Corporate Whitepaper', $item['label']);
+            self::assertSame('For business reviews.', $item['description']);
+        } finally {
+            CoContext::setLanguage('zh_CN');
+        }
     }
 
     public function testCreatePublicDetailDTOReturnsPublicAssetsWithoutTemplateFileUrl(): void
@@ -128,6 +165,7 @@ class SlidesTemplateAssemblerTest extends TestCase
 
         $this->assertInstanceOf(SlidesTemplatePublicDetailDTO::class, $dto);
         $this->assertSame([
+            'id' => '123',
             'code' => 'PPT-65f2c8a42d7b0-12345678',
             'source_type' => 'SYSTEM',
             'category_code' => 'PPT-CATE-business',
@@ -148,9 +186,55 @@ class SlidesTemplateAssemblerTest extends TestCase
             'sort' => 100,
             'usage_count' => 215,
             'is_official' => false,
+            'is_favorite' => false,
+            'status' => 1,
+            'created_at' => null,
+            'updated_at' => null,
             'tags' => [],
         ], $dto->toArray());
         $this->assertArrayNotHasKey('template_file_url', $dto->toArray());
+    }
+
+    public function testCreatePublicDetailDTOIncludesProjectOnlyForTemplateOwner(): void
+    {
+        $template = $this->makeTemplate()
+            ->setOwnerType(SlidesTemplateOwnerType::User)
+            ->setOwnerId('user-1')
+            ->setProjectId('935281873559658498')
+            ->setProjectDirectoryId('945653402610257921');
+
+        $ownerDetail = SlidesTemplateAssembler::createPublicDetailDTO($template, 'user-1')->toArray();
+        $otherUserDetail = SlidesTemplateAssembler::createPublicDetailDTO($template, 'user-2')->toArray();
+        $anonymousDetail = SlidesTemplateAssembler::createPublicDetailDTO($template)->toArray();
+        $officialDetail = SlidesTemplateAssembler::createPublicDetailDTO(
+            $template->setOwnerType(SlidesTemplateOwnerType::Official),
+            'user-1'
+        )->toArray();
+
+        self::assertSame([
+            'id' => '935281873559658498',
+            'directory_id' => '945653402610257921',
+        ], $ownerDetail['project']);
+        self::assertArrayNotHasKey('project', $otherUserDetail);
+        self::assertArrayNotHasKey('project', $anonymousDetail);
+        self::assertArrayNotHasKey('project', $officialDetail);
+    }
+
+    public function testCreateUsedListPageDTOIncludesLatestUsedAtOnlyForUsedTemplates(): void
+    {
+        $template = $this->makeTemplate();
+
+        $dto = SlidesTemplateAssembler::createUsedListPageDTO(
+            [$template],
+            new Page(1, 20),
+            [],
+            [$template->getCode() => '2026-08-11 10:00:00']
+        );
+
+        self::assertInstanceOf(UsedSlidesTemplatePublicListItemDTO::class, $dto->getList()[0]);
+        self::assertSame('2026-08-11 10:00:00', $dto->toArray()['list'][0]['latest_used_at']);
+        self::assertArrayNotHasKey('tags', $dto->toArray()['list'][0]);
+        self::assertArrayNotHasKey('latest_used_at', SlidesTemplateAssembler::createPublicListPageDTO([$template], new Page(1, 20))->toArray()['list'][0]);
     }
 
     public function testCreateCountDTO(): void
@@ -165,18 +249,29 @@ class SlidesTemplateAssemblerTest extends TestCase
         ], $dto->toArray());
     }
 
-    public function testCreateAdminDetailAndFileUrlDTO(): void
+    public function testCreateAdminDetailIsFullyPopulatedWithoutTemplateFileUrl(): void
     {
         $template = $this->makeTemplate();
 
         $detailDTO = SlidesTemplateAssembler::createAdminDetailDTO($template);
-        $fileUrlDTO = SlidesTemplateAssembler::createFileUrlDTO($template);
+        $detail = $detailDTO->toArray();
 
         $this->assertInstanceOf(AdminSlidesTemplateDetailDTO::class, $detailDTO);
+        $this->assertSame('123', $detail['id']);
+        $this->assertSame('PPT-65f2c8a42d7b0-12345678', $detail['code']);
+        $this->assertSame('SYSTEM', $detail['source_type']);
+        $this->assertSame('slides/template.zip', $detail['template_file_key']);
+        $this->assertSame(1, $detail['status']);
+        $this->assertSame([], $detail['tags']);
+        $this->assertArrayNotHasKey('category', $detail);
+        $this->assertArrayNotHasKey('template_file_url', $detail);
+    }
+
+    public function testCreateFileUrlDTOOnlyExposesTemplateFileUrlThroughDedicatedResponse(): void
+    {
+        $fileUrlDTO = SlidesTemplateAssembler::createFileUrlDTO($this->makeTemplate());
+
         $this->assertInstanceOf(SlidesTemplateFileUrlDTO::class, $fileUrlDTO);
-        $this->assertSame('https://signed.example/template.zip', $detailDTO->getTemplateFileUrl());
-        $this->assertSame('SYSTEM', $detailDTO->getSourceType());
-        $this->assertArrayNotHasKey('category', $detailDTO->toArray());
         $this->assertSame([
             'code' => 'PPT-65f2c8a42d7b0-12345678',
             'source_type' => 'SYSTEM',
@@ -187,6 +282,22 @@ class SlidesTemplateAssemblerTest extends TestCase
             ],
             'template_file_url' => 'https://signed.example/template.zip',
         ], $fileUrlDTO->toArray());
+    }
+
+    public function testPersonalTemplateInOfficialOrganizationIsNotOfficial(): void
+    {
+        $template = $this->makeTemplate()
+            ->setOrganizationCode('OFFICIAL_ORG')
+            ->setOwnerType(SlidesTemplateOwnerType::User)
+            ->setOwnerId('user-1');
+
+        $this->assertFalse(SlidesTemplateAssembler::createPublicListItemDTO($template)->toArray()['is_official']);
+        $this->assertFalse(SlidesTemplateAssembler::createPublicDetailDTO($template)->toArray()['is_official']);
+
+        $template->setOwnerType(SlidesTemplateOwnerType::Official)->setOwnerId('OFFICIAL_ORG');
+
+        $this->assertTrue(SlidesTemplateAssembler::createPublicListItemDTO($template)->toArray()['is_official']);
+        $this->assertTrue(SlidesTemplateAssembler::createPublicDetailDTO($template)->toArray()['is_official']);
     }
 
     public function testCreateAdminPageDTOIncludesCategory(): void
@@ -204,7 +315,6 @@ class SlidesTemplateAssemblerTest extends TestCase
             new Page(1, 20),
             1,
             true,
-            false,
             ['PPT-CATE-business' => $category]
         );
 
@@ -260,7 +370,7 @@ class SlidesTemplateAssemblerTest extends TestCase
         ], $item);
     }
 
-    public function testCreatePublicCategoryPageDTOIncludesTemplateCount(): void
+    public function testCreatePublicCategoryPageDTODoesNotIncludeTemplateCount(): void
     {
         $category = new SlidesTemplateCategoryEntity();
         $category->setId(123)
@@ -279,15 +389,35 @@ class SlidesTemplateAssemblerTest extends TestCase
             'list' => [[
                 'id' => '123',
                 'code' => 'PPT-CATE-business',
-                'name_i18n' => [
-                    'zh_CN' => '商务',
-                    'en_US' => 'Business',
-                ],
+                'name' => '商务',
                 'sort' => 100,
-                'template_count' => 3,
                 'is_official' => true,
             ]],
         ], $dto->toArray());
+        $this->assertArrayNotHasKey('template_count', $dto->toArray()['list'][0]);
+        $this->assertArrayNotHasKey('name_i18n', $dto->toArray()['list'][0]);
+    }
+
+    public function testCreatePublicTagGroupsExcludeLocalizedNameFields(): void
+    {
+        $child = (new SlidesTemplateTagEntity())
+            ->setId(2)
+            ->setCode('modern')
+            ->setNameI18n(['zh_CN' => '现代', 'en_US' => 'Modern'])
+            ->setSort(2);
+        $group = (new SlidesTemplateTagEntity())
+            ->setId(1)
+            ->setCode('style')
+            ->setNameI18n(['zh_CN' => '风格', 'en_US' => 'Style'])
+            ->setSort(1)
+            ->setChildren([$child]);
+
+        $item = SlidesTemplateTagAssembler::createGroupListDTO([$group])[0];
+
+        self::assertSame('风格', $item['name']);
+        self::assertArrayNotHasKey('name_i18n', $item);
+        self::assertSame('现代', $item['tags'][0]['name']);
+        self::assertArrayNotHasKey('name_i18n', $item['tags'][0]);
     }
 
     private function makeTemplate(): SlidesTemplateEntity

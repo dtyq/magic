@@ -2,35 +2,56 @@ import { useTranslation } from "react-i18next"
 import { isMagicApp } from "@/utils/devices"
 
 /**
- * 麦克风权限国际化hook
- * 提供麦克风权限相关的国际化文本，根据环境（浏览器/App）返回不同的提示词
+ * Provide microphone permission translations for browser and native app environments.
  *
  * @returns Permission modal and instruction texts based on environment
  */
 export function useMicrophonePermissionI18n() {
 	const { t } = useTranslation("component")
 
-	// 根据是否在App环境中决定使用哪套文案
-	const envType = isMagicApp ? "app" : "browser"
+	if (isMagicApp) {
+		// Native apps only define platform-specific guidance for iOS and Android.
+		// Keep browser-named fields usable by falling back to the app's general instructions.
+		const defaultInstruction = t("voiceInput.permission.instructions.app.default")
+
+		return {
+			permissionModal: {
+				title: t("voiceInput.permission.modal.app.title"),
+				content: t("voiceInput.permission.modal.app.content"),
+				okText: t("voiceInput.permission.modal.app.okText"),
+				cancelText: t("voiceInput.permission.modal.app.cancelText"),
+				manualInstruction: t("voiceInput.permission.modal.app.manualInstruction"),
+			},
+			permissionInstructions: {
+				chrome: defaultInstruction,
+				edge: defaultInstruction,
+				firefox: defaultInstruction,
+				safari: defaultInstruction,
+				ios: t("voiceInput.permission.instructions.app.ios"),
+				android: t("voiceInput.permission.instructions.app.android"),
+				default: defaultInstruction,
+			},
+		}
+	}
 
 	return {
 		// Permission modal texts
 		permissionModal: {
-			title: t(`voiceInput.permission.modal.${envType}.title`),
-			content: t(`voiceInput.permission.modal.${envType}.content`),
-			okText: t(`voiceInput.permission.modal.${envType}.okText`),
-			cancelText: t(`voiceInput.permission.modal.${envType}.cancelText`),
-			manualInstruction: t(`voiceInput.permission.modal.${envType}.manualInstruction`),
+			title: t("voiceInput.permission.modal.browser.title"),
+			content: t("voiceInput.permission.modal.browser.content"),
+			okText: t("voiceInput.permission.modal.browser.okText"),
+			cancelText: t("voiceInput.permission.modal.browser.cancelText"),
+			manualInstruction: t("voiceInput.permission.modal.browser.manualInstruction"),
 		},
 		// Permission instructions
 		permissionInstructions: {
-			chrome: t(`voiceInput.permission.instructions.${envType}.chrome`),
-			edge: t(`voiceInput.permission.instructions.${envType}.edge`),
-			firefox: t(`voiceInput.permission.instructions.${envType}.firefox`),
-			safari: t(`voiceInput.permission.instructions.${envType}.safari`),
-			ios: t(`voiceInput.permission.instructions.${envType}.ios`),
-			android: t(`voiceInput.permission.instructions.${envType}.android`),
-			default: t(`voiceInput.permission.instructions.${envType}.default`),
+			chrome: t("voiceInput.permission.instructions.browser.chrome"),
+			edge: t("voiceInput.permission.instructions.browser.edge"),
+			firefox: t("voiceInput.permission.instructions.browser.firefox"),
+			safari: t("voiceInput.permission.instructions.browser.safari"),
+			ios: t("voiceInput.permission.instructions.browser.ios"),
+			android: t("voiceInput.permission.instructions.browser.android"),
+			default: t("voiceInput.permission.instructions.browser.default"),
 		},
 	}
 }

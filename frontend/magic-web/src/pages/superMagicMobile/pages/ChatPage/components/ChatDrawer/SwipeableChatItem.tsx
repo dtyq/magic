@@ -1,5 +1,5 @@
 import { MessageCircle, Ellipsis, Pin, Trash2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SwipeableChatItemProps } from "./types"
 import { useTranslation } from "react-i18next"
 import { useSwipeActions } from "./hooks/useSwipeActions"

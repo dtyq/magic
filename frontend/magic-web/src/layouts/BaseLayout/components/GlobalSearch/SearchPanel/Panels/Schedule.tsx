@@ -1,19 +1,17 @@
 import { useTranslation } from "react-i18next"
-import { Flex } from "antd"
 import MagicSpin from "@/components/base/MagicSpin"
 import EmptyIcon from "@/assets/logos/empty.svg"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import type { GlobalSearch } from "@/types/search"
 import { useMemoizedFn } from "ahooks"
 import type { PanelsProps } from "./Applications"
-import { useStyles } from "./styles"
+import { panelClassNames as styles } from "./classNames"
 import SearchItem from "../SearchItem"
 import { useMagicSearchStore } from "../../store"
 import { useRequest } from "../request"
 
 function Schedule(props: PanelsProps) {
 	const { maxHeight } = props
-	const { styles } = useStyles()
 	const { t } = useTranslation("search")
 
 	const searchWord = useMagicSearchStore((store) => store.searchWord)
@@ -22,8 +20,8 @@ function Schedule(props: PanelsProps) {
 		useRequest<GlobalSearch.ScheduleItem>(searchWord, 8)
 
 	// 滚动加载更多
-	const onScroll = useMemoizedFn((event) => {
-		const { scrollHeight, clientHeight, scrollTop } = event.target
+	const onScroll = useMemoizedFn((event: React.UIEvent<HTMLDivElement>) => {
+		const { scrollHeight, clientHeight, scrollTop } = event.currentTarget
 		// 当距离底部不到100px时触发加载
 		if (scrollHeight - (scrollTop + clientHeight) <= 100 && !loading && data?.length > 0) {
 			if (hasMorePage) {
@@ -42,25 +40,17 @@ function Schedule(props: PanelsProps) {
 				<div className={styles.header}>{t("quickSearch.tabs.schedule")}</div>
 				{loading && data.length === 0 ? (
 					<div className={styles.empty}>
-						<Flex
-							flex={1}
-							vertical
-							align="center"
-							justify="center"
-							style={{ width: "100%", height: "100%" }}
-						>
+						<div className="flex size-full flex-1 flex-col items-center justify-center">
 							<MagicSpin spinning />
 							<span>{t("quickSearch.settings.loading")}</span>
-						</Flex>
+						</div>
 					</div>
 				) : (
-					<MagicScrollBar
+					<ScrollArea
 						className={styles.wrapper}
-						style={{ maxHeight }}
-						autoHide={false}
-						scrollableNodeProps={{
-							onScroll,
-						}}
+						viewportClassName="h-auto p-1"
+						viewportStyle={{ maxHeight }}
+						viewportProps={{ onScroll }}
 					>
 						{!data || data.length === 0 ? (
 							<div className={styles.empty}>
@@ -73,13 +63,13 @@ function Schedule(props: PanelsProps) {
 									<SearchItem.Schedule key={item?.id} item={item} />
 								))}
 								{loading && (
-									<Flex justify="center" style={{ padding: "10px 0" }}>
+									<div className="flex justify-center py-2.5">
 										<MagicSpin spinning />
-									</Flex>
+									</div>
 								)}
 							</>
 						)}
-					</MagicScrollBar>
+					</ScrollArea>
 				)}
 			</div>
 		</div>

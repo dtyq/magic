@@ -6,10 +6,10 @@ import { useState, useEffect } from "react"
 function FontSizeChanger() {
 	const { fontScale, setFontScale } = useFontScale()
 
-	// 本地状态用于实时显示，避免拖动卡顿
+	// Keep dragging responsive while persistence to the global settings is debounced.
 	const [localFontScale, setLocalFontScale] = useState(fontScale)
 
-	// 当外部 fontScale 变化时，同步本地状态
+	// Reflect font scale changes made outside this control.
 	useEffect(() => {
 		setLocalFontScale(fontScale)
 	}, [fontScale])
@@ -21,12 +21,12 @@ function FontSizeChanger() {
 		{ wait: 300 },
 	)
 
-	// Slider 组件的 onChange 处理
+	// Convert the slider's single-thumb array into the numeric font scale.
 	const onSliderChange = (value: number[]) => {
 		const numValue = value[0]
-		// 立即更新本地状态，提供实时反馈
+		// Update the displayed value immediately.
 		setLocalFontScale(numValue)
-		// 防抖更新全局状态
+		// Persist the global value after dragging pauses.
 		debouncedSetFontScale(numValue)
 	}
 
@@ -40,7 +40,7 @@ function FontSizeChanger() {
 				step={0.01}
 				className="flex-1"
 			/>
-			<div className="flex h-9 shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md border border-input bg-white px-3 py-1 shadow-xs">
+			<div className="flex h-9 shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md border border-input bg-background px-3 py-1 shadow-xs">
 				<div className="overflow-hidden overflow-ellipsis text-sm leading-5 text-foreground">
 					{((localFontScale ?? 1.0) * 100).toFixed(0)}%
 				</div>

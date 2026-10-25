@@ -1,5 +1,5 @@
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
@@ -9,7 +9,7 @@ import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { LinkIcon } from "@/components/tiptap-icons/link-icon"
 
 // --- Lib ---
-import { isMarkInSchema, sanitizeUrl } from "@/lib/tiptap-utils"
+import { isMarkInSchema, sanitizeUrl } from "@/infrastructure/editors/tiptap/utils"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
 /**
@@ -50,10 +50,14 @@ export interface LinkHandlerProps {
  */
 export function canSetLink(editor: Editor | null): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			return activeEditor.can().setMark("link")
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				return activeEditor.can().setMark("link")
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -62,10 +66,14 @@ export function canSetLink(editor: Editor | null): boolean {
  */
 export function isLinkActive(editor: Editor | null): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			return activeEditor.isActive("link")
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				return activeEditor.isActive("link")
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -79,19 +87,23 @@ export function shouldShowLinkButton(props: {
 	const { editor, hideWhenUnavailable } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			const linkInSchema = isMarkInSchema("link", activeEditor)
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				const linkInSchema = isMarkInSchema("link", activeEditor)
 
-			if (!linkInSchema) {
-				return false
-			}
+				if (!linkInSchema) {
+					return false
+				}
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canSetLink(activeEditor)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canSetLink(activeEditor)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }

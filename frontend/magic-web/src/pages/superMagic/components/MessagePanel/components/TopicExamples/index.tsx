@@ -9,10 +9,10 @@ import type { ExampleItem, TopicExamplesProps } from "./types"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { SupportLocales } from "@/constants/locale"
 import { Collapse } from "antd"
-import { Editor } from "@tiptap/core"
-import { Document } from "@tiptap/extension-document"
-import { Paragraph } from "@tiptap/extension-paragraph"
-import { Text as TiptapText } from "@tiptap/extension-text"
+import { Editor } from "@/infrastructure/editors/tiptap/core"
+import { Document } from "@/infrastructure/editors/tiptap/extension-document"
+import { Paragraph } from "@/infrastructure/editors/tiptap/extension-paragraph"
+import { Text as TiptapText } from "@/infrastructure/editors/tiptap/extension-text"
 import { HardBlock } from "@/pages/superMagic/components/MessageEditor/extensions"
 import MentionExtension from "@/components/business/MentionPanel/tiptap-plugin"
 import { SuperPlaceholderExtension } from "@/pages/superMagic/components/MessageEditor/extensions/super-placeholder"
@@ -268,7 +268,11 @@ const TopicExamples = ({
 					<div className={styles.exampleHeader}>
 						<div>{t("ui.quickStart")}</div>
 						{topicMode !== TopicMode.RecordSummary && (
-							<div className={styles.exampleItemRefresh} onClick={handleRefreshClick} data-testid="handle-refresh-click">
+							<div
+								className={styles.exampleItemRefresh}
+								onClick={handleRefreshClick}
+								data-testid="handle-refresh-click"
+							>
 								<IconRefresh
 									size={20}
 									style={{

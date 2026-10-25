@@ -1,22 +1,61 @@
-from app.i18n import i18n
 import asyncio
-from pathlib import Path
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
-from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
-from app.core.entity.message.server_message import DisplayType, ToolDetail, FileTreeContent, FileTreeNode, FileTreeNodeType
+from agentlang.tools.tool_result import ToolResult
+from agentlang.utils.file import format_file_size
+from app.core.entity.message.server_message import (
+    DirectoryScanFailure,
+    DisplayType,
+    FileTreeContent,
+    FileTreeNode,
+    ToolDetail,
+)
+from app.i18n import i18n
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from agentlang.utils.file import (
-    is_text_file, format_file_size
+from app.utils.directory_scan import (
+    DirectoryScanBudget,
+    describe_unexpanded,
+    scan_directory_tree,
 )
 
 logger = get_logger(__name__)
+
+# 工具能展开的最大层级。这是防止提示词被滥用而写死的深度上限，不是成本护栏：
+# 模型明确要求 level=N 就应该拿到真实的 N 层列表。
+LIST_DIR_MAX_LEVEL = 10
+
+# 工具扫描的时间上限。这是唯一的成本护栏，而且它保护的是"别挂死"而不是"省目录读取"：
+# 遍历条目数不设上限，因为模型主动发起的查询必须忠于它要求的 level。输出体积也不在这里
+# 设限——超大结果由 ToolResultContentManager 统一落成文件并把路径告诉模型，那条出口比
+# 在这里偷偷截断更诚实，也不会让模型误以为"没列出来就是不存在"。
+#
+# 之所以需要它：扫描跑在 asyncio.to_thread 里，Python 取消不了已经启动的线程，用户点
+# 终止也停不下来。截止时间是唯一能在 worker 线程里生效的收敛手段。
+LIST_DIR_SCAN_MAX_SECONDS = 120.0
+
+_LIST_DIR_BUDGET = DirectoryScanBudget(max_seconds=LIST_DIR_SCAN_MAX_SECONDS)
+
+
+def _partial_listing_notice(content: FileTreeContent) -> str:
+    """把扫描缺口渲染成模型能据以继续行动的一段话。
+
+    这段文字的唯一职责是阻止一个错误推论："没列出来"等于"不存在"。没有它，模型会把
+    预算截断当成删除，或者把未读取的目录当成空目录。
+    """
+    details = describe_unexpanded(content.unexpanded)
+    if not details:
+        return ""
+    return (
+        f"[PARTIAL LISTING] {len(content.unexpanded)} directories in this listing are incomplete.\n"
+        f"{details}\n"
+        "Their contents are unknown, not empty. "
+        "Call list_dir on one of those paths to list it on its own."
+    )
 
 
 class ListDirParams(BaseToolParams):
@@ -65,26 +104,17 @@ class ListDir(WorkspaceTool[ListDirParams]):
         Returns:
             ToolResult: 包含目录内容或错误信息
         """
-        # 验证 level 的合理性，例如限制最大深度
-        max_level = 10  # 设定一个最大递归深度防止滥用
-        level = params.level
-        if level > max_level:
-            logger.warning(f"Requested level {level} exceeds maximum {max_level}, limiting to {max_level}.")
-            level = max_level
-        elif level < 1:
-             logger.warning(f"Requested level {level} is less than 1, setting to 1.")
-             level = 1
+        level = self._normalize_level(params.level)
 
-        # 获取结构化数据（只扫描一次）- 使用 asyncio.to_thread 避免阻塞事件循环
-        file_tree_content = await asyncio.to_thread(
-            self._scan_directory_tree,
+        # 结构化数据只扫描一次，之后展示与工具详情共用 - 放进线程避免阻塞事件循环
+        file_tree_content = await self._scan_async(
             params.relative_workspace_path,
             level,
             params.filter_binary,
         )
 
         # 转换为字符串结果（避免重复扫描）
-        string_result = self._get_string_result(params.relative_workspace_path, file_tree_content)
+        string_result = self._render_result(params.relative_workspace_path, file_tree_content)
 
         # 将结构化数据存储到工具上下文中，供 get_tool_detail 使用
         if file_tree_content:
@@ -108,18 +138,18 @@ class ListDir(WorkspaceTool[ListDirParams]):
         Returns:
             str: 格式化的文件树字符串
         """
-        # 获取结构化数据
-        file_tree_content = self._scan_directory_tree(relative_workspace_path, level, filter_binary)
-
-        # 转换为字符串结果
-        return self._get_string_result(relative_workspace_path, file_tree_content)
+        content = self._scan_directory_tree(
+            relative_workspace_path,
+            self._normalize_level(level),
+            filter_binary,
+        )
+        return self._render_result(relative_workspace_path, content)
 
     async def get_file_tree_async(self, relative_workspace_path: str, level: int, filter_binary: bool) -> FileTreeContent:
         """异步获取结构化文件树（FileTreeContent），供调用方同时用于展示和路径提取。"""
-        return await asyncio.to_thread(
-            self._scan_directory_tree,
+        return await self._scan_async(
             relative_workspace_path,
-            level,
+            self._normalize_level(level),
             filter_binary,
         )
 
@@ -137,7 +167,6 @@ class ListDir(WorkspaceTool[ListDirParams]):
         Returns:
             str: 格式化的文件树字符串
         """
-        # 使用 asyncio.to_thread 将同步 IO 操作放到线程池执行
         return await asyncio.to_thread(
             self.get_file_tree_string,
             relative_workspace_path,
@@ -145,78 +174,66 @@ class ListDir(WorkspaceTool[ListDirParams]):
             filter_binary
         )
 
-    def _scan_directory_tree(self, relative_workspace_path: str, level: int, filter_binary: bool) -> FileTreeContent:
-        """扫描目录并返回结构化的FileTreeContent数据"""
-        # 路径验证
-        target_path = self.resolve_path(relative_workspace_path)
-
-        if not target_path.exists() or not target_path.is_dir():
-            logger.warning(f"Path invalid or does not exist: {relative_workspace_path}")
-            # 返回空的FileTreeContent
-            return FileTreeContent(
-                root_path=relative_workspace_path,
-                level=level,
-                filter_binary=filter_binary,
-                total_files=0,
-                total_dirs=0,
-                total_size=0,
-                tree=[]
+    @staticmethod
+    def _normalize_level(level: int) -> int:
+        """把模型给的层级收敛到工具契约允许的范围。"""
+        if level > LIST_DIR_MAX_LEVEL:
+            logger.warning(
+                f"Requested level {level} exceeds maximum {LIST_DIR_MAX_LEVEL}, "
+                f"limiting to {LIST_DIR_MAX_LEVEL}."
             )
+            return LIST_DIR_MAX_LEVEL
+        if level < 1:
+            logger.warning(f"Requested level {level} is less than 1, setting to 1.")
+            return 1
+        return level
 
-        try:
-            # 统计信息
-            stats = {"total_files": 0, "total_dirs": 0, "total_size": 0}
+    async def _scan_async(
+        self, relative_workspace_path: str, level: int, filter_binary: bool
+    ) -> FileTreeContent:
+        return await asyncio.to_thread(
+            self._scan_directory_tree,
+            relative_workspace_path,
+            level,
+            filter_binary,
+        )
 
-            # 递归构建文件树
-            tree = self._build_file_tree(target_path, relative_workspace_path, 1, level, filter_binary, stats)
+    def _scan_directory_tree(
+        self, relative_workspace_path: str, level: int, filter_binary: bool
+    ) -> FileTreeContent:
+        """按工具预算扫描目录。
 
-            return FileTreeContent(
-                root_path=relative_workspace_path,
-                level=level,
-                filter_binary=filter_binary,
-                total_files=stats["total_files"],
-                total_dirs=stats["total_dirs"],
-                total_size=stats["total_size"],
-                tree=tree
-            )
+        工具不限制遍历条目数：模型要求 level=N 就返回真实的 N 层。见 `LIST_DIR_SCAN_MAX_SECONDS`
+        对唯一那道护栏的说明。
+        """
+        return scan_directory_tree(
+            self.resolve_path(relative_workspace_path),
+            relative_path=relative_workspace_path,
+            level=level,
+            filter_binary=filter_binary,
+            budget=_LIST_DIR_BUDGET,
+        )
 
-        except Exception as e:
-            logger.error(f"Error scanning directory tree: {e}", exc_info=True)
-            # 返回空的FileTreeContent
-            return FileTreeContent(
-                root_path=relative_workspace_path,
-                level=level,
-                filter_binary=filter_binary,
-                total_files=0,
-                total_dirs=0,
-                total_size=0,
-                tree=[]
-            )
+    def _render_result(self, relative_workspace_path: str, content: FileTreeContent) -> str:
+        """把扫描结果渲染成模型可读的文本。
 
-    def _get_string_result(self, relative_workspace_path: str, file_tree_content: FileTreeContent) -> str:
-        """根据FileTreeContent获取字符串结果，处理错误情况"""
-        # 处理错误情况
-        if not file_tree_content.tree and file_tree_content.total_files == 0 and file_tree_content.total_dirs == 0:
-            target_path = self.resolve_path(relative_workspace_path)
-            if not target_path.exists():
-                return f"错误：路径不存在: {target_path}"
-            if not target_path.is_dir():
-                return f"错误：路径不是目录: {target_path}"
+        不完整的结果必须显式说明缺了什么（`_partial_listing_notice`）：模型据此刻画工作区，
+        没有这段说明时它会从"列表里没有"推断出"文件不存在"。
+        """
+        resolved_path = self.resolve_path(relative_workspace_path)
+        if content.failure is DirectoryScanFailure.NOT_FOUND:
+            return f"Path does not exist: {resolved_path}"
+        if content.failure is DirectoryScanFailure.NOT_A_DIRECTORY:
+            return f"Path is not a directory: {resolved_path}"
 
-                # 从结构化数据生成字符串表示
-        return self._convert_file_tree_to_string(file_tree_content)
+        result = self._convert_file_tree_to_string(content)
+        if content.failure is DirectoryScanFailure.UNREADABLE:
+            result = f"Could not read the directory: {resolved_path}\n{result}"
 
-    def _is_text_file(self, file_path: Path) -> bool:
-        """判断文件是否为文本/代码文件"""
-        return is_text_file(file_path)
-
-    def _format_size(self, size: int) -> str:
-        """格式化文件大小"""
-        return format_file_size(size)
-
-    def _format_timestamp(self, timestamp: float) -> str:
-        """格式化时间戳为字符串格式"""
-        return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        notice = _partial_listing_notice(content)
+        if notice:
+            result += "\n" + notice
+        return result
 
     def _is_root_dir(self, path: str) -> bool:
         """判断路径是否为根目录
@@ -241,7 +258,7 @@ class ListDir(WorkspaceTool[ListDirParams]):
             path: 原始路径
 
         Returns:
-            str: 用于显示的路径名称
+            str: 显示用的路径名称
         """
         if self._is_root_dir(path):
             return i18n.translate("list_dir.display", category="tool.messages")
@@ -264,7 +281,7 @@ class ListDir(WorkspaceTool[ListDirParams]):
 
         # 获取目录路径和执行参数
         path = arguments.get("relative_workspace_path", ".") if arguments else "."
-        level = arguments.get("level", 3) if arguments else 3
+        level = self._normalize_level(arguments.get("level", 3) if arguments else 3)
         filter_binary = arguments.get("filter_binary", False) if arguments else False
 
         # 尝试从工具上下文缓存中获取已扫描的数据
@@ -277,123 +294,13 @@ class ListDir(WorkspaceTool[ListDirParams]):
         # 如果缓存中没有数据，重新扫描（fallback）- 使用 asyncio.to_thread 避免阻塞事件循环
         if not file_tree_content:
             logger.warning("No cached tree data found, re-scanning directory")
-            file_tree_content = await asyncio.to_thread(
-                self._scan_directory_tree,
-                path,
-                level,
-                filter_binary,
-            )
+            file_tree_content = await self._scan_async(path, level, filter_binary)
 
         # 返回工具详情
         return ToolDetail(
             type=DisplayType.FILE_TREE,
             data=file_tree_content
         )
-
-    def _build_file_tree(self, current_path: Path, relative_path: str, current_level: int,
-                        max_level: int, filter_binary: bool, stats: Dict[str, int]) -> List[FileTreeNode]:
-        """递归构建文件树结构"""
-        if current_level > max_level:
-            return []
-
-        # 文件系统读取
-        try:
-            items = sorted(
-                list(current_path.iterdir()),
-                key=lambda x: (not x.is_dir(), x.name.lower())
-            )
-
-        except PermissionError:
-            # 创建权限错误节点
-            error_node = FileTreeNode(
-                file_name="Permission denied",
-                relative_file_path=f"{relative_path}/[ERROR]",
-                is_directory=False,
-                file_size=None,
-                updated_at="",
-                children=None,
-                type=FileTreeNodeType.FILE,
-                error="Permission denied"
-            )
-            return [error_node]
-        except Exception as e:
-            # 创建访问错误节点
-            error_node = FileTreeNode(
-                file_name=f"Cannot access: {e!s}",
-                relative_file_path=f"{relative_path}/[ERROR]",
-                is_directory=False,
-                file_size=None,
-                updated_at="",
-                children=None,
-                type=FileTreeNodeType.FILE,
-                error=f"Cannot access: {e!s}"
-            )
-            return [error_node]
-
-        # 过滤隐藏文件，但允许 .magic 目录
-        _ALLOWED_HIDDEN = {".magic"}
-        items = [item for item in items if not item.name.startswith('.') or item.name in _ALLOWED_HIDDEN]
-
-        # 过滤二进制文件
-        if filter_binary:
-            items = [item for item in items if item.is_dir() or self._is_text_file(item)]
-
-        tree_nodes = []
-
-        for item in items:
-            try:
-                # 计算相对路径
-                if relative_path == ".":
-                    item_relative_path = item.name
-                else:
-                    item_relative_path = f"{relative_path}/{item.name}"
-
-                if item.is_dir():
-                    # 处理目录
-                    stats["total_dirs"] += 1
-
-                    # 递归获取子节点
-                    children = []
-                    if current_level < max_level:
-                        children = self._build_file_tree(
-                            item, item_relative_path, current_level + 1,
-                            max_level, filter_binary, stats
-                        )
-
-                    node = FileTreeNode(
-                        file_name=item.name,
-                        relative_file_path=item_relative_path,
-                        is_directory=True,
-                        file_size=None,
-                        updated_at=self._format_timestamp(item.stat().st_mtime),
-                        children=children if children else None,
-                        type=FileTreeNodeType.DIRECTORY
-                    )
-                    tree_nodes.append(node)
-
-                else:
-                    # 处理文件
-                    stats["total_files"] += 1
-                    stat_result = item.stat()
-                    file_size = stat_result.st_size
-                    stats["total_size"] += file_size
-
-                    node = FileTreeNode(
-                        file_name=item.name,
-                        relative_file_path=item_relative_path,
-                        is_directory=False,
-                        file_size=file_size,
-                        updated_at=self._format_timestamp(stat_result.st_mtime),
-                        children=None,
-                        type=FileTreeNodeType.FILE
-                    )
-                    tree_nodes.append(node)
-
-            except Exception as e:
-                logger.warning(f"Error processing {item}: {e}")
-                continue
-
-        return tree_nodes
 
     def _convert_file_tree_to_string(self, file_tree_content: FileTreeContent) -> str:
         """将FileTreeContent转换为字符串格式"""
@@ -439,7 +346,7 @@ class ListDir(WorkspaceTool[ListDirParams]):
                     self._append_tree_nodes_to_string(node.children, output_lines, next_indent, False)
             else:
                 # 文件
-                size_str = self._format_size(node.file_size) if node.file_size is not None else "0B"
+                size_str = format_file_size(node.file_size) if node.file_size is not None else "0B"
                 file_line = f"{prefix}[FILE] {node.file_name} ({size_str})\n"
                 output_lines.append(file_line)
 
@@ -457,7 +364,7 @@ class ListDir(WorkspaceTool[ListDirParams]):
         Args:
             tool_name: 工具名称
             tool_context: 工具上下文
-            result: 工具执行结果
+            result: 工具执行的结果
             execution_time: 执行耗时
             arguments: 执行参数
 

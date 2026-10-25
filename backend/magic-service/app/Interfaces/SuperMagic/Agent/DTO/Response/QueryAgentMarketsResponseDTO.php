@@ -25,13 +25,13 @@ class QueryAgentMarketsResponseDTO extends AbstractDTO
 
     private int $pageSize;
 
-    private int $total;
+    private ?int $total;
 
     public function __construct(
         array $list,
         int $page,
         int $pageSize,
-        int $total
+        ?int $total
     ) {
         $this->list = $list;
         $this->page = $page;

@@ -9,6 +9,9 @@ import MagicSpin from "@/components/base/MagicSpin"
 import MagicToaster from "@/components/base/MagicToaster"
 import { useTranslation } from "react-i18next"
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { shouldWaitForShareAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useDesignMethods } from "./hooks/useDesignMethods"
 import { useDesignMarker } from "./hooks/useDesignMarker"
@@ -23,7 +26,7 @@ import {
 	resolveActualDesignCurrentFile,
 	resolveDesignProjectBasePathFromAttachments,
 } from "./utils/utils"
-import { resolveDesignAttachment } from "./utils/designPath"
+import { resolveDesignCanvasResourceFileItem } from "./utils/designResourceReferenceResolver"
 import { FlexBox } from "@/components/base"
 import { observer } from "mobx-react-lite"
 import workspaceStore from "@/pages/superMagic/stores/core/workspace"
@@ -31,6 +34,8 @@ import type {
 	CanvasDesignDataChangeMeta,
 	CanvasDesignDataPatch,
 	CanvasDesignRef,
+	CanvasAccessMode,
+	CanvasCapability,
 } from "@/components/CanvasDesign/public/props"
 import { useDesignFocusElement } from "./hooks/useDesignFocusElement"
 import { useAttachments } from "./hooks/useAttachments"
@@ -38,6 +43,7 @@ import { useCanvasImageFileRenameSync } from "./hooks/useCanvasImageFileRenameSy
 import type {
 	CanvasDeviceInfo,
 	CanvasDocument,
+	CanvasFileElement,
 	LayerElement,
 } from "@/components/CanvasDesign/runtime/document/types"
 import { getDefaultCanvasDeviceInfo } from "@/components/CanvasDesign/runtime/shared/ids"
@@ -50,23 +56,38 @@ import mentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import { setCanvasElementResourceGetter } from "@/components/business/MentionPanel/runtime/builtin/domains/canvas-elements"
 import { useDesignDownloadPolicy } from "./hooks/useDesignDownloadPolicy"
 import { HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX } from "@/pages/superMagic/components/Detail/components/CommonHeader/components/HistoryVersionBanner"
-import type { DesignRemoteUpdateListenerMode } from "./managers/types"
+import { resolveDesignAccessMode, type DesignRemoteUpdateListenerMode } from "./managers/types"
 import { useCanvasResourceRefresh } from "./hooks/useCanvasResourceRefresh"
 import { waitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
 import { useNetwork } from "ahooks"
 import { AlertTriangle, CloudOff } from "lucide-react"
-import { needsUpgrade, upgradeCanvasToV2, type UpgradeProgress } from "./utils/canvasVersionUpgrade"
 import { CanvasUpgradeOverlay } from "./components/CanvasUpgradeBanner"
 import { toast } from "sonner"
+import { AssetsApi, buildAssetVisibility } from "@/apis"
+import { assetLibrarySessionStore } from "@/components/CanvasDesign/runtime/resources/asset/AssetLibrarySessionStore"
+import { AssetAgreementModal } from "@/pages/superMagic/components/AssetAgreementModal"
 import { applyCanvasDocumentPatch } from "@/components/CanvasDesign/runtime/document"
 import { prewarmCanvasDesignImageWorker } from "@/components/CanvasDesign/prewarm"
 import { designBuiltinPlugins } from "./plugins/options"
-import { UploadSubDir } from "@/components/CanvasDesign/public/magic-types"
+import {
+	UploadSubDir,
+	type CanvasAssetResourceInfo,
+	type CanvasLocalAssetUploadMode,
+	type CanvasEditAssetTarget,
+	type CanvasOpenSaveAssetDialogParams,
+} from "@/components/CanvasDesign/public/magic-types"
 import type { DesignDraftReason } from "./utils/designDraftStorage"
 import type { DesignSaveMetadata } from "./managers"
 import { canUseDesignPlugins } from "./utils/pluginAccess"
 import { userStore } from "@/models/user"
 import { getHydratedElementDetailsProvenance } from "./utils/elementDetailsIo"
+import { useCanvasSelectionMentionPublisher } from "./hooks/useCanvasSelectionMentionPublisher"
+import SaveAssetToLibraryDialog from "./components/SaveAssetToLibraryDialog"
+import {
+	bindMediaContentToAsset,
+	type ImageContentAssetBindingParams,
+} from "@/components/CanvasDesign/runtime/resources/asset/imageContentAssetBinding"
+import { useTerminateGeneratingImages } from "./hooks/useTerminateGeneratingImages"
 
 prewarmCanvasDesignImageWorker("super-magic-design-module")
 
@@ -252,6 +273,8 @@ function resolveDesignPluginDirectories(options: {
 interface DesignViewerProps {
 	attachments?: FileItem[]
 	attachmentList?: FileItem[]
+	/** 当前项目附件快照是否已完成首次加载。 */
+	attachmentsReady?: boolean
 	/** Project id forwarded by standalone/native preview when no selected topic exists. */
 	projectId?: string
 	currentFile?: {
@@ -273,6 +296,7 @@ interface DesignViewerProps {
 	isTabActive?: boolean
 	isFullscreen?: boolean
 	onFullscreen?: () => void
+	onRegisterSaveHandler?: (handler: (() => Promise<void>) | null) => void
 	data?: {
 		project_path?: string
 		elements?: LayerElement[]
@@ -283,10 +307,10 @@ function DesignViewer(props: DesignViewerProps) {
 	const {
 		attachments,
 		attachmentList,
-		projectId: projectIdProp,
 		currentFile: currentFileProps,
 		selectedTopic,
 		selectedProject,
+		projectId: projectIdProp,
 		isPlaybackMode = false,
 		allowEdit,
 		showFileHeader,
@@ -294,14 +318,17 @@ function DesignViewer(props: DesignViewerProps) {
 		isTabActive,
 		isFullscreen,
 		onFullscreen,
+		onRegisterSaveHandler,
 	} = props
+	// Prefer the topic project, then standalone preview, then the selected project.
+	const projectId = selectedTopic?.project_id || projectIdProp || selectedProject?.id
 
 	// 文件列表更新处理
 	const { flatAttachments, attachmentsReady, attachmentIndex, updateAttachments } =
 		useAttachments({
 			attachments,
 			attachmentList,
-			projectId: selectedTopic?.project_id,
+			projectId,
 		})
 
 	const propsElements = props.data?.elements
@@ -314,10 +341,6 @@ function DesignViewer(props: DesignViewerProps) {
 	const isOffline = online === false
 
 	const hostUiLocale = i18n.resolvedLanguage ?? i18n.language
-
-	// Native standalone preview has no selected topic, so use the project id
-	// forwarded by Render as its only fallback.
-	const projectId = selectedTopic?.project_id || projectIdProp
 
 	const currentFile = useMemo(() => {
 		const actualCurrentFile = resolveActualDesignCurrentFile({
@@ -338,9 +361,18 @@ function DesignViewer(props: DesignViewerProps) {
 
 	// 检测是否是分享场景
 	const { isShareRoute } = useShareRoute()
+	const fileAccess = useFileAccess()
+	const fileApi = useFileApi()
 
 	// 检测是否是移动端
 	const isMobile = useIsMobile()
+	const initialAccessMode: CanvasAccessMode = resolveDesignAccessMode({
+		allowEdit,
+		isPlaybackMode,
+		isShareRoute,
+		isMobile,
+		isOffline,
+	})
 
 	// 用于强制重新挂载 CanvasDesign 的 key
 	const [canvasDesignKey, setCanvasDesignKey] = useState(0)
@@ -412,9 +444,13 @@ function DesignViewer(props: DesignViewerProps) {
 		}
 	}, [])
 
-	// 用于跟踪是否已经执行过初始加载，确保只加载一次
-	// 这样可以避免 attachments 数组引用变化导致的重复加载
-	const hasLoadedRef = useRef(false)
+	// 初始加载按项目/画布身份去重；同一实例切换画布时，旧请求不能阻止新画布加载。
+	const initialLoadIdentity = currentFile?.id
+		? JSON.stringify([projectId ?? null, currentFile.id, fileApi.identityKey])
+		: null
+	const currentInitialLoadIdentityRef = useRef(initialLoadIdentity)
+	const loadedInitialLoadIdentityRef = useRef<string | null>(null)
+	currentInitialLoadIdentityRef.current = initialLoadIdentity
 	const wasOfflineRef = useRef(isOffline)
 
 	// magic.project.js 与 designData 集中管理器（含 autoSave、远端更新监听、版本管理）
@@ -422,12 +458,15 @@ function DesignViewer(props: DesignViewerProps) {
 		currentFile,
 		attachments,
 		flatAttachments,
+		attachmentsReady,
 		attachmentIndex,
 		projectId,
 		allowEdit,
 		isPlaybackMode,
 		isShareRoute,
 		isMobile,
+		isOffline,
+		accessMode: initialAccessMode,
 		projectPath: props.data?.project_path,
 		designProjectId: directoryInfo.id || currentFile?.id,
 		designProjectName: directoryInfo.name ?? "",
@@ -465,15 +504,21 @@ function DesignViewer(props: DesignViewerProps) {
 		updateDesignData,
 		updateDesignDataAndScheduleSave,
 		persistLocalDraft,
-		syncDesignData,
+		persistLocalDraftAndWait,
+		hasUnsavedChanges,
 		magicProjectJsFileId,
 		isInitialLoading,
+		pendingDesignUpgrade,
+		designLoadIssue,
+		sidecarStatus,
+		clearDesignLoadIssue,
+		persistPendingDesignUpgrade,
 		// isSaving - 迁移后不再用于头部保存状态指示器，暂时注释掉，如需使用可取消注释
 		loadFromRemote,
 		reloadPreservingLocalDraft,
+		reloadCurrentVersion,
 		reloadDiscardingLocalDraft,
-		isReadOnly: isReadOnlyState,
-		setIsReadOnly: setIsReadOnlyState,
+		accessMode,
 		fileVersionsList,
 		fileVersion,
 		isNewestVersion,
@@ -489,103 +534,107 @@ function DesignViewer(props: DesignViewerProps) {
 		resolveBlockingConflictWithRemote,
 		resolveBlockingConflictWithLocal,
 		resolveEditedElementConflictsWithLocal,
+		manualSave,
 	} = designProjectManager
 
 	const { isProcessingRevoke, revokeType } = designProjectManager
+
 	const latestDesignDataRef = useRef(designData)
+	const isInitialLoadingRef = useRef(isInitialLoading)
 	const [isVersionActionLoading, setIsVersionActionLoading] = useState(false)
 
 	useEffect(() => {
 		latestDesignDataRef.current = designData
 	}, [designData])
 
-	// v1 → v2 升级相关状态
+	useEffect(() => {
+		isInitialLoadingRef.current = isInitialLoading
+	}, [isInitialLoading])
 	const [isUpgrading, setIsUpgrading] = useState(false)
 	const [autoUpgradeFailed, setAutoUpgradeFailed] = useState(false)
-	const [upgradeProgress, setUpgradeProgress] = useState<UpgradeProgress>({
-		step: "backup",
-		percent: 0,
-	})
+	const [upgradeProgress, setUpgradeProgress] = useState(0)
 	const autoUpgradeTaskKeyRef = useRef<string | null>(null)
+	const upgradeProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-	const shouldAutoUpgrade = useMemo(
-		() =>
-			!isInitialLoading &&
-			allowEdit &&
-			!isPlaybackMode &&
-			!isShareRoute &&
-			isNewestVersion &&
-			needsUpgrade(designData),
-		[allowEdit, designData, isInitialLoading, isNewestVersion, isPlaybackMode, isShareRoute],
-	)
+	const clearUpgradeProgressTimer = useCallback(() => {
+		if (!upgradeProgressTimerRef.current) return
+		clearInterval(upgradeProgressTimerRef.current)
+		upgradeProgressTimerRef.current = null
+	}, [])
+
+	useEffect(() => clearUpgradeProgressTimer, [clearUpgradeProgressTimer])
+
+	const shouldAutoUpgrade =
+		!isInitialLoading &&
+		!!pendingDesignUpgrade &&
+		(accessMode === "edit" ||
+			(accessMode === "readonly" && pendingDesignUpgrade.reason === "sidecar-retry")) &&
+		isNewestVersion &&
+		sidecarStatus !== "unsupported" &&
+		!conflictState
 
 	const automaticUpgradeKey = useMemo(() => {
-		if (!shouldAutoUpgrade || !projectId || !magicProjectJsFileId) return null
+		if (!shouldAutoUpgrade || !projectId || !magicProjectJsFileId || !pendingDesignUpgrade) {
+			return null
+		}
 		return [
 			projectId,
 			magicProjectJsFileId,
-			designData.version,
+			pendingDesignUpgrade.sourceVersion,
+			pendingDesignUpgrade.targetVersion,
 			designProjectBasePath ?? "",
 		].join(":")
 	}, [
-		designData.version,
 		designProjectBasePath,
 		magicProjectJsFileId,
+		pendingDesignUpgrade,
 		projectId,
 		shouldAutoUpgrade,
 	])
 
 	useEffect(() => {
 		setAutoUpgradeFailed(false)
+		if (!automaticUpgradeKey) autoUpgradeTaskKeyRef.current = null
 	}, [automaticUpgradeKey])
 
 	const handleUpgrade = useCallback(async () => {
-		if (!magicProjectJsFileId || !projectId || isUpgrading) return
+		if (!pendingDesignUpgrade || isUpgrading) return
+
 		setIsUpgrading(true)
 		setAutoUpgradeFailed(false)
-		setUpgradeProgress({ step: "backup", percent: 0 })
+		setUpgradeProgress(8)
+		clearUpgradeProgressTimer()
+		upgradeProgressTimerRef.current = setInterval(() => {
+			setUpgradeProgress((current) => {
+				if (current >= 92) return current
+				return Math.min(92, current + Math.max(1, Math.ceil((92 - current) * 0.12)))
+			})
+		}, 350)
+
 		try {
-			const upgradedData = await upgradeCanvasToV2(
-				designData,
-				{
-					magicProjectJsFileId,
-					projectId,
-					attachments,
-					flatAttachments,
-					designProjectBasePath,
-				},
-				(progress) => setUpgradeProgress(progress),
-			)
-			// 升级函数已经写入远端；这里只同步内存态和可信基线，避免二次自动保存。
-			const nextDesignData: DesignData = {
-				...latestDesignDataRef.current,
-				version: upgradedData.version,
-				canvas: upgradedData.canvas,
-			}
-			latestDesignDataRef.current = nextDesignData
-			updateDesignData(() => nextDesignData)
-			syncDesignData(nextDesignData)
+			const didPersist = await persistPendingDesignUpgrade()
+			if (!didPersist) throw new Error("Canvas DSL upgrade was not fully persisted")
+
+			clearUpgradeProgressTimer()
+			setUpgradeProgress(100)
+			await new Promise((resolve) => setTimeout(resolve, 300))
 			updateAttachments()
 			toast.success(t("design.upgrade.success"))
-		} catch (error) {
-			console.error("[Design] upgrade failed:", error)
-			toast.error(t("design.upgrade.failed"))
+		} catch {
+			clearUpgradeProgressTimer()
+			setUpgradeProgress(0)
 			setAutoUpgradeFailed(true)
+			toast.error(t("design.upgrade.failed"))
 		} finally {
 			setIsUpgrading(false)
 		}
 	}, [
-		magicProjectJsFileId,
-		projectId,
-		designData,
-		attachments,
-		flatAttachments,
-		designProjectBasePath,
-		updateDesignData,
-		syncDesignData,
-		updateAttachments,
+		clearUpgradeProgressTimer,
 		isUpgrading,
+		pendingDesignUpgrade,
+		persistPendingDesignUpgrade,
 		t,
+		updateAttachments,
 	])
 
 	useEffect(() => {
@@ -596,12 +645,28 @@ function DesignViewer(props: DesignViewerProps) {
 		void handleUpgrade()
 	}, [autoUpgradeFailed, automaticUpgradeKey, handleUpgrade, isOffline, isUpgrading])
 
-	const isUpgradeBlockingCanvas =
-		isUpgrading || (shouldAutoUpgrade && !isOffline && !autoUpgradeFailed)
+	const isUpgradeBlockingCanvas = shouldAutoUpgrade && !isOffline
 	const shouldShowUpgradeProgress =
 		isUpgrading || (shouldAutoUpgrade && !isOffline && !autoUpgradeFailed)
 	const shouldShowUpgradeFailed =
 		shouldAutoUpgrade && !isOffline && autoUpgradeFailed && !isUpgrading
+	const isBlockingDesignLoadIssue =
+		!!designLoadIssue &&
+		designLoadIssue.kind !== "unsupported-sidecar" &&
+		designLoadIssue.kind !== "sidecar-persist-failed"
+	const shouldShowUnsupportedSidecarNotice =
+		designLoadIssue?.kind === "unsupported-sidecar" || sidecarStatus === "unsupported"
+	const [isReloadingDesignIssue, setIsReloadingDesignIssue] = useState(false)
+	const handleReloadDesignIssue = useCallback(async () => {
+		if (isReloadingDesignIssue) return
+		setIsReloadingDesignIssue(true)
+		clearDesignLoadIssue()
+		try {
+			await reloadPreservingLocalDraft()
+		} finally {
+			setIsReloadingDesignIssue(false)
+		}
+	}, [clearDesignLoadIssue, isReloadingDesignIssue, reloadPreservingLocalDraft])
 
 	// 当 designProjectBasePath 变化（目录改名）时，重新从远端加载 DSL（修复旧路径引用），再重挂载画布
 	useEffect(() => {
@@ -611,7 +676,16 @@ function DesignViewer(props: DesignViewerProps) {
 		}
 
 		if (prevDesignProjectBasePathRef.current !== designProjectBasePath) {
-			prevDesignProjectBasePathRef.current = designProjectBasePath
+			const prevPath = prevDesignProjectBasePathRef.current
+			const nextPath = designProjectBasePath
+			// Tab switch can briefly drop attachments/currentFile, which makes the path empty.
+			// That is not a directory rename; keep the last real path and skip reload.
+			if (!prevPath || !nextPath) {
+				if (nextPath) prevDesignProjectBasePathRef.current = nextPath
+				return
+			}
+
+			prevDesignProjectBasePathRef.current = nextPath
 			const taskId = basePathSwitchTaskIdRef.current + 1
 			basePathSwitchTaskIdRef.current = taskId
 			setIsBasePathSwitching(true)
@@ -638,12 +712,42 @@ function DesignViewer(props: DesignViewerProps) {
 
 	// 设计容器 ref
 	const containerRef = useRef<HTMLDivElement>(null)
+	const [floatingBoundary, setFloatingBoundary] = useState<HTMLElement | null>(null)
+	const floatingBoundaryRef = useCallback((node: HTMLDivElement | null) => {
+		setFloatingBoundary(node)
+	}, [])
 
 	// 获取显示名称，优先使用目录名称
 	const displayName = directoryInfo.name || designData.name
 
 	// 设计项目 ID
 	const designProjectId = directoryInfo.id || currentFile?.id || ""
+	const isCanvasSelectionMentionsEnabled = accessMode === "edit" && isTabActive !== false
+	const resolveCanvasResourceFile = useCallback(
+		(src: string) =>
+			resolveDesignCanvasResourceFileItem(src, {
+				flatAttachments,
+				designProjectBasePath,
+				attachmentIndex,
+			}) ?? null,
+		[attachmentIndex, designProjectBasePath, flatAttachments],
+	)
+	const getLatestCanvasDocument = useCallback(() => latestDesignDataRef.current.canvas, [])
+	const publishCanvasSelectionMentions = useCanvasSelectionMentionPublisher({
+		canvasDesignRef,
+		designProjectId,
+		enabled: isCanvasSelectionMentionsEnabled,
+		scope: {
+			workspaceId: selectedWorkspace?.id,
+			projectId,
+			topicId: selectedTopic?.id,
+			designProjectId,
+		},
+		getFallbackDocument: getLatestCanvasDocument,
+		resolveFileBySrc: resolveCanvasResourceFile,
+	})
+	useTerminateGeneratingImages(canvasDesignRef)
+
 	const videoPointsEstimateCacheScope = useMemo(
 		() =>
 			[
@@ -677,18 +781,7 @@ function DesignViewer(props: DesignViewerProps) {
 				canvasDesignRef.current?.exportCurrentDocument?.() ??
 				latestDesignDataRef.current.canvas ??
 				null,
-			resolveFileBySrc: (src) => {
-				const resolvedFile = resolveDesignAttachment(
-					src,
-					{
-						flatAttachments,
-						designProjectBasePath,
-						attachmentIndex,
-					},
-					{ mode: "strict-current-canvas" },
-				)
-				return resolvedFile.status === "found" ? resolvedFile.fileItem : null
-			},
+			resolveFileBySrc: resolveCanvasResourceFile,
 		})
 		setCanvasElementResourceGetter(
 			designProjectId,
@@ -699,16 +792,15 @@ function DesignViewer(props: DesignViewerProps) {
 			mentionPanelStore.clearActiveCanvasElementsContext(designProjectId)
 			setCanvasElementResourceGetter(designProjectId, null)
 		}
-	}, [
-		attachmentIndex,
-		designProjectBasePath,
-		designProjectId,
-		displayName,
-		flatAttachments,
-		isTabActive,
-	])
+	}, [designProjectId, displayName, isTabActive, resolveCanvasResourceFile])
 
 	const downloadPolicy = useDesignDownloadPolicy()
+	const getContentViewElement = useCallback(
+		(element: CanvasFileElement) =>
+			canvasDesignRef.current?.getCanvasInstance()?.getElementForContentView(element) ??
+			element,
+		[],
+	)
 
 	const designCanvasMagicPermissions = useMemo(
 		() => ({
@@ -733,9 +825,71 @@ function DesignViewer(props: DesignViewerProps) {
 	const [markersForCanvas, setMarkersForCanvas] = useState(() => {
 		return markerManager.getMarkers(designProjectId ?? "")
 	})
+	type SaveAssetDialogSession =
+		| { kind: "workspace"; params: CanvasOpenSaveAssetDialogParams }
+		| {
+				kind: "local-file"
+				file: File
+				mode: CanvasLocalAssetUploadMode
+				onSaved: (asset: CanvasAssetResourceInfo) => void
+				onClosed: () => void
+		  }
+		| {
+				kind: "edit"
+				asset: CanvasEditAssetTarget
+				onUpdated: () => void
+				onClosed: () => void
+		  }
+	const [saveAssetDialogSession, setSaveAssetDialogSession] =
+		useState<SaveAssetDialogSession | null>(null)
+	const saveAssetDialogSessionRef = useRef<SaveAssetDialogSession | null>(null)
+	saveAssetDialogSessionRef.current = saveAssetDialogSession
+	const [assetAgreementVisible, setAssetAgreementVisible] = useState(false)
+	const assetAgreementResolverRef = useRef<((signed: boolean) => void) | null>(null)
+	const assetAgreementSignedActionRef = useRef<(() => void) | null>(null)
+	const openSaveAssetToLibraryDialog = useCallback(
+		(params: CanvasOpenSaveAssetDialogParams) =>
+			setSaveAssetDialogSession({ kind: "workspace", params }),
+		[],
+	)
+	const openEditAssetDialog = useCallback(
+		(params: { asset: CanvasEditAssetTarget; onUpdated: () => void; onClosed: () => void }) =>
+			setSaveAssetDialogSession({ kind: "edit", ...params }),
+		[],
+	)
+	const openSaveLocalAssetDialog = useCallback(
+		(params: {
+			file: File
+			mode: CanvasLocalAssetUploadMode
+			onSaved: (asset: CanvasAssetResourceInfo) => void
+			onClosed: () => void
+		}) => setSaveAssetDialogSession({ kind: "local-file", ...params }),
+		[],
+	)
+	const closeSaveAssetDialog = useCallback(() => {
+		const current = saveAssetDialogSessionRef.current
+		if (current?.kind === "local-file" || current?.kind === "edit") current.onClosed()
+		setSaveAssetDialogSession(null)
+	}, [])
+	const ensureAssetAgreementSigned = useCallback(async (options?: { onSigned?: () => void }) => {
+		const signed = await assetLibrarySessionStore.getAssetAgreementSigned()
+		if (signed) return true
+		assetAgreementSignedActionRef.current = options?.onSigned ?? null
+		return await new Promise<boolean>((resolve) => {
+			assetAgreementResolverRef.current = resolve
+			setAssetAgreementVisible(true)
+		})
+	}, [])
+	const settleAssetAgreement = useCallback((signed: boolean) => {
+		const resolve = assetAgreementResolverRef.current
+		assetAgreementResolverRef.current = null
+		setAssetAgreementVisible(false)
+		resolve?.(signed)
+	}, [])
 
 	// 使用 hook 获取 methods 方法集合
-	const methods = useDesignMethods({
+	const baseMethods = useDesignMethods({
+		getContentViewElement,
 		projectId,
 		designProjectId,
 		selectedTopic,
@@ -748,11 +902,31 @@ function DesignViewer(props: DesignViewerProps) {
 		onExitFullscreen: handleExitFullscreen,
 		updateAttachments,
 		downloadPolicy,
+		openSaveAssetToLibraryDialog,
+		openSaveLocalAssetDialog,
+		openEditAssetDialog,
+		ensureAssetAgreementSigned,
 	})
+	const getBaseFileInfo = baseMethods.getFileInfo
+
+	const getSaveAssetPreviewUrl = useCallback(
+		async (path: string) => {
+			const isVideo = /\.(mp4|mov|webm)(?:$|[?#])/i.test(path)
+			const fileInfo = await getBaseFileInfo(path, { useImageProcess: !isVideo })
+			return fileInfo?.src
+		},
+		[getBaseFileInfo],
+	)
+	const bindSavedAssetToImageContent = useCallback((params: ImageContentAssetBindingParams) => {
+		const canvas = canvasDesignRef.current?.getCanvasInstance()
+		if (!canvas) return "target-missing" as const
+		return bindMediaContentToAsset(canvas, params)
+	}, [])
 
 	// 注入 Manager 依赖（getCanvasElements、methods、pubsub 等）
 	useEffect(() => {
-		markerManager.updateDependencies({
+		if (!designProjectId) return undefined
+		return markerManager.registerDependencies(designProjectId, {
 			getCanvasElements: (id) =>
 				id === designProjectId ? { elements: designData.canvas?.elements } : null,
 			getElementImageInfo: (elementId: string) => {
@@ -761,9 +935,10 @@ function DesignViewer(props: DesignViewerProps) {
 					canvasDesignRef.current?.getElementImageInfo(elementId) ?? Promise.resolve(null)
 				)
 			},
-			getFileInfo: methods.getFileInfo,
-			uploadPrivateFiles: methods.uploadPrivateFiles,
-			identifyImageMark: methods.identifyImageMark,
+			getFileInfo: baseMethods.getFileInfo,
+			getAssetResourceInfo: baseMethods.getAssetResourceInfo,
+			uploadPrivateFiles: baseMethods.uploadPrivateFiles,
+			identifyImageMark: baseMethods.identifyImageMark,
 			publishToMessageEditor: (event, payload) => pubsub.publish(event, payload),
 			projectId,
 			topicId: selectedTopic?.id,
@@ -774,9 +949,10 @@ function DesignViewer(props: DesignViewerProps) {
 		markerManager,
 		designProjectId,
 		designData.canvas?.elements,
-		methods.getFileInfo,
-		methods.uploadPrivateFiles,
-		methods.identifyImageMark,
+		baseMethods.getFileInfo,
+		baseMethods.getAssetResourceInfo,
+		baseMethods.uploadPrivateFiles,
+		baseMethods.identifyImageMark,
 		projectId,
 		selectedTopic?.id,
 	])
@@ -785,7 +961,7 @@ function DesignViewer(props: DesignViewerProps) {
 	const { handleMarkerCreated, handleMarkerDeleted, handleMarkerUpdated, handleMarkerRestored } =
 		useDesignMarker({
 			canvas: designData.canvas,
-			methods,
+			methods: baseMethods,
 			projectId,
 			designProjectId,
 			markerManager,
@@ -813,6 +989,7 @@ function DesignViewer(props: DesignViewerProps) {
 		isInitialLoading,
 		canvasDesignRef,
 		isPlaybackMode,
+		resolveFileBySrc: resolveCanvasResourceFile,
 	})
 
 	// 获取画布设备信息：布局沿用业务断点，输入能力由画布统一检测
@@ -909,43 +1086,76 @@ function DesignViewer(props: DesignViewerProps) {
 	)
 
 	const persistCurrentCanvasDraftImmediately = useCallback(
-		(reason: DesignDraftReason = "pagehide") => {
-			if (fileVersion !== undefined || isVersionActionLoading) {
-				return
+		async (reason: DesignDraftReason = "pagehide") => {
+			if (
+				fileVersion !== undefined ||
+				isVersionActionLoading ||
+				isInitialLoadingRef.current
+			) {
+				return null
 			}
 			const currentCanvasData = canvasDesignRef.current?.exportCurrentDocument?.()
-			if (currentCanvasData) {
-				persistCanvasDataLocally(currentCanvasData, {
+			const latestCanvasData = latestDesignDataRef.current.canvas
+			const currentElementCount = currentCanvasData?.elements?.length ?? 0
+			const latestElementCount = latestCanvasData?.elements?.length ?? 0
+			// Canvas 在初始化/恢复期间可能暂时导出空文档。此时保留最近一次可信数据，
+			// 避免 pagehide 把远端非空画布覆盖成本地空草稿。
+			if (currentCanvasData && (currentElementCount > 0 || latestElementCount === 0)) {
+				const nextDesignData: DesignData = {
+					...latestDesignDataRef.current,
+					canvas: currentCanvasData,
+				}
+				latestDesignDataRef.current = nextDesignData
+				updateDesignData(() => nextDesignData)
+				const writeResult = await persistLocalDraftAndWait(nextDesignData, {
 					immediate: true,
 					reason,
 				})
-				return
+				return { designData: nextDesignData, durable: writeResult?.durable ?? false }
 			}
-			persistLocalDraft(latestDesignDataRef.current, {
+			const nextDesignData = latestDesignDataRef.current
+			const writeResult = await persistLocalDraftAndWait(nextDesignData, {
 				immediate: true,
 				reason,
 			})
+			return { designData: nextDesignData, durable: writeResult?.durable ?? false }
 		},
-		[fileVersion, isVersionActionLoading, persistCanvasDataLocally, persistLocalDraft],
+		[fileVersion, isVersionActionLoading, persistLocalDraftAndWait, updateDesignData],
 	)
 
 	const persistCurrentCanvasDraftImmediatelyRef = useRef(persistCurrentCanvasDraftImmediately)
+	const manualSaveRef = useRef(manualSave)
+	const hasUnsavedChangesRef = useRef(hasUnsavedChanges)
 
 	useEffect(() => {
 		persistCurrentCanvasDraftImmediatelyRef.current = persistCurrentCanvasDraftImmediately
 	}, [persistCurrentCanvasDraftImmediately])
 
+	useEffect(() => {
+		manualSaveRef.current = manualSave
+	}, [manualSave])
+
+	useEffect(() => {
+		hasUnsavedChangesRef.current = hasUnsavedChanges
+	}, [hasUnsavedChanges])
+
 	// 重新初始化页面（用于刷新按钮）
 	const handleReinitialize = useCallback(async () => {
 		// 先更新 markersForCanvas，并保留当前画布内尚未落远端的编辑。
 		setMarkersForCanvas(markerManager.getMarkers(designProjectId ?? ""))
-		persistCurrentCanvasDraftImmediately("manual-refresh")
-		await reloadPreservingLocalDraft()
+		if (fileVersion !== undefined) {
+			await reloadCurrentVersion()
+		} else {
+			persistCurrentCanvasDraftImmediately("manual-refresh")
+			await reloadPreservingLocalDraft()
+		}
 		refreshCanvasDesign()
 		if (magicProjectJsFileId && fetchFileVersions && !isShareRoute) {
 			await fetchFileVersions()
 		}
 	}, [
+		fileVersion,
+		reloadCurrentVersion,
 		reloadPreservingLocalDraft,
 		refreshCanvasDesign,
 		magicProjectJsFileId,
@@ -1007,17 +1217,19 @@ function DesignViewer(props: DesignViewerProps) {
 		handleVersionRollback: handleVersionRollbackWithLoading,
 	})
 
-	const { handleCanvasDesignDataChange: syncCanvasImageFileRename } =
-		useCanvasImageFileRenameSync({
-			canvasDesignRef,
-			currentCanvasData: designData.canvas,
-			flatAttachments,
-			attachmentIndex,
-			designProjectBasePath,
-			projectId,
-			persistCanvasData,
-			updateAttachments,
-		})
+	const imageRename = useCanvasImageFileRenameSync({
+		canvasDesignRef,
+		currentCanvasData: designData.canvas,
+		flatAttachments,
+		attachmentsReady,
+		attachmentIndex,
+		designProjectBasePath,
+		projectId,
+		persistCanvasData,
+		updateAttachments,
+	})
+
+	const methods = useMemo(() => ({ ...baseMethods, imageRename }), [baseMethods, imageRename])
 
 	// 处理画布数据变化（用户编辑，触发自动保存）
 	const handleCanvasDesignDataChange = useCallback(
@@ -1044,19 +1256,17 @@ function DesignViewer(props: DesignViewerProps) {
 				...latestDesignDataRef.current,
 				canvas: canvasData,
 			})
-			syncCanvasImageFileRename(canvasData, meta)
 		},
 		[
 			isOffline,
 			persistCanvasData,
 			persistCanvasDataLocally,
 			resolveEditedElementConflictsWithLocal,
-			syncCanvasImageFileRename,
 		],
 	)
 
 	const handleCanvasDesignDataPatchChange = useCallback(
-		(patch: CanvasDesignDataPatch, meta?: CanvasDesignDataChangeMeta) => {
+		(patch: CanvasDesignDataPatch) => {
 			mentionPanelStore.invalidateActiveCanvasElementsCache()
 			if (isApplyingRemoteCanvasUpdateRef.current) {
 				return
@@ -1069,16 +1279,12 @@ function DesignViewer(props: DesignViewerProps) {
 
 			const nextCanvasData = persistCanvasDataPatch(patch)
 			resolveEditedElementConflictsFromPatch(patch, nextCanvasData)
-			if (nextCanvasData) {
-				syncCanvasImageFileRename(nextCanvasData, meta)
-			}
 		},
 		[
 			isOffline,
 			persistCanvasDataPatch,
 			persistCanvasPatchLocally,
 			resolveEditedElementConflictsFromPatch,
-			syncCanvasImageFileRename,
 		],
 	)
 
@@ -1100,6 +1306,7 @@ function DesignViewer(props: DesignViewerProps) {
 		canvasDesignRef,
 		canvas: designData.canvas,
 		flatAttachments,
+		attachmentsReady,
 		attachmentIndex,
 		designProjectBasePath,
 		projectId,
@@ -1144,17 +1351,15 @@ function DesignViewer(props: DesignViewerProps) {
 	)
 
 	// 组件挂载时加载初始数据
-	// 监听 attachments 变化，确保在 attachments 有数据后再加载
+	// 监听附件快照变化，确保附件数据准备完成后再加载
 	// 这样可以避免在 attachments 未加载完成时就尝试查找文件，导致找不到文件但 isInitialLoading 被设置为 false
-	// 只加载一次，文件切换时不重新加载（保持与 useMount 的行为一致）
+	// 同一项目/画布只加载一次；文件切换时以新身份重新加载。
 	useEffect(() => {
-		// 如果已经加载过，不再重复加载
-		if (hasLoadedRef.current) {
+		if (!initialLoadIdentity || loadedInitialLoadIdentityRef.current === initialLoadIdentity) {
 			return
 		}
 
-		// 如果 attachments 为空，不执行加载，等待 attachments 更新
-		if (!attachments || attachments.length === 0) {
+		if (!attachmentsReady) {
 			return
 		}
 
@@ -1162,58 +1367,54 @@ function DesignViewer(props: DesignViewerProps) {
 			return
 		}
 
-		// attachments 有数据后，执行加载
-		hasLoadedRef.current = true
+		if (shouldWaitForShareAccess(fileAccess)) {
+			return
+		}
 
-		loadFromRemote().then(() => {
-			if (isMobile) {
-				setTimeout(() => {
-					canvasDesignRef.current?.fitToScreen()
-				}, 1)
-			}
-			if (isPlaybackMode) {
-				setTimeout(() => {
-					if (propsElements) {
-						canvasDesignRef.current?.focusElement(
-							propsElements.map((element) => element.id),
-							{
-								animated: false,
-								selectElement: false,
-							},
-						)
-					} else {
+		const requestIdentity = initialLoadIdentity
+		void (async () => {
+			try {
+				const didLoad = await loadFromRemote()
+				if (!didLoad || currentInitialLoadIdentityRef.current !== requestIdentity) {
+					return
+				}
+				loadedInitialLoadIdentityRef.current = requestIdentity
+				if (isMobile) {
+					setTimeout(() => {
 						canvasDesignRef.current?.fitToScreen()
-					}
-				}, 100)
+					}, 1)
+				}
+				if (isPlaybackMode) {
+					setTimeout(() => {
+						if (propsElements) {
+							canvasDesignRef.current?.focusElement(
+								propsElements.map((element) => element.id),
+								{
+									animated: false,
+									selectElement: false,
+								},
+							)
+						} else {
+							canvasDesignRef.current?.fitToScreen()
+						}
+					}, 100)
+				}
+			} catch {
+				// 加载失败时保持 loading 状态，等待后续附件快照变化触发重试。
 			}
-		})
+		})()
 	}, [
 		attachments,
+		attachmentsReady,
 		currentFile?.id,
 		currentFile?.name,
+		fileAccess,
+		flatAttachments,
+		initialLoadIdentity,
 		isMobile,
 		isPlaybackMode,
 		loadFromRemote,
 		propsElements,
-	])
-
-	// 监听 allowEdit、isPlaybackMode、isShareRoute 和 isMobile 变化，更新只读状态
-	// 如果当前不在查看历史版本，则根据 allowEdit、isPlaybackMode、isShareRoute 或 isMobile 更新只读状态
-	// 如果正在查看历史版本，则保持只读状态不变（由 onVersionChange 处理）
-	useEffect(() => {
-		if (isNewestVersion) {
-			setIsReadOnlyState(
-				!allowEdit || isPlaybackMode || isShareRoute || isMobile || isOffline,
-			)
-		}
-	}, [
-		allowEdit,
-		isMobile,
-		isNewestVersion,
-		isOffline,
-		isPlaybackMode,
-		isShareRoute,
-		setIsReadOnlyState,
 	])
 
 	useEffect(() => {
@@ -1387,6 +1588,60 @@ function DesignViewer(props: DesignViewerProps) {
 	const shouldBlockCanvasForConflict =
 		!!conflictState && !hasUnresolvedElementConflicts && !hasUnresolvedConnectionConflicts
 	const shouldShowCanvasConflictNotice = shouldBlockCanvasForConflict && !!conflictNoticeText
+	const canvasAccessMode: CanvasAccessMode = accessMode
+
+	useEffect(() => {
+		if (!onRegisterSaveHandler) return
+		if (canvasAccessMode !== "edit" || isInitialLoading) {
+			onRegisterSaveHandler(null)
+			return
+		}
+
+		const saveCanvasBeforeClose = async () => {
+			// Export the runtime document again because the last Canvas interaction may not
+			// have reached the host change callback before the user closes the tab.
+			const prepared = await persistCurrentCanvasDraftImmediatelyRef.current("manual-refresh")
+			if (!prepared) return
+
+			const saveInBackground = () =>
+				manualSaveRef.current(prepared.designData).catch(() => undefined)
+			if (!hasUnsavedChangesRef.current(prepared.designData)) return
+
+			// The local draft is the close-time recovery boundary. Once it is durable, the remote
+			// save may continue after the Canvas component unmounts without delaying the tab close.
+			if (prepared.durable) {
+				saveInBackground()
+				return
+			}
+
+			// If every local fallback failed, retain the old blocking behavior for this rare case;
+			// otherwise a page close could leave the user without either recovery or remote data.
+			await manualSaveRef.current(prepared.designData)
+		}
+
+		onRegisterSaveHandler(saveCanvasBeforeClose)
+		return () => onRegisterSaveHandler(null)
+	}, [canvasAccessMode, isInitialLoading, onRegisterSaveHandler])
+
+	const canvasCapabilities = useMemo<Partial<Record<CanvasCapability, boolean>>>(() => {
+		const runtimeWriteBlocked =
+			isUpgradeBlockingCanvas || isBlockingDesignLoadIssue || shouldBlockCanvasForConflict
+		return {
+			...(allowDownload === true ? { "sideEffect.download": true } : {}),
+			...(runtimeWriteBlocked
+				? {
+						"document.write": false,
+						"document.delete": false,
+						"sideEffect.generate": false,
+					}
+				: {}),
+		}
+	}, [
+		allowDownload,
+		isBlockingDesignLoadIssue,
+		isUpgradeBlockingCanvas,
+		shouldBlockCanvasForConflict,
+	])
 	const [blockingConflictResolveAction, setBlockingConflictResolveAction] = useState<
 		"remote" | "local" | null
 	>(null)
@@ -1549,7 +1804,6 @@ function DesignViewer(props: DesignViewerProps) {
 									onChangeFileVersion={handleChangeFileVersion}
 									onReturnLatest={handleReturnLatest}
 									onVersionRollback={handleVersionRollback}
-									isReadOnly={isReadOnlyState}
 									isMobile={isMobile}
 									allowEdit={allowEdit}
 									updateAttachments={updateAttachments}
@@ -1558,7 +1812,7 @@ function DesignViewer(props: DesignViewerProps) {
 								<CanvasDesignHeaderV2 {...headerProps} />
 							</>
 						)}
-						<div className={styles.designCanvasContainer}>
+						<div ref={floatingBoundaryRef} className={styles.designCanvasContainer}>
 							{shouldShowCanvasConflictNotice && (
 								<div
 									className={styles.conflictNotice}
@@ -1617,9 +1871,45 @@ function DesignViewer(props: DesignViewerProps) {
 									</div>
 								</div>
 							)}
+							{shouldShowUnsupportedSidecarNotice && (
+								<div
+									className={styles.conflictNotice}
+									style={
+										shouldShowCanvasConflictNotice
+											? { top: "104px" }
+											: undefined
+									}
+									role="status"
+									aria-live="polite"
+								>
+									<AlertTriangle className={styles.conflictIcon} size={20} />
+									<div className={styles.conflictContent}>
+										<div className={styles.conflictTitle}>
+											{t("design.upgrade.unsupportedSidecarTitle")}
+										</div>
+										<div className={styles.conflictDescription}>
+											{t("design.upgrade.unsupportedSidecarDescription")}
+										</div>
+									</div>
+								</div>
+							)}
+							{isBlockingDesignLoadIssue && (
+								<CanvasUpgradeOverlay
+									percent={0}
+									status="error"
+									title={t("design.upgrade.loadFailedTitle")}
+									subtitle={t("design.upgrade.loadFailedSubtitle", {
+										stage: designLoadIssue.stage,
+										reason: designLoadIssue.message,
+									})}
+									actionLabel={t("design.upgrade.reload")}
+									actionDisabled={isReloadingDesignIssue}
+									onAction={() => void handleReloadDesignIssue()}
+								/>
+							)}
 							{shouldShowUpgradeProgress && (
 								<CanvasUpgradeOverlay
-									percent={upgradeProgress.percent}
+									percent={upgradeProgress}
 									title={t("design.upgrade.autoUpgradingTitle")}
 									subtitle={t("design.upgrade.autoUpgradingSubtitle")}
 								/>
@@ -1640,11 +1930,8 @@ function DesignViewer(props: DesignViewerProps) {
 									key={`${designProjectId}:${canvasDesignKey}:${designProjectBasePath}`}
 									id={designProjectId}
 									ref={canvasDesignRef}
-									readonly={
-										isReadOnlyState ||
-										isUpgradeBlockingCanvas ||
-										shouldBlockCanvasForConflict
-									}
+									accessMode={canvasAccessMode}
+									capabilities={canvasCapabilities}
 									magic={{
 										methods,
 										permissions: designCanvasMagicPermissions,
@@ -1654,6 +1941,7 @@ function DesignViewer(props: DesignViewerProps) {
 									plugins={canvasPluginConfig}
 									viewport={{
 										autoLoadCacheViewport: !isPlaybackMode && !isMobile,
+										floatingBoundary,
 									}}
 									data={{
 										defaultData: designData.canvas,
@@ -1673,6 +1961,9 @@ function DesignViewer(props: DesignViewerProps) {
 										defaultProjectAttachmentFolderName,
 										mentionDataServiceCtor: CanvasDesignMentionDataService,
 										mentionExtension: MentionExtension,
+										onSelectionChange: isCanvasSelectionMentionsEnabled
+											? publishCanvasSelectionMentions
+											: undefined,
 										referenceResourcePanelRenderer:
 											CanvasDesignReferenceResourcePanel,
 									}}
@@ -1707,6 +1998,71 @@ function DesignViewer(props: DesignViewerProps) {
 			</div>
 			{/* 与项目文件列表复用同一套 AI 图片无水印协议。 */}
 			{downloadPolicy.agreementModal}
+			{methods.saveAssetToLibrary ? (
+				<SaveAssetToLibraryDialog
+					open={Boolean(saveAssetDialogSession)}
+					source={
+						saveAssetDialogSession?.kind === "workspace"
+							? saveAssetDialogSession.params
+							: saveAssetDialogSession?.kind === "local-file"
+								? saveAssetDialogSession
+								: saveAssetDialogSession?.kind === "edit"
+									? saveAssetDialogSession.asset
+									: null
+					}
+					onClose={closeSaveAssetDialog}
+					getPreviewUrl={getSaveAssetPreviewUrl}
+					onSave={methods.saveAssetToLibrary}
+					onUpdateAsset={async (assetId, params) => {
+						const updatedAsset = await AssetsApi.updateAsset(assetId, {
+							name: params.name,
+							description: params.description,
+							visibility:
+								params.userIds !== undefined || params.departmentIds !== undefined
+									? buildAssetVisibility(params.userIds, params.departmentIds)
+									: undefined,
+							tag_ids: params.tagIds,
+						})
+						assetLibrarySessionStore.upsertAsset(updatedAsset)
+						const session = saveAssetDialogSessionRef.current
+						if (session?.kind === "edit") session.onUpdated()
+					}}
+					onSaveLocalFile={async (params) => {
+						if (!methods.saveLocalAssetToLibrary) {
+							throw new Error(t("assetLibrarySave.saveFailed"))
+						}
+						const asset = await methods.saveLocalAssetToLibrary(params)
+						const session = saveAssetDialogSessionRef.current
+						if (session?.kind === "local-file") session.onSaved(asset)
+						return asset
+					}}
+					onBindSavedAsset={bindSavedAssetToImageContent}
+				/>
+			) : null}
+			<AssetAgreementModal
+				visible={assetAgreementVisible}
+				onClose={() => {
+					assetAgreementSignedActionRef.current = null
+					settleAssetAgreement(false)
+				}}
+				onConfirm={async () => {
+					try {
+						await AssetsApi.signAssetAgreement()
+					} catch (error) {
+						toast.error(
+							error instanceof Error
+								? error.message
+								: t("assetLibrarySave.saveFailed"),
+						)
+						throw error
+					}
+					const continueAfterSign = assetAgreementSignedActionRef.current
+					assetAgreementSignedActionRef.current = null
+					assetLibrarySessionStore.markAssetAgreementSigned()
+					settleAssetAgreement(true)
+					continueAfterSign?.()
+				}}
+			/>
 		</>
 	)
 }

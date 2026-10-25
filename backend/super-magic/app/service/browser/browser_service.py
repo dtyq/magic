@@ -5,12 +5,15 @@ from __future__ import annotations
 import asyncio
 import os
 import stat
-from dataclasses import dataclass
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import ClassVar
 from weakref import WeakValueDictionary
 
 from agentlang.context.tool_context import ToolContext
+from agentlang.logger import get_logger
 from app.service.browser.browser_config_adapter import BrowserConfigAdapter
 from app.service.browser.browser_file_adapter import BrowserFileAdapter
 from app.service.browser.browser_interruption import await_browser_operation, require_agent_context
@@ -41,6 +44,8 @@ from magic_use.models import (
 )
 from magic_use.models.common import JsonValue, SessionState
 
+logger = get_logger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class ChromeBrowserSession:
@@ -61,6 +66,14 @@ class BrowserService:
     async def list_sessions(self) -> tuple[BrowserSession, ...]:
         entries = self._registry.list(self._agent_context.context_id)
         return tuple([await self._refresh(entry) for entry in entries])
+
+    async def list_instances(self) -> tuple[BrowserRuntimeEntry, ...]:
+        entries = self._registry.list(self._agent_context.context_id)
+        for entry in entries:
+            await self._refresh(entry)
+            pages = await await_browser_operation(self._tool_context, entry.client.list_pages())
+            self._sync_tab_ids(entry, pages)
+        return entries
 
     async def create_chrome_session(
         self,
@@ -107,29 +120,209 @@ class BrowserService:
         self._registry.register(context_id, entry)
         return ChromeBrowserSession(session=session, pairing=pairing)
 
-    async def list_pages(self, session_id: str | None = None) -> tuple[BrowserPage, ...]:
+    async def list_pages(
+        self,
+        session_id: str | None = None,
+        *,
+        browser_id: str | None = None,
+    ) -> tuple[BrowserPage, ...]:
+        entry = await self._resolve_entry(session_id, browser_id=browser_id)
+        pages = await await_browser_operation(self._tool_context, entry.client.list_pages())
+        self._sync_tab_ids(entry, pages)
+        self._select_current_page(entry, pages, require_selection=False)
+        return tuple(replace(page, active=page.id == entry.current_page_id) for page in pages)
+
+    async def resolve_tab(self, tab_id: str) -> tuple[BrowserRuntimeEntry, BrowserPage]:
+        """Resolve a short Tab ID to its owning runtime entry and SDK page."""
+        context_id = self._agent_context.context_id
+        for entry in self._registry.list(context_id):
+            pages = await await_browser_operation(self._tool_context, entry.client.list_pages())
+            self._sync_tab_ids(entry, pages)
+            page_id = self._registry.page_id(context_id, entry, tab_id)
+            if page_id is None:
+                continue
+            page = next((page for page in pages if page.id == page_id), None)
+            if page is not None:
+                return entry, page
+        raise BrowserSDKError(
+            BrowserErrorCode.PAGE_NOT_FOUND,
+            f"Browser tab is not available: {tab_id}",
+        )
+
+    async def select_instance(self, browser_id: str) -> BrowserRuntimeEntry:
+        entry = await self._resolve_entry(None, browser_id=browser_id)
+        self._registry.set_default(self._agent_context.context_id, entry)
+        return entry
+
+    async def short_tab_id(self, page_id: str, session_id: str) -> str:
         entry = await self._resolve_entry(session_id)
-        return await await_browser_operation(self._tool_context, entry.client.list_pages())
+        return self._registry.tab_id(self._agent_context.context_id, entry, page_id)
+
+    @asynccontextmanager
+    async def session_operation(
+        self,
+        session_id: str | None = None,
+        *,
+        browser_id: str | None = None,
+        create: bool = False,
+    ) -> AsyncIterator[BrowserRuntimeEntry | None]:
+        """同一会话从动作到截图串行执行；查询空会话不会分配浏览器。"""
+        entry = None
+        if session_id is None and browser_id is None:
+            entry = self._registry.get_default(self._agent_context.context_id)
+        elif browser_id is not None:
+            entry = self._registry.get_by_browser_id(self._agent_context.context_id, browser_id)
+        if session_id is None and browser_id is None and entry is None and not create:
+            yield None
+            return
+        resolved_session_id = entry.session.id if entry is not None and not create else session_id
+        entry = await self._resolve_entry(resolved_session_id, browser_id=browser_id)
+        acquired = False
+
+        async def acquire() -> None:
+            nonlocal acquired
+            await entry.operation_lock.acquire()
+            acquired = True
+
+        try:
+            await await_browser_operation(self._tool_context, acquire(), keep_alive=True)
+            yield entry
+        finally:
+            # 获取锁与中断可同时完成，仍须释放本次已经取得的锁。
+            if acquired:
+                entry.operation_lock.release()
+
+    @asynccontextmanager
+    async def current_page(
+        self,
+        session_id: str | None = None,
+        *,
+        browser_id: str | None = None,
+        tab_id: str | None = None,
+        navigate_url: str | None = None,
+        wait_until: str = "domcontentloaded",
+    ) -> AsyncIterator[BrowserPage]:
+        """只解析一次操作页，锁由调用方持有到结果、Horizon 和截图完成。"""
+        target_page_id: str | None = None
+        if tab_id is not None:
+            resolved_entry, target_page = await self.resolve_tab(tab_id)
+            if browser_id is not None and resolved_entry.browser_id != browser_id:
+                raise BrowserSDKError(
+                    BrowserErrorCode.PAGE_NOT_FOUND,
+                    f"Tab {tab_id} does not belong to Browser instance {browser_id}.",
+                )
+            target_page_id = target_page.id
+            session_id = resolved_entry.session.id
+        async with self.session_operation(
+            session_id,
+            browser_id=browser_id,
+            create=navigate_url is not None and tab_id is None,
+        ) as entry:
+            if entry is None:
+                raise BrowserSDKError(BrowserErrorCode.PAGE_NOT_FOUND, "No current tab. Use browser_navigate to visit a URL.")
+            pages = await await_browser_operation(self._tool_context, entry.client.list_pages())
+            self._sync_tab_ids(entry, pages)
+            page = (
+                next((item for item in pages if item.id == target_page_id), None)
+                if target_page_id is not None
+                else self._select_current_page(entry, pages)
+            )
+            if target_page_id is not None and page is None:
+                raise BrowserSDKError(BrowserErrorCode.PAGE_NOT_FOUND, "The requested Browser tab is no longer available.")
+            if navigate_url is not None:
+                if page is None:
+                    page = await self.open_page(navigate_url, entry.session.id, wait_until=wait_until)
+                else:
+                    page = await self.navigate(page.id, navigate_url, wait_until, entry.session.id)
+            if page is None:
+                raise BrowserSDKError(BrowserErrorCode.PAGE_NOT_FOUND, "No current tab. Use browser_navigate to visit a URL.")
+            yield replace(page, active=page.id == entry.current_page_id)
+
+    @staticmethod
+    def _select_current_page(
+        entry: BrowserRuntimeEntry,
+        pages: tuple[BrowserPage, ...],
+        *,
+        require_selection: bool = True,
+    ) -> BrowserPage | None:
+        previous_id = entry.current_page_id
+        for page in pages:
+            if page.id == previous_id:
+                return replace(page, active=True)
+        if not pages:
+            entry.current_page_id = None
+            return None
+        # 首次使用用户 Chrome 只接受明确的授权目标；已失效的选定页按列表顺序选择后继。
+        if previous_id is None and entry.session.backend is BrowserBackendKind.CHROME_EXTENSION:
+            active_pages = [page for page in pages if page.active]
+            if len(active_pages) == 1:
+                selected = active_pages[0]
+            elif len(pages) == 1:
+                selected = pages[0]
+            elif require_selection:
+                raise BrowserSDKError(
+                    BrowserErrorCode.PAGE_NOT_FOUND,
+                    "Several authorized tabs are available. Use browser_list_tabs and browser_select_tab to choose one.",
+                )
+            else:
+                return None
+        else:
+            selected = pages[0]
+        entry.current_page_id = selected.id
+        return replace(selected, active=True)
 
     async def get_session(self, session_id: str | None = None) -> BrowserSession:
         entry = await self._resolve_entry(session_id)
         return await self._refresh(entry)
 
-    async def open_page(self, url: str, session_id: str | None = None) -> BrowserPage:
-        entry = await self._resolve_entry(session_id)
-        page = await self._reuse_initial_playwright_page(entry, url)
-        if page is None:
-            page = await await_browser_operation(self._tool_context, entry.client.open_page(url))
-        return page
+    async def open_page(
+        self,
+        url: str,
+        session_id: str | None = None,
+        *,
+        browser_id: str | None = None,
+        wait_until: str = "domcontentloaded",
+    ) -> BrowserPage:
+        entry = await self._resolve_entry(session_id, browser_id=browser_id)
+
+        async def create_page() -> BrowserPage:
+            page = await entry.client.open_page()
+            try:
+                if url != "about:blank":
+                    page = await entry.client.navigate(page.id, url, wait_until)
+            except BaseException:
+                # 无当前页的 navigate 同样遵守 wait_until；新页失败不能留作下一次隐式目标。
+                try:
+                    await entry.client.close_page(page.id)
+                except Exception:
+                    logger.warning("Failed to close a new Browser tab after navigation failure", exc_info=True)
+                raise
+            entry.current_page_id = page.id
+            self._sync_tab_ids(entry, (page,))
+            if browser_id is not None:
+                self._registry.set_default(self._agent_context.context_id, entry)
+            return replace(page, active=True)
+
+        return await await_browser_operation(self._tool_context, create_page())
 
     async def close_page(self, page_id: str, session_id: str | None = None) -> None:
         entry = await self._resolve_entry(session_id)
         await await_browser_operation(self._tool_context, entry.client.close_page(page_id))
         await self._refresh(entry)
+        pages = await await_browser_operation(self._tool_context, entry.client.list_pages())
+        self._select_current_page(entry, pages, require_selection=False)
 
     async def activate_page(self, page_id: str, session_id: str | None = None) -> BrowserPage:
         entry = await self._resolve_entry(session_id)
-        return await await_browser_operation(self._tool_context, entry.client.activate_page(page_id))
+        page = await await_browser_operation(self._tool_context, entry.client.activate_page(page_id))
+        self._sync_tab_ids(entry, (page,))
+        return replace(page, active=page.id == entry.current_page_id)
+
+    async def select_page(self, page_id: str, session_id: str | None = None) -> BrowserPage:
+        entry = await self._resolve_entry(session_id)
+        page = await self._find_page(entry, page_id)
+        entry.current_page_id = page.id
+        return replace(page, active=True)
 
     async def keep_page_alive(
         self,
@@ -138,10 +331,11 @@ class BrowserService:
         session_id: str | None = None,
     ) -> BrowserPage:
         entry = await self._resolve_entry(session_id)
-        return await await_browser_operation(
+        page = await await_browser_operation(
             self._tool_context,
             entry.client.keep_page_alive(page_id, extension_seconds),
         )
+        return replace(page, active=page.id == entry.current_page_id)
 
     async def navigate(
         self,
@@ -151,10 +345,11 @@ class BrowserService:
         session_id: str | None = None,
     ) -> BrowserPage:
         entry = await self._resolve_entry(session_id)
-        return await await_browser_operation(
+        page = await await_browser_operation(
             self._tool_context,
             entry.client.navigate(page_id, url, wait_until),
         )
+        return replace(page, active=page.id == entry.current_page_id)
 
     async def wait(
         self,
@@ -245,13 +440,23 @@ class BrowserService:
         entry = await self._resolve_entry(session_id)
         return await await_browser_operation(self._tool_context, entry.client.find(page_id, query))
 
-    async def describe_ref(
+    async def describe_current_ref(
         self,
-        page_id: str,
         ref: str,
         session_id: str | None = None,
-    ) -> ActionTarget:
-        entry = await self._resolve_entry(session_id)
+        *,
+        tab_id: str | None = None,
+    ) -> ActionTarget | None:
+        """调用前文案只查看已选定目标，不创建会话或替用户选择页面。"""
+        context_id = self._agent_context.context_id
+        if tab_id is not None:
+            entry, page = await self.resolve_tab(tab_id)
+            page_id = page.id
+        else:
+            entry = self._registry.get_default(context_id) if session_id is None else self._registry.get(context_id, session_id)
+            page_id = entry.current_page_id if entry is not None else None
+        if entry is None or page_id is None:
+            return None
         return await await_browser_operation(
             self._tool_context,
             entry.client.describe_ref(page_id, ref),
@@ -269,7 +474,15 @@ class BrowserService:
             entry.client.dispatch_action(page_id, request),
         )
         await self._refresh(entry)
-        return result
+        self._sync_tab_ids(entry, result.opened_pages)
+        navigation = result.navigation
+        if navigation is not None:
+            navigation = replace(navigation, page=replace(navigation.page, active=navigation.page.id == entry.current_page_id))
+        return replace(
+            result,
+            navigation=navigation,
+            opened_pages=tuple(replace(page, active=page.id == entry.current_page_id) for page in result.opened_pages),
+        )
 
     async def screenshot(
         self,
@@ -399,14 +612,28 @@ class BrowserService:
             resolved.append(str(candidate))
         return tuple(resolved)
 
-    async def _resolve_entry(self, session_id: str | None) -> BrowserRuntimeEntry:
+    async def _resolve_entry(
+        self,
+        session_id: str | None,
+        *,
+        browser_id: str | None = None,
+    ) -> BrowserRuntimeEntry:
+        if browser_id is not None:
+            entry = self._registry.get_by_browser_id(self._agent_context.context_id, browser_id)
+            if entry is None:
+                raise BrowserSDKError(
+                    BrowserErrorCode.SESSION_CLOSED,
+                    f"Browser instance is not available in the current Agent context: {browser_id}",
+                )
+            session_id = entry.session.id
         if session_id is None:
             return await self._get_or_create_default()
         entry = self._registry.get(self._agent_context.context_id, session_id)
+        display_id = browser_id or self._registry.public_browser_id(session_id)
         if entry is None:
             raise BrowserSDKError(
                 BrowserErrorCode.SESSION_CLOSED,
-                f"Browser session is not available in the current Agent context: {session_id}",
+                f"Browser instance is not available in the current Agent context: {display_id}",
             )
         session = await self._refresh(entry)
         if session.state is not SessionState.CONNECTED:
@@ -414,7 +641,7 @@ class BrowserService:
             await entry.client.close()
             raise BrowserSDKError(
                 BrowserErrorCode.SESSION_CLOSED,
-                f"Browser session is no longer active: {session_id}",
+                f"Browser instance is no longer active: {display_id}",
             )
         return entry
 
@@ -462,29 +689,18 @@ class BrowserService:
         entry.session = await await_browser_operation(self._tool_context, entry.client.get_session())
         return entry.session
 
+    def _sync_tab_ids(self, entry: BrowserRuntimeEntry, pages: tuple[BrowserPage, ...]) -> None:
+        context_id = self._agent_context.context_id
+        for page in pages:
+            self._registry.assign_tab_id(context_id, entry, page.id)
+
     async def _find_page(self, entry: BrowserRuntimeEntry, page_id: str) -> BrowserPage:
         pages = await await_browser_operation(self._tool_context, entry.client.list_pages())
+        self._sync_tab_ids(entry, pages)
         for page in pages:
             if page.id == page_id:
-                return page
+                return replace(page, active=page.id == entry.current_page_id)
         raise BrowserSDKError(BrowserErrorCode.PAGE_NOT_FOUND, f"Browser page is not available: {page_id}")
-
-    async def _reuse_initial_playwright_page(
-        self,
-        entry: BrowserRuntimeEntry,
-        url: str,
-    ) -> BrowserPage | None:
-        if entry.session.backend is BrowserBackendKind.CHROME_EXTENSION:
-            return None
-        pages = await await_browser_operation(self._tool_context, entry.client.list_pages())
-        if len(pages) != 1 or pages[0].url != "about:blank":
-            return None
-        if url == "about:blank":
-            return pages[0]
-        return await await_browser_operation(
-            self._tool_context,
-            entry.client.navigate(pages[0].id, url),
-        )
 
     async def _build_wait_error(
         self,

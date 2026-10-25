@@ -10,22 +10,17 @@ import traceback
 from fastapi import APIRouter, Body
 from loguru import logger
 
-from app.api.http_dto.response import (
-    BaseResponse,
-    create_success_response,
-    create_error_response
-)
 from app.api.http_dto.asr_dto import (
+    AsrTaskResponse,
+    CancelAsrTaskRequest,
     CreateAsrTaskRequest,
     FinalizeAsrTaskRequest,
-    CancelAsrTaskRequest,
     QueryAsrTaskRequest,
-    AsrTaskResponse
 )
-from app.service.asr.asr_merge_task_manager import AsrMergeTaskManager, AsrTaskStatus, AsrTaskResult
+from app.api.http_dto.response import BaseResponse, create_error_response, create_success_response
 from app.service.asr.asr_merge_service import AsrMergeService
+from app.service.asr.asr_merge_task_manager import AsrMergeTaskManager, AsrTaskResult, AsrTaskStatus
 from app.service.asr.asr_time_config import asr_time_config
-
 
 router = APIRouter(prefix="/asr", tags=["ASR音频合并"])
 
@@ -43,59 +38,46 @@ def _build_task_response(task: AsrTaskResult) -> AsrTaskResponse:
     return AsrTaskResponse(
         status=task.status,
         task_key=task.task_key,
+        audio_format=task.audio_format,
         intelligent_title=task.intelligent_title,
-        error_message=task.error_message,
+        error_message=task.error_message or task.audio_format_error,
         files=task.files,
         deleted_files=task.deleted_files,
-        operations=task.operations
+        operations=task.operations,
+        degraded=task.degraded,
+        completion_mode=task.completion_mode,
+        missing_shard_indices=task.missing_shard_indices,
     )
 
 
-async def _resolve_finish_file_shard_count(audio_config, workspace_dir: str) -> int:
+async def _resolve_finish_file_shard_count(audio_config, workspace_dir: str, task_key: str | None = None) -> int | None:
     """
     获取 finish 使用的分片总数（file_shard_count）。
 
-    策略：
-    1. 客户端传了合法 file_shard_count（>=0）则优先使用
-    2. 未传或非法时，复用现有 scan 逻辑（AsrFileDetector.scan_audio_files）
-       按 include_merged=False 统计 wav 分片数量
+    只接受客户端明确声明的数量。历史客户端不传时返回 None，
+    由后续稳定扫描逻辑兼容处理，不能把某次目录扫描结果固化成声明数量。
 
     Args:
         audio_config: finish 请求中的 audio 配置
         workspace_dir: 工作区目录
 
     Returns:
-        int: 分片总数；失败时返回 -1
+        int | None: 客户端声明的分片总数；历史客户端返回 None
     """
     incoming_count = getattr(audio_config, "file_shard_count", None)
-    if incoming_count is not None:
-        if incoming_count >= 0:
-            logger.info(f"[asrmerge] finish 使用客户端 file_shard_count: {incoming_count}")
-            return incoming_count
-        logger.warning(
-            f"[asrmerge] finish file_shard_count 非法({incoming_count})，将回退为目录扫描结果"
-        )
-
-    # 复用循环中的扫描逻辑，避免维护两套口径
-    try:
-        from app.service.asr.asr_utils import resolve_path
-        from app.service.asr.asr_file_detector import AsrFileDetector
-
-        scan_dir = resolve_path(audio_config.source_dir, workspace_dir)
-        scanned_files = await asyncio.to_thread(AsrFileDetector().scan_audio_files, scan_dir, False)
-        scanned_count = len(scanned_files)
-        logger.info(
-            f"[asrmerge] finish 使用目录扫描 file_shard_count: {scanned_count}, "
-            f"source_dir={scan_dir}"
-        )
-        return scanned_count
-    except Exception as e:
-        logger.warning(f"[asrmerge] finish 获取 file_shard_count 失败: {e}")
-        return -1
+    if incoming_count is None:
+        logger.info("[asrmerge] finish 未声明 file_shard_count，使用历史客户端兼容模式")
+        return None
+    if isinstance(incoming_count, bool) or not isinstance(incoming_count, int) or incoming_count <= 0:
+        raise ValueError("file_shard_count must be a positive integer")
+    logger.info(f"[asrmerge] finish 使用客户端 file_shard_count: {incoming_count}")
+    return incoming_count
 
 
 async def _get_task_and_check_completed_or_error(
-    task_key: str
+    task_key: str,
+    allow_error_retry: bool = False,
+    force_reset: bool = False,
 ) -> tuple[BaseResponse | None, AsrTaskResult | None]:
     """
     查询任务并检查是否已完成或出错
@@ -104,6 +86,8 @@ async def _get_task_and_check_completed_or_error(
 
     Args:
         task_key: 任务标识符
+        allow_error_retry: 任务处于 error 时是否尝试重试
+        force_reset: allow_error_retry 为 True 时，是否忽略重试上限并重置计数（手动重新合并）
 
     Returns:
         tuple: (错误/完成响应或None, 任务对象或None)
@@ -138,6 +122,29 @@ async def _get_task_and_check_completed_or_error(
 
     # 如果任务出错，返回错误
     if existing_task.status == AsrTaskStatus.ERROR.value:
+        # 普通重复 finish 是幂等查询，不得重新开启等待窗口。
+        # 只有调用方显式 force_reset 才允许从 error 状态人工重试。
+        if allow_error_retry and force_reset:
+            retry_ok, retry_count, max_retries = await AsrMergeTaskManager.instance().request_retry(
+                task_key, force=True
+            )
+            if retry_ok:
+                existing_task = await AsrMergeTaskManager.instance().get_task(task_key)
+                if existing_task is not None:
+                    logger.warning(
+                        f"🔁 [asrmerge] task_key={task_key} ERROR 任务进入重试: "
+                        f"retry_count={retry_count}/{max_retries} force_reset=True"
+                    )
+                    return None, existing_task
+            response_data = _build_task_response(existing_task)
+            return (
+                create_error_response(
+                    message=f"任务重试次数已达上限或重试失败 ({retry_count}/{max_retries})",
+                    data=response_data.model_dump(),
+                ),
+                None,
+            )
+
         response_data = _build_task_response(existing_task)
         # 关键日志：finish/query 在 error 状态会直接返回，不会进入文件就绪检测/完成流程
         logger.warning(
@@ -290,6 +297,7 @@ async def _check_and_return_task_status(
     latest_task = await AsrMergeTaskManager.instance().get_task(task_key)
     if latest_task:
         existing_task = latest_task
+    progress = await AsrMergeTaskManager.instance().get_progress(task_key)
 
     # 状态可能在轮询过程中变为 completed/finished，此时直接返回完整结果
     if existing_task.status in [AsrTaskStatus.COMPLETED.value, AsrTaskStatus.FINISHED.value]:
@@ -303,13 +311,24 @@ async def _check_and_return_task_status(
             data=response_data.model_dump()
         )
 
-    # 2. 检查是否有 merged.wav（返回当前进度）
-    from app.service.asr.asr_utils import resolve_path
+    # 2. 检查是否有 merged 文件（返回当前进度，文件名按任务音频格式解析）
+    from app.service.asr.asr_utils import (
+        build_merged_filename,
+        normalize_audio_format,
+        resolve_audio_format_from_directory,
+        resolve_path,
+    )
     source_dir = resolve_path(existing_task.source_dir, workspace_dir)
-    merged_file = source_dir / "merged.wav"
+    try:
+        resolved_format = resolve_audio_format_from_directory(source_dir, existing_task.audio_format)
+    except ValueError as exc:
+        logger.warning(f"[asrmerge] task_key={task_key} merged 文件格式冲突: {exc}")
+        resolved_format = None
+    merged_file = source_dir / build_merged_filename(resolved_format or normalize_audio_format(existing_task.audio_format))
 
     files_info = None
-    if merged_file.exists():
+    expose_staging_file = existing_task.audio_format != "opus"
+    if merged_file.exists() and expose_staging_file:
         file_size = merged_file.stat().st_size
 
         # 获取音频时长（使用 ffprobe）
@@ -333,11 +352,11 @@ async def _check_and_return_task_status(
             logger.debug(f"[asrmerge] 无法获取音频时长: {e}")
 
         # 构建相对路径
-        relative_path = f"{existing_task.source_dir}/merged.wav"
+        relative_path = f"{existing_task.source_dir}/{merged_file.name}"
 
         files_info = {
             "audio_file": {
-                "filename": "merged.wav",
+                "filename": merged_file.name,
                 "path": relative_path,
                 "size": file_size,
                 "duration": duration
@@ -345,11 +364,21 @@ async def _check_and_return_task_status(
         }
 
     # 3. 返回状态
+    response_status = existing_task.status
+    response_error = existing_task.audio_format_error
+    if existing_task.audio_format == "opus" and progress and existing_task.status == AsrTaskStatus.RUNNING.value:
+        # Opus 内部状态不扩散为新的 API 枚举，保持客户端兼容。
+        # 合并/最终搬运期间统一复用已有 finalizing；可重试失败仍保持 running，
+        # 真正超过截止时间后任务管理器会把任务置为 error。
+        if progress.opus_merge_status in {"merging", "completed"}:
+            response_status = AsrTaskStatus.FINALIZING.value
+
     response_data = AsrTaskResponse(
-        status=existing_task.status,
+        status=response_status,
         task_key=task_key,
+        audio_format=existing_task.audio_format,
         intelligent_title=intelligent_title or existing_task.intelligent_title,
-        error_message=None,
+        error_message=response_error,
         files=files_info,
         deleted_files=None,
         operations=None
@@ -472,6 +501,7 @@ async def create_asr_task(
             response_data = AsrTaskResponse(
                 status=AsrTaskStatus.RUNNING,
                 task_key=request.task_key,
+                audio_format=None,
                 intelligent_title=None,
                 error_message=None,
                 files=None,
@@ -499,7 +529,7 @@ async def create_asr_task(
     except ValueError as e:
         logger.warning(f"ASR任务创建参数错误: {e}")
         return create_error_response(
-            message=f"请求参数错误: {str(e)}",
+            message=f"请求参数错误: {e!s}",
             data={"error": str(e)}
         )
 
@@ -554,14 +584,18 @@ async def finish_asr_task(
         workspace_dir = request.workspace_dir or ".workspace"
 
         # 1. 查询任务状态。已完成/已失败/不存在的任务直接返回，不触发分片扫描。
-        error_response, existing_task = await _get_task_and_check_completed_or_error(task_key)
+        error_response, existing_task = await _get_task_and_check_completed_or_error(
+            task_key,
+            allow_error_retry=True,
+            force_reset=request.force_reset,
+        )
         if error_response:
             return error_response
 
         # 类型断言：如果 error_response 为 None，则 existing_task 一定不为 None
         assert existing_task is not None, "existing_task should not be None when error_response is None"
 
-        effective_file_shard_count = await _resolve_finish_file_shard_count(request.audio, workspace_dir)
+        effective_file_shard_count = await _resolve_finish_file_shard_count(request.audio, workspace_dir, task_key)
         logger.info(
             f"[asrmerge] finish effective_file_shard_count={effective_file_shard_count}, task_key={task_key}"
         )
@@ -593,6 +627,13 @@ async def finish_asr_task(
             intelligent_title=request.audio.output_filename
         )
 
+    except ValueError as e:
+        logger.warning(f"[asrmerge] finish 参数校验失败: {e}")
+        return create_error_response(
+            message=str(e),
+            data={"task_key": request.task_key},
+            code=4001,
+        )
     except Exception as e:
         logger.error(f"[asrmerge] finish 接口失败: {e}")
         logger.error(traceback.format_exc())
@@ -665,7 +706,7 @@ async def query_asr_task(
     except ValueError as e:
         logger.warning(f"查询ASR任务参数错误: {e}")
         return create_error_response(
-            message=f"请求参数错误: {str(e)}",
+            message=f"请求参数错误: {e!s}",
             data={"error": str(e)}
         )
 
@@ -723,6 +764,7 @@ async def cancel_asr_task(
             response_data = AsrTaskResponse(
                 status=AsrTaskStatus.CANCELED,
                 task_key=task_key,
+                audio_format=existing_task.audio_format,
                 intelligent_title=None,
                 error_message=None,
                 files=None,
@@ -750,7 +792,7 @@ async def cancel_asr_task(
     except ValueError as e:
         logger.warning(f"ASR任务取消参数错误: {e}")
         return create_error_response(
-            message=f"请求参数错误: {str(e)}",
+            message=f"请求参数错误: {e!s}",
             data={"error": str(e)}
         )
 

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { downloadFileWithAnchor } from "../handleFIle"
+import { downloadFileWithAnchor, getFileType } from "../handleFIle"
 
 const openLightModalMock = vi.hoisted(() => vi.fn())
+const isInAppMock = vi.hoisted(() => vi.fn(() => false))
 
 vi.mock("@/utils/clipboard-helpers", () => ({
 	clipboard: {
@@ -10,7 +11,7 @@ vi.mock("@/utils/clipboard-helpers", () => ({
 }))
 
 vi.mock("@/pages/superMagicMobile/utils/mobile", () => ({
-	isInApp: () => false,
+	isInApp: isInAppMock,
 }))
 
 vi.mock("@/layouts/middlewares/withThirdPartyAuth/Strategy/DingTalkStrategy", () => ({
@@ -28,6 +29,7 @@ vi.mock("@/components/business/FileDownloadModal", () => ({
 describe("downloadFileWithAnchor", () => {
 	beforeEach(() => {
 		openLightModalMock.mockClear()
+		isInAppMock.mockReturnValue(false)
 		vi.restoreAllMocks()
 		vi.unstubAllGlobals()
 		document.body.innerHTML = ""
@@ -64,8 +66,28 @@ describe("downloadFileWithAnchor", () => {
 			open: true,
 			fileName: "report.pdf",
 			downloadUrl: "https://cdn.example.com/files/report.pdf",
+			nativeDownload: true,
+			downloadTarget: "_blank",
 			modalZIndex: undefined,
 		})
+		expect(openLightModalMock.mock.calls[0][1]).not.toHaveProperty("onDownload")
+	})
+
+	it("keeps the host window.open retry in embedded app environments", async () => {
+		isInAppMock.mockReturnValue(true)
+		const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null)
+
+		await downloadFileWithAnchor("https://cdn.example.com/files/report.pdf", "report.pdf")
+
+		expect(windowOpenSpy).toHaveBeenCalledTimes(1)
+		const modalProps = openLightModalMock.mock.calls[0][1]
+		expect(modalProps).toMatchObject({
+			nativeDownload: false,
+			downloadTarget: "_blank",
+		})
+
+		modalProps.onDownload()
+		expect(windowOpenSpy).toHaveBeenCalledTimes(2)
 	})
 
 	it("passes the optional modal z-index to the download modal", async () => {
@@ -94,5 +116,12 @@ describe("downloadFileWithAnchor", () => {
 		expect(openLightModalMock.mock.calls[0][1]).toMatchObject({
 			onAfterClose: onModalClose,
 		})
+	})
+})
+
+describe("getFileType", () => {
+	it("recognizes an Opus recording artifact as audio", () => {
+		expect(getFileType("opus")).toBe("audio")
+		expect(getFileType("OPUS")).toBe("audio")
 	})
 })

@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\SuperMagic\Agent\Entity;
 
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Infrastructure\Core\AbstractEntity;
-use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Hyperf\Codec\Json;
 
 /**
@@ -16,6 +16,8 @@ use Hyperf\Codec\Json;
  */
 class AgentPlaybookEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     /**
      * @var int 主键 ID
      */
@@ -341,15 +343,7 @@ class AgentPlaybookEntity extends AbstractEntity
      */
     public function getI18nName(string $language): string
     {
-        if (! empty($this->nameI18n[$language])) {
-            return $this->nameI18n[$language];
-        }
-
-        if (! empty($this->nameI18n[LanguageEnum::DEFAULT->value])) {
-            return $this->nameI18n[LanguageEnum::DEFAULT->value];
-        }
-
-        return '';
+        return $this->resolveI18nText($this->nameI18n, $language);
     }
 
     /**
@@ -360,14 +354,6 @@ class AgentPlaybookEntity extends AbstractEntity
      */
     public function getI18nDescription(string $language): string
     {
-        if (! empty($this->descriptionI18n[$language])) {
-            return $this->descriptionI18n[$language];
-        }
-
-        if (! empty($this->descriptionI18n[LanguageEnum::DEFAULT->value])) {
-            return $this->descriptionI18n[LanguageEnum::DEFAULT->value];
-        }
-
-        return '';
+        return $this->resolveI18nText($this->descriptionI18n, $language);
     }
 }

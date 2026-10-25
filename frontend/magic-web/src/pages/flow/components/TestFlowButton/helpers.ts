@@ -1,5 +1,5 @@
 import type { User } from "@/types/user"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { nanoid } from "nanoid"
 import type Schema from "@dtyq/magic-flow/dist/MagicJsonSchemaEditor/types/Schema"
 import { ConversationMessageType } from "@/types/chat/conversation_message"

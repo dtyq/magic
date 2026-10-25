@@ -3,7 +3,7 @@ import { motion } from "framer-motion"
 import TemplateCard from "./TemplateCard"
 import type { OptionItem } from "../types"
 import { getOptionValue } from "../utils"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface TemplateGridProps {
 	selectedTemplate?: OptionItem

@@ -391,7 +391,8 @@ class InitAgentProjectFilesCommand extends HyperfCommand
             $projectEntity,
             $targetPath,
             $targetParentEntity->getFileName(),
-            $targetParentId
+            $targetParentId,
+            sourceDataIsolation: $dataIsolation
         );
         $sourceEntity->setFileKey($targetPath);
         $sourceEntity->setParentId($targetParentId);

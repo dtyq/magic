@@ -3,7 +3,7 @@
  * Records all sent and received packets for debugging and analysis
  */
 
-import { loadJSZip } from "@/lib/jszip"
+import { loadJSZip } from "@/infrastructure/vendors/jszip"
 
 export interface PacketLogEntry {
 	id: string
@@ -426,7 +426,8 @@ export class PacketLogger {
 		// Reduce logger.log frequency in production to improve performance
 		if (this.config.enableDetailedLogging !== false) {
 			logger.log(
-				`[PacketLogger] Logged ${entry.direction} packet: ${entry.messageType}, size: ${entry.size
+				`[PacketLogger] Logged ${entry.direction} packet: ${entry.messageType}, size: ${
+					entry.size
 				} bytes (Session: ${connectionId || "unknown"})`,
 			)
 		}
@@ -652,9 +653,9 @@ export class PacketLogger {
 		const timeRange =
 			timestamps.length > 0
 				? {
-					start: Math.min(...timestamps),
-					end: Math.max(...timestamps),
-				}
+						start: Math.min(...timestamps),
+						end: Math.max(...timestamps),
+					}
 				: { start: session.startTime, end: session.endTime || Date.now() }
 
 		const messageTypes: Record<string, number> = {}
@@ -947,13 +948,13 @@ export class PacketLogger {
 					const mergedPcmData = this.mergeAudioFragments(fragments)
 					const mergedInfo = mergedPcmData
 						? {
-							mergedFileName: "merged_audio.wav",
-							mergedPcmFileName: "merged_audio.pcm",
-							mergedSize: mergedPcmData.byteLength,
-							mergedDurationSeconds:
-								mergedPcmData.byteLength / (sampleRate * (bitsPerSample / 8)),
-							mergedSamples: mergedPcmData.byteLength / (bitsPerSample / 8),
-						}
+								mergedFileName: "merged_audio.wav",
+								mergedPcmFileName: "merged_audio.pcm",
+								mergedSize: mergedPcmData.byteLength,
+								mergedDurationSeconds:
+									mergedPcmData.byteLength / (sampleRate * (bitsPerSample / 8)),
+								mergedSamples: mergedPcmData.byteLength / (bitsPerSample / 8),
+							}
 						: null
 
 					// Add metadata for audio fragments

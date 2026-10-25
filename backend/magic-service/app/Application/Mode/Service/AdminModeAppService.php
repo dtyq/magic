@@ -11,6 +11,7 @@ use App\Application\Kernel\SmartFileLinks;
 use App\Application\Mode\Assembler\AdminModeAssembler;
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\DTO\Admin\AdminModeDTO;
+use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Provider\Entity\ValueObject\AggregateStrategy;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
@@ -230,15 +231,27 @@ class AdminModeAppService extends AbstractModeAppService
      */
     public function getDefaultMode(MagicUserAuthorization $authorization): ?AdminModeAggregateDTO
     {
-        $dataIsolation = $this->getModeDataIsolation($authorization);
-        $defaultModeAggregate = $this->modeDomainService->getDefaultMode($dataIsolation);
-        $providerModels = $this->getDetailedModels($defaultModeAggregate);
-
-        $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($defaultModeAggregate, $providerModels);
+        $snapshot = $this->getDefaultModeModelSnapshot($authorization);
+        if ($snapshot['mode'] === null) {
+            return null;
+        }
+        $adminModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($snapshot['mode'], $snapshot['details']);
 
         $this->processModeAggregateIcons($adminModeAggregateDTO);
 
         return $adminModeAggregateDTO;
+    }
+
+    /** 提供默认分组及完整模型快照，供后台详情与价格预览直接复用。
+     * @return array{mode: null|ModeAggregate, model_ids?: array, models?: array, providers?: array, statuses?: array, details?: array, not_loaded?: array}
+     */
+    public function getDefaultModeModelSnapshot(MagicUserAuthorization $authorization, bool $bounded = false): array
+    {
+        $mode = $this->modeDomainService->getDefaultMode($this->getModeDataIsolation($authorization));
+        if ($mode === null) {
+            return ['mode' => null];
+        }
+        return ['mode' => $mode] + $this->loadModeModelSnapshot($mode, $bounded);
     }
 
     /**

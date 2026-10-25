@@ -8,7 +8,7 @@ import type {
 	CompleteTextContentResponse,
 } from "@/components/CanvasDesign/public/magic-types"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
-import { toWorkspaceAbsoluteApiPathForOperation } from "../utils/designPath"
+import { resolveDesignCanvasResourceApiUri } from "../utils/designResourceReferenceResolver"
 
 interface UseImagePromptCompletionOptions {
 	projectId?: string
@@ -103,7 +103,7 @@ function resolveReferenceImagePath(params: {
 	getErrorMessage: () => string
 }): string {
 	const { imagePath, designProjectBasePath, flatAttachments, getErrorMessage } = params
-	const resolved = toWorkspaceAbsoluteApiPathForOperation(imagePath, {
+	const resolved = resolveDesignCanvasResourceApiUri(imagePath, {
 		designProjectBasePath,
 		flatAttachments,
 	})

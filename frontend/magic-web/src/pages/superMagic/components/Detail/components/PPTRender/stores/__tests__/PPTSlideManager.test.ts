@@ -5,6 +5,29 @@ import { PPTPathMappingService } from "../../services/PPTPathMappingService"
 import { SlideScreenshotService } from "../../services/SlideScreenshotService"
 import type { SlideItem } from "../../PPTSidebar/types"
 
+vi.mock("../../../../contents/HTML/utils/full-content", () => ({
+	decodeHTMLEntities: (content: string) => content,
+	fallbackImageBase64: "data:image/png;base64,",
+	getFullContent: (content: string) => content,
+}))
+
+vi.mock("@/pages/superMagic/utils/api", () => ({
+	getTemporaryDownloadUrl: vi.fn(),
+	downloadFileContent: vi.fn(),
+}))
+
+vi.mock("@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor", () => ({
+	processHtmlContent: vi.fn(async ({ content }) => ({ processedContent: content })),
+	collectFileIdsFromHtml: vi.fn(() => new Set()),
+}))
+
+vi.mock("@/assets/locales/locale-adapters", () => ({
+	getLocaleModules: () => ({}),
+	getAdminLocaleModules: () => ({}),
+	loadFallbackLocale: vi.fn(),
+	loadMagicFlowLocale: vi.fn(),
+}))
+
 describe("PPTSlideManager", () => {
 	let slideManager: PPTSlideManager
 	let logger: ReturnType<typeof createPPTLogger>
@@ -25,7 +48,10 @@ describe("PPTSlideManager", () => {
 
 	beforeEach(() => {
 		logger = createPPTLogger({ level: "silent" })
-		pathMappingService = new PPTPathMappingService(logger)
+		pathMappingService = new PPTPathMappingService(
+			{ attachmentList: [], mainFileId: "main" },
+			logger,
+		)
 		screenshotService = new SlideScreenshotService(logger)
 
 		// Setup path mappings

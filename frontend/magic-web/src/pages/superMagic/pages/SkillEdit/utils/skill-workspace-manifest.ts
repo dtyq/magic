@@ -6,6 +6,10 @@ import type { SkillWorkspaceManifest } from "../store/types"
 
 /** API skill detail fields used for default-slot PATCH (structurally matches SkillDetailResponse) */
 export interface SkillDetailDefaultSlotSource {
+	/** Locale-resolved fields returned by the current Skill detail API. */
+	name?: string | null
+	description?: string | null
+	/** Compatibility maps retained while the backend removes these fields. */
 	name_i18n?: Record<string, string> | null
 	description_i18n?: Record<string, string> | null
 }
@@ -53,6 +57,18 @@ export function findAttachmentByRelativePath(
 export function buildSkillMdRelativePath(skillDir: string): string {
 	const trimmed = skillDir.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
 	return `${MAGIC_SKILLS_ROOT}/${trimmed}/${SKILL_MD_FILE_NAME}`
+}
+
+export function normalizeSkillDir(value: unknown): string | null {
+	if (typeof value !== "string") return null
+
+	const normalized = value.trim().replace(/\\/g, "/")
+	if (!normalized || normalized.startsWith("/") || normalized.includes("\0")) return null
+
+	const segments = normalized.split("/")
+	if (segments.some((segment) => !segment || segment === "." || segment === "..")) return null
+
+	return segments.join("/")
 }
 
 type AttachmentPathFields = AttachmentItem & { file_path?: string; file_type?: string }
@@ -197,8 +213,7 @@ export function parseSkillConfigYaml(content: string): string | null {
 		const data = yaml.load(content) as SkillConfigYamlShape | null | undefined
 		const dir = data?.[SKILL_CONFIG_YAML_SKILL_KEY]?.[SKILL_CONFIG_YAML_DIR_KEY]
 		if (typeof dir !== "string") return null
-		const trimmed = dir.trim()
-		return trimmed.length > 0 ? trimmed : null
+		return normalizeSkillDir(dir)
 	} catch {
 		return null
 	}
@@ -277,8 +292,11 @@ export function pickManifestSkillName(manifest: SkillWorkspaceManifest | null): 
 	return manifest.nameDefault || manifest.nameCn
 }
 
-function isDefaultSlotEmpty(raw: Record<string, string> | null | undefined): boolean {
-	const v = raw?.[SupportLocales.fallback]
+function isDefaultSlotEmpty(
+	raw: Record<string, string> | null | undefined,
+	resolvedText?: string | null,
+): boolean {
+	const v = raw?.[SupportLocales.fallback] ?? resolvedText
 	return !v || !String(v).trim()
 }
 
@@ -294,7 +312,7 @@ export function buildDefaultSlotUpdateParams(
 	let nameI18n: SkillI18nTextShape | undefined
 	let descriptionI18n: SkillI18nTextShape | undefined
 
-	if (isDefaultSlotEmpty(nameRaw) && manifest.nameDefault.trim()) {
+	if (isDefaultSlotEmpty(nameRaw, detail.name) && manifest.nameDefault.trim()) {
 		nameI18n = {
 			[SupportLocales.fallback]: manifest.nameDefault.trim(),
 			[SupportLocales.enUS]: nameRaw?.[SupportLocales.enUS] ?? "",
@@ -302,7 +320,7 @@ export function buildDefaultSlotUpdateParams(
 		}
 	}
 
-	if (isDefaultSlotEmpty(descRaw) && manifest.descriptionDefault.trim()) {
+	if (isDefaultSlotEmpty(descRaw, detail.description) && manifest.descriptionDefault.trim()) {
 		descriptionI18n = {
 			[SupportLocales.fallback]: manifest.descriptionDefault.trim(),
 			[SupportLocales.enUS]: descRaw?.[SupportLocales.enUS] ?? "",

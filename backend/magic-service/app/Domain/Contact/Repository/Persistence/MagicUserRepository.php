@@ -15,6 +15,7 @@ use App\Domain\Contact\Entity\ValueObject\AccountStatus;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserIdType;
 use App\Domain\Contact\Entity\ValueObject\UserOption;
+use App\Domain\Contact\Entity\ValueObject\UserSearchField;
 use App\Domain\Contact\Entity\ValueObject\UserStatus;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Factory\ContactUserFactory;
@@ -180,6 +181,78 @@ readonly class MagicUserRepository implements MagicUserRepositoryInterface
     {
         $query = UserModel::query()->where('organization_code', $organizationCode);
         $query->whereIn('user_id', $userIds);
+        $list = [];
+        /** @var UserModel $model */
+        foreach ($query->get() as $model) {
+            $entity = ContactUserFactory::createByModel($model);
+            $list[$entity->getUserId()] = $entity;
+        }
+        return $list;
+    }
+
+    /**
+     * @return MagicUserEntity[]
+     */
+    public function getActiveUsersByOrganization(string $organizationCode): array
+    {
+        $query = $this->userModel::query()
+            ->join('magic_contact_accounts', 'magic_contact_accounts.magic_id', '=', 'magic_contact_users.magic_id')
+            ->where('magic_contact_users.organization_code', $organizationCode)
+            ->where('magic_contact_users.status', UserStatus::Activated->value)
+            ->whereNull('magic_contact_users.deleted_at')
+            ->whereNull('magic_contact_accounts.deleted_at')
+            ->where('magic_contact_accounts.status', AccountStatus::Normal->value)
+            ->select('magic_contact_users.*');
+
+        $list = [];
+        /** @var UserModel $model */
+        foreach ($query->get() as $model) {
+            $entity = ContactUserFactory::createByModel($model);
+            $list[$entity->getUserId()] = $entity;
+        }
+        return $list;
+    }
+
+    public function getActiveUserIdsByOrganization(string $organizationCode, ?string $afterUserId = null, int $limit = 500): array
+    {
+        $query = $this->userModel::query()
+            ->join('magic_contact_accounts', 'magic_contact_accounts.magic_id', '=', 'magic_contact_users.magic_id')
+            ->where('magic_contact_users.organization_code', $organizationCode)
+            ->where('magic_contact_users.status', UserStatus::Activated->value)
+            ->whereNull('magic_contact_users.deleted_at')
+            ->whereNull('magic_contact_accounts.deleted_at')
+            ->where('magic_contact_accounts.status', AccountStatus::Normal->value)
+            ->select('magic_contact_users.user_id')
+            ->orderBy('magic_contact_users.user_id')
+            ->limit(max(1, min($limit, 1000)));
+
+        if ($afterUserId !== null && $afterUserId !== '') {
+            $query->where('magic_contact_users.user_id', '>', $afterUserId);
+        }
+
+        return array_values(array_map(
+            static fn ($userId): string => (string) $userId,
+            $query->pluck('magic_contact_users.user_id')->all()
+        ));
+    }
+
+    public function getActiveUsersByIds(string $organizationCode, array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_filter(array_map('strval', $userIds))));
+        if ($userIds === []) {
+            return [];
+        }
+
+        $query = $this->userModel::query()
+            ->join('magic_contact_accounts', 'magic_contact_accounts.magic_id', '=', 'magic_contact_users.magic_id')
+            ->where('magic_contact_users.organization_code', $organizationCode)
+            ->whereIn('magic_contact_users.user_id', $userIds)
+            ->where('magic_contact_users.status', UserStatus::Activated->value)
+            ->whereNull('magic_contact_users.deleted_at')
+            ->whereNull('magic_contact_accounts.deleted_at')
+            ->where('magic_contact_accounts.status', AccountStatus::Normal->value)
+            ->select('magic_contact_users.*');
+
         $list = [];
         /** @var UserModel $model */
         foreach ($query->get() as $model) {
@@ -439,9 +512,13 @@ readonly class MagicUserRepository implements MagicUserRepositoryInterface
     public function getUserByMagicIds(array $magicIds): array
     {
         $users = $this->userModel::query()
-            ->whereIn('magic_id', $magicIds)
-            ->where('status', AccountStatus::Normal->value)
-            ->whereNull('deleted_at');
+            ->join('magic_contact_accounts', 'magic_contact_accounts.magic_id', '=', 'magic_contact_users.magic_id')
+            ->whereIn('magic_contact_users.magic_id', $magicIds)
+            ->where('magic_contact_users.status', UserStatus::Activated->value)
+            ->whereNull('magic_contact_users.deleted_at')
+            ->where('magic_contact_accounts.status', AccountStatus::Normal->value)
+            ->whereNull('magic_contact_accounts.deleted_at')
+            ->select('magic_contact_users.*');
         $users = Db::select($users->toSql(), $users->getBindings());
         $userEntities = [];
         foreach ($users as $user) {
@@ -541,6 +618,61 @@ readonly class MagicUserRepository implements MagicUserRepositoryInterface
         ])->orderBy('u.id', 'desc')
             ->forPage($page->getPage(), $page->getPageNum());
 
+        $rows = Db::select($listQuery->toSql(), $listQuery->getBindings());
+        $list = [];
+        foreach ($rows as $row) {
+            $list[] = (array) $row;
+        }
+
+        return [
+            'total' => $total,
+            'list' => $list,
+        ];
+    }
+
+    /**
+     * 按指定字段搜索用户及其组织信息。
+     *
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: array<int, array<string, mixed>>}
+     */
+    public function searchUsers(
+        Page $page,
+        UserSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array {
+        $query = Db::table('magic_contact_users as u')
+            ->join('magic_contact_accounts as a', 'a.magic_id', '=', 'u.magic_id')
+            ->leftJoin('magic_organizations as o', 'o.magic_organization_code', '=', 'u.organization_code')
+            ->whereNull('u.deleted_at')
+            ->whereNull('a.deleted_at')
+            ->whereNull('o.deleted_at');
+
+        match ($searchField) {
+            UserSearchField::UserId => $query->where('u.user_id', $keyword),
+            UserSearchField::Phone => $query->where('a.phone', $keyword),
+            UserSearchField::UserName => $query->where(static function ($builder) use ($keyword) {
+                $builder->where('u.nickname', 'like', '%' . $keyword . '%')
+                    ->orWhere('a.real_name', 'like', '%' . $keyword . '%');
+            }),
+        };
+
+        if ($organizationCodeFilter !== null) {
+            $query->where('u.organization_code', $organizationCodeFilter);
+        }
+
+        $total = (clone $query)->count();
+        $listQuery = (clone $query)
+            ->select([
+                'u.user_id',
+                Db::raw("CASE WHEN a.real_name IS NOT NULL AND a.real_name <> '' THEN a.real_name ELSE u.nickname END AS user_name"),
+                'a.phone',
+                'u.organization_code',
+                'o.name as organization_name',
+            ])
+            ->orderBy('u.id', 'desc')
+            ->forPage($page->getPage(), $page->getPageNum());
         $rows = Db::select($listQuery->toSql(), $listQuery->getBindings());
         $list = [];
         foreach ($rows as $row) {

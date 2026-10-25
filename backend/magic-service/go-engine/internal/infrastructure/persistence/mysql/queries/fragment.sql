@@ -22,13 +22,13 @@ WHERE id = ?
   AND deleted_at IS NULL;
 
 -- name: FindFragmentByID :one
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE id = ?
   AND deleted_at IS NULL;
 
 -- name: FindFragmentsByPointIDs :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND point_id IN (sqlc.slice(point_ids))
@@ -43,7 +43,7 @@ WHERE deleted_at IS NULL
   AND sync_status IN (sqlc.slice(sync_status_values));
 
 -- name: ListFragmentsByKnowledge :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = sqlc.arg(knowledge_code)
@@ -53,7 +53,7 @@ ORDER BY id ASC
 LIMIT ? OFFSET ?;
 
 -- name: ListPendingFragments :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE knowledge_code = ?
   AND sync_status IN (?, ?)
@@ -87,7 +87,7 @@ WHERE deleted_at IS NULL
   AND document_code = ?;
 
 -- name: ListFragmentsByKnowledgeAndDocument :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -108,7 +108,7 @@ WHERE deleted_at IS NULL
   AND sync_status IN (sqlc.slice(sync_status_values));
 
 -- name: ListFragmentsByKnowledgeAndDocumentFiltered :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = sqlc.arg(knowledge_code)
@@ -131,7 +131,7 @@ WHERE deleted_at IS NULL
   AND sync_status IN (sqlc.slice(sync_status_values));
 
 -- name: ListFragmentsByKnowledgeAndBusinessID :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = sqlc.arg(knowledge_code)
@@ -142,7 +142,7 @@ ORDER BY id ASC
 LIMIT ? OFFSET ?;
 
 -- name: ListFragmentsByKnowledgeAndDocumentAfterID :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -178,7 +178,7 @@ WHERE knowledge_code = ?
   AND deleted_at IS NULL;
 
 -- name: FindFragmentsByIDs :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND id IN (sqlc.slice(ids))
@@ -206,7 +206,7 @@ GROUP BY knowledge_code
 ORDER BY knowledge_code ASC;
 
 -- name: ListFragmentsMissingDocumentCodeByKnowledge :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND (document_code = '' OR document_code IS NULL)
@@ -216,7 +216,7 @@ ORDER BY id ASC
 LIMIT ?;
 
 -- name: ListFragmentsMissingDocumentCodeByKnowledgeCodes :many
-SELECT *
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND (document_code = '' OR document_code IS NULL)

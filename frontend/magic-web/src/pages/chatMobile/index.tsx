@@ -32,7 +32,7 @@ import { ChatApi } from "@/apis"
 import { useLocation } from "react-router"
 import { RouteName } from "@/routes/constants"
 import { getRoutePath } from "@/routes/history/helpers"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const enum Action {
 	More = "more",

@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState, useMemo, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import projectFilesStore from "@/stores/projectFiles"
-import { getFileContentById } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
 	DropdownMenu,
 	DropdownMenuTrigger,
@@ -52,6 +52,7 @@ export default function MaterialAttachmentList({
 	uploadToProject,
 }: MaterialAttachmentListProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const inputRef = useRef<HTMLInputElement>(null)
 	const [showProjectPicker, setShowProjectPicker] = useState(false)
 	const [loadingProjectFile, setLoadingProjectFile] = useState(false)
@@ -127,7 +128,7 @@ export default function MaterialAttachmentList({
 			try {
 				const newItems = await Promise.all(
 					pending.map(async ({ fileId, fileName, filePath }) => {
-						const blob = (await getFileContentById(fileId, {
+						const blob = (await fileApi.getFileContentById(fileId, {
 							responseType: "blob",
 						})) as Blob
 						const file = new File([blob], fileName, { type: blob.type })
@@ -153,7 +154,7 @@ export default function MaterialAttachmentList({
 				setLoadingProjectFile(false)
 			}
 		},
-		[materials, onChange, selectedPaths],
+		[materials, onChange, selectedPaths, fileApi],
 	)
 
 	const handleDropPayload = useCallback(
@@ -273,7 +274,7 @@ export default function MaterialAttachmentList({
 
 			setLoadingProjectFile(true)
 			try {
-				const blob = (await getFileContentById(fileId, {
+				const blob = (await fileApi.getFileContentById(fileId, {
 					responseType: "blob",
 				})) as Blob
 				const file = new File([blob], fileName, { type: blob.type })
@@ -295,7 +296,7 @@ export default function MaterialAttachmentList({
 				setLoadingProjectFile(false)
 			}
 		},
-		[materials, onChange, selectedPaths],
+		[materials, onChange, selectedPaths, fileApi],
 	)
 
 	const handleProjectFileToggle = useCallback(

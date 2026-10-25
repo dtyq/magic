@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealHub — Clinical Patient Management</title>
+  <style>
+  :root {
+  --primary: #0284c7;
+  --primary-dark: #0369a1;
+  --primary-subtle: #f0f9ff;
+  --teal: #0d9488;
+  --orange: #ea580c;
+  --orange-subtle: #fff7ed;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-alt: #f1f5f9;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --success: #059669;
+  --success-subtle: #ecfdf5;
+  --error: #dc2626;
+  --error-subtle: #fef2f2;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.06);
+  --font: 'Lexend', system-ui, -apple-system, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  }
+  .app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  }
+  .brand-wrap { display: flex; align-items: center; gap: 10px; }
+  .brand-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--primary), var(--teal));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  }
+  .brand-title {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  }
+  .brand-title span { color: var(--primary); }
+  .station-tag {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  }
+  .header-meta { display: flex; align-items: center; gap: 12px; }
+  .live-sync {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--success-subtle);
+  color: var(--success);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(5,150,105,0.2);
+  }
+  .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 2px rgba(5,150,105,0.3);
+  }
+  .doc-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  }
+  .doc-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  }
+  .main-grid {
+  max-width: 1240px;
+  margin: 16px auto;
+  padding: 0 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  }
+  .patient-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 18px;
+  align-items: center;
+  }
+  .pt-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-md);
+  background: var(--primary-subtle);
+  color: var(--primary-dark);
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(2,132,199,0.2);
+  }
+  .pt-details { display: flex; flex-direction: column; gap: 4px; }
+  .pt-name-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pt-name {
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  }
+  .pt-mrn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface-alt);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  }
+  .allergy-chip {
+  background: var(--error-subtle);
+  color: var(--error);
+  border: 1px solid rgba(220,38,38,0.2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  }
+  .pt-meta-row {
+  display: flex;
+  gap: 18px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  }
+  .pt-meta-row b { color: var(--text); font-weight: 600; }
+  .banner-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .btn-action {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(2,132,199,0.2);
+  }
+  .btn-secondary {
+  background: var(--orange-subtle);
+  color: var(--orange);
+  border: 1px solid rgba(234,88,12,0.25);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  }
+  .vitals-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  }
+  .vital-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  }
+  .vital-title-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  }
+  .vital-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  }
+  .status-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  }
+  .tag-green { background: var(--success-subtle); color: var(--success); }
+  .tag-blue { background: var(--primary-subtle); color: var(--primary); }
+  .vital-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 6px;
+  }
+  .metric-val {
+  font-family: var(--font);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  }
+  .metric-unit { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .sparkline-wrap { height: 26px; width: 100%; }
+  .sparkline-wrap svg { width: 100%; height: 100%; }
+  .clinical-split {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 16px;
+  }
+  .section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  }
+  .section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--surface-alt);
+  padding-bottom: 10px;
+  }
+  .section-head h2 {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  }
+  .timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  padding-left: 28px;
+  }
+  .timeline::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 12px;
+  left: 11px;
+  width: 2px;
+  background: var(--border);
+  }
+  .tl-event { position: relative; display: flex; flex-direction: column; gap: 3px; }
+  .tl-dot {
+  position: absolute;
+  left: -28px;
+  top: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  }
+  .tl-dot.done { border-color: var(--success); color: var(--success); background: var(--success-subtle); }
+  .tl-dot.now { border-color: var(--primary); color: var(--primary); background: var(--primary-subtle); box-shadow: 0 0 0 3px rgba(2,132,199,0.15); }
+  .tl-dot.next { border-color: var(--text-muted); color: var(--text-muted); }
+  .tl-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  }
+  .tl-card.current {
+  background: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(2,132,199,0.08);
+  }
+  .tl-header { display: flex; justify-content: space-between; align-items: center; }
+  .tl-title { font-weight: 600; font-size: 13px; color: var(--text); }
+  .tl-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+  .tl-doc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .rx-list { display: flex; flex-direction: column; gap: 8px; }
+  .rx-box {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  }
+  .rx-name { font-weight: 700; font-size: 13px; color: var(--text); }
+  .rx-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .rx-due { font-family: var(--font-mono); font-size: 10px; color: var(--primary); margin-top: 2px; font-weight: 500; }
+  .rx-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  text-align: right;
+  }
+  .rx-verified { background: var(--success-subtle); color: var(--success); }
+  .rx-dispensed { background: var(--primary-subtle); color: var(--primary); }
+  .rx-prn { background: var(--orange-subtle); color: var(--orange); }
+  .barcode-ref { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); margin-top: 3px; display: block; }
+  .footer-bar {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+  }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+  <div class="brand-wrap">
+  <div class="brand-badge">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+  <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+  <path d="M12 5v14M5 12h14"/>
+  </svg>
+  </div>
+  <span class="brand-title">Heal<span>Hub</span></span>
+  <span class="station-tag">CCU Telemetry &bull; Ward 4B</span>
+  </div>
+  <div class="header-meta">
+  <div class="live-sync"><span class="live-dot"></span>Bedside Synced</div>
+  <div class="doc-badge">
+  <div class="doc-avatar">SJ</div>
+  <span>Dr. Sarah Jenkins, MD</span>
+  </div>
+  </div>
+  </header>
+
+  <main class="main-grid">
+  <!-- First 500px Impact: Patient EHR Banner -->
+  <section class="patient-banner">
+  <div class="pt-avatar">ER</div>
+  <div class="pt-details">
+  <div class="pt-name-line">
+  <h1 class="pt-name">Elena Rostova</h1>
+  <span class="pt-mrn">MRN #HH-89241</span>
+  <span class="allergy-chip">&bull; Penicillin Allergy (Severe)</span>
+  </div>
+  <div class="pt-meta-row">
+  <span>Age: <b>42Y Female</b></span>
+  <span>Blood: <b>O+</b></span>
+  <span>Bed: <b>412-B</b></span>
+  <span>Diagnosis: <b>Acute Coronary Protocol</b></span>
+  </div>
+  </div>
+  <div class="banner-actions">
+  <button class="btn-action">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  Order Rx
+  </button>
+  <button class="btn-secondary">Add Clinical Note</button>
+  </div>
+  </section>
+
+  <!-- Vitals Telemetry -->
+  <section class="vitals-bar">
+  <!-- Heart Rate: 72 BPM -->
+  <div class="vital-card">
+  <div class="vital-title-line">
+  <span class="vital-name">Heart Rate</span>
+  <span class="status-tag tag-blue">Normal Sinus</span>
+  </div>
+  <div class="vital-metric">
+  <span class="metric-val" style="color: var(--primary);">72</span>
+  <span class="metric-unit">BPM</span>
+  </div>
+  <div class="sparkline-wrap">
+  <svg viewBox="0 0 160 30" fill="none">
+  <path d="M0,15 L25,15 L32,15 L37,22 L42,3 L48,27 L53,15 L65,15 L95,15 L102,15 L107,22 L112,3 L118,27 L123,15 L160,15" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  </div>
+  </div>
+
+  <!-- Blood Pressure: 120/80 -->
+  <div class="vital-card">
+  <div class="vital-title-line">
+  <span class="vital-name">Blood Pressure</span>
+  <span class="status-tag tag-green">Optimal</span>
+  </div>
+  <div class="vital-metric">
+  <span class="metric-val">120/80</span>
+  <span class="metric-unit">mmHg</span>
+  </div>
+  <div class="sparkline-wrap">
+  <svg viewBox="0 0 160 30" fill="none">
+  <path d="M0,18 Q40,10 80,16 T160,14" stroke="#059669" stroke-width="2" stroke-linecap="round"/>
+  <line x1="0" y1="24" x2="160" y2="24" stroke="#e2e8f0" stroke-dasharray="2 3"/>
+  </svg>
+  </div>
+  </div>
+
+  <!-- SpO2 -->
+  <div class="vital-card">
+  <div class="vital-title-line">
+  <span class="vital-name">SpO2 (Pulse Ox)</span>
+  <span class="status-tag tag-green">Room Air</span>
+  </div>
+  <div class="vital-metric">
+  <span class="metric-val" style="color: var(--teal);">98</span>
+  <span class="metric-unit">%</span>
+  </div>
+  <div class="sparkline-wrap">
+  <svg viewBox="0 0 160 30" fill="none">
+  <path d="M0,16 C30,12 60,20 90,14 C120,10 140,18 160,15" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  </div>
+  </div>
+
+  <!-- Core Temp -->
+  <div class="vital-card">
+  <div class="vital-title-line">
+  <span class="vital-name">Temperature</span>
+  <span class="status-tag tag-blue">Afebrile</span>
+  </div>
+  <div class="vital-metric">
+  <span class="metric-val">36.8</span>
+  <span class="metric-unit">&deg;C</span>
+  </div>
+  <div class="sparkline-wrap">
+  <svg viewBox="0 0 160 30" fill="none">
+  <path d="M0,15 L40,14 L80,16 L120,15 L160,15" stroke="#64748b" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>
+  </div>
+  </div>
+  </section>
+
+  <!-- Split View: Appointments & Rx -->
+  <div class="clinical-split">
+  <!-- Doctor Appointment Timeline -->
+  <section class="section-card">
+  <div class="section-head">
+  <h2>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  Doctor Appointment Timeline
+  </h2>
+  <span class="status-tag tag-blue">3 Scheduled</span>
+  </div>
+
+  <div class="timeline">
+  <!-- Item 1: Done -->
+  <div class="tl-event">
+  <div class="tl-dot done">&#10003;</div>
+  <div class="tl-card">
+  <div class="tl-header">
+  <span class="tl-title">Cardiology Morning Rounds</span>
+  <span class="tl-time">08:30 AM &bull; COMPLETED</span>
+  </div>
+  <div class="tl-doc">Dr. Sarah Jenkins, MD &bull; Bedside Auscultation &amp; S1/S2 Review</div>
+  </div>
+  </div>
+
+  <!-- Item 2: Current -->
+  <div class="tl-event">
+  <div class="tl-dot now">&bull;</div>
+  <div class="tl-card current">
+  <div class="tl-header">
+  <span class="tl-title" style="color: var(--primary);">Pharmacotherapy Review &amp; Titration</span>
+  <span class="tl-time" style="color: var(--primary); font-weight: 700;">14:00 PM &bull; ACTIVE</span>
+  </div>
+  <div class="tl-doc">Dr. Marcus Vance, PharmD &bull; Telemetry Evaluation &amp; ACE-Inhibitor Titration</div>
+  </div>
+  </div>
+
+  <!-- Item 3: Next -->
+  <div class="tl-event">
+  <div class="tl-dot next">&bull;</div>
+  <div class="tl-card">
+  <div class="tl-header">
+  <span class="tl-title">Discharge Assessment Consult</span>
+  <span class="tl-time">16:30 PM &bull; PENDING</span>
+  </div>
+  <div class="tl-doc">Dr. Chloe Bennett, MD &bull; Care Transition &amp; Home Vitals Telehealth</div>
+  </div>
+  </div>
+  </div>
+  </section>
+
+  <!-- Active Prescription Orders -->
+  <section class="section-card">
+  <div class="section-head">
+  <h2>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+  Active Prescription Orders
+  </h2>
+  <span style="font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer;">e-Rx Verified</span>
+  </div>
+
+  <div class="rx-list">
+  <div class="rx-box">
+  <div>
+  <div class="rx-name">Lisinopril Tablets 10mg</div>
+  <div class="rx-sub">Oral (PO) &bull; Once daily morning &bull; Refills: 3</div>
+  <div class="rx-due">Next Dose: Today at 18:00 (Evening round)</div>
+  </div>
+  <div style="text-align: right;">
+  <span class="rx-badge rx-verified">Verified</span>
+  <span class="barcode-ref">NDC 0006-0207-58</span>
+  </div>
+  </div>
+
+  <div class="rx-box">
+  <div>
+  <div class="rx-name">Atorvastatin Calcium 20mg</div>
+  <div class="rx-sub">Oral (PO) &bull; Once daily at bedtime (QHS)</div>
+  <div class="rx-due">Next Dose: Today at 21:00</div>
+  </div>
+  <div style="text-align: right;">
+  <span class="rx-badge rx-verified">Verified</span>
+  <span class="barcode-ref">NDC 0071-0155-23</span>
+  </div>
+  </div>
+
+  <div class="rx-box">
+  <div>
+  <div class="rx-name">Metformin HCl 500mg</div>
+  <div class="rx-sub">Oral (PO) &bull; Twice daily with meals (BID)</div>
+  <div class="rx-due" style="color: var(--teal);">Administered: 12:30 PM (Nurse J. Miller)</div>
+  </div>
+  <div style="text-align: right;">
+  <span class="rx-badge rx-dispensed">Dispensed</span>
+  <span class="barcode-ref">NDC 50090-1289-0</span>
+  </div>
+  </div>
+
+  <div class="rx-box" style="border-left: 3px solid var(--orange);">
+  <div>
+  <div class="rx-name">Nitroglycerin SL 0.4mg</div>
+  <div class="rx-sub">Sublingual (SL) &bull; PRN acute chest discomfort</div>
+  <div class="rx-due" style="color: var(--orange);">Standing PRN Order Active</div>
+  </div>
+  <div style="text-align: right;">
+  <span class="rx-badge rx-prn">PRN Bedside</span>
+  <span class="barcode-ref">NDC 0071-0418-24</span>
+  </div>
+  </div>
+  </div>
+  </section>
+  </div>
+
+  <footer class="footer-bar">
+  <span>HealHub EHR Suite v4.12 &bull; HL7 FHIR Bridge Online</span>
+  <span style="font-family: var(--font-mono);">Terminal ID: CCU-04-W12 &bull; DEA #BJ-8894103</span>
+  </footer>
+  </main>
+</body>
+</html>

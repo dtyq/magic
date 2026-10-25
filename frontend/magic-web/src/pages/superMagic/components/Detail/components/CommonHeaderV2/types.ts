@@ -8,6 +8,7 @@ import type {
 	AttachmentItem,
 	AttachmentSource,
 } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import type { BeforeAction } from "../../utils/actionGuard"
 
 export type ViewMode = "code" | "desktop" | "phone"
 
@@ -36,6 +37,8 @@ export interface CurrentFileInfo {
 }
 
 export interface ActionContext {
+	/** Optional guard run before toolbar actions. */
+	beforeAction?: BeforeAction
 	type?: string
 	viewMode: ViewMode
 	isMobile: boolean
@@ -50,6 +53,8 @@ export interface ActionContext {
 	showRefreshButton: boolean
 	isNewestFileVersion: boolean
 	allowEdit: boolean
+	/** Allows the share action in read-only previews without granting edit permission. */
+	shareInReadOnly?: boolean
 	currentFile?: CurrentFileInfo
 	attachments?: AttachmentItem[]
 	fileContent?: string
@@ -128,7 +133,15 @@ export interface CustomComposedAction {
 export type ComposedAction = BuiltinComposedAction | CustomComposedAction
 
 export interface CommonHeaderV2Props {
+	/** Optional DOM anchor for a feature tour of the More menu. */
+	moreButtonId?: string
+	/** Optional guard run before toolbar actions. */
+	beforeAction?: BeforeAction
+	/** Whether this cached preview should expose test ids. */
+	testIdsEnabled?: boolean
 	renderMode?: "full" | "actions"
+	/** Keeps the standard separator unless an embedded preview already provides its own border. */
+	showBottomBorder?: boolean
 	type?: string
 	onFullscreen?: () => void
 	onDownload?: (mode?: DownloadImageMode) => void

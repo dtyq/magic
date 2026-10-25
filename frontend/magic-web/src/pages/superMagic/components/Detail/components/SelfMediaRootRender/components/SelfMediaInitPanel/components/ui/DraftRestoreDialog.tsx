@@ -2,7 +2,7 @@ import { ArrowLeft, FileClock, Loader2, RotateCcw } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { selfMediaOverlayStyles } from "../../../selfMediaOverlayStyles"
 
 interface DraftRestoreDialogProps {

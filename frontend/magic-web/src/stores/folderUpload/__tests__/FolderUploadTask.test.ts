@@ -10,7 +10,7 @@ vi.mock("@/apis", () => ({
 	},
 }))
 
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			error: vi.fn(),
@@ -40,8 +40,11 @@ vi.mock("@/components/base/MagicToaster/utils", () => ({
 	},
 }))
 
-type FolderUploadTaskInternals = FolderUploadTask & {
+type FolderUploadTaskInternals = {
+	id: string
+	state: FolderUploadTask["state"]
 	pendingSaveFiles: UploadResult[]
+	pendingSavePromises: Set<Promise<void>>
 	callbacks: TaskCallbacks
 	fileKeyToRelativePath: Map<string, string>
 	executePendingSave: () => Promise<void>
@@ -72,6 +75,18 @@ function seedPendingSave(task: FolderUploadTaskInternals): void {
 		},
 	]
 	task.fileKeyToRelativePath.set("oss-key", "image.png")
+}
+
+function mockSavedFiles(): void {
+	vi.mocked(SuperMagicApi.batchSaveFiles).mockResolvedValueOnce([
+		{
+			file_id: "file-id",
+			file_key: "oss-key",
+			file_name: "image.png",
+			file_size: 5,
+			relative_file_path: "images/image.png",
+		},
+	])
 }
 
 describe("FolderUploadTask project save failures", () => {
@@ -133,5 +148,84 @@ describe("FolderUploadTask project save failures", () => {
 		)
 		expect(onComplete).not.toHaveBeenCalled()
 		expect(task.pendingSaveFiles).toEqual([])
+	})
+
+	it("keeps realtime save pending until async batch-save consumers settle", async () => {
+		mockSavedFiles()
+		const task = createTask()
+		let settleConsumer!: () => void
+		const consumerPromise = new Promise<void>((resolve) => {
+			settleConsumer = resolve
+		})
+		const onBatchSaveComplete = vi.fn(() => consumerPromise)
+		task.callbacks = { onBatchSaveComplete }
+		seedPendingSave(task)
+
+		let saveResolved = false
+		const savePromise = task.executePendingSave().then(() => {
+			saveResolved = true
+		})
+
+		await vi.waitFor(() => expect(onBatchSaveComplete).toHaveBeenCalledOnce())
+		expect(saveResolved).toBe(false)
+
+		settleConsumer()
+		await savePromise
+		expect(saveResolved).toBe(true)
+	})
+
+	it("keeps final save pending until async batch-save consumers settle", async () => {
+		mockSavedFiles()
+		const task = createTask()
+		let settleConsumer!: () => void
+		const consumerPromise = new Promise<void>((resolve) => {
+			settleConsumer = resolve
+		})
+		const onBatchSaveComplete = vi.fn(() => consumerPromise)
+		task.callbacks = { onBatchSaveComplete }
+		seedPendingSave(task)
+
+		let finalizeResolved = false
+		const finalizePromise = task.finalizeRemainingFiles().then(() => {
+			finalizeResolved = true
+		})
+
+		await vi.waitFor(() => expect(onBatchSaveComplete).toHaveBeenCalledOnce())
+		expect(finalizeResolved).toBe(false)
+
+		settleConsumer()
+		await finalizePromise
+		expect(finalizeResolved).toBe(true)
+	})
+
+	it("waits for an in-flight realtime save before finalizing", async () => {
+		mockSavedFiles()
+		const task = createTask()
+		let settleConsumer!: () => void
+		const consumerPromise = new Promise<void>((resolve) => {
+			settleConsumer = resolve
+		})
+		const onBatchSaveComplete = vi.fn(() => consumerPromise)
+		task.callbacks = { onBatchSaveComplete }
+		seedPendingSave(task)
+
+		const pendingSave = task.executePendingSave()
+		task.pendingSavePromises.add(pendingSave)
+		void pendingSave.finally(() => {
+			task.pendingSavePromises.delete(pendingSave)
+		})
+
+		await vi.waitFor(() => expect(onBatchSaveComplete).toHaveBeenCalledOnce())
+
+		let finalizeResolved = false
+		const finalizePromise = task.finalizeRemainingFiles().then(() => {
+			finalizeResolved = true
+		})
+		await Promise.resolve()
+		expect(finalizeResolved).toBe(false)
+
+		settleConsumer()
+		await finalizePromise
+		expect(finalizeResolved).toBe(true)
 	})
 })

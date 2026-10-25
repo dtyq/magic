@@ -41,7 +41,8 @@ export function useAskUserCountdown({
 		}
 	}, [expiresAt, isActive])
 
-	const isExpiredLocal = remainingMs <= 0
+	// expiresAt=0 表示一直等待，不能把“没有期限”当成“已经过期”。
+	const isExpiredLocal = Boolean(expiresAt && expiresAt > 0 && remainingMs <= 0)
 
 	return useMemo(
 		() => ({

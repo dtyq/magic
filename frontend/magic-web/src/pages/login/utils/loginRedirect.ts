@@ -1,3 +1,4 @@
+import { RoutePath } from "@/constants/routes"
 import { LOGIN_STRATEGY_QUERY_KEY, LoginValueKey } from "../constants"
 
 interface BuildLoginRedirectSearchParamsOptions {
@@ -40,4 +41,24 @@ export function buildLoginRedirectSearchParams({
 	}
 
 	return searchParams
+}
+
+/**
+ * Generates the login redirect URL.
+ * @returns The login redirect URL
+ */
+export const genLoginRedirectUrl = () => {
+	const redirectUrl = new URL(RoutePath.Login, window.location.origin)
+	if (window.location.pathname !== RoutePath.Login) {
+		const redirectTarget = new URLSearchParams(window.location.search).get(
+			LoginValueKey.REDIRECT_URL,
+		)
+
+		// Keep login-related query state when API auth expires inside embedded routes.
+		redirectUrl.search = buildLoginRedirectSearchParams({
+			currentHref: window.location.href,
+			redirectTarget: redirectTarget ?? window.location.href,
+		}).toString()
+	}
+	return redirectUrl.toString()
 }

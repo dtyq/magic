@@ -46,6 +46,19 @@ vi.mock("@/pages/superMagic/hooks/usePaginatedTopics", () => ({
 	default: (options: unknown) => mockUsePaginatedTopics(options),
 }))
 
+// The filter's menu interactions have their own tests; exercise the host's query scope here.
+vi.mock("@/pages/superMagic/components/TopicTypeFilter", () => ({
+	default: ({ onChange }: { onChange: (value: "scheduled_task") => void }) => (
+		<button
+			type="button"
+			data-testid="topic-type-filter-trigger"
+			onClick={() => onChange("scheduled_task")}
+		>
+			Scheduled tasks
+		</button>
+	),
+}))
+
 vi.mock("@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip", () => ({
 	default: ({ text, ...props }: { text: string }) => <span {...props}>{text}</span>,
 }))
@@ -405,7 +418,14 @@ describe("TopicHistoryPanelContent", () => {
 			onCreateTopic: vi.fn(),
 		}
 
-		return render(<TopicHistoryPanelContent {...defaultProps} {...overrides} />)
+		const result = render(<TopicHistoryPanelContent {...defaultProps} {...overrides} />)
+		return {
+			...result,
+			rerenderComponent: (next: Partial<ComponentProps<typeof TopicHistoryPanelContent>>) =>
+				result.rerender(
+					<TopicHistoryPanelContent {...defaultProps} {...overrides} {...next} />,
+				),
+		}
 	}
 
 	beforeEach(() => {
@@ -436,6 +456,38 @@ describe("TopicHistoryPanelContent", () => {
 					total: filteredTopics.length,
 				}
 			},
+		)
+	})
+
+	it("keeps topic-type filtering available for regular project histories", () => {
+		renderComponent()
+
+		expect(screen.getByTestId("topic-type-filter-trigger")).toBeInTheDocument()
+	})
+
+	it("hides topic-type filtering and loads all topics for scoped histories", () => {
+		renderComponent({ hideTopicTypeFilter: true })
+
+		expect(screen.queryByTestId("topic-type-filter-trigger")).toBeNull()
+		expect(mockUsePaginatedTopics).toHaveBeenLastCalledWith(
+			expect.objectContaining({ topicType: "all" }),
+		)
+		expect(screen.getByText("Alpha Topic")).toBeInTheDocument()
+		expect(screen.getByText("Beta Topic")).toBeInTheDocument()
+	})
+
+	it("stops applying a selected type when filtering becomes hidden", () => {
+		const { rerenderComponent } = renderComponent()
+		fireEvent.click(screen.getByTestId("topic-type-filter-trigger"))
+		expect(mockUsePaginatedTopics).toHaveBeenLastCalledWith(
+			expect.objectContaining({ topicType: "scheduled_task" }),
+		)
+
+		rerenderComponent({ hideTopicTypeFilter: true })
+
+		expect(screen.queryByTestId("topic-type-filter-trigger")).toBeNull()
+		expect(mockUsePaginatedTopics).toHaveBeenLastCalledWith(
+			expect.objectContaining({ topicType: "all" }),
 		)
 	})
 
@@ -675,6 +727,29 @@ describe("TopicHistoryPanelContent", () => {
 		).toBeInTheDocument()
 		expect(handleSelectTopic).not.toHaveBeenCalled()
 	})
+
+	it.each([false, true])(
+		"toggles pinned=%s from the context menu without selecting the topic",
+		async (isPinned) => {
+			const onPinTopic = vi.fn().mockResolvedValue(undefined)
+			const onUnpinTopic = vi.fn().mockResolvedValue(undefined)
+			const onSelectTopic = vi.fn()
+			renderComponent({
+				topics: [{ ...topics[1], is_pinned: isPinned }],
+				onPinTopic,
+				onUnpinTopic,
+				onSelectTopic,
+			})
+			fireEvent.contextMenu(screen.getByTestId("message-header-history-item-topic-2"))
+			const item = screen.getByTestId("message-header-history-context-pin")
+			expect(item).toHaveTextContent(isPinned ? "messageHeader.unpin" : "messageHeader.pin")
+			fireEvent.click(item)
+			await waitFor(() => expect(mockReloadTopics).toHaveBeenCalledTimes(1))
+			expect(isPinned ? onUnpinTopic : onPinTopic).toHaveBeenCalledWith("topic-2")
+			expect(isPinned ? onPinTopic : onUnpinTopic).not.toHaveBeenCalled()
+			expect(onSelectTopic).not.toHaveBeenCalled()
+		},
+	)
 
 	it("calls onEditTopic from context menu", () => {
 		const handleEditTopic = vi.fn()

@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from "react"
 import { Flex, Tag } from "antd"
-import dayjs from "dayjs"
+import dayjs from "@admin/infrastructure/vendors/dayjs"
 import {
 	IconChevronDown,
 	IconChevronUp,

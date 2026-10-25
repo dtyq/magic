@@ -213,6 +213,12 @@ export class VideoPreviewLoader {
 		const poster = document.createElement("canvas")
 		poster.width = width
 		poster.height = height
+		// Reject a browser-clamped backing store before it can reach Konva. The
+		// release path also guards this invariant, but a zero-sized source is never
+		// a valid preview even when the metadata itself looked usable.
+		if (poster.width <= 0 || poster.height <= 0) {
+			return null
+		}
 		const ctx = poster.getContext("2d")
 		if (!ctx) {
 			return null

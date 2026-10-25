@@ -1,0 +1,450 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Magic API through real host hooks</title>
+		<script data-fixture-helper></script>
+	</head>
+	<body>
+		<h2>Magic API requests across the iframe boundary</h2>
+		<script>
+			;(async function () {
+				async function rejects(operation, expected) {
+					let error
+					try {
+						await operation()
+					} catch (caught) {
+						error = caught
+					}
+					if (!error) throw Error("Expected request rejection")
+					if (!String(error.message).includes(expected))
+						throw Error("Unexpected rejection: " + error.message)
+				}
+				await Fixture.test(
+					"host runtime loads across origins without falling back to the shell",
+					async () => {
+						Fixture.equal(window.__FIXTURE_HOST_RUNTIME_LOADED__, true)
+						Fixture.equal(
+							typeof MagicHtmlSandboxRuntime.BaseRuntimeBridgeApiPlugin.prototype
+								.isHostMessage,
+							"function",
+						)
+					},
+				)
+				await Fixture.test(
+					"all ten API plugins install their namespaces and legacy aliases",
+					async () => {
+						for (const name of [
+							"fs",
+							"llm",
+							"i18n",
+							"agent",
+							"project",
+							"user",
+							"context",
+							"db",
+						]) {
+							Fixture.equal(typeof Magic[name], "object")
+						}
+						for (const method of [
+							"uploadFiles",
+							"addFilesToMessage",
+							"downloadFiles",
+							"createTopicAndSend",
+							"sendMessage",
+						]) {
+							Fixture.equal(Magic[method] === Magic.project[method], true)
+						}
+						Fixture.equal(Magic.getAgents === Magic.agent.getAgents, true)
+						Fixture.equal(Magic.getContext === Magic.context.getContext, true)
+						Fixture.equal(window.reload === Magic.reload, true)
+					},
+				)
+				await Fixture.test(
+					"readFile fetches real content through the filesystem hook",
+					async () => {
+						Fixture.equal(await Magic.fs.readFile("data.txt"), "fixture file content")
+					},
+				)
+				await Fixture.test(
+					"self-posted matching replies cannot impersonate the real host",
+					async () => {
+						let attempted = false
+						const unsubscribe = MagicHtmlSandboxRuntime.runtimeLoggerHub.subscribe(
+							(record) => {
+								if (
+									record.event !== "request:start" ||
+									record.details?.type !== "MAGIC_FS_READ_REQUEST"
+								)
+									return
+								attempted = true
+								window.postMessage(
+									{
+										type: "MAGIC_FS_READ_RESPONSE",
+										requestId: record.details.requestId,
+										success: true,
+										content: "forged fixture reply",
+									},
+									location.origin,
+								)
+							},
+						)
+						try {
+							Fixture.equal(
+								await Magic.fs.readFile("data.txt"),
+								"fixture file content",
+							)
+							Fixture.equal(attempted, true)
+						} finally {
+							unsubscribe()
+						}
+					},
+				)
+				await Fixture.test(
+					"filesystem lists and application root are scoped to the entry directory",
+					async () => {
+						Fixture.equal(await Magic.getAppBasePath(), "app/")
+						Fixture.equal(await Magic.fs.listFiles(), ["data.txt"])
+						Fixture.equal(await Magic.fs.listDir(), [
+							{
+								name: "data.txt",
+								path: "data.txt",
+								isDirectory: false,
+								updatedAt: "1",
+							},
+						])
+						const url = await Magic.fs.getFileUrl("data.txt")
+						Fixture.equal(await (await fetch(url)).text(), "fixture file content")
+					},
+				)
+				await Fixture.test(
+					"writeFile saves existing text through the real service",
+					async () => {
+						await Magic.fs.writeFile("data.txt", "updated fixture text")
+					},
+				)
+				await Fixture.test(
+					"writeFile uploads Blob and ArrayBuffer payloads across windows",
+					async () => {
+						await Magic.fs.writeFile(
+							"blob.txt",
+							new Blob(["blob payload"], { type: "text/plain" }),
+						)
+						await Magic.fs.writeFile("buffer.bin", new Uint8Array([1, 2, 3]).buffer)
+					},
+				)
+				await Fixture.test(
+					"filesystem rejects missing files and traversal at the real host service",
+					async () => {
+						await rejects(() => Magic.fs.readFile("missing.txt"), "File not found")
+						await rejects(() => Magic.fs.readFile("../outside.txt"), "invalid path")
+					},
+				)
+				await Fixture.test(
+					"parameter validation rejects malformed calls before host work",
+					async () => {
+						await rejects(() => Magic.fs.readFile(null), "path must be a string")
+						await rejects(() => Magic.project.sendMessage("  "), "message must be")
+						await rejects(() => Magic.project.createTopicAndSend({}), "message must be")
+						await rejects(() => Magic.project.uploadFiles([]), "cannot be empty")
+						await rejects(
+							() => Magic.project.addFilesToMessage([42]),
+							"must be a string",
+						)
+						await rejects(() => Magic.db.getRow("table", ""), "recordId must be")
+					},
+				)
+				await Fixture.test("agent list and old alias use the real agent hook", async () => {
+					const expected = [
+						{
+							id: "fixture-agent",
+							name: "Fixture Agent",
+							icon: "",
+							color: "",
+							type: "official",
+						},
+					]
+					Fixture.equal(await Magic.agent.getAgents(), expected)
+					Fixture.equal(await Magic.getAgents(), expected)
+				})
+				await Fixture.test(
+					"agent creates a topic with rich text and sends a current-topic message",
+					async () => {
+						const message = {
+							type: "doc",
+							content: [
+								{
+									type: "paragraph",
+									content: [{ type: "text", text: "Fixture message" }],
+								},
+							],
+						}
+						Fixture.equal(
+							await Magic.project.createTopicAndSend(message, {
+								agentId: "fixture-agent",
+								model: "fixture-model",
+							}),
+							{ topicId: "fixture-topic" },
+						)
+						Fixture.equal(
+							await Magic.project.sendMessage("Fixture current topic", {
+								model: "fixture-model",
+							}),
+							undefined,
+						)
+					},
+				)
+				await Fixture.test(
+					"user profile authorizes identity scopes through the real hook",
+					async () => {
+						const profile = await Magic.user.getInfo({
+							scopes: ["user.profile.display", "user.profile.identity"],
+							reason: "Fixture identity card",
+						})
+						Fixture.equal(profile.name, "Fixture User")
+						Fixture.equal(profile.avatar, "fixture-avatar")
+						Fixture.equal(profile.user_id, "fixture-user")
+					},
+				)
+				await Fixture.test(
+					"database table and administrator queries use the real project service",
+					async () => {
+						Fixture.equal(await Magic.db.getTables(), [
+							{ id: "fixture-table", name: "Fixture table" },
+						])
+						Fixture.equal(await Magic.db.getTable("fixture-table"), {
+							id: "fixture-table",
+						})
+						Fixture.equal(await Magic.db.getProjectAdminAccess(), {
+							project_id: "fixture-project",
+							is_admin: false,
+						})
+						Fixture.equal(await Magic.db.getRelations(), [])
+					},
+				)
+				await Fixture.test(
+					"database CRUD and query payloads cross the real bridge",
+					async () => {
+						Fixture.equal(
+							await Magic.db.createRow("fixture-table", { title: "created" }, [
+								"title",
+							]),
+							{ id: "fixture-row" },
+						)
+						Fixture.equal(
+							await Magic.db.queryRows("fixture-table", {
+								page: 1,
+								page_size: 10,
+								select: ["title"],
+							}),
+							{ items: [{ id: "fixture-row" }] },
+						)
+						Fixture.equal(
+							await Magic.db.getRow("fixture-table", "fixture-row", ["title"]),
+							{ id: "fixture-row" },
+						)
+						Fixture.equal(
+							await Magic.db.updateRow(
+								"fixture-table",
+								"fixture-row",
+								{ title: "updated" },
+								["title"],
+							),
+							{ id: "fixture-row" },
+						)
+						Fixture.equal(
+							await Magic.db.deleteRow("fixture-table", "fixture-row"),
+							undefined,
+						)
+					},
+				)
+				await Fixture.test("LLM models and chat use a real HTTP response", async () => {
+					Fixture.equal(await Magic.llm.getModels(), [{ id: "fixture-model" }])
+					Fixture.equal(
+						await Magic.llm.chat([{ role: "user", content: "Fixture question" }], {
+							model: "fixture-model",
+						}),
+						"fixture reply",
+					)
+				})
+				await Fixture.test(
+					"LLM streaming consumes a real SSE body and completes",
+					async () => {
+						let text = ""
+						await new Promise((resolve) => {
+							Magic.llm.stream(
+								[{ role: "user", content: "Fixture stream" }],
+								(delta, done) => {
+									text += delta
+									if (done) resolve()
+								},
+								{ model: "fixture-model" },
+							)
+						})
+						Fixture.equal(text, "fixture reply")
+					},
+				)
+				await Fixture.test(
+					"workspace upload preserves File, Blob and transferred ArrayBuffer contents",
+					async () => {
+						const results = await Magic.project.uploadFiles([
+							{
+								file: new File(["file upload"], "file.txt", { type: "text/plain" }),
+								path: "app/file.txt",
+								filename: "file.txt",
+							},
+							{
+								file: new Blob(["blob upload"], { type: "text/plain" }),
+								path: "app/blob.txt",
+								filename: "blob.txt",
+							},
+							{
+								file: new Uint8Array([4, 5, 6]).buffer,
+								path: "app/bytes.bin",
+								filename: "bytes.bin",
+							},
+						])
+						Fixture.equal(results, [
+							{
+								filename: "file.txt",
+								path: "app/file.txt",
+								success: true,
+								relative_file_path: "app/file.txt",
+							},
+							{
+								filename: "blob.txt",
+								path: "app/blob.txt",
+								success: true,
+								relative_file_path: "app/blob.txt",
+							},
+							{
+								filename: "bytes.bin",
+								path: "app/bytes.bin",
+								success: true,
+								relative_file_path: "app/bytes.bin",
+							},
+						])
+					},
+				)
+				await Fixture.test(
+					"workspace adds a known file to the current message",
+					async () => {
+						Fixture.equal(await Magic.project.addFilesToMessage(["data.txt"]), {
+							foundCount: 1,
+							notFoundPaths: [],
+						})
+					},
+				)
+				await Fixture.test("workspace download returns per-operation counts", async () => {
+					Fixture.equal(await Magic.project.downloadFiles(["data.txt"]), {
+						successCount: 1,
+						failedCount: 0,
+						notFoundPaths: [],
+						failedResults: [],
+					})
+				})
+				await Fixture.test(
+					"concurrent file and agent replies stay correlated",
+					async () => {
+						const finished = []
+						const file = Magic.fs.readFile("data.txt").then((value) => {
+							finished.push("file")
+							return value
+						})
+						const agents = Magic.agent.getAgents().then((value) => {
+							finished.push("agents")
+							return value
+						})
+						const results = await Promise.all([file, agents])
+						Fixture.equal(results[0], "fixture file content")
+						Fixture.equal(results[1][0].id, "fixture-agent")
+						Fixture.equal(finished.sort(), ["agents", "file"])
+					},
+				)
+				async function changeHostLanguage(lang) {
+					await new Promise((resolve) => {
+						const handler = (event) => {
+							if (
+								event.source !== parent ||
+								event.data?.type !== "FIXTURE_LANGUAGE_CHANGED"
+							)
+								return
+							window.removeEventListener("message", handler)
+							resolve()
+						}
+						window.addEventListener("message", handler)
+						parent.postMessage({ type: "FIXTURE_CHANGE_LANGUAGE", lang }, "*")
+					})
+				}
+				await Fixture.test(
+					"lang follows real host language changes without subscribers",
+					async () => {
+						await changeHostLanguage("zh_CN")
+						Fixture.equal(Magic.i18n.lang, "zh_CN")
+					},
+				)
+				await Fixture.test(
+					"language callbacks update DOM without losing page state",
+					async () => {
+						const input = document.createElement("input")
+						input.value = "unsaved draft"
+						const label = document.createElement("span")
+						document.body.append(input, label)
+						const seen = []
+						const callback = ({ lang }) => {
+							Fixture.equal(Magic.i18n.lang, lang)
+							label.textContent = lang === "en_US" ? "Hello" : "你好"
+							seen.push(lang)
+						}
+						const dispose = Magic.i18n.subscribe(callback)
+						await Fixture.waitFor(() => seen.length === 1)
+						Fixture.equal(label.textContent, "你好")
+						await changeHostLanguage("en_US")
+						Fixture.equal(seen, ["zh_CN", "en_US"])
+						Fixture.equal(label.textContent, "Hello")
+						Fixture.equal(input.isConnected && input.value, "unsaved draft")
+						Magic.i18n.unsubscribe(callback)
+						await changeHostLanguage("zh_CN")
+						Fixture.equal(Magic.i18n.lang, "zh_CN")
+						Fixture.equal(seen, ["zh_CN", "en_US"])
+						dispose()
+						input.remove()
+						label.remove()
+					},
+				)
+				await Fixture.test(
+					"returned disposer removes only its callback; resubscribe gets current language",
+					async () => {
+						const first = [],
+							second = []
+						const off = Magic.i18n.subscribe(({ lang }) => first.push(lang))
+						await Fixture.waitFor(() => first.length === 1)
+						const cb = ({ lang }) => second.push(lang)
+						Magic.i18n.subscribe(cb)
+						await Fixture.waitFor(() => second.length === 1)
+						off()
+						const previous = first.slice()
+						await changeHostLanguage("en_US")
+						Fixture.equal(first, previous)
+						Fixture.equal(second, ["zh_CN", "en_US"])
+						Magic.i18n.unsubscribe(cb)
+						let current
+						const stop = Magic.i18n.subscribe(({ lang }) => {
+							current = lang
+						})
+						await Fixture.waitFor(() => current === "en_US")
+						stop()
+					},
+				)
+				await Fixture.test(
+					"setInputMessage reaches the host without replacing the document",
+					async () => {
+						Magic.setInputMessage("Fixture input message")
+						Fixture.equal(document.title, "Magic API through real host hooks")
+					},
+				)
+				Fixture.done()
+			})()
+		</script>
+	</body>
+</html>

@@ -264,7 +264,7 @@ class RoleRepository implements RoleRepositoryInterface
             $permissions = array_merge($permissions, $role->getPermissions());
         }
 
-        return array_unique($permissions);
+        return array_values(array_unique($permissions));
     }
 
     /**

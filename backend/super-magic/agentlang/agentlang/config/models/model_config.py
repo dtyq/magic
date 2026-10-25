@@ -11,6 +11,23 @@ from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+def parse_bool_value(value: Any, default: bool = False) -> bool:
+    """解析配置来源中的布尔值，兼容布尔、数字和常见字符串表示。"""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off", ""}:
+            return False
+    return bool(value)
+
 if TYPE_CHECKING:
     from agentlang.config.models.model_profile import ModelProfile
     from agentlang.config.models.provider_config import ProviderConfig, ProviderModelConfig
@@ -44,6 +61,8 @@ class ModelConfig:
 
     # 功能支持
     supports_tool_use: bool = True
+    # 是否支持 OpenAI-compatible 图片输入。
+    supports_multimodal: bool = False
 
     # 可选字段
     stop: Optional[List[str]] = None
@@ -88,7 +107,8 @@ class ModelConfig:
             max_output_tokens=int(config_dict.get("max_output_tokens", 4096)),
             temperature=float(config_dict.get("temperature", 0.7)),
             top_p=float(config_dict.get("top_p", 1.0)),
-            supports_tool_use=bool(config_dict.get("supports_tool_use", True)),
+            supports_tool_use=parse_bool_value(config_dict.get("supports_tool_use"), default=True),
+            supports_multimodal=parse_bool_value(config_dict.get("supports_multimodal")),
             stop=config_dict.get("stop"),
             headers={str(k): str(v) for k, v in _dict_or_empty(config_dict.get("headers")).items()},
             query_params={str(k): str(v) for k, v in _dict_or_empty(config_dict.get("query_params")).items()},
@@ -131,6 +151,7 @@ class ModelConfig:
             temperature=float(request_defaults.get("temperature", 0.7)),
             top_p=float(request_defaults.get("top_p", 1.0)),
             supports_tool_use=profile.supports_tool_use,
+            supports_multimodal=profile.supports_multimodal,
             stop=request_defaults.get("stop"),
             pricing=profile.pricing,
             headers=provider.headers,
@@ -167,6 +188,7 @@ class ModelConfig:
             "temperature": self.temperature,
             "top_p": self.top_p,
             "supports_tool_use": self.supports_tool_use,
+            "supports_multimodal": self.supports_multimodal,
             "provider_id": self.provider_id,
             "priority": self.priority,
         }

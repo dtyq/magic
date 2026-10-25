@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MobileBrandHero from "@/pages/superMagicMobile/components/MobileBrandHero"
 
 interface TopicPageMessageListFallbackProps {

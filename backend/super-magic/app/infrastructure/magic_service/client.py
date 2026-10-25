@@ -6,11 +6,12 @@ Handles Magic Service API interactions including file registration.
 
 import json
 import os
+import re
 import traceback
 import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import aiohttp
 from agentlang.logger import get_logger
@@ -19,10 +20,12 @@ from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.file import File
 
 from app.utils.credential_utils import sanitize_headers
+from app.utils.async_file_utils import async_unlink, async_write_bytes_iter
 
 from .config import MagicServiceConfig, MagicServiceConfigLoader
 from .constants import FileEditType
 from .exceptions import ApiError, ConnectionError
+from .file_version_trace import FileVersionRequestTrace, create_file_version_trace_config
 from .sandbox_types import (
     SandboxInfoData,
     SandboxRebuildData,
@@ -50,7 +53,7 @@ class MagicServiceClient:
 
     async def __aenter__(self):
         """Async context manager entry"""
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(trace_configs=[create_file_version_trace_config()])
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -234,6 +237,87 @@ class MagicServiceClient:
             operation_name="设计视频生成",
         )
 
+    async def query_video_generation_result(
+        self,
+        project_id: str,
+        video_id: str,
+    ) -> Dict[str, Any]:
+        """查询设计视频生成结果。"""
+        return await self._request_json(
+            "GET",
+            "/api/v1/design/video-generation-result",
+            operation_name="设计视频生成结果查询",
+            params={"project_id": project_id, "video_id": video_id},
+        )
+
+    async def download_url_to_path(
+        self,
+        download_url: str,
+        target_path: Path,
+        interruption_event: Optional[asyncio.Event] = None,
+    ) -> None:
+        """把远程文件流式下载到指定本地路径。"""
+        session_to_use = self.session or aiohttp.ClientSession()
+        should_close_session = self.session is None
+        try:
+            async with session_to_use.get(
+                download_url,
+                timeout=aiohttp.ClientTimeout(total=900),
+            ) as response:
+                if response.status < 200 or response.status >= 300:
+                    body = await response.text()
+                    raise ApiError(
+                        f"视频文件下载失败，HTTP {response.status}: {body[:200]}"
+                    )
+                async def chunks():
+                    async for chunk in response.content.iter_chunked(1024 * 1024):
+                        if interruption_event is not None and interruption_event.is_set():
+                            raise asyncio.CancelledError
+                        yield chunk
+
+                await async_write_bytes_iter(target_path, chunks())
+        except BaseException:
+            await async_unlink(target_path)
+            raise
+        finally:
+            if should_close_session:
+                await session_to_use.close()
+
+    async def estimate_design_video_points(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Estimate points for a design video generation task."""
+        return await self._request_json(
+            "POST",
+            "/api/v1/design/estimate-video-points",
+            payload,
+            operation_name="设计视频积分预估",
+        )
+
+    async def ensure_project_directories(
+        self,
+        project_id: str,
+        directory_parts: List[str],
+    ) -> str:
+        """Ensure a project directory hierarchy exists in the Magic Service file tree."""
+        parent_id = ""
+        for directory_name in directory_parts:
+            result = await self._request_json(
+                "POST",
+                "/api/v1/super-agent/file",
+                {
+                    "project_id": project_id,
+                    "parent_id": parent_id,
+                    "file_name": directory_name,
+                    "is_directory": True,
+                    "ignore_duplicate": True,
+                    "pre_file_id": -1,
+                },
+                operation_name="创建项目目录",
+            )
+            parent_id = str(result.get("file_id") or "")
+            if not parent_id:
+                raise ApiError(f"创建项目目录失败: {directory_name}")
+        return parent_id
+
     async def get_slides_template_file_url(
         self,
         code: str,
@@ -251,6 +335,66 @@ class MagicServiceClient:
             operation_name="幻灯片模板文件链接获取",
             params=self._filter_query_params(access_context),
         )
+
+    async def get_slides_template_taxonomy(
+        self,
+        access_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Fetch enabled official slide template categories, groups, and tags."""
+        return await self._request_json(
+            "GET",
+            "/api/v1/open-api/slides-templates/taxonomy",
+            operation_name="幻灯片模板分类标签获取",
+            params=self._filter_query_params(access_context),
+        )
+
+    async def get_persona_avatar_catalog(
+        self,
+        access_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Fetch the compact catalog of official persona avatars: {"items": [{"id", "tags"}]}."""
+        return await self._request_json(
+            "GET",
+            "/api/v1/open-api/persona-avatars",
+            operation_name="人设头像清单获取",
+            params=self._filter_query_params(access_context),
+        )
+
+    async def get_persona_avatar_file_url(
+        self,
+        avatar_id: str,
+        access_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Resolve one persona avatar into its signed download URL: {"id", "file_url", "expires_at"}."""
+        normalized_id = avatar_id.strip() if isinstance(avatar_id, str) else ""
+        if not normalized_id:
+            raise ApiError("persona avatar id is required")
+        return await self._request_json(
+            "GET",
+            f"/api/v1/open-api/persona-avatars/{quote(normalized_id, safe='')}/file-url",
+            operation_name="人设头像文件链接获取",
+            params=self._filter_query_params(access_context),
+        )
+
+    async def download_url_bytes(self, download_url: str, max_bytes: int) -> bytes:
+        """把小文件下载到内存；超过 max_bytes 立即中止，不落盘。"""
+        session_to_use = self.session or aiohttp.ClientSession()
+        should_close_session = self.session is None
+        try:
+            async with session_to_use.get(download_url, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise ApiError(f"文件下载失败，HTTP {response.status}")
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    total += len(chunk)
+                    if total > max_bytes:
+                        raise ApiError(f"文件超过 {max_bytes} 字节上限")
+                    chunks.append(chunk)
+                return b"".join(chunks)
+        finally:
+            if should_close_session:
+                await session_to_use.close()
 
     async def _request_json(
         self,
@@ -295,6 +439,31 @@ class MagicServiceClient:
             if base_url.endswith(suffix):
                 return base_url[: -len(suffix)]
         return base_url
+
+    async def query_workspace_file(self, file_id: str) -> dict[str, object]:
+        """按稳定 file_id 获取实际名称和父目录，供改名后复查身份。"""
+        data = await self._request_json(
+            "POST", f"/api/v1/open-api/magicfs/files/{quote(file_id, safe='')}/queries",
+            operation_name="Query workspace file",
+        )
+        file = data.get("file")
+        if not isinstance(file, dict):
+            raise ApiError("Workspace file metadata is unavailable")
+        return file
+
+    async def check_workspace_file_write_access(self, file_id: str) -> None:
+        """在文件操作前复用挂载端的 EDITOR 权限预检。"""
+        await self._request_json(
+            "POST", f"/api/v1/open-api/magicfs/files/{quote(file_id, safe='')}/check-access",
+            operation_name="Check workspace file write access",
+        )
+
+    async def rename_workspace_file_checked(self, file_id: str, target_name: str) -> dict[str, object]:
+        """复用手动重命名接口，同目录同名拒绝，不走 POSIX 覆盖语义。"""
+        return await self._request_json(
+            "POST", f"/api/v1/super-agent/file/{quote(file_id, safe='')}/rename",
+            {"target_name": target_name}, operation_name="Rename workspace file",
+        )
 
     def _build_json_headers(self) -> Dict[str, str]:
         headers = {
@@ -1143,7 +1312,10 @@ class MagicServiceClient:
         url = f"{self.config.api_base_url.rstrip('/')}/open/internal-api/super-agent/file/versions"
         request_data = {"file_key": file_key, "edit_type": edit_type}
 
-        session_to_use = self.session or aiohttp.ClientSession()
+        request_trace = FileVersionRequestTrace()
+        session_to_use = self.session or aiohttp.ClientSession(
+            trace_configs=[create_file_version_trace_config()],
+        )
         should_close_session = self.session is None
 
         try:
@@ -1156,10 +1328,21 @@ class MagicServiceClient:
             # 添加 Magic-Authorization 与 User-Authorization 请求头
             MetadataUtil.add_magic_and_user_authorization_headers(headers)
 
-            logger.info(f"创建文件版本: {file_key}, edit_type: {edit_type}")
+            logger.info(
+                f"创建文件版本: {file_key}, edit_type: {edit_type}, "
+                f"diagnostic_id={request_trace.diagnostic_id}"
+            )
 
-            async with session_to_use.post(url, json=request_data, headers=headers, timeout=30) as response:
+            async with session_to_use.post(
+                url, json=request_data, headers=headers, timeout=30,
+                trace_request_ctx=request_trace,
+            ) as response:
+                request_trace.http_status = response.status
+                request_trace.response_request_id = response.headers.get("X-Request-ID")
+                request_trace.response_log_id = response.headers.get("X-Tt-Logid")
+                request_trace.mark("response_headers_received", "reading_response_body")
                 response_text = await response.text()
+                request_trace.mark("response_body_received", "processing_response")
                 logger.debug(f"File version API response status: {response.status}")
                 logger.debug(f"File version API response: {response_text}")
 
@@ -1168,6 +1351,8 @@ class MagicServiceClient:
                         result = json.loads(response_text)
                         # 使用标准响应处理方法
                         data = self._process_api_response(result, f"创建文件版本({file_key})")
+                        request_trace.mark("completed", "completed")
+                        logger.info(f"文件版本请求完成: file_key={file_key}, trace={request_trace.summary()}")
                         return {"file_key": file_key, "success": True, "data": data}
                     except json.JSONDecodeError:
                         raise ApiError(f"Invalid JSON response: {response_text[:200]}...", response.status)
@@ -1176,9 +1361,63 @@ class MagicServiceClient:
                         raise
                 else:
                     raise ApiError(f"HTTP error: {response.status}", response.status, {"response": response_text})
+        except Exception as exc:
+            logger.error(
+                f"文件版本请求失败: file_key={file_key}, "
+                f"error_type={type(exc).__name__}, error={exc!r}, trace={request_trace.summary()}\n"
+                f"{traceback.format_exc()}"
+            )
+            raise
         finally:
             if should_close_session:
                 await session_to_use.close()
+
+    async def get_file_metadata(self, file_id: str) -> Dict[str, Any]:
+        """读取 MagicFS 元数据；version 是保存 CAS 使用的 metadata_version。"""
+        if not file_id.isdecimal() or int(file_id) <= 0:
+            raise ApiError("A synchronized file ID is required")
+        result = await self._request_user_file_json(
+            "POST", f"/api/v1/open-api/magicfs/files/{file_id}/queries", {}
+        )
+        metadata = result.get("file")
+        if not isinstance(metadata, dict):
+            raise ApiError("The file service did not return file metadata")
+        return metadata
+
+    async def save_file_content(
+        self, file_id: str, content: str, expected_revision: int
+    ) -> Dict[str, Any]:
+        """复用文件锁及编辑权限校验；不重试有副作用的请求。"""
+        if not file_id.isdecimal() or int(file_id) <= 0:
+            raise ApiError("A synchronized file ID is required")
+        if type(expected_revision) is not int or expected_revision < 0:
+            raise ApiError("A metadata revision is required for saving")
+        return await self._request_user_file_json(
+            "POST", "/api/v1/super-agent/file/save",
+            [{"file_id": file_id, "content": content, "expected_revision": expected_revision}],
+        )
+
+    async def _request_user_file_json(self, method: str, path: str, payload: Any) -> Dict[str, Any]:
+        # 凭据读取使用线程封装文件 I/O。WebUserGuard 优先读取 User-Authorization，
+        # 不能把 API key 或 Magic-Authorization 当作文件所有者的授权。
+        headers = await asyncio.to_thread(self._build_json_headers)
+        if not headers.get("User-Authorization"):
+            raise ApiError("User authorization is unavailable; no file write was attempted", status_code=401)
+        session = self.session or aiohttp.ClientSession()
+        try:
+            async with session.request(
+                method, f"{self._api_base_url()}{path}", json=payload,
+                headers=headers, timeout=aiohttp.ClientTimeout(total=20),
+            ) as response:
+                body = await response.json(content_type=None)
+                if not isinstance(body, dict):
+                    raise ApiError("Invalid file service response")
+                if response.status < 200 or response.status >= 300:
+                    raise ApiError("File service request rejected", response.status, body)
+                return self._extract_response_data(body, "File service")
+        finally:
+            if self.session is None:
+                await session.close()
 
     async def get_file_latest_version(self, file_id: str) -> Dict[str, Any]:
         """
@@ -1231,3 +1470,162 @@ class MagicServiceClient:
         finally:
             if should_close_session:
                 await session_to_use.close()
+
+    async def create_video(
+        self,
+        payload: Dict[str, Any],
+        request_id: str = "",
+    ) -> Dict[str, Any]:
+        """Create a regular video generation task."""
+        return await self._request_video_json(
+            "POST",
+            "/videos",
+            payload,
+            request_id=request_id,
+        )
+
+    async def estimate_video_points(
+        self,
+        payload: Dict[str, Any],
+        request_id: str = "",
+    ) -> Dict[str, Any]:
+        """Estimate points for a regular video request without creating it."""
+        return await self._request_video_json(
+            "POST",
+            "/videos/estimate-points",
+            payload,
+            request_id=request_id,
+        )
+
+    async def get_video_operation(
+        self,
+        operation_id: str,
+        request_id: str = "",
+    ) -> Dict[str, Any]:
+        """Get a regular video generation operation."""
+        normalized_id = (
+            operation_id.strip() if isinstance(operation_id, str) else ""
+        )
+        if not normalized_id:
+            raise ValueError("operation_id is required")
+        escaped_id = quote(normalized_id, safe="")
+        return await self._request_video_json(
+            "GET",
+            f"/videos/{escaped_id}",
+            request_id=request_id,
+        )
+
+    async def _request_video_json(
+        self,
+        method: str,
+        path: str,
+        payload: Optional[Dict[str, Any]] = None,
+        request_id: str = "",
+    ) -> Dict[str, Any]:
+        """Request a regular video endpoint and preserve the raw operation JSON."""
+        url = f"{self._video_api_base_url()}{path}"
+        headers = self._build_json_headers()
+        if request_id:
+            headers["request-id"] = request_id
+        session_to_use = self.session or aiohttp.ClientSession()
+        should_close_session = self.session is None
+
+        try:
+            async with session_to_use.request(
+                method,
+                url,
+                json=payload,
+                headers=headers,
+                timeout=600,
+            ) as response:
+                response_text = await response.text()
+                content_type = response.headers.get("Content-Type", "")
+                context = self._video_response_context(
+                    method,
+                    path,
+                    response.status,
+                    content_type,
+                    response_text,
+                )
+                if response.status < 200 or response.status >= 300:
+                    body = self._parse_json_object(response_text)
+                    message = self._video_error_message(body)
+                    suffix = f"; service error: {message}" if message else ""
+                    raise ApiError(
+                        f"Video API request failed: HTTP {response.status}; "
+                        f"{context}{suffix}",
+                        status_code=response.status,
+                        response_data=body or {"response": response_text},
+                    )
+                if not response_text.strip():
+                    raise ApiError(
+                        f"Video API returned an empty response; {context}",
+                        status_code=response.status,
+                        response_data={"response": response_text},
+                    )
+                try:
+                    body = json.loads(response_text)
+                except json.JSONDecodeError as exc:
+                    raise ApiError(
+                        f"Video API returned invalid JSON; {context}",
+                        status_code=response.status,
+                        response_data={"response": response_text},
+                        cause=exc,
+                    ) from exc
+                if not isinstance(body, dict):
+                    raise ApiError(
+                        f"Video API response must be a JSON object; {context}",
+                        status_code=response.status,
+                        response_data={"response": body},
+                    )
+                return body
+        except aiohttp.ClientError as exc:
+            raise ConnectionError(
+                f"Failed to connect to Magic Service: {exc}",
+                cause=exc,
+            ) from exc
+        finally:
+            if should_close_session:
+                await session_to_use.close()
+
+    def _video_api_base_url(self) -> str:
+        """Build the versioned base URL for regular video endpoints."""
+        parsed = urlparse(self.config.api_base_url.strip().rstrip("/"))
+        path = re.sub(r"/v\d+$", "", parsed.path.rstrip("/"))
+        return parsed._replace(path=f"{path}/v1").geturl().rstrip("/")
+
+    @staticmethod
+    def _parse_json_object(response_text: str) -> Optional[Dict[str, Any]]:
+        """Parse a JSON object response when possible."""
+        if not response_text.strip():
+            return None
+        try:
+            body = json.loads(response_text)
+        except json.JSONDecodeError:
+            return None
+        return body if isinstance(body, dict) else None
+
+    @staticmethod
+    def _video_error_message(body: Optional[Dict[str, Any]]) -> str:
+        """Extract a readable error message from a video response."""
+        if not body:
+            return ""
+        error = body.get("error")
+        if isinstance(error, dict):
+            return str(error.get("message") or error.get("detail") or "")
+        return str(error or body.get("message") or "")
+
+    @staticmethod
+    def _video_response_context(
+        method: str,
+        path: str,
+        status: int,
+        content_type: str,
+        body: str,
+    ) -> str:
+        """Summarize a video response for error diagnostics."""
+        summary = " ".join(body.split())[:300] or "<empty>"
+        return (
+            f"method={method} path={path} status={status} "
+            f"content_type={content_type or '<missing>'} body={summary!r}"
+        )

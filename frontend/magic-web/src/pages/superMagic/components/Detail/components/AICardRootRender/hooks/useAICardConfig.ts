@@ -8,7 +8,7 @@ import { createAICardViaTopic } from "../../SelfMediaRootRender/services/aiCardC
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { superMagicTopicModelCacheService } from "@/services/superMagic/topicModel"
 import topicModelStore from "@/stores/superMagic/topicModelStore"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import type { AICardStore } from "../stores/AICardStore"
 import { buildScheduleMessageJSONContent, getPromptPlainText } from "./aiCardScheduleMessage"

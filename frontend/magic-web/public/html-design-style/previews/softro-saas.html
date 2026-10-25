@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Softro SaaS — Soft Pastel Customer Experience &amp; Health Suite</title>
+  <style>
+    :root {
+      --primary: #7C3AED;
+      --primary-hover: #6D28D9;
+      --secondary: #06B6D4;
+      --accent-pink: #EC4899;
+      --dark-surface: #0F172A;
+      --bg-canvas: #F8FAFC;
+      --bg-sky: #F0F9FF;
+      --bg-rose: #FDF2F8;
+      --bg-alt: #EEF2FF;
+      --surface: #FFFFFF;
+      --text-primary: #111827;
+      --text-secondary: #6B7280;
+      --border: #E5E7EB;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --error: #EF4444;
+      --font-display: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-sm: 6px;
+      --radius-btn: 10px;
+      --radius-card: 20px;
+      --radius-full: 9999px;
+      --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --shadow-hover: 0 20px 50px rgba(15, 23, 42, 0.12);
+      --btn-glow: 0 8px 24px rgba(124, 58, 237, 0.35);
+      --btn-gradient: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-canvas);
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(240, 249, 255, 0.9) 0%, transparent 40%),
+        radial-gradient(circle at 85% 15%, rgba(253, 242, 248, 0.9) 0%, transparent 45%),
+        radial-gradient(circle at 50% 80%, rgba(238, 242, 255, 0.7) 0%, transparent 50%);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 13.5px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 24px;
+    }
+
+    /* Friendly SaaS Header */
+    .softro-nav {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      height: 54px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo-circle {
+      width: 30px;
+      height: 30px;
+      background: var(--btn-gradient);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 800;
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+    }
+
+    .brand-name {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      color: var(--text-primary);
+    }
+
+    .nav-links-row {
+      display: flex;
+      gap: 20px;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .nav-links-row a { text-decoration: none; color: inherit; }
+    .nav-links-row a.active { color: var(--primary); font-weight: 700; }
+
+    .nav-cta-btn {
+      background: var(--btn-gradient);
+      color: #FFFFFF;
+      border: none;
+      padding: 7px 16px;
+      border-radius: var(--radius-btn);
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.28);
+      transition: all 0.2s ease;
+    }
+    .nav-cta-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--btn-glow);
+    }
+
+    /* Main Container */
+    .viewport-container {
+      max-width: 1340px;
+      margin: 16px auto 0;
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* First 500px Impact: User Feedback NPS Widget + Customer Health Cards */
+    .softro-top-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1.35fr;
+      gap: 16px;
+    }
+
+    .softro-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 20px;
+      box-shadow: var(--shadow-card);
+      position: relative;
+    }
+
+    .card-header-flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-heading {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pastel-pill-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      background: var(--bg-rose);
+      color: var(--accent-pink);
+    }
+
+    /* Interactive NPS Score Widget */
+    .nps-widget-body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .nps-score-scale {
+      display: grid;
+      grid-template-columns: repeat(11, 1fr);
+      gap: 4px;
+    }
+
+    .nps-btn {
+      height: 38px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .nps-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .nps-btn.selected {
+      background: var(--btn-gradient);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+    }
+
+    .nps-sentiment-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-secondary);
+      padding: 0 2px;
+    }
+
+    .nps-stats-box {
+      background: linear-gradient(135deg, #F0F9FF 0%, #EEF2FF 100%);
+      border: 1px solid #E0E7FF;
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nps-big-val {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--primary);
+      line-height: 1;
+    }
+
+    .nps-breakdown-pills {
+      display: flex;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .breakdown-item {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+    }
+
+    /* Customer Health Score Cards */
+    .health-cards-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .health-card-item {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+    .health-card-item:hover {
+      background: #FFFFFF;
+      box-shadow: var(--shadow-card);
+      border-color: #CBD5E1;
+      transform: translateY(-1px);
+    }
+
+    .health-client-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .client-avatar-pill {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 12px;
+      color: #fff;
+    }
+
+    .client-name {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .client-meta {
+      font-size: 10.5px;
+      color: var(--text-secondary);
+    }
+
+    .health-gauge-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .gauge-pill-number {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+    }
+    .gauge-healthy { background: #DCFCE7; color: #15803D; }
+    .gauge-stable { background: #FEF3C7; color: #B45309; }
+    .gauge-risk { background: #FEE2E2; color: #B91C1C; }
+
+    .health-status-badge {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Gentle Gradient Feature Ribbon */
+    .feature-ribbon-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feature-icon-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .feature-title {
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .feature-desc {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    @media (max-width: 900px) {
+      .softro-top-grid { grid-template-columns: 1fr; }
+      .feature-ribbon-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Friendly SaaS Header -->
+  <header class="softro-nav">
+    <div class="brand-mark">
+      <div class="brand-logo-circle">S</div>
+      <span class="brand-name">Softro Health Suite</span>
+      <span style="font-size: 11px; font-weight: 600; color: var(--secondary); background: #E0F2FE; padding: 2px 7px; border-radius: 9999px;">SAAS 2026</span>
+    </div>
+
+    <div class="nav-links-row">
+      <a href="#nps" class="active">NPS Intelligence</a>
+      <a href="#health">Client Health</a>
+      <a href="#retention">Retention Plays</a>
+    </div>
+
+    <button class="nav-cta-btn">Start Free Trial &rarr;</button>
+  </header>
+
+  <main class="viewport-container">
+    
+    <!-- First 500px Impact: NPS Score Widget + Customer Health Cards -->
+    <div class="softro-top-grid">
+      
+      <!-- User Feedback NPS Score Widget -->
+      <section class="softro-card">
+        <div class="card-header-flex">
+          <div class="card-heading">
+            <span>User Feedback NPS Widget</span>
+          </div>
+          <span class="pastel-pill-badge">LIVE SURVEY</span>
+        </div>
+
+        <div class="nps-widget-body">
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: -4px;">
+            How likely are you to recommend our platform to colleagues?
+          </p>
+
+          <!-- 0-10 Buttons -->
+          <div class="nps-score-scale">
+            <button class="nps-btn" onclick="selectNps(0, this)">0</button>
+            <button class="nps-btn" onclick="selectNps(1, this)">1</button>
+            <button class="nps-btn" onclick="selectNps(2, this)">2</button>
+            <button class="nps-btn" onclick="selectNps(3, this)">3</button>
+            <button class="nps-btn" onclick="selectNps(4, this)">4</button>
+            <button class="nps-btn" onclick="selectNps(5, this)">5</button>
+            <button class="nps-btn" onclick="selectNps(6, this)">6</button>
+            <button class="nps-btn" onclick="selectNps(7, this)">7</button>
+            <button class="nps-btn" onclick="selectNps(8, this)">8</button>
+            <button class="nps-btn" onclick="selectNps(9, this)">9</button>
+            <button class="nps-btn selected" onclick="selectNps(10, this)">10</button>
+          </div>
+
+          <div class="nps-sentiment-row">
+            <span style="color: var(--error);">&bull; Detractor (0-6)</span>
+            <span style="color: var(--warning);">&bull; Passive (7-8)</span>
+            <span style="color: var(--success); font-weight: 700;">&bull; Promoter (9-10)</span>
+          </div>
+
+          <!-- NPS Computed Statistics -->
+          <div class="nps-stats-box">
+            <div>
+              <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Net Promoter Score</div>
+              <div class="nps-big-val">+68 <span style="font-size: 13px; font-weight: 700;">Excellent</span></div>
+            </div>
+            <div class="nps-breakdown-pills">
+              <span class="breakdown-item" style="color: #15803D;">74% Promoters</span>
+              <span class="breakdown-item" style="color: #B91C1C;">6% Detractors</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Customer Health Score Cards -->
+      <section class="softro-card">
+        <div class="card-header-flex">
+          <div class="card-heading">
+            <span>Customer Health Score Stream</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--primary); font-weight: 700;">348 ACCOUNTS MONITORED</span>
+        </div>
+
+        <div class="health-cards-stack">
+          <!-- Card 1: Healthy -->
+          <div class="health-card-item">
+            <div class="health-client-info">
+              <div class="client-avatar-pill" style="background: linear-gradient(135deg, #10B981, #06B6D4);">A</div>
+              <div>
+                <div class="client-name">Acme Cloud Infrastructure</div>
+                <div class="client-meta">$42k ARR &bull; 99.4% DAU Adoption</div>
+              </div>
+            </div>
+            <div class="health-gauge-box">
+              <div class="gauge-pill-number gauge-healthy">96</div>
+              <span class="health-status-badge" style="color: #15803D;">Healthy</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Stable -->
+          <div class="health-card-item">
+            <div class="health-client-info">
+              <div class="client-avatar-pill" style="background: linear-gradient(135deg, #7C3AED, #EC4899);">G</div>
+              <div>
+                <div class="client-name">Globex Digital Agency</div>
+                <div class="client-meta">$18k ARR &bull; Active Renewal in 45d</div>
+              </div>
+            </div>
+            <div class="health-gauge-box">
+              <div class="gauge-pill-number gauge-stable">82</div>
+              <span class="health-status-badge" style="color: #B45309;">Stable</span>
+            </div>
+          </div>
+
+          <!-- Card 3: At Risk -->
+          <div class="health-card-item">
+            <div class="health-client-info">
+              <div class="client-avatar-pill" style="background: linear-gradient(135deg, #EF4444, #F59E0B);">I</div>
+              <div>
+                <div class="client-name">Initech Global Systems</div>
+                <div class="client-meta">$64k ARR &bull; 2 Inactive Admin Seats</div>
+              </div>
+            </div>
+            <div class="health-gauge-box">
+              <div class="gauge-pill-number gauge-risk">61</div>
+              <span class="health-status-badge" style="color: #B91C1C;">At Risk</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Soft Pastel Feature Modules Ribbon -->
+    <div class="feature-ribbon-grid">
+      <div class="feature-card">
+        <div class="feature-icon-box" style="background: var(--bg-sky); color: #0284C7;">📈</div>
+        <div class="feature-title">Automated Playbooks</div>
+        <p class="feature-desc">Trigger instant Slack alerts and CS outreach when customer health drops beneath critical 70 threshold.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box" style="background: var(--bg-rose); color: var(--accent-pink);">💖</div>
+        <div class="feature-title">Sentiment AI Telemetry</div>
+        <p class="feature-desc">Continuous NLP analysis of support tickets, onboarding surveys, and executive QBR feedback notes.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-box" style="background: var(--bg-alt); color: var(--primary);">🚀</div>
+        <div class="feature-title">Expansion Probability</div>
+        <p class="feature-desc">Predictive modeling spots accounts ready for tier upgrades before quarterly business reviews.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    function selectNps(score, btn) {
+      document.querySelectorAll('.nps-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+  </script>
+</body>
+</html>

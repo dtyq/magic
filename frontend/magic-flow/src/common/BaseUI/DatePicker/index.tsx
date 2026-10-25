@@ -3,9 +3,9 @@
 import {
 	IconChevronLeft,
 	IconChevronRight,
-	IconDoubleChevronLeft,
-	IconDoubleChevronRight,
-} from "@douyinfe/semi-icons"
+	IconChevronsLeft,
+	IconChevronsRight,
+} from "@tabler/icons-react"
 import { DatePicker } from "antd"
 import React, { forwardRef } from "react"
 import style from "./style.module.less"
@@ -19,8 +19,8 @@ const TsDatePicker = forwardRef<HTMLDivElement, TsDatePickerProps>((props, ref) 
 	<DatePicker
 		prevIcon={<IconChevronLeft size="18" />}
 		nextIcon={<IconChevronRight size="18" />}
-		superNextIcon={<IconDoubleChevronRight size="18" />}
-		superPrevIcon={<IconDoubleChevronLeft size="18" />}
+		superNextIcon={<IconChevronsRight size="18" />}
+		superPrevIcon={<IconChevronsLeft size="18" />}
 		{...props}
 		className={`${style.tsDatePicker} ${props.className || ""}`}
 		ref={ref}

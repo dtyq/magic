@@ -44,6 +44,7 @@ describe("DragDropManager", () => {
 
 		expect(success).toBe(true)
 		expect(container.children[0].tagName).toBe("IMG")
+		expect(container.children[0].hasAttribute("data-magic-source-node")).toBe(true)
 		expect(container.children[1]).toBe(firstItem)
 		expect(commandHistory.getUndoStackSize()).toBe(1)
 	})

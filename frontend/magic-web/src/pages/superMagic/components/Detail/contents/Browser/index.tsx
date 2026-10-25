@@ -1,6 +1,9 @@
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { shouldWaitForShareAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import { memo, useEffect, useMemo, useState } from "react"
 import { Flex } from "antd"
+import { useMemoizedFn } from "ahooks"
 import { IconWorld } from "@tabler/icons-react"
 import {
 	ChevronLeft,
@@ -80,6 +83,8 @@ export default memo(function Browser(props: BrowserProps) {
 	} = props
 	const { styles, cx } = useStyles()
 	const { t } = useTranslation("super")
+	const fileAccess = useFileAccess()
+	const fileApi = useFileApi()
 	const { url, title, page_title, file_id, file_key, detail } = data || {}
 	const hasUrl = typeof url === "string" && url.trim().length > 0
 	const displayUrl = hasUrl ? url : t("browserDetail.addressUnavailable")
@@ -98,6 +103,11 @@ export default memo(function Browser(props: BrowserProps) {
 	const showViewSwitcher = hasScreenshot && hasDetail
 	const showDetail = hasDetail && (!hasScreenshot || viewMode === "code" || fallbackToDetail)
 
+	// 回调变化不代表截图变化；保持加载依赖稳定，失败时仍通知最新的父组件回调。
+	const switchToTextDetail = useMemoizedFn((): void => {
+		onViewModeChange?.("code")
+	})
+
 	const onOpenUrl = hasUrl
 		? () => {
 				window.open(url, "_blank", "noopener,noreferrer")
@@ -110,19 +120,29 @@ export default memo(function Browser(props: BrowserProps) {
 		setFallbackToDetail(false)
 		setImgSrc("")
 
+		if (shouldWaitForShareAccess(fileAccess)) {
+			return () => {
+				cancelled = true
+			}
+		}
+
 		if (!resolvedFileId) {
 			setImgSrc(snapshotUrl)
 			if (!snapshotUrl && hasDetail) {
 				setImageError(true)
 				setFallbackToDetail(true)
-				onViewModeChange?.("code")
+				switchToTextDetail()
 			}
 			return () => {
 				cancelled = true
 			}
 		}
 
-		getTemporaryDownloadUrl({ file_ids: [resolvedFileId], enableErrorMessagePrompt: false })
+		fileApi
+			.getTemporaryDownloadUrl({
+				file_ids: [resolvedFileId],
+				enableErrorMessagePrompt: false,
+			})
 			.then((res: Array<{ url?: string }> = []) => {
 				if (cancelled) return
 				const source = res[0]?.url || snapshotUrl
@@ -130,7 +150,7 @@ export default memo(function Browser(props: BrowserProps) {
 				if (!source && hasDetail) {
 					setImageError(true)
 					setFallbackToDetail(true)
-					onViewModeChange?.("code")
+					switchToTextDetail()
 				}
 			})
 			.catch(() => {
@@ -139,14 +159,14 @@ export default memo(function Browser(props: BrowserProps) {
 				if (!snapshotUrl && hasDetail) {
 					setImageError(true)
 					setFallbackToDetail(true)
-					onViewModeChange?.("code")
+					switchToTextDetail()
 				}
 			})
 
 		return () => {
 			cancelled = true
 		}
-	}, [hasDetail, onViewModeChange, resolvedFileId, snapshotUrl])
+	}, [fileAccess, fileApi, hasDetail, switchToTextDetail, resolvedFileId, snapshotUrl])
 
 	const handleImageError = () => {
 		setImageError(true)

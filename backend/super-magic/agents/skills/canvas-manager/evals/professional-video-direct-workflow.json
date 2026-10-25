@@ -1,0 +1,7 @@
+{
+  "id": "professional-video-direct-workflow",
+  "prompt": "Use professional video production to generate one final video directly from two confirmed Canvas image Elements, without a storyboard or staged production.",
+  "expected_reference": "references/professional-video-production.md",
+  "expected_tools": ["query_canvas_element_details", "estimate_canvas_content_points", "add_canvas_elements", "wait_canvas_generation", "query_canvas_element_details"],
+  "constraints": ["Use direct professional mode by default.", "Create Connections from both exact source Element IDs to the final video.", "Use dependency_flow layout.", "Do not create a storyboard, shot reference images, video-edit, or separate final composition."]
+}

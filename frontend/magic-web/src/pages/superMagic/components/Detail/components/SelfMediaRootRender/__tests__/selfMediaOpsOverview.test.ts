@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { buildSelfMediaOpsOverview, getSelfMediaPostKey } from "../services/selfMediaOpsOverview"
+import {
+	buildSelfMediaOpsOverview,
+	formatSelfMediaCompactNumber,
+	formatSelfMediaMetricDisplay,
+	getSelfMediaPostKey,
+} from "../services/selfMediaOpsOverview"
 import { buildSelfMediaOpsMetricDisplay } from "../services/selfMediaOpsOverviewPresentation"
 import type { SelfMediaPostOpsMetricsPayload } from "../services/SelfMediaFileStorageService"
 import type { SelfMediaPostOpsArtifacts } from "../services/selfMediaOpsArtifactStates"
@@ -236,5 +241,21 @@ describe("self-media ops overview", () => {
 			title: "规划下一篇内容",
 			cta: "新建文章",
 		})
+	})
+})
+
+describe("formatSelfMediaCompactNumber", () => {
+	it("uses wan for Chinese locales and k for English locales", () => {
+		expect(formatSelfMediaCompactNumber(26000)).toBe("2.6万")
+		expect(formatSelfMediaCompactNumber(26000, "zh-CN")).toBe("2.6万")
+		expect(formatSelfMediaCompactNumber(26000, "en-US")).toBe("26k")
+		expect(formatSelfMediaCompactNumber(1200, "en")).toBe("1.2k")
+		expect(formatSelfMediaCompactNumber(130, "en")).toBe("130")
+	})
+
+	it("parses Chinese compact units before displaying English values", () => {
+		expect(formatSelfMediaMetricDisplay("2.6w", "en")).toBe("26k")
+		expect(formatSelfMediaMetricDisplay("2.6万", "en-US")).toBe("26k")
+		expect(formatSelfMediaMetricDisplay("1.2k", "zh-CN")).toBe("1.2k")
 	})
 })

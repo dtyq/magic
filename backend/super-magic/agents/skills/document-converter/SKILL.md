@@ -31,10 +31,12 @@ Other document types should usually be read or exported through semantic convers
 2. If the file is small, export it directly as one readable Markdown file.
 3. If the file is large, sample a few representative units before choosing a full reading strategy.
 4. Plan the next read from the sample result and the user's goal.
-5. Extract or understand only the selected ranges into reusable Markdown artifacts.
-6. Read `document.reading_state.json` between large-document steps to avoid rereading the same content.
-7. For summaries, summarize smaller chunks first, then combine them into section-level and document-level summaries.
-8. Only perform format conversion when the user explicitly asks for a converted file or when conversion is necessary for extraction.
+5. After inspection and sampling, use the returned `strategy_context` and the user's goal to choose an asset strategy.
+6. If the user did not specify an asset preference and the recommendation materially changes the output, call `ask_user` once before extraction. Put the recommended strategy first and omit `timeout`; the user may need time to decide. Use `timeout=60` only when the choice is simple, has a safe default, and does not materially affect the result.
+7. Extract or understand only the selected ranges into reusable Markdown artifacts.
+8. Read `document.reading_state.json` between large-document steps to avoid rereading the same content.
+9. For summaries, summarize smaller chunks first, then combine them into section-level and document-level summaries.
+10. Only perform format conversion when the user explicitly asks for a converted file or when conversion is necessary for extraction.
 
 ## Large Document Rules
 
@@ -42,6 +44,10 @@ Other document types should usually be read or exported through semantic convers
 - Always sample first for large files, then choose the next batch from the sample result.
 - Use the outline, samples, and `document.reading_state.json` to decide what to read next.
 - Prefer text extraction for ordinary document body content.
+- Do not treat the presence of images as a reason to extract every embedded image object.
+- Asset strategies are `text_only`, `page_visual`, `reusable_assets`, `full_fidelity`, and `auto`.
+- Choose `text_only` for text reading, `page_visual` for slides/layout/charts, `reusable_assets` for standalone pictures or logos, and `full_fidelity` only when the user explicitly needs every source asset.
+- When `strategy_context.requires_user_confirmation` is true and the user has not already specified the strategy, use one `ask_user` select question. The recommended strategy must be the first option and the default.
 - Do not use one strategy blindly for the whole file. If the sample shows extractable text, read text ranges. If the sample is image-dominant or scanned, understand document images in batches.
 - Do not call the generic visual understanding tool directly for document parsing. Use `understand_document_images` so results are saved and written back to chunks.
 - When image understanding is used, process at most 10 images per call. Successful results are written back to the related chunk, and `visual-results/` is preserved as the per-image recognition record.
@@ -108,6 +114,13 @@ All path parameters passed to these tools must be absolute paths.
 
 For the same source document, reuse one stable `output_dir` across all document-converter tool calls. Keep `document.index.json`, `document.outline.md`, `document.reading_state.json`, `samples/`, `chunks/`, `visual-results/`, summaries, converted files, and combined Markdown exports under that same directory unless the user explicitly asks for a different location.
 
+Asset path contract:
+
+- `document.index.json.assets[].path` is canonical relative to `output_dir`, such as `assets/page_001.png`.
+- Images inside `chunks/*.md` are relative to the chunk file, such as `../assets/page_001.png`.
+- Images inside root-level `document.md` are relative to `document.md`, such as `assets/page_001.png`.
+- When opening an image for visual understanding, resolve the canonical asset path from `output_dir`; do not infer the filesystem path from the Markdown link text.
+
 When the user does not provide an output directory, create one under the current workspace output area and derive the directory name from the current full file name, including the extension. For example, use `sample_pdf` for `sample.pdf`, `sample_docx` for `sample.docx`, and `README_md` for `README.md`. Do not use only the file stem in batch jobs, because files such as `sample.pdf`, `sample.docx`, and `sample.png` would otherwise overwrite or mix artifacts in the same `sample/` directory.
 
 Before writing to an existing `output_dir`, make sure it belongs to the same source file. If unsure, choose a fresh unique directory instead of reusing a possibly polluted directory.
@@ -129,6 +142,8 @@ If valid parsed artifacts already exist, read `document.reading_state.json` when
 If only `samples/` and `document.reading_state.json` exist, treat the document as sampled but not fully extracted. Use `plan_document_reading` to choose the next bounded extraction or image-understanding step.
 
 Re-run extraction only when artifacts are missing, incomplete, point to a different source file, appear stale, do not cover the needed range, or the user explicitly asks to regenerate the Markdown.
+
+When the user chooses a different explicit `asset_strategy` for a source that already has indexed artifacts, keep the original `output_dir` as the base name. The tool creates or reuses a sibling strategy version such as `report_pdf__page_visual/`; read the returned `output_dir` instead of assuming the base directory was overwritten.
 
 ## Batch Conversion Rules
 
@@ -199,6 +214,9 @@ Parameters:
 - `input_path` (required): absolute path to the source document.
 - `output_dir` (required): absolute path to the directory where `chunks/`, `document.index.json`, and `document.outline.md` should be written.
 - `ranges` (optional): range expression for the needed content, such as `1-3,8,10-12`. The range may refer to pages, slides, sections, sheets, or cells depending on file type.
+- `asset_strategy` (optional): `auto`, `text_only`, `page_visual`, `reusable_assets`, or `full_fidelity`. Use the sampled recommendation or the user's confirmed choice.
+
+For PDF `page_visual` and `full_fidelity`, pass the whole requested range once. The tool automatically renders page snapshots in batches of at most 20 pages and combines the batches into one consistent export.
 
 Do not use this as a blind whole-file converter unless the user explicitly requires a full export.
 
@@ -224,6 +242,9 @@ Parameters:
 - `input_path` (required): absolute path to the source document.
 - `output_dir` (required): absolute path to the directory where Markdown export artifacts should be written.
 - `ranges` (optional): range expression to export. Omit it when the user explicitly wants the whole document.
+- `asset_strategy` (optional): `auto`, `text_only`, `page_visual`, `reusable_assets`, or `full_fidelity`. Use the sampled recommendation or the user's confirmed choice.
+
+For PDF `page_visual` and `full_fidelity`, page snapshots are rendered in batches of at most 20 pages. The result metadata includes `execution_batches`; do not wait for a limit error and retry manually.
 
 This tool is a convenience workflow for Markdown export, not a replacement for targeted extraction when the user only needs specific content.
 

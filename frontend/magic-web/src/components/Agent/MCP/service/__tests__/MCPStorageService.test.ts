@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { getMCPFromProject, saveMCPFromProject } = vi.hoisted(() => ({
-	getMCPFromProject: vi.fn(),
-	saveMCPFromProject: vi.fn(),
-}))
+const { getMCPFromProject, getUserStorage, saveMCPFromProject, saveUserStorage } = vi.hoisted(
+	() => ({
+		getMCPFromProject: vi.fn(),
+		getUserStorage: vi.fn(),
+		saveMCPFromProject: vi.fn(),
+		saveUserStorage: vi.fn(),
+	}),
+)
 
-vi.mock("@/apis", async (importOriginal) => {
+vi.mock("@/apis", () => {
 	return {
-		ContactApi: {},
+		ContactApi: {
+			getUserStorage,
+			saveUserStorage,
+		},
 		FlowApi: {
 			getMCPFromProject,
 			saveMCPFromProject,
@@ -15,7 +22,7 @@ vi.mock("@/apis", async (importOriginal) => {
 	}
 })
 
-import { MCPStorageService, ProjectStorage } from "../MCPStorageService"
+import { MCPStorageService, ProjectStorage, UserGlobalStorage } from "../MCPStorageService"
 
 describe("MCPStorageService", () => {
 	beforeEach(() => {
@@ -36,5 +43,21 @@ describe("MCPStorageService", () => {
 		expect(saveMCPFromProject).toHaveBeenCalledWith("__template_project_id__", [
 			{ id: "template-mcp" },
 		])
+	})
+
+	it("propagates project load failures instead of treating them as empty settings", async () => {
+		const requestError = new Error("request failed")
+		getMCPFromProject.mockRejectedValue(requestError)
+		const storage = new MCPStorageService(new ProjectStorage("project-id"))
+
+		await expect(storage.getMCP()).rejects.toBe(requestError)
+	})
+
+	it("propagates user storage load failures instead of treating them as empty settings", async () => {
+		const requestError = new Error("request failed")
+		getUserStorage.mockRejectedValue(requestError)
+		const storage = new MCPStorageService(new UserGlobalStorage())
+
+		await expect(storage.getMCP()).rejects.toBe(requestError)
 	})
 })

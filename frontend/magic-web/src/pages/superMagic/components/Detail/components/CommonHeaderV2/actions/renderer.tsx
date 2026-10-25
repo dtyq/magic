@@ -1,6 +1,6 @@
 import type { ReactNode, RefObject } from "react"
 import { CircleHelp } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
 import type { ActionContext, BuiltinComposedAction, ComposedAction } from "../types"
 

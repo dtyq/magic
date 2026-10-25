@@ -1,6 +1,22 @@
 import { makeAutoObservable } from "mobx"
 import type { Topic, TaskStatus } from "../../pages/Workspace/types"
 
+/** Detail before persistence has no topic_mode. Keep the local employee. */
+function keepLocalEmployeeWhenDetailIsEmpty(
+	listed: Topic | undefined,
+	selected: Topic | null,
+	incoming: Topic,
+): Topic {
+	if (incoming.topic_mode) return incoming
+	const current = listed?.topic_mode ? listed : selected?.topic_mode ? selected : null
+	if (!current?.topic_mode) return incoming
+	return {
+		...incoming,
+		topic_mode: current.topic_mode,
+		agent_code: current.agent_code,
+	}
+}
+
 interface TopicState {
 	selectedTopic: Topic | null
 	topics: Topic[]
@@ -32,15 +48,21 @@ export class TopicStore {
 	}
 
 	/**
-	 * 用整对象替换列表中的某条话题（常用于服务端返回完整实体）。
+	 * Replace one topic with a server entity.
+	 * Keep a local employee when that entity is still an empty topic.
 	 */
 	updateTopic(topic: Topic) {
+		const nextTopic = keepLocalEmployeeWhenDetailIsEmpty(
+			this.topics.find((item) => item.id === topic.id),
+			this.selectedTopic?.id === topic.id ? this.selectedTopic : null,
+			topic,
+		)
 		const index = this.topics.findIndex((t) => t.id === topic.id)
 		if (index !== -1) {
-			this.topics[index] = topic
+			this.topics[index] = nextTopic
 		}
 		if (this.selectedTopic?.id === topic.id) {
-			this.selectedTopic = topic
+			this.selectedTopic = nextTopic
 		}
 	}
 

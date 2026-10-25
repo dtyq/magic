@@ -3,7 +3,8 @@ import {
 	SUPPORTED_IMAGE_EXTENSIONS,
 	SUPPORTED_VIDEO_EXTENSIONS,
 } from "../../../../runtime/shared/ids"
-import { getCanvasResourceIdentity } from "../../../../runtime/shared/path/canvasResourcePath"
+import type { ResolveCanvasResourceReference } from "../../../../public/resource-reference"
+import { getCanvasResourceReferenceIdentity } from "../../../../runtime/shared/path/canvasResourcePath"
 import type {
 	ReferenceAssetFileClass,
 	ReferenceAssetPerTypeLimits,
@@ -20,20 +21,29 @@ interface ReferenceResourcePanelBatchItemLike {
 	}
 }
 
-export function normalizeReferenceComparablePath(path?: string): string {
-	return getCanvasResourceIdentity(path)
+export function normalizeReferenceComparablePath(
+	path?: string,
+	resolveResourceReference?: ResolveCanvasResourceReference,
+): string {
+	return getCanvasResourceReferenceIdentity(path, resolveResourceReference)
 }
 
 export function isReferenceResourceCurrentlySelected(
 	candidatePaths: Array<string | null | undefined>,
 	currentReferenceFiles: string[] = [],
+	resolveResourceReference?: ResolveCanvasResourceReference,
 ): boolean {
 	if (candidatePaths.length === 0 || currentReferenceFiles.length === 0) return false
 	const currentPathSet = new Set(
-		currentReferenceFiles.map((path) => normalizeReferenceComparablePath(path)).filter(Boolean),
+		currentReferenceFiles
+			.map((path) => normalizeReferenceComparablePath(path, resolveResourceReference))
+			.filter(Boolean),
 	)
 	return candidatePaths.some((path) => {
-		const normalizedPath = normalizeReferenceComparablePath(path || "")
+		const normalizedPath = normalizeReferenceComparablePath(
+			path || "",
+			resolveResourceReference,
+		)
 		return normalizedPath.length > 0 && currentPathSet.has(normalizedPath)
 	})
 }
@@ -42,14 +52,20 @@ export function isReferenceSelectionLimitBlocked(options: {
 	candidatePaths: Array<string | null | undefined>
 	currentReferenceFiles?: string[]
 	isReferenceFileLimitReached?: boolean
+	resolveResourceReference?: ResolveCanvasResourceReference
 }): boolean {
 	const {
 		candidatePaths,
 		currentReferenceFiles = [],
 		isReferenceFileLimitReached = false,
+		resolveResourceReference,
 	} = options
 	if (!isReferenceFileLimitReached || currentReferenceFiles.length === 0) return false
-	return !isReferenceResourceCurrentlySelected(candidatePaths, currentReferenceFiles)
+	return !isReferenceResourceCurrentlySelected(
+		candidatePaths,
+		currentReferenceFiles,
+		resolveResourceReference,
+	)
 }
 
 export function isReferenceResourceTypeAllowed(options: {
@@ -131,8 +147,13 @@ export function classifyReferenceAssetFile(options: {
 	filePath?: string
 	fileName?: string
 	fileExtension?: string
+	mimeType?: string
 }): ReferenceAssetFileClass {
-	const { filePath, fileName, fileExtension } = options
+	const { filePath, fileName, fileExtension, mimeType } = options
+	const normalizedMimeType = mimeType?.toLowerCase().split(";", 1)[0] || ""
+	if (normalizedMimeType.startsWith("image/")) return "image"
+	if (normalizedMimeType.startsWith("video/")) return "video"
+	if (normalizedMimeType.startsWith("audio/")) return "audio"
 	const ext = normalizeReferenceExtension(fileExtension || filePath || fileName || "")
 	if (!ext) return "unknown"
 	if (SUPPORTED_IMAGE_EXTENSIONS.includes(ext as (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]))
@@ -154,6 +175,7 @@ export function isReferenceAssetTypeCapacityBlocked(options: {
 	currentAssetCounts: ReferenceAssetTypeCounts
 	candidatePaths?: Array<string | null | undefined>
 	currentReferenceFiles?: string[]
+	resolveResourceReference?: ResolveCanvasResourceReference
 }): boolean {
 	const {
 		fileClass,
@@ -161,15 +183,21 @@ export function isReferenceAssetTypeCapacityBlocked(options: {
 		currentAssetCounts,
 		candidatePaths = [],
 		currentReferenceFiles = [],
+		resolveResourceReference,
 	} = options
 
 	// 已选文件不阻断（允许取消选择）
 	if (candidatePaths.length > 0 && currentReferenceFiles.length > 0) {
 		const currentPathSet = new Set(
-			currentReferenceFiles.map((p) => normalizeReferenceComparablePath(p)).filter(Boolean),
+			currentReferenceFiles
+				.map((p) => normalizeReferenceComparablePath(p, resolveResourceReference))
+				.filter(Boolean),
 		)
 		const isAlreadySelected = candidatePaths.some((path) => {
-			const normalized = normalizeReferenceComparablePath(path || "")
+			const normalized = normalizeReferenceComparablePath(
+				path || "",
+				resolveResourceReference,
+			)
 			return normalized.length > 0 && currentPathSet.has(normalized)
 		})
 		if (isAlreadySelected) return false
@@ -212,7 +240,12 @@ export function filterReferenceResourcePanelBatchItems<
 	currentReferenceFiles?: string[]
 	assetLimits?: ReferenceAssetPerTypeLimits
 	currentAssetCounts?: ReferenceAssetTypeCounts
+	canAcceptNextAsset?: (
+		fileClass: ReferenceAssetFileClass,
+		currentAssetCounts: ReferenceAssetTypeCounts,
+	) => boolean
 	maxBatchItems?: number
+	resolveResourceReference?: ResolveCanvasResourceReference
 }): T[] {
 	const {
 		items,
@@ -220,14 +253,18 @@ export function filterReferenceResourcePanelBatchItems<
 		currentReferenceFiles = [],
 		assetLimits,
 		currentAssetCounts,
+		canAcceptNextAsset,
 		maxBatchItems,
+		resolveResourceReference,
 	} = options
 	const batchLimit =
 		typeof maxBatchItems === "number" ? Math.max(Math.floor(maxBatchItems), 0) : Infinity
 	if (items.length === 0 || batchLimit <= 0) return []
 
 	const currentPathSet = new Set(
-		currentReferenceFiles.map((path) => normalizeReferenceComparablePath(path)).filter(Boolean),
+		currentReferenceFiles
+			.map((path) => normalizeReferenceComparablePath(path, resolveResourceReference))
+			.filter(Boolean),
 	)
 	const acceptedPathSet = new Set<string>()
 	const acceptedItems: T[] = []
@@ -239,21 +276,26 @@ export function filterReferenceResourcePanelBatchItems<
 
 		const selectionKey = normalizeReferenceComparablePath(
 			item.data.file_path || item.data.file_id || item.data.file_name,
+			resolveResourceReference,
 		)
 		if (selectionKey && acceptedPathSet.has(selectionKey)) continue
 
 		const consumesSlot = !selectionKey || !currentPathSet.has(selectionKey)
 		if (consumesSlot) {
+			const fileClass = classifyReferenceAssetFile({
+				filePath: item.data.file_path,
+				fileName: item.data.file_name,
+				fileExtension: item.data.file_extension,
+			})
+			if (fileClass === "unknown") continue
 			if (maxReferenceFiles !== undefined && nextReferenceFileCount + 1 > maxReferenceFiles) {
 				continue
 			}
 
 			if (assetLimits && nextAssetCounts) {
-				const fileClass = classifyReferenceAssetFile({
-					filePath: item.data.file_path,
-					fileName: item.data.file_name,
-					fileExtension: item.data.file_extension,
-				})
+				if (canAcceptNextAsset && !canAcceptNextAsset(fileClass, nextAssetCounts)) {
+					continue
+				}
 				if (!canAcceptNextReferenceAsset(fileClass, assetLimits, nextAssetCounts)) {
 					continue
 				}

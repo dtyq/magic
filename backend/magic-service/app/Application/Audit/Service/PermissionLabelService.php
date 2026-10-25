@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Application\Audit\Service;
 
 use App\Application\Kernel\Contract\MagicPermissionInterface;
-use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Domain\Audit\Contract\PermissionLabelServiceInterface;
 use Throwable;
 
@@ -51,13 +50,14 @@ class PermissionLabelService implements PermissionLabelServiceInterface
     /**
      * 获取资源标签路径（三级拼接）.
      *
-     * 基于 MagicResourceEnum / EnterpriseResourceEnum 的 parent() 反向回溯拼接，
-     * 未知资源或缺失 i18n 时降级为资源编码本身.
+     * 由权限实现负责基于资源 parent() 关系生成路径，未知资源或缺失 i18n
+     * 时降级为资源编码本身.
      */
     public function getResourceLabelPath(string $resourceCode): string
     {
-        $enum = MagicResourceEnum::tryFrom($resourceCode);
-        if (! $enum) {
+        try {
+            return $this->magicPermission->getResourceLabelPath($resourceCode);
+        } catch (Throwable) {
             $segments = array_values(array_filter(explode('.', $resourceCode)));
             if ($segments === []) {
                 return $resourceCode;
@@ -73,16 +73,6 @@ class PermissionLabelService implements PermissionLabelServiceInterface
 
             return implode('-', $labels);
         }
-
-        $labels = [];
-        $current = $enum;
-        while ($current !== null) {
-            $labels[] = $this->getResourceLabel($current->value);
-            $current = $current->parent();
-        }
-
-        $labels = array_reverse($labels);
-        return implode('-', $labels);
     }
 
     /**

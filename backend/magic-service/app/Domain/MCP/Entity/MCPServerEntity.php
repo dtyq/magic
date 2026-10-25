@@ -17,6 +17,15 @@ use DateTime;
 
 class MCPServerEntity extends AbstractEntity
 {
+    /**
+     * 与 magic_mcp_servers 对应用户可写字段长度保持一致.
+     */
+    public const NAME_MAX_LENGTH = 64;
+
+    public const DESCRIPTION_MAX_LENGTH = 5000;
+
+    public const ICON_MAX_LENGTH = 255;
+
     protected ?int $id = null;
 
     protected string $organizationCode;
@@ -82,6 +91,7 @@ class MCPServerEntity extends AbstractEntity
         if (empty($this->name)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.name']);
         }
+        $this->validatePersistableStringFields();
         if (empty($this->creator)) {
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'creator']);
         }
@@ -111,8 +121,9 @@ class MCPServerEntity extends AbstractEntity
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'organization_code']);
         }
         if (empty($this->name)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'name']);
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.name']);
         }
+        $this->validatePersistableStringFields();
 
         $mcpServerEntity->setName($this->name);
         $mcpServerEntity->setDescription($this->description);
@@ -311,5 +322,25 @@ class MCPServerEntity extends AbstractEntity
     public function setOffice(bool $office): void
     {
         $this->office = $office;
+    }
+
+    /**
+     * 在落库前校验用户可写字符串字段长度，避免触发 SQL 1406.
+     */
+    private function validatePersistableStringFields(): void
+    {
+        $this->assertFieldMaxLength($this->name, self::NAME_MAX_LENGTH, 'mcp.fields.name');
+        $this->assertFieldMaxLength($this->description, self::DESCRIPTION_MAX_LENGTH, 'mcp.fields.description');
+        $this->assertFieldMaxLength($this->icon, self::ICON_MAX_LENGTH, 'mcp.fields.icon');
+    }
+
+    private function assertFieldMaxLength(string $value, int $maxLength, string $label): void
+    {
+        if (mb_strlen($value) > $maxLength) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'mcp.field_too_long', [
+                'label' => $label,
+                'max' => $maxLength,
+            ]);
+        }
     }
 }

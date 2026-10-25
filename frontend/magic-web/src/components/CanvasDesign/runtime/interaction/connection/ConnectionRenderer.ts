@@ -14,6 +14,7 @@ import {
 	CONNECTION_HIT_PATH_NAME,
 	CONNECTION_VISUAL_PATH_NAME,
 } from "./connectionNodeUtils"
+import { ConnectionDeleteActionRenderer } from "./ConnectionDeleteActionRenderer"
 
 interface ConnectionRenderOptions {
 	selectedConnectionIds?: string[]
@@ -43,7 +44,9 @@ const LOCAL_CONNECTION_CONTAINER_NAME = "canvas-local-connections"
 
 export class ConnectionRenderer {
 	private canvas: Canvas
+	private deleteActionRenderer: ConnectionDeleteActionRenderer
 	private renderedNodes = new Map<string, RenderedConnectionNode>()
+	private renderedConnectionGeometries = new Map<string, ResolvedConnectionGeometry>()
 	private localConnectionContainers = new Map<string, Konva.Group>()
 	private hoveredConnectionIds = new Set<string>()
 	private highlightedConnectionIds = new Set<string>()
@@ -51,6 +54,11 @@ export class ConnectionRenderer {
 
 	constructor(options: { canvas: Canvas }) {
 		this.canvas = options.canvas
+		this.deleteActionRenderer = new ConnectionDeleteActionRenderer({
+			canvas: this.canvas,
+			onPointerEnter: (connectionId) => this.handleDeleteActionPointerEnter(connectionId),
+			onPointerLeave: (connectionId) => this.handleDeleteActionPointerLeave(connectionId),
+		})
 	}
 
 	public render(connections: CanvasConnection[], options: ConnectionRenderOptions = {}): void {
@@ -61,18 +69,19 @@ export class ConnectionRenderer {
 		const connectionGroup = this.canvas.ensureConnectionGroup()
 		const selectedConnectionIdSet = new Set(options.selectedConnectionIds ?? [])
 		this.highlightedConnectionIds = new Set(options.highlightedConnectionIds ?? [])
-		const desiredConnectionIds = new Set<string>()
+		const desiredGeometryIds = new Set<string>()
 		const desiredSlotKeys = new Set<string>()
 		const desiredLocalParentIds = new Set<string>()
 
 		const selectedNodes: Konva.Group[] = []
 		for (const connection of connections) {
-			desiredConnectionIds.add(connection.id)
 			const isSelected =
 				selectedConnectionIdSet.has(connection.id) ||
 				this.highlightedConnectionIds.has(connection.id)
 			const geometry = this.resolveGeometry(connection)
 			if (!geometry) continue
+			desiredGeometryIds.add(connection.id)
+			this.renderedConnectionGeometries.set(connection.id, geometry)
 
 			const sharedLocalContainer = this.resolveSharedLocalConnectionContainer(connection)
 			if (sharedLocalContainer) {
@@ -118,7 +127,9 @@ export class ConnectionRenderer {
 		}
 		this.destroyStaleConnectionNodes(desiredSlotKeys)
 		this.destroyUnusedLocalConnectionContainers(desiredLocalParentIds)
-		this.pruneConnectionHoverState(desiredConnectionIds)
+		this.pruneRenderedConnectionGeometries(desiredGeometryIds)
+		this.pruneConnectionHoverState(desiredGeometryIds)
+		this.syncDeleteAction()
 		selectedNodes.forEach((node) => {
 			if (node.getParent()) {
 				node.moveToTop()
@@ -135,18 +146,22 @@ export class ConnectionRenderer {
 	private hasRenderedState(): boolean {
 		return (
 			this.renderedNodes.size > 0 ||
+			this.renderedConnectionGeometries.size > 0 ||
 			this.localConnectionContainers.size > 0 ||
 			this.hoveredConnectionIds.size > 0 ||
 			this.highlightedConnectionIds.size > 0 ||
-			this.pendingHoverLeaveFrameIds.size > 0
+			this.pendingHoverLeaveFrameIds.size > 0 ||
+			this.deleteActionRenderer.getActiveConnectionId() !== null
 		)
 	}
 
 	public clear(): void {
 		const connectionGroup = this.canvas.ensureConnectionGroup()
 		this.clearConnectionHoverState({ restoreCursor: true })
+		this.deleteActionRenderer.destroy()
 		this.highlightedConnectionIds.clear()
 		this.destroyAllConnectionNodes()
+		this.renderedConnectionGeometries.clear()
 		connectionGroup.destroyChildren()
 		this.clearLocalConnectionContainers()
 		this.canvas.runtimeScheduler.requestLayerDraw("content", {
@@ -158,6 +173,14 @@ export class ConnectionRenderer {
 
 	public destroy(): void {
 		this.clear()
+	}
+
+	public clearHover(): void {
+		const hoveredConnectionIds = Array.from(this.hoveredConnectionIds)
+		this.clearConnectionHoverState({ restoreCursor: true })
+		hoveredConnectionIds.forEach((connectionId) => {
+			this.applyInteractiveLineStyle(connectionId, "idle")
+		})
 	}
 
 	private createConnectionNode(
@@ -472,6 +495,7 @@ export class ConnectionRenderer {
 			this.hoveredConnectionIds.add(connectionId)
 			this.canvas.cursorManager.setTemporary("pointer")
 			this.applyInteractiveLineStyle(connectionId, "hover")
+			this.showDeleteAction(connectionId)
 		})
 		path.on("mouseleave", () => {
 			this.scheduleHoverLeave(connectionId)
@@ -498,6 +522,39 @@ export class ConnectionRenderer {
 			reason: `connection-${state}`,
 			priority: "input",
 		})
+	}
+
+	private showDeleteAction(connectionId: string): void {
+		const geometry = this.renderedConnectionGeometries.get(connectionId)
+		if (!geometry) return
+		this.deleteActionRenderer.show(connectionId, geometry, this.getSafeStageScale())
+	}
+
+	private syncDeleteAction(): void {
+		const connectionId = Array.from(this.hoveredConnectionIds).at(-1)
+		if (!connectionId) {
+			this.deleteActionRenderer.hide()
+			return
+		}
+
+		const geometry = this.renderedConnectionGeometries.get(connectionId)
+		if (!geometry) {
+			this.deleteActionRenderer.hide()
+			return
+		}
+		this.deleteActionRenderer.show(connectionId, geometry, this.getSafeStageScale())
+	}
+
+	private handleDeleteActionPointerEnter(connectionId: string): void {
+		if (!this.canSelectConnections()) return
+		this.cancelPendingHoverLeave(connectionId)
+		this.hoveredConnectionIds.add(connectionId)
+		this.canvas.cursorManager.setTemporary("pointer")
+		this.applyInteractiveLineStyle(connectionId, "hover")
+	}
+
+	private handleDeleteActionPointerLeave(connectionId: string): void {
+		this.scheduleHoverLeave(connectionId)
 	}
 
 	private applyLineStyleToRenderedConnection(connectionId: string): void {
@@ -534,6 +591,7 @@ export class ConnectionRenderer {
 				this.canvas.cursorManager.restoreToolCursor()
 			}
 			this.applyInteractiveLineStyle(connectionId, "idle")
+			this.syncDeleteAction()
 		})
 		this.pendingHoverLeaveFrameIds.set(connectionId, frameId)
 	}
@@ -559,6 +617,9 @@ export class ConnectionRenderer {
 		if (removedHoveredConnection && this.hoveredConnectionIds.size === 0) {
 			this.canvas.cursorManager.restoreToolCursor()
 		}
+		if (removedHoveredConnection) {
+			this.syncDeleteAction()
+		}
 	}
 
 	private clearConnectionHoverState(options: { restoreCursor: boolean }): void {
@@ -569,9 +630,17 @@ export class ConnectionRenderer {
 		})
 		this.pendingHoverLeaveFrameIds.clear()
 		this.hoveredConnectionIds.clear()
+		this.deleteActionRenderer.hide()
 		if (hadHoverState && options.restoreCursor) {
 			this.canvas.cursorManager.restoreToolCursor()
 		}
+	}
+
+	private pruneRenderedConnectionGeometries(desiredConnectionIds: Set<string>): void {
+		Array.from(this.renderedConnectionGeometries.keys()).forEach((connectionId) => {
+			if (desiredConnectionIds.has(connectionId)) return
+			this.renderedConnectionGeometries.delete(connectionId)
+		})
 	}
 
 	private applyLineStyle(path: Konva.Path, style: ConnectionLineStyle): void {

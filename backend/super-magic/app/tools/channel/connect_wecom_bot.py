@@ -34,6 +34,9 @@ class ConnectWecomBot(BaseTool[ConnectWecomBotParams]):
     """Start the WeCom AI Bot WebSocket connection from an SDK snippet."""
 
     async def execute(self, tool_context: ToolContext, params: ConnectWecomBotParams) -> ToolResult:
+        if not tool_context.topic_id:
+            return ToolResult.error("The current topic ID is missing, so the WeCom channel cannot be bound.")
+
         try:
             manager = WeComChannel.get_instance()
             await manager.connect(params.bot_id, params.secret)
@@ -42,7 +45,7 @@ class ConnectWecomBot(BaseTool[ConnectWecomBotParams]):
             config.wecom = WeComCredential(
                 bot_id=params.bot_id,
                 secret=params.secret,
-                sandbox_id=tool_context.sandbox_id,
+                topic_id=tool_context.topic_id,
             )
             await save_config(config)
 

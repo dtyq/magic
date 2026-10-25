@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ..constants import DEFAULT_PAGE_SNAPSHOT_MAX_PAGES
+
 
 @dataclass(frozen=True)
 class PdfExtractionDecision:
@@ -30,7 +32,7 @@ class PdfExtractionStrategy:
         extract_embedded_images: bool,
         page_snapshot_policy: Literal["auto", "always", "never"] = "auto",
         visual_hint: Literal["auto", "none", "page_snapshot", "layout_required"] = "auto",
-        page_snapshot_max_pages: int = 20,
+        page_snapshot_max_pages: int = DEFAULT_PAGE_SNAPSHOT_MAX_PAGES,
     ) -> PdfExtractionDecision:
         """返回选中页面的混合抽取决策。"""
 

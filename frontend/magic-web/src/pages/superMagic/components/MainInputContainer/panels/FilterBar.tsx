@@ -15,7 +15,7 @@ import { isOptionGroup, isComplexField, localeTextToDisplayString } from "./util
 import { observer } from "mobx-react-lite"
 import { ChevronDown, CircleX, X } from "lucide-react"
 import { ScenePanelVariant } from "../components/LazyScenePanel/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 function getOptionValue(option: OptionItem): string {
 	return localeTextToDisplayString(option.value)
@@ -105,6 +105,7 @@ function FilterBar({
 	return (
 		<HeadlessHorizontalScroll
 			className="w-full"
+			allowVerticalOverflow={isMobile}
 			scrollContainerClassName={cn(
 				"flex w-full min-w-0 items-center justify-between overflow-x-auto overflow-y-hidden",
 				isCompactMobile ? "no-scrollbar gap-2" : "gap-4",

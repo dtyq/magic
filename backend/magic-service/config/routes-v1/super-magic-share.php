@@ -68,3 +68,12 @@ Router::addGroup(
     },
     ['middleware' => [OptionalUserAuthMiddleware::class]]
 );
+
+Router::addGroup(
+    '/api/v2/share',
+    static function () {
+        Router::post('/resources/{shareCode}/detail', [ShareApi::class, 'getShareDetailV2']);
+        Router::post('/resources/{shareCode}/files/queries', [ShareApi::class, 'getShareFilesV2']);
+    },
+    ['middleware' => [OptionalUserAuthMiddleware::class]]
+);

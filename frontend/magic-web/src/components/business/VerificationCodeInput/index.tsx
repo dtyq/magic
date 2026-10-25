@@ -4,7 +4,7 @@ import { useMemoizedFn } from "ahooks"
 import { REGEXP_ONLY_DIGITS } from "input-otp"
 import { AlertCircle } from "lucide-react"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/shadcn-ui/input-otp"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface VerificationCodeInputProps {
 	/**

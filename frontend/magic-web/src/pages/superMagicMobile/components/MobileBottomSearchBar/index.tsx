@@ -2,7 +2,7 @@ import type { ChangeEvent, MouseEvent } from "react"
 import { memo, useEffect, useRef, useState } from "react"
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import type { MobileBottomSearchBarProps } from "./types"
 

@@ -99,7 +99,7 @@ readonly class ModelAccessRoleDomainService
         $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $entity->setCreatedAt($existing->getCreatedAt());
         $entity->setCreatedUid($existing->getCreatedUid());
-        return $this->save($dataIsolation, $entity);
+        return $this->save($dataIsolation, $entity, $existing->getDeniedModelIds());
     }
 
     public function destroy(PermissionDataIsolation $dataIsolation, int $roleId): PermissionControlStatus
@@ -120,6 +120,16 @@ readonly class ModelAccessRoleDomainService
 
     public function getUserSummary(PermissionDataIsolation $dataIsolation, string $userId): array
     {
+        if ($this->shouldBypassModelAccessControl($dataIsolation)) {
+            $context = $this->createOfficialOrganizationAccessContext();
+            return [
+                'permission_control_status' => $context->getPermissionControlStatus(),
+                'roles' => [],
+                'denied_model_ids' => $context->getDeniedModelIds(),
+                'accessible_model_ids' => $context->getAccessibleModelIds(),
+            ];
+        }
+
         $roles = $this->getUserAssignedRoles($dataIsolation, $userId);
         $context = $this->buildAccessContext($dataIsolation, $roles);
 
@@ -171,6 +181,10 @@ readonly class ModelAccessRoleDomainService
 
     private function doResolveAccessContext(PermissionDataIsolation $dataIsolation, string $userId): ModelAccessContext
     {
+        if ($this->shouldBypassModelAccessControl($dataIsolation)) {
+            return $this->createOfficialOrganizationAccessContext();
+        }
+
         $status = $this->resolvePermissionControlStatus($dataIsolation->getCurrentOrganizationCode());
         if ($status === PermissionControlStatus::DISABLED) {
             return new ModelAccessContext(
@@ -187,8 +201,14 @@ readonly class ModelAccessRoleDomainService
         );
     }
 
-    private function save(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $entity): ModelAccessRoleEntity
-    {
+    /**
+     * @param string[] $existingDeniedModelIds
+     */
+    private function save(
+        PermissionDataIsolation $dataIsolation,
+        ModelAccessRoleEntity $entity,
+        array $existingDeniedModelIds = []
+    ): ModelAccessRoleEntity {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $entity->setOrganizationCode($organizationCode);
 
@@ -196,7 +216,7 @@ readonly class ModelAccessRoleDomainService
         $this->validateDepartments($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getDepartmentIds());
         $this->validateUsers($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getExcludedUserIds());
         $this->validateDepartments($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getExcludedDepartmentIds());
-        $this->validateModels($dataIsolation, $entity->getDeniedModelIds());
+        $this->validateModels($dataIsolation, $entity->getDeniedModelIds(), $existingDeniedModelIds);
         $this->validateRoleForSave($organizationCode, $entity);
 
         $savedEntity = Db::transaction(function () use ($dataIsolation, $entity, $organizationCode) {
@@ -296,15 +316,23 @@ readonly class ModelAccessRoleDomainService
         }
     }
 
-    private function validateModels(PermissionDataIsolation $dataIsolation, array $modelIds): void
-    {
+    /**
+     * @param string[] $modelIds
+     * @param string[] $existingDeniedModelIds
+     */
+    private function validateModels(
+        PermissionDataIsolation $dataIsolation,
+        array $modelIds,
+        array $existingDeniedModelIds = []
+    ): void {
         if (empty($modelIds)) {
             return;
         }
 
         $availableModelIdMap = array_fill_keys($this->resolveOrganizationAvailableModelIds($dataIsolation), true);
+        $existingDeniedModelIdMap = array_fill_keys($existingDeniedModelIds, true);
         foreach ($modelIds as $modelId) {
-            if (! isset($availableModelIdMap[$modelId])) {
+            if (! isset($availableModelIdMap[$modelId]) && ! isset($existingDeniedModelIdMap[$modelId])) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'some models are not available in organization');
             }
         }
@@ -425,6 +453,24 @@ readonly class ModelAccessRoleDomainService
         }
 
         return $excludedUserIdMap;
+    }
+
+    /**
+     * 官方组织不参与模型访问管控：开关、套餐白名单、角色禁用都不生效。
+     * 关闭的模型仍可被官方组织连通性测试和真实调用使用，与 getByAdmin 语义对齐。
+     */
+    private function shouldBypassModelAccessControl(PermissionDataIsolation $dataIsolation): bool
+    {
+        return $dataIsolation->isOfficialOrganization();
+    }
+
+    private function createOfficialOrganizationAccessContext(): ModelAccessContext
+    {
+        return new ModelAccessContext(
+            PermissionControlStatus::DISABLED,
+            [],
+            []
+        );
     }
 
     /**

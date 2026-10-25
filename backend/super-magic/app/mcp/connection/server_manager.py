@@ -14,6 +14,7 @@ from agentlang.tools.tool_result import ToolResult
 
 from ..config.env_resolver import MCPEnvResolutionError, MCPEnvVarResolver, redact_config_values
 from ..config.models import MCPServerConfig
+from ..credential_provider import MCPAuthorizationCredentialProvider
 from ..tool.models import MCPServerResult, MCPToolInfo, UnavailableToolInfo
 from .client import MCPClient
 
@@ -34,11 +35,12 @@ class MCPServerManager:
     MAX_RETRIES: int = 1
     RETRY_DELAY: float = 1.0
 
-    def __init__(self):
+    def __init__(self, credential_provider: Optional[MCPAuthorizationCredentialProvider] = None):
         self.server_configs: Dict[str, MCPServerConfig] = {}
         self.clients: Dict[str, MCPClient] = {}
         self.tools: Dict[str, List[MCPToolInfo]] = {}  # server_name → 可用工具列表
         self.unavailable_tools: Dict[str, List[UnavailableToolInfo]] = {}  # server_name → 不可用工具列表
+        self.credential_provider = credential_provider or MCPAuthorizationCredentialProvider()
 
         logger.debug("初始化 MCP 服务器管理器")
 
@@ -172,6 +174,22 @@ class MCPServerManager:
 
         config = self.server_configs[server_name]
         start_time = time.time()
+
+        if config.auth_type == 2:
+            config = await self._resolve_authorization_config(config, start_time)
+            if config is None:
+                return MCPServerResult(
+                    name=server_name,
+                    status="failed",
+                    duration=time.time() - start_time,
+                    tools=[],
+                    tool_count=0,
+                    error=(
+                        f"MCP server '{server_name}' authorization is unavailable. "
+                        "Please authorize this MCP server again before reconnecting."
+                    ),
+                    label_name=label_name,
+                )
 
         try:
             resolved_config = MCPEnvVarResolver().resolve_config(config)
@@ -321,6 +339,35 @@ class MCPServerManager:
             return config.server_options.get("label_name", "")
         return ""
 
+    async def _resolve_authorization_config(
+        self,
+        config: MCPServerConfig,
+        start_time: float,
+    ) -> Optional[MCPServerConfig]:
+        """向 magic-service 获取最新 MCP Authorization 凭据并生成建连配置。"""
+        if not config.mcp_server_code:
+            logger.warning(f"MCP Authorization 配置缺少 server code: {config.name}")
+            return None
+        try:
+            access_token = await self.credential_provider.get_access_token(config.mcp_server_code)
+        except Exception as exc:
+            logger.warning(
+                f"获取 MCP Authorization 凭据失败: server={config.name}, "
+                f"server_code={config.mcp_server_code}, duration={time.time() - start_time:.3f}s, "
+                f"error={exc}"
+            )
+            return None
+        if not access_token:
+            return None
+
+        headers = {
+            key: value
+            for key, value in (config.headers or {}).items()
+            if key.lower() != "authorization"
+        }
+        headers["Authorization"] = f"Bearer {access_token}"
+        return config.model_copy(deep=True, update={"headers": headers})
+
     # ------------------------------------------------------------------ #
     # 内部：工具注册                                                        #
     # ------------------------------------------------------------------ #
@@ -373,7 +420,7 @@ class MCPServerManager:
         区分业务逻辑错误（返回给 LLM 处理）和系统错误（返回 error 状态）。
         """
         if not isinstance(raw, dict):
-            return ToolResult(content=str(raw))
+            return ToolResult(content=self._normalize_content(raw))
 
         content = raw.get("content", [])
         is_error = raw.get("isError", False)
@@ -381,16 +428,57 @@ class MCPServerManager:
         if is_error:
             error_msg = self._extract_text_content(content) or "MCP 工具执行失败"
             if self._is_system_error(error_msg):
-                return ToolResult.error(error_msg)  # type: ignore
+                return ToolResult.error(self._normalize_content(error_msg))  # type: ignore
             # 业务逻辑错误作为正常内容返回给 LLM
-            return ToolResult(content=error_msg)
+            return ToolResult(content=self._normalize_content(error_msg))
 
         if isinstance(content, list) and content:
             text_contents = self._collect_text_items(content)
-            merged = self._merge_text_contents(text_contents)
-            return ToolResult(content=merged or str(raw))
+            if not text_contents:
+                return ToolResult(
+                    content=self._normalize_content(self._serialize_raw_result(raw))
+                )
+            merged = (
+                text_contents[0]
+                if len(text_contents) == 1
+                else self._merge_text_contents(text_contents)
+            )
+            return ToolResult(content=self._normalize_content(merged if merged else ""))
 
-        return ToolResult(content=str(raw))
+        if content == []:
+            return ToolResult(content=self._normalize_content(""))
+
+        if isinstance(content, str):
+            return ToolResult(content=self._normalize_content(content))
+
+        return ToolResult(
+            content=self._normalize_content(self._serialize_raw_result(raw))
+        )
+
+    @staticmethod
+    def _normalize_content(content: Any) -> str:
+        """仅将非 JSON 的 MCP 返回内容包装成 JSON 字符串。"""
+        if isinstance(content, str):
+            try:
+                json.loads(content)
+                return content
+            except (json.JSONDecodeError, TypeError):
+                return json.dumps({"content": content}, ensure_ascii=False)
+
+        try:
+            return json.dumps(content, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return json.dumps({"content": str(content)}, ensure_ascii=False)
+
+    @staticmethod
+    def _serialize_raw_result(raw: Any) -> str:
+        """将无标准 content 的 MCP 原始结果序列化为稳定字符串。"""
+        if isinstance(raw, str):
+            return raw
+        try:
+            return json.dumps(raw, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(raw)
 
     def _extract_text_content(self, content: Any) -> str:
         """从 content 列表中提取文本内容并拼接"""

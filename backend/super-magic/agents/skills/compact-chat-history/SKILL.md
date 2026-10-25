@@ -53,10 +53,10 @@ Your summary must include the following sections:
 - If an external reference was mentioned but is now unavailable, record how to reacquire it.
 
 **3. Skills Needed to Resume This Task**
-- List skills that are helpful or relevant to continuing the current task, in order of importance
-- Include skill name and a one-line purpose description
-- Do NOT reproduce, summarize, or paraphrase any skill content — skills will be re-loaded via `read_skills()` after compression, so repeating their content here wastes context budget
-- Write "None" if there are no relevant skills
+- Select available skills that may help with the remaining work, in order of importance; do not list every skill previously used
+- Include each skill's name and a brief reason tied to the remaining task, and pass the same choices as `skill_suggestions` with `name` and `reason` fields
+- Do NOT reproduce, summarize, or paraphrase skill content. After successful compaction, the Agent receives optional reading suggestions and decides whether to call `read_skills`; skills are not automatically reloaded
+- Write "None" and pass an empty `skill_suggestions` list if no skills are relevant
 
 **4. Resolved Issues and Current State**
 - Record resolved issues and any ongoing troubleshooting
@@ -130,7 +130,7 @@ If any of the above sections overlap, merge them — no need to repeat.
 3. Skills Needed to Resume This Task:
    - [Skill name] - [one-line purpose]
    - [Skill name] - [one-line purpose]
-   (Do NOT include skill content — it will be re-loaded automatically)
+   (Do NOT include skill content. Pass these choices as skill_suggestions; reading remains optional.)
 
 4. Resolved Issues and Current State:
    [Description of resolved issues and ongoing troubleshooting]
@@ -148,6 +148,18 @@ If any of the above sections overlap, merge them — no need to repeat.
    - 2: user gave a non-negotiable output-language constraint
    - 5: user provided the source URL needed for the unfinished analysis
    The system restores the exact text from the original chat history. Do not copy full user messages here.
+```
+
+Pass the summary and selected choices together as tool arguments:
+
+```json
+{
+  "summary": "[The complete structured summary above]",
+  "preserved_user_input_indexes": [2, 5],
+  "skill_suggestions": [
+    {"name": "[Available skill name]", "reason": "[Why it may help with the remaining work]"}
+  ]
+}
 ```
 
 ---

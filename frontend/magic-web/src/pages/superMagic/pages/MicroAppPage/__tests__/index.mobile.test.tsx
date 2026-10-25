@@ -21,8 +21,12 @@ const resolverMocks = vi.hoisted(() => ({
 const controllerMocks = vi.hoisted(() => ({
 	initLoading: false,
 	initError: null as string | null,
+	isReadOnly: false,
+	canUseDevelopment: true,
 	checkAttachmentsNowDebounced: vi.fn(),
 	handleBackToMicroApps: vi.fn(),
+	handleConversationTypeChange: vi.fn(),
+	ensureUsageProject: vi.fn(),
 }))
 
 const navigateMocks = vi.hoisted(() => ({
@@ -38,6 +42,7 @@ vi.mock("react-router", () => ({
 }))
 
 vi.mock("react-i18next", () => ({
+	initReactI18next: { type: "3rdParty", init: vi.fn() },
 	useTranslation: () => ({ t: (key: string) => key }),
 }))
 
@@ -45,8 +50,9 @@ vi.mock("@/routes/hooks/useNavigate", () => ({
 	default: () => navigateMocks.navigate,
 }))
 
-vi.mock("@/pages/superMagic/providers/file-action-visibility-provider", () => ({
-	FileActionVisibilityProvider: ({ children }: { children: ReactNode }) => children,
+vi.mock("@/pages/superMagic/providers/FileAccessProvider", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/pages/superMagic/providers/FileAccessProvider")>()),
+	FileAccessProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
 vi.mock("@/pages/superMagic/hooks/useMobileFilePreviewPubSub", () => ({
@@ -91,7 +97,11 @@ vi.mock("../hooks/useMicroAppPageController", () => ({
 		selectedProject: { id: "project-1", project_name: "Micro App" },
 		selectedTopic: { id: "topic-1", topic_name: "Topic" },
 		hasRunningTopic: true,
-		isReadOnly: false,
+		isReadOnly: controllerMocks.isReadOnly,
+		canUseDevelopment: controllerMocks.canUseDevelopment,
+		conversationType: "development",
+		handleConversationTypeChange: controllerMocks.handleConversationTypeChange,
+		ensureUsageProject: controllerMocks.ensureUsageProject,
 		canEdit: false,
 		canPublish: true,
 		attachments: [
@@ -199,9 +209,25 @@ vi.mock("../components/MicroAppDatabasePanelMobile", () => ({
 }))
 
 vi.mock("../components/MicroAppMobileConversation", () => ({
-	default: (props: { open: boolean }) => {
+	default: (props: { open: boolean; onSelectDetail?: (detail: unknown) => void }) => {
 		mobileConversationMocks.render(props)
-		return props.open ? <div data-testid="mobile-conversation-popup" /> : null
+		return props.open ? (
+			<div data-testid="mobile-conversation-popup">
+				<button
+					type="button"
+					data-testid="mobile-conversation-tool"
+					onClick={() =>
+						props.onSelectDetail?.({
+							type: "html",
+							currentFileId: "admin-1",
+							data: { file_id: "admin-1" },
+						})
+					}
+				>
+					tool
+				</button>
+			</div>
+		) : null
 	},
 }))
 
@@ -213,9 +239,13 @@ describe("MicroAppPageMobile", () => {
 			error: null,
 		}
 		controllerMocks.initLoading = false
+		controllerMocks.isReadOnly = false
+		controllerMocks.canUseDevelopment = true
 		controllerMocks.initError = null
 		controllerMocks.checkAttachmentsNowDebounced.mockClear()
 		controllerMocks.handleBackToMicroApps.mockClear()
+		controllerMocks.handleConversationTypeChange.mockClear()
+		controllerMocks.ensureUsageProject.mockClear()
 		navigateMocks.navigate.mockClear()
 		mobileConversationMocks.render.mockClear()
 		previewPopupMocks.open.mockClear()
@@ -308,6 +338,16 @@ describe("MicroAppPageMobile", () => {
 		)
 	})
 
+	it("hides the conversation entry for read-only projects", async () => {
+		controllerMocks.isReadOnly = true
+
+		render(<MicroAppPageMobile />)
+		await screen.findByTestId("mobile-preview-content")
+
+		expect(screen.queryByTestId("micro-app-mobile-conversation-button")).not.toBeInTheDocument()
+		expect(mobileConversationMocks.render).not.toHaveBeenCalled()
+	})
+
 	it("opens a mobile preview popup without replacing the entry preview", async () => {
 		render(<MicroAppPageMobile />)
 		await screen.findByTestId("mobile-preview-content")
@@ -329,5 +369,42 @@ describe("MicroAppPageMobile", () => {
 		)
 		expect(screen.getByTestId("micro-app-mobile-files-panel")).toBeInTheDocument()
 		expect(screen.getByTestId("mobile-preview-content")).toBeInTheDocument()
+	})
+
+	it("opens a preview popup from message tools on the preview panel", async () => {
+		render(<MicroAppPageMobile />)
+		await screen.findByTestId("mobile-preview-content")
+
+		fireEvent.click(screen.getByTestId("micro-app-mobile-conversation-button"))
+		fireEvent.click(await screen.findByTestId("mobile-conversation-tool"))
+
+		expect(screen.getByTestId("mobile-conversation-popup")).toBeInTheDocument()
+		expect(previewPopupMocks.open).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "html",
+				currentFileId: "admin-1",
+			}),
+			expect.any(Array),
+			expect.any(Array),
+		)
+	})
+
+	it("opens a preview popup from message tools in preview mode", async () => {
+		render(<MicroAppPageMobile />)
+		await screen.findByTestId("mobile-preview-content")
+
+		fireEvent.click(screen.getByTestId("micro-app-mobile-mode-preview"))
+		fireEvent.click(screen.getByTestId("micro-app-mobile-conversation-button"))
+		fireEvent.click(await screen.findByTestId("mobile-conversation-tool"))
+
+		expect(screen.getByTestId("mobile-conversation-popup")).toBeInTheDocument()
+		expect(previewPopupMocks.open).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "html",
+				currentFileId: "admin-1",
+			}),
+			expect.any(Array),
+			expect.any(Array),
+		)
 	})
 })

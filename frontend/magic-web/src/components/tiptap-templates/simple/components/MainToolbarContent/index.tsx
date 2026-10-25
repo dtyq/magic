@@ -18,7 +18,7 @@ import { CopyMarkdownButton } from "@/components/tiptap-ui/copy-markdown-button"
 import { IconSearch } from "@tabler/icons-react"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTranslation } from "react-i18next"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 interface MainToolbarContentProps {
 	editor: Editor | null
 	onHighlighterClick: () => void

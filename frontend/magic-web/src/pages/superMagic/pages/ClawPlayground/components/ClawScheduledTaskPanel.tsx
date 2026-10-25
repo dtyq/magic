@@ -8,6 +8,7 @@ import magicToast from "@/components/base/MagicToaster/utils"
 import { openModal } from "@/utils/react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import useSuperMagicDropdown from "@/pages/superMagic/components/SuperMagicDropdown/useSuperMagicDropdown"
 import TaskEmptyState from "@/pages/superMagic/components/SiderTask/components/TaskEmptyState"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
@@ -324,9 +325,11 @@ export function ClawScheduledTaskPanel({
 					</div>
 				) : null}
 
-				<div
-					className="flex h-[calc(100%-32px)] flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-1.5 pb-2"
-					data-testid="claw-scheduled-task-list"
+				{/* The viewport fills the space below fixed controls; its content can stretch for the empty state. */}
+				<ScrollArea
+					className="min-h-0 flex-1"
+					viewportClassName="px-1.5 pb-2 [&>div]:!flex [&>div]:min-h-full [&>div]:flex-col [&>div]:gap-0.5 [&_[data-slot=project-panel-empty]]:flex-1"
+					viewportProps={{ "data-testid": "claw-scheduled-task-list" }}
 				>
 					{taskRecords.length ? (
 						filteredTaskRecords.length ? (
@@ -353,7 +356,7 @@ export function ClawScheduledTaskPanel({
 					) : (
 						<TaskEmptyState onCreateTask={handleOpenCreateModal} />
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 
 			<ClawScheduledTaskModal

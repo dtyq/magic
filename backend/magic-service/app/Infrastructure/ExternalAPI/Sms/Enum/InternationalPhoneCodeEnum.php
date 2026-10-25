@@ -304,9 +304,9 @@ enum InternationalPhoneCodeEnum: string
 
     /**
      * 去掉手机号的"+"号,以及可能存在的"-","00".
-     * @example +8613104871111
-     * @example +86-13104871111
-     * @example +0086-13104871111
+     * @example +8613800000000
+     * @example +86-13800000000
+     * @example +0086-13800000000
      */
     public static function parsePhoneInternationalPhone(string $phone): string
     {

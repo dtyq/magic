@@ -1,9 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
-import PluginTips from "../components/PluginTips"
-import { AgentCommonModal } from "@/components/Agent/AgentCommonModal"
-import { cn } from "@/lib/utils"
-
-const AgentSettingsLazy = lazy(() => import("@/components/Agent/MCP/AgentSettings"))
+import { useEffect, useMemo, useRef } from "react"
+import { cn } from "@/utils/cn"
 import CurrentSceneBadge from "../components/SelectedSkillBadge"
 import { SCENE_INPUT_IDS, INPUT_CONTAINER_MIN_HEIGHT, SCENE_PANEL_MIN_HEIGHT } from "../constants"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
@@ -30,7 +26,9 @@ import SuperMagicService from "../../../services"
 import { createMessageEditorDraftKey } from "@/pages/superMagic/components/MessageEditor/utils/draftKey"
 import { userStore } from "@/models/user"
 
-interface EditorLayoutProps {
+export interface EditorLayoutProps {
+	editorContext?: Partial<SceneEditorContext>
+	inputContainerId?: string
 	mode?: TopicMode
 	sceneStateStore?: SceneStateStore
 	autoFocus?: boolean
@@ -38,6 +36,8 @@ interface EditorLayoutProps {
 }
 
 function EditorLayout({
+	editorContext: editorContextOverrides,
+	inputContainerId = SCENE_INPUT_IDS.INPUT_CONTAINER,
 	mode,
 	sceneStateStore = defaultSceneStateStore,
 	autoFocus = false,
@@ -46,11 +46,20 @@ function EditorLayout({
 	const resolvedMode = mode ?? roleStore.currentRole
 	const editorContainerRef = useRef<HTMLDivElement>(null)
 	const editorRef = useRef<MessageEditorRef>(null)
-	const [mcpModalOpen, setMcpModalOpen] = useState(false)
 
-	const selectedTopic = topicStore.selectedTopic
-	const selectedProject = projectStore.selectedProject
-	const selectedWorkspace = workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace
+	// Explicit null is an empty composer, not a request to reuse the global selection.
+	const selectedTopic =
+		editorContextOverrides?.selectedTopic !== undefined
+			? editorContextOverrides.selectedTopic
+			: topicStore.selectedTopic
+	const selectedProject =
+		editorContextOverrides?.selectedProject !== undefined
+			? editorContextOverrides.selectedProject
+			: projectStore.selectedProject
+	const selectedWorkspace =
+		editorContextOverrides?.selectedWorkspace !== undefined
+			? editorContextOverrides.selectedWorkspace
+			: (workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace)
 
 	const scenes = superMagicModeService.getModeConfigWithLegacy(
 		resolvedMode,
@@ -70,6 +79,8 @@ function EditorLayout({
 			selectedTopic,
 			selectedProject,
 			selectedWorkspace,
+			// This home screen creates entities inside the workspace selected in the header.
+			creationScene: "workspace",
 			setSelectedTopic: topicStore.setSelectedTopic,
 			setSelectedProject: projectStore.setSelectedProject,
 			topicMode: resolvedMode,
@@ -94,8 +105,10 @@ function EditorLayout({
 					confirmDelete: false,
 				},
 			},
+			...editorContextOverrides,
 		}),
 		[
+			editorContextOverrides,
 			resolvedMode,
 			selectedTopic,
 			selectedProject,
@@ -108,7 +121,7 @@ function EditorLayout({
 	// Automatically scroll to scene panel when scene config loaded
 	useSkillPanelScroll(editorContainerRef, sceneStateStore)
 
-	// Defer MCP list load so first paint is not blocked; PluginTips still appears after init.
+	// Warm the MCP list after first paint, so the composer's MCP controls open with data ready.
 	useEffect(() => {
 		const run = () => {
 			defaultMCPStore.load().catch(console.error)
@@ -155,37 +168,32 @@ function EditorLayout({
 		variant: ScenePanelVariant.HomePage,
 	})
 
-	const shouldShowPluginTips =
-		!selectedScene &&
-		defaultMCPStore.initialized &&
-		!defaultMCPStore.hasMCP &&
-		!defaultMCPStore.hasEverAddedMcp
-
 	return (
 		<SceneStateProvider store={sceneStateStore} variant={ScenePanelVariant.HomePage}>
 			<div className={cn("flex size-full flex-col items-center")}>
 				{/* Main Input Container */}
-				<div className="w-full max-w-4xl rounded-2xl border border-border bg-sidebar p-2">
+				<div
+					className="w-full max-w-4xl rounded-2xl border border-border bg-sidebar p-2"
+					data-guide-anchor="message-composer"
+				>
 					{/* skill editor input container with min height to prevent layout shift */}
 					<div
 						ref={editorContainerRef}
-						id={SCENE_INPUT_IDS.INPUT_CONTAINER}
+						id={inputContainerId}
 						style={{ minHeight: INPUT_CONTAINER_MIN_HEIGHT.HomePage }}
 					></div>
 
-					{/* Plugin Tips or Selected Skill Badge */}
-					<div className="mt-2 [&:empty]:hidden">
-						{shouldShowCurrentSceneBadge && selectedScene ? (
+					{/* Selected Skill Badge */}
+					{shouldShowCurrentSceneBadge && selectedScene ? (
+						<div className="mt-2">
 							<CurrentSceneBadge
 								scene={selectedScene}
 								onClose={() => {
 									sceneStateStore.setCurrentScene(null)
 								}}
 							/>
-						) : shouldShowPluginTips ? (
-							<PluginTips onConnectClick={() => setMcpModalOpen(true)} />
-						) : null}
-					</div>
+						</div>
+					) : null}
 				</div>
 
 				{/* skill config container with smooth transition */}
@@ -200,23 +208,14 @@ function EditorLayout({
 						minHeight: selectedScene ? SCENE_PANEL_MIN_HEIGHT.HomePage : undefined,
 					}}
 				>
-					<LazyScenePanel scenes={scenes} editorContext={editorContext} />
+					<LazyScenePanel
+						scenes={scenes}
+						editorContext={editorContext}
+						inputContainerId={inputContainerId}
+					/>
 					{shouldShowSelfMediaConfig ? <SelfMediaComposerConfigPanel /> : null}
 				</div>
 			</div>
-			<AgentCommonModal
-				open={mcpModalOpen}
-				onOpenChange={setMcpModalOpen}
-				width={900}
-				footer={null}
-				closable={false}
-			>
-				{mcpModalOpen ? (
-					<Suspense fallback={null}>
-						<AgentSettingsLazy onClose={() => setMcpModalOpen(false)} />
-					</Suspense>
-				) : null}
-			</AgentCommonModal>
 		</SceneStateProvider>
 	)
 }

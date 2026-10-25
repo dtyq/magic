@@ -1,4 +1,5 @@
 import type { MagicModalProps } from "@/components/base/MagicModal"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 
 /** Share type */
 export enum ShareType {
@@ -14,6 +15,12 @@ export enum ShareMode {
 	File = "file",
 	Project = "project",
 }
+
+/**
+ * Selects the administrator permission group applied to a share.
+ * Topics own a group, so their public access can be closed without affecting projects or files.
+ */
+export type SharePermissionResource = "microApp" | "project" | "topic"
 
 /** Share context type */
 export enum ShareContextType {
@@ -48,6 +55,15 @@ export interface FileInfo {
 
 /** UI overrides for file-share scenarios such as recording detail sharing. */
 export interface FileShareUiConfig {
+	/** Full attachment snapshot used only to resolve hidden document dependencies. */
+	dependencyAttachments?: AttachmentItem[]
+	/** Recording bundle root used to prevent cross-bundle dependency matching. */
+	dependencyBundleRootPath?: string
+	/** Enables silent multi-document dependency inclusion for specialized shares. */
+	analyzeSelectedDocuments?: boolean
+	autoIncludeDocumentDependencies?: boolean
+	displayNameByFileId?: Record<string, string> // UI-only labels keyed by original file ID
+	displayNameByFileName?: Record<string, string> // Fallback labels for refreshed attachment IDs
 	/** Reuses the existing project_mode semantic so recording shares do not invent another scene field. */
 	projectMode?: string | null
 	hideShareProjectToggle?: boolean
@@ -110,6 +126,8 @@ export interface ShareModalProps extends Omit<ShareProps, "type">, MagicModalPro
 	defaultSelectedFileIds?: string[] // 默认选中的文件ID列表
 	requiredFileIds?: string[] // 提交时始终补齐的文件ID（不改变UI可见选择）
 	defaultOpenFileId?: string // 默认打开的文件ID
+	displayNameByFileId?: Record<string, string> // UI-only labels keyed by original file ID
+	displayNameByFileName?: Record<string, string> // Fallback labels for refreshed attachment IDs
 	projectName?: string // 项目名称（用于项目分享模式）
 	projectId?: string // 项目ID（用于创建分享时使用，可选，如果不传则从API获取）
 	onCancel?: (e?: React.MouseEvent<HTMLButtonElement>) => void

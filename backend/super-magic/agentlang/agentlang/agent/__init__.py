@@ -8,6 +8,7 @@ agent 模块，提供Agent基类
 """
 
 from agentlang.agent.loader import AgentLoader
+from agentlang.agent.models import AgentRunRequest
 from agentlang.agent.state import AgentState
 
-__all__ = ["AgentLoader", "AgentState"] 
+__all__ = ["AgentLoader", "AgentRunRequest", "AgentState"]

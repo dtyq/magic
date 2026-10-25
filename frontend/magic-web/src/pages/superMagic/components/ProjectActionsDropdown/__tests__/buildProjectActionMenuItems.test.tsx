@@ -91,4 +91,42 @@ describe("buildProjectActionMenuItems", () => {
 
 		expect(items.some((item) => item?.key === ProjectActionMenuKey.Rename)).toBe(false)
 	})
+
+	it("shows cancel-workspace-shortcut for a bound collaboration project", () => {
+		const items = buildProjectActionMenuItems({
+			item: {
+				...mockProject,
+				tag: "collaboration",
+				user_role: "editor",
+				is_bind_workspace: true,
+				bind_workspace_id: "workspace-1",
+			},
+			t: translate,
+			inCollaborationPanel: false,
+			onCancelWorkspaceShortcut: vi.fn(),
+		})
+
+		expect(
+			items.some((item) => item?.key === ProjectActionMenuKey.CancelWorkspaceShortcut),
+		).toBe(true)
+	})
+
+	it("hides cancel-workspace-shortcut once the bound workspace is cleared", () => {
+		const items = buildProjectActionMenuItems({
+			item: {
+				...mockProject,
+				tag: "collaboration",
+				user_role: "editor",
+				is_bind_workspace: false,
+				bind_workspace_id: "",
+			},
+			t: translate,
+			inCollaborationPanel: false,
+			onCancelWorkspaceShortcut: vi.fn(),
+		})
+
+		expect(
+			items.some((item) => item?.key === ProjectActionMenuKey.CancelWorkspaceShortcut),
+		).toBe(false)
+	})
 })

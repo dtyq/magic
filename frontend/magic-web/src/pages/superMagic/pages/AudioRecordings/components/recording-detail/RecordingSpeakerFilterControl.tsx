@@ -2,13 +2,14 @@ import { useState } from "react"
 import { Check, ListFilter, RotateCcw, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { resolveSpeakerChipStyle } from "../../utils/resolve-speaker-chip-style"
 import {
 	isSpeakerFilterActive,
@@ -96,18 +97,21 @@ export function RecordingSpeakerFilterControl({
 				<DropdownMenuContent
 					align="end"
 					sideOffset={8}
-					className="w-44 rounded-xl border-border/80 p-1"
+					className="w-44 overflow-hidden rounded-xl border-border/80 p-1"
 					data-testid="recording-detail-speaker-filter-menu"
 				>
-					{speakerIds.map((speakerId) => (
-						<SpeakerFilterMenuItem
-							key={speakerId}
-							speakerId={speakerId}
-							label={labels[speakerId] ?? speakerId}
-							selected={normalizedSelected.includes(speakerId)}
-							onSelect={handleToggleSpeaker}
-						/>
-					))}
+					{/* Reserve reset space before selection so the focused last row stays visible. */}
+					<ScrollArea viewportClassName="h-auto max-h-[calc(var(--radix-dropdown-menu-content-available-height)-44px)] [&>div]:!block">
+						{speakerIds.map((speakerId) => (
+							<SpeakerFilterMenuItem
+								key={speakerId}
+								speakerId={speakerId}
+								label={labels[speakerId] ?? speakerId}
+								selected={normalizedSelected.includes(speakerId)}
+								onSelect={handleToggleSpeaker}
+							/>
+						))}
+					</ScrollArea>
 					{filterActive ? (
 						<>
 							<DropdownMenuItem
@@ -222,6 +226,7 @@ function MobileSpeakerFilterSheet({
 					icon: <X />,
 					ariaLabel: t("actions.cancel"),
 					onClick: () => setOpen(false),
+					testId: "recording-detail-speaker-filter-close",
 				}}
 				headerTrailingAction={
 					filterActive
@@ -229,27 +234,32 @@ function MobileSpeakerFilterSheet({
 								icon: <RotateCcw />,
 								ariaLabel: t("detail.speakerFilterReset"),
 								onClick: onReset,
+								testId: "recording-detail-speaker-filter-reset",
 							}
 						: undefined
 				}
-				className="flex flex-col overflow-hidden rounded-t-2xl border-0 bg-muted p-0"
-				bodyClassName="no-scrollbar flex max-h-[70dvh] flex-col overflow-y-auto px-[14px] pb-6 pt-[10px]"
+				// Clip popup ancestors so focusing the last row cannot scroll the fixed header away.
+				className="flex flex-col overflow-hidden rounded-t-2xl border-0 bg-muted p-0 supports-[overflow:clip]:overflow-clip"
+				bodyClassName="min-h-0 overflow-hidden supports-[overflow:clip]:overflow-clip"
 				style={{ boxShadow: "0 -14px 44px rgba(0,0,0,0.18)" }}
 				data-testid="recording-detail-speaker-filter-sheet"
 			>
-				<div className="overflow-hidden rounded-lg bg-card">
-					{speakerIds.map((speakerId) => (
-						<MobileSpeakerFilterRow
-							key={speakerId}
-							speakerId={speakerId}
-							label={labels[speakerId] ?? speakerId}
-							isFirst={speakerId === speakerIds[0]}
-							selected={selectedIds.includes(speakerId)}
-							onSelect={onToggleSpeaker}
-						/>
-					))}
-				</div>
-				<div style={{ paddingBottom: Math.max(safeBottom, 0) }} />
+				{/* Retain a vh fallback for older WebViews; the sheet header remains outside scrolling. */}
+				<ScrollArea viewportClassName="h-auto max-h-[70vh] px-[14px] pb-6 pt-[10px] supports-[height:100dvh]:max-h-[70dvh] [&>div]:!block">
+					<div className="overflow-hidden rounded-lg bg-card">
+						{speakerIds.map((speakerId) => (
+							<MobileSpeakerFilterRow
+								key={speakerId}
+								speakerId={speakerId}
+								label={labels[speakerId] ?? speakerId}
+								isFirst={speakerId === speakerIds[0]}
+								selected={selectedIds.includes(speakerId)}
+								onSelect={onToggleSpeaker}
+							/>
+						))}
+					</div>
+					<div style={{ paddingBottom: Math.max(safeBottom, 0) }} />
+				</ScrollArea>
 			</MagicPopup>
 		</>
 	)

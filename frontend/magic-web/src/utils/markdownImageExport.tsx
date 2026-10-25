@@ -78,6 +78,7 @@ function OffscreenEditor(props: {
 			content={props.content}
 			processedContent={props.processedContent || props.content}
 			isEditMode={false}
+			enableSearch={false}
 			selectedProject={props.selectedProject}
 			currentDocumentPath={props.currentDocumentPath}
 			urlResolver={urlResolver}

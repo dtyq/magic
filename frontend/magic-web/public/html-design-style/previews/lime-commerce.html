@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIME MART — Fresh Grocery & Organic Market</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap');
+
+    :root {
+      --lime: #84CC16;
+      --lime-dark: #4D7C0F;
+      --lime-deep: #365314;
+      --lime-light: #ECFCCB;
+      --lime-tint: #F7FEE7;
+      --sun-yellow: #FACC15;
+      --yellow-light: #FEF08A;
+      --yellow-deep: #A16207;
+      --text-main: #1C1917;
+      --text-muted: #64748B;
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 15-Minute Flash Delivery Top Header */
+    .turbo-bar {
+      background: linear-gradient(90deg, #65A30D 0%, #84CC16 60%, #FACC15 100%);
+      color: #0F172A;
+      padding: 7px 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .turbo-left { display: flex; align-items: center; gap: 8px; }
+    .bolt-tag {
+      background: #0F172A; color: #FACC15; padding: 2px 7px; border-radius: 4px;
+      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    }
+
+    /* Main Grocery Navigation */
+    header.grocery-nav {
+      position: sticky; top: 0; z-index: 90;
+      background: #FFFFFF;
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px; height: 62px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+
+    .brand-block {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 22px; font-weight: 800; color: #1E293B; letter-spacing: -0.03em;
+    }
+    .brand-block span.lime-txt { color: #65A30D; }
+    .badge-organic {
+      background: var(--lime-light); color: var(--lime-deep);
+      font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
+    }
+
+    .nav-search {
+      flex: 0.6; max-width: 480px; position: relative;
+    }
+    .search-input {
+      width: 100%; height: 38px; border: 1.5px solid var(--border);
+      border-radius: 9999px; padding: 0 16px 0 38px; font-size: 13px;
+      background: #F8FAFC; outline: none; transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--lime); background: #FFF; }
+    .search-icon { position: absolute; left: 14px; top: 11px; width: 15px; height: 15px; stroke: #94A3B8; }
+
+    .nav-user-actions { display: flex; align-items: center; gap: 16px; }
+    .cart-btn {
+      background: var(--lime); color: #0F172A; border: none; border-radius: 9999px;
+      padding: 8px 18px; font-weight: 700; font-size: 13px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; transition: background 0.2s;
+    }
+    .cart-btn:hover { background: #74B816; }
+
+    .container { max-width: 1240px; margin: 0 auto; padding: 20px 18px 40px; }
+    .hero-grocery {
+      display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 24px;
+      background: #FFF; border: 1px solid var(--border); border-radius: 12px;
+      padding: 24px 28px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); margin-bottom: 28px;
+    }
+    .produce-stage { display: flex; flex-direction: column; justify-content: space-between; }
+    .farm-origin-tag {
+      background: var(--lime-tint); border: 1px solid #D9F99D; border-radius: 8px;
+      padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+    }
+    .farm-name { font-size: 11px; font-weight: 700; color: var(--lime-deep); display: flex; align-items: center; gap: 6px; }
+    .farm-distance { font-family: var(--font-mono); font-size: 10px; color: #4D7C0F; font-weight: 600; }
+    .produce-art-box {
+      background: radial-gradient(circle at 50% 50%, #F7FEE7 0%, #FFF 70%);
+      border: 1px solid #F1F5F9; border-radius: 10px; height: 280px;
+      display: flex; align-items: center; justify-content: center; position: relative;
+    }
+    .fresh-tag-pill {
+      position: absolute; top: 12px; left: 12px; background: var(--sun-yellow);
+      color: #713F12; font-size: 9px; font-weight: 800; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 9999px;
+    }
+    .produce-details { display: flex; flex-direction: column; justify-content: space-between; }
+    .prod-category { font-size: 10px; font-weight: 700; color: #65A30D; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .prod-title { font-size: 24px; font-weight: 800; color: #0F172A; line-height: 1.2; margin-bottom: 6px; }
+    .prod-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px; }
+
+    .delivery-selector-card { background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+    .slot-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .slot-title-row span.fast-badge { color: #15803D; display: flex; align-items: center; gap: 4px; }
+    .slots-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .slot-pill { background: #FFF; border: 1.5px solid var(--border); border-radius: 6px; padding: 6px 4px; text-align: center; cursor: pointer; }
+    .slot-pill.active { background: var(--lime-light); border-color: var(--lime); color: var(--lime-deep); }
+    .slot-time { font-family: var(--font-mono); font-size: 10px; font-weight: 700; display: block; }
+    .slot-sub { font-size: 9px; color: var(--text-muted); }
+
+    .nutrition-accordion { background: #FFF; border: 1.5px solid #1E293B; border-radius: 4px; padding: 8px 12px; margin-bottom: 16px; }
+    .nutri-head { font-size: 14px; font-weight: 900; border-bottom: 4px solid #1E293B; padding-bottom: 2px; display: flex; justify-content: space-between; }
+    .nutri-cal-row { display: flex; justify-content: space-between; font-weight: 900; font-size: 13px; padding: 2px 0; border-bottom: 1px solid #CBD5E1; }
+    .nutri-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 9px; padding-top: 3px; }
+    .nutri-item { display: flex; justify-content: space-between; border-bottom: 1px solid #E2E8F0; }
+
+    .produce-buy-row { display: flex; align-items: center; gap: 12px; }
+    .price-num { font-size: 24px; font-weight: 800; color: #0F172A; }
+    .price-unit { font-size: 10px; color: var(--text-muted); }
+    .btn-add-grocery {
+      flex: 1; height: 44px; background: var(--lime); color: #0F172A; border: none; border-radius: 8px;
+      font-size: 12px; font-weight: 800; text-transform: uppercase; cursor: pointer; display: flex;
+      align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(132,204,22,0.3);
+    }
+    .btn-add-grocery:hover { background: #74B816; }
+
+    .section-head { display: flex; justify-content: space-between; align-items: baseline; margin: 24px 0 12px; border-bottom: 1.5px solid var(--border); padding-bottom: 6px; }
+    .section-head h3 { font-size: 16px; font-weight: 800; color: #0F172A; }
+    .section-head span { font-size: 10px; color: #65A30D; font-weight: 700; text-transform: uppercase; }
+
+    .harvest-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .harvest-card { background: #FFF; border: 1px solid var(--border); border-radius: 8px; padding: 12px; transition: all 0.2s; }
+    .harvest-card:hover { border-color: var(--lime); transform: translateY(-2px); }
+    .harvest-thumb { height: 100px; background: #F8FAFC; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+    .harvest-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+    .harvest-farm { font-size: 10px; color: #65A30D; margin-bottom: 6px; }
+    .harvest-foot { display: flex; justify-content: space-between; align-items: center; }
+    .harvest-price { font-size: 13px; font-weight: 800; color: #0F172A; }
+    .btn-quick-basket { background: var(--lime-light); color: var(--lime-deep); border: none; border-radius: 6px; padding: 4px 10px; font-size: 10px; font-weight: 700; cursor: pointer; }
+
+    footer.grocery-footer { border-top: 1px solid var(--border); padding: 20px 18px; display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 30px; }
+
+    @media (max-width: 860px) {
+      .hero-grocery { grid-template-columns: 1fr; }
+      .harvest-grid { grid-template-columns: 1fr; }
+      .nav-search { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 15-Minute Turbo Delivery Top Bar -->
+  <div class="turbo-bar">
+    <div class="turbo-left">
+      <span class="bolt-tag">15-MIN TURBO</span>
+      <span>ORGANIC LOCAL HARVEST • PACKED COLD IN INSULATED TOTES</span>
+    </div>
+    <div>SALINAS VALLEY DIRECT • ORDER BY 8 PM FOR SAME-DAY FRESHNESS</div>
+  </div>
+
+  <!-- Grocery Navigation -->
+  <header class="grocery-nav">
+    <div class="brand-block">
+      <span>LIME<span class="lime-txt">MART</span></span>
+      <span class="badge-organic">100% Organic</span>
+    </div>
+
+    <div class="nav-search">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" class="search-input" placeholder="Search organic fruits, farm eggs, artisan dairy..." />
+    </div>
+
+    <div class="nav-user-actions">
+      <button class="cart-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        <span>Basket (4 items)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Content Container -->
+  <main class="container">
+
+    <!-- Hero Grocery Showcase (16:10 Thumbnail Optimization) -->
+    <section class="hero-grocery">
+      
+      <!-- Left Visual Stage -->
+      <div class="produce-stage">
+        <div class="farm-origin-tag">
+          <div class="farm-name">
+            <span>🌿 Direct From: Valley Organics, Salinas Valley CA</span>
+          </div>
+          <div class="farm-distance">18.4 MILES • HARVESTED 14H AGO</div>
+        </div>
+
+        <div class="produce-art-box">
+          <span class="fresh-tag-pill">☀️ PEAK SEASON SWEETNESS</span>
+          
+          <!-- Detailed Organic Produce SVG Artwork (Avocado & Lime Crate) -->
+          <svg viewBox="0 0 360 260" width="100%" height="100%">
+            <defs>
+              <linearGradient id="limeSkin" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#A3E635" />
+                <stop offset="40%" stop-color="#84CC16" />
+                <stop offset="100%" stop-color="#4D7C0F" />
+              </linearGradient>
+              <linearGradient id="avoSkin" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#365314" />
+                <stop offset="60%" stop-color="#1E2911" />
+                <stop offset="100%" stop-color="#141E0A" />
+              </linearGradient>
+              <radialGradient id="avoFlesh" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#FEF08A" />
+                <stop offset="65%" stop-color="#BEF264" />
+                <stop offset="90%" stop-color="#65A30D" />
+                <stop offset="100%" stop-color="#365314" />
+              </radialGradient>
+              <radialGradient id="avoPit" cx="40%" cy="40%" r="50%">
+                <stop offset="0%" stop-color="#9A3412" />
+                <stop offset="70%" stop-color="#65240B" />
+                <stop offset="100%" stop-color="#431407" />
+              </radialGradient>
+            </defs>
+
+            <!-- Cast Shadow -->
+            <ellipse cx="180" cy="225" rx="140" ry="16" fill="#000" opacity="0.08" />
+
+            <!-- Wooden Harvest Basket Crate -->
+            <path d="M50 160 L310 160 L290 220 L70 220 Z" fill="#E2BA87" stroke="#A77A48" stroke-width="1.5" />
+            <line x1="50" y1="180" x2="310" y2="180" stroke="#A77A48" stroke-width="1.2" />
+            <line x1="60" y1="200" x2="300" y2="200" stroke="#A77A48" stroke-width="1.2" />
+
+            <!-- Fresh Whole Lime (Left) -->
+            <circle cx="110" cy="150" r="38" fill="url(#limeSkin)" stroke="#3F6212" stroke-width="1.2" />
+            <!-- Dew Drops on Lime -->
+            <circle cx="98" cy="136" r="2.5" fill="#FFF" opacity="0.7" />
+            <circle cx="106" cy="142" r="1.8" fill="#FFF" opacity="0.7" />
+
+            <!-- Fresh Whole Lime (Right) -->
+            <circle cx="255" cy="158" r="32" fill="url(#limeSkin)" stroke="#3F6212" stroke-width="1.2" />
+            <circle cx="262" cy="148" r="2" fill="#FFF" opacity="0.7" />
+
+            <!-- Center Cut Hass Avocado (Hero) -->
+            <ellipse cx="180" cy="135" rx="46" ry="62" fill="url(#avoSkin)" stroke="#17230B" stroke-width="2" />
+            <ellipse cx="180" cy="135" rx="41" ry="57" fill="url(#avoFlesh)" />
+            
+            <!-- Avocado Pit Stone -->
+            <circle cx="180" cy="150" r="22" fill="url(#avoPit)" stroke="#321006" stroke-width="1.2" />
+            <ellipse cx="174" cy="142" rx="4" ry="7" fill="#FFF" opacity="0.25" />
+
+            <!-- Organic Farm Stamped Leaf Tag -->
+            <path d="M125 110 Q145 90 160 102 Q150 120 125 110 Z" fill="#65A30D" stroke="#365314" />
+            <line x1="130" y1="110" x2="155" y2="98" stroke="#A3E635" stroke-width="1" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right Column Details, Slots & Nutrition Panel -->
+      <div class="produce-details">
+        <div>
+          <div class="prod-category">CALIFORNIA ORGANIC CITRUS &amp; AVOCADO</div>
+          <h1 class="prod-title">Heirloom Hass Avocados &amp; Key Limes</h1>
+          <p class="prod-desc">
+            Tree-ripened, buttery organic Hass avocados handpicked alongside fragrant California Persian limes. Rich in wholesome monounsaturated fats, potassium, and active enzymes.
+          </p>
+
+          <!-- Fast 15-Minute Delivery Slot Selector -->
+          <div class="delivery-selector-card">
+            <div class="slot-title-row">
+              <span class="fast-badge">⚡ 15-Min Express Slots</span>
+              <span style="color: #15803D; font-size: 10px;">Driver Ready</span>
+            </div>
+            <div class="slots-grid">
+              <div class="slot-pill active">
+                <span class="slot-time">17:15 - 17:30</span>
+                <span class="slot-sub">Fastest • $0.00</span>
+              </div>
+              <div class="slot-pill">
+                <span class="slot-time">17:30 - 17:45</span>
+                <span class="slot-sub">Standard</span>
+              </div>
+              <div class="slot-pill">
+                <span class="slot-time">17:45 - 18:00</span>
+                <span class="slot-sub">Evening</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nutrition Facts Panel -->
+          <div class="nutrition-accordion">
+            <div class="nutri-head">
+              <span>Nutrition Facts</span>
+              <span style="font-size: 10px; font-weight: 500;">Per 1/3 Avocado (50g)</span>
+            </div>
+            <div class="nutri-cal-row">
+              <span>Calories</span>
+              <span>80 kcal</span>
+            </div>
+            <div class="nutri-grid">
+              <div class="nutri-item"><span>Total Fat</span><strong>8g (10% DV)</strong></div>
+              <div class="nutri-item"><span>Potassium</span><strong>250mg (6% DV)</strong></div>
+              <div class="nutri-item"><span>Dietary Fiber</span><strong>3g (11% DV)</strong></div>
+              <div class="nutri-item"><span>Vitamin C</span><strong>4% DV</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Price & Add Action -->
+        <div class="produce-buy-row">
+          <div class="price-tag">
+            <span class="price-num">$4.99</span>
+            <span class="price-unit">Per 2 lb Bundle (4 pcs)</span>
+          </div>
+          <button class="btn-add-grocery">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Add To Fresh Basket</span>
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Seasonal Harvest Grid -->
+    <div class="section-head">
+      <h3>Fresh Seasonal Produce Available Right Now</h3>
+      <span>15-Minute Guaranteed Delivery</span>
+    </div>
+
+    <div class="harvest-grid">
+      <!-- Item 1 -->
+      <div class="harvest-card">
+        <div class="harvest-thumb">
+          <svg width="70" height="70" viewBox="0 0 100 100">
+            <circle cx="50" cy="55" r="32" fill="#DC2626" stroke="#991B1B" stroke-width="1.5" />
+            <path d="M50 23 Q52 14 62 12" fill="none" stroke="#65A30D" stroke-width="3" stroke-linecap="round" />
+            <ellipse cx="44" cy="45" rx="4" ry="8" fill="#FFF" opacity="0.3" />
+          </svg>
+        </div>
+        <h4>Organic Honeycrisp Apples</h4>
+        <div class="harvest-farm">Twin Peaks Orchards • 3 lb Bag</div>
+        <div class="harvest-foot">
+          <span class="harvest-price">$3.89</span>
+          <button class="btn-quick-basket">+ Add</button>
+        </div>
+      </div>
+
+      <!-- Item 2 -->
+      <div class="harvest-card">
+        <div class="harvest-thumb">
+          <svg width="70" height="70" viewBox="0 0 100 100">
+            <polygon points="50,15 42,75 58,75" fill="#EA580C" stroke="#9A3412" stroke-width="1.5" />
+            <path d="M42 75 L38 82 M50 75 L50 85 M58 75 L62 82" stroke="#65A30D" stroke-width="2" />
+          </svg>
+        </div>
+        <h4>Rainbow Heirloom Carrots</h4>
+        <div class="harvest-farm">SunGold Family Farm • Bunch</div>
+        <div class="harvest-foot">
+          <span class="harvest-price">$2.99</span>
+          <button class="btn-quick-basket">+ Add</button>
+        </div>
+      </div>
+
+      <!-- Item 3 -->
+      <div class="harvest-card">
+        <div class="harvest-thumb">
+          <svg width="70" height="70" viewBox="0 0 100 100">
+            <rect x="36" y="32" width="28" height="48" rx="4" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5" />
+            <rect x="38" y="44" width="24" height="16" fill="#84CC16" />
+            <rect x="42" y="24" width="16" height="8" fill="#0284C7" />
+          </svg>
+        </div>
+        <h4>Pasture Grass-Fed Whole Milk</h4>
+        <div class="harvest-farm">Clover Meadow Farm • 64 fl oz</div>
+        <div class="harvest-foot">
+          <span class="harvest-price">$5.29</span>
+          <button class="btn-quick-basket">+ Add</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="grocery-footer">
+    <div>© 2026 LIME MART GROCERY INC. • 100% USDA CERTIFIED ORGANIC</div>
+    <div>COLD-CHAIN VERIFIED LOGISTICS • ZERO CARBON LAST-MILE DELIVERY</div>
+  </footer>
+
+</body>
+</html>

@@ -116,7 +116,6 @@ export function useResolvedFilePreviewSrc(path: string): ResolvedMediaPreviewSrc
 			return
 		}
 
-		const getFileInfo = canvas?.magicConfigManager.config?.methods?.getFileInfo
 		if (canvas?.canvasFileUploadManager.shouldDeferRemoteResourceLoad(path)) {
 			setSrc(undefined)
 			setIsLoading(true)
@@ -124,7 +123,7 @@ export function useResolvedFilePreviewSrc(path: string): ResolvedMediaPreviewSrc
 			return
 		}
 
-		if (!getFileInfo) {
+		if (!canvas) {
 			setSrc(path)
 			setIsLoading(false)
 			setHasError(false)
@@ -134,10 +133,15 @@ export function useResolvedFilePreviewSrc(path: string): ResolvedMediaPreviewSrc
 		setIsLoading(true)
 		setHasError(false)
 		try {
-			const fileInfo = await getFileInfo(path, { useImageProcess: false })
-			setSrc(fileInfo?.src || undefined)
-			setHasError(!fileInfo?.src)
-		} catch (error) {
+			// Fullscreen audio must use the same lifecycle as in-canvas audio. In
+			// particular, asset:// paths only become playable after the asset detail
+			// service resolves their current signed file_url.
+			const resource = await canvas.audioResourceManager.getResource(path, {
+				priority: "critical",
+			})
+			setSrc(resource?.ossSrc || undefined)
+			setHasError(!resource?.ossSrc)
+		} catch {
 			setSrc(undefined)
 			setHasError(true)
 		} finally {

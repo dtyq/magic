@@ -11,7 +11,7 @@ import {
 	Sparkles,
 	type LucideIcon,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import AICardDashboardCard, { formatDateTime } from "./AICardDashboardCard"
 import AICardDashboardHistoryTimeline from "./AICardDashboardHistoryTimeline"
 import type { AICardEntry, AICardHistoryEntry, AICardProjectConfig } from "../types"

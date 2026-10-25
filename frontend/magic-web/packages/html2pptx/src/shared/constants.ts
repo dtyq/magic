@@ -17,7 +17,8 @@ export const WRAP_THRESHOLD = 1.15
 // - RENDER_TIMEOUT_MS: hard timeout for the whole render
 // - READY_STATE_FALLBACK_MS: fallback wait when readyState stays incomplete for too long
 // - READY_STATE_POLL_MS: interval for polling document readiness
-// - NATIVE_LOAD_WAIT_MS: window for waiting for native load events to settle
+// - NATIVE_LOAD_WAIT_MS: fallback window for executable/resource-bearing pages;
+//   static pages may bypass it after the document reaches readyState=complete
 // - EXTERNAL_RESOURCE_TIMEOUT_MS: window for waiting for external script/style resources to settle
 // When tuning, adjust the fallback and overall timeout first, then fine-tune polling parameters.
 export const RENDER_TIMEOUT_MS = 30000
@@ -44,4 +45,3 @@ export const ICON_SCALE_FACTOR = 4
 
 /** Floating-point tolerance for page slicing to avoid false extra pages at boundaries */
 export const SLICE_EPSILON = 1e-6
-

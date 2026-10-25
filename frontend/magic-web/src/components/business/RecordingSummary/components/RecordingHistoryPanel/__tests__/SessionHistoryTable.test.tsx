@@ -47,6 +47,7 @@ vi.mock("react-i18next", () => ({
 				"recordingHistoryPanel.emptyTitle": "No recording sessions",
 				"recordingHistoryPanel.export": "Export",
 				"recordingHistoryPanel.exporting": "Exporting",
+				"recordingHistoryPanel.status.serverCancelled": "Ended by server (export only)",
 				"recordingHistoryPanel.table.actions": "Actions",
 				"recordingHistoryPanel.table.duration": "Duration",
 				"recordingHistoryPanel.table.note": "Notes",
@@ -133,6 +134,22 @@ describe("SessionHistoryTable", () => {
 		expect(screen.getByText("Actions")).toBeInTheDocument()
 		expect(screen.queryByText(zhStartTime)).not.toBeInTheDocument()
 		expect(screen.queryByText(zhActions)).not.toBeInTheDocument()
+	})
+
+	it("labels server-cancelled sessions as export-only", () => {
+		const session = { ...createSession(), status: "server_cancelled" as const }
+
+		render(
+			<SessionHistoryTable
+				sessions={[session]}
+				loading={false}
+				onExport={vi.fn()}
+				onDelete={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByText("Ended by server (export only)")).toBeInTheDocument()
+		expect(screen.queryByText("server_cancelled")).not.toBeInTheDocument()
 	})
 
 	it("copies key info and shows user feedback", async () => {

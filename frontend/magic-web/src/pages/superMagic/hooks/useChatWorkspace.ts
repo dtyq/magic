@@ -14,6 +14,8 @@ import type {
 } from "@/pages/superMagic/pages/Workspace/types"
 
 interface UseChatWorkspaceOptions {
+	/** Skip the initial workspace lookup for actions that only need it after an explicit user click. */
+	workspaceEnabled?: boolean
 	projectsEnabled?: boolean
 	projectPageSize?: number
 	projectKeyword?: string
@@ -144,7 +146,12 @@ export async function ensureChatWorkspaceId(): Promise<string | null> {
 }
 
 export function useChatWorkspace(options: UseChatWorkspaceOptions = {}): UseChatWorkspaceResult {
-	const { projectsEnabled = false, projectPageSize = 100, projectKeyword = "" } = options
+	const {
+		workspaceEnabled = true,
+		projectsEnabled = false,
+		projectPageSize = 100,
+		projectKeyword = "",
+	} = options
 	const [chatWorkspace, setChatWorkspace] = useState<Workspace | null>(null)
 	const [chatProjects, setChatProjects] = useState<ProjectListItem[]>([])
 	const [chatProjectsTotal, setChatProjectsTotal] = useState(0)
@@ -216,6 +223,8 @@ export function useChatWorkspace(options: UseChatWorkspaceOptions = {}): UseChat
 					project_name: keyword,
 					order_by: CHAT_PROJECT_LIST_ORDER_BY,
 					sort: CHAT_PROJECT_LIST_SORT,
+					// 置顶优先：GET query string 无法传真正的 boolean，后端 boolean 校验规则只接受 1/0
+					pin_priority: 1,
 					page,
 					page_size: pageSize,
 				})
@@ -292,18 +301,20 @@ export function useChatWorkspace(options: UseChatWorkspaceOptions = {}): UseChat
 				workspaceId: workspace.id,
 				projectMode,
 				workdir,
+				// Chat owns this creation even when the user selected another expert/mode.
+				creationScene: "chat",
 			})
 		},
 	)
 
 	useEffect(() => {
 		isMountedRef.current = true
-		void ensureChatWorkspace()
+		if (workspaceEnabled) void ensureChatWorkspace()
 
 		return () => {
 			isMountedRef.current = false
 		}
-	}, [ensureChatWorkspace])
+	}, [ensureChatWorkspace, workspaceEnabled])
 
 	useEffect(() => {
 		if (!projectsEnabled) return

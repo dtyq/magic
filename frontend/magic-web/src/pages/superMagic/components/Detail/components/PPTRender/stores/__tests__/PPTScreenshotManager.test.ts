@@ -45,6 +45,8 @@ describe("PPTScreenshotManager", () => {
 			"https://example.com/01",
 			"<div>cached</div>",
 			"required",
+			undefined,
+			"use",
 		)
 		expect(slide.thumbnailUrl).toBe("blob:cached")
 		expect(slide.thumbnailLoading).toBe(false)

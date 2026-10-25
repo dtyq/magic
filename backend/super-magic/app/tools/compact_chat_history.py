@@ -5,6 +5,8 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.skill_utils.suggestions import SkillSuggestion
+from app.magic.compact_result import CompactResult
 from app.magic.compact_user_input_references import (
     format_user_input_reference_block,
     restore_preserved_user_inputs,
@@ -37,6 +39,15 @@ class CompactChatHistoryParams(BaseToolParams):
         description=(
             "1-based indexes from the User Input Reference Index. "
             "List the user inputs that must be preserved exactly. "
+            "Pass an empty list if none are needed."
+        ),
+    )
+    skill_suggestions: list[SkillSuggestion] = Field(
+        default_factory=list,
+        description=(
+            "Available Skills that may help with the remaining task after compaction. "
+            "Select by future relevance, not by which Skills were previously loaded. "
+            "These become optional reading suggestions, not automatic reloads. "
             "Pass an empty list if none are needed."
         ),
     )
@@ -75,7 +86,10 @@ Compress the current chat history when the conversation becomes too long, DO NOT
             content="Compact chat history done, this conversation is finished and should not be continued anymore.",
             system="COMPACT_HISTORY",  # Special system marker for compaction
             extra_info={
-                "summary": final_summary,
+                "compact_result": CompactResult(
+                    summary=final_summary,
+                    skill_suggestions=tuple(params.skill_suggestions),
+                ),
                 "preserved_user_input_indexes": params.preserved_user_input_indexes,
             },
         )
@@ -90,7 +104,8 @@ Compress the current chat history when the conversation becomes too long, DO NOT
         if not result.ok:
             return None
 
-        summary = (result.extra_info or {}).get("summary")
+        compact_result: object = (result.extra_info or {}).get("compact_result")
+        summary = compact_result.summary if isinstance(compact_result, CompactResult) else None
         if not isinstance(summary, str) and arguments:
             summary = arguments.get("summary")
         summary_length = len(summary) if isinstance(summary, str) else 0

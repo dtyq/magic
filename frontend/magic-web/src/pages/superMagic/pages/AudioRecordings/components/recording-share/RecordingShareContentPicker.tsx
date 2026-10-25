@@ -3,7 +3,7 @@ import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import MobileFileSelectionCheckbox from "@/pages/superMagic/components/TopicFilesButton/components/MobileFileSelectionCheckbox"
 import type { AttachmentNodeSelectionState } from "@/pages/superMagic/components/TopicFilesButton/utils/mobileAttachmentTreeSelection"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { RecordingShareGroupedItem } from "../../utils/build-recording-share-selection"
 import {
 	resolveRecordingShareItemLabel,

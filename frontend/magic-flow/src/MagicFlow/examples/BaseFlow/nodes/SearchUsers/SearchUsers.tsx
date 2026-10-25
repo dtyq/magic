@@ -7,7 +7,7 @@ import MagicSelect from "@/common/BaseUI/Select"
 import { Flex, Form } from "antd"
 import { IconCircleMinus, IconPlus } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { cloneDeep, set } from "lodash-es"
 import React, { useMemo } from "react"
 import NodeOutputWrap from "../../common/NodeOutputWrap/NodeOutputWrap"
 import usePrevious from "../../common/hooks/usePrevious"
@@ -35,9 +35,9 @@ export default function SearchUsers() {
 	const onValuesChange = useMemoizedFn(() => {
 		if (!currentNode) return
 		Object.entries(form.getFieldsValue()).forEach(([changeKey, changeValue]) => {
-			_.set(currentNode, ["params", changeKey], changeValue)
+			set(currentNode, ["params", changeKey], changeValue)
 		})
-		updateNodeConfig(_.cloneDeep(currentNode))
+		updateNodeConfig(cloneDeep(currentNode))
 	})
 
 	const { getRenderConfig, getExtraConfig } = useRenderConfig()

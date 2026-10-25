@@ -1,5 +1,6 @@
 import { memo } from "react"
 import { createStyles } from "antd-style"
+import { useTranslation } from "react-i18next"
 
 const useStyles = createStyles(({ css, token }) => ({
 	container: css`
@@ -55,6 +56,7 @@ interface TranscriptionDisplayProps {
 }
 
 const TranscriptionDisplay = memo(({ text, isRecording, className }: TranscriptionDisplayProps) => {
+	const { t } = useTranslation("chat")
 	const { styles, cx } = useStyles()
 
 	return (
@@ -66,10 +68,10 @@ const TranscriptionDisplay = memo(({ text, isRecording, className }: Transcripti
 					{isRecording ? (
 						<>
 							<span className={styles.recordingDot} />
-							正在聆听，请说话...
+							{t("voice.listening")}
 						</>
 					) : (
-						"按住按钮开始录音"
+						t("voice.holdToRecord")
 					)}
 				</div>
 			)}

@@ -23,7 +23,7 @@ import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useFileOpen } from "@/pages/superMagic/components/TopicFilesButton/hooks/useFileOpen"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { merge } from "lodash-es"
 import { useMessageChanges } from "@/pages/superMagic/hooks/useMessageChanges"
 import { LongMemory } from "@/types/longMemory"
@@ -447,12 +447,17 @@ const LiveRecordingAiChat = observer(function LiveRecordingAiChat(props: AiChatP
 	)
 
 	// Live float panels continue to use the RecordingSummary fork (no main-site polling).
-	const { messages, showLoading, isShowLoadingInit, isMessagesInitialLoading, handlePullMoreMessage } =
-		useLiveRecordingTopicMessages({
-			selectedTopic,
-			selectedWorkspace,
-			checkNowDebounced,
-		})
+	const {
+		messages,
+		showLoading,
+		isShowLoadingInit,
+		isMessagesInitialLoading,
+		handlePullMoreMessage,
+	} = useLiveRecordingTopicMessages({
+		selectedTopic,
+		selectedWorkspace,
+		checkNowDebounced,
+	})
 
 	usePendingMemorySync(messages)
 
@@ -571,9 +576,14 @@ const LiveRecordingAiChat = observer(function LiveRecordingAiChat(props: AiChatP
 						showLoading={showLoading}
 						currentTopicStatus={selectedTopic?.task_status}
 						handleSendMsg={handleSendMsg}
-						className={`${styles.messageList} min-h-0 flex-1`}
+						className={`${styles.messageList} min-h-0 flex-1 [--message-list-surface:rgb(255_255_255)]`}
+						classNames={{
+							// The virtualizer reads this padding directly from the rendered layout.
+							content: "pl-2 pt-[10px] pr-2",
+						}}
 						onFileClick={onFileClick}
-						stickyMessageClassName="top-0 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
+						// Padding stays inside the mask so the timestamp is not flush.
+						stickyMessageClassName="pt-2"
 					/>
 				)}
 			</MessageListProvider>

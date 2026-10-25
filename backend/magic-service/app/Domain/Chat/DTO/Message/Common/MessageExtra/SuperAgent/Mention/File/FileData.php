@@ -52,6 +52,9 @@ final class FileData extends AbstractDTO implements MentionDataInterface
         if ($filePath === null) {
             return null;
         }
+        if (str_starts_with($filePath, '~/')) {
+            return $filePath;
+        }
 
         return $this->normalizePath($filePath);
     }

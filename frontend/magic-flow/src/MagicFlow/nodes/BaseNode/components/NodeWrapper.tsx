@@ -4,7 +4,7 @@ import { prefix } from "@/MagicFlow/constants"
 import styles from "../index.module.less"
 import DebuggerComp from "../../common/components/DebuggerComp"
 import NodeTestingHeader from "../../common/NodeTestingHeader"
-import _ from "lodash"
+import { isEqual } from "lodash-es"
 
 interface NodeWrapperProps {
 	id: string
@@ -91,7 +91,7 @@ const arePropsEqual = (prevProps: NodeWrapperProps, nextProps: NodeWrapperProps)
 	} = nextRest
 
 	// 深度比较剩余属性
-	return _.isEqual(prevRestWithoutHandlers, nextRestWithoutHandlers)
+	return isEqual(prevRestWithoutHandlers, nextRestWithoutHandlers)
 }
 
 // 使用memo包装组件，使用自定义比较函数

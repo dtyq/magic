@@ -5,8 +5,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/shad
 import { Badge } from "@/components/shadcn-ui/badge"
 import MagicIcon from "@/components/base/MagicIcon"
 import UploadAction from "@/components/base/UploadAction"
-import { cn } from "@/lib/utils"
-import { GuideTourElementId } from "../../LazyGuideTour"
+import { cn } from "@/utils/cn"
 import type { FileData, MessageEditorSize } from "../types"
 import type { FileUploadStore } from "../stores/FileUploadStore"
 import { MagicTooltip } from "@/components/base"
@@ -59,7 +58,7 @@ function UploadHoverPanelButtonComponent({
 							<MagicTooltip title={uploadLabel}>
 								<button
 									type="button"
-									id={GuideTourElementId.UploadFileButton}
+									data-guide-action="upload-file"
 									aria-label={uploadLabel}
 									className={cn(
 										"flex items-center justify-center gap-1 rounded-md border-0 bg-secondary text-foreground transition-all hover:opacity-80 active:opacity-60",

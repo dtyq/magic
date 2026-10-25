@@ -9,7 +9,7 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import ConversationActionsPopup from "@/pages/superMagicMobile/components/ConversationActionsPopup"
 import type { ActionGroup } from "@/pages/superMagicMobile/components/ActionSheet"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import type { AudioProjectListItem, AudioRecordingCardStatus } from "@/types/audioProject"
@@ -28,19 +28,26 @@ import {
 } from "@/pages/superMagic/pages/AudioRecordings/utils/audio-recording-actions"
 import {
 	isAudioProjectSummaryReady,
+	isAudioProjectSummarizing,
 	resolveRecordingDisplayName,
 } from "@/pages/superMagic/pages/AudioRecordings/utils/audio-recordings-utils"
 import { resolveDetailSummaryVisualState } from "@/pages/superMagic/pages/AudioRecordings/utils/summary-action-utils"
 import { saveMediaSpeakersAndMagicProjectJs } from "@/pages/superMagic/components/Detail/contents/HTML/media/utils"
+import {
+	MAX_PROJECT_NAME_LENGTH,
+	clampProjectName,
+	isProjectNameAtLimit,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 import type { MobileRecordingSourceTab, MobileRecordingTopTab } from "./types"
 import { useMobileRecordingAudioPlayer } from "./hooks/useMobileRecordingAudioPlayer"
-import { useRecordingPlayerCurrentSec } from "@/pages/superMagic/pages/AudioRecordings/hooks/useRecordingPlayerCurrentSec"
 import { useRecordingColorSegments } from "@/pages/superMagic/pages/AudioRecordings/hooks/useRecordingColorSegments"
 import { useMobileRecordingDetailData } from "./hooks/useMobileRecordingDetailData"
 import { MobileRecordingAudioPlayer } from "./components/MobileRecordingAudioPlayer"
 import { MobileRecordingSourcePanel } from "./components/MobileRecordingSourcePanel"
 import { MobileRecordingSummaryPanel } from "./components/MobileRecordingSummaryPanel"
 import { MobileRecordingSummaryPlaceholder } from "./components/MobileRecordingSummaryPlaceholder"
+import { MobileRecordingSpeakerSheet } from "./components/MobileRecordingSpeakerSheet"
 import { MobileRecordingShareExportSheet } from "./components/MobileRecordingShareExportSheet"
 import { collectSpeakerIdsFromText } from "./utils/markdown-time-links"
 import { normalizeSpeakerSelection } from "@/pages/superMagic/pages/AudioRecordings/utils/speaker-filter"
@@ -48,14 +55,21 @@ import { MobileRecordingMoreSheet } from "@/pages/superMagicMobile/pages/AudioRe
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { useMobileRecordingContentSearch } from "./hooks/useMobileRecordingContentSearch"
 import { MobileRecordingMoveGroupSheet } from "@/pages/superMagicMobile/pages/AudioRecordingEntry/components/MobileRecordingMoveGroupSheet"
+import {
+	getMobileRecordingPlayerScrollPadding,
+	MOBILE_RECORDING_COLLAPSED_PLAYER_HEIGHT,
+	MOBILE_RECORDING_EXPANDED_PLAYER_HEIGHT,
+} from "./utils/mobile-recording-player-layout"
 import type { MobileRecordingGroup } from "@/pages/superMagicMobile/pages/AudioRecordingEntry/components/MobileRecordingGroupSheet"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 import { buildRecordingShareSelection } from "@/pages/superMagic/pages/AudioRecordings/utils/build-recording-share-selection"
+import { hasConfiguredRecordingFile } from "@/pages/superMagic/pages/AudioRecordings/utils/recording-detail-files"
 import { downloadRecordingAudioFile } from "@/pages/superMagic/pages/AudioRecordings/utils/download-recording-audio"
 import { AudioRecordingCopyDialog } from "@/pages/superMagic/pages/AudioRecordings/components/AudioRecordingCopyDialog"
 import { useAudioRecordingCopyToProject } from "@/pages/superMagic/pages/AudioRecordings/hooks/useAudioRecordingCopyToProject"
 import { canCopyAudioProject } from "@/pages/superMagic/pages/AudioRecordings/utils/copy-availability"
 import { SuperMagicApi } from "@/apis"
+import { analyticsService } from "@/services/analytics"
 import type { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import ProjectPageInputContainer from "@/pages/superMagic/components/ProjectPageInputContainer"
 import { ProjectFilesStore } from "@/stores/projectFiles"
@@ -65,9 +79,6 @@ import ProjectTopicListView from "@/pages/superMagicMobile/pages/ProjectPage/Pro
 import recordingSummaryStore from "@/stores/recordingSummary"
 import type { AttachmentFile } from "@/pages/superMagic/utils/image-url-resolver"
 
-const COLLAPSED_PLAYER_HEIGHT = 40
-const EXPANDED_PLAYER_HEIGHT = 182
-const FLOATING_PLAYER_BOTTOM = 12
 const SEARCH_BAR_HEIGHT = 72
 
 interface AudioRecordingDetailLocationState {
@@ -100,11 +111,6 @@ export default function MobileAudioRecordingDetailPage() {
 		initialTitle: locationState?.projectName,
 	})
 	const player = useMobileRecordingAudioPlayer(audioUrl)
-	const playerCurrentSec = useRecordingPlayerCurrentSec(
-		player.audioRef,
-		player.playing,
-		player.currentTime,
-	)
 	const [playerScrollSignal, setPlayerScrollSignal] = useState(0)
 	const [detailItem, setDetailItem] = useState<AudioProjectListItem | null>(null)
 	const [titleOverride, setTitleOverride] = useState("")
@@ -316,14 +322,14 @@ export default function MobileAudioRecordingDetailPage() {
 	/** Opens the project-detail-style rename sheet for a scoped recording topic. */
 	function handleRecordingTopicRename(topic: Topic) {
 		setTopicActionItem(topic)
-		setTopicRenameValue(topic.topic_name || "")
+		setTopicRenameValue(clampProjectName(topic.topic_name || "", MAX_PROJECT_NAME_LENGTH))
 		setTopicRenameOpen(true)
 	}
 
 	/** Persists the rename-sheet value and keeps the scoped topic list in sync. */
 	async function submitRecordingTopicRename() {
 		const topic = topicActionItem
-		const nextName = topicRenameValue.trim()
+		const nextName = clampProjectName(topicRenameValue, MAX_PROJECT_NAME_LENGTH)
 		if (!topic?.id || !nextName || nextName === topic.topic_name) {
 			setTopicRenameOpen(false)
 			return
@@ -389,10 +395,15 @@ export default function MobileAudioRecordingDetailPage() {
 	/** Creates a fully mapped topic for the bottom composer before its first send. */
 	async function createTopicForComposer() {
 		if (!chatProject?.id) return null
+		analyticsService.report("topic_create_attempted", {
+			projectId: chatProject.id,
+			workspaceId: chatProject.workspace_id,
+			sceneOverride: "ai_recording",
+		})
 		const created = await SuperMagicApi.createTopic({
 			project_id: chatProject.id,
 			topic_name: "",
-			project_mode: chatProject.project_mode,
+			project_mode: chatProject.project_mode || undefined,
 		})
 		let topic = created as Topic
 		if (topic?.id && (!topic.chat_topic_id || !topic.chat_conversation_id)) {
@@ -428,6 +439,7 @@ export default function MobileAudioRecordingDetailPage() {
 		if (item) return isAudioProjectSummaryReady(item)
 		return locationState?.cardStatus === "summarized"
 	}, [detailItem, locationState?.cardStatus, projectItem])
+	// Completed recordings keep the historical summary path; only in-progress previews require parsed config.
 
 	const displayTitle = titleOverride || title || t("detail.untitled")
 	const resolvedActionItem = useMemo(
@@ -449,6 +461,10 @@ export default function MobileAudioRecordingDetailPage() {
 			projectItem,
 		],
 	)
+	const summaryPreviewAvailable =
+		summaryReady ||
+		(Boolean(resolvedActionItem && isAudioProjectSummarizing(resolvedActionItem)) &&
+			Boolean(fileMap?.magicProject && fileMap.magicProjectConfig))
 	const summaryVisualState = useMemo(
 		() =>
 			resolveDetailSummaryVisualState({
@@ -524,11 +540,17 @@ export default function MobileAudioRecordingDetailPage() {
 	})
 	const scrollPaddingBottom = contentSearchOpen
 		? SEARCH_BAR_HEIGHT + 20
-		: FLOATING_PLAYER_BOTTOM +
-			(playerExpanded ? EXPANDED_PLAYER_HEIGHT : COLLAPSED_PLAYER_HEIGHT) +
-			20
+		: getMobileRecordingPlayerScrollPadding(
+				playerExpanded
+					? MOBILE_RECORDING_EXPANDED_PLAYER_HEIGHT
+					: MOBILE_RECORDING_COLLAPSED_PLAYER_HEIGHT,
+				20,
+			)
 
-	const colorSegments = useRecordingColorSegments(summaryReady, texts.summary.topics?.content)
+	const colorSegments = useRecordingColorSegments(
+		summaryPreviewAvailable,
+		texts.summary.topics?.content,
+	)
 
 	/** Closes the floating player rate menu when source/summary panels scroll. */
 	function handlePlayerContentScroll() {
@@ -960,13 +982,15 @@ export default function MobileAudioRecordingDetailPage() {
 						onContentScroll={handlePlayerContentScroll}
 						searchScopeRef={searchScopeRef}
 						onActiveTabChange={setSourceSubtab}
+						showNotesTab={hasConfiguredRecordingFile(fileMap, "notes")}
 						attachmentTree={attachmentTree as unknown as AttachmentFile[]}
 						notesFilePath={fileMap?.notes?.relative_file_path ?? fileMap?.notes?.path}
+						isGenerating={summaryVisualState.status === "generating"}
 					/>
 				) : null}
 
 				{!loading && !error && !detailUnavailable && activeTab === "summary" ? (
-					summaryReady ? (
+					summaryPreviewAvailable ? (
 						<MobileRecordingSummaryPanel
 							summaryFiles={fileMap?.summaryFiles ?? []}
 							summaryContent={Object.fromEntries(
@@ -984,6 +1008,7 @@ export default function MobileAudioRecordingDetailPage() {
 							searchScopeRef={searchScopeRef}
 							searchActive={contentSearchOpen}
 							onActiveTypeChange={setSummaryType}
+							isGenerating={summaryVisualState.status === "generating"}
 						/>
 					) : (
 						<MobileRecordingSummaryPlaceholder
@@ -1011,6 +1036,7 @@ export default function MobileAudioRecordingDetailPage() {
 							<ProjectTopicListView
 								className="min-h-0 flex-1"
 								projectId={projectId}
+								key={projectId}
 								topics={topics}
 								loading={showTopicsSkeleton}
 								onRefresh={refreshRecordingTopics}
@@ -1038,6 +1064,8 @@ export default function MobileAudioRecordingDetailPage() {
 									isEmptyStatus
 									createTopic={createTopicForComposer}
 									onSendSuccess={handleComposerSendSuccess}
+									// Detail Ask AI stays in text-editing mode even for the recording-summary agent.
+									allowRecordingMode={false}
 								/>
 							</div>
 						) : null}
@@ -1049,7 +1077,7 @@ export default function MobileAudioRecordingDetailPage() {
 				<MobileRecordingAudioPlayer
 					audioRef={player.audioRef}
 					audioUrl={audioUrl}
-					currentSec={playerCurrentSec}
+					currentSec={player.currentTime}
 					duration={player.duration}
 					playing={player.playing}
 					expanded={playerExpanded}
@@ -1111,22 +1139,57 @@ export default function MobileAudioRecordingDetailPage() {
 						setTopicRenameOpen(false)
 						setTopicActionItem(null)
 					},
+					testId: "mobile-recording-topic-rename-close",
 				}}
 				headerTrailingAction={{
 					icon: <Check />,
 					ariaLabel: t("super:common.confirm"),
 					onClick: () => void submitRecordingTopicRename(),
-					disabled: !topicRenameValue.trim(),
+					disabled:
+						!topicRenameValue.trim() ||
+						isProjectNameOverLimit(topicRenameValue, MAX_PROJECT_NAME_LENGTH),
 					tone: "primary",
+					testId: "mobile-recording-topic-rename-confirm",
 				}}
 				bodyClassName="max-h-[80dvh] p-4"
 			>
-				<Input
-					value={topicRenameValue}
-					onChange={(event) => setTopicRenameValue(event.target.value)}
-					placeholder={t("super:hierarchicalWorkspacePopup.inputTopicName")}
-					autoFocus
-				/>
+				<div className="flex flex-col gap-2.5">
+					<Input
+						value={topicRenameValue}
+						maxLength={MAX_PROJECT_NAME_LENGTH}
+						onChange={(event) => setTopicRenameValue(event.target.value)}
+						placeholder={t("super:hierarchicalWorkspacePopup.inputTopicName")}
+						autoFocus
+					/>
+					{/* Character counter and limit reminder */}
+					<div className="flex items-center justify-between text-xs text-muted-foreground">
+						{isProjectNameOverLimit(topicRenameValue, MAX_PROJECT_NAME_LENGTH) ? (
+							<span className="text-destructive">
+								{t("super:chat.nameMaxLengthTip", {
+									maxLength: MAX_PROJECT_NAME_LENGTH,
+								})}
+							</span>
+						) : isProjectNameAtLimit(topicRenameValue, MAX_PROJECT_NAME_LENGTH) ? (
+							<span>
+								{t("super:chat.nameMaxLengthTip", {
+									maxLength: MAX_PROJECT_NAME_LENGTH,
+								})}
+							</span>
+						) : (
+							<span />
+						)}
+						<span
+							className={
+								isProjectNameOverLimit(topicRenameValue, MAX_PROJECT_NAME_LENGTH)
+									? "text-destructive"
+									: ""
+							}
+							data-testid="recording-topic-rename-char-count"
+						>
+							{topicRenameValue.length}/{MAX_PROJECT_NAME_LENGTH}
+						</span>
+					</div>
+				</div>
 			</MagicPopup>
 
 			<MagicPopup
@@ -1145,12 +1208,14 @@ export default function MobileAudioRecordingDetailPage() {
 						setTopicDeleteOpen(false)
 						setTopicActionItem(null)
 					},
+					testId: "mobile-recording-topic-delete-close",
 				}}
 				headerTrailingAction={{
 					icon: <Check />,
 					ariaLabel: t("super:common.confirm"),
 					onClick: () => void confirmRecordingTopicDelete(),
 					tone: "destructive",
+					testId: "mobile-recording-topic-delete-confirm",
 				}}
 				bodyClassName="max-h-[80dvh] p-6"
 			>
@@ -1255,6 +1320,8 @@ export default function MobileAudioRecordingDetailPage() {
 				projectName={displayTitle}
 				attachments={recordingShareSelection.shareableFiles}
 				attachmentList={recordingShareSelection.shareableFiles}
+				dependencyAttachments={attachmentList}
+				dependencyBundleRootPath={fileMap?.bundleRootPath}
 				fileMap={fileMap ?? undefined}
 				defaultSelectedFileIds={recordingShareSelection.defaultSelectedFileIds}
 			/>
@@ -1428,92 +1495,6 @@ function MobileRecordingRenameSheet({
 			</form>
 		</MagicPopup>
 	)
-}
-
-/** Bottom sheet for editing all active speaker names in one commit. */
-function MobileRecordingSpeakerSheet({
-	isOpen,
-	speakerIds,
-	value,
-	onValueChange,
-	onCancel,
-	onConfirm,
-}: {
-	isOpen: boolean
-	speakerIds: string[]
-	value: Record<string, string>
-	onValueChange: (next: Record<string, string>) => void
-	onCancel: () => void
-	onConfirm: () => void
-}) {
-	const { t } = useTranslation("audioRecordings")
-
-	return (
-		<MagicPopup
-			visible={isOpen}
-			onClose={onCancel}
-			position="bottom"
-			title={t("detail.speakerSettingsTitle")}
-			headerVariant="actionHeader"
-			headerTitle={t("detail.speakerSettingsTitle")}
-			headerLeadingAction={{
-				icon: <X />,
-				ariaLabel: t("detail.speakerSettingsCancel"),
-				onClick: onCancel,
-				testId: "mobile-recording-speaker-cancel",
-			}}
-			headerTrailingAction={{
-				icon: <Check />,
-				ariaLabel: t("detail.speakerSettingsSave"),
-				onClick: onConfirm,
-				tone: "primary",
-				testId: "mobile-recording-speaker-confirm",
-			}}
-			className="flex flex-col overflow-hidden rounded-t-2xl border-0 bg-muted p-0"
-			bodyClassName="no-scrollbar flex flex-col overflow-y-auto px-[14px] pb-6 pt-[10px]"
-			style={{ boxShadow: "0 -14px 44px rgba(0,0,0,0.18)" }}
-			data-testid="mobile-recording-speaker-sheet"
-		>
-			<div className="flex max-h-[min(52dvh,calc(85dvh-11rem))] flex-col overflow-y-auto overflow-x-hidden">
-				<p className="shrink-0 px-[14px] pb-2 text-[14px] leading-5 text-muted-foreground">
-					{t("detail.speakerSettingsHint")}
-				</p>
-				<div className="flex flex-col gap-3 pb-2">
-					{speakerIds.map((speakerId, index) => (
-						<div key={speakerId} className="flex flex-col gap-2">
-							<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
-								{t("detail.speakerLabel", {
-									label: buildSpeakerAlphaLabel(index),
-								})}
-							</p>
-							<div className="overflow-hidden rounded-lg bg-card">
-								<input
-									type="text"
-									value={value[speakerId] ?? speakerId}
-									onChange={(event) =>
-										onValueChange({
-											...value,
-											[speakerId]: event.target.value,
-										})
-									}
-									placeholder={speakerId}
-									autoComplete="off"
-									autoCorrect="off"
-									spellCheck={false}
-									className="h-12 w-full border-0 bg-transparent px-[14px] py-0 text-[16px] leading-6 text-foreground outline-none"
-								/>
-							</div>
-						</div>
-					))}
-				</div>
-			</div>
-		</MagicPopup>
-	)
-}
-
-/** Builds simple A/B/C labels matching the prototype speaker sheet. */
-function buildSpeakerAlphaLabel(index: number) {
-	return String.fromCharCode("A".charCodeAt(0) + index)
 }
 
 /** Collects every speaker id from loaded detail text files for the shared editor. */

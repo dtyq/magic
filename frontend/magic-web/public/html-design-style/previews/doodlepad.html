@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoodlePad — Whimsical Hand-Drawn Sketching Canvas</title>
+  <style>
+    :root {
+      --canvas-bg: #FFFFF0;
+      --paper-grid: rgba(96, 165, 250, 0.14);
+      --primary-blue: #60A5FA;
+      --primary-dark: #3B82F6;
+      --grass-green: #4ADE80;
+      --sunny-yellow: #FBBF24;
+      --crayon-coral: #F87171;
+      --crayon-purple: #A78BFA;
+      --ink-charcoal: #1F2937;
+      --ink-muted: #6B7280;
+      --font-hand: 'Patrick Hand', 'Comic Sans MS', 'Chalkboard SE', 'Nunito', cursive, sans-serif;
+      --font-body: 'Nunito', -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #E5E7EB; color: var(--ink-charcoal);
+      font-family: var(--font-body); min-height: 100vh;
+      display: flex; justify-content: center; align-items: center; padding: 18px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .sketchbook-wrapper {
+      width: 100%; max-width: 1120px; aspect-ratio: 16 / 10;
+      background: var(--canvas-bg); border-radius: 18px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.12), 0 0 0 8px #F3F4F6, 0 0 0 10px #D1D5DB;
+      display: flex; flex-direction: column; position: relative;
+      overflow: hidden; border: 3px dashed #93C5FD;
+    }
+    .graph-paper-texture {
+      position: absolute; inset: 0;
+      background-image: 
+        linear-gradient(to right, var(--paper-grid) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--paper-grid) 1px, transparent 1px);
+      background-size: 20px 20px; pointer-events: none; z-index: 1;
+    }
+    .top-toolbar {
+      height: 56px; background: rgba(255, 255, 240, 0.95); backdrop-filter: blur(8px);
+      border-bottom: 2px dashed #93C5FD; padding: 0 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: relative; z-index: 10;
+    }
+    .brand-section { display: flex; align-items: center; gap: 10px; }
+    .brand-doodle-logo {
+      width: 34px; height: 34px; background: #FEF08A; border: 2px solid var(--ink-charcoal);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      box-shadow: 2px 2px 0 var(--ink-charcoal); transform: rotate(-3deg);
+    }
+    .brand-title {
+      font-family: var(--font-hand); font-size: 24px; font-weight: 700;
+      color: var(--ink-charcoal); letter-spacing: -0.01em;
+    }
+    .canvas-title-pill {
+      font-family: var(--font-hand); font-size: 14px; background: #EFF6FF;
+      color: var(--primary-dark); border: 1.5px dashed var(--primary-blue);
+      padding: 2px 10px; border-radius: 999px; margin-left: 6px;
+    }
+    .history-actions { display: flex; align-items: center; gap: 8px; }
+    .btn-doodle {
+      font-family: var(--font-hand); font-size: 15px; font-weight: 700;
+      background: #FFFFFF; color: var(--ink-charcoal); border: 2px solid var(--ink-charcoal);
+      border-radius: 10px; padding: 5px 12px; cursor: pointer; display: inline-flex;
+      align-items: center; gap: 5px; box-shadow: 2px 2px 0 var(--ink-charcoal);
+    }
+    .btn-save-gold {
+      background: var(--sunny-yellow); color: #78350F; border-color: #78350F; box-shadow: 2px 2px 0 #78350F;
+    }
+    .canvas-workspace {
+      flex: 1; position: relative; z-index: 5; display: flex; overflow: hidden;
+    }
+    .tool-palette {
+      width: 68px; background: rgba(255, 255, 255, 0.95); border-right: 2px dashed #93C5FD;
+      padding: 12px 6px; display: flex; flex-direction: column; align-items: center;
+      gap: 10px; z-index: 10;
+    }
+    .tool-item {
+      width: 42px; height: 42px; border-radius: 10px; background: #FFFDF7;
+      border: 2px solid #D1D5DB; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; cursor: pointer;
+      font-size: 17px; box-shadow: 1px 2px 0 #D1D5DB;
+    }
+    .tool-item.active {
+      background: #EFF6FF; border-color: var(--primary-dark);
+      box-shadow: 2px 2px 0 var(--primary-dark); transform: rotate(-3deg) scale(1.04);
+    }
+    .tool-label { font-size: 8.5px; font-family: var(--font-hand); font-weight: 700; color: var(--ink-muted); margin-top: -2px; }
+    .palette-separator { width: 28px; height: 2px; background: #E5E7EB; }
+    .color-swatch-list { display: flex; flex-direction: column; gap: 6px; }
+    .color-swatch {
+      width: 24px; height: 24px; border-radius: 50%; border: 2px solid #FFFFFF;
+      box-shadow: 0 0 0 1.5px var(--ink-charcoal); cursor: pointer; position: relative;
+    }
+    .color-swatch.active::after {
+      content: "✓"; position: absolute; inset: 0; display: flex;
+      align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: #FFFFFF;
+    }
+    .sketch-surface { flex: 1; position: relative; padding: 20px; overflow: hidden; }
+    .doodle-canvas-svg { width: 100%; height: 100%; position: absolute; inset: 0; }
+    .sticky-note {
+      position: absolute; right: 24px; top: 20px; width: 190px;
+      background: #FEF08A; border: 2px solid var(--ink-charcoal); border-radius: 4px;
+      padding: 12px 14px; box-shadow: 4px 5px 0 rgba(0,0,0,0.12);
+      transform: rotate(3deg); font-family: var(--font-hand); z-index: 10;
+    }
+    .washi-tape {
+      position: absolute; top: -9px; left: 35%; width: 55px; height: 18px;
+      background: rgba(248, 113, 113, 0.65); transform: rotate(-4deg);
+    }
+    .sticky-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #713F12; }
+    .sticky-list { list-style: none; font-size: 14px; color: #854D0E; line-height: 1.4; }
+    .sticky-list li { display: flex; align-items: center; gap: 5px; }
+    .bottom-status-bar {
+      height: 38px; background: rgba(255, 255, 255, 0.9); border-top: 2px dashed #93C5FD;
+      padding: 0 20px; display: flex; align-items: center; justify-content: space-between;
+      position: relative; z-index: 10; font-family: var(--font-hand); font-size: 14px; color: var(--ink-muted);
+    }
+    .stroke-size-selector { display: flex; align-items: center; gap: 10px; }
+    .stroke-pill {
+      display: flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #D1D5DB; cursor: pointer;
+    }
+    .stroke-pill.active { border-color: var(--primary-dark); background: #EFF6FF; }
+    .dot-preview { background: var(--ink-charcoal); border-radius: 50%; }
+  </style>
+</head>
+<body>
+  <div class="sketchbook-wrapper">
+    <div class="graph-paper-texture"></div>
+
+    <header class="top-toolbar">
+      <div class="brand-section">
+        <div class="brand-doodle-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F2937" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+          </svg>
+        </div>
+        <h1 class="brand-title">Doodle<span>Pad</span></h1>
+        <span class="canvas-title-pill">Page 3: Space Rocket Adventure 🚀</span>
+      </div>
+
+      <div class="history-actions">
+        <button class="btn-doodle" title="Undo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/>
+          </svg>
+          <span>Undo</span>
+        </button>
+        <button class="btn-doodle" title="Redo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7"/>
+          </svg>
+          <span>Redo</span>
+        </button>
+        <button class="btn-doodle" style="color: var(--crayon-coral); border-color: var(--crayon-coral);">Clear ✕</button>
+        <button class="btn-doodle btn-save-gold">★ Save Masterpiece</button>
+      </div>
+    </header>
+
+    <main class="canvas-workspace">
+      <aside class="tool-palette">
+        <div class="tool-item active" title="Pencil"><span>✏️</span><span class="tool-label">Pencil</span></div>
+        <div class="tool-item" title="Crayon"><span>🖍️</span><span class="tool-label">Crayon</span></div>
+        <div class="tool-item" title="Marker"><span>🖊️</span><span class="tool-label">Marker</span></div>
+        <div class="tool-item" title="Eraser"><span>🧼</span><span class="tool-label">Eraser</span></div>
+        <div class="palette-separator"></div>
+        <div class="color-swatch-list">
+          <div class="color-swatch active" style="background: var(--primary-blue);" title="Sky Blue"></div>
+          <div class="color-swatch" style="background: var(--grass-green);" title="Grass Green"></div>
+          <div class="color-swatch" style="background: var(--sunny-yellow);" title="Sun Yellow"></div>
+          <div class="color-swatch" style="background: var(--crayon-coral);" title="Coral Red"></div>
+          <div class="color-swatch" style="background: var(--crayon-purple);" title="Grape Purple"></div>
+          <div class="color-swatch" style="background: #1F2937;" title="Charcoal Ink"></div>
+        </div>
+      </aside>
+
+      <section class="sketch-surface">
+        <svg class="doodle-canvas-svg" viewBox="0 0 950 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Smiling Sun -->
+          <g transform="translate(60, 24)">
+            <path d="M60 12 Q65 0 70 12" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <path d="M96 24 Q108 20 102 32" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <path d="M108 60 Q120 65 108 70" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <path d="M96 96 Q106 108 92 104" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <path d="M60 108 Q65 120 70 108" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <path d="M24 96 Q12 106 20 92" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <path d="M12 60 Q0 55 12 50" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <path d="M24 24 Q16 12 28 18" stroke="#FBBF24" stroke-width="3" stroke-linecap="round" />
+            <circle cx="60" cy="60" r="34" fill="#FEF08A" stroke="#F59E0B" stroke-width="3" />
+            <circle cx="49" cy="53" r="3" fill="#78350F" /><circle cx="71" cy="53" r="3" fill="#78350F" />
+            <path d="M49 68 Q60 78 71 68" stroke="#78350F" stroke-width="2.8" stroke-linecap="round" />
+            <ellipse cx="42" cy="62" rx="3.5" ry="2" fill="#F87171" fill-opacity="0.6" />
+            <ellipse cx="78" cy="62" rx="3.5" ry="2" fill="#F87171" fill-opacity="0.6" />
+          </g>
+
+          <!-- Rocket Ship -->
+          <g transform="translate(320, 70)">
+            <path d="M90 20 Q120 80 120 180 L60 180 Q60 80 90 20 Z" fill="#EFF6FF" stroke="#1F2937" stroke-width="3.2" stroke-linejoin="round" />
+            <path d="M90 20 Q105 50 114 80 L66 80 Q75 50 90 20 Z" fill="#F87171" stroke="#1F2937" stroke-width="3.2" />
+            <circle cx="90" cy="115" r="18" fill="#60A5FA" stroke="#1F2937" stroke-width="3.2" />
+            <circle cx="90" cy="115" r="13" fill="#BAE6FD" />
+            <circle cx="86" cy="113" r="2.5" fill="#1F2937" /><circle cx="94" cy="113" r="2.5" fill="#1F2937" />
+            <path d="M86 120 Q90 124 94 120" stroke="#1F2937" stroke-width="2" stroke-linecap="round" />
+            <path d="M60 150 L25 190 Q50 195 60 180 Z" fill="#FBBF24" stroke="#1F2937" stroke-width="3.2" />
+            <path d="M120 150 L155 190 Q130 195 120 180 Z" fill="#FBBF24" stroke="#1F2937" stroke-width="3.2" />
+            <path d="M70 182 Q90 235 85 198 Q90 245 95 198 Q100 235 110 182 Z" fill="#F87171" stroke="#F97316" stroke-width="2.8" />
+            <path d="M78 182 Q90 215 87 195 Q90 220 93 195 Q95 215 102 182 Z" fill="#FBBF24" />
+            <circle cx="65" cy="240" r="12" fill="#F3F4F6" stroke="#9CA3AF" stroke-width="2" stroke-dasharray="3 2" />
+            <circle cx="90" cy="254" r="16" fill="#F3F4F6" stroke="#9CA3AF" stroke-width="2" stroke-dasharray="3 2" />
+            <circle cx="115" cy="242" r="13" fill="#F3F4F6" stroke="#9CA3AF" stroke-width="2" stroke-dasharray="3 2" />
+          </g>
+
+          <!-- Planet Saturn -->
+          <g transform="translate(680, 230)">
+            <ellipse cx="55" cy="45" rx="30" ry="30" fill="#FED7AA" stroke="#EA580C" stroke-width="2.8" />
+            <ellipse cx="55" cy="45" rx="52" ry="15" fill="none" stroke="#FBBF24" stroke-width="3.5" transform="rotate(-15 55 45)" />
+            <circle cx="44" cy="38" r="2.5" fill="#EA580C" /><circle cx="66" cy="50" r="3.5" fill="#EA580C" />
+          </g>
+
+          <!-- Stars & Doodles -->
+          <g stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round">
+            <path d="M220 50 Q220 62 232 62 Q220 62 220 74 Q220 62 208 62 Q220 62 220 50 Z" fill="#FEF08A" />
+            <path d="M550 40 Q550 50 560 50 Q550 50 550 60 Q550 50 540 50 Q550 50 550 40 Z" fill="#FEF08A" />
+            <path d="M170 270 Q170 280 180 280 Q170 280 170 290 Q170 280 160 280 Q170 280 170 270 Z" fill="#FEF08A" />
+            <path d="M510 310 Q510 320 520 320 Q510 320 510 330 Q510 320 500 320 Q510 320 510 310 Z" fill="#FEF08A" />
+          </g>
+
+          <g stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round" fill="none">
+            <path d="M470 120 C 500 100, 540 130, 510 170" />
+            <path d="M505 165 L510 172 L518 167" />
+          </g>
+          <text x="525" y="185" font-family="'Patrick Hand', cursive" font-size="15" font-weight="700" fill="#2563EB">3, 2, 1... Blast off!</text>
+
+          <!-- Little Friendly Robot -->
+          <g transform="translate(130, 300)">
+            <line x1="38" y1="12" x2="38" y2="26" stroke="#1F2937" stroke-width="2.5" />
+            <circle cx="38" cy="10" r="3.5" fill="#F87171" stroke="#1F2937" stroke-width="1.8" />
+            <rect x="20" y="26" width="36" height="26" rx="6" fill="#E0E7FF" stroke="#1F2937" stroke-width="2.5" />
+            <circle cx="30" cy="38" r="2.5" fill="#3B82F6" /><circle cx="46" cy="38" r="2.5" fill="#3B82F6" />
+            <path d="M30 46 Q38 49 46 46" stroke="#1F2937" stroke-width="1.8" />
+            <rect x="16" y="56" width="44" height="38" rx="5" fill="#D1FAE5" stroke="#1F2937" stroke-width="2.5" />
+            <circle cx="38" cy="74" r="7" fill="#FEF08A" stroke="#1F2937" stroke-width="1.8" />
+            <path d="M16 64 Q0 74 8 84" stroke="#1F2937" stroke-width="2.5" stroke-linecap="round" />
+            <path d="M60 64 Q74 54 70 46" stroke="#1F2937" stroke-width="2.5" stroke-linecap="round" />
+          </g>
+        </svg>
+
+        <div class="sticky-note">
+          <div class="washi-tape"></div>
+          <div class="sticky-title">Space Mission 📋</div>
+          <ul class="sticky-list">
+            <li><span>✓</span> Add fuel thrusters</li>
+            <li><span>✓</span> Draw friendly alien</li>
+            <li><span>✎</span> Color Mars craters</li>
+            <li><span>⭐</span> Sign art name!</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="bottom-status-bar">
+      <div class="stroke-size-selector">
+        <span>Stroke Weight:</span>
+        <div class="stroke-pill"><div class="dot-preview" style="width: 4px; height: 4px;"></div></div>
+        <div class="stroke-pill active"><div class="dot-preview" style="width: 7px; height: 7px;"></div></div>
+        <div class="stroke-pill"><div class="dot-preview" style="width: 10px; height: 10px;"></div></div>
+        <div class="stroke-pill"><div class="dot-preview" style="width: 14px; height: 14px;"></div></div>
+      </div>
+      <div>Canvas: 100% • Auto-Saved to "My Sketchbook" 🎨</div>
+      <div style="color: var(--primary-dark); font-weight: 700;">DoodlePad Kids v2.4</div>
+    </footer>
+  </div>
+</body>
+</html>

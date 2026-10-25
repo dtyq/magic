@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vertex Digital Infrastructure — Bare-Metal Datacenter Telemetry & 100Gbps Peering</title>
+<style>
+:root {
+--bg: #111111;
+--surface: #191C21;
+--surface-elevated: #22262E;
+--border: #2A2E37;
+--border-subtle: #1F2228;
+--text-primary: #FFFFFF;
+--text-secondary: #A1A1AA;
+--text-tertiary: #71717A;
+--emerald: #10B981;
+--cyan: #06B6D4;
+--amber: #F59E0B;
+--indigo: #6366F1;
+--radius-card: 9px;
+--radius-control: 10px;
+--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+--font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background: var(--bg); color: var(--text-primary);
+font-family: var(--font-sans); font-size: 13.5px; line-height: 1.45;
+-webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+/* Top Console Header */
+.vertex-nav {
+height: 56px; background: rgba(17, 17, 17, 0.95); backdrop-filter: blur(10px);
+border-bottom: 1px solid var(--border); display: flex; align-items: center;
+justify-content: space-between; padding: 0 28px; position: sticky; top: 0; z-index: 100;
+}
+.brand-wrap { display: flex; align-items: center; gap: 24px; }
+.brand-logo { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+.logo-diamond { width: 20px; height: 20px; background: linear-gradient(135deg, #fff, #888); transform: rotate(45deg); border-radius: 3px; }
+.nav-tabs { display: flex; gap: 20px; list-style: none; font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
+.nav-tab.active { color: var(--text-primary); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.pulse-green { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+.nav-status { display: flex; align-items: center; gap: 14px; font-family: var(--font-mono); font-size: 11px; }
+/* Buttons & Badges */
+.btn-vx {
+font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; padding: 7px 14px;
+border-radius: var(--radius-control); border: 1px solid var(--border); cursor: pointer;
+display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s;
+}
+.btn-vx-primary { background: #fff; color: #000; border-color: #fff; }
+.btn-vx-primary:hover { background: #e0e0e0; }
+.btn-vx-ghost { background: var(--surface); color: var(--text-primary); }
+.btn-vx-ghost:hover { background: var(--surface-elevated); border-color: #444; }
+.badge-mono {
+font-family: var(--font-mono); font-size: 10.5px; padding: 2px 7px;
+border-radius: 4px; display: inline-flex; align-items: center; gap: 5px;
+}
+.badge-pue { background: rgba(16, 185, 129, 0.12); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+.badge-transit { background: rgba(6, 182, 212, 0.12); color: var(--cyan); border: 1px solid rgba(6, 182, 212, 0.3); }
+/* Hero / Top Operations Section (First 500px) */
+.hero-strip {
+padding: 24px 28px; border-bottom: 1px solid var(--border);
+background: radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 50%), var(--bg);
+}
+.hero-container { max-width: 1360px; margin: 0 auto; }
+.hero-top-row {
+display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;
+}
+.hero-tag { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; letter-spacing: 0.5px; }
+.hero-heading { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.15; margin-bottom: 4px; }
+.hero-heading span { color: var(--emerald); }
+.hero-sub { font-size: 13.5px; color: var(--text-secondary); max-width: 600px; }
+/* KPI Summary Row */
+.kpi-grid {
+display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px;
+}
+.kpi-card {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+padding: 16px; position: relative; overflow: hidden;
+}
+.kpi-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between; }
+.kpi-value { font-family: var(--font-mono); font-size: 26px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.1; margin-bottom: 4px; }
+.kpi-delta { font-family: var(--font-mono); font-size: 11px; color: var(--emerald); display: flex; align-items: center; gap: 4px; }
+/* 2-Column Split: 100G Transit Graph + Rack Heat Map */
+.telemetry-grid {
+display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; margin-bottom: 24px;
+}
+.panel {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+padding: 18px; display: flex; flex-direction: column;
+}
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.panel-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+/* 100Gbps Transit Network SVG */
+.transit-nodes-list {
+display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
+font-family: var(--font-mono); font-size: 11px;
+}
+.transit-node-item {
+background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px;
+padding: 8px;
+}
+.transit-node-name { color: var(--text-secondary); font-size: 10px; }
+.transit-node-val { font-weight: 700; color: #fff; font-size: 12.5px; margin-top: 2px; }
+/* Rack Temperature Heat Map Grid */
+.rack-matrix-container {
+display: flex; flex-direction: column; gap: 10px;
+}
+.rack-legend {
+display: flex; justify-content: space-between; align-items: center;
+font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary);
+}
+.rack-grid {
+display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;
+}
+.rack-unit {
+background: var(--surface-elevated); border: 1px solid var(--border-subtle);
+border-radius: 4px; padding: 6px 4px; text-align: center; font-family: var(--font-mono);
+}
+.rack-id { font-size: 9.5px; color: var(--text-tertiary); margin-bottom: 3px; }
+.rack-temp { font-size: 11px; font-weight: 700; }
+.temp-cool { color: var(--cyan); background: rgba(6, 182, 212, 0.12); }
+.temp-optimal { color: var(--emerald); background: rgba(16, 185, 129, 0.12); }
+.temp-warm { color: var(--amber); background: rgba(245, 158, 11, 0.12); }
+/* Bare-Metal Server Node Table */
+.nodes-panel {
+background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card);
+padding: 18px; margin-bottom: 24px;
+}
+.node-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11.5px; }
+.node-table th {
+text-align: left; padding: 8px 10px; background: var(--surface-elevated);
+color: var(--text-secondary); font-size: 10px; text-transform: uppercase; border-bottom: 1px solid var(--border);
+}
+.node-table td { padding: 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+.node-table tr:hover { background: rgba(255,255,255,0.02); }
+/* Footer */
+.vertex-footer {
+border-top: 1px solid var(--border); padding: 22px 28px;
+font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary);
+display: flex; justify-content: space-between; align-items: center;
+}
+@media (max-width: 960px) {
+.kpi-grid { grid-template-columns: repeat(2, 1fr); }
+.telemetry-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<!-- Top Console Navigation -->
+<header class="vertex-nav">
+<div class="brand-wrap">
+<div class="brand-logo">
+<div class="logo-diamond"></div>
+<span>VERTEX // DIGITAL</span>
+</div>
+<ul class="nav-tabs">
+<li class="nav-tab active"><span class="pulse-green"></span> DC-01 Frankfurt Central</li>
+<li class="nav-tab">DC-02 Ashburn Campus</li>
+<li class="nav-tab">DC-03 Tokyo East</li>
+<li class="nav-tab">BGP Peering Matrix</li>
+</ul>
+</div>
+<div class="nav-status">
+<span>GRID STATUS: <strong>100% NOMINAL</strong></span>
+<span class="badge-mono badge-pue">PUE 1.12</span>
+<button class="btn-vx btn-vx-ghost">SSH Keys</button>
+<button class="btn-vx btn-vx-primary">Deploy Metal Node</button>
+</div>
+</header>
+<!-- Hero Operations Overview Strip (Dense First 500px) -->
+<section class="hero-strip">
+<div class="hero-container">
+<div class="hero-top-row">
+<div>
+<div class="hero-tag">Hyperscale Bare-Metal Facility Telemetry · Rack Hall A & B</div>
+<h1 class="hero-heading">High-Density Compute. <span>PUE 1.12</span> Efficiency.</h1>
+<p class="hero-sub">
+Continuous environmental monitoring, adiabatic evaporative cooling, and dark-fiber 100Gbps multi-homed BGP peering fabric.
+</p>
+</div>
+<div style="display: flex; gap: 8px;">
+<span class="badge-mono badge-transit">AS209411 Transit</span>
+<span class="badge-mono badge-pue">Zero Water Waste (WUE: 0.04)</span>
+</div>
+</div>
+<!-- 4 Core KPIs -->
+<div class="kpi-grid">
+<div class="kpi-card">
+<div class="kpi-label"><span>PUE Efficiency Ratio</span><span>ASHRAE A1</span></div>
+<div class="kpi-value" style="color: var(--emerald);">1.12 <span style="font-size: 14px; font-weight: 500;">PUE</span></div>
+<div class="kpi-delta">▲ 0.03 vs Tier-IV Standard (1.35)</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label"><span>100G Transit Peering</span><span>Aggregated</span></div>
+<div class="kpi-value" style="color: var(--cyan);">94.8 <span style="font-size: 14px; font-weight: 500;">Gbps</span></div>
+<div class="kpi-delta" style="color: var(--cyan);">● 0.0001% Packet Jitter</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label"><span>Facility Load</span><span>4.8 MW Max</span></div>
+<div class="kpi-value">4.28 <span style="font-size: 14px; font-weight: 500;">MW</span></div>
+<div class="kpi-delta">IT Compute: 3.82 MW (89.2%)</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label"><span>Cold Aisle Delta</span><span>24 Pods</span></div>
+<div class="kpi-value" style="color: #fff;">19.4°C <span style="font-size: 14px; font-weight: 500;">Δ 12.8°</span></div>
+<div class="kpi-delta">Hot Aisle: 32.2°C (Optimal)</div>
+</div>
+</div>
+<!-- 2-Col: 100Gbps Transit Network & Rack Temp Heatmap -->
+<div class="telemetry-grid">
+<!-- Panel 1: 100Gbps Transit Flow Graph -->
+<div class="panel">
+<div class="panel-head">
+<div class="panel-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+100Gbps Edge Peering Fabric & Transit Latency
+</div>
+<span class="badge-mono badge-transit">Active Flow 60s</span>
+</div>
+<div class="transit-nodes-list">
+<div class="transit-node-item">
+<div class="transit-node-name">AMS-IX Amsterdam</div>
+<div class="transit-node-val" style="color: var(--cyan);">88.4 Gbps</div>
+</div>
+<div class="transit-node-item">
+<div class="transit-node-name">DE-CIX Frankfurt</div>
+<div class="transit-node-val" style="color: var(--emerald);">94.2 Gbps</div>
+</div>
+<div class="transit-node-item">
+<div class="transit-node-name">Equinix Ashburn</div>
+<div class="transit-node-val">76.8 Gbps</div>
+</div>
+<div class="transit-node-item">
+<div class="transit-node-name">JPNAP Tokyo</div>
+<div class="transit-node-val">68.5 Gbps</div>
+</div>
+</div>
+<!-- Transit Graph SVG -->
+<svg viewBox="0 0 500 130" width="100%" height="120" style="background: #14171c; border-radius: 6px; padding: 6px;">
+<!-- Grid lines -->
+<line x1="40" y1="20" x2="490" y2="20" stroke="#222" stroke-dasharray="2,2"/>
+<line x1="40" y1="55" x2="490" y2="55" stroke="#222" stroke-dasharray="2,2"/>
+<line x1="40" y1="90" x2="490" y2="90" stroke="#222" stroke-dasharray="2,2"/>
+<line x1="40" y1="115" x2="490" y2="115" stroke="#333"/>
+<text x="5" y="24" fill="#666" font-size="8" font-family="monospace">100G</text>
+<text x="5" y="59" fill="#666" font-size="8" font-family="monospace">50G</text>
+<text x="5" y="94" fill="#666" font-size="8" font-family="monospace">20G</text>
+<defs>
+<linearGradient id="transitGrad" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#06B6D4" stop-opacity="0.35"/>
+<stop offset="100%" stop-color="#06B6D4" stop-opacity="0"/>
+</linearGradient>
+</defs>
+<!-- Bandwidth Area Curve -->
+<path d="M 40 45 Q 90 28, 140 38 T 240 32 T 340 24 T 440 28 L 490 22 L 490 115 L 40 115 Z" fill="url(#transitGrad)"/>
+<path d="M 40 45 Q 90 28, 140 38 T 240 32 T 340 24 T 440 28 L 490 22" fill="none" stroke="#06B6D4" stroke-width="2"/>
+<circle cx="490" cy="22" r="3.5" fill="#06B6D4" stroke="#fff" stroke-width="1.5"/>
+<text x="430" y="16" fill="#06B6D4" font-size="9" font-weight="bold" font-family="monospace">94.8 Gbps</text>
+</svg>
+</div>
+<!-- Panel 2: Rack Temperature Heat Map -->
+<div class="panel">
+<div class="panel-head">
+<div class="panel-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="6" x2="15" y2="6"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
+Hall A Rack Thermal Matrix (Cold Aisle Containment)
+</div>
+<span class="badge-mono badge-pue">PUE: 1.12</span>
+</div>
+<div class="rack-matrix-container">
+<div class="rack-legend">
+<span>POD A1 - A8 SENSORS</span>
+<span>18°C [COOL] ➔ 24°C [NOMINAL] ➔ 32°C [HOT AISLE]</span>
+</div>
+<div class="rack-grid">
+<!-- 16 Racks -->
+<div class="rack-unit temp-cool"><div class="rack-id">A01</div><div class="rack-temp">18.4°</div></div>
+<div class="rack-unit temp-cool"><div class="rack-id">A02</div><div class="rack-temp">18.9°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">A03</div><div class="rack-temp">19.2°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">A04</div><div class="rack-temp">19.8°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">A05</div><div class="rack-temp">20.1°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">A06</div><div class="rack-temp">19.7°</div></div>
+<div class="rack-unit temp-cool"><div class="rack-id">A07</div><div class="rack-temp">18.8°</div></div>
+<div class="rack-unit temp-cool"><div class="rack-id">A08</div><div class="rack-temp">18.5°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">B01</div><div class="rack-temp">20.4°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">B02</div><div class="rack-temp">21.0°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">B03</div><div class="rack-temp">21.4°</div></div>
+<div class="rack-unit temp-warm"><div class="rack-id">B04</div><div class="rack-temp">23.2°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">B05</div><div class="rack-temp">21.8°</div></div>
+<div class="rack-unit temp-optimal"><div class="rack-id">B06</div><div class="rack-temp">20.9°</div></div>
+<div class="rack-unit temp-cool"><div class="rack-id">B07</div><div class="rack-temp">19.5°</div></div>
+<div class="rack-unit temp-cool"><div class="rack-id">B08</div><div class="rack-temp">19.1°</div></div>
+</div>
+<div style="background: var(--surface-elevated); padding: 10px; border-radius: 6px; font-family: var(--font-mono); font-size: 11px; display: flex; justify-content: space-between; align-items: center;">
+<span>Cooling Fan Bank: <strong>Variable EC Fans @ 52%</strong></span>
+<span style="color: var(--emerald);">Adiabatic Pumping: 100% Recirculated</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bare-Metal Server Nodes Table -->
+<div class="nodes-panel">
+<div class="panel-head">
+<div class="panel-title">Active Bare-Metal Compute Nodes · Dual AMD EPYC 9654</div>
+<div style="display: flex; gap: 8px;">
+<button class="btn-vx btn-vx-ghost">IPMI Console</button>
+<button class="btn-vx btn-vx-ghost">Power Profiles</button>
+</div>
+</div>
+<table class="node-table">
+<thead>
+<tr>
+<th>Node ID & Rack</th>
+<th>Processor Configuration</th>
+<th>Memory & NVMe Tier</th>
+<th>Bandwidth Uplink</th>
+<th>Chassis Thermal</th>
+<th>Power Draw</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>node-fra-bm01</strong><br><span style="color:var(--text-tertiary);">Rack A03 · U12-U14</span></td>
+<td>2x AMD EPYC 9654 (192C / 384T)</td>
+<td>1.5TB DDR5 ECC · 8x 15.3TB NVMe</td>
+<td>2x 100GbE ConnectX-7</td>
+<td><span style="color:var(--emerald);">46.5°C</span> (Fans 4,100 RPM)</td>
+<td>540W / 800W</td>
+<td><span class="badge-mono badge-pue">ONLINE 99.999%</span></td>
+</tr>
+<tr>
+<td><strong>node-fra-bm02</strong><br><span style="color:var(--text-tertiary);">Rack A04 · U15-U17</span></td>
+<td>2x AMD EPYC 9654 (192C / 384T)</td>
+<td>1.5TB DDR5 ECC · 8x 15.3TB NVMe</td>
+<td>2x 100GbE ConnectX-7</td>
+<td><span style="color:var(--emerald);">48.1°C</span> (Fans 4,300 RPM)</td>
+<td>580W / 800W</td>
+<td><span class="badge-mono badge-pue">ONLINE 99.999%</span></td>
+</tr>
+<tr>
+<td><strong>node-fra-gpu01</strong><br><span style="color:var(--text-tertiary);">Rack B04 · U01-U08</span></td>
+<td>8x NVIDIA H100 80GB SXM5</td>
+<td>2.0TB DDR5 · 30TB NVMe Direct</td>
+<td>8x 400GbE Quantum-2</td>
+<td><span style="color:var(--amber);">62.4°C</span> (Liquid Cold Plate)</td>
+<td>6,200W Redundant</td>
+<td><span class="badge-mono badge-transit">TRAINING CLUSTER</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="vertex-footer">
+<div>
+VERTEX DIGITAL INFRASTRUCTURE GROUP · ISO 27001 · SOC 2 TYPE II · TIA-942 RATED-4
+</div>
+<div style="display: flex; gap: 16px;">
+<span>FACILITY PUE: <strong>1.12</strong></span>
+<span>DARK FIBER CROSS-CONNECTS: <strong>ACTIVE</strong></span>
+</div>
+</footer>
+</body>
+</html>

@@ -27,6 +27,9 @@ export function useSwitchOrganization({
 				return
 			}
 
+			const { default: userFiles } = await import("@/stores/userFiles")
+			if (!(await userFiles.confirmIdentityChange())) return
+
 			onSwitchBefore?.()
 
 			await appService.switchOrganization(

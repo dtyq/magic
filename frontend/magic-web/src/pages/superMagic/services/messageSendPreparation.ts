@@ -1,7 +1,10 @@
 import { SuperMagicApi } from "@/apis"
 import { ProjectStorage } from "@/components/Agent/MCP/service/MCPStorageService"
 import type { MessageEditorRef } from "@/pages/superMagic/components/MessageEditor/MessageEditor"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { mentionItemsProcessor } from "@/pages/superMagic/components/MessageEditor/services/MentionItemsProcessor"
+import { collectMentionItemsFromContent } from "@/pages/superMagic/components/MessageEditor/services/uploadMentionService"
+import { htmlScreenshotUploadService } from "@/pages/superMagic/components/MessageEditor/services/HtmlScreenshotUploadService"
 import { stripProjectResourceMentionDisplayMetadata } from "@/pages/superMagic/components/MessageEditor/utils/mention"
 import { superMagicUploadTokenService } from "@/pages/superMagic/components/MessageEditor/services/UploadTokenService"
 import type {
@@ -9,6 +12,7 @@ import type {
 	SendRuntimeContext,
 } from "@/pages/superMagic/services/messageSendFlowService"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
+import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import {
 	DEFAULT_TOPIC_ID,
@@ -22,6 +26,7 @@ import TopicService from "./topicService"
 import SuperMagicService from "./index"
 import type { CreatedProject, ProjectListItem, Topic, Workspace } from "../pages/Workspace/types"
 import type { TopicMode } from "../pages/Workspace/TopicMode"
+import { analyticsService } from "@/services/analytics"
 
 interface CreateProjectParams {
 	projectMode: TopicMode
@@ -33,9 +38,13 @@ interface CreateTopicParams {
 }
 
 export interface MessageSendPreparationContext {
+	/** Consume only the active composer's temporary uploads when creating its project. */
+	getTemporaryWorkdir?: () => string | undefined
 	selectedProject?: ProjectListItem | null
 	selectedTopic?: Topic | null
 	selectedWorkspace?: Workspace | null
+	/** Explicit business entry for creation analytics, independent of the selected agent mode. */
+	creationScene?: string
 	setSelectedProject?: (project: ProjectListItem | null) => void
 	setSelectedTopic?: (topic: Topic | null) => void
 	setSelectedWorkspace?: (workspace: Workspace | null) => void
@@ -49,6 +58,14 @@ export interface MessageSendPreparationContext {
 	) => void | Promise<void>
 	createProject?: (params: CreateProjectParams) => Promise<CreatedProject | null>
 	createTopic?: (params: CreateTopicParams) => Promise<Topic | null>
+	/**
+	 * Mentions the host page binds to every message once the project exists.
+	 * Example: the AI canvas page returns its canvas folder so the design agent always
+	 * receives the exact canvas path instead of initializing another canvas.
+	 */
+	getImplicitMentionItems?: (
+		project: ProjectListItem,
+	) => MentionListItem[] | Promise<MentionListItem[]>
 }
 
 interface ResolvedPreparationContext extends SendRuntimeContext {
@@ -79,16 +96,100 @@ export interface EnsuredMessageProjectResult {
 	currentTopic: Topic | null
 }
 
+function getMentionIdentity(item: MentionListItem): string {
+	const data = (item.attrs.data ?? {}) as Record<string, unknown>
+	const path = data.directory_path ?? data.file_path ?? data.file_id ?? data.directory_id ?? ""
+	// Compare paths without edge slashes: "/Canvas/" and "Canvas" are the same folder.
+	return `${item.attrs.type}:${String(path).replace(/^\/+|\/+$/g, "")}`
+}
+
+/**
+ * Prepends host-required mentions that the user has not referenced yet.
+ *
+ * | Message already contains        | Result                                   |
+ * | nothing                         | `@canvas` + " " + original first line    |
+ * | the same mention (same path)    | unchanged                                |
+ *
+ * The mention node is inserted at the start of the first paragraph (or a new one) so history
+ * renders it like a user-inserted reference and the model sees it before the prompt text.
+ */
+export function prependImplicitMentions(
+	content: JSONContent,
+	mentionItems: MentionListItem[],
+	implicitMentionItems: MentionListItem[],
+): { content: JSONContent; mentionItems: MentionListItem[] } {
+	const existing = new Set(mentionItems.map(getMentionIdentity))
+	const missing = implicitMentionItems.filter((item) => {
+		const identity = getMentionIdentity(item)
+		if (existing.has(identity)) return false
+		existing.add(identity)
+		return true
+	})
+	if (missing.length === 0) return { content, mentionItems }
+
+	const mentionNodes: JSONContent[] = missing.flatMap((item) => [
+		{ type: "mention", attrs: item.attrs },
+		{ type: "text", text: " " },
+	])
+	const blocks = content.content ?? []
+	const [firstBlock, ...restBlocks] = blocks
+	const nextBlocks =
+		firstBlock?.type === "paragraph"
+			? [
+					{ ...firstBlock, content: [...mentionNodes, ...(firstBlock.content ?? [])] },
+					...restBlocks,
+				]
+			: [{ type: "paragraph", content: mentionNodes }, ...blocks]
+
+	return {
+		content: { ...content, content: nextBlocks },
+		mentionItems: [...missing, ...mentionItems],
+	}
+}
+
+export async function processMessageMentions(
+	content: JSONContent,
+	projectId: string,
+	topicId?: string,
+): Promise<JSONContent> {
+	const mentionItems = collectMentionItemsFromContent(content)
+	if (mentionItems.length === 0) return content
+
+	const result = await mentionItemsProcessor.processMentionItems(
+		content,
+		mentionItems,
+		projectId,
+		topicId,
+	)
+	return stripProjectResourceMentionDisplayMetadata(result.content, result.mentionItems).content
+}
+
+export function releaseHtmlScreenshotsAfterSend(
+	mentionItems: HandleSendParams["mentionItems"],
+): void {
+	void Promise.resolve(
+		htmlScreenshotUploadService.releaseStoredScreenshots(
+			htmlScreenshotUploadService.collectStorageIds(mentionItems),
+		),
+	).catch(() => undefined)
+}
+
 export function resolveMessageSendContext(
 	context?: MessageSendPreparationContext,
 ): ResolvedPreparationContext {
-	const selectedProject = context?.selectedProject ?? projectStore.selectedProject
+	// Local blank composers deliberately pass null to exclude the previous global conversation.
+	const selectedProject =
+		context?.selectedProject !== undefined
+			? context.selectedProject
+			: projectStore.selectedProject
 	const selectedTopic =
-		context?.selectedTopic ?? context?.topicStore?.selectedTopic ?? topicStore.selectedTopic
+		context?.selectedTopic !== undefined
+			? context.selectedTopic
+			: (context?.topicStore?.selectedTopic ?? topicStore.selectedTopic)
 	const selectedWorkspace =
-		context?.selectedWorkspace ??
-		workspaceStore.selectedWorkspace ??
-		workspaceStore.firstWorkspace
+		context?.selectedWorkspace !== undefined
+			? context.selectedWorkspace
+			: (workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace)
 
 	const setSelectedProject = context?.setSelectedProject ?? projectStore.setSelectedProject
 	const setSelectedTopic =
@@ -124,6 +225,7 @@ export function resolveMessageSendContext(
 			createProjectForContext({
 				params,
 				selectedWorkspace,
+				creationScene: context?.creationScene,
 				setSelectedProject,
 				setSelectedTopic,
 			}))
@@ -141,6 +243,7 @@ export function resolveMessageSendContext(
 		selectedProject,
 		selectedTopic,
 		selectedWorkspace,
+		topicStore: context?.topicStore ?? topicStore,
 		workspaceId: selectedWorkspace?.id ?? selectedProject?.workspace_id,
 		updateTopicName,
 		refreshProjectAfterTopicRename: context?.refreshProjectAfterTopicRename,
@@ -162,7 +265,7 @@ export async function preparePanelSend({
 }: PreparePanelSendParams): Promise<PreparedPanelSendResult | null> {
 	const resolvedContext = resolveMessageSendContext(context)
 	let currentProject = resolvedContext.selectedProject
-	let currentTopic = resolvedContext.selectedTopic
+	let currentTopic = params.targetTopic ?? resolvedContext.selectedTopic
 	let nextMentionItems = [...params.mentionItems]
 	let nextContent = params.value
 	const selection = resolveAgentSelection(
@@ -179,7 +282,10 @@ export async function preparePanelSend({
 	if (!currentProject?.id) {
 		const createdProject = await resolvedContext.createProject({
 			projectMode: tabPattern,
-			workdir: superMagicUploadTokenService.getLastWorkDir(),
+			workdir: (
+				context?.getTemporaryWorkdir ??
+				(() => superMagicUploadTokenService.getLastWorkDir())
+			)(),
 		})
 
 		if (!createdProject?.project || !createdProject.topic) {
@@ -230,6 +336,17 @@ export async function preparePanelSend({
 
 	resolvedContext.setSelectedTopic(currentTopic)
 
+	if (context?.getImplicitMentionItems) {
+		const implicitMentionItems = await context.getImplicitMentionItems(currentProject)
+		const withImplicit = prependImplicitMentions(
+			nextContent,
+			nextMentionItems,
+			implicitMentionItems,
+		)
+		nextContent = withImplicit.content
+		nextMentionItems = withImplicit.mentionItems
+	}
+
 	const result = await mentionItemsProcessor.processMentionItems(
 		nextContent,
 		nextMentionItems,
@@ -262,7 +379,9 @@ export async function preparePanelSend({
 			selectedProject: currentProject,
 			selectedTopic: currentTopic,
 			selectedWorkspace: resolvedContext.selectedWorkspace,
-			workspaceId: resolvedContext.workspaceId,
+			// Preserve the scoped store so dispatchMessage can update the visible Topic immediately.
+			topicStore: resolvedContext.topicStore,
+			workspaceId: resolvedContext.workspaceId ?? currentProject.workspace_id,
 			updateTopicName: resolvedContext.updateTopicName,
 			refreshProjectAfterTopicRename: resolvedContext.refreshProjectAfterTopicRename,
 			renameProject: resolvedContext.renameProject,
@@ -347,11 +466,13 @@ export async function createTopicForMessageContext(
 async function createProjectForContext({
 	params,
 	selectedWorkspace,
+	creationScene,
 	setSelectedProject,
 	setSelectedTopic,
 }: {
 	params: CreateProjectParams
 	selectedWorkspace: Workspace | null
+	creationScene?: string
 	setSelectedProject: (project: ProjectListItem | null) => void
 	setSelectedTopic: (topic: Topic | null) => void
 }): Promise<CreatedProject | null> {
@@ -359,6 +480,11 @@ async function createProjectForContext({
 		return null
 	}
 
+	analyticsService.report("project_create_attempted", {
+		workspaceId: selectedWorkspace.id,
+		sceneOverride: creationScene,
+		mode: params.projectMode,
+	})
 	const createdProject = await SuperMagicApi.createProject({
 		workspace_id: selectedWorkspace.id,
 		project_name: "",
@@ -370,7 +496,6 @@ async function createProjectForContext({
 	if (!createdProject?.project || !createdProject.topic) {
 		return null
 	}
-
 	await copyGlobalModelConfiguration({
 		projectMode: params.projectMode,
 		createdProject,
@@ -399,6 +524,8 @@ async function createTopicForContext({
 		return new TopicService({ store: localTopicStore }).createTopic({
 			projectId: selectedProject.id,
 			topicName: "",
+			workspaceId: selectedProject.workspace_id,
+			mode: selectedProject.project_mode,
 		})
 	}
 
@@ -411,6 +538,11 @@ async function createTopicForContext({
 		})
 	}
 
+	analyticsService.report("topic_create_attempted", {
+		projectId: selectedProject.id,
+		workspaceId: selectedProject.workspace_id,
+		mode: selectedProject.project_mode,
+	})
 	const newTopic = await SuperMagicApi.createTopic({
 		project_id: selectedProject.id,
 		topic_name: "",

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 
 interface UsePhoneScalingArgs {
+	/** 未启用设备预览时不观察 display:contents 节点；既有调用默认继续观察。 */
+	enabled?: boolean
 	/** Design width in CSS pixels (e.g. 375 for iPhone) */
 	designWidth: number
 	/** Design height in CSS pixels (e.g. 812 for iPhone) */
@@ -27,6 +29,7 @@ interface UsePhoneScalingResult<E extends HTMLElement> {
  * Uses ResizeObserver and updates as the container resizes.
  */
 export function usePhoneScaling<E extends HTMLElement = HTMLDivElement>({
+	enabled = true,
 	designWidth,
 	designHeight,
 	padding = 16,
@@ -38,6 +41,7 @@ export function usePhoneScaling<E extends HTMLElement = HTMLDivElement>({
 	const [scale, setScale] = useState(1)
 
 	useEffect(() => {
+		if (!enabled) return
 		const node = containerRef.current
 		if (!node) return
 		const observer = new ResizeObserver((entries) => {
@@ -57,7 +61,7 @@ export function usePhoneScaling<E extends HTMLElement = HTMLDivElement>({
 		})
 		observer.observe(node)
 		return () => observer.disconnect()
-	}, [designHeight, designWidth, fixedHeight, fixedWidth, maxScale, padding])
+	}, [enabled, designHeight, designWidth, fixedHeight, fixedWidth, maxScale, padding])
 
 	return { containerRef, scale, width: designWidth, height: designHeight }
 }

@@ -198,12 +198,13 @@ class MagicAILocalModel extends AbstractModel
         return $openAI->getClient($config, $this->getApiRequestOptions(), $this->logger);
     }
 
+    /**
+     * 将统一推理档位传入本地网关，由下游实际模型决定默认值和供应商参数格式。
+     */
     protected function modelChatByRequest(
         ChatCompletionRequest $request,
         bool $stream = false,
     ): ChatCompletionResponse|ChatCompletionStreamResponse {
-        $thinking = $request->getThinking()?->toBedrockFormat();
-
         return $this->modelChat(
             $request->getMessages(),
             $request->getTemperature(),
@@ -212,11 +213,14 @@ class MagicAILocalModel extends AbstractModel
             $request->getTools(),
             $request->getBusinessParams(),
             $stream,
-            thinking: $thinking,
             extra: $request->getExtra(),
+            reasoningEffort: $request->getReasoningEffort()?->value,
         );
     }
 
+    /**
+     * 组装本地网关请求，统一推理档位优先，未指定时保留旧 thinking 入口。
+     */
     protected function modelChat(
         array $messages,
         float $temperature = 0.9,
@@ -229,6 +233,7 @@ class MagicAILocalModel extends AbstractModel
         float $presencePenalty = 0.0,
         ?array $thinking = null,
         ?array $extra = null,
+        ?string $reasoningEffort = null,
     ): ChatCompletionResponse|ChatCompletionStreamResponse {
         $models = explode(',', $this->model);
 
@@ -251,6 +256,7 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setFrequencyPenalty($frequencyPenalty);
         $sendMsgGPTDTO->setPresencePenalty($presencePenalty);
         $sendMsgGPTDTO->setExtra($extra);
+        $sendMsgGPTDTO->setReasoningEffort($reasoningEffort);
 
         $thinking ??= $businessParams['thinking'] ?? null;
         unset($businessParams['thinking']);

@@ -39,6 +39,8 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
         public readonly ?string $lastActiveAt = null, // 用户在该项目中的最后活跃时间
         public readonly bool $isBindWorkspace = false,
         public readonly string $bindWorkspaceId = '',
+        public readonly ?string $clawCode = null,
+        public readonly ?string $microAppId = null,
     ) {
         parent::__construct(
             $id,
@@ -110,6 +112,8 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             lastActiveAt: $data['last_active_at'] ?? null,
             isBindWorkspace: (bool) ($data['is_bind_workspace'] ?? false),
             bindWorkspaceId: (string) ($data['bind_workspace_id'] ?? ''),
+            clawCode: $data['claw_code'] ?? null,
+            microAppId: isset($data['micro_app_id']) ? (string) $data['micro_app_id'] : null,
         );
     }
 
@@ -125,6 +129,8 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             'last_active_at' => $this->lastActiveAt,
             'is_bind_workspace' => $this->isBindWorkspace,
             'bind_workspace_id' => $this->bindWorkspaceId,
+            'claw_code' => $this->clawCode,
+            'micro_app_id' => $this->microAppId,
         ]);
     }
 

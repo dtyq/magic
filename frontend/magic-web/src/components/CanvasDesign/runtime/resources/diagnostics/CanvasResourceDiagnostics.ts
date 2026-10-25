@@ -54,6 +54,8 @@ export const IMAGE_RESOURCE_DIAGNOSTIC_COUNTERS = [
 	"metadataChangedCount",
 	"metadataUnknownCount",
 	"metadataDeletedCount",
+	"persistentLowHitCount",
+	"persistentLowMissCount",
 	"refreshResourceCount",
 ] as const
 
@@ -72,6 +74,9 @@ export interface ImageResourceCurrentSnapshot {
 	fullLoaded: number
 	fullDecodedBytes: number
 	decodedBytesTotal: number
+	lowDecodedBudgetBytes: number
+	previewDecodedBudgetBytes: number
+	fullDecodedBudgetBytes: number
 	decodedBudgetSoftBytes: number
 	decodedBudgetHardBytes: number
 	decodedLowLeaseCount: number
@@ -84,6 +89,9 @@ export interface ImageResourceCurrentSnapshot {
 	bodyFetchInFlightCount: number
 	activePreviewLoadPipelineCount: number
 	queuedPreviewLoadCount: number
+	workerActiveRequestCount: number
+	workerActivePixelCost: number
+	workerQueuedRequestCount: number
 	activeDecodePixelCost: number
 	queuedDecodePermitCount: number
 	loadingCount: number

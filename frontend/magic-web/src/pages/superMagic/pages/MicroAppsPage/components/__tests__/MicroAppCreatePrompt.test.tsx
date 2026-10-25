@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 	setSelectedTopic: vi.fn(),
 	setSelectedWorkspace: vi.fn(),
 	createMicroAppProject: vi.fn(),
+	report: vi.fn(),
 	editorContext: undefined as SceneEditorContext | undefined,
 }))
 
@@ -18,6 +19,10 @@ vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		createMicroAppProject: mocks.createMicroAppProject,
 	},
+}))
+
+vi.mock("@/services/analytics", () => ({
+	analyticsService: { report: mocks.report },
 }))
 
 vi.mock("react-i18next", () => ({
@@ -137,6 +142,10 @@ describe("MicroAppCreatePrompt", () => {
 				agent_mode: "micro-app",
 				message_version: "v2",
 			},
+		})
+		expect(mocks.report).toHaveBeenCalledWith("project_create_attempted", {
+			workspaceId: "workspace-1",
+			sceneOverride: "micro_app",
 		})
 		fireEvent.focus(editor)
 		expect(onFocusChange).toHaveBeenCalledWith(true)

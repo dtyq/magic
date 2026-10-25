@@ -7,6 +7,10 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.core.ai_abilities import get_video_understanding_model_id, get_video_understanding_timeout
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+from app.core.entity.message.server_message import OperationResultStatus
+from app.core.entity.message.server_message import OperationResultItem, OperationResultKind, OperationResultUrlTarget
+from urllib.parse import urlparse
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.i18n import i18n
 from app.tools.core import BaseToolParams, tool
@@ -51,6 +55,7 @@ class VideoUnderstanding(WorkspaceTool[VideoUnderstandingParams]):
     1、分析需求明确时，为视频专家提供完整的逐字引用的分析需求
     2、需要说明分析背景，帮助视频专家理解分析意图
     3、要求视频专家描述视频内容、场景、主题等关键信息
+    4、要找视频中的特定画面或时刻时，先让视频专家给出对应时间点，再只截取这几个时间点的帧；不要按固定频率批量抽帧再逐张查看，视觉理解一次只能有效查看少量图片
 
     支持格式：MP4、AVI、MOV、MKV、WebM 等常见视频格式（视模型支持情况而定）
     适用场景：视频内容识别描述、场景分析、主题提炼、人物行为分析、多视频对比等视频理解场景
@@ -82,6 +87,7 @@ class VideoUnderstanding(WorkspaceTool[VideoUnderstandingParams]):
     1. When analysis requirements are clear, provide video expert with complete verbatim quoted analysis requirements
     2. Provide analysis background to help the video expert understand the intent
     3. Ask the video expert to describe video content, scenes, themes and key information
+    4. To find a specific scene or moment in a video, ask the video expert for its timestamps first, then extract frames only at those timestamps. Do not extract frames at a fixed rate and inspect them one by one; visual understanding can only examine a few images per call
 
     Supported formats: MP4, AVI, MOV, MKV, WebM and other common video formats (depends on model support)
     Use scenarios: Video content recognition/description, scene analysis, theme extraction, character behavior analysis, multi-video comparison and other video understanding scenarios
@@ -203,6 +209,7 @@ class VideoUnderstanding(WorkspaceTool[VideoUnderstandingParams]):
                 "videos": videos,
                 "video_count": len(videos),
                 "video_names": video_names,
+                "video_results": [{"source": item.source, "success": item.success} for item in batch.results],
             }
         )
 
@@ -340,13 +347,24 @@ Video size limit safeguard:
                     count=video_count,
                 )
 
-            return ToolDetail(
+            report = ToolDetail(
                 type=DisplayType.MD,
                 data=FileContent(
                     file_name=i18n.translate("video_understanding.result_file", category="tool.messages"),
                     content=f"## {title}\n\n{result.content}",
                 )
             )
+            items = []
+            for item in (result.extra_info or {}).get("video_results", []):
+                source = item["source"]
+                status = OperationResultStatus.SUCCESS if item["success"] else OperationResultStatus.ERROR
+                if urlparse(source).scheme in {"http", "https"}:
+                    items.append(OperationResultItem(label=extract_media_source_name(source), kind=OperationResultKind.TEXT,
+                        status=status, message="", target=OperationResultUrlTarget(url=source)))
+                elif not source.startswith("data:"):
+                    items.append(ToolDetailFactory.create_file_result_item(source, self.base_dir, status,
+                        message="" if item["success"] else i18n.translate("tool_card.video_failed", category="tool.messages")))
+            return ToolDetailFactory.create_operation_result_detail(items, report=report, stage="analyze")
         except Exception as e:
             logger.error(f"生成工具详情失败: {e!s}")
             return None

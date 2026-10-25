@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, Suspense } from "react"
 import { AlignLeft, Network } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicMarkmap from "@/components/base/MagicMarkmap"
 import IsolatedHTMLRenderer from "@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer"
-import { processHtmlContent } from "@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor"
 import type { RecordingDetailFileRef, RecordingTopicSection } from "../../types/recording-detail"
+import type { AttachmentFile } from "@/pages/superMagic/utils/image-url-resolver"
 import { parseTopicsMarkdown } from "../../utils/topics-parser"
 import { formatRecordingTime } from "../../utils/time"
 import { resolveMarkdownSpeakerLabels } from "../../utils/markdownTimeLinks"
@@ -22,16 +22,20 @@ import {
 	useHorizontalScrollWithFade,
 } from "../../hooks/useHorizontalScrollWithFade"
 import { RecordingTokenText } from "./RecordingTokenText"
+import { useRecordingMetricsHtml } from "../../hooks/useRecordingMetricsHtml"
+import MagicSpin from "@/components/base/MagicSpin"
 
 export interface RecordingSummaryContentProps {
 	file: RecordingDetailFileRef
 	content?: string
 	attachmentList: AttachmentItem[]
+	attachmentTree?: AttachmentFile[]
 	speakerNameMap: Record<string, string>
 	onOpenSpeakerSettings: () => void
 	onTimeClick: (seconds: number, end?: number) => void
 	scrollPaddingBottom?: number
 	layout?: "desktop" | "mobile"
+	isGenerating?: boolean
 }
 
 /** Selects the renderer for each supported completed-summary file type. */
@@ -39,14 +43,16 @@ export function RecordingSummaryContent({
 	file,
 	content,
 	attachmentList,
+	attachmentTree = [],
 	speakerNameMap,
 	onOpenSpeakerSettings,
 	onTimeClick,
 	scrollPaddingBottom = 0,
 	layout = "desktop",
+	isGenerating = false,
 }: RecordingSummaryContentProps) {
-	if (!content?.trim()) {
-		return <SummaryTabEmptyState />
+	if (!file.file || !content?.trim()) {
+		return <SummaryTabEmptyState isGenerating={isGenerating} />
 	}
 
 	if (file.type === "metrics") {
@@ -73,6 +79,8 @@ export function RecordingSummaryContent({
 				onOpenSpeakerSettings={onOpenSpeakerSettings}
 				onTimeClick={onTimeClick}
 				layout={layout}
+				attachments={attachmentTree}
+				relativeFilePath={file.file.relative_file_path ?? file.file.path}
 			/>
 		)
 	}
@@ -82,6 +90,8 @@ export function RecordingSummaryContent({
 			<RecordingMarkdownContent
 				content={content}
 				layout={layout}
+				attachments={attachmentTree}
+				relativeFilePath={file.file.relative_file_path ?? file.file.path}
 				speakerNameMap={speakerNameMap}
 				onSpeakerClick={onOpenSpeakerSettings}
 				onTimeClick={(time) => onTimeClick(time)}
@@ -90,6 +100,7 @@ export function RecordingSummaryContent({
 	)
 }
 
+/** Renders the metrics HTML preview and keeps a generic loading mask until the iframe is ready. */
 function MetricsHtmlContent({
 	file,
 	content,
@@ -99,44 +110,51 @@ function MetricsHtmlContent({
 	content: string
 	attachmentList: AttachmentItem[]
 }) {
-	const [processedContent, setProcessedContent] = useState(content)
-	const [filePathMapping, setFilePathMapping] = useState<Map<string, string>>(new Map())
-
-	useEffect(() => {
-		let cancelled = false
-
-		void processHtmlContent({
+	const { t } = useTranslation("audioRecordings")
+	const { processedContent, filePathMapping, isLoading, handleRenderReady } =
+		useRecordingMetricsHtml({
 			content,
-			attachments: attachmentList,
 			attachmentList,
 			fileId: file.file.file_id,
 			fileName: file.fileName,
-		}).then((result) => {
-			if (cancelled) return
-			setProcessedContent(result.processedContent)
-			setFilePathMapping(result.filePathMapping)
 		})
-
-		return () => {
-			cancelled = true
-		}
-	}, [attachmentList, content, file.file.file_id, file.fileName])
 
 	return (
 		<div
-			className="flex min-h-0 flex-1 flex-col"
+			className="relative flex min-h-0 flex-1 flex-col"
+			aria-busy={isLoading}
 			data-testid="recording-detail-metrics-container"
 		>
-			<IsolatedHTMLRenderer
-				content={processedContent}
-				fileId={file.file.file_id}
-				filePathMapping={filePathMapping}
-				attachmentList={attachmentList}
-				relative_file_path={file.file.relative_file_path}
-				openNewTab={() => undefined}
-				className="flex min-h-[520px] flex-1 overflow-hidden rounded-2xl bg-card"
-				iframeClassName="h-full min-h-[520px] bg-white"
-			/>
+			{/* Keep IsolatedHTMLRenderer inside a local Suspense: it is a huge tree, and
+			    any suspend bubbles to the route LoadingFallback (FullSpin) which blanks
+			    the whole outlet while the app sidebar stays. The local overlay already
+			    covers metrics loading. */}
+			{processedContent ? (
+				<Suspense fallback={null}>
+					<IsolatedHTMLRenderer
+						content={processedContent}
+						fileId={file.file.file_id}
+						filePathMapping={filePathMapping}
+						attachmentList={attachmentList}
+						relative_file_path={file.file.relative_file_path}
+						openNewTab={() => undefined}
+						className="flex min-h-[520px] flex-1 overflow-hidden rounded-2xl bg-card"
+						iframeClassName="h-full min-h-[520px] bg-white"
+						onRenderReady={handleRenderReady}
+					/>
+				</Suspense>
+			) : null}
+			{isLoading ? (
+				<div
+					className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-card/80"
+					data-testid="recording-detail-metrics-loading"
+					role="status"
+					aria-live="polite"
+				>
+					{/* Metrics HTML is already inside the detail page; use the generic loading copy. */}
+					<MagicSpin spinning tip={t("loading")} />
+				</div>
+			) : null}
 		</div>
 	)
 }
@@ -155,6 +173,8 @@ function MindmapContent({
 	onOpenSpeakerSettings,
 	onTimeClick,
 	layout,
+	attachments,
+	relativeFilePath,
 }: {
 	content: string
 	scrollPaddingBottom: number
@@ -162,6 +182,8 @@ function MindmapContent({
 	onOpenSpeakerSettings: () => void
 	onTimeClick: (seconds: number, end?: number) => void
 	layout: "desktop" | "mobile"
+	attachments?: AttachmentFile[]
+	relativeFilePath?: string
 }) {
 	const [viewMode, setViewMode] = useState<"map" | "markdown">("map")
 	const isDesktop = layout === "desktop"
@@ -170,14 +192,14 @@ function MindmapContent({
 		[content, speakerNameMap],
 	)
 	const canvasClassName = isDesktop
-		? "!h-full min-h-0 bg-muted [&_svg]:bg-muted [&_svg]:[background-image:none]"
-		: "h-full min-h-[480px] bg-muted [&_svg]:bg-muted [&_svg]:[background-image:none]"
+		? "!h-full min-h-0 bg-white [&_svg]:bg-white [&_svg]:[background-image:none]"
+		: "h-full min-h-[480px] bg-white [&_svg]:bg-white [&_svg]:[background-image:none]"
 
 	if (isDesktop) {
 		return (
 			<div className="relative h-full min-h-0" data-testid="recording-detail-mindmap">
 				{viewMode === "map" ? (
-					<div className="absolute inset-0 overflow-hidden rounded-xl bg-muted">
+					<div className="absolute inset-0 overflow-hidden rounded-xl bg-white">
 						<MagicMarkmap
 							data={mindmapCanvasContent}
 							fullScreen
@@ -194,6 +216,8 @@ function MindmapContent({
 							speakerNameMap={speakerNameMap}
 							onSpeakerClick={onOpenSpeakerSettings}
 							onTimeClick={(time) => onTimeClick(time)}
+							attachments={attachments}
+							relativeFilePath={relativeFilePath}
 						/>
 					</div>
 				)}
@@ -205,7 +229,7 @@ function MindmapContent({
 	return (
 		<div className="relative min-h-[480px]" data-testid="recording-detail-mindmap">
 			{viewMode === "map" ? (
-				<div className="relative h-[min(560px,calc(100vh-280px))] min-h-[480px] overflow-hidden rounded-xl bg-muted">
+				<div className="relative h-[min(560px,calc(100vh-280px))] min-h-[480px] overflow-hidden rounded-xl bg-white">
 					<MagicMarkmap
 						data={mindmapCanvasContent}
 						fullScreen
@@ -228,6 +252,8 @@ function MindmapContent({
 						speakerNameMap={speakerNameMap}
 						onSpeakerClick={onOpenSpeakerSettings}
 						onTimeClick={(time) => onTimeClick(time)}
+						attachments={attachments}
+						relativeFilePath={relativeFilePath}
 					/>
 					<MindmapViewSwitch
 						value={viewMode}
@@ -340,25 +366,37 @@ function TopicsContent({
 					data-testid="recording-detail-topics-scroll"
 				>
 					<div className="flex w-max flex-nowrap gap-2">
-						{topics.map((topic) => (
-							<button
-								key={topic.id}
-								ref={(element) => {
-									topicRefs.current[topic.id] = element ?? undefined
-								}}
-								type="button"
-								className={cn(
-									"h-8 shrink-0 rounded-full border px-4 text-[14px] font-medium leading-none transition-colors",
-									topic.id === activeTopic.id
-										? "border-foreground bg-foreground text-background"
-										: "border-border bg-card/70 text-muted-foreground",
-								)}
-								onClick={() => setActiveTopicId(topic.id)}
-								data-testid={`recording-detail-topic-pill-${topic.id}`}
-							>
-								{topic.name}
-							</button>
-						))}
+						{topics.map((topic) => {
+							const isActive = topic.id === activeTopic.id
+							return (
+								<button
+									key={topic.id}
+									ref={(element) => {
+										topicRefs.current[topic.id] = element ?? undefined
+									}}
+									type="button"
+									className={cn(
+										"inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-4 text-[14px] font-medium leading-none transition-colors",
+										isActive
+											? "border-foreground bg-foreground text-background"
+											: "border-border bg-card/70 text-muted-foreground",
+									)}
+									onClick={() => setActiveTopicId(topic.id)}
+									data-testid={`recording-detail-topic-pill-${topic.id}`}
+								>
+									{/* Chapter color dot reuses the per-topic color so tabs stay visually distinct, matching the legacy HTML tab dots. */}
+									<span
+										aria-hidden
+										className={cn(
+											"size-2 shrink-0 rounded-full ring-1 ring-inset ring-black/15 dark:ring-white/25",
+											isActive && "ring-white/40 dark:ring-black/30",
+										)}
+										style={{ backgroundColor: topic.color }}
+									/>
+									{topic.name}
+								</button>
+							)
+						})}
 					</div>
 				</div>
 
@@ -465,10 +503,13 @@ function TopicsContent({
 }
 
 /** Centered empty placeholder for summary tabs whose file content is not yet available. */
-function SummaryTabEmptyState() {
+function SummaryTabEmptyState({ isGenerating }: { isGenerating: boolean }) {
 	return (
 		<RecordingDetailRegionEmptySlot>
-			<RecordingDetailEmptyState variant="noSummaryFile" compact />
+			<RecordingDetailEmptyState
+				variant={isGenerating ? "summaryGenerating" : "noSummaryFile"}
+				compact
+			/>
 		</RecordingDetailRegionEmptySlot>
 	)
 }

@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\SuperMagic\Task\Event\Subscribe;
 
-use App\Domain\SuperMagic\Project\Event\ProjectDeletedEvent;
-use App\Domain\SuperMagic\Project\Event\ProjectsBatchDeletedEvent;
 use App\Domain\SuperMagic\Task\Service\SandboxKeepAliveDomainService;
 use App\Domain\SuperMagic\Topic\Event\TopicDeletedEvent;
 use Hyperf\Event\Annotation\Listener;
@@ -32,8 +30,6 @@ class SandboxKeepAliveCleanupSubscriber implements ListenerInterface
     public function listen(): array
     {
         return [
-            ProjectDeletedEvent::class,
-            ProjectsBatchDeletedEvent::class,
             TopicDeletedEvent::class,
         ];
     }
@@ -42,8 +38,6 @@ class SandboxKeepAliveCleanupSubscriber implements ListenerInterface
     {
         try {
             match (true) {
-                $event instanceof ProjectDeletedEvent => $this->handleProjectDeleted($event),
-                $event instanceof ProjectsBatchDeletedEvent => $this->handleProjectsBatchDeleted($event),
                 $event instanceof TopicDeletedEvent => $this->handleTopicDeleted($event),
                 default => null,
             };
@@ -54,34 +48,6 @@ class SandboxKeepAliveCleanupSubscriber implements ListenerInterface
                 'trace' => $throwable->getTraceAsString(),
             ]);
         }
-    }
-
-    private function handleProjectDeleted(ProjectDeletedEvent $event): void
-    {
-        $project = $event->getProjectEntity();
-        $affected = $this->sandboxKeepAliveDomainService->disableByProjectId(
-            $project->getId(),
-            'project deleted'
-        );
-
-        $this->logger->info('Disabled sandbox keep alive records for deleted project', [
-            'project_id' => $project->getId(),
-            'affected' => $affected,
-        ]);
-    }
-
-    private function handleProjectsBatchDeleted(ProjectsBatchDeletedEvent $event): void
-    {
-        $projectIds = $event->getProjectIds();
-        $affected = $this->sandboxKeepAliveDomainService->disableByProjectIds(
-            $projectIds,
-            'project batch deleted'
-        );
-
-        $this->logger->info('Disabled sandbox keep alive records for batch deleted projects', [
-            'project_ids' => $projectIds,
-            'affected' => $affected,
-        ]);
     }
 
     private function handleTopicDeleted(TopicDeletedEvent $event): void

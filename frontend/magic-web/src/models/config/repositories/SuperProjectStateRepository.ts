@@ -2,72 +2,13 @@ import { GlobalBaseRepository } from "@/models/repository/GlobalBaseRepository"
 import { Storage } from "../../repository/Cache"
 import { logger } from "../../repository/logger"
 
-// 文件Tab信息接口
-interface CachedTabItem {
-	id: string
-	title: string
-	fileData: {
-		file_id: string
-		file_name?: string
-		filename?: string
-		display_filename?: string
-		file_extension?: string
-		relative_file_path?: string
-		display_config?: any
-		updated_at?: string
-	}
-	active: boolean
-	filePath?: string
-	display_config?: any
-}
-
-// 文件状态接口
-interface FileState {
-	tabs: CachedTabItem[]
-	activeTabId?: string
-	detailState?: {
-		autoDetail?: any
-		userDetail?: any
-	}
-	pptActiveIndexMap?: Record<string, number>
-	playbackTabExists?: boolean // 记录playback tab是否存在
-	playbackTabActive?: boolean // 记录playback tab是否激活
-}
-
-// 树形展开状态接口
-interface TreeState {
-	expandedKeys: string[]
-}
-
-// 搜索状态接口
-interface SearchState {
-	searchValue?: string
-	filters?: {
-		documents?: boolean
-		multimedia?: boolean
-		code?: boolean
-	}
-}
-
-// UI状态接口
-interface UIState {
-	sidebarCollapsed?: boolean
-	viewMode?: string
-	panelSizes?: number[]
-}
-
-// 项目状态缓存接口
-interface ProjectState {
-	id?: string
-	organization_code: string
-	project_id: string
-	fileState?: FileState
-	treeState?: TreeState
-	searchState?: SearchState
-	uiState?: UIState
-	createdAt?: number
-	updatedAt?: number
-}
+import type {
+	FileState,
+	ProjectState,
+	SearchState,
+	TreeState,
+	UIState,
+} from "./SuperProjectStateTypes"
 
 export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 	static readonly tableName = "super-project-state"
@@ -153,6 +94,7 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 	public async getProjectState(
 		organizationCode: string,
 		projectId: string,
+		{ indexedDBOnly = false }: { indexedDBOnly?: boolean } = {},
 	): Promise<ProjectState | undefined> {
 		// 参数验证
 		if (!organizationCode || !projectId) {
@@ -206,13 +148,16 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 				})
 			}
 
+			if (indexedDBOnly) throw error
+
 			// 尝试从内存缓存获取
 			try {
 				const cacheKey = this.getCacheKey(organizationCode, projectId)
 				const fallbackState = Storage.get(`${ProjectStateRepository.tableName}:${cacheKey}`)
 
 				if (fallbackState && this.validateProjectState(fallbackState)) {
-					return fallbackState
+					// 文件浏览状态只使用 IndexedDB；旧备用记录不能覆盖较新的 Tab 关闭结果。
+					return { ...fallbackState, fileState: undefined }
 				}
 			} catch (fallbackError) {
 				logger.error({
@@ -231,7 +176,10 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 	 * 保存项目状态缓存
 	 */
 	public async saveProjectState(
-		projectState: Omit<ProjectState, "id" | "createdAt" | "updatedAt">,
+		projectState: Omit<ProjectState, "id" | "createdAt" | "updatedAt" | "fileState"> & {
+			fileState?: Partial<FileState>
+		},
+		{ indexedDBOnly = false }: { indexedDBOnly?: boolean } = {},
 	): Promise<void> {
 		// 参数验证
 		if (!projectState.organization_code || !projectState.project_id) {
@@ -244,37 +192,40 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 				projectState.organization_code,
 				projectState.project_id,
 			)
-			let existingState: ProjectState | undefined
+			// 各调用方只提交自己拥有的字段；同一事务读取并合并，避免旧的详情或树状态覆盖刚关闭的 Tab。
+			await this.executeWithErrorHandling("saveProjectState", async () => {
+				const db = await this.getDB()
+				const table = db.table<ProjectState, string>(ProjectStateRepository.tableName)
+				await db.transaction("rw", table, async () => {
+					const existingState = await table.get(cacheKey)
+					const stateToSave: ProjectState = {
+						...existingState,
+						...projectState,
+						fileState: projectState.fileState
+							? { tabs: [], ...existingState?.fileState, ...projectState.fileState }
+							: existingState?.fileState,
+						id: cacheKey,
+						updatedAt: Date.now(),
+						createdAt: existingState?.createdAt || Date.now(),
+					}
 
-			try {
-				existingState = await this.get(cacheKey)
-			} catch (getError) {
-				logger.warn("Failed to get existing state, will create new", getError)
-			}
+					// 保存前验证
+					if (!this.validateProjectState(stateToSave)) {
+						logger.error({
+							eventKey: "project_state_validation_failed",
+							errorKind: "invalid_state",
+							message: "saveProjectState: Invalid state data",
+							// 项目状态可能包含完整内容和附件，只保留缓存键用于定位损坏记录。
+							context: { stateToSave },
+						})
+						return
+					}
 
-			const stateToSave: ProjectState = {
-				...existingState,
-				...projectState,
-				id: cacheKey,
-				updatedAt: Date.now(),
-				createdAt: existingState?.createdAt || Date.now(),
-			}
-
-			// 保存前验证
-			if (!this.validateProjectState(stateToSave)) {
-				logger.error({
-					eventKey: "project_state_validation_failed",
-					errorKind: "invalid_state",
-					message: "saveProjectState: Invalid state data",
-					// 项目状态可能包含完整内容和附件，只保留缓存键用于定位损坏记录。
-					context: { stateToSave },
+					// 净化数据，移除不可被 IndexedDB 结构化克隆的值（如 MobX Proxy、函数等）
+					const sanitizedState = this.sanitizeForStorage(stateToSave)
+					await table.put(sanitizedState)
 				})
-				return
-			}
-
-			// 净化数据，移除不可被 IndexedDB 结构化克隆的值（如 MobX Proxy、函数等）
-			const sanitizedState = this.sanitizeForStorage(stateToSave)
-			await this.put(sanitizedState)
+			})
 		} catch (error: any) {
 			// 检查是否是表不存在的错误（数据库版本未升级）
 			const isTableNotExistError =
@@ -298,25 +249,35 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 					context: { tableName: ProjectStateRepository.tableName },
 				})
 			}
+			if (indexedDBOnly) throw error
 		} finally {
 			// 同时保存到内存缓存（即使主保存失败）
 			try {
-				const cacheKey = this.getCacheKey(
-					projectState.organization_code,
-					projectState.project_id,
-				)
-				const existingState = Storage.get(`${ProjectStateRepository.tableName}:${cacheKey}`)
+				if (!indexedDBOnly) {
+					const cacheKey = this.getCacheKey(
+						projectState.organization_code,
+						projectState.project_id,
+					)
+					const existingState = Storage.get(
+						`${ProjectStateRepository.tableName}:${cacheKey}`,
+					)
 
-				const fallbackState = {
-					...existingState,
-					...projectState,
-					id: cacheKey,
-					updatedAt: Date.now(),
-					createdAt: existingState?.createdAt || Date.now(),
-				}
+					const fallbackState = {
+						...existingState,
+						...projectState,
+						// Local Storage 容量紧张；文件 Tab、顺序和管理器快照均不再复制到备用记录。
+						fileState: undefined,
+						id: cacheKey,
+						updatedAt: Date.now(),
+						createdAt: existingState?.createdAt || Date.now(),
+					}
 
-				if (this.validateProjectState(fallbackState)) {
-					Storage.set(`${ProjectStateRepository.tableName}:${cacheKey}`, fallbackState)
+					if (this.validateProjectState(fallbackState)) {
+						Storage.set(
+							`${ProjectStateRepository.tableName}:${cacheKey}`,
+							fallbackState,
+						)
+					}
 				}
 			} catch (fallbackError) {
 				logger.error({
@@ -337,21 +298,16 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 		projectId: string,
 		fileState: Partial<FileState>,
 	): Promise<void> {
-		const existingState = await this.getProjectState(organizationCode, projectId)
-
+		// 文件 Tab 与管理器共享 IndexedDB，不读取或写入容量受限的 Local Storage 备用记录。
 		// 合并文件状态，确保必需字段有默认值
-		const mergedFileState: FileState = {
-			tabs: [],
-			...existingState?.fileState,
-			...fileState,
-		}
-
-		await this.saveProjectState({
-			organization_code: organizationCode,
-			project_id: projectId,
-			...existingState,
-			fileState: mergedFileState,
-		})
+		await this.saveProjectState(
+			{
+				organization_code: organizationCode,
+				project_id: projectId,
+				fileState,
+			},
+			{ indexedDBOnly: true },
+		)
 	}
 
 	/**
@@ -362,12 +318,9 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 		projectId: string,
 		treeState: TreeState,
 	): Promise<void> {
-		const existingState = await this.getProjectState(organizationCode, projectId)
-
 		await this.saveProjectState({
 			organization_code: organizationCode,
 			project_id: projectId,
-			...existingState,
 			treeState,
 		})
 	}
@@ -380,12 +333,9 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 		projectId: string,
 		searchState: SearchState,
 	): Promise<void> {
-		const existingState = await this.getProjectState(organizationCode, projectId)
-
 		await this.saveProjectState({
 			organization_code: organizationCode,
 			project_id: projectId,
-			...existingState,
 			searchState,
 		})
 	}
@@ -398,12 +348,9 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 		projectId: string,
 		uiState: UIState,
 	): Promise<void> {
-		const existingState = await this.getProjectState(organizationCode, projectId)
-
 		await this.saveProjectState({
 			organization_code: organizationCode,
 			project_id: projectId,
-			...existingState,
 			uiState,
 		})
 	}
@@ -771,4 +718,11 @@ if (typeof window !== "undefined") {
 }
 
 // 导出类型供其他模块使用
-export type { ProjectState, CachedTabItem, FileState, TreeState, SearchState, UIState }
+export type {
+	ProjectState,
+	CachedTabItem,
+	FileState,
+	TreeState,
+	SearchState,
+	UIState,
+} from "./SuperProjectStateTypes"

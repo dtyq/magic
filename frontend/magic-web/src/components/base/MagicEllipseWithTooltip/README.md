@@ -2,6 +2,8 @@
 
 `MagicEllipseWithTooltip` 是一个智能的文本省略组件，当文本超出指定宽度时自动显示省略号，并在鼠标悬停时通过工具提示显示完整文本。
 
+组件选择、触发范围与定位遵循统一的 [Tooltip 使用规范](../MagicTooltip/README.md)。本组件保留 antd 实现，进入等待使用公共 `TOOLTIP_DELAY_DURATION`，按毫秒换算为秒；不另外维护一套等待规则。
+
 ## 属性
 
 | 属性名            | 类型   | 默认值 | 说明                                                     |

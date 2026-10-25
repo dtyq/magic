@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useHotkeys } from "react-hotkeys-hook"
-import { type Editor } from "@tiptap/react"
+import { type Editor } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
@@ -10,7 +10,7 @@ import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 // --- Lib ---
-import { isExtensionAvailable } from "@/lib/tiptap-utils"
+import { isExtensionAvailable } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Icons ---
 import { ImagePlusIcon } from "@/components/tiptap-icons/image-plus-icon"

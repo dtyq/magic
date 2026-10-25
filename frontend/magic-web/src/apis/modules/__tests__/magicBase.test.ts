@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
-import type { HttpClient } from "@/apis/core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import { generateMagicBaseApi, normalizeMagicBaseTable } from "../magicBase"
 
-type MagicBaseHttpClientMock = Pick<HttpClient, "get" | "post" | "patch">
+type MagicBaseHttpClientMock = Pick<ServiceHttpClient, "get" | "post" | "patch">
 
 describe("MagicBaseApi", () => {
 	it("normalizes large ids to strings", () => {
@@ -36,7 +36,7 @@ describe("MagicBaseApi", () => {
 			post: vi.fn().mockResolvedValue({ page: 1, page_size: 20, total: 0, list: [] }),
 			patch: vi.fn().mockResolvedValue({ id: "row-1" }),
 		}
-		const api = generateMagicBaseApi(client as HttpClient)
+		const api = generateMagicBaseApi(client as ServiceHttpClient)
 
 		await api.getTables("project-1")
 		await api.getTable("project-1", "table-1")
@@ -77,7 +77,7 @@ describe("MagicBaseApi", () => {
 			post: vi.fn().mockResolvedValue({ id: "row-1" }),
 			patch: vi.fn().mockResolvedValue({ id: "row-1" }),
 		}
-		const api = generateMagicBaseApi(client as HttpClient)
+		const api = generateMagicBaseApi(client as ServiceHttpClient)
 
 		await api.createRow("project-1", "table-1", {
 			data: { brand: "Apple" },
@@ -123,7 +123,7 @@ describe("MagicBaseApi", () => {
 				columns: [],
 			}),
 		}
-		const api = generateMagicBaseApi(client as HttpClient)
+		const api = generateMagicBaseApi(client as ServiceHttpClient)
 		const dynamicPermissions = {
 			table: { read_scope: "public", insert_scope: "private_org" },
 			row: {

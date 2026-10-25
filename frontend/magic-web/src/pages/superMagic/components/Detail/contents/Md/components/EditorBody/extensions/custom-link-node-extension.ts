@@ -1,5 +1,5 @@
 import { LinkNode, type LinkNodeOptions } from "@/components/tiptap-node/link-node"
-import { Plugin, TextSelection, PluginKey } from "@tiptap/pm/state"
+import { Plugin, TextSelection, PluginKey } from "@/infrastructure/editors/tiptap/pm-state"
 import {
 	TabDragData,
 	AttachmentDragData,
@@ -9,6 +9,12 @@ import {
 import { calculateRelativePath } from "@/utils/path"
 import { parseAnchorLink } from "@/utils/slug"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
+import { mergeAttributes } from "@/infrastructure/editors/tiptap/core"
+import { isMarkdownFileLink } from "@/pages/superMagic/utils/markdownFileReference"
+import { ReactMarkViewRenderer } from "@/infrastructure/editors/tiptap/react"
+import { MarkdownLinkMarkView } from "../components/MarkdownLinkMarkView"
+import type MarkdownIt from "markdown-it"
+import { installSpacedMarkdownFileLinks } from "@/pages/superMagic/utils/markdownFileLinkSyntax"
 
 export interface CustomLinkNodeOptions extends LinkNodeOptions {
 	/**
@@ -35,12 +41,74 @@ export interface CustomLinkNodeOptions extends LinkNodeOptions {
  * 2. Support for custom click behavior
  */
 export const CustomLinkNode = LinkNode.extend<CustomLinkNodeOptions>({
+	addStorage() {
+		const parent = this.parent?.()
+		return {
+			...parent,
+			markdown: {
+				...parent?.markdown,
+				parse: {
+					...parent?.markdown?.parse,
+					setup(md: MarkdownIt) {
+						parent?.markdown?.parse?.setup?.(md)
+						installSpacedMarkdownFileLinks(md)
+					},
+				},
+			},
+		}
+	},
+	addMarkView() {
+		return ReactMarkViewRenderer(MarkdownLinkMarkView)
+	},
 	addOptions() {
 		return {
 			...this.parent?.(),
 			onLinkClick: undefined,
 			documentPath: undefined,
 		}
+	},
+
+	parseHTML() {
+		return [
+			...(this.parent?.() || []),
+			{
+				tag: "a[data-file-href]",
+				getAttrs: (element) => ({
+					href: element.getAttribute("data-file-href"),
+					title: element.getAttribute("title"),
+				}),
+			},
+		]
+	},
+
+	addAttributes() {
+		const attributes = this.parent?.() || {}
+		return {
+			...attributes,
+			href: {
+				...attributes.href,
+				// 从只读预览复制的 HTML 仍还原原始目标，不能丢失 mark 的文件路径。
+				parseHTML: (element) =>
+					element.getAttribute("data-file-href") ?? element.getAttribute("href"),
+			},
+		}
+	},
+
+	renderHTML({ HTMLAttributes }) {
+		const attributes = mergeAttributes(this.options.HTMLAttributes || {}, HTMLAttributes)
+		const href = typeof attributes.href === "string" ? attributes.href : ""
+		// mark 始终保存原路径；只读 DOM 只提供文件操作，避免悬停／中键走前端路由。
+		if (!this.editor.isEditable && isMarkdownFileLink(href)) {
+			delete attributes.href
+			delete attributes.target
+			attributes["data-file-href"] = href
+			attributes.role = "button"
+			attributes.tabindex = "0"
+			attributes.class = [attributes.class, "cursor-pointer focus-visible:outline"]
+				.filter(Boolean)
+				.join(" ")
+		}
+		return ["a", attributes, 0]
 	},
 
 	addProseMirrorPlugins() {
@@ -57,12 +125,25 @@ export const CustomLinkNode = LinkNode.extend<CustomLinkNodeOptions>({
 				key: customLinkClickKey,
 				props: {
 					handleDOMEvents: {
+						keydown: (_view, event) => {
+							if (event.key !== "Enter" && event.key !== " ") return false
+							const target = event.target
+							if (!(target instanceof HTMLElement)) return false
+							const link = target.closest<HTMLAnchorElement>("a[data-file-href]")
+							if (!link) return false
+							event.preventDefault()
+							// 键盘激活走与鼠标相同的已注册点击处理，不能生成另一套文件打开行为。
+							link.click()
+							return true
+						},
 						click: (_view, event) => {
 							const target = event.target as HTMLElement
 							const linkElement = target.closest("a")
 
 							if (linkElement) {
-								const href = linkElement.getAttribute("href")
+								const href =
+									linkElement.getAttribute("data-file-href") ??
+									linkElement.getAttribute("href")
 								if (!href) return false
 
 								// Call custom click handler if provided (works in both editable and non-editable modes)
@@ -119,9 +200,7 @@ export const CustomLinkNode = LinkNode.extend<CustomLinkNodeOptions>({
 
 						try {
 							const parsedData = JSON.parse(customData) as
-								| TabDragData
-								| AttachmentDragData
-								| MultipleFilesDragData
+								TabDragData | AttachmentDragData | MultipleFilesDragData
 
 							// Check if it's a valid custom drag data type
 							if (!Object.values(DRAG_TYPE).includes(parsedData.type as DRAG_TYPE)) {
@@ -198,9 +277,9 @@ export const CustomLinkNode = LinkNode.extend<CustomLinkNodeOptions>({
 											// Calculate relative path from document to file
 											const href = documentPath
 												? calculateRelativePath(
-													documentPath,
-													fileRelativePath,
-												)
+														documentPath,
+														fileRelativePath,
+													)
 												: fileRelativePath
 											links.push({ href, title: fileName })
 										}
@@ -216,45 +295,49 @@ export const CustomLinkNode = LinkNode.extend<CustomLinkNodeOptions>({
 							}
 
 							return (
-								runActiveEditor(this.editor, (editor) => {
-									// Insert links sequentially
-									links.forEach((link, index) => {
-										if (index > 0) {
-											// Add space between multiple links
-											editor.chain().insertContent(" ").run()
-										}
+								runActiveEditor(
+									this.editor,
+									(editor) => {
+										// Insert links sequentially
+										links.forEach((link, index) => {
+											if (index > 0) {
+												// Add space between multiple links
+												editor.chain().insertContent(" ").run()
+											}
 
-										// Encode URL if it contains spaces to ensure markdown parsing works correctly
-										// According to Markdown spec, URLs with spaces should be URL-encoded
-										// We use encodeURI to preserve path structure while encoding spaces
-										let encodedHref = link.href
-										if (link.href && /[\s<>]/.test(link.href)) {
-											// Use encodeURI to encode spaces while preserving path separators and other valid characters
-											// This ensures markdown parsing works while maintaining valid URLs for HTML rendering
-											encodedHref = encodeURI(link.href)
-										}
+											// Encode URL if it contains spaces to ensure markdown parsing works correctly
+											// According to Markdown spec, URLs with spaces should be URL-encoded
+											// We use encodeURI to preserve path structure while encoding spaces
+											let encodedHref = link.href
+											if (link.href && /[\s<>]/.test(link.href)) {
+												// Use encodeURI to encode spaces while preserving path separators and other valid characters
+												// This ensures markdown parsing works while maintaining valid URLs for HTML rendering
+												encodedHref = encodeURI(link.href)
+											}
 
-										// Insert link with title
-										editor
-											.chain()
-											.insertContent({
-												type: "text",
-												text: link.title,
-												marks: [
-													{
-														type: "link",
-														attrs: {
-															href: encodedHref,
-															title: link.title,
+											// Insert link with title
+											editor
+												.chain()
+												.insertContent({
+													type: "text",
+													text: link.title,
+													marks: [
+														{
+															type: "link",
+															attrs: {
+																href: encodedHref,
+																title: link.title,
+															},
 														},
-													},
-												],
-											})
-											.run()
-									})
+													],
+												})
+												.run()
+										})
 
-									return true
-								}, false) ?? false
+										return true
+									},
+									false,
+								) ?? false
 							)
 						} catch (error) {
 							console.error("Error parsing drag data:", error)

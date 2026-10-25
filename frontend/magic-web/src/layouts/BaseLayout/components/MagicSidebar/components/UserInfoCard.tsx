@@ -1,11 +1,12 @@
 import { ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { lazy } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn-ui/avatar"
 import { preloadUserMenus } from "../../Header/utils/preloadUserMenus"
 import DropdownLazyLoadWrapper from "../DropdownLazyLoadWrapper"
 import UserAvatarRender from "@/components/business/UserAvatarRender"
+import { getAvatarUrl } from "@/utils/avatar"
 import UserPlanInfo from "@/layouts/BaseLayout/components/MagicSidebar/components/UserPlanInfo"
 import { useTranslation } from "react-i18next"
 import { userStore } from "@/models/user"
@@ -16,9 +17,10 @@ const UserMenus = lazy(() => import("../../UserMenus"))
 
 interface UserInfoCardProps {
 	collapsed: boolean
+	onOpenChange?: (open: boolean) => void
 }
 
-function UserInfoCard({ collapsed }: UserInfoCardProps) {
+function UserInfoCard({ collapsed, onOpenChange }: UserInfoCardProps) {
 	const { t } = useTranslation("sidebar")
 	const { userInfo } = userStore.user
 
@@ -30,12 +32,16 @@ function UserInfoCard({ collapsed }: UserInfoCardProps) {
 			>
 				<DropdownLazyLoadWrapper
 					component={UserMenus}
-					componentProps={{ placement: "right", initialOpen: true }}
+					componentProps={{ placement: "right", initialOpen: true, onOpenChange }}
 					onPreload={preloadUserMenus}
 				>
 					<div className="w-full cursor-pointer">
 						<Avatar className="h-8 w-8 rounded-lg">
-							<AvatarImage src={userInfo?.avatar} />
+							<AvatarImage
+								src={
+									userInfo?.avatar ? getAvatarUrl(userInfo.avatar, 32) : undefined
+								}
+							/>
 							<AvatarFallback className="rounded-lg">
 								{userInfo?.nickname?.[0]}
 							</AvatarFallback>
@@ -53,7 +59,7 @@ function UserInfoCard({ collapsed }: UserInfoCardProps) {
 		>
 			<DropdownLazyLoadWrapper
 				component={UserMenus}
-				componentProps={{ placement: "right", initialOpen: true }}
+				componentProps={{ placement: "right", initialOpen: true, onOpenChange }}
 				onPreload={preloadUserMenus}
 			>
 				<div

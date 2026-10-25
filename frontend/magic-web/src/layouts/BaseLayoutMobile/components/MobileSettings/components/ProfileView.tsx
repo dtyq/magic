@@ -37,7 +37,13 @@ export function MobileSettingsProfileView(props: MobileSettingsProfileViewProps)
 	} = props
 
 	const avatarNode = (
-		<MagicAvatar src={avatar} size={96} style={{ borderRadius: 9999 }} className="shadow-sm">
+		<MagicAvatar
+			src={avatar}
+			size={96}
+			shape="circle"
+			imgClassName="!rounded-full"
+			className="shadow-sm"
+		>
 			{nickname || "?"}
 		</MagicAvatar>
 	)
@@ -57,7 +63,7 @@ export function MobileSettingsProfileView(props: MobileSettingsProfileViewProps)
 						type="button"
 						onClick={onPickAvatar}
 						disabled={isAvatarActionDisabled}
-						className="relative rounded-full transition-opacity active:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+						className="relative rounded-full transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
 						aria-label={avatarAriaLabel}
 						data-testid="mobile-settings-profile-avatar-button"
 					>
@@ -91,8 +97,9 @@ export function MobileSettingsProfileView(props: MobileSettingsProfileViewProps)
 							onChange={(event) => onNicknameChange(event.target.value)}
 							onKeyDown={handleNicknameKeyDown}
 							placeholder={nicknamePlaceholder}
+							aria-label={nicknameLabel}
 							autoFocus
-							className="h-12 rounded-none border-0 bg-transparent px-3.5 text-base shadow-none focus-visible:ring-0"
+							className="h-12 rounded-none border-0 bg-transparent px-3.5 text-base shadow-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
 							data-testid="mobile-settings-profile-nickname-input"
 						/>
 					</div>

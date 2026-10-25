@@ -9,10 +9,13 @@ namespace App\Application\Chat\Service\Mention\Normalizer;
 
 use App\Application\Chat\Service\Mention\AbstractMentionNormalizer;
 use App\Application\MCP\Service\MCPServerAppService;
+use App\Application\MCP\Utils\MCPAuthorizationReferenceBuilder;
 use App\Application\MCP\Utils\MCPServerConfigUtil;
+use App\Domain\MCP\Constant\ServiceConfigAuthType;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -82,11 +85,24 @@ class McpMentionNormalizer extends AbstractMentionNormalizer
         $config = $serverConfig->toArray();
         $config['name'] = $mcpServer->getName();
         $config['description'] = $mcpServer->getDescription();
+        if ($this->isMcpAuthorizationServer($mcpServer)) {
+            $config = MCPAuthorizationReferenceBuilder::build($config, $mcpServer->getCode());
+        }
 
         return [
             'name' => $mcpServer->getName(),
             'description' => $mcpServer->getDescription(),
             'config' => $config,
         ];
+    }
+
+    /**
+     * 判断 MCP Server 是否使用标准 MCP Authorization 凭据引用模式。
+     */
+    private function isMcpAuthorizationServer(MCPServerEntity $mcpServer): bool
+    {
+        $serviceConfig = $mcpServer->getServiceConfig();
+        return $serviceConfig instanceof ExternalSSEServiceConfig
+            && $serviceConfig->getAuthType() === ServiceConfigAuthType::MCP_AUTHORIZATION;
     }
 }

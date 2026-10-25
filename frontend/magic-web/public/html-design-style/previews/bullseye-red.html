@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BULLSEYE RED // High-Impact Flash Clearance & Retail Deals</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+    :root {
+      --target-red: #cc0000; --target-red-hover: #a30000; --target-red-dim: #ffeeee;
+      --target-dark: #212121; --target-text-muted: #666666; --target-bg: #f7f7f7;
+      --target-surface: #fff; --target-border: #e0e0e0; --target-gold: #f5a623;
+      --target-green: #238636; --font-main: 'Inter', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--target-bg); color: var(--target-dark); font-family: var(--font-main); line-height: 1.45; -webkit-font-smoothing: antialiased; }
+    .top-promo-bar { background: var(--target-red); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 6px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .promo-highlight { background: #fff; color: var(--target-red); padding: 2px 8px; border-radius: 9999px; font-weight: 800; margin-right: 6px; }
+    header.retail-nav { background: #fff; border-bottom: 1px solid var(--target-border); padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .brand-logo-wrap { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--target-dark); }
+    .target-bullseye-svg { width: 36px; height: 36px; flex-shrink: 0; }
+    .brand-title { font-size: 20px; font-weight: 900; letter-spacing: -0.03em; text-transform: uppercase; line-height: 1; }
+    .brand-title span { color: var(--target-red); }
+    .nav-categories { display: flex; align-items: center; gap: 18px; list-style: none; font-size: 13px; font-weight: 600; }
+    .nav-categories a { color: var(--target-dark); text-decoration: none; transition: color 0.15s; }
+    .nav-categories a:hover, .nav-categories a.deal-link { color: var(--target-red); }
+    .search-container { flex: 1; max-width: 380px; position: relative; }
+    .search-input { width: 100%; height: 38px; background: var(--target-bg); border: 1px solid var(--target-border); border-radius: 9999px; padding: 0 16px 0 38px; font-size: 13px; outline: none; }
+    .search-input:focus { background: #fff; border-color: var(--target-red); }
+    .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--target-text-muted); }
+    .nav-user-actions { display: flex; align-items: center; gap: 16px; font-size: 13px; font-weight: 600; }
+    .cart-badge-btn { background: var(--target-red); color: #fff; border: none; border-radius: 9999px; padding: 7px 16px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; cursor: pointer; }
+    .container { max-width: 1260px; margin: 0 auto; padding: 20px 24px 48px; }
+    .hero-clearance-banner { background: linear-gradient(135deg, #cc0000 0%, #b30000 50%, #880000 100%); color: #fff; border-radius: 16px; padding: 30px 34px; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 28px; position: relative; overflow: hidden; box-shadow: 0 12px 36px rgba(204,0,0,0.28); margin-bottom: 24px; }
+    .hero-bg-bullseye { position: absolute; right: -80px; top: -80px; width: 480px; height: 480px; opacity: 0.12; pointer-events: none; }
+    .hero-left-content { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: center; }
+    .badge-clearance { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; width: fit-content; }
+    .hero-headline { font-size: 46px; font-weight: 900; line-height: 1.05; letter-spacing: -0.03em; text-transform: uppercase; margin-bottom: 10px; }
+    .hero-headline span.gold-txt { color: #fff275; }
+    .hero-subhead { font-size: 14px; line-height: 1.45; color: rgba(255,255,255,0.92); margin-bottom: 18px; max-width: 480px; }
+    .countdown-card { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 10px 16px; display: inline-flex; align-items: center; gap: 14px; margin-bottom: 20px; width: fit-content; }
+    .timer-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #fff275; }
+    .timer-digits-row { display: flex; align-items: center; gap: 5px; }
+    .timer-unit { display: flex; flex-direction: column; align-items: center; }
+    .timer-num { background: #fff; color: var(--target-red); font-size: 17px; font-weight: 900; padding: 3px 7px; border-radius: 5px; min-width: 32px; text-align: center; }
+    .timer-colon { font-size: 17px; font-weight: 900; color: #fff; }
+    .timer-sub { font-size: 8.5px; font-weight: 700; color: rgba(255,255,255,0.8); margin-top: 2px; text-transform: uppercase; }
+    .hero-actions { display: flex; align-items: center; gap: 12px; }
+    .btn-hero-primary { background: #fff; color: var(--target-red); border: none; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 0.02em; }
+    .btn-hero-primary:hover { background: #fff5f5; }
+    .btn-hero-secondary { background: transparent; color: #fff; border: 2px solid #fff; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .hero-spotlight-item { background: #fff; border-radius: 14px; padding: 18px; color: var(--target-dark); box-shadow: 0 16px 36px rgba(0,0,0,0.24); display: flex; flex-direction: column; justify-content: space-between; position: relative; z-index: 2; }
+    .deal-badge-pill { position: absolute; top: 12px; left: 12px; background: var(--target-red); color: #fff; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 9999px; z-index: 3; }
+    .spotlight-art-container { height: 160px; background: #fbfbfb; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+    .spotlight-details { margin-top: 12px; }
+    .brand-eyebrow { font-size: 10.5px; font-weight: 700; color: var(--target-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .spotlight-title { font-size: 15px; font-weight: 700; margin: 3px 0 5px; line-height: 1.25; }
+    .rating-row { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--target-text-muted); margin-bottom: 8px; }
+    .stars { color: var(--target-gold); font-size: 12px; }
+    .price-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+    .price-sale { font-size: 24px; font-weight: 900; color: var(--target-red); letter-spacing: -0.02em; }
+    .price-orig { font-size: 14px; color: var(--target-text-muted); text-decoration: line-through; }
+    .save-tag { background: #e6f7ec; color: var(--target-green); font-size: 10.5px; font-weight: 700; padding: 2px 5px; border-radius: 4px; }
+    .spotlight-add-btn { width: 100%; background: var(--target-red); color: #fff; border: none; border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .spotlight-add-btn:hover { background: var(--target-red-hover); }
+    .deal-categories-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 28px; }
+    .cat-chip { background: #fff; border: 1px solid var(--target-border); border-radius: 12px; padding: 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--target-dark); transition: all 0.2s; }
+    .cat-chip:hover { border-color: var(--target-red); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    .cat-icon-circle { width: 38px; height: 38px; border-radius: 50%; background: var(--target-red-dim); color: var(--target-red); display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0; }
+    .cat-name { font-size: 13px; font-weight: 700; }
+    .cat-discount { font-size: 11px; color: var(--target-red); font-weight: 700; }
+    .section-header-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; border-bottom: 2px solid var(--target-border); padding-bottom: 8px; }
+    .section-title { font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+    .view-all-link { color: var(--target-red); font-size: 13px; font-weight: 700; text-decoration: none; }
+    .products-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .retail-card { background: #fff; border-radius: 12px; padding: 18px; border: 1px solid var(--target-border); display: flex; flex-direction: column; justify-content: space-between; position: relative; transition: all 0.2s; }
+    .retail-card:hover { transform: translateY(-3px); border-color: var(--target-red); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+    .card-discount-badge { position: absolute; top: 12px; left: 12px; background: var(--target-red); color: #fff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px; z-index: 2; }
+    .card-thumb-frame { height: 140px; background: #fafafa; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+    .card-title { font-size: 14px; font-weight: 700; margin: 4px 0; line-height: 1.3; }
+    .card-meta { font-size: 11px; color: var(--target-text-muted); margin-bottom: 8px; }
+    .card-btn { width: 100%; background: var(--target-bg); color: var(--target-dark); border: 1px solid var(--target-border); border-radius: 6px; padding: 8px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 10px; transition: all 0.15s; }
+    .retail-card:hover .card-btn { background: var(--target-red); color: #fff; border-color: var(--target-red); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Announcement Promo Bar -->
+  <div class="top-promo-bar">
+    <div>
+      <span class="promo-highlight">FLASH CLEARANCE</span>
+      <span>SAVE 50% TODAY ACROSS ALL MAJOR CATEGORIES • USE PROMO CODE: FLASH50</span>
+    </div>
+    <div>2-HOUR CURBSIDE PICKUP AVAILABLE NOW</div>
+  </div>
+
+  <!-- Main Retail Navigation -->
+  <header class="retail-nav">
+    <a href="#" class="brand-logo-wrap">
+      <svg class="target-bullseye-svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#cc0000" /><circle cx="50" cy="50" r="30" fill="#ffffff" /><circle cx="50" cy="50" r="15" fill="#cc0000" /></svg>
+      <div>
+        <div class="brand-title">BULLSEYE <span>RED</span></div>
+        <div style="font-size:9.5px; font-weight:700; color:var(--target-text-muted); letter-spacing:0.04em;">SUPERIOR VALUE RETAIL</div>
+      </div>
+    </a>
+    <ul class="nav-categories">
+      <li><a href="#" class="deal-link" style="color:var(--target-red); font-weight:800;">🔥 Deals & Clearance</a></li>
+      <li><a href="#">Electronics</a></li><li><a href="#">Home & Patio</a></li><li><a href="#">Apparel</a></li><li><a href="#">Grocery</a></li>
+    </ul>
+    <div class="search-container">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" class="search-input" placeholder="Search 50% off clearance deals, items...">
+    </div>
+    <div class="nav-user-actions">
+      <div style="font-size:12px; line-height:1.2; text-align:right;"><span style="color:var(--target-text-muted); font-size:10px;">MY STORE</span><br><strong>Northside Mall</strong></div>
+      <button class="cart-badge-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+        <span>Cart [3]</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero-clearance-banner">
+      <svg class="hero-bg-bullseye" viewBox="0 0 200 200"><circle cx="100" cy="100" r="90" fill="none" stroke="#ffffff" stroke-width="18" /><circle cx="100" cy="100" r="50" fill="none" stroke="#ffffff" stroke-width="18" /><circle cx="100" cy="100" r="15" fill="#ffffff" /></svg>
+      <div class="hero-left-content">
+        <div class="badge-clearance"><span>⚡ OFFICIAL CLEARANCE DROP</span></div>
+        <h1 class="hero-headline">SAVE 50% <span class="gold-txt">TODAY</span></h1>
+        <p class="hero-subhead">Unstoppable sitewide markdowns on high-performance audio, premium electronics, smart home tech, and seasonal home goods.</p>
+        <div class="countdown-card">
+          <div class="timer-label">CLEARANCE CLOSES IN:</div>
+          <div class="timer-digits-row">
+            <div class="timer-unit"><div class="timer-num">04</div><div class="timer-sub">Hours</div></div><span class="timer-colon">:</span>
+            <div class="timer-unit"><div class="timer-num">18</div><div class="timer-sub">Mins</div></div><span class="timer-colon">:</span>
+            <div class="timer-unit"><div class="timer-num">29</div><div class="timer-sub">Secs</div></div>
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          <button class="btn-hero-primary">SHOP 50% OFF NOW →</button>
+          <button class="btn-hero-secondary">VIEW DOORBUSTERS</button>
+        </div>
+      </div>
+
+      <!-- Right Hero Column: 3D Product Spotlight Box -->
+      <div class="hero-spotlight-item">
+        <span class="deal-badge-pill">SAVE 50% TODAY</span>
+        
+        <div class="spotlight-art-container">
+          <svg viewBox="0 0 200 160" width="160" height="130">
+            <ellipse cx="100" cy="140" rx="60" ry="12" fill="rgba(0,0,0,0.06)" />
+            <path d="M 50 95 C 50 45, 150 45, 150 95" fill="none" stroke="#212121" stroke-width="14" stroke-linecap="round" />
+            <path d="M 60 95 C 60 55, 140 55, 140 95" fill="none" stroke="#cc0000" stroke-width="4" stroke-linecap="round" />
+            <rect x="36" y="85" width="26" height="42" rx="12" fill="#212121" />
+            <rect x="42" y="90" width="14" height="32" rx="6" fill="#cc0000" />
+            <rect x="138" y="85" width="26" height="42" rx="12" fill="#212121" />
+            <rect x="144" y="90" width="14" height="32" rx="6" fill="#cc0000" />
+          </svg>
+        </div>
+
+        <div class="spotlight-details">
+          <div class="brand-eyebrow">AURA ACOUSTICS // AUDIO CLEARANCE</div>
+          <h3 class="spotlight-title">Aura Studio ANC Wireless Headphones</h3>
+          <div class="rating-row"><span class="stars">★★★★★</span><span>4.9 (1,842 verified reviews)</span></div>
+          <div class="price-row"><span class="price-sale">$49.99</span><span class="price-orig">$99.99</span><span class="save-tag">50% OFF FLASH</span></div>
+          <button class="spotlight-add-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            <span>ADD TO CART • PICK UP IN 2H</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category Deal Chips Row -->
+    <section class="deal-categories-bar">
+      <a href="#" class="cat-chip"><div class="cat-icon-circle">50%</div><div><div class="cat-name">Electronics</div><div class="cat-discount">Up to 50% Off</div></div></a>
+      <a href="#" class="cat-chip"><div class="cat-icon-circle">40%</div><div><div class="cat-name">Home Living</div><div class="cat-discount">Save 40% Today</div></div></a>
+      <a href="#" class="cat-chip"><div class="cat-icon-circle">60%</div><div><div class="cat-name">Kitchen Tech</div><div class="cat-discount">Mega Clearance</div></div></a>
+      <a href="#" class="cat-chip"><div class="cat-icon-circle">35%</div><div><div class="cat-name">Sporting Goods</div><div class="cat-discount">Exclusive Drops</div></div></a>
+      <a href="#" class="cat-chip"><div class="cat-icon-circle">50%</div><div><div class="cat-name">Beauty & Care</div><div class="cat-discount">Buy 1 Get 1 50%</div></div></a>
+    </section>
+
+    <!-- Curated Product Showcase Section -->
+    <section>
+      <div class="section-header-row">
+        <div class="section-title">
+          <svg width="22" height="22" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="46" fill="#cc0000" /><circle cx="50" cy="50" r="30" fill="#ffffff" /><circle cx="50" cy="50" r="14" fill="#cc0000" />
+          </svg>
+          <span>TOP FLASH CLEARANCE PICKS</span>
+        </div>
+        <a href="#" class="view-all-link">VIEW ALL 840+ ITEMS →</a>
+      </div>
+
+      <div class="products-grid">
+        <div class="retail-card">
+          <span class="card-discount-badge">SAVE 50%</span>
+          <div class="card-thumb-frame"><svg viewBox="0 0 140 100" width="120" height="85"><rect x="15" y="10" width="110" height="65" rx="4" fill="#111" stroke="#444" stroke-width="2"/><rect x="20" y="15" width="100" height="55" fill="#cc0000" opacity="0.85"/><polygon points="20,70 120,70 70,30" fill="#b30000"/><rect x="62" y="75" width="16" height="12" fill="#555"/><rect x="45" y="87" width="50" height="4" rx="2" fill="#333"/></svg></div>
+          <div><div class="card-meta">VISIONTECH // 4K DISPLAYS</div><div class="card-title">55" Crystal UHD 4K Smart Cinema Television</div><div class="stars">★★★★★ <span style="color:#666;font-size:11px;">(4.8)</span></div><div class="price-row" style="margin-top:6px;"><span class="price-sale" style="font-size:20px;">$249.99</span><span class="price-orig">$499.99</span></div></div>
+          <button class="card-btn">ADD TO CART</button>
+        </div>
+        <div class="retail-card">
+          <span class="card-discount-badge">SAVE 50%</span>
+          <div class="card-thumb-frame"><svg viewBox="0 0 140 100" width="120" height="85"><ellipse cx="70" cy="85" rx="40" ry="8" fill="#e0e0e0"/><rect x="40" y="30" width="60" height="50" rx="8" fill="#f5f5f5" stroke="#ccc" stroke-width="2"/><rect x="52" y="20" width="36" height="12" rx="3" fill="#212121"/><circle cx="70" cy="55" r="12" fill="#cc0000"/><rect x="55" y="72" width="30" height="8" rx="2" fill="#444"/></svg></div>
+          <div><div class="card-meta">BARISTA PRIME // KITCHEN</div><div class="card-title">Stainless Steel 15-Bar Compact Espresso Maker</div><div class="stars">★★★★★ <span style="color:#666;font-size:11px;">(4.9)</span></div><div class="price-row" style="margin-top:6px;"><span class="price-sale" style="font-size:20px;">$79.99</span><span class="price-orig">$159.99</span></div></div>
+          <button class="card-btn">ADD TO CART</button>
+        </div>
+        <div class="retail-card">
+          <span class="card-discount-badge">SAVE 50%</span>
+          <div class="card-thumb-frame"><svg viewBox="0 0 140 100" width="120" height="85"><ellipse cx="70" cy="82" rx="45" ry="8" fill="#e0e0e0"/><rect x="25" y="38" width="90" height="8" rx="2" fill="#a06030"/><line x1="35" y1="46" x2="35" y2="80" stroke="#333" stroke-width="4"/><line x1="105" y1="46" x2="105" y2="80" stroke="#333" stroke-width="4"/><rect x="50" y="24" width="22" height="14" rx="2" fill="#cc0000"/><line x1="61" y1="24" x2="61" y2="38" stroke="#ffffff" stroke-width="1.5"/></svg></div>
+          <div><div class="card-meta">NORDIC DESIGN // WORKSPACE</div><div class="card-title">Solid Oak Electric Ergonomic Standing Desk 48"</div><div class="stars">★★★★★ <span style="color:#666;font-size:11px;">(4.7)</span></div><div class="price-row" style="margin-top:6px;"><span class="price-sale" style="font-size:20px;">$119.00</span><span class="price-orig">$238.00</span></div></div>
+          <button class="card-btn">ADD TO CART</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</body>
+</html>

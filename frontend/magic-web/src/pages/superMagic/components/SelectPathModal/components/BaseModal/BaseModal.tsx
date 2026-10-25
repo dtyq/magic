@@ -2,15 +2,10 @@ import React, { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { IconSearch } from "@tabler/icons-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/shadcn-ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/shadcn-ui/dialog"
 import CommonPopup from "@/pages/superMagicMobile/components/CommonPopup"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { PopupProps } from "antd-mobile"
@@ -37,10 +32,14 @@ export interface BaseModalProps {
 	}
 	onClose?: () => void
 	width?: number
+	height?: number | string
+	maxHeight?: number | string
 	className?: string
 	/** 点击遮罩是否关闭，默认 false */
 	maskClosable?: boolean
 	customPopupProps?: PopupProps
+	/** Prefix for modal, close, and footer action test ids */
+	testId?: string
 }
 
 function BaseModal({
@@ -52,9 +51,12 @@ function BaseModal({
 	footer,
 	onClose,
 	width = 720,
+	height = 500,
+	maxHeight,
 	className,
 	maskClosable = false,
 	customPopupProps,
+	testId,
 }: BaseModalProps) {
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
@@ -119,6 +121,7 @@ function BaseModal({
 							variant="outline"
 							onClick={footer?.onCancel || handleCancel}
 							className="h-9 flex-[0_0_auto] rounded-lg px-8"
+							data-testid={testId ? `${testId}-cancel-button` : undefined}
 						>
 							{footer?.cancelText || t("common.cancel")}
 						</Button>
@@ -126,6 +129,7 @@ function BaseModal({
 							disabled={footer?.okDisabled}
 							onClick={footer?.onOk}
 							className="h-9 min-w-0 flex-1 rounded-lg px-4 py-2"
+							data-testid={testId ? `${testId}-confirm-button` : undefined}
 						>
 							{footer?.okText || t("common.confirm")}
 						</Button>
@@ -148,8 +152,12 @@ function BaseModal({
 				style={{
 					width: width,
 					minWidth: 720,
+					height,
+					maxHeight,
 				}}
 				showCloseButton
+				data-testid={testId}
+				closeButtonTestId={testId ? `${testId}-close-button` : undefined}
 				onInteractOutside={maskClosable ? undefined : (e) => e.preventDefault()}
 				onPointerDownOutside={maskClosable ? undefined : (e) => e.preventDefault()}
 			>
@@ -182,6 +190,7 @@ function BaseModal({
 								variant="outline"
 								className="mr-2.5 h-9 rounded-lg px-4 py-2"
 								onClick={footer.onCancel || handleCancel}
+								data-testid={testId ? `${testId}-cancel-button` : undefined}
 							>
 								{footer.cancelText || t("common.cancel")}
 							</Button>
@@ -189,6 +198,7 @@ function BaseModal({
 								disabled={footer.okDisabled}
 								onClick={footer.onOk}
 								className="h-9 rounded-lg px-4 py-2"
+								data-testid={testId ? `${testId}-confirm-button` : undefined}
 							>
 								{footer.okText || t("common.confirm")}
 							</Button>

@@ -61,6 +61,43 @@ describe("HTML permission storage fallback", () => {
 		expect(localStorage.getItem(LOCAL_STORAGE_HTML_PERMISSION_GRANT_STORE_KEY)).toBeNull()
 	})
 
+	it.each(["indexeddb", "fallback", "recovery"])(
+		"preserves remembered consent across reopening with %s",
+		async (storage) => {
+			if (storage === "indexeddb") vi.stubGlobal("indexedDB", new IDBFactory())
+			const firstStore = new IndexedDbHtmlPermissionGrantStore(() => 1_000_000)
+			const first = createService({ grantStore: firstStore })
+			await first.service.authorize("llm.use")
+			const instance = {
+				userId: "user-1",
+				projectId: "project-1",
+				appRootDir: "app/",
+				entryPath: "app/index.html",
+				entryFileId: "file-1",
+				content: "changed",
+				runtimeFingerprint: "runtime-v2",
+			}
+			const changed = createService({ grantStore: firstStore, appInstance: instance })
+			await changed.service.authorize("llm.use")
+			expect(changed.confirmCodeChange).toHaveBeenCalledOnce()
+			await closeHtmlPermissionGrantDatabaseForTest(firstStore)
+			if (storage === "recovery") vi.stubGlobal("indexedDB", new IDBFactory())
+			const reopenedStore = new IndexedDbHtmlPermissionGrantStore(() => 1_000_000)
+			const reopened = createService({
+				grantStore: reopenedStore,
+				appInstance: { ...instance, runtimeFingerprint: "runtime-v3" },
+			})
+			expect(await reopened.service.authorize("llm.use")).toBe(true)
+			expect(reopened.confirmPermission).not.toHaveBeenCalled()
+			expect(reopened.confirmCodeChange).not.toHaveBeenCalled()
+			if (storage === "recovery")
+				expect(
+					localStorage.getItem(LOCAL_STORAGE_HTML_PERMISSION_GRANT_FALLBACK_KEY),
+				).toBeNull()
+			await closeHtmlPermissionGrantDatabaseForTest(reopenedStore)
+		},
+	)
+
 	it("does not persist plaintext identity in the localStorage fallback", async () => {
 		const grantStore = new IndexedDbHtmlPermissionGrantStore(() => 1_000_000)
 		const { service } = createService({ grantStore })

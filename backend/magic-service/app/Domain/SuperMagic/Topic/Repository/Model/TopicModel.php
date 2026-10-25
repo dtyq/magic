@@ -41,7 +41,9 @@ class TopicModel extends AbstractModel
         'chat_conversation_id',
         'sandbox_id',
         'sandbox_config',
+        // Deprecated legacy column; use sandbox_images for new data.
         'agent_image',
+        'sandbox_images',
         'current_task_id',
         'current_task_status',
         'topic_mode',
@@ -81,6 +83,7 @@ class TopicModel extends AbstractModel
     ];
 
     protected array $casts = [
+        'sandbox_images' => 'array',
         'is_pinned' => 'boolean',
         'is_archived' => 'boolean',
         'last_read_message_id' => 'string',

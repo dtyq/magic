@@ -40,6 +40,10 @@ export const RendererWrapper = styled.div`
             width: 12px;
             height: 100%;
             margin-left: 4px;
+
+            &:not(.magic-tree-switcher-noop):hover::before {
+                background-color: transparent;
+            }
         }
         .magic-tree-treenode {
             margin: 0 0 4px 0;
@@ -47,8 +51,10 @@ export const RendererWrapper = styled.div`
             border-radius: 8px;
             position: relative;
 
+            // Keep tree rows visually neutral; Tabler icons should not inherit a
+            // colored hover surface that changes the row's perceived spacing.
             &:hover {
-                background: #EEF3FD;
+                background: transparent;
             }
 
             &.is-application {
@@ -78,7 +84,7 @@ export const RendererWrapper = styled.div`
                     height: 18px;
                     line-height: 1;
                     margin-right: 2px;
-                    .anticon, svg {
+                    svg {
                         width: 100%;
                         height: 100%;
                     }

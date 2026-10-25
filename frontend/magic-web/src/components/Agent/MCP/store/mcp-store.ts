@@ -19,6 +19,7 @@ export class MCPStore {
 
 	private readonly storage: MCPStorageService
 	private readonly persistMode: MCPPersistMode
+	private loadPromise: Promise<void> | null = null
 
 	constructor(storage: MCPStorageService, persistMode: MCPPersistMode = "ids") {
 		this.storage = storage
@@ -31,28 +32,33 @@ export class MCPStore {
 	}
 
 	async load() {
-		if (this.loading) return
+		if (this.loadPromise) return this.loadPromise
 
 		this.loading = true
-		try {
-			const mcpList = await this.storage.getMCP()
-			runInAction(() => {
-				this.mcpList = mcpList
-				const persistedEverAdded = readMcpPluginTipsEverAdded()
-				this.hasEverAddedMcp = persistedEverAdded || mcpList.length > 0
-				if (mcpList.length > 0 && !persistedEverAdded) writeMcpPluginTipsEverAdded()
-				this.initialized = true
-			})
-		} catch (error) {
-			runInAction(() => {
-				this.initialized = true
-			})
-			throw error
-		} finally {
-			runInAction(() => {
-				this.loading = false
-			})
-		}
+		this.loadPromise = (async () => {
+			try {
+				const mcpList = await this.storage.getMCP()
+				runInAction(() => {
+					this.mcpList = mcpList
+					const persistedEverAdded = readMcpPluginTipsEverAdded()
+					this.hasEverAddedMcp = persistedEverAdded || mcpList.length > 0
+					if (mcpList.length > 0 && !persistedEverAdded) writeMcpPluginTipsEverAdded()
+					this.initialized = true
+				})
+			} catch (error) {
+				runInAction(() => {
+					this.initialized = true
+				})
+				throw error
+			} finally {
+				runInAction(() => {
+					this.loading = false
+				})
+				this.loadPromise = null
+			}
+		})()
+
+		return this.loadPromise
 	}
 
 	async save({ selectedIds, items = [] }: SaveMCPPayload) {

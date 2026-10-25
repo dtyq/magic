@@ -8,6 +8,7 @@ import { MESSAGE_PROTOCOL_VERSION, MessageCategory } from "../../core/types"
 import type { RequestMessage } from "../../core/types"
 
 describe("EditorRuntime", () => {
+	const parentOrigin = window.location.origin
 	let runtime: EditorRuntime
 	let postMessageSpy: ReturnType<typeof vi.spyOn>
 
@@ -54,6 +55,48 @@ describe("EditorRuntime", () => {
 	})
 
 	describe("initialization", () => {
+		it("allows animation-only selection without text editing or delete shortcuts", async () => {
+			document.body.innerHTML = '<h1 id="title">Title</h1>'
+			await sendRuntimeRequest("SET_PPT_BUILD_MODE", { enabled: true })
+			await sendRuntimeRequest("REFRESH_SELECTED_ELEMENT", { selector: "#title" })
+			expect(document.querySelector("#title")?.getAttribute("contenteditable")).not.toBe(
+				"true",
+			)
+			window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", cancelable: true }))
+			expect(document.querySelector("#title")).not.toBeNull()
+			await sendRuntimeRequest("SET_PPT_BUILD_MARKERS", { visible: true })
+			expect(document.querySelector("[data-magic-ppt-build-markers]")).not.toBeNull()
+			await sendRuntimeRequest("SET_PPT_BUILD_MODE", { enabled: false })
+			expect(document.querySelector("[data-magic-ppt-build-markers]")).toBeNull()
+		})
+		it("guards build writes and disposes temporary markers on editor exit without dirtying history", async () => {
+			await sendRuntimeRequest("EXECUTE_COMMAND", {
+				category: MessageCategory.COMMAND,
+				commandType: "UPDATE_PPT_BUILDS",
+				payload: { updates: [] },
+			})
+			expect(postMessageSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					success: false,
+					error: expect.objectContaining({ message: "PPT_BUILD_EDIT_MODE_REQUIRED" }),
+				}),
+				parentOrigin,
+			)
+			await sendRuntimeRequest("ENTER_EDIT_MODE")
+			postMessageSpy.mockClear()
+			await sendRuntimeRequest("SET_PPT_BUILD_MARKERS", { visible: true })
+			expect(document.querySelector("[data-magic-ppt-build-markers]")).not.toBeNull()
+			expect(
+				postMessageSpy.mock.calls.some(([message]) => message.type === "CONTENT_CHANGED"),
+			).toBe(false)
+			await sendRuntimeRequest("EXIT_EDIT_MODE")
+			expect(document.querySelector("[data-magic-ppt-build-markers]")).toBeNull()
+			await sendRuntimeRequest("ENTER_EDIT_MODE")
+			await sendRuntimeRequest("SET_PPT_BUILD_MARKERS", { visible: true })
+			runtime.destroy()
+			expect(document.querySelector("[data-magic-ppt-build-markers]")).toBeNull()
+		})
+
 		it("should initialize successfully", () => {
 			expect(runtime).toBeDefined()
 		})
@@ -68,7 +111,7 @@ describe("EditorRuntime", () => {
 						version: "1.0.0",
 					}),
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 	})
@@ -100,7 +143,7 @@ describe("EditorRuntime", () => {
 					requestId: "req-123",
 					success: true,
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 
@@ -127,7 +170,7 @@ describe("EditorRuntime", () => {
 				expect.objectContaining({
 					success: true,
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 
@@ -157,8 +200,153 @@ describe("EditorRuntime", () => {
 						html: expect.any(String),
 					}),
 				}),
-				"*",
+				parentOrigin,
 			)
+		})
+
+		it("should handle GET_DOM_TREE request after runtime initialization", async () => {
+			const message: RequestMessage = {
+				version: MESSAGE_PROTOCOL_VERSION,
+				category: MessageCategory.REQUEST,
+				type: "GET_DOM_TREE",
+				requestId: "req-dom-tree",
+				timestamp: Date.now(),
+				source: "parent",
+				payload: {},
+			}
+
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: message,
+					source: window.parent,
+				}),
+			)
+
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			expect(postMessageSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					category: MessageCategory.RESPONSE,
+					type: "GET_DOM_TREE",
+					requestId: "req-dom-tree",
+					success: true,
+					payload: expect.objectContaining({
+						root: expect.objectContaining({ tagName: "body" }),
+					}),
+				}),
+				parentOrigin,
+			)
+		})
+
+		it("should return flex alignment styles after a style update", async () => {
+			document.body.innerHTML = `
+				<div id="flex-layout" style="display: flex; flex-wrap: wrap; align-content: space-between;">
+					<div>One</div>
+					<div>Two</div>
+				</div>
+			`
+
+			const message: RequestMessage = {
+				version: MESSAGE_PROTOCOL_VERSION,
+				category: MessageCategory.REQUEST,
+				type: "GET_COMPUTED_STYLES",
+				requestId: "req-computed-flex-styles",
+				timestamp: Date.now(),
+				source: "parent",
+				payload: { selector: "div#flex-layout" },
+			}
+
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: message,
+					source: window.parent,
+				}),
+			)
+
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			expect(postMessageSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "GET_COMPUTED_STYLES",
+					requestId: "req-computed-flex-styles",
+					success: true,
+					payload: expect.objectContaining({
+						styles: expect.objectContaining({
+							alignContent: "space-between",
+							flexWrap: "wrap",
+						}),
+					}),
+				}),
+				parentOrigin,
+			)
+		})
+	})
+
+	describe("host shortcut forwarding", () => {
+		function shortcutMessages() {
+			return postMessageSpy.mock.calls
+				.map(([data]) => data as { type?: string; source?: string })
+				.filter((data) => data?.source === "magic-html-iframe")
+		}
+
+		function press(key: string, init: KeyboardEventInit = {}) {
+			const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+			// A real keyboard reports an upper-case letter in `key` while Shift is held.
+			const realKey = init.shiftKey && key.length === 1 ? key.toUpperCase() : key
+			const event = new KeyboardEvent("keydown", {
+				key: realKey,
+				metaKey: isMac && Boolean(init.ctrlKey ?? init.metaKey),
+				ctrlKey: !isMac && Boolean(init.ctrlKey ?? init.metaKey),
+				shiftKey: init.shiftKey,
+				bubbles: true,
+				cancelable: true,
+			})
+			document.body.dispatchEvent(event)
+			return event
+		}
+
+		it("does nothing before edit mode starts", () => {
+			press("s", { ctrlKey: true })
+			press("Escape")
+			expect(shortcutMessages()).toEqual([])
+		})
+
+		it("forwards save, save-and-exit and cancel without touching the document", async () => {
+			const htmlBefore = document.documentElement.outerHTML
+			await sendRuntimeRequest("ENTER_EDIT_MODE")
+
+			const save = press("s", { ctrlKey: true })
+			press("s", { ctrlKey: true, shiftKey: true })
+			const escape = press("Escape")
+
+			expect(save.defaultPrevented).toBe(true)
+			expect(escape.defaultPrevented).toBe(true)
+			expect(shortcutMessages().map((data) => data.type)).toEqual([
+				"MAGIC_KEYBOARD_SAVE",
+				"MAGIC_KEYBOARD_SAVE_AND_EXIT",
+				"MAGIC_KEYBOARD_CANCEL",
+			])
+			expect(document.documentElement.outerHTML).toBe(htmlBefore)
+		})
+
+		it("recognises the shortcut when key is reported in upper case (Shift or Caps Lock)", async () => {
+			await sendRuntimeRequest("ENTER_EDIT_MODE")
+			// Caps Lock without Shift: upper-case key, Shift not pressed.
+			press("S", { ctrlKey: true })
+			// Shift held: the helper reports "S" like a real keyboard.
+			press("s", { ctrlKey: true, shiftKey: true })
+			expect(shortcutMessages().map((data) => data.type)).toEqual([
+				"MAGIC_KEYBOARD_SAVE",
+				"MAGIC_KEYBOARD_SAVE_AND_EXIT",
+			])
+		})
+
+		it("stops forwarding after the runtime is destroyed", async () => {
+			await sendRuntimeRequest("ENTER_EDIT_MODE")
+			runtime.destroy()
+			press("s", { ctrlKey: true })
+			expect(shortcutMessages()).toEqual([])
+			runtime = new EditorRuntime()
 		})
 	})
 
@@ -349,7 +537,8 @@ describe("EditorRuntime", () => {
 			window.dispatchEvent(ctrlEvent)
 
 			await vi.waitFor(() => {
-				expect(document.querySelectorAll("#shortcut-duplicate-target")).toHaveLength(2)
+				expect(document.querySelectorAll("#shortcut-duplicate-target")).toHaveLength(1)
+				expect(document.querySelector("#shortcut-duplicate-target-copy")).toBeTruthy()
 			})
 			expect(ctrlEvent.defaultPrevented).toBe(true)
 		})
@@ -370,7 +559,8 @@ describe("EditorRuntime", () => {
 			window.dispatchEvent(cmdEvent)
 
 			await vi.waitFor(() => {
-				expect(document.querySelectorAll("#shortcut-cmd-duplicate-target")).toHaveLength(2)
+				expect(document.querySelectorAll("#shortcut-cmd-duplicate-target")).toHaveLength(1)
+				expect(document.querySelector("#shortcut-cmd-duplicate-target-copy")).toBeTruthy()
 			})
 			expect(cmdEvent.defaultPrevented).toBe(true)
 		})
@@ -457,7 +647,7 @@ describe("EditorRuntime", () => {
 						isEditMode: true,
 					}),
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 
@@ -677,7 +867,7 @@ describe("EditorRuntime", () => {
 						isEditMode: false,
 					}),
 				}),
-				"*",
+				parentOrigin,
 			)
 		})
 

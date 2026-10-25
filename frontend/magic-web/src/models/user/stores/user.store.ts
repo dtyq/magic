@@ -5,6 +5,8 @@ import { isNumber, isBoolean, keyBy } from "lodash-es"
 import type { Admin } from "@/types/admin"
 import type { LongMemory } from "@/types/longMemory"
 import { isUnlimitedSubscription } from "../utils/subscription"
+import { hasMagicAdminPermission, hasTeamshareAdminIdentification } from "../utils/adminAccess"
+import { setWatermarkOrganizationType, syncUserWatermark } from "@/utils/watermark"
 
 export class UserStore {
 	authorization: string | null = localStorage.getItem(platformKey("store:authentication"))
@@ -47,6 +49,21 @@ export class UserStore {
 	/** 是否是管理员 */
 	isAdmin: boolean = false
 
+	/** 当前用户的真实权限 key */
+	userPermissions: string[] = []
+
+	/**
+	 * 是否展示管理后台入口。
+	 * 麦吉组织管理员 / 麦吉后台权限，或当前组织的天书超管、所有者、子管理员、天书后台子权限均可进入。
+	 */
+	get canAccessAdmin(): boolean {
+		return (
+			this.isAdmin ||
+			hasMagicAdminPermission(this.userPermissions) ||
+			hasTeamshareAdminIdentification(this.getOrganization()?.identifications)
+		)
+	}
+
 	/** 当前组织是否是个人组织 */
 	isPersonalOrganization: boolean = false
 
@@ -79,6 +96,11 @@ export class UserStore {
 
 	setUserInfo = (userInfo: User.UserInfo | null) => {
 		this.userInfo = userInfo
+		syncUserWatermark(userInfo)
+		if (!userInfo) {
+			this.setIsAdmin(false)
+			this.setUserPermissions([])
+		}
 	}
 
 	setOrganizationCode = (organizationCode: string) => {
@@ -135,6 +157,10 @@ export class UserStore {
 		this.isAdmin = isAdmin
 	}
 
+	setUserPermissions = (permissions: string[]) => {
+		this.userPermissions = Array.from(new Set(permissions))
+	}
+
 	setOrganizationSubscriptionInfo = (
 		organizationSubscriptionInfo: Admin.SubscriptionInfo | null,
 	) => {
@@ -177,6 +203,7 @@ export class UserStore {
 	setIsPersonalOrganization = (isPersonalOrganization: boolean) => {
 		if (isBoolean(isPersonalOrganization)) {
 			this.isPersonalOrganization = isPersonalOrganization
+			setWatermarkOrganizationType(isPersonalOrganization)
 		}
 	}
 

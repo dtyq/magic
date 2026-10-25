@@ -1,0 +1,43 @@
+.html-editor-tick {
+	transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.group\/resize:hover .html-editor-tick,
+.group\/resize:active .html-editor-tick {
+	transform: translate(var(--tick-dx, 0px), var(--tick-dy, 0px));
+}
+
+@keyframes html-editor-knob-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes html-editor-knob-breathe {
+	0%,
+	100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.08);
+	}
+}
+
+.html-editor-knob-spin {
+	animation: html-editor-knob-spin 10s linear infinite;
+}
+
+.html-editor-knob-breathe {
+	animation: html-editor-knob-breathe 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.html-editor-tick {
+		transition: none;
+	}
+
+	.html-editor-knob-spin,
+	.html-editor-knob-breathe {
+		animation: none;
+	}
+}

@@ -11,7 +11,7 @@ function escapeRegex(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
-function replaceFirst(text: string, pattern: RegExp, replacement: string): string {
+function replaceAll(text: string, pattern: RegExp, replacement: string): string {
 	return text.replace(pattern, replacement)
 }
 
@@ -24,9 +24,11 @@ export function encodePromptMentionsToPlaceholders(
 	for (let index = 0; index < references.length; index += 1) {
 		const fileName = references[index]?.fileName?.trim()
 		if (!fileName) continue
-		const mentionPattern = new RegExp(`@${escapeRegex(fileName)}`, "i")
+		const mentionPattern = new RegExp(`@${escapeRegex(fileName)}`, "gi")
 		if (!mentionPattern.test(encoded)) continue
-		encoded = replaceFirst(encoded, mentionPattern, options.buildToken(index + 1))
+		// Reset lastIndex after test(); replace every repeated @fileName with the same token.
+		mentionPattern.lastIndex = 0
+		encoded = replaceAll(encoded, mentionPattern, options.buildToken(index + 1))
 	}
 	return encoded
 }
@@ -42,7 +44,8 @@ export function decodePromptPlaceholdersToMentions(
 		if (!fileName) continue
 		const tokenPattern = new RegExp(escapeRegex(options.buildToken(index + 1)), "gi")
 		if (!tokenPattern.test(decoded)) continue
-		decoded = replaceFirst(decoded, tokenPattern, `@${fileName}`)
+		tokenPattern.lastIndex = 0
+		decoded = replaceAll(decoded, tokenPattern, `@${fileName}`)
 	}
 	return decoded
 }

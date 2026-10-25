@@ -1,20 +1,24 @@
 import { useEffect, useMemo } from "react"
 import { useLocation, matchRoutes } from "react-router"
 import type { MagicIndexRouteObject, MetaData } from "react-router"
-import { registerRoutes } from "@/routes/routes"
 import { useTranslation } from "react-i18next"
+import { registerRoutes } from "@/routes/routes"
+import { useMainTranslation } from "@/hooks/i18n/useMainTranslation"
 
 const routes = registerRoutes({ isPersonalOrganization: false })
 
 export default function useMetaSet() {
 	const { pathname } = useLocation()
-	const { t } = useTranslation("common")
+	const { t: tMain } = useMainTranslation("common")
+	const { t: tAdmin } = useTranslation("admin/common")
 
 	const matchesRoutes = useMemo(() => {
 		return matchRoutes(routes, pathname)
 	}, [pathname])
 
-	const route = matchesRoutes?.[matchesRoutes?.length - 1]?.route as MagicIndexRouteObject
+	const route = matchesRoutes?.[matchesRoutes.length - 1]?.route as
+		(MagicIndexRouteObject & { title?: string }) | undefined
+	const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/")
 
 	function setMeta(metaInfo?: MetaData) {
 		const { title, keywords, description } = metaInfo || {}
@@ -32,25 +36,25 @@ export default function useMetaSet() {
 		}
 
 		if (title) {
-			document.title = `${t(title)} - ${t("meta.title")}`
+			document.title = `${tMain(title)} - ${tMain("meta.title")}`
 		} else {
-			document.title = t("meta.title")
+			document.title = tMain("meta.title")
 		}
 
-		if (t("meta.keywords")) {
+		if (tMain("meta.keywords")) {
 			const dom = getDom("keywords")
-			const str = keywords ? `${keywords},${t("meta.keywords")}` : t("meta.keywords")
+			const str = keywords ? `${keywords},${tMain("meta.keywords")}` : tMain("meta.keywords")
 			dom?.setAttribute("content", str)
 		} else if (keywords) {
 			const dom = getDom("keywords")
 			dom?.setAttribute("content", keywords)
 		}
 
-		if (t("meta.description")) {
+		if (tMain("meta.description")) {
 			const dom = getDom("description")
 			const str = description
-				? `${description},${t("meta.description")}`
-				: t("meta.description")
+				? `${description},${tMain("meta.description")}`
+				: tMain("meta.description")
 			dom?.setAttribute("content", str)
 		} else if (description) {
 			const dom = getDom("description")
@@ -59,10 +63,17 @@ export default function useMetaSet() {
 	}
 
 	useEffect(() => {
-		// Only apply static route meta; skip when absent so useProjectTitle / useNamedPageTitle
-		// are not overwritten on Super project/topic/chat routes (no meta.title).
-		if (route?.meta) setMeta(route.meta)
-	}, [route?.meta, t])
+		// Apply static route metadata first; admin sidebar titles are the fallback when meta.title is absent.
+		// Routes without either value are left alone so dynamic project titles are preserved.
+		if (route?.meta?.title) {
+			setMeta(route.meta)
+		} else if (isAdminRoute && route?.title) {
+			setMeta({
+				...route.meta,
+				title: tAdmin(route.title, { defaultValue: tMain(route.title) }),
+			})
+		}
+	}, [isAdminRoute, route?.meta, route?.title, tAdmin, tMain])
 
 	return { setMeta } // 返回设置方法交由业务层作做进一步元信息设置
 }

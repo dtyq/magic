@@ -10,6 +10,7 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 
 from app.core.context.agent_context import AgentContext
+from app.core.entity.message.server_message import DisplayType, ScriptExecutionContent, ToolDetail
 from app.core.entity.tool.tool_result_types import TerminalToolResult
 from app.i18n import i18n
 from app.path_manager import PathManager
@@ -19,7 +20,6 @@ from app.tools.core.base_tool import ToolForwardRequest
 from app.tools.python_snippet_repair import prepare_python_code
 from app.tools.snippet_environment import SnippetEnvironment
 from app.utils.process_executor import ProcessExecutor
-from app.utils.terminal_tool_detail_generator import TerminalToolDetailGenerator
 
 logger = get_logger(__name__)
 
@@ -226,6 +226,7 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams]):
                         "stdout": "",
                         "stderr": error_content,
                         "exit_code": -2,
+                        "prepared_python_code": prepared_python_code,
                     },
                 )
             logger.debug(f"创建临时Python脚本: {script_file_path}")
@@ -241,6 +242,8 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams]):
                 extra_env=self._build_python_extra_env(agent_ctx),
                 interruption_event=agent_ctx.get_interruption_event(),
             )
+            # ToolResult.content 面向模型，实际执行代码只在进程内传给详情生成器，避免污染模型上下文。
+            result.extra_info["prepared_python_code"] = prepared_python_code
 
             return result
 
@@ -261,6 +264,7 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams]):
                     "stdout": "",
                     "stderr": error_content,
                     "exit_code": -2,
+                    "prepared_python_code": prepared_python_code,
                 },
             )
         finally:
@@ -309,8 +313,40 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams]):
             "remark": self._get_purpose(arguments),
         }
 
-    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[Any]:
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Optional[Dict[str, Any]] = None,
+    ) -> Optional[ToolDetail]:
         """
         获取工具详情
         """
-        return await TerminalToolDetailGenerator.get_tool_detail(tool_context, result, arguments)
+        extra_info = result.extra_info
+        prepared_python_code = extra_info.get("prepared_python_code")
+        if not isinstance(prepared_python_code, str):
+            prepared_python_code = (arguments or {}).get("python_code", "")
+        if not isinstance(prepared_python_code, str):
+            prepared_python_code = ""
+
+        stdout = extra_info.get("stdout", "")
+        stderr = extra_info.get("stderr", "")
+        if not isinstance(stdout, str):
+            stdout = str(stdout)
+        if not isinstance(stderr, str):
+            stderr = str(stderr)
+
+        exit_code = getattr(result, "exit_code", extra_info.get("exit_code", -2))
+        if not isinstance(exit_code, int):
+            exit_code = -2
+
+        return ToolDetail(
+            type=DisplayType.SCRIPT_EXECUTION,
+            data=ScriptExecutionContent(
+                code=prepared_python_code,
+                stdout=stdout,
+                stderr=stderr,
+                exit_code=exit_code,
+                success=result.ok and exit_code == 0,
+            ),
+        )

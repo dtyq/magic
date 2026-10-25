@@ -6,6 +6,9 @@ interface UploadMenuDropdownProps {
 	onUploadFile?: () => void
 	onUploadFolder?: () => void
 	onImportFromOtherProject?: () => void
+	getPopupContainer?: () => HTMLElement
+	disabled?: boolean
+	overlayClassName?: string
 	children: ReactNode
 }
 
@@ -18,6 +21,9 @@ function UploadMenuDropdown({
 	onUploadFolder,
 	onImportFromOtherProject,
 	children,
+	getPopupContainer,
+	disabled,
+	overlayClassName,
 }: UploadMenuDropdownProps) {
 	const uploadMenuItems = useUploadMenuItems({
 		onUploadFile,
@@ -27,6 +33,9 @@ function UploadMenuDropdown({
 
 	return (
 		<MagicDropdown
+			overlayClassName={overlayClassName}
+			disabled={disabled}
+			getPopupContainer={getPopupContainer}
 			menu={{ items: uploadMenuItems }}
 			trigger={["click"]}
 			placement="bottomRight"

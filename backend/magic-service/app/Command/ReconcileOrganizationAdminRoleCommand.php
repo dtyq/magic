@@ -99,9 +99,16 @@ class ReconcileOrganizationAdminRoleCommand extends HyperfCommand
 
                 $orgCode = (string) $organization->magic_organization_code;
                 $orgType = (int) $organization->type;
+                $organizationCreatorUserId = (string) ($organization->creator_id ?? '');
 
                 try {
-                    $result = $this->reconcileOrganization($orgCode, $orgType, $dryRun, $cleanupOrphans);
+                    $result = $this->reconcileOrganization(
+                        $orgCode,
+                        $orgType,
+                        $organizationCreatorUserId,
+                        $dryRun,
+                        $cleanupOrphans
+                    );
                     $createdRoles += $result['created_roles'];
                     $updatedRoles += $result['updated_roles'];
                     $addedRelations += $result['added_relations'];
@@ -172,10 +179,18 @@ class ReconcileOrganizationAdminRoleCommand extends HyperfCommand
      *   duplicate_role_rows:int
      * }
      */
-    private function reconcileOrganization(string $organizationCode, int $organizationType, bool $dryRun, bool $cleanupOrphans): array
-    {
+    private function reconcileOrganization(
+        string $organizationCode,
+        int $organizationType,
+        string $organizationCreatorUserId,
+        bool $dryRun,
+        bool $cleanupOrphans
+    ): array {
         $expectedPermission = $this->getExpectedPermissionByOrganizationType($organizationCode, $organizationType);
-        $activeAdminUserIds = $this->getActiveOrganizationAdminUserIds($organizationCode);
+        $activeAdminUserIds = $this->getActiveOrganizationAdminUserIds(
+            $organizationCode,
+            $organizationCreatorUserId
+        );
 
         $createdRoles = 0;
         $updatedRoles = 0;
@@ -268,13 +283,21 @@ class ReconcileOrganizationAdminRoleCommand extends HyperfCommand
     /**
      * @return array<int, string>
      */
-    private function getActiveOrganizationAdminUserIds(string $organizationCode): array
-    {
+    private function getActiveOrganizationAdminUserIds(
+        string $organizationCode,
+        string $organizationCreatorUserId
+    ): array {
         $userIds = OrganizationAdminModel::query()
             ->where('organization_code', $organizationCode)
             ->where('status', OrganizationAdminModel::STATUS_ENABLED)
             ->pluck('user_id')
             ->toArray();
+
+        // 创建人统一由 magic_organizations.creator_id 派生。历史管理员表中即使没有
+        // 创建人记录，也必须把创建人纳入组织管理员角色。
+        if ($organizationCreatorUserId !== '') {
+            $userIds[] = $organizationCreatorUserId;
+        }
 
         return $this->normalizeUserIds($userIds);
     }

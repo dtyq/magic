@@ -1,6 +1,6 @@
 import { Spin, Empty } from "antd"
 import { useTranslation } from "react-i18next"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useProjectImages } from "../hooks/use-project-images"
 import { useLazyImage } from "../hooks/use-lazy-image"
 import { useStyles } from "../styles"
@@ -21,13 +21,15 @@ interface ImageItemProps {
 
 function ImageItem({ image, onClick }: ImageItemProps) {
 	const { styles } = useStyles()
-	const { ref, url, loading } = useLazyImage(image.file_id)
+	const { ref, url, loading, refresh } = useLazyImage(image.file_id)
 
 	return (
 		<div ref={ref} className={styles.imageItem} onClick={onClick}>
 			<div className={styles.imageWrapper}>
 				{loading && <Spin />}
-				{!loading && url && <img src={url} alt={image.file_name} />}
+				{!loading && url && (
+					<img src={url} alt={image.file_name} onError={() => void refresh()} />
+				)}
 				{!loading && !url && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="" />}
 			</div>
 			<div className={styles.imageName} title={image.file_name}>
@@ -48,10 +50,14 @@ export function ProjectTab({ editor, projectId, onSuccess }: ProjectTabProps) {
 		try {
 			if (image.relative_file_path) {
 				// Insert the image directly using the URL
-				const inserted = runActiveEditor(editor, (activeEditor) => {
-					activeEditor.commands.insertProjectImageFromPath(image.relative_file_path)
-					return true
-				}, false)
+				const inserted = runActiveEditor(
+					editor,
+					(activeEditor) => {
+						activeEditor.commands.insertProjectImageFromPath(image.relative_file_path)
+						return true
+					},
+					false,
+				)
 				if (inserted) onSuccess?.()
 			} else {
 				magicToast.error(t("projectImage.errors.pathNotFound"))

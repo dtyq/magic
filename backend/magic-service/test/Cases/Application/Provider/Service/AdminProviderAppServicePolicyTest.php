@@ -154,6 +154,11 @@ class AdminProviderAppServicePolicyTest extends TestCase
                             return 1;
                         }
 
+                        public function getPersonalArkAssetIdLimit(): int
+                        {
+                            return 1000;
+                        }
+
                         public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool
                         {
                             return true;

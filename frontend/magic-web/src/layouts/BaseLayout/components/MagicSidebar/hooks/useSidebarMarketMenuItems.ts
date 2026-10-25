@@ -3,6 +3,7 @@ import { FUNCTION_PERMISSION_CODE } from "@/apis"
 import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { RouteName } from "@/routes/constants"
 import type { SidebarMarketMenuItem } from "@/layouts/BaseLayout/components/MagicSidebar/hooks/useSidebarMarketMenuItems.types"
+import { isPersonaResearchEnabled } from "@/services/personaResearchFeature"
 import { BASE_MARKET_MENU_ITEMS } from "./baseMarketMenuItems"
 
 export function useSidebarMarketMenuItems() {
@@ -11,8 +12,11 @@ export function useSidebarMarketMenuItems() {
 	)
 
 	return useMemo<SidebarMarketMenuItem[]>(() => {
-		return BASE_MARKET_MENU_ITEMS.filter(
-			(item) => item.routeName !== RouteName.MagiClaw || canAccessMagicClaw,
-		)
+		const personaResearchEnabled = isPersonaResearchEnabled()
+		return BASE_MARKET_MENU_ITEMS.filter((item) => {
+			if (item.routeName === RouteName.MagiClaw) return canAccessMagicClaw
+			if (item.routeName === RouteName.PersonaResearch) return personaResearchEnabled
+			return true
+		})
 	}, [canAccessMagicClaw])
 }

@@ -1,7 +1,53 @@
 import { describe, expect, it } from "vitest"
-import { getLiveRenderSlideKey, reconcileResidentSlideKeys } from "../usePPTLiveRenderCache"
+import {
+	getLiveRenderSlideKey,
+	getLiveRenderSlideRevision,
+	getLiveRenderSlideSourceRevision,
+	reconcileResidentSlideKeys,
+} from "../usePPTLiveRenderCache"
 
 describe("reconcileResidentSlideKeys", () => {
+	it("does not invalidate the live iframe when only inert notes change", () => {
+		const baseSlide = {
+			id: "slide-1",
+			index: 0,
+			path: "slide-1.html",
+			content: "<main>Slide</main>",
+			rawContent: "<main>Slide</main><template data-magic-slide-notes>Old</template>",
+			loadingState: "loaded" as const,
+			lastLoadedAt: 100,
+		}
+		const notedSlide = {
+			...baseSlide,
+			rawContent:
+				"<main>Slide</main><template data-magic-slide-notes>A much longer note</template>",
+		}
+
+		expect(getLiveRenderSlideRevision(notedSlide)).toBe(getLiveRenderSlideRevision(baseSlide))
+		expect(getLiveRenderSlideSourceRevision(notedSlide)).toBe(
+			getLiveRenderSlideSourceRevision(baseSlide),
+		)
+	})
+
+	it("changes the source revision when the notes baseline is updated", () => {
+		const baseSlide = {
+			id: "slide-1",
+			index: 0,
+			path: "slide-1.html",
+			content: "<main>Slide</main>",
+			rawContent: "<main>Slide</main>",
+			loadingState: "loaded" as const,
+			lastLoadedAt: 100,
+			rawRevision: 0,
+		}
+		const notedSlide = { ...baseSlide, rawRevision: 1 }
+
+		expect(getLiveRenderSlideRevision(notedSlide)).toBe(getLiveRenderSlideRevision(baseSlide))
+		expect(getLiveRenderSlideSourceRevision(notedSlide)).not.toBe(
+			getLiveRenderSlideSourceRevision(baseSlide),
+		)
+	})
+
 	it("uses the slide path as part of the renderer identity across deck replacement", () => {
 		const firstDeckKey = getLiveRenderSlideKey({
 			id: "slide-0",

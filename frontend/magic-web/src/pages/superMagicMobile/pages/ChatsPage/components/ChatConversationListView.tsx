@@ -5,7 +5,7 @@ import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/compone
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { ChatConversationListItem } from "./ChatConversationListItem"
@@ -13,7 +13,8 @@ import type { ChatConversationListItem as ChatConversationListItemData } from ".
 
 interface ChatConversationListViewProps {
 	items: ChatConversationListItemData[]
-	isLoading: boolean
+	/** True only before the first successful list fetch while no cached rows exist (shows skeleton). */
+	isInitialChatListLoading: boolean
 	searchValue: string
 	isEmpty: boolean
 	isSearchEmpty: boolean
@@ -43,7 +44,7 @@ interface ChatConversationListViewProps {
  */
 export function ChatConversationListView({
 	items,
-	isLoading,
+	isInitialChatListLoading,
 	searchValue,
 	isEmpty,
 	isSearchEmpty,
@@ -69,7 +70,9 @@ export function ChatConversationListView({
 	 */
 	const [openItemId, setOpenItemId] = useState<string | null>(null)
 	/** 仅首屏无数据时展示全屏 loading，操作后静默刷新不遮挡已有列表 */
-	const showInitialLoading = isLoading && items.length === 0
+	// Consume isInitialChatListLoading instead of isLoading: isLoading stays false on the
+	// first frame until ensureChatWorkspace() resolves, which would let the empty state win.
+	const showInitialLoading = isInitialChatListLoading
 	const shouldStretchPullToRefresh = !showInitialLoading && (isEmpty || isSearchEmpty)
 	/*
 	 * 对话页只有空态需要把 PullToRefresh 内容拉满；正常列表保持默认高度，
@@ -115,7 +118,7 @@ export function ChatConversationListView({
 			<ScrollEdgeFadeContainer
 				fadeColor="mobile-background"
 				className="min-h-0 flex-1"
-				contentDeps={[items.length, isLoading, isEmpty, isSearchEmpty]}
+				contentDeps={[items.length, isInitialChatListLoading, isEmpty, isSearchEmpty]}
 			>
 				<MagicPullToRefresh
 					embedInParentScroll

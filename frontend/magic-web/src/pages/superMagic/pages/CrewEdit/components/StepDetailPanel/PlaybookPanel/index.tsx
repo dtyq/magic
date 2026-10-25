@@ -20,6 +20,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Input } from "@/components/shadcn-ui/input"
 import { Separator } from "@/components/shadcn-ui/separator"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import {
 	Select,
 	SelectContent,
@@ -275,7 +276,11 @@ export const PlaybookPanel = observer(function PlaybookPanel() {
 				</div>
 
 				{/* Scene list */}
-				<div className="flex min-h-0 flex-1 flex-col overflow-auto rounded-lg border border-border p-2">
+				{/* Fill the viewport so loading and empty states remain centered. */}
+				<ScrollArea
+					className="grid min-h-0 flex-1 rounded-lg border border-border"
+					viewportClassName="h-auto min-h-0 p-2 [&>div]:!flex [&>div]:min-h-full [&>div]:flex-col"
+				>
 					{isLoading ? (
 						<div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
@@ -329,7 +334,7 @@ export const PlaybookPanel = observer(function PlaybookPanel() {
 							</SortableContext>
 						</DndContext>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 		</div>
 	)

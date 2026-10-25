@@ -5,7 +5,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import { Separator } from "@/components/shadcn-ui/separator"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import type { SkillSourceType } from "@/apis/modules/skills"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { UserSkillView } from "@/services/skills/SkillsService"
 import {
 	getMySkillCardCopy,

@@ -3,11 +3,10 @@ import { useTranslation } from "react-i18next"
 import type { FC } from "react"
 import type { MagicPdfRenderProps } from "./types"
 import { useStyles } from "./styles"
-import { loadReactPdf } from "@/lib/react-pdf"
+import { loadReactPdf } from "@/infrastructure/vendors/react-pdf"
 
 // Import react-pdf styles
-import "react-pdf/dist/esm/Page/AnnotationLayer.css"
-import "react-pdf/dist/esm/Page/TextLayer.css"
+import "@/infrastructure/vendors/react-pdf/styles"
 
 // Import custom hooks
 import { usePdfState } from "./hooks/usePdfState"

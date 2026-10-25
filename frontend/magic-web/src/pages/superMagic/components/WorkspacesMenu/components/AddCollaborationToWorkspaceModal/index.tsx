@@ -12,6 +12,7 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { SuperMagicApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { analyticsService } from "@/services/analytics"
 
 interface AddCollaborationToWorkspaceModalProps {
 	workspaces: Workspace[]
@@ -93,6 +94,7 @@ export function AddCollaborationToWorkspaceModal({
 			const trimmedName = newWorkspaceName.trim()
 			if (trimmedName) {
 				setIsCreatingWorkspaceLoading(true)
+				analyticsService.report("workspace_create_attempted")
 				const res = await SuperMagicApi.createWorkspace({
 					workspace_name: trimmedName,
 				})
@@ -130,40 +132,6 @@ export function AddCollaborationToWorkspaceModal({
 		onConfirm(selectedWorkspaceId)
 	})
 
-	useEffect(() => {
-		if (!open || isMobile) return
-
-		/** Scrolls the nested modal list manually because the parent Radix dialog locks body portals. */
-		const handleNestedModalWheel = (event: WheelEvent) => {
-			const target = event.target
-			if (!(target instanceof Element)) return
-
-			const scrollContainer = target.closest<HTMLElement>(
-				"[data-add-collaboration-workspace-scroll]",
-			)
-			if (!scrollContainer) return
-
-			const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
-			if (maxScrollTop <= 0) return
-
-			event.preventDefault()
-			event.stopPropagation()
-			event.stopImmediatePropagation()
-
-			const nextScrollTop = Math.min(
-				Math.max(scrollContainer.scrollTop + event.deltaY, 0),
-				maxScrollTop,
-			)
-			scrollContainer.scrollTop = nextScrollTop
-		}
-
-		window.addEventListener("wheel", handleNestedModalWheel, { capture: true, passive: false })
-
-		return () => {
-			window.removeEventListener("wheel", handleNestedModalWheel, { capture: true })
-		}
-	}, [isMobile, open])
-
 	const Content = (
 		<>
 			<div className={styles.header}>
@@ -181,7 +149,7 @@ export function AddCollaborationToWorkspaceModal({
 						onChange={(e) => setSearchValue(e.target.value)}
 					/>
 				</div>
-				<div className={styles.contentList} data-add-collaboration-workspace-scroll>
+				<div className={styles.contentList}>
 					{isCreatingWorkspace && (
 						<div className={styles.contentItem}>
 							<div className={styles.contentItemName}>

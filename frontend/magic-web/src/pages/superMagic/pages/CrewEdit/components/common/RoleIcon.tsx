@@ -1,4 +1,4 @@
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 
 interface RoleIconProps {
 	className?: string

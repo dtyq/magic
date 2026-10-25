@@ -1,19 +1,18 @@
 import type { NodeProps } from "../../../types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { useCallback, useMemo } from "react"
 import { observer } from "mobx-react-lite"
 import { useToolTooltip } from "../../hooks/useToolTooltip"
 import { useTranslation } from "react-i18next"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { isEmpty } from "lodash-es"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
+import ToolGenerationProgress from "@/pages/superMagic/components/MessageList/components/shared/ToolGenerationProgress"
 import { MonitorPlay } from "lucide-react"
 import { MagicTooltip, VerticalLine } from "@/components/base"
-import {
-	getToolDesignProjectInfo,
-	type ToolDesignProjectData,
-} from "@/pages/superMagic/components/Detail/contents/Design/utils/toolDesignProjectInfo"
+import { getToolDesignProjectInfo } from "@/pages/superMagic/components/Detail/contents/Design/utils/toolDesignProjectInfo"
+import { useMessageListProjectFilesStore } from "@/pages/superMagic/components/MessageList/context"
+import { getToolCardInteractionTarget, selectToolDetail } from "../../../toolDetailSelection"
 import type { ReactNode } from "react"
 import { IconLoader2 } from "@tabler/icons-react"
 import { FileItem } from "@/pages/superMagic/pages/Workspace/types"
@@ -26,6 +25,7 @@ export interface ToolDataLike {
 	status?: string
 	rawArguments?: string
 	detail?: {
+		type?: string
 		data?: Record<string, unknown>
 	}
 	attachments?: FileItem[]
@@ -38,16 +38,22 @@ export interface DefaultToolProps extends Partial<NodeProps> {
 }
 
 interface ToolMessageNode {
-	tool?: ToolDesignProjectData
+	tool?: ToolDataLike
 }
 
 function DefaultTool(props: DefaultToolProps) {
 	const { t } = useTranslation("super")
+	const filesStore = useMessageListProjectFilesStore()
 	const { onMouseEnter, onMouseLeave, loading, classNames } = props
 	const node = superMagicStore.getMessageNode(props?.node?.super_message_id) as
 		ToolMessageNode | undefined
 	const tool = props.toolData || node?.tool
-	const fileData = useMemo(() => tool?.detail?.data || {}, [tool?.detail?.data])
+	const interactionTarget = useMemo(
+		() => getToolCardInteractionTarget(tool?.name, tool?.detail),
+		[tool?.name, tool?.detail],
+	)
+	const interactionTargetType = interactionTarget.type
+	const hasInteraction = interactionTargetType !== "disabled"
 
 	const { tooltipProps, renderTooltip } = useToolTooltip({
 		text: tool?.remark,
@@ -65,35 +71,11 @@ function DefaultTool(props: DefaultToolProps) {
 	const handleOpenPlaybackTab = useCallback(
 		(e: React.MouseEvent) => {
 			e.stopPropagation()
-			if (isEmpty(fileData)) return
+			if (!hasInteraction) return
 			const detail = { ...tool?.detail, id: tool?.id }
-			pubsub.publish(PubSubEvents.Open_Playback_Tab, detail)
-			props?.onSelectDetail?.({
-				...detail,
-				isFromNode: true,
-			})
-			const designToolNames = [
-				// 旧(保留,用于兼容旧消息)
-				"create_design_project",
-				"create_canvas_element",
-				"update_canvas_element",
-				"batch_create_canvas_elements",
-				"batch_update_canvas_elements",
-				"reorder_canvas_elements",
-				"query_canvas_overview",
-				"query_canvas_element",
-				"generate_images_to_canvas",
-				"search_images_to_canvas",
-				"generate_videos_to_canvas",
-				"query_video_generation",
-
-				// 新
-				"create_canvas",
-				"generate_canvas_images",
-				"generate_canvas_videos",
-			]
-			if (tool?.name && designToolNames.includes(tool.name)) {
-				const { designProjectId, elements } = getToolDesignProjectInfo(tool)
+			selectToolDetail({ detail, onSelectDetail: props?.onSelectDetail })
+			if (interactionTargetType === "canvas") {
+				const { designProjectId, elements } = getToolDesignProjectInfo(tool, filesStore)
 				if (!designProjectId) return
 				pubsub.publish(PubSubEvents.Super_Magic_Focus_Canvas_Element, {
 					isFromPlaybackToolNode: true,
@@ -104,13 +86,10 @@ function DefaultTool(props: DefaultToolProps) {
 				})
 			}
 		},
-		[fileData, props, tool],
+		[filesStore, hasInteraction, interactionTargetType, props?.onSelectDetail, tool],
 	)
 
-	const showSuffixIcon = useMemo(() => {
-		if (isEmpty(fileData)) return false
-		return true
-	}, [fileData])
+	const showSuffixIcon = hasInteraction
 
 	const renderSuffixIcon = useMemo(() => {
 		if (!showSuffixIcon) return null
@@ -142,17 +121,22 @@ function DefaultTool(props: DefaultToolProps) {
 			<div className="inline-flex w-fit max-w-full items-center overflow-hidden rounded-md border border-border shadow-sm">
 				<div
 					className={cn(
-						"inline-flex h-7 w-fit cursor-pointer items-center gap-1.5 overflow-hidden rounded-md bg-white p-1.5 dark:bg-card",
-						isEmpty(fileData) && "cursor-not-allowed",
+						"inline-flex h-7 w-fit items-center gap-1.5 overflow-hidden rounded-md bg-white p-1.5 dark:bg-card",
+						hasInteraction && "cursor-pointer",
 						renderSuffixIcon && "rounded-r-none",
 					)}
-					onClick={onClick}
+					onClick={hasInteraction ? onClick : undefined}
 					data-testid="default-tool"
 				>
 					<ToolIconBadge toolName={tool?.name} />
 					<span className="w-fit flex-none text-xs font-normal leading-4 text-foreground">
 						{tool?.action}
 					</span>
+					<ToolGenerationProgress
+						toolCallId={tool?.id}
+						status={tool?.status}
+						detail={tool?.detail}
+					/>
 					<span
 						{...tooltipProps}
 						className={cn(

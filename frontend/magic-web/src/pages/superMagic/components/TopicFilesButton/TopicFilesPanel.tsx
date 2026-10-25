@@ -1,12 +1,28 @@
+import { useLocation, useNavigate } from "react-router"
+import { reaction } from "mobx"
+import projectFilesStore from "@/stores/projectFiles"
+import { getFileReferenceIdentityKey } from "../../services/userFileReferenceResolver"
+import {
+	isUploadedFileNavigationTarget,
+	type SuperMagicLocateFileContext,
+} from "../../events/files"
+import {
+	registerWaitForNextAttachmentsRefreshForProject,
+	waitForNextFullAttachmentsRefreshForProject,
+	requestProjectAttachmentsFullRefresh,
+} from "../../services/attachmentsTopicSync"
+import type { FileHelpContext } from "./utils/magic-system-folder"
 import {
 	memo,
 	useState,
+	useMemo,
 	useRef,
 	useEffect,
 	forwardRef,
 	useImperativeHandle,
 	type ReactNode,
 } from "react"
+import { FileManagerFooter } from "./components/FileManager/FileManagerFooter"
 import { useTranslation } from "react-i18next"
 import TopicFilesCore, {
 	type TopicFilesCoreRef,
@@ -27,36 +43,50 @@ import {
 	SearchModeHeader,
 } from "./components"
 import { useFileReplace } from "./hooks/useFileReplace"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { type PresetFileType } from "./constant"
 import type { TopicFileRowDecorationResolver } from "./topic-file-row-decoration.types"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
-import { requestProjectAttachmentsFullRefresh } from "../../services/attachmentsTopicSync"
 import { useDebouncedSearchValue } from "./hooks/useDebouncedSearchValue"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import MobileProjectDetailFilesView from "./components/MobileProjectDetailFilesView"
 import { SelectDirectoryModal } from "../SelectPathModal"
 import { useBatchDownload } from "./hooks/useBatchDownload"
 import { useProjectDetailFilesController } from "./hooks/useProjectDetailFilesController"
-import { useCrossProjectFileOperation } from "./hooks/useCrossProjectFileOperation"
+import {
+	useCrossProjectFileOperation,
+	type CrossProjectOperationSuccessResult,
+} from "./hooks/useCrossProjectFileOperation"
 import { useCrossProjectMoveCompensation } from "./hooks/useCrossProjectMoveCompensation"
 import { useMobileProjectFilesDownload } from "./hooks/useMobileProjectFilesDownload"
 import { getMobileAttachmentKey } from "./utils/get-mobile-attachment-key"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 import { isCachedChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
 import { resolveTopicFilesCapabilities, type TopicFilesSpaceConfig } from "./file-space"
+import { SidebarExpandableItem, type SidebarSectionOptions } from "../SidebarSection"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 
 interface TopicFilesPanelProps {
+	/** 所属定义工作区；用户挂载文件仍以自己的空间身份为准。 */
+	fileHelpContext?: FileHelpContext
+	loading?: boolean
 	className?: string
+	fitContent?: boolean
+	scrollElementRef?: React.RefObject<HTMLElement>
 	title?: string
 	/** 是否显示文件树内部标题。 */
 	showTitle?: boolean
+	/** 多板块视图保留独立标题，搜索／选择只替换下方工具区。 */
+	headerLayout?: "inline" | "adaptive"
 	attachments?: AttachmentItem[]
 	setUserSelectDetail?: (detail: any) => void
 	onFileClick?: (fileItem: any) => void
 	topicId?: string
 	projectId?: string
+	shareCode?: string
+	sharePassword?: string
+	onCrossProjectOperationSuccess?: (result: CrossProjectOperationSuccessResult) => void
 	activeFileId?: string | null
 	selectedTopic?: any
 	allowEdit?: boolean
@@ -77,16 +107,29 @@ interface TopicFilesPanelProps {
 	filterBatchDownloadLayerMenuItems?: (menuItems: any[]) => any[]
 	// 是否允许下载（用于分享页面权限控制）
 	allowDownload?: boolean
+	// 是否允许只读场景复制文件到当前用户的项目
+	allowCopyTo?: boolean
 	resolveTopicFileRowDecoration?: TopicFileRowDecorationResolver
 	mobileViewVariant?: "default" | "project-detail" | "chat-sheet"
 	refreshAttachments?: () => Promise<void> | void
+	onSaveSlidesTemplate?: (item: AttachmentItem) => void
+	onConvertToSlidesTemplate?: (item: AttachmentItem) => void
 	headerTrailingAction?: ReactNode
+	onOpenFileManager?: () => void
+	onOpenRecycleBin?: () => void
+	section?: SidebarSectionOptions
+	contentBefore?: ReactNode
+	/** 宿主已有空状态或错误说明时，隐藏默认空文件提示，仍保留文件树与工具栏。 */
+	showEmptyState?: boolean
+	/** Controls whether this file surface exposes the manual refresh action. */
+	showRefresh?: boolean
 	/** 文件树所属空间及其能力配置。 */
 	spaceConfig?: TopicFilesSpaceConfig
 	/** 判断节点是否允许参与移动和多选等变更操作。 */
 	isItemSelectable?: (item: AttachmentItem) => boolean
 	/** 特殊文件空间允许操作的固定根目录。 */
 	operationRoot?: AttachmentItem
+	projectFilesStore?: ProjectFilesStore
 }
 
 export interface TopicFilesPanelRef {
@@ -111,12 +154,18 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 	function TopicFilesPanel(
 		{
 			className,
+			loading = false,
+			fitContent = false,
+			scrollElementRef,
 			title,
 			showTitle = true,
 			attachments = [],
 			setUserSelectDetail,
 			onFileClick,
 			projectId,
+			shareCode,
+			sharePassword,
+			onCrossProjectOperationSuccess,
 			activeFileId,
 			selectedTopic,
 			allowEdit = true,
@@ -131,22 +180,48 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			filterMenuItems,
 			filterBatchDownloadLayerMenuItems,
 			allowDownload,
+			allowCopyTo = false,
 			resolveTopicFileRowDecoration,
+			fileHelpContext,
 			mobileViewVariant = "default",
 			refreshAttachments,
+			onSaveSlidesTemplate,
+			onConvertToSlidesTemplate,
 			headerTrailingAction,
+			onOpenFileManager,
+			onOpenRecycleBin,
+			section,
+			headerLayout = "inline",
+			contentBefore,
+			showEmptyState = true,
+			showRefresh,
 			spaceConfig,
 			isItemSelectable,
 			operationRoot,
+			projectFilesStore,
 		},
 		ref,
 	) {
 		const { t } = useTranslation("super")
 		const resolvedTitle = title || t("topicFiles.title")
 		const isMobile = useIsMobile()
+		const helpProjectId = String(selectedProject?.id || projectId || "")
+		const helpOwner = fileHelpContext?.kind ?? (helpProjectId ? "project" : "unknown")
+		const helpOwnerId =
+			fileHelpContext && "projectId" in fileHelpContext
+				? fileHelpContext.projectId
+				: helpProjectId
+		const resolvedFileHelpContext = useMemo<FileHelpContext>(
+			() =>
+				helpOwner === "user" || helpOwner === "unknown"
+					? { kind: helpOwner }
+					: { kind: helpOwner, projectId: helpOwnerId },
+			[helpOwner, helpOwnerId],
+		)
 		const capabilities = resolveTopicFilesCapabilities(spaceConfig?.capabilities)
 		const isChatProject = isCachedChatWorkspaceProject(selectedProject)
 		const { isShareRoute } = useShareRoute()
+		const shouldShowRefresh = showRefresh ?? !isShareRoute
 		const [fileFilters] = useState({
 			documents: true,
 			multimedia: true,
@@ -166,6 +241,122 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			commitSearchValue,
 			resetSearchValue,
 		} = useDebouncedSearchValue({ source: "TopicFilesPanel" })
+
+		const location = useLocation()
+		const navigate = useNavigate()
+		const consumedUploadLocationRef = useRef<string>()
+		const navigationActionRef = useRef<AbortController>()
+		useEffect(() => {
+			const dispose = reaction(getFileReferenceIdentityKey, () =>
+				navigationActionRef.current?.abort(),
+			)
+			return () => {
+				dispose()
+				navigationActionRef.current?.abort()
+			}
+		}, [projectId, helpOwner])
+		useEffect(() => {
+			const revealTarget = (_fileId: string, context?: SuperMagicLocateFileContext) => {
+				if (helpOwner !== "project" || context?.projectId !== projectId) return
+				setIsSearchMode(false)
+				resetSearchValue()
+			}
+			pubsub.subscribe(PubSubEvents.Locate_File_In_Tree, revealTarget)
+			return () => pubsub.unsubscribe(PubSubEvents.Locate_File_In_Tree, revealTarget)
+		}, [helpOwner, projectId, resetSearchValue])
+
+		useEffect(() => {
+			const state: Record<string, unknown> = location.state || {}
+			const target = state.uploadedFileTarget
+			if (
+				helpOwner !== "project" ||
+				!isUploadedFileNavigationTarget(target) ||
+				target.projectId !== projectId ||
+				consumedUploadLocationRef.current === location.key
+			)
+				return
+			consumedUploadLocationRef.current = location.key
+			const controller = new AbortController()
+			navigationActionRef.current?.abort()
+			navigationActionRef.current = controller
+			const clearNavigationTarget = () => {
+				const remainingState = { ...state }
+				delete remainingState.uploadedFileTarget
+				navigate(location.pathname + location.search + location.hash, {
+					replace: true,
+					state: remainingState,
+				})
+			}
+			// 接收时即消费导航字段，离开或回退不会重放本次定位。
+			clearNavigationTarget()
+			void (async () => {
+				try {
+					if (target.identityKey !== getFileReferenceIdentityKey()) return
+					let item = projectFilesStore.filePresentationIndex.attachments.getItemById(
+						target.fileId,
+					)
+					if (!item) {
+						if (projectFilesStore.attachmentLoadState?.status === "loading") {
+							await registerWaitForNextAttachmentsRefreshForProject(projectId, {
+								signal: controller.signal,
+							})
+						} else {
+							await waitForNextFullAttachmentsRefreshForProject(projectId, {
+								signal: controller.signal,
+							})
+						}
+						if (projectFilesStore.attachmentLoadState?.status !== "ready")
+							throw new Error("Attachment load failed")
+						item = projectFilesStore.filePresentationIndex.attachments.getItemById(
+							target.fileId,
+						)
+					}
+					if (
+						controller.signal.aborted ||
+						target.identityKey !== getFileReferenceIdentityKey() ||
+						projectFilesStore.currentSelectedProject?.id !== target.projectId
+					)
+						return
+					if (!item) throw new Error("Target unavailable")
+					await new Promise<void>((resolve, reject) => {
+						const onAbort = () => finish("cancelled")
+						const finish = (status: "located" | "unavailable" | "cancelled") => {
+							clearTimeout(timeoutId)
+							controller.signal.removeEventListener("abort", onAbort)
+							if (status === "unavailable") reject(new Error("Target unavailable"))
+							else resolve()
+						}
+						const timeoutId = setTimeout(() => {
+							finish("unavailable")
+							controller.abort()
+						}, 15_000)
+						controller.signal.addEventListener("abort", onAbort, { once: true })
+						pubsub.publish(PubSubEvents.Locate_File_In_Tree, target.fileId, {
+							projectId: target.projectId,
+							exact: true,
+							signal: controller.signal,
+							onResult: finish,
+						})
+					})
+				} catch (error) {
+					if (!(error instanceof DOMException && error.name === "AbortError"))
+						magicToast.error(t("folderUpload.actions.targetUnavailable"))
+				} finally {
+					if (navigationActionRef.current === controller)
+						navigationActionRef.current = undefined
+				}
+			})()
+		}, [
+			location.key,
+			location.state,
+			location.pathname,
+			location.search,
+			location.hash,
+			projectId,
+			helpOwner,
+			navigate,
+			t,
+		])
 
 		// 监听 projectId 变化，只在首次加载或切换项目时设置 loading 状态
 		// 避免在任务执行过程中频繁进入 loading 状态
@@ -198,7 +389,9 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 		})
 
 		/** 特殊文件空间不依赖项目附件事件，文件变更后主动重新加载。 */
-		const handleCoreAttachmentsUpdate = useMemoizedFn(() => {
+		const handleCoreAttachmentsUpdate = useMemoizedFn((sourceProjectId?: string) => {
+			// 上传在切换项目后完成时，不刷新当前无关项目。
+			if (!spaceConfig?.scope && sourceProjectId && sourceProjectId !== projectId) return
 			requestAttachmentsRefresh("topic-files-core-operation-success")
 		})
 
@@ -218,7 +411,8 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			selectedTopic,
 			attachments,
 			duplicateFileHandler: sharedDuplicateHandler,
-			onUpdateAttachments: () => {
+			onUpdateAttachments: (sourceProjectId) => {
+				if (!spaceConfig?.scope && sourceProjectId && sourceProjectId !== projectId) return
 				requestAttachmentsRefresh("topic-files-panel-upload-success")
 			},
 		})
@@ -257,6 +451,8 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 
 		const crossProjectOperation = useCrossProjectFileOperation({
 			projectId,
+			shareCode,
+			sharePassword,
 			selectedWorkspace: selectedWorkspace || null,
 			selectedProject: selectedProject || null,
 			projects,
@@ -264,6 +460,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 				setIsSelectMode(false)
 				projectDetailFilesController.resetMobileSelection()
 				handleProjectDetailCrossProjectSuccess(result)
+				if (result) onCrossProjectOperationSuccess?.(result)
 			},
 		})
 
@@ -395,7 +592,6 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 		// 	handleDeleteItem: () => {},
 		// 	handleDownloadOriginal: () => {},
 		// 	handleDownloadPdf: () => {},
-		// 	handleDownloadPpt: () => {},
 		// 	handleOpenFile: () => {},
 		// 	handleStartRename: () => {},
 		// 	handleAddToCurrentChat: () => {},
@@ -468,6 +664,10 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 
 		const handleUploadFile = () => {
 			if (!allowEdit) return
+			if (spaceConfig?.operations) {
+				coreRef.current?.handleUploadFile()
+				return
+			}
 			handleCustomUploadFile()
 		}
 
@@ -484,6 +684,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 					.then(() => {
 						magicToast.success(t("common.refreshSuccess"))
 					})
+					.catch(() => magicToast.error(t("common.refreshFailed")))
 					.finally(() => {
 						setRefreshLoading(false)
 					})
@@ -509,12 +710,14 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 		const handleCancelSelect = () => {
 			setIsSelectMode(false)
 			// 清空选择
-			pubsub.publish(PubSubEvents.Deselect_All_Files)
+			if (spaceConfig?.directorySource) coreRef.current?.deselectAll()
+			else pubsub.publish(PubSubEvents.Deselect_All_Files)
 		}
 
 		// 处理全选
 		const handleSelectAll = () => {
-			pubsub.publish(PubSubEvents.Select_All_Files)
+			if (spaceConfig?.directorySource) coreRef.current?.selectAll()
+			else pubsub.publish(PubSubEvents.Select_All_Files)
 		}
 
 		// 处理取消全选
@@ -523,6 +726,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 		}
 
 		useEffect(() => {
+			if (spaceConfig?.directorySource) return
 			const handleUpdateAttachmentsLoading = (loading: boolean) => {
 				setRefreshLoading(loading)
 			}
@@ -566,19 +770,148 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			},
 		}))
 
+		const adaptiveHeader = headerLayout === "adaptive"
+		// 搜索和选择状态保持独立标题。
+		// 用户空间将身份标题放在独立一行；这里只复用原工具按钮，不复制操作逻辑。
+		const stackedHeader = adaptiveHeader && (isSearchMode || isSelectMode)
+		const modeSection = stackedHeader ? undefined : section
+		const header = isSearchMode ? (
+			<SearchModeHeader
+				placeholder={spaceConfig?.directorySource ? t("userSpace.searchLoaded") : undefined}
+				key="search-header"
+				searchValue={rawSearchValue}
+				onSearchChange={handleSearchChange}
+				onSearchCommit={handleSearchCommit}
+				onClose={handleCloseSearch}
+				headerTrailingAction={headerTrailingAction}
+				section={modeSection}
+				className={cn("duration-200 animate-in fade-in", !showTitle && "[&>p]:hidden")}
+			/>
+		) : isSelectMode ? (
+			<SelectModeHeader
+				key="select-header"
+				selectedCount={selectedCount}
+				totalCount={totalCount}
+				onSelectAll={handleSelectAll}
+				onDeselectAll={handleDeselectAll}
+				onCancel={handleCancelSelect}
+				headerTrailingAction={headerTrailingAction}
+				section={modeSection}
+				className="duration-200 animate-in fade-in"
+			/>
+		) : (
+			<NormalModeHeader
+				adaptive={adaptiveHeader}
+				showTitle={showTitle}
+				expandAllLabel={
+					spaceConfig?.directorySource ? t("userSpace.expandLoaded") : undefined
+				}
+				key="normal-header"
+				title={resolvedTitle}
+				isShareRoute={isShareRoute}
+				showRefresh={shouldShowRefresh}
+				refreshLoading={loading || refreshLoading}
+				allowEdit={allowEdit}
+				showMobileActions={showMobileActions}
+				onRefresh={handleRefreshList}
+				onSearch={handleSearch}
+				onAddFile={handleAddFile}
+				onAddDesign={capabilities.projectContentCreation ? handleAddDesign : undefined}
+				onAddSelfMedia={
+					capabilities.projectContentCreation ? handleAddSelfMedia : undefined
+				}
+				onAddAICard={capabilities.projectContentCreation ? handleAddAICard : undefined}
+				onAddFolder={handleAddFolder}
+				allFoldersExpanded={expansionState.allFoldersExpanded}
+				onToggleAllFolders={
+					expansionState.hasExpandableFolders ? handleToggleAllFolders : undefined
+				}
+				onUploadFile={capabilities.upload ? handleUploadFile : undefined}
+				onUploadFolder={
+					capabilities.upload && !spaceConfig?.directorySource
+						? handleUploadFolder
+						: undefined
+				}
+				onImportFromOtherProject={
+					capabilities.importFromOtherProject ? handleImportFromOtherProject : undefined
+				}
+				onEnterSelectMode={capabilities.multiSelect ? handleEnterSelectMode : undefined}
+				headerTrailingAction={headerTrailingAction}
+				section={modeSection}
+				className="duration-200 animate-in fade-in"
+			/>
+		)
+		const content = (
+			<TopicFilesCore
+				ref={coreRef}
+				attachments={attachments}
+				setUserSelectDetail={setUserSelectDetail}
+				onFileClick={onFileClick}
+				projectId={projectId}
+				shareCode={shareCode}
+				sharePassword={sharePassword}
+				onCrossProjectOperationSuccess={onCrossProjectOperationSuccess}
+				fileFilters={fileFilters}
+				handleDownloadAll={handleDownloadAll}
+				allLoading={allLoading}
+				activeFileId={activeFileId}
+				selectedTopic={selectedTopic}
+				isSelectMode={isSelectMode}
+				onExpansionStateChange={isSearchMode ? undefined : handleExpansionStateChange}
+				onSelectionChange={(selectedCount, totalCount) => {
+					setSelectedCount(selectedCount)
+					setTotalCount(totalCount)
+				}}
+				allowEdit={allowEdit}
+				onUpdateAttachments={handleCoreAttachmentsUpdate}
+				onAttachmentsChange={onAttachmentsChange}
+				onSelectModeChange={setIsSelectMode}
+				selectedProject={selectedProject}
+				handleReplaceFile={handleReplaceFile}
+				duplicateFileHandler={sharedDuplicateHandler}
+				selectedWorkspace={selectedWorkspace}
+				projects={projects}
+				workspaces={workspaces}
+				isInProject={isInProject}
+				externalSearchValue={isSearchMode ? debouncedSearchValue : ""}
+				filterMenuItems={filterMenuItems}
+				filterBatchDownloadLayerMenuItems={filterBatchDownloadLayerMenuItems}
+				allowDownload={allowDownload}
+				allowCopyTo={allowCopyTo}
+				allowReadonlySelection={isShareRoute}
+				resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
+				fileHelpContext={resolvedFileHelpContext}
+				refreshLoading={loading || refreshLoading}
+				onSaveSlidesTemplate={onSaveSlidesTemplate}
+				onConvertToSlidesTemplate={onConvertToSlidesTemplate}
+				spaceConfig={spaceConfig}
+				isItemSelectable={isItemSelectable}
+				operationRoot={operationRoot}
+				projectFilesStore={projectFilesStore}
+				fitContent={fitContent}
+				showEmptyState={showEmptyState}
+				scrollElementRef={scrollElementRef}
+			/>
+		)
+
 		return (
 			<>
 				<div
-					className={cn("flex h-full flex-col gap-0.5", className)}
+					className={cn(
+						"flex min-h-0 flex-col gap-0.5",
+						fitContent ? "min-h-0 shrink-0" : "h-full",
+						className,
+					)}
 					data-testid="topic-files-panel"
 				>
 					{shouldUseProjectDetailMobileView ? (
 						<MobileProjectDetailFilesView
+							fileHelpContext={resolvedFileHelpContext}
 							attachments={attachments}
 							activeFileId={activeFileId}
 							allowEdit={allowEdit}
 							mobileViewVariant={mobileViewVariant}
-							refreshLoading={refreshLoading}
+							refreshLoading={loading || refreshLoading}
 							onRefresh={handleRefreshList}
 							selectionResetKey={projectDetailFilesController.selectionResetKey}
 							setUserSelectDetail={setUserSelectDetail}
@@ -621,131 +954,37 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 						/>
 					) : (
 						<>
-							{/* Header Section */}
-							{isSearchMode ? (
-								<SearchModeHeader
-									key="search-header"
-									searchValue={rawSearchValue}
-									onSearchChange={handleSearchChange}
-									onSearchCommit={handleSearchCommit}
-									onClose={handleCloseSearch}
-									headerTrailingAction={headerTrailingAction}
-									className={cn(
-										"duration-200 animate-in fade-in",
-										!showTitle && "[&>p]:hidden",
-									)}
-								/>
-							) : isSelectMode ? (
-								<SelectModeHeader
-									key="select-header"
-									selectedCount={selectedCount}
-									totalCount={totalCount}
-									onSelectAll={handleSelectAll}
-									onDeselectAll={handleDeselectAll}
-									onCancel={handleCancelSelect}
-									headerTrailingAction={headerTrailingAction}
-									className="duration-200 animate-in fade-in"
-								/>
+							{section ? (
+								<SidebarExpandableItem
+									label={resolvedTitle}
+									{...section}
+									testId="memory-files-section"
+									header={stackedHeader ? undefined : header}
+								>
+									{(!adaptiveHeader || stackedHeader) && section.description}
+									{stackedHeader && header}
+									{contentBefore}
+									{content}
+								</SidebarExpandableItem>
 							) : (
-								<NormalModeHeader
-									key="normal-header"
-									title={resolvedTitle}
-									isShareRoute={isShareRoute}
-									refreshLoading={refreshLoading}
-									allowEdit={allowEdit}
-									showMobileActions={showMobileActions}
-									onRefresh={handleRefreshList}
-									onSearch={handleSearch}
-									onAddFile={handleAddFile}
-									onAddDesign={
-										capabilities.projectContentCreation
-											? handleAddDesign
-											: undefined
-									}
-									onAddSelfMedia={
-										capabilities.projectContentCreation
-											? handleAddSelfMedia
-											: undefined
-									}
-									onAddAICard={
-										capabilities.projectContentCreation
-											? handleAddAICard
-											: undefined
-									}
-									onAddFolder={handleAddFolder}
-									allFoldersExpanded={expansionState.allFoldersExpanded}
-									onToggleAllFolders={
-										expansionState.hasExpandableFolders
-											? handleToggleAllFolders
-											: undefined
-									}
-									onUploadFile={
-										capabilities.upload ? handleUploadFile : undefined
-									}
-									onUploadFolder={
-										capabilities.upload ? handleUploadFolder : undefined
-									}
-									onImportFromOtherProject={
-										capabilities.importFromOtherProject
-											? handleImportFromOtherProject
-											: undefined
-									}
-									onEnterSelectMode={
-										capabilities.multiSelect ? handleEnterSelectMode : undefined
-									}
-									headerTrailingAction={headerTrailingAction}
-									className="duration-200 animate-in fade-in"
-								/>
+								<>
+									{stackedHeader && (
+										<h3 className="shrink-0 break-words px-3 py-2 text-[13px] font-medium leading-5 [overflow-wrap:anywhere]">
+											{resolvedTitle}
+										</h3>
+									)}
+									{header}
+									{contentBefore}
+									{content}
+								</>
 							)}
-
-							{/* Content Section */}
-							{/* Use TopicFilesCore for content and batch download functionality */}
-							<TopicFilesCore
-								ref={coreRef}
-								attachments={attachments}
-								setUserSelectDetail={setUserSelectDetail}
-								onFileClick={onFileClick}
-								projectId={projectId}
-								fileFilters={fileFilters}
-								handleDownloadAll={handleDownloadAll}
-								allLoading={allLoading}
-								activeFileId={activeFileId}
-								selectedTopic={selectedTopic}
-								isSelectMode={isSelectMode}
-								onExpansionStateChange={
-									isSearchMode ? undefined : handleExpansionStateChange
-								}
-								onSelectionChange={(selectedCount, totalCount) => {
-									setSelectedCount(selectedCount)
-									setTotalCount(totalCount)
-								}}
-								allowEdit={allowEdit}
-								onUpdateAttachments={
-									spaceConfig?.scope ? handleCoreAttachmentsUpdate : undefined
-								}
-								onAttachmentsChange={onAttachmentsChange}
-								onSelectModeChange={setIsSelectMode}
-								selectedProject={selectedProject}
-								handleReplaceFile={handleReplaceFile}
-								duplicateFileHandler={sharedDuplicateHandler}
-								selectedWorkspace={selectedWorkspace}
-								projects={projects}
-								workspaces={workspaces}
-								isInProject={isInProject}
-								externalSearchValue={isSearchMode ? debouncedSearchValue : ""}
-								filterMenuItems={filterMenuItems}
-								filterBatchDownloadLayerMenuItems={
-									filterBatchDownloadLayerMenuItems
-								}
-								allowDownload={allowDownload}
-								allowReadonlySelection={isShareRoute}
-								resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
-								refreshLoading={refreshLoading}
-								spaceConfig={spaceConfig}
-								isItemSelectable={isItemSelectable}
-								operationRoot={operationRoot}
-							/>
 						</>
+					)}
+					{!isMobile && onOpenFileManager && (
+						<FileManagerFooter
+							onOpenFileManager={onOpenFileManager}
+							onOpenRecycleBin={onOpenRecycleBin}
+						/>
 					)}
 				</div>
 				{projectDetailFilesController.deleteConfirmNode}
@@ -799,6 +1038,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 					onCancel={sharedDuplicateHandler.handleFolderConflictCancel}
 					onMerge={sharedDuplicateHandler.handleFolderConflictMerge}
 					onKeepBoth={sharedDuplicateHandler.handleFolderConflictKeepBoth}
+					onReplace={sharedDuplicateHandler.handleFolderConflictReplace}
 				/>
 				{shouldUseProjectDetailMobileView ? (
 					<DuplicateFileModal

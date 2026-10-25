@@ -64,6 +64,26 @@ class MagicPermission implements MagicPermissionInterface
     }
 
     /**
+     * 获取资源的完整标签路径。
+     */
+    public function getResourceLabelPath(string $resource): string
+    {
+        $enum = MagicResourceEnum::tryFrom($resource);
+        if (! $enum) {
+            throw new InvalidArgumentException('Not a resource type: ' . $resource);
+        }
+
+        $labels = [];
+        $current = $enum;
+        while ($current !== null) {
+            $labels[] = $this->getResourceLabel($current->value);
+            $current = $current->parent();
+        }
+
+        return implode('-', array_reverse($labels));
+    }
+
+    /**
      * 构建完整权限标识.
      */
     public function buildPermission(string $resource, string $operation): string
@@ -235,7 +255,63 @@ class MagicPermission implements MagicPermissionInterface
                 continue;
             }
 
+            if (
+                $isPlatformOrganization
+                && in_array(
+                    $permission['resource'],
+                    (array) config('permission_menu.official_organization_hidden_resource_keys', []),
+                    true
+                )
+            ) {
+                continue;
+            }
+
             $pathNodeSets = $this->resolvePermissionPathNodeSets($permission);
+            if ($pathNodeSets === []) {
+                continue;
+            }
+
+            foreach ($pathNodeSets as $pathNodes) {
+                $this->appendPermissionToTree($tree, $pathNodes, $permission);
+            }
+        }
+
+        return array_values($this->normalizeTree($tree));
+    }
+
+    /**
+     * 获取 v1 版本的权限资源树结构。
+     *
+     * v1 与 v2 共用真实权限资源和树构建算法，仅使用独立的菜单配置。
+     *
+     * @param bool $isPlatformOrganization 是否平台组织
+     */
+    public function getPermissionTreeV1(bool $isPlatformOrganization = false): array
+    {
+        $tree = [];
+        $menuConfig = (array) config('permission_menu_v1', []);
+
+        foreach ($this->generateAllPermissions() as $permission) {
+            $segments = explode('.', $permission['resource']);
+            if (count($segments) < 2) {
+                continue;
+            }
+
+            $platformKey = $segments[0];
+
+            if ($platformKey === MagicResourceEnum::PLATFORM->value && ! $isPlatformOrganization) {
+                continue;
+            }
+
+            if ($isPlatformOrganization && in_array(
+                $permission['resource'],
+                (array) ($menuConfig['official_organization_hidden_resource_keys'] ?? []),
+                true
+            )) {
+                continue;
+            }
+
+            $pathNodeSets = $this->resolveV1PermissionPathNodeSets($permission, $menuConfig);
             if ($pathNodeSets === []) {
                 continue;
             }
@@ -476,7 +552,7 @@ class MagicPermission implements MagicPermissionInterface
      * 解析权限在树中的路径节点（优先使用菜单映射配置，未命中则回退旧逻辑）。
      *
      * @param array{permission_key:string,resource:string,resource_label:string,operation_label:string} $permission
-     * @return array<int, array<int, array{index_key:string,label:string,permission_key:string}>>
+     * @return array<int, array<int, array{index_key:string,label:string,permission_key:string,sort_order?:int}>>
      */
     private function resolvePermissionPathNodeSets(array $permission): array
     {
@@ -552,7 +628,7 @@ class MagicPermission implements MagicPermissionInterface
      * 将一个权限叶子按给定路径挂到树中。
      *
      * @param array<string, array{label:string,permission_key:string,children:array}> $tree
-     * @param array<int, array{index_key:string,label:string,permission_key:string}> $pathNodes
+     * @param array<int, array{index_key:string,label:string,permission_key:string,sort_order?:int}> $pathNodes
      * @param array{permission_key:string,resource:string,resource_label:string,operation_label:string} $permission
      */
     private function appendPermissionToTree(array &$tree, array $pathNodes, array $permission): void
@@ -566,6 +642,11 @@ class MagicPermission implements MagicPermissionInterface
                     'permission_key' => $node['permission_key'],
                     'children' => [],
                 ];
+                if (isset($node['sort_order'])) {
+                    $current[$indexKey]['sort_order'] = $node['sort_order'];
+                }
+            } elseif (! isset($current[$indexKey]['sort_order']) && isset($node['sort_order'])) {
+                $current[$indexKey]['sort_order'] = $node['sort_order'];
             }
             $current = &$current[$indexKey]['children'];
         }
@@ -653,6 +734,36 @@ class MagicPermission implements MagicPermissionInterface
     }
 
     /**
+     * 解析 v1 权限在树中的路径节点。
+     *
+     * v1 使用独立菜单配置，不回退到 v2 配置或旧版资源树。
+     *
+     * @param array{permission_key:string,resource:string,resource_label:string,operation_label:string} $permission
+     * @param array<string, mixed> $menuConfig
+     * @return array<int, array<int, array{index_key:string,label:string,permission_key:string,sort_order?:int}>>
+     */
+    private function resolveV1PermissionPathNodeSets(array $permission, array $menuConfig): array
+    {
+        $hiddenResources = $menuConfig['hidden_resource_keys'] ?? [];
+        if (is_array($hiddenResources) && in_array($permission['resource'], $hiddenResources, true)) {
+            return [];
+        }
+
+        $mapping = $menuConfig['resource_menu_mapping'] ?? [];
+        if (! is_array($mapping)) {
+            return [];
+        }
+
+        $resourceMapping = $mapping[$permission['resource']] ?? null;
+        if (! is_array($resourceMapping) || ! is_array($resourceMapping['path'] ?? null)) {
+            return [];
+        }
+
+        $pathNodes = $this->buildMappedPathNodes($resourceMapping['path']);
+        return $pathNodes === [] ? [] : [$pathNodes];
+    }
+
+    /**
      * @return string[]
      */
     private function getCompatibleResources(string $resource): array
@@ -689,7 +800,7 @@ class MagicPermission implements MagicPermissionInterface
 
     /**
      * @param array<int, mixed> $mappedPath
-     * @return array<int, array{index_key:string,label:string,permission_key:string}>
+     * @return array<int, array{index_key:string,label:string,permission_key:string,sort_order?:int}>
      */
     private function buildMappedPathNodes(array $mappedPath): array
     {
@@ -710,6 +821,9 @@ class MagicPermission implements MagicPermissionInterface
                 'label' => $label,
                 'permission_key' => 'menu.' . implode('.', $accumKeys),
             ];
+            if (isset($node['order']) && is_int($node['order'])) {
+                $pathNodes[array_key_last($pathNodes)]['sort_order'] = $node['order'];
+            }
         }
 
         return $pathNodes;
@@ -748,12 +862,31 @@ class MagicPermission implements MagicPermissionInterface
      */
     private function normalizeTree(array $branch): array
     {
-        foreach ($branch as &$node) {
+        $normalizedBranch = [];
+        foreach ($branch as $key => $node) {
             if (isset($node['children']) && is_array($node['children'])) {
                 $node['children'] = array_values($this->normalizeTree($node['children']));
             }
+            $normalizedBranch[$key] = $node;
         }
-        return $branch;
+
+        $decorated = [];
+        foreach (array_values($normalizedBranch) as $index => $node) {
+            $decorated[] = [
+                'node' => $node,
+                'index' => $index,
+                'rank' => $node['sort_order'] ?? PHP_INT_MAX,
+            ];
+        }
+
+        usort($decorated, static function (array $left, array $right): int {
+            return $left['rank'] <=> $right['rank'] ?: $left['index'] <=> $right['index'];
+        });
+
+        return array_map(static function (array $item): array {
+            unset($item['node']['sort_order']);
+            return $item['node'];
+        }, $decorated);
     }
 
     /**

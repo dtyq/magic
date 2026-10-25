@@ -6,7 +6,7 @@ import JSONSchemaRenderer from "@/common/BaseUI/JSONSchemaRenderer"
 import { MagicJsonSchemaEditor } from "@/index"
 import { Form } from "antd"
 import { useMount } from "ahooks"
-import _ from "lodash"
+import { get } from "lodash-es"
 import React, { useState } from "react"
 import usePrevious from "../../../common/hooks/usePrevious"
 import styles from "./index.module.less"
@@ -20,7 +20,7 @@ export default function SubFlowV0() {
 
 	/** 上游同步下游 */
 	useMount(() => {
-		const serverInput = _.get(currentNode, ["input", "form", "structure"])
+		const serverInput = get(currentNode, ["input", "form", "structure"])
 		setInput(serverInput)
 	})
 

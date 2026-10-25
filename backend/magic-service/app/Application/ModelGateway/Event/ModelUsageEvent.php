@@ -7,10 +7,13 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Event;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Hyperf\Odin\Api\Response\Usage;
 
 class ModelUsageEvent
 {
+    private ?string $eventId = null;
+
     public function __construct(
         public string $modelType,
         public string $modelId,
@@ -21,7 +24,14 @@ class ModelUsageEvent
         public string $appId = '',
         public string $serviceProviderModelId = '',
         public array $businessParams = [],
+        ?string $eventId = null,
     ) {
+        $this->eventId = $eventId ?: (string) ($businessParams['event_id'] ?? IdGenerator::getSnowId());
+    }
+
+    public function getEventId(): string
+    {
+        return $this->eventId ??= (string) ($this->businessParams['event_id'] ?? IdGenerator::getSnowId());
     }
 
     public function getBusinessParam(string $key, mixed $default = null): mixed
@@ -37,6 +47,14 @@ class ModelUsageEvent
     public function getModelId(): string
     {
         return $this->modelId;
+    }
+
+    /**
+     * 获取实际发送给服务商的模型版本。
+     */
+    public function getModelVersion(): string
+    {
+        return $this->modelVersion;
     }
 
     public function getUsage(): Usage
@@ -80,6 +98,7 @@ class ModelUsageEvent
             'user_id' => $this->userId,
             'app_id' => $this->appId,
             'service_provider_model_id' => $this->serviceProviderModelId,
+            'event_id' => $this->eventId,
             'business_params' => $this->businessParams,
         ];
     }

@@ -26,14 +26,16 @@ Task instruction content. Pass plain text or a Tiptap JSONContent object.""",
     )
     schedule_type: Literal["no_repeat", "daily_repeat", "weekly_repeat", "monthly_repeat"] = Field(
         ...,
-        description="""<!--zh: 调度类型。no_repeat 需要 day=YYYY-MM-DD；weekly_repeat 需要 day=0-6；monthly_repeat 需要 day=1-31。-->
-Schedule type. no_repeat requires day=YYYY-MM-DD; weekly_repeat requires day=0-6; monthly_repeat requires day=1-31.""",
+        description="""<!--zh: 调度类型。no_repeat 需要 day=YYYY-MM-DD；weekly_repeat 需要 day=0-6（0=周一…6=周日，见 day 字段说明）；monthly_repeat 需要 day=1-31。-->
+Schedule type. no_repeat requires day=YYYY-MM-DD; weekly_repeat requires day=0-6 (0=Monday ... 6=Sunday, see the day field); monthly_repeat requires day=1-31.""",
     )
     time: str = Field(..., description="""<!--zh: 执行时间，格式 HH:MM。-->Execution time in HH:MM format.""")
-    day: Optional[str] = Field(
+    day: Optional[str | int] = Field(
         None,
-        description="""<!--zh: 日期/星期/日号，含义随 schedule_type 不同。daily_repeat 不需要。-->
-Date, weekday, or day-of-month depending on schedule_type. Not needed for daily_repeat.""",
+        description="""<!--zh: 日期/星期/日号，含义随 schedule_type 不同。请传字符串，如 "2"（传整数也会被自动转为字符串）。daily_repeat 不需要。
+weekly_repeat 的星期映射：0=周一，1=周二，2=周三，3=周四，4=周五，5=周六，6=周日。-->
+Date, weekday, or day-of-month depending on schedule_type. Pass it as a quoted string such as "2" (integers are coerced to string). Not needed for daily_repeat.
+weekly_repeat weekday mapping: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.""",
     )
     deadline: Optional[str] = Field(
         None,

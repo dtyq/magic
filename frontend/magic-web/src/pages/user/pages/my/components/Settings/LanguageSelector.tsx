@@ -9,6 +9,7 @@ import { service } from "@/services"
 import type { ConfigService } from "@/services/config/ConfigService"
 import type { Config } from "@/models/config/types"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 function LanguageSelector() {
 	const { t } = useTranslation("interface")
@@ -17,7 +18,7 @@ function LanguageSelector() {
 	const currentLanguage = useGlobalLanguage()
 	const options = useSupportLanguageOptions()
 
-	// 返回上一页
+	// Return to the previous page using the existing transition.
 	const handleBack = useMemoizedFn(() => {
 		navigate({
 			delta: -1,
@@ -51,7 +52,10 @@ function LanguageSelector() {
 			</div>
 
 			{/* Content */}
-			<div className="flex w-full flex-1 flex-col overflow-y-auto">
+			<ScrollArea
+				className="grid min-h-0 flex-1"
+				viewportClassName="h-auto min-h-0 [&>div]:!block"
+			>
 				<div className="flex w-full flex-col bg-popover">
 					{options.map((option) => {
 						const label =
@@ -73,7 +77,7 @@ function LanguageSelector() {
 						)
 					})}
 				</div>
-			</div>
+			</ScrollArea>
 		</div>
 	)
 }

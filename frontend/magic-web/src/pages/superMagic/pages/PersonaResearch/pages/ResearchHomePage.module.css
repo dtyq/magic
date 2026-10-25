@@ -1,0 +1,34 @@
+/*
+ * One-time entrance on the research home: each block rises and fades in, staggered through
+ * --enter-delay. "backwards" fill releases the transform once it ends, so hover lifts on the
+ * cards still work; it only runs when the page mounts, not when its data refreshes.
+ */
+.enter {
+	animation: home-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+	animation-delay: var(--enter-delay, 0ms);
+}
+
+/* The persona card settles in with a slight scale instead of a plain rise. */
+.enterSoft {
+	animation-name: home-enter-soft;
+}
+
+@keyframes home-enter {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+}
+
+@keyframes home-enter-soft {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.985);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.enter {
+		animation: none;
+	}
+}

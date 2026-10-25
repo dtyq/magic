@@ -17,6 +17,17 @@ use PHPUnit\Framework\TestCase;
  */
 class ProviderTemplateIdTest extends TestCase
 {
+    public function testDashScopeAndGeminiVgmTemplateMappings(): void
+    {
+        foreach ([ProviderCode::DashScope, ProviderCode::Gemini] as $providerCode) {
+            $templateId = ProviderTemplateId::fromProviderCodeAndCategory($providerCode, Category::VGM);
+
+            self::assertNotNull($templateId);
+            self::assertSame($providerCode, $templateId->toProviderCodeAndCategory()['providerCode']);
+            self::assertSame(Category::VGM, $templateId->toProviderCodeAndCategory()['category']);
+        }
+    }
+
     public function testVolcengineArkVgmTemplateMapping(): void
     {
         $templateId = ProviderTemplateId::fromProviderCodeAndCategory(

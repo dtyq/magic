@@ -1,7 +1,7 @@
 import { prefix } from "@/MagicFlow/constants"
 import { useExternal } from "@/MagicFlow/context/ExternalContext/useExternal"
 import clsx from "clsx"
-import _ from "lodash"
+import { isBoolean } from "lodash-es"
 import React, { useMemo } from "react"
 import { useFlowData } from "../../context/FlowContext/useFlow"
 import useFlowHeader from "./hooks/useFlowHeader"
@@ -16,7 +16,7 @@ export default function FlowHeader() {
 
 	// 计算showImage，避免在子组件中计算
 	const showImage = useMemo(() => {
-		if (_.isBoolean(header?.showImage)) {
+		if (isBoolean(header?.showImage)) {
 			return header?.showImage
 		}
 		return true

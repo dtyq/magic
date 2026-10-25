@@ -5,19 +5,44 @@ Base class for all Magic Service API parameters with authentication support.
 """
 
 from abc import abstractmethod
+from dataclasses import dataclass, field
 from typing import Dict, Any, Optional
+
+from agentlang.utils.metadata import MetadataUtil
 from app.infrastructure.sdk.base import AbstractParameter
+
+
+@dataclass(frozen=True)
+class MagicServiceAuthConfig:
+    """会话内的可信请求身份；凭据不进入日志、Horizon 或工具结果。"""
+
+    user_id: str
+    organization_code: str
+    user_authorization: str = field(repr=False)
+    token: str | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        if not self.user_id or not self.organization_code or not self.user_authorization:
+            raise ValueError("Current user authentication is incomplete")
 
 
 class MagicServiceAbstractParameter(AbstractParameter):
     """Abstract base class for Magic Service API parameters with authentication"""
 
-    def __init__(self):
+    def __init__(self, auth_config: MagicServiceAuthConfig | None = None):
         """Initialize parameter with authentication fields"""
         self.token: Optional[str] = None
         self.user_id: Optional[str] = None
         self.user_authorization: Optional[str] = None
         self._request_id: Optional[str] = None
+        self.organization_code: str | None = None
+
+        if auth_config is not None:
+            self.token = auth_config.token
+            self.user_id = auth_config.user_id
+            self.user_authorization = auth_config.user_authorization
+            self.organization_code = auth_config.organization_code
+            return
 
         # Automatically load auth config from init client message
         self._load_auth_config()
@@ -116,6 +141,7 @@ class MagicServiceAbstractParameter(AbstractParameter):
         if self._request_id:
             headers['request-id'] = self._request_id
 
+        MetadataUtil.add_sandbox_id_header(headers)
         return headers
 
     def to_options(self, method: str) -> Dict[str, Any]:

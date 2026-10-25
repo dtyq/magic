@@ -3,9 +3,15 @@ import { observer } from "mobx-react-lite"
 import { memo, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { IMAGE_EXTENSIONS } from "@/constants/file"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
-import projectFilesStore from "@/stores/projectFiles"
-import { decodePathForDisplay, findAttachmentByPath } from "./helper"
+import { useFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { shouldWaitForShareAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { decodePathForDisplay } from "./helper"
+import {
+	findAttachmentByPath,
+	parseCanonicalWorkspaceHref,
+} from "@/pages/superMagic/utils/markdownFileReference"
+import { useMessageListProjectFilesStore } from "@/pages/superMagic/components/MessageList/context"
 
 const IMAGE_EXTENSION_SET = new Set(
 	[...IMAGE_EXTENSIONS, "avif", "bmp", "ico", "tif", "tiff"].map((extension) =>
@@ -80,12 +86,16 @@ function isImageAttachment(fileInfo: Record<string, unknown> | undefined, src: s
 	return Boolean(extension && IMAGE_EXTENSION_SET.has(extension))
 }
 
-function resolveImageUrl(fileId: string): Promise<string | null> {
-	const cached = imageUrlPromiseCache.get(fileId)
+function resolveImageUrl(fileId: string, fileApi: FileApi): Promise<string | null> {
+	const cacheKey = `${fileApi.identityKey}:${fileId}`
+	const cached = imageUrlPromiseCache.get(cacheKey)
 	if (cached && cached.expiresAt > Date.now()) return cached.promise
-	imageUrlPromiseCache.delete(fileId)
+	imageUrlPromiseCache.delete(cacheKey)
 
-	const request = getTemporaryDownloadUrl({ file_ids: [fileId] })
+	const request = fileApi
+		.getTemporaryDownloadUrl({
+			file_ids: [fileId],
+		})
 		.then((result) => result?.[0]?.url || null)
 		.catch((error) => {
 			console.error("Failed to resolve markdown image URL", error)
@@ -98,7 +108,7 @@ function resolveImageUrl(fileId: string): Promise<string | null> {
 		const oldestFileId = imageUrlPromiseCache.keys().next().value
 		if (oldestFileId) imageUrlPromiseCache.delete(oldestFileId)
 	}
-	imageUrlPromiseCache.set(fileId, {
+	imageUrlPromiseCache.set(cacheKey, {
 		expiresAt: Date.now() + IMAGE_URL_CACHE_TTL_MS,
 		promise: request,
 	})
@@ -121,16 +131,22 @@ const ResolvedImage = memo(
 	}) => {
 		const [resolvedSrc, setResolvedSrc] = useState<string>()
 		const [failureReason, setFailureReason] = useState<ImageFailureReason>()
+		const fileAccess = useFileAccess()
+		// Bind the ambient share/session identity so relative images are readable in
+		// share previews instead of failing closed.
+		const fileApi = useFileApi()
 
 		useEffect(() => {
 			let isActive = true
 			setResolvedSrc(undefined)
 			setFailureReason(undefined)
 
-			if (isExternal || !fileId) return () => undefined
+			if (isExternal || !fileId || shouldWaitForShareAccess(fileAccess)) {
+				return () => undefined
+			}
 
 			// Cache in-flight requests because streaming Markdown may remount the same image node.
-			resolveImageUrl(fileId).then((url) => {
+			resolveImageUrl(fileId, fileApi).then((url) => {
 				if (!isActive) return
 				if (url) setResolvedSrc(url)
 				else setFailureReason("url")
@@ -139,7 +155,7 @@ const ResolvedImage = memo(
 			return () => {
 				isActive = false
 			}
-		}, [fileId, isExternal])
+		}, [fileAccess, fileApi, fileId, isExternal])
 
 		if (failureReason) {
 			return <ImageLoadFailure src={src} reason={failureReason} />
@@ -159,13 +175,13 @@ const ResolvedImage = memo(
 
 export const Image = observer(
 	({ alt, src, title }: { alt?: unknown; src?: unknown; title?: unknown }) => {
+		const projectFilesStore = useMessageListProjectFilesStore()
 		const normalizedAlt = typeof alt === "string" ? alt : undefined
 		const normalizedSrc = typeof src === "string" ? src : ""
 		const normalizedTitle = typeof title === "string" ? title : undefined
-		const attachments = projectFilesStore.workspaceFilesList
-		const fileInfo = normalizedSrc
-			? findAttachmentByPath(attachments, normalizedSrc)
-			: undefined
+		const attachments = projectFilesStore?.workspaceFilesList ?? []
+		const filePath = parseCanonicalWorkspaceHref(normalizedSrc, { allowWorkspaceRoot: true })
+		const fileInfo = filePath ? findAttachmentByPath(attachments, filePath) : undefined
 		const hasExternalSource = isExternalImageSource(normalizedSrc)
 
 		if (!normalizedSrc) {

@@ -20,6 +20,7 @@ from typing import Any
 import aiohttp
 
 from agentlang.logger import get_logger
+from agentlang.config.config import config
 
 logger = get_logger(__name__)
 
@@ -29,6 +30,30 @@ OFFICIAL_CHANNEL_VERSION = "1.0.2"
 OFFICIAL_CLIENT_ID_PREFIX = "openclaw-weixin"
 DEFAULT_LONG_POLL_TIMEOUT_MS = 35_000
 DEFAULT_API_TIMEOUT_MS = 15_000
+
+
+class WechatTextTooLong(ValueError):
+    """本地发送预算错误；不是微信服务端公布的硬上限。"""
+
+    def __init__(self, text: str, limit: int) -> None:
+        self.actual_bytes = len(text.encode("utf-8"))
+        self.actual_chars = len(text)
+        self.limit = limit
+        super().__init__(
+            f"text_too_long: {self.actual_bytes} UTF-8 bytes ({self.actual_chars} characters), "
+            f"local budget {limit} bytes. Divide the full content into separate text items "
+            'or use <split> in the final reply. No automatic splitting or truncation is performed.'
+        )
+
+
+def text_max_bytes() -> int:
+    return max(4, int(config.get("wechat.text_max_bytes", 4000)))
+
+
+def validate_text_length(text: str) -> None:
+    limit = text_max_bytes()
+    if len(text.encode("utf-8")) > limit:
+        raise WechatTextTooLong(text, limit)
 DEFAULT_CONFIG_TIMEOUT_MS = 10_000
 TYPING_STATUS_TYPING = 1
 TYPING_STATUS_CANCEL = 2
@@ -415,6 +440,8 @@ async def send_message(
     """发送单条文本消息；缺少 context_token 时直接拒绝。"""
     if not context_token:
         raise WechatAPIError("send_message: context_token is required", label="sendMessage")
+
+    validate_text_length(text)
 
     body = json.dumps(
         {

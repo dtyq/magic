@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { HttpClient } from "../../core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import { generateContactApi } from "../contact"
 
 describe("generateContactApi", () => {
@@ -7,7 +7,7 @@ describe("generateContactApi", () => {
 		const post = vi.fn().mockResolvedValue({ items: [] })
 		const contactApi = generateContactApi({
 			post,
-		} as unknown as HttpClient)
+		} as unknown as ServiceHttpClient)
 
 		await contactApi.getUsersInfo(
 			{

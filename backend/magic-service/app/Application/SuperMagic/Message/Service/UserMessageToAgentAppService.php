@@ -212,7 +212,7 @@ class UserMessageToAgentAppService extends AbstractAppService
                 $topicEntity->getId(),
                 $messageContent,
                 $chatMessageType
-            );
+            )->message;
 
             $this->logger->info('Message inserted into queue', [
                 'topic_id' => $topicEntity->getId(),

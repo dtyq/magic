@@ -1,5 +1,5 @@
 import type { QuickInstruction } from "@/types/bot"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { ExtensionName } from "./constants"
 
 /** 生成模板指令节点 */

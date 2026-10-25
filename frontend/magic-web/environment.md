@@ -115,11 +115,18 @@ MAGIC_LOGIN_CONFIG = {"wechat_official_account":{"enable":true,"default":true},"
 |:----------:|:----:|:-------------------------------------:|
 | Volcengine | 火山引擎 | { options: { appId: "", token: ""  }} |
 |   Aliyun   | 阿里云  |                                       |
+|  DataFlux  | 观测云  | { options: { appId: "", token: "", site: "" }} |
 
 ```text
 // 火山引擎示例
 
 MAGIC_APM = `{"strategy": "Volcengine", "options": { "appId": "", "token": "" }}`
+```
+
+```text
+// DataFlux Browser RUM 示例
+
+MAGIC_APM = `{"strategy": "DataFlux", "options": { "appId": "", "token": "", "site": "https://gc-rum.example.com", "env": "production", "service": "browser", "sessionSampleRate": 100, "sessionReplaySampleRate": 70, "startSessionReplayRecording": true }}`
 ```
 
 ### SaaS 订单支付方式 MAGIC_PAYMENT_METHOD
@@ -270,5 +277,4 @@ MAGIC_CDNHOST = ""
 // 启用多个第三方用户分析行为
 [{"strategy": "CNZZ", "options": { "id": "" }}, {"strategy": "Google", "options": { "id": "" }}]
 ```
-
 

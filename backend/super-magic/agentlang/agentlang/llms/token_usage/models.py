@@ -17,7 +17,9 @@ Token使用统计系统的核心数据模型
 该算法确保了所有涉及token处理的情况都被完整统计，包括缓存相关的token。
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from collections.abc import Mapping
+from typing import Literal, cast
 from typing import Dict, List, Optional, Any, Protocol, Type, ClassVar
 from datetime import datetime
 
@@ -122,6 +124,43 @@ class TokenUsageParser(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True)
+class ContextInputBreakdown:
+    """单次请求的文本估算；独立于计费、容量限制和自动整理判断。"""
+    system_tokens: int = 0
+    tool_definition_tokens: int = 0
+    skill_tokens: int = 0
+    mcp_tokens: int = 0
+    conversation_tokens: int = 0
+    tool_result_tokens: int = 0
+    contains_non_text_content: bool = False
+    partial_attribution: bool = False
+    source: Literal["text_estimate"] = "text_estimate"
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: object) -> "ContextInputBreakdown | None":
+        if not isinstance(data, Mapping) or data.get("source") != "text_estimate":
+            return None
+        counts = ("system_tokens", "tool_definition_tokens", "skill_tokens", "mcp_tokens", "conversation_tokens", "tool_result_tokens")
+        if any(type(data.get(key)) is not int or data[key] < 0 for key in counts):
+            return None
+        if any(type(data.get(key)) is not bool for key in ("contains_non_text_content", "partial_attribution")):
+            return None
+        return cls(
+            system_tokens=cast(int, data["system_tokens"]),
+            tool_definition_tokens=cast(int, data["tool_definition_tokens"]),
+            skill_tokens=cast(int, data["skill_tokens"]),
+            mcp_tokens=cast(int, data["mcp_tokens"]),
+            conversation_tokens=cast(int, data["conversation_tokens"]),
+            tool_result_tokens=cast(int, data["tool_result_tokens"]),
+            contains_non_text_content=cast(bool, data["contains_non_text_content"]),
+            partial_attribution=cast(bool, data["partial_attribution"]),
+        )
+
+
 @dataclass
 class TokenUsage:
     """基本token使用量数据
@@ -154,6 +193,7 @@ class TokenUsage:
     model_name: Optional[str] = None  # Added field for model name
     resolved_model_id: Optional[str] = None  # 实际落地的模型 ID（如 "qwen3-coder-plus"）
     max_context_tokens: Optional[int] = None  # 当前模型的最大上下文 token 数
+    input_breakdown: ContextInputBreakdown | None = None
 
     # 注册的解析器，按优先级顺序排列
     _parsers: ClassVar[List[Type[TokenUsageParser]]] = []
@@ -186,6 +226,8 @@ class TokenUsage:
         if self.max_context_tokens is not None:
             data["max_context_tokens"] = self.max_context_tokens
 
+        if self.input_breakdown is not None:
+            data["input_breakdown"] = self.input_breakdown.to_dict()
         return data
 
     @classmethod
@@ -236,6 +278,7 @@ class TokenUsage:
             model_name=data.get("model_name"),
             resolved_model_id=data.get("resolved_model_id"),
             max_context_tokens=data.get("max_context_tokens"),
+            input_breakdown=ContextInputBreakdown.from_dict(data.get("input_breakdown")),
         )
 
     @classmethod

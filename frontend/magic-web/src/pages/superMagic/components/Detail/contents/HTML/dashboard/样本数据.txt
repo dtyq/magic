@@ -1,0 +1,25 @@
+const DASHBOARD_CARDS = [
+  {
+    id: "x11_monthly_trend_line",
+    type: "line",
+    title: "【X11项目】26年1-4月各月差旅平台费用走势（含同比）",
+    layout: { x: 0, y: 0, w: 6, h: 4 },
+    getCardData: async () => ({ value: 1 }),
+  },
+  {
+    id: "x11_business_trend_area",
+    type: "area",
+    title: "【X11项目】业务趋势",
+    layout: { x: 6, y: 0, w: 6, h: 4 },
+    getCardData: async () => ({ value: 2 }),
+  },
+  {
+    id: "x11_business_composition_donut",
+    type: "donut",
+    title: "【X11项目】业务构成",
+    layout: { x: 0, y: 4, w: 6, h: 4 },
+    getCardData: async () => ({ value: 3 }),
+  },
+]
+
+window.DASHBOARD_CARDS = DASHBOARD_CARDS

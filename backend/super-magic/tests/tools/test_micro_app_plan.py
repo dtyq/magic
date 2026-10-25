@@ -45,6 +45,36 @@ def test_micro_app_agent_does_not_declare_runtime_managed_code_execution_tools()
     assert agent_define.code_execution is True
 
 
+def test_micro_app_agent_delegates_magicbase_tools_to_code_mode():
+    """MagicBase 工具已改为 Code Mode 专用，不能再出现在 agent tools 声明里。"""
+    agent_content = AGENT_FILE.read_text(encoding="utf-8")
+    agent_define = parse_agent_file(agent_content)[0]
+
+    declared_magicbase_tools = [
+        tool_name
+        for tool_name in agent_define.tools_config
+        if tool_name.startswith("magicbase") or "_magicbase_" in tool_name
+    ]
+    assert declared_magicbase_tools == []
+    assert agent_define.skills_config is not None
+    assert [entry.name for entry in agent_define.skills_config.preload] == [
+        "micro-app-architect",
+        "html-api-sdk",
+        "magicbase",
+    ]
+    assert "use-magicbase" in agent_define.skills_config.get_system_skill_names()
+    assert agent_define.code_execution is True
+
+
+def test_magicbase_skill_documents_code_mode_execution():
+    content = MAGICBASE_SKILL_FILE.read_text(encoding="utf-8")
+
+    assert "Code Mode only" in content
+    assert "run_sdk_snippet" in content
+    assert 'tool.call("create_magicbase_table"' in content
+    assert 'tool.call("update_magicbase_row"' in content
+
+
 def test_micro_app_contract_docs_do_not_reference_legacy_plan_tool():
     for contract_file in (AGENT_FILE, MAGICBASE_SKILL_FILE):
         content = contract_file.read_text(encoding="utf-8")

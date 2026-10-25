@@ -3,20 +3,28 @@
  * 为测试环境提供 lodash-es 的常用方法
  */
 
-import * as lodash from "lodash-es"
+import {
+	cloneDeep,
+	debounce,
+	merge,
+	throttle,
+	type DebounceSettings,
+	type DebouncedFunc,
+	type ThrottleSettings,
+} from "lodash-es"
 
 // 定义throttle和debounce的类型
 type ThrottleFunction = <T extends (...args: any[]) => any>(
 	func: T,
 	wait?: number,
-	options?: lodash.ThrottleSettings,
-) => lodash.DebouncedFunc<T>
+	options?: ThrottleSettings,
+) => DebouncedFunc<T>
 
 type DebounceFunction = <T extends (...args: any[]) => any>(
 	func: T,
 	wait?: number,
-	options?: lodash.DebounceSettings,
-) => lodash.DebouncedFunc<T>
+	options?: DebounceSettings,
+) => DebouncedFunc<T>
 
 // 创建一个包含我们自定义方法的对象
 const customMethods: {
@@ -33,8 +41,8 @@ const customMethods: {
 	get: (obj: any, path: string | string[], defaultValue?: any) => any
 	omit: (obj: object, paths: string | string[]) => object
 	pick: (obj: object, paths: string | string[]) => object
-	merge: typeof lodash.merge
-	cloneDeep: typeof lodash.cloneDeep
+	merge: typeof merge
+	cloneDeep: typeof cloneDeep
 	throttle: ThrottleFunction
 	debounce: DebounceFunction
 } = {
@@ -87,10 +95,10 @@ const customMethods: {
 		return result
 	},
 	// 使用lodash原始方法
-	merge: lodash.merge,
-	cloneDeep: lodash.cloneDeep,
-	throttle: lodash.throttle,
-	debounce: lodash.debounce,
+	merge,
+	cloneDeep,
+	throttle,
+	debounce,
 }
 
 // 从自定义方法对象中导出各个方法

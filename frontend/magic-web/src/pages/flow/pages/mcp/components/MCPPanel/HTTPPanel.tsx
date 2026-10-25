@@ -3,17 +3,14 @@ import { useStyles } from "./styles"
 import { useMemoizedFn, useRequest, useThrottleEffect } from "ahooks"
 import { FlowApi } from "@/apis"
 import { useState } from "react"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useTranslation } from "react-i18next"
 import { IconHelp } from "@tabler/icons-react"
 import { openAgentCommonModal } from "@/components/Agent/AgentCommonModal"
 import { MCPOAuth, MCPForm } from "@/components/Agent/MCP"
 import MagicSpin from "@/components/base/MagicSpin"
 import type { Flow } from "@/types/flow"
-import {
-	hasEditRight,
-	ResourceTypes,
-} from "@/pages/flow/components/AuthControlButton/types"
+import { hasEditRight, ResourceTypes } from "@/pages/flow/components/AuthControlButton/types"
 import AuthControlButton from "@/pages/flow/components/AuthControlButton/AuthControlButton"
 import { generateCallbackUrl } from "@/components/Agent/MCP/helpers"
 import { StatusIndicator } from "@/pages/flow/list/components/RightDrawer/components"
@@ -22,13 +19,13 @@ import { colorUsages } from "@/providers/ThemeProvider/colors"
 import MCPToolsOptionWrapper from "@/pages/flow/list/components/ToolCard/components/ToolsOptionWrapper"
 
 const enum MCPConnectStatus {
-	/** 等待连接 */
+	/** Waiting for a connection. */
 	Pending = "pending",
-	/** 连接成功 */
+	/** Connection established. */
 	Success = "success",
-	/** 连接失败 */
+	/** Connection failed. */
 	Fail = "fail",
-	/** 请求中 */
+	/** Request in progress. */
 	Loading = "loading",
 }
 
@@ -73,7 +70,7 @@ export function HTTPPanel(props: HTTPPanelProps) {
 		{ wait: 500, leading: false },
 	)
 
-	/** 修改 MCP 服务地址 */
+	/** Edit the MCP server URL. */
 	const triggerMCPUrlForm = useMemoizedFn(() => {
 		openAgentCommonModal({
 			width: 500,
@@ -86,7 +83,7 @@ export function HTTPPanel(props: HTTPPanelProps) {
 	const onStatusChack = useMemoizedFn(async () => {
 		try {
 			if (details?.id) {
-				// 没有添加的则先获取状态，判断是否需要授权
+				// Fetch settings before checking whether authorization is required.
 				const result = await FlowApi.getMCPUserSettings({
 					code: details?.id,
 					redirectUrl: generateCallbackUrl(),
@@ -96,7 +93,7 @@ export function HTTPPanel(props: HTTPPanelProps) {
 					result?.auth_type ||
 					(details?.require_fields && details?.require_fields?.length > 0)
 				) {
-					// 需要授权，根据返回的表单字段发起新的弹窗让用户填写。填写完成后，在填写表单弹窗中轮询结果，成功后在弹窗表单中显示成功，这里可关闭弹出的表单后让用户再次天际添加
+					// The authorization dialog collects required fields and polls for completion.
 					openAgentCommonModal({
 						width: 560,
 						footer: null,
@@ -111,7 +108,7 @@ export function HTTPPanel(props: HTTPPanelProps) {
 						),
 					})
 				} else {
-					// 直接检查为通过
+					// No authorization is required for this server.
 					setConnectStatus(MCPConnectStatus.Success)
 				}
 			}
@@ -170,7 +167,11 @@ export function HTTPPanel(props: HTTPPanelProps) {
 							})}
 						</div>
 						<MagicSpin spinning={loading}>
-							<MagicScrollBar className={styles.scroll} autoHide={false}>
+							<ScrollArea
+								className={styles.scroll}
+								viewportClassName={styles.scrollViewport}
+								type="always"
+							>
 								{mcpTools?.tools?.map((item) => (
 									<div key={item.name} className={styles.item}>
 										<div className={styles.itemHeader}>
@@ -187,7 +188,7 @@ export function HTTPPanel(props: HTTPPanelProps) {
 										</div>
 									</div>
 								))}
-							</MagicScrollBar>
+							</ScrollArea>
 						</MagicSpin>
 					</div>
 				</>

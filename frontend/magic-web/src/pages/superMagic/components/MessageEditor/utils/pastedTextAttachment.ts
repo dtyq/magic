@@ -1,3 +1,9 @@
+import {
+	containsMarkdownFileReference,
+	classifyMarkdownFileHref,
+} from "@/pages/superMagic/utils/filePathMention"
+import { hasSerializedSelection } from "../extensions/inspector-detail/serialization"
+
 export const LONG_PLAIN_TEXT_PASTE_THRESHOLD = 4000
 const MAGIC_CLIPBOARD_TYPES = new Set([
 	"text/x-magic-message-rich-text",
@@ -22,14 +28,42 @@ export function shouldConvertPastedTextToAttachment(
 	if (clipboardData.files.length > 0) return false
 
 	const text = clipboardData.getData("text/plain")
+	// 标签渲染之前还有输入分流；纯文本复制的选取资料也须交给粘贴恢复器。
+	if (hasSerializedSelection(text)) return false
 	if (text.trim().length < threshold) return false
 
 	const types = getClipboardTypes(clipboardData.types)
 	if (types.length === 0) return true
 	if (!types.includes("text/plain")) return false
-	if (hasMagicClipboardData({ clipboardData, types })) return false
+	if (hasMagicClipboardData(clipboardData)) return false
 
 	return true
+}
+
+export function containsCanonicalWorkspaceLink(clipboardData: ClipboardDataLike): boolean {
+	const html = clipboardData.getData("text/html")
+	if (html) {
+		const container = document.createElement("div")
+		container.innerHTML = html
+		if (
+			Array.from(container.querySelectorAll("a[href]")).some(
+				(anchor) =>
+					!anchor.closest("code, pre") &&
+					Boolean(
+						(() => {
+							const result = classifyMarkdownFileHref(
+								anchor.getAttribute("href") || "",
+							)
+							return result.target || result.explicitFileReference
+						})(),
+					),
+			)
+		) {
+			return true
+		}
+	}
+
+	return containsMarkdownFileReference(clipboardData.getData("text/plain"))
 }
 
 export function createPastedTextFile({ text, now = new Date() }: CreatePastedTextFileOptions) {
@@ -44,13 +78,8 @@ function getClipboardTypes(types?: readonly string[] | DOMStringList): string[] 
 	return Array.from(types)
 }
 
-function hasMagicClipboardData({
-	clipboardData,
-	types,
-}: {
-	clipboardData: ClipboardDataLike
-	types: string[]
-}): boolean {
+export function hasMagicClipboardData(clipboardData: ClipboardDataLike): boolean {
+	const types = getClipboardTypes(clipboardData.types)
 	if (types.some((type) => MAGIC_CLIPBOARD_TYPES.has(type))) return true
 
 	const html = clipboardData.getData("text/html")

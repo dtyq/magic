@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NavyStack — Deep Navy Enterprise Architecture</title>
+<style>
+  :root {
+    --canvas: #0a0e27; --surface-sidebar: #0d1333; --surface-card: #111638; --surface-hover: #161d48;
+    --border: #1e2756; --primary: #00d4ff; --primary-glow: rgba(0, 212, 255, 0.35);
+    --ice-blue: #38bdf8; --purple: #7c3aed; --emerald: #10b981; --amber: #f59e0b; --ruby: #ef4444;
+    --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --radius-xs: 4px; --radius-sm: 6px; --radius-md: 8px; --radius-pill: 20px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background-color: var(--canvas); color: var(--text-primary); font-family: var(--font-sans);
+    font-size: 13px; line-height: 1.45; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  .layout-shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 210px; background: var(--surface-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { height: 56px; padding: 0 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+  .logo-cube { width: 26px; height: 26px; background: linear-gradient(135deg, var(--primary), var(--purple)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px var(--primary-glow); }
+  .logo-cube svg { width: 15px; height: 15px; stroke: #fff; }
+  .logo-text { font-size: 13.5px; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
+  .sidebar-nav { padding: 10px 0; flex: 1; }
+  .nav-heading { padding: 5px 16px; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  .nav-link { display: flex; align-items: center; gap: 8px; padding: 8px 16px; color: var(--text-secondary); font-size: 12px; font-weight: 500; cursor: pointer; text-decoration: none; }
+  .nav-link:hover { background: rgba(0, 212, 255, 0.04); color: var(--text-primary); }
+  .nav-link.active { background: rgba(0, 212, 255, 0.08); color: var(--primary); border-right: 3px solid var(--primary); font-weight: 600; }
+  .sidebar-footer { padding: 12px 14px; border-top: 1px solid var(--border); font-size: 10.5px; color: var(--text-muted); }
+  .content-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .header-bar { height: 56px; padding: 0 20px; background: var(--surface-sidebar); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .breadcrumbs { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-muted); }
+  .breadcrumbs span.current { color: var(--text-primary); font-weight: 600; }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  .perimeter-badge { display: flex; align-items: center; gap: 6px; padding: 3px 10px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-pill); font-size: 11px; color: #34d399; font-weight: 600; }
+  .status-dot-emerald { width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; }
+  .page-body { padding: 14px 20px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* 4 Executive KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .stat-card {
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .stat-card:hover {
+    border-color: rgba(0, 212, 255, 0.4);
+    transform: translateY(-2px);
+  }
+  .stat-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .stat-sub { font-size: 11px; color: var(--primary); font-family: var(--font-mono); }
+
+  /* Cloud Infrastructure Dependency Graph Card */
+  .graph-card {
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+  }
+  .graph-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .graph-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .graph-svg-container {
+    width: 100%;
+    height: 190px;
+    background: #0d122e;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Dual Details Row: Latency Breakdown & Zero-Trust Perimeter */
+  .dual-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .panel-box {
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+  }
+  .panel-head {
+    font-size: 12.5px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* Latency Stack Bar */
+  .latency-row { margin-bottom: 8px; }
+  .latency-meta { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+  .latency-bar-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+  .latency-bar-fill { height: 100%; border-radius: 3px; }
+
+  /* Zero-Trust Metric Rows */
+  .security-list { display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; }
+  .sec-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-xs);
+    border-left: 3px solid var(--primary);
+  }
+  .tag-pill {
+    padding: 2px 7px;
+    border-radius: var(--radius-xs);
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+  .tag-cyan { background: rgba(0, 212, 255, 0.15); color: var(--primary); }
+  .tag-emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+  @media (max-width: 980px) {
+    .sidebar { display: none; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .dual-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout-shell">
+  <!-- 220px Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-cube">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div>
+        <div class="logo-text">NavyStack</div>
+        <div style="font-size:10px; color:var(--text-muted);">Enterprise Mesh</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-heading">ARCHITECTURE</div>
+      <a class="nav-link active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        <span>Dependency Graph</span>
+      </a>
+      <a class="nav-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        <span>Microservice Latency</span>
+      </a>
+      <a class="nav-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span>Zero-Trust Perimeter</span>
+      </a>
+      <div class="nav-heading" style="margin-top:10px;">INFRASTRUCTURE</div>
+      <a class="nav-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+        <span>SPIFFE/SPIRE Sync</span>
+      </a>
+      <a class="nav-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span>Global VPC Mesh</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div>GovCloud US-East</div>
+      <div style="color:var(--primary);">Apex-Fintech-Mesh</div>
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <main class="content-area">
+    <!-- Header -->
+    <header class="header-bar">
+      <div class="breadcrumbs">
+        <span>VPC-Global-Mesh</span>
+        <span>/</span>
+        <span>us-east-1</span>
+        <span>/</span>
+        <span class="current">Enterprise Architecture Stack</span>
+      </div>
+      <div class="header-actions">
+        <div class="perimeter-badge">
+          <span class="status-dot-emerald"></span>
+          <span>Zero-Trust: ENFORCED (mTLS 1.3)</span>
+        </div>
+        <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-secondary);">
+          Cert Renewal: 100% OK
+        </div>
+      </div>
+    </header>
+
+    <div class="page-body">
+      <!-- 4 Executive KPI Cards (First 500px) -->
+      <div class="kpi-grid">
+        <div class="stat-card">
+          <div class="stat-label">Attested Services</div>
+          <div class="stat-value">42 <span class="stat-sub">/ 42 Pods</span></div>
+          <div style="font-size:10.5px; color:#10b981; margin-top:2px;">100% SPIRE Identity</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cross-Mesh Latency</div>
+          <div class="stat-value">14.2 <span class="stat-sub">ms p99</span></div>
+          <div style="font-size:10.5px; color:var(--primary); margin-top:2px;">-2.4ms Envoy v1.30</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Zero-Trust Attestations</div>
+          <div class="stat-value">18.4M <span class="stat-sub">/ hr</span></div>
+          <div style="font-size:10.5px; color:#38bdf8; margin-top:2px;">0 Invalid Certs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">High-Availability SLA</div>
+          <div class="stat-value">99.999%</div>
+          <div style="font-size:10.5px; color:#10b981; margin-top:2px;">Multi-AZ Resilient</div>
+        </div>
+      </div>
+
+      <!-- Cloud Infrastructure Dependency Graph SVG -->
+      <div class="graph-card">
+        <div class="graph-title-row">
+          <div class="graph-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            CLOUD INFRASTRUCTURE TOPOLOGY &amp; SERVICE DEPENDENCY GRAPH
+          </div>
+          <div style="display:flex; gap:8px; font-size:11px; font-family:var(--font-mono);">
+            <span class="tag-pill tag-cyan">mTLS 1.3 Flow</span>
+            <span class="tag-pill tag-emerald">gRPC Sync</span>
+          </div>
+        </div>
+
+        <div class="graph-svg-container">
+          <svg width="100%" height="100%" viewBox="0 0 900 190">
+            <!-- Connectors between Nodes -->
+            <!-- Edge to Ingress -->
+            <path d="M 120 95 L 260 95" stroke="#00d4ff" stroke-width="2" stroke-dasharray="4,4"/>
+            <!-- Ingress to Auth, Order, Payment -->
+            <path d="M 360 95 C 410 95, 410 45, 470 45" stroke="#7c3aed" stroke-width="1.8"/>
+            <path d="M 360 95 L 470 95" stroke="#00d4ff" stroke-width="2"/>
+            <path d="M 360 95 C 410 95, 410 145, 470 145" stroke="#10b981" stroke-width="1.8"/>
+            <!-- Order to DB & Cache -->
+            <path d="M 590 95 C 640 95, 650 65, 710 65" stroke="#00d4ff" stroke-width="2"/>
+            <path d="M 590 95 C 640 95, 650 125, 710 125" stroke="#f59e0b" stroke-width="1.8"/>
+
+            <!-- Node 1: Edge WAF -->
+            <g transform="translate(30, 70)">
+              <rect width="90" height="50" rx="6" fill="#111638" stroke="#00d4ff" stroke-width="1.5"/>
+              <text x="45" y="24" fill="#00d4ff" font-size="10" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono'">EDGE WAF</text>
+              <text x="45" y="38" fill="#94a3b8" font-size="9" text-anchor="middle">Cloudflare</text>
+            </g>
+
+            <!-- Node 2: Envoy Mesh Ingress -->
+            <g transform="translate(260, 70)">
+              <rect width="100" height="50" rx="6" fill="#111638" stroke="#00d4ff" stroke-width="2"/>
+              <text x="50" y="24" fill="#ffffff" font-size="10" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono'">ENVOY INGRESS</text>
+              <text x="50" y="38" fill="#38bdf8" font-size="9" text-anchor="middle">mTLS 1.3 Gate</text>
+            </g>
+
+            <!-- Node 3A: Auth Service -->
+            <g transform="translate(470, 20)">
+              <rect width="120" height="48" rx="6" fill="#111638" stroke="#7c3aed" stroke-width="1.5"/>
+              <text x="60" y="22" fill="#c084fc" font-size="10" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono'">AUTH SERVICE</text>
+              <text x="60" y="36" fill="#94a3b8" font-size="9" text-anchor="middle">Keycloak / OIDC</text>
+            </g>
+
+            <!-- Node 3B: Order Engine -->
+            <g transform="translate(470, 72)">
+              <rect width="120" height="48" rx="6" fill="#111638" stroke="#00d4ff" stroke-width="1.8"/>
+              <text x="60" y="22" fill="#00d4ff" font-size="10" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono'">ORDER GRAPH</text>
+              <text x="60" y="36" fill="#94a3b8" font-size="9" text-anchor="middle">gRPC Cluster</text>
+            </g>
+
+            <!-- Node 3C: Payment Engine -->
+            <g transform="translate(470, 122)">
+              <rect width="120" height="48" rx="6" fill="#111638" stroke="#10b981" stroke-width="1.5"/>
+              <text x="60" y="22" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono'">PAYMENT ENGINE</text>
+              <text x="60" y="36" fill="#94a3b8" font-size="9" text-anchor="middle">PCI Ledger</text>
+            </g>
+
+            <!-- Node 4A: CockroachDB -->
+            <g transform="translate(710, 42)">
+              <rect width="130" height="46" rx="6" fill="#111638" stroke="#00d4ff" stroke-width="1.5"/>
+              <text x="65" y="21" fill="#00d4ff" font-size="10" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono'">COCKROACH DB</text>
+              <text x="65" y="35" fill="#94a3b8" font-size="9" text-anchor="middle">Multi-Region RTT 6ms</text>
+            </g>
+
+            <!-- Node 4B: Redis Cache -->
+            <g transform="translate(710, 102)">
+              <rect width="130" height="46" rx="6" fill="#111638" stroke="#f59e0b" stroke-width="1.5"/>
+              <text x="65" y="21" fill="#fbbf24" font-size="10" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono'">REDIS SENTINEL</text>
+              <text x="65" y="35" fill="#94a3b8" font-size="9" text-anchor="middle">12 Shards • 0.4ms</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Dual Analysis Row -->
+      <div class="dual-grid">
+        <!-- Latency Breakdown -->
+        <div class="panel-box">
+          <div class="panel-head">
+            <span>MICROSERVICE LATENCY BREAKDOWN</span>
+            <span style="font-family:var(--font-mono); color:var(--primary); font-size:11px;">14.2ms Total</span>
+          </div>
+          <div class="latency-row">
+            <div class="latency-meta">
+              <span>Edge WAF &amp; Ingress Proxy</span>
+              <span style="color:#00d4ff; font-family:var(--font-mono);">1.4 ms (10%)</span>
+            </div>
+            <div class="latency-bar-track">
+              <div class="latency-bar-fill" style="width: 10%; background: #00d4ff;"></div>
+            </div>
+          </div>
+          <div class="latency-row">
+            <div class="latency-meta">
+              <span>SPIRE mTLS Auth Verification</span>
+              <span style="color:#a78bfa; font-family:var(--font-mono);">3.8 ms (27%)</span>
+            </div>
+            <div class="latency-bar-track">
+              <div class="latency-bar-fill" style="width: 27%; background: #7c3aed;"></div>
+            </div>
+          </div>
+          <div class="latency-row">
+            <div class="latency-meta">
+              <span>Order Engine gRPC Computation</span>
+              <span style="color:#38bdf8; font-family:var(--font-mono);">2.2 ms (15%)</span>
+            </div>
+            <div class="latency-bar-track">
+              <div class="latency-bar-fill" style="width: 15%; background: #38bdf8;"></div>
+            </div>
+          </div>
+          <div class="latency-row">
+            <div class="latency-meta">
+              <span>CockroachDB Read &amp; Replicate</span>
+              <span style="color:#f59e0b; font-family:var(--font-mono);">6.8 ms (48%)</span>
+            </div>
+            <div class="latency-bar-track">
+              <div class="latency-bar-fill" style="width: 48%; background: #f59e0b;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zero-Trust Perimeter Status -->
+        <div class="panel-box">
+          <div class="panel-head">
+            <span>ZERO-TRUST SECURITY STATUS</span>
+            <span style="color:#10b981; font-size:11px;">● STRICT MODE</span>
+          </div>
+          <div class="security-list">
+            <div class="sec-row">
+              <span>Cryptographic Identity Attestation</span>
+              <span class="tag-pill tag-emerald">SPIRE 100% OK</span>
+            </div>
+            <div class="sec-row">
+              <span>Ephemeral Certificate Rotations</span>
+              <span class="tag-pill tag-cyan">2,410 / hr (T=5m)</span>
+            </div>
+            <div class="sec-row">
+              <span>Anomalous Egress Policy Intercepts</span>
+              <span class="tag-pill tag-emerald">0 Violations</span>
+            </div>
+            <div class="sec-row">
+              <span>FIPS 140-3 Hardware Security Module</span>
+              <span class="tag-pill tag-cyan">LOCKED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

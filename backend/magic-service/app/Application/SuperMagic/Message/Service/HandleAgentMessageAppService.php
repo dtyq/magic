@@ -10,6 +10,7 @@ namespace App\Application\SuperMagic\Message\Service;
 use App\Application\SuperMagic\Common\Service\AbstractAppService;
 use App\Application\SuperMagic\File\Service\FileProcessAppService;
 use App\Application\SuperMagic\Message\DTO\TaskMessageDTO;
+use App\Application\SuperMagic\Task\Service\TaskNotificationLabelResolver;
 use App\Application\SuperMagic\Task\Service\TopicTaskAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\StorageType;
@@ -22,6 +23,7 @@ use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\File\Service\UpsertProjectFileNodeDTO;
 use App\Domain\SuperMagic\Message\Entity\TaskMessageEntity;
 use App\Domain\SuperMagic\Message\Entity\ValueObject\ChatInstruction;
+use App\Domain\SuperMagic\Message\Entity\ValueObject\MessagePayload;
 use App\Domain\SuperMagic\Message\Entity\ValueObject\MessageType;
 use App\Domain\SuperMagic\Message\Service\TaskMessageDomainService;
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
@@ -73,6 +75,7 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
+        private readonly TaskNotificationLabelResolver $taskNotificationLabelResolver,
         private readonly LockerInterface $locker,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
@@ -122,9 +125,11 @@ class HandleAgentMessageAppService extends AbstractAppService
             ));
         } catch (EventException $e) {
             $this->handleEventException($e, $messageDTO, $taskContext ?? null, $topicEntity ?? null);
+            $this->dispatchErrorCallbackOnFailure($messageDTO, $taskContext ?? null, $topicEntity ?? null);
             throw $e;
         } catch (Throwable $e) {
             $this->handleGeneralException($e, $messageDTO);
+            $this->dispatchErrorCallbackOnFailure($messageDTO, $taskContext ?? null, $topicEntity ?? null);
             throw $e;
         }
     }
@@ -303,7 +308,7 @@ class HandleAgentMessageAppService extends AbstractAppService
      */
     private function prepareDataIsolation(TopicTaskMessageDTO $messageDTO): DataIsolation
     {
-        return DataIsolation::create(
+        return $this->createContactDataIsolationByUser(
             $messageDTO->getMetadata()->getOrganizationCode(),
             $messageDTO->getMetadata()->getUserId()
         );
@@ -450,6 +455,10 @@ class HandleAgentMessageAppService extends AbstractAppService
         TaskContext $taskContext,
         TopicEntity $topicEntity
     ): void {
+        $labels = $this->taskNotificationLabelResolver->resolve(
+            task: $taskContext->getTask(),
+            topic: $topicEntity,
+        );
         AsyncEventUtil::dispatch(new RunTaskCallbackEvent(
             $taskContext->getCurrentOrganizationCode(),
             $taskContext->getCurrentUserId(),
@@ -457,8 +466,47 @@ class HandleAgentMessageAppService extends AbstractAppService
             $topicEntity->getTopicName(),
             $taskContext->getTask()->getId(),
             $messageDTO,
-            $messageDTO->getMetadata()->getLanguage()
+            $messageDTO->getMetadata()->getLanguage(),
+            $labels['project_id'],
+            $labels['project_name'],
+            $labels['workspace_id'],
+            $labels['workspace_name']
         ));
+    }
+
+    /**
+     * Dispatch a forced-ERROR callback event when message processing fails.
+     *
+     * Ensures downstream subscribers (e.g. recording summary phase settlement) always
+     * receive a terminal signal even when the message itself cannot be processed.
+     * Never throws: any failure here is only logged, retry semantics stay intact.
+     */
+    private function dispatchErrorCallbackOnFailure(
+        TopicTaskMessageDTO $messageDTO,
+        ?TaskContext $taskContext,
+        ?TopicEntity $topicEntity
+    ): void {
+        if ($taskContext === null || $topicEntity === null) {
+            $this->logger->warning('Skip error callback dispatch: task context or topic not ready', [
+                'message_id' => $messageDTO->getPayload()->getMessageId(),
+                'task_id' => $messageDTO->getPayload()->getTaskId(),
+            ]);
+            return;
+        }
+
+        try {
+            $payloadArray = $messageDTO->getPayload()->toArray();
+            $payloadArray['status'] = TaskStatus::ERROR->value;
+            $messageDTO->setPayload(MessagePayload::fromArray($payloadArray));
+
+            $this->dispatchCallbackEvent($messageDTO, $taskContext, $topicEntity);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to dispatch error callback event', [
+                'message_id' => $messageDTO->getPayload()->getMessageId(),
+                'task_id' => $messageDTO->getPayload()->getTaskId(),
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -503,6 +551,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             'correlationId' => $correlationId,
             'parentCorrelationId' => $parentCorrelationId,
             'contentType' => $contentType,
+            'rawContent' => $payload->getRawContent(),
         ];
     }
 
@@ -630,7 +679,8 @@ class HandleAgentMessageAppService extends AbstractAppService
             messageId: $messageData['messageId'],
             correlationId: $messageData['correlationId'] ?? null,
             parentCorrelationId: $messageData['parentCorrelationId'] ?? null,
-            contentType: $messageData['contentType'] ?? null
+            contentType: $messageData['contentType'] ?? null,
+            rawContent: $messageData['rawContent'] ?? null
         );
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);
@@ -777,8 +827,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                     $type,
                     $fileKey
                 ));
-                $storageType = StorageType::tryFrom((string) ($attachment['storage_type'] ?? ''))?->value
-                    ?? StorageType::WORKSPACE->value;
+                $storageType = StorageType::fromValue((string) ($attachment['storage_type'] ?? ''))->value;
                 $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $task, $dataIsolation, $type);
                 $savedEntity = $this->taskFileDomainService->upsertProjectFileNode(
                     new UpsertProjectFileNodeDTO(
@@ -865,11 +914,11 @@ class HandleAgentMessageAppService extends AbstractAppService
 
         // Set file type based on attachment type and file_tag
         if ($type === 'tool') {
-            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
+            $taskFileEntity->setFileType(FileType::fromValue($attachment['file_tag'] ?? null, FileType::PROCESS)->value);
             $taskFileEntity->setSource(TaskFileSource::AGENT);
         } else {
             // message type
-            $taskFileEntity->setFileType(! empty($attachment['file_tag']) ? $attachment['file_tag'] : FileType::PROCESS->value);
+            $taskFileEntity->setFileType(FileType::fromValue($attachment['file_tag'] ?? null, FileType::PROCESS)->value);
             $taskFileEntity->setSource(TaskFileSource::AGENT);
         }
 
@@ -991,6 +1040,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             remind: $e->getMessage(),
             remindEvent: $remindType,
             dynamicParams: $topicEntity->getDynamicParams(),
+            data: $e->getData(),
         );
 
         TaskTerminationUtil::setTerminationFlag($this->redis, $this->logger, $taskContext->getTask()->getId());

@@ -6,7 +6,6 @@ import type { UserService } from "@/services/user/UserService"
 import { useMemoizedFn } from "ahooks"
 import { userTransformer, type UserInfoTransformerInput } from "@/models/user/transformers"
 import type { User } from "@/types/user"
-import { trackLogger } from "@/utils/log/trackLogger"
 
 /**
  * 获取当前用户信息
@@ -19,9 +18,6 @@ export function useUserInfo() {
 			() => userStore.user.userInfo,
 			(info) => {
 				setUserInfo(info)
-				trackLogger.setConfig({
-					userId: info?.magic_id ?? "",
-				})
 			},
 		)
 	}, [])

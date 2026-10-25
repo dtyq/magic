@@ -20,6 +20,7 @@ use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\FunctionPermissionPolicyRepository;
 use App\Domain\Permission\Service\FunctionPermissionDomainService;
 use Closure;
+use HyperfTest\Support\MagicClawTestEnvironment;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -28,6 +29,13 @@ use RuntimeException;
  */
 class FunctionPermissionDomainServiceTest extends TestCase
 {
+    use MagicClawTestEnvironment;
+
+    protected function setUp(): void
+    {
+        $this->prepareClawEnvironment();
+    }
+
     public function testUpdatePolicyEnabledCreatesPolicyWithDefaultBindingScopeWhenMissing(): void
     {
         $repository = $this->createMock(FunctionPermissionPolicyRepository::class);
@@ -438,7 +446,8 @@ class FunctionPermissionDomainServiceTest extends TestCase
             public function getDepartmentIdsByUserId(
                 ContactDataIsolation $dataIsolation,
                 string $userId,
-                bool $withAllParentIds = false
+                bool $withAllParentIds = false,
+                bool $useCache = true
             ): array {
                 return ($this->resolver)($dataIsolation, $userId, $withAllParentIds);
             }

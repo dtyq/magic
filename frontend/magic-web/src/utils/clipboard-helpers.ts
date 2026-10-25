@@ -130,6 +130,13 @@ async function _write(items: ClipboardItem[]): Promise<void> {
 export const clipboard = {
 	writeText: _writeText,
 	write: _write,
+	// 文件列表可能遮蔽 paste 事件中的正文；只在用户主动粘贴时补读，权限由浏览器管理。
+	readText: async (): Promise<string> => {
+		if (!navigator.clipboard?.readText) {
+			throw new Error("Clipboard text reading is unavailable")
+		}
+		return navigator.clipboard.readText()
+	},
 }
 
 /** 纯文本 execCommand 降级方案 */
@@ -228,6 +235,21 @@ export interface MagicClipboardMetadata {
 	[key: string]: unknown
 }
 
+export interface MagicClipboardContent {
+	plainText: string
+	metadata: MagicClipboardMetadata
+	htmlContent?: string
+}
+
+function embedClipboardMetadata({
+	plainText,
+	metadata,
+	htmlContent,
+}: MagicClipboardContent): string {
+	const encoded = btoa(encodeURIComponent(JSON.stringify(metadata)))
+	return `<div data-magic-clipboard="${encoded}">${htmlContent || escapeHtml(plainText)}</div>`
+}
+
 /**
  * 从剪贴板数据中提取元数据
  * 优先级: HTML data属性 > 自定义MIME类型 > null
@@ -236,10 +258,18 @@ export function extractClipboardMetadata(
 	clipboardData: DataTransfer | null,
 ): MagicClipboardMetadata | null {
 	if (!clipboardData) return null
+	const getDataByType = (type: string) => {
+		const exact = clipboardData.getData(type)
+		if (exact) return exact
+		const matchedType = Array.from(clipboardData.types || []).find(
+			(candidate) => candidate.trim().toLowerCase() === type.toLowerCase(),
+		)
+		return matchedType ? clipboardData.getData(matchedType) : ""
+	}
 
 	try {
 		// 方案1: 从HTML的data属性中提取元数据(移动端兼容方案,优先级最高)
-		const html = clipboardData.getData("text/html")
+		const html = getDataByType("text/html")
 		if (html) {
 			const metadata = extractMetadataFromHTML(html)
 			if (metadata) {
@@ -249,8 +279,8 @@ export function extractClipboardMetadata(
 		}
 
 		// 方案2: 尝试读取自定义MIME类型(桌面端浏览器可能支持)
-		const richTextCustom = clipboardData.getData("text/x-magic-message-rich-text")
-		const mentionsCustom = clipboardData.getData("text/x-magic-message-mentions")
+		const richTextCustom = getDataByType("text/x-magic-message-rich-text")
+		const mentionsCustom = getDataByType("text/x-magic-message-mentions")
 
 		if (richTextCustom || mentionsCustom) {
 			console.log("✅ Extracted metadata from custom MIME types")
@@ -296,7 +326,42 @@ export function copyWithMetadata(
 	plainText: string,
 	metadata: MagicClipboardMetadata,
 	htmlContent?: string,
+): Promise<void>
+export function copyWithMetadata(content: Promise<MagicClipboardContent>): Promise<void>
+export function copyWithMetadata(
+	plainText: string | Promise<MagicClipboardContent>,
+	metadata: MagicClipboardMetadata = {},
+	htmlContent?: string,
 ): Promise<void> {
+	if (typeof plainText !== "string") {
+		const content = plainText
+		// 查询历史附件路径前就发起写入，避免 Safari 在 await 后丢失用户手势授权。
+		if (navigator.clipboard?.write && window.isSecureContext && window.ClipboardItem) {
+			const items = {
+				"text/plain": content.then(
+					(value) => new Blob([value.plainText], { type: "text/plain" }),
+				),
+				"text/html": content.then(
+					(value) => new Blob([embedClipboardMetadata(value)], { type: "text/html" }),
+				),
+			}
+			return navigator.clipboard.write([new ClipboardItem(items)]).catch(async (error) => {
+				const value = await content
+				try {
+					fallbackCopyWithExecCommand(
+						value.plainText,
+						embedClipboardMetadata(value),
+						value.metadata,
+					)
+				} catch {
+					throw error
+				}
+			})
+		}
+		return content.then((value) =>
+			copyWithMetadata(value.plainText, value.metadata, value.htmlContent),
+		)
+	}
 	// 构建包含元数据的HTML
 	const metadataBase64 = btoa(encodeURIComponent(JSON.stringify(metadata)))
 
@@ -307,7 +372,7 @@ export function copyWithMetadata(
 		: `<div data-magic-clipboard="${metadataBase64}">${escapeHtml(plainText)}</div>`
 
 	// 方案1: 尝试使用现代 Clipboard API (iOS 13.4+, Android Chrome 63+)
-	if (navigator.clipboard && window.isSecureContext) {
+	if (navigator.clipboard?.write && window.isSecureContext && window.ClipboardItem) {
 		// 创建 ClipboardItem (支持多种格式)
 		const items: Record<string, Blob> = {
 			"text/plain": new Blob([plainText], { type: "text/plain" }),
@@ -451,7 +516,13 @@ export function isMagicClipboard(clipboardData: DataTransfer | null): boolean {
 
 	// 检查是否有自定义MIME类型(桌面端)
 	const types = Array.from(clipboardData.types || [])
-	if (types.includes("text/x-magic-message-rich-text")) {
+	if (
+		types.some(
+			(type) =>
+				type.trim().toLowerCase() === "text/x-magic-message-rich-text" ||
+				type.trim().toLowerCase() === "text/x-magic-message-mentions",
+		)
+	) {
 		return true
 	}
 

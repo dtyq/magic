@@ -50,6 +50,29 @@
 	cursor: pointer;
 }
 
+.invertCheckboxRow {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.invertSection {
+	margin-top: var(--spacing-1, 4px);
+}
+
+.invertCheckboxRow label {
+	cursor: pointer;
+}
+
+.invertCheckboxRow[data-disabled="true"] label {
+	cursor: not-allowed;
+}
+
+.invertShortcut {
+	color: var(--base-muted-foreground, #737373);
+}
+
 .buttons {
 	display: flex;
 	gap: var(--spacing-2-5, 10px);

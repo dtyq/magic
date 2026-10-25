@@ -2,6 +2,7 @@
 <!--zh
 ## 如何读取 skills
 **读取内容**：`read_skills(skill_names=["skill-name"])`
+**读取引用项目业务 skill**：业务 skill 只在 `@micro_app` / `@project` 指向的来源项目，不在当前工作区（含微应用 runtime project）。加载该业务 skill 时，第一次 `read_skills` 就必须从 mention 复制 `project_id`。禁止省略或编造该次调用的 `project_id`，禁止改读当前工作区或系统同名 skill，也禁止用 list_dir / read_files 在当前工作区 `.magic/skills/` 或猜测的挂载路径里找。系统 skill 仍不传 `project_id`。
 **读取关联文件**：skill 内容中会列出需要阅读的关联文件路径（相对于 skill 目录），使用 `read_files` 读取时，必须拼成绝对路径。优先使用 `<skill_dir>` 标签给出的绝对 skill 目录，再拼上 skill 内容中给出的相对路径；若没有 `<skill_dir>`，再取 `<location>` 标签中的绝对路径并去掉文件名得到 skill 目录。
 例如 `<skill_dir>/abs/path/to/skill-name</skill_dir>` + skill 内容中的 `reference/doc.md` → `read_files(files=[{"file_path": "/abs/path/to/skill-name/reference/doc.md"}])`
 **禁止**使用相对路径；文件名和子目录名必须完全来自 skill 内容原文，不得凭经验猜测或自行补全。
@@ -9,10 +10,15 @@
 -->
 ## How to read skills
 **Read content**: `read_skills(skill_names=["skill-name"])`
+**Read a referenced-project companion skill**: companion skills live only on the source project named by the `@micro_app` or `@project` mention, not in the current workspace (including a micro-app runtime project). When loading that companion skill, the first `read_skills` for it must copy `project_id` from the mention: `read_skills(skill_names=["skill-name"], project_id="...")`. Do not omit or invent `project_id` on that companion-skill load, do not load a same-named workspace or system skill, and do not search the current workspace `.magic/skills/` with list_dir, read_files, or a guessed mount path. System and current-workspace skills still omit `project_id`.
 **Read related files**: The skill content lists related file paths (relative to the skill directory). When using `read_files`, always construct an absolute path. Prefer the absolute skill directory from the `<skill_dir>` tag, then append the relative path given in the skill content. If `<skill_dir>` is unavailable, take the absolute path from the `<location>` tag and strip the filename to get the skill directory.
 Example: `<skill_dir>/abs/path/to/skill-name</skill_dir>` + `reference/doc.md` from skill content → `read_files(files=[{"file_path": "/abs/path/to/skill-name/reference/doc.md"}])`
 **Never** use a relative path. Copy the file name and subdirectory exactly as written in the skill content — do not guess or infer any part of the path.
 After reading, if another skill is also needed, call `read_skills` again for that skill.
+
+Read results preserve the source file, including frontmatter and comments. Omit displayed line-number prefixes when copying text into edits.
+An oversized Skill requires informed user consent before further reading: explain that context compaction may summarize earlier conversation and tool results and lose some details. No response or refusal is not consent; do not ask again for each continuation page after consent for that Skill.
+When a relevant Skill file changes, use the file change information. If the notice only provides a summary or the current instructions are unclear, reload its main instructions with `read_skills` or its reference file with `read_files`. Do not infer current instructions from a summary.
 
 <!--zh
 ## 安装外部 skill 前建议先执行安全审查
@@ -81,7 +87,8 @@ Result fields are `content` (the model-readable semantic result), `ok` (whether 
 ## Skill 目录
 各来源 skill 的存储位置：
 - **system**（内置）：`{{ @variable("system_skills_dir") }}`（相对于项目根目录）
-- **workspace**（项目级用户创建/安装）：`{{ @variable("workspace_skills_dir") }}`（相对于工作目录）；skill-creator 创建的新 skill 也写入此目录
+- **workspace**（项目级用户创建/安装）：`{{ @variable("workspace_skills_dir") }}`（相对于工作目录）；skill-creator 创建的新 skill 也写入此目录。微应用 runtime project 的当前工作区不是来源项目，里面通常没有 companion skill
+- **referenced project**（`@micro_app` / `@project` 业务 skill）：只在 mention 对应的来源项目 `.magic/skills/`。必须用 mention 中的 `project_id` 调用 `read_skills(..., project_id=...)`，不要在当前工作区查找
 - **personal**（个人级安装）：`~/.magic/skills`（当前用户可用，切换项目后仍可使用）
 - **crew**（当前 crew agent 私有）：`{{ @variable("crew_skills_dir") }}`（相对于项目根目录；未绑定 crew agent 时为空）
 
@@ -92,7 +99,8 @@ Result fields are `content` (the model-readable semantic result), `ok` (whether 
 ## Skill Directories
 Storage locations for each skill source:
 - **system** (built-in): `{{ @variable("system_skills_dir") }}` (relative to project root)
-- **workspace** (project-scoped, user-created/installed): `{{ @variable("workspace_skills_dir") }}` (relative to workspace); skill-creator also writes new skills here
+- **workspace** (project-scoped, user-created/installed): `{{ @variable("workspace_skills_dir") }}` (relative to workspace); skill-creator also writes new skills here. A micro-app runtime project's current workspace is not the source project and usually has no companion skills
+- **referenced project** (`@micro_app` / `@project` companion skills): only on the source project named by the mention. Load with `read_skills(..., project_id=...)` using that `project_id`; do not search the current workspace
 - **personal** (user-scoped installation): `~/.magic/skills` (available to the current user across projects)
 - **crew** (current crew agent private): `{{ @variable("crew_skills_dir") }}` (relative to project root; empty if no crew agent is bound)
 
@@ -104,5 +112,3 @@ When executing any skill script, you **MUST** set cwd to the skill directory's *
 <available_skills>
 {{ @variable("skills_content") }}
 </available_skills>
-
-{{ @variable("preloaded_skills_content") }}

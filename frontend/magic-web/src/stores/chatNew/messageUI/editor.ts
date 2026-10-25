@@ -1,4 +1,4 @@
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { makeAutoObservable } from "mobx"
 
 class EditorStore {

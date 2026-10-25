@@ -12,10 +12,12 @@ use App\Domain\SuperMagic\Project\Entity\ProjectMemberSettingEntity;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\MemberJoinMethod;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\MemberRole;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\MemberType;
+use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectSortMode;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectMemberRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectMemberSettingRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectRepositoryInterface;
 use Hyperf\DbConnection\Db;
+use RuntimeException;
 
 /**
  * 项目成员领域服务
@@ -106,7 +108,9 @@ class ProjectMemberDomainService
         string $sortDirection = 'desc',
         array $creatorUserIds = [],
         ?string $joinMethod = null,
-        array $organizationCodes = []
+        array $organizationCodes = [],
+        int $page = 1,
+        int $pageSize = 10
     ): array {
         return $this->projectMemberRepository->getProjectIdsByUserAndDepartments(
             $userId,
@@ -116,7 +120,9 @@ class ProjectMemberDomainService
             $sortDirection,
             $creatorUserIds,
             $joinMethod,
-            $organizationCodes
+            $organizationCodes,
+            $page,
+            $pageSize
         );
     }
 
@@ -211,7 +217,6 @@ class ProjectMemberDomainService
             $this->projectMemberSettingRepository->create($userId, $projectId, $organizationCode);
         }
 
-        // 2. 更新置顶状态
         return $this->projectMemberSettingRepository->updatePinStatus($userId, $projectId, $isPinned);
     }
 
@@ -254,6 +259,19 @@ class ProjectMemberDomainService
         }
 
         return $this->projectRepository->updateUpdatedAtToNow($projectId);
+    }
+
+    /** 查看只更新个人活跃；内容操作仍走 updateUserLastActiveTime 更新项目时间。 */
+    public function recordProjectVisit(string $userId, int $projectId, string $organizationCode): string
+    {
+        // upsert 保留已有置顶、排序和工作区绑定，并避免首次访问并发创建重复设置。
+        $this->projectMemberSettingRepository->batchEnsureSettings($userId, [$projectId], $organizationCode);
+        $setting = $this->projectMemberSettingRepository->findByUserAndProject($userId, $projectId);
+        if ($setting === null) {
+            throw new RuntimeException('Project visit settings were not persisted');
+        }
+
+        return $setting->getLastActiveAt();
     }
 
     /**
@@ -371,9 +389,12 @@ class ProjectMemberDomainService
         int $page = 1,
         int $pageSize = 10,
         ?array $organizationCodes = null,
-        string $sortField = 'last_active_at',
+        ?string $sortField = null,
         string $sortDirection = 'desc',
         bool $showHidden = false,
+        ?ProjectSortMode $sortMode = null,
+        bool $includeSpecialModes = false,
+        string $projectType = 'all',
     ): array {
         // 判断是否限制工作区（null 或 0 均表示不限制）
         $limitWorkspace = $workspaceId !== null && $workspaceId > 0;
@@ -388,7 +409,10 @@ class ProjectMemberDomainService
             $sortField,
             $sortDirection,
             $organizationCodes,
-            $showHidden
+            $showHidden,
+            $sortMode,
+            $includeSpecialModes,
+            $projectType
         );
     }
 

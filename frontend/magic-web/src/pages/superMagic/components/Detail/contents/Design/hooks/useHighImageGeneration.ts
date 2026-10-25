@@ -15,11 +15,7 @@ import {
 	getReferenceImageCrop,
 } from "@/components/CanvasDesign/runtime/resources/image/imageCropUtils"
 import { useTranslation } from "react-i18next"
-import {
-	isRelativeDesignPath,
-	toWorkspaceAbsoluteApiPath,
-	toWorkspaceAbsoluteApiPathForOperation,
-} from "../utils/designPath"
+import { resolveDesignCanvasResourceWorkspacePath } from "../utils/designResourceReferenceResolver"
 
 interface UseHighImageGenerationOptions {
 	projectId?: string
@@ -62,14 +58,11 @@ export function useHighImageGeneration(
 				throw new Error(t("design.errors.filePathNotExists"))
 			}
 
-			const filePathWithSlash = toWorkspaceAbsoluteApiPathForOperation(params.file_path, {
+			const filePathWithSlash = resolveDesignCanvasResourceWorkspacePath(params.file_path, {
 				designProjectBasePath,
 				flatAttachments,
 			})
-			if (
-				!filePathWithSlash ||
-				(isRelativeDesignPath(params.file_path) && !filePathWithSlash.startsWith("/"))
-			) {
+			if (!filePathWithSlash) {
 				throw new Error(t("design.errors.designResourcePathUnresolved"))
 			}
 
@@ -84,16 +77,14 @@ export function useHighImageGeneration(
 					fileDir = "/"
 				}
 			} else {
-				fileDir = toWorkspaceAbsoluteApiPath(
-					fileDir,
-					{ designProjectBasePath, flatAttachments },
-					{
-						ensureTrailingSlash: true,
-					},
-				)
-				if (isRelativeDesignPath(params.file_dir || "") && !fileDir.startsWith("/")) {
+				const resolvedFileDir = resolveDesignCanvasResourceWorkspacePath(fileDir, {
+					designProjectBasePath,
+					flatAttachments,
+				})
+				if (!resolvedFileDir) {
 					throw new Error(t("design.errors.designResourcePathUnresolved"))
 				}
+				fileDir = `${resolvedFileDir.replace(/\/+$/, "")}/`
 			}
 
 			// 构建完整的请求参数

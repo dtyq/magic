@@ -24,6 +24,7 @@ describe("MagicFilesApi", () => {
 			new MessageEvent("message", {
 				data,
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 	}
@@ -49,12 +50,12 @@ describe("MagicFilesApi", () => {
 			expect(postMessageSpy).not.toHaveBeenCalled()
 		})
 
-		it("files[i].file 不是 File 实例时立即 reject", async () => {
+		it("files[i].file 不是二进制对象时立即 reject", async () => {
 			await expect(
 				(window as any).Magic.uploadFiles([
 					{ file: "not-a-file", path: "./a.txt", filename: "a.txt" },
 				]),
-			).rejects.toThrow("must be a File object")
+			).rejects.toThrow("must be a File, Blob, or ArrayBuffer")
 			expect(postMessageSpy).not.toHaveBeenCalled()
 		})
 
@@ -91,7 +92,7 @@ describe("MagicFilesApi", () => {
 			expect(req.files[0].path).toBe("./hello.txt")
 			expect(req.files[0].file).toBeInstanceOf(File)
 			expect(req.files[0].fileSize).toBe(file.size)
-			expect(origin).toBe("*")
+			expect(origin).toBe(window.location.origin)
 
 			simulateResponse({
 				requestId: req.requestId,
@@ -101,6 +102,29 @@ describe("MagicFilesApi", () => {
 			})
 			const results = await promise
 			expect(results[0].filename).toBe("hello.txt")
+		})
+
+		it("通过 transfer list 发送 ArrayBuffer", async () => {
+			const buffer = new Uint8Array([1, 2, 3]).buffer
+			const promise = (window as any).Magic.uploadFiles([
+				{ file: buffer, path: "./data.bin", filename: "data.bin" },
+			])
+
+			await new Promise((r) => setTimeout(r, 0))
+
+			const [req, origin, transfer] = postMessageSpy.mock.calls[0]
+			expect(req.files[0].file).toBe(buffer)
+			expect(req.files[0].fileSize).toBe(3)
+			expect(origin).toBe(window.location.origin)
+			expect(transfer).toEqual([buffer])
+
+			simulateResponse({
+				requestId: req.requestId,
+				type: "MAGIC_UPLOAD_FILES_RESPONSE",
+				success: true,
+				results: [{ filename: "data.bin", success: true }],
+			})
+			await expect(promise).resolves.toEqual([{ filename: "data.bin", success: true }])
 		})
 
 		it("upload 响应 success:false 时 reject", async () => {

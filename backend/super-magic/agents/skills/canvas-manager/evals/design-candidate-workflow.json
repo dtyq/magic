@@ -1,0 +1,7 @@
+{
+  "id": "design-candidate-workflow",
+  "prompt": "Create a new product hero image, then make a revised candidate on the same Element and select it only after the user confirms it.",
+  "expected_reference": "references/image-generation.md",
+  "expected_tools": ["add_canvas_elements", "add_canvas_contents", "select_canvas_main_content"],
+  "constraints": ["Use row_incremental unless the user supplies exact coordinates.", "The first Content of any Element is automatically main; do not call select_canvas_main_content for it.", "A revision appends Content to the existing Element.", "Do not select the appended main Content before explicit user confirmation."]
+}

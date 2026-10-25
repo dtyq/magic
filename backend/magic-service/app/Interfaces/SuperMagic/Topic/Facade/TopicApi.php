@@ -9,7 +9,6 @@ namespace App\Interfaces\SuperMagic\Topic\Facade;
 
 use App\Application\SuperMagic\Task\Service\AgentAppService;
 use App\Application\SuperMagic\Topic\Service\TopicAppService;
-use App\Application\SuperMagic\Workspace\Service\WorkspaceAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\ErrorCode\AgentErrorCode;
@@ -27,7 +26,9 @@ use App\Interfaces\SuperMagic\Common\DTO\Response\CheckpointRollbackCheckRespons
 use App\Interfaces\SuperMagic\Common\DTO\Response\CheckpointRollbackResponseDTO;
 use App\Interfaces\SuperMagic\Common\Support\Facade\AbstractApi;
 use App\Interfaces\SuperMagic\File\DTO\Request\GetTopicAttachmentsRequestDTO;
+use App\Interfaces\SuperMagic\Message\DTO\Request\GetTopicMessagesByCursorRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
+use App\Interfaces\SuperMagic\Message\DTO\Response\TopicMessagesCursorResponseDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Response\TopicMessagesResponseDTO;
 use App\Interfaces\SuperMagic\Topic\DTO\Request\BatchTopicStatusRequestDTO;
 use App\Interfaces\SuperMagic\Topic\DTO\Request\DeleteTopicRequestDTO;
@@ -47,7 +48,6 @@ class TopicApi extends AbstractApi
 {
     public function __construct(
         protected RequestInterface $request,
-        protected WorkspaceAppService $workspaceAppService,
         protected TopicAppService $topicAppService,
         protected TranslatorInterface $translator,
         protected AgentAppService $agentAppService,
@@ -186,7 +186,7 @@ class TopicApi extends AbstractApi
         }
 
         // 调用应用服务
-        $result = $this->workspaceAppService->getMessagesByTopicId(
+        $result = $this->topicAppService->getMessagesByTopicId(
             $dto->getTopicId(),
             $dto->getPage(),
             $dto->getPageSize(),
@@ -195,6 +195,34 @@ class TopicApi extends AbstractApi
 
         // 构建响应
         return (new TopicMessagesResponseDTO($result['list'], $result['total']))->toArray();
+    }
+
+    /**
+     * Get topic messages using cursor pagination for API v2.
+     */
+    public function getMessagesByTopicIdV2(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        $dto = GetTopicMessagesByCursorRequestDTO::fromRequest($this->request);
+
+        $topicItemDTO = $this->topicAppService->getTopic($requestContext, $dto->getTopicId());
+        if ($topicItemDTO->getUserId() !== $requestContext->getUserAuthorization()->getId()) {
+            return (new TopicMessagesCursorResponseDTO())->toArray();
+        }
+
+        $result = $this->topicAppService->getMessagesByTopicIdAfterId(
+            $dto->getTopicId(),
+            $dto->getAfterId(),
+            $dto->getLimit()
+        );
+
+        return (new TopicMessagesCursorResponseDTO(
+            $result['list'],
+            $result['has_more'],
+            $result['next_cursor'],
+            $result['project_id'] ?? null,
+            $result['project_name'] ?? null
+        ))->toArray();
     }
 
     /**

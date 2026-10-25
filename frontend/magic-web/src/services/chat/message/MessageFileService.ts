@@ -1,5 +1,5 @@
 import { Upload } from "@dtyq/upload-sdk"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { env } from "@/utils/env"
 import { genRequestUrl } from "@/utils/http"
 import { userStore } from "@/models/user"
@@ -29,8 +29,9 @@ class MessageFileService {
 
 		const { organizationCode } = userStore.user
 
-		const url = `${env("MAGIC_SERVICE_BASE_URL") + genRequestUrl("/api/v1/file/temporary-credential")
-			}?organization_code=${organizationCode}`
+		const url = `${
+			env("MAGIC_SERVICE_BASE_URL") + genRequestUrl("/api/v1/file/temporary-credential")
+		}?organization_code=${organizationCode}`
 
 		const { success, fail } = await this.uploader.upload({
 			url,

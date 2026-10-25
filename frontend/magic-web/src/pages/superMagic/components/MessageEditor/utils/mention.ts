@@ -15,13 +15,15 @@ import {
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import { resolveDesignProjectBasePathFromAttachments } from "@/pages/superMagic/components/Detail/contents/Design/utils/utils"
-import { toWorkspaceRelativePath } from "@/pages/superMagic/components/Detail/contents/Design/utils/designPath"
+import { buildDesignAttachmentIndex } from "@/pages/superMagic/components/Detail/contents/Design/utils/designAttachmentIndex"
+import { resolveDesignCanvasResourceReference } from "@/pages/superMagic/components/Detail/contents/Design/utils/designResourceReferenceResolver"
 import { validateMentionWithDataService } from "@/components/business/MentionPanel/utils/dataService"
 import projectFilesStore from "@/stores/projectFiles"
 import { DraftData, FileData } from "../types"
 import { keyBy } from "lodash-es"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { SaveUploadFileToProjectResponse } from "../../../utils/api"
+import { isValidProjectReferenceId } from "../../../utils/markdownFileReference"
 
 /**
  * Extract file extension from filename
@@ -49,6 +51,7 @@ export function createUploadFileMentionData(fileData: FileData): UploadFileMenti
 		upload_progress: fileData.progress,
 		upload_status: fileData.status,
 		upload_error: fileData.error,
+		is_canvas_clipboard: fileData.isCanvasClipboard,
 	}
 }
 
@@ -74,15 +77,17 @@ export function transformUploadFileToProjectFile(
 	uploadFileData: UploadFileMentionData,
 	saveResult: FileData["saveResult"],
 ): ProjectFileMentionData {
+	// 保存接口未返回路径时沿用该次上传已确定的工作区路径，不使用对象存储 key 猜测。
+	const relativePath = saveResult?.relative_file_path || uploadFileData.relative_file_path || ""
 	return {
 		file_id: saveResult?.file_id || "",
-		file_name: saveResult?.file_name || "",
-		file_path: saveResult?.relative_file_path || "",
-		relative_file_path: saveResult?.relative_file_path || "",
+		file_name: saveResult?.file_name || uploadFileData.file_name,
+		file_path: relativePath,
+		relative_file_path: relativePath,
 		file_extension: uploadFileData.file_extension,
 		project_id: saveResult?.project_id,
 		file_size: saveResult?.file_size,
-		is_hidden: saveResult?.is_hidden,
+		is_hidden: saveResult?.is_hidden ?? uploadFileData.is_hidden,
 	}
 }
 
@@ -124,6 +129,7 @@ export function transformMentionItemToProjectFile(
 	}
 
 	const uploadFile = item.attrs.data as UploadFileMentionData
+	if (uploadFile.is_canvas_clipboard) return item
 
 	return {
 		...item,
@@ -134,15 +140,24 @@ export function transformMentionItemToProjectFile(
 	}
 }
 
-/**
- * Recursively transform JSONContent by converting upload_file mentions to project_file mentions
- * @param content - The JSONContent to transform
- * @param saveResultMap - Map of file_key to save results
- * @returns Transformed JSONContent
- */
+function getUploadSaveResult(
+	uploadFile: UploadFileMentionData,
+	saveResultMap: Record<string, SaveUploadFileToProjectResponse | undefined>,
+	storageIdMap?: Record<string, SaveUploadFileToProjectResponse | undefined>,
+): SaveUploadFileToProjectResponse | undefined {
+	if (uploadFile.storage_id && storageIdMap?.[uploadFile.storage_id]) {
+		return storageIdMap[uploadFile.storage_id]
+	}
+	if (uploadFile.file_path && saveResultMap[uploadFile.file_path]) {
+		return saveResultMap[uploadFile.file_path]
+	}
+	return undefined
+}
+
 function transformContentByMentionItems(
 	content: JSONContent,
 	saveResultMap: Record<string, SaveUploadFileToProjectResponse | undefined>,
+	storageIdMap?: Record<string, SaveUploadFileToProjectResponse | undefined>,
 ): JSONContent {
 	if (!content) {
 		return content
@@ -158,17 +173,13 @@ function transformContentByMentionItems(
 		// Check if it's an upload_file mention
 		if (mentionAttrs.type === MentionItemType.UPLOAD_FILE && mentionAttrs.data) {
 			const uploadFile = mentionAttrs.data as UploadFileMentionData
+			if (uploadFile.is_canvas_clipboard) return transformedContent
 
-			// Find corresponding save result
-			if (uploadFile.file_path && saveResultMap[uploadFile.file_path]) {
-				const saveResult = saveResultMap[uploadFile.file_path]
-
-				if (saveResult) {
-					// Transform to project_file mention
-					transformedContent.attrs = {
-						type: MentionItemType.PROJECT_FILE,
-						data: transformUploadFileToProjectFile(uploadFile, saveResult),
-					}
+			const saveResult = getUploadSaveResult(uploadFile, saveResultMap, storageIdMap)
+			if (saveResult) {
+				transformedContent.attrs = {
+					type: MentionItemType.PROJECT_FILE,
+					data: transformUploadFileToProjectFile(uploadFile, saveResult),
 				}
 			}
 		}
@@ -177,7 +188,7 @@ function transformContentByMentionItems(
 	// Recursively transform content array
 	if (content.content && Array.isArray(content.content)) {
 		transformedContent.content = content.content.map((child) =>
-			transformContentByMentionItems(child, saveResultMap),
+			transformContentByMentionItems(child, saveResultMap, storageIdMap),
 		)
 	}
 
@@ -194,27 +205,23 @@ export function transformMentionItemsToProjectFiles(
 	content: JSONContent,
 	mentionItems: MentionListItem[],
 	saveResults: FileData["saveResult"][],
+	storageIdMap?: Record<string, SaveUploadFileToProjectResponse | undefined>,
 ): { mentionItems: MentionListItem[]; content: JSONContent } {
-	// Create a map of file_path to saveResult for efficient lookup
 	const saveResultMap = keyBy(saveResults, "file_key")
 
 	const transformedItems = mentionItems.map((item) => {
-		if (item.attrs.type === MentionItemType.UPLOAD_FILE && hasValidFilePath(item)) {
+		if (item.attrs.type === MentionItemType.UPLOAD_FILE) {
 			const uploadFile = item.attrs.data as UploadFileMentionData
+			if (uploadFile.is_canvas_clipboard) return item
 
-			if (uploadFile.file_path) {
-				const saveResult = saveResultMap[uploadFile.file_path]
-
-				if (saveResult) {
-					return transformMentionItemToProjectFile(item, saveResult)
-				}
-			}
+			const saveResult = getUploadSaveResult(uploadFile, saveResultMap, storageIdMap)
+			if (saveResult) return transformMentionItemToProjectFile(item, saveResult)
 		}
 
 		return item
 	})
 
-	const transformedContent = transformContentByMentionItems(content, saveResultMap)
+	const transformedContent = transformContentByMentionItems(content, saveResultMap, storageIdMap)
 
 	return {
 		mentionItems: transformedItems,
@@ -250,6 +257,7 @@ export function transformMarkerImagePathsToWorkspaceAbsolute(
 
 	const flatAttachments = mapAttachmentsToFileItems(attachments)
 	if (!flatAttachments.length) return content
+	const attachmentIndex = buildDesignAttachmentIndex(flatAttachments)
 
 	const basePathCache = new Map<string, string | undefined>()
 
@@ -280,11 +288,20 @@ export function transformMarkerImagePathsToWorkspaceAbsolute(
 				if (!markerData) return transformedNode
 
 				const imagePath = getCanvasMarkerMentionImagePath(markerData)
-				const workspaceImagePath = toWorkspaceRelativePath(imagePath, {
+				const imageResolution = resolveDesignCanvasResourceReference(imagePath, {
 					designProjectBasePath: getBasePathByDesignProjectId(
 						markerData.design_project_id,
 					),
+					flatAttachments,
+					attachmentIndex,
+					attachmentsReady: true,
 				})
+				const workspaceImagePath =
+					imageResolution.status === "resolved"
+						? imageResolution.resourceKind === "workspace-file"
+							? imageResolution.workspacePath?.replace(/^\/+/, "")
+							: imageResolution.storagePath
+						: undefined
 
 				// Agent/后端只需要工作区路径；原始相对路径保留在 image_relative 里，供缩略图兜底。
 				const nextMarkerData: CanvasMarkerMentionData = {
@@ -355,13 +372,19 @@ export function getProjectReferenceSourceId(attrs: TiptapMentionAttributes): str
 export function isPendingProjectReferenceMention(attrs: TiptapMentionAttributes): boolean {
 	if (attrs.type === MentionItemType.PROJECT_FILE) {
 		const data = attrs.data as ProjectFileMentionData | undefined
-		return Boolean(data?.pending_project_copy && data.source_project_id && data.source_file_id)
+		return Boolean(
+			data?.pending_project_copy &&
+			isValidProjectReferenceId(data.source_project_id) &&
+			isValidProjectReferenceId(data.source_file_id),
+		)
 	}
 
 	if (attrs.type === MentionItemType.FOLDER) {
 		const data = attrs.data as DirectoryMentionData | undefined
 		return Boolean(
-			data?.pending_project_copy && data.source_project_id && data.source_directory_id,
+			data?.pending_project_copy &&
+			isValidProjectReferenceId(data.source_project_id) &&
+			isValidProjectReferenceId(data.source_directory_id),
 		)
 	}
 
@@ -374,11 +397,17 @@ export function markProjectReferenceMentionForCopy(
 	attrs: TiptapMentionAttributes,
 	sourceProjectId?: string,
 ): TiptapMentionAttributes | null {
-	if (!sourceProjectId) return null
+	if (!isValidProjectReferenceId(sourceProjectId)) return null
 
 	if (attrs.type === MentionItemType.PROJECT_FILE) {
 		const data = attrs.data as ProjectFileMentionData | undefined
 		if (!data?.file_id) return null
+		if (
+			data.project_id === "0" ||
+			(data.source_project_id !== undefined &&
+				!isValidProjectReferenceId(data.source_project_id))
+		)
+			return null
 
 		return {
 			...attrs,
@@ -394,6 +423,12 @@ export function markProjectReferenceMentionForCopy(
 	if (attrs.type === MentionItemType.FOLDER) {
 		const data = attrs.data as DirectoryMentionData | undefined
 		if (!data?.directory_id) return null
+		if (
+			data.project_id === "0" ||
+			(data.source_project_id !== undefined &&
+				!isValidProjectReferenceId(data.source_project_id))
+		)
+			return null
 
 		return {
 			...attrs,
@@ -410,6 +445,26 @@ export function markProjectReferenceMentionForCopy(
 }
 
 export const markProjectFileMentionForCopy = markProjectReferenceMentionForCopy
+
+/** 粘贴与历史消息拖入共用来源处理；只准备引用，不在插入时复制文件内容。 */
+export function prepareCopiedMentionAttrs(
+	attrs: TiptapMentionAttributes,
+	sourceProjectId?: string,
+	dataService?: DataService | null,
+): TiptapMentionAttributes | null {
+	const resolvedSourceProjectId =
+		attrs.type === MentionItemType.PROJECT_FILE && sourceProjectId
+			? (attrs.data as ProjectFileMentionData).source_project_id ||
+				(attrs.data as ProjectFileMentionData).project_id ||
+				sourceProjectId
+			: sourceProjectId
+	const pendingProjectFileMention = markProjectFileMentionForCopy(attrs, resolvedSourceProjectId)
+	if (pendingProjectFileMention) return pendingProjectFileMention
+
+	if (isAllowedMention(attrs, dataService)) return attrs
+
+	return null
+}
 
 export interface CopiedProjectReferenceMentionData {
 	sourceId: string
@@ -515,7 +570,13 @@ export const isAllowedMention = (
 	attrs: TiptapMentionAttributes,
 	dataService?: DataService | null,
 ) => {
+	// SDK text mentions are self-contained and do not require a panel data-service lookup.
+	if (attrs.type === MentionItemType.TEXT) return true
+	// Unknown types are accepted only by the trusted SDK/draft restore path, not by normal panel input.
+	if (!Object.values(MentionItemType).includes(attrs.type as MentionItemType)) return false
 	if (
+		attrs.type === MentionItemType.USER_FILE ||
+		attrs.type === MentionItemType.USER_DIRECTORY ||
 		attrs.type === MentionItemType.MEMORY_FILE ||
 		attrs.type === MentionItemType.MEMORY_DIRECTORY
 	) {
@@ -549,6 +610,30 @@ export const isAllowedMention = (
 }
 
 /**
+ * Canvas selection mentions are an in-editor interaction preview. They must
+ * never survive draft persistence, because a restored draft no longer has the
+ * focus gesture that confirms the selection.
+ */
+export function filterPendingCanvasMentionsFromContent(
+	content: JSONContent | undefined,
+): JSONContent | undefined {
+	if (!content) return content
+	if (content.type === "mention" && (content.attrs as TiptapMentionAttributes)?.pending) {
+		return undefined
+	}
+
+	const filteredContent = { ...content }
+	if (Array.isArray(content.content)) {
+		filteredContent.content = content.content.flatMap((child) => {
+			const filteredChild = filterPendingCanvasMentionsFromContent(child)
+			return filteredChild ? [filteredChild] : []
+		})
+	}
+
+	return filteredContent
+}
+
+/**
  * Recursively filter out upload file mentions from JSONContent
  * @param content - The JSONContent to filter
  * @returns Filtered JSONContent with upload file mentions removed
@@ -556,6 +641,7 @@ export const isAllowedMention = (
 export function filterUploadFileMentionsFromContent(
 	content: JSONContent,
 	dataService: DataService,
+	options: { preserveMentionValidation?: boolean } = {},
 ): JSONContent {
 	if (!content) {
 		return content
@@ -573,12 +659,13 @@ export function filterUploadFileMentionsFromContent(
 					const mentionAttrs = child.attrs as TiptapMentionAttributes
 					return (
 						mentionAttrs.type !== MentionItemType.UPLOAD_FILE &&
-						isAllowedMention(mentionAttrs, dataService)
+						(options.preserveMentionValidation ||
+							isAllowedMention(mentionAttrs, dataService))
 					)
 				}
 				return true
 			})
-			.map((child) => filterUploadFileMentionsFromContent(child, dataService))
+			.map((child) => filterUploadFileMentionsFromContent(child, dataService, options))
 
 		filteredContent.content = filteredChildren
 	}

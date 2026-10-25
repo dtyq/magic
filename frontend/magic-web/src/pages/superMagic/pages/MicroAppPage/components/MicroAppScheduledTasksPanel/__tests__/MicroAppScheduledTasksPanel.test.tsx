@@ -93,4 +93,35 @@ describe("MicroAppScheduledTasksPanel", () => {
 			screen.getByRole("button", { name: /scheduleTask.createScheduleTask/ }),
 		).toBeDisabled()
 	})
+
+	it("passes the preview identity to the form while querying only the runtime project", () => {
+		render(
+			<MicroAppScheduledTasksPanel
+				selectWorkspaceId="runtime-workspace"
+				selectProjectId="runtime-project"
+				microAppId="app-1"
+				microAppName="My app"
+				compact
+			/>,
+		)
+		expect(mocks.useModifyModal).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				workspaceId: "runtime-workspace",
+				projectId: "runtime-project",
+				microAppId: "app-1",
+				microAppName: "My app",
+			}),
+		)
+		expect(mocks.useScheduleTaskWithModal).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				options: {
+					page_size: 20,
+					workspace_id: "runtime-workspace",
+					project_id: "runtime-project",
+				},
+			}),
+		)
+		expect(screen.getByRole("heading", { name: "scheduleTask.title" })).toBeVisible()
+		expect(screen.queryByText("scheduleTask.workspaceDescription")).not.toBeInTheDocument()
+	})
 })

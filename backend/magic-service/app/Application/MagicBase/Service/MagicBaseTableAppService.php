@@ -111,7 +111,11 @@ readonly class MagicBaseTableAppService
     public function listTables(MagicUserAuthorization $authorization, int $projectId): MagicBaseEntityCollection
     {
         $this->accessControl->requireReadableProject($authorization, $projectId);
-        return $this->metadataDomainService->listTables($authorization->getOrganizationCode(), $projectId);
+        return $this->accessControl->filterReadableTables(
+            $authorization,
+            $projectId,
+            $this->metadataDomainService->listTables($authorization->getOrganizationCode(), $projectId)
+        );
     }
 
     public function getTable(MagicUserAuthorization $authorization, int $projectId, int $tableId): MagicBaseTableDetailDTO

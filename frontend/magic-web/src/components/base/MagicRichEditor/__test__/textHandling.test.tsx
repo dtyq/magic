@@ -28,7 +28,7 @@ const mockEditor = vi.hoisted(() => ({
 }))
 
 // 模拟依赖
-vi.mock("@tiptap/react", () => {
+vi.mock("@/infrastructure/editors/tiptap/react", () => {
 	return {
 		useEditor: vi.fn().mockReturnValue(mockEditor),
 		EditorContent: vi

@@ -1,5 +1,5 @@
 import { useStyles } from "./styles"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { IconLight } from "@/enhance/tabler/icons-react"
 import { IconCheck, IconChevronLeft, IconChevronRight, IconEdit, IconX } from "@tabler/icons-react"
 import { colorUsages } from "@/providers/ThemeProvider/colors"
@@ -28,10 +28,10 @@ export default function MemorySuggestion({
 
 	const isMobile = useIsMobile()
 
-	/** 待处理的记忆列表 */
+	/** Pending memory suggestions. */
 	const [pendingMemoryList, setPendingMemoryList] = useState<LongMemory.Memory[]>([])
 
-	/** 获取待处理的记忆列表 */
+	/** Fetch pending memory suggestions. */
 	const getPendingMemoryList = useMemoizedFn(async () => {
 		try {
 			const res = await LongMemoryApi.getMemories({
@@ -45,13 +45,13 @@ export default function MemorySuggestion({
 		}
 	})
 
-	/** 编辑记忆 */
+	/** Edit a memory. */
 	const handleEditMemory = useMemoizedFn((memory: LongMemory.Memory) => {
 		setPage(LongTremMemoryPage.CreateOrEdit)
 		setEditMemory(memory)
 	})
 
-	/** 拒绝记忆 */
+	/** Reject a memory suggestion. */
 	const handleMemoryReject = useMemoizedFn(async (memoryId: string) => {
 		try {
 			const res = await LongMemoryApi.batchAcceptMemories([memoryId], "reject")
@@ -65,7 +65,7 @@ export default function MemorySuggestion({
 		}
 	})
 
-	/** 采纳记忆 */
+	/** Accept a memory suggestion. */
 	const handleMemoryAccept = useMemoizedFn(async (memoryId: string) => {
 		try {
 			const res = await LongMemoryApi.batchAcceptMemories([memoryId], "accept")
@@ -79,7 +79,7 @@ export default function MemorySuggestion({
 		}
 	})
 
-	/** 点击项目 */
+	/** Open the associated project. */
 	const handleProjectClick = useMemoizedFn(async (projectId: string | null) => {
 		if (!projectId) return
 		try {
@@ -106,7 +106,11 @@ export default function MemorySuggestion({
 		<>
 			{isMobile && (
 				<div className={styles.header}>
-					<div className={styles.back} onClick={() => setPage(LongTremMemoryPage.List)} data-testid="set-page">
+					<div
+						className={styles.back}
+						onClick={() => setPage(LongTremMemoryPage.List)}
+						data-testid="set-page"
+					>
 						<IconChevronLeft size={24} stroke={1.5} />
 					</div>
 					<Flex flex={1} justify="space-between" align="center">
@@ -131,7 +135,11 @@ export default function MemorySuggestion({
 				)}
 				<div className={styles.body}>
 					{pendingMemoryList.length > 0 ? (
-						<MagicScrollBar className={styles.scroll} autoHide={false}>
+						<ScrollArea
+							className={styles.scroll}
+							viewportClassName={styles.scrollViewport}
+							type="always"
+						>
 							{pendingMemoryList.map((memory) => (
 								<div key={memory.id} className={styles.item}>
 									<div className={styles.itemHeader}>
@@ -252,7 +260,7 @@ export default function MemorySuggestion({
 									)}
 								</div>
 							))}
-						</MagicScrollBar>
+						</ScrollArea>
 					) : (
 						<div className={styles.empty}>
 							<MagicEmpty />

@@ -49,10 +49,12 @@ The tools automatically read `topic_id`, `project_id`, and current `model_id` fr
 | --- | --- | --- |
 | `no_repeat` | One-time execution | Execution date `YYYY-MM-DD` (required) |
 | `daily_repeat` | Repeat daily | Not needed |
-| `weekly_repeat` | Repeat weekly | Weekday `0`-`6`, `0`=Sunday (required) |
+| `weekly_repeat` | Repeat weekly | Weekday `0`-`6`, `0`=Monday ... `6`=Sunday (required) |
 | `monthly_repeat` | Repeat monthly | Day of month `1`-`31` (required) |
 
 `time` is always required and must be `HH:MM`.
+
+`day` must be passed as a quoted string (e.g. `"2"`), not a bare integer. For `weekly_repeat`, `day` uses `0`=Monday, `1`=Tuesday, `2`=Wednesday, `3`=Thursday, `4`=Friday, `5`=Saturday, `6`=Sunday.
 
 `deadline` is optional for recurring tasks. Use `YYYY-MM-DD HH:MM:SS`; `YYYY-MM-DD` is normalized to `YYYY-MM-DD 00:00:00`.
 
@@ -84,6 +86,23 @@ result = tool.call("scheduled_task_create", {
     "task_name": "Daily Briefing",
     "message_content": "Generate today's briefing",
     "schedule_type": "daily_repeat",
+    "time": "09:00"
+})
+print(result.content)
+""")
+```
+
+Weekly example — pass `day` as a quoted string; `0`=Monday ... `6`=Sunday:
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+result = tool.call("scheduled_task_create", {
+    "task_name": "Weekly Report",
+    "message_content": "Generate the weekly report",
+    "schedule_type": "weekly_repeat",
+    "day": "2",  # 2 = Wednesday (0=Monday, 1=Tuesday, 2=Wednesday, ... 6=Sunday)
     "time": "09:00"
 })
 print(result.content)

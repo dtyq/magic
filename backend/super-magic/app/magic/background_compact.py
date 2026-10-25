@@ -14,7 +14,7 @@
       同类型压缩 Agent
       ├─ 使用同一套 ChatHistory + session + Horizon
       ├─ 只能调用 compact_chat_history
-      └─ 返回 summary，不直接修改父 Agent 文件
+      └─ 返回摘要与 Skill 建议，不直接修改父 Agent 文件
 
 父 Agent 应用 summary 前还会检查快照前缀的消息数量和 digest。压缩期间追加的新消息
 允许保留；如果旧前缀被回滚、前台压缩或其他流程改写，旧 summary 才会被拒绝。
@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Sequence
 
 from agentlang.logger import get_logger
+from app.magic.compact_result import CompactResult
 from app.magic.compact_user_input_references import format_user_input_reference_block
 
 if TYPE_CHECKING:
@@ -54,7 +55,7 @@ class BackgroundCompactState:
     Agent 的返回文本不能替代它，因为普通返回可能只是解释“我已经压缩完成”。
     """
     # 后台任务引用（asyncio.Task 包装了压缩 Agent 调用）
-    _task: Optional[asyncio.Task] = field(default=None, repr=False)
+    _task: asyncio.Task[CompactResult | None] | None = field(default=None, repr=False)
 
     # 本次后台压缩的唯一 generation，用于区分不同快照
     generation: str = ""
@@ -91,18 +92,19 @@ class BackgroundCompactState:
             return 0.0
         return time.time() - self.started_at
 
-    def get_summary(self) -> Optional[str]:
+    def get_result(self) -> CompactResult | None:
         """获取压缩结果（仅在 is_completed 时有效）
 
-        返回 forked subagent 调用 compact_chat_history 时提交的 summary 参数，
+        返回 forked subagent 调用 compact_chat_history 时捕获的摘要与 Skill 建议，
         失败或取消时返回 None。
         """
-        if not self.is_completed:
+        task = self._task
+        if task is None or not task.done():
             return None
         try:
-            result = self._task.result()
-            if not isinstance(result, str) or not result.strip():
-                logger.warning("后台压缩没有捕获到 compact_chat_history summary")
+            result = task.result()
+            if not isinstance(result, CompactResult) or not result.summary.strip():
+                logger.warning("后台压缩没有捕获到有效的 compact_chat_history 结果")
                 return None
             return result
         except (asyncio.CancelledError, Exception) as e:
@@ -174,7 +176,7 @@ async def start_background_compact(
     """通过 fork 子 Agent 启动后台压缩。
 
     fork 出一个同类型子 Agent（继承完整对话历史），
-    让它调用 compact_chat_history，并捕获 summary 参数作为压缩结果。
+    让它调用 compact_chat_history，并捕获摘要与 Skill 建议作为压缩结果。
     """
     if state.is_running:
         logger.warning("后台压缩任务已在运行中，跳过重复启动")
@@ -221,16 +223,38 @@ async def start_background_compact(
         f"bg-compact-{parent_context_id}-{generation[:12]}",
     )
 
+    from app.path_manager import PathManager
     from app.service.agent_runner import (
         IsolatedAgentModelRequest,
         IsolatedAgentRunRequest,
         run_compaction_agent,
     )
-    from app.path_manager import PathManager
-    from app.utils.runtime_storage import ensure_runtime_directory
+    from app.utils.runtime_storage import (
+        RuntimeEvictionPolicy,
+        ensure_runtime_directory,
+        evict_runtime_directories,
+        get_runtime_config_int,
+        trigger_opportunistic_cleanup,
+    )
 
     temporary_dir = await ensure_runtime_directory(
         PathManager.get_background_compact_dir() / f"{target.agent_name}<{agent_id}>"
+    )
+    trigger_opportunistic_cleanup(
+        "background_compact",
+        lambda: evict_runtime_directories(
+            PathManager.get_background_compact_dir(),
+            policy=RuntimeEvictionPolicy(
+                max_age_seconds=get_runtime_config_int(
+                    "runtime_cleanup.background_compact.max_age_days",
+                    minimum=1,
+                )
+                * 24
+                * 60
+                * 60,
+            ),
+            protected_paths=frozenset({temporary_dir}),
+        ),
     )
 
     compact_task = asyncio.create_task(

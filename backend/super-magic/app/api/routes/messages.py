@@ -32,6 +32,10 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from agentlang.utils.snowflake import Snowflake
 from app.core.stream.websocket_stream import WebSocketStream
+from app.streaming.local_subscribe_driver import (
+    register_local_subscribe_stream,
+    unregister_local_subscribe_stream,
+)
 from agentlang.config.dynamic_config import dynamic_config
 from app.path_manager import PathManager
 
@@ -650,6 +654,7 @@ async def websocket_subscription_endpoint(websocket: WebSocket):
             return
 
         agent_context.add_stream(websocket_stream)
+        register_local_subscribe_stream(websocket_stream)
         logger.info("WebSocket流已加入到agent context")
 
         while True:
@@ -669,6 +674,7 @@ async def websocket_subscription_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket连接处理异常: {e}")
     finally:
+        unregister_local_subscribe_stream(websocket_stream)
         try:
             agent_context = message_processor.agent_dispatcher.agent_context
             if agent_context:

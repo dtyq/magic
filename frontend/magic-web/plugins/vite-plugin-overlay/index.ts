@@ -58,8 +58,13 @@ export default function vitePluginOverlay({
 		)
 	}
 
-	if (htmlPlan.htmlOverrides.size > 0) {
-		plugins.push(vitePluginHtmlOverlay({ htmlOverrides: htmlPlan.htmlOverrides }))
+	if (htmlPlan.htmlEntryNames.size > 0) {
+		plugins.push(
+			vitePluginHtmlOverlay({
+				htmlOverrides: htmlPlan.htmlOverrides,
+				htmlEntryNames: htmlPlan.htmlEntryNames,
+			}),
+		)
 	}
 
 	plugins.push(...publicPlan.plugins)

@@ -16,6 +16,7 @@ use App\Domain\Chat\Repository\Facade\MagicChatTopicRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\Model\MagicChatTopicMessageModel;
 use App\Domain\Chat\Repository\Persistence\Model\MagicChatTopicModel;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Constants\Order;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -105,6 +106,17 @@ class MagicChatTopicRepository implements MagicChatTopicRepositoryInterface
         ! empty($topicIds) && $query->whereIn('topic_id', $topicIds);
         $topics = Db::select($query->toSql(), $query->getBindings());
         return TopicAssembler::getTopicEntities($topics);
+    }
+
+    public function getTopicForConversationForUpdate(string $conversationId, string $topicId): ?MagicTopicEntity
+    {
+        if (Db::connection()->transactionLevel() < 1) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '话题当前读取必须在事务内执行');
+        }
+        $query = $this->topicModel::query()->where('conversation_id', $conversationId)
+            ->where('topic_id', $topicId)->whereNull('deleted_at')->lockForUpdate();
+        $row = Db::select($query->toSql(), $query->getBindings())[0] ?? null;
+        return $row === null ? null : TopicAssembler::getTopicEntity($row);
     }
 
     public function getTopicEntity(MagicTopicEntity $magicTopicDTO): ?MagicTopicEntity

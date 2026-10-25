@@ -568,6 +568,7 @@ class StreamResponseHandler(StreamResponseHandlerBase):
                                     raise StreamInterruptedError(
                                         chunk_count=state.received_chunk_count,
                                         total_elapsed_seconds=total_elapsed,
+                                        emitted_text_chars=len(state.reasoning_text) + len(state.content_text),
                                     ) from e
                                 else:
                                     # 正常情况：有finish_reason，虽然可能缺少usage
@@ -582,6 +583,7 @@ class StreamResponseHandler(StreamResponseHandlerBase):
                                     chunk_count=state.received_chunk_count,
                                     chunk_timeout_seconds=effective_chunk_timeout,
                                     total_elapsed_seconds=total_elapsed,
+                                    emitted_text_chars=len(state.reasoning_text) + len(state.content_text),
                                 )
                             # --- 异常穿透规则 ---
                             # STREAMING_PASSTHROUGH_EXCEPTIONS 中的异常不应被包装，
@@ -663,6 +665,7 @@ class StreamResponseHandler(StreamResponseHandlerBase):
             raise StreamInterruptedError(
                 chunk_count=state.received_chunk_count,
                 total_elapsed_seconds=total_elapsed,
+                emitted_text_chars=len(state.reasoning_text) + len(state.content_text),
             )
 
         # 记录流式处理统计

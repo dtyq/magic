@@ -10,7 +10,7 @@ import {
 	PaginationNext,
 	PaginationPrevious,
 } from "@/components/shadcn-ui/pagination"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ShareListFooterProps {
 	currentPage: number

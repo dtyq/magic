@@ -6,6 +6,7 @@ import { useElementVisibility } from "../useElementVisibility"
 describe("useElementVisibility", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals()
+		vi.restoreAllMocks()
 	})
 
 	it("falls back to visible when IntersectionObserver is unavailable", () => {
@@ -93,6 +94,88 @@ describe("useElementVisibility", () => {
 				{} as IntersectionObserver,
 			)
 		})
+		await waitFor(() => expect(result.current).toBe(true))
+	})
+
+	it("observes a dynamically mounted element without carrying visibility from the old node", async () => {
+		const callbacks: IntersectionObserverCallback[] = []
+		vi.stubGlobal(
+			"IntersectionObserver",
+			vi.fn((callback: IntersectionObserverCallback) => {
+				callbacks.push(callback)
+				return { observe: vi.fn(), disconnect: vi.fn() }
+			}),
+		)
+		const first = document.createElement("section")
+		const second = document.createElement("section")
+		const { result, rerender } = renderHook(
+			({ element }: { element: HTMLElement | null }) => useElementVisibility(element),
+			{ initialProps: { element: first as HTMLElement | null } },
+		)
+
+		act(() => {
+			callbacks[0]?.(
+				[
+					{
+						target: first,
+						intersectionRatio: 1,
+						isIntersecting: true,
+					} as IntersectionObserverEntry,
+				],
+				{} as IntersectionObserver,
+			)
+		})
+		await waitFor(() => expect(result.current).toBe(true))
+
+		rerender({ element: second })
+		expect(result.current).toBe(false)
+		act(() => {
+			callbacks[1]?.(
+				[
+					{
+						target: second,
+						intersectionRatio: 1,
+						isIntersecting: true,
+					} as IntersectionObserverEntry,
+				],
+				{} as IntersectionObserver,
+			)
+		})
+		await waitFor(() => expect(result.current).toBe(true))
+	})
+
+	it("requires a foreground document when requested", async () => {
+		let callback: IntersectionObserverCallback | undefined
+		let visibilityState: DocumentVisibilityState = "hidden"
+		vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState)
+		vi.stubGlobal(
+			"IntersectionObserver",
+			vi.fn((nextCallback: IntersectionObserverCallback) => {
+				callback = nextCallback
+				return { observe: vi.fn(), disconnect: vi.fn() }
+			}),
+		)
+		const element = document.createElement("section")
+		const { result } = renderHook(() =>
+			useElementVisibility(element, { requireDocumentVisible: true }),
+		)
+
+		act(() => {
+			callback?.(
+				[
+					{
+						target: element,
+						intersectionRatio: 1,
+						isIntersecting: true,
+					} as IntersectionObserverEntry,
+				],
+				{} as IntersectionObserver,
+			)
+		})
+		expect(result.current).toBe(false)
+
+		visibilityState = "visible"
+		act(() => document.dispatchEvent(new Event("visibilitychange")))
 		await waitFor(() => expect(result.current).toBe(true))
 	})
 })

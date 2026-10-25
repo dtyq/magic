@@ -148,6 +148,20 @@ class ProviderModelDomainService
         $this->providerModelRepository->updateStatus($dataIsolation, $id, $status);
     }
 
+    /**
+     * 批量禁用模型.
+     *
+     * @param string[] $modelIds 模型标识数组
+     */
+    public function disableModels(ProviderDataIsolation $dataIsolation, array $modelIds): void
+    {
+        if ($modelIds === []) {
+            return;
+        }
+
+        $this->providerModelRepository->updateStatusByModelIds($dataIsolation, $modelIds, Status::Disabled);
+    }
+
     public function deleteByModelParentId(ProviderDataIsolation $dataIsolation, string $modelParentId): void
     {
         $this->providerModelRepository->deleteByModelParentId($dataIsolation, $modelParentId);
@@ -194,6 +208,42 @@ class ProviderModelDomainService
     public function getModelsByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array
     {
         return $this->providerModelRepository->getByModelIds($dataIsolation, $modelIds);
+    }
+
+    /**
+     * 按「运行时选择 provider」的优先级排序.
+     *
+     * 同一个逻辑 model_id 下可能挂多条 provider_model，但运行时只会命中其中一条：
+     * {@see ProviderModelRepositoryInterface::getAvailableByModelIdOrId()} 使用
+     * `sort desc → service_provider_config_id desc → id asc` 取首条，
+     * 且视频链路当前不存在跨 provider 的故障转移或负载均衡。
+     *
+     * 因此对外展示 provider 能力配置时，必须先用同一套优先级排序再取首条，
+     * 否则会出现「前端展示的是 A provider 的能力，实际执行命中的却是 B provider」。
+     * 该规则与上述仓储查询是同一份契约，两处必须同步修改。
+     *
+     * @param ProviderModelEntity[] $providerModels
+     * @return ProviderModelEntity[]
+     */
+    public function sortByRuntimePriority(array $providerModels): array
+    {
+        if (count($providerModels) < 2) {
+            return array_values($providerModels);
+        }
+
+        usort($providerModels, static function (ProviderModelEntity $left, ProviderModelEntity $right): int {
+            if ($left->getSort() !== $right->getSort()) {
+                return $right->getSort() <=> $left->getSort();
+            }
+
+            if ($left->getServiceProviderConfigId() !== $right->getServiceProviderConfigId()) {
+                return $right->getServiceProviderConfigId() <=> $left->getServiceProviderConfigId();
+            }
+
+            return (int) $left->getId() <=> (int) $right->getId();
+        });
+
+        return $providerModels;
     }
 
     /**

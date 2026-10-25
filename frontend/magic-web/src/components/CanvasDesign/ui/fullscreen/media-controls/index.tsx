@@ -14,6 +14,8 @@ function formatTime(seconds: number): string {
 /** 全屏底部控制条：进度、音量、退出全屏（视频 / 音频共用） */
 export interface MediaControlsProps {
 	visible: boolean
+	/** 是否允许当前宿主会话执行播放、暂停和拖动进度。 */
+	playbackEnabled?: boolean
 	/**
 	 * 为 true 时（音频全屏）：底部渐变层始终可点，时间与进度条常显；
 	 * `visible` 仅控制播放 / 音量 / 退出按钮区；进度行固定高度，避免随显隐跳动。
@@ -37,6 +39,7 @@ export interface MediaControlsProps {
 export default function MediaControls(props: MediaControlsProps) {
 	const {
 		visible,
+		playbackEnabled = true,
 		progressAlwaysVisible = false,
 		duration,
 		progressRangeRef,
@@ -71,6 +74,7 @@ export default function MediaControls(props: MediaControlsProps) {
 			aria-label={t("video.fullscreen.progress", "播放进度")}
 			aria-valuemin={0}
 			aria-valuemax={100}
+			disabled={!playbackEnabled}
 			onPointerDown={(event) => {
 				event.currentTarget.setPointerCapture(event.pointerId)
 				onScrubStart()
@@ -94,6 +98,7 @@ export default function MediaControls(props: MediaControlsProps) {
 				<button
 					type="button"
 					className={styles.iconButton}
+					disabled={!playbackEnabled}
 					onClick={onTogglePlay}
 					aria-label={
 						isPlaying

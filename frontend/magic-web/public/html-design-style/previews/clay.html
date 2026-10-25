@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clay — Scale 1:1 Outreach with Data Enrichment</title>
+<style>
+:root {
+  --canvas: #fffaf0;
+  --surface-soft: #faf5e8;
+  --surface-card: #f5f0e0;
+  --surface-strong: #ebe6d6;
+  --surface-white: #ffffff;
+  --ink: #0a0a0a;
+  --body: #3a3a3a;
+  --body-strong: #1a1a1a;
+  --muted: #6a6a6a;
+  --hairline: #e8e3d3;
+  --border: #dfd9c7;
+  --primary: #0a0a0a;
+  --brand-pink: #ff4d8b;
+  --brand-pink-light: #ffe5ee;
+  --brand-teal: #1a3a3a;
+  --brand-lavender: #b8a4ed;
+  --brand-lavender-light: #f1edfb;
+  --brand-peach: #ffb084;
+  --brand-peach-light: #fff0e8;
+  --brand-ochre: #e8b94a;
+  --brand-mint: #a4d4c5;
+  --brand-mint-light: #ecf7f4;
+  --brand-coral: #ff6b5a;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Monaco, Consolas, monospace;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --max-w: 1220px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+/* NAV */
+.clay-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 36px;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--hairline);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-logo-clay {
+  width: 32px;
+  height: 32px;
+  background: var(--brand-pink);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(255, 77, 139, 0.3);
+}
+.brand-logo-clay svg {
+  width: 18px;
+  height: 18px;
+  fill: #ffffff;
+}
+.brand-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--body);
+}
+.nav-links a:hover { color: var(--ink); }
+.nav-cta-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.btn-login {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.btn-clay-primary {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 20px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* HERO */
+.hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 48px 24px 32px;
+  text-align: center;
+}
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--brand-lavender-light);
+  border: 1px solid rgba(184, 164, 237, 0.5);
+  padding: 6px 16px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5b37b6;
+  margin-bottom: 20px;
+}
+.hero-tag .sparkle {
+  font-size: 14px;
+}
+.hero-headline {
+  font-size: 60px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  line-height: 1.06;
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+.hero-headline span.highlight {
+  background: linear-gradient(120deg, var(--brand-pink) 0%, #ff8038 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-sub {
+  font-size: 18px;
+  color: var(--body);
+  max-width: 680px;
+  margin: 0 auto 32px;
+  line-height: 1.6;
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 36px;
+}
+.free-credits-badge {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+/* WATERFALL ENRICHMENT TABLE (HIGH DENSITY TOP 500PX) */
+.table-stage-card {
+  max-width: 1140px;
+  margin: 0 auto 60px;
+  background: var(--surface-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  overflow: hidden;
+  text-align: left;
+}
+.table-toolbar {
+  padding: 12px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.table-title-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.table-title-pill .sheet-icon {
+  width: 24px;
+  height: 24px;
+  background: var(--brand-pink-light);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-pink);
+}
+.waterfall-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--brand-mint-light);
+  color: #12664f;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.waterfall-status-pill .pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #10b981;
+}
+
+/* ENRICHMENT WORKBENCH GRID */
+.clay-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.clay-grid th {
+  background: #faf8f2;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline);
+  font-weight: 600;
+  color: var(--body);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.clay-grid td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline);
+  color: var(--ink);
+  vertical-align: middle;
+}
+.clay-grid tr:hover td {
+  background: #fffdf8;
+}
+.company-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.co-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #f0ebe0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand-teal);
+}
+.provider-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.source-linkedin { background: #e8f3fc; color: #0077b5; }
+.source-clearbit { background: #eef2ff; color: #4338ca; }
+.source-openai { background: #ecfdf5; color: #059669; }
+.source-apollo { background: #fff7ed; color: #c2410c; }
+
+.status-check {
+  color: #16a34a;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.score-pill {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #fef08a;
+  color: #854d0e;
+}
+
+/* 3D CLAY TILES / BENTO GRID */
+.clay-bento {
+  max-width: var(--max-w);
+  margin: 0 auto 70px;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.bento-card {
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.03);
+  position: relative;
+  overflow: hidden;
+}
+.bento-card.pink { background: var(--brand-pink-light); color: var(--brand-teal); }
+.bento-card.mint { background: var(--brand-mint-light); color: #0d4337; }
+.bento-card.peach { background: var(--brand-peach-light); color: #6b2e0e; }
+
+.bento-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 12px;
+}
+.bento-title {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+}
+.bento-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.bento-mockup {
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* INTEGRATION STRIP */
+.integration-bar {
+  max-width: var(--max-w);
+  margin: 0 auto 80px;
+  padding: 24px;
+  text-align: center;
+}
+.int-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+}
+.int-logos {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 36px;
+  flex-wrap: wrap;
+}
+.int-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--body);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-card);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+/* FOOTER */
+.clay-footer {
+  border-top: 1px solid var(--hairline);
+  background: #ffffff;
+  padding: 36px 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.footer-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+</style>
+</head>
+<body>
+
+<!-- NAVIGATION -->
+<nav class="clay-nav">
+  <div class="nav-brand">
+    <div class="brand-logo-clay">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+    </div>
+    <span class="brand-title">Clay</span>
+  </div>
+  <div class="nav-links">
+    <a href="#">Product</a>
+    <a href="#">Data Providers (75+)</a>
+    <a href="#">Claygent AI</a>
+    <a href="#">Templates</a>
+    <a href="#">Pricing</a>
+  </div>
+  <div class="nav-cta-group">
+    <button class="btn-login">Log In</button>
+    <button class="btn-clay-primary">
+      <span>Get Started Free</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- HERO SECTION -->
+<header class="hero">
+  <div class="hero-tag">
+    <span class="sparkle">✨</span>
+    <span>Introducing Claygent: The Web-Crawling AI Researcher</span>
+  </div>
+  <h1 class="hero-headline">
+    Supercharge your pipeline with<br>
+    <span class="highlight">75+ enrichment data providers</span>
+  </h1>
+  <p class="hero-sub">
+    Turn messy spreadsheets into personalized outreach campaigns. Connect LinkedIn, Clearbit, Apollo, and OpenAI in automated data waterfalls that discover verified emails and custom intelligence.
+  </p>
+  <div class="hero-actions">
+    <button class="btn-clay-primary" style="padding: 12px 28px; font-size: 15px;">
+      Start Free With 1,000 Credits
+    </button>
+    <button class="btn-login" style="padding: 12px 22px; font-size: 15px;">
+      Explore 50+ Workflows
+    </button>
+  </div>
+  <div class="free-credits-badge">
+    No credit card required • SOC 2 Type II Certified • 25,000+ Teams
+  </div>
+</header>
+
+<!-- CLAY WATERFALL WORKBENCH (BENCHMARK TOP 500PX FOCUSED) -->
+<section style="padding: 0 24px;">
+  <div class="table-stage-card">
+    <div class="table-toolbar">
+      <div class="table-title-pill">
+        <div class="sheet-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v18H3V3zm2 2v14h14V5H5zm2 2h10v2H7V7zm0 4h10v2H7v-2zm0 4h7v2H7v-2z"/></svg>
+        </div>
+        <span>Enterprise Outbound Target Accounts (Q3 Waterfall)</span>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <div class="waterfall-status-pill">
+          <span class="pulse-dot"></span>
+          <span>WATERFALL ACTIVE: 4 OF 4 SOURCES RUNNING</span>
+        </div>
+        <button style="background: var(--ink); color:#fff; border:none; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer;">
+          + Add Column
+        </button>
+      </div>
+    </div>
+
+    <!-- DATA WATERFALL TABLE -->
+    <table class="clay-grid">
+      <thead>
+        <tr>
+          <th style="width: 220px;">Target Lead &amp; Company</th>
+          <th style="width: 150px;">Role / Title</th>
+          <th style="width: 170px;">Waterfall Step 1 (LinkedIn)</th>
+          <th style="width: 190px;">Waterfall Step 2 (Clearbit)</th>
+          <th style="width: 180px;">Claygent AI Insight</th>
+          <th style="width: 110px;">Fit Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="company-cell">
+              <div class="co-logo">S</div>
+              <div>
+                <div style="font-weight: 700;">Sarah Jenkins</div>
+                <div style="color: var(--muted); font-size: 11px;">Stripe, Inc.</div>
+              </div>
+            </div>
+          </td>
+          <td>VP, Revenue Operations</td>
+          <td>
+            <span class="provider-badge source-linkedin">LinkedIn ✓ Verified</span>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">5+ yrs in role</div>
+          </td>
+          <td>
+            <span class="status-check">✓ demo.person15@example.com</span>
+            <div style="font-size:10px; color:var(--muted); font-family:var(--font-mono);">99% Deliverability</div>
+          </td>
+          <td>
+            <span class="provider-badge source-openai">Claygent 4.0</span>
+            <div style="font-size:11px; margin-top:2px;">Hiring 14 RevOps engineers in EMEA</div>
+          </td>
+          <td><span class="score-pill">98 / 100</span></td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="company-cell">
+              <div class="co-logo">V</div>
+              <div>
+                <div style="font-weight: 700;">Marcus Vance</div>
+                <div style="color: var(--muted); font-size: 11px;">Vercel Global</div>
+              </div>
+            </div>
+          </td>
+          <td>Head of Developer Platform</td>
+          <td>
+            <span class="provider-badge source-linkedin">LinkedIn ✓ Verified</span>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">San Francisco, CA</div>
+          </td>
+          <td>
+            <span class="status-check">✓ demo.person13@example.com</span>
+            <div style="font-size:10px; color:var(--muted); font-family:var(--font-mono);">SMTP Catch-all Passed</div>
+          </td>
+          <td>
+            <span class="provider-badge source-openai">Claygent 4.0</span>
+            <div style="font-size:11px; margin-top:2px;">Just launched Next.js 15 preview</div>
+          </td>
+          <td><span class="score-pill">95 / 100</span></td>
+        </tr>
+
+        <tr>
+          <td>
+            <div class="company-cell">
+              <div class="co-logo">N</div>
+              <div>
+                <div style="font-weight: 700;">Elena Rostova</div>
+                <div style="color: var(--muted); font-size: 11px;">Notion Labs</div>
+              </div>
+            </div>
+          </td>
+          <td>Director of Growth &amp; GTM</td>
+          <td>
+            <span class="provider-badge source-apollo">Apollo.io Fallback</span>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Primary matched</div>
+          </td>
+          <td>
+            <span class="status-check">✓ demo.person10@example.com</span>
+            <div style="font-size:10px; color:var(--muted); font-family:var(--font-mono);">Verified MX Record</div>
+          </td>
+          <td>
+            <span class="provider-badge source-openai">Claygent 4.0</span>
+            <div style="font-size:11px; margin-top:2px;">Evaluating AI workflow tools</div>
+          </td>
+          <td><span class="score-pill">92 / 100</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 3D CLAY BENTO FEATURE CARDS -->
+<section class="clay-bento">
+  <div class="bento-card pink">
+    <div>
+      <div class="bento-tag">Waterfall Orchestration</div>
+      <h3 class="bento-title">Never settle for one provider again</h3>
+      <p class="bento-desc">
+        Clay cascades through 75+ data vendors sequentially. If Apollo misses an email, Hunter steps in, followed by Dropcontact.
+      </p>
+    </div>
+    <div class="bento-mockup">
+      <div style="color: var(--brand-pink); font-weight:700;">CASCADE RULE:</div>
+      <div style="margin-top:4px;">If Email == null → Check Clearbit API</div>
+      <div style="margin-top:2px; color:var(--muted);">Found 94.2% verified work addresses</div>
+    </div>
+  </div>
+
+  <div class="bento-card mint">
+    <div>
+      <div class="bento-tag">AI Research Agents</div>
+      <h3 class="bento-title">Claygent visits sites and reads 10-Ks</h3>
+      <p class="bento-desc">
+        Our proprietary agentic scraper visits career pages, reads SEC filings, and inspects tech stacks to write personalized email hooks.
+      </p>
+    </div>
+    <div class="bento-mockup">
+      <div style="color: #0d4337; font-weight:700;">AGENT PROMPT:</div>
+      <div style="margin-top:4px;">"What CRM does this company list in job posts?"</div>
+      <div style="margin-top:2px; color:#10b981;">Result: Salesforce Enterprise + HubSpot</div>
+    </div>
+  </div>
+
+  <div class="bento-card peach">
+    <div>
+      <div class="bento-tag">Automated Sync</div>
+      <h3 class="bento-title">Push enriched leads right into HubSpot</h3>
+      <p class="bento-desc">
+        Sync verified phone numbers, clean job titles, and tailored first-line icebreakers directly to your sales sequence in real-time.
+      </p>
+    </div>
+    <div class="bento-mockup">
+      <div style="color: #6b2e0e; font-weight:700;">DESTINATION SYNC:</div>
+      <div style="margin-top:4px;">HubSpot Deal Pipeline &amp; Outreach.io</div>
+      <div style="margin-top:2px; color:var(--muted);">Status: 450 contacts synced in 1.4s</div>
+    </div>
+  </div>
+</section>
+
+<!-- INTEGRATIONS STRIP -->
+<section class="integration-bar">
+  <div class="int-title">Natively Integrated with 75+ Data Networks</div>
+  <div class="int-logos">
+    <div class="int-badge">💼 LinkedIn Sales Nav</div>
+    <div class="int-badge">🔍 Clearbit</div>
+    <div class="int-badge">🚀 Apollo.io</div>
+    <div class="int-badge">🧠 OpenAI GPT-4o</div>
+    <div class="int-badge">⚡ Hunter.io</div>
+    <div class="int-badge">📊 Crunchbase Pro</div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="clay-footer">
+  <div class="footer-inner">
+    <div>
+      © 2026 Clay Technologies, Inc. • The Growth Data Orchestration Engine
+    </div>
+    <div style="display: flex; gap: 20px;">
+      <a href="#">Privacy</a>
+      <a href="#">Security</a>
+      <a href="#">Terms of Service</a>
+      <a href="#">System Status</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

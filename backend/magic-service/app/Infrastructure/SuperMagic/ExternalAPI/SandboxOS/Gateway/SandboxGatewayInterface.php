@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\SuperMagic\Task\Entity\ValueObject\SandboxImageTarget;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
+use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\SandboxListResult;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 
 /**
@@ -58,6 +60,7 @@ use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\SandboxSt
  *   - deleteSandbox            — k8s delete pod
  *   - getSandboxStatus         — k8s pod status
  *   - getBatchSandboxStatus    — k8s batch status
+ *   - listSandboxes            — k8s pod list (运维脚本查“正在运行”的沙箱)
  *   - getLatestAgentImage      — global image version
  *   - getLatestAgfsImage       — global image version
  *   - getLatestImages          — global image version (combined)
@@ -77,9 +80,12 @@ interface SandboxGatewayInterface
      * @param string $workDir Sandbox working directory
      * @param string $projectSpaceRootFileId Project space root directory file ID
      * @param string $userSpaceRootFileId User space root directory file ID
-     * @param array<string, string> $labels Extra pod labels
+     * @param string $topicSpaceRootFileId Topic space root directory file ID
+     * @param array<string, string> $labels 额外 pod 标签
+     * @param null|SandboxImageTarget $images 目标镜像；只有指定了镜像的运行才会把镜像写进创建请求，
+     *                                        未指定时留空，让网关继续使用它自己的发布版本
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxId, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', array $labels = []): GatewayResult;
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxId, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', string $topicSpaceRootFileId = '', array $labels = [], ?SandboxImageTarget $images = null): GatewayResult;
 
     /**
      * 删除（停止）沙箱.
@@ -101,6 +107,16 @@ interface SandboxGatewayInterface
      * 纯 gateway 控制面调用（k8s 批量状态），无需 user 身份。
      */
     public function getBatchSandboxStatus(array $sandboxIds): BatchStatusResult;
+
+    /**
+     * List sandbox pods in the gateway namespace, optionally filtered by status.
+     *
+     * 纯 gateway 控制面调用（k8s pod 列表），无需 user 身份。运维脚本据此拿到
+     * “当前真正在运行”的沙箱集合，避免从业务表反推、把已退出的沙箱重新拉起。
+     *
+     * @param string[] $statuses 只返回这些状态（如 ['Running']）；空数组表示不过滤
+     */
+    public function listSandboxes(array $statuses = []): SandboxListResult;
 
     /**
      * Proxy request to sandbox.
@@ -182,6 +198,7 @@ interface SandboxGatewayInterface
      * @param string $projectId 实际项目 ID
      * @param string $projectSpaceRootFileID 项目空间 root file id（来自 task_file 表）
      * @param string $userSpaceRootFileID 用户空间 root file id（可空）
+     * @param string $topicSpaceRootFileID 话题空间 root file id（可空）
      * @param array<string, string> $labels 额外 pod 标签
      */
     public function mountWarmPoolSandbox(
@@ -190,11 +207,12 @@ interface SandboxGatewayInterface
         string $projectId,
         string $projectSpaceRootFileID,
         string $userSpaceRootFileID,
+        string $topicSpaceRootFileID = '',
         array $labels = []
     ): GatewayResult;
 
     /**
-     * 挂载引用项目（被 @ 艾特的外部项目）到指定沙箱作为只读空间.
+     * 挂载引用项目；读写权限由文件服务校验。
      */
     public function mountReferencedProject(
         DataIsolation $dataIsolation,
@@ -202,4 +220,11 @@ interface SandboxGatewayInterface
         string $projectId,
         string $projectSpaceRootFileId
     ): GatewayResult;
+
+    /**
+     * 获取沙箱当前全部引用项目，包括尚未实际加载的挂载。
+     */
+    public function listReferencedProjects(DataIsolation $dataIsolation, string $sandboxId): GatewayResult;
+
+    public function unmountReferencedProject(DataIsolation $dataIsolation, string $sandboxId, string $projectId): GatewayResult;
 }

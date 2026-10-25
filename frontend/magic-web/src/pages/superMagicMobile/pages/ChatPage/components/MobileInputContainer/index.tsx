@@ -7,14 +7,20 @@ import {
 } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import {
 	SceneStateProvider,
-	sceneStateStore,
+	sceneStateStore as globalSceneStateStore,
+	useOptionalSceneStateStore,
 } from "@/pages/superMagic/components/MainInputContainer/stores"
 import { ScenePanelVariant } from "@/pages/superMagic/components/MainInputContainer/components/LazyScenePanel/types"
 import type { SceneItem } from "@/pages/superMagic/types/skill"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import MobileComposer from "../mobile-composer/MobileComposer"
+import {
+	applyTaskHomeRecordingEditorContext,
+	shouldShowMobileHomeRecordStart,
+} from "../mobile-composer/shouldShowMobileHomeRecordStart"
 import useMobileEditorType from "../mobile-composer/useMobileEditorType"
 import MobileRecordSummaryRoute from "../record-summary/MobileRecordSummaryRoute"
+import { clearMobileSceneSelectionOnSendSuccess } from "./sceneSelection"
 
 export interface MobileInputContainerRef {
 	closeRealInput: () => void
@@ -41,10 +47,28 @@ function MobileInputRouteRenderer({
 		editorContext,
 	})
 
-	if (isRecordSummaryEditor) {
+	// Project and topic pages already use this panel. The task homepage uses it too,
+	// so recording starts in the selected workspace instead of the text composer.
+	const showSharedRecordingExpert =
+		isRecordSummaryEditor &&
+		(!editorContext.deferProjectCreationUntilSend ||
+			shouldShowMobileHomeRecordStart({
+				deferProjectCreationUntilSend: editorContext.deferProjectCreationUntilSend,
+				showModeToggle: editorContext.showModeToggle,
+				isRecordSummaryEditor,
+			}))
+
+	// Resolve the task-homepage recording overrides here, once. The route stays a pure
+	// presenter, so it can never re-decide which context the recording panel receives.
+	const recordingEditorContext = useMemo(
+		() => applyTaskHomeRecordingEditorContext(editorContext, isRecordSummaryEditor),
+		[editorContext, isRecordSummaryEditor],
+	)
+
+	if (showSharedRecordingExpert) {
 		return (
 			<MobileRecordSummaryRoute
-				editorContext={editorContext}
+				editorContext={recordingEditorContext}
 				editorNodes={editorNodes}
 				scenes={scenes}
 			/>
@@ -68,6 +92,7 @@ const MobileInputContainer = observer(
 		{ editorContext, editorNodes, enableReEditMessageFromPubSub },
 		ref,
 	) {
+		const sceneStateStore = useOptionalSceneStateStore() ?? globalSceneStateStore
 		const scenes = useMemo(
 			() =>
 				superMagicModeService.getModeConfigWithLegacy(
@@ -89,13 +114,15 @@ const MobileInputContainer = observer(
 
 			const isSceneValid = scenes.some((scene) => scene.id === currentScene.id)
 			if (!isSceneValid) sceneStateStore.setCurrentScene(null)
-		}, [editorContext.topicMode, scenes])
+		}, [editorContext.topicMode, scenes, sceneStateStore])
 
 		const handleCloseRealInput = useMemoizedFn(() => {
 			if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
 		})
 
 		const handleSendSuccess = useMemoizedFn((params: SendSuccessParams) => {
+			// Clear the one-time scene choice before switching topics so the next mobile chat starts fresh.
+			clearMobileSceneSelectionOnSendSuccess(sceneStateStore)
 			handleCloseRealInput()
 			editorContext.onSendSuccess?.(params)
 		})

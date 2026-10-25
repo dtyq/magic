@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Generic, TypeVar
+
+from pydantic import ConfigDict
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
@@ -22,20 +24,20 @@ from app.core.entity.message.server_message import (
 from app.i18n import i18n
 from app.service.browser import BrowserScreenshotService, BrowserService
 from app.service.browser.browser_tool_result_builder import BrowserToolResultBuilder
+from app.service.browser.browser_runtime_registry import BrowserRuntimeEntry
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.browser.presentation import BrowserRemarkBuilder
 from app.tools.browser.presentation.common import (
     escape_markdown,
     message,
-    page_data,
     page_display_title,
-    safe_page_url,
     string,
     target_text,
     user_error,
 )
 from app.tools.core import BaseToolParams
 from magic_use.errors import BrowserErrorCode, BrowserSDKError
+from magic_use.models import BrowserPage
 
 P = TypeVar("P", bound=BaseToolParams)
 
@@ -45,15 +47,15 @@ _RECOVERY_HINTS: Mapping[BrowserErrorCode, str] = {
     BrowserErrorCode.STALE_REF: "Take a fresh interactive snapshot and retry with a current ref.",
     BrowserErrorCode.AMBIGUOUS_REF: "Take a fresh interactive snapshot and retry with a current ref.",
     BrowserErrorCode.REF_NOT_FOUND: "This ref never existed on this page. Take a snapshot and use a ref from it.",
-    BrowserErrorCode.PAGE_NOT_FOUND: "List pages to get a valid page ID, or open a new page.",
-    BrowserErrorCode.PAGE_CLOSED: "This page is gone. Open a new page and navigate again.",
-    BrowserErrorCode.PAGE_EXPIRED: "The page lease expired. Open a new page, or call keep alive earlier next time.",
-    BrowserErrorCode.SESSION_CLOSED: "The browser session ended. Open a page to start a new one.",
+    BrowserErrorCode.PAGE_NOT_FOUND: "Use browser_list_tabs and browser_select_tab to choose an available tab, or browser_navigate when no tabs exist.",
+    BrowserErrorCode.PAGE_CLOSED: "This tab is gone. Use browser_navigate to continue browsing.",
+    BrowserErrorCode.PAGE_EXPIRED: "The tab lease expired. Use browser_navigate to continue, or browser_keep_alive earlier for a long-running page task.",
+    BrowserErrorCode.SESSION_CLOSED: "The Browser instance ended. Use browser_list_instances to choose a connected instance, or browser_navigate to start the configured default.",
     BrowserErrorCode.NAVIGATION_FAILED: "The URL did not load. Check the URL, then retry once with wait_until set to commit.",
     BrowserErrorCode.ACTION_FAILED: "The element did not accept the action. Take a fresh snapshot to check whether it is still visible and enabled.",
     BrowserErrorCode.SNAPSHOT_FAILED: "The page was not in a readable state. Wait for the load state, then snapshot again.",
     BrowserErrorCode.SCREENSHOT_FAILED: "The screenshot could not be captured. Wait for the load state and retry once.",
-    BrowserErrorCode.RESOURCE_LIMIT: "Too many pages or sessions are open. Close pages you no longer need.",
+    BrowserErrorCode.RESOURCE_LIMIT: "A new tab or session cannot be allocated. Existing tabs were kept; browser_navigate can still use an available current tab. Do not repeat the allocation while capacity is unchanged.",
     BrowserErrorCode.CAPABILITY_UNAVAILABLE: "This browser backend does not support the operation. Use a different approach.",
     BrowserErrorCode.SCRIPT_INJECTION_FAILED: "The script could not be injected. Check it for syntax errors.",
     BrowserErrorCode.SCRIPT_NOT_FOUND: "The requested built-in script is not registered. This is a configuration problem, not a page problem.",
@@ -64,10 +66,90 @@ _RECOVERY_HINTS: Mapping[BrowserErrorCode, str] = {
 }
 
 
+class BrowserToolParams(BaseToolParams):
+    # 旧 page_id 等参数必须明确失败，不能忽略目标后误操作当前页。
+    model_config = ConfigDict(extra="forbid")
+
+
 class BrowserToolBase(AbstractFileTool[P], Generic[P]):
     """Browser Skill 的 Code Mode Only 工具基类。"""
 
     operation_key = "browser.unknown_operation"
+
+    async def execute_current_page(
+        self,
+        tool_context: ToolContext,
+        operation: Callable[[BrowserService, BrowserPage], Awaitable[ToolResult]],
+        *,
+        session_id: str | None = None,
+        browser_id: str | None = None,
+        tab_id: str | None = None,
+        screenshot: bool = False,
+        navigate_url: str | None = None,
+        wait_until: str = "domcontentloaded",
+    ) -> ToolResult:
+        async def execute() -> ToolResult:
+            service = BrowserService(tool_context)
+            async with service.current_page(
+                session_id,
+                browser_id=browser_id,
+                tab_id=tab_id,
+                navigate_url=navigate_url,
+                wait_until=wait_until,
+            ) as page:
+                result = await self.execute_safely(operation(service, page))
+                BrowserToolResultBuilder.bind_page(result, page)
+                if screenshot:
+                    await self.attach_state_screenshot(tool_context, result, page_id=page.id, session_id=page.session_id)
+                return result
+
+        return await self.execute_safely(execute())
+
+    async def execute_tab_operation(
+        self,
+        tool_context: ToolContext,
+        operation: Callable[[BrowserService, BrowserRuntimeEntry | None], Awaitable[ToolResult]],
+        *,
+        session_id: str | None = None,
+        browser_id: str | None = None,
+        tab_id: str | None = None,
+        create: bool = False,
+        screenshot: bool = False,
+    ) -> ToolResult:
+        async def execute() -> ToolResult:
+            service = BrowserService(tool_context)
+            resolved_session_id = session_id
+            if tab_id is not None:
+                target_entry, _ = await service.resolve_tab(tab_id)
+                if browser_id is not None and target_entry.browser_id != browser_id:
+                    raise BrowserSDKError(
+                        BrowserErrorCode.PAGE_NOT_FOUND,
+                        f"Tab {tab_id} does not belong to Browser instance {browser_id}.",
+                    )
+                resolved_session_id = target_entry.session.id
+            async with service.session_operation(
+                resolved_session_id,
+                browser_id=browser_id,
+                create=create,
+            ) as entry:
+                result = await operation(service, entry)
+                page_id = self._result_page_id(result)
+                # 新建／选择截成功结果页，失败和关闭不改截原页或后继页。
+                if screenshot and result.ok and entry is not None and page_id is not None:
+                    raw_page_id = page_id
+                    if page_id.startswith("t"):
+                        resolved_entry, resolved_page = await service.resolve_tab(page_id)
+                        raw_page_id = resolved_page.id
+                        entry = resolved_entry
+                    await self.attach_state_screenshot(
+                        tool_context,
+                        result,
+                        page_id=raw_page_id,
+                        session_id=entry.session.id,
+                    )
+                return result
+
+        return await self.execute_safely(execute())
 
     async def execute_safely(self, operation: Awaitable[ToolResult]) -> ToolResult:
         try:
@@ -125,21 +207,17 @@ class BrowserToolBase(AbstractFileTool[P], Generic[P]):
         except Exception:
             logger.warning("Browser page observation could not be recorded", exc_info=True)
 
-    async def execute_state_change(
+    async def attach_state_screenshot(
         self,
         tool_context: ToolContext,
-        operation: Awaitable[ToolResult],
+        result: ToolResult,
         *,
-        page_id: str | None,
-        session_id: str | None,
-    ) -> ToolResult:
-        result = await self.execute_safely(operation)
-        target_page_id = page_id or self._result_page_id(result)
-        if target_page_id is None:
-            return result
+        page_id: str,
+        session_id: str,
+    ) -> None:
         try:
             page, screenshot = await BrowserService(tool_context).screenshot(
-                target_page_id,
+                page_id,
                 full_page=False,
                 labels=False,
                 session_id=session_id,
@@ -150,7 +228,6 @@ class BrowserToolBase(AbstractFileTool[P], Generic[P]):
             raise
         except Exception:
             logger.warning("Browser state-change screenshot failed", exc_info=True)
-        return result
 
     async def get_before_tool_call_friendly_action_and_remark(
         self,
@@ -160,15 +237,14 @@ class BrowserToolBase(AbstractFileTool[P], Generic[P]):
     ) -> dict[str, str]:
         normalized_arguments = arguments or {}
         target = None
-        page_id = normalized_arguments.get("page_id")
         ref = normalized_arguments.get("ref")
-        session_id = normalized_arguments.get("session_id")
-        if isinstance(page_id, str) and isinstance(ref, str):
+        tab_id = normalized_arguments.get("tab_id")
+        if isinstance(ref, str):
             try:
-                target = await BrowserService(tool_context).describe_ref(
-                    page_id,
+                target = await BrowserService(tool_context).describe_current_ref(
                     ref,
-                    session_id if isinstance(session_id, str) else None,
+                    None,
+                    tab_id=tab_id if isinstance(tab_id, str) else None,
                 )
             except asyncio.CancelledError:
                 raise
@@ -199,9 +275,6 @@ class BrowserToolBase(AbstractFileTool[P], Generic[P]):
 
     def create_browser_tool_detail(self, result: ToolResult, content: str) -> ToolDetail:
         """将具体工具生成的正文包装成统一的 Browser/Markdown 详情。"""
-        if not result.ok:
-            content = ""
-
         output_path = result.data.get("output_path")
         if self.name == "browser_screenshot" and result.ok and isinstance(output_path, str) and output_path:
             relative_file_path = Path(output_path).as_posix()
@@ -320,16 +393,16 @@ class BrowserToolBase(AbstractFileTool[P], Generic[P]):
 
     @staticmethod
     def _result_page_id(result: ToolResult) -> str | None:
-        direct_page_id = result.data.get("page_id")
+        direct_page_id = result.data.get("page_id") or result.data.get("tab_id")
         if isinstance(direct_page_id, str) and direct_page_id:
             return direct_page_id
         page = BrowserToolBase._page_data(result)
-        page_id = page.get("page_id") if page else None
+        page_id = (page.get("page_id") or page.get("tab_id")) if page else None
         if isinstance(page_id, str) and page_id:
             return page_id
         action = result.data.get("action")
         if isinstance(action, dict):
-            action_page_id = action.get("page_id")
+            action_page_id = action.get("page_id") or action.get("tab_id")
             if isinstance(action_page_id, str) and action_page_id:
                 return action_page_id
         return None

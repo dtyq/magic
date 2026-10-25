@@ -65,6 +65,7 @@ class ImageConvertHighBuiltInTool extends AbstractAIImageBuiltInTool
                 ->setOriginImageUrl($executionData->getTriggerData()?->getAttachments()[0]->getUrl())
                 ->setOriginImageId($executionData->getTriggerData()?->getAttachments()[0]->getChatFileId())
                 ->setReferMessageId($executionData->getTriggerData()?->getSeqEntity()?->getSeqId())
+                ->setToolCode($this->getCode())
                 ->setSourceId($this->getCode())
                 ->setSourceType(ImageGenerateSourceEnum::TOOL);
             $this->getMagicChatImageConvertHighAppService()->handleUserMessage($requestContext, $reqDto);

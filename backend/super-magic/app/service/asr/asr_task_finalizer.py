@@ -20,11 +20,16 @@ from loguru import logger
 
 from app.service.asr.asr_base import AsrServiceBase
 from app.service.asr.asr_local_proxy import AsrLocalWorkspaceProxy
-from app.service.asr.asr_merge_operations import AsrMergeOperations
 from app.service.asr.asr_merge_task_manager import AsrMergeTaskManager, AsrTaskStatus
 from app.service.asr.asr_size_config import asr_size_config
 from app.service.asr.asr_time_config import asr_time_config
-from app.service.asr.asr_utils import resolve_path
+from app.service.asr.asr_utils import (
+    SUPPORTED_AUDIO_FORMATS,
+    normalize_audio_format,
+    resolve_audio_format_from_directory,
+    resolve_path,
+)
+from app.service.asr.asr_wav_merge_operations import AsrWavMergeOperations
 
 ASR_RECORDINGS_DIR_NAME = ".asr_recordings"
 WORKSPACE_DIR_NAME = ".workspace"
@@ -50,7 +55,7 @@ def is_under_asr_recordings(path: Path) -> bool:
 class AsrTaskFinalizer(AsrServiceBase):
     """ASR 任务完成处理器"""
 
-    def __init__(self, merge_operations: AsrMergeOperations):
+    def __init__(self, merge_operations: AsrWavMergeOperations):
         """
         初始化任务完成处理器
 
@@ -112,10 +117,16 @@ class AsrTaskFinalizer(AsrServiceBase):
                 )
                 return
 
-            # 解析路径
+            # 解析路径（优先识别已有 merged.opus，兼容状态缺少 audio_format）
+            try:
+                resolved_format = resolve_audio_format_from_directory(source_dir, task_state.audio_format)
+            except ValueError as exc:
+                await self._fail_task(task_key, str(exc))
+                return
+            audio_format = normalize_audio_format(resolved_format or task_state.audio_format)
             target_dir = resolve_path(task_state.target_dir, WORKSPACE_DIR_NAME)
             output_filename = task_state.intelligent_title
-            final_audio_name = f"{output_filename}.wav"
+            final_audio_name = f"{output_filename}.{audio_format}"
 
             # 确保目标目录存在（提前创建，以便检查目标文件）
             await asyncio.to_thread(target_dir.mkdir, parents=True, exist_ok=True)
@@ -155,18 +166,19 @@ class AsrTaskFinalizer(AsrServiceBase):
 
             # 3. 移动并重命名音频文件
             # 先快速检查哪个文件存在（不调用 wait_for_file_ready）
-            merged_file = source_dir / self.MERGED_WAV_FILENAME
+            merged_filename = self.get_merged_filename(audio_format)
+            merged_file = source_dir / merged_filename
             merged_exists = await asyncio.to_thread(merged_file.exists)
             final_exists = await asyncio.to_thread(final_audio_path.exists)
 
-            # 情况1: merged.wav 存在 -> 本地重命名，再单次上传到目标目录
+            # 情况1: merged 文件存在 -> 本地重命名，再单次上传到目标目录
             if merged_exists:
                 logger.info(
-                    f"{self.LOG_PREFIX} task_key={task_key} {self.MERGED_WAV_FILENAME} 存在，开始本地重命名后上传目标目录"
+                    f"{self.LOG_PREFIX} task_key={task_key} {merged_filename} 存在，开始本地重命名后上传目标目录"
                 )
 
-                # 1. 等待源 merged.wav 就绪（远端）
-                is_ready, reason = await AsrMergeOperations.wait_for_file_ready(
+                # 1. 等待源 merged 文件就绪（远端）
+                is_ready, reason = await AsrWavMergeOperations.wait_for_file_ready(
                     merged_file,
                     min_size=asr_size_config.MERGED_OUTPUT_MIN_SIZE,
                     retries=asr_time_config.MERGED_FILE_READY_RETRIES,
@@ -176,30 +188,30 @@ class AsrTaskFinalizer(AsrServiceBase):
                         task_key,
                         f"合并文件不可用: {reason}",
                         log_message=(
-                            f"{self.LOG_PREFIX} ❌ task_key={task_key} merged.wav 不可用: "
+                            f"{self.LOG_PREFIX} ❌ task_key={task_key} {merged_filename} 不可用: "
                             f"file={merged_file} reason={reason} retries={asr_time_config.MERGED_FILE_READY_RETRIES}"
                         ),
                     )
                     return
 
-                # 2. 将 merged.wav 同步到本地缓存
-                source_proxy = AsrLocalWorkspaceProxy(task_key, source_dir)
+                # 2. 将 merged 文件同步到本地缓存
+                source_proxy = AsrLocalWorkspaceProxy(task_key, source_dir, audio_format=audio_format)
                 try:
                     local_merged_path = await source_proxy.ensure_remote_file_to_local(
-                        self.MERGED_WAV_FILENAME, required=True, verbose=False
+                        merged_filename, required=True, verbose=False
                     )
                 except Exception as e:
                     await self._fail_task(
                         task_key,
                         f"本地缓存失败: {e}",
                         log_message=(
-                            f"{self.LOG_PREFIX} ❌ task_key={task_key} 拉取 {self.MERGED_WAV_FILENAME} 到本地失败: {e}"
+                            f"{self.LOG_PREFIX} ❌ task_key={task_key} 拉取 {merged_filename} 到本地失败: {e}"
                         ),
                     )
                     return
 
                 if not local_merged_path or not await asyncio.to_thread(local_merged_path.exists):
-                    await AsrMergeTaskManager.instance().fail_task(task_key, f"本地缓存缺失 {self.MERGED_WAV_FILENAME}")
+                    await AsrMergeTaskManager.instance().fail_task(task_key, f"本地缓存缺失 {merged_filename}")
                     return
 
                 # 3. 获取音频信息（本地）
@@ -223,7 +235,7 @@ class AsrTaskFinalizer(AsrServiceBase):
                     return
 
                 # 5. 单次上传到目标目录，避免远端重命名
-                target_proxy = AsrLocalWorkspaceProxy(task_key, target_dir)
+                target_proxy = AsrLocalWorkspaceProxy(task_key, target_dir, audio_format=audio_format)
                 upload_ok = await target_proxy.sync_local_to_remote_single_pass(final_audio_name)
                 if not upload_ok:
                     await self._fail_task(task_key, "音频上传目标目录失败")
@@ -235,10 +247,10 @@ class AsrTaskFinalizer(AsrServiceBase):
                     f"{local_final_path.name} -> {final_audio_path}"
                 )
 
-            # 情况2: merged.wav 不存在，但 final_audio_path 存在 -> 目标文件已就绪，继续补写任务状态
+            # 情况2: merged 文件不存在，但 final_audio_path 存在 -> 目标文件已就绪，继续补写任务状态
             elif final_exists:
                 logger.info(
-                    f"{self.LOG_PREFIX} ✅ task_key={task_key} {self.MERGED_WAV_FILENAME} 已移动到目标位置，开始验证目标文件"
+                    f"{self.LOG_PREFIX} ✅ task_key={task_key} {merged_filename} 已移动到目标位置，开始验证目标文件"
                 )
 
                 # 使用状态记录的历史大小作为预期值，避免只校验 100B
@@ -250,7 +262,7 @@ class AsrTaskFinalizer(AsrServiceBase):
                     expected_size = None
 
                 # 等待目标文件就绪（确保文件完整可用）
-                is_ready, reason = await AsrMergeOperations.wait_for_file_ready(
+                is_ready, reason = await AsrWavMergeOperations.wait_for_file_ready(
                     final_audio_path,
                     min_size=asr_size_config.MERGED_OUTPUT_MIN_SIZE,
                     expected_size=expected_size,
@@ -310,7 +322,7 @@ class AsrTaskFinalizer(AsrServiceBase):
             await self.delete_audio_source_directory(source_dir, task_key)
 
             # 7. 更新任务状态为 completed
-            await AsrMergeTaskManager.instance().finish_task(
+            finish_saved = await AsrMergeTaskManager.instance().finish_task(
                 task_key,
                 file_path=f"{task_state.target_dir}/{final_audio_name}",
                 duration=duration,
@@ -321,6 +333,16 @@ class AsrTaskFinalizer(AsrServiceBase):
                 deleted_files=deleted_files,
                 operations=operations_result,
             )
+
+            if not finish_saved:
+                logger.error(f"{self.LOG_PREFIX} ❌ task_key={task_key} 完成产物已就绪，但任务状态写入失败")
+                return
+
+            # 只在最终文件上传且 completed 状态持久化后清理本地缓存。
+            # 失败路径保留缓存，便于下次重试复用。
+            await AsrLocalWorkspaceProxy(
+                task_key, source_dir, audio_format=audio_format
+            ).cleanup_local(recreate=False)
 
             logger.info(
                 f"{self.LOG_PREFIX} ✅ task_key={task_key} 任务完成, "
@@ -466,8 +488,8 @@ class AsrTaskFinalizer(AsrServiceBase):
                 if item.name in keep_filenames:
                     continue
 
-                # 删除 .wav (int.wav, chunks)
-                if item.suffix == ".wav":
+                # 删除音频分片（{index}.wav / {index}.opus 等）
+                if item.suffix.lower().lstrip(".") in SUPPORTED_AUDIO_FORMATS:
                     try:
                         await asyncio.to_thread(item.unlink)
                     except Exception as e:
@@ -605,7 +627,7 @@ class AsrTaskFinalizer(AsrServiceBase):
                 logger.info(
                     f"{self.LOG_PREFIX} 📝 task_key={task_key} 等待笔记文件: {note_source_path_str} (timeout={timeout}s)"
                 )
-                is_ready, reason = await AsrMergeOperations.wait_for_file_ready(
+                is_ready, reason = await AsrWavMergeOperations.wait_for_file_ready(
                     note_source_path, min_size=asr_size_config.OPTIONAL_FILE_MIN_SIZE, timeout=timeout
                 )
                 if not is_ready:
@@ -829,7 +851,7 @@ class AsrTaskFinalizer(AsrServiceBase):
             logger.info(
                 f"{self.LOG_PREFIX} 🗑️ task_key={task_key} 等待流式文件: {transcript_source_path_str} (timeout={timeout}s)"
             )
-            is_ready, reason = await AsrMergeOperations.wait_for_file_ready(
+            is_ready, reason = await AsrWavMergeOperations.wait_for_file_ready(
                 transcript_abs_path, min_size=asr_size_config.OPTIONAL_FILE_MIN_SIZE, timeout=timeout
             )
             if not is_ready:

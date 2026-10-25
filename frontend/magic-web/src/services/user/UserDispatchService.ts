@@ -13,6 +13,7 @@ import { interfaceStore } from "@/stores/interface"
 import type { UserService } from "./UserService"
 import type { AccountService } from "./AccountService"
 import { refreshAccountContextPage } from "@/broadcastChannel/eventFactory/accountContextRefresh"
+import { emitLegacyDeleteAccountAuthEvent } from "@/services/auth/adapters/LegacyAuthEventAdapter"
 
 const UserDispatchService = {
 	/**
@@ -175,9 +176,7 @@ const UserDispatchService = {
 	deleteAccount: async (data: { magicId?: string; navigateToLogin?: boolean }) => {
 		const accountService = service.get<AccountService>("accountService")
 		await accountService.deleteAccount(data.magicId)
-		if (data.navigateToLogin) {
-			history.push({ name: RouteName.Login })
-		}
+		emitLegacyDeleteAccountAuthEvent(data)
 	},
 }
 

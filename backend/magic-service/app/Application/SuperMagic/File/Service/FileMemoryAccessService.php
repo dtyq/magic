@@ -199,7 +199,6 @@ class FileMemoryAccessService
                 parentId: (string) $parent->getFileId(),
                 isDirectory: true,
                 source: TaskFileSource::AGENT,
-                spaceType: 'user',
             );
         } catch (Throwable $throwable) {
             $existing = $this->taskFileDomainService->getByProjectParentAndName(

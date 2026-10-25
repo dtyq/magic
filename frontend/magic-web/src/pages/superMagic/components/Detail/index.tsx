@@ -1,18 +1,23 @@
-import { memo, useRef, useImperativeHandle, forwardRef } from "react"
+import type { FileHelpContext } from "@/pages/superMagic/components/TopicFilesButton/utils/magic-system-folder"
+import type { AttachmentLoadState } from "@/stores/projectFiles/types"
+import { memo, useRef, useImperativeHandle, forwardRef, type ReactNode } from "react"
 import FilesViewer, { type FilesViewerRef } from "./components/FilesViewer"
-import type { ActiveDetailTabType } from "./components/FilesViewer/types"
+import type { ActiveDetailTabType, FileSidebarControl } from "./components/FilesViewer/types"
 import { useDetailActions } from "./hooks/useDetailActions"
 import useDetailHandlers from "./hooks/useDetailHandlers"
 import { TaskStatus, ProjectListItem, Topic } from "../../pages/Workspace/types"
 import useShareRoute from "../../hooks/useShareRoute"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { observer } from "mobx-react-lite"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { useDownloadVisibility } from "@/pages/superMagic/hooks/useDownloadVisibility"
 import type { MagicWidget } from "@magic-web/widget-sdk"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 
 // Define the Detail component props interface
 interface DetailProps {
+	fileHelpContext?: FileHelpContext
+	projectFilesStore?: ProjectFilesStore
+	attachmentLoadState?: AttachmentLoadState
 	disPlayDetail: any
 	setUserSelectDetail?: (detail: any) => void
 	userSelectDetail?: any
@@ -45,6 +50,11 @@ interface DetailProps {
 	previewSessionKey?: number
 	/** Hides the preview surface while preserving cached tabs and renderer state. */
 	onPreviewDismiss?: () => void
+	onPreviewCollapse?: () => void
+	onPreviewOpen?: () => void
+	isPreviewCollapsed?: boolean
+	fileSidebarControl?: FileSidebarControl
+	canLocateFile?: boolean
 	/** Controls whether project-level preview tabs survive a page remount. */
 	persistFileTabs?: boolean
 	// Topic name for share scenario
@@ -62,6 +72,10 @@ interface DetailProps {
 	showFileHeader?: boolean
 	/** When true, hides FilesViewer tab bar for immersive read-only preview */
 	hideTabBar?: boolean
+	/** Frame (radius, outline) of the floating preview layer; see FilesViewer `previewSurfaceFrame`. */
+	previewSurfaceFrame?: { radius: string; outlineColor?: string; className?: string }
+	/** Host UI floated over the preview's top-left corner; see FilesViewer `previewSurfaceOverlay`. */
+	previewSurfaceOverlay?: ReactNode
 	/** When true, treats the file viewer as fullscreen without requiring URL params */
 	forceFullscreenMode?: boolean
 	/** Keeps pure share fullscreen content in document flow for whole-page screenshots. */
@@ -72,6 +86,11 @@ interface DetailProps {
 	showFileFooter?: boolean
 	/** Class name for the detail container */
 	className?: string
+	/**
+	 * Claims a file opened from inside a preview (e.g. a link in an HTML report) before a tab is
+	 * created. Return true when the host handled it; the default opens a tab.
+	 */
+	interceptFileOpen?: (file: any) => boolean
 }
 
 // Forward ref type for Detail component
@@ -90,6 +109,7 @@ export interface DetailRef {
 		knowledgeBaseName?: string
 		fileExtension?: string
 	}) => void
+	openMicroAppTab: (data: { appId: string; appName?: string }) => void
 	/** Promotes the active preview without reopening its tab. */
 	enterPreviewFullscreen: () => void
 	/** Restores the active preview without dismissing its cached content. */
@@ -120,6 +140,11 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 		previewMode,
 		previewSessionKey,
 		onPreviewDismiss,
+		onPreviewCollapse,
+		onPreviewOpen,
+		isPreviewCollapsed,
+		fileSidebarControl,
+		canLocateFile,
 		persistFileTabs,
 		topicName,
 		projectId,
@@ -129,6 +154,8 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 		nonClosableFileIds,
 		showFileHeader,
 		hideTabBar,
+		previewSurfaceFrame,
+		previewSurfaceOverlay,
 		forceFullscreenMode,
 		documentFlowFullscreen,
 		isFullscreen = false,
@@ -140,7 +167,7 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 
 	const { isShareRoute } = useShareRoute()
 	const isMobile = useIsMobile()
-	const effectiveAllowDownload = useDownloadVisibility(allowDownload !== false, isMobile)
+	const effectiveAllowDownload = allowDownload !== false
 
 	// Use hooks to encapsulate operation logic - only keep what FilesViewer needs
 	const { handleDownload, handleViewModeChange, getFileViewMode } = useDetailActions({
@@ -195,6 +222,11 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 				filesViewerRef.current.openKnowledgeBaseTab(data)
 			}
 		},
+		openMicroAppTab: (data) => {
+			if (filesViewerRef.current) {
+				filesViewerRef.current.openMicroAppTab(data)
+			}
+		},
 		enterPreviewFullscreen: () => {
 			filesViewerRef.current?.enterPreviewFullscreen()
 		},
@@ -215,6 +247,9 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 			)}
 		>
 			<FilesViewer
+				projectFilesStore={props.projectFilesStore}
+				fileHelpContext={props.fileHelpContext}
+				attachmentLoadState={props.attachmentLoadState}
 				ref={filesViewerRef}
 				attachments={attachments}
 				attachmentList={attachmentList}
@@ -233,12 +268,20 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 				previewMode={previewMode}
 				previewSessionKey={previewSessionKey}
 				onPreviewDismiss={onPreviewDismiss}
+				onPreviewCollapse={onPreviewCollapse}
+				onPreviewOpen={onPreviewOpen}
+				isPreviewCollapsed={isPreviewCollapsed}
+				fileSidebarControl={fileSidebarControl}
+				canLocateFile={canLocateFile}
 				persistFileTabs={persistFileTabs}
 				openFileTab={openNewTab}
+				interceptFileOpen={props.interceptFileOpen}
 				activeFileId={activeFileId}
 				showFileFooter={showFileFooterProp ?? (!isShareRoute && isMobile)}
 				showFileHeader={showFileHeader}
 				hideTabBar={hideTabBar}
+				previewSurfaceFrame={previewSurfaceFrame}
+				previewSurfaceOverlay={previewSurfaceOverlay}
 				forceFullscreenMode={forceFullscreenMode}
 				documentFlowFullscreen={documentFlowFullscreen}
 				currentTopicStatus={currentTopicStatus}

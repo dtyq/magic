@@ -14,6 +14,7 @@ import { useMagic } from "../../../../app/providers/MagicProvider"
 import { useCanvasDesignI18n } from "../../../../app/providers/I18nProvider"
 import {
 	REFERENCE_RESOURCE_SOURCE_TYPES,
+	type ReferenceAssetFileClass,
 	type ReferenceResourceFileInfo,
 	type ReferenceAssetPerTypeLimits,
 	type ReferenceAssetTypeCounts,
@@ -28,6 +29,7 @@ import type {
 import { useCanvasReferenceMentionRuntime } from "./useCanvasReferenceMentionRuntime"
 import { filterReferenceResourcePanelBatchItems } from "./referenceResourceSelection"
 import { FolderOpen, Upload } from "lucide-react"
+import { AssetLibraryIcon } from "../../../primitives/icons/index"
 
 function defaultIconForSourceType(source: ReferenceResourceSourceType) {
 	if (source === REFERENCE_RESOURCE_SOURCE_TYPES.localUpload)
@@ -41,6 +43,8 @@ function defaultIconForSourceType(source: ReferenceResourceSourceType) {
 				strokeWidth={5}
 			/>
 		)
+	if (source === REFERENCE_RESOURCE_SOURCE_TYPES.assets)
+		return <AssetLibraryIcon size={16} className="shrink-0 text-foreground" aria-hidden />
 	return null
 }
 
@@ -58,6 +62,8 @@ interface ReferenceResourcePopoverProps {
 	trigger: ReactNode
 	/** 不传时使用内置「本地上传 / 项目选择」文案与默认禁用逻辑 */
 	sourceOptions?: ReferenceResourceSourceOption[]
+	/** 仅素材可被当前业务消费时启用；其他入口保持原有两个来源。 */
+	includeAssetsSource?: boolean
 	onSelectSource: (source: ReferenceResourceSourceType) => void
 	maxReferenceFiles?: number
 	currentReferenceFiles?: string[]
@@ -66,10 +72,16 @@ interface ReferenceResourcePopoverProps {
 	referenceFileInfos: ReferenceResourceFileInfo[]
 	assetLimits?: ReferenceAssetPerTypeLimits
 	currentAssetCounts?: ReferenceAssetTypeCounts
+	canAcceptNextAsset?: (
+		fileClass: ReferenceAssetFileClass,
+		currentAssetCounts: ReferenceAssetTypeCounts,
+	) => boolean
 	onProjectSelect?: (
 		item: ReferenceResourcePanelItem,
 		context?: ReferenceResourcePanelSelectContext,
 	) => void
+	/** 在本地上传/项目选择入口之前渲染的业务自定义内容。 */
+	beforeSourceActions?: ReactNode
 	hoverContent?: ReactNode
 	clickContent?: ReactNode
 	triggerClassName?: string
@@ -93,6 +105,7 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 		onMouseLeave,
 		trigger,
 		sourceOptions: sourceOptionsProp,
+		includeAssetsSource = false,
 		onSelectSource,
 		maxReferenceFiles,
 		currentReferenceFiles,
@@ -101,7 +114,9 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 		referenceFileInfos,
 		assetLimits,
 		currentAssetCounts,
+		canAcceptNextAsset,
 		onProjectSelect,
+		beforeSourceActions,
 		hoverContent,
 		clickContent,
 		triggerClassName,
@@ -114,7 +129,7 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 		enableProjectSelectMultiSelect = true,
 	} = props
 	const { t } = useCanvasDesignI18n()
-	const { referenceResourcePanelRenderer: ReferenceResourcePanelRenderer } = useMagic()
+	const { referenceResourcePanelRenderer: ReferenceResourcePanelRenderer, methods } = useMagic()
 	const [displayMode, setDisplayMode] = useState<"hover" | "click">("click")
 	const [isProjectSelectVisible, setIsProjectSelectVisible] = useState(false)
 	const internalTriggerRef = useRef<HTMLDivElement>(null)
@@ -177,8 +192,17 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 				label: t("referenceAssets.projectSelect", "从项目选择"),
 				disabled: false,
 			},
+			...(includeAssetsSource
+				? [
+						{
+							value: REFERENCE_RESOURCE_SOURCE_TYPES.assets,
+							label: t("referenceAssets.assets", "素材库"),
+							disabled: Boolean(isReferenceFileLimitReached),
+						},
+					]
+				: []),
 		]
-	}, [t, isReferenceFileLimitReached])
+	}, [includeAssetsSource, isReferenceFileLimitReached, t])
 
 	const sourceOptions = sourceOptionsProp ?? defaultSourceOptions
 	const shouldRenderSourceActions = displayMode === "click" && sourceOptions.length > 0
@@ -210,7 +234,11 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 		(event: MouseEvent<HTMLElement>) => {
 			const rt = event.relatedTarget
 			if (isProjectSelectVisible) return
-			if (rt instanceof Element && rt.closest("[data-mention-panel]")) return
+			if (
+				rt instanceof Element &&
+				rt.closest("[data-mention-panel], [data-linked-frame-submenu]")
+			)
+				return
 			onMouseLeave()
 		},
 		[isProjectSelectVisible, onMouseLeave],
@@ -218,7 +246,12 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 
 	const handleReferencePopoverInteractOutside = useCallback((event: Event) => {
 		const target = event.target
-		if (target instanceof Element && target.closest("[data-mention-panel]")) {
+		if (
+			target instanceof Element &&
+			target.closest(
+				"[data-mention-panel], [data-linked-frame-submenu], [data-linked-frame-submenu-trigger]",
+			)
+		) {
 			event.preventDefault()
 		}
 	}, [])
@@ -298,7 +331,9 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 				currentReferenceFiles,
 				assetLimits,
 				currentAssetCounts,
+				canAcceptNextAsset,
 				maxBatchItems: maxProjectSelectBatchCount,
+				resolveResourceReference: methods?.resolveResourceReference,
 			})
 
 			let didReset = false
@@ -325,10 +360,12 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 		[
 			assetLimits,
 			currentAssetCounts,
+			canAcceptNextAsset,
 			currentReferenceFiles,
 			handleProjectSelectClose,
 			maxProjectSelectBatchCount,
 			maxReferenceFiles,
+			methods?.resolveResourceReference,
 			onProjectSelect,
 		],
 	)
@@ -383,6 +420,7 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 						)}
 					>
 						<div className={bodyClassName}>
+							{beforeSourceActions}
 							{shouldRenderSourceActions && (
 								<div
 									className={cn(
@@ -431,6 +469,8 @@ export default function ReferenceResourcePopover(props: ReferenceResourcePopover
 					onSelect={handleProjectSelect}
 					onClose={handleProjectSelectClose}
 					dataService={projectSelectRuntime.dataService}
+					selectionScopeId={projectSelectRuntime.selectionScopeId}
+					selectionSummary={projectSelectRuntime.selectionSummary}
 					initialLoadOptions={projectSelectRuntime.initialLoadOptions}
 					initialNavigationStack={projectSelectRuntime.initialNavigationStack}
 					catalogBehavior={projectSelectRuntime.catalogBehavior}

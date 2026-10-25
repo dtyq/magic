@@ -10,6 +10,7 @@ import {
 	getMicroAppPublishValidationError,
 	hasMicroAppPublishFormChanged,
 	normalizeMicroAppPublishShareType,
+	resolveDefaultMicroAppPublishShareType,
 } from "../microAppPublishDialogUtils"
 
 describe("microAppPublishDialogUtils", () => {
@@ -21,6 +22,56 @@ describe("microAppPublishDialogUtils", () => {
 		expect(createDefaultMicroAppPublishFormState("Demo App", false)).toMatchObject({
 			shareType: ShareType.Organization,
 		})
+	})
+
+	// P0-3: team sharing is hidden by `ShareTypeField` for a free plan, so defaulting to it would
+	// leave the dialog showing no option while the publish payload still carried Organization.
+	it("uses public access as the free plan default even outside a personal organization", () => {
+		expect(resolveDefaultMicroAppPublishShareType(false, true)).toBe(ShareType.Public)
+		expect(resolveDefaultMicroAppPublishShareType(true, true)).toBe(ShareType.Public)
+		expect(resolveDefaultMicroAppPublishShareType(false, false)).toBe(ShareType.Organization)
+		expect(createDefaultMicroAppPublishFormState("Demo App", false, true)).toMatchObject({
+			appName: "Demo App",
+			shareType: ShareType.Public,
+		})
+		// An unpublished app without stored data must not fall back to team sharing on a free plan.
+		expect(createFormStateFromPublishedItem(null, "Demo App", false, true)).toMatchObject({
+			shareType: ShareType.Public,
+		})
+	})
+
+	// A live share keeps its own method: loading the dialog must not rewrite an existing organization
+	// share into public access just because the organization is on a free plan.
+	it("keeps an already published share type for a free plan", () => {
+		expect(
+			createFormStateFromPublishedItem(
+				{ share_type: ShareType.Organization, publish_status: "published" },
+				"Demo App",
+				false,
+				true,
+			),
+		).toMatchObject({ shareType: ShareType.Organization })
+		expect(
+			createFormStateFromPublishedItem(
+				{ share_type: ShareType.PasswordProtected, publish_status: "published" },
+				"Demo App",
+				false,
+				true,
+			),
+		).toMatchObject({ shareType: ShareType.PasswordProtected })
+	})
+
+	it("includes the selected expiry days and restores them from published data", () => {
+		const formState = {
+			...createDefaultMicroAppPublishFormState("Demo App"),
+			shareExpiry: 30,
+		}
+		expect(buildMicroAppPublishPayload(formState)).toMatchObject({ expire_days: 30 })
+		expect(createFormStateFromPublishedItem({ expire_days: 7 }).shareExpiry).toBe(7)
+		expect(createFormStateFromPublishedItem({}).shareExpiry).toBeNull()
+		expect(hasMicroAppPublishFormChanged(formState, { ...formState, shareExpiry: null })).toBe(
+			true,
+		)
 	})
 
 	it("normalizes organization sharing to public access for personal organizations", () => {

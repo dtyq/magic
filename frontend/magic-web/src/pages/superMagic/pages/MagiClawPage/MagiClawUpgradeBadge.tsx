@@ -1,7 +1,7 @@
 import { CircleArrowUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface MagiClawUpgradeBadgeProps {
 	className?: string

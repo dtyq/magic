@@ -11,13 +11,15 @@ return [
     'already_exist' => 'Already exists',
     'not_found' => 'Not found',
     'topic' => [
-        // 请发送消息后再尝试智能重命名话题
         'send_message_and_rename_topic' => 'Please send a message before trying to rename the topic intelligently',
-        // 系统默认话题
         'system_default_topic' => 'System default topic',
+        'id_not_found' => 'Resource not found',
+        'message' => [
+            'not_found' => 'Resource not found',
+        ],
+        'not_found' => 'Resource not found',
     ],
     'agent' => [
-        // 不好意思，刚才处理有些异常，你可以换种表述重新问一下哦，以便我能准确为你解答
         'user_call_agent_fail_notice' => 'Sorry, there was a bit of an exception in the processing just now, you can rephrase and ask again so that I can answer you accurately',
     ],
     'message' => [
@@ -61,6 +63,9 @@ return [
         'not_create_account' => 'User has not created an account',
         'sync_failed' => 'User sync failed',
     ],
+    'account' => [
+        'disabled' => 'This account has been disabled and cannot log in.',
+    ],
     'data' => [
         'write_failed' => 'Data write failed',
     ],
@@ -82,6 +87,7 @@ return [
         'transfer_owner_before_leave' => 'Transfer ownership before leaving the group',
         'only_owner_can_disband' => 'Only group owner can disband the group',
         'only_owner_can_transfer' => 'Only group owner can transfer the group',
+        'group_cannot_kick_owner' => 'Group cannot kick owner',
     ],
     'department' => [
         'not_found' => 'Department not found',

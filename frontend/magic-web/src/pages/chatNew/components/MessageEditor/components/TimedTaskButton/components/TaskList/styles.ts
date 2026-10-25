@@ -22,9 +22,17 @@ export const useStyles = createStyles(({ css, token, isDarkMode, prefixCls }) =>
 		}
 	`,
 	content: css`
-		overflow-y: auto;
-		overflow-x: hidden;
-		scrollbar-width: none;
+		display: grid;
+		min-height: 0;
+	`,
+	viewport: css`
+		height: auto;
+		min-height: 0;
+		> div {
+			display: flex !important;
+			flex-direction: column;
+			gap: 4px;
+		}
 		.${prefixCls}-row {
 			gap: 4px;
 		}
@@ -58,9 +66,9 @@ export const useStyles = createStyles(({ css, token, isDarkMode, prefixCls }) =>
 		cursor: pointer;
 		border-radius: 8px;
 		&:hover {
-			background-color: ${isDarkMode
-				? token.magicColorScales.grey[0]
-				: token.magicColorScales.grey[0]};
+			background-color: ${
+				isDarkMode ? token.magicColorScales.grey[0] : token.magicColorScales.grey[0]
+			};
 		}
 	`,
 	dots: css`

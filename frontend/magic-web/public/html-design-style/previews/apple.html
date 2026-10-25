@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apple (United States)</title>
+  <style>
+    :root {
+      --apple-blue: #0071e3;
+      --apple-blue-hover: #0077ed;
+      --apple-ink: #1d1d1f;
+      --apple-gray: #86868b;
+      --apple-light-bg: #f5f5f7;
+      --apple-white: #ffffff;
+      --apple-dark-tile: #000000;
+      --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-family);
+      background: var(--apple-white);
+      color: var(--apple-ink);
+      line-height: 1.47;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Apple Ribbon Banner */
+    .apple-ribbon {
+      background: var(--apple-light-bg);
+      text-align: center;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--apple-ink);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .apple-ribbon a { color: var(--apple-blue); }
+    .apple-ribbon a:hover { text-decoration: underline; }
+
+    /* Apple Global Nav */
+    .nav-wrap {
+      background: rgba(22, 22, 23, 0.82);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      position: sticky; top: 0; z-index: 999;
+      height: 44px;
+    }
+    .nav-content {
+      max-width: 1024px; margin: 0 auto; height: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 20px; font-size: 12px; color: #d6d6d6;
+    }
+    .apple-logo { font-size: 16px; color: #ffffff; cursor: pointer; }
+    .nav-items { display: flex; gap: 32px; list-style: none; }
+    .nav-items a { color: #d6d6d6; transition: color 0.2s ease; }
+    .nav-items a:hover { color: #ffffff; }
+
+    /* Product Section Common */
+    .unit {
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      padding-top: clamp(48px, 6vw, 76px);
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .unit-headline {
+      font-size: clamp(38px, 6vw, 68px);
+      font-weight: 600; line-height: 1.05; letter-spacing: -0.03em;
+      margin-bottom: 6px;
+    }
+    .unit-subhead {
+      font-size: clamp(18px, 2.4vw, 28px);
+      font-weight: 400; letter-spacing: -0.01em;
+      margin-bottom: 16px;
+    }
+    .unit-cta-group {
+      display: flex; gap: 14px; margin-bottom: 36px;
+    }
+    .btn-pill {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 11px 22px; border-radius: 9999px;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      background: var(--apple-blue); color: #ffffff;
+      transition: background 0.2s ease;
+    }
+    .btn-pill:hover { background: var(--apple-blue-hover); }
+    .btn-pill-ghost {
+      background: transparent; color: var(--apple-blue);
+      border: 1px solid var(--apple-blue);
+    }
+    .btn-pill-ghost:hover {
+      background: var(--apple-blue); color: #ffffff;
+    }
+
+    /* Unit 1: iPhone 16 Pro (Black Canvas Tile) */
+    .unit-iphone-pro {
+      background: var(--apple-dark-tile);
+      color: #ffffff;
+      min-height: 640px;
+    }
+    .unit-iphone-pro .unit-subhead { color: var(--apple-gray); }
+    .unit-iphone-pro .btn-pill-ghost {
+      border-color: #2997ff; color: #2997ff;
+    }
+    .unit-iphone-pro .btn-pill-ghost:hover {
+      background: #2997ff; color: #000;
+    }
+
+    /* iPhone 16 Pro CSS Artwork */
+    .iphone-showcase {
+      width: min(340px, 86vw); height: 380px; margin-top: 10px;
+      position: relative;
+    }
+    .titanium-frame {
+      width: 250px; height: 440px; margin: 0 auto;
+      border: 7px solid #3c3b37;
+      border-radius: 46px;
+      background: radial-gradient(circle at 50% 30%, #201f1d 0%, #0d0d0d 100%);
+      box-shadow: 0 20px 60px rgba(255, 255, 255, 0.08), inset 0 0 12px rgba(0,0,0,0.8);
+      position: relative; padding: 18px;
+    }
+    .dynamic-island {
+      width: 82px; height: 24px; background: #000000; border-radius: 20px;
+      margin: 0 auto 28px;
+    }
+    .pro-display-art {
+      text-align: center; margin-top: 40px;
+    }
+    .glow-tag {
+      font-size: 13px; font-weight: 600;
+      background: linear-gradient(90deg, #d4a373, #faedcd, #ccd5ae);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px;
+    }
+    .titanium-swatches {
+      display: flex; justify-content: center; gap: 8px; margin-top: 32px;
+    }
+    .swatch-dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+    .swatch-desert { background: #b89c7c; }
+    .swatch-natural { background: #9b9893; }
+    .swatch-white { background: #e3e4e5; }
+    .swatch-black { background: #3c3c3e; }
+
+    /* Unit 2: MacBook Air (Parchment Tile) */
+    .unit-macbook {
+      background: var(--apple-light-bg);
+      color: var(--apple-ink);
+      min-height: 580px;
+      border-top: 12px solid #ffffff;
+    }
+    .macbook-visual {
+      width: min(640px, 92vw); margin: 20px auto 0;
+    }
+    .laptop-lid {
+      width: 520px; max-width: 86vw; height: 280px; margin: 0 auto;
+      background: #000000; border: 8px solid #1c1d20; border-radius: 14px 14px 0 0;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+      position: relative; overflow: hidden;
+      background: radial-gradient(circle at center, #1b3a4b 0%, #061118 85%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .laptop-notch {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 80px; height: 10px; background: #1c1d20; border-radius: 0 0 6px 6px;
+    }
+    .laptop-base-wedge {
+      width: 600px; max-width: 96vw; height: 12px; margin: 0 auto;
+      background: linear-gradient(180deg, #d2d2d7 0%, #a1a1a6 100%);
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+    }
+
+    /* 2x2 Bento Product Grid */
+    .bento-section {
+      max-width: 1280px; margin: 12px auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      padding: 0 12px;
+    }
+    .bento-card {
+      background: var(--apple-light-bg);
+      border-radius: 20px;
+      padding: 56px 24px 40px;
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 480px; position: relative; overflow: hidden;
+    }
+    .bento-card.dark {
+      background: var(--apple-dark-tile); color: #ffffff;
+    }
+    .bento-card.dark .bento-sub { color: var(--apple-gray); }
+    .bento-card.dark .link-arrow { color: #2997ff; }
+
+    .bento-head { font-size: clamp(26px, 3.2vw, 40px); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .bento-sub { font-size: 16px; color: var(--apple-gray); margin-bottom: 16px; max-width: 320px; }
+    .bento-links { display: flex; gap: 18px; font-size: 14px; margin-bottom: 32px; }
+    .link-arrow { color: var(--apple-blue); font-weight: 400; }
+    .link-arrow:hover { text-decoration: underline; }
+
+    /* Bento Watch Graphic */
+    .watch-graphic {
+      width: 140px; height: 170px; border-radius: 36px;
+      background: #1d1d1f; border: 6px solid #e07a5f;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.2);
+      display: grid; place-items: center; color: #fff; font-size: 28px; font-weight: 700;
+      margin-top: auto;
+    }
+
+    /* Bento iPad Graphic */
+    .ipad-graphic {
+      width: 200px; height: 150px; border-radius: 18px;
+      background: linear-gradient(135deg, #70a1ff, #a29bfe);
+      border: 6px solid #2f3542;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.12);
+      margin-top: auto;
+    }
+
+    /* Apple Directory Footer */
+    .apple-footer {
+      background: var(--apple-light-bg);
+      color: var(--apple-gray);
+      font-size: 12px; line-height: 1.6;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      margin-top: 24px; padding: 34px 20px 48px;
+    }
+    .footer-inner { max-width: 1024px; margin: 0 auto; }
+    .footer-disclaimers {
+      border-bottom: 1px solid rgba(0,0,0,0.12);
+      padding-bottom: 16px; margin-bottom: 20px;
+    }
+    .footer-nav-columns {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px;
+      padding-bottom: 24px; border-bottom: 1px solid rgba(0,0,0,0.12);
+    }
+    .col-group h4 { color: var(--apple-ink); font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+    .col-group ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .col-group a:hover { color: var(--apple-ink); text-decoration: underline; }
+    .footer-bottom {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 16px; flex-wrap: wrap; gap: 12px;
+    }
+
+    /* Responsive */
+    @media (max-width: 834px) {
+      .nav-items { display: none; }
+      .bento-section { grid-template-columns: 1fr; }
+      .footer-nav-columns { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 500px) {
+      .footer-nav-columns { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Apple Promotion Ribbon -->
+  <div class="apple-ribbon">
+    Get $180–$650 in credit when you trade in iPhone 11 or higher. <a href="#iphone">Shop iPhone ↗</a>
+  </div>
+
+  <!-- Apple Global Navigation -->
+  <nav class="nav-wrap" aria-label="Global">
+    <div class="nav-content">
+      <span class="apple-logo"></span>
+      <ul class="nav-items">
+        <li><a href="#store">Store</a></li>
+        <li><a href="#mac">Mac</a></li>
+        <li><a href="#ipad">iPad</a></li>
+        <li><a href="#iphone">iPhone</a></li>
+        <li><a href="#watch">Watch</a></li>
+        <li><a href="#airpods">AirPods</a></li>
+        <li><a href="#tv">TV & Home</a></li>
+        <li><a href="#entertainment">Entertainment</a></li>
+        <li><a href="#support">Support</a></li>
+      </ul>
+      <span>🔍</span>
+    </div>
+  </nav>
+
+  <main>
+    <!-- UNIT 1: IPHONE 16 PRO (DARK CANVAS FULL-WIDTH TILE) -->
+    <section class="unit unit-iphone-pro" id="iphone">
+      <h1 class="unit-headline">iPhone 16 Pro</h1>
+      <p class="unit-subhead">Hello, Apple Intelligence.</p>
+      <div class="unit-cta-group">
+        <a href="#buy" class="btn-pill">Learn more</a>
+        <a href="#buy" class="btn-pill btn-pill-ghost">Buy</a>
+      </div>
+
+      <!-- iPhone Titanium Frame CSS Mockup -->
+      <div class="iphone-showcase">
+        <div class="titanium-frame">
+          <div class="dynamic-island"></div>
+          <div class="pro-display-art">
+            <div class="glow-tag">Grade 5 Titanium</div>
+            <div style="font-size:24px; font-weight:700;">A18 Pro</div>
+            <div style="font-size:12px; color:var(--apple-gray); margin-top:4px;">Camera Control</div>
+          </div>
+          <div class="titanium-swatches">
+            <div class="swatch-dot swatch-desert"></div>
+            <div class="swatch-dot swatch-natural"></div>
+            <div class="swatch-dot swatch-white"></div>
+            <div class="swatch-dot swatch-black"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 2: MACBOOK AIR (LIGHT CANVAS FULL-WIDTH TILE) -->
+    <section class="unit unit-macbook" id="mac">
+      <h2 class="unit-headline">MacBook Air</h2>
+      <p class="unit-subhead">Lean. Mean. M3 machine.</p>
+      <div class="unit-cta-group">
+        <a href="#buy" class="btn-pill">Learn more</a>
+        <a href="#buy" class="btn-pill btn-pill-ghost">Buy</a>
+      </div>
+
+      <!-- MacBook Air CSS Mockup -->
+      <div class="macbook-visual">
+        <div class="laptop-lid">
+          <div class="laptop-notch"></div>
+          <div style="color:#ffffff; font-size:32px; font-weight:700; letter-spacing:-0.03em;">Liquid Retina</div>
+        </div>
+        <div class="laptop-base-wedge"></div>
+      </div>
+    </section>
+
+    <!-- 2X2 BENTO PRODUCT GRID (AUTHENTIC APPLE.COM HOMEPAGE ARCHITECTURE) -->
+    <section class="bento-section">
+      <!-- Bento Card 1: Apple Watch Series 10 -->
+      <article class="bento-card" id="watch">
+        <h3 class="bento-head">WATCH</h3>
+        <p style="font-size:12px; font-weight:700; color:#e07a5f; letter-spacing:0.08em; text-transform:uppercase;">SERIES 10</p>
+        <p class="bento-sub">Thinscredible. Wide-angle OLED display.</p>
+        <div class="bento-links">
+          <a href="#buy" class="link-arrow">Learn more &gt;</a>
+          <a href="#buy" class="link-arrow">Buy &gt;</a>
+        </div>
+        <div class="watch-graphic">10:09</div>
+      </article>
+
+      <!-- Bento Card 2: iPad Air -->
+      <article class="bento-card dark" id="ipad">
+        <h3 class="bento-head">iPad Air</h3>
+        <p class="bento-sub">Fresh Air. Now in two sizes, supercharged by M2.</p>
+        <div class="bento-links">
+          <a href="#buy" class="link-arrow">Learn more &gt;</a>
+          <a href="#buy" class="link-arrow">Buy &gt;</a>
+        </div>
+        <div class="ipad-graphic"></div>
+      </article>
+
+      <!-- Bento Card 3: AirPods 4 -->
+      <article class="bento-card" id="airpods">
+        <h3 class="bento-head">AirPods 4</h3>
+        <p class="bento-sub">Iconic. Now supersonic. Available with Active Noise Cancellation.</p>
+        <div class="bento-links">
+          <a href="#buy" class="link-arrow">Learn more &gt;</a>
+          <a href="#buy" class="link-arrow">Buy &gt;</a>
+        </div>
+      </article>
+
+      <!-- Bento Card 4: Trade In -->
+      <article class="bento-card">
+        <h3 class="bento-head">Trade In</h3>
+        <p class="bento-sub">Get $180–$650 in credit when you trade in iPhone 11 or higher.</p>
+        <div class="bento-links">
+          <a href="#trade" class="link-arrow">Get your estimate &gt;</a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- APPLE FOOTER DIRECTORY -->
+  <footer class="apple-footer">
+    <div class="footer-inner">
+      <div class="footer-disclaimers">
+        <p>1. Apple Intelligence is available in beta on all iPhone 16 models, iPhone 15 Pro, and iPhone 15 Pro Max, with Siri and device language set to U.S. English.</p>
+        <p>2. Trade-in values will vary based on the condition, year, and configuration of your eligible trade-in device. Not all devices are eligible for credit.</p>
+      </div>
+
+      <nav class="footer-nav-columns" aria-label="Apple Directory">
+        <div class="col-group">
+          <h4>Shop and Learn</h4>
+          <ul>
+            <li><a href="#store">Store</a></li>
+            <li><a href="#mac">Mac</a></li>
+            <li><a href="#ipad">iPad</a></li>
+            <li><a href="#iphone">iPhone</a></li>
+            <li><a href="#watch">Watch</a></li>
+            <li><a href="#airpods">AirPods</a></li>
+          </ul>
+        </div>
+        <div class="col-group">
+          <h4>Account</h4>
+          <ul>
+            <li><a href="#account">Manage Your Apple Account</a></li>
+            <li><a href="#account">Apple Store Account</a></li>
+            <li><a href="#account">iCloud.com</a></li>
+          </ul>
+        </div>
+        <div class="col-group">
+          <h4>Entertainment</h4>
+          <ul>
+            <li><a href="#tv">Apple TV+</a></li>
+            <li><a href="#music">Apple Music</a></li>
+            <li><a href="#arcade">Apple Arcade</a></li>
+            <li><a href="#podcasts">Apple Podcasts</a></li>
+          </ul>
+        </div>
+        <div class="col-group">
+          <h4>Apple Store</h4>
+          <ul>
+            <li><a href="#store">Find a Store</a></li>
+            <li><a href="#genius">Genius Bar</a></li>
+            <li><a href="#today">Today at Apple</a></li>
+            <li><a href="#order">Order Status</a></li>
+          </ul>
+        </div>
+        <div class="col-group">
+          <h4>About Apple</h4>
+          <ul>
+            <li><a href="#newsroom">Newsroom</a></li>
+            <li><a href="#leadership">Apple Leadership</a></li>
+            <li><a href="#career">Career Opportunities</a></li>
+            <li><a href="#investors">Investors</a></li>
+          </ul>
+        </div>
+      </nav>
+
+      <div class="footer-bottom">
+        <span>Copyright © 2026 Apple Inc. All rights reserved.</span>
+        <span>Privacy Policy | Terms of Use | Sales Policy | Legal | Site Map</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

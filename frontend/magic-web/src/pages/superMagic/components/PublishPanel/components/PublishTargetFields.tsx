@@ -20,7 +20,7 @@ import {
 } from "@/components/shadcn-ui/dropdown-menu"
 import { Button } from "@/components/shadcn-ui/button"
 import { Badge } from "@/components/shadcn-ui/badge"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { usePublishPanelStore } from "../context"
 import { getPublishToCopyKeys, getPublishToUiKey } from "../publishCopy"
 import type { PublishTo } from "../types"
@@ -263,10 +263,11 @@ function PublishToCard({
 
 function PublishingProcess() {
 	const { t } = useTranslation("crew/market")
+	const store = usePublishPanelStore()
 	const steps = [
 		t("skillEditPage.publishPanel.create.fields.target.skillsLibrary.steps.submit"),
 		t("skillEditPage.publishPanel.create.fields.target.skillsLibrary.steps.review"),
-		t("skillEditPage.publishPanel.create.fields.target.skillsLibrary.steps.published"),
+		t(store.marketCopy.publishToLabelKey),
 	]
 
 	return (

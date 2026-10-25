@@ -81,10 +81,13 @@ class AIAbilityConfigManager:
                 updated += 1
 
         self._mark_loaded(provider)
+        runtime_log_summary = provider.get_runtime_log_summary()
+        runtime_log_suffix = f", {runtime_log_summary}" if runtime_log_summary else ""
         logger.info(
             f"AI ability provider '{provider.provider_type}' refreshed: "
             f"{updated} abilities updated, total {len(self._abilities)} abilities: "
             f"{self._format_ability_config_snapshot(self._abilities)}"
+            f"{runtime_log_suffix}"
         )
 
     def is_provider_loaded(self, provider_type: str) -> bool:

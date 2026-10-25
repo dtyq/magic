@@ -1,9 +1,11 @@
 import { memo } from "react"
-import type { CSSProperties } from "react"
+import type { CSSProperties, ReactNode } from "react"
 import { createStyles } from "antd-style"
 import { Button } from "antd"
 import { IconCircleCheck } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
+import { Files } from "lucide-react"
+import ProgressIndicator from "./ProgressIndicator"
 
 export interface MagicProgressToastProps {
 	/** 是否显示进度条 */
@@ -12,6 +14,10 @@ export interface MagicProgressToastProps {
 	progress?: number
 	/** 显示的文本 */
 	text?: string
+	/** 调用方明确提供的名称或说明，保持正文原样 */
+	description?: string
+	/** 任务图标；由调用方按操作选择，不解析本地化文案 */
+	icon?: ReactNode
 	/** 进度条位置 */
 	position?: "top" | "center" | "bottom"
 	/** 自定义样式 */
@@ -45,40 +51,39 @@ const useStyles = createStyles(({ token }) => {
 			position: "fixed" as const,
 			left: "50%",
 			transform: "translateX(-50%)",
-			backgroundColor: "#fff",
-			borderRadius: 8,
-			boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-			padding: "10px",
-			border: "1px solid #e5e7eb",
+			backgroundColor: token.colorBgElevated,
+			borderRadius: 12,
+			boxShadow: token.boxShadowSecondary,
+			padding: "8px 12px",
+			border: `1px solid ${token.colorBorderSecondary}`,
 			display: "flex",
 			alignItems: "center",
-			gap: 12,
-			minHeight: 32,
+			flexWrap: "wrap" as const,
+			gap: 10,
+			width: "max-content",
+			maxWidth: "min(360px, calc(100vw - 24px))",
+			color: token.colorPrimary,
 		},
 
 		completedContainer: {
-			padding: "5px",
-			fontSize: 12,
-			display: "flex",
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "center",
+			color: token.colorSuccess,
 		},
 
 		actionsContainer: {
-			width: "218px",
 			display: "flex",
 			justifyContent: "center",
 			alignItems: "center",
-			padding: 0,
+			flexShrink: 0,
+			height: 24,
+			padding: "0 6px",
 			margin: 0,
+			"@media (pointer: coarse)": { minHeight: 44 },
 		},
 
 		actionButton: {
 			display: "flex",
 			alignItems: "center",
 			justifyContent: "center",
-			height: 32,
 			borderRadius: 6,
 			fontSize: 12,
 			fontWeight: 400,
@@ -120,19 +125,39 @@ const useStyles = createStyles(({ token }) => {
 		},
 
 		text: {
-			fontSize: 12,
+			fontSize: 13,
 			color: token.magicColorUsages?.text?.[1] || token.colorText,
 			fontWeight: 400,
-			whiteSpace: "nowrap" as const,
+			lineHeight: "20px",
+			minWidth: 0,
+			overflowWrap: "anywhere" as const,
+		},
+		status: {
+			display: "flex",
+			alignItems: "flex-start",
+			gap: 10,
+			flex: "1 1 auto",
+			minWidth: 0,
+		},
+		withDescription: { padding: 12 },
+		description: {
+			flexBasis: "100%",
+			marginTop: -3,
+			fontSize: 12,
+			lineHeight: "19px",
+			color: token.colorTextSecondary,
+			overflowWrap: "anywhere" as const,
 		},
 
 		progressContainer: {
-			flex: 1,
+			width: 100,
+			flex: "0 0 100px",
 			position: "relative" as const,
-			backgroundColor: "#f3f4f6",
+			backgroundColor: token.colorFillSecondary,
 			borderRadius: 4,
 			overflow: "hidden" as const,
 		},
+		fullProgress: { flex: "0 0 100%", width: "100%" },
 
 		progressBar: {
 			position: "absolute" as const,
@@ -141,19 +166,21 @@ const useStyles = createStyles(({ token }) => {
 			backgroundColor: token.magicColorUsages?.primary?.default || token.colorPrimary,
 			borderRadius: 4,
 			transition: "width 0.3s ease",
+			"@media (prefers-reduced-motion: reduce)": { transition: "none !important" },
 		},
 
 		percentage: {
 			fontSize: 12,
 			fontWeight: 400,
-			minWidth: 36,
+			flexShrink: 0,
+			fontVariantNumeric: "tabular-nums",
 			textAlign: "right" as const,
 			color: token.magicColorUsages?.text?.[1] || token.colorText,
 		},
 		icon: {
 			flexShrink: 0, // 防止在flex容器中被压缩
-			width: 15, // 匹配IconCircleCheck的size属性
-			height: 15,
+			width: 20, // 匹配IconCircleCheck的size属性
+			height: 20,
 		},
 	}
 })
@@ -162,12 +189,14 @@ function MagicProgressToast(props: MagicProgressToastProps) {
 	const {
 		visible = false,
 		progress = 0,
-		text = "正在处理",
+		text,
+		description,
+		icon = <Files />,
 		position = "top",
 		style,
 		className,
 		zIndex = 9999,
-		width = 265,
+		width,
 		showPercentage = true,
 		progressHeight = 4,
 		animationDuration = 300,
@@ -177,9 +206,9 @@ function MagicProgressToast(props: MagicProgressToastProps) {
 
 	const { styles, cx } = useStyles()
 
-	// 检测当前语言是否为英文
-	const { i18n } = useTranslation()
-	const isEnglish = i18n.language === "en_US" || i18n.language === "en"
+	const { t } = useTranslation("super")
+	const resolvedText = text ?? t("feedback.processing")
+	const normalizedProgress = Number.isFinite(progress) ? Math.min(Math.max(progress, 0), 100) : 0
 
 	if (!visible) return null
 
@@ -197,12 +226,12 @@ function MagicProgressToast(props: MagicProgressToastProps) {
 	const containerStyle: CSSProperties = {
 		...style,
 		zIndex,
-		width: isEnglish ? "320px" : typeof width === "number" ? `${width}px` : width,
+		...(width === undefined ? {} : { width }),
 	}
 
 	const progressBarStyle: CSSProperties = {
 		height: `${progressHeight}px`,
-		width: `${Math.min(Math.max(progress, 0), 100)}%`,
+		width: `${normalizedProgress}%`,
 		transitionDuration: `${animationDuration}ms`,
 	}
 
@@ -214,14 +243,19 @@ function MagicProgressToast(props: MagicProgressToastProps) {
 	if (isCompleted) {
 		return (
 			<div
-				className={cx(getPositionClass(), styles.container, styles.completedContainer)}
+				className={cx(
+					getPositionClass(),
+					styles.container,
+					styles.completedContainer,
+					className,
+				)}
 				style={containerStyle}
 			>
 				{/* 成功图标 */}
-				<IconCircleCheck size={24} stroke={1.5} color="#52c41a" className={styles.icon} />
+				<IconCircleCheck size={20} stroke={2} className={styles.icon} />
 
 				{/* 完成文本 */}
-				<span className={styles.text}>{text}</span>
+				<span className={styles.text}>{resolvedText}</span>
 
 				{/* 操作按钮 */}
 				{actions.length > 0 && (
@@ -239,24 +273,49 @@ function MagicProgressToast(props: MagicProgressToastProps) {
 						))}
 					</>
 				)}
+				{description && <div className={styles.description}>{description}</div>}
 			</div>
 		)
 	}
 
 	// 正常进度状态的UI
 	return (
-		<div className={cx(styles.container, getPositionClass(), className)} style={containerStyle}>
+		<div
+			className={cx(
+				styles.container,
+				getPositionClass(),
+				description && styles.withDescription,
+				className,
+			)}
+			style={containerStyle}
+		>
 			{/* 文本提示 */}
-			<span className={styles.text}>{text}</span>
+			<div className={styles.status}>
+				<ProgressIndicator value={normalizedProgress} icon={icon} label={resolvedText} />
+				<span className={styles.text} style={description ? { fontWeight: 500 } : undefined}>
+					{resolvedText}
+				</span>
+			</div>
 
 			{/* 进度条容器 */}
-			<div className={styles.progressContainer} style={progressContainerStyle}>
+			<div
+				className={cx(styles.progressContainer, description && styles.fullProgress)}
+				style={{ ...progressContainerStyle, ...(description ? { order: 2 } : {}) }}
+				aria-hidden
+			>
 				{/* 进度条填充部分 */}
 				<div className={styles.progressBar} style={progressBarStyle} />
 			</div>
 
 			{/* 进度百分比 */}
-			{showPercentage && <span className={styles.percentage}>{Math.round(progress)}%</span>}
+			{showPercentage && (
+				<span className={styles.percentage}>{Math.round(normalizedProgress)}%</span>
+			)}
+			{description && (
+				<div className={styles.description} style={{ order: 1 }}>
+					{description}
+				</div>
+			)}
 		</div>
 	)
 }

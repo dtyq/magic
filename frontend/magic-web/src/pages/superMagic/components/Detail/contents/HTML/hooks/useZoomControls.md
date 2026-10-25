@@ -20,7 +20,7 @@ import { useZoomControls } from './hooks/useZoomControls'
 function MyComponent() {
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  
+
   const {
     scaleRatio,
     isManualZoom,
@@ -44,12 +44,12 @@ function MyComponent() {
   return (
     <div ref={containerRef}>
       <div style={getContentWrapperStyle()}>
-        <iframe 
+        <iframe
           ref={iframeRef}
           style={getIframeStyle(hasRenderedOnce)}
         />
       </div>
-      
+
       <ZoomControls
         currentScale={scaleRatio}
         onScaleChange={handleScaleChange}
@@ -64,18 +64,19 @@ function MyComponent() {
 
 ### 配置参数 (ZoomControlsConfig)
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `containerRef` | `RefObject<HTMLDivElement>` | ✓ | - | 容器元素引用 |
-| `iframeRef` | `RefObject<HTMLIFrameElement>` | ✓ | - | iframe 元素引用 |
-| `isPptRender` | `boolean` | - | `false` | 是否为 PPT 渲染模式 |
-| `isFullscreen` | `boolean` | - | `false` | 是否全屏模式 |
-| `iframeLoaded` | `boolean` | - | `false` | iframe 是否已加载 |
-| `contentInjected` | `boolean` | - | `false` | 内容是否已注入 |
-| `isVisible` | `boolean` | - | `true` | 是否可见 |
-| `isEditMode` | `boolean` | - | `false` | 是否编辑模式 |
-| `minScale` | `number` | - | `0.1` | 最小缩放比例 (10%) |
-| `maxScale` | `number` | - | `1.5` | 最大缩放比例 (150%) |
+| 参数              | 类型                           | 必填 | 默认值         | 说明                                                             |
+| ----------------- | ------------------------------ | ---- | -------------- | ---------------------------------------------------------------- |
+| `containerRef`    | `RefObject<HTMLDivElement>`    | ✓    | -              | 容器元素引用                                                     |
+| `measurementRef`  | `RefObject<HTMLDivElement>`    | -    | `containerRef` | 用于缩放测量的画布视口引用；存在侧边面板时避免把面板宽度计入缩放 |
+| `iframeRef`       | `RefObject<HTMLIFrameElement>` | ✓    | -              | iframe 元素引用                                                  |
+| `isPptRender`     | `boolean`                      | -    | `false`        | 是否为 PPT 渲染模式                                              |
+| `isFullscreen`    | `boolean`                      | -    | `false`        | 是否全屏模式                                                     |
+| `iframeLoaded`    | `boolean`                      | -    | `false`        | iframe 是否已加载                                                |
+| `contentInjected` | `boolean`                      | -    | `false`        | 内容是否已注入                                                   |
+| `isVisible`       | `boolean`                      | -    | `true`         | 是否可见                                                         |
+| `isEditMode`      | `boolean`                      | -    | `false`        | 是否编辑模式                                                     |
+| `minScale`        | `number`                       | -    | `0.1`          | 最小缩放比例 (10%)                                               |
+| `maxScale`        | `number`                       | -    | `1.5`          | 最大缩放比例 (150%)                                              |
 
 ### 返回值 (ZoomControlsResult)
 
@@ -97,46 +98,49 @@ function MyComponent() {
 #### 控制方法
 
 - `handleScaleChange: (newScale: number) => void` - 处理缩放变化
-  - 参数会自动限制在 minScale 和 maxScale 之间
-  
+    - 参数会自动限制在 minScale 和 maxScale 之间
 - `handleResetZoom: () => void` - 重置缩放
-  - 如果有滚动条，会先平滑滚动到顶部
-  - 然后重置到自动缩放模式
+    - 如果有滚动条，会先平滑滚动到顶部
+    - 然后重置到自动缩放模式
 
 #### 样式计算方法
 
 - `getContentWrapperStyle: () => CSSProperties` - 获取内容包装器样式
-  - 根据当前缩放模式返回合适的样式
-  - 自动处理手动缩放和自动缩放的样式差异
-  
+    - 根据当前缩放模式返回合适的样式
+    - 自动处理手动缩放和自动缩放的样式差异
 - `getIframeStyle: (hasRenderedOnce: boolean) => CSSProperties` - 获取 iframe 样式
-  - 参数 `hasRenderedOnce`: 是否已渲染过一次，用于控制过渡效果
-  - 返回包含 transform、尺寸等的完整样式对象
+    - 参数 `hasRenderedOnce`: 是否已渲染过一次，用于控制过渡效果
+    - 返回包含 transform、尺寸等的完整样式对象
 
 ## 样式计算逻辑
 
 ### 内容包装器样式
 
 **手动缩放模式**：
+
 - 使用视觉尺寸计算（`contentWidth * scaleRatio`）
 - 添加 padding 避免内容贴边
 - 向上取整防止子像素舍入问题
 
 **自动缩放模式**：
+
 - 固定尺寸以适应容器
 - 使用 flex 布局居中内容
 
 **非缩放模式**：
+
 - 100% 宽高填充容器
 
 ### iframe 样式
 
 **应用缩放时**：
+
 - 使用 CSS transform scale 进行缩放
 - transform-origin 设置为 center
 - 首次渲染时有过渡动画
 
 **不应用缩放时**：
+
 - 返回空对象，保持默认样式
 
 ## 与 useIframeScaling 的关系
@@ -152,11 +156,13 @@ IsolatedHTMLRenderer (使用方)
 ```
 
 **useIframeScaling** 负责：
+
 - 核心缩放计算
 - 容器尺寸监听
 - 内容尺寸测量
 
 **useZoomControls** 额外提供：
+
 - 用户交互处理
 - 缩放范围限制
 - 编辑模式集成
@@ -178,13 +184,13 @@ IsolatedHTMLRenderer (使用方)
 
 ```typescript
 const zoomControls = useZoomControls({
-  containerRef,
-  iframeRef,
-  isPptRender: true,
-  isEditMode: false,
-  minScale: 0.5,
-  maxScale: 2.0,
-  // ...其他配置
+	containerRef,
+	iframeRef,
+	isPptRender: true,
+	isEditMode: false,
+	minScale: 0.5,
+	maxScale: 2.0,
+	// ...其他配置
 })
 ```
 
@@ -192,13 +198,13 @@ const zoomControls = useZoomControls({
 
 ```typescript
 const zoomControls = useZoomControls({
-  containerRef,
-  iframeRef,
-  isPptRender: true,
-  isEditMode: true,
-  minScale: 0.1,
-  maxScale: 1.5,
-  // ...其他配置
+	containerRef,
+	iframeRef,
+	isPptRender: true,
+	isEditMode: true,
+	minScale: 0.1,
+	maxScale: 1.5,
+	// ...其他配置
 })
 
 // 退出编辑模式时会自动重置缩放

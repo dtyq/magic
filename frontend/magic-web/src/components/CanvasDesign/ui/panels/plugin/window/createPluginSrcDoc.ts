@@ -1,4 +1,5 @@
 import type { CanvasDesignPlugin } from "../../../../runtime/document/types"
+import type { CanvasAccessMode } from "../../../../public/props"
 import {
 	CANVAS_DESIGN_PLUGIN_RUNTIME_VERSION,
 	createPluginSrcDocV1,
@@ -8,7 +9,7 @@ export function createPluginSrcDoc(
 	plugin: CanvasDesignPlugin,
 	locale: string,
 	channelToken: string,
-	hostState: { readonly: boolean },
+	hostState: { accessMode: CanvasAccessMode },
 ) {
 	if (plugin.version === CANVAS_DESIGN_PLUGIN_RUNTIME_VERSION) {
 		return createPluginSrcDocV1(plugin, locale, channelToken, hostState)

@@ -28,6 +28,11 @@ enum HiddenType: int
     case BATCH_DOWNLOAD = 3;
 
     /**
+     * 微应用运行期项目隐藏。
+     */
+    case MICRO_APP_RUNTIME = 4;
+
+    /**
      * 获取所有隐藏类型的值
      */
     public static function values(): array
@@ -56,6 +61,7 @@ enum HiddenType: int
             self::PRE_WARM => '预启动隐藏',
             self::AGENT => 'Agent 项目隐藏',
             self::BATCH_DOWNLOAD => '批量下载隐藏',
+            self::MICRO_APP_RUNTIME => '微应用运行期项目隐藏',
         };
     }
 }

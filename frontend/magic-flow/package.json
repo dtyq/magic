@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/magic-flow",
-	"version": "0.0.15",
+	"version": "0.0.16",
 	"description": "React flow builder component library for expression editing and function block orchestration.",
 	"keywords": [
 		"react",
@@ -59,9 +59,6 @@
 	},
 	"dependencies": {
 		"@ant-design/cssinjs": "^1.23.0",
-		"@ant-design/icons": "^5.6.1",
-		"@douyinfe/semi-icons": "^2.39.0",
-		"@iconify/react": "^4.1.1",
 		"@monaco-editor/react": "^4.4.6",
 		"ahooks": "^3.7.8",
 		"antd": "~5.24.4",
@@ -74,7 +71,6 @@
 		"i18next-browser-languagedetector": "^7.2.1",
 		"i18next-resources-to-backend": "^1.2.1",
 		"immer": "^10.1.1",
-		"lodash": "^4.17.21",
 		"mobx": "^6.8.0",
 		"mobx-react": "^7.6.0",
 		"nanoid": "^5.1.5",
@@ -96,7 +92,7 @@
 		"@dtyq/eslint-config": "~0.0.10",
 		"@tabler/icons-react": "3.40.0",
 		"@types/dagre": "^0.7.52",
-		"@types/lodash": "^4.14.186",
+		"@types/lodash-es": "^4.17.12",
 		"@types/react": "^18.3.2",
 		"@types/react-dom": "^18.3.0",
 		"@types/react-router": "^5.1.20",
@@ -105,10 +101,12 @@
 		"@types/styled-components": "^5.1.26",
 		"@umijs/lint": "^4.0.0",
 		"dumi": "^2.2.13",
-		"father": "^4.1.0"
+		"father": "^4.1.0",
+		"lodash-es": "^4.17.21"
 	},
 	"peerDependencies": {
-		"@tabler/icons-react": ">=3 <4"
+		"@tabler/icons-react": ">=3 <4",
+		"lodash-es": "^4.17.21"
 	},
 	"publishConfig": {
 		"access": "public"

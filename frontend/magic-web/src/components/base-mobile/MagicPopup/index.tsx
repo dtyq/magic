@@ -5,7 +5,7 @@ import {
 	DrawerPortal,
 	DrawerTitle,
 } from "@/components/shadcn-ui/drawer"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import * as React from "react"
 import { memo, useEffect, useRef } from "react"
 import { Drawer as DrawerPrimitive } from "vaul"

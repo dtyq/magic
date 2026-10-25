@@ -7,9 +7,13 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\SuperAgent\Service;
 
+use App\Application\SuperMagic\Task\DTO\SandboxInfoDTO;
 use App\Application\SuperMagic\Task\Service\AgentAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\SuperMagic\File\Event\CheckpointRollbackFilesChangedEvent;
+use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Message\Event\CheckpointRollbackMessagesChangedEvent;
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
@@ -22,17 +26,25 @@ use App\Domain\SuperMagic\Topic\Entity\TopicEntity;
 use App\Domain\SuperMagic\Topic\Service\TopicDomainService;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use App\Infrastructure\SuperMagic\Task\Locker\CheckpointRollbackLock;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Database\ConnectionResolver;
+use Hyperf\Database\ConnectionResolverInterface;
+use Hyperf\Database\MySqlConnection;
+use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Snowflake\IdGeneratorInterface;
 use Hyperf\Snowflake\Meta;
+use PDO;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
-use Psr\SimpleCache\CacheInterface;
+use ReflectionClass;
+use ReflectionMethod;
+use RuntimeException;
 
 /**
  * @internal
@@ -53,6 +65,10 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $container->set(ConfigInterface::class, new AgentAppServiceTestConfig());
         $container->set(IdGeneratorInterface::class, new AgentAppServiceTestIdGenerator());
         $container->set(PhpSerializerPacker::class, new PhpSerializerPacker());
+        $container->set(ConnectionResolverInterface::class, new ConnectionResolver([
+            'default' => new MySqlConnection(new PDO('sqlite::memory:'), 'memory'),
+        ]));
+        $container->set(Db::class, new Db($container));
         ApplicationContext::setContainer($container);
     }
 
@@ -73,7 +89,6 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $topicDomainService = $this->createMock(TopicDomainService::class);
         $taskDomainService = $this->createMock(TaskDomainService::class);
         $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-        $cache = $this->createMock(CacheInterface::class);
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $logger = $this->createMock(LoggerInterface::class);
 
@@ -81,7 +96,6 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $sandboxVersionDomainService = new SandboxVersionDomainService(
             $topicDomainService,
             $agentDomainService,
-            $cache,
             $loggerFactory
         );
 
@@ -136,9 +150,13 @@ class AgentAppServiceVersionCheckTest extends TestCase
             $agentDomainService,
             $projectDomainService,
             $topicDomainService,
+            $this->createMock(TaskFileDomainService::class),
             $taskDomainService,
             $sandboxVersionDomainService,
-            $eventDispatcher
+            (new ReflectionClass(MagicUserSettingDomainService::class))->newInstanceWithoutConstructor(),
+            $this->createMock(MagicUserDomainService::class),
+            $eventDispatcher,
+            $this->makeRollbackLock()
         );
 
         self::assertSame(
@@ -162,7 +180,6 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $topicDomainService = $this->createMock(TopicDomainService::class);
         $taskDomainService = $this->createMock(TaskDomainService::class);
         $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-        $cache = $this->createMock(CacheInterface::class);
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $logger = $this->createMock(LoggerInterface::class);
 
@@ -170,7 +187,6 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $sandboxVersionDomainService = new SandboxVersionDomainService(
             $topicDomainService,
             $agentDomainService,
-            $cache,
             $loggerFactory
         );
 
@@ -226,9 +242,13 @@ class AgentAppServiceVersionCheckTest extends TestCase
             $agentDomainService,
             $projectDomainService,
             $topicDomainService,
+            $this->createMock(TaskFileDomainService::class),
             $taskDomainService,
             $sandboxVersionDomainService,
-            $eventDispatcher
+            (new ReflectionClass(MagicUserSettingDomainService::class))->newInstanceWithoutConstructor(),
+            $this->createMock(MagicUserDomainService::class),
+            $eventDispatcher,
+            $this->makeRollbackLock()
         );
 
         self::assertSame(
@@ -251,10 +271,9 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $topicDomainService = $this->createMock(TopicDomainService::class);
         $taskDomainService = $this->createMock(TaskDomainService::class);
         $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-        $cache = $this->createMock(CacheInterface::class);
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->method('get')->with('sandbox')->willReturn($this->createMock(LoggerInterface::class));
-        $sandboxVersionDomainService = new SandboxVersionDomainService($topicDomainService, $agentDomainService, $cache, $loggerFactory);
+        $sandboxVersionDomainService = new SandboxVersionDomainService($topicDomainService, $agentDomainService, $loggerFactory);
         $dataIsolation = new DataIsolation([
             'current_user_id' => 'user-1',
             'current_organization_code' => 'DT001',
@@ -285,9 +304,13 @@ class AgentAppServiceVersionCheckTest extends TestCase
             $agentDomainService,
             $projectDomainService,
             $topicDomainService,
+            $this->createMock(TaskFileDomainService::class),
             $taskDomainService,
             $sandboxVersionDomainService,
-            $eventDispatcher
+            (new ReflectionClass(MagicUserSettingDomainService::class))->newInstanceWithoutConstructor(),
+            $this->createMock(MagicUserDomainService::class),
+            $eventDispatcher,
+            $this->makeRollbackLock()
         );
 
         self::assertSame('Sandbox and messages rollback committed successfully', $service->rollbackCheckpointCommit($dataIsolation, 920));
@@ -300,10 +323,9 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $topicDomainService = $this->createMock(TopicDomainService::class);
         $taskDomainService = $this->createMock(TaskDomainService::class);
         $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-        $cache = $this->createMock(CacheInterface::class);
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->method('get')->with('sandbox')->willReturn($this->createMock(LoggerInterface::class));
-        $sandboxVersionDomainService = new SandboxVersionDomainService($topicDomainService, $agentDomainService, $cache, $loggerFactory);
+        $sandboxVersionDomainService = new SandboxVersionDomainService($topicDomainService, $agentDomainService, $loggerFactory);
         $dataIsolation = new DataIsolation([
             'current_user_id' => 'user-1',
             'current_organization_code' => 'DT001',
@@ -330,9 +352,13 @@ class AgentAppServiceVersionCheckTest extends TestCase
             $agentDomainService,
             $projectDomainService,
             $topicDomainService,
+            $this->createMock(TaskFileDomainService::class),
             $taskDomainService,
             $sandboxVersionDomainService,
-            $eventDispatcher
+            (new ReflectionClass(MagicUserSettingDomainService::class))->newInstanceWithoutConstructor(),
+            $this->createMock(MagicUserDomainService::class),
+            $eventDispatcher,
+            $this->makeRollbackLock()
         );
 
         self::assertTrue($service->rollbackCheckpoint($dataIsolation, 920, '920', 'seq-100')->isSuccess());
@@ -345,10 +371,9 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $topicDomainService = $this->createMock(TopicDomainService::class);
         $taskDomainService = $this->createMock(TaskDomainService::class);
         $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-        $cache = $this->createMock(CacheInterface::class);
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->method('get')->with('sandbox')->willReturn($this->createMock(LoggerInterface::class));
-        $sandboxVersionDomainService = new SandboxVersionDomainService($topicDomainService, $agentDomainService, $cache, $loggerFactory);
+        $sandboxVersionDomainService = new SandboxVersionDomainService($topicDomainService, $agentDomainService, $loggerFactory);
         $dataIsolation = new DataIsolation([
             'current_user_id' => 'user-1',
             'current_organization_code' => 'DT001',
@@ -371,9 +396,13 @@ class AgentAppServiceVersionCheckTest extends TestCase
             $agentDomainService,
             $projectDomainService,
             $topicDomainService,
+            $this->createMock(TaskFileDomainService::class),
             $taskDomainService,
             $sandboxVersionDomainService,
-            $eventDispatcher
+            (new ReflectionClass(MagicUserSettingDomainService::class))->newInstanceWithoutConstructor(),
+            $this->createMock(MagicUserDomainService::class),
+            $eventDispatcher,
+            $this->makeRollbackLock()
         );
 
         self::assertSame('Sandbox and messages rollback undone successfully', $service->rollbackCheckpointUndo($dataIsolation, 920));
@@ -386,7 +415,6 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $topicDomainService = $this->createMock(TopicDomainService::class);
         $taskDomainService = $this->createMock(TaskDomainService::class);
         $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-        $cache = $this->createMock(CacheInterface::class);
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $logger = $this->createMock(LoggerInterface::class);
 
@@ -394,22 +422,26 @@ class AgentAppServiceVersionCheckTest extends TestCase
 
         $topic = (new TopicEntity())
             ->setId(101)
-            ->setAgentImage('registry.example.com/agent:v1.0.0');
+            ->setSandboxId('101')
+            ->setSandboxImages([
+                'agent_image' => 'registry.example.com/agent:v1.0.0',
+                'agfs_image' => 'registry.example.com/agfs:v1.0.0',
+            ]);
 
         $topicDomainService->expects($this->once())
             ->method('getTopicById')
             ->with(101)
             ->willReturn($topic);
-        $cache->expects($this->once())
-            ->method('get')
-            ->with('super_magic:sandbox:latest_agent_image')
-            ->willReturn('registry.example.com/agent:v2.0.0');
-        $agentDomainService->expects($this->never())->method('getLatestAgentImage');
+        $agentDomainService->expects($this->once())
+            ->method('getLatestImages')
+            ->willReturn([
+                'agent_image' => 'registry.example.com/agent:v2.0.0',
+                'agfs_image' => 'registry.example.com/agfs:v1.0.0',
+            ]);
 
         $sandboxVersionDomainService = new SandboxVersionDomainService(
             $topicDomainService,
             $agentDomainService,
-            $cache,
             $loggerFactory
         );
 
@@ -418,9 +450,13 @@ class AgentAppServiceVersionCheckTest extends TestCase
             $agentDomainService,
             $projectDomainService,
             $topicDomainService,
+            $this->createMock(TaskFileDomainService::class),
             $taskDomainService,
             $sandboxVersionDomainService,
-            $eventDispatcher
+            (new ReflectionClass(MagicUserSettingDomainService::class))->newInstanceWithoutConstructor(),
+            $this->createMock(MagicUserDomainService::class),
+            $eventDispatcher,
+            $this->makeRollbackLock()
         );
 
         $result = $service->checkSandboxVersion(101);
@@ -437,7 +473,6 @@ class AgentAppServiceVersionCheckTest extends TestCase
         $topicDomainService = $this->createMock(TopicDomainService::class);
         $taskDomainService = $this->createMock(TaskDomainService::class);
         $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-        $cache = $this->createMock(CacheInterface::class);
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $logger = $this->createMock(LoggerInterface::class);
 
@@ -445,10 +480,15 @@ class AgentAppServiceVersionCheckTest extends TestCase
 
         $topicA = (new TopicEntity())
             ->setId(201)
-            ->setAgentImage('registry.example.com/agent:v2.0.0');
+            ->setSandboxId('201')
+            ->setSandboxImages([
+                'agent_image' => 'registry.example.com/agent:v2.0.0',
+                'agfs_image' => 'registry.example.com/agfs:v1.0.0',
+            ]);
         $topicB = (new TopicEntity())
             ->setId(202)
-            ->setAgentImage('');
+            ->setSandboxId('202')
+            ->setAgentImage('registry.example.com/agent:v1.0.0');
 
         $topicDomainService->expects($this->once())
             ->method('getTopicsByIds')
@@ -457,21 +497,16 @@ class AgentAppServiceVersionCheckTest extends TestCase
                 return $ids === [201, 202];
             }))
             ->willReturn([$topicA, $topicB]);
-        $cache->expects($this->once())
-            ->method('get')
-            ->with('super_magic:sandbox:latest_agent_image')
-            ->willReturn(null);
         $agentDomainService->expects($this->once())
-            ->method('getLatestAgentImage')
-            ->willReturn('registry.example.com/agent:v2.0.0');
-        $cache->expects($this->once())
-            ->method('set')
-            ->with('super_magic:sandbox:latest_agent_image', 'registry.example.com/agent:v2.0.0', 30);
+            ->method('getLatestImages')
+            ->willReturn([
+                'agent_image' => 'registry.example.com/agent:v2.0.0',
+                'agfs_image' => 'registry.example.com/agfs:v1.0.0',
+            ]);
 
         $sandboxVersionDomainService = new SandboxVersionDomainService(
             $topicDomainService,
             $agentDomainService,
-            $cache,
             $loggerFactory
         );
 
@@ -480,9 +515,13 @@ class AgentAppServiceVersionCheckTest extends TestCase
             $agentDomainService,
             $projectDomainService,
             $topicDomainService,
+            $this->createMock(TaskFileDomainService::class),
             $taskDomainService,
             $sandboxVersionDomainService,
-            $eventDispatcher
+            (new ReflectionClass(MagicUserSettingDomainService::class))->newInstanceWithoutConstructor(),
+            $this->createMock(MagicUserDomainService::class),
+            $eventDispatcher,
+            $this->makeRollbackLock()
         );
 
         $result = $service->checkSandboxVersionsByTopicIds([202, 201, 202, 0, -1]);
@@ -491,6 +530,52 @@ class AgentAppServiceVersionCheckTest extends TestCase
             201 => false,
             202 => true,
         ], $result);
+    }
+
+    public function testSandboxInfoPreservesUnknownVersion(): void
+    {
+        $info = new SandboxInfoDTO('sandbox', 'Running', '', '', null);
+
+        self::assertNull($info->getNeedsUpdate());
+        self::assertNull($info->toArray()['needs_update']);
+    }
+
+    public function testLostRollbackLockBeforeCommitRollsBackDatabaseMutation(): void
+    {
+        $connection = ApplicationContext::getContainer()->get(ConnectionResolverInterface::class)->connection();
+        $connection->getPdo()->exec('CREATE TABLE rollback_guard_probe (id INTEGER PRIMARY KEY)');
+        $service = (new ReflectionClass(AgentAppService::class))->newInstanceWithoutConstructor();
+        $checks = 0;
+        $guard = static function () use (&$checks): void {
+            if (++$checks === 2) {
+                throw new RuntimeException('lease lost before commit');
+            }
+        };
+        try {
+            (new ReflectionMethod($service, 'runRollbackMessageMutation'))->invoke(
+                $service,
+                static function () use ($connection): array {
+                    $connection->table('rollback_guard_probe')->insert(['id' => 1]);
+                    return ['seq-1'];
+                },
+                $guard
+            );
+            self::fail('Expected ownership failure before commit');
+        } catch (RuntimeException $exception) {
+            self::assertSame('lease lost before commit', $exception->getMessage());
+        }
+        self::assertSame(0, $connection->table('rollback_guard_probe')->count());
+        self::assertSame(0, $connection->transactionLevel());
+    }
+
+    private function makeRollbackLock(): CheckpointRollbackLock
+    {
+        $lock = $this->createMock(CheckpointRollbackLock::class);
+        $lock->method('run')->willReturnCallback(static function (int $topicId, callable $operation): mixed {
+            self::assertSame(920, $topicId);
+            return $operation(static function (): void {});
+        });
+        return $lock;
     }
 
     private function makeTopic(): TopicEntity

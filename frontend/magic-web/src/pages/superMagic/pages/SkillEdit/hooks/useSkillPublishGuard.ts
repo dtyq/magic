@@ -9,7 +9,7 @@ import type { SkillEditRootStore } from "../store/root-store"
 interface UseSkillPublishGuardParams {
 	store: SkillEditRootStore
 	t: TFunction<"crew/market">
-	onPublishReady: () => void
+	onPublishReady: () => void | Promise<void>
 }
 
 export function useSkillPublishGuard({ store, t, onPublishReady }: UseSkillPublishGuardParams) {
@@ -28,7 +28,7 @@ export function useSkillPublishGuard({ store, t, onPublishReady }: UseSkillPubli
 			})
 			if (!ensured) return
 
-			onPublishReady()
+			await onPublishReady()
 		} finally {
 			setIsEnsuringSkillConfigForPublish(false)
 		}

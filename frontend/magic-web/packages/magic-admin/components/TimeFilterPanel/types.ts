@@ -1,4 +1,4 @@
-import type { Dayjs } from "dayjs"
+import type { Dayjs } from "@admin/infrastructure/vendors/dayjs"
 
 export enum TimeFilterTab {
 	relative = "relative",

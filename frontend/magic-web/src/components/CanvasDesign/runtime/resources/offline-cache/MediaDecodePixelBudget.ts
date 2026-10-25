@@ -152,12 +152,28 @@ export class MediaDecodePixelBudgetGate {
 
 		this.sortQueue()
 		while (this.queue.length > 0) {
-			const item = this.queue[0]
-			if (!this.canStart(item.pixelCost)) return
-			this.queue.shift()
+			const itemIndex = this.findRunnableItemIndex()
+			if (itemIndex < 0) return
+			const item = this.queue.splice(itemIndex, 1)[0]
 			this.detachAbortListener(item)
 			item.resolve(this.activate(item.pixelCost))
 		}
+	}
+
+	private findRunnableItemIndex(): number {
+		const firstItem = this.queue[0]
+		if (!firstItem) return -1
+
+		const firstPriorityRank = getMediaDecodePriorityRank(firstItem.priority)
+		for (let index = 0; index < this.queue.length; index += 1) {
+			const item = this.queue[index]
+			// Keep priority bands strict: a lower-priority decode cannot overtake a
+			// higher-priority request just because the higher-priority request is large.
+			if (getMediaDecodePriorityRank(item.priority) !== firstPriorityRank) break
+			if (this.canStart(item.pixelCost)) return index
+		}
+
+		return -1
 	}
 
 	private abortQueuedItem(item: DecodePermitQueueItem): void {

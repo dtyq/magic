@@ -60,6 +60,10 @@
 		}
 	},
 	"approval": {
+		"agent": "Approval Agent",
+		"center": "Approval Center",
+		"delegate": "Smart Delegate",
+		"initiate": "Initiate Approvals",
 		"title": "Approval"
 	},
 	"drive": {

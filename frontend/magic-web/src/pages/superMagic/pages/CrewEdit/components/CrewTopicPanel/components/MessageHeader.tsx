@@ -4,7 +4,6 @@ import { type Topic, TaskStatus, ProjectListItem } from "@/pages/superMagic/page
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useMemoizedFn, useMount } from "ahooks"
 import MagicModal from "@/components/base/MagicModal"
-import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour"
 import { SuperMagicApi } from "@/apis"
 import { observer } from "mobx-react-lite"
 import { superMagicStore } from "@/pages/superMagic/stores"
@@ -30,7 +29,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/StatusIcon"
 import TopicHistoryDropdown from "@/pages/superMagic/components/MessageHeader/components/TopicHistoryDropdown"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
@@ -42,7 +41,8 @@ import {
 } from "@/pages/superMagic/services/chatConversationNameSync"
 import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
 import TopicService from "@/pages/superMagic/services/topicService"
-import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
+import { analyticsService } from "@/services/analytics"
 
 interface MessageHeaderProps {
 	isConversationPanelCollapsed?: boolean
@@ -73,8 +73,10 @@ function MessageHeader({
 	hideTopicListModeIcon = false,
 }: MessageHeaderProps) {
 	const { t } = useTranslation("super")
-	const { hideCreateNewTopic } = useFileActionVisibility()
-	const shouldHideTopicEntry = hideCreateNewTopic
+	const {
+		options: { createNewTopic },
+	} = useFileAccess()
+	const shouldHideTopicEntry = !createNewTopic
 
 	const selectedTopic = topicStore.selectedTopic
 	const topicService = useMemo(() => new TopicService({ store: topicStore }), [topicStore])
@@ -298,6 +300,11 @@ function MessageHeader({
 		if (isConversationPanelCollapsed) {
 			onExpandConversationPanel?.()
 		}
+		analyticsService.report("topic_create_attempted", {
+			projectId: selectedProject?.id,
+			workspaceId: selectedProject?.workspace_id,
+			sceneOverride: "crew",
+		})
 		SuperMagicApi.createTopic({
 			project_id: selectedProject?.id || "",
 			topic_name: "",
@@ -336,13 +343,6 @@ function MessageHeader({
 			setTopicHistoryOpen(false)
 			resetTopics()
 		}
-	})
-
-	useMount(() => {
-		pubsub.publish(
-			PubSubEvents.GuideTourElementReady,
-			GuideTourElementId.MessageHeaderTopicGroup,
-		)
 	})
 
 	return (
@@ -519,7 +519,6 @@ function MessageHeader({
 							{!shouldHideTopicEntry ? (
 								<div
 									className="flex items-center gap-1"
-									id={GuideTourElementId.MessageHeaderTopicGroup}
 									data-testid="message-header-topic-group"
 								>
 									<MagicTooltip title={t("messageHeader.newTopic")}>

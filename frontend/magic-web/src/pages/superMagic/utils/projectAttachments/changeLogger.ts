@@ -1,4 +1,4 @@
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("projectAttachmentsChangeLogger")
 const STORAGE_KEY = "projectAttachmentsChangeLoggerEnabled"

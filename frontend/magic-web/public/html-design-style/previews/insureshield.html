@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InsureShield — Enterprise Risk & Insurance Underwriting</title>
+<style>
+:root {
+--primary-blue: #2563EB;
+--primary-hover: #1D4ED8;
+--navy-dark: #0F172A;
+--navy-deep: #1E3A8A;
+--secondary-orange: #EA580C;
+--success-green: #059669;
+--success-light: #ECFDF5;
+--warning-amber: #D97706;
+--warning-light: #FFFBEB;
+--slate-dark: #1E293B;
+--slate-text: #475569;
+--slate-muted: #64748B;
+--slate-border: #E2E8F0;
+--bg: #F8FAFC;
+--surface: #FFFFFF;
+--font-serif: 'Bitter', Georgia, serif;
+--font-body: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+--font-mono: 'Fira Code', 'Courier New', monospace;
+--radius-sm: 4px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--radius-pill: 9999px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background-color: var(--bg);
+color: var(--navy-dark);
+font-family: var(--font-body);
+font-size: 13px;
+line-height: 1.5;
+-webkit-font-smoothing: antialiased;
+}
+/* Trust Top Navigation */
+.top-nav {
+height: 54px;
+background: #FFFFFF;
+border-bottom: 1px solid var(--slate-border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 0 28px;
+}
+.brand-wrap {
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.brand-shield-logo {
+width: 28px;
+height: 28px;
+background: var(--primary-blue);
+border-radius: var(--radius-sm);
+display: flex;
+align-items: center;
+justify-content: center;
+color: #fff;
+}
+.brand-title {
+font-family: var(--font-serif);
+font-size: 16px;
+font-weight: 700;
+color: var(--navy-dark);
+}
+.brand-title span { color: var(--primary-blue); }
+.policy-pill-badge {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+padding: 4px 10px;
+background: var(--success-light);
+border: 1px solid #A7F3D0;
+border-radius: var(--radius-pill);
+font-size: 11px;
+font-weight: 600;
+color: var(--success-green);
+}
+.dot-pulse {
+width: 6px;
+height: 6px;
+background: var(--success-green);
+border-radius: 50%;
+box-shadow: 0 0 6px var(--success-green);
+}
+.dashboard-container {
+max-width: 1400px;
+margin: 0 auto;
+padding: 16px 20px;
+display: flex;
+flex-direction: column;
+gap: 16px;
+}
+/* Policy Profile Header */
+.policy-summary-card {
+background: #FFFFFF;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+padding: 14px 20px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.policy-name-block h1 {
+font-family: var(--font-serif);
+font-size: 19px;
+font-weight: 700;
+color: var(--navy-dark);
+margin-bottom: 2px;
+}
+.policy-meta {
+font-family: var(--font-mono);
+font-size: 11px;
+color: var(--slate-muted);
+display: flex;
+gap: 12px;
+}
+.aggregate-limits {
+display: flex;
+gap: 20px;
+align-items: center;
+}
+.limit-stat {
+text-align: right;
+}
+.limit-stat .lbl {
+font-size: 10px;
+font-weight: 700;
+text-transform: uppercase;
+color: var(--slate-muted);
+letter-spacing: 0.5px;
+}
+.limit-stat .val {
+font-family: var(--font-mono);
+font-size: 17px;
+font-weight: 700;
+color: var(--navy-dark);
+}
+/* First 500px Focal Grid: Shield Visual, Risk Score, and Claim Payout Timeline */
+.hero-three-column {
+display: grid;
+grid-template-columns: 360px 320px 1fr;
+gap: 16px;
+align-items: stretch;
+}
+.card {
+background: var(--surface);
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+display: flex;
+flex-direction: column;
+}
+.card-header {
+padding: 10px 14px;
+border-bottom: 1px solid var(--slate-border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+background: #FAFBFD;
+}
+.card-title {
+font-family: var(--font-serif);
+font-size: 12px;
+font-weight: 700;
+color: var(--navy-dark);
+letter-spacing: 0.3px;
+text-transform: uppercase;
+display: flex;
+align-items: center;
+gap: 6px;
+}
+.card-body {
+padding: 14px;
+flex: 1;
+display: flex;
+flex-direction: column;
+}
+/* Coverage Shield SVG Visual */
+.shield-center-panel {
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+position: relative;
+}
+.shield-svg {
+width: 100%;
+height: 220px;
+}
+.shield-legend-row {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 6px;
+width: 100%;
+margin-top: 10px;
+}
+.shield-item {
+background: #F8FAFC;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-sm);
+padding: 5px 8px;
+font-size: 10px;
+}
+.shield-item .sh-title {
+font-weight: 700;
+color: var(--navy-dark);
+display: flex;
+justify-content: space-between;
+}
+.shield-item .sh-val {
+font-family: var(--font-mono);
+color: var(--primary-blue);
+font-weight: 600;
+}
+/* Risk Score Indicator Gauge */
+.risk-gauge-wrap {
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+text-align: center;
+padding: 6px 0;
+}
+.gauge-svg {
+width: 180px;
+height: 120px;
+}
+.risk-grade-badge {
+display: inline-block;
+background: #ECFDF5;
+border: 1px solid #A7F3D0;
+color: var(--success-green);
+font-size: 11px;
+font-weight: 700;
+padding: 3px 10px;
+border-radius: var(--radius-pill);
+margin-top: 4px;
+}
+.risk-kpis {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 8px;
+margin-top: 12px;
+width: 100%;
+}
+.rkpi {
+background: #F8FAFC;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-sm);
+padding: 6px 8px;
+text-align: left;
+}
+.rkpi .lbl {
+font-size: 9px;
+color: var(--slate-muted);
+text-transform: uppercase;
+display: block;
+}
+.rkpi .val {
+font-family: var(--font-mono);
+font-weight: 700;
+font-size: 12px;
+color: var(--navy-dark);
+}
+/* Automated Claim Payout Timeline */
+.payout-stepper {
+display: flex;
+flex-direction: column;
+gap: 10px;
+margin-top: 4px;
+}
+.payout-node {
+display: flex;
+gap: 12px;
+align-items: flex-start;
+position: relative;
+}
+.node-dot-wrap {
+width: 22px;
+height: 22px;
+border-radius: 50%;
+background: var(--success-green);
+color: #fff;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 10px;
+font-weight: 700;
+flex-shrink: 0;
+z-index: 2;
+}
+.node-line {
+position: absolute;
+top: 22px;
+left: 10px;
+bottom: -10px;
+width: 2px;
+background: #BBF7D0;
+z-index: 1;
+}
+.payout-node:last-child .node-line {
+display: none;
+}
+.node-content {
+flex: 1;
+background: #F8FAFC;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-sm);
+padding: 6px 10px;
+font-size: 11px;
+}
+.node-head {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 2px;
+}
+.node-title {
+font-weight: 700;
+color: var(--navy-dark);
+}
+.node-time {
+font-family: var(--font-mono);
+font-size: 9px;
+color: var(--slate-muted);
+}
+.node-desc {
+color: var(--slate-text);
+font-size: 10px;
+}
+.payout-callout {
+margin-top: 8px;
+background: #EFF6FF;
+border: 1px solid #BFDBFE;
+border-radius: var(--radius-sm);
+padding: 6px 10px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.payout-callout .amt {
+font-family: var(--font-mono);
+font-size: 15px;
+font-weight: 800;
+color: var(--primary-blue);
+}
+/* Lower Section: Coverage Policy Details */
+.policy-table-card {
+background: #FFFFFF;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+overflow: hidden;
+}
+.table-header {
+padding: 10px 14px;
+background: #FAFBFD;
+border-bottom: 1px solid var(--slate-border);
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.data-table {
+width: 100%;
+border-collapse: collapse;
+font-size: 12px;
+}
+.data-table th {
+background: #F8FAFC;
+color: var(--slate-text);
+font-size: 10px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+text-align: left;
+padding: 8px 12px;
+border-bottom: 1px solid var(--slate-border);
+}
+.data-table td {
+padding: 8px 12px;
+border-bottom: 1px solid var(--slate-border);
+color: var(--navy-dark);
+}
+.badge-chip {
+display: inline-flex;
+align-items: center;
+padding: 2px 8px;
+border-radius: var(--radius-pill);
+font-size: 10px;
+font-weight: 600;
+}
+.badge-chip.active { background: #ECFDF5; color: #059669; }
+</style>
+</head>
+<body>
+<!-- Top Navigation -->
+<header class="top-nav">
+<div class="brand-wrap">
+<div class="brand-shield-logo">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+</svg>
+</div>
+<div class="brand-title">INSURE<span>SHIELD</span> <span style="font-size: 11px; font-weight: normal; color: var(--slate-muted);">| ENTERPRISE RISK INTELLIGENCE</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 14px;">
+<div class="policy-pill-badge">
+<span class="dot-pulse"></span> ACTIVE &amp; PROTECTED
+</div>
+<span style="font-family: var(--font-mono); font-size: 11px; color: var(--slate-muted);">POLICY: POL-8829-CY-2026</span>
+</div>
+</header>
+<main class="dashboard-container">
+<!-- Policy Profile Header -->
+<div class="policy-summary-card">
+<div class="policy-name-block">
+<h1>Nexora Technologies Inc. — Global Tech &amp; Cloud Underwriting</h1>
+<div class="policy-meta">
+<span>NAICS: 518210 (Data Processing)</span>
+<span>&bull;</span>
+<span>Effective: Jan 01, 2026 – Jan 01, 2027</span>
+<span>&bull;</span>
+<span style="color: var(--primary-blue);">Underwriting Syndicate: Lloyd's Consortia A+</span>
+</div>
+</div>
+<div class="aggregate-limits">
+<div class="limit-stat">
+<div class="lbl">TOTAL AGGREGATE LIMIT</div>
+<div class="val">$55,000,000</div>
+</div>
+<div class="limit-stat">
+<div class="lbl">ANNUAL PREMIUM</div>
+<div class="val" style="color: var(--primary-blue);">$284,500</div>
+</div>
+</div>
+</div>
+<!-- First 500px Focal Grid: Shield Visual, Risk Score Gauge, Claim Payout Timeline -->
+<div class="hero-three-column">
+<!-- Left Card: Policy Coverage Shield Visual -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+</svg>
+POLICY COVERAGE SHIELD
+</div>
+<span style="font-size: 10px; color: var(--success-green); font-weight: 700;">4 INTERLOCKED TIERS</span>
+</div>
+<div class="card-body shield-center-panel">
+<!-- Shield SVG Visual -->
+<svg class="shield-svg" viewBox="0 0 320 220">
+<defs>
+<linearGradient id="shieldGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#2563EB" />
+<stop offset="100%" stop-color="#1E40AF" />
+</linearGradient>
+<linearGradient id="shieldGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#059669" />
+<stop offset="100%" stop-color="#047857" />
+</linearGradient>
+</defs>
+<!-- Outer Shield Boundary -->
+<path d="M 160 15 Q 260 25 285 70 Q 285 145 160 210 Q 35 145 35 70 Q 60 25 160 15 Z" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="2" />
+<!-- Tier 1: Property ($25M) -->
+<path d="M 160 30 Q 240 40 260 80 Q 260 135 160 190 Q 60 135 60 80 Q 80 40 160 30 Z" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5" />
+<!-- Tier 2: Cyber Defense ($10M) -->
+<path d="M 160 50 Q 220 58 235 90 Q 235 130 160 170 Q 85 130 85 90 Q 100 58 160 50 Z" fill="url(#shieldGrad1)" opacity="0.9" />
+<!-- Inner Core Check Shield -->
+<path d="M 160 70 Q 200 76 210 100 Q 210 125 160 150 Q 110 125 110 100 Q 120 76 160 70 Z" fill="#FFFFFF" />
+<polygon points="152,118 140,106 145,101 152,108 175,85 180,90" fill="#059669" />
+<!-- Text on Shield -->
+<text x="160" y="132" font-family="sans-serif" font-size="8" font-weight="bold" fill="#1E3A8A" text-anchor="middle">INSURESHIELD</text>
+<text x="160" y="142" font-family="monospace" font-size="7" fill="#059669" text-anchor="middle">100% VERIFIED</text>
+</svg>
+<!-- Shield Breakdown Legend -->
+<div class="shield-legend-row">
+<div class="shield-item">
+<div class="sh-title"><span>Cyber Liability</span><span>✓</span></div>
+<div class="sh-val">$10,000,000 Limit</div>
+</div>
+<div class="shield-item">
+<div class="sh-title"><span>Property &amp; Cloud</span><span>✓</span></div>
+<div class="sh-val">$25,000,000 Limit</div>
+</div>
+<div class="shield-item">
+<div class="sh-title"><span>D&amp;O Executive</span><span>✓</span></div>
+<div class="sh-val">$15,000,000 Limit</div>
+</div>
+<div class="shield-item">
+<div class="sh-title"><span>Business Interruption</span><span>✓</span></div>
+<div class="sh-val">$5,000,000 Limit</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Center Card: Risk Score Indicator [Low Risk 88/100] -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<circle cx="12" cy="12" r="10"></circle>
+<polyline points="12 6 12 12 14 14"></polyline>
+</svg>
+UNDERWRITING RISK SCORE
+</div>
+<span style="font-size: 10px; color: var(--slate-muted); font-family: var(--font-mono);">MODEL: v9.4</span>
+</div>
+<div class="card-body risk-gauge-wrap">
+<!-- Radial Gauge SVG -->
+<svg class="gauge-svg" viewBox="0 0 200 120">
+<!-- Background Arc -->
+<path d="M 25 105 A 75 75 0 0 1 175 105" fill="none" stroke="#E2E8F0" stroke-width="14" stroke-linecap="round" />
+<!-- Active Score Arc (88%) -->
+<path d="M 25 105 A 75 75 0 0 1 158 48" fill="none" stroke="#059669" stroke-width="14" stroke-linecap="round" />
+<!-- Needle / Marker -->
+<circle cx="100" cy="105" r="5" fill="#0F172A" />
+<line x1="100" y1="105" x2="148" y2="58" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round" />
+<!-- Big Score -->
+<text x="100" y="85" font-family="'Bitter', Georgia" font-size="28" font-weight="bold" fill="#0F172A" text-anchor="middle">88</text>
+<text x="100" y="98" font-family="monospace" font-size="10" fill="#64748B" text-anchor="middle">OUT OF 100</text>
+</svg>
+<span class="risk-grade-badge">LOW RISK TIER · GRADE A+</span>
+<div class="risk-kpis">
+<div class="rkpi">
+<span class="lbl">LOSS RATIO (5-YR)</span>
+<span class="val" style="color: var(--success-green);">11.2%</span>
+</div>
+<div class="rkpi">
+<span class="lbl">CLAIM VELOCITY</span>
+<span class="val">0.04 / YR</span>
+</div>
+<div class="rkpi">
+<span class="lbl">SECURITY POSTURE</span>
+<span class="val">SOC-2 TYPE II</span>
+</div>
+<div class="rkpi">
+<span class="lbl">RENEWAL CREDIT</span>
+<span class="val" style="color: var(--primary-blue);">-18% APPLIED</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Card: Automated Claim Payout Timeline -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<polyline points="20 6 9 17 4 12"></polyline>
+</svg>
+AUTOMATED CLAIM PAYOUT TIMELINE
+</div>
+<span style="font-family: var(--font-mono); font-size: 10px; color: var(--success-green);">CLM-2026-0814</span>
+</div>
+<div class="card-body">
+<div class="payout-stepper">
+<div class="payout-node">
+<div class="node-dot-wrap">✓</div>
+<div class="node-line"></div>
+<div class="node-content">
+<div class="node-head">
+<span class="node-title">1. IoT Telemetry Alarm Triggered</span>
+<span class="node-time">08:30:12 UTC</span>
+</div>
+<div class="node-desc">Datacenter Server Room moisture sensor #SR-04 alert logged.</div>
+</div>
+</div>
+<div class="payout-node">
+<div class="node-dot-wrap">✓</div>
+<div class="node-line"></div>
+<div class="node-content">
+<div class="node-head">
+<span class="node-title">2. Automated AI Forensic Audit</span>
+<span class="node-time">08:32:45 UTC</span>
+</div>
+<div class="node-desc">HVAC chiller pressure logs verified; water pipe failure confirmed.</div>
+</div>
+</div>
+<div class="payout-node">
+<div class="node-dot-wrap">✓</div>
+<div class="node-line"></div>
+<div class="node-content">
+<div class="node-head">
+<span class="node-title">3. Smart Contract Approval</span>
+<span class="node-time">08:45:00 UTC</span>
+</div>
+<div class="node-desc">Damage estimate below $50,000 policy threshold; instant authorization.</div>
+</div>
+</div>
+<div class="payout-node">
+<div class="node-dot-wrap" style="background: var(--primary-blue);">✓</div>
+<div class="node-content" style="border-color: #BFDBFE; background: #F0F9FF;">
+<div class="node-head">
+<span class="node-title" style="color: var(--primary-blue);">4. Instant ACH Direct Payout</span>
+<span class="node-time">08:52:18 UTC</span>
+</div>
+<div class="node-desc">Funds disbursed directly to Nexora primary operating treasury.</div>
+</div>
+</div>
+</div>
+<div class="payout-callout">
+<div>
+<div style="font-size: 9px; font-weight: 700; color: var(--slate-text); text-transform: uppercase;">SETTLEMENT AMOUNT</div>
+<div class="amt">$48,500.00 USD</div>
+</div>
+<span style="font-size: 10px; color: var(--success-green); font-weight: 700;">TOTAL DURATION: 22 MINS</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Lower Section: Detailed Underwriting Schedule -->
+<div class="policy-table-card">
+<div class="table-header">
+<strong style="font-family: var(--font-serif); font-size: 13px; color: var(--navy-dark);">UNDERWRITING COVERAGE SCHEDULE &amp; DEDUCTIBLES</strong>
+<span style="font-size: 11px; color: var(--slate-muted);">Reinsurance backed by Munich Re &amp; Swiss Re</span>
+</div>
+<table class="data-table">
+<thead>
+<tr>
+<th>COVERAGE LINE</th>
+<th>CARRIER SYNDICATE</th>
+<th>POLICY LIMIT</th>
+<th>RETENTION / DEDUCTIBLE</th>
+<th>STATUS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Cyber Extortion &amp; Ransomware Defense</strong></td>
+<td>Lloyd's Syndicate 2003</td>
+<td style="font-family: var(--font-mono);">$10,000,000</td>
+<td style="font-family: var(--font-mono);">$25,000 Retention</td>
+<td><span class="badge-chip active">ACTIVE 100%</span></td>
+</tr>
+<tr>
+<td><strong>Commercial Property &amp; Cloud Infrastructure</strong></td>
+<td>Allianz Global Corporate</td>
+<td style="font-family: var(--font-mono);">$25,000,000</td>
+<td style="font-family: var(--font-mono);">$50,000 Deductible</td>
+<td><span class="badge-chip active">ACTIVE 100%</span></td>
+</tr>
+<tr>
+<td><strong>Directors &amp; Officers (D&amp;O) Liability</strong></td>
+<td>Travelers Executive Risk</td>
+<td style="font-family: var(--font-mono);">$15,000,000</td>
+<td style="font-family: var(--font-mono);">$100,000 Retention</td>
+<td><span class="badge-chip active">ACTIVE 100%</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+</body>
+</html>

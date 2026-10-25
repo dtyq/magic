@@ -106,4 +106,8 @@ return [
     'create_group_user_not_exist' => '创建群聊用户不存在',
     'create_group_user_account_not_exist' => '创建群聊用户账号不存在',
     'get_third_platform_user_id_failed' => '获取第三方平台用户ID失败',
+    'initialize_error' => '操作失败',
+    'instruct_type_chat' => '请求处理失败',
+    'instruct_type_flow' => '请求处理失败',
+    'invalid_visibility_type' => '参数无效',
 ];

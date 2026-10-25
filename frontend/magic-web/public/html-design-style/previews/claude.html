@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Claude — Anthropic Thinking Partner</title>
+  <style>
+    :root {
+      --primary: #cc785c; --primary-hover: #a9583e;
+      --ink: #141413; --body: #3d3d3a; --muted: #6c6a64; --hairline: #e6dfd8;
+      --canvas: #faf9f5; --surface-card: #efe9de; --surface-dark: #181715; --surface-soft: #f5f0e8;
+      --on-dark: #faf9f5; --on-dark-soft: #a09d96; --accent-teal: #5db8a6;
+      --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 9999px;
+      --font-serif: "Copernicus", "Cormorant Garamond", Georgia, serif;
+      --font-sans: "StyreneB", Inter, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+      --shell: 1040px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font-sans); background: var(--canvas); color: var(--ink); line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(var(--shell), calc(100% - 32px)); margin: 0 auto; }
+    .top-nav { position: sticky; top: 0; z-index: 50; height: 56px; background: rgba(250,249,245,0.95); border-bottom: 1px solid var(--hairline); display: flex; align-items: center; }
+    .top-nav-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .brand-wrap { display: flex; align-items: center; gap: 20px; }
+    .brand-logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+    .spike-mark { width: 18px; height: 18px; fill: var(--ink); }
+    .brand-name { font-family: var(--font-serif); font-size: 20px; font-weight: 400; }
+    .nav-links { display: flex; align-items: center; gap: 16px; font-size: 13.5px; font-weight: 500; color: var(--body); }
+    .btn-primary { display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: var(--radius-md); background: var(--primary); color: #fff; cursor: pointer; border: none; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .hero { padding: 28px 0 18px; text-align: center; }
+    .hero-kicker { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-card); color: var(--body); padding: 3px 12px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; border: 1px solid var(--hairline); margin-bottom: 8px; }
+    .hero-kicker .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+    .hero-title { font-family: var(--font-serif); font-size: clamp(28px, 3.6vw, 44px); font-weight: 400; line-height: 1.1; letter-spacing: -1px; margin-bottom: 8px; }
+    .hero-sub { font-size: 14.5px; color: var(--body); max-width: 500px; margin: 0 auto 18px; }
+    .studio-card { max-width: 860px; margin: 0 auto; background: #fff; border: 1px solid var(--hairline); border-radius: var(--radius-lg); box-shadow: 0 10px 30px rgba(20,20,19,0.04); overflow: hidden; text-align: left; }
+    .chat-head { background: var(--surface-card); padding: 9px 14px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; }
+    .model-tag { display: flex; align-items: center; gap: 6px; font-family: var(--font-serif); font-size: 13.5px; }
+    .badge-200k { background: var(--primary); color: #fff; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: var(--radius-pill); }
+    .stream-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+    .stream-status .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-teal); }
+    .chat-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .user-bubble { align-self: flex-end; max-width: 84%; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: 12px 12px 2px 12px; padding: 8px 12px; font-size: 12.5px; line-height: 1.4; }
+    .bubble-meta { font-size: 9.5px; color: var(--muted); margin-bottom: 2px; text-align: right; }
+    .assistant-flow { display: flex; flex-direction: column; gap: 8px; }
+    .assistant-label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+    .claude-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--surface-card); border: 1px solid var(--hairline); display: grid; place-items: center; }
+    .thinking-panel { background: var(--surface-soft); border: 1px solid var(--hairline); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); padding: 7px 11px; font-size: 11px; color: var(--body); }
+    .thinking-head { display: flex; justify-content: space-between; font-weight: 600; color: var(--ink); }
+    .thinking-steps { margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--hairline); line-height: 1.35; }
+    .artifact-card { border: 1px solid var(--hairline); border-radius: var(--radius-md); background: #fff; overflow: hidden; }
+    .artifact-bar { background: var(--surface-card); border-bottom: 1px solid var(--hairline); padding: 5px 10px; display: flex; align-items: center; justify-content: space-between; }
+    .artifact-pill { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid var(--hairline); padding: 1px 5px; border-radius: 3px; font-size: 9.5px; font-weight: 600; color: var(--primary); }
+    .tab-btn { font-size: 9.5px; padding: 2px 6px; border-radius: 3px; border: none; background: transparent; cursor: pointer; }
+    .tab-btn.active { background: #fff; font-weight: 600; }
+    .artifact-view { padding: 10px; background: radial-gradient(circle at 50% 50%, #fff 0%, #faf8f5 100%); display: flex; justify-content: center; }
+    .svg-telemetry { width: 100%; max-width: 500px; height: auto; display: block; }
+    .code-dock { background: var(--surface-dark); padding: 7px 12px; font-family: var(--font-mono); font-size: 10px; color: var(--on-dark); }
+    .dock-label { display: flex; justify-content: space-between; font-size: 9px; color: var(--on-dark-soft); margin-bottom: 2px; }
+    .c-tag { color: #7cb3e8; } .c-attr { color: #cc785c; } .c-val { color: #5db8a6; }
+    .prompt-bar { margin: 2px 12px 12px; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: var(--radius-md); padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; }
+    .models-section { padding: 28px 0 16px; text-align: center; }
+    .sec-kicker { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--primary); margin-bottom: 3px; }
+    .sec-title { font-family: var(--font-serif); font-size: 21px; font-weight: 400; margin-bottom: 12px; }
+    .models-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: left; }
+    .m-card { background: var(--surface-card); border: 1px solid var(--hairline); border-radius: var(--radius-md); padding: 12px; }
+    .m-card.featured { background: var(--surface-dark); color: var(--on-dark); }
+    .m-badge { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: var(--radius-pill); background: var(--canvas); border: 1px solid var(--hairline); }
+    .m-card.featured .m-badge { background: var(--primary); color: #fff; border: none; }
+    .m-title { font-family: var(--font-serif); font-size: 16px; font-weight: 400; margin: 5px 0 2px; }
+    .m-desc { font-size: 11px; color: var(--body); line-height: 1.35; margin-bottom: 6px; }
+    .m-card.featured .m-desc { color: var(--on-dark-soft); }
+    .m-metric { font-size: 10px; color: var(--muted); border-top: 1px solid var(--hairline); padding-top: 5px; display: flex; justify-content: space-between; }
+    .m-card.featured .m-metric { border-top-color: #2a2723; color: var(--on-dark-soft); }
+    .coral-banner { margin: 18px 0 28px; background: var(--primary); color: #fff; border-radius: var(--radius-md); padding: 20px 18px; display: flex; align-items: center; justify-content: space-between; }
+    .coral-banner h3 { font-family: var(--font-serif); font-size: 18px; font-weight: 400; margin-bottom: 3px; }
+    .coral-banner p { font-size: 12px; opacity: 0.92; }
+    .coral-banner button { background: #fff; color: var(--ink); font-weight: 600; padding: 7px 14px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-size: 11.5px; }
+    .footer { background: var(--surface-dark); color: var(--on-dark-soft); padding: 18px 0; font-size: 10.5px; }
+    .footer-row { display: flex; justify-content: space-between; align-items: center; }
+    @media (max-width: 768px) {
+      .models-grid { grid-template-columns: 1fr; }
+      .coral-banner { flex-direction: column; gap: 12px; text-align: center; }
+      .footer-row { flex-direction: column; gap: 10px; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="shell top-nav-inner">
+      <div class="brand-wrap">
+        <a href="#hero" class="brand-logo">
+          <svg class="spike-mark" viewBox="0 0 24 24"><path d="M12 0L14.2 8.5L22.7 10.7L14.2 12.9L12 21.4L9.8 12.9L1.3 10.7L9.8 8.5Z"/></svg>
+          <span class="brand-name">Claude</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#models">Models</a>
+          <a href="#artifacts">Artifacts</a>
+          <a href="#pricing">Pricing</a>
+        </nav>
+      </div>
+      <div><button class="btn-primary">Try Claude</button></div>
+    </div>
+  </header>
+
+  <section class="hero" id="hero">
+    <div class="shell">
+      <div class="hero-kicker"><span class="dot"></span> Claude 3.5 Sonnet • Reasoning &amp; Code Artifacts</div>
+      <h1 class="hero-title">Meet Claude, your thinking partner.</h1>
+      <p class="hero-sub">A tranquil warm-parchment workspace engineered for deep reasoning and live interactive SVG artifacts.</p>
+
+      <div class="studio-card" id="artifacts">
+        <div class="chat-head">
+          <div class="model-tag">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="#cc785c"><path d="M12 0L14.2 8.5L22.7 10.7L14.2 12.9L12 21.4L9.8 12.9L1.3 10.7L9.8 8.5Z"/></svg>
+            <strong>Claude 3.5 Sonnet</strong>
+            <span class="badge-200k">200k Context</span>
+          </div>
+          <div class="stream-status"><span class="pulse"></span><span>Interactive Artifacts Active</span></div>
+        </div>
+
+        <div class="chat-body">
+          <div class="user-bubble">
+            <div class="bubble-meta">Quantitative Analyst • 10:42 AM</div>
+            Generate an interactive telemetry SVG artifact for algorithmic market sentiment, with momentum vectors, volatility smile, and polar radar charts.
+          </div>
+
+          <div class="assistant-flow">
+            <div class="assistant-label">
+              <div class="claude-avatar"><svg width="10" height="10" viewBox="0 0 24 24" fill="#141413"><path d="M12 0L14.2 8.5L22.7 10.7L14.2 12.9L12 21.4L9.8 12.9L1.3 10.7L9.8 8.5Z"/></svg></div>
+              <span>Claude</span>
+              <span style="font-weight:400; font-size:10px; color:var(--muted); font-family:var(--font-mono);">82 tok/s</span>
+            </div>
+
+            <div class="thinking-panel">
+              <div class="thinking-head">
+                <span style="color:var(--primary);">✦ Reasoning Process</span>
+                <span style="font-family:var(--font-mono); font-weight:400;">thought for 3.4s ▾</span>
+              </div>
+              <div class="thinking-steps">
+                <div>1. Parameterized indicators: order book delta (+18.4%), RSI (64.2), volatility skew.</div>
+                <div>2. Constructed 5-axis polar coordinates with dual-polygon sentiment webs.</div>
+                <div>3. Rendered standalone vector SVG artifact with terracotta gradients.</div>
+              </div>
+            </div>
+
+            <p style="font-size: 12px; color: var(--body);">Here is the real-time Market Sentiment &amp; Momentum Vector SVG artifact:</p>
+
+            <div class="artifact-card">
+              <div class="artifact-bar">
+                <div style="display:flex; align-items:center; gap:5px;">
+                  <span class="artifact-pill">SVG Artifact</span>
+                  <strong style="font-size:11px;">Market_Sentiment_Radar.svg</strong>
+                </div>
+                <div style="display:flex; background:var(--hairline); padding:2px; border-radius:3px;">
+                  <button class="tab-btn active">Preview</button>
+                  <button class="tab-btn">Code</button>
+                </div>
+              </div>
+
+              <div class="artifact-view">
+                <svg class="svg-telemetry" viewBox="0 0 500 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="cGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#cc785c" stop-opacity="0.85"/>
+                      <stop offset="100%" stop-color="#e8a55a" stop-opacity="0.25"/>
+                    </linearGradient>
+                    <radialGradient id="rGrad" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stop-color="#cc785c" stop-opacity="0.16"/>
+                      <stop offset="100%" stop-color="#cc785c" stop-opacity="0"/>
+                    </radialGradient>
+                  </defs>
+                  <rect width="500" height="180" rx="8" fill="#faf8f5" stroke="#e6dfd8"/>
+                  <g transform="translate(110, 90)">
+                    <circle r="64" fill="url(#rGrad)"/>
+                    <circle r="58" stroke="#e6dfd8" stroke-dasharray="3 3"/>
+                    <circle r="38" stroke="#e6dfd8"/>
+                    <circle r="19" stroke="#e6dfd8"/>
+                    <line x1="0" y1="-60" x2="0" y2="60" stroke="#e6dfd8"/>
+                    <line x1="-60" y1="0" x2="60" y2="0" stroke="#e6dfd8"/>
+                    <polygon points="0,-52 42,-18 30,34 -24,38 -42,-10" fill="url(#cGrad)" stroke="#cc785c" stroke-width="1.8"/>
+                    <polygon points="0,-30 22,-8 14,18 -12,20 -22,-6" fill="none" stroke="#5db8a6" stroke-width="1.2" stroke-dasharray="2 2"/>
+                    <circle cx="0" cy="-52" r="2.5" fill="#cc785c"/>
+                    <circle cx="42" cy="-18" r="2.5" fill="#cc785c"/>
+                    <circle cx="30" cy="34" r="2.5" fill="#cc785c"/>
+                    <circle cx="-24" cy="38" r="2.5" fill="#cc785c"/>
+                    <circle cx="-42" cy="-10" r="2.5" fill="#cc785c"/>
+                    <text x="0" y="-64" text-anchor="middle" font-size="7" fill="#6c6a64" font-weight="600">MOMENTUM (86%)</text>
+                    <text x="66" y="3" text-anchor="start" font-size="7" fill="#6c6a64">LIQUIDITY</text>
+                    <text x="28" y="46" text-anchor="start" font-size="7" fill="#6c6a64">BREADTH</text>
+                    <text x="-28" y="46" text-anchor="end" font-size="7" fill="#6c6a64">SOCIAL</text>
+                    <text x="-66" y="3" text-anchor="end" font-size="7" fill="#6c6a64">VOLATILITY</text>
+                  </g>
+                  <line x1="215" y1="14" x2="215" y2="166" stroke="#e6dfd8"/>
+                  <g transform="translate(235, 18)">
+                    <text x="0" y="10" font-size="9.5" font-weight="600" fill="#141413">ALGORITHMIC CONVERGENCE</text>
+                    <text x="0" y="20" font-size="8" fill="#6c6a64">Cross-asset orderbook imbalance vector</text>
+                    <rect x="0" y="28" width="115" height="38" rx="5" fill="#efe9de" stroke="#e6dfd8"/>
+                    <text x="7" y="40" font-size="7" fill="#6c6a64" font-weight="600">SENTIMENT INDEX</text>
+                    <text x="7" y="58" font-size="14" font-family="'Copernicus', serif" fill="#cc785c">78.4 <tspan font-size="8" fill="#5db8a6">▲ Bullish</tspan></text>
+                    <rect x="125" y="28" width="115" height="38" rx="5" fill="#efe9de" stroke="#e6dfd8"/>
+                    <text x="132" y="40" font-size="7" fill="#6c6a64" font-weight="600">24H VOLUME DRIFT</text>
+                    <text x="132" y="58" font-size="14" font-family="'Copernicus', serif" fill="#141413">$4.82B</text>
+                    <g transform="translate(0, 80)">
+                      <path d="M0,34 Q32,24 60,28 T120,10 T180,18 T240,4" fill="none" stroke="#cc785c" stroke-width="1.8"/>
+                      <path d="M0,34 Q32,24 60,28 T120,10 T180,18 T240,4 L240,42 L0,42 Z" fill="url(#cGrad)" opacity="0.3"/>
+                      <line x1="0" y1="42" x2="240" y2="42" stroke="#e6dfd8"/>
+                      <circle cx="240" cy="4" r="2.5" fill="#cc785c"/>
+                      <text x="240" y="-1" text-anchor="end" font-size="7.5" font-family="monospace" fill="#cc785c" font-weight="bold">+14.2% VECTOR</text>
+                    </g>
+                  </g>
+                </svg>
+              </div>
+
+              <div class="code-dock">
+                <div class="dock-label"><span>Market_Sentiment_Radar.svg</span><span>XML 1.1 Vector</span></div>
+                <div><span class="c-tag">&lt;svg</span> <span class="c-attr">viewBox=</span><span class="c-val">"0 0 500 180"</span><span class="c-tag">&gt;</span> <span class="c-tag">&lt;polygon</span> <span class="c-attr">points=</span><span class="c-val">"0,-52 42,-18..."</span> <span class="c-attr">fill=</span><span class="c-val">"url(#cGrad)"</span><span class="c-tag">/&gt;</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prompt-bar">
+          <span class="prompt-placeholder">Ask Claude to refine the SVG artifact or run Python analysis...</span>
+          <button class="prompt-submit">➔</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="models-section" id="models">
+    <div class="shell">
+      <div class="sec-kicker">Anthropic Intelligence Tiers</div>
+      <h2 class="sec-title">State of the art intelligence for every workload</h2>
+      <div class="models-grid">
+        <div class="m-card">
+          <span class="m-badge">High Speed</span>
+          <h3 class="m-title">Claude 3.5 Haiku</h3>
+          <p class="m-desc">Near-instant latency and high efficiency for classification and high-volume coding.</p>
+          <div class="m-metric"><span>Context: <strong>200k</strong></span><span>$0.25 / 1M</span></div>
+        </div>
+        <div class="m-card featured">
+          <span class="m-badge">Flagship</span>
+          <h3 class="m-title" style="color:#fff;">Claude 3.5 Sonnet</h3>
+          <p class="m-desc">Industry standard for coding, multi-step reasoning, and live artifact generation.</p>
+          <div class="m-metric"><span>Context: <strong>200k</strong></span><span>$3.00 / 1M</span></div>
+        </div>
+        <div class="m-card">
+          <span class="m-badge">Deep Research</span>
+          <h3 class="m-title">Claude 3 Opus</h3>
+          <p class="m-desc">Deep cognitive capability for mathematical formulation and enterprise synthesis.</p>
+          <div class="m-metric"><span>Context: <strong>200k</strong></span><span>$15.00 / 1M</span></div>
+        </div>
+      </div>
+
+      <div class="coral-banner">
+        <div>
+          <h3>Build with Claude on Anthropic API</h3>
+          <p>Constitutional safety, reasoning benchmarks, and 200k context.</p>
+        </div>
+        <button>Get API Keys</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="shell footer-row">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#cc785c"><path d="M12 0L14.2 8.5L22.7 10.7L14.2 12.9L12 21.4L9.8 12.9L1.3 10.7L9.8 8.5Z"/></svg>
+        <span style="color:#fff; font-family:var(--font-serif); font-size:14px;">Anthropic</span>
+        <span style="color:var(--muted); font-size:11px; margin-left:8px;">© 2026 Anthropic, PBC. Reliable, interpretable AI systems.</span>
+      </div>
+      <div style="display:flex; gap:16px; font-size:11.5px;">
+        <a href="#">Claude.ai</a>
+        <a href="#">API</a>
+        <a href="#">Safety</a>
+        <a href="#">Privacy</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

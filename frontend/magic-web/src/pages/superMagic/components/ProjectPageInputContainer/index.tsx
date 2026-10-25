@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils"
-import React, { useEffect, useMemo, useState } from "react"
+import { cn } from "@/utils/cn"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import TaskList from "../TaskList"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { observer } from "mobx-react-lite"
@@ -28,7 +28,12 @@ import { TopicInvalidModeFallback } from "../MessageEditor/components/TopicInval
 import { userStore } from "@/models/user"
 import { useTaskInterrupt } from "@/pages/superMagic/hooks/useTaskInterrupt"
 import { isCachedChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
-import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import {
+	isTopicTaskRunning,
+	isTopicWaitingForUser,
+	TaskStatus,
+} from "@/pages/superMagic/pages/Workspace/types"
+import { useConversationInputLayout } from "../ConversationInputResize/context"
 
 /**
  * 这个组件作为项目页的编辑器组件
@@ -59,6 +64,8 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	allowRecordingMode,
 	topicModeLogic: topicModeLogicProps,
 	modelTopicMode,
+	agentCode,
+	placeholder,
 	size = "small",
 	enableMessageSendByContent = true,
 	editorLayoutConfig,
@@ -69,8 +76,18 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	onSendSuccess,
 	onSendComplete,
 	createTopic,
+	getImplicitMentionItems,
+	editorRef,
 }) => {
 	const isMobile = useIsMobile()
+	const inputLayout = useConversationInputLayout()
+	// Layout context is available only inside resizable desktop conversations.
+	const shouldFillHeight = Boolean(inputLayout?.fillHeight)
+	// Keep the editor's own root ref separate from the layout container: the shared
+	// containerRef is already attached to the layout wrapper, so reusing it here would
+	// silently rebind it to the editor node and break the height measurement target.
+	const localContainerRef = useRef<HTMLDivElement>(null)
+	const effectiveContainerRef = containerRef ?? localContainerRef
 	const { taskData: taskDataFromStore } = useTaskData({ selectedTopic })
 	const taskData = taskDataProp ?? taskDataFromStore
 
@@ -79,8 +96,9 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	const [sceneStateStore] = useState(() => createSceneStateStore())
 	const organizationCode = userStore.user.organizationCode
 	const userId = userStore.user.userInfo?.user_id
+	const isTaskRunning = showLoading || isTopicTaskRunning(selectedTopic)
 	const canInterruptTask =
-		showLoading || selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
+		isTaskRunning || selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
 	/**
 	 * 话题页优先使用当前项目模式展示示例，不修改首页的全局模式选择。
 	 */
@@ -105,6 +123,9 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	const topicMode = topicModeLogicProps?.topicMode ?? innerTopicMode
 	const setTopicMode = topicModeLogicProps?.setTopicMode ?? innerSetTopicMode
 	const recoverTopicMode = topicModeLogicProps?.recoverTopicMode ?? innerRecoverTopicMode
+	// An explicit null clears a historical topic employee; omitted keeps the task detail fallback.
+	const effectiveAgentCode =
+		agentCode !== undefined ? (agentCode ?? undefined) : selectedTopic?.agent_code
 
 	const { handleInterrupt } = useTaskInterrupt({
 		selectedTopic: selectedTopic ?? null,
@@ -116,10 +137,12 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 
 	/** 消息队列 */
 	const messageQueue = useMessageQueue({
+		editorRef,
 		projectId: selectedProject?.id,
 		topicId: selectedTopic?.id,
-		agentCode: selectedTopic?.agent_code,
-		isTaskRunning: showLoading,
+		agentCode: effectiveAgentCode,
+		isTaskRunning,
+		isWaitingForUser: isTopicWaitingForUser(selectedTopic),
 		isEmptyStatus,
 		isShowLoadingInit,
 	})
@@ -133,13 +156,13 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			buildTopicInputScopeKey(
 				String(topicMode),
 				selectedTopic?.id ?? "",
-				selectedTopic?.agent_code ?? "",
+				effectiveAgentCode ?? "",
 			),
 		)
 	}, [
 		topicMode,
 		selectedTopic?.id,
-		selectedTopic?.agent_code,
+		effectiveAgentCode,
 		sceneStateStore,
 		organizationCode,
 		userId,
@@ -147,10 +170,13 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 
 	const editorSize = size as MessageEditorSize
 
-	const editPanelClassName = classNames?.editorContent
+	const editPanelClassName = cn(classNames?.editorContent, shouldFillHeight && "h-full min-h-0")
 
 	const editPanelContainerClassName = cn(
 		"rounded-xl",
+		shouldFillHeight && "h-full min-h-0",
+		// Let the project conversation panel use its negotiated manual height above 50vh.
+		shouldFillHeight && "!max-h-none",
 		classNames?.editorInnerWrapper,
 		isFocused && "border-blue-500 dark:border-blue-400",
 	)
@@ -165,12 +191,14 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		const messageQueueNode = messageQueue.queue.length > 0 && !isEmptyStatus && (
 			<MessageQueue
 				queue={messageQueue.queue}
+				editorRef={messageQueue.editorRef}
 				queueStats={messageQueue.queueStats}
-				editingQueueItem={messageQueue.editingQueueItem}
 				onRemoveMessage={messageQueue.removeFromQueue}
 				onSendMessage={messageQueue.sendQueuedMessage}
 				onStartEdit={messageQueue.startEditQueueItem}
-				onCancelEdit={messageQueue.cancelEditQueueItem}
+				onWithdraw={messageQueue.withdrawQueueItem}
+				onMove={messageQueue.moveQueueItem}
+				isOperationPending={messageQueue.isQueueOperationPending}
 				variant={isMobile ? "mobile" : "default"}
 			/>
 		)
@@ -179,18 +207,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			taskDataNode,
 			messageQueueNode,
 		}
-	}, [
-		taskData,
-		isEmptyStatus,
-		messageQueue.queue,
-		messageQueue.queueStats,
-		messageQueue.editingQueueItem,
-		messageQueue.removeFromQueue,
-		messageQueue.sendQueuedMessage,
-		messageQueue.startEditQueueItem,
-		messageQueue.cancelEditQueueItem,
-		isMobile,
-	])
+	}, [taskData, isEmptyStatus, messageQueue, isMobile])
 
 	const sceneEditorContext = useMemo<SceneEditorContext>(() => {
 		return {
@@ -205,7 +222,8 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			setSelectedProject,
 			topicMode: topicMode,
 			modelTopicMode,
-			agentCode: selectedTopic?.agent_code,
+			agentCode: effectiveAgentCode,
+			placeholder,
 			setTopicMode: setTopicMode,
 			recoverTopicMode,
 			topicExamplesMode: tabPattern,
@@ -245,14 +263,12 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			},
 			onSendComplete,
 			onMessageSendReady,
-			queueContext: {
-				editingQueueItem: messageQueue.editingQueueItem,
-				addToQueue: messageQueue.addToQueue,
-				finishEditQueueItem: messageQueue.finishEditQueueItem,
-			},
+			editorRef: messageQueue.editorRef,
+			queueContext: messageQueue,
 			showTopicExamplesPortal: showTopicModeExamplePortal,
 			onSendSuccess,
 			createTopic,
+			getImplicitMentionItems,
 			invalidModeFallback: TopicInvalidModeFallback,
 		}
 	}, [
@@ -263,6 +279,8 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		setSelectedProject,
 		topicMode,
 		modelTopicMode,
+		effectiveAgentCode,
+		placeholder,
 		setTopicMode,
 		recoverTopicMode,
 		tabPattern,
@@ -284,14 +302,13 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		allowRecordingMode,
 		onFileClick,
 		onMessageSendReady,
-		messageQueue.editingQueueItem,
-		messageQueue.addToQueue,
-		messageQueue.finishEditQueueItem,
+		messageQueue,
 		showTopicModeExamplePortal,
 		showModeToggle,
 		showModelSelector,
 		onSendSuccess,
 		createTopic,
+		getImplicitMentionItems,
 		onEditorFocus,
 		onEditorBlur,
 		onSendComplete,
@@ -328,8 +345,10 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			currentScene={currentScene}
 			shouldShowCurrentSceneBadge={shouldShowCurrentSceneBadge}
 			shouldShowSceneControls={shouldShowSceneControls}
-			containerRef={containerRef}
+			containerRef={effectiveContainerRef}
 			className={className}
+			fillHeight={shouldFillHeight}
+			inputResizeHandle={inputLayout?.inputResizeHandle}
 			classNames={classNames}
 			editorSize={editorSize}
 			isFocused={isFocused}

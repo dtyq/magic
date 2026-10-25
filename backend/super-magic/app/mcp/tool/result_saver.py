@@ -9,7 +9,6 @@ from typing import Any
 
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
-
 from app.path_manager import PathManager
 from app.utils.async_file_utils import (
     async_chmod,
@@ -25,24 +24,55 @@ from app.utils.runtime_storage import (
     RuntimeEvictionPolicy,
     ensure_runtime_directory,
     evict_runtime_files,
+    get_runtime_config_int,
+    get_runtime_config_size_bytes,
     trigger_opportunistic_cleanup,
 )
 
 logger = get_logger(__name__)
 
-# 结果大小超过此阈值（字节）时自动落盘
-RESULT_SIZE_THRESHOLD = 8 * 1024
-
 # 未指定输出路径时默认使用的运行时子目录名 (.runtime/<name>/)
 MCP_OUTPUT_DIR_NAME = "mcp_outputs"
 
-_MCP_OUTPUT_EVICTION_POLICY = RuntimeEvictionPolicy(
-    max_entries=128,
-    target_entries=96,
-    max_total_bytes=256 * 1024 * 1024,
-    target_total_bytes=192 * 1024 * 1024,
-    max_age_seconds=7 * 24 * 60 * 60,
-)
+
+@dataclass(frozen=True, slots=True)
+class _McpOutputConfig:
+    result_size_threshold: int
+    eviction_policy: RuntimeEvictionPolicy
+
+
+def _load_mcp_output_config() -> _McpOutputConfig:
+    return _McpOutputConfig(
+        result_size_threshold=get_runtime_config_size_bytes(
+            "runtime_cleanup.mcp_outputs.result_size_threshold",
+            minimum=1,
+        ),
+        eviction_policy=RuntimeEvictionPolicy(
+            max_entries=get_runtime_config_int(
+                "runtime_cleanup.mcp_outputs.max_file_count",
+                minimum=1,
+            ),
+            target_entries=get_runtime_config_int(
+                "runtime_cleanup.mcp_outputs.target_file_count",
+                minimum=0,
+            ),
+            max_total_bytes=get_runtime_config_size_bytes(
+                "runtime_cleanup.mcp_outputs.max_total_size",
+                minimum=1,
+            ),
+            target_total_bytes=get_runtime_config_size_bytes(
+                "runtime_cleanup.mcp_outputs.target_total_size",
+                minimum=0,
+            ),
+            max_age_seconds=get_runtime_config_int(
+                "runtime_cleanup.mcp_outputs.max_age_days",
+                minimum=1,
+            )
+            * 24
+            * 60
+            * 60,
+        ),
+    )
 
 
 class McpOutputStorageScope(StrEnum):
@@ -93,7 +123,7 @@ def should_save_to_file(result: ToolResult, output_file_path: str) -> bool:
     """
     if output_file_path.strip():
         return True
-    return _get_result_size(result) > RESULT_SIZE_THRESHOLD
+    return _get_result_size(result) > _load_mcp_output_config().result_size_threshold
 
 
 async def save_result_to_file(
@@ -210,7 +240,7 @@ def trigger_mcp_output_cleanup() -> None:
         "mcp_outputs",
         lambda: evict_runtime_files(
             output_dir,
-            policy=_MCP_OUTPUT_EVICTION_POLICY,
+            policy=_load_mcp_output_config().eviction_policy,
             suffixes=(".json",),
         ),
     )

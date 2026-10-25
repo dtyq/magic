@@ -9,6 +9,7 @@ import type {
 	PPTTableRow,
 } from "./style"
 import type { SlideConfig } from "../api/options"
+import type { MediaSourceDescriptor } from "../media/source-descriptor"
 
 /**
  * PPT intermediate representation (IR): the PPT node data shape passed between pipeline stages.
@@ -101,14 +102,10 @@ export interface PPTShapeNode extends PPTNodeBase {
 /** Image node */
 export interface PPTImageNode extends PPTNodeBase {
 	type: "image"
-	/** Image source (URL or base64) */
-	src: string
-	/**
-	 * Image bytes transferred after worker processing. When present, they take precedence over `src`:
-	 * the main thread no longer keeps large base64 strings; the packaging worker converts to a data URL right before writing,
-	 * and transfers them as transferable data to detach and release main-thread memory immediately.
-	 */
-	srcBytes?: { data: ArrayBuffer; mime: string }
+	/** Stable business identity (for example data-original-path) used for media deduplication. */
+	assetKey?: string
+	/** Repeatable binary/streaming source used by every export path. */
+	source: MediaSourceDescriptor
 	/** Capture source */
 	capture?: "snapdom"
 	/** Capture target element */
@@ -121,6 +118,8 @@ export interface PPTImageNode extends PPTNodeBase {
 	sizing: "cover" | "contain" | "crop" | "stretch"
 	/** Intrinsic source dimensions, used to preserve the image aspect ratio for cover/contain sizing */
 	intrinsicSize?: { width: number; height: number }
+	/** CSS object-position expressed as an axis fraction plus an optional box-relative offset. */
+	objectPosition?: { x: number; y: number; offsetX?: number; offsetY?: number }
 	/** Crop rectangle */
 	cropRect?: { x: number; y: number; w: number; h: number }
 	/** Corner radius */
@@ -236,23 +235,18 @@ export interface PPTMediaNode extends PPTNodeBase {
 	type: "media"
 	/** Media type */
 	mediaType: "video" | "audio" | "online"
-	/** Media path (URL) */
-	path?: string
-	/** Media data (base64) */
-	data?: string
+	/** Stable business identity used for media deduplication across signed URLs/pages. */
+	assetKey?: string
+	/** Optional stable identity for a video poster/cover resource. */
+	coverAssetKey?: string
+	/** Repeatable binary/streaming source; required for audio/video and omitted for online media. */
+	source?: MediaSourceDescriptor
 	/** Online video link, such as YouTube */
 	link?: string
-	/** Cover: poster or materialized JPEG data URL */
-	cover?: string
-	/**
-	 * Cover bytes transferred after worker processing. When present, they take precedence over `cover`,
-	 * like image-node `srcBytes`: the packaging worker converts them to a data URL right before writing.
-	 */
-	coverBytes?: { data: ArrayBuffer; mime: string }
+	/** Binary/streaming video poster source. */
+	coverSource?: MediaSourceDescriptor
 	/** Whether to autoplay */
 	autoplay?: boolean
-	/** File extension */
-	extn?: string
 	/** Only used for main-thread materialization and stripped before serialization; points to `<video>` for first-frame capture when there is no poster */
 	coverCaptureElement?: HTMLVideoElement
 }

@@ -2,7 +2,8 @@ import MagicButton from "@/components/base/MagicButton"
 import UploadAction from "@/components/base/UploadAction"
 import { useUserInfo } from "@/models/user/hooks"
 import { useMemoizedFn } from "ahooks"
-import { Flex, Spin } from "antd"
+import { Spin } from "antd"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import { useAvatarUpload } from "./hooks/useAvatarUpload"
 import SettingStore from "@/stores/setting"
@@ -31,7 +32,7 @@ const SettingUserAvatar = observer(function SettingUserAvatar({
 				onClick={onUpload}
 				loading={isUploading}
 				disabled={isUploading}
-				style={{ cursor: isUploading ? "not-allowed" : "pointer" }}
+				className={isUploading ? "!cursor-not-allowed" : "cursor-pointer"}
 				aria-label={t("setting.uploadAvatar.title")}
 				data-testid="avatar-upload-button"
 			>
@@ -48,25 +49,19 @@ const SettingUserAvatar = observer(function SettingUserAvatar({
 	})
 
 	return (
-		<Flex align="center" gap={4} data-testid="user-avatar-setting">
-			<div style={{ position: "relative" }}>
+		<div className="flex items-center gap-1" data-testid="user-avatar-setting">
+			<div className="relative">
 				<UserAvatarRender
 					userInfo={info}
 					size={size}
-					style={{
-						opacity: isUploading ? 0.6 : 1,
-						transition: "opacity 0.3s ease",
-					}}
+					className={cn(
+						"transition-opacity duration-300 [transition-timing-function:ease]",
+						isUploading && "opacity-60",
+					)}
 				/>
+				{/* Center upload progress over the avatar regardless of its configured size. */}
 				{isUploading && (
-					<div
-						style={{
-							position: "absolute",
-							top: "50%",
-							left: "50%",
-							transform: "translate(-50%, -50%)",
-						}}
-					>
+					<div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
 						<Spin size="small" />
 					</div>
 				)}
@@ -81,7 +76,7 @@ const SettingUserAvatar = observer(function SettingUserAvatar({
 					data-testid="avatar-upload-action"
 				/>
 			)}
-		</Flex>
+		</div>
 	)
 })
 

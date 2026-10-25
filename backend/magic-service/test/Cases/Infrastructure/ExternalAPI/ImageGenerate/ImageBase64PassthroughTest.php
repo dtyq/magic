@@ -74,7 +74,8 @@ final class ImageBase64PassthroughTest extends TestCase
 
     public function testGoogleGeminiLogPayloadMasksInlineData(): void
     {
-        $base64Data = base64_encode('gemini-inline-image-binary');
+        $binary = str_repeat('gemini-inline-image-binary-', 10);
+        $base64Data = base64_encode($binary);
         $client = new class extends AbstractGoogleGeminiClient {
             public function __construct()
             {
@@ -113,10 +114,9 @@ final class ImageBase64PassthroughTest extends TestCase
         ]);
 
         $data = $sanitized['contents'][0]['parts'][0]['inlineData']['data'];
-        $this->assertSame('base64_image', $data['type']);
-        $this->assertSame('image/jpeg', $data['mime_type']);
-        $this->assertSame(strlen('gemini-inline-image-binary'), $data['bytes']);
-        $this->assertArrayHasKey('sha256', $data);
+        $this->assertSame('image/jpeg', $sanitized['contents'][0]['parts'][0]['inlineData']['mimeType']);
+        $this->assertSame('base64', $data['type']);
+        $this->assertSame(strlen($base64Data), $data['base64_length']);
     }
 
     public function testGoogleGeminiKeepsUrlReferenceAsFileData(): void
@@ -170,10 +170,9 @@ final class ImageBase64PassthroughTest extends TestCase
             'data:image/jpeg;base64,' . base64_encode('azure-model-reference-image-binary'),
         ]);
 
-        $this->assertSame('base64_image', $sanitized[0]['type']);
+        $this->assertSame('data_uri', $sanitized[0]['type']);
         $this->assertSame('image/jpeg', $sanitized[0]['mime_type']);
-        $this->assertSame(strlen('azure-model-reference-image-binary'), $sanitized[0]['bytes']);
-        $this->assertArrayHasKey('sha256', $sanitized[0]);
+        $this->assertSame(strlen(base64_encode('azure-model-reference-image-binary')), $sanitized[0]['base64_length']);
     }
 
     public function testVolcengineArkLogPayloadMasksBase64Images(): void
@@ -192,10 +191,9 @@ final class ImageBase64PassthroughTest extends TestCase
         $sanitized = $method->invoke($api, $payload);
 
         $this->assertSame('https://example.com/input.jpg', $sanitized['image'][0]);
-        $this->assertSame('base64_image', $sanitized['image'][1]['type']);
+        $this->assertSame('data_uri', $sanitized['image'][1]['type']);
         $this->assertSame('image/png', $sanitized['image'][1]['mime_type']);
-        $this->assertSame(strlen('seedream-image-binary'), $sanitized['image'][1]['bytes']);
-        $this->assertArrayHasKey('sha256', $sanitized['image'][1]);
+        $this->assertSame(strlen(base64_encode('seedream-image-binary')), $sanitized['image'][1]['base64_length']);
     }
 
     public function testLogSanitizersKeepUrlReferencesUnchanged(): void
@@ -233,10 +231,9 @@ final class ImageBase64PassthroughTest extends TestCase
 
         $sanitized = $method->invoke($model, $payload);
 
-        $this->assertSame('base64_image', $sanitized['images'][0]['type']);
+        $this->assertSame('data_uri', $sanitized['images'][0]['type']);
         $this->assertSame('image/png', $sanitized['images'][0]['mime_type']);
-        $this->assertSame(strlen('official-image-binary'), $sanitized['images'][0]['bytes']);
-        $this->assertArrayHasKey('sha256', $sanitized['images'][0]);
+        $this->assertSame(strlen(base64_encode('official-image-binary')), $sanitized['images'][0]['base64_length']);
     }
 
     public function testOpenRouterLogPayloadMasksBase64Images(): void
@@ -259,10 +256,9 @@ final class ImageBase64PassthroughTest extends TestCase
         $sanitized = $method->invoke($api, $payload);
         $imageUrl = $sanitized['messages'][0]['content'][0]['image_url']['url'];
 
-        $this->assertSame('base64_image', $imageUrl['type']);
+        $this->assertSame('data_uri', $imageUrl['type']);
         $this->assertSame('image/jpeg', $imageUrl['mime_type']);
-        $this->assertSame(strlen('open-router-image-binary'), $imageUrl['bytes']);
-        $this->assertArrayHasKey('sha256', $imageUrl);
+        $this->assertSame(strlen(base64_encode('open-router-image-binary')), $imageUrl['base64_length']);
     }
 
     public function testQwenLogPayloadMasksBase64Images(): void
@@ -284,10 +280,9 @@ final class ImageBase64PassthroughTest extends TestCase
         $sanitized = $method->invoke($api, $payload);
         $image = $sanitized['input']['messages'][0]['content'][0]['image'];
 
-        $this->assertSame('base64_image', $image['type']);
+        $this->assertSame('data_uri', $image['type']);
         $this->assertSame('image/webp', $image['mime_type']);
-        $this->assertSame(strlen('qwen-image-binary'), $image['bytes']);
-        $this->assertArrayHasKey('sha256', $image);
+        $this->assertSame(strlen(base64_encode('qwen-image-binary')), $image['base64_length']);
     }
 
     public function testQwenLogResponseBodyMasksBase64Images(): void
@@ -311,9 +306,8 @@ final class ImageBase64PassthroughTest extends TestCase
         $sanitized = $method->invoke($api, $responseBody);
         $image = $sanitized['output']['choices'][0]['message']['content'][0]['image'];
 
-        $this->assertSame('base64_image', $image['type']);
+        $this->assertSame('data_uri', $image['type']);
         $this->assertSame('image/png', $image['mime_type']);
-        $this->assertSame(strlen('qwen-response-image-binary'), $image['bytes']);
-        $this->assertArrayHasKey('sha256', $image);
+        $this->assertSame(strlen(base64_encode('qwen-response-image-binary')), $image['base64_length']);
     }
 }

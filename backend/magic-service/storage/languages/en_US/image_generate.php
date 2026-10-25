@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 return [
     'general_error' => 'Image generation service error',
+    'image_operation_failed' => 'Image processing failed. Please try again later.',
     'response_format_error' => 'Invalid response format from image generation service',
     'missing_image_data' => 'Generated image data is invalid',
     'no_valid_image_generated' => 'No valid image was generated',
@@ -18,6 +19,7 @@ return [
     'prompt_check_failed' => 'Prompt validation failed',
     'polling_failed' => 'Failed to poll task result',
     'task_timeout' => 'Task execution timed out',
+    'task_failed_retry' => 'Image generation failed, please try again later',
     'invalid_request_type' => 'Invalid request type',
     'missing_job_id' => 'Missing task ID',
     'task_failed' => 'Task execution failed',
@@ -95,12 +97,31 @@ return [
             'description' => 'Controls the generated image quality level',
             'options' => [
                 'auto' => 'Auto',
-                'high' => 'High',
-                'medium' => 'Medium',
                 'low' => 'Low',
+                'medium' => 'Standard',
+                'high' => 'High',
+                'xhigh' => 'Ultra high',
+                'max' => 'Max',
+            ],
+        ],
+        'background' => [
+            'label' => 'Background',
+            'description' => 'Controls the generated image background: auto lets the model decide from the prompt, keep background keeps it opaque, transparent background produces a transparent image',
+            'options' => [
+                'auto' => 'Auto',
+                'opaque' => 'Keep background',
+                'transparent' => 'Transparent background',
             ],
         ],
     ],
     # watermark
     'image_watermark' => 'website/static/img/watermark_en.png',
+    'gcs_bucket_not_configured' => 'Gcs bucket not configured',
+    'gcs_upload_failed' => 'Operation failed',
+    'image_convert_high_model_not_configured' => 'Image convert high model not configured',
+    'invalid_response_type' => 'Invalid value',
+    'upload_failed' => 'Operation failed',
+    'vertex_ai_does_not_support_file_upload' => 'Vertex ai does not support file upload',
+
+    'unsupported_image_format' => 'Unsupported image format',
 ];

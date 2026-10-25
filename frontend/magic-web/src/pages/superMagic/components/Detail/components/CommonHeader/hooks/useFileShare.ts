@@ -1,3 +1,4 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { SuperMagicApi } from "@/apis"
@@ -66,6 +67,7 @@ interface UseFileShareReturn {
  */
 export function useFileShare({ currentFile, attachments }: UseFileShareProps): UseFileShareReturn {
 	const { t } = useTranslation("super")
+	const { permissions: access } = useFileAccess()
 
 	// Share states
 	const [shareModalVisible, setShareModalVisible] = useState(false)
@@ -97,6 +99,7 @@ export function useFileShare({ currentFile, attachments }: UseFileShareProps): U
 	// Handle file sharing
 	const handleShare = useCallback(
 		async (target?: FileShareTarget) => {
+			if (!access.share) return
 			const resolvedTarget = target || currentFile
 			if (!resolvedTarget?.id || !attachments) return
 			setShareTarget(resolvedTarget)
@@ -138,7 +141,7 @@ export function useFileShare({ currentFile, attachments }: UseFileShareProps): U
 				setIsCheckingShare(false)
 			}
 		},
-		[attachments, currentFile, findFileInAttachments],
+		[attachments, currentFile, findFileInAttachments, access.share],
 	)
 
 	// Handle selecting similar share
@@ -186,11 +189,11 @@ export function useFileShare({ currentFile, attachments }: UseFileShareProps): U
 	}, [])
 
 	return {
-		shareModalVisible,
-		showSuccessModal,
+		shareModalVisible: shareModalVisible && access.share,
+		showSuccessModal: showSuccessModal && access.share,
 		existingShareInfo,
 		shareFileId,
-		showSimilarSharesDialog,
+		showSimilarSharesDialog: showSimilarSharesDialog && access.share,
 		similarShares,
 		isCheckingShare,
 		shareTarget,

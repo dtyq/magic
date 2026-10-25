@@ -21,8 +21,11 @@ from app.service.agent_runner import (
     run_isolated_agent,
 )
 from app.service.agent_session_id_service import AgentSessionIdService
+from app.service.cron.migration import apply_migrations, resolve_legacy_agent_mode
 from app.service.cron.models import CronJob, CronRunResult
-from app.service.cron.store import write_result_file
+from app.service.cron.schema import CURRENT_PAYLOAD_VERSION
+from app.service.cron.store import persist_payload_fields, write_result_file
+from app.service.cron.utils import format_job_label, format_log_duration
 
 logger = get_logger(__name__)
 
@@ -69,21 +72,92 @@ async def _resolve_cron_agent_target(
 ) -> AgentTarget:
     """将 cron 持久化身份转换为规范化 AgentTarget。
 
-    无 agent_mode 的历史任务继续按普通 agent_name 运行；只有明确写入
-    magiclaw/custom_agent 时，agent_name 才作为 agent_code 使用。
+    显式 agent_mode 优先；版本过旧或缺少 agent_mode 的任务在本次执行时懒迁移。
     """
     raw_mode = job.payload.agent_mode
-    if raw_mode is None:
-        return AgentTarget.from_name(await _resolve_agent_name(job))
-    if not isinstance(raw_mode, str):
+    if raw_mode is not None and not isinstance(raw_mode, str):
         raise ValueError(
             f"Invalid agent_mode for cron job [{job.id}]: expected string, "
             f"got {type(raw_mode).__name__}"
         )
 
-    mode_value = raw_mode.strip()
+    mode_value = (raw_mode or "").strip()
+    explicit_mode: AgentMode | None = None
+    if mode_value:
+        try:
+            explicit_mode = AgentMode(mode_value)
+        except ValueError as exc:
+            raise ValueError(
+                f"Unknown agent_mode '{mode_value}' for cron job [{job.id}]"
+            ) from exc
+
+    needs_migration = (
+        job.payload.version < CURRENT_PAYLOAD_VERSION
+        or explicit_mode is None
+    )
+    if job.payload.version > CURRENT_PAYLOAD_VERSION:
+        logger.warning(
+            f"cron job [{job.id}] payload version v{job.payload.version} is newer "
+            f"than the supported v{CURRENT_PAYLOAD_VERSION}; keeping it unchanged"
+        )
+    agent_name: str | None = (
+        job.payload.agent_name.strip()
+        if isinstance(job.payload.agent_name, str) and job.payload.agent_name.strip()
+        else None
+    )
+    inferred_mode: str | None = None
+    resolved_payload = job.payload.to_payload()
+    if explicit_mode is None:
+        agent_name = await _resolve_agent_name(job)
+        try:
+            inferred_mode = await resolve_legacy_agent_mode(agent_name)
+        except Exception as exc:
+            logger.warning(
+                f"cron job [{job.id}] legacy Agent mode migration lookup failed "
+                f"for agent={agent_name}: {exc}"
+            )
+
+    if needs_migration:
+        try:
+            migration = apply_migrations(
+                resolved_payload,
+                inferred_agent_mode=inferred_mode,
+            )
+        except Exception as exc:
+            logger.warning(f"cron job [{job.id}] payload migration failed: {exc}")
+            migration = None
+
+        if migration is not None:
+            if migration.complete:
+                resolved_payload = migration.payload
+            if migration.changed:
+                latest_payload = None
+                try:
+                    latest_payload = await persist_payload_fields(job, migration.field_patch)
+                except Exception as exc:
+                    logger.warning(
+                        f"cron job [{job.id}] payload field write-back failed "
+                        f"(agent={agent_name}, "
+                        f"agent_mode={migration.payload.get('agent_mode')!r}); "
+                        f"continuing this run: {exc}"
+                    )
+                if latest_payload is not None:
+                    job.payload = latest_payload
+                    resolved_payload = latest_payload.to_payload()
+                    if latest_payload.agent_name:
+                        agent_name = latest_payload.agent_name
+            if not migration.complete:
+                logger.warning(
+                    f"cron job [{job.id}] legacy Agent mode remains unresolved "
+                    f"for agent={agent_name}: "
+                    f"{migration.reason or 'unknown reason'}"
+                )
+
+    mode_value = str(resolved_payload.get("agent_mode") or "").strip()
     if not mode_value:
-        return AgentTarget.from_name(await _resolve_agent_name(job))
+        if agent_name is None:
+            agent_name = await _resolve_agent_name(job)
+        return AgentTarget.from_name(agent_name)
 
     try:
         agent_mode = AgentMode(mode_value)
@@ -93,13 +167,14 @@ async def _resolve_cron_agent_target(
         ) from exc
 
     if agent_mode in (AgentMode.MAGICLAW, AgentMode.CUSTOM_AGENT):
-        raw_agent_name = job.payload.agent_name
-        if not isinstance(raw_agent_name, str) or not raw_agent_name.strip():
+        if agent_name is None:
+            agent_name = await _resolve_agent_name(job)
+        if not agent_name.strip():
             raise ValueError(
                 f"agent_name is required for cron job [{job.id}] "
                 f"when agent_mode={agent_mode.value}"
             )
-        return AgentTarget.from_mode(agent_mode, raw_agent_name)
+        return AgentTarget.from_mode(agent_mode, agent_name)
 
     return AgentTarget.from_mode(agent_mode)
 
@@ -170,9 +245,9 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
             if context_source is None:
                 raise ValueError(f"cron job [{job.id}] fork has no context source")
             context_snapshot = await AgentContextSnapshotService().capture(context_source)
-        logger.info(
-            f"cron job [{job.id}] starting "
-            f"(agent={target.agent_name}, provider={target.provider_type.value})"
+        logger.debug(
+            f"定时任务{format_job_label(job)}：执行上下文已准备好，"
+            f"使用 Agent {target.agent_name}（{target.provider_type.value}），会话 ID：{agent_id}。"
         )
         run_request = IsolatedAgentRunRequest(
             target=target,
@@ -194,20 +269,16 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
         result = raw or ""
     except asyncio.TimeoutError:
         status, error = "error", f"timeout after {timeout}s"
-        logger.warning(f"cron job [{job.id}] timed out after {timeout}s")
+        limit = f"本次配置的执行上限为 {format_log_duration(timeout)}" if timeout else "本次未设置任务级超时上限"
+        logger.warning(f"定时任务{format_job_label(job)}：执行过程中发生超时；{limit}。")
     except asyncio.CancelledError:
         status, error = "error", "cancelled"
-        logger.warning(f"cron job [{job.id}] was cancelled")
         raise
     except Exception as e:
         status, error = "error", str(e)
-        logger.exception(f"cron job [{job.id}] failed")
+        logger.exception(f"定时任务{format_job_label(job)}：执行异常。原因：{type(e).__name__}: {e}")
 
     duration_ms = _now_ms() - start_ms
-    if status == "ok":
-        logger.info(f"cron job [{job.id}] completed in {duration_ms}ms")
-    else:
-        logger.warning(f"cron job [{job.id}] finished with status={status} error={error!r} duration={duration_ms}ms")
 
     run_result = CronRunResult(
         status=status,
@@ -222,7 +293,7 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
     try:
         result_file = await write_result_file(job, run_result)
     except Exception as e:
-        logger.error(f"cron: failed to write result file for [{job.id}]: {e}")
+        logger.error(f"定时任务{format_job_label(job)}：结果文件保存失败。原因：{type(e).__name__}: {e}")
 
     if job.payload.notify_user:
         try:
@@ -231,6 +302,6 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
             await append_notification(job, run_result, result_file or Path())
             asyncio.create_task(try_notify_main_agent(), name=f"cron-notify-{job.id}")
         except Exception as e:
-            logger.error(f"cron: failed to handle notification for [{job.id}]: {e}")
+            logger.error(f"定时任务{format_job_label(job)}：结果通知准备失败。原因：{type(e).__name__}: {e}")
 
     return run_result

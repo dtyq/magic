@@ -40,7 +40,7 @@ class GuzzleClientFactory
 
         // 基础默认配置
         $defaultOptions = [
-            RequestOptions::TIMEOUT => 180,
+            RequestOptions::TIMEOUT => 600,
             RequestOptions::CONNECT_TIMEOUT => 5,
             RequestOptions::VERIFY => false,
             RequestOptions::HEADERS => [],

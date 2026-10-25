@@ -2,6 +2,6 @@ export function preloadCreateWorkspaceModal() {
 	return import("../CreateWorkspaceModal")
 }
 
-export function preloadCollaborationProjectsPanel() {
-	return import("./components/CollaborationProjectsPanel")
+export function preloadWorkspaceProjectsPanel() {
+	return import("./components/WorkspaceProjectsPanel")
 }

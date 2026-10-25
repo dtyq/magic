@@ -42,12 +42,43 @@ vi.mock("@/components/other/SmartTooltip", () => ({
 	),
 }))
 
+vi.mock("@/components/base/MediaPreview", () => ({
+	MediaPreviewTrigger: ({
+		source,
+		fileName,
+		renderTrigger,
+	}: {
+		source: {
+			previewUrl?: string | null
+			isLoading: boolean
+			hasError: boolean
+			loadPreview?: () => Promise<void>
+		}
+		fileName: string
+		renderTrigger: (thumbnail: ReactNode) => ReactNode
+	}) => (
+		<div
+			data-testid="media-preview-trigger"
+			data-file-name={fileName}
+			data-preview-url={source.previewUrl ?? ""}
+			data-loading={String(source.isLoading)}
+			data-error={String(source.hasError)}
+		>
+			{renderTrigger(null)}
+			<button type="button" onClick={() => void source.loadPreview?.()}>
+				open
+			</button>
+		</div>
+	),
+}))
+
 function PreviewHarness({ item, children }: { item: AttachmentItem; children: ReactNode }) {
 	const manager = useProjectFileImagePreviewManager({ attachments: [item] })
+	const { setMountedItems } = manager
 
 	useEffect(() => {
-		manager.setMountedItems([item])
-	}, [item, manager.setMountedItems])
+		setMountedItems([item])
+	}, [item, setMountedItems])
 
 	return (
 		<ProjectFileImagePreviewProvider manager={manager}>
@@ -68,7 +99,7 @@ describe("ProjectFileImageSmartTooltip", () => {
 		vi.useRealTimers()
 	})
 
-	it("falls back to the regular name tooltip after preview image loading fails", async () => {
+	it("uses the shared media preview trigger for project images", async () => {
 		const item: AttachmentItem = {
 			file_id: "tooltip-image-error",
 			file_name: "tooltip-image-error.png",
@@ -96,17 +127,14 @@ describe("ProjectFileImageSmartTooltip", () => {
 			await Promise.resolve()
 		})
 
-		fireEvent.error(screen.getByTestId("project-file-image-preview-tooltip-image"))
-
-		expect(screen.getByTestId("smart-tooltip")).toHaveAttribute("data-force-show", "false")
-		expect(screen.getByTestId("smart-tooltip")).toHaveAttribute(
-			"data-has-custom-content",
-			"false",
+		expect(screen.getByTestId("media-preview-trigger")).toHaveAttribute(
+			"data-preview-url",
+			"https://cdn.example.com/tooltip-image-error.webp",
 		)
 		expect(screen.getByText("tooltip-image-error.png")).toBeInTheDocument()
 	})
 
-	it("falls back to the regular name tooltip when no preview url is available", async () => {
+	it("uses the shared error state when no preview url is available", async () => {
 		const item: AttachmentItem = {
 			file_id: "tooltip-exchange-error",
 			file_name: "tooltip-exchange-error.png",
@@ -128,11 +156,7 @@ describe("ProjectFileImageSmartTooltip", () => {
 			await Promise.resolve()
 		})
 
-		expect(screen.getByTestId("smart-tooltip")).toHaveAttribute("data-force-show", "false")
-		expect(screen.getByTestId("smart-tooltip")).toHaveAttribute(
-			"data-has-custom-content",
-			"false",
-		)
+		expect(screen.getByTestId("media-preview-trigger")).toHaveAttribute("data-error", "true")
 
 		fireEvent.click(screen.getByRole("button", { name: "open" }))
 		await act(async () => {
@@ -172,7 +196,7 @@ describe("ProjectFileImageSmartTooltip", () => {
 			await Promise.resolve()
 		})
 
-		expect(screen.getByTestId("smart-tooltip")).toHaveAttribute("data-force-show", "false")
+		expect(screen.getByTestId("media-preview-trigger")).toHaveAttribute("data-error", "true")
 
 		fireEvent.click(screen.getByRole("button", { name: "open" }))
 		await act(async () => {
@@ -181,8 +205,8 @@ describe("ProjectFileImageSmartTooltip", () => {
 		})
 
 		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(2)
-		expect(screen.getByTestId("project-file-image-preview-tooltip-image")).toHaveAttribute(
-			"src",
+		expect(screen.getByTestId("media-preview-trigger")).toHaveAttribute(
+			"data-preview-url",
 			"https://cdn.example.com/tooltip-exchange-retry.webp",
 		)
 	})

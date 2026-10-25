@@ -41,7 +41,16 @@ export function useOverlayZIndex({
 		if (!open) {
 			return undefined
 		}
-		if (releaseRef.current) return undefined
+
+		// An open unmanaged layer does not own a stack slot. Follow a later explicit
+		// zIndex so a parent that allocates after the first paint can raise this drawer
+		// without taking another global slot. Managed layers stay locked for the open session.
+		if (releaseRef.current) {
+			if (!zIndexManaged && zIndex !== undefined) {
+				setZIndexState((prev) => syncExplicitOverlayZIndex(prev, zIndex, zIndexScope))
+			}
+			return undefined
+		}
 
 		const entry = acquireOverlayZIndex({
 			scope: zIndexScope,
@@ -88,6 +97,19 @@ export function useOverlayZIndex({
 function releaseOverlayZIndex(releaseRef: MutableRefObject<OverlayZIndexEntry["release"] | null>) {
 	releaseRef.current?.()
 	releaseRef.current = null
+}
+
+/** Keeps an already-open unmanaged layer on the latest explicit zIndex without allocating again. */
+function syncExplicitOverlayZIndex(
+	prev: OverlayZIndexState,
+	zIndex: number,
+	scope: OverlayZIndexScope,
+): OverlayZIndexState {
+	const next = createFallbackZIndexState(zIndex, scope)
+	if (prev.overlayZIndex === next.overlayZIndex && prev.contentZIndex === next.contentZIndex) {
+		return prev
+	}
+	return next
 }
 
 /** 在 effect 注册完成前提供稳定兜底层级，避免组件拿到 undefined style。 */

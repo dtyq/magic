@@ -42,9 +42,23 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - generate_images
+  - create_canvas
+  - generate_canvas_images
   - image_search
   - visual_understanding
   - video_understanding
+```
+
+### Design & Visual Creation Employee
+
+```yaml
+tools:
+  - web_search
+  - visual_understanding
+  - video_understanding
+  - generate_canvas_images
+  - search_canvas_images
+  - create_canvas
 ```
 
 ### Development & Programming Employee
@@ -54,9 +68,9 @@ tools:
   - shell_exec
   - web_search
   - read_webpages_as_markdown
-  - edit_file_range
+  - edit_file_ranges
+  - find_file_ranges
   - multi_edit_file
-  - multi_edit_file_range
   - delete_files
 ```
 
@@ -84,11 +98,10 @@ tools:
 | `read_file` | Read a single file |
 | `grep_search` | Search file contents by regex |
 | `write_file` | Write content to a file |
-| `append_to_file` | Append content to an existing file |
 | `edit_file` | Edit a file by replacing matched content |
-| `edit_file_range` | Edit a file within a line range |
+| `find_file_ranges` | Locate non-overlapping ranges in one file snapshot; accepts a ranges list and returns single-use IDs |
+| `edit_file_ranges` | Apply an edits list of range IDs and replacements together in one file write |
 | `multi_edit_file` | Apply multiple edits to a file |
-| `multi_edit_file_range` | Apply multiple edits within line ranges |
 | `delete_files` | Delete one or more files |
 
 ### Web Search & Fetch
@@ -141,13 +154,19 @@ skills:
 | `call_subagent` | Call a sub-agent for a specific task |
 | `wait_for_subagents` | Wait for one or more background sub-agents to finish |
 
-### Presentation & Slides
+### Presentation & Slides (Code Mode Only)
+
+Do not add these names to `TOOLS.md` or an agent's `tools:` whitelist. Enable
+`creating-slides` for project/page creation and transition settings, or
+`slide-template-maker` for template construction and webpage layout QA. Their
+instructions call these tools through `run_sdk_snippet` with `sdk.tool.call(...)`.
 
 | Tool | Description |
 |------|-------------|
 | `create_slide` | Create a slide in a presentation |
 | `create_slide_project` | Create a new slide presentation project |
 | `analysis_slide_webpage` | Analyze a slide/presentation webpage |
+| `update_slide_transitions` | Update deck and per-slide transition settings |
 
 ### Audio & Video
 
@@ -167,9 +186,10 @@ skills:
 
 | Tool | Description |
 |------|-------------|
-| `browser_list_sessions` / `browser_list_pages` | Inspect Browser sessions and pages |
-| `browser_open_page` / `browser_close_page` / `browser_activate_page` | Manage pages in a Browser session |
-| `browser_navigate` / `browser_wait` | Navigate and wait for explicit page conditions |
+| `browser_navigate` | Visit a URL in the current tab; the default entry for ordinary browsing |
+| `browser_new_tab` | Create a separate tab only when the current page must be preserved |
+| `browser_list_tabs` / `browser_select_tab` / `browser_close_tab` | List, select, or explicitly close tabs in a Browser instance |
+| `browser_list_instances` / `browser_wait` | Inspect Browser instances and wait for current-tab conditions |
 | `browser_read_page` / `browser_list_elements` / `browser_screenshot` | Read text, inspect page structure, and capture screenshots |
 | `browser_click` / `browser_fill` / `browser_press` / `browser_hover` / `browser_scroll` | Interact with snapshot refs |
 | `browser_select` / `browser_check` / `browser_upload_file` | Operate form controls and file inputs |
@@ -196,14 +216,30 @@ skills:
 | `connect_wecom_bot` | Connect to a WeCom bot |
 | `get_im_channel_status` | Get IM channel connection status |
 
-### Design Canvas
+### Canvas (Code Mode Only)
+
+For content creation and design employees, configure `SKILLS.md` as follows and keep code execution enabled:
+
+```yaml
+skills:
+  system_skills:
+    - name: canvas-manager
+```
+
+Load `canvas-manager` before using Canvas. Call these tools through the automatically provided `run_sdk_snippet`; do not add their names or `run_sdk_snippet` to `TOOLS.md`. Follow the skill for generation parameters and waiting.
 
 | Tool | Description |
 |------|-------------|
-| `create_canvas` | Create a canvas project |
-| `generate_canvas_images` | Generate images directly to canvas |
-| `generate_canvas_videos` | Generate videos directly to canvas |
-| `search_images_to_canvas` | Search and add images to canvas |
+| `initialize_canvas` | Create or reuse a Canvas project |
+| `add_canvas_elements` | Import assets or create elements with generated content |
+| `add_canvas_contents` | Add content candidates to existing elements |
+| `wait_canvas_generation` | Wait for generation results |
+| `query_canvas_overview` | Inspect current Canvas elements |
+| `query_canvas_element_details` | Inspect exact element content and state |
+| `search_canvas_image_candidates` | Search and import reference images |
+| `search_canvas_image_prompts` | Search the shared prompt library |
+
+Keep ordinary `generate_images` for internal image tasks that do not require Canvas.
 
 ### Data Dashboard
 

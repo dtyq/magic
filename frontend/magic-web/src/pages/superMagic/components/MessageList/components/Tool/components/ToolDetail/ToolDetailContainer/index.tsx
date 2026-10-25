@@ -1,8 +1,10 @@
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import { memo } from "react"
 import { useStyles } from "./styles"
 import ToolHeader from "../ToolHeader"
 
 interface TextEditorProps extends React.PropsWithChildren {
+	file?: AttachmentItem
 	language?: string
 	extension?: string
 	title?: string
@@ -16,6 +18,7 @@ interface TextEditorProps extends React.PropsWithChildren {
 }
 
 function ToolDetailContainer({
+	file,
 	extension,
 	title,
 	children,
@@ -33,6 +36,7 @@ function ToolDetailContainer({
 		<div className={cx(styles.container, className)}>
 			{showHeader && (
 				<ToolHeader
+					file={file}
 					extension={extension}
 					title={title}
 					icon={icon}

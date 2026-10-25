@@ -29,6 +29,9 @@ import {
 	SuperMobileShellRouteLayout,
 	useOptionalSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
+import SkillMarketTabs, {
+	SKILL_MARKET_TAB_VALUES,
+} from "@/pages/superMagic/pages/SkillMarket/components/SkillMarketTabs"
 
 const HEADER_SHADOW = "0px 8px 25px 0px rgba(0,0,0,0.10)"
 
@@ -245,14 +248,17 @@ function CrewMarketMobilePanelBase() {
 						<ChevronLeft className="size-[22px] text-foreground" strokeWidth={2} />
 					</button>
 
-					<div
-						className="min-w-0 flex-1 px-2 text-center"
-						data-testid="crew-market-mobile-title"
-					>
-						<h1 className="truncate font-poppins text-[18px] font-medium text-foreground">
-							{t("title")}
-						</h1>
-					</div>
+					<SkillMarketTabs
+						value={SKILL_MARKET_TAB_VALUES.crew}
+						onValueChange={(value) => {
+							if (value === SKILL_MARKET_TAB_VALUES.skills)
+								navigate({ name: RouteName.CrewMarketSkills })
+							if (value === SKILL_MARKET_TAB_VALUES.connectors)
+								navigate({ name: RouteName.CrewMarketMcp })
+						}}
+						className="min-w-0 flex-1"
+						compact
+					/>
 
 					{/* Spacer — same width as back button for visual symmetry */}
 					<div className="size-11 shrink-0" aria-hidden />

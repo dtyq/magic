@@ -39,6 +39,7 @@ function createHarness(options: {
 
 	Object.assign(manager as unknown as Record<string, unknown>, {
 		elements: elementMap,
+		dataTreeVisibilityCache: new Map<string, boolean>(),
 		temporaryElements: new Map(),
 		canvas: {
 			contentLayer,
@@ -77,6 +78,9 @@ function createRectangle(id: string, x: number, y: number): LayerElement {
 		width: 100,
 		height: 80,
 		zIndex: 2,
+		activeContentId: `${id}-content`,
+		mainContentId: `${id}-content`,
+		contents: [{ contentId: `${id}-content` }],
 	}
 }
 
@@ -93,6 +97,9 @@ function createFrame(
 		y,
 		width: 400,
 		height: 300,
+		activeContentId: `${id}-content`,
+		mainContentId: `${id}-content`,
+		contents: [{ contentId: `${id}-content` }],
 		children,
 	}
 }
@@ -106,6 +113,9 @@ describe("ElementManager reparentElement", () => {
 		const child = createElementStub(childData, childNode)
 		const frame = createElementStub(frameData, frameNode)
 		const { contentLayer, emit, manager } = createHarness({ elements: [child, frame] })
+		;(
+			manager as unknown as { dataTreeVisibilityCache: Map<string, boolean> }
+		).dataTreeVisibilityCache.set("child", false)
 		contentLayer.add(frameNode, childNode)
 
 		const changed = manager.reparentElement("child", {
@@ -114,6 +124,10 @@ describe("ElementManager reparentElement", () => {
 		})
 
 		expect(changed).toBe(true)
+		expect(
+			(manager as unknown as { dataTreeVisibilityCache: Map<string, boolean> })
+				.dataTreeVisibilityCache,
+		).toEqual(new Map())
 		expect(childNode.getParent()).toBe(frameNode)
 		expect(childNode.position()).toEqual({ x: 50, y: 40 })
 		expect(child.data).toEqual(expect.objectContaining({ x: 50, y: 40, zIndex: 7 }))

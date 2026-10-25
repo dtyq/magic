@@ -7,6 +7,23 @@ vi.mock("@/routes/history/helpers", () => ({
 	routesMatch: (...args: unknown[]) => routesMatchMock(...args),
 }))
 
+const canvasState = vi.hoisted(() => ({
+	selectedTopic: null as { id: string; project_id: string } | null,
+	cachedTopicId: null as string | null,
+}))
+
+vi.mock("@/models/user", () => ({ userStore: { user: { userInfo: { user_id: "u-1" } } } }))
+vi.mock("../../stores/core", () => ({
+	topicStore: {
+		get selectedTopic() {
+			return canvasState.selectedTopic
+		},
+	},
+}))
+vi.mock("../superMagicCache", () => ({
+	ProjectTopicMapCache: { get: () => canvasState.cachedTopicId },
+}))
+
 import { resolveSuperPopRefreshParams } from "../resolve-super-pop-refresh-params"
 
 describe("resolveSuperPopRefreshParams", () => {
@@ -48,6 +65,34 @@ describe("resolveSuperPopRefreshParams", () => {
 		expect(resolveSuperPopRefreshParams("/global/super/project-2/topic-2")).toEqual({
 			projectId: "project-2",
 			topicId: "topic-2",
+		})
+	})
+
+	it("keeps the open topic of a canvas project, whose address has no topic", () => {
+		routesMatchMock.mockReturnValue({
+			route: { name: RouteName.AiCanvasProjectState },
+			params: { projectId: "canvas-1" },
+		})
+		canvasState.selectedTopic = { id: "topic-open", project_id: "canvas-1" }
+		canvasState.cachedTopicId = "topic-cached"
+
+		expect(resolveSuperPopRefreshParams("/global/super/ai-canvas/canvas-1")).toEqual({
+			projectId: "canvas-1",
+			topicId: "topic-open",
+		})
+	})
+
+	it("falls back to the last topic of a canvas project", () => {
+		routesMatchMock.mockReturnValue({
+			route: { name: RouteName.AiCanvasProjectState },
+			params: { projectId: "canvas-1" },
+		})
+		canvasState.selectedTopic = { id: "topic-other", project_id: "project-9" }
+		canvasState.cachedTopicId = "topic-cached"
+
+		expect(resolveSuperPopRefreshParams("/global/super/ai-canvas/canvas-1")).toEqual({
+			projectId: "canvas-1",
+			topicId: "topic-cached",
 		})
 	})
 })

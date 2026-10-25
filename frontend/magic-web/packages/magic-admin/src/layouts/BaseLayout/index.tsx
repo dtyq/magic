@@ -1,22 +1,23 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useMemo, useEffect, memo } from "react"
-import { IconStack2, IconWand } from "@tabler/icons-react"
+import { IconStack2 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { Flex, Segmented } from "antd"
-import { MagicSelect, ThemeType, TopMenu } from "@admin-components"
+import { MagicSelect, ThemeType, TopMenu, AdminAuthContentLoading } from "@admin-components"
 import AtLogo from "@admin/assets/logos/favicon.svg"
 import { RoutePath } from "@admin/const/routes"
 import { useAdminStore } from "@admin/stores/admin"
 import { useUserStore } from "@admin/stores/user"
-import { PLATFORM_MANAGEMENT, AI_MANAGEMENT } from "@admin/const/common"
+import { PLATFORM_MANAGEMENT } from "@admin/const/common"
 import { useStyles } from "./styles"
-import { withAuthMiddleware } from "./components/AuthMiddleware"
+import { withAuthMiddleware, type AuthMiddlewareInjectedProps } from "./components/AuthMiddleware"
 import { languageOptions, organizationOptions, themeOptions } from "./const"
 import { useGetCurrentRouteInfo } from "./useGetCurrentRouteInfo"
 import { useIsMobile } from "@admin/hooks/useIsMobile"
 import BaseLayoutMobile from "../BaseLayoutMobile"
+import { useAdminEntryRedirect } from "./hooks/useAdminEntryRedirect"
 
-function BaseLayoutPc() {
+function BaseLayoutPc({ authLoading }: AuthMiddlewareInjectedProps) {
 	const { t } = useTranslation("common")
 
 	const location = useLocation()
@@ -40,12 +41,6 @@ function BaseLayoutPc() {
 						PLATFORM_MANAGEMENT.includes(permission),
 					),
 			},
-			{
-				key: RoutePath.AI,
-				label: t("nav.ai"),
-				icon: <IconWand size={20} />,
-				hidden: !userPermissions.some((permission) => AI_MANAGEMENT.includes(permission)),
-			},
 		],
 
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,6 +48,10 @@ function BaseLayoutPc() {
 	)
 
 	const { currentRouteItems, hiddenMenu } = useGetCurrentRouteInfo()
+
+	const firstAccessiblePath = items.find((item) => !item.hidden)?.key
+
+	useAdminEntryRedirect({ authLoading, firstAccessiblePath })
 
 	// 使用 useEffect 处理副作用
 	useEffect(() => {
@@ -93,7 +92,7 @@ function BaseLayoutPc() {
 				</div>
 			)}
 			<div className={cx(!hiddenMenu ? styles.wrapper : styles.wrapperWithoutMenu)}>
-				<Outlet />
+				{authLoading ? <AdminAuthContentLoading /> : <Outlet />}
 			</div>
 		</div>
 	)

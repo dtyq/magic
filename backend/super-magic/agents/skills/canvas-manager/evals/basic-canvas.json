@@ -1,0 +1,6 @@
+{
+  "id": "basic-canvas",
+  "prompt": "Inspect a Canvas and report its current Elements.",
+  "expected_tools": ["query_canvas_overview"],
+  "forbidden_tools": ["add_canvas_elements", "shell_exec"]
+}

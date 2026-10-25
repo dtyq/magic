@@ -9,12 +9,15 @@ namespace App\Application\MCP\SupperMagicMCP;
 
 use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Application\MCP\Service\MCPServerAppService;
+use App\Application\MCP\Utils\MCPAuthorizationReferenceBuilder;
 use App\Application\MCP\Utils\MCPServerConfigUtil;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
+use App\Domain\MCP\Constant\ServiceConfigAuthType;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use App\Domain\MCP\Entity\ValueObject\Query\MCPServerQuery;
+use App\Domain\MCP\Entity\ValueObject\ServiceConfig\ExternalSSEServiceConfig;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskContext;
 use App\ErrorCode\MCPErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -102,7 +105,7 @@ readonly class ProjectMcpConfigService
     }
 
     /**
-     * 反查 mcp servers 并生成运行时配置（含 token）。
+     * 反查 MCP Server 并生成运行时配置；新授权模式只下发凭据引用。
      */
     private function createMcpServers(MCPDataIsolation $mcpDataIsolation, array $mcpIds): array
     {
@@ -147,6 +150,9 @@ readonly class ProjectMcpConfigService
                 $config = $mcpServerConfig->toArray();
                 $config['description'] = $mcpServer->getDescription();
                 $config['server_options'] = [];
+                if ($this->isMcpAuthorizationServer($mcpServer)) {
+                    $config = MCPAuthorizationReferenceBuilder::build($config, $mcpServer->getCode());
+                }
             } catch (Throwable $throwable) {
                 $this->logger->notice('ProjectMcpConfigBuildNotice', [
                     'mcp_server' => [
@@ -170,5 +176,15 @@ readonly class ProjectMcpConfigService
             $servers[$mcpServer->getName()] = $config;
         }
         return $servers;
+    }
+
+    /**
+     * 判断 MCP Server 是否使用 MCP Authorization 凭据引用模式。
+     */
+    private function isMcpAuthorizationServer(MCPServerEntity $mcpServer): bool
+    {
+        $serviceConfig = $mcpServer->getServiceConfig();
+        return $serviceConfig instanceof ExternalSSEServiceConfig
+            && $serviceConfig->getAuthType() === ServiceConfigAuthType::MCP_AUTHORIZATION;
     }
 }

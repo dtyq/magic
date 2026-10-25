@@ -1,7 +1,7 @@
+import { useRef } from "react"
 import {
 	Crosshair,
 	Expand,
-	Globe2,
 	Monitor,
 	MoreHorizontal,
 	RefreshCw,
@@ -18,32 +18,24 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/shadcn-ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import type { MicroAppEntryPreviewMode } from "./MicroAppEntryPreview"
 
+import MicroAppPreviewTabs from "./MicroAppPreviewTabs"
+import MicroAppOpenPageMenu from "./MicroAppOpenPageMenu"
+import type { MicroAppPreviewBrowser } from "../hooks/useMicroAppPreviewFiles"
+
 interface MicroAppPreviewToolbarProps {
 	viewMode: MicroAppEntryPreviewMode
-	activeFileId?: string
-	htmlFiles: Array<{
-		id: string
-		path: string
-	}>
+	browser: MicroAppPreviewBrowser
 	allowEdit: boolean
 	aiEditActive?: boolean
 	devConsoleActive?: boolean
 	devConsoleAvailable?: boolean
 	isFullscreen?: boolean
 	onViewModeChange: (mode: MicroAppEntryPreviewMode) => void
-	onFileChange: (fileId: string) => void
 	onRefresh: () => void
 	onAIEdit: () => void
 	onDevConsoleToggle: () => void
@@ -52,25 +44,24 @@ interface MicroAppPreviewToolbarProps {
 
 export default function MicroAppPreviewToolbar({
 	viewMode,
-	activeFileId,
-	htmlFiles,
+	browser,
 	allowEdit,
 	aiEditActive = false,
 	devConsoleActive = false,
 	devConsoleAvailable = false,
 	isFullscreen = false,
 	onViewModeChange,
-	onFileChange,
 	onRefresh,
 	onAIEdit,
 	onDevConsoleToggle,
 	onFullscreenToggle,
 }: MicroAppPreviewToolbarProps) {
 	const { t } = useTranslation("super")
+	const openPageButton = useRef<HTMLButtonElement>(null)
 
 	return (
 		<div
-			className="grid h-12 shrink-0 grid-cols-[minmax(max-content,1fr)_minmax(280px,640px)_minmax(max-content,1fr)] items-center gap-3 border-b border-border bg-muted/10 px-4"
+			className="grid h-12 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-muted/10 px-4"
 			data-testid="micro-app-preview-toolbar"
 		>
 			<div className="flex min-w-0 items-center gap-3 justify-self-start">
@@ -112,33 +103,15 @@ export default function MicroAppPreviewToolbar({
 				</div>
 			</div>
 
-			<Select
-				value={activeFileId || ""}
-				onValueChange={onFileChange}
-				disabled={htmlFiles.length === 0}
-			>
-				<SelectTrigger
-					size="sm"
-					className="h-8 w-full min-w-0 justify-between bg-background px-3 shadow-none"
-					aria-label={t("microAppPage.previewToolbar.address")}
-					data-testid="micro-app-preview-address"
-				>
-					<span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-						<Globe2 className="size-4 shrink-0 text-muted-foreground" />
-						<SelectValue
-							className="min-w-0 flex-1 truncate text-left"
-							placeholder={t("microAppPage.previewToolbar.noHtml")}
-						/>
-					</span>
-				</SelectTrigger>
-				<SelectContent align="center" className="max-h-72">
-					{htmlFiles.map((file) => (
-						<SelectItem key={file.id} value={file.id}>
-							{file.path}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+			<div className="flex min-w-0 items-center">
+				<MicroAppPreviewTabs
+					{...browser}
+					onLastTabClose={() => openPageButton.current?.focus()}
+				/>
+				{browser.previewFileOptions.length > 0 && (
+					<MicroAppOpenPageMenu browser={browser} triggerRef={openPageButton} />
+				)}
+			</div>
 
 			<div className="flex items-center gap-2 justify-self-end">
 				<Tooltip>
@@ -177,6 +150,7 @@ export default function MicroAppPreviewToolbar({
 							size="icon"
 							className="size-8 shrink-0"
 							aria-label={t("microAppPage.previewToolbar.refresh")}
+							disabled={!browser.previewTabs.length}
 							onClick={onRefresh}
 							data-testid="micro-app-preview-refresh"
 						>

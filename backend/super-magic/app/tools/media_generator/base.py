@@ -7,7 +7,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional
 
 from agentlang.logger import get_logger
 from agentlang.path_manager import PathManager
@@ -95,6 +95,12 @@ class ImageGenerationResponse:
         return self._best_image_cache
 
 
+# 任务在 magic-service 创建成功后的回调：(task_id, 预期完成时间 ISO 8601, 任务发起时间 ISO 8601)。
+# handler 不持有 tool_context，且是进程内单例（不能挂 per-request 状态），
+# 所以「任务已创建」这个中途进度事件只能由调用方通过回调下发。
+ImageTaskCreatedCallback = Callable[[str, Optional[str], Optional[str]], Awaitable[None]]
+
+
 class BaseImageGeneratorHandler(ABC):
     """图片生成驱动抽象基类"""
 
@@ -147,5 +153,9 @@ class BaseImageGeneratorHandler(ABC):
         """检查当前驱动是否可用（配置是否完整）"""
 
     @abstractmethod
-    async def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
+    async def generate(
+        self,
+        request: ImageGenerationRequest,
+        on_task_created: Optional[ImageTaskCreatedCallback] = None,
+    ) -> ImageGenerationResponse:
         """执行图片生成，返回含本地临时文件路径的响应"""

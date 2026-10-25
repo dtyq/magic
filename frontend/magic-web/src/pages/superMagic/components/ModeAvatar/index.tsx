@@ -1,5 +1,5 @@
 import { IconType } from "../AgentSelector/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import CrewFallbackAvatar from "../CrewFallbackAvatar"
 // import IconComponent from "../IconViewComponent"
 

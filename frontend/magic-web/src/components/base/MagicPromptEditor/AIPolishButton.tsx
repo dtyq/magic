@@ -1,6 +1,6 @@
 import { memo } from "react"
 import { Sparkles, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import MagicTooltip from "@/components/base/MagicTooltip"
 

@@ -1,4 +1,10 @@
-import { defineConfig, mergeConfig, type PluginOption, type UserConfig } from "vite"
+import {
+	defaultClientConditions,
+	defineConfig,
+	mergeConfig,
+	type PluginOption,
+	type UserConfig,
+} from "vite"
 import { createRequire } from "node:module"
 import babel from "@rolldown/plugin-babel"
 import react from "@vitejs/plugin-react"
@@ -6,21 +12,29 @@ import { resolve } from "path"
 import mkcert from "vite-plugin-mkcert"
 import vitePluginImp from "vite-plugin-imp"
 import { visualizer } from "rollup-plugin-visualizer"
-import keepConsole from "vite-plugin-keep-console"
+import vitePluginStripConsole from "./plugins/vite-plugin-strip-console"
+import { withTransformFilter } from "./plugins/with-transform-filter"
 import babelPluginAntdStyle from "babel-plugin-antd-style"
 import { viteExternalsPlugin } from "vite-plugin-externals"
 import createAppServiceWorkerPlugin from "./plugins/vite-plugin-app-service-worker"
+import createChunkImportMapHashPlugin from "./plugins/vite-plugin-chunk-import-map-hash"
 import vitePluginMagicAdminSource from "./packages/magic-admin/vite/plugins/vite-plugin-magic-admin-source"
 import vitePluginTransformBaseImports from "./plugins/vite-plugin-transform-base-imports"
+import { lucideDynamicAggregatePlugin } from "./plugins/vite-plugin-lucide-dynamic-aggregate"
 import vitePluginCriticalFontPreload from "./plugins/vite-plugin-font-preload"
 import vitePluginMagicApi from "./plugins/vite-plugin-magic-api"
+import vitePluginIframeRuntime from "./plugins/vite-plugin-iframe-runtime"
+import { externalGlobalsPlugin } from "./plugins/vite-plugin-external-globals"
 import { getOverlayViteConfig } from "./vite/overlay"
 import { createCodeSplittingGroups } from "./vite/code-splitting-groups"
+import { resolveMicroAppInstallDevProxy } from "./vite/micro-app-install-proxy"
 import Inspect from "vite-plugin-inspect"
 import { codeInspectorPlugin } from "code-inspector-plugin"
+import createHtmlSandboxRuntimePlugin from "./plugins/vite-plugin-html-sandbox-runtime"
 
 /** 环境变量前缀 */
 const ENV_PREFIX = "MAGIC_"
+const requireModule = createRequire(import.meta.url)
 
 function formatLucideComponentImportName(componentName: string): string {
 	return `${componentName
@@ -32,7 +46,8 @@ function formatLucideComponentImportName(componentName: string): string {
 		.toLowerCase()}.js`
 }
 
-function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
+// Factory function for shared base Vite configuration
+export function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env, mode?: string): UserConfig {
 	// Env overlay resolution runs before this factory so every config decision
 	// observes the same winning physical files as import.meta.env and child tasks.
 	const allowedHosts = env.MAGIC_DEV_ALLOWED_HOSTS
@@ -40,7 +55,7 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 				.map((host) => host.trim())
 				.filter(Boolean)
 		: []
-	const isDev = env.NODE_ENV === "development"
+	const isDev = mode === "development" || env.NODE_ENV === "development"
 	const devServerPort = env.PORT ? Number(env.PORT) : undefined
 	const isHttpsDevServer = isDev && devServerPort === 443
 	const isVisualizer = env.VISUALIZER === "true"
@@ -53,6 +68,8 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 			enabled: isEnableDevtools,
 		},
 		build: {
+			// Enable chunk import maps in production to decouple chunk hash updates
+			chunkImportMap: !isDev,
 			outDir: resolve(__dirname, "dist"),
 			// Enterprise uses root `enterprise/`; outDir is repo `dist/` (outside root).
 			emptyOutDir: true,
@@ -80,7 +97,7 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 					},
 					assetFileNames: "assets/[name]-[hash][extname]",
 					codeSplitting: {
-						groups: createCodeSplittingGroups(),
+						groups: createCodeSplittingGroups(__dirname),
 					},
 				},
 			},
@@ -88,7 +105,7 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 		server: {
 			host: "0.0.0.0", // 监听所有地址
 			allowedHosts,
-			proxy: {},
+			proxy: isDev ? resolveMicroAppInstallDevProxy(env) : {},
 		},
 		preview: {
 			host: "0.0.0.0",
@@ -141,6 +158,8 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 		},
 		assetsInclude: ["**/*.md", "**/*.mdx", "**/*.mov", "**/*.webm", "**/*.png"],
 		resolve: {
+			// Workspace packages can expose source without coupling imports to their directory layout.
+			conditions: ["magic-web-source", ...defaultClientConditions],
 			// magic-flow lists react as a dep; force one React for hooks.
 			// This list also keeps the standalone enterprise/ install root safe:
 			// its packages resolve peers from enterprise/node_modules (a different
@@ -162,11 +181,17 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 				"antd-style",
 				"@emotion/react",
 				"@emotion/cache",
+				"lucide-react",
+				"@tabler/icons-react",
 			],
 			alias: [
 				{
 					find: "@",
 					replacement: resolve(__dirname, "src"),
+				},
+				{
+					find: "@magic-admin-v2",
+					replacement: resolve(__dirname, "packages/magic-admin-v2/src"),
 				},
 				{
 					find: "@enterprise",
@@ -180,36 +205,9 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 					find: "@dtyq/x-markdown",
 					replacement: resolve(__dirname, "packages/x-markdown/src/index.ts"),
 				},
-				// packages/logger may have its own node_modules during local development.
-				// Pin ARMS to the app dependency so Vite does not resolve a nested version
-				// whose rrweb subpath imports are blocked by package exports.
-				{
-					find: "@arms/rum-browser",
-					replacement: resolve(__dirname, "node_modules/@arms/rum-browser/lib/index.js"),
-				},
 				{
 					find: "@magic-web/html2image",
 					replacement: resolve(__dirname, "packages/html2image/src/index.ts"),
-				},
-				{
-					find: /^@dtyq\/html-sandbox\/index\.html(\?raw)?$/,
-					replacement: `${resolve(__dirname, "packages/html-sandbox/index.html")}$1`,
-				},
-				{
-					find: "@dtyq/html-sandbox/runtime",
-					replacement: resolve(__dirname, "packages/html-sandbox/src/runtime/index.ts"),
-				},
-				{
-					find: "@dtyq/html-sandbox/telemetry",
-					replacement: resolve(__dirname, "packages/html-sandbox/src/telemetry/index.ts"),
-				},
-				{
-					find: "@dtyq/html-sandbox",
-					replacement: resolve(__dirname, "packages/html-sandbox/src/index.ts"),
-				},
-				{
-					find: /^@dtyq\/html-sandbox\/(.+)$/,
-					replacement: resolve(__dirname, "packages/html-sandbox/src/$1"),
 				},
 				...(isDev
 					? [
@@ -225,8 +223,12 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 			],
 		},
 		plugins: [
+			isDev && createHtmlSandboxRuntimePlugin(env),
+			lucideDynamicAggregatePlugin(),
 			createAppServiceWorkerPlugin(),
+			createChunkImportMapHashPlugin(),
 			vitePluginMagicApi({ projectRoot: __dirname }),
+			vitePluginIframeRuntime({ projectRoot: __dirname }),
 			vitePluginMagicAdminSource({
 				projectRoot: __dirname,
 			}),
@@ -239,11 +241,12 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 					{
 						base: "lucide-react",
 						subDirectory: "dist/esm/icons",
+						query: "lucide-static",
 						componentNameFormatter: formatLucideComponentImportName,
 					},
 				],
 			}),
-			keepConsole(),
+			vitePluginStripConsole(),
 			isEnableInspect &&
 				Inspect({
 					build: true,
@@ -269,21 +272,24 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 				needEnvInspector: true,
 			}),
 			react(),
-			babel({
-				plugins: [
-					babelPluginAntdStyle,
-					// [
-					// 	// 等待magic-flow包升级完才能使用
-					// 	"babel-plugin-import",
-					// 	{
-					// 		libraryName: "@tabler/icons-react",
-					// 		libraryDirectory: "dist/esm/icons",
-					// 		camel2DashComponentName: false,
-					// 	},
-					// 	"tabler",
-					// ],
-				],
-			}),
+			// babel-plugin-antd-style returns an empty visitor when NODE_ENV=production, so in
+			// builds Babel would only re-parse and re-print every module (~15s). Dev-only.
+			isDev &&
+				babel({
+					plugins: [
+						babelPluginAntdStyle,
+						// [
+						// 	// 等待magic-flow包升级完才能使用
+						// 	"babel-plugin-import",
+						// 	{
+						// 		libraryName: "@tabler/icons-react",
+						// 		libraryDirectory: "dist/esm/icons",
+						// 		camel2DashComponentName: false,
+						// 	},
+						// 	"tabler",
+						// ],
+					],
+				}),
 			// VitePWA({
 			// 	// disable: true,
 			// 	strategies: "injectManifest",
@@ -312,12 +318,18 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 			// Critical font preload plugin for LCP optimization
 			!isDev && vitePluginCriticalFontPreload(),
 			!isDev &&
-				viteExternalsPlugin({
-					// 模块名: 全局变量名
-					react: "React",
-					"react-dom": "ReactDOM",
-					"lodash-es": "_",
-				}),
+				// The plugin only rewrites exact `react` / `react-dom` / `lodash-es` specifiers (import or
+				// require), so skip every module that never quotes one of them.
+				withTransformFilter(
+					viteExternalsPlugin({
+						// 模块名: 全局变量名
+						react: "React",
+						"react-dom": "ReactDOM",
+						"lodash-es": "_",
+					}),
+					{ code: /["'`]\s*(?:react|react-dom|lodash-es)\s*["'`]/ },
+				),
+			!isDev && externalGlobalsPlugin(),
 			vitePluginImp({
 				libList: [
 					{
@@ -335,7 +347,6 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 						// http2Proxy({ quiet: true }),
 					]
 				: []),
-			// optional -- suppress error logging],
 		],
 		css: {
 			preprocessorOptions: {
@@ -354,10 +365,9 @@ function getBaseViteConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
 
 export default defineConfig(({ mode }): UserConfig => {
 	const overlayViteConfig = getOverlayViteConfig({ projectRoot: __dirname, mode })
-	const baseViteConfig = getBaseViteConfig(process.env)
+	const baseViteConfig = getBaseViteConfig(process.env, mode)
 
 	if (process.env.DUMP_VITE_CONFIG === "1") {
-		const requireModule = createRequire(import.meta.url)
 		const { writeViteConfigDumps } = requireModule("./scripts/dump-vite-config.cjs")
 		writeViteConfigDumps(
 			__dirname,

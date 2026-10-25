@@ -5,6 +5,10 @@ import {
 	MARKED_RUNTIME_RESOURCE_CACHE_VALUE,
 	RESOURCE_CACHE_MARK_QUERY_PARAM,
 	RESOURCE_CACHE_VERSION_QUERY_PARAM,
+	SW_DIAGNOSTICS_CACHE_MATCH_THRESHOLD_QUERY_PARAM,
+	SW_DIAGNOSTICS_CACHE_START_THRESHOLD_QUERY_PARAM,
+	SW_DIAGNOSTICS_ENABLED_QUERY_PARAM,
+	SW_DIAGNOSTICS_TOTAL_THRESHOLD_QUERY_PARAM,
 	VENDOR_CACHEABLE_HOSTS_QUERY_PARAM,
 	WORKBOX_CDN_QUERY_PARAM,
 } from "./sw-constants"
@@ -17,6 +21,18 @@ const SW_MODE_ENV_KEY = "MAGIC_SW_MODE"
 const SW_MODE_ON = "on"
 const SW_MODE_KILL = "kill"
 const SW_MODE_NONE = "none"
+
+// Keep diagnostics tuning on the main thread so threshold changes do not modify the SW entry.
+const APP_SERVICE_WORKER_DIAGNOSTICS = {
+	// Keep diagnostics disabled by default; enable only in a dedicated investigation build.
+	enabled: false,
+	// Delay from fetch-event observation until Workbox starts its cache lookup.
+	cacheStartThresholdMs: 100,
+	// Duration of Workbox cache lookup and cache-related plugin callbacks.
+	cacheMatchThresholdMs: 100,
+	// Total duration from fetch-event observation until Workbox completes the strategy.
+	totalThresholdMs: 300,
+} as const
 // Wait briefly for controllerchange after posting SKIP_WAITING; then fallback to a plain reload.
 const WAITING_ACTIVATION_TIMEOUT_MS = 1500
 const AUTO_RELOAD_ACTIVATION_SESSION_KEY = "magic-web:sw:auto-reload-activation-at"
@@ -297,7 +313,22 @@ function getAppServiceWorkerUrl(): string {
 		VENDOR_CACHEABLE_HOSTS_QUERY_PARAM,
 		getConfiguredVendorCacheHosts().join(","),
 	)
-
+	swUrl.searchParams.set(
+		SW_DIAGNOSTICS_ENABLED_QUERY_PARAM,
+		APP_SERVICE_WORKER_DIAGNOSTICS.enabled ? "1" : "0",
+	)
+	swUrl.searchParams.set(
+		SW_DIAGNOSTICS_CACHE_START_THRESHOLD_QUERY_PARAM,
+		String(APP_SERVICE_WORKER_DIAGNOSTICS.cacheStartThresholdMs),
+	)
+	swUrl.searchParams.set(
+		SW_DIAGNOSTICS_CACHE_MATCH_THRESHOLD_QUERY_PARAM,
+		String(APP_SERVICE_WORKER_DIAGNOSTICS.cacheMatchThresholdMs),
+	)
+	swUrl.searchParams.set(
+		SW_DIAGNOSTICS_TOTAL_THRESHOLD_QUERY_PARAM,
+		String(APP_SERVICE_WORKER_DIAGNOSTICS.totalThresholdMs),
+	)
 	return `${swUrl.pathname}${swUrl.search}`
 }
 

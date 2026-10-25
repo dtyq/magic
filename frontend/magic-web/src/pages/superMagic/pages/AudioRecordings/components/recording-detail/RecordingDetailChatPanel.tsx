@@ -123,7 +123,7 @@ export default function RecordingDetailChatPanel({
 						/>
 					) : showTopicsBootstrapSkeleton ? (
 						<RecordingDetailChatSkeleton />
-					) : (
+					) : isConversationPanelCollapsed ? null : ( // Collapsed rail renders nothing until the project resolves; AiChat supplies the expand control once mounted.
 						<div className="flex h-full items-center justify-center px-4 text-xs text-muted-foreground">
 							{topicsLoading ? t("loading") : t("messageHeader.noTopics")}
 						</div>
@@ -152,6 +152,7 @@ export default function RecordingDetailChatPanel({
 						topicStore={topicStore}
 						topicActions={topicActions}
 						onClose={onToggleHistory}
+						hideTopicTypeFilter
 					/>
 				</aside>
 			) : null}

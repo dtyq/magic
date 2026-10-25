@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Miro — Visual Whiteboard & Team Collaboration</title>
+  <style>
+    :root {
+      --primary: #1c1c1e;
+      --brand-yellow: #ffd02f;
+      --brand-blue: #4262ff;
+      --brand-coral: #ff5252;
+      --brand-teal: #0fbcb0;
+      --sticky-yellow: #fff4c4;
+      --sticky-yellow-border: #f0de88;
+      --sticky-pink: #ffc6c6;
+      --sticky-pink-border: #f8afaf;
+      --sticky-teal: #c3faf5;
+      --sticky-teal-border: #99f0e7;
+      --sticky-orange: #ffe6cd;
+      --sticky-orange-border: #fed3a9;
+      --canvas: #f8f9fb;
+      --grid-dot: #c7cad5;
+      --ink: #1c1c1e;
+      --ink-deep: #050038;
+      --slate: #555a6a;
+      --hairline: #e0e2e8;
+      --font-display: "Roobert PRO", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-pill: 9999px;
+      --shadow-float: 0 10px 30px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-card: 0 4px 14px rgba(0,0,0,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body); background: #eef1f6; color: var(--ink);
+      line-height: 1.45; -webkit-font-smoothing: antialiased; padding: 16px;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; border: none; background: none; cursor: pointer; }
+
+    /* Miro Board Outer Shell */
+    .board-container {
+      max-width: 1260px; margin: 0 auto; background: #ffffff; border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.14);
+      display: flex; flex-direction: column; min-height: 720px; position: relative;
+    }
+
+    /* Top Board Header Chrome */
+    .board-header {
+      height: 54px; background: #ffffff; border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 18px;
+      position: relative; z-index: 40;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .miro-brand-badge {
+      display: flex; align-items: center; gap: 6px; background: var(--brand-yellow);
+      padding: 5px 10px; border-radius: var(--radius-sm); font-family: var(--font-display);
+      font-weight: 800; font-size: 15px; color: #111; letter-spacing: -0.4px;
+    }
+    .board-meta { display: flex; align-items: baseline; gap: 8px; }
+    .board-title { font-weight: 700; font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+    .cloud-status { font-size: 12px; color: var(--slate); }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .presence-avatars { display: flex; align-items: center; }
+    .u-avatar {
+      width: 30px; height: 30px; border-radius: 50%; border: 2px solid #ffffff;
+      color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center;
+      margin-left: -6px; position: relative;
+    }
+    .u-avatar:first-child { margin-left: 0; }
+    .u-avatar-more {
+      width: 30px; height: 30px; border-radius: 50%; background: #edf0f5;
+      color: var(--slate); font-size: 11px; font-weight: 700; display: grid; place-items: center;
+      border: 2px solid #fff; margin-left: -6px;
+    }
+    .btn-share {
+      background: var(--brand-blue); color: #fff; font-size: 13px; font-weight: 600;
+      padding: 6px 16px; border-radius: var(--radius-pill);
+    }
+    .btn-present {
+      border: 1px solid var(--hairline); color: var(--ink); font-size: 13px; font-weight: 600;
+      padding: 6px 14px; border-radius: var(--radius-pill);
+    }
+
+    /* Infinite Canvas Area with Dot Grid */
+    .canvas-viewport {
+      flex: 1; min-height: 666px; position: relative; overflow: hidden;
+      background-color: var(--canvas);
+      background-image: radial-gradient(var(--grid-dot) 1.3px, transparent 1.3px);
+      background-size: 24px 24px;
+    }
+
+    /* Floating Left Vertical Toolbar */
+    .floating-toolbar {
+      position: absolute; top: 32px; left: 24px; z-index: 30;
+      background: #ffffff; border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      box-shadow: var(--shadow-float); padding: 6px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .tool-btn {
+      width: 38px; height: 38px; border-radius: var(--radius-sm);
+      display: grid; place-items: center; font-size: 17px; color: var(--ink);
+      transition: background 0.12s; position: relative;
+    }
+    .tool-btn:hover { background: #f0f2f7; }
+    .tool-btn.active { background: #eaf0ff; color: var(--brand-blue); font-weight: 700; }
+    .tool-sticky-icon {
+      width: 20px; height: 20px; background: var(--brand-yellow); border-radius: 3px;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.15); border-bottom-right-radius: 8px;
+    }
+
+    /* Multi-user Presence Cursors */
+    .user-cursor {
+      position: absolute; z-index: 25; pointer-events: none;
+      display: flex; flex-direction: column; align-items: flex-start;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.18));
+    }
+    .cursor-pointer-svg { width: 22px; height: 22px; }
+    .cursor-badge {
+      font-size: 11px; font-weight: 700; color: #ffffff; padding: 3px 8px;
+      border-radius: var(--radius-pill); white-space: nowrap; margin-top: -2px; margin-left: 12px;
+    }
+    .cursor-bubble {
+      background: #ffffff; border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      padding: 6px 10px; font-size: 12px; color: var(--ink); box-shadow: var(--shadow-card);
+      margin-top: 4px; margin-left: 14px; max-width: 200px;
+    }
+
+    /* Kanban Cluster Frame */
+    .kanban-frame {
+      position: absolute; top: 40px; left: 100px; z-index: 10;
+      background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px);
+      border: 2px dashed #b8becc; border-radius: 16px; padding: 20px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.06); width: 840px;
+    }
+    .frame-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .frame-title {
+      font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--ink-deep);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .frame-tag {
+      background: #eef2ff; color: var(--brand-blue); font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: var(--radius-pill);
+    }
+
+    .kanban-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .kanban-col {
+      background: rgba(244, 246, 250, 0.85); border-radius: var(--radius-md);
+      padding: 12px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .col-header {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; font-weight: 700; color: var(--slate); text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    /* Colorful Sticky Notes */
+    .sticky-note {
+      padding: 14px; border-radius: 6px; box-shadow: var(--shadow-card);
+      display: flex; flex-direction: column; justify-content: space-between; min-height: 110px;
+      font-size: 13px; font-weight: 500; color: #1c1c1e; line-height: 1.4;
+      position: relative; transition: transform 0.15s;
+    }
+    .sticky-note:hover { transform: translateY(-2px) scale(1.02); }
+    .sticky-yellow { background: var(--sticky-yellow); border: 1px solid var(--sticky-yellow-border); }
+    .sticky-pink { background: var(--sticky-pink); border: 1px solid var(--sticky-pink-border); }
+    .sticky-teal { background: var(--sticky-teal); border: 1px solid var(--sticky-teal-border); }
+    .sticky-orange { background: var(--sticky-orange); border: 1px solid var(--sticky-orange-border); }
+
+    .sticky-footer {
+      display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 11px; color: #555;
+    }
+    .sticky-avatar {
+      width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,0.15);
+      display: grid; place-items: center; font-weight: 700; font-size: 10px;
+    }
+
+    /* SVG Curved Connectors */
+    .svg-canvas-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 15;
+    }
+
+    /* Bottom Floating Canvas Controls */
+    .bottom-controls {
+      position: absolute; bottom: 20px; left: 24px; z-index: 30;
+      background: #ffffff; border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      box-shadow: var(--shadow-float); padding: 4px 10px; display: flex; align-items: center; gap: 10px;
+      font-size: 13px; font-weight: 600;
+    }
+    .zoom-btn { width: 24px; height: 24px; display: grid; place-items: center; font-size: 14px; }
+
+    .minimap-preview {
+      position: absolute; bottom: 20px; right: 24px; z-index: 30;
+      width: 130px; height: 80px; background: #ffffff; border: 1px solid var(--hairline);
+      border-radius: var(--radius-md); box-shadow: var(--shadow-float); padding: 6px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .minimap-box {
+      width: 60%; height: 50%; background: #eaf0ff; border: 1px solid var(--brand-blue); border-radius: 3px;
+    }
+
+    /* Spec Tokens Bar */
+    .miro-tokens-strip {
+      max-width: 1260px; margin: 12px auto 24px; background: #ffffff;
+      border: 1px solid var(--hairline); border-radius: var(--radius-md);
+      padding: 10px 18px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; flex-wrap: wrap; gap: 10px;
+    }
+    .token-item { display: flex; align-items: center; gap: 5px; font-family: var(--font-mono); }
+    .swatch { width: 11px; height: 11px; border-radius: 2px; }
+
+    @media (max-width: 980px) {
+      .kanban-frame { width: calc(100% - 130px); }
+      .kanban-columns { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Miro Interactive Whiteboard Window -->
+  <div class="board-container">
+
+    <!-- Top Navigation Header -->
+    <header class="board-header">
+      <div class="header-left">
+        <div class="miro-brand-badge">
+          <span>miro</span>
+        </div>
+        <div class="board-meta">
+          <div class="board-title">
+            <span>Sprint 42 Architecture &amp; Visual Roadmap</span>
+            <span>▾</span>
+          </div>
+          <span class="cloud-status">· Saved to Cloud</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="presence-avatars">
+          <div class="u-avatar" style="background:#4262ff;">AK</div>
+          <div class="u-avatar" style="background:#ff5252;">ST</div>
+          <div class="u-avatar" style="background:#0fbcb0;">ML</div>
+          <div class="u-avatar-more">+4</div>
+        </div>
+        <button class="btn-share">Share</button>
+        <button class="btn-present">Present</button>
+      </div>
+    </header>
+
+    <!-- Canvas Viewport -->
+    <div class="canvas-viewport">
+
+      <!-- Floating Left Toolbar -->
+      <nav class="floating-toolbar">
+        <button class="tool-btn active" title="Select">↗</button>
+        <button class="tool-btn" title="Sticky Note">
+          <div class="tool-sticky-icon"></div>
+        </button>
+        <button class="tool-btn" title="Text">T</button>
+        <button class="tool-btn" title="Shapes">◇</button>
+        <button class="tool-btn" title="Connector">⤴</button>
+        <button class="tool-btn" title="Pen">✏️</button>
+        <button class="tool-btn" title="Kanban Frame">⊞</button>
+        <button class="tool-btn" title="More tools">＋</button>
+      </nav>
+
+      <!-- Multi-User Live Presence Cursors -->
+      <!-- Cursor 1: Alex (Design) -->
+      <div class="user-cursor" style="top: 140px; left: 320px;">
+        <svg class="cursor-pointer-svg" viewBox="0 0 24 24" fill="#4262ff">
+          <path d="M4 2l16 12-7 2-3 7-6-21z"/>
+        </svg>
+        <span class="cursor-badge" style="background:#4262ff;">Alex (Design)</span>
+      </div>
+
+      <!-- Cursor 2: Sarah (PM) with Comment -->
+      <div class="user-cursor" style="top: 280px; left: 580px;">
+        <svg class="cursor-pointer-svg" viewBox="0 0 24 24" fill="#ff5252">
+          <path d="M4 2l16 12-7 2-3 7-6-21z"/>
+        </svg>
+        <span class="cursor-badge" style="background:#ff5252;">Sarah (PM)</span>
+        <div class="cursor-bubble">
+          💬 Can we ship this in Phase 1?
+        </div>
+      </div>
+
+      <!-- Cursor 3: Marcus (Lead Eng) -->
+      <div class="user-cursor" style="top: 210px; left: 780px;">
+        <svg class="cursor-pointer-svg" viewBox="0 0 24 24" fill="#0fbcb0">
+          <path d="M4 2l16 12-7 2-3 7-6-21z"/>
+        </svg>
+        <span class="cursor-badge" style="background:#0fbcb0;">Marcus (Lead Eng)</span>
+      </div>
+
+      <!-- SVG Curved Connector Lines -->
+      <svg class="svg-canvas-overlay">
+        <!-- Connector from In-Progress to Done -->
+        <path d="M 520 230 C 580 230, 620 210, 680 210" fill="none" stroke="#4262ff" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow)"/>
+        <!-- Connector from To-Do to In-Progress -->
+        <path d="M 270 190 C 330 190, 360 250, 420 250" fill="none" stroke="#ff5252" stroke-width="2" marker-end="url(#arrow)"/>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#4262ff"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <!-- Kanban Card Cluster -->
+      <section class="kanban-frame">
+        <div class="frame-header">
+          <div class="frame-title">
+            <span>Sprint Board — Epic #402: Canvas Collaboration</span>
+          </div>
+          <span class="frame-tag">Q4 CORE MILESTONE</span>
+        </div>
+
+        <div class="kanban-columns">
+
+          <!-- Col 1: To Do -->
+          <div class="kanban-col">
+            <div class="col-header">
+              <span>To Do</span>
+              <span>2</span>
+            </div>
+
+            <article class="sticky-note sticky-yellow">
+              <p>User Auth v2 via WebAuthn passkeys &amp; biometric hardware tokens</p>
+              <div class="sticky-footer">
+                <span>⚡ High Priority</span>
+                <div class="sticky-avatar">AK</div>
+              </div>
+            </article>
+
+            <article class="sticky-note sticky-pink">
+              <p>Migrate Redis cluster to multi-region read replicas</p>
+              <div class="sticky-footer">
+                <span>Infrastructure</span>
+                <div class="sticky-avatar">ML</div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Col 2: In Progress -->
+          <div class="kanban-col">
+            <div class="col-header">
+              <span>In Progress</span>
+              <span>2</span>
+            </div>
+
+            <article class="sticky-note sticky-teal">
+              <p>Infinite canvas viewport culling &amp; WebGL vector lines rendering</p>
+              <div class="sticky-footer">
+                <span>⚡ Active PR #912</span>
+                <div class="sticky-avatar">ST</div>
+              </div>
+            </article>
+
+            <article class="sticky-note sticky-orange">
+              <p>Broadcast multi-user cursor coordinates via low-latency WebSockets</p>
+              <div class="sticky-footer">
+                <span>Realtime Core</span>
+                <div class="sticky-avatar">AK</div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Col 3: Done -->
+          <div class="kanban-col">
+            <div class="col-header">
+              <span>Done</span>
+              <span>1</span>
+            </div>
+
+            <article class="sticky-note sticky-teal">
+              <p>Zero-latency undo/redo delta history tree with operational transforms</p>
+              <div class="sticky-footer">
+                <span>✅ Merged</span>
+                <div class="sticky-avatar">ML</div>
+              </div>
+            </article>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Bottom Floating Controls -->
+      <div class="bottom-controls">
+        <button class="zoom-btn">−</button>
+        <span>100%</span>
+        <button class="zoom-btn">＋</button>
+        <span>|</span>
+        <button style="font-size:12px; color:var(--slate);">Fit to screen</button>
+      </div>
+
+      <!-- Minimap Preview Box -->
+      <div class="minimap-preview">
+        <div style="font-size:10px; font-weight:700; color:var(--slate);">MINIMAP</div>
+        <div class="minimap-box"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Spec Tokens Bar -->
+  <div class="miro-tokens-strip">
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <strong>MIRO DESIGN TOKENS:</strong>
+      <div class="token-item"><span class="swatch" style="background:#ffd02f;"></span><span>#ffd02f yellow</span></div>
+      <div class="token-item"><span class="swatch" style="background:#4262ff;"></span><span>#4262ff blue</span></div>
+      <div class="token-item"><span class="swatch" style="background:#fff4c4; border:1px solid #ddd;"></span><span>#fff4c4 sticky</span></div>
+      <div class="token-item"><span class="swatch" style="background:#c3faf5;"></span><span>#c3faf5 teal</span></div>
+    </div>
+    <div>
+      <span>ROOBERT PRO · 24PX DOT GRID · MULTI-USER CURSORS</span>
+    </div>
+  </div>
+
+</body>
+</html>

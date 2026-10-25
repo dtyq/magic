@@ -8,10 +8,13 @@ declare(strict_types=1);
 namespace App\Domain\SlidesTemplate\Entity;
 
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateCategoryStatus;
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Infrastructure\Core\AbstractEntity;
 
 class SlidesTemplateCategoryEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     protected ?int $id = null;
 
     protected string $organizationCode = '';
@@ -102,6 +105,11 @@ class SlidesTemplateCategoryEntity extends AbstractEntity
     {
         $this->nameI18n = $nameI18n;
         return $this;
+    }
+
+    public function getI18nName(string $language): string
+    {
+        return $this->resolveI18nText($this->nameI18n, $language);
     }
 
     public function getStatus(): SlidesTemplateCategoryStatus

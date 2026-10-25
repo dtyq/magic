@@ -2,6 +2,9 @@
 	"agents": {
 		"aiChat": "AI Chat"
 	},
+	"aiCanvas": {
+		"title": "AI Canvas"
+	},
 	"appsMenu": {
 		"aiApps": "AI Apps",
 		"aiFinance": "AI Finance",
@@ -15,9 +18,16 @@
 	},
 	"chats": {
 		"empty": "No conversations",
+		"myChats": "My chats",
 		"newChat": "New chat",
 		"refresh": "Refresh conversations",
 		"title": "Chats"
+	},
+	"clawRuntime": {
+		"accessRevoked": "You do not have Magic Claw access. Related claws will be stopped. Saved data is retained; you must start your claw manually after access is restored. Earlier usage may appear on your bill later.",
+		"accessUnavailable": "Magic Claw is unavailable",
+		"refreshFailed": "Unable to check your access. Please try again.",
+		"refreshPermission": "Refresh access"
 	},
 	"crewMarket": {
 		"title": "Digital Crew"
@@ -26,9 +36,13 @@
 		"defaultUser": "User",
 		"feedback": "Feedback",
 		"freeAccount": "Free",
+		"globalRecycleBin": "Global recycle bin",
+		"globalRecycleBinHint": "View deleted spaces, projects, topics, files and micro apps you can access",
 		"helpCenter": "Help Center",
+		"helpCenterTooltip": "View the Super Magic user guide",
 		"inbox": "Inbox",
 		"recycleBin": "Recycle Bin",
+		"recycleBinTooltip": "View deleted workspaces, projects, topics, files, and micro apps you have permission to access",
 		"renew": "Renew",
 		"themeAuto": "System",
 		"themeDark": "Dark Mode",
@@ -36,7 +50,125 @@
 		"upgradeNow": "Upgrade"
 	},
 	"home": {
-		"title": "Home"
+		"title": "New task"
+	},
+	"inbox": {
+		"auth": {
+			"accept": "Accept",
+			"acceptedResult": "You accepted this collaboration invite.",
+			"expiredResult": "This invite has expired. No access was granted.",
+			"reject": "Decline",
+			"rejectedResult": "You declined this collaboration invite."
+		},
+		"back": "Back",
+		"close": "Close notifications",
+		"empty": "No messages in this category",
+		"groups": {
+			"earlier": "Earlier",
+			"today": "Today",
+			"yesterday": "Yesterday"
+		},
+		"loading": "Loading",
+		"markAllRead": "Mark all as read",
+		"messages": {
+			"casePoints": {
+				"body": "This case was added to the official case library for its completeness.",
+				"title": "Reward received"
+			},
+			"crewApproved": {
+				"body": "Your digital crew “PPT Expert” was approved.",
+				"title": "Digital crew approved"
+			},
+			"crewInvite": {
+				"body": "Zhao Ming invited you to collaborate on the digital crew “PPT Expert”.",
+				"title": "Digital crew collaboration invite"
+			},
+			"invitePoints": {
+				"body": "Your invited user “Chen Xiao” has finished registration.",
+				"title": "Invite registration reward"
+			},
+			"paymentSuccess": {
+				"body": "You purchased “1,000 credits” for ¥10.00.",
+				"title": "Payment successful"
+			},
+			"projectInvite": {
+				"body": "Huang Renqiu invited you to the project “Invoice requirements”. Accept to start collaborating.",
+				"title": "Project collaboration invite"
+			},
+			"shareFileTeam": {
+				"body": "Huang Renqiu shared the file “Invoice feature requirements.md” with the whole team.",
+				"title": "Team share · File"
+			},
+			"shareFileYou": {
+				"body": "Huang Renqiu shared the file “Invoice prototype.html” with you.",
+				"title": "Team share · File"
+			},
+			"shareProjectMembers": {
+				"body": "Zhang Zhipeng shared the project “Overseas channel analysis” with selected members.",
+				"title": "Team share · Project"
+			},
+			"shareProjectTeam": {
+				"body": "Zhang Zhipeng shared the project “Invoice requirements” with the whole team.",
+				"title": "Team share · Project"
+			},
+			"skillApproved": {
+				"body": "Your skill “Contract review expert” was approved.",
+				"title": "Skill approved"
+			},
+			"skillInvite": {
+				"body": "Li Haiqing invited you to collaborate on the skill “Contract review expert”.",
+				"title": "Skill collaboration invite"
+			},
+			"taskFailed": {
+				"body": "Personal workspace / Acceptance project A failed. Please retry.",
+				"title": "Task failed"
+			},
+			"taskSuccess": {
+				"body": "Personal workspace / Acceptance project A completed successfully.",
+				"title": "Task succeeded"
+			}
+		},
+		"meta": {
+			"accepted": "Accepted",
+			"crew": "Digital crew",
+			"members": "Selected members",
+			"payment": "Payment",
+			"pending": "Pending",
+			"points": "Credit reward",
+			"rejected": "Declined",
+			"skill": "Skill",
+			"task": "Task",
+			"team": "Whole team"
+		},
+		"openResource": "View resource",
+		"permission": {
+			"editor": "Can edit",
+			"manager": "Can manage",
+			"viewer": "View only"
+		},
+		"pointsAmount": "{{amount}} credits",
+		"resource": {
+			"organization": "Organization",
+			"permission": "Permission"
+		},
+		"shareScope": {
+			"all": "all team members",
+			"specific": "selected members"
+		},
+		"tabs": {
+			"all": "All",
+			"auth": "Approvals",
+			"system": "System"
+		},
+		"tabsAria": "Message categories",
+		"templateUnavailable": "Template unavailable",
+		"toast": {
+			"accepted": "Invite accepted.",
+			"expired": "This invite has expired. No access was granted.",
+			"markAllRead": "System notifications marked as read. Approvals still need action.",
+			"rejected": "Invite declined.",
+			"withdrawn": "This message was withdrawn"
+		}
 	},
 	"mobileShell": {
 		"themeToggle": {
@@ -57,6 +189,9 @@
 		"otherAccount": "Other Accounts",
 		"personalVersion": "Personal Edition",
 		"saasPlatform": "SaaS"
+	},
+	"personaResearch": {
+		"title": "AI Research"
 	},
 	"project": {
 		"empty": "No projects",
@@ -83,7 +218,7 @@
 		"nav": {
 			"apps": "Apps",
 			"chats": "Chats",
-			"magiClaw": "MagiClaw",
+			"magiClaw": "{{clawBrand}}",
 			"myCrew": "My Crew",
 			"recording": "Recording",
 			"trash": "Recycle Bin",
@@ -101,7 +236,8 @@
 		"upgrade": "Upgrade"
 	},
 	"skillsLibrary": {
-		"title": "Skills Library"
+		"clawTitle": "Skills",
+		"title": "Crew · Skills · Connectors"
 	},
 	"slidesTemplates": {
 		"compactCount": "{{value}} templates",
@@ -120,6 +256,7 @@
 		"createDialog": {
 			"avatarLabel": "Avatar",
 			"basicInformationLabel": "Basic Information",
+			"heading": "Create {{clawBrand}}",
 			"nameLabel": "Name",
 			"namePlaceholder": "Enter {{clawBrand}}'s name",
 			"removeUploadedAvatar": "Remove uploaded avatar",
@@ -209,6 +346,7 @@
 			}
 		},
 		"getStarted": "Get Started",
+		"heroDescription": "{{clawBrand}} is an AI assistant with a distinct personality and long-term memory.\nNo complex setup—available 24/7.",
 		"heroLead": "{{clawLead}}",
 		"mobile": {
 			"createdByMe": "Created by Me",

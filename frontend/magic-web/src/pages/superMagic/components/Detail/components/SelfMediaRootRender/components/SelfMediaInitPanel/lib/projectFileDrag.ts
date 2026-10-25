@@ -1,5 +1,5 @@
 import projectFilesStore from "@/stores/projectFiles"
-import { getFileContentById } from "@/pages/superMagic/utils/api"
+import { useFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 export const PROJECT_FILE_PICKER_DRAG_MIME = "application/x-magic-self-media-project-file"
 
@@ -22,8 +22,7 @@ interface TopicFileMoveDragPayload {
 }
 
 export type DropPayload =
-	| { kind: "local"; files: File[] }
-	| { kind: "project"; files: SelfMediaProjectFileRef[] }
+	{ kind: "local"; files: File[] } | { kind: "project"; files: SelfMediaProjectFileRef[] }
 
 export function setProjectFilePickerDragData(
 	dataTransfer: DataTransfer,
@@ -102,10 +101,13 @@ export function acceptDropEvent(e: React.DragEvent) {
 	e.stopPropagation()
 }
 
-export async function loadProjectFilesAsFiles(refs: SelfMediaProjectFileRef[]): Promise<File[]> {
+export async function loadProjectFilesAsFiles(
+	refs: SelfMediaProjectFileRef[],
+	fileApi: Pick<FileApi, "getFileContentById">,
+): Promise<File[]> {
 	return Promise.all(
 		refs.map(async ({ fileId, fileName }) => {
-			const blob = (await getFileContentById(fileId, {
+			const blob = (await fileApi.getFileContentById(fileId, {
 				responseType: "blob",
 			})) as Blob
 			return new File([blob], fileName, { type: blob.type || "application/octet-stream" })

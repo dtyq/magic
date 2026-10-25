@@ -19,6 +19,9 @@ function SkillPanelSkeleton({
 }) {
 	const editorPortalTarget = usePortalTarget({
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
+		// The desktop project composer renders its target in the same commit as this fallback;
+		// resolving it before paint fills the editor area at once instead of leaving it empty.
+		resolveBeforePaint: variant === ScenePanelVariant.TopicPage,
 	})
 
 	if (variant === ScenePanelVariant.TopicPage) {

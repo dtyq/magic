@@ -14,8 +14,14 @@ import type {
 	ImageSource,
 	LoadedResource,
 } from "../resources/image/ImageResourceManager"
-import type { LoadedVideoResource } from "../resources/video/VideoResourceManager"
+import type {
+	LoadedVideoResource,
+	VideoPosterSource,
+} from "../resources/video/VideoResourceManager"
 import type { ResourceLoadFailureReason } from "../resources/media-common/resourceLoadFailure"
+import type { ConnectionOrigin } from "../shared/connectionOrigin"
+import type { GenerationElementToolId } from "../element-tools/model/ElementToolTypes"
+import type { CanvasAccessContext } from "../../public/props"
 
 export type ViewportChangeSource =
 	"wheel" | "gesture" | "minimap" | "programmatic" | "resize" | "restore" | "unknown"
@@ -88,11 +94,12 @@ export interface CanvasEventMap {
 		data: LayerElement
 		previousData?: LayerElement
 		nameChange?: CanvasElementNameChange
+		historyPolicy?: "include" | "exclude"
 	}
 	"element:rerendered": { elementId: string; data: LayerElement } // 元素节点重新渲染（不记录历史）
 	"element:deleted": { elementId: string; persistence?: "runtime-only" }
 	"element:change": CanvasElementChangePayload | undefined // 任何元素变化时触发，用于触发UI更新
-	"element:batchupdated": void // 批量更新完成事件
+	"element:batchupdated": { elementIds?: string[] } | undefined // 批量更新完成事件
 	"element:batchdeleted": { elementIds: string[] } // 批量删除完成事件
 	"referenceImages:changed": { elementId: string } // 图片元素参考图增删（触发未引用资源清理）
 	"connection:change": {
@@ -108,9 +115,7 @@ export interface CanvasEventMap {
 	"connection:select": { connectionId: string } // 选中元素业务关联线
 	"connection:deselect": { connectionId: string } // 取消选中元素业务关联线
 	"connection:menu:open": {
-		connectionId?: string
-		originElementId?: string
-		originSide?: "left" | "right"
+		origin: ConnectionOrigin
 		x: number
 		y: number
 		canvasX: number
@@ -118,9 +123,7 @@ export interface CanvasEventMap {
 		source: "handle" | "drag-empty"
 	} // 元素业务关联线菜单打开
 	"connection:menu:close": {
-		connectionId?: string
-		originElementId?: string
-		originSide?: "left" | "right"
+		origin: ConnectionOrigin
 		source: "handle" | "drag-empty"
 	} // 元素业务关联线菜单关闭
 
@@ -135,13 +138,36 @@ export interface CanvasEventMap {
 		clientX?: number
 		clientY?: number
 	}
+	"canvas:dblclick": { x: number; y: number; canvasX: number; canvasY: number }
 	"element:contextmenu": { elementId: string; x: number; y: number }
-	"element:image:infoButtonClick": { elementId: string }
+	/** 画布名称标签或菜单开始重命名，供 React overlay 同步输入框 */
+	"element:rename-start": { elementId: string }
+	/** 提交或取消画布重命名，供 React overlay 关闭输入框 */
+	"element:rename-end": { elementId: string }
+	"element:image:infoButtonClick": { elementId: string; contentId?: string }
 	"element:video:infoButtonClick": { elementId: string }
 	/** 失败态点击重新生成，交给 UI 打开编辑器并恢复草稿 */
 	"element:image:retryClick": { elementId: string }
+	/**
+	 * 元素工具命令的 UI fallback。
+	 *
+	 * Result/编辑器组件可能因为资源加载、版本切换或生成状态暂时未挂载，
+	 * 这时命令总线仍然需要把已捕获的目标交给对应元素的编辑器宿主，不能
+	 * 依赖某个短生命周期的编辑器实例完成注册。
+	 */
+	"element:image:toolCommand": {
+		elementId: string
+		contentId?: string
+		toolId: GenerationElementToolId
+	}
 	/** 失败态点击重新生成，交给 UI 打开编辑器并恢复草稿 */
 	"element:video:retryClick": { elementId: string }
+	/** 见 element:image:toolCommand。 */
+	"element:video:toolCommand": {
+		elementId: string
+		contentId?: string
+		toolId: GenerationElementToolId
+	}
 	/** 宿主图片类提交开始，供 UI 先隐藏编辑器（如去背景） */
 	"element:image:generate-submit-started": { elementId: string }
 	/** 宿主图片类提交失败或前置校验未通过，供 UI 恢复图片编辑器展示 */
@@ -152,7 +178,55 @@ export interface CanvasEventMap {
 	"element:video:generate-submit-failed": { elementId: string }
 	"element:image:fullscreenClick": { elementId: string }
 	"element:video:fullscreenClick": { elementId: string }
+	"element:audio:fullscreenClick": { elementId: string }
+	/** 分镜上游参考图的运行时预览，不改变 Storyboard DSL 或连接。 */
+	"storyboard:reference-image:preview": { path: string; crop?: CropConfig }
+	"element:image:replaceClick": {
+		elementId: string
+		contentId: string | null
+		clientX?: number
+		clientY?: number
+	}
+	"element:image:replaceStateChanged": {
+		elementId: string
+		status: "idle" | "uploading" | "applying" | "error"
+		source?: "local-upload" | "project-file"
+		contentId?: string | null
+		phase?: "uploading" | "applying"
+	}
+	"element:audio:replaceClick": {
+		elementId: string
+		clientX?: number
+		clientY?: number
+	}
+	"element:audio:replaceStateChanged": {
+		elementId: string
+		status: "idle" | "uploading" | "applying" | "error"
+		source?: "local-upload" | "project-file"
+		contentId?: string | null
+		phase?: "uploading" | "applying"
+	}
+	/** 媒体元素统一替换入口；contentId 在点击时捕获，避免异步上传误写其他 Content。 */
+	"element:media:replaceClick": {
+		elementId: string
+		mediaType: "image" | "video" | "audio"
+		contentId: string | null
+		anchorElement?: HTMLElement
+		anchorRect?: { left: number; top: number; width: number; height: number }
+		clientX?: number
+		clientY?: number
+	}
+	"element:media:replaceStateChanged": {
+		elementId: string
+		mediaType: "image" | "video" | "audio"
+		contentId: string | null
+		status: "idle" | "uploading" | "applying" | "error"
+		source: "local-upload" | "project-file"
+		phase?: "uploading" | "applying"
+	}
 	"element:image:resultUpdated": { elementId: string }
+	/** 等待期限到达只刷新展示，不表示后端生成失败。 */
+	"element:image:displayStateChanged": { elementId: string; contentId: string }
 	"element:image:loaded": { elementId: string } // 图片加载完成事件
 	"element:image:ossSrcReady": { elementId: string } // ossSrc 获取成功事件
 	"text:editing-state-change": { active: boolean; elementId: string | null }
@@ -185,12 +259,22 @@ export interface CanvasEventMap {
 		reason: string
 	} // 图片 decoded/native 资源即将释放；元素必须同步断开 Konva.Image 持有的 image 引用
 	"resource:video:refreshed": { path: string; resource: LoadedVideoResource } // 视频资源替换后刷新完成事件
+	/** 视频 poster 即将被原地释放；消费者必须先解除 Konva.Image 对 source 的引用。 */
+	"resource:video:will-release": {
+		path?: string
+		poster: VideoPosterSource
+		reason: string
+	}
 	"resource:video:load-failed": {
 		path: string
 		reason?: ResourceLoadFailureReason
 		/** refresh 失败时可保留旧 poster，仅使调度状态失效并等待后续重试 */
 		preservePreview?: boolean
 	} // 视频换链/刷新失败（如附件已删除）
+	"resource:audio:load-failed": {
+		path: string
+		reason?: ResourceLoadFailureReason
+	} // 音频换链、预加载或刷新失败
 	"resource:remote-load-deferral-released": { path: string; key: string } // 跨画布粘贴远程参考资源迁移完成/结束，允许预览重试
 	"resource:released": { path: string } // 资源生命周期清理事件（供资源 URL 缓存同步）
 
@@ -231,12 +315,18 @@ export interface CanvasEventMap {
 	"canvas:ready": void
 	"canvas:resize": { width: number; height: number }
 	"canvas:clear": void
-	"canvas:readonly": { readonly: boolean } // 只读状态变化事件
+	"permission:changed": CanvasAccessContext
+	"content:previewChanged": { elementId?: string; contentId?: string }
 	"canvas:devicechange": {
 		previous: CanvasDeviceInfo
 		current: CanvasDeviceInfo
 	}
 	"canvas:contextmenu": { x: number; y: number; canvasX: number; canvasY: number } // 画布空白区域右键菜单事件
+	// 菜单只请求打开已有文件选择器；工具栏持有上传流程与创建位置快照。
+	"ui:upload:request": {
+		mediaType: "image" | "video" | "audio"
+		position: { x: number; y: number }
+	}
 	"document:loaded": void // 文档加载完成事件
 	"document:restored": void // 文档恢复事件（撤销/恢复时触发，用于更新 UI 状态）
 
@@ -263,7 +353,7 @@ export interface CanvasEventMap {
 	// 裁剪相关事件
 	"crop:enter": { elementId: string } // 进入裁剪模式
 	"crop:exit": { elementId: string; restored: boolean } // 退出裁剪模式
-	"crop:confirmed": { elementId: string } // 确认保存裁剪
+	"crop:confirmed": { elementId: string; contentId?: string } // 确认保存裁剪
 	"crop:tempCropUpdate": { elementId: string; tempCrop: CropConfig } // 临时crop更新(通知面板)
 	"crop:updateFromPanel": {
 		// 面板更新(来自ImageCropPanel)
@@ -290,18 +380,21 @@ export interface CanvasEventMap {
 
 	// 橡皮擦相关事件
 	"eraser:enter": { elementId: string } // 进入橡皮擦模式
-	"eraser:exit": { elementId: string; restored: boolean } // 退出橡皮擦模式
+	"eraser:exit": { elementId: string; contentId?: string; restored: boolean } // 退出橡皮擦模式
 	"eraser:position": {
 		// 橡皮擦模式下元素位置(供 UI 层定位 ImageEraserPanel)
 		elementId: string
 		boundingRect: { x: number; y: number; width: number; height: number } | null
 	}
 	"eraser:sessionUpdate": {
-		// 橡皮擦会话状态变化（半径、撤销栈等）
+		// 橡皮擦会话状态变化（半径、撤销/重做栈等）
 		elementId: string
+		contentId?: string
 		radius: number
 		strokeCount: number
 		canUndo: boolean
+		canRedo: boolean
+		mode: "erase" | "restore"
 	}
 
 	// 键盘事件
@@ -315,12 +408,15 @@ export interface CanvasEventMap {
 	"keyboard:zoom:fit": void
 	"keyboard:shift:down": void
 	"keyboard:shift:up": void
+	"keyboard:alt:down": void
+	"keyboard:alt:up": void
 	"keyboard:meta:down": void
 	"keyboard:meta:up": void
 	"keyboard:select:all": void
 	"keyboard:undo": void
 	"keyboard:redo": void
 	"keyboard:copy": void
+	"keyboard:duplicate": void
 	"keyboard:copy-png": void
 	"keyboard:paste": ClipboardEvent // 传递 ClipboardEvent 以便访问剪贴板数据
 	"keyboard:frame:create": void
@@ -351,6 +447,9 @@ export interface CanvasEventMap {
 	"upload:pending-change": {
 		pendingUndoCount: number
 	}
+	"upload:resource-pending-change": {
+		paths: string[]
+	}
 
 	// 历史记录事件
 	"history:statechange": {
@@ -379,6 +478,8 @@ type EventListener<T extends CanvasEvent = CanvasEvent> = (event: T) => void
  */
 export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = CanvasEventMap> {
 	private listeners: Map<keyof EventMap, Set<EventListener<CanvasEvent>>> = new Map()
+	/** 订阅集合未变化时复用派发快照，避免高频 viewport 事件逐帧复制全部监听器。 */
+	private listenerSnapshots: Map<keyof EventMap, EventListener<CanvasEvent>[]> = new Map()
 
 	/** 记录已触发过的事件及其数据，用于支持"订阅时如果已触发则立即执行"的功能 */
 	private emittedEvents: Map<keyof EventMap, CanvasEvent> = new Map()
@@ -407,6 +508,7 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 		const listeners = this.listeners.get(eventType)
 		if (listeners) {
 			listeners.add(listener as EventListener<CanvasEvent>)
+			this.listenerSnapshots.delete(eventType)
 		}
 
 		// 如果特定事件已经触发过，立即执行回调
@@ -426,6 +528,7 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 		return () => {
 			if (listeners) {
 				listeners.delete(listener as EventListener<CanvasEvent>)
+				this.listenerSnapshots.delete(eventType)
 				if (listeners.size === 0) {
 					this.listeners.delete(eventType)
 				}
@@ -483,12 +586,14 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 
 		if (listener) {
 			listeners.delete(listener as EventListener<CanvasEvent>)
+			this.listenerSnapshots.delete(eventType)
 			if (listeners.size === 0) {
 				this.listeners.delete(eventType)
 			}
 		} else {
 			// 如果没有指定 listener，则移除该事件的所有监听器
 			this.listeners.delete(eventType)
+			this.listenerSnapshots.delete(eventType)
 		}
 	}
 
@@ -507,8 +612,12 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 		const listeners = this.listeners.get(eventType)
 		if (!listeners || listeners.size === 0) return
 
-		// 复制监听器列表，避免在执行过程中被修改
-		const listenersCopy = Array.from(listeners)
+		// 快照保证派发过程中增删监听器不会改变当前轮；订阅未变化时可跨帧复用。
+		let listenersCopy = this.listenerSnapshots.get(eventType)
+		if (!listenersCopy) {
+			listenersCopy = Array.from(listeners)
+			this.listenerSnapshots.set(eventType, listenersCopy)
+		}
 
 		listenersCopy.forEach((listener) => {
 			try {
@@ -533,6 +642,7 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 	 */
 	public removeAllListeners(): void {
 		this.listeners.clear()
+		this.listenerSnapshots.clear()
 		this.emittedEvents.clear()
 	}
 

@@ -1,3 +1,4 @@
+import { SimpleModeGuide } from "@/pages/superMagic/components/MessageHeader/components/SimpleModeGuide"
 import { Button } from "@/components/shadcn-ui/button"
 import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/StatusIcon"
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
@@ -7,6 +8,7 @@ import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
 
 interface ChatHeaderProps {
+	enableSimpleMode?: boolean
 	selectedTopic: Topic | null
 	openActionsPopup: (topic: Topic) => void
 	onNewTopicClick?: () => void
@@ -17,6 +19,7 @@ interface ChatHeaderProps {
 
 function ChatHeader({
 	selectedTopic,
+	enableSimpleMode = false,
 	openActionsPopup,
 	onNewTopicClick,
 	onHistoryClick,
@@ -26,6 +29,7 @@ function ChatHeader({
 	const { t } = useTranslation("super")
 	// Store last selected topic for back navigation
 	const lastSelectedTopic = useRef<Topic | null>(null)
+	const simpleModeAnchorRef = useRef<HTMLSpanElement>(null)
 
 	useEffect(() => {
 		if (selectedTopic) {
@@ -36,11 +40,20 @@ function ChatHeader({
 	const currentTopic = selectedTopic || lastSelectedTopic.current
 
 	return (
-		<header className="border-b border-border bg-mobile-background" data-testid="topic-chat-header">
+		<header
+			className="border-b border-border bg-mobile-background"
+			data-testid="topic-chat-header"
+		>
 			{/* Navigation Bar */}
-			<div className="flex h-12 items-center justify-between gap-2 p-2.5" data-testid="topic-chat-header-bar">
+			<div
+				className="flex h-12 items-center justify-between gap-2 p-2.5"
+				data-testid="topic-chat-header-bar"
+			>
 				{/* Left: Back Button + Topic Info */}
-				<div className="flex min-w-0 flex-1 items-center gap-1" data-testid="topic-chat-header-info">
+				<div
+					className="flex min-w-0 flex-1 items-center gap-1"
+					data-testid="topic-chat-header-info"
+				>
 					<div className="flex min-w-0 flex-1 items-center gap-1">
 						<StatusIcon
 							status={currentTopic?.task_status}
@@ -109,8 +122,14 @@ function ChatHeader({
 						aria-label="More options"
 						data-testid="topic-chat-more-button"
 					>
-						<MoreHorizontal className="size-4" />
+						<span ref={simpleModeAnchorRef} className="inline-flex size-4">
+							<MoreHorizontal className="size-4" />
+						</span>
 					</Button>
+					<SimpleModeGuide
+						anchorRef={simpleModeAnchorRef}
+						available={enableSimpleMode && Boolean(selectedTopic)}
+					/>
 				</div>
 			</div>
 		</header>

@@ -321,6 +321,7 @@ export class CrewIdentityStore {
 		const {
 			name,
 			description,
+			icon,
 			nameCn,
 			nameEn,
 			role,
@@ -335,6 +336,12 @@ export class CrewIdentityStore {
 			this.identityMarkdownData = {
 				...this.identityMarkdownData,
 				...identityMarkdownData,
+			}
+			if (icon && (!this.icon?.value || !this.icon?.url)) {
+				this.icon = {
+					type: "image",
+					value: icon,
+				}
 			}
 			this.name_i18n = buildNextTextI18n({
 				currentValue: this.name_i18n,

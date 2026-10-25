@@ -1,10 +1,10 @@
 import { useAdminStore } from "@admin/stores/admin"
 import { useMemoizedFn } from "ahooks"
 import useNavigate from "@admin/hooks/useNavigate"
-import { RouteName } from "@admin/const/routes"
+import { getServiceProviderListFallbackRoute } from "@admin/pages/PlatformPackage/utils/serviceProviderRoutes"
 
 export function useDetail(route: string) {
-	const { setExtraBreadcrumb } = useAdminStore()
+	const { isOfficialOrg, setExtraBreadcrumb } = useAdminStore()
 
 	const navigate = useNavigate()
 
@@ -25,7 +25,7 @@ export function useDetail(route: string) {
 		try {
 			navigate({ delta: -1 })
 		} catch (error) {
-			navigate({ name: RouteName.AdminAIModel })
+			navigate({ name: getServiceProviderListFallbackRoute(isOfficialOrg) })
 		} finally {
 			setExtraBreadcrumb(null)
 		}

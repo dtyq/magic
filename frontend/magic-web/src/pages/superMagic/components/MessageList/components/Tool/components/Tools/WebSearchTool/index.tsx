@@ -52,8 +52,9 @@ export default memo(function WebSearchTool({
 					return (
 						<Tooltip title={group.keyword} key={group.keyword}>
 							<div
-								className={`${styles.suffix} ${isSelected ? styles.suffixSelected : styles.suffixDefault
-									}`}
+								className={`${styles.suffix} ${
+									isSelected ? styles.suffixSelected : styles.suffixDefault
+								}`}
 								onClick={(e) => {
 									e.stopPropagation()
 									setSelectedKeyword(group.keyword)
@@ -114,7 +115,12 @@ export default memo(function WebSearchTool({
 				suffix={SuffixComponent}
 				showTitle={false}
 			>
-				<SearchBody keyword={selectedKeyword} groups={groups} />
+				<SearchBody
+					key={selectedKeyword}
+					currentGroup={
+						groups.find((group) => group.keyword === selectedKeyword) || groups[0]
+					}
+				/>
 			</ToolDetailContainer>
 		</ToolContainer>
 	)

@@ -18,6 +18,7 @@ import {
 	type GetStoreAgentsParams,
 	type GetUnifiedAgentListParams,
 	type CreateAgentParams,
+	type AsyncPublishTaskResponse,
 	type PublishAgentParams,
 	type PublishAgentPrefillResponse,
 	type UpdateAgentInfoParams,
@@ -38,7 +39,9 @@ import {
 	type PlaybookItem,
 	type PlaybookConfig,
 	normalizeCrewI18nArrayValue,
+	resolveCrewIconUrl,
 } from "@/apis/modules/crew"
+import { analyticsService } from "@/services/analytics"
 
 // ======================== View Models ========================
 
@@ -76,10 +79,13 @@ export interface StoreAgentView {
 export interface MyCrewView {
 	id: string
 	agentCode: string
+	projectId?: string | null
 	userRole?: CollaboratorPermission
 	name: string
 	role: string
 	description: string
+	/** Canonical source value returned by agent query list endpoints. */
+	source: string
 	icon: string | null
 	playbooks: CrewPlaybookView[]
 	sourceType: CrewSourceType
@@ -110,6 +116,10 @@ export interface AgentAccessCheckView {
 	exists: boolean
 	canUse: boolean
 }
+
+export type AgentAccessResolution =
+	| { status: "ready"; code: string; hired: boolean }
+	| { status: "invalid" | "unavailable"; code: string; hired: false }
 
 export interface AgentDetailView {
 	id: string
@@ -180,6 +190,8 @@ export interface PagedResult<T> {
 // ======================== Service ========================
 
 export class CrewService {
+	private readonly inFlightAccessHires = new Map<string, Promise<void>>()
+
 	// ─── Categories ─────────────────────────────────────────────────────────
 
 	async getStoreCategories(options: GetStoreCategoriesOptions = {}): Promise<CategoryView[]> {
@@ -204,6 +216,39 @@ export class CrewService {
 	/** Hires one market agent for the current user. */
 	hireAgent(code: string) {
 		return CrewApi.hireStoreAgent({ code })
+	}
+
+	/** Resolves a shared-link agent and hires it when the current user has access. */
+	async resolveAgentAccess(
+		rawCode: string,
+		options: { autoHire?: boolean } = {},
+	): Promise<AgentAccessResolution> {
+		const code = rawCode.trim()
+		if (!code) return { status: "invalid", code, hired: false }
+
+		const access = await this.checkAgentAccess(code)
+		if (!access.exists) return { status: "invalid", code: access.code, hired: false }
+		if (access.canUse) return { status: "ready", code: access.code, hired: false }
+		if (!options.autoHire) return { status: "unavailable", code: access.code, hired: false }
+
+		await this.hireAgentOnce(access.code)
+		return { status: "ready", code: access.code, hired: true }
+	}
+
+	/** Shares an in-flight hire promise so StrictMode and remounts cannot duplicate writes. */
+	private hireAgentOnce(code: string): Promise<void> {
+		const pending = this.inFlightAccessHires.get(code)
+		if (pending) return pending
+
+		const request = this.hireAgent(code)
+			.then(() => undefined)
+			.finally(() => {
+				if (this.inFlightAccessHires.get(code) === request) {
+					this.inFlightAccessHires.delete(code)
+				}
+			})
+		this.inFlightAccessHires.set(code, request)
+		return request
 	}
 
 	/**
@@ -289,11 +334,11 @@ export class CrewService {
 		})
 	}
 
-	/**
-	 * Create an agent and resolve its generated code.
-	 * The create API only returns an id, so we fetch the agent list to get the code.
-	 */
 	async createAgent(params: CreateAgentParams): Promise<{ id: string; code: string }> {
+		analyticsService.report("agent_create_attempted")
+		// A Crew creation also requests its backing project and default topic. Their
+		// server-generated ids do not exist yet, so only the attempt itself is reported.
+		analyticsService.report("project_create_attempted", { sceneOverride: "crew" })
 		const data = await CrewApi.createAgent(params)
 		return { id: data.id, code: data.code }
 	}
@@ -333,6 +378,14 @@ export class CrewService {
 
 	publishAgent(code: string, params: PublishAgentParams) {
 		return CrewApi.publishAgent({ code, ...params })
+	}
+
+	publishAgentAsync(code: string, params: PublishAgentParams): Promise<AsyncPublishTaskResponse> {
+		return CrewApi.publishAgentAsync({ code, ...params })
+	}
+
+	checkAgentPublish(code: string, publishTaskId: string): Promise<AsyncPublishTaskResponse> {
+		return CrewApi.checkAgentPublish({ code, publish_task_id: publishTaskId })
 	}
 
 	getAgentPublishPrefill(code: string): Promise<PublishAgentPrefillResponse> {
@@ -407,8 +460,7 @@ export class CrewService {
 	}
 
 	private resolveIconUrl(icon: CrewIconObject | null | undefined): string | null {
-		if (!icon) return null
-		return icon.url ?? icon.value ?? null
+		return resolveCrewIconUrl(icon) || null
 	}
 
 	private mapStoreAgent(item: StoreAgentItem): StoreAgentView {
@@ -420,19 +472,21 @@ export class CrewService {
 			userCode: item.user_code ?? null,
 			isFeatured: Boolean(item.is_featured),
 			latestVersionCode: item.latest_version_code,
-			name: this.mapI18nText(item.name_i18n),
-			role: this.mapI18nArrayText(item.role_i18n),
-			description: this.mapI18nText(item.description_i18n),
+			// Query endpoints have shipped both localized objects and resolved scalars;
+			// prefer the scalar when present while keeping older i18n responses usable.
+			name: item.name ?? this.mapI18nText(item.name_i18n),
+			role: item.role ?? this.mapI18nArrayText(item.role_i18n),
+			description: item.description ?? this.mapI18nText(item.description_i18n),
 			icon: iconUrl,
 			playbooks: featureRows.map((f) => ({
-				name: this.mapI18nText(f.name_i18n),
+				name: f.name ?? this.mapI18nText(f.name_i18n),
 				icon: f.icon,
 				themeColor: f.theme_color,
 			})),
 			publisherType: item.publisher_type,
 			publisherName: item.publisher?.name?.trim() || null,
 			marketType: item.market_type,
-			categoryId: item.category_id,
+			categoryId: item.category_ids?.[0] ?? item.category_id ?? null,
 			isAdded: item.is_added,
 			allowDelete: item.allow_delete,
 			updatedAt: item.updated_at,
@@ -466,13 +520,16 @@ export class CrewService {
 		return {
 			id: String(item.id),
 			agentCode: item.code,
+			projectId: item.project_id,
 			userRole: item.user_role,
-			name: this.mapI18nText(item.name_i18n),
-			role: this.mapI18nArrayText(item.role_i18n),
-			description: this.mapI18nText(item.description_i18n),
+			// Keep list rendering compatible with both scalar and localized API payloads.
+			name: item.name ?? this.mapI18nText(item.name_i18n),
+			role: item.role ?? this.mapI18nArrayText(item.role_i18n),
+			description: item.description ?? this.mapI18nText(item.description_i18n),
+			source: item.source,
 			icon: iconUrl,
 			playbooks: item?.playbooks?.map((f) => ({
-				name: this.mapI18nText(f.name_i18n),
+				name: f.name ?? this.mapI18nText(f.name_i18n),
 				icon: f.icon,
 				themeColor: f.theme_color,
 			})),

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dokturek Clinical UI Kit &amp; Medical Copy Guidelines</title>
+  <style>
+    :root {
+      --brand-violet-dark: #330869;
+      --brand-violet: #6d28d9;
+      --brand-violet-glow: #7a13f9;
+      --brand-violet-light: #f2e7fe;
+      --brand-violet-soft: #f4eefb;
+      --clinical-blue: #0284c7;
+      --clinical-navy: #0f172a;
+      --clinical-teal: #0f766e;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-400: #94a3b8;
+      --slate-600: #475569;
+      --slate-800: #1e293b;
+      --triage-urgent: #ca8a04;
+      --triage-urgent-bg: #fefce8;
+      --triage-danger: #dc2626;
+      --triage-danger-bg: #fef2f2;
+      --triage-routine: #16a34a;
+      --triage-routine-bg: #f0fdf4;
+      --r-sm: 6px;
+      --r-md: 16px;
+      --r-lg: 24px;
+      --r-full: 9999px;
+      --shadow-clinical: 0 4px 20px -2px rgba(109, 40, 217, 0.08);
+      --font-geist: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(135deg, #f8fafc 0%, #f4eefb 100%);
+      color: var(--slate-800);
+      font-family: var(--font-geist);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    /* Clinical Navigation Header */
+    .clinical-header {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--slate-200);
+      padding: 14px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cross-icon {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, var(--brand-violet-dark) 0%, var(--brand-violet) 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(109, 40, 217, 0.25);
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--clinical-navy);
+      letter-spacing: -0.02em;
+    }
+    .brand-title span { color: var(--brand-violet); }
+    .status-chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--brand-violet-light);
+      color: var(--brand-violet-dark);
+      padding: 3px 8px;
+      border-radius: var(--r-full);
+      font-weight: 600;
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .btn-portal {
+      background: var(--brand-violet);
+      color: #ffffff;
+      padding: 8px 18px;
+      border-radius: var(--r-full);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 14px rgba(109, 40, 217, 0.25);
+    }
+    /* Hero Preview: First 500px High-Impact Clinical Dashboard */
+    .hero-clinical {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 32px 36px;
+    }
+    .hero-top-eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      color: var(--brand-violet);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .hero-top-eyebrow::before {
+      content: "";
+      width: 18px;
+      height: 2px;
+      background: var(--brand-violet);
+    }
+    .hero-layout-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+    /* Doctor Badge & Credential Card */
+    .doctor-card {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--r-md);
+      padding: 24px;
+      box-shadow: var(--shadow-clinical);
+      position: relative;
+    }
+    .doctor-badge-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .avatar-dr {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--r-full);
+      background: linear-gradient(135deg, #ede9fe 0%, #c4b5fd 100%);
+      border: 2px solid var(--brand-violet);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      color: var(--brand-violet-dark);
+      flex-shrink: 0;
+    }
+    .dr-meta h2 {
+      font-size: 18.5px;
+      font-weight: 700;
+      color: var(--clinical-navy);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .verified-check {
+      color: var(--clinical-blue);
+      display: inline-flex;
+    }
+    .dr-specialty {
+      font-size: 13.5px;
+      color: var(--slate-600);
+      font-weight: 500;
+    }
+    .dr-license-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--slate-400);
+    }
+    .dr-stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 18px;
+    }
+    .dr-stat-box {
+      text-align: center;
+    }
+    .dr-stat-val {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--clinical-navy);
+    }
+    .dr-stat-label {
+      font-size: 10.5px;
+      color: var(--slate-600);
+    }
+    .clinical-guideline-quote {
+      border-left: 3px solid var(--brand-violet);
+      padding-left: 12px;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--slate-600);
+      font-style: italic;
+    }
+    /* Clinical Triage Card (Emergency / Urgent / Routine) */
+    .triage-card {
+      background: #ffffff;
+      border: 2px solid #fed7aa;
+      border-radius: var(--r-md);
+      padding: 24px;
+      box-shadow: var(--shadow-clinical);
+      position: relative;
+    }
+    .triage-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--slate-200);
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .badge-urgent {
+      background: var(--triage-urgent-bg);
+      color: var(--triage-urgent);
+      border: 1px solid #fde047;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: var(--r-full);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .vitals-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .vital-item {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .vital-title { font-size: 10px; color: var(--slate-400); font-family: var(--font-mono); text-transform: uppercase; }
+    .vital-value { font-size: 14px; font-weight: 700; color: var(--clinical-navy); margin-top: 2px; }
+    .symptom-box {
+      background: #fffbeb;
+      border: 1px solid #fef3c7;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #92400e;
+      margin-bottom: 16px;
+      line-height: 1.45;
+    }
+    .btn-triage-action {
+      width: 100%;
+      background: var(--brand-violet-dark);
+      color: #ffffff;
+      border: none;
+      padding: 12px;
+      border-radius: var(--r-full);
+      font-weight: 700;
+      font-size: 13.5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(51, 8, 105, 0.25);
+    }
+    /* Prescription Guidelines Callout (Rx Guard) */
+    .prescription-section {
+      max-width: 1240px;
+      margin: 0 auto 36px;
+      padding: 0 36px;
+    }
+    .prescription-card {
+      background: #ffffff;
+      border: 1.5px solid var(--slate-200);
+      border-radius: var(--r-md);
+      padding: 24px;
+      box-shadow: var(--shadow-clinical);
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 28px;
+    }
+    .rx-header-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .rx-stamp {
+      width: 36px;
+      height: 36px;
+      background: #ede9fe;
+      color: var(--brand-violet);
+      font-family: serif;
+      font-size: 20px;
+      font-weight: 900;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #ddd6fe;
+    }
+    .drug-row {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+    }
+    .drug-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--clinical-navy);
+      display: flex;
+      justify-content: space-between;
+    }
+    .drug-instructions {
+      font-size: 12px;
+      color: var(--slate-600);
+      margin-top: 4px;
+    }
+    .interaction-check-box {
+      background: var(--triage-routine-bg);
+      border: 1px solid #bbf7d0;
+      color: var(--triage-routine);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .signature-card {
+      background: var(--brand-violet-soft);
+      border: 1px dashed var(--brand-violet);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hash-val {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--slate-600);
+      word-break: break-all;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 6px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    /* Footer */
+    .clinical-footer {
+      background: #ffffff;
+      border-top: 1px solid var(--slate-200);
+      padding: 20px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--slate-600);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Clinical Navigation Header -->
+  <header class="clinical-header">
+    <div class="brand-group">
+      <div class="cross-icon">+</div>
+      <div class="brand-title">Dokturek <span>Clinical</span></div>
+      <span class="status-chip">TRIAGE OS v3.2</span>
+    </div>
+    <div class="nav-actions">
+      <span style="color:var(--slate-600);">Telemedycyna &amp; SOR Triage</span>
+      <a href="#triage" class="btn-portal">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>Gabinet Lekarski</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Preview: Dense First 500px Clinical Layout -->
+  <section class="hero-clinical">
+    <div class="hero-top-eyebrow">Protokół Triagowania Pacjentów · Kwalifikacja Medyczna</div>
+    <div class="hero-layout-grid">
+
+      <!-- Doctor Badge & Verification -->
+      <div class="doctor-card">
+        <div class="doctor-badge-top">
+          <div class="avatar-dr">JK</div>
+          <div class="dr-meta">
+            <h2>
+              <span>dr hab. n. med. Janusz Kowalski</span>
+              <span class="verified-check">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#0284c7"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+              </span>
+            </h2>
+            <div class="dr-specialty">Kardiolog · Koordynator Medycyny Ratunkowej</div>
+            <div class="dr-license-row">
+              <span>PWZ: 7890421</span>
+              <span>•</span>
+              <span>CSK MSWiA Warszawa</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dr-stats-row">
+          <div class="dr-stat-box">
+            <div class="dr-stat-val">4.98 ★</div>
+            <div class="dr-stat-label">Opinie Pacjentów</div>
+          </div>
+          <div class="dr-stat-box">
+            <div class="dr-stat-val">15+ lat</div>
+            <div class="dr-stat-label">Staż Kliniczny</div>
+          </div>
+          <div class="dr-stat-box">
+            <div class="dr-stat-val">&lt; 4 min</div>
+            <div class="dr-stat-label">Czas Reakcji Triage</div>
+          </div>
+        </div>
+
+        <div class="clinical-guideline-quote">
+          „Precyzyjny dobór słów w wywiadzie medycznym zmniejsza błąd diagnostyczny o 34% i buduje zaufanie w stanach zagrożenia życia.”
+        </div>
+      </div>
+
+      <!-- Clinical Appointment Triage Card -->
+      <div class="triage-card" id="triage">
+        <div class="triage-header">
+          <div>
+            <div style="font-size:11px;font-family:var(--font-mono);color:var(--slate-400);">KARTA TRIAGE #PL-9402</div>
+            <div style="font-weight:700;font-size:15px;color:var(--clinical-navy);">Pacjent: Anna Nowak (34 l.)</div>
+          </div>
+          <div class="badge-urgent">
+            <span>●</span>
+            <span>PILNY (URGENT)</span>
+          </div>
+        </div>
+
+        <div class="vitals-grid">
+          <div class="vital-item">
+            <div class="vital-title">Ciśnienie RR</div>
+            <div class="vital-value">142/92 mmHg</div>
+          </div>
+          <div class="vital-item">
+            <div class="vital-title">Tętno HR</div>
+            <div class="vital-value">88 bpm</div>
+          </div>
+          <div class="vital-item">
+            <div class="vital-title">Saturacja SpO2</div>
+            <div class="vital-value" style="color:var(--triage-routine);">98%</div>
+          </div>
+        </div>
+
+        <div class="symptom-box">
+          <strong>Objawy zgłoszone:</strong> Ból w klatce piersiowej o charakterze uciskowym, trwający od 45 min, nasilający się przy wysiłku. Brak duszności spoczynkowej.
+        </div>
+
+        <button class="btn-triage-action">
+          <span>Rozpocznij Tele-Konsultację CITO</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Prescription Guidelines Callout (Dokturek Rx Guard) -->
+  <section class="prescription-section">
+    <div class="prescription-card">
+      <div>
+        <div class="rx-header-row">
+          <div class="rx-stamp">Rx</div>
+          <div>
+            <h3 style="font-size:16px;font-weight:700;color:var(--clinical-navy);">Zalecenia Farmakoterapii i E-Recepta</h3>
+            <p style="font-size:12px;color:var(--slate-600);">Weryfikacja interakcji lekowych i dawkowania wg Rejestru MZ</p>
+          </div>
+        </div>
+
+        <div class="drug-row">
+          <div class="drug-name">
+            <span>Amotaks Dis (Amoxicillinum) 1g</span>
+            <span style="color:var(--brand-violet);font-family:var(--font-mono);font-size:12px;">ODPŁ. 30%</span>
+          </div>
+          <div class="drug-instructions">Dawkowanie: 1 tabl. co 12 godzin doustnie po posiłku przez 7 dni.</div>
+        </div>
+
+        <div class="interaction-check-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Automatyczny audyt: Brak negatywnych interakcji z lekami stałymi pacjenta.</span>
+        </div>
+      </div>
+
+      <div class="signature-card">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--brand-violet-dark);">Podpis Kwalifikowany E-ZLA / E-Recepta</div>
+          <p style="font-size:11.5px;color:var(--slate-600);margin-top:4px;">Certyfikat ZUS zgodny z rozporządzeniem eIDAS.</p>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--slate-400);font-family:var(--font-mono);">HASH SYGNATURY:</div>
+          <div class="hash-val">SHA-256: 9f8a3c21b5e7d4410a89c20f184b2e88a032d1</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Clinical Footer -->
+  <footer class="clinical-footer">
+    <div><strong>Dokturek UI Kit &amp; Clinical Medical Copy</strong> · System informacji medycznej zgodny z HL7 FHIR.</div>
+    <div style="font-family:var(--font-mono);font-size:11px;">STANDARD DOKUMENTACJI KLINICZNEJ 2026</div>
+  </footer>
+
+</body>
+</html>

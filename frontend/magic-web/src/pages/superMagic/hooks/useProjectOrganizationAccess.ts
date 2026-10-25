@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useMemoizedFn } from "ahooks"
-import { awaitAppInitPromise } from "@/apis/clients/await-app-init"
+import { awaitAppInitPromise } from "@/app/services/httpService/interceptors/request/waitForAppInit"
 import { ContactApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useSwitchOrganization } from "@/hooks/account/useSwitchOrganization"

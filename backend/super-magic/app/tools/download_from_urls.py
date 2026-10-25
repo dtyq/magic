@@ -14,6 +14,8 @@ from agentlang.event.data import PendingToolCallEventData
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+from app.core.entity.message.server_message import OperationResultStatus
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
@@ -262,6 +264,7 @@ class DownloadFromUrls(BaseTool[DownloadFromUrlsParams]):
                     progress_state,
                     current_file=resolved_path.name,
                     current_progress=item,
+                    current_file_index=task_index,
                     status=progress.phase.value,
                 )
 
@@ -290,6 +293,7 @@ class DownloadFromUrls(BaseTool[DownloadFromUrlsParams]):
                 progress_state,
                 current_file=resolved_path.name,
                 current_progress=item_progress,
+                current_file_index=task_index,
                 status=progress_event_status,
                 force=True,
             )
@@ -331,6 +335,7 @@ class DownloadFromUrls(BaseTool[DownloadFromUrlsParams]):
         current_progress: BatchItemProgress | None,
         status: str,
         force: bool = False,
+        current_file_index: int | None = None,
     ) -> None:
         agent_context = tool_context.get_extension("agent_context")
         if agent_context is None:
@@ -385,6 +390,8 @@ class DownloadFromUrls(BaseTool[DownloadFromUrlsParams]):
                     },
                     "status": status,
                 }
+                if current_file_index is not None:
+                    arguments["detail"]["data"]["current_file_index"] = current_file_index
                 event_data = PendingToolCallEventData(
                     tool_context=tool_context,
                     tool_name="download_from_urls",
@@ -527,13 +534,22 @@ class DownloadFromUrls(BaseTool[DownloadFromUrlsParams]):
                 error = self._truncate(str(item.get("error") or "Download failed"), 200)
                 lines.append(f"- failed: `{file_path}` — {error}")
 
-        return ToolDetail(
+        report = ToolDetail(
             type=DisplayType.MD,
             data=FileContent(
                 file_name=f"Batch download ({success} completed, {failed} failed)",
                 content="\n".join(lines),
             ),
         )
+
+        items = [ToolDetailFactory.create_file_result_item(
+            str(item["file_path"]), DownloadFromUrl().base_dir,
+            OperationResultStatus.SUCCESS if item.get("status") == "completed" else
+            OperationResultStatus.SKIPPED if item.get("status") == "skipped" else OperationResultStatus.ERROR,
+            message=self._format_size(int(item.get("file_size_bytes") or 0)) if item.get("status") in {"completed", "skipped"}
+            else i18n.translate("tool_card.download_failed", category="tool.messages"),
+        ) for item in detailed_results]
+        return ToolDetailFactory.create_operation_result_detail(items, report=report, stage="download")
 
     async def get_after_tool_call_friendly_action_and_remark(
         self,

@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
+import i18next from "i18next"
 import { getAccountSettingMenuItems } from "../config"
 import { AccountSettingPage } from "../types"
 
 describe("account setting config", () => {
+	beforeAll(async () => {
+		await i18next.init({ lng: "en_US", resources: {} })
+	})
+
 	it("includes data export page in the settings group", () => {
 		const items = getAccountSettingMenuItems((key) => key)
 		const dataExportItem = items.find((item) => item.key === AccountSettingPage.DATA_EXPORT)

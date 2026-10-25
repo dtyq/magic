@@ -21,6 +21,18 @@ class QueryMagicClawListRequestDTO extends AbstractRequestDTO
      */
     public int $pageSize = 10;
 
+    public string $keyword = '';
+
+    public function setKeyword(?string $keyword): void
+    {
+        $this->keyword = $keyword ?? '';
+    }
+
+    public function getKeyword(): string
+    {
+        return trim($this->keyword);
+    }
+
     public function getPage(): int
     {
         return max(1, $this->page);
@@ -36,6 +48,7 @@ class QueryMagicClawListRequestDTO extends AbstractRequestDTO
         return [
             'page' => 'nullable|integer|min:1',
             'page_size' => 'nullable|integer|min:1|max:100',
+            'keyword' => 'nullable|string',
         ];
     }
 

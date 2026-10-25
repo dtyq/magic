@@ -141,6 +141,75 @@ class ModelAccessRoleResolveAccessContextTest extends TestCase
         $this->assertSame(['model-a', 'model-b'], $context->getAccessibleModelIds());
     }
 
+    public function testResolveAccessContextSkipsModelAccessControlForOfficialOrganization(): void
+    {
+        $subscriptionManager = $this->createMock(SubscriptionManagerInterface::class);
+        $subscriptionManager->method('isEnabled')->willReturn(false);
+        $this->setApplicationContainer($subscriptionManager, 'OFFICIAL_ORG');
+
+        $repository = $this->createMock(ModelAccessRoleRepository::class);
+        $settingsRepository = $this->createMock(AdminGlobalSettingsRepositoryInterface::class);
+        $departmentUserDomainService = new readonly class extends MagicDepartmentUserDomainService {
+            public function __construct()
+            {
+            }
+
+            public function getDepartmentIdsByUserId(
+                DataIsolation $dataIsolation,
+                string $userId,
+                bool $withAllParentIds = false
+            ): array {
+                throw new RuntimeException('official organization should skip model access role lookup');
+            }
+        };
+        $providerModelDomainService = new readonly class extends ProviderModelDomainService {
+            public function __construct()
+            {
+            }
+
+            public function queries(
+                ProviderDataIsolation $dataIsolation,
+                ProviderModelQuery $query,
+                Page $page
+            ): array {
+                throw new RuntimeException('official organization should skip enabled model lookup');
+            }
+
+            public function getEnableModels(
+                ProviderDataIsolation $dataIsolation,
+                ?Category $category = null,
+                array $modelTypes = []
+            ): array {
+                throw new RuntimeException('official organization should skip enabled model lookup');
+            }
+        };
+
+        $settingsRepository->expects($this->never())
+            ->method('getSettingsByTypeAndOrganization');
+        $repository->expects($this->never())
+            ->method('getUserAssignedRoles');
+
+        $service = new ModelAccessRoleDomainService(
+            $repository,
+            $settingsRepository,
+            $this->createMock(MagicDepartmentDomainService::class),
+            $departmentUserDomainService,
+            $this->createMock(MagicUserDomainService::class),
+            $providerModelDomainService,
+            new ModelAccessContextRequestCacheService(),
+        );
+        $dataIsolation = PermissionDataIsolation::create('OFFICIAL_ORG', 'operator');
+
+        $this->assertTrue($dataIsolation->isOfficialOrganization());
+
+        $context = $service->resolveAccessContext($dataIsolation, 'user-1');
+
+        $this->assertSame(PermissionControlStatus::DISABLED, $context->getPermissionControlStatus());
+        $this->assertFalse($context->isRestricted());
+        $this->assertSame([], $context->getDeniedModelIds());
+        $this->assertSame([], $context->getAccessibleModelIds());
+    }
+
     public function testResolveAccessContextUsesRequestScopeCacheWithinSameRequest(): void
     {
         $subscriptionManager = $this->createMock(SubscriptionManagerInterface::class);
@@ -349,12 +418,14 @@ class ModelAccessRoleResolveAccessContextTest extends TestCase
         $this->assertSame(['model-a'], $secondContext->getAccessibleModelIds());
     }
 
-    private function setApplicationContainer(SubscriptionManagerInterface $subscriptionManager): void
-    {
+    private function setApplicationContainer(
+        SubscriptionManagerInterface $subscriptionManager,
+        ?string $officeOrganization = null
+    ): void {
         $config = $this->createMock(ConfigInterface::class);
         $config->method('get')->willReturnCallback(static fn (string $key, mixed $default = null): mixed => match ($key) {
             'app_env' => 'testing',
-            'service_provider.office_organization' => null,
+            'service_provider.office_organization' => $officeOrganization,
             default => $default,
         });
 

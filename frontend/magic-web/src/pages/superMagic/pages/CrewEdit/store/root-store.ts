@@ -62,7 +62,7 @@ export class CrewEditRootStore {
 		this.knowledge = new CrewKnowledgeStore({
 			getCrewCode: () => this.crewCode,
 		})
-		this.projectFilesStore = new ProjectFilesStore()
+		this.projectFilesStore = new ProjectFilesStore("crew")
 		this.mentionPanelStore = createMentionPanelStore(this.projectFilesStore)
 
 		makeAutoObservable(

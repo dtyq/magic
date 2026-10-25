@@ -24,6 +24,7 @@ class PublicQuerySlidesTemplateCategoryRequest extends FormRequest
             'page' => 'nullable|integer|min:1',
             'page_size' => 'nullable|integer|min:1|max:200',
             'keyword' => 'nullable|string|max:100',
+            'token' => 'nullable|string',
         ];
     }
 
@@ -42,6 +43,11 @@ class PublicQuerySlidesTemplateCategoryRequest extends FormRequest
     public function getPage(): int
     {
         return (int) $this->input('page', 1);
+    }
+
+    public function getToken(): string
+    {
+        return trim((string) $this->input('token', ''));
     }
 
     public function getPageSize(): int

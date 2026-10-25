@@ -57,6 +57,31 @@ describe("resolveSingleDocumentStaticDependencies", () => {
 		).resolves.toMatchObject({ fileType: null, dependencyFileIds: [] })
 		expect(getFileContentById).not.toHaveBeenCalled()
 	})
+
+	it("uses the scoped reader and cancels analysis after its pending read", async () => {
+		const controller = new AbortController()
+		let finishRead!: (content: string) => void
+		const scopedRead = vi.fn(
+			() =>
+				new Promise<string>((resolve) => {
+					finishRead = resolve
+				}),
+		)
+		const pending = resolveSingleDocumentStaticDependencies({
+			fileIds: ["readme-md"],
+			attachments: [{ file_id: "readme-md", file_name: "README.md", file_extension: "md" }],
+			fileApi: { getFileContentById: scopedRead },
+			signal: controller.signal,
+		})
+		expect(scopedRead).toHaveBeenCalledWith("readme-md", {
+			responseType: "text",
+			signal: controller.signal,
+		})
+		expect(getFileContentById).not.toHaveBeenCalled()
+		controller.abort()
+		finishRead("# README")
+		await expect(pending).rejects.toMatchObject({ name: "AbortError" })
+	})
 })
 
 describe("mergeStaticDependencyFileIds", () => {

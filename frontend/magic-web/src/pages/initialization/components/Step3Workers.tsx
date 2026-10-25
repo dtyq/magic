@@ -13,7 +13,7 @@ import {
 	FormMessage,
 } from "@/components/shadcn-ui/form"
 import type { StepComponentProps, Step3FormData } from "../types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const formSchema = z.object({
 	select_official_agents_codes: z.array(z.string()).min(1, "请至少选择一个数字员工"),

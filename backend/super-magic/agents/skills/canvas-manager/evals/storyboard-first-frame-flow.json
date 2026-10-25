@@ -1,0 +1,7 @@
+{
+  "id": "storyboard-first-frame-flow",
+  "prompt": "Create a confirmed storyboard, generate one shot reference image per shot, connect direct dependencies, and preserve successful shots when one generation fails.",
+  "expected_reference": "references/professional-video-production.md",
+  "expected_tools": ["add_canvas_elements", "add_canvas_contents", "manage_canvas_connections", "wait_canvas_generation"],
+  "constraints": ["Storyboard, Content, layout, and Connections remain independent dimensions.", "Do not retry a failed Content without explicit user approval.", "Do not regenerate successful shot outputs."]
+}

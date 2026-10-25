@@ -7,6 +7,10 @@ import { baseHistory, history } from "@/routes/history"
 import { RouteName } from "@/routes/constants"
 import { RoutePathMobile } from "@/constants/routes"
 import { improveInformationPageCallbackStore } from "@/stores/improve-information/store"
+import {
+	holdHomeOnboardingPrelude,
+	releaseHomeOnboardingPrelude,
+} from "@/pages/superMagic/components/LazyGuideTour/onboardingPrelude"
 
 const ImproveInformationModal = lazy(() => import("./component"))
 
@@ -81,6 +85,15 @@ export function showImproveInformationModal(
 		// PC 端：弹窗展示
 		if (modalContainer && modalRoot) return
 
+		/*
+		 * This dialog is the first thing a brand-new account is shown, and the new-user onboarding's
+		 * own introduction is not allowed to land on top of it — so the feature that opens that
+		 * introduction holds off for as long as this is on screen. Taken here, in the carrier the
+		 * dialog is created and destroyed through, rather than at the call site: whoever shows this
+		 * dialog gets the ordering with it, and there is one place to keep the two in step.
+		 */
+		holdHomeOnboardingPrelude("user-profile-dialog")
+
 		modalContainer = document.createElement("div")
 		modalContainer.id = ImproveInformationModalContainerId
 		modalContainer.style.position = "relative"
@@ -133,6 +146,14 @@ export function showImproveInformationModal(
  * 关闭并清理弹窗
  */
 function closeModal() {
+	/*
+	 * Every teardown of the dialog goes through here — submitted, force-closed, or replaced while the
+	 * platform flips — so this is where the hold taken when it opened is given back. The onboarding
+	 * behind it opens on the next render, and holding a dialog that is no longer on screen would keep
+	 * it off for good.
+	 */
+	releaseHomeOnboardingPrelude("user-profile-dialog")
+
 	if (modalRoot) {
 		modalRoot.unmount()
 		modalRoot = null

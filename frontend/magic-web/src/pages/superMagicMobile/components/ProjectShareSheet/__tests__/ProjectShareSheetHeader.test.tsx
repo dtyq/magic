@@ -44,6 +44,7 @@ function createController(
 		viewStack: ["create"],
 		mode: "file",
 		projectMode: "",
+		isFreePlan: false,
 		shareMode: ShareMode.File,
 		projectName: "测试项目",
 		projectId: "project-1",

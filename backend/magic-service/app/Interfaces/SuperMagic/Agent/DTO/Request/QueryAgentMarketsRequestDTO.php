@@ -35,8 +35,6 @@ class QueryAgentMarketsRequestDTO extends AbstractRequestDTO
     /**
      * 分类筛选，对应 magic_super_magic_agent_categories.id，不传=全部.
      */
-    public ?string $categoryId = null;
-
     /** @var null|array<int, null|int|string> */
     public ?array $categoryIds = null;
 
@@ -52,7 +50,6 @@ class QueryAgentMarketsRequestDTO extends AbstractRequestDTO
             'page' => 'nullable|integer|min:1',
             'page_size' => 'nullable|integer|min:1|max:100',
             'keyword' => 'nullable|string|max:255',
-            'category_id' => 'nullable|integer|min:1',
             'category_ids' => 'nullable|array|max:100',
             'category_ids.*' => 'integer|min:1',
             'market_type' => 'nullable|string|in:MARKET,ORGANIZATION',
@@ -72,8 +69,6 @@ class QueryAgentMarketsRequestDTO extends AbstractRequestDTO
             'page_size.max' => __('super_magic.agent.page_size_must_not_exceed_100'),
             'keyword.string' => __('super_magic.agent.keyword_must_be_string'),
             'keyword.max' => __('super_magic.agent.keyword_must_not_exceed_255'),
-            'category_id.integer' => __('super_magic.agent.category_id_must_be_integer'),
-            'category_id.min' => __('super_magic.agent.category_id_must_be_greater_than_zero'),
         ];
     }
 
@@ -92,11 +87,6 @@ class QueryAgentMarketsRequestDTO extends AbstractRequestDTO
         return $this->keyword;
     }
 
-    public function getCategoryId(): ?string
-    {
-        return $this->categoryId;
-    }
-
     /** @return int[] */
     public function getCategoryIds(): array
     {
@@ -104,7 +94,7 @@ class QueryAgentMarketsRequestDTO extends AbstractRequestDTO
             return $this->normalizeCategoryIds($this->categoryIds);
         }
 
-        return $this->categoryId === null ? [] : $this->normalizeCategoryIds([$this->categoryId]);
+        return [];
     }
 
     public function getMarketType(): ?AgentMarketType

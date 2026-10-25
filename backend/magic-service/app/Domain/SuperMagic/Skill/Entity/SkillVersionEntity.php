@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\SuperMagic\Skill\Entity;
 
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\PublishStatus;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\PublishTargetType;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\PublishTargetValue;
@@ -19,6 +20,11 @@ use App\Infrastructure\Core\AbstractEntity;
  */
 class SkillVersionEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
+    /** @var int[] */
+    protected array $categoryIds = [];
+
     /**
      * @var int 主键 ID（版本ID）
      */
@@ -176,6 +182,19 @@ class SkillVersionEntity extends AbstractEntity
         parent::__construct($data);
     }
 
+    /** @return int[] */
+    public function getCategoryIds(): array
+    {
+        return $this->categoryIds;
+    }
+
+    /** @param array<int, int|string> $categoryIds */
+    public function setCategoryIds(array $categoryIds): self
+    {
+        $this->categoryIds = array_values(array_unique(array_map('intval', $categoryIds)));
+        return $this;
+    }
+
     /**
      * 转换为数组.
      */
@@ -311,6 +330,11 @@ class SkillVersionEntity extends AbstractEntity
         return $this;
     }
 
+    public function getI18nName(string $language): string
+    {
+        return $this->resolveI18nText($this->nameI18n, $language);
+    }
+
     public function getDescriptionI18n(): ?array
     {
         return $this->descriptionI18n;
@@ -322,6 +346,11 @@ class SkillVersionEntity extends AbstractEntity
         return $this;
     }
 
+    public function getI18nDescription(string $language): string
+    {
+        return $this->resolveI18nText($this->descriptionI18n, $language);
+    }
+
     public function getSourceI18n(): ?array
     {
         return $this->sourceI18n;
@@ -331,6 +360,11 @@ class SkillVersionEntity extends AbstractEntity
     {
         $this->sourceI18n = $sourceI18n;
         return $this;
+    }
+
+    public function getI18nSource(string $language): string
+    {
+        return $this->resolveI18nText($this->sourceI18n, $language);
     }
 
     public function getSearchText(): ?string
@@ -469,6 +503,11 @@ class SkillVersionEntity extends AbstractEntity
     public function getVersionDescriptionI18n(): ?array
     {
         return $this->versionDescriptionI18n;
+    }
+
+    public function getI18nVersionDescription(string $language): string
+    {
+        return $this->resolveI18nText($this->versionDescriptionI18n, $language);
     }
 
     public function setVersionDescriptionI18n(?array $versionDescriptionI18n): self

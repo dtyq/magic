@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { type Editor } from "@tiptap/react"
+import { type Editor } from "@/infrastructure/editors/tiptap/react"
 import { useHotkeys } from "react-hotkeys-hook"
 import { useTranslation } from "react-i18next"
 
@@ -10,7 +10,7 @@ import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 // --- Lib ---
-import { isMarkInSchema, isNodeTypeSelected } from "@/lib/tiptap-utils"
+import { isMarkInSchema, isNodeTypeSelected } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Icons ---
 import { HighlighterIcon } from "@/components/tiptap-icons/highlighter-icon"
@@ -127,27 +127,35 @@ export function getHighlightColorI18nKey(colorKey: HighlightColorKey): string {
 
 export function canColorHighlight(editor: Editor | null): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (
-				!isMarkInSchema("highlight", activeEditor) ||
-				isNodeTypeSelected(activeEditor, ["image"])
-			)
-				return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (
+					!isMarkInSchema("highlight", activeEditor) ||
+					isNodeTypeSelected(activeEditor, ["image"])
+				)
+					return false
 
-			return activeEditor.can().setMark("highlight")
-		}, false) ?? false
+				return activeEditor.can().setMark("highlight")
+			},
+			false,
+		) ?? false
 	)
 }
 
 export function isColorHighlightActive(editor: Editor | null, highlightColor?: string): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			return highlightColor
-				? activeEditor.isActive("highlight", { color: highlightColor })
-				: activeEditor.isActive("highlight")
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				return highlightColor
+					? activeEditor.isActive("highlight", { color: highlightColor })
+					: activeEditor.isActive("highlight")
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -155,9 +163,13 @@ export function removeHighlight(editor: Editor | null): boolean {
 	if (!canColorHighlight(editor)) return false
 
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			return activeEditor.chain().focus().unsetMark("highlight").run()
-		}, false) ?? false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				return activeEditor.chain().focus().unsetMark("highlight").run()
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -168,16 +180,20 @@ export function shouldShowButton(props: {
 	const { editor, hideWhenUnavailable } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isMarkInSchema("highlight", activeEditor)) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!isMarkInSchema("highlight", activeEditor)) return false
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canColorHighlight(activeEditor)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canColorHighlight(activeEditor)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }
@@ -221,20 +237,26 @@ export function useColorHighlight(config: UseColorHighlightConfig) {
 			if (activeEditor.state.storedMarks) {
 				const highlightMarkType = activeEditor.schema.marks.highlight
 				if (highlightMarkType) {
-					activeEditor.view.dispatch(activeEditor.state.tr.removeStoredMark(highlightMarkType))
+					activeEditor.view.dispatch(
+						activeEditor.state.tr.removeStoredMark(highlightMarkType),
+					)
 				}
 			}
 		})
 
 		setTimeout(() => {
 			const success =
-				runActiveEditor(editor, (activeEditor) => {
-					return activeEditor
-						.chain()
-						.focus()
-						.toggleMark("highlight", { color: highlightColor })
-						.run()
-				}, false) ?? false
+				runActiveEditor(
+					editor,
+					(activeEditor) => {
+						return activeEditor
+							.chain()
+							.focus()
+							.toggleMark("highlight", { color: highlightColor })
+							.run()
+					},
+					false,
+				) ?? false
 			if (success) {
 				onApplied?.({ color: highlightColor, label })
 			}

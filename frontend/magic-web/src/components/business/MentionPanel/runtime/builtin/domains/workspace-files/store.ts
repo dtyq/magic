@@ -1,5 +1,11 @@
 import { makeAutoObservable } from "mobx"
-import { MentionItemType, type MentionItem, type ProjectFileMentionData } from "../../../../types"
+import {
+	MentionItemType,
+	type MentionItem,
+	type ProjectFileDisplayResolver,
+	type ProjectFileMentionData,
+} from "../../../../types"
+import { SCENE_CATALOG_ITEM_TAG } from "../scene-catalog/store"
 import type {
 	WorkspaceEntry,
 	WorkspaceFilesBuiltinIds,
@@ -10,24 +16,36 @@ import { normalizeProjectReferencePath } from "../../../../utils/projectReferenc
 
 export class MentionPanelWorkspaceFilesStore {
 	private readonly projectFilesStore: WorkspaceFilesStoreDependencies["projectFilesStore"]
+	/** Scene-provided relabelling of project entries (e.g. research folders); null on plain projects. */
+	private displayResolver: ProjectFileDisplayResolver | null = null
 
 	constructor(dependencies: WorkspaceFilesStoreDependencies) {
 		this.projectFilesStore = dependencies.projectFilesStore
-		makeAutoObservable<MentionPanelWorkspaceFilesStore, "projectFilesStore">(
-			this,
-			{ projectFilesStore: false },
-			{ autoBind: true },
-		)
+		makeAutoObservable<
+			MentionPanelWorkspaceFilesStore,
+			"projectFilesStore" | "displayResolver"
+		>(this, { projectFilesStore: false, displayResolver: false }, { autoBind: true })
+	}
+
+	setDisplayResolver(resolver: ProjectFileDisplayResolver | null) {
+		this.displayResolver = resolver
 	}
 
 	workspaceFilesToMentionItems(files: WorkspaceEntry[]): MentionItem[] {
-		return files.map((file) => {
+		return files.flatMap((file) => {
+			const display = this.displayResolver?.({
+				path: normalizeProjectReferencePath(file.relative_file_path),
+				name: file.file_name,
+				isDirectory: file.type === "directory",
+			})
+			if (display?.hidden) return []
 			if (file.type === "directory") {
+				// Folders only change what the row shows; directory_name and path stay real.
 				return {
 					id: file.relative_file_path,
 					type: MentionItemType.FOLDER,
-					name: file.file_name,
-					icon: "file-folder",
+					name: display?.name ?? file.file_name,
+					icon: display?.icon ?? "file-folder",
 					hasChildren: file.children.length > 0,
 					isFolder: true,
 					path: file.relative_file_path,
@@ -42,11 +60,15 @@ export class MentionPanelWorkspaceFilesStore {
 				}
 			}
 
+			// A relabelled file follows the scene catalog contract: the label is the chip label
+			// and link text, the real name moves to the subtitle, file_path/file_id stay real.
+			const label = display?.name
 			return {
 				id: file.file_id,
 				type: MentionItemType.PROJECT_FILE,
-				name: file.file_name,
-				icon: file.file_extension,
+				name: label ?? file.file_name,
+				icon: display?.icon ?? file.file_extension,
+				...(label ? { description: file.file_name, tags: [SCENE_CATALOG_ITEM_TAG] } : {}),
 				extension: file.file_extension,
 				hasChildren: false,
 				isFolder: false,
@@ -56,7 +78,7 @@ export class MentionPanelWorkspaceFilesStore {
 				parentId: file.parent_id,
 				data: {
 					file_id: file.file_id,
-					file_name: file.file_name,
+					file_name: label ?? file.file_name,
 					file_path: normalizeProjectReferencePath(file.relative_file_path),
 					file_extension: file.file_extension,
 					project_id: file.project_id,
@@ -89,7 +111,12 @@ export class MentionPanelWorkspaceFilesStore {
 			this.projectFilesStore.workspaceFilesList as unknown as WorkspaceEntry[],
 		)
 
-		return workspaceFileItems.filter((item) => matchesQuery(item.name, normalizedQuery))
+		// A relabelled row stays findable by its real file name, kept in the subtitle.
+		return workspaceFileItems.filter(
+			(item) =>
+				matchesQuery(item.name, normalizedQuery) ||
+				Boolean(item.description && matchesQuery(item.description, normalizedQuery)),
+		)
 	}
 
 	hasProjectFile(fileId: string) {

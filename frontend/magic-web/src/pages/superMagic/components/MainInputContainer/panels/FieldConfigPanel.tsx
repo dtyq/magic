@@ -1,5 +1,5 @@
 import { useMemo, useEffect, type MouseEvent, type PointerEvent } from "react"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { X } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { TemplatePanelStore } from "../stores/TemplatePanelStore"
@@ -13,7 +13,7 @@ import { type FieldPanelConfig, type FieldItem, type OptionItem, OptionViewType 
 import { ScenePanelVariant } from "../components/LazyScenePanel/types"
 import { useTranslation } from "react-i18next"
 import FilterCapsuleItem from "./FilterCapsuleItem"
-import { findComplexField, hasSelectableOptions } from "./utils"
+import { isFieldPanelRenderable } from "./utils"
 
 interface FieldConfigPanelProps {
 	config: FieldPanelConfig
@@ -43,13 +43,7 @@ const FieldConfigPanel = observer(
 		const store = useMemo(() => new TemplatePanelStore(), [])
 		const sceneStateStore = useOptionalSceneStateStore()
 		const inputScopeKey = sceneStateStore?.inputScopeKey ?? ""
-		const configFieldItems = config.field?.items ?? []
-		const isTemplatePanel =
-			config.field?.view_type === OptionViewType.GRID ||
-			config.field?.view_type === OptionViewType.SLIDES_PRESET
-		const hasTemplateOptions = hasSelectableOptions(findComplexField(configFieldItems))
-		const shouldHidePanel =
-			configFieldItems.length === 0 || (isTemplatePanel && !hasTemplateOptions)
+		const shouldHidePanel = !isFieldPanelRenderable(config)
 
 		// Initialize store when config or input scope changes
 		useEffect(() => {

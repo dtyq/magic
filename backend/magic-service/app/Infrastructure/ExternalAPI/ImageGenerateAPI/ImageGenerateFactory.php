@@ -215,6 +215,16 @@ class ImageGenerateFactory
             $request->setQuality((string) $imageGenerationConfig['quality']);
         }
 
+        // 背景三态：只透传 provider 认得的 transparent / opaque；auto 或缺省不传，交给 provider 默认
+        $background = is_array($imageGenerationConfig) ? ($imageGenerationConfig['background'] ?? null) : null;
+        if (is_string($background) && in_array($background, ['transparent', 'opaque'], true)) {
+            $request->setBackground($background);
+        }
+        // 透明背景要求 PNG 输出，否则 provider 会报错
+        if ($background === 'transparent') {
+            $request->setOutputFormat('png');
+        }
+
         if (isset($data['generate_num'])) {
             $request->setN((int) $data['generate_num']);
         } elseif (isset($data['n'])) {
@@ -224,6 +234,10 @@ class ImageGenerateFactory
         $referenceImages = self::resolveReferenceImages($data, $imageConfig);
         if ($referenceImages !== null) {
             $request->setReferenceImages($referenceImages);
+        }
+
+        if (! empty($data['extra']) && is_array($data['extra'])) {
+            $request->setExtra($data['extra']);
         }
 
         return $request;

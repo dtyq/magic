@@ -4,6 +4,7 @@ import { Button, Tooltip } from "antd"
 import type { GetAntdTheme } from "antd-style"
 import { useTheme, ThemeProvider, createStyles, cx } from "antd-style"
 import { forwardRef, memo, useMemo, type CSSProperties, type ReactNode } from "react"
+import { TOOLTIP_DELAY_DURATION } from "@/constants/style"
 
 export interface MagicButtonProps extends ButtonProps {
 	justify?: CSSProperties["justifyContent"]
@@ -90,7 +91,7 @@ const MagicButton = memo(
 
 			return (
 				<ThemeProvider theme={themeConfigs}>
-					<Tooltip title={tip}>
+					<Tooltip title={tip} mouseEnterDelay={TOOLTIP_DELAY_DURATION / 1000}>
 						<Button
 							ref={ref}
 							className={cx(styles.magicButton, className)}

@@ -6,6 +6,8 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass
+from datetime import timezone
+from enum import StrEnum
 from pathlib import Path
 
 from agentlang.config.config import config
@@ -15,17 +17,31 @@ from app.tools.subagent_runtime_models import SubagentStatus
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.utils.async_file_utils import (
     async_exists,
+    async_is_symlink,
+    async_read_json,
     async_rmtree,
     async_scandir,
     async_stat,
     async_unlink,
 )
-from app.utils.runtime_storage import RuntimeEvictionPolicy, evict_runtime_files
+from app.utils.runtime_storage import (
+    RuntimeEvictionPolicy,
+    evict_runtime_files,
+    get_runtime_config_int,
+)
 
 logger = get_logger(__name__)
 
 _COMPACTED_NAME = re.compile(r"^[^<>/]+<[^<>/]+>_\d{14}\.json$")
 _TERMINAL_STATUSES = {SubagentStatus.DONE, SubagentStatus.ERROR, SubagentStatus.INTERRUPTED}
+_MEMORY_AFTER_RUN_ID = re.compile(r"memory-after-run-[0-9a-f]{32}")
+_DEFAULT_MEMORY_AFTER_RUN_MAX_COUNT = 3
+
+
+class _HistoryKind(StrEnum):
+    SUBAGENT = "subagent"
+    MEMORY_AFTER_RUN = "memory_after_run"
+    COMPACTED = "compacted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,11 +49,12 @@ class _HistoryItem:
     path: Path
     size: int
     modified_at: float
-    kind: str
+    kind: _HistoryKind
+    finished_at: float | None = None
 
 
 class ChatHistoryCleanupService:
-    """配置为空时只统计；只清理新目录和新命名文件。"""
+    """普通历史按可选配置清理；记忆整理档案独立保留最近完整运行。"""
 
     _lock = asyncio.Lock()
     _task: asyncio.Task[None] | None = None
@@ -62,23 +79,49 @@ class ChatHistoryCleanupService:
 
     async def run(self) -> None:
         async with self._lock:
-            protected_cron_ids = await self._active_cron_agent_ids()
-            subagents = await self._collect_subagents(protected_cron_ids)
-            compacted = await self._collect_compacted()
-            await self._clean_runtime_logs()
+            await self._run_locked()
 
-            subagents = await self._apply_limits(
-                subagents,
-                max_age_days=self._positive_int("chat_history_cleanup.completed_subagent_max_age_days"),
-                max_count=self._positive_int("chat_history_cleanup.completed_subagent_max_count"),
-            )
-            compacted = await self._apply_limits(
-                compacted,
-                max_age_days=self._positive_int("chat_history_cleanup.compacted_max_age_days"),
-                max_count=self._positive_int("chat_history_cleanup.compacted_max_count"),
-            )
-            await self._apply_total_limit(subagents + compacted)
-            await self._log_stats()
+    async def _run_locked(self) -> None:
+        """调用方须持有清理锁；归档可在本次清理后继续持锁制作本地 zip。"""
+        protected_cron_ids = await self._active_cron_agent_ids()
+        items = await self._collect_subagents(protected_cron_ids)
+        memory_runs = [item for item in items if item.kind == _HistoryKind.MEMORY_AFTER_RUN]
+        await self._clean_memory_after_run(memory_runs)
+        subagents = [item for item in items if item.kind == _HistoryKind.SUBAGENT]
+        compacted = await self._collect_compacted()
+        await self._clean_runtime_logs()
+
+        subagents = await self._apply_limits(
+            subagents,
+            max_age_days=self._positive_int("chat_history_cleanup.completed_subagent_max_age_days"),
+            max_count=self._positive_int("chat_history_cleanup.completed_subagent_max_count"),
+        )
+        compacted = await self._apply_limits(
+            compacted,
+            max_age_days=self._positive_int("chat_history_cleanup.compacted_max_age_days"),
+            max_count=self._positive_int("chat_history_cleanup.compacted_max_count"),
+        )
+        # 三次记忆档案不参与普通历史的年龄、数量和总量淘汰，但仍计入真实容量统计。
+        await self._apply_total_limit(subagents + compacted)
+        await self._log_stats()
+
+    async def _clean_memory_after_run(self, items: list[_HistoryItem]) -> None:
+        key = "diagnostic_retention.memory_after_run_max_count"
+        value = config.get(key, _DEFAULT_MEMORY_AFTER_RUN_MAX_COUNT)
+        maximum = _DEFAULT_MEMORY_AFTER_RUN_MAX_COUNT
+        try:
+            if isinstance(value, bool) or not isinstance(value, (int, str)) or int(value) <= 0:
+                raise ValueError("Expected a positive integer")
+            maximum = int(value)
+        except ValueError:
+            logger.warning(f"无效记忆整理档案配额 {key}={value!r}，使用默认值 {maximum}")
+        ordered = sorted(
+            items,
+            key=lambda item: (item.finished_at or 0.0, item.path.name.rsplit("<", 1)[-1]),
+            reverse=True,
+        )
+        for item in ordered[maximum:]:
+            await self._delete(item)
 
     async def _collect_subagents(self, protected_cron_ids: set[str]) -> list[_HistoryItem]:
         root = PathManager.get_subagents_chat_history_dir()
@@ -93,8 +136,28 @@ class ChatHistoryCleanupService:
             state = await SubagentRuntimeStore.load_state(agent_name, agent_id)
             if state.status not in _TERMINAL_STATUSES or agent_id in protected_cron_ids:
                 continue
+            kind = _HistoryKind.SUBAGENT
+            finished_at: float | None = None
+            if _MEMORY_AFTER_RUN_ID.fullmatch(agent_id):
+                history_path = Path(entry.path) / f"{entry.name}.json"
+                try:
+                    if state.agent_name != agent_name or state.agent_id != agent_id or state.finished_at is None:
+                        raise ValueError("Memory archive identity or finish time is invalid")
+                    if await async_is_symlink(history_path):
+                        raise ValueError("Memory archive history must not be a symbolic link")
+                    if await async_is_symlink(Path(entry.path) / f"{entry.name}.session.json"):
+                        raise ValueError("Memory archive session must not be a symbolic link")
+                    await async_read_json(history_path)
+                except (OSError, ValueError) as error:
+                    logger.warning(f"保留无法确认完整性的记忆整理档案: {entry.path}: {error}")
+                    continue
+                kind = _HistoryKind.MEMORY_AFTER_RUN
+                completed = state.finished_at
+                if completed.tzinfo is None:
+                    completed = completed.replace(tzinfo=timezone.utc)
+                finished_at = completed.timestamp()
             size, modified_at = await self._directory_size(Path(entry.path))
-            items.append(_HistoryItem(Path(entry.path), size, modified_at, "subagent"))
+            items.append(_HistoryItem(Path(entry.path), size, modified_at, kind, finished_at))
         return items
 
     async def _collect_compacted(self) -> list[_HistoryItem]:
@@ -106,7 +169,7 @@ class ChatHistoryCleanupService:
             if not entry.is_file(follow_symlinks=False) or not _COMPACTED_NAME.fullmatch(entry.name):
                 continue
             stat = await async_stat(Path(entry.path))
-            items.append(_HistoryItem(Path(entry.path), stat.st_size, stat.st_mtime, "compacted"))
+            items.append(_HistoryItem(Path(entry.path), stat.st_size, stat.st_mtime, _HistoryKind.COMPACTED))
         return items
 
     async def _apply_limits(
@@ -151,20 +214,18 @@ class ChatHistoryCleanupService:
             )
 
     async def _clean_runtime_logs(self) -> None:
-        max_age_days = self._positive_int("chat_history_cleanup.llm_request_max_age_days")
-        max_entries = self._positive_int("chat_history_cleanup.llm_request_max_count")
-        max_bytes = self._positive_int("chat_history_cleanup.llm_request_max_bytes")
-        if max_age_days is None and max_entries is None and max_bytes is None:
+        max_entries = get_runtime_config_int(
+            "runtime_cleanup.llm_request.max_file_count",
+            minimum=0,
+        )
+        if max_entries <= 0:
             return
         policy = RuntimeEvictionPolicy(
             max_entries=max_entries,
             target_entries=max_entries,
-            max_total_bytes=max_bytes,
-            target_total_bytes=max_bytes,
-            max_age_seconds=max_age_days * 24 * 60 * 60 if max_age_days is not None else None,
         )
         await evict_runtime_files(
-            PathManager.get_llm_request_dir(),
+            PathManager.get_llm_requests_dir(),
             policy=policy,
             suffixes=(".log",),
         )
@@ -174,13 +235,13 @@ class ChatHistoryCleanupService:
         root_files = await self._root_file_stats(root)
         subagent_stats = await self._directory_stats(PathManager.get_subagents_chat_history_dir())
         compacted_stats = await self._directory_stats(root / "compacted")
-        llm_stats = await self._directory_stats(PathManager.get_llm_request_dir())
+        llm_stats = await self._directory_stats(PathManager.get_llm_requests_dir())
         logger.info(
             "聊天记录存储统计: "
             f"main_files={root_files[0]}/{root_files[1]}B, "
             f"subagents={subagent_stats[0]}/{subagent_stats[1]}B, "
             f"compacted={compacted_stats[0]}/{compacted_stats[1]}B, "
-            f"llm_request={llm_stats[0]}/{llm_stats[1]}B"
+            f"llm_requests={llm_stats[0]}/{llm_stats[1]}B"
         )
 
     async def _root_file_stats(self, root: Path) -> tuple[int, int]:
@@ -230,7 +291,7 @@ class ChatHistoryCleanupService:
         return count, size
 
     async def _delete(self, item: _HistoryItem) -> None:
-        if item.kind == "subagent":
+        if item.kind in {_HistoryKind.SUBAGENT, _HistoryKind.MEMORY_AFTER_RUN}:
             await async_rmtree(item.path)
         else:
             await async_unlink(item.path)

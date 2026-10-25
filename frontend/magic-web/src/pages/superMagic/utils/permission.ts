@@ -63,3 +63,15 @@ export function isOwner(role?: CollaboratorPermission): boolean {
 	}
 	return role === CollaboratorPermissionEnum.OWNER
 }
+
+/**
+ * 是否是可编辑角色
+ * @param role CollaboratorPermission
+ * @returns boolean
+ */
+export function isEditable(role?: CollaboratorPermission): boolean {
+	if (!role) {
+		return false
+	}
+	return role === CollaboratorPermissionEnum.EDITABLE
+}

@@ -82,7 +82,7 @@ export function useCreateTopicListener(options: UseCreateTopicListenerOptions = 
 
 		const handleCreateTopic = (payload?: SuperMagicCreateNewTopicPayload) => {
 			const { afterCreate, topicMode, topicName } = normalizeCreateTopicPayload(payload)
-			const publishAfterCreate = () => {
+			const publishAfterCreate = (newTopic?: Topic | null) => {
 				if (!afterCreate?.content) return
 				if (afterCreate.send) {
 					pubsub.publish(PubSubEvents.Send_Message_by_Content, {
@@ -94,6 +94,7 @@ export function useCreateTopicListener(options: UseCreateTopicListenerOptions = 
 						selectedVideoModel: afterCreate.selectedVideoModel,
 						shouldClearEditorAfterSend: afterCreate.shouldClearEditorAfterSend,
 						extra: afterCreate.extra,
+						...(scopedTopicStore && newTopic ? { targetTopic: newTopic } : {}),
 					})
 					return
 				}
@@ -120,7 +121,7 @@ export function useCreateTopicListener(options: UseCreateTopicListenerOptions = 
 					})
 					.then((newTopic) => {
 						if (!newTopic || !afterCreate) return
-						setTimeout(publishAfterCreate, 500)
+						setTimeout(() => publishAfterCreate(newTopic), 500)
 					})
 			} else {
 				SuperMagicService.handleCreateTopic({

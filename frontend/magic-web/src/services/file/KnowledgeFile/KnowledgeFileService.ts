@@ -123,11 +123,14 @@ class KnowledgeFileService {
 	 * 获取单个文件信息
 	 * @param fileKey 文件key
 	 */
-	async fetchFileUrl(fileKey: string): Promise<KnowledgeFileCacheData | null> {
+	async fetchFileUrl(
+		fileKey: string,
+		options: { forceRefresh?: boolean } = {},
+	): Promise<KnowledgeFileCacheData | null> {
 		if (!fileKey) return null
 
 		// 检查是否过期
-		if (!this.checkFileExpired(fileKey)) {
+		if (!options.forceRefresh && !this.checkFileExpired(fileKey)) {
 			// 未过期，直接返回缓存
 			return this.fileInfoCache.get(fileKey) || null
 		}

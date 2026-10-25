@@ -9,6 +9,7 @@ namespace App\Application\SuperMagic\Project\Event\Subscribe;
 
 use App\Domain\SuperMagic\Common\Constants\OperationAction;
 use App\Domain\SuperMagic\Common\Constants\ResourceType;
+use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
 use App\Domain\SuperMagic\File\Event\DirectoryDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FileBatchMoveEvent;
 use App\Domain\SuperMagic\File\Event\FileContentSavedEvent;
@@ -18,6 +19,7 @@ use App\Domain\SuperMagic\File\Event\FileRenamedEvent;
 use App\Domain\SuperMagic\File\Event\FileReplacedEvent;
 use App\Domain\SuperMagic\File\Event\FilesBatchDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FileUploadedEvent;
+use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Project\Entity\ProjectOperationLogEntity;
 use App\Domain\SuperMagic\Project\Event\ProjectCreatedEvent;
 use App\Domain\SuperMagic\Project\Event\ProjectDeletedEvent;
@@ -53,6 +55,8 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
 
     private ProjectMemberDomainService $projectMemberDomainService;
 
+    private TaskFileDomainService $taskFileDomainService;
+
     public function __construct()
     {
         $container = ApplicationContext::getContainer();
@@ -60,6 +64,7 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
         $this->logger = $loggerFactory->get(static::class);
         $this->projectOperationLogDomainService = $container->get(ProjectOperationLogDomainService::class);
         $this->projectMemberDomainService = $container->get(ProjectMemberDomainService::class);
+        $this->taskFileDomainService = $container->get(TaskFileDomainService::class);
     }
 
     /**
@@ -105,6 +110,17 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
      */
     public function process(object $event): void
     {
+        $projectSpaceFiles = $event instanceof FilesBatchDeletedEvent
+            ? $this->getProjectSpaceFiles($event)
+            : null;
+        $fileEntity = $this->getFileEntity($event);
+        if ($fileEntity !== null && ! $this->taskFileDomainService->isProjectSpaceFile($fileEntity)) {
+            return;
+        }
+        if ($event instanceof FilesBatchDeletedEvent && $projectSpaceFiles === []) {
+            return;
+        }
+
         // Debug: 记录接收到的事件
         $this->logger->info('ProjectOperatorLogSubscriber received event', [
             'event_class' => get_class($event),
@@ -113,7 +129,7 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
         // 使用 defer 延迟处理，避免阻塞主业务流程
         try {
             $ip = $this->getClientIp();
-            $operationLogEntity = $this->convertEventToEntity($event, $ip);
+            $operationLogEntity = $this->convertEventToEntity($event, $ip, $projectSpaceFiles);
             if ($operationLogEntity !== null) {
                 $this->projectOperationLogDomainService->saveOperationLog($operationLogEntity);
                 $this->logger->info('项目操作日志已保存', [
@@ -123,7 +139,7 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 ]);
             }
             // 更新项目成员的活跃时间
-            $this->updateUserLastActiveTime($event);
+            $this->updateUserLastActiveTime($event, $projectSpaceFiles);
         } catch (Throwable $e) {
             $this->logger->error('保存项目操作日志失败', [
                 'event_class' => get_class($event),
@@ -158,7 +174,7 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
         }
     }
 
-    private function updateUserLastActiveTime(object $event): void
+    private function updateUserLastActiveTime(object $event, ?array $projectSpaceFiles = null): void
     {
         $projectId = null;
         $userId = null;
@@ -172,36 +188,57 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
                 break;
             case $event instanceof FileUploadedEvent:
+                if (! $this->taskFileDomainService->isProjectSpaceFile($event->getFileEntity())) {
+                    return;
+                }
                 $projectId = $event->getFileEntity()->getProjectId();
                 $userId = $event->getUserId();
                 $organizationCode = $event->getOrganizationCode();
                 break;
             case $event instanceof FileDeletedEvent:
+                if (! $this->taskFileDomainService->isProjectSpaceFile($event->getFileEntity())) {
+                    return;
+                }
                 $projectId = $event->getFileEntity()->getProjectId();
                 $userId = $event->getUserId();
                 $organizationCode = $event->getOrganizationCode();
                 break;
             case $event instanceof FileRenamedEvent:
+                if (! $this->taskFileDomainService->isProjectSpaceFile($event->getFileEntity())) {
+                    return;
+                }
                 $projectId = $event->getFileEntity()->getProjectId();
                 $userId = $event->getUserAuthorization()->getId();
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
                 break;
             case $event instanceof FileMovedEvent:
+                if (! $this->taskFileDomainService->isProjectSpaceFile($event->getFileEntity())) {
+                    return;
+                }
                 $projectId = $event->getFileEntity()->getProjectId();
                 $userId = $event->getUserAuthorization()->getId();
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
                 break;
             case $event instanceof FileContentSavedEvent:
+                if (! $this->taskFileDomainService->isProjectSpaceFile($event->getFileEntity())) {
+                    return;
+                }
                 $projectId = $event->getFileEntity()->getProjectId();
                 $userId = $event->getUserId();
                 $organizationCode = $event->getOrganizationCode();
                 break;
             case $event instanceof FileReplacedEvent:
+                if (! $this->taskFileDomainService->isProjectSpaceFile($event->getFileEntity())) {
+                    return;
+                }
                 $projectId = $event->getFileEntity()->getProjectId();
                 $userId = $event->getUserAuthorization()->getId();
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
                 break;
             case $event instanceof DirectoryDeletedEvent:
+                if (! $this->taskFileDomainService->isProjectSpaceFile($event->getDirectoryEntity())) {
+                    return;
+                }
                 $projectId = $event->getDirectoryEntity()->getProjectId();
                 $userId = $event->getUserAuthorization()->getId();
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
@@ -212,6 +249,9 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 $organizationCode = $event->getOrganizationCode();
                 break;
             case $event instanceof FilesBatchDeletedEvent:
+                if ($projectSpaceFiles === []) {
+                    return;
+                }
                 $projectId = $event->getProjectId();
                 $userId = $event->getUserAuthorization()->getId();
                 $organizationCode = $event->getUserAuthorization()->getOrganizationCode();
@@ -238,10 +278,32 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
         }
     }
 
+    private function getFileEntity(object $event): ?TaskFileEntity
+    {
+        return match (true) {
+            $event instanceof FileUploadedEvent,
+            $event instanceof FileDeletedEvent,
+            $event instanceof FileRenamedEvent,
+            $event instanceof FileMovedEvent,
+            $event instanceof FileContentSavedEvent,
+            $event instanceof FileReplacedEvent => $event->getFileEntity(),
+            $event instanceof DirectoryDeletedEvent => $event->getDirectoryEntity(),
+            default => null,
+        };
+    }
+
+    /**
+     * @return TaskFileEntity[]
+     */
+    private function getProjectSpaceFiles(FilesBatchDeletedEvent $event): array
+    {
+        return $this->taskFileDomainService->filterProjectSpaceFiles($event->getAllEntities());
+    }
+
     /**
      * 将事件转换为操作日志实体.
      */
-    private function convertEventToEntity(object $event, string $ip): ?ProjectOperationLogEntity
+    private function convertEventToEntity(object $event, string $ip, ?array $projectSpaceFiles = null): ?ProjectOperationLogEntity
     {
         $entity = new ProjectOperationLogEntity();
 
@@ -514,7 +576,10 @@ class ProjectOperatorLogSubscriber implements ListenerInterface
                 $entity->setResourceType(ResourceType::FILE);
                 $entity->setResourceId('batch');
                 $entity->setOperationDetails([
-                    'file_ids' => $event->getFileIds(),
+                    'file_ids' => array_map(
+                        static fn (TaskFileEntity $fileEntity): int => $fileEntity->getFileId(),
+                        $projectSpaceFiles ?? $this->getProjectSpaceFiles($event)
+                    ),
                 ]);
                 break;
             case $event instanceof ProjectMembersUpdatedEvent:

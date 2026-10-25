@@ -1,0 +1,7 @@
+{
+  "id": "point-estimate-lifecycle",
+  "prompt": "Estimate the points for one billable video request, ask the user to confirm, then submit exactly the same request with the returned estimate ID.",
+  "expected_reference": "references/video-generation.md",
+  "expected_tools": ["estimate_canvas_content_points", "add_canvas_elements", "wait_canvas_generation"],
+  "constraints": ["Do not write Canvas state during estimation.", "Freeze the complete final prompt before estimating, including every reference binding token and prompt constraint.", "For a provider asset such as asset://virtual-human-asset-id, keep it as an opaque generation reference and do not call visual_understanding.", "Do not submit generation before explicit user confirmation.", "After confirmation, submit the same item_ref and request byte-for-byte with the returned estimate ID.", "Re-estimate when any billable generation parameter changes."]
+}

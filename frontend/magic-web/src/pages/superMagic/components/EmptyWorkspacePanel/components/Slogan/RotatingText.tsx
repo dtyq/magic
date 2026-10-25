@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef, memo } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 // Design constants from Figma (Magic---SuperMagic-Shadcn)
 const DESIGN_TOKENS = {

@@ -18,6 +18,7 @@ import { MessageHeaderTopicHistoryPanel } from "@/pages/superMagic/components/Me
 import type { MessageHeaderTopicActions } from "@/pages/superMagic/components/MessageHeader"
 import { SuperMagicApi } from "@/apis"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import { HostConversationProvider } from "@/pages/superMagic/contexts/HostConversationContext"
 import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
 import { useCrewConversationStore } from "./context"
@@ -29,7 +30,11 @@ import { useMagicWidgetPreviewFullscreen } from "./hooks/useMagicWidgetPreviewFu
 import { resolvePreviewConversationTransition } from "./utils/previewLayout"
 
 interface CrewConversationDesktopProps {
-	widgetContext?: { instanceId: string; hostOrigin: string } | null
+	widgetContext?: {
+		instanceId: string
+		hostOrigin: string
+		renderMode?: "inline" | "floating"
+	} | null
 	widgetConfig?: MagicWidgetConfig
 }
 
@@ -89,6 +94,9 @@ function CrewConversationDesktop({
 
 	const {
 		shouldShowDetailPanel,
+		isDetailPanelCollapsed,
+		collapseDetailPanel,
+		expandDetailPanel,
 		handleFileClickWithPanel,
 		topicFilesPropsWithPanel,
 		handleActiveDetailTabChange,
@@ -216,107 +224,118 @@ function CrewConversationDesktop({
 	}
 
 	return (
-		<TopicDesktopPanels
-			containerClassName={styles.container}
-			detailPanelClassName={styles.detailPanel}
-			isDetailPanelFullscreen={isDetailPanelFullscreen}
-			showProjectSidebar={showProjectSidebar}
-			sidebar={
-				<TopicSidebar
-					selectedProject={selectedProject}
-					selectedWorkspace={selectedWorkspace}
-					selectedTopic={selectedTopic}
-					isReadOnly={isReadOnly}
-					topicFilesProps={topicFilesPropsWithPanel}
-					hideProjectCard
-				/>
-			}
-			detailPanel={
-				<Detail
-					ref={detailRef}
-					disPlayDetail={userSelectDetail}
-					userSelectDetail={userSelectDetail}
-					setUserSelectDetail={setUserSelectDetail}
-					attachments={store.attachments}
-					attachmentList={store.attachmentList}
-					topicId={selectedTopic?.id}
-					baseShareUrl={`${window.location.origin}/share`}
-					currentTopicStatus={selectedTopic?.task_status}
-					messages={[]}
-					allowEdit={!isReadOnly}
-					selectedTopic={selectedTopic}
-					selectedProject={selectedProject}
-					activeFileId={activeFileId}
-					onActiveFileChange={setActiveFileId}
-					onActiveTabChange={handlePreviewSessionTabChange}
-					onFullscreenChange={handlePreviewFullscreenChange}
-					previewMode={previewMode}
-					previewSessionKey={previewSessionKey}
-					onPreviewDismiss={handlePreviewDismiss}
-					persistFileTabs={!isWidgetEmbed}
-					projectId={selectedProject.id}
-					showFallbackWhenEmpty
-					allowDownload
-				/>
-			}
-			isReadOnly={isReadOnly}
-			keepDetailMountedWhenHidden
-			autoExpandConversationWhenDetailVisible={previewMode !== "switchable"}
-			persistConversationPanelState={!isWidgetEmbed}
-			historyLayout={
-				showTopicHistory
-					? {
-							isOpen: isTopicHistoryPanelOpen,
-							onClose: closeTopicHistoryPanel,
-							onToggle: toggleTopicHistoryPanel,
-							renderPanel: ({
-								isConversationPanelCollapsed,
-								onExpandConversationPanel,
-								onClose,
-								closeButtonRef,
-							}) => (
-								<MessageHeaderTopicHistoryPanel
-									selectedProject={selectedProject}
-									topicStore={store.topicStore}
-									topicActions={topicActions}
-									isConversationPanelCollapsed={isConversationPanelCollapsed}
-									onExpandConversationPanel={onExpandConversationPanel}
-									onClose={onClose}
-									closeButtonRef={closeButtonRef}
-								/>
-							),
+		<HostConversationProvider selectedProject={selectedProject} topicStore={store.topicStore}>
+			<TopicDesktopPanels
+				containerClassName={styles.container}
+				detailPanelClassName={styles.detailPanel}
+				isDetailPanelFullscreen={isDetailPanelFullscreen}
+				showProjectSidebar={showProjectSidebar}
+				sidebar={
+					<TopicSidebar
+						selectedProject={selectedProject}
+						selectedWorkspace={selectedWorkspace}
+						selectedTopic={selectedTopic}
+						isReadOnly={isReadOnly}
+						topicFilesProps={topicFilesPropsWithPanel}
+						hideProjectCard
+					/>
+				}
+				detailPanel={
+					<Detail
+						ref={detailRef}
+						disPlayDetail={userSelectDetail}
+						userSelectDetail={userSelectDetail}
+						setUserSelectDetail={setUserSelectDetail}
+						attachments={store.attachments}
+						attachmentList={store.attachmentList}
+						topicId={selectedTopic?.id}
+						baseShareUrl={`${window.location.origin}/share`}
+						currentTopicStatus={selectedTopic?.task_status}
+						messages={[]}
+						allowEdit={!isReadOnly}
+						selectedTopic={selectedTopic}
+						selectedProject={selectedProject}
+						activeFileId={activeFileId}
+						onActiveFileChange={setActiveFileId}
+						onActiveTabChange={handlePreviewSessionTabChange}
+						onFullscreenChange={handlePreviewFullscreenChange}
+						previewMode={previewMode}
+						previewSessionKey={previewSessionKey}
+						onPreviewDismiss={handlePreviewDismiss}
+						onPreviewCollapse={
+							isWidgetEmbed || isReadOnly ? undefined : collapseDetailPanel
 						}
-					: undefined
-			}
-			shouldShowDetailPanel={shouldShowDetailPanel}
-			renderMessagePanel={({
-				isConversationPanelCollapsed,
-				onToggleConversationPanel,
-				onExpandConversationPanel,
-				historyTriggerMode,
-				isHistoryPanelOpen,
-				onToggleHistoryPanel,
-			}) => (
-				<CrewConversationPanel
-					widgetContext={widgetContext}
-					variant="desktop"
-					isConversationPanelCollapsed={isConversationPanelCollapsed}
-					onToggleConversationPanel={onToggleConversationPanel}
-					onExpandConversationPanel={onExpandConversationPanel}
-					detailPanelVisible={shouldShowDetailPanel}
-					showTopicHistory={showTopicHistory}
-					historyTriggerMode={isWidgetEmbed ? "layout" : historyTriggerMode}
-					isHistoryPanelOpen={
-						isWidgetEmbed ? isTopicHistoryPanelOpen : isHistoryPanelOpen
-					}
-					onToggleHistoryPanel={
-						isWidgetEmbed ? toggleTopicHistoryPanel : onToggleHistoryPanel
-					}
-					topicActions={topicActions}
-					onFileClick={handleFileClickWithPanel}
-				/>
-			)}
-		/>
+						onPreviewOpen={isWidgetEmbed ? undefined : expandDetailPanel}
+						isPreviewCollapsed={isDetailPanelCollapsed}
+						canLocateFile={showProjectSidebar && !isReadOnly}
+						persistFileTabs={!isWidgetEmbed}
+						projectId={selectedProject.id}
+						showFallbackWhenEmpty
+						allowDownload
+					/>
+				}
+				isReadOnly={isReadOnly}
+				keepDetailMountedWhenHidden
+				autoExpandConversationWhenDetailVisible={previewMode !== "switchable"}
+				persistConversationPanelState={!isWidgetEmbed}
+				historyLayout={
+					showTopicHistory
+						? {
+								isOpen: isTopicHistoryPanelOpen,
+								onClose: closeTopicHistoryPanel,
+								onToggle: toggleTopicHistoryPanel,
+								renderPanel: ({
+									isConversationPanelCollapsed,
+									onExpandConversationPanel,
+									onClose,
+									closeButtonRef,
+								}) => (
+									<MessageHeaderTopicHistoryPanel
+										selectedProject={selectedProject}
+										topicStore={store.topicStore}
+										topicActions={topicActions}
+										isConversationPanelCollapsed={isConversationPanelCollapsed}
+										onExpandConversationPanel={onExpandConversationPanel}
+										onClose={onClose}
+										closeButtonRef={closeButtonRef}
+									/>
+								),
+							}
+						: undefined
+				}
+				shouldShowDetailPanel={shouldShowDetailPanel}
+				isDetailPanelCollapsed={isDetailPanelCollapsed}
+				onExpandDetailPanel={isWidgetEmbed ? undefined : expandDetailPanel}
+				renderMessagePanel={({
+					isConversationPanelCollapsed,
+					onToggleConversationPanel,
+					onExpandConversationPanel,
+					historyTriggerMode,
+					isHistoryPanelOpen,
+					onToggleHistoryPanel,
+				}) => (
+					<CrewConversationPanel
+						widgetContext={widgetContext}
+						widgetConfig={widgetConfig}
+						variant="desktop"
+						isConversationPanelCollapsed={isConversationPanelCollapsed}
+						onToggleConversationPanel={onToggleConversationPanel}
+						onExpandConversationPanel={onExpandConversationPanel}
+						detailPanelVisible={shouldShowDetailPanel}
+						showTopicHistory={showTopicHistory}
+						historyTriggerMode={isWidgetEmbed ? "layout" : historyTriggerMode}
+						isHistoryPanelOpen={
+							isWidgetEmbed ? isTopicHistoryPanelOpen : isHistoryPanelOpen
+						}
+						onToggleHistoryPanel={
+							isWidgetEmbed ? toggleTopicHistoryPanel : onToggleHistoryPanel
+						}
+						topicActions={topicActions}
+						onFileClick={handleFileClickWithPanel}
+					/>
+				)}
+			/>
+		</HostConversationProvider>
 	)
 }
 

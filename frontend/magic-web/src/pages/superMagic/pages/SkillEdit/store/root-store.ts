@@ -1,11 +1,10 @@
 import { makeAutoObservable, runInAction } from "mobx"
-import dayjs from "dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import i18n from "i18next"
 import { SupportLocales } from "@/constants/locale"
 import type { SkillDetailResponse, SkillI18nText } from "@/apis/modules/skills"
 import { skillsService } from "@/services/skills/SkillsService"
-import { logger } from "@/utils/log"
-import { resolveLocalizedText } from "@/utils/locale"
+import { logger } from "@/infrastructure/logger"
 import { getFileContentById } from "@/pages/superMagic/utils/api"
 import { SkillConversationStore } from "./conversation-store"
 import type { SkillEditPublishStatus, SkillEditSkillInfo, SkillWorkspaceManifest } from "./types"
@@ -40,6 +39,7 @@ export class SkillEditRootStore {
 	error: string | null = null
 
 	skillWorkspaceManifest: SkillWorkspaceManifest | null = null
+	skillWorkspaceDir: string | null = null
 	skillWorkspaceManifestLoading = false
 	skillWorkspaceManifestError: string | null = null
 	/** Latest API detail for default-slot PATCH checks */
@@ -83,6 +83,7 @@ export class SkillEditRootStore {
 		this.error = null
 		this.conversation.reset()
 		this.skillWorkspaceManifest = null
+		this.skillWorkspaceDir = null
 		this.skillWorkspaceManifestError = null
 		this.lastFetchedSkillDetail = null
 
@@ -135,13 +136,15 @@ export class SkillEditRootStore {
 		)
 	}
 
-	async syncSkillWorkspaceManifest() {
+	async syncSkillWorkspaceManifest(options?: { syncDefaultSlot?: boolean }) {
+		const syncDefaultSlot = options?.syncDefaultSlot ?? true
 		const code = this.currentSkillCode
 		const list = this.projectFilesStore.workspaceFilesList
 
 		if (!code || !list.length) {
 			runInAction(() => {
-				if (!list.length) this.skillWorkspaceManifest = null
+				this.skillWorkspaceManifest = null
+				this.skillWorkspaceDir = null
 				this.skillWorkspaceManifestLoading = false
 			})
 			return
@@ -157,6 +160,7 @@ export class SkillEditRootStore {
 			if (!configItem?.file_id) {
 				runInAction(() => {
 					this.skillWorkspaceManifest = null
+					this.skillWorkspaceDir = null
 					this.skillWorkspaceManifestLoading = false
 				})
 				return
@@ -170,6 +174,7 @@ export class SkillEditRootStore {
 			if (!dir) {
 				runInAction(() => {
 					this.skillWorkspaceManifest = null
+					this.skillWorkspaceDir = null
 					this.skillWorkspaceManifestLoading = false
 				})
 				return
@@ -180,6 +185,7 @@ export class SkillEditRootStore {
 			if (!mdItem?.file_id) {
 				runInAction(() => {
 					this.skillWorkspaceManifest = null
+					this.skillWorkspaceDir = null
 					this.skillWorkspaceManifestLoading = false
 				})
 				return
@@ -193,8 +199,11 @@ export class SkillEditRootStore {
 
 			runInAction(() => {
 				this.skillWorkspaceManifest = manifest
+				this.skillWorkspaceDir = dir
 				this.skillWorkspaceManifestLoading = false
 			})
+
+			if (!syncDefaultSlot) return
 
 			const detail = this.lastFetchedSkillDetail
 			if (!detail) return
@@ -214,6 +223,7 @@ export class SkillEditRootStore {
 		} catch (error) {
 			runInAction(() => {
 				this.skillWorkspaceManifestError = "sync-failed"
+				this.skillWorkspaceDir = null
 				this.skillWorkspaceManifestLoading = false
 			})
 			logger.report({
@@ -225,13 +235,17 @@ export class SkillEditRootStore {
 
 	private hydrateSkillDetail(detail: SkillDetailResponse) {
 		this.lastFetchedSkillDetail = detail
+		// The API resolves these values for the request language. Keep the raw
+		// i18n maps only as an optional compatibility source for the edit form.
+		const name = detail.name?.trim() || detail.package_name || detail.code
+		const description = detail.description?.trim() || detail.package_description || ""
 		this.skill = {
 			...this.skill,
 			id: detail.id,
 			code: detail.code,
-			name: pickI18nText(detail.name_i18n, detail.package_name),
-			nameI18n: normalizeSkillI18nText(detail.name_i18n, detail.package_name),
-			description: pickI18nText(detail.description_i18n, detail.package_description ?? ""),
+			name,
+			nameI18n: normalizeSkillI18nText(detail.name_i18n, name),
+			description,
 			logo: detail.logo,
 			versionCode: detail.version_code ?? undefined,
 			sourceType: detail.source_type,
@@ -280,14 +294,6 @@ function setCurrentLocaleText(text: SkillI18nText, value: string): SkillI18nText
 function getCurrentLocaleKey() {
 	const language = i18n.language?.toLowerCase() ?? "en"
 	return language.startsWith("zh") ? SupportLocales.zhCN : SupportLocales.enUS
-}
-
-function pickI18nText(
-	text: SkillI18nText | Record<string, string> | null | undefined,
-	fallback = "",
-) {
-	if (!text) return fallback
-	return resolveLocalizedText(text as Record<string, string>, i18n.language) || fallback
 }
 
 function resolveSkillProjectId(detail: SkillDetailResponse) {

@@ -1,4 +1,5 @@
-import type { CanvasConnection, CanvasDocument, LayerElement } from "./types"
+import type { CanvasConnection, CanvasDocument, ElementContentBase, LayerElement } from "./types"
+import { isContentElement } from "./elementContent"
 import {
 	buildCanvasDocumentConnectionIndex,
 	cloneCanvasConnection,
@@ -47,9 +48,7 @@ export type CanvasDocumentMergeElementConflictReason = Exclude<
 >
 
 export type CanvasDocumentMergeConnectionConflictReason =
-	| "duplicate-connection-id"
-	| "same-connection-changed"
-	| "connection-delete-update-conflict"
+	"duplicate-connection-id" | "same-connection-changed" | "connection-delete-update-conflict"
 
 export interface CanvasDocumentMergeChangeSummary {
 	localChangedElementIds: string[]
@@ -184,7 +183,7 @@ function getRecordValue(record: Record<string, unknown>, key: string): unknown {
 	return Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined
 }
 
-const FIELD_LEVEL_MERGE_EXCLUDED_KEYS = new Set(["id", "type", "children"])
+const FIELD_LEVEL_MERGE_EXCLUDED_KEYS = new Set(["id", "type", "children", "contents"])
 
 function cloneCanvasFieldValue<T>(value: T): T {
 	return value === undefined ? value : cloneCanvasJson(value)
@@ -267,6 +266,34 @@ export function tryMergeCanvasElementsByField(
 			remoteElement as unknown as Record<string, unknown>,
 		)
 		if (!mergeResult.ok) return null
+
+		if (isContentElement(localElement) && isContentElement(remoteElement)) {
+			const mergedContents = mergeElementContentsById(
+				isContentElement(baseElement) ? baseElement.contents : [],
+				localElement.contents,
+				remoteElement.contents,
+			)
+			if (!mergedContents) return null
+			mergeResult.value.contents = mergedContents
+			const mergedElement = mergeResult.value as unknown as {
+				contents: ElementContentBase[]
+				activeContentId: string | null
+				mainContentId: string | null
+			}
+			const pointersValid =
+				mergedContents.length === 0
+					? mergedElement.activeContentId === null && mergedElement.mainContentId === null
+					: typeof mergedElement.activeContentId === "string" &&
+						mergedContents.some(
+							(content) => content.contentId === mergedElement.activeContentId,
+						) &&
+						typeof mergedElement.mainContentId === "string" &&
+						mergedContents.some(
+							(content) => content.contentId === mergedElement.mainContentId,
+						)
+			if (!pointersValid) return null
+		}
+
 		const remoteChildren =
 			isCanvasContainerElement(remoteElement) && Array.isArray(remoteElement.children)
 				? { children: cloneCanvasElements(remoteElement.children) }
@@ -280,6 +307,63 @@ export function tryMergeCanvasElementsByField(
 	} catch {
 		return null
 	}
+}
+
+/** Content 数组按 contentId 做三方合并，适用于所有可迭代节点类型。 */
+function mergeElementContentsById(
+	baseContents: ElementContentBase[],
+	localContents: ElementContentBase[],
+	remoteContents: ElementContentBase[],
+): ElementContentBase[] | null {
+	const baseById = new Map(baseContents.map((content) => [content.contentId, content]))
+	const localById = new Map(localContents.map((content) => [content.contentId, content]))
+	const remoteById = new Map(remoteContents.map((content) => [content.contentId, content]))
+	const mergedById = new Map<string, ElementContentBase>()
+
+	const allIds = new Set<string>([...baseById.keys(), ...localById.keys(), ...remoteById.keys()])
+	for (const id of allIds) {
+		const base = baseById.get(id)
+		const local = localById.get(id)
+		const remote = remoteById.get(id)
+		const localChanged = JSON.stringify(base) !== JSON.stringify(local)
+		const remoteChanged = JSON.stringify(base) !== JSON.stringify(remote)
+
+		if (!local && !remote) continue
+		if (!local || !remote) {
+			// 一侧删除，另一侧只有在未改变时才可接受删除。
+			if (!base) {
+				const added = local ?? remote
+				if (local && remote && JSON.stringify(local) !== JSON.stringify(remote)) return null
+				if (added) mergedById.set(id, cloneCanvasJson(added))
+				continue
+			}
+			if (local && localChanged) return null
+			if (remote && remoteChanged) return null
+			continue
+		}
+
+		if (!localChanged && !remoteChanged) {
+			mergedById.set(id, cloneCanvasJson(base ?? local))
+		} else if (localChanged && !remoteChanged) {
+			mergedById.set(id, cloneCanvasJson(local))
+		} else if (!localChanged && remoteChanged) {
+			mergedById.set(id, cloneCanvasJson(remote))
+		} else if (JSON.stringify(local) === JSON.stringify(remote)) {
+			mergedById.set(id, cloneCanvasJson(local))
+		} else {
+			return null
+		}
+	}
+
+	const orderedIds: string[] = []
+	const appendIfPresent = (id: string) => {
+		if (mergedById.has(id) && !orderedIds.includes(id)) orderedIds.push(id)
+	}
+	baseContents.forEach((content) => appendIfPresent(content.contentId))
+	localContents.forEach((content) => appendIfPresent(content.contentId))
+	remoteContents.forEach((content) => appendIfPresent(content.contentId))
+
+	return orderedIds.map((id) => mergedById.get(id) as ElementContentBase)
 }
 
 function findDuplicateConflict(
@@ -303,6 +387,22 @@ function analyzeElementConflicts(
 ): ElementConflictAnalysis {
 	const conflictElementIds: string[] = []
 	const mergedElementsById = new Map<string, LayerElement>()
+	// Element.type is part of the immutable node identity. A type mismatch is
+	// therefore an element-level conflict even when only one branch changed the
+	// record (the ordinary changed-id intersection would miss that case).
+	const allElementIds = new Set<string>([
+		...baseIndex.records.keys(),
+		...localIndex.records.keys(),
+		...remoteIndex.records.keys(),
+	])
+	allElementIds.forEach((elementId) => {
+		const types = [
+			baseIndex.records.get(elementId)?.element.type,
+			localIndex.records.get(elementId)?.element.type,
+			remoteIndex.records.get(elementId)?.element.type,
+		].filter((type): type is LayerElement["type"] => typeof type === "string")
+		if (types.length >= 2 && new Set(types).size > 1) conflictElementIds.push(elementId)
+	})
 	const sameChangedIds = intersectCanvasElementIdSets(
 		localDiff.changed,
 		remoteDiff.changed,
@@ -310,7 +410,7 @@ function analyzeElementConflicts(
 		return !(localDiff.deleted.has(id) && remoteDiff.deleted.has(id))
 	})
 
-	if (sameChangedIds.length === 0) {
+	if (sameChangedIds.length === 0 && conflictElementIds.length === 0) {
 		return { conflict: null, mergedElementsById }
 	}
 
@@ -993,7 +1093,8 @@ export function mergeCanvasDocuments(options: {
 	localCanvas: CanvasDocument | undefined
 	remoteCanvas: CanvasDocument | undefined
 }): CanvasDocumentMergeResult {
-	const { baseCanvas, localCanvas, remoteCanvas } = options
+	const { baseCanvas, localCanvas } = options
+	const remoteCanvas = options.remoteCanvas
 	const baseIndex = buildCanvasDocumentElementIndex(baseCanvas)
 	const localIndex = buildCanvasDocumentElementIndex(localCanvas)
 	const remoteIndex = buildCanvasDocumentElementIndex(remoteCanvas)

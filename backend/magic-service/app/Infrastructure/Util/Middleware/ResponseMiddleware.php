@@ -35,11 +35,17 @@ class ResponseMiddleware implements MiddlewareInterface
 
     // 指定的 uri 不打印请求和响应详情
     private array $desensitizeUris = [
+        '/api/v1/sessions',
         '/conversation/chatCompletions',
         '/message',
         // '/file',
         '/intelligence-rename',
         '/api/v1/super-agent/admin/statistics',
+    ];
+
+    // 响应中可能包含不可写入请求跟踪日志的敏感凭据
+    private array $desensitizeResponseUris = [
+        '/api/v1/open-api/sandbox/mcp/authorization/credential',
     ];
 
     private array $ignoreUris = [
@@ -133,6 +139,9 @@ class ResponseMiddleware implements MiddlewareInterface
             'parsed_body' => $parsedBody,
         ];
         $responseBody = $errorResponse ?? $response;
+        if ($this->shouldDesensitizeResponse($uri)) {
+            $responseBody = 'Desensitize';
+        }
         if (is_string($responseBody) && $this->isEncodedResponse($responseHeaders)) {
             $responseBody = sprintf(
                 '[encoded body omitted encoding=%s len=%d]',
@@ -165,6 +174,19 @@ class ResponseMiddleware implements MiddlewareInterface
     private function isEncodedResponse(array $headers): bool
     {
         return isset($headers['Content-Encoding']) || isset($headers['content-encoding']);
+    }
+
+    /**
+     * 判断响应是否包含不能写入请求跟踪日志的敏感数据。
+     */
+    private function shouldDesensitizeResponse(string $uri): bool
+    {
+        foreach ($this->desensitizeResponseUris as $desensitizeUri) {
+            if (str_contains($uri, $desensitizeUri)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function desensitizeRequestHeaders(array $headers): array

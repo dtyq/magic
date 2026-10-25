@@ -21,6 +21,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\SuperMagic\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
+use App\Domain\SuperMagic\Agent\Service\MagicClawRuntimePolicyDomainService;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\CreationSource;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\StorageType;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\SuperMagicExecutionSource;
@@ -41,6 +42,7 @@ use App\ErrorCode\SuperAgentErrorCode;
 use App\ErrorCode\SuperMagicErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\Exception\TransactionCommitOutcomeUnknownException;
 use App\Infrastructure\SuperMagic\Utils\WorkDirectoryUtil;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -61,6 +63,10 @@ use Dtyq\TaskScheduler\Entity\TaskSchedulerCrontab;
 use Dtyq\TaskScheduler\Entity\ValueObject\TaskType;
 use Dtyq\TaskScheduler\Service\TaskSchedulerDomainService;
 use Exception;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Database\Connection as DatabaseConnection;
+use Hyperf\Database\Connectors\ConnectionFactory;
+use Hyperf\DbConnection\Connection;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
@@ -688,174 +694,246 @@ class MessageScheduleAppService extends AbstractAppService
      */
     private function executeMessageSchedule(int $messageScheduleId): array
     {
-        return Db::transaction(function () use ($messageScheduleId) {
-            $executionLog = null;
-            $dataIsolation = null;
-            $messageScheduleEntity = null;
+        // Both new and existing topics must own their real commit boundary.
+        $this->assertScheduleOutsideTransaction();
+        $executionLog = null;
+        $schedule = null;
+        $commitUncertain = false;
+        $resourcesCommitted = false;
+        $topicEntity = null;
+        $pendingDefault = null;
+        $sendResult = ['success' => false, 'message' => 'Message schedule execution failed'];
 
+        try {
+            $schedule = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
+            if (! $schedule) {
+                throw new RuntimeException('Message schedule not found');
+            }
+            $this->runScheduleTransaction(function () use ($schedule, &$executionLog): void {
+                $executionLog = $this->messageScheduleDomainService->createExecutionLog($schedule);
+            }, $commitUncertain);
+            $dataIsolation = DataIsolation::simpleMake($schedule->getOrganizationCode(), $schedule->getUserId());
+            if (! $schedule->isEnabled()) {
+                throw new RuntimeException('Message schedule is disabled');
+            }
             try {
-                // 1. Get message schedule entity
-                $messageScheduleEntity = $this->messageScheduleDomainService->getMessageScheduleById($messageScheduleId);
-                if (! $messageScheduleEntity) {
-                    $this->logger->warning('Message schedule not found', ['id' => $messageScheduleId]);
-                    throw new RuntimeException('Message schedule not found');
+                if ($schedule->getProjectId() > 0) {
+                    di(MagicClawRuntimePolicyDomainService::class)->assertProject($schedule->getProjectId());
                 }
-
-                // Create execution log (status: running) only when all checks passed
-                $executionLog = $this->messageScheduleDomainService->createExecutionLog($messageScheduleEntity);
-                $dataIsolation = DataIsolation::simpleMake($messageScheduleEntity->getOrganizationCode(), $messageScheduleEntity->getUserId());
-
-                // Check if schedule is enabled
-                if (! $messageScheduleEntity->isEnabled()) {
-                    $this->logger->info('Message schedule is disabled, skip execution', ['id' => $messageScheduleId]);
-                    throw new RuntimeException('Message schedule is disabled');
+                $this->assertMessageContentAgentAccess($dataIsolation, $schedule->getMessageContent());
+            } catch (BusinessException $exception) {
+                $disabledSchedule = null;
+                $this->runScheduleTransaction(function () use ($messageScheduleId, &$disabledSchedule): void {
+                    $disabledSchedule = $this->messageScheduleDomainService->getMessageScheduleByIdForUpdate($messageScheduleId);
+                    if ($disabledSchedule) {
+                        $this->messageScheduleDomainService->updateScheduleExecutionState($disabledSchedule, enabled: 0);
+                        $disabledSchedule->setEnabled(0);
+                    }
+                }, $commitUncertain);
+                // After the disable commits, serialize cleanup with user edits on the latest row.
+                if ($disabledSchedule) {
+                    try {
+                        $this->runScheduleTransaction(function () use ($messageScheduleId): void {
+                            $latest = $this->messageScheduleDomainService->getMessageScheduleByIdForUpdate($messageScheduleId);
+                            if ($latest && ! $latest->isEnabled()) {
+                                $this->updateTaskScheduler($latest);
+                                $this->messageScheduleDomainService->updateTaskSchedulerCrontabId($messageScheduleId, null);
+                            }
+                        }, $commitUncertain);
+                    } catch (Throwable $schedulerException) {
+                        $this->logger->error('权限拒绝后关闭任务调度器失败', [
+                            'message_schedule_id' => $messageScheduleId,
+                            'error' => $schedulerException->getMessage(),
+                        ]);
+                    }
                 }
+                throw $exception;
+            }
 
-                try {
-                    $this->assertMessageContentAgentAccess(
-                        $dataIsolation,
-                        $messageScheduleEntity->getMessageContent()
-                    );
-                } catch (BusinessException $throwable) {
-                    $messageScheduleEntity->setEnabled(0);
-                    $this->updateTaskScheduler($messageScheduleEntity);
-                    $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
-                    throw $throwable;
+            // A failed summary must not initialize even an IM-only topic.
+            $projectName = empty($schedule->getProjectId())
+                ? $this->getSummarizeMessageText($dataIsolation, $schedule->getMessageType(), $schedule->getMessageContent()) : null;
+            $topicName = empty($schedule->getTopicId())
+                ? $this->getSummarizeMessageText($dataIsolation, $schedule->getMessageType(), $schedule->getMessageContent()) : null;
+            $pair = empty($schedule->getTopicId())
+                ? $this->chatAppService->getOrCreateMagicChatConversationPair($dataIsolation) : [];
+            $messageContent = [];
+
+            // Phase A: metadata and log links commit before sending anything.
+            $this->runScheduleTransaction(function () use ($schedule, $executionLog, $dataIsolation, $pair, $projectName, $topicName, &$topicEntity, &$pendingDefault, &$messageContent): void {
+                $projectEntity = empty($schedule->getWorkspaceId())
+                    ? $this->getAccessibleProjectWithEditor($schedule->getProjectId(), $schedule->getUserId(), $schedule->getOrganizationCode())
+                    : $this->getProjectOrCreate($dataIsolation, $schedule->getProjectId(), $schedule->getWorkspaceId(), $schedule->getMessageType(), $schedule->getMessageContent(), $projectName);
+                if (! empty($schedule->getPlugins())) {
+                    $this->setProjectMcpConfig($dataIsolation, $projectEntity->getId(), $schedule->getPlugins());
                 }
-
-                // 2. Get project entity
-                if (empty($messageScheduleEntity->getWorkspaceId())) {
-                    $projectEntity = $this->getAccessibleProjectWithEditor(
-                        $messageScheduleEntity->getProjectId(),
-                        $messageScheduleEntity->getUserId(),
-                        $messageScheduleEntity->getOrganizationCode()
-                    );
-                } else {
-                    $projectEntity = $this->getProjectOrCreate(
-                        $dataIsolation,
-                        $messageScheduleEntity->getProjectId(),
-                        $messageScheduleEntity->getWorkspaceId(),
-                        $messageScheduleEntity->getMessageType(),
-                        $messageScheduleEntity->getMessageContent(),
-                    );
-                }
-
-                // Set project MCP configuration if plugins are configured
-                if (! empty($messageScheduleEntity->getPlugins())) {
-                    $this->setProjectMcpConfig(
-                        $dataIsolation,
-                        $projectEntity->getId(),
-                        $messageScheduleEntity->getPlugins()
-                    );
-                }
-
-                // Migrate chat message attachments to project and get updated content
-                $messageContent = $this->moveMessageFileToProject($dataIsolation, $messageScheduleEntity->getMessageType(), $messageScheduleEntity->getMessageContent(), $projectEntity);
-                $messageContent = SuperMagicExecutionSource::stampMessageContent(
-                    $messageContent,
-                    SuperMagicExecutionSource::MessageSchedule
-                );
-
-                // 3. Get topic entity
-                $topicEntity = $this->getTopicOrCreate($dataIsolation, $messageScheduleEntity->getTopicId(), $projectEntity, $messageScheduleEntity->getMessageType(), $messageScheduleEntity->getMessageContent(), (string) $executionLog->getId());
+                $messageContent = $this->moveMessageFileToProject($dataIsolation, $schedule->getMessageType(), $schedule->getMessageContent(), $projectEntity);
+                $messageContent = SuperMagicExecutionSource::stampMessageContent($messageContent, SuperMagicExecutionSource::MessageSchedule);
+                $topicEntity = $this->getTopicOrCreate($dataIsolation, $schedule->getTopicId(), $projectEntity, $schedule->getMessageType(), $schedule->getMessageContent(), (string) $executionLog->getId(), $pair, $pendingDefault, $topicName);
                 if (! $topicEntity) {
-                    $this->logger->warning('Topic not found', ['topic_id' => $messageScheduleEntity->getTopicId()]);
                     throw new RuntimeException('Topic not found');
                 }
-
-                // 4. Send message (reference MessageQueueCompensationAppService::processTopicInternal)
-                $sendResult = $this->sendMessageToAgent($dataIsolation, $messageScheduleEntity->getMessageType(), $messageContent, $topicEntity);
-
-                // Update executionLog's project_id and topic_id
-                $executionLog = $executionLog->setProjectId($projectEntity->getId());
-                $executionLog = $executionLog->setTopicId($topicEntity->getId());
-
-                // Save updated execution log to database
-                $this->messageScheduleDomainService->updateExecutionLogDetails(
-                    $executionLog->getId(),
-                    [
-                        'project_id' => $projectEntity->getId(),
-                        'topic_id' => $topicEntity->getId(),
-                    ]
-                );
-
-                // 6. Update execution log status based on send result (synchronous)
-                if (! empty($sendResult['success'])) {
-                    $this->messageScheduleDomainService->markLogAsSuccess($executionLog->getId());
-                } else {
-                    $errorMessage = $sendResult['error_message'] ?? 'send failed';
-                    $this->messageScheduleDomainService->markLogAsFailed($executionLog->getId(), $errorMessage);
+                if (! $this->messageScheduleDomainService->updateExecutionLogDetails($executionLog->getId(), [
+                    'project_id' => $projectEntity->getId(),
+                    'topic_id' => $topicEntity->getId(),
+                ])) {
+                    throw new RuntimeException('Unable to persist execution resource links');
                 }
-
-                $this->logger->info('Message schedule execution completed', [
-                    'message_schedule_id' => $messageScheduleId,
-                    'execution_log_id' => $executionLog->getId(),
-                    'success' => $sendResult['success'],
-                    'error_message' => $sendResult['error_message'],
-                ]);
-
-                return $sendResult;
-            } catch (Throwable $e) {
-                // Update execution log status to failed if log was created
-                if ($executionLog) {
-                    $this->messageScheduleDomainService->markLogAsFailed(
-                        $executionLog->getId(),
-                        $e->getMessage()
-                    );
+                if ($pendingDefault !== null) {
+                    $this->chatAppService->setMagicChatDefaultTopic($pendingDefault);
                 }
+                // No business work may follow the shared conversation updates.
+            }, $commitUncertain);
+            $resourcesCommitted = true;
 
-                $this->logger->error('Message schedule execution exception', [
+            // Phase B: preserve the sender's direct/queued routing and response contract.
+            $this->assertScheduleOutsideTransaction();
+            $sendResult = $this->sendMessageToAgent($dataIsolation, $schedule->getMessageType(), $messageContent, $topicEntity);
+        } catch (Throwable $exception) {
+            $sendResult = ['success' => false, 'message' => $exception->getMessage()];
+            $commitUncertain = $commitUncertain || $exception instanceof TransactionCommitOutcomeUnknownException;
+            if ($commitUncertain) {
+                $this->inspectUncertainScheduleCommit($messageScheduleId, $executionLog?->getId(), $topicEntity, $pendingDefault, $exception);
+            } else {
+                $this->logger->error('计划消息执行失败', [
                     'message_schedule_id' => $messageScheduleId,
                     'execution_log_id' => $executionLog?->getId(),
-                    'error' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
+                    'resources_committed' => $resourcesCommitted,
+                    'error' => $exception->getMessage(),
                 ]);
-
-                return [
-                    'success' => false,
-                    'message' => $e->getMessage(),
-                ];
-            } finally {
-                if ($messageScheduleEntity) {
-                    $this->finalizeScheduleCompletion($messageScheduleEntity);
-                }
             }
-        });
+        }
+
+        // Phase C: a failed write leaves RUNNING for reconciliation, never resends.
+        if ($schedule && ! $commitUncertain) {
+            try {
+                $this->runScheduleTransaction(function () use ($messageScheduleId, $executionLog, $sendResult): void {
+                    if ($executionLog) {
+                        if (! empty($sendResult['success'])) {
+                            $updated = $this->messageScheduleDomainService->markLogAsSuccess($executionLog->getId());
+                        } else {
+                            $updated = $this->messageScheduleDomainService->markLogAsFailed($executionLog->getId(), $sendResult['error_message'] ?? $sendResult['message'] ?? 'send failed');
+                        }
+                        if (! $updated) {
+                            throw new RuntimeException('Unable to persist execution outcome');
+                        }
+                    }
+                    $this->finalizeScheduleCompletion($messageScheduleId);
+                }, $commitUncertain);
+            } catch (Throwable $exception) {
+                $this->logger->error('计划消息收尾失败，需核对执行记录，禁止自动重发', [
+                    'message_schedule_id' => $messageScheduleId,
+                    'execution_log_id' => $executionLog?->getId(),
+                    'topic_id' => $resourcesCommitted ? $topicEntity?->getId() : null,
+                    'project_id' => $resourcesCommitted ? $topicEntity?->getProjectId() : null,
+                    'commit_uncertain' => $commitUncertain,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+        return $sendResult;
     }
 
-    /**
-     * Finalize: check and mark schedule as completed if needed.
-     * This method is safe to call in both success and exception paths.
-     */
-    private function finalizeScheduleCompletion(MessageScheduleEntity $messageScheduleEntity): void
+    private function assertScheduleOutsideTransaction(): void
     {
-        try {
-            $shouldComplete = $this->shouldMarkAsCompleted($messageScheduleEntity);
-            if ($shouldComplete && (int) $messageScheduleEntity->getCompleted() !== 1) {
-                $messageScheduleEntity->setCompleted(1);
-                $dataIsolation = DataIsolation::simpleMake(
-                    $messageScheduleEntity->getOrganizationCode(),
-                    $messageScheduleEntity->getUserId()
-                );
-                $this->messageScheduleDomainService->updateMessageSchedule($dataIsolation, $messageScheduleEntity);
-
-                $this->logger->info('Marked schedule as completed after execution', [
-                    'message_schedule_id' => $messageScheduleEntity->getId(),
-                ]);
-            }
-        } catch (Throwable $e) {
-            // Log only; do not interrupt the main flow
-            $this->logger->error('Failed to finalize schedule completion', [
-                'message_schedule_id' => $messageScheduleEntity->getId(),
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
+        if (Db::transactionLevel() !== 0) {
+            throw new RuntimeException('Message schedule execution requires no active transaction');
         }
     }
 
-    private function getProjectOrCreate(DataIsolation $dataIsolation, int $projectId, int $workspaceId, string $messageType, array $messageContent): ProjectEntity
+    /** Own an outer transaction without retrying work after an uncertain commit. */
+    private function runScheduleTransaction(callable $callback, bool &$commitUncertain): void
+    {
+        $this->assertScheduleOutsideTransaction();
+        Db::beginTransaction();
+        try {
+            $callback();
+        } catch (Throwable $exception) {
+            try {
+                Db::rollBack();
+                $this->assertScheduleOutsideTransaction();
+            } catch (Throwable $rollbackException) {
+                $commitUncertain = true;
+                $this->logger->error('计划消息事务回滚未确认', ['error' => $rollbackException->getMessage()]);
+                $this->discardScheduleConnection();
+            }
+            throw $exception;
+        }
+        $commitUncertain = true;
+        try {
+            Db::commit();
+            $this->assertScheduleOutsideTransaction();
+        } catch (Throwable $exception) {
+            $this->discardScheduleConnection();
+            throw $exception;
+        }
+        $commitUncertain = false;
+    }
+
+    /** Discard an ambiguous session without treating disconnect as proof of rollback. */
+    private function discardScheduleConnection(): void
+    {
+        try {
+            $connection = Db::connection();
+            if ($connection instanceof Connection) {
+                $connection->reconnect();
+            } elseif ($connection instanceof DatabaseConnection) {
+                $connection->disconnect();
+            }
+        } catch (Throwable $exception) {
+            $this->logger->error('计划消息事务异常后重置连接失败', ['error' => $exception->getMessage()]);
+        }
+    }
+
+    /** Read on an independent primary connection; an uncertain commit never authorizes sending. */
+    private function inspectUncertainScheduleCommit(int $scheduleId, ?int $logId, ?TopicEntity $topic, ?array $context, Throwable $exception): void
+    {
+        $verification = 'unknown';
+        $connection = null;
+        try {
+            /** @var Connection|DatabaseConnection $businessConnection */
+            $businessConnection = Db::connection();
+            $config = $businessConnection->getConfig();
+            $connection = ApplicationContext::getContainer()->get(ConnectionFactory::class)->make($config);
+            $log = $logId ? $connection->table('magic_super_agent_message_schedule_log')->useWritePdo()->where('id', $logId)->first() : null;
+            $storedTopic = $topic ? $connection->table('magic_super_agent_topics')->useWritePdo()->where('id', $topic->getId())->whereNull('deleted_at')->first() : null;
+            if ($log && $storedTopic && (int) $log->topic_id === $topic->getId() && (int) $log->project_id === (int) $storedTopic->project_id) {
+                $pairExists = true;
+                foreach ($context ? [$context['chat_conversation_id'], $context['receive_conversation_id']] : [$storedTopic->chat_conversation_id] as $conversationId) {
+                    $pairExists = $pairExists && $connection->table('magic_chat_topics')->useWritePdo()
+                        ->where('conversation_id', $conversationId)->where('topic_id', $storedTopic->chat_topic_id)->whereNull('deleted_at')->exists();
+                }
+                if ($context === null) {
+                    $pairExists = $pairExists && $connection->table('magic_chat_topics')->useWritePdo()
+                        ->where('topic_id', $storedTopic->chat_topic_id)->whereNull('deleted_at')
+                        ->distinct()->count('conversation_id') === 2;
+                }
+                $verification = $pairExists ? 'resources_committed' : 'inconsistent_resources';
+            }
+        } catch (Throwable $verificationException) {
+            $verification = 'verification_failed: ' . $verificationException->getMessage();
+        } finally {
+            $connection?->disconnect();
+        }
+        $this->logger->error('计划消息提交结果不确定，已停止发送，需人工核对 RUNNING 记录', [
+            'message_schedule_id' => $scheduleId,
+            'execution_log_id' => $logId,
+            'candidate_project_id' => $topic?->getProjectId(),
+            'candidate_topic_id' => $topic?->getId(),
+            'verification' => $verification,
+            'error' => $exception->getMessage(),
+        ]);
+    }
+
+    private function finalizeScheduleCompletion(int $messageScheduleId): void
+    {
+        $latest = $this->messageScheduleDomainService->getMessageScheduleByIdForUpdate($messageScheduleId);
+        if ($latest && (int) $latest->getCompleted() !== 1 && $this->shouldMarkAsCompleted($latest)) {
+            $this->messageScheduleDomainService->updateScheduleExecutionState($latest, completed: 1);
+        }
+    }
+
+    private function getProjectOrCreate(DataIsolation $dataIsolation, int $projectId, int $workspaceId, string $messageType, array $messageContent, ?string $projectName = null): ProjectEntity
     {
         // If project id is not empty, get it directly
         if (! empty($projectId)) {
@@ -868,7 +946,7 @@ class MessageScheduleAppService extends AbstractAppService
         // Get project working directory
         $projectWorkDir = WorkDirectoryUtil::getWorkDir($dataIsolation->getCurrentUserId(), $newProjectId);
 
-        $projectName = $this->getSummarizeMessageText($dataIsolation, $messageType, $messageContent);
+        $projectName ??= $this->getSummarizeMessageText($dataIsolation, $messageType, $messageContent);
 
         $projectEntity = $this->projectDomainService->createProject(
             workspaceId: $workspaceId,
@@ -960,6 +1038,7 @@ class MessageScheduleAppService extends AbstractAppService
             }
             // Build based on $oldWorkDir
             $fileEntity = new TaskFileEntity();
+            $fileEntity->setFileId((int) $fileData['file_id']);
             $fileEntity->setFileKey($filePath);
             $fileEntity->setFileName($fileData['file_name']);
             $fileEntity->setFileSize($fileData['file_size']);
@@ -1031,20 +1110,20 @@ class MessageScheduleAppService extends AbstractAppService
         }
     }
 
-    private function getTopicOrCreate(DataIsolation $dataIsolation, int $topicId, ProjectEntity $projectEntity, string $messageType, array $messageContent, string $sourceId = ''): ?TopicEntity
+    private function getTopicOrCreate(DataIsolation $dataIsolation, int $topicId, ProjectEntity $projectEntity, string $messageType, array $messageContent, string $sourceId = '', array $pair = [], ?array &$pendingDefault = null, ?string $topicName = null): ?TopicEntity
     {
         if (! empty($topicId)) {
             return $this->topicDomainService->getTopicById($topicId);
         }
-        // 1. Initialize chat conversation and topic
-        [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
-
-        $topicName = $this->getSummarizeMessageText($dataIsolation, $messageType, $messageContent);
+        $topicName ??= $this->getSummarizeMessageText($dataIsolation, $messageType, $messageContent);
+        $pendingDefault = $this->chatAppService->createMagicChatTopicForConversationPair($dataIsolation, $pair);
+        $chatConversationId = $pendingDefault['chat_conversation_id'];
+        $chatConversationTopicId = $pendingDefault['chat_topic_id'];
         // Append timestamp in ymdHi format
         $topicName = $topicName . ' ' . date('ymdHi');
 
         // 2. Create topic
-        return $this->topicDomainService->createTopic(
+        $topicEntity = $this->topicDomainService->createTopic(
             $dataIsolation,
             $projectEntity->getWorkspaceId(),
             $projectEntity->getId(),
@@ -1056,6 +1135,14 @@ class MessageScheduleAppService extends AbstractAppService
             CreationSource::SCHEDULED_TASK->value, // source
             $sourceId // sourceId
         );
+        $this->taskFileDomainService->findOrCreateTopicRootDirectory(
+            $projectEntity->getId(),
+            $topicEntity->getId(),
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $projectEntity->getUserOrganizationCode()
+        );
+        return $topicEntity;
     }
 
     /**

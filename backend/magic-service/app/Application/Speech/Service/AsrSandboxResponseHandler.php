@@ -60,13 +60,14 @@ class AsrSandboxResponseHandler extends AbstractAppService
             return;
         }
 
-        // 2. 检查并处理目录重命名（沙箱有bug，会重命名目录但是没有通知文件变动，没有改数据库记录）
-        $taskStatus->displayDirectory = $this->extractDirectoryPath($audioFile);
-
-        // 3. 查找音频文件记录
+        // 2. 查找音频文件记录
+        //
+        // 新版 finish 流程可能先在工作区生成 merged.opus，再由 finalizer
+        // 按业务标题写入显示目录。响应里的 path 不一定是最终文件名，
+        // 因此优先使用 finish 阶段保存的 expected_audio_file_name。
         $this->getAudioFileId($taskStatus, $audioFile);
 
-        // 4. 处理笔记文件
+        // 3. 处理笔记文件
         if ($noteFile !== null) {
             $noteAction = $noteFile['action_performed'] ?? null;
             $noteSize = isset($noteFile['size']) ? (int) $noteFile['size'] : null;
@@ -90,7 +91,7 @@ class AsrSandboxResponseHandler extends AbstractAppService
             $this->handleEmptyNoteFile($taskStatus);
         }
 
-        // 5. 处理标记文件
+        // 4. 处理标记文件
         if ($markerFile !== null) {
             $markerAction = $markerFile['action_performed'] ?? null;
             $markerSize = isset($markerFile['size']) ? (int) $markerFile['size'] : null;
@@ -152,8 +153,9 @@ class AsrSandboxResponseHandler extends AbstractAppService
         array $audioFile
     ): void {
         $relativePath = $audioFile['path'] ?? '';
+        $expectedFileName = trim((string) ($taskStatus->expectedAudioFileName ?? ''));
 
-        if (empty($relativePath)) {
+        if ($relativePath === '' && $expectedFileName === '') {
             $this->logger->warning('音频文件路径为空，无法查询文件记录', [
                 'task_key' => $taskStatus->taskKey,
                 'audio_file' => $audioFile,
@@ -162,16 +164,19 @@ class AsrSandboxResponseHandler extends AbstractAppService
         }
 
         // 先保留沙箱实际返回的路径；即使文件记录尚未同步，失败日志与下次恢复仍有真实路径可用。
-        $taskStatus->filePath = $relativePath;
+        $taskStatus->filePath = $relativePath !== '' ? $relativePath : $expectedFileName;
+        $lookupFileName = '';
 
         try {
-            // 沙箱合并完成的音频文件被写入到「显示目录」下（如 `录音纪要_xxx/录音.wav`），
             // 显示目录在 ASR 启动录音时已经创建并把 file_id 持久化到 Redis（displayDirectoryId）。
-            // 因此这里直接拿 displayDirectoryId + 文件名定位即可，无需依赖 file_key 路径串。
+            // 文件名优先使用 finish 阶段确定的最终业务文件名；只有历史任务没有该字段时，
+            // 才回退到沙箱响应路径的 basename。
+            $lookupFileName = $expectedFileName !== '' ? $expectedFileName : basename($relativePath);
+
             $fileEntity = $this->findFileWithPolling(
                 taskStatus: $taskStatus,
                 parentId: $taskStatus->displayDirectoryId,
-                fileName: basename($relativePath),
+                fileName: $lookupFileName,
                 fileTypeName: '音频文件',
                 relativePath: $relativePath,
             );
@@ -190,6 +195,8 @@ class AsrSandboxResponseHandler extends AbstractAppService
             $this->logger->error('查询音频文件记录失败', [
                 'task_key' => $taskStatus->taskKey,
                 'relative_path' => $relativePath,
+                'expected_file_name' => $taskStatus->expectedAudioFileName,
+                'lookup_file_name' => $lookupFileName,
                 'error' => $e->getMessage(),
             ]);
 

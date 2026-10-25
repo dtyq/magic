@@ -1,8 +1,9 @@
 import type { RecordingTranscriptSegment } from "../types/recording-detail"
 import { parseRecordingTimeToSeconds } from "./time"
 
+// Accept both the current plain header and legacy bold headers emitted by audio HTML bundles.
 const TIMED_LINE_REGEX =
-	/^\s*(?:[-*]\s*)?\[?(\d{1,3}:\d{2}(?::\d{2})?)\]?\s*(?:[-–—]\s*\[?(\d{1,3}:\d{2}(?::\d{2})?)\]?)?\s*(?:(Speaker-[\w-]+|[^:：]{1,30})[:：])?\s*(.*)$/u
+	/^\s*(?:-\s*|\*(?!\*)\s*)?(?:\*\*)?\[?(\d{1,3}:\d{2}(?::\d{2})?)\]?\s*(?:[-–—]\s*\[?(\d{1,3}:\d{2}(?::\d{2})?)\]?)?\s*(?:(Speaker-[\w-]+|[^:：]{1,30})[:：](?:\*\*)?)?\s*(.*)$/u
 
 /** Parses completed transcript markdown into seekable timeline segments for the detail workbench. */
 export function parseTranscriptMarkdown(markdown: string): RecordingTranscriptSegment[] {
@@ -11,7 +12,7 @@ export function parseTranscriptMarkdown(markdown: string): RecordingTranscriptSe
 
 	for (const line of lines) {
 		const trimmed = line.trim()
-		if (!trimmed || trimmed.startsWith("#")) continue
+		if (!trimmed) continue
 
 		const match = trimmed.match(TIMED_LINE_REGEX)
 		if (!match) {

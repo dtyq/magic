@@ -64,6 +64,8 @@ describe("useSelectionHandles", () => {
 				setSelectedInfoList: vi.fn(),
 				setHoveredRect: vi.fn(),
 				setIsSelectionMode: vi.fn(),
+				gapAxesLinked: false,
+				onPreviewStyles: vi.fn(),
 			}),
 		)
 	}

@@ -15,6 +15,7 @@ use App\Domain\ModelGateway\Entity\Dto\ImageConvertHighDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEraserRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageExpandRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageRemoveBackgroundRequestDTO;
+use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -104,5 +105,31 @@ class ImageProxyApi extends AbstractOpenApi
         $response = $this->imageExpandAppService->expand($dto);
 
         return $response->toArray();
+    }
+
+    public function createGenerationTask(RequestInterface $request): array
+    {
+        $requestData = $request->all();
+        $textGenerateImageDTO = new TextGenerateImageDTO($requestData);
+        $textGenerateImageDTO->setAccessToken($this->getAccessToken());
+        $textGenerateImageDTO->setIps($this->getClientIps());
+
+        $textGenerateImageDTO->valid();
+        $this->enrichRequestDTO($textGenerateImageDTO, $request->getHeaders());
+
+        return $this->imageLLMAppService->submitGenerationTask(
+            $textGenerateImageDTO->getAccessToken(),
+            $textGenerateImageDTO,
+            $requestData
+        );
+    }
+
+    public function getGenerationTask(string $id): array
+    {
+        return $this->imageLLMAppService->queryGenerationTask(
+            $this->getAccessToken(),
+            $id,
+            $this->getBusinessParams()
+        );
     }
 }

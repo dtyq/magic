@@ -59,7 +59,6 @@ AgentInputContainer/
             ├── PromotionalBanner.tsx  # Upgrade banner
             ├── WelcomeMessage.tsx     # Greeting section
             ├── ChatInput.tsx          # Main input area
-            ├── PluginTips.tsx         # Tool connection prompt
             └── QuickActions.tsx       # Action shortcuts
 ```
 

@@ -38,6 +38,8 @@ interface ProviderModelRepositoryInterface
 
     public function updateStatus(ProviderDataIsolation $dataIsolation, string $id, Status $status): void;
 
+    public function updateStatusByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds, Status $status): void;
+
     public function deleteByModelParentId(ProviderDataIsolation $dataIsolation, string $modelParentId): void;
 
     public function deleteByModelParentIds(ProviderDataIsolation $dataIsolation, array $modelParentIds): void;
@@ -80,6 +82,20 @@ interface ProviderModelRepositoryInterface
      * @return array<string, ProviderModelEntity[]> 模型实体数组，以model_id为键，值为对应的模型列表
      */
     public function getByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array;
+
+    /**
+     * 批量获取模型和服务商配置均已启用的模型。
+     *
+     * @return array<string, ProviderModelEntity[]> 按模型标识分组的有效模型
+     */
+    public function getAvailableByModelIds(ProviderDataIsolation $dataIsolation, array $modelIds): array;
+
+    /**
+     * 查询全部可用模型标识候选项，并按模型标识聚合。
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function queryAvailableModelOptions(ProviderDataIsolation $dataIsolation, string $keyword): array;
 
     /**
      * @return array{total: int, list: ProviderModelEntity[]}

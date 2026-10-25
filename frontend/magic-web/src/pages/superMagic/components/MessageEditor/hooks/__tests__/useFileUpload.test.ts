@@ -16,28 +16,14 @@ vi.mock("antd", () => ({
 	},
 }))
 
-vi.mock("@/opensource/apis/clients/magic", () => ({
-	default: {
-		post: vi.fn().mockResolvedValue({
-			temporary_credential: {
-				dir: "test-dir/",
-			},
-		}),
-	},
-}))
-
-vi.mock("@/opensource/apis/core/HttpClient", () => ({
-	HttpClient: vi.fn().mockImplementation(() => ({
-		request: vi.fn().mockResolvedValue({
-			data: {
-				temporary_credential: {
-					dir: "test-dir/",
-				},
-			},
-		}),
-		setupInterceptors: vi.fn(), // Add this method that MagicHttpClient expects
-	})),
-}))
+vi.mock("@/infrastructure/network/http/runtime", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/infrastructure/network/http/runtime")>()
+	const request = vi.fn().mockResolvedValue({ temporary_credential: { dir: "test-dir/" } })
+	return {
+		...actual,
+		defaultMagicClient: { get: request, post: request },
+	}
+})
 
 vi.mock("react-i18next", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("react-i18next")>()

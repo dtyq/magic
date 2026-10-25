@@ -52,7 +52,7 @@ import Markdown from "../Markdown"
 import SourceItem from "./components/SourceItem"
 import MagicCitationProvider from "../Markdown/EnhanceMarkdown/components/MagicCitation/Provider"
 import { ErrorBoundary } from "react-error-boundary"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 
 const logger = Logger.createLogger("MagicAggregateAISearchCardV2")
 

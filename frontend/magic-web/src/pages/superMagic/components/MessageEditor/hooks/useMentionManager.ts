@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { useMemoizedFn } from "ahooks"
-import { Editor } from "@tiptap/react"
+import { Editor } from "@/infrastructure/editors/tiptap/react"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import {
 	getMentionUniqueId,
@@ -23,7 +23,9 @@ import MentionPanelStore from "@/components/business/MentionPanel/builtin-store"
  *
  * @returns mention 状态和处理函数
  */
-export function useMentionManager({ onChange }: { onChange: (items: MentionListItem[]) => void }) {
+export function useMentionManager({
+	onChange = () => undefined,
+}: { onChange?: (items: MentionListItem[]) => void } = {}) {
 	// State
 	const [mentionItems, _setMentionItems] = useState<MentionListItem[]>([])
 
@@ -293,7 +295,7 @@ export function useMentionManager({ onChange }: { onChange: (items: MentionListI
 					) {
 						const fileData = item.attrs.data as UploadFileMentionData
 						if (fileData.file_id === fileId) {
-							if (saveResult) {
+							if (saveResult && !fileData.is_canvas_clipboard) {
 								const newItem = {
 									...item,
 									attrs: {
@@ -319,6 +321,7 @@ export function useMentionManager({ onChange }: { onChange: (items: MentionListI
 										file_extension: fileData.file_extension,
 										file_size: reportResult?.file_size || 0,
 										file: fileData.file,
+										is_canvas_clipboard: fileData.is_canvas_clipboard,
 									},
 								},
 							}
@@ -343,7 +346,7 @@ export function useMentionManager({ onChange }: { onChange: (items: MentionListI
 					) {
 						const nodeData = node.attrs.data as UploadFileMentionData
 						if (nodeData.file_id === fileId) {
-							if (saveResult) {
+							if (saveResult && !nodeData.is_canvas_clipboard) {
 								// Replace with PROJECT_FILE mention
 								const newAttrs = {
 									type: MentionItemType.PROJECT_FILE,
@@ -361,6 +364,7 @@ export function useMentionManager({ onChange }: { onChange: (items: MentionListI
 										file_extension: nodeData.file_extension,
 										file_size: reportResult.file_size || 0,
 										file: nodeData.file,
+										is_canvas_clipboard: nodeData.is_canvas_clipboard,
 									},
 								}
 								tr.setNodeMarkup(pos, undefined, newAttrs)

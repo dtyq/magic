@@ -5,6 +5,7 @@ import { SuperMagicApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import { analyticsService } from "@/services/analytics"
 
 export function useWorkspace() {
 	const { t } = useTranslation("super")
@@ -38,6 +39,7 @@ export function useWorkspace() {
 
 	const handleAddWorkspace = useMemoizedFn(async (workspaceName: string) => {
 		try {
+			analyticsService.report("workspace_create_attempted")
 			const response = await SuperMagicApi.createWorkspace({
 				workspace_name: workspaceName || "",
 			})

@@ -1,11 +1,8 @@
+import { cloneCanvasConnection } from "../../document/connectionIndex"
 import type { CanvasConnection } from "../../document/types"
 
-function cloneConnection(connection: CanvasConnection): CanvasConnection {
-	return { ...connection }
-}
-
 function cloneConnections(connections: CanvasConnection[]): CanvasConnection[] {
-	return connections.map(cloneConnection)
+	return connections.map(cloneCanvasConnection)
 }
 
 function createDirectedPairKey(sourceElementId: string, targetElementId: string): string {
@@ -65,7 +62,7 @@ export class ConnectionStore {
 		const connectionIdSet = new Set(connectionIds)
 		return this.connections
 			.filter((connection) => connectionIdSet.has(connection.id))
-			.map(cloneConnection)
+			.map(cloneCanvasConnection)
 	}
 
 	public hasConnectionId(connectionId: string): boolean {
@@ -145,7 +142,7 @@ export class ConnectionStore {
 			return false
 		}
 
-		const clonedConnection = cloneConnection(connection)
+		const clonedConnection = cloneCanvasConnection(connection)
 		this.connections.push(clonedConnection)
 		this.connectionsById.set(clonedConnection.id, clonedConnection)
 		this.connectionIdByDirectedPair.set(directedPairKey, clonedConnection.id)
@@ -178,6 +175,6 @@ export class ConnectionStore {
 		return Array.from(connectionIds)
 			.map((connectionId) => this.connectionsById.get(connectionId))
 			.filter((connection): connection is CanvasConnection => !!connection)
-			.map(cloneConnection)
+			.map(cloneCanvasConnection)
 	}
 }

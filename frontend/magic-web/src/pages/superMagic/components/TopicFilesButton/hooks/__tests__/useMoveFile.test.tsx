@@ -1,9 +1,14 @@
-import { act, renderHook } from "@testing-library/react"
+import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useMoveFile } from "../useMoveFile"
 import type { AttachmentItem } from "../types"
 import { SuperMagicApi } from "@/apis"
+import MagicModal from "@/components/base/MagicModal"
 import { resolveSingleDocumentStaticDependencies } from "@/pages/superMagic/utils/staticDependencies"
+import {
+	commitCanvasProjectPathRepair,
+	planCanvasProjectsBeforeFileOperation,
+} from "@/pages/superMagic/components/Detail/contents/Design/utils/canvasProjectPathRepair"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
@@ -54,6 +59,14 @@ vi.mock("@/pages/superMagic/utils/staticDependencies", () => ({
 			: [...new Set(fileIds)],
 }))
 
+vi.mock(
+	"@/pages/superMagic/components/Detail/contents/Design/utils/canvasProjectPathRepair",
+	() => ({
+		planCanvasProjectsBeforeFileOperation: vi.fn(),
+		commitCanvasProjectPathRepair: vi.fn(),
+	}),
+)
+
 describe("useMoveFile", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -62,6 +75,26 @@ describe("useMoveFile", () => {
 			dependencyFileIds: [],
 			dependencyTransferFileIds: [],
 			missingResourcePaths: [],
+		})
+		vi.mocked(planCanvasProjectsBeforeFileOperation).mockResolvedValue({
+			affectedProjects: [],
+			repairedFileIds: [],
+			repairedFiles: [],
+			failures: [],
+			saveFailures: [],
+			hasFailures: false,
+			hasSaveFailures: false,
+			requiresConfirmation: false,
+		})
+		vi.mocked(commitCanvasProjectPathRepair).mockResolvedValue({
+			affectedProjects: [],
+			repairedFileIds: [],
+			repairedFiles: [],
+			failures: [],
+			saveFailures: [],
+			hasFailures: false,
+			hasSaveFailures: false,
+			requiresConfirmation: false,
 		})
 	})
 
@@ -174,5 +207,169 @@ describe("useMoveFile", () => {
 				keep_both_file_ids: ["folder-1"],
 			}),
 		)
+		expect(
+			vi.mocked(planCanvasProjectsBeforeFileOperation).mock.invocationCallOrder[0],
+		).toBeLessThan(vi.mocked(SuperMagicApi.moveFile).mock.invocationCallOrder[0])
+	})
+
+	it("跨项目移动不触发画布路径修复", async () => {
+		vi.mocked(SuperMagicApi.moveFile).mockResolvedValue({ status: "success" })
+		const { result } = renderHook(() => useMoveFile({ projectId: "project-1" }))
+
+		await act(async () => {
+			await result.current.batchMoveFiles({
+				fileIds: ["folder-1"],
+				projectId: "project-1",
+				targetProjectId: "project-2",
+				targetParentId: "target",
+			})
+		})
+
+		expect(planCanvasProjectsBeforeFileOperation).not.toHaveBeenCalled()
+		expect(SuperMagicApi.moveFile).toHaveBeenCalledWith(
+			expect.objectContaining({ target_project_id: "project-2" }),
+		)
+	})
+
+	it("单个画布资源移动仍提示风险但不触发路径修复", async () => {
+		vi.mocked(SuperMagicApi.moveFile).mockResolvedValue({ status: "success" })
+		vi.mocked(MagicModal.confirm).mockImplementation((config) => {
+			config.onOk?.()
+			return undefined as never
+		})
+		const canvasRoot: AttachmentItem = {
+			file_id: "canvas",
+			file_name: "Canvas",
+			is_directory: true,
+			relative_file_path: "Canvas",
+		}
+		const resourceDir: AttachmentItem = {
+			file_id: "images",
+			file_name: "images",
+			parent_id: "canvas",
+			is_directory: true,
+			relative_file_path: "Canvas/images",
+		}
+		const resource: AttachmentItem = {
+			file_id: "image",
+			file_name: "a.png",
+			parent_id: "images",
+			relative_file_path: "Canvas/images/a.png",
+		}
+		const target: AttachmentItem = {
+			file_id: "target",
+			file_name: "Other",
+			is_directory: true,
+			relative_file_path: "Other",
+		}
+		const attachments: AttachmentItem[] = [
+			canvasRoot,
+			{
+				file_id: "main",
+				file_name: "magic.project.js",
+				parent_id: "canvas",
+				relative_file_path: "Canvas/magic.project.js",
+			},
+			resourceDir,
+			resource,
+			target,
+		]
+		const { result } = renderHook(() => useMoveFile({ projectId: "project-1", attachments }))
+
+		act(() => result.current.showMoveSelector(resource))
+		await act(async () => {
+			await result.current.confirmMove({ path: [target] })
+		})
+
+		expect(MagicModal.confirm).toHaveBeenCalledTimes(1)
+		expect(planCanvasProjectsBeforeFileOperation).not.toHaveBeenCalled()
+		expect(SuperMagicApi.moveFile).toHaveBeenCalledWith(
+			expect.objectContaining({ file_id: "image", target_parent_id: "target" }),
+		)
+	})
+
+	it("路径修复失败时继续仍会调用移动接口", async () => {
+		vi.mocked(SuperMagicApi.moveFile).mockResolvedValue({ status: "success" })
+		vi.mocked(planCanvasProjectsBeforeFileOperation).mockResolvedValue({
+			affectedProjects: [],
+			repairedFileIds: [],
+			repairedFiles: [],
+			failures: [
+				{ projectName: "Canvas", fileName: "magic.project.js", message: "read failed" },
+			],
+			saveFailures: [],
+			hasFailures: true,
+			hasSaveFailures: false,
+			requiresConfirmation: true,
+		})
+		vi.mocked(commitCanvasProjectPathRepair).mockResolvedValue({
+			affectedProjects: [],
+			repairedFileIds: [],
+			repairedFiles: [],
+			failures: [
+				{ projectName: "Canvas", fileName: "magic.project.js", message: "read failed" },
+			],
+			saveFailures: [],
+			hasFailures: true,
+			hasSaveFailures: false,
+			requiresConfirmation: true,
+		})
+		let confirmConfig: Parameters<typeof MagicModal.confirm>[0] | undefined
+		vi.mocked(MagicModal.confirm).mockImplementation((config) => {
+			confirmConfig = config
+			return undefined as never
+		})
+		const { result } = renderHook(() => useMoveFile({ projectId: "project-1" }))
+
+		const promise = result.current.batchMoveFiles({
+			fileIds: ["folder-1"],
+			projectId: "project-1",
+			targetParentId: "target",
+		})
+		await waitFor(() => expect(MagicModal.confirm).toHaveBeenCalledTimes(1))
+		await act(async () => {
+			confirmConfig?.onOk?.()
+			await promise
+		})
+
+		expect(SuperMagicApi.moveFile).toHaveBeenCalledTimes(1)
+		expect(vi.mocked(SuperMagicApi.moveFile).mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(commitCanvasProjectPathRepair).mock.invocationCallOrder[0],
+		)
+	})
+
+	it("路径修复失败时取消不会调用移动接口", async () => {
+		vi.mocked(planCanvasProjectsBeforeFileOperation).mockResolvedValue({
+			affectedProjects: [],
+			repairedFileIds: [],
+			repairedFiles: [],
+			failures: [
+				{ projectName: "Canvas", fileName: "magic.project.js", message: "read failed" },
+			],
+			saveFailures: [],
+			hasFailures: true,
+			hasSaveFailures: false,
+			requiresConfirmation: true,
+		})
+		let confirmConfig: Parameters<typeof MagicModal.confirm>[0] | undefined
+		vi.mocked(MagicModal.confirm).mockImplementation((config) => {
+			confirmConfig = config
+			return undefined as never
+		})
+		const { result } = renderHook(() => useMoveFile({ projectId: "project-1" }))
+
+		const promise = result.current.batchMoveFiles({
+			fileIds: ["folder-1"],
+			projectId: "project-1",
+			targetParentId: "target",
+		})
+		await waitFor(() => expect(MagicModal.confirm).toHaveBeenCalledTimes(1))
+		await act(async () => {
+			confirmConfig?.onCancel?.()
+			await promise
+		})
+
+		expect(SuperMagicApi.moveFile).not.toHaveBeenCalled()
+		expect(commitCanvasProjectPathRepair).not.toHaveBeenCalled()
 	})
 })

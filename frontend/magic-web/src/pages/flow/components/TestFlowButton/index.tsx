@@ -7,7 +7,7 @@ import { useEffect, useMemo } from "react"
 import { Plus, Trash2 } from "lucide-react"
 import type { TriggerConfig } from "@/types/flow"
 import MagicSelect from "@dtyq/magic-flow/dist/common/BaseUI/Select"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { nanoid } from "nanoid"
 import MagicInput from "@dtyq/magic-flow/dist/common/BaseUI/Input"
 import type { MagicFlow } from "@dtyq/magic-flow/dist/MagicFlow/types/flow"
@@ -319,7 +319,14 @@ function TestFlowButton({ onFinished, loading, flow, flowInstance }: TestFlowPro
 																	},
 																]}
 															>
-																<MagicInput placeholder="文件名" />
+																<MagicInput
+																	placeholder={t(
+																		"common.fileName",
+																		{
+																			ns: "flow",
+																		},
+																	)}
+																/>
 															</Form.Item>
 															<Form.Item
 																{...field}
@@ -344,7 +351,14 @@ function TestFlowButton({ onFinished, loading, flow, flowInstance }: TestFlowPro
 																	},
 																]}
 															>
-																<MagicInput placeholder="文件地址" />
+																<MagicInput
+																	placeholder={t(
+																		"common.fileUrl",
+																		{
+																			ns: "flow",
+																		},
+																	)}
+																/>
 															</Form.Item>
 															<Button
 																type="text"

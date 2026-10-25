@@ -1,10 +1,11 @@
-import type { ImageElement } from "../../document/types"
+import type { CropConfig } from "../../document/types"
 import type { EraserStroke } from "../../interaction/eraser/EraserRenderer"
 import { generateUUID } from "../../shared/ids"
 import { getNormalizedImageProcessCrop } from "./imageCropUtils"
+import { getEraserMaskStrokeStyle } from "./eraserMaskOperations"
 
 interface CreateEraserMaskFileParams {
-	element: Pick<ImageElement, "width" | "height" | "crop">
+	element: { width?: number; height?: number; crop?: CropConfig }
 	strokes: EraserStroke[]
 	naturalWidth: number
 	naturalHeight: number
@@ -39,7 +40,6 @@ export async function createEraserMaskFile(params: CreateEraserMaskFileParams): 
 	outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
 	outputContext.save()
 	outputContext.scale(sourceCrop.width / elementWidth, sourceCrop.height / elementHeight)
-	outputContext.strokeStyle = "#fff"
 	outputContext.lineCap = "round"
 	outputContext.lineJoin = "round"
 
@@ -47,6 +47,7 @@ export async function createEraserMaskFile(params: CreateEraserMaskFileParams): 
 		if (stroke.points.length === 0) return
 
 		outputContext.beginPath()
+		outputContext.strokeStyle = getEraserMaskStrokeStyle(stroke.mode)
 		outputContext.lineWidth = stroke.radius * 2
 		const [firstPoint, ...restPoints] = stroke.points
 		outputContext.moveTo(firstPoint.x, firstPoint.y)

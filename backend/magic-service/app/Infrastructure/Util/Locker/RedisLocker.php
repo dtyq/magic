@@ -61,6 +61,24 @@ class RedisLocker implements LockerInterface
         }
     }
 
+    /**
+     * Extend a lease only while it still belongs to the same owner.
+     */
+    public function renew(string $name, string $owner, int $expire): bool
+    {
+        try {
+            $lua = <<<'LUA'
+            if redis.call("get", KEYS[1]) == ARGV[1] then
+                return redis.call("expire", KEYS[1], ARGV[2])
+            end
+            return 0
+            LUA;
+            return (bool) $this->redis->eval($lua, [$this->getLockKey($name), $owner, $expire], 1);
+        } catch (Throwable) {
+            throw new LockException();
+        }
+    }
+
     public function release(string $name, string $owner): bool
     {
         try {

@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { NodeType } from "@dtyq/user-selector"
 import { ResourceType, ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
+import { SharePermissionResourceProvider } from "@/pages/superMagic/components/Share/SharePermissionResourceContext"
 import type {
 	FileShareItem,
 	ProjectShareItem,
@@ -22,9 +23,12 @@ const mocks = vi.hoisted(() => ({
 	warningToast: vi.fn(),
 	canUseNativeShare: vi.fn(),
 	shareToNativeTarget: vi.fn(),
+	resolveShareDocumentDependencies: vi.fn(),
+	track: vi.fn(),
 	projectShareData: [] as ProjectShareItem[],
 	fileShareData: [] as FileShareItem[],
 	useShareDataCalls: [] as Array<{ resourceType: string; enabled?: boolean }>,
+	functionPermissions: {} as Record<string, boolean>,
 }))
 
 vi.hoisted(() => {
@@ -47,7 +51,19 @@ vi.hoisted(() => {
 	})
 })
 
+vi.mock("@/services/analytics", () => ({
+	analyticsService: { report: mocks.track },
+}))
+
 vi.mock("@/apis", () => ({
+	FUNCTION_PERMISSION_CODE: {
+		MicroAppSharePassword: "micro_app.share_password",
+		MicroAppSharePublic: "micro_app.share_public",
+		MicroAppShareTeam: "micro_app.share_team",
+		ProjectSharePassword: "project.share_password",
+		ProjectSharePublic: "project.share_public",
+		ProjectShareTeam: "project.share_team",
+	},
 	SuperMagicApi: {
 		getSnowflakeIds: mocks.getSnowflakeIds,
 		getShareInfoByCode: mocks.getShareInfoByCode,
@@ -56,6 +72,22 @@ vi.mock("@/apis", () => ({
 		batchGetFileDetails: mocks.batchGetFileDetails,
 	},
 }))
+
+vi.mock("@/hooks/useFunctionPermission", () => ({
+	useFunctionPermissions: () => ({
+		data: mocks.functionPermissions,
+		error: undefined,
+		isLoading: false,
+		mutate: vi.fn(),
+	}),
+}))
+
+vi.mock(
+	"@/pages/superMagic/components/Share/FileShareModal/hooks/resolveShareDocumentDependencies",
+	() => ({
+		resolveShareDocumentDependencies: mocks.resolveShareDocumentDependencies,
+	}),
+)
 
 vi.mock("@/models/user", () => ({
 	userStore: {
@@ -141,6 +173,11 @@ describe("useProjectShareSheet", () => {
 		mocks.projectShareData = []
 		mocks.fileShareData = []
 		mocks.useShareDataCalls = []
+		mocks.functionPermissions = {
+			"project.share_password": true,
+			"project.share_public": true,
+			"project.share_team": true,
+		}
 		mocks.getSnowflakeIds.mockResolvedValue({ ids: ["share-1"] })
 		mocks.getShareInfoByCode.mockResolvedValue({})
 		mocks.getShareResourceMembers.mockResolvedValue({ members: [] })
@@ -149,6 +186,10 @@ describe("useProjectShareSheet", () => {
 		mocks.cancelShare.mockResolvedValue(undefined)
 		mocks.canUseNativeShare.mockReturnValue(false)
 		mocks.shareToNativeTarget.mockResolvedValue("shared")
+		mocks.resolveShareDocumentDependencies.mockResolvedValue({
+			dependencyFileIds: [],
+			missingResourcePaths: [],
+		})
 	})
 
 	it("Sheet 关闭或无 projectId 时不启用分享列表拉取", () => {
@@ -206,6 +247,94 @@ describe("useProjectShareSheet", () => {
 		})
 
 		expect(result.current.view).toBe("create")
+	})
+
+	it("项目分享前两项被关闭时默认选中剩余的团队内分享", async () => {
+		mocks.functionPermissions = {
+			"project.share_password": false,
+			"project.share_public": false,
+			"project.share_team": true,
+		}
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		await waitFor(() => {
+			expect(result.current.permittedShareTypes).toEqual([ShareType.Organization])
+			expect(result.current.formState.shareType).toBe(ShareType.Organization)
+			expect(result.current.isSelectedShareTypePermitted).toBe(true)
+		})
+	})
+
+	it("单个文件分享同步应用项目分享方式权限", async () => {
+		mocks.functionPermissions = {
+			"project.share_password": false,
+			"project.share_public": true,
+			"project.share_team": false,
+		}
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [{ file_id: "file-1", file_name: "demo.md", is_directory: false }],
+				defaultSelectedFileIds: ["file-1"],
+				mode: "file",
+				onClose: vi.fn(),
+			}),
+		)
+
+		await waitFor(() => {
+			expect(result.current.permittedShareTypes).toEqual([ShareType.Public])
+			expect(result.current.formState.shareType).toBe(ShareType.Public)
+			expect(result.current.isSelectedShareTypePermitted).toBe(true)
+		})
+	})
+
+	it("微应用内文件分享使用微应用分享方式权限", async () => {
+		mocks.functionPermissions = {
+			"micro_app.share_password": false,
+			"micro_app.share_public": false,
+			"micro_app.share_team": true,
+			"project.share_password": true,
+			"project.share_public": false,
+			"project.share_team": false,
+		}
+
+		const { result } = renderHook(
+			() =>
+				useProjectShareSheet({
+					open: true,
+					projectId: "project-1",
+					projectName: "Demo Project",
+					attachments: [{ file_id: "file-1", file_name: "demo.md", is_directory: false }],
+					defaultSelectedFileIds: ["file-1"],
+					mode: "file",
+					onClose: vi.fn(),
+				}),
+			{
+				wrapper: ({ children }) => (
+					<SharePermissionResourceProvider value="microApp">
+						{children}
+					</SharePermissionResourceProvider>
+				),
+			},
+		)
+
+		await waitFor(() => {
+			expect(result.current.permittedShareTypes).toEqual([ShareType.Organization])
+			expect(result.current.formState.shareType).toBe(ShareType.Organization)
+			expect(result.current.isSelectedShareTypePermitted).toBe(true)
+		})
 	})
 
 	it("项目模式打开创建页时预填默认链接名称", () => {
@@ -516,6 +645,11 @@ describe("useProjectShareSheet", () => {
 		expect(String(mocks.writeText.mock.calls[0]?.[0])).not.toMatch(/^https?:\/\//)
 		expect(result.current.view).toBe("linkDetail")
 		expect(result.current.viewStack).toEqual([])
+		expect(mocks.track).toHaveBeenCalledTimes(1)
+		expect(mocks.track).toHaveBeenCalledWith("content_share_attempted", {
+			resourceType: ResourceType.FileCollection,
+			shareProject: true,
+		})
 	})
 
 	it("指定组织成员后创建分享时提交 designated 范围和目标成员", async () => {
@@ -556,6 +690,9 @@ describe("useProjectShareSheet", () => {
 					},
 				],
 			}),
+		)
+		expect(mocks.createOrUpdateShareResource.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+			"password",
 		)
 	})
 
@@ -666,6 +803,11 @@ describe("useProjectShareSheet", () => {
 			}),
 		])
 		expect(result.current.view).toBe("linkDetail")
+		expect(mocks.track).toHaveBeenCalledTimes(1)
+		expect(mocks.track).toHaveBeenCalledWith("content_share_attempted", {
+			resourceType: ResourceType.FileCollection,
+			shareProject: false,
+		})
 	})
 
 	it("文件模式未传默认打开文件时会从已选范围内自动计算并提交", async () => {
@@ -950,6 +1092,105 @@ describe("useProjectShareSheet", () => {
 				share_project: false,
 				project_id: "project-1",
 				file_ids: ["file-transcript", "file-magic-project"],
+			}),
+		)
+	})
+
+	it("bundle 未就绪时仍允许提交当前选择并补齐必需文件", async () => {
+		const dependencyAttachments = [
+			{ file_id: "fake-transcript-id", file_name: "fake-transcript.md" },
+		]
+		const fileMap = {
+			transcript: { file_id: "fake-transcript-id", file_name: "fake-transcript.md" },
+			magicProject: {
+				file_id: "fake-project-config-id",
+				file_name: "magic.project.js",
+			},
+			summaryFiles: [],
+		}
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "fake-project-id",
+				projectName: "Fake Recording",
+				attachments: [],
+				mode: "file",
+				projectMode: "audio",
+				dependencyAttachments,
+				fileMap,
+				defaultSelectedFileIds: ["fake-transcript-id"],
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.setSelectedFileIds(["fake-transcript-id"])
+		})
+
+		await act(async () => {
+			await result.current.submitCreateShare()
+		})
+
+		expect(mocks.resolveShareDocumentDependencies).not.toHaveBeenCalled()
+		expect(mocks.createOrUpdateShareResource).toHaveBeenCalledWith(
+			expect.objectContaining({
+				file_ids: ["fake-transcript-id", "fake-project-config-id"],
+			}),
+		)
+	})
+
+	it("bundle 就绪后会等待依赖分析并追加依赖文件", async () => {
+		mocks.resolveShareDocumentDependencies.mockResolvedValue({
+			dependencyFileIds: ["fake-image-id"],
+			missingResourcePaths: [],
+		})
+		const dependencyAttachments = [
+			{ file_id: "fake-transcript-id", file_name: "fake-transcript.md" },
+			{ file_id: "fake-image-id", file_name: "fake-image.png" },
+		]
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "fake-project-id",
+				projectName: "Fake Recording",
+				attachments: [],
+				mode: "file",
+				projectMode: "audio",
+				dependencyAttachments,
+				dependencyBundleRootPath: "fake-recording-bundle",
+				fileMap: {
+					transcript: { file_id: "fake-transcript-id", file_name: "fake-transcript.md" },
+					magicProject: {
+						file_id: "fake-project-config-id",
+						file_name: "magic.project.js",
+					},
+					summaryFiles: [],
+				},
+				defaultSelectedFileIds: ["fake-transcript-id"],
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.setSelectedFileIds(["fake-transcript-id"])
+		})
+
+		await waitFor(() => {
+			expect(mocks.resolveShareDocumentDependencies).toHaveBeenCalledWith({
+				selectedFileIds: ["fake-transcript-id"],
+				attachments: dependencyAttachments,
+				bundleRootPath: "fake-recording-bundle",
+				requireBundleRootPath: true,
+			})
+		})
+
+		await act(async () => {
+			await result.current.submitCreateShare()
+		})
+
+		expect(mocks.createOrUpdateShareResource).toHaveBeenCalledWith(
+			expect.objectContaining({
+				file_ids: ["fake-transcript-id", "fake-image-id", "fake-project-config-id"],
 			}),
 		)
 	})
@@ -1254,5 +1495,278 @@ describe("useProjectShareSheet", () => {
 		)
 		expect(mocks.writeText).not.toHaveBeenCalled()
 		expect(result.current.view).toBe("linkDetail")
+		expect(mocks.track).not.toHaveBeenCalled()
+	})
+
+	it("进入移动端分享编辑时先清空上一条分享的选中文件", async () => {
+		mocks.fileShareData = [
+			{
+				resource_id: "share-mobile-a",
+				title: "Share A",
+				project_id: "project-mobile",
+				resource_type: ResourceType.FileCollection,
+				share_type: ShareType.PasswordProtected,
+				file_ids: ["file-mobile-a"],
+			} as FileShareItem,
+		]
+		let resolveSettings!: (value: Record<string, unknown>) => void
+		mocks.getShareInfoByCode.mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveSettings = resolve
+			}),
+		)
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-mobile",
+				projectName: "Mobile project",
+				mode: "file",
+				attachments: [{ file_id: "file-mobile-a", name: "File A", is_directory: false }],
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => result.current.goToLinkDetail("share-mobile-a"))
+		await waitFor(() => expect(result.current.view).toBe("linkDetail"))
+		act(() => result.current.setSelectedFileIds(["file-mobile-a"]))
+
+		act(() => result.current.openEditSelectedShare())
+		expect(result.current.selectedFileIds).toEqual([])
+
+		await act(async () => {
+			resolveSettings({
+				project_id: "project-mobile",
+				resource_name: "Share A",
+				share_type: ShareType.PasswordProtected,
+				file_ids: ["file-mobile-a"],
+				extra: {},
+			})
+		})
+		await waitFor(() => expect(result.current.editLoading).toBe(false))
+		expect(result.current.selectedFileIds).toEqual(["file-mobile-a"])
+	})
+
+	it("新建项目分享尝试时上报 content_share_attempted 且 shareProject 为 true", async () => {
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.setShareName("Demo Share")
+		})
+
+		await act(async () => {
+			await result.current.submitCreateShare()
+		})
+
+		expect(mocks.track).toHaveBeenCalledTimes(1)
+		expect(mocks.track).toHaveBeenCalledWith("content_share_attempted", {
+			resourceType: ResourceType.FileCollection,
+			shareProject: true,
+		})
+	})
+
+	it("新建文件分享成功后上报 file", async () => {
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [{ file_id: "file-1", name: "note.md", is_directory: false }],
+				mode: "file",
+				defaultSelectedFileIds: ["file-1"],
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.setShareName("File Share")
+		})
+
+		await act(async () => {
+			await result.current.submitCreateShare()
+		})
+
+		expect(mocks.track).toHaveBeenCalledTimes(1)
+		expect(mocks.track).toHaveBeenCalledWith("content_share_attempted", {
+			resourceType: ResourceType.FileCollection,
+			shareProject: false,
+		})
+	})
+
+	it("编辑已有分享保存时不上报 content_share_attempted", async () => {
+		mocks.fileShareData = [
+			{
+				resource_id: "existing-file-share",
+				title: "Existing File Share",
+				project_id: "project-1",
+				project_name: "Demo Project",
+				resource_type: ResourceType.FileCollection,
+				share_type: ShareType.PasswordProtected,
+				created_at: "2026-06-01",
+				has_password: true,
+				password: "abc123",
+				share_project: false,
+				file_ids: ["file-1"],
+				extend: { file_count: 1 },
+			},
+		]
+		mocks.getShareInfoByCode.mockResolvedValue({
+			resource_name: "Existing File Share",
+			share_type: ShareType.PasswordProtected,
+			password: "abc123",
+			file_ids: ["file-1"],
+			extra: {},
+		})
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				mode: "file",
+				attachments: [{ file_id: "file-1", name: "note.md", is_directory: false }],
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => result.current.goToLinkDetail("existing-file-share"))
+		await waitFor(() => expect(result.current.view).toBe("linkDetail"))
+		act(() => result.current.openEditSelectedShare())
+		await waitFor(() => {
+			expect(result.current.view).toBe("edit")
+			expect(result.current.editLoading).toBe(false)
+		})
+
+		await act(async () => result.current.submitCreateShare())
+
+		expect(mocks.createOrUpdateShareResource).toHaveBeenCalled()
+		expect(mocks.track).not.toHaveBeenCalled()
+	})
+
+	it("新建分享失败时仍上报 content_share_attempted", async () => {
+		mocks.createOrUpdateShareResource.mockRejectedValue(new Error("create failed"))
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.setShareName("Broken Share")
+		})
+
+		await act(async () => {
+			await result.current.submitCreateShare()
+		})
+
+		expect(mocks.errorToast).toHaveBeenCalled()
+		expect(mocks.track).toHaveBeenCalledWith("content_share_attempted", {
+			resourceType: ResourceType.FileCollection,
+			shareProject: true,
+		})
+	})
+
+	it("编辑指定成员后再确认选择器时仍按用户提交 target_type", async () => {
+		mocks.projectShareData = [
+			{
+				resource_id: "org-share-edit",
+				title: "组织分享",
+				project_id: "project-1",
+				project_name: "Demo Project",
+				share_type: ShareType.Organization,
+				created_at: "2026-05-05",
+				has_password: false,
+				extend: { file_count: 1 },
+			},
+		]
+		mocks.getShareInfoByCode.mockResolvedValue({
+			resource_name: "组织分享",
+			share_type: ShareType.Organization,
+			share_range: "designated",
+			target_ids: [{ target_type: "User", target_id: "user-existing" }],
+			file_ids: ["file-1"],
+			extra: {},
+		})
+		mocks.getShareResourceMembers.mockResolvedValue({
+			members: [
+				{
+					id: "member-row-1",
+					user_id: "user-existing",
+					name: "Existing Member",
+					type: "User",
+				},
+			],
+		})
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => result.current.goToLinkDetail("org-share-edit"))
+		await waitFor(() => expect(result.current.view).toBe("linkDetail"))
+
+		act(() => result.current.openEditSelectedShare())
+		await waitFor(() => {
+			expect(result.current.view).toBe("edit")
+			expect(result.current.editLoading).toBe(false)
+			expect(result.current.selectedMemberNodes).toEqual([
+				expect.objectContaining({
+					id: "user-existing",
+					dataType: NodeType.User,
+				}),
+			])
+		})
+
+		act(() => {
+			result.current.confirmMemberSelector([
+				{
+					id: "user-existing",
+					user_id: "user-existing",
+					name: "Existing Member",
+					type: "User",
+				},
+				{
+					id: "user-added",
+					name: "Added Member",
+					dataType: NodeType.User,
+				},
+			] as never)
+		})
+
+		await act(async () => {
+			await result.current.submitCreateShare()
+		})
+
+		expect(mocks.createOrUpdateShareResource).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				share_range: "designated",
+				target_ids: [
+					{ target_type: "User", target_id: "user-existing" },
+					{ target_type: "User", target_id: "user-added" },
+				],
+			}),
+		)
 	})
 })

@@ -1,3 +1,7 @@
+import {
+	canDeleteRecordingProjects,
+	handleRecordingProjectDeletionError,
+} from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { useCallback, useEffect, useState } from "react"
 import type { RefObject } from "react"
 import { Check, Loader2 } from "lucide-react"
@@ -271,6 +275,7 @@ function AudioRecordingsDesktop({ scrollViewportRef }: AudioRecordingsDesktopPro
 		navigate({
 			name: RouteName.SuperWorkspaceProjectState,
 			params: { projectId: item.id },
+			state: { isAudioProjectEntry: true },
 		})
 	}
 
@@ -294,7 +299,14 @@ function AudioRecordingsDesktop({ scrollViewportRef }: AudioRecordingsDesktopPro
 	}
 
 	async function handleDeleteConfirm(projectIds: string[]) {
-		const success = await store.batchDeleteProjects(projectIds)
+		if (!canDeleteRecordingProjects(projectIds)) return
+		let success: boolean
+		try {
+			success = await store.batchDeleteProjects(projectIds)
+		} catch (error) {
+			if (handleRecordingProjectDeletionError(error)) return
+			throw error
+		}
 		if (success) {
 			toast.success(t("actions.deleteSuccess"))
 			setDeleteTargetIds(null)
@@ -365,12 +377,12 @@ function AudioRecordingsDesktop({ scrollViewportRef }: AudioRecordingsDesktopPro
 			className="mt-5 flex w-full min-w-0 flex-col gap-5 sm:gap-6"
 			data-testid="audio-recordings-desktop"
 		>
-			<div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-				<div className="flex min-w-0 flex-col gap-2">
-					<h1 className="break-words bg-gradient-to-br from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-2xl font-bold leading-tight text-transparent sm:text-3xl lg:text-4xl">
+			<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+				<div className="flex min-w-0 flex-1 flex-col gap-2">
+					<h1 className="h-8 break-words bg-gradient-to-br from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-lg font-semibold leading-8 text-transparent sm:h-9 sm:text-xl sm:leading-9 lg:h-10 lg:text-2xl lg:leading-10">
 						{t("pageTitle")}
 					</h1>
-					<p className="hidden max-w-2xl break-words text-sm text-muted-foreground">
+					<p className="max-w-2xl break-words text-sm text-muted-foreground">
 						{t("subtitle")}
 					</p>
 				</div>
@@ -379,7 +391,9 @@ function AudioRecordingsDesktop({ scrollViewportRef }: AudioRecordingsDesktopPro
 					onOpenSettings={() => setIsSettingsOpen(true)}
 					onImportFiles={(files) => void facade.importAudioFiles(files)}
 					onStartRecording={() => void facade.startRecording()}
-					isStartingRecording={facade.startupState === "starting"}
+					isStartingRecording={
+						facade.startupState === "starting" || facade.isPreparingRecordingStart
+					}
 				/>
 			</div>
 

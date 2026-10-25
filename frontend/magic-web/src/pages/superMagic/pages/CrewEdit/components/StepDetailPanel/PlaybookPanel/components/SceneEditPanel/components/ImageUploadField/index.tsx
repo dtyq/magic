@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { Image, Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useUpload } from "@/hooks/useUploadFiles"
 import UploadAction from "@/components/base/UploadAction"
 import magicToast from "@/components/base/MagicToaster/utils"

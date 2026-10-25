@@ -5,14 +5,12 @@ import AtLogo from "@/assets/logos/favicon.svg"
 import { useStyles } from "./styles"
 import OrganizationSwitch from "../../../BaseLayout/components/OrganizationSwitch"
 import UserHeader from "@/pages/chatMobile/components/UserHeader"
-import { i18nStore } from "@/models/config/stores/i18n.store"
+import { useMainTranslation } from "@/hooks/i18n/useMainTranslation"
 
 const MobileHeader = memo(({ onClick }: { onClick: () => void }) => {
 	const { styles } = useStyles()
 	const { t } = useTranslation("admin/common")
-	const { t: tMainCommon } = useTranslation("common", {
-		i18n: i18nStore.i18n.instance,
-	})
+	const { t: tMainCommon } = useMainTranslation("common")
 
 	return (
 		<header className={styles.header}>

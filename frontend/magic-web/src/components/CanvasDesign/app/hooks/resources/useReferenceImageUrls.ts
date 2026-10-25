@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { useCanvas } from "../../providers/CanvasProvider"
-import { useCanvasEvent } from "../canvas"
-import { toCanonicalCanvasResourcePath } from "../../../runtime/shared/path/canvasResourcePath"
+import { useOptionalCanvas } from "../../providers/CanvasProvider"
+import { useCanvasEventWithInstance } from "../canvas"
+import { areCanvasHostResourceReferencesSame } from "../../../runtime/shared/path/canvasResourcePath"
 import type { ImageInfo } from "../../../runtime/resources/image/ImageResourceManager"
 import { TOOLTIP_PREVIEW_MIN_SIZE } from "../../../runtime/resources/image/imagePreviewUtils"
 
@@ -15,6 +15,8 @@ export interface ReferenceImageUrlInfo {
 	imageInfo: ImageInfo | undefined
 	/** 按需加载 tooltip 预览图的方法 */
 	loadTooltip: () => Promise<void>
+	/** 展示失败后强制换取原图地址，不清理图片内容缓存 */
+	refreshFullUrl: () => Promise<string | undefined>
 	/** 是否正在加载 low 档位 */
 	isLoading: boolean
 	/** 是否已确认加载失败 */
@@ -71,10 +73,12 @@ export function useReferenceImageUrls(
 ): ReferenceImageUrlInfo {
 	const eagerFullUrl = options?.eagerFullUrl ?? false
 	const enabled = options?.enabled ?? true
-	const { canvas } = useCanvas()
+	const canvas = useOptionalCanvas()
 	const [open, setOpen] = useState(false)
 	const lowImageReleaseRef = useRef<(() => void) | null>(null)
 	const lowImageRequestIdRef = useRef(0)
+	const fullImageRequestIdRef = useRef(0)
+	const fullImageRefreshRequestIdRef = useRef<number | null>(null)
 	const [urlInfo, setUrlInfo] = useState<{
 		lowUrl: string | undefined
 		fullUrl: string | undefined
@@ -108,23 +112,64 @@ export function useReferenceImageUrls(
 	const isFullUrlLoading = enabled && open && !urlInfo.hasError && !urlInfo.fullUrl
 
 	// 按需加载 tooltip 预览图（直接使用 ossSrc）
+	const loadFullUrl = useCallback(
+		async (forceRefresh = false): Promise<string | undefined> => {
+			if (!canvas || !enabled) return undefined
+			// low 加载事件不能用普通换链覆盖正在恢复的原图请求。
+			if (!forceRefresh && fullImageRefreshRequestIdRef.current !== null) return undefined
+
+			const requestId = ++fullImageRequestIdRef.current
+			if (forceRefresh) fullImageRefreshRequestIdRef.current = requestId
+			const ossInfo = await canvas.imageResourceManager
+				.ensureFreshOssInfo(path, { forceRefresh })
+				.finally(() => {
+					if (fullImageRefreshRequestIdRef.current === requestId) {
+						fullImageRefreshRequestIdRef.current = null
+					}
+				})
+			if (fullImageRequestIdRef.current !== requestId) return undefined
+			const failureReason = canvas.imageResourceManager.getFailureReason(path)
+			if (failureReason === "not-found") {
+				lowImageRequestIdRef.current += 1
+				releaseLowImageUrl()
+				setUrlInfo((prev) => ({
+					...prev,
+					lowUrl: undefined,
+					fullUrl: undefined,
+					imageInfo: undefined,
+					hasError: true,
+				}))
+				return undefined
+			}
+
+			setUrlInfo((prev) => {
+				if (prev.fullUrl && !forceRefresh) {
+					return prev
+				}
+
+				return {
+					...prev,
+					fullUrl: ossInfo?.ossSrc || undefined,
+					hasError: !ossInfo?.ossSrc && !!failureReason,
+				}
+			})
+			return ossInfo?.ossSrc || undefined
+		},
+		[canvas, enabled, path, releaseLowImageUrl],
+	)
+
 	const loadTooltip = useCallback(async () => {
-		if (!canvas || !enabled) return
+		await loadFullUrl()
+	}, [loadFullUrl])
+	const refreshFullUrl = useCallback(() => loadFullUrl(true), [loadFullUrl])
 
-		const ossInfo = await canvas.imageResourceManager.ensureFreshOssInfo(path)
-		const failureReason = canvas.imageResourceManager.getFailureReason(path)
-
-		setUrlInfo((prev) => {
-			if (prev.fullUrl) {
-				return prev
-			}
-
-			return {
-				...prev,
-				fullUrl: ossInfo?.ossSrc || undefined,
-				hasError: !ossInfo?.ossSrc && !!failureReason,
-			}
-		})
+	// 切换文件或画布、关闭消费者时，让之前的换链和 low 请求失效；共享缓存仍保留。
+	useEffect(() => {
+		return () => {
+			fullImageRequestIdRef.current += 1
+			fullImageRefreshRequestIdRef.current = null
+			lowImageRequestIdRef.current += 1
+		}
 	}, [canvas, enabled, path])
 
 	// 处理弹窗打开/关闭事件
@@ -161,12 +206,13 @@ export function useReferenceImageUrls(
 		const lowUrl = lowImage?.url
 		const imageInfo = lowImage?.imageInfo
 		const failureReason = canvas.imageResourceManager.getFailureReason(path)
+		const isDeleted = failureReason === "not-found"
 
 		setUrlInfo((prev) => {
 			const newInfo = {
 				lowUrl: lowUrl || undefined,
-				fullUrl: prev.fullUrl, // 保持已有的 tooltip URL
-				imageInfo: imageInfo || prev.imageInfo,
+				fullUrl: isDeleted ? undefined : prev.fullUrl,
+				imageInfo: isDeleted ? undefined : imageInfo || prev.imageInfo,
 				hasError: !lowUrl && !!failureReason,
 				loadTooltip,
 			}
@@ -200,41 +246,32 @@ export function useReferenceImageUrls(
 		}
 
 		// 立即尝试更新一次 URL 映射（如果资源已缓存，可以立即显示）
+		setUrlInfo({
+			lowUrl: undefined,
+			fullUrl: undefined,
+			imageInfo: undefined,
+			hasError: false,
+			loadTooltip,
+		})
 		updatePathUrl()
-	}, [canvas, enabled, path, releaseLowImageUrl, updatePathUrl])
+	}, [canvas, enabled, path, loadTooltip, releaseLowImageUrl, updatePathUrl])
 
 	useEffect(() => releaseLowImageUrl, [releaseLowImageUrl])
 
 	// 槽位内直接展示原图：与 low 档位并行拉取 ossSrc
 	useEffect(() => {
 		if (!eagerFullUrl || !canvas || !enabled) return
-		let cancelled = false
-		;(async () => {
-			const ossInfo = await canvas.imageResourceManager.ensureFreshOssInfo(path)
-			const failureReason = canvas.imageResourceManager.getFailureReason(path)
-			if (cancelled) return
-			setUrlInfo((prev) => ({
-				...prev,
-				fullUrl: ossInfo?.ossSrc || prev.fullUrl,
-				hasError: !ossInfo?.ossSrc && !!failureReason,
-			}))
-		})()
-		return () => {
-			cancelled = true
-		}
-	}, [canvas, enabled, path, eagerFullUrl])
+		void loadTooltip()
+	}, [canvas, enabled, path, eagerFullUrl, loadTooltip])
 
 	// 监听图片资源加载完成事件，确保 ossSrc 可用后更新 tooltip URL
-	useCanvasEvent(
+	useCanvasEventWithInstance(
+		canvas,
 		"resource:image:loaded",
 		useCallback(
 			({ data }) => {
 				if (!canvas || !enabled) return
-				const resolveAbs = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
-				if (
-					toCanonicalCanvasResourcePath(path, resolveAbs) !==
-					toCanonicalCanvasResourcePath(data.path, resolveAbs)
-				) {
+				if (!areCanvasHostResourceReferencesSame(canvas, path, data.path)) {
 					return
 				}
 				// 如果弹窗已打开但 fullUrl 还未设置，尝试加载
@@ -246,16 +283,28 @@ export function useReferenceImageUrls(
 		),
 	)
 
-	useCanvasEvent(
+	useCanvasEventWithInstance(
+		canvas,
 		"resource:image:load-failed",
 		useCallback(
 			({ data }) => {
 				if (!canvas || !enabled) return
-				const resolveAbs = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
-				if (
-					toCanonicalCanvasResourcePath(path, resolveAbs) !==
-					toCanonicalCanvasResourcePath(data.path, resolveAbs)
-				) {
+				if (!areCanvasHostResourceReferencesSame(canvas, path, data.path)) {
+					return
+				}
+
+				if (data.reason === "not-found") {
+					// A confirmed deletion invalidates every previously visible representation, including
+					// object URLs created by an older persistent-cache restore.
+					lowImageRequestIdRef.current += 1
+					releaseLowImageUrl()
+					setUrlInfo({
+						lowUrl: undefined,
+						fullUrl: undefined,
+						imageInfo: undefined,
+						hasError: true,
+						loadTooltip,
+					})
 					return
 				}
 
@@ -270,21 +319,18 @@ export function useReferenceImageUrls(
 					}
 				})
 			},
-			[canvas, enabled, path],
+			[canvas, enabled, path, loadTooltip, releaseLowImageUrl],
 		),
 	)
 
 	// 监听资源加载完成事件，刷新 low 档位 URL
-	useCanvasEvent(
+	useCanvasEventWithInstance(
+		canvas,
 		"resource:image:loaded",
 		useCallback(
 			({ data }) => {
 				if (!canvas || !enabled) return
-				const resolveAbs = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
-				if (
-					toCanonicalCanvasResourcePath(path, resolveAbs) !==
-					toCanonicalCanvasResourcePath(data.path, resolveAbs)
-				) {
+				if (!areCanvasHostResourceReferencesSame(canvas, path, data.path)) {
 					return
 				}
 				updatePathUrl()
@@ -293,7 +339,35 @@ export function useReferenceImageUrls(
 		),
 	)
 
-	useCanvasEvent(
+	// Cross-canvas copy / upload can mark a path pending until the attachment
+	// snapshot catches up. Retry low-url fetch when that window closes.
+	useCanvasEventWithInstance(
+		canvas,
+		"upload:resource-pending-change",
+		useCallback(
+			({ data }) => {
+				if (!canvas || !enabled || !path) return
+				const matches = data.paths.some(
+					(candidate) =>
+						candidate === path ||
+						areCanvasHostResourceReferencesSame(canvas, path, candidate),
+				)
+				if (!matches) return
+				// Only refresh once the path leaves the pending window; add events are noisy.
+				if (canvas.canvasFileUploadManager.isPendingResourcePath(path)) return
+				setUrlInfo((prev) => ({
+					...prev,
+					hasError: false,
+				}))
+				void updatePathUrl()
+			},
+			[canvas, enabled, path, updatePathUrl],
+		),
+		[canvas, enabled, path, updatePathUrl],
+	)
+
+	useCanvasEventWithInstance(
+		canvas,
 		"resource:remote-load-deferral-released",
 		useCallback(
 			({ data }) => {
@@ -320,6 +394,8 @@ export function useReferenceImageUrls(
 
 	return {
 		...urlInfo,
+		loadTooltip,
+		refreshFullUrl,
 		isLoading,
 		hasError: urlInfo.hasError,
 		previewSize,

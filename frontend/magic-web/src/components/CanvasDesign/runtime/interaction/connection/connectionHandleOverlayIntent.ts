@@ -1,10 +1,19 @@
-export type ConnectionHandleDisplaySource = "menu" | "hover" | "pointer-bridge" | "touch-selection"
+export type ConnectionHandleDisplaySource =
+	"menu" | "hover" | "pointer-bridge" | "touch-selection" | "selection"
 
 export type ConnectionHandleOverlayIntent =
 	| {
 			visible: true
 			elementId: string
 			source: ConnectionHandleDisplaySource
+	  }
+	| {
+			visible: true
+			kind: "selection"
+			elementIds: string[]
+			boundingRect: { x: number; y: number; width: number; height: number }
+			selectionRevision: string
+			source: "selection"
 	  }
 	| {
 			visible: false
@@ -19,6 +28,12 @@ export interface ConnectionHandleOverlayIntentContext {
 	bridgeCandidateElementId: string | null
 	pointerInsideKeepAliveRegion: boolean
 	touchSelectedElementId: string | null
+	selectionTarget?: {
+		elementIds: string[]
+		boundingRect: { x: number; y: number; width: number; height: number } | null
+		selectionRevision: string
+	}
+	canShowSelectionHandles?: boolean
 }
 
 export function resolveConnectionHandleOverlayIntent(
@@ -29,6 +44,16 @@ export function resolveConnectionHandleOverlayIntent(
 	}
 
 	if (context.hasMultipleSelection) {
+		if (context.canShowSelectionHandles && context.selectionTarget?.boundingRect) {
+			return {
+				visible: true,
+				kind: "selection",
+				elementIds: context.selectionTarget.elementIds,
+				boundingRect: context.selectionTarget.boundingRect,
+				selectionRevision: context.selectionTarget.selectionRevision,
+				source: "selection",
+			}
+		}
 		return { visible: false, reason: "multiple-selection" }
 	}
 

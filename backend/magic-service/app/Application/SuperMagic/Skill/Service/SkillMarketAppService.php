@@ -9,28 +9,38 @@ namespace App\Application\SuperMagic\Skill\Service;
 
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
-use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Skill\Entity\SkillEntity;
 use App\Domain\SuperMagic\Skill\Entity\SkillMarketEntity;
 use App\Domain\SuperMagic\Skill\Entity\SkillVersionEntity;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\Query\SkillQuery;
+use App\Domain\SuperMagic\Skill\Entity\ValueObject\SkillDataIsolation;
+use App\Domain\SuperMagic\Skill\Service\SkillCategoryRelationDomainService;
 use App\Domain\SuperMagic\Skill\Service\SkillMarketDomainService;
+use App\Domain\SuperMagic\Skill\Service\SkillMarketVectorIndexDomainService;
 use App\ErrorCode\SkillErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * 市场 Skill 应用服务.
  */
 class SkillMarketAppService extends AbstractSkillAppService
 {
+    private LoggerInterface $logger;
+
     public function __construct(
         protected SkillMarketDomainService $skillMarketDomainService,
         protected MagicUserDomainService $magicUserDomainService,
-        protected TaskFileDomainService $taskFileDomainService
+        protected SkillCategoryRelationDomainService $skillCategoryRelationDomainService,
+        protected SkillMarketVectorIndexDomainService $skillMarketVectorIndexDomainService,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get('vector-index-sync');
     }
 
     /**
@@ -54,6 +64,7 @@ class SkillMarketAppService extends AbstractSkillAppService
         if ($skillMarket === null) {
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_NOT_FOUND, 'skill.store_skill_not_found');
         }
+        $skillMarket->setCategoryIds($this->skillCategoryRelationDomainService->getMarketCategoryIds($skillMarket->getId() ?? 0));
 
         $skillVersion = $this->skillVersionDomainService->findSkillVersionByIdWithoutOrganizationFilter(
             $skillMarket->getSkillVersionId()
@@ -96,9 +107,10 @@ class SkillMarketAppService extends AbstractSkillAppService
      * @param RequestContext $requestContext 请求上下文
      * @param SkillQuery $query 查询对象
      * @param Page $page 分页对象
-     * @return array{list: SkillMarketEntity[], total: int, userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, skillVersionMap: array<string, SkillVersionEntity>} 市场技能列表结果
+     * @param bool $withFileUrl 是否加载版本文件 URL
+     * @return array{list: SkillMarketEntity[], userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, skillVersionMap: array<string, SkillVersionEntity>, total?: int} 市场技能列表结果
      */
-    public function queries(RequestContext $requestContext, SkillQuery $query, Page $page): array
+    public function queries(RequestContext $requestContext, SkillQuery $query, Page $page, bool $withFileUrl = true): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
 
@@ -112,16 +124,52 @@ class SkillMarketAppService extends AbstractSkillAppService
             $query->setCodes($normalizedCodes);
         }
 
-        // 查询市场技能列表（包含总数）
-        $result = $this->skillMarketDomainService->queries($query, $page);
+        $result = $this->queryMarketSkills($dataIsolation, $query, $page);
 
-        $skillMarketEntities = $result['list'];
-        $total = $result['total'];
+        $data = $this->resolveMarketListData($dataIsolation, $result['list'], $withFileUrl);
 
+        $resultData = ['list' => $result['list']] + $data;
+        if ($page->isTotal()) {
+            $resultData['total'] = $result['total'];
+        }
+
+        return $resultData;
+    }
+
+    /** Use semantic ranking when available; otherwise fall back to MySQL. */
+    private function queryMarketSkills(SkillDataIsolation $dataIsolation, SkillQuery $query, Page $page): array
+    {
+        if ($query->getKeyword() !== null && trim($query->getKeyword()) !== '') {
+            try {
+                if ($this->skillMarketVectorIndexDomainService->isVectorSearchReady()
+                    && $this->skillMarketVectorIndexDomainService->isAvailable()) {
+                    return [
+                        'total' => null,
+                        'list' => $this->skillMarketVectorIndexDomainService->search($dataIsolation, $query, $page),
+                    ];
+                }
+            } catch (Throwable $throwable) {
+                $this->logger->warning('Skill market semantic search fell back to MySQL', [
+                    'exception' => $throwable::class,
+                    'message' => $throwable->getMessage(),
+                ]);
+            }
+        }
+
+        return $this->skillMarketDomainService->queries($query, $page);
+    }
+
+    /**
+     * 填充市场列表展示所需的分类、用户技能、版本、发布者和资源 URL.
+     *
+     * @param SkillMarketEntity[] $skillMarketEntities 市场技能实体
+     * @param bool $withFileUrl 是否加载版本文件 URL
+     * @return array{userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, skillVersionMap: array<string, SkillVersionEntity>}
+     */
+    private function resolveMarketListData(SkillDataIsolation $dataIsolation, array $skillMarketEntities, bool $withFileUrl = true): array
+    {
         if (empty($skillMarketEntities)) {
             return [
-                'list' => [],
-                'total' => $total,
                 'userSkills' => [],
                 'publisherUserMap' => [],
                 'skillVersionMap' => [],
@@ -133,7 +181,9 @@ class SkillMarketAppService extends AbstractSkillAppService
         $userSkillsMap = $this->skillDomainService->findByVersionCodes($dataIsolation, $skillCodes);
         $skillVersionMap = $this->skillVersionDomainService->findSkillCurrentOrLatestByCodes($dataIsolation, $skillCodes);
 
-        $this->updateSkillVersionAssetUrls($dataIsolation, array_values($skillVersionMap));
+        if ($withFileUrl) {
+            $this->updateSkillVersionAssetUrls($dataIsolation, array_values($skillVersionMap));
+        }
 
         // 批量更新 logo URL（如果存储的是路径，需要转换为完整URL）
         $this->updateSkillMarketLogoUrl($dataIsolation, $skillMarketEntities);
@@ -156,8 +206,6 @@ class SkillMarketAppService extends AbstractSkillAppService
         }
 
         return [
-            'list' => $skillMarketEntities,
-            'total' => $total,
             'userSkills' => $userSkillsMap,
             'publisherUserMap' => $publisherUserMap,
             'skillVersionMap' => $skillVersionMap,
@@ -174,14 +222,10 @@ class SkillMarketAppService extends AbstractSkillAppService
             return '';
         }
 
-        $taskFileEntity = new TaskFileEntity();
-        $taskFileEntity->setFileKey($skillFileKey);
-        $taskFileEntity->setFileName(basename($skillFileKey));
-        $taskFileEntity->setIsDirectory(false);
-
-        return $this->taskFileDomainService->getFilePreSignedUrl(
+        return $this->fileDomainService->getLink(
             $skillVersion->getOrganizationCode(),
-            $taskFileEntity
-        );
+            $skillFileKey,
+            StorageBucketType::Private,
+        )?->getUrl() ?? '';
     }
 }

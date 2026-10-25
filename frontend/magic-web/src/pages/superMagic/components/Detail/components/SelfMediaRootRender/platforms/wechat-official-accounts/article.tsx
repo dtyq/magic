@@ -25,6 +25,7 @@ import {
 	buildWechatClipboardHtmlFromSource,
 } from "./wechatClipboardHtml"
 import { copyWechatArticleSelectionSynchronously } from "./wechatNativeClipboard"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 interface WechatArticleViewProps {
 	post: SelfMediaPost
@@ -194,6 +195,7 @@ function WechatArticleViewInner(
 	ref: React.ForwardedRef<WechatArticleViewRef>,
 ) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const article = post.article
 	const fileId = article?.fileId
 	const isMobile = useIsMobile()
@@ -291,6 +293,7 @@ function WechatArticleViewInner(
 					fileId,
 					attachmentList: attachmentListRef.current,
 					attachments: attachmentsRef.current,
+					fileApi,
 				})
 				if (cancelled) return
 				setContent(result.content)
@@ -306,7 +309,7 @@ function WechatArticleViewInner(
 		return () => {
 			cancelled = true
 		}
-	}, [fileId, fileUpdatedAt]) // attachmentList intentionally omitted: reference changes on every file-tree update; fileUpdatedAt tracks actual content changes
+	}, [fileApi, fileId, fileUpdatedAt]) // attachmentList intentionally omitted: reference changes on every file-tree update; fileUpdatedAt tracks actual content changes
 
 	useEffect(() => {
 		if (!fileId || !renderedContent || renderMode !== "desktop") return undefined

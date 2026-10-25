@@ -1,22 +1,14 @@
 import { useResponsive } from "ahooks"
-import { createStyles } from "antd-style"
 import { useTranslation } from "react-i18next"
 import { SupportLocales } from "@/constants/locale"
 import { globalConfigStore } from "@/stores/globalConfig"
 import { observer } from "mobx-react-lite"
 import { getAvatarUrl } from "@/utils/avatar"
 import { Spinner } from "@/components/shadcn-ui/spinner"
+import { cn } from "@/utils/cn"
 
-const useStyles = createStyles(({ css, token }) => {
-	return {
-		logo: css`
-			height: 100%;
-			width: auto;
-			max-width: unset;
-			color: ${token.magicColorUsages.text[3]};
-		`,
-	}
-})
+// Tenant-provided logos keep their aspect ratio and stay inside the available header width.
+const logoClassName = "h-full w-auto max-w-full object-contain text-foreground/40"
 
 const DEFAULT_LOGO_HEIGHT = 80
 
@@ -32,7 +24,6 @@ function Logo({
 	const responsive = useResponsive()
 	const isSmallScreen = responsive.lg === false
 	const { i18n } = useTranslation()
-	const { styles } = useStyles()
 
 	const variant = _variant ?? (isSmallScreen ? "minimal" : undefined)
 
@@ -42,9 +33,9 @@ function Logo({
 
 	if (variant === "minimal" && globalConfig?.minimal_logo) {
 		return (
-			<div className={className} onClick={onClick}>
+			<div className={cn("min-w-0", className)} onClick={onClick}>
 				<img
-					className={styles.logo}
+					className={logoClassName}
 					src={getAvatarUrl(globalConfig.minimal_logo, DEFAULT_LOGO_HEIGHT)}
 					alt={name}
 				/>
@@ -54,9 +45,9 @@ function Logo({
 
 	if (i18n.language === SupportLocales.enUS && globalConfig?.logo?.[SupportLocales.enUS]) {
 		return (
-			<div className={className} onClick={onClick}>
+			<div className={cn("min-w-0", className)} onClick={onClick}>
 				<img
-					className={styles.logo}
+					className={logoClassName}
 					src={getAvatarUrl(
 						globalConfig.logo?.[SupportLocales.enUS],
 						DEFAULT_LOGO_HEIGHT,
@@ -69,9 +60,9 @@ function Logo({
 
 	if (i18n.language === SupportLocales.zhCN && globalConfig?.logo?.[SupportLocales.zhCN]) {
 		return (
-			<div className={className} onClick={onClick}>
+			<div className={cn("min-w-0", className)} onClick={onClick}>
 				<img
-					className={styles.logo}
+					className={logoClassName}
 					src={getAvatarUrl(
 						globalConfig.logo?.[SupportLocales.zhCN],
 						DEFAULT_LOGO_HEIGHT,

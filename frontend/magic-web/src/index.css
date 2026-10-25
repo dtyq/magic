@@ -2,7 +2,6 @@
 @import "@/styles/_keyframe-animations.scss";
 @import "@/styles/lucide.css";
 @import "@/styles/tabler-icon.css";
-@import "@/layout/styles/layout-density.css";
 
 /**
  * Import order controls CSS specificity (first has lowest priority):
@@ -46,6 +45,468 @@ html.magic-pure-share-document-flow #root .magic-app {
 			transparent 100%
 		);
 		background-size: 200% 100%;
+	}
+
+	/* transitions-dev panel reveal: the inspector collection bar enters from the
+	 * canvas edge without shifting the preview or competing with the toolbar. */
+	.t-panel-slide {
+		transform: translateY(var(--panel-translate-y));
+		opacity: 0;
+		filter: blur(var(--panel-blur));
+		pointer-events: none;
+		transition:
+			transform var(--panel-close-dur) var(--panel-ease),
+			opacity var(--panel-close-dur) var(--panel-ease),
+			filter var(--panel-close-dur) var(--panel-ease);
+		will-change: transform, opacity, filter;
+	}
+
+	.t-panel-slide[data-open="true"] {
+		transform: translateY(0);
+		opacity: 1;
+		filter: blur(0);
+		pointer-events: auto;
+		transition:
+			transform var(--panel-open-dur) var(--panel-ease),
+			opacity var(--panel-open-dur) var(--panel-ease),
+			filter var(--panel-open-dur) var(--panel-ease);
+	}
+
+	.t-panel-slide[data-open="true"][data-dragging="true"] {
+		transform: translateY(0) scale(1.018) rotate(0.18deg);
+		transition: none;
+		cursor: grabbing;
+		will-change: left, top, transform;
+	}
+
+	.t-panel-slide[data-open="true"][data-dragging="false"] {
+		transition: transform 220ms cubic-bezier(0.34, 1.36, 0.64, 1);
+		will-change: left, top, transform;
+	}
+
+	/* Confirmation feedback for the inspector popover: the action is acknowledged
+	 * in place, then the surface yields to the pending-target collection bar. */
+	.inspector-confirm-popover {
+		pointer-events: none;
+		will-change: transform, opacity, filter;
+		animation: inspector-confirm-popover-out 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	}
+
+	/* A small token follows a shallow arc toward the collection count, giving the
+	 * confirmation the same directional feedback as adding an item to a cart. */
+	.inspector-target-flight {
+		position: fixed;
+		z-index: 10000;
+		width: 14px;
+		height: 14px;
+		pointer-events: none;
+		border-radius: 999px;
+		transform: translate(-50%, -50%);
+		animation: inspector-target-flight 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+		will-change: transform, opacity, filter;
+	}
+
+	.inspector-target-flight-dot {
+		display: block;
+		width: 100%;
+		height: 100%;
+		border: 2px solid rgb(var(--primary-rgb) / 0.92);
+		border-radius: inherit;
+		background: rgb(var(--primary-rgb) / 0.2);
+		box-shadow:
+			0 0 0 4px rgb(var(--primary-rgb) / 0.12),
+			0 4px 14px rgb(var(--primary-rgb) / 0.38);
+	}
+
+	@keyframes inspector-target-flight {
+		0% {
+			opacity: 0;
+			filter: blur(3px);
+			transform: translate(-50%, -50%) scale(0.55);
+			animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+		}
+		12% {
+			opacity: 1;
+			filter: blur(0);
+			transform: translate(-50%, -50%) scale(1);
+			animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+		}
+		22% {
+			opacity: 1;
+			transform: translate(
+					calc(-50% + var(--flight-x-22)),
+					calc(-50% + var(--flight-y-22) - 68px)
+				)
+				scale(0.94);
+			animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+		}
+		45% {
+			opacity: 1;
+			transform: translate(
+					calc(-50% + var(--flight-x-45)),
+					calc(-50% + var(--flight-y-45) - 132px)
+				)
+				scale(0.84);
+			animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+		}
+		68% {
+			opacity: 0.96;
+			transform: translate(
+					calc(-50% + var(--flight-x-68)),
+					calc(-50% + var(--flight-y-68) - 104px)
+				)
+				scale(0.7);
+			animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+		}
+		86% {
+			opacity: 0.88;
+			transform: translate(
+					calc(-50% + var(--flight-x-86)),
+					calc(-50% + var(--flight-y-86) - 42px)
+				)
+				scale(0.54);
+			animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+		}
+		100% {
+			opacity: 0;
+			filter: blur(1px);
+			transform: translate(calc(-50% + var(--flight-x)), calc(-50% + var(--flight-y)))
+				scale(0.3);
+		}
+	}
+
+	@keyframes inspector-confirm-popover-out {
+		0% {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+			filter: blur(0);
+		}
+		55% {
+			opacity: 0.96;
+			transform: translateY(3px) scale(0.985);
+			filter: blur(0);
+		}
+		100% {
+			opacity: 0;
+			transform: translateY(14px) scale(0.94);
+			filter: blur(4px);
+		}
+	}
+
+	.inspector-confirm-button {
+		transition:
+			transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+			box-shadow 150ms ease-out;
+	}
+
+	.inspector-confirm-button[aria-busy="true"] {
+		transform: translateY(1px) scale(0.96);
+		box-shadow: 0 2px 7px rgb(var(--primary-rgb) / 0.18);
+	}
+
+	/* Success-check defaults are scoped to the compact confirm-button icon. */
+	.inspector-confirm-success {
+		position: absolute;
+		inset: 0;
+		color: currentColor;
+		--check-opacity-dur: 360ms;
+		--check-rotate-dur: 360ms;
+		--check-bob-dur: 360ms;
+		--check-y-amount: 18px;
+		--check-blur-dur: 360ms;
+		--check-blur-from: 4px;
+		--check-path-dur: 300ms;
+		--check-path-delay: 40ms;
+	}
+
+	.inspector-confirm-success svg path {
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	:root {
+		--digit-dur: 500ms;
+		--digit-distance: 8px;
+		--digit-stagger: 70ms;
+		--digit-blur: 2px;
+		--digit-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+		--digit-dir-x: 0;
+		--digit-dir-y: 1;
+	}
+
+	@keyframes t-digit-pop-in {
+		0% {
+			transform: translate(
+				calc(var(--digit-distance) * var(--digit-dir-x)),
+				calc(var(--digit-distance) * var(--digit-dir-y))
+			);
+			opacity: 0;
+			filter: blur(var(--digit-blur));
+		}
+		100% {
+			transform: translate(0, 0);
+			opacity: 1;
+			filter: blur(0);
+		}
+	}
+
+	.t-digit-group {
+		display: inline-flex;
+		align-items: baseline;
+	}
+
+	.t-digit {
+		display: inline-block;
+		will-change: transform, opacity, filter;
+	}
+
+	.t-digit-group.is-animating .t-digit {
+		animation: t-digit-pop-in var(--digit-dur) var(--digit-ease) both;
+	}
+
+	.t-success-check {
+		display: inline-block;
+		transform-origin: center;
+		opacity: 0;
+		will-change: transform, opacity, filter;
+	}
+
+	.t-success-check svg {
+		display: block;
+		overflow: visible;
+	}
+
+	.t-success-check svg path {
+		stroke-dasharray: 20;
+		stroke-dashoffset: 20;
+	}
+
+	.t-success-check[data-state="in"] {
+		animation:
+			t-check-fade var(--check-opacity-dur) var(--check-ease-opacity) forwards,
+			t-check-rotate var(--check-rotate-dur) var(--check-ease-rotate) forwards,
+			t-check-blur var(--check-blur-dur) var(--check-ease-out) forwards,
+			t-check-bob var(--check-bob-dur) var(--check-ease-bob) forwards;
+	}
+
+	.t-success-check[data-state="in"] svg path {
+		animation: t-check-draw var(--check-path-dur) var(--check-ease-path)
+			var(--check-path-delay, 0ms) forwards;
+	}
+
+	@keyframes t-check-fade {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	@keyframes t-check-rotate {
+		from {
+			transform: rotate(var(--check-rotate-from));
+		}
+		to {
+			transform: rotate(0deg);
+		}
+	}
+
+	@keyframes t-check-blur {
+		from {
+			filter: blur(var(--check-blur-from));
+		}
+		to {
+			filter: blur(0);
+		}
+	}
+
+	@keyframes t-check-bob {
+		from {
+			translate: 0 var(--check-y-amount);
+		}
+		to {
+			translate: 0 0;
+		}
+	}
+
+	@keyframes t-check-draw {
+		to {
+			stroke-dashoffset: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.t-panel-slide {
+			transition: none !important;
+		}
+
+		.inspector-confirm-popover,
+		.inspector-confirm-button,
+		.inspector-confirm-button[aria-busy="true"] {
+			animation: none !important;
+			transition: none !important;
+			transform: none !important;
+		}
+
+		.inspector-target-flight {
+			animation: none !important;
+			opacity: 0 !important;
+		}
+
+		.t-digit-group .t-digit {
+			animation: none !important;
+		}
+
+		.t-success-check {
+			animation: none !important;
+			opacity: 1;
+		}
+
+		.t-success-check svg path {
+			animation: none !important;
+			stroke-dashoffset: 0 !important;
+		}
+	}
+
+	/* Theme-aware beam for inspector surfaces. It follows the same traveling conic
+	 * highlight as BorderBeam while sourcing its color from the active theme. */
+	@property --inspector-beam-angle {
+		syntax: "<angle>";
+		inherits: false;
+		initial-value: 0deg;
+	}
+
+	@keyframes inspector-beam-spin {
+		to {
+			--inspector-beam-angle: 360deg;
+		}
+	}
+
+	.inspector-theme-beam {
+		isolation: isolate;
+	}
+
+	.inspector-theme-beam::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		pointer-events: none;
+		border-radius: inherit;
+		padding: 1px;
+		background: conic-gradient(
+			from var(--inspector-beam-angle),
+			transparent 0deg 270deg,
+			rgb(var(--primary-rgb) / 0.18) 294deg,
+			rgb(var(--primary-rgb) / 0.98) 326deg,
+			rgb(var(--primary-rgb) / 0.2) 350deg,
+			transparent 360deg
+		);
+		animation: inspector-beam-spin 2.1s linear infinite;
+		-webkit-mask:
+			linear-gradient(#000 0 0) content-box,
+			linear-gradient(#000 0 0);
+		-webkit-mask-composite: xor;
+		mask-composite: exclude;
+		filter: drop-shadow(0 0 4px rgb(var(--primary-rgb) / 0.28));
+		will-change: transform;
+	}
+
+	.inspector-theme-beam > * {
+		position: relative;
+		z-index: 1;
+	}
+
+	/* Keep the expanded target list out of the panel's layout box. This prevents
+	 * a bottom-anchored panel from increasing the canvas scrollable overflow on
+	 * hover. */
+	.inspector-theme-beam > .inspector-pending-target-list {
+		position: absolute;
+		inset-inline: 0;
+		z-index: 2;
+	}
+
+	.inspector-pending-target-list[data-placement="bottom"] {
+		top: 100%;
+	}
+
+	.inspector-pending-target-list[data-placement="top"] {
+		bottom: 100%;
+	}
+
+	/* A restrained theme-colored ring keeps comment markers discoverable without
+	 * competing with the selected-element highlight. */
+	@property --inspector-comment-angle {
+		syntax: "<angle>";
+		inherits: false;
+		initial-value: 0deg;
+	}
+
+	@keyframes inspector-comment-ring-spin {
+		to {
+			--inspector-comment-angle: 360deg;
+		}
+	}
+
+	.inspector-comment-marker-button {
+		position: relative;
+		isolation: isolate;
+		border: 1px solid rgb(255 255 255 / 0.42);
+		border: 1px solid color-mix(in srgb, rgb(var(--primary-rgb)) 42%, white);
+		box-shadow:
+			0 0 0 1px rgb(255 255 255 / 0.18),
+			0 0 0 1px color-mix(in srgb, rgb(var(--primary-rgb)) 18%, white),
+			0 4px 12px rgb(var(--primary-rgb) / 0.28);
+	}
+
+	.inspector-comment-marker-button::before {
+		content: "";
+		position: absolute;
+		inset: -1px;
+		z-index: 0;
+		pointer-events: none;
+		border-radius: inherit;
+		padding: 1px;
+		background: conic-gradient(
+			from var(--inspector-comment-angle),
+			transparent 0deg 245deg,
+			rgb(255 255 255 / 0.34) 270deg,
+			rgb(255 255 255 / 0.92) 310deg,
+			rgb(255 255 255 / 0.28) 335deg,
+			transparent 360deg
+		);
+		background: conic-gradient(
+			from var(--inspector-comment-angle),
+			transparent 0deg 245deg,
+			color-mix(in srgb, rgb(var(--primary-rgb)) 34%, white) 270deg,
+			color-mix(in srgb, rgb(var(--primary-rgb)) 8%, white) 310deg,
+			color-mix(in srgb, rgb(var(--primary-rgb)) 28%, white) 335deg,
+			transparent 360deg
+		);
+		-webkit-mask:
+			linear-gradient(#000 0 0) content-box,
+			linear-gradient(#000 0 0);
+		-webkit-mask-composite: xor;
+		mask-composite: exclude;
+		filter: drop-shadow(0 0 3px rgb(var(--primary-rgb) / 0.32));
+		animation: inspector-comment-ring-spin 3.8s linear infinite;
+		will-change: transform;
+	}
+
+	.inspector-comment-marker-button > svg {
+		position: relative;
+		z-index: 1;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.inspector-theme-beam::before {
+			animation: none;
+		}
+
+		.inspector-comment-marker-button::before {
+			animation: none;
+		}
 	}
 
 	.dark .skeleton {
@@ -120,8 +581,6 @@ html.magic-pure-share-document-flow #root .magic-app {
 		font-weight: 600;
 		margin-top: 1rem;
 		margin-bottom: 0.375rem;
-		display: flex;
-		align-items: center;
 	}
 
 	.recording-md-prose--desktop h4 {
@@ -156,8 +615,6 @@ html.magic-pure-share-document-flow #root .magic-app {
 		font-weight: 600;
 		margin-top: 1rem;
 		margin-bottom: 0.375rem;
-		display: flex;
-		align-items: center;
 	}
 
 	.recording-md-prose--mobile h4 {
@@ -177,10 +634,11 @@ html.magic-pure-share-document-flow #root .magic-app {
 
 	.recording-md-prose h3::before {
 		content: "▸";
+		display: inline-block;
 		color: rgb(var(--muted-foreground-rgb));
 		margin-right: 0.375rem;
 		font-size: 0.875em;
-		flex-shrink: 0;
+		vertical-align: middle;
 	}
 
 	.recording-md-prose p {
@@ -348,28 +806,80 @@ html.magic-pure-share-document-flow #root .magic-app {
 		accent-color: rgb(var(--primary-rgb));
 	}
 
-	/* Interactive chips — rendered as buttons, not plain prose anchors */
+	/*
+	 * Time chips seek playback from summary prose. They must not read as inline code:
+	 * a play mark, pointer cursor, blue control fill, and a stronger hover fill are the click cue.
+	 */
+	/* Match the speaker chip box so the two inline controls share one height and center line. */
 	.recording-time-chip {
 		margin-left: 0.125rem;
 		margin-right: 0.125rem;
 		display: inline-flex;
 		align-items: center;
-		border-radius: 0.375rem;
-		padding: 0.125rem 0.375rem;
+		flex-shrink: 0;
+		gap: 0.25rem;
+		border-radius: 9999px;
+		border-width: 1px;
+		padding: 0.125rem 0.5rem;
 		vertical-align: middle;
-		font-family: ui-monospace, monospace;
-		font-size: 11px;
+		font-family: inherit;
+		font-size: 12px;
 		font-weight: 500;
-		line-height: 1;
+		line-height: 1rem;
 		font-variant-numeric: tabular-nums;
-		color: rgb(var(--foreground-rgb));
-		background: color-mix(in srgb, rgb(var(--foreground-rgb)) 8%, transparent);
-		border: 1px solid color-mix(in srgb, rgb(var(--foreground-rgb)) 18%, transparent);
-		transition: opacity 0.15s ease;
+		white-space: nowrap;
+		cursor: pointer;
+		user-select: none;
+		color: rgb(29 78 216);
+		background: rgb(239 246 255);
+		border-color: rgb(191 219 254);
+		transition:
+			background-color 0.15s ease,
+			border-color 0.15s ease,
+			color 0.15s ease;
+	}
+
+	.recording-time-chip-label {
+		display: block;
+	}
+
+	/* Play mark uses the speaker dot's flex centering and stays inside the shared 16px line. */
+	.recording-time-chip-icon {
+		width: 0.5rem;
+		height: 0.5rem;
+		flex-shrink: 0;
+		display: block;
 	}
 
 	.recording-time-chip:hover {
-		opacity: 0.8;
+		color: rgb(30 64 175);
+		background: rgb(219 234 254);
+		border-color: rgb(147 197 253);
+	}
+
+	.recording-time-chip:active {
+		background: rgb(191 219 254);
+	}
+
+	.recording-time-chip:focus-visible {
+		outline: 2px solid rgb(var(--ring-rgb));
+		outline-offset: 2px;
+	}
+
+	.dark .recording-time-chip {
+		color: rgb(147 197 253);
+		background: rgb(59 130 246 / 0.16);
+		border-color: rgb(96 165 250 / 0.45);
+	}
+
+	.dark .recording-time-chip:hover {
+		color: rgb(191 219 254);
+		background: rgb(59 130 246 / 0.28);
+		border-color: rgb(147 197 253 / 0.7);
+	}
+
+	.dark .recording-time-chip:active {
+		background: rgb(59 130 246 / 0.38);
 	}
 
 	.recording-speaker-chip {
@@ -377,6 +887,7 @@ html.magic-pure-share-document-flow #root .magic-app {
 		margin-right: 0.125rem;
 		display: inline-flex;
 		align-items: center;
+		flex-shrink: 0;
 		gap: 0.25rem;
 		border-radius: 9999px;
 		border-width: 1px;
@@ -385,12 +896,22 @@ html.magic-pure-share-document-flow #root .magic-app {
 		font-size: 12px;
 		font-weight: 500;
 		line-height: 1rem;
+		white-space: nowrap;
 		color: rgb(var(--foreground-rgb));
 		transition: opacity 0.15s ease;
 	}
 
 	.recording-speaker-chip:hover {
 		opacity: 0.8;
+	}
+
+	/* Keep long speaker names readable without allowing the heading chip to overflow. */
+	.recording-speaker-chip-label {
+		display: block;
+		max-width: min(14rem, 40vw);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.recording-speaker-chip-dot {
@@ -488,6 +1009,28 @@ html.magic-pure-share-document-flow #root .magic-app {
 
 @layer base {
 	:root {
+		/* transitions-dev panel reveal tokens used by the inspector collection bar. */
+		--panel-open-dur: 400ms;
+		--panel-close-dur: 350ms;
+		--panel-translate-y: 100px;
+		--panel-blur: 2px;
+		--panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+		/* transitions-dev success check tokens used by the inspector confirmation. */
+		--check-opacity-dur: 500ms;
+		--check-rotate-dur: 500ms;
+		--check-rotate-from: 80deg;
+		--check-bob-dur: 500ms;
+		--check-y-amount: 40px;
+		--check-blur-dur: 500ms;
+		--check-blur-from: 10px;
+		--check-path-dur: 500ms;
+		--check-path-delay: 80ms;
+		--check-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+		--check-ease-opacity: cubic-bezier(0.22, 1, 0.36, 1);
+		--check-ease-rotate: cubic-bezier(0.22, 1, 0.36, 1);
+		--check-ease-bob: cubic-bezier(0.34, 1.35, 0.64, 1);
+		--check-ease-path: cubic-bezier(0.22, 1, 0.36, 1);
+
 		width: 100%;
 		height: 100%;
 		margin: 0;
@@ -514,6 +1057,8 @@ html.magic-pure-share-document-flow #root .magic-app {
 		*/
 		--z-index-detail-fullscreen: 999;
 		--z-index-popup: 1000;
+		/* Toasts stay above modal masks. Overlay stacks start at 1000; fullscreen overlays start at 9000. */
+		--z-index-toast: 10000;
 		--z-index-context-menu: var(--z-index-popup);
 		--z-index-dialog: var(--z-index-popup);
 		--z-index-dropdown: var(--z-index-popup);

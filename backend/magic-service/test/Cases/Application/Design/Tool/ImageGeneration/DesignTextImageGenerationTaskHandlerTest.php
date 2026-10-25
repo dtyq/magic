@@ -14,6 +14,7 @@ use App\Domain\Design\Entity\ImageGenerationEntity;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use PHPUnit\Framework\TestCase;
@@ -35,7 +36,9 @@ class DesignTextImageGenerationTaskHandlerTest extends TestCase
             ->with($this->callback(static function (TextGenerateImageDTO $dto): bool {
                 return $dto->getModel() === 'gpt-image-2'
                     && $dto->getPrompt() === 'make posters'
-                    && $dto->getN() === 3;
+                    && $dto->getN() === 3
+                    && $dto->getBusinessParam('source_id') === SourceId::DESIGN_IMAGE_GENERATION
+                    && $dto->getBusinessParam('business_id') === '101';
             }))
             ->willReturn(new OpenAIFormatResponse([
                 'data' => [
@@ -46,6 +49,7 @@ class DesignTextImageGenerationTaskHandlerTest extends TestCase
             ]));
 
         $entity = new ImageGenerationEntity();
+        $entity->setProjectId(101);
         $entity->setModelId('gpt-image-2');
         $entity->setPrompt('make posters');
         $entity->setGenerateNum(3);

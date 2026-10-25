@@ -3,8 +3,11 @@
  *
  * 向 iframe 内注入工作区级文件操作 API（高层 UI 集成）：
  *   - window.Magic.project.uploadFiles        — 将浏览器 File 对象上传到 workspace（OSS）
- *   - window.Magic.project.addFilesToMessage  — 将 workspace 文件附加到新建话题的消息输入框
+ *   - window.Magic.project.addFilesToMessage  — 将 workspace 文件附加到消息输入框
  *   - window.Magic.project.downloadFiles      — 触发 workspace 文件的浏览器下载
+ *
+ * 单话题宿主（龙虾 / 对话）上 addFilesToMessage 会附加到当前话题，
+ * 并忽略 agentMode，沿用 claw/chat 自己的 agent。
  *
  * 向后兼容（deprecated）：
  *   - window.Magic.uploadFiles
@@ -19,17 +22,17 @@
  * 所有操作通过 postMessage 委托给主站（parent window）处理。
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
+import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox"
 import { MagicApiLogger } from "./MagicApiLogger"
 
 interface UploadFileItem {
-	file: File
+	file: File | Blob | ArrayBuffer
 	path: string
 	filename: string
 }
 
 interface FileData {
-	file: File
+	file: File | Blob | ArrayBuffer
 	filename: string
 	path: string
 	fileSize: number
@@ -74,10 +77,14 @@ export class MagicWorkspaceApi extends BaseRuntimeBridgeApiPlugin {
 						new Error(`window.Magic.uploadFiles: files[${i}] must be an object`),
 					)
 				}
-				if (!(item["file"] instanceof File)) {
+				if (
+					!(item["file"] instanceof File) &&
+					!(item["file"] instanceof Blob) &&
+					!(item["file"] instanceof ArrayBuffer)
+				) {
 					return Promise.reject(
 						new Error(
-							`window.Magic.uploadFiles: files[${i}].file must be a File object`,
+							`window.Magic.uploadFiles: files[${i}].file must be a File, Blob, or ArrayBuffer`,
 						),
 					)
 				}
@@ -99,15 +106,19 @@ export class MagicWorkspaceApi extends BaseRuntimeBridgeApiPlugin {
 				file: item.file,
 				filename: item.filename,
 				path: item.path,
-				fileSize: item.file.size,
-				fileType: item.file.type,
+				fileSize: item.file instanceof ArrayBuffer ? item.file.byteLength : item.file.size,
+				fileType: item.file instanceof ArrayBuffer ? "" : item.file.type,
 			}))
+			const transfer = fileData
+				.map((item) => item.file)
+				.filter((file): file is ArrayBuffer => file instanceof ArrayBuffer)
 
 			return this.request<unknown>(
 				"MAGIC_UPLOAD_FILES_REQUEST",
 				{ files: fileData },
 				60000, // 60s timeout for large files
 				(data) => data["results"],
+				transfer,
 			)
 		}
 

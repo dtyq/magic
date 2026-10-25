@@ -1,5 +1,5 @@
 import { Box, FolderDot } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/StatusIcon"
 import { ProjectStatus, WorkspaceStatus } from "@/pages/superMagic/pages/Workspace/types"
 

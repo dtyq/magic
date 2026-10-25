@@ -1,7 +1,7 @@
 import { useStyles } from "./styles"
 import { message, Switch, Collapse, Flex } from "antd"
 import { IconExternalLink, IconPencil, IconTrash } from "@tabler/icons-react"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useTranslation } from "react-i18next"
 import TSIcon from "@/components/base/TSIcon"
 import { LongMemory } from "@/types/longMemory"
@@ -38,18 +38,18 @@ export default function Table({
 
 	const isMobile = useIsMobile()
 
-	/** 全局记忆列表 */
+	/** Global memories. */
 	const [globalMemoryList, setGlobalMemoryList] = useState<LongMemory.Memory[]>([])
-	/** 项目记忆列表 */
+	/** Project memories. */
 	const [projectMemoryList, setProjectMemoryList] = useState<LongMemory.Memory[]>([])
-	/** 加载状态 */
+	/** Loading state. */
 	const [loading, setLoading] = useState(false)
-	/** 分页信息 */
+	/** Page size. */
 	const [pageSize] = useState(99)
-	/** 项目记忆的项目跳转状态 */
+	/** Prevent concurrent project navigation. */
 	const [isProjectNavigateLoading, setIsProjectNavigateLoading] = useState(false)
 
-	/** 获取所有记忆列表并分类存储 */
+	/** Fetch memories and separate them by scope. */
 	const fetchAllMemories = useCallback(async (currentPageSize: number = 10) => {
 		try {
 			setLoading(true)
@@ -57,7 +57,7 @@ export default function Table({
 				status: [LongMemory.MemoryStatus.ACTIVE, LongMemory.MemoryStatus.PENDING_REVISION],
 				page_size: currentPageSize,
 			})
-			// 分类存储数据
+			// Separate global and project memories.
 			const globalMemories = res.data.filter((memory) => memory.project_id === null)
 			const projectMemories = res.data.filter((memory) => memory.project_id !== null)
 			setGlobalMemoryList(globalMemories)
@@ -69,12 +69,12 @@ export default function Table({
 		}
 	}, [])
 
-	/** 启用/禁用记忆 */
+	/** Enable or disable a memory. */
 	const handleEnabledChange = useMemoizedFn(async (id: string, enabled: boolean) => {
 		try {
 			const res = await LongMemoryApi.batchEnableMemories([id], enabled)
 			if (res) {
-				// 更新两个状态中的记忆
+				// Update the memory in both scope lists.
 				setGlobalMemoryList((prev) =>
 					prev.map((memory) => (memory.id === id ? { ...memory, enabled } : memory)),
 				)
@@ -89,13 +89,13 @@ export default function Table({
 		}
 	})
 
-	/** 编辑记忆 */
+	/** Edit a memory. */
 	const handleMemoryEdit = useMemoizedFn((memory: LongMemory.Memory) => {
 		setPage(LongTremMemoryPage.CreateOrEdit)
 		setEditMemory(memory)
 	})
 
-	/** 删除记忆 */
+	/** Confirm memory deletion. */
 	const handleMemoryDeleteConfirm = useMemoizedFn(async (memory: LongMemory.Memory) => {
 		MagicModal.confirm({
 			title: t("deleteMemoryConfirm"),
@@ -108,12 +108,12 @@ export default function Table({
 		})
 	})
 
-	/** 确认删除记忆 */
+	/** Delete the confirmed memory. */
 	const handleMemoryDelete = useMemoizedFn(async (memoryId: string) => {
 		try {
 			const res = await LongMemoryApi.deleteMemory(memoryId)
 			if (res) {
-				// 从两个状态中移除记忆
+				// Remove the memory from both scope lists.
 				setGlobalMemoryList((prev) => prev.filter((memory) => memory.id !== memoryId))
 				setProjectMemoryList((prev) => prev.filter((memory) => memory.id !== memoryId))
 				onMemoryChanged?.()
@@ -124,12 +124,12 @@ export default function Table({
 		}
 	})
 
-	/** 获取记忆tooltip内容 */
+	/** Render full memory text in the tooltip. */
 	const getMemoryTooltipContent = (content: string) => {
 		return <div className={styles.memoryTooltipContent}>{content}</div>
 	}
 
-	/** 记忆列表项组件 */
+	/** Render a memory row. */
 	const MemoryItem = ({
 		memory,
 		isProjectMemory,
@@ -177,22 +177,30 @@ export default function Table({
 					isLastProjectMemory && styles.itemLastProject,
 				)}
 			>
-				<div className={styles.button} onClick={() => handleMemoryEdit(memory)} data-testid="handle-memory-edit">
+				<div
+					className={styles.button}
+					onClick={() => handleMemoryEdit(memory)}
+					data-testid="handle-memory-edit"
+				>
 					<IconPencil size={20} strokeWidth={1.5} />
 				</div>
-				<div className={styles.button} onClick={() => handleMemoryDeleteConfirm(memory)} data-testid="handle-memory-delete-confirm">
+				<div
+					className={styles.button}
+					onClick={() => handleMemoryDeleteConfirm(memory)}
+					data-testid="handle-memory-delete-confirm"
+				>
 					<IconTrash size={20} strokeWidth={1.5} />
 				</div>
 			</div>
 		</div>
 	)
 
-	/** 获取当前激活的记忆列表 */
+	/** Select the active scope list. */
 	const currentMemoryList = useMemo(() => {
 		return activeTab === MemoryTypeTab.GlobalMemory ? globalMemoryList : projectMemoryList
 	}, [activeTab, globalMemoryList, projectMemoryList])
 
-	/** 按项目分组项目记忆 */
+	/** Group memories by project. */
 	const groupedProjectMemories = useMemo(() => {
 		if (activeTab !== MemoryTypeTab.ProjectMemory) return {}
 		return projectMemoryList.reduce(
@@ -213,7 +221,7 @@ export default function Table({
 		)
 	}, [projectMemoryList, activeTab, t])
 
-	/** 点击项目跳转 */
+	/** Navigate to the associated project. */
 	const handleProjectClick = useMemoizedFn(
 		async (e: React.MouseEvent<SVGSVGElement, MouseEvent>, projectId: string) => {
 			if (isProjectNavigateLoading) return
@@ -258,7 +266,7 @@ export default function Table({
 	if (currentMemoryList.length === 0) {
 		return (
 			<div className={styles.empty}>
-				<img src={NoDataImage} draggable={false} alt=""  data-testid="table-image"/>
+				<img src={NoDataImage} draggable={false} alt="" data-testid="table-image" />
 				<div>{t("noData")}</div>
 			</div>
 		)
@@ -270,7 +278,7 @@ export default function Table({
 		if (projectGroups.length === 0) {
 			return (
 				<div className={styles.empty}>
-					<img src={NoDataImage} draggable={false} alt=""  data-testid="table-image-2"/>
+					<img src={NoDataImage} draggable={false} alt="" data-testid="table-image-2" />
 					<div>{t("noData")}</div>
 				</div>
 			)
@@ -284,7 +292,11 @@ export default function Table({
 						<div className={cx(styles.itemCell, styles.itemStatus)}>{t("status")}</div>
 						<div className={cx(styles.itemCell, styles.itemSetting)}>{t("action")}</div>
 					</div>
-					<MagicScrollBar className={styles.scroll} autoHide={false}>
+					<ScrollArea
+						className={styles.scroll}
+						viewportClassName={styles.scrollViewport}
+						type="always"
+					>
 						<Collapse
 							className={styles.projectCollapse}
 							ghost
@@ -315,7 +327,7 @@ export default function Table({
 								),
 							}))}
 						/>
-					</MagicScrollBar>
+					</ScrollArea>
 				</div>
 			</div>
 		)
@@ -329,13 +341,17 @@ export default function Table({
 					<div className={cx(styles.itemCell, styles.itemStatus)}>{t("status")}</div>
 					<div className={cx(styles.itemCell, styles.itemSetting)}>{t("action")}</div>
 				</div>
-				<MagicScrollBar className={styles.scroll} autoHide={false}>
+				<ScrollArea
+					className={styles.scroll}
+					viewportClassName={styles.scrollViewport}
+					type="always"
+				>
 					{currentMemoryList.map((memory) => (
 						<MemoryItem key={memory.id} memory={memory} />
 					))}
-				</MagicScrollBar>
+				</ScrollArea>
 			</div>
-			{/* 分页功能后续可拓展 */}
+			{/* Pagination can be added in a future iteration. */}
 			{/* <div className={styles.pagination}>
 				<Pagination
 					pageSize={pageSize}

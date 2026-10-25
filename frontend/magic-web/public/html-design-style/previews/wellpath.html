@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WellPath — Preventative Longevity &amp; Epigenetic Portal</title>
+  <style>
+  :root {
+  --bg: #070d1e;
+  --bg-surface: #0e172f;
+  --bg-surface-elevated: #14203e;
+  --bg-card: #101c38;
+  --border: rgba(212, 175, 55, 0.22);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --gold: #d4af37;
+  --gold-light: #f5df88;
+  --gold-dim: #997b20;
+  --gold-glow: rgba(212, 175, 55, 0.18);
+  --gold-subtle: rgba(212, 175, 55, 0.08);
+  --cyan-bio: #38bdf8;
+  --emerald-bio: #10b981;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+  --font-headline: 'Nunito', system-ui, -apple-system, sans-serif;
+  --font-body: 'Poppins', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Source Code Pro', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.07) 0%, transparent 60%);
+  }
+  
+  .longevity-nav {
+  background: rgba(14, 23, 47, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  }
+  .brand-cluster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  }
+  .gold-crest {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #d4af37 0%, #aa841e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #070d1e;
+  font-weight: 800;
+  box-shadow: 0 0 14px var(--gold-glow);
+  }
+  .portal-name {
+  font-family: var(--font-headline);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  }
+  .portal-name span {
+  color: var(--gold);
+  font-weight: 600;
+  }
+  .tier-badge {
+  background: var(--gold-subtle);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold-light);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  }
+  .member-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  }
+  .chrono-age-chip {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  }
+  .member-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border: 1.5px solid var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--gold-light);
+  }
+  
+  .portal-layout {
+  max-width: 1240px;
+  margin: 18px auto;
+  padding: 0 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  }
+  
+  .bio-age-banner {
+  background: linear-gradient(135deg, #0e1a38 0%, #16244a 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 28px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), 0 0 20px rgba(212, 175, 55, 0.08);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 28px;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  }
+  .bio-age-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 250px;
+  height: 100%;
+  background: radial-gradient(circle at 100% 50%, rgba(212, 175, 55, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+  }
+  
+  .gauge-wrapper {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  }
+  .gauge-wrapper svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+  }
+  .gauge-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  }
+  .gauge-number {
+  font-family: var(--font-headline);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--gold-light);
+  line-height: 1;
+  }
+  .gauge-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-top: 2px;
+  }
+  .bio-age-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  }
+  .bio-age-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  }
+  .bio-age-title {
+  font-family: var(--font-headline);
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  }
+  .delta-pill {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  }
+  .bio-age-meta {
+  display: flex;
+  gap: 22px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  }
+  .bio-age-meta strong {
+  color: var(--gold-light);
+  font-family: var(--font-mono);
+  }
+  .banner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  }
+  .btn-gold-action {
+  background: linear-gradient(135deg, var(--gold) 0%, #b89020 100%);
+  color: #070d1e;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 9px 18px;
+  font-family: var(--font-headline);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.25);
+  }
+  .btn-ghost-action {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  }
+  
+  .biomarker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  }
+  .biomarker-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  transition: border-color 0.2s;
+  }
+  .biomarker-card:hover {
+  border-color: var(--border);
+  }
+  .biomarker-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  }
+  .biomarker-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  }
+  .tier-indicator {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  }
+  .tier-optimal { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+  .tier-superior { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+  .tier-gold { background: var(--gold-subtle); color: var(--gold-light); }
+  .biomarker-val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+  }
+  .biomarker-val {
+  font-family: var(--font-headline);
+  font-size: 26px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  }
+  .biomarker-unit {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  }
+  .biomarker-target-bar {
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  height: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  }
+  .biomarker-fill {
+  height: 100%;
+  border-radius: 3px;
+  }
+  .biomarker-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  }
+  
+  .portal-split-view {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+  }
+  .section-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  }
+  .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 10px;
+  }
+  .section-title {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  }
+  
+  .supplement-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  }
+  .supp-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  }
+  .supp-timing-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--gold-subtle);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  }
+  .supp-info h4 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  }
+  .supp-dose {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold-light);
+  margin-top: 1px;
+  }
+  .supp-mechanism {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  }
+  .supp-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid var(--border);
+  color: var(--gold-light);
+  }
+  
+  .phenotypic-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  }
+  .pheno-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  }
+  .pheno-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  }
+  .pheno-label { font-size: 12px; font-weight: 600; color: var(--text); }
+  .pheno-val { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--cyan-bio); }
+  .pheno-desc { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  
+  .portal-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--text-subtle);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+  }
+  </style>
+</head>
+<body>
+  
+  <header class="longevity-nav">
+  <div class="brand-cluster">
+  <div class="gold-crest">&#9881;</div>
+  <div class="portal-name">Well<span>Path</span></div>
+  <span class="tier-badge">Longevity Tier IV &bull; Epigenetic Optimization</span>
+  </div>
+  <div class="member-info">
+  <div class="chrono-age-chip">Chronological: 48.4 Yrs</div>
+  <div style="font-size: 12.5px; font-weight: 600; color: #fff;">David Vance</div>
+  <div class="member-avatar">DV</div>
+  </div>
+  </header>
+
+  <main class="portal-layout">
+  
+  <section class="bio-age-banner">
+  
+  <div class="gauge-wrapper">
+  <svg viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.08)" stroke-width="7" fill="transparent"/>
+  <circle cx="50" cy="50" r="40" stroke="url(#goldGrad)" stroke-width="7" fill="transparent"
+  stroke-dasharray="251" stroke-dashoffset="62.8" stroke-linecap="round"/>
+  <defs>
+  <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+  <stop offset="0%" stop-color="#f5df88"/>
+  <stop offset="100%" stop-color="#d4af37"/>
+  </linearGradient>
+  </defs>
+  </svg>
+  <div class="gauge-text">
+  <div class="gauge-number">44.2</div>
+  <div class="gauge-label">Bio Age</div>
+  </div>
+  </div>
+
+  <div class="bio-age-details">
+  <div class="bio-age-header">
+  <h1 class="bio-age-title">Biological Age: 44.2 Years</h1>
+  <span class="delta-pill">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+  -4.2 Yrs Rejuvenation Delta
+  </span>
+  </div>
+  <div class="bio-age-meta">
+  <span>DunedinPACE Aging Rate: <strong>0.82 yr/yr</strong> (Top 2% Deceleration)</span>
+  <span>Epigenetic DNAm Clock: <strong>GrimAge v2.1</strong></span>
+  <span>Next Bio-Marker Draw: <strong>Oct 24, 2026</strong></span>
+  </div>
+  </div>
+
+  <div class="banner-actions">
+  <button class="btn-gold-action">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  Export Longevity Dossier
+  </button>
+  <button class="btn-ghost-action">Recalibrate Clock</button>
+  </div>
+  </section>
+
+  
+  <section class="biomarker-grid">
+  
+  <article class="biomarker-card">
+  <div class="biomarker-top">
+  <span class="biomarker-name">hs-CRP (Inflammation)</span>
+  <span class="tier-indicator tier-optimal">Optimal</span>
+  </div>
+  <div class="biomarker-val-row">
+  <span class="biomarker-val">0.42</span>
+  <span class="biomarker-unit">mg/L</span>
+  </div>
+  <div class="biomarker-target-bar">
+  <div class="biomarker-fill" style="width: 32%; background: #10b981;"></div>
+  </div>
+  <div class="biomarker-note">
+  <span>Target: &lt; 0.50 mg/L</span>
+  <span style="color: #34d399;">Low Systemic Risk</span>
+  </div>
+  </article>
+
+  
+  <article class="biomarker-card">
+  <div class="biomarker-top">
+  <span class="biomarker-name">ApoB (Atherogenic)</span>
+  <span class="tier-indicator tier-gold">Top 5th %ile</span>
+  </div>
+  <div class="biomarker-val-row">
+  <span class="biomarker-val" style="color: var(--gold-light);">58</span>
+  <span class="biomarker-unit">mg/dL</span>
+  </div>
+  <div class="biomarker-target-bar">
+  <div class="biomarker-fill" style="width: 42%; background: var(--gold);"></div>
+  </div>
+  <div class="biomarker-note">
+  <span>Target: &lt; 65 mg/dL</span>
+  <span style="color: var(--gold-light);">Endothelial Shield</span>
+  </div>
+  </article>
+
+  
+  <article class="biomarker-card">
+  <div class="biomarker-top">
+  <span class="biomarker-name">HbA1c (Glycemic)</span>
+  <span class="tier-indicator tier-optimal">Optimal</span>
+  </div>
+  <div class="biomarker-val-row">
+  <span class="biomarker-val">4.9</span>
+  <span class="biomarker-unit">%</span>
+  </div>
+  <div class="biomarker-target-bar">
+  <div class="biomarker-fill" style="width: 48%; background: #10b981;"></div>
+  </div>
+  <div class="biomarker-note">
+  <span>Longevity Zone: 4.6-5.1%</span>
+  <span style="color: #34d399;">Insulin Sensitive</span>
+  </div>
+  </article>
+
+  
+  <article class="biomarker-card">
+  <div class="biomarker-top">
+  <span class="biomarker-name">Vitamin D (25-OH)</span>
+  <span class="tier-indicator tier-superior">Superior</span>
+  </div>
+  <div class="biomarker-val-row">
+  <span class="biomarker-val" style="color: var(--cyan-bio);">64</span>
+  <span class="biomarker-unit">ng/mL</span>
+  </div>
+  <div class="biomarker-target-bar">
+  <div class="biomarker-fill" style="width: 78%; background: #38bdf8;"></div>
+  </div>
+  <div class="biomarker-note">
+  <span>Target: 50-70 ng/mL</span>
+  <span style="color: #38bdf8;">Immune Optimized</span>
+  </div>
+  </article>
+  </section>
+
+  
+  <div class="portal-split-view">
+  
+  <section class="section-card">
+  <div class="section-header">
+  <h2 class="section-title">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/>
+  <path d="m8.5 8.5 7 7"/>
+  </svg>
+  Personalized Epigenetic Supplement Stack
+  </h2>
+  <span style="font-family: var(--font-mono); font-size: 11px; color: var(--gold-light);">Adherence: 98.4%</span>
+  </div>
+
+  <div class="supplement-stream">
+  
+  <div class="supp-item">
+  <div class="supp-timing-icon">&#9788;</div>
+  <div class="supp-info">
+  <h4>Liposomal NMN + Trans-Resveratrol</h4>
+  <div class="supp-dose">500 mg NMN &bull; 300 mg Resveratrol (AM Fasted)</div>
+  <div class="supp-mechanism">NAD+ Salvage Pathway &bull; Sirtuin-1 (SIRT1) Activator</div>
+  </div>
+  <span class="supp-badge">Cellular Energy</span>
+  </div>
+
+  
+  <div class="supp-item">
+  <div class="supp-timing-icon">&#9788;</div>
+  <div class="supp-info">
+  <h4>Ultra-Pure EPA/DHA Omega-3</h4>
+  <div class="supp-dose">2,000 mg (1,400mg EPA / 600mg DHA) with Meal 1</div>
+  <div class="supp-mechanism">Cell Membrane Fluidity &bull; Systemic Resolvin Synthesis</div>
+  </div>
+  <span class="supp-badge">Cardiovascular</span>
+  </div>
+
+  
+  <div class="supp-item">
+  <div class="supp-timing-icon">&#9790;</div>
+  <div class="supp-info">
+  <h4>Magnesium L-Threonate &amp; Apigenin</h4>
+  <div class="supp-dose">400 mg Mg L-Threonate &bull; 50 mg Apigenin (60 min pre-bed)</div>
+  <div class="supp-mechanism">Blood-Brain Barrier Penetration &bull; GABA-A Modulation</div>
+  </div>
+  <span class="supp-badge">Neuro-Recovery</span>
+  </div>
+  </div>
+  </section>
+
+  
+  <section class="section-card">
+  <div class="section-header">
+  <h2 class="section-title">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+  </svg>
+  Functional Biomarkers
+  </h2>
+  <span style="font-size: 11px; color: var(--cyan-bio);">Biological Age Drivers</span>
+  </div>
+
+  <div class="phenotypic-grid">
+  <div class="pheno-card">
+  <div class="pheno-row">
+  <span class="pheno-label">Cardiorespiratory VO2 Max</span>
+  <span class="pheno-val">52.4 mL/kg/min</span>
+  </div>
+  <div class="pheno-desc">Elite longevity percentile for chronological age 48 (Comparable to age 28).</div>
+  </div>
+
+  <div class="pheno-card">
+  <div class="pheno-row">
+  <span class="pheno-label">Average Leukocyte Telomere Length</span>
+  <span class="pheno-val">7.42 kb</span>
+  </div>
+  <div class="pheno-desc">84th percentile ranking vs age-matched cohort (+3.1 yr telomeric reserve).</div>
+  </div>
+
+  <div class="pheno-card">
+  <div class="pheno-row">
+  <span class="pheno-label">Fasting Insulin</span>
+  <span class="pheno-val">3.4 &mu;IU/mL</span>
+  </div>
+  <div class="pheno-desc">HOMA-IR score: 0.72 (Deep metabolic insulin sensitivity).</div>
+  </div>
+  </div>
+  </section>
+  </div>
+
+  
+  <footer class="portal-footer">
+  <span>WellPath Bio-Intelligence Systems &bull; CLIA &amp; CAP Certified Sequencing</span>
+  <span style="font-family: var(--font-mono);">Epigenome Hash: #EPG-9024-OX48 &bull; Encrypted Zero-Knowledge Health Vault</span>
+  </footer>
+  </main>
+</body>
+</html>

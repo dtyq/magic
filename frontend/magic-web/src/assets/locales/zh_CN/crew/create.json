@@ -199,6 +199,7 @@
 			"comingSoon": "项目文档功能即将上线...",
 			"defaultName": "项目文档",
 			"entireProjectSelected": "已选择整个项目",
+			"partialProjectDescription": "已选择 {{count}} 个文件",
 			"realtimeUpdates": "实时更新",
 			"realtimeUpdatesDescription": "系统仅监控此特定文件的变更。如果文件被删除，将从向量数据库中移除，但不会跟踪项目中新增的文件。",
 			"selectFile": "选择文件",
@@ -228,7 +229,8 @@
 			"step2": "策略配置",
 			"step3": "数据处理",
 			"title": "项目",
-			"unnamedWorkspace": "未命名工作区"
+			"unnamedWorkspace": "未命名工作区",
+			"wholeProjectDescription": "自动同步整个项目中的全部文档"
 		},
 		"strategy": {
 			"autoChunkClean": "自动分块和清理",

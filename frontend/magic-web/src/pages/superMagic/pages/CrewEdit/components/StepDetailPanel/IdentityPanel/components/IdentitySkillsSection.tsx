@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, X } from "lucide-react"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Badge, badgeVariants } from "@/components/shadcn-ui/badge"
 import {
 	HoverCard,

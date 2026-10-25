@@ -1,7 +1,7 @@
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconUserFilled } from "@tabler/icons-react"
 import type { GlobalSearch } from "@/types/search"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
 import HighlightText from "../HighlightText"
 
 interface SearchItemChatProps {
@@ -11,12 +11,10 @@ interface SearchItemChatProps {
 function Chat(props: SearchItemChatProps) {
 	const { item } = props
 
-	const { styles } = useSearchItemCommonStyles()
-
 	return (
 		<div className={styles.item}>
 			<div className={styles.icon}>
-				<MagicIcon size={20} component={IconUserFilled} style={{ flex: "none" }} />
+				<MagicIcon size={20} component={IconUserFilled} className="flex-none" />
 			</div>
 			<div className={styles.wrapper}>
 				<div className={styles.title}>

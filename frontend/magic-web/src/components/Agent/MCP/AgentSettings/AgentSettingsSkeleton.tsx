@@ -15,7 +15,7 @@ export default function AgentSettingsSkeleton() {
 					{[1, 2, 3].map((i) => (
 						<div
 							key={i}
-							className="bg-magic-grey-0 flex items-center gap-3 rounded-lg p-3"
+							className="flex items-center gap-3 rounded-[8px] bg-neutral-50 p-3 dark:bg-neutral-900"
 						>
 							<MagicSkeleton width={40} height={40} borderRadius={8} />
 							<div className="flex flex-1 flex-col gap-1.5">
@@ -30,9 +30,9 @@ export default function AgentSettingsSkeleton() {
 	}
 
 	return (
-		<div className="bg-magic-white-1 flex h-[600px] w-full items-start overflow-hidden rounded-xl">
-			{/* 左侧面板骨架 */}
-			<div className="bg-magic-grey-0 flex h-full w-[200px] flex-none flex-col gap-2.5 border-r border-border p-3.5">
+		<div className="flex h-[600px] w-full items-start overflow-hidden rounded-[12px] bg-background">
+			{/* Sidebar skeleton. */}
+			<div className="flex h-full w-[200px] flex-none flex-col gap-2.5 border-r border-border bg-neutral-50 p-3.5 dark:bg-neutral-900">
 				<MagicSkeleton width={60} height={12} borderRadius={4} />
 				<div className="flex items-center gap-2 px-2.5 py-1.5">
 					<MagicSkeleton width={16} height={16} borderRadius={4} />
@@ -40,7 +40,7 @@ export default function AgentSettingsSkeleton() {
 				</div>
 			</div>
 
-			{/* 右侧内容骨架 */}
+			{/* Content panel skeleton. */}
 			<div className="flex h-full flex-auto flex-col gap-4 p-5">
 				<div className="flex items-center justify-between">
 					<MagicSkeleton width={120} height={24} borderRadius={4} />
@@ -51,7 +51,7 @@ export default function AgentSettingsSkeleton() {
 					{[1, 2, 3, 4].map((i) => (
 						<div
 							key={i}
-							className="bg-magic-grey-0 flex items-center gap-3 rounded-lg p-3"
+							className="flex items-center gap-3 rounded-[8px] bg-neutral-50 p-3 dark:bg-neutral-900"
 						>
 							<MagicSkeleton width={48} height={48} borderRadius={8} />
 							<div className="flex flex-1 flex-col gap-1.5">

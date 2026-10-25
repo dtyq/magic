@@ -2,7 +2,7 @@
 
 ## 简介
 
-MemberDepartmentSelector 是一个基于 `@feb/user-selector` 的成员和部门选择器组件。它提供了组织架构树形选择、成员搜索、多选、权限管理等功能，支持将选中的部门自动转换为该部门下的所有成员。
+MemberDepartmentSelector 是一个基于 `@dtyq/user-selector` 的成员和部门选择器组件。它提供了组织架构树形选择、成员搜索、多选、权限管理等功能，支持将选中的部门自动转换为该部门下的所有成员。
 
 ## 特性
 
@@ -40,7 +40,7 @@ import MemberDepartmentSelector from '@/components/business/MemberDepartmentSele
 | isConvertToUser | `boolean` | `false` | 是否将选中的部门转换为该部门下的所有成员 |
 | onOk | `(selected: TreeNode[]) => void` | - | 确定回调，返回选中的节点数组 |
 | onCancel | `() => void` | - | 取消回调 |
-| ...其他属性 | `UserSelectorProps` | - | 继承自 `@feb/user-selector` 的 UserSelectorProps |
+| ...其他属性 | `UserSelectorProps` | - | 继承自 `@dtyq/user-selector` 的 UserSelectorProps |
 
 ## 数据结构
 
@@ -64,10 +64,10 @@ enum NodeType {
 
 ## 依赖
 
-- @feb/user-selector
+- @dtyq/user-selector
 - ahooks
 - swr
-- lodash
+- lodash-es
 - react
 - antd
 
@@ -88,4 +88,3 @@ enum NodeType {
 ## UI图
 
 ![MemberDepartmentSelector 组件效果图](./member-department-selector-demo.png)
-

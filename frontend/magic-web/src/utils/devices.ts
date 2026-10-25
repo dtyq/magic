@@ -12,24 +12,24 @@ interface NavigatorWithUserAgentData extends Navigator {
 	}
 }
 
-/** * 是否为mac系统（包含iphone手机） * */
+/** Detects Apple desktop and mobile systems. */
 export const isMac = (() => {
 	return /macintosh|mac os x/i.test(navigator.userAgent)
 })()
 
-/** * 是否为windows系统 * */
+/** Detects Windows systems. */
 export const isWindows = (() => {
 	return /windows|win32/i.test(navigator.userAgent)
 })()
 
 /** Is it a DingTalk environment */
 export const isInDingTalkEnvironment = (() => {
-	// 检测是否在钉钉环境中
+	// DingTalk embeds its identifier in the browser user agent.
 	const ua = navigator.userAgent.toLowerCase()
 	return /dingtalk/i.test(ua)
 })()
 
-/** * 是否为ios系统 * */
+/** Detects iOS systems. */
 export const isIos = (() => {
 	return /iphone|ipad/i.test(navigator.userAgent)
 })()
@@ -38,7 +38,7 @@ export const isSmallViewport = () => {
 	return window.innerWidth <= 768
 }
 
-/** * 是否为移动端 * */
+/** Detects mobile layouts. */
 export const isMobile = (() => {
 	// Primary check: UserAgent based detection
 	const userAgentMobile = /android|iphone|ipad|mobile|phone|tablet/i.test(navigator.userAgent)
@@ -87,23 +87,23 @@ export function isNoHoverCoarsePointer(): boolean {
 	return window.matchMedia("(hover: none) and (pointer: coarse)").matches
 }
 
-/** * 是否在 Magic 移动客户端下 * */
+/** Detects the Magic mobile app. */
 export const isMagicApp = (() => {
 	return /magic-ios|magic-android/i.test(navigator.userAgent)
 })()
 
-/** * 是否在 Magic IOS 移动客户端下 * */
+/** Detects the Magic iOS app. */
 export const isIosMagicApp = (() => {
 	return /magic-ios/i.test(navigator.userAgent)
 })()
 
-/** * 是否在 Magic Android 移动客户端下 * */
+/** Detects the Magic Android app. */
 export const isAndroidMagicApp = (() => {
 	return /magic-android/i.test(navigator.userAgent)
 })()
 
 /**
- * 是否在审核流程中
+ * Checks whether the native app is in its review process.
  * @returns Promise<boolean>
  */
 export const isInReviewProgress = () => {
@@ -118,21 +118,21 @@ export const isInReviewProgress = () => {
 }
 
 /**
- * 从 userAgent 中提取 Magic App 版本号
- * @returns 版本号字符串，如 "1.0.5" 或 "2.0"，如果未找到则返回 null
+ * Extracts the Magic App version from the user agent.
+ * @returns A version such as "1.0.5" or "2.0", or null when absent.
  */
 function extractMagicAppVersion(): string | null {
 	const ua = navigator.userAgent.toLowerCase()
-	// 匹配两位或三位版本号格式：2.0 或 2.0.0
+	// Native clients publish either two-part or three-part versions.
 	const match = ua.match(/magic-(android|ios)-(\d+\.\d+(?:\.\d+)?)/i)
 	return match ? match[2] : null
 }
 
 /**
- * 比较两个语义化版本号
- * @param version1 第一个版本号
- * @param version2 第二个版本号
- * @returns version1 >= version2 返回 true，否则返回 false
+ * Compares two semantic versions.
+ * @param version1 The first version.
+ * @param version2 The second version.
+ * @returns Whether version1 is at least version2.
  */
 function compareVersion(version1: string, version2: string): boolean {
 	const v1Parts = version1.split(".").map(Number)
@@ -146,20 +146,20 @@ function compareVersion(version1: string, version2: string): boolean {
 		if (v1 < v2) return false
 	}
 
-	return true // 相等
+	return true // Equal versions satisfy the minimum.
 }
 
 /**
- * 判断当前是否处于某个版本号之后（包含该版本号）的 Magic App 平台
- * @param targetVersion 目标版本号，如 "1.1.0"
- * @returns 如果当前版本 >= 目标版本返回 true，否则返回 false
+ * Checks whether the Magic App meets a minimum version.
+ * @param targetVersion The minimum supported version, such as "1.1.0".
+ * @returns Whether the current app version meets the minimum.
  * @example
- * // 当前 userAgent 包含 magic-Android-1.0.5
+ * // The current user agent contains magic-Android-1.0.5.
  * isMagicAppVersionAtLeast("1.0.5") // true
  * isMagicAppVersionAtLeast("1.0.4") // true
  * isMagicAppVersionAtLeast("1.1.0") // false
  *
- * // 当前 userAgent 包含 magic-ios-2.0 (两位数版本号会被当作 2.0.0 处理)
+ * // The current user agent contains magic-ios-2.0, treated as 2.0.0.
  * isMagicAppVersionAtLeast("1.10.0") // true - 2.0.0 > 1.10.0
  * isMagicAppVersionAtLeast("2.0.0") // true
  * isMagicAppVersionAtLeast("2.0.1") // false
@@ -167,7 +167,7 @@ function compareVersion(version1: string, version2: string): boolean {
 export function isMagicAppVersionAtLeast(targetVersion: string): boolean {
 	const currentVersion = extractMagicAppVersion()
 
-	// 如果不在 Magic App 环境中，返回 false
+	// A browser without a native app version cannot meet the requirement.
 	if (!currentVersion) {
 		return false
 	}
@@ -176,39 +176,64 @@ export function isMagicAppVersionAtLeast(targetVersion: string): boolean {
 }
 
 /**
- * @description 获取浏览器指纹，设备信息，os, os版本等信息
+ * Returns the browser fingerprint, device name, operating system and version.
  */
 export async function getDeviceInfo(i18n: i18n): Promise<Common.DeviceInfo> {
-	// 平台映射
-	const platformMapping = {
-		DingTalk: i18n.t("device.dingTalk", { ns: "interface" }),
-		DingTalkAvoid: i18n.t("device.dingTalk", { ns: "interface" }),
-		TeamshareWebAPP: `Teamshare {${i18n.t("device.app")}}`,
-	}
-
-	// 实例化UA解析器
+	// Device identity and fallback names must not depend on a locale chunk loading.
 	const ua = new UAParser()
 	const { userAgent } = window.navigator
+	const { device, browser, os } = ua.getResult()
+	const hardwareInfo = [device.vendor, device.model].filter(Boolean).join(" ")
+	const browserInfo = [browser.name, browser.version].filter(Boolean).join(" ")
+	const runtimeFallback = hardwareInfo || browserInfo || userAgent
+
+	// Login services and settings can reach this helper before their locale is ready.
+	if (!i18n.isInitialized) {
+		await new Promise<void>((resolve) => {
+			const onInitialized = () => {
+				i18n.off("initialized", onInitialized)
+				resolve()
+			}
+			i18n.on("initialized", onInitialized)
+		})
+	}
+
+	try {
+		await new Promise<void>((resolve, reject) => {
+			void i18n.loadNamespaces("login", (error) => {
+				if (error) {
+					reject(error)
+					return
+				}
+				resolve()
+			})
+		})
+	} catch {
+		// Display translations are optional; preserve device identity on chunk failures.
+	}
+	const t = i18n.getFixedT(i18n.language, "login")
+	const appLabel = t("device.app", { defaultValue: "" })
+
+	// Keep platform labels in the login namespace for every caller.
+	const platformMapping = {
+		DingTalk: t("device.dingTalk", { defaultValue: runtimeFallback }),
+		DingTalkAvoid: t("device.dingTalk", { defaultValue: runtimeFallback }),
+		TeamshareWebAPP: appLabel ? `Teamshare {${appLabel}}` : runtimeFallback,
+	}
+
 	const currentPlatform = Object.keys(platformMapping).find(
 		(platform) => userAgent.indexOf(platform) > -1,
 	)
-	const { device, browser, os } = ua.getResult()
+	const platformLabel = currentPlatform
+		? platformMapping[currentPlatform as keyof typeof platformMapping]
+		: ""
 
-	// 组装 - 设备信息
-	let deviceInfo = [
-		device.vendor,
-		device.model,
-		`${
-			currentPlatform ? platformMapping[currentPlatform as keyof typeof platformMapping] : ""
-		}`,
-	]
+	// A failed translation may already contain the hardware name, so do not repeat it.
+	let deviceInfo = [hardwareInfo, platformLabel === hardwareInfo ? "" : platformLabel]
 		.filter((attr) => !!attr)
 		.join(" ")
 
 	if (currentPlatform === "TeamshareWebAPP") deviceInfo = platformMapping[currentPlatform]
-
-	// 组装 - 浏览器信息
-	const browserInfo = `${browser.name} ${browser.version}`
 
 	if (magic?.os?.getSystemInfo) {
 		const systemInfo = await magic?.os?.getSystemInfo?.()
@@ -223,11 +248,11 @@ export async function getDeviceInfo(i18n: i18n): Promise<Common.DeviceInfo> {
 	return {
 		id: CryptoJS.MD5encryption(JSON.stringify(ua.getResult())),
 
-		// 移动端/平板/platform，优先显示设备信息, 否则显示浏览器信息
+		// Mobile devices and embedded platforms prefer device details over browser details.
 		name:
 			device.type === "mobile" || device.type === "tablet" || currentPlatform
-				? deviceInfo || i18n.t("device.unknown")
-				: browserInfo,
+				? deviceInfo || t("device.unknown", { defaultValue: runtimeFallback })
+				: browserInfo || runtimeFallback,
 		os: os.name || "",
 		os_version: os.version || "",
 	}

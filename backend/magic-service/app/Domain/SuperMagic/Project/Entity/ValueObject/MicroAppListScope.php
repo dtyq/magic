@@ -12,4 +12,6 @@ enum MicroAppListScope: string
     case All = 'all';
     case Created = 'created';
     case Collaborated = 'collaborated';
+    case Accessible = 'accessible';
+    case Recent = 'recent';
 }

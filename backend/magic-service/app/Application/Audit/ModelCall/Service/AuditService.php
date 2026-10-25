@@ -9,6 +9,9 @@ namespace App\Application\Audit\ModelCall\Service;
 
 use App\Domain\Audit\ModelCall\Service\ModelCallAuditDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderVirtualIdentity;
+use App\Domain\Provider\Service\ProviderConfigDomainService;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Chat\DTO\UserDetailDTO;
 use DateTimeImmutable;
@@ -25,6 +28,7 @@ class AuditService
         LoggerFactory $loggerFactory,
         private readonly ModelCallAuditDomainService $modelCallAuditDomainService,
         private readonly MagicUserDomainService $magicUserDomainService,
+        private readonly ProviderConfigDomainService $providerConfigDomainService,
     ) {
         $this->logger = $loggerFactory->get(static::class);
     }
@@ -44,7 +48,7 @@ class AuditService
         string $direction = 'next'
     ): array {
         $pageSize = ($pageSize <= 0 || $pageSize > 100) ? 20 : $pageSize;
-
+        $filters = $this->normalizeProviderFilters($filters);
         $result = $this->modelCallAuditDomainService->queries(
             $pageSize,
             $filters,
@@ -75,16 +79,20 @@ class AuditService
         string $currentOrganizationCode,
         bool $isOfficialOrganization
     ): array {
-        $raw = $this->modelCallAuditDomainService->statistics(
+        $filters = $this->normalizeProviderFilters($filters);
+        $raw = $this->queryStatistics(
             $filters,
             $currentOrganizationCode,
             $isOfficialOrganization
         );
 
+        $breakdown = $this->buildBreakdown($raw['breakdown']);
+        $breakdown = $this->fillProviderNames($breakdown, $isOfficialOrganization);
+
         return [
             'summary' => $this->buildSummary($raw['summary']),
             'trend' => $this->buildTrend($raw['trend']),
-            'breakdown' => $this->buildBreakdown($raw['breakdown']),
+            'breakdown' => $breakdown,
         ];
     }
 
@@ -94,6 +102,237 @@ class AuditService
     public function recordPointsByEventId(string $eventId, int $points): void
     {
         $this->modelCallAuditDomainService->recordPointsByEventId($eventId, $points);
+    }
+
+    /** @param array<string, mixed> $filters */
+    private function queryStatistics(
+        array $filters,
+        string $currentOrganizationCode,
+        bool $isOfficialOrganization
+    ): array {
+        $startMs = (int) ($filters['start_operation_time'] ?? 0);
+        $endMs = (int) ($filters['end_operation_time'] ?? 0);
+        $timezone = $this->statisticsDisplayTimezone();
+        $window = $this->splitStatisticsWindow($startMs, $endMs, $timezone);
+
+        $historyRaw = $this->loadHistoryFromHourly(
+            $filters,
+            $window,
+            $timezone,
+            $currentOrganizationCode,
+            $isOfficialOrganization
+        );
+        $todayRaw = $this->loadTodayFromLogs(
+            $filters,
+            $window,
+            $timezone,
+            $currentOrganizationCode,
+            $isOfficialOrganization
+        );
+
+        if ($historyRaw === null) {
+            if ($todayRaw === null) {
+                return $this->mergeStatisticsRaw(null, null, $startMs, $endMs, $window['byHour']);
+            }
+            $todayRaw['trend']['start_ms'] = $startMs;
+            $todayRaw['trend']['end_ms'] = $endMs;
+
+            return $todayRaw;
+        }
+
+        return $this->mergeStatisticsRaw($historyRaw, $todayRaw, $startMs, $endMs, $window['byHour']);
+    }
+
+    /**
+     * @return array{
+     *     byHour: bool,
+     *     historyStartMs: ?int,
+     *     historyEndMs: ?int,
+     *     todayStartMs: ?int,
+     *     todayEndMs: ?int
+     * }
+     */
+    private function splitStatisticsWindow(int $startMs, int $endMs, DateTimeZone $timezone): array
+    {
+        $todayStart = (new DateTimeImmutable('today', $timezone))->getTimestamp() * 1000;
+        $tomorrowStart = (new DateTimeImmutable('tomorrow', $timezone))->getTimestamp() * 1000;
+        $historyEndMs = min($endMs, $todayStart);
+        $todayStartMs = max($startMs, $todayStart);
+        $todayEndMs = min($endMs, $tomorrowStart);
+
+        return [
+            'byHour' => ($endMs - $startMs) <= 86400000,
+            'historyStartMs' => $startMs < $historyEndMs ? $startMs : null,
+            'historyEndMs' => $startMs < $historyEndMs ? $historyEndMs : null,
+            'todayStartMs' => $todayStartMs < $todayEndMs ? $todayStartMs : null,
+            'todayEndMs' => $todayStartMs < $todayEndMs ? $todayEndMs : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @param array{byHour: bool, historyStartMs: ?int, historyEndMs: ?int, todayStartMs: ?int, todayEndMs: ?int} $window
+     */
+    private function loadHistoryFromHourly(
+        array $filters,
+        array $window,
+        DateTimeZone $timezone,
+        string $currentOrganizationCode,
+        bool $isOfficialOrganization
+    ): ?array {
+        if ($window['historyStartMs'] === null || $window['historyEndMs'] === null) {
+            return null;
+        }
+
+        $historyFilters = $filters;
+        $historyFilters['start_bucket_at'] = $this->formatDateTime($window['historyStartMs'], $timezone);
+        $historyFilters['end_bucket_at'] = $this->formatDateTime($window['historyEndMs'], $timezone);
+
+        return $this->modelCallAuditDomainService->statisticsFromHourlyRecords(
+            $historyFilters,
+            $currentOrganizationCode,
+            $isOfficialOrganization,
+            $window['byHour']
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @param array{byHour: bool, historyStartMs: ?int, historyEndMs: ?int, todayStartMs: ?int, todayEndMs: ?int} $window
+     */
+    private function loadTodayFromLogs(
+        array $filters,
+        array $window,
+        DateTimeZone $timezone,
+        string $currentOrganizationCode,
+        bool $isOfficialOrganization
+    ): ?array {
+        if ($window['todayStartMs'] === null || $window['todayEndMs'] === null) {
+            return null;
+        }
+
+        $todayFilters = $filters;
+        $todayFilters['start_operation_time'] = $window['todayStartMs'];
+        $todayFilters['end_operation_time'] = $window['todayEndMs'];
+        $todayRaw = $this->modelCallAuditDomainService->statistics(
+            $todayFilters,
+            $currentOrganizationCode,
+            $isOfficialOrganization
+        );
+        if ($window['byHour']) {
+            return $todayRaw;
+        }
+
+        return $this->normalizeRawTrendToDay($todayRaw, $timezone);
+    }
+
+    private function formatDateTime(int $timestampMs, DateTimeZone $timezone): string
+    {
+        return (new DateTimeImmutable('@' . intdiv($timestampMs, 1000)))
+            ->setTimezone($timezone)
+            ->format('Y-m-d H:i:s');
+    }
+
+    /** @param array{summary: array, trend: array, breakdown: array} $raw */
+    private function normalizeRawTrendToDay(array $raw, DateTimeZone $timezone): array
+    {
+        $days = [];
+        foreach ($raw['trend']['rows'] ?? [] as $row) {
+            $bucketMs = (int) ($row['bucket_ms'] ?? 0);
+            $day = (new DateTimeImmutable('@' . intdiv($bucketMs, 1000)))
+                ->setTimezone($timezone)
+                ->format('Y-m-d');
+            $days[$day]['requests'] = ($days[$day]['requests'] ?? 0) + (int) ($row['requests'] ?? 0);
+            $days[$day]['errors'] = ($days[$day]['errors'] ?? 0) + (int) ($row['errors'] ?? 0);
+        }
+        $raw['trend']['bucket_type'] = 'day';
+        $raw['trend']['rows'] = array_map(
+            static fn (string $day, array $value): array => [
+                'bucket_day' => $day,
+                'requests' => $value['requests'],
+                'errors' => $value['errors'],
+            ],
+            array_keys($days),
+            array_values($days)
+        );
+        return $raw;
+    }
+
+    private function mergeStatisticsRaw(
+        ?array $left,
+        ?array $right,
+        int $startMs,
+        int $endMs,
+        bool $byHour
+    ): array {
+        $summary = [
+            'total' => 0,
+            'error' => 0,
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'total_tokens' => 0,
+        ];
+        $trend = [];
+        $breakdown = [];
+
+        foreach ([$left, $right] as $raw) {
+            if ($raw === null) {
+                continue;
+            }
+            foreach (array_keys($summary) as $key) {
+                $summary[$key] += (int) ($raw['summary'][$key] ?? 0);
+            }
+            foreach ($raw['trend']['rows'] ?? [] as $row) {
+                $key = $byHour
+                    ? (int) ($row['bucket_ms'] ?? 0)
+                    : (string) ($row['bucket_day'] ?? '');
+                if (! isset($trend[$key])) {
+                    $trend[$key] = ['requests' => 0, 'errors' => 0];
+                }
+                $trend[$key]['requests'] += (int) ($row['requests'] ?? 0);
+                $trend[$key]['errors'] += (int) ($row['errors'] ?? 0);
+            }
+            foreach ($raw['breakdown'] ?? [] as $row) {
+                $key = (string) ($row['service_provider_config_id'] ?? '') . '||' . (string) ($row['product_code'] ?? '');
+                if (! isset($breakdown[$key])) {
+                    $breakdown[$key] = [
+                        'service_provider_config_id' => (string) ($row['service_provider_config_id'] ?? ''),
+                        'product_code' => (string) ($row['product_code'] ?? ''),
+                        'total_requests' => 0,
+                        'error_requests' => 0,
+                    ];
+                }
+                $breakdown[$key]['total_requests'] += (int) ($row['total_requests'] ?? 0);
+                $breakdown[$key]['error_requests'] += (int) ($row['error_requests'] ?? 0);
+            }
+        }
+
+        $breakdown = array_values($breakdown);
+        usort($breakdown, static function (array $a, array $b): int {
+            return $b['total_requests'] <=> $a['total_requests']
+                ?: $a['service_provider_config_id'] <=> $b['service_provider_config_id']
+                ?: $a['product_code'] <=> $b['product_code'];
+        });
+
+        ksort($trend);
+        $trendRows = array_map(
+            static fn (int|string $bucket, array $value): array => $byHour
+                ? ['bucket_ms' => (int) $bucket, 'requests' => $value['requests'], 'errors' => $value['errors']]
+                : ['bucket_day' => (string) $bucket, 'requests' => $value['requests'], 'errors' => $value['errors']],
+            array_keys($trend),
+            array_values($trend)
+        );
+
+        return [
+            'summary' => $summary,
+            'trend' => [
+                'bucket_type' => $byHour ? 'hour' : 'day',
+                'rows' => $trendRows,
+                'start_ms' => $startMs,
+                'end_ms' => $endMs,
+            ],
+            'breakdown' => $breakdown,
+        ];
     }
 
     /**
@@ -158,12 +397,12 @@ class AuditService
 
     private function resolveUserDisplayNameFromDetail(UserDetailDTO $detail): string
     {
-        $real = trim($detail->getRealName());
-        if ($real !== '') {
-            return $real;
+        $nickname = trim($detail->getNickname());
+        if ($nickname !== '') {
+            return $nickname;
         }
 
-        return $detail->getNickname();
+        return trim($detail->getRealName());
     }
 
     private function maskEmail(string $email): string
@@ -229,11 +468,8 @@ class AuditService
 
         $tz = $this->statisticsDisplayTimezone();
 
-        $startHourMs = (int) (floor($startMs / 3600000) * 3600000);
-        $endHourMs = (int) (floor($endMs / 3600000) * 3600000);
-
         $points = [];
-        for ($ms = $startHourMs; $ms <= $endHourMs; $ms += 3600000) {
+        for ($ms = $startMs; $ms < $endMs; $ms += 3600000) {
             // @ 为 UTC 瞬时；转为 app 时区后再格式化，避免「本地日当天」在 JSON 里显示成前一日的 UTC 整点
             $dt = (new DateTimeImmutable('@' . intdiv($ms, 1000)))->setTimezone($tz);
             $bucketLabel = $dt->format('Y-m-d H:i:s');
@@ -262,7 +498,7 @@ class AuditService
 
         $tz = $this->statisticsDisplayTimezone();
         $start = (new DateTimeImmutable('@' . intdiv($startMs, 1000)))->setTimezone($tz)->modify('today');
-        $end = (new DateTimeImmutable('@' . intdiv($endMs, 1000)))->setTimezone($tz)->modify('today');
+        $end = (new DateTimeImmutable('@' . intdiv(max($startMs, $endMs - 1), 1000)))->setTimezone($tz)->modify('today');
 
         $points = [];
         $cur = $start;
@@ -306,5 +542,84 @@ class AuditService
     private function statisticsDisplayTimezone(): DateTimeZone
     {
         return new DateTimeZone((string) config('app.default_timezone', 'Asia/Shanghai'));
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<string, mixed>
+     */
+    private function normalizeProviderFilters(array $filters): array
+    {
+        $configId = trim((string) ($filters['service_provider_config_id'] ?? ''));
+        $hasVirtualId = ProviderVirtualIdentity::isPlatformOfficialId($configId);
+
+        unset($filters['service_provider_config_id']);
+
+        if ($configId === '') {
+            return $filters;
+        }
+
+        $filters['service_provider_config_ids'] = $hasVirtualId
+            ? $this->providerConfigDomainService->getOfficialOrganizationConfigIds()
+            : ($this->isPositiveConfigId($configId) ? [(int) $configId] : []);
+
+        return $filters;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $breakdown
+     * @return array<int, array<string, mixed>>
+     */
+    private function fillProviderNames(array $breakdown, bool $isOfficialOrganization): array
+    {
+        $configIds = [];
+        foreach ($breakdown as $row) {
+            $configId = (string) ($row['service_provider_config_id'] ?? '');
+            if ($configId !== '' && ctype_digit($configId)) {
+                $configIds[] = (int) $configId;
+            }
+        }
+
+        $configIds = array_values(array_unique($configIds));
+        if ($configIds === []) {
+            foreach ($breakdown as &$row) {
+                $row['provider_name'] = '';
+                $row['provider_alias'] = '';
+            }
+            unset($row);
+            return $breakdown;
+        }
+
+        $identityMetadata = $this->providerConfigDomainService->getProviderConfigIdentityMetadataByIds($configIds);
+        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+
+        foreach ($breakdown as &$row) {
+            $configId = (int) ($row['service_provider_config_id'] ?? 0);
+            $metadata = $identityMetadata[$configId] ?? null;
+            if ($metadata === null) {
+                $row['provider_name'] = '';
+                $row['provider_alias'] = '';
+                continue;
+            }
+
+            if (! $isOfficialOrganization
+                && $metadata['organization_code'] === $officialOrganizationCode
+            ) {
+                $row['provider_name'] = ProviderVirtualIdentity::PLATFORM_OFFICIAL_NAME;
+                $row['provider_alias'] = ProviderVirtualIdentity::PLATFORM_OFFICIAL_NAME;
+                continue;
+            }
+
+            $row['provider_name'] = $metadata['provider_name'];
+            $row['provider_alias'] = $metadata['provider_alias'];
+        }
+        unset($row);
+
+        return $breakdown;
+    }
+
+    private function isPositiveConfigId(string $configId): bool
+    {
+        return ctype_digit($configId) && (int) $configId > 0;
     }
 }

@@ -34,6 +34,16 @@ func TestIsNonRetryableDocumentSyncErrorPermanentFailures(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "document not found",
+			err:  shared.ErrDocumentNotFound,
+			want: true,
+		},
+		{
+			name: "wrapped document not found message",
+			err:  errors.New("load document failed: document not found"),
+			want: true,
+		},
+		{
 			name: "third platform empty file message",
 			err:  errThirdPlatformEmptyFileMessage,
 			want: true,

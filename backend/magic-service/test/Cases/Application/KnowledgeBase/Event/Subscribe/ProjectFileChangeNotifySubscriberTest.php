@@ -9,7 +9,10 @@ namespace HyperfTest\Cases\Application\KnowledgeBase\Event\Subscribe;
 
 use App\Application\KnowledgeBase\Event\Subscribe\ProjectFileChangeNotifySubscriber;
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
+use App\Domain\SuperMagic\File\Entity\ValueObject\FileMoveChangeSet;
+use App\Domain\SuperMagic\File\Event\CheckpointRollbackFilesChangedEvent;
 use App\Domain\SuperMagic\File\Event\DirectoryDeletedEvent;
+use App\Domain\SuperMagic\File\Event\FileBatchMoveCompletedEvent;
 use App\Domain\SuperMagic\File\Event\FileContentSavedEvent;
 use App\Domain\SuperMagic\File\Event\FileDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FileMovedEvent;
@@ -41,6 +44,8 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
             FilesBatchDeletedEvent::class,
             FileRenamedEvent::class,
             FileMovedEvent::class,
+            FileBatchMoveCompletedEvent::class,
+            CheckpointRollbackFilesChangedEvent::class,
         ], $subscriber->listen());
     }
 
@@ -120,6 +125,80 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
         ));
     }
 
+    public function testProcessNotifiesGoForBatchMoveCompletedEvent(): void
+    {
+        $changeSet = new FileMoveChangeSet();
+        $changeSet->recordDeletedFile(self::createTaskFileEntity(501, false));
+        $changeSet->recordAddedFileId(502);
+        $changeSet->recordUpdatedFileId(503);
+
+        $calls = [];
+        $client = $this->createMock(ProjectFileRpcClient::class);
+        $client->expects($this->exactly(3))
+            ->method('notifyChange')
+            ->willReturnCallback(static function (
+                int $projectFileId,
+                ?string $organizationCode = null,
+                ?int $projectId = null,
+                ?string $status = null,
+            ) use (&$calls): bool {
+                $calls[] = [$projectFileId, $organizationCode, $projectId, $status];
+                return true;
+            });
+
+        $subscriber = new ProjectFileChangeNotifySubscriber($client);
+        $subscriber->process(new FileBatchMoveCompletedEvent(
+            'batch-1',
+            'U1',
+            'ORG1',
+            900,
+            899,
+            1,
+            $changeSet,
+        ));
+
+        $this->assertSame([
+            [501, 'ORG1', 900, 'deleted'],
+            [502, null, null, null],
+            [503, null, null, null],
+        ], $calls);
+    }
+
+    public function testProcessNotifiesEachRollbackFileOnce(): void
+    {
+        $calls = [];
+        $client = $this->createMock(ProjectFileRpcClient::class);
+        $client->expects($this->exactly(2))
+            ->method('notifyChange')
+            ->willReturnCallback(static function (
+                int $projectFileId,
+                ?string $organizationCode = null,
+                ?int $projectId = null,
+                ?string $status = null,
+            ) use (&$calls): bool {
+                $calls[] = [$projectFileId, $organizationCode, $projectId, $status];
+                return true;
+            });
+
+        $subscriber = new ProjectFileChangeNotifySubscriber($client);
+        $subscriber->process(new CheckpointRollbackFilesChangedEvent(
+            [
+                ['file_id' => 501, 'file_path' => '/workspace/a.md', 'operation' => 'update'],
+                ['file_id' => 501, 'file_path' => '/workspace/a.md', 'operation' => 'update'],
+                ['file_id' => 502, 'file_path' => '/workspace/b.md', 'operation' => 'delete'],
+            ],
+            'U1',
+            'ORG1',
+            900,
+            800,
+        ));
+
+        $this->assertSame([
+            [501, null, null, null],
+            [502, 'ORG1', 900, 'deleted'],
+        ], $calls);
+    }
+
     public function testProcessSkipsDirectory(): void
     {
         $client = $this->createMock(ProjectFileRpcClient::class);
@@ -138,6 +217,55 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
 
         $subscriber = new ProjectFileChangeNotifySubscriber($client);
         $subscriber->process(new FileContentSavedEvent(self::createTaskFileEntity(0, false), 'U1', 'ORG1'));
+    }
+
+    public function testProcessSkipsNonProjectSpaceFile(): void
+    {
+        $client = $this->createMock(ProjectFileRpcClient::class);
+        $client->expects($this->never())
+            ->method('notifyChange');
+
+        $subscriber = new ProjectFileChangeNotifySubscriber($client);
+        $subscriber->process(new FileUploadedEvent(
+            self::createTaskFileEntity(504, false, 'user'),
+            'U1',
+            'ORG1'
+        ));
+    }
+
+    public function testProcessSkipsNonProjectSpaceDirectoryDeletion(): void
+    {
+        $client = $this->createMock(ProjectFileRpcClient::class);
+        $client->expects($this->never())
+            ->method('notifyChange');
+
+        $subscriber = new ProjectFileChangeNotifySubscriber($client);
+        $subscriber->process(new DirectoryDeletedEvent(
+            self::createTaskFileEntity(505, true, 'user'),
+            self::createAuthorization('U1', 'ORG1'),
+        ));
+    }
+
+    public function testProcessBatchDeletedSkipsNonProjectSpaceFiles(): void
+    {
+        $client = $this->createMock(ProjectFileRpcClient::class);
+        $client->expects($this->once())
+            ->method('notifyChange')
+            ->with(501, 'ORG1', 900, 'deleted')
+            ->willReturn(true);
+
+        $subscriber = new ProjectFileChangeNotifySubscriber($client);
+        $subscriber->process(new FilesBatchDeletedEvent(
+            [
+                self::createTaskFileEntity(501, false),
+                self::createTaskFileEntity(506, false, 'user'),
+            ],
+            [],
+            'U1',
+            'ORG1',
+            900,
+            self::createAuthorization('U1', 'ORG1')
+        ));
     }
 
     public function testProcessIgnoresUnsupportedEvent(): void
@@ -192,7 +320,7 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
             ->setOrganizationCode($organizationCode);
     }
 
-    private static function createTaskFileEntity(int $fileId, bool $isDirectory): TaskFileEntity
+    private static function createTaskFileEntity(int $fileId, bool $isDirectory, string $spaceType = 'project'): TaskFileEntity
     {
         $entity = new TaskFileEntity();
         $entity->setFileId($fileId);
@@ -213,6 +341,7 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
         $entity->setParentId(1);
         $entity->setSource(0);
         $entity->setUpdatedAt('2026-04-23 12:00:00');
+        $entity->setSpaceType($spaceType);
 
         return $entity;
     }

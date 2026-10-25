@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getFileContentById, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { loadProjectAttachments } from "@/pages/superMagic/services/projectAttachmentsLoader"
+import { useProjectAttachmentsChangeRealtime } from "@/pages/superMagic/hooks/useProjectAttachmentsChangeRealtime"
+import { ProjectFilesStore } from "@/stores/projectFiles"
 import type { AudioProjectListItem } from "@/types/audioProject"
 import { audioRecordingsService } from "@/services/audioRecordings"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
@@ -37,7 +39,11 @@ export function useRecordingDetailData(input: UseRecordingDetailDataInput) {
 	const [audioUrl, setAudioUrl] = useState<string>("")
 	const [attachmentTree, setAttachmentTree] = useState<AttachmentItem[]>([])
 	const [attachmentList, setAttachmentList] = useState<AttachmentItem[]>([])
+	const [attachmentSyncReady, setAttachmentSyncReady] = useState(false)
+	const [attachmentStore] = useState(() => new ProjectFilesStore())
 	const attachmentRequestRef = useRef<AbortController | null>(null)
+	const audioUrlRef = useRef("")
+	const audioFileIdRef = useRef<string | undefined>(undefined)
 
 	const activeProjectIdRef = useRef(projectId)
 	useEffect(() => {
@@ -45,75 +51,116 @@ export function useRecordingDetailData(input: UseRecordingDetailDataInput) {
 	}, [projectId])
 
 	/** Loads all completed preview assets for the current route project. */
-	const loadDetail = useCallback(async () => {
-		if (!projectId) {
-			setLoading(false)
-			setError(true)
-			return
-		}
-
-		const currentProjectId = projectId
-		attachmentRequestRef.current?.abort()
-		const controller = new AbortController()
-		attachmentRequestRef.current = controller
-		setLoading(true)
-		setError(false)
-		setTexts({ summary: {} })
-		setAudioUrl("")
-		setAttachmentTree([])
-		setAttachmentList([])
-
-		try {
-			const [processed, item] = await Promise.all([
-				loadProjectAttachments({ projectId, signal: controller.signal }),
-				loadSingleProject(projectId),
-			])
-			if (controller.signal.aborted || currentProjectId !== activeProjectIdRef.current) return
-
-			const bundleRootPath = resolveRecordingBundleRootPath(processed.tree, processed.list)
-			const magicProjectFile = findMagicProjectFile(processed.list, bundleRootPath)
-			const magicProjectContent = magicProjectFile
-				? await readTextFile(magicProjectFile.file_id)
-				: undefined
-			if (controller.signal.aborted || currentProjectId !== activeProjectIdRef.current) return
-
-			const magicProjectConfig = magicProjectContent
-				? parseMagicProjectConfig(magicProjectContent.content)
-				: null
-			const nextFileMap = buildRecordingDetailFileMap({
-				tree: processed.tree,
-				list: processed.list,
-				magicProjectConfig,
-				bundleRootPath,
-			})
-
-			const [nextTexts, nextAudioUrl] = await Promise.all([
-				loadTextFiles(nextFileMap),
-				loadAudioUrl(nextFileMap.audio),
-			])
-			if (controller.signal.aborted || currentProjectId !== activeProjectIdRef.current) return
-
-			setAttachmentTree(processed.tree)
-			setAttachmentList(processed.list)
-			setAudioProjectItem(item)
-			setFileMap(nextFileMap)
-			setTexts(nextTexts)
-			setAudioUrl(nextAudioUrl)
-		} catch (loadError) {
-			if (controller.signal.aborted) return
-			console.error("Failed to load recording detail:", loadError)
-			if (currentProjectId === activeProjectIdRef.current) setError(true)
-		} finally {
-			if (!controller.signal.aborted && currentProjectId === activeProjectIdRef.current) {
+	const loadDetail = useCallback(
+		async ({ silent = false }: { silent?: boolean } = {}) => {
+			if (!projectId) {
+				setAttachmentSyncReady(false)
 				setLoading(false)
+				setError(true)
+				return
 			}
-		}
-	}, [projectId])
+
+			const currentProjectId = projectId
+			attachmentRequestRef.current?.abort()
+			const controller = new AbortController()
+			attachmentRequestRef.current = controller
+			if (!silent) setLoading(true)
+			setError(false)
+			if (!silent) {
+				setTexts({ summary: {} })
+				setAudioUrl("")
+				setAttachmentTree([])
+				setAttachmentList([])
+				setAttachmentSyncReady(false)
+			}
+
+			try {
+				const [processed, item] = await Promise.all([
+					loadProjectAttachments({ projectId, signal: controller.signal }),
+					loadSingleProject(projectId),
+				])
+				if (controller.signal.aborted || currentProjectId !== activeProjectIdRef.current)
+					return
+
+				const bundleRootPath = resolveRecordingBundleRootPath(
+					processed.tree,
+					processed.list,
+				)
+				const magicProjectFile = findMagicProjectFile(processed.list, bundleRootPath)
+				const magicProjectContent = magicProjectFile
+					? await readTextFile(magicProjectFile.file_id)
+					: undefined
+				if (controller.signal.aborted || currentProjectId !== activeProjectIdRef.current)
+					return
+
+				const magicProjectConfig = magicProjectContent
+					? parseMagicProjectConfig(magicProjectContent.content)
+					: null
+				const nextFileMap = buildRecordingDetailFileMap({
+					tree: processed.tree,
+					list: processed.list,
+					magicProjectConfig,
+					bundleRootPath,
+					preferredAudioFileId: item?.audio_file_id,
+				})
+
+				const nextAudioFileId = item?.audio_file_id || nextFileMap.audio?.file_id
+				const shouldLoadAudioUrl =
+					!silent || audioFileIdRef.current !== nextAudioFileId || !audioUrlRef.current
+				const [nextTexts, nextAudioUrl] = await Promise.all([
+					loadTextFiles(nextFileMap),
+					shouldLoadAudioUrl
+						? loadAudioUrl(nextFileMap.audio, item?.audio_file_id)
+						: Promise.resolve(audioUrlRef.current),
+				])
+				if (controller.signal.aborted || currentProjectId !== activeProjectIdRef.current)
+					return
+
+				setAttachmentTree(processed.tree)
+				setAttachmentList(processed.list)
+				setAudioProjectItem(item)
+				setFileMap(nextFileMap)
+				setTexts(nextTexts)
+				setAudioUrl(nextAudioUrl)
+				audioUrlRef.current = nextAudioUrl
+				audioFileIdRef.current = nextAudioFileId
+				attachmentStore.setWorkspaceFileTree(processed.tree, {
+					list: processed.list,
+					source: "recording-detail",
+				})
+				setAttachmentSyncReady(true)
+			} catch (loadError) {
+				if (controller.signal.aborted) return
+				console.error("Failed to load recording detail:", loadError)
+				// Keep the existing detail usable when a background refresh fails transiently.
+				if (!silent && currentProjectId === activeProjectIdRef.current) setError(true)
+			} finally {
+				if (
+					!silent &&
+					!controller.signal.aborted &&
+					currentProjectId === activeProjectIdRef.current
+				) {
+					setLoading(false)
+				}
+			}
+		},
+		[attachmentStore, projectId],
+	)
 
 	useEffect(() => {
 		void loadDetail()
 		return () => attachmentRequestRef.current?.abort()
 	}, [loadDetail])
+
+	useProjectAttachmentsChangeRealtime({
+		projectId,
+		enabled: Boolean(projectId && attachmentSyncReady),
+		store: attachmentStore,
+		onAttachmentsChange: () => {
+			// Reuse the existing loader so config, missing files, and text content stay consistent.
+			void loadDetail({ silent: true })
+		},
+	})
 
 	// Polls summary task status every 10s while summarizing; stops when summary is ready.
 	useEffect(() => {
@@ -131,7 +178,7 @@ export function useRecordingDetailData(input: UseRecordingDetailDataInput) {
 
 				if (isAudioProjectSummaryReady(latestItem)) {
 					if (timerId) clearInterval(timerId)
-					void loadDetail()
+					void loadDetail({ silent: true })
 					return
 				}
 
@@ -233,6 +280,7 @@ async function readTextFile(fileId?: string): Promise<LoadedRecordingTextFile | 
 async function loadTextFiles(fileMap: RecordingDetailFileMap): Promise<RecordingDetailTextState> {
 	const summaryEntries = await Promise.all(
 		fileMap.summaryFiles.map(async (entry) => {
+			if (!entry.file?.file_id) return [entry.type, undefined] as const
 			try {
 				return [entry.type, await readTextFile(entry.file.file_id)] as const
 			} catch (error) {
@@ -262,9 +310,10 @@ async function loadTextFiles(fileMap: RecordingDetailFileMap): Promise<Recording
 }
 
 /** Resolves the temporary audio URL. */
-async function loadAudioUrl(file?: AttachmentItem): Promise<string> {
-	if (!file?.file_id) return ""
-	const [urlItem] = await getTemporaryDownloadUrl({ file_ids: [file.file_id] })
+async function loadAudioUrl(file?: AttachmentItem, preferredFileId?: string): Promise<string> {
+	const fileId = preferredFileId || file?.file_id
+	if (!fileId) return ""
+	const [urlItem] = await getTemporaryDownloadUrl({ file_ids: [fileId] })
 	return urlItem?.url ?? ""
 }
 

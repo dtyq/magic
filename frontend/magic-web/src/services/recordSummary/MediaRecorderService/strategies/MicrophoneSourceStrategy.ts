@@ -67,9 +67,9 @@ export class MicrophoneSourceStrategy implements AudioSourceStrategy {
 						errorKind: "unknown",
 						message: "Microphone audio track ended unexpectedly",
 						context: {
-							trackId: track.id,
-							trackLabel: track.label,
 							trackState: track.readyState,
+							trackMuted: track.muted,
+							trackEnabled: track.enabled,
 						},
 					})
 
@@ -80,8 +80,6 @@ export class MicrophoneSourceStrategy implements AudioSourceStrategy {
 						data: {
 							description: "麦克风音频轨道意外结束",
 							reason: "track_ended",
-							trackId: track.id,
-							trackLabel: track.label,
 							audioSource: "microphone",
 							possibleCauses: "用户撤销权限、设备断开",
 							timestamp: Date.now(),
@@ -92,14 +90,17 @@ export class MicrophoneSourceStrategy implements AudioSourceStrategy {
 				// Monitor muted state changes
 				track.onmute = () => {
 					this.dependencies.logger.warn("Microphone audio track muted", {
-						trackId: track.id,
-						trackLabel: track.label,
+						trackState: track.readyState,
+						trackMuted: track.muted,
+						trackEnabled: track.enabled,
 					})
 				}
 
 				track.onunmute = () => {
 					this.dependencies.logger.log("Microphone audio track unmuted", {
-						trackId: track.id,
+						trackState: track.readyState,
+						trackMuted: track.muted,
+						trackEnabled: track.enabled,
 					})
 				}
 			})

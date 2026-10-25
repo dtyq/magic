@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\ErrorCode\VideoGenerateErrorCode;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Prompt\AtStylePromptReferenceFormatter;
 use Hyperf\Contract\TranslatorInterface;
 
@@ -80,15 +81,8 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
                 'resolutions' => ['480p', '720p', '1080p'],
                 'sizes' => self::SUPPORTED_SIZES,
                 'default_resolution' => '720p',
-                'supports_seed' => false,
                 'supports_watermark' => true,
-                'supports_negative_prompt' => false,
                 'supports_generate_audio' => true,
-                'supports_person_generation' => false,
-                'supports_enhance_prompt' => false,
-                'supports_compression_quality' => false,
-                'supports_resize_mode' => false,
-                'supports_sample_count' => false,
             ],
             'input_modes' => [
                 'standard' => [
@@ -211,9 +205,7 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
             $response['data']['task_id'] ?? null,
         );
         if ($taskId === null) {
-            throw new ProviderVideoException(
-                $this->extractProviderMessage($response, 'cloudsway seedance submit succeeded but task id missing')
-            );
+            throw new ProviderVideoException(VideoGenerateErrorCode::GENERAL_ERROR, VideoGenerateErrorCode::GENERAL_ERROR->getMessage());
         }
 
         return $taskId;
@@ -251,7 +243,7 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
             ],
             'error' => in_array($status, ['failed', 'error'], true) ? [
                 'code' => 'PROVIDER_FAILED',
-                'message' => $this->firstNonEmptyString($detail['message'] ?? null, $detail['msg'] ?? null, 'video generation failed') ?? 'video generation failed',
+                'message' => VideoGenerateErrorCode::GENERAL_ERROR->getMessage(),
                 'provider_code' => null,
             ] : null,
         ];

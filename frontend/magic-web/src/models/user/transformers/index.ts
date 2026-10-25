@@ -44,6 +44,12 @@ export function userTransformer(
 							true,
 					}
 			: (base?.preferences ?? null)
+	const pathNodes = (userInfo as Partial<StructureUserItem>).path_nodes
+	const department =
+		(pathNodes?.filter((node) => node.visible !== false).at(-1)?.department_name ??
+			(userInfo as Partial<User.UserInfo>).department ??
+			base?.department) ||
+		undefined
 
 	return {
 		magic_id: userInfo?.magic_id ?? base?.magic_id ?? "",
@@ -51,6 +57,8 @@ export function userTransformer(
 		status: userInfo?.status ?? base?.status ?? "",
 		nickname: userInfo?.nickname ?? base?.nickname ?? "",
 		real_name: userInfo?.real_name ?? base?.real_name ?? "",
+		employee_no: userInfo?.employee_no ?? base?.employee_no,
+		department,
 		avatar,
 		organization_code: userInfo?.organization_code ?? base?.organization_code ?? "",
 		phone: userInfo?.phone ?? base?.phone,

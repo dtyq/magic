@@ -28,7 +28,7 @@ class ApiKeyProviderAppService extends AbstractAuthenticationKernelAppService
     public function save(Authenticatable $authorization, ApiKeyProviderEntity $entity): ApiKeyProviderEntity
     {
         $dataIsolation = $this->createAuthenticationDataIsolation($authorization);
-        $this->getRelDataOperation($dataIsolation, $entity)->validate('r', $entity->getRelCode());
+        $this->getRelDataOperation($dataIsolation, $entity)->validate('edit', $entity->getRelCode());
         return $this->apiKeyProviderDomainService->save($dataIsolation, $entity);
     }
 

@@ -1,4 +1,4 @@
-import { Divider, Flex, Button } from "antd"
+import { Divider, Button } from "antd"
 import {
 	IconAlertCircleFilled,
 	IconChevronRight,
@@ -6,9 +6,8 @@ import {
 	IconPlus,
 	IconPackage,
 } from "@tabler/icons-react"
-import { colorUsages } from "@/providers/ThemeProvider/colors"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
-import { useStyles } from "./styles"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
+import { cn } from "@/utils/cn"
 import { useState } from "react"
 import type { UseableToolSet } from "@/types/flow"
 import MagicAvatar from "@/components/base/MagicAvatar"
@@ -27,22 +26,21 @@ interface CollapseItemProps {
 export default function CollapseItem(props: CollapseItemProps) {
 	const { item, usableCache, onToolAdd, onToolsUpdate } = props
 
-	const { styles, cx } = useStyles()
 	const { t } = useTranslation("agent")
 
 	const [open, setOpen] = useState(true)
 
-	// 处理新增工具
+	// Open the tool creation flow.
 	const handleAddTool = () => {
 		if (!item?.id) return
 
 		openCreateToolModal({
 			toolsetId: item.id,
 			onSuccess: (toolData) => {
-				// 工具发布后，更新当前工具集的工具列表
-				// 不自动添加到任何地方，只更新 item.tools 供用户选择
+				// After publication, update this tool set's list so the user can select the new tool.
+				// Do not automatically add the tool to an MCP.
 				if (onToolsUpdate && item.tools && toolData.id) {
-					// 创建基础工具对象，复杂的类型配置在实际使用时会重新获取
+					// Create a basic tool entry; detailed type configuration is fetched when the tool is used.
 					const newTool = {
 						code: toolData.id,
 						name: toolData.name || "",
@@ -61,91 +59,101 @@ export default function CollapseItem(props: CollapseItemProps) {
 
 	return (
 		<div
-			className={cx(styles.item, {
-				[styles.itemActive]: open,
-			})}
+			className={cn(
+				"mb-1 flex flex-col items-start justify-center gap-2 self-stretch rounded-[8px] border border-border p-3 last:mb-0",
+				open ? "bg-neutral-50 dark:bg-neutral-900" : "bg-background",
+			)}
 		>
-			<div className={styles.itemWrapper} onClick={() => setOpen((v) => !v)}>
-				<div className={styles.itemIcon}>
-					<MagicAvatar
-						style={{ borderRadius: 8 }}
-						src={item?.icon || defaultToolAvatar}
-						size={50}
-					>
+			<div className="flex w-full cursor-pointer gap-2" onClick={() => setOpen((v) => !v)}>
+				<div className="size-[50px] flex-none overflow-hidden rounded-[8px]">
+					<MagicAvatar radius={8} src={item?.icon || defaultToolAvatar} size={50}>
 						{item?.name}
 					</MagicAvatar>
 				</div>
-				<div className={styles.itemContainer}>
-					<div className={styles.itemNav}>
-						<span className={cx(styles.itemName, styles.font)}>{item?.name}</span>
-						<Flex align="center" gap={4}>
-							<div className={styles.itemTag}>
-								<IconTools size={14} color={colorUsages.primary.default} />
+				<div className="flex flex-auto flex-col gap-2 overflow-hidden">
+					<div className="flex items-center justify-end gap-2">
+						<span className="mr-auto line-clamp-1 text-ellipsis text-base font-semibold not-italic leading-[22px] text-foreground/80">
+							{item?.name}
+						</span>
+						<div className="flex items-center gap-1">
+							<div className="flex h-5 cursor-pointer items-center gap-0.5 rounded-[3px] bg-fill px-2 py-0.5 dark:bg-white/10 [&_span]:text-xs [&_span]:font-normal [&_span]:not-italic [&_span]:leading-4 [&_span]:text-foreground/60">
+								<IconTools size={14} className="text-primary" />
 								<span>
 									{t("common.tool.card.toolsCount", {
 										count: item?.tools?.length || 0,
 									})}
 								</span>
 							</div>
-							<div className={styles.itemTag}>
-								<IconAlertCircleFilled
-									size={14}
-									color={colorUsages.warning.default}
-								/>
+							<div className="flex h-5 cursor-pointer items-center gap-0.5 rounded-[3px] bg-fill px-2 py-0.5 dark:bg-white/10 [&_span]:text-xs [&_span]:font-normal [&_span]:not-italic [&_span]:leading-4 [&_span]:text-foreground/60">
+								<IconAlertCircleFilled size={14} className="text-warning" />
 								<span>{t("common.tool.card.noQuote")}</span>
 							</div>
-						</Flex>
+						</div>
 						<div
-							className={cx(styles.itemButton, {
-								[styles.itemButtonActive]: open,
-							})}
+							className={cn(
+								"flex size-5 flex-none items-center justify-center transition-all duration-100 ease-linear",
+								open && "rotate-90",
+							)}
 						>
 							<IconChevronRight size={20} />
 						</div>
 					</div>
-					<div className={cx(styles.itemDesc, styles.font)}>{item?.description}</div>
+					<div className="line-clamp-1 text-ellipsis whitespace-nowrap text-xs font-normal not-italic leading-4 text-foreground/40">
+						{item?.description}
+					</div>
 				</div>
 			</div>
 			{item?.creator_info?.name && (
-				<div className={styles.itemFooter}>
-					<span className={cx(styles.tag, styles.primary)}>
+				<div className="flex items-center">
+					<span className="overflow-hidden text-ellipsis text-xs font-normal not-italic leading-4 text-primary">
 						{item?.creator_info?.name}
 					</span>
 					<Divider type="vertical" />
-					<span className={styles.tag}>
+					<span className="overflow-hidden text-ellipsis text-xs font-normal not-italic leading-4 text-foreground/40">
 						{t("common.tool.card.createAt")} {item?.created_at}0
 					</span>
 				</div>
 			)}
 			{open && (
 				<>
-					<Divider className={styles.divider} />
-					<div className={styles.subWrapper}>
-						<div className={styles.subHeader}>
+					<Divider className="!m-0" />
+					<div className="w-full">
+						<div className="my-2.5 text-sm font-semibold not-italic leading-5 text-foreground/80">
 							{t("common.tool.card.groupTitle", { count: item?.tools?.length || 0 })}
 						</div>
 
-						{/* 新增工具按钮 - 需要编辑权限 */}
+						{/* Creating a tool requires edit permission. */}
 						{hasEditRight(item.user_operation || 0) && (
 							<Button
-								className={cx(styles.secondaryButton, styles.addToolButton)}
+								className="mb-2.5 !flex w-full !items-center !justify-center gap-1 !border-border !bg-fill !text-foreground/80 hover:!bg-fill-secondary active:!bg-neutral-300 dark:!bg-white/10 dark:hover:!bg-white/[0.15] dark:active:!bg-white/20 [&_.magic-btn-icon]:flex [&_.magic-btn-icon]:items-center"
 								icon={<IconPackage size={20} />}
 								onClick={handleAddTool}
 							>
 								{t("common.tool.addTool")}
 							</Button>
 						)}
-						<MagicScrollBar className={styles.subScroll} autoHide={false}>
+						{/* Reserve space for the persistent scrollbar so it does not cover tool action buttons. */}
+						<ScrollArea
+							type="always"
+							className="w-full"
+							viewportClassName="max-h-[220px] pr-3 [&>div]:!block"
+						>
 							{item?.tools?.map((tool) => (
-								<div className={styles.subItem} key={tool?.code}>
-									<div className={styles.subItemNav}>
-										<div className={styles.subItemName}>{tool?.name}</div>
-										<div className={styles.subItemDesc}>
+								<div
+									className="mb-2.5 flex w-full cursor-pointer items-start justify-between gap-1 self-stretch overflow-hidden rounded-[12px] bg-background p-3 last:mb-0 hover:bg-fill dark:hover:bg-white/10 [&:hover_.magic-btn]:bg-background"
+									key={tool?.code}
+								>
+									<div className="flex flex-auto flex-col gap-1">
+										<div className="text-sm font-semibold not-italic leading-5 text-foreground/80">
+											{tool?.name}
+										</div>
+										<div className="text-xs font-normal not-italic leading-4 text-foreground/60">
 											{tool?.description}
 										</div>
 									</div>
-									<div className={styles.subItemMenu}>
+									<div className="flex h-full w-[76px] flex-none items-center [&_.magic-btn-icon]:flex [&_.magic-btn-icon]:items-center">
 										<Button
+											className="dark:!border-border dark:!bg-fill dark:!text-foreground/80 dark:hover:!bg-fill-secondary dark:disabled:!text-foreground/40"
 											block
 											disabled={usableCache.has(tool?.code)}
 											icon={
@@ -164,7 +172,7 @@ export default function CollapseItem(props: CollapseItemProps) {
 									</div>
 								</div>
 							))}
-						</MagicScrollBar>
+						</ScrollArea>
 					</div>
 				</>
 			)}

@@ -33,7 +33,7 @@ import {
 	X,
 	Play,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { ConsoleEntry, DevConsoleMode } from "./types"
 import { ObjectInspector } from "./ObjectInspector"

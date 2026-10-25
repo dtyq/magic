@@ -1,6 +1,4 @@
 import { IconIdBadge, IconId } from "@tabler/icons-react"
-import { createStyles } from "antd-style"
-import { Flex } from "antd"
 import type { GlobalSearch } from "@/types/search"
 import { useChatWithMember } from "@/hooks/chat/useChatWithMember"
 import { useMemoizedFn } from "ahooks"
@@ -11,70 +9,17 @@ import { useTranslation } from "react-i18next"
 import MemberCardStore from "@/stores/display/MemberCardStore"
 import { useMagicSearchStore } from "../../store"
 import HighlightText from "../HighlightText"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 
-const useContactStyles = createStyles(({ token }) => {
-	return {
-		item: {
-			position: "relative",
-		},
-		post: {
-			fontSize: "12px",
-			fontWeight: 400,
-			lineHeight: "16px",
-			display: "flex",
-			alignItems: "center",
-			gap: 2,
-			color: token.magicColorUsages.text[2],
-		},
-		organization: {
-			fontSize: "10px",
-			fontStyle: "normal",
-			fontWeight: 400,
-			lineHeight: "12px",
-			color: token.magicColorUsages.text[3],
-		},
-		contactsTagWrapper: {
-			marginTop: 4,
-		},
-		contactsTag: {
-			display: "inline-flex",
-			padding: "3px 6px",
-			alignItems: "center",
-			gap: 2,
-			borderRadius: 4,
-			border: "1px solid #FF7D00",
-			color: "#FF7D00",
-			backgroundColor: "#FFFFFF",
-			overflow: "hidden",
-			textOverflow: "ellipsis",
-			fontSize: "10px",
-			fontStyle: "normal",
-			fontWeight: 400,
-			lineHeight: "12px",
-		},
-		wrapper: {
-			position: "absolute",
-			top: 8,
-			right: 0,
-		},
-		button: {
-			width: 36,
-			height: 36,
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-			cursor: "pointer",
-			borderRadius: 4,
-		},
-		phone: {
-			color: token.magicColorScales.green[5],
-		},
-		card: {
-			color: token.magicColorScales.brand[5],
-		},
-	}
-})
+const contactStyles = {
+	item: "relative",
+	post: "flex items-center gap-0.5 text-xs font-normal leading-4 text-foreground/60",
+	organization: "text-[10px] font-normal not-italic leading-3 text-foreground/40",
+	wrapper: "absolute right-0 top-2 flex gap-0",
+	button: "flex size-9 cursor-pointer items-center justify-center rounded",
+	card: "text-[#315cec]",
+}
 
 interface SearchItemContactProps {
 	item: GlobalSearch.ContactItem
@@ -84,8 +29,6 @@ function Contact(props: SearchItemContactProps) {
 	const { item } = props
 
 	const { t } = useTranslation("search")
-	const { styles, cx } = useSearchItemCommonStyles()
-	const { styles: contactStyles } = useContactStyles()
 
 	const chatWith = useChatWithMember()
 	const closePanel = useMagicSearchStore((store) => store.closePanel)
@@ -155,13 +98,12 @@ function Contact(props: SearchItemContactProps) {
 				{/*	</span> */}
 				{/* </div> */}
 			</div>
-			<Flex className={contactStyles.wrapper} gap={0}>
+			<div className={contactStyles.wrapper}>
 				{/* <span className={ cx(contactStyles.button, contactStyles.phone) }> */}
 				{/*	<IconPhoneCall size={ 20 }/> */}
 				{/* </span> */}
 				<span
 					className={cx(contactStyles.button, contactStyles.card)}
-					style={{ color: "#315CEC" }}
 					onClick={(event) => {
 						event?.stopPropagation()
 					}}
@@ -170,7 +112,7 @@ function Contact(props: SearchItemContactProps) {
 						<IconId size={20} />
 					</div>
 				</span>
-			</Flex>
+			</div>
 		</div>
 	)
 }

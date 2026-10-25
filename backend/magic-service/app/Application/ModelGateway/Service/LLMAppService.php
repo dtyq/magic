@@ -12,6 +12,7 @@ use App\Application\ModelGateway\Event\ModelUsageEvent;
 use App\Application\ModelGateway\Event\WebSearchUsageEvent;
 use App\Application\ModelGateway\Mapper\ModelEntry;
 use App\Application\ModelGateway\Mapper\OdinModel;
+use App\Application\ModelGateway\Support\ImageGenerationConfigResolver;
 use App\Application\ModelGateway\Support\InvocationDetailInfo;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
@@ -28,10 +29,9 @@ use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
-use App\Domain\ModelGateway\Entity\MsgLogEntity;
-use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\ModelGateway\Event\ImageGenerateFailedEvent;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
@@ -40,6 +40,7 @@ use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\AiAbilityDomainService;
+use App\Domain\Provider\Service\ModelIdentifierMappingDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -104,8 +105,9 @@ use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
-
+/**
+ * 模型网关应用服务，协调模型调用、鉴权及请求生命周期。
+ */
 class LLMAppService extends AbstractLLMAppService
 {
     /**
@@ -130,16 +132,20 @@ class LLMAppService extends AbstractLLMAppService
         bool $withInfo = false,
         ModelListType $type = ModelListType::ALL,
         array $businessParams = [],
-        bool $withDynamicModels = false
+        bool $withDynamicModels = false,
+        ?bool $withOrganizationModels = null,
     ): array {
         $dataIsolation = $this->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
+        $accessContext = $withDynamicModels
+            ? $this->modelGatewayModelAccessService->resolveAccessContext($dataIsolation)
+            : null;
 
         $models = match ($type) {
-            ModelListType::CHAT => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
-            ModelListType::EMBEDDING => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
-            ModelListType::IMAGE => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
-            ModelListType::VIDEO => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels),
-            default => $this->modelGatewayMapper->getAllModels($dataIsolation, $withDynamicModels),
+            ModelListType::CHAT => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels, $accessContext, $withOrganizationModels),
+            ModelListType::EMBEDDING => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels, $accessContext, $withOrganizationModels),
+            ModelListType::IMAGE => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels, $accessContext, $withOrganizationModels),
+            ModelListType::VIDEO => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels, $accessContext, $withOrganizationModels),
+            default => $this->modelGatewayMapper->getAllModels($dataIsolation, $withDynamicModels, $accessContext, $withOrganizationModels),
         };
 
         if ($withInfo) {
@@ -372,7 +378,6 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         $this->logger->info('images', $images);
-        $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
 
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
         $auditCount = (int) ($data['generate_num'] ?? 4);
@@ -385,6 +390,7 @@ class LLMAppService extends AbstractLLMAppService
             'chain' => 'imageGenerate',
             'model_id' => $modelId,
             'model_version' => $providerConfigItem->getModelVersion(),
+            'service_provider_id' => (string) ($providerConfigEntity->getId() ?? ''),
             'provider_model_id' => $providerConfigItem->getProviderModelId(),
             'image_count' => $auditCount,
             'image_size' => $imageGenerateRequest->getSize(),
@@ -394,7 +400,9 @@ class LLMAppService extends AbstractLLMAppService
             'organization_id' => $authorization->getOrganizationCode(),
             'user_id' => $authorization->getId(),
             'user_name' => $authorization->getNickname(),
-            'source_id' => (string) ($data['source_id'] ?? ''),
+            'source_id' => (string) ($data['source_id'] ?? SourceId::IMAGE_GENERATE),
+            'business_id' => (string) ($data['business_id'] ?? ''),
+            'tool_code' => (string) ($data['tool_code'] ?? ''),
             'original_model_id' => $modelId,
             'provider_name' => trim($providerConfigEntity->getAlias()),
             'status' => self::AUDIT_STATUS_SUCCESS,
@@ -418,7 +426,7 @@ class LLMAppService extends AbstractLLMAppService
             }
         }
         $imageGeneratedEvent->setSourceType($sourceType);
-        $imageGeneratedEvent->setSourceId($data['source_id'] ?? '');
+        $imageGeneratedEvent->setSourceId($data['source_id'] ?? SourceId::IMAGE_GENERATE);
         $imageGeneratedEvent->setResolution($imageGenerateRequest->getResolution());
         $imageGeneratedEvent->setImageSize($imageGenerateRequest->getSize());
         $imageGeneratedEvent->setReferenceImageCount($referenceImageCount);
@@ -445,8 +453,6 @@ class LLMAppService extends AbstractLLMAppService
          * @var MiracleVisionModel $imageGenerateService
          */
         $imageGenerateService = ImageGenerateFactory::create(ImageGenerateModelType::MiracleVision, $miracleVisionServiceProviderConfig->getConfig()->toArray());
-        $this->recordImageGenerateMessageLog(ImageGenerateModelType::MiracleVisionHightModelId->value, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
-
         // 同步等待并返回图片URL
         $startTime = microtime(true);
         try {
@@ -484,6 +490,7 @@ class LLMAppService extends AbstractLLMAppService
             'chain' => 'imageConvertHigh',
             'model_id' => ImageGenerateModelType::MiracleVisionHightModelId->value,
             'model_version' => $providerConfigItem->getModelVersion(),
+            'service_provider_id' => (string) ($miracleVisionServiceProviderConfig->getId() ?? ''),
             'provider_model_id' => $providerConfigItem->getProviderModelId(),
             'image_count' => 1,
             'response_duration' => $latencyMs,
@@ -491,7 +498,9 @@ class LLMAppService extends AbstractLLMAppService
             'organization_id' => $userAuthorization->getOrganizationCode(),
             'user_id' => $userAuthorization->getId(),
             'user_name' => $userAuthorization->getNickname(),
-            'source_id' => $reqDTO->getSourceId(),
+            'source_id' => $reqDTO->getSourceId() ?: SourceId::IMAGE_GENERATE,
+            'business_id' => $reqDTO->getTopicId() !== '' ? $reqDTO->getTopicId() : $reqDTO->getConversationId(),
+            'tool_code' => $reqDTO->getToolCode(),
             'provider_name' => trim($miracleVisionServiceProviderConfig->getAlias()),
             'status' => self::AUDIT_STATUS_SUCCESS,
             'request_id' => CoContext::getRequestId(),
@@ -1157,6 +1166,10 @@ class LLMAppService extends AbstractLLMAppService
         $modelGatewayDataIsolation = null;
         $modelAttributes = null;
         $accessContext = null;
+        // 每次处理都重新从实际模型取默认值，不接受外部注入或上一轮路由残留。
+        if ($proxyModelRequest instanceof CompletionDTO) {
+            $proxyModelRequest->setModelReasoningEffortDefault(null);
+        }
         $originalModelId = $proxyModelRequest->getModel();
         $requestExtra = $proxyModelRequest->getExtra();
         $invocationSuccessAudited = false;
@@ -1181,6 +1194,12 @@ class LLMAppService extends AbstractLLMAppService
             $modeId = $this->aggregateModelResolverService->resolve($originalModelId, $modelGatewayDataIsolation, $accessContext);
             // 动态模型解析后仍需二次校验，确保最终落到的真实子模型也在用户可访问范围内。
             $this->modelGatewayModelAccessService->assertCanAccess($accessContext, $modeId);
+
+            // 将高可用最终确定的模型标识替换为平台配置的目标模型标识。
+            $modeId = di(ModelIdentifierMappingDomainService::class)->replaceModelIdentifier(
+                ProviderDataIsolation::create()->disabled(),
+                $modeId,
+            );
 
             // 设置原始 model_id（目前用于识别是否动态模型）.
             if ($proxyModelRequest instanceof AbstractRequestDTO) {
@@ -1209,6 +1228,9 @@ class LLMAppService extends AbstractLLMAppService
                 };
                 if ($model instanceof ModelEntry) {
                     $proxyModelRequest->setExtra($this->mergeModelExtra($model->getExtra(), $requestExtra));
+                    if ($proxyModelRequest instanceof CompletionDTO) {
+                        $proxyModelRequest->setModelReasoningEffortDefault($model->getReasoningEffortDefault());
+                    }
                     $modelAttributes = $model->getAttributes();
                     $impl = $model->getModel();
                     $model = $impl instanceof OdinModel ? $impl->getModel() : $impl;
@@ -1223,6 +1245,9 @@ class LLMAppService extends AbstractLLMAppService
                     };
                     if ($model instanceof ModelEntry) {
                         $proxyModelRequest->setExtra($this->mergeModelExtra($model->getExtra(), $requestExtra));
+                        if ($proxyModelRequest instanceof CompletionDTO) {
+                            $proxyModelRequest->setModelReasoningEffortDefault($model->getReasoningEffortDefault());
+                        }
                         $modelAttributes = $model->getAttributes();
                         $impl = $model->getModel();
                         $model = $impl instanceof OdinModel ? $impl->getModel() : $impl;
@@ -1356,7 +1381,7 @@ class LLMAppService extends AbstractLLMAppService
                 $chatUsageEvent = new ModelUsageEvent(
                     modelType: $proxyModelRequest->getType(),
                     modelId: $proxyModelRequest->getModel(),
-                    modelVersion: $proxyModelRequest->getModel(),
+                    modelVersion: (string) ($businessParams['model_version'] ?? $proxyModelRequest->getModel()),
                     usage: new Usage(0, 0, 0),
                     organizationCode: $modelGatewayDataIsolation?->getCurrentOrganizationCode() ?? '',
                     userId: $modelGatewayDataIsolation?->getCurrentUserId() ?? '',
@@ -1536,23 +1561,28 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateType = ImageGenerateModelType::fromProviderCode($imageModel->getProviderCode(), $modelVersion);
         $this->logger->info('match image type', ['model_version' => $modelVersion, 'provider_code' => $imageModel->getProviderCode(), 'image_type' => $imageGenerateType]);
 
+        // 解析生成参数所用的 modelId（供配置匹配与提取器使用）
+        $modelId = $imageModel->getModelId() ?: $proxyModelRequest->getModel();
+
         // 构建图片生成参数
         $imageGenerateParamsVO = new AIImageGenerateParamsVO();
         $imageGenerateParamsVO->setModel($modelVersion);
         $imageGenerateParamsVO->setUserPrompt($proxyModelRequest->getPrompt());
         $imageGenerateParamsVO->setGenerateNum($proxyModelRequest->getN());
         $imageGenerateParamsVO->setImageGenerationConfig($proxyModelRequest->getImageGenerationConfig());
+        $imageGenerateParamsVO->setImageGenerationConfig($this->resoleImageGenerationConfig($modelVersion, $modelId, $proxyModelRequest, $modelGatewayDataIsolation));
         $imageGenerateParamsVO->setReferenceImages($proxyModelRequest->getImages());
         $imageGenerateParamsVO->setOutputFormat($proxyModelRequest->getOutputFormat());
+        $imageGenerateParamsVO->setExtra($proxyModelRequest->getExtra());
 
         // 直接透传原始 size 参数，让各服务商根据自己的需求处理
         $imageGenerateParamsVO->setSize($proxyModelRequest->getSize(''));
 
         $data = $imageGenerateParamsVO->toArray();
         $data['organization_code'] = $organizationCode;
+        $data['user_id'] = (string) $creator;
 
         // 图片水印处理
-        $modelId = $imageModel->getModelId() ?: $proxyModelRequest->getModel();
         $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $modelVersion, $modelId, $data);
         $resolvedWatermark = di(WatermarkPolicyInterface::class)
             ->apply($modelGatewayDataIsolation->getAccessToken(), $proxyModelRequest->getWatermark());
@@ -1579,25 +1609,25 @@ class LLMAppService extends AbstractLLMAppService
             }
         }
         $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $imageModelConfig);
-        $generateImageOpenAIFormat = $this->generateImageOpenAIFormatWithFileUrlProxy(
-            $imageGenerateService,
-            $imageGenerateRequest,
-            $imageModel->getProviderCode()
-        );
+        $generateImageOpenAIFormat = new OpenAIFormatResponse([]);
 
         try {
-            // 记录日志
-            $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
+            $generateImageOpenAIFormat = $this->generateImageOpenAIFormatWithFileUrlProxy(
+                $imageGenerateService,
+                $imageGenerateRequest,
+                $imageModel->getProviderCode()
+            );
+
+            // 服务商返回业务错误时，按失败流程处理，但保留已返回的 usage 用于计费。
+            if ($generateImageOpenAIFormat->hasError()) {
+                throw new BusinessException($generateImageOpenAIFormat->getProviderErrorMessage() ?? '', $generateImageOpenAIFormat->getProviderErrorCode() ?? 0);
+            }
 
             // 获取图片生成次数
             $imageCount = $generateImageOpenAIFormat->getUsage()?->getGeneratedImages();
             // 图片生成次数为空时，尝试获取图片数量
             if (is_null($imageCount) && $generateImageOpenAIFormat->getData()) {
                 $imageCount = count($generateImageOpenAIFormat->getData());
-            }
-            // 图片生成次数为空时，尝试获取错误信息
-            if (is_null($imageCount) && ! empty($generateImageOpenAIFormat->getProviderErrorMessage())) {
-                throw new BusinessException($generateImageOpenAIFormat->getProviderErrorMessage(), $generateImageOpenAIFormat->getProviderErrorCode());
             }
             $imageCount ??= 0;
 
@@ -1621,7 +1651,7 @@ class LLMAppService extends AbstractLLMAppService
             $errorMessage = $e->getMessage();
             $generateImageOpenAIFormat->setProviderErrorMessage($errorMessage);
             $generateImageOpenAIFormat->setProviderErrorCode($e->getCode());
-            $generateImageOpenAIFormat->setProvider('magic');
+            $generateImageOpenAIFormat->setProvider($imageGenerateService->getProviderName());
             $this->logger->warning('text generate image error:' . $e->getMessage());
 
             // 记录错误事件
@@ -1638,39 +1668,15 @@ class LLMAppService extends AbstractLLMAppService
                     'chain' => 'textGenerateImageV2',
                     'status' => self::AUDIT_STATUS_FAIL,
                     'failure_reason' => $errorMessage,
+                    'previous_exceptions' => InvocationDetailInfo::extractPreviousExceptions($e),
                 ],
-                null,
+                $this->resolveImageTokenUsage($generateImageOpenAIFormat->getUsage()),
                 $imageGenerateRequest->getResolution(),
                 $imageGenerateRequest->getSize()
             );
         }
 
         return $generateImageOpenAIFormat;
-    }
-
-    /**
-     * Record text-to-image generation log.
-     */
-    protected function recordImageGenerateMessageLog(string $modelVersion, string $userId, string $organizationCode): void
-    {
-        // Record logs
-        defer(function () use ($modelVersion, $userId, $organizationCode) {
-            $LLMDataIsolation = LLMDataIsolation::create($userId, $organizationCode);
-
-            $nickname = $this->magicUserDomainService->getUserById($userId)?->getNickname();
-            $msgLog = new MsgLogEntity();
-            $msgLog->setModel($modelVersion);
-            $msgLog->setUserId($userId);
-            $msgLog->setUseAmount(0);
-            $msgLog->setUseToken(0);
-            $msgLog->setAppCode('');
-            $msgLog->setOrganizationCode($organizationCode);
-            $msgLog->setBusinessId('');
-            $msgLog->setSourceId('image_generate');
-            $msgLog->setUserName($nickname);
-            $msgLog->setCreatedAt(new DateTime());
-            $this->msgLogDomainService->create($LLMDataIsolation, $msgLog);
-        });
     }
 
     private function generateImageOpenAIFormatWithFileUrlProxy(
@@ -1893,7 +1899,7 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * Call model using Odin.
+     * 使用 Odin 调用模型，统一思考强度优先于旧配置，均为空时沿用模型默认值。
      */
     private function callWithOdinChat(ModelInterface $odinModel, CompletionDTO $sendMsgDTO): ChatCompletionResponse|ChatCompletionStreamResponse|TextCompletionResponse
     {
@@ -1926,7 +1932,11 @@ class LLMAppService extends AbstractLLMAppService
         $chatRequest->setFrequencyPenalty($sendMsgDTO->getFrequencyPenalty());
         $chatRequest->setPresencePenalty($sendMsgDTO->getPresencePenalty());
         $chatRequest->setBusinessParams($sendMsgDTO->getBusinessParams());
-        $chatRequest->setThinking($sendMsgDTO->getThinking());
+        if ($sendMsgDTO->getEffectiveReasoningEffort() !== null) {
+            $chatRequest->setReasoningEffort($sendMsgDTO->getEffectiveReasoningEffort());
+        } else {
+            $chatRequest->setThinking($sendMsgDTO->getThinking());
+        }
         $chatRequest->setExtra($sendMsgDTO->getExtra() ?? []);
 
         return match ($sendMsgDTO->getCallMethod()) {
@@ -2364,5 +2374,29 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return array_replace_recursive($modelExtra ?? [], $requestExtra ?? []);
+    }
+
+    private function resoleImageGenerationConfig(
+        string $modelVersion,
+        ?string $modelId,
+        TextGenerateImageDTO $textGenerateImageDTO,
+        ModelGatewayDataIsolation $modelGatewayDataIsolation
+    ): array {
+        // 合集：用户显式传入的参数优先，未传入的项由提示词提取结果补齐
+        $configResolver = di(ImageGenerationConfigResolver::class);
+        $extractedImageGenerationConfig = $configResolver->resolve(
+            $modelVersion,
+            $modelId,
+            $textGenerateImageDTO->getPrompt(),
+            $modelGatewayDataIsolation
+        );
+
+        // 值为 auto 等同「用户没动过」（前端会按声明默认值播种），剔除后让提示词提取结果生效
+        $userImageGenerationConfig = array_filter(
+            $textGenerateImageDTO->getImageGenerationConfig(),
+            static fn ($value): bool => $value !== 'auto'
+        );
+
+        return array_merge($extractedImageGenerationConfig, $userImageGenerationConfig);
     }
 }

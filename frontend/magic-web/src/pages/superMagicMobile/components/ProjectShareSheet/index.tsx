@@ -1,5 +1,5 @@
 import CommonPopup from "@/pages/superMagicMobile/components/CommonPopup"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import DefaultOpenFilePicker from "./components/DefaultOpenFilePicker"
 import ProjectShareCreateView from "./components/ProjectShareCreateView"
 import ProjectShareDeleteConfirmView from "./components/ProjectShareDeleteConfirmView"
@@ -18,8 +18,18 @@ const VIEWS_WITHOUT_FOOTER: ProjectShareSheetView[] = ["manage", "expiry", "dele
 /** Async list and edit views keep a moderate minimum height while detail views size to content. */
 const VIEWS_WITH_STABLE_MIN_HEIGHT: ProjectShareSheetView[] = ["manage", "edit"]
 
-/** Caps the minimum on tall screens while scaling it down for shorter mobile viewports. */
-const PROJECT_SHARE_SHEET_MIN_HEIGHT = "min(72dvh, 640px)"
+/**
+ * Caps sheet height inside the visible viewport: subtract safe-area and the MagicPopup handle.
+ * Inline maxHeight must include insets so it does not override MagicPopup's safe-area formula with a raw dvh value.
+ */
+const PROJECT_SHARE_SHEET_MAX_HEIGHT =
+	"calc(100dvh - var(--safe-area-inset-top) - var(--safe-area-inset-bottom) - 44px)"
+
+/**
+ * Keeps manage/edit sheets from collapsing during empty or loading states,
+ * while never exceeding the safe max-height on short App WebView screens.
+ */
+const PROJECT_SHARE_SHEET_MIN_HEIGHT = `min(72dvh, 640px, ${PROJECT_SHARE_SHEET_MAX_HEIGHT})`
 
 /**
  * 移动端项目分享 Sheet：用单一底部弹层承接原型多视图流程，真实保存/编辑仍复用现有分享弹层能力。
@@ -31,9 +41,14 @@ export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 		VIEWS_WITHOUT_FOOTER.includes(controller.view) &&
 			"pb-[max(var(--safe-area-inset-bottom),16px)]",
 	)
-	const stableMinHeight = VIEWS_WITH_STABLE_MIN_HEIGHT.includes(controller.view)
-		? PROJECT_SHARE_SHEET_MIN_HEIGHT
-		: undefined
+	/**
+	 * 全部分享方式被管理员关闭时，编辑表单会收起成「分享方式 + 提示」，
+	 * 此时不应再为完整表单预留最小高度，否则弹层底部留下一大片空白。
+	 */
+	const shouldReserveStableMinHeight =
+		VIEWS_WITH_STABLE_MIN_HEIGHT.includes(controller.view) &&
+		!(controller.view === "edit" && controller.permittedShareTypes?.length === 0)
+	const sheetMinHeight = shouldReserveStableMinHeight ? PROJECT_SHARE_SHEET_MIN_HEIGHT : 0
 
 	return (
 		<>
@@ -54,19 +69,22 @@ export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 						background: "#F7F7F6",
 						borderRadius: "14px 14px 0 0",
 						height: "auto",
-						maxHeight: "92dvh",
-						minHeight: stableMinHeight,
+						maxHeight: PROJECT_SHARE_SHEET_MAX_HEIGHT,
+						minHeight: sheetMinHeight,
 					},
 				}}
 				wrapperStyle={{
 					height: "auto",
-					maxHeight: "92dvh",
-					minHeight: stableMinHeight,
+					maxHeight: PROJECT_SHARE_SHEET_MAX_HEIGHT,
+					minHeight: sheetMinHeight,
 				}}
 			>
 				<div
-					className="flex max-h-[92dvh] min-h-0 flex-col overflow-hidden bg-[#F7F7F6]"
-					style={{ minHeight: stableMinHeight }}
+					className="flex min-h-0 flex-col overflow-hidden bg-[#F7F7F6]"
+					style={{
+						minHeight: sheetMinHeight,
+						maxHeight: PROJECT_SHARE_SHEET_MAX_HEIGHT,
+					}}
 					data-testid="project-share-sheet-root"
 				>
 					<ProjectShareSheetHeader

@@ -1,6 +1,6 @@
 import { useContext } from "react"
-import { LoginServiceContext } from "./LoginServiceProvider"
+import { LoginServiceContext, type LoginServiceStore } from "./LoginServiceProvider"
 
-export function useLoginServiceContext() {
+export function useLoginServiceContext(): LoginServiceStore {
 	return useContext(LoginServiceContext)
 }

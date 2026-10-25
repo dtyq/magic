@@ -1,6 +1,6 @@
 import type { ProjectStatus, WorkspaceStatus } from "../../../pages/Workspace/types"
 import { TaskStatus } from "../../../pages/Workspace/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Circle, CircleCheck, Loader, TriangleAlert } from "lucide-react"
 
 interface StatusIconProps {

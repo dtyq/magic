@@ -38,13 +38,17 @@ export const MentionBusinessItemType = {
 	AGENT: "agent",
 	SKILL: "skill",
 	TOOL: "tool",
+	MICRO_APP: "micro_app",
 	PROJECT: "project",
 	PROJECT_FILE: "project_file",
+	USER_FILE: "user_file",
+	USER_DIRECTORY: "user_directory",
 	MEMORY_FILE: "memory_file",
 	MEMORY_DIRECTORY: "memory_directory",
 	UPLOAD_FILE: "upload_file",
 	CLOUD_FILE: "cloud_file",
 	DESIGN_MARKER: "design_marker",
+	TEXT: "text",
 } as const
 
 export type MentionBusinessItemType =
@@ -81,9 +85,11 @@ export type SkillMentionSource = "system" | "agent" | "mine"
 
 export interface AgentMentionData {
 	agent_id: string
+	agent_code?: string
 	agent_name: string
 	agent_avatar: string
 	agent_description: string
+	agent_source?: "digital_employee"
 }
 
 export interface ToolMentionData {
@@ -93,6 +99,11 @@ export interface ToolMentionData {
 	description?: string
 }
 
+export interface MicroAppMentionData {
+	app_id: string
+	app_name?: string
+}
+
 export interface ProjectMentionData {
 	project_id: string
 	/** Display name retained for rendering the mention chip after insertion. */
@@ -100,11 +111,18 @@ export interface ProjectMentionData {
 }
 
 export interface ProjectFileMentionData {
+	/** 原附件来源用于沿用 AI 图片下载策略，不从名称或 URL 猜测。 */
+	source?: import("@/pages/superMagic/components/TopicFilesButton/hooks/types").AttachmentSource
 	file_id: string
 	file_name: string
 	file_path: string
 	relative_file_path?: string
 	file_extension: string
+	/** File metadata used to prevent stale signed-URL reuse across editor/canvas entry points. */
+	updated_at?: string
+	resource_version?: string | null
+	version?: string | null
+	file_version?: number
 	/** Project that owns this file. Optional for compatibility with historical mention data. */
 	project_id?: string
 	/** Frontend-only source project name used to render cross-project mention chips. */
@@ -118,6 +136,32 @@ export interface ProjectFileMentionData {
 	/** Internal: marks a project-file mention that must be copied before sending. */
 	pending_project_copy?: boolean
 }
+
+/** 用户引用没有项目或复制语义；路径由真实用户根元数据生成。 */
+export interface UserFileMentionData {
+	file_id: string
+	file_name: string
+	file_path: string
+	file_extension: string
+	project_id?: never
+	source_project_id?: never
+	source_file_id?: never
+	pending_project_copy?: never
+}
+
+export interface UserDirectoryMentionData {
+	directory_id: string
+	directory_name: string
+	directory_path: string
+	project_id?: never
+	source_project_id?: never
+	source_directory_id?: never
+	pending_project_copy?: never
+}
+
+export type UserFileReferenceMention =
+	| { type: typeof MentionBusinessItemType.USER_FILE; data: UserFileMentionData }
+	| { type: typeof MentionBusinessItemType.USER_DIRECTORY; data: UserDirectoryMentionData }
 
 /** 记忆文件 mention 数据。 */
 export interface MemoryFileMentionData {
@@ -170,6 +214,14 @@ export interface UploadFileMentionData {
 	upload_progress?: number // 上传进度 0-100
 	upload_status?: "init" | "uploading" | "done" | "error"
 	upload_error?: string
+	/** Local HTML screenshot identity; not an upload task. */
+	is_html_screenshot?: boolean
+	storage_id?: string
+	/** Internal marker for canvas clipboard attachments; never promote to project mention. */
+	is_canvas_clipboard?: boolean
+	/** IndexedDB screenshot. Region shots stage after confirm; save on send. */
+	is_html_screenshot?: boolean
+	storage_id?: string
 }
 
 export interface CloudFileMentionData {
@@ -182,6 +234,14 @@ export interface CloudFileMentionData {
 	created_at?: string
 	modified_at?: string
 	[key: string]: unknown // 待定字段
+}
+
+/** Stores the SDK-provided display label, send text, and stable business identifier. */
+export interface TextMentionData {
+	label: string
+	text: string
+	id: string
+	[key: string]: unknown
 }
 
 export interface CanvasMarkerMentionSuggestion {
@@ -227,15 +287,19 @@ export interface MentionCoreItemDataMap {
 export interface MentionBusinessItemDataMap {
 	[MentionBusinessItemType.MCP]: McpMentionData
 	[MentionBusinessItemType.AGENT]: AgentMentionData
+	[MentionBusinessItemType.MICRO_APP]: MicroAppMentionData
 	[MentionBusinessItemType.SKILL]: SkillMentionData
 	[MentionBusinessItemType.TOOL]: ToolMentionData
 	[MentionBusinessItemType.PROJECT]: ProjectMentionData
 	[MentionBusinessItemType.PROJECT_FILE]: ProjectFileMentionData
+	[MentionBusinessItemType.USER_FILE]: UserFileMentionData
+	[MentionBusinessItemType.USER_DIRECTORY]: UserDirectoryMentionData
 	[MentionBusinessItemType.MEMORY_FILE]: MemoryFileMentionData
 	[MentionBusinessItemType.MEMORY_DIRECTORY]: MemoryDirectoryMentionData
 	[MentionBusinessItemType.UPLOAD_FILE]: UploadFileMentionData
 	[MentionBusinessItemType.CLOUD_FILE]: CloudFileMentionData
 	[MentionBusinessItemType.DESIGN_MARKER]: CanvasMarkerMentionData
+	[MentionBusinessItemType.TEXT]: TextMentionData
 }
 
 export interface MentionItemDataMap extends MentionCoreItemDataMap, MentionBusinessItemDataMap {}
@@ -263,7 +327,7 @@ export interface CanvasElementMentionSourcePreview {
 	kind: "canvas-element"
 	designProjectId?: string
 	elementId: string
-	mediaType: "image" | "video"
+	mediaType: "image" | "video" | "audio"
 	src: string
 	crop?: MentionImageSourceCrop
 }
@@ -352,6 +416,8 @@ export interface MentionItem<T extends MentionPanelItemTypeValue = MentionPanelI
 	type: T
 	name: string
 	icon?: string | ReactNode
+	/** Direct HTTPS image URL for custom icons. Takes precedence over icon token. */
+	iconUrl?: string
 	/**
 	 * 是否不可选择，对于标题和分割线，默认不可选择
 	 */
@@ -390,6 +456,45 @@ export interface MentionItem<T extends MentionPanelItemTypeValue = MentionPanelI
 	// Skill specific properties
 	package_name?: string // Package name
 }
+
+/** One labelled group inside a scene catalog, e.g. "Interviewed personas". */
+export interface MentionSceneCatalogGroup {
+	id: string
+	title: string
+	items: MentionItem[]
+}
+
+/**
+ * Entry a page pins at the top of its own @ panel, e.g. "This study" on the research page.
+ * Items are ordinary mention items (usually project_file), so sending needs no new type.
+ */
+export interface MentionSceneCatalog {
+	name: string
+	icon?: ReactNode
+	groups: MentionSceneCatalogGroup[]
+}
+
+/** What the @ panel knows about a project entry when a scene wants to relabel it. */
+export interface ProjectFileDisplayInput {
+	/** Real workspace path without a leading slash, e.g. "studies/x/report.html". */
+	path: string
+	/** Real file or folder name. */
+	name: string
+	isDirectory: boolean
+}
+
+/** Display-only override of a project entry; the real path and ids are never touched. */
+export interface ProjectFileDisplay {
+	/** Row label. Files also use it as the chip label, like scene catalog items do. */
+	name?: string
+	icon?: ReactNode
+	/** Drops the entry (and anything the resolver also hides below it) from the panel. */
+	hidden?: boolean
+}
+
+export type ProjectFileDisplayResolver = (
+	input: ProjectFileDisplayInput,
+) => ProjectFileDisplay | null | undefined
 
 export interface MentionCoreItem<
 	T extends MentionCoreItemType = MentionCoreItemType,
@@ -544,6 +649,27 @@ export interface MentionPanelGalleryOptions {
 	enablePreviewModal?: boolean
 }
 
+/** 多选面板顶部摘要支持的资源类型。 */
+export type MentionPanelSelectionAssetType = "image" | "video" | "audio"
+
+/**
+ * 多选面板的资源数量摘要。
+ *
+ * `currentCounts` 是打开面板前已经占用的数量，暂存项会在渲染时增量计算。
+ * 资源类型和「已存在」判断由宿主提供，MentionPanel 本身不依赖具体文件格式。
+ */
+export interface MentionPanelSelectionSummary {
+	currentCounts: Record<MentionPanelSelectionAssetType, number>
+	limits: Partial<Record<MentionPanelSelectionAssetType, number>>
+	/** 所有资源类型的总上限；与 per-type 独立，非有限值表示无总上限。 */
+	totalLimit?: number
+	getItemAssetType?: (item: MentionItem) => MentionPanelSelectionAssetType | undefined
+	isItemAlreadySelected?: (item: MentionItem) => boolean
+}
+
+/** 多选会话在目录导航时的保留策略。 */
+export type MentionPanelMultiSelectNavigationPolicy = "clear" | "preserve"
+
 // Component props interfaces
 export interface MentionPanelProps<TCatalogId extends string = string> extends BaseComponentProps {
 	visible?: boolean
@@ -558,6 +684,12 @@ export interface MentionPanelProps<TCatalogId extends string = string> extends B
 	disableKeyboardShortcuts?: boolean
 	/** 是否允许多选。默认 true；单槽替换等一换一场景可关闭。 */
 	enableMultiSelect?: boolean
+	/** 目录切换时是否保留本次面板会话的多选项；默认兼容旧行为并清空。 */
+	multiSelectNavigationPolicy?: MentionPanelMultiSelectNavigationPolicy
+	/** 多选会话的资源作用域；作用域变化时会丢弃旧会话，避免跨资源提交。 */
+	selectionScopeId?: string
+	/** 多选时显示在文件列表下方的资源数量摘要。 */
+	selectionSummary?: MentionPanelSelectionSummary
 	/**
 	 * 为 true 时禁止 Radix 因「外部」交互自动关闭（画布内嵌套 Portal 易出现误判）。
 	 * 仍可通过 onClose / 键盘退出等显式关闭。

@@ -25,6 +25,7 @@ var ProviderSet = wire.NewSet(
 	diknowledge.ProvideThirdPlatformProviderRegistry,
 	diknowledge.ProvideKnowledgeBaseCoordinatorDeps,
 	diknowledge.ProvideKnowledgeBaseBindingDeps,
+	diknowledge.ProvideKnowledgeBasePermissionReader,
 	diknowledge.ProvideKnowledgeBasePortDeps,
 	diknowledge.ProvideSuperMagicProjectDomainService,
 	diknowledge.ProvideKnowledgeBaseDomainDeps,

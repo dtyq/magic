@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { getFileType, downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 
 interface UseMobileFilePreviewPubSubOptions {
@@ -26,6 +26,9 @@ export function useMobileFilePreviewPubSub({
 	onFileClick,
 	onPlaybackOpen,
 }: UseMobileFilePreviewPubSubOptions) {
+	// Bind the ambient share/session identity so path downloads work in mobile share
+	// previews as well as in the host session.
+	const fileApi = useFileApi()
 	// 订阅消息节点中的文件预览事件
 	useEffect(() => {
 		const handleOpenFileTab = (data: { fileId?: string; fileData?: any }) => {
@@ -79,12 +82,14 @@ export function useMobileFilePreviewPubSub({
 			if (!matched?.file_id) return
 
 			if (payload.action === "download") {
-				getTemporaryDownloadUrl({
-					file_ids: [matched.file_id],
-					is_download: true,
-				}).then((res: any) => {
-					downloadFileWithAnchor(res[0]?.url)
-				})
+				fileApi
+					.getTemporaryDownloadUrl({
+						file_ids: [matched.file_id],
+						is_download: true,
+					})
+					.then((res: any) => {
+						downloadFileWithAnchor(res[0]?.url)
+					})
 			} else {
 				onFileClick({
 					file_id: matched.file_id,
@@ -98,7 +103,7 @@ export function useMobileFilePreviewPubSub({
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
 		}
-	}, [attachmentList, onFileClick])
+	}, [attachmentList, fileApi, onFileClick])
 
 	// 订阅消息节点中的话题回放事件
 	useEffect(() => {

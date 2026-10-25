@@ -22,12 +22,14 @@ export class KeyboardManager {
 	/** 窗口失焦时需要清理修饰键状态，避免 keyup 丢失后元素拖拽状态卡住 */
 	private readonly handleWindowBlur = (): void => {
 		this.canvas.resetKeepRatioModifier()
+		this.canvas.eventEmitter.emit({ type: "keyboard:alt:up", data: undefined })
 	}
 
 	/** 页面隐藏时浏览器可能不再派发 keyup，同样需要复位修饰键状态 */
 	private readonly handleVisibilityChange = (): void => {
 		if (document.visibilityState !== "visible") {
 			this.canvas.resetKeepRatioModifier()
+			this.canvas.eventEmitter.emit({ type: "keyboard:alt:up", data: undefined })
 		}
 	}
 
@@ -51,6 +53,7 @@ export class KeyboardManager {
 		"edit.undo": "keyboard:undo",
 		"edit.redo": "keyboard:redo",
 		"edit.copy": "keyboard:copy",
+		"edit.duplicate": "keyboard:duplicate",
 		"edit.copy-png": "keyboard:copy-png",
 		"edit.paste": "keyboard:paste",
 		// 选择快捷键
@@ -193,6 +196,13 @@ export class KeyboardManager {
 					modifiers as PlatformModifier[],
 				)
 
+				if (
+					matchedDefinition &&
+					this.handleEraserHistoryShortcut(matchedDefinition.id, e)
+				) {
+					return
+				}
+
 				if (matchedDefinition && matchedDefinition.preventDefault) {
 					// 阻止默认行为和传播，防止浏览器或 Radix UI 拦截
 					e.preventDefault()
@@ -212,6 +222,30 @@ export class KeyboardManager {
 		window.addEventListener("keyup", this.handleKeyUp)
 		window.addEventListener("blur", this.handleWindowBlur)
 		document.addEventListener("visibilitychange", this.handleVisibilityChange)
+	}
+
+	/**
+	 * 橡皮擦编辑态拥有独立的临时历史；撤销/重做不能继续进入画布历史。
+	 * 即使当前没有可操作记录也必须消费事件，避免误改画布文档。
+	 */
+	private handleEraserHistoryShortcut(shortcutId: string, event: KeyboardEvent): boolean {
+		if (
+			(shortcutId !== "edit.undo" && shortcutId !== "edit.redo") ||
+			!this.canvas.eraserManager?.getErasingElementId()
+		) {
+			return false
+		}
+
+		event.preventDefault()
+		event.stopImmediatePropagation()
+
+		if (shortcutId === "edit.undo") {
+			this.canvas.eraserManager.undoLastStroke()
+		} else {
+			this.canvas.eraserManager.redoLastStroke()
+		}
+
+		return true
 	}
 
 	/**
@@ -269,6 +303,11 @@ export class KeyboardManager {
 			return
 		}
 
+		if (e.key === "Alt") {
+			this.canvas.eventEmitter.emit({ type: "keyboard:alt:down", data: undefined })
+			return
+		}
+
 		// 处理 Meta/Command 键（Mac 上是 Meta，Windows/Linux 上是 Meta 或 Ctrl）
 		// 注意：只在单独按下 Meta 键时触发，不与其他键组合时触发
 		if (e.key === "Meta" && !e.shiftKey && !e.altKey && !e.ctrlKey) {
@@ -296,8 +335,8 @@ export class KeyboardManager {
 	 * 分发快捷键事件
 	 */
 	private emitShortcutEvent(eventType: string, key: string): void {
-		// 只读模式下允许的快捷键：缩放、复制、添加至当前对话、平移工具(space)、选择工具(v)
-		const allowedInReadonly = [
+		// 缺少文档写能力时仍允许的快捷键：缩放、复制、添加至当前对话、平移工具(space)、选择工具(v)
+		const allowedWithoutDocumentWrite = [
 			"keyboard:zoom:in",
 			"keyboard:zoom:out",
 			"keyboard:zoom:fit",
@@ -307,17 +346,17 @@ export class KeyboardManager {
 			"keyboard:conversation:add-to-current",
 		]
 
-		// 只读模式下允许的工具快捷键
+		// 缺少文档写能力时允许的工具快捷键
 		const allowedToolKeys = ["space", "v", "h"]
 
-		// 使用 PermissionManager 统一判断：只读模式下只允许部分快捷键
-		if (this.canvas.readonly) {
+		// 使用 CanvasAccessContext 统一判断：无文档写能力时只允许部分快捷键
+		if (!this.canvas.permissionManager.can("document.write")) {
 			// 如果是工具快捷键，只允许 space(平移)、v(选择)、h(平移)
 			if (eventType === "keyboard:tool" && !allowedToolKeys.includes(key)) {
 				return
 			}
 			// 如果是其他快捷键，检查是否在允许列表中
-			if (eventType !== "keyboard:tool" && !allowedInReadonly.includes(eventType)) {
+			if (eventType !== "keyboard:tool" && !allowedWithoutDocumentWrite.includes(eventType)) {
 				return
 			}
 		}
@@ -352,6 +391,9 @@ export class KeyboardManager {
 				break
 			case "keyboard:redo":
 				this.canvas.eventEmitter.emit({ type: "keyboard:redo", data: undefined })
+				break
+			case "keyboard:duplicate":
+				this.canvas.eventEmitter.emit({ type: "keyboard:duplicate", data: undefined })
 				break
 			case "keyboard:copy":
 				this.canvas.eventEmitter.emit({ type: "keyboard:copy", data: undefined })
@@ -465,6 +507,10 @@ export class KeyboardManager {
 		// keyup 可能因为输入框、浮层、窗口失焦等原因落到画布外。
 		if (this.isKeepRatioModifierKey(e)) {
 			this.canvas.setKeepRatioModifier(e.shiftKey || e.metaKey)
+		}
+		if (e.key === "Alt") {
+			this.canvas.eventEmitter.emit({ type: "keyboard:alt:up", data: undefined })
+			return
 		}
 
 		// 如果用户在输入框中，不处理快捷键
@@ -605,6 +651,8 @@ export class KeyboardManager {
 	 * @param target 目标元素
 	 */
 	private isInputElement(target: EventTarget | null): boolean {
+		// 图片标题是只读 DOM 文字：复制所选文字时不能被画布的复制元素快捷键截获。
+		if (target instanceof Element && target.closest("[data-canvas-name-label]")) return true
 		if (!target || !(target instanceof HTMLElement)) {
 			return false
 		}

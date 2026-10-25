@@ -1,9 +1,14 @@
-import type { Content, Editor, UseEditorOptions, EditorEvents } from "@tiptap/react"
-import { useEditor, EditorContent } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
-import Highlight from "@tiptap/extension-highlight"
-import TextAlign from "@tiptap/extension-text-align"
-import { TextStyle, FontSize } from "@tiptap/extension-text-style"
+import type {
+	Content,
+	Editor,
+	UseEditorOptions,
+	EditorEvents,
+} from "@/infrastructure/editors/tiptap/react"
+import { useEditor, EditorContent } from "@/infrastructure/editors/tiptap/react"
+import StarterKit from "@/infrastructure/editors/tiptap/starter-kit"
+import Highlight from "@/infrastructure/editors/tiptap/extension-highlight"
+import TextAlign from "@/infrastructure/editors/tiptap/extension-text-align"
+import { TextStyle, FontSize } from "@/infrastructure/editors/tiptap/extension-text-style"
 import type { HTMLAttributes } from "react"
 import {
 	forwardRef,
@@ -17,11 +22,11 @@ import {
 } from "react"
 import { useTranslation } from "react-i18next"
 import { omit } from "lodash-es"
-import { nodePasteRule, Extension } from "@tiptap/core"
-import HardBlock from "@tiptap/extension-hard-break"
-import type { EditorView } from "@tiptap/pm/view"
-import type { Slice } from "@tiptap/pm/model"
-import { history, undo, redo } from "@tiptap/pm/history"
+import { nodePasteRule, Extension } from "@/infrastructure/editors/tiptap/core"
+import HardBlock from "@/infrastructure/editors/tiptap/extension-hard-break"
+import type { EditorView } from "@/infrastructure/editors/tiptap/pm-view"
+import type { Slice } from "@/infrastructure/editors/tiptap/pm-model"
+import { history, undo, redo } from "@/infrastructure/editors/tiptap/pm-history"
 import ToolBar from "./components/ToolBar"
 import useStyles from "./styles"
 import MagicEmojiNodeExtension from "./extensions/magicEmoji"
@@ -63,17 +68,17 @@ const CustomHistory = Extension.create({
 							const { isEmpty } = editor
 							const content = editor.getJSON()
 
-								// 如果撤销后编辑器是空的或只有一个内容项，可能是一个中间状态
-								if (isEmpty || (content.content && content.content.length <= 1)) {
-									// 再次尝试撤销（如果可以）来跳过中间状态
-									setTimeout(() => {
-										runActiveEditor(editor, (activeEditor) => {
-											if (activeEditor.can().undo()) {
-												commands.undo()
-											}
-										})
-									}, 0)
-								}
+							// 如果撤销后编辑器是空的或只有一个内容项，可能是一个中间状态
+							if (isEmpty || (content.content && content.content.length <= 1)) {
+								// 再次尝试撤销（如果可以）来跳过中间状态
+								setTimeout(() => {
+									runActiveEditor(editor, (activeEditor) => {
+										if (activeEditor.can().undo()) {
+											commands.undo()
+										}
+									})
+								}, 0)
+							}
 							return true
 						},
 					])
@@ -94,17 +99,17 @@ const CustomHistory = Extension.create({
 							const { isEmpty } = editor
 							const content = editor.getJSON()
 
-								// 如果重做后编辑器是空的或只有一个内容项，可能是一个中间状态
-								if (isEmpty || (content.content && content.content.length <= 1)) {
-									// 再次尝试重做（如果可以）来跳过中间状态
-									setTimeout(() => {
-										runActiveEditor(editor, (activeEditor) => {
-											if (activeEditor.can().redo()) {
-												commands.redo()
-											}
-										})
-									}, 0)
-								}
+							// 如果重做后编辑器是空的或只有一个内容项，可能是一个中间状态
+							if (isEmpty || (content.content && content.content.length <= 1)) {
+								// 再次尝试重做（如果可以）来跳过中间状态
+								setTimeout(() => {
+									runActiveEditor(editor, (activeEditor) => {
+										if (activeEditor.can().redo()) {
+											commands.redo()
+										}
+									})
+								}, 0)
+							}
 							return true
 						},
 					])
@@ -125,17 +130,17 @@ const CustomHistory = Extension.create({
 							const { isEmpty } = editor
 							const content = editor.getJSON()
 
-								// 如果重做后编辑器是空的或只有一个内容项，可能是一个中间状态
-								if (isEmpty || (content.content && content.content.length <= 1)) {
-									// 再次尝试重做（如果可以）来跳过中间状态
-									setTimeout(() => {
-										runActiveEditor(editor, (activeEditor) => {
-											if (activeEditor.can().redo()) {
-												commands.redo()
-											}
-										})
-									}, 0)
-								}
+							// 如果重做后编辑器是空的或只有一个内容项，可能是一个中间状态
+							if (isEmpty || (content.content && content.content.length <= 1)) {
+								// 再次尝试重做（如果可以）来跳过中间状态
+								setTimeout(() => {
+									runActiveEditor(editor, (activeEditor) => {
+										if (activeEditor.can().redo()) {
+											commands.redo()
+										}
+									})
+								}, 0)
+							}
 							return true
 						},
 					])
@@ -151,16 +156,16 @@ const CustomHistory = Extension.create({
 		return {
 			undo:
 				() =>
-					({ state, dispatch }) => {
-						// 使用顶层导入的undo命令
-						return undo(state, dispatch)
-					},
+				({ state, dispatch }) => {
+					// 使用顶层导入的undo命令
+					return undo(state, dispatch)
+				},
 			redo:
 				() =>
-					({ state, dispatch }) => {
-						// 使用顶层导入的redo命令
-						return redo(state, dispatch)
-					},
+				({ state, dispatch }) => {
+					// 使用顶层导入的redo命令
+					return redo(state, dispatch)
+				},
 		}
 	},
 

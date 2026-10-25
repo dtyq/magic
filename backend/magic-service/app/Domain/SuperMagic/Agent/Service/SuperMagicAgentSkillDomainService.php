@@ -151,6 +151,12 @@ class SuperMagicAgentSkillDomainService
     /**
      * @return AgentSkillEntity[]
      */
+    public function getByAgentCodeForCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): array
+    {
+        return $this->agentSkillRepository->getByAgentCodeForCurrentVersion($dataIsolation, $agentCode);
+    }
+
+    /** @return AgentSkillEntity[] */
     public function getByAgentVersionId(SuperMagicAgentDataIsolation $dataIsolation, int $agentVersionId): array
     {
         return $this->agentSkillRepository->getByAgentVersionId($dataIsolation, $agentVersionId);

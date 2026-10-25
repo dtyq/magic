@@ -26,6 +26,7 @@ use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
+use App\Infrastructure\Util\VersionUtil;
 use Hyperf\DbConnection\Db;
 use Throwable;
 use ValueError;
@@ -40,6 +41,7 @@ class SkillVersionDomainService
         protected SkillVersionRepositoryInterface $skillVersionRepository,
         protected UserSkillRepositoryInterface $userSkillRepository,
         protected SkillMarketDomainService $skillMarketDomainService,
+        protected SkillCategoryRelationDomainService $skillCategoryRelationDomainService,
     ) {
     }
 
@@ -187,6 +189,33 @@ class SkillVersionDomainService
         return $this->skillVersionRepository->findLatestByCode($dataIsolation, $code);
     }
 
+    public function existsByCodeAndVersion(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        string $version,
+        ?int $excludedId = null
+    ): bool {
+        return $this->skillVersionRepository->existsByCodeAndVersion($dataIsolation, $code, $version, $excludedId);
+    }
+
+    public function getNextAvailableVersion(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        ?string $latestVersion
+    ): string {
+        $nextVersion = VersionUtil::getNextVersion($latestVersion);
+        while ($this->existsByCodeAndVersion($dataIsolation, $code, $nextVersion)) {
+            $nextVersion = VersionUtil::getNextVersion($nextVersion);
+        }
+
+        return $nextVersion;
+    }
+
+    public function findLatestMarketSkillVersionByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity
+    {
+        return $this->skillVersionRepository->findLatestMarketByCode($dataIsolation, $code);
+    }
+
     public function findLatestPublishedSkillVersionByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity
     {
         return $this->skillVersionRepository->findLatestPublishedByCode($dataIsolation, $code);
@@ -216,8 +245,16 @@ class SkillVersionDomainService
     public function publishSkill(
         SkillDataIsolation $dataIsolation,
         SkillEntity $skillEntity,
-        SkillVersionEntity $versionEntity
+        SkillVersionEntity $versionEntity,
+        bool $prepareOnly = false,
+        ?string $expectedLatestVersionId = null
     ): SkillVersionEntity {
+        // Serialize Web and sandbox releases on the same skill, including version checks.
+        $this->skillRepository->lockByCode($dataIsolation, $skillEntity->getCode());
+        if ($expectedLatestVersionId !== null
+            && (string) ($this->skillVersionRepository->findLatestByCode($dataIsolation, $skillEntity->getCode())?->getId() ?? '') !== $expectedLatestVersionId) {
+            ExceptionBuilder::throw(SkillErrorCode::PUBLISH_PREPARATION_STALE);
+        }
         if ($skillEntity->getSourceType()->isMarket()) {
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_PUBLISH, 'skill.store_skill_cannot_publish');
         }
@@ -262,10 +299,19 @@ class SkillVersionDomainService
         $versionEntity->setDescriptionI18n($skillEntity->getDescriptionI18n());
         $versionEntity->setSourceI18n($skillEntity->getSourceI18n());
         $versionEntity->setLogo($logoPath ?: null);
-        $versionEntity->setFileKey($skillEntity->getFileKey());
+        // 版本表 file_key 为非 NULL 字段；异步 prepare 阶段尚未生成压缩包时使用空字符串占位，finalize 再写入真实 key。
+        $versionEntity->setFileKey($prepareOnly ? '' : $skillEntity->getFileKey());
         $versionEntity->setSourceType($skillEntity->getSourceType());
         $versionEntity->setProjectId($skillEntity->getProjectId());
         $versionEntity->setPublisherUserId($dataIsolation->getCurrentUserId());
+
+        if ($prepareOnly) {
+            $versionEntity->setPublishStatus(PublishStatus::PUBLISHING);
+            $versionEntity->setReviewStatus(ReviewStatus::PENDING);
+            $versionEntity->setPublishedAt(null);
+            $versionEntity->setIsCurrentVersion(false);
+            return $this->saveSkillVersion($dataIsolation, $versionEntity);
+        }
 
         if ($publishTargetType === PublishTargetType::PRIVATE) {
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
@@ -273,8 +319,20 @@ class SkillVersionDomainService
             $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
             $versionEntity->setIsCurrentVersion(true);
 
+            // A private release supersedes the existing market listing.
+            $this->skillMarketDomainService->updateAllPublishStatusBySkillCode(
+                $skillEntity->getCode(),
+                PublishStatus::OFFLINE->value,
+            );
+
             $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $skillEntity->getCode());
             $versionEntity = $this->saveSkillVersion($dataIsolation, $versionEntity);
+
+            $this->skillCategoryRelationDomainService->replaceVersionCategories(
+                $versionEntity->getOrganizationCode(),
+                $versionEntity->getId() ?? 0,
+                []
+            );
 
             $skillEntity->setLatestPublishedAt($versionEntity->getPublishedAt());
             $this->skillRepository->save($dataIsolation, $skillEntity);
@@ -290,7 +348,56 @@ class SkillVersionDomainService
         $versionEntity->setPublishedAt(null);
         $versionEntity->setIsCurrentVersion(false);
 
-        return $this->saveSkillVersion($dataIsolation, $versionEntity);
+        $versionEntity = $this->saveSkillVersion($dataIsolation, $versionEntity);
+        if ($publishTargetType === PublishTargetType::MARKET) {
+            $this->skillCategoryRelationDomainService->replaceVersionCategories(
+                $versionEntity->getOrganizationCode(),
+                $versionEntity->getId() ?? 0,
+                $versionEntity->getCategoryIds()
+            );
+        }
+
+        return $versionEntity;
+    }
+
+    /** 将已完成 Sandbox 导出的 Skill 版本落库。packageName 用于回填 prepare 阶段尚为空的版本包名。 */
+    public function finalizePreparedSkill(
+        SkillDataIsolation $dataIsolation,
+        int $versionId,
+        string $fileKey,
+        ?string $packageName = null
+    ): SkillVersionEntity {
+        $versionEntity = $this->skillVersionRepository->findByIdForUpdate($dataIsolation, $versionId);
+        if ($versionEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_VERSION_NOT_FOUND, 'skill.version_not_found');
+        }
+        if (! $versionEntity->getPublishStatus()->isPublishing()) {
+            return $versionEntity;
+        }
+
+        $versionEntity->setFileKey($fileKey);
+        if ($packageName !== null && $packageName !== '' && $versionEntity->getPackageName() === '') {
+            $versionEntity->setPackageName($packageName);
+        }
+        if ($versionEntity->getPublishTargetType() === PublishTargetType::PRIVATE) {
+            $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $versionEntity->getCode());
+            $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
+            $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
+            $versionEntity->setIsCurrentVersion(true);
+        } else {
+            $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
+            $versionEntity->setReviewStatus(ReviewStatus::UNDER_REVIEW);
+            $versionEntity->setPublishedAt(null);
+            $versionEntity->setIsCurrentVersion(false);
+        }
+        $versionEntity = $this->skillVersionRepository->save($dataIsolation, $versionEntity);
+        $skillEntity = $this->skillRepository->findByCode($dataIsolation, $versionEntity->getCode());
+        if ($skillEntity !== null) {
+            $skillEntity->setLatestPublishedAt(date('Y-m-d H:i:s'));
+            $this->skillRepository->save($dataIsolation, $skillEntity);
+        }
+        return $versionEntity;
     }
 
     /**
@@ -301,7 +408,8 @@ class SkillVersionDomainService
         string $code,
         ?PublishTargetType $publishTargetType = null,
         ?ReviewStatus $reviewStatus = null,
-        Page $page = new Page()
+        Page $page = new Page(),
+        bool $includePublishing = false
     ): array {
         $skillEntity = $this->getSkillByCodeOrFail($dataIsolation, $code);
         if ($skillEntity->getSourceType()->isMarket()) {
@@ -313,7 +421,8 @@ class SkillVersionDomainService
             $code,
             $publishTargetType,
             $reviewStatus,
-            $page
+            $page,
+            $includePublishing
         );
     }
 
@@ -557,7 +666,6 @@ class SkillVersionDomainService
             'logo' => $skillVersion->getLogo(),
             'publisher_id' => $skillVersion->getCreatorId(),
             'publisher_type' => $publisherType->value,
-            'category_id' => null,
             'publish_status' => PublishStatus::PUBLISHED->value,
             'install_count' => 0,
         ]);
@@ -569,6 +677,8 @@ class SkillVersionDomainService
         SkillVersionEntity $skillVersion,
         ?string $reviewRemark = null
     ): void {
+        // 平台审核接口允许跨组织审核，拒绝保存时与通过流程保持一致。
+        $dataIsolation->disabled();
         $skillVersion->setReviewStatus(ReviewStatus::REJECTED);
         $skillVersion->setReviewRemark($reviewRemark);
         $this->saveSkillVersion($dataIsolation, $skillVersion);

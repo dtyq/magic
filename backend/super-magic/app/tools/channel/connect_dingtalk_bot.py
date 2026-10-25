@@ -34,6 +34,9 @@ class ConnectDingTalkBot(BaseTool[ConnectDingTalkBotParams]):
     """Start the DingTalk stream-mode AI bot connection from an SDK snippet."""
 
     async def execute(self, tool_context: ToolContext, params: ConnectDingTalkBotParams) -> ToolResult:
+        if not tool_context.topic_id:
+            return ToolResult.error("The current topic ID is missing, so the DingTalk channel cannot be bound.")
+
         try:
             manager = DingTalkChannel.get_instance()
             await manager.connect(params.client_id, params.client_secret)
@@ -51,7 +54,7 @@ class ConnectDingTalkBot(BaseTool[ConnectDingTalkBotParams]):
             config.dingtalk = DingTalkCredential(
                 client_id=params.client_id,
                 client_secret=params.client_secret,
-                sandbox_id=tool_context.sandbox_id,
+                topic_id=tool_context.topic_id,
             )
             await save_config(config)
 

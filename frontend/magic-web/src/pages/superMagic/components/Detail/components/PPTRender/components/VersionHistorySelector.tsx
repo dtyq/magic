@@ -10,10 +10,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuLabel,
 } from "@/components/shadcn-ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
 import ConditionalTooltip from "../../EditToolbar/ConditionalTooltip"
 import { TOOLBAR_Z_INDEX } from "../../../constants/z-index"
+import { runGuardedAction } from "../../../utils/actionGuard"
+import type { BeforeAction } from "../../../utils/actionGuard"
 
 interface VersionHistorySelectorProps {
 	fileId: string
@@ -27,6 +29,8 @@ interface VersionHistorySelectorProps {
 	showButtonText?: boolean
 	/** 版本对比回调 */
 	onCompareVersion?: (version: number) => void
+	/** Optional guard run before switching or rolling back a version. */
+	beforeAction?: BeforeAction
 }
 
 export function VersionHistorySelector({
@@ -40,6 +44,7 @@ export function VersionHistorySelector({
 	disabled = false,
 	showButtonText = false,
 	onCompareVersion,
+	beforeAction,
 }: VersionHistorySelectorProps) {
 	const { t } = useTranslation("super")
 	const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -56,23 +61,27 @@ export function VersionHistorySelector({
 
 	// Handle version item click - compare for history, switch for latest
 	const handleVersionItemClick = (version: number, isLatest: boolean) => {
-		if (isLatest) {
-			// 最新版本直接切换
-			onVersionChange(undefined)
-		} else {
-			// 历史版本触发对比
-			if (onCompareVersion) {
-				onCompareVersion(version)
+		void runGuardedAction(beforeAction, () => {
+			if (isLatest) {
+				// 最新版本直接切换
+				onVersionChange(undefined)
+			} else {
+				// 历史版本触发对比
+				if (onCompareVersion) {
+					onCompareVersion(version)
+				}
 			}
-		}
-		setDropdownOpen(false)
+			setDropdownOpen(false)
+		})
 	}
 
 	// Handle version rollback
 	const handleRollback = () => {
 		if (!fileVersion) return
-		onRollback(fileVersion)
-		setDropdownOpen(false)
+		void runGuardedAction(beforeAction, () => {
+			onRollback(fileVersion)
+			setDropdownOpen(false)
+		})
 	}
 
 	return (
@@ -86,6 +95,7 @@ export function VersionHistorySelector({
 						<Button
 							variant="outline"
 							size="sm"
+							data-testid="ppt-version-history-trigger"
 							onClick={() => {
 								fetchFileVersions(fileId)
 							}}
@@ -123,6 +133,7 @@ export function VersionHistorySelector({
 							return (
 								<DropdownMenuItem
 									key={item.version}
+									data-testid="ppt-version-history-item"
 									onClick={() => handleVersionItemClick(item.version, isLatest)}
 									className={cn(
 										"flex items-start gap-3 px-3 py-2",

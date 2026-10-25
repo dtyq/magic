@@ -1,0 +1,6 @@
+{
+  "id": "tool-chaining",
+  "prompt": "Create an image Element, then connect it to an existing video Element and verify the result.",
+  "expected_tools": ["add_canvas_elements", "manage_canvas_connections", "query_canvas_element_details"],
+  "forbidden_tools": ["write_file", "delete_files"]
+}

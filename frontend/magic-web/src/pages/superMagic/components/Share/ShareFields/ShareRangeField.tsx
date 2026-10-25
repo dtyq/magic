@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import { IconPlus, IconX, IconSitemap } from "@tabler/icons-react"
 import MagicIcon from "@/components/base/MagicIcon"

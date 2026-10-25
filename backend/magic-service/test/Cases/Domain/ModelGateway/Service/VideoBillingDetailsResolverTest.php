@@ -57,6 +57,38 @@ class VideoBillingDetailsResolverTest extends TestCase
         $this->assertSame(864, $billingDetails['height']);
     }
 
+    public function testResolveFromMetadataUsesGenericBucketFor768ShortEdgeWithoutRequestContext(): void
+    {
+        $resolver = new VideoBillingDetailsResolver();
+
+        $billingDetails = $resolver->resolveFromMetadata(new VideoMediaMetadata(5.17, 1344, 768));
+
+        $this->assertSame(6, $billingDetails['duration_seconds']);
+        $this->assertSame('720p', $billingDetails['resolution']);
+        $this->assertSame('1344x768', $billingDetails['size']);
+    }
+
+    public function testResolveFromMetadataWithFallbackUsesRequestedResolutionBeforeDimensions(): void
+    {
+        $resolver = new VideoBillingDetailsResolver();
+        $operation = $this->createOperation(
+            rawRequest: [
+                'generation' => [
+                    'duration_seconds' => 5,
+                    'resolution' => '768p',
+                ],
+            ],
+        );
+
+        $billingDetails = $resolver->resolveFromMetadataWithFallback(
+            new VideoMediaMetadata(5.17, 1344, 768),
+            $operation
+        );
+
+        $this->assertSame('768p', $billingDetails['resolution']);
+        $this->assertSame('1344x768', $billingDetails['size']);
+    }
+
     public function testResolveFromMetadataWithFallbackKeepsProbeDimensionsAndUsesRequestResolution(): void
     {
         $resolver = new VideoBillingDetailsResolver();

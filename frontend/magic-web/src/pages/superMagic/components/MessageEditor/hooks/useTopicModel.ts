@@ -3,6 +3,7 @@ import { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { useMount } from "ahooks"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import { resolveDefaultAgentSelection } from "@/services/superMagic/DefaultAgentSelectionService"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"
 import { ModelItem } from "../types"
 import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
@@ -32,6 +33,12 @@ function useTopicModel({
 		topicStoreRef.current = topicModelStore ?? createSuperMagicTopicModelStore()
 	}
 	const topicStore = topicStoreRef.current
+	// A new custom-agent chat has no topic yet; use the platform default agent's
+	// code to look up its catalog until an explicit or topic agent is available.
+	const currentAgentCode =
+		agentCode ??
+		selectedTopic?.agent_code ??
+		(topicMode === TopicMode.CustomAgent ? resolveDefaultAgentSelection().agentCode : undefined)
 
 	// Initialize Service (only once)
 	useMount(() => {
@@ -50,9 +57,9 @@ function useTopicModel({
 			selectedTopic?.id,
 			selectedProject?.id || "",
 			topicMode,
-			agentCode ?? selectedTopic?.agent_code,
+			currentAgentCode,
 		)
-	}, [agentCode, autoFetch, topicMode, selectedTopic, selectedProject, topicStore])
+	}, [autoFetch, currentAgentCode, topicMode, selectedTopic, selectedProject, topicStore])
 
 	// Cleanup on unmount
 	useEffect(() => {
@@ -64,7 +71,6 @@ function useTopicModel({
 		}
 	}, [autoFetch, topicStore])
 
-	const currentAgentCode = agentCode ?? selectedTopic?.agent_code ?? null
 	// Get model lists from mode service
 	const modelGroups = superMagicModeService.getModelGroupsByMode(topicMode, currentAgentCode)
 	const imageModelGroups = superMagicModeService.getImageModelGroupsByMode(

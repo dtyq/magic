@@ -40,19 +40,6 @@ vi.mock("@/hooks/router/useKeepAlive", () => ({
 	useKeepAlive: () => ({ Content: <div data-testid="mobile-layout-content" /> }),
 }))
 
-vi.mock("../styles", () => ({
-	useStyles: () => ({
-		styles: {
-			root: "root",
-			container: "container",
-			view: "view",
-			noGlobalSafeAreaWithoutTabBar: "no-global-safe-area-without-tabbar",
-			noGlobalSafeAreaWithTabBar: "no-global-safe-area-with-tabbar",
-		},
-		cx: (...values: unknown[]) => values.filter(Boolean).join(" "),
-	}),
-}))
-
 vi.mock("@/routes/hooks/useNavigate", () => ({ default: () => vi.fn() }))
 vi.mock("../components/OrganizationSwitch", () => ({ OrganizationSwitchPanel: () => null }))
 

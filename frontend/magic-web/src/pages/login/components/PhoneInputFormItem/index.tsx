@@ -1,11 +1,12 @@
 import { validatePhone } from "@/utils/phone"
+import { trimInputValue } from "@/utils/trim"
 import type { FormItemProps } from "antd"
 import { Form } from "antd"
 import { useTranslation } from "react-i18next"
 import PhoneStateCodeSelect from "@/components/other/PhoneStateCodeSelect"
 import type { Rule } from "antd/es/form"
 import { Input as ShadcnInput } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface PhoneInputFormItemProps extends FormItemProps {
 	hidden?: boolean
@@ -49,7 +50,7 @@ const PhoneInputFormItem = ({
 						onChange={onChangePhoneStateCode}
 						dataTestId="phone-state-code-select"
 					/>
-					<Form.Item noStyle name={name} rules={rules}>
+					<Form.Item noStyle name={name} rules={rules} normalize={trimInputValue}>
 						<ShadcnInput
 							id={name}
 							name={name}

@@ -2,7 +2,7 @@ import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { SearchIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 // PROJECT OVERRIDE — project dialog; CommandDialog forwards showCloseButton.
 import {
 	Dialog,
@@ -58,8 +58,11 @@ function CommandDialog({
 
 function CommandInput({
 	className,
+	suffix,
 	...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+}: React.ComponentProps<typeof CommandPrimitive.Input> & {
+	suffix?: React.ReactNode
+}) {
 	return (
 		<div
 			data-slot="command-input-wrapper"
@@ -69,11 +72,14 @@ function CommandInput({
 			<CommandPrimitive.Input
 				data-slot="command-input"
 				className={cn(
-					"outline-hidden flex h-10 w-full rounded-md bg-transparent py-3 text-sm placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+					"flex h-10 min-w-0 rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+					// Suffix sits in the same row. flex-1 keeps the field in the leftover space, and pr-2 keeps typed text off the label.
+					suffix ? "flex-1 pr-2" : "w-full",
 					className,
 				)}
 				{...props}
 			/>
+			{suffix ? <div className="flex shrink-0 items-center gap-2">{suffix}</div> : null}
 		</div>
 	)
 }
@@ -132,7 +138,7 @@ function CommandItem({ className, ...props }: React.ComponentProps<typeof Comman
 		<CommandPrimitive.Item
 			data-slot="command-item"
 			className={cn(
-				"outline-hidden relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				className,
 			)}
 			{...props}

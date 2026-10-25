@@ -10,7 +10,7 @@ import { useUpdateEffect } from "ahooks"
 import topicModelStore from "@/stores/superMagic/topicModelStore"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { Spinner } from "@/components/shadcn-ui/spinner"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useMessageListContext } from "../MessageList/context"
 import { messageSendService } from "../../services/messageSendFlowService"
 import { workspaceStore, projectStore } from "../../stores/core"
@@ -28,6 +28,7 @@ const loadingMessageTextClass = cn(
 interface LoadingMessageProps {
 	messages?: Array<any>
 	showLoading?: boolean
+	isToolExecuting?: boolean
 	style?: React.CSSProperties
 	selectedTopic?: Topic | null
 }
@@ -35,6 +36,7 @@ interface LoadingMessageProps {
 export default function LoadingMessage({
 	messages = [],
 	showLoading = true,
+	isToolExecuting = false,
 	style,
 	selectedTopic,
 }: LoadingMessageProps) {
@@ -220,7 +222,9 @@ export default function LoadingMessage({
 				style={style}
 			>
 				<Spinner className="animate-spin" size={16} />
-				<span className={loadingMessageTextClass}>{t("ui.thinking")}</span>
+				<span className={loadingMessageTextClass}>
+					{t(isToolExecuting ? "ui.executing" : "ui.thinking")}
+				</span>
 				<span className="ml-1 flex h-12 items-center gap-px text-xs font-normal leading-5 tracking-[0.25px] text-foreground/35">
 					<IconHourglassEmpty size={16} />
 					{formatTime(elapsedTime)}

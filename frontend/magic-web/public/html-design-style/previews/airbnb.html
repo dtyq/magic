@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Airbnb — A warm, photography-led consumer marketplace anchored on pure white canvas and Airbnb Rausch voltage.">
+  <title>Airbnb — Vacation Rentals, Cabins & Beachfront Stays</title>
+  <style>
+    :root {
+      --primary: #ff385c;
+      --primary-active: #e00b41;
+      --primary-light: #fff0f3;
+      --canvas: #ffffff;
+      --surface-soft: #f7f7f7;
+      --border: #ebebeb;
+      --border-strong: #dddddd;
+      --ink: #222222;
+      --ink-muted: #717171;
+      --ink-light: #b0b0b0;
+      --font-family: "Airbnb Cereal VF", Circular, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      --radius-sm: 8px;
+      --radius-card: 18px;
+      --radius-pill: 9999px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.08);
+      --shadow-float: 0 6px 20px rgba(0,0,0,0.12);
+      --shell: 1240px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: var(--canvas); color: var(--ink); scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-family);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    .shell { width: min(var(--shell), calc(100% - 48px)); margin: 0 auto; }
+
+    /* Top Navigation */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 80px;
+    }
+    .brand-group { display: flex; align-items: center; gap: 10px; }
+    .brand-logo { width: 32px; height: 32px; fill: var(--primary); }
+    .brand-text {
+      font-size: 22px; font-weight: 800; letter-spacing: -0.04em; color: var(--primary);
+    }
+
+    /* Floating Center Search Bar */
+    .center-search-bar {
+      display: inline-flex; align-items: center;
+      background: #ffffff; border: 1px solid var(--border-strong);
+      border-radius: var(--radius-pill); padding: 7px 10px 7px 22px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      cursor: pointer; transition: box-shadow 0.2s ease;
+    }
+    .center-search-bar:hover { box-shadow: var(--shadow-float); }
+    .search-btn-label { font-size: 14px; font-weight: 600; padding: 0 16px; border-right: 1px solid var(--border); }
+    .search-btn-label:last-of-type { border-right: none; color: var(--ink-muted); font-weight: 400; }
+    .search-orb {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--primary); color: #ffffff;
+      display: grid; place-items: center; margin-left: 8px;
+    }
+
+    .user-nav { display: flex; align-items: center; gap: 16px; }
+    .host-link { font-size: 14px; font-weight: 600; padding: 10px 14px; border-radius: var(--radius-pill); }
+    .host-link:hover { background: var(--surface-soft); }
+    .user-pill {
+      display: flex; align-items: center; gap: 10px;
+      border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
+      padding: 6px 12px; cursor: pointer;
+    }
+
+    /* Category Icon Tabs */
+    .category-tabs {
+      display: flex; align-items: center; gap: 36px;
+      padding: 20px 0 16px; border-bottom: 1px solid var(--border);
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .category-item {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 600; color: var(--ink-muted);
+      cursor: pointer; white-space: nowrap; padding-bottom: 10px;
+      border-bottom: 2px solid transparent; transition: all 0.2s ease;
+    }
+    .category-item:hover, .category-item.active {
+      color: var(--ink); border-bottom-color: var(--ink);
+    }
+    .cat-icon { font-size: 20px; }
+
+    /* Stays Grid Section */
+    .stays-section { padding: 36px 0 60px; }
+    .stays-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
+    }
+    .stay-card {
+      display: flex; flex-direction: column; cursor: pointer;
+      position: relative;
+    }
+    .stay-img-wrap {
+      width: 100%; aspect-ratio: 16 / 10; border-radius: var(--radius-card);
+      overflow: hidden; position: relative; margin-bottom: 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+    }
+    .stay-like-btn {
+      position: absolute; top: 14px; right: 14px;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: rgba(0,0,0,0.25); backdrop-filter: blur(8px);
+      display: grid; place-items: center; color: #fff; font-size: 16px;
+    }
+    .guest-favorite-badge {
+      position: absolute; top: 14px; left: 14px;
+      background: #ffffff; color: var(--ink); font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    }
+    .stay-details { display: flex; flex-direction: column; gap: 4px; }
+    .stay-header-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .stay-title { font-size: 16px; font-weight: 600; }
+    .stay-rating { display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 600; }
+    .stay-distance { font-size: 14px; color: var(--ink-muted); }
+    .stay-dates { font-size: 14px; color: var(--ink-muted); }
+    .stay-price-row { margin-top: 4px; font-size: 15px; }
+    .stay-price { font-weight: 700; }
+
+    /* Host Banner */
+    .host-banner {
+      background: linear-gradient(135deg, #ff385c 0%, #bd1e59 100%);
+      border-radius: 24px; padding: clamp(40px, 6vw, 64px);
+      color: #ffffff; display: flex; justify-content: space-between;
+      align-items: center; gap: 32px; margin: 40px 0 60px;
+    }
+    .host-content h2 {
+      font-size: clamp(28px, 4vw, 44px); font-weight: 800;
+      line-height: 1.1; margin-bottom: 14px; letter-spacing: -0.03em;
+    }
+    .host-content p { font-size: 16px; opacity: 0.9; max-width: 520px; }
+    .host-cta-btn {
+      background: #ffffff; color: var(--ink); font-size: 15px; font-weight: 700;
+      padding: 16px 32px; border-radius: var(--radius-sm); white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15); transition: transform 0.2s ease;
+    }
+    .host-cta-btn:hover { transform: scale(1.03); }
+
+    /* Token Showcase Bar */
+    .spec-token-panel {
+      padding: 20px 24px; background: var(--surface-soft);
+      border: 1px solid var(--border); border-radius: var(--radius-card);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px; font-size: 12px; margin-bottom: 40px;
+    }
+    .tokens-list { display: flex; align-items: center; gap: 16px; }
+    .token-chip { display: flex; align-items: center; gap: 8px; }
+    .token-circle { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border); padding: 36px 0 48px;
+      font-size: 13px; color: var(--ink-muted);
+    }
+    .footer-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .center-search-bar { display: none; }
+      .stays-grid { grid-template-columns: 1fr; }
+      .host-banner { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <div class="brand-group">
+        <svg class="brand-logo" viewBox="0 0 32 32">
+          <path d="M16 1c2.008 0 3.463.963 4.751 3.269l.533 1.025c1.954 3.83 6.114 12.54 7.1 14.836 1.489 3.483 1.343 6.275-.411 7.828-1.579 1.397-3.955 1.637-6.52.668-2.073-.782-4.004-2.584-5.453-4.992-1.45 2.408-3.38 4.21-5.453 4.992-2.565.969-4.941.729-6.52-.668-1.754-1.553-1.9-4.345-.411-7.828.986-2.296 5.146-11.006 7.1-14.836l.533-1.025C12.537 1.963 13.992 1 16 1zm0 2c-1.353 0-2.316.633-3.238 2.277l-.462.888C10.428 9.948 6.32 18.544 5.378 20.739c-1.127 2.637-.96 4.549.206 5.581.996.881 2.66 1.045 4.675.283 1.897-.716 3.73-2.482 5.09-4.957l.651-1.178.651 1.178c1.36 2.475 3.193 4.241 5.09 4.957 2.015.762 3.679.598 4.675-.283 1.166-1.032 1.333-2.944.206-5.581-.942-2.195-5.05-10.791-6.922-14.574l-.462-.888C18.316 3.633 17.353 3 16 3zm0 13a4 4 0 110 8 4 4 0 010-8z"/>
+        </svg>
+        <span class="brand-text">airbnb</span>
+      </div>
+
+      <!-- Center Floating Search Bar -->
+      <div class="center-search-bar">
+        <span class="search-btn-label">Anywhere</span>
+        <span class="search-btn-label">Any week</span>
+        <span class="search-btn-label">Add guests</span>
+        <div class="search-orb">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right User Actions -->
+      <div class="user-nav">
+        <a href="#host" class="host-link">Airbnb your home</a>
+        <div class="user-pill">
+          <span>☰</span>
+          <span style="width:24px; height:24px; border-radius:50%; background:#717171; color:#fff; display:grid; place-items:center; font-size:11px;">👤</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- CATEGORY TABS -->
+    <nav class="category-tabs" aria-label="Stays Categories">
+      <div class="category-item active">
+        <span class="cat-icon">🏖️</span>
+        <span>Beachfront</span>
+      </div>
+      <div class="category-item">
+        <span class="cat-icon">🏡</span>
+        <span>Cabins</span>
+      </div>
+      <div class="category-item">
+        <span class="cat-icon">🏰</span>
+        <span>Mansions</span>
+      </div>
+      <div class="category-item">
+        <span class="cat-icon">🏊</span>
+        <span>Amazing pools</span>
+      </div>
+      <div class="category-item">
+        <span class="cat-icon">⛰️</span>
+        <span>Top of the world</span>
+      </div>
+      <div class="category-item">
+        <span class="cat-icon">🎨</span>
+        <span>Design homes</span>
+      </div>
+      <div class="category-item">
+        <span class="cat-icon">🍇</span>
+        <span>Vineyards</span>
+      </div>
+    </nav>
+
+    <!-- STAYS GRID -->
+    <section class="stays-section" id="stays">
+      <div class="stays-grid">
+        <!-- Stay Card 1 -->
+        <article class="stay-card">
+          <div class="stay-img-wrap" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #f3a683 100%);">
+            <span class="guest-favorite-badge">Guest favorite</span>
+            <div class="stay-like-btn">♡</div>
+          </div>
+          <div class="stay-details">
+            <div class="stay-header-row">
+              <h3 class="stay-title">Amalfi Coast, Italy</h3>
+              <div class="stay-rating">★ 4.97</div>
+            </div>
+            <p class="stay-distance">Panoramic Mediterranean sea view</p>
+            <p class="stay-dates">Oct 14 – 19</p>
+            <p class="stay-price-row"><span class="stay-price">$380</span> night</p>
+          </div>
+        </article>
+
+        <!-- Stay Card 2 -->
+        <article class="stay-card">
+          <div class="stay-img-wrap" style="background: linear-gradient(135deg, #2b580c 0%, #639a67 60%, #d8ebb5 100%);">
+            <span class="guest-favorite-badge">Guest favorite</span>
+            <div class="stay-like-btn">♡</div>
+          </div>
+          <div class="stay-details">
+            <div class="stay-header-row">
+              <h3 class="stay-title">Kyoto, Japan</h3>
+              <div class="stay-rating">★ 4.99</div>
+            </div>
+            <p class="stay-distance">Traditional 120-year machiya townhouse</p>
+            <p class="stay-dates">Nov 3 – 8</p>
+            <p class="stay-price-row"><span class="stay-price">$245</span> night</p>
+          </div>
+        </article>
+
+        <!-- Stay Card 3 -->
+        <article class="stay-card">
+          <div class="stay-img-wrap" style="background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);">
+            <span class="guest-favorite-badge">Rare find</span>
+            <div class="stay-like-btn">♡</div>
+          </div>
+          <div class="stay-details">
+            <div class="stay-header-row">
+              <h3 class="stay-title">Aspen, Colorado</h3>
+              <div class="stay-rating">★ 4.95</div>
+            </div>
+            <p class="stay-distance">Ski-in, ski-out luxury mountain chalet</p>
+            <p class="stay-dates">Dec 10 – 15</p>
+            <p class="stay-price-row"><span class="stay-price">$520</span> night</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- HOST PROMO BANNER -->
+    <section class="host-banner" id="host">
+      <div class="host-content">
+        <h2>Airbnb it easily with Airbnb Setup.</h2>
+        <p>One-to-one guidance from a Superhost, your first reservation protection, and specialized support every step of the way.</p>
+      </div>
+      <a href="#stays" class="host-cta-btn">Airbnb Setup</a>
+    </section>
+
+    <!-- SPEC TOKEN PANEL -->
+    <div class="spec-token-panel">
+      <div class="tokens-list">
+        <strong>DESIGN TOKENS:</strong>
+        <div class="token-chip"><div class="token-circle" style="background:#ff385c;"></div><span>Rausch #ff385c</span></div>
+        <div class="token-chip"><div class="token-circle" style="background:#222222;"></div><span>Ink #222222</span></div>
+        <div class="token-chip"><div class="token-circle" style="background:#ffffff;"></div><span>Canvas #ffffff</span></div>
+      </div>
+      <div>
+        <span>RADIUS: 18PX / 9999PX · AIRBNB CEREAL SANS</span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="shell footer-row">
+      <span>© 2026 Airbnb, Inc. · Privacy · Terms · Sitemap</span>
+      <span>English (US) · $ USD</span>
+    </div>
+  </footer>
+</body>
+</html>

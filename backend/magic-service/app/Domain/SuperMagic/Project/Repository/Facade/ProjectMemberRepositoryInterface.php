@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\SuperMagic\Project\Repository\Facade;
 
 use App\Domain\SuperMagic\Project\Entity\ProjectMemberEntity;
+use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectSortMode;
 
 /**
  * 项目成员仓储接口.
@@ -104,7 +105,9 @@ interface ProjectMemberRepositoryInterface
         string $sortDirection = 'desc',
         array $creatorUserIds = [],
         ?string $joinMethod = null,
-        array $organizationCodes = []
+        array $organizationCodes = [],
+        int $page = 1,
+        int $pageSize = 10
     ): array;
 
     /**
@@ -176,10 +179,13 @@ interface ProjectMemberRepositoryInterface
         ?string $projectName = null,
         int $page = 1,
         int $pageSize = 10,
-        string $sortField = 'last_active_at',
+        ?string $sortField = null,
         string $sortDirection = 'desc',
         ?array $organizationCodes = null,
-        bool $showHidden = false
+        bool $showHidden = false,
+        ?ProjectSortMode $sortMode = null,
+        bool $includeSpecialModes = false,
+        string $projectType = 'all'
     ): array;
 
     /**

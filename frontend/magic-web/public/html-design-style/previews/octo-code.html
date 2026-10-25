@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Octo Code — Git Repository &amp; Pull Request Platform</title>
+  <style>
+    :root {
+      --bg: #0D1117;
+      --surface: #161B22;
+      --surface-elevated: #1C2128;
+      --surface-overlay: #21262D;
+      --border: #30363D;
+      --border-muted: #21262D;
+      --text-primary: #E6EDF3;
+      --text-secondary: #8B949E;
+      --primary: #2F81F7;
+      --green: #238636;
+      --green-bright: #3FB950;
+      --orange: #F78166;
+      --purple: #8957E5;
+      --red: #F85149;
+      --yellow: #D29922;
+      --font-ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: var(--bg); color: var(--text-primary); font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    .top-header { background: var(--surface); border-bottom: 1px solid var(--border-muted); height: 50px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; }
+    .brand-group { display: flex; align-items: center; gap: 12px; }
+    .octo-icon { width: 26px; height: 26px; fill: var(--text-primary); }
+    .search-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; width: 240px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+    .search-key { font-size: 10px; background: var(--surface-overlay); border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px; color: var(--text-secondary); }
+    .nav-tabs-global { display: flex; gap: 12px; font-size: 12px; font-weight: 500; }
+    .nav-tabs-global a { color: var(--text-secondary); text-decoration: none; }
+    .user-avatar { width: 24px; height: 24px; border-radius: 50%; background: #2f81f7; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; }
+    .repo-subnav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 18px 0; }
+    .repo-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .repo-breadcrumbs { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 600; }
+    .repo-breadcrumbs a { color: var(--primary); text-decoration: none; }
+    .repo-badge-public { font-size: 11px; font-weight: 500; border: 1px solid var(--border); border-radius: 9999px; padding: 1px 6px; color: var(--text-secondary); }
+    .repo-actions { display: flex; gap: 6px; }
+    .btn-repo { background: var(--surface-overlay); border: 1px solid var(--border); color: var(--text-primary); border-radius: 6px; padding: 3px 8px; font-size: 11.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+    .repo-tabs { display: flex; gap: 14px; font-size: 13px; font-weight: 500; }
+    .tab-item { padding: 5px 3px 8px; color: var(--text-secondary); text-decoration: none; display: flex; align-items: center; gap: 5px; position: relative; }
+    .tab-item.active { color: var(--text-primary); }
+    .tab-item.active::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: var(--orange); border-radius: 2px 2px 0 0; }
+    .tab-counter { font-size: 11px; background: rgba(110, 118, 129, 0.4); border-radius: 9999px; padding: 0 5px; }
+    .main-body { max-width: 1280px; margin: 12px auto; padding: 0 18px; display: grid; grid-template-columns: 1fr 310px; gap: 14px; }
+    .pr-header { grid-column: 1 / -1; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; }
+    .pr-title-wrap { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    .pr-title { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+    .pr-number { color: var(--text-secondary); font-weight: 400; }
+    .pr-meta-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+    .badge-status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: var(--green); color: #fff; }
+    .badge-protected { display: inline-flex; align-items: center; gap: 4px; background: rgba(56, 139, 253, 0.15); border: 1px solid rgba(56, 139, 253, 0.4); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .branch-tag { font-family: var(--font-mono); font-size: 11px; background: rgba(56, 139, 253, 0.15); color: var(--primary); padding: 1px 5px; border-radius: 4px; }
+    .content-left { display: flex; flex-direction: column; gap: 14px; }
+    .commit-graph-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .card-heading { background: var(--surface-elevated); padding: 8px 14px; font-size: 12.5px; font-weight: 600; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .graph-viewport { padding: 12px 14px; }
+    .graph-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; position: relative; font-size: 12.5px; }
+    .graph-item:last-child { margin-bottom: 0; }
+    .graph-lane { width: 24px; display: flex; justify-content: center; position: relative; }
+    .node-dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--bg); z-index: 2; }
+    .dot-main { background: var(--green-bright); box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.25); }
+    .dot-feat { background: var(--primary); box-shadow: 0 0 0 2px rgba(47, 129, 247, 0.25); }
+    .dot-merge { background: var(--purple); box-shadow: 0 0 0 2px rgba(137, 87, 229, 0.3); }
+    .lane-line { position: absolute; top: -12px; bottom: -12px; width: 2px; z-index: 1; }
+    .line-green { background: #238636; }
+    .line-blue { background: #2f81f7; }
+    .commit-msg { font-weight: 500; color: var(--text-primary); flex: 1; }
+    .commit-sha { font-family: var(--font-mono); font-size: 11.5px; color: var(--primary); background: rgba(56, 139, 253, 0.1); padding: 1px 5px; border-radius: 4px; text-decoration: none; }
+    .commit-time { font-size: 11.5px; color: var(--text-secondary); }
+    .timeline-comment-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .comment-header { background: var(--surface-elevated); padding: 7px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
+    .author-meta { display: flex; align-items: center; gap: 7px; }
+    .author-name { font-weight: 600; color: var(--text-primary); }
+    .author-badge { font-size: 10.5px; border: 1px solid var(--border); padding: 0 5px; border-radius: 9999px; color: var(--text-secondary); }
+    .comment-body { padding: 12px 14px; }
+    .diff-quote-box { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 10px; font-family: var(--font-mono); font-size: 11.5px; overflow-x: auto; }
+    .diff-file-tag { background: var(--surface-overlay); padding: 3px 8px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 10.5px; }
+    .diff-row { display: flex; padding: 2px 0; }
+    .diff-row.del { background: rgba(248, 81, 73, 0.15); color: #ffa198; }
+    .diff-row.add { background: rgba(63, 185, 80, 0.15); color: #7ee787; }
+    .diff-code-text { padding: 0 8px; white-space: pre; }
+    .comment-text { font-size: 13px; color: var(--text-primary); margin-bottom: 8px; line-height: 1.5; }
+    .reactions-bar { display: flex; gap: 5px; }
+    .pill-reaction { background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 9999px; padding: 1px 6px; font-size: 11px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 3px; }
+    .pill-reaction.active { border-color: var(--primary); background: rgba(56, 139, 253, 0.15); color: var(--primary); }
+    .review-reply-box { border-top: 1px solid var(--border); padding: 7px 12px; background: var(--surface-elevated); display: flex; align-items: center; gap: 8px; }
+    .reply-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--text-primary); font-size: 12px; outline: none; }
+    .btn-green { background: var(--green); color: #fff; border: 1px solid rgba(240, 246, 252, 0.1); border-radius: 6px; padding: 3px 9px; font-size: 11.5px; font-weight: 500; cursor: pointer; }
+    .content-right { display: flex; flex-direction: column; gap: 12px; }
+    .sidebar-widget { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+    .widget-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .reviewer-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+    .reviewer-row:last-child { margin-bottom: 0; }
+    .rev-user { display: flex; align-items: center; gap: 6px; }
+    .rev-status-pass { color: var(--green-bright); font-weight: 600; font-size: 11px; }
+    .check-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; padding: 4px 0; border-bottom: 1px solid var(--border-muted); }
+    .check-row:last-child { border-bottom: none; }
+    .labels-cluster { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag-chip { font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 9999px; }
+    .chip-perf { background: rgba(137, 87, 229, 0.2); color: #d2a8ff; border: 1px solid rgba(137, 87, 229, 0.4); }
+    .chip-raft { background: rgba(47, 129, 247, 0.2); color: #79c0ff; border: 1px solid rgba(47, 129, 247, 0.4); }
+    .chip-backend { background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Global Header -->
+  <header class="top-header">
+    <div class="brand-group">
+      <svg class="octo-icon" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <div class="search-box">
+        <span>Type <kbd>/</kbd> to search...</span>
+        <span class="search-key">/</span>
+      </div>
+      <nav class="nav-tabs-global">
+        <a href="#pulls">Pull requests</a>
+        <a href="#issues">Issues</a>
+        <a href="#codespaces">Codespaces</a>
+      </nav>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:12px; color:var(--text-secondary)">8 pending</span>
+      <div class="user-avatar">OA</div>
+    </div>
+  </header>
+
+  <!-- Repository Subnav -->
+  <section class="repo-subnav">
+    <div class="repo-title-row">
+      <div class="repo-breadcrumbs">
+        <svg width="15" height="15" fill="var(--text-secondary)" viewBox="0 0 16 16"><path d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1h-8a1 1 0 00-1 1v6.708A2.486 2.486 0 014.5 9h8V1.5z"/></svg>
+        <a href="#org">octo-consensus</a>
+        <span style="color:var(--text-secondary)">/</span>
+        <a href="#repo" style="color:var(--text-primary)">distributed-raft</a>
+        <span class="repo-badge-public">Public</span>
+      </div>
+
+      <div class="repo-actions">
+        <button class="btn-repo">★ Star <span>4,892</span></button>
+        <button class="btn-repo">⑂ Fork <span>612</span></button>
+      </div>
+    </div>
+
+    <div class="repo-tabs">
+      <a href="#code" class="tab-item">&lt;&gt; Code</a>
+      <a href="#issues" class="tab-item">⊙ Issues <span class="tab-counter">18</span></a>
+      <a href="#pulls" class="tab-item active">⑂ Pull requests <span class="tab-counter">4</span></a>
+      <a href="#actions" class="tab-item">▶ Actions</a>
+      <a href="#security" class="tab-item">🛡 Security</a>
+    </div>
+  </section>
+
+  <main class="main-body">
+
+    <section class="pr-header">
+      <div class="pr-title-wrap">
+        <h1 class="pr-title">feat(consensus): vectorized log replication with zero-copy batching <span class="pr-number">#482</span></h1>
+        <button class="btn-repo">Edit</button>
+      </div>
+      <div class="pr-meta-row">
+        <span class="badge-status">✓ Open</span>
+        <span class="badge-protected">🔒 Protected branch: strict checks required</span>
+        <span><strong>elena-vasquez</strong> wants to merge <strong>6 commits</strong> into</span>
+        <span class="branch-tag">main</span>
+        <span>from</span>
+        <span class="branch-tag">feat/vector-raft-pipeline</span>
+      </div>
+    </section>
+
+    <div class="content-left">
+      
+      <!-- Commit Tree Visualizer -->
+      <div class="commit-graph-card">
+        <div class="card-heading">
+          <span>COMMIT TREE VISUALIZER — 6 COMMITS IN PR</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--text-secondary)">LANES: MAIN + FEAT</span>
+        </div>
+        <div class="graph-viewport">
+          
+          <div class="graph-item">
+            <div class="graph-lane">
+              <div class="lane-line line-green" style="top:50%"></div>
+              <div class="node-dot dot-main"></div>
+            </div>
+            <span class="commit-msg">chore(release): bump consensus engine to v2.4.0</span>
+            <a href="#c1" class="commit-sha">7d92f14</a>
+            <span class="commit-time">main &bull; 4h ago</span>
+          </div>
+
+          <div class="graph-item">
+            <div class="graph-lane">
+              <div class="lane-line line-green"></div>
+              <div class="lane-line line-blue" style="left:16px"></div>
+              <div class="node-dot dot-feat"></div>
+            </div>
+            <span class="commit-msg">perf(wal): replace sequential write with ring buffer</span>
+            <a href="#c2" class="commit-sha">8a44e0b</a>
+            <span class="commit-time">elena &bull; 3h ago</span>
+          </div>
+
+          <div class="graph-item">
+            <div class="graph-lane">
+              <div class="lane-line line-blue" style="left:16px"></div>
+              <div class="node-dot dot-feat"></div>
+            </div>
+            <span class="commit-msg">feat(rpc): add zero-copy vectorized frame buffer codec</span>
+            <a href="#c3" class="commit-sha">b290df1</a>
+            <span class="commit-time">elena &bull; 2h ago</span>
+          </div>
+
+          <div class="graph-item">
+            <div class="graph-lane">
+              <div class="lane-line line-blue" style="left:16px; bottom:50%"></div>
+              <div class="node-dot dot-merge"></div>
+            </div>
+            <span class="commit-msg">test(chaos): verify split-brain quorum stability under 30% loss</span>
+            <a href="#c4" class="commit-sha">f911a3c</a>
+            <span class="commit-time">ci-bot &bull; 45m ago</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Pull Request Code Review Conversation -->
+      <article class="timeline-comment-card">
+        <div class="comment-header">
+          <div class="author-meta">
+            <div class="user-avatar" style="width:20px; height:20px; background:#8957e5; font-size:9px;">MK</div>
+            <span class="author-name">marcus-k (Staff SRE)</span>
+            <span class="author-badge">Reviewer</span>
+            <span style="color:var(--text-secondary)">1h ago</span>
+          </div>
+          <span style="color:var(--green-bright); font-size:11.5px; font-weight:600;">✓ Changes Approved</span>
+        </div>
+
+        <div class="comment-body">
+          <p class="comment-text">
+            Excellent throughput gains on the IO benchmark! Left one small suggestion on the batch buffer allocation boundary to prevent unbounded heap spikes during sustained cluster recoveries.
+          </p>
+
+          <!-- Inline Diff Quote Snippet -->
+          <div class="diff-quote-box">
+            <div class="diff-file-tag">crates/raft-protocol/src/vector_pipe.rs</div>
+            <div class="diff-row del">
+              <span class="diff-code-text">-    let mut heap_buf = Vec::with_capacity(total_entries * MAX_FRAME_LEN);</span>
+            </div>
+            <div class="diff-row add">
+              <span class="diff-code-text">+    let mut heap_buf = self.pool.alloc_bounded(total_entries, MAX_CHUNK_LIMIT)?;</span>
+            </div>
+          </div>
+
+          <p class="comment-text">
+            Confirmed that all Jepsen consensus tests pass with zero stale reads. Ready to merge once CI passes.
+          </p>
+
+          <div class="reactions-bar">
+            <span class="pill-reaction active">👍 4</span>
+            <span class="pill-reaction active">🚀 2</span>
+            <span class="pill-reaction">❤️ 1</span>
+          </div>
+        </div>
+
+        <!-- Thread Reply Box -->
+        <div class="review-reply-box">
+          <input type="text" class="reply-input" value="Thanks Marcus! Applied the bounded pool patch in f911a3c." readonly>
+          <button class="btn-green">Comment</button>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Right Column: Reviewers, Checks, Branch Rules -->
+    <aside class="content-right">
+      
+      <!-- Reviewers Widget -->
+      <div class="sidebar-widget">
+        <div class="widget-title">
+          <span>Reviewers</span>
+          <span>2 required</span>
+        </div>
+        <div class="reviewer-row">
+          <div class="rev-user">
+            <div class="user-avatar" style="width:18px; height:18px; background:#8957e5; font-size:8px;">MK</div>
+            <span>marcus-k</span>
+          </div>
+          <span class="rev-status-pass">✓ Approved</span>
+        </div>
+        <div class="reviewer-row">
+          <div class="rev-user">
+            <div class="user-avatar" style="width:18px; height:18px; background:#238636; font-size:8px;">SL</div>
+            <span>sarah-lin</span>
+          </div>
+          <span style="color:var(--yellow); font-size:11.5px">● Reviewing</span>
+        </div>
+      </div>
+
+      <!-- Checks & Status -->
+      <div class="sidebar-widget">
+        <div class="widget-title">
+          <span>Branch Protection Checks</span>
+          <span style="color:var(--green-bright)">4/4 Passed</span>
+        </div>
+        <div class="check-row">
+          <span>✓ cargo-clippy-strict</span>
+          <span style="color:var(--text-secondary)">1m 12s</span>
+        </div>
+        <div class="check-row">
+          <span>✓ jepsen-linearizability</span>
+          <span style="color:var(--text-secondary)">4m 45s</span>
+        </div>
+        <div class="check-row">
+          <span>✓ codecov/patch (98.4%)</span>
+          <span style="color:var(--text-secondary)">52s</span>
+        </div>
+        <div class="check-row">
+          <span>✓ security/audit-clean</span>
+          <span style="color:var(--text-secondary)">18s</span>
+        </div>
+      </div>
+
+      <!-- Labels & Metadata -->
+      <div class="sidebar-widget">
+        <div class="widget-title"><span>Labels</span></div>
+        <div class="labels-cluster">
+          <span class="tag-chip chip-perf">perf: vectorization</span>
+          <span class="tag-chip chip-raft">consensus: raft</span>
+          <span class="tag-chip chip-backend">backend: rust</span>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+</body>
+</html>

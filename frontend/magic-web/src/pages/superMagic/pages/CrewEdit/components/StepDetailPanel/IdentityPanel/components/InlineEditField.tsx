@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { PencilLine } from "lucide-react"
 import SmartTooltip from "@/components/other/SmartTooltip"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 
 /** Card-native inline editable field - no input box, writes directly onto the card */
 export interface InlineEditFieldProps {

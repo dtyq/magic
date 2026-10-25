@@ -5,6 +5,7 @@ import {
 	type WidgetCommandName,
 	type WidgetCommandMessage,
 	type WidgetConfigMessage,
+	type WidgetMentionSearchMessage,
 	type WidgetResponseMessage,
 } from "./protocol"
 import type { MagicWidget } from "./types"
@@ -22,6 +23,32 @@ interface PendingRequest {
 	timer: number
 }
 
+/** Rejects malformed host results before they cross back into the iframe editor. */
+function isCustomMentionSearchResult(
+	value: unknown,
+): value is MagicWidget.CustomMentionSearchResult[] {
+	return (
+		Array.isArray(value) &&
+		value.every((result) => {
+			if (!result || typeof result !== "object" || Array.isArray(result)) return false
+			const record = result as Record<string, unknown>
+			return (
+				typeof record.groupId === "string" &&
+				Array.isArray(record.items) &&
+				(record.items as unknown[]).every((item) => {
+					if (!item || typeof item !== "object" || Array.isArray(item)) return false
+					const itemRecord = item as Record<string, unknown>
+					return (
+						typeof itemRecord.id === "string" &&
+						typeof itemRecord.type === "string" &&
+						typeof itemRecord.text === "string"
+					)
+				})
+			)
+		})
+	)
+}
+
 /** Creates a public error with a stable machine-readable SDK code. */
 export function createWidgetCommandError(
 	code: MagicWidget.CommandErrorCode,
@@ -30,6 +57,18 @@ export function createWidgetCommandError(
 	const error = new Error(message) as MagicWidget.CommandError
 	error.code = code
 	return error
+}
+
+/** Preserves iframe-provided public error codes while falling back for unknown protocol values. */
+function isCommandErrorCode(value: unknown): value is MagicWidget.CommandErrorCode {
+	return (
+		value === "NOT_MOUNTED" ||
+		value === "INVALID_INPUT" ||
+		value === "INVALID_CONFIG" ||
+		value === "IFRAME_NOT_READY" ||
+		value === "COMMAND_FAILED" ||
+		value === "DESTROYED"
+	)
 }
 
 /** Generates identifiers without exposing host business data in protocol metadata. */
@@ -62,9 +101,145 @@ export class WidgetBridge {
 		private readonly iframe: HTMLIFrameElement,
 		private readonly targetOrigin: string,
 		private readonly instanceId: string,
+		private readonly headerActions: Partial<
+			Record<MagicWidget.HeaderActionName, MagicWidget.HeaderActionHandler>
+		> = {},
+		private readonly customMentionSearch?: MagicWidget.CustomMentionSearchHandler,
 	) {
 		window.addEventListener("message", this.handleMessage)
 		this.iframe.addEventListener("load", this.handleIframeLoad)
+	}
+
+	private readonly mentionSearchControllers = new Map<string, AbortController>()
+
+	/** Resolves one iframe search request through the host callback without blocking editor commands. */
+	private handleMentionSearch = async (message: WidgetMentionSearchMessage): Promise<void> => {
+		if (!this.customMentionSearch) {
+			this.iframe.contentWindow?.postMessage(
+				{
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: this.instanceId,
+					requestId: message.requestId,
+					type: "response",
+					ok: false,
+					error: {
+						code: "MENTION_SEARCH_UNAVAILABLE",
+						message: "Custom Mention search is not configured",
+					},
+				},
+				this.targetOrigin,
+			)
+			return
+		}
+
+		const controller = new AbortController()
+		this.mentionSearchControllers.set(message.requestId, controller)
+		try {
+			const results = await this.customMentionSearch({
+				query: message.query,
+				scope: message.scope,
+				signal: controller.signal,
+			})
+			if (controller.signal.aborted || this.destroyed) return
+			if (!isCustomMentionSearchResult(results)) {
+				throw new Error("Custom Mention search returned an invalid result")
+			}
+			this.iframe.contentWindow?.postMessage(
+				{
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: this.instanceId,
+					requestId: message.requestId,
+					type: "response",
+					ok: true,
+					result: { customMentionSearch: results },
+				},
+				this.targetOrigin,
+			)
+		} catch (error) {
+			if (controller.signal.aborted || this.destroyed) return
+			this.iframe.contentWindow?.postMessage(
+				{
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: this.instanceId,
+					requestId: message.requestId,
+					type: "response",
+					ok: false,
+					error: {
+						code: "MENTION_SEARCH_FAILED",
+						message:
+							error instanceof Error ? error.message : "Custom Mention search failed",
+					},
+				},
+				this.targetOrigin,
+			)
+		} finally {
+			this.mentionSearchControllers.delete(message.requestId)
+		}
+	}
+
+	/** Cancels the host callback associated with an iframe search request. */
+	private cancelMentionSearch = (requestId: string): void => {
+		this.mentionSearchControllers.get(requestId)?.abort()
+		this.mentionSearchControllers.delete(requestId)
+	}
+
+	/** Runs a host header handler and reports whether the host owned that action. The iframe does not fall back. */
+	private handleHeaderAction = async (message: {
+		requestId: string
+		action: MagicWidget.HeaderActionName
+		context?: MagicWidget.HeaderActionContext
+	}) => {
+		const handler = this.headerActions[message.action]
+		if (!handler) {
+			this.iframe.contentWindow?.postMessage(
+				{
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: this.instanceId,
+					requestId: message.requestId,
+					type: "response",
+					ok: true,
+					result: { headerActionHandled: false },
+				},
+				this.targetOrigin,
+			)
+			return
+		}
+
+		try {
+			await handler(message.context ?? { action: message.action })
+			this.iframe.contentWindow?.postMessage(
+				{
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: this.instanceId,
+					requestId: message.requestId,
+					type: "response",
+					ok: true,
+					result: { headerActionHandled: true },
+				},
+				this.targetOrigin,
+			)
+		} catch (error) {
+			this.iframe.contentWindow?.postMessage(
+				{
+					protocol: WIDGET_PROTOCOL,
+					version: WIDGET_PROTOCOL_VERSION,
+					instanceId: this.instanceId,
+					requestId: message.requestId,
+					type: "response",
+					ok: false,
+					error: {
+						code: "HEADER_ACTION_FAILED",
+						message: error instanceof Error ? error.message : "Header action failed",
+					},
+				},
+				this.targetOrigin,
+			)
+		}
 	}
 
 	/** Reports whether the iframe has announced that its agent editor is ready. */
@@ -280,10 +455,12 @@ export class WidgetBridge {
 		)
 	}
 
-	/** Sends a complete configuration snapshot without changing the iframe URL. */
-	async sendConfig(config: MagicWidget.WidgetConfig): Promise<void> {
+	/** Sends a complete configuration snapshot and returns any provider-side filtering diagnostic. */
+	async sendConfig(
+		config: MagicWidget.WidgetConfig,
+	): Promise<MagicWidget.ConfigWarning | undefined> {
 		await this.waitUntilConfigReady()
-		await this.sendRequest(
+		const result = await this.sendRequest(
 			(requestId) => ({
 				protocol: WIDGET_PROTOCOL,
 				version: WIDGET_PROTOCOL_VERSION,
@@ -294,6 +471,7 @@ export class WidgetBridge {
 			}),
 			DEFAULT_COMMAND_TIMEOUT_MS,
 		)
+		return result?.configWarning
 	}
 
 	/** Accepts messages only from the bound iframe, origin, protocol, and instance. */
@@ -305,6 +483,18 @@ export class WidgetBridge {
 			!isWidgetProtocolMessage(event.data) ||
 			event.data.instanceId !== this.instanceId
 		) {
+			return
+		}
+		if (event.data.type === "header_action") {
+			void this.handleHeaderAction(event.data)
+			return
+		}
+		if (event.data.type === "mention_search") {
+			void this.handleMentionSearch(event.data)
+			return
+		}
+		if (event.data.type === "mention_search_cancel") {
+			this.cancelMentionSearch(event.data.requestId)
 			return
 		}
 
@@ -345,7 +535,9 @@ export class WidgetBridge {
 		this.pendingRequests.delete(event.data.requestId)
 		pending.reject(
 			createWidgetCommandError(
-				"COMMAND_FAILED",
+				isCommandErrorCode(event.data.error?.code)
+					? event.data.error.code
+					: "COMMAND_FAILED",
 				event.data.error?.message ?? "Magic widget command failed",
 			),
 		)
@@ -377,5 +569,7 @@ export class WidgetBridge {
 		this.configReadyListeners.clear()
 		this.previewFullscreenListeners.clear()
 		this.runtimeEventListeners.clear()
+		this.mentionSearchControllers.forEach((controller) => controller.abort())
+		this.mentionSearchControllers.clear()
 	}
 }

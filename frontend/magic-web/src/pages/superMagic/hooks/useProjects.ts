@@ -1,3 +1,4 @@
+import { canDeleteRecordingProjects } from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { useCallback, useEffect, useState } from "react"
 import type { CreatedProject, ProjectListItem } from "../pages/Workspace/types"
 import { SuperMagicApi } from "@/apis"
@@ -13,6 +14,7 @@ import { isCollaborationWorkspace, SHARE_WORKSPACE_ID } from "../constants"
 import { useNoPermissionCollaborationProject } from "./useNoPermissionCollaborationProject"
 import magicToast from "@/components/base/MagicToaster/utils"
 import SuperMagicService from "@/pages/superMagic/services"
+import { analyticsService } from "@/services/analytics"
 
 export const enum COLLABORATION_TAB_KEY {
 	FROM_OTHER = "received",
@@ -276,6 +278,7 @@ export function useProjects({ selectedWorkspace, onWorkspaceStateChange }: UsePr
 		async (id: string, isAutoSelect = true) => {
 			if (!selectedWorkspace) return
 			try {
+				if (!canDeleteRecordingProjects([id])) return
 				await SuperMagicApi.deleteProject({ id })
 				await fetchProjects({ workspaceId: selectedWorkspace.id, isAutoSelect })
 				magicToast.success(t("project.deleteProjectSuccess"))
@@ -322,6 +325,10 @@ export function useProjects({ selectedWorkspace, onWorkspaceStateChange }: UsePr
 			if (!selectedWorkspace) return null
 			try {
 				const defaultProjectName = ""
+				analyticsService.report("project_create_attempted", {
+					workspaceId: selectedWorkspace.id,
+					mode: projectMode,
+				})
 				const res = await SuperMagicApi.createProject({
 					workspace_id: selectedWorkspace.id,
 					project_name: defaultProjectName,

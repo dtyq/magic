@@ -1,4 +1,5 @@
 import { makeAutoObservable } from "mobx"
+import { parseUsedPixelValue } from "../../components/StylePanel/utils/dimensionValue"
 
 /**
  * 文本选择信息（选中部分文字）
@@ -30,6 +31,12 @@ export interface SelectedElementInfo {
 	intrinsicAspectRatio?: number
 	/** 是否为文本元素 */
 	isTextElement?: boolean
+	/** 是否包含元素自身的非空文本节点（不包含后代元素文本） */
+	hasDirectTextContent?: boolean
+	/** 元素当前的文本内容 */
+	textContent?: string
+	/** 元素当前的内联 CSS 声明 */
+	inlineStyles?: Record<string, string>
 	/** 计算后的样式 */
 	computedStyles: {
 		// 文字样式
@@ -50,6 +57,11 @@ export interface SelectedElementInfo {
 		width: string
 		height: string
 		display: string
+		parentSelector?: string
+		parentDisplay?: string
+		parentFlexDirection?: string
+		parentJustifyContent?: string
+		parentAlignItems?: string
 		position: string
 
 		// 边距
@@ -75,18 +87,58 @@ export interface SelectedElementInfo {
 		flexDirection: string
 		justifyContent: string
 		alignItems: string
+		alignContent?: string
 		flexWrap: string
+		flexGrow?: string
+		flexShrink?: string
+		flexBasis?: string
+		alignSelf?: string
+		order?: string
 		gap: string
+		rowGap?: string
+		columnGap?: string
 
 		// Grid 布局
 		gridTemplateColumns: string
 		gridTemplateRows: string
+		gridAutoFlow?: string
+		gridAutoColumns?: string
+		gridAutoRows?: string
+		gridColumn?: string
+		gridRow?: string
 		justifyItems: string
+		justifySelf?: string
+
+		// 图片
+		objectFit?: string
+		objectPosition?: string
 
 		// 阴影与效果
 		opacity: string
 		boxShadow: string
 		textShadow: string
+	}
+	ancestors?: Array<{
+		selector: string
+		tagName: string
+		textContent?: string
+		rect: {
+			top: number
+			left: number
+			width: number
+			height: number
+		}
+	}>
+	attributes?: {
+		src?: string
+		alt?: string
+		title?: string
+		href?: string
+		dataMagicHref?: string
+		target?: string
+		rel?: string
+		download?: string
+		ariaLabel?: string
 	}
 }
 
@@ -123,6 +175,20 @@ export class StylePanelStore {
 	/** 当前激活的样式区域 */
 	activeSection: "typography" | "layout" | "background" | "border" | null = null
 
+	/** Last More Styles tab per element in this edit session */
+	moreStylesTabBySelector = new Map<string, string>()
+
+	/** Shared flex/grid gap lock for More Styles and canvas handles */
+	gapAxesLinked = true
+
+	/** Overlay hover preview for ancestor crumbs and parent-impact hints. */
+	previewRect: {
+		top: number
+		left: number
+		width: number
+		height: number
+	} | null = null
+
 	/** 历史状态 */
 	historyState: HistoryStateInfo = {
 		canUndo: false,
@@ -143,6 +209,7 @@ export class StylePanelStore {
 		// Keep text selection when re-selecting the same element (e.g., after style refresh)
 		if (this.selectedElement?.selector !== element.selector) {
 			this.textSelection = null
+			this.syncGapAxesLinked(element)
 		}
 
 		this.selectedElement = element
@@ -156,6 +223,7 @@ export class StylePanelStore {
 		this.selectedElements = elements
 		this.selectedElement = null // Clear single selection when multi-selecting
 		this.textSelection = null // Clear text selection in multi-select mode
+		this.gapAxesLinked = false
 	}
 
 	/**
@@ -192,6 +260,18 @@ export class StylePanelStore {
 		this.selectedElements = []
 		this.textSelection = null
 		this.isSelectionMode = false
+		this.previewRect = null
+	}
+
+	/**
+	 * 清除当前选择状态，但保留选择模式。
+	 * 用于 iframe 内容更新或取消选择事件，避免在 strict-mode 下直接修改 observable。
+	 */
+	clearSelectedElements() {
+		this.selectedElement = null
+		this.selectedElements = []
+		this.textSelection = null
+		this.previewRect = null
 	}
 
 	/**
@@ -222,6 +302,11 @@ export class StylePanelStore {
 		}
 	}
 
+	updateComputedStyles(styles: Partial<SelectedElementInfo["computedStyles"]>) {
+		if (!this.selectedElement) return
+		Object.assign(this.selectedElement.computedStyles, styles)
+	}
+
 	/**
 	 * 切换面板展开状态
 	 */
@@ -237,10 +322,49 @@ export class StylePanelStore {
 	}
 
 	/**
+	 * Remember the More Styles tab for one element.
+	 */
+	rememberMoreStylesTab(selector: string, tab: string) {
+		if (!selector || !tab) return
+		this.moreStylesTabBySelector.set(selector, tab)
+	}
+
+	/**
+	 * Read the cached More Styles tab for one element.
+	 */
+	getMoreStylesTab(selector: string): string | undefined {
+		if (!selector) return undefined
+		return this.moreStylesTabBySelector.get(selector)
+	}
+
+	/**
 	 * 更新历史状态
 	 */
 	updateHistoryState(state: HistoryStateInfo) {
 		this.historyState = state
+	}
+
+	setGapAxesLinked(linked: boolean) {
+		this.gapAxesLinked = linked
+	}
+
+	setPreviewRect(
+		rect: {
+			top: number
+			left: number
+			width: number
+			height: number
+		} | null,
+	) {
+		this.previewRect = rect
+	}
+
+	private syncGapAxesLinked(element: SelectedElementInfo) {
+		const row = parseUsedPixelValue(element.computedStyles.rowGap ?? element.computedStyles.gap)
+		const column = parseUsedPixelValue(
+			element.computedStyles.columnGap ?? element.computedStyles.gap,
+		)
+		this.gapAxesLinked = row !== null && column !== null && row === column
 	}
 
 	/**
@@ -253,6 +377,9 @@ export class StylePanelStore {
 		this.isSelectionMode = false
 		this.isPanelExpanded = true
 		this.activeSection = null
+		this.moreStylesTabBySelector.clear()
+		this.gapAxesLinked = true
+		this.previewRect = null
 		this.historyState = {
 			canUndo: false,
 			canRedo: false,

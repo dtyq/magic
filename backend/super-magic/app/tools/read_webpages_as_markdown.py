@@ -11,6 +11,10 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from agentlang.context.tool_context import ToolContext
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+from app.core.entity.message.server_message import OperationResultStatus
+from app.core.entity.message.server_message import OperationResultItem, OperationResultKind, OperationResultUrlTarget
+from urllib.parse import urlparse
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
@@ -332,7 +336,7 @@ Batch webpage reading tool that aggregates multiple webpage contents into single
                 )
             )
 
-        return ToolDetail(
+        report = ToolDetail(
             type=DisplayType.MD,
             data=FileContent(
                 file_name=f"深度阅读多个网页内容结果 (共{url_count}个网页)",
@@ -341,6 +345,14 @@ Batch webpage reading tool that aggregates multiple webpage contents into single
         )
 
 
+
+        items = [OperationResultItem(
+            label=str(page.get("title") or urlparse(page["url"]).netloc), kind=OperationResultKind.TEXT,
+            status=OperationResultStatus.SUCCESS if page.get("is_success") else OperationResultStatus.ERROR,
+            message="", target=OperationResultUrlTarget(url=page["url"]),
+        ) for page in (result.data or {}).get("webpages", [])
+            if urlparse(page.get("url", "")).scheme in {"http", "https"}]
+        return ToolDetailFactory.create_operation_result_detail(items, report=report, stage="read")
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""

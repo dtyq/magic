@@ -187,6 +187,23 @@ export interface SuperMagicNodeExtraSuperAgent {
 	[key: string]: unknown
 }
 
+export type KnownModelErrorCode =
+	| "llm_timeout"
+	| "llm_connection_failed"
+	| "llm_rate_limited"
+	| "llm_service_error"
+	| "llm_config_error"
+	| "llm_request_rejected"
+
+export type ModelErrorSubject = { type: "text_model"; model_id: string; model_name?: string }
+export type ErrorRecoveryAction = { type: "switch_model_and_retry" } | { type: "retry" }
+
+export interface ModelError {
+	code: KnownModelErrorCode | (string & {})
+	subject?: ModelErrorSubject
+	actions: ErrorRecoveryAction[]
+}
+
 export interface SuperMagicNode {
 	topic_id?: string
 	message_id?: string
@@ -198,6 +215,7 @@ export interface SuperMagicNode {
 	task_id?: string
 	type?: string
 	status?: string
+	error?: ModelError
 	content?: string
 	steps?: unknown[]
 	event?: string

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { buildArticlePromptContent } from "../services/selfMediaPromptBuilder"
 import type {
 	ArticleDetail,

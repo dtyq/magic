@@ -1,5 +1,5 @@
 import { SupportLocales } from "@/constants/locale"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { globalConfigStore } from "@/stores/globalConfig"
 import { usePoppinsFont } from "@/styles/font"
 import { getAvatarUrl } from "@/utils/avatar"
@@ -12,6 +12,8 @@ interface MobileBrandHeroProps {
 	subtitleClassName?: string
 	titleClassName?: string
 	dataTestId?: string
+	subtitle?: string
+	title?: string
 }
 
 const HERO_LOGO_PIXEL_SIZE = 80
@@ -23,6 +25,8 @@ const MobileBrandHero = observer(function MobileBrandHero({
 	subtitleClassName,
 	titleClassName,
 	dataTestId,
+	subtitle,
+	title,
 }: MobileBrandHeroProps) {
 	const { t, i18n } = useTranslation("super")
 	const { t: tCommon } = useTranslation("common")
@@ -60,7 +64,7 @@ const MobileBrandHero = observer(function MobileBrandHero({
 					subtitleClassName,
 				)}
 			>
-				{t("home.sloganSubtitle")}
+				{subtitle ?? t("home.sloganSubtitle")}
 			</p>
 			<p
 				className={cn(
@@ -68,7 +72,7 @@ const MobileBrandHero = observer(function MobileBrandHero({
 					titleClassName,
 				)}
 			>
-				{t("home.sloganTitle")}
+				{title ?? t("home.sloganTitle")}
 			</p>
 		</div>
 	)

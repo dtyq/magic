@@ -9,6 +9,7 @@ use App\Interfaces\Contact\Facade\Open\MagicUserOpenApi;
 use App\Interfaces\Flow\Facade\Open\MagicFlowOpenApi;
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
 use App\Interfaces\ModelGateway\Facade\Open\DataQueryApi;
+use App\Interfaces\ModelGateway\Facade\Open\PersonaAvatarApi;
 use App\Interfaces\ModelGateway\Facade\Open\SlidesTemplateApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -31,11 +32,14 @@ Router::addGroup('/api/v1/open-api', function () {
 
 // Slides template APIs
 Router::addGroup('/api/v1/open-api', function () {
+    Router::get('/slides-templates/taxonomy', [SlidesTemplateApi::class, 'getTaxonomy']);
     Router::get('/slides-templates/{code}/file-url', [SlidesTemplateApi::class, 'getFileUrl']);
 }, ['middleware' => [ApiKeyMiddleware::class]]);
-// Slides template APIs（Deprecated)
-Router::addGroup('/api/v1/slides-templates', static function () {
-    Router::get('/{code}/file-url', [SlidesTemplateApi::class, 'getFileUrl']);
+
+// Persona avatar library APIs
+Router::addGroup('/api/v1/open-api', function () {
+    Router::get('/persona-avatars', [PersonaAvatarApi::class, 'getCatalog']);
+    Router::get('/persona-avatars/{id}/file-url', [PersonaAvatarApi::class, 'getFileUrl']);
 }, ['middleware' => [ApiKeyMiddleware::class]]);
 
 // Contact user lookup APIs

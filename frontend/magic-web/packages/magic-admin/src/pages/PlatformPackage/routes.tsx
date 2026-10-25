@@ -10,7 +10,6 @@ import {
 } from "@admin/const/common"
 
 const PlatformPackageLayout = lazy(() => import("./index.layout"))
-const InfoManagementPage = lazy(() => import("./InfoManagement/index.page"))
 const ModeManagementPage = lazy(() => import("./ModeManagement/index.page"))
 const ModelPage = lazy(() => import("./Model/index.page"))
 const ModelDetailPage = lazy(() => import("./ModelDetail/index.page"))
@@ -26,7 +25,6 @@ const EmployeeReviewPage = lazy(() => import("./EmployeeReview/index.page"))
 const SkillMarketPage = lazy(() => import("./SkillMarket/index.page"))
 const EmployeeMarketPage = lazy(() => import("./EmployeeMarket/index.page"))
 const AppMenuPage = lazy(() => import("./AppMenu/index.page"))
-const ProviderAccessPage = lazy(() => import("./ProviderAccess/index.page"))
 const SlidesTemplatePage = lazy(() => import("./SlidesTemplate/index.page"))
 
 export default {
@@ -34,6 +32,7 @@ export default {
 	path: RoutePath.Platform,
 	element: <PlatformPackageLayout />,
 	title: "nav.platform",
+	validateOrganization: ({ isOfficialOrg }) => isOfficialOrg,
 	meta: {
 		title: "nav.platform",
 	},
@@ -134,12 +133,8 @@ export default {
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(
-								PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_QUERY,
-							) ||
-							permissions.includes(
-								PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_EDIT,
-							)
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_VIDEO_MODEL_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_VIDEO_MODEL_EDIT)
 						)
 					},
 				},
@@ -150,12 +145,8 @@ export default {
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(
-								PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_QUERY,
-							) ||
-							permissions.includes(
-								PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_EDIT,
-							)
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_VIDEO_MODEL_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_VIDEO_MODEL_EDIT)
 						)
 					},
 				},
@@ -237,8 +228,8 @@ export default {
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_SKILL_MARKET_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_SKILL_MARKET_EDIT)
 						)
 					},
 				},
@@ -250,8 +241,8 @@ export default {
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_SKILL_REVIEW_QUERY) ||
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_SKILL_REVIEW_EDIT)
 						)
 					},
 				},
@@ -263,8 +254,10 @@ export default {
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+							permissions.includes(
+								PERMISSION_KEY_MAP.PLATFORM_EMPLOYEE_REVIEW_QUERY,
+							) ||
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_EMPLOYEE_REVIEW_EDIT)
 						)
 					},
 				},
@@ -276,8 +269,10 @@ export default {
 					validate: (permissions: string[], isSuperAdmin?: boolean) => {
 						return (
 							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.MODE_MANAGEMENT_EDIT)
+							permissions.includes(
+								PERMISSION_KEY_MAP.PLATFORM_EMPLOYEE_MARKET_QUERY,
+							) ||
+							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_EMPLOYEE_MARKET_EDIT)
 						)
 					},
 				},
@@ -323,34 +318,6 @@ export default {
 							isSuperAdmin ||
 							permissions.includes(PERMISSION_KEY_MAP.APP_MENU_QUERY) ||
 							permissions.includes(PERMISSION_KEY_MAP.APP_MENU_EDIT)
-						)
-					},
-				},
-				{
-					name: RouteName.AdminPlatformMaintenance,
-					path: RoutePath.PlatformMaintenance,
-					title: "nav.platformSubMenu.platformMaintenance",
-					element: <InfoManagementPage />,
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(PERMISSION_KEY_MAP.INFO_MANAGEMENT_QUERY) ||
-							permissions.includes(PERMISSION_KEY_MAP.INFO_MANAGEMENT_EDIT)
-						)
-					},
-				},
-				{
-					name: RouteName.AdminPlatformProviderAccess,
-					path: RoutePath.PlatformProviderAccess,
-					title: "nav.platformSubMenu.providerAccess",
-					element: <ProviderAccessPage />,
-					validate: (permissions: string[], isSuperAdmin?: boolean) => {
-						return (
-							isSuperAdmin ||
-							permissions.includes(
-								PERMISSION_KEY_MAP.PLATFORM_INFO_MANAGEMENT_QUERY,
-							) ||
-							permissions.includes(PERMISSION_KEY_MAP.PLATFORM_INFO_MANAGEMENT_EDIT)
 						)
 					},
 				},

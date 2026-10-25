@@ -1,5 +1,6 @@
 import { isObject } from "lodash-es"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
+import type { SuperMagicStoreMessageNode } from "@/pages/superMagic/stores/types"
 import { MessageStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { projectVisibleMessagesByRevokedTail } from "@/pages/superMagic/utils/project-visible-messages-by-revoked-tail"
 
@@ -17,7 +18,7 @@ interface MessageNodeSnapshot<TStatus = unknown> {
 
 interface ResolveTopicConversationLoadingStateParams {
 	topicMessages: SuperMagicMessageItem[]
-	getMessageNode: (superMessageId?: string) => unknown
+	getMessageNode: (superMessageId?: string) => SuperMagicStoreMessageNode | undefined
 	getOptimisticStatus: (message?: SuperMagicMessageItem) => unknown
 }
 

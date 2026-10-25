@@ -116,7 +116,16 @@ export const noopNativePort: NativePort = {
 	},
 	ui: {
 		getSafeArea() {
-			return Promise.reject()
+			// The web/open-source runtime has no native window insets. Resolve with
+			// the neutral values so consumers can use the same async contract without
+			// generating an expected-error log on every application mount.
+			return Promise.resolve({
+				safeAreaInsetTop: 0,
+				safeAreaInsetBottom: 0,
+				safeAreaInsetLeft: 0,
+				safeAreaInsetRight: 0,
+				dpi: 1,
+			})
 		},
 	},
 }

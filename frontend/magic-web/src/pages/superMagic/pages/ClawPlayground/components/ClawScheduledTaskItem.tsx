@@ -1,6 +1,6 @@
 import { Ellipsis, Timer } from "lucide-react"
 import { Switch } from "@/components/shadcn-ui/switch"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { DropdownDelegateProps } from "@/pages/superMagic/components/SuperMagicDropdown"
 import type { ClawCronTaskRecord } from "./claw-cron-task-file"
 

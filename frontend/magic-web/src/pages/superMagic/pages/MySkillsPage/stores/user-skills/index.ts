@@ -172,6 +172,8 @@ export class UserSkillsStore {
 				return skillsService.getCreatedSkills(params)
 			case "team-shared":
 				return skillsService.getTeamSharedSkills(params)
+			case "collaborated":
+				return skillsService.getCollaboratedSkills(params)
 			case "market-installed":
 				return skillsService.getMarketInstalledSkills(params)
 		}

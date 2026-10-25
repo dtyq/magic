@@ -50,16 +50,27 @@ pnpm --dir packages/html-sandbox build:npm
 
 The output is emitted to `packages/html-sandbox/dist`.
 
-Published exports:
+Public API (one import entry):
 
 ```ts
-import { startIframeRuntime } from "@dtyq/html-sandbox"
 import {
+	startIframeRuntime,
 	BaseRuntimeBridgeApiPlugin,
 	registerRuntimePlugins,
+	getParentOrigin,
+	isSafeHref,
 	type RuntimePluginClass,
-} from "@dtyq/html-sandbox/runtime"
+} from "@dtyq/html-sandbox"
 ```
+
+Importing the package does not start the iframe runtime. Call
+`startIframeRuntime()` explicitly in a custom shell; the built-in shell uses
+`auto-start.ts`. Existing runtime and utility subpaths remain available for
+backward compatibility. `index.html` is a separate HTML asset.
+
+The app and tests use the `magic-web-source` export condition to resolve all
+package entries to source. Add new public APIs to `src/index.ts` without adding
+consumer aliases or TypeScript path mappings.
 
 ## Application Composition
 

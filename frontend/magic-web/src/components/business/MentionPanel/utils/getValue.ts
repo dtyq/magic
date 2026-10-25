@@ -1,5 +1,6 @@
 import {
 	DirectoryMentionData,
+	AgentMentionData,
 	MentionItem,
 	MentionItemType,
 	ProjectFileMentionData,
@@ -40,7 +41,11 @@ export const getItemTypeDescription = (item: MentionItem, t: I18nTexts) => {
 		case MentionItemType.MCP:
 			return t.defaultItems.mcpExtensions
 		case MentionItemType.AGENT:
-			return t.defaultItems.agents
+			return (item.data as AgentMentionData | undefined)?.agent_source === "digital_employee"
+				? t.defaultItems.digitalEmployees
+				: t.defaultItems.agents
+		case MentionItemType.MICRO_APP:
+			return t.defaultItems.microApps
 		case MentionItemType.SKILL:
 			return getSkillMentionSourceLabel(item, t) || t.defaultItems.skills
 		case MentionItemType.TOOL:

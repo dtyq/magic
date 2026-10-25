@@ -6,6 +6,7 @@
 import type { EditorBridge } from "../core/EditorBridge"
 import { EditorLogger } from "../utils/EditorLogger"
 import { findElement } from "../utils/ElementSelector"
+import { getElementSelector } from "../utils/dom"
 import { normalizeColor, normalizeTextAlign } from "../utils/css"
 
 interface SelectionHandlersConfig {
@@ -61,12 +62,28 @@ export function registerSelectionHandlers(config: SelectionHandlersConfig): void
 			"flexDirection",
 			"justifyContent",
 			"alignItems",
+			"alignContent",
 			"flexWrap",
+			"flexGrow",
+			"flexShrink",
+			"flexBasis",
+			"alignSelf",
+			"order",
 			"gap",
+			"rowGap",
+			"columnGap",
 			// Grid layout
 			"gridTemplateColumns",
 			"gridTemplateRows",
+			"gridAutoFlow",
+			"gridAutoColumns",
+			"gridAutoRows",
+			"gridColumn",
+			"gridRow",
 			"justifyItems",
+			"justifySelf",
+			"objectFit",
+			"objectPosition",
 			// Effects
 			"opacity",
 			"boxShadow",
@@ -94,6 +111,22 @@ export function registerSelectionHandlers(config: SelectionHandlersConfig): void
 				styles[prop] = value
 			}
 		})
+		if (styles.display === "flex" && styles.justifyContent === "normal") {
+			styles.justifyContent = "flex-start"
+		}
+
+		const parent = element.parentElement
+		if (parent) {
+			const parentComputed = window.getComputedStyle(parent)
+			styles.parentSelector = getElementSelector(parent)
+			styles.parentDisplay = parentComputed.display
+			styles.parentFlexDirection = parentComputed.flexDirection
+			styles.parentJustifyContent =
+				parentComputed.display === "flex" && parentComputed.justifyContent === "normal"
+					? "flex-start"
+					: parentComputed.justifyContent
+			styles.parentAlignItems = parentComputed.alignItems
+		}
 
 		// For positioning properties (top, left, right, bottom), prefer inline styles
 		// because they reflect the actual values we set, not the computed values

@@ -1,9 +1,10 @@
 import type { MouseEvent } from "react"
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/shadcn-ui/sidebar"
 import { RouteName } from "@/routes/constants"
-import { getRoutePath } from "@/routes/history/helpers"
+import { getRoutePath, routesPathMatch } from "@/routes/history/helpers"
 import type { SidebarMarketMenuItem as SidebarMarketMenuItemConfig } from "./hooks/useSidebarMarketMenuItems.types"
 import { SlidesTemplateSidebarMenuItem } from "./SlidesTemplateSidebarMenuItem"
+import { useLocation } from "react-router"
 
 interface SidebarMarketMenuItemProps {
 	item: SidebarMarketMenuItemConfig
@@ -19,6 +20,9 @@ export function SidebarMarketMenuItem({
 	onNavigate,
 }: SidebarMarketMenuItemProps) {
 	const { routeName, testId, Icon } = item
+	const location = useLocation()
+	const activeRouteNames = item.activeRouteNames ?? [routeName]
+	const isActive = activeRouteNames.some((name) => routesPathMatch(name, location.pathname))
 	const href = getRoutePath({ name: routeName }) || "#"
 	const handleClick = (event: MouseEvent<HTMLAnchorElement>) => onNavigate(routeName, event)
 
@@ -30,6 +34,7 @@ export function SidebarMarketMenuItem({
 				Icon={Icon}
 				href={href}
 				collapsed={collapsed}
+				isActive={isActive}
 				onClick={handleClick}
 			/>
 		)
@@ -42,6 +47,7 @@ export function SidebarMarketMenuItem({
 				tooltip={collapsed ? title : undefined}
 				data-testid={testId}
 				className="text-sidebar-foreground"
+				isActive={isActive}
 			>
 				<a href={href} onClick={handleClick} className="text-current no-underline">
 					<Icon className="h-4 w-4 shrink-0" />

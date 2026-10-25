@@ -5,7 +5,6 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Infrastructure\Core\Router\RouteLoader;
-use App\Interfaces\Kernel\Facade\HeartbeatApi;
 use Hyperf\HttpServer\Router\Router;
 
 // 基础路由
@@ -18,7 +17,9 @@ Router::get('/favicon.ico', function () {
 Router::addRoute(
     ['GET', 'POST', 'HEAD', 'OPTIONS'],
     '/heartbeat',
-    [HeartbeatApi::class, 'heartbeat']
+    function () {
+        return ['status' => 'UP'];
+    }
 );
 
 // 加载 Mock 路由（用于测试）

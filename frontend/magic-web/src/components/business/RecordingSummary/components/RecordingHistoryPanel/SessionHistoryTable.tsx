@@ -169,6 +169,10 @@ function SessionHistoryTable({
 						{sessions.map((session) => {
 							const exporting = exportingSessionId === session.id
 							const copied = copiedSessionId === session.id
+							const statusLabel =
+								session.status === "server_cancelled"
+									? t("recordingHistoryPanel.status.serverCancelled")
+									: session.status
 							const noteLength = session.note?.content?.length ?? 0
 							const textCount = session.textContent?.length ?? 0
 							const scope =
@@ -190,7 +194,7 @@ function SessionHistoryTable({
 									</TableCell>
 									<TableCell>
 										<Badge variant={getStatusVariant(session.status)}>
-											{session.status}
+											{statusLabel}
 										</Badge>
 									</TableCell>
 									<TableCell

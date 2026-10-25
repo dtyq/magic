@@ -3,11 +3,11 @@ import { CirclePlus, Loader2, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { FUNCTION_PERMISSION_CODE, type MagicClawItem } from "@/apis"
 import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
+import emptyStateClaw from "@/assets/resources/magi-claw/empty-state-claw.png"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
-import { DefaultMagiClawAvatar } from "./components/DefaultMagiClawAvatar"
 import { MagiClawCreatedListItem } from "./MagiClawCreatedListItem"
 import { confirmMagiClawSandboxUpgrade } from "./magiClawSandboxUpgradeConfirm"
 import { useMagiClawCreatedSectionActions } from "./useMagiClawCreatedSectionActions"
@@ -122,59 +122,46 @@ export function MagiClawCreatedSection({
 	return (
 		<>
 			{dialog}
-			<section className="flex flex-col gap-3 px-2.5" data-testid="magi-claw-created-section">
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<h2 className="text-base font-medium leading-6 text-foreground">
-						{showEmptyGetStarted
-							? t("superLobster.getStarted")
-							: t("superLobster.created.title", clawBrandValues)}
-					</h2>
+			<section
+				className="flex flex-col gap-3 px-2.5"
+				data-testid="magi-claw-created-section"
+				data-guide-anchor="magi-claw-created-section"
+			>
+				{showEmptyGetStarted ? null : (
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<h2 className="text-base font-medium leading-6 text-foreground">
+							{t("superLobster.created.title", clawBrandValues)}
+						</h2>
 
-					<div className="flex items-center gap-2">
-						{/* {showEmptyGetStarted ? (
+						<div className="flex items-center gap-2">
 							<Button
 								type="button"
-								variant="ghost"
-								size="sm"
-								className="h-8 gap-1 px-3 text-xs font-normal text-foreground"
-								data-testid="magi-claw-user-guide-button"
-								onClick={() => openNewTab(MAGI_CLAW_USER_GUIDE_URL)}
+								variant="outline"
+								size="icon"
+								className="size-9 rounded-md bg-background shadow-xs"
+								data-testid="magi-claw-refresh-button"
+								aria-label={t("superLobster.created.refresh", clawBrandValues)}
+								disabled={isRefreshingList}
+								onClick={() => void onRefreshList()}
 							>
-								<BookOpen className="size-4 shrink-0" aria-hidden />
-								{t("superLobster.created.userGuide", clawBrandValues)}
+								<RefreshCw
+									className={cn("size-4", isRefreshingList && "animate-spin")}
+									aria-hidden
+								/>
 							</Button>
-						) : null} */}
-						{showEmptyGetStarted ? null : (
-							<>
-								<Button
-									type="button"
-									variant="outline"
-									size="icon"
-									className="size-9 rounded-md bg-background shadow-xs"
-									data-testid="magi-claw-refresh-button"
-									aria-label={t("superLobster.created.refresh", clawBrandValues)}
-									disabled={isRefreshingList}
-									onClick={() => void onRefreshList()}
-								>
-									<RefreshCw
-										className={cn("size-4", isRefreshingList && "animate-spin")}
-										aria-hidden
-									/>
-								</Button>
-								<Button
-									type="button"
-									className="h-9 gap-2 rounded-md px-4 text-sm font-medium shadow-xs"
-									data-testid="magi-claw-create-button"
-									disabled={!canCreateMagicClaw}
-									onClick={onOpenCreate}
-								>
-									<CirclePlus className="size-4" />
-									{createButtonLabel}
-								</Button>
-							</>
-						)}
+							<Button
+								type="button"
+								className="h-9 gap-2 rounded-md px-4 text-sm font-medium shadow-xs"
+								data-testid="magi-claw-create-button"
+								disabled={!canCreateMagicClaw}
+								onClick={onOpenCreate}
+							>
+								<CirclePlus className="size-4" />
+								{createButtonLabel}
+							</Button>
+						</div>
 					</div>
-				</div>
+				)}
 
 				<div className="flex flex-col gap-2" data-testid="magi-claw-created-list">
 					{listLoading ? (
@@ -211,13 +198,15 @@ export function MagiClawCreatedSection({
 						</div>
 					) : claws.length === 0 ? (
 						<div
-							className="flex flex-col gap-3 overflow-hidden rounded-lg bg-sidebar px-4 py-3 sm:flex-row sm:items-center sm:gap-3"
+							className="relative flex flex-col gap-3 overflow-visible rounded-lg bg-sidebar px-4 py-3 sm:h-20 sm:flex-row sm:items-center sm:gap-3 sm:pl-[160px]"
 							data-testid="magi-claw-list-empty"
 						>
 							<div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
-								<div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-background">
-									<DefaultMagiClawAvatar />
-								</div>
+								<img
+									className="h-auto w-[100px] shrink-0 object-contain sm:absolute sm:bottom-0 sm:left-8"
+									src={emptyStateClaw}
+									alt={t("superLobster.title", clawBrandValues)}
+								/>
 								<div className="flex min-w-0 flex-1 flex-col gap-2">
 									<p className="text-sm font-medium leading-none text-foreground">
 										{t("superLobster.card.title", clawBrandValues)}

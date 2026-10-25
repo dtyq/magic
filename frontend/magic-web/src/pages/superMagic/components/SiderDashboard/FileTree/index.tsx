@@ -1,4 +1,5 @@
 import React, { memo, forwardRef, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { cx } from "antd-style"
 import type { TreeNode, FileTreeProps, FileTreeRef } from "./types"
 import { useStyles } from "./styles"
@@ -29,11 +30,13 @@ function FileTree<T extends TreeNode = TreeNode>(
 		iconRender,
 		searchValue,
 		filterTreeNode,
-		emptyText = "暂无数据",
+		emptyText,
 	}: FileTreeProps<T>,
 	ref: React.Ref<FileTreeRef>,
 ) {
+	const { t } = useTranslation("super")
 	const { styles } = useStyles()
+	const resolvedEmptyText = emptyText ?? t("siderDashboard.emptyDefault")
 
 	// 使用 FileTree Hook
 	const {
@@ -139,7 +142,7 @@ function FileTree<T extends TreeNode = TreeNode>(
 	if (!data || data.length === 0) {
 		return (
 			<div className={cx(styles.fileTree, className)} style={style}>
-				<div className={styles.emptyState}>{emptyText}</div>
+				<div className={styles.emptyState}>{resolvedEmptyText}</div>
 			</div>
 		)
 	}
@@ -148,7 +151,7 @@ function FileTree<T extends TreeNode = TreeNode>(
 	if (filteredData.length === 0 && searchValue) {
 		return (
 			<div className={cx(styles.fileTree, className)} style={style}>
-				<div className={styles.emptyState}>无匹配结果</div>
+				<div className={styles.emptyState}>{t("siderDashboard.noMatch")}</div>
 			</div>
 		)
 	}

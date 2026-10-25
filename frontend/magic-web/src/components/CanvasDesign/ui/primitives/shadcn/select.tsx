@@ -8,6 +8,7 @@ import {
 	PRESERVE_TEXT_EDITOR_FOCUS_ATTR,
 	useShouldPreserveTextEditorFocus,
 } from "../../../runtime/shared/dom/preserveTextEditorFocus"
+import { useFloatingSurfaceId } from "./floatingSurfaceContext"
 
 const Select = SelectPrimitive.Root
 
@@ -85,6 +86,7 @@ const SelectContent = React.forwardRef<
 	) => {
 		const container = usePortalContainer()
 		const shouldPreserveTextEditorFocus = useShouldPreserveTextEditorFocus()
+		const floatingSurfaceId = useFloatingSurfaceId()
 		const handlePointerDownCapture = React.useCallback(
 			(event: React.PointerEvent<HTMLDivElement>) => {
 				onPointerDownCapture?.(event)
@@ -115,6 +117,8 @@ const SelectContent = React.forwardRef<
 				<SelectPrimitive.Content
 					ref={ref}
 					data-canvas-ui-component
+					data-floating-surface-popover={floatingSurfaceId ? "" : undefined}
+					data-floating-surface-owner={floatingSurfaceId ?? undefined}
 					{...(shouldPreserveTextEditorFocus
 						? { [PRESERVE_TEXT_EDITOR_FOCUS_ATTR]: "" }
 						: {})}

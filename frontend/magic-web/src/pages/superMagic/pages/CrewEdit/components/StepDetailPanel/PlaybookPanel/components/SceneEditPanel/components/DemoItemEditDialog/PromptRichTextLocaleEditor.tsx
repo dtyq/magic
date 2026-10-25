@@ -2,7 +2,7 @@ import { useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { CirclePlus } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	DEFAULT_LOCALE_KEY,
 	type LocaleText,

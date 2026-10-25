@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import type { NodeViewProps } from "@tiptap/react"
-import { NodeViewWrapper } from "@tiptap/react"
+import type { NodeViewProps } from "@/infrastructure/editors/tiptap/react"
+import { NodeViewWrapper } from "@/infrastructure/editors/tiptap/react"
 import { revokeImageUrl } from "@/services/tiptap-image-storage"
 import type { StorageImageNodeOptions } from "./storage-image-node-extension"
 import {
@@ -150,8 +150,9 @@ export function StorageImageNodeView(props: StorageImageNodeViewProps) {
 	return (
 		<NodeViewWrapper
 			ref={containerRef}
-			className={`storage-image-node ${selected ? "storage-image-node--selected" : ""} ${isResizing ? "storage-image-node--resizing" : ""
-				} ${alignClass}`}
+			className={`storage-image-node ${selected ? "storage-image-node--selected" : ""} ${
+				isResizing ? "storage-image-node--resizing" : ""
+			} ${alignClass}`}
 		>
 			{/* Show loading or error placeholder */}
 			<ImagePlaceholder

@@ -164,7 +164,7 @@ class WebScrapeFactory
 
         // 验证特定的必需字段不能为空
         $fieldsToCheck = match ($provider) {
-            WebScrapeProvider::Cloudsway, WebScrapeProvider::Magic => ['name', 'request_url', 'api_key'],
+            WebScrapeProvider::Cloudsway, WebScrapeProvider::Magic, WebScrapeProvider::DeepSeek => ['name', 'request_url', 'api_key'],
         };
 
         foreach ($fieldsToCheck as $field) {

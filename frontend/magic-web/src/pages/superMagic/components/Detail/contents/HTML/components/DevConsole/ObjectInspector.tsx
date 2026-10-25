@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from "react"
 import { ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SerializedValue } from "./types"
 
 const MAX_INSPECTOR_DEPTH = 8

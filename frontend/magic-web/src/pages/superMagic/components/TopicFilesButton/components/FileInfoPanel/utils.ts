@@ -1,18 +1,8 @@
+import { getMagicProjectType, type MagicProjectKind } from "@/constants/magicProjectTypes"
 import { formatFileSize } from "@/utils/string"
 import type { AttachmentItem } from "../../hooks/types"
 import { AttachmentSource } from "../../hooks/types"
 import type { FileInfoField, FileInfoModel, FileInfoSpecialSection, FileInfoStats } from "./types"
-
-const KNOWN_SPECIAL_TYPES = new Set([
-	"slide",
-	"custom",
-	"micro-app",
-	"dashboard",
-	"audio",
-	"video",
-	"design",
-	"self-media",
-])
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"])
 const DATA_EXTENSIONS = new Set(["json", "js", "csv", "xls", "xlsx"])
@@ -101,7 +91,9 @@ function resolveDisplayConfig(item: AttachmentItem): FileInfoConfig | undefined 
 function resolveSpecialType(item: AttachmentItem): string | undefined {
 	const config = resolveDisplayConfig(item)
 	const type = config?.type
-	return typeof type === "string" && type.trim() ? type.trim() : undefined
+	return typeof type === "string" && type.trim()
+		? (getMagicProjectType(type.trim())?.kind ?? type.trim())
+		: undefined
 }
 
 function basename(path: string): string {
@@ -152,7 +144,7 @@ function countFilesByExtension(item: AttachmentItem, extensions: Set<string>): n
 	return count
 }
 
-function sourceLabelKey(source?: AttachmentSource): string {
+export function sourceLabelKey(source?: AttachmentSource): string {
 	switch (source) {
 		case AttachmentSource.HOME:
 		case AttachmentSource.PROJECT_DIRECTORY:
@@ -168,16 +160,31 @@ function sourceLabelKey(source?: AttachmentSource): string {
 	}
 }
 
+const PROJECT_TYPE_LABEL_KEYS = {
+	audio: "topicFiles.fileInfo.type.audio",
+	slide: "topicFiles.fileInfo.type.slide",
+	dashboard: "topicFiles.fileInfo.type.dashboard",
+	design: "topicFiles.fileInfo.type.design",
+	"ai-card": "topicFiles.fileInfo.type.ai-card",
+	"slide-template": "topicFiles.fileInfo.type.slide-template",
+	custom: "topicFiles.fileInfo.type.custom",
+	"micro-app": "topicFiles.fileInfo.type.micro-app",
+	video: "topicFiles.fileInfo.type.video",
+	"self-media": "topicFiles.fileInfo.type.self-media",
+} satisfies Record<MagicProjectKind, string>
+
 function typeLabelKey(type?: string, isDirectory?: boolean): string {
 	if (!type)
 		return isDirectory ? "topicFiles.fileInfo.type.folder" : "topicFiles.fileInfo.type.file"
-	if (KNOWN_SPECIAL_TYPES.has(type)) return `topicFiles.fileInfo.type.${type}`
-	return "topicFiles.fileInfo.type.special"
+	const definition = getMagicProjectType(type)
+	return definition
+		? PROJECT_TYPE_LABEL_KEYS[definition.kind]
+		: "topicFiles.fileInfo.type.special"
 }
 
 function iconTypeForItem(item: AttachmentItem, specialType?: string): string {
-	if (specialType === "slide") return "pptx"
-	if (specialType === "micro-app") return "custom"
+	const definition = getMagicProjectType(specialType)
+	if (definition) return definition.extensionType
 	if (specialType) return specialType
 	if (item.is_directory) return "folder"
 	return normalizeExtension(item) || "other"
@@ -357,8 +364,7 @@ export function buildFileInfoModel(item: AttachmentItem): FileInfoModel {
 	const size = item.is_directory ? stats.totalSize : numberValue(item.file_size)
 	const extension = normalizeExtension(item)
 	const resolvedTypeLabelKey = typeLabelKey(specialType, item.is_directory)
-	const typeFallback =
-		specialType && !KNOWN_SPECIAL_TYPES.has(specialType) ? specialType : undefined
+	const typeFallback = specialType && !getMagicProjectType(specialType) ? specialType : undefined
 
 	const generalFields = compact([
 		field("kind", "topicFiles.fileInfo.labels.kind", typeFallback || resolvedTypeLabelKey),

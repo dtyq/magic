@@ -13,6 +13,8 @@ class SlidesTemplateTagItemDTO extends AbstractDTO
 {
     public string $id = '';
 
+    public string $name = '';
+
     public string $code = '';
 
     public I18nTextDTO $nameI18n;
@@ -124,5 +126,15 @@ class SlidesTemplateTagItemDTO extends AbstractDTO
     public function setIsOfficial(bool $isOfficial): void
     {
         $this->isOfficial = $isOfficial;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): void
+    {
+        $this->name = $name;
     }
 }

@@ -1,3 +1,4 @@
+import type { TopicTypeFilterValue } from "../utils/topicTypeFilter"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Topic } from "../pages/Workspace/types"
 import type TopicService from "../services/topicService"
@@ -16,6 +17,8 @@ interface TopicHistorySessionCacheValue {
 }
 
 interface UsePaginatedTopicsOptions {
+	topicType?: TopicTypeFilterValue
+	enabled?: boolean
 	projectId: string
 	selectedTopicId?: string
 	storeTopics: Topic[]
@@ -25,6 +28,10 @@ interface UsePaginatedTopicsOptions {
 }
 
 interface UsePaginatedTopicsResult {
+	/** First-page failure; consumers may replace the whole list with it. */
+	error: Error | null
+	/** Next-page failure; loaded topics must stay visible and loadMore retries the same page. */
+	loadMoreError: Error | null
 	displayTopics: Topic[]
 	total: number
 	isLoading: boolean
@@ -104,13 +111,27 @@ function setTopicHistoryCache(projectId: string, value: TopicHistorySessionCache
 }
 
 function usePaginatedTopics({
+	enabled = true,
 	projectId,
 	selectedTopicId,
 	storeTopics,
 	pageSize = DEFAULT_PAGE_SIZE,
 	topicService,
 	searchKeyword = "",
+	topicType = "all",
 }: UsePaginatedTopicsOptions): UsePaginatedTopicsResult {
+	const isFiltered = topicType !== "all"
+	// Unfiltered legacy cache is only valid for the all-types query.
+	const cacheKey = isFiltered ? JSON.stringify([projectId, topicType]) : projectId
+	const queryIdentity = JSON.stringify([projectId, searchKeyword, topicType])
+	const [resultIdentity, setResultIdentity] = useState(queryIdentity)
+	const [error, setError] = useState<Error | null>(null)
+	const [loadMoreError, setLoadMoreError] = useState<Error | null>(null)
+	const enabledRef = useRef(enabled)
+	enabledRef.current = enabled
+	const requestGeneration = useRef(0)
+	const resumePendingRef = useRef(false)
+	const lastQueryRef = useRef<string | null>(null)
 	const projectIdRef = useRef(projectId)
 	projectIdRef.current = projectId
 
@@ -127,14 +148,16 @@ function usePaginatedTopics({
 	// Track all topic IDs ever seen in storeTopics to distinguish "deleted" from "not yet in store"
 	const knownStoreTopicIdsRef = useRef<Set<string>>(new Set())
 	const normalizedStoreTopics = useMemo(
-		() => getNormalizedStoreTopics(projectId, storeTopics),
-		[projectId, storeTopics],
+		() => (isFiltered ? [] : getNormalizedStoreTopics(projectId, storeTopics)),
+		[projectId, storeTopics, isFiltered],
 	)
 	const initialCacheValue =
-		!searchKeyword.trim() && projectId ? getTopicHistoryCache(projectId) : null
+		!searchKeyword.trim() && projectId ? getTopicHistoryCache(cacheKey) : null
 	const initialTopics = initialCacheValue?.topics ?? normalizedStoreTopics
 	const [total, setTotal] = useState(initialCacheValue?.total ?? initialTopics.length)
 	const [remoteTopics, setRemoteTopics] = useState<Topic[]>(initialTopics)
+	const remoteTopicsRef = useRef(remoteTopics)
+	remoteTopicsRef.current = remoteTopics
 	const [isLoading, setIsLoading] = useState(
 		Boolean(projectId) && !initialCacheValue && initialTopics.length === 0,
 	)
@@ -152,6 +175,12 @@ function usePaginatedTopics({
 	}, [storeTopics])
 
 	useEffect(() => {
+		if (!enabled) {
+			resumePendingRef.current = true
+			return
+		}
+		// 同查询恢复时保留当前列表及滚动节点；首次加载、换项目和改搜索仍走原缓存路径。
+		if (resumePendingRef.current && lastQueryRef.current === queryIdentity) return
 		if (!projectId) {
 			setRemoteTopics([])
 			setTotal(0)
@@ -161,7 +190,7 @@ function usePaginatedTopics({
 
 		if (searchKeyword.trim()) return
 
-		const cachedValue = getTopicHistoryCache(projectId)
+		const cachedValue = getTopicHistoryCache(cacheKey)
 		if (!cachedValue) {
 			if (normalizedStoreTopics.length > 0) {
 				setRemoteTopics(normalizedStoreTopics)
@@ -179,15 +208,22 @@ function usePaginatedTopics({
 		setRemoteTopics(cachedValue.topics)
 		setTotal(cachedValue.total)
 		setIsLoading(false)
-	}, [normalizedStoreTopics, projectId, searchKeyword])
+	}, [normalizedStoreTopics, projectId, searchKeyword, enabled, cacheKey, queryIdentity])
 
 	useEffect(() => {
+		requestGeneration.current += 1
+		if (!enabled) return
 		let isActive = true
+		setError(null)
+		setLoadMoreError(null)
+		setCurrentPage(1)
+		setIsLoadingMore(false)
 
 		async function loadTopics() {
 			const currentProjectId = projectIdRef.current
 			if (!currentProjectId) {
 				if (!isActive) return
+				setResultIdentity(queryIdentity)
 				setRemoteTopics([])
 				setTotal(0)
 				setIsLoading(false)
@@ -196,12 +232,21 @@ function usePaginatedTopics({
 			}
 
 			const hasSearchKeyword = Boolean(searchKeywordRef.current.trim())
-			const cachedValue = hasSearchKeyword ? null : getTopicHistoryCache(currentProjectId)
-			const storeTopicFallback = hasSearchKeyword
-				? []
-				: getNormalizedStoreTopics(currentProjectId, storeTopics)
+			const cachedValue = hasSearchKeyword ? null : getTopicHistoryCache(cacheKey)
+			const storeTopicFallback =
+				hasSearchKeyword || isFiltered
+					? []
+					: getNormalizedStoreTopics(currentProjectId, storeTopics)
 
-			if (!cachedValue && storeTopicFallback.length === 0) setIsLoading(true)
+			const queryKey = queryIdentity
+			const hasRetainedResults =
+				resumePendingRef.current &&
+				lastQueryRef.current === queryKey &&
+				remoteTopicsRef.current.length > 0
+			resumePendingRef.current = false
+			lastQueryRef.current = queryKey
+			if (!cachedValue && storeTopicFallback.length === 0 && !hasRetainedResults)
+				setIsLoading(true)
 			const service = getService()
 
 			try {
@@ -210,15 +255,23 @@ function usePaginatedTopics({
 					page: 1,
 					pageSize,
 					searchKeyword: searchKeywordRef.current,
+					topicType,
 				})
 
+				if (!isActive) return
 				let list = Array.isArray(response.list) ? response.list : []
 				injectedTopicIdsRef.current.clear()
 
 				const currentSelectedId = selectedTopicIdRef.current
-				if (currentSelectedId && !list.some((topic) => topic.id === currentSelectedId)) {
+				if (
+					!isFiltered &&
+					!hasSearchKeyword &&
+					currentSelectedId &&
+					!list.some((topic) => topic.id === currentSelectedId)
+				) {
 					try {
 						const detail = await service.getTopicDetail(currentSelectedId)
+						if (!isActive) return
 						if (detail) {
 							const normalizedDetail = normalizeTopicHistoryItem(detail)
 							injectedTopicIdsRef.current.add(normalizedDetail.id)
@@ -229,18 +282,22 @@ function usePaginatedTopics({
 					}
 				}
 
+				if (!isActive) return
 				if (!hasSearchKeyword) {
-					setTopicHistoryCache(currentProjectId, {
+					setTopicHistoryCache(cacheKey, {
 						total: response.total,
 						topics: list,
 					})
 				}
 
 				if (!isActive) return
+				setResultIdentity(queryIdentity)
 				setRemoteTopics(list)
 				setTotal(response.total)
 			} catch (error) {
 				if (!isActive) return
+				setResultIdentity(queryIdentity)
+				setError(error instanceof Error ? error : new Error("Topic request failed"))
 				console.error("获取历史话题列表失败:", error)
 				if (!cachedValue) {
 					setRemoteTopics(storeTopicFallback)
@@ -259,17 +316,31 @@ function usePaginatedTopics({
 		return () => {
 			isActive = false
 		}
-	}, [getService, pageSize, projectId, reloadSeed, searchKeyword, selectedTopicId, storeTopics])
+	}, [
+		getService,
+		pageSize,
+		projectId,
+		reloadSeed,
+		searchKeyword,
+		selectedTopicId,
+		storeTopics,
+		enabled,
+		topicType,
+		isFiltered,
+		cacheKey,
+		queryIdentity,
+	])
 
 	const { displayTopics, resolvedTotal } = useMemo(() => {
+		if (resultIdentity !== queryIdentity) return { displayTopics: [], resolvedTotal: 0 }
 		if (remoteTopics.length === 0) {
 			return {
 				displayTopics:
-					searchKeyword.trim() || storeTopics.length === 0
+					isFiltered || searchKeyword.trim() || storeTopics.length === 0
 						? []
 						: storeTopics.map(normalizeTopicHistoryItem),
 				resolvedTotal:
-					searchKeyword.trim() || storeTopics.length === 0
+					isFiltered || searchKeyword.trim() || storeTopics.length === 0
 						? total
 						: total || storeTopics.length,
 			}
@@ -287,7 +358,7 @@ function usePaginatedTopics({
 				return
 			}
 			// Topic was previously in store but now removed → deleted
-			if (knownStoreTopicIdsRef.current.has(topic.id)) return
+			if (!isFiltered && knownStoreTopicIdsRef.current.has(topic.id)) return
 			mergedRemoteTopics.push(normalizeTopicHistoryItem(topic))
 		})
 
@@ -295,9 +366,10 @@ function usePaginatedTopics({
 			displayTopics: mergedRemoteTopics,
 			resolvedTotal: Math.max(total, mergedRemoteTopics.length),
 		}
-	}, [remoteTopics, searchKeyword, storeTopics, total])
+	}, [remoteTopics, searchKeyword, storeTopics, total, isFiltered, resultIdentity, queryIdentity])
 
 	const reload = useCallback(() => {
+		if (!enabledRef.current) return
 		setIsReloading(true)
 		// 重置到第 1 页后触发重新加载
 		setCurrentPage(1)
@@ -316,9 +388,12 @@ function usePaginatedTopics({
 	 * 搜索态下禁止加载更多，保持一次性全量搜索行为。
 	 */
 	const loadMore = useCallback(async () => {
-		if (!projectId || isLoading || isLoadingMore || searchKeyword.trim()) return
+		if (!enabledRef.current || !projectId || isLoading || isLoadingMore || searchKeyword.trim())
+			return
+		const generation = requestGeneration.current
 		const nextPage = currentPage + 1
 		setIsLoadingMore(true)
+		setLoadMoreError(null)
 
 		try {
 			const service = getService()
@@ -327,27 +402,49 @@ function usePaginatedTopics({
 				page: nextPage,
 				pageSize,
 				searchKeyword: "",
+				topicType,
 			})
+			if (!enabledRef.current || generation !== requestGeneration.current) return
 			const newTopics = (Array.isArray(response.list) ? response.list : []).map(
 				normalizeTopicHistoryItem,
 			)
-			setRemoteTopics((prev) => [...prev, ...newTopics])
+			setRemoteTopics((prev) => {
+				const existing = new Set(prev.map((topic) => topic.id))
+				return [...prev, ...newTopics.filter((topic) => !existing.has(topic.id))]
+			})
 			setTotal(response.total)
 			setCurrentPage(nextPage)
 		} catch (error) {
+			if (generation === requestGeneration.current)
+				setLoadMoreError(error instanceof Error ? error : new Error("Topic request failed"))
 			console.error("加载更多话题失败:", error)
 		} finally {
-			setIsLoadingMore(false)
+			if (generation === requestGeneration.current) setIsLoadingMore(false)
 		}
-	}, [projectId, isLoading, isLoadingMore, searchKeyword, currentPage, pageSize, getService])
+	}, [
+		projectId,
+		isLoading,
+		isLoadingMore,
+		searchKeyword,
+		currentPage,
+		pageSize,
+		getService,
+		topicType,
+	])
 
 	// 是否还有更多话题：远端 total 大于当前已加载的 remoteTopics 数量
-	const hasMore = !searchKeyword.trim() && remoteTopics.length < resolvedTotal
+	const hasMore =
+		!error &&
+		resultIdentity === queryIdentity &&
+		!searchKeyword.trim() &&
+		remoteTopics.length < resolvedTotal
 
 	return {
+		error,
+		loadMoreError,
 		displayTopics,
 		total: resolvedTotal,
-		isLoading,
+		isLoading: isLoading || (enabled && resultIdentity !== queryIdentity),
 		isReloading,
 		hasMore,
 		currentPage,

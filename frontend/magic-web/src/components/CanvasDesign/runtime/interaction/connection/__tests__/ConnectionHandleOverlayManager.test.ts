@@ -66,7 +66,7 @@ function createTouchDeviceInfo(): CanvasDeviceInfo {
 
 function createCanvasStub(
 	options: {
-		readonly?: boolean
+		accessMode?: "edit" | "readonly"
 		selectedIds?: string[]
 		hoveredElementId?: string | null
 		selectionToolActive?: boolean
@@ -81,7 +81,7 @@ function createCanvasStub(
 	} = {},
 ) {
 	const state = {
-		readonly: options.readonly ?? false,
+		accessMode: options.accessMode ?? "edit",
 		selectedIds: options.selectedIds ?? [],
 		hoveredElementId: options.hoveredElementId ?? null,
 		selectionToolActive: options.selectionToolActive ?? true,
@@ -91,9 +91,11 @@ function createCanvasStub(
 		visible: options.visible ?? true,
 		extendingElementId: options.extendingElementId ?? null,
 		bounds: { x: 10, y: 20, width: 120, height: 80 },
+		selectionBounds: { x: 10, y: 20, width: 250, height: 120 },
 		pointerPosition: options.pointerPosition ?? null,
 		elementIds: new Set(["element-1", "element-2"]),
 		elementTypes: new Map<string, LayerElement["type"]>(),
+		nonConnectableIds: new Set<string>(),
 		deviceInfo: options.deviceInfo ?? createDeviceInfo(),
 	}
 	const stage = new Konva.Group() as Konva.Group & {
@@ -117,7 +119,7 @@ function createCanvasStub(
 	const getElementBounds = vi.fn(() => state.bounds)
 	const getElementData = vi.fn((elementId: string): LayerElement | undefined => {
 		if (!state.elementIds.has(elementId)) return undefined
-		return {
+		const baseElement = {
 			id: elementId,
 			type: state.elementTypes.get(elementId) ?? ElementTypeEnum.Text,
 			x: 10,
@@ -125,12 +127,29 @@ function createCanvasStub(
 			width: 120,
 			height: 80,
 			visible: state.visible,
+			interactionConfig: state.nonConnectableIds.has(elementId)
+				? { connectable: false }
+				: undefined,
 		}
+		if (
+			baseElement.type === ElementTypeEnum.Video ||
+			baseElement.type === ElementTypeEnum.Audio
+		) {
+			return {
+				...baseElement,
+				activeContentId: `${elementId}-content`,
+				mainContentId: `${elementId}-content`,
+				contents: [{ contentId: `${elementId}-content`, src: `/${elementId}.media` }],
+			} as LayerElement
+		}
+		return baseElement as LayerElement
 	})
 	const canvas = {
-		get readonly() {
-			return state.readonly
-		},
+		can: vi.fn(
+			(capability: string) =>
+				state.accessMode === "edit" || capability === "interaction.select",
+		),
+		getEffectiveContent: vi.fn(() => undefined),
 		get deviceInfo() {
 			return state.deviceInfo
 		},
@@ -153,11 +172,21 @@ function createCanvasStub(
 		elementManager: {
 			hasElement: (elementId: string) => state.elementIds.has(elementId),
 			getElementData,
+			getAllElements: () =>
+				Array.from(state.elementIds)
+					.map((elementId) => getElementData(elementId))
+					.filter((element): element is LayerElement => !!element),
+			isElementVisibleInDataTree: (elementId: string) =>
+				state.visible && state.elementIds.has(elementId),
+			canParticipateInDocumentRelations: () => true,
 			getNodeAdapter: () => ({
 				getElementBounds,
+				getElementsBounds: vi.fn(() => state.selectionBounds),
 			}),
 		},
 		permissionManager: {
+			can: (capability: string) =>
+				state.accessMode === "edit" || capability === "interaction.select",
 			canUseSelectionToolAffordance: () => state.selectionToolActive,
 			canHover: (element: LayerElement | undefined) => !!element && state.visible,
 			canConnect: (element: LayerElement | undefined) =>
@@ -217,6 +246,16 @@ function getHandle(overlay: Konva.Group, side: "left" | "right"): Konva.Group {
 		throw new Error(`Expected ${side} handle to be a group`)
 	}
 	return handle
+}
+
+function getCorridor(overlay: Konva.Group, side: "left" | "right"): Konva.Rect {
+	const corridor = overlay
+		.find(`.${ConnectionHandleRenderer.HANDLE_CORRIDOR_NAME}`)
+		.find((node) => node.getAttr("connectionHandleSide") === side)
+	if (!(corridor instanceof Konva.Rect)) {
+		throw new Error(`Expected ${side} corridor`)
+	}
+	return corridor
 }
 
 function getCircle(handle: Konva.Group): Konva.Circle {
@@ -294,7 +333,7 @@ describe("ConnectionHandleOverlayManager", () => {
 			useRealLayer: true,
 		})
 		const finalOverlay = new ConnectionHandleRenderer().createOverlay(
-			"element-1",
+			{ kind: "element", elementId: "element-1" },
 			state.bounds,
 			1,
 		)
@@ -503,11 +542,13 @@ describe("ConnectionHandleOverlayManager", () => {
 		expect(getOverlay(controlsLayer)).toBeInstanceOf(Konva.Group)
 
 		state.bounds = { x: 300, y: 20, width: 120, height: 80 }
+		const updatedElement = canvas.elementManager.getElementData("element-1")
+		if (!updatedElement) throw new Error("Expected updated element")
 		canvas.eventEmitter.emit({
 			type: "element:updated",
 			data: {
 				elementId: "element-1",
-				data: canvas.elementManager.getElementData("element-1")!,
+				data: updatedElement,
 			},
 		})
 
@@ -584,8 +625,7 @@ describe("ConnectionHandleOverlayManager", () => {
 		canvas.eventEmitter.emit({
 			type: "connection:menu:open",
 			data: {
-				originElementId: "element-1",
-				originSide: "right",
+				origin: { kind: "element", elementId: "element-1", side: "right" },
 				x: 120,
 				y: 60,
 				canvasX: 140,
@@ -602,8 +642,7 @@ describe("ConnectionHandleOverlayManager", () => {
 		canvas.eventEmitter.emit({
 			type: "connection:menu:close",
 			data: {
-				originElementId: "element-1",
-				originSide: "right",
+				origin: { kind: "element", elementId: "element-1", side: "right" },
 				source: "handle",
 			},
 		})
@@ -612,7 +651,7 @@ describe("ConnectionHandleOverlayManager", () => {
 		manager.destroy()
 	})
 
-	it("preserves the menu display source across temporary readonly blocking", () => {
+	it("preserves the menu display source across temporary access blocking", () => {
 		const { canvas, controlsLayer, manager, state } = createCanvasStub({
 			hoveredElementId: "element-1",
 		})
@@ -621,8 +660,7 @@ describe("ConnectionHandleOverlayManager", () => {
 		canvas.eventEmitter.emit({
 			type: "connection:menu:open",
 			data: {
-				originElementId: "element-1",
-				originSide: "right",
+				origin: { kind: "element", elementId: "element-1", side: "right" },
 				x: 120,
 				y: 60,
 				canvasX: 140,
@@ -633,20 +671,25 @@ describe("ConnectionHandleOverlayManager", () => {
 		state.hoveredElementId = null
 		canvas.eventEmitter.emit({ type: "element:hover", data: { elementId: null } })
 
-		state.readonly = true
-		canvas.eventEmitter.emit({ type: "canvas:readonly", data: { readonly: true } })
+		state.accessMode = "readonly"
+		canvas.eventEmitter.emit({
+			type: "permission:changed",
+			data: { mode: "readonly", capabilities: new Set(), can: () => false },
+		})
 		expect(getOverlay(controlsLayer)).toBeNull()
 
-		state.readonly = false
-		canvas.eventEmitter.emit({ type: "canvas:readonly", data: { readonly: false } })
+		state.accessMode = "edit"
+		canvas.eventEmitter.emit({
+			type: "permission:changed",
+			data: { mode: "edit", capabilities: new Set(), can: () => true },
+		})
 		const overlay = getRequiredOverlay(controlsLayer)
 		expect(getHandle(overlay, "right").id()).toBe("element-1")
 
 		canvas.eventEmitter.emit({
 			type: "connection:menu:close",
 			data: {
-				originElementId: "element-1",
-				originSide: "right",
+				origin: { kind: "element", elementId: "element-1", side: "right" },
 				source: "handle",
 			},
 		})
@@ -689,8 +732,7 @@ describe("ConnectionHandleOverlayManager", () => {
 		expect(circle.fill()).not.toBe(hoverFill)
 		expect(cursorManager.setTemporary).toHaveBeenLastCalledWith("pointer")
 		expect(connectionDragManager.startFromHandle).toHaveBeenCalledWith({
-			elementId: "element-1",
-			side: "left",
+			origin: { kind: "element", elementId: "element-1", side: "left" },
 			event: expect.objectContaining(eventPayload),
 		})
 
@@ -705,6 +747,70 @@ describe("ConnectionHandleOverlayManager", () => {
 		expect(leftHandle.getAttr("connectionHandleInteractionState")).toBe("idle")
 		expect(circle.fill()).toBe(idleFill)
 		expect(cursorManager.restoreToolCursor).toHaveBeenCalledTimes(1)
+		manager.destroy()
+	})
+
+	it("disables the right handle when the source has no right-side menu", () => {
+		const { canvas, connectionDragManager, controlsLayer, manager, state } = createCanvasStub()
+		state.elementTypes.set("element-1", ElementTypeEnum.VideoEdit)
+		state.hoveredElementId = "element-1"
+
+		canvas.eventEmitter.emit({ type: "element:hover", data: { elementId: "element-1" } })
+
+		const overlay = getRequiredOverlay(controlsLayer)
+		const leftHandle = getHandle(overlay, "left")
+		const rightHandle = getHandle(overlay, "right")
+		const rightCorridor = getCorridor(overlay, "right")
+		expect(leftHandle.getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR)).toBe(false)
+		expect(rightHandle.getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR)).toBe(true)
+		expect(rightHandle.listening()).toBe(false)
+
+		rightCorridor.fire("mouseenter")
+		expect(canvas.cursorManager.setTemporary).toHaveBeenLastCalledWith("not-allowed")
+		rightCorridor.fire("mouseleave")
+		expect(canvas.cursorManager.restoreToolCursor).toHaveBeenCalled()
+
+		rightHandle.fire("mousedown", {
+			evt: { stopImmediatePropagation: vi.fn(), stopPropagation: vi.fn() },
+		})
+		expect(connectionDragManager.startFromHandle).not.toHaveBeenCalled()
+
+		manager.destroy()
+	})
+
+	it("keeps the left handle enabled for storyboard image input", () => {
+		const { canvas, controlsLayer, manager, state } = createCanvasStub()
+		state.elementTypes.set("element-1", ElementTypeEnum.Storyboard)
+		state.hoveredElementId = "element-1"
+
+		canvas.eventEmitter.emit({ type: "element:hover", data: { elementId: "element-1" } })
+
+		const overlay = getRequiredOverlay(controlsLayer)
+		expect(
+			getHandle(overlay, "left").getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR),
+		).toBe(false)
+		expect(
+			getHandle(overlay, "right").getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR),
+		).toBe(true)
+
+		manager.destroy()
+	})
+
+	it("disables the left handle when audio has no upstream menu", () => {
+		const { canvas, controlsLayer, manager, state } = createCanvasStub()
+		state.elementTypes.set("element-1", ElementTypeEnum.Audio)
+		state.hoveredElementId = "element-1"
+
+		canvas.eventEmitter.emit({ type: "element:hover", data: { elementId: "element-1" } })
+
+		const overlay = getRequiredOverlay(controlsLayer)
+		expect(
+			getHandle(overlay, "left").getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR),
+		).toBe(true)
+		expect(
+			getHandle(overlay, "right").getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR),
+		).toBe(false)
+
 		manager.destroy()
 	})
 
@@ -889,19 +995,11 @@ describe("ConnectionHandleOverlayManager", () => {
 		manager.destroy()
 	})
 
-	it("hides handles for multi-selection", () => {
+	it("hides handles when a multi-selection root cannot connect", () => {
 		const { canvas, controlsLayer, manager, state } = createCanvasStub({
-			selectedIds: ["element-1"],
-			deviceInfo: createTouchDeviceInfo(),
+			selectedIds: ["element-1", "element-2"],
 		})
-
-		canvas.eventEmitter.emit({
-			type: "element:select",
-			data: { elementIds: ["element-1"] },
-		})
-		expect(getOverlay(controlsLayer)).toBeInstanceOf(Konva.Group)
-
-		state.selectedIds = ["element-1", "element-2"]
+		state.nonConnectableIds.add("element-2")
 		canvas.eventEmitter.emit({
 			type: "element:select",
 			data: { elementIds: ["element-1", "element-2"] },
@@ -911,7 +1009,64 @@ describe("ConnectionHandleOverlayManager", () => {
 		manager.destroy()
 	})
 
-	it("hides handles when readonly, off selection tool, or transform is active", () => {
+	it("renders shared-menu multi-selection handles and preserves the origin", async () => {
+		const { canvas, connectionDragManager, controlsLayer, manager, state } = createCanvasStub({
+			selectedIds: ["element-1", "element-2"],
+			deviceInfo: createTouchDeviceInfo(),
+		})
+
+		canvas.eventEmitter.emit({
+			type: "element:select",
+			data: { elementIds: ["element-1", "element-2"] },
+		})
+
+		let overlay = getRequiredOverlay(controlsLayer)
+		const initialRight = getHandle(overlay, "right")
+		expect(initialRight.getAttr(ConnectionHandleRenderer.HANDLE_ORIGIN_ATTR)).toEqual({
+			kind: "selection",
+			elementIds: ["element-1", "element-2"],
+			selectionRevision: "element-1\u0000element-2",
+		})
+
+		const nextBounds = { x: 80, y: 40, width: 360, height: 180 }
+		canvas.eventEmitter.emit({ type: "selection:position", data: { boundingRect: nextBounds } })
+		overlay = getRequiredOverlay(controlsLayer)
+		expect(getHandle(overlay, "right").x()).toBeGreaterThan(nextBounds.x + nextBounds.width)
+		expect(getHandle(overlay, "right").y()).toBe(nextBounds.y + nextBounds.height / 2)
+
+		const nativeEvent = {
+			stopImmediatePropagation: vi.fn(),
+			stopPropagation: vi.fn(),
+		}
+		getHandle(overlay, "right").fire("mousedown", { evt: nativeEvent })
+		expect(connectionDragManager.startFromHandle).toHaveBeenCalledWith({
+			origin: {
+				kind: "selection",
+				elementIds: ["element-1", "element-2"],
+				side: "right",
+				boundingRect: nextBounds,
+				selectionRevision: "element-1\u0000element-2",
+			},
+			event: expect.anything(),
+		})
+
+		state.dragging = true
+		canvas.eventEmitter.emit({
+			type: "elements:transform:dragstart",
+			data: { elementIds: ["element-1", "element-2"] },
+		})
+		expect(getOverlay(controlsLayer)).toBeNull()
+		state.dragging = false
+		canvas.eventEmitter.emit({
+			type: "elements:transform:dragend",
+			data: { elementIds: ["element-1", "element-2"] },
+		})
+		await flushMicrotasks()
+		expect(getOverlay(controlsLayer)).toBeInstanceOf(Konva.Group)
+		manager.destroy()
+	})
+
+	it("hides handles when access is restricted, off selection tool, or transform is active", () => {
 		const { canvas, controlsLayer, manager, state } = createCanvasStub({
 			hoveredElementId: "element-1",
 		})
@@ -919,11 +1074,14 @@ describe("ConnectionHandleOverlayManager", () => {
 		canvas.eventEmitter.emit({ type: "element:hover", data: { elementId: "element-1" } })
 		expect(getOverlay(controlsLayer)).toBeInstanceOf(Konva.Group)
 
-		state.readonly = true
-		canvas.eventEmitter.emit({ type: "canvas:readonly", data: { readonly: true } })
+		state.accessMode = "readonly"
+		canvas.eventEmitter.emit({
+			type: "permission:changed",
+			data: { mode: "readonly", capabilities: new Set(), can: () => false },
+		})
 		expect(getOverlay(controlsLayer)).toBeNull()
 
-		state.readonly = false
+		state.accessMode = "edit"
 		state.selectionToolActive = false
 		canvas.eventEmitter.emit({ type: "tool:change", data: { tool: null } })
 		expect(getOverlay(controlsLayer)).toBeNull()
@@ -1159,7 +1317,7 @@ describe("ConnectionHandleOverlayManager", () => {
 		manager.destroy()
 	})
 
-	it("keeps handles hidden for multi-selection after transform dragend settles", async () => {
+	it("restores handles for multi-selection after transform dragend settles", async () => {
 		const { canvas, controlsLayer, manager, state } = createCanvasStub({
 			selectedIds: ["element-1", "element-2"],
 		})
@@ -1177,7 +1335,7 @@ describe("ConnectionHandleOverlayManager", () => {
 		state.dragging = false
 		await flushMicrotasks()
 
-		expect(getOverlay(controlsLayer)).toBeNull()
+		expect(getOverlay(controlsLayer)).toBeInstanceOf(Konva.Group)
 		manager.destroy()
 	})
 

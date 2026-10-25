@@ -196,9 +196,9 @@ def test_understand_document_images_hides_internal_runtime_params():
 
 
 def test_document_converter_tools_expose_only_intent_params():
-    assert set(SampleDocumentContent().get_params_class().model_fields) == {"input_path", "output_dir", "ranges"}
-    assert set(ExtractDocumentContent().get_params_class().model_fields) == {"input_path", "output_dir", "ranges"}
-    assert set(ExportDocumentMarkdown().get_params_class().model_fields) == {"input_path", "output_dir", "ranges"}
+    assert set(SampleDocumentContent().get_params_class().model_fields) == {"input_path", "output_dir", "ranges", "goal"}
+    assert set(ExtractDocumentContent().get_params_class().model_fields) == {"input_path", "output_dir", "ranges", "asset_strategy"}
+    assert set(ExportDocumentMarkdown().get_params_class().model_fields) == {"input_path", "output_dir", "ranges", "asset_strategy"}
     assert set(PlanDocumentReading().get_params_class().model_fields) == {"output_dir", "goal"}
     assert set(SummarizeDocument().get_params_class().model_fields) == {"output_dir"}
     assert set(ConvertDocumentFormat().get_params_class().model_fields) == {"input_path", "output_dir", "target_format", "ranges"}

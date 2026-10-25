@@ -20,6 +20,8 @@ readonly class VideoPointEstimateRequest
      * @param bool $hasReferenceVideo 是否包含参考视频，影响部分模型的 token 单价
      * @param array<string, mixed> $businessParams 业务上下文，例如组织、用户、项目和视频任务 ID
      * @param bool $hasAudioOutput 是否有音频输出
+     * @param array<string, mixed> $inputMedia 规范化后的输入素材，供不同计费模型按需解析
+     * @param string $providerCode 服务商编码
      */
     public function __construct(
         private string $modelId,
@@ -32,6 +34,8 @@ readonly class VideoPointEstimateRequest
         private bool $hasReferenceVideo,
         private array $businessParams = [],
         private bool $hasAudioOutput = true,
+        private array $inputMedia = [],
+        private string $providerCode = '',
     ) {
     }
 
@@ -105,6 +109,33 @@ readonly class VideoPointEstimateRequest
     }
 
     /**
+     * 返回规范化后的输入素材，避免将某一种素材的计量规则固化在通用预估 DTO 中。
+     *
+     * @return array<string, mixed>
+     */
+    public function getInputMedia(): array
+    {
+        return $this->inputMedia;
+    }
+
+    /**
+     * 返回参考图片素材。首尾帧属于生成约束，不计入参考图片计费数量。
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getReferenceImages(): array
+    {
+        $referenceImages = $this->inputMedia['reference_images'] ?? [];
+
+        return is_array($referenceImages) ? array_values(array_filter($referenceImages, 'is_array')) : [];
+    }
+
+    public function getReferenceImageCount(): int
+    {
+        return count($this->getReferenceImages());
+    }
+
+    /**
      * 返回业务参数，供计费归属、日志和后续扩展使用。
      *
      * @return array<string, mixed>
@@ -117,6 +148,11 @@ readonly class VideoPointEstimateRequest
     public function getProviderModelId(): string
     {
         return $this->providerModelId;
+    }
+
+    public function getProviderCode(): string
+    {
+        return $this->providerCode;
     }
 
     /**
@@ -137,6 +173,8 @@ readonly class VideoPointEstimateRequest
             'input_video_duration_seconds' => $this->inputVideoDurationSeconds,
             'has_reference_video' => $this->hasReferenceVideo,
             'has_audio_output' => $this->hasAudioOutput,
+            'input_media' => $this->inputMedia,
+            'provider_code' => $this->providerCode,
         ];
     }
 }

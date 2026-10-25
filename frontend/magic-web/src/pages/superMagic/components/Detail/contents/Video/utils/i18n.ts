@@ -1,15 +1,8 @@
-import { I18N } from "xgplayer"
-import ZH from "xgplayer/es/lang/zh-cn"
-import EN from "xgplayer/es/lang/en"
+import { I18N, ZH, EN } from "@/infrastructure/vendors/xgplayer/i18n"
 
 // Define text keys type for better type safety
 export type TextKey =
-	| "loading"
-	| "loadFailed"
-	| "checkFormat"
-	| "invalidFile"
-	| "fileIdNotFound"
-	| "playerError"
+	"loading" | "loadFailed" | "checkFormat" | "invalidFile" | "fileIdNotFound" | "playerError"
 
 // Setup international language support
 const setupI18N = (): string => {

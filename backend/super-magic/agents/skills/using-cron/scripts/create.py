@@ -9,7 +9,7 @@ Arguments:
     --type          Schedule type. Required:
                       no_repeat      Non-repeating; requires --day YYYY-MM-DD.
                       daily_repeat   Repeats daily.
-                      weekly_repeat  Repeats weekly; requires --day 0-6, where 0 is Sunday.
+                      weekly_repeat  Repeats weekly; requires --day 0-6, where 0 is Monday and 6 is Sunday.
                       monthly_repeat Repeats monthly; requires --day 1-31.
     --time          Execution time in HH:MM format, for example "9:00". Required.
     --day           Date, weekday, or day-of-month; meaning depends on --type.

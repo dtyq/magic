@@ -70,7 +70,7 @@ final class DesignEraserImageTaskHandler extends AbstractDesignImageGenerationTa
             'generate_config' => $entity->getImageGenerationConfig() ?? [],
         ]);
         $this->applyMagicAccessToken($dto);
-        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation));
+        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation, $entity->getProjectId()));
         $dto->valid();
 
         return $this->narrowToOpenAiFormatImageResponse($this->imageEraserAppService->erase($dto));

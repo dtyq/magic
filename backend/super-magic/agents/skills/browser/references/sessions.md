@@ -1,77 +1,77 @@
-# Browser Sessions and Pages
+# Browser instances and tabs
 
-Read [SKILL.md](../SKILL.md) first. This reference contains the exact signatures for session, page, navigation, waiting, and lifecycle tools.
+Read [SKILL.md](../SKILL.md) first. Browser instances are concrete controllable runtimes. They may be Local, one of several Remote instances, or an authorized user Chrome connection.
 
-## Tool Signatures
-
-All tools except `browser_list_sessions` accept optional `session_id`. Omit it to use the current Agent's default Browser session.
+## Tool signatures
 
 ```python
-browser_list_sessions()
-browser_list_pages(session_id: str | None = None)
-browser_open_page(session_id: str | None = None, url: str = "about:blank")
-browser_activate_page(page_id: str, session_id: str | None = None)
+browser_list_instances()
+browser_list_tabs(browser_id: str | None = None)
+browser_new_tab(url: str = "about:blank", browser_id: str | None = None)
+browser_select_instance(browser_id: str)
+browser_select_tab(tab_id: str)
+browser_activate_tab(tab_id: str | None = None)
 browser_navigate(
-    page_id: str,
     url: str,
     wait_until: "commit" | "domcontentloaded" | "load" | "networkidle" = "domcontentloaded",
-    session_id: str | None = None,
+    browser_id: str | None = None,
+    tab_id: str | None = None,
 )
-browser_wait(
-    page_id: str,
-    condition: "time" | "url" | "load_state" | "text" | "ref" | "download",
-    timeout_ms: float = 30000,
-    value: str | None = None,
-    duration_ms: float | None = None,
-    state: str | None = None,
-    session_id: str | None = None,
-)
-browser_keep_alive(page_id: str, seconds: float, session_id: str | None = None)
-browser_close_page(page_id: str, session_id: str | None = None)
+browser_wait(..., tab_id: str | None = None)
+browser_keep_alive(seconds: float, tab_id: str | None = None)
+browser_close_tab(tab_id: str | None = None)
 ```
 
-`browser_open_page` creates the default isolated session when needed and navigates to `url`. Do not navigate to the same URL again. Use `browser_navigate` to change an existing page or when explicit navigation waiting is required.
+All ordinary reads, observations, interactions, screenshots, visual queries, and debugging tools use an optional `tab_id`. Omit it to use the AgentContext default Browser and Tab. A known `tab_id` already identifies its Browser; do not also provide `browser_id`.
 
-For `browser_wait`, use the narrowest condition that proves the next step can proceed:
+`browser_new_tab` creates in the default Browser when `browser_id` is omitted. Passing `browser_id` chooses a concrete Local or Remote instance and makes the new tab the default after successful creation. `browser_navigate` may receive `browser_id` when it must create the first tab in a chosen instance, or `tab_id` when it must reuse a known tab. If both are supplied, they must belong to the same instance.
 
-- `time` requires `duration_ms`.
-- `url`, `text`, and `ref` require `value`.
-- `load_state` requires `state`: `commit`, `domcontentloaded`, `load`, or `networkidle`.
-- `text` optionally accepts `state`: `attached`, `detached`, `visible`, or `hidden`.
-- `ref` optionally accepts `state`: `attached`, `detached`, `visible`, `hidden`, `enabled`, or `disabled`.
-- `duration_ms` is valid only for `time`.
+## Default routing
 
-When a wait fails, read its complete content and inspect the current page before retrying. A redirect, consent screen, CAPTCHA, or other intermediate page may have replaced the expected destination.
+The AgentContext stores a default Browser and, when one exists, a default Tab. Omitting both targets uses that exact pair. It never means “choose any available Remote”. With multiple Remote instances, select an instance explicitly or use a Tab ID returned by Browser tools.
 
-## Selecting a Session
+`browser_select_instance` changes the default Browser without bringing a tab to the user's foreground. `browser_select_tab` changes the default Browser and Tab to the owner of that Tab without bringing it to the foreground. `browser_activate_tab` changes the user's foreground when the backend supports it; it does not change the Agent default.
 
-Omit `session_id` for the normal isolated Browser used by the current Agent.
+The first ordinary `browser_navigate` can create the configured default Browser and its first Tab. If the configured Browser is unavailable, report that state. Do not silently switch to another Browser.
 
-Call `browser_list_sessions` when the user asks to use an authorized browser, more than one session may exist, or a previous session disconnected. Select only a connected session returned by the tool. Do not invent session IDs.
+## Discovering targets
 
-Call `browser_list_pages` only when the task should reuse a page opened earlier. For a new URL, call `browser_open_page` directly. Use only opaque `page_id` values returned by Browser tools.
+Use `browser_list_instances` when the Browser instance is unknown or several Local/Remote connections may be relevant. Its content lists short Browser IDs such as `b1` and real connection states.
 
-Session lists are in `result.data["sessions"]`; page lists are in `result.data["pages"]`. Every page item uses `page_id`.
+Use `browser_list_tabs` only when the target Tab is unknown. Omit `browser_id` to list the default Browser; pass a known `browser_id` to inspect another instance. The content and data use stable Tab IDs such as `t1`, not list positions.
 
-## Page Lifetime
+Do not invent IDs. A closed, disconnected, or re-registered Browser or Tab may make an old short ID invalid; an invalid explicit target fails and does not fall back to the default.
 
-- Normal operations automatically renew a sandbox page's idle lease.
-- An idle sandbox page normally expires after about 10 minutes.
-- `browser_keep_alive` can extend a page for a known long-running step, up to one hour per call.
-- If a page expired, list pages and reopen or navigate a page. Old refs are invalid.
-- Authorized user tabs do not use the sandbox page expiry rule.
+## Multiple tabs
 
-Do not keep pages alive speculatively. Do not create periodic renewals unless the task genuinely needs the same page later.
+Keep the ordinary navigate/read/action path on one default tab. Create another only when the first page must be preserved:
 
-## Capabilities
+```python
+from sdk.tool import tool
 
-Read the selected session's capabilities before depending on optional behavior such as labeled screenshots, console, network, upload, or downloads. If a required capability is unavailable, use a documented alternative or explain the limitation.
+first = tool.call("browser_navigate", {"url": "https://example.com/first"})
+print(first.content)
+if first.ok:
+    first_tab_id = first.data["tab_id"]
+    second = tool.call("browser_new_tab", {"url": "https://example.com/second"})
+    print(second.content)
+    if second.ok:
+        print(tool.call("browser_read_page", {}).content)
+        print(tool.call("browser_read_page", {"tab_id": first_tab_id}).content)
+```
 
-## Ownership
+The Python variables above are valid only within this one code snippet. Across separate snippets, use the literal `tN` from earlier Browser content. Reading an explicit Tab does not change the default. A successful New Tab does.
 
-- Activating a page selects it; it does not navigate.
-- Closing a page affects only that page.
-- Leave task-created pages open after the task unless the user asks to close them or resource pressure requires cleanup. Sandbox TTL closes idle pages automatically.
-- Do not close a user-owned tab unless the user asked.
+Closing the default Tab selects a surviving Tab from the same Browser according to the existing lifecycle rules. If none remains, the Browser may remain with no default Tab; reads report that state and Navigate can create the next Tab. Closing a Tab never reuses its `tN`.
 
-After a disconnect or reconnect, list sessions and pages again. Do not reuse refs from the previous connection.
+## Authorized user Chrome
+
+Use `browser_list_instances` to find a connected user Chrome instance. If it is not listed as connected, ask the user to connect and authorize it through the product UI. Do not request connection tokens or endpoints.
+
+After a user Chrome Tab is selected, operate it by its `tab_id`. Do not pass a Session UUID, Chrome native Tab ID, CDP Target ID, or endpoint to Browser tools.
+
+## Page lifetime and capabilities
+
+Normal operations renew sandbox page leases. Use `browser_keep_alive` only for a known long-running step. Read the selected instance capabilities before depending on screenshots, console, network, upload, or downloads.
+
+When a wait fails, read its complete content and inspect the current Tab before retrying. A redirect, consent screen, CAPTCHA, or other intermediate page may have replaced the expected destination.

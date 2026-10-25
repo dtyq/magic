@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { UpdateMicroAppBody } from "@/apis/modules/superMagic"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 
 import MicroAppPublishDialog from "./MicroAppPublishDialog"
 import MicroAppEditDialog from "./MicroAppEditDialog"
@@ -10,7 +11,9 @@ interface MicroAppPageOverlaysProps {
 	mobile?: boolean
 	publishDialogOpen: boolean
 	onPublishDialogOpenChange: (open: boolean) => void
+	attachmentList?: AttachmentItem[]
 	onPublishStatusChange: (published: boolean) => void
+	onDefaultOpenFileChange?: (fileId: string | null) => void
 	onProjectNameChange: (projectName: string) => void
 	editDialogOpen: boolean
 	editSubmitting: boolean
@@ -27,7 +30,9 @@ export default function MicroAppPageOverlays({
 	mobile = false,
 	publishDialogOpen,
 	onPublishDialogOpenChange,
+	attachmentList,
 	onPublishStatusChange,
+	onDefaultOpenFileChange,
 	onProjectNameChange,
 	editDialogOpen,
 	editSubmitting,
@@ -45,7 +50,9 @@ export default function MicroAppPageOverlays({
 				mobile={mobile}
 				onProjectNameChange={onProjectNameChange}
 				onPublishStatusChange={onPublishStatusChange}
+				onDefaultOpenFileChange={onDefaultOpenFileChange}
 				onOpenChange={onPublishDialogOpenChange}
+				attachmentList={attachmentList}
 			/>
 			<MicroAppEditDialog
 				open={editDialogOpen}

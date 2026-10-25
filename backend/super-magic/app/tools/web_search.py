@@ -2,10 +2,10 @@ from app.i18n import i18n
 import asyncio
 import json
 import random
-import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Optional, Tuple
+import enum
+from typing import Any, Dict, List, Optional
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agentlang.context.tool_context import ToolContext
 from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
@@ -14,8 +14,6 @@ from agentlang.tools.tool_result import ToolResult
 from app.core.entity.tool.tool_result_types import SearchResult, WebSearchToolResult
 from agentlang.logger import get_logger
 from app.tools.core import BaseTool, BaseToolParams, tool
-from app.utils.xml_escape_fixer import XMLEscapeFixer
-from app.tools.web_search_utils.requirements_xml_parser import fallback_parse_requirements_xml
 from app.tools.web_search_utils import get_search_driver
 
 logger = get_logger(__name__)
@@ -24,193 +22,91 @@ logger = get_logger(__name__)
 MAX_RESULTS = 10
 
 
+class SearchTimePeriod(enum.StrEnum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
+class WebSearchRequirement(BaseModel):
+    # 字段默认值与既有搜索驱动保持一致；类 docstring 会进入模型 Schema，不放内部说明。
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(
+        min_length=1,
+        description="""<!--zh: 需求名称，用于区分搜索结果。-->
+Name identifying this search requirement in the results.""",
+    )
+    query: str = Field(
+        min_length=1,
+        description="""<!--zh: 具体搜索关键词，避免宽泛词汇；可将单一主题词与详细关键词分别作为需求搜索，以丰富结果。-->
+Specific search keywords. Avoid vague terms; use separate requirements for a subject keyword and a more detailed query to broaden coverage.""",
+    )
+    limit: int = Field(
+        default=10,
+        ge=1,
+        le=20,
+        description="""<!--zh: 返回结果数量，默认 10，范围 1–20。-->
+Requested result count, from 1 to 20; defaults to 10.""",
+    )
+    offset: int = Field(
+        default=0,
+        ge=0,
+        description="""<!--zh: 分页偏移量，默认 0，不得为负数。-->
+Non-negative pagination offset; defaults to 0.""",
+    )
+    language: str = Field(
+        default="zh-CN",
+        description="""<!--zh: 搜索语言，默认 zh-CN。-->
+Search language; defaults to 'zh-CN'.""",
+    )
+    region: str = Field(
+        default="CN",
+        description="""<!--zh: 搜索区域，默认 CN。-->
+Search region; defaults to 'CN'.""",
+    )
+    time_period: SearchTimePeriod | None = Field(
+        default=None,
+        description="""<!--zh: 时间范围：day/week/month/year；省略表示不限。-->
+Time range: day, week, month, or year. Omit for no time restriction.""",
+    )
+
+    @field_validator("language")
+    @classmethod
+    def normalize_language(cls, value: str) -> str:
+        return value or "zh-CN"
+
+    @field_validator("region")
+    @classmethod
+    def normalize_region(cls, value: str) -> str:
+        return value or "CN"
+
+
 class WebSearchParams(BaseToolParams):
-    topic_id: str = Field(
+    model_config = ConfigDict(extra="forbid")
+
+    search_group_name: str = Field(
         ...,
-        description="""<!--zh: 搜索主题标识符，用于同一主题下的搜索去重。对于同一搜索主题使用相同的topic_id（如'tech-news-research'），确保不同搜索词不会返回重复结果-->
-Search topic identifier for deduplication within the same topic. Use the same topic_id for the same search topic (e.g., 'tech-news-research') to ensure different search terms don't return duplicate results"""
+        description="""<!--zh: 自行为这组相关搜索起一个简短名称，如 industry-report。同组后续搜索复用完全相同的名称；独立搜索使用新名称。仅标记结果所属分组，不做去重。名称由你创建，不要查询或填写平台话题 ID。-->
+Choose a short name for this group of related searches, such as 'industry-report'. Reuse the exact name for follow-up searches in the same group; choose a new name for a separate group. This only labels the results; it does not deduplicate them. Create the name yourself; do not look up or use the platform conversation ID.""",
     )
-    requirements_xml: str = Field(
-        ...,
-        description="""<!--zh
-搜索需求XML配置，示例：
-<requirements>
-    <requirement>
-        <name>OpenAI新闻</name>
-        <query>OpenAI GPT-4.1 发布 2025</query>
-    </requirement>
-    <requirement>
-        <name>特斯拉财报</name>
-        <query>Tesla Q1 2025 earnings report</query>
-        <limit>20</limit>
-        <offset>1</offset>
-        <time_period>month</time_period>
-    </requirement>
-</requirements>
-
-格式要求：
-- 每个 <requirement> 标签包含一个搜索需求
-- 所有文本字段需要进行适当的 XML 转义（如 & 需要写成 &amp;，< 需要写成 &lt; 等）
-
-字段说明：
-- name: 需求名称，用于区分搜索结果
-- query: 具体搜索关键词，避免宽泛词汇
-- limit: 结果数量 (默认10，最大20)
-- offset: 分页偏移量 (默认0)
-- language: 搜索语言 (默认zh-CN)
-- region: 搜索区域 (默认CN)
-- time_period: 时间范围 (可选): day/week/month/year
-
-建议使用单个query关键词与多个query关键词以得到足够丰富的搜索结果，如：query="GPT-4.1" 与 query="OpenAI GPT-4.1 发布 2025" 等组合使用
--->
-Search requirements XML configuration, example:
-<requirements>
-    <requirement>
-        <name>OpenAI News</name>
-        <query>OpenAI GPT-4.1 release 2025</query>
-    </requirement>
-    <requirement>
-        <name>Tesla Earnings</name>
-        <query>Tesla Q1 2025 earnings report</query>
-        <limit>20</limit>
-        <offset>1</offset>
-        <time_period>month</time_period>
-    </requirement>
-</requirements>
-
-Format requirements:
-- Each <requirement> tag contains one search requirement
-- All text fields need proper XML escaping (e.g., & should be &amp;, < should be &lt;, etc.)
-
-Field descriptions:
-- name: Requirement name to distinguish search results
-- query: Specific search keywords, avoid broad terms
-- limit: Result count (default 10, max 20)
-- offset: Pagination offset (default 0)
-- language: Search language (default zh-CN)
-- region: Search region (default CN)
-- time_period: Time range (optional): day/week/month/year
-
-Suggest using both single and multiple query keywords to get rich results, e.g., query="GPT-4.1" and query="OpenAI GPT-4.1 release 2025" in combination"""
+    requirements: list[WebSearchRequirement] = Field(
+        min_length=1,
+        description="""<!--zh: 搜索需求列表，每项独立搜索，多个需求并发处理。直接传对象数组，不要序列化为字符串。-->
+Web search requirements; each item runs a search, and multiple items run concurrently. Pass an array of objects, not a serialized string.""",
     )
-
-
-def _parse_search_requirements_xml(xml_string: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-    """解析搜索需求XML字符串
-
-    Args:
-        xml_string: XML格式的需求字符串
-
-    Returns:
-        Tuple of (requirements_list, fix_message)
-        - requirements_list: List of requirement dictionaries
-        - fix_message: Optional message about XML fixes made, None if no fixes
-
-    Raises:
-        ValueError: XML格式错误或缺少必要字段
-    """
-    try:
-        # Auto-fix XML special characters if needed
-        fixed_xml, fixes = XMLEscapeFixer.fix_xml_string(xml_string.strip())
-        fix_message = XMLEscapeFixer.format_fixes_message(fixes) if fixes else None
-
-        if fix_message:
-            logger.info(f"XML自动修复: {fix_message}")
-
-        # 解析XML
-        root = ET.fromstring(fixed_xml)
-
-        if root.tag != 'requirements':
-            raise ValueError("XML根节点必须是 <requirements>")
-
-        requirements = []
-
-        for req_element in root.findall('requirement'):
-            # 提取必要字段
-            name = req_element.find('name')
-            query = req_element.find('query')
-
-            # 检查必要字段
-            required_fields = [
-                ('name', name),
-                ('query', query),
-            ]
-
-            for field_name, element in required_fields:
-                if element is None or not element.text or not element.text.strip():
-                    raise ValueError(f"字段 '{field_name}' 不能为空")
-
-            # 提取可选字段并设置默认值
-            limit_element = req_element.find('limit')
-            limit = 10  # 默认值
-            if limit_element is not None and limit_element.text:
-                try:
-                    limit = int(limit_element.text.strip())
-                    if limit < 1 or limit > 20:
-                        raise ValueError(f"limit 必须在 1-20 之间，当前值: {limit}")
-                except ValueError as e:
-                    if "invalid literal" in str(e):
-                        raise ValueError(f"limit 必须是数字，当前值: {limit_element.text}")
-                    raise
-
-            offset_element = req_element.find('offset')
-            offset = 0  # 默认值
-            if offset_element is not None and offset_element.text:
-                try:
-                    offset = int(offset_element.text.strip())
-                    if offset < 0:
-                        raise ValueError(f"offset 必须大于等于0，当前值: {offset}")
-                except ValueError as e:
-                    if "invalid literal" in str(e):
-                        raise ValueError(f"offset 必须是数字，当前值: {offset_element.text}")
-                    raise
-
-            language_element = req_element.find('language')
-            language = language_element.text.strip() if language_element is not None and language_element.text else "zh-CN"
-
-            region_element = req_element.find('region')
-            region = region_element.text.strip() if region_element is not None and region_element.text else "CN"
-
-            time_period_element = req_element.find('time_period')
-            time_period = time_period_element.text.strip() if time_period_element is not None and time_period_element.text else None
-
-            # 构造需求对象
-            requirement = {
-                'name': name.text.strip(),
-                'query': query.text.strip(),
-                'limit': limit,
-                'offset': offset,
-                'language': language,
-                'region': region,
-                'time_period': time_period
-            }
-
-            requirements.append(requirement)
-
-        if not requirements:
-            raise ValueError("至少需要一个 <requirement> 元素")
-
-        return requirements, fix_message
-
-    except (ET.ParseError, ValueError) as e:
-        # 严格解析失败，尝试兜底解析
-        logger.warning(f"XML严格解析失败({e})，尝试兜底解析")
-        try:
-            return fallback_parse_requirements_xml(xml_string)
-        except ValueError as fallback_err:
-            # 兜底也失败，抛出原始错误+兜底失败信息
-            raise ValueError(f"XML解析错误: {e}; 兜底解析也失败: {fallback_err}") from e
 
 
 @tool()
 class WebSearch(BaseTool[WebSearchParams]):
     """<!--zh
-    互联网搜索工具，支持XML格式配置多个搜索需求并行处理，支持分页搜索。
+    互联网搜索工具，支持多个搜索需求并行处理和分页搜索。
     请充分利用并发搜索能力，提高搜索效率。
     搜索结果仅提供线索，需通过其它工具阅读网页以获取完整信息。
     搜索结果包含标题、URL、摘要和来源网站。
     -->
-    Internet search tool supporting XML format configuration for multiple search requirements with parallel processing and pagination.
+    Internet search tool supporting multiple search requirements with parallel processing and pagination.
     Make full use of concurrent search capabilities to improve efficiency.
     Search results only provide clues; use other tools to read webpages for complete information.
     Search results include title, URL, summary, and source website.
@@ -230,14 +126,7 @@ class WebSearch(BaseTool[WebSearchParams]):
     ) -> ToolResult:
         """执行搜索并返回格式化的结果。"""
         try:
-            # 解析XML需求
-            try:
-                requirements_data, xml_fix_message = _parse_search_requirements_xml(params.requirements_xml)
-            except ValueError as e:
-                return WebSearchToolResult.error(f"需求XML解析失败: {e}，请在修正XML数据后重新执行")
-
-            if not requirements_data:
-                return WebSearchToolResult(content="搜索需求不能为空，请在修正XML数据后重新执行")
+            requirements_data = [requirement.model_dump(mode="json") for requirement in params.requirements]
 
             logger.info(f"执行互联网搜索: 需求数量={len(requirements_data)}, 驱动={self.driver.__class__.__name__}")
 
@@ -273,14 +162,10 @@ class WebSearch(BaseTool[WebSearchParams]):
             # 提醒大模型：搜索结果只是摘要片段，须读取网页原文才能作为证据
             message += "\n\n[Note] These results are snippet previews only, not full content — do not use them as evidence for conclusions. Read the full content of key pages as needed before drawing conclusions."
 
-            # Add XML fix notification if any fixes were made
-            if xml_fix_message:
-                message += f"\n\nNote: {xml_fix_message}. Please properly escape special characters when generating XML next time."
-
             # 设置输出文本
             output_dict = {
                 "message": message,
-                "topic_id": params.topic_id,
+                "search_group_name": params.search_group_name,
                 "requirements": requirement_names,
                 "results": result.output_results_to_dict()
             }
@@ -297,7 +182,7 @@ class WebSearch(BaseTool[WebSearchParams]):
                     })
             result.data = {"results": all_results_list}
 
-            # Store requirement names in extra_info to avoid reparsing XML
+            # 保存已校验的需求名称，供结果展示直接使用。
             result.extra_info['requirement_names'] = requirement_names
 
             return result
@@ -309,9 +194,11 @@ class WebSearch(BaseTool[WebSearchParams]):
     def _handle_requirements_results(self, requirements_data: List[Dict[str, Any]], all_results) -> WebSearchToolResult:
         """格式化多个需求的搜索结果"""
         result = WebSearchToolResult(content="")
+        query_by_keyword: dict[str, str] = {}
 
         for req_data, search_results in zip(requirements_data, all_results):
             result_key = f"{req_data['name']} ({req_data['query']})"
+            query_by_keyword[result_key] = req_data['query']
             # 驱动返回 List[SearchResultItem]，直接转为 SearchResult
             output_models = [
                 SearchResult(
@@ -334,6 +221,8 @@ class WebSearch(BaseTool[WebSearchParams]):
             result.output_results[result_key] = output_models
             result.search_results[result_key] = search_models
 
+        # 详情显示真实查询词，分组身份仍保留 name(query)；不改模型输出，也不重新解析请求。
+        result.extra_info['search_queries'] = query_by_keyword
         return result
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
@@ -347,6 +236,7 @@ class WebSearch(BaseTool[WebSearchParams]):
 
             return ToolDetailFactory.create_search_detail_from_search_results(
                 search_results=result.search_results,
+                query_by_keyword=result.extra_info.get('search_queries'),
             )
         except Exception as e:
             logger.error(f"生成工具详情失败: {e!s}")
@@ -362,35 +252,37 @@ class WebSearch(BaseTool[WebSearchParams]):
             }
 
         # 处理成功情况
-        if not arguments or "requirements_xml" not in arguments:
-            return {
-                "action": i18n.translate("web_search", category="tool.actions"),
-                "remark": i18n.translate("web_search.completed", category="tool.messages")
-            }
+        # 消息卡片靠真实查询词区分搜索批次；内部 name 只用于关联结果，详情另行展示完整查询。
+        queries: list[str] = []
+        search_queries = result.extra_info.get('search_queries')
+        if isinstance(search_queries, dict):
+            queries = [
+                query.strip()
+                for query in search_queries.values()
+                if isinstance(query, str) and query.strip()
+            ]
 
-        try:
-            # Get requirement names from extra_info (stored during execute) to avoid reparsing XML
-            requirement_names = result.extra_info.get('requirement_names', [])
-            if not requirement_names:
-                # Fallback: parse XML if extra_info is not available
-                requirements_data, _ = _parse_search_requirements_xml(arguments["requirements_xml"])
-                requirement_names = [req['name'] for req in requirements_data]
+        if not queries and arguments:
+            requirements = arguments.get('requirements')
+            if isinstance(requirements, list):
+                for requirement in requirements:
+                    if not isinstance(requirement, dict):
+                        continue
+                    query = requirement.get('query')
+                    if isinstance(query, str) and query.strip():
+                        queries.append(query.strip())
 
-            if len(requirement_names) > 1:
-                names_str = ', '.join(requirement_names[:3])
-                if len(requirement_names) > 3:
-                    names_str += i18n.translate("web_search.more_items", category="tool.messages")
-                return {
-                    "action": i18n.translate("web_search", category="tool.actions"),
-                    "remark": i18n.translate("web_search.requirements", category="tool.messages", requirements=names_str)
-                }
-            else:
-                return {
-                    "action": i18n.translate("web_search", category="tool.actions"),
-                    "remark": i18n.translate("web_search.requirement", category="tool.messages", requirement=requirement_names[0])
-                }
-        except Exception:
-            return {
-                "action": i18n.translate("web_search", category="tool.actions"),
-                "remark": i18n.translate("web_search.completed", category="tool.messages")
-            }
+        if len(queries) == 1:
+            remark = i18n.translate("web_search.requirement", category="tool.messages", requirement=queries[0])
+        elif queries:
+            query_summary = ', '.join(queries[:3])
+            if len(queries) > 3:
+                query_summary += i18n.translate("web_search.more_items", category="tool.messages")
+            remark = i18n.translate("web_search.requirements", category="tool.messages", requirements=query_summary)
+        else:
+            remark = i18n.translate("web_search.completed", category="tool.messages")
+
+        return {
+            "action": i18n.translate("web_search", category="tool.actions"),
+            "remark": remark
+        }

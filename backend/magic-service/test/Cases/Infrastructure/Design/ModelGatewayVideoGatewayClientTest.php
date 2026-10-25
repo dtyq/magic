@@ -11,6 +11,7 @@ use App\Application\ModelGateway\Component\Points\DTO\PointEstimateResult;
 use App\Application\ModelGateway\Service\VideoOperationAppService;
 use App\Domain\ModelGateway\Entity\Dto\CreateVideoDTO;
 use App\Domain\ModelGateway\Entity\Dto\VideoOperationResponseDTO;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Design\ModelGatewayVideoGatewayClient;
 use Hyperf\Context\ApplicationContext;
@@ -86,7 +87,7 @@ class ModelGatewayVideoGatewayClientTest extends TestCase
             'business_params' => [
                 'project_id' => 1001,
                 'video_id' => 'video-123',
-                'source_id' => 'design_video_generation',
+                'source_id' => SourceId::DESIGN_VIDEO_GENERATION,
             ],
         ], [
             'organization_code' => 'org',
@@ -180,7 +181,7 @@ class ModelGatewayVideoGatewayClientTest extends TestCase
             'extensions' => [],
             'business_params' => [
                 'project_id' => 1001,
-                'source_id' => 'design_video_generation',
+                'source_id' => SourceId::DESIGN_VIDEO_GENERATION,
             ],
         ], [
             'organization_code' => 'org',

@@ -1,99 +1,69 @@
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { Flex } from "antd"
-import { createStyles } from "antd-style"
-import { memo, useMemo, type ReactNode } from "react"
+import { memo, type ReactNode } from "react"
+import { cn } from "@/utils/cn"
 
-const useSettingItemStyles = createStyles(({ css, isDarkMode, token }) => {
-	return {
-		container: css`
-			padding: 12px 20px;
-			&:not(:last-child) {
-				border-bottom: 1px solid ${token.colorBorder};
-			}
-		`,
-		title: css`
-			color: ${isDarkMode ? token.magicColorScales.grey[8] : token.magicColorUsages.text[1]};
-			font-size: 16px;
-			font-weight: 400;
-			line-height: 22px;
-		`,
-		description: css`
-			color: ${isDarkMode ? token.magicColorScales.grey[4] : token.magicColorUsages.text[3]};
-			font-size: 14px;
-			font-weight: 400;
-			line-height: 20px;
-			text-align: left;
-		`,
-		extra: css`
-			min-width: 270px;
-			flex-shrink: 0;
-		`,
-	}
-})
 interface SettingItemProps {
 	icon?: ReactNode
 	title: ReactNode
 	description?: ReactNode
 	extra?: ReactNode
 	/**
-	 * 是否自适应移动端
-	 * 如果为 true，则会在移动端显示为垂直布局
-	 * 如果为 false，则会在移动端显示为水平布局
+	 * Stack the setting and its control on mobile when enabled.
+	 * Otherwise preserve the horizontal layout at every viewport size.
 	 */
 	adaptMobile?: boolean
 }
 
+/**
+ * Shared setting row with optional icon, description, and caller-provided control.
+ * Desktop minimum widths align controls across rows; mobile releases those widths
+ * and only stacks the control when adaptMobile is explicitly enabled.
+ */
 const SettingItem = memo(
 	({ icon, title, description, extra, adaptMobile = false }: SettingItemProps) => {
-		const { styles } = useSettingItemStyles()
 		const isMobile = useIsMobile()
-
-		const props = useMemo(() => {
-			return adaptMobile && isMobile
-				? { vertical: true, gap: 10 }
-				: { align: "center", justify: "space-between", gap: 10 }
-		}, [adaptMobile, isMobile])
-
-		const titleProps = useMemo(() => {
-			return adaptMobile && isMobile
-				? { vertical: false, justify: "space-between", align: "center" }
-				: { vertical: true, align: "flex-start" }
-		}, [adaptMobile, isMobile])
-
-		const extraProps = useMemo(() => {
-			return adaptMobile && isMobile
-				? { justify: "flex-start" }
-				: { align: "center", justify: "flex-end" }
-		}, [adaptMobile, isMobile])
+		const stacked = adaptMobile && isMobile
 
 		return (
-			<Flex {...props} className={styles.container}>
-				<Flex align="center" gap={10}>
+			<div
+				className={cn(
+					"flex gap-2.5 border-b border-border px-5 py-3 last:border-b-0",
+					stacked ? "flex-col" : "items-center justify-between",
+				)}
+			>
+				<div className="flex items-center gap-2.5">
 					{icon}
-					<Flex {...titleProps} gap={2} flex={1}>
+					<div
+						className={cn(
+							"flex flex-1 gap-0.5",
+							stacked ? "items-center justify-between" : "flex-col items-start",
+						)}
+					>
 						<div
-							className={styles.title}
-							style={{
-								minWidth: isMobile ? "unset" : "200px",
-							}}
+							className={cn(
+								"text-base font-normal leading-[22px] text-foreground/80 dark:text-neutral-100",
+								!isMobile && "min-w-[200px]",
+							)}
 						>
 							{title}
 						</div>
 						{description ? (
-							<div className={styles.description}>{description}</div>
+							<div className="text-left text-sm font-normal leading-5 text-foreground/40 dark:text-neutral-500">
+								{description}
+							</div>
 						) : null}
-					</Flex>
-				</Flex>
-				<Flex
-					className={styles.extra}
-					style={{
-						minWidth: isMobile ? "unset" : "270px",
-					}}
-					{...extraProps}
+					</div>
+				</div>
+				<div
+					className={cn(
+						"flex shrink-0",
+						!isMobile && "min-w-[270px]",
+						stacked ? "justify-start" : "items-center justify-end",
+					)}
 				>
 					{extra}
-				</Flex>
-			</Flex>
+				</div>
+			</div>
 		)
 	},
 )

@@ -30,6 +30,10 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
     """Start the WeChat ClawBot QR login flow for SDK snippets."""
 
     async def execute(self, tool_context: ToolContext, params: ConnectWechatBotParams) -> ToolResult:
+        topic_id = tool_context.topic_id
+        if not topic_id:
+            return ToolResult.error("The current topic ID is missing, so the WeChat channel cannot be bound.")
+
         manager = WechatLoginManager.get_instance()
         agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
 
@@ -48,8 +52,6 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
             # 仅在新 session 上挂兜底回调，复用时已有回调无需重复注册。
             # 作用：即使模型未调用 wait_wechat_login，扫码成功后也能自动写配置并激活渠道。
             if session._on_success is None:
-                sandbox_id = tool_context.sandbox_id
-
                 async def _on_login_success(result: "WechatLoginResult") -> None:
                     from app.channel.config import (
                         DEFAULT_WECHAT_CDN_BASE_URL,
@@ -68,7 +70,7 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
                         base_url=result.base_url,
                         cdn_base_url=existing_cdn_base_url,
                         ilink_user_id=result.ilink_user_id,
-                        sandbox_id=sandbox_id,
+                        topic_id=topic_id,
                     )
                     await save_config(config)
                     logger.info(

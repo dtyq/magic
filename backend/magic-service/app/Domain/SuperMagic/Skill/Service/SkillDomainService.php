@@ -89,6 +89,23 @@ class SkillDomainService
         return $this->skillRepository->findByCode($dataIsolation, $code);
     }
 
+    public function lockSkill(SkillDataIsolation $dataIsolation, string $code): void
+    {
+        $this->skillRepository->lockByCode($dataIsolation, $code);
+    }
+
+    public function findSkillByProjectId(SkillDataIsolation $dataIsolation, int $projectId): SkillEntity
+    {
+        $skills = $this->skillRepository->findByProjectId($dataIsolation, $projectId);
+        if (count($skills) > 1) {
+            ExceptionBuilder::throw(SkillErrorCode::PROJECT_BINDING_CONFLICT);
+        }
+        if ($skills === []) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_NOT_FOUND, 'skill.skill_not_found');
+        }
+        return $skills[0];
+    }
+
     /**
      * 根据 code 列表批量查询技能.
      *
@@ -99,6 +116,50 @@ class SkillDomainService
     public function findSkillsByCodes(SkillDataIsolation $dataIsolation, array $codes): array
     {
         return $this->skillRepository->findByCodes($dataIsolation, $codes);
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function findCurrentUserCreatedSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        return $this->skillRepository->findCodesByCreator($dataIsolation);
+    }
+
+    /**
+     * 查询本地 ZIP 导入的 Skill，用于一次性清理历史多语言数据.
+     *
+     * @return array{total: int, list: SkillEntity[]}
+     */
+    public function findLocalUploadSkillsForI18nCleanup(
+        SkillDataIsolation $dataIsolation,
+        ?string $skillCode,
+        int $page,
+        int $pageSize
+    ): array {
+        return $this->skillRepository->findLocalUploadSkillsForI18nCleanup(
+            $dataIsolation,
+            $skillCode,
+            $page,
+            $pageSize
+        );
+    }
+
+    /**
+     * 仅更新 Skill 的名称和描述多语言字段.
+     */
+    public function updateNameAndDescriptionI18n(
+        SkillDataIsolation $dataIsolation,
+        string $skillCode,
+        array $nameI18n,
+        ?array $descriptionI18n
+    ): bool {
+        return $this->skillRepository->updateNameAndDescriptionI18n(
+            $dataIsolation,
+            $skillCode,
+            $nameI18n,
+            $descriptionI18n
+        );
     }
 
     /**
@@ -133,7 +194,8 @@ class SkillDomainService
         string $sandboxId,
         string $sourcePath,
         string $archiveRoot,
-        string $fileName
+        string $fileName,
+        DataIsolation $contactDataIsolation
     ): array {
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
@@ -150,14 +212,6 @@ class SkillDomainService
             $archiveRoot,
             $fileName
         );
-        // SkillDataIsolation is a BaseDataIsolation derivative and does NOT
-        // implement the Contact-side DataIsolation contract used by the
-        // sandbox gateway. Adapt it to a Contact\DataIsolation here so the
-        // export path can stamp & forward the per-user token uniformly.
-        $contactDataIsolation = DataIsolation::create(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId()
-        );
         $response = $this->workspaceExporter->export($contactDataIsolation, $sandboxId, $request);
 
         if (! $response->isSuccess()) {
@@ -165,6 +219,44 @@ class SkillDomainService
         }
 
         return $response->toArray();
+    }
+
+    /** 创建异步 Skill 工作区导出任务。 */
+    public function createSkillWorkspaceExportAsync(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        string $sandboxId,
+        string $sourcePath,
+        string $archiveRoot,
+        string $fileName,
+        string $taskKey,
+        DataIsolation $contactDataIsolation
+    ): array {
+        $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
+            $dataIsolation->getCurrentOrganizationCode(),
+            StorageBucketType::Private,
+            'skills/' . $code,
+            options: ['internal_endpoint' => true]
+        );
+        $request = new ExportWorkspaceRequest(
+            ProjectMode::SKILL_CREATOR->value,
+            $code,
+            $uploadConfig,
+            $sourcePath,
+            $archiveRoot,
+            $fileName,
+        );
+        return $this->workspaceExporter->createAsync($contactDataIsolation, $sandboxId, $request, $taskKey)->toArray();
+    }
+
+    /** 查询异步 Skill 工作区导出任务。 */
+    public function checkSkillWorkspaceExportAsync(
+        SkillDataIsolation $dataIsolation,
+        string $sandboxId,
+        string $taskKey,
+        DataIsolation $contactDataIsolation
+    ): array {
+        return $this->workspaceExporter->checkAsync($contactDataIsolation, $sandboxId, $taskKey)->toArray();
     }
 
     /**
@@ -177,26 +269,9 @@ class SkillDomainService
         SkillDataIsolation $dataIsolation,
         string $sandboxId,
         string $fileUrl,
+        DataIsolation $contactDataIsolation,
         string $targetDir = ''
     ): array {
-        // Per-call user identity flows through DataIsolation. Previously
-        // this called setUserContext() on the sandbox-gateway instance
-        // owned by THIS service, but the actual downstream gateway call
-        // happens inside WorkspaceImporterService which has a SEPARATE
-        // gateway instance, so the prior call was a no-op (real bug).
-        // We now plumb DataIsolation all the way through.
-        //
-        // SkillDataIsolation is the Skill-domain isolation VO (a
-        // BaseDataIsolation derivative) and does NOT implement the
-        // Contact-side DataIsolation contract used by the sandbox
-        // gateway. Adapt it to a Contact\DataIsolation here, preserving
-        // the previous wire format: no User-Authorization on the import
-        // path (token stays null).
-        $contactDataIsolation = DataIsolation::create(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId()
-        );
-
         $request = new ImportWorkspaceRequest($fileUrl, $targetDir);
         $response = $this->workspaceImporter->import($contactDataIsolation, $sandboxId, $request);
 

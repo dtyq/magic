@@ -17,6 +17,7 @@ import { WechatCoverPhonePanel } from "./WechatCoverPhonePanel"
 import WechatEditView from "./edit"
 import { WechatOfficialContentGate } from "./WechatOfficialContentGate"
 import { loadWechatArticleHtml } from "./wechatArticleHtml"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { buildWechatClipboardHtmlFromSource } from "./wechatClipboardHtml"
 import { writeWechatHtmlToClipboard } from "./wechatClipboardWriter"
 import { WECHAT_COVER_BASE_HEIGHT, WECHAT_COVER_BASE_WIDTH } from "./wechatCoverDimensions"
@@ -139,6 +140,7 @@ const WechatOfficialShellContent = observer(function WechatOfficialShellContent(
 	const articleViewRef = useRef<WechatArticleViewRef>(null)
 	const [inspectorActive, setInspectorActive] = useState(false)
 	const { progress, exportWechatCoverImage } = useExportZip()
+	const fileApi = useFileApi()
 	const [exportDialogOpen, setExportDialogOpen] = useState(false)
 	const [isExporting, setIsExporting] = useState(false)
 	const [isCopyingWechatHtml, setIsCopyingWechatHtml] = useState(false)
@@ -263,6 +265,7 @@ const WechatOfficialShellContent = observer(function WechatOfficialShellContent(
 						fileId,
 						attachmentList,
 						attachments,
+						fileApi,
 					})
 					return buildWechatClipboardHtmlFromSource(result.content)
 				})
@@ -273,7 +276,7 @@ const WechatOfficialShellContent = observer(function WechatOfficialShellContent(
 		} finally {
 			setIsCopyingWechatHtml(false)
 		}
-	}, [activePostIndex, attachmentList, attachments, isCopyingWechatHtml, store, t])
+	}, [activePostIndex, attachmentList, attachments, fileApi, isCopyingWechatHtml, store, t])
 
 	const handleGenerateWechatCovers = useCallback(
 		async ({

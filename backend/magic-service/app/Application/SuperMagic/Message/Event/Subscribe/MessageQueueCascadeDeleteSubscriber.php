@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\SuperMagic\Message\Event\Subscribe;
 
+use App\Application\SuperMagic\Project\Event\Subscribe\ProjectDeletedSubscriber;
 use App\Domain\SuperMagic\Message\Service\MessageQueueDomainService;
 use App\Domain\SuperMagic\Project\Event\ProjectDeletedEvent;
 use App\Domain\SuperMagic\Project\Event\ProjectsBatchDeletedEvent;
@@ -26,7 +27,8 @@ class MessageQueueCascadeDeleteSubscriber implements ListenerInterface
 
     public function __construct(
         private readonly MessageQueueDomainService $messageQueueDomainService,
-        LoggerFactory $loggerFactory
+        LoggerFactory $loggerFactory,
+        private readonly ProjectDeletedSubscriber $projectDeletedSubscriber,
     ) {
         $this->logger = $loggerFactory->get(static::class);
     }
@@ -35,13 +37,17 @@ class MessageQueueCascadeDeleteSubscriber implements ListenerInterface
     {
         return [
             TopicDeletedEvent::class,
-            ProjectDeletedEvent::class,
-            ProjectsBatchDeletedEvent::class,
         ];
     }
 
     public function process(object $event): void
     {
+        // Previously persisted async events still reference this listener.
+        if ($event instanceof ProjectDeletedEvent || $event instanceof ProjectsBatchDeletedEvent) {
+            $this->projectDeletedSubscriber->process($event);
+            return;
+        }
+
         $eventClass = get_class($event);
 
         try {
@@ -51,21 +57,6 @@ class MessageQueueCascadeDeleteSubscriber implements ListenerInterface
                 $affectedRows = $this->messageQueueDomainService->cascadeDeleteUnfinishedByTopicIds($topicIds, $reason);
                 $this->logCompleted($eventClass, $topicIds, [], $affectedRows, $reason);
                 return;
-            }
-
-            if ($event instanceof ProjectDeletedEvent) {
-                $projectIds = [(int) $event->getProjectEntity()->getId()];
-                $reason = 'Project deleted, message queue cascade cleanup';
-                $affectedRows = $this->messageQueueDomainService->cascadeDeleteUnfinishedByProjectIds($projectIds, $reason);
-                $this->logCompleted($eventClass, [], $projectIds, $affectedRows, $reason);
-                return;
-            }
-
-            if ($event instanceof ProjectsBatchDeletedEvent) {
-                $projectIds = array_map('intval', $event->getProjectIds());
-                $reason = 'Projects batch deleted, message queue cascade cleanup';
-                $affectedRows = $this->messageQueueDomainService->cascadeDeleteUnfinishedByProjectIds($projectIds, $reason);
-                $this->logCompleted($eventClass, [], $projectIds, $affectedRows, $reason);
             }
         } catch (Throwable $e) {
             $this->logger->error('Message queue cascade cleanup failed', [

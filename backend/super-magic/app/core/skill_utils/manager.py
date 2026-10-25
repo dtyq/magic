@@ -154,4 +154,12 @@ async def find_skill(
         if agent_name is None
         else SkillManager(skills_dirs=_build_skills_dirs(agent_name))
     )
-    return await skill_manager.get_skill(skill_name)
+    skill = await skill_manager.get_skill(skill_name)
+    if skill is not None:
+        from app.core.skill_utils.skill_references import is_current_reference_skill
+        if not await is_current_reference_skill(skill, agent_name or GlobalSkillManager.get_current_agent_type()):
+            # Skip the stale local cache, but still allow an existing manual/system skill.
+            from app.core.skill_utils.skill_sources import get_crew_skills_dir
+            crew_dir = get_crew_skills_dir(agent_name or GlobalSkillManager.get_current_agent_type())
+            return await SkillManager(skills_dirs=[path for path in skill_manager.skills_dirs if path != crew_dir]).get_skill(skill_name)
+    return skill

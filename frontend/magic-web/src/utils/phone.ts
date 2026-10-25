@@ -69,6 +69,10 @@ export function encryptPhoneWithCountryCode(
 export function validatePhone(phone: string, phoneStateCode: string): boolean {
 	if (!phone) return false
 
+	// Ignore leading/trailing whitespace so pasted values with stray spaces
+	// still validate instead of being rejected as malformed.
+	phone = phone.trim()
+
 	// phone must be digits only
 	if (!/^\d+$/.test(phone)) return false
 

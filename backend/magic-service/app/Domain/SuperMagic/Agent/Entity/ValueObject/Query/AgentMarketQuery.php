@@ -16,8 +16,6 @@ class AgentMarketQuery extends AbstractQuery
 
     protected ?string $languageCode = null;
 
-    protected ?int $categoryId = null;
-
     /** @var int[] */
     protected array $categoryIds = [];
 
@@ -53,31 +51,16 @@ class AgentMarketQuery extends AbstractQuery
         $this->languageCode = $languageCode;
     }
 
-    public function getCategoryId(): ?int
-    {
-        return $this->categoryId;
-    }
-
-    public function setCategoryId(?int $categoryId): void
-    {
-        $this->categoryId = $categoryId;
-    }
-
     /** @return int[] */
     public function getCategoryIds(): array
     {
-        if ($this->categoryIds !== []) {
-            return $this->categoryIds;
-        }
-
-        return $this->categoryId === null ? [] : [$this->categoryId];
+        return $this->categoryIds;
     }
 
     /** @param int[] $categoryIds */
     public function setCategoryIds(array $categoryIds): void
     {
         $this->categoryIds = array_values(array_unique(array_filter($categoryIds)));
-        $this->categoryId = $this->categoryIds[0] ?? $this->categoryId;
     }
 
     /**

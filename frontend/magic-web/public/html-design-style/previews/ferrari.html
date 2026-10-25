@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ferrari luxury automotive marketing and telemetry showcase inspired by Maranello racing craft.">
+  <title>Ferrari — Beyond the Limits of Speed</title>
+  <style>
+    :root {
+      --primary: #da291c;
+      --primary-active: #b01e0a;
+      --primary-hover: #ff3b2f;
+      --accent-yellow: #f6e500;
+      --bg: #141414;
+      --bg-card: #1f1f1f;
+      --bg-card-hover: #262626;
+      --border: #2e2e2e;
+      --border-strong: #404040;
+      --ink: #ffffff;
+      --ink-muted: #969696;
+      --ink-dim: #666666;
+      --font-display: "FerrariSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "SF Mono", Monaco, Consolas, monospace;
+      --radius-sm: 2px;
+      --radius-md: 4px;
+      --radius-full: 9999px;
+      --shell-max: 1240px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; background: var(--bg); color: var(--ink); }
+    body { font-family: var(--font-body); background: var(--bg); color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+
+    .shell { width: min(var(--shell-max), calc(100% - 48px)); margin: 0 auto; }
+
+    /* Top Navigation */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(20, 20, 20, 0.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 70px;
+    }
+    .brand-group { display: flex; align-items: center; gap: 16px; }
+    .cavallino { width: 28px; height: 36px; fill: var(--primary); }
+    .brand-name {
+      font-family: var(--font-display);
+      font-size: 20px; font-weight: 800; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--ink);
+    }
+    .nav-links { display: flex; align-items: center; gap: 28px; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+    .nav-links a { color: var(--ink-muted); transition: color 0.2s ease; }
+    .nav-links a:hover, .nav-links a.active { color: var(--ink); }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 26px; font-family: var(--font-display);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+      border: 1px solid transparent; border-radius: var(--radius-sm);
+      cursor: pointer; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-primary {
+      background: var(--primary); color: #ffffff; border-color: var(--primary);
+      box-shadow: 0 4px 20px rgba(218, 41, 28, 0.35);
+    }
+    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 24px rgba(218, 41, 28, 0.5); }
+    .btn-ghost {
+      background: transparent; color: var(--ink); border-color: var(--border-strong);
+    }
+    .btn-ghost:hover { border-color: var(--ink); background: rgba(255, 255, 255, 0.05); }
+
+    /* Hero Section - Optimized for 16:10 Cover at 0.35 scale */
+    .hero {
+      position: relative;
+      padding: clamp(48px, 6vw, 84px) 0 40px;
+      overflow: hidden;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(218, 41, 28, 0.22), transparent 75%);
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 6px 14px; background: rgba(218, 41, 28, 0.12);
+      border: 1px solid rgba(218, 41, 28, 0.3); border-radius: var(--radius-full);
+      color: var(--primary); font-family: var(--font-mono); font-size: 11px;
+      font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .hero-eyebrow::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 6.5vw, 84px);
+      font-weight: 800; line-height: 0.96;
+      letter-spacing: -0.03em; text-transform: uppercase;
+      max-width: 960px; margin-bottom: 20px;
+    }
+    .hero-title span { color: var(--primary); }
+    .hero-subtitle {
+      font-size: clamp(15px, 1.8vw, 19px); line-height: 1.55;
+      color: var(--ink-muted); max-width: 680px; margin-bottom: 32px;
+      font-weight: 400;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 48px; }
+
+    /* Aerodynamic Supercar SVG Visual */
+    .hero-visual {
+      position: relative; width: 100%; border-radius: var(--radius-md);
+      background: linear-gradient(180deg, rgba(31, 31, 31, 0.85) 0%, rgba(20, 20, 20, 0.95) 100%);
+      border: 1px solid var(--border); padding: 36px 28px 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+    .visual-tagline {
+      position: absolute; top: 20px; left: 24px; font-family: var(--font-mono);
+      font-size: 10px; color: var(--ink-dim); letter-spacing: 0.2em; text-transform: uppercase;
+    }
+    .car-svg-wrap {
+      width: 100%; max-width: 820px; margin: 0 auto; display: block;
+      filter: drop-shadow(0 14px 28px rgba(218, 41, 28, 0.25));
+    }
+
+    /* Telemetry HUD Strip */
+    .telemetry-strip {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin-top: 28px; padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+    .telemetry-item { display: flex; flex-direction: column; gap: 4px; }
+    .telemetry-label {
+      font-family: var(--font-mono); font-size: 10px; color: var(--ink-dim);
+      letter-spacing: 0.16em; text-transform: uppercase;
+    }
+    .telemetry-value {
+      font-family: var(--font-display); font-size: clamp(24px, 3vw, 36px);
+      font-weight: 800; letter-spacing: -0.02em; color: var(--ink);
+    }
+    .telemetry-value small { font-size: 13px; font-weight: 600; color: var(--primary); margin-left: 4px; }
+
+    /* Section Global */
+    .section { padding: clamp(64px, 8vw, 108px) 0; border-top: 1px solid var(--border); }
+    .section-header {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      margin-bottom: 48px; gap: 24px; flex-wrap: wrap;
+    }
+    .section-eyebrow {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      color: var(--primary); letter-spacing: 0.2em; text-transform: uppercase;
+      margin-bottom: 8px; display: block;
+    }
+    .section-title {
+      font-family: var(--font-display); font-size: clamp(28px, 4vw, 44px);
+      font-weight: 800; text-transform: uppercase; letter-spacing: -0.02em;
+    }
+    .section-desc { color: var(--ink-muted); max-width: 480px; font-size: 14px; }
+
+    /* Models Grid */
+    .models-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .model-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 30px; display: flex;
+      flex-direction: column; justify-content: space-between; min-height: 380px;
+      position: relative; overflow: hidden; transition: all 0.3s ease;
+    }
+    .model-card::before {
+      content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+      background: transparent; transition: background 0.3s ease;
+    }
+    .model-card:hover {
+      background: var(--bg-card-hover); border-color: var(--border-strong);
+      transform: translateY(-4px); box-shadow: 0 16px 36px rgba(0,0,0,0.4);
+    }
+    .model-card:hover::before { background: var(--primary); }
+    .model-badge {
+      display: inline-block; padding: 4px 10px; background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-sm); font-size: 10px; font-family: var(--font-mono);
+      font-weight: 700; letter-spacing: 0.1em; color: var(--accent-yellow); margin-bottom: 18px;
+    }
+    .model-name {
+      font-family: var(--font-display); font-size: 26px; font-weight: 800;
+      letter-spacing: -0.02em; text-transform: uppercase; margin-bottom: 8px;
+    }
+    .model-engine { font-size: 13px; color: var(--ink-muted); margin-bottom: 24px; line-height: 1.4; }
+    .model-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+      padding: 16px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .stat-box strong { display: block; font-family: var(--font-display); font-size: 20px; font-weight: 800; }
+    .stat-box span { font-size: 10px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.1em; font-family: var(--font-mono); }
+    .model-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-display); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--primary);
+    }
+
+    /* Scuderia Track Telemetry Section */
+    .telemetry-board {
+      display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 36px;
+    }
+    .track-info { display: flex; flex-direction: column; justify-content: space-between; }
+    .track-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .lap-delta {
+      display: inline-flex; align-items: baseline; gap: 10px;
+      font-family: var(--font-mono); font-size: 32px; font-weight: 800; color: var(--accent-yellow);
+    }
+    .lap-delta span { font-size: 12px; color: var(--ink-muted); font-weight: 500; }
+    .sector-bars { display: flex; gap: 8px; margin: 24px 0; }
+    .sector-bar {
+      flex: 1; height: 6px; background: #22c55e; border-radius: 2px;
+      position: relative;
+    }
+    .sector-bar.purple { background: #a855f7; }
+    .sector-bar::after {
+      content: attr(data-sector); position: absolute; top: 12px; left: 0;
+      font-size: 10px; font-family: var(--font-mono); color: var(--ink-dim);
+    }
+    .spec-tokens-bar {
+      margin-top: 48px; padding: 20px 24px; background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    }
+    .spec-swatches { display: flex; align-items: center; gap: 16px; font-size: 11px; font-family: var(--font-mono); }
+    .swatch-chip { display: flex; align-items: center; gap: 8px; }
+    .swatch-color { width: 14px; height: 14px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.2); }
+
+    /* Footer */
+    footer {
+      padding: 56px 0 40px; border-top: 1px solid var(--border);
+      color: var(--ink-dim); font-size: 11px; letter-spacing: 0.08em;
+    }
+    .footer-inner {
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;
+    }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .nav-links { display: none; }
+      .models-grid { grid-template-columns: 1fr; }
+      .telemetry-board { grid-template-columns: 1fr; }
+      .telemetry-strip { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    }
+    @media (max-width: 520px) {
+      .telemetry-strip { grid-template-columns: 1fr; }
+      .hero-actions { flex-direction: column; }
+      .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <div class="brand-group">
+        <svg class="cavallino" viewBox="0 0 100 130" aria-label="Ferrari Cavallino Rampante">
+          <path d="M50 5 C55 12, 60 18, 62 25 C65 18, 70 15, 78 12 C72 24, 73 34, 76 42 C70 42, 64 45, 60 50 C65 62, 75 70, 85 75 C75 80, 68 88, 65 98 C60 88, 55 82, 45 78 C52 70, 56 60, 55 50 C48 52, 40 48, 35 40 C42 38, 46 32, 48 20 C42 22, 36 20, 32 15 C38 10, 44 8, 50 5 Z"/>
+        </svg>
+        <span class="brand-name">Ferrari</span>
+      </div>
+      <nav class="nav-links" aria-label="Main Navigation">
+        <a href="#models" class="active">Models</a>
+        <a href="#racing">Scuderia F1</a>
+        <a href="#heritage">Universe</a>
+        <a href="#tailor">Tailor Made</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="#models" class="btn btn-primary">Configurator</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO SECTION -->
+    <section class="hero" id="top">
+      <div class="shell">
+        <div class="hero-eyebrow">Scuderia Ferrari · Maranello 1947</div>
+        <h1 class="hero-title">Beyond the <span>Limits</span> of Speed.</h1>
+        <p class="hero-subtitle">
+          Where eighty years of Formula 1 championship triumphs fuse with uncompromising Italian coachbuilding. Meet the next generation of plug-in hybrid architecture.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#models">Explore SF90 XX Stradale</a>
+          <a class="btn btn-ghost" href="#racing">Telemetry Insights ↗</a>
+        </div>
+
+        <!-- Supercar Technical Silhouette Illustration -->
+        <div class="hero-visual">
+          <div class="visual-tagline">Aerodynamic Active Downforce · 530 KG @ 250 KM/H</div>
+          <svg class="car-svg-wrap" viewBox="0 0 800 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Aerodynamic Flow Lines -->
+            <path d="M40 180 C160 175, 260 150, 420 150 C580 150, 680 120, 760 90" stroke="#da291c" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.4"/>
+            <path d="M20 195 C140 195, 300 170, 460 170 C600 170, 700 150, 780 140" stroke="#f6e500" stroke-width="1" opacity="0.3"/>
+            <!-- Supercar Body Profile -->
+            <path d="M80 170 C130 170, 180 145, 240 135 C320 120, 400 80, 520 80 C610 80, 660 115, 710 140 C730 150, 745 160, 755 170 L740 178 C725 174, 700 176, 680 176 C650 145, 600 145, 570 176 L280 176 C250 145, 200 145, 170 176 L90 176 Z" fill="url(#ferrariGrad)" stroke="#da291c" stroke-width="2"/>
+            <!-- Cockpit Glass Canopy -->
+            <path d="M350 125 C390 95, 450 90, 520 90 C570 90, 600 110, 625 125 Z" fill="#0a0a0a" stroke="#444" stroke-width="1"/>
+            <!-- Front Wheel -->
+            <circle cx="225" cy="176" r="28" fill="#141414" stroke="#da291c" stroke-width="2"/>
+            <circle cx="225" cy="176" r="14" fill="#222" stroke="#f6e500" stroke-width="2"/>
+            <!-- Rear Wheel -->
+            <circle cx="625" cy="176" r="30" fill="#141414" stroke="#da291c" stroke-width="2"/>
+            <circle cx="625" cy="176" r="15" fill="#222" stroke="#f6e500" stroke-width="2"/>
+            <!-- Active Aero Fixed Wing -->
+            <path d="M680 115 L745 110 L750 120 L685 124 Z" fill="#da291c" stroke="#fff" stroke-width="0.5"/>
+            <defs>
+              <linearGradient id="ferrariGrad" x1="80" y1="80" x2="755" y2="178" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#da291c"/>
+                <stop offset="0.6" stop-color="#8b140b"/>
+                <stop offset="1" stop-color="#2a0503"/>
+              </linearGradient>
+            </defs>
+          </svg>
+
+          <!-- Telemetry HUD -->
+          <div class="telemetry-strip">
+            <div class="telemetry-item">
+              <span class="telemetry-label">Acceleration</span>
+              <div class="telemetry-value">2.3<small>SEC (0-100)</small></div>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Total Power</span>
+              <div class="telemetry-value">1,030<small>CV</small></div>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Maximum Speed</span>
+              <div class="telemetry-value">320<small>KM/H</small></div>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Fiorano Lap</span>
+              <div class="telemetry-value">1'17.30<small>RECORD</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODEL RANGE -->
+    <section class="section" id="models">
+      <div class="shell">
+        <div class="section-header">
+          <div>
+            <span class="section-eyebrow">The Model Lineup</span>
+            <h2 class="section-title">Engineered for Passion</h2>
+          </div>
+          <p class="section-desc">
+            Each creation from Maranello is an acoustic and dynamic masterpiece, designed to elevate adrenaline into pure automotive art.
+          </p>
+        </div>
+
+        <div class="models-grid">
+          <!-- Model 1 -->
+          <article class="model-card">
+            <div>
+              <span class="model-badge">XX PROGRAMME</span>
+              <h3 class="model-name">SF90 XX Stradale</h3>
+              <p class="model-engine">4.0L Twin-Turbo V8 + 3 Electric Motors · Plug-in Hybrid</p>
+              <div class="model-stats">
+                <div class="stat-box"><strong>1,030 cv</strong><span>Max Output</span></div>
+                <div class="stat-box"><strong>2.3 s</strong><span>0-100 km/h</span></div>
+              </div>
+            </div>
+            <a href="#top" class="model-link">Configure vehicle <span>→</span></a>
+          </article>
+
+          <!-- Model 2 -->
+          <article class="model-card">
+            <div>
+              <span class="model-badge">BERLINETTA</span>
+              <h3 class="model-name">296 GTB</h3>
+              <p class="model-engine">120° V6 Turbo Plug-in Hybrid · 830 cv Total Power</p>
+              <div class="model-stats">
+                <div class="stat-box"><strong>830 cv</strong><span>Max Output</span></div>
+                <div class="stat-box"><strong>2.9 s</strong><span>0-100 km/h</span></div>
+              </div>
+            </div>
+            <a href="#top" class="model-link">Configure vehicle <span>→</span></a>
+          </article>
+
+          <!-- Model 3 -->
+          <article class="model-card">
+            <div>
+              <span class="model-badge">FOUR-DOOR FOUR-SEATER</span>
+              <h3 class="model-name">Purosangue</h3>
+              <p class="model-engine">6.5L Naturally Aspirated V12 · Active Suspension System</p>
+              <div class="model-stats">
+                <div class="stat-box"><strong>725 cv</strong><span>Max Output</span></div>
+                <div class="stat-box"><strong>3.3 s</strong><span>0-100 km/h</span></div>
+              </div>
+            </div>
+            <a href="#top" class="model-link">Configure vehicle <span>→</span></a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- RACING & SCUDERIA -->
+    <section class="section" id="racing">
+      <div class="shell">
+        <div class="section-header">
+          <div>
+            <span class="section-eyebrow">Track DNA</span>
+            <h2 class="section-title">Live From Scuderia Garage</h2>
+          </div>
+          <p class="section-desc">
+            Direct telemetry transfer from the Formula 1 circuit to Maranello road cars.
+          </p>
+        </div>
+
+        <div class="telemetry-board">
+          <div class="track-info">
+            <div>
+              <div class="track-title">Monza Circuit · Qualifying Session</div>
+              <p style="color:var(--ink-muted); font-size:13px; margin-bottom: 20px;">Car 16 · Charles Leclerc · Sector 1 & 2 Green</p>
+              <div class="lap-delta">
+                1'19.248 <span>DELTA: -0.182s TO POLE</span>
+              </div>
+            </div>
+            <div>
+              <div class="sector-bars">
+                <div class="sector-bar purple" data-sector="S1: 26.412"></div>
+                <div class="sector-bar" data-sector="S2: 27.104"></div>
+                <div class="sector-bar" data-sector="S3: 25.732"></div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; justify-content:center; gap:16px; border-left: 1px solid var(--border); padding-left: 28px;">
+            <div>
+              <span style="font-family:var(--font-mono); font-size:11px; color:var(--ink-dim);">ERS RECOVERY</span>
+              <div style="font-size:20px; font-weight:700; color:#22c55e;">98.4% OPTIMAL</div>
+            </div>
+            <div>
+              <span style="font-family:var(--font-mono); font-size:11px; color:var(--ink-dim);">TIRE COMPOUND</span>
+              <div style="font-size:20px; font-weight:700; color:var(--primary);">P-ZERO RED (SOFT)</div>
+            </div>
+            <div>
+              <span style="font-family:var(--font-mono); font-size:11px; color:var(--ink-dim);">DOWNFORCE SETUP</span>
+              <div style="font-size:20px; font-weight:700;">LOW DRAG SPEC B</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spec Tokens Bar -->
+        <div class="spec-tokens-bar">
+          <div class="spec-swatches">
+            <span style="color:var(--ink-dim); text-transform:uppercase;">Design Tokens:</span>
+            <div class="swatch-chip"><span class="swatch-color" style="background:#da291c;"></span><span>Rosso Corsa #da291c</span></div>
+            <div class="swatch-chip"><span class="swatch-color" style="background:#f6e500;"></span><span>Giallo Modena #f6e500</span></div>
+            <div class="swatch-chip"><span class="swatch-color" style="background:#141414;"></span><span>Nero Opaco #141414</span></div>
+          </div>
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--ink-muted);">
+            Typography: FerrariSans · SF Mono
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <span>Ferrari N.V. · Maranello, Italy · Formula 1 World Champions</span>
+      <span>Official Design System Architecture · All Rights Reserved 2026</span>
+    </div>
+  </footer>
+</body>
+</html>

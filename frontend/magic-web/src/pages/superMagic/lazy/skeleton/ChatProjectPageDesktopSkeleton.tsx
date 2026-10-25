@@ -8,7 +8,7 @@ function ChatProjectPageDesktopSkeleton() {
 			data-testid="chat-project-page-desktop-skeleton"
 		>
 			<div className="min-h-0 flex-1 overflow-hidden">
-				<TopicPageDesktopSkeleton />
+				<TopicPageDesktopSkeleton enableSidebarCollapse={false} />
 			</div>
 		</div>
 	)

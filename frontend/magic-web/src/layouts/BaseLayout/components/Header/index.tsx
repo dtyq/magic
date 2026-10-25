@@ -1,12 +1,11 @@
-import { Flex, theme } from "antd"
+import { theme } from "antd"
 import { magic } from "@/enhance/magicElectron"
 import useDrag from "@/hooks/electron/useDrag"
 import { observer } from "mobx-react-lite"
 import HeaderActionSlot from "@/layouts/BaseLayout/components/Header/components/HeaderActionSlot"
-import GlobalServiceStatus from "./components/GlobalServiceStatus"
 import GlobalVersionStatus from "./components/GlobalVersionStatus"
 import { MacMenu, WindowMenu, useDesktopVersionCheck } from "./components/DesktopMenu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /**
  * Global search header component
@@ -20,9 +19,9 @@ const Header = observer(function Header({ className }: { className?: string }) {
 	const isWin = !isHighVersion && magic?.env?.isWindows?.()
 
 	return (
-		<Flex
+		<div
 			className={cn(
-				"w-full flex-none select-none items-center justify-between bg-transparent",
+				"flex w-full flex-none select-none items-center justify-between bg-transparent",
 				"px-3 py-0",
 				isMac && "!pl-[90px]",
 				isWin && "!pr-[140px]",
@@ -31,20 +30,18 @@ const Header = observer(function Header({ className }: { className?: string }) {
 			style={{
 				height: token.titleBarHeight,
 			}}
-			align="center"
 			onMouseDown={onMouseDown}
 			onDoubleClick={() => magic?.view?.maximize?.()}
 		>
 			<MacMenu />
-			<Flex className="mr-auto w-auto items-center" gap={10} align="center">
-				<GlobalServiceStatus />
+			<div className="mr-auto flex w-auto items-center gap-2.5">
 				<GlobalVersionStatus />
-			</Flex>
-			<Flex align="center" gap={10} className="ml-auto w-auto">
+			</div>
+			<div className="ml-auto flex w-auto items-center gap-2.5">
 				<HeaderActionSlot />
 				<WindowMenu />
-			</Flex>
-		</Flex>
+			</div>
+		</div>
 	)
 })
 

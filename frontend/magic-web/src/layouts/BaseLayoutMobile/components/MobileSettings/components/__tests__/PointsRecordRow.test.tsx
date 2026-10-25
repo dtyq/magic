@@ -20,6 +20,7 @@ const baseItem: PointsRecordItem = {
 	amount: -40,
 	label: "话题 ID: 912313626383110145",
 	description: "下载猫咪图片",
+	remark: "",
 	createdAt: "2026-05-20 10:00:00",
 	updatedAt: "05-20 19:45",
 }
@@ -41,6 +42,24 @@ describe("MobileSettingsPointsRecordRow", () => {
 		expect(screen.getByText("- 40")).toBeInTheDocument()
 		expect(container.querySelector(".text-emerald-600")).toBeNull()
 		expect(container.querySelector(".text-emerald-400")).toBeNull()
+	})
+
+	test("renders remark when present", () => {
+		render(
+			<MobileSettingsPointsRecordRow
+				item={{ ...baseItem, remark: "管理员手动调整" }}
+				showDivider={false}
+				onClick={noop}
+			/>,
+		)
+
+		expect(screen.getByText("管理员手动调整")).toBeInTheDocument()
+	})
+
+	test("hides remark area when remark is empty", () => {
+		render(<MobileSettingsPointsRecordRow item={baseItem} showDivider={false} onClick={noop} />)
+
+		expect(screen.queryByText("管理员手动调整")).not.toBeInTheDocument()
 	})
 
 	test("calls onClick when row is pressed", () => {

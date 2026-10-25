@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEURAL SYNTHESIS — Generative Latent Synthesizer</title>
+  <style>
+    :root {
+      --bg: #07080C;
+      --surface: #0F121B;
+      --surface-elevated: #161A26;
+      --border: #1E2333;
+      --border-focus: #38BDF8;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --violet: #A855F7;
+      --violet-glow: rgba(168, 85, 247, 0.4);
+      --cyan: #06B6D4;
+      --cyan-glow: rgba(6, 182, 212, 0.4);
+      --emerald: #10B981;
+      --font-display: "Inter", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 14px;
+      --radius-pill: 9999px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* Top Neural Cockpit Header */
+    header {
+      background: rgba(11, 14, 22, 0.9);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .brand-node-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--violet) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 14px var(--violet-glow);
+    }
+    .brand-text {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+    .brand-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--cyan);
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
+    }
+    .status-cluster {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .status-active {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--emerald);
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--emerald);
+      animation: blink 1.6s infinite ease-in-out;
+    }
+    @keyframes blink { 0%, 100%{ opacity:1; } 50%{ opacity:0.3; } }
+    .btn-run {
+      background: linear-gradient(135deg, var(--violet) 0%, #7C3AED 100%);
+      color: #FFF;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 18px;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      box-shadow: 0 0 16px var(--violet-glow);
+      transition: 0.15s;
+    }
+    .btn-run:hover { transform: scale(1.02); }
+
+    /* Main Cockpit Hero Grid (Dense First 500px) */
+    .cockpit-hero {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      border-bottom: 1px solid var(--border);
+      min-height: 500px;
+    }
+
+    /* Left: Latent Space Graph & Prompt Engine */
+    .cockpit-left {
+      padding: 32px 36px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+    .latent-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .latent-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--cyan);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .graph-coords {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* Vector Latent Space Graph SVG */
+    .latent-graph-canvas {
+      height: 250px;
+      background: radial-gradient(circle at 40% 50%, #101422 0%, #08090D 80%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .latent-svg { width: 100%; height: 100%; }
+
+    /* Interactive Generation Prompt Bar */
+    .prompt-bar-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .prompt-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .prompt-input-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .prompt-input {
+      flex: 1;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: #FFF;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      outline: none;
+    }
+    .prompt-input:focus { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan-glow); }
+    .btn-synthesize {
+      background: var(--cyan);
+      color: #07080C;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 10px 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 0 12px var(--cyan-glow);
+    }
+
+    /* Right: Weight Sliders & Hyperparameters Panel */
+    .cockpit-right {
+      background: var(--surface);
+      padding: 32px 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .panel-head {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .panel-head h3 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .panel-head p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Weight Sliders Group */
+    .slider-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .slider-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .slider-label span:last-child {
+      color: var(--violet);
+      font-weight: 700;
+    }
+    .range-violet {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: var(--surface-elevated);
+      border-radius: 2px;
+      outline: none;
+    }
+    .range-violet::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--violet);
+      cursor: pointer;
+      box-shadow: 0 0 10px var(--violet);
+    }
+
+    /* Model Selector Pills */
+    .model-selector-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .model-pill {
+      flex: 1;
+      padding: 8px 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-align: center;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+    }
+    .model-pill.active {
+      border-color: var(--violet);
+      color: #FFF;
+      background: rgba(168, 85, 247, 0.15);
+    }
+
+    /* Lower Matrix: Latent Clusters & Inference Pipeline */
+    .matrix-section {
+      padding: 48px 36px;
+      border-bottom: 1px solid var(--border);
+    }
+    .matrix-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 28px;
+    }
+    .matrix-title-row h2 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .cluster-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .cluster-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 220px;
+      transition: border-color 0.2s;
+    }
+    .cluster-card:hover { border-color: var(--cyan); }
+    .cluster-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--cyan);
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    .cluster-name {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .cluster-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 20px;
+    }
+    .cluster-metrics {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+    .cluster-metrics span { color: var(--text); font-weight: 600; }
+
+    /* Footer */
+    footer {
+      padding: 32px 36px;
+      background: #040508;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Neural Cockpit Header -->
+  <header>
+    <a href="#" class="brand-wrap">
+      <div class="brand-node-icon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#FFF" stroke-width="1.8"/><circle cx="7" cy="7" r="2" fill="#FFF"/></svg>
+      </div>
+      <span class="brand-text">NEURAL SYNTHESIS</span>
+      <span class="brand-badge">v3.4-TURBO</span>
+    </a>
+    <div class="status-cluster">
+      <div class="status-active">
+        <span class="pulse-dot"></span>
+        <span>SYNAPSE ENGINE ACTIVE</span>
+      </div>
+      <div>NODES: <span style="color:#FFF;">1,024 TFLOPS</span></div>
+      <div>LATENCY: <span style="color:var(--cyan);">14.2 ms</span></div>
+      <button class="btn-run">INITIATE RUN ↵</button>
+    </div>
+  </header>
+
+  <!-- Main Cockpit Hero Grid (Dense First 500px) -->
+  <section class="cockpit-hero">
+    <!-- Left: Latent Space Graph & Prompt Engine -->
+    <div class="cockpit-left">
+      <div>
+        <div class="latent-header">
+          <span class="latent-title">Vector Latent Space [t-SNE 512D → 2D Projection]</span>
+          <span class="graph-coords">EPSILON: 0.0024 · PERPLEXITY: 30</span>
+        </div>
+
+        <!-- Latent Graph SVG -->
+        <div class="latent-graph-canvas">
+          <svg class="latent-svg" viewBox="0 0 650 250">
+            <!-- Grid lines -->
+            <line x1="0" y1="125" x2="650" y2="125" stroke="#171C28" stroke-dasharray="4 4"/>
+            <line x1="325" y1="0" x2="325" y2="250" stroke="#171C28" stroke-dasharray="4 4"/>
+
+            <!-- Synaptic Node Cluster A: Cyan -->
+            <g id="cluster-a">
+              <line x1="120" y1="70" x2="180" y2="110" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+              <line x1="180" y1="110" x2="230" y2="60" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+              <line x1="180" y1="110" x2="160" y2="170" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+              <circle cx="120" cy="70" r="5" fill="#06B6D4" filter="drop-shadow(0 0 8px #06B6D4)"/>
+              <circle cx="180" cy="110" r="8" fill="#22D3EE" filter="drop-shadow(0 0 10px #22D3EE)"/>
+              <circle cx="230" cy="60" r="5" fill="#06B6D4"/>
+              <circle cx="160" cy="170" r="6" fill="#0891B2"/>
+              <text x="180" y="132" fill="#38BDF8" font-family="'JetBrains Mono', monospace" font-size="10" text-anchor="middle">CLUSTER_ALPHA [Style]</text>
+            </g>
+
+            <!-- Synaptic Node Cluster B: Violet -->
+            <g id="cluster-b">
+              <line x1="420" y1="140" x2="480" y2="80" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+              <line x1="480" y1="80" x2="540" y2="120" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+              <line x1="480" y1="80" x2="460" y2="200" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+              <circle cx="420" cy="140" r="5" fill="#A855F7" filter="drop-shadow(0 0 8px #A855F7)"/>
+              <circle cx="480" cy="80" r="9" fill="#C084FC" filter="drop-shadow(0 0 12px #C084FC)"/>
+              <circle cx="540" cy="120" r="5" fill="#A855F7"/>
+              <circle cx="460" cy="200" r="6" fill="#9333EA"/>
+              <text x="480" y="65" fill="#C084FC" font-family="'JetBrains Mono', monospace" font-size="10" text-anchor="middle">CLUSTER_BETA [Semantics]</text>
+            </g>
+
+            <!-- Cross-latent bridge wire -->
+            <path d="M180 110 Q 330 180 480 80" stroke="url(#bridgeGrad)" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+            <defs>
+              <linearGradient id="bridgeGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#06B6D4"/>
+                <stop offset="100%" stop-color="#A855F7"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Interactive Generation Prompt -->
+      <div class="prompt-bar-wrap">
+        <div class="prompt-label-row">
+          <span>LATENT SEED PROMPT</span>
+          <span>SEED: #9482041 · CFG: 7.5 · STEPS: 30</span>
+        </div>
+        <div class="prompt-input-row">
+          <input type="text" class="prompt-input" value="photorealistic cybernetic kinetic crystal typography, 8k volumetric illumination" placeholder="Enter prompt...">
+          <button class="btn-synthesize">Synthesize Latent</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Weight Sliders & Hyperparameters Panel -->
+    <div class="cockpit-right">
+      <div>
+        <div class="panel-head">
+          <h3>Hyperparameter Weights</h3>
+          <p>Real-time neural conditioning coefficients</p>
+        </div>
+
+        <div class="slider-stack">
+          <!-- Guidance Scale -->
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>Guidance Scale (CFG)</span>
+              <span>7.5</span>
+            </div>
+            <input type="range" class="range-violet" value="75">
+          </div>
+
+          <!-- Latent Variance -->
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>Latent Variance (σ)</span>
+              <span>0.38</span>
+            </div>
+            <input type="range" class="range-violet" value="38">
+          </div>
+
+          <!-- Attention Dropout -->
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>Attention Temperature</span>
+              <span>0.92</span>
+            </div>
+            <input type="range" class="range-violet" value="92">
+          </div>
+
+          <!-- Diffusion Steps -->
+          <div class="slider-item">
+            <div class="slider-label">
+              <span>Denoising Steps</span>
+              <span>45</span>
+            </div>
+            <input type="range" class="range-violet" value="65">
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:var(--font-mono); font-size:10px; color:var(--text-dim); text-transform:uppercase;">Inference Backend</div>
+        <div class="model-selector-row">
+          <button class="model-pill active">Transformer-XL</button>
+          <button class="model-pill">DiT-V3-2B</button>
+          <button class="model-pill">LCM-Turbo</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Latent Clusters & Inference Pipeline Matrix -->
+  <section class="matrix-section">
+    <div class="matrix-title-row">
+      <h2>Neural Synaptic Manifolds</h2>
+      <span style="font-family:var(--font-mono); font-size:12px; color:var(--cyan);">QUANTIZED INT8 // TENSORRT ENGINE</span>
+    </div>
+
+    <div class="cluster-grid">
+      <!-- Manifold 1 -->
+      <div class="cluster-card">
+        <div>
+          <div class="cluster-tag">MANIFOLD_01 // DISENTANGLED</div>
+          <h3 class="cluster-name">Semantic Embedding Vector</h3>
+          <p class="cluster-desc">High-dimensional cross-attention matrices mapping textual tokens directly to positional spatial features.</p>
+        </div>
+        <div class="cluster-metrics">
+          <div>DIMENSIONS: <span>1,536</span></div>
+          <div>COSINE: <span>0.984</span></div>
+        </div>
+      </div>
+
+      <!-- Manifold 2 -->
+      <div class="cluster-card">
+        <div>
+          <div class="cluster-tag" style="color:var(--violet);">MANIFOLD_02 // KINETIC</div>
+          <h3 class="cluster-name">Temporal Flow Interpolation</h3>
+          <p class="cluster-desc">Bezier-curved continuous latent trajectory forecasting for seamless 60FPS fluid video motion generation.</p>
+        </div>
+        <div class="cluster-metrics">
+          <div>INTERP: <span>SLERP</span></div>
+          <div>JITTER: <span>&lt;0.01%</span></div>
+        </div>
+      </div>
+
+      <!-- Manifold 3 -->
+      <div class="cluster-card">
+        <div>
+          <div class="cluster-tag" style="color:var(--emerald);">MANIFOLD_03 // QUANTIZATION</div>
+          <h3 class="cluster-name">Zero-Shot LoRA Adapters</h3>
+          <p class="cluster-desc">Low-rank weight matrix adaptation injecting domain-specific typography & brutalist aesthetic constraints on-the-fly.</p>
+        </div>
+        <div class="cluster-metrics">
+          <div>RANK: <span>r=32</span></div>
+          <div>ALPHA: <span>64</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div>© 2026 NEURAL SYNTHESIS LABS. ALL RIGHTS RESERVED.</div>
+    <div>PITCH BLACK #07080C · NEON VIOLET #A855F7 · CYAN #06B6D4</div>
+    <div>TENSORRT ACCELERATED · ONNX RUNTIME v1.18</div>
+  </footer>
+
+</body>
+</html>

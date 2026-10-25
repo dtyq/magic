@@ -2,7 +2,7 @@ import { Upload, UploadConfig as SDKUploadConfig } from "@dtyq/upload-sdk"
 import { UploadTokenManager } from "./UploadTokenManager"
 import { RecordingBatchSaveReporter } from "./RecordingBatchSaveReporter"
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import recordSummaryStore from "@/stores/recordingSummary"
 import { getSnowflakeUploadFileName } from "./utils/getSnowflakeUploadFileName"
 
@@ -677,10 +677,16 @@ export class RecordingContentFileManager {
 			return
 		}
 
+		const taskId = this.tokenManager.getSandboxTaskId(this.sessionId) || ""
+		// Batch-save content files under the sandbox topic returned by upload-tokens.
+		// Fall back to the requested topic for older token responses without that field.
+		const batchSaveTopicId = this.tokenManager.getSandboxTopicId(this.sessionId) || this.topicId
+
 		await this.batchSaveReporter.reportUploadedFile({
 			sessionId: this.sessionId,
 			projectId: this.projectId,
-			topicId: this.topicId,
+			topicId: batchSaveTopicId,
+			taskId,
 			parentId: file.parentId,
 			fileKey: uploadResult.fileKey,
 			fileName: file.fileName,

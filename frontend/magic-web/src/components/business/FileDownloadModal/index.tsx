@@ -9,6 +9,7 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import type { OpenableProps } from "@/utils/react"
 import magicToast from "@/components/base/MagicToaster/utils"
 import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
+import DownloadAction from "./DownloadAction"
 
 interface FileDownloadModalProps {
 	open: boolean
@@ -18,6 +19,10 @@ interface FileDownloadModalProps {
 	onDownload?: () => void
 	onCopyLink?: () => void
 	onAfterClose?: () => void
+	/** Render the retry as a native link instead of a programmatic download. */
+	nativeDownload?: boolean
+	/** Target used by the native retry link. */
+	downloadTarget?: string
 	/** Raises only this detached desktop dialog when it is opened from another modal. */
 	modalZIndex?: number
 }
@@ -32,6 +37,8 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 		onDownload,
 		onCopyLink,
 		onAfterClose,
+		nativeDownload = false,
+		downloadTarget,
 		modalZIndex,
 	} = props
 
@@ -89,7 +96,10 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 				bodyClassName="px-4 pb-6"
 			>
 				{/* Content */}
-				<div className="flex flex-col items-center gap-4 py-6">
+				<div
+					className="flex flex-col items-center gap-4 py-6"
+					data-testid="file-download-modal"
+				>
 					{/* Success Icon */}
 					<div className="flex h-14 w-14 items-center justify-center rounded-lg border border-border bg-background p-3 shadow-xs">
 						<Download className="h-8 w-8 text-foreground" strokeWidth={1.25} />
@@ -124,15 +134,23 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 
 					{/* Action Buttons */}
 					<div className="flex w-full flex-col gap-3">
-						<Button onClick={handleDownloadClick} className="w-full" size="lg">
-							{/* <Download className="mr-2 h-4 w-4" /> */}
-							{t("share.download.downloadFile")}
-						</Button>
+						<DownloadAction
+							nativeDownload={nativeDownload}
+							downloadUrl={downloadUrl}
+							fileName={fileName}
+							downloadTarget={downloadTarget}
+							onDownload={handleDownloadClick}
+							label={t("share.download.downloadFile")}
+							className="w-full"
+							size="lg"
+							data-testid="file-download-modal-download-button"
+						/>
 						<Button
 							onClick={handleCopyLinkClick}
 							variant="outline"
 							className="w-full"
 							size="lg"
+							data-testid="file-download-modal-copy-link-button"
 						>
 							{/* <Copy className="mr-2 h-4 w-4" /> */}
 							{t("share.download.copyLink")}
@@ -150,6 +168,8 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 				className="w-[500px] max-w-[calc(100vw-2rem)] gap-0 p-0 sm:max-w-[500px]"
 				// Allow derived desktop modals to opt into a higher layer without changing default downloads.
 				style={modalZIndex ? { zIndex: modalZIndex } : undefined}
+				showCloseButton={false}
+				data-testid="file-download-modal"
 				onPointerDownOutside={(e) => e.preventDefault()}
 				onEscapeKeyDown={(e) => e.preventDefault()}
 			>
@@ -161,6 +181,7 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 					}}
 					className="absolute right-4 top-4 z-50 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
 					type="button"
+					data-testid="file-download-modal-close-button"
 				>
 					<X className="h-4 w-4" />
 					<span className="sr-only">Close</span>
@@ -203,18 +224,22 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 
 					{/* Action Buttons */}
 					<div className="flex w-full flex-col gap-3">
-						<Button
-							variant="default"
+						<DownloadAction
+							nativeDownload={nativeDownload}
+							downloadUrl={downloadUrl}
+							fileName={fileName}
+							downloadTarget={downloadTarget}
+							onDownload={handleDownloadClick}
+							label={t("share.download.downloadFile")}
 							className="w-full gap-2 shadow-xs"
-							onClick={handleDownloadClick}
-						>
-							{/* <Download className="h-4 w-4" /> */}
-							{t("share.download.downloadFile")}
-						</Button>
+							size="lg"
+							data-testid="file-download-modal-download-button"
+						/>
 						<Button
 							variant="outline"
 							className="w-full gap-2 shadow-xs"
 							onClick={handleCopyLinkClick}
+							data-testid="file-download-modal-copy-link-button"
 						>
 							{/* <Copy className="h-4 w-4" /> */}
 							{t("share.download.copyLink")}

@@ -1,3 +1,5 @@
+import { FileResourceIcon } from "@/pages/superMagic/components/TopicFilesButton/components/FileResourceIcon"
+import { resolveFilePresentation } from "@/pages/superMagic/components/TopicFilesButton/utils/file-presentation"
 import { observer } from "mobx-react-lite"
 import { forwardRef, memo, useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -5,7 +7,6 @@ import { SupportLocales } from "@/constants/locale"
 import { globalConfigStore } from "@/stores/globalConfig"
 import { getAvatarUrl } from "@/utils/avatar"
 import { getLocalePreferredKeys, resolveLocalizedText } from "@/utils/locale"
-import MagicFileIcon from "@/components/base/MagicFileIcon"
 import MarkdownComponent from "../components/Text/components/Markdown"
 import MessageRenderErrorBoundary from "../components/MessageRenderErrorBoundary"
 import { useStyles as useMarkdownGithubStyles } from "../components/Nodes/AgentReply/styles"
@@ -45,12 +46,15 @@ function AttachmentList({ items }: { items: ExportAttachment[] }) {
 				{items.map((item, i) => (
 					<div key={`${item.name}-${i}`} className="w-full">
 						<div className="flex items-center gap-2 rounded-[12px] bg-fill p-2.5">
-							<MagicFileIcon
-								type={
-									item.kind === "folder"
-										? "folder"
-										: item.file_extension || item.extension
-								}
+							<FileResourceIcon
+								presentation={resolveFilePresentation(
+									item.file ?? {
+										name: item.name,
+										is_directory: item.kind === "folder",
+										file_extension: item.file_extension || item.extension,
+									},
+								)}
+								allowRemoteIcon={false}
 								size={24}
 								className="shrink-0"
 							/>
@@ -136,7 +140,7 @@ function ToolPart({ part }: { part: ExportMessagePart }) {
 					<ToolIconBadge
 						toolName={part.toolRawName || part.toolName}
 						size={16}
-						iconSize={10}
+						iconSize={12}
 					/>
 					<span className="w-fit flex-none whitespace-nowrap text-xs font-normal leading-4 text-foreground">
 						{part.toolName || "tool"}

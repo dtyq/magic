@@ -8,6 +8,7 @@ import { SHARE_WORKSPACE_ID } from "../constants"
 import { SuperMagicApi } from "@/apis"
 import { useWorkspaceEditing } from "./useWorkspaceEditing"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { analyticsService } from "@/services/analytics"
 
 export interface FetchWorkspacesParams {
 	isAutoSelect?: boolean
@@ -174,6 +175,7 @@ export function useWorkspace({
 		async (workspaceName: string) => {
 			try {
 				const defaultWorkspaceName = ""
+				analyticsService.report("workspace_create_attempted")
 				const res = await SuperMagicApi.createWorkspace({
 					workspace_name: workspaceName || defaultWorkspaceName,
 				})

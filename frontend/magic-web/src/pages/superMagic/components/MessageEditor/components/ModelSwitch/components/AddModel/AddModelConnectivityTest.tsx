@@ -50,6 +50,7 @@ function AddModelConnectivityTest({
 			const result = await OrgAiModelProviderApi.testAiModelConnectivity({
 				service_provider_config_id: store.selectedProviderId,
 				model_version: modelId,
+				support_multi_modal: store.modelForm.modelConfig.support_multi_modal ?? false,
 			})
 
 			if (result.status) {
@@ -62,9 +63,10 @@ function AddModelConnectivityTest({
 						result.message?.trim() || t("messageEditor.addModel.connectivityFailed"),
 				})
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
+			const errorMessage = error instanceof Error ? error.message.trim() : ""
 			setConnectivityResult({
-				content: error?.message?.trim() || t("messageEditor.addModel.connectivityFailed"),
+				content: errorMessage || t("messageEditor.addModel.connectivityFailed"),
 			})
 		} finally {
 			setIsTestingConnectivity(false)

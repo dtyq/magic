@@ -1,6 +1,6 @@
 import Dexie, { Table } from "dexie"
 import { nanoid } from "nanoid"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import type { ImageStorageInterface } from "./interface"
 import { ImageStorageUnavailableError } from "./errors"
 

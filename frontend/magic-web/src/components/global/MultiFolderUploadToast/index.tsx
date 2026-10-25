@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from "react"
+import React, { useState, useEffect, useLayoutEffect, useCallback, lazy, Suspense } from "react"
 import ReactDOM from "react-dom"
 import { observer } from "mobx-react-lite"
 import { Button, Tooltip } from "antd"
@@ -16,6 +16,12 @@ import { useDraggable } from "./hooks/useDraggable"
 import { useMultiFolderUploadActions } from "./useMultiFolderUploadActions"
 import successFilled from "@/pages/superMagic/assets/svg/success-filled.svg"
 import editorMiniMizeSvg from "@/pages/superMagic/assets/svg/editor-minimize.svg"
+import MagicButton from "@/components/base/MagicButton"
+import MagicTooltip from "@/components/base/MagicTooltip"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
+import storage from "@/utils/localstorage"
+import { platformKey } from "@/utils/storage"
+import { getFileReferenceIdentityKey } from "@/pages/superMagic/services/userFileReferenceResolver"
 import { useUpdateEffect } from "ahooks"
 
 const CommonPopup = lazy(() => import("@/pages/superMagicMobile/components/CommonPopup"))
@@ -75,12 +81,15 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 	const [collapsed, setCollapsed] = useState(true)
 	const [currentView, setCurrentView] = useState<ViewType>("main")
 	const [mobileVisible, setMobileVisible] = useState(false)
+	const [hintDismissed, setHintDismissed] = useState(false)
+	const [disabledHintIdentity, setDisabledHintIdentity] = useState<string | null>(null)
 
 	const { globalProgress, uploadInfo } = multiFolderUploadStore
 
 	// 重置组件状态的方法
 	const resetComponentState = () => {
 		setCollapsed(true)
+		setHintDismissed(true)
 		setCurrentView("main")
 		resetToBottomLeft() // 重置位置到左下角
 		resetHasBeenDragged()
@@ -92,6 +101,11 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 		handleRetry,
 		handleRetryFile,
 		handleNavigateToProject,
+		canOperateUploadedTarget,
+		getMentionDisabledReason,
+		handleLocateUploadedTarget,
+		handleMentionUploadedFile,
+		pendingAction,
 		getSharedState,
 	} = useMultiFolderUploadActions({
 		resetComponentState,
@@ -99,6 +113,39 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 	// 获取共用的状态信息
 	const { hasActiveTasks, allActiveTasksPaused, activeTasks, completedTasks, pendingTasks } =
 		getSharedState()
+
+	const identityKey = getFileReferenceIdentityKey()
+	const hintStorageKey = identityKey
+		? platformKey(`super_magic/upload_completion_hint/${identityKey}`)
+		: null
+	const hintBatchTaskCount = multiFolderUploadStore.totalTasksCount
+	const hintDisabled =
+		identityKey === disabledHintIdentity ||
+		Boolean(hintStorageKey && storage.get(hintStorageKey) === "true")
+	useEffect(() => {
+		if (hasActiveTasks || pendingTasks.length > 0) setHintDismissed(false)
+	}, [hasActiveTasks, pendingTasks.length, hintBatchTaskCount])
+	const hintTask = completedTasks.find(canOperateUploadedTarget)
+	const hintOpen =
+		collapsed &&
+		!isMobile &&
+		!hintDismissed &&
+		!hintDisabled &&
+		!hasActiveTasks &&
+		pendingTasks.length === 0 &&
+		completedTasks.every((task) => task.state.errorFiles === 0) &&
+		Boolean(hintTask)
+	const hintDescription = hintTask?.uploadedTarget?.isDirectory
+		? t("folderUpload.hint.directory")
+		: hintTask && !getMentionDisabledReason(hintTask)
+			? t("folderUpload.hint.locateAndMention")
+			: t("folderUpload.hint.locate")
+	const dismissHint = useCallback(() => setHintDismissed(true), [])
+	const disableHint = () => {
+		setDisabledHintIdentity(identityKey)
+		if (hintStorageKey) storage.set(hintStorageKey, "true")
+		dismissHint()
+	}
 
 	// 拖拽功能 - 每次固定在左下角10px
 	const {
@@ -127,6 +174,16 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 
 	// 当总任务数变化时，检查并调整位置边界
 	const totalTasks = multiFolderUploadStore.totalTasksCount
+	// 首次显示、展开/收起和长文案换行都按实际尺寸定位，移动端继续由安全区和抽屉负责。
+	useLayoutEffect(() => {
+		const element = containerProps.ref.current
+		if (isMobile || !element) return
+		adjustPositionToBounds()
+		const observer = new ResizeObserver(adjustPositionToBounds)
+		observer.observe(element)
+		return () => observer.disconnect()
+	}, [collapsed, currentView, totalTasks, isMobile, containerProps.ref, adjustPositionToBounds])
+
 	useUpdateEffect(() => {
 		if (totalTasks > 0) {
 			requestAnimationFrame(() => {
@@ -175,6 +232,7 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 	// 处理展开 - 展开时检查边界
 	const handleExpand = () => {
 		setCollapsed(false)
+		setHintDismissed(true)
 		// 使用 setTimeout 确保组件完全渲染后再检查边界
 		setTimeout(() => {
 			adjustPositionToBounds()
@@ -265,6 +323,13 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 					isDragging={isDragging}
 					isEnglish={isEnglish}
 					resetComponentState={resetComponentState}
+					onClose={handleClose}
+					completionHint={{
+						open: hintOpen,
+						description: hintDescription,
+						onDismiss: dismissHint,
+						onDisable: disableHint,
+					}}
 				/>
 			</>
 		)
@@ -342,9 +407,58 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 		/>
 	)
 
+	const renderFileActions = (task: (typeof completedTasks)[number]) => {
+		if (!canOperateUploadedTarget(task)) return undefined
+		const mentionReason = getMentionDisabledReason(task)
+		return (
+			<>
+				<MagicButton
+					size="small"
+					type="text"
+					aria-label={
+						task.uploadedTarget?.isDirectory
+							? t("folderUpload.actions.locateDirectory")
+							: t("folderUpload.actions.locateFile")
+					}
+					loading={pendingAction?.taskId === task.id && pendingAction.action === "locate"}
+					onClick={() => void handleLocateUploadedTarget(task)}
+				>
+					{t("folderUpload.actions.locate")}
+				</MagicButton>
+				{!task.uploadedTarget?.isDirectory && (
+					<MagicTooltip title={mentionReason}>
+						<span>
+							<MagicButton
+								size="small"
+								type="text"
+								disabled={Boolean(mentionReason)}
+								aria-label={t("folderUpload.actions.mentionCurrentChat")}
+								loading={
+									pendingAction?.taskId === task.id &&
+									pendingAction.action === "mention"
+								}
+								onClick={() => void handleMentionUploadedFile(task)}
+							>
+								{t("folderUpload.actions.mention")}
+							</MagicButton>
+						</span>
+					</MagicTooltip>
+				)}
+			</>
+		)
+	}
+
 	// 构建任务列表内容（可滚动）
 	const taskItemsContent = (
-		<div
+		<ScrollArea
+			style={{ maxHeight: 400 }}
+			viewportStyle={{ maxHeight: 400 }}
+			type="always"
+			scrollHints={{
+				variant: "both",
+				upLabel: t("folderUpload.actions.scrollUp"),
+				downLabel: t("folderUpload.actions.scrollDown"),
+			}}
 			className={cx(
 				styles.tasksContainer,
 				!taskSummaryContent && styles.tasksContainerWithoutSummary,
@@ -367,6 +481,7 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 					key={task.id}
 					task={task}
 					isCompleted
+					actions={renderFileActions(task)}
 					onRetry={() => handleRetry(task.id)}
 					onNavigateToProject={handleNavigateToProject}
 				/>
@@ -382,7 +497,7 @@ export const MultiFolderUploadToast: React.FC = observer(() => {
 					onNavigateToProject={handleNavigateToProject}
 				/>
 			))}
-		</div>
+		</ScrollArea>
 	)
 
 	// 移动端使用 CommonPopup

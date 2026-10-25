@@ -72,9 +72,13 @@ export const useStyles = createStyles(({ css, token }) => {
 		scroll: css`
 			width: 100%;
 			height: 600px;
+		`,
+		scrollViewport: css`
+			padding: 0 12px 12px;
 
-			& .simplebar-content {
-				padding: 0 12px 12px 12px !important;
+			/* Constrain long tool names to the card width so they remain truncated. */
+			& > div {
+				display: block !important;
 			}
 		`,
 		item: css`

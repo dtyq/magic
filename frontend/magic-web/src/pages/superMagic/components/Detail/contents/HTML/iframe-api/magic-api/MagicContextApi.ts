@@ -5,7 +5,7 @@
  * in the parent window; the iframe receives only normalized context data.
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
+import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox"
 
 export interface MagicContextUser {
 	user_id: string

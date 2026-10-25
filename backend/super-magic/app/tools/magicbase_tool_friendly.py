@@ -89,6 +89,35 @@ def _query_rows_remark(
     return _translated("magicbase.query_rows_page", table=table_label, page=page)
 
 
+def _batch_get_rows_remark(
+    arguments: Dict[str, Any],
+    result: Optional[ToolResult],
+) -> str:
+    table = _table_reference(arguments, result)
+    table_label = (
+        _translated("magicbase.table_target", table=table)
+        if table
+        else _translated("magicbase.current_table")
+    )
+    data = _result_data(result)
+    requested = arguments.get("record_ids")
+    if not isinstance(requested, list):
+        requested = data.get("requested_record_ids")
+    requested_count = len(requested) if isinstance(requested, list) else 0
+    returned = data.get("returned")
+    if not isinstance(returned, int):
+        rows = data.get("rows")
+        if not isinstance(rows, list):
+            return _translated("magicbase.row_count", count=requested_count)
+        returned = len(rows)
+    return _translated(
+        "magicbase.batch_query_rows_result",
+        returned=returned,
+        requested=requested_count,
+        table=table_label,
+    )
+
+
 def build_magicbase_tool_remark(
     tool_name: str,
     arguments: Optional[Dict[str, Any]] = None,
@@ -104,6 +133,13 @@ def build_magicbase_tool_remark(
         tables = data.get("tables")
         if isinstance(tables, list) and tables:
             return _translated("magicbase.table_count", count=len(tables))
+        return _translated("magicbase.current_micro_app")
+
+    if tool_name == "query_magicbase_tables_all_mentioned_apps":
+        apps = data.get("apps")
+        if isinstance(apps, list) and apps:
+            total = sum(len(app.get("tables") or []) for app in apps if isinstance(app, dict))
+            return _translated("magicbase.table_count", count=total)
         return _translated("magicbase.current_micro_app")
 
     if tool_name == "create_magicbase_table":
@@ -122,9 +158,14 @@ def build_magicbase_tool_remark(
     if tool_name == "query_magicbase_rows":
         return _query_rows_remark(arguments, result)
 
+    if tool_name == "batch_get_magicbase_rows":
+        return _batch_get_rows_remark(arguments, result)
+
     message_by_tool = {
         "get_magicbase_table": "magicbase.table_structure",
+        "get_magicbase_row": "magicbase.view_record",
         "create_magicbase_row": "magicbase.save_business_data",
+        "update_magicbase_row": "magicbase.update_business_data",
         "delete_magicbase_row": "magicbase.selected_record",
         "update_magicbase_table_permissions": "magicbase.permission_scope",
         "delete_magicbase_table": "magicbase.selected_table",

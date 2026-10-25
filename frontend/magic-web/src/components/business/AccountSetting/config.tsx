@@ -10,6 +10,8 @@ import {
 import type { MenuItem } from "@/components/business/SettingPanel/types"
 import { AccountSettingPage } from "./types"
 
+export const ACCOUNT_SETTING_NAMESPACES = ["accountSetting"]
+
 const MyAccountPage = lazy(() => import("./pages/MyAccount"))
 const MyTeamPage = lazy(() => import("./pages/MyTeam"))
 const PreferencesPage = lazy(() => import("./pages/Preferences"))

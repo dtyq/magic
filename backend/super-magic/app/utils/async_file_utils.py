@@ -12,10 +12,10 @@ import json
 import os
 import re
 import shutil
+from collections.abc import AsyncIterable, AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from collections.abc import AsyncIterable
 from typing import Any, Callable, Dict, Optional, Union
 
 import aiofiles
@@ -25,6 +25,21 @@ import yaml
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+async def async_copy_contents(
+    src: Union[str, Path],
+    dst: Union[str, Path],
+    chunk_size: int = 1024 * 1024,
+) -> None:
+    """以异步分块读写复制文件内容，不处理文件元数据。"""
+    src_path = Path(src)
+    dst_path = Path(dst)
+    await async_mkdir(dst_path.parent, parents=True, exist_ok=True)
+    async with aiofiles.open(src_path, "rb") as source_stream:
+        async with aiofiles.open(dst_path, "wb") as destination_stream:
+            while chunk := await source_stream.read(chunk_size):
+                await destination_stream.write(chunk)
 
 
 async def async_copy2(src: Union[str, Path], dst: Union[str, Path]) -> None:
@@ -622,6 +637,16 @@ async def async_read_json(file_path: Union[str, Path]) -> Dict[str, Any]:
         raise
 
 
+async def async_append_text(file_path: Union[str, Path], content: str, encoding: str = 'utf-8') -> None:
+    """
+    异步追加文本，保留原文件并沿用追加写语义，不使用临时文件替换。
+
+    网络挂载路径的 rename/replace 可能产生新的文件记录；追加应写现有对象，不重建整文件。
+    """
+    async with aiofiles.open(file_path, "a", encoding=encoding) as stream:
+        await stream.write(content)
+
+
 async def async_write_text(file_path: Union[str, Path], content: str, encoding: str = 'utf-8') -> None:
     """
     异步写入文本文件
@@ -663,7 +688,7 @@ async def async_write_text_with_retry(
     content_validator: Optional[Callable[[str], bool]] = None,
 ) -> None:
     """
-    写入文本文件并验证写入结果，适用于存在同步延迟的存储后端（如 TOS）。
+    写入文本文件并验证写入结果，适用于存在同步延迟的网络存储。
 
     写入完成后进入轮询验证循环：依次检查文件存在、大小非零、内容非空，
     若提供了 content_validator 则额外执行自定义校验。任一检查失败时重试；
@@ -684,13 +709,16 @@ async def async_write_text_with_retry(
     for attempt in range(max_retries):
         await asyncio.sleep(retry_delay)
 
-        if not await async_exists(path_obj):
+        try:
+            # MagicFS 的路径 stat 可能短暂保留覆盖前的大小；新句柄的 fstat
+            # 能观察到已写入的文件，避免把成功覆盖误判为空文件。
+            file_stat = await async_fresh_stat(path_obj)
+        except FileNotFoundError:
             if attempt < max_retries - 1:
                 logger.warning(f"File does not exist after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
                 continue
             raise IOError(f"File does not exist after write: {path_obj}")
 
-        file_stat = await async_stat(path_obj)
         if file_stat.st_size == 0:
             if attempt < max_retries - 1:
                 logger.warning(f"File is empty after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
@@ -714,68 +742,6 @@ async def async_write_text_with_retry(
         return
 
     raise IOError(f"File write verification failed after {max_retries} retries: {path_obj}")
-
-
-async def async_write_text_with_retry(
-    file_path: Union[str, Path],
-    content: str,
-    encoding: str = 'utf-8',
-    max_retries: int = 5,
-    retry_delay: float = 0.2,
-    content_validator: Optional[Callable[[str], bool]] = None,
-) -> None:
-    """
-    写入文本文件并轮询验证写入结果，适用于 TOS 等存在同步延迟的存储层。
-
-    Args:
-        file_path: 文件路径
-        content: 文本内容
-        encoding: 编码格式，默认 utf-8
-        max_retries: 验证最大重试次数，默认 5
-        retry_delay: 每次重试前等待秒数，默认 0.2
-        content_validator: 可选的内容校验函数，接收已写入内容字符串，返回 True 表示合法；
-                           不传则只校验文件存在且内容非空
-
-    Raises:
-        IOError: 超出重试次数后文件仍不存在、为空或未通过自定义校验
-        PermissionError: 权限不足
-    """
-    path_obj = Path(file_path)
-    await async_write_text(path_obj, content, encoding=encoding)
-
-    for attempt in range(max_retries):
-        await asyncio.sleep(retry_delay)
-
-        if not await async_exists(path_obj):
-            if attempt < max_retries - 1:
-                logger.warning(f"File does not exist after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
-                continue
-            raise IOError(f"File does not exist after write: {path_obj}")
-
-        file_stat = await async_stat(path_obj)
-        if file_stat.st_size == 0:
-            if attempt < max_retries - 1:
-                logger.warning(f"File is empty after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
-                continue
-            raise IOError(f"File is empty after write: {path_obj}")
-
-        written_content = await async_read_text(path_obj, encoding=encoding)
-        if not written_content or not written_content.strip():
-            if attempt < max_retries - 1:
-                logger.warning(f"File content is empty after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
-                continue
-            raise IOError(f"File content is empty after write: {path_obj}")
-
-        if content_validator is not None and not content_validator(written_content):
-            if attempt < max_retries - 1:
-                logger.warning(f"File content failed validation, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
-                continue
-            raise IOError(f"File content failed validation after write: {path_obj}")
-
-        logger.info(f"Verified file write success: {path_obj} (size: {file_stat.st_size} bytes, attempt: {attempt + 1})")
-        return
-
-    raise IOError(f"Failed to verify file write after {max_retries} retries: {path_obj}")
 
 
 async def async_write_bytes(
@@ -936,6 +902,40 @@ async def async_try_count_text_lines(file_path: Union[str, Path], encoding: str 
         return None
 
 
+async def async_realpath(path: Union[str, Path], *, strict: bool = False) -> Path:
+    """
+    异步解析链接，供边界层校验目标仍在允许的目录内。
+
+    这里只把可能阻塞的路径解析移出事件循环；是否允许访问由调用方结合自己的作用域决定。
+    """
+    return Path(await asyncio.to_thread(os.path.realpath, str(path), strict=strict))
+
+
+async def async_fresh_stat(file_path: str | Path) -> os.stat_result:
+    """
+    打开文件取 fstat，避免仅使用网络挂载的路径元数据缓存。
+
+    只用于写后验证等必须观察当前内容的场景；常规高频探测仍使用
+    async_stat，避免为每次检查额外打开文件。
+    """
+    async with aiofiles.open(file_path, "rb") as stream:
+        return await asyncio.to_thread(os.fstat, stream.fileno())
+
+
+async def async_read_bytes_iter(file_path: str | Path, *, chunk_size: int = 256 * 1024) -> AsyncIterator[bytes]:
+    """
+    使用单个句柄分段读取，结束或取消时关闭文件。
+
+    只降低测量时的峰值内存，不减少总读取量。不得用它替换大文件的 mtime 快速探测。
+    调用方提前停止时使用 aclosing，保证异步生成器及时退出文件上下文。
+    """
+    if chunk_size <= 0:
+        raise ValueError("Read chunk size must be positive")
+    async with aiofiles.open(file_path, "rb") as stream:
+        while chunk := await stream.read(chunk_size):
+            yield chunk
+
+
 async def async_read_bytes(file_path: Union[str, Path], size: Optional[int] = None, offset: int = 0) -> bytes:
     """
     异步读取二进制文件
@@ -1061,7 +1061,7 @@ async def async_is_symlink(path: Union[str, Path]) -> bool:
         raise
 
 
-async def async_stat(path: Union[str, Path]):
+async def async_stat(path: Union[str, Path]) -> os.stat_result:
     """
     异步获取文件/目录状态信息
 
@@ -1077,6 +1077,45 @@ async def async_stat(path: Union[str, Path]):
     """
     try:
         return await aiofiles.os.stat(str(path))
+    except FileNotFoundError:
+        # 可选文件尚未创建不一定是业务错误；保留异常，由调用方判断缺失状态。
+        logger.debug(f"路径不存在: {path}")
+        raise
+    except Exception as e:
+        logger.error(f"获取路径状态失败 {path}: {e}")
+        raise
+
+
+async def async_lstat(path: Union[str, Path]) -> os.stat_result:
+    """
+    异步获取路径自身的状态信息，不跟随软链
+
+    与 async_stat 的区别：路径本身是软链时返回软链自己的 stat，而不是目标
+    文件的 stat。因此一次调用就能用 st_mode 判定三种状态——软链
+    （S_ISLNK）、真实文件/目录、以及由 FileNotFoundError 表示的缺失。
+    在 AGFS 这类网络挂载上，这把"是否存在 / 是否软链 / 指向哪里"的多次探测
+    收敛成一次 syscall。
+
+    例：/app/.user/.lark-cli/cache 在一次挂载上分别是"缺失"、"已是指向
+    target 的软链"或"被真实目录占用"，调用方据此决定创建、保留还是先清理。
+
+    Args:
+        path: 路径
+
+    Returns:
+        os.stat_result: 路径自身的状态信息
+
+    Raises:
+        FileNotFoundError: 路径不存在
+        OSError: 系统错误
+    """
+    try:
+        # aiofiles 未提供 lstat，按 async_readlink 的既有方式走线程池。
+        return await asyncio.to_thread(os.lstat, str(path))
+    except FileNotFoundError:
+        # 路径缺失是需要与"被真实文件占用"区分开的正常状态，交由调用方判断。
+        logger.debug(f"路径不存在: {path}")
+        raise
     except Exception as e:
         logger.error(f"获取路径状态失败 {path}: {e}")
         raise
@@ -1397,6 +1436,33 @@ async def set_content_version_to_xattr(filepath: Union[str, Path], version: str)
     await asyncio.to_thread(_write_magicfs_content_version, str(filepath), version)
 
 
+def _list_xattr_names(filepath: str) -> list[str]:
+    """Synchronous xattr name listing, intended to run in a thread pool."""
+    try:
+        return os.listxattr(filepath)  # type: ignore[attr-defined]
+    except (OSError, AttributeError):
+        return []
+
+
+async def async_list_xattr_names(filepath: Union[str, Path]) -> list[str]:
+    """
+    List extended attribute names of a path (e.g. ["user.magicfs.file_id", ...]).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because AGFS plugins are
+    FUSE-based and xattr calls involve user-space IPC.
+
+    Only available on Linux; returns an empty list on other platforms, when the
+    path does not exist, or when the filesystem does not support xattrs.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        list[str]: attribute names, possibly empty
+    """
+    return await asyncio.to_thread(_list_xattr_names, str(filepath))
+
+
 async def async_iterdir(path: Union[str, Path]) -> list[Path]:
     """
     异步遍历目录内容，返回 Path 对象列表
@@ -1424,11 +1490,12 @@ async def async_iterdir(path: Union[str, Path]) -> list[Path]:
         if not await async_exists(path_str):
             raise FileNotFoundError(f"目录不存在: {path_str}")
 
-        # 使用 aiofiles.os.scandir 异步遍历目录
-        items = []
-        with await aiofiles.os.scandir(path_str) as entries:
-            for entry in entries:
-                items.append(Path(entry.path))
+        # scandir 返回迭代器后，逐项读取仍可能触发网络 I/O；整个扫描都在线程中完成。
+        def scan_paths() -> list[Path]:
+            with os.scandir(path_str) as entries:
+                return [Path(entry.path) for entry in entries]
+
+        items = await asyncio.to_thread(scan_paths)
 
         logger.debug(f"异步遍历目录完成: {path_str}, 找到 {len(items)} 个项目")
         return items

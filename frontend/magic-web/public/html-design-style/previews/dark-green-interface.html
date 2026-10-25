@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DARK GREEN INTERFACE // Sylva Arbor Biosystems & Ecological Analytics</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400;1,600&family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg-moss: #062c1b;
+      --bg-canvas: #041B1B;
+      --surface-moss: #0F2522;
+      --surface-elevated: #14332f;
+      --border-moss: #244436;
+      --border-light: rgba(253, 228, 201, 0.15);
+      --text-cream: #fdE4C9;
+      --text-cream-dim: #ebd4b8;
+      --text-gold: #FFFE88;
+      --text-muted: #9C9684;
+      --accent-sprout: #A7BD71;
+      --accent-sprout-bright: #c2d98a;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'Lora', Georgia, serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-moss);
+      background-image: 
+        radial-gradient(ellipse at 85% 15%, rgba(167, 189, 113, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse at 15% 85%, rgba(6, 44, 27, 0.9) 0%, transparent 70%),
+        linear-gradient(to bottom, rgba(4, 27, 27, 0.65), rgba(6, 44, 27, 0.95));
+      color: var(--text-cream);
+      font-family: var(--font-body);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      padding: 20px 24px;
+      min-height: 100vh;
+    }
+
+    /* Top Botanical Navigation */
+    header.botanical-nav {
+      max-width: 1240px;
+      margin: 0 auto 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-moss);
+      padding-bottom: 16px;
+    }
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-glyph {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--accent-sprout);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-sprout);
+    }
+    .brand-name {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text-cream);
+      font-style: italic;
+    }
+    .brand-tag {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--accent-sprout);
+      letter-spacing: 0.08em;
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--text-gold);
+    }
+    .btn-status-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: rgba(167, 189, 113, 0.12);
+      border: 1px solid var(--accent-sprout);
+      color: var(--accent-sprout);
+      padding: 6px 14px;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    /* Hero Botanical Banner (Top 500px Focal Area) */
+    .hero-banner {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-light);
+      padding-bottom: 20px;
+    }
+    .hero-title-wrap {
+      max-width: 720px;
+    }
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-sprout);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .hero-headline {
+      font-family: var(--font-display);
+      font-size: 42px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text-cream);
+      letter-spacing: -0.01em;
+      margin-bottom: 10px;
+    }
+    .hero-headline em {
+      font-style: italic;
+      color: var(--text-gold);
+    }
+    .hero-subhead {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    /* 4 Nature-Inspired Analytics Cards Grid */
+    .analytics-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .analytics-card {
+      background: var(--surface-moss);
+      border: 1px solid var(--border-moss);
+      border-radius: 6px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .analytics-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-sprout);
+    }
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .card-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .card-glyph-icon {
+      color: var(--accent-sprout);
+    }
+    .metric-value {
+      font-family: var(--font-display);
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--text-cream);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .growth-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .growth-tag {
+      color: var(--accent-sprout);
+      font-weight: 700;
+    }
+    .growth-sub {
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    /* Organic Growth Metrics Chart Section (First Fold Impact) */
+    .growth-chart-panel {
+      background: var(--surface-moss);
+      border: 1px solid var(--border-moss);
+      border-radius: 6px;
+      padding: 22px 24px;
+      margin-bottom: 24px;
+      display: grid;
+      grid-template-columns: 1.7fr 0.9fr;
+      gap: 24px;
+    }
+    .panel-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .panel-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-cream);
+      letter-spacing: 0.02em;
+    }
+    .panel-pills {
+      display: flex;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+    .time-pill {
+      background: rgba(4, 27, 27, 0.6);
+      border: 1px solid var(--border-moss);
+      color: var(--text-muted);
+      padding: 3px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .time-pill.active {
+      background: var(--accent-sprout);
+      color: #041b1b;
+      font-weight: 700;
+      border-color: var(--accent-sprout);
+    }
+    .chart-container {
+      width: 100%;
+      height: 180px;
+    }
+
+    /* Right Mini Observatory Feed */
+    .observatory-feed {
+      border-left: 1px solid var(--border-moss);
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .obs-item {
+      padding: 8px 0;
+      border-bottom: 1px dashed rgba(36, 68, 54, 0.7);
+    }
+    .obs-item:last-child { border-bottom: none; }
+    .obs-time {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: var(--accent-sprout);
+      letter-spacing: 0.06em;
+    }
+    .obs-text {
+      font-size: 12.5px;
+      color: var(--text-cream-dim);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    /* Living Flora Bio-Sensor Specimen Table */
+    .specimen-section-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-cream);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .specimen-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface-moss);
+      border: 1px solid var(--border-moss);
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 13px;
+    }
+    .specimen-table th {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 10px 16px;
+      background: rgba(4, 27, 27, 0.7);
+      text-align: left;
+      border-bottom: 1px solid var(--border-moss);
+    }
+    .specimen-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(36, 68, 54, 0.5);
+      color: var(--text-cream-dim);
+    }
+    .specimen-table tr:last-child td { border-bottom: none; }
+    .specimen-name {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-style: italic;
+      color: var(--text-cream);
+    }
+    .specimen-code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-sprout);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Botanical Navigation -->
+  <header class="botanical-nav">
+    <div class="brand-mark">
+      <div class="brand-glyph">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L15 9H9L12 2Z"/><path d="M12 9V22"/><path d="M12 14C8 14 5 18 5 22"/><path d="M12 14C16 14 19 18 19 22"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Sylva Arbor Biosystems</div>
+        <div class="brand-tag">TEMPERATE BIOME OBSERVATORY • STATION 04</div>
+      </div>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="#" class="active">Ecological Matrix</a></li>
+      <li><a href="#">Canopy Dynamics</a></li>
+      <li><a href="#">Mycelial Sinks</a></li>
+      <li><a href="#">Flora Specimens</a></li>
+    </ul>
+
+    <div class="btn-status-badge">
+      <span style="width:6px; height:6px; border-radius:50%; background:var(--accent-sprout); display:inline-block;"></span>
+      <span>REGENERATIVE VITALITY: 98.4%</span>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Hero Section (Top 500px Focal Area) -->
+    <section class="hero-banner">
+      <div class="hero-title-wrap">
+        <div class="hero-eyebrow">BIO-ATMOSPHERIC TELEMETRY // REAL-TIME LOG</div>
+        <h1 class="hero-headline">Deep Moss Minimalist <em>Equilibrium</em></h1>
+        <p class="hero-subhead">
+          Precision telemetry capturing ancient forest carbon sink efficiency, sub-canopy mycorrhizal vitality, and photosynthetic flux across 48,000 hectares of preserved old-growth Douglas Fir and Redwood stands.
+        </p>
+      </div>
+      <div style="font-family:var(--font-mono); font-size:12px; color:var(--text-muted); text-align:right;">
+        <span style="color:var(--text-gold);">CURRENT HARMONIC EQUILIBRIUM</span><br>
+        LAT: 44.298° N • LON: 122.184° W<br>
+        ELEV: 1,420M • OLD-GROWTH CORE
+      </div>
+    </section>
+
+    <!-- 4 Nature-Inspired Analytics Cards Grid -->
+    <section class="analytics-cards-grid">
+      
+      <!-- Card 1: Canopy Sequestration -->
+      <div class="analytics-card">
+        <div class="card-top">
+          <span class="card-label">Canopy Carbon Sink</span>
+          <svg class="card-glyph-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12A10 10 0 0 1 12 2z"/><path d="M12 6v12"/><path d="M8 10l4-4 4 4"/></svg>
+        </div>
+        <div>
+          <div class="metric-value">1,842.6 <span style="font-size:16px; font-weight:400; color:var(--text-gold);">MT</span></div>
+          <div class="growth-indicator">
+            <span class="growth-tag">▲ +18.4%</span>
+            <span class="growth-sub">organic net sink (vs Q2)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Mycelial Network Vitality -->
+      <div class="analytics-card">
+        <div class="card-top">
+          <span class="card-label">Mycelial Conductivity</span>
+          <svg class="card-glyph-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12h6m6 0h6M12 3v6m0 6v6"/></svg>
+        </div>
+        <div>
+          <div class="metric-value">94.8% <span style="font-size:16px; font-weight:400; color:var(--accent-sprout);">Ψ</span></div>
+          <div class="growth-indicator">
+            <span class="growth-tag">▲ +6.2%</span>
+            <span class="growth-sub">symbiotic nutrient transfer</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Moisture Equilibrium -->
+      <div class="analytics-card">
+        <div class="card-top">
+          <span class="card-label">Canopy Humidity Index</span>
+          <svg class="card-glyph-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        </div>
+        <div>
+          <div class="metric-value">86.4% <span style="font-size:16px; font-weight:400; color:var(--text-cream);">RH</span></div>
+          <div class="growth-indicator">
+            <span class="growth-tag" style="color:var(--text-gold);">● STABLE</span>
+            <span class="growth-sub">optimal spore dew point</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Biomass Velocity -->
+      <div class="analytics-card">
+        <div class="card-top">
+          <span class="card-label">Photosynthetic Yield</span>
+          <svg class="card-glyph-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <div class="metric-value">3.48 <span style="font-size:16px; font-weight:400; color:var(--text-gold);">kg/m²</span></div>
+          <div class="growth-indicator">
+            <span class="growth-tag">▲ +22.1%</span>
+            <span class="growth-sub">foliar density accretion</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Organic Growth Metrics Chart Section -->
+    <section class="growth-chart-panel">
+      <div>
+        <div class="panel-header-row">
+          <div class="panel-title">Chlorophyll & Biomass Accretion Curve [2026 Seasonal Cycle]</div>
+          <div class="panel-pills">
+            <span class="time-pill">Vernal</span>
+            <span class="time-pill active">Estival</span>
+            <span class="time-pill">Serotinal</span>
+            <span class="time-pill">Autumnal</span>
+          </div>
+        </div>
+
+        <!-- Serene Vector Line & Area Organic Chart -->
+        <div class="chart-container">
+          <svg viewBox="0 0 650 180" width="100%" height="100%" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="chartMossGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#A7BD71" stop-opacity="0.4"/>
+                <stop offset="60%" stop-color="#A7BD71" stop-opacity="0.1"/>
+                <stop offset="100%" stop-color="#041B1B" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            <!-- Grid Lines -->
+            <line x1="40" y1="30" x2="630" y2="30" stroke="rgba(36,68,54,0.4)" stroke-dasharray="3,3"/>
+            <line x1="40" y1="75" x2="630" y2="75" stroke="rgba(36,68,54,0.4)" stroke-dasharray="3,3"/>
+            <line x1="40" y1="120" x2="630" y2="120" stroke="rgba(36,68,54,0.4)" stroke-dasharray="3,3"/>
+            <line x1="40" y1="160" x2="630" y2="160" stroke="rgba(36,68,54,0.7)"/>
+
+            <!-- Area Shading -->
+            <path d="M 40 140 Q 150 110, 240 70 T 420 40 T 630 25 L 630 160 L 40 160 Z" fill="url(#chartMossGrad)"/>
+
+            <!-- Smooth Growth Spline -->
+            <path d="M 40 140 Q 150 110, 240 70 T 420 40 T 630 25" fill="none" stroke="#A7BD71" stroke-width="2.5"/>
+            <!-- Secondary Gold Ambient Curve -->
+            <path d="M 40 152 Q 150 135, 240 100 T 420 75 T 630 60" fill="none" stroke="#fdE4C9" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+            <!-- Peak Data Markers -->
+            <circle cx="240" cy="70" r="4" fill="#FFFE88" stroke="#041B1B" stroke-width="2"/>
+            <circle cx="420" cy="40" r="4" fill="#FFFE88" stroke="#041B1B" stroke-width="2"/>
+            <circle cx="630" cy="25" r="5" fill="#A7BD71" stroke="#FFFE88" stroke-width="2"/>
+            <text x="560" y="20" fill="#FFFE88" font-family="DM Mono" font-size="10.5" font-weight="bold">+22.1% PEAK</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right Observatory Feed Panel -->
+      <div class="observatory-feed">
+        <div>
+          <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-gold); text-transform:uppercase; margin-bottom:8px;">Observatory Telemetry Feed</div>
+          
+          <div class="obs-item">
+            <div class="obs-time">17:12:04 UTC • NODE 04B</div>
+            <div class="obs-text">Canopy stomatal resistance drops to 120 s/m during twilight fog influx.</div>
+          </div>
+          <div class="obs-item">
+            <div class="obs-time">16:45:19 UTC • SOIL DEPTH 40cm</div>
+            <div class="obs-text">Mycorrhizal hyphal elongation rate recorded at 2.4 mm/day in moist humus.</div>
+          </div>
+          <div class="obs-item">
+            <div class="obs-time">15:30:00 UTC • ATMOSPHERE</div>
+            <div class="obs-text">Ambient biogenic VOC emission elevated by +14% due to sunlit warmth.</div>
+          </div>
+        </div>
+
+        <div style="font-family:var(--font-mono); font-size:10.5px; color:var(--accent-sprout); border:1px solid var(--border-moss); padding:6px 10px; border-radius:4px; text-align:center;">
+          BIOSYSTEM HEALTH INDEX: OPTIMAL (0.984)
+        </div>
+      </div>
+    </section>
+
+    <!-- Living Flora Specimen Monitoring Table -->
+    <section>
+      <div class="specimen-section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-sprout)" stroke-width="2"><path d="M12 2L15 9H9L12 2Z"/><path d="M12 9V22"/></svg>
+        <span>Monitored Old-Growth Specimen Nodes</span>
+      </div>
+
+      <table class="specimen-table">
+        <thead>
+          <tr>
+            <th>TAXONOMIC SPECIMEN</th>
+            <th>SECTOR CODE</th>
+            <th>EST. AGE</th>
+            <th>PHOTOSYNTHETIC RATE</th>
+            <th>MYCORRHIZAL PARTNER</th>
+            <th>STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="specimen-name">Sequoiadendron giganteum</td>
+            <td class="specimen-code">SEQ-084-ALPHA</td>
+            <td>1,420 YRS</td>
+            <td>18.4 µmol CO₂/m²·s</td>
+            <td>Russula brevipes</td>
+            <td style="color:var(--accent-sprout); font-family:var(--font-mono); font-size:11px;">● VIGOROUS</td>
+          </tr>
+          <tr>
+            <td class="specimen-name">Pseudotsuga menziesii</td>
+            <td class="specimen-code">DF-204-BETA</td>
+            <td>680 YRS</td>
+            <td>14.2 µmol CO₂/m²·s</td>
+            <td>Rhizopogon villosulus</td>
+            <td style="color:var(--accent-sprout); font-family:var(--font-mono); font-size:11px;">● VIGOROUS</td>
+          </tr>
+          <tr>
+            <td class="specimen-name">Acer circinatum (Vine Maple)</td>
+            <td class="specimen-code">AC-112-UNDER</td>
+            <td>120 YRS</td>
+            <td>9.8 µmol CO₂/m²·s</td>
+            <td>Glomus intraradices</td>
+            <td style="color:var(--text-gold); font-family:var(--font-mono); font-size:11px;">● EQUILIBRIUM</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+
+</body>
+</html>

@@ -12,9 +12,9 @@ tools:
   - grep_search
   - write_file
   - edit_file
-  - edit_file_range
+  - edit_file_ranges
+  - find_file_ranges
   - multi_edit_file
-  - multi_edit_file_range
   - delete_files
   - shell_exec
   - shell_await
@@ -48,21 +48,24 @@ If BOOTSTRAP.md is listed, read it first and complete its instructions before de
 
 <claw_memory_sources>
 <!--zh
-本提示词中的 `<memory_filesystem>` 描述的是通用的用户与项目文件记忆，不是 Claw 自身的工作区记忆。
+维护者说明：Claw 的启动记忆和普通项目记忆承担同一个项目背景职责，目录选择由 memory_scope.py 配合原工作区入口实现。
+本段让模型知道普通项目记忆为何不再单独使用；自有工作区记忆与用户全局记忆仍按各自范围维护。不要把维护说明写进全项目 AGENTS.md。
+
+本提示词中的 `<memory_filesystem>` 说明用户全局记忆和普通项目记忆的用途。普通项目记忆保存项目背景，Claw 自身的工作区记忆已经承担这一职责，因此 Claw 不另外创建或维护普通项目记忆。
 
 Claw 工作区中的 `.magic/MEMORY.md` 会作为 `<claw_memory path="...">` 自动提供，其中包含本轮开始时的文件内容，启动阶段无需重复读取；修改前或需要确认外部变化时再读取。该文件仍按照工作区规则维护；`.magic/memory/YYYY-MM-DD.md` 仍按工作区规则读取和维护。
 
-通用核心记忆会和其他主 Agent 一样自动提供给 Claw。通用记忆目录不属于 Claw 工作区的启动必读文件集合；`notes/` 在任务相关时按照 `<memory_filesystem>` 的规则按需检索和读取。
+启用的用户全局核心记忆会和其他主 Agent 一样自动提供给 Claw。通用记忆目录不属于 Claw 工作区的启动必读文件集合；`notes/` 在任务相关时按照 `<memory_filesystem>` 的规则按需检索和读取。
 
 两套记忆相互独立、共同存在。通用记忆可以作为相关任务的补充历史上下文，但不会替代或覆盖 Claw 自身的记忆文件。
 -->
-The `<memory_filesystem>` instructions included in this prompt describe general user and project file memory. They do not describe or replace this Claw's workspace memory.
+The `<memory_filesystem>` context explains user-global and ordinary-project memory. Ordinary project memory holds project-local background; this Claw's own workspace memory already serves that role, so Claw does not separately create or maintain ordinary project memory.
 
 This Claw's `.magic/MEMORY.md` is provided automatically as `<claw_memory path="...">` with its content at the start of the run, so it does not need to be reread during startup. Read it again before editing or when checking for external changes. The file remains maintained under the workspace rules. Files under `.magic/memory/YYYY-MM-DD.md` continue to be read and maintained according to those rules.
 
-General core memory is provided to Claw just as it is to other main Agents. The general memory directories are not part of Claw's required workspace startup-file set; search and read `notes/` on demand under the `<memory_filesystem>` rules when relevant.
+Enabled user-global core memory is provided to Claw just as it is to other main Agents. The general memory directories are not part of Claw's required workspace startup-file set; search and read `notes/` on demand under the `<memory_filesystem>` rules when relevant.
 
-The two memory sources are independent and coexist. Shared memory may provide additional historical context for relevant tasks, but it does not replace or overwrite this Claw's own memory files.
+The two memory sources are independent and coexist. User-global memory may provide additional historical context for relevant tasks, but it does not replace or overwrite this Claw's own memory files.
 </claw_memory_sources>
 
 <static_context>

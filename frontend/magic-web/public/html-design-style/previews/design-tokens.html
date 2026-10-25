@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design Tokens Architecture — Comprehensive Token Spec Matrix</title>
+  <style>
+    :root {
+      --token-brand-primary: #080331;
+      --token-brand-secondary: #f2f6ff;
+      --token-accent-blue: #1267dd;
+      --token-accent-blue-light: #eff4fb;
+      --token-accent-green: #07a49a;
+      --token-accent-purple: #7327f0;
+      --token-white: #ffffff;
+      --token-light-white: #f7f7f7;
+      --token-element-black: #1a1a1a;
+      --token-gray-base: #666666;
+      --token-gray-light: #999999;
+      --token-border-light: #e5e5e5;
+      --token-border-regular: #d9d9d9;
+      --font-family-main: 'Season Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-family-mono: 'JetBrains Mono', 'SF Mono', monospace;
+      --radius-sm: 0.25rem;
+      --radius-lg: 0.75rem;
+      --radius-md: 1rem;
+      --elevation-soft: 0 24px 40px rgba(0, 0, 0, 0.04);
+      --elevation-deep: 0 40px 80px rgba(0, 0, 0, 0.08);
+      --elevation-button: 0 1px 3px rgba(0, 0, 0, 0.15), 0 5px 5px rgba(0, 0, 0, 0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--token-light-white);
+      color: var(--token-brand-primary);
+      font-family: var(--font-family-main);
+      font-size: 13px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 24px;
+    }
+    .spec-header {
+      background: var(--token-brand-primary); color: #fff;
+      padding: 0 20px; height: 50px; display: flex;
+      align-items: center; justify-content: space-between;
+      border-bottom: 2px solid var(--token-accent-blue);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .spec-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13px; }
+    .token-cube-badge {
+      width: 24px; height: 24px; background: var(--token-accent-blue);
+      border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 11px; font-weight: 800; font-family: var(--font-family-mono);
+    }
+    .spec-meta-pills { display: flex; align-items: center; gap: 8px; font-family: var(--font-family-mono); font-size: 11px; }
+    .spec-pill { background: rgba(255, 255, 255, 0.1); padding: 3px 8px; border-radius: 4px; color: #cbd5e1; }
+    .export-json-btn {
+      background: var(--token-accent-blue); color: #fff; border: none;
+      padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;
+    }
+    .matrix-container {
+      max-width: 1340px; margin: 16px auto 0; padding: 0 20px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .top-matrix-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; }
+    .matrix-panel {
+      background: var(--token-white); border: 1px solid var(--token-border-regular);
+      border-radius: var(--radius-md); padding: 16px 18px; box-shadow: var(--elevation-soft);
+    }
+    .panel-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--token-border-light);
+    }
+    .panel-title { font-size: 13.5px; font-weight: 700; color: var(--token-brand-primary); }
+    .panel-tag {
+      font-family: var(--font-family-mono); font-size: 10px;
+      color: var(--token-accent-blue); background: var(--token-accent-blue-light);
+      padding: 2px 6px; border-radius: 4px; font-weight: 600;
+    }
+    .swatches-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .swatch-card {
+      border: 1px solid var(--token-border-light); border-radius: 6px;
+      overflow: hidden; background: var(--token-white); cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .swatch-card:hover { transform: translateY(-2px); }
+    .swatch-color-box { height: 40px; width: 100%; display: flex; align-items: flex-end; padding: 3px 6px; }
+    .swatch-pill-copy {
+      font-family: var(--font-family-mono); font-size: 9px;
+      background: rgba(0, 0, 0, 0.5); color: #fff; padding: 1px 4px; border-radius: 2px;
+    }
+    .swatch-info { padding: 6px; display: flex; flex-direction: column; gap: 1px; }
+    .swatch-token-name { font-size: 10.5px; font-weight: 600; color: var(--token-brand-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .swatch-val-mono { font-family: var(--font-family-mono); font-size: 9.5px; color: var(--token-gray-base); }
+    .swatch-hsl-meta { font-family: var(--font-family-mono); font-size: 8.5px; color: var(--token-gray-light); }
+    .ruler-strip-container { display: flex; flex-direction: column; gap: 7px; }
+    .ruler-row {
+      display: grid; grid-template-columns: 95px 1fr 55px; align-items: center;
+      gap: 10px; padding: 3px 0; border-bottom: 1px dashed var(--token-border-light);
+    }
+    .ruler-token-name { font-family: var(--font-family-mono); font-size: 10.5px; font-weight: 600; color: var(--token-brand-primary); }
+    .ruler-bar-track {
+      background: var(--token-light-white); height: 16px; border-radius: 3px;
+      overflow: hidden; border: 1px solid var(--token-border-light);
+    }
+    .ruler-bar-fill {
+      height: 100%;
+      background: repeating-linear-gradient(45deg, var(--token-accent-blue), var(--token-accent-blue) 4px, #2575e6 4px, #2575e6 8px);
+      border-radius: 2px;
+    }
+    .ruler-value-badge { font-family: var(--font-family-mono); font-size: 10px; font-weight: 600; color: var(--token-accent-blue); text-align: right; }
+    .typo-scale-matrix {
+      background: var(--token-white); border: 1px solid var(--token-border-regular);
+      border-radius: var(--radius-md); padding: 16px 18px; box-shadow: var(--elevation-soft);
+    }
+    .typo-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .typo-table th {
+      padding: 6px 8px; font-size: 10.5px; text-transform: uppercase;
+      font-family: var(--font-family-mono); color: var(--token-gray-base);
+      border-bottom: 1px solid var(--token-border-regular); background: var(--token-light-white);
+    }
+    .typo-table td { padding: 8px 8px; border-bottom: 1px solid var(--token-border-light); vertical-align: middle; }
+    .typo-token-badge {
+      font-family: var(--font-family-mono); font-size: 10.5px; font-weight: 700;
+      color: var(--token-brand-primary); background: var(--token-brand-secondary);
+      padding: 2px 5px; border-radius: 3px; display: inline-block;
+    }
+    .typo-metrics { font-family: var(--font-family-mono); font-size: 10.5px; color: var(--token-gray-base); white-space: nowrap; }
+    .typo-preview-text { color: var(--token-brand-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 450px; }
+    .bottom-tokens-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .radii-demo-boxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 6px; }
+    .radii-box {
+      height: 56px; background: var(--token-brand-secondary);
+      border: 1.5px solid var(--token-accent-blue); display: flex;
+      flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--font-family-mono); font-size: 10px; font-weight: 600;
+      color: var(--token-brand-primary);
+    }
+    .elevation-demo-boxes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
+    .elevation-card-demo {
+      background: #fff; border: 1px solid var(--token-border-light);
+      border-radius: 6px; padding: 10px; display: flex; flex-direction: column;
+      align-items: center; text-align: center; font-family: var(--font-family-mono); font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header class="spec-header">
+    <div class="spec-brand">
+      <div class="token-cube-badge">DT</div>
+      <span>HYPERLINE &bull; DESIGN TOKEN MATRIX</span>
+      <span style="font-size: 10.5px; opacity: 0.7;">SPEC_2026.4</span>
+    </div>
+    <div class="spec-meta-pills">
+      <div class="spec-pill">W3C STANDARD</div>
+      <div class="spec-pill">48 TOKENS</div>
+      <button class="export-json-btn"><span>&darr; EXPORT JSON</span></button>
+    </div>
+  </header>
+
+  <main class="matrix-container">
+    <div class="top-matrix-grid">
+      <section class="matrix-panel">
+        <div class="panel-header">
+          <div class="panel-title">Color Swatches &amp; Color Ramps</div>
+          <span class="panel-tag">HEX / RGB / HSL</span>
+        </div>
+
+        <div class="swatches-grid">
+          <div class="swatch-card" onclick="copyToken('#080331')">
+            <div class="swatch-color-box" style="background: #080331;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">brand.primary</span>
+              <span class="swatch-val-mono">#080331</span>
+              <span class="swatch-hsl-meta">hsl(247, 88%, 10%)</span>
+            </div>
+          </div>
+          <div class="swatch-card" onclick="copyToken('#f2f6ff')">
+            <div class="swatch-color-box" style="background: #f2f6ff; border-bottom: 1px solid #e2e8f0;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">brand.secondary</span>
+              <span class="swatch-val-mono">#F2F6FF</span>
+              <span class="swatch-hsl-meta">hsl(223, 100%, 97%)</span>
+            </div>
+          </div>
+          <div class="swatch-card" onclick="copyToken('#1267dd')">
+            <div class="swatch-color-box" style="background: #1267dd;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">accent.blue</span>
+              <span class="swatch-val-mono">#1267DD</span>
+              <span class="swatch-hsl-meta">hsl(215, 85%, 47%)</span>
+            </div>
+          </div>
+          <div class="swatch-card" onclick="copyToken('#07a49a')">
+            <div class="swatch-color-box" style="background: #07a49a;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">accent.green</span>
+              <span class="swatch-val-mono">#07A49A</span>
+              <span class="swatch-hsl-meta">hsl(176, 92%, 34%)</span>
+            </div>
+          </div>
+          <div class="swatch-card" onclick="copyToken('#7327f0')">
+            <div class="swatch-color-box" style="background: #7327f0;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">accent.purple</span>
+              <span class="swatch-val-mono">#7327F0</span>
+              <span class="swatch-hsl-meta">hsl(263, 87%, 55%)</span>
+            </div>
+          </div>
+          <div class="swatch-card" onclick="copyToken('#1a1a1a')">
+            <div class="swatch-color-box" style="background: #1a1a1a;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">neutral.black</span>
+              <span class="swatch-val-mono">#1A1A1A</span>
+              <span class="swatch-hsl-meta">hsl(0, 0%, 10%)</span>
+            </div>
+          </div>
+          <div class="swatch-card" onclick="copyToken('#666666')">
+            <div class="swatch-color-box" style="background: #666666;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">neutral.gray</span>
+              <span class="swatch-val-mono">#666666</span>
+              <span class="swatch-hsl-meta">hsl(0, 0%, 40%)</span>
+            </div>
+          </div>
+          <div class="swatch-card" onclick="copyToken('#d9d9d9')">
+            <div class="swatch-color-box" style="background: #d9d9d9;"><span class="swatch-pill-copy">COPY</span></div>
+            <div class="swatch-info">
+              <span class="swatch-token-name">border.regular</span>
+              <span class="swatch-val-mono">#D9D9D9</span>
+              <span class="swatch-hsl-meta">hsl(0, 0%, 85%)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="matrix-panel">
+        <div class="panel-header">
+          <div class="panel-title">Spacing Rhythm Ruler</div>
+          <span class="panel-tag">CALIPER SCALE</span>
+        </div>
+
+        <div class="ruler-strip-container">
+          <div class="ruler-row">
+            <span class="ruler-token-name">space.xsmall</span>
+            <div class="ruler-bar-track"><div class="ruler-bar-fill" style="width: 12%;"></div></div>
+            <span class="ruler-value-badge">0.75rem (12px)</span>
+          </div>
+          <div class="ruler-row">
+            <span class="ruler-token-name">space.small</span>
+            <div class="ruler-bar-track"><div class="ruler-bar-fill" style="width: 20%;"></div></div>
+            <span class="ruler-value-badge">1.25rem (20px)</span>
+          </div>
+          <div class="ruler-row">
+            <span class="ruler-token-name">space.medium</span>
+            <div class="ruler-bar-track"><div class="ruler-bar-fill" style="width: 24%;"></div></div>
+            <span class="ruler-value-badge">1.50rem (24px)</span>
+          </div>
+          <div class="ruler-row">
+            <span class="ruler-token-name">space.large</span>
+            <div class="ruler-bar-track"><div class="ruler-bar-fill" style="width: 40%;"></div></div>
+            <span class="ruler-value-badge">2.50rem (40px)</span>
+          </div>
+          <div class="ruler-row">
+            <span class="ruler-token-name">space.xlarge</span>
+            <div class="ruler-bar-track"><div class="ruler-bar-fill" style="width: 56%;"></div></div>
+            <span class="ruler-value-badge">3.50rem (56px)</span>
+          </div>
+          <div class="ruler-row">
+            <span class="ruler-token-name">space.xxlarge</span>
+            <div class="ruler-bar-track"><div class="ruler-bar-fill" style="width: 72%;"></div></div>
+            <span class="ruler-value-badge">4.50rem (72px)</span>
+          </div>
+          <div class="ruler-row">
+            <span class="ruler-token-name">space.huge</span>
+            <div class="ruler-bar-track"><div class="ruler-bar-fill" style="width: 85%;"></div></div>
+            <span class="ruler-value-badge">5.00rem (80px)</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="typo-scale-matrix">
+      <div class="panel-header">
+        <div class="panel-title">Typography Modular Scale Preview</div>
+        <span class="panel-tag">FAMILY: 'Season Sans'</span>
+      </div>
+
+      <table class="typo-table">
+        <thead>
+          <tr>
+            <th style="width: 120px;">TOKEN</th>
+            <th style="width: 130px;">METRICS</th>
+            <th style="width: 85px;">WEIGHT</th>
+            <th>LIVE RENDER PREVIEW</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="typo-token-badge">typo.h1</span></td>
+            <td><span class="typo-metrics">3.5rem (56px)</span></td>
+            <td><span class="typo-metrics">700 Bold</span></td>
+            <td><div class="typo-preview-text" style="font-size: 24px; font-weight: 700; line-height: 1.1;">Strategic Revenue Architecture</div></td>
+          </tr>
+          <tr>
+            <td><span class="typo-token-badge">typo.h3</span></td>
+            <td><span class="typo-metrics">2.5rem (40px)</span></td>
+            <td><span class="typo-metrics">700 Bold</span></td>
+            <td><div class="typo-preview-text" style="font-size: 19px; font-weight: 700; line-height: 1.2;">Multi-Tenant Ledger &amp; Subscriptions</div></td>
+          </tr>
+          <tr>
+            <td><span class="typo-token-badge">typo.h5</span></td>
+            <td><span class="typo-metrics">1.625rem (26px)</span></td>
+            <td><span class="typo-metrics">500 Med</span></td>
+            <td><div class="typo-preview-text" style="font-size: 15px; font-weight: 500; line-height: 1.3;">Automated Invoicing Workflows &amp; Tax Validation</div></td>
+          </tr>
+          <tr>
+            <td><span class="typo-token-badge">typo.body</span></td>
+            <td><span class="typo-metrics">1.0rem (16px)</span></td>
+            <td><span class="typo-metrics">400 Reg</span></td>
+            <td><div class="typo-preview-text" style="font-size: 13px; font-weight: 400; line-height: 1.5; color: var(--token-gray-base);">Season Sans establishes authoritative contrast and generous breathing room for high-volume enterprise financial operations.</div></td>
+          </tr>
+          <tr>
+            <td><span class="typo-token-badge">typo.tiny</span></td>
+            <td><span class="typo-metrics">0.75rem (12px)</span></td>
+            <td><span class="typo-metrics">500 Med</span></td>
+            <td><div class="typo-preview-text" style="font-size: 11px; font-weight: 500; color: var(--token-gray-light); text-transform: uppercase;">SEC-RULE-17A-COMPLIANT AUDIT LOG TRAIL</div></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="bottom-tokens-row">
+      <section class="matrix-panel">
+        <div class="panel-header">
+          <div class="panel-title">Corner Radii Tokens</div>
+          <span class="panel-tag">GEOMETRIC</span>
+        </div>
+        <div class="radii-demo-boxes">
+          <div class="radii-box" style="border-radius: var(--radius-sm);">
+            <span>sm: 0.25rem</span>
+            <span style="font-size: 8.5px; color: var(--token-gray-base);">(4px)</span>
+          </div>
+          <div class="radii-box" style="border-radius: var(--radius-lg);">
+            <span>lg: 0.75rem</span>
+            <span style="font-size: 8.5px; color: var(--token-gray-base);">(12px)</span>
+          </div>
+          <div class="radii-box" style="border-radius: var(--radius-md);">
+            <span>md: 1.00rem</span>
+            <span style="font-size: 8.5px; color: var(--token-gray-base);">(16px)</span>
+          </div>
+          <div class="radii-box" style="border-radius: 9999px;">
+            <span>full: 100vw</span>
+            <span style="font-size: 8.5px; color: var(--token-gray-base);">(Pill)</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="matrix-panel">
+        <div class="panel-header">
+          <div class="panel-title">Elevation &amp; Shadow Tokens</div>
+          <span class="panel-tag">LUMEN DEPTH</span>
+        </div>
+        <div class="elevation-demo-boxes">
+          <div class="elevation-card-demo" style="box-shadow: var(--elevation-soft);">
+            <strong style="color: var(--token-brand-primary);">elevation.soft</strong>
+            <span style="color: var(--token-gray-base); font-size: 9px; margin-top: 3px;">0 24px 40px (4% ink)</span>
+          </div>
+          <div class="elevation-card-demo" style="box-shadow: var(--elevation-deep);">
+            <strong style="color: var(--token-brand-primary);">elevation.deep</strong>
+            <span style="color: var(--token-gray-base); font-size: 9px; margin-top: 3px;">0 40px 80px (8% ink)</span>
+          </div>
+          <div class="elevation-card-demo" style="box-shadow: var(--elevation-button);">
+            <strong style="color: var(--token-accent-blue);">elevation.button</strong>
+            <span style="color: var(--token-gray-base); font-size: 9px; margin-top: 3px;">Multi-layer tactile</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    function copyToken(val) {
+      if (navigator.clipboard) { navigator.clipboard.writeText(val); }
+    }
+  </script>
+</body>
+</html>

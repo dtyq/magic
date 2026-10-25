@@ -36,6 +36,7 @@ export default memo(function CanvasDesignHeaderV2(props: CommonHeaderV2Props) {
 			) : null}
 			<div
 				className="absolute right-[10px] z-50 flex items-center justify-center gap-[var(--spacing-1,4px)] rounded-full border bg-[var(--base-background,#FFF)] p-[var(--spacing-1,4px)]"
+				data-canvas-design-header-actions
 				style={{
 					top: actionsTopOffset,
 					borderColor: "var(--base-border, #E5E5E5)",

@@ -1,7 +1,7 @@
 import { type UIEvent, useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { History } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import AICardHistorySummaryCard from "./AICardHistorySummaryCard"
 import type { AICardHistoryEntry } from "../types"

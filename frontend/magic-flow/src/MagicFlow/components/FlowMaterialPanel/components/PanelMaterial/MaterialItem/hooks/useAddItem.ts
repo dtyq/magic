@@ -2,7 +2,7 @@ import { useFlowNodes, useNodeConfig } from "@/MagicFlow/context/FlowContext/use
 import { useExternalConfig } from "@/MagicFlow/context/ExternalContext/useExternal"
 import { useMemoizedFn } from "ahooks"
 import { useReactFlow, Edge } from "reactflow"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import { generateSnowFlake } from "@/common/utils/snowflake"
 import {
   generateLoopBody,
@@ -40,7 +40,7 @@ const useAddItem = ({ item }: UseAddItemProps) => {
       y: 200,
     })
 
-    const currentNodeSchema = _.cloneDeep(item)
+    const currentNodeSchema = cloneDeep(item)
     const newNode = generateNewNode(currentNodeSchema, paramsName, id, position)
 
     if (isAddInGroup) {

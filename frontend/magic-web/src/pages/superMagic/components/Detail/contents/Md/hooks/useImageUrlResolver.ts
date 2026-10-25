@@ -1,5 +1,8 @@
 import { useMemoizedFn } from "ahooks"
 import { useEffect, useRef, useState } from "react"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { shouldWaitForShareAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import type { ProjectImageUrlResolver } from "@/components/tiptap-node/project-image-node/project-image-node-extension"
 import {
 	type AttachmentFile,
@@ -14,6 +17,7 @@ interface UseImageUrlResolverProps {
 	relativeFilePath?: string
 	initialImageUrlMap?: ImageUrlMap
 	isReady?: boolean
+	resolveUrl?: (path: string) => Promise<string>
 }
 
 interface UseImageUrlResolverReturn {
@@ -31,8 +35,11 @@ export function useImageUrlResolver({
 	relativeFilePath,
 	initialImageUrlMap = new Map(),
 	isReady = true,
+	resolveUrl,
 }: UseImageUrlResolverProps): UseImageUrlResolverReturn {
 	const [imageUrlMap, setImageUrlMap] = useState<ImageUrlMap>(initialImageUrlMap)
+	const fileAccess = useFileAccess()
+	const fileApi = useFileApi()
 	const listenersRef = useRef(new Set<() => void>())
 	const isReadyRef = useRef(isReady)
 	isReadyRef.current = isReady
@@ -47,13 +54,17 @@ export function useImageUrlResolver({
 
 	const urlResolver = useMemoizedFn(async (relativePath: string) => {
 		try {
+			if (shouldWaitForShareAccess(fileAccess)) return relativePath
 			// Use the shared utility function for resolving single image URLs
-			const resolvedUrl = await resolveSingleImageUrl(
-				relativePath,
-				attachments,
-				relativeFilePath,
-				imageUrlMap,
-			)
+			const resolvedUrl = resolveUrl
+				? await resolveUrl(normalizeImagePath(relativePath))
+				: await resolveSingleImageUrl(
+						relativePath,
+						attachments,
+						relativeFilePath,
+						imageUrlMap,
+						fileApi,
+					)
 
 			// Update cache if URL was resolved successfully
 			if (resolvedUrl !== relativePath && !imageUrlMap.has(relativePath)) {

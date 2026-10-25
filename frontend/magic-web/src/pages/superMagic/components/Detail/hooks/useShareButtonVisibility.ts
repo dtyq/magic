@@ -1,3 +1,4 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useMemo } from "react"
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
 
@@ -26,6 +27,7 @@ function useShareButtonVisibility({
 	isEditMode = false,
 }: UseShareButtonVisibilityProps) {
 	const { isShareRoute } = useShareRoute()
+	const { permissions: access } = useFileAccess()
 
 	/**
 	 * 检查是否应该隐藏按钮（基于分享权限）
@@ -67,8 +69,8 @@ function useShareButtonVisibility({
 	}, [isMediaScenario, shouldHideByPermission, isEditMode])
 
 	return {
-		showDownloadButton,
-		showExportButton,
+		showDownloadButton: showDownloadButton && access.download,
+		showExportButton: showExportButton && (access.download || access.export),
 		shouldHideByPermission,
 	}
 }

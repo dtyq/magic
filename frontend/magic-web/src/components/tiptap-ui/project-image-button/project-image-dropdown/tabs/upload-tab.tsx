@@ -2,10 +2,10 @@ import { useState } from "react"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { Upload } from "antd"
 import { useTranslation } from "react-i18next"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useStyles } from "../styles"
 import FlexBox from "@/components/base/FlexBox"
-import { MAX_FILE_SIZE } from "@/lib/tiptap-utils"
+import { MAX_FILE_SIZE } from "@/infrastructure/editors/tiptap/utils"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
 const { Dragger } = Upload
@@ -54,19 +54,23 @@ export function UploadTab({ editor, projectId, onSuccess }: UploadTabProps) {
 		setUploading(true)
 
 		try {
-			const inserted = runActiveEditor(editor, (activeEditor) => {
-				// Use the insertProjectImageFromFile command if available
-				if (projectId && activeEditor.commands.insertProjectImageFromFile) {
-					activeEditor.commands.insertProjectImageFromFile(file)
-					return true
-				}
-				// Use the insertStorageImageFromFile command if available
-				if (!projectId && activeEditor.commands.insertStorageImageFromFile) {
-					activeEditor.commands.insertStorageImageFromFile(file)
-					return true
-				}
-				return false
-			}, false)
+			const inserted = runActiveEditor(
+				editor,
+				(activeEditor) => {
+					// Use the insertProjectImageFromFile command if available
+					if (projectId && activeEditor.commands.insertProjectImageFromFile) {
+						activeEditor.commands.insertProjectImageFromFile(file)
+						return true
+					}
+					// Use the insertStorageImageFromFile command if available
+					if (!projectId && activeEditor.commands.insertStorageImageFromFile) {
+						activeEditor.commands.insertStorageImageFromFile(file)
+						return true
+					}
+					return false
+				},
+				false,
+			)
 
 			// Use the insertProjectImageFromFile command if available
 			if (inserted && projectId) {

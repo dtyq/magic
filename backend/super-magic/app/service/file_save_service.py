@@ -168,11 +168,9 @@ class FileSaveService:
 
             return decrypted_content
 
-        except Exception as e:
-            logger.error(f"ShadowCode 解密失败: {e}")
-            # 解密失败时返回原内容，避免数据丢失
-            logger.warning("解密失败，返回原始内容")
-            return encrypted_content
+        except Exception:
+            # 编码错误必须阻止后续写入，不能把密文当正文保存或记录到日志。
+            raise ValueError("Failed to decode file content") from None
 
     def _check_disk_space(self, target_path: Path, content_size: int):
         """

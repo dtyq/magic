@@ -9,16 +9,16 @@ import asyncio
 import uuid
 from typing import Optional
 
-from agentlang.logger import get_logger
 from wecom_aibot_sdk import WSClient, generate_req_id
 
+from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
-from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
-from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.channel.base.third_party_message import dispatch_third_party_message
+from app.channel.config import IMChannelDisplay, IMChannelsConfig
 from app.channel.wecom.stream import WeComStream
 from app.channel.wecom.streaming_driver import WeComStreamingDriver
-from app.channel.config import IMChannelsConfig, IMChannelDisplay
+from app.core.context.execution_source import EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY, SuperMagicExecutionSource
+from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.core.keepalive_registry import KeepaliveRegistry
 from app.utils.time_utils import now_ms
 
@@ -94,7 +94,7 @@ class WeComChannel(BaseChannel):
         self._ws_client.on("authenticated", _on_authenticated)
         self._ws_client.on("disconnected", lambda reason: logger.warning(f"[WeComChannel] 断开: {reason}"))
         self._ws_client.on("error", lambda e: logger.error(f"[WeComChannel] 错误: {e}"))
-        self._ws_client.on("message.text", self._on_text)
+        self._ws_client.on("message", self._on_text)
 
         self._connect_task = asyncio.create_task(self._ws_client.connect())
         logger.info(f"[WeComChannel] 连接中，bot_id={bot_id}")
@@ -120,13 +120,26 @@ class WeComChannel(BaseChannel):
             return
 
         body = frame.get("body", {})
-        content = body.get("text", {}).get("content", "").strip()
-        if not content:
-            return
-
         current_message_at_ms = now_ms()
         self._last_message_at_ms = current_message_at_ms
         KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
+        media_fields = []
+        msgtype = body.get("msgtype") if isinstance(body, dict) else None
+        if isinstance(body, dict):
+            media = body.get(msgtype)
+            if isinstance(media, dict):
+                media_fields = sorted(media)
+        logger.info(
+            "[WeComChannel] 收到消息: "
+            f"msgtype={msgtype!r}, "
+            f"fields={sorted(body) if isinstance(body, dict) else []}, "
+            f"content_fields={media_fields}"
+        )
+        from app.channel.wecom.media import prepare_wecom_message
+        prepared = await prepare_wecom_message(body, self._ws_client)
+        content = prepared.text
+        if not content and not prepared.media:
+            return
         # 缓存 frame，供 cron 主动推送复用，并持久化供重启后使用
         self._last_frame = frame
         try:
@@ -140,7 +153,7 @@ class WeComChannel(BaseChannel):
         except Exception as e:
             logger.warning(f"[WeComChannel] 保存运行态失败: {e}")
 
-        sender = body.get("sender", {})
+        sender = body.get("from") or body.get("sender", {})
         user_id = sender.get("userid", "wecom_user")
 
         stream_id = generate_req_id("wecom")
@@ -159,6 +172,7 @@ class WeComChannel(BaseChannel):
         chat_msg = ChatClientMessage(
             message_id=local_id,
             prompt=content,
+            channel_context={"channel_media": [item.model_dump(mode="json") for item in prepared.media]},
             metadata=Metadata(agent_user_id=user_id, channel_name=self.key),
             dynamic_config={
                 EXECUTION_SOURCE_DYNAMIC_CONFIG_KEY: SuperMagicExecutionSource.THIRD_PARTY_IM.value,

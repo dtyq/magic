@@ -39,6 +39,8 @@ async function enterCopiedProjectAndNavigate({
 function CopyProjectProgressToast({
 	projectId,
 	visible,
+	completed = false,
+	completedText,
 	projectInfo,
 	onComplete,
 	onError,
@@ -86,13 +88,13 @@ function CopyProjectProgressToast({
 
 	// 轮询复制状态
 	const pollCopyStatus = useMemoizedFn(async () => {
-		if (!projectId || isCompleted) return
+		if (!projectId || completed || isCompleted) return
 
 		try {
 			const response = await SuperMagicApi.getProjectCopyStatus({ projectId })
-			setCopyProjectIsRunning(response?.status === "running")
+			setCopyProjectIsRunning?.(response?.status === "running")
 			if (response?.status === "finished") {
-				setCopyProjectIsRunning(false)
+				setCopyProjectIsRunning?.(false)
 				// 复制完成
 				setProgress(100)
 				setProgressText(t("share.copyProjectCompleted"))
@@ -101,7 +103,7 @@ function CopyProjectProgressToast({
 				// 延迟显示完成状态，让用户看到100%的进度
 				setTimeout(() => {
 					setShowCompleted(true)
-					onProgress(100)
+					onProgress?.(100)
 				}, 1000)
 				return
 			}
@@ -109,10 +111,10 @@ function CopyProjectProgressToast({
 			if (response?.status === "failed") {
 				// 复制失败
 				setIsCompleted(true)
-				setCopyProjectIsRunning(false)
+				setCopyProjectIsRunning?.(false)
 				clearPollTimer()
 				const errorMsg = response.err_msg || t("share.copyProjectFailed")
-				onProgress(100)
+				onProgress?.(100)
 				onError?.(new Error(errorMsg))
 				return
 			}
@@ -123,8 +125,8 @@ function CopyProjectProgressToast({
 				const progressNum = parseInt(progressStr.replace("%", "")) || 0
 				setProgress(progressNum)
 				setProgressText(t("share.copyProjectProcess"))
-				onProgress(progressNum)
-				setCopyProjectIsRunning(true)
+				onProgress?.(progressNum)
+				setCopyProjectIsRunning?.(true)
 				// 继续轮询
 				pollTimerRef.current = setTimeout(pollCopyStatus, pollInterval)
 				return
@@ -134,7 +136,7 @@ function CopyProjectProgressToast({
 
 			// 检查是否超过最大重试次数
 			if (retryCountRef.current >= maxRetries) {
-				setCopyProjectIsRunning(false)
+				setCopyProjectIsRunning?.(false)
 				setIsCompleted(true)
 				clearPollTimer()
 				onError?.(new Error(t("share.copyProjectTimeout")))
@@ -146,11 +148,11 @@ function CopyProjectProgressToast({
 		} catch (error) {
 			console.error("Failed to get copy status:", error)
 			retryCountRef.current += 1
-			setCopyProjectIsRunning(false)
+			setCopyProjectIsRunning?.(false)
 			if (retryCountRef.current >= maxRetries) {
 				setIsCompleted(true)
 				clearPollTimer()
-				onProgress(100)
+				onProgress?.(100)
 				onError?.(error as Error)
 				return
 			}
@@ -162,7 +164,7 @@ function CopyProjectProgressToast({
 
 	// 开始轮询
 	useEffect(() => {
-		if (visible && projectId && !isCompleted) {
+		if (visible && projectId && !completed && !isCompleted) {
 			setProgress(0) // 初始进度
 			setProgressText(t("share.copyProjectProcess"))
 			retryCountRef.current = 0
@@ -174,7 +176,20 @@ function CopyProjectProgressToast({
 		return () => {
 			clearPollTimer()
 		}
-	}, [visible, projectId, isCompleted, pollCopyStatus, t])
+	}, [visible, projectId, completed, isCompleted, pollCopyStatus, t])
+
+	// 文件复制等场景已经在业务 Hook 中完成轮询，这里只复用完成提示和进入项目操作。
+	useEffect(() => {
+		if (!visible || !completed) return
+
+		clearPollTimer()
+		setProgress(100)
+		setProgressText(completedText || t("share.copyProjectCompleted"))
+		setIsCompleted(true)
+		setShowCompleted(true)
+		setCopyProjectIsRunning?.(false)
+		onProgress?.(100)
+	}, [completed, completedText, onProgress, setCopyProjectIsRunning, t, visible])
 
 	// 组件卸载时清理
 	useEffect(() => {
@@ -206,7 +221,6 @@ function CopyProjectProgressToast({
 				{
 					text: t("share.close"),
 					type: "text" as const,
-					style: { color: "red" },
 					onClick: handleClose,
 				},
 			]

@@ -1,15 +1,14 @@
-import { Popover, PopoverContent, PopoverTrigger } from "../primitives/shadcn/popover"
-import { Tooltip, TooltipContent, TooltipTrigger } from "../primitives/shadcn/tooltip"
-import * as TooltipPrimitive from "@radix-ui/react-tooltip"
+import { Popover, PopoverAnchor, PopoverContent } from "../primitives/shadcn/popover"
 import IconButton from "../primitives/custom/IconButton/index"
-import { usePortalContainer } from "../primitives/custom/PortalContainerContext"
 import styles from "./index.module.css"
-import { useMemo, useState } from "react"
-import classNames from "classnames"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { cn } from "../../runtime/shared/lib/utils"
 import { type ToolType } from "../../runtime/document/types"
 import type { ToolOptionItem } from "./types"
 
-// 带 Popover 的工具项组件
+const HOVER_CLOSE_DELAY_MS = 120
+
+// 带 Popover 的工具项组件（hover 展开菜单，无标题 tooltip）
 export default function ToolItemWithPopover({
 	item,
 	activeTool,
@@ -20,7 +19,7 @@ export default function ToolItemWithPopover({
 	setActiveTool: (tool: ToolType | null) => void
 }) {
 	const [open, setOpen] = useState(false)
-	const portalContainer = usePortalContainer()
+	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	const activeChild = useMemo(() => {
 		return item.children?.find((child) => child.value === activeTool)
@@ -31,34 +30,51 @@ export default function ToolItemWithPopover({
 	// 显示图标：优先显示激活子项图标，其次显示父项图标，最后回退到第一个子项图标
 	const IconComponent = activeChild?.icon || item.icon || item.children?.[0]?.icon
 
+	useEffect(() => {
+		return () => {
+			if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+		}
+	}, [])
+
+	const clearCloseTimer = () => {
+		if (!closeTimerRef.current) return
+		clearTimeout(closeTimerRef.current)
+		closeTimerRef.current = null
+	}
+
+	const handleHoverOpen = () => {
+		clearCloseTimer()
+		setOpen(true)
+	}
+
+	const handleHoverClose = () => {
+		clearCloseTimer()
+		closeTimerRef.current = setTimeout(() => {
+			setOpen(false)
+			closeTimerRef.current = null
+		}, HOVER_CLOSE_DELAY_MS)
+	}
+
 	if (!IconComponent) return null
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<PopoverTrigger asChild>
-						<div>
-							<IconButton className={styles.toolItem} selected={isChildActive}>
-								<IconComponent size={16} />
-							</IconButton>
-						</div>
-					</PopoverTrigger>
-				</TooltipTrigger>
-				<TooltipPrimitive.Portal container={portalContainer || undefined}>
-					<TooltipContent side="right" sideOffset={8} className="border-black bg-black">
-						<div>
-							<span className={styles.tooltipLabel}>{item.label}</span>
-						</div>
-						<TooltipPrimitive.Arrow className="fill-black" />
-					</TooltipContent>
-				</TooltipPrimitive.Portal>
-			</Tooltip>
+			<PopoverAnchor asChild>
+				<div onMouseEnter={handleHoverOpen} onMouseLeave={handleHoverClose}>
+					<IconButton className={styles.toolItem} selected={isChildActive}>
+						<IconComponent size={16} />
+					</IconButton>
+				</div>
+			</PopoverAnchor>
 			<PopoverContent
-				align="start"
-				side="right"
+				align="center"
+				side="top"
 				sideOffset={8}
 				className="border-base-border w-auto bg-white p-1"
+				onOpenAutoFocus={(event) => event.preventDefault()}
+				onCloseAutoFocus={(event) => event.preventDefault()}
+				onMouseEnter={handleHoverOpen}
+				onMouseLeave={handleHoverClose}
 			>
 				<div className={styles.popoverContent}>
 					{item.children?.map((child) => {
@@ -68,7 +84,7 @@ export default function ToolItemWithPopover({
 							<button
 								key={child.value || child.label}
 								type="button"
-								className={classNames(
+								className={cn(
 									styles.popoverMenuItem,
 									isSelected && styles.popoverMenuItemSelected,
 								)}

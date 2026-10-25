@@ -1,4 +1,5 @@
-import { getTemporaryDownloadUrl, downloadFileContent } from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { downloadFileContent } from "@/pages/superMagic/utils/api"
 import {
 	flattenAttachments,
 	findMatchingFile,
@@ -46,8 +47,9 @@ export async function findDataJsFile(params: {
 	attachmentList: FileItem[]
 	currentFileId: string
 	currentFileName: string
+	fileApi: Pick<FileApi, "getTemporaryDownloadUrl">
 }): Promise<DataJsFileInfo | null> {
-	const { attachments, attachmentList, currentFileId, currentFileName } = params
+	const { attachments, attachmentList, currentFileId, currentFileName, fileApi } = params
 
 	if (!attachments || !attachmentList || !currentFileId || !currentFileName) {
 		return null
@@ -110,7 +112,9 @@ export async function findDataJsFile(params: {
 		}
 
 		// 获取data.js文件的内容
-		const downloadUrls = await getTemporaryDownloadUrl({ file_ids: [dataJsFile.file_id] })
+		const downloadUrls = await fileApi.getTemporaryDownloadUrl({
+			file_ids: [dataJsFile.file_id],
+		})
 		if (downloadUrls && downloadUrls[0]?.url) {
 			const content = await downloadFileContent(downloadUrls[0].url)
 

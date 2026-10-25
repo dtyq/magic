@@ -16,6 +16,8 @@ enum TransferType: int
 {
     case WORKSPACE = 1;
     case PROJECT = 2;
+    case AGENT = 3;
+    case SKILL = 4;
 
     /**
      * Get the human-readable label.
@@ -25,6 +27,8 @@ enum TransferType: int
         return match ($this) {
             self::WORKSPACE => 'workspace',
             self::PROJECT => 'project',
+            self::AGENT => 'agent',
+            self::SKILL => 'skill',
         };
     }
 

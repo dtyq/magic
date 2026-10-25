@@ -53,7 +53,13 @@ export function resolveStrictDesignDslCanvasResourceCandidates(
 	}
 	const trimmed = path.trim()
 	const base = stripEdgeSlashes(projectBasePath?.trim() ?? "")
-	if (!trimmed || !base || !isDesignDslCanvasRelativeResourcePath(trimmed)) return empty
+	if (
+		!trimmed ||
+		!base ||
+		!hasCurrentDirectoryPrefix(trimmed) ||
+		!isDesignDslCanvasRelativeResourcePath(trimmed)
+	)
+		return empty
 
 	const resourcePath = stripEdgeSlashes(
 		hasCurrentDirectoryPrefix(trimmed)
@@ -275,142 +281,6 @@ export function resolveDesignDslPathCandidatesToWorkspaceRelative(
 	return [norm]
 }
 
-export function resolveDesignDslPathToWorkspaceAbsoluteByCandidates(
-	storedPath: string,
-	projectBasePath: string | undefined,
-	options?: {
-		ensureTrailingSlash?: boolean
-		pathExists?: (workspaceRelativePath: string) => boolean
-	},
-): string {
-	if (!storedPath) return storedPath
-
-	const trimmed = storedPath.trim()
-	if (!trimmed) return storedPath
-	if (isRemoteOrSpecialPath(trimmed)) return storedPath
-
-	const base = stripEdgeSlashes(projectBasePath || "")
-	if (
-		base &&
-		(trimmed === "." || trimmed === "./" || trimmed === ".\\" || trimmed === `/${base}`)
-	) {
-		let absolute = `/${base}`
-		if (options?.ensureTrailingSlash && !absolute.endsWith("/")) {
-			absolute = `${absolute}/`
-		}
-		return absolute
-	}
-
-	const candidates = resolveDesignDslPathCandidatesToWorkspaceRelative(trimmed, projectBasePath)
-	// 同一个历史裸路径可能对应两个位置，优先选择附件树中真实存在的文件。
-	const resolved = options?.pathExists
-		? (candidates.find((candidate) => options.pathExists?.(candidate)) ?? candidates[0])
-		: candidates[0]
-
-	if (!resolved || isRemoteOrSpecialPath(resolved)) return resolved || storedPath
-	if (!resolved.includes("/") && !resolved.includes("\\")) return storedPath
-
-	let absolute = `/${stripEdgeSlashes(resolved)}`
-	if (options?.ensureTrailingSlash && !absolute.endsWith("/")) {
-		absolute = `${absolute}/`
-	}
-	return absolute
-}
-
-export function createDesignWorkspacePathExists(
-	flatAttachments?: Array<{ is_directory?: boolean; relative_file_path?: string }>,
-): (workspaceRelativePath: string) => boolean {
-	return (workspaceRelativePath) => {
-		// 统一生成/编辑接口的存在性判断，保证 fallback 候选不会因各 hook 比较规则不同而分叉。
-		const normalizedPath = stripEdgeSlashes(workspaceRelativePath)
-		if (!normalizedPath || !flatAttachments?.length) return false
-		return flatAttachments.some(
-			(item) =>
-				!item.is_directory &&
-				stripEdgeSlashes(item.relative_file_path || "") === normalizedPath,
-		)
-	}
-}
-
-/**
- * 将 DSL 中的路径还原为请求后端时使用的工作区绝对路径。
- * - `images/a.png` -> `/画布/images/a.png`（历史兼容）
- * - `./images/a.png` -> `/画布/images/a.png`
- * - `/画布/images/a.png` -> `/画布/images/a.png`
- * - `.` / `./` -> `/画布/`
- */
-export function resolveDesignDslPathToWorkspaceAbsolute(
-	storedPath: string,
-	projectBasePath: string | undefined,
-	options?: { ensureTrailingSlash?: boolean },
-): string {
-	if (!storedPath) return storedPath
-
-	const trimmed = storedPath.trim()
-	if (!trimmed) return storedPath
-	if (isRemoteOrSpecialPath(trimmed)) return storedPath
-
-	const base = stripEdgeSlashes(projectBasePath || "")
-	if (!base) {
-		if (!trimmed.startsWith("/")) return storedPath
-		if (!options?.ensureTrailingSlash) return trimmed
-		return trimmed.endsWith("/") ? trimmed : `${trimmed}/`
-	}
-
-	const isCurrentDirectory =
-		trimmed === "." || trimmed === "./" || trimmed === ".\\" || trimmed === `/${base}`
-
-	if (isCurrentDirectory) {
-		let absolute = base ? `/${base}` : "/"
-		if (options?.ensureTrailingSlash && !absolute.endsWith("/")) {
-			absolute = `${absolute}/`
-		}
-		return absolute
-	}
-
-	return resolveDesignDslPathToWorkspaceAbsoluteByCandidates(trimmed, base, options)
-}
-
-/**
- * 供 Design 后端接口使用的相对路径：
- * - 当前设计目录内资源：`images/a.png`、`videos/a.mp4`、`audios/a.mp3`
- * - 其他项目资源：`foo/bar.png`
- * - 兼容历史绝对路径：`/foo/bar.png` -> `foo/bar.png`
- */
-export function normalizeDesignApiPath(
-	storedPath: string,
-	projectBasePath: string | undefined,
-	options?: { ensureTrailingSlash?: boolean },
-): string {
-	if (!storedPath) return storedPath
-
-	const trimmed = storedPath.trim()
-	if (!trimmed) return storedPath
-	if (isRemoteOrSpecialPath(trimmed)) return storedPath
-
-	let normalized = projectBasePath?.trim()
-		? toDesignDslRelativeStoragePath(trimmed, projectBasePath.trim())
-		: trimmed
-
-	if (hasCurrentDirectoryPrefix(normalized)) {
-		const relativePath = stripCurrentDirectoryPrefix(normalized)
-		normalized = relativePath || "."
-	}
-
-	if (!isRemoteOrSpecialPath(normalized)) {
-		if (normalized === ".") {
-			normalized = options?.ensureTrailingSlash ? "./" : "."
-		} else {
-			normalized = normalized.replace(/^\/+/, "")
-			if (options?.ensureTrailingSlash && normalized && !normalized.endsWith("/")) {
-				normalized = `${normalized}/`
-			}
-		}
-	}
-
-	return normalized
-}
-
 export type DesignDslPathRewrite = (path: string, projectBasePath: string) => string
 
 function setPathFieldForDsl(
@@ -456,147 +326,61 @@ export function rewriteLayerElementsPathsForMagicProjectSave(
 	const base = stripEdgeSlashes(projectBasePath)
 	if (!base || !elements?.length) return
 	const rewritePath = options?.rewritePath ?? toDesignDslRelativeStoragePath
+	const rewriteImageContent = (content: Record<string, unknown>): void => {
+		setPathFieldForDsl(content, "src", base, rewritePath)
+		const request = content.generateImageRequest as Record<string, unknown> | undefined
+		if (request) {
+			setPathFieldForDsl(request, "file_dir", base, rewritePath)
+			if (Array.isArray(request.reference_images)) {
+				request.reference_images = request.reference_images.map((reference) =>
+					typeof reference === "string" ? rewritePath(reference, base) : reference,
+				)
+			}
+			setReferenceImageOptionsForDsl(request, "reference_image_options", base, rewritePath)
+		}
+		const taskMeta = content.imageGenerationTaskMeta as Record<string, unknown> | undefined
+		if (taskMeta) {
+			setPathFieldForDsl(taskMeta, "file_path", base, rewritePath)
+			setReferenceImageOptionsForDsl(taskMeta, "reference_image_options", base, rewritePath)
+		}
+	}
+	const rewriteVideoContent = (content: Record<string, unknown>): void => {
+		setPathFieldForDsl(content, "src", base, rewritePath)
+		const request = content.generateVideoRequest as Record<string, unknown> | undefined
+		const inputs = request?.inputs as Record<string, unknown> | undefined
+		if (!request) return
+		setPathFieldForDsl(request, "file_dir", base, rewritePath)
+		if (!inputs) return
+		const rewriteUri = (value: unknown): void => {
+			if (value && typeof value === "object") {
+				setPathFieldForDsl(value as Record<string, unknown>, "uri", base, rewritePath)
+			}
+		}
+		for (const field of [
+			"frames",
+			"reference_images",
+			"reference_videos",
+			"reference_audios",
+			"audio",
+		]) {
+			const items = inputs[field]
+			if (Array.isArray(items)) items.forEach(rewriteUri)
+		}
+		rewriteUri(inputs.video)
+		rewriteUri(inputs.mask)
+		rewriteUri(inputs.draft_task)
+	}
 
 	function walk(element: Record<string, unknown>): void {
 		if (!element || typeof element !== "object") return
-
-		if (element.type === "image") {
-			setPathFieldForDsl(element, "src", base, rewritePath)
-
-			const generateImageRequest = element.generateImageRequest as
-				| {
-						file_dir?: string
-						reference_images?: string[]
-						reference_image_options?: Array<Record<string, unknown>>
-				  }
-				| undefined
-			if (generateImageRequest && typeof generateImageRequest === "object") {
-				setPathFieldForDsl(
-					generateImageRequest as Record<string, unknown>,
-					"file_dir",
-					base,
-					rewritePath,
-				)
-				if (
-					Array.isArray(generateImageRequest.reference_images) &&
-					generateImageRequest.reference_images.length > 0
-				) {
-					generateImageRequest.reference_images =
-						generateImageRequest.reference_images.map((ref) =>
-							typeof ref === "string" ? rewritePath(ref, base) : ref,
-						)
-				}
-				setReferenceImageOptionsForDsl(
-					generateImageRequest as Record<string, unknown>,
-					"reference_image_options",
-					base,
-					rewritePath,
-				)
-			}
-
-			const imageGenerationTaskMeta = element.imageGenerationTaskMeta as
-				| Record<string, unknown>
-				| undefined
-			if (imageGenerationTaskMeta && typeof imageGenerationTaskMeta === "object") {
-				setPathFieldForDsl(imageGenerationTaskMeta, "file_path", base, rewritePath)
-				setPathFieldForDsl(imageGenerationTaskMeta, "canvas_path", base, rewritePath)
-				setPathFieldForDsl(imageGenerationTaskMeta, "mask_path", base, rewritePath)
-				setPathFieldForDsl(imageGenerationTaskMeta, "mark_path", base, rewritePath)
-				setReferenceImageOptionsForDsl(
-					imageGenerationTaskMeta,
-					"reference_image_options",
-					base,
-					rewritePath,
-				)
-			}
-
-			const generateHightImageRequest = element.generateHightImageRequest as
-				| Record<string, unknown>
-				| undefined
-			if (generateHightImageRequest && typeof generateHightImageRequest === "object") {
-				setPathFieldForDsl(generateHightImageRequest, "file_path", base, rewritePath)
-				setPathFieldForDsl(generateHightImageRequest, "file_dir", base, rewritePath)
-				setReferenceImageOptionsForDsl(
-					generateHightImageRequest,
-					"reference_image_options",
-					base,
-					rewritePath,
-				)
-			}
-		}
-
-		if (element.type === "video") {
-			setPathFieldForDsl(element, "src", base, rewritePath)
-
-			const generateVideoRequest = element.generateVideoRequest as
-				| {
-						file_dir?: string
-						inputs?: {
-							frames?: Array<{ uri?: string }>
-							reference_images?: Array<{ uri?: string }>
-							reference_videos?: Array<{ uri?: string }>
-							reference_audios?: Array<{ uri?: string }>
-							video?: { uri?: string }
-							mask?: { uri?: string }
-							audio?: Array<{ uri?: string }>
-						}
-				  }
-				| undefined
-
-			if (generateVideoRequest && typeof generateVideoRequest === "object") {
-				setPathFieldForDsl(
-					generateVideoRequest as Record<string, unknown>,
-					"file_dir",
-					base,
-					rewritePath,
-				)
-
-				if (Array.isArray(generateVideoRequest.inputs?.frames)) {
-					generateVideoRequest.inputs.frames.forEach((frame) => {
-						if (frame?.uri && typeof frame.uri === "string") {
-							frame.uri = rewritePath(frame.uri, base)
-						}
-					})
-				}
-				if (Array.isArray(generateVideoRequest.inputs?.reference_images)) {
-					generateVideoRequest.inputs.reference_images.forEach((item) => {
-						if (item?.uri && typeof item.uri === "string") {
-							item.uri = rewritePath(item.uri, base)
-						}
-					})
-				}
-				if (Array.isArray(generateVideoRequest.inputs?.reference_videos)) {
-					generateVideoRequest.inputs.reference_videos.forEach((item) => {
-						if (item?.uri && typeof item.uri === "string") {
-							item.uri = rewritePath(item.uri, base)
-						}
-					})
-				}
-				if (Array.isArray(generateVideoRequest.inputs?.reference_audios)) {
-					generateVideoRequest.inputs.reference_audios.forEach((item) => {
-						if (item?.uri && typeof item.uri === "string") {
-							item.uri = rewritePath(item.uri, base)
-						}
-					})
-				}
-				if (generateVideoRequest.inputs?.video?.uri) {
-					generateVideoRequest.inputs.video.uri = rewritePath(
-						generateVideoRequest.inputs.video.uri,
-						base,
-					)
-				}
-				if (generateVideoRequest.inputs?.mask?.uri) {
-					generateVideoRequest.inputs.mask.uri = rewritePath(
-						generateVideoRequest.inputs.mask.uri,
-						base,
-					)
-				}
-				if (Array.isArray(generateVideoRequest.inputs?.audio)) {
-					generateVideoRequest.inputs.audio.forEach((item) => {
-						if (item?.uri && typeof item.uri === "string") {
-							item.uri = rewritePath(item.uri, base)
-						}
-					})
+		if (Array.isArray(element.contents)) {
+			for (const content of element.contents) {
+				if (!content || typeof content !== "object") continue
+				const contentRecord = content as Record<string, unknown>
+				if (element.type === "image") rewriteImageContent(contentRecord)
+				if (element.type === "video") rewriteVideoContent(contentRecord)
+				if (element.type === "audio") {
+					setPathFieldForDsl(contentRecord, "src", base, rewritePath)
 				}
 			}
 		}

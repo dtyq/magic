@@ -79,7 +79,14 @@ class TaskApi extends AbstractApi
             $rawData = $this->request->input('data', '');
         }
         $requestData = Json::decode($rawData);
-        simple_log('DeliverMessageReceived', $requestData);
+        // 载荷可能很大，只记录体积与摘要，避免把整个数据再 encode 输出到日志
+        simple_log('DeliverMessageReceived', [
+            'payload_bytes' => strlen($rawData),
+            'topic_id' => $requestData['metadata']['topic_id'] ?? null,
+            'message_id' => $requestData['payload']['message_id'] ?? null,
+            'type' => $requestData['payload']['type'] ?? null,
+            'keys' => array_keys($requestData),
+        ]);
 
         // 从请求中创建DTO
         $messageDTO = TopicTaskMessageDTO::fromArray($requestData);

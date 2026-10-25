@@ -2,7 +2,7 @@ import { isAiConversation } from "@/stores/chatNew/helpers/conversation"
 import type { CreateTopicMessage, DeleteTopicMessage, UpdateTopicMessage } from "@/types/chat/topic"
 import type { SeqResponse } from "@/types/request"
 import { nanoid } from "nanoid"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import type Conversation from "@/models/chat/conversation"
 import Topic from "@/models/chat/topic"
 import topicStore from "@/stores/chatNew/topic"
@@ -277,7 +277,8 @@ class ChatTopicService {
 				// 如果当前话题ID不存在，或者当前话题ID不在话题列表中，则更新当前话题ID
 				const conversation = conversationStore.getConversation(conversationId)
 				if (
-					conversation.isAiConversation &&
+					// The conversation may be removed while its topic request is pending.
+					conversation?.isAiConversation &&
 					(!conversation?.current_topic_id ||
 						!topics.find((i) => i.id === conversation?.current_topic_id))
 				) {

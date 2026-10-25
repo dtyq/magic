@@ -2,7 +2,7 @@ import { MagicTooltip } from "@/components/base"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { Button } from "@/components/shadcn-ui/button"
 import { Skills } from "@/enhance/lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Files, MessageCirclePlus } from "lucide-react"
 import { memo, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
@@ -82,7 +82,6 @@ function ClawPlaygroundInputToolbarComponent({
 	onOpenFiles,
 }: ClawPlaygroundInputToolbarProps) {
 	const { t: tSuper } = useTranslation("super")
-	const { t: tSidebar } = useTranslation("sidebar")
 	const hint = tSuper("clawPlayground.stopTaskBeforeToolbarAction")
 
 	return (
@@ -132,7 +131,7 @@ function ClawPlaygroundInputToolbarComponent({
 				onClick={() => onOpenSkills?.()}
 			>
 				<Skills className="size-4 shrink-0" aria-hidden />
-				{tSidebar("skillsLibrary.title")}
+				{tSuper("clawPlayground.toolbarSkills")}
 			</Button>
 		</div>
 	)

@@ -26,7 +26,12 @@ const FALLBACK_VIEWPORT_WIDTH = 1280
 const FALLBACK_VIEWPORT_HEIGHT = 720
 
 function getCanvasItemKey(items: Array<TemplateCanvasItem<SlidesTemplateCanvasTile>>) {
-	return items.map(({ item }) => item.id).join("|")
+	return items
+		.map(
+			({ item }) =>
+				`${item.id}:${item.template.is_favorite ? "favorite" : "unfavorite"}:${item.imageUrl ?? ""}`,
+		)
+		.join("|")
 }
 
 function doCanvasItemsOverlap(
@@ -146,6 +151,10 @@ export function useTemplateCanvasVisibleItems({
 					},
 					renderKey: `preserved:${index}:${canvasItem.renderKey ?? canvasItem.item.id}`,
 				}))
+		} else {
+			// 收藏状态、详情字段等原地更新不属于分页追加。保留旧可见项会让旧对象
+			// 覆盖新布局，导致接口成功后按钮仍显示旧状态。
+			preservedCanvasItemsRef.current = []
 		}
 		if (rebasedOffset.x !== offsetRef.current.x || rebasedOffset.y !== offsetRef.current.y) {
 			offsetRef.current = rebasedOffset

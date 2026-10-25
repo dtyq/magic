@@ -310,6 +310,9 @@ describe("RecordingDetailChatPanel", () => {
 			width: `${RECORDING_CHAT_HISTORY_WIDTH}px`,
 		})
 		expect(screen.getByTestId("recording-detail-history-panel")).toBeInTheDocument()
+		expect(historyPanelMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({ hideTopicTypeFilter: true }),
+		)
 	})
 
 	it("keeps task completion refresh safe when no topic is selected", () => {
@@ -395,6 +398,8 @@ describe("RecordingDetailChatPanel", () => {
 		)
 
 		expect(screen.queryByTestId("recording-detail-chat-skeleton")).not.toBeInTheDocument()
+		// Collapsed rail must not leak the topics-loading "loading" copy while the project is unresolved.
+		expect(screen.queryByText("loading")).not.toBeInTheDocument()
 	})
 
 	it("keeps AiChat mounted under a messages-loading skeleton overlay", () => {

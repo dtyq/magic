@@ -121,6 +121,7 @@ return [
 
     // เกี่ยวกับชื่อไฟล์
     'file_names' => [
+        'recording_at' => 'การบันทึกเสียงเมื่อ :time',
         'recording_prefix' => 'บันทึกเสียง',
         'merged_audio_prefix' => 'ไฟล์เสียง',
         'original_recording' => 'ไฟล์บันทึกเสียงต้นฉบับ',
@@ -154,10 +155,16 @@ return [
         'summary_middle_with_note' => ' เนื้อหาการบันทึกเสียงและ ',
         'summary_suffix_with_note' => ' เนื้อหาบันทึกของฉันให้เป็นผลงานระดับสูง',
         // i18n ข้อความสรุปใหม่
-        'resummary_prefix' => 'โปรดสรุปโครงการบันทึกเสียงที่มีอยู่นี้ใหม่: ',
+        'resummary_prefix' => 'โปรดสรุป ',
         'resummary_note_middle' => '. โปรดอ้างอิงไฟล์บันทึก/บริบทที่มีอยู่นี้: ',
         'resummary_base_instruction' => '. อ่านเฉพาะ magic.project.js, transcript และ notes เป็นแหล่งข้อมูลชั้นต้นเท่านั้น ห้ามเรียกใช้ ASR ใหม่ ห้ามแยกไฟล์เสียง และห้ามแก้ไข audio, transcript หรือ notes ห้ามอ่านไฟล์ที่สร้างต่อจากเดิม เช่น summary, topics, insights, highlights, followup, intent, power_dynamics, metrics หรือ mindmap.',
         'resummary_scope_instruction' => 'เรียก analyze_audio_project โดยใช้ analysis_scope=":analysis_scope" และไม่ต้องส่ง specified_analysis_types.',
         'resummary_specified_instruction' => 'เรียก analyze_audio_project โดยใช้ specified_analysis_types=:specified_analysis_types.',
+        // คำนำหน้า/ต่อท้าย i18n สรุปใหม่ (ไม่มีบันทึก)
+        'resummary_suffix' => ' เนื้อหาการบันทึกเสียงอีกครั้ง โปรดละเลยผลงานสรุปเดิม แล้ววิเคราะห์ใหม่เพื่อสร้างผลงานระดับสูงที่ใหม่ทั้งหมด ไม่จำเป็นต้องแปลงเสียงเป็นข้อความซ้ำ',
+        // คำนำหน้า/ต่อท้าย i18n สรุปใหม่ (มีบันทึก)
+        'resummary_prefix_with_note' => 'โปรดสรุป ',
+        'resummary_middle_with_note' => ' เนื้อหาการบันทึกเสียงและ ',
+        'resummary_suffix_with_note' => ' เนื้อหาบันทึกของฉันอีกครั้ง โปรดละเลยผลงานสรุปเดิม แล้ววิเคราะห์การบันทึกเสียงร่วมกับบันทึกเพื่อสร้างผลงานระดับสูงที่ใหม่ทั้งหมด ไม่จำเป็นต้องแปลงเสียงเป็นข้อความซ้ำ',
     ],
 ];

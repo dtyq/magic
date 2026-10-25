@@ -40,12 +40,13 @@ func (s *FragmentAppService) SimilarityByAgent(
 	if err := s.ensureAgentSimilarityDependencies(); err != nil {
 		return nil, err
 	}
-	if err := s.ensureAgentAccessible(
+	resourceOrganizationCode, err := s.resolveAgentResourceOrganization(
 		ctx,
 		normalizedInput.organizationCode,
 		normalizedInput.userID,
 		normalizedInput.agentCode,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -54,6 +55,7 @@ func (s *FragmentAppService) SimilarityByAgent(
 		normalizedInput.organizationCode,
 		normalizedInput.userID,
 		normalizedInput.agentCode,
+		resourceOrganizationCode,
 	)
 	if err != nil {
 		return nil, err
@@ -67,7 +69,7 @@ func (s *FragmentAppService) SimilarityByAgent(
 
 	hits, err := s.collectAgentSimilarityHits(
 		ctx,
-		normalizedInput.organizationCode,
+		resourceOrganizationCode,
 		normalizedInput.query,
 		knowledgeBases,
 		normalizedInput.businessParams,
@@ -141,12 +143,29 @@ func (s *FragmentAppService) ensureAgentSimilarityDependencies() error {
 	return nil
 }
 
-func (s *FragmentAppService) ensureAgentAccessible(
+func (s *FragmentAppService) resolveAgentResourceOrganization(
 	ctx context.Context,
 	organizationCode string,
 	userID string,
 	agentCode string,
-) error {
+) (string, error) {
+	if contextReader, ok := s.superMagicAgentAccess.(fragmentAppSuperMagicAgentContextReader); ok {
+		agentOrganizations, err := contextReader.ListAccessibleContexts(
+			ctx,
+			organizationCode,
+			userID,
+			[]string{agentCode},
+		)
+		if err != nil {
+			return "", fmt.Errorf("list accessible super magic agents: %w", err)
+		}
+		resourceOrganizationCode := strings.TrimSpace(agentOrganizations[agentCode])
+		if resourceOrganizationCode == "" {
+			return "", ErrFragmentPermissionDenied
+		}
+		return resourceOrganizationCode, nil
+	}
+
 	accessibleCodes, err := s.superMagicAgentAccess.ListAccessibleCodes(
 		ctx,
 		organizationCode,
@@ -154,12 +173,12 @@ func (s *FragmentAppService) ensureAgentAccessible(
 		[]string{agentCode},
 	)
 	if err != nil {
-		return fmt.Errorf("list accessible super magic agents: %w", err)
+		return "", fmt.Errorf("list accessible super magic agents: %w", err)
 	}
 	if _, ok := accessibleCodes[agentCode]; !ok {
-		return ErrFragmentPermissionDenied
+		return "", ErrFragmentPermissionDenied
 	}
-	return nil
+	return organizationCode, nil
 }
 
 func (s *FragmentAppService) listBoundKnowledgeBasesByAgent(
@@ -167,12 +186,13 @@ func (s *FragmentAppService) listBoundKnowledgeBasesByAgent(
 	organizationCode string,
 	userID string,
 	agentCode string,
+	resourceOrganizationCode string,
 ) ([]*kbentity.KnowledgeBase, error) {
 	bindings, err := s.knowledgeBaseBindingRepo.ListKnowledgeBaseBindingsByBindID(
 		ctx,
 		kbentity.BindingTypeSuperMagicAgent,
 		agentCode,
-		organizationCode,
+		resourceOrganizationCode,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list knowledge bases by agent code: %w", err)
@@ -187,7 +207,7 @@ func (s *FragmentAppService) listBoundKnowledgeBasesByAgent(
 	if len(knowledgeBaseCodes) == 0 {
 		return nil, nil
 	}
-	knowledgeBases, err := s.listAgentBoundEnabledKnowledgeBases(ctx, organizationCode, knowledgeBaseCodes)
+	knowledgeBases, err := s.listAgentBoundEnabledKnowledgeBases(ctx, resourceOrganizationCode, knowledgeBaseCodes)
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { SlideItem } from "../PPTSidebar/types"
+import { usePPTSlideTransition, type PPTSlideTransitionOptions } from "./usePPTSlideTransition"
 
 export interface LiveRenderSlide {
 	slide: SlideItem
@@ -26,6 +27,7 @@ interface UsePPTLiveRenderCacheOptions {
 	neighborRadius: number
 	scopeKey?: string
 	pinnedKeys?: string[]
+	transition?: PPTSlideTransitionOptions
 }
 
 interface UsePPTLiveRenderCacheResult {
@@ -34,6 +36,8 @@ interface UsePPTLiveRenderCacheResult {
 	pendingKey: string | null
 	warmSlideIndices: number[]
 	onSlideReadyChange: (key: string, revision: string, ready: boolean) => void
+	transitionState: ReturnType<typeof usePPTSlideTransition>["transitionState"]
+	registerTransitionLayer: (key: string, element: HTMLDivElement | null) => void
 }
 
 function appendUnique(target: string[], values: Array<string | null | undefined>): void {
@@ -48,17 +52,21 @@ export function getLiveRenderSlideKey(slide: SlideItem): string {
 
 /**
  * A revision change means the existing iframe no longer represents the current slide content.
- * lastLoadedAt is updated by every load/refresh/save path; the remaining fields cover terminal
- * loading-state changes and test/legacy slide objects without a timestamp.
+ * lastLoadedAt is updated by every visual load/refresh/save path. Raw source changes that only
+ * update inert slide metadata (for example speaker notes) must not invalidate the live iframe.
  */
 export function getLiveRenderSlideRevision(slide: SlideItem): string {
 	return [
 		slide.path,
 		slide.loadingState || "idle",
 		slide.lastLoadedAt || 0,
-		slide.rawContent?.length || 0,
 		slide.content?.length || 0,
 	].join(":")
+}
+
+/** Source revisions update cached component props without remounting the iframe. */
+export function getLiveRenderSlideSourceRevision(slide: SlideItem): string {
+	return `${getLiveRenderSlideRevision(slide)}:${slide.rawRevision || 0}`
 }
 
 /**
@@ -117,10 +125,11 @@ export function usePPTLiveRenderCache({
 	neighborRadius,
 	scopeKey = "default",
 	pinnedKeys = [],
+	transition,
 }: UsePPTLiveRenderCacheOptions): UsePPTLiveRenderCacheResult {
 	const getScopedKey = (slide: SlideItem) => `${scopeKey}::${getLiveRenderSlideKey(slide)}`
 	const entriesSignature = slides
-		.map((slide) => `${getScopedKey(slide)}@${getLiveRenderSlideRevision(slide)}`)
+		.map((slide) => `${getScopedKey(slide)}@${getLiveRenderSlideSourceRevision(slide)}`)
 		.join("|")
 	const entriesCacheRef = useRef<{ signature: string; entries: LiveRenderSlide[] } | null>(null)
 	if (!entriesCacheRef.current || entriesCacheRef.current.signature !== entriesSignature) {
@@ -162,16 +171,21 @@ export function usePPTLiveRenderCache({
 		[neighborEntries],
 	)
 	const [residentKeys, setResidentKeys] = useState<string[]>([])
-	const [presentedKey, setPresentedKey] = useState<string | null>(null)
+	const [readyVersion, setReadyVersion] = useState(0)
 	const readyRevisionByKeyRef = useRef(new Map<string, string>())
 	const recentKeysRef = useRef<string[]>([])
 	const entriesByKeyRef = useRef(entriesByKey)
 	const residentKeysRef = useRef(residentKeys)
-	const activeKeyRef = useRef(activeKey)
 
 	entriesByKeyRef.current = entriesByKey
 	residentKeysRef.current = residentKeys
-	activeKeyRef.current = activeKey
+	const { presentedKey, transitionState, registerTransitionLayer } = usePPTSlideTransition({
+		activeEntry,
+		entriesByKey,
+		readyRevisionByKey: readyRevisionByKeyRef.current,
+		readyVersion,
+		transition,
+	})
 
 	useLayoutEffect(() => {
 		const availableKeys = new Set(entriesByKey.keys())
@@ -192,24 +206,23 @@ export function usePPTLiveRenderCache({
 			]
 		}
 
-		let nextPresentedKey = presentedKey
-		if (!nextPresentedKey || !availableKeys.has(nextPresentedKey)) {
-			nextPresentedKey = activeKey
-		} else if (
-			activeEntry &&
-			residentKeys.includes(activeEntry.key) &&
-			readyRevisionByKeyRef.current.get(activeEntry.key) === activeEntry.revision
-		) {
-			nextPresentedKey = activeEntry.key
-		}
-
 		const nextResidentKeys = reconcileResidentSlideKeys({
 			previousKeys: residentKeys,
 			availableKeys,
 			activeKey,
-			presentedKey: nextPresentedKey,
+			// Cancellation settles to incoming before paint; do not pin three pages at capacity one.
+			presentedKey:
+				transitionState && activeKey !== transitionState.incomingKey
+					? transitionState.incomingKey
+					: presentedKey && availableKeys.has(presentedKey)
+						? presentedKey
+						: activeKey,
 			neighborKeys,
-			pinnedKeys: pinnedKeys.map((key) => `${scopeKey}::${key}`),
+			// At most one animation incoming page is protected during a superseding navigation.
+			pinnedKeys: [
+				...pinnedKeys.map((key) => `${scopeKey}::${key}`),
+				...(transitionState ? [transitionState.incomingKey] : []),
+			],
 			recentKeys: recentKeysRef.current,
 			capacity,
 		})
@@ -218,7 +231,6 @@ export function usePPTLiveRenderCache({
 			if (!nextResidentKeySet.has(key)) readyRevisionByKeyRef.current.delete(key)
 		})
 
-		if (nextPresentedKey !== presentedKey) setPresentedKey(nextPresentedKey)
 		if (!arraysEqual(nextResidentKeys, residentKeys)) setResidentKeys(nextResidentKeys)
 	}, [
 		activeEntry,
@@ -230,6 +242,7 @@ export function usePPTLiveRenderCache({
 		presentedKey,
 		residentKeys,
 		scopeKey,
+		transitionState,
 	])
 
 	const onSlideReadyChange = useCallback((key: string, revision: string, ready: boolean) => {
@@ -243,12 +256,13 @@ export function usePPTLiveRenderCache({
 		}
 
 		if (!ready) {
-			readyRevisionByKeyRef.current.delete(key)
+			if (readyRevisionByKeyRef.current.delete(key)) setReadyVersion((version) => version + 1)
 			return
 		}
 
+		if (readyRevisionByKeyRef.current.get(key) === revision) return
 		readyRevisionByKeyRef.current.set(key, revision)
-		if (activeKeyRef.current === key) setPresentedKey(key)
+		setReadyVersion((version) => version + 1)
 	}, [])
 
 	return {
@@ -259,5 +273,7 @@ export function usePPTLiveRenderCache({
 		pendingKey: activeKey && activeKey !== presentedKey ? activeKey : null,
 		warmSlideIndices,
 		onSlideReadyChange,
+		transitionState,
+		registerTransitionLayer,
 	}
 }

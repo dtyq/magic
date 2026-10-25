@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\Provider\Service;
 
-use App\Application\Provider\Service\ProviderModelSyncAppService;
+use App\Application\Provider\SyncModel\SyncModelToOfficialProvider;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Provider\Entity\ValueObject\Category;
@@ -46,7 +46,7 @@ class ProviderModelSyncAppServiceTest extends TestCase
         $this->assertSame(Category::LLM, $this->invokePrivate($service, 'resolveModelCategory', 'model'));
     }
 
-    private function createService(): ProviderModelSyncAppService
+    private function createService(): SyncModelToOfficialProvider
     {
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->method('get')->willReturn($this->createMock(LoggerInterface::class));
@@ -58,7 +58,7 @@ class ProviderModelSyncAppServiceTest extends TestCase
         $locker = $this->createMock(LockerInterface::class);
         $cloudFileRepository = $this->createMock(CloudFileRepositoryInterface::class);
 
-        return new ProviderModelSyncAppService(
+        return new SyncModelToOfficialProvider(
             new ProviderConfigDomainService(
                 $providerConfigRepository,
                 $providerModelRepository,

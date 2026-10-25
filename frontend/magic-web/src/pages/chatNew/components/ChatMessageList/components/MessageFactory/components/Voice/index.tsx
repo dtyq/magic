@@ -33,10 +33,45 @@ function Voice({ content }: { content?: VoiceConversationMessage["voice"] }) {
 	const [currentTime, setCurrentTime] = useState(0)
 	const [isLoading, setIsLoading] = useState(false)
 	const [hasError, setHasError] = useState(false)
+	const [fileInfo, setFileInfo] = useState(() =>
+		ChatFileService.getFileInfoCache(content?.attachments?.[0]?.file_id),
+	)
+	const refreshAttemptRef = useRef(false)
+	const resumeAfterRefreshRef = useRef(false)
 
 	const files = content?.attachments
-	const fileInfo = ChatFileService.getFileInfoCache(content?.attachments?.[0]?.file_id)
 	const { url } = fileInfo ?? {}
+
+	useEffect(() => {
+		const attachment = content?.attachments?.[0]
+		if (!attachment) {
+			setFileInfo(undefined)
+			return
+		}
+		setFileInfo(ChatFileService.getFileInfoCache(attachment.file_id))
+		const cachedFileInfo = ChatFileService.getFileInfoCache(attachment.file_id)
+		if (cachedFileInfo?.message_id) {
+			void ChatFileService.fetchFileUrl([
+				{ file_id: attachment.file_id, message_id: cachedFileInfo.message_id },
+			]).then((result) => setFileInfo(result[attachment.file_id]))
+		}
+	}, [content?.attachments])
+
+	useEffect(() => {
+		refreshAttemptRef.current = false
+		resumeAfterRefreshRef.current = false
+	}, [content?.attachments?.[0]?.file_id])
+
+	useEffect(() => {
+		const audio = audioRef.current
+		if (!audio || !url || !resumeAfterRefreshRef.current) return
+		resumeAfterRefreshRef.current = false
+		audio.currentTime = currentTime
+		void audio
+			.play()
+			.then(() => setIsPlaying(true))
+			.catch(() => setHasError(true))
+	}, [url, currentTime])
 
 	const handlePlayPause = useCallback(async () => {
 		if (!audioRef.current || !url) {
@@ -80,8 +115,28 @@ function Voice({ content }: { content?: VoiceConversationMessage["voice"] }) {
 	const handleAudioError = useCallback(() => {
 		setIsPlaying(false)
 		setIsLoading(false)
+		const attachment = content?.attachments?.[0]
+		if (attachment && fileInfo?.message_id && !refreshAttemptRef.current) {
+			refreshAttemptRef.current = true
+			resumeAfterRefreshRef.current = true
+			void ChatFileService.fetchFileUrl(
+				[{ file_id: attachment.file_id, message_id: fileInfo.message_id }],
+				{ forceRefresh: true },
+			)
+				.then((result) => {
+					const refreshed = result[attachment.file_id]
+					if (refreshed?.url) {
+						setFileInfo(refreshed)
+						setHasError(false)
+						return
+					}
+					setHasError(true)
+				})
+				.catch(() => setHasError(true))
+			return
+		}
 		setHasError(true)
-	}, [])
+	}, [content?.attachments, fileInfo?.message_id])
 
 	const handleAudioLoadStart = useCallback(() => {
 		setIsLoading(true)

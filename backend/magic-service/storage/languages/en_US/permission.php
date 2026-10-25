@@ -5,9 +5,14 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    'magic_claw_reconciliation_stale' => 'The permission policy has changed. Refresh before retrying.',
+    'magic_claw_reconciliation_busy' => 'Permissions are being updated. Please try again shortly.',
+    'magic_claw_runtime_denied' => 'This claw has been disabled by an administrator. Start it manually after access is restored.',
     'resource' => [
+        'model_multiplier' => 'Model Multiplier',
         'admin' => 'Admin',
         'admin_ai' => 'AI Management',
+        'admin_setting' => 'System Settings',
         'admin_safe' => 'Security & Permission',
         'safe_function_permission' => 'Function Permission',
         'safe_admin' => 'Organization Admin',
@@ -20,6 +25,7 @@ return [
         'ai_ability' => 'Ability Management',
         'admin_ai_agent' => 'Agent',
         'admin_ai_skill' => 'Skill',
+        'admin_setting_identity_watermark' => 'Identity Watermark',
         'ai_mode' => 'AI Mode',
         'ai_agent' => 'Agent Management',
         'ai_skill' => 'Skill Management',
@@ -56,6 +62,7 @@ return [
         'platform_setting_platform_info' => 'Platform Info',
         'platform_setting_maintenance' => 'Maintenance',
         'platform_slides_template' => 'Slides Templates',
+        'platform_asset' => 'Asset Library',
         'platform_organization' => 'Organization',
         'platform_organization_list' => 'Organization List',
         'platform_user_list' => 'Platform User List',
@@ -64,11 +71,9 @@ return [
         'query' => 'Query',
         'edit' => 'Edit',
     ],
-    // Top-level generic keys for PermissionErrorCode
     'validate_failed' => 'Validation failed',
     'business_exception' => 'Business exception',
     'access_denied' => 'Access denied',
-    // Organization related
     'organization_code_required' => 'Organization code is required',
     'organization_name_required' => 'Organization name is required',
     'organization_industry_type_required' => 'Organization industry type is required',
@@ -81,6 +86,9 @@ return [
             'skill' => 'Skill',
             'agent' => 'Agent',
             'magic_claw' => 'Magic Claw',
+            'micro_app' => 'Micro App',
+            'topic' => 'Topic',
+            'project' => 'Project',
         ],
         'functions' => [
             'skill_create' => [
@@ -100,13 +108,21 @@ return [
                 'description' => 'Entry for publishing an agent to the team.',
             ],
             'magic_claw_access' => [
-                'name' => 'Magic Claw Access',
-                'description' => 'Entry for accessing the Magic Claw module.',
+                'name' => 'Magic Claw Usage Permission',
+                'description' => 'Revoking access stops affected claws and automatic activity. Saved data is retained; restart manually after access is restored.',
             ],
             'magic_claw_create' => [
                 'name' => 'Magic Claw Creation',
                 'description' => 'Entry for creating Magic Claw.',
             ],
+            'micro_app_share_public' => ['name' => 'Micro App Public Sharing', 'description' => 'Allow micro apps to be shared publicly.'],
+            'micro_app_share_password' => ['name' => 'Micro App Password Sharing', 'description' => 'Allow micro apps to be shared with password protection.'],
+            'micro_app_share_team' => ['name' => 'Micro App Team Sharing', 'description' => 'Allow micro apps to be shared with team members.'],
+            'project_share_public' => ['name' => 'Project Public Sharing', 'description' => 'Allow projects to be shared publicly.'],
+            'project_share_password' => ['name' => 'Project Password Sharing', 'description' => 'Allow projects to be shared with password protection.'],
+            'project_share_team' => ['name' => 'Project Team Sharing', 'description' => 'Allow projects to be shared with team members.'],
+            'topic_share_public' => ['name' => 'Topic Public Sharing', 'description' => 'Allow topics to be shared publicly.'],
+            'topic_share_password' => ['name' => 'Topic Password Sharing', 'description' => 'Allow topics to be shared with password protection.'],
         ],
         'binding_scope_label' => [
             'all_users_available' => 'Available to everyone',
@@ -132,5 +148,10 @@ return [
         'visibility_config_invalid' => 'Visibility configuration is invalid',
         'only_organization_admin_can_configure_visibility' => 'Only organization admin can configure visibility',
         'visibility_type_2_requires_users_or_departments' => 'When visibility type is 2 (partial visibility), at least one user or department must be specified',
+        'user_not_in_organization' => 'User is not in the organization',
+        'user_not_organization_admin' => 'User not organization admin: :userId',
     ],
+    'generic_error' => 'Permission error',
+    'invalid_is_display' => 'Invalid value',
+    'invalid_status' => 'Invalid value',
 ];

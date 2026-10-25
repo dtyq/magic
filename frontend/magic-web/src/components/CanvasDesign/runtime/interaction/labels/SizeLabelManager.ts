@@ -1,7 +1,13 @@
 import Konva from "konva"
 import type { Canvas } from "../../core/Canvas"
 import { ElementTypeEnum } from "../../document/types"
-import { BaseLabelManager, type BaseLabelManagerConfig } from "./BaseLabelManager"
+import {
+	BaseLabelManager,
+	type BaseLabelManagerConfig,
+	type LabelLayoutSyncContext,
+	type LabelSize,
+} from "./BaseLabelManager"
+import type { MediaLabelLayout } from "./mediaLabelLayout"
 
 /**
  * 尺寸标签配置
@@ -24,11 +30,13 @@ const SIZE_LABEL_CONFIG = {
  * 职责：
  * 1. 在独立的 Layer 上渲染所有元素的尺寸标签（width x height）
  * 2. 监听元素变化，同步更新尺寸标签
- * 3. 管理尺寸标签的可见性（Frame 一直显示，Image 只在 hover 时显示）
+ * 3. 管理尺寸标签的可见性（媒体标签默认按 hover/选中显示，可通过画布设置常驻）
  * 4. 处理尺寸标签的位置和缩放
  * 5. 标签显示在元素右上角
  */
 export class SizeLabelManager extends BaseLabelManager {
+	private updatingLabelPositionElementIds = new Set<string>()
+
 	constructor(options: { canvas: Canvas }) {
 		const { canvas } = options
 		// 构建基类配置
@@ -56,6 +64,125 @@ export class SizeLabelManager extends BaseLabelManager {
 		}
 
 		super(baseConfig)
+	}
+
+	/**
+	 * Name labels reserve the independently eligible size label width. Refresh
+	 * that sibling after the size label changes visibility or geometry, while
+	 * keeping the coordination out of the per-frame name-label layout path.
+	 */
+	protected override updateLabelPosition(
+		elementId: string,
+		skipBatchDraw = false,
+		context?: LabelLayoutSyncContext,
+	): boolean {
+		const previousVisible = this.isLabelVisibleForElement(elementId)
+		const previousSize = this.getLabelSizeForElement(elementId)
+		let result = false
+		this.updatingLabelPositionElementIds.add(elementId)
+		try {
+			result = super.updateLabelPosition(elementId, skipBatchDraw, context)
+		} finally {
+			this.updatingLabelPositionElementIds.delete(elementId)
+		}
+
+		const nextVisible = this.isLabelVisibleForElement(elementId)
+		const nextSize = this.getLabelSizeForElement(elementId)
+		const visibilityChanged = previousVisible !== nextVisible
+		const sizeChanged = this.hasLabelSizeChanged(previousSize, nextSize)
+		if ((previousVisible || nextVisible) && (visibilityChanged || sizeChanged)) {
+			this.canvas.nameLabelManager?.refreshLabelLayout(elementId, skipBatchDraw, context)
+		}
+
+		return result
+	}
+
+	protected override updateLabelVisibility(
+		elementId: string,
+		skipBatchDraw = false,
+		mediaLayout?: MediaLabelLayout | null,
+		context?: LabelLayoutSyncContext,
+	): boolean {
+		const visibilityChanged = super.updateLabelVisibility(
+			elementId,
+			skipBatchDraw,
+			mediaLayout,
+			context,
+		)
+		if (
+			visibilityChanged &&
+			this.labelMap.has(elementId) &&
+			!this.updatingLabelPositionElementIds.has(elementId)
+		) {
+			this.canvas.nameLabelManager?.refreshLabelLayout(elementId, skipBatchDraw, context)
+		}
+		return visibilityChanged
+	}
+
+	/**
+	 * Re-evaluates visibility after the name takes or releases the shared row.
+	 * The guard keeps the one-way notification from recursively refreshing name.
+	 */
+	public refreshVisibilityForNamePriority(
+		elementId: string,
+		skipBatchDraw = false,
+		context?: LabelLayoutSyncContext,
+	): boolean {
+		if (this.updatingLabelPositionElementIds.has(elementId)) return false
+
+		this.updatingLabelPositionElementIds.add(elementId)
+		try {
+			return this.updateLabelVisibility(elementId, skipBatchDraw, undefined, context)
+		} finally {
+			this.updatingLabelPositionElementIds.delete(elementId)
+		}
+	}
+
+	protected override removeLabel(elementId: string): void {
+		const hadLabel = this.labelMap.has(elementId)
+		super.removeLabel(elementId)
+		if (hadLabel && !this.updatingLabelPositionElementIds.has(elementId)) {
+			this.canvas.nameLabelManager?.refreshLabelLayout(elementId)
+		}
+	}
+
+	private hasLabelSizeChanged(previous: LabelSize | null, next: LabelSize | null): boolean {
+		if (previous === next) return false
+		if (!previous || !next) return true
+		return previous.width !== next.width || previous.height !== next.height
+	}
+
+	/**
+	 * 尺寸标签只对产品允许展示的元素类型开放，同时要求元素本身支持尺寸编辑。
+	 */
+	protected override shouldShowLabel(elementId: string): boolean {
+		if (!super.shouldShowLabel(elementId)) return false
+
+		const element = this.canvas.elementManager.getElementInstance(elementId)
+		return element?.supportsSizeEditing() ?? false
+	}
+
+	/**
+	 * Reports eligibility without name-priority suppression so a hidden size
+	 * label can be restored when the element becomes wide enough again.
+	 */
+	public isLabelEligibleForNamePriority(elementId: string): boolean {
+		const element = this.canvas.elementManager.getElementInstance(elementId)
+		const labelGroup = this.labelMap.get(elementId)
+		if (!element || !labelGroup || !this.shouldShowLabel(elementId)) return false
+		return this.calculateBaseVisibility(elementId, element) === true
+	}
+
+	private doesLabelFitElementWidth(
+		element: ReturnType<typeof this.canvas.elementManager.getElementInstance>,
+		labelGroup: Konva.Group,
+	): boolean {
+		const boundingRect = element?.getBoundingRect()
+		const textNode = labelGroup.findOne("Text") as Konva.Text | null
+		if (!boundingRect || !textNode) return false
+
+		const renderedWidth = textNode.width() * Math.abs(labelGroup.scaleX())
+		return renderedWidth <= boundingRect.width
 	}
 
 	/**
@@ -93,8 +220,8 @@ export class SizeLabelManager extends BaseLabelManager {
 	}
 
 	/**
-	 * 计算自定义可见性（检查 size label 是否超出元素宽度或与其他标签重叠）
-	 * 当标签重叠时，优先隐藏 size label
+	 * 计算自定义可见性（检查 size label 是否超出元素宽度）
+	 * 图片和视频由统一的整行预算决定；其它元素沿用原有越界协作规则。
 	 * @param elementId - 元素 ID
 	 * @param element - 元素实例
 	 * @param labelGroup - 标签组
@@ -106,48 +233,38 @@ export class SizeLabelManager extends BaseLabelManager {
 		element: ReturnType<typeof this.canvas.elementManager.getElementInstance>,
 		labelGroup: Konva.Group,
 		baseVisibility: boolean,
+		mediaLayout?: MediaLabelLayout | null,
 	): boolean | null {
+		const resolvedMediaLayout = mediaLayout ?? this.getMediaRowLayout(elementId)
+		if (resolvedMediaLayout)
+			return baseVisibility && resolvedMediaLayout.hasSpace && resolvedMediaLayout.showSize
+		const elementType = element?.getData().type
+		if (
+			this.isMediaLabelsAlwaysVisible() &&
+			(elementType === ElementTypeEnum.Image || elementType === ElementTypeEnum.Video)
+		) {
+			return null
+		}
+
 		// 如果基础可见性为 false，不需要检查自定义逻辑
 		if (!baseVisibility) {
 			return null
 		}
 
-		// 检查 size label 是否超出元素宽度或与其他标签重叠
+		// 检查 size label 是否超出元素宽度
 		const boundingRect = element?.getBoundingRect()
-		const textNode = labelGroup.findOne("Text") as Konva.Text
-		if (textNode && boundingRect) {
-			const scaleX = labelGroup.scaleX()
-			const scaleY = labelGroup.scaleY()
-			const sizeLabelBounds = {
-				x: labelGroup.x(),
-				y: labelGroup.y(),
-				width: textNode.width() * scaleX,
-				height: textNode.height() * scaleY,
-			}
+		if (boundingRect) {
+			if (!this.doesLabelFitElementWidth(element, labelGroup)) return false
 
-			// 检查 size label 是否超出元素宽度（从右侧超出）
-			// size label 是从右侧对齐的，如果元素宽度太小，size label 可能会超出左侧边界
-			if (sizeLabelBounds.x < boundingRect.x) {
+			// The name can ellipsize, whereas the size is all-or-nothing. Let the
+			// complete name (including its status suffix) own the row first.
+			if (this.canvas.nameLabelManager?.shouldSuppressSizeLabel(elementId)) {
 				return false
 			}
 
-			// 检查其他标签是否因为超出元素宽度而隐藏
-			// 如果 name label 存在但不可见，且会超出元素宽度，说明空间太小，size label 也应该隐藏
+			// 保留其他标签的旧有越界协作规则。
 			if (this.checkOtherLabelHiddenDueToWidth(elementId, this, boundingRect)) {
-				// 其他标签因为超出元素宽度而隐藏，说明空间太小，size label 也应该隐藏
 				return false
-			}
-
-			// 检查是否与其他可见标签重叠
-			// 获取其他标签的位置信息
-			const otherLabelBounds = this.getOtherLabelBounds(elementId, this)
-
-			// 检查是否与其他标签重叠
-			for (const otherBounds of otherLabelBounds) {
-				if (this.checkRectOverlap(sizeLabelBounds, otherBounds)) {
-					// 如果重叠，隐藏 size label
-					return false
-				}
 			}
 		}
 

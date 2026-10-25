@@ -126,7 +126,12 @@ export class IndexedDBDraftService implements DraftServiceInterface {
 			}
 
 			// 如果数据一样，删除此版本
-			if (isEqualData(data, latestDraft) && latestDraft?.versionId) {
+			if (
+				!force &&
+				isEqualData(data, latestDraft) &&
+				latestDraft?.versionId &&
+				latestDraft.versionId !== versionData.versionId
+			) {
 				console.log("deleteVersionKey", versionKey)
 				await this.db.draftVersions.delete(versionKey)
 				console.log("deleteVersionKey success", versionKey)
@@ -351,7 +356,12 @@ export class IndexedDBDraftService implements DraftServiceInterface {
 				isAutoSaved: _isAutoSaved,
 				...draftData
 			} = version
-			return draftData as DraftData
+			return {
+				...draftData,
+				workspaceId: key.workspaceId,
+				projectId: key.projectId,
+				topicId: key.topicId,
+			}
 		} catch (error) {
 			console.error("Error loading draft version:", error)
 			return null

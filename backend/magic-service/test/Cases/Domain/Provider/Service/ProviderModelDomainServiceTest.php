@@ -246,6 +246,37 @@ class ProviderModelDomainServiceTest extends TestCase
         ];
     }
 
+    public function testSortByRuntimePriorityMatchesRuntimeProviderSelection(): void
+    {
+        $service = $this->createService($this->createMock(ProviderModelRepositoryInterface::class));
+
+        $models = [
+            new ProviderModelEntity(['id' => 1, 'service_provider_config_id' => 10, 'sort' => 0, 'model_id' => 'gemini-omni-1.1-flash-preview']),
+            new ProviderModelEntity(['id' => 3, 'service_provider_config_id' => 10, 'sort' => 5, 'model_id' => 'gemini-omni-1.1-flash-preview']),
+            new ProviderModelEntity(['id' => 2, 'service_provider_config_id' => 30, 'sort' => 5, 'model_id' => 'gemini-omni-1.1-flash-preview']),
+            new ProviderModelEntity(['id' => 4, 'service_provider_config_id' => 30, 'sort' => 5, 'model_id' => 'gemini-omni-1.1-flash-preview']),
+        ];
+
+        $sorted = $service->sortByRuntimePriority($models);
+
+        // 与 ProviderModelRepository::getAvailableByModelIdOrId 一致：sort desc → config desc → id asc
+        $this->assertSame([2, 4, 3, 1], array_map(static fn (ProviderModelEntity $model): int => (int) $model->getId(), $sorted));
+        $this->assertSame([0, 1, 2, 3], array_keys($sorted));
+        // 不得就地修改调用方数组
+        $this->assertSame([1, 3, 2, 4], array_map(static fn (ProviderModelEntity $model): int => (int) $model->getId(), $models));
+    }
+
+    public function testSortByRuntimePriorityKeepsSingleModelUntouched(): void
+    {
+        $service = $this->createService($this->createMock(ProviderModelRepositoryInterface::class));
+
+        $models = [new ProviderModelEntity(['id' => 7, 'service_provider_config_id' => 1, 'sort' => 3, 'model_id' => 'm'])];
+        $sorted = $service->sortByRuntimePriority($models);
+
+        $this->assertCount(1, $sorted);
+        $this->assertSame(7, (int) $sorted[0]->getId());
+    }
+
     private function createService(ProviderModelRepositoryInterface $repository): ProviderModelDomainService
     {
         return new ProviderModelDomainService(

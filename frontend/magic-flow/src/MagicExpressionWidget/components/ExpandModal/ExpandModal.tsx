@@ -1,8 +1,8 @@
-import { IconExpand } from "@douyinfe/semi-icons"
+import { IconMaximize } from "@tabler/icons-react"
 import { Modal } from "antd"
 import { useMemoizedFn } from "ahooks"
 import i18next from "i18next"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import React, { useEffect, useState } from "react"
 import CustomInputExpression from "../../InputExpression"
 import { ExpressionMode } from "../../constant"
@@ -21,7 +21,7 @@ const ExpandModal: React.FC<ExpandModalProps> = ({ value, onChange, componentPro
 
 	useEffect(() => {
 		if (expandViewOpen) {
-			setExpandViewValue(_.cloneDeep(value))
+			setExpandViewValue(cloneDeep(value))
 		}
 	}, [expandViewOpen, value])
 
@@ -39,7 +39,7 @@ const ExpandModal: React.FC<ExpandModalProps> = ({ value, onChange, componentPro
 	return (
 		<>
 			<div className="expand-button" onClick={() => setExpandViewOpen(true)}>
-				<IconExpand />
+				<IconMaximize size={16} stroke={1.8} />
 			</div>
 
 			<Modal

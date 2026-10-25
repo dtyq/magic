@@ -1,4 +1,4 @@
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { t } from "i18next"
 import { isNumber } from "lodash-es"
 import { configStore } from "@/models/config"

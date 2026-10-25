@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MERIDIAN — Full-Service Digital Agency</title>
+  <style>
+    :root {
+      --primary: #18160F;
+      --on-primary: #F4F1EA;
+      --cream: #F4F1EA;
+      --warm-white: #F9F7F3;
+      --paper: #FDFCF9;
+      --ink: #18160F;
+      --ink-soft: #38352E;
+      --ink-muted: #78746C;
+      --ink-faint: #B4B0A8;
+      --accent: #B8935A;
+      --accent-warm: #A07840;
+      --accent-pale: #E8D9BE;
+      --rule: #E2DED6;
+      --rule-dark: #C8C4BC;
+      --font-serif: "Cormorant Garamond", Garamond, "Didot", Georgia, serif;
+      --font-mono: "DM Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-serif);
+      font-size: 18px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Top Grid Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 48px;
+      background: var(--cream);
+      border-bottom: 1px solid var(--rule);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand-group {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    .brand-name {
+      font-size: 26px;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .brand-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .nav-menu {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-menu a {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .nav-menu a:hover { color: var(--accent-warm); }
+    .header-cta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      background: var(--primary);
+      color: var(--on-primary);
+      padding: 10px 20px;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .header-cta:hover { background: var(--accent-warm); }
+
+    /* Kinetic Pitch Hero (Dense First 500px) */
+    .hero-matrix {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      border-bottom: 1px solid var(--rule);
+      background: var(--cream);
+    }
+    .hero-pitch-cell {
+      padding: 56px 48px;
+      border-right: 1px solid var(--rule);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hero-taxonomy {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-taxonomy::before {
+      content: "";
+      width: 24px;
+      height: 1px;
+      background: var(--accent);
+    }
+    .hero-title {
+      font-size: clamp(48px, 5.8vw, 84px);
+      font-weight: 300;
+      line-height: 0.98;
+      letter-spacing: -0.026em;
+      color: var(--ink);
+      margin-bottom: 32px;
+    }
+    .hero-title em {
+      font-style: italic;
+      color: var(--accent-warm);
+    }
+    .hero-abstract {
+      font-size: 20px;
+      font-weight: 300;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      max-width: 580px;
+      border-left: 1px solid var(--accent);
+      padding-left: 20px;
+    }
+
+    /* Hero Side Stats & Live Brief */
+    .hero-side-cell {
+      display: flex;
+      flex-direction: column;
+      background: var(--warm-white);
+    }
+    .side-stat-block {
+      padding: 32px 40px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .stat-idx {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      margin-bottom: 6px;
+    }
+    .stat-number {
+      font-size: 48px;
+      font-weight: 300;
+      line-height: 1.0;
+      color: var(--ink);
+    }
+    .stat-caption {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .side-card-bottom {
+      padding: 32px 40px;
+      margin-top: auto;
+      background: var(--paper);
+    }
+    .side-card-bottom p {
+      font-size: 14px;
+      color: var(--ink-soft);
+      font-family: var(--font-mono);
+      line-height: 1.7;
+    }
+
+    /* Capability Matrix [Strategy, Design, Engineering] */
+    .matrix-section {
+      border-bottom: 1px solid var(--rule);
+      background: var(--paper);
+    }
+    .section-headline-bar {
+      padding: 36px 48px 24px;
+      border-bottom: 1px solid var(--rule);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .section-headline-bar h2 {
+      font-size: 42px;
+      font-weight: 400;
+      letter-spacing: -0.015em;
+    }
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .matrix-col {
+      border-right: 1px solid var(--rule);
+      padding: 40px;
+      background: var(--paper);
+      transition: background 0.2s;
+    }
+    .matrix-col:last-child { border-right: none; }
+    .matrix-col:hover { background: var(--warm-white); }
+    .col-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      margin-bottom: 16px;
+    }
+    .col-title {
+      font-size: 34px;
+      font-weight: 400;
+      line-height: 1.1;
+      margin-bottom: 14px;
+      color: var(--ink);
+    }
+    .col-desc {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      margin-bottom: 28px;
+    }
+    .col-list {
+      list-style: none;
+      border-top: 1px solid var(--rule);
+      padding-top: 18px;
+    }
+    .col-list li {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--ink-soft);
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--rule);
+      display: flex;
+      justify-content: space-between;
+    }
+    .col-list li span:last-child { color: var(--accent); font-weight: bold; }
+
+    /* Client Roster */
+    .roster-section {
+      border-bottom: 1px solid var(--rule);
+      background: var(--cream);
+      padding: 48px;
+    }
+    .roster-head {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .roster-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid var(--rule);
+    }
+    .roster-item {
+      padding: 24px 32px;
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      background: var(--warm-white);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 110px;
+    }
+    .roster-item:nth-child(4n) { border-right: none; }
+    .client-title {
+      font-size: 22px;
+      font-weight: 400;
+      color: var(--ink);
+    }
+    .client-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    /* Interactive RFP Form Section */
+    .rfp-section {
+      display: grid;
+      grid-template-columns: 1.1fr 1.3fr;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+    }
+    .rfp-pitch {
+      padding: 56px 48px;
+      border-right: 1px solid var(--rule);
+      background: var(--warm-white);
+    }
+    .rfp-pitch h2 {
+      font-size: 46px;
+      font-weight: 400;
+      line-height: 1.05;
+      margin-bottom: 20px;
+    }
+    .rfp-pitch p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      margin-bottom: 32px;
+    }
+    .rfp-guarantee {
+      border-top: 1px solid var(--rule);
+      padding-top: 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-warm);
+    }
+
+    .rfp-form-wrap {
+      padding: 56px 48px;
+    }
+    .rfp-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .form-input, .form-select {
+      background: var(--warm-white);
+      border: 1px solid var(--rule);
+      padding: 12px 16px;
+      font-family: var(--font-serif);
+      font-size: 18px;
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--primary);
+    }
+    .checkbox-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .checkbox-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--warm-white);
+      border: 1px solid var(--rule);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .checkbox-pill input { accent-color: var(--primary); }
+    .btn-submit {
+      background: var(--primary);
+      color: var(--on-primary);
+      border: none;
+      padding: 16px 36px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-submit:hover { background: var(--accent-warm); }
+
+    /* Footer */
+    footer {
+      padding: 40px 48px;
+      background: var(--cream);
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-muted);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand-group">
+      <a href="#" class="brand-name">MERIDIAN</a>
+      <span class="brand-label">Digital Agency 2026</span>
+    </div>
+    <ul class="nav-menu">
+      <li><a href="#pitch">Pitch</a></li>
+      <li><a href="#matrix">Capabilities</a></li>
+      <li><a href="#roster">Roster</a></li>
+      <li><a href="#rfp">Inquire</a></li>
+    </ul>
+    <a href="#rfp" class="header-cta">Request Proposal</a>
+  </header>
+
+  <!-- Kinetic Pitch Hero Matrix (Dense first 500px) -->
+  <section class="hero-matrix" id="pitch">
+    <div class="hero-pitch-cell">
+      <div>
+        <div class="hero-taxonomy">Agency Thesis // 2026 Global Mandate</div>
+        <h1 class="hero-title">
+          We shape <em>enduring ideas</em> into cultural gravity and market dominance.
+        </h1>
+      </div>
+      <p class="hero-abstract">
+        Meridian is a full-service creative and digital engineering atelier. We unite deep institutional brand strategy with uncompromising digital craft for global category leaders.
+      </p>
+    </div>
+
+    <div class="hero-side-cell">
+      <div class="side-stat-block">
+        <div class="stat-idx">INDEX I</div>
+        <div class="stat-number">\$2.4B+</div>
+        <div class="stat-caption">Client Enterprise Value Created</div>
+      </div>
+      <div class="side-stat-block">
+        <div class="stat-idx">INDEX II</div>
+        <div class="stat-number">48</div>
+        <div class="stat-caption">International Craft & Tech Honors</div>
+      </div>
+      <div class="side-card-bottom">
+        <p>Currently accepting RFP briefs for Q4 2026 deployment. Direct partner engagement on all retained accounts.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Capability Matrix [Strategy, Design, Engineering] -->
+  <section class="matrix-section" id="matrix">
+    <div class="section-headline-bar">
+      <h2>Integrated Capability Matrix</h2>
+      <span class="section-tag">Direct Disciplines · Tripartite Model</span>
+    </div>
+
+    <div class="matrix-grid">
+      <!-- Strategy -->
+      <div class="matrix-col">
+        <div class="col-num">01 // STRATEGY</div>
+        <h3 class="col-title">Cultural Strategy</h3>
+        <p class="col-desc">Positioning category creators through rigorous market ethnography, brand architecture, and narrative design.</p>
+        <ul class="col-list">
+          <li><span>Brand Architecture</span> <span>01</span></li>
+          <li><span>Category Creation</span> <span>02</span></li>
+          <li><span>Audience Intelligence</span> <span>03</span></li>
+          <li><span>Commercial Audits</span> <span>04</span></li>
+        </ul>
+      </div>
+
+      <!-- Design -->
+      <div class="matrix-col">
+        <div class="col-num">02 // DESIGN</div>
+        <h3 class="col-title">Sculptural Systems</h3>
+        <p class="col-desc">Editorial typography, modular design systems, and bespoke digital interactions tailored to luxury standards.</p>
+        <ul class="col-list">
+          <li><span>Design Systems</span> <span>01</span></li>
+          <li><span>Bespoke Typography</span> <span>02</span></li>
+          <li><span>Spatial & 3D Direction</span> <span>03</span></li>
+          <li><span>Motion Choreography</span> <span>04</span></li>
+        </ul>
+      </div>
+
+      <!-- Engineering -->
+      <div class="matrix-col">
+        <div class="col-num">03 // ENGINEERING</div>
+        <h3 class="col-title">Digital Engineering</h3>
+        <p class="col-desc">Custom high-speed web architectures, WebGL shaders, and headless e-commerce built for extreme performance.</p>
+        <ul class="col-list">
+          <li><span>WebGL / Canvas Shaders</span> <span>01</span></li>
+          <li><span>Headless E-Commerce</span> <span>02</span></li>
+          <li><span>Micro-Frontend Infra</span> <span>03</span></li>
+          <li><span>Security & Sub-100ms LCP</span> <span>04</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Client Roster -->
+  <section class="roster-section" id="roster">
+    <div class="roster-head">
+      <h3 style="font-size: 28px; font-weight: 400;">Selected Client Roster</h3>
+      <span class="section-tag">2020 — 2026 Retainers</span>
+    </div>
+    <div class="roster-grid">
+      <div class="roster-item">
+        <span class="client-title">Apple Inc.</span>
+        <span class="client-meta">Hardware Launch HMI</span>
+      </div>
+      <div class="roster-item">
+        <span class="client-title">Polestar</span>
+        <span class="client-meta">Automotive Visual OS</span>
+      </div>
+      <div class="roster-item">
+        <span class="client-title">Bottega Veneta</span>
+        <span class="client-meta">Global Digital Archive</span>
+      </div>
+      <div class="roster-item">
+        <span class="client-title">MoMA NY</span>
+        <span class="client-meta">Exhibition Framework</span>
+      </div>
+      <div class="roster-item">
+        <span class="client-title">Rimowa Cologne</span>
+        <span class="client-meta">Titanium E-Commerce</span>
+      </div>
+      <div class="roster-item">
+        <span class="client-title">Monocle</span>
+        <span class="client-meta">Publishing Platform</span>
+      </div>
+      <div class="roster-item">
+        <span class="client-title">Sony Interactive</span>
+        <span class="client-meta">Spatial Audio Hub</span>
+      </div>
+      <div class="roster-item">
+        <span class="client-title">Aesop</span>
+        <span class="client-meta">Fragrance Experience</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Request for Proposal (RFP) Form -->
+  <section class="rfp-section" id="rfp">
+    <div class="rfp-pitch">
+      <h2>Request for Proposal</h2>
+      <p>Initiate a direct briefing dialogue. Every submission is analyzed by our partners within 48 business hours.</p>
+      <div class="rfp-guarantee">
+        <span>Confidentiality Guaranteed · NDA on First Contact</span>
+      </div>
+    </div>
+
+    <div class="rfp-form-wrap">
+      <form onsubmit="event.preventDefault();">
+        <div class="rfp-form-grid">
+          <div class="form-group">
+            <label>Principal Name</label>
+            <input type="text" class="form-input" placeholder="Eleanor Vance" value="Eleanor Vance">
+          </div>
+          <div class="form-group">
+            <label>Corporate Email</label>
+            <input type="email" class="form-input" placeholder="demo.person09@example.com" value="demo.person09@example.com">
+          </div>
+          <div class="form-group">
+            <label>Expected Timeline</label>
+            <select class="form-select">
+              <option>Q4 2026 (Immediate)</option>
+              <option>Q1 2027</option>
+              <option>Strategic Retainer (Annual)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estimated Capital Allocation</label>
+            <select class="form-select">
+              <option>\$150,000 — \$300,000</option>
+              <option>\$300,000 — \$750,000</option>
+              <option>\$750,000+</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group full" style="margin-bottom: 20px;">
+          <label style="margin-bottom: 8px;">Target Capabilities</label>
+          <div class="checkbox-row">
+            <label class="checkbox-pill"><input type="checkbox" checked> Brand Strategy</label>
+            <label class="checkbox-pill"><input type="checkbox" checked> Design Systems</label>
+            <label class="checkbox-pill"><input type="checkbox" checked> WebGL / 3D</label>
+            <label class="checkbox-pill"><input type="checkbox"> Headless Commerce</label>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit">Submit Formal Inquiry →</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div>© 2026 MERIDIAN AGENCY GROUP. ALL RIGHTS RESERVED.</div>
+    <div>CORMORANT GARAMOND · DM MONO SPEC</div>
+    <div>LONDON / GENEVA / TOKYO</div>
+  </footer>
+
+</body>
+</html>

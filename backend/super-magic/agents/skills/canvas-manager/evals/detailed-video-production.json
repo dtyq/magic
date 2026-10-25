@@ -1,0 +1,7 @@
+{
+  "id": "detailed-video-production",
+  "prompt": "Build a confirmed multi-shot video-production Canvas with a storyboard, shot reference images, shot videos, direct Connections, dependency layout, a Video Edit configuration, and a final MP4.",
+  "expected_reference": "references/professional-video-production.md",
+  "expected_tools": ["add_canvas_elements", "add_canvas_contents", "manage_canvas_connections", "layout_canvas_elements", "wait_canvas_generation", "query_canvas_element_details"],
+  "constraints": ["Use confirmation gates before dependent production stages.", "Only direct business predecessors become Connections.", "Store the confirmed video sequence in video-edit Content.", "Verify the final MP4 with query_canvas_element_details."]
+}

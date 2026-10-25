@@ -21,7 +21,7 @@ export default function MinimapButton({ active, panelId, onToggle }: MinimapButt
 	const tooltipOpen = !active && isPointerHovering
 
 	return (
-		<Tooltip open={tooltipOpen}>
+		<Tooltip delayDuration={0} open={tooltipOpen}>
 			<TooltipTrigger asChild>
 				<Button
 					type="button"

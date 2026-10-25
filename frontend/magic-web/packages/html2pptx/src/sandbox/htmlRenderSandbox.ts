@@ -1,5 +1,6 @@
 import type { SlideConfig } from "../api/options"
 import { ExportFidelityError, isExportFidelityError } from "../errors"
+import type { ExportIssue } from "../api/options"
 import { LogLevel, createScopedLog } from "../logger"
 import { NATIVE_LOAD_WAIT_MS, READY_STATE_POLL_MS } from "../shared/constants"
 import { DEFAULT_CONFIG } from "../shared/unit"
@@ -9,12 +10,10 @@ import {
 	isDocumentReadyForRender,
 	measureContentSize,
 	normalizeSandboxHtml,
+	requiresNativeLoadWait,
 } from "./htmlRenderSandbox.helpers"
 import { installEChartsExportInterceptor } from "./echarts-export-interceptor"
-import {
-	SandboxReadyController,
-	type SandboxReadyControllerInput,
-} from "./waitSandboxReady"
+import { SandboxReadyController, type SandboxReadyControllerInput } from "./waitSandboxReady"
 import type { ResourceLoadError } from "../api/options"
 import { detectRenderReadinessCapabilities } from "./render-readiness"
 
@@ -39,7 +38,11 @@ export interface SandboxInstance {
 	/** Render HTML content */
 	render: (
 		html: string,
-		options?: { signal?: AbortSignal; onResourceError?: (error: ResourceLoadError) => void },
+		options?: {
+			signal?: AbortSignal
+			onResourceError?: (error: ResourceLoadError) => void
+			onExportIssue?: (issue: ExportIssue) => void
+		},
 	) => Promise<SandboxRenderResult>
 	/** Destroy the sandbox */
 	destroy: () => void
@@ -111,12 +114,14 @@ export class HtmlRenderSandbox implements SandboxInstance {
 
 	render(
 		html: string,
-		options?: { signal?: AbortSignal; onResourceError?: (error: ResourceLoadError) => void },
+		options?: {
+			signal?: AbortSignal
+			onResourceError?: (error: ResourceLoadError) => void
+			onExportIssue?: (issue: ExportIssue) => void
+		},
 	): Promise<SandboxRenderResult> {
 		if (this.rendering) {
-			return Promise.reject(
-				new Error("[Sandbox] concurrent render is not supported"),
-			)
+			return Promise.reject(new Error("[Sandbox] concurrent render is not supported"))
 		}
 		this.rendering = true
 		let iframeWindow: Window
@@ -136,6 +141,7 @@ export class HtmlRenderSandbox implements SandboxInstance {
 			const renderAbortController = new AbortController()
 			const renderSignal = renderAbortController.signal
 			let pageErrorRecorded = false
+			let renderFailureRecorded = false
 			let rejectPageError: (error: Error) => void = () => {}
 			const pageErrorPromise = new Promise<never>((_, rejectPageErrorPromise) => {
 				rejectPageError = rejectPageErrorPromise
@@ -157,10 +163,7 @@ export class HtmlRenderSandbox implements SandboxInstance {
 			let checkLoaded: () => void = () => {}
 			const renderStartedAt = Date.now()
 
-			const finish = (
-				type: "resolve" | "reject",
-				payload: SandboxRenderResult | unknown,
-			) => {
+			const finish = (type: "resolve" | "reject", payload: SandboxRenderResult | unknown) => {
 				if (lifecycleState.settled) return
 				lifecycleState.settled = true
 				try {
@@ -182,11 +185,26 @@ export class HtmlRenderSandbox implements SandboxInstance {
 			const recordPageError = (error: unknown) => {
 				if (pageErrorRecorded || lifecycleState.settled) return
 				pageErrorRecorded = true
-				if (isExportFidelityError(error)) {
+				const message = error instanceof Error ? error.message : String(error)
+				const fatal = isExportFidelityError(error)
+				try {
+					options?.onExportIssue?.({
+						code: "page-script-error",
+						message,
+						severity: fatal ? "error" : "warning",
+					})
+				} catch {
+					// Diagnostics must never replace the page result.
+				}
+				if (fatal) {
 					rejectPageError(error)
 					return
 				}
-				const message = error instanceof Error ? error.message : String(error)
+				if (options?.onExportIssue) {
+					// A host that subscribes to issues opts into best-effort rendering. Ordinary
+					// page script errors are surfaced as warnings and do not abort the export.
+					return
+				}
 				rejectPageError(
 					new ExportFidelityError(
 						`[Sandbox] page script failed: ${message}`,
@@ -195,22 +213,25 @@ export class HtmlRenderSandbox implements SandboxInstance {
 					),
 				)
 			}
-			const reportUnhandledScriptError = (url: string) => {
+			const recordRenderFailure = (error: unknown) => {
+				if (renderFailureRecorded || lifecycleState.settled || signal?.aborted) return
+				if (pageErrorRecorded && isExportFidelityError(error)) return
+				renderFailureRecorded = true
 				try {
-					options?.onResourceError?.({
-						url,
-						kind: "script",
-						reason: "load-error",
+					options?.onExportIssue?.({
+						code: "render-error",
+						message: error instanceof Error ? error.message : String(error),
+						severity: "error",
 					})
 				} catch {
-					// Reporting must not hide the page error that fails the export.
+					// Diagnostics must never replace the render failure.
 				}
 			}
 			const onWindowError = (event: ErrorEvent) => {
 				Promise.resolve().then(() => {
 					if (event.defaultPrevented || lifecycleState.settled) return
-					const error = event.error ?? new Error(event.message || "Unknown page script error")
-					reportUnhandledScriptError(event.filename || "inline-script://window-error")
+					const error =
+						event.error ?? new Error(event.message || "Unknown page script error")
 					recordPageError(error)
 				})
 			}
@@ -220,7 +241,6 @@ export class HtmlRenderSandbox implements SandboxInstance {
 				const timer = setTimeout(() => {
 					pendingUnhandledRejections.delete(event.promise)
 					if (event.defaultPrevented || lifecycleState.settled) return
-					reportUnhandledScriptError("inline-script://unhandled-rejection")
 					recordPageError(event.reason ?? new Error("Unhandled page promise rejection"))
 				}, 0)
 				pendingUnhandledRejections.set(event.promise, timer)
@@ -242,10 +262,8 @@ export class HtmlRenderSandbox implements SandboxInstance {
 				if (signal) signal.removeEventListener("abort", onAbort)
 				lifecycleState.readyController?.restore()
 				lifecycleState.readyController = null
-				if (lifecycleState.timeoutId)
-					clearTimeout(lifecycleState.timeoutId)
-				if (lifecycleState.pollTimerId)
-					clearTimeout(lifecycleState.pollTimerId)
+				if (lifecycleState.timeoutId) clearTimeout(lifecycleState.timeoutId)
+				if (lifecycleState.pollTimerId) clearTimeout(lifecycleState.pollTimerId)
 				lifecycleState.timeoutId = null
 				lifecycleState.pollTimerId = null
 			}
@@ -256,6 +274,7 @@ export class HtmlRenderSandbox implements SandboxInstance {
 					return
 				}
 				signal?.addEventListener("abort", onAbort, { once: true })
+				const needsNativeLoadWait = requiresNativeLoadWait(html)
 				const normalizedHtml = normalizeSandboxHtml(html)
 				const readinessCapabilities = detectRenderReadinessCapabilities(normalizedHtml)
 
@@ -270,7 +289,7 @@ export class HtmlRenderSandbox implements SandboxInstance {
 				lifecycleState.readyController = new this.ReadyController({
 					iframeWindow,
 					iframeDocument,
-					nativeLoadWaitMs: NATIVE_LOAD_WAIT_MS,
+					nativeLoadWaitMs: needsNativeLoadWait ? NATIVE_LOAD_WAIT_MS : 0,
 					onResourceError: options?.onResourceError,
 					onPageError: recordPageError,
 					...readinessCapabilities,
@@ -294,8 +313,9 @@ export class HtmlRenderSandbox implements SandboxInstance {
 							Promise.resolve()
 								.then(async () => {
 									await Promise.race([
-											lifecycleState.readyController?.waitForReady({ signal: renderSignal }) ??
-											Promise.resolve(),
+										lifecycleState.readyController?.waitForReady({
+											signal: renderSignal,
+										}) ?? Promise.resolve(),
 										pageErrorPromise,
 									])
 									const measured = measureContentSize({
@@ -311,6 +331,7 @@ export class HtmlRenderSandbox implements SandboxInstance {
 									})
 								})
 								.catch((error) => {
+									recordRenderFailure(error)
 									finish("reject", error)
 								})
 						})
@@ -322,6 +343,7 @@ export class HtmlRenderSandbox implements SandboxInstance {
 				checkLoaded()
 				iframeDocument.addEventListener("DOMContentLoaded", onDomReady, { once: true })
 			} catch (error) {
+				recordRenderFailure(error)
 				finish("reject", error)
 			}
 		})

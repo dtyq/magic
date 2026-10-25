@@ -10,9 +10,9 @@ namespace App\Domain\ModelGateway\Entity\ValueObject;
 /**
  * 视频模式标识。
  *
- * 其中 Standard / ImageReference / OmniReference / KeyframeGuided
- * 是标准请求里的 input_mode；
- * VideoEdit 目前主要用于前端展示模式和能力配置，不作为标准 input_mode 直接透传。
+ * 所有取值都可作为标准请求里的 input_mode；其中只有 VideoEdit 需要配套的 task=edit
+ * 才能通过领域层校验（见 VideoTaskType::supportsInputMode）。样片成片走的是
+ * task=generate：draft_task 是输入形态而不是任务类型，不在 VideoTaskType 里建值。
  */
 enum VideoInputMode: string
 {
@@ -30,6 +30,9 @@ enum VideoInputMode: string
 
     // 首尾帧模式，通过 frames 传入起止画面引导生成。
     case KeyframeGuided = 'keyframe_guided';
+
+    // 样片成片模式，通过 draft_task 传入已生成的样片任务引用，出正式分辨率的成片。
+    case DraftTask = 'draft_task';
 
     /**
      * @return list<string>
@@ -58,6 +61,7 @@ enum VideoInputMode: string
             self::ImageReference->value,
             self::OmniReference->value,
             self::KeyframeGuided->value,
+            self::DraftTask->value,
         ];
     }
 

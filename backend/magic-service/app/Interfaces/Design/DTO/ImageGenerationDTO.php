@@ -44,6 +44,11 @@ class ImageGenerationDTO extends AbstractDTO
 
     protected ?array $imageGenerationConfig = null;
 
+    /**
+     * 透传给服务商生图接口的附加参数（仅 Azure OpenAI 使用）.
+     */
+    protected ?array $extra = null;
+
     protected ?int $type = null;
 
     protected ?string $status = null;
@@ -177,6 +182,16 @@ class ImageGenerationDTO extends AbstractDTO
     public function setImageGenerationConfig(?array $imageGenerationConfig): void
     {
         $this->imageGenerationConfig = $imageGenerationConfig;
+    }
+
+    public function getExtra(): ?array
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(?array $extra): void
+    {
+        $this->extra = $extra;
     }
 
     public function getType(): ?int

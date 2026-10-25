@@ -7,6 +7,10 @@ export class MyModelsStore {
 
 	isLoadingMyModels = false
 
+	hasLoadedMyModels = false
+
+	private loadPromise: Promise<void> | null = null
+
 	deletingModelId: string | null = null
 
 	constructor() {
@@ -21,21 +25,31 @@ export class MyModelsStore {
 		this.deletingModelId = null
 	}
 
-	async loadMyModels() {
+	async loadMyModels(force = true) {
+		if (this.loadPromise) return this.loadPromise
+
 		this.isLoadingMyModels = true
-		try {
-			const list = await superMagicCustomModelService.getMyModels({ force: true })
-			runInAction(() => {
-				this.myModels = list
+		const loadPromise = superMagicCustomModelService
+			.getMyModels({ force })
+			.then((list) => {
+				runInAction(() => {
+					this.myModels = list
+				})
 			})
-		} catch {
-			runInAction(() => {
-				this.myModels = []
+			.catch(() => {
+				runInAction(() => {
+					this.myModels = []
+				})
 			})
-		} finally {
-			runInAction(() => {
-				this.isLoadingMyModels = false
+			.finally(() => {
+				runInAction(() => {
+					this.isLoadingMyModels = false
+					this.hasLoadedMyModels = true
+					this.loadPromise = null
+				})
 			})
-		}
+		this.loadPromise = loadPromise
+
+		return loadPromise
 	}
 }

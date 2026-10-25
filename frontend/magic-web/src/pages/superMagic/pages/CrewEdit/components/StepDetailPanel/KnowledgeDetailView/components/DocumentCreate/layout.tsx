@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { DocumentCreateHeader } from "@/pages/superMagic/pages/CrewEdit/components/StepDetailPanel/KnowledgeDetailView/components/DocumentCreate/components/DocumentCreateHeader"
 import { StepIndicator } from "@/pages/superMagic/pages/CrewEdit/components/StepDetailPanel/KnowledgeDetailView/components/DocumentCreate/components/StepIndicator"
 import type { Step } from "@/pages/superMagic/pages/CrewEdit/components/StepDetailPanel/KnowledgeDetailView/components/DocumentCreate/components/StepIndicator/types"

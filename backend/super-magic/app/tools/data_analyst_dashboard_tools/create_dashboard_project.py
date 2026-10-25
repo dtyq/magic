@@ -13,14 +13,22 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
-from agentlang.utils.file import safe_delete, is_text_file, format_file_size
+from agentlang.utils.file import safe_delete
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
-from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail, FileTreeContent, FileTreeNode, FileTreeNodeType, TerminalContent
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail, FileTreeContent, TerminalContent
 from app.utils.async_file_utils import async_copy2, async_write_text
+from app.utils.directory_scan import DirectoryScanBudget, scan_directory_tree
 
 logger = get_logger(__name__)
+
+# 详情页展示层级，与 list_dir 的默认 level 保持一致。
+_PROJECT_TREE_DISPLAY_LEVEL = 3
+
+# 详情页扫描只设时间上限：刚创建的项目规模由本工具自己决定，不需要条目数护栏，
+# 但挂载异常时不能让详情页一直卡住。
+_PROJECT_TREE_SCAN_BUDGET = DirectoryScanBudget(max_seconds=30.0)
 
 
 class DashboardCardPlanItem(BaseModel):
@@ -356,169 +364,23 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
         return count
 
     def _scan_created_project_tree(self, project_name: str, target_path: Path) -> FileTreeContent:
-        """扫描创建的项目目录并生成文件树结构"""
-        level = 3  # 默认显示3层结构，与 list_dir 一致
-        filter_binary = False
+        """扫描刚创建的项目目录并生成文件树结构。
 
-        if not target_path.exists() or not target_path.is_dir():
-            logger.warning(f"Path invalid or does not exist: {target_path}")
-            # 返回空的FileTreeContent
-            return FileTreeContent(
-                root_path=project_name,
-                level=level,
-                filter_binary=filter_binary,
-                total_files=0,
-                total_dirs=0,
-                total_size=0,
-                tree=[]
-            )
+        扫描逻辑统一走 `app.utils.directory_scan`，不再在这里维护第二份实现：文件树
+        语义（排序、隐藏项、错误节点、`level` 深度）只能有一处定义，否则 list_dir 的
+        展示与本工具的详情会各自漂移。
 
-        try:
-            # 统计信息
-            stats = {"total_files": 0, "total_dirs": 0, "total_size": 0}
-
-            # 递归构建文件树 - 使用与 list_dir 相同的逻辑
-            tree = self._build_file_tree(target_path, project_name, 1, level, filter_binary, stats)
-
-            return FileTreeContent(
-                root_path=project_name,
-                level=level,
-                filter_binary=filter_binary,
-                total_files=stats["total_files"],
-                total_dirs=stats["total_dirs"],
-                total_size=stats["total_size"],
-                tree=tree
-            )
-
-        except Exception as e:
-            logger.error(f"Error scanning directory tree: {e}", exc_info=True)
-            # 返回空的FileTreeContent
-            return FileTreeContent(
-                root_path=project_name,
-                level=level,
-                filter_binary=filter_binary,
-                total_files=0,
-                total_dirs=0,
-                total_size=0,
-                tree=[]
-            )
-
-    def _build_file_tree(self, current_path: Path, relative_path: str, current_level: int,
-                        max_level: int, filter_binary: bool, stats: Dict[str, int]) -> List[FileTreeNode]:
-        """递归构建文件树结构 - 与 list_dir.py 完全一致的实现"""
-        if current_level > max_level:
-            return []
-
-        # 文件系统读取
-        try:
-            items = sorted(
-                list(current_path.iterdir()),
-                key=lambda x: (not x.is_dir(), x.name.lower())
-            )
-
-        except PermissionError:
-            # 创建权限错误节点
-            error_node = FileTreeNode(
-                file_name="Permission denied",
-                relative_file_path=f"{relative_path}/[ERROR]",
-                is_directory=False,
-                file_size=None,
-                updated_at="",
-                children=None,
-                type=FileTreeNodeType.FILE,
-                error="Permission denied"
-            )
-            return [error_node]
-        except Exception as e:
-            # 创建访问错误节点
-            error_node = FileTreeNode(
-                file_name=f"Cannot access: {e!s}",
-                relative_file_path=f"{relative_path}/[ERROR]",
-                is_directory=False,
-                file_size=None,
-                updated_at="",
-                children=None,
-                type=FileTreeNodeType.FILE,
-                error=f"Cannot access: {e!s}"
-            )
-            return [error_node]
-
-        # 过滤隐藏文件
-        items = [item for item in items if not item.name.startswith('.')]
-
-        # 过滤二进制文件
-        if filter_binary:
-            items = [item for item in items if item.is_dir() or self._is_text_file(item)]
-
-        tree_nodes = []
-
-        for item in items:
-            try:
-                # 计算相对路径
-                if relative_path == ".":
-                    item_relative_path = item.name
-                else:
-                    item_relative_path = f"{relative_path}/{item.name}"
-
-                if item.is_dir():
-                    # 处理目录
-                    stats["total_dirs"] += 1
-
-                    # 递归获取子节点
-                    children = []
-                    if current_level < max_level:
-                        children = self._build_file_tree(
-                            item, item_relative_path, current_level + 1,
-                            max_level, filter_binary, stats
-                        )
-
-                    node = FileTreeNode(
-                        file_name=item.name,
-                        relative_file_path=item_relative_path,
-                        is_directory=True,
-                        file_size=None,
-                        updated_at=self._format_timestamp(item.stat().st_mtime),
-                        children=children if children else None,
-                        type=FileTreeNodeType.DIRECTORY
-                    )
-                    tree_nodes.append(node)
-
-                else:
-                    # 处理文件
-                    stats["total_files"] += 1
-                    stat_result = item.stat()
-                    file_size = stat_result.st_size
-                    stats["total_size"] += file_size
-
-                    node = FileTreeNode(
-                        file_name=item.name,
-                        relative_file_path=item_relative_path,
-                        is_directory=False,
-                        file_size=file_size,
-                        updated_at=self._format_timestamp(stat_result.st_mtime),
-                        children=None,
-                        type=FileTreeNodeType.FILE
-                    )
-                    tree_nodes.append(node)
-
-            except Exception as e:
-                logger.warning(f"Error processing {item}: {e}")
-                continue
-
-        return tree_nodes
-
-    def _is_text_file(self, file_path: Path) -> bool:
-        """判断文件是否为文本/代码文件"""
-        return is_text_file(file_path)
-
-    def _format_size(self, size: int) -> str:
-        """格式化文件大小"""
-        return format_file_size(size)
-
-    def _format_timestamp(self, timestamp: float) -> str:
-        """格式化时间戳为字符串格式"""
-        from datetime import datetime
-        return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        预算沿用工具语义：不限制条目数，只设时间上限。这份扫描发生在项目刚创建之后，
+        规模由本工具自己决定，因此无界条目数不会失控；时间上限只用于防止挂载异常时
+        详情页卡死。
+        """
+        return scan_directory_tree(
+            target_path,
+            relative_path=project_name,
+            level=_PROJECT_TREE_DISPLAY_LEVEL,
+            filter_binary=False,
+            budget=_PROJECT_TREE_SCAN_BUDGET,
+        )
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
         """获取工具详情 - 显示创建的项目文件树结构或错误信息"""

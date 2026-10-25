@@ -3,7 +3,7 @@ import { memo, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import type { LucideIcon } from "lucide-react"
 import { AlertCircle, BookOpen, ChevronDown, Hash, Loader2, Sparkles } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import {
 	getKnowledgeSearchDetailData,

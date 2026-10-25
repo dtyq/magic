@@ -2,14 +2,18 @@ import { useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { useNamedPageTitle } from "@/pages/superMagic/hooks/useNamedPageTitle"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useCrewConversationStore } from "./context"
 import CrewConversationPanel from "./components/CrewConversationPanel"
 import CrewStateView from "./components/CrewStateView"
 import CrewTopicList from "./components/CrewTopicList"
 
 interface CrewConversationMobileProps {
-	widgetContext?: { instanceId: string; hostOrigin: string } | null
+	widgetContext?: {
+		instanceId: string
+		hostOrigin: string
+		renderMode?: "inline" | "floating"
+	} | null
 }
 
 /** Renders the mobile Crew layout and forwards optional widget bridge metadata. */
@@ -57,6 +61,7 @@ function CrewConversationMobile({ widgetContext = null }: CrewConversationMobile
 						)}
 					>
 						<CrewTopicList
+							projectId={store.selectedProject.id}
 							topics={store.topicList}
 							selectedTopicId={store.selectedTopic?.id}
 							isCreatingTopic={store.isCreatingTopic}

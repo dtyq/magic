@@ -47,16 +47,17 @@ class ApiKeyDashScopeTransportTest extends TestCase
             ->method('create')
             ->willReturn($httpClient);
 
+        $logger = new DashScopeRecordingLogger();
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->expects($this->once())
             ->method('get')
             ->with(DashScopeVideoClient::class)
-            ->willReturn(new DashScopeRecordingLogger());
+            ->willReturn($logger);
 
         $transport = new ApiKeyDashScopeTransport(new DashScopeVideoClient($clientFactory, $loggerFactory));
         $transport->submitVideo(
             new QueueExecutorConfig(
-                'https://localhost',
+                'https://localhost/api/v1',
                 'secret',
                 3,
                 20,
@@ -64,6 +65,45 @@ class ApiKeyDashScopeTransportTest extends TestCase
             ),
             ['prompt' => 'test'],
             ['video_id' => 'video-1']
+        );
+
+        $this->assertSame(['prompt' => 'test'], $logger->records[0]['context']['payload']);
+        $this->assertSame(['output' => ['task_id' => 'task-1']], $logger->records[1]['context']['response']);
+    }
+
+    public function testSubmitVideoUsesProxyFromQueueConfig(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->with(
+                'https://localhost/api/v1/services/aigc/video-generation/video-synthesis',
+                $this->anything(),
+            )
+            ->willReturn(new Response(200, [], '{"output":{"task_id":"task-1"}}'));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->with([
+                'timeout' => 30,
+                'verify' => false,
+                'proxy' => 'http://127.0.0.1:8080',
+            ])
+            ->willReturn($httpClient);
+
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->method('get')->willReturn(new DashScopeRecordingLogger());
+
+        (new ApiKeyDashScopeTransport(new DashScopeVideoClient($clientFactory, $loggerFactory)))->submitVideo(
+            new QueueExecutorConfig(
+                'https://localhost/api/v1',
+                'secret',
+                3,
+                20,
+                ['proxy_url' => 'http://127.0.0.1:8080'],
+            ),
+            ['prompt' => 'test'],
         );
     }
 
@@ -90,16 +130,17 @@ class ApiKeyDashScopeTransportTest extends TestCase
             ->method('create')
             ->willReturn($httpClient);
 
+        $logger = new DashScopeRecordingLogger();
         $loggerFactory = $this->createMock(LoggerFactory::class);
         $loggerFactory->expects($this->once())
             ->method('get')
             ->with(DashScopeVideoClient::class)
-            ->willReturn(new DashScopeRecordingLogger());
+            ->willReturn($logger);
 
         $transport = new ApiKeyDashScopeTransport(new DashScopeVideoClient($clientFactory, $loggerFactory));
         $transport->queryTask(
             new QueueExecutorConfig(
-                'https://localhost',
+                'https://localhost/api/v1',
                 'secret',
                 3,
                 20,
@@ -108,6 +149,8 @@ class ApiKeyDashScopeTransportTest extends TestCase
             'task-123',
             ['video_id' => 'video-1']
         );
+
+        $this->assertSame(['output' => ['task_status' => 'RUNNING']], $logger->records[1]['context']['response']);
     }
 }
 

@@ -18,7 +18,7 @@ import { getAllPredecessors } from "@/MagicFlow/utils/reactflowUtils"
 import { Schema } from "@/MagicJsonSchemaEditor/components/editor/genson-js"
 import { DataSourceOption } from "@/common/BaseUI/DropdownRenderer/Reference"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { cloneDeep, get, set, uniqBy } from "lodash-es"
 import { useMemo } from "react"
 import { customNodeType } from "../../constants"
 
@@ -35,7 +35,7 @@ export default function usePrevious() {
 			// 暂定有指定变量schema的情况下为全局变量
 			const isGlobalVariable = !!pointerVariables
 
-			const cloneOptions = _.cloneDeep(currentOptions)
+			const cloneOptions = cloneDeep(currentOptions)
 
 			let variableOption = cloneOptions.find(
 				(option) => option.nodeType === customNodeType.VariableSave,
@@ -43,7 +43,7 @@ export default function usePrevious() {
 
 			const variables =
 				pointerVariables ||
-				_.get(currentNode, ["params", "variables", "form", "structure"], null)
+				get(currentNode, ["params", "variables", "form", "structure"], null)
 
 			const nodeSchema = getNodeSchema(
 				customNodeType.VariableSave,
@@ -73,12 +73,12 @@ export default function usePrevious() {
 				cloneOptions.unshift(variableOption)
 			} else {
 				/** 针对相同变量名去重后的结果 */
-				const uniqOptions = _.uniqBy(
+				const uniqOptions = uniqBy(
 					[...(variableOption.children || []), ...(option.children || [])],
 					"key",
 				)
 				/** 否则往变量选项新增值 */
-				_.set(variableOption, ["children"], uniqOptions)
+				set(variableOption, ["children"], uniqOptions)
 			}
 
 			return cloneOptions
@@ -93,7 +93,7 @@ export default function usePrevious() {
 				...(currentOption.children || []),
 			] as DataSourceOption[]
 			// 根据节点id和key进行去重后的结果
-			const uniqueChildren = _.uniqBy(newChildren, (obj) => `${obj.nodeId}_${obj.key}`)
+			const uniqueChildren = uniqBy(newChildren, (obj) => `${obj.nodeId}_${obj.key}`)
 			mergeResult = {
 				...mergeResult,
 				...currentOption,
@@ -178,7 +178,7 @@ export default function usePrevious() {
 
 		// 如果存在全局变量，则需要重新更新数据源
 		if (flow?.global_variable) {
-			const variableSchema = _.get(
+			const variableSchema = get(
 				nodeManager,
 				["nodesMap", customNodeType.VariableSave, "schema"],
 				null,

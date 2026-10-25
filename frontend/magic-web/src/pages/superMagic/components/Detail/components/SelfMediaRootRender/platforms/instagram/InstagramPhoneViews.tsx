@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Bookmark, ChevronLeft, ChevronRight, Heart, MessageCircle, Send } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import type { CardFrameRef } from "../../components/CardFrame"
 import CardFrame, { invalidateCardFrameSourceCache } from "../../components/CardFrame"

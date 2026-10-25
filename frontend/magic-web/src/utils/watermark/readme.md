@@ -1,72 +1,86 @@
 ## Watermark
 
-当前水印能力统一从 `src/lib/watermark/index.ts` 导出：
+当前水印能力统一从 `src/utils/watermark/index.ts` 导出：
 
 ```ts
-import {
-  WATERMARK_CONFIG,
-  blendWatermarkColors,
-  watermarkService,
-} from '@/lib/watermark'
+import { WATERMARK_CONFIG, watermarkService } from "@/utils/watermark"
 ```
 
 ### 生成配置
 
-水印由 **文字底衬（背景）+ 文字颜色** 两层组成，Canvas 先画圆角底衬，再叠文字。
+页面水印默认只绘制文字，通过文字颜色和透明度控制可见程度，不再绘制文字底衬，
+避免在 Modal 等灰色遮罩上出现矩形背景块。调用方仍可显式开启底衬，用于特殊场景。
 
-| 字段 | 说明 |
-|------|------|
-| `backgroundColor` | 文字底衬颜色 |
-| `textColor` | 文字颜色 |
-| `useBackground` | **默认开启**。不传或传 `true` 均画底衬；**仅**显式 `useBackground: false` 时关闭 |
-| `patchPaddingX` / `patchPaddingY` | 底衬相对文字的 padding |
-| `patchRadius` | 底衬圆角 |
+| 字段                              | 说明                               |
+| --------------------------------- | ---------------------------------- |
+| `backgroundColor`                 | 文字底衬颜色                       |
+| `textColor`                       | 文字颜色                           |
+| `useBackground`                   | 默认关闭；显式传 `true` 时绘制底衬 |
+| `patchPaddingX` / `patchPaddingY` | 底衬相对文字的 padding             |
+| `patchRadius`                     | 底衬圆角                           |
 
 默认见 `WATERMARK_CONFIG`。窄屏（宽度 ≤ `768px`）挂载时会合并 `WATERMARK_MOBILE_CONFIG`（更密间距、更小字号），挂载时判定一次，不监听 resize。
+
+### 页面水印的三种策略
+
+站点级水印由 `syncUserWatermark()` 统一挂载，策略由 `resolveUserWatermarkMode()` 决定，
+再经 `resolveUserWatermarkRenderConfig()` 解析出渲染配置与缓存键：
+
+| 策略 `UserWatermarkMode` | 触发条件 | 文字 | 渲染配置 |
+| --- | --- | --- | --- |
+| `platform` | 非个人组织且平台水印已开启 | 组织配置的身份字段 | `WATERMARK_DEPTH_CONFIG[depth]` |
+| `legacy` | 平台水印不可用（个人组织，或平台水印未开启），且 `MAGIC_WATERMARK_ENABLED` 为 `true` | `user_id`（含部署标识） | `USER_ID_WATERMARK_CONFIG`，接近透明 |
+| `disabled` | 其余情况 | — | — |
+
+`legacy` 只由 `MAGIC_WATERMARK_ENABLED` 环境变量开启，个人组织、团队组织、企业组织统一使用
+`rgba(0, 0, 0, 0.01)`，仅作为隐性溯源标记，不干扰成员阅读；个人组织不会应用组织级水印配置。
 
 ### mount
 
 把水印挂到指定容器上。默认水印标识是 `magic-watermark`，也可以传 `id` 自定义。
 
 ```ts
-// 最简：底衬默认开启，无需传 useBackground
+// 最简：默认只绘制文字
 watermarkService.mount({
-  container: document.body,
-  text: 'user_zhangsan_10086',
+	container: document.body,
+	text: "user_zhangsan_10086",
 })
 
 // 完整配置
 watermarkService.mount({
-  container: document.body,
-  text: 'user_zhangsan_10086',
-  id: 'magic-watermark',
-  config: {
-    textColor: 'rgba(0, 0, 0, 0.02)',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    rotate: -12,
-    gapX: 60,
-    gapY: 140,
-  },
-  onTamper: (info) => {
-    console.log('watermark tampered', info)
-  },
+	container: document.body,
+	text: "user_zhangsan_10086",
+	id: "magic-watermark",
+	config: {
+		textColor: "rgba(0, 0, 0, 0.045)",
+		useBackground: false,
+		rotate: -12,
+		gapX: 60,
+		gapY: 140,
+	},
+	onTamper: (info) => {
+		console.log("watermark tampered", info)
+	},
 })
 
-// 仅当不要底衬时显式关闭
+// 特殊场景需要底衬时显式开启
 watermarkService.mount({
-  container: document.body,
-  text: 'user_zhangsan_10086',
-  config: { useBackground: false },
+	container: document.body,
+	text: "user_zhangsan_10086",
+	config: {
+		useBackground: true,
+		backgroundColor: "rgba(255, 255, 255, 0.03)",
+	},
 })
 
 // 窄屏也使用桌面间距
 watermarkService.mount({
-  container: document.body,
-  text: 'user_zhangsan_10086',
-  config: { denseOnMobile: false },
+	container: document.body,
+	text: "user_zhangsan_10086",
+	config: { denseOnMobile: false },
 })
 
-watermarkService.updateText('new_text')
+watermarkService.updateText("new_text")
 watermarkService.destroy()
 ```
 
@@ -78,36 +92,32 @@ watermarkService.destroy()
 
 解析需传入与生成一致的颜色：
 
-| 字段 | 对应生成 | 作用 |
-|------|---------|------|
-| `backgroundColor` | 底衬 | 检测底衬区域（如白底衬 → 局部变亮） |
-| `textColor` | 文字 | 检测笔画（如黑字 → 局部变暗） |
-| `overlayColor` | 合成色 | 检测「字压在底衬上」的区域；默认由 `blendWatermarkColors(textColor, backgroundColor)` 算出，可手调 |
-| `useBackground` | 底衬开关 | 默认开启；仅 `false` 时不走底衬通道 |
+| 字段              | 对应生成 | 作用                                                                                               |
+| ----------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `backgroundColor` | 底衬     | 检测底衬区域（如白底衬 → 局部变亮）                                                                |
+| `textColor`       | 文字     | 检测笔画（如黑字 → 局部变暗）                                                                      |
+| `overlayColor`    | 合成色   | 检测「字压在底衬上」的区域；默认由 `blendWatermarkColors(textColor, backgroundColor)` 算出，可手调 |
+| `useBackground`   | 底衬开关 | 与生成配置保持一致；页面水印默认关闭                                                               |
 
 三路对每个像素各算一条通道残差，**取最大值** 合并。
 
 ```ts
-import { blendWatermarkColors } from '@/lib/watermark'
+const textColor = "rgba(0, 0, 0, 0.045)"
 
-const textColor = 'rgba(0, 0, 0, 0.02)'
-const backgroundColor = 'rgba(255, 255, 255, 0.03)'
-
-await watermarkService.extractContrastViewByMode(file, 'reverse-layer', {
-  textColor,
-  backgroundColor,
-  overlayColor: blendWatermarkColors(textColor, backgroundColor),
+await watermarkService.extractContrastViewByMode(file, "reverse-layer", {
+	textColor,
+	useBackground: false,
 })
 ```
 
 灵敏度可调 `WATERMARK_EXTRACT_CONFIG` 或传入同名覆盖字段：
 
-| 参数 | 说明 |
-|------|------|
-| `gain` | 通道增益，宜 1～6 |
-| `bgRadius` | 局部背景估计半径（px） |
+| 参数              | 说明                     |
+| ----------------- | ------------------------ |
+| `gain`            | 通道增益，宜 1～6        |
+| `bgRadius`        | 局部背景估计半径（px）   |
 | `noisePercentile` | 噪声底分位，越低越显淡纹 |
-| `signalGamma` | 弱信号提升，<1 抬高淡纹 |
+| `signalGamma`     | 弱信号提升，<1 抬高淡纹  |
 
 ### extractContrastViews
 
@@ -115,8 +125,8 @@ await watermarkService.extractContrastViewByMode(file, 'reverse-layer', {
 
 ```ts
 const result = await watermarkService.extractContrastViews(file, {
-  textColor: WATERMARK_CONFIG.textColor,
-  backgroundColor: WATERMARK_CONFIG.backgroundColor,
+	textColor: WATERMARK_CONFIG.textColor,
+	backgroundColor: WATERMARK_CONFIG.backgroundColor,
 })
 
 console.log(result.views)

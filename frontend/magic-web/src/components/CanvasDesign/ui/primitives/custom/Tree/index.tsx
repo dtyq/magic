@@ -1,11 +1,11 @@
 import { useState, useCallback, useMemo, useRef, useLayoutEffect } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import classNames from "classnames"
+import { cn } from "../../../../runtime/shared/lib/utils"
 import styles from "./index.module.css"
 import TreeNodeItem from "./TreeNodeItem"
 import type { TreeProps, TreeNode, TreeData } from "./types"
 
-export type { TreeNode, TreeProps, TreeData, RenderNodeContext } from "./types"
+export type { TreeNode, TreeProps, TreeData, RenderNodeContext, TreeSelectionMode } from "./types"
 
 const DEFAULT_VIRTUAL_THRESHOLD = 80
 const DEFAULT_VIRTUAL_ROW_HEIGHT = 34
@@ -36,6 +36,7 @@ export default function Tree<T extends TreeData = TreeData>(props: TreeProps<T>)
 		data,
 		selectedIds,
 		hoveredIds,
+		selectionMode = "replace",
 		onSelect,
 		expandedIds: externalExpandedIds,
 		onToggle: externalOnToggle,
@@ -47,6 +48,7 @@ export default function Tree<T extends TreeData = TreeData>(props: TreeProps<T>)
 		virtualOverscan = DEFAULT_VIRTUAL_OVERSCAN,
 		initialScrollTop,
 		onScrollTopChange,
+		renderLeading,
 		renderNode,
 		onContextMenu,
 		onDoubleClick,
@@ -119,8 +121,8 @@ export default function Tree<T extends TreeData = TreeData>(props: TreeProps<T>)
 
 			const currentSelectedIds = selectedIds || []
 
-			if (isMultiSelect) {
-				// Cmd/Ctrl 多选：可以切换选中状态
+			if (isMultiSelect || selectionMode === "toggle") {
+				// Cmd/Ctrl 多选，或显式 toggle 模式：切换成员而不重置整组选区
 				const newSelectedIds = currentSelectedIds.includes(node.id)
 					? currentSelectedIds.filter((id) => id !== node.id)
 					: [...currentSelectedIds, node.id]
@@ -135,7 +137,7 @@ export default function Tree<T extends TreeData = TreeData>(props: TreeProps<T>)
 				onSelect(selectedNodes, [node.id])
 			}
 		},
-		[selectedIds, onSelect, nodeMap],
+		[selectedIds, onSelect, nodeMap, selectionMode],
 	)
 
 	const handleScroll = useCallback(
@@ -174,6 +176,7 @@ export default function Tree<T extends TreeData = TreeData>(props: TreeProps<T>)
 			renderChildren={renderChildren}
 			onToggle={handleToggle}
 			onSelect={handleSelect}
+			renderLeading={renderLeading}
 			renderNode={renderNode}
 			onContextMenu={onContextMenu}
 			onDoubleClick={onDoubleClick}
@@ -183,7 +186,7 @@ export default function Tree<T extends TreeData = TreeData>(props: TreeProps<T>)
 	)
 
 	return (
-		<div ref={scrollRef} className={classNames(styles.tree, className)} onScroll={handleScroll}>
+		<div ref={scrollRef} className={cn(styles.tree, className)} onScroll={handleScroll}>
 			{shouldVirtualize ? (
 				<div
 					style={{

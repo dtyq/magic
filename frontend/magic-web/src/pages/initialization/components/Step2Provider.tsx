@@ -29,7 +29,7 @@ import {
 import { Input } from "@/components/shadcn-ui/input"
 import { InitializationApi } from "@/apis"
 import type { StepComponentProps, Step2FormData } from "../types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 type FormValues = z.infer<ReturnType<typeof createFormSchema>>
 

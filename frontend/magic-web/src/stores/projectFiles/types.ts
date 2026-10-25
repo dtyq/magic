@@ -1,3 +1,10 @@
+export type AttachmentLoadStatus = "idle" | "loading" | "ready" | "error"
+
+export interface AttachmentLoadState {
+	projectId: string
+	status: AttachmentLoadStatus
+}
+
 export interface WorkspaceFile {
 	children: WorkspaceFile[]
 	file_id: string

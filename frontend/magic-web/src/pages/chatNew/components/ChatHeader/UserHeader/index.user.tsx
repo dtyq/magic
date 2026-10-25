@@ -14,7 +14,7 @@ import CurrentTopic from "../CurrentTopic"
 import MagicAvatar from "@/components/base/MagicAvatar"
 import DepartmentRender from "@/components/business/DepartmentRender"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	chatHeaderClassName,
 	chatHeaderExtraSectionButtonActiveClassName,

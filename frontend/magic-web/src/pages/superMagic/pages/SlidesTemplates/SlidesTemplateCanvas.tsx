@@ -9,8 +9,10 @@ import {
 	useState,
 } from "react"
 import type { OptionItem } from "@/pages/superMagic/components/MainInputContainer/panels/types"
+import { getFeaturedSlidesTemplateTag } from "@/pages/superMagic/components/MainInputContainer/panels/slides-preset/templateMeta"
 import {
 	type TemplateCanvasItem,
+	type TemplateCanvasGuideAnchor,
 	type TemplateCanvasInsets,
 	type TemplateCanvasPoint,
 } from "./canvasLayout"
@@ -41,6 +43,7 @@ import { useTemplateCanvasVisibleItems } from "./useTemplateCanvasVisibleItems"
 
 interface SlidesTemplateCanvasProps {
 	enableInfiniteLoop?: boolean
+	favoritePendingCodes?: ReadonlySet<string>
 	hasMore: boolean
 	initialAlignment?: SlidesTemplateCanvasInitialAlignment
 	isLoading: boolean
@@ -50,6 +53,8 @@ interface SlidesTemplateCanvasProps {
 	loadMoreSignal?: number | string
 	onLoadMore: () => void
 	onFindSimilarColors?: (template: OptionItem) => void
+	onFavoriteToggle?: (template: OptionItem) => void
+	onOpenProject?: (template: OptionItem) => void
 	onPreviewOpenChange?: (isOpen: boolean) => void
 	onRetryRefresh?: () => void
 	onTemplateDetailLoad?: (template: OptionItem) => Promise<OptionItem | null>
@@ -62,6 +67,14 @@ interface SlidesTemplateCanvasProps {
 
 export interface SlidesTemplateCanvasHandle {
 	focusRandomTemplate: () => boolean
+	/**
+	 * Centres a featured template for an onboarding run and keeps it there, and answers with the
+	 * template it settled on — or `null` when the library carries no featured template (or has not
+	 * loaded one yet), in which case the caller has nothing to point at. The whole run points at a
+	 * single card: a step that asks again is answered with the one already centred, so nothing on
+	 * screen moves between the steps that frame it.
+	 */
+	focusGuideFeaturedTemplate: () => OptionItem | null
 	openPreview: (template: OptionItem) => boolean
 }
 
@@ -69,6 +82,7 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 	function SlidesTemplateCanvas(
 		{
 			enableInfiniteLoop = true,
+			favoritePendingCodes,
 			hasMore,
 			initialAlignment = "center",
 			isLoading,
@@ -78,6 +92,8 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 			loadMoreSignal,
 			onLoadMore,
 			onFindSimilarColors,
+			onFavoriteToggle,
+			onOpenProject,
 			onPreviewOpenChange,
 			onRetryRefresh,
 			onTemplateDetailLoad,
@@ -93,7 +109,15 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 		const [isDragging, setIsDragging] = useState(false)
 		const [randomFocusedCanvasItem, setRandomFocusedCanvasItem] =
 			useState<TemplateCanvasItem<SlidesTemplateCanvasTile> | null>(null)
+		/**
+		 * The card an onboarding run asked for. Kept apart from `randomFocusedCanvasItem` even though
+		 * a guide focus sets both — the random one is also what a user pressing "发现灵感" writes, and
+		 * the run's own highlight must not appear on a card nobody asked it to point at.
+		 */
+		const [guideFocusedCanvasItem, setGuideFocusedCanvasItem] =
+			useState<TemplateCanvasItem<SlidesTemplateCanvasTile> | null>(null)
 		const pendingRandomFocusRef = useRef(false)
+		const pendingGuideFocusRef = useRef(false)
 		const viewportRef = useRef<HTMLDivElement | null>(null)
 		const contentRef = useRef<HTMLDivElement | null>(null)
 		const offsetRef = useRef<TemplateCanvasPoint>({ x: 0, y: 0 })
@@ -284,6 +308,8 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 		})
 		const handlePointerDownStart = useCallback(() => {
 			setRandomFocusedCanvasItem(null)
+			// The user has taken the canvas over, so the run's highlight goes with the focus.
+			setGuideFocusedCanvasItem(null)
 		}, [])
 		const {
 			handleCanvasClickCapture,
@@ -363,6 +389,53 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 			pendingRandomFocusRef.current = !didFocus
 			return didFocus
 		}, [focusRandomTemplate])
+		/**
+		 * The onboarding run's version of the focus above: it centres a template carrying the "精选"
+		 * badge, which is the kind its steps point at. Unlike "发现灵感" it takes the first of them in
+		 * the canvas order instead of a random one — a run is a walkthrough, so re-entering a step has
+		 * to land on the same card rather than somewhere new.
+		 *
+		 * The card an earlier step of the run settled on is kept for the rest of it: two steps of the
+		 * same run frame a card, and pointing the second one at a different card would scroll the
+		 * canvas between them — the visible jump the run is supposed to avoid. Only a run that has
+		 * not settled on a card yet picks one, and it picks the first, so which card a run shows is
+		 * decided once and the catalog loading further pages underneath cannot move it.
+		 */
+		const focusGuideFeaturedTemplate = useCallback(() => {
+			if (!viewportRef.current) return null
+
+			const featuredCanvasItems = priorityCanvasItems.filter(({ item }) =>
+				Boolean(getFeaturedSlidesTemplateTag(item.template)),
+			)
+			if (featuredCanvasItems.length === 0) return null
+
+			const settledCanvasItem = guideFocusedCanvasItem
+				? featuredCanvasItems.find(({ item }) => item.id === guideFocusedCanvasItem.item.id)
+				: undefined
+			const canvasItem = settledCanvasItem ?? featuredCanvasItems[0]
+			if (!canvasItem) return null
+
+			const focusedCanvasItem = getNearestLoopedSlidesTemplateCanvasItem({
+				item: canvasItem,
+				loopMetrics,
+				offset: offsetRef.current,
+				scale: scaleRef.current,
+			})
+			if (!handleFocusPoint(focusedCanvasItem.position)) return null
+
+			/*
+			 * The random focus is what expands the card and holds the idle drift off, exactly as the
+			 * "发现灵感" button does; the guide focus only adds the highlight a run points at.
+			 */
+			setRandomFocusedCanvasItem(focusedCanvasItem)
+			setGuideFocusedCanvasItem(focusedCanvasItem)
+			return focusedCanvasItem.item.template
+		}, [guideFocusedCanvasItem, handleFocusPoint, loopMetrics, priorityCanvasItems])
+		const requestGuideFeaturedTemplateFocus = useCallback(() => {
+			const focusedTemplate = focusGuideFeaturedTemplate()
+			pendingGuideFocusRef.current = !focusedTemplate
+			return focusedTemplate
+		}, [focusGuideFeaturedTemplate])
 
 		useEffect(() => {
 			if (!pendingRandomFocusRef.current) return
@@ -373,10 +446,25 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 			return () => cancelAnimationFrame(frameId)
 		}, [focusRandomTemplate])
 
+		/**
+		 * A run can ask before the library has answered — the page mounts on an empty canvas — so a
+		 * request that found no featured card is kept and retried as the pages of templates arrive,
+		 * which is what changes the focus callback's identity.
+		 */
+		useEffect(() => {
+			if (!pendingGuideFocusRef.current) return
+
+			const frameId = requestAnimationFrame(() => {
+				if (focusGuideFeaturedTemplate()) pendingGuideFocusRef.current = false
+			})
+			return () => cancelAnimationFrame(frameId)
+		}, [focusGuideFeaturedTemplate])
+
 		useImperativeHandle(
 			ref,
 			() => ({
 				focusRandomTemplate: requestRandomTemplateFocus,
+				focusGuideFeaturedTemplate: requestGuideFeaturedTemplateFocus,
 				openPreview(template) {
 					if (getTemplatePreviewUrls(template).length === 0) return false
 
@@ -408,6 +496,7 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 				handleFocusPoint,
 				hydratePreviewFocus,
 				loopMetrics,
+				requestGuideFeaturedTemplateFocus,
 				requestRandomTemplateFocus,
 			],
 		)
@@ -427,6 +516,7 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 			stopAnimation()
 			setPreviewFocus(null)
 			setRandomFocusedCanvasItem(null)
+			setGuideFocusedCanvasItem(null)
 			setCanvasOffset({ x: 0, y: 0 })
 		}, [resetKey, setCanvasOffset, stopAnimation])
 
@@ -449,6 +539,8 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 		const handlePreviewToggle = useCallback(
 			(anchorTileId: string, tile: SlidesTemplateCanvasTile) => {
 				setRandomFocusedCanvasItem(null)
+				// A preview takes the centre of the canvas over, so the run's highlight steps aside.
+				setGuideFocusedCanvasItem(null)
 				if (
 					previewFocus?.anchorTileId === anchorTileId &&
 					previewFocus.tile.id === tile.id
@@ -465,7 +557,36 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 		const handlePreviewClose = useCallback(() => {
 			setPreviewFocus(null)
 			setRandomFocusedCanvasItem(null)
+			setGuideFocusedCanvasItem(null)
 		}, [])
+
+		/**
+		 * Where the run's whole-card highlight goes — the box the tour frames. It is published only
+		 * once the move to the card has settled, because the tour measures whatever carries
+		 * `data-guide-anchor` the moment that attribute shows up: a marker that appeared while the
+		 * card was still travelling would frame where the card had been, not where it ends. Nothing
+		 * moves afterwards either — the idle drift is already held off while a card is focused — so
+		 * the card stays under the marker for as long as the step is up.
+		 *
+		 * The box is read back off the list that is actually rendered rather than off the item the
+		 * focus was asked for: a tile the viewport already holds is drawn from that copy, and the
+		 * two agree on which copy that is.
+		 */
+		const guideAnchor = useMemo<TemplateCanvasGuideAnchor | null>(() => {
+			if (!guideFocusedCanvasItem || isCanvasMoving) return null
+
+			const renderedGuideItem = renderedCanvasItems.find(
+				({ item }) => item.id === guideFocusedCanvasItem.item.id,
+			)
+			if (!renderedGuideItem) return null
+
+			return {
+				height: renderedGuideItem.size.height,
+				width: renderedGuideItem.size.width,
+				x: renderedGuideItem.position.x,
+				y: renderedGuideItem.position.y,
+			}
+		}, [guideFocusedCanvasItem, isCanvasMoving, renderedCanvasItems])
 
 		return (
 			<SlidesTemplateCanvasSurface
@@ -474,10 +595,12 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 				contentRef={contentRef}
 				visibleCanvasItems={renderedCanvasItems}
 				focusedAnchorTileId={focusedAnchorTileId}
+				guideAnchor={guideAnchor}
 				selectedTemplateValue={selectedTemplateValue}
 				selectedTemplate={selectedTemplate}
 				previewFocus={previewFocus}
 				canvasScale={canvasScale}
+				favoritePendingCodes={favoritePendingCodes}
 				canZoomIn={canZoomIn}
 				canZoomOut={canZoomOut}
 				isDragging={isDragging}
@@ -500,6 +623,8 @@ const SlidesTemplateCanvas = forwardRef<SlidesTemplateCanvasHandle, SlidesTempla
 				onCanvasPointerLeave={markCanvasInactive}
 				onCanvasClickCapture={handleCanvasClickCapture}
 				onFindSimilarColors={onFindSimilarColors}
+				onFavoriteToggle={onFavoriteToggle}
+				onOpenProject={onOpenProject}
 				onTemplateSelect={onTemplateSelect}
 				onPreviewIntent={handlePreviewIntent}
 				onPreviewToggle={handlePreviewToggle}

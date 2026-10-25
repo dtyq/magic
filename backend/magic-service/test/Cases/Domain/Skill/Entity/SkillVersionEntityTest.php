@@ -75,4 +75,19 @@ class SkillVersionEntityTest extends TestCase
             'department_ids' => ['dept-1'],
         ], $entity->toArray()['publish_target_value']);
     }
+
+    public function testVersionDescriptionUsesCurrentLanguageThenDefault(): void
+    {
+        $entity = new SkillVersionEntity();
+        $entity->setVersionDescriptionI18n([
+            'zh_CN' => '中文描述',
+            'default' => '默认描述',
+        ]);
+
+        $this->assertSame('中文描述', $entity->getI18nVersionDescription('zh_CN'));
+        $this->assertSame('默认描述', $entity->getI18nVersionDescription('en_US'));
+
+        $entity->setVersionDescriptionI18n([]);
+        $this->assertSame('', $entity->getI18nVersionDescription('zh_CN'));
+    }
 }

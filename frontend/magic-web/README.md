@@ -130,7 +130,7 @@ pnpm lh:view
 **编写方式**：
 
 ```tsx
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 // 基础组件示例
 function Button({ className, variant, ...props }) {
@@ -182,7 +182,7 @@ function Button({ className, variant, size, ...props }: VariantProps<typeof butt
 
 **关键要点**：
 
-- 使用 `cn()` 工具函数（来自 `@/lib/utils`）合并 Tailwind 类名
+- 使用 `cn()` 工具函数（来自 `@/utils/cn`）合并 Tailwind 类名
 - 使用 `class-variance-authority` (cva) 定义组件变体
 - 直接在 `className` prop 中使用 Tailwind 工具类
 - 支持响应式：使用 `sm:`、`md:`、`lg:` 等前缀

@@ -9,6 +9,7 @@ namespace App\Domain\SuperMagic\Project\Repository\Persistence;
 
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\MemberRole;
+use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectMode;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectRepositoryInterface;
 use App\Domain\SuperMagic\Project\Repository\Model\ProjectModel;
 use App\Infrastructure\Core\AbstractRepository;
@@ -178,6 +179,8 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         string $orderDirection = 'desc',
         bool $pinPriority = false
     ): array {
+        $orderBy = in_array($orderBy, ['id', 'created_at', 'updated_at'], true) ? $orderBy : 'created_at';
+        $orderDirection = in_array(strtolower($orderDirection), ['asc', 'desc'], true) ? strtolower($orderDirection) : 'desc';
         $query = $this->projectModel::query()
             ->withoutGlobalScopes()
             ->from($this->projectModel->getTable() . ' as p');
@@ -198,7 +201,8 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         }
 
         // 默认过滤已删除的数据
-        $query->whereNull('p.deleted_at');
+        $query->whereNull('p.deleted_at')
+            ->whereNotIn('p.project_mode', ProjectMode::getQueryFilterModes());
 
         // 应用查询条件
         foreach ($conditions as $field => $value) {
@@ -223,10 +227,20 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             $query->addSelect([
                 Db::raw('COALESCE(pms.is_pinned, 0) as is_pinned'),
                 Db::raw('pms.pinned_at as pinned_at'),
+                Db::raw('pms.sort_order as sort_order'),
+                Db::raw('pms.pinned_sort_order as pinned_sort_order'),
             ]);
             if ($pinPriority) {
+                $dynamicOrderBy = $orderBy === 'created_at' ? 'id' : $orderBy;
                 $query->orderByRaw('COALESCE(pms.is_pinned, 0) DESC')
-                    ->orderByRaw('pms.pinned_at DESC');
+                    ->orderByRaw('CASE WHEN COALESCE(pms.is_pinned, 0) = 1 AND pms.pinned_sort_order IS NULL THEN 0 ELSE 1 END ASC')
+                    ->orderByRaw('CASE WHEN COALESCE(pms.is_pinned, 0) = 1 AND pms.pinned_sort_order IS NULL THEN pms.pinned_at END DESC')
+                    ->orderByRaw('CASE WHEN COALESCE(pms.is_pinned, 0) = 1 AND pms.pinned_sort_order IS NOT NULL THEN pms.pinned_sort_order END ASC')
+                    ->orderByRaw('CASE WHEN COALESCE(pms.is_pinned, 0) = 0 AND pms.sort_order IS NULL THEN 0 ELSE 1 END ASC')
+                    ->orderByRaw("CASE WHEN COALESCE(pms.is_pinned, 0) = 0 AND pms.sort_order IS NULL THEN p.{$dynamicOrderBy} END {$orderDirection}")
+                    ->orderByRaw('CASE WHEN COALESCE(pms.is_pinned, 0) = 0 AND pms.sort_order IS NULL THEN p.id END DESC')
+                    ->orderByRaw('CASE WHEN COALESCE(pms.is_pinned, 0) = 0 THEN pms.sort_order END ASC')
+                    ->orderBy('p.id', 'asc');
             }
         }
 
@@ -283,11 +297,17 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
 
     public function getOrganizationCodesByProjectIds(array $projectIds): array
     {
-        $organizationCodes = $this->projectModel::query()
-            ->whereIn('id', $projectIds)
-            ->select('user_organization_code')
-            ->pluck('user_organization_code')
-            ->toArray();
+        // projectIds 可能有数千个，一次 whereIn 会让 Grammar 编译长时间阻塞，分块查询并在 SQL 侧去重
+        $organizationCodes = [];
+        foreach (array_chunk(array_values(array_unique($projectIds)), 1000) as $chunk) {
+            $codes = $this->projectModel::query()
+                ->whereIn('id', $chunk)
+                ->distinct()
+                ->toBase()
+                ->pluck('user_organization_code')
+                ->toArray();
+            array_push($organizationCodes, ...$codes);
+        }
 
         return array_values(array_unique($organizationCodes));
     }
@@ -578,6 +598,15 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         return $this->modelToEntityForRestore($model);
     }
 
+    /** @return ProjectEntity[] */
+    public function findByWorkspaceIdForDeletion(int $workspaceId): array
+    {
+        // Match the complete scope of deleteProjectsByWorkspaceId, including hidden projects.
+        return $this->projectModel::query()->where('workspace_id', $workspaceId)
+            ->lockForUpdate()->get()
+            ->map(fn (ProjectModel $model) => $this->toEntity($model->toArray()))->all();
+    }
+
     /**
      * 恢复单个项目.
      *
@@ -764,6 +793,8 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         $entity->setId($model->id);
         $entity->setWorkspaceId($model->workspace_id);
         $entity->setDeletedAt($model->deleted_at ? (string) $model->deleted_at : null);
+        // 回收站预览仍按项目所属组织授权及签名，不能让实体默认空值误判为跨组织访问。
+        $entity->setUserOrganizationCode($model->user_organization_code);
 
         return $entity;
     }

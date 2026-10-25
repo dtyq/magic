@@ -14,4 +14,6 @@ return [
     'response_parse_error' => 'Response Parse Error',
     'quota_exceeded' => 'Quota Exceeded',
     'invalid_parameter' => 'Invalid Parameter',
+    'image_model_not_available' => 'Image model not available',
+    'model_not_available' => 'Model not available',
 ];

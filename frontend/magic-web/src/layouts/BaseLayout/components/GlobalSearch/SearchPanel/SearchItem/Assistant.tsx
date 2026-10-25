@@ -3,7 +3,8 @@ import { useMemoizedFn } from "ahooks"
 import useAssistant from "@/pages/explore/hooks/useAssistant"
 import { BotApi } from "@/apis"
 import { useMagicSearchStore } from "../../store"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 import HighlightText from "../HighlightText"
 
 interface SearchItemAssistantProps {
@@ -13,7 +14,6 @@ interface SearchItemAssistantProps {
 function Assistant(props: SearchItemAssistantProps) {
 	const { item } = props
 
-	const { styles, cx } = useSearchItemCommonStyles()
 	const closePanel = useMagicSearchStore((store) => store.closePanel)
 
 	const { navigateConversation } = useAssistant()

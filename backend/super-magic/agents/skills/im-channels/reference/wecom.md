@@ -8,6 +8,10 @@ Create an AI bot in the WeCom admin console and obtain:
 - **Bot ID**: The unique identifier of the AI bot
 - **Secret**: The authentication key
 
+## Receiving messages
+
+The bot receives text, images, files, video, and mixed messages. Media callbacks must include a download URL and encryption key. Voice callbacks normally provide transcription; do not promise an original audio file when the platform does not supply one. Unsupported types and exhausted download retries produce an explicit placeholder while preserving available text and attachments.
+
 ## Credential Collection
 
 Ask the user in sequence:

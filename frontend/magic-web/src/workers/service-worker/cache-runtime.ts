@@ -16,8 +16,10 @@ import {
 	DEFAULT_WORKBOX_RUNTIME_URL,
 	EMOJIS_STATIC_CACHE_NAME,
 	FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_NAME,
+	FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 	PACKAGES_STATIC_CACHE_NAME,
 	SLIDES_TEMPLATE_IMAGE_CACHE_NAME,
+	SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 	VENDOR_CACHEABLE_HOSTS_QUERY_PARAM,
 	VENDOR_STATIC_CACHE_NAME,
 	WORKBOX_CDN_QUERY_PARAM,
@@ -38,6 +40,7 @@ import {
 	type WorkboxRouteContext,
 } from "./cache-route-matchers"
 import type { WarmUpOptions } from "./types"
+import type { ServiceWorkerDiagnostics } from "./sw-diagnostics"
 import { normalizeWarmUpOptions } from "./warmup-tuning"
 
 declare const __SW_WARMUP_ASSETS__: string[]
@@ -55,6 +58,10 @@ interface WorkboxLike {
 	}
 	expiration: {
 		ExpirationPlugin: new (options: Record<string, unknown>) => unknown
+		CacheExpiration?: new (
+			cacheName: string,
+			options: Record<string, unknown>,
+		) => CacheExpirationLike
 	}
 	cacheableResponse: {
 		CacheableResponsePlugin: new (options: Record<string, unknown>) => unknown
@@ -65,8 +72,15 @@ export interface ExpirationPluginLike {
 	expireEntries?: (options: { cacheName: string }) => Promise<void>
 }
 
+/** Exposes Workbox expiration metadata operations for native Cache API writes. */
+export interface CacheExpirationLike {
+	updateTimestamp: (url: string) => Promise<void>
+	expireEntries: () => Promise<void>
+}
+
 export interface CacheRuntimeRegistration {
 	appStaticExpirationPlugin: ExpirationPluginLike
+	appStaticExpirationManager: CacheExpirationLike | null
 }
 
 export interface WorkboxBootstrapResult {
@@ -115,11 +129,27 @@ export function getConfiguredVendorCacheableHosts(sw: ServiceWorkerGlobalScope):
 /**
  * Loads the Workbox IIFE runtime via importScripts.
  */
-export function loadWorkboxRuntime(runtimeUrl: string): boolean {
+
+export function loadWorkboxRuntime(
+	runtimeUrl: string,
+	diagnostics?: ServiceWorkerDiagnostics,
+): boolean {
+	const startedAt = performance.now()
 	try {
 		importScripts(runtimeUrl)
+		diagnostics?.logWorkboxLoad({
+			runtimeUrl,
+			loaded: true,
+			durationMs: performance.now() - startedAt,
+		})
 		return true
-	} catch {
+	} catch (error) {
+		diagnostics?.logWorkboxLoad({
+			runtimeUrl,
+			loaded: false,
+			durationMs: performance.now() - startedAt,
+			error: error instanceof Error ? error.message : String(error),
+		})
 		return false
 	}
 }
@@ -145,7 +175,10 @@ export function getWorkboxModulePathPrefix(runtimeUrl: string, baseUrl?: string)
 /**
  * Resolves Workbox CDN URL, loads runtime, and registers all CacheFirst buckets.
  */
-export function bootstrapWorkboxCacheRuntime(sw: ServiceWorkerGlobalScope): WorkboxBootstrapResult {
+export function bootstrapWorkboxCacheRuntime(
+	sw: ServiceWorkerGlobalScope,
+	diagnostics?: ServiceWorkerDiagnostics,
+): WorkboxBootstrapResult {
 	const configuredWorkboxRuntimeUrl = getConfiguredWorkboxRuntimeUrl(sw)
 	const resolvedWorkboxRuntimeUrl = configuredWorkboxRuntimeUrl || DEFAULT_WORKBOX_RUNTIME_URL
 
@@ -155,7 +188,7 @@ export function bootstrapWorkboxCacheRuntime(sw: ServiceWorkerGlobalScope): Work
 		)
 	}
 
-	if (!loadWorkboxRuntime(resolvedWorkboxRuntimeUrl)) {
+	if (!loadWorkboxRuntime(resolvedWorkboxRuntimeUrl, diagnostics)) {
 		console.error("[sw] Failed to load Workbox runtime", {
 			attemptedUrl: resolvedWorkboxRuntimeUrl,
 			configuredUrl: configuredWorkboxRuntimeUrl,
@@ -169,7 +202,12 @@ export function bootstrapWorkboxCacheRuntime(sw: ServiceWorkerGlobalScope): Work
 	}
 
 	const vendorCacheableHosts = getConfiguredVendorCacheableHosts(sw)
-	const registration = registerAppCacheRoutes(sw, vendorCacheableHosts, resolvedWorkboxRuntimeUrl)
+	const registration = registerAppCacheRoutes(
+		sw,
+		vendorCacheableHosts,
+		resolvedWorkboxRuntimeUrl,
+		diagnostics,
+	)
 	return {
 		configuredWorkboxRuntimeUrl,
 		resolvedWorkboxRuntimeUrl,
@@ -185,6 +223,7 @@ function registerAppCacheRoutes(
 	sw: ServiceWorkerGlobalScope,
 	vendorCacheableHosts: readonly string[],
 	workboxRuntimeUrl: string,
+	diagnostics?: ServiceWorkerDiagnostics,
 ): CacheRuntimeRegistration {
 	const modulePathPrefix = getWorkboxModulePathPrefix(workboxRuntimeUrl, sw.location.origin)
 	workbox.setConfig?.({ modulePathPrefix: modulePathPrefix || undefined, debug: false })
@@ -197,14 +236,34 @@ function registerAppCacheRoutes(
 	const appStaticExpirationPlugin = new ExpirationPlugin(
 		APP_STATIC_EXPIRATION_OPTIONS,
 	) as ExpirationPluginLike
+	const appStaticExpirationManager = workbox.expiration.CacheExpiration
+		? new workbox.expiration.CacheExpiration(
+				APP_STATIC_CACHE_NAME,
+				APP_STATIC_EXPIRATION_OPTIONS,
+			)
+		: null
 
 	const sameOrigin = sw.location.origin
+	// Do not attach empty diagnostic plugin objects when diagnostics are disabled.
+	const appStaticDiagnosticsPlugin = diagnostics?.enabled
+		? diagnostics.createCacheTimingPlugin(APP_STATIC_CACHE_NAME)
+		: null
+	const vendorScriptDiagnosticsPlugin = diagnostics?.enabled
+		? diagnostics.createCacheTimingPlugin(VENDOR_STATIC_CACHE_NAME, {
+				requestDestination: "script",
+				resourceCategory: "cdn-script",
+			})
+		: null
 
 	registerRoute(
 		(context) => isCacheableStaticAsset(context, sameOrigin),
 		new CacheFirst({
 			cacheName: APP_STATIC_CACHE_NAME,
-			plugins: [new CacheableResponsePlugin({ statuses: [200] }), appStaticExpirationPlugin],
+			plugins: [
+				new CacheableResponsePlugin({ statuses: [200] }),
+				appStaticExpirationPlugin,
+				...(appStaticDiagnosticsPlugin ? [appStaticDiagnosticsPlugin] : []),
+			],
 		}),
 	)
 
@@ -215,10 +274,12 @@ function registerAppCacheRoutes(
 			plugins: [
 				// Featured templates use an isolated, longer-lived bucket so lower-value images
 				// loaded later cannot evict them from the ordinary template cache.
-				new CacheableResponsePlugin({ statuses: [0, 200] }),
+				new CacheableResponsePlugin({ statuses: [200] }),
 				new ExpirationPlugin({
-					maxEntries: 300,
+					maxEntries: FEATURED_SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 					maxAgeSeconds: CACHE_TTL_15_DAYS,
+					// Template covers are re-fetchable; clear this bucket if the browser reports a quota error.
+					purgeOnQuotaError: true,
 				}),
 			],
 		}),
@@ -229,12 +290,13 @@ function registerAppCacheRoutes(
 		new CacheFirst({
 			cacheName: SLIDES_TEMPLATE_IMAGE_CACHE_NAME,
 			plugins: [
-				// Cross-origin <img> requests are opaque, but their cache key was granted only by
-				// the template catalog's URL marker above.
-				new CacheableResponsePlugin({ statuses: [0, 200] }),
+				// CORS-enabled template images must expose a readable 200 response before caching.
+				new CacheableResponsePlugin({ statuses: [200] }),
 				new ExpirationPlugin({
-					maxEntries: 500,
+					maxEntries: SLIDES_TEMPLATE_IMAGE_CACHE_MAX_ENTRIES,
 					maxAgeSeconds: CACHE_TTL_7_DAYS,
+					// Template covers are re-fetchable; clear this bucket if the browser reports a quota error.
+					purgeOnQuotaError: true,
 				}),
 			],
 		}),
@@ -309,6 +371,7 @@ function registerAppCacheRoutes(
 					maxEntries: 400,
 					maxAgeSeconds: CACHE_TTL_30_DAYS,
 				}),
+				...(vendorScriptDiagnosticsPlugin ? [vendorScriptDiagnosticsPlugin] : []),
 			],
 		}),
 	)
@@ -355,7 +418,7 @@ function registerAppCacheRoutes(
 		}),
 	)
 
-	return { appStaticExpirationPlugin }
+	return { appStaticExpirationPlugin, appStaticExpirationManager }
 }
 
 let lastWarmedUpAssetsSerialized = ""
@@ -393,6 +456,7 @@ function toWarmUpInFlightSerializedKey(
 export async function warmUpStaticAssetsOnIdle(
 	assets?: string[],
 	options?: WarmUpOptions,
+	expirationManager?: CacheExpirationLike | null,
 ): Promise<void> {
 	const assetsToWarm = normalizeWarmUpAssets(assets)
 	if (!assetsToWarm.length) return
@@ -433,12 +497,16 @@ export async function warmUpStaticAssetsOnIdle(
 						const request = new Request(cacheKey, { credentials: "same-origin" })
 						// Skip if already in cache (e.g. cached via regular HTTP dynamic request)
 						const existing = await cache.match(request)
-						if (existing) return
+						if (existing) {
+							await expirationManager?.updateTimestamp(request.url)
+							return
+						}
 
 						fetchedInBatch = true
 						const response = await fetch(request)
 						if (response.ok) {
 							await cache.put(request, response)
+							await expirationManager?.updateTimestamp(request.url)
 						}
 					} catch {
 						// Ignored single request failure.
@@ -447,6 +515,9 @@ export async function warmUpStaticAssetsOnIdle(
 					}
 				}),
 			)
+
+			// Enforce the same Workbox maxEntries/maxAgeSeconds policy after each native-write batch.
+			await enforceAppStaticExpiration(expirationManager)
 
 			if (fetchedInBatch) {
 				await new Promise((resolve) => setTimeout(resolve, intervalMs))
@@ -469,12 +540,37 @@ export async function warmUpStaticAssetsOnIdle(
 	}
 }
 
+let appStaticExpirationInFlight: Promise<void> | null = null
+
+/** Serializes expiration runs so concurrent warmups never compete in Workbox metadata cleanup. */
+export function enforceAppStaticExpiration(
+	expirationManager: CacheExpirationLike | null | undefined,
+): Promise<void> {
+	if (!expirationManager) return Promise.resolve()
+	if (appStaticExpirationInFlight) return appStaticExpirationInFlight
+
+	appStaticExpirationInFlight = expirationManager
+		.expireEntries()
+		.catch((error) => {
+			console.warn("[sw] Failed to enforce app static cache expiration", { error })
+		})
+		.finally(() => {
+			appStaticExpirationInFlight = null
+		})
+
+	return appStaticExpirationInFlight
+}
+
 /**
  * After install precache, enforce APP_STATIC maxEntries because native puts skip ExpirationPlugin.
  */
 export async function enforceAppStaticExpirationAfterPrecache(
 	registration: CacheRuntimeRegistration | null,
 ): Promise<void> {
+	if (registration?.appStaticExpirationManager) {
+		await enforceAppStaticExpiration(registration.appStaticExpirationManager)
+		return
+	}
 	if (!registration?.appStaticExpirationPlugin.expireEntries) return
 	await registration.appStaticExpirationPlugin.expireEntries({
 		cacheName: APP_STATIC_CACHE_NAME,

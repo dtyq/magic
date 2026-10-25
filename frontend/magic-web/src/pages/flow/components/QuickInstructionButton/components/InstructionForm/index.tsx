@@ -13,7 +13,7 @@ import type {
 } from "@/types/bot"
 import { InstructionMode as InstructionModeType, InstructionType } from "@/types/bot"
 import type { MagicRichEditorRef } from "@/components/base/MagicRichEditor"
-import type { UseEditorOptions } from "@tiptap/react"
+import type { UseEditorOptions } from "@/infrastructure/editors/tiptap/react"
 import { genTemplateInstructionNode } from "@/pages/chatNew/components/quick-instruction/extension/utils"
 import { QuickInstructionNodeTemplateExtension } from "@/pages/chatNew/components/quick-instruction/extension"
 import { pickContent, combindContent } from "../../utils"
@@ -372,14 +372,14 @@ const InstructionForm = memo(
 				{/* 指令说明 */}
 				{((selectedValue === InstructionType.SWITCH && isChatMode) ||
 					selectedValue === InstructionType.TEXT) && (
-						<Form.Item name="instruction_explanation" noStyle>
-							<ToolTipButton
-								type="button"
-								initialValues={currentInstructionExp}
-								onFinish={innerSaveInstructionExp}
-							/>
-						</Form.Item>
-					)}
+					<Form.Item name="instruction_explanation" noStyle>
+						<ToolTipButton
+							type="button"
+							initialValues={currentInstructionExp}
+							onFinish={innerSaveInstructionExp}
+						/>
+					</Form.Item>
+				)}
 
 				{/* 直接发送指令 */}
 				{shouldShowSendCommand && (

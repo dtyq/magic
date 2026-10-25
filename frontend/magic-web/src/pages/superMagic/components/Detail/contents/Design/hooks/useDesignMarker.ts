@@ -17,6 +17,7 @@ import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Worksp
 import type { TFunction } from "i18next"
 import { CanvasDesignRef } from "@/components/CanvasDesign/public/props"
 import { isLikelyAbortError, type SuperMagicMarkerManager } from "../marker-manager"
+import { getActiveImageContent } from "@/components/CanvasDesign/runtime/document/elementContent"
 
 interface UseDesignMarkerOptions {
 	/** 画布数据（包含 elements 和 markers） */
@@ -119,19 +120,27 @@ export function useDesignMarker(options: UseDesignMarkerOptions): UseDesignMarke
 	const handleMarkerCreated = useCallback(
 		async (marker: Marker) => {
 			if (designProjectId && markerManager) {
-				const el = findImageElement(
+				const rawElement = findImageElement(
 					marker.elementId,
 					canvas?.elements,
 				) as ImageElement | null
-				const element = el?.src ? { src: el.src } : undefined
-				markerManager.addMarker(designProjectId, marker, element)
+				const contentViewElement = rawElement
+					? (canvasDesignRef.current
+							?.getCanvasInstance()
+							?.getElementForContentView(rawElement) ?? rawElement)
+					: null
+				const active = contentViewElement
+					? getActiveImageContent(contentViewElement)
+					: undefined
+				const elementInfo = active?.src ? { src: active.src } : undefined
+				markerManager.addMarker(designProjectId, marker, elementInfo)
 				markerManager.fetchMarkerData(designProjectId, marker.id)
 				await markerManager.syncToMessageEditor(designProjectId, "insert", {
 					markerId: marker.id,
 				})
 			}
 		},
-		[designProjectId, markerManager, canvas?.elements, findImageElement],
+		[canvasDesignRef, designProjectId, markerManager, canvas?.elements, findImageElement],
 	)
 
 	// 处理 marker 更新事件（识别结果获取成功/失败）

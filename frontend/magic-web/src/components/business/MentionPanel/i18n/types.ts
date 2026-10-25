@@ -66,6 +66,13 @@ export interface I18nTexts {
 	mobileSelectedItemsLabel: string
 	/** 已选列表全屏标题 */
 	mobileSelectedItemsTitle: string
+	/** 桌面端多选时位于文件列表下方的数量摘要 */
+	selectionSummary: {
+		selected: string
+		image: string
+		video: string
+		audio: string
+	}
 
 	// Default items
 	defaultItems: {
@@ -75,7 +82,10 @@ export interface I18nTexts {
 		projectFiles: string
 		otherProjectFiles?: string
 		mcpExtensions: string
+		digitalEmployees: string
+		flows: string
 		agents: string
+		microApps: string
 		skills: string
 		tools: string
 		canvasElements: string

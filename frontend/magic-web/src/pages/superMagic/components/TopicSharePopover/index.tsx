@@ -14,10 +14,16 @@ import MagicIcon from "@/components/base/MagicIcon"
 import CommonPopup from "@/pages/superMagicMobile/components/CommonPopup"
 import { VipSwitch, VipBadge } from "@/pages/superMagic/components/VipSwitch"
 import { ResourceType, ShareType } from "../Share/types"
+import {
+	isTopicShareTypePermitted,
+	resolveTopicPasswordEnabled,
+	useTopicShareTypePermissions,
+} from "../Share/hooks/useTopicShareTypePermissions"
 import { generateSharePassword, generateTopicShareMessageText } from "../Share/utils"
+import { analyticsService } from "@/services/analytics"
 import { SharePasswordField } from "../Share/ShareFields"
 import { useStyles } from "./styles"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { ShareListRefreshType } from "@/pages/superMagic/components/ShareManagement/types"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -30,6 +36,13 @@ interface TopicSharePopoverProps {
 	topicTitle?: string
 	children?: React.ReactNode
 	onSaveSuccess?: () => void // 保存成功回调
+	/** Warning under "show file list" while it is off, for topics whose value lives in files. */
+	fileListOffHint?: string
+	/**
+	 * Dialog mode only (no children): where focus goes when the dialog closes, for openers that
+	 * are not the focused element when it opens (e.g. a menu item whose menu has just closed).
+	 */
+	onCloseAutoFocus?: (event: Event) => void
 }
 
 interface TopicShareSettings {
@@ -42,21 +55,50 @@ interface TopicShareSettings {
 	shareType?: ShareType // 保存当前的分享类型
 }
 
+/**
+ * Automatic clipboard writes run outside a user gesture when the popover loads.
+ * Safari blocks that flow even on HTTPS, so keep auto-copy limited to browsers
+ * where it is safe and leave the explicit copy buttons available everywhere.
+ */
+function canAutoCopy(): boolean {
+	if (typeof window === "undefined" || typeof navigator === "undefined") return false
+
+	const userAgent = navigator.userAgent
+	const isSafari =
+		/Safari/i.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|Edg|OPR/i.test(userAgent)
+
+	return (
+		window.location.protocol === "https:" &&
+		!isSafari &&
+		document.visibilityState === "visible" &&
+		document.hasFocus() &&
+		Boolean(navigator.clipboard?.writeText)
+	)
+}
+
 function TopicSharePopoverContent({
 	topicId,
 	topicTitle,
 	onSaveSuccess,
 	className,
 	onDataChanged,
+	fileListOffHint,
 }: {
 	topicId: string
 	topicTitle?: string
 	onSaveSuccess?: () => void
 	className?: string
 	onDataChanged?: () => void
+	fileListOffHint?: string
 }) {
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
+
+	// Topic shares inherit the share permission group (project or micro app) of the owning page.
+	const topicSharePermissions = useTopicShareTypePermissions()
+	const permittedTopicShareTypes = topicSharePermissions.permittedTypes
+	// Granted methods are unknown until the request settles, so no share may be written meanwhile.
+	const isPermissionPending = topicSharePermissions.isLoading
 
 	// State
 	const [settings, setSettings] = useState<TopicShareSettings>({
@@ -68,45 +110,108 @@ function TopicSharePopoverContent({
 		showFileList: true,
 		shareType: ShareType.PasswordProtected,
 	})
+	// A draft share follows the granted methods once they arrive, so a group that only opened public
+	// access never keeps the password default from the initial state.
+	useEffect(() => {
+		const grantedType = topicSharePermissions.defaultShareType
+		if (
+			settings.shareEnabled ||
+			grantedType === undefined ||
+			settings.shareType === grantedType
+		) {
+			return
+		}
+
+		setSettings((prev) =>
+			prev.shareEnabled
+				? prev
+				: {
+						...prev,
+						shareType: grantedType,
+						passwordEnabled: grantedType === ShareType.PasswordProtected,
+						password:
+							grantedType === ShareType.PasswordProtected
+								? prev.password || generateSharePassword()
+								: "",
+					},
+		)
+	}, [settings.shareEnabled, settings.shareType, topicSharePermissions.defaultShareType])
+	// An already saved share keeps its own method, so a closed method is reported instead of rewritten.
+	const isCurrentShareTypePermitted = isTopicShareTypePermitted(
+		settings.shareEnabled ? settings.shareType : undefined,
+		permittedTopicShareTypes,
+	)
+	const passwordEnabled = isCurrentShareTypePermitted
+		? resolveTopicPasswordEnabled(settings.passwordEnabled, topicSharePermissions)
+		: settings.passwordEnabled
+	const isPasswordSwitchLockedByPermission = topicSharePermissions.isPasswordSwitchLocked
+	const isShareMethodUnavailable = topicSharePermissions.hasNoPermittedShareType
+	const isPasswordSwitchDisabled =
+		isPermissionPending ||
+		isShareMethodUnavailable ||
+		isPasswordSwitchLockedByPermission ||
+		!isCurrentShareTypePermitted
+	// Turning sharing on needs the granted methods, while turning an existing share off never does.
+	const isShareEnableSwitchDisabled =
+		isShareMethodUnavailable || (isPermissionPending && !settings.shareEnabled)
+	// The administrator closed public access and password protection, so no share can be created or
+	// managed here: the link, the password switch and the advanced options would all be dead ends.
+	const isShareDetailHidden = isShareMethodUnavailable
+	// Saves reuse the switch state, but never rewrite a legacy team share into another method.
+	const effectiveSaveShareType =
+		settings.shareType === ShareType.Organization
+			? ShareType.Organization
+			: passwordEnabled
+				? ShareType.PasswordProtected
+				: ShareType.Public
 	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
 	const [isCopied, setIsCopied] = useState(false)
 	const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-	// Auto copy share message and show visual feedback
-	// Only enable auto-copy in HTTPS environments to avoid clipboard permission issues
+	/** Resolves the share method a password switch position maps to. */
+	const resolveShareType = useCallback(
+		(usesPassword: boolean) => (usesPassword ? ShareType.PasswordProtected : ShareType.Public),
+		[],
+	)
+
+	/** Guards every save path so a restricted method can never be written back. */
+	const ensureShareTypeAllowed = useCallback(
+		(shareType: ShareType) => {
+			if (isShareMethodUnavailable) {
+				magicToast.error(t("share.noAvailableShareMethods"))
+				return false
+			}
+			if (!isTopicShareTypePermitted(shareType, permittedTopicShareTypes)) {
+				magicToast.error(t("share.currentShareMethodUnavailable"))
+				return false
+			}
+			return true
+		},
+		[isShareMethodUnavailable, permittedTopicShareTypes, t],
+	)
+
+	// Auto copy share message and show visual feedback when the environment allows it.
 	const autoCopyShareMessage = useCallback(
 		(shareUrl: string) => {
-			// Skip auto-copy in HTTP environments to prevent popover from closing unexpectedly
-			// Note: window.isSecureContext returns true for localhost/127.0.0.1, so we check protocol directly
-			if (window.location.protocol !== "https:") {
-				console.log("Auto-copy disabled in HTTP environment")
+			if (!canAutoCopy()) {
+				console.log("Auto-copy skipped: unsupported environment")
 				return
 			}
 
-			try {
-				const shareMessage = generateTopicShareMessageText({
-					topicTitle,
-					shareUrl,
-					t,
+			const shareMessage = generateTopicShareMessageText({ topicTitle, shareUrl, t })
+			void clipboard
+				.writeText(shareMessage)
+				.then(() => {
+					if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+					setIsCopied(true)
+					copyTimeoutRef.current = setTimeout(() => {
+						setIsCopied(false)
+						copyTimeoutRef.current = null
+					}, 2000)
 				})
-				clipboard.writeText(shareMessage)
-
-				// Clear existing timeout
-				if (copyTimeoutRef.current) {
-					clearTimeout(copyTimeoutRef.current)
-				}
-
-				// Show check icon
-				setIsCopied(true)
-
-				// Reset to copy icon after 2 seconds
-				copyTimeoutRef.current = setTimeout(() => {
-					setIsCopied(false)
-					copyTimeoutRef.current = null
-				}, 2000)
-			} catch (error) {
-				console.error("Failed to auto copy share message:", error)
-			}
+				.catch((error) => {
+					console.warn("Auto-copy unavailable:", error)
+				})
 		},
 		[topicTitle, t],
 	)
@@ -117,11 +222,11 @@ function TopicSharePopoverContent({
 			try {
 				const data = await SuperMagicApi.getShareInfoByCode({ code: topicId })
 				if (data?.resource_id) {
+					const isShareEnabled = data.share_type !== ShareType.None
 					const shareUrl = `${window.location.origin}/share/topic/${topicId}`
 					const finalShareUrl = data.password
 						? `${shareUrl}?password=${data.password}`
 						: shareUrl
-					const isShareEnabled = data.share_type !== ShareType.None
 
 					setSettings({
 						shareEnabled: isShareEnabled,
@@ -152,30 +257,33 @@ function TopicSharePopoverContent({
 	// Handle share enable toggle
 	const handleShareEnabledChange = useCallback(
 		async (checked: boolean) => {
+			// Turning sharing on needs the granted methods, which are unknown while the request runs.
+			if (checked && isPermissionPending) return
+
 			try {
 				if (checked) {
-					// Enable share - create share with Public type
-					const password = settings.passwordEnabled
+					// Enable share - create share with the method allowed by the permission group
+					const newShareType = resolveShareType(passwordEnabled)
+					if (!ensureShareTypeAllowed(newShareType)) return
+
+					const password = passwordEnabled
 						? settings.password || generateSharePassword()
 						: ""
+					analyticsService.report("content_share_attempted", {
+						resourceType: ResourceType.Topic,
+					})
 					await SuperMagicApi.createShareTopic({
 						resource_id: topicId,
 						resource_type: ResourceType.Topic,
-						share_type: settings.passwordEnabled
-							? ShareType.PasswordProtected
-							: ShareType.Public,
-						password: password,
+						share_type: newShareType,
+						password,
 						extra: {
 							show_original_info: settings.showOriginalInfo,
 							view_file_list: settings.showFileList,
 						},
 					})
-
 					const shareUrl = `${window.location.origin}/share/topic/${topicId}`
 					const finalShareUrl = password ? `${shareUrl}?password=${password}` : shareUrl
-					const newShareType = settings.passwordEnabled
-						? ShareType.PasswordProtected
-						: ShareType.Public
 					setSettings((prev) => ({
 						...prev,
 						shareEnabled: true,
@@ -205,7 +313,10 @@ function TopicSharePopoverContent({
 			}
 		},
 		[
-			settings.passwordEnabled,
+			isPermissionPending,
+			passwordEnabled,
+			resolveShareType,
+			ensureShareTypeAllowed,
 			settings.password,
 			settings.showOriginalInfo,
 			settings.showFileList,
@@ -220,6 +331,11 @@ function TopicSharePopoverContent({
 	// Handle password toggle
 	const handlePasswordEnabledChange = useCallback(
 		async (checked: boolean) => {
+			// The administrator restricted the available methods, so the switch stays where it is.
+			if (isPasswordSwitchDisabled) return
+
+			const newShareType = resolveShareType(checked)
+
 			if (!settings.shareEnabled) {
 				setSettings((prev) => ({
 					...prev,
@@ -229,12 +345,14 @@ function TopicSharePopoverContent({
 				return
 			}
 
+			if (!ensureShareTypeAllowed(newShareType)) return
+
 			try {
 				const password = checked ? generateSharePassword() : ""
 				await SuperMagicApi.createShareTopic({
 					resource_id: topicId,
 					resource_type: ResourceType.Topic,
-					share_type: checked ? ShareType.PasswordProtected : ShareType.Public,
+					share_type: newShareType,
 					password: password,
 					extra: {
 						show_original_info: settings.showOriginalInfo,
@@ -243,7 +361,6 @@ function TopicSharePopoverContent({
 				})
 
 				const shareUrl = `${window.location.origin}/share/topic/${topicId}`
-				const newShareType = checked ? ShareType.PasswordProtected : ShareType.Public
 				setSettings((prev) => ({
 					...prev,
 					passwordEnabled: checked,
@@ -259,6 +376,9 @@ function TopicSharePopoverContent({
 			}
 		},
 		[
+			isPasswordSwitchDisabled,
+			resolveShareType,
+			ensureShareTypeAllowed,
 			settings.shareEnabled,
 			settings.showOriginalInfo,
 			settings.showFileList,
@@ -362,7 +482,8 @@ function TopicSharePopoverContent({
 
 	// Handle reset password
 	const handleResetPassword = useCallback(async () => {
-		if (!settings.shareEnabled || !settings.passwordEnabled) return
+		if (!settings.shareEnabled || !passwordEnabled) return
+		if (!ensureShareTypeAllowed(ShareType.PasswordProtected)) return
 
 		try {
 			const newPassword = generateSharePassword()
@@ -390,8 +511,9 @@ function TopicSharePopoverContent({
 			magicToast.error(t("share.resetPasswordFailed"))
 		}
 	}, [
+		passwordEnabled,
+		ensureShareTypeAllowed,
 		settings.shareEnabled,
-		settings.passwordEnabled,
 		settings.showOriginalInfo,
 		settings.showFileList,
 		topicId,
@@ -412,12 +534,24 @@ function TopicSharePopoverContent({
 				return
 			}
 
+			// Keep the saved method intact while the administrator has closed it.
+			if (!isCurrentShareTypePermitted) {
+				magicToast.error(t("share.currentShareMethodUnavailable"))
+				return
+			}
+
 			try {
 				await SuperMagicApi.createOrUpdateShareResource({
 					resource_id: topicId,
 					resource_type: ResourceType.Topic,
-					share_type: settings.shareType,
-					password: settings.password || undefined,
+					share_type: effectiveSaveShareType,
+					...(effectiveSaveShareType === ShareType.Organization
+						? {}
+						: {
+								password: passwordEnabled
+									? settings.password || undefined
+									: undefined,
+							}),
 					extra: {
 						show_original_info:
 							option === "showOriginalInfo" ? checked : settings.showOriginalInfo,
@@ -443,6 +577,9 @@ function TopicSharePopoverContent({
 			settings.password,
 			settings.showOriginalInfo,
 			settings.showFileList,
+			isCurrentShareTypePermitted,
+			effectiveSaveShareType,
+			passwordEnabled,
 			t,
 			onSaveSuccess,
 			onDataChanged,
@@ -455,7 +592,9 @@ function TopicSharePopoverContent({
 			<div className={styles.switchRow}>
 				<Switch
 					checked={settings.shareEnabled}
+					disabled={isShareEnableSwitchDisabled}
 					onCheckedChange={handleShareEnabledChange}
+					data-testid="topic-share-enable-switch"
 				/>
 				<div className={styles.switchLabel}>
 					<div className={styles.switchTitle}>{t("share.enableShare")}</div>
@@ -465,7 +604,17 @@ function TopicSharePopoverContent({
 				</div>
 			</div>
 
-			{settings.shareEnabled && (
+			{isShareMethodUnavailable && (
+				<p
+					className="text-sm text-destructive"
+					role="alert"
+					data-testid="topic-share-no-method-hint"
+				>
+					{t("share.noAvailableShareMethods")}
+				</p>
+			)}
+
+			{settings.shareEnabled && !isShareDetailHidden && (
 				<>
 					<Separator />
 
@@ -494,16 +643,35 @@ function TopicSharePopoverContent({
 					{/* Password Switch */}
 					<div className={styles.switchRow}>
 						<Switch
-							checked={settings.passwordEnabled}
+							checked={passwordEnabled}
+							disabled={isPasswordSwitchDisabled}
 							onCheckedChange={handlePasswordEnabledChange}
+							data-testid="topic-share-password-switch"
 						/>
 						<div className={styles.switchLabel}>
 							<div className={styles.switchTitle}>{t("share.accessPassword")}</div>
 						</div>
 					</div>
 
+					{!isCurrentShareTypePermitted ? (
+						<p
+							className="text-sm text-destructive"
+							role="alert"
+							data-testid="topic-share-permission-hint"
+						>
+							{t("share.currentShareMethodUnavailable")}
+						</p>
+					) : isPasswordSwitchLockedByPermission ? (
+						<p
+							className="text-sm text-muted-foreground"
+							data-testid="topic-share-permission-locked-hint"
+						>
+							{t("share.shareMethodRestrictedByAdmin")}
+						</p>
+					) : null}
+
 					{/* Password Input (shown when enabled) */}
-					{settings.passwordEnabled && (
+					{passwordEnabled && (
 						<div className={styles.fieldGroup}>
 							<SharePasswordField
 								password={settings.password}
@@ -573,6 +741,11 @@ function TopicSharePopoverContent({
 										<div className={styles.switchDescription}>
 											{t("share.showFileListDescription")}
 										</div>
+										{fileListOffHint && !settings.showFileList ? (
+											<div className="text-xs text-amber-600 dark:text-amber-400">
+												{fileListOffHint}
+											</div>
+										) : null}
 									</div>
 								</div>
 							</div>
@@ -591,6 +764,8 @@ function TopicSharePopover({
 	topicTitle,
 	children,
 	onSaveSuccess,
+	fileListOffHint,
+	onCloseAutoFocus,
 }: TopicSharePopoverProps) {
 	const isMobile = useIsMobile()
 	const hasDataChangedRef = useRef(false)
@@ -628,6 +803,7 @@ function TopicSharePopover({
 					}}
 				>
 					<TopicSharePopoverContent
+						fileListOffHint={fileListOffHint}
 						className="p-3.5"
 						topicId={topicId}
 						topicTitle={topicTitle}
@@ -640,13 +816,18 @@ function TopicSharePopover({
 
 		return (
 			<Dialog open={open} onOpenChange={handleClose}>
-				<DialogContent className="w-[420px] p-3.5" style={{ zIndex: 1500 }}>
+				<DialogContent
+					className="w-[420px] p-3.5"
+					style={{ zIndex: 1500 }}
+					onCloseAutoFocus={onCloseAutoFocus}
+				>
 					{topicTitle && (
 						<DialogHeader>
 							<DialogTitle>{topicTitle}</DialogTitle>
 						</DialogHeader>
 					)}
 					<TopicSharePopoverContent
+						fileListOffHint={fileListOffHint}
 						topicId={topicId}
 						topicTitle={topicTitle}
 						onSaveSuccess={onSaveSuccess}
@@ -673,6 +854,10 @@ function TopicSharePopover({
 					}}
 				>
 					<TopicSharePopoverContent
+						fileListOffHint={fileListOffHint}
+						// Same inner padding as the desktop popover and the trigger-less sheet; without it
+						// the switches, link box and buttons ran into the sheet's edges.
+						className="p-3.5"
 						topicId={topicId}
 						topicTitle={topicTitle}
 						onSaveSuccess={onSaveSuccess}
@@ -700,14 +885,15 @@ function TopicSharePopover({
 					}
 				}}
 				onFocusOutside={(e) => {
-					// Touch-first desktop layouts can move focus outside during a tap without
-					// expressing a user dismissal intent, so keep the PC popover open.
-					if (isMagicApp || isNoHoverCoarsePointer()) {
+					// Embedded SDK iframes can move focus to the host document during a tap,
+					// which is not an intentional dismissal of the desktop popover.
+					if (isMagicApp || isNoHoverCoarsePointer() || window.parent !== window) {
 						e.preventDefault()
 					}
 				}}
 			>
 				<TopicSharePopoverContent
+					fileListOffHint={fileListOffHint}
 					topicId={topicId}
 					topicTitle={topicTitle}
 					onSaveSuccess={onSaveSuccess}

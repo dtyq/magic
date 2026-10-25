@@ -15,14 +15,15 @@ use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Repository\Facade\MagicChatConversationRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\Model\MagicChatConversationModel;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\ConversationAssembler;
-use Hyperf\Cache\Annotation\Cacheable;
-use Hyperf\Cache\Annotation\CacheEvict;
+use Hyperf\Codec\Exception\InvalidArgumentException;
 use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 use Hyperf\Redis\Redis;
+use stdClass;
 
 class MagicChatConversationRepository implements MagicChatConversationRepositoryInterface
 {
@@ -229,7 +230,6 @@ class MagicChatConversationRepository implements MagicChatConversationRepository
         return $this->magicChatConversationModel::query()->get()->toArray();
     }
 
-    #[CacheEvict(prefix: 'conversation', value: '_#{conversationId}')]
     public function saveInstructs(string $conversationId, array $instructs): void
     {
         $this->magicChatConversationModel->newQuery()->where('id', $conversationId)->update(['instructs' => Json::encode($instructs)]);
@@ -286,7 +286,6 @@ class MagicChatConversationRepository implements MagicChatConversationRepository
             ->update($sql, $bindings);
     }
 
-    #[CacheEvict(prefix: 'conversation', value: '_#{id}')]
     public function updateConversationById(string $id, array $data): int
     {
         $time = date('Y-m-d H:i:s');
@@ -308,45 +307,131 @@ class MagicChatConversationRepository implements MagicChatConversationRepository
             ]);
     }
 
-    private function getConversationArrayByUserIdAndReceiveId(MagicConversationEntity $conversation): ?array
+    public function getConversationByIdentity(MagicConversationEntity $identity, bool $includeDeleted = false): ?MagicConversationEntity
     {
-        $cacheKey = sprintf(
-            'conversation_%s_%s_%s_%s',
-            $conversation->getUserId(),
-            $conversation->getReceiveId(),
-            $conversation->getUserOrganizationCode(),
-            $conversation->getReceiveOrganizationCode()
-        );
-        $conversationData = $this->redis->get($cacheKey);
-        if ($conversationData) {
-            return Json::decode($conversationData);
+        if (! $identity->hasReceiveType() || $identity->getUserOrganizationCode() === '' || $identity->getReceiveOrganizationCode() === '') {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话身份不完整');
         }
-        $query = $this->magicChatConversationModel::query()
-            ->where('user_id', $conversation->getUserId())
-            ->where('receive_id', $conversation->getReceiveId())
-            ->when($conversation->hasReceiveType(), function ($query) use ($conversation) {
-                $query->where('receive_type', $conversation->getReceiveType()->value);
-            });
-        // receive_type +  receive_id 其实是全局唯一的,可以确定组织编码. 但是如果需要查询时指定组织,还是加上
-        if ($conversation->getUserOrganizationCode()) {
-            $query->where('user_organization_code', $conversation->getUserOrganizationCode());
+        $query = $this->magicChatConversationModel::query()->withTrashed()->where([
+            'user_id' => $identity->getUserId(),
+            'receive_id' => $identity->getReceiveId(),
+            'receive_type' => $identity->getReceiveType()->value,
+            'user_organization_code' => $identity->getUserOrganizationCode(),
+            'receive_organization_code' => $identity->getReceiveOrganizationCode(),
+        ]);
+        if (! $includeDeleted) {
+            $query->whereNull('deleted_at');
         }
-        if ($conversation->getReceiveOrganizationCode()) {
-            $query->where('receive_organization_code', $conversation->getReceiveOrganizationCode());
-        }
-        $result = Db::select($query->toSql(), $query->getBindings())[0] ?? [];
-        if ($result) {
-            $this->redis->setex($cacheKey, 60, Json::encode($result));
-        }
-        return $result;
+        $row = Db::select($query->toSql(), $query->getBindings())[0] ?? null;
+        return $row === null ? null : ConversationAssembler::getConversationEntity($row);
     }
 
-    // 避免 redis 缓存序列化的对象,占用太多内存
-    #[Cacheable(prefix: 'conversation', value: '_#{conversationId}', ttl: 10)]
+    /** @return array<string, MagicConversationEntity> */
+    public function getConversationsByIdsForUpdate(array $ids): array
+    {
+        $this->requireTransaction();
+        foreach ($ids as $id) {
+            if (! is_string($id) || ! preg_match('/^[1-9][0-9]*$/D', $id)) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话 ID 无效');
+            }
+        }
+        $ids = array_values(array_unique($ids));
+        usort($ids, static fn (string $left, string $right): int => strlen($left) <=> strlen($right) ?: strcmp($left, $right));
+        $conversations = [];
+        foreach ($ids as $id) {
+            $query = $this->magicChatConversationModel::query()->where('id', $id)->whereNull('deleted_at')->lockForUpdate();
+            $row = Db::select($query->toSql(), $query->getBindings())[0] ?? null;
+            if ($row !== null) {
+                // Validate the raw object before entity conversion can discard unknown fields.
+                $this->decodeExtra($row['extra'] ?? null);
+                $conversations[$id] = ConversationAssembler::getConversationEntity($row);
+            }
+        }
+        return $conversations;
+    }
+
+    public function updateDefaultTopicId(string $id, string $topicId): void
+    {
+        $this->requireTransaction();
+        $query = $this->magicChatConversationModel::query()->where('id', $id)->whereNull('deleted_at')->lockForUpdate();
+        $row = Db::select($query->toSql(), $query->getBindings())[0] ?? null;
+        if ($row === null) {
+            ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
+        }
+        $extra = $this->decodeExtra($row['extra'] ?? null);
+        $extra->default_topic_id = $topicId;
+        $this->updateConversationById($id, ['extra' => Json::encode($extra)]);
+    }
+
+    private function decodeExtra(?string $extra): stdClass
+    {
+        if ($extra === null || $extra === '') {
+            return new stdClass();
+        }
+        try {
+            $decoded = Json::decode($extra, false);
+        } catch (InvalidArgumentException) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话 extra 不是有效的 JSON 对象');
+        }
+        if (! $decoded instanceof stdClass) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话 extra 必须是 JSON 对象');
+        }
+        return $decoded;
+    }
+
+    private function requireTransaction(): void
+    {
+        if (Db::connection()->transactionLevel() < 1) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话默认话题更新必须在事务内执行');
+        }
+    }
+
+    private function getIdentityConditions(MagicConversationEntity $conversation): array
+    {
+        $conditions = [
+            'user_id' => $conversation->getUserId(),
+            'receive_id' => $conversation->getReceiveId(),
+        ];
+        if ($conversation->hasReceiveType()) {
+            $conditions['receive_type'] = $conversation->getReceiveType()->value;
+        }
+        if ($conversation->getUserOrganizationCode()) {
+            $conditions['user_organization_code'] = $conversation->getUserOrganizationCode();
+        }
+        if ($conversation->getReceiveOrganizationCode()) {
+            $conditions['receive_organization_code'] = $conversation->getReceiveOrganizationCode();
+        }
+        return $conditions;
+    }
+
+    private function getConversationArrayByUserIdAndReceiveId(MagicConversationEntity $conversation): array
+    {
+        $conditions = $this->getIdentityConditions($conversation);
+        // Missing selectors remain absent in both SQL and the versioned cache key.
+        $cacheKey = 'conversation_identity_v2:' . hash('sha256', Json::encode($conditions));
+        $useCache = Db::connection()->transactionLevel() === 0;
+        if ($useCache) {
+            $id = $this->redis->get($cacheKey);
+            if (is_string($id) && $id !== '') {
+                $query = $this->magicChatConversationModel::query()->where('id', $id)->where($conditions)->whereNull('deleted_at');
+                $row = Db::select($query->toSql(), $query->getBindings())[0] ?? [];
+                if ($row) {
+                    return $row;
+                }
+                $this->redis->del($cacheKey);
+            }
+        }
+        $query = $this->magicChatConversationModel::query()->where($conditions)->whereNull('deleted_at');
+        $row = Db::select($query->toSql(), $query->getBindings())[0] ?? [];
+        if ($row && $useCache) {
+            $this->redis->setex($cacheKey, 60, (string) $row['id']);
+        }
+        return $row;
+    }
+
     private function getConversationArrayById(string $conversationId): array
     {
-        $query = $this->magicChatConversationModel::query()->where('id', $conversationId);
-        $conversation = Db::select($query->toSql(), $query->getBindings())[0] ?? [];
-        return empty($conversation) ? [] : $conversation;
+        $query = $this->magicChatConversationModel::query()->where('id', $conversationId)->whereNull('deleted_at');
+        return Db::select($query->toSql(), $query->getBindings())[0] ?? [];
     }
 }

@@ -8,12 +8,14 @@ declare(strict_types=1);
 namespace App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\SuperMagic\Task\Entity\ValueObject\SandboxImageTarget;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\AbstractSandboxOS;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Constants\SandboxEndpoints;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
+use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\SandboxListResult;
 use App\Infrastructure\SuperMagic\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
@@ -55,7 +57,9 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         string $workDir,
         string $projectSpaceRootFileId = '',
         string $userSpaceRootFileId = '',
-        array $labels = []
+        string $topicSpaceRootFileId = '',
+        array $labels = [],
+        ?SandboxImageTarget $images = null
     ): GatewayResult {
         // In local debugging mode, return mock success result
         if (! $this->isEnabledSandbox()) {
@@ -65,6 +69,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'work_dir' => $workDir,
                 'project_space_root_file_id' => $projectSpaceRootFileId,
                 'user_space_root_file_id' => $userSpaceRootFileId,
+                'topic_space_root_file_id' => $topicSpaceRootFileId,
                 'authorization_provided' => $dataIsolation->getUserAuthorizationToken() !== null && $dataIsolation->getUserAuthorizationToken() !== '',
             ]);
             return GatewayResult::success([
@@ -78,10 +83,17 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'project_oss_path' => $workDir,
             'project_space_root_file_id' => $projectSpaceRootFileId,
             'user_space_root_file_id' => $userSpaceRootFileId,
+            'topic_space_root_file_id' => $topicSpaceRootFileId,
             'authorization' => $dataIsolation->getUserAuthorizationToken() ?? '',
         ];
         if (! empty($labels)) {
             $config['labels'] = $labels;
+        }
+        // 只有指定了镜像的运行才把镜像写进创建请求；未指定时留空，让网关继续读它的
+        // ConfigMap，避免把"计划时看到的发布版本"固化成一次快照。
+        $launchImages = $images?->launchImages() ?? [];
+        if ($launchImages !== []) {
+            $config += $launchImages;
         }
 
         $this->logger->debug('[Sandbox][Gateway] Creating sandbox', [
@@ -93,6 +105,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'user_space_root_file_id' => $userSpaceRootFileId,
                 'authorization_provided' => $dataIsolation->getUserAuthorizationToken() !== null && $dataIsolation->getUserAuthorizationToken() !== '',
                 'labels' => $labels,
+                'images' => $launchImages,
             ],
             'max_retries' => 5,
             'retry_delay' => 30000,
@@ -465,6 +478,109 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
+     * 列出网关命名空间下的沙箱，可按状态过滤.
+     */
+    public function listSandboxes(array $statuses = []): SandboxListResult
+    {
+        $statuses = array_values(array_unique(array_filter(
+            array_map(static fn (string $status): string => trim($status), $statuses),
+            static fn (string $status): bool => $status !== ''
+        )));
+
+        // 本地调试模式没有真实网关，返回空清单，避免脚本在本地误判“有沙箱在跑”。
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->info('[Sandbox][Gateway] Local debugging mode: returning empty sandbox list', [
+                'statuses' => $statuses,
+            ]);
+
+            return SandboxListResult::fromApiResponse([
+                'code' => ResponseCode::SUCCESS,
+                'message' => 'Success (local debugging mode)',
+                'data' => ['total' => 0, 'sandboxes' => []],
+            ]);
+        }
+
+        $this->logger->debug('[Sandbox][Gateway] Listing sandboxes', [
+            'statuses' => $statuses,
+            'max_retries' => 3,
+        ]);
+
+        try {
+            return retry(3, function () use ($statuses) {
+                try {
+                    $requestOptions = [
+                        'headers' => $this->getBaseHeaders(),
+                        'timeout' => 300,
+                    ];
+                    if ($statuses !== []) {
+                        $requestOptions['query'] = ['status' => implode(',', $statuses)];
+                    }
+
+                    $response = $this->getClient()->get($this->buildApiPath('api/v1/sandboxes'), $requestOptions);
+
+                    $body = $response->getBody()->getContents();
+                    $responseData = Json::decode($body);
+
+                    if (empty($responseData)) {
+                        throw new RuntimeException('Sandbox list response is empty');
+                    }
+
+                    $result = SandboxListResult::fromApiResponse($responseData);
+
+                    $this->logger->debug('[Sandbox][Gateway] Sandbox list retrieved', [
+                        'requested_statuses' => $statuses,
+                        'returned_count' => $result->getTotal(),
+                        'success' => $result->isSuccess(),
+                    ]);
+
+                    return $result;
+                } catch (GuzzleException $e) {
+                    $isRetryableError = $this->isRetryableError($e);
+
+                    $this->logger->error('[Sandbox][Gateway] HTTP error when listing sandboxes', [
+                        'statuses' => $statuses,
+                        'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'is_retryable' => $isRetryableError,
+                    ]);
+
+                    // Only retry for retryable errors
+                    if (! $isRetryableError) {
+                        return SandboxListResult::fromApiResponse([
+                            'code' => 2000,
+                            'message' => 'HTTP request failed: ' . $e->getMessage(),
+                            'data' => [],
+                        ]);
+                    }
+
+                    // Re-throw for retry mechanism to handle
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when listing sandboxes', [
+                        'statuses' => $statuses,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return SandboxListResult::fromApiResponse([
+                        'code' => 2000,
+                        'message' => 'Unexpected error: ' . $e->getMessage(),
+                        'data' => [],
+                    ]);
+                }
+            }, 1000); // Start with 1-second delay
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for listing sandboxes', [
+                'statuses' => $statuses,
+                'error' => $e->getMessage(),
+            ]);
+            return SandboxListResult::fromApiResponse([
+                'code' => 2000,
+                'message' => 'HTTP request failed after retries: ' . $e->getMessage(),
+                'data' => [],
+            ]);
+        }
+    }
+
+    /**
      * 代理转发请求到沙箱.
      */
     public function proxySandboxRequest(
@@ -499,6 +615,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     // Add request body based on method
                     if (! empty($data) && in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'])) {
                         $requestOptions['json'] = $data;
+                    } elseif (! empty($data) && strtoupper($method) === 'GET') {
+                        $requestOptions['query'] = $data;
                     }
 
                     $proxyPath = $this->buildProxyPath($sandboxId, $path);
@@ -869,10 +987,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 return $empty;
             }
 
-            $images = [
-                'agent_image' => (string) ($result->getDataValue('agent_image') ?? ''),
-                'agfs_image' => (string) ($result->getDataValue('agfs_image') ?? ''),
-            ];
+            $images = $result->getSandboxImages() ?? $empty;
             $this->logger->info('[Sandbox][Gateway] Latest sandbox images retrieved', $images);
             return $images;
         } catch (Throwable $e) {
@@ -965,6 +1080,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         string $projectId,
         string $projectSpaceRootFileID,
         string $userSpaceRootFileID,
+        string $topicSpaceRootFileID = '',
         array $labels = []
     ): GatewayResult {
         if (! $this->isEnabledSandbox()) {
@@ -987,6 +1103,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'project_id' => $projectId,
             'project_space_root_file_id' => $projectSpaceRootFileID,
             'user_space_root_file_id' => $userSpaceRootFileID,
+            'topic_space_root_file_id' => $topicSpaceRootFileID,
             'authorization' => $authorization,
         ];
         if (! empty($labels)) {
@@ -1137,6 +1254,24 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
     }
 
+    public function listReferencedProjects(DataIsolation $dataIsolation, string $sandboxId): GatewayResult
+    {
+        if (! $this->isEnabledSandbox()) {
+            return GatewayResult::success(['sandbox_id' => $sandboxId, 'referenced_projects' => []]);
+        }
+
+        return $this->requestReferencedProjects($dataIsolation, 'GET', $sandboxId);
+    }
+
+    public function unmountReferencedProject(DataIsolation $dataIsolation, string $sandboxId, string $projectId): GatewayResult
+    {
+        if (! $this->isEnabledSandbox()) {
+            return GatewayResult::success(['sandbox_id' => $sandboxId, 'project_id' => $projectId]);
+        }
+
+        return $this->requestReferencedProjects($dataIsolation, 'DELETE', $sandboxId, $projectId);
+    }
+
     /**
      * Build the per-request header map forwarded to sandbox-gateway for
      * the per-pod methods that talk to a specific user-bound pod.
@@ -1183,7 +1318,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $authorization = $dataIsolation->getUserAuthorizationToken();
 
-        if ($userId !== null && $userId !== '') {
+        if ($userId !== '') {
             $headers['magic-user-id'] = $userId;
         }
         if ($organizationCode !== '') {
@@ -1235,6 +1370,34 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
         // Normal mode: use parent implementation
         return parent::buildProxyPath($sandboxId, $agentPath);
+    }
+
+    private function requestReferencedProjects(DataIsolation $dataIsolation, string $method, string $sandboxId, ?string $projectId = null): GatewayResult
+    {
+        $path = sprintf('api/v1/sandboxes/%s/referenced-projects', rawurlencode($sandboxId));
+        if ($projectId !== null) {
+            $path .= '/' . rawurlencode($projectId);
+        }
+
+        try {
+            $response = $this->getClient()->request($method, $this->buildApiPath($path), [
+                'headers' => $this->getCommonHeaders($dataIsolation),
+                'timeout' => 60,
+            ]);
+            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+                return GatewayResult::error('Referenced project request failed with HTTP ' . $response->getStatusCode());
+            }
+
+            return GatewayResult::fromApiResponse(Json::decode($response->getBody()->getContents()));
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] Referenced project request failed', [
+                'method' => $method,
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('Referenced project request failed: ' . $e->getMessage());
+        }
     }
 
     /**

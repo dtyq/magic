@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura — Holistic Wellness &amp; Circadian Health</title>
+  <style>
+  :root {
+  --primary: #059669;
+  --primary-dark: #047857;
+  --primary-light: #ecfdf5;
+  --primary-subtle: #d1fae5;
+  --sage-deep: #065f46;
+  --warm-sand: #fbf9f5;
+  --sand-border: #ede7dc;
+  --sand-card: #f5f0e6;
+  --bg: #fafbfc;
+  --surface: #ffffff;
+  --surface-subtle: #f8faf9;
+  --border: #e2e8f0;
+  --border-soft: #edf2f7;
+  --text: #1a202c;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --accent-lavender: #8b5cf6;
+  --lavender-subtle: #f5f3ff;
+  --accent-coral: #f97316;
+  --coral-subtle: #fff7ed;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-soft: 0 4px 14px rgba(6,95,70,0.06);
+  --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-family);
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  }
+  .top-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  }
+  .brand-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  }
+  .brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--primary) 0%, #10b981 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 2px 8px rgba(5,150,105,0.25);
+  }
+  .brand-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  }
+  .brand-title span { color: var(--primary); font-weight: 600; }
+  .header-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  }
+  .circadian-pill {
+  background: var(--warm-sand);
+  border: 1px solid var(--sand-border);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  }
+  .user-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  }
+  .avatar-ring {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sage-deep);
+  background: var(--primary-light);
+  font-size: 11px;
+  font-weight: 700;
+  border: 2px solid var(--primary);
+  }
+  .page-layout {
+  max-width: 1200px;
+  margin: 18px auto;
+  padding: 0 24px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  }
+  
+  .hero-banner {
+  background: linear-gradient(135deg, var(--warm-sand) 0%, #ffffff 100%);
+  border: 1px solid var(--sand-border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+  }
+  .hero-greeting h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  }
+  .hero-greeting p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-top: 4px;
+  }
+  .recovery-score-badge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  }
+  .score-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  border: 3px solid var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--primary-dark);
+  }
+  .score-meta { display: flex; flex-direction: column; }
+  .score-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+  .score-status { font-size: 13px; font-weight: 700; color: var(--primary-dark); }
+  
+  .wellness-trio-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 16px;
+  }
+  .card-base {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  }
+  .card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  }
+  .card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  }
+  .card-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  }
+  .chip-sage { background: var(--primary-light); color: var(--primary-dark); }
+  .chip-sand { background: var(--warm-sand); color: #92400e; border: 1px solid var(--sand-border); }
+  .chip-lavender { background: var(--lavender-subtle); color: var(--accent-lavender); }
+  
+  .sleep-stat-group {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+  }
+  .sleep-hours {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  font-family: var(--font-family);
+  }
+  .sleep-quality {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  }
+  .hypnogram-container {
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  margin-bottom: 12px;
+  }
+  .hypnogram-bars {
+  display: flex;
+  height: 28px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 2px;
+  }
+  .stage-deep { background: #047857; width: 26%; }
+  .stage-rem { background: #10b981; width: 25%; }
+  .stage-light { background: #a7f3d0; width: 44%; }
+  .stage-awake { background: #fed7aa; width: 5%; }
+  .stage-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  }
+  .stage-item { display: flex; align-items: center; gap: 4px; }
+  .stage-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .sleep-timeline-curve {
+  height: 42px;
+  width: 100%;
+  margin-top: 4px;
+  }
+  
+  .hydration-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+  position: relative;
+  }
+  .ring-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  }
+  .ring-wrapper svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+  }
+  .ring-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  }
+  .ring-vol {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  }
+  .ring-goal {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  }
+  .hydration-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+  }
+  .btn-hydrate {
+  flex: 1;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.2s;
+  }
+  .btn-hydrate:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  }
+  
+  .mindfulness-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  }
+  .mind-session-active {
+  background: var(--warm-sand);
+  border: 1px solid var(--sand-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  }
+  .zen-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--sand-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #b45309;
+  }
+  .zen-details h4 { font-size: 13px; font-weight: 700; color: var(--text); }
+  .zen-details p { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .streak-pill {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  color: #ea580c;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  }
+  .btn-primary-flow {
+  background: var(--primary);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(5,150,105,0.25);
+  }
+  
+  .secondary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  }
+  .biometrics-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  }
+  .bio-mini {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  }
+  .bio-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+  .bio-val { font-size: 20px; font-weight: 800; color: var(--text); margin-top: 4px; }
+  .bio-sub { font-size: 11px; color: var(--primary-dark); font-weight: 600; }
+  
+  .schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  }
+  .schedule-item {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  }
+  .sched-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .sched-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+  .sched-done { color: var(--primary); font-weight: 600; }
+  .footer-wellness {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  }
+  </style>
+</head>
+<body>
+  
+  <header class="top-header">
+  <div class="brand-group">
+  <div class="brand-mark">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+  <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"/>
+  <path d="M12 6V12L16 14"/>
+  </svg>
+  </div>
+  <div class="brand-title">Aura <span>Wellness</span></div>
+  </div>
+  <div class="header-nav">
+  <div class="circadian-pill">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <circle cx="12" cy="12" r="5"/>
+  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+  </svg>
+  Circadian Peak &bull; Afternoon Focus
+  </div>
+  <div class="user-profile">
+  <div class="avatar-ring">ML</div>
+  <span>Maya Lin</span>
+  </div>
+  </div>
+  </header>
+
+  <main class="page-layout">
+  
+  <section class="hero-banner">
+  <div class="hero-greeting">
+  <h1>Good morning, Maya <span style="font-size: 18px;">🌿</span></h1>
+  <p>Your circadian rhythm is synchronized. Sleep architecture shows high delta-wave restoration.</p>
+  </div>
+  <div class="recovery-score-badge">
+  <div class="score-circle">88</div>
+  <div class="score-meta">
+  <span class="score-label">Recovery Score</span>
+  <span class="score-status">Optimal &bull; Prime State</span>
+  </div>
+  </div>
+  </section>
+
+  
+  <section class="wellness-trio-grid">
+  
+  <article class="card-base">
+  <div>
+  <div class="card-top">
+  <h2 class="card-title">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+  Circadian Sleep Architecture
+  </h2>
+  <span class="card-chip chip-sage">92 Sleep Score</span>
+  </div>
+
+  <div class="sleep-stat-group">
+  <div class="sleep-hours">8h 15m</div>
+  <div class="sleep-quality">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  Restorative Cycle
+  </div>
+  </div>
+
+  
+  <div class="hypnogram-container">
+  <div class="hypnogram-bars">
+  <div class="stage-deep" title="Deep Sleep (2h 10m)"></div>
+  <div class="stage-rem" title="REM Sleep (2h 05m)"></div>
+  <div class="stage-light" title="Light Sleep (3h 40m)"></div>
+  <div class="stage-awake" title="Awake (20m)"></div>
+  </div>
+  <div class="stage-legend">
+  <span class="stage-item"><span class="stage-dot" style="background: #047857;"></span>Deep: 2h 10m</span>
+  <span class="stage-item"><span class="stage-dot" style="background: #10b981;"></span>REM: 2h 05m</span>
+  <span class="stage-item"><span class="stage-dot" style="background: #a7f3d0;"></span>Light: 3h 40m</span>
+  <span class="stage-item"><span class="stage-dot" style="background: #fed7aa;"></span>Awake: 20m</span>
+  </div>
+  </div>
+
+  
+  <div class="sleep-timeline-curve">
+  <svg viewBox="0 0 260 40" fill="none" style="width: 100%; height: 100%;">
+  <path d="M0,8 Q20,35 45,34 T90,15 T135,32 T180,18 T225,35 L260,10" stroke="#059669" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M0,8 Q20,35 45,34 T90,15 T135,32 T180,18 T225,35 L260,10 L260,40 L0,40 Z" fill="rgba(5,150,105,0.08)"/>
+  </svg>
+  </div>
+  </div>
+
+  <div style="font-size: 11.5px; color: var(--text-muted); border-top: 1px solid var(--border-soft); padding-top: 8px; margin-top: 8px;">
+  Bedtime: 10:45 PM &bull; Wake: 07:00 AM &bull; Sleep Efficiency: 96.4%
+  </div>
+  </article>
+
+  
+  <article class="card-base">
+  <div>
+  <div class="card-top">
+  <h2 class="card-title">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+  </svg>
+  Hydration Ring
+  </h2>
+  <span class="card-chip chip-sand">80% of Daily Goal</span>
+  </div>
+
+  <div class="hydration-center">
+  <div class="ring-wrapper">
+  <svg viewBox="0 0 100 100">
+  
+  <circle cx="50" cy="50" r="42" stroke="#e2e8f0" stroke-width="8" fill="transparent"/>
+  
+  <circle cx="50" cy="50" r="42" stroke="#059669" stroke-width="8" fill="transparent"
+  stroke-dasharray="264" stroke-dashoffset="52.8" stroke-linecap="round"/>
+  </svg>
+  <div class="ring-text">
+  <div class="ring-vol">2,400</div>
+  <div class="ring-goal">of 3,000 ml</div>
+  </div>
+  </div>
+  </div>
+  </div>
+
+  <div>
+  <div class="hydration-actions">
+  <button class="btn-hydrate">+250 ml Water</button>
+  <button class="btn-hydrate">+500 ml Electrolytes</button>
+  </div>
+  <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 6px;">
+  Next reminder: 15:30 (Mineral intake)
+  </div>
+  </div>
+  </article>
+
+  
+  <article class="card-base">
+  <div>
+  <div class="card-top">
+  <h2 class="card-title">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <circle cx="12" cy="12" r="10"/>
+  <path d="M8 12a4 4 0 1 0 8 0"/>
+  </svg>
+  Daily Mindfulness
+  </h2>
+  <span class="card-chip chip-lavender">14 Day Streak</span>
+  </div>
+
+  <div class="mindfulness-box">
+  <div class="mind-session-active">
+  <div class="zen-icon">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <path d="M12 3a9 9 0 0 0 0 18v-9l-5 5"/>
+  </svg>
+  </div>
+  <div class="zen-details">
+  <h4>Box Breathing (4-4-4-4)</h4>
+  <p>15 min completed at 07:30 AM</p>
+  <div class="streak-pill">
+  <span>🔥</span> Streak Intact: 14 Days
+  </div>
+  </div>
+  </div>
+
+  <div style="background: var(--surface-subtle); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; color: var(--text-secondary);">
+  <strong>Upcoming:</strong> 10-min Forest Soundscape reset scheduled for 17:00.
+  </div>
+  </div>
+  </div>
+
+  <button class="btn-primary-flow">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+  Begin Afternoon Coherence
+  </button>
+  </article>
+  </section>
+
+  
+  <section class="secondary-grid">
+  
+  <div class="biometrics-strip">
+  <div class="bio-mini">
+  <div class="bio-label">Resting HR</div>
+  <div class="bio-val">54 <span style="font-size: 12px; font-weight: 500;">BPM</span></div>
+  <div class="bio-sub">&darr; 2 bpm vs baseline</div>
+  </div>
+  <div class="bio-mini">
+  <div class="bio-label">Heart Rate Var</div>
+  <div class="bio-val">68 <span style="font-size: 12px; font-weight: 500;">ms</span></div>
+  <div class="bio-sub">&bull; Parasympathetic high</div>
+  </div>
+  <div class="bio-mini">
+  <div class="bio-label">Skin Temp</div>
+  <div class="bio-val">36.4 <span style="font-size: 12px; font-weight: 500;">&deg;C</span></div>
+  <div class="bio-sub">&bull; Circadian equilibrium</div>
+  </div>
+  </div>
+
+  
+  <div class="card-base" style="padding: 14px;">
+  <div style="font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between;">
+  <span>Circadian Protocol</span>
+  <span style="font-size: 11px; color: var(--primary); font-weight: 600;">Phase: Active Cortisol</span>
+  </div>
+  <div class="schedule-list">
+  <div class="schedule-item">
+  <span class="sched-name">Morning Sun Exposure (10,000 lux)</span>
+  <span class="sched-time sched-done">&#10003; 07:15 AM</span>
+  </div>
+  <div class="schedule-item">
+  <span class="sched-name">Zone 2 Aerobic Movement (45 min)</span>
+  <span class="sched-time sched-done">&#10003; 08:00 AM</span>
+  </div>
+  <div class="schedule-item">
+  <span class="sched-name">Caffeine Cutoff Threshold</span>
+  <span class="sched-time">14:00 PM</span>
+  </div>
+  </div>
+  </div>
+  </section>
+
+  <footer class="footer-wellness">
+  <span>Aura Circadian Health Engine &bull; Bio-feedback Loop v2.4</span>
+  <span>Last sync: 2 min ago &bull; Continuous Wearable Sensor Stream</span>
+  </footer>
+  </main>
+</body>
+</html>

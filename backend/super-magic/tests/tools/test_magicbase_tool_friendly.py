@@ -5,16 +5,19 @@ from app.i18n import i18n
 from app.tools.magicbase_tools import (
     BatchCreateMagicRows,
     BatchDeleteMagicRows,
+    BatchGetMagicRows,
     CreateMagicColumn,
     CreateMagicRow,
     CreateMagicTable,
     DeleteMagicColumn,
     DeleteMagicRow,
     DeleteMagicTable,
+    GetMagicRow,
     GetMagicTable,
     QueryMagicRows,
     QueryMagicTables,
     UpdateMagicColumn,
+    UpdateMagicRow,
     UpdateMagicTablePermissions,
 )
 
@@ -26,7 +29,10 @@ from app.tools.magicbase_tools import (
         (QueryMagicTables, "query_magicbase_tables", "查询数据表", "Query tables"),
         (GetMagicTable, "get_magicbase_table", "查看数据表", "View table"),
         (QueryMagicRows, "query_magicbase_rows", "查询数据记录", "Query rows"),
+        (BatchGetMagicRows, "batch_get_magicbase_rows", "批量查看数据记录", "Batch view rows"),
+        (GetMagicRow, "get_magicbase_row", "查看数据记录", "View row"),
         (CreateMagicRow, "create_magicbase_row", "新增数据记录", "Create row"),
+        (UpdateMagicRow, "update_magicbase_row", "更新数据记录", "Update row"),
         (
             BatchCreateMagicRows,
             "batch_create_magicbase_rows",
@@ -74,7 +80,15 @@ async def test_magicbase_tool_actions_are_localized(tool_class, tool_name, zh_ac
         (QueryMagicTables(), "query_magicbase_tables", {}, "当前微应用"),
         (GetMagicTable(), "get_magicbase_table", {"table_id": "table-1"}, "表结构与权限"),
         (QueryMagicRows(), "query_magicbase_rows", {"table_id": "table-1"}, "表 table-1"),
+        (
+            BatchGetMagicRows(),
+            "batch_get_magicbase_rows",
+            {"table_id": "table-1", "record_ids": ["1", "2"]},
+            "2 条记录",
+        ),
+        (GetMagicRow(), "get_magicbase_row", {"table_id": "table-1"}, "查看记录详情"),
         (CreateMagicRow(), "create_magicbase_row", {"table_id": "table-1"}, "保存业务数据"),
+        (UpdateMagicRow(), "update_magicbase_row", {"table_id": "table-1"}, "更新业务数据"),
         (
             BatchCreateMagicRows(),
             "batch_create_magicbase_rows",
@@ -175,5 +189,41 @@ async def test_query_magicbase_rows_remark_exposes_query_scope_and_result_count(
 
         assert before["remark"] == "Filtered by status · Page 2 · Table table-orders"
         assert after["remark"] == "2/37 rows returned · Table table-orders"
+    finally:
+        i18n.reset_language()
+
+
+@pytest.mark.asyncio
+async def test_batch_get_magicbase_rows_exposes_localized_error_detail():
+    tool = BatchGetMagicRows()
+    result = ToolResult.error("internal service error")
+
+    try:
+        i18n.set_language("zh_CN")
+        detail = await tool.get_tool_detail(None, result, {})
+
+        assert detail is not None
+        assert detail.data.content == "批量查看数据记录失败，请稍后重试或检查记录范围。"
+        assert "internal service error" not in detail.data.content
+    finally:
+        i18n.reset_language()
+
+
+@pytest.mark.asyncio
+async def test_batch_get_magicbase_rows_remark_reports_completed_count():
+    tool = BatchGetMagicRows()
+    arguments = {"table_id": "table-orders", "record_ids": ["1", "2"]}
+    result = ToolResult(
+        content="ok",
+        data={"table_id": "table-orders", "returned": 1, "rows": [{"id": "1"}]},
+    )
+
+    try:
+        i18n.set_language("zh_CN")
+        after = await tool.get_after_tool_call_friendly_action_and_remark(
+            "batch_get_magicbase_rows", None, result, 0.1, arguments
+        )
+
+        assert after["remark"] == "返回 1/2 条 · 表 table-orders"
     finally:
         i18n.reset_language()

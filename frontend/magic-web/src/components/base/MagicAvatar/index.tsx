@@ -47,22 +47,17 @@ const MagicAvatar = forwardRef<HTMLSpanElement, MagicAvatarProps>(
 
 		const [innerSrc, setInnerSrc] = useState<string>(
 			src && typeof src === "string"
-				? src
+				? typeof size === "number"
+					? getAvatarUrl(src, size)
+					: src
 				: getTextAvatar(children, style?.backgroundColor, style?.color),
 		)
 
 		useEffect(() => {
 			if (src && typeof src === "string") {
 				if (typeof size === "number") {
-					const processedUrl = getAvatarUrl(src, size)
-					const img = new Image()
-					img.src = processedUrl
-					img.onload = () => {
-						setInnerSrc(processedUrl)
-					}
-					img.onerror = () => {
-						setInnerSrc(src)
-					}
+					// Render the thumbnail directly; preloading it while rendering src downloads both.
+					setInnerSrc(getAvatarUrl(src, size))
 				} else {
 					setInnerSrc(src)
 				}
@@ -80,6 +75,14 @@ const MagicAvatar = forwardRef<HTMLSpanElement, MagicAvatarProps>(
 		)
 
 		const handleError = useMemoizedFn(() => {
+			if (
+				typeof src === "string" &&
+				innerSrc !== src &&
+				innerSrc === getAvatarUrl(src, typeof size === "number" ? size : undefined)
+			) {
+				setInnerSrc(src)
+				return
+			}
 			setInnerSrc(getTextAvatar(children, style?.backgroundColor, style?.color))
 		})
 

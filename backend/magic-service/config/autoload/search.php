@@ -8,6 +8,7 @@ use App\Domain\Chat\Entity\ValueObject\SearchEngineType;
 use App\Infrastructure\ExternalAPI\Search\Adapter\BaiduSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\BingSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\CloudswaySearchAdapter;
+use App\Infrastructure\ExternalAPI\Search\Adapter\DeepSeekSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\DuckDuckGoSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\GoogleSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\JinaSearchAdapter;
@@ -48,6 +49,11 @@ return [
             'class_name' => BaiduSearchAdapter::class,
             'endpoint' => env('BAIDU_SEARCH_ENDPOINT', 'https://qianfan.baidubce.com/v2/ai_search/web_search'),
             'api_key' => env('BAIDU_SEARCH_API_KEY', ''),
+        ],
+        SearchEngineType::DeepSeek->value => [
+            'class_name' => DeepSeekSearchAdapter::class,
+            'endpoint' => env('DEEPSEEK_SEARCH_ENDPOINT', 'https://api.deepseek.com/v1/tools/search'),
+            'api_key' => env('DEEPSEEK_SEARCH_API_KEY', ''),
         ],
         SearchEngineType::DuckDuckGo->value => [
             'class_name' => DuckDuckGoSearchAdapter::class,

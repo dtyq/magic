@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Contact\Repository\Facade;
 
 use App\Domain\Contact\Entity\AccountEntity;
+use App\Domain\Contact\Entity\ValueObject\AccountStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 
 interface MagicAccountRepositoryInterface
@@ -42,6 +43,13 @@ interface MagicAccountRepositoryInterface
     public function searchUserByPhoneOrRealName(string $query): array;
 
     public function updateAccount(string $magicId, array $updateData): int;
+
+    /**
+     * Update an account status inside the caller's transaction.
+     *
+     * @return bool Whether the status was changed.
+     */
+    public function updateStatus(string $magicId, AccountStatus $status): bool;
 
     public function saveAccount(AccountEntity $accountDTO): AccountEntity;
 

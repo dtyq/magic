@@ -105,10 +105,10 @@ function getAbsolutePercentStep(currentPercent: number, baseStepPercent: number)
 	if (currentPercent < 0.1) {
 		return 0.01
 	}
-	if (currentPercent < 1) {
+	if (currentPercent <= 1) {
 		return 0.1
 	}
-	if (currentPercent < baseStepPercent) {
+	if (currentPercent <= baseStepPercent) {
 		return 1
 	}
 	return baseStepPercent
@@ -124,8 +124,13 @@ function getStepPrecision(step: number): number {
 	return 0
 }
 
+const ZOOM_BUCKET_EPSILON = 1e-9
+
 /**
- * 绝对百分比档位上的下一档，用整数桶避免 `0.3/0.1 === 2.999…` 导致 Math.floor 少一档。
+ * 绝对百分比档位上的下一档。
+ *
+ * 使用严格大于/小于当前值的最近档位，避免在步长切换边界处因四舍五入
+ * 将 `1.04%` 误判成 `1%`，进而跳到更低的缩放区间。
  */
 function nextAbsolutePercentDiscrete(
 	currentPercent: number,
@@ -133,22 +138,13 @@ function nextAbsolutePercentDiscrete(
 	direction: 1 | -1,
 	minPercent: number,
 ): number {
-	const precision = getStepPrecision(absoluteStep)
-	const factor = 10 ** precision
-	const curInt = Math.round(currentPercent * factor)
-	const stepInt = Math.round(absoluteStep * factor)
-	if (stepInt <= 0) {
-		if (direction > 0) return currentPercent + absoluteStep
-		return Math.max(minPercent, currentPercent - absoluteStep)
-	}
-
 	if (direction > 0) {
-		const bucket = Math.floor(curInt / stepInt)
-		return ((bucket + 1) * stepInt) / factor
+		const bucket = Math.ceil((currentPercent + ZOOM_BUCKET_EPSILON) / absoluteStep)
+		return Math.max(minPercent, bucket * absoluteStep)
 	}
 
-	const bucket = Math.ceil(curInt / stepInt)
-	return Math.max(minPercent, ((bucket - 1) * stepInt) / factor)
+	const bucket = Math.floor((currentPercent - ZOOM_BUCKET_EPSILON) / absoluteStep)
+	return Math.max(minPercent, bucket * absoluteStep)
 }
 
 /**

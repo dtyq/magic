@@ -8,7 +8,7 @@ export type ArgsModalContextType = {
 	closeArgsModal: () => void
 	onConfirm: () => void
 	onPopoverModalClick: (
-		e: React.MouseEvent<HTMLSpanElement, MouseEvent>,
+		e: React.MouseEvent<HTMLElement | SVGElement, MouseEvent>,
 		item: EXPRESSION_ITEM,
 		arg: InputExpressionValue,
 		index: number,

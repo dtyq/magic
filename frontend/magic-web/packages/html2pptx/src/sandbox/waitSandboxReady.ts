@@ -1,4 +1,4 @@
-import { throwIfAborted, waitForTimeout } from "./abort"
+import { throwIfAborted, waitForTimeout, withAbort } from "./abort"
 import type { ResourceLoadError } from "../api/options"
 import { CANVAS_DELAY_MS } from "../shared/constants"
 import { waitForPageRenderReadiness } from "./render-readiness"
@@ -70,30 +70,42 @@ export class SandboxReadyController {
 
 function waitForImages(iframeDocument: Document, signal?: AbortSignal): Promise<void> {
 	const images = iframeDocument.querySelectorAll("img")
-	const promises = Array.from(images).map((img) => {
-		if (img.complete) return Promise.resolve()
-		return new Promise<void>((resolveImage) => {
-			const cleanup = () => {
-				img.removeEventListener("load", onLoad)
-				img.removeEventListener("error", onError)
-				if (signal) signal.removeEventListener("abort", onAbort)
-			}
-			const onLoad = () => {
-				cleanup()
-				resolveImage()
-			}
-			const onError = () => {
-				cleanup()
-				resolveImage()
-			}
-			const onAbort = () => {
-				cleanup()
-				resolveImage()
-			}
-			img.addEventListener("load", onLoad, { once: true })
-			img.addEventListener("error", onError, { once: true })
-			signal?.addEventListener("abort", onAbort, { once: true })
-		})
+	const promises = Array.from(images).map(async (img) => {
+		if (!img.complete) {
+			await new Promise<void>((resolveImage) => {
+				const cleanup = () => {
+					img.removeEventListener("load", onLoad)
+					img.removeEventListener("error", onError)
+					if (signal) signal.removeEventListener("abort", onAbort)
+				}
+				const onLoad = () => {
+					cleanup()
+					resolveImage()
+				}
+				const onError = () => {
+					cleanup()
+					resolveImage()
+				}
+				const onAbort = () => {
+					cleanup()
+					resolveImage()
+				}
+				img.addEventListener("load", onLoad, { once: true })
+				img.addEventListener("error", onError, { once: true })
+				signal?.addEventListener("abort", onAbort, { once: true })
+			})
+		}
+		// `complete` only guarantees that the resource request finished. Await
+		// decode when available so static pages can safely skip the old fixed
+		// 1.5s grace period without capturing a partially decoded image.
+		if (typeof img.decode === "function") {
+			await withAbort({
+				task: Promise.resolve()
+					.then(() => img.decode())
+					.catch(() => undefined),
+				signal,
+			})
+		}
 	})
 	return Promise.all(promises).then(() => {})
 }
@@ -128,10 +140,7 @@ function waitForVideos(iframeDocument: Document, signal?: AbortSignal): Promise<
 	return Promise.all(promises).then(() => {})
 }
 
-function waitForCanvasDelay(
-	iframeDocument: Document,
-	signal?: AbortSignal,
-): Promise<void> {
+function waitForCanvasDelay(iframeDocument: Document, signal?: AbortSignal): Promise<void> {
 	const hasCanvas = Boolean(iframeDocument.querySelector("canvas"))
 	if (!hasCanvas) return Promise.resolve()
 	return waitForTimeout({ ms: CANVAS_DELAY_MS, signal })

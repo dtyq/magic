@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useRef, useState, type RefObject } from "react"
 import { useMemoizedFn } from "ahooks"
 import EditorPromptCarousel, {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ElementRect, SelectedInfo } from "../types"
 
 interface UseScaleSyncProps {
+	layoutKey?: string
 	scaleRatio: number
 	isSelectionMode: boolean
 	selectedInfoList: SelectedInfo[]
@@ -20,6 +21,7 @@ interface UseScaleSyncResult {
  * Ensures final update when scaling completes
  */
 export function useScaleSync({
+	layoutKey,
 	scaleRatio,
 	isSelectionMode,
 	selectedInfoList,
@@ -29,6 +31,7 @@ export function useScaleSync({
 }: UseScaleSyncProps): UseScaleSyncResult {
 	const finalUpdateTimerRef = useRef<number | null>(null)
 	const lastScaleRef = useRef<number>(scaleRatio)
+	const lastLayoutRef = useRef(layoutKey)
 	const [isScaling, setIsScaling] = useState(false)
 
 	// Use refs to avoid effect re-registration
@@ -43,7 +46,8 @@ export function useScaleSync({
 			return
 		}
 
-		if (scaleRatio === lastScaleRef.current) return
+		if (scaleRatio === lastScaleRef.current && layoutKey === lastLayoutRef.current) return
+		lastLayoutRef.current = layoutKey
 
 		// Scale is changing - hide selection boxes
 		setIsScaling(true)
@@ -78,7 +82,7 @@ export function useScaleSync({
 				window.clearTimeout(finalUpdateTimerRef.current)
 			}
 		}
-	}, [scaleRatio, isSelectionMode, setSelectedInfoList, setHoveredRect])
+	}, [scaleRatio, layoutKey, isSelectionMode, setSelectedInfoList, setHoveredRect])
 
 	return { isScaling }
 }

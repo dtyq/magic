@@ -43,6 +43,18 @@ export class PPTPathMappingService {
 		return result
 	}
 
+	private getAttachmentName(item: any): string {
+		return item?.file_name || item?.filename || item?.name || ""
+	}
+
+	private joinRelativePath(parentDir: string, name: string): string {
+		const parent = (parentDir || "").replace(/\/+$/, "")
+		const child = (name || "").replace(/^\/+/, "")
+		if (!parent) return child
+		if (!child) return parent
+		return `${parent}/${child}`
+	}
+
 	private normalizeDirectoryPath(relativePath?: string): string | undefined {
 		if (!relativePath) return undefined
 		const path = relativePath.replace(/\/+$/, "")
@@ -50,14 +62,44 @@ export class PPTPathMappingService {
 	}
 
 	private getBaseFolderPath(mainFile: any): string | undefined {
-		if (!mainFile?.relative_file_path) return undefined
-		if (mainFile?.is_directory) {
-			return this.normalizeDirectoryPath(mainFile.relative_file_path)
+		if (mainFile?.relative_file_path) {
+			if (mainFile?.is_directory) {
+				return this.normalizeDirectoryPath(mainFile.relative_file_path)
+			}
+			if (mainFile?.file_name && mainFile.relative_file_path.endsWith(mainFile.file_name)) {
+				return mainFile.relative_file_path.slice(0, -mainFile.file_name.length)
+			}
+			return this.normalizeDirectoryPath(mainFile.relative_file_path.replace(/[^/]*$/, ""))
 		}
-		if (mainFile?.file_name && mainFile.relative_file_path.endsWith(mainFile.file_name)) {
-			return mainFile.relative_file_path.slice(0, -mainFile.file_name.length)
+		const name = this.getAttachmentName(mainFile)
+		if (mainFile?.is_directory && name) return this.normalizeDirectoryPath(name)
+		return undefined
+	}
+
+	private indexFolderItem(
+		item: any,
+		parentDir: string,
+		baseDir: string,
+		byFileId: Map<string, any>,
+		byRelativePath: Map<string, any>,
+	): void {
+		if (!item) return
+		const relativePath =
+			typeof item.relative_file_path === "string" && item.relative_file_path
+				? item.relative_file_path.replace(/\/+$/, "")
+				: this.joinRelativePath(parentDir, this.getAttachmentName(item))
+		if (item.file_id) byFileId.set(item.file_id, item)
+		if (relativePath) {
+			byRelativePath.set(relativePath, item)
+			if (baseDir && relativePath !== baseDir && !relativePath.startsWith(`${baseDir}/`)) {
+				byRelativePath.set(this.joinRelativePath(baseDir, relativePath), item)
+			}
 		}
-		return this.normalizeDirectoryPath(mainFile.relative_file_path.replace(/[^/]*$/, ""))
+		const childParent = item.is_directory ? relativePath || parentDir : parentDir
+		if (!Array.isArray(item.children)) return
+		for (const child of item.children) {
+			this.indexFolderItem(child, childParent, baseDir, byFileId, byRelativePath)
+		}
 	}
 
 	private getPPTFolderIndex(): PPTFolderIndex {
@@ -70,13 +112,25 @@ export class PPTPathMappingService {
 		const baseFolderPath = this.getBaseFolderPath(mainFile)
 		const byFileId = new Map<string, any>()
 		const byRelativePath = new Map<string, any>()
+		const baseDir = (baseFolderPath || "").replace(/\/+$/, "")
+
+		if (mainFile) {
+			const rootParent = baseDir.includes("/")
+				? baseDir.slice(0, baseDir.lastIndexOf("/"))
+				: ""
+			this.indexFolderItem(mainFile, rootParent, baseDir, byFileId, byRelativePath)
+		}
 
 		if (baseFolderPath !== undefined) {
 			allAttachments.forEach((item: any) => {
 				const relativePath = item?.relative_file_path
 				if (!relativePath || !relativePath.startsWith(baseFolderPath)) return
-				if (item?.file_id) byFileId.set(item.file_id, item)
-				byRelativePath.set(relativePath, item)
+				if (item?.file_id && !byFileId.has(item.file_id)) {
+					byFileId.set(item.file_id, item)
+				}
+				if (!byRelativePath.has(relativePath)) {
+					byRelativePath.set(relativePath, item)
+				}
 			})
 		}
 
@@ -183,7 +237,11 @@ export class PPTPathMappingService {
 		if (fileIds.length === 0) return
 
 		try {
-			const response = await getTemporaryDownloadUrl({ file_ids: fileIds })
+			const response = await (
+				this.config.fileApi?.getTemporaryDownloadUrl ?? getTemporaryDownloadUrl
+			)({
+				file_ids: fileIds,
+			})
 
 			response?.forEach((item: any) => {
 				if (item.file_id && item.url) {
@@ -227,7 +285,11 @@ export class PPTPathMappingService {
 		if (fileIds.length === 0) return urlMap
 
 		try {
-			const response = await getTemporaryDownloadUrl({ file_ids: fileIds })
+			const response = await (
+				this.config.fileApi?.getTemporaryDownloadUrl ?? getTemporaryDownloadUrl
+			)({
+				file_ids: fileIds,
+			})
 
 			const shouldCommit = options.shouldCommit?.() !== false
 			response?.forEach((item: any) => {
@@ -319,7 +381,17 @@ export class PPTPathMappingService {
 
 	getRelativeFilePathByFileId(fileId?: string): string | undefined {
 		if (!fileId) return undefined
-		const fileItem = this.getAttachmentByFileIdInPPTFolder(fileId)
+		const pptFolderIndex = this.getPPTFolderIndex()
+		const fileItem = pptFolderIndex.byFileId.get(fileId)
+		const mappedPath = Array.from(this.pathToFileIdMapping.entries()).find(
+			([, mappedFileId]) => mappedFileId === fileId,
+		)?.[0]
+		if (mappedPath && pptFolderIndex.baseFolderPath !== undefined) {
+			const slideDirectory = mappedPath.replace(/[^/]*$/, "")
+			return this.normalizeDirectoryPath(
+				this.joinRelativePath(pptFolderIndex.baseFolderPath, slideDirectory),
+			)
+		}
 		if (!fileItem?.relative_file_path || !fileItem?.file_name) return undefined
 		return fileItem.relative_file_path.replace(fileItem.file_name, "")
 	}

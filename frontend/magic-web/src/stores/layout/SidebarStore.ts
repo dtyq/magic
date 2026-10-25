@@ -14,6 +14,8 @@ export class SidebarStore {
 	// Min/Max width constraints (in percentage)
 	readonly MIN_WIDTH_PERCENT = 12
 	readonly MAX_WIDTH_PERCENT = 50
+	// 宽屏仍按导航用途限制宽度，避免侧栏占据半屏挤压正文。
+	readonly MAX_WIDTH_PX = 400
 	readonly COLLAPSED_WIDTH = 48
 	readonly DEFAULT_WIDTH_PX = 256
 	readonly AUTO_COLLAPSE_MIN_VIEWPORT_WIDTH_PX = 1280
@@ -33,6 +35,63 @@ export class SidebarStore {
 	// Workspace expanded state (for lazy loading)
 	expandedWorkspaces: Set<string> = new Set()
 
+	// 分类始终保留一个选中项，重复点击保留当前选择；偏好按账号和组织保存，窄栏浮层不改写偏好。
+	expandedNavigationSection: "recent" | "workspaces" = "workspaces"
+
+	get recentProjectsExpanded() {
+		return this.expandedNavigationSection === "recent"
+	}
+
+	get workspacesExpanded() {
+		return this.expandedNavigationSection === "workspaces"
+	}
+	private navigationIdentity: string | null = null
+	// 滚动位置只保留于当次身份会话；滚动不触发 MobX 渲染或写本地存储。
+	navigationScrollPositions = new Map<string, number>()
+
+	setNavigationIdentity(userId?: string, organizationCode?: string) {
+		const identity =
+			userId && organizationCode ? JSON.stringify([userId, organizationCode]) : null
+		if (identity === this.navigationIdentity) return
+		this.navigationIdentity = identity
+		this.navigationScrollPositions.clear()
+		this.expandedNavigationSection = "workspaces"
+		if (!identity) return
+		try {
+			const saved: unknown = JSON.parse(
+				localStorage.getItem(`sidebar-navigation:${identity}`) ?? "null",
+			)
+			if (!saved || typeof saved !== "object") return
+			if (
+				"expandedSection" in saved &&
+				(saved.expandedSection === "recent" || saved.expandedSection === "workspaces")
+			)
+				this.expandedNavigationSection = saved.expandedSection
+		} catch {
+			/* 无效或不可用的存储采用缺省布局。 */
+		}
+	}
+
+	selectNavigationSection(section: "recent" | "workspaces") {
+		if (this.expandedNavigationSection === section) return
+		this.expandedNavigationSection = section
+		this.saveNavigationPreferences()
+	}
+
+	private saveNavigationPreferences() {
+		if (!this.navigationIdentity) return
+		try {
+			localStorage.setItem(
+				`sidebar-navigation:${this.navigationIdentity}`,
+				JSON.stringify({
+					expandedSection: this.expandedNavigationSection,
+				}),
+			)
+		} catch {
+			/* 持久化失败不阻止当次栏目操作。 */
+		}
+	}
+
 	constructor() {
 		makeAutoObservable(
 			this,
@@ -40,6 +99,7 @@ export class SidebarStore {
 				collapsedSizePercent: computed,
 				// Width reads from a non-observable cache, so it must not be memoized as computed.
 				width: false,
+				navigationScrollPositions: false,
 			},
 			{ autoBind: true },
 		)
@@ -52,7 +112,7 @@ export class SidebarStore {
 		// First check ResizablePanelStore's memory cache (fastest)
 		const cached = resizablePanelStore.panelSizes.get(SIDEBAR_WIDTH_KEY)
 		if (cached !== undefined) {
-			return cached
+			return Math.min(cached, this.getMaxWidthPercent(this.windowWidth))
 		}
 
 		// If not in cache, read from localStorage
@@ -62,7 +122,7 @@ export class SidebarStore {
 			if (!isNaN(value) && value > 0 && value <= 100) {
 				// Cache it for next time
 				resizablePanelStore.panelSizes.set(SIDEBAR_WIDTH_KEY, value)
-				return value
+				return Math.min(value, this.getMaxWidthPercent(this.windowWidth))
 			}
 		}
 
@@ -74,10 +134,16 @@ export class SidebarStore {
 		if (!this.windowWidth) return this.MIN_WIDTH_PERCENT
 
 		const defaultWidthPercent = (this.DEFAULT_WIDTH_PX / this.windowWidth) * 100
-		return Math.max(
-			this.MIN_WIDTH_PERCENT,
-			Math.min(this.MAX_WIDTH_PERCENT, defaultWidthPercent),
+		return Math.min(
+			this.getMaxWidthPercent(this.windowWidth),
+			Math.max(this.MIN_WIDTH_PERCENT, defaultWidthPercent),
 		)
+	}
+
+	// 分栏、恢复偏好和拖动提交共用此上限；窗口变大后也不能超过固定像素宽度。
+	getMaxWidthPercent = (viewWidth: number): number => {
+		if (viewWidth <= 0) return this.MAX_WIDTH_PERCENT
+		return Math.min(this.MAX_WIDTH_PERCENT, (this.MAX_WIDTH_PX / viewWidth) * 100)
 	}
 
 	// Computed: collapsed width as percentage
@@ -146,9 +212,9 @@ export class SidebarStore {
 
 	// Set width (during resize) - uses ResizablePanelStore for throttling and delayed save
 	setWidth = (width: number) => {
-		const clampedWidth = Math.max(
-			this.MIN_WIDTH_PERCENT,
-			Math.min(this.MAX_WIDTH_PERCENT, width),
+		const clampedWidth = Math.min(
+			this.getMaxWidthPercent(this.windowWidth),
+			Math.max(this.MIN_WIDTH_PERCENT, width),
 		)
 
 		// Use ResizablePanelStore for throttled updates and delayed localStorage save

@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace App\Domain\SuperMagic\Task\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\SuperMagic\Task\Entity\ValueObject\SandboxImageTarget;
+use App\Domain\SuperMagic\Task\Entity\ValueObject\SandboxImageVersion;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\WarmPoolSandboxStatus;
 use App\Domain\SuperMagic\Task\Entity\WarmPoolSandboxEntity;
 use App\Domain\SuperMagic\Task\Repository\Facade\WarmPoolSandboxRepositoryInterface;
@@ -271,31 +273,37 @@ class WarmPoolSandboxDomainService
      * @param string $projectSpaceRootFileId 项目空间 root file id
      * @param string $userSpaceRootFileId 用户空间 root file id（可空）
      * @param array<string, string> $labels Extra pod labels (e.g. ['topic-id' => '123']) stamped onto the pod at mount time
+     * @param null|SandboxImageTarget $images 领取条件与回写的目标镜像；null=按网关当前发布版本。
+     *                                        指定镜像时只会领到同一代镜像的池 pod，池里没有就返回 null 交给冷创建
+     * @param null|array $sandboxImages 出参：领到的池 pod 所代表的镜像对（未命中时为 null）
      */
     public function tryAcquireAndMount(
         DataIsolation $dataIsolation,
         string $projectId,
         string $projectSpaceRootFileId,
         string $userSpaceRootFileId,
+        string $topicSpaceRootFileId = '',
         array $labels = [],
-        ?string $topicId = null
+        ?string $topicId = null,
+        ?array &$sandboxImages = null,
+        ?SandboxImageTarget $images = null
     ): ?string {
+        $sandboxImages = null;
         // Per-call user identity for mountWarmPoolSandbox — that call
         // reaches into a user-bound pod (agfs /api/v1/mount) so the
         // pod's in-pod middleware expects User-Authorization.
         // Caller is expected to have stamped the token on $dataIsolation.
         $userId = $dataIsolation->getCurrentUserId();
 
-        // getLatestImages only hits the gateway's global image-version
-        // endpoint, no per-user identity required.
-        $images = $this->gateway->getLatestImages();
-        $latestImage = $images['agent_image'];
-        $latestAgfsImage = $images['agfs_image'];
-        if ($latestImage === '' || $latestAgfsImage === '') {
+        // 领取条件就是"镜像对"：池子里的 pod 用哪一代镜像预热，就只能服务哪一代请求。
+        // 调用方传入目标时以目标为准（例如发布重启指定了某一版），否则按网关当前发布版本。
+        // 目标不完整时无法安全匹配，直接放弃温池、交给冷创建按调用方的镜像构建。
+        $target = $images ?? SandboxImageTarget::release($this->gateway->getLatestImages());
+        if (! $target->isComplete()) {
             return null;
         }
 
-        $claimed = $this->claimOneReady($latestImage, $latestAgfsImage, $userId, $projectId, $topicId);
+        $claimed = $this->claimOneReady($target->getAgentImage(), $target->getAgfsImage(), $userId, $projectId, $topicId);
         if ($claimed === null) {
             return null;
         }
@@ -305,6 +313,11 @@ class WarmPoolSandboxDomainService
             'sandbox_id' => $sandboxId,
             'user_id' => $userId,
             'project_id' => $projectId,
+            'space_ids' => [
+                'project' => $projectSpaceRootFileId,
+                'user' => $userSpaceRootFileId,
+                'topic' => $topicSpaceRootFileId,
+            ],
         ]);
 
         try {
@@ -314,6 +327,7 @@ class WarmPoolSandboxDomainService
                 $projectId,
                 $projectSpaceRootFileId,
                 $userSpaceRootFileId,
+                $topicSpaceRootFileId,
                 $labels
             );
         } catch (Throwable $e) {
@@ -336,6 +350,12 @@ class WarmPoolSandboxDomainService
             $this->retireClaimed($claimed, 'mount_failed:' . $mountResult->getMessage());
             return null;
         }
+
+        // 池 pod 的镜像与目标一致才可能被领到，所以这里直接回写目标镜像。
+        $sandboxImages = [
+            SandboxImageVersion::AGENT_IMAGE_KEY => $target->getAgentImage(),
+            SandboxImageVersion::AGFS_IMAGE_KEY => $target->getAgfsImage(),
+        ];
 
         $this->logger->info('[WarmPoolSandbox] Mount succeeded, fast path completed', [
             'sandbox_id' => $sandboxId,

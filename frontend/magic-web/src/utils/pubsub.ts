@@ -93,6 +93,8 @@ const pubsub = new TypedPubSub<PubSubTypedPayloadMap>()
 export default pubsub
 
 export const PubSubEvents = {
+	/** Notification counts changed; consumers reconcile notification bodies through HTTP. */
+	Notification_Updated: "notification_updated",
 	/** 超级麦吉 - 展示快捷键列表 */
 	Show_Shortcut_Keys: "PubSub_Show_Shortcut_Keys",
 	/** 超级麦吉 - 打开MCP配置 */
@@ -139,6 +141,8 @@ export const PubSubEvents = {
 	Open_File_Tab_By_Path: "super_magic_open_file_tab_by_path",
 	/** 超级麦吉 - 打开知识库文件预览tab（由引用点击触发） */
 	Open_Knowledge_Base_Tab: "super_magic_open_knowledge_base_tab",
+	/** Super Magic - open a micro-app preview tab from a mention click. */
+	Open_Micro_App_Tab: "super_magic_open_micro_app_tab",
 	/** 超级麦吉 - 打开演示模式tab */
 	Open_Playback_Tab: "super_magic_open_playback_tab",
 	/** 超级麦吉 - 展开话题对话面板 */
@@ -149,6 +153,8 @@ export const PubSubEvents = {
 	SuperMagicMessageQueueConsumed: "PubSub_Super_Magic_Message_Queue",
 	/** 超级麦吉 - WebSocket Intermediate 工程文件变更（订阅方自行处理） */
 	Super_Magic_File_Change_Intermediate: "PubSub_Super_Magic_File_Change_Intermediate",
+	/** 当前项目附件恢复快照已成功提交，不代表收到新的服务端文件事件。 */
+	Super_Magic_Project_Attachments_Reconciled: "super_magic_project_attachments_reconciled",
 	/** 超级麦吉 - WebSocket 检查点撤销/恢复通知（订阅方通过 HTTP 对账） */
 	Super_Magic_Checkpoint_Rollback: "PubSub_Super_Magic_Checkpoint_Rollback",
 	/** 录音总结 - 接收外部消息内容，发送消息 */
@@ -177,6 +183,8 @@ export const PubSubEvents = {
 	Receive_RecordSummary_Audio_File: "receive_record_summary_audio_file",
 	/** 超级麦吉 - 设置输入框消息 */
 	Set_Input_Message: "PubSub_Set_Input_Message",
+	/** 超级麦吉 - PPT 导出问题诊断 */
+	Pptx_Export_Issues: "PubSub_Pptx_Export_Issues",
 	/** Widget-only editor input maintenance command. */
 	Magic_Widget_Editor_Command: "magic_widget_editor_command",
 	/** 超级麦吉 - 设置目标模型 */
@@ -205,6 +213,8 @@ export const PubSubEvents = {
 	Super_Magic_Receive_Shared_Project_Mode: "super_magic_receive_shared_project_mode",
 	/** 超级麦吉 - 添加文件到 MessageEditor */
 	Super_Magic_Add_Files_To_MessageEditor: "super_magic_add_files_to_message_editor",
+	/** 超级麦吉 - 画布选中媒体，预添加到 MessageEditor */
+	Super_Magic_Canvas_Selection_Mentions: "super_magic_canvas_selection_mentions",
 	/** 超级麦吉 - 刷新分享列表 */
 	Refresh_Share_List: "PubSub_Refresh_Share_List",
 	/** 超级麦吉 - 详情页刷新 */
@@ -212,6 +222,12 @@ export const PubSubEvents = {
 
 	/** 超级麦吉 - 追加建议文本到输入框末尾 */
 	Append_Suggestion_To_Editor: "PubSub_Append_Suggestion_To_Editor",
+	/** HTML 元素多选目标提交；由现有 Agent 话题链路消费。 */
+	Submit_Html_Multi_Selection: "PubSub_Submit_Html_Multi_Selection",
+	/** HTML 区域截图确认后写入 IndexedDB 并预上传 OSS；发送时再 batch-save。 */
+	Prepare_Html_Screenshot: "PubSub_Prepare_Html_Screenshot",
+	/** 更新已插入的 HTML inspector-detail 节点的截图 mention。 */
+	Update_Html_Inspector_Screenshot: "PubSub_Update_Html_Inspector_Screenshot",
 	/** 超级麦吉 - 追加 JSONContent 到输入框末尾（不覆盖已有内容） */
 	Append_Content_To_Editor: "PubSub_Append_Content_To_Editor",
 	/** 超级麦吉 - 设置内容当幻灯片添加时 */
@@ -226,6 +242,8 @@ export const PubSubEvents = {
 	Add_File_To_Chat: "super_magic_add_file_to_chat",
 	/** 超级麦吉 - 发送打断消息（可选回调，打断完成后执行） */
 	Send_Interrupt_Message: "send_interrupt_message",
+	/** 超级麦吉 - 终止任务后把画布生成中的图片节点收敛为终止态（零参数） */
+	Terminate_Generating_Images: "super_magic_terminate_generating_images",
 	/** 超级麦吉 - 触发创建新话题（超时警告卡片触发） */
 	Trigger_Create_Topic: "super_magic_create_create_topic",
 	/** 超级麦吉 - 添加话题到列表（新话题创建完成后） */
@@ -248,4 +266,6 @@ export const PubSubEvents = {
 	Playback_End: "super_magic_playback_end",
 	/** 超级麦吉 - 向编辑器插入拖拽数据（当前由外部/原生层触发，无 TypeScript publish 侧） */
 	Insert_Drag_Data_To_Editor: "super_magic_insert_drag_data_to_editor",
+	/** 当前用户的完整个人偏好已更新 */
+	Personal_Preferences_Updated: "personal_preferences_updated",
 } as const

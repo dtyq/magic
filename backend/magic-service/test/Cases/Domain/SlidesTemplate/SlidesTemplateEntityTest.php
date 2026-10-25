@@ -9,6 +9,7 @@ namespace Test\Cases\Domain\SlidesTemplate;
 
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateCategoryEntity;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateEntity;
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateOwnerType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateSourceType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateStatus;
 use PHPUnit\Framework\TestCase;
@@ -61,6 +62,18 @@ class SlidesTemplateEntityTest extends TestCase
         $this->assertSame('PPT-CATE-business', $entity->toArray()['category_code'] ?? null);
     }
 
+    public function testOwnerCanBeStoredOnTemplate(): void
+    {
+        $entity = new SlidesTemplateEntity();
+        $entity->setOwnerType(SlidesTemplateOwnerType::User)
+            ->setOwnerId('user-1');
+
+        $this->assertSame(SlidesTemplateOwnerType::User, $entity->getOwnerType());
+        $this->assertSame('user-1', $entity->getOwnerId());
+        $this->assertSame('USER', $entity->toArray()['owner_type'] ?? null);
+        $this->assertSame('user-1', $entity->toArray()['owner_id'] ?? null);
+    }
+
     public function testToArrayKeepsTemplateCoreFields(): void
     {
         $entity = new SlidesTemplateEntity();
@@ -88,6 +101,7 @@ class SlidesTemplateEntityTest extends TestCase
         $this->assertSame([
             'id' => 123,
             'organization_code' => 'OFFICIAL_ORG',
+            'owner_type' => 'OFFICIAL',
             'code' => 'PPT-65f2c8a42d7b0-12345678',
             'source_type' => 'SYSTEM',
             'label' => [

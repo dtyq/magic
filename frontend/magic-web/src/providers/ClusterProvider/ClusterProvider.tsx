@@ -16,6 +16,8 @@ interface ClusterProviderProps {
 	 * @default true
 	 */
 	syncFromGlobalClusterCode?: boolean
+	/** Standalone login sessions must not run the global configuration synchronizer. */
+	syncClusterConfig?: boolean
 	/** Access cluster change callback */
 	onClusterChange?: (clusterCode: string) => void
 }
@@ -56,7 +58,11 @@ export function ClusterProvider(props: PropsWithChildren<ClusterProviderProps>) 
 
 	return (
 		<ClusterContext.Provider value={store}>
-			<ClusterConfigSyncProvider>{children}</ClusterConfigSyncProvider>
+			{props.syncClusterConfig === false ? (
+				children
+			) : (
+				<ClusterConfigSyncProvider>{children}</ClusterConfigSyncProvider>
+			)}
 		</ClusterContext.Provider>
 	)
 }

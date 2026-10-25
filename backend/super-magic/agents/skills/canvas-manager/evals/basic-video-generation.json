@@ -1,0 +1,7 @@
+{
+  "id": "basic-video-generation",
+  "prompt": "Generate one short video from an existing confirmed image and wait until the asynchronous result is complete.",
+  "expected_reference": "references/video-generation.md",
+  "expected_tools": ["query_canvas_element_details", "add_canvas_elements", "wait_canvas_generation", "query_canvas_element_details"],
+  "constraints": ["Load references/video-generation.md only. Do not load professional-video-production.md.", "Use row_incremental layout.", "The first Content of any Video Element is automatically main; do not ask whether to make it main or call select_canvas_main_content.", "Do not create professional-production Connections, a storyboard, shot reference images, or a video-edit.", "Continue a timeout with the same generation_task_id.", "Do not submit a duplicate video task."]
+}

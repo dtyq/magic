@@ -32,6 +32,20 @@ class VideoApi extends AbstractOpenApi
         return $this->videoOperationAppService->enqueue($dto->getAccessToken(), $dto)->toArray();
     }
 
+    /**
+     * Estimate points without creating a video operation.
+     */
+    public function estimatePoints(RequestInterface $request): array
+    {
+        $dto = new CreateVideoDTO($request->all());
+        $dto->setAccessToken($this->getAccessToken());
+        $dto->setIps($this->getClientIps());
+        $this->enrichRequestDTO($dto, $request->getHeaders());
+        $dto->valid();
+
+        return $this->videoOperationAppService->estimate($dto->getAccessToken(), $dto)->toArray();
+    }
+
     public function get(string $id): array
     {
         return $this->videoOperationAppService->getOperation($this->getAccessToken(), $id, $this->getBusinessParams())->toArray();

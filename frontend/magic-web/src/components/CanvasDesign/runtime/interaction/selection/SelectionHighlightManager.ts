@@ -136,6 +136,24 @@ export class SelectionHighlightManager {
 	}
 
 	/**
+	 * Rebuild the existing selection highlights after an atomic geometry update.
+	 *
+	 * `batchUpdate` emits one aggregate event, so the normal per-element update
+	 * listener does not run for every highlighted node. Updating the same ID set
+	 * through `updateHighlights` is also intentionally a no-op for existing nodes;
+	 * this explicit method keeps the selection state while recalculating positions.
+	 */
+	public refreshHighlights(elementIds: string[] = Array.from(this.highlightedElementIds)): void {
+		let changed = false
+		for (const elementId of elementIds) {
+			if (!this.highlightedElementIds.has(elementId)) continue
+			this.updateHighlight(elementId, false)
+			changed = true
+		}
+		if (changed) this.requestSelectionDraw("refresh")
+	}
+
+	/**
 	 * 为元素添加高亮效果
 	 */
 	private addHighlight(elementId: string): void {
@@ -213,7 +231,7 @@ export class SelectionHighlightManager {
 	/**
 	 * 更新单个元素的高亮效果
 	 */
-	private updateHighlight(elementId: string): void {
+	private updateHighlight(elementId: string, requestDraw = true): void {
 		// 移除旧的 highlight
 		const oldHighlightNode = this.highlightNodes.get(elementId)
 		if (oldHighlightNode) {
@@ -223,7 +241,7 @@ export class SelectionHighlightManager {
 
 		// 重新创建 highlight（位置会自动更新）
 		this.addHighlight(elementId)
-		this.requestSelectionDraw("update-highlight")
+		if (requestDraw) this.requestSelectionDraw("update-highlight")
 	}
 
 	/**

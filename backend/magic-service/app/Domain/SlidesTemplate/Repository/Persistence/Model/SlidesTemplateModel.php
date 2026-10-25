@@ -14,6 +14,10 @@ use Hyperf\Database\Model\SoftDeletes;
 /**
  * @property int $id
  * @property string $organization_code
+ * @property string $owner_type
+ * @property null|string $owner_id
+ * @property null|int $project_id
+ * @property null|int $project_directory_id
  * @property string $code
  * @property string $source_type
  * @property null|string $category_code
@@ -46,6 +50,10 @@ class SlidesTemplateModel extends AbstractModel
     protected array $fillable = [
         'id',
         'organization_code',
+        'owner_type',
+        'owner_id',
+        'project_id',
+        'project_directory_id',
         'code',
         'source_type',
         'category_code',
@@ -69,6 +77,10 @@ class SlidesTemplateModel extends AbstractModel
 
     protected array $casts = [
         'id' => 'integer',
+        'owner_type' => 'string',
+        'owner_id' => 'string',
+        'project_id' => 'integer',
+        'project_directory_id' => 'integer',
         'source_type' => 'string',
         'category_code' => 'string',
         'label' => 'array',

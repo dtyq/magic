@@ -1,4 +1,4 @@
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { EventFactory } from "./eventFactory"
 
 export const eventFactory = new EventFactory()

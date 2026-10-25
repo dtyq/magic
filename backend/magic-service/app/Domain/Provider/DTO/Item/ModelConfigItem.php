@@ -11,7 +11,10 @@ use App\Domain\Provider\DTO\Item\TokenPricing\BillingTiers;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\Odin\Api\Request\ReasoningEffort;
+use Hyperf\Odin\Constants\ChatApi;
 
+/** 模型运行配置统一处理历史思考参数，接口调用方无需推断默认值。 */
 class ModelConfigItem extends AbstractDTO
 {
     protected ?int $maxTokens = null;
@@ -20,6 +23,12 @@ class ModelConfigItem extends AbstractDTO
 
     protected bool $supportDeepThink = false;
 
+    /** 未配置与显式空数组分别表示历史三档和不开放手动选择。 */
+    protected ?array $reasoningEffortLevels = null;
+
+    /** 空值跟随服务商默认，关闭能力时保留原始配置。 */
+    protected ?string $reasoningEffortDefault = null;
+
     protected int $vectorSize = 2048;
 
     protected bool $supportMultiModal = true;
@@ -27,6 +36,11 @@ class ModelConfigItem extends AbstractDTO
     protected bool $supportEmbedding = false;
 
     protected ?int $maxOutputTokens = null;
+
+    /**
+     * OpenAI 兼容接口类型：chat_completions 或 responses.
+     */
+    protected string $chatApi = ChatApi::CHAT_COMPLETIONS;
 
     protected ?float $creativity = null;
 
@@ -76,6 +90,67 @@ class ModelConfigItem extends AbstractDTO
         parent::__construct($data);
 
         $this->setBillingTiers($billingTiers);
+        $this->normalizeReasoningEffortDefault();
+    }
+
+    /** 输出完整的编辑配置；关闭开关仅隐藏能力，不丢弃可恢复的档位。 */
+    public function jsonSerialize(): array
+    {
+        $data = parent::jsonSerialize();
+        $data['reasoning_effort_levels'] = $this->reasoningEffortLevels ?? ['low', 'medium', 'high'];
+        $data['reasoning_effort_default'] = $this->reasoningEffortDefault;
+        return $data;
+    }
+
+    /** 获取原始配置，用于版本记录，保留历史空值语义。 */
+    public function getReasoningEffortLevels(): ?array
+    {
+        return $this->reasoningEffortLevels;
+    }
+
+    /** 校验七档并按统一顺序去重保存。 */
+    public function setReasoningEffortLevels(?array $levels): void
+    {
+        if ($levels === null) {
+            $this->reasoningEffortLevels = null;
+            $this->normalizeReasoningEffortDefault();
+            return;
+        }
+        foreach ($levels as $level) {
+            if (! is_string($level) || ReasoningEffort::tryFrom($level) === null) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'Invalid reasoning_effort_levels');
+            }
+        }
+        $this->reasoningEffortLevels = array_values(array_intersect(ReasoningEffort::values(), $levels));
+        $this->normalizeReasoningEffortDefault();
+    }
+
+    /** 统一读取有效档位，关闭思考时不开放选择，历史配置默认三档。 */
+    public function getEffectiveReasoningEffortLevels(): array
+    {
+        return $this->supportDeepThink ? ($this->reasoningEffortLevels ?? ['low', 'medium', 'high']) : [];
+    }
+
+    /** 读取原始默认档位，用于编辑和配置版本记录。 */
+    public function getReasoningEffortDefault(): ?string
+    {
+        return $this->reasoningEffortDefault;
+    }
+
+    /** 后台默认值限定七档；请求透传不使用此校验。 */
+    public function setReasoningEffortDefault(?string $level): void
+    {
+        if ($level !== null && ReasoningEffort::tryFrom($level) === null) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, 'Invalid reasoning_effort_default');
+        }
+        $this->reasoningEffortDefault = $level;
+    }
+
+    /** 关闭能力或档位已移除时不应用覆盖，历史空值保持服务商默认。 */
+    public function getEffectiveReasoningEffortDefault(): ?string
+    {
+        return in_array($this->reasoningEffortDefault, $this->getEffectiveReasoningEffortLevels(), true)
+            ? $this->reasoningEffortDefault : null;
     }
 
     public function getMaxTokens(): ?int
@@ -159,6 +234,21 @@ class ModelConfigItem extends AbstractDTO
     public function getMaxOutputTokens(): ?int
     {
         return $this->maxOutputTokens;
+    }
+
+    public function getChatApi(): string
+    {
+        return $this->chatApi;
+    }
+
+    public function setChatApi(?string $chatApi): void
+    {
+        if (is_string($chatApi) && in_array($chatApi, [ChatApi::CHAT_COMPLETIONS, ChatApi::RESPONSES], true)) {
+            $this->chatApi = $chatApi;
+            return;
+        }
+
+        $this->chatApi = ChatApi::CHAT_COMPLETIONS;
     }
 
     public function getCreativity(): ?float
@@ -384,6 +474,14 @@ class ModelConfigItem extends AbstractDTO
         }
 
         $this->billingTiers = new BillingTiers($billingTiers);
+    }
+
+    /** 完成初始化后归一化依赖，避免 JSON 字段顺序影响最终默认值。 */
+    private function normalizeReasoningEffortDefault(): void
+    {
+        if (! in_array($this->reasoningEffortDefault, $this->reasoningEffortLevels ?? ['low', 'medium', 'high'], true)) {
+            $this->reasoningEffortDefault = null;
+        }
     }
 
     private function handleCreativityAndTemperatureConflict(): void

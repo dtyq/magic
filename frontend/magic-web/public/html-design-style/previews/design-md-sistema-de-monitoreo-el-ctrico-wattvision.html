@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WattVision — Sistema de Monitoreo Eléctrico Industrial</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --card: #1E1E1E;
+      --card-hover: #252525;
+      --border: #2C2C2E;
+      --cyan: #00E5FF;
+      --red: #FF453A;
+      --green: #32D74B;
+      --gold: #FFD60A;
+      --alert-bg: #3A1C1C;
+      --text: #FFFFFF;
+      --muted: #98989D;
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+    
+    /* Top Telemetry Header */
+    .top-header { height: 56px; background: #161616; border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .brand-wrap { display: flex; align-items: center; gap: 12px; }
+    .logo-badge { width: 34px; height: 34px; border-radius: 8px; background: rgba(0,229,255,0.15); border: 1px solid var(--cyan); display: flex; align-items: center; justify-content: center; color: var(--cyan); }
+    .brand-title { font-size: 18px; font-weight: 700; }
+    .brand-title span { color: var(--cyan); }
+    .substation-tag { font-size: 11.5px; background: #222; border: 1px solid var(--border); padding: 3px 8px; border-radius: 6px; color: var(--muted); }
+    
+    .status-wrap { display: flex; align-items: center; gap: 16px; }
+    .header-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+    .header-meta strong { color: var(--text); }
+    .live-chip { background: rgba(50,215,75,0.12); border: 1px solid rgba(50,215,75,0.4); color: var(--green); padding: 3px 10px; border-radius: 999px; font-family: var(--mono); font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+    .container { max-width: 1320px; margin: 16px auto; padding: 0 20px; display: flex; flex-direction: column; gap: 14px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--cyan); }
+    .kpi-card.green::before { background: var(--green); }
+    .kpi-card.gold::before { background: var(--gold); }
+    .kpi-card.red::before { background: var(--red); }
+    .kpi-top { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-badge { font-size: 10px; font-family: var(--mono); font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+    .badge-cyan { background: rgba(0,229,255,0.15); color: var(--cyan); }
+    .badge-green { background: rgba(50,215,75,0.15); color: var(--green); }
+    .badge-gold { background: rgba(255,214,10,0.15); color: var(--gold); }
+    .badge-red { background: rgba(255,69,58,0.15); color: var(--red); }
+    .kpi-num { font-family: var(--mono); font-size: 26px; font-weight: 700; color: #FFF; margin: 4px 0 2px; }
+    .kpi-num small { font-size: 13px; color: var(--muted); font-weight: 500; }
+    .kpi-currency { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--cyan); }
+    .kpi-currency.green { color: var(--green); }
+    .kpi-currency.gold { color: var(--gold); }
+    .kpi-currency.red { color: var(--red); }
+
+    /* Three-Phase Meters Section */
+    .phase-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+    .sec-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .sec-title { font-size: 14px; font-weight: 600; color: #FFF; display: flex; align-items: center; gap: 8px; }
+    .sec-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+    
+    .phase-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .phase-item { background: #171717; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .phase-bar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .phase-name { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+    .phase-volt { font-family: var(--mono); font-size: 12.5px; font-weight: 700; }
+    
+    .bar-track { height: 6px; background: #262628; border-radius: 3px; overflow: hidden; margin: 6px 0 8px; }
+    .bar-fill { height: 100%; border-radius: 3px; }
+    .fill-l1 { background: var(--cyan); width: 76%; }
+    .fill-l2 { background: var(--gold); width: 73%; }
+    .fill-l3 { background: var(--green); width: 79%; }
+
+    .phase-stats { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+    .phase-stats strong { color: #FFF; }
+
+    /* Split: 8 cols Chart + 4 cols Alerts */
+    .split-grid { display: grid; grid-template-columns: 8fr 4fr; gap: 16px; }
+    .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+    .chart-controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .legend-row { display: flex; gap: 16px; font-size: 11.5px; color: var(--muted); }
+    .legend-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+
+    .svg-chart { width: 100%; height: 210px; display: block; }
+    
+    .sidebar-alerts { display: flex; flex-direction: column; gap: 14px; }
+    
+    /* Peak Tariff Box */
+    .peak-box { background: var(--alert-bg); border-left: 4px solid var(--red); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .peak-head { display: flex; justify-content: space-between; align-items: center; }
+    .peak-title { font-size: 12.5px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.03em; }
+    .peak-pill { background: rgba(255,69,58,0.25); color: #FFF; font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+    .peak-text { font-size: 12px; color: #FFA39E; line-height: 1.4; }
+    .peak-kwh { background: rgba(0,0,0,0.35); border-radius: 6px; padding: 6px 10px; display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11.5px; }
+    .btn-shed { background: var(--red); color: #FFF; border: none; border-radius: 6px; padding: 7px; font-size: 11.5px; font-weight: 700; cursor: pointer; text-align: center; }
+
+    /* Vampire Detection Card */
+    .vampire-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .vampire-item { display: flex; justify-content: space-between; font-size: 11.5px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .vampire-item:last-child { border-bottom: none; }
+    
+    /* Modbus Table */
+    .table-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 600; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    tr:hover td { background: var(--card-hover); }
+    .mono { font-family: var(--mono); }
+    .dot-live { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); margin-right: 5px; }
+    .dot-warn { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--red); margin-right: 5px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="top-header">
+    <div class="brand-wrap">
+      <div class="logo-badge">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <div class="brand-title">Watt<span>Vision</span></div>
+      <div class="substation-tag">Subestación Central 04 — Cochabamba (SE-CBBA)</div>
+    </div>
+    <div class="status-wrap">
+      <div class="header-meta">RED: <strong>380V / 50.02 Hz</strong> &bull; LAT: <strong>18ms (MODBUS)</strong></div>
+      <div class="live-chip"><span class="live-dot"></span> EN VIVO</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- First 500px High-Impact KPIs -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span>Potencia Activa Total</span>
+          <span class="kpi-badge badge-cyan">RMS INSTANTÁNEO</span>
+        </div>
+        <div class="kpi-num">14.82 <small>kW</small></div>
+        <div class="kpi-currency">Bs. 18.52 / hora (Industrial)</div>
+      </div>
+
+      <div class="kpi-card green">
+        <div class="kpi-top">
+          <span>Consumo Acumulado Hoy</span>
+          <span class="kpi-badge badge-green">CICLO 24H</span>
+        </div>
+        <div class="kpi-num">184.6 <small>kWh</small></div>
+        <div class="kpi-currency green">Total: Bs. 230.75</div>
+      </div>
+
+      <div class="kpi-card gold">
+        <div class="kpi-top">
+          <span>Generación Solar FV</span>
+          <span class="kpi-badge badge-gold">INVERSOR 12kW</span>
+        </div>
+        <div class="kpi-num">8.45 <small>kW</small></div>
+        <div class="kpi-currency gold">57.0% Autosuficiencia Solar</div>
+      </div>
+
+      <div class="kpi-card red">
+        <div class="kpi-top">
+          <span>Factor de Potencia</span>
+          <span class="kpi-badge badge-red">BANCO CONDENSADOR</span>
+        </div>
+        <div class="kpi-num">0.96 <small>cos φ</small></div>
+        <div class="kpi-currency red">Sin penalización reactiva</div>
+      </div>
+    </section>
+
+    <!-- Three-Phase Voltage & Current Telemetry -->
+    <section class="phase-wrap">
+      <div class="sec-head">
+        <div class="sec-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2.2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Telemetría Trifásica de Red (Líneas L1, L2, L3)
+        </div>
+        <div class="sec-meta">Desbalance de Fases: 1.4% (Límite: &lt;3.0%)</div>
+      </div>
+
+      <div class="phase-grid">
+        <div class="phase-item">
+          <div class="phase-bar-head">
+            <span class="phase-name" style="color: var(--cyan);">FASE L1</span>
+            <span class="phase-volt" style="color: var(--cyan);">224.6 V</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill fill-l1"></div></div>
+          <div class="phase-stats">
+            <span>Corriente: <strong>22.4 A</strong></span>
+            <span>Potencia: <strong>5.03 kW</strong> (Bs. 6.28/h)</span>
+          </div>
+        </div>
+
+        <div class="phase-item">
+          <div class="phase-bar-head">
+            <span class="phase-name" style="color: var(--gold);">FASE L2</span>
+            <span class="phase-volt" style="color: var(--gold);">221.8 V</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill fill-l2"></div></div>
+          <div class="phase-stats">
+            <span>Corriente: <strong>21.8 A</strong></span>
+            <span>Potencia: <strong>4.83 kW</strong> (Bs. 6.04/h)</span>
+          </div>
+        </div>
+
+        <div class="phase-item">
+          <div class="phase-bar-head">
+            <span class="phase-name" style="color: var(--green);">FASE L3</span>
+            <span class="phase-volt" style="color: var(--green);">223.1 V</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill fill-l3"></div></div>
+          <div class="phase-stats">
+            <span>Corriente: <strong>22.1 A</strong></span>
+            <span>Potencia: <strong>4.96 kW</strong> (Bs. 6.20/h)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Split: Solar/Grid Graph + Alert Sidebar -->
+    <div class="split-grid">
+      <section class="chart-box">
+        <div class="chart-controls">
+          <div class="sec-title">Demanda Red vs. Generación Solar Fotovoltaica</div>
+          <div class="legend-row">
+            <span><span class="legend-dot" style="background: var(--cyan);"></span>Demanda Red (kW)</span>
+            <span><span class="legend-dot" style="background: var(--green);"></span>Solar FV (kW)</span>
+            <span><span class="legend-dot" style="background: var(--red);"></span>Zona Punta</span>
+          </div>
+        </div>
+
+        <svg class="svg-chart" viewBox="0 0 740 210" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="gSolar" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#32D74B" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#32D74B" stop-opacity="0.0"/>
+            </linearGradient>
+            <linearGradient id="gDemand" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#00E5FF" stop-opacity="0.0"/>
+            </linearGradient>
+          </defs>
+
+          <rect x="520" y="10" width="130" height="170" fill="rgba(255, 69, 58, 0.08)" rx="4"/>
+          <text x="585" y="24" fill="#FF453A" font-size="9.5" font-family="'JetBrains Mono', monospace" font-weight="700" text-anchor="middle">TARIFA PUNTA (Bs. 1.84)</text>
+          <line x1="30" y1="180" x2="720" y2="180" stroke="#2C2C2E" stroke-width="1"/>
+          <line x1="30" y1="135" x2="720" y2="135" stroke="#2C2C2E" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="30" y1="90" x2="720" y2="90" stroke="#2C2C2E" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="30" y1="45" x2="720" y2="45" stroke="#2C2C2E" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="24" y="184" fill="#98989D" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">0</text>
+          <text x="24" y="139" fill="#98989D" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">5k</text>
+          <text x="24" y="94" fill="#98989D" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">10k</text>
+          <text x="24" y="49" fill="#98989D" font-size="9" font-family="'JetBrains Mono'" text-anchor="end">15k</text>
+          <path d="M 180 180 Q 260 180 320 120 T 430 25 T 510 130 Q 540 180 570 180 Z" fill="url(#gSolar)"/>
+          <path d="M 180 180 Q 260 180 320 120 T 430 25 T 510 130 Q 540 180 570 180" fill="none" stroke="#32D74B" stroke-width="2.2"/>
+          <path d="M 30 135 Q 120 130 180 125 T 320 150 T 430 105 T 540 75 T 610 50 T 680 120 L 720 135 L 720 180 L 30 180 Z" fill="url(#gDemand)"/>
+          <path d="M 30 135 Q 120 130 180 125 T 320 150 T 430 105 T 540 75 T 610 50 T 680 120 L 720 135" fill="none" stroke="#00E5FF" stroke-width="2.2"/>
+          <circle cx="610" cy="50" r="4" fill="#00E5FF" stroke="#121212" stroke-width="2"/>
+          <text x="35" y="198" fill="#98989D" font-size="9.5" font-family="'JetBrains Mono'">00:00</text>
+          <text x="180" y="198" fill="#98989D" font-size="9.5" font-family="'JetBrains Mono'">06:00</text>
+          <text x="350" y="198" fill="#98989D" font-size="9.5" font-family="'JetBrains Mono'">12:00 (Mediodía)</text>
+          <text x="530" y="198" fill="#98989D" font-size="9.5" font-family="'JetBrains Mono'">18:00 (Punta)</text>
+          <text x="680" y="198" fill="#98989D" font-size="9.5" font-family="'JetBrains Mono'">23:59</text>
+        </svg>
+      </section>
+
+      <!-- Alerts Column -->
+      <aside class="sidebar-alerts">
+        <div class="peak-box">
+          <div class="peak-head">
+            <span class="peak-title">Horario Punta Activo</span>
+            <span class="peak-pill">18:00 - 22:00</span>
+          </div>
+          <div class="peak-text">Sobretasa de alta demanda en vigor (+47% sobre tarifa base comercial).</div>
+          <div class="peak-kwh">
+            <span style="color:#FFA39E">Tarifa Punta:</span>
+            <strong style="color:var(--red)">Bs. 1.84 / kWh</strong>
+          </div>
+          <button class="btn-shed">Desconexión Automática Cargas (-3.2 kW)</button>
+        </div>
+
+        <div class="vampire-box">
+          <div class="sec-head" style="margin-bottom:8px">
+            <div class="sec-title" style="font-size:12.5px">Consumo Vampiro (Standby)</div>
+            <span style="font-family:var(--mono);font-size:10.5px;color:var(--red);font-weight:700">420W</span>
+          </div>
+          <div class="vampire-item"><span style="color:var(--muted)">Climatización Oficinas B</span><span class="mono" style="color:var(--red)">Bs. 38.50/m</span></div>
+          <div class="vampire-item"><span style="color:var(--muted)">Compresor Taller 2</span><span class="mono" style="color:var(--red)">Bs. 54.20/m</span></div>
+          <div class="vampire-item"><span style="color:var(--muted)">Cargadores Rack</span><span class="mono" style="color:var(--red)">Bs. 21.10/m</span></div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="table-box">
+      <div class="sec-head">
+        <div class="sec-title">Cuadro de Cargas Modbus RTU — Subestación Central</div>
+        <div class="sec-meta">Dispositivo: MBRTU-08A &bull; 19200 bps</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Circuito / Carga</th>
+            <th>Fase</th>
+            <th>Voltaje</th>
+            <th>Corriente</th>
+            <th>Potencia</th>
+            <th>THD-V</th>
+            <th>Costo / Día</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Línea de Envasado 1 (7.5kW)</strong></td>
+            <td>L1-L2-L3</td>
+            <td class="mono">381.2 V</td>
+            <td class="mono">11.4 A</td>
+            <td class="mono" style="color:var(--cyan)">6.82 kW</td>
+            <td class="mono">1.8%</td>
+            <td class="mono">Bs. 85.25</td>
+            <td><span class="dot-live"></span><span style="color:var(--green)">Normal</span></td>
+          </tr>
+          <tr>
+            <td><strong>Inyector Termoplásticos</strong></td>
+            <td>L1-L2-L3</td>
+            <td class="mono">379.8 V</td>
+            <td class="mono">8.9 A</td>
+            <td class="mono" style="color:var(--cyan)">5.12 kW</td>
+            <td class="mono">2.3%</td>
+            <td class="mono">Bs. 64.00</td>
+            <td><span class="dot-live"></span><span style="color:var(--green)">Normal</span></td>
+          </tr>
+          <tr>
+            <td><strong>Compresor Central KAESER</strong></td>
+            <td>L1-L2</td>
+            <td class="mono">223.5 V</td>
+            <td class="mono">6.2 A</td>
+            <td class="mono" style="color:var(--red)">2.45 kW</td>
+            <td class="mono" style="color:var(--red)">4.8%</td>
+            <td class="mono">Bs. 30.60</td>
+            <td><span class="dot-warn"></span><span style="color:var(--red)">Pico</span></td>
+          </tr>
+          <tr>
+            <td><strong>Iluminación LED &amp; Servidor</strong></td>
+            <td>L1</td>
+            <td class="mono">224.6 V</td>
+            <td class="mono">1.9 A</td>
+            <td class="mono" style="color:var(--green)">0.43 kW</td>
+            <td class="mono">0.9%</td>
+            <td class="mono">Bs. 5.37</td>
+            <td><span class="dot-live"></span><span style="color:var(--green)">Normal</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

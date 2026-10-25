@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { type RecycleBinTab, useRecycleBinTabLabel } from "../tab-config"
 
 export function RecycleBinSidebar({ tabs, activeTabId, onTabChange }: RecycleBinSidebarProps) {

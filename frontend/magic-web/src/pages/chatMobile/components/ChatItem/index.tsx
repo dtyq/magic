@@ -8,8 +8,9 @@ import MagicBadge from "@/components/base/MagicBadge"
 import { useStyles } from "./styles"
 import { ChatItemData } from "./type"
 import { observer } from "mobx-react-lite"
+import { useTranslation } from "react-i18next"
 import ConversationStore from "@/stores/chatNew/conversation"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ChatItemProps {
 	data: ChatItemData
@@ -28,6 +29,7 @@ const ChatItem = observer(function ChatItem({
 	onDeleteClick,
 	className,
 }: ChatItemProps) {
+	const { t } = useTranslation("chat")
 	const { styles } = useStyles()
 
 	const conversation = ConversationStore.getConversation(data.id)
@@ -45,7 +47,7 @@ const ChatItem = observer(function ChatItem({
 						className={styles.swipeActionText}
 					>
 						<MagicIcon component={IconDots} color="currentColor" size={18} />
-						更多
+						{t("swipe.more")}
 					</FlexBox>
 				),
 				color: "warning",
@@ -62,7 +64,7 @@ const ChatItem = observer(function ChatItem({
 						className={styles.swipeActionText}
 					>
 						<MagicIcon component={IconPin} color="currentColor" size={18} />
-						{conversation?.is_top ? "取消置顶" : "置顶"}
+						{conversation?.is_top ? t("swipe.unpin") : t("swipe.pin")}
 					</FlexBox>
 				),
 				color: "primary",
@@ -79,14 +81,14 @@ const ChatItem = observer(function ChatItem({
 						className={styles.swipeActionText}
 					>
 						<MagicIcon component={IconTrash} color="currentColor" size={18} />
-						移除
+						{t("swipe.remove")}
 					</FlexBox>
 				),
 				color: "danger",
 				onClick: onDeleteClick,
 			},
 		],
-		[conversation?.is_top, onDeleteClick, onMoreClick, onPinClick, styles.swipeActionText],
+		[conversation?.is_top, onDeleteClick, onMoreClick, onPinClick, styles.swipeActionText, t],
 	)
 
 	return (

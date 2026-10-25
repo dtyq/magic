@@ -135,7 +135,6 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
             directory: 聊天历史目录路径
         """
         self.chat_history_dir = directory
-        os.makedirs(directory, exist_ok=True)
         logger.debug(f"设置聊天历史目录: {directory}")
 
     def get_chat_history_dir(self) -> str:

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { type FetchWorkspacesParams } from "@/pages/superMagic/hooks/useWorkspace"
 import { SuperMagicApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { analyticsService } from "@/services/analytics"
 
 interface UseWorkspaceCreationOptions {
 	/** Fetch workspaces function */
@@ -59,6 +60,7 @@ export function useWorkspaceCreation({
 			const trimmedName = newWorkspaceName.trim()
 			if (trimmedName) {
 				setIsCreatingWorkspaceLoading(true)
+				analyticsService.report("workspace_create_attempted")
 				const res = await SuperMagicApi.createWorkspace({
 					workspace_name: trimmedName,
 				})

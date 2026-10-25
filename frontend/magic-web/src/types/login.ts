@@ -61,6 +61,8 @@ export namespace Login {
 		AppleLogin = "apple_login",
 		/** Google登录 */
 		GoogleLogin = "google_login",
+		/** 飞书 OAuth 登录 */
+		FeishuOAuth = "feishu_oauth",
 	}
 
 	/** 登录响应（验证码、手机号+密码、钉钉、飞书、企业微信等登录方式） */
@@ -160,6 +162,8 @@ export namespace Login {
 	export interface AppleLoginFormValues extends LoginFormCommonValues {}
 
 	export interface GoogleLoginFormValues extends LoginFormCommonValues {}
+
+	export interface FeishuOAuthFormValues extends LoginFormCommonValues {}
 
 	export interface LarkRedirectFormValues extends LoginFormCommonValues {}
 

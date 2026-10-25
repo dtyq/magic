@@ -16,14 +16,13 @@
 		"submitting": "提交中..."
 	},
 	"card": {
-		"collapseTags": "收起",
 		"copyToProject": "复制到项目",
 		"delete": "删除",
 		"generateSummary": "生成总结",
 		"mergeFailed": "合并失败",
 		"moreActions": "更多操作",
-		"moreTags": "+{{count}}",
 		"moveToGroup": "移动到分组",
+		"moveToGroupSuccess": "已移动到分组",
 		"notSummarized": "未总结",
 		"openProject": "查看录音项目",
 		"processing": "处理中",
@@ -63,13 +62,14 @@
 			"summaryFailed": "总结失败",
 			"summaryFailedHint": "请稍后重试或重新提交总结。"
 		},
-		"emptyNotes": "暂无笔记",
+		"emptyNotes": "正在总结中，完成后将自动显示",
 		"emptySummary": "暂无总结内容",
-		"emptySummaryFile": "该内容暂未生成",
-		"emptyTranscript": "暂无转写内容",
+		"emptySummaryFile": "暂无总结内容",
+		"emptyTranscript": "正在总结中，完成后将自动显示",
 		"emptyTranscriptFiltered": "当前筛选下暂无转写内容",
 		"emptyTranscriptSearch": "未找到匹配内容",
 		"entryNotFound": "未找到录音入口文件",
+		"expandTranscriptPanelAria": "展开转写侧栏",
 		"export": "导出",
 		"exportAll": "导出全部",
 		"exportAudio": "导出音频",
@@ -98,13 +98,22 @@
 		"player": {
 			"collapsePlayerAria": "收起播放器",
 			"expandPlayerAria": "展开播放器",
+			"moreActions": "更多操作",
 			"playbackRateMenuAria": "播放速度",
 			"playbackSpeed": "{{rate}}x",
 			"skipBackAria": "后退 15 秒",
 			"skipForwardAria": "前进 15 秒",
 			"waveformSeekAria": "波形播放进度，拖动或使用方向键跳转"
 		},
+		"pullConversationToCancel": "向左拖动取消收起",
+		"pullConversationToCollapse": "向右拖动收起对话",
+		"pullTranscriptToCancel": "向右拖动取消收起",
+		"pullTranscriptToCollapse": "向左拖动收起转写",
 		"relatedDialogue": "关联对话",
+		"releaseConversationToCollapse": "松手收起对话",
+		"releaseConversationToKeepOpen": "松手保持展开",
+		"releaseTranscriptToCollapse": "松手收起转写",
+		"releaseTranscriptToKeepOpen": "松手保持展开",
 		"searchContent": "搜索内容",
 		"searchContentClear": "清空搜索词",
 		"searchContentClose": "关闭内容搜索",
@@ -130,14 +139,14 @@
 		"speakerSettingsSave": "保存",
 		"speakerSettingsTitle": "说话人名称",
 		"summarizing": "正在总结中",
-		"summarizingHint": "完成后会展示所有总结视图。",
+		"summarizingHint": "正在总结中，完成后将自动显示",
 		"tabs": {
 			"ai": "问 AI",
 			"followup": "待办事项",
 			"highlights": "精华",
 			"insights": "深度洞察",
 			"intent": "意图分析",
-			"metrics": "指标分析",
+			"metrics": "关键数据",
 			"mindmap": "思维导图",
 			"notes": "笔记",
 			"powerDynamics": "权力动态",
@@ -158,7 +167,6 @@
 		"untitled": "未命名录音"
 	},
 	"empty": {
-		"description": "录音项目会出现在这里",
 		"noCustomGroups": "暂无自定义分组",
 		"search": "没有匹配的录音",
 		"title": "暂无录音"
@@ -166,9 +174,7 @@
 	"end": "没有更多数据。",
 	"filters": {
 		"sort": "排序",
-		"sortByCreatedAsc": "按创建时间（旧到新）",
 		"sortByCreatedDesc": "按创建时间",
-		"sortByUpdatedAsc": "按更新时间（旧到新）",
 		"sortByUpdatedDesc": "按更新时间",
 		"summaryAll": "全部",
 		"summaryDone": "已总结",
@@ -178,10 +184,9 @@
 	"import": {
 		"doNotRefreshTip": "导入完成前请勿刷新页面，切换到其他页面不影响导入"
 	},
-	"listCount": "录音 · {{count}}",
 	"loading": "加载中...",
 	"loadingMore": "加载更多...",
-	"pageTitle": "录音与纪要",
+	"pageTitle": "AI 录音",
 	"refresh": "刷新列表",
 	"searchClear": "清除搜索",
 	"searchPlaceholder": "搜索录音",
@@ -196,12 +201,12 @@
 			"transcript": "转写"
 		}
 	},
-	"subtitle": "查看与管理音频录制与智能纪要。",
+	"subtitle": "AI 录音，智能汇总、分析并提炼要点。",
 	"summary": {
 		"missingModel": "无法获取总结模型，请稍后重试",
 		"missingParams": "缺少总结所需参数，请刷新列表后重试",
 		"retryMergeFailed": "重新合并提交失败，请稍后重试",
 		"submitFailed": "提交总结失败，请稍后重试"
 	},
-	"title": "录音与纪要"
+	"title": "AI 录音"
 }

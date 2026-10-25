@@ -15,8 +15,12 @@ import { getRecordingImagesDirPath } from "@/services/recordSummary/const/files"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
 import { SuperMagicApi } from "@/apis"
 import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
-import { requestProjectAttachmentsFullRefresh } from "@/pages/superMagic/services/attachmentsTopicSync"
 import type { AttachmentFile } from "@/pages/superMagic/utils/image-url-resolver"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
+import {
+	findRecordingImagesFolderId,
+	getVisibleRecordingAttachmentTree,
+} from "@/components/business/RecordingSummary/utils/recordingImageLookupSnapshot"
 
 import {
 	MobileShellSidebarToggleButton,
@@ -72,6 +76,15 @@ function AudioRecordingEntryPanel() {
 		const displayDirId = recordSummaryService.getAsrDisplayDir()?.directory_id
 		if (!displayDirId) return undefined
 		const folderName = targetFolderPath.split("/").filter(Boolean).pop() || "images"
+		const existingFolderId = findRecordingImagesFolderId(
+			recordingImageAttachments as unknown as AttachmentItem[],
+			displayDirId,
+			folderName,
+		)
+		if (existingFolderId) {
+			imagesFolderIdRef.current = existingFolderId
+			return existingFolderId
+		}
 
 		try {
 			const result = await SuperMagicApi.createFile({
@@ -85,11 +98,17 @@ function AudioRecordingEntryPanel() {
 			return folderId
 		} catch (error) {
 			if ((error as { code?: number })?.code === SuperMagicApiErrorCode.DuplicateFile) {
-				requestProjectAttachmentsFullRefresh({
+				const { tree } = await loadProjectAttachments({
 					projectId: activeRecordingProjectId,
-					reason: "mobile-recording-images-folder-duplicate",
+					includeHidden: true,
 				})
-				return imagesFolderIdRef.current
+				const existingFolderId = findRecordingImagesFolderId(
+					tree as unknown as AttachmentItem[],
+					displayDirId,
+					folderName,
+				)
+				if (existingFolderId) imagesFolderIdRef.current = existingFolderId
+				return existingFolderId
 			}
 			return undefined
 		}
@@ -98,12 +117,17 @@ function AudioRecordingEntryPanel() {
 	/**
 	 * Refreshes the local attachment tree after a photo becomes a project file.
 	 */
-	const handleImageUploadSuccess = useMemoizedFn(() => {
-		if (!activeRecordingProjectId) return
-		loadProjectAttachments({ projectId: activeRecordingProjectId }).then(({ tree }) => {
-			setRecordingImageAttachments(tree as unknown as AttachmentFile[])
-			recordingProjectFilesStore.setWorkspaceFileTree(tree)
+	const handleImageUploadSuccess = useMemoizedFn(async () => {
+		const projectId = activeRecordingProjectId
+		if (!projectId) return
+		const { tree } = await loadProjectAttachments({
+			projectId,
+			includeHidden: true,
 		})
+		if (recordingSummaryStore.businessData.project?.id !== projectId) return
+		setRecordingImageAttachments(tree as unknown as AttachmentFile[])
+		recordingProjectFilesStore.setWorkspaceFileTree(getVisibleRecordingAttachmentTree(tree))
+		setAttachmentsReadyProjectId(projectId)
 	})
 	useProjectAttachmentsChangeRealtime({
 		projectId: activeRecordingProjectId,
@@ -126,15 +150,22 @@ function AudioRecordingEntryPanel() {
 		if (facade.presentation !== "recording") return
 		const projectId = activeRecordingProjectId
 		if (!projectId) return
+		imagesFolderIdRef.current = undefined
 		const controller = new AbortController()
 		setRecordingImageAttachments([])
 		setAttachmentsReadyProjectId("")
 		recordingMentionStore.initLoadAttachments(projectId)
-		loadProjectAttachments({ projectId, signal: controller.signal })
+		loadProjectAttachments({
+			projectId,
+			includeHidden: true,
+			signal: controller.signal,
+		})
 			.then(({ tree }) => {
 				if (!controller.signal.aborted) {
 					setRecordingImageAttachments(tree as unknown as AttachmentFile[])
-					recordingProjectFilesStore.setWorkspaceFileTree(tree)
+					recordingProjectFilesStore.setWorkspaceFileTree(
+						getVisibleRecordingAttachmentTree(tree),
+					)
 					setAttachmentsReadyProjectId(projectId)
 				}
 			})
@@ -177,6 +208,7 @@ function AudioRecordingEntryPanel() {
 				folderPath={folderPath}
 				urlResolver={urlResolver}
 				resolveImagesFolderParentId={resolveImagesFolderParentId}
+				requireImagesFolderParentId
 				onImageUploadSuccess={handleImageUploadSuccess}
 				onEnableTranscription={() => void facade.enableTranscription()}
 				onRenameTitle={facade.renameRecordingTitle}

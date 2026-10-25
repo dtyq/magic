@@ -1,7 +1,6 @@
 import { Image as ImageIcon } from "lucide-react"
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react"
-import { cn } from "@/lib/utils"
-import { getSlidesTemplatePreviewAmbientImageUrl } from "./slidesTemplateImages"
+import { cn } from "@/utils/cn"
 import styles from "./SlidesTemplateInlinePreview.module.css"
 
 interface SlidesTemplatePreviewStageProps {
@@ -56,6 +55,7 @@ function usePreviewImagePreload(pages: string[], activeIndex: number) {
 		function preload(url: string | undefined) {
 			if (!url) return
 			const image = new window.Image()
+			image.crossOrigin = "anonymous"
 			image.decoding = "async"
 			image.src = url
 			images.push(image)
@@ -64,7 +64,6 @@ function usePreviewImagePreload(pages: string[], activeIndex: number) {
 		orderedPages.forEach((page, index) => {
 			const startPreload = () => {
 				preload(page)
-				preload(getSlidesTemplatePreviewAmbientImageUrl(page))
 			}
 
 			if (index < PRIORITY_PRELOAD_COUNT) {
@@ -126,6 +125,7 @@ function usePreviewImageSwap(activePage: string | undefined, resetKey: string) {
 
 		let cancelled = false
 		const image = new window.Image()
+		image.crossOrigin = "anonymous"
 		image.decoding = "async"
 
 		const commitPage = () => {
@@ -177,7 +177,9 @@ function SlidesTemplatePreviewStage({
 	const activePage = pages[safeActiveIndex]
 	const pageKey = useMemo(() => pages.join("\n"), [pages])
 	const { displayedPage, isLoading } = usePreviewImageSwap(activePage, pageKey)
-	const ambientPage = getSlidesTemplatePreviewAmbientImageUrl(displayedPage)
+	// The background and the foreground intentionally share one URL so each slide has one
+	// network/cache entry; CSS handles the ambient presentation without another image variant.
+	const ambientPage = displayedPage
 	const displayedIndex = displayedPage ? pages.indexOf(displayedPage) : safeActiveIndex
 	const displayedPageNumber = displayedIndex >= 0 ? displayedIndex + 1 : safeActiveIndex + 1
 
@@ -192,6 +194,7 @@ function SlidesTemplatePreviewStage({
 		>
 			{displayedPage ? (
 				<img
+					crossOrigin="anonymous"
 					src={ambientPage}
 					alt=""
 					className={styles.ambientPreview}
@@ -210,6 +213,7 @@ function SlidesTemplatePreviewStage({
 				>
 					{displayedPage ? (
 						<img
+							crossOrigin="anonymous"
 							src={displayedPage}
 							alt={`${title} ${displayedPageNumber}`}
 							className={styles.previewPageImage}

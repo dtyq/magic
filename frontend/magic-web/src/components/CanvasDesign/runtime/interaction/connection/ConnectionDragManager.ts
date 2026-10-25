@@ -1,6 +1,11 @@
 import Konva from "konva"
 import type { Canvas } from "../../core/Canvas"
 import { ElementTypeEnum } from "../../document/types"
+import {
+	areConnectionOriginsEqual,
+	cloneConnectionOrigin,
+	type ConnectionOrigin,
+} from "../../shared/connectionOrigin"
 import type { Rect } from "../../shared/ids"
 import { getClientPointFromNativeEvent } from "../input"
 import type {
@@ -10,7 +15,8 @@ import type {
 	CanvasPointerType,
 } from "../input"
 import { resolveManagedElementIdFromKonvaNode } from "../transform/elementNodeUtils"
-import type { ConnectionHandleSide } from "./ConnectionHandleRenderer"
+import { createSelectionRevision } from "../selection/selectionContentCollector"
+import { canSelectionRootConnect } from "../selection/selectionConnectionGuards"
 import {
 	ConnectionDragRenderer,
 	type ConnectionDragPreviewState,
@@ -18,8 +24,7 @@ import {
 } from "./ConnectionDragRenderer"
 
 interface ActiveConnectionDrag {
-	originElementId: string
-	originSide: ConnectionHandleSide
+	origin: ConnectionOrigin
 	pointerId: number
 	pointerType: CanvasPointerType
 	startClient: CanvasInputPoint
@@ -40,8 +45,7 @@ interface ConnectionTargetResolution {
 }
 
 export interface StartConnectionDragFromHandleOptions {
-	elementId: string
-	side: ConnectionHandleSide
+	origin: ConnectionOrigin
 	event?: Konva.KonvaEventObject<Event>
 	client?: CanvasInputPoint
 	canvasPoint?: CanvasInputPoint
@@ -103,11 +107,11 @@ export class ConnectionDragManager {
 	}
 
 	public startFromHandle(options: StartConnectionDragFromHandleOptions): boolean {
-		if (!this.canStartFromHandle(options.elementId)) return false
+		const origin = options.origin
+		if (!this.canStartFromHandle(origin)) return false
 		if (
 			this.activeDrag?.phase === "pending" &&
-			this.activeDrag.originElementId === options.elementId &&
-			this.activeDrag.originSide === options.side
+			areConnectionOriginsEqual(this.activeDrag.origin, origin)
 		) {
 			return true
 		}
@@ -123,8 +127,7 @@ export class ConnectionDragManager {
 
 		this.cancelActiveDrag()
 		this.activeDrag = {
-			originElementId: options.elementId,
-			originSide: options.side,
+			origin: cloneConnectionOrigin(origin),
 			pointerId: options.pointerId ?? getPointerId(nativeEvent),
 			pointerType: options.pointerType ?? getPointerType(nativeEvent),
 			startClient: client,
@@ -174,15 +177,17 @@ export class ConnectionDragManager {
 		this.eventUnsubscribers = [
 			this.canvas.eventEmitter.on("keyboard:escape", () => this.cancelActiveDrag()),
 			this.canvas.eventEmitter.on("canvas:clear", () => this.cancelActiveDrag()),
-			this.canvas.eventEmitter.on("canvas:readonly", ({ data }) => {
-				if (data.readonly) this.cancelActiveDrag()
+			this.canvas.eventEmitter.on("permission:changed", () => {
+				if (!this.canvas.permissionManager.can("document.write")) this.cancelActiveDrag()
 			}),
 			this.canvas.eventEmitter.on("tool:change", () => this.cancelActiveDrag()),
 			this.canvas.eventEmitter.on("crop:enter", () => this.cancelActiveDrag()),
 			this.canvas.eventEmitter.on("extend:enter", () => this.cancelActiveDrag()),
 			this.canvas.eventEmitter.on("eraser:enter", () => this.cancelActiveDrag()),
 			this.canvas.eventEmitter.on("connection:menu:close", ({ data }) => {
-				if (data.source === "drag-empty") this.clearMenuOpenDrag(data.originElementId)
+				if (data.source === "drag-empty") {
+					this.clearMenuOpenDrag(data.origin)
+				}
 			}),
 			this.canvas.eventEmitter.on("elements:transform:dragstart", () =>
 				this.cancelActiveDrag(),
@@ -194,15 +199,32 @@ export class ConnectionDragManager {
 				if (data.active) this.cancelActiveDrag()
 			}),
 			this.canvas.eventEmitter.on("element:deleted", ({ data }) => {
-				if (this.activeDrag?.originElementId === data.elementId) {
+				if (
+					this.activeDrag &&
+					this.getOriginElementIds(this.activeDrag.origin).includes(data.elementId)
+				) {
 					this.cancelActiveDrag()
 				}
 			}),
 			this.canvas.eventEmitter.on("element:batchdeleted", ({ data }) => {
-				if (this.activeDrag && data.elementIds.includes(this.activeDrag.originElementId)) {
+				if (
+					this.activeDrag &&
+					this.getOriginElementIds(this.activeDrag.origin).some((id) =>
+						data.elementIds.includes(id),
+					)
+				) {
 					this.cancelActiveDrag()
 				}
 			}),
+			this.canvas.eventEmitter.on("element:select", () =>
+				this.cancelIfSelectionRevisionChanged(),
+			),
+			this.canvas.eventEmitter.on("element:deselect", () =>
+				this.cancelIfSelectionRevisionChanged(),
+			),
+			this.canvas.eventEmitter.on("selection:position", () =>
+				this.cancelIfSelectionRevisionChanged(),
+			),
 		]
 	}
 
@@ -212,7 +234,7 @@ export class ConnectionDragManager {
 		if (activeDrag.phase === "menu-open") return
 
 		this.stopInputEvent(input)
-		if (input.activePointerCount > 1 || !this.canContinueDrag(activeDrag.originElementId)) {
+		if (input.activePointerCount > 1 || !this.canContinueDrag(activeDrag.origin)) {
 			this.cancelActiveDrag()
 			return
 		}
@@ -241,10 +263,15 @@ export class ConnectionDragManager {
 
 		const target = this.resolveConnectionTarget(input, activeDrag)
 		if (target.state === "valid" && target.sourceElementId && target.targetElementId) {
-			this.canvas.connectionManager.connectElements({
-				sourceElementId: target.sourceElementId,
-				targetElementId: target.targetElementId,
-			})
+			const edges = this.resolveConnectionEdges(activeDrag.origin, target.elementId)
+			if (edges.length > 1) {
+				this.canvas.connectionManager.connectElementsBatch({ edges })
+			} else {
+				this.canvas.connectionManager.connectElements({
+					sourceElementId: target.sourceElementId,
+					targetElementId: target.targetElementId,
+				})
+			}
 			this.clearActiveDrag({ restoreCursor: true, refreshHandleOverlay: true })
 			return
 		}
@@ -272,7 +299,9 @@ export class ConnectionDragManager {
 	private beginDrag(activeDrag: ActiveConnectionDrag): void {
 		activeDrag.phase = "dragging"
 		this.canvas.hoverManager?.manualSetHover?.(null)
-		this.canvas.selectionManager.deselectAll()
+		if (activeDrag.origin.kind === "element") {
+			this.canvas.selectionManager.deselectAll()
+		}
 		this.canvas.connectionHandleOverlayManager?.clear({ animated: false })
 		this.canvas.cursorManager.setTemporary("crosshair")
 	}
@@ -289,9 +318,7 @@ export class ConnectionDragManager {
 		activeDrag: ActiveConnectionDrag,
 		target: ConnectionTargetResolution,
 	): boolean {
-		const originRect = this.canvas.geometryCacheManager.getElementBounds(
-			activeDrag.originElementId,
-		)
+		const originRect = this.getOriginRect(activeDrag.origin)
 		if (!isValidRect(originRect)) {
 			this.cancelActiveDrag()
 			return false
@@ -303,7 +330,7 @@ export class ConnectionDragManager {
 		if (target.state === "free") {
 			this.renderer.render({
 				originRect,
-				originSide: activeDrag.originSide,
+				originSide: activeDrag.origin.side,
 				pointerCanvasPoint: input.canvas,
 				state: "free",
 			})
@@ -312,7 +339,7 @@ export class ConnectionDragManager {
 
 		this.renderer.render({
 			originRect,
-			originSide: activeDrag.originSide,
+			originSide: activeDrag.origin.side,
 			pointerCanvasPoint: input.canvas,
 			state: target.state,
 			sourceRect: target.sourceRect,
@@ -360,45 +387,19 @@ export class ConnectionDragManager {
 			}
 		}
 
-		const endpoints = this.resolveConnectionEndpointIds(
-			activeDrag.originElementId,
-			candidateElementId,
-			activeDrag.originSide,
-		)
-		if (
-			this.canvas.connectionManager.hasConnection(
-				endpoints.sourceElementId,
-				endpoints.targetElementId,
-			)
-		) {
+		const edges = this.resolveConnectionEdges(activeDrag.origin, candidateElementId)
+		const invalidReason = this.validateConnectionEdges(edges)
+		if (invalidReason) {
 			return {
 				state: "invalid",
 				elementId: candidateElementId,
 				targetFeedbackRect: isValidRect(targetFeedbackRect) ? targetFeedbackRect : null,
-				validationReason: "already-connected",
+				validationReason: invalidReason,
 			}
 		}
-		if (
-			this.canvas.connectionManager.hasReverseConnection(
-				endpoints.sourceElementId,
-				endpoints.targetElementId,
-			)
-		) {
-			return {
-				state: "invalid",
-				elementId: candidateElementId,
-				targetFeedbackRect: isValidRect(targetFeedbackRect) ? targetFeedbackRect : null,
-				validationReason: "reverse-existing",
-			}
-		}
-
-		const sourceRect = this.canvas.geometryCacheManager.getElementBounds(
-			endpoints.sourceElementId,
-		)
-		const targetRect = this.canvas.geometryCacheManager.getElementBounds(
-			endpoints.targetElementId,
-		)
-		if (!isValidRect(sourceRect) || !isValidRect(targetRect)) {
+		const originRect = this.getOriginRect(activeDrag.origin)
+		const candidateRect = this.canvas.geometryCacheManager.getElementBounds(candidateElementId)
+		if (!isValidRect(originRect) || !isValidRect(candidateRect)) {
 			return {
 				state: "invalid",
 				elementId: candidateElementId,
@@ -406,14 +407,16 @@ export class ConnectionDragManager {
 				validationReason: "missing-element",
 			}
 		}
+		const sourceRect = activeDrag.origin.side === "right" ? originRect : candidateRect
+		const targetRect = activeDrag.origin.side === "right" ? candidateRect : originRect
 
 		return {
 			state: "valid",
 			elementId: candidateElementId,
 			targetFeedbackRect: isValidRect(targetFeedbackRect) ? targetFeedbackRect : targetRect,
 			validationReason: null,
-			sourceElementId: endpoints.sourceElementId,
-			targetElementId: endpoints.targetElementId,
+			sourceElementId: edges[0]?.sourceElementId,
+			targetElementId: edges[0]?.targetElementId,
 			sourceRect,
 			targetRect,
 		}
@@ -496,7 +499,9 @@ export class ConnectionDragManager {
 				ok: false
 				reason: ConnectionDragPreviewValidationReason
 		  } {
-		if (elementId === activeDrag.originElementId) return { ok: false, reason: "self" }
+		if (this.getOriginElementIds(activeDrag.origin).includes(elementId)) {
+			return { ok: false, reason: "self" }
+		}
 		if (!this.canvas.elementManager.hasElement(elementId)) {
 			return { ok: false, reason: "missing-element" }
 		}
@@ -514,36 +519,76 @@ export class ConnectionDragManager {
 		return { ok: true }
 	}
 
-	private resolveConnectionEndpointIds(
-		originElementId: string,
-		targetElementId: string,
-		originSide: ConnectionHandleSide,
-	): { sourceElementId: string; targetElementId: string } {
-		return originSide === "right"
-			? { sourceElementId: originElementId, targetElementId }
-			: { sourceElementId: targetElementId, targetElementId: originElementId }
+	private resolveConnectionEdges(
+		origin: ConnectionOrigin,
+		targetElementId: string | null,
+	): Array<{ sourceElementId: string; targetElementId: string }> {
+		if (!targetElementId) return []
+		const originIds = this.getOriginElementIds(origin)
+		return origin.side === "right"
+			? originIds.map((sourceElementId) => ({ sourceElementId, targetElementId }))
+			: originIds.map((selectedElementId) => ({
+					sourceElementId: targetElementId,
+					targetElementId: selectedElementId,
+				}))
 	}
 
-	private canStartFromHandle(elementId: string): boolean {
+	private validateConnectionEdges(
+		edges: Array<{ sourceElementId: string; targetElementId: string }>,
+	): ConnectionDragPreviewValidationReason | null {
+		if (edges.length === 0) return "missing-element"
+		const planned = new Set<string>()
+		for (const edge of edges) {
+			if (edge.sourceElementId === edge.targetElementId) return "self"
+			const pair = `${edge.sourceElementId}\u0000${edge.targetElementId}`
+			const reverse = `${edge.targetElementId}\u0000${edge.sourceElementId}`
+			if (planned.has(pair)) return "already-connected"
+			if (planned.has(reverse)) return "reverse-existing"
+			if (
+				this.canvas.connectionManager.hasConnection(
+					edge.sourceElementId,
+					edge.targetElementId,
+				)
+			) {
+				return "already-connected"
+			}
+			if (
+				this.canvas.connectionManager.hasReverseConnection(
+					edge.sourceElementId,
+					edge.targetElementId,
+				)
+			) {
+				return "reverse-existing"
+			}
+			planned.add(pair)
+		}
+		return null
+	}
+
+	private canStartFromHandle(origin: ConnectionOrigin): boolean {
 		if (!this.canUseConnectionDrag()) return false
-		if (!this.canvas.elementManager.hasElement(elementId)) return false
-		if (!this.canvas.elementManager.isElementVisibleInDataTree(elementId)) return false
-		const elementData = this.canvas.elementManager.getElementData(elementId)
-		return this.canvas.permissionManager.canConnect(elementData)
-	}
-
-	private canContinueDrag(originElementId: string): boolean {
-		const originElementData = this.canvas.elementManager.getElementData(originElementId)
+		if (origin.kind === "selection") {
+			return (
+				origin.elementIds.length > 1 &&
+				origin.elementIds.every((elementId) =>
+					canSelectionRootConnect(this.canvas, elementId),
+				)
+			)
+		}
+		const elementData = this.canvas.elementManager.getElementData(origin.elementId)
 		return (
-			this.canUseConnectionDrag() &&
-			this.canvas.elementManager.hasElement(originElementId) &&
-			this.canvas.elementManager.isElementVisibleInDataTree(originElementId) &&
-			this.canvas.permissionManager.canConnect(originElementData)
+			this.canvas.elementManager.hasElement(origin.elementId) &&
+			this.canvas.elementManager.isElementVisibleInDataTree(origin.elementId) &&
+			this.canvas.permissionManager.canConnect(elementData)
 		)
 	}
 
+	private canContinueDrag(origin: ConnectionOrigin): boolean {
+		return this.canStartFromHandle(origin)
+	}
+
 	private canUseConnectionDrag(): boolean {
-		if (this.canvas.readonly) return false
+		if (!this.canvas.permissionManager.can("document.write")) return false
 		if (!this.canvas.permissionManager.canUseSelectionToolAffordance()) return false
 		if (this.canvas.transformManager.isTransformInteractionActive()) return false
 		if (this.canvas.transformManager.isDraggingElement()) return false
@@ -590,11 +635,11 @@ export class ConnectionDragManager {
 	}
 
 	private openMenuFromPendingHandleClick(activeDrag: ActiveConnectionDrag): void {
+		if (!this.canOpenMenuFromOrigin(activeDrag.origin)) return
 		this.canvas.eventEmitter.emit({
 			type: "connection:menu:open",
 			data: {
-				originElementId: activeDrag.originElementId,
-				originSide: activeDrag.originSide,
+				origin: cloneConnectionOrigin(activeDrag.origin),
 				x: activeDrag.startClient.x,
 				y: activeDrag.startClient.y,
 				canvasX: activeDrag.startCanvas.x,
@@ -608,14 +653,17 @@ export class ConnectionDragManager {
 		activeDrag: ActiveConnectionDrag,
 		input: CanvasPointerInput,
 	): void {
+		if (!this.canOpenMenuFromOrigin(activeDrag.origin)) {
+			this.clearActiveDrag({ restoreCursor: true, refreshHandleOverlay: true })
+			return
+		}
 		activeDrag.phase = "menu-open"
 		activeDrag.targetElementId = null
 		this.canvas.cursorManager.restoreToolCursor()
 		this.canvas.eventEmitter.emit({
 			type: "connection:menu:open",
 			data: {
-				originElementId: activeDrag.originElementId,
-				originSide: activeDrag.originSide,
+				origin: cloneConnectionOrigin(activeDrag.origin),
 				x: input.client.x,
 				y: input.client.y,
 				canvasX: input.canvas.x,
@@ -625,9 +673,38 @@ export class ConnectionDragManager {
 		})
 	}
 
-	private clearMenuOpenDrag(originElementId?: string): void {
+	private clearMenuOpenDrag(origin: ConnectionOrigin): void {
 		if (!this.activeDrag || this.activeDrag.phase !== "menu-open") return
-		if (originElementId && originElementId !== this.activeDrag.originElementId) return
+		if (!areConnectionOriginsEqual(this.activeDrag.origin, origin)) return
 		this.clearActiveDrag({ restoreCursor: false, refreshHandleOverlay: true })
+	}
+
+	private getOriginElementIds(origin: ConnectionOrigin): string[] {
+		return origin.kind === "element" ? [origin.elementId] : origin.elementIds
+	}
+
+	private getOriginRect(origin: ConnectionOrigin): Rect | null {
+		if (origin.kind === "selection") return origin.boundingRect
+		return this.canvas.geometryCacheManager.getElementBounds(origin.elementId)
+	}
+
+	private canOpenMenuFromOrigin(origin: ConnectionOrigin): boolean {
+		if (origin.kind === "element") return true
+		return (
+			createSelectionRevision(this.canvas.selectionManager.getSelectedIds()) ===
+				origin.selectionRevision &&
+			origin.elementIds.every((elementId) => canSelectionRootConnect(this.canvas, elementId))
+		)
+	}
+
+	private cancelIfSelectionRevisionChanged(): void {
+		const activeDrag = this.activeDrag
+		if (!activeDrag || activeDrag.origin.kind !== "selection") return
+		if (
+			createSelectionRevision(this.canvas.selectionManager.getSelectedIds()) !==
+			activeDrag.origin.selectionRevision
+		) {
+			this.cancelActiveDrag()
+		}
 	}
 }

@@ -34,6 +34,8 @@ class AIAbility(str, Enum):
     MEMORY = "memory"
     AGENT_RERANK = "agent_rerank"
     JSON_REPAIR_VALIDATION = "json_repair_validation"
+    FOLLOW_UP_QUESTIONS = "follow_up_questions"
+    PERSONA_CHAT = "persona_chat"
 
 
 # Default configurations for each AI ability
@@ -136,6 +138,20 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "timeout": 30,
         "max_advice_words": 50,
         "enabled": True,
+    },
+
+    # 追加问题能力。空模型使用轻量默认值；明确 enabled=false 时不得回退到该默认值。
+    AIAbility.FOLLOW_UP_QUESTIONS: {
+        "model_id": "deepseek-v4-flash",
+        "temperature": 0.3,
+        "max_tokens": 512,
+        "enabled": True,
+    },
+
+    # 人设访谈能力：persona_chat 工具让 AI 人设回答访谈问题。
+    # 未配置专属模型时跟随当前对话的文本模型（auto 等模型可能不在用户套餐内）。
+    AIAbility.PERSONA_CHAT: {
+        "model_id": "",
     },
 }
 

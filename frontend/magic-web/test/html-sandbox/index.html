@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>HTML sandbox runnable examples</title>
+		<style>
+			body {
+				font: 16px/1.5 system-ui;
+				max-width: 1120px;
+				margin: 32px auto;
+				padding: 0 24px;
+				color: #17212b;
+			}
+			button,
+			select {
+				font: inherit;
+				padding: 8px 12px;
+				margin-right: 12px;
+			}
+			iframe {
+				width: 100%;
+				height: 160px;
+				border: 1px solid #ccd4dd;
+				margin-top: 16px;
+			}
+			.pass {
+				color: #16743b;
+			}
+			.fail {
+				color: #b42318;
+			}
+			li {
+				margin: 5px 0;
+			}
+			pre {
+				white-space: pre-wrap;
+			}
+			details {
+				margin-top: 16px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>HTML sandbox runnable examples / 沙箱运行实例</h1>
+		<p>
+			Runs the production shell, Magic prelude and injected scripts. Backend replies use local
+			fixtures; no account or external API is used.
+		</p>
+		<p>运行真实沙箱、Magic API 和注入脚本；后端由本地测试数据替代，不访问账户或线上接口。</p>
+		<select id="scenario" aria-label="Scenario">
+			<option value="all">All examples / 全部实例</option>
+			<option value="api">Magic APIs / 方法调用</option>
+			<option value="resources">Interceptors / 拦截代理</option>
+			<option value="storage">Storage / 虚拟存储</option>
+			<option value="devtools">DevTools / 代理组合与恢复</option>
+			<option value="refresh">Refresh / 文档与脚本重启</option>
+		</select>
+		<button id="run">Run / 运行</button><strong id="status">Ready / 就绪</strong>
+		<ol id="results"></ol>
+		<div id="frames"></div>
+		<details>
+			<summary>Protocol trace / 消息记录</summary>
+			<pre id="trace"></pre>
+		</details>
+		<script type="module" src="/host.js"></script>
+	</body>
+</html>

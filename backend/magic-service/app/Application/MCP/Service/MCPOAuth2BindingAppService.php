@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\Service;
 
+use App\Application\MCP\Authorization\MCPAuthorizationBindingService;
 use App\Application\MCP\Service\Oauth2\MCPOAuth2Client;
 use App\Domain\MCP\Constant\ServiceConfigAuthType;
 use App\Domain\MCP\Entity\MCPUserSettingEntity;
@@ -20,6 +21,9 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
 {
     #[Inject]
     protected MCPOAuth2Client $oauth2Client;
+
+    #[Inject]
+    protected MCPAuthorizationBindingService $mcpAuthorizationBindingService;
 
     /**
      * Bind OAuth2 service using authorization code.
@@ -122,9 +126,9 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
     }
 
     /**
-     * Unbind OAuth2 service for the user.
+     * 解除用户与 MCP Server 的鉴权绑定，兼容旧 OAuth2 和 MCP Authorization 两种模式。
      *
-     * @param string $mcpServerCode MCP server code
+     * @param string $mcpServerCode MCP Server 编码
      */
     public function unbindOAuth2Service(Authenticatable $authorization, string $mcpServerCode): array
     {
@@ -136,6 +140,17 @@ class MCPOAuth2BindingAppService extends AbstractMCPAppService
         $dataIsolation = $this->createMCPDataIsolation($authorization);
         $dataIsolation->disabled();
         $userId = $authorization->getId();
+
+        // 统一兼容旧 OAuth2 与 MCP Authorization 两种解绑方式。
+        $mcpServer = $this->mcpServerDomainService->getByCode($dataIsolation, $mcpServerCode);
+        if (! $mcpServer) {
+            ExceptionBuilder::throw(MCPErrorCode::NotFound, 'common.not_found', ['label' => $mcpServerCode]);
+        }
+        $serviceConfig = $mcpServer->getServiceConfig();
+        if ($serviceConfig instanceof ExternalSSEServiceConfig
+            && $serviceConfig->getAuthType() === ServiceConfigAuthType::MCP_AUTHORIZATION) {
+            return $this->mcpAuthorizationBindingService->unbind($authorization, $mcpServerCode);
+        }
 
         // Get user setting
         $userSetting = $this->mcpUserSettingDomainService->getByUserAndMcpServer($dataIsolation, $userId, $mcpServerCode);

@@ -1,4 +1,4 @@
-import classNames from "classnames"
+import { cn } from "../../../runtime/shared/lib/utils"
 import styles from "./index.module.css"
 import { useEffect, useRef, useState } from "react"
 import { useLayersUI } from "../../../app/providers/LayersUIProvider"
@@ -27,7 +27,7 @@ export default function LayersResizeDragHandle() {
 
 	return (
 		<div
-			className={classNames(
+			className={cn(
 				styles.layersResizeDragHandleContainer,
 				resizing && styles.resizing,
 				visible && styles.visible,

@@ -1,5 +1,8 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { Input } from "@/components/shadcn-ui/input"
+import type { RecycleBinItem } from "./recycle-bin-domain"
 import { useTranslation } from "react-i18next"
 import {
 	AlertDialog,
@@ -13,6 +16,8 @@ import {
 } from "@/components/shadcn-ui/alert-dialog"
 
 export function DeleteModal({
+	items,
+	confirmationPhrase,
 	open,
 	onOpenChange,
 	title,
@@ -21,6 +26,11 @@ export function DeleteModal({
 	confirmLoading = false,
 }: DeleteModalProps) {
 	const { t } = useTranslation("super")
+	const [value, setValue] = useState("")
+	useEffect(() => {
+		setValue("")
+	}, [open, confirmationPhrase])
+	const canConfirm = !confirmationPhrase || value === confirmationPhrase
 
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -37,6 +47,35 @@ export function DeleteModal({
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 
+				{items && (
+					<div className="space-y-3 px-4 pb-4">
+						<ul className="max-h-56 overflow-y-auto rounded-lg border p-2 text-xs">
+							{items.map((item) => (
+								<li key={item.id} className="space-y-1 px-1 py-2">
+									<div className="break-words font-medium">{item.title}</div>
+									<div className="break-words text-muted-foreground">
+										{item.path}
+									</div>
+								</li>
+							))}
+						</ul>
+						<p className="text-xs text-destructive">
+							{t("fileManager.recycle.permanentWarning")}
+						</p>
+						<label className="block space-y-2 text-xs">
+							<span>
+								{t("fileManager.confirmation.typePhrase", {
+									phrase: confirmationPhrase,
+								})}
+							</span>
+							<Input
+								value={value}
+								onChange={(event) => setValue(event.target.value)}
+								autoComplete="off"
+							/>
+						</label>
+					</div>
+				)}
 				<AlertDialogFooter className="mx-0 flex flex-row justify-end gap-3 border-t border-border bg-muted p-4">
 					<AlertDialogCancel
 						size="sm"
@@ -49,8 +88,11 @@ export function DeleteModal({
 					<AlertDialogAction
 						size="sm"
 						className="h-8 rounded-lg bg-destructive/20 px-3 text-destructive/60 shadow-sm hover:bg-destructive/20"
-						onClick={onConfirm}
-						disabled={confirmLoading}
+						onClick={(event) => {
+							if (items) event.preventDefault()
+							if (canConfirm && !confirmLoading) onConfirm()
+						}}
+						disabled={confirmLoading || !canConfirm}
 						data-testid="recycle-bin-delete-confirm"
 					>
 						{confirmLoading
@@ -64,6 +106,8 @@ export function DeleteModal({
 }
 
 interface DeleteModalProps {
+	items?: RecycleBinItem[]
+	confirmationPhrase?: string
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	title: string

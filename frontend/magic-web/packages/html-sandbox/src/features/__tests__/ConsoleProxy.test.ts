@@ -20,7 +20,7 @@ describe("ConsoleProxy", () => {
 	})
 
 	afterEach(() => {
-		proxy.disable()
+		proxy.destroy()
 		// Restore originals
 		console.log = originalConsole.log
 		console.info = originalConsole.info
@@ -106,6 +106,7 @@ describe("ConsoleProxy", () => {
 	})
 
 	it("should enforce ring buffer limit", () => {
+		console.log = vi.fn()
 		proxy.enable()
 		for (let i = 0; i < 510; i++) {
 			console.log(`msg-${i}`)
@@ -127,12 +128,60 @@ describe("ConsoleProxy", () => {
 	})
 
 	it("should not enable twice", () => {
-		const origLog = console.log
 		proxy.enable()
 		const patchedLog = console.log
 
 		proxy.enable() // second enable
 		expect(console.log).toBe(patchedLog) // should not double-wrap
+	})
+
+	it("buffers global errors while disabled and flushes each error only once", () => {
+		const listener = vi.fn()
+		proxy.onEntry(listener)
+		window.dispatchEvent(
+			new ErrorEvent("error", {
+				message: "before enable",
+				filename: "app.js",
+				lineno: 2,
+				colno: 3,
+			}),
+		)
+		expect(listener).not.toHaveBeenCalled()
+		proxy.enable()
+		expect(proxy.getEntries()[0]).toMatchObject({
+			source: "uncaughtError",
+			args: ["before enable"],
+			stack: "at app.js:2:3",
+		})
+		proxy.disable()
+		const rejection = new Event("unhandledrejection")
+		Object.defineProperty(rejection, "reason", { value: new Error("while closed") })
+		window.dispatchEvent(rejection)
+		proxy.enable()
+		proxy.enable()
+		expect(listener).toHaveBeenCalledTimes(2)
+		expect(proxy.getEntries()[1]).toMatchObject({
+			source: "unhandledRejection",
+			args: ["while closed"],
+		})
+	})
+
+	it("bounds pre-enable errors and removes global listeners on destroy", () => {
+		for (let index = 0; index < 101; index++) {
+			window.dispatchEvent(new ErrorEvent("error", { message: `error-${index}` }))
+		}
+		proxy.enable()
+		expect(proxy.getEntries()).toHaveLength(100)
+		expect(proxy.getEntries()[0].args).toEqual(["error-1"])
+		const listener = vi.fn()
+		proxy.onEntry(listener)
+		proxy.destroy()
+		window.dispatchEvent(new ErrorEvent("error", { message: "after destroy" }))
+		expect(listener).not.toHaveBeenCalled()
+		expect(proxy.getEntries()).toEqual([])
+		// Re-enabling exposes any leaked pre-buffer; a destroyed listener must not refill it.
+		proxy.enable()
+		expect(proxy.getEntries()).toEqual([])
 	})
 
 	it("should include stack for error level entries", () => {

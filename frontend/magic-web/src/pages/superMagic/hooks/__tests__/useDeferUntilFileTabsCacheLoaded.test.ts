@@ -40,6 +40,45 @@ describe("useDeferUntilFileTabsCacheLoaded", () => {
 		expect(first).not.toHaveBeenCalled()
 	})
 
+	it("不同 channel 的待执行回调互不覆盖", async () => {
+		const first = vi.fn()
+		const second = vi.fn()
+		const { result } = renderHook(() => useDeferUntilFileTabsCacheLoaded("p1"))
+
+		act(() => {
+			result.current.scheduleWhenTabsCacheReady(first, "canvas")
+			result.current.scheduleWhenTabsCacheReady(second, "deep-link")
+		})
+
+		act(() => {
+			result.current.onFileTabsCacheLoaded("p1")
+		})
+
+		await act(async () => {
+			await vi.waitFor(() => {
+				expect(first).toHaveBeenCalledTimes(1)
+				expect(second).toHaveBeenCalledTimes(1)
+			})
+		})
+	})
+
+	it("同一 channel 的待执行回调保持最后一次覆盖语义", async () => {
+		const first = vi.fn()
+		const second = vi.fn()
+		const { result } = renderHook(() => useDeferUntilFileTabsCacheLoaded("p1"))
+
+		act(() => {
+			result.current.scheduleWhenTabsCacheReady(first, "canvas")
+			result.current.scheduleWhenTabsCacheReady(second, "canvas")
+			result.current.onFileTabsCacheLoaded("p1")
+		})
+
+		await act(async () => {
+			await vi.waitFor(() => expect(second).toHaveBeenCalledTimes(1))
+		})
+		expect(first).not.toHaveBeenCalled()
+	})
+
 	it("projectId 不匹配时不视为就绪", async () => {
 		const fn = vi.fn()
 		const { result } = renderHook(() => useDeferUntilFileTabsCacheLoaded("p1"))

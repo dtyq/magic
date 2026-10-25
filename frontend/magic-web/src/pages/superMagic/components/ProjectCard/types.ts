@@ -8,26 +8,20 @@ export interface ProjectCardProps {
 	workspaceName: string
 	/** Collaboration status text */
 	collaborators?: ReactNode
-	/** Click handler for navigating to workspace home */
-	onWorkspaceHomeClick?: () => void
-	/** Click handler for share button */
+	onWorkspaceProjectsOpen?: () => void
+	onCollapse?: () => void
+	isPanelVisible?: boolean
 	onShareClick?: () => void
-	/** Click handler for dropdown toggle */
-	onDropdownClick?: () => void
-	/** Click handler for invite collaborator button */
 	onInviteClick?: () => void
-	/** Project options under current workspace */
-	projectOptions?: ProjectListItem[]
-	/** Whether to show the create project button (hidden for received collaboration projects) */
-	showCreateProject?: boolean
-	/** Whether dropdown can navigate between workspace and project views */
-	enableWorkspaceNavigation?: boolean
-	/** Project dropdown open state change handler */
-	onProjectMenuOpenChange?: (open: boolean) => void
 	/** Workspace context for project actions */
 	actionWorkspace: Workspace | null
 	/** Custom className */
 	className?: string
+	/**
+	 * `compact`: one row (name with share and more beside it), without the collapse button, the
+	 * workspace row or the collaborator section. Used where the card floats over content.
+	 */
+	variant?: "default" | "compact"
 }
 
 export interface SeparatorProps {

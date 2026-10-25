@@ -58,7 +58,7 @@ function MessageEditor() {
 
 - `@tabler/icons-react` - 图标库
 - `antd-style` - 样式系统
-- `@tiptap/react` - 富文本编辑器类型
+- `@/infrastructure/editors/tiptap/react` - 富文本编辑器类型
 - `DraftStore` - 草稿状态管理
 
 ## 注意事项

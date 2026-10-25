@@ -1,5 +1,5 @@
-import { Node, mergeAttributes } from "@tiptap/core"
-import { ReactNodeViewRenderer } from "@tiptap/react"
+import { Node, mergeAttributes } from "@/infrastructure/editors/tiptap/core"
+import { ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
 import MarkdownFrontmatterNodeView from "./frontmatter-node-view"
 import {
 	decodeMarkdownFrontmatterRaw,
@@ -10,7 +10,7 @@ import {
 	serializeMarkdownFrontmatter,
 } from "./frontmatter-node-utils"
 
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		markdownFrontmatter: {
 			toggleFrontmatterAtStart: (raw?: string) => ReturnType

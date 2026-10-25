@@ -209,6 +209,20 @@ class TopicShareableResource implements ResourceFactoryInterface
         if (empty($result)) {
             return [];
         }
+        // The share page renders mode-specific views (e.g. research results) from this field.
+        $result['topic_mode'] = $topicEntity->getTopicMode();
+        return $result;
+    }
+
+    public function getResourceContentByCursor(string $resourceId, string $userId, string $organizationCode, ?int $afterId, int $limit): array
+    {
+        $topicEntity = $this->topicDomainService->getTopicById((int) $resourceId);
+        if (! $topicEntity) {
+            return [];
+        }
+
+        $result = $this->topicAppService->getMessagesByTopicIdAfterId((int) $resourceId, $afterId, $limit);
+        $result['topic_mode'] = $topicEntity->getTopicMode();
         return $result;
     }
 

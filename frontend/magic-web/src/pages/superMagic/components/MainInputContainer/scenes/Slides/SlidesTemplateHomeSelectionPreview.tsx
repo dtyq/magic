@@ -2,8 +2,7 @@ import { ImageIcon, MousePointerClick, X } from "lucide-react"
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import MagicDropdown from "@/components/base/MagicDropdown"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useResolvedTemplateColors } from "@/pages/superMagic/pages/SlidesTemplates/useResolvedTemplateColors"
 import {
 	hasSlidesTemplateRandomDragType,
@@ -17,6 +16,7 @@ import { isComplexField } from "../../panels/utils"
 import SlidesPresetPreviewDialog from "../../panels/slides-preset/SlidesPresetPreviewDialog"
 import { useFinePointerHover } from "../../panels/slides-preset/useFinePointerHover"
 import AIAutoSelectVisual from "./AIAutoSelectVisual"
+import SlidesTemplateSelectionDialog from "./SlidesTemplateSelectionDialog"
 
 interface SlidesTemplateHomeSelectionPreviewProps {
 	filters: FieldItem[]
@@ -30,6 +30,8 @@ interface SlidesTemplateHomeSelectionPreviewProps {
 	showTemplateActions?: boolean
 	className?: string
 	isTemplatePreviewOpen?: boolean
+	/** Apply the compact single-row layout only in the topic panel. */
+	compactLayout?: boolean
 }
 
 function getTemplateCoverUrl(template: OptionItem) {
@@ -48,8 +50,10 @@ export default function SlidesTemplateHomeSelectionPreview({
 	showTemplateActions = true,
 	className,
 	isTemplatePreviewOpen = false,
+	compactLayout = false,
 }: SlidesTemplateHomeSelectionPreviewProps) {
 	const { t } = useTranslation("crew/create")
+	const { t: tSuper } = useTranslation("super")
 	const lt = useLocaleText()
 	const templateName = template
 		? lt(template.label) || lt(template.value) || String(template.value)
@@ -134,24 +138,19 @@ export default function SlidesTemplateHomeSelectionPreview({
 		if (!onTemplatePickerContainerChange || !isTemplatePickerReady) return trigger
 
 		return (
-			<MagicDropdown
-				trigger={["click"]}
-				open={isTemplatePickerOpen}
-				onOpenChange={handleTemplatePickerOpenChange}
-				keepOpenOnNestedOverlay
-				contentRole="panel"
-				placement="topRight"
-				getPopupContainer={() => document.body}
-				popupRender={() => (
+			<>
+				{trigger}
+				<SlidesTemplateSelectionDialog
+					open={isTemplatePickerOpen}
+					title={tSuper("ppt.templateReplacement.title")}
+					onOpenChange={handleTemplatePickerOpenChange}
+				>
 					<div
 						ref={onTemplatePickerContainerChange}
 						className="flex h-full min-h-0 flex-col overflow-hidden"
 					/>
-				)}
-				overlayClassName="h-[min(70vh,640px)] w-[min(90vw,760px)] min-w-[360px] overflow-hidden rounded-lg border border-border bg-popover p-3 shadow-xl"
-			>
-				{trigger}
-			</MagicDropdown>
+				</SlidesTemplateSelectionDialog>
+			</>
 		)
 	}
 
@@ -212,6 +211,7 @@ export default function SlidesTemplateHomeSelectionPreview({
 					<div className="flex size-full items-center justify-center">
 						{coverUrl ? (
 							<img
+								crossOrigin="anonymous"
 								src={coverUrl}
 								alt={templateName}
 								className="size-full object-cover"
@@ -240,13 +240,15 @@ export default function SlidesTemplateHomeSelectionPreview({
 									type="button"
 									className="h-7 rounded-md bg-white/95 px-2 text-xs font-medium text-neutral-900 shadow-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
 									aria-label={t("playbook.edit.presets.form.replaceTemplate")}
-									onClick={
-										onTemplatePickerContainerChange
-											? undefined
-											: onClear
-												? handleClear
-												: undefined
-									}
+									aria-haspopup="dialog"
+									aria-expanded={isTemplatePickerOpen}
+									onClick={() => {
+										if (onTemplatePickerContainerChange) {
+											setTemplatePickerOpen(true)
+											return
+										}
+										handleClear()
+									}}
 									disabled={!onTemplatePickerContainerChange && !onClear}
 									data-testid="slides-template-home-replace-selected-template"
 								>
@@ -312,17 +314,33 @@ export default function SlidesTemplateHomeSelectionPreview({
 			</div>
 		</div>
 	) : onTemplatePickerContainerChange && isTemplatePickerReady ? (
-		<div className="flex min-w-[240px] flex-1">
+		<div className={cn("flex min-w-[240px] flex-1", compactLayout && "md:flex-none")}>
 			{renderTemplatePicker(
 				<button
 					type="button"
-					className="group relative flex min-h-[70px] min-w-0 flex-1 items-center overflow-hidden rounded-lg px-4 text-left outline-none transition-shadow hover:shadow-[0_4px_16px_rgba(139,92,246,0.1)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+					// Keep the compact topic-panel trigger centered without changing the spacious home layout.
+					className={cn(
+						"group relative flex min-h-[70px] min-w-0 flex-1 items-center overflow-hidden rounded-lg px-4 text-left outline-none transition-shadow hover:shadow-[0_4px_16px_rgba(139,92,246,0.1)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+						compactLayout && "md:h-11 md:min-h-0",
+					)}
 					aria-label={t("playbook.edit.presets.title")}
+					aria-haspopup="dialog"
+					aria-expanded={isTemplatePickerOpen}
+					onClick={
+						onTemplatePickerContainerChange
+							? () => setTemplatePickerOpen(true)
+							: undefined
+					}
 					data-testid="slides-template-home-choose-template"
 				>
 					<AIAutoSelectVisual />
 					<div className="relative z-10 min-w-0 flex-1">
-						<p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-900 transition-colors group-hover:text-violet-950">
+						<p
+							className={cn(
+								"whitespace-normal break-words text-sm font-medium leading-5 text-slate-900 transition-colors group-hover:text-violet-950",
+								compactLayout && "md:whitespace-nowrap md:break-normal",
+							)}
+						>
 							{t("playbook.edit.presets.form.selectOrAutoSelectTemplate")}
 						</p>
 					</div>
@@ -330,10 +348,20 @@ export default function SlidesTemplateHomeSelectionPreview({
 			)}
 		</div>
 	) : (
-		<div className="relative flex min-h-[70px] min-w-0 flex-1 items-center overflow-hidden px-4">
+		<div
+			className={cn(
+				"relative flex min-h-[70px] min-w-0 flex-1 items-center overflow-hidden px-4",
+				compactLayout && "h-[70px] min-h-0 md:min-w-[240px] md:flex-none",
+			)}
+		>
 			<AIAutoSelectVisual />
 			<div className="relative z-10 min-w-0">
-				<p className="whitespace-normal break-words text-sm font-medium leading-5 text-slate-900">
+				<p
+					className={cn(
+						"whitespace-normal break-words text-sm font-medium leading-5 text-slate-900",
+						compactLayout && "md:whitespace-nowrap md:break-normal",
+					)}
+				>
 					{t("playbook.edit.presets.form.autoSelectTemplate")}
 				</p>
 			</div>
@@ -354,11 +382,17 @@ export default function SlidesTemplateHomeSelectionPreview({
 		</div>
 	)
 
+	// Compact topic-panel mode keeps the template on the left and filters on the right; the home layout stays adaptive.
 	return (
 		<div
 			className={cn(
 				"relative flex min-w-0 flex-wrap items-center rounded-xl border bg-white/90 shadow-[0_6px_18px_rgba(15,23,42,0.06)] backdrop-blur-xl transition-[border-color,box-shadow,transform] duration-200",
-				template ? "gap-3 px-3 py-2" : "gap-0 overflow-hidden",
+				compactLayout && "md:flex-nowrap",
+				template
+					? "gap-3 px-3 py-2"
+					: compactLayout
+						? "h-[70px] gap-0 overflow-hidden"
+						: "gap-0 overflow-hidden",
 				isRandomDropActive
 					? "scale-[1.01] border-violet-400 shadow-[0_12px_32px_rgba(124,58,237,0.2)] ring-2 ring-violet-300/40"
 					: isRandomDragActive
@@ -387,8 +421,12 @@ export default function SlidesTemplateHomeSelectionPreview({
 			) : null}
 			{selectionContent}
 			<div
-				className={`order-last w-full min-w-0 border-t border-black/[0.06] md:order-none md:ml-auto md:w-auto md:border-t-0 ${
-					template ? "pt-2 md:pt-0" : "px-3 py-2 md:py-0 md:pl-2 md:pr-3"
+				className={`order-last w-full min-w-0 border-t border-black/[0.06] md:order-none md:w-auto md:border-t-0 ${
+					compactLayout
+						? `md:ml-auto md:min-w-0 md:flex-[0_1_auto] ${template ? "pt-2 md:pl-4 md:pt-0" : "px-3 py-2 md:py-0 md:pl-2 md:pr-3"}`
+						: template
+							? "pt-2 md:ml-auto md:pt-0"
+							: "px-3 py-2 md:py-0 md:pl-2 md:pr-3"
 				}`}
 			>
 				<FilterBar

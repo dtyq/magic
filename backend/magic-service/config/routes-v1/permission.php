@@ -32,7 +32,6 @@ Router::addGroup('/api/v1', static function () {
     Router::addGroup('/resource-visibility', static function () {
         Router::post('', [ResourceVisibilityApi::class, 'saveResourceVisibility']);
         Router::get('', [ResourceVisibilityApi::class, 'listResourceVisibility']);
-        Router::post('/config', [ResourceVisibilityApi::class, 'saveVisibilityConfig']);
         Router::get('/config', [ResourceVisibilityApi::class, 'getVisibilityConfig']);
     });
 }, ['middleware' => [RequestContextMiddleware::class, SandboxUserAuthMiddleware::class]]);

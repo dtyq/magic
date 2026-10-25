@@ -148,6 +148,62 @@ describe("createProjectAttachmentsV2Builder", () => {
 		expect(snapshot.diagnostics.adapterWarningCodes).toContain("unexpected_orphan_after_bfs")
 	})
 
+	it("keeps hidden recording images when includeHidden is enabled", () => {
+		const builder = createProjectAttachmentsV2Builder({ includeHidden: true })
+
+		builder.mergeBatch([
+			attachment({
+				file_id: "hidden-root",
+				parent_id: "",
+				file_name: "/",
+				is_directory: true,
+				is_hidden: true,
+			}),
+			attachment({
+				file_id: "session-folder",
+				parent_id: "hidden-root",
+				file_name: "session-folder",
+				is_directory: true,
+				is_hidden: true,
+			}),
+			attachment({
+				file_id: "images-folder",
+				parent_id: "session-folder",
+				file_name: "images",
+				is_directory: true,
+				is_hidden: true,
+			}),
+			attachment({
+				file_id: "image-1",
+				parent_id: "images-folder",
+				file_name: "image-1.png",
+				is_hidden: true,
+			}),
+			attachment({
+				file_id: "folder",
+				parent_id: "hidden-root",
+				file_name: "Docs",
+				is_directory: true,
+			}),
+			attachment({ file_id: "file", parent_id: "folder", file_name: "readme.md" }),
+		])
+
+		const snapshot = builder.snapshot()
+
+		expect(snapshot.tree.map((item) => item.file_id)).toEqual(["folder", "session-folder"])
+		expect(snapshot.list.map((item) => item.file_id)).toEqual([
+			"folder",
+			"file",
+			"session-folder",
+			"images-folder",
+			"image-1",
+		])
+		expect(snapshot.list.find((item) => item.file_id === "image-1")).toMatchObject({
+			relative_file_path: "/session-folder/images/image-1.png",
+			is_hidden: true,
+		})
+	})
+
 	it("sorts directories first and then by natural name, without using sort fields", () => {
 		const builder = createProjectAttachmentsV2Builder()
 

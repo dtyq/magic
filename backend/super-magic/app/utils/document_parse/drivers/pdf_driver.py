@@ -12,6 +12,7 @@ from typing import Any, Iterable, List, Optional
 from app.utils.async_file_utils import async_stat, async_write_bytes
 
 from ..constants import (
+    DEFAULT_PAGE_SNAPSHOT_MAX_PAGES,
     DEFAULT_VIRTUAL_PAGE_GROUP_SIZE,
     PDF_EXTENSIONS,
 )
@@ -30,6 +31,7 @@ from ..pdf.pdf_outline_reader import PdfOutlineReader
 from ..pdf.pdf_page_snapshot_extractor import PdfPageSnapshotExtractor
 from ..pdf.pdf_strategy import PdfExtractionStrategy
 from ..pdf.pdf_text_extractor import PdfTextExtractor
+from ..service.asset_strategy import AssetExtractionOptions, AssetStrategyResolver
 from ..service.reading_state import ReadingStateStore
 from ..structure.asset_store import AssetStore
 from ..structure.chunk_store import ChunkStore
@@ -37,6 +39,7 @@ from ..structure.image_feature_analyzer import ImageFeatureAnalyzer
 from ..structure.image_watermark_detector import ImageWatermarkDetector
 from ..structure.outline_builder import OutlineBuilder
 from ..structure.range_parser import RangeParser, compact_numeric_ranges
+from ..structure.reusable_image_selector import ReusableImageSelector
 from ..structure.virtual_outline_builder import VirtualOutlineBuilder
 from .base import DocumentDriver
 
@@ -90,13 +93,28 @@ class PdfDocumentDriver(DocumentDriver):
         total_pages = metadata["page_count"]
         pages = RangeParser.parse_numeric(ranges, total_pages) or list(range(1, total_pages + 1))
         source_range = compact_numeric_ranges(pages)
+        profile = DocumentProfile(
+            source_path=str(path),
+            file_name=path.name,
+            file_type=self.file_type,
+            file_extension=path.suffix.lower(),
+            file_size=0,
+            unit_type=self.unit_type,
+            total_units=total_pages,
+            title=path.name,
+            metadata=metadata,
+        )
+        asset_options = self._resolve_asset_options(kwargs, profile)
+        preserve_all_assets = (
+            asset_options.resolved_strategy == "full_fidelity" and asset_options.requested_strategy != "legacy"
+        )
         decision = PdfExtractionStrategy().decide(
             pages=pages,
             metadata=metadata,
-            extract_embedded_images=bool(kwargs.get("extract_images", True)),
-            page_snapshot_policy=kwargs.get("page_snapshot_policy", "auto"),
-            visual_hint=kwargs.get("visual_hint", "auto"),
-            page_snapshot_max_pages=int(kwargs.get("page_snapshot_max_pages", 20)),
+            extract_embedded_images=asset_options.extract_embedded_images,
+            page_snapshot_policy=asset_options.page_snapshot_policy,
+            visual_hint=asset_options.visual_hint,
+            page_snapshot_max_pages=int(kwargs.get("page_snapshot_max_pages", DEFAULT_PAGE_SNAPSHOT_MAX_PAGES)),
         )
 
         skipped_images: list[dict[str, Any]] = []
@@ -106,8 +124,9 @@ class PdfDocumentDriver(DocumentDriver):
                 path,
                 output_dir,
                 pages,
-                exclude_watermark_images=kwargs.get("exclude_watermark_images", True),
-                deduplicate_repeated_images=kwargs.get("deduplicate_repeated_images", True),
+                exclude_watermark_images=kwargs.get("exclude_watermark_images", True) and not preserve_all_assets,
+                deduplicate_repeated_images=kwargs.get("deduplicate_repeated_images", True) and not preserve_all_assets,
+                embedded_image_policy=asset_options.embedded_image_policy,
             )
             assets.extend(embedded_assets)
         if decision.extract_page_snapshots:
@@ -138,7 +157,7 @@ class PdfDocumentDriver(DocumentDriver):
 
         segments = await PdfTextExtractor.extract_page_segments(path, pages)
         chunks = self._chunk_page_segments(segments, path.name, max_chars, assets, skipped_images)
-        chunks = await ChunkStore.write_chunks(output_dir, chunks)
+        chunks = await ChunkStore.write_chunks(output_dir, chunks, [asset.path for asset in assets])
         outline = OutlineBuilder.build_tree(await PdfOutlineReader.read(path)) or VirtualOutlineBuilder.by_units("page", total_pages)
         self._attach_chunks_to_outline(outline, chunks)
         remaining = [page for page in range(1, total_pages + 1) if page not in pages]
@@ -162,8 +181,32 @@ class PdfDocumentDriver(DocumentDriver):
                 },
                 "skipped_images": skipped_images,
                 "skipped_watermark_images": [item for item in skipped_images if "watermark" in str(item.get("reason", ""))],
+                "asset_strategy": asset_options.to_dict(),
                 **metadata,
             },
+        )
+
+    @staticmethod
+    def _resolve_asset_options(kwargs: dict[str, Any], profile: DocumentProfile) -> AssetExtractionOptions:
+        """解析新策略参数，并兼容旧的 extract_images 参数。"""
+
+        if "asset_strategy" in kwargs:
+            return AssetStrategyResolver.resolve(
+                kwargs.get("asset_strategy"),
+                profile=profile,
+                sample_signal=kwargs.get("sample_signal"),
+                goal=str(kwargs.get("goal") or ""),
+            )
+        legacy_extract_images = bool(kwargs.get("extract_images", True))
+        return AssetExtractionOptions(
+            requested_strategy="legacy",
+            resolved_strategy="full_fidelity" if legacy_extract_images else "text_only",
+            extract_embedded_images=legacy_extract_images,
+            embedded_image_policy="all" if legacy_extract_images else "none",
+            page_snapshot_policy=str(kwargs.get("page_snapshot_policy", "auto")),
+            visual_hint=str(kwargs.get("visual_hint", "auto")),
+            reason="legacy extract_images compatibility mode",
+            confidence="legacy",
         )
 
     @staticmethod
@@ -181,17 +224,25 @@ class PdfDocumentDriver(DocumentDriver):
         pages: Iterable[int],
         exclude_watermark_images: bool = True,
         deduplicate_repeated_images: bool = True,
+        embedded_image_policy: str = "all",
     ) -> tuple[List[DocumentAsset], list[dict[str, Any]]]:
         page_list = list(pages)
         images = await PdfDocumentDriver._read_page_images(path, page_list)
         if not images:
             return [], []
-        images, skipped_watermarks = ImageWatermarkDetector.split_images(
-            images,
-            selected_unit_count=len(page_list),
-            enabled=exclude_watermark_images,
-            deduplicate_repeated_images=deduplicate_repeated_images,
-        )
+        if embedded_image_policy == "selected":
+            images, skipped_watermarks = ReusableImageSelector.select(
+                images,
+                selected_unit_count=len(page_list),
+                deduplicate_repeated_images=deduplicate_repeated_images,
+            )
+        else:
+            images, skipped_watermarks = ImageWatermarkDetector.split_images(
+                images,
+                selected_unit_count=len(page_list),
+                enabled=exclude_watermark_images,
+                deduplicate_repeated_images=deduplicate_repeated_images,
+            )
         if not images:
             return [], skipped_watermarks
         assets_dir = await AssetStore.ensure(output_dir)

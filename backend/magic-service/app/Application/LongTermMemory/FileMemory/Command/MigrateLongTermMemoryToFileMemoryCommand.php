@@ -535,7 +535,6 @@ final class MigrateLongTermMemoryToFileMemoryCommand extends HyperfCommand
                     parentId: (string) $parent->getFileId(),
                     isDirectory: true,
                     source: TaskFileSource::AGENT,
-                    spaceType: 'user',
                 );
                 $this->cacheUserPathNode($organizationCode, $userId, $currentPath, $child);
             }
@@ -559,7 +558,6 @@ final class MigrateLongTermMemoryToFileMemoryCommand extends HyperfCommand
                 parentId: (string) $parent->getFileId(),
                 isDirectory: false,
                 source: TaskFileSource::AGENT,
-                spaceType: 'user',
             );
             $this->cacheUserPathNode($organizationCode, $userId, $filePath, $file);
         }

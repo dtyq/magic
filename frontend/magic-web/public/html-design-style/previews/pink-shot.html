@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PINK SHOT // Hyper-Vibrant Creative Showcase & Design Portfolio</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap');
+
+    :root {
+      --pink-electric: #ff007a;
+      --pink-hover: #e0006c;
+      --pink-soft: #fff0f6;
+      --plum-deep: #2a0826;
+      --plum-ink: #0d0c22;
+      --surface-canvas: #ffffff;
+      --surface-muted: #f3f3f4;
+      --surface-card: #ffffff;
+      --border-light: #e7e7e9;
+      --border-pink: rgba(255, 0, 122, 0.25);
+      --text-main: #0d0c22;
+      --text-muted: #9e9ea7;
+      --badge-pro: #f5a623;
+      --badge-hire: #2ecc71;
+      --font-dm: 'DM Sans', -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--surface-canvas);
+      color: var(--text-main);
+      font-family: var(--font-dm);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding: 0 0 48px;
+    }
+
+    /* Top Creative Navigation */
+    header.creative-nav {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-light);
+      padding: 0 32px;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--plum-ink);
+    }
+    .brand-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--pink-electric);
+      box-shadow: 0 0 10px var(--pink-electric);
+    }
+    .brand-title {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+    }
+    .brand-title span { color: var(--pink-electric); }
+    .nav-links {
+      display: flex;
+      gap: 22px;
+      list-style: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--plum-ink);
+      font-weight: 700;
+    }
+    .nav-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .search-pill {
+      background: var(--surface-muted);
+      border: 1px solid transparent;
+      border-radius: 9999px;
+      padding: 8px 16px 8px 34px;
+      font-size: 13px;
+      position: relative;
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+    .btn-share-work {
+      background: var(--pink-electric);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(255, 0, 122, 0.35);
+      transition: all 0.15s;
+    }
+    .btn-share-work:hover {
+      background: var(--pink-hover);
+      transform: translateY(-1px);
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 24px 0;
+    }
+
+    /* Designer Header Row */
+    .designer-profile-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .designer-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .avatar-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--pink-electric) 0%, var(--plum-deep) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #ffffff;
+      font-size: 18px;
+      box-shadow: 0 4px 10px rgba(255,0,122,0.25);
+    }
+    .designer-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .designer-name {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--plum-ink);
+    }
+    .pro-badge {
+      background: var(--badge-pro);
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .hire-badge {
+      color: var(--badge-hire);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .hire-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--badge-hire);
+    }
+
+    /* Main Featured Shot Showcase Card (Top 500px Focal Centerpiece) */
+    .hero-shot-card {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid var(--border-light);
+      box-shadow: 0 16px 40px rgba(42, 8, 38, 0.08);
+      overflow: hidden;
+      margin-bottom: 32px;
+      position: relative;
+    }
+
+    /* High-Impact 4:3 Visual Artwork Frame */
+    .shot-visual-viewport {
+      width: 100%;
+      height: 380px;
+      background: radial-gradient(circle at 70% 30%, #3d0d38 0%, #1a0418 60%, #0d0c22 100%);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .shot-svg-art {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Floating Top Action Badges */
+    .floating-shot-actions {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
+      z-index: 10;
+    }
+    .action-btn-pill {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.6);
+      border-radius: 9999px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--plum-ink);
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+      transition: all 0.2s;
+    }
+    .action-btn-pill:hover {
+      transform: translateY(-2px);
+      background: #ffffff;
+    }
+    .like-btn {
+      color: var(--pink-electric);
+    }
+    .heart-icon-svg {
+      fill: var(--pink-electric);
+      animation: heartbeat 1.4s infinite;
+    }
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.22); }
+    }
+
+    /* Color Swatch Palette Pills Overlay Bar */
+    .swatches-overlay-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(13, 12, 34, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+    }
+    .swatch-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .swatch-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .swatch-item:hover { transform: scale(1.08); }
+    .swatch-circle {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.8);
+      box-shadow: 0 0 6px rgba(0,0,0,0.3);
+    }
+    .swatch-code {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffffff;
+      font-family: monospace;
+    }
+
+    /* Card Details Footer */
+    .shot-details-footer {
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .shot-headline-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--plum-ink);
+      margin-bottom: 4px;
+    }
+    .shot-tags-row {
+      display: flex;
+      gap: 8px;
+    }
+    .tag-chip {
+      background: var(--surface-muted);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 6px;
+    }
+
+    /* Secondary Creative Shots Grid */
+    .secondary-shots-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+    .sub-shot-card {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border-light);
+      background: #ffffff;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .sub-shot-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.08);
+    }
+    .sub-shot-thumb {
+      height: 190px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sub-shot-info {
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sub-shot-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--plum-ink);
+    }
+    .sub-shot-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Creative Navigation -->
+  <header class="creative-nav">
+    <a href="#" class="brand-wrap">
+      <div class="brand-dot"></div>
+      <div class="brand-title">PINK <span>SHOT</span></div>
+    </a>
+
+    <ul class="nav-links">
+      <li><a href="#" class="active">Discover</a></li>
+      <li><a href="#">Animation</a></li>
+      <li><a href="#">Branding</a></li>
+      <li><a href="#">Illustration</a></li>
+      <li><a href="#">Mobile UI</a></li>
+      <li><a href="#">Typography</a></li>
+    </ul>
+
+    <div class="nav-right-actions">
+      <div class="search-pill">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span style="color:var(--text-muted);">Search creative work...</span>
+      </div>
+      <button class="btn-share-work">+ Share My Work</button>
+    </div>
+  </header>
+
+  <main class="container">
+    
+    <!-- Designer Header Row -->
+    <div class="designer-profile-bar">
+      <div class="designer-left">
+        <div class="avatar-circle">AT</div>
+        <div>
+          <div class="designer-name-row">
+            <span class="designer-name">Aria Thorne</span>
+            <span class="pro-badge">PRO</span>
+            <span style="color:var(--text-muted); font-size:13px;">• Principal 3D Visual Artist</span>
+          </div>
+          <div class="hire-badge">
+            <span class="hire-dot"></span>
+            <span>Available for new projects & commissions</span>
+          </div>
+        </div>
+      </div>
+
+      <button style="background:var(--surface-muted); border:1px solid var(--border-light); padding:8px 18px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
+        Follow Artist
+      </button>
+    </div>
+
+    <!-- Main Featured Shot Card (Top 500px Centerpiece) -->
+    <section class="hero-shot-card">
+      <div class="shot-visual-viewport">
+        
+        <!-- Master Vector Artwork: Holographic Cyber Flora -->
+        <svg class="shot-svg-art" viewBox="0 0 800 380" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <radialGradient id="neonGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ff007a" stop-opacity="0.8"/>
+              <stop offset="50%" stop-color="#7928ca" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#0d0c22" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="petalPink" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff007a"/>
+              <stop offset="50%" stop-color="#ff52a2"/>
+              <stop offset="100%" stop-color="#7928ca"/>
+            </linearGradient>
+            <linearGradient id="tealGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00f5d4"/>
+              <stop offset="100%" stop-color="#7928ca"/>
+            </linearGradient>
+            <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffbe0b"/>
+              <stop offset="100%" stop-color="#ff007a"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Deep Ambient Light -->
+          <circle cx="400" cy="190" r="280" fill="url(#neonGlow)" />
+          
+          <!-- Geometric Hologram Grid Gridlines -->
+          <line x1="100" y1="190" x2="700" y2="190" stroke="rgba(255,255,255,0.06)" stroke-dasharray="4,4"/>
+          <line x1="400" y1="40" x2="400" y2="340" stroke="rgba(255,255,255,0.06)" stroke-dasharray="4,4"/>
+          <circle cx="400" cy="190" r="160" fill="none" stroke="rgba(255,0,122,0.2)" stroke-width="1.5" stroke-dasharray="6,6"/>
+          <circle cx="400" cy="190" r="220" fill="none" stroke="rgba(0,245,212,0.15)" stroke-width="1" stroke-dasharray="8,8"/>
+
+          <!-- 3D Overlapping Glassmorphic Petal Shapes -->
+          <g transform="translate(400, 190)">
+            <!-- Outer Petals -->
+            <path d="M 0 0 C -120 -160, -180 30, 0 0" fill="url(#petalPink)" opacity="0.85" />
+            <path d="M 0 0 C 120 -160, 180 30, 0 0" fill="url(#tealGrad)" opacity="0.85" />
+            <path d="M 0 0 C -140 80, -20 -140, 0 0" fill="url(#amberGrad)" opacity="0.75" />
+            <path d="M 0 0 C 140 80, 20 -140, 0 0" fill="url(#petalPink)" opacity="0.75" />
+            
+            <!-- Center Luminescent Core Sphere -->
+            <circle cx="0" cy="0" r="46" fill="url(#amberGrad)" />
+            <circle cx="0" cy="0" r="38" fill="#ff007a" />
+            <circle cx="-12" cy="-12" r="10" fill="#ffffff" opacity="0.9" />
+
+            <!-- Orbiting Particle Rings -->
+            <ellipse cx="0" cy="0" rx="110" ry="42" fill="none" stroke="#00f5d4" stroke-width="2" transform="rotate(25)" stroke-dasharray="14,6"/>
+            <circle cx="95" cy="40" r="6" fill="#00f5d4" />
+            <circle cx="-85" cy="-35" r="5" fill="#ffbe0b" />
+            <circle cx="0" cy="-45" r="4" fill="#ffffff" />
+          </g>
+
+          <text x="50" y="60" fill="rgba(255,255,255,0.4)" font-family="DM Sans" font-size="12" font-weight="bold" letter-spacing="0.1em">SERIES: LUMINA CHROMATICA // 01</text>
+        </svg>
+
+        <!-- Floating Top Right Action Badges -->
+        <div class="floating-shot-actions">
+          <div class="action-btn-pill like-btn">
+            <svg class="heart-icon-svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span>2,845</span>
+          </div>
+          <div class="action-btn-pill">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            <span>Save</span>
+          </div>
+        </div>
+
+        <!-- Color Swatch Palette Pills Bar -->
+        <div class="swatches-overlay-bar">
+          <span class="swatch-label">PALETTE:</span>
+          <div class="swatch-item" title="Electric Pink">
+            <span class="swatch-circle" style="background:#ff007a;"></span>
+            <span class="swatch-code">#FF007A</span>
+          </div>
+          <div class="swatch-item" title="Neon Violet">
+            <span class="swatch-circle" style="background:#7928ca;"></span>
+            <span class="swatch-code">#7928CA</span>
+          </div>
+          <div class="swatch-item" title="Cyber Teal">
+            <span class="swatch-circle" style="background:#00f5d4;"></span>
+            <span class="swatch-code">#00F5D4</span>
+          </div>
+          <div class="swatch-item" title="Luminous Amber">
+            <span class="swatch-circle" style="background:#ffbe0b;"></span>
+            <span class="swatch-code">#FFBE0B</span>
+          </div>
+          <div class="swatch-item" title="Deep Plum">
+            <span class="swatch-circle" style="background:#2a0826;"></span>
+            <span class="swatch-code">#2A0826</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Shot Information & Tags Row -->
+      <div class="shot-details-footer">
+        <div>
+          <h2 class="shot-headline-title">Lumina Chromatica: 3D Holographic Botanical Study</h2>
+          <div style="font-size:13px; color:var(--text-muted);">
+            Experimental rendering exploring light refractions through bio-luminescent crystal flora.
+          </div>
+        </div>
+        <div class="shot-tags-row">
+          <span class="tag-chip">#3DArt</span>
+          <span class="tag-chip">#Holographic</span>
+          <span class="tag-chip">#Cinema4D</span>
+          <span class="tag-chip">#Octane</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Secondary Creative Shots Grid -->
+    <section class="secondary-shots-grid">
+      
+      <div class="sub-shot-card">
+        <div class="sub-shot-thumb" style="background:linear-gradient(135deg, #1b0728 0%, #ff007a 100%);">
+          <svg viewBox="0 0 200 120" width="160" height="90">
+            <polygon points="100,20 160,100 40,100" fill="none" stroke="#00f5d4" stroke-width="4"/>
+            <circle cx="100" cy="65" r="24" fill="#ffbe0b"/>
+            <line x1="40" y1="100" x2="160" y2="20" stroke="#ffffff" stroke-width="2" stroke-dasharray="4,4"/>
+          </svg>
+        </div>
+        <div class="sub-shot-info">
+          <div class="sub-shot-title">Prismatic Kinetic Geometry</div>
+          <div class="sub-shot-meta">
+            <span>❤️ 1,420</span>
+            <span>👁 18.5k</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-shot-card">
+        <div class="sub-shot-thumb" style="background:linear-gradient(135deg, #0d0c22 0%, #7928ca 100%);">
+          <svg viewBox="0 0 200 120" width="160" height="90">
+            <rect x="50" y="20" width="100" height="80" rx="16" fill="rgba(255,255,255,0.1)" stroke="#ff007a" stroke-width="2"/>
+            <circle cx="100" cy="50" r="16" fill="#00f5d4"/>
+            <rect x="65" y="75" width="70" height="8" rx="4" fill="#ffffff"/>
+          </svg>
+        </div>
+        <div class="sub-shot-info">
+          <div class="sub-shot-title">Neon Neomorphic App Concept</div>
+          <div class="sub-shot-meta">
+            <span>❤️ 1,984</span>
+            <span>👁 24.1k</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+</body>
+</html>

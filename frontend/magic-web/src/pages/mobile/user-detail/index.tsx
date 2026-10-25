@@ -1,4 +1,5 @@
 import { observer } from "mobx-react-lite"
+import { useTranslation } from "react-i18next"
 import { NavBar } from "antd-mobile"
 import MemberCard from "@/components/business/MemberCard"
 import { useMemoizedFn } from "ahooks"
@@ -21,6 +22,7 @@ import { interfaceStore } from "@/stores/interface"
 import { RouteName } from "@/routes/constants"
 
 const UserInfoDetail = observer(() => {
+	const { t } = useTranslation("chat")
 	const { userId } = useParams()
 	const navigate = useNavigate()
 	const { styles } = useUserDetailStyles()
@@ -94,7 +96,7 @@ const UserInfoDetail = observer(() => {
 							justifyContent: "center",
 						}}
 					>
-						<MagicEmpty description="未选择用户" />
+						<MagicEmpty description={t("group.noUserSelected")} />
 					</div>
 				) : (
 					<>

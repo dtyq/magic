@@ -33,6 +33,10 @@ class ProjectMemberSettingEntity extends AbstractEntity
 
     protected ?string $pinnedAt = null;
 
+    protected ?int $sortOrder = null;
+
+    protected ?int $pinnedSortOrder = null;
+
     protected bool $isBindWorkspace = false;
 
     protected int $bindWorkspaceId = 0;
@@ -109,6 +113,26 @@ class ProjectMemberSettingEntity extends AbstractEntity
     public function getPinnedAt(): ?string
     {
         return $this->pinnedAt;
+    }
+
+    public function getSortOrder(): ?int
+    {
+        return $this->sortOrder;
+    }
+
+    public function setSortOrder(?int $sortOrder): void
+    {
+        $this->sortOrder = $sortOrder;
+    }
+
+    public function getPinnedSortOrder(): ?int
+    {
+        return $this->pinnedSortOrder;
+    }
+
+    public function setPinnedSortOrder(?int $pinnedSortOrder): void
+    {
+        $this->pinnedSortOrder = $pinnedSortOrder;
     }
 
     public function setPinnedAt(?string $pinnedAt): void
@@ -208,6 +232,8 @@ class ProjectMemberSettingEntity extends AbstractEntity
         if (! empty($data['pinned_at'])) {
             $entity->setPinnedAt($data['pinned_at']);
         }
+        $entity->setSortOrder(isset($data['sort_order']) ? (int) $data['sort_order'] : null);
+        $entity->setPinnedSortOrder(isset($data['pinned_sort_order']) ? (int) $data['pinned_sort_order'] : null);
 
         // 处理工作区绑定字段
         if (isset($data['is_bind_workspace'])) {
@@ -238,6 +264,8 @@ class ProjectMemberSettingEntity extends AbstractEntity
             'organization_code' => $this->organizationCode,
             'is_pinned' => $this->isPinned ? 1 : 0,
             'pinned_at' => $this->pinnedAt,
+            'sort_order' => $this->sortOrder,
+            'pinned_sort_order' => $this->pinnedSortOrder,
             'is_bind_workspace' => $this->isBindWorkspace ? 1 : 0,
             'bind_workspace_id' => $this->bindWorkspaceId,
             'last_active_at' => $this->lastActiveAt,
@@ -256,6 +284,8 @@ class ProjectMemberSettingEntity extends AbstractEntity
             'project_id' => $this->projectId,
             'organization_code' => $this->organizationCode,
             'is_pinned' => $this->isPinned ? 1 : 0,
+            'sort_order' => $this->sortOrder,
+            'pinned_sort_order' => $this->pinnedSortOrder,
             'is_bind_workspace' => $this->isBindWorkspace ? 1 : 0,
             'bind_workspace_id' => $this->bindWorkspaceId,
             'last_active_at' => $this->lastActiveAt,

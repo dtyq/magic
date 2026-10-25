@@ -14,6 +14,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Hyperf\Di\Aop\ProceedingJoinPoint;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -52,6 +53,70 @@ class GuzzleHeaderCompatibilityTest extends TestCase
         (new GuzzleHeaderCompatibilityAspect())->process($joinPoint);
 
         self::assertSame(['1', '2', ''], $captured['headers']['X-Values']);
+    }
+
+    public function testDeprecatedRequestOptionsAndMethodAreNormalized(): void
+    {
+        $captured = null;
+        $joinPoint = new ProceedingJoinPoint(
+            static function (string $method, array $options) use (&$captured): null {
+                $captured = compact('method', 'options');
+                return null;
+            },
+            Client::class,
+            'request',
+            [
+                'keys' => [
+                    'method' => 'post',
+                    'options' => [
+                        'body' => 123,
+                        'connect_timeout' => '2',
+                        'headers' => [
+                            'X-Empty' => [],
+                            'X-Values' => [1, null],
+                        ],
+                        'read_timeout' => '3',
+                        'timeout' => '1.5',
+                    ],
+                ],
+                'order' => ['method', 'options'],
+            ],
+        );
+        $joinPoint->pipe = static fn (ProceedingJoinPoint $point) => $point->processOriginalMethod();
+
+        (new GuzzleHeaderCompatibilityAspect())->process($joinPoint);
+
+        self::assertSame('POST', $captured['method']);
+        self::assertSame('123', $captured['options']['body']);
+        self::assertSame(2.0, $captured['options']['connect_timeout']);
+        self::assertSame(3.0, $captured['options']['read_timeout']);
+        self::assertSame(1.5, $captured['options']['timeout']);
+        self::assertArrayNotHasKey('X-Empty', $captured['options']['headers']);
+        self::assertSame(['1', ''], $captured['options']['headers']['X-Values']);
+    }
+
+    public function testLowercaseRequestObjectMethodIsUppercased(): void
+    {
+        $captured = null;
+        $joinPoint = new ProceedingJoinPoint(
+            static function (Request $request) use (&$captured): null {
+                $captured = $request;
+                return null;
+            },
+            Client::class,
+            'sendRequest',
+            [
+                'keys' => [
+                    'request' => new Request('post', 'https://example.com'),
+                ],
+                'order' => ['request'],
+            ],
+        );
+        $joinPoint->pipe = static fn (ProceedingJoinPoint $point) => $point->processOriginalMethod();
+
+        (new GuzzleHeaderCompatibilityAspect())->process($joinPoint);
+
+        self::assertSame('POST', $captured->getMethod());
     }
 
     #[DataProvider('contentLengthProvider')]

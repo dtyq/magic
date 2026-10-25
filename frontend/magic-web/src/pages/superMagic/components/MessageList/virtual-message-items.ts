@@ -1,6 +1,7 @@
-import { defaultRangeExtractor, type Range } from "@tanstack/react-virtual"
 import type { SuperMagicMessageItem } from "./type"
+import type { TaskStatus } from "../../pages/Workspace/types"
 import { getMessageNodeKey } from "./helpers"
+import { canRenderFinalAttachments, canToolMessageRender } from "./message-render-contract"
 import {
 	buildMessageKeysAndTurnGroups,
 	isToolRoleMessage,
@@ -8,7 +9,11 @@ import {
 	type MessageTurnGroup,
 } from "./message-turn-groups"
 
-export interface VirtualMessageItem {
+export interface VirtualMessageRowItem {
+	kind: "message"
+	contentMode?: "full" | "answer" | "process"
+	viewStateKey?: string
+	suppressHeader?: boolean
 	key: string
 	node: SuperMagicMessageItem
 	/** Position in the composed virtual sequence. */
@@ -24,11 +29,194 @@ export interface VirtualMessageItem {
 	exportSelectable: boolean
 }
 
+export interface VirtualProcessToggleItem {
+	kind: "process-toggle"
+	key: string
+	index: number
+	sourceIndex: number
+	turnKey: string
+	groupKey: string
+	status: TaskStatus.FINISHED | TaskStatus.SUSPENDED | TaskStatus.ERROR
+	showStatus: boolean
+	hasRetainedContent: boolean
+	count: number
+	expanded: boolean
+	showHeader: boolean
+	sendTime?: number
+	role: "assistant"
+	isUser: false
+	isTool: false
+	stickyCandidate: false
+	renderMode: "message"
+	exportSelectable: false
+}
+export type VirtualMessageItem = VirtualMessageRowItem | VirtualProcessToggleItem
+
 export interface VirtualMessageProjection {
-	items: Array<VirtualMessageItem>
+	items: Array<VirtualMessageRowItem>
 	messageKeys: Array<string>
 	messageTurnGroups: Array<MessageTurnGroup>
 	userIndices: Array<number>
+}
+
+function areShallowRecordsEqual(left: Record<string, unknown>, right: Record<string, unknown>) {
+	if (left === right) return true
+	const leftKeys = Object.keys(left)
+	const rightKeys = Object.keys(right)
+	if (leftKeys.length !== rightKeys.length) return false
+	return leftKeys.every((key) => Object.is(left[key], right[key]))
+}
+
+/**
+ * Reuses unchanged rows after a projection pass rebuilt its outer array. The comparison stays
+ * shallow so large message payloads are not deep-cloned or deep-compared in a render path.
+ */
+export function stabilizeVirtualMessageItems(
+	previousItems: ReadonlyArray<VirtualMessageRowItem>,
+	nextItems: Array<VirtualMessageRowItem>,
+): Array<VirtualMessageRowItem> {
+	if (previousItems.length === 0 || nextItems.length === 0) return nextItems
+
+	const previousByIdentity = new Map(
+		previousItems.map((item) => [`${item.key}\u0000${item.sourceIndex}`, item]),
+	)
+	let reusedAny = false
+	const stableItems = nextItems.map((item) => {
+		const previous = previousByIdentity.get(`${item.key}\u0000${item.sourceIndex}`)
+		if (
+			previous?.kind === "message" &&
+			item.kind === "message" &&
+			previous.contentMode === item.contentMode &&
+			previous.suppressHeader === item.suppressHeader &&
+			previous.role === item.role &&
+			previous.turnKey === item.turnKey &&
+			previous.isUser === item.isUser &&
+			previous.isTool === item.isTool &&
+			previous.stickyCandidate === item.stickyCandidate &&
+			previous.renderMode === item.renderMode &&
+			previous.exportSelectable === item.exportSelectable &&
+			areShallowRecordsEqual(
+				previous.node as unknown as Record<string, unknown>,
+				item.node as unknown as Record<string, unknown>,
+			)
+		) {
+			reusedAny = true
+			return previous
+		}
+		return item
+	})
+
+	return reusedAny ? stableItems : nextItems
+}
+
+/**
+ * Detects an inverse-pagination update without relying on raw page counts. The previous
+ * projection must remain a contiguous sequence after a positive offset; a concurrent tail
+ * append is valid, while middle inserts, replacements, and filtered/reordered updates are not.
+ */
+export function getPrependedVirtualItemCount(
+	previousItems: ReadonlyArray<Pick<VirtualMessageItem, "key">>,
+	nextItems: ReadonlyArray<Pick<VirtualMessageItem, "key">>,
+) {
+	if (previousItems.length === 0 || nextItems.length <= previousItems.length) return 0
+
+	for (let offset = 1; offset <= nextItems.length - previousItems.length; offset += 1) {
+		let matchesPreviousSequence = true
+		for (let index = 0; index < previousItems.length; index += 1) {
+			if (nextItems[offset + index]?.key !== previousItems[index]?.key) {
+				matchesPreviousSequence = false
+				break
+			}
+		}
+		if (matchesPreviousSequence) return offset
+	}
+	return 0
+}
+
+function hasRenderableMessageValue(value: unknown) {
+	if (value == null) return false
+	if (typeof value === "string") return value.trim().length > 0
+	if (Array.isArray(value)) return value.length > 0
+	if (typeof value === "object") return Object.keys(value).length > 0
+	return true
+}
+
+const terminalMessageStatuses = new Set([
+	"completed",
+	"finished",
+	"failed",
+	"error",
+	"suspended",
+	"response_missing",
+])
+
+function hasTerminalMessageStatus(node: SuperMagicMessageItem) {
+	const debug = node?.debug as Record<string, unknown> | undefined
+	const tool = node?.tool as Record<string, unknown> | undefined
+	const debugTool = debug?.tool as Record<string, unknown> | undefined
+	return [node?.status, debug?.status, tool?.status, debugTool?.status].some(
+		(status) => typeof status === "string" && terminalMessageStatuses.has(status),
+	)
+}
+
+const taskLifecycleToolNames = new Set(["finish_task"])
+
+function isTaskLifecycleToolMessage(node: SuperMagicMessageItem) {
+	const debug = node?.debug as Record<string, unknown> | undefined
+	const tool = node?.tool as Record<string, unknown> | undefined
+	const debugTool = debug?.tool as Record<string, unknown> | undefined
+	return [tool?.name, tool?.tool_name, debugTool?.name, debugTool?.tool_name].some(
+		(name) => typeof name === "string" && taskLifecycleToolNames.has(name),
+	)
+}
+
+/**
+ * A message may render through Store-backed business sidecars even when its streaming payload
+ * is empty. Ordinary tool responses are different: their visible branch is AttachmentSection,
+ * while tool-call cards are rendered from the Assistant's tool_calls. Keeping one merely because
+ * it reached a terminal status would project an empty measured row.
+ */
+function shouldIncludeVirtualMessage(
+	node: SuperMagicMessageItem,
+	previousNode?: SuperMagicMessageItem,
+) {
+	if (node?.role === "user") return true
+	const payloads = [node?.content, node?.reasoning_content, node?.tool_calls]
+	const debug = node?.debug as Record<string, unknown> | undefined
+	const tool = node?.tool as Record<string, unknown> | undefined
+	const debugTool = debug?.tool as Record<string, unknown> | undefined
+	const attachmentPayloads = [
+		node?.attachments,
+		debug?.attachments,
+		tool?.attachments,
+		debugTool?.attachments,
+	]
+
+	if (isToolRoleMessage(node)) {
+		// finish_task projects the task lifecycle rather than a tool result, and it is the row that
+		// carries the terminal status badge plus the follow-up suggestions. A conversational turn
+		// ends with an attachment-free, content-free finish_task, so payload emptiness must not
+		// drop it. Rows that reach here before their terminal status still render as a measured
+		// placeholder instead of an empty gap.
+		if (isTaskLifecycleToolMessage(node)) return true
+		// A Tool's own payload is deliberately excluded: MessageNode renders AttachmentSection
+		// and nothing else for this role, so text-only results would project an empty row.
+		return canToolMessageRender({
+			node: node as unknown as Record<string, unknown>,
+			fallbackNode: node,
+			previousContent: previousNode?.content,
+		})
+	}
+
+	if (payloads.some(hasRenderableMessageValue)) return true
+
+	// Assistant sidecar UI can be rendered from fields outside the streaming payload trio.
+	// Terminal status is retained here because the Store may fill the final Assistant projection
+	// after the historical message enters the list.
+	return (
+		(canRenderFinalAttachments(node) && attachmentPayloads.some(hasRenderableMessageValue)) ||
+		hasTerminalMessageStatus(node)
+	)
 }
 
 /**
@@ -37,27 +225,37 @@ export interface VirtualMessageProjection {
  */
 export function buildVirtualMessageProjection(
 	messages: Array<SuperMagicMessageItem>,
+	/** Messages folded into an earlier card (see folded-tool-runs); they get no row. */
+	hiddenSourceIndices?: ReadonlySet<number>,
 ): VirtualMessageProjection {
 	const { messageKeys, messageTurnGroups } = buildMessageKeysAndTurnGroups(messages)
 	const userIndices: Array<number> = []
-	const items: Array<VirtualMessageItem> = []
+	const items: Array<VirtualMessageRowItem> = []
 	let currentTurnKey = "leading-messages"
 
-	messages.forEach((node, index) => {
-		const key = getMessageNodeKey(node) || `${node?.role || "message"}-${index}`
+	messages.forEach((node, sourceIndex) => {
+		const key = getMessageNodeKey(node) || `${node?.role || "message"}-${sourceIndex}`
 		const isUser = isUserRoleMessage(node)
 		const isTool = isToolRoleMessage(node)
 
 		if (isUser) {
 			currentTurnKey = `turn-${key}`
-			userIndices.push(index)
+		}
+		// AttachmentSection reads file-path mentions from the message before this one, and the
+		// renderer resolves that neighbour the same way (`messages[sourceIndex - 1]`).
+		if (
+			hiddenSourceIndices?.has(sourceIndex) ||
+			!shouldIncludeVirtualMessage(node, messages[sourceIndex - 1])
+		) {
+			return
 		}
 
 		items.push({
+			kind: "message",
 			key,
 			node,
-			index,
-			sourceIndex: index,
+			index: items.length,
+			sourceIndex,
 			role: node?.role,
 			turnKey: currentTurnKey,
 			isUser,
@@ -66,6 +264,7 @@ export function buildVirtualMessageProjection(
 			renderMode: "message",
 			exportSelectable: currentTurnKey !== "leading-messages",
 		})
+		if (isUser) userIndices.push(items.length - 1)
 	})
 
 	return { items, messageKeys, messageTurnGroups, userIndices }
@@ -73,7 +272,7 @@ export function buildVirtualMessageProjection(
 
 interface ComposeVirtualMessageItemsOptions {
 	normalItems: ReadonlyArray<VirtualMessageItem>
-	revokedItems: ReadonlyArray<VirtualMessageItem>
+	revokedItems: ReadonlyArray<VirtualMessageRowItem>
 	firstRevokedUserKey?: string | null
 	includeRevoked: boolean
 	showOnlyFirstRevoked?: boolean
@@ -97,10 +296,11 @@ export function composeVirtualMessageItems({
 	items: Array<VirtualMessageItem>
 	userIndices: Array<number>
 } {
-	const composed: Array<VirtualMessageItem> = normalItems.map((item) => ({
-		...item,
-		renderMode: "message",
-	}))
+	// Normal projections already use message mode. Reusing those objects prevents an unrelated
+	// revoked-preview toggle from invalidating every visible normal row.
+	const composed: Array<VirtualMessageItem> = normalItems.map((item) =>
+		item.renderMode === "message" ? item : { ...item, renderMode: "message" },
+	)
 
 	if (includeRevoked) {
 		const editableItem = firstRevokedUserKey
@@ -134,7 +334,7 @@ export function composeVirtualMessageItems({
 	const userIndices: Array<number> = []
 	const items = composed.map((item, index) => {
 		if (item.stickyCandidate) userIndices.push(index)
-		return { ...item, index }
+		return item.index === index ? item : { ...item, index }
 	})
 
 	return { items, userIndices }
@@ -163,17 +363,25 @@ export function findActiveStickyIndex(
 	return activeIndex
 }
 
-/**
- * TanStack normally mounts only the overscanned range. Add the preceding User so the same
- * ordinary message row can remain sticky without rendering a second clone outside the list.
- */
-export function createStickyRangeExtractor(
+/** The User row that will take over from `activeIndex`, used to drive the sticky push-out. */
+export function findNextStickyIndex(
 	userIndices: ReadonlyArray<number>,
-): (range: Range) => Array<number> {
-	return (range: Range) => {
-		const indices = defaultRangeExtractor(range)
-		const activeStickyIndex = findActiveStickyIndex(userIndices, range.startIndex)
-		if (activeStickyIndex === undefined || indices.includes(activeStickyIndex)) return indices
-		return [activeStickyIndex, ...indices].sort((left, right) => left - right)
+	activeIndex: number,
+): number | undefined {
+	let low = 0
+	let high = userIndices.length - 1
+	let nextIndex: number | undefined
+
+	while (low <= high) {
+		const middle = low + Math.floor((high - low) / 2)
+		const candidate = userIndices[middle]
+		if (candidate > activeIndex) {
+			nextIndex = candidate
+			high = middle - 1
+		} else {
+			low = middle + 1
+		}
 	}
+
+	return nextIndex
 }

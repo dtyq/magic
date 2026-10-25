@@ -1,14 +1,15 @@
 import type { CanvasDesignPlugin } from "../document/types"
+import type { ResolveCanvasResourceReference } from "../../public/resource-reference"
+import { resolveCanvasStorageResourceReference } from "../shared/path/canvasResourcePath"
 import { isSafePluginRelativePath } from "./resolve"
 
 type GetFileInfo = (path: string, options?: { forceRefresh?: boolean }) => Promise<{ src: string }>
-type ResolveAbsolutePath = (path: string) => string
 
 interface LoadUserPluginsOptions {
 	rootPath?: string
 	directories?: string[]
 	getFileInfo?: GetFileInfo
-	resolveAbsolutePath?: ResolveAbsolutePath
+	resolveResourceReference?: ResolveCanvasResourceReference
 }
 
 export interface CanvasPluginManagerSnapshot {
@@ -22,6 +23,7 @@ export class PluginManager {
 	private listeners = new Set<() => void>()
 	private activePluginName: string | null = null
 	private sessionId = 0
+	private destroyed = false
 	private snapshot: CanvasPluginManagerSnapshot = {
 		plugins: [],
 		activePlugin: null,
@@ -29,11 +31,13 @@ export class PluginManager {
 	}
 
 	public register(plugin: CanvasDesignPlugin): void {
+		if (this.destroyed) return
 		this.plugins.set(plugin.name, plugin)
 		this.rebuildSnapshot()
 	}
 
 	public registerMany(plugins: CanvasDesignPlugin[]): void {
+		if (this.destroyed) return
 		plugins.forEach((plugin) => {
 			this.plugins.set(plugin.name, plugin)
 		})
@@ -88,12 +92,13 @@ export class PluginManager {
 	public async loadUserPluginsFromCanvasResources(
 		options: LoadUserPluginsOptions,
 	): Promise<void> {
-		const { rootPath, directories, getFileInfo, resolveAbsolutePath } = options
+		if (this.destroyed) return
+		const { rootPath, directories, getFileInfo, resolveResourceReference } = options
 		if (!rootPath) return
 		if (!directories?.length) return
-		if (!getFileInfo || !resolveAbsolutePath) {
+		if (!getFileInfo || !resolveResourceReference) {
 			console.warn(
-				"[PluginManager] Cannot load user plugins without getFileInfo and resolveAbsolutePath.",
+				"[PluginManager] Cannot load user plugins without getFileInfo and resolveResourceReference.",
 			)
 			return
 		}
@@ -107,10 +112,11 @@ export class PluginManager {
 						rootPath: normalizedRootPath,
 						pluginDir,
 						getFileInfo,
-						resolveAbsolutePath,
+						resolveResourceReference,
 					}),
 				),
 			)
+			if (this.destroyed) return
 			this.registerMany(userPlugins)
 		} catch (error) {
 			console.warn(
@@ -121,6 +127,8 @@ export class PluginManager {
 	}
 
 	public destroy(): void {
+		if (this.destroyed) return
+		this.destroyed = true
 		this.plugins.clear()
 		this.listeners.clear()
 		this.activePluginName = null
@@ -144,16 +152,16 @@ async function loadUserPluginPackage(options: {
 	rootPath: string
 	pluginDir: string
 	getFileInfo: GetFileInfo
-	resolveAbsolutePath: ResolveAbsolutePath
+	resolveResourceReference: ResolveCanvasResourceReference
 }): Promise<CanvasDesignPlugin> {
-	const { rootPath, pluginDir, getFileInfo, resolveAbsolutePath } = options
+	const { rootPath, pluginDir, getFileInfo, resolveResourceReference } = options
 	const packageRootPath = joinPluginResourcePath(rootPath, pluginDir)
 	const manifestPath = joinPluginResourcePath(packageRootPath, "manifest.json")
 
 	const manifest = await fetchJsonResource<Omit<CanvasDesignPlugin, "source">>({
 		path: manifestPath,
 		getFileInfo,
-		resolveAbsolutePath,
+		resolveResourceReference,
 	})
 	assertSafePluginRelativePath(manifest.entry, "entry")
 	const entryPath = joinPluginResourcePath(packageRootPath, manifest.entry)
@@ -165,21 +173,21 @@ async function loadUserPluginPackage(options: {
 			packageRootPath,
 			assertSafePluginRelativePath(relativePath, "resource"),
 		)
-		const resolvedPath = resolveAbsolutePath(resourcePath)
+		const resolvedPath = resolvePluginResourcePath(resourcePath, resolveResourceReference)
 		const fileInfo = await getFileInfo(resolvedPath, { forceRefresh: true })
 		return fileInfo.src
 	}
 	const runtimeCode = await fetchTextResource({
 		path: entryPath,
 		getFileInfo,
-		resolveAbsolutePath,
+		resolveResourceReference,
 	})
 	const styleCode = await Promise.all(
 		stylePaths.map((stylePath) =>
 			fetchTextResource({
 				path: stylePath,
 				getFileInfo,
-				resolveAbsolutePath,
+				resolveResourceReference,
 			}),
 		),
 	)
@@ -198,7 +206,7 @@ async function loadUserPluginPackage(options: {
 async function fetchJsonResource<T>(options: {
 	path: string
 	getFileInfo: GetFileInfo
-	resolveAbsolutePath: ResolveAbsolutePath
+	resolveResourceReference: ResolveCanvasResourceReference
 }): Promise<T> {
 	const text = await fetchTextResource(options)
 	return JSON.parse(text) as T
@@ -207,16 +215,29 @@ async function fetchJsonResource<T>(options: {
 async function fetchTextResource(options: {
 	path: string
 	getFileInfo: GetFileInfo
-	resolveAbsolutePath: ResolveAbsolutePath
+	resolveResourceReference: ResolveCanvasResourceReference
 }): Promise<string> {
-	const { path, getFileInfo, resolveAbsolutePath } = options
-	const resolvedPath = resolveAbsolutePath(path)
+	const { path, getFileInfo, resolveResourceReference } = options
+	const resolvedPath = resolvePluginResourcePath(path, resolveResourceReference)
 	const fileInfo = await getFileInfo(resolvedPath, { forceRefresh: true })
 	const response = await fetch(fileInfo.src)
 	if (!response.ok) {
 		throw new Error(`Failed to fetch plugin resource: ${path}`)
 	}
 	return response.text()
+}
+
+function resolvePluginResourcePath(
+	path: string,
+	resolveResourceReference: ResolveCanvasResourceReference,
+): string {
+	const resolution = resolveCanvasStorageResourceReference(path, resolveResourceReference, {
+		requireAttachment: true,
+	})
+	if (resolution.status !== "resolved" || !resolution.workspacePath) {
+		throw new Error(`Unable to resolve plugin resource: ${path}`)
+	}
+	return resolution.workspacePath
 }
 
 function normalizePluginResourcePath(path: string): string {

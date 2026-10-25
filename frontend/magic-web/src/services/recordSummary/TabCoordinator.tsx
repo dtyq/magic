@@ -1,13 +1,13 @@
 import MagicModal from "@/components/base/MagicModal"
 import { RecordSummaryActionButton } from "@/components/business/RecordingSummary/components/RecordSummaryAlertCard"
 import { userStore } from "@/models/user"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { t } from "i18next"
 import { shouldSkipRecordingSessionRestoreOnCurrentRoute } from "./recordingRestoreRouteGuard"
 
 const logger = Logger.createLogger("TabCoordinator", {
 	enableConfig: {
-		console: true,
+		console: false,
 		warn: true,
 		error: true,
 		trace: true,
@@ -94,6 +94,8 @@ export interface TabMessage {
 		| "RECORDING_STATUS_UPDATE"
 		| "TAB_HEARTBEAT"
 		| "RECORDING_DATA_SYNC"
+		| "RECORDING_OVERRIDE_REQUEST"
+		| "RECORDING_OVERRIDE_RESULT"
 		| "REQUEST_ACTIVE_TAB_FOCUS"
 		| "RECORD_SUMMARY_NOTIFICATION_CLOSE"
 	tabId: string
@@ -122,6 +124,20 @@ export interface RecordingDataSyncData {
 	duration: string
 	isRecording: boolean
 	sessionId?: string
+}
+
+export interface RecordingOverrideRequestData {
+	requestId: string
+	sessionId?: string
+	/** Only this lock holder should answer the broadcast. */
+	targetTabId?: string
+}
+
+export interface RecordingOverrideResultData {
+	requestId: string
+	accepted: boolean
+	responderTabId?: string
+	targetTabId?: string
 }
 
 export type TabStatus = "active" | "inactive" | "pending" | "disconnected"
@@ -159,6 +175,7 @@ export interface TabCoordinatorCallbacks {
 	onLockAcquired?: () => void
 	onLockReleased?: (data?: TabLockReleaseData) => void
 	onSendReleased?: () => void
+	onForceOverrideRequest?: (data: RecordingOverrideRequestData) => Promise<boolean> | boolean
 	/** Called when the user explicitly chooses to discard the historical recording */
 	onDiscardHistoricalRecording?: () => void
 	/** Called when the user explicitly chooses to summarize (finish) the historical recording */
@@ -179,6 +196,13 @@ interface PendingLockRequest {
 	priority: number
 }
 
+interface PendingOverrideRequest {
+	requestId: string
+	targetTabId?: string
+	resolve: (value: boolean) => void
+	timeoutId: ReturnType<typeof setTimeout>
+}
+
 /**
  * TabCoordinator - Manages recording permissions across multiple tabs
  */
@@ -194,6 +218,7 @@ export class TabCoordinator {
 	private currentLockHolder: string | null = null
 	/** Replaces the old lockRequestPending boolean — carries resolve + priority */
 	private pendingLockRequest: PendingLockRequest | null = null
+	private pendingOverrideRequest: PendingOverrideRequest | null = null
 	/** Intent set by the handoff modal before requesting the lock */
 	private lockAcquireIntent: LockAcquireIntent = "restore"
 	private lastUserActivity = Date.now()
@@ -282,6 +307,12 @@ export class TabCoordinator {
 			case "RECORDING_DATA_SYNC":
 				this.handleDataSync(message)
 				break
+			case "RECORDING_OVERRIDE_REQUEST":
+				this.handleOverrideRequest(message)
+				break
+			case "RECORDING_OVERRIDE_RESULT":
+				this.handleOverrideResult(message)
+				break
 			case "TAB_HEARTBEAT":
 				this.handleHeartbeat(message)
 				break
@@ -331,7 +362,10 @@ export class TabCoordinator {
 			const raw = localStorage.getItem("recordSummary_currentSession")
 			if (!raw) return null
 			const session = JSON.parse(raw)
-			if (typeof session?.startTime === "number") {
+			if (
+				(session?.status === "recording" || session?.status === "paused") &&
+				typeof session.startTime === "number"
+			) {
 				return { startTime: session.startTime, totalDuration: session.totalDuration ?? 0 }
 			}
 		} catch {
@@ -373,6 +407,12 @@ export class TabCoordinator {
 					return
 				}
 
+				const sessionInfo = this.getStoredSessionInfo()
+				if (!sessionInfo) {
+					logger.log("Skip restore modal: no recoverable recording session")
+					return
+				}
+
 				// 预加载录音总结服务和浮动面板
 				import("@/services/recordSummary/utils/preloadService").then(
 					({ preloadRecordSummaryService, preloadRecordSummaryFloatPanel }) => {
@@ -380,8 +420,6 @@ export class TabCoordinator {
 						preloadRecordSummaryFloatPanel()
 					},
 				)
-
-				const sessionInfo = this.getStoredSessionInfo()
 
 				this.modal = MagicModal.confirm({
 					title: t("recordingSummary.restore.title", { ns: "super" }),
@@ -481,6 +519,63 @@ export class TabCoordinator {
 			this.callbacks.onRecordingDataSync?.(syncData, message.tabId === this.tabId)
 			// logger.log("Synced recording data from active tab", syncData)
 		}
+	}
+
+	private handleOverrideRequest(message: TabMessage) {
+		const data = message.data as RecordingOverrideRequestData | undefined
+		if (!data?.requestId) return
+
+		// Idle tabs must stay silent. A premature accepted:false would
+		// settle the requester before the lock holder finishes.
+		const isLockHolder = this.currentLockHolder === this.tabId && this.status === "active"
+		if (!isLockHolder) return
+		if (data.targetTabId && data.targetTabId !== this.tabId) return
+
+		const respond = (accepted: boolean) => {
+			this.sendMessage({
+				type: "RECORDING_OVERRIDE_RESULT",
+				tabId: this.tabId,
+				timestamp: Date.now(),
+				data: {
+					requestId: data.requestId,
+					accepted,
+					responderTabId: this.tabId,
+					targetTabId: data.targetTabId,
+				},
+			})
+		}
+
+		Promise.resolve(this.callbacks.onForceOverrideRequest?.(data) ?? false)
+			.then(respond)
+			.catch((error) => {
+				logger.error({
+					eventKey: "force_override_request_failed",
+					errorKind: "unknown",
+					error,
+					message: "Failed to handle recording override request",
+				})
+				respond(false)
+			})
+	}
+
+	private handleOverrideResult(message: TabMessage) {
+		const data = message.data as RecordingOverrideResultData | undefined
+		if (
+			!data?.requestId ||
+			!this.pendingOverrideRequest ||
+			data.requestId !== this.pendingOverrideRequest.requestId
+		) {
+			return
+		}
+
+		const expectedTarget = this.pendingOverrideRequest.targetTabId
+		const responderId = data.responderTabId ?? message.tabId
+		if (expectedTarget && responderId !== expectedTarget) return
+
+		clearTimeout(this.pendingOverrideRequest.timeoutId)
+		const resolve = this.pendingOverrideRequest.resolve
+		this.pendingOverrideRequest = null
+		resolve(data.accepted)
 	}
 
 	private handleHeartbeat(message: TabMessage) {
@@ -795,10 +890,23 @@ export class TabCoordinator {
 	}
 
 	/**
+	 * Steal the recording lock without waiting for the other tab to confirm.
+	 * Used when the user explicitly starts anyway after an override timeout.
+	 */
+	forceAcquireLock() {
+		this.takeLock({ notifyAcquired: false })
+		logger.log("Lock force-acquired", { tabId: this.tabId })
+	}
+
+	/**
 	 * Acquire recording lock
 	 */
 	acquireLock() {
-		// Clear any pending request — we already won the lock
+		this.takeLock({ notifyAcquired: true })
+		logger.log("Lock acquired", { tabId: this.tabId })
+	}
+
+	private takeLock({ notifyAcquired }: { notifyAcquired: boolean }) {
 		if (this.pendingLockRequest) {
 			clearTimeout(this.pendingLockRequest.timeoutId)
 			this.pendingLockRequest = null
@@ -813,10 +921,9 @@ export class TabCoordinator {
 			timestamp: Date.now(),
 		})
 
-		// Notify lock acquisition
-		this.callbacks.onLockAcquired?.()
-
-		logger.log("Lock acquired", { tabId: this.tabId })
+		if (notifyAcquired) {
+			this.callbacks.onLockAcquired?.()
+		}
 	}
 
 	/**
@@ -842,6 +949,42 @@ export class TabCoordinator {
 
 			logger.log("Lock released", { tabId: this.tabId })
 		}
+	}
+
+	/**
+	 * Ask the active tab to finish and summarize its current recording.
+	 * A missing response is treated as failure so a new recording is never started
+	 * while ownership of the microphone is ambiguous.
+	 */
+	requestRecordingOverride(sessionId?: string, timeoutMs = 8000): Promise<boolean> {
+		if (!this.currentLockHolder || this.currentLockHolder === this.tabId) {
+			return Promise.resolve(true)
+		}
+
+		if (this.pendingOverrideRequest) {
+			clearTimeout(this.pendingOverrideRequest.timeoutId)
+			this.pendingOverrideRequest.resolve(false)
+			this.pendingOverrideRequest = null
+		}
+
+		const requestId = `${this.tabId}_${Date.now()}_${Math.random().toString(36).slice(2)}`
+		const targetTabId = this.currentLockHolder
+		return new Promise((resolve) => {
+			const timeoutId = setTimeout(() => {
+				if (!this.pendingOverrideRequest) return
+				this.pendingOverrideRequest = null
+				logger.warn("Recording override request timed out", { requestId })
+				resolve(false)
+			}, timeoutMs)
+
+			this.pendingOverrideRequest = { requestId, targetTabId, resolve, timeoutId }
+			this.sendMessage({
+				type: "RECORDING_OVERRIDE_REQUEST",
+				tabId: this.tabId,
+				timestamp: Date.now(),
+				data: { requestId, sessionId, targetTabId },
+			})
+		})
 	}
 
 	/**
@@ -911,6 +1054,10 @@ export class TabCoordinator {
 		return this.currentLockHolder
 	}
 
+	getTabId(): string {
+		return this.tabId
+	}
+
 	/**
 	 * Cleanup resources
 	 */
@@ -932,6 +1079,11 @@ export class TabCoordinator {
 
 		// Settle any pending lock request so callers are not left hanging
 		this.cancelPendingLockRequest(false)
+		if (this.pendingOverrideRequest) {
+			clearTimeout(this.pendingOverrideRequest.timeoutId)
+			this.pendingOverrideRequest.resolve(false)
+			this.pendingOverrideRequest = null
+		}
 
 		document.removeEventListener("visibilitychange", this.handleVisibilityChange)
 		window.removeEventListener("unload", this.handleTabClose)

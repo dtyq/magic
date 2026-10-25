@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { cloneDeep } from "lodash-es"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { DatePicker, Radio } from "antd"
 import { cx } from "antd-style"
 import MagicSelect from "@dtyq/magic-flow/dist/common/BaseUI/Select"

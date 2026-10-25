@@ -10,8 +10,9 @@ namespace App\Application\SuperMagic\Task\Event\Subscribe;
 use App\Domain\Asr\Service\AsrTaskDomainService;
 use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\SuperMagic\File\Constant\AudioProjectPhaseEnum;
+use App\Domain\SuperMagic\File\Constant\AudioProjectPhaseStatusEnum;
 use App\Domain\SuperMagic\File\Service\AudioProjectDomainService;
-use App\Domain\SuperMagic\Message\Repository\Facade\TaskMessageRepositoryInterface;
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\ProjectMode;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
@@ -21,7 +22,6 @@ use App\Domain\SuperMagic\Topic\Service\TopicDomainService;
 use App\Domain\SuperMagic\Workspace\Service\WorkspaceDomainService;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
-use Hyperf\Codec\Json;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -94,39 +94,7 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 return;
             }
 
-            // 2. 查询该任务的用户消息，检查是否有 summary_task 标记
-            // 使用 topicId + taskId + sender_type 查询，利用索引并只返回用户消息
-            $taskMessageRepository = di(TaskMessageRepositoryInterface::class);
-            $userMessages = $taskMessageRepository->findUserMessagesByTopicIdAndTaskId($event->getTopicId(), (string) $event->getTaskId());
-
-            $hasSummaryTask = false;
-            foreach ($userMessages as $message) {
-                $rawContent = $message->getRawContent();
-                if (! empty($rawContent)) {
-                    // raw_content 直接存储的就是 dynamic_params 的 JSON
-                    $dynamicParams = Json::decode($rawContent);
-                    if (isset($dynamicParams['summary_task'])
-                        && $dynamicParams['summary_task'] === true) {
-                        $hasSummaryTask = true;
-                        $this->logger->info('checkRecordingSummary Found summary_task marker', [
-                            'task_id' => $event->getTaskId(),
-                            'topic_id' => $event->getTopicId(),
-                        ]);
-                        break;
-                    }
-                }
-            }
-
-            // 3. 如果没有 summary_task 标记，则不推送通知
-            if (! $hasSummaryTask) {
-                $this->logger->debug('checkRecordingSummary No summary_task marker found, skipping notification', [
-                    'task_id' => $event->getTaskId(),
-                    'topic_id' => $event->getTopicId(),
-                ]);
-                return;
-            }
-
-            // 4. 获取话题信息并检查模式（双重保障）
+            // 2. 获取话题信息并检查模式（topic_mode 决定业务域，audio_project phase 决定流程状态）
             $topicDomainService = di(TopicDomainService::class);
             $topicEntity = $topicDomainService->getTopicById($event->getTopicId());
             if ($topicEntity === null) {
@@ -142,7 +110,7 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 return;
             }
 
-            // 5. 获取用户信息并推送通知
+            // 3. 获取用户信息（用于后续推送通知）
             $userId = $event->getUserId();
             $magicUserDomainService = di(MagicUserDomainService::class);
             $userEntity = $magicUserDomainService->getUserById($userId);
@@ -177,15 +145,19 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 ]);
             }
 
-            // Update audio project summarizing phase status (only for AUDIO or SUMMARY projects)
-            $this->updateAudioProjectPhaseStatus(
+            // 4. 更新录音项目总结阶段状态，仅在实际处理了总结阶段状态时才推送通知
+            $phaseHandled = $this->updateAudioProjectPhaseStatus(
                 $event,
                 $taskStatus,
                 (int) $topicEntity->getProjectId(),
                 $projectEntity
             );
 
-            // 准备推送数据
+            if (! $phaseHandled) {
+                return;
+            }
+
+            // 5. 准备推送数据
             $pushData = [
                 'type' => 'recording_summary_result',
                 'recording_summary_result' => [
@@ -229,26 +201,28 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
 
     /**
      * Update audio project phase status (only for AUDIO or SUMMARY projects).
+     *
+     * @return bool 是否实际处理了总结阶段状态（用于决定是否需要推送完成通知）
      */
     private function updateAudioProjectPhaseStatus(
         RunTaskCallbackEvent $event,
         TaskStatus $taskStatus,
         int $projectId,
         ?ProjectEntity $projectEntity
-    ): void {
+    ): bool {
         try {
             // Check if project exists
             if ($projectEntity === null) {
-                return;
+                return false;
             }
 
             // Check if project mode is AUDIO or SUMMARY
             $projectMode = $projectEntity->getProjectMode();
             if (! in_array($projectMode, [ProjectMode::AUDIO->value, ProjectMode::SUMMARY->value], true)) {
-                return;
+                return false;
             }
 
-            // ===== Step 1: Get audio_project to obtain task_key =====
+            // ===== Step 1: Get audio_project and check the summarizing lifecycle state =====
             $audioProjectDomainService = di(AudioProjectDomainService::class);
             $audioProject = $audioProjectDomainService->getAudioProjectByProjectId($projectId);
 
@@ -257,7 +231,36 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                     'project_id' => $projectId,
                     'task_id' => $event->getTaskId(),
                 ]);
-                return;
+                return false;
+            }
+
+            // 只处理仍处于总结生命周期的项目：
+            // - in_progress：首次总结任务结束，按任务终态收敛 phase
+            // - failed + finished：总结失败后的 follow-up 任务成功，允许重试收敛为 completed
+            // - completed：已完成，重复回调或总结后的普通聊天直接幂等跳过
+            // - failed + error：首次失败已记录，跳过重复失败处理
+            if ($audioProject->getCurrentPhase() !== AudioProjectPhaseEnum::SUMMARIZING->value) {
+                $this->logger->debug('Audio project is not in summarizing phase, skip callback', [
+                    'project_id' => $projectId,
+                    'task_id' => $event->getTaskId(),
+                    'topic_id' => $event->getTopicId(),
+                    'current_phase' => $audioProject->getCurrentPhase(),
+                ]);
+                return false;
+            }
+
+            $previousPhaseStatus = $audioProject->getPhaseStatus();
+            $isRetrySuccess = $previousPhaseStatus === AudioProjectPhaseStatusEnum::FAILED->value
+                && $taskStatus === TaskStatus::FINISHED;
+            if ($previousPhaseStatus !== AudioProjectPhaseStatusEnum::IN_PROGRESS->value && ! $isRetrySuccess) {
+                $this->logger->debug('Audio project summarizing phase already settled, skip callback', [
+                    'project_id' => $projectId,
+                    'task_id' => $event->getTaskId(),
+                    'topic_id' => $event->getTopicId(),
+                    'task_status' => $taskStatus->value,
+                    'phase_status' => $previousPhaseStatus,
+                ]);
+                return false;
             }
 
             $taskKey = $audioProject->getTaskKey();
@@ -266,7 +269,7 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                     'project_id' => $projectId,
                     'task_id' => $event->getTaskId(),
                 ]);
-                return;
+                return false;
             }
 
             // ===== Step 2: Try to update via AsrTaskDomainService (Redis + Database) =====
@@ -292,6 +295,9 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                             'task_id' => $event->getTaskId(),
                             'topic_id' => $event->getTopicId(),
                             'project_mode' => $projectMode,
+                            'previous_phase_status' => $previousPhaseStatus,
+                            'next_phase_status' => AudioProjectPhaseStatusEnum::COMPLETED->value,
+                            'source' => 'topic_mode_and_audio_project_phase',
                         ]);
                     } elseif ($taskStatus === TaskStatus::ERROR) {
                         $errorMessage = 'AI task failed';
@@ -303,11 +309,14 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                             'task_id' => $event->getTaskId(),
                             'topic_id' => $event->getTopicId(),
                             'project_mode' => $projectMode,
+                            'previous_phase_status' => $previousPhaseStatus,
+                            'next_phase_status' => AudioProjectPhaseStatusEnum::FAILED->value,
+                            'source' => 'topic_mode_and_audio_project_phase',
                             'error' => $errorMessage,
                         ]);
                     }
 
-                    return; // ✅ Successfully updated via AsrTaskDomainService, return directly
+                    return true; // ✅ Successfully updated via AsrTaskDomainService, return directly
                 }
             } catch (Throwable $domainServiceError) {
                 $this->logger->warning('Failed to update via AsrTaskDomainService, fallback to direct update', [
@@ -338,6 +347,9 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                     'task_id' => $event->getTaskId(),
                     'topic_id' => $event->getTopicId(),
                     'project_mode' => $projectMode,
+                    'previous_phase_status' => $previousPhaseStatus,
+                    'next_phase_status' => AudioProjectPhaseStatusEnum::COMPLETED->value,
+                    'source' => 'topic_mode_and_audio_project_phase',
                 ]);
             } elseif ($taskStatus === TaskStatus::ERROR) {
                 $errorMessage = 'AI task failed';
@@ -349,9 +361,14 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                     'task_id' => $event->getTaskId(),
                     'topic_id' => $event->getTopicId(),
                     'project_mode' => $projectMode,
+                    'previous_phase_status' => $previousPhaseStatus,
+                    'next_phase_status' => AudioProjectPhaseStatusEnum::FAILED->value,
+                    'source' => 'topic_mode_and_audio_project_phase',
                     'error' => $errorMessage,
                 ]);
             }
+
+            return true;
         } catch (Throwable $e) {
             $this->logger->error('Failed to update audio project phase', [
                 'project_id' => $projectId,
@@ -361,6 +378,7 @@ class RunTaskCallbackEventSubscriber implements ListenerInterface
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+            return false;
         }
     }
 }

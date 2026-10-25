@@ -6,7 +6,7 @@ from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
-from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.entity.message.server_message import ToolDetail
 from app.i18n import i18n
 from app.mcp.config.models import MCPServerType
 from app.mcp.manager import ensure_server_connected
@@ -78,15 +78,14 @@ class McpConnectServer(BaseMcpTool[McpConnectServerParams]):
         action = i18n.translate(action_key, category="tool.actions")
         remark = self._get_remark_content(result, arguments)
         return {"action": action, "remark": remark}
-    
+
     async def get_tool_detail(
         self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
     ) -> Optional[ToolDetail]:
-        if not result.content or not result.ok:
-            return None
-        return ToolDetail(
-            type=DisplayType.MD,
-            data=FileContent(file_name="mcp_connect.md", content=result.content),
+        return self._build_mcp_tool_detail(
+            result,
+            file_name="mcp_connect.md",
+            error_title="MCP server connection failed",
         )
 
     async def execute(

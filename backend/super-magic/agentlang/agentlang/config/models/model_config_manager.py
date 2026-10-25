@@ -51,6 +51,8 @@ class ModelConfigManager:
             self._last_loaded_at: Dict[str, float] = {}
             # 正在后台刷新中的 provider_type，防止并发重复触发
             self._refreshing: Set[str] = set()
+            # 当前沙箱内被运行时判定为不支持原生视觉的模型 ID。
+            self._disabled_multimodal_model_ids: Set[str] = set()
             self._initialized: bool = True
 
     async def initialize(self, providers: List[ModelProvider]) -> None:
@@ -193,6 +195,18 @@ class ModelConfigManager:
         """返回所有已注册的模型配置列表"""
         return list(self._models.values())
 
+    def disable_multimodal(self, model_id: str) -> None:
+        """在当前沙箱内存配置中关闭指定模型的原生多模态能力。"""
+        normalized = str(model_id or "").strip()
+        if not normalized:
+            return
+
+        self._disabled_multimodal_model_ids.add(normalized)
+        model_config = self._models.get(normalized)
+        if model_config is not None:
+            model_config.supports_multimodal = False
+        logger.warning(f"模型原生多模态能力已在当前沙箱关闭: model_id={normalized}")
+
     # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
@@ -207,6 +221,9 @@ class ModelConfigManager:
         Returns:
             bool: True 表示写入或覆盖，False 表示被已有高优先级配置保留
         """
+        if model_config.model_id in self._disabled_multimodal_model_ids:
+            model_config.supports_multimodal = False
+
         existing = registry.get(model_config.model_id)
         if existing is not None and existing.priority > model_config.priority:
             logger.debug(

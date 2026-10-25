@@ -1,11 +1,14 @@
 import Konva from "konva"
 import type {
 	RichTextParagraph,
+	ElementUpdatePatch,
 	TextElement as TextElementData,
+	TextElementContent,
 	LayerElement,
 	TextStyle,
 } from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
+import { updateContent, getActiveContent } from "../../document/elementContent"
 import { BaseElement } from "../core/BaseElement"
 import type { Canvas } from "../../core/Canvas"
 import { getClientPointFromNativeEvent } from "../../interaction/input"
@@ -105,7 +108,9 @@ export class TextElement extends BaseElement<TextElementData> {
 	 * 文本元素的渲染名称是从内容中提取的文本
 	 */
 	public getRenderName(): string {
-		const text = extractPlainTextFromRichText(this.data.content)
+		const text = extractPlainTextFromRichText(
+			this.getActiveContent<TextElementData["contents"][number]>()?.content,
+		)
 		return text || this.getText("text.defaultName", "文本")
 	}
 
@@ -131,7 +136,9 @@ export class TextElement extends BaseElement<TextElementData> {
 			scaleX: 1,
 			scaleY: 1,
 			zIndex,
-			content: [createRichTextParagraph(text)],
+			activeContentId: `${id}-content-1`,
+			mainContentId: `${id}-content-1`,
+			contents: [{ contentId: `${id}-content-1`, content: [createRichTextParagraph(text)] }],
 		}
 	}
 
@@ -230,7 +237,7 @@ export class TextElement extends BaseElement<TextElementData> {
 	public override applyTransform(
 		updates: Partial<LayerElement>,
 		context: TransformContext,
-	): Partial<LayerElement> {
+	): ElementUpdatePatch {
 		if (!context.isScaling) {
 			this.textTransformBaseline = null
 			return {
@@ -243,12 +250,13 @@ export class TextElement extends BaseElement<TextElementData> {
 
 		if (!this.textTransformBaseline) {
 			const layout = this.measureLayout(this.data)
+			const content = this.getActiveContent<TextElementContent>()
 			this.textTransformBaseline = {
 				layoutWidth: Math.max(layout.width, 1),
 				layoutHeight: Math.max(layout.height, 1),
-				content: cloneRichTextParagraphs(this.data.content),
-				defaultStyle: this.data.defaultStyle
-					? ({ ...this.data.defaultStyle } as TextStyle)
+				content: cloneRichTextParagraphs(content?.content),
+				defaultStyle: content?.defaultStyle
+					? ({ ...content.defaultStyle } as TextStyle)
 					: undefined,
 			}
 		}
@@ -270,13 +278,12 @@ export class TextElement extends BaseElement<TextElementData> {
 		const scaledResolvedDefault =
 			scaleTextStyle(baselineResolvedDefault, typographyScale) ?? baselineResolvedDefault
 		const scaledContent = scaleRichTextContent(base.content, typographyScale)
-		const layout = this.measureLayout({
-			...this.data,
-			content: scaledContent,
-			defaultStyle: scaledResolvedDefault,
-			scaleX: 1,
-			scaleY: 1,
-		})
+		const layout = this.measureLayout(
+			updateContent(this.data, this.data.activeContentId ?? undefined, {
+				content: scaledContent,
+				defaultStyle: scaledResolvedDefault,
+			}),
+		)
 
 		return {
 			x: updates.x,
@@ -380,13 +387,14 @@ export class TextElement extends BaseElement<TextElementData> {
 		layout: ReturnType<TextElement["measureLayout"]>,
 		options?: { width?: number; height?: number },
 	): TextRenderPlan {
+		const content = this.getActiveContent<TextElementContent>()
 		const scaleX = this.data.scaleX ?? 1
 		const scaleY = this.data.scaleY ?? 1
 		const baseWidth = Math.max(layout.width, 1)
 		const baseHeight = Math.max(layout.height, 1)
 		const renderWidth = options?.width ?? baseWidth * scaleX
 		const renderHeight = options?.height ?? baseHeight * scaleY
-		const resolvedDefaultStyle = getResolvedTextDefaultStyle(this.data.defaultStyle)
+		const resolvedDefaultStyle = getResolvedTextDefaultStyle(content?.defaultStyle)
 		const defaultTextStyle = getDefaultTextStyle()
 		const scaleRatioX = renderWidth / baseWidth
 		const scaleRatioY = renderHeight / baseHeight
@@ -437,10 +445,8 @@ export class TextElement extends BaseElement<TextElementData> {
 	}
 
 	private measureLayout(data: TextElementData) {
-		const normalizedData: TextElementData = {
-			...data,
-			content: normalizeRichTextParagraphs(data.content, data.defaultStyle),
-		}
-		return measureRichTextLayout(normalizedData.content, normalizedData.defaultStyle)
+		const content = getActiveContent<TextElementContent>(data)
+		const paragraphs = normalizeRichTextParagraphs(content?.content, content?.defaultStyle)
+		return measureRichTextLayout(paragraphs, content?.defaultStyle)
 	}
 }

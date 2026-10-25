@@ -1,9 +1,8 @@
+import ScheduledTaskDialog from "@/components/business/AccountSetting/pages/ScheduledTasks/components/ScheduledTaskDialog"
 import { lazy, Suspense, useState } from "react"
 import { useTranslation } from "react-i18next"
-import MagicModal from "@/components/base/MagicModal"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { Spinner } from "@/components/shadcn-ui/spinner"
-import { useModalStyles } from "@/components/business/AccountSetting/pages/ScheduledTasks/styles"
 import mcpTempStorage from "@/components/business/AccountSetting/pages/ScheduledTasks/store/MCPTempStorage"
 import type { FormValues } from "@/components/business/AccountSetting/pages/ScheduledTasks/types"
 import type { ScheduledTasksModifyModalController } from "@/components/business/AccountSetting/pages/ScheduledTasks/types/ScheduledTasksModify"
@@ -27,7 +26,6 @@ export function useMicroAppScheduledTasksModifyModal(
 	context: MicroAppScheduledTaskContext,
 ): ScheduledTasksModifyModalController {
 	const { t } = useTranslation("interface")
-	const { styles } = useModalStyles({ runningRecord: false })
 	const [state, setState] = useState<ModalState>({ visible: false, mode: "create" })
 
 	function openCreateModal(
@@ -70,20 +68,14 @@ export function useMicroAppScheduledTasksModifyModal(
 	}
 
 	const content = (
-		<MagicModal
-			centered
-			className={styles.modal}
+		<ScheduledTaskDialog
 			open={state.visible}
-			onCancel={closeModal}
-			footer={null}
-			width={460}
+			onClose={closeModal}
 			title={
 				state.mode === "edit"
 					? t("chat.timedTask.editTimedTask")
 					: t("chat.timedTask.createTask")
 			}
-			destroyOnHidden
-			classNames={{ content: "p-0" }}
 		>
 			<Suspense
 				fallback={
@@ -100,7 +92,7 @@ export function useMicroAppScheduledTasksModifyModal(
 					mode={state.mode}
 				/>
 			</Suspense>
-		</MagicModal>
+		</ScheduledTaskDialog>
 	)
 
 	return { state, openCreateModal, openEditModal, closeModal, content }

@@ -12,7 +12,6 @@ use App\Application\ModelGateway\Struct\ImageProcessContext;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
-use App\Infrastructure\ExternalAPI\Image\ImageAsset;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -44,8 +43,9 @@ class UploadProcessorTest extends TestCase
         file_put_contents($this->tempFilePath, 'fake-image-data');
 
         $context = new ImageProcessContext(
-            asset: ImageAsset::fromLocalFile($this->tempFilePath, 'image/png', 'official_proxy'),
             localFilePath: $this->tempFilePath,
+            mimeType: 'image/png',
+            provider: 'official_proxy',
         );
         $context->setOrganizationCode('ORG001');
         $context->setStorageSubDir('open/remove-background');

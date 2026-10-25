@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
-import { useDebounceFn } from "ahooks"
+import { useDebounceFn, useMemoizedFn } from "ahooks"
 import { ProjectStateRepository } from "@/models/config/repositories/SuperProjectStateRepository"
 import { useOrganization } from "@/models/user/hooks/useOrganization"
 import { useSearchExpandedKeys } from "./useSearchExpandedKeys"
@@ -8,6 +8,8 @@ interface UseTreeUIOptions {
 	organizationCode?: string
 	projectId?: string
 	enableCache?: boolean
+	expandedKeys?: React.Key[]
+	onExpandedKeysChange?: (keys: React.Key[]) => void
 	// 搜索相关
 	searchValue?: string
 	matchedItemPaths?: string[]
@@ -39,7 +41,15 @@ export function useTreeUI(options?: UseTreeUIOptions) {
 	const [contextMenuItemId, setContextMenuItemId] = useState<string | null>(null)
 
 	// 展开状态 - 分为用户手动展开和搜索自动展开
-	const [userExpandedKeys, setUserExpandedKeys] = useState<React.Key[]>([]) // 用户手动展开的keys
+	const [localExpandedKeys, setLocalExpandedKeys] = useState<React.Key[]>([]) // 用户手动展开的keys
+	const userExpandedKeys = options?.expandedKeys ?? localExpandedKeys
+	const setUserExpandedKeys = useMemoizedFn(
+		(keys: React.Key[] | ((previous: React.Key[]) => React.Key[])) => {
+			const next = typeof keys === "function" ? keys(userExpandedKeys) : keys
+			if (options?.onExpandedKeysChange) options.onExpandedKeysChange(next)
+			else setLocalExpandedKeys(next)
+		},
+	)
 	const { searchExpandedKeys, setSearchExpandedKeys, resetSearchExpandedKeys } =
 		useSearchExpandedKeys({
 			searchValue,

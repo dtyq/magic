@@ -1,4 +1,4 @@
-import Mention from "@tiptap/extension-mention"
+import Mention from "@/infrastructure/editors/tiptap/extension-mention"
 
 const MentionExtension = Mention.extend({
 	addAttributes() {

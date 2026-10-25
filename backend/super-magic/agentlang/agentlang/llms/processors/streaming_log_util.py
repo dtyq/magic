@@ -250,9 +250,15 @@ class StreamingLogger:
         state: StreamingState,
         correlation_id: str,
         total_time: float,
-        finish_reason: Optional[str]
+        finish_reason: Optional[str],
+        aggregated_source_chunks: Optional[int] = None,
+        aggregated_emitted_chunks: Optional[int] = None,
     ) -> None:
-        """记录流式处理统计信息"""
+        """记录流式处理统计信息。
+
+        `总chunks数` 是上游收到的全部 chunk，含 usage-only。
+        V2 聚合时额外带上「参与整合」和「整合后发出」，方便对照压缩效果。
+        """
         stats = {
             "请求ID": request_id,
             "关联ID": correlation_id,
@@ -268,6 +274,10 @@ class StreamingLogger:
             "无效chunk数": state.invalid_chunk_count,
             "完成原因": finish_reason
         }
+        if aggregated_source_chunks is not None:
+            stats["上游可整合chunks数"] = aggregated_source_chunks
+        if aggregated_emitted_chunks is not None:
+            stats["整合后发出chunks数"] = aggregated_emitted_chunks
         logger.info(f"[{request_id}] 流式处理统计: {json.dumps(stats, ensure_ascii=False)}")
 
     @staticmethod

@@ -6,31 +6,27 @@ Read [SKILL.md](../SKILL.md) first. This reference contains the exact signatures
 
 ```python
 browser_read_page(
-    page_id: str,
     scope: "viewport" | "full" = "viewport",
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
 browser_read_html(
-    page_id: str,
     ref: str | None = None,
     detail: "outline" | "full" = "outline",
     max_chars: int = 20000,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
 browser_find(
-    page_id: str,
     role: str | None = None,
     name: str | None = None,
     text: str | None = None,
     visible_only: bool = True,
     limit: int = 20,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
 browser_list_elements(
-    page_id: str,
     scope: "interactive" | "viewport" | "subtree" | "full" | "changes" = "interactive",
     ref: str | None = None,
-    session_id: str | None = None,
+    tab_id: str | None = None,
 )
 ```
 
@@ -100,14 +96,12 @@ An action result can report navigation, new pages, downloads, dialogs, and a sna
 
 ```python
 action = tool.call("browser_click", {
-    "page_id": page_id,
     "ref": target_ref,
 })
 if not action.ok:
     print(action.content)
 else:
     changes = tool.call("browser_list_elements", {
-        "page_id": page_id,
         "scope": "changes",
     })
     print(changes.content)

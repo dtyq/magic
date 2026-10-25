@@ -12,12 +12,58 @@
 			__MAGIC_IFRAME_RUNTIME_INLINE_PLACEHOLDER__
 		</script>
 		<script>
+			var runtimeLoadTimeoutMs = 10000
+			// Capture the browser-provided parent reference before any runtime (such as
+			// DevTools MessageProxy) can wrap window.parent.
+			var trustedParentWindow = window.parent
+			var trustedParentOrigin = ""
+			try {
+				if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0)
+					trustedParentOrigin = window.location.ancestorOrigins[0]
+				else if (document.referrer) trustedParentOrigin = new URL(document.referrer).origin
+			} catch (error) {
+				trustedParentOrigin = ""
+			}
+			if (!trustedParentOrigin && window.parent === window)
+				trustedParentOrigin = window.location.origin
+			if (!trustedParentOrigin) {
+				try {
+					if (window.parent.location.origin === window.location.origin)
+						trustedParentOrigin = window.location.origin
+				} catch (error) {
+					// Cross-origin parent with no usable referrer: fail closed.
+				}
+			}
+
+			function isTrustedParentMessage(event) {
+				if (!event || !trustedParentOrigin || event.source !== trustedParentWindow)
+					return false
+				return event.origin === trustedParentOrigin
+			}
+
 			function setupMessageListener() {
+				// setContent 会替换文档并重新初始化 shell 处理逻辑。
+				// 保留一个 window 级监听器，避免 FilesViewer 复用 iframe 时
+				// 同一个导航请求被重复处理。
+				window.removeEventListener("message", handleMessage)
 				window.addEventListener("message", handleMessage)
 			}
 
 			function postToParent(message) {
-				window.parent.postMessage(message, "*")
+				var navigation = window.__MAGIC_HTML_NAVIGATION__
+				var enrichedMessage = message
+				if (
+					navigation &&
+					navigation.requestId &&
+					message &&
+					message.navigationRequestId == null
+				) {
+					enrichedMessage = Object.assign({}, message, {
+						navigationRequestId: navigation.requestId,
+					})
+				}
+				if (!trustedParentOrigin) return
+				window.parent.postMessage(enrichedMessage, trustedParentOrigin)
 			}
 
 			var HTML_SANDBOX_TELEMETRY_MESSAGE = "MAGIC_HTML_SANDBOX_TELEMETRY"
@@ -205,7 +251,9 @@
 				}
 			}
 
-			installInlineRuntime()
+			// Runtime installation is deferred until the first setContent message.
+			// The host can then provide its own environment-specific runtime bundle
+			// while older hosts continue to use this shell's inline bundle.
 
 			function setupErrorHandler() {
 				window.onerror = function (message, source, lineno, colno, error) {
@@ -269,9 +317,11 @@
 
 			var isAnimationPaused = false
 			var runtimeState = {
-				loaded: !!window.MagicHtmlSandboxRuntime,
+				loaded: false,
 				loading: false,
 				runtimeUrl: "",
+				failedRuntimeUrl: "",
+				loadingPromise: null,
 			}
 
 			function cleanupEditRuntime() {
@@ -316,12 +366,10 @@
 					!window.MagicHtmlSandboxRuntime ||
 					typeof window.MagicHtmlSandboxRuntime.startIframeRuntime !== "function"
 				) {
-					return
+					return false
 				}
 
 				try {
-					runtimeState.loaded = true
-					runtimeState.loading = false
 					window.MagicHtmlSandboxRuntime.startIframeRuntime()
 				} catch (error) {
 					console.error("[RenderSite] runtime restart failed", error)
@@ -330,69 +378,207 @@
 						message: "iframe runtime restart failed",
 						detail: error && error.message ? error.message : String(error),
 					})
+					return false
 				}
+				return true
+			}
+
+			function clearRuntimeGlobal() {
+				try {
+					delete window.MagicHtmlSandboxRuntime
+				} catch (error) {
+					window.MagicHtmlSandboxRuntime = undefined
+				}
+			}
+
+			function installInlineRuntimeAndStart(scaleRatio) {
+				if (scaleRatio !== undefined && scaleRatio !== null)
+					window.__MAGIC_SCALE_RATIO__ = scaleRatio || 1
+
+				if (window.MagicHtmlSandboxRuntime && restartInlineRuntime()) {
+					runtimeState.loaded = true
+					runtimeState.loading = false
+					runtimeState.runtimeUrl = ""
+					return true
+				}
+				if (window.MagicHtmlSandboxRuntime) clearRuntimeGlobal()
+				if (!installInlineRuntime() || !restartInlineRuntime()) {
+					runtimeState.loaded = false
+					runtimeState.loading = false
+					runtimeState.runtimeUrl = ""
+					return false
+				}
+				runtimeState.loaded = true
+				runtimeState.loading = false
+				runtimeState.runtimeUrl = ""
+				return true
 			}
 
 			function loadIframeRuntime(runtimeUrl, scaleRatio) {
 				if (scaleRatio !== undefined && scaleRatio !== null)
 					window.__MAGIC_SCALE_RATIO__ = scaleRatio || 1
 
-				if (window.MagicHtmlSandboxRuntime) {
-					restartInlineRuntime()
-					return
+				if (!runtimeUrl) return Promise.resolve(installInlineRuntimeAndStart(scaleRatio))
+
+				var parsedRuntimeUrl
+				try {
+					parsedRuntimeUrl = new URL(runtimeUrl, window.location.href)
+				} catch (error) {
+					return Promise.resolve(false)
+				}
+				if (
+					!trustedParentOrigin ||
+					parsedRuntimeUrl.origin !== trustedParentOrigin ||
+					!parsedRuntimeUrl.pathname.endsWith("/husky-runtime.js") ||
+					parsedRuntimeUrl.search ||
+					parsedRuntimeUrl.hash ||
+					(parsedRuntimeUrl.protocol !== "http:" &&
+						parsedRuntimeUrl.protocol !== "https:")
+				) {
+					console.warn("[RenderSite] runtime URL rejected")
+					return Promise.resolve(false)
+				}
+				runtimeUrl = parsedRuntimeUrl.toString()
+				if (runtimeState.failedRuntimeUrl === runtimeUrl) return Promise.resolve(false)
+
+				if (runtimeState.loaded && runtimeState.runtimeUrl === runtimeUrl) {
+					if (restartInlineRuntime()) return Promise.resolve(true)
+					runtimeState.loaded = false
+					clearRuntimeGlobal()
+					return Promise.resolve(installInlineRuntimeAndStart(scaleRatio))
 				}
 
-				if (!runtimeUrl) {
-					console.warn("[RenderSite] load runtime skipped: empty runtimeUrl")
-					return
+				if (runtimeState.loading && runtimeState.runtimeUrl === runtimeUrl) {
+					return runtimeState.loadingPromise || Promise.resolve(false)
 				}
 
-				if (runtimeState.loaded || runtimeState.loading) {
-					return
+				if (
+					runtimeState.loaded &&
+					runtimeState.runtimeUrl &&
+					runtimeState.runtimeUrl !== runtimeUrl
+				) {
+					console.warn(
+						"[RenderSite] runtime URL cannot change within one shell instance",
+						{
+							current: runtimeState.runtimeUrl,
+							requested: runtimeUrl,
+						},
+					)
+					return Promise.resolve(true)
 				}
 
 				cleanupEditRuntime()
 				runtimeState.loading = true
 				runtimeState.runtimeUrl = runtimeUrl
-
-				try {
-					var script = document.createElement("script")
-					script.setAttribute("data-runtime", "true")
-					script.async = true
-					script.src = runtimeUrl
-					script.onload = function () {
-						runtimeState.loaded = true
+				runtimeState.loadingPromise = new Promise(function (resolve) {
+					var settled = false
+					var script = null
+					var timeoutId = setTimeout(function () {
+						if (settled) return
 						runtimeState.loading = false
-					}
-					script.onerror = function (err) {
-						runtimeState.loading = false
-						console.error("[RenderSite] runtime load failed", {
+						runtimeState.failedRuntimeUrl = runtimeUrl
+						if (script && script.parentNode) script.parentNode.removeChild(script)
+						console.error("[RenderSite] runtime load timed out", {
 							runtimeUrl: runtimeUrl,
-							err: err,
 						})
 						sendRuntimeErrorTelemetry({
 							errorType: "runtimeLoad",
-							message: "iframe runtime script load failed",
+							message: "iframe runtime script load timed out",
 							runtimeUrl: runtimeUrl,
-							detail: err ? String(err) : "",
 						})
+						settle(false)
+					}, runtimeLoadTimeoutMs)
+					function settle(value) {
+						if (settled) return
+						settled = true
+						clearTimeout(timeoutId)
+						runtimeState.loadingPromise = null
+						resolve(value)
 					}
 
-					if (document.head) document.head.appendChild(script)
-					else if (document.documentElement) document.documentElement.appendChild(script)
-				} catch (error) {
-					runtimeState.loading = false
-					console.error("[RenderSite] runtime injection failed", {
-						runtimeUrl: runtimeUrl,
-						error: error,
-					})
-					sendRuntimeErrorTelemetry({
-						errorType: "runtimeLoad",
-						message: "iframe runtime script injection failed",
-						runtimeUrl: runtimeUrl,
-						detail: error && error.message ? error.message : String(error),
-					})
-				}
+					try {
+						script = document.createElement("script")
+						script.setAttribute("data-runtime", "true")
+						script.setAttribute("data-runtime-source", "host")
+						script.async = true
+						// The host runtime is served from the parent application's origin.
+						// Explicit CORS mode is required for classic scripts loaded by the
+						// cross-origin sandbox shell, especially in Vite dev environments.
+						script.crossOrigin = "anonymous"
+						script.src = runtimeUrl
+						script.onload = function () {
+							if (settled) return
+							var runtimeStarted = restartInlineRuntime()
+							runtimeState.loaded = runtimeStarted
+							runtimeState.loading = false
+							if (!runtimeState.loaded) {
+								console.error(
+									"[RenderSite] runtime loaded without global runtime",
+									{
+										runtimeUrl: runtimeUrl,
+									},
+								)
+								runtimeState.failedRuntimeUrl = runtimeUrl
+								if (script.parentNode) script.parentNode.removeChild(script)
+								clearRuntimeGlobal()
+								settle(false)
+								return
+							}
+							settle(true)
+						}
+						script.onerror = function (err) {
+							if (settled) return
+							runtimeState.loading = false
+							runtimeState.failedRuntimeUrl = runtimeUrl
+							if (script.parentNode) script.parentNode.removeChild(script)
+							console.error("[RenderSite] runtime load failed", {
+								runtimeUrl: runtimeUrl,
+								err: err,
+							})
+							sendRuntimeErrorTelemetry({
+								errorType: "runtimeLoad",
+								message: "iframe runtime script load failed",
+								runtimeUrl: runtimeUrl,
+								detail: err ? String(err) : "",
+							})
+							settle(false)
+						}
+
+						if (document.head) document.head.appendChild(script)
+						else if (document.documentElement)
+							document.documentElement.appendChild(script)
+						else settle(false)
+					} catch (error) {
+						if (settled) return
+						runtimeState.loading = false
+						runtimeState.failedRuntimeUrl = runtimeUrl
+						console.error("[RenderSite] runtime injection failed", {
+							runtimeUrl: runtimeUrl,
+							error: error,
+						})
+						sendRuntimeErrorTelemetry({
+							errorType: "runtimeLoad",
+							message: "iframe runtime script injection failed",
+							runtimeUrl: runtimeUrl,
+							detail: error && error.message ? error.message : String(error),
+						})
+						settle(false)
+					}
+				})
+				return runtimeState.loadingPromise
+			}
+
+			function ensureRuntime(runtimeUrl, scaleRatio) {
+				var normalizedRuntimeUrl = typeof runtimeUrl === "string" ? runtimeUrl.trim() : ""
+				if (normalizedRuntimeUrl)
+					return loadIframeRuntime(normalizedRuntimeUrl, scaleRatio).then(
+						function (loaded) {
+							// Keep old/shared shells usable when the host-owned bundle is not
+							// deployed yet. The inline runtime is the compatibility fallback.
+							return loaded || installInlineRuntimeAndStart(scaleRatio)
+						},
+					)
+				return Promise.resolve(installInlineRuntimeAndStart(scaleRatio))
 			}
 
 			function applyAnimationState() {
@@ -403,8 +589,10 @@
 					if (!existingStyle) {
 						var style = document.createElement("style")
 						style.id = styleId
+						// Keep animation timelines intact: animation:none cancels them and
+						// replays entrance effects when a cached slide becomes visible again.
 						style.textContent =
-							"*{animation:none!important}*::before,*::after{animation:none!important}"
+							"*,*::before,*::after{animation-play-state:paused!important}"
 						if (document.head) document.head.appendChild(style)
 						else if (document.documentElement)
 							document.documentElement.appendChild(style)
@@ -417,13 +605,12 @@
 						videos.forEach(function (video) {
 							if (!video.paused) video.setAttribute("data-was-playing", "true")
 							video.pause()
-							video.currentTime = 0
+							// Resident slides resume at the user's position after a page transition.
 						})
 
 						audios.forEach(function (audio) {
 							if (!audio.paused) audio.setAttribute("data-was-playing", "true")
 							audio.pause()
-							audio.currentTime = 0
 						})
 					} catch (error) {
 						console.warn("暂停媒体时出错:", error)
@@ -492,7 +679,18 @@
 								event.target.tagName === "INPUT" ||
 								event.target.tagName === "TEXTAREA")
 
-						if (isEditMode || isTargetEditable) return
+						if (
+							isEditMode ||
+							isTargetEditable ||
+							event.repeat ||
+							(event.target instanceof Element &&
+								event.target.closest(
+									event.key === " "
+										? "button,a,select,[role=button],[role=menuitem]"
+										: "select,[role=menuitem]",
+								))
+						)
+							return
 
 						var key = event.key
 						var direction = null
@@ -530,6 +728,7 @@
 									type: "keyboardEvent",
 									direction: direction,
 									originalKey: key,
+									repeat: event.repeat,
 								},
 								"*",
 							)
@@ -741,23 +940,98 @@
 
 			function handleMessage(event) {
 				try {
+					if (!isTrustedParentMessage(event)) return
+
 					if (event.data && event.data.type === "setContent") {
-						var sanitizedContent = sanitizeContentForSandbox(event.data.content)
-						resetTelemetryDedupe()
-						document.open()
-						document.write(sanitizedContent)
-						document.close()
-						restartInlineRuntime()
-						setupMessageListener()
-						setupClickListener()
-						setupKeyboardListener()
-						setupErrorHandler()
-						setupDOMLoadListeners()
-						applyAnimationState()
-						postToParent({ type: "contentLoaded" })
-						scheduleContentMetrics("initial")
+						var runtimeUrl = event.data.runtimeUrl
+						var scaleRatio = event.data.scaleRatio
+						ensureRuntime(runtimeUrl, scaleRatio)
+							.then(function (runtimeReady) {
+								if (!runtimeReady) {
+									console.warn(
+										"[RenderSite] content skipped: runtime unavailable",
+									)
+									postToParent({
+										type: "contentLoadError",
+										error: "runtime unavailable",
+									})
+									return
+								}
+								try {
+									var locationSearch = event.data.locationSearch || ""
+									var locationAnchor = event.data.locationAnchor || ""
+									var navigationRequestId = event.data.navigationRequestId || ""
+									var sanitizedContent = sanitizeContentForSandbox(
+										event.data.content,
+									)
+									resetTelemetryDedupe()
+									document.open()
+									window.__MAGIC_HTML_NAVIGATION__ = {
+										search: locationSearch,
+										hash: locationAnchor,
+										requestId: navigationRequestId,
+									}
+									try {
+										window.history.replaceState(
+											null,
+											"",
+											window.location.pathname +
+												locationSearch +
+												locationAnchor,
+										)
+									} catch (error) {
+										console.warn(
+											"Failed to update sandbox navigation state:",
+											error,
+										)
+									}
+									document.write(sanitizedContent)
+									document.close()
+									window.__MAGIC_HTML_NAVIGATION__ = {
+										search: locationSearch,
+										hash: locationAnchor,
+										requestId: navigationRequestId,
+									}
+									if (!restartInlineRuntime())
+										throw new Error(
+											"iframe runtime restart failed after content injection",
+										)
+									setupMessageListener()
+									setupClickListener()
+									setupKeyboardListener()
+									setupErrorHandler()
+									setupDOMLoadListeners()
+									applyAnimationState()
+									postToParent({ type: "contentLoaded" })
+									scheduleContentMetrics("initial")
+								} catch (error) {
+									console.error("[RenderSite] content apply failed", error)
+									sendRuntimeErrorTelemetry({
+										errorType: "contentApply",
+										message: "sandbox content apply failed",
+										detail:
+											error && error.message ? error.message : String(error),
+									})
+									postToParent({
+										type: "contentLoadError",
+										error: "content apply failed",
+									})
+								}
+							})
+							.catch(function (error) {
+								console.error("[RenderSite] content load failed", error)
+								sendRuntimeErrorTelemetry({
+									errorType: "contentLoad",
+									message: "sandbox content load failed",
+									detail: error && error.message ? error.message : String(error),
+								})
+								postToParent({
+									type: "contentLoadError",
+									error: "content load failed",
+								})
+							})
 					} else if (
-						event.source === window.parent &&
+						isTrustedParentMessage(event) &&
 						event.data &&
 						event.data.type === "COPY_ARTICLE_SELECTION"
 					) {

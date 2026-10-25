@@ -81,8 +81,14 @@ const useStyles = createStyles(({ token, css }) => {
 
 		content: {
 			flex: 1,
+			minHeight: 0,
+			display: "grid",
+		},
+		viewport: {
+			height: "auto",
+			minHeight: 0,
 			padding: "10px 20px",
-			overflowY: "auto",
+			"> div": { display: "block !important" },
 		},
 
 		shortcutGroup: {

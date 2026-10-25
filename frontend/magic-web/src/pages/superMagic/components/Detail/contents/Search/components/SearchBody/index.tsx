@@ -1,9 +1,9 @@
-import { memo, useCallback, useMemo } from "react"
+import { memo, useCallback } from "react"
+import { Typography } from "antd"
+import { Globe } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import MagicImage from "@/components/base/MagicImage"
-import defaultSVG from "@/assets/resources/icons/magic-icon.svg"
-import { IconListSearch } from "@tabler/icons-react"
-import MagicIcon from "@/components/base/MagicIcon"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 export interface SearchResult {
 	title: string
@@ -14,26 +14,20 @@ export interface SearchResult {
 
 export interface SearchGroup {
 	keyword: string
+	query?: string | null
 	results: SearchResult[]
 }
 
 interface SearchBodyProps {
-	keyword?: string
-	groups?: SearchGroup[]
+	currentGroup?: SearchGroup
 }
 
-export default memo(function SearchBody({ keyword, groups = [] }: SearchBodyProps) {
+export default memo(function SearchBody({ currentGroup }: SearchBodyProps) {
 	const { t } = useTranslation("super")
 
 	// Parse HTML to extract text content only
 	const parseHTML = useCallback((html: string) => {
 		return html.replace(/<[^>]*>?/g, "")
-	}, [])
-
-	// Truncate long keywords for display
-	const truncateKeyword = useCallback((kw: string, maxLength: number = 30) => {
-		if (kw.length <= maxLength) return kw
-		return kw.substring(0, maxLength) + "..."
 	}, [])
 
 	// Highlight keywords in text
@@ -54,160 +48,129 @@ export default memo(function SearchBody({ keyword, groups = [] }: SearchBodyProp
 			const regex = new RegExp(`(${pattern})`, "gi")
 			const parts = text.split(regex)
 
-			const escapedKeywords = keywords
-				.map((word) => {
-					try {
-						return new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi")
-					} catch {
-						return null
-					}
-				})
-				.filter(Boolean)
-
-			return parts
-				.map((part, index) => {
-					if (part && escapedKeywords.some((re) => re && re.test(part))) {
-						return (
-							<span
-								key={index}
-								className="rounded-[2px] bg-[#fff3cd] box-decoration-clone px-0.5 py-px font-bold text-[#212529] [-webkit-box-decoration-break:clone] dark:bg-amber-500/20 dark:text-foreground"
-							>
-								{part}
-							</span>
-						)
-					}
-					return part || ""
-				})
-				.filter((part) => part !== "")
+			// Captures occupy odd indexes; use them directly to avoid global-regex lastIndex state.
+			return parts.map((part, index) =>
+				index % 2 === 1 ? (
+					<strong key={index} className="font-semibold text-foreground">
+						{part}
+					</strong>
+				) : (
+					part
+				),
+			)
 		} catch (error) {
 			console.warn("Regex error in highlightKeywords:", error)
 			return text
 		}
 	}, [])
 
-	// Highlight keyword in search info text
-	const highlightSearchKeyword = useCallback((text: string, kw: string) => {
-		if (!kw || !text) return text
-
-		try {
-			const escapedKeyword = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-			const regex = new RegExp(`(${escapedKeyword})`, "gi")
-			const parts = text.split(regex)
-
-			let testRegex: RegExp | null = null
-			try {
-				testRegex = new RegExp(escapedKeyword, "gi")
-			} catch {
-				return text
-			}
-
-			return parts.map((part, index) => {
-				if (part && testRegex && testRegex.test(part)) {
-					return (
-						<span key={index} className="font-semibold text-foreground">
-							{part}
-						</span>
-					)
-				}
-				return part || ""
-			})
-		} catch (error) {
-			console.warn("Regex error in highlightSearchKeyword:", error)
-			return text
-		}
-	}, [])
-
-	// Find the current group based on keyword
-	const currentGroup = useMemo(() => {
-		return groups.find((group) => group.keyword === keyword) || groups[0]
-	}, [groups, keyword])
-
 	const results = currentGroup?.results || []
-	const totalResults = results.length
+	const query = currentGroup?.query || currentGroup?.keyword || ""
 
-	if (!totalResults) return null
+	if (!results.length) {
+		return (
+			// Fill Radix's content wrapper so the empty message stays centered.
+			<ScrollArea
+				className="grid min-h-0 flex-1"
+				viewportClassName="h-auto min-h-0 p-7 text-center [&>div]:!flex [&>div]:min-h-full [&>div]:flex-col [&>div]:items-center [&>div]:justify-center [&>div]:gap-2"
+			>
+				<p className="text-sm text-foreground">
+					{currentGroup ? t("search.emptyGroupTitle") : t("search.emptyResults")}
+				</p>
+				{currentGroup && (
+					<p className="text-xs text-muted-foreground">
+						{t("search.emptyGroupDescription")}
+					</p>
+				)}
+			</ScrollArea>
+		)
+	}
 
 	return (
-		<div className="flex flex-col gap-2.5 overflow-y-auto p-2.5 max-md:h-[calc(100%-env(safe-area-inset-bottom))]">
-			<div
-				className="flex h-4 min-w-0 items-center gap-1 text-xs font-normal leading-[1.33] text-muted-foreground"
-				title={currentGroup?.keyword || ""}
-			>
-				<MagicIcon component={IconListSearch} size={14} className="shrink-0" />
-				<span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-					{highlightSearchKeyword(
-						t("search.searchKeyword", {
-							keyword: truncateKeyword(currentGroup?.keyword || ""),
-							count: totalResults,
-						}),
-						truncateKeyword(currentGroup?.keyword || ""),
-					)}
-				</span>
-			</div>
-			<div className="flex flex-col">
-				{results?.map((item: SearchResult) => {
+		<ScrollArea
+			className="grid min-h-0 flex-1"
+			viewportClassName="h-auto min-h-0 px-4 pb-6 pt-3"
+		>
+			<div className="flex max-w-[800px] flex-col gap-[18px]">
+				{results.map((item, index) => {
 					const title = parseHTML(item.title)
 					const info = parseHTML(item.snippet)
-					const itemKeyword = currentGroup?.keyword || ""
+					let source = item.url
+					let sourcePath = ""
+					try {
+						const url = new URL(item.url)
+						source = url.hostname
+						sourcePath = url.pathname
+					} catch {
+						// Preserve an invalid source URL without interrupting the rest of the results.
+					}
 
 					return (
-						<div
-							key={`search-result-${item.url?.replace(/[^a-zA-Z0-9]/g, "-")}`}
-							className="mb-2.5 flex flex-col gap-1 rounded-md bg-fill px-3 py-2.5 last:mb-0"
-						>
-							<div className="flex min-w-0 flex-1 flex-col gap-1.5">
-								<div className="flex items-center gap-2">
-									<div className="relative h-4 w-4 shrink-0 overflow-hidden rounded-[2px]">
-										<MagicImage
-											src={item.icon_url}
-											fallback={
-												<img
-													src={defaultSVG}
-													className="absolute rounded-[2px]"
-													width={16}
-													height={16}
-													data-testid="search-body-image"
-												/>
-											}
-											className="absolute rounded-[2px]"
-											width={16}
-											height={16}
-										/>
-									</div>
-									<a
-										href={item.url}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="line-clamp-2 hyphens-auto whitespace-normal break-words text-sm font-semibold leading-[1.43] text-foreground no-underline hover:text-primary hover:no-underline"
-										title={title}
-										data-testid="search-body-link"
-									>
-										{highlightKeywords(title, itemKeyword)}
-									</a>
-								</div>
-								<div className="flex flex-col gap-1">
-									<div
-										className="line-clamp-2 text-xs font-normal leading-[1.33] text-muted-foreground"
-										title={info}
-									>
-										{highlightKeywords(info, itemKeyword)}
-									</div>
-									<a
-										href={item.url}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-normal leading-[1.3] text-primary no-underline hover:underline"
-										title={item.url}
-										data-testid="search-body-link-2"
-									>
-										{item.url}
-									</a>
-								</div>
-							</div>
-						</div>
+						<article key={`${item.url}-${index}`} className="min-w-0">
+							<a
+								href={item.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="mb-1 flex w-fit max-w-full items-center gap-2 text-foreground no-underline hover:no-underline"
+								title={item.url}
+								data-testid="search-body-link-2"
+							>
+								<span className="flex size-4 shrink-0 items-center justify-center overflow-hidden">
+									<MagicImage
+										src={item.icon_url}
+										width={16}
+										height={16}
+										className="rounded-sm"
+										fallback={
+											<Globe
+												size={16}
+												className="text-muted-foreground"
+												aria-hidden
+											/>
+										}
+									/>
+								</span>
+								<span className="min-w-0 truncate text-xs leading-5">
+									<span>{source}</span>
+									{sourcePath && (
+										<span className="ml-1.5 text-muted-foreground">
+											{sourcePath}
+										</span>
+									)}
+								</span>
+							</a>
+							<a
+								href={item.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="mb-1 block break-words text-lg font-normal leading-[1.45] text-blue-700 no-underline hover:underline dark:text-blue-300"
+								title={title}
+								data-testid="search-body-link"
+							>
+								{title}
+							</a>
+							{/* Collapse only the returned snippet; Typography measures overflow and manages expansion. */}
+							<Typography.Paragraph
+								className="!mb-0 !text-sm !leading-relaxed !text-muted-foreground"
+								title={info}
+								ellipsis={{
+									rows: 3,
+									expandable: "collapsible",
+									symbol: (expanded) => (
+										<span className="text-xs text-muted-foreground underline decoration-dotted underline-offset-4">
+											{expanded
+												? t("search.collapseSnippet")
+												: t("search.expandSnippet")}
+										</span>
+									),
+								}}
+							>
+								{highlightKeywords(info, query)}
+							</Typography.Paragraph>
+						</article>
 					)
 				})}
 			</div>
-		</div>
+		</ScrollArea>
 	)
 })

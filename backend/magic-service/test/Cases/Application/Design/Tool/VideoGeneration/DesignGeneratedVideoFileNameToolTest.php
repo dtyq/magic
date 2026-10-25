@@ -13,6 +13,7 @@ use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
 use App\Domain\Design\Entity\DesignDataIsolation;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use DateTime;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Api\Response\ChatCompletionChoice;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
@@ -41,11 +42,11 @@ class DesignGeneratedVideoFileNameToolTest extends TestCase
 
         $result = $tool->resolveBaseNameWithoutExtension(
             $this->createDesignDataIsolation(),
-            $this->createEntity('大家在吃饭'),
-            '大家在吃饭',
+            $this->createEntity('大家在吃饭的热闹场景'),
+            '大家在吃饭的热闹场景',
         );
 
-        $this->assertMatchesRegularExpression('/^第二集吃饭_\d{14}$/', $result);
+        $this->assertMatchesRegularExpression('/^第二集吃饭_\d{8}_[0-9a-f]{12}$/', $result);
     }
 
     public function testResolveBaseNameWithoutExtensionReturnsEmptyWhenAgentFails(): void
@@ -61,11 +62,63 @@ class DesignGeneratedVideoFileNameToolTest extends TestCase
 
         $result = $tool->resolveBaseNameWithoutExtension(
             $this->createDesignDataIsolation(),
-            $this->createEntity('大家在吃饭'),
-            '大家在吃饭',
+            $this->createEntity('大家在吃饭的热闹场景'),
+            '大家在吃饭的热闹场景',
         );
 
         $this->assertSame('', $result);
+    }
+
+    public function testResolveBaseNameWithoutExtensionRemovesReferenceTokenFromAgentResult(): void
+    {
+        $agent = $this->createMock(MicroAgent::class);
+        $agent->method('isEnabled')->willReturn(true);
+        $agent->method('easyCall')->willReturn($this->createChatCompletionResponse('[视频1]'));
+
+        $factory = $this->createMock(MicroAgentFactory::class);
+        $factory->method('getAgent')->willReturn($agent);
+
+        $tool = $this->createTool($factory);
+
+        $result = $tool->resolveBaseNameWithoutExtension(
+            $this->createDesignDataIsolation(),
+            $this->createEntity('城市夜景中的人物移动'),
+            '城市夜景中的人物移动 [图片1]',
+        );
+
+        $this->assertSame('', $result);
+    }
+
+    public function testResolveBaseNameWithoutExtensionDoesNotUseReferenceTokenAsShortPromptFilename(): void
+    {
+        $factory = $this->createMock(MicroAgentFactory::class);
+        $factory->expects($this->never())->method('getAgent');
+
+        $tool = $this->createTool($factory);
+
+        $result = $tool->resolveBaseNameWithoutExtension(
+            $this->createDesignDataIsolation(),
+            $this->createEntity('[图片1]'),
+            '[图片1]',
+        );
+
+        $this->assertSame('', $result);
+    }
+
+    public function testResolveBaseNameWithoutExtensionFallsBackToTodayWhenCreatedAtIsMissing(): void
+    {
+        $factory = $this->createMock(MicroAgentFactory::class);
+        $factory->expects($this->never())->method('getAgent');
+
+        $tool = $this->createTool($factory);
+
+        $result = $tool->resolveBaseNameWithoutExtension(
+            $this->createDesignDataIsolation(),
+            $this->createEntityWithoutCreatedAt('夜景'),
+            '夜景',
+        );
+
+        $this->assertMatchesRegularExpression('/^夜景_\d{8}_[0-9a-f]{12}$/', $result);
     }
 
     private function createLoggerFactory(): LoggerFactory
@@ -107,6 +160,14 @@ class DesignGeneratedVideoFileNameToolTest extends TestCase
     }
 
     private function createEntity(string $prompt): DesignGenerationTaskEntity
+    {
+        $entity = $this->createEntityWithoutCreatedAt($prompt);
+        $entity->setCreatedAt(new DateTime());
+
+        return $entity;
+    }
+
+    private function createEntityWithoutCreatedAt(string $prompt): DesignGenerationTaskEntity
     {
         $entity = new DesignGenerationTaskEntity();
         $entity->setGenerationId('video-1');

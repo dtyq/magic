@@ -4,7 +4,7 @@ import { LoginDeployment } from "@/pages/login/constants"
 import type { ServiceContainer } from "@/services/ServiceContainer"
 import { useLoginClusterSession } from "./useLoginClusterSession"
 
-interface LoginServiceStore extends LoginServiceProviderProps {
+export interface LoginServiceStore extends LoginServiceProviderProps {
 	deployment: LoginDeployment
 	clusterCode: string
 	/**

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\SuperMagic\Common\RecycleBin\Repository\Facade;
 
 use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinEntity;
+use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinFileQuery;
 use App\Domain\SuperMagic\Common\RecycleBin\Enum\RecycleBinResourceType;
 
 /**
@@ -81,7 +82,8 @@ interface RecycleBinRepositoryInterface
         ?string $keyword = null,
         string $order = 'desc',
         int $page = 1,
-        int $pageSize = 20
+        int $pageSize = 20,
+        ?RecycleBinFileQuery $fileQuery = null
     ): array;
 
     /**
@@ -89,7 +91,7 @@ interface RecycleBinRepositoryInterface
      *
      * @return array<int, int> key 为 RecycleBinResourceType->value，value 为数量
      */
-    public function getCountsByTypeVisibleToUser(string $userId, ?string $keyword = null): array;
+    public function getCountsByTypeVisibleToUser(string $userId, ?string $keyword = null, ?int $projectId = null): array;
 
     /**
      * 批量查询当前用户可访问的回收站记录（带类型过滤）.

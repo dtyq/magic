@@ -155,12 +155,21 @@ export function shouldSyncWithAttachments(
 
 /** 过滤可写入项目 tab 缓存的文件 tab。 */
 export function resolvePersistableTabs(tabs: TabItem[]) {
-	return tabs.filter((tab) => tab.fileData.display_config?.previewPolicy?.persistTab !== false)
+	return tabs.filter(
+		(tab) =>
+			tab.fileData.space_type !== "user" &&
+			tab.fileManager?.spaceType !== "user" &&
+			tab.fileData.display_config?.previewPolicy?.persistTab !== false,
+	)
 }
 
 /** 计算需要写入缓存的激活 tab，避免不可恢复的临时 tab 污染恢复状态。 */
 export function resolvePersistedActiveTabId(persistableTabs: TabItem[], activeTab?: TabItem) {
-	if (activeTab && activeTab.fileData.display_config?.previewPolicy?.restoreAsActive !== false) {
+	if (
+		activeTab &&
+		persistableTabs.some((tab) => tab.id === activeTab.id) &&
+		activeTab.fileData.display_config?.previewPolicy?.restoreAsActive !== false
+	) {
 		return activeTab.id
 	}
 

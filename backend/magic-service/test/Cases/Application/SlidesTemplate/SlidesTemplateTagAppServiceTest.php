@@ -14,14 +14,59 @@ use App\Domain\SlidesTemplate\Entity\SlidesTemplateTagEntity;
 use App\Domain\SlidesTemplate\Service\SlidesTemplateTagDomainService;
 use App\Interfaces\SlidesTemplate\Assembler\SlidesTemplateTagAssembler;
 use App\Interfaces\SlidesTemplate\DTO\Request\PublicQuerySlidesTemplateTagRequest;
+use Hyperf\Codec\Packer\PhpSerializerPacker;
+use Hyperf\Context\ApplicationContext;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 use ReflectionClass;
+use RuntimeException;
 
 /**
  * @internal
  */
 class SlidesTemplateTagAppServiceTest extends TestCase
 {
+    private static bool $hadOriginalContainer = false;
+
+    private static ?ContainerInterface $originalContainer = null;
+
+    public static function setUpBeforeClass(): void
+    {
+        self::$hadOriginalContainer = ApplicationContext::hasContainer();
+        self::$originalContainer = self::$hadOriginalContainer ? ApplicationContext::getContainer() : null;
+
+        ApplicationContext::setContainer(new class implements ContainerInterface {
+            public function get(string $id): mixed
+            {
+                if ($id === PhpSerializerPacker::class) {
+                    return new PhpSerializerPacker();
+                }
+
+                throw new RuntimeException('Unexpected container dependency: ' . $id);
+            }
+
+            public function has(string $id): bool
+            {
+                return $id === PhpSerializerPacker::class;
+            }
+
+            public function make(string $name, array $parameters = []): mixed
+            {
+                return $this->get($name);
+            }
+        });
+    }
+
+    public static function tearDownAfterClass(): void
+    {
+        $property = (new ReflectionClass(ApplicationContext::class))->getProperty('container');
+        $property->setAccessible(true);
+        $property->setValue(null, self::$hadOriginalContainer ? self::$originalContainer : null);
+
+        self::$hadOriginalContainer = false;
+        self::$originalContainer = null;
+    }
+
     public function testQueriesGroupsUseCurrentAndOfficialVisibleTagsByCategory(): void
     {
         $dataIsolation = $this->makeDataIsolation('CURRENT_ORG', ['OFFICIAL_ORG']);
@@ -38,7 +83,7 @@ class SlidesTemplateTagAppServiceTest extends TestCase
         $domainService = $this->createMock(SlidesTemplateTagDomainService::class);
         $domainService
             ->expects($this->once())
-            ->method('queriesVisibleGroupsWithTagsByCategory')
+            ->method('queriesCachedVisibleGroupsWithTagsByCategory')
             ->with(
                 $this->callback(static fn (SlidesTemplateDataIsolation $actual): bool => $actual->isContainOfficialOrganization()
                     && $actual->getOrganizationCodes() === ['CURRENT_ORG', 'OFFICIAL_ORG']),

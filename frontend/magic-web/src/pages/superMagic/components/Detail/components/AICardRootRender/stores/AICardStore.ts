@@ -1,5 +1,6 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { parseMagicProjectConfigContent } from "@/pages/superMagic/utils/magicProjectConfigParser"
 import type { AICardEntry, AICardHistoryEntry, AICardProjectConfig, AICardViewMode } from "../types"
 import { buildAICardSyncFingerprint } from "../utils/aiCardSyncFingerprint"
@@ -25,9 +26,17 @@ export class AICardStore {
 	private attachmentList: any[] | undefined
 	private lastSyncFingerprint = ""
 	private hasSynced = false
+	/**
+	 * File client bound to the ambient FileAccessProvider identity, injected by the
+	 * React boundary (`index.tsx`) so the share preview's magic.project.js read
+	 * carries its share `access`. A store built without one (bare test construction)
+	 * falls back to the unbound leaf. Immutable dependency, so not observable.
+	 */
+	private readonly fileApi?: FileApi
 
-	constructor() {
-		makeAutoObservable(this)
+	constructor(fileApi?: FileApi) {
+		this.fileApi = fileApi
+		makeAutoObservable(this, { fileApi: false })
 	}
 
 	get activeCard(): AICardEntry | null {
@@ -284,7 +293,12 @@ export class AICardStore {
 
 	private async fetchProjectConfig(fileId: string): Promise<AICardProjectConfig | null> {
 		try {
-			const urls = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+			// Production always injects an access-bound FileApi; the direct leaf import is
+			// the unbound fallback for `new AICardStore()` without a file client (tests).
+			const getUrls = this.fileApi
+				? this.fileApi.getTemporaryDownloadUrl
+				: getTemporaryDownloadUrl
+			const urls = await getUrls({ file_ids: [fileId] })
 			const url = urls?.[0]?.url
 			if (!url) return null
 			const resp = await fetch(url, { credentials: "omit" })

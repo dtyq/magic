@@ -1,6 +1,7 @@
+const { designStylePreviewMiddleware } = require("../middleware/designStylePreviewMiddleware")
 const languageMiddleware = require("../middleware/languageMiddleware")
 const throttleMiddleware = require("../middleware/throttleMiddleware")
-const compressionMiddleware = require("../middleware/compressionMiddleware")
+const { logReportBody } = require("../middleware/logReportBody.cjs")
 const serviceWorkerMiddleware = require("../middleware/serviceWorkerMiddleware")
 const staticResourceMiddleware = require("../middleware/staticResourceMiddleware")
 const { setStaticAssetCacheHeaders } = require("../middleware/staticAssetCacheHeaders")
@@ -11,12 +12,19 @@ const k8sOnlyMiddleware = require("../middleware/k8sOnlyMiddleware")
 const { logger } = require("../logger.cjs")
 const ConfigRoutes = require("./config.route")
 const LogsRoutes = require("./logs.route")
+const MicroAppInstallRoutes = require("./micro-app-install.route")
 const history = require("connect-history-api-fallback")
 const express = require("express")
 const fs = require("node:fs")
 const path = require("node:path")
 const cors = require("cors")
 const { rootPath } = require("../config")
+const noIndexMiddleware = require("../middleware/noIndexMiddleware")
+const {
+	getHtmlSandboxAllowedOrigins,
+	isHtmlSandboxRuntimeRequest,
+	setHtmlSandboxRuntimeCorsHeaders,
+} = require("../utils/htmlSandboxRuntimeCors.cjs")
 
 const hasLoginPopupTemplate = fs.existsSync(
 	path.join(rootPath, "../dist/login-popup-callback.html"),
@@ -24,13 +32,27 @@ const hasLoginPopupTemplate = fs.existsSync(
 
 const configRoutes = new ConfigRoutes()
 const logsRoutes = new LogsRoutes()
+const microAppInstallRoutes = new MicroAppInstallRoutes()
 
 const configureRoutes = (app) => {
 	/**
 	 * ======================== 前置中间件初始化 ========================
 	 */
+	// This server is an application/share surface, not an SEO surface.
+	// Set the directive before every route so it also covers CORS responses,
+	// static assets, and errors.
+	app.use(noIndexMiddleware)
+	// Check preview access before CORS and static handling, including conditional requests.
+	app.use(designStylePreviewMiddleware)
 	// CORS 开启
 	app.use(cors())
+	const htmlSandboxAllowedOrigins = getHtmlSandboxAllowedOrigins()
+	app.use((req, res, next) => {
+		if (isHtmlSandboxRuntimeRequest(req.path)) {
+			setHtmlSandboxRuntimeCorsHeaders(res, req.headers.origin, htmlSandboxAllowedOrigins)
+		}
+		next()
+	})
 
 	/**
 	 * ======================== 基础 API 路由 ========================
@@ -42,14 +64,13 @@ const configureRoutes = (app) => {
 	app.get("/startupz", k8sOnlyMiddleware, configRoutes.startup)
 	app.get("/heartbeat", configRoutes.heartbeat)
 	// JSON 解析中间件只用于需要的路由
-	app.post(
-		"/log-report",
-		express.json({ limit: "1mb" }),
-		throttleMiddleware,
-		compressionMiddleware,
-		logsRoutes.report,
-	)
+	app.post("/log-report", throttleMiddleware, logReportBody, logsRoutes.report.bind(logsRoutes))
 	app.get("/sw.js", serviceWorkerMiddleware)
+	app.get(
+		"/micro-app/:appId/manifest.webmanifest",
+		microAppInstallRoutes.manifest.bind(microAppInstallRoutes),
+	)
+	app.get("/micro-app/:appId/icon", microAppInstallRoutes.icon.bind(microAppInstallRoutes))
 
 	/**
 	 * ======================== 静态资源缓存配置 ========================
@@ -85,7 +106,7 @@ const configureRoutes = (app) => {
 			res.setHeader("Pragma", "no-cache")
 			res.setHeader("Expires", "0")
 			res.setHeader("Content-Type", "text/html; charset=utf-8")
-			res.send(getHtmlTemplate("login-popup-callback"))
+			res.send(getHtmlTemplate("login-popup-callback", req.get("user-agent")))
 		})
 	}
 

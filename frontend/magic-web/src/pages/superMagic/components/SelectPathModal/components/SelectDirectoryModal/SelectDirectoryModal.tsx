@@ -16,7 +16,7 @@ import {
 import { isEmpty, last } from "lodash-es"
 import { useTranslation } from "react-i18next"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import BaseModal from "../BaseModal"
@@ -58,7 +58,8 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 			placeholder,
 			emptyDataTip,
 			tips,
-			projectId,
+			projectId = "",
+			directorySource,
 			attachments = [],
 			okText,
 			cancelText,
@@ -71,6 +72,10 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 		const { t } = useTranslation("super")
 
 		const [loading, setLoading] = useState(false)
+		const [loadError, setLoadError] = useState(false)
+		const directoryRequestRef = useRef<AbortController | null>(null)
+		const loadedDirectoryRef = useRef<AttachmentItem[]>([])
+		const rootId = directorySource ? getItemId(directorySource.root) : "0"
 		const [path, setPath] = useState<AttachmentItem[]>(defaultPath)
 		const [directories, setDirectories] = useState<AttachmentItem[]>([])
 		const [isSearch, setIsSearch] = useState(false)
@@ -143,8 +148,10 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 		const breadcrumbItems = useMemo<BreadcrumbItem[]>(() => {
 			let output: BreadcrumbItem[] = [
 				{
-					name: t("selectPathModal.rootDirectory"),
-					id: "0",
+					name: directorySource
+						? getItemName(directorySource.root)
+						: t("selectPathModal.rootDirectory"),
+					id: rootId,
 					operation: "all",
 				},
 				...path.map(
@@ -165,7 +172,7 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 				]
 			}
 			return output
-		}, [path, t])
+		}, [path, t, directorySource, rootId])
 
 		// 过滤隐藏文件
 		const filesSort = useMemoizedFn((files: AttachmentItem[]) => {
@@ -185,10 +192,27 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 					const currentPath =
 						params.pathOverride !== undefined ? params.pathOverride : path
 					// 使用 attachments 数据而不是 API 调用，只获取目录
-					const dirs = getDirectoriesFromPath(attachments, currentPath)
-					setDirectories(filesSort(dirs))
+					if (directorySource) {
+						directoryRequestRef.current?.abort()
+						const controller = new AbortController()
+						directoryRequestRef.current = controller
+						setLoadError(false)
+						const parentId = getItemId(last(currentPath) ?? directorySource.root)
+						const children = await directorySource.loadChildren(
+							parentId,
+							controller.signal,
+						)
+						if (controller.signal.aborted) return
+						loadedDirectoryRef.current = children.filter((item) => item.is_directory)
+						setDirectories(loadedDirectoryRef.current)
+					} else {
+						const dirs = getDirectoriesFromPath(attachments, currentPath)
+						setDirectories(filesSort(dirs))
+					}
 				} catch (error) {
+					if (error instanceof Error && error.name === "AbortError") return
 					console.error("Failed to fetch directories:", error)
+					setLoadError(true)
 					setDirectories([])
 				}
 				setLoading(false)
@@ -227,11 +251,13 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 
 				try {
 					// 使用 attachments 数据进行搜索
-					const searchResults = searchInAttachments(
-						attachments,
-						params.value,
-						params.fileType,
-					)
+					const searchResults = directorySource
+						? loadedDirectoryRef.current.filter((item) =>
+								getItemName(item)
+									.toLocaleLowerCase()
+									.includes(params.value.toLocaleLowerCase()),
+							)
+						: searchInAttachments(attachments, params.value, params.fileType)
 					if (fetchFilesParamsRef.current?.value !== params.value)
 						return setLoading(false)
 					setDirectories(filesSort(searchResults))
@@ -276,7 +302,7 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 			const currentDirectory = last(path)
 			if (
 				loading ||
-				(!currentDirectory && item.id === "0") ||
+				(!currentDirectory && item.id === rootId) ||
 				(currentDirectory && getItemId(currentDirectory) === item.id)
 			) {
 				return
@@ -292,7 +318,7 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 			setPath(newPath)
 			await fetchDirectories({
 				projectId,
-				parentId: item.id === "0" ? undefined : item.id,
+				parentId: item.id === rootId ? undefined : item.id,
 				pathOverride: newPath, // 传入新路径，避免异步状态问题
 			})
 			createDirectoryHook.cancelCreateDirectory()
@@ -348,7 +374,7 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 		}, [isSearchOpen])
 
 		useUpdateEffect(() => {
-			if (visible) {
+			if (visible && !directorySource) {
 				const lastDefaultPath = last(defaultPath)
 				setPath(defaultPath)
 				fetchDirectories({
@@ -359,13 +385,24 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 			}
 		}, [visible])
 
+		const loadDirectorySource = useMemoizedFn(() => {
+			if (directorySource) {
+				setPath(defaultPath)
+				void fetchDirectories({ projectId, pathOverride: defaultPath })
+			}
+		})
+		useEffect(() => {
+			if (visible) loadDirectorySource()
+			return () => directoryRequestRef.current?.abort()
+		}, [visible, directorySource?.identityKey, loadDirectorySource])
+
 		// 渲染底部配置
 		const footerConfig = {
 			okText: okText || t("selectPathModal.confirm"),
 			cancelText: cancelText || t("common.cancel"),
 			onOk: submit,
 			onCancel: handleCancel,
-			okDisabled: isSearch,
+			okDisabled: isSearch || (Boolean(directorySource) && (loading || loadError)),
 		}
 
 		const handleKeyDown = useMemoizedFn((event: KeyboardEvent) => {
@@ -578,7 +615,20 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 						spinning={loading || createDirectoryHook.loading}
 						className="h-full w-full"
 					>
-						{!isEmpty(directories) || createDirectoryHook.createDirectoryShown ? (
+						{loadError ? (
+							<div
+								role="alert"
+								className="flex flex-col items-center gap-2 p-6 text-sm"
+							>
+								{t("userSpace.loadFailed")}
+								<Button
+									variant="outline"
+									onClick={() => void fetchDirectories({ projectId })}
+								>
+									{t("userSpace.retry")}
+								</Button>
+							</div>
+						) : !isEmpty(directories) || createDirectoryHook.createDirectoryShown ? (
 							<>
 								{createDirectoryHook.createDirectoryShown && (
 									<div
@@ -750,14 +800,18 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 									<div className="flex flex-col items-center gap-2 text-center">
 										<div className="flex flex-col gap-1.5 text-center text-sm font-normal leading-5 text-foreground/35">
 											<span>{emptyStorageDescription || emptyTip}</span>
-											<Button
-												variant="link"
-												className="h-auto p-0 leading-5 text-foreground"
-												onClick={createDirectoryHook.showCreateDirectory}
-												data-testid="select-directory-modal-empty-create-folder"
-											>
-												{emptyStorageAction}
-											</Button>
+											{isShowCreateDirectory && (
+												<Button
+													variant="link"
+													className="h-auto p-0 leading-5 text-foreground"
+													onClick={
+														createDirectoryHook.showCreateDirectory
+													}
+													data-testid="select-directory-modal-empty-create-folder"
+												>
+													{emptyStorageAction}
+												</Button>
+											)}
 										</div>
 									</div>
 								</div>
@@ -768,7 +822,7 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 			</div>
 		)
 
-		if (isMobile) {
+		if (isMobile && !directorySource) {
 			return (
 				<MobileFilesMoveSheet
 					visible={visible}

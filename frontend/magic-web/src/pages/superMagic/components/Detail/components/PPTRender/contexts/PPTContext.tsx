@@ -9,6 +9,7 @@ import {
 } from "react"
 import { createPPTEventBus, type PPTEventBus } from "../events/PPTEventBus"
 import { createPPTStore, type PPTStore, type PPTStoreConfig } from "../stores"
+import { getFolderScopedAttachmentSignature } from "./attachmentListSignature"
 import { usePPTStoreDisposal } from "./usePPTStoreDisposal"
 
 interface PPTContextValue {
@@ -31,24 +32,6 @@ function getJsonSignature(value: unknown): string {
 	}
 }
 
-function getAttachmentListSignature(attachmentList: any[] | undefined): string {
-	if (!Array.isArray(attachmentList)) return ""
-
-	const normalize = (items: any[]): any[] =>
-		items.map((item) => ({
-			file_id: item?.file_id,
-			file_name: item?.file_name,
-			parent_id: item?.parent_id,
-			relative_file_path: item?.relative_file_path,
-			updated_at: item?.updated_at,
-			file_version: item?.file_version,
-			display_config: item?.display_config,
-			children: Array.isArray(item?.children) ? normalize(item.children) : undefined,
-		}))
-
-	return getJsonSignature(normalize(attachmentList))
-}
-
 /**
  * Provider for PPT components
  * Creates event bus and store instances for each PPTRender component.
@@ -64,15 +47,24 @@ export function PPTProvider({ children, storeConfig }: PPTProviderProps) {
 		storeRef.current = createPPTStore(storeConfig)
 	}
 	const store = storeRef.current
+	// 签名仅随文件快照和 PPT 入口更新；切页或展示配置变化不再次扫描整个项目。
+	const attachmentListSignature = useMemo(
+		() =>
+			getFolderScopedAttachmentSignature(storeConfig.attachmentList, storeConfig.mainFileId),
+		[storeConfig.attachmentList, storeConfig.mainFileId],
+	)
 
 	// Track previous config to detect actual changes without deep comparison
 	const prevConfigRef = useRef<{
 		displayConfig: any
 		displayConfigSlidesSignature: string
 		attachmentListSignature: string
+		attachmentLoadState: PPTStoreConfig["attachmentLoadState"]
+		projectId: PPTStoreConfig["projectId"]
 		mainFileId: string | undefined
 		mainFileName: string | undefined
 		initialActiveIndex: number | undefined
+		fileApiIdentityKey: string
 	} | null>(null)
 
 	// Single-channel update: sync config to store as early as possible (useLayoutEffect)
@@ -80,11 +72,16 @@ export function PPTProvider({ children, storeConfig }: PPTProviderProps) {
 	useLayoutEffect(() => {
 		const prev = prevConfigRef.current
 		const displayConfigSlidesSignature = getJsonSignature(storeConfig.displayConfig?.slides)
-		const attachmentListSignature = getAttachmentListSignature(storeConfig.attachmentList)
+		const fileApiIdentityKey = storeConfig.fileApi?.identityKey ?? "none"
 		const slidesChanged =
 			!prev || prev.displayConfigSlidesSignature !== displayConfigSlidesSignature
 		const attachmentListChanged =
 			!prev || prev.attachmentListSignature !== attachmentListSignature
+		const attachmentLoadStateChanged =
+			!prev ||
+			prev.projectId !== storeConfig.projectId ||
+			prev.attachmentLoadState?.projectId !== storeConfig.attachmentLoadState?.projectId ||
+			prev.attachmentLoadState?.status !== storeConfig.attachmentLoadState?.status
 		const mainFileChanged =
 			!prev ||
 			prev.mainFileId !== storeConfig.mainFileId ||
@@ -92,36 +89,49 @@ export function PPTProvider({ children, storeConfig }: PPTProviderProps) {
 		const displayConfigChanged = !prev || prev.displayConfig !== storeConfig.displayConfig
 		const initialActiveIndexChanged =
 			!prev || prev.initialActiveIndex !== storeConfig.initialActiveIndex
+		const fileApiChanged = !prev || prev.fileApiIdentityKey !== fileApiIdentityKey
 
 		if (
 			slidesChanged ||
 			attachmentListChanged ||
+			attachmentLoadStateChanged ||
 			mainFileChanged ||
 			displayConfigChanged ||
-			initialActiveIndexChanged
+			initialActiveIndexChanged ||
+			fileApiChanged
 		) {
 			prevConfigRef.current = {
 				displayConfig: storeConfig.displayConfig,
 				displayConfigSlidesSignature,
 				attachmentListSignature,
+				attachmentLoadState: storeConfig.attachmentLoadState,
+				projectId: storeConfig.projectId,
 				mainFileId: storeConfig.mainFileId,
 				mainFileName: storeConfig.mainFileName,
 				initialActiveIndex: storeConfig.initialActiveIndex,
+				fileApiIdentityKey,
 			}
 			void store.updateConfig({
+				projectId: storeConfig.projectId,
 				attachments: storeConfig.attachments,
 				attachmentList: storeConfig.attachmentList,
+				attachmentLoadState: storeConfig.attachmentLoadState,
 				mainFileId: storeConfig.mainFileId,
 				mainFileName: storeConfig.mainFileName,
 				displayConfig: storeConfig.displayConfig,
 				initialActiveIndex: storeConfig.initialActiveIndex,
+				fileApi: storeConfig.fileApi,
 			})
 		}
 	}, [
 		store,
+		attachmentListSignature,
 		storeConfig.attachments,
 		storeConfig.attachmentList,
+		storeConfig.attachmentLoadState,
+		storeConfig.projectId,
 		storeConfig.displayConfig,
+		storeConfig.fileApi?.identityKey,
 		storeConfig.mainFileId,
 		storeConfig.mainFileName,
 		storeConfig.initialActiveIndex,

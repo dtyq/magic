@@ -22,13 +22,10 @@
 		"adminPhonePlaceholder": "Enter phone number",
 		"agentDescription": "Agent Description",
 		"agentDescriptionPlaceholder": "Briefly describe the functionality and purpose of this Agent...",
-		"agentLogo": "Agent Logo",
 		"agentName": "Agent Name",
 		"agentNamePlaceholder": "e.g., Smart Customer Service Assistant",
 		"confirmPassword": "Confirm Password",
 		"confirmPasswordPlaceholder": "Enter password again",
-		"logoUploadFormat": "Supports JPG, PNG format, recommended size 200x200",
-		"logoUploadHint": "Click to upload or drag and drop image here",
 		"subtitle": "Set up your Agent information and administrator account",
 		"title": "Initialize Admin Account"
 	},
@@ -45,10 +42,6 @@
 		"deploymentNameHint": "Model deployment name or ID",
 		"deploymentNamePlaceholder": "e.g., gpt-4-turbo, gpt-4o, claude-3-opus",
 		"deploymentNameRequired": "Please enter deployment name",
-		"deploymentNameTooltip": "Model deployment name",
-		"errors": {
-			"missingConfig": "Please fill in API URL and API Key first"
-		},
 		"provider": "Select Provider",
 		"providers": {
 			"AWSBedrock": "Amazon Bedrock",
@@ -123,9 +116,6 @@
 		"step3": "Digital Workers"
 	},
 	"subtitle": "Let's take a few minutes to complete the initialization setup",
-	"success": {
-		"initialized": "Initialization successful!"
-	},
 	"title": "MagiCrew",
 	"welcomeTo": "Welcome to"
 }

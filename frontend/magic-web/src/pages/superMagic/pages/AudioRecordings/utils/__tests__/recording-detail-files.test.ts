@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
-import { buildRecordingDetailFileMap, flattenRecordingAttachments } from "../recording-detail-files"
+import {
+	buildRecordingDetailFileMap,
+	flattenRecordingAttachments,
+	hasConfiguredRecordingFile,
+} from "../recording-detail-files"
 import type { MagicProjectConfig } from "../../types/recording-detail"
 
 /** Builds a minimal attachment row so file-map tests stay focused on lookup behavior. */
@@ -44,6 +48,37 @@ function createMagicProjectConfig(files: Record<string, string>): MagicProjectCo
 }
 
 describe("recording detail files", () => {
+	it("detects only non-empty file declarations from magic.project config", () => {
+		expect(
+			hasConfiguredRecordingFile(
+				{
+					summaryFiles: [],
+					magicProjectConfig: { files: { notes: "notes/mock-notes.md" } },
+				},
+				"notes",
+			),
+		).toBe(true)
+		expect(
+			hasConfiguredRecordingFile(
+				{
+					summaryFiles: [],
+					notes: createAttachment({ file_name: "fallback-notes.md" }),
+					magicProjectConfig: { files: { notes: "   " } },
+				},
+				"notes",
+			),
+		).toBe(false)
+		expect(
+			hasConfiguredRecordingFile(
+				{
+					summaryFiles: [],
+					notes: createAttachment({ file_name: "fallback-notes.md" }),
+				},
+				"notes",
+			),
+		).toBe(false)
+	})
+
 	it("flattens tree and list attachments without duplicating the same file", () => {
 		const transcript = createAttachment({
 			file_id: "file-transcript-001",
@@ -168,11 +203,52 @@ describe("recording detail files", () => {
 			"topics",
 			"metrics",
 			"intent",
+			"custom_outline",
 		])
 		expect(result.summaryFiles[2]).toMatchObject({
 			type: "metrics",
 			fileName: "summary/metrics.html",
 		})
+		expect(result.summaryFiles[4]).toMatchObject({
+			type: "custom_outline",
+			fileName: "summary/custom-view.md",
+		})
+	})
+
+	it("keeps configured summary tabs when their files have not arrived yet", () => {
+		const result = buildRecordingDetailFileMap({
+			tree: [],
+			list: [],
+			magicProjectConfig: createMagicProjectConfig({
+				summary: "summary/meeting-summary.md",
+				topics: "summary/topics.md",
+			}),
+		})
+
+		expect(result.summaryFiles.map((file) => file.type)).toEqual(["summary", "topics"])
+		expect(result.summaryFiles[0]?.file?.file_id).toBeUndefined()
+		expect(result.summaryFiles[0]?.fileName).toBe("summary/meeting-summary.md")
+	})
+
+	it("removes summary tabs when magic.project.js removes their configured type", () => {
+		const initial = buildRecordingDetailFileMap({
+			tree: [],
+			list: [],
+			magicProjectConfig: createMagicProjectConfig({
+				summary: "summary/meeting-summary.md",
+				topics: "summary/topics.md",
+			}),
+		})
+		const updated = buildRecordingDetailFileMap({
+			tree: [],
+			list: [],
+			magicProjectConfig: createMagicProjectConfig({
+				summary: "summary/meeting-summary.md",
+			}),
+		})
+
+		expect(initial.summaryFiles.map((file) => file.type)).toEqual(["summary", "topics"])
+		expect(updated.summaryFiles.map((file) => file.type)).toEqual(["summary"])
 	})
 
 	it("falls back to file hints when magic.project.js is absent or incomplete", () => {
@@ -208,6 +284,58 @@ describe("recording detail files", () => {
 		expect(result.transcript?.file_id).toBe("file-transcript-001")
 		expect(result.notes?.file_id).toBe("file-notes-001")
 		expect(result.summaryFiles).toEqual([])
+	})
+
+	it("identifies backend note files without confusing streaming transcripts", () => {
+		const result = buildRecordingDetailFileMap({
+			tree: [],
+			list: [
+				createAttachment({
+					file_id: "file-stream-transcript-001",
+					file_name: "流式识别.md",
+					path: "/流式识别.md",
+					type: "transcript",
+				}),
+				createAttachment({
+					file_id: "file-backend-note-001",
+					file_name: "recording-note.md",
+					path: "/recording-note.md",
+					file_type: "note",
+				}),
+			],
+			magicProjectConfig: createMagicProjectConfig({}),
+		})
+
+		expect(result.transcript?.file_id).toBe("file-stream-transcript-001")
+		expect(result.notes?.file_id).toBe("file-backend-note-001")
+	})
+
+	it("prefers the project audio file id and supports all imported audio extensions", () => {
+		const preferredAudio = createAttachment({
+			file_id: "preferred-audio",
+			file_name: "uploaded.opus",
+			filename: "uploaded.opus",
+			file_extension: "opus",
+		})
+		const fallbackAudio = createAttachment({
+			file_id: "fallback-audio",
+			file_name: "uploaded.flac",
+			filename: "uploaded.flac",
+			file_extension: "flac",
+		})
+
+		const preferredResult = buildRecordingDetailFileMap({
+			tree: [],
+			list: [preferredAudio, fallbackAudio],
+			preferredAudioFileId: "preferred-audio",
+		})
+		expect(preferredResult.audio?.file_id).toBe("preferred-audio")
+
+		const fallbackResult = buildRecordingDetailFileMap({
+			tree: [],
+			list: [fallbackAudio],
+		})
+		expect(fallbackResult.audio?.file_id).toBe("fallback-audio")
 	})
 
 	it("limits configured lookups to the current audio bundle so sibling bundles cannot steal files", () => {

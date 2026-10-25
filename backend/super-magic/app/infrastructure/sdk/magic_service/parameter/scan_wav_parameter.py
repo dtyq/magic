@@ -9,6 +9,8 @@ Parameter class for the scan-wav API endpoint.
 
 from typing import Any, Dict, Optional
 
+from agentlang.utils.metadata import MetadataUtil
+
 from ..kernel.magic_service_parameter import MagicServiceAbstractParameter
 
 
@@ -74,6 +76,7 @@ class ScanWavParameter(MagicServiceAbstractParameter):
             headers["Authorization"] = self.user_authorization
         if self.organization_code:
             headers["organization-code"] = self.organization_code
+        MetadataUtil.add_sandbox_id_header(headers)
         return headers
 
     def validate(self) -> None:

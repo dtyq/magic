@@ -5,11 +5,12 @@ import magicToast from "@/components/base/MagicToaster/utils"
 import { Button } from "@/components/shadcn-ui/button"
 import EditorBody from "@/pages/superMagic/components/Detail/contents/Md/components/EditorBody"
 import type { MagicFSFile } from "@/apis"
+import { memoryFileService } from "../services/memoryFileService"
 import {
-	MemoryFileConcurrentModificationError,
-	memoryFileService,
-	type MemoryFileSnapshot,
-} from "../services/memoryFileService"
+	userSpaceFileService,
+	UserFileConcurrentModificationError,
+	type UserFileSnapshot,
+} from "../../UserSpace/services/userSpaceFileService"
 import { mergeMemoryContent } from "../services/memoryThreeWayMerge"
 import { MemoryEditConflictDialog } from "./MemoryEditConflictDialog"
 import { GlobalMemoryUsageGuide } from "./GlobalMemoryUsageGuide"
@@ -18,7 +19,7 @@ type GlobalMemoryLoadState = "loading" | "ready" | "empty" | "error"
 
 /** 编辑期间检测到的服务器最新快照。 */
 interface MemoryConflictState {
-	latestSnapshot: MemoryFileSnapshot
+	latestSnapshot: UserFileSnapshot
 }
 
 /** 个人中心全局长期记忆单文件编辑器。 */
@@ -58,7 +59,7 @@ export const GlobalMemoryEditor = memo(function GlobalMemoryEditor() {
 				return
 			}
 
-			const snapshot = await memoryFileService.readStableSnapshot(file.id)
+			const snapshot = await userSpaceFileService.readStableSnapshot(file.id)
 			if (requestId !== requestIdRef.current) return
 			setMemoryFile(snapshot.file)
 			setContent(snapshot.content)
@@ -82,7 +83,7 @@ export const GlobalMemoryEditor = memo(function GlobalMemoryEditor() {
 
 	/** 拉取冲突发生后的服务器最新稳定快照。 */
 	const loadConflictSnapshot = useCallback(async (fileId: string) => {
-		const latestSnapshot = await memoryFileService.readStableSnapshot(fileId)
+		const latestSnapshot = await userSpaceFileService.readStableSnapshot(fileId)
 		setConflictState({ latestSnapshot })
 	}, [])
 
@@ -105,7 +106,7 @@ export const GlobalMemoryEditor = memo(function GlobalMemoryEditor() {
 					}
 				}
 
-				const result = await memoryFileService.saveFileContent(
+				const result = await userSpaceFileService.saveFileContent(
 					targetFile.id,
 					draft,
 					targetRevision,
@@ -123,7 +124,7 @@ export const GlobalMemoryEditor = memo(function GlobalMemoryEditor() {
 				magicToast.success(t("globalEditor.saveSuccess"))
 			} catch (error) {
 				console.error("保存全局长期记忆失败", error)
-				if (error instanceof MemoryFileConcurrentModificationError) {
+				if (error instanceof UserFileConcurrentModificationError) {
 					try {
 						if (targetFile) {
 							await loadConflictSnapshot(targetFile.id)
@@ -164,7 +165,7 @@ export const GlobalMemoryEditor = memo(function GlobalMemoryEditor() {
 
 		setEnteringEdit(true)
 		try {
-			const snapshot = await memoryFileService.readStableSnapshot(memoryFile.id)
+			const snapshot = await userSpaceFileService.readStableSnapshot(memoryFile.id)
 			setMemoryFile(snapshot.file)
 			setContent(snapshot.content)
 			setDraft(snapshot.content)
@@ -196,7 +197,7 @@ export const GlobalMemoryEditor = memo(function GlobalMemoryEditor() {
 				return
 			}
 
-			const snapshot = await memoryFileService.readStableSnapshot(latestFile.id)
+			const snapshot = await userSpaceFileService.readStableSnapshot(latestFile.id)
 			setMemoryFile(snapshot.file)
 			setContent(snapshot.content)
 			setDraft(snapshot.content)

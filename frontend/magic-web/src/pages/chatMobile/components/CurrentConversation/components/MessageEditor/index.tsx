@@ -14,7 +14,7 @@ import {
 	useMount,
 	useThrottleFn,
 } from "ahooks"
-import { Extension, JSONContent, UseEditorOptions } from "@tiptap/react"
+import { Extension, JSONContent, UseEditorOptions } from "@/infrastructure/editors/tiptap/react"
 import { omit } from "lodash-es"
 import { useAppearanceStore } from "@/providers/AppearanceProvider/context"
 import QuickInstructionExtension from "@/pages/chatNew/components/quick-instruction/extension"
@@ -289,13 +289,13 @@ const MessageEditor: React.FC<MessageEditorProps> = observer(
 						const reportRes =
 							fullfilled.length > 0
 								? await FileApi.reportFileUploads(
-									fullfilled.map((d) => ({
-										file_extension: d.value.name.split(".").pop() ?? "",
-										file_key: d.value.key,
-										file_size: d.value.size,
-										file_name: d.value.name,
-									})),
-								)
+										fullfilled.map((d) => ({
+											file_extension: d.value.name.split(".").pop() ?? "",
+											file_key: d.value.key,
+											file_size: d.value.size,
+											file_name: d.value.name,
+										})),
+									)
 								: []
 
 						// Find all images and upload them
@@ -671,18 +671,18 @@ const MessageEditor: React.FC<MessageEditorProps> = observer(
 					EditorStore.lastConversationId !== conversationId ||
 					EditorStore.lastTopicId !== topicId
 				) {
-						EditorDraftService.writeDraft(
-							EditorStore.lastConversationId,
-							EditorStore.lastTopicId ?? "",
-							{
-								content: runActiveEditor(
-									editorRef.current?.editor,
-									(editor) => editor.getJSON(),
-									undefined,
-								),
-								files,
-							},
-						)
+					EditorDraftService.writeDraft(
+						EditorStore.lastConversationId,
+						EditorStore.lastTopicId ?? "",
+						{
+							content: runActiveEditor(
+								editorRef.current?.editor,
+								(editor) => editor.getJSON(),
+								undefined,
+							),
+							files,
+						},
+					)
 				}
 				// Read draft
 				if (EditorDraftStore.hasDraft(conversationId, topicId ?? "")) {

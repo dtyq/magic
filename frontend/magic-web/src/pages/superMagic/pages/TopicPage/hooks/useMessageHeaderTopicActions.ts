@@ -1,9 +1,10 @@
 import { useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
-import { SuperMagicApi } from "@/apis"
+import { MagicClawApi, SuperMagicApi } from "@/apis"
 import type { MessageHeaderTopicActions } from "@/pages/superMagic/components/MessageHeader"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import SuperMagicService, { renameTopicWithChatSync } from "@/pages/superMagic/services"
 import routeManageService from "@/pages/superMagic/services/routeManageService"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
@@ -95,6 +96,15 @@ export function useMessageHeaderTopicActions({
 		topicStore.mergeTopic(topicId, normalizeTopicHistoryItem(response.topic))
 	})
 
+	const restartSandbox = useMemoizedFn(async (topicId: string) => {
+		if (selectedProject?.project_mode === TopicMode.MagiClaw) {
+			await MagicClawApi.restartMagicClawSandbox({ topic_id: topicId })
+			return
+		}
+
+		await SuperMagicApi.restartTopicSandbox({ topic_id: topicId })
+	})
+
 	return useMemo(
 		() => ({
 			createTopic,
@@ -106,6 +116,7 @@ export function useMessageHeaderTopicActions({
 			unpinTopic,
 			archiveTopic,
 			unarchiveTopic,
+			restartSandbox,
 		}),
 		[
 			archiveTopic,
@@ -113,6 +124,7 @@ export function useMessageHeaderTopicActions({
 			deleteTopic,
 			pinTopic,
 			renameTopic,
+			restartSandbox,
 			selectTopic,
 			unarchiveTopic,
 			unpinTopic,

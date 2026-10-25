@@ -6,7 +6,7 @@ import { generateLoopBody, getLatestNodeVersion, getNodeSchema, handleRenderProp
 import { WidgetValue } from '@/MagicFlow/examples/BaseFlow/common/Output'
 import { useCurrentNode } from '@/MagicFlow/nodes/common/context/CurrentNode/useCurrentNode'
 import { InnerHandleType } from '@/MagicFlow/nodes'
-import _ from 'lodash'
+import { cloneDeep } from 'lodash-es'
 import { useNodes } from '@/MagicFlow/context/NodesContext/useNodes'
 
 type UsePopupActionProps = {
@@ -46,7 +46,7 @@ export default function usePopupAction({ targetNodeId }: UsePopupActionProps) {
 			// 变更节点类型
 			[paramsName.nodeType]: targetNodeType,
 			// 重置节点配置
-			[paramsName.params]: _.cloneDeep(nodeSchema.params),
+			[paramsName.params]: cloneDeep(nodeSchema.params),
 			name: nodeSchema.label,
             node_version: getLatestNodeVersion(nodeSchema.id),
             data: {

@@ -42,6 +42,14 @@ class MoveProjectRequestDTO extends AbstractRequestDTO
      */
     public ?string $projectMode = null;
 
+    public ?string $preProjectId = null;
+
+    public ?string $nextProjectId = null;
+
+    public bool $preProjectIdProvided = false;
+
+    public bool $nextProjectIdProvided = false;
+
     /**
      * Get source project ID.
      */
@@ -100,6 +108,24 @@ class MoveProjectRequestDTO extends AbstractRequestDTO
         return $this->projectMode;
     }
 
+    public function getPreProjectId(): ?int
+    {
+        if ($this->preProjectId === null || $this->preProjectId === '') {
+            return null;
+        }
+
+        return (int) $this->preProjectId;
+    }
+
+    public function getNextProjectId(): ?int
+    {
+        if ($this->nextProjectId === null || $this->nextProjectId === '') {
+            return null;
+        }
+
+        return (int) $this->nextProjectId;
+    }
+
     /**
      * Get validation rules.
      */
@@ -112,6 +138,8 @@ class MoveProjectRequestDTO extends AbstractRequestDTO
             'target_workspace_id' => 'present|string|max:64',
             'target_project_name' => 'nullable|string|max:100',
             'project_mode' => 'nullable|string|in:' . $projectModes,
+            'pre_project_id' => 'nullable|string',
+            'next_project_id' => 'nullable|string',
         ];
     }
 

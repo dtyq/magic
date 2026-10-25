@@ -1,9 +1,10 @@
 """Local debug-only maintenance routes."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 
 from agentlang.logger import get_logger
 from agentlang.utils.file import clear_directory_contents
+
 from app.api.http_dto.response import BaseResponse, create_error_response, create_success_response
 from app.core.config.debug_config import is_local_debug_mode_enabled
 from app.path_manager import PathManager
@@ -24,7 +25,7 @@ async def clear_debug_chat_history() -> BaseResponse:
     chat_history_dir = PathManager.get_chat_history_dir()
     ok = await clear_directory_contents(chat_history_dir)
     if not ok:
-        logger.error(f"清理 .chat_history 失败: {chat_history_dir}")
+        logger.error(f"清理本地 .chat_history 失败: {chat_history_dir}")
         return create_error_response(message="清理历史对话记录失败")
 
     result_data = {"contexts": [item.to_dict() for item in reset_results]}
@@ -39,6 +40,22 @@ async def clear_debug_chat_history() -> BaseResponse:
         message="历史对话记录和运行时状态已清理",
         data=result_data,
     )
+
+
+@router.post("/follow-up-suggestions", response_model=BaseResponse)
+async def query_debug_follow_up_suggestions(payload: dict = Body(default_factory=dict)) -> BaseResponse:
+    """按任务查询本地追加问题。请求字段与前端查询一致：type + relation_id。"""
+    if not is_local_debug_mode_enabled():
+        return create_error_response(message="本地调试查询接口未启用")
+
+    from app.service.follow_up_suggestion.store import FollowUpSuggestionStore
+
+    relation_id = payload.get("relation_id") if isinstance(payload, dict) else None
+    task_id = relation_id if isinstance(relation_id, str) else ""
+    record = await FollowUpSuggestionStore().query(task_id)
+    if record is None:
+        return create_error_response(message="任务标识无效")
+    return create_success_response(message="追加问题已查询", data=record)
 
 
 @router.get("/local-crew/list", response_model=BaseResponse)

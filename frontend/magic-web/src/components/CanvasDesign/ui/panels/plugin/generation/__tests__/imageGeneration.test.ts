@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { createTestResourceReferenceResolver } from "../../../../../public/__tests__/testResourceReferenceResolver"
 
 const { start, generateImages, ImageBatchPollingManagerMock } = vi.hoisted(() => {
 	const start = vi.fn()
@@ -37,8 +38,33 @@ vi.mock("../../../../../runtime/resources/polling/ImageBatchPollingManager", () 
 }))
 
 import { generatePluginImages } from "../imageGeneration"
+import type { Canvas } from "../../../../../runtime/core/Canvas"
 import { GenerationRuntimeManager } from "../../../../../runtime/generation/GenerationRuntimeManager"
 import { GenerationAttemptCoordinator } from "../../../../../runtime/generation/GenerationAttemptCoordinator"
+import type { ImageElementContent } from "../../../../../runtime/document/types"
+
+const resolveDesignAResourceReference = createTestResourceReferenceResolver()
+
+function imageFixture(
+	id: string,
+	content: Partial<ImageElementContent> = {},
+	element: Record<string, unknown> = {},
+) {
+	const contentId = `${id}-content-1`
+	return {
+		id,
+		type: "image",
+		x: 0,
+		y: 0,
+		width: 1024,
+		height: 1024,
+		visible: true,
+		activeContentId: contentId,
+		mainContentId: contentId,
+		contents: [{ contentId, ...content }],
+		...element,
+	}
+}
 
 function createCanvas({
 	maxOutputImages = 4,
@@ -77,7 +103,7 @@ function createCanvas({
 	const generationRuntimeManager = new GenerationRuntimeManager()
 	const beginAttempt = vi.spyOn(generationRuntimeManager, "beginAttempt")
 	const canvas = {
-		readonly: false,
+		can: vi.fn(() => true),
 		historyManager: null,
 		magicConfigManager: {
 			config: {
@@ -85,6 +111,7 @@ function createCanvas({
 					generateImage: vi.fn(),
 					generateImages,
 					getImageGenerationResults: vi.fn(),
+					resolveResourceReference: resolveDesignAResourceReference,
 					getImageModelList: vi.fn().mockResolvedValue([
 						{
 							model_id: modelId,
@@ -111,14 +138,7 @@ function createCanvas({
 		elementManager: {
 			getAllElements: vi.fn(() => []),
 			getElementData: vi.fn((elementId: string) =>
-				elementId.startsWith("element-")
-					? {
-							id: elementId,
-							type: "image",
-							width: 1024,
-							height: 1024,
-						}
-					: undefined,
+				elementId.startsWith("element-") ? imageFixture(elementId) : undefined,
 			),
 			hasElement: vi.fn(() => true),
 			getTemporaryElementMetadata: vi.fn((elementId: string) =>
@@ -136,6 +156,7 @@ function createCanvas({
 		},
 		generationRuntimeManager,
 		permissionManager: {
+			can: vi.fn(() => true),
 			isVisible: vi.fn((element) => element.visible !== false),
 		},
 		selectionManager: {
@@ -149,11 +170,10 @@ function createCanvas({
 			emit,
 		},
 		imageBatchPollingRegistry,
-	} as any
+	} as unknown as Canvas
 	canvas.generationAttemptCoordinator = new GenerationAttemptCoordinator(canvas)
 
-	return {
-		...canvas,
+	return Object.assign(canvas, {
 		__spies: {
 			createImageElementsNearViewport,
 			createImageElementsAtPositions,
@@ -167,10 +187,26 @@ function createCanvas({
 			emit,
 			imageBatchPollingRegistry,
 		},
-	}
+	})
 }
 
 describe("imageGeneration", () => {
+	it("requires document write in addition to generation capability", async () => {
+		const canvas = createCanvas()
+		canvas.permissionManager.can = vi.fn(
+			(capability: string) => capability !== "document.write",
+		)
+
+		await expect(
+			generatePluginImages(canvas as never, {
+				model_id: "model-a",
+				prompt: "Generate",
+			}),
+		).rejects.toThrow("Canvas does not allow document generation.")
+		expect(generateImages).not.toHaveBeenCalled()
+		expect(canvas.__spies.createImageElementsAtPositions).not.toHaveBeenCalled()
+	})
+
 	it("creates one batch task, then fills placeholders from multi-image results", async () => {
 		const canvas = createCanvas({ maxOutputImages: 4 })
 		generateImages.mockReset()
@@ -222,6 +258,7 @@ describe("imageGeneration", () => {
 			canvas,
 			imageId: batchImageId,
 			elementIds: ["element-1", "element-2", "element-3"],
+			contentIds: ["element-1-content-1", "element-2-content-1", "element-3-content-1"],
 			registry: canvas.imageBatchPollingRegistry,
 		})
 		expect(start).toHaveBeenCalledWith()
@@ -235,6 +272,7 @@ describe("imageGeneration", () => {
 				targets: expect.arrayContaining([
 					expect.objectContaining({
 						elementId: "element-1",
+						contentId: "element-1-content-1",
 						generateImageRequest: expect.objectContaining({
 							image_id: batchImageId,
 							model_id: "model-a",
@@ -255,16 +293,21 @@ describe("imageGeneration", () => {
 		expect(canvas.__spies.commitGenerationTargets).toHaveBeenCalledWith([
 			{
 				elementId: "element-1",
+				contentId: "element-1-content-1",
 				persistedPatch: expect.objectContaining({
-					status: "processing",
-					generateImageRequest: expect.objectContaining({
-						model_id: "model-a",
-						prompt: "Generate",
-					}),
-					imageGenerationTaskMeta: expect.objectContaining({
-						image_id: batchImageId,
-						output_index: 1,
-					}),
+					contents: [
+						expect.objectContaining({
+							status: "processing",
+							generateImageRequest: expect.objectContaining({
+								model_id: "model-a",
+								prompt: "Generate",
+							}),
+							imageGenerationTaskMeta: expect.objectContaining({
+								image_id: batchImageId,
+								output_index: 1,
+							}),
+						}),
+					],
 				}),
 			},
 			expect.objectContaining({ elementId: "element-2" }),
@@ -318,11 +361,15 @@ describe("imageGeneration", () => {
 		await vi.waitFor(() => {
 			expect(canvas.__spies.beginAttempt).toHaveBeenCalled()
 		})
+		// The runtime manager rejects concurrent attempts for the same Content;
+		// clear the older ownership before installing the newer attempt used by
+		// this cleanup-ownership scenario.
+		canvas.generationRuntimeManager.clearElement("element-1")
 		canvas.generationRuntimeManager.beginAttempt({
 			attemptId: "newer-attempt",
 			operation: "image-generate",
 			failurePolicy: "restore-existing",
-			targets: [{ elementId: "element-1" }],
+			targets: [{ elementId: "element-1", contentId: "element-1-content-1" }],
 		})
 		rejectSubmission?.(new Error("submit failed"))
 
@@ -342,19 +389,23 @@ describe("imageGeneration", () => {
 		start.mockReset()
 		ImageBatchPollingManagerMock.mockClear()
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "source-image",
-				type: "image",
-				src: "./images/source.png",
-				x: 100,
-				y: 120,
-				width: 400,
-				height: 300,
-				visible: true,
-			},
+			imageFixture(
+				"source-image",
+				{ src: "./images/source.png" },
+				{
+					x: 100,
+					y: 120,
+					width: 400,
+					height: 300,
+				},
+			),
 		])
 		canvas.elementManager.getElementData.mockImplementation((elementId: string) =>
-			elementId === "source-image" ? canvas.elementManager.getAllElements()[0] : undefined,
+			elementId === "source-image"
+				? canvas.elementManager.getAllElements()[0]
+				: elementId.startsWith("element-")
+					? imageFixture(elementId)
+					: undefined,
 		)
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
 
@@ -388,19 +439,23 @@ describe("imageGeneration", () => {
 		start.mockReset()
 		ImageBatchPollingManagerMock.mockClear()
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "source-image",
-				type: "image",
-				src: "./images/source.png",
-				x: 100,
-				y: 120,
-				width: 400,
-				height: 300,
-				visible: true,
-			},
+			imageFixture(
+				"source-image",
+				{ src: "./images/source.png" },
+				{
+					x: 100,
+					y: 120,
+					width: 400,
+					height: 300,
+				},
+			),
 		])
 		canvas.elementManager.getElementData.mockImplementation((elementId: string) =>
-			elementId === "source-image" ? canvas.elementManager.getAllElements()[0] : undefined,
+			elementId === "source-image"
+				? canvas.elementManager.getAllElements()[0]
+				: elementId.startsWith("element-")
+					? imageFixture(elementId)
+					: undefined,
 		)
 		canvas.selectionManager.getSelectedIds.mockReturnValue(["source-image"])
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
@@ -435,29 +490,33 @@ describe("imageGeneration", () => {
 			reference_images: ["./images/source.png"],
 		}
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "source-image",
-				type: "image",
-				src: "./images/source.png",
-				x: 100,
-				y: 120,
-				width: 400,
-				height: 300,
-				visible: true,
-			},
-			{
-				id: "generated-output",
-				type: "image",
-				x: 700,
-				y: 1344,
-				width: 1152,
-				height: 2048,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
+			imageFixture(
+				"source-image",
+				{ src: "./images/source.png" },
+				{
+					x: 100,
+					y: 120,
+					width: 400,
+					height: 300,
+				},
+			),
+			imageFixture(
+				"generated-output",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 700,
+					y: 1344,
+					width: 1152,
+					height: 2048,
+				},
+			),
 		])
 		canvas.elementManager.getElementData.mockImplementation((elementId: string) =>
-			elementId === "source-image" ? canvas.elementManager.getAllElements()[0] : undefined,
+			elementId === "source-image"
+				? canvas.elementManager.getAllElements()[0]
+				: elementId.startsWith("element-")
+					? imageFixture(elementId)
+					: undefined,
 		)
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
 
@@ -503,29 +562,33 @@ describe("imageGeneration", () => {
 			reference_images: ["./images/source.png"],
 		}
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "source-image",
-				type: "image",
-				src: "./images/source.png",
-				x: 100,
-				y: 120,
-				width: 400,
-				height: 300,
-				visible: true,
-			},
-			{
-				id: "generated-output",
-				type: "image",
-				x: 700,
-				y: 1344,
-				width: 1152,
-				height: 2048,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
+			imageFixture(
+				"source-image",
+				{ src: "./images/source.png" },
+				{
+					x: 100,
+					y: 120,
+					width: 400,
+					height: 300,
+				},
+			),
+			imageFixture(
+				"generated-output",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 700,
+					y: 1344,
+					width: 1152,
+					height: 2048,
+				},
+			),
 		])
 		canvas.elementManager.getElementData.mockImplementation((elementId: string) =>
-			elementId === "source-image" ? canvas.elementManager.getAllElements()[0] : undefined,
+			elementId === "source-image"
+				? canvas.elementManager.getAllElements()[0]
+				: elementId.startsWith("element-")
+					? imageFixture(elementId)
+					: undefined,
 		)
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
 
@@ -564,22 +627,21 @@ describe("imageGeneration", () => {
 		start.mockReset()
 		ImageBatchPollingManagerMock.mockClear()
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "generated-output",
-				type: "image",
-				src: "./images/generated.png",
-				x: 100,
-				y: 120,
-				width: 400,
-				height: 300,
-				visible: true,
-				generateImageRequest: { model_id: "model-a", prompt: "previous" },
-			},
+			imageFixture(
+				"generated-output",
+				{
+					src: "./images/generated.png",
+					generateImageRequest: { model_id: "model-a", prompt: "previous" },
+				},
+				{ x: 100, y: 120, width: 400, height: 300 },
+			),
 		])
 		canvas.elementManager.getElementData.mockImplementation((elementId: string) =>
 			elementId === "generated-output"
 				? canvas.elementManager.getAllElements()[0]
-				: undefined,
+				: elementId.startsWith("element-")
+					? imageFixture(elementId)
+					: undefined,
 		)
 		canvas.selectionManager.getSelectedIds.mockReturnValue(["generated-output"])
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
@@ -613,26 +675,22 @@ describe("imageGeneration", () => {
 			reference_image_options: [{ path: "./images/external-source.png" }],
 		}
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "generated-output-1",
-				type: "image",
-				x: 100,
-				y: 120,
-				width: 1024,
-				height: 1024,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
-			{
-				id: "generated-output-2",
-				type: "image",
-				x: 1324,
-				y: 120,
-				width: 1024,
-				height: 1024,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
+			imageFixture(
+				"generated-output-1",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 100,
+					y: 120,
+				},
+			),
+			imageFixture(
+				"generated-output-2",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 1324,
+					y: 120,
+				},
+			),
 		])
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
 
@@ -641,7 +699,7 @@ describe("imageGeneration", () => {
 			prompt: "Generate",
 			size: "1024x1024",
 			count: 1,
-			reference_image_options: [{ path: "images/external-source.png" }],
+			reference_image_options: [{ path: "/画布A/images/external-source.png" }],
 		})
 
 		expect(canvas.__spies.createImageElementsAtPositions).toHaveBeenCalledWith(
@@ -666,26 +724,22 @@ describe("imageGeneration", () => {
 			reference_image_options: [{ path: "./images/external-source.png" }],
 		}
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "generated-output-1",
-				type: "image",
-				x: 100,
-				y: 120,
-				width: 1024,
-				height: 1024,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
-			{
-				id: "generated-output-2",
-				type: "image",
-				x: 1324,
-				y: 120,
-				width: 1024,
-				height: 1024,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
+			imageFixture(
+				"generated-output-1",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 100,
+					y: 120,
+				},
+			),
+			imageFixture(
+				"generated-output-2",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 1324,
+					y: 120,
+				},
+			),
 		])
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
 
@@ -695,7 +749,7 @@ describe("imageGeneration", () => {
 			size: "1024x1024",
 			aspect_ratio: "9:16",
 			count: 1,
-			reference_image_options: [{ path: "images/external-source.png" }],
+			reference_image_options: [{ path: "/画布A/images/external-source.png" }],
 		})
 
 		expect(canvas.__spies.createImageElementsAtPositions).toHaveBeenCalledWith(
@@ -720,26 +774,22 @@ describe("imageGeneration", () => {
 			reference_image_options: [{ path: "./images/external-source.png" }],
 		}
 		canvas.elementManager.getAllElements.mockReturnValue([
-			{
-				id: "generated-output-1",
-				type: "image",
-				x: 100,
-				y: 120,
-				width: 1024,
-				height: 1024,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
-			{
-				id: "generated-output-2",
-				type: "image",
-				x: 1324,
-				y: 120,
-				width: 1024,
-				height: 1024,
-				visible: true,
-				generateImageRequest: previousRequest,
-			},
+			imageFixture(
+				"generated-output-1",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 100,
+					y: 120,
+				},
+			),
+			imageFixture(
+				"generated-output-2",
+				{ generateImageRequest: previousRequest },
+				{
+					x: 1324,
+					y: 120,
+				},
+			),
 		])
 		generateImages.mockResolvedValue({ image_id: "batch-1" })
 
@@ -749,7 +799,7 @@ describe("imageGeneration", () => {
 			size: "1024x1024",
 			aspect_ratio: "9:16",
 			count: 1,
-			reference_image_options: [{ path: "images/external-source.png" }],
+			reference_image_options: [{ path: "/画布A/images/external-source.png" }],
 		})
 
 		expect(canvas.__spies.createImageElementsAtPositions).toHaveBeenCalledWith(

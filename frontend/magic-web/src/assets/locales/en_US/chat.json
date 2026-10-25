@@ -1,9 +1,39 @@
 {
+	"detail": {
+		"details": "Details"
+	},
+	"dragFile": {
+		"maxFiles": "Up to 50 files per send",
+		"supportedTypes": "Supported: pdf, txt, csv, docx, doc, xlsx, xls, pptx, ppt, md, mobi, epub"
+	},
+	"errorContent": {
+		"report": "Report error",
+		"retry": "Retry",
+		"unknown": "The content could not be rendered due to an unknown error. Please contact the Magic team."
+	},
+	"group": {
+		"belongsTo": "Belongs to",
+		"noUserSelected": "No user selected"
+	},
 	"interface": {
 		"home": {},
 		"login": {}
 	},
-	"userSetting": {
-		"addMember": "Add to"
+	"notice": {
+		"next": "Next"
+	},
+	"preview": {
+		"fileDrawerDesc": "File preview drawer on low-resolution desktops",
+		"filePreview": "File preview"
+	},
+	"swipe": {
+		"more": "More",
+		"pin": "Pin",
+		"remove": "Remove",
+		"unpin": "Unpin"
+	},
+	"voice": {
+		"holdToRecord": "Hold the button to record",
+		"listening": "Listening… please speak"
 	}
 }

@@ -18,7 +18,7 @@ import { useIframeScaling } from './hooks/useIframeScaling'
 function MyComponent() {
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  
+
   const {
     scaleRatio,
     verticalOffset,
@@ -34,7 +34,7 @@ function MyComponent() {
     iframeLoaded: true,
     contentInjected: true
   })
-  
+
   return (
     <div ref={containerRef}>
       <iframe
@@ -55,28 +55,29 @@ function MyComponent() {
 
 ### Config Parameters
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `containerRef` | `React.RefObject<HTMLDivElement>` | Yes | - | Reference to container element |
-| `iframeRef` | `React.RefObject<HTMLIFrameElement>` | Yes | - | Reference to iframe element |
-| `isPptRender` | `boolean` | No | `false` | Enable PPT rendering mode |
-| `isFullscreen` | `boolean` | No | `false` | Fullscreen state (triggers recalculation) |
-| `iframeLoaded` | `boolean` | No | `false` | Whether iframe is loaded |
-| `contentInjected` | `boolean` | No | `false` | Whether content is injected |
-| `enableHeightCalculation` | `boolean` | No | `true` | Whether to measure iframe content height |
-| `isVisible` | `boolean` | No | `true` | Whether iframe is visible (controls scaling readiness) |
+| Parameter                 | Type                                 | Required | Default        | Description                                                                        |
+| ------------------------- | ------------------------------------ | -------- | -------------- | ---------------------------------------------------------------------------------- |
+| `containerRef`            | `React.RefObject<HTMLDivElement>`    | Yes      | -              | Reference to container element                                                     |
+| `measurementRef`          | `React.RefObject<HTMLDivElement>`    | No       | `containerRef` | Optional viewport used for scale measurements when side panels share the container |
+| `iframeRef`               | `React.RefObject<HTMLIFrameElement>` | Yes      | -              | Reference to iframe element                                                        |
+| `isPptRender`             | `boolean`                            | No       | `false`        | Enable PPT rendering mode                                                          |
+| `isFullscreen`            | `boolean`                            | No       | `false`        | Fullscreen state (triggers recalculation)                                          |
+| `iframeLoaded`            | `boolean`                            | No       | `false`        | Whether iframe is loaded                                                           |
+| `contentInjected`         | `boolean`                            | No       | `false`        | Whether content is injected                                                        |
+| `enableHeightCalculation` | `boolean`                            | No       | `true`         | Whether to measure iframe content height                                           |
+| `isVisible`               | `boolean`                            | No       | `true`         | Whether iframe is visible (controls scaling readiness)                             |
 
 ### Return Values
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `scaleRatio` | `number` | Calculated scale ratio |
-| `verticalOffset` | `number` | Vertical offset for centering |
-| `horizontalOffset` | `number` | Horizontal offset for centering |
-| `contentWidth` | `number` | Base content width (1920px) |
-| `contentHeight` | `number` | Calculated content height |
-| `containerDimensions` | `{ width: number, height: number }` | Container dimensions |
-| `isScaleReady` | `boolean` | Whether scaling is ready to display |
+| Property              | Type                                | Description                         |
+| --------------------- | ----------------------------------- | ----------------------------------- |
+| `scaleRatio`          | `number`                            | Calculated scale ratio              |
+| `verticalOffset`      | `number`                            | Vertical offset for centering       |
+| `horizontalOffset`    | `number`                            | Horizontal offset for centering     |
+| `contentWidth`        | `number`                            | Base content width (1920px)         |
+| `contentHeight`       | `number`                            | Calculated content height           |
+| `containerDimensions` | `{ width: number, height: number }` | Container dimensions                |
+| `isScaleReady`        | `boolean`                           | Whether scaling is ready to display |
 
 ### Visibility Notes
 
@@ -91,11 +92,11 @@ The hook calculates the actual content height by querying the iframe document:
 
 ```typescript
 const height = Math.max(
-  body.scrollHeight,
-  body.offsetHeight,
-  html.clientHeight,
-  html.scrollHeight,
-  html.offsetHeight,
+	body.scrollHeight,
+	body.offsetHeight,
+	html.clientHeight,
+	html.scrollHeight,
+	html.offsetHeight,
 )
 ```
 
@@ -112,7 +113,7 @@ prevent hidden slides from recalculating or playing animations early.
 Scale ratio is calculated to fit content within container:
 
 ```typescript
-const scaleByWidth = containerWidth / CONTENT_BASE_WIDTH  // 1920px
+const scaleByWidth = containerWidth / CONTENT_BASE_WIDTH // 1920px
 const scaleByHeight = containerHeight / actualHeight
 const scaleRatio = Math.min(scaleByWidth, scaleByHeight)
 ```
@@ -133,8 +134,8 @@ const horizontalOffset = (containerWidth - scaledWidth) / 2 / scaleRatio
 
 - Uses debounced calculation (16ms) to avoid excessive recalculations
 - Automatically listens to:
-  - Window resize events
-  - Container size changes (via ResizeObserver)
+    - Window resize events
+    - Container size changes (via ResizeObserver)
 - Only recalculates when `isPptRender` is true
 
 ## Migration Guide

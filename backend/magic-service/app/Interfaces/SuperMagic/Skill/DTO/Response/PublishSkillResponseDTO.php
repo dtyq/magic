@@ -22,6 +22,7 @@ class PublishSkillResponseDTO extends AbstractDTO
         private readonly string $publishTargetType,
         private readonly bool $isCurrentVersion,
         private readonly ?string $publishedAt,
+        private readonly array $categoryIds = [],
     ) {
     }
 
@@ -35,6 +36,7 @@ class PublishSkillResponseDTO extends AbstractDTO
             'publish_target_type' => $this->publishTargetType,
             'is_current_version' => $this->isCurrentVersion,
             'published_at' => $this->publishedAt,
+            'category_ids' => array_map('strval', $this->categoryIds),
         ];
     }
 }

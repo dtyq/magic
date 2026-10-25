@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\MCP\Service;
 
+use App\Application\MCP\Authorization\MCPAuthorizationAppService;
 use App\Application\MCP\Service\Oauth2\MCPOAuth2Client;
 use App\Domain\MCP\Constant\ServiceConfigAuthType;
 use App\Domain\MCP\Entity\MCPServerEntity;
@@ -24,6 +25,9 @@ class MCPUserSettingAppService extends AbstractMCPAppService
 {
     #[Inject]
     protected MCPOAuth2Client $oauth2Client;
+
+    #[Inject]
+    protected MCPAuthorizationAppService $mcpAuthorizationAppService;
 
     /**
      * Save user MCP service required fields.
@@ -73,11 +77,6 @@ class MCPUserSettingAppService extends AbstractMCPAppService
     {
         $dataIsolation = $this->createMCPDataIsolation($authorization);
 
-        // Validate redirect URL is provided
-        if (empty($redirectUrl)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'redirect_url']);
-        }
-
         // Validate MCP server exists and user has access
         $allDataIsolation = clone $dataIsolation;
         $allDataIsolation->disabled();
@@ -107,6 +106,23 @@ class MCPUserSettingAppService extends AbstractMCPAppService
         $authType = ServiceConfigAuthType::NONE;
         if ($serviceConfig instanceof ExternalSSEServiceConfig) {
             $authType = $serviceConfig->getAuthType();
+        }
+
+        if ($authType === ServiceConfigAuthType::MCP_AUTHORIZATION && $serviceConfig instanceof ExternalSSEServiceConfig) {
+            return [
+                'require_fields' => $requireFields,
+                'auth_type' => $authType->value,
+                'auth_config' => $this->mcpAuthorizationAppService->getAuthConfig(
+                    $dataIsolation,
+                    $mcpServer,
+                    $authorization
+                ),
+            ];
+        }
+
+        // 旧 OAuth2 流程仍由前端提供回调地址，MCP Authorization 不进入此校验。
+        if (empty($redirectUrl)) {
+            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'redirect_url']);
         }
 
         return [

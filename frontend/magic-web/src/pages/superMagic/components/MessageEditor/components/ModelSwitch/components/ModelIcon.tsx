@@ -6,7 +6,7 @@ import { ModelItem } from "../types"
 import { isMaxModel } from "../utils"
 
 interface ModelIconProps {
-	model: ModelItem
+	model: Pick<ModelItem, "model_id" | "model_name" | "model_icon">
 	className?: string
 	size?: number
 	defaultColor?: string

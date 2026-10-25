@@ -17,7 +17,11 @@ import { ScheduledTask } from "@/types/scheduledTask"
 import { useScheduleTask } from "@/components/business/AccountSetting/pages/ScheduledTasks/hooks/useScheduleTask"
 import { useUpdateEffect } from "ahooks"
 import { useRef } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import {
+	PROJECT_PANEL_HEADER_CLASSNAME,
+	PROJECT_PANEL_TITLE_CLASSNAME,
+} from "../ProjectSider/panelChrome"
 
 type TaskItemData = ScheduledTask.Task
 
@@ -162,14 +166,8 @@ export default function SiderTask({
 
 	return (
 		<div className={cn("flex h-full flex-col gap-0.5", className)}>
-			<div
-				className="flex h-8 shrink-0 items-center justify-between border-gray-200 py-1.5 pl-4 pr-2"
-				data-slot="project-panel-header"
-			>
-				<p
-					className="text-xs font-semibold leading-4 text-foreground"
-					data-slot="project-panel-title"
-				>
+			<div className={PROJECT_PANEL_HEADER_CLASSNAME} data-slot="project-panel-header">
+				<p className={PROJECT_PANEL_TITLE_CLASSNAME} data-slot="project-panel-title">
 					{t("scheduleTask.title")}
 				</p>
 				<div data-slot="project-panel-actions">
@@ -208,6 +206,7 @@ export default function SiderTask({
 						<SiderTaskItem
 							key={item.id}
 							data={item}
+							onEdit={() => onTaskEdit(item)}
 							onSwitchChange={(enabled) => onStatusChange(item, enabled)}
 							{...delegateProps}
 						/>

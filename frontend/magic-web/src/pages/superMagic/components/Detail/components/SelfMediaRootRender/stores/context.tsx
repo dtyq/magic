@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react"
 import type { SelfMediaInitialNavigation } from "../../../types"
 import type { AttachmentNode } from "../services/selfMediaHelpers"
 import { SelfMediaStore } from "./SelfMediaStore"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 const SelfMediaStoreContext = createContext<SelfMediaStore | null>(null)
 
@@ -28,11 +29,11 @@ export function SelfMediaStoreProvider({
 	store: injected,
 	children,
 }: SelfMediaStoreProviderProps) {
-	const storeRef = useRef<SelfMediaStore | null>(null)
-	if (!storeRef.current) {
-		storeRef.current = injected ?? new SelfMediaStore()
-	}
-	const store = storeRef.current
+	const fileApi = useFileApi()
+	const store = useMemo(
+		() => injected ?? new SelfMediaStore(undefined, fileApi),
+		[injected, fileApi],
+	)
 	const syncTree = attachments ?? attachmentList
 	// Injected stores are test-only pre-seeded instances: skip the sync and
 	// dispose effects so tests retain full control over store state.

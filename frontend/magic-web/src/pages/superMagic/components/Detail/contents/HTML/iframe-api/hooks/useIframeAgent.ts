@@ -17,7 +17,7 @@ export interface UseIframeAgentOptions {
 	targetOrigin: string
 	/** 获取当前 Agent 列表的函数 */
 	getAgentList: () => AgentInfo[]
-	/** 创建话题并发送消息 */
+	/** 发送消息。单话题宿主发到当前话题，并忽略 agentId。 */
 	createTopicAndSend: (params: {
 		message: string | TiptapJSONContent
 		agentId?: string
@@ -30,6 +30,10 @@ export interface UseIframeAgentOptions {
 	 * 默认 false，仅开放只读能力。
 	 */
 	enableWriteOperations?: boolean
+	/** 当前项目 ID；缺失时项目相关写操作不可用。 */
+	projectId?: string
+	/** 项目上下文不可用时返回给 iframe 的语义化错误。 */
+	projectContextUnavailableError?: string
 	/** 执行高风险能力前的授权检查。 */
 	authorizePermission?: (scope: HtmlPermissionScope) => Promise<boolean>
 }
@@ -47,6 +51,8 @@ export function useIframeAgent(options: UseIframeAgentOptions): UseIframeAgentRe
 		createTopicAndSend,
 		sendMessage,
 		enableWriteOperations = false,
+		projectId,
+		projectContextUnavailableError,
 		authorizePermission,
 	} = options
 
@@ -63,6 +69,8 @@ export function useIframeAgent(options: UseIframeAgentOptions): UseIframeAgentRe
 			createTopicAndSend,
 			sendMessage,
 			enableWriteOperations,
+			projectId,
+			projectContextUnavailableError,
 			authorizePermission,
 		}
 
@@ -78,6 +86,8 @@ export function useIframeAgent(options: UseIframeAgentOptions): UseIframeAgentRe
 		createTopicAndSend,
 		sendMessage,
 		enableWriteOperations,
+		projectId,
+		projectContextUnavailableError,
 		authorizePermission,
 	])
 

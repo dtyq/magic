@@ -15,7 +15,6 @@ use App\Domain\SuperMagic\File\Repository\Facade\TaskFileVersionRepositoryInterf
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Hyperf\Logger\LoggerFactory;
-use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -37,11 +36,12 @@ class TaskFileVersionDomainService
      */
     public function createFileVersion(string $projectOrganizationCode, TaskFileEntity $fileEntity, int $editType = 1): ?TaskFileVersionEntity
     {
-        // 仅对非目录文件创建版本
-        if ($fileEntity->getIsDirectory()) {
-            $this->logger->info('Skipping version creation for directory file', [
+        if (! $this->canCreateVersion($fileEntity)) {
+            $this->logger->info('Skipping version creation for ineligible file', [
                 'file_id' => $fileEntity->getFileId(),
                 'file_name' => $fileEntity->getFileName(),
+                'space_type' => $fileEntity->getSpaceType(),
+                'is_directory' => $fileEntity->getIsDirectory(),
             ]);
             return null;
         }
@@ -95,6 +95,16 @@ class TaskFileVersionDomainService
         ]);
 
         return $savedEntity;
+    }
+
+    public function canCreateVersion(TaskFileEntity $fileEntity): bool
+    {
+        return $fileEntity->shouldCreateVersionCopy();
+    }
+
+    public function shouldEnterRecycleBin(TaskFileVersionEntity $versionEntity): bool
+    {
+        return false;
     }
 
     /**
@@ -166,6 +176,10 @@ class TaskFileVersionDomainService
      */
     public function rollbackFileToVersion(string $projectOrganizationCode, TaskFileEntity $fileEntity, int $targetVersion): ?TaskFileVersionEntity
     {
+        if (! $this->canCreateVersion($fileEntity)) {
+            return null;
+        }
+
         $fileId = $fileEntity->getFileId();
 
         $this->logger->info('Starting file rollback to version', [
@@ -254,25 +268,15 @@ class TaskFileVersionDomainService
 
     /**
      * 生成版本文件键.
+     *
+     * 统一规则：在原 file_key 后拼接 /version/{version}，例如
+     * {prefix}/project_1/workspace/789/version/1。
+     * 旧格式版本键不做迁移，历史版本对象位置以
+     * magic_super_agent_task_file_versions 表的 file_key 记录为准。
      */
     private function generateVersionFileKey(string $originalFileKey, int $version): string
     {
-        // 验证原文件路径包含 /workspace/
-        if (! str_contains($originalFileKey, '/workspace/')) {
-            throw new InvalidArgumentException('Original file key must contain /workspace/ path');
-        }
-
-        // 只替换第一次出现的 /workspace/ 为 /version/
-        $pos = strpos($originalFileKey, '/workspace/');
-        if ($pos !== false) {
-            $versionBasePath = substr_replace($originalFileKey, '/version/', $pos, strlen('/workspace/'));
-        } else {
-            // 理论上不会执行到这里，因为上面已经验证过
-            throw new InvalidArgumentException('Original file key must contain /workspace/ path');
-        }
-
-        // 在文件名后追加版本号
-        return $versionBasePath . '/' . $version;
+        return $originalFileKey . '/version/' . $version;
     }
 
     /**

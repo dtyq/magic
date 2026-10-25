@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { SupportLocales } from "@/constants/locale"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { globalConfigStore } from "@/stores/globalConfig"
 import { getAvatarUrl } from "@/utils/avatar"
 import { MobileBrandLogoIcon } from "@/pages/superMagicMobile/components/icons/MobileBrandLogoIcon"

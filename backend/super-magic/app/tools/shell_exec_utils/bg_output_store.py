@@ -13,6 +13,7 @@
 同一文件的写入与截断通过 per-file asyncio.Lock 序列化，防止截断覆盖丢失。
 """
 
+import asyncio
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,17 +22,7 @@ from typing import Optional
 import aiofiles
 
 from agentlang.logger import get_logger
-from app.tools.shell_exec_utils.bg_task_models import (
-    BG_LOG_HEAD_KEEP_BYTES,
-    BG_LOG_MAX_FILE_COUNT,
-    BG_LOG_MAX_FILE_SIZE_BYTES,
-    BG_LOG_MAX_TOTAL_SIZE_BYTES,
-    BG_LOG_RETENTION_SECS,
-    BG_LOG_TAIL_KEEP_BYTES,
-    BG_LOG_TARGET_FILE_COUNT,
-    BG_LOG_TARGET_TOTAL_SIZE_BYTES,
-    TaskStatus,
-)
+from app.tools.shell_exec_utils.bg_task_models import TaskStatus
 from app.utils.async_file_utils import (
     async_chmod,
     async_exists,
@@ -39,7 +30,12 @@ from app.utils.async_file_utils import (
     async_stat,
     async_unlink,
 )
-from app.utils.runtime_storage import ensure_runtime_directory
+from app.utils.runtime_storage import (
+    RuntimeEvictionPolicy,
+    ensure_runtime_directory,
+    get_runtime_config_int,
+    get_runtime_config_size_bytes,
+)
 
 logger = get_logger(__name__)
 
@@ -54,6 +50,56 @@ class _LogFile:
     modified_at: float
 
 
+@dataclass(frozen=True, slots=True)
+class _BgLogConfig:
+    max_file_size_bytes: int
+    head_keep_bytes: int
+    tail_keep_bytes: int
+    eviction_policy: RuntimeEvictionPolicy
+
+
+def _load_bg_log_config() -> _BgLogConfig:
+    return _BgLogConfig(
+        max_file_size_bytes=get_runtime_config_size_bytes(
+            "runtime_cleanup.bg_shell.max_file_size",
+            minimum=1,
+        ),
+        head_keep_bytes=get_runtime_config_size_bytes(
+            "runtime_cleanup.bg_shell.head_keep_size",
+            minimum=1,
+        ),
+        tail_keep_bytes=get_runtime_config_size_bytes(
+            "runtime_cleanup.bg_shell.tail_keep_size",
+            minimum=1,
+        ),
+        eviction_policy=RuntimeEvictionPolicy(
+            max_entries=get_runtime_config_int(
+                "runtime_cleanup.bg_shell.max_file_count",
+                minimum=1,
+            ),
+            target_entries=get_runtime_config_int(
+                "runtime_cleanup.bg_shell.target_file_count",
+                minimum=0,
+            ),
+            max_total_bytes=get_runtime_config_size_bytes(
+                "runtime_cleanup.bg_shell.max_total_size",
+                minimum=1,
+            ),
+            target_total_bytes=get_runtime_config_size_bytes(
+                "runtime_cleanup.bg_shell.target_total_size",
+                minimum=0,
+            ),
+            max_age_seconds=get_runtime_config_int(
+                "runtime_cleanup.bg_shell.max_age_days",
+                minimum=1,
+            )
+            * 24
+            * 60
+            * 60,
+        ),
+    )
+
+
 class BgOutputStore:
     """
     单个 bg_shell 目录的输出文件存储管理器。
@@ -64,13 +110,13 @@ class BgOutputStore:
 
     def __init__(self, bg_shell_dir: Path) -> None:
         self._dir = bg_shell_dir
+        self._config = _load_bg_log_config()
         # task_id -> asyncio.Lock，序列化同一文件的写入与截断
-        self._locks: dict[str, "asyncio.Lock"] = {}  # type: ignore[name-defined]
+        self._locks: dict[str, asyncio.Lock] = {}
 
     # ── 内部工具 ──────────────────────────────────────────────────────────────
 
-    def _lock_for(self, task_id: str) -> "asyncio.Lock":  # type: ignore[name-defined]
-        import asyncio
+    def _lock_for(self, task_id: str) -> asyncio.Lock:
         if task_id not in self._locks:
             self._locks[task_id] = asyncio.Lock()
         return self._locks[task_id]
@@ -182,23 +228,26 @@ class BgOutputStore:
             return
 
         stat = await async_stat(log)
-        if stat.st_size <= BG_LOG_MAX_FILE_SIZE_BYTES:
+        if stat.st_size <= self._config.max_file_size_bytes:
             return
 
         async with self._lock_for(task_id):
             # 进锁后再次确认，防止并发截断
             stat = await async_stat(log)
-            if stat.st_size <= BG_LOG_MAX_FILE_SIZE_BYTES:
+            if stat.st_size <= self._config.max_file_size_bytes:
                 return
 
             async with aiofiles.open(log, "rb") as f:
-                head = await f.read(BG_LOG_HEAD_KEEP_BYTES)
+                head = await f.read(self._config.head_keep_bytes)
                 file_size = stat.st_size
-                tail_start = max(BG_LOG_HEAD_KEEP_BYTES, file_size - BG_LOG_TAIL_KEEP_BYTES)
+                tail_start = max(
+                    self._config.head_keep_bytes,
+                    file_size - self._config.tail_keep_bytes,
+                )
                 await f.seek(tail_start)
                 tail = await f.read()
 
-            removed = tail_start - BG_LOG_HEAD_KEEP_BYTES
+            removed = tail_start - self._config.head_keep_bytes
             marker = _TRUNCATED_MARKER_TPL.format(removed=removed).encode("utf-8")
 
             async with aiofiles.open(log, "wb") as f:
@@ -240,7 +289,7 @@ class BgOutputStore:
             )
 
         logs.sort(key=lambda item: item.modified_at)
-        retention_cutoff = time.time() - BG_LOG_RETENTION_SECS
+        retention_cutoff = time.time() - (self._config.eviction_policy.max_age_seconds or 0)
         expired = [
             item
             for item in logs
@@ -253,8 +302,8 @@ class BgOutputStore:
         remaining = [item for item in logs if item.path not in expired_paths]
         total_bytes = sum(item.size for item in remaining)
         if (
-            len(remaining) <= BG_LOG_MAX_FILE_COUNT
-            and total_bytes <= BG_LOG_MAX_TOTAL_SIZE_BYTES
+            len(remaining) <= (self._config.eviction_policy.max_entries or 0)
+            and total_bytes <= (self._config.eviction_policy.max_total_bytes or 0)
         ):
             return
 
@@ -262,8 +311,8 @@ class BgOutputStore:
         finished_logs = [item for item in remaining if item.task_id in finished_task_ids]
         for item in finished_logs:
             if (
-                remaining_entries <= BG_LOG_TARGET_FILE_COUNT
-                and total_bytes <= BG_LOG_TARGET_TOTAL_SIZE_BYTES
+                remaining_entries <= (self._config.eviction_policy.target_entries or 0)
+                and total_bytes <= (self._config.eviction_policy.target_total_bytes or 0)
             ):
                 break
             await self._delete_log(item)

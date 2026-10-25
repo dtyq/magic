@@ -19,7 +19,8 @@ from app.core.skill_utils.skillhub import (
     skillhub_install_platform_me,
     skillhub_install_platform_market,
 )
-from app.core.skill_utils.prompt import generate_skills_prompt
+# 日常主文和后台 reference 通过同一管理入口找 Skill，保持个人／员工／系统来源的既有顺序。
+from app.core.skill_utils.prompt import generate_skills_prompt, resolve_skills_metadata
 
 # ── 新 API ────────────────────────────────────────────────────────────────────
 from app.core.skill_utils.installer import InstallService, SkillRef, InstallResult, InstallBatchResult
@@ -34,6 +35,7 @@ __all__ = [
     "get_global_skill_manager",
     "find_skill",
     "generate_skills_prompt",
+    "resolve_skills_metadata",
     # 安装服务（新）
     "InstallService",
     "SkillRef",

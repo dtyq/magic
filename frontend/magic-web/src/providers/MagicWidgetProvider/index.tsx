@@ -7,14 +7,19 @@ import {
 	MAGIC_WIDGET_DISMISS_PREVIEW_EVENT,
 	MAGIC_WIDGET_PROTOCOL,
 	MAGIC_WIDGET_PROTOCOL_VERSION,
-	normalizeMagicWidgetConfig,
+	acceptMagicWidgetConfig,
 } from "./config"
-import type { MagicWidgetContextValue, MagicWidgetEmbedContext } from "./types"
+import type {
+	MagicWidgetConfigWarning,
+	MagicWidgetContextValue,
+	MagicWidgetEmbedContext,
+} from "./types"
 import { MagicWidgetContextProvider } from "./context"
+import { requestMagicWidgetCustomMentionSearch } from "./mention-search"
 
 export { useMagicWidgetConfig } from "./context"
 
-/** Owns one document-scoped embed identity and validates all runtime configuration updates. */
+/** Owns one document-scoped embed identity and revalidates custom Mention groups at the iframe boundary. */
 export function MagicWidgetProvider({ children }: PropsWithChildren) {
 	const { search } = useLocation()
 	// Protected embed metadata is immutable for one iframe document and is re-read after reload.
@@ -31,6 +36,7 @@ export function MagicWidgetProvider({ children }: PropsWithChildren) {
 			requestId: string,
 			ok: boolean,
 			error?: string,
+			configWarning?: MagicWidgetConfigWarning,
 		) => {
 			window.parent.postMessage(
 				{
@@ -40,6 +46,7 @@ export function MagicWidgetProvider({ children }: PropsWithChildren) {
 					requestId,
 					type: "response",
 					ok,
+					result: configWarning ? { configWarning } : undefined,
 					error: error ? { code: "INVALID_CONFIG", message: error } : undefined,
 				},
 				targetOrigin,
@@ -67,10 +74,13 @@ export function MagicWidgetProvider({ children }: PropsWithChildren) {
 			if (event.data.type !== "config" || typeof event.data.requestId !== "string") return
 
 			try {
-				const nextConfig = normalizeMagicWidgetConfig(event.data.config)
+				let configWarning: MagicWidgetConfigWarning | undefined
+				const nextConfig = acceptMagicWidgetConfig(event.data.config, (warning) => {
+					configWarning = warning
+				})
 				// Commit the new snapshot before acknowledging it so updateConfig resolves after UI state changes.
 				flushSync(() => setConfig(nextConfig))
-				respond(embedContext, event.data.requestId, true)
+				respond(embedContext, event.data.requestId, true, undefined, configWarning)
 			} catch (error) {
 				respond(
 					embedContext,
@@ -96,7 +106,12 @@ export function MagicWidgetProvider({ children }: PropsWithChildren) {
 	}, [embedContext])
 
 	const value = useMemo<MagicWidgetContextValue>(
-		() => ({ embedContext, config }),
+		() => ({
+			embedContext,
+			config,
+			requestCustomMentionSearch: (query, scope, signal) =>
+				requestMagicWidgetCustomMentionSearch(embedContext, query, scope, signal),
+		}),
 		[config, embedContext],
 	)
 	return <MagicWidgetContextProvider value={value}>{children}</MagicWidgetContextProvider>

@@ -15,6 +15,8 @@ export interface UseIframeLLMOptions {
 	iframeRef: React.RefObject<HTMLIFrameElement>
 	/** 回发 iframe 的严格目标源。 */
 	targetOrigin: string
+	/** Recreate document-owned watches/streams when the iframe Window changes. */
+	runtimeRevision?: string | number
 	/** Magic 主站 API 基地址 */
 	baseUrl: string
 	/** 获取当前用户 authorization 的函数 */
@@ -34,6 +36,7 @@ export function useIframeLLM(options: UseIframeLLMOptions): UseIframeLLMReturn {
 	const {
 		iframeRef,
 		targetOrigin,
+		runtimeRevision = 0,
 		baseUrl,
 		getAuthorization,
 		getOrganizationCode,
@@ -41,27 +44,47 @@ export function useIframeLLM(options: UseIframeLLMOptions): UseIframeLLMReturn {
 	} = options
 
 	const serviceRef = useRef<IframeLLMService | null>(null)
-
-	const postToIframe = useMemoizedFn((message: object) => {
-		iframeRef.current?.contentWindow?.postMessage(message, targetOrigin)
-	})
+	// Inline host callbacks change on ordinary renders. Keep their delegates live
+	// without destroying requests; actual account changes still invalidate tokens.
+	const authorization = getAuthorization()
+	const organizationCode = getOrganizationCode()
+	const currentAuthorization = useMemoizedFn(getAuthorization)
+	const currentOrganization = useMemoizedFn(getOrganizationCode)
+	const currentPermission = useMemoizedFn(async (scope: HtmlPermissionScope) =>
+		authorizePermission ? authorizePermission(scope) : true,
+	)
 
 	useEffect(() => {
+		const target = iframeRef.current?.contentWindow
+		let active = true
 		const cfg: IframeLLMConfig = {
-			postToIframe,
+			postToIframe: (message) => {
+				if (active) target?.postMessage(message, targetOrigin)
+			},
 			baseUrl,
-			getAuthorization,
-			getOrganizationCode,
-			authorizePermission,
+			getAuthorization: currentAuthorization,
+			getOrganizationCode: currentOrganization,
+			authorizePermission: currentPermission,
 		}
 
 		serviceRef.current = new IframeLLMService(cfg)
 
 		return () => {
+			active = false
 			serviceRef.current?.destroy()
 			serviceRef.current = null
 		}
-	}, [baseUrl, getAuthorization, getOrganizationCode, authorizePermission, postToIframe])
+	}, [
+		baseUrl,
+		currentAuthorization,
+		currentOrganization,
+		currentPermission,
+		authorization,
+		organizationCode,
+		iframeRef,
+		targetOrigin,
+		runtimeRevision,
+	])
 
 	const handleLLMMessage = useMemoizedFn(
 		async (type: string, payload: unknown): Promise<boolean> => {

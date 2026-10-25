@@ -5,6 +5,15 @@ import { useSize } from "ahooks"
 export type ElementPosition = "top" | "bottom" | "left" | "right"
 export type VerticalAlign = "top" | "center" | "bottom"
 
+const CANVAS_APP_CONTAINER_SELECTOR = "[data-canvas-design-app-container]"
+
+export interface StickyTopRightPositionOptions {
+	/** 吸附位置与边界顶部/右侧的间距 */
+	gap?: number
+	/** Header 操作条的 DOM 标识；存在时 panel 会放在其下方 */
+	headerSelector?: string
+}
+
 export interface UseElementPositionEffectOptions {
 	/** 位置方向：上方、下方、左侧、右侧 */
 	position: ElementPosition
@@ -20,6 +29,8 @@ export interface UseElementPositionEffectOptions {
 	positionEventType?: "crop:position" | "extend:position" | "eraser:position"
 	/** 定位对应的元素 ID；搭配 positionEventType 时用于过滤事件，不传 positionEventType 时直接跟踪该元素 bounds */
 	trackedElementId?: string | null
+	/** 可选：元素右侧或顶部越过 app-container 可视边界时，吸附到右上角 */
+	stickyTopRight?: StickyTopRightPositionOptions
 }
 
 /**
@@ -35,12 +46,47 @@ export default function useElementPositionEffect(options: UseElementPositionEffe
 		verticalAlign = "center",
 		positionEventType,
 		trackedElementId,
+		stickyTopRight,
 	} = options
 	const { canvas } = useCanvas()
 	const containerRef = useRef<HTMLDivElement | null>(null)
 	const containerSize = useSize(containerRef)
 	const boundingRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(
 		null,
+	)
+	const stickyTopRightEnabled = Boolean(stickyTopRight)
+	const stickyTopRightGap = stickyTopRight?.gap ?? 8
+	const stickyTopRightHeaderSelector =
+		stickyTopRight?.headerSelector ?? "[data-canvas-design-header-actions]"
+
+	const resolveStickyBoundary = useCallback(
+		(container: HTMLElement): HTMLElement | null => {
+			if (!stickyTopRightEnabled) return null
+
+			const appContainer = container.closest<HTMLElement>(CANVAS_APP_CONTAINER_SELECTOR)
+			if (appContainer) return appContainer
+
+			// Backward-compatible fallback for isolated consumers/tests that do not render
+			// the CanvasDesign root marker.
+			return container.offsetParent instanceof HTMLElement ? container.offsetParent : null
+		},
+		[stickyTopRightEnabled],
+	)
+
+	const resolveStickyHeader = useCallback(
+		(boundary: HTMLElement): HTMLElement | null => {
+			if (!stickyTopRightEnabled) return null
+
+			let scope: HTMLElement | null = boundary
+			while (scope) {
+				const header = scope.querySelector<HTMLElement>(stickyTopRightHeaderSelector)
+				if (header) return header
+				scope = scope.parentElement
+			}
+
+			return null
+		},
+		[stickyTopRightEnabled, stickyTopRightHeaderSelector],
 	)
 
 	// 直接更新 DOM 样式，避免触发 React 重新渲染
@@ -123,12 +169,55 @@ export default function useElementPositionEffect(options: UseElementPositionEffe
 					break
 			}
 
+			if (stickyTopRightEnabled) {
+				const boundary = resolveStickyBoundary(container)
+				if (boundary) {
+					const boundaryRect = boundary.getBoundingClientRect()
+					const positioningContext =
+						container.offsetParent instanceof HTMLElement
+							? container.offsetParent
+							: boundary
+					const contextRect = positioningContext.getBoundingClientRect()
+					const headerRect = resolveStickyHeader(boundary)?.getBoundingClientRect()
+					const safeTop = Math.max(
+						boundaryRect.top + stickyTopRightGap,
+						headerRect ? headerRect.bottom + stickyTopRightGap : -Infinity,
+					)
+					const preferredLeft = contextRect.left + left
+					const preferredTop = contextRect.top + top
+					const preferredRight = preferredLeft + containerSize.width
+					const safeLeft = boundaryRect.left + stickyTopRightGap
+					const safeRight = boundaryRect.right - stickyTopRightGap
+
+					if (
+						preferredLeft < safeLeft ||
+						preferredRight > safeRight ||
+						preferredTop < safeTop
+					) {
+						const stickyLeft = Math.max(safeLeft, safeRight - containerSize.width)
+						left = stickyLeft - contextRect.left
+						top = safeTop - contextRect.top
+					}
+				}
+			}
+
 			// 直接更新 DOM 样式
 			container.style.transform = `translate(${left}px, ${top}px)`
 			container.style.opacity = "1"
 			container.style.pointerEvents = "auto"
 		},
-		[canvas, containerSize, position, offset, shouldShow, verticalAlign],
+		[
+			canvas,
+			containerSize,
+			offset,
+			position,
+			resolveStickyBoundary,
+			resolveStickyHeader,
+			shouldShow,
+			stickyTopRightEnabled,
+			stickyTopRightGap,
+			verticalAlign,
+		],
 	)
 
 	// 监听元素位置变化事件，复用 updatePosition 逻辑
@@ -203,6 +292,63 @@ export default function useElementPositionEffect(options: UseElementPositionEffe
 			unsubscribePan()
 		}
 	}, [canvas, updatePosition])
+
+	// sticky fallback 需要在 app-container/Header 尺寸或页面滚动变化后重新计算。
+	useEffect(() => {
+		if (!stickyTopRightEnabled) return
+
+		let frameId = 0
+		const updateFromLayoutChange = () => {
+			if (frameId !== 0) return
+			frameId = window.requestAnimationFrame(() => {
+				frameId = 0
+				updatePosition(boundingRectRef.current)
+			})
+		}
+
+		const boundary = containerRef.current ? resolveStickyBoundary(containerRef.current) : null
+		const header = boundary instanceof HTMLElement ? resolveStickyHeader(boundary) : null
+		const resizeObserver =
+			typeof ResizeObserver === "undefined"
+				? null
+				: new ResizeObserver(updateFromLayoutChange)
+		const mutationObserver =
+			typeof MutationObserver === "undefined"
+				? null
+				: new MutationObserver(updateFromLayoutChange)
+		const headerMutationObserver =
+			typeof MutationObserver === "undefined"
+				? null
+				: new MutationObserver(updateFromLayoutChange)
+		// Header 与 app-container 通常是同一设计视图下的兄弟节点；只监听其直接父节点
+		// 的结构变化，避免把整个 Canvas DOM subtree 纳入观察范围。
+		const observationScope = header?.parentElement ?? boundary?.parentElement
+		if (boundary instanceof HTMLElement) resizeObserver?.observe(boundary)
+		if (header) {
+			resizeObserver?.observe(header)
+			headerMutationObserver?.observe(header, {
+				attributes: true,
+				attributeFilter: ["class", "style"],
+			})
+		}
+		if (observationScope) {
+			mutationObserver?.observe(observationScope, {
+				childList: true,
+			})
+		}
+
+		window.addEventListener("resize", updateFromLayoutChange)
+		window.addEventListener("scroll", updateFromLayoutChange, true)
+
+		return () => {
+			window.removeEventListener("resize", updateFromLayoutChange)
+			window.removeEventListener("scroll", updateFromLayoutChange, true)
+			resizeObserver?.disconnect()
+			mutationObserver?.disconnect()
+			headerMutationObserver?.disconnect()
+			if (frameId !== 0) window.cancelAnimationFrame(frameId)
+		}
+	}, [resolveStickyBoundary, resolveStickyHeader, stickyTopRightEnabled, updatePosition])
 
 	// 监听容器尺寸变化，重新计算位置
 	useEffect(() => {

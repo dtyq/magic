@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest"
-import { isGenerationTaskNotFoundError } from "../polling/generationPollingUtils"
+import {
+	INVALID_GENERATED_RESOURCE_PATH_ERROR,
+	isGenerationTaskNotFoundError,
+	resolveGenerationErrorMessage,
+} from "../polling/generationPollingUtils"
+
+describe("resolveGenerationErrorMessage", () => {
+	it("maps the internal unresolved-path reason to the localized fallback", () => {
+		expect(
+			resolveGenerationErrorMessage(INVALID_GENERATED_RESOURCE_PATH_ERROR, "图片生成失败"),
+		).toBe("图片生成失败")
+	})
+
+	it("preserves backend-provided error messages", () => {
+		expect(resolveGenerationErrorMessage("内容审核失败", "图片生成失败")).toBe("内容审核失败")
+	})
+})
 
 describe("isGenerationTaskNotFoundError", () => {
 	it("matches only the invalid-argument response that names the current task", () => {

@@ -25,7 +25,6 @@ export interface DesignDraftEntry extends DesignDraftIdentity {
 	key: string
 	schemaVersion: typeof DESIGN_DRAFT_SCHEMA_VERSION
 	designProjectBasePath?: string
-	baseRemoteVersion: number | null
 	baseRemoteFingerprint: string
 	localFingerprint: string
 	localUpdatedAt: number
@@ -49,6 +48,7 @@ class DesignDraftDatabase extends Dexie {
 let dbPromise: Promise<DesignDraftDatabase> | null = null
 const pendingWrites = new Set<Promise<unknown>>()
 const memoryDrafts = new Map<string, DesignDraftEntry>()
+const draftWriteGenerations = new Map<string, number>()
 
 export function getDesignDraftWriteDebounceMs(): number {
 	return DRAFT_WRITE_DEBOUNCE_MS
@@ -83,6 +83,16 @@ function trackWrite<T>(promise: Promise<T>): Promise<T> {
 	return promise
 }
 
+function advanceDraftWriteGeneration(key: string): number {
+	const nextGeneration = (draftWriteGenerations.get(key) ?? 0) + 1
+	draftWriteGenerations.set(key, nextGeneration)
+	return nextGeneration
+}
+
+function isCurrentDraftWriteGeneration(key: string, generation: number): boolean {
+	return draftWriteGenerations.get(key) === generation
+}
+
 function normalizeIdentityPart(value: string | null | undefined): string {
 	return value?.trim() || "_"
 }
@@ -104,9 +114,7 @@ function cloneDraftEntry(entry: DesignDraftEntry): DesignDraftEntry {
 	return {
 		...entry,
 		designData: cloneDesignData(entry.designData),
-		baseRemoteData: entry.baseRemoteData
-			? cloneDesignData(entry.baseRemoteData)
-			: undefined,
+		baseRemoteData: entry.baseRemoteData ? cloneDesignData(entry.baseRemoteData) : undefined,
 	}
 }
 
@@ -154,9 +162,12 @@ async function pruneProjectDrafts(db: DesignDraftDatabase, projectId?: string): 
 	}
 }
 
-async function writeIndexedDbDraft(entry: DesignDraftEntry): Promise<void> {
+async function writeIndexedDbDraft(entry: DesignDraftEntry, generation: number): Promise<void> {
+	if (!isCurrentDraftWriteGeneration(entry.key, generation)) return
 	const db = await getDatabase()
+	if (!isCurrentDraftWriteGeneration(entry.key, generation)) return
 	await db.entries.put(entry)
+	if (!isCurrentDraftWriteGeneration(entry.key, generation)) return
 	await pruneProjectDrafts(db, entry.projectId)
 }
 
@@ -340,6 +351,20 @@ function deleteMemoryDrafts(keys: Set<string>): void {
 	keys.forEach((key) => memoryDrafts.delete(key))
 }
 
+function deleteMemoryDraftCoveredBy(entry: DesignDraftEntry): void {
+	const retained = memoryDrafts.get(entry.key)
+	if (!retained) return
+	// Overlapping writes for one document may settle out of order. An older durable write must not
+	// remove a newer emergency fallback that still exists only in memory.
+	if (
+		retained.localUpdatedAt < entry.localUpdatedAt ||
+		(retained.localUpdatedAt === entry.localUpdatedAt &&
+			retained.localFingerprint === entry.localFingerprint)
+	) {
+		memoryDrafts.delete(entry.key)
+	}
+}
+
 export function writeDesignDraft(
 	entry: Omit<DesignDraftEntry, "key" | "schemaVersion" | "designData" | "baseRemoteData"> & {
 		designData: DesignData
@@ -351,6 +376,7 @@ export function writeDesignDraft(
 	if (!draft) {
 		return Promise.resolve({ target: "none", durable: false })
 	}
+	const generation = advanceDraftWriteGeneration(draft.key)
 	const memoryResult = (): DesignDraftWriteResult =>
 		writeMemoryDraft(draft)
 			? { target: "memory", durable: false }
@@ -358,7 +384,12 @@ export function writeDesignDraft(
 
 	if (options.emergency) {
 		const localStorageOk = writeLocalStorageDraftWithFallback(draft, { prune: false })
-		const memoryOk = writeMemoryDraft(draft)
+		// A durable synchronous copy already covers pagehide. Keep a heap copy only when that write
+		// failed, then discard it as soon as IndexedDB confirms the same draft.
+		const memoryOk = localStorageOk ? false : writeMemoryDraft(draft)
+		if (localStorageOk) {
+			deleteMemoryDraftCoveredBy(draft)
+		}
 		const fallbackResult: DesignDraftWriteResult = localStorageOk
 			? { target: "localStorage", durable: true }
 			: memoryOk
@@ -366,8 +397,11 @@ export function writeDesignDraft(
 				: { target: "none", durable: false }
 
 		return trackWrite(
-			writeIndexedDbDraft(draft)
-				.then<DesignDraftWriteResult>(() => ({ target: "indexeddb", durable: true }))
+			writeIndexedDbDraft(draft, generation)
+				.then<DesignDraftWriteResult>(() => {
+					deleteMemoryDraftCoveredBy(draft)
+					return { target: "indexeddb", durable: true }
+				})
 				.catch(() => fallbackResult),
 		)
 	}
@@ -375,10 +409,12 @@ export function writeDesignDraft(
 	return trackWrite(
 		(async (): Promise<DesignDraftWriteResult> => {
 			try {
-				await writeIndexedDbDraft(draft)
+				await writeIndexedDbDraft(draft, generation)
+				deleteMemoryDraftCoveredBy(draft)
 				return { target: "indexeddb", durable: true }
 			} catch {
 				if (writeLocalStorageDraftWithFallback(draft)) {
+					deleteMemoryDraftCoveredBy(draft)
 					return { target: "localStorage", durable: true }
 				}
 				return memoryResult()
@@ -400,7 +436,7 @@ export async function readDesignDraft(
 	return chooseLatestDraft(candidates)
 }
 
-export function deleteDesignDraft(identity: DesignDraftIdentity): Promise<void> {
+function getDraftStorageKeys(identity: DesignDraftIdentity): Set<string> {
 	const keys = new Set<string>([buildDesignDraftKey(identity)])
 	if (identity.magicProjectJsFileId) {
 		keys.add(
@@ -410,12 +446,97 @@ export function deleteDesignDraft(identity: DesignDraftIdentity): Promise<void> 
 			}),
 		)
 	}
-	deleteLocalStorageDrafts(keys)
-	deleteMemoryDrafts(keys)
+	return keys
+}
+
+/**
+ * Clear only the draft that was covered by a confirmed remote save.
+ * A newer write advances the generation while this operation is awaiting storage, so an older
+ * save response cannot delete a newer recovery draft.
+ */
+export function deleteDesignDraftIfMatches(
+	identity: DesignDraftIdentity,
+	expectedLocalFingerprint: string,
+): Promise<void> {
+	const keys = getDraftStorageKeys(identity)
+	const clearGenerations = new Map(
+		Array.from(keys, (key) => [key, draftWriteGenerations.get(key) ?? 0] as const),
+	)
+	const writesToAwait = Array.from(pendingWrites)
+
 	return trackWrite(
 		(async () => {
-			const db = await getDatabase()
-			await db.entries.bulkDelete(Array.from(keys))
+			await Promise.allSettled(writesToAwait)
+			if (
+				Array.from(clearGenerations).some(
+					([key, generation]) => !isCurrentDraftWriteGeneration(key, generation),
+				)
+			) {
+				return
+			}
+
+			const draft = await readDesignDraft(identity)
+			if (!draft || draft.localFingerprint !== expectedLocalFingerprint) return
+			if (
+				Array.from(clearGenerations).some(
+					([key, generation]) => !isCurrentDraftWriteGeneration(key, generation),
+				)
+			) {
+				return
+			}
+
+			const db = await getDatabase().catch(() => null)
+			if (
+				Array.from(clearGenerations).some(
+					([key, generation]) => !isCurrentDraftWriteGeneration(key, generation),
+				)
+			) {
+				return
+			}
+
+			deleteLocalStorageDrafts(keys)
+			deleteMemoryDrafts(keys)
+			if (db) await db.entries.bulkDelete(Array.from(keys))
+		})(),
+	).catch(() => undefined)
+}
+
+export function deleteDesignDraft(
+	identity: DesignDraftIdentity,
+	expectedLocalFingerprint?: string,
+): Promise<void> {
+	if (expectedLocalFingerprint) {
+		return deleteDesignDraftIfMatches(identity, expectedLocalFingerprint)
+	}
+
+	const keys = getDraftStorageKeys(identity)
+	const deleteGenerations = new Map(
+		Array.from(keys, (key) => [key, advanceDraftWriteGeneration(key)] as const),
+	)
+	const writesToAwait = Array.from(pendingWrites)
+	return trackWrite(
+		(async () => {
+			await Promise.allSettled(writesToAwait)
+			if (
+				Array.from(deleteGenerations).some(
+					([key, generation]) => !isCurrentDraftWriteGeneration(key, generation),
+				)
+			) {
+				return
+			}
+
+			const db = await getDatabase().catch(() => null)
+			if (
+				Array.from(deleteGenerations).some(
+					([key, generation]) => !isCurrentDraftWriteGeneration(key, generation),
+				)
+			) {
+				return
+			}
+
+			deleteLocalStorageDrafts(keys)
+			deleteMemoryDrafts(keys)
+			if (db) await db.entries.bulkDelete(Array.from(keys))
 		})(),
 	).catch(() => undefined)
 }

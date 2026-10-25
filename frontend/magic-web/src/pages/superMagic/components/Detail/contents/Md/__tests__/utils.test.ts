@@ -76,15 +76,126 @@ describe("Markdown Utils", () => {
 			).toBe('before <code>&lt;a href="javascript:alert(1)"&gt;click&lt;/a&gt;</code> after')
 		})
 
-		it("renders any inline style as code to prevent UI overlay injection", () => {
+		it("preserves safe presentation styles and blocks overlay styles", () => {
 			const markdown =
 				'<div style="position:fixed;inset:0;z-index:2147483647;background:white">login</div>'
 			expect(escapeDangerousInvisibleHtmlTags(markdown)).toBe(
 				'<pre><code>&lt;div style="position:fixed;inset:0;z-index:2147483647;background:white"&gt;login&lt;/div&gt;</code></pre>',
 			)
 			expect(escapeDangerousInvisibleHtmlTags('<span style="color:red">text</span>')).toBe(
-				'<code>&lt;span style="color:red"&gt;text&lt;/span&gt;</code>',
+				'<span style="color:red">text</span>',
 			)
+		})
+
+		it("blocks oversized and negatively offset presentation values", () => {
+			const markdown =
+				'<div style="margin-top:-100vh!important;padding:100vh 100vw;background-color:white">login</div>'
+			expect(escapeDangerousInvisibleHtmlTags(markdown)).toBe(
+				'<pre><code>&lt;div style="margin-top:-100vh!important;padding:100vh 100vw;background-color:white"&gt;login&lt;/div&gt;</code></pre>',
+			)
+
+			expect(
+				escapeDangerousInvisibleHtmlTags(
+					'<div style="margin-top:-20px;padding:9999px;font-size:9999px">login</div>',
+				),
+			).toContain("<pre><code>")
+		})
+
+		it("accepts safe shorthand styles consistently across browsers", () => {
+			expect(
+				escapeDangerousInvisibleHtmlTags(
+					'<div style="border: 2px solid blue; padding: 20px; background-color: lightgray; margin: 10px 0;">text</div>',
+				),
+			).toContain('<div style="border: 2px solid blue')
+		})
+
+		it("accepts safe style property families without allowing layout properties", () => {
+			expect(
+				escapeDangerousInvisibleHtmlTags(
+					'<div style="border-left-width: 2px; border-top-right-radius: 4px; padding-inline: 8px">text</div>',
+				),
+			).toContain("<pre><code>")
+			expect(
+				escapeDangerousInvisibleHtmlTags(
+					'<div style="border-left-width: 2px; border-top-right-radius: 4px; padding-left: 8px">text</div>',
+				),
+			).not.toContain("<pre><code>")
+		})
+
+		it("only allows color values in the background shorthand", () => {
+			expect(
+				escapeDangerousInvisibleHtmlTags(
+					'<span style="background: rgb(255 255 0 / 50%)">text</span>',
+				),
+			).toBe('<span style="background: rgb(255 255 0 / 50%)">text</span>')
+			expect(
+				escapeDangerousInvisibleHtmlTags(
+					'<span style="background: linear-gradient(red, blue)">text</span>',
+				),
+			).toBe(
+				'<code>&lt;span style="background: linear-gradient(red, blue)"&gt;text&lt;/span&gt;</code>',
+			)
+		})
+
+		it("preserves a safe styled span nested inside a styled div", () => {
+			const markdown = `<div style="border: 1px solid #ccc; padding: 10px;">
+  <h3>div 容器内的 H3 标题</h3>
+  <p>div 容器内的段落文本，带 <span style="background: yellow;">高亮 span</span>。</p>
+</div>`
+
+			expect(escapeDangerousInvisibleHtmlTags(markdown)).toBe(markdown)
+		})
+
+		it("preserves a styled multiline div across blank lines", () => {
+			const markdown = `这是一个用于测试的Markdown文件，其中包含了设置了style属性的div元素。
+
+<div style="border: 2px solid blue; padding: 20px; background-color: lightgray; margin: 10px 0;">
+    <h3>样式化的DIV元素</h3>
+    <p>这是一个具有自定义样式的div元素，展示了如何在Markdown中使用内联样式。</p>
+
+</div>`
+
+			expect(escapeDangerousInvisibleHtmlTags(markdown)).toBe(markdown)
+		})
+
+		it("preserves multiple styled divs around a markdown image", () => {
+			const markdown = `# 测试Markdown文件
+
+这是一个用于测试的Markdown文件，其中包含了设置了style属性的div元素和一张图片。
+
+<div style="border: 2px solid blue; padding: 20px; background-color: lightgray; margin: 10px 0;">
+    <h3>样式化的DIV元素</h3>
+    <p>这是一个具有自定义样式的div元素，展示了如何在Markdown中使用内联样式。</p>
+
+</div>
+
+以下是一张来自钉钉静态资源的图片：
+
+![DingTalk Logo](https://static-legacy.dingtalk.com/media/example.jpg)
+
+<div style="text-align: center; background-color: #f0f8ff; padding: 15px; border-radius: 10px; margin-top: 20px;">
+    <p><strong>这是另一个带有样式的div</strong>，居中对齐并有淡蓝色背景。</p>
+
+</div>`
+
+			expect(escapeDangerousInvisibleHtmlTags(markdown)).toBe(markdown)
+		})
+
+		it("preserves safe video HTML and blocks unsafe video attributes", () => {
+			const safeVideo =
+				'<video src="https://cdn.example.com/video.mp4" controls style="display:block; max-width:420px; max-height:360px;"></video>'
+			expect(escapeDangerousInvisibleHtmlTags(safeVideo)).toBe(safeVideo)
+
+			const autoplayVideo = '<video src="https://cdn.example.com/video.mp4" autoplay></video>'
+			expect(escapeDangerousInvisibleHtmlTags(autoplayVideo)).toContain("<code>")
+		})
+
+		it("preserves safe min() sizing used by media HTML", () => {
+			expect(
+				escapeDangerousInvisibleHtmlTags(
+					'<div style="margin:8px 0;"><img src="https://cdn.example.com/avatar.jpg" style="display:block; max-width:min(100%, 56px); max-height:56px;"></div>',
+				),
+			).not.toContain("<code>")
 		})
 
 		it.each([

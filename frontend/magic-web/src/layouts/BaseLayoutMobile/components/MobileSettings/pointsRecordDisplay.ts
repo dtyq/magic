@@ -39,18 +39,35 @@ export interface PointsRecordDetailMetaRow {
 	text: string
 }
 
-/** 详情区次要信息行：label、记录 ID、时间，有值才返回。 */
+/** remark 有内容时才展示备注区域。 */
+export function getPointsRecordRemarkText(remark: string | null | undefined): string | null {
+	const trimmedRemark = remark?.trim()
+	if (!trimmedRemark) return null
+
+	return trimmedRemark
+}
+
+/** 详情区次要信息行：label、remark、记录 ID、时间，有值才返回。 */
 export function getPointsRecordDetailMetaRows(
 	item: PointsRecordItem,
 	labels: {
 		recordId: string
 		time: string
+		remark?: string
 	},
 ): PointsRecordDetailMetaRow[] {
 	const rows: PointsRecordDetailMetaRow[] = []
 
 	if (item.label.trim()) {
 		rows.push({ key: "label", text: item.label.trim() })
+	}
+
+	const remarkText = getPointsRecordRemarkText(item.remark)
+	if (remarkText) {
+		rows.push({
+			key: "remark",
+			text: labels.remark ? `${labels.remark}: ${remarkText}` : remarkText,
+		})
 	}
 
 	if (item.id.trim()) {

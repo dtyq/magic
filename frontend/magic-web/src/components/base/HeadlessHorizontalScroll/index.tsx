@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { HTMLAttributes, MouseEventHandler, ReactNode, RefObject } from "react"
 
 type ScrollDirection = "left" | "right"
@@ -32,6 +32,8 @@ interface HeadlessHorizontalScrollProps {
 	className?: string
 	style?: React.CSSProperties
 	controlBackground?: string
+	/** Allow descendants to render outside the rounded horizontal-scroll surface vertically. */
+	allowVerticalOverflow?: boolean
 	"data-testid"?: string
 	scrollContainerClassName?: string
 	scrollContainerProps?: Omit<
@@ -42,6 +44,8 @@ interface HeadlessHorizontalScrollProps {
 	onScrollContainerContextMenu?: MouseEventHandler<HTMLDivElement>
 	children: ReactNode
 	scrollStep?: number
+	/** 拖动交由后代自身处理；空白区域仍可拖动滚动。 */
+	dragIgnoreSelector?: string
 	hideScrollbar?: boolean
 	renderLeftControl?: (props: HeadlessHorizontalScrollRenderProps) => ReactNode
 	renderRightControl?: (props: HeadlessHorizontalScrollRenderProps) => ReactNode
@@ -97,6 +101,7 @@ function HeadlessHorizontalScroll({
 	className,
 	style,
 	controlBackground = "rgb(var(--background-rgb))",
+	allowVerticalOverflow = false,
 	"data-testid": dataTestId,
 	scrollContainerClassName,
 	scrollContainerProps,
@@ -104,6 +109,7 @@ function HeadlessHorizontalScroll({
 	onScrollContainerContextMenu,
 	children,
 	scrollStep = 200,
+	dragIgnoreSelector,
 	hideScrollbar = true,
 	renderLeftControl = defaultRenderLeftControl,
 	renderRightControl = defaultRenderRightControl,
@@ -159,6 +165,12 @@ function HeadlessHorizontalScroll({
 		function handlePointerDown(event: PointerEvent) {
 			if (event.pointerType === "touch") return
 			if (event.isPrimary === false || event.button !== 0) return
+			if (
+				dragIgnoreSelector &&
+				event.target instanceof Element &&
+				event.target.closest(dragIgnoreSelector)
+			)
+				return
 			if (container.scrollWidth <= container.clientWidth) return
 
 			dragState = {
@@ -290,7 +302,7 @@ function HeadlessHorizontalScroll({
 			resizeObserver?.disconnect()
 			window.removeEventListener("resize", checkScrollPosition)
 		}
-	}, [checkScrollPosition, scrollContainerRef])
+	}, [checkScrollPosition, scrollContainerRef, dragIgnoreSelector])
 
 	useEffect(() => {
 		const frameId = setTimeout(checkScrollPosition, 100)
@@ -306,7 +318,11 @@ function HeadlessHorizontalScroll({
 
 	return (
 		<div
-			className={cn("relative overflow-hidden rounded-full", className)}
+			className={cn(
+				"relative rounded-full",
+				allowVerticalOverflow ? "overflow-visible" : "overflow-hidden",
+				className,
+			)}
 			style={
 				{
 					"--control-background": controlBackground,

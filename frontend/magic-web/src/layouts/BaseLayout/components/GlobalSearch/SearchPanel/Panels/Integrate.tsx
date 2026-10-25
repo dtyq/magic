@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next"
-import { createStyles } from "antd-style"
 import { IconTrash } from "@tabler/icons-react"
 import { Divider } from "antd"
 // import { useMagicSearchStore } from "@/components/business/GlobalSearch/store"
@@ -8,76 +7,19 @@ import type { PanelsProps } from "./Applications"
 // import type { GlobalSearch } from "@/types/search.ts"
 // import { useMemoizedFn } from "ahooks"
 
-export const useStyles = createStyles(({ token }) => {
-	return {
-		panel: {
-			height: "100%",
-			padding: 12,
-			backgroundColor: token.magicColorUsages.bg[1],
-		},
-		border: {
-			margin: "10px 0 20px 0",
-			backgroundColor: token.magicColorUsages.border,
-		},
-		container: {
-			width: "100%",
-			display: "flex",
-			flexDirection: "column",
-			gap: 10,
-		},
-		header: {
-			height: 22,
-			fontSize: "14px",
-			fontWeight: 400,
-			lineHeight: "20px",
-			display: "flex",
-			justifyContent: "space-between",
-			alignItems: "center",
-			color: token.magicColorUsages.text[3],
-		},
-		wrapper: {},
-		item: {
-			padding: "6px 14px",
-			display: "inline-flex",
-			alignItems: "center",
-			gap: 4,
-			borderRadius: 1000,
-			backgroundColor: token.magicColorUsages.fill[0],
-			color: token.magicColorUsages.text[0],
-			marginRight: 10,
-			marginBottom: 10,
-			floaty: "left",
-			cursor: "pointer",
-			fontSize: "14px",
-			fontWeight: 400,
-			lineHeight: "20px",
-
-			"&:hover": {
-				backgroundColor: token.magicColorUsages.fill[1],
-			},
-
-			"&:active": {
-				backgroundColor: token.magicColorUsages.fill[0],
-			},
-		},
-		itemIcon: {
-			width: 16,
-			height: 16,
-			flex: "none",
-			backgroundColor: "#ccc",
-		},
-		button: {
-			width: 22,
-			height: 22,
-			color: token.magicColorUsages.text[3],
-			cursor: "pointer",
-		},
-	}
-})
+const styles = {
+	panel: "h-full bg-card p-3",
+	border: "mb-5 mt-2.5 bg-border",
+	container: "flex w-full flex-col gap-2.5",
+	header: "flex h-[22px] items-center justify-between text-sm font-normal leading-5 text-foreground/40",
+	wrapper: "",
+	item: "mb-2.5 mr-2.5 inline-flex cursor-pointer items-center gap-1 rounded-[1000px] bg-neutral-100 px-3.5 py-1.5 text-sm font-normal leading-5 text-foreground hover:bg-neutral-200 active:bg-neutral-100 dark:bg-white/10 dark:hover:bg-white/[0.15] dark:active:bg-white/10",
+	itemIcon: "size-4 flex-none bg-[#ccc]",
+	button: "size-[22px] cursor-pointer text-foreground/40",
+}
 
 function Integrate(props: PanelsProps) {
 	const { maxHeight } = props
-	const { styles } = useStyles()
 	const { t } = useTranslation("search")
 	// const searchWord = useMagicSearchStore((store) => store.searchWord)
 

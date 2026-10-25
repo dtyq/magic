@@ -38,6 +38,18 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
     public ?bool $isPinned = null;
 
     /**
+     * Previous workspace ID for manual ordering. Null moves to the first
+     * position of the manual-ordering segment.
+     */
+    public ?string $preWorkspaceId = null;
+
+    public ?string $nextWorkspaceId = null;
+
+    public bool $preWorkspaceIdProvided = false;
+
+    public bool $nextWorkspaceIdProvided = false;
+
+    /**
      * Get workspace ID (if exists).
      */
     public function getWorkspaceId(): ?string
@@ -66,6 +78,24 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
         return $this->isPinned;
     }
 
+    public function getPreWorkspaceId(): ?int
+    {
+        if ($this->preWorkspaceId === null || $this->preWorkspaceId === '') {
+            return null;
+        }
+
+        return (int) $this->preWorkspaceId;
+    }
+
+    public function getNextWorkspaceId(): ?int
+    {
+        if ($this->nextWorkspaceId === null || $this->nextWorkspaceId === '') {
+            return null;
+        }
+
+        return (int) $this->nextWorkspaceId;
+    }
+
     /**
      * Check if this is an update operation.
      */
@@ -86,6 +116,8 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
             'workspace_name' => 'required_without:id|string|max:50',
             'workspace_type' => 'nullable|string|in:' . $validTypes,
             'is_pinned' => 'nullable|boolean',
+            'pre_workspace_id' => 'nullable|string',
+            'next_workspace_id' => 'nullable|string',
         ];
     }
 

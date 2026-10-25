@@ -1,6 +1,6 @@
 import UploadAction from "@/components/base/UploadAction"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { IconCloudUpload, IconLoader2 } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import type { MouseEventHandler } from "react"

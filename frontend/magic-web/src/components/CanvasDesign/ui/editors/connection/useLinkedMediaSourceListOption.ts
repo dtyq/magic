@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from "react"
 import { useCanvasDesignI18n } from "../../../app/providers/I18nProvider"
-import type { MediaResourceFullscreenPreviewItem } from "../../fullscreen/media-resource/index"
 import type { SourceListOption } from "../../panels/source-list/index"
 import {
 	resolveLinkedMediaSelectionDisplay,
@@ -13,8 +12,6 @@ interface LinkedMediaSourceListOptionInput {
 	index: number
 	slotIndex: number
 	label: string
-	previewResourceAriaLabel: string
-	onPreviewMediaResource?: (resource: MediaResourceFullscreenPreviewItem) => void
 	onLinkedMediaSelectionChange?: (connectionId: string, selected: boolean) => void
 }
 
@@ -35,15 +32,7 @@ export function useLinkedMediaSourceListOption() {
 
 	return useCallback(
 		(options: LinkedMediaSourceListOptionInput): SourceListOption => {
-			const {
-				item,
-				index,
-				slotIndex,
-				label,
-				previewResourceAriaLabel,
-				onPreviewMediaResource,
-				onLinkedMediaSelectionChange,
-			} = options
+			const { item, index, slotIndex, label, onLinkedMediaSelectionChange } = options
 			const selectionDisplay = resolveLinkedMediaSelectionDisplay(item)
 			const selectionDisabledLabel = item.selectionDisabledReason
 				? inactiveReasonLabels[item.selectionDisabledReason]
@@ -57,6 +46,7 @@ export function useLinkedMediaSourceListOption() {
 				groupId: item.kind,
 				resourcePath: item.path,
 				resourceFileName: item.fileName,
+				resourceMediaType: item.kind,
 				sourceCrop: item.sourceCrop,
 				readOnly: true,
 				isLinked: true,
@@ -70,8 +60,6 @@ export function useLinkedMediaSourceListOption() {
 					onCheckedChange: (selected) =>
 						onLinkedMediaSelectionChange?.(item.connectionId, selected),
 				},
-				previewResourceAriaLabel,
-				onPreviewResource: onPreviewMediaResource,
 			}
 		},
 		[inactiveReasonLabels, selectionLabel],

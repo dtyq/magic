@@ -68,4 +68,13 @@ interface DataIsolationInterface
     public function getSubscriptionManager(): SubscriptionManagerInterface;
 
     public function getOrganizationInfoManager(): OrganizationInfoManagerInterface;
+
+    /** 首次读取时消费应用层注册的授权回调。 */
+    public function getUserAuthorizationToken(): ?string;
+
+    /** 检查已设置状态，不执行延迟回调。 */
+    public function hasUserAuthorizationToken(): bool;
+
+    /** 设置或清除当前实例的授权结果。 */
+    public function setUserAuthorizationToken(?string $userAuthorizationToken): void;
 }

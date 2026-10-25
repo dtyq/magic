@@ -106,6 +106,8 @@ class WorkspaceApi extends AbstractApi
         // 从请求创建DTO
         $requestDTO = SaveWorkspaceRequestDTO::fromRequest($this->request);
         $requestDTO->id = $id;
+        $requestDTO->preWorkspaceIdProvided = $this->request->has('pre_workspace_id');
+        $requestDTO->nextWorkspaceIdProvided = $this->request->has('next_workspace_id');
 
         // 调用应用服务层处理业务逻辑
         return $this->workspaceAppService->updateWorkspace($requestContext, $requestDTO)->toArray();

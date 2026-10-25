@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import type { HTMLAttributes, Ref } from "react"
 import { ScrollArea, ScrollBar } from "@/components/shadcn-ui/scroll-area"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const CHUNK_THRESHOLD = 20
 const CHUNK_SIZE = 50
@@ -62,10 +62,18 @@ interface HtmlCodeBlockPreviewCodeViewProps {
 	codeClassName?: string
 	codeDisplayContent: string
 	scrollAreaRef: Ref<HTMLDivElement>
+	isCodeWrapped: boolean
 }
 
 export function HtmlCodeBlockPreviewCodeView(props: HtmlCodeBlockPreviewCodeViewProps) {
-	const { preClassName, preProps, codeClassName, codeDisplayContent, scrollAreaRef } = props
+	const {
+		preClassName,
+		preProps,
+		codeClassName,
+		codeDisplayContent,
+		scrollAreaRef,
+		isCodeWrapped,
+	} = props
 	const { title, ...restPreProps } = preProps ?? {}
 
 	return (
@@ -75,11 +83,18 @@ export function HtmlCodeBlockPreviewCodeView(props: HtmlCodeBlockPreviewCodeView
 				className="w-full bg-muted/60 [&>[data-slot=scroll-area-viewport]]:h-fit [&>[data-slot=scroll-area-viewport]]:max-h-[480px]"
 				data-testid="html-code-block-scroll-area"
 			>
-				<div className="w-max min-w-full [&_pre]:!m-0 [&_pre]:!max-h-none [&_pre]:!overflow-visible [&_pre]:!whitespace-pre [&_pre]:!rounded-none">
+				<div
+					className={cn(
+						"min-w-full [&_pre]:!m-0 [&_pre]:!max-h-none [&_pre]:!overflow-visible [&_pre]:!rounded-none",
+						isCodeWrapped ? "w-full" : "w-max [&_pre]:!whitespace-pre",
+					)}
+				>
 					<pre
 						className={cn(
 							preClassName,
-							"whitespace-pre bg-muted/60 px-2.5 py-2 !text-[12px] text-foreground",
+							isCodeWrapped
+								? "whitespace-pre-wrap break-words bg-muted/60 px-2.5 py-2 !text-[12px] text-foreground"
+								: "whitespace-pre bg-muted/60 px-2.5 py-2 !text-[12px] text-foreground",
 						)}
 						title={typeof title === "string" ? title : undefined}
 						{...restPreProps}
@@ -89,7 +104,7 @@ export function HtmlCodeBlockPreviewCodeView(props: HtmlCodeBlockPreviewCodeView
 						</code>
 					</pre>
 				</div>
-				<ScrollBar orientation="horizontal" />
+				{!isCodeWrapped && <ScrollBar orientation="horizontal" />}
 			</ScrollArea>
 		</div>
 	)

@@ -10,6 +10,7 @@ namespace App\Domain\SuperMagic\Project\Service;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\TransferOptions;
 use App\Domain\SuperMagic\Project\Entity\ValueObject\TransferResult;
 use App\Domain\SuperMagic\Project\Repository\Facade\ProjectRepositoryInterface;
+use App\Domain\SuperMagic\Project\Service\MicroApp\MicroAppTransferDomainService;
 use App\Domain\SuperMagic\Workspace\Entity\ValueObject\WorkspaceArchiveStatus;
 use App\Domain\SuperMagic\Workspace\Entity\ValueObject\WorkspaceStatus;
 use App\Domain\SuperMagic\Workspace\Entity\WorkspaceEntity;
@@ -31,6 +32,7 @@ class TransferDomainService
     public function __construct(
         private readonly WorkspaceRepositoryInterface $workspaceRepository,
         private readonly ProjectRepositoryInterface $projectRepository,
+        private readonly MicroAppTransferDomainService $microApps,
     ) {
     }
 
@@ -54,6 +56,10 @@ class TransferDomainService
         string $organizationCode,
         TransferOptions $options
     ): TransferResult {
+        $microAppResult = $this->microApps->transferIfMicroApp($projectId, $fromUserId, $toUserId, $organizationCode);
+        if ($microAppResult !== null) {
+            return $microAppResult;
+        }
         // Strategy selection: determine transfer approach based on options
         if ($options->shouldRetainOriginalLocation() && $options->shouldShareToOriginalOwner()) {
             // Strategy 1: Keep original workspace location for original owner (via shortcut)
@@ -100,6 +106,9 @@ class TransferDomainService
         string $organizationCode,
         TransferOptions $options
     ): TransferResult {
+        if (! $this->microApps->canTransferWorkspace($workspaceId)) {
+            return TransferResult::failed('transfer.no_permission_to_transfer');
+        }
         // Strategy selection: determine transfer approach based on options
         if ($options->shouldRetainOriginalLocation() && $options->shouldShareToOriginalOwner()) {
             // Strategy 1: Keep original workspace, create new workspace for receiver

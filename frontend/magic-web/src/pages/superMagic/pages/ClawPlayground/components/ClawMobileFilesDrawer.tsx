@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next"
 import TopicFilesButton from "@/pages/superMagic/components/TopicFilesButton"
 import type { TopicFileRowDecorationResolver } from "@/pages/superMagic/components/TopicFilesButton"
 import {
-	FileActionVisibilityProvider,
-	HIDE_CLAW_FILE_ACTIONS,
-} from "@/pages/superMagic/providers/file-action-visibility-provider"
+	FileAccessProvider,
+	CLAW_FILE_CONFIG,
+} from "@/pages/superMagic/providers/FileAccessProvider"
 
 type TopicFilesButtonProps = ComponentProps<typeof TopicFilesButton>
 
@@ -54,7 +54,7 @@ export function ClawMobileFilesDrawer({
 				className="flex h-full min-h-0 flex-col bg-[#F6F6F3]"
 				data-testid="claw-mobile-files-drawer-content"
 			>
-				<FileActionVisibilityProvider value={HIDE_CLAW_FILE_ACTIONS}>
+				<FileAccessProvider {...CLAW_FILE_CONFIG}>
 					<TopicFilesButton
 						{...topicFilesProps}
 						className="min-h-0 flex-1"
@@ -62,7 +62,7 @@ export function ClawMobileFilesDrawer({
 						mobileViewVariant="chat-sheet"
 						resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
 					/>
-				</FileActionVisibilityProvider>
+				</FileAccessProvider>
 			</div>
 		</MagicPopup>
 	)

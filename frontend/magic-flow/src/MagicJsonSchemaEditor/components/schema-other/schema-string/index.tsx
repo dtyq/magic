@@ -1,4 +1,4 @@
-import { QuestionCircleOutlined } from '@ant-design/icons';
+import { IconHelpCircle } from '@tabler/icons-react';
 import {
   Checkbox,
   Col,
@@ -130,7 +130,7 @@ const SchemaString = (props: SchemaStringProp): ReactElement => {
           <span>
             Pattern&nbsp;
             <Tooltip title="pattern">
-              <QuestionCircleOutlined />
+                  <IconHelpCircle size={16} />
             </Tooltip>
             &nbsp;：
           </span>

@@ -15,6 +15,7 @@ import type {
 } from "@/apis/modules/magicBase"
 import MemberDepartmentSelector from "@/components/business/MemberDepartmentSelector"
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import {
 	Dialog,
 	DialogContent,
@@ -24,7 +25,7 @@ import {
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
 import MagicAvatar from "@/components/base/MagicAvatar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import userInfoStore from "@/stores/userInfo"
 
 export type PermissionEditorMode = "table" | "row" | "column"
@@ -635,7 +636,7 @@ export default function PermissionEditorDialog({
 					</DialogHeader>
 
 					<div className="grid h-[540px] grid-cols-[minmax(0,1fr)_450px] bg-muted/20">
-						<section className="flex min-w-0 flex-col border-r border-border bg-background">
+						<section className="flex min-h-0 min-w-0 flex-col border-r border-border bg-background">
 							<div className="flex items-center justify-between border-b border-border px-5 py-3">
 								<div>
 									<div className="text-sm font-medium text-foreground">
@@ -661,7 +662,11 @@ export default function PermissionEditorDialog({
 								</Button>
 							</div>
 
-							<div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+							{/* Keep subject selection independent from the permission editor and fixed controls. */}
+							<ScrollArea
+								className="grid min-h-0 flex-1"
+								viewportClassName="h-auto min-h-0 px-3 py-2 [&>div]:!block [&>div]:h-full"
+							>
 								{preparingProfiles ? (
 									<div className="flex h-full min-h-48 items-center justify-center gap-2 text-xs text-muted-foreground">
 										<Loader2 className="size-3.5 animate-spin" />
@@ -737,10 +742,10 @@ export default function PermissionEditorDialog({
 										</Button>
 									</div>
 								)}
-							</div>
+							</ScrollArea>
 						</section>
 
-						<section className="flex min-w-0 flex-col bg-background">
+						<section className="flex min-h-0 min-w-0 flex-col bg-background">
 							<div className="flex items-center justify-between border-b border-border px-5 py-3">
 								<div>
 									<div className="text-sm font-medium text-foreground">
@@ -768,7 +773,11 @@ export default function PermissionEditorDialog({
 								) : null}
 							</div>
 
-							<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+							{/* The full-height wrapper retains centered states without widening either pane. */}
+							<ScrollArea
+								className="grid min-h-0 flex-1"
+								viewportClassName="h-auto min-h-0 px-5 py-4 [&>div]:!flex [&>div]:h-full [&>div]:flex-col [&>div]:gap-5 [&>div>*]:shrink-0"
+							>
 								{preparingProfiles ? (
 									<div className="flex h-full min-h-48 items-center justify-center gap-2 text-xs text-muted-foreground">
 										<Loader2 className="size-3.5 animate-spin" />
@@ -865,7 +874,7 @@ export default function PermissionEditorDialog({
 										{t("microAppPage.databasePanel.permissionSubjectEmpty")}
 									</div>
 								)}
-							</div>
+							</ScrollArea>
 						</section>
 					</div>
 

@@ -7,14 +7,16 @@ declare(strict_types=1);
 
 namespace App\Domain\SuperMagic\Agent\Entity;
 
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Infrastructure\Core\AbstractEntity;
-use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 
 /**
  * Agent 分类实体.
  */
 class AgentCategoryEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     /**
      * @var int 主键 ID
      */
@@ -138,33 +140,7 @@ class AgentCategoryEntity extends AbstractEntity
 
     public function getI18nName(string $language): string
     {
-        if (empty($this->nameI18n)) {
-            return '';
-        }
-
-        if (! empty($this->nameI18n[$language])) {
-            return $this->nameI18n[$language];
-        }
-
-        if (! empty($this->nameI18n[LanguageEnum::DEFAULT->value])) {
-            return $this->nameI18n[LanguageEnum::DEFAULT->value];
-        }
-
-        if (! empty($this->nameI18n['en_US'])) {
-            return $this->nameI18n['en_US'];
-        }
-
-        if (! empty($this->nameI18n['zh_CN'])) {
-            return $this->nameI18n['zh_CN'];
-        }
-
-        foreach ($this->nameI18n as $name) {
-            if (! empty($name)) {
-                return $name;
-            }
-        }
-
-        return '';
+        return $this->resolveI18nText($this->nameI18n, $language);
     }
 
     public function getLogo(): ?string

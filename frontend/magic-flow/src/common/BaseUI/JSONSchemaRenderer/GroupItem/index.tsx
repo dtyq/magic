@@ -1,7 +1,7 @@
 /* eslint-disable react/no-array-index-key */
 import { FormItemType } from "@/MagicExpressionWidget/types"
 import Schema from "@/MagicJsonSchemaEditor/types/Schema"
-import _ from "lodash"
+import { sortBy } from "lodash-es"
 import React, { useMemo, useState } from "react"
 import BaseItem from "../BaseItem"
 import styles from "../style/index.module.less"
@@ -28,7 +28,7 @@ export default function GroupItem({ field, fieldKey, type }: GroupItemProps) {
 			_properties = {}
 		}
 
-		return _.sortBy(
+		return sortBy(
 			Object.entries(
 				_properties ||
 					({} as {

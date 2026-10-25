@@ -1,6 +1,6 @@
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
-import { useCurrentEditor, useEditorState } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import { useCurrentEditor, useEditorState } from "@/infrastructure/editors/tiptap/react"
 
 /**
  * Hook that provides access to a Tiptap editor instance.

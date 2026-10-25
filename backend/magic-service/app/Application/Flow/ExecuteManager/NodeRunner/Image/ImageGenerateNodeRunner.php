@@ -13,6 +13,7 @@ use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunner;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Image\ImageGenerateNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Infrastructure\Core\Collector\ExecuteManager\Annotation\FlowNodeDefine;
 use App\Infrastructure\Core\Dag\VertexResult;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -78,7 +79,9 @@ class ImageGenerateNodeRunner extends NodeRunner
         $magicUserAuthorization->setOrganizationCode($flowDataIsolation->getCurrentOrganizationCode());
         $magicUserAuthorization->setId($flowDataIsolation->getCurrentUserId());
         $data['source_type'] = ImageGenerateSourceEnum::FLOW_NODE;
-        $data['source_id'] = $executionData->getAgentId() ?? $executionData->getFlowCode();
+        $data['source_id'] = $executionData->getOperator()->getSourceId() ?: SourceId::SK_FLOW;
+        $data['business_id'] = $executionData->getAgentId();
+        $data['flow_code'] = $executionData->getFlowCode();
         $images = $this->llmAppService->imageGenerate($magicUserAuthorization, $model, '', $data);
         // 流程只取一个
         $image = $images[0];

@@ -1,5 +1,6 @@
 import { SuperMagicApi } from "@/apis"
 import { AUDIO_WORKSPACE_TYPE } from "./RecordingGroupsConstants"
+import { analyticsService } from "@/services/analytics"
 
 const WORKSPACE_PAGE_SIZE = 200
 
@@ -98,11 +99,11 @@ export class RecordingGroupsService {
 
 	/** Creates a backend audio workspace for the user-visible recording group */
 	async createGroup(name: string): Promise<AudioRecordingGroup> {
+		analyticsService.report("workspace_create_attempted")
 		const workspace = (await SuperMagicApi.createWorkspace({
 			workspace_name: name.trim(),
 			workspace_type: AUDIO_WORKSPACE_TYPE,
 		})) as RecordingWorkspaceApiItem
-
 		return normalizeWorkspaceGroup(workspace)
 	}
 

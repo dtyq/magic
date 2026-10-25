@@ -2,7 +2,7 @@ import { useRef } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useTranslation } from "react-i18next"
 import { Search, FileText, Loader2, Upload, Check } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { setProjectFilePickerDragData } from "../../lib/projectFileDrag"
 
 const VIRTUAL_LIST_THRESHOLD = 20

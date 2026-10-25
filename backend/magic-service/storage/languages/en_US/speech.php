@@ -17,6 +17,11 @@ return [
             'invalid_response_format' => 'Invalid response format from BigModel ASR',
             'submit_exception' => 'Exception occurred while submitting task to BigModel ASR',
             'query_exception' => 'Exception occurred while querying result from BigModel ASR',
+            'api_error' => 'Operation failed: :error_message, :request_id, :status_code',
+        ],
+        'flash' => [
+            'get_text_exception' => 'Get text exception: :original_error',
+            'invalid_response_format' => 'Invalid value',
         ],
     ],
 ];

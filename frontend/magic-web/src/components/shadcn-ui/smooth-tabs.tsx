@@ -1,6 +1,6 @@
 import { useRef, useLayoutEffect, useState, useCallback, memo } from "react"
 import { motion } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	Tooltip,
 	TooltipContent,
@@ -37,6 +37,8 @@ interface SmoothTabsProps<T = string> {
 	buttonClassName?: string
 	/** 是否显示 Tooltip，默认为 true（当 tab.tooltip 存在时） */
 	showTooltip?: boolean
+	/** 是否显示非激活 Tab 的悬停背景，默认为 true */
+	enableHoverBackground?: boolean
 }
 
 function SmoothTabsComponent<T = string>({
@@ -49,6 +51,7 @@ function SmoothTabsComponent<T = string>({
 	indicatorClassName,
 	buttonClassName,
 	showTooltip = true,
+	enableHoverBackground = true,
 }: SmoothTabsProps<T>) {
 	const [indicatorStyle, setIndicatorStyle] = useState({
 		left: 0,
@@ -67,8 +70,14 @@ function SmoothTabsComponent<T = string>({
 		if (activeTab && containerRef.current) {
 			const containerRect = containerRef.current.getBoundingClientRect()
 			const tabRect = activeTab.getBoundingClientRect()
-			const left = tabRect.left - containerRect.left
-			const width = tabRect.width
+			// Rects include ancestor transforms: inside an opening dialog (zoom animation) they are
+			// scaled down, and the ResizeObserver never fires again once the transform settles, so
+			// the indicator stayed short. Divide by the container's current scale to get layout px.
+			const layoutWidth = containerRef.current.offsetWidth
+			const scale =
+				layoutWidth > 0 && containerRect.width > 0 ? containerRect.width / layoutWidth : 1
+			const left = (tabRect.left - containerRect.left) / scale
+			const width = tabRect.width / scale
 
 			setIndicatorStyle((prev) => {
 				const shouldAnimate = prev.initialized
@@ -146,9 +155,9 @@ function SmoothTabsComponent<T = string>({
 					)}
 				>
 					{/* 悬停背景 */}
-					{!isActive && variant === "background" && (
+					{enableHoverBackground && !isActive && variant === "background" && (
 						<motion.div
-							className="absolute inset-0 rounded-lg bg-white/50 dark:bg-gray-700/50"
+							className="absolute inset-0 rounded-full bg-white/50 dark:bg-gray-700/50"
 							initial={{ opacity: 0 }}
 							animate={{
 								opacity: isHovered ? 1 : 0,
@@ -156,7 +165,7 @@ function SmoothTabsComponent<T = string>({
 							transition={{ duration: 0.2 }}
 						/>
 					)}
-					{!isActive && variant === "underline" && (
+					{enableHoverBackground && !isActive && variant === "underline" && (
 						<motion.div
 							className="absolute inset-0 rounded-[8px] bg-neutral-200/50 dark:bg-neutral-700/50"
 							initial={{ opacity: 0 }}
@@ -208,6 +217,7 @@ function SmoothTabsComponent<T = string>({
 			hoveredIndex,
 			variant,
 			buttonClassName,
+			enableHoverBackground,
 			handleTabClick,
 			handleMouseEnter,
 			handleMouseLeave,

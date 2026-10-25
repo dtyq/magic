@@ -31,6 +31,7 @@ class ImageGenerationAssembler
         $dto->getReferenceImages() && $entity->setReferenceImages($dto->getReferenceImages());
         $dto->getReferenceImageOptions() && $entity->setReferenceImageOptions($dto->getReferenceImageOptions());
         $dto->getImageGenerationConfig() && $entity->setImageGenerationConfig($dto->getImageGenerationConfig());
+        $dto->getExtra() && $entity->setExtra($dto->getExtra());
         $dto->getType() !== null && $entity->setType(ImageGenerationType::from($dto->getType()));
         return $entity;
     }
@@ -50,6 +51,7 @@ class ImageGenerationAssembler
         $dto->setReferenceImages($entity->getReferenceImages());
         $dto->setReferenceImageOptions($entity->getReferenceImageOptions());
         $dto->setImageGenerationConfig($entity->getImageGenerationConfig());
+        $dto->setExtra($entity->getExtra());
         $dto->setType($entity->getType()->value);
         $dto->setStatus($entity->getStatus()->value);
         $dto->setErrorMessage($entity->getErrorMessage());

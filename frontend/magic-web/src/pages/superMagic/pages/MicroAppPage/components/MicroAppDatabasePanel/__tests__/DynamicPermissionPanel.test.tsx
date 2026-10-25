@@ -79,10 +79,6 @@ describe("DynamicPermissionPanel", () => {
 						data_type: "text",
 						is_required: false,
 						status: "enabled",
-						dynamic_permission: {
-							read_scope: "public",
-							edit_scope: "private_user",
-						},
 					},
 				]}
 				canManagePermissions
@@ -99,6 +95,15 @@ describe("DynamicPermissionPanel", () => {
 		expect(columnList).toHaveTextContent("microAppPage.databasePanel.permissionAction.read")
 		expect(columnList).toHaveTextContent("microAppPage.databasePanel.permissionAction.edit")
 		expect(screen.getAllByRole("combobox")).toHaveLength(7)
+		expect(screen.getAllByRole("combobox").map((control) => control.textContent)).toEqual([
+			"public",
+			"disabled",
+			"public",
+			"private_user",
+			"private_user",
+			"public",
+			"private_user",
+		])
 		expect(screen.queryByText("microAppPage.databasePanel.dynamicSave")).not.toBeInTheDocument()
 
 		const firstScope = screen.getAllByRole("combobox")[0]
@@ -116,6 +121,17 @@ describe("DynamicPermissionPanel", () => {
 		fireEvent.click(screen.getByText("microAppPage.databasePanel.dynamicSave"))
 
 		await waitFor(() => expect(mocks.updateDynamicPermissions).toHaveBeenCalledTimes(1))
+		expect(mocks.updateDynamicPermissions).toHaveBeenCalledWith("project-1", "table-1", {
+			dynamic_permissions: {
+				table: { read_scope: "private_user", insert_scope: "disabled" },
+				row: {
+					read_scope: "public",
+					edit_scope: "private_user",
+					delete_scope: "private_user",
+				},
+				columns: { title: { read_scope: "public", edit_scope: "private_user" } },
+			},
+		})
 		expect(onUpdated).toHaveBeenCalledTimes(1)
 		await waitFor(() => {
 			expect(

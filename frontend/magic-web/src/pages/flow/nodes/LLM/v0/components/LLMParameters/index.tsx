@@ -381,7 +381,11 @@ export default function LLMParametersV0() {
 	})
 
 	return (
-		<Form.Item name={["model"]} className={styles.formItem} label="模型">
+		<Form.Item
+			name={["model"]}
+			className={styles.formItem}
+			label={t("common.model", { ns: "flow" })}
+		>
 			<LLMSelect
 				className={styles.LLMParameters}
 				options={options}

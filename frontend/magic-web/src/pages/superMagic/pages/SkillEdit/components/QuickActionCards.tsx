@@ -3,7 +3,7 @@ import { ChevronRight, Loader2, Settings2, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Separator } from "@/components/shadcn-ui/separator"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { SkillEditPublishStatus } from "../store/types"
 
 interface QuickActionCardsProps {

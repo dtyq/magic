@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { useMemoizedFn } from "ahooks"
 import type { MentionStoreRequest } from "../dispatch"
 import type {
@@ -49,6 +49,18 @@ interface DataSourceContext<TCatalogId extends string = string> {
 }
 
 /**
+ * Detects the cancellation signal used by search owners that supersede in-flight work.
+ * Abort is an expected lifecycle event, not a user-facing failure.
+ */
+function isAbortError(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		(error as { name?: unknown }).name === "AbortError"
+	)
+}
+
+/**
  * useDataSource - Data source management hook
  *
  * @param props - Data source configuration
@@ -77,6 +89,10 @@ export function useDataSource<TCatalogId extends string = string>(
 	const [currentContext, setCurrentContext] = useState<DataSourceContext<TCatalogId>>({
 		state: initialState,
 	})
+	// Monotonic load id; only the newest request may commit state so superseded searches
+	// cannot repaint stale rows, clear a newer spinner, or surface their AbortError.
+	const latestLoadIdRef = useRef(0)
+	const isLatestLoad = useCallback((loadId: number) => loadId === latestLoadIdRef.current, [])
 
 	// Create dynamic configurations based on translation
 	const defaultItems = t ? createDefaultItems(t) : DEFAULT_ITEMS
@@ -88,13 +104,20 @@ export function useDataSource<TCatalogId extends string = string>(
 			loadFn: () => Promise<MentionItem[]> | MentionItem[],
 			fallbackData?: MentionItem[],
 		) => {
+			const loadId = ++latestLoadIdRef.current
 			setLoading(true)
 			setError(undefined)
 
 			try {
 				const data = await loadFn()
-				setItems(data)
+				if (isLatestLoad(loadId)) setItems(data)
 			} catch (err) {
+				// A superseded request must stay invisible during the whole run, including its
+				// cancellation, otherwise its reject would overwrite the newer request's result.
+				if (!isLatestLoad(loadId)) return
+				// Cancellation means another request already owns the panel, so keep the last rows
+				// and clear only the spinner instead of showing a misleading retry state.
+				if (isAbortError(err)) return
 				const errorMessage =
 					err instanceof Error ? err.message : errorMessages.UNKNOWN_ERROR
 				setError(errorMessage)
@@ -104,10 +127,10 @@ export function useDataSource<TCatalogId extends string = string>(
 					setItems(fallbackData)
 				}
 			} finally {
-				setLoading(false)
+				if (isLatestLoad(loadId)) setLoading(false)
 			}
 		},
-		[errorMessages.UNKNOWN_ERROR],
+		[errorMessages.UNKNOWN_ERROR, isLatestLoad],
 	)
 
 	// Load default items
@@ -181,7 +204,11 @@ export function useDataSource<TCatalogId extends string = string>(
 			})
 
 			if (options?.silent) {
-				setItems(await getMentionItemsByRequest(dataService, request))
+				// Silent refreshes participate in the same ordering guard so a slow background
+				// refresh cannot replace rows loaded by a later search or folder navigation.
+				const loadId = ++latestLoadIdRef.current
+				const silentItems = await getMentionItemsByRequest(dataService, request)
+				if (isLatestLoad(loadId)) setItems(silentItems)
 				return
 			}
 

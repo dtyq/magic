@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { ChevronLeft, ChevronRight, ExternalLink, PlusIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useTranslation } from "react-i18next"
 import type { CardFrameRef } from "../../components/CardFrame"
 import CardFrame, { invalidateCardFrameSourceCache } from "../../components/CardFrame"

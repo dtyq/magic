@@ -39,6 +39,8 @@ class MagicServiceAIAbilityProvider(AIAbilityProvider):
             if isinstance(dynamic_ai_abilities, Mapping) and dynamic_ai_abilities
             else None
         )
+        self._global_system_prompt = ""
+        self._loaded_successfully = False
 
     @property
     def provider_type(self) -> str:
@@ -65,6 +67,8 @@ class MagicServiceAIAbilityProvider(AIAbilityProvider):
             runtime_config = await sdk.ai_ability.get_runtime_config_async(
                 AiAbilityRuntimeConfigParameter()
             )
+            self._global_system_prompt = runtime_config.get_global_system_prompt()
+            self._loaded_successfully = True
             self._dynamic_ai_abilities = None
             return self._parse_runtime_config_items(runtime_config.get_ai_abilities())
         except Exception as e:
@@ -75,6 +79,25 @@ class MagicServiceAIAbilityProvider(AIAbilityProvider):
                 f"using dynamic_config.ai_abilities fallback: {e}"
             )
             return self._parse_legacy_dynamic_configs()
+
+    def get_global_system_prompt(self) -> str:
+        """获取从 Magic Service 加载的全局系统提示词。"""
+        return self._global_system_prompt
+
+    def is_loaded_successfully(self) -> bool:
+        """判断最近一次 runtime-config 是否成功加载。"""
+        return self._loaded_successfully
+
+    def get_runtime_log_summary(self) -> str:
+        """返回全局系统提示词的脱敏加载摘要。"""
+        prompt = self._global_system_prompt
+        if not prompt:
+            return "global_system_prompt=empty"
+        preview = " ".join(prompt.split())[:100]
+        return (
+            f"global_system_prompt_length={len(prompt)}, "
+            f"global_system_prompt_preview={preview!r}"
+        )
 
     def _parse_runtime_config_items(self, ability_items: Mapping[str, Any]) -> List[AIAbilityConfig]:
         """解析 magic-service runtime-config 返回的 AI 能力配置。"""

@@ -7,25 +7,54 @@ All endpoints are under /api/v1/open-api/sandbox and require SandboxUserAuthMidd
 """
 
 import os
-from typing import Optional
+from urllib.parse import quote
 
 import httpx
 
+from app.infrastructure.sdk.base.exceptions import HttpRequestError
+
 from ..kernel.magic_service_api import MagicServiceAbstractApi, _process_magic_service_response
-from ..parameter.query_skills_parameter import QuerySkillsParameter
+from ..kernel.magic_service_parameter import MagicServiceAuthConfig
+from ..parameter.get_latest_published_skill_versions_parameter import GetLatestPublishedSkillVersionsParameter
 from ..parameter.get_skill_file_urls_parameter import GetSkillFileUrlsParameter
 from ..parameter.import_skill_from_agent_parameter import ImportSkillFromAgentParameter
-from ..parameter.get_latest_published_skill_versions_parameter import GetLatestPublishedSkillVersionsParameter
-from ..result.skill_list_result import SkillListResult
-from ..result.skill_file_urls_result import SkillFileUrlsResult
+from ..parameter.product_parameter import ProductParameter
+from ..parameter.query_skills_parameter import QuerySkillsParameter
 from ..result.import_skill_from_agent_result import ImportSkillFromAgentResult
-from ..result.skill_market_list_result import SkillMarketListResult
 from ..result.latest_published_skill_versions_result import LatestPublishedSkillVersionsResult
-from app.infrastructure.sdk.base.exceptions import HttpRequestError
+from ..result.skill_file_urls_result import SkillFileUrlsResult
+from ..result.skill_list_result import SkillListResult
+from ..result.skill_market_list_result import SkillMarketListResult
 
 
 class SkillApi(MagicServiceAbstractApi):
     """Skill API for Magic Service - user skills and skill market"""
+
+    async def list_drafts_async(self, auth: MagicServiceAuthConfig, body: dict) -> dict:
+        return await self.request_by_parameter_async(ProductParameter(auth, body=body), "POST", "/api/v1/open-api/sandbox/skills/queries")
+
+    async def create_draft_async(self, auth: MagicServiceAuthConfig, body: dict) -> dict:
+        return await self.request_by_parameter_async(ProductParameter(auth, body=body), "POST", "/api/v1/open-api/sandbox/skills")
+
+    async def get_draft_async(self, auth: MagicServiceAuthConfig, *, code: str | None = None, project_id: str | None = None) -> dict:
+        if (code is None) == (project_id is None):
+            raise ValueError("Supply exactly one skill code or project ID")
+        suffix = quote(code, safe="") if code is not None else "by-project/" + quote(project_id, safe="")
+        return await self.request_by_parameter_async(ProductParameter(auth), "GET", "/api/v1/open-api/sandbox/skills/" + suffix)
+
+    async def prepare_publish_async(self, auth: MagicServiceAuthConfig, code: str, body: dict) -> dict:
+        return await self.request_by_parameter_async(ProductParameter(auth, body=body), "POST", f"/api/v1/open-api/sandbox/skills/{quote(code, safe='')}/publish/prepare")
+
+    async def check_preparation_async(self, auth: MagicServiceAuthConfig, code: str, token: str) -> dict:
+        return await self.request_by_parameter_async(ProductParameter(auth, query={"prepare_token": token}), "GET", f"/api/v1/open-api/sandbox/skills/{quote(code, safe='')}/publish/prepare/check")
+
+    async def publish_prepared_async(self, auth: MagicServiceAuthConfig, code: str, token: str) -> dict:
+        return await self.request_by_parameter_async(ProductParameter(auth, body={"prepare_token": token}), "POST", f"/api/v1/open-api/sandbox/skills/{quote(code, safe='')}/publish")
+
+    async def publish_result_async(self, auth: MagicServiceAuthConfig, code: str, token: str | None = None) -> dict:
+        suffix = "/publish/check" if token else "/versions"
+        query = {"prepare_token": token} if token else {"page": 1, "page_size": 20}
+        return await self.request_by_parameter_async(ProductParameter(auth, query=query), "GET", f"/api/v1/open-api/sandbox/skills/{quote(code, safe='')}{suffix}")
 
     # --- User skill endpoints ---
 

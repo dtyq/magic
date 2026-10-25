@@ -1,5 +1,5 @@
 import { memo, useId, useLayoutEffect, useRef } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const ENTRY_ANIMATION_DURATION_MS = 700
 const EXIT_ANIMATION_DURATION_MS = 280

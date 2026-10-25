@@ -5,6 +5,7 @@ import { useMemoizedFn } from "ahooks"
 import type { AgentCommonModalChildrenProps } from "@/components/Agent/AgentCommonModal/types"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { GlobalMemoryEditor } from "./components/GlobalMemoryEditor"
+import { LongTermMemoryFeatureSwitch } from "./components/LongTermMemoryFeatureSwitch"
 import { useStyles } from "./styles"
 
 export type LongTremMemoryProps = AgentCommonModalChildrenProps
@@ -41,6 +42,7 @@ export default function LongTremMemory(props: LongTremMemoryProps) {
 					</div>
 				</div>
 			)}
+			<LongTermMemoryFeatureSwitch />
 			<GlobalMemoryEditor />
 		</div>
 	)

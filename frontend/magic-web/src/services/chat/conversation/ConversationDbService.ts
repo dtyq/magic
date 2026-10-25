@@ -1,7 +1,7 @@
 import chatDb from "@/database/chat"
 import Conversation from "@/models/chat/conversation"
 import { ConversationObject } from "@/models/chat/conversation/types"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { ConversationStatus } from "@/types/chat/conversation"
 import { cloneDeep } from "lodash-es"
 

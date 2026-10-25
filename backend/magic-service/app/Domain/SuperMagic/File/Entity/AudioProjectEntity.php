@@ -22,6 +22,8 @@ class AudioProjectEntity extends AbstractEntity
 
     protected string $audioSource = 'recorded';  // recorded | imported
 
+    protected ?string $audioFormat = null;
+
     protected ?int $audioFileId = null;
 
     protected ?string $deviceId = null;
@@ -101,6 +103,17 @@ class AudioProjectEntity extends AbstractEntity
     public function setAudioSource(string $audioSource): self
     {
         $this->audioSource = $audioSource;
+        return $this;
+    }
+
+    public function getAudioFormat(): ?string
+    {
+        return $this->audioFormat;
+    }
+
+    public function setAudioFormat(?string $audioFormat): self
+    {
+        $this->audioFormat = $audioFormat;
         return $this;
     }
 
@@ -426,6 +439,7 @@ class AudioProjectEntity extends AbstractEntity
             'project_id' => $this->projectId,
             'source' => $this->source,
             'audio_source' => $this->audioSource,
+            'audio_format' => $this->audioFormat,
             'audio_file_id' => $this->audioFileId,
             'device_id' => $this->deviceId,
             'duration' => $this->duration,

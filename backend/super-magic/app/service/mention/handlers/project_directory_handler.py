@@ -2,6 +2,7 @@
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from app.service.mention.base import BaseMentionHandler, logger
+from app.service.mention.handlers.file_handler import _canonical_file_link
 
 if TYPE_CHECKING:
     from app.core.context.agent_context import AgentContext
@@ -19,12 +20,15 @@ class ProjectDirectoryHandler(BaseMentionHandler):
 
     async def get_tip(self, mention: Dict[str, Any], agent_context: Optional["AgentContext"] = None) -> str:
         directory_path = mention.get("directory_path", "")
+        if mention.get("type") == "user_directory" or directory_path.startswith("~/"):
+            return "Read and understand the referenced file or directory before proceeding"
         project_type = await detect_project_type(directory_path)
 
         if project_type == "design":
             return (
-                "The referenced Canvas design project requires canvas project skill or tools "
-                "for AI image generation, image search, or design marker processing."
+                "Read and follow the `canvas-manager` Skill first (if it is not already preloaded), "
+                "then inspect the referenced Canvas project with the Canvas business tools. "
+                "Do not read or edit Canvas project files directly."
             )
         if project_type == "slide":
             return (
@@ -35,6 +39,10 @@ class ProjectDirectoryHandler(BaseMentionHandler):
 
     async def handle(self, mention: Dict[str, Any], index: int, agent_context: Optional["AgentContext"] = None) -> List[str]:
         directory_path = mention.get("directory_path", "")
+        directory_name = str(mention.get("directory_name") or "")
+        canonical_link = _canonical_file_link(directory_path, directory_name, is_directory=True)
+        if mention.get("type") == "user_directory" or directory_path.startswith("~/"):
+            return [f"{index}. {canonical_link or 'Directory reference unavailable'}"]
         project_type = await detect_project_type(directory_path)
 
         if project_type == "design":

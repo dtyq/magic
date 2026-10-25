@@ -1,49 +1,82 @@
 import { useState, useRef } from "react"
+import { useSize } from "ahooks"
+import { useTranslation } from "react-i18next"
 import {
 	ChevronLeft,
 	ChevronRight,
 	Home,
 	Maximize,
 	Minimize,
-	RefreshCcw,
-	RotateCcw,
-	Minus,
-	Plus,
+	Ellipsis,
+	RefreshCw,
+	RotateCw,
+	PanelsTopLeft,
+	NotebookPen,
+	Monitor,
+	Check,
 } from "lucide-react"
 import type { PPTControlBarProps } from "./types"
-import { cn } from "@/lib/utils"
+import { PPTZoomControl } from "./PPTZoomControl"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
-import { MagicTooltip } from "@/components/base"
+import { MagicDropdown, MagicTooltip } from "@/components/base"
+import { PPTAnimationControls } from "./PPTAnimationControls"
+import { FileSaveSyncBadge } from "../../FileSaveSyncBadge"
 
 export function PPTControlBar({
 	activeIndex,
 	totalSlides,
+	buildProgress,
+	canGoPrevious = activeIndex > 0,
+	canGoNext = activeIndex < totalSlides - 1,
 	isTransitioning,
 	isMobile,
 	isFullscreen,
+	isStarting = false,
 	onPrevSlide,
 	onNextSlide,
 	onGoToFirstSlide,
 	onRefreshSlides,
+	refreshAllProgress,
+	onRefreshCurrentSlide,
+	isRefreshingCurrentSlide,
 	onJumpToPage,
 	onToggleFullscreen,
+	presenterScreens,
+	selectedPresenterScreen,
+	onSelectPresenterScreen,
+	onReplaceTemplate,
+	notesVisible,
+	onToggleNotes,
+	onOpenTransitions,
+	onToggleBuildPanel,
+	buildPanelOpen,
+	animationOnly,
 	scaleRatio,
+	isAutoScale,
+	portalContainer,
 	onScaleChange,
 	onResetScale,
-	t,
 	className,
+	rightInset,
+	currentFileId,
 }: PPTControlBarProps) {
+	const { t } = useTranslation("super")
+	const fullscreenLabel = isStarting
+		? t("ppt.presenter.cancelStart")
+		: isFullscreen
+			? t("fileViewer.exitFullscreen")
+			: t("ppt.startSlideshow")
+	const isRefreshingAll = Boolean(refreshAllProgress)
 	const [jumpPageInput, setJumpPageInput] = useState<string>("")
 	const [isPageInputVisible, setIsPageInputVisible] = useState(false)
 	const pageInputRef = useRef<HTMLInputElement>(null)
-	const scalePercentage = Math.round(scaleRatio * 100)
-	const isMinScale = scalePercentage <= 10
-	const isMaxScale = scalePercentage >= 150
-
-	function getTooltipTitle(key: string) {
-		if (isMobile) return undefined
-		return t(key)
-	}
+	const containerRef = useRef<HTMLDivElement>(null)
+	const containerSize = useSize(containerRef)
+	const barClassName =
+		"pointer-events-auto flex w-max max-w-full items-center gap-1 rounded-[9px] border border-[#dfe2e7]/50 bg-white p-[5px] text-[#252830] shadow-[0_1px_2px_#17213b08,0_3px_8px_#17213b08] dark:border-[#4b515b]/55 dark:bg-[#292c33] dark:text-[#eef0f4] dark:shadow-[0_1px_2px_#00000020,0_3px_8px_#00000015] [&_button]:rounded-[5px] [&_button]:text-[13px] [&_button]:font-normal [&_button]:leading-[1.5] [&_button]:text-inherit [&_button:hover]:bg-[#f0f2f6] dark:[&_button:hover]:bg-[#3a3f49] [&_svg]:stroke-[1.7]"
+	// Keep the bar clear of a side panel that is docked inside the stage.
+	const containerStyle = { left: 8, right: rightInset ?? 8 }
 
 	// Handle page jump
 	function handleJumpToPage(pageNum: string) {
@@ -79,238 +112,373 @@ export function PPTControlBar({
 		setJumpPageInput("")
 	}
 
-	function changeScale(delta: number) {
-		onScaleChange(Math.min(1.5, Math.max(0.1, (scalePercentage + delta) / 100)))
-	}
+	// Editing keeps the animation entry available while page navigation stays hidden.
+	if (animationOnly)
+		return (
+			<div
+				ref={containerRef}
+				data-testid="ppt-control-bar"
+				style={containerStyle}
+				className={cn(
+					"pointer-events-none absolute bottom-[18px] z-50 flex justify-center",
+					className,
+				)}
+			>
+				<div className={barClassName}>
+					<PPTAnimationControls
+						onOpenTransitions={onOpenTransitions}
+						onToggleBuildPanel={onToggleBuildPanel}
+						buildPanelOpen={buildPanelOpen}
+					/>
+				</div>
+			</div>
+		)
 
 	return (
 		<div
+			ref={containerRef}
 			data-testid="ppt-control-bar"
+			style={containerStyle}
 			className={cn(
-				"absolute bottom-2 left-1/2 z-50 max-w-[calc(100%-16px)] -translate-x-1/2 overflow-x-auto rounded-lg border border-border/60 bg-white/95 p-2 shadow-md backdrop-blur-sm supports-[backdrop-filter]:bg-white/80 dark:border-white/[0.08] dark:bg-zinc-900/95 dark:supports-[backdrop-filter]:bg-zinc-900/85",
-				isMobile ? "bottom-[20px]" : "",
+				"pointer-events-none absolute z-50 flex flex-wrap items-center justify-center gap-2",
+				isMobile ? "bottom-[20px]" : "bottom-[18px]",
 				className,
 			)}
 		>
-			<div className="flex w-max min-w-full items-center gap-2 whitespace-nowrap">
-				{/* Previous button */}
-				<MagicTooltip title={getTooltipTitle("fileViewer.previousPage")}>
-					<span>
-						<Button
-							variant="ghost"
-							size="sm"
-							data-testid="ppt-control-bar-prev-button"
-							className="h-7 w-7 p-0"
-							onClick={(e) => {
-								e.stopPropagation()
-								e.currentTarget.blur()
-								onPrevSlide()
-							}}
-							aria-label="Previous slide"
-							disabled={activeIndex === 0 || isTransitioning}
-						>
-							<ChevronLeft className="h-4 w-4" />
-						</Button>
+			<div
+				// 显式约束主块宽度，防止按钮被英文文案撑出预览区。
+				style={{ maxWidth: containerSize?.width }}
+				className={cn(barClassName, "flex-wrap justify-center")}
+			>
+				{buildProgress && buildProgress.total > 0 && (
+					<span className="px-1 text-xs tabular-nums" aria-live="polite">
+						{t("ppt.build.progress", buildProgress)}
 					</span>
-				</MagicTooltip>
-
-				{/* Page indicator and jump input */}
-				<div className="flex flex-shrink-0 items-center gap-2 max-md:gap-1.5">
-					{isPageInputVisible ? (
-						<input
-							ref={pageInputRef}
-							type="number"
-							data-testid="ppt-control-bar-jump-input"
-							className="h-7 w-12 rounded-md border border-input bg-background text-center text-sm text-foreground transition-all [appearance:textfield] placeholder:text-xs placeholder:text-muted-foreground hover:border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 max-md:h-7 max-md:w-14 max-md:px-1.5 max-md:py-0.5 max-md:text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-							value={jumpPageInput}
-							onChange={(e) => setJumpPageInput(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") {
-									handleJumpToPage(jumpPageInput)
-									e.currentTarget.blur()
-								}
-								if (e.key === "Escape") {
-									setJumpPageInput("")
-									setIsPageInputVisible(false)
-								}
-							}}
-							onBlur={() => {
-								if (jumpPageInput) {
-									handleJumpToPage(jumpPageInput)
-								}
-								setIsPageInputVisible(false)
-							}}
-							onFocus={(e) => e.target.select()}
-							min={1}
-							max={totalSlides}
-							disabled={isTransitioning}
-							placeholder={`${activeIndex + 1}`}
-						/>
-					) : (
-						<MagicTooltip title={getTooltipTitle("detail.clickToJumpPage")}>
-							<span
-								data-testid="ppt-control-bar-page-indicator"
-								className="flex-shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium text-foreground transition-colors hover:bg-accent max-md:text-xs"
-								onClick={() => {
-									setIsPageInputVisible(true)
-									setJumpPageInput("")
-									// Use setTimeout to ensure input is rendered before focusing
-									setTimeout(() => {
-										pageInputRef.current?.focus()
-									}, 0)
-								}}
-							>
-								{activeIndex + 1} / {totalSlides}
-							</span>
-						</MagicTooltip>
-					)}
-				</div>
-
-				{/* Next button */}
-				<MagicTooltip title={getTooltipTitle("fileViewer.nextPage")}>
-					<span>
-						<Button
-							variant="ghost"
-							size="sm"
-							data-testid="ppt-control-bar-next-button"
-							className="h-7 w-7 p-0 text-foreground"
-							onClick={(e) => {
-								e.stopPropagation()
-								e.currentTarget.blur()
-								onNextSlide()
-							}}
-							aria-label="Next slide"
-							disabled={activeIndex >= totalSlides - 1 || isTransitioning}
-						>
-							<ChevronRight className="h-4 w-4" />
-						</Button>
-					</span>
-				</MagicTooltip>
-
-				{/* Go to first slide button */}
-				<MagicTooltip title={getTooltipTitle("detail.goToFirstPage")}>
-					<span>
-						<Button
-							variant="ghost"
-							size="sm"
-							data-testid="ppt-control-bar-first-button"
-							className="h-7 w-7 p-0 text-foreground"
-							onClick={(e) => {
-								e.stopPropagation()
-								e.currentTarget.blur()
-								onGoToFirstSlide()
-							}}
-							aria-label="Go to first slide"
-							disabled={activeIndex === 0 || isTransitioning}
-						>
-							<Home className="h-4 w-4" />
-						</Button>
-					</span>
-				</MagicTooltip>
-
-				{/* Refresh slides button */}
-				<MagicTooltip title={getTooltipTitle("detail.refreshSlides")}>
-					<span>
-						<Button
-							variant="ghost"
-							size="sm"
-							data-testid="ppt-control-bar-refresh-button"
-							className="h-7 w-7 p-0 text-foreground"
-							onClick={(e) => {
-								e.stopPropagation()
-								e.currentTarget.blur()
-								onRefreshSlides()
-							}}
-							aria-label="Refresh slides"
-							disabled={isTransitioning}
-						>
-							<RefreshCcw className="h-4 w-4" />
-						</Button>
-					</span>
-				</MagicTooltip>
-
-				{/* Fullscreen button */}
-				{!isMobile && (
+				)}
+				<div className="flex items-center gap-1">
+					{/* Previous button */}
 					<MagicTooltip
-						title={getTooltipTitle(
-							isFullscreen ? "fileViewer.exitFullscreen" : "fileViewer.fullscreen",
-						)}
+						title={
+							isMobile
+								? undefined
+								: buildProgress && buildProgress.step > 0
+									? t("ppt.build.previous")
+									: t("fileViewer.previousPage")
+						}
 					>
 						<span>
 							<Button
 								variant="ghost"
 								size="sm"
-								data-testid="ppt-control-bar-fullscreen-button"
+								data-testid="ppt-control-bar-prev-button"
+								className="h-7 w-7 p-0"
+								onClick={(e) => {
+									e.stopPropagation()
+									e.currentTarget.blur()
+									onPrevSlide()
+								}}
+								aria-label={
+									buildProgress && buildProgress.step > 0
+										? t("ppt.build.previous")
+										: t("fileViewer.previousPage")
+								}
+								disabled={!canGoPrevious || isTransitioning}
+							>
+								<ChevronLeft className="h-4 w-4" />
+							</Button>
+						</span>
+					</MagicTooltip>
+
+					{/* Page indicator and jump input */}
+					<div className="flex shrink-0 items-center gap-1">
+						{isPageInputVisible ? (
+							<input
+								ref={pageInputRef}
+								type="number"
+								data-testid="ppt-control-bar-jump-input"
+								className="h-7 w-12 rounded-md border border-input bg-background text-center text-sm text-foreground transition-all [appearance:textfield] placeholder:text-xs placeholder:text-muted-foreground hover:border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 max-md:h-7 max-md:w-14 max-md:px-1.5 max-md:py-0.5 max-md:text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+								value={jumpPageInput}
+								onChange={(e) => setJumpPageInput(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										handleJumpToPage(jumpPageInput)
+										e.currentTarget.blur()
+									}
+									if (e.key === "Escape") {
+										setJumpPageInput("")
+										setIsPageInputVisible(false)
+									}
+								}}
+								onBlur={() => {
+									if (jumpPageInput) {
+										handleJumpToPage(jumpPageInput)
+									}
+									setIsPageInputVisible(false)
+								}}
+								onFocus={(e) => e.target.select()}
+								min={1}
+								max={totalSlides}
+								disabled={isTransitioning}
+								placeholder={`${activeIndex + 1}`}
+							/>
+						) : (
+							<MagicTooltip
+								title={isMobile ? undefined : t("detail.clickToJumpPage")}
+							>
+								<span
+									data-testid="ppt-control-bar-page-indicator"
+									className="flex h-7 min-w-[46px] shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-[5px] px-[5px] text-[13px] font-normal tabular-nums leading-[1.5] transition-colors hover:bg-accent"
+									onClick={() => {
+										setIsPageInputVisible(true)
+										setJumpPageInput("")
+										// Use setTimeout to ensure input is rendered before focusing
+										setTimeout(() => {
+											pageInputRef.current?.focus()
+										}, 0)
+									}}
+								>
+									{activeIndex + 1}
+									<span className="whitespace-pre text-muted-foreground">
+										{" "}
+										/ {totalSlides}
+									</span>
+									<FileSaveSyncBadge fileId={currentFileId} className="ml-1" />
+								</span>
+							</MagicTooltip>
+						)}
+					</div>
+
+					{/* Next button */}
+					<MagicTooltip
+						title={
+							isMobile
+								? undefined
+								: buildProgress && buildProgress.step < buildProgress.total
+									? t("ppt.build.next")
+									: t("fileViewer.nextPage")
+						}
+					>
+						<span>
+							<Button
+								variant="ghost"
+								size="sm"
+								data-testid="ppt-control-bar-next-button"
 								className="h-7 w-7 p-0 text-foreground"
 								onClick={(e) => {
 									e.stopPropagation()
 									e.currentTarget.blur()
-									onToggleFullscreen()
+									onNextSlide()
 								}}
-								aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+								aria-label={
+									buildProgress && buildProgress.step < buildProgress.total
+										? t("ppt.build.next")
+										: t("fileViewer.nextPage")
+								}
+								disabled={!canGoNext || isTransitioning}
 							>
-								{isFullscreen ? (
-									<Minimize className="h-4 w-4" />
-								) : (
-									<Maximize className="h-4 w-4" />
-								)}
+								<ChevronRight className="h-4 w-4" />
 							</Button>
 						</span>
 					</MagicTooltip>
-				)}
 
-				{!isMobile && (
-					<div className="ml-1 flex items-center gap-1 border-l border-border/60 pl-2 dark:border-white/[0.08]">
-						<MagicTooltip title={t("stylePanel.decreaseZoom")}>
-							<span>
-								<Button
-									variant="ghost"
-									size="sm"
-									data-testid="ppt-control-bar-scale-decrease"
-									className="h-7 w-7 p-0"
-									onClick={() => changeScale(-5)}
-									disabled={isMinScale}
-								>
-									<Minus className="h-4 w-4" />
-								</Button>
-							</span>
-						</MagicTooltip>
-						<span
-							data-testid="ppt-control-bar-scale-value"
-							className="min-w-[42px] text-center text-sm font-medium text-muted-foreground"
+					{/* Mobile keeps a direct shortcut; desktop has it in the more menu. */}
+					{isMobile && (
+						<>
+							<MagicTooltip title={isMobile ? undefined : t("detail.goToFirstPage")}>
+								<span>
+									<Button
+										variant="ghost"
+										size="sm"
+										data-testid="ppt-control-bar-first-button"
+										className="h-7 w-7 p-0 text-foreground"
+										onClick={(e) => {
+											e.stopPropagation()
+											e.currentTarget.blur()
+											onGoToFirstSlide()
+										}}
+										aria-label={t("detail.goToFirstPage")}
+										disabled={!canGoPrevious || isTransitioning}
+									>
+										<Home className="h-4 w-4" />
+									</Button>
+								</span>
+							</MagicTooltip>
+						</>
+					)}
+				</div>
+				{/* Reuse the same fullscreen action on phones; icon labels stay accessible. */}
+				<MagicTooltip title={fullscreenLabel}>
+					<span>
+						<Button
+							variant="ghost"
+							size="sm"
+							data-testid="ppt-control-bar-fullscreen-button"
+							className="h-7 gap-[5px] px-[7px] text-[13px] font-normal text-foreground"
+							onClick={(e) => {
+								e.stopPropagation()
+								e.currentTarget.blur()
+								onToggleFullscreen()
+							}}
+							aria-label={fullscreenLabel}
 						>
-							{scalePercentage}%
-						</span>
-						<MagicTooltip title={t("stylePanel.increaseZoom")}>
-							<span>
-								<Button
-									variant="ghost"
-									size="sm"
-									data-testid="ppt-control-bar-scale-increase"
-									className="h-7 w-7 p-0"
-									onClick={() => changeScale(5)}
-									disabled={isMaxScale}
-								>
-									<Plus className="h-4 w-4" />
-								</Button>
+							{isFullscreen || isStarting ? (
+								<Minimize className="h-4 w-4" />
+							) : (
+								<Maximize className="h-4 w-4" />
+							)}
+							<span className={isMobile ? "sr-only" : undefined}>
+								{fullscreenLabel}
 							</span>
-						</MagicTooltip>
-						<MagicTooltip title={t("stylePanel.resetZoom")}>
-							<span>
-								<Button
-									variant="ghost"
-									size="sm"
-									data-testid="ppt-control-bar-scale-reset"
-									className="h-7 w-7 p-0"
-									onClick={onResetScale}
-								>
-									<RotateCcw className="h-4 w-4" />
-								</Button>
-							</span>
-						</MagicTooltip>
-					</div>
-				)}
+						</Button>
+					</span>
+				</MagicTooltip>
+				{!isMobile && presenterScreens?.length && onSelectPresenterScreen ? (
+					<MagicDropdown
+						placement="topRight"
+						getPopupContainer={() => portalContainer || document.body}
+						menu={{
+							items: presenterScreens.map((screen, index) => ({
+								key: String(index),
+								label: (
+									<div className="flex min-w-40 items-center justify-between gap-3">
+										<span>
+											{screen.label ||
+												t("ppt.presenter.screenOption", {
+													index: index + 1,
+												})}
+											{screen.isPrimary
+												? t("ppt.presenter.primarySuffix")
+												: ""}
+										</span>
+										{selectedPresenterScreen === index && (
+											<Check className="size-4" />
+										)}
+									</div>
+								),
+							})),
+							onClick: ({ key }) => onSelectPresenterScreen(Number(key)),
+						}}
+					>
+						<Button
+							variant="ghost"
+							size="sm"
+							data-testid="ppt-control-bar-presenter-screen-button"
+							className="h-7 gap-[5px] px-[7px] text-[13px] font-normal"
+							aria-label={t("ppt.presenter.selectScreen")}
+						>
+							<Monitor className="size-4" />
+							{t("ppt.presenter.screen")}
+						</Button>
+					</MagicDropdown>
+				) : null}
 			</div>
+			{(!isMobile || onToggleNotes || onOpenTransitions || onToggleBuildPanel) && (
+				<div className={cn(barClassName, "flex-wrap justify-center")}>
+					<PPTAnimationControls
+						onOpenTransitions={onOpenTransitions}
+						onToggleBuildPanel={onToggleBuildPanel}
+						buildPanelOpen={buildPanelOpen}
+					/>
+					{onToggleNotes && (
+						<Button
+							variant="ghost"
+							size="sm"
+							data-testid="ppt-control-bar-notes-button"
+							className="h-7 gap-[5px] px-[7px] text-[13px] font-normal aria-pressed:bg-accent"
+							aria-pressed={Boolean(notesVisible)}
+							aria-expanded={Boolean(notesVisible)}
+							onClick={(event) => {
+								event.stopPropagation()
+								onToggleNotes()
+							}}
+						>
+							<NotebookPen className="size-4" />
+							{t("ppt.speakerNotes.title")}
+						</Button>
+					)}
+					{!isMobile && (
+						<div className="flex items-center gap-1 before:mx-[3px] before:h-4 before:w-px before:shrink-0 before:bg-[#e8ebf0] dark:before:bg-[#424650]">
+							<PPTZoomControl
+								scaleRatio={scaleRatio}
+								isAutoScale={isAutoScale}
+								portalContainer={portalContainer}
+								onScaleChange={onScaleChange}
+								onResetScale={onResetScale}
+							/>
+							<MagicDropdown
+								placement="topRight"
+								getPopupContainer={() => portalContainer || document.body}
+								menu={{
+									items: [
+										...(onReplaceTemplate
+											? [
+													{
+														key: "template",
+														icon: <PanelsTopLeft className="size-4" />,
+														label: t("ppt.templateReplacement.button"),
+														onClick: onReplaceTemplate,
+													},
+												]
+											: []),
+										{
+											key: "refresh-current",
+											icon: (
+												<RotateCw
+													className={cn(
+														"size-4",
+														isRefreshingCurrentSlide && "animate-spin",
+													)}
+												/>
+											),
+											label: t("ppt.reloadCurrentSlide"),
+											disabled:
+												isTransitioning ||
+												isRefreshingCurrentSlide ||
+												!onRefreshCurrentSlide,
+											onClick: () => onRefreshCurrentSlide?.(),
+										},
+										{
+											key: "refresh-all",
+											icon: (
+												<RefreshCw
+													className={cn(
+														"size-4",
+														isRefreshingAll && "animate-spin",
+													)}
+												/>
+											),
+											label: `${t("ppt.reloadAllSlides")}${
+												refreshAllProgress
+													? ` (${refreshAllProgress.done}/${refreshAllProgress.total})`
+													: ""
+											}`,
+											disabled: isTransitioning || isRefreshingAll,
+											onClick: onRefreshSlides,
+										},
+										{
+											key: "first-page",
+											icon: <Home className="size-4" />,
+											label: t("detail.goToFirstPage"),
+											disabled: !canGoPrevious || isTransitioning,
+											onClick: onGoToFirstSlide,
+										},
+									],
+								}}
+							>
+								<Button
+									variant="ghost"
+									size="sm"
+									data-testid="ppt-control-bar-more-button"
+									className="h-7 w-7 p-0"
+									aria-label={t("ppt.moreActions")}
+								>
+									<Ellipsis className="size-4" />
+								</Button>
+							</MagicDropdown>
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	)
 }

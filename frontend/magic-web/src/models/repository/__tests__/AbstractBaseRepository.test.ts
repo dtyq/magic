@@ -4,7 +4,7 @@ import type { IndexableType } from "dexie"
 import { AbstractBaseRepository } from "../AbstractBaseRepository"
 
 // Mock logger
-vi.mock("@/opensource/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			log: vi.fn(),
@@ -12,6 +12,7 @@ vi.mock("@/opensource/utils/log", () => ({
 			error: vi.fn(),
 			info: vi.fn(),
 		}),
+		report: vi.fn(),
 	},
 }))
 

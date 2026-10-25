@@ -154,6 +154,9 @@ function createTouchSelectionTool(options?: {
 			}),
 		},
 		permissionManager: {
+			can: vi.fn((capability: string, element?: LayerElement) =>
+				capability === "interaction.select" ? (options?.canSelect ?? true) : true,
+			),
 			canSelect: vi.fn(() => options?.canSelect ?? true),
 		},
 		selectionManager: {
@@ -394,13 +397,16 @@ describe("SelectionTool pending direct drag", () => {
 		const node = createNode()
 		const emit = vi.fn()
 		const canvas = {
-			readonly: false,
+			can: vi.fn(() => true),
+			permissionManager: { can: vi.fn(() => true) },
 			contentLayer: {},
 			elementManager: {
 				getElementData: () => ({
 					id: "image-1",
 					type: "image",
-					src: "oss://image.png",
+					activeContentId: "image-1-content-1",
+					mainContentId: "image-1-content-1",
+					contents: [{ contentId: "image-1-content-1", src: "oss://image.png" }],
 				}),
 				getElementInstance: () => ({
 					getNode: () => node,
@@ -835,6 +841,9 @@ describe("SelectionTool pending direct drag", () => {
 					y: 10,
 					width: 20,
 					height: 20,
+					activeContentId: "visible-content",
+					mainContentId: "visible-content",
+					contents: [{ contentId: "visible-content" }],
 				},
 			],
 			[
@@ -846,6 +855,9 @@ describe("SelectionTool pending direct drag", () => {
 					y: 150,
 					width: 20,
 					height: 20,
+					activeContentId: "outside-content",
+					mainContentId: "outside-content",
+					contents: [{ contentId: "outside-content" }],
 				},
 			],
 			[
@@ -858,6 +870,9 @@ describe("SelectionTool pending direct drag", () => {
 					y: 10,
 					width: 20,
 					height: 20,
+					activeContentId: "locked-content",
+					mainContentId: "locked-content",
+					contents: [{ contentId: "locked-content" }],
 				},
 			],
 		])

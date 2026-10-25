@@ -19,18 +19,7 @@ let websocket = null;
 let isWebSocketConnected = false;
 let wsOpenCallbacks = []; // 等待连接建立的 Promise 回调队列
 
-// LLM token 流走 Magic Service 的 Socket.IO；HTTP WebSocket 只负责事件消息。
-let socketIoClient = null;
-let socketIoConfigKey = '';
-let isSocketIoConnected = false;
-let socketIoReconnectTimer = null;
-let socketIoReconnectAttempt = 0;
-const SOCKETIO_RECONNECT_BASE_MS = 1000;
-const SOCKETIO_RECONNECT_MAX_MS = 30000;
-let socketIoHeartbeatTimer = null;
-let socketIoPingInterval = 25000;
-let socketIoPingTimeout = 20000;
-let socketIoAuthContext = {};
+// V2 chunk 和事件消息都走本地 /subscribe WebSocket。
 
 // 确保 WebSocket 已连接，未连接则自动发起连接并等待
 function ensureWebSocketConnected() {
@@ -263,6 +252,9 @@ function pushLog(entry) {
 function clearChatLog() {
     chatLog = [];
     chatLogGeneration += 1;
+    latestTokenUsage = null;
+    closeTokenContextPopover();
+    updateTokenContextPreview();
     if (chatLogSaveTimer) {
         clearTimeout(chatLogSaveTimer);
         chatLogSaveTimer = null;
@@ -332,17 +324,145 @@ function compactRestoredChatLog(entries) {
             result[existingIndex] = nextEntry;
         }
     }
+    return normalizeAssistantLogOrder(result);
+}
+
+const ASSISTANT_LOG_TYPES = new Set(['thinking', 'ai', 'tool_call']);
+const ASSISTANT_TYPE_ORDER = { thinking: 0, ai: 1, tool_call: 2 };
+
+function isAssistantLogEntry(entry) {
+    return Boolean(entry && ASSISTANT_LOG_TYPES.has(entry.type));
+}
+
+function getAssistantLogReplyKey(entry) {
+    if (!entry) return '';
+    if (entry.type === 'tool_call') return String(entry.replyKey || '');
+    return String(entry.key || '');
+}
+
+// 回放按 chatLog 到达顺序 append，工具常比正文先入日志，刷新后就会跑到正文上面。
+// 按用户消息分段，把同一轮的思考 / 正文 / 工具排回展示顺序；event 等其它条目留在原槽位。
+function normalizeAssistantLogOrder(entries) {
+    const result = [];
+    let segment = [];
+    const flush = () => {
+        if (segment.length) result.push(...reorderAssistantSegment(segment));
+        segment = [];
+    };
+    for (const entry of entries) {
+        if (entry && entry.type === 'client') {
+            flush();
+            result.push(entry);
+            continue;
+        }
+        segment.push(entry);
+    }
+    flush();
+    return result;
+}
+
+function reorderAssistantSegment(segment) {
+    const slots = [];
+    const assistants = [];
+    for (let i = 0; i < segment.length; i++) {
+        if (!isAssistantLogEntry(segment[i])) continue;
+        slots.push(i);
+        assistants.push(segment[i]);
+    }
+    if (slots.length < 2) return segment;
+    const ordered = orderAssistantLogEntries(assistants);
+    const next = segment.slice();
+    slots.forEach((slot, index) => {
+        next[slot] = ordered[index];
+    });
+    return next;
+}
+
+function orderAssistantLogEntries(items) {
+    const keyedCount = items.filter((entry) => getAssistantLogReplyKey(entry)).length;
+    if (keyedCount === items.length) {
+        return orderAssistantLogEntriesByKey(items);
+    }
+    return orderUnkeyedAssistantLogEntries(items);
+}
+
+function orderAssistantLogEntriesByKey(items) {
+    const groups = new Map();
+    const groupOrder = [];
+    for (const item of items) {
+        const key = getAssistantLogReplyKey(item);
+        if (!groups.has(key)) {
+            groups.set(key, []);
+            groupOrder.push(key);
+        }
+        groups.get(key).push(item);
+    }
+    const result = [];
+    for (const key of groupOrder) {
+        result.push(...sortAssistantLogTypes(groups.get(key)));
+    }
+    return result;
+}
+
+function sortAssistantLogTypes(items) {
+    return items
+        .map((entry, index) => ({ entry, index }))
+        .sort((left, right) => {
+            const typeDiff = (ASSISTANT_TYPE_ORDER[left.entry.type] ?? 9)
+                - (ASSISTANT_TYPE_ORDER[right.entry.type] ?? 9);
+            if (typeDiff !== 0) return typeDiff;
+            return left.index - right.index;
+        })
+        .map((item) => item.entry);
+}
+
+function orderUnkeyedAssistantLogEntries(items) {
+    const thinkings = items.filter((entry) => entry.type === 'thinking');
+    const ais = items.filter((entry) => entry.type === 'ai');
+    const tools = items.filter((entry) => entry.type === 'tool_call');
+    const stepCount = Math.max(thinkings.length, ais.length, tools.length ? 1 : 0);
+    const result = [];
+    const usedTools = new Set();
+    for (let step = 0; step < stepCount; step++) {
+        if (thinkings[step]) result.push(thinkings[step]);
+        if (ais[step]) result.push(ais[step]);
+        const stepTs = Number((ais[step] || thinkings[step] || {}).timestamp) || 0;
+        const nextTsRaw = (ais[step + 1] || thinkings[step + 1] || {}).timestamp;
+        const nextTs = nextTsRaw === undefined ? undefined : Number(nextTsRaw) || 0;
+        for (const tool of tools) {
+            if (usedTools.has(tool)) continue;
+            const toolTs = Number(tool.timestamp) || 0;
+            if (step === stepCount - 1 || nextTs === undefined
+                || Math.abs(toolTs - stepTs) <= Math.abs(toolTs - nextTs)) {
+                result.push(tool);
+                usedTools.add(tool);
+            }
+        }
+    }
+    for (const tool of tools) {
+        if (!usedTools.has(tool)) result.push(tool);
+    }
     return result;
 }
 
 function renderLogEntry(entry) {
     switch (entry.type) {
         case 'client':    renderClientEntry(entry); break;
-        case 'ai':        showAIMessage(entry.content, entry.timestamp, true); break;
-        case 'thinking':  showThinkingMessage(entry.content, entry.timestamp, true); break;
+        case 'ai':        showAIMessage(entry.content, entry.timestamp, true, {
+            key: entry.key,
+            replace: true,
+            finalize: true,
+        }); break;
+        case 'thinking':  showThinkingMessage(entry.content, entry.timestamp, true, {
+            key: entry.key,
+            replace: true,
+            finalize: true,
+        }); break;
         case 'tool_call': showToolCallMessage(entry.tool, entry.eventType, entry.timestamp, true, {
             modelContent: entry.modelContent || '',
             attachments: entry.attachments || entry.tool?.attachments || [],
+            replyKey: entry.replyKey || entry.key || '',
+            toolCallId: entry.toolCallId,
         }); break;
         case 'event':     showEventLog(entry.data, true); break;
         case 'system':    showSystemMessage(entry.text, true, { key: entry.key }); break;
@@ -381,6 +501,8 @@ function renderClientEntry(entry, options = {}) {
 // DOM 元素
 const serverUrlInput = document.getElementById('serverUrl');
 const authTokenInput = document.getElementById('authToken');
+const longTermMemoryToggle = document.getElementById('longTermMemoryToggle');
+const followUpSuggestionsToggle = document.getElementById('followUpSuggestionsToggle');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const interruptBtn = document.getElementById('interruptBtn');
@@ -397,6 +519,7 @@ const customAgentCodeGroup = document.getElementById('customAgentCodeGroup');
 const localCrewAgentOptions = document.getElementById('localCrewAgentOptions');
 const modelIdInput = document.getElementById('modelIdInput');
 const modelIdSelect = document.getElementById('modelIdSelect');
+const reasoningEffortSelect = document.getElementById('reasoningEffortSelect');
 const imageModelSelect = document.getElementById('imageModelSelect');
 const videoModelSelect = document.getElementById('videoModelSelect');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
@@ -409,6 +532,15 @@ const clientContextModal = document.getElementById('clientContextModal');
 const clientContextModalCount = document.getElementById('clientContextModalCount');
 const clientContextModalClearBtn = document.getElementById('clientContextModalClearBtn');
 const clientContextModalCloseBtn = document.getElementById('clientContextModalCloseBtn');
+const tokenContextPreview = document.getElementById('tokenContextPreview');
+const tokenContextUsage = document.getElementById('tokenContextUsage');
+const tokenContextRing = document.getElementById('tokenContextRing');
+const tokenContextPopover = document.getElementById('tokenContextPopover');
+const tokenContextPopoverPercentage = document.getElementById('tokenContextPopoverPercentage');
+const tokenContextPopoverProgress = document.getElementById('tokenContextPopoverProgress');
+const tokenContextPopoverCount = document.getElementById('tokenContextPopoverCount');
+const tokenContextPopoverBreakdown = document.getElementById('tokenContextPopoverBreakdown');
+const tokenContextWarning = document.getElementById('tokenContextWarning');
 const languageSelect = document.getElementById('languageSelect');
 const messageVersionSelect = document.getElementById('messageVersionSelect');
 const executionSourceSelect = document.getElementById('executionSourceSelect');
@@ -422,6 +554,17 @@ const messageInputPanel = document.getElementById('messageInputPanel');
 
 const INIT_CONFIG_PANEL_OPEN_KEY = 'httpClient.initConfigPanelOpen';
 const MCP_CONFIG_PANEL_OPEN_KEY = 'httpClient.mcpConfigPanelOpen';
+const LONG_TERM_MEMORY_ENABLED_KEY = 'httpClient.longTermMemoryEnabled';
+const FOLLOW_UP_SUGGESTIONS_ENABLED_KEY = 'httpClient.followUpSuggestionsEnabled';
+const SUGGESTION_STATUS_PENDING = 0;
+const SUGGESTION_STATUS_FAILED = 2;
+const SUGGESTION_RELATION_TYPE_TASK = 1;
+const SUGGESTION_MAX_RETRY_COUNT = 3;
+const SUGGESTION_RETRY_DELAY_MS = 3000;
+const TOKEN_CONTEXT_DEFAULT_LIMIT = 200_000;
+const TOKEN_CONTEXT_WARNING_THRESHOLD = 0.7;
+const TOKEN_CONTEXT_RING_CIRCUMFERENCE = 42.41;
+let latestTokenUsage = null;
 
 function getStoredPanelOpen(storageKey, defaultOpen) {
     const saved = localStorage.getItem(storageKey);
@@ -489,6 +632,153 @@ function refreshClientContextDebugState() {
     if (clientContextModalCount) clientContextModalCount.textContent = `${length} 字符`;
     if (clientContextClearBtn) clientContextClearBtn.style.display = hasManualContext ? '' : 'none';
     if (clientContextModalClearBtn) clientContextModalClearBtn.disabled = !hasManualContext;
+}
+
+function formatTokenCount(value) {
+    const count = Number(value);
+    if (!Number.isFinite(count) || count < 0) return '';
+    if (count >= 1_000) return `${Math.round(count / 1_000)}K`;
+    return String(Math.round(count));
+}
+
+function formatTokenPercentage(ratio) {
+    const percentage = ratio * 100;
+    return percentage < 10 ? `${percentage.toFixed(1)}%` : `${Math.round(percentage)}%`;
+}
+
+function getSelectedModelContextLimit() {
+    const modelId = modelIdSelect && modelIdSelect.style.display !== 'none'
+        ? modelIdSelect.value.trim()
+        : modelIdInput?.value.trim();
+    if (!modelId) return null;
+
+    let textModels = [];
+    try {
+        textModels = JSON.parse(localStorage.getItem('availableModels') || '[]');
+    } catch (e) {
+        return null;
+    }
+    const model = textModels.find(item => item && item.id === modelId);
+    const maxTokens = model?.info?.options?.max_tokens;
+    return Number.isFinite(Number(maxTokens)) && Number(maxTokens) > 0 ? Number(maxTokens) : null;
+}
+
+function normalizeTokenUsage(tokenUsage) {
+    if (!tokenUsage || typeof tokenUsage !== 'object') return null;
+    const inputTokens = tokenUsage.input_tokens ?? tokenUsage.prompt_tokens;
+    const outputTokens = tokenUsage.output_tokens ?? tokenUsage.completion_tokens;
+    const explicitTotalTokens = tokenUsage.total_tokens;
+    const hasInputTokens = inputTokens !== null && inputTokens !== undefined && inputTokens !== ''
+        && Number.isFinite(Number(inputTokens));
+    const hasOutputTokens = outputTokens !== null && outputTokens !== undefined && outputTokens !== ''
+        && Number.isFinite(Number(outputTokens));
+    const hasExplicitTotalTokens = explicitTotalTokens !== null && explicitTotalTokens !== undefined
+        && explicitTotalTokens !== '' && Number.isFinite(Number(explicitTotalTokens));
+    const derivedTotalTokens = hasInputTokens && hasOutputTokens
+        ? Number(inputTokens) + Number(outputTokens)
+        : null;
+    const totalTokens = hasExplicitTotalTokens ? Number(explicitTotalTokens) : derivedTotalTokens;
+    const maxContextTokens = tokenUsage.max_context_tokens ?? tokenUsage.context_window;
+    if (!Number.isFinite(totalTokens)) return null;
+    return {
+        input_tokens: hasInputTokens ? Number(inputTokens) : null,
+        output_tokens: hasOutputTokens ? Number(outputTokens) : null,
+        total_tokens: totalTokens,
+        max_context_tokens: Number.isFinite(Number(maxContextTokens)) ? Number(maxContextTokens) : null,
+        model_id: tokenUsage.model_id || tokenUsage.model_name || '',
+        input_tokens_details: tokenUsage.input_tokens_details || null,
+    };
+}
+
+function setTokenContextPopoverOpen(isOpen) {
+    if (!tokenContextPopover || !tokenContextPreview) return;
+    tokenContextPopover.style.display = isOpen ? 'block' : 'none';
+    tokenContextPreview.setAttribute('aria-expanded', String(isOpen));
+    if (isOpen) positionTokenContextPopover();
+}
+
+function closeTokenContextPopover() {
+    setTokenContextPopoverOpen(false);
+}
+
+function positionTokenContextPopover() {
+    if (!tokenContextPopover || !tokenContextPreview || tokenContextPopover.style.display === 'none') return;
+    const triggerRect = tokenContextPreview.getBoundingClientRect();
+    const popoverRect = tokenContextPopover.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const left = Math.min(
+        Math.max(12, triggerRect.right - popoverRect.width),
+        viewportWidth - popoverRect.width - 12,
+    );
+    const openAbove = triggerRect.top >= popoverRect.height + 20;
+    const top = openAbove
+        ? triggerRect.top - popoverRect.height - 8
+        : Math.min(triggerRect.bottom + 8, viewportHeight - popoverRect.height - 12);
+    tokenContextPopover.style.left = `${left}px`;
+    tokenContextPopover.style.top = `${Math.max(12, top)}px`;
+}
+
+function initTokenContextPreview() {
+    if (tokenContextPopover && tokenContextPopover.parentElement !== document.body) {
+        document.body.appendChild(tokenContextPopover);
+    }
+    tokenContextPreview?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const isOpen = tokenContextPopover?.style.display !== 'none';
+        setTokenContextPopoverOpen(!isOpen);
+    });
+    document.addEventListener('click', (event) => {
+        if (tokenContextPopover?.contains(event.target) || tokenContextPreview?.contains(event.target)) return;
+        closeTokenContextPopover();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeTokenContextPopover();
+    });
+    window.addEventListener('resize', positionTokenContextPopover);
+    window.addEventListener('scroll', positionTokenContextPopover, true);
+}
+
+function updateTokenContextPreview(tokenUsage = null) {
+    if (!tokenContextPreview) return;
+    const normalized = normalizeTokenUsage(tokenUsage);
+    if (normalized) latestTokenUsage = normalized;
+
+    const usage = latestTokenUsage;
+    const totalTokens = usage?.total_tokens;
+    if (!usage || !Number.isFinite(totalTokens)) {
+        tokenContextPreview.style.display = 'none';
+        closeTokenContextPopover();
+        return;
+    }
+
+    const contextLimit = usage.max_context_tokens || getSelectedModelContextLimit() || TOKEN_CONTEXT_DEFAULT_LIMIT;
+    const ratio = Math.min(Math.max(totalTokens / contextLimit, 0), 1);
+    const percentageLabel = formatTokenPercentage(ratio);
+    const isHighUsage = ratio >= TOKEN_CONTEXT_WARNING_THRESHOLD;
+    const usedLabel = formatTokenCount(totalTokens);
+    const maxLabel = formatTokenCount(contextLimit);
+    const inputLabel = Number.isFinite(usage.input_tokens) ? formatTokenCount(usage.input_tokens) : '';
+    const outputLabel = Number.isFinite(usage.output_tokens) ? formatTokenCount(usage.output_tokens) : '';
+
+    tokenContextPreview.style.display = 'inline-flex';
+    tokenContextPreview.classList.toggle('is-high', isHighUsage);
+    tokenContextPreview.setAttribute('aria-label', `上下文用量 ${percentageLabel}`);
+    tokenContextPreview.title = `上下文用量 ${percentageLabel}`;
+    tokenContextUsage.textContent = percentageLabel;
+    tokenContextRing.style.strokeDashoffset = String(TOKEN_CONTEXT_RING_CIRCUMFERENCE * (1 - ratio));
+    tokenContextPopoverPercentage.textContent = percentageLabel;
+    tokenContextPopoverProgress.style.width = `${ratio * 100}%`;
+    tokenContextPopoverProgress.parentElement.classList.toggle('is-high', isHighUsage);
+    tokenContextPopoverCount.textContent = `${usedLabel} / ${maxLabel} Tokens`;
+
+    const breakdown = [];
+    if (inputLabel) breakdown.push(`输入 ${inputLabel}`);
+    if (outputLabel) breakdown.push(`输出 ${outputLabel}`);
+    if (usage.model_id) breakdown.push(usage.model_id);
+    tokenContextPopoverBreakdown.textContent = breakdown.join(' · ');
+    tokenContextWarning.style.display = isHighUsage ? 'flex' : 'none';
+    positionTokenContextPopover();
 }
 
 function clearManualClientContext() {
@@ -594,7 +884,10 @@ function renderMcpList() {
         const cfg = mcpServersConfig[name];
         const enabled = !!mcpEnabledStates[name];
         const isHttp = (cfg.type || '').toLowerCase() === 'http';
-        const meta = isHttp ? (cfg.url || '') : (cfg.command || '');
+        const isMagicServiceAuth = Number(cfg.auth_type) === 2;
+        const meta = isMagicServiceAuth
+            ? `Magic Service 授权 · ${cfg.mcp_server_code || '未填写 mcp_server_code'}`
+            : (isHttp ? (cfg.url || '') : (cfg.command || ''));
         const typeLabel = isHttp ? 'HTTP' : 'stdio';
         const typeClass = isHttp ? '' : 'stdio';
 
@@ -649,7 +942,12 @@ function syncJsonToList() {
         // 对每个服务器补全 name 字段
         for (const [k, v] of Object.entries(parsed)) {
             if (typeof v === 'object' && v !== null) {
-                parsed[k] = Object.assign({ name: k }, v);
+                const normalized = Object.assign({ name: k }, v);
+                // 支持面板中的可读别名，发送给后端时统一为 MCP Authorization 的数值类型。
+                if (normalized.auth_type === 'magic_service' || normalized.auth_type === 'mcp_authorization') {
+                    normalized.auth_type = 2;
+                }
+                parsed[k] = normalized;
             }
         }
         mcpServersConfig = parsed;
@@ -669,6 +967,11 @@ function syncJsonToList() {
 
 /** 构建发送用的 mcp_config（只包含启用的服务器），无启用服务器时返回 null */
 function buildMcpConfig() {
+    // JSON 模式下用户可能还没有切回列表，发送前必须先同步最新内容。
+    if (mcpViewMode === 'json' && !syncJsonToList()) {
+        return null;
+    }
+
     const enabledServers = {};
     for (const [name, cfg] of Object.entries(mcpServersConfig)) {
         if (mcpEnabledStates[name]) {
@@ -735,6 +1038,13 @@ function initMcpPanel() {
         });
     }
 
+    const magicServiceTemplateBtn = document.getElementById('mcpMagicServiceTemplateBtn');
+    if (magicServiceTemplateBtn) {
+        magicServiceTemplateBtn.addEventListener('click', () => {
+            applyMcpMagicServiceTemplate(jsonInput);
+        });
+    }
+
     // 全屏编辑弹窗
     const expandBtn = document.getElementById('mcpExpandBtn');
     const modal = document.getElementById('mcpJsonModal');
@@ -789,6 +1099,31 @@ function initMcpPanel() {
     updateMcpBadge();
 }
 
+/**
+ * 将 Magic Service MCP Authorization 配置模板写入 JSON 编辑框。
+ * 仅在编辑框为空时写入，避免覆盖用户正在编辑的配置。
+ */
+function applyMcpMagicServiceTemplate(jsonInput) {
+    if (!jsonInput) return;
+    if (jsonInput.value.trim()) {
+        showSystemMessage('当前已有 MCP 配置，已保留原内容；请清空 JSON 后再插入模板');
+        jsonInput.focus();
+        return;
+    }
+
+    jsonInput.value = JSON.stringify({
+        '服务器名称': {
+            name: '服务器名称',
+            type: 'http',
+            url: 'https://你的-mcp-server.example.com/mcp',
+            auth_type: 2,
+            mcp_server_code: '请填写 magic-service 中的 MCP Server code',
+            headers: {},
+        },
+    }, null, 2);
+    jsonInput.focus();
+}
+
 // ── MCP 配置面板 end ──────────────────────────────────────────────────────────
 
 // 消息类型枚举
@@ -819,6 +1154,8 @@ const AgentMode = {
     SUMMARY_CHAT: "summary-chat",
     SUMMARY_VIDEO: "summary-video",
     DESIGN: "design",
+    CANVAS: "canvas",
+    VIDEO_PRODUCTION: "video-production",
     TEST: "test",
     SKILL: "skill",
     AGENT_MASTER: "agent-master",
@@ -1246,10 +1583,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化输入栏自定义选择器
     initCustomSelects();
+    window.HttpClientModelPicker?.init();
     initClientContextModal();
+    initTokenContextPreview();
 
     restoreInputDrafts();
     refreshClientContextDebugState();
+    updateTokenContextPreview();
 
     // 原始事件默认隐藏，用户打开后才展示调试事件盒
     initRawEventsToggle();
@@ -1360,6 +1700,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    modelIdInput?.addEventListener('input', () => updateTokenContextPreview());
+
     // 先加载历史记录
     loadMessageHistory();
     console.log("DOM加载完成，已加载历史记录，数量:", messageHistory.length);
@@ -1419,6 +1761,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // IM 渠道模拟模式切换事件
     if (imModeToggle) {
         imModeToggle.addEventListener('change', toggleImMode);
+    }
+    if (longTermMemoryToggle) {
+        const savedLongTermMemoryEnabled = localStorage.getItem(LONG_TERM_MEMORY_ENABLED_KEY);
+        longTermMemoryToggle.checked = savedLongTermMemoryEnabled !== 'false';
+        longTermMemoryToggle.addEventListener('change', () => {
+            localStorage.setItem(LONG_TERM_MEMORY_ENABLED_KEY, String(longTermMemoryToggle.checked));
+        });
+    }
+    if (followUpSuggestionsToggle) {
+        const savedFollowUpSuggestionsEnabled = localStorage.getItem(FOLLOW_UP_SUGGESTIONS_ENABLED_KEY);
+        followUpSuggestionsToggle.checked = savedFollowUpSuggestionsEnabled !== 'false';
+        followUpSuggestionsToggle.addEventListener('change', () => {
+            localStorage.setItem(FOLLOW_UP_SUGGESTIONS_ENABLED_KEY, String(followUpSuggestionsToggle.checked));
+        });
     }
     if (imChannelSelect) {
         imChannelSelect.addEventListener('change', () => {
@@ -1528,7 +1884,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 页面加载后自动尝试订阅 WebSocket
     autoConnectWebSocket();
-    connectSocketIoStreamFromConfig();
 });
 
 // 清理模型列表：清除 localStorage 缓存并恢复文本输入框
@@ -1561,6 +1916,8 @@ function clearModelList() {
     const videoModelGroup = document.getElementById('videoModelGroup');
     if (videoModelGroup) videoModelGroup.style.display = 'none';
     refreshCustomSelect(modelIdSelect);
+    updateTokenContextPreview();
+    window.HttpClientModelPicker?.refresh();
 
     showSystemMessage('模型列表已清理');
 }
@@ -1658,8 +2015,11 @@ function populateModelSelects(textModels, imageModels, videoModels) {
         // 记住选择变更
         modelIdSelect.onchange = () => {
             localStorage.setItem('selectedModelId', modelIdSelect.value);
+            updateTokenContextPreview();
+            window.HttpClientModelPicker?.refresh();
         };
         refreshCustomSelect(modelIdSelect);
+        updateTokenContextPreview();
     }
 
     // 图片模型
@@ -1684,6 +2044,7 @@ function populateModelSelects(textModels, imageModels, videoModels) {
         // 记住选择变更
         imageModelSelect.onchange = () => {
             localStorage.setItem('selectedImageModelId', imageModelSelect.value);
+            window.HttpClientModelPicker?.refresh();
         };
         refreshCustomSelect(imageModelSelect);
     }
@@ -1708,6 +2069,7 @@ function populateModelSelects(textModels, imageModels, videoModels) {
 
         videoModelSelect.onchange = () => {
             localStorage.setItem('selectedVideoModelId', videoModelSelect.value);
+            window.HttpClientModelPicker?.refresh();
         };
         refreshCustomSelect(videoModelSelect);
     }
@@ -1721,6 +2083,7 @@ function populateModelSelects(textModels, imageModels, videoModels) {
     if (videoModelGroup && !isImMode) {
         videoModelGroup.style.display = videoModels.length > 0 ? '' : 'none';
     }
+    window.HttpClientModelPicker?.refresh();
 }
 
 // 设置默认配置
@@ -1813,6 +2176,8 @@ async function sendHttpMessage(messageData) {
 
     try {
         injectDebugTaskId(messageData);
+        injectLongTermMemoryPreference(messageData);
+        injectFollowUpPreference(messageData);
         applyLocalDebugOptions(messageData);
         const response = await fetch(`${serverUrl}/api/v1/messages/chat`, {
             method: 'POST',
@@ -1848,12 +2213,48 @@ async function sendHttpMessage(messageData) {
  * 为调试面板发送的普通聊天消息注入新的任务 ID.
  * 初始化消息和中断消息不切换任务，避免影响当前运行中的任务状态.
  */
+let currentDebugTaskId = '';
+let followUpPollToken = 0;
+
 function injectDebugTaskId(messageData) {
     if (!messageData || messageData.type !== MessageType.CHAT) return;
     if (messageData.context_type === ContextType.INTERRUPT) return;
 
     messageData.metadata = messageData.metadata || {};
     messageData.metadata.super_magic_task_id = generateDebugTaskId();
+    currentDebugTaskId = messageData.metadata.super_magic_task_id;
+}
+
+/**
+ * 将调试面板中的长期记忆开关注入每次 CHAT metadata。
+ * system prompt 首次生成时使用当前 CHAT 值，后续 CHAT 只影响运行时功能。
+ */
+function injectLongTermMemoryPreference(messageData) {
+    if (!messageData || messageData.type !== MessageType.CHAT) return;
+
+    messageData.metadata = messageData.metadata || {};
+    messageData.metadata.personal_preferences = {
+        ...(messageData.metadata.personal_preferences || {}),
+        long_term_memory_enabled: longTermMemoryToggle
+            ? longTermMemoryToggle.checked
+            : true,
+    };
+}
+
+/**
+ * 将调试面板中的追加问题开关注入每次 CHAT metadata。
+ * 关闭后本次主任务不生成追加问题，本页也不再查询。
+ */
+function injectFollowUpPreference(messageData) {
+    if (!messageData || messageData.type !== MessageType.CHAT) return;
+
+    messageData.metadata = messageData.metadata || {};
+    messageData.metadata.personal_preferences = {
+        ...(messageData.metadata.personal_preferences || {}),
+        show_follow_up_suggestions: followUpSuggestionsToggle
+            ? followUpSuggestionsToggle.checked
+            : true,
+    };
 }
 
 /**
@@ -1888,6 +2289,7 @@ async function clearRemoteChatHistory() {
     }
 }
 
+/** 统一应用普通与原始 JSON 模式的调试选项，思考强度为空时不发送该字段。 */
 function applyLocalDebugOptions(messageData) {
     if (!messageData || typeof messageData !== 'object') return;
     messageData.dynamic_config = Object.assign({}, messageData.dynamic_config, {
@@ -1896,6 +2298,13 @@ function applyLocalDebugOptions(messageData) {
         client_context: buildLocalDebugClientContext(),
         super_magic_execution_source: currentExecutionSource || 'human_chat',
     });
+    // 调试面板直接透传所选档位，切回默认时移除覆盖，不执行模型能力判断。
+    const reasoningEffort = reasoningEffortSelect ? reasoningEffortSelect.value : '';
+    if (reasoningEffort) {
+        messageData.dynamic_config.reasoning_effort = reasoningEffort;
+    } else {
+        delete messageData.dynamic_config.reasoning_effort;
+    }
     if (currentMessageVersion) {
         messageData.dynamic_config.message_version = currentMessageVersion;
     } else {
@@ -1936,12 +2345,15 @@ function buildLocalDebugClientContextContent() {
 function formatClientContextTabName(tab) {
     if (!tab || typeof tab !== 'object') return '';
     if (isToolDetailPreviewPath(tab.path)) return tab.title || 'Tool detail';
+    if (tab.type === 'canvas-project' || tab.type === 'micro-app') {
+        return tab.title || getFilePreviewResourcePath(tab);
+    }
     return tab.path || tab.title || '';
 }
 
 function getClientContextFocusedFile() {
     if (!activeFilePreviewPath || isToolDetailPreviewPath(activeFilePreviewPath)) return '';
-    return activeFilePreviewPath;
+    return getFilePreviewResourcePath(filePreviewTabs.get(activeFilePreviewPath)) || activeFilePreviewPath;
 }
 
 function getManualClientContextContent() {
@@ -2059,7 +2471,6 @@ async function sendInitMessage() {
         // 解析配置内容
         const configData = normalizeInitConfig(JSON.parse(uploadConfigContent.value));
         updateInitConfigContent(configData);
-        connectSocketIoStreamFromConfig(configData);
 
         // 显示客户端消息
         showClientMessage({
@@ -2104,7 +2515,6 @@ function handleConfigFileUpload(event) {
             // 保存到 localStorage
             localStorage.setItem('savedConfigContent', normalizedContent);
             localStorage.setItem('savedConfigFileName', currentFileName);
-            connectSocketIoStreamFromConfig(configData);
 
             showSystemMessage(`配置文件 "${file.name}" 上传成功并已保存`);
         } catch (error) {
@@ -2149,6 +2559,7 @@ function toggleImMode() {
         if (imageModelGroup) imageModelGroup.style.display = 'none';
         const videoModelGroup = document.getElementById('videoModelGroup');
         if (videoModelGroup) videoModelGroup.style.display = 'none';
+        window.HttpClientModelPicker?.setVisible(false);
         // IM 模式与高级模式互斥
         if (isAdvancedMode) {
             advancedModeToggle.checked = false;
@@ -2160,6 +2571,7 @@ function toggleImMode() {
         agentModeGroup.style.display = '';
         modelIdGroup.style.display = '';
         languageGroup.style.display = '';
+        window.HttpClientModelPicker?.setVisible(true);
         // agentCodeGroup 的显示由 agent mode 决定，重新同步一次
         changeAgentMode();
         // 若模型列表已加载则恢复图片/视频模型选择器
@@ -2192,6 +2604,7 @@ function createImChatMessage(prompt) {
         message_id: generateImMessageId(currentImChannel, userId),
         type: MessageType.CHAT,
         prompt: prompt,
+        attachments: buildNativeVisionAttachments(prompt),
         metadata: {
             agent_user_id: userId,
         },
@@ -2217,7 +2630,7 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         context_type: contextType,
         task_mode: currentTaskMode, // 保留兼容性
         agent_mode: currentAgentMode, // 新的 agent 模式
-        attachments: [],
+        attachments: buildNativeVisionAttachments(prompt),
         metadata: {
             language: currentLanguage
         }
@@ -2579,6 +2992,7 @@ let eventLogObjectSeen = new WeakSet();
 const streamMessageRegistry = new Map();
 const rawStreamRegistry = new Map();
 const toolCallRegistry = new Map();
+const toolStreamIdByIndex = new Map();
 const superMagicChunkSeenKeys = new Set();
 const superMagicChunkSeenQueue = [];
 const SUPER_MAGIC_CHUNK_SEEN_LIMIT = 3000;
@@ -2685,11 +3099,82 @@ function appendMessageNode(node, options = {}) {
     // 懒加载预渲染旧消息时，追加到临时 fragment 而非主 DOM
     if (lazyPrependTarget) {
         lazyPrependTarget.appendChild(node);
+    } else if (options.insertBefore && options.insertBefore.parentNode === messageList) {
+        messageList.insertBefore(node, options.insertBefore);
+    } else if (options.insertAfter && options.insertAfter.parentNode === messageList) {
+        options.insertAfter.after(node);
     } else {
         messageList.appendChild(node);
     }
     keepAssistantActivityLast(node);
     syncScrollAfterMessageChange(shouldStickToBottom, { showLatestButton: options.showLatestButton !== false });
+}
+
+function findReplyContentNode(replyKey) {
+    if (!replyKey) return null;
+    const state = streamMessageRegistry.get(`content:${replyKey}`);
+    const node = state && state.messageDiv;
+    return node && node.isConnected ? node : null;
+}
+
+function findReplyThinkingNode(replyKey) {
+    if (!replyKey) return null;
+    const state = streamMessageRegistry.get(`reasoning:${replyKey}`);
+    const node = state && state.wrapper;
+    return node && node.isConnected ? node : null;
+}
+
+// 同一轮 assistant 固定为：思考 -> 正文 -> 工具。
+// 工具 delta 常比正文先到，先按 replyKey 挂到轮次末尾；正文到达后再插到首个同轮工具前。
+function placeAssistantReplyNode(node, replyKey, kind) {
+    if (!replyKey) {
+        appendMessageNode(node);
+        return;
+    }
+    if (kind === 'thinking') {
+        appendMessageNode(node, {
+            insertBefore: findReplyContentNode(replyKey) || findFirstReplyToolNode(replyKey) || undefined,
+        });
+        return;
+    }
+    if (kind === 'content') {
+        const firstTool = findFirstReplyToolNode(replyKey);
+        if (firstTool) {
+            appendMessageNode(node, { insertBefore: firstTool });
+            return;
+        }
+        const thinking = findReplyThinkingNode(replyKey);
+        appendMessageNode(node, { insertAfter: thinking || undefined });
+        return;
+    }
+    node.dataset.replyKey = String(replyKey);
+    appendMessageNode(node, {
+        insertAfter: findLastReplyToolNode(replyKey)
+            || findReplyContentNode(replyKey)
+            || findReplyThinkingNode(replyKey)
+            || undefined,
+    });
+}
+
+function findFirstReplyToolNode(replyKey) {
+    if (!replyKey || !messageList) return null;
+    return messageList.querySelector(`[data-reply-key="${CSS.escape(String(replyKey))}"]`);
+}
+
+function findLastReplyToolNode(replyKey) {
+    const first = findFirstReplyToolNode(replyKey);
+    if (!first) return null;
+    let last = first;
+    let node = first.nextSibling;
+    while (node) {
+        if (node.dataset && node.dataset.replyKey === String(replyKey)) {
+            last = node;
+            node = node.nextSibling;
+            continue;
+        }
+        break;
+    }
+    return last;
 }
 
 function syncScrollAfterMessageChange(shouldStickToBottom, options = {}) {
@@ -2844,6 +3329,7 @@ function resetConnectionStatusLog() {
     rawStreamRegistry.clear();
     streamMessageRegistry.clear();
     toolCallRegistry.clear();
+    toolStreamIdByIndex.clear();
     superMagicChunkSeenKeys.clear();
     superMagicChunkSeenQueue.length = 0;
 }
@@ -2937,6 +3423,7 @@ function rerenderChatLog() {
     systemMessageRegistry.clear();
     streamMessageRegistry.clear();
     toolCallRegistry.clear();
+    toolStreamIdByIndex.clear();
     rawStreamRegistry.forEach(state => {
         if (state.timer) clearTimeout(state.timer);
     });
@@ -3011,6 +3498,7 @@ function changeAgentMode() {
         'ppt': 'PPT模式',
         'data_analysis': '数据分析模式',
         'summary': '总结模式',
+        'canvas': 'Canvas管理模式',
         'magiclaw': 'MagicLaw模式',
         'custom_agent': '自定义Agent模式'
     };
@@ -3459,372 +3947,6 @@ function handleWebSocketOpen(event) {
     wsOpenCallbacks.splice(0).forEach(cb => cb.resolve());
 }
 
-function scheduleSocketIoReconnectFromConfig() {
-    if (socketIoReconnectTimer) clearTimeout(socketIoReconnectTimer);
-    socketIoReconnectAttempt = 0;
-    socketIoReconnectTimer = setTimeout(() => {
-        socketIoReconnectTimer = null;
-        connectSocketIoStreamFromConfig();
-    }, 500);
-}
-
-function scheduleSocketIoAutoReconnect() {
-    if (socketIoReconnectTimer) return; // 已有重连计划
-    const delay = Math.min(
-        SOCKETIO_RECONNECT_BASE_MS * Math.pow(2, socketIoReconnectAttempt),
-        SOCKETIO_RECONNECT_MAX_MS
-    );
-    socketIoReconnectAttempt++;
-    showConnectionStatusMessage(`Socket.IO 将在 ${(delay / 1000).toFixed(1)}s 后重连...`);
-    socketIoReconnectTimer = setTimeout(() => {
-        socketIoReconnectTimer = null;
-        connectSocketIoStreamFromConfig();
-    }, delay);
-}
-
-function connectSocketIoStreamFromConfig(configData = null) {
-    const streamConfig = buildSocketIoStreamConfig(configData);
-    if (!streamConfig) return;
-
-    const nextKey = `${streamConfig.baseUrl}|${streamConfig.socketioPath}`;
-    // 已连接且 key 相同则跳过；若 client 已关闭则允许重连
-    if (socketIoClient && socketIoConfigKey === nextKey
-        && socketIoClient.readyState === WebSocket.OPEN) return;
-
-    disconnectSocketIoStream();
-    socketIoConfigKey = nextKey;
-    socketIoAuthContext = streamConfig.authContext || {};
-
-    try {
-        const socketUrl = buildSocketIoWebSocketUrl(streamConfig);
-        socketIoClient = new WebSocket(socketUrl);
-
-        socketIoClient.onopen = () => {
-            isSocketIoConnected = true;
-            socketIoReconnectAttempt = 0;
-            showConnectionStatusMessage("Socket.IO 流式通道已连接");
-        };
-        socketIoClient.onclose = () => {
-            isSocketIoConnected = false;
-            stopSocketIoHeartbeat();
-            hideAssistantActivity();
-            showConnectionStatusMessage("Socket.IO 流式通道已断开");
-            scheduleSocketIoAutoReconnect();
-        };
-        socketIoClient.onerror = () => {
-            isSocketIoConnected = false;
-            hideAssistantActivity();
-            // onclose 会紧跟触发，重连由 onclose 负责
-        };
-        socketIoClient.onmessage = handleSocketIoPacketMessage;
-    } catch (error) {
-        showConnectionStatusMessage(`Socket.IO 流式通道初始化失败: ${error.message}`);
-        scheduleSocketIoAutoReconnect();
-    }
-}
-
-function disconnectSocketIoStream() {
-    // 取消待执行的重连计划
-    if (socketIoReconnectTimer) {
-        clearTimeout(socketIoReconnectTimer);
-        socketIoReconnectTimer = null;
-    }
-    socketIoReconnectAttempt = 0;
-    if (!socketIoClient) return;
-    stopSocketIoHeartbeat();
-    socketIoClient.onopen = null;
-    socketIoClient.onclose = null;
-    socketIoClient.onerror = null;
-    socketIoClient.onmessage = null;
-    socketIoClient.close();
-    socketIoClient = null;
-    isSocketIoConnected = false;
-}
-
-function buildSocketIoWebSocketUrl(streamConfig) {
-    const path = streamConfig.socketioPath.endsWith('/')
-        ? streamConfig.socketioPath
-        : `${streamConfig.socketioPath}/`;
-    return `${streamConfig.baseUrl}${path}?EIO=4&transport=websocket&timestamp=${Date.now()}`;
-}
-
-function startSocketIoHeartbeat() {
-    // EIO=4: 服务端主动发 ping('2')，客户端回 pong('3')。
-    // 这里启动超时监控：若超过 pingInterval + pingTimeout 未收到服务端 ping，则认为连接已死。
-    stopSocketIoHeartbeat();
-    resetSocketIoPingWatchdog();
-}
-
-function resetSocketIoPingWatchdog() {
-    if (socketIoHeartbeatTimer) clearTimeout(socketIoHeartbeatTimer);
-    socketIoHeartbeatTimer = setTimeout(() => {
-        // 超时未收到服务端 ping，断开重连
-        if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
-            console.warn('Socket.IO ping watchdog timeout, closing connection');
-            socketIoClient.close();
-        }
-    }, socketIoPingInterval + (socketIoPingTimeout || 20000));
-}
-
-function stopSocketIoHeartbeat() {
-    if (socketIoHeartbeatTimer) {
-        clearTimeout(socketIoHeartbeatTimer);
-        socketIoHeartbeatTimer = null;
-    }
-}
-
-function connectSocketIoNamespace() {
-    if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
-        // Socket.IO v3/v4 (EIO=4): namespace CONNECT 包格式为 40/namespace,
-        socketIoClient.send('40/im,');
-    }
-}
-
-function sendSocketIoLoginMessage() {
-    if (!socketIoClient || socketIoClient.readyState !== WebSocket.OPEN) return;
-
-    const payload = {
-        context: {
-            timestamp: Date.now(),
-            authorization: '',
-            organization_code: '',
-            language: 'zh_CN',
-            signature: '',
-            ...socketIoAuthContext,
-        },
-        data: {
-            message: {
-                type: 'text',
-                text: { content: '登录' },
-                app_message_id: `debug-login-${Date.now()}`,
-            },
-            conversation_id: '',
-        },
-    };
-    socketIoClient.send(`42/im,0${JSON.stringify(['login', payload])}`);
-}
-
-function buildSocketIoStreamConfig(configData = null) {
-    const config = configData || getUploadedConfig();
-    if (!config) return null;
-
-    const wsHost = config.magic_service_ws_host || '';
-    const httpHost = config.magic_service_host || '';
-    const authContext = buildSocketIoAuthContext(config);
-    if (wsHost) {
-        const streamConfig = buildSocketIoConfigFromHost(wsHost, false);
-        return streamConfig ? { ...streamConfig, authContext } : null;
-    }
-    if (httpHost) {
-        const streamConfig = buildSocketIoConfigFromHost(httpHost, true);
-        return streamConfig ? { ...streamConfig, authContext } : null;
-    }
-    return null;
-}
-
-function buildSocketIoAuthContext(config) {
-    const metadata = config.metadata || {};
-    const authorization = config.authorization || metadata.authorization || '';
-    return {
-        authorization,
-        'user-authorization': authorization,
-        organization_code: metadata.organization_code || metadata.magicOrganizationCode || '',
-        language: metadata.language || config.language || 'zh_CN',
-        super_magic_agent_user_id: metadata.agent_user_id || '',
-        topic_id: metadata.chat_topic_id || '',
-    };
-}
-
-function getUploadedConfig() {
-    const rawConfig = uploadConfigContent && uploadConfigContent.value;
-    if (!rawConfig || rawConfig === "请上传配置文件") return null;
-    try {
-        return normalizeInitConfig(JSON.parse(rawConfig));
-    } catch (e) {
-        return null;
-    }
-}
-
-function buildSocketIoConfigFromHost(host, convertHttpToWs) {
-    try {
-        const parsed = new URL(host);
-        let protocol = parsed.protocol.replace(':', '');
-        if (convertHttpToWs) {
-            if (protocol === 'https') protocol = 'wss';
-            else if (protocol === 'http') protocol = 'ws';
-        } else if (protocol === 'https') {
-            protocol = 'wss';
-        } else if (protocol === 'http') {
-            protocol = 'ws';
-        }
-        if (!['ws', 'wss'].includes(protocol)) return null;
-
-        let port = parsed.port;
-        if (convertHttpToWs && port === '9501') port = '9502';
-        const portPart = port ? `:${port}` : '';
-        const baseUrl = `${protocol}://${parsed.hostname}${portPart}`;
-        const normalizedPath = parsed.pathname.replace(/\/$/, '');
-        const socketioPath = normalizedPath ? `${normalizedPath}/socket.io/` : '/socket.io/';
-        return { baseUrl, socketioPath };
-    } catch (e) {
-        return null;
-    }
-}
-
-function handleSocketIoPacketMessage(event) {
-    const data = event && event.data;
-    if (typeof data !== 'string' || !data) return;
-
-    const engineIoPacketType = data.slice(0, 1);
-    if (engineIoPacketType === '0') {
-        handleSocketIoOpenPacket(data);
-        return;
-    }
-    if (engineIoPacketType === '2') {
-        // EIO=4: 服务端发来 ping，客户端必须回 pong
-        if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
-            socketIoClient.send('3');
-        }
-        resetSocketIoPingWatchdog();
-        return;
-    }
-    if (engineIoPacketType === '3') {
-        // pong（EIO=3 兼容，正常忽略）
-        return;
-    }
-    if (engineIoPacketType !== '4') {
-        return;
-    }
-
-    const packet = decodeSocketIoPacket(data.slice(1));
-    if (!packet) return;
-    if (packet.type === '0' || packet.type === '3') return;
-
-    const packetData = packet.data;
-    if (Array.isArray(packetData) && packetData.length >= 2) {
-        const [eventName, payload] = packetData;
-        if (eventName === 'intermediate') {
-            handleSocketIoIntermediateMessage(payload);
-            return;
-        }
-        showEventLog({ socketio_event: eventName, payload });
-        return;
-    }
-
-    showEventLog({ socketio_packet: packet });
-}
-
-function handleSocketIoOpenPacket(data) {
-    try {
-        const openPayload = JSON.parse(data.slice(1));
-        if (Number.isFinite(openPayload.pingInterval)) {
-            socketIoPingInterval = openPayload.pingInterval;
-        }
-        if (Number.isFinite(openPayload.pingTimeout)) {
-            socketIoPingTimeout = openPayload.pingTimeout;
-        }
-    } catch (e) {
-        socketIoPingInterval = 25000;
-        socketIoPingTimeout = 20000;
-    }
-    startSocketIoHeartbeat();
-    connectSocketIoNamespace();
-    sendSocketIoLoginMessage();
-}
-
-function decodeSocketIoPacket(packetText) {
-    if (!packetText) return null;
-
-    const packetType = packetText.slice(0, 1);
-    let payloadText = packetText.slice(1);
-    let namespace = '';
-    if (payloadText.startsWith('/')) {
-        const namespaceEnd = payloadText.indexOf(',');
-        if (namespaceEnd === -1) return { type: packetType, namespace: payloadText, id: null, data: null };
-        namespace = payloadText.slice(0, namespaceEnd);
-        payloadText = payloadText.slice(namespaceEnd + 1);
-    }
-
-    let ackId = null;
-    const payloadStart = payloadText.search(/[\[{]/);
-    if (payloadStart > 0) {
-        const ackText = payloadText.slice(0, payloadStart);
-        ackId = /^\d+$/.test(ackText) ? Number(ackText) : null;
-        payloadText = payloadText.slice(payloadStart);
-    }
-
-    if (!payloadText) return { type: packetType, namespace, id: ackId, data: null };
-    try {
-        return {
-            type: packetType,
-            namespace,
-            id: ackId,
-            data: JSON.parse(payloadText),
-        };
-    } catch (e) {
-        console.warn('Socket.IO packet parse failed:', e, packetText);
-        return null;
-    }
-}
-
-function handleSocketIoIntermediateMessage(message) {
-    const decoded = decodeSocketIoPayload(message);
-    if (!decoded) return;
-    showEventLog(decoded);
-    if (handleSuperMagicChunkMessage(decoded)) return;
-    if (handleRawStreamMessage(decoded)) return;
-    showEventLog({ socketio_intermediate_unhandled: decoded });
-}
-
-function decodeSocketIoPayload(message) {
-    let payload = message;
-    if (typeof payload === 'string') {
-        try {
-            payload = JSON.parse(payload);
-        } catch (e) {
-            return null;
-        }
-    }
-
-    const shadowText =
-        (payload && payload.shadow) ||
-        (payload && payload.obfuscated && typeof payload.data === 'string' ? payload.data : '');
-    if (shadowText) {
-        try {
-            return JSON.parse(unshadowText(shadowText));
-        } catch (e) {
-            console.warn('Socket.IO shadow payload decode failed:', e);
-            return null;
-        }
-    }
-
-    return payload;
-}
-
-const SHADOW_PREFIX = 'SHADOWED_';
-const UNSHUFFLE_MAP = [
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-    62, 116, 33, 102, 126, 59, 119, 114, 44, 79, 100, 88, 67, 34, 103, 89, 46, 87, 53, 38, 41, 85, 65, 108, 97, 71, 74, 72, 36, 92, 81, 49, 40, 117,
-    55, 109, 42, 78, 110, 93, 95, 54, 80, 106, 61, 51, 123, 58, 124, 99, 90, 98, 73, 111, 35, 63, 121, 105, 45, 43, 104, 70, 77, 84, 64, 57,
-    52, 82, 91, 68, 60, 37, 115, 83, 125, 122, 75, 101, 48, 66, 107, 56, 39, 86, 69, 113, 112, 96, 76, 118, 32, 120, 50, 94, 47, 127,
-    129, 128, 131, 130, 133, 132, 135, 134, 137, 136, 139, 138, 141, 140, 143, 142, 145, 144, 147, 146, 149, 148, 151, 150, 153, 152, 155, 154, 157, 156, 159, 158,
-    161, 160, 163, 162, 165, 164, 167, 166, 169, 168, 171, 170, 173, 172, 175, 174, 177, 176, 179, 178, 181, 180, 183, 182, 185, 184, 187, 186, 189, 188, 191, 190,
-    193, 192, 195, 194, 197, 196, 199, 198, 201, 200, 203, 202, 205, 204, 207, 206, 209, 208, 211, 210, 213, 212, 215, 214, 217, 216, 219, 218, 221, 220, 223, 222,
-    225, 224, 227, 226, 229, 228, 231, 230, 233, 232, 235, 234, 237, 236, 239, 238, 241, 240, 243, 242, 245, 244, 247, 246, 249, 248, 251, 250, 253, 252, 255, 254
-];
-
-function unshadowText(value) {
-    if (!value || !value.startsWith(SHADOW_PREFIX)) return value;
-    const obfuscatedPart = value.slice(SHADOW_PREFIX.length);
-    const inputBytes = new TextEncoder().encode(obfuscatedPart);
-    const resultBytes = new Uint8Array(inputBytes.length);
-    for (let i = 0; i < inputBytes.length; i++) {
-        const byteValue = inputBytes[i];
-        resultBytes[i] = byteValue < UNSHUFFLE_MAP.length ? UNSHUFFLE_MAP[byteValue] : byteValue;
-    }
-    return new TextDecoder('utf-8', { fatal: false }).decode(resultBytes);
-}
-
 function handleWebSocketMessage(event) {
     try {
         let data;
@@ -3844,6 +3966,7 @@ function handleWebSocketMessage(event) {
         const eventType = payload && payload.event;
         const contentType = payload && payload.content_type;
         const content = payload && payload.content;
+        updateTokenContextPreview(payload && (payload.token_usage || payload.usage));
 
         // v2 消息格式：type=super_magic_message，内容在 raw_content.super_magic_message 里
         if (payload && payload.type === 'super_magic_message' && payload.raw_content) {
@@ -3880,6 +4003,7 @@ function handleWebSocketMessage(event) {
                 showToolCallMessage(tool, eventType, payload.send_timestamp, false, {
                     correlationId: payload.correlation_id,
                     toolCallId: tool.id,
+                    replyKey: payload.app_message_id || payload.correlation_id || '',
                 });
                 if (eventType === 'before_tool_call') {
                     showAssistantActivity('tool');
@@ -3905,46 +4029,61 @@ function handleWebSocketMessage(event) {
 }
 
 function handleSuperMagicChunkMessage(data) {
-    const envelope = extractSuperMagicChunkEnvelope(data);
-    if (!envelope || !envelope.chunk) return false;
+	const envelope = extractSuperMagicChunkEnvelope(data);
+	if (!envelope || !envelope.chunk) return false;
 
-    const chunk = envelope.chunk;
-    const messageKey = resolveSuperMagicMessageKey(
-        chunk.super_message_id,
+	const chunk = envelope.chunk;
+	updateTokenContextPreview(chunk.token_usage || chunk.usage);
+	const messageKey = resolveSuperMagicMessageKey(
+		chunk.super_message_id,
         envelope.appMessageId,
         chunk.app_message_id,
-        chunk.id,
-        chunk.correlation_id,
-    );
+		chunk.id,
+		chunk.correlation_id,
+	);
     const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
+    const timestamp = Math.floor((envelope.timestampMs || Date.now()) / 1000);
+    const streamKey = messageKey || `chunk-${chunk.correlation_id || chunk.i || Date.now()}`;
+    const chunkIndex = chunk.i ?? chunk.chunk_id ?? chunk.index;
     for (const choice of choices) {
         const delta = choice && choice.delta ? choice.delta : {};
         if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
             if (isDuplicateSuperMagicChunkDelta(envelope, choice, 'reasoning')) continue;
             showAssistantActivity('thinking');
-            showThinkingMessage(delta.reasoning_content, Math.floor((envelope.timestampMs || Date.now()) / 1000), true, {
-                key: messageKey || `reasoning-${chunk.correlation_id || chunk.i || Date.now()}`,
-                append: true,
+            queueRawStreamChunk({
+                key: streamKey,
+                content: delta.reasoning_content,
+                contentType: 'reasoning',
+                streamStatus: 1,
+                timestamp,
+                isFinal: false,
+                chunkId: chunkIndex === undefined || chunkIndex === null ? undefined : `${chunkIndex}:reasoning`,
             });
         }
         if (typeof delta.content === 'string' && delta.content) {
             if (isDuplicateSuperMagicChunkDelta(envelope, choice, 'content')) continue;
             showAssistantActivity('writing');
-            showAIMessage(delta.content, Math.floor((envelope.timestampMs || Date.now()) / 1000), true, {
-                key: messageKey || `content-${chunk.correlation_id || chunk.i || Date.now()}`,
-                append: true,
+            queueRawStreamChunk({
+                key: streamKey,
+                content: delta.content,
+                contentType: 'content',
+                streamStatus: 1,
+                timestamp,
+                isFinal: false,
+                chunkId: chunkIndex === undefined || chunkIndex === null ? undefined : `${chunkIndex}:content`,
             });
         }
-    }
-    if (isSuperMagicChunkFinished(choices)) {
-        hideAssistantActivity();
+        const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
+        for (const toolCall of toolCalls) {
+            const toolIndex = toolCall && toolCall.index !== undefined ? toolCall.index : 0;
+            if (isDuplicateSuperMagicChunkDelta(envelope, { index: `${choice.index || 0}:${toolIndex}` }, 'tool')) {
+                continue;
+            }
+            enqueueToolStreamDelta(streamKey, toolCall, timestamp, chunkIndex);
+        }
     }
 
     return true;
-}
-
-function isSuperMagicChunkFinished(choices) {
-    return choices.some(choice => choice && choice.finish_reason === 'stop');
 }
 
 function isDuplicateSuperMagicChunkDelta(envelope, choice, deltaType) {
@@ -3973,6 +4112,70 @@ function isDuplicateSuperMagicChunkDelta(envelope, choice, deltaType) {
         if (oldKey) superMagicChunkSeenKeys.delete(oldKey);
     }
     return false;
+}
+
+function resolveToolStreamKey(messageKey, toolCall) {
+    const index = toolCall && toolCall.index !== undefined ? toolCall.index : 0;
+    const indexKey = `${messageKey || 'unknown'}:${index}`;
+    const fallbackKey = `tool-stream:${indexKey}`;
+    if (toolCall && toolCall.id) {
+        const previous = toolStreamIdByIndex.get(indexKey);
+        toolStreamIdByIndex.set(indexKey, toolCall.id);
+        const oldKey = previous || (streamMessageRegistry.has(`tool:${fallbackKey}`) ? fallbackKey : '');
+        if (oldKey && oldKey !== toolCall.id) {
+            retargetToolStream(oldKey, toolCall.id);
+        }
+        return toolCall.id;
+    }
+    return toolStreamIdByIndex.get(indexKey) || fallbackKey;
+}
+
+function retargetToolStream(oldKey, newKey) {
+    if (!oldKey || !newKey || oldKey === newKey) return;
+    const rawOld = `tool:${oldKey}`;
+    const rawNew = `tool:${newKey}`;
+    const paced = rawStreamRegistry.get(rawOld);
+    if (paced) {
+        paced.key = newKey;
+        rawStreamRegistry.set(rawNew, paced);
+        rawStreamRegistry.delete(rawOld);
+    }
+    const box = streamMessageRegistry.get(rawOld);
+    if (box) {
+        box.toolCallId = newKey;
+        streamMessageRegistry.set(rawNew, box);
+        streamMessageRegistry.delete(rawOld);
+    }
+}
+
+function enqueueToolStreamDelta(messageKey, toolCall, timestamp, chunkIndex) {
+    const fn = (toolCall && toolCall.function) || {};
+    const streamKey = resolveToolStreamKey(messageKey, toolCall);
+    const args = typeof fn.arguments === 'string' ? fn.arguments : '';
+    if (fn.name || fn.label) {
+        showToolStreamMessage('', timestamp, true, {
+            key: streamKey,
+            replace: true,
+            toolName: fn.name || '',
+            toolLabel: fn.label || '',
+            toolCallId: streamKey,
+            replyKey: messageKey,
+        });
+    }
+    if (!args) return;
+    showAssistantActivity('tool');
+    queueRawStreamChunk({
+        key: streamKey,
+        content: args,
+        contentType: 'tool',
+        streamStatus: 1,
+        timestamp,
+        isFinal: false,
+        chunkId: chunkIndex === undefined || chunkIndex === null ? undefined : `${chunkIndex}:tool:${streamKey}`,
+        toolName: fn.name || '',
+        toolLabel: fn.label || '',
+        replyKey: messageKey,
+    });
 }
 
 function handleRawStreamMessage(data) {
@@ -4005,7 +4208,7 @@ function handleRawStreamMessage(data) {
     return true;
 }
 
-function queueRawStreamChunk({ key, content, contentType, streamStatus, timestamp, isFinal, chunkId }) {
+function queueRawStreamChunk({ key, content, contentType, streamStatus, timestamp, isFinal, chunkId, toolName, toolLabel, replyKey }) {
     const streamKey = `${contentType}:${key || 'default'}`;
     let state = rawStreamRegistry.get(streamKey);
     if (!state) {
@@ -4020,9 +4223,15 @@ function queueRawStreamChunk({ key, content, contentType, streamStatus, timestam
             isFinal: false,
             seenChunkIds: new Set(),
             loggedFinal: false,
+            toolName: toolName || '',
+            toolLabel: toolLabel || '',
+            replyKey: replyKey || '',
         };
         rawStreamRegistry.set(streamKey, state);
     }
+    if (toolName) state.toolName = toolName;
+    if (toolLabel) state.toolLabel = toolLabel;
+    if (replyKey) state.replyKey = replyKey;
 
     if (chunkId !== undefined && chunkId !== null) {
         if (state.seenChunkIds.has(chunkId)) return;
@@ -4079,7 +4288,8 @@ function queueRawStreamFinal(key, contentType, content, timestamp) {
 
 function getRenderedStreamContent(contentType, key) {
     if (!key) return '';
-    const registryKey = `${contentType === 'reasoning' ? 'reasoning' : 'content'}:${key}`;
+    const prefix = contentType === 'reasoning' ? 'reasoning' : (contentType === 'tool' ? 'tool' : 'content');
+    const registryKey = `${prefix}:${key}`;
     const messageState = streamMessageRegistry.get(registryKey);
     return messageState && typeof messageState.content === 'string' ? messageState.content : '';
 }
@@ -4092,6 +4302,14 @@ function scheduleRawStreamRender(state, streamKey) {
     }, 12);
 }
 
+// 积压短时一次吐 2 个字，保持打字感；合并包把积压拉大时加快，避免越跟越慢。
+function getPacedRenderStep(remaining) {
+    if (remaining > 800) return 40;
+    if (remaining > 200) return 12;
+    if (remaining > 40) return 5;
+    return 2;
+}
+
 function renderRawStreamStep(state, streamKey) {
     if (state.renderedContent.length >= state.targetContent.length) {
         if (state.isFinal) {
@@ -4102,7 +4320,7 @@ function renderRawStreamStep(state, streamKey) {
     }
 
     const remaining = state.targetContent.length - state.renderedContent.length;
-    const step = state.targetContent.length > 120 ? 5 : 2;
+    const step = getPacedRenderStep(remaining);
     const nextLength = state.renderedContent.length + Math.min(step, remaining);
     const nextContent = state.targetContent.slice(0, nextLength);
     state.renderedContent = nextContent;
@@ -4113,6 +4331,14 @@ function renderRawStreamStep(state, streamKey) {
     };
     if (state.contentType === 'reasoning') {
         showThinkingMessage(nextContent, state.timestamp, true, options);
+    } else if (state.contentType === 'tool') {
+        showToolStreamMessage(nextContent, state.timestamp, true, {
+            ...options,
+            toolName: state.toolName,
+            toolLabel: state.toolLabel,
+            toolCallId: state.key,
+            replyKey: state.replyKey,
+        });
     } else {
         showAIMessage(nextContent, state.timestamp, true, options);
     }
@@ -4121,6 +4347,7 @@ function renderRawStreamStep(state, streamKey) {
 }
 
 function persistRawStreamFinal(state, streamKey) {
+    if (state.contentType === 'tool') return;
     if (state.loggedFinal || !state.renderedContent) return;
     state.loggedFinal = true;
     hideAssistantActivity();
@@ -4129,6 +4356,7 @@ function persistRawStreamFinal(state, streamKey) {
         content: state.renderedContent,
         timestamp: state.timestamp,
         rawStreamKey: streamKey,
+        key: state.key,
     };
 
     const existingIndex = chatLog.findIndex(item => item.rawStreamKey === streamKey);
@@ -4188,35 +4416,46 @@ function resolveSuperMagicMessageKey(superMessageId, ...fallbackIds) {
 }
 
 function handleSuperMagicMessage(smsg, payload) {
-    const messageKey = resolveSuperMagicMessageKey(
+	updateTokenContextPreview(smsg && (smsg.token_usage || smsg.usage));
+	const messageKey = resolveSuperMagicMessageKey(
         smsg.super_message_id,
         smsg.message_id,
         payload.message_id,
         smsg.correlation_id,
-        payload.correlation_id,
-    );
+		payload.correlation_id,
+	);
     const isToolRole = smsg.role === 'tool';
     let hasVisibleContent = false;
     let hasReplyContent = false;
 
-    // 最终消息是权威全文；如果已有流式气泡，则原地校准，不再新增一条。
+    // 最终消息是权威全文。若匀速渲染还在跑，只校正目标文本，让剩下的字继续打完。
     if (!isToolRole && smsg.reasoning_content) {
-        showThinkingMessage(smsg.reasoning_content, payload.send_timestamp, false, {
-            key: messageKey,
-            replace: true,
-            finalize: true,
-        });
-        hasVisibleContent = true;
-        hasReplyContent = true;
+        if (queueRawStreamFinal(messageKey, 'reasoning', smsg.reasoning_content, payload.send_timestamp)) {
+            hasVisibleContent = true;
+            hasReplyContent = true;
+        } else {
+            showThinkingMessage(smsg.reasoning_content, payload.send_timestamp, false, {
+                key: messageKey,
+                replace: true,
+                finalize: true,
+            });
+            hasVisibleContent = true;
+            hasReplyContent = true;
+        }
     }
     if (!isToolRole && smsg.content) {
-        showAIMessage(smsg.content, payload.send_timestamp, false, {
-            key: messageKey,
-            replace: true,
-            finalize: true,
-        });
-        hasVisibleContent = true;
-        hasReplyContent = true;
+        if (queueRawStreamFinal(messageKey, 'content', smsg.content, payload.send_timestamp)) {
+            hasVisibleContent = true;
+            hasReplyContent = true;
+        } else {
+            showAIMessage(smsg.content, payload.send_timestamp, false, {
+                key: messageKey,
+                replace: true,
+                finalize: true,
+            });
+            hasVisibleContent = true;
+            hasReplyContent = true;
+        }
     }
 
     const tools = collectToolsFromSuperMagicMessage(smsg, payload);
@@ -4228,6 +4467,7 @@ function handleSuperMagicMessage(smsg, payload) {
             correlationId: smsg.correlation_id || payload.correlation_id,
             toolCallId: item.toolCallId,
             modelContent: item.modelContent,
+            replyKey: messageKey,
             attachments: isFinalTaskTool(item.tool)
                 ? (finishedAttachments || [])
                 : undefined,
@@ -4247,8 +4487,90 @@ function handleSuperMagicMessage(smsg, payload) {
     }
     if (isMainAgentFinished(payload)) {
         hideAssistantActivity();
+        void pollFollowUpSuggestions(currentDebugTaskId);
     }
     return hasVisibleContent;
+}
+
+function isFollowUpSuggestionsEnabled() {
+    return !followUpSuggestionsToggle || followUpSuggestionsToggle.checked;
+}
+
+function delayFollowUpRetry(ms) {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, ms);
+    });
+}
+
+/**
+ * 主任务正常结束后，按前端同样的节奏查询追加问题。
+ * status 为 0 时最多再等 3 次，每次 3 秒；完成且有内容才展示，失败或超时不展示。
+ */
+async function pollFollowUpSuggestions(taskId) {
+    if (!taskId || !isFollowUpSuggestionsEnabled()) return;
+    const token = ++followUpPollToken;
+    const serverUrl = (serverUrlInput.value.trim() || 'http://127.0.0.1:8002').replace(/\/+$/, '');
+
+    for (let retryCount = 0; retryCount <= SUGGESTION_MAX_RETRY_COUNT; retryCount += 1) {
+        if (token !== followUpPollToken || !isFollowUpSuggestionsEnabled()) return;
+        let meta = null;
+        try {
+            const response = await fetch(`${serverUrl}/api/v1/debug/follow-up-suggestions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: SUGGESTION_RELATION_TYPE_TASK,
+                    relation_id: taskId,
+                }),
+            });
+            const json = await response.json().catch(() => null);
+            if (!response.ok || !json || json.code !== 1000) return;
+            meta = json.data || null;
+        } catch (error) {
+            console.warn('查询追加问题失败:', error);
+            return;
+        }
+        if (token !== followUpPollToken) return;
+        if (!meta || meta.status === SUGGESTION_STATUS_PENDING) {
+            if (retryCount >= SUGGESTION_MAX_RETRY_COUNT) return;
+            await delayFollowUpRetry(SUGGESTION_RETRY_DELAY_MS);
+            continue;
+        }
+        if (meta.status === SUGGESTION_STATUS_FAILED) return;
+        renderFollowUpSuggestions(taskId, Array.isArray(meta.suggestions) ? meta.suggestions : []);
+        return;
+    }
+}
+
+function renderFollowUpSuggestions(taskId, suggestions) {
+    const items = suggestions.filter((item) => typeof item === 'string' && item.trim());
+    if (!items.length || !messageList) return;
+    const existing = messageList.querySelector(`[data-follow-up-task-id="${taskId}"]`);
+    if (existing) existing.remove();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message follow-up-suggestions';
+    wrapper.dataset.followUpTaskId = taskId;
+
+    const title = document.createElement('div');
+    title.className = 'follow-up-suggestions-title';
+    title.textContent = '追加问题';
+    wrapper.appendChild(title);
+
+    items.forEach((item) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'follow-up-suggestion-item';
+        button.textContent = item;
+        button.addEventListener('click', () => {
+            if (!messageInput || messageInput.disabled) return;
+            messageInput.value = item;
+            messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+            messageInput.focus();
+        });
+        wrapper.appendChild(button);
+    });
+    appendMessageNode(wrapper);
 }
 
 function isMainAgentFinished(payload) {
@@ -4480,7 +4802,11 @@ function buildRenderedView(content) {
 
 // 显示 AI 回复消息气泡，支持 markdown 渲染、原文切换和流式更新。
 function showAIMessage(content, timestamp, _noLog = false, options = {}) {
-    if (!_noLog) pushLog({ type: 'ai', content, timestamp });
+    if (!_noLog) {
+        const entry = { type: 'ai', content, timestamp };
+        if (options.key) entry.key = options.key;
+        pushLog(entry);
+    }
 
     const registryKey = options.key ? `content:${options.key}` : '';
     let messageState = registryKey ? streamMessageRegistry.get(registryKey) : null;
@@ -4547,17 +4873,18 @@ function showAIMessage(content, timestamp, _noLog = false, options = {}) {
     if (registryKey) {
         streamMessageRegistry.set(registryKey, messageState);
     }
-    appendMessageNode(messageDiv);
+    placeAssistantReplyNode(messageDiv, options.key, 'content');
 }
 
 function updateAIMessageState(messageState, content, options = {}) {
     if (shouldIgnoreLateStreamAppend(messageState, options)) return;
+    const shouldStickToBottom = isMessageViewportAtBottom();
     const nextContent = options.append ? messageState.content + content : content;
     messageState.content = nextContent;
     if (options.finalize) messageState.finalized = true;
     messageState.renderedView.replaceChildren(buildRenderedView(nextContent));
     messageState.rawView.textContent = nextContent;
-    syncScrollAfterMessageChange(isMessageViewportAtBottom());
+    syncScrollAfterMessageChange(shouldStickToBottom);
 }
 
 /**
@@ -4569,7 +4896,11 @@ function shouldIgnoreLateStreamAppend(messageState, options = {}) {
 
 // 显示思考过程（折叠展示）
 function showThinkingMessage(content, timestamp, _noLog = false, options = {}) {
-    if (!_noLog) pushLog({ type: 'thinking', content, timestamp });
+    if (!_noLog) {
+        const entry = { type: 'thinking', content, timestamp };
+        if (options.key) entry.key = options.key;
+        pushLog(entry);
+    }
 
     const registryKey = options.key ? `reasoning:${options.key}` : '';
     let thinkingState = registryKey ? streamMessageRegistry.get(registryKey) : null;
@@ -4607,15 +4938,114 @@ function showThinkingMessage(content, timestamp, _noLog = false, options = {}) {
     if (registryKey) {
         streamMessageRegistry.set(registryKey, thinkingState);
     }
-    appendMessageNode(wrapper);
+    placeAssistantReplyNode(wrapper, options.key, 'thinking');
 }
 
 function updateThinkingMessageState(thinkingState, content, options = {}) {
     if (shouldIgnoreLateStreamAppend(thinkingState, options)) return;
+    const shouldStickToBottom = isMessageViewportAtBottom();
     thinkingState.content = options.append ? thinkingState.content + content : content;
     if (options.finalize) thinkingState.finalized = true;
     thinkingState.detail.textContent = thinkingState.content;
-    syncScrollAfterMessageChange(isMessageViewportAtBottom());
+    if (shouldStickToBottom) {
+        thinkingState.detail.scrollTop = thinkingState.detail.scrollHeight;
+    }
+    syncScrollAfterMessageChange(shouldStickToBottom);
+}
+
+function showToolStreamMessage(content, timestamp, _noLog = false, options = {}) {
+    const registryKey = options.key ? `tool:${options.key}` : '';
+    let streamState = registryKey ? streamMessageRegistry.get(registryKey) : null;
+    if (streamState) {
+        updateToolStreamState(streamState, content, options);
+        return;
+    }
+
+    const timeStr = timestamp
+        ? new Date(timestamp * 1000).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tool-call-block tool-call-running tool-stream-block';
+
+    const header = document.createElement('div');
+    header.className = 'tool-call-header';
+
+    const statusDot = document.createElement('span');
+    statusDot.className = 'tool-call-status-dot';
+
+    const actionSpan = document.createElement('span');
+    actionSpan.className = 'tool-call-action';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'tool-call-time';
+    timeSpan.textContent = timeStr;
+
+    header.appendChild(statusDot);
+    header.appendChild(actionSpan);
+    header.appendChild(timeSpan);
+
+    const detail = document.createElement('pre');
+    detail.className = 'tool-call-detail tool-stream-detail';
+
+    wrapper.appendChild(header);
+    wrapper.appendChild(detail);
+
+    streamState = {
+        wrapper,
+        actionSpan,
+        detail,
+        content: '',
+        toolCallId: options.toolCallId || options.key || '',
+        toolName: options.toolName || '',
+        toolLabel: options.toolLabel || '',
+        replyKey: options.replyKey || '',
+    };
+    updateToolStreamState(streamState, content, options);
+    if (registryKey) {
+        streamMessageRegistry.set(registryKey, streamState);
+    }
+    placeAssistantReplyNode(wrapper, options.replyKey, 'tool');
+}
+
+function updateToolStreamState(streamState, content, options = {}) {
+    const shouldStickToBottom = isMessageViewportAtBottom();
+    streamState.content = options.append ? streamState.content + content : content;
+    if (options.toolName) streamState.toolName = options.toolName;
+    if (options.toolLabel) streamState.toolLabel = options.toolLabel;
+    if (options.toolCallId) streamState.toolCallId = options.toolCallId;
+    if (options.replyKey) {
+        streamState.replyKey = options.replyKey;
+        streamState.wrapper.dataset.replyKey = String(options.replyKey);
+    }
+    const title = streamState.toolLabel || streamState.toolName || '工具调用';
+    streamState.actionSpan.textContent = `流式 · ${title}`;
+    streamState.detail.textContent = streamState.content;
+    if (shouldStickToBottom) {
+        streamState.detail.scrollTop = streamState.detail.scrollHeight;
+    }
+    syncScrollAfterMessageChange(shouldStickToBottom);
+}
+
+function findToolStreamBox(toolKey) {
+    if (!toolKey) return null;
+    const direct = streamMessageRegistry.get(`tool:${toolKey}`);
+    if (direct) return { key: toolKey, state: direct };
+    for (const [regKey, state] of streamMessageRegistry.entries()) {
+        if (!regKey.startsWith('tool:')) continue;
+        if (state.toolCallId === toolKey || regKey === `tool:${toolKey}`) {
+            return { key: regKey.slice(5), state };
+        }
+    }
+    return null;
+}
+
+function stopToolStream(streamKey) {
+    const rawKey = `tool:${streamKey}`;
+    const state = rawStreamRegistry.get(rawKey);
+    if (state && state.timer) clearTimeout(state.timer);
+    rawStreamRegistry.delete(rawKey);
+    streamMessageRegistry.delete(rawKey);
 }
 
 // ─── ask_user 交互卡片 ───────────────────────────────────────────────────────
@@ -4638,7 +5068,7 @@ function finalizeAskUserCard(wrapper, data) {
     }
 
     // 禁用所有输入和按钮
-    card.querySelectorAll('input, button').forEach(el => { el.disabled = true; });
+    card.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = true; });
 
     // 移除旧结果标签（如果提交后已存在）
     card.querySelectorAll('.ask-user-result').forEach(el => el.remove());
@@ -4664,6 +5094,7 @@ function finalizeAskUserCard(wrapper, data) {
         resultEl.textContent = statusLabel[status] || `状态: ${status}`;
         card.appendChild(resultEl);
     }
+    appendAskUserRemark(card, data.remark);
 
     card.classList.remove('ask-user-card');
     card.classList.add('ask-user-card', status === 'answered' ? 'answered' : 'expired');
@@ -4675,9 +5106,20 @@ function finalizeAskUserCard(wrapper, data) {
     askUserCardRegistry.delete(data.question_id);
 }
 
+/** 展示 ask_user 提交时携带的追加备注。 */
+function appendAskUserRemark(card, remark) {
+    const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
+    if (!normalizedRemark) return;
+
+    const remarkEl = document.createElement('div');
+    remarkEl.className = 'ask-user-result ask-user-remark-result';
+    remarkEl.textContent = `备注：${normalizedRemark}`;
+    card.appendChild(remarkEl);
+}
+
 /**
  * 渲染 ask_user 交互卡片并挂到 container 上。
- * data: { question_id, questions[], expires_at, status }
+ * data: { question_id, questions[], expires_at, status, answers?, remark? }
  */
 function renderAskUserCard(data, container) {
     const { question_id, questions = [], expires_at, status } = data;
@@ -4689,7 +5131,7 @@ function renderAskUserCard(data, container) {
     // 通用禁用函数（仅操作 DOM，不依赖闭包变量顺序）
     function disableCard() {
         if (card._countdownTimer) clearInterval(card._countdownTimer);
-        card.querySelectorAll('input, button').forEach(el => { el.disabled = true; });
+        card.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = true; });
     }
 
     // 倒计时
@@ -4877,6 +5319,7 @@ function renderAskUserCard(data, container) {
 
     // 如果已有结果（after_tool_call 时 re-render），只展示结果
     if (alreadyDone) {
+        disableCard();
         const resultEl = document.createElement('div');
         resultEl.className = 'ask-user-result' + (status !== 'answered' ? ' skipped' : '');
         const statusLabel = { answered: '✅ 已回答', skipped: '⏭ 已跳过', timeout: '⏰ 已超时', cancelled: '🚫 已取消' };
@@ -4892,9 +5335,21 @@ function renderAskUserCard(data, container) {
             resultEl.textContent = statusLabel[status] || `状态: ${status}`;
         }
         card.appendChild(resultEl);
+        appendAskUserRemark(card, data.remark);
         container.appendChild(card);
         return;
     }
+
+    // 备注属于整张问答卡片的附加上下文，不参与答案 JSON。
+    const remarkLabel = document.createElement('label');
+    remarkLabel.className = 'ask-user-remark-label';
+    remarkLabel.textContent = '补充备注（可选）';
+    const remarkInput = document.createElement('textarea');
+    remarkInput.className = 'ask-user-input ask-user-remark';
+    remarkInput.rows = 2;
+    remarkInput.placeholder = '可补充说明、约束或其他上下文…';
+    remarkLabel.appendChild(remarkInput);
+    card.appendChild(remarkLabel);
 
     // 操作按钮
     const actions = document.createElement('div');
@@ -4920,6 +5375,12 @@ function renderAskUserCard(data, container) {
                 answers[q.sub_id] = getValue();
             });
         }
+        const remark = remarkInput.value.trim();
+        const detail = {
+            response_status,
+            answer: JSON.stringify(answers),
+        };
+        if (remark) detail.remark = remark;
 
         const serverUrl = serverUrlInput.value.trim();
         try {
@@ -4932,10 +5393,7 @@ function renderAskUserCard(data, container) {
                     user_tool_call: {
                         name: 'ask_user',
                         tool_call_id: question_id,
-                        detail: {
-                            response_status,
-                            answer: JSON.stringify(answers)
-                        }
+                        detail,
                     }
                 })
             });
@@ -4945,14 +5403,14 @@ function renderAskUserCard(data, container) {
             resultEl.className = 'ask-user-result' + (response_status === 'skipped' ? ' skipped' : '');
             resultEl.textContent = response_status === 'answered' ? '✅ 已提交' : '⏭ 已跳过';
             card.appendChild(resultEl);
+            appendAskUserRemark(card, remark);
             card.classList.add('answered');
 
             showEventLog({ label: `ask_user 响应: ${json.message || response_status}`, ...json });
         } catch (e) {
             showSystemMessage(`ask_user 提交失败: ${e.message}`);
             // 重新启用按钮允许重试
-            submitBtn.disabled = false;
-            skipBtn.disabled = false;
+            card.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = false; });
         }
     }
 
@@ -4979,10 +5437,16 @@ function renderAskUserCard(data, container) {
 // 显示工具调用消息块（before_tool_call / after_tool_call）
 function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options = {}) {
     if (isCodeModeToolMessage(tool)) return;
+
+    const toolKey = getToolCallKey(tool, options);
+    const streamBox = findToolStreamBox(toolKey);
+    const replyKey = options.replyKey || (streamBox && streamBox.state && streamBox.state.replyKey) || '';
     if (!_noLog) {
         const logEntry = { type: 'tool_call', tool, eventType, timestamp };
         if (options.modelContent) logEntry.modelContent = options.modelContent;
         if (Array.isArray(options.attachments)) logEntry.attachments = options.attachments;
+        if (replyKey) logEntry.replyKey = replyKey;
+        if (options.toolCallId || toolKey) logEntry.toolCallId = options.toolCallId || toolKey;
         pushLog(logEntry);
     }
 
@@ -4990,7 +5454,6 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options
         ? new Date(timestamp * 1000).toLocaleTimeString()
         : new Date().toLocaleTimeString();
 
-    const toolKey = getToolCallKey(tool, options);
     let toolState = toolKey ? toolCallRegistry.get(toolKey) : null;
     if (toolState) {
         updateToolCallState(toolState, tool, eventType, timeStr, options);
@@ -5073,7 +5536,24 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options
     if (toolKey) {
         toolCallRegistry.set(toolKey, toolState);
     }
-    appendMessageNode(wrapper);
+    if (replyKey) wrapper.dataset.replyKey = String(replyKey);
+    if (streamBox && streamBox.state.wrapper && streamBox.state.wrapper.parentNode) {
+        stopToolStream(streamBox.key);
+        streamBox.state.wrapper.replaceWith(wrapper);
+        const expectedPrev = findReplyContentNode(replyKey) || findReplyThinkingNode(replyKey);
+        if (expectedPrev && !isNodeAfter(wrapper, expectedPrev)) {
+            expectedPrev.after(wrapper);
+        }
+        keepAssistantActivityLast(wrapper);
+        syncScrollAfterMessageChange(isMessageViewportAtBottom());
+    } else {
+        placeAssistantReplyNode(wrapper, replyKey, 'tool');
+    }
+}
+
+function isNodeAfter(node, earlier) {
+    if (!node || !earlier || node.parentNode !== earlier.parentNode) return false;
+    return Boolean(earlier.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
 }
 
 function isCodeModeToolMessage(tool) {
@@ -5140,15 +5620,39 @@ function updateToolCallState(toolState, tool, eventType, timeStr, options = {}) 
  */
 function renderToolCallAttachments(container, attachments) {
     if (!container) return;
+    const isExpanded = container.dataset.expanded === 'true';
     container.innerHTML = '';
     if (!Array.isArray(attachments) || attachments.length === 0) {
+        delete container.dataset.expanded;
         container.style.display = 'none';
         return;
     }
 
+    const header = document.createElement('div');
+    header.className = 'tool-call-attachments-header';
+
     const title = document.createElement('div');
     title.className = 'tool-call-attachments-title';
     title.textContent = `附件（${attachments.length}）`;
+    header.appendChild(title);
+
+    if (attachments.length > 5) {
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'tool-call-attachments-toggle';
+        toggle.setAttribute('aria-expanded', String(isExpanded));
+        toggle.textContent = isExpanded ? '收起' : `展开剩余 ${attachments.length - 5} 个`;
+        toggle.addEventListener('click', () => {
+            const nextExpanded = container.dataset.expanded !== 'true';
+            container.dataset.expanded = String(nextExpanded);
+            container.classList.toggle('is-expanded', nextExpanded);
+            toggle.setAttribute('aria-expanded', String(nextExpanded));
+            toggle.textContent = nextExpanded ? '收起' : `展开剩余 ${attachments.length - 5} 个`;
+        });
+        header.appendChild(toggle);
+    } else {
+        delete container.dataset.expanded;
+    }
 
     const list = document.createElement('ol');
     list.className = 'tool-call-attachments-list';
@@ -5156,7 +5660,8 @@ function renderToolCallAttachments(container, attachments) {
         list.appendChild(createToolCallAttachmentItem(attachment, index));
     });
 
-    container.appendChild(title);
+    container.classList.toggle('is-expanded', isExpanded && attachments.length > 5);
+    container.appendChild(header);
     container.appendChild(list);
     container.style.display = '';
 }
@@ -5845,6 +6350,38 @@ function parsePromptMentions(prompt) {
     return mentions;
 }
 
+/** 根据文件路径判断是否为聊天图片。 */
+function isImagePath(path) {
+    const value = String(path || '').split(/[?#]/, 1)[0];
+    const extensionIndex = value.lastIndexOf('.');
+    return extensionIndex >= 0 && IMAGE_UPLOAD_EXTENSIONS.has(value.slice(extensionIndex + 1).toLowerCase());
+}
+
+/** 根据消息中的工作区图片引用生成后端附件描述，触发原生视觉链路。 */
+function buildNativeVisionAttachments(prompt) {
+    const imageMentions = parsePromptMentions(prompt)
+        .filter((mention) => mention.type === 'project_file' && isImagePath(mention.file_path));
+    const seen = new Set();
+    const attachments = [];
+    for (const mention of imageMentions) {
+        const path = normalizeMentionFilePath(mention.file_path);
+        if (!path || seen.has(path)) continue;
+        seen.add(path);
+        const entry = workspaceMentionIndex.find((item) => item.kind === 'file' && item.scope !== 'memory' && item.path === path);
+        const filename = getWorkspaceFileBaseName(path);
+        attachments.push({
+            file_url: debugWorkspaceApi.rawUrl(path, 'workspace'),
+            filename,
+            file_name: filename,
+            file_key: `local-debug/workspace/${path}`,
+            file_tag: 'image',
+            file_size: Number(entry?.size || 0),
+            relative_file_path: path,
+        });
+    }
+    return attachments;
+}
+
 let activeFiletreeContextMenu = null;
 
 function closeFiletreeContextMenu() {
@@ -6165,6 +6702,8 @@ const filePreviewMeta = document.getElementById('filePreviewMeta');
 const filePreviewClose = document.getElementById('filePreviewClose');
 const filePreviewOpenBtn = document.getElementById('filePreviewOpenBtn');
 const filePreviewRenderBtn = document.getElementById('filePreviewRenderBtn');
+const filePreviewCanvasDataToggleBtn = document.getElementById('filePreviewCanvasDataToggleBtn');
+const filePreviewMarkdownMode = document.getElementById('filePreviewMarkdownMode');
 const filePreviewEditBtn = document.getElementById('filePreviewEditBtn');
 const filePreviewSaveBtn = document.getElementById('filePreviewSaveBtn');
 const filePreviewCancelBtn = document.getElementById('filePreviewCancelBtn');
@@ -6184,6 +6723,10 @@ let currentPreviewEditable = false;
 let filePreviewEditMode = false;
 let filePreviewEditDirty = false;
 let filePreviewEditContent = '';
+let currentCanvasProjectRawText = '';
+let currentCanvasProjectDecompressedText = '';
+let currentCanvasProjectViewMode = 'decompressed';
+let currentCanvasPreviewResizeObserver = null;
 const filePreviewTabs = new Map();
 let activeFilePreviewPath = '';
 let filePreviewScrollPositions = {};
@@ -6340,11 +6883,57 @@ function usePreviewImageProxy(img, originalSrc) {
     return true;
 }
 
-function enhanceFilePreviewMarkdownImages(root) {
+/** 解码并规范化工作区相对路径，阻止资源路径逃逸工作区根目录。 */
+function normalizeMarkdownWorkspacePath(path) {
+    let decodedPath;
+    try {
+        decodedPath = decodeURIComponent(String(path || ''));
+    } catch (e) {
+        return '';
+    }
+
+    const parts = [];
+    for (const part of decodedPath.replace(/\\/g, '/').split('/')) {
+        if (!part || part === '.') continue;
+        if (part === '..') {
+            if (!parts.length) return '';
+            parts.pop();
+            continue;
+        }
+        if ([...part].some(char => char.charCodeAt(0) < 32)) return '';
+        parts.push(part);
+    }
+    return parts.join('/');
+}
+
+/** 将 Markdown 文件中的相对资源链接解析为工作区相对路径。 */
+function resolveMarkdownWorkspaceAssetPath(markdownPath, assetSource) {
+    const source = String(assetSource || '').trim();
+    if (!source || source.startsWith('/') || source.startsWith('#')) return '';
+    if (/^[a-z][a-z\d+.-]*:/i.test(source) || source.startsWith('//')) return '';
+
+    const pathOnly = source.split(/[?#]/, 1)[0];
+    const basePath = getWorkspaceParentPath(markdownPath);
+    return normalizeMarkdownWorkspacePath(basePath ? `${basePath}/${pathOnly}` : pathOnly);
+}
+
+/** 将 Markdown 中的远程或工作区相对图片链接转换为可预览地址。 */
+function enhanceFilePreviewMarkdownImages(root, options = {}) {
     if (!root) return;
+    const markdownPath = String(options.baseFilePath || '');
+    const scope = options.scope || getActiveFiletreeScope();
     root.querySelectorAll('img[src]').forEach((img) => {
-        const originalSrc = normalizeRemoteImageUrl(img.getAttribute('src'));
-        if (!originalSrc) return;
+        const source = img.getAttribute('src') || '';
+        const originalSrc = normalizeRemoteImageUrl(source);
+        if (!originalSrc) {
+            const assetPath = resolveMarkdownWorkspaceAssetPath(markdownPath, source);
+            if (!assetPath) return;
+            img.dataset.workspacePath = assetPath;
+            img.decoding = 'async';
+            img.loading = 'lazy';
+            img.src = debugWorkspaceApi.rawUrl(assetPath, scope);
+            return;
+        }
 
         img.dataset.originalSrc = originalSrc;
         img.decoding = 'async';
@@ -6719,6 +7308,15 @@ function isWorkspacePreviewPathAffected(targetPath, previewPath) {
     return preview === target || preview.startsWith(`${target}/`);
 }
 
+/** 返回预览标签关联的工作区真实路径，用于删除和自动刷新判断。 */
+function getFilePreviewResourcePath(tab) {
+    if (!tab) return '';
+    if (tab.type === 'canvas-project') return tab.directoryPath || tab.projectPath || '';
+    if (tab.type === 'micro-app') return tab.appRootPath || '';
+    if (tab.type === 'api-directory') return tab.entry?.path || tab.path || '';
+    return tab.path || '';
+}
+
 async function deleteWorkspacePath(path, isDir) {
     const normalizedPath = String(path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     if (!normalizedPath) return;
@@ -6732,12 +7330,13 @@ async function deleteWorkspacePath(path, isDir) {
             expandedDirs.delete(item);
         }
     }
-    for (const tabPath of [...filePreviewTabs.keys()]) {
-        if (isWorkspacePreviewPathAffected(normalizedPath, tabPath)) {
+    for (const [tabPath, tab] of [...filePreviewTabs.entries()]) {
+        if (isWorkspacePreviewPathAffected(normalizedPath, getFilePreviewResourcePath(tab))) {
             filePreviewTabs.delete(tabPath);
         }
     }
-    if (isWorkspacePreviewPathAffected(normalizedPath, activeFilePreviewPath) || isWorkspacePreviewPathAffected(normalizedPath, currentPreviewPath)) {
+    const activePreviewResourcePath = getFilePreviewResourcePath(filePreviewTabs.get(activeFilePreviewPath));
+    if (isWorkspacePreviewPathAffected(normalizedPath, activePreviewResourcePath || activeFilePreviewPath) || isWorkspacePreviewPathAffected(normalizedPath, currentPreviewPath)) {
         closeFilePreviewWorkbench();
     } else {
         renderFilePreviewTabs();
@@ -6909,6 +7508,7 @@ function appendPreviewMessage(bodyEl, message) {
 const PREVIEW_KIND_LABEL = {
     html: 'HTML',
     'micro-app': '微应用',
+    directory: '文件夹',
     image: '图片',
     video: '视频',
     audio: '音频',
@@ -7128,7 +7728,7 @@ function initFirstOpenFilePreviewPlaceholder() {
 function saveFilePreviewState() {
     if (isRestoringFilePreviewState) return;
     const tabs = [...filePreviewTabs.values()]
-        .filter(tab => tab.type !== 'micro-app')
+        .filter(tab => tab.type !== 'micro-app' && tab.type !== 'canvas-project')
         .map(tab => tab.path);
     const visible = filePreviewWorkbench ? !filePreviewWorkbench.hidden : false;
     if (!tabs.length && !visible) {
@@ -7221,7 +7821,7 @@ function renderFilePreviewTabs() {
         btn.className = `file-preview-tab${tab.path === activeFilePreviewPath ? ' active' : ''}`;
         btn.setAttribute('role', 'tab');
         btn.setAttribute('aria-selected', String(tab.path === activeFilePreviewPath));
-        btn.title = tab.path;
+        btn.title = getFilePreviewResourcePath(tab) || tab.path;
 
         const title = document.createElement('span');
         title.className = 'file-preview-tab-title';
@@ -7344,6 +7944,10 @@ function resetActivePreviewSurface(options = {}) {
     }
     revokeFilePreviewObjectUrl();
     revokeCanvasBlobUrls();
+    if (currentCanvasPreviewResizeObserver) {
+        currentCanvasPreviewResizeObserver.disconnect();
+        currentCanvasPreviewResizeObserver = null;
+    }
     const canvasPanel = document.getElementById('canvasRightPanel');
     if (canvasPanel) canvasPanel.remove();
     const canvasModal = document.getElementById('canvasMediaModal');
@@ -7351,11 +7955,21 @@ function resetActivePreviewSurface(options = {}) {
     filePreviewMain?.classList.remove('has-canvas-panel');
     if (filePreviewBody) {
         filePreviewBody.innerHTML = '';
-        filePreviewBody.classList.remove('file-preview-body-markdown', 'file-preview-body-tool-detail');
+        filePreviewBody.classList.remove(
+            'file-preview-body-markdown',
+            'file-preview-body-tool-detail',
+            'file-preview-body-canvas-project',
+            'file-preview-body-markdown-source',
+        );
     }
     if (filePreviewMeta) filePreviewMeta.innerHTML = '';
     if (filePreviewOpenBtn) filePreviewOpenBtn.style.display = '';
     if (filePreviewRenderBtn) filePreviewRenderBtn.style.display = 'none';
+    if (filePreviewCanvasDataToggleBtn) filePreviewCanvasDataToggleBtn.style.display = 'none';
+    currentCanvasProjectRawText = '';
+    currentCanvasProjectDecompressedText = '';
+    currentCanvasProjectViewMode = 'decompressed';
+    updateMarkdownPreviewModeControls(false, 'rendered');
     currentPreviewCopyText = options.preserveEditState ? preservedCopyText : '';
     currentPreviewEditable = options.preserveEditState ? preservedEditable : false;
     if (!options.preserveEditState) {
@@ -7364,6 +7978,40 @@ function resetActivePreviewSurface(options = {}) {
         filePreviewEditContent = '';
     }
     updateFilePreviewEditActions();
+}
+
+/** 更新 Markdown 渲染/原文模式按钮的显示状态。 */
+function updateMarkdownPreviewModeControls(visible, mode = 'rendered') {
+    if (!filePreviewMarkdownMode) return;
+    filePreviewMarkdownMode.style.display = visible ? '' : 'none';
+    filePreviewMarkdownMode.querySelectorAll('[data-markdown-mode]').forEach((button) => {
+        const isActive = button.dataset.markdownMode === mode;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+    });
+}
+
+/** 渲染 Markdown 文件的渲染结果或原始文本。 */
+function renderMarkdownFileMode(text, mode = 'rendered', filePath = '') {
+    if (!filePreviewBody) return;
+    const normalizedMode = mode === 'source' ? 'source' : 'rendered';
+    filePreviewBody.innerHTML = '';
+    filePreviewBody.classList.toggle('file-preview-body-markdown', normalizedMode === 'rendered');
+    filePreviewBody.classList.toggle('file-preview-body-markdown-source', normalizedMode === 'source');
+
+    if (normalizedMode === 'rendered' && window.marked) {
+        const article = document.createElement('article');
+        article.className = 'file-preview-markdown ai-markdown';
+        article.innerHTML = marked.parse(text);
+        enhanceFilePreviewMarkdownImages(article, { baseFilePath: filePath });
+        filePreviewBody.appendChild(article);
+    } else {
+        const pre = document.createElement('pre');
+        pre.className = 'file-preview-content file-preview-markdown-source';
+        pre.textContent = text;
+        filePreviewBody.appendChild(pre);
+    }
+    updateMarkdownPreviewModeControls(Boolean(window.marked), normalizedMode);
 }
 
 function getStoredToolDetailModelRatio() {
@@ -7777,6 +8425,10 @@ async function activateFilePreviewTab(filePath, options = {}) {
         renderToolDetailPreviewTab(tab);
     } else if (tab.type === 'micro-app') {
         await renderMicroAppPreviewTab(tab);
+    } else if (tab.type === 'canvas-project') {
+        await renderApiCanvasProjectPreviewTab(tab);
+    } else if (tab.type === 'api-directory') {
+        await renderApiDirectoryPreviewTab(tab);
     } else if (tab.type === 'api-file') {
         await renderApiFilePreviewTab(tab);
     } else {
@@ -7791,6 +8443,11 @@ async function activateFilePreviewTab(filePath, options = {}) {
 
 let workspaceDirHandle = null;
 let filetreeRefreshTimer = null;
+let filetreeRefreshInFlight = false;
+let currentFileTreeFingerprint = '';
+let previewAutoRefreshTimer = null;
+let previewAutoRefreshInFlight = false;
+let previewAutoRefreshPending = false;
 let selectBtnState = 'default'; // 'default' | 'active' | 'need-auth'
 const expandedDirs = new Set();
 const filetreeExpansionInitializedScopes = new Set();
@@ -7951,6 +8608,294 @@ function hasApiMicroAppConfigFile(entry) {
     return entry.children.some(child => child && child.type === 'file' && child.name === 'app.json');
 }
 
+/** 判断 API 文件树目录是否包含画布项目入口文件。 */
+function hasApiCanvasProjectFile(entry) {
+    if (!entry || entry.type !== 'directory' || !Array.isArray(entry.children)) return false;
+    return entry.children.some(child => child && child.type === 'file' && child.name === 'magic.project.js');
+}
+
+/** 为支持打开的特殊目录添加显式操作按钮。 */
+function appendFileTreeOpenHints(node, options = {}) {
+    if (!node) return;
+    const actions = [];
+    if (options.canvasProject && typeof options.openCanvas === 'function') {
+        actions.push({ type: 'canvas', label: '打开画布', onClick: options.openCanvas });
+    }
+    if (options.microApp && typeof options.openMicroApp === 'function') {
+        actions.push({ type: 'micro-app', label: '打开微应用', onClick: options.openMicroApp });
+    }
+    if (!actions.length) return;
+
+    const hints = document.createElement('span');
+    hints.className = 'ft-open-hints';
+    for (const action of actions) {
+        const hint = document.createElement('button');
+        hint.type = 'button';
+        hint.className = `ft-open-hint ft-open-hint-${action.type}`;
+        hint.textContent = action.label;
+        hint.title = `单击${action.label}`;
+        hint.setAttribute('aria-label', hint.title);
+        hint.addEventListener('click', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            await action.onClick();
+        });
+        hints.appendChild(hint);
+    }
+    node.appendChild(hints);
+}
+
+/** 只读取顶层信封，避免文件树渲染时提前解压整个画布。 */
+async function isApiCanvasDesignProject(entry, dirPath) {
+    if (!hasApiCanvasProjectFile(entry)) return false;
+    try {
+        const projectPath = dirPath ? `${dirPath}/magic.project.js` : 'magic.project.js';
+        const data = await debugWorkspaceApi.readFile(projectPath);
+        const match = String(data.content || '').match(/window\.magicProjectConfig\s*=\s*(\{[\s\S]*\})/);
+        if (!match) return false;
+        return JSON.parse(match[1])?.type === 'design';
+    } catch (_) {
+        return false;
+    }
+}
+
+/** 读取并校验目录下的 design 类型 magic.project.js。 */
+async function readApiCanvasProjectConfig(dirPath) {
+    const projectPath = dirPath ? `${dirPath}/magic.project.js` : 'magic.project.js';
+    const data = await debugWorkspaceApi.readFile(projectPath);
+    const config = await parseMagicProjectConfig(data.content || '');
+    if (!config || config.type !== 'design' || !config.canvas) {
+        throw new Error('目录中的 magic.project.js 不是 design 画布项目');
+    }
+    const readSidecar = async fileName => {
+        const sidecarPath = dirPath ? `${dirPath}/${fileName}` : fileName;
+        try {
+            const sidecarData = await debugWorkspaceApi.readFile(sidecarPath);
+            const parsed = JSON.parse(sidecarData.content || '{}');
+            return parsed && typeof parsed === 'object' && parsed.elements
+                && typeof parsed.elements === 'object'
+                ? parsed
+                : { elements: {} };
+        } catch (_) {
+            // sidecar 是可选文件；缺失或损坏时只展示主文件内容。
+            return { elements: {} };
+        }
+    };
+    const [agentDetails, userDetails] = await Promise.all([
+        readSidecar('element-details.json'),
+        readSidecar('element-details-user.json'),
+    ]);
+    hydrateApiCanvasElementDetails(config, agentDetails, userDetails);
+    return { config, projectPath, data, agentDetails, userDetails };
+}
+
+/** 判断 sidecar 条目是否为前端用户覆盖。 */
+function isApiCanvasUserDetail(detail) {
+    return detail && typeof detail === 'object' && detail.source === 'user';
+}
+
+/** 选择当前 Content 的详情；用户明确标记的条目优先于后端 baseline。 */
+function selectApiCanvasContentDetail(agentDetail, userDetail, userElement = null) {
+    if (userDetail && (isApiCanvasUserDetail(userElement) || isApiCanvasUserDetail(userDetail))) {
+        return userDetail;
+    }
+    return agentDetail || userDetail || null;
+}
+
+/** 返回与前端 elementDetailsStore 一致的可回填重字段。 */
+function getApiCanvasHeavyFields(elementType) {
+    const requestFields = ['generateImageRequest', 'generateVideoRequest'];
+    return ['image', 'video'].includes(elementType)
+        ? [...requestFields, 'visualUnderstanding']
+        : requestFields;
+}
+
+/** 只提取前端允许从公共 Sidecar 回填的字段。 */
+function pickApiCanvasHeavyFields(detail, elementType) {
+    if (!detail || typeof detail !== 'object') return null;
+    const fields = {};
+    getApiCanvasHeavyFields(elementType).forEach(field => {
+        if (detail[field] !== undefined && detail[field] !== null) fields[field] = detail[field];
+    });
+    return Object.keys(fields).length ? fields : null;
+}
+
+/** 将画布 sidecar 中的元素级或 Content 级详情回填到预览数据。 */
+function hydrateApiCanvasElementDetails(config, agentDoc, userDoc) {
+    const agentElements = agentDoc?.elements && typeof agentDoc.elements === 'object'
+        ? agentDoc.elements
+        : {};
+    const userElements = userDoc?.elements && typeof userDoc.elements === 'object'
+        ? userDoc.elements
+        : {};
+
+    const visit = elements => {
+        for (const element of Array.isArray(elements) ? elements : []) {
+            if (!element || typeof element !== 'object') continue;
+            const agentElement = agentElements[element.id];
+            const userElement = userElements[element.id];
+            const agentContentDetails = agentElement?.contentDetails;
+            const userContentDetails = userElement?.contentDetails;
+
+            if (Array.isArray(element.contents) && element.contents.length) {
+                const firstContent = element.contents[0];
+                const legacyDetail = selectApiCanvasContentDetail(agentElement, userElement, userElement);
+                const legacyFields = pickApiCanvasHeavyFields(legacyDetail, element.type);
+                if (legacyFields && firstContent && typeof firstContent === 'object') {
+                    Object.entries(legacyFields).forEach(([field, value]) => {
+                        if (firstContent[field] === undefined) firstContent[field] = value;
+                    });
+                }
+                element.contents = element.contents.map(content => {
+                    const contentId = content?.contentId;
+                    const agentDetail = contentId && agentContentDetails?.[contentId];
+                    const userDetail = contentId && userContentDetails?.[contentId];
+                    const detail = selectApiCanvasContentDetail(agentDetail, userDetail, userElement);
+                    const heavyFields = pickApiCanvasHeavyFields(detail, element.type);
+                    return heavyFields
+                        ? { ...content, ...heavyFields }
+                        : content;
+                });
+            }
+
+            if (Array.isArray(element.children)) visit(element.children);
+        }
+    };
+    visit(config?.canvas?.elements);
+}
+
+/** 打开只读画布项目预览标签页。 */
+async function openApiCanvasProjectPreviewTab(dirPath, entry = null) {
+    try {
+        const { config, projectPath, data } = await readApiCanvasProjectConfig(dirPath);
+        const normalizedDirPath = String(dirPath || '').replace(/\/+$/, '');
+        const tabPath = `@canvas:${normalizedDirPath || '/'}`;
+        filePreviewTabs.set(tabPath, {
+            type: 'canvas-project',
+            path: tabPath,
+            directoryPath: normalizedDirPath,
+            title: `画布：${config.name || getWorkspaceFileBaseName(dirPath) || '画布项目'}`,
+            projectPath,
+            projectConfig: config,
+            projectEntry: entry,
+            projectSize: data.size || 0,
+        });
+        await activateFilePreviewTab(tabPath, { resetScroll: true });
+    } catch (error) {
+        console.error('打开画布项目预览失败', error);
+        showSystemMessage(`打开画布项目失败：${error.message || error}`);
+    }
+}
+
+/** 创建只读画布的缩放工具栏，并暴露控制器绑定入口。 */
+function createCanvasPreviewZoomToolbar() {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'canvas-preview-zoom-toolbar';
+
+    const zoomOutButton = document.createElement('button');
+    zoomOutButton.type = 'button';
+    zoomOutButton.className = 'canvas-preview-zoom-button';
+    zoomOutButton.textContent = '−';
+    zoomOutButton.title = '缩小画布';
+
+    const scaleLabel = document.createElement('span');
+    scaleLabel.className = 'canvas-preview-zoom-label';
+    scaleLabel.textContent = '100%';
+
+    const zoomInButton = document.createElement('button');
+    zoomInButton.type = 'button';
+    zoomInButton.className = 'canvas-preview-zoom-button';
+    zoomInButton.textContent = '+';
+    zoomInButton.title = '放大画布';
+
+    const actualSizeButton = document.createElement('button');
+    actualSizeButton.type = 'button';
+    actualSizeButton.className = 'canvas-preview-zoom-text-button';
+    actualSizeButton.textContent = '100%';
+    actualSizeButton.title = '按真实尺寸展示';
+
+    const fitAllButton = document.createElement('button');
+    fitAllButton.type = 'button';
+    fitAllButton.className = 'canvas-preview-zoom-text-button';
+    fitAllButton.textContent = '显示全部';
+    fitAllButton.title = '缩放并居中展示全部元素';
+
+    const resetViewButton = document.createElement('button');
+    resetViewButton.type = 'button';
+    resetViewButton.className = 'canvas-preview-zoom-text-button';
+    resetViewButton.textContent = '复位';
+    resetViewButton.title = '清除画布移动并恢复居中显示全部元素';
+
+    toolbar.append(
+        zoomOutButton,
+        scaleLabel,
+        zoomInButton,
+        actualSizeButton,
+        fitAllButton,
+        resetViewButton,
+    );
+    return {
+        element: toolbar,
+        /** 绑定画布缩放控制器，工具栏只改变视图而不修改项目数据。 */
+        bind(controller) {
+            zoomOutButton.addEventListener('click', controller.zoomOut);
+            zoomInButton.addEventListener('click', controller.zoomIn);
+            actualSizeButton.addEventListener('click', controller.resetToActualSize);
+            fitAllButton.addEventListener('click', controller.fitAll);
+            resetViewButton.addEventListener('click', controller.resetView);
+        },
+        /** 同步当前缩放比例文本。 */
+        updateScale(scale) {
+            scaleLabel.textContent = `${Math.round(scale * 100)}%`;
+        },
+    };
+}
+
+/** 渲染只读画布项目页面，不提供编辑、拖拽或选择逻辑。 */
+async function renderApiCanvasProjectPreviewTab(tab) {
+    if (!filePreviewBody || !filePreviewWorkbench) return;
+    resetActivePreviewSurface();
+    currentPreviewFile = null;
+    currentPreviewPath = tab.projectPath || tab.directoryPath || tab.path;
+    currentPreviewCopyText = '';
+    currentPreviewEditable = false;
+    if (filePreviewOpenBtn) filePreviewOpenBtn.style.display = 'none';
+    renderFilePreviewMetaRows(filePreviewMeta, [
+        { label: '文件名', value: tab.title || '画布项目' },
+        { label: '路径', value: tab.directoryPath || tab.projectPath || '—' },
+        { label: '预览类型', value: '只读画布' },
+        { label: '版本', value: tab.projectConfig?.version || '—' },
+        { label: '元素数', value: String(tab.projectConfig?.canvas?.elements?.length || 0) },
+        { label: '连接数', value: String(tab.projectConfig?.canvas?.connections?.length || 0) },
+    ]);
+
+    filePreviewBody.classList.add('file-preview-body-canvas-project');
+    const shell = document.createElement('div');
+    shell.className = 'canvas-project-shell';
+    const viewport = document.createElement('div');
+    viewport.className = 'canvas-project-viewport';
+    const zoomToolbar = createCanvasPreviewZoomToolbar();
+    shell.append(viewport, zoomToolbar.element);
+    filePreviewBody.appendChild(shell);
+    const projectDirPath = tab.directoryPath || String(tab.projectPath || '').split('/').filter(Boolean).slice(0, -1).join('/');
+    const resolveMediaUrl = async relPath => appendPreviewRefreshToken(
+        debugWorkspaceApi.rawUrl(joinWorkspacePath(projectDirPath, relPath)),
+    );
+    const zoomController = await renderCanvasView(
+        normalizeMagicProjectForPreview(tab.projectConfig),
+        resolveMediaUrl,
+        viewport,
+        {
+            showLabels: false,
+            preserveCanvasOrigin: false,
+            fitMode: 'contain',
+            onScaleChange: scale => zoomToolbar.updateScale(scale),
+        },
+    );
+    if (zoomController) zoomToolbar.bind(zoomController);
+    setFilePreviewWorkbenchVisible(true);
+}
+
 async function openApiMicroAppPreviewTab(dirPath, appConfig) {
     const entryPath = normalizeMicroAppEntry(appConfig && appConfig.entry);
     const workspaceEntryPath = dirPath ? `${dirPath}/${entryPath}` : entryPath;
@@ -7960,11 +8905,11 @@ async function openApiMicroAppPreviewTab(dirPath, appConfig) {
         showSystemMessage(`微应用入口不存在: ${workspaceEntryPath}`);
         return;
     }
-    const tabPath = dirPath ? `${dirPath}/` : '/';
+    const tabPath = `@micro-app:${dirPath || '/'}`;
     filePreviewTabs.set(tabPath, {
         type: 'micro-app',
         path: tabPath,
-        title: appConfig.name || getWorkspaceFileBaseName(dirPath) || '微应用',
+        title: `微应用：${appConfig.name || getWorkspaceFileBaseName(dirPath) || '微应用'}`,
         appRootHandle: null,
         appRootPath: dirPath,
         appConfig,
@@ -7997,11 +8942,11 @@ async function openMicroAppPreviewTab(dirHandle, dirPath, appConfig) {
         showSystemMessage(`微应用入口不存在: ${dirPath}/${entryPath}`);
         return;
     }
-    const tabPath = dirPath ? `${dirPath}/` : '/';
+    const tabPath = `@micro-app:${dirPath || '/'}`;
     filePreviewTabs.set(tabPath, {
         type: 'micro-app',
         path: tabPath,
-        title: appConfig.name || getWorkspaceFileBaseName(dirPath) || '微应用',
+        title: `微应用：${appConfig.name || getWorkspaceFileBaseName(dirPath) || '微应用'}`,
         appRootHandle: dirHandle,
         appRootPath: dirPath,
         appConfig,
@@ -8015,7 +8960,7 @@ async function renderMicroAppPreviewTab(tab) {
     if (!filePreviewBody || !window.MicroAppRuntimeHost) return;
     resetActivePreviewSurface();
     currentPreviewFile = null;
-    currentPreviewPath = tab.path;
+    currentPreviewPath = tab.appRootPath || tab.path;
     currentPreviewCopyText = '';
     if (filePreviewOpenBtn) filePreviewOpenBtn.style.display = 'none';
     if (filePreviewRenderBtn) filePreviewRenderBtn.style.display = 'none';
@@ -8216,6 +9161,25 @@ async function restorePersistedFilePreviewState() {
                 continue;
             }
             try {
+                if (filePath.endsWith('/')) {
+                    const directoryPath = filePath.replace(/\/+$/, '');
+                    const data = await debugWorkspaceApi.listTree(directoryPath, 1);
+                    filePreviewTabs.set(filePath, {
+                        type: 'api-directory',
+                        path: filePath,
+                        title: getWorkspaceFileBaseName(directoryPath),
+                        entry: {
+                            name: getWorkspaceFileBaseName(directoryPath),
+                            path: directoryPath,
+                            type: 'directory',
+                            size: 0,
+                            updated_at: null,
+                            children: data.entries || [],
+                        },
+                    });
+                    restoredPaths.push(filePath);
+                    continue;
+                }
                 const data = await debugWorkspaceApi.readFile(filePath);
                 filePreviewTabs.set(filePath, {
                     type: 'api-file',
@@ -8250,6 +9214,8 @@ async function restorePersistedFilePreviewState() {
         if (activeTab) {
             if (activeTab.type === 'tool-detail') {
                 renderToolDetailPreviewTab(activeTab);
+            } else if (activeTab.type === 'api-directory') {
+                await renderApiDirectoryPreviewTab(activeTab);
             } else if (activeTab.type === 'api-file') {
                 await renderApiFilePreviewTab(activeTab);
             } else {
@@ -8287,6 +9253,7 @@ async function switchFiletreeScope(scope) {
     expandedDirs.clear();
     filetreeExpansionInitializedScopes.delete(activeFiletreeScope);
     currentFileTreeEntries = [];
+    currentFileTreeFingerprint = '';
     updateFiletreeScopeUi();
     if (filetreeContainer) {
         filetreeContainer.innerHTML = `<div class="filetree-empty">正在加载${getActiveFiletreeScopeConfig().title}</div>`;
@@ -8503,6 +9470,18 @@ if (filePreviewCancelBtn) {
     filePreviewCancelBtn.addEventListener('click', cancelFilePreviewEdits);
 }
 
+if (filePreviewMarkdownMode) {
+    filePreviewMarkdownMode.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-markdown-mode]');
+        if (!button || !activeFilePreviewPath || !currentPreviewPath) return;
+        const mode = button.dataset.markdownMode === 'source' ? 'source' : 'rendered';
+        const tab = filePreviewTabs.get(activeFilePreviewPath);
+        if (!tab || !isMarkdownPreviewFile(currentPreviewPath) || currentPreviewCopyText == null) return;
+        tab.markdownMode = mode;
+        renderMarkdownFileMode(currentPreviewCopyText, mode, currentPreviewPath);
+    });
+}
+
 async function renderCurrentPreviewAsHtml() {
     if (!currentPreviewFile || !filePreviewBody) return;
     filePreviewBody.innerHTML = '';
@@ -8525,11 +9504,148 @@ if (filePreviewRenderBtn) {
     filePreviewRenderBtn.addEventListener('click', renderCurrentPreviewAsHtml);
 }
 
-// 自动刷新（每 3 秒）
+if (filePreviewCanvasDataToggleBtn) {
+    filePreviewCanvasDataToggleBtn.addEventListener('click', toggleMagicProjectDataView);
+}
+
+/** 为媒体和 iframe 预览 URL 增加刷新标识，避免浏览器继续使用旧缓存。 */
+function appendPreviewRefreshToken(url) {
+    const value = String(url || '');
+    if (!value) return value;
+    return `${value}${value.includes('?') ? '&' : '?'}preview_refresh=${Date.now()}`;
+}
+
+/** 为文件树生成稳定指纹，用于识别新增、修改、删除和重命名。 */
+function buildFileTreeFingerprint(entries) {
+    const records = [];
+    const collect = items => {
+        for (const entry of Array.isArray(items) ? items : []) {
+            records.push([
+                entry?.path || entry?.name || '',
+                entry?.type || '',
+                Number(entry?.size) || 0,
+                entry?.updated_at || '',
+            ].join('|'));
+            if (entry?.type === 'directory') collect(entry.children);
+        }
+    };
+    collect(entries);
+    return records.sort().join('\n');
+}
+
+/** 按路径递归查找最新文件树节点。 */
+function findFileTreeEntryByPath(entries, targetPath) {
+    const normalizedTarget = String(targetPath || '').replace(/^\/+|\/+$/g, '');
+    for (const entry of Array.isArray(entries) ? entries : []) {
+        const normalizedEntry = String(entry?.path || '').replace(/^\/+|\/+$/g, '');
+        if (normalizedEntry === normalizedTarget) return entry;
+        if (entry?.type === 'directory') {
+            const nested = findFileTreeEntryByPath(entry.children, normalizedTarget);
+            if (nested) return nested;
+        }
+    }
+    return null;
+}
+
+/** 展示当前预览目标已被删除或移动的只读状态。 */
+function renderMissingActiveFilePreview(tab) {
+    resetActivePreviewSurface();
+    currentPreviewFile = null;
+    currentPreviewPath = getFilePreviewResourcePath(tab);
+    currentPreviewCopyText = '';
+    currentPreviewEditable = false;
+    if (filePreviewOpenBtn) filePreviewOpenBtn.style.display = 'none';
+    renderFilePreviewMetaRows(filePreviewMeta, [
+        { label: '文件名', value: tab?.title || getWorkspaceFileBaseName(currentPreviewPath) || '未知文件' },
+        { label: '路径', value: currentPreviewPath || '—' },
+        { label: '状态', value: '文件已删除或移动' },
+    ]);
+    appendPreviewMessage(filePreviewBody, '当前预览目标已被删除或移动。');
+    setFilePreviewWorkbenchVisible(true);
+}
+
+/** 根据最新文件状态重新加载当前预览标签，不改变标签页集合。 */
+async function refreshActiveFilePreview() {
+    if (previewAutoRefreshInFlight) {
+        previewAutoRefreshPending = true;
+        return;
+    }
+    if (!filePreviewWorkbench || filePreviewWorkbench.hidden || filePreviewEditMode) return;
+    const previewPath = activeFilePreviewPath;
+    const tab = filePreviewTabs.get(previewPath);
+    if (!tab || tab.type === 'tool-detail' || hasUnsavedFilePreviewEdits()) return;
+
+    previewAutoRefreshInFlight = true;
+    persistActiveFilePreviewScroll();
+    try {
+        if (tab.type === 'canvas-project') {
+            const latestProjectEntry = findFileTreeEntryByPath(currentFileTreeEntries, tab.directoryPath);
+            if (!latestProjectEntry) {
+                renderMissingActiveFilePreview(tab);
+                return;
+            }
+            const dirPath = tab.directoryPath || getWorkspaceParentPath(tab.projectPath);
+            const latest = await readApiCanvasProjectConfig(dirPath);
+            if (activeFilePreviewPath !== previewPath) return;
+            Object.assign(tab, {
+                projectPath: latest.projectPath,
+                projectConfig: latest.config,
+                projectSize: latest.data.size || 0,
+                title: latest.config.name || tab.title,
+            });
+            await renderApiCanvasProjectPreviewTab(tab);
+        } else if (tab.type === 'micro-app') {
+            const latestConfig = tab.workspaceApi
+                ? await readApiMicroAppConfig(tab.appRootPath)
+                : await readMicroAppConfig(tab.appRootHandle);
+            if (activeFilePreviewPath !== previewPath) return;
+            if (latestConfig) tab.appConfig = latestConfig;
+            await renderMicroAppPreviewTab(tab);
+        } else if (tab.type === 'api-file') {
+            const latestEntry = findFileTreeEntryByPath(currentFileTreeEntries, tab.path);
+            if (!latestEntry) {
+                renderMissingActiveFilePreview(tab);
+                return;
+            }
+            if (activeFilePreviewPath !== previewPath) return;
+            tab.entry = latestEntry;
+            await renderApiFilePreviewTab(tab);
+        } else if (tab.handle) {
+            if (activeFilePreviewPath !== previewPath) return;
+            await previewFile(tab.handle, tab.path);
+        }
+        restoreFilePreviewScroll(previewPath);
+    } catch (error) {
+        console.warn('自动刷新当前文件预览失败', error);
+    } finally {
+        previewAutoRefreshInFlight = false;
+        if (previewAutoRefreshPending) {
+            previewAutoRefreshPending = false;
+            scheduleActiveFilePreviewRefresh();
+        }
+    }
+}
+
+/** 防抖触发当前预览刷新，把一次批量写文件合并为一次重渲染。 */
+function scheduleActiveFilePreviewRefresh() {
+    if (previewAutoRefreshTimer) clearTimeout(previewAutoRefreshTimer);
+    previewAutoRefreshTimer = setTimeout(() => {
+        previewAutoRefreshTimer = null;
+        void refreshActiveFilePreview();
+    }, 250);
+}
+
+// 自动刷新文件树，并在检测到任意文件变化时重载当前预览。
 function startFiletreeAutoRefresh() {
     if (filetreeRefreshTimer) clearInterval(filetreeRefreshTimer);
     filetreeRefreshTimer = setInterval(async () => {
-        await renderFileTree();
+        if (filetreeRefreshInFlight) return;
+        filetreeRefreshInFlight = true;
+        try {
+            await renderFileTree();
+        } finally {
+            filetreeRefreshInFlight = false;
+        }
     }, 3000);
 }
 
@@ -8538,10 +9654,165 @@ async function openApiFilePreviewTab(entry) {
     filePreviewTabs.set(entry.path, {
         type: 'api-file',
         path: entry.path,
-        title: entry.name || getWorkspaceFileBaseName(entry.path),
+        title: `目录：${entry.name || getWorkspaceFileBaseName(entry.path)}`,
         entry,
     });
     await activateFilePreviewTab(entry.path, { resetScroll: true });
+}
+
+/** 将目录路径转换为不会与同名文件冲突的标签页路径。 */
+function buildApiDirectoryPreviewTabPath(directoryPath) {
+    const normalizedPath = String(directoryPath || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    return normalizedPath ? `${normalizedPath}/` : '/';
+}
+
+/** 打开 API 文件树目录预览标签页。 */
+async function openApiDirectoryPreviewTab(entry) {
+    if (!entry || !entry.path) return;
+    const tabPath = buildApiDirectoryPreviewTabPath(entry.path);
+    filePreviewTabs.set(tabPath, {
+        type: 'api-directory',
+        path: tabPath,
+        title: entry.name || getWorkspaceFileBaseName(entry.path),
+        entry,
+    });
+    await activateFilePreviewTab(tabPath, { resetScroll: true });
+}
+
+/** 根据文件类型生成目录预览卡片使用的图标类型。 */
+function getDirectoryPreviewIconType(entry) {
+    if (entry?.type === 'directory') return 'folderClosed';
+    return getFileIconType(entry?.name || entry?.path || '');
+}
+
+/** 创建目录预览卡片的图标或图片缩略图。 */
+function createDirectoryPreviewVisual(entry) {
+    const visual = document.createElement('span');
+    const iconType = getDirectoryPreviewIconType(entry);
+    visual.className = `file-preview-directory-visual is-${iconType}`;
+
+    if (entry?.type === 'file' && iconType === 'image' && entry.path) {
+        const image = document.createElement('img');
+        image.className = 'file-preview-directory-thumbnail';
+        image.alt = entry.name || entry.path;
+        image.loading = 'lazy';
+        image.addEventListener('error', () => {
+            visual.classList.remove('has-thumbnail');
+            visual.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${FILE_TREE_ICON_PATHS.image}</svg>`;
+        });
+        image.src = debugWorkspaceApi.rawUrl(entry.path);
+        visual.classList.add('has-thumbnail');
+        visual.appendChild(image);
+        return visual;
+    }
+
+    visual.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${FILE_TREE_ICON_PATHS[iconType] || FILE_TREE_ICON_PATHS.file}</svg>`;
+    return visual;
+}
+
+/** 返回目录预览卡片的人类可读类型名称。 */
+function getDirectoryPreviewTypeLabel(entry) {
+    if (entry?.type === 'directory') return '文件夹';
+    const iconType = getDirectoryPreviewIconType(entry);
+    const labels = {
+        markdown: 'Markdown',
+        code: '代码',
+        pdf: 'PDF',
+        image: '图片',
+        audio: '音频',
+        video: '视频',
+        archive: '压缩包',
+        spreadsheet: '表格',
+        file: '文件',
+    };
+    return labels[iconType] || '文件';
+}
+
+/** 创建一个可继续进入目录或打开文件的目录预览卡片。 */
+function createDirectoryPreviewItem(entry) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = `file-preview-directory-item ${entry.type === 'directory' ? 'is-directory' : 'is-file'}`;
+    item.title = entry.path || entry.name || '';
+
+    const visual = createDirectoryPreviewVisual(entry);
+    const info = document.createElement('span');
+    info.className = 'file-preview-directory-info';
+
+    const name = document.createElement('span');
+    name.className = 'file-preview-directory-name';
+    name.textContent = entry.name || getWorkspaceFileBaseName(entry.path || '');
+
+    const detail = document.createElement('span');
+    detail.className = 'file-preview-directory-detail';
+    if (entry.type === 'directory') {
+        const childCount = Array.isArray(entry.children) ? entry.children.length : 0;
+        detail.textContent = `${getDirectoryPreviewTypeLabel(entry)} · ${childCount} 项`;
+    } else {
+        detail.textContent = `${getDirectoryPreviewTypeLabel(entry)} · ${formatFileSizeBytes(Number(entry.size) || 0)}`;
+    }
+
+    info.appendChild(name);
+    info.appendChild(detail);
+    item.appendChild(visual);
+    item.appendChild(info);
+    item.addEventListener('click', async () => {
+        if (entry.type === 'directory') {
+            await openApiDirectoryPreviewTab(entry);
+        } else {
+            await openApiFilePreviewTab(entry);
+        }
+    });
+    return item;
+}
+
+/** 渲染 API 文件树目录的文件夹式预览。 */
+async function renderApiDirectoryPreviewTab(tab) {
+    if (!filePreviewBody || !filePreviewWorkbench) return;
+    const directoryPath = String(tab.entry?.path || tab.path || '').replace(/\/+$/, '');
+    resetActivePreviewSurface();
+    currentPreviewFile = null;
+    currentPreviewPath = directoryPath;
+    currentPreviewCopyText = '';
+    if (filePreviewOpenBtn) filePreviewOpenBtn.style.display = 'none';
+    if (filePreviewRenderBtn) filePreviewRenderBtn.style.display = 'none';
+
+    try {
+        const data = await debugWorkspaceApi.listTree(directoryPath, 1);
+        const entries = sortFileTreeEntries(data.entries || []);
+        const directoryCount = entries.filter(entry => entry.type === 'directory').length;
+        const fileCount = entries.length - directoryCount;
+        tab.entry = Object.assign({}, tab.entry, { children: entries });
+
+        renderFilePreviewMetaRows(filePreviewMeta, [
+            { label: '文件名', value: tab.title || getWorkspaceFileBaseName(directoryPath) || getActiveFiletreeScopeConfig().rootLabel },
+            { label: '路径', value: directoryPath || getActiveFiletreeScopeConfig().rootLabel },
+            { label: '预览类型', value: PREVIEW_KIND_LABEL.directory },
+            { label: '文件夹', value: String(directoryCount) },
+            { label: '文件', value: String(fileCount) },
+            { label: '总计', value: String(entries.length) },
+        ]);
+
+        const folder = document.createElement('section');
+        folder.className = 'file-preview-directory';
+        if (!entries.length) {
+            const empty = document.createElement('div');
+            empty.className = 'file-preview-directory-empty';
+            empty.innerHTML = '<div class="file-preview-directory-empty-icon"><svg viewBox="0 0 24 24" aria-hidden="true">' + FILE_TREE_ICON_PATHS.folderOpen + '</svg></div><div class="file-preview-empty-title">空文件夹</div><div class="file-preview-empty-text">这个目录中还没有文件或子目录。</div>';
+            folder.appendChild(empty);
+        } else {
+            const grid = document.createElement('div');
+            grid.className = 'file-preview-directory-grid';
+            entries.forEach(entry => grid.appendChild(createDirectoryPreviewItem(entry)));
+            folder.appendChild(grid);
+        }
+        filePreviewBody.appendChild(folder);
+        setFilePreviewWorkbenchVisible(true);
+    } catch (error) {
+        console.error('读取 API 工作区目录失败', error);
+        appendPreviewMessage(filePreviewBody, `读取目录失败: ${error.message || error}`);
+        setFilePreviewWorkbenchVisible(true);
+    }
 }
 
 function buildApiFilePreviewDescriptor(entry, kind) {
@@ -8560,9 +9831,9 @@ async function renderApiFilePreviewTab(tab) {
     const filePath = entry.path || tab.path;
     const kindProbe = buildApiFilePreviewDescriptor(entry, '');
     const kind = isHtmlPreviewable(filePath, kindProbe) ? 'html' : getWorkspacePreviewKind(filePath, kindProbe);
-    const rawUrl = kind === 'html'
+    const rawUrl = appendPreviewRefreshToken(kind === 'html'
         ? debugWorkspaceApi.rawPathUrl(filePath)
-        : debugWorkspaceApi.rawUrl(filePath);
+        : debugWorkspaceApi.rawUrl(filePath));
     resetActivePreviewSurface();
     currentPreviewFile = null;
     currentPreviewPath = filePath;
@@ -8648,32 +9919,42 @@ async function renderApiFilePreviewTab(tab) {
             const data = await debugWorkspaceApi.readFile(filePath);
             const text = data.content || '';
             const lineCount = text.split(/\r\n|\r|\n/).length;
-            currentPreviewCopyText = text;
-            currentPreviewEditable = true;
-            updateFilePreviewEditActions();
-            setMeta(kind, [
-                { label: '行数', value: String(lineCount) },
-                { label: '字符数', value: String(text.length) },
-            ]);
-            if (isMarkdownPreviewFile(filePath) && window.marked) {
-                filePreviewBody.classList.add('file-preview-body-markdown');
-                const article = document.createElement('article');
-                article.className = 'file-preview-markdown ai-markdown';
-                article.innerHTML = marked.parse(text);
-                enhanceFilePreviewMarkdownImages(article);
-                filePreviewBody.appendChild(article);
+            const isCanvasProjectFile = isMagicProjectJs(filePath);
+            const canvasConfig = isCanvasProjectFile ? await parseMagicProjectConfig(text) : null;
+            if (isCanvasProjectFile && canvasConfig?.type === 'design' && canvasConfig.canvas) {
+                setMeta('canvas', [
+                    { label: '数据视图', value: '解压后 JSON' },
+                    { label: '原始行数', value: String(lineCount) },
+                    { label: '原始字符数', value: String(text.length) },
+                ]);
+                renderMagicProjectCodePreview(text, canvasConfig, filePath);
+                setMeta('canvas', [
+                    { label: '数据视图', value: '解压后 JSON' },
+                    { label: '原始行数', value: String(lineCount) },
+                    { label: '原始字符数', value: String(text.length) },
+                ]);
+                updateFilePreviewEditActions();
             } else {
+                currentPreviewCopyText = text;
+                currentPreviewEditable = true;
+                updateFilePreviewEditActions();
+                setMeta(kind, [
+                    { label: '行数', value: String(lineCount) },
+                    { label: '字符数', value: String(text.length) },
+                ]);
+            }
+            if (!isCanvasProjectFile && isMarkdownPreviewFile(filePath)) {
+                renderMarkdownFileMode(
+                    text,
+                    filePreviewTabs.get(filePath)?.markdownMode || 'rendered',
+                    filePath,
+                );
+            }
+            if (!isCanvasProjectFile && !isMarkdownPreviewFile(filePath)) {
                 const pre = document.createElement('pre');
                 pre.className = 'file-preview-content';
                 pre.textContent = text;
                 filePreviewBody.appendChild(pre);
-            }
-
-            if (isMagicProjectJs(filePath)) {
-                const config = await parseMagicProjectConfig(text);
-                if (config?.canvas) {
-                    await addApiCanvasRightPanel(config, filePath);
-                }
             }
         }
         setFilePreviewWorkbenchVisible(true);
@@ -8686,25 +9967,35 @@ async function renderApiFilePreviewTab(tab) {
 
 // 读取并渲染文件树
 async function renderFileTree() {
-    if (!filetreeContainer) return;
+    if (!filetreeContainer) return { changed: false };
     try {
         const data = await debugWorkspaceApi.listTree('', 8);
-        currentFileTreeEntries = data.entries || [];
+        const nextEntries = data.entries || [];
+        const nextFingerprint = buildFileTreeFingerprint(nextEntries);
+        const changed = Boolean(
+            currentFileTreeFingerprint
+            && currentFileTreeFingerprint !== nextFingerprint
+        );
+        currentFileTreeFingerprint = nextFingerprint;
+        currentFileTreeEntries = nextEntries;
         initializeDefaultExpandedDirectories(currentFileTreeEntries);
         const frag = document.createDocumentFragment();
-        await buildApiTreeNodes(data.entries || [], frag, 0);
+        await buildApiTreeNodes(nextEntries, frag, 0);
         filetreeContainer.innerHTML = '';
         filetreeContainer.appendChild(frag);
         if (!filetreeContainer.hasChildNodes() || filetreeContainer.children.length === 0) {
             filetreeContainer.innerHTML = '<div class="filetree-empty">目录为空</div>';
         }
         updateSelectBtn('active');
+        if (changed) scheduleActiveFilePreviewRefresh();
+        return { changed };
     } catch (e) {
         console.error('渲染文件树失败', e);
         updateSelectBtn('need-auth');
         if (filetreeContainer) {
             filetreeContainer.innerHTML = `<div class="filetree-empty">无法加载${getActiveFiletreeScopeConfig().title}，请确认 super-magic 后端已启动。</div>`;
         }
+        return { changed: false, error: e };
     }
 }
 
@@ -8718,9 +10009,12 @@ async function buildApiTreeNodes(entries, container, depth) {
         const microAppConfig = getActiveFiletreeScope() === 'workspace' && isDir && hasApiMicroAppConfigFile(entry)
             ? await readApiMicroAppConfig(fullPath)
             : null;
+        const canvasProject = getActiveFiletreeScope() === 'workspace' && isDir
+            ? await isApiCanvasDesignProject(entry, fullPath)
+            : false;
 
         const node = document.createElement('div');
-        node.className = `ft-node ${isDir ? 'ft-dir' : 'ft-file'}${microAppConfig ? ' ft-micro-app' : ''}`;
+        node.className = `ft-node ${isDir ? 'ft-dir' : 'ft-file'}${microAppConfig ? ' ft-micro-app' : ''}${canvasProject ? ' ft-canvas-project' : ''}`;
         node.style.paddingLeft = `${8 + depth * 14}px`;
         node.dataset.path = fullPath;
         node.dataset.type = isDir ? 'directory' : 'file';
@@ -8730,10 +10024,20 @@ async function buildApiTreeNodes(entries, container, depth) {
         const name = document.createElement('span');
         name.className = 'ft-name';
         name.textContent = entry.name;
-        name.title = microAppConfig ? `微应用: ${microAppConfig.name || entry.name}，单击展开/收起，双击打开` : fullPath;
+        name.title = microAppConfig
+            ? `微应用: ${microAppConfig.name || entry.name}，单击展开/收起，使用“打开微应用”按钮打开`
+            : canvasProject
+                ? '画布项目：单击展开/收起，使用“打开画布”按钮打开只读预览'
+                : fullPath;
 
         node.appendChild(icon);
         node.appendChild(name);
+        appendFileTreeOpenHints(node, {
+            microApp: !!microAppConfig,
+            canvasProject,
+            openMicroApp: () => openApiMicroAppPreviewTab(fullPath, microAppConfig),
+            openCanvas: () => openApiCanvasProjectPreviewTab(fullPath, entry),
+        });
         node.appendChild(createWorkspaceDeleteButton(fullPath, isDir));
         container.appendChild(node);
 
@@ -8763,19 +10067,16 @@ async function buildApiTreeNodes(entries, container, depth) {
                     childContainer.style.display = 'block';
                     updateFileTreeIcon(icon, entry.name, true, true, { microApp: !!microAppConfig });
                 }
+                await openApiDirectoryPreviewTab(entry);
             });
-            if (microAppConfig) {
-                node.addEventListener('dblclick', async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    await openApiMicroAppPreviewTab(fullPath, microAppConfig);
-                });
-            }
             node.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 const dirPath = normalizeMentionDirectoryPath(fullPath);
-                const menuItems = [];
+                const menuItems = [{
+                    label: '预览目录',
+                    onSelect: () => openApiDirectoryPreviewTab(entry),
+                }];
                 if (microAppConfig) {
                     menuItems.push({
                         label: '打开微应用',
@@ -8791,6 +10092,12 @@ async function buildApiTreeNodes(entries, container, depth) {
                             }
                             await renderFileTree();
                         },
+                    });
+                }
+                if (canvasProject) {
+                    menuItems.push({
+                        label: '打开画布预览',
+                        onSelect: () => openApiCanvasProjectPreviewTab(fullPath, entry),
                     });
                 }
                 menuItems.push({
@@ -8880,11 +10187,15 @@ async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
         name.className = 'ft-name';
         name.textContent = entry.name;
         if (microAppConfig) {
-            name.title = `微应用: ${microAppConfig.name || entry.name}，单击展开/收起，双击打开`;
+            name.title = `微应用: ${microAppConfig.name || entry.name}，单击展开/收起，使用“打开微应用”按钮打开`;
         }
 
         node.appendChild(icon);
         node.appendChild(name);
+        appendFileTreeOpenHints(node, {
+            microApp: !!microAppConfig,
+            openMicroApp: () => openMicroAppPreviewTab(entry, fullPath, microAppConfig),
+        });
         node.appendChild(createWorkspaceDeleteButton(fullPath, isDir));
         container.appendChild(node);
 
@@ -8917,13 +10228,6 @@ async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
                     updateFileTreeIcon(icon, entry.name, true, true, { microApp: !!microAppConfig });
                 }
             });
-            if (microAppConfig) {
-                node.addEventListener('dblclick', async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    await openMicroAppPreviewTab(entry, fullPath, microAppConfig);
-                });
-            }
             node.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -8990,8 +10294,16 @@ function isMagicProjectJs(filePath) {
     return getWorkspaceFileBaseName(filePath) === 'magic.project.js';
 }
 
-// v2 画布压缩协议：canvas 字段被压成 MAGICPROJECTDESIGNDATA:// 字符串
+// V2/V3 画布压缩协议：canvas 字段被压成 MAGICPROJECTDESIGNDATA:// 字符串
 const MAGIC_PROJECT_DESIGN_DATA_PREFIX = 'MAGICPROJECTDESIGNDATA://';
+const MAGIC_PROJECT_VERSION_V1 = '1.0.0';
+const MAGIC_PROJECT_VERSION_V2 = '2.0.0';
+const MAGIC_PROJECT_VERSION_V3 = '3.0.0';
+const SUPPORTED_MAGIC_PROJECT_VERSIONS = new Set([
+    MAGIC_PROJECT_VERSION_V1,
+    MAGIC_PROJECT_VERSION_V2,
+    MAGIC_PROJECT_VERSION_V3,
+]);
 
 function isCompressedCanvas(value) {
     return typeof value === 'string' && value.startsWith(MAGIC_PROJECT_DESIGN_DATA_PREFIX);
@@ -9008,13 +10320,24 @@ async function decompressCanvasData(encoded) {
     return JSON.parse(new TextDecoder('utf-8').decode(buf));
 }
 
-// 解析 magic.project.js：兼容 v1（canvas 为对象）与 v2（canvas 为压缩字符串）
+// 解析 magic.project.js：只按顶层 version 选择 V1 明文或 V2/V3 压缩协议。
 async function parseMagicProjectConfig(text) {
     try {
         const m = text.match(/window\.magicProjectConfig\s*=\s*(\{[\s\S]*\})/);
         if (!m) return null;
         const config = JSON.parse(m[1]);
-        if (config && isCompressedCanvas(config.canvas)) {
+        const version = config?.version;
+        if (!SUPPORTED_MAGIC_PROJECT_VERSIONS.has(version)) {
+            throw new Error(`不支持的画布版本: ${version || 'missing'}`);
+        }
+        if (version === MAGIC_PROJECT_VERSION_V1) {
+            if (!config.canvas || typeof config.canvas !== 'object' || Array.isArray(config.canvas)) {
+                throw new Error('V1 画布必须使用明文对象');
+            }
+        } else {
+            if (!isCompressedCanvas(config.canvas)) {
+                throw new Error(`${version} 画布必须使用压缩字符串`);
+            }
             config.canvas = await decompressCanvasData(config.canvas);
         }
         return config;
@@ -9022,6 +10345,343 @@ async function parseMagicProjectConfig(text) {
         console.error('解析 magic.project.js 失败', e);
         return null;
     }
+}
+
+/** 将画布配置转换为默认展示的可读 JSON 文本，保留 magic.project.js 的上下文。 */
+function formatMagicProjectDecompressedText(config) {
+    return `window.magicProjectConfig = ${JSON.stringify(config, null, 2)};`;
+}
+
+/** 为 magic.project.js 创建只读代码预览，并维护原始/解压视图切换状态。 */
+function renderMagicProjectCodePreview(rawText, config, filePath) {
+    if (!filePreviewBody) return;
+    currentCanvasProjectRawText = rawText;
+    currentCanvasProjectDecompressedText = formatMagicProjectDecompressedText(config);
+    currentCanvasProjectViewMode = 'decompressed';
+    currentPreviewCopyText = currentCanvasProjectDecompressedText;
+    currentPreviewEditable = false;
+
+    const pre = document.createElement('pre');
+    pre.className = 'file-preview-content file-preview-canvas-source';
+    pre.textContent = currentCanvasProjectDecompressedText;
+    pre.dataset.path = filePath;
+    filePreviewBody.appendChild(pre);
+
+    const isCompressed = /"canvas"\s*:\s*"MAGICPROJECTDESIGNDATA:\/\//.test(rawText);
+    if (filePreviewCanvasDataToggleBtn && isCompressed) {
+        filePreviewCanvasDataToggleBtn.style.display = '';
+        filePreviewCanvasDataToggleBtn.textContent = '显示原始压缩数据';
+        filePreviewCanvasDataToggleBtn.title = '当前默认显示解压后的 JSON，点击切换为原始压缩数据';
+    }
+}
+
+/** 在原始压缩数据和解压 JSON 之间切换，不修改工作区文件。 */
+function toggleMagicProjectDataView() {
+    if (!currentCanvasProjectRawText || !filePreviewBody) return;
+    const source = filePreviewBody.querySelector('.file-preview-canvas-source');
+    if (!source) return;
+    const showRaw = currentCanvasProjectViewMode === 'decompressed';
+    currentCanvasProjectViewMode = showRaw ? 'raw' : 'decompressed';
+    currentPreviewCopyText = showRaw
+        ? currentCanvasProjectRawText
+        : currentCanvasProjectDecompressedText;
+    source.textContent = currentPreviewCopyText;
+    if (filePreviewCanvasDataToggleBtn) {
+        filePreviewCanvasDataToggleBtn.textContent = showRaw ? '显示解压后 JSON' : '显示原始压缩数据';
+        filePreviewCanvasDataToggleBtn.title = showRaw
+            ? '当前显示原始压缩数据，点击切换为解压后的 JSON'
+            : '当前默认显示解压后的 JSON，点击切换为原始压缩数据';
+    }
+    const viewChip = [...(filePreviewMeta?.querySelectorAll('.file-preview-meta-chip') || [])]
+        .find(chip => chip.querySelector('.file-preview-meta-label')?.textContent === '数据视图:');
+    const viewValue = viewChip?.querySelector('.file-preview-meta-value');
+    if (viewValue) viewValue.textContent = showRaw ? '原始压缩串' : '解压后 JSON';
+}
+
+/**
+ * 选择 V3 Element 当前用于调试预览的 Content。
+ * 只读画布默认展示 active Content，再回退第一个 Content。
+ */
+function selectCanvasPreviewContent(element, preferredContentId = null) {
+    const contents = Array.isArray(element?.contents) ? element.contents : [];
+    return contents.find(content => content?.contentId === preferredContentId)
+        || contents.find(content => content?.contentId === element.activeContentId)
+        || contents[0]
+        || {};
+}
+
+/** 读取一个 Content 对当前只读节点正文产生影响的字段。 */
+function resolveCanvasPreviewContentFields(element, content) {
+    return {
+        fill: content?.fill ?? element?.fill ?? null,
+        stroke: content?.stroke ?? element?.stroke ?? null,
+        strokeWidth: Number.isFinite(content?.strokeWidth)
+            ? content.strokeWidth
+            : Number.isFinite(element?.strokeWidth) ? element.strokeWidth : 0,
+        cornerRadius: Number.isFinite(content?.cornerRadius)
+            ? content.cornerRadius
+            : Number.isFinite(element?.cornerRadius) ? element.cornerRadius : 0,
+        content: content?.content ?? element?.content ?? null,
+        defaultStyle: content?.defaultStyle ?? element?.defaultStyle ?? null,
+        src: content?.src ?? element?.src ?? null,
+        poster: content?.poster ?? element?.poster ?? null,
+        status: content?.status ?? element?.status ?? null,
+        errorMessage: content?.errorMessage ?? element?.errorMessage ?? null,
+        shots: Array.isArray(content?.shots ?? element?.shots) ? (content?.shots ?? element?.shots) : [],
+        generationConfig: content?.generationConfig ?? element?.generationConfig ?? {},
+        // 保留生成请求，供调试画布展示只读的生成记录。
+        generateImageRequest: content?.generateImageRequest ?? element?.generateImageRequest ?? null,
+        generateVideoRequest: content?.generateVideoRequest ?? element?.generateVideoRequest ?? null,
+        imageGenerationTaskMeta: content?.imageGenerationTaskMeta ?? element?.imageGenerationTaskMeta ?? null,
+        visualUnderstanding: content?.visualUnderstanding ?? null,
+        videoEditorDraft: content?.videoEditorDraft ?? null,
+        videoGenerationResultMeta: content?.videoGenerationResultMeta ?? null,
+        videoSequence: Array.isArray(content?.videoSequence ?? element?.videoSequence)
+            ? (content?.videoSequence ?? element?.videoSequence)
+            : [],
+        audioSequence: Array.isArray(content?.audioSequence ?? element?.audioSequence)
+            ? (content?.audioSequence ?? element?.audioSequence)
+            : [],
+        output: content?.output ?? element?.output ?? {},
+    };
+}
+
+/** 切换归一化节点当前预览的 Content，不修改原始项目数据。 */
+function applyCanvasPreviewContent(element, content) {
+    Object.assign(
+        element,
+        resolveCanvasPreviewContentFields(element.rawElement, content),
+        { selectedContentId: content?.contentId ?? null },
+    );
+}
+
+/**
+ * 把 V1/V2/V3 Element 归一化为调试面板唯一预览模型。
+ * 该模型只存在于浏览器内，不会写回 magic.project.js。
+ */
+function normalizeCanvasPreviewElement(element, version, index, parentId = null, depth = 0) {
+    const isV3 = version === MAGIC_PROJECT_VERSION_V3;
+    const content = isV3 ? selectCanvasPreviewContent(element) : {};
+    const previewContents = isV3 && Array.isArray(element?.contents) ? element.contents : [];
+    const rawX = Number.isFinite(element?.x) ? element.x : null;
+    const rawY = Number.isFinite(element?.y) ? element.y : null;
+    const scaleX = Number.isFinite(element?.scaleX) ? element.scaleX : 1;
+    const scaleY = Number.isFinite(element?.scaleY) ? element.scaleY : 1;
+    // magic-web 将 width/height 与 scaleX/scaleY 分开保存，Konva 节点再统一应用缩放。
+    const width = Number.isFinite(element?.width) && element.width > 0 ? element.width : null;
+    const height = Number.isFinite(element?.height) && element.height > 0 ? element.height : null;
+    return {
+        id: String(element?.id || `preview-element-${index + 1}`),
+        type: String(element?.type || 'unknown'),
+        name: String(element?.name || element?.id || `未命名节点 ${index + 1}`),
+        x: rawX,
+        y: rawY,
+        width,
+        height,
+        scaleX,
+        scaleY,
+        parentId,
+        depth,
+        zIndex: Number.isFinite(element?.zIndex) ? element.zIndex : index,
+        visible: element?.visible !== false,
+        locked: element?.locked === true,
+        opacity: Number.isFinite(element?.opacity) ? element.opacity : 1,
+        rotation: Number.isFinite(element?.rotation) ? element.rotation : 0,
+        ...resolveCanvasPreviewContentFields(element, content),
+        activeContentId: isV3 ? element?.activeContentId ?? null : null,
+        mainContentId: isV3 ? element?.mainContentId ?? null : null,
+        selectedContentId: isV3 ? content?.contentId ?? null : null,
+        previewContents,
+        contentCount: isV3 ? previewContents.length : 1,
+        rawElement: element,
+    };
+}
+
+/**
+ * 递归展开已有 Frame/Group 子节点，同时保留父子关系供预览层恢复 Konva Group 语义。
+ */
+function flattenCanvasPreviewElements(elements, version, parentId = null, depth = 0, result = []) {
+    for (const element of Array.isArray(elements) ? elements : []) {
+        const normalized = normalizeCanvasPreviewElement(element, version, result.length, parentId, depth);
+        result.push(normalized);
+        if (Array.isArray(element?.children)) {
+            flattenCanvasPreviewElements(element.children, version, normalized.id, depth + 1, result);
+        }
+    }
+    return result;
+}
+
+/** 读取 CanvasDesign 对应节点缺省尺寸，避免业务节点被压缩成调试卡片。 */
+function resolveCanvasPreviewDefaultSize(elementType) {
+    return {
+        image: [240, 160],
+        video: [240, 160],
+        audio: [360, 140],
+        text: [320, 120],
+        rectangle: [220, 140],
+        ellipse: [180, 180],
+        triangle: [180, 180],
+        star: [180, 180],
+        frame: [640, 480],
+        group: [320, 240],
+        storyboard: [960, 1360],
+        'video-edit': [520, 360],
+    }[elementType] || [220, 140];
+}
+
+/**
+ * 只为缺失的坐标或尺寸补齐确定性预览布局。
+ * 已持久化的真实坐标和尺寸保持不变，补齐结果也不会写回画布文件。
+ */
+function applyDeterministicCanvasPreviewLayout(elements) {
+    const resolvedElements = elements.map(element => {
+        const [defaultWidth, defaultHeight] = resolveCanvasPreviewDefaultSize(element.type);
+        return {
+            ...element,
+            width: Number.isFinite(element.width) && element.width > 0 ? element.width : defaultWidth,
+            height: Number.isFinite(element.height) && element.height > 0 ? element.height : defaultHeight,
+        };
+    });
+    let fallbackY = resolvedElements.reduce((maxBottom, element) => {
+        if (!Number.isFinite(element.x) || !Number.isFinite(element.y)) return maxBottom;
+        return Math.max(maxBottom, element.y + element.height);
+    }, -80) + 80;
+    return resolvedElements.map((element, index) => {
+        if (Number.isFinite(element.x) && Number.isFinite(element.y)) return element;
+        const positioned = {
+            ...element,
+            x: 0,
+            y: fallbackY,
+            zIndex: Number.isFinite(element.zIndex) ? element.zIndex : index,
+        };
+        fallbackY += positioned.height + 80;
+        return positioned;
+    });
+}
+
+/**
+ * 计算二维仿射矩阵。
+ * 矩阵顺序与 Konva 的节点树一致：父级变换先应用，子级再应用自身的平移、缩放和旋转。
+ */
+function multiplyCanvasPreviewMatrix(left, right) {
+    return {
+        a: left.a * right.a + left.c * right.b,
+        b: left.b * right.a + left.d * right.b,
+        c: left.a * right.c + left.c * right.d,
+        d: left.b * right.c + left.d * right.d,
+        e: left.a * right.e + left.c * right.f + left.e,
+        f: left.b * right.e + left.d * right.f + left.f,
+    };
+}
+
+/** 创建与 Konva 节点等价的平移、缩放、旋转矩阵。 */
+function createCanvasPreviewLocalMatrix(element) {
+    const rotation = Number.isFinite(element.rotation) ? element.rotation * Math.PI / 180 : 0;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const scaleX = Number.isFinite(element.scaleX) ? element.scaleX : 1;
+    const scaleY = Number.isFinite(element.scaleY) ? element.scaleY : 1;
+    return {
+        a: cos * scaleX,
+        b: sin * scaleX,
+        c: -sin * scaleY,
+        d: cos * scaleY,
+        e: Number.isFinite(element.x) ? element.x : 0,
+        f: Number.isFinite(element.y) ? element.y : 0,
+    };
+}
+
+/** 将局部矩形转换为世界坐标包围盒。 */
+function getCanvasPreviewWorldBounds(matrix, width, height) {
+    const points = [
+        { x: 0, y: 0 },
+        { x: width, y: 0 },
+        { x: 0, y: height },
+        { x: width, y: height },
+    ].map(point => ({
+        x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+        y: matrix.b * point.x + matrix.d * point.y + matrix.f,
+    }));
+    const minX = Math.min(...points.map(point => point.x));
+    const minY = Math.min(...points.map(point => point.y));
+    const maxX = Math.max(...points.map(point => point.x));
+    const maxY = Math.max(...points.map(point => point.y));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/**
+ * 为每个节点生成 magic-web 兼容的世界几何。
+ * x/y/width/height 仍保留原始文档值，避免预览层修改项目数据；布局结果只放在 layout 字段中。
+ */
+function resolveCanvasPreviewScene(elements) {
+    const elementById = new Map(elements.map(element => [element.id, element]));
+    const layoutById = new Map();
+    const resolving = new Set();
+
+    const resolve = element => {
+        if (layoutById.has(element.id)) return layoutById.get(element.id);
+        if (resolving.has(element.id)) {
+            // 损坏的循环父子关系不能阻塞整个调试预览，退化为根节点处理。
+            return { matrix: createCanvasPreviewLocalMatrix({ ...element, parentId: null }) };
+        }
+        resolving.add(element.id);
+        const parent = element.parentId ? elementById.get(element.parentId) : null;
+        const parentLayout = parent ? resolve(parent) : null;
+        const localMatrix = createCanvasPreviewLocalMatrix(element);
+        const matrix = parentLayout
+            ? multiplyCanvasPreviewMatrix(parentLayout.matrix, localMatrix)
+            : localMatrix;
+        const width = Number.isFinite(element.width) && element.width > 0 ? element.width : 1;
+        const height = Number.isFinite(element.height) && element.height > 0 ? element.height : 1;
+        const worldBounds = getCanvasPreviewWorldBounds(
+            matrix,
+            width,
+            height,
+        );
+        const layout = {
+            matrix,
+            worldOrigin: { x: matrix.e, y: matrix.f },
+            worldBounds,
+            width,
+            height,
+        };
+        resolving.delete(element.id);
+        layoutById.set(element.id, layout);
+        return layout;
+    };
+
+    return elements.map(element => ({ ...element, layout: resolve(element) }));
+}
+
+/**
+ * 把三种持久化结构转换为统一画布预览文档。
+ */
+function normalizeMagicProjectForPreview(config) {
+    const version = config?.version;
+    const rawElements = config?.canvas?.elements ?? [];
+    let elements = flattenCanvasPreviewElements(rawElements, version);
+    const hasCompleteLayout = elements.length > 0 && elements.every(element => (
+        Number.isFinite(element.x)
+        && Number.isFinite(element.y)
+        && Number.isFinite(element.width)
+        && Number.isFinite(element.height)
+    ));
+    elements = resolveCanvasPreviewScene(applyDeterministicCanvasPreviewLayout(elements));
+    const connections = Array.isArray(config?.canvas?.connections)
+        ? config.canvas.connections.map((connection, index) => ({
+            id: String(connection?.id || `preview-connection-${index + 1}`),
+            sourceElementId: String(connection?.sourceElementId || connection?.source_element_id || ''),
+            targetElementId: String(connection?.targetElementId || connection?.target_element_id || ''),
+            locked: connection?.locked === true,
+        }))
+        : [];
+    return {
+        version,
+        name: config?.name || '',
+        elements,
+        connections,
+        usesPreviewLayout: !hasCompleteLayout,
+    };
 }
 
 async function getProjectDirHandle(filePath) {
@@ -9066,8 +10726,11 @@ function captureVideoFrame(videoBlobUrl) {
     return new Promise((resolve) => {
         const v = document.createElement('video');
         v.muted = true;
-        v.preload = 'metadata';
+        v.playsInline = true;
+        v.preload = 'auto';
+        if (/^https?:/i.test(videoBlobUrl)) v.crossOrigin = 'anonymous';
         let settled = false;
+        let captureRequested = false;
         const done = (result) => {
             if (settled) return;
             settled = true;
@@ -9076,27 +10739,44 @@ function captureVideoFrame(videoBlobUrl) {
         };
         const timer = setTimeout(() => done(null), 10000);
         v.addEventListener('error', () => { clearTimeout(timer); done(null); });
-        v.addEventListener('loadeddata', () => { v.currentTime = 0.01; });
-        v.addEventListener('seeked', () => {
+        const requestCapture = () => {
+            if (captureRequested || settled || v.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+            captureRequested = true;
+            const duration = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0.1;
+            try {
+                v.currentTime = Math.min(0.1, Math.max(0.01, duration / 2));
+            } catch {
+                done(null);
+            }
+        };
+        const capture = () => {
+            if (settled || v.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
             clearTimeout(timer);
             try {
                 const c = document.createElement('canvas');
                 c.width = v.videoWidth || 640;
                 c.height = v.videoHeight || 360;
-                c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+                const context = c.getContext('2d');
+                if (!context || !c.width || !c.height) return done(null);
+                context.drawImage(v, 0, 0, c.width, c.height);
                 done(c.toDataURL('image/jpeg', 0.82));
             } catch {
                 done(null);
             }
-        });
+        };
+        v.addEventListener('loadedmetadata', requestCapture);
+        v.addEventListener('loadeddata', requestCapture);
+        v.addEventListener('canplay', requestCapture);
+        v.addEventListener('seeked', capture);
         v.src = videoBlobUrl;
+        v.load();
     });
 }
 
 /**
- * 弹出画布媒体 modal：图片展示原图，视频展示播放器。
- * @param {'image'|'video'} type
- * @param {string|null} blobUrl  - 视频/图片的 blob URL
+ * 弹出画布媒体 modal：图片展示原图，视频和音频展示播放器。
+ * @param {'image'|'video'|'audio'} type
+ * @param {string|null} blobUrl  - 媒体文件的 blob URL
  * @param {string|null} posterBlobUrl - 视频封面的 blob URL（可选）
  * @param {string} name - 元素名称（用于 aria-label）
  */
@@ -9141,6 +10821,13 @@ function openCanvasMediaModal(type, blobUrl, posterBlobUrl, name) {
         img.alt = name;
         img.style.cssText = 'max-width:100%;max-height:100%;display:block;object-fit:contain;';
         mediaWrap.appendChild(img);
+    } else if (type === 'audio' && blobUrl) {
+        const audio = document.createElement('audio');
+        audio.src = blobUrl;
+        audio.controls = true;
+        audio.autoplay = true;
+        audio.style.cssText = 'width:min(560px,80vw);display:block;margin:48px 24px;';
+        mediaWrap.appendChild(audio);
     } else if (type === 'image' && blobUrl) {
         const img = document.createElement('img');
         img.src = blobUrl;
@@ -9172,245 +10859,1368 @@ function openCanvasMediaModal(type, blobUrl, posterBlobUrl, name) {
     };
     document.addEventListener('keydown', onKey);
 
-    // modal 移除时停止视频播放
+    // modal 移除时停止媒体播放
     new MutationObserver(() => {
         if (!document.getElementById('canvasMediaModal')) {
-            const v = overlay.querySelector('video');
-            if (v) { v.pause(); v.src = ''; }
+            overlay.querySelectorAll('video,audio').forEach(media => {
+                media.pause();
+                media.src = '';
+            });
             document.removeEventListener('keydown', onKey);
         }
     }).observe(document.body, { childList: true });
 }
 
 /**
- * 在 containerEl 内渲染画布内容。
- * containerEl 本身需具备 overflow:auto + 固定高度（来自 CSS），函数不修改其样式。
+ * 创建节点正文中的普通文字行。
  */
-async function renderCanvasView(config, resolveMediaUrl, containerEl) {
-    const elements = config?.canvas?.elements ?? [];
+function createCanvasPreviewText(text, className = 'canvas-el-label') {
+    const element = document.createElement('span');
+    element.className = className;
+    element.textContent = text;
+    return element;
+}
+
+/** 在图片元素上方创建名称和展示尺寸信息。 */
+function createCanvasImageTopMetadata(element) {
+    const metadata = document.createElement('div');
+    metadata.className = 'canvas-el-image-top-metadata';
+    const name = createCanvasPreviewText(element.name, 'canvas-el-image-external-name');
+    name.title = element.name;
+    const dimensions = createCanvasPreviewText(
+        `${Math.round(element.width)} × ${Math.round(element.height)}`,
+        'canvas-el-image-dimensions',
+    );
+    metadata.append(name, dimensions);
+    return metadata;
+}
+
+/** 返回媒体节点对应的最近一次生成请求。 */
+function getCanvasGenerationRequest(element) {
+    if (element?.type === 'image') return element.generateImageRequest;
+    if (element?.type === 'video') return element.generateVideoRequest;
+    return null;
+}
+
+/** 判断节点或其任一历史 Content 是否存在生成请求。 */
+function hasCanvasGenerationRequest(element) {
+    if (getCanvasGenerationRequest(element)) return true;
+    const contents = Array.isArray(element?.previewContents) ? element.previewContents : [];
+    return contents.some(content => element?.type === 'image'
+        ? Boolean(content?.generateImageRequest)
+        : element?.type === 'video' ? Boolean(content?.generateVideoRequest) : false);
+}
+
+/** 将图片或视频生成请求中的引用素材归一化为面板可展示的数据。 */
+function getCanvasGenerationReferences(element, request) {
+    if (!request || typeof request !== 'object') return [];
+    if (element?.type === 'image') {
+        return (Array.isArray(request.reference_images) ? request.reference_images : [])
+            .filter(Boolean)
+            .map(path => ({ path: String(path), label: '参考图', type: 'image' }));
+    }
+
+    const inputs = request.inputs && typeof request.inputs === 'object' ? request.inputs : {};
+    const references = [];
+    const append = (items, type, label) => {
+        (Array.isArray(items) ? items : []).forEach(item => {
+            const path = typeof item === 'string' ? item : item?.uri;
+            if (path) references.push({ path: String(path), label, type });
+        });
+    };
+    append(inputs.frames, 'image', '关键帧');
+    append(inputs.reference_images, 'image', '参考图');
+    append(inputs.reference_videos, 'video', '参考视频');
+    append(inputs.reference_audios, 'audio', '参考音频');
+    const appendSingle = (item, type, label) => {
+        const path = typeof item === 'string' ? item : item?.uri;
+        if (path) references.push({ path: String(path), label, type });
+    };
+    appendSingle(inputs.video, 'video', '源视频');
+    appendSingle(inputs.mask, 'image', '遮罩');
+    append(inputs.audio, 'audio', '输入音频');
+    return references;
+}
+
+/** 创建生成记录中的一行只读字段。 */
+function createCanvasGenerationDetailRow(label, value) {
+    if (value === undefined || value === null || value === '') return null;
+    const row = document.createElement('div');
+    row.className = 'canvas-generation-detail-row';
+    const labelEl = document.createElement('div');
+    labelEl.className = 'canvas-generation-detail-label';
+    labelEl.textContent = label;
+    const valueEl = document.createElement('div');
+    valueEl.className = 'canvas-generation-detail-value';
+    valueEl.textContent = String(value);
+    row.append(labelEl, valueEl);
+    return row;
+}
+
+/** 将生成详情时间格式化为带时区的人类可读文本。 */
+function formatCanvasGenerationDateTime(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    const pad = number => String(number).padStart(2, '0');
+    const offsetMinutes = -date.getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+    const offsetRemainder = Math.abs(offsetMinutes) % 60;
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} `
+        + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())} UTC${sign}`
+        + `${pad(offsetHours)}:${pad(offsetRemainder)}`;
+}
+
+/** 使用前端历史面板相同的天、时、分、秒格式展示耗时。 */
+function formatCanvasGenerationDuration(seconds) {
+    if (!Number.isFinite(seconds)) return null;
+    let remaining = Math.max(0, Math.floor(seconds));
+    const days = Math.floor(remaining / 86400);
+    remaining %= 86400;
+    const hours = Math.floor(remaining / 3600);
+    remaining %= 3600;
+    const minutes = Math.floor(remaining / 60);
+    const parts = [];
+    if (days) parts.push(`${days}天`);
+    if (hours) parts.push(`${hours}小时`);
+    if (minutes) parts.push(`${minutes}分`);
+    if (remaining % 60 || !parts.length) parts.push(`${remaining % 60}秒`);
+    return parts.join('');
+}
+
+/** 创建媒体节点右上角的生成记录入口按钮。 */
+function createCanvasGenerationInfoButton(element, onClick) {
+    if (!hasCanvasGenerationRequest(element)) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'canvas-generation-info-button';
+    button.setAttribute('aria-label', '查看生成记录');
+    button.title = '查看生成记录';
+    button.textContent = 'i';
+    button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick();
+    });
+    return button;
+}
+
+/** 将详情浮层定位到媒体节点右侧，并在空间不足时切换到左侧。 */
+function positionCanvasGenerationDetailPanel(panel, anchorElement, containerEl) {
+    if (!anchorElement || !containerEl) return;
+    const anchorRect = anchorElement.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+    const gap = 8;
+    const preferredLeft = anchorRect.right - containerRect.left + gap;
+    const fallbackLeft = anchorRect.left - containerRect.left - panel.offsetWidth - gap;
+    const maxLeft = Math.max(gap, containerEl.clientWidth - panel.offsetWidth - gap);
+    const left = preferredLeft + panel.offsetWidth <= containerEl.clientWidth - gap
+        ? preferredLeft
+        : Math.max(gap, Math.min(fallbackLeft, maxLeft));
+    const maxTop = Math.max(gap, containerEl.clientHeight - panel.offsetHeight - gap);
+    const top = Math.max(gap, Math.min(anchorRect.top - containerRect.top, maxTop));
+    panel.style.left = `${left}px`;
+    panel.style.right = 'auto';
+    panel.style.top = `${top}px`;
+}
+
+/** 在调试画布视口中渲染生成记录浮层。 */
+async function renderCanvasGenerationDetailPanel(element, request, resolveMediaUrl, containerEl, anchorElement, onClose) {
+    const existing = containerEl.querySelector('.canvas-generation-detail-panel');
+    if (existing) existing.remove();
+    if (!request) return;
+
+    const panel = document.createElement('aside');
+    panel.className = 'canvas-generation-detail-panel';
+    panel.dataset.elementId = element.id;
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', '生成记录');
+
+    const header = document.createElement('div');
+    header.className = 'canvas-generation-detail-header';
+    const title = document.createElement('div');
+    title.className = 'canvas-generation-detail-title';
+    title.textContent = '生成记录';
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'canvas-generation-detail-close';
+    closeButton.setAttribute('aria-label', '关闭生成记录');
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', event => {
+        event.stopPropagation();
+        panel.remove();
+        onClose?.();
+    });
+    header.append(title, closeButton);
+    panel.appendChild(header);
+
+    const divider = document.createElement('div');
+    divider.className = 'canvas-generation-detail-divider';
+    panel.appendChild(divider);
+
+    const body = document.createElement('div');
+    body.className = 'canvas-generation-detail-body';
+    panel.appendChild(body);
+
+    const prompt = typeof request.prompt === 'string' ? request.prompt : '';
+    const promptItem = document.createElement('section');
+    promptItem.className = 'canvas-generation-detail-item';
+    const promptTitle = document.createElement('div');
+    promptTitle.className = 'canvas-generation-detail-item-title';
+    promptTitle.textContent = '提示词';
+    const promptActions = document.createElement('div');
+    promptActions.className = 'canvas-generation-detail-prompt-actions';
+    if (prompt) {
+        const copyButton = document.createElement('button');
+        copyButton.type = 'button';
+        copyButton.className = 'canvas-generation-detail-copy';
+        copyButton.textContent = '复制';
+        copyButton.addEventListener('click', event => {
+            event.stopPropagation();
+            void navigator.clipboard?.writeText(prompt);
+        });
+        promptActions.appendChild(copyButton);
+    }
+    promptTitle.appendChild(promptActions);
+    const promptValue = document.createElement('div');
+    promptValue.className = 'canvas-generation-detail-prompt';
+    promptValue.textContent = prompt || '暂无提示词';
+    promptItem.append(promptTitle, promptValue);
+    body.appendChild(promptItem);
+
+    const references = getCanvasGenerationReferences(element, request);
+    if (references.length) {
+        const referencesItem = document.createElement('section');
+        referencesItem.className = 'canvas-generation-detail-item';
+        const referencesTitle = document.createElement('div');
+        referencesTitle.className = 'canvas-generation-detail-item-title';
+        referencesTitle.textContent = element.type === 'image' ? '参考图' : '参考素材';
+        const referencesGrid = document.createElement('div');
+        referencesGrid.className = 'canvas-generation-detail-references';
+        references.forEach(reference => {
+            const referenceItem = document.createElement('div');
+            referenceItem.className = 'canvas-generation-detail-reference';
+            const referenceLabel = document.createElement('span');
+            referenceLabel.className = 'canvas-generation-detail-reference-label';
+            referenceLabel.textContent = reference.label;
+            referenceItem.appendChild(referenceLabel);
+            const media = document.createElement('div');
+            media.className = 'canvas-generation-detail-reference-media';
+            media.textContent = reference.path;
+            referenceItem.appendChild(media);
+            referencesGrid.appendChild(referenceItem);
+            void (async () => {
+                try {
+                    // asset:// 是 provider 资源标识，不属于当前工作区文件，保留原始 URI。
+                    if (/^asset:/i.test(reference.path)) return;
+                    const url = /^https?:|^blob:|^data:|^file:/i.test(reference.path)
+                        ? reference.path
+                        : await resolveMediaUrl(reference.path);
+                    if (!url || !panel.isConnected) return;
+                    const mediaElement = reference.type === 'video'
+                        ? document.createElement('video')
+                        : reference.type === 'audio'
+                        ? document.createElement('audio')
+                        : document.createElement('img');
+                    mediaElement.src = url;
+                    if (mediaElement instanceof HTMLImageElement) mediaElement.alt = reference.label;
+                    if (mediaElement instanceof HTMLVideoElement) {
+                        mediaElement.muted = true;
+                        mediaElement.loop = true;
+                        mediaElement.playsInline = true;
+                        mediaElement.autoplay = true;
+                    }
+                    if (mediaElement instanceof HTMLMediaElement) mediaElement.controls = false;
+                    mediaElement.addEventListener('error', () => {
+                        media.textContent = reference.path;
+                    });
+                    media.textContent = '';
+                    media.appendChild(mediaElement);
+                } catch {
+                    // 引用素材不可用时保留路径文本，避免详情面板整体失败。
+                }
+            })();
+        });
+        referencesItem.append(referencesTitle, referencesGrid);
+        body.appendChild(referencesItem);
+    }
+
+    const model = request.model_id || request.model || null;
+    const size = [request.size, request.resolution]
+        .filter(Boolean)
+        .join(' · ') || null;
+    const rows = [
+        createCanvasGenerationDetailRow('模型', model),
+        createCanvasGenerationDetailRow('尺寸', size),
+    ];
+    let runningStartedAtMs = NaN;
+    let runningDurationRow = null;
+    if (element.type === 'image') {
+        const imageConfig = request.image_generation_config && typeof request.image_generation_config === 'object'
+            ? request.image_generation_config
+            : {};
+        const imageSettings = [
+            ['画面比例', imageConfig.aspect_ratio],
+            ['风格', imageConfig.style],
+            ['质量', imageConfig.quality],
+        ];
+        imageSettings.forEach(([label, value]) => {
+            rows.push(createCanvasGenerationDetailRow(label, value));
+        });
+    }
+    if (element.type === 'video') {
+        const resultMeta = element.videoGenerationResultMeta && typeof element.videoGenerationResultMeta === 'object'
+            ? element.videoGenerationResultMeta
+            : {};
+        const generationInfo = resultMeta.generation_info && typeof resultMeta.generation_info === 'object'
+            ? resultMeta.generation_info
+            : {};
+        const runtime = resultMeta.runtime && typeof resultMeta.runtime === 'object'
+            ? resultMeta.runtime
+            : {};
+        const finalResolution = generationInfo.resolution || request.generation?.resolution || request.resolution;
+        const startedAt = runtime.started_at;
+        const finishedAt = runtime.finished_at;
+        const startedMs = startedAt ? Date.parse(startedAt) : NaN;
+        const isRunning = ['pending', 'processing'].includes(element.status);
+        runningStartedAtMs = startedMs;
+        const durationSeconds = generationInfo.duration_seconds ?? request.generation?.duration_seconds;
+        const generationSpec = [
+            generationInfo.aspect_ratio || request.generation?.aspect_ratio,
+            durationSeconds !== undefined && durationSeconds !== null ? `${durationSeconds}s` : null,
+            finalResolution,
+        ].filter(Boolean).join(' · ') || null;
+        const inputMode = generationInfo.input_mode || request.input_mode;
+        const inputModeLabels = {
+            standard: '标准模式',
+            omni_reference: '全能模式',
+            image_reference: '参考图',
+            keyframe_guided: '首尾帧',
+            video_edit: '视频编辑',
+        };
+        const elapsed = Number.isFinite(runtime.elapsed_seconds)
+            ? runtime.elapsed_seconds
+            : Number.isFinite(startedMs) && finishedAt
+                ? Math.max(0, Math.floor((Date.parse(finishedAt) - startedMs) / 1000))
+                : isRunning && Number.isFinite(startedMs)
+                    ? Math.max(0, Math.floor((Date.now() - startedMs) / 1000))
+                    : null;
+        runningDurationRow = createCanvasGenerationDetailRow(
+            isRunning ? '已耗时' : '生成耗时',
+            formatCanvasGenerationDuration(elapsed),
+        );
+        rows.push(
+            createCanvasGenerationDetailRow('积分消耗', resultMeta.billing?.points),
+            createCanvasGenerationDetailRow('生成方式', inputModeLabels[inputMode] || inputMode),
+            createCanvasGenerationDetailRow('任务类型', generationInfo.task || request.task),
+            createCanvasGenerationDetailRow('生成规格', generationSpec),
+            createCanvasGenerationDetailRow('开始时间', formatCanvasGenerationDateTime(startedAt)),
+            createCanvasGenerationDetailRow('完成时间', formatCanvasGenerationDateTime(finishedAt)),
+            runningDurationRow,
+        );
+    }
+    rows.filter(Boolean).forEach(row => body.appendChild(row));
+
+    containerEl.appendChild(panel);
+    positionCanvasGenerationDetailPanel(panel, anchorElement, containerEl);
+    panel.addEventListener('pointerdown', event => event.stopPropagation());
+    panel.addEventListener('click', event => event.stopPropagation());
+    if (element.type === 'video' && ['pending', 'processing'].includes(element.status)
+        && Number.isFinite(runningStartedAtMs) && runningDurationRow) {
+        const timer = window.setInterval(() => {
+            if (!panel.isConnected) {
+                window.clearInterval(timer);
+                return;
+            }
+            const value = runningDurationRow.querySelector('.canvas-generation-detail-value');
+            if (value) value.textContent = formatCanvasGenerationDuration(
+                Math.max(0, Math.floor((Date.now() - runningStartedAtMs) / 1000)),
+            );
+        }, 1000);
+    }
+}
+
+/**
+ * 为多 Content 节点创建只读版本切换器。
+ * 切换只影响浏览器中的归一化节点，不会修改 activeContentId 或 mainContentId。
+ */
+function createCanvasContentVersionSwitcher(element, onSelect, options = {}) {
+    const contents = Array.isArray(element.previewContents) ? element.previewContents : [];
+    const { external = false } = options;
+    if (!contents.length || (!external && contents.length <= 1)) return null;
+
+    let selectedIndex = Math.max(
+        0,
+        contents.findIndex(content => content?.contentId === element.selectedContentId),
+    );
+    let busy = false;
+    const switcher = document.createElement('div');
+    switcher.className = 'canvas-el-version-switcher';
+    if (external) switcher.classList.add('is-external');
+
+    const previousButton = document.createElement('button');
+    previousButton.type = 'button';
+    previousButton.className = 'canvas-el-version-button';
+    previousButton.textContent = '‹';
+    previousButton.title = '预览上一个版本';
+    previousButton.setAttribute('aria-label', '预览上一个版本');
+
+    const versionLabel = document.createElement('span');
+    versionLabel.className = 'canvas-el-version-label';
+
+    const mainVersionLabel = document.createElement('span');
+    mainVersionLabel.className = 'canvas-el-main-version-label';
+
+    const nextButton = document.createElement('button');
+    nextButton.type = 'button';
+    nextButton.className = 'canvas-el-version-button';
+    nextButton.textContent = '›';
+    nextButton.title = '预览下一个版本';
+    nextButton.setAttribute('aria-label', '预览下一个版本');
+
+    /** 更新当前版本提示及两侧按钮状态。 */
+    const updateState = () => {
+        const selectedContent = contents[selectedIndex] || {};
+        const labels = [];
+        if (selectedContent.contentId === element.activeContentId) labels.push('当前');
+        if (selectedContent.contentId === element.mainContentId) labels.push('主版本');
+        versionLabel.textContent = external
+            ? `当前版本 ${selectedIndex + 1} / ${contents.length}`
+            : `${selectedIndex + 1} / ${contents.length}`;
+        versionLabel.title = [selectedContent.contentId, ...labels].filter(Boolean).join(' · ');
+        const isMainVersion = selectedContent.contentId === element.mainContentId;
+        mainVersionLabel.textContent = isMainVersion ? '主版本' : '非主版本';
+        mainVersionLabel.classList.toggle('is-main', isMainVersion);
+        previousButton.disabled = busy || selectedIndex === 0;
+        nextButton.disabled = busy || selectedIndex === contents.length - 1;
+    };
+
+    /** 切换到指定序号，并通知节点重新渲染正文。 */
+    const selectIndex = async nextIndex => {
+        const boundedIndex = Math.max(0, Math.min(contents.length - 1, nextIndex));
+        if (busy || boundedIndex === selectedIndex) return;
+        selectedIndex = boundedIndex;
+        busy = true;
+        updateState();
+        try {
+            await onSelect(contents[selectedIndex]);
+        } finally {
+            busy = false;
+            updateState();
+        }
+    };
+
+    previousButton.addEventListener('click', event => {
+        event.stopPropagation();
+        void selectIndex(selectedIndex - 1);
+    });
+    nextButton.addEventListener('click', event => {
+        event.stopPropagation();
+        void selectIndex(selectedIndex + 1);
+    });
+    switcher.addEventListener('click', event => event.stopPropagation());
+    if (external) {
+        switcher.append(previousButton, versionLabel, mainVersionLabel, nextButton);
+    } else {
+        switcher.append(previousButton, versionLabel, nextButton);
+    }
+    updateState();
+    return switcher;
+}
+
+/**
+ * 在画布空间底层绘制 Element 级 Connection。
+ */
+function renderCanvasConnections(space, connections, elementById, minX, minY, canvasW, canvasH) {
+    if (!connections.length) return;
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    svg.classList.add('canvas-preview-connections');
+    svg.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
+    svg.setAttribute('width', String(canvasW));
+    svg.setAttribute('height', String(canvasH));
+
+    const defs = document.createElementNS(namespace, 'defs');
+    const marker = document.createElementNS(namespace, 'marker');
+    marker.setAttribute('id', 'canvas-preview-connection-arrow');
+    marker.setAttribute('viewBox', '0 0 10 10');
+    marker.setAttribute('refX', '9');
+    marker.setAttribute('refY', '5');
+    marker.setAttribute('markerWidth', '7');
+    marker.setAttribute('markerHeight', '7');
+    marker.setAttribute('orient', 'auto-start-reverse');
+    const arrow = document.createElementNS(namespace, 'path');
+    arrow.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+    marker.appendChild(arrow);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    for (const connection of connections) {
+        const source = elementById.get(connection.sourceElementId);
+        const target = elementById.get(connection.targetElementId);
+        if (!source || !target || source.id === target.id) continue;
+        const sourceBounds = source.layout?.worldBounds || {
+            x: source.x,
+            y: source.y,
+            width: source.width,
+            height: source.height,
+        };
+        const targetBounds = target.layout?.worldBounds || {
+            x: target.x,
+            y: target.y,
+            width: target.width,
+            height: target.height,
+        };
+        const sourceX = sourceBounds.x - minX + sourceBounds.width;
+        const sourceY = sourceBounds.y - minY + sourceBounds.height / 2;
+        const targetX = targetBounds.x - minX;
+        const targetY = targetBounds.y - minY + targetBounds.height / 2;
+        const controlOffset = Math.max(60, Math.abs(targetX - sourceX) * 0.5);
+        const direction = targetX >= sourceX ? 1 : -1;
+        const path = document.createElementNS(namespace, 'path');
+        path.classList.add('canvas-preview-connection');
+        if (connection.locked) path.classList.add('is-locked');
+        path.setAttribute(
+            'd',
+            `M ${sourceX} ${sourceY} C ${sourceX + controlOffset * direction} ${sourceY}, `
+                + `${targetX - controlOffset * direction} ${targetY}, ${targetX} ${targetY}`,
+        );
+        path.setAttribute('marker-end', 'url(#canvas-preview-connection-arrow)');
+        const title = document.createElementNS(namespace, 'title');
+        title.textContent = `${connection.sourceElementId} → ${connection.targetElementId}`;
+        path.appendChild(title);
+        svg.appendChild(path);
+    }
+    space.appendChild(svg);
+}
+
+/** 解析分镜节点当前使用的画面比例。 */
+function resolveCanvasStoryboardAspectRatio(generationConfig) {
+    const configuredRatio = generationConfig?.image_generation_config?.aspect_ratio;
+    if (configuredRatio) return configuredRatio;
+    const sizeMatch = String(generationConfig?.size || '').match(/^(\d+)x(\d+)$/i);
+    if (!sizeMatch) return '未设置';
+    const width = Number(sizeMatch[1]);
+    const height = Number(sizeMatch[2]);
+    if (!width || !height) return '未设置';
+    let left = width;
+    let right = height;
+    while (right !== 0) {
+        const remainder = left % right;
+        left = right;
+        right = remainder;
+    }
+    const divisor = left;
+    return `${width / divisor}:${height / divisor}`;
+}
+
+/** 创建分镜节点的只读参数和镜头列表。 */
+function createCanvasStoryboardCard(element) {
+    const card = document.createElement('div');
+    card.className = 'canvas-el-storyboard-card';
+
+    const generationConfig = element.generationConfig && typeof element.generationConfig === 'object'
+        ? element.generationConfig
+        : {};
+    const header = document.createElement('div');
+    header.className = 'canvas-el-storyboard-header';
+    header.appendChild(createCanvasPreviewText(element.name || '分镜生成', 'canvas-el-card-title'));
+    header.appendChild(createCanvasPreviewText(`${element.shots.length} 个镜头`, 'canvas-el-card-meta'));
+    card.appendChild(header);
+
+    const parameters = document.createElement('div');
+    parameters.className = 'canvas-el-storyboard-parameters';
+    [
+        ['模型', generationConfig.model_id || '未设置'],
+        ['画面比例', resolveCanvasStoryboardAspectRatio(generationConfig)],
+        ['分辨率', generationConfig.resolution || generationConfig.size || '未设置'],
+    ].forEach(([label, value]) => {
+        const parameter = document.createElement('div');
+        parameter.className = 'canvas-el-storyboard-parameter';
+        parameter.appendChild(createCanvasPreviewText(label, 'canvas-el-storyboard-parameter-label'));
+        parameter.appendChild(createCanvasPreviewText(value, 'canvas-el-storyboard-parameter-value'));
+        parameters.appendChild(parameter);
+    });
+    card.appendChild(parameters);
+
+    card.appendChild(createCanvasPreviewText('分镜列表', 'canvas-el-storyboard-list-title'));
+
+    const list = document.createElement('ol');
+    list.className = 'canvas-el-storyboard-shot-list';
+    element.shots.forEach((shot, index) => {
+        const item = document.createElement('li');
+        item.className = 'canvas-el-storyboard-shot';
+        const shotHeader = document.createElement('div');
+        shotHeader.className = 'canvas-el-storyboard-shot-header';
+        shotHeader.appendChild(createCanvasPreviewText(`镜头 ${index + 1}`, 'canvas-el-storyboard-shot-title'));
+        shotHeader.appendChild(createCanvasPreviewText(
+            Number.isFinite(shot?.durationSeconds) ? `${shot.durationSeconds} 秒` : '时长未设置',
+            'canvas-el-storyboard-shot-duration',
+        ));
+        item.appendChild(shotHeader);
+        item.appendChild(createCanvasPreviewText(
+            shot?.description || shot?.id || '暂无画面描述',
+            'canvas-el-storyboard-shot-description',
+        ));
+        list.appendChild(item);
+    });
+    if (!element.shots.length) {
+        list.appendChild(createCanvasPreviewText('暂无分镜', 'canvas-el-card-detail'));
+    }
+    card.appendChild(list);
+    return card;
+}
+
+/** 创建视频编辑节点的只读输入轨道和输出规格。 */
+function createCanvasVideoEditCard(element) {
+    const card = document.createElement('div');
+    card.className = 'canvas-el-video-edit-card';
+    card.appendChild(createCanvasPreviewText(element.name || '视频编辑', 'canvas-el-card-title'));
+
+    const surface = document.createElement('div');
+    surface.className = 'canvas-el-video-edit-surface';
+    [
+        ['视频片段', element.videoSequence.length, 'video'],
+        ['音频轨道', element.audioSequence.length, 'audio'],
+    ].forEach(([label, count, type]) => {
+        const track = document.createElement('div');
+        track.className = `canvas-el-video-edit-track canvas-el-video-edit-track-${type}`;
+        track.appendChild(createCanvasPreviewText(label, 'canvas-el-video-edit-track-label'));
+        const clips = document.createElement('div');
+        clips.className = 'canvas-el-video-edit-clips';
+        const visibleCount = Math.min(Math.max(Number(count), 1), 6);
+        for (let index = 0; index < visibleCount; index += 1) {
+            const clip = document.createElement('span');
+            clip.className = 'canvas-el-video-edit-clip';
+            if (!count) clip.classList.add('is-empty');
+            clips.appendChild(clip);
+        }
+        track.appendChild(clips);
+        track.appendChild(createCanvasPreviewText(`${count} 个`, 'canvas-el-video-edit-track-count'));
+        surface.appendChild(track);
+    });
+    card.appendChild(surface);
+
+    return card;
+}
+
+/** 创建音频节点的只读波形摘要。 */
+function createCanvasAudioCard(element, available) {
+    const card = document.createElement('div');
+    card.className = 'canvas-el-audio-card';
+    const waveform = document.createElement('div');
+    waveform.className = 'canvas-el-audio-waveform';
+    const heights = [34, 58, 42, 76, 52, 88, 46, 70, 38, 62, 82, 44, 66, 50, 74, 36];
+    heights.forEach(height => {
+        const bar = document.createElement('span');
+        bar.style.height = `${height}%`;
+        waveform.appendChild(bar);
+    });
+    card.appendChild(waveform);
+    card.appendChild(createCanvasPreviewText(element.name, 'canvas-el-card-title'));
+    card.appendChild(createCanvasPreviewText(
+        available ? '音频资源已就绪，点击可播放' : '音频文件不可用',
+        'canvas-el-card-detail',
+    ));
+    return card;
+}
+
+/** 创建未提供专用渲染器的结构化业务节点卡片。 */
+function createCanvasStructuredCard(element) {
+    const card = document.createElement('div');
+    card.className = `canvas-el-structured-card canvas-el-${element.type}`;
+    card.appendChild(createCanvasPreviewText(element.name, 'canvas-el-card-title'));
+    card.appendChild(createCanvasPreviewText(element.type, 'canvas-el-card-meta'));
+    return card;
+}
+
+/** 按 V3 富文本段落和文本节点创建只读内容。 */
+function createCanvasRichTextContent(element) {
+    const root = document.createElement('div');
+    root.className = 'canvas-el-text-content';
+    const paragraphs = Array.isArray(element.content) ? element.content : [];
+    const defaultStyle = element.defaultStyle || {};
+    const sourceParagraphs = paragraphs.length ? paragraphs : [{ children: [{ text: element.name || '' }] }];
+    sourceParagraphs.forEach(paragraph => {
+        const paragraphNode = document.createElement('div');
+        paragraphNode.className = 'canvas-el-text-paragraph';
+        paragraphNode.style.textAlign = paragraph?.style?.textAlign || 'left';
+        if (Number.isFinite(paragraph?.style?.lineHeight)) {
+            paragraphNode.style.lineHeight = String(paragraph.style.lineHeight);
+        }
+        if (Number.isFinite(paragraph?.style?.paragraphSpacing)) {
+            paragraphNode.style.marginBottom = `${paragraph.style.paragraphSpacing}px`;
+        }
+        const children = Array.isArray(paragraph?.children)
+            ? paragraph.children
+            : [{ text: paragraph?.text || '' }];
+        children.forEach(child => {
+            const textNode = document.createElement('span');
+            const style = { ...defaultStyle, ...(child?.style || {}) };
+            textNode.textContent = child?.text || '';
+            textNode.style.fontSize = `${Number(style.fontSize) || 16}px`;
+            textNode.style.fontFamily = style.fontFamily || 'system-ui, -apple-system, sans-serif';
+            textNode.style.fontWeight = style.fontWeight || (style.bold ? '700' : '400');
+            textNode.style.fontStyle = style.italic ? 'italic' : 'normal';
+            textNode.style.color = style.color || '#111827';
+            textNode.style.backgroundColor = style.backgroundColor || 'transparent';
+            textNode.style.letterSpacing = Number.isFinite(style.letterSpacing)
+                ? `${style.letterSpacing}px`
+                : 'normal';
+            const decorations = [];
+            if (style.underline) decorations.push('underline');
+            if (style.strikethrough) decorations.push('line-through');
+            textNode.style.textDecoration = decorations.join(' ') || 'none';
+            paragraphNode.appendChild(textNode);
+        });
+        root.appendChild(paragraphNode);
+    });
+    return root;
+}
+
+/**
+ * 创建视频节点的可播放封面卡片。
+ */
+function createCanvasVideoCard(posterBlobUrl, name, videoBlobUrl = null) {
+    const card = document.createElement('div');
+    card.className = 'canvas-el-video-card';
+    if (posterBlobUrl) {
+        const image = document.createElement('img');
+        image.src = posterBlobUrl;
+        image.alt = name || '';
+        card.appendChild(image);
+    } else if (videoBlobUrl) {
+        // Canvas 抓帧受跨域策略或编码格式影响时，直接使用视频元素作为预览兜底。
+        const video = document.createElement('video');
+        video.src = videoBlobUrl;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        video.controls = false;
+        video.setAttribute('aria-hidden', 'true');
+        video.addEventListener('loadedmetadata', () => {
+            try {
+                video.currentTime = 0.01;
+            } catch {
+                // 某些视频在元数据加载后仍不允许主动定位，保留浏览器默认首帧。
+            }
+        });
+        card.appendChild(video);
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'canvas-el-video-overlay';
+    const playIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    playIcon.setAttribute('viewBox', '0 0 24 24');
+    playIcon.className = 'canvas-el-video-play-icon';
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', '12');
+    circle.setAttribute('cy', '12');
+    circle.setAttribute('r', '12');
+    circle.setAttribute('fill', 'rgba(0,0,0,0.5)');
+    const triangle = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    triangle.setAttribute('points', '9.5,7 18,12 9.5,17');
+    triangle.setAttribute('fill', 'white');
+    playIcon.appendChild(circle);
+    playIcon.appendChild(triangle);
+    overlay.appendChild(playIcon);
+    if (!posterBlobUrl) {
+        overlay.appendChild(createCanvasPreviewText(name, 'canvas-el-video-name'));
+    }
+    card.appendChild(overlay);
+    return card;
+}
+
+/**
+ * 渲染单个归一化节点正文，并为媒体节点绑定预览交互。
+ */
+async function renderCanvasElementBody(element, resolveMediaUrl, body) {
+    if (element.status === 'pending' || element.status === 'processing') {
+        body.classList.add('canvas-el-state', element.type === 'video' ? 'canvas-el-video-processing' : 'canvas-el-processing');
+        if (element.type === 'video') {
+            const loading = document.createElement('span');
+            loading.className = 'canvas-el-video-loading-icon';
+            body.appendChild(loading);
+        }
+        body.appendChild(createCanvasPreviewText(element.status === 'pending' ? '等待处理' : '处理中'));
+        return;
+    }
+    if (element.status === 'failed') {
+        body.classList.add('canvas-el-state', 'canvas-el-failed');
+        body.appendChild(createCanvasPreviewText(element.errorMessage || '生成失败'));
+        return;
+    }
+    if ((element.type === 'image' || element.type === 'video')
+        && element.status === 'completed' && !element.src) {
+        body.classList.add('canvas-el-state', 'canvas-el-completed-pending-resource');
+        body.appendChild(createCanvasPreviewText('已完成，等待文件落盘'));
+        return;
+    }
+    if (element.type === 'video') {
+        const posterBlobUrl = element.poster ? await resolveMediaUrl(element.poster) : null;
+        const videoBlobUrl = element.src ? await resolveMediaUrl(element.src) : null;
+        if (!posterBlobUrl && !videoBlobUrl) {
+            body.classList.add('canvas-el-state', 'canvas-el-missing');
+            body.appendChild(createCanvasPreviewText('视频文件不可用'));
+            return;
+        }
+        let thumbnailUrl = posterBlobUrl;
+        if (!thumbnailUrl && videoBlobUrl) thumbnailUrl = await captureVideoFrame(videoBlobUrl);
+        body.appendChild(createCanvasVideoCard(thumbnailUrl, element.name, thumbnailUrl ? null : videoBlobUrl));
+        if (videoBlobUrl || thumbnailUrl) {
+            body.closest('.canvas-preview-element').classList.add('is-interactive');
+            body.addEventListener('click', () => openCanvasMediaModal(
+                'video',
+                videoBlobUrl,
+                thumbnailUrl,
+                element.name,
+            ));
+        }
+        return;
+    }
+    if (element.type === 'image') {
+        const imageBlobUrl = element.src ? await resolveMediaUrl(element.src) : null;
+        if (imageBlobUrl) {
+            const image = document.createElement('img');
+            image.className = 'canvas-el-image';
+            image.src = imageBlobUrl;
+            image.alt = element.name;
+            image.addEventListener('error', () => {
+                body.innerHTML = '';
+                body.classList.add('canvas-el-state', 'canvas-el-missing');
+                body.appendChild(createCanvasPreviewText('图片文件不可用'));
+            });
+            body.appendChild(image);
+            body.closest('.canvas-preview-element').classList.add('is-interactive');
+            body.addEventListener('click', () => openCanvasMediaModal('image', imageBlobUrl, null, element.name));
+        } else {
+            body.classList.add('canvas-el-state', 'canvas-el-missing');
+            body.appendChild(createCanvasPreviewText('图片文件不可用'));
+        }
+        return;
+    }
+    if (element.type === 'audio') {
+        const audioBlobUrl = element.src ? await resolveMediaUrl(element.src) : null;
+        body.appendChild(createCanvasAudioCard(element, Boolean(audioBlobUrl)));
+        if (audioBlobUrl) {
+            body.closest('.canvas-preview-element').classList.add('is-interactive');
+            body.addEventListener('click', () => openCanvasMediaModal('audio', audioBlobUrl, null, element.name));
+        }
+        return;
+    }
+    if (element.type === 'text') {
+        body.classList.add('canvas-el-text');
+        body.appendChild(createCanvasRichTextContent(element));
+        return;
+    }
+    if (element.type === 'storyboard') {
+        body.appendChild(createCanvasStoryboardCard(element));
+        return;
+    }
+    if (element.type === 'video-edit') {
+        body.appendChild(createCanvasVideoEditCard(element));
+        return;
+    }
+    if (['rectangle', 'ellipse', 'triangle', 'star', 'frame', 'group'].includes(element.type)) {
+        const shape = document.createElement('div');
+        shape.className = `canvas-el-shape canvas-el-shape-${element.type}`;
+        shape.style.background = element.fill || (element.type === 'frame' ? '#fff' : 'transparent');
+        shape.style.border = element.strokeWidth && element.stroke
+            ? `${element.strokeWidth}px solid ${element.stroke}`
+            : element.type === 'frame' ? '1px solid rgba(17, 24, 39, 0.14)' : 'none';
+        shape.style.borderRadius = element.type === 'ellipse'
+            ? '50%'
+            : `${element.cornerRadius || 0}px`;
+        if (element.type === 'triangle') {
+            shape.style.clipPath = 'polygon(50% 0, 100% 100%, 0 100%)';
+        }
+        if (element.type === 'star') {
+            shape.style.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+        }
+        body.appendChild(shape);
+        return;
+    }
+    body.appendChild(createCanvasStructuredCard(element));
+}
+
+/**
+ * 在 containerEl 内渲染已归一化的三版本画布预览。
+ */
+async function renderCanvasView(preview, resolveMediaUrl, containerEl, options = {}) {
+    const {
+        showLabels = true,
+        preserveCanvasOrigin = false,
+        fitMode = 'contain',
+        onScaleChange = null,
+    } = options;
+    const elements = preview?.elements ?? [];
     if (!elements.length) {
         appendPreviewMessage(containerEl, '画布中没有元素。');
         return;
     }
 
-    // 计算所有元素的边界框
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const el of elements) {
-        const x = el.x ?? 0, y = el.y ?? 0, w = el.width ?? 0, h = el.height ?? 0;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x + w > maxX) maxX = x + w;
-        if (y + h > maxY) maxY = y + h;
+    let minX = preserveCanvasOrigin ? 0 : Infinity;
+    let minY = preserveCanvasOrigin ? 0 : Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const element of elements) {
+        const bounds = element.layout?.worldBounds || {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+        };
+        minX = Math.min(minX, bounds.x);
+        minY = Math.min(minY, bounds.y);
+        maxX = Math.max(maxX, bounds.x + bounds.width);
+        maxY = Math.max(maxY, bounds.y + bounds.height);
     }
-    const canvasW = maxX - minX || 1;
-    const canvasH = maxY - minY || 1;
+    const canvasW = Math.max(1, maxX - minX);
+    const canvasH = Math.max(1, maxY - minY);
 
-    // scaleWrap：根据 scale 后尺寸撑开 containerEl 的滚动区域
     const scaleWrap = document.createElement('div');
     scaleWrap.className = 'canvas-preview-scale-wrap';
     containerEl.appendChild(scaleWrap);
 
-    // space：按画布原始坐标定位元素，通过 CSS transform 缩放
     const space = document.createElement('div');
     space.className = 'canvas-preview-space';
     space.style.width = `${canvasW}px`;
     space.style.height = `${canvasH}px`;
     scaleWrap.appendChild(space);
 
-    // 等两帧渲染完成后用 containerEl 的实际尺寸计算 scale
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const pad = 24;
-    const availW = containerEl.clientWidth - pad;
-    const availH = containerEl.clientHeight - pad;
-    const scale = Math.min(1, Math.min(availW / canvasW, availH / canvasH));
+    const elementById = new Map(elements.map(element => [element.id, element]));
+    const elementNodeById = new Map();
+    renderCanvasConnections(
+        space,
+        preview.connections,
+        elementById,
+        minX,
+        minY,
+        canvasW,
+        canvasH,
+    );
 
-    scaleWrap.style.width  = `${Math.ceil(canvasW * scale) + pad}px`;
-    scaleWrap.style.height = `${Math.ceil(canvasH * scale) + pad}px`;
-    space.style.position      = 'absolute';
-    space.style.left          = `${pad / 2}px`;
-    space.style.top           = `${pad / 2}px`;
-    space.style.transformOrigin = 'top left';
-    space.style.transform     = `scale(${scale})`;
+    const sorted = [...elements].sort((left, right) => left.zIndex - right.zIndex);
+    await Promise.all(sorted.map(async (element) => {
+        const elementNode = document.createElement('div');
+        elementNode.className = 'canvas-preview-element';
+        elementNode.dataset.elementId = element.id;
+        elementNode.dataset.elementType = element.type;
+        const layout = element.layout || {
+            matrix: { a: 1, b: 0, c: 0, d: 1, e: element.x, f: element.y },
+            worldOrigin: { x: element.x, y: element.y },
+            worldBounds: { x: element.x, y: element.y, width: element.width, height: element.height },
+            width: element.width,
+            height: element.height,
+        };
+        elementNode.style.left = `${layout.worldOrigin.x - minX}px`;
+        elementNode.style.top = `${layout.worldOrigin.y - minY}px`;
+        elementNode.style.width = `${layout.width}px`;
+        elementNode.style.height = `${layout.height}px`;
+        elementNode.style.transformOrigin = 'top left';
+        const localMatrix = createCanvasPreviewLocalMatrix(element);
+        elementNode.style.transform = `matrix(${localMatrix.a}, ${localMatrix.b}, ${localMatrix.c}, ${localMatrix.d}, 0, 0)`;
+        elementNode.style.zIndex = String(element.zIndex + 1);
+        elementNode.title = `${element.name}\n${element.id}`;
+        if (!element.visible) elementNode.classList.add('is-hidden');
+        if (element.locked) elementNode.classList.add('is-locked');
 
-    // 按 zIndex 从低到高渲染元素
-    const sorted = [...elements].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
-    await Promise.all(sorted.map(async (el) => {
-        const elDiv = document.createElement('div');
-        elDiv.className = 'canvas-preview-element';
-        elDiv.style.left = `${(el.x ?? 0) - minX}px`;
-        elDiv.style.top = `${(el.y ?? 0) - minY}px`;
-        elDiv.style.width = `${el.width ?? 100}px`;
-        elDiv.style.height = `${el.height ?? 100}px`;
-        elDiv.title = el.name || el.id || '';
+        let body = document.createElement('div');
+        body.className = 'canvas-el-body';
+        elementNode.appendChild(body);
 
-        const makeLabel = (text) => {
-            const span = document.createElement('span');
-            span.className = 'canvas-el-label';
-            span.textContent = text;
-            return span;
+        let infoButton = null;
+
+        /** 根据当前 Content 是否有生成请求同步详情入口。 */
+        const syncGenerationInfoButton = () => {
+            if (!infoButton) return;
+            const hasCurrentRequest = Boolean(getCanvasGenerationRequest(element));
+            infoButton.style.display = hasCurrentRequest ? '' : 'none';
+            if (!hasCurrentRequest) infoButton.classList.remove('is-active');
         };
 
-        // 视频类型专用：暗色卡片（封面图优先，无封面则显示图标+名称）
-        const renderVideoCard = (posterBlobUrl, name) => {
-            const card = document.createElement('div');
-            card.className = 'canvas-el-video-card';
+        /** 使用当前或指定 Content 重新渲染节点正文和已打开的生成详情。 */
+        const renderSelectedContent = async selectedContent => {
+            if (selectedContent) applyCanvasPreviewContent(element, selectedContent);
+            elementNode.classList.remove('is-interactive');
+            const nextBody = document.createElement('div');
+            nextBody.className = 'canvas-el-body';
+            body.replaceWith(nextBody);
+            body = nextBody;
+            await renderCanvasElementBody(element, resolveMediaUrl, body);
+            syncGenerationInfoButton();
 
-            if (posterBlobUrl) {
-                const img = document.createElement('img');
-                img.src = posterBlobUrl;
-                img.alt = name || '';
-                img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0;';
-                card.appendChild(img);
+            const detailPanel = containerEl.querySelector('.canvas-generation-detail-panel');
+            if (detailPanel?.dataset.elementId !== element.id) return;
+            const currentRequest = getCanvasGenerationRequest(element);
+            if (!currentRequest) {
+                detailPanel.remove();
+                return;
             }
-
-            const overlay = document.createElement('div');
-            overlay.className = 'canvas-el-video-overlay';
-            const playIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            playIcon.setAttribute('viewBox', '0 0 24 24');
-            playIcon.className = 'canvas-el-video-play-icon';
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('cx', '12'); circle.setAttribute('cy', '12'); circle.setAttribute('r', '12');
-            circle.setAttribute('fill', 'rgba(0,0,0,0.5)');
-            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            poly.setAttribute('points', '9.5,7 18,12 9.5,17');
-            poly.setAttribute('fill', 'white');
-            playIcon.appendChild(circle);
-            playIcon.appendChild(poly);
-            overlay.appendChild(playIcon);
-
-            if (!posterBlobUrl && name) {
-                const nameEl = document.createElement('span');
-                nameEl.className = 'canvas-el-video-name';
-                nameEl.textContent = name;
-                overlay.appendChild(nameEl);
-            }
-            card.appendChild(overlay);
-            return card;
+            await renderCanvasGenerationDetailPanel(
+                element,
+                currentRequest,
+                resolveMediaUrl,
+                containerEl,
+                elementNode,
+                () => infoButton?.classList.remove('is-active'),
+            );
         };
 
-        if (el.status === 'processing') {
-            if (el.type === 'video') {
-                elDiv.classList.add('canvas-el-state', 'canvas-el-video-processing');
-                const icon = document.createElement('span');
-                icon.className = 'canvas-el-video-loading-icon';
-                elDiv.appendChild(icon);
-                elDiv.appendChild(makeLabel(el.name || ''));
-            } else {
-                elDiv.classList.add('canvas-el-state', 'canvas-el-processing');
-                elDiv.appendChild(makeLabel(el.name || ''));
+        if (showLabels) {
+            const footer = document.createElement('div');
+            footer.className = 'canvas-el-footer';
+            const identity = document.createElement('div');
+            identity.className = 'canvas-el-identity';
+            identity.appendChild(createCanvasPreviewText(element.type, 'canvas-el-type'));
+            identity.appendChild(createCanvasPreviewText(element.name, 'canvas-el-name'));
+            footer.appendChild(identity);
+            if (element.contentCount > 1) {
+                footer.appendChild(createCanvasPreviewText(`${element.contentCount} 个版本`, 'canvas-el-version-count'));
             }
-        } else if (el.status === 'failed') {
-            elDiv.classList.add('canvas-el-state', 'canvas-el-failed');
-            elDiv.appendChild(makeLabel(el.name || ''));
-        } else if (el.type === 'video') {
-            // 视频：封面优先，无封面则从视频抓第一帧；点击弹窗播放
-            const posterBlobUrl = el.poster ? await resolveMediaUrl(el.poster) : null;
-            const videoBlobUrl = el.src ? await resolveMediaUrl(el.src) : null;
-            // 没有 poster 时从视频文件抓帧作为封面
-            let thumbnailUrl = posterBlobUrl;
-            if (!thumbnailUrl && videoBlobUrl) {
-                thumbnailUrl = await captureVideoFrame(videoBlobUrl);
-            }
-            elDiv.appendChild(renderVideoCard(thumbnailUrl, el.name || ''));
-            if (videoBlobUrl || posterBlobUrl) {
-                elDiv.style.cursor = 'pointer';
-                elDiv.addEventListener('click', () => openCanvasMediaModal('video', videoBlobUrl, thumbnailUrl, el.name || ''));
-            }
-        } else if (el.src) {
-            const blobUrl = await resolveMediaUrl(el.src);
-            if (blobUrl) {
-                const img = document.createElement('img');
-                img.src = blobUrl;
-                img.alt = el.name || '';
-                img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
-                elDiv.appendChild(img);
-                elDiv.style.cursor = 'pointer';
-                elDiv.addEventListener('click', () => openCanvasMediaModal('image', blobUrl, null, el.name || ''));
-            } else {
-                elDiv.classList.add('canvas-el-state', 'canvas-el-missing');
-                elDiv.appendChild(makeLabel(el.name || ''));
-            }
+            elementNode.appendChild(footer);
         } else {
-            elDiv.classList.add('canvas-el-state', 'canvas-el-empty');
-            elDiv.appendChild(makeLabel(el.name || el.id || ''));
+            elementNode.classList.add('canvas-preview-element-readonly');
         }
-
-        space.appendChild(elDiv);
+        if (element.type === 'image') {
+            elementNode.classList.add('canvas-preview-image-with-metadata');
+            elementNode.appendChild(createCanvasImageTopMetadata(element));
+        }
+        if (elements.some(child => child.parentId === element.id)) {
+            const childrenLayer = document.createElement('div');
+            childrenLayer.className = 'canvas-el-children-layer';
+            childrenLayer.setAttribute('aria-hidden', 'true');
+            elementNode.appendChild(childrenLayer);
+        }
+        infoButton = createCanvasGenerationInfoButton(element, () => {
+            const existingPanel = containerEl.querySelector('.canvas-generation-detail-panel');
+            if (existingPanel?.dataset.elementId === element.id) {
+                existingPanel.remove();
+                infoButton?.classList.remove('is-active');
+                return;
+            }
+            const currentRequest = getCanvasGenerationRequest(element);
+            if (!currentRequest) return;
+            containerEl.querySelectorAll('.canvas-generation-detail-panel').forEach(panel => panel.remove());
+            containerEl.querySelectorAll('.canvas-generation-info-button.is-active').forEach(button => {
+                button.classList.remove('is-active');
+            });
+            infoButton?.classList.add('is-active');
+            void renderCanvasGenerationDetailPanel(
+                element,
+                currentRequest,
+                resolveMediaUrl,
+                containerEl,
+                elementNode,
+                () => infoButton?.classList.remove('is-active'),
+            );
+        });
+        if (infoButton) elementNode.appendChild(infoButton);
+        const versionSwitcher = createCanvasContentVersionSwitcher(
+            element,
+            selectedContent => renderSelectedContent(selectedContent),
+            { external: element.type === 'image' },
+        );
+        if (versionSwitcher) elementNode.appendChild(versionSwitcher);
+        elementNode.style.opacity = String(element.opacity);
+        elementNodeById.set(element.id, elementNode);
+        await renderSelectedContent(null);
     }));
+
+    // 先完成所有节点渲染，再按 magic-web 的父子关系挂载到对应 Group。
+    for (const element of elements) {
+        const elementNode = elementNodeById.get(element.id);
+        if (!elementNode) continue;
+        const parentNode = element.parentId ? elementNodeById.get(element.parentId) : null;
+        const parentLayer = parentNode?.querySelector(':scope > .canvas-el-children-layer');
+        if (parentLayer) parentLayer.appendChild(elementNode);
+        else space.appendChild(elementNode);
+
+        const isRoot = !parentLayer;
+        elementNode.style.left = `${isRoot ? element.x - minX : element.x}px`;
+        elementNode.style.top = `${isRoot ? element.y - minY : element.y}px`;
+    }
+
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const minimumScale = 0.04;
+    const maximumScale = 2;
+    let currentScale = null;
+    let currentFitMode = fitMode;
+    let panX = 0;
+    let panY = 0;
+    let baseSpaceLeft = 0;
+    let baseSpaceTop = 0;
+
+    /** 使用独立平移偏移更新画布位置，即使视口没有滚动条也可以移动。 */
+    const applyCanvasPan = () => {
+        space.style.left = `${baseSpaceLeft + panX}px`;
+        space.style.top = `${baseSpaceTop + panY}px`;
+    };
+
+    /** 把缩放后的内容中心定位到当前只读视口中心。 */
+    const centerViewport = (wrapWidth, wrapHeight) => {
+        requestAnimationFrame(() => {
+            containerEl.scrollLeft = Math.max(0, (wrapWidth - containerEl.clientWidth) / 2);
+            containerEl.scrollTop = Math.max(0, (wrapHeight - containerEl.clientHeight) / 2);
+        });
+    };
+
+    /** 按当前视口或手工比例重新计算画布缩放，不改变文档中的真实坐标和尺寸。 */
+    const applyViewportScale = (shouldCenter = false) => {
+        const viewportPadding = 24;
+        const availableWidth = Math.max(1, containerEl.clientWidth - viewportPadding);
+        const availableHeight = Math.max(1, containerEl.clientHeight - viewportPadding);
+        const widthScale = availableWidth / canvasW;
+        const heightScale = availableHeight / canvasH;
+        const containScale = Math.min(widthScale, heightScale);
+        const requestedScale = currentFitMode === 'manual' && Number.isFinite(currentScale)
+            ? currentScale
+            : currentFitMode === 'width'
+            ? widthScale
+            : currentFitMode === 'cover' ? Math.max(widthScale, heightScale) : containScale;
+        const scale = Math.max(minimumScale, Math.min(maximumScale, requestedScale));
+        currentScale = scale;
+        const scaledWidth = Math.ceil(canvasW * scale);
+        const scaledHeight = Math.ceil(canvasH * scale);
+        const metadataGutter = Math.ceil(40 * scale);
+        const wrapPadding = viewportPadding + metadataGutter * 2;
+        const wrapWidth = Math.max(containerEl.clientWidth, scaledWidth + wrapPadding);
+        const wrapHeight = Math.max(containerEl.clientHeight, scaledHeight + wrapPadding);
+        scaleWrap.style.width = `${wrapWidth}px`;
+        scaleWrap.style.height = `${wrapHeight}px`;
+        space.style.position = 'absolute';
+        baseSpaceLeft = Math.max(
+            viewportPadding / 2 + metadataGutter,
+            (wrapWidth - scaledWidth) / 2,
+        );
+        baseSpaceTop = Math.max(
+            viewportPadding / 2 + metadataGutter,
+            (wrapHeight - scaledHeight) / 2,
+        );
+        applyCanvasPan();
+        space.style.transformOrigin = 'top left';
+        space.style.transform = `scale(${scale})`;
+        if (typeof onScaleChange === 'function') onScaleChange(scale);
+        if (shouldCenter) centerViewport(wrapWidth, wrapHeight);
+    };
+    applyViewportScale(true);
+
+    /** 切换到手工缩放，同时保持当前视口中心对应的画布位置不变。 */
+    const applyManualScale = nextScale => {
+        const previousScale = currentScale || 1;
+        const previousLeft = Number.parseFloat(space.style.left) || 0;
+        const previousTop = Number.parseFloat(space.style.top) || 0;
+        const focalX = (containerEl.scrollLeft + containerEl.clientWidth / 2 - previousLeft) / previousScale;
+        const focalY = (containerEl.scrollTop + containerEl.clientHeight / 2 - previousTop) / previousScale;
+        currentFitMode = 'manual';
+        currentScale = Math.max(minimumScale, Math.min(maximumScale, nextScale));
+        applyViewportScale(false);
+        requestAnimationFrame(() => {
+            const nextLeft = Number.parseFloat(space.style.left) || 0;
+            const nextTop = Number.parseFloat(space.style.top) || 0;
+            containerEl.scrollLeft = Math.max(
+                0,
+                nextLeft + focalX * currentScale - containerEl.clientWidth / 2,
+            );
+            containerEl.scrollTop = Math.max(
+                0,
+                nextTop + focalY * currentScale - containerEl.clientHeight / 2,
+            );
+        });
+    };
+
+    const zoomController = {
+        /** 按固定步长放大画布视图。 */
+        zoomIn() {
+            applyManualScale((currentScale || 1) * 1.2);
+        },
+        /** 按固定步长缩小画布视图。 */
+        zoomOut() {
+            applyManualScale((currentScale || 1) / 1.2);
+        },
+        /** 恢复为画布元素的真实尺寸。 */
+        resetToActualSize() {
+            applyManualScale(1);
+        },
+        /** 重新适配并居中展示全部元素。 */
+        fitAll() {
+            currentFitMode = 'contain';
+            currentScale = null;
+            panX = 0;
+            panY = 0;
+            applyViewportScale(true);
+        },
+        /** 清除所有视图偏移，并恢复默认的居中全览状态。 */
+        resetView() {
+            currentFitMode = 'contain';
+            currentScale = null;
+            panX = 0;
+            panY = 0;
+            containerEl.scrollLeft = 0;
+            containerEl.scrollTop = 0;
+            applyViewportScale(true);
+        },
+    };
+
+    /** 使用 Command/Ctrl 与滚轮缩放只读画布，普通滚轮仍用于视口滚动。 */
+    const handleCanvasZoomWheel = event => {
+        if (!event.metaKey && !event.ctrlKey) return;
+        event.preventDefault();
+        if (event.deltaY < 0) zoomController.zoomIn();
+        else if (event.deltaY > 0) zoomController.zoomOut();
+    };
+    containerEl.addEventListener('wheel', handleCanvasZoomWheel, { passive: false });
+
+    let panSession = null;
+    let suppressClickUntil = 0;
+    containerEl.classList.add('canvas-preview-pan-enabled');
+
+    /** 判断目标是否是应保留自身交互、不能触发画布拖动的控件。 */
+    const isCanvasPanControl = target => target instanceof Element && Boolean(target.closest(
+        'button, a, input, textarea, select, audio, video, .canvas-el-version-switcher',
+    ));
+
+    /** 开始记录指针位置，实际移动超过阈值后才视为拖动画布。 */
+    const handleCanvasPanStart = event => {
+        if ((event.pointerType === 'mouse' && event.button !== 0) || isCanvasPanControl(event.target)) return;
+        panSession = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startPanX: panX,
+            startPanY: panY,
+            moved: false,
+            captured: false,
+        };
+    };
+
+    /** 根据指针位移平移画布，不依赖容器是否存在滚动范围。 */
+    const handleCanvasPanMove = event => {
+        if (!panSession || panSession.pointerId !== event.pointerId) return;
+        const deltaX = event.clientX - panSession.startX;
+        const deltaY = event.clientY - panSession.startY;
+        if (!panSession.moved && Math.hypot(deltaX, deltaY) < 4) return;
+        if (!panSession.moved) {
+            panSession.moved = true;
+            try {
+                containerEl.setPointerCapture?.(event.pointerId);
+                panSession.captured = true;
+            } catch (_) {
+                panSession.captured = false;
+            }
+        }
+        panX = panSession.startPanX + deltaX;
+        panY = panSession.startPanY + deltaY;
+        applyCanvasPan();
+        containerEl.classList.add('is-canvas-panning');
+        event.preventDefault();
+    };
+
+    /** 结束拖动，并短暂拦截拖动结束后浏览器合成的 click 事件。 */
+    const handleCanvasPanEnd = event => {
+        if (!panSession || panSession.pointerId !== event.pointerId) return;
+        if (panSession.moved) suppressClickUntil = performance.now() + 250;
+        const shouldReleasePointer = panSession.captured;
+        panSession = null;
+        containerEl.classList.remove('is-canvas-panning');
+        if (shouldReleasePointer) {
+            try {
+                containerEl.releasePointerCapture?.(event.pointerId);
+            } catch (_) {
+                // 指针取消时浏览器可能已经自动释放捕获，无需额外处理。
+            }
+        }
+    };
+
+    containerEl.addEventListener('pointerdown', handleCanvasPanStart);
+    containerEl.addEventListener('pointermove', handleCanvasPanMove);
+    containerEl.addEventListener('pointerup', handleCanvasPanEnd);
+    containerEl.addEventListener('pointercancel', handleCanvasPanEnd);
+    containerEl.addEventListener('click', event => {
+        if (performance.now() >= suppressClickUntil) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }, true);
+    containerEl.addEventListener('dragstart', event => {
+        if (event.target instanceof Element && event.target.closest('img')) event.preventDefault();
+    });
+
+    if (typeof ResizeObserver !== 'undefined') {
+        currentCanvasPreviewResizeObserver?.disconnect();
+        currentCanvasPreviewResizeObserver = new ResizeObserver(() => {
+            applyViewportScale(currentFitMode !== 'manual');
+        });
+        currentCanvasPreviewResizeObserver.observe(containerEl);
+    }
+    return zoomController;
 }
 
-async function addCanvasRightPanel(config, filePath) {
-    if (!filePreviewMain) return;
+/**
+ * 创建画布右侧面板外壳，并返回统一预览文档和视口。
+ */
+function createCanvasRightPanel(config, filePath) {
+    if (!filePreviewMain) return null;
     filePreviewMain.classList.add('has-canvas-panel');
-
     const oldPanel = document.getElementById('canvasRightPanel');
     if (oldPanel) oldPanel.remove();
+
+    const preview = normalizeMagicProjectForPreview(config);
 
     const panel = document.createElement('div');
     panel.id = 'canvasRightPanel';
     panel.className = 'canvas-right-panel';
-
-    // 面板顶部信息栏
     const panelHeader = document.createElement('div');
     panelHeader.className = 'canvas-panel-header';
+    const heading = document.createElement('div');
+    heading.className = 'canvas-panel-heading';
     const titleEl = document.createElement('span');
     titleEl.className = 'canvas-panel-title';
     titleEl.textContent = config.name || filePath;
-    const countEl = document.createElement('span');
-    countEl.className = 'canvas-panel-count';
-    countEl.textContent = `${config.canvas?.elements?.length ?? 0} 个元素`;
-    panelHeader.appendChild(titleEl);
-    panelHeader.appendChild(countEl);
+    const versionEl = document.createElement('span');
+    versionEl.className = 'canvas-panel-version';
+    versionEl.textContent = `V${String(preview.version || '').split('.')[0] || '?'}`;
+    heading.appendChild(titleEl);
+    heading.appendChild(versionEl);
+    const summaryEl = document.createElement('span');
+    summaryEl.className = 'canvas-panel-count';
+    summaryEl.textContent = [
+        `${preview.elements.length} 个节点`,
+        `${preview.connections.length} 条连线`,
+        preview.usesPreviewLayout ? '调试布局' : '原始布局',
+    ].join(' · ');
+    panelHeader.appendChild(heading);
+    panelHeader.appendChild(summaryEl);
     panel.appendChild(panelHeader);
-
-    // 画布视口（overflow: auto 由 CSS 控制）
     const viewport = document.createElement('div');
     viewport.className = 'canvas-right-viewport';
     panel.appendChild(viewport);
-
     filePreviewMain.appendChild(panel);
+    return { preview, viewport };
+}
+
+async function addCanvasRightPanel(config, filePath) {
+    const panelState = createCanvasRightPanel(config, filePath);
+    if (!panelState) return;
 
     // 获取项目目录并渲染画布
     const projectDirHandle = await getProjectDirHandle(filePath);
     if (!projectDirHandle) {
-        appendPreviewMessage(viewport, '无法访问项目目录，请检查文件系统权限。');
+        appendPreviewMessage(panelState.viewport, '无法访问项目目录，请检查文件系统权限。');
         return;
     }
     const resolveMediaUrl = (relPath) => resolveCanvasFileBlobUrl(projectDirHandle, relPath);
-    await renderCanvasView(config, resolveMediaUrl, viewport);
+    await renderCanvasView(panelState.preview, resolveMediaUrl, panelState.viewport);
 }
 
 async function addApiCanvasRightPanel(config, filePath) {
-    if (!filePreviewMain) return;
-    filePreviewMain.classList.add('has-canvas-panel');
-
-    const oldPanel = document.getElementById('canvasRightPanel');
-    if (oldPanel) oldPanel.remove();
-
-    const panel = document.createElement('div');
-    panel.id = 'canvasRightPanel';
-    panel.className = 'canvas-right-panel';
-
-    const panelHeader = document.createElement('div');
-    panelHeader.className = 'canvas-panel-header';
-    const titleEl = document.createElement('span');
-    titleEl.className = 'canvas-panel-title';
-    titleEl.textContent = config.name || filePath;
-    const countEl = document.createElement('span');
-    countEl.className = 'canvas-panel-count';
-    countEl.textContent = `${config.canvas?.elements?.length ?? 0} 个元素`;
-    panelHeader.appendChild(titleEl);
-    panelHeader.appendChild(countEl);
-    panel.appendChild(panelHeader);
-
-    const viewport = document.createElement('div');
-    viewport.className = 'canvas-right-viewport';
-    panel.appendChild(viewport);
-    filePreviewMain.appendChild(panel);
+    const panelState = createCanvasRightPanel(config, filePath);
+    if (!panelState) return;
 
     const projectDirPath = String(filePath || '').split('/').filter(Boolean).slice(0, -1).join('/');
-    const resolveMediaUrl = async (relPath) => debugWorkspaceApi.rawUrl(joinWorkspacePath(projectDirPath, relPath));
-    await renderCanvasView(config, resolveMediaUrl, viewport);
+    const resolveMediaUrl = async relPath => appendPreviewRefreshToken(
+        debugWorkspaceApi.rawUrl(joinWorkspacePath(projectDirPath, relPath)),
+    );
+    await renderCanvasView(panelState.preview, resolveMediaUrl, panelState.viewport);
 }
 
 // 预览文件内容：图片/音视频/PDF 用 blob URL，文本读入 pre，其余提示不可预览
@@ -9527,29 +12337,32 @@ async function previewFile(fileHandle, filePath) {
             if (file.size > MAX_SIZE) {
                 textExtras.push({ label: '说明', value: '正文仅预览前 512KB；行数/字符数为截断后统计' });
             }
-            currentPreviewCopyText = text;
-            setFilePreviewMeta(file, filePath, kind, textExtras);
-            if (isMarkdownPreviewFile(filePath) && window.marked) {
-                filePreviewBody.classList.add('file-preview-body-markdown');
-                const article = document.createElement('article');
-                article.className = 'file-preview-markdown ai-markdown';
-                article.innerHTML = marked.parse(text);
-                enhanceFilePreviewMarkdownImages(article);
-                filePreviewBody.appendChild(article);
+            const isCanvasProjectFile = isMagicProjectJs(filePath);
+            const canvasConfig = isCanvasProjectFile ? await parseMagicProjectConfig(text) : null;
+            if (isCanvasProjectFile && canvasConfig?.type === 'design' && canvasConfig.canvas) {
+                renderMagicProjectCodePreview(text, canvasConfig, filePath);
+                setFilePreviewMeta(file, filePath, 'canvas', [
+                    { label: '数据视图', value: '解压后 JSON' },
+                    { label: '原始行数', value: String(lineCount) },
+                    { label: '原始字符数', value: String(text.length) },
+                ]);
+                updateFilePreviewEditActions();
             } else {
+                currentPreviewCopyText = text;
+                setFilePreviewMeta(file, filePath, kind, textExtras);
+            }
+            if (!isCanvasProjectFile && isMarkdownPreviewFile(filePath)) {
+                const previewTab = filePreviewTabs.get(filePath);
+                renderMarkdownFileMode(text, previewTab?.markdownMode || 'rendered', filePath);
+            }
+            if (!isCanvasProjectFile && !isMarkdownPreviewFile(filePath)) {
                 const pre = document.createElement('pre');
                 pre.className = 'file-preview-content';
                 pre.textContent = text;
                 filePreviewBody.appendChild(pre);
             }
 
-            // magic.project.js：解析画布配置后在右侧自动展开画布面板（兼容 v1/v2）
-            if (isMagicProjectJs(filePath)) {
-                const config = await parseMagicProjectConfig(text);
-                if (config?.canvas) {
-                    addCanvasRightPanel(config, filePath);
-                }
-            }
+            // magic.project.js：按顶层版本解析后，在右侧使用统一模型预览 V1/V2/V3。
         }
 
         setFilePreviewWorkbenchVisible(true);

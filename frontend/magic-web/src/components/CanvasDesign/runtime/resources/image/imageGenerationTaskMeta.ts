@@ -7,6 +7,7 @@ import type {
 	RemoveBackgroundRequest,
 } from "../../../public/magic-types"
 import { ImageGenerationTaskTypeMap } from "../../../public/magic-types"
+import { getActiveImageContent } from "../../document/elementContent"
 
 export function createBatchImageTaskMeta({
 	imageId,
@@ -89,12 +90,9 @@ export function getLegacyHighImageTaskMeta(
 }
 
 export function getImageGenerationTaskMeta(
-	element: Pick<ImageElementData, "imageGenerationTaskMeta" | "generateHightImageRequest">,
+	element: ImageElementData,
 ): ImageGenerationTaskMeta | undefined {
-	return (
-		element.imageGenerationTaskMeta ||
-		getLegacyHighImageTaskMeta(element.generateHightImageRequest)
-	)
+	return getActiveImageContent(element).imageGenerationTaskMeta
 }
 
 export function isBatchImageGenerationTaskMeta(

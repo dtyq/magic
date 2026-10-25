@@ -70,6 +70,13 @@ return [
                         'provider' => 'baidu',
                         'request_url' => '',
                     ],
+                    [
+                        'name' => 'DeepSeek',
+                        'enable' => false,
+                        'api_key' => '',
+                        'provider' => 'deepseek',
+                        'request_url' => 'https://api.deepseek.com/v1/tools/search',
+                    ],
                 ],
             ],
         ],
@@ -78,12 +85,12 @@ return [
         'knowledge_base_embedding_model' => [
             'code' => 'knowledge_base_embedding_model',
             'name' => [
-                'zh_CN' => '知识库嵌入模型',
-                'en_US' => 'Knowledge Base Embedding Model',
+                'zh_CN' => '向量化嵌入模型',
+                'en_US' => 'Vector Embedding Model',
             ],
             'description' => [
-                'zh_CN' => '本能力覆盖平台所有知识库向量化、重建与检索场景，用于统一初始化或切换知识库嵌入模型。',
-                'en_US' => 'This capability covers knowledge base vectorization, rebuild and retrieval scenarios, and is used to initialize or switch the knowledge base embedding model.',
+                'zh_CN' => '本能力面向全平台各类向量化业务场景，统一提供内容向量化、向量重建及向量检索能力，作为标准化嵌入模型供各模块调用',
+                'en_US' => 'This capability serves vectorization scenarios across the entire platform, providing standardized content vectorization, vector reconstruction, and vector retrieval capabilities as an embedding model for all modules.',
             ],
             'icon' => 'knowledge-base-embedding-model-icon',
             'sort_order' => 24,
@@ -307,6 +314,13 @@ return [
                         'api_key' => '',
                         'provider' => 'cloudsway',
                         'request_url' => '',
+                    ],
+                    [
+                        'name' => 'DeepSeek',
+                        'enable' => false,
+                        'api_key' => '',
+                        'provider' => 'deepseek',
+                        'request_url' => 'https://api.deepseek.com/v1/tools/fetch',
                     ],
                 ],
             ],
@@ -663,6 +677,36 @@ return [
             'status' => env('AI_ABILITY_AI_SEARCH_MODEL_STATUS', true),
             'config' => [
                 'model_id' => env('AI_ABILITY_AI_SEARCH_MODEL_ID', null),
+            ],
+        ],
+
+        // 火山方舟素材服务（Assets）：素材库同步到火山方舟所需的访问凭证
+        'volcengine_ark_assets' => [
+            'code' => 'volcengine_ark_assets',
+            'name' => [
+                'zh_CN' => '火山方舟素材服务',
+                'en_US' => 'Volcengine Ark Assets',
+            ],
+            'description' => [
+                'zh_CN' => '本能力统一管理火山方舟素材库（Assets）接口的访问凭证，用于将参考素材同步为火山方舟素材并复用其素材 ID。',
+                'en_US' => 'This capability manages the credentials of the Volcengine Ark Assets API, used to sync reference materials into Ark assets and reuse their asset IDs.',
+            ],
+            'icon' => 'volcengine-ark-assets-icon',
+            'sort_order' => 27,
+            'status' => env('AI_ABILITY_VOLCENGINE_ARK_ASSETS_STATUS', true),
+            'config' => [
+                'providers' => [[
+                    'provider' => 'volcengine_ark_assets',
+                    'name' => '火山方舟素材服务',
+                    'enable' => true,
+                    'version' => env('VOLCENGINE_ARK_ASSETS_VERSION', '2024-01-01'),
+                    'region' => env('VOLCENGINE_ARK_ASSETS_REGION', 'cn-beijing'),
+                    'service' => env('VOLCENGINE_ARK_ASSETS_SERVICE', 'ark'),
+                    'endpoint' => env('VOLCENGINE_ARK_ASSETS_ENDPOINT', 'https://open.volcengineapi.com'),
+                    'access_key' => env('VOLCENGINE_ACCESS_KEY', ''),
+                    'secret_key' => env('VOLCENGINE_SECRET_KEY', ''),
+                    'project_name' => env('VOLCENGINE_ARK_ASSETS_PROJECT_NAME', 'default'),
+                ]],
             ],
         ],
     ],

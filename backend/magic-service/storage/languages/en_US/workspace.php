@@ -13,4 +13,13 @@ return [
     'untitled_workspace' => 'Untitled Workspace',
     'unknown_user' => 'Unknown User',
     'transferred_from' => 'Transferred from',
+    'archived' => 'Archived',
+    'conversation_id_not_found' => 'Resource not found',
+    'ids_required' => 'Value is required',
+    'invalid_archive_status' => 'Invalid value',
+    'not_found' => 'Resource not found',
+    'not_owner' => 'Not owner',
+    'super_magic_user_not_found' => 'Resource not found',
+
+    'invalid_workspace_type' => 'Invalid value',
 ];

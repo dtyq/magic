@@ -1,4 +1,4 @@
-import { Editor, Range } from "@tiptap/react"
+import { Editor, Range } from "@/infrastructure/editors/tiptap/react"
 import {
 	IconH1,
 	IconH2,
@@ -15,7 +15,7 @@ import {
 } from "@tabler/icons-react"
 import type { SuggestionItem, SlashMenuItemType } from "../types"
 import { DEFAULT_GROUPS } from "../types"
-import { isExtensionAvailable } from "@/lib/tiptap-utils"
+import { isExtensionAvailable } from "@/infrastructure/editors/tiptap/utils"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
 // Type for translation function
@@ -87,7 +87,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.setHeading({ level: 1 }).run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 1 })),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 1 })),
 		},
 
 		{
@@ -103,7 +104,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.setHeading({ level: 2 }).run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 2 })),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 2 })),
 		},
 
 		{
@@ -119,7 +121,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.setHeading({ level: 3 }).run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 3 })),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 3 })),
 		},
 
 		// Additional headings for completeness
@@ -136,7 +139,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.setHeading({ level: 4 }).run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 4 })),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 4 })),
 		},
 
 		{
@@ -152,7 +156,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.setHeading({ level: 5 }).run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 5 })),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 5 })),
 		},
 
 		{
@@ -168,7 +173,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.setHeading({ level: 6 }).run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 6 })),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().setHeading({ level: 6 })),
 		},
 
 		// Lists
@@ -185,7 +191,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.toggleBulletList().run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().toggleBulletList()),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().toggleBulletList()),
 		},
 
 		{
@@ -201,7 +208,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.toggleOrderedList().run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().toggleOrderedList()),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().toggleOrderedList()),
 		},
 
 		{
@@ -222,7 +230,10 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 			},
 			enabled: (editor) => {
 				// Check if TaskList extension is available and can be toggled
-				return canExecute(editor, (activeEditor) => activeEditor.can().toggleTaskList()) || true
+				return (
+					canExecute(editor, (activeEditor) => activeEditor.can().toggleTaskList()) ||
+					true
+				)
 			},
 		},
 
@@ -240,7 +251,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.toggleBlockquote().run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().toggleBlockquote()),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().toggleBlockquote()),
 		},
 
 		{
@@ -256,7 +268,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.toggleCodeBlock().run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().toggleCodeBlock()),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().toggleCodeBlock()),
 		},
 
 		{
@@ -272,7 +285,8 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 					chain.setHorizontalRule().run()
 				})
 			},
-			enabled: (editor) => canExecute(editor, (activeEditor) => activeEditor.can().setHorizontalRule()),
+			enabled: (editor) =>
+				canExecute(editor, (activeEditor) => activeEditor.can().setHorizontalRule()),
 		},
 
 		{
@@ -293,7 +307,10 @@ export function createDefaultMenuItems(editor: Editor, t?: TranslationFunction):
 			},
 			enabled: (editor) => {
 				// Check if Table extension is available
-				return canExecute(editor, (activeEditor) => activeEditor.can().insertTable?.() || true)
+				return canExecute(
+					editor,
+					(activeEditor) => activeEditor.can().insertTable?.() || true,
+				)
 			},
 		},
 

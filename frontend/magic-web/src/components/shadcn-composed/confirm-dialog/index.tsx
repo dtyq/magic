@@ -10,7 +10,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/shadcn-ui/alert-dialog"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ConfirmDialogOptions {
 	title?: string

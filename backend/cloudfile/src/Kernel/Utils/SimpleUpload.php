@@ -127,9 +127,6 @@ abstract class SimpleUpload
      */
     protected function buildContentDisposition(string $filename, bool $download = true): string
     {
-        $disposition = $download ? 'attachment' : 'inline';
-        $safeFilename = str_replace(["\r", "\n"], '', $filename);
-
-        return $disposition . '; filename="' . addcslashes($safeFilename, '\"') . '"';
+        return ContentDispositionBuilder::build($filename, $download);
     }
 }

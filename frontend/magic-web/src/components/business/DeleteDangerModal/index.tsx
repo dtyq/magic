@@ -11,7 +11,7 @@ import {
 } from "@/components/shadcn-ui/dialog"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 
 // 危险等级

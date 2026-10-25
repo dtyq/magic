@@ -24,12 +24,18 @@ class ImageGenerateResponse
         if ($imageGenerateType->isBase64()) {
             $base64Data = [];
             foreach ($data as $base64) {
-                if (! EasyFileTools::isBase64Image($base64)) {
-                    // 检查 base64 格式是否符合规范, 尝试添加前缀
-                    $base64 = 'data:image/jpeg;base64,' . $base64;
-                    if (EasyFileTools::isBase64Image($base64)) {
-                        $base64Data[] = $base64;
-                    }
+                if (EasyFileTools::isBase64Image($base64)) {
+                    $base64Data[] = $base64;
+                    continue;
+                }
+                // 水印处理后可能已经是云存储 URL，不能再包装成 data URI。
+                if (EasyFileTools::isUrl($base64)) {
+                    $base64Data[] = $base64;
+                    continue;
+                }
+                $candidate = 'data:image/jpeg;base64,' . $base64;
+                if (EasyFileTools::isBase64Image($candidate)) {
+                    $base64Data[] = $candidate;
                 }
             }
             $this->data = $base64Data;

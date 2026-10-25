@@ -18,6 +18,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $name 工作区名称
  * @property int $is_archived 是否归档 0否 1是
  * @property int $is_pinned 是否置顶 0否 1是
+ * @property null|int $sort_order 手工排序值
  * @property string $created_at
  * @property string $updated_at
  * @property string $deleted_at
@@ -41,7 +42,7 @@ class WorkspaceModel extends AbstractModel
     protected array $fillable = [
         'id', 'user_id', 'user_organization_code', 'chat_conversation_id', 'name',
         'is_archived', 'is_pinned', 'created_uid', 'updated_uid', 'created_at', 'updated_at', 'deleted_at',
-        'current_topic_id', 'current_project_id', 'status', 'workspace_type',
+        'current_topic_id', 'current_project_id', 'status', 'workspace_type', 'sort_order',
     ];
 
     /**
@@ -55,6 +56,7 @@ class WorkspaceModel extends AbstractModel
         'current_topic_id' => 'integer',
         'current_project_id' => 'integer',
         'workspace_type' => 'string',
+        'sort_order' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

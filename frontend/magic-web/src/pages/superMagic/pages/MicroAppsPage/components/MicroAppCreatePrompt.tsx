@@ -17,6 +17,7 @@ import { ToolbarButton } from "@/pages/superMagic/components/MessageEditor/types
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { CreatedProject, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
+import { analyticsService } from "@/services/analytics"
 import { resolveMicroAppModelSelectionMode } from "@/pages/superMagic/pages/MicroAppPage/utils/microAppModelMode"
 import MobileInputContainer from "@/pages/superMagicMobile/pages/ChatPage/components/MobileInputContainer"
 import promptExampleData from "./microAppPromptExamples.json"
@@ -137,6 +138,10 @@ function MicroAppCreatePrompt({
 			createProject: async (): Promise<CreatedProject | null> => {
 				if (!workspace?.id) return null
 
+				analyticsService.report("project_create_attempted", {
+					workspaceId: String(workspace.id),
+					sceneOverride: "micro_app",
+				})
 				const created = await SuperMagicApi.createMicroAppProject({
 					workspace_id: String(workspace.id),
 					dynamic_params: {

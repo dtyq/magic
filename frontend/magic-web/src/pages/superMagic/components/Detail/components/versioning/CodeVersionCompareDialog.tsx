@@ -3,7 +3,7 @@ import { useThemeMode } from "antd-style"
 import { useTranslation } from "react-i18next"
 import MagicModal from "@/components/base/MagicModal"
 import { Spinner } from "@/components/shadcn-ui/spinner"
-import { MonacoDiffEditor } from "@/lib/monacoEditor"
+import { MonacoDiffEditor } from "@/infrastructure/editors/monaco"
 import { getMonacoLanguageByFileName } from "@/components/base/CodeEditor/utils"
 
 interface CodeVersionCompareDialogProps {

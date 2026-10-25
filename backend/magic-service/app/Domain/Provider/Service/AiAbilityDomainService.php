@@ -135,7 +135,8 @@ class AiAbilityDomainService
     {
         $dataIsolation = ProviderDataIsolation::create('');
         $entity = $this->getByCode($dataIsolation, $abilityCode);
-        if (! $entity->isEnabled()) {
+        // 能力尚未初始化（首启未跑 ai-abilities:init）时视为未配置，交给调用方降级处理。
+        if ($entity === null || ! $entity->isEnabled()) {
             return [];
         }
         return $entity->getConfig();

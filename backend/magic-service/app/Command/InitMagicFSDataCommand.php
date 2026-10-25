@@ -7,11 +7,10 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Domain\SuperMagic\File\Repository\Facade\TaskFileRepositoryInterface;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\DbConnection\Db;
-use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Throwable;
 
@@ -19,100 +18,66 @@ use Throwable;
 class InitMagicFSDataCommand extends HyperfCommand
 {
     public function __construct(
-        protected ContainerInterface $container,
         protected StdoutLoggerInterface $logger,
+        protected TaskFileRepositoryInterface $taskFileRepository,
     ) {
         parent::__construct('init:magicfs-data');
     }
 
-    public function configure()
+    public function configure(): void
     {
         parent::configure();
-        $this->setDescription('初始化 MagicFS 文件系统数据（元数据版本号）');
+        $this->setDescription('初始化 MagicFS 元数据版本');
         $this->addOption('batch-size', 'b', InputOption::VALUE_OPTIONAL, '批处理大小', '1000');
     }
 
-    public function handle()
+    public function handle(): int
     {
+        $batchSize = filter_var(
+            $this->input->getOption('batch-size'),
+            FILTER_VALIDATE_INT,
+            ['options' => ['min_range' => 1, 'max_range' => 10000]]
+        );
+        if ($batchSize === false) {
+            $this->logger->error('--batch-size 必须是 1 到 10000 之间的整数');
+            return self::FAILURE;
+        }
+
         try {
             $this->logger->info('========================================');
-            $this->logger->info('MagicFS 文件系统数据初始化');
+            $this->logger->info('MagicFS 元数据版本初始化');
             $this->logger->info('========================================');
 
-            return $this->initMetadataVersion();
+            $this->backfillMetadataVersions($batchSize);
+
+            return self::SUCCESS;
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'MagicFS 数据初始化失败: %s, file:%s line:%s',
+                'MagicFS 元数据版本初始化失败: %s, file:%s line:%s',
                 $e->getMessage(),
                 $e->getFile(),
                 $e->getLine()
             ));
-            return 1;
+            return self::FAILURE;
         }
     }
 
-    /**
-     * 初始化元数据版本号.
-     */
-    protected function initMetadataVersion(): int
+    private function backfillMetadataVersions(int $batchSize): void
     {
-        try {
-            $this->logger->info('');
-            $this->logger->info('初始化元数据版本号');
-            $this->logger->info('----------------------------------------');
+        $this->logger->info('');
+        $this->logger->info('回填元数据版本号');
+        $this->logger->info('----------------------------------------');
 
-            $batchSize = (int) $this->input->getOption('batch-size');
-
-            $needUpdateCount = Db::table('magic_super_agent_task_files')
-                ->where('metadata_version', 1)
-                ->where('latest_version', '>', 1)
-                ->whereNull('deleted_at')
-                ->count();
-
-            if ($needUpdateCount === 0) {
-                $this->logger->info('✓ 所有文件的 metadata_version 已正确初始化，无需更新');
-                return 0;
-            }
-
-            $this->logger->info("发现 {$needUpdateCount} 条记录需要更新");
-            $this->logger->info("批处理大小: {$batchSize}");
-
-            $totalProcessed = 0;
-            $batchCount = 0;
-
-            while (true) {
-                $affectedRows = Db::update(
-                    'UPDATE magic_super_agent_task_files 
-                     SET metadata_version = latest_version 
-                     WHERE metadata_version = 1 
-                     AND latest_version > 1
-                     AND deleted_at IS NULL
-                     LIMIT ?',
-                    [$batchSize]
-                );
-
-                if ($affectedRows === 0) {
-                    break;
-                }
-
-                $totalProcessed += $affectedRows;
-                ++$batchCount;
-
-                $this->logger->info("  批次 {$batchCount}：更新了 {$affectedRows} 条记录（累计: {$totalProcessed}）");
-
-                usleep(100000); // 100ms
-            }
-
-            $this->logger->info("✅ 元数据版本号初始化完成！共更新 {$totalProcessed} 条记录");
-            return 0;
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                '初始化元数据版本号失败: %s, file:%s line:%s',
-                $e->getMessage(),
-                $e->getFile(),
-                $e->getLine()
-            ));
-            return 1;
+        // The repository keeps each file update, head revision and journal
+        // snapshot in the same transaction. The separate
+        // magicfs:initialize-file-tree-heads command must be run once before
+        // backfilling existing installations.
+        $totalProcessed = $this->taskFileRepository->backfillMagicFSMetadataVersions($batchSize);
+        if ($totalProcessed === 0) {
+            $this->logger->info('✓ 所有文件的 metadata_version 已正确初始化，无需更新');
+            return;
         }
+
+        $this->logger->info("✅ 元数据版本号回填完成！共更新 {$totalProcessed} 条记录");
     }
 }

@@ -5,9 +5,10 @@ import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import type { CopyProjectModalProps, WorkspaceOption } from "./types"
 import { SuperMagicApi } from "@/apis"
+import { analyticsService } from "@/services/analytics"
 import folderIcon from "@/pages/share/components/CopyProjectModal/assets/folder.svg"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { WorkspaceStatus } from "@/pages/superMagic/pages/Workspace/types"
 
 function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyProjectModalProps) {
@@ -26,12 +27,10 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 	// 初始化项目名称
 	useEffect(() => {
 		if (open) {
-			// 根据是否为项目分享，使用不同的默认名称
-			if (projectData?.isProjectShare) {
-				setNewProjectName(projectData.defaultNewProjectName || "")
-			} else {
-				setNewProjectName(projectData.shareName || projectData.defaultNewProjectName || "")
-			}
+			const initialName = projectData?.isProjectShare
+				? projectData.defaultNewProjectName || ""
+				: projectData?.shareName || projectData?.defaultNewProjectName || ""
+			setNewProjectName(initialName.slice(0, 100))
 		}
 	}, [
 		open,
@@ -90,16 +89,18 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 
 	// 保存新建工作区
 	const handleSaveNewWorkspace = useMemoizedFn(async () => {
-		if (!newWorkspaceName.trim()) return
+		const trimmedWorkspaceName = newWorkspaceName.trim().slice(0, 50)
+		if (!trimmedWorkspaceName) return
 
 		try {
+			analyticsService.report("workspace_create_attempted")
 			const response = await SuperMagicApi.createWorkspace({
-				workspace_name: newWorkspaceName.trim(),
+				workspace_name: trimmedWorkspaceName,
 			})
 			if (response?.id) {
 				const newWorkspace: WorkspaceOption = {
 					id: response.id,
-					name: newWorkspaceName.trim(),
+					name: trimmedWorkspaceName,
 					is_archived: 0,
 					current_topic_id: "",
 					current_project_id: null,
@@ -154,11 +155,12 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 
 		setSubmitting(true)
 		try {
+			const trimmedProjectName = newProjectName.trim().slice(0, 100)
 			// 统一使用新接口：复制分享资源
 			const response = await SuperMagicApi.copyShareResource({
 				resource_id: resourceIdToUse,
 				target_workspace_id: selectedWorkspace.id,
-				target_project_name: newProjectName.trim(),
+				target_project_name: trimmedProjectName,
 				password: projectData.password,
 			})
 
@@ -166,7 +168,7 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 				// 适配新接口返回的数据结构
 				const adaptedResponse = {
 					project_id: String(response.new_project_id),
-					project_name: newProjectName.trim(),
+					project_name: trimmedProjectName,
 					workspace_id: selectedWorkspace.id,
 					workspace_name: selectedWorkspace.name,
 				}
@@ -194,7 +196,12 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 
 	// 表单验证
 	const isFormValid = useMemo(() => {
-		return newProjectName.trim() && selectedWorkspace && !isCreatingWorkspace
+		return (
+			newProjectName.trim() &&
+			newProjectName.length <= 100 &&
+			selectedWorkspace &&
+			!isCreatingWorkspace
+		)
 	}, [newProjectName, selectedWorkspace, isCreatingWorkspace])
 
 	return (
@@ -268,6 +275,7 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 								/>
 							}
 							value={newProjectName}
+							maxLength={100}
 							onChange={(e) => setNewProjectName(e.target.value)}
 							placeholder={t("share.enterNewProjectName")}
 							className="w-full"
@@ -321,6 +329,7 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 										</div>
 										<Input
 											value={newWorkspaceName}
+											maxLength={50}
 											onChange={(e) => setNewWorkspaceName(e.target.value)}
 											onBlur={handleWorkspaceInputBlur}
 											onKeyDown={handleWorkspaceInputKeyDown}

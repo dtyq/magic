@@ -7,15 +7,17 @@ declare(strict_types=1);
 
 namespace App\Domain\SuperMagic\Skill\Entity;
 
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\SkillSourceType;
 use App\Infrastructure\Core\AbstractEntity;
-use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 
 /**
  * Skill base entity.
  */
 class SkillEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     /**
      * @var int 主键 ID
      */
@@ -492,15 +494,7 @@ class SkillEntity extends AbstractEntity
      */
     public function getI18nName(string $language): string
     {
-        if (! empty($this->nameI18n[$language])) {
-            return $this->nameI18n[$language];
-        }
-
-        if (! empty($this->nameI18n[LanguageEnum::DEFAULT->value])) {
-            return $this->nameI18n[LanguageEnum::DEFAULT->value];
-        }
-
-        return '';
+        return $this->resolveI18nText($this->nameI18n, $language);
     }
 
     /**
@@ -511,18 +505,17 @@ class SkillEntity extends AbstractEntity
      */
     public function getI18nDescription(string $language): string
     {
-        if (empty($this->descriptionI18n)) {
-            return '';
-        }
+        return $this->resolveI18nText($this->descriptionI18n, $language);
+    }
 
-        if (! empty($this->descriptionI18n[$language])) {
-            return $this->descriptionI18n[$language];
-        }
-
-        if (! empty($this->descriptionI18n[LanguageEnum::DEFAULT->value])) {
-            return $this->descriptionI18n[LanguageEnum::DEFAULT->value];
-        }
-
-        return '';
+    /**
+     * 获取国际化来源.
+     *
+     * @param string $language 语言代码
+     * @return string 来源，优先返回当前语言，其次 default，都没有则返回空字符串
+     */
+    public function getI18nSource(string $language): string
+    {
+        return $this->resolveI18nText($this->sourceI18n, $language);
     }
 }

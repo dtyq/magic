@@ -13,11 +13,13 @@ import MagicIcon from "@/components/base/MagicIcon"
 import SiderDataSourceItem from "./SiderDataSourceItem"
 import SuperMagicDropdown, { useSuperMagicDropdown } from "../SuperMagicDropdown"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { DataSourceItemData } from "./types"
 import { Tooltip } from "antd"
 import useDataSourceDatabaseModal from "../DataSourceDatabase/useDataSourceDatabaseModal"
 
 export default function SiderDataSource() {
+	const { t } = useTranslation("super")
 	const showDataSourceDatabaseModal = useDataSourceDatabaseModal()
 
 	const [list] = useState<DataSourceItemData[]>([
@@ -77,7 +79,7 @@ export default function SiderDataSource() {
 			menuItems.push(
 				{
 					key: "test",
-					label: "测试连接",
+					label: t("dataSource.testConnection"),
 					icon: <MagicIcon component={IconCircleDashedCheck} stroke={2} size={18} />,
 					onClick: () => onTestConnection(dataSourceItem),
 				},
@@ -90,7 +92,7 @@ export default function SiderDataSource() {
 				menuItems.push(
 					{
 						key: "config",
-						label: "数据库配置",
+						label: t("dataSource.dbConfig"),
 						icon: <MagicIcon component={IconDatabaseCog} stroke={2} size={18} />,
 						onClick: () => onConfigDatabase(dataSourceItem),
 					},
@@ -103,13 +105,13 @@ export default function SiderDataSource() {
 			menuItems.push(
 				{
 					key: "add-current-chat",
-					label: "添加到当前对话",
+					label: t("dataSource.addToCurrentChat"),
 					icon: <MagicIcon component={IconMessageCircleShare} stroke={2} size={18} />,
 					onClick: () => onAddToCurrentChat(dataSourceItem),
 				},
 				{
 					key: "add-new-chat",
-					label: "添加到新对话",
+					label: t("dataSource.addToNewChat"),
 					icon: <MagicIcon component={IconMessageCirclePlus} stroke={2} size={18} />,
 					onClick: () => onAddToNewChat(dataSourceItem),
 				},
@@ -119,7 +121,7 @@ export default function SiderDataSource() {
 				{
 					key: "delete",
 					danger: true,
-					label: "删除",
+					label: t("dataSource.delete"),
 					icon: (
 						<MagicIcon
 							component={IconTrash}
@@ -149,13 +151,13 @@ export default function SiderDataSource() {
 						items: [
 							{
 								key: "file",
-								label: "上传文件",
+								label: t("dataSource.uploadFile"),
 								icon: <MagicIcon component={IconUpload} stroke={2} size={18} />,
 								onClick: onUploadFile,
 							},
 							{
 								key: "database",
-								label: "连接数据库",
+								label: t("dataSource.connectDatabase"),
 								icon: (
 									<MagicIcon component={IconDatabasePlus} stroke={2} size={18} />
 								),
@@ -164,7 +166,7 @@ export default function SiderDataSource() {
 						],
 					}}
 				>
-					<Tooltip title="添加数据源">
+					<Tooltip title={t("dataSource.add")}>
 						<ActionButton size={20}>
 							<MagicIcon
 								className="stroke-gray-400"
@@ -183,7 +185,7 @@ export default function SiderDataSource() {
 					))
 				) : (
 					<div className="flex flex-auto items-center justify-center overflow-hidden text-gray-400">
-						<span>暂无数据源</span>
+						<span>{t("dataSource.empty")}</span>
 					</div>
 				)}
 			</div>

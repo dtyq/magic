@@ -1,11 +1,13 @@
+import { SimpleModeSetting } from "@/pages/superMagic/components/MessageHeader/components/SimpleModeSetting"
 import { memo } from "react"
 import { X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import type { ActionGroup } from "@/pages/superMagicMobile/components/ActionSheet"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ConversationActionsPopupProps {
+	enableSimpleMode?: boolean
 	visible: boolean
 	title: string
 	subtitle?: string
@@ -18,6 +20,7 @@ interface ConversationActionsPopupProps {
  */
 function ConversationActionsPopup({
 	visible,
+	enableSimpleMode = false,
 	title,
 	subtitle,
 	actionGroups,
@@ -49,6 +52,11 @@ function ConversationActionsPopup({
 			>
 				{/* 操作列表 */}
 				<div className="flex flex-col gap-[10px] px-[14px] pb-4 pt-2">
+					{enableSimpleMode && (
+						<div className="rounded-lg bg-card px-1.5">
+							<SimpleModeSetting />
+						</div>
+					)}
 					{actionGroups.map((group, groupIndex) => (
 						<div
 							key={groupIndex}

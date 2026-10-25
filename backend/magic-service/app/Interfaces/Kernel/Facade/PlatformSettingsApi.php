@@ -11,12 +11,15 @@ use App\Application\Kernel\DTO\PlatformSettings;
 use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Kernel\Service\PlatformSettingsAppService;
+use App\Application\Permission\Service\RoleAppService;
+use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\MagicUserAuthorizationTrait;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\Kernel\DTO\Request\PlatformSettingsUpdateRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
+use InvalidArgumentException;
 
 #[ApiResponse('low_code')]
 class PlatformSettingsApi
@@ -25,23 +28,37 @@ class PlatformSettingsApi
 
     public function __construct(
         private readonly PlatformSettingsAppService $platformSettingsAppService,
+        private readonly RoleAppService $roleAppService,
     ) {
     }
 
     #[CheckPermission(MagicResourceEnum::PLATFORM_SETTING_PLATFORM_INFO, MagicOperationEnum::QUERY)]
     public function show(): array
     {
-        $settings = $this->platformSettingsAppService->get()->toArray();
+        $settings = $this->platformSettingsAppService->getPersisted()->toArray();
         return self::platformSettingsToResponse($settings);
     }
 
+    /** 合并平台配置，参考金额由配置层统一生成后保存。 */
     #[CheckPermission(MagicResourceEnum::PLATFORM_SETTING_PLATFORM_INFO, MagicOperationEnum::EDIT)]
     public function update(PlatformSettingsUpdateRequest $request): array
     {
-        $existing = $this->platformSettingsAppService->get();
-        $data = $existing->toArray();
-
         $payload = $request->validated();
+        if (isset($payload['model_billing_multiplier'])) {
+            $authorization = $this->getAuthorization();
+            $dataIsolation = PermissionDataIsolation::create($authorization->getOrganizationCode(), $authorization->getId());
+            if (! $this->roleAppService->hasPermission($dataIsolation, $authorization->getId(), MagicResourceEnum::PLATFORM_AI_MODEL_MULTIPLIER->value . '.' . MagicOperationEnum::EDIT->value)) {
+                ExceptionBuilder::throw(PermissionErrorCode::AccessDenied, 'permission.error.access_denied');
+            }
+        }
+        $settings = $this->platformSettingsAppService->update(fn (PlatformSettings $existing): PlatformSettings => $this->applyUpdate($existing, $payload));
+        return self::platformSettingsToResponse($settings->toArray());
+    }
+
+    /** 只合并当前请求提供的字段，读取与保存处于同一更新临界区。 */
+    private function applyUpdate(PlatformSettings $existing, array $payload): PlatformSettings
+    {
+        $data = $existing->toArray();
 
         // 允许部分字段更新：仅当传入非空时替换
         if (array_key_exists('logo_zh_url', $payload) && $payload['logo_zh_url'] !== null) {
@@ -77,19 +94,31 @@ class PlatformSettingsApi
         if (! empty($payload['agent_role_description_i18n'] ?? [])) {
             $data['agent_role_description_i18n'] = (array) $payload['agent_role_description_i18n'];
         }
+        if (array_key_exists('global_system_prompt', $payload)) {
+            $data['global_system_prompt'] = (string) $payload['global_system_prompt'];
+        }
         if (array_key_exists('custom_service_provider_whitelist', $payload)) {
             $data['custom_service_provider_whitelist'] = (array) ($payload['custom_service_provider_whitelist'] ?? []);
         }
         if (array_key_exists('footer', $payload) && is_array($payload['footer'])) {
             $data['footer'] = self::mergeFooterSettings((array) ($data['footer'] ?? []), $payload['footer']);
         }
+        if (array_key_exists('watermark', $payload) && is_array($payload['watermark'])) {
+            $data['watermark'] = array_replace((array) ($data['watermark'] ?? []), $payload['watermark']);
+        }
+
+        if (isset($payload['model_billing_multiplier'])) {
+            try {
+                $data['model_billing_multiplier'] = $existing->getModelBillingMultiplier()->withOverrides($payload['model_billing_multiplier'])->toArray();
+            } catch (InvalidArgumentException) {
+                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'platform_settings.invalid_model_billing_multiplier');
+            }
+        }
 
         $this->validateUrls($data);
         $this->validateFooter($data);
 
-        $settings = PlatformSettings::fromArray($data);
-        $this->platformSettingsAppService->save($settings);
-        return self::platformSettingsToResponse($settings->toArray());
+        return PlatformSettings::fromArray($data);
     }
 
     /**
@@ -133,17 +162,24 @@ class PlatformSettingsApi
             $minimalLogo = (string) $settings['minimal_logo_url'];
         }
         $resp = [
+            'model_billing_multiplier' => PlatformSettings::fromArray($settings)->getModelBillingMultiplier()->toArray(),
             'logo' => $logo,
             'favicon' => $favicon,
             'minimal_logo' => $minimalLogo,
             'default_language' => (string) ($settings['default_language'] ?? 'zh_CN'),
             'footer' => PlatformSettings::fromArray($settings)->getFooter(),
+            'watermark' => (array) ($settings['watermark'] ?? [
+                'enabled' => false,
+                'fields' => ['real_name'],
+                'depth' => 'light',
+            ]),
         ];
         foreach (['name_i18n', 'title_i18n', 'keywords_i18n', 'description_i18n', 'agent_role_name_i18n', 'agent_role_description_i18n'] as $key) {
             if (isset($settings[$key])) {
                 $resp[$key] = (array) $settings[$key];
             }
         }
+        $resp['global_system_prompt'] = (string) ($settings['global_system_prompt'] ?? '');
         $resp['custom_service_provider_whitelist'] = (array) ($settings['custom_service_provider_whitelist'] ?? []);
         return $resp;
     }

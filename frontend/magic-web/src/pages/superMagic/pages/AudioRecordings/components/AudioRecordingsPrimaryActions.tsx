@@ -3,6 +3,7 @@ import { Mic, Settings, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import AudioUploadAction from "@/components/business/RecordingSummary/AudioUploadAction"
 import { Button } from "@/components/shadcn-ui/button"
+import { HomeOnboardingAnchor } from "@/pages/superMagic/components/LazyGuideTour/GuideTourManager"
 
 interface AudioRecordingsPrimaryActionsProps {
 	onOpenSettings: () => void
@@ -23,7 +24,7 @@ export function AudioRecordingsPrimaryActions({
 
 	return (
 		<div
-			className="flex flex-wrap items-center justify-end gap-2"
+			className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end"
 			data-testid="audio-recordings-primary-actions"
 		>
 			{onImportFiles ? (
@@ -45,6 +46,9 @@ export function AudioRecordingsPrimaryActions({
 				disabled={isStartingRecording || !onStartRecording}
 				onClick={onStartRecording}
 				data-testid="audio-recordings-start-recording-button"
+				// The "了解 AI 录音完成流程" tour opens on this entry and then on the import one, so
+				// both are addressed by the tour's own anchors rather than by their test ids.
+				data-guide-anchor={HomeOnboardingAnchor.AudioRecordingsStart}
 			>
 				<Mic className="size-4" aria-hidden />
 				<span>{t("actions.startRecording")}</span>
@@ -58,6 +62,7 @@ export function AudioRecordingsPrimaryActions({
 					className="h-9 shrink-0 gap-1.5 rounded-lg bg-background px-3 shadow-xs"
 					onClick={() => openFilePickerRef.current()}
 					data-testid="audio-recordings-import-audio-button"
+					data-guide-anchor={HomeOnboardingAnchor.AudioRecordingsImport}
 				>
 					<Upload className="size-4" aria-hidden />
 					<span>{t("card.sourceImported")}</span>

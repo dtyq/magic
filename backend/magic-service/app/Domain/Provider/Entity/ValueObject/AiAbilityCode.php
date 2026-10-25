@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity\ValueObject;
 
+use function Hyperf\Translation\__;
+
 /**
  * AI 能力代码枚举.
  */
@@ -40,6 +42,28 @@ enum AiAbilityCode: string
     case ImagePromptCompletion = 'image_prompt_completion'; // 生图提示词补全
     case TextContentCompletion = 'text_content_completion'; // 文本内容优化
     case AiSearchModel = 'ai_search_model';                 // AI 搜索模型
+    case VolcengineArkAssets = 'volcengine_ark_assets';    // 火山方舟素材服务
+
+    /**
+     * 获取当前语言的能力名称。
+     *
+     * 文案由语言文件维护，枚举只负责把能力代码映射到稳定的翻译键，
+     * 避免接口继续依赖数据库中初始化时写入的名称。
+     */
+    public function getName(?string $locale = null): string
+    {
+        return (string) __('ai_ability.name.' . $this->value, [], $locale);
+    }
+
+    /**
+     * 获取当前语言的能力描述。
+     *
+     * 描述与能力代码绑定，随语言文件更新即可即时影响管理后台接口返回。
+     */
+    public function getDescription(?string $locale = null): string
+    {
+        return (string) __('ai_ability.description.' . $this->value, [], $locale);
+    }
 
     /**
      * 获取能力名称.
@@ -74,6 +98,7 @@ enum AiAbilityCode: string
             self::ImagePromptCompletion => '生图提示词补全',
             self::TextContentCompletion => '文本内容优化',
             self::AiSearchModel => 'AI 搜索模型',
+            self::VolcengineArkAssets => '火山方舟素材服务',
             default => 'Unknown',
         };
     }
@@ -111,6 +136,7 @@ enum AiAbilityCode: string
             self::ImagePromptCompletion => '本能力覆盖平台所有生图提示词补全场景，根据用户文本和可选参考图生成可直接用于生图的提示词。',
             self::TextContentCompletion => '本能力覆盖平台所有文本内容优化场景，根据用户文本生成可直接替换原文的优化后正文。',
             self::AiSearchModel => '本能力统一管理平台 AI 搜索场景中使用的大语言模型，覆盖问题理解、关键词拆解、结果筛选、关联问题、内容总结及扩展内容生成。',
+            self::VolcengineArkAssets => '本能力统一管理火山方舟素材库（Assets）接口的访问凭证，用于将参考素材同步为火山方舟素材并复用其素材 ID。',
             default => 'Unknown',
         };
     }
@@ -128,6 +154,7 @@ enum AiAbilityCode: string
             self::ImageRemoveBackground => ['api_key'],
             self::ImageEraser => ['api_key', 'access_key', 'secret_key', 'ak', 'sk'],
             self::ImageExpand => ['api_key', 'access_key', 'secret_key', 'ak', 'sk'],
+            self::VolcengineArkAssets => ['access_key', 'secret_key'],
             self::Ocr => ['access_key', 'secret_key'],
             self::AudioFileRecognition => ['app_key', 'access_key', 'cluster', 'api_key', 'authorization'],
             self::KnowledgeBaseEmbeddingModel => [],

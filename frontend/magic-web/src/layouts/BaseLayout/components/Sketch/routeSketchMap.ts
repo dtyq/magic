@@ -5,43 +5,40 @@ import type { RouteSketchMap } from "./getRouteSketch"
 export const routeSketchMap: RouteSketchMap = {
 	[RouteName.Super]: {
 		desktop: lazy(
-			() =>
-				import("@/pages/superMagic/lazy/skeleton/WorkspacePageDesktopSkeleton"),
+			() => import("@/pages/superMagic/lazy/skeleton/WorkspacePageDesktopSkeleton"),
 		),
-		mobile: lazy(
-			() =>
-				import("@/pages/superMagic/lazy/skeleton/MobileHomePageMobileSkeleton"),
-		),
+		mobile: lazy(() => import("@/pages/superMagic/lazy/skeleton/MobileHomePageMobileSkeleton")),
 	},
 	[RouteName.MobileTabs]: {
 		mobile: lazy(() => import("@/pages/mobileTabs/skeleton/MobileTabsSkeleton")),
 	},
 	[RouteName.SuperWorkspaceState]: {
 		desktop: lazy(
-			() =>
-				import("@/pages/superMagic/lazy/skeleton/WorkspacePageDesktopSkeleton"),
+			() => import("@/pages/superMagic/lazy/skeleton/WorkspacePageDesktopSkeleton"),
 		),
 		mobile: lazy(
-			() =>
-				import("@/pages/superMagic/lazy/skeleton/WorkspacePageMobileSkeletonWithLayout"),
+			() => import("@/pages/superMagic/lazy/skeleton/WorkspacePageMobileSkeletonWithLayout"),
 		),
 	},
 	[RouteName.SuperWorkspaceProjectState]: {
-		desktop: lazy(
-			() => import("@/pages/superMagic/lazy/skeleton/ProjectPageDesktopSkeleton"),
-		),
+		desktop: lazy(() => import("@/pages/superMagic/lazy/skeleton/ProjectPageDesktopSkeleton")),
 		mobile: lazy(
-			() =>
-				import("@/pages/superMagic/lazy/skeleton/ProjectPageMobileSkeletonWithLayout"),
+			() => import("@/pages/superMagic/lazy/skeleton/ProjectPageMobileSkeletonWithLayout"),
 		),
 	},
 	[RouteName.SuperWorkspaceProjectTopicState]: {
+		desktop: lazy(() => import("@/pages/superMagic/lazy/skeleton/TopicPageDesktopSkeleton")),
+		mobile: lazy(
+			() => import("@/pages/superMagic/lazy/skeleton/TopicPageMobileSkeletonWithLayout"),
+		),
+	},
+	// The canvas project route has its own canvas-shaped placeholder.
+	[RouteName.AiCanvasProjectState]: {
 		desktop: lazy(
-			() => import("@/pages/superMagic/lazy/skeleton/TopicPageDesktopSkeleton"),
+			() => import("@/pages/superMagic/lazy/skeleton/AiCanvasProjectPageDesktopSkeleton"),
 		),
 		mobile: lazy(
-			() =>
-				import("@/pages/superMagic/lazy/skeleton/TopicPageMobileSkeletonWithLayout"),
+			() => import("@/pages/superMagic/lazy/skeleton/TopicPageMobileSkeletonWithLayout"),
 		),
 	},
 	[RouteName.SuperChatProjectState]: {
@@ -53,9 +50,7 @@ export const routeSketchMap: RouteSketchMap = {
 		),
 	},
 	[RouteName.MobileHome]: {
-		mobile: lazy(
-			() => import("@/pages/superMagic/lazy/skeleton/MobileHomePageMobileSkeleton"),
-		),
+		mobile: lazy(() => import("@/pages/superMagic/lazy/skeleton/MobileHomePageMobileSkeleton")),
 	},
 	[RouteName.Chat]: {
 		desktop: lazy(() => import("@/pages/chatNew/lazy/skeleton/ChatDesktopSkeleton")),
@@ -63,52 +58,37 @@ export const routeSketchMap: RouteSketchMap = {
 	},
 	[RouteName.ChatConversation]: {
 		mobile: lazy(
-			() =>
-				import("@/pages/chatMobile/lazy/skeleton/ChatConversationMobileSkeleton"),
+			() => import("@/pages/chatMobile/lazy/skeleton/ChatConversationMobileSkeleton"),
 		),
 	},
 	[RouteName.ChatSetting]: {
-		mobile: lazy(
-			() => import("@/pages/chatMobile/lazy/skeleton/ChatSettingMobileSkeleton"),
-		),
+		mobile: lazy(() => import("@/pages/chatMobile/lazy/skeleton/ChatSettingMobileSkeleton")),
 	},
 	[RouteName.SuperMagicNavigate]: {
 		mobile: lazy(
-			() =>
-				import("@/pages/superMagic/lazy/skeleton/SuperMagicNavigateMobileSkeleton"),
+			() => import("@/pages/superMagic/lazy/skeleton/SuperMagicNavigateMobileSkeleton"),
 		),
 	},
 	[RouteName.Contacts]: {
-		mobile: lazy(
-			() => import("@/pages/contacts/lazy/skeleton/ContactsMobileSkeleton"),
-		),
+		mobile: lazy(() => import("@/pages/contacts/lazy/skeleton/ContactsMobileSkeleton")),
 	},
 	[RouteName.ContactsOrganization]: {
 		mobile: lazy(
-			() =>
-				import("@/pages/contacts/lazy/skeleton/ContactsOrganizationMobileSkeleton"),
+			() => import("@/pages/contacts/lazy/skeleton/ContactsOrganizationMobileSkeleton"),
 		),
 	},
 	[RouteName.ContactsMyGroups]: {
-		mobile: lazy(
-			() =>
-				import("@/pages/contacts/lazy/skeleton/ContactsMyGroupsMobileSkeleton"),
-		),
+		mobile: lazy(() => import("@/pages/contacts/lazy/skeleton/ContactsMyGroupsMobileSkeleton")),
 	},
 	[RouteName.ContactsAiAssistant]: {
 		mobile: lazy(
-			() =>
-				import("@/pages/contacts/lazy/skeleton/ContactsAiAssistantMobileSkeleton"),
+			() => import("@/pages/contacts/lazy/skeleton/ContactsAiAssistantMobileSkeleton"),
 		),
 	},
 	[RouteName.Profile]: {
-		mobile: lazy(
-			() => import("@/pages/user/pages/my/lazy/skeleton/ProfileMobileSkeleton"),
-		),
+		mobile: lazy(() => import("@/pages/user/pages/my/lazy/skeleton/ProfileMobileSkeleton")),
 	},
 	[RouteName.Explore]: {
-		mobile: lazy(
-			() => import("@/pages/explore/lazy/skeleton/ExploreMobileSkeleton"),
-		),
+		mobile: lazy(() => import("@/pages/explore/lazy/skeleton/ExploreMobileSkeleton")),
 	},
 }

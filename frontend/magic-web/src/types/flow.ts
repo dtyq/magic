@@ -5,7 +5,7 @@ import type { Expression } from "@dtyq/magic-flow/dist/MagicConditionEdit/types/
 import type { NodeTestingCtx } from "@dtyq/magic-flow/dist/MagicFlow/context/NodeTesingContext/Context"
 import type { MagicFlow } from "@dtyq/magic-flow/dist/MagicFlow/types/flow"
 import type Schema from "@dtyq/magic-flow/dist/MagicJsonSchemaEditor/types/Schema"
-import type { Dayjs } from "@/lib/dayjs"
+import type { Dayjs } from "@/infrastructure/vendors/dayjs"
 import { OperationTypes } from "@/pages/flow/components/AuthControlButton/types"
 
 /** 流程类型 */

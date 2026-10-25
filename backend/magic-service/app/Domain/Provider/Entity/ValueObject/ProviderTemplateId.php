@@ -56,6 +56,9 @@ enum ProviderTemplateId: string
     case VolcengineArkVlm = '21';
     case VolcengineArkVgm = '30';
     case KelingVgm = '31';
+    case MiniMaxVgm = '32';
+    case DashScopeVgm = '33';
+    case GeminiVgm = '34';
     case Gemini = '22';
     case BaiduLlm = '23';
     case SCNetLlm = '24';
@@ -95,6 +98,9 @@ enum ProviderTemplateId: string
             [ProviderCode::VolcengineArk, Category::VLM] => self::VolcengineArkVlm,
             [ProviderCode::VolcengineArk, Category::VGM] => self::VolcengineArkVgm,
             [ProviderCode::Keling, Category::VGM] => self::KelingVgm,
+            [ProviderCode::MiniMax, Category::VGM] => self::MiniMaxVgm,
+            [ProviderCode::DashScope, Category::VGM] => self::DashScopeVgm,
+            [ProviderCode::Gemini, Category::VGM] => self::GeminiVgm,
             [ProviderCode::Gemini, Category::LLM] => self::Gemini,
             [ProviderCode::Baidu, Category::LLM] => self::BaiduLlm,
             [ProviderCode::SCNet, Category::LLM] => self::SCNetLlm,
@@ -139,6 +145,9 @@ enum ProviderTemplateId: string
             self::VolcengineArkVlm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VLM],
             self::VolcengineArkVgm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VGM],
             self::KelingVgm => ['providerCode' => ProviderCode::Keling, 'category' => Category::VGM],
+            self::MiniMaxVgm => ['providerCode' => ProviderCode::MiniMax, 'category' => Category::VGM],
+            self::DashScopeVgm => ['providerCode' => ProviderCode::DashScope, 'category' => Category::VGM],
+            self::GeminiVgm => ['providerCode' => ProviderCode::Gemini, 'category' => Category::VGM],
             self::Gemini => ['providerCode' => ProviderCode::Gemini, 'category' => Category::LLM],
             self::BaiduLlm => ['providerCode' => ProviderCode::Baidu, 'category' => Category::LLM],
             self::SCNetLlm => ['providerCode' => ProviderCode::SCNet, 'category' => Category::LLM],
@@ -177,6 +186,7 @@ enum ProviderTemplateId: string
             ProviderCode::VolcengineArk => '火山引擎-方舟',
             ProviderCode::Keling => '可灵',
             ProviderCode::Gemini => 'Google Gemini',
+            ProviderCode::DashScope => '阿里云(百炼)',
             ProviderCode::Anthropic => 'Anthropic',
             default => '未知服务商',
         };

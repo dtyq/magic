@@ -73,7 +73,7 @@
         "phpoffice/phpspreadsheet": "^2.0",
         "phpoffice/phpword": "^1.0",
         "spomky-labs/aes-key-wrap": "^7.0",
-        "swow/swow": "1.7.*",
+        "swow/swow": "2.0.*",
         "symfony/css-selector": "^7.1",
         "symfony/dom-crawler": "^7.1",
         "symfony/mime": "^7.1",
@@ -82,7 +82,7 @@
         "w7corp/easywechat": "^6.17",
         "wyndow/fuzzywuzzy": "^0.6.0",
         "hyperf/tracer": "^3.1",
-            "mongodb/mongodb": "2.2.*"
+        "mongodb/mongodb": "^2.4"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "v3.86.0",
@@ -100,12 +100,37 @@
         "ext-pdo_mysql": "Required to use MySQL Client."
     },
     "autoload": {
+        "classmap": [
+            "app/Infrastructure/Core/ClassMap/Hyperf/SwowServer.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/Constant.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/FdGetter.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/WritableConnection.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/EventStream.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/WebSocket.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/WebSocketResponse.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/SwowServer.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/Constant.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/WritableConnection.php",
+            "app/Infrastructure/Core/ClassMap/Hyperf/EventStream.php"
+        ],
+        "exclude-from-classmap": [
+            "/vendor/hyperf/server/src/SwowServer.php",
+            "/vendor/hyperf/engine-swow/src/Constant.php",
+            "/vendor/hyperf/engine-swow/src/Http/FdGetter.php",
+            "/vendor/hyperf/engine-swow/src/Http/WritableConnection.php",
+            "/vendor/hyperf/engine-swow/src/Http/EventStream.php",
+            "/vendor/hyperf/engine-swow/src/WebSocket/WebSocket.php",
+            "/vendor/hyperf/engine-swow/src/WebSocket/Response.php",
+            "/vendor/hyperf/server/src/SwowServer.php",
+            "/vendor/hyperf/engine-swow/src/Constant.php",
+            "/vendor/hyperf/engine-swow/src/Http/WritableConnection.php",
+            "/vendor/hyperf/engine-swow/src/Http/EventStream.php"
+        ],
         "psr-4": {
             "App\\": "app/",
             "MagicBase\\": "magicbase/"
         },
         "files": [
-            "app/Infrastructure/SuperMagic/Legacy/legacy_class_aliases.php",
             "app/Infrastructure/Util/Functions/functions.php"
         ]
     },
@@ -117,9 +142,6 @@
         "files": [
             "app/Infrastructure/Util/Functions/functions.php"
         ]
-    },
-    "replace": {
-        "dtyq/super-magic-module": "*"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,

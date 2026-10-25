@@ -32,3 +32,28 @@ describe("MessageRenderContent", () => {
 		}
 	})
 })
+
+describe("MessageRenderErrorBoundary stale version", () => {
+	it("offers a page refresh instead of a retry when a lazy chunk fails to load", () => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+		try {
+			const { container, getByRole } = render(
+				<MessageRenderErrorBoundary messageKey="message-2">
+					<MessageRenderContent
+						render={() => {
+							throw new TypeError(
+								"Failed to fetch dynamically imported module: https://example.test/assets/Tool-abc123.js",
+							)
+						}}
+					/>
+				</MessageRenderErrorBoundary>,
+			)
+
+			expect(container.textContent).toContain("messageRenderError.staleVersion")
+			expect(getByRole("button").textContent).toBe("messageRenderError.refresh")
+		} finally {
+			consoleError.mockRestore()
+		}
+	})
+})

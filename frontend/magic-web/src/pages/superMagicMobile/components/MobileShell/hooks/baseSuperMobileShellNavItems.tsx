@@ -1,4 +1,15 @@
-import { Bot, Box, Boxes, House, LayoutGrid, MessageCircle, Mic, Trash2 } from "lucide-react"
+import {
+	Bot,
+	Box,
+	Boxes,
+	House,
+	LayoutGrid,
+	MessageCircle,
+	Mic,
+	Palette,
+	Trash2,
+	UsersRound,
+} from "lucide-react"
 
 import { FUNCTION_PERMISSION_CODE } from "@/apis/modules/function-permission"
 import { MagiClawNavIcon } from "@/pages/superMagicMobile/components/icons/MagiClawNavIcon"
@@ -47,10 +58,18 @@ export const BASE_SUPER_MOBILE_SHELL_NAV_ITEMS: SuperMobileShellNavConfigItem[] 
 		requiredPermissionCode: FUNCTION_PERMISSION_CODE.MagicClawAccess,
 	},
 	{
-		key: "apps",
-		icon: LayoutGrid,
-		labelKey: "mobile.shell.navApps",
-		routeName: RouteName.SuperApps,
+		// Above AI research and micro-apps, matching the desktop sidebar's AI canvas entry icon.
+		key: "aiCanvas",
+		icon: Palette,
+		labelKey: "mobile.shell.navAiCanvas",
+		routeName: RouteName.AiCanvas,
+	},
+	{
+		// Directly below AI canvas, as on the desktop sidebar.
+		key: "personaResearch",
+		icon: UsersRound,
+		labelKey: "mobile.shell.navPersonaResearch",
+		routeName: RouteName.PersonaResearch,
 	},
 	{
 		key: "microApps",
@@ -63,5 +82,11 @@ export const BASE_SUPER_MOBILE_SHELL_NAV_ITEMS: SuperMobileShellNavConfigItem[] 
 		icon: Trash2,
 		labelKey: "mobile.shell.navTrash",
 		routeName: RouteName.RecycleBin,
+	},
+	{
+		key: "apps",
+		icon: LayoutGrid,
+		labelKey: "mobile.shell.navApps",
+		routeName: RouteName.SuperApps,
 	},
 ]

@@ -6,6 +6,8 @@ export interface MicroAppScheduledTaskContext {
 	workspaceName?: string
 	projectName?: string
 	topicId?: string
+	microAppId?: string
+	microAppName?: string
 }
 
 export interface MicroAppScheduledTasksModifyProps {

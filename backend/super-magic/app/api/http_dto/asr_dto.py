@@ -5,6 +5,7 @@ ASR 音频合并 HTTP DTO
 """
 
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -59,7 +60,9 @@ class AsrAudioConfig(BaseModel):
     output_filename: str = Field(..., description="输出文件名（不含扩展名），通常为智能标题")
     file_shard_count: Optional[int] = Field(
         default=None,
-        description="客户端已上传分片总数（可选）。不传时服务端会按 scan 口径扫描目录计算"
+        strict=True,
+        ge=1,
+        description="客户端已上传分片总数（可选）。不传时保持历史客户端兼容模式，不固化目录扫描数量"
     )
 
 
@@ -92,6 +95,10 @@ class FinalizeAsrTaskRequest(BaseModel):
         None,
         description="流式识别文件配置对象（可选）"
     )
+    force_reset: bool = Field(
+        default=False,
+        description="强制重置重试计数并重新合并（手动重新合并场景，任务 error 且重试耗尽时使用）"
+    )
 
     class Config:
         json_schema_extra = {
@@ -112,7 +119,8 @@ class FinalizeAsrTaskRequest(BaseModel):
                     "transcript_file": {
                         "source_path": ".asr_recordings/task_2/流式识别.md",
                         "action": "delete"
-                    }
+                    },
+                    "force_reset": False
                 },
                 {
                     "task_key": "meeting_20250124_001",
@@ -160,11 +168,15 @@ class AsrTaskResponse(BaseModel):
     """ASR任务响应数据模型"""
     status: str = Field(..., description="任务状态：waiting | running | finalizing | completed | error（推荐使用completed，finished已废弃但仍兼容）")
     task_key: str = Field(..., description="任务唯一标识")
+    audio_format: Optional[str] = Field(default=None, description="任务音频格式：wav 或 opus")
     intelligent_title: Optional[str] = Field(None, description="智能标题（仅在 finalizing 状态返回）")
     error_message: Optional[str] = Field(default=None, description="错误信息，仅在 status=error 时有值")
     files: Optional[FilesDetail] = Field(None, description="文件详情，仅在 status=completed 时有值")
     deleted_files: Optional[list[DeletedFile]] = Field(None, description="被删除的文件列表")
     operations: Optional[OperationsResult] = Field(None, description="操作结果汇总")
+    degraded: bool = Field(default=False, description="是否使用缺片静音补偿完成")
+    completion_mode: Optional[str] = Field(None, description="完成方式，例如 silence_fill")
+    missing_shard_indices: list[int] = Field(default_factory=list, description="被静音补偿的缺失分片索引")
 
     class Config:
         json_schema_extra = {

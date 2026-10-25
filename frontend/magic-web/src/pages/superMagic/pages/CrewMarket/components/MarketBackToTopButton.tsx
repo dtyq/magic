@@ -2,7 +2,7 @@ import { useEffect, useState, type RefObject } from "react"
 import { ArrowUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const BACK_TO_TOP_SCROLL_THRESHOLD = 320
 

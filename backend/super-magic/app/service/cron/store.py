@@ -15,7 +15,7 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from agentlang.logger import get_logger
 from app.path_manager import PathManager
@@ -30,11 +30,13 @@ from app.service.cron.models import (
     PayloadKind,
     ScheduleKind,
 )
+from app.service.cron.schema import LEGACY_BASELINE_VERSION, PAYLOAD_VERSION_FIELD
 from app.utils.async_file_utils import (
     async_exists,
     async_mkdir,
     async_read_json,
     async_read_text,
+    async_stat,
     async_scandir,
     async_try_read_markdown,
     async_try_read_text,
@@ -51,6 +53,7 @@ _MAX_RESULT_LINES = 2_000
 
 # 归档文件并发写入锁
 _archive_lock: asyncio.Lock = asyncio.Lock()
+_payload_field_locks: dict[Path, asyncio.Lock] = {}
 
 
 # ── 任务文件扫描 ──────────────────────────────────────────────────────────────
@@ -378,6 +381,129 @@ def patch_job_md(
     new_body = patch.body.strip() if patch.body is not None else old_body
     fm_str = yaml.dump(meta, allow_unicode=True, default_flow_style=False).rstrip()
     return f"---\n{fm_str}\n---\n\n{new_body}\n"
+
+
+async def persist_payload_fields(
+    job: CronJob,
+    field_patch: Mapping[str, object | None],
+) -> CronPayload | None:
+    """幂等写回 payload 字段，并返回文件中的最新 payload。"""
+    import yaml
+
+    if not field_patch:
+        return job.payload
+
+    path = PathManager.get_cron_dir() / f"{job.id}.md"
+    lock = _payload_field_locks.setdefault(path, asyncio.Lock())
+    async with lock:
+        current_stat = await async_stat(path)
+        if job.mtime and current_stat.st_mtime != job.mtime:
+            existing_job = await _parse_job_file(path, job.id, current_stat.st_mtime)
+            if existing_job is None:
+                logger.warning(
+                    f"cron: skip payload field patch for [{job.id}], "
+                    "job file changed and could not be reloaded"
+                )
+                return None
+            job.mtime = current_stat.st_mtime
+            return existing_job.payload
+
+        existing = await async_read_text(path)
+        parts = existing.split("---", 2)
+        if len(parts) < 3:
+            raise ValueError(f"cron job [{job.id}] has invalid frontmatter")
+
+        metadata = yaml.safe_load(parts[1]) or {}
+        if not isinstance(metadata, dict):
+            raise ValueError(f"cron job [{job.id}] frontmatter must be an object")
+        current_payload = metadata.get("payload") or {}
+        if not isinstance(current_payload, dict):
+            raise ValueError(f"cron job [{job.id}] payload must be an object")
+
+        current_agent_name = current_payload.get("agent_name")
+        normalized_current_name = (
+            current_agent_name.strip()
+            if isinstance(current_agent_name, str)
+            else ""
+        )
+        expected_agent_name = (
+            job.payload.agent_name.strip()
+            if isinstance(job.payload.agent_name, str)
+            else ""
+        )
+        if normalized_current_name != expected_agent_name:
+            logger.warning(
+                f"cron: skip payload field patch for [{job.id}], "
+                "agent identity changed while the job was running"
+            )
+            return CronPayload.from_payload(current_payload)
+
+        raw_current_version = current_payload.get(
+            PAYLOAD_VERSION_FIELD,
+            LEGACY_BASELINE_VERSION,
+        )
+        current_version = (
+            raw_current_version
+            if isinstance(raw_current_version, int) and not isinstance(raw_current_version, bool)
+            else LEGACY_BASELINE_VERSION
+        )
+        target_version = field_patch.get(PAYLOAD_VERSION_FIELD)
+        if isinstance(target_version, int) and not isinstance(target_version, bool):
+            if current_version > target_version:
+                return CronPayload.from_payload(current_payload)
+
+        for field_name, field_value in field_patch.items():
+            if field_name == PAYLOAD_VERSION_FIELD:
+                continue
+            if field_name in current_payload and current_payload[field_name] != field_value:
+                logger.warning(
+                    f"cron: skip payload field patch for [{job.id}], "
+                    f"field '{field_name}' changed while the job was running"
+                )
+                return CronPayload.from_payload(current_payload)
+
+        patch_is_applied = all(
+            (
+                field_name not in current_payload
+                if field_value is None
+                else current_payload.get(field_name) == field_value
+            )
+            for field_name, field_value in field_patch.items()
+        )
+        if patch_is_applied:
+            return CronPayload.from_payload(current_payload)
+
+        latest_stat = await async_stat(path)
+        if job.mtime and latest_stat.st_mtime != job.mtime:
+            latest_job = await _parse_job_file(path, job.id, latest_stat.st_mtime)
+            if latest_job is None:
+                logger.warning(
+                    f"cron: skip payload field patch for [{job.id}], "
+                    "job file changed before patch write-back"
+                )
+                return None
+            job.mtime = latest_job.mtime
+            return latest_job.payload
+
+        for field_name, field_value in field_patch.items():
+            if field_value is None:
+                current_payload.pop(field_name, None)
+            else:
+                current_payload[field_name] = field_value
+        metadata["payload"] = current_payload
+        frontmatter = yaml.dump(
+            metadata,
+            allow_unicode=True,
+            default_flow_style=False,
+            sort_keys=False,
+        ).rstrip()
+        updated = f"---\n{frontmatter}\n---{parts[2]}"
+        await async_write_text(path, updated)
+        logger.info(
+            f"cron job [{job.id}] persisted payload fields: "
+            f"{', '.join(sorted(field_patch))}"
+        )
+        return CronPayload.from_payload(current_payload)
 
 
 # ── 已完成一次性任务归档 ──────────────────────────────────────────────────────

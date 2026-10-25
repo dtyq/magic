@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Provider\Repository\Facade;
 
 use App\Domain\Provider\Entity\ProviderConfigEntity;
+use App\Domain\Provider\Entity\ValueObject\ProviderConfigSearchField;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderConfigQuery;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -26,6 +27,30 @@ interface ProviderConfigRepositoryInterface
      * @return array{total: int, list: array<ProviderConfigEntity>}
      */
     public function queries(ProviderDataIsolation $dataIsolation, ProviderConfigQuery $query, Page $page): array;
+
+    /**
+     * 按指定字段搜索服务商配置。
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离上下文
+     * @return array{total: int, list: array<int, array<string, mixed>>}
+     */
+    public function searchProviderConfigs(
+        ProviderDataIsolation $dataIsolation,
+        Page $page,
+        ProviderConfigSearchField $searchField,
+        string $keyword
+    ): array;
+
+    /**
+     * 获取服务商配置的身份元数据，不读取配置密钥内容。
+     *
+     * @param array<int> $ids
+     * @return array<int, array{service_provider_config_id: string, organization_code: string, provider_name: string, provider_alias: string}>
+     */
+    public function getProviderConfigIdentityMetadataByIds(array $ids): array;
+
+    /** @return array<int> */
+    public function getOfficialOrganizationConfigIds(): array;
 
     public function save(ProviderDataIsolation $dataIsolation, ProviderConfigEntity $providerConfigEntity): ProviderConfigEntity;
 

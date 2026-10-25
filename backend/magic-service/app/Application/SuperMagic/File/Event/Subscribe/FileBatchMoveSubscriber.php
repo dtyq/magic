@@ -71,6 +71,9 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         'global' => false,
     ];
 
+    /** @var array<string, DataIsolation> 当前消息内按组织和用户缓存的来源上下文。 */
+    private array $sourceDataIsolations = [];
+
     private LoggerInterface $logger;
 
     /**
@@ -120,6 +123,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
      */
     public function consumeMessage($data, AMQPMessage $message): Result
     {
+        $this->sourceDataIsolations = [];
         $batchKey = '';
         $lockKey = '';
         $lockOwner = '';
@@ -205,6 +209,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             // Return ACK to avoid retrying failed message
             return Result::ACK;
         } finally {
+            $this->sourceDataIsolations = [];
             // Always release lock
             if ($lockAcquired && ! empty($lockKey)) {
                 $this->releaseBatchMoveLock($lockKey, $lockOwner);
@@ -317,6 +322,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                     $sourceProject,
                     $targetProject,
                     $newParentId,
+                    $this->prepareSourceDataIsolation($sourceProject),
                     $keepBothFileIds
                 );
 
@@ -381,6 +387,18 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             ]);
             throw $e;
         }
+    }
+
+    /** 按源项目身份创建上下文，避免用操作人替代资源所有者。 */
+    private function prepareSourceDataIsolation(ProjectEntity $project): DataIsolation
+    {
+        $key = json_encode([$project->getUserOrganizationCode(), $project->getUserId()], JSON_THROW_ON_ERROR);
+        if (! isset($this->sourceDataIsolations[$key])) {
+            $context = DataIsolation::create($project->getUserOrganizationCode(), $project->getUserId());
+            $context->initDataIsolationEnv();
+            $this->sourceDataIsolations[$key] = $context;
+        }
+        return $this->sourceDataIsolations[$key];
     }
 
     /**
@@ -499,6 +517,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
 
         // Create data isolation
         $dataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
+        $dataIsolation->initDataIsolationEnv();
 
         // Preparation phase (5%)
         $this->updateProgress(5, 'Loading and preparing file entities');
@@ -815,6 +834,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                 $sourceProject,
                 $targetProject,
                 $targetParentId,
+                $this->prepareSourceDataIsolation($sourceProject),
                 $keepBothFileIds
             );
 

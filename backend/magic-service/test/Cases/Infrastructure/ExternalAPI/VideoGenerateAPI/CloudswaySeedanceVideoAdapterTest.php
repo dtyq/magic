@@ -34,6 +34,18 @@ class CloudswaySeedanceVideoAdapterTest extends TestCase
         $generation = $config->toArray()['generation'];
         $this->assertSame(5, $generation['default_duration_seconds']);
         $this->assertSame('720p', $generation['default_resolution']);
+        $this->assertTrue($generation['supports_generate_audio']);
+        foreach ([
+            'supports_seed',
+            'supports_negative_prompt',
+            'supports_person_generation',
+            'supports_enhance_prompt',
+            'supports_compression_quality',
+            'supports_resize_mode',
+            'supports_sample_count',
+        ] as $unsupportedCapability) {
+            $this->assertArrayNotHasKey($unsupportedCapability, $generation);
+        }
         $this->assertArrayHasKey('sizes', $generation);
         $this->assertCount(9, $generation['sizes']);
         $this->assertSame([

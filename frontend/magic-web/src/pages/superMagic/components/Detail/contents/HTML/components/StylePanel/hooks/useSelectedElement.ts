@@ -10,6 +10,7 @@ import { useStylePanelStore } from "../../../iframe-bridge/contexts/StylePanelCo
 function buildRefreshedSelectedElement(
 	previousElement: SelectedElementInfo,
 	computedStyles: SelectedElementInfo["computedStyles"],
+	inlineStyles = previousElement.inlineStyles,
 ): SelectedElementInfo {
 	return {
 		selector: previousElement.selector,
@@ -19,6 +20,11 @@ function buildRefreshedSelectedElement(
 		intrinsicHeight: previousElement.intrinsicHeight,
 		intrinsicAspectRatio: previousElement.intrinsicAspectRatio,
 		isTextElement: previousElement.isTextElement,
+		hasDirectTextContent: previousElement.hasDirectTextContent,
+		textContent: previousElement.textContent,
+		ancestors: previousElement.ancestors,
+		inlineStyles,
+		attributes: previousElement.attributes,
 		computedStyles,
 	}
 }
@@ -159,6 +165,10 @@ export function useSelectedElement(editorRef: React.RefObject<HTMLEditorV2Ref>) 
 								buildRefreshedSelectedElement(
 									stylePanelStore.selectedElement,
 									updatedStyles as SelectedElementInfo["computedStyles"],
+									{
+										...stylePanelStore.selectedElement.inlineStyles,
+										[property]: value,
+									},
 								),
 							)
 						}
@@ -215,6 +225,10 @@ export function useSelectedElement(editorRef: React.RefObject<HTMLEditorV2Ref>) 
 								buildRefreshedSelectedElement(
 									stylePanelStore.selectedElement,
 									updatedStyles as SelectedElementInfo["computedStyles"],
+									{
+										...stylePanelStore.selectedElement.inlineStyles,
+										...styles,
+									},
 								),
 							)
 						}
@@ -223,6 +237,26 @@ export function useSelectedElement(editorRef: React.RefObject<HTMLEditorV2Ref>) 
 			} catch (error) {
 				console.error("批量更新样式失败:", error)
 			}
+		},
+		[editorRef, stylePanelStore],
+	)
+
+	const updateAttributes = useCallback(
+		async (attributes: Record<string, string | null>) => {
+			const selectedElement = stylePanelStore.selectedElement
+			if (!editorRef.current || !selectedElement) return
+
+			await editorRef.current.updateElementAttributes(selectedElement.selector, attributes)
+			// The iframe command may finish after the user selects another element.
+			const currentElement = stylePanelStore.selectedElement
+			if (currentElement?.selector !== selectedElement.selector) return
+			const nextAttributes = { ...(currentElement.attributes ?? {}) }
+			for (const [name, value] of Object.entries(attributes)) {
+				if (value === null || value.trim() === "")
+					delete nextAttributes[name as keyof typeof nextAttributes]
+				else nextAttributes[name as keyof typeof nextAttributes] = value
+			}
+			stylePanelStore.selectElement({ ...currentElement, attributes: nextAttributes })
 		},
 		[editorRef, stylePanelStore],
 	)
@@ -249,6 +283,7 @@ export function useSelectedElement(editorRef: React.RefObject<HTMLEditorV2Ref>) 
 		toggleSelectionMode,
 		updateStyle,
 		updateBatchStyles,
+		updateAttributes,
 		clearSelection,
 	}
 }

@@ -20,11 +20,17 @@ import {
 	validateMentionItems,
 } from "../utils/mention"
 import { superMagicUploadTokenService } from "./UploadTokenService"
+import { htmlScreenshotUploadService } from "./HtmlScreenshotUploadService"
 import { MentionItemsStatistics } from "./types"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { SuperMagicApi } from "@/apis"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { loadProjectAttachments } from "@/pages/superMagic/services"
+import {
+	normalizeFileReferenceContent,
+	normalizeFileReferenceMention,
+} from "@/components/business/MentionPanel/utils/fileReferenceMention"
+import { isValidProjectReferenceId } from "@/pages/superMagic/utils/markdownFileReference"
 
 interface BatchOperationResult {
 	status?: "success" | "processing" | "completed" | "failed"
@@ -64,7 +70,10 @@ export class MentionItemsProcessor {
 	): Promise<{ mentionItems: MentionListItem[]; content: JSONContent }> {
 		// Validate input parameters
 		if (!mentionItems || mentionItems.length === 0) {
-			return { mentionItems, content }
+			return {
+				mentionItems,
+				content: await normalizeFileReferenceContent(content, { strict: true }),
+			}
 		}
 
 		if (!projectId) {
@@ -72,9 +81,19 @@ export class MentionItemsProcessor {
 		}
 
 		try {
+			const [normalizedContent, normalizedMentions] = await Promise.all([
+				normalizeFileReferenceContent(content, { strict: true }),
+				Promise.all(
+					mentionItems.map(async (item) => {
+						const attrs = await normalizeFileReferenceMention(item.attrs)
+						if (!attrs) throw new Error("File reference is unavailable")
+						return { ...item, attrs }
+					}),
+				),
+			])
 			const uploadResult = await this.processUploadFileMentions(
-				content,
-				mentionItems,
+				normalizedContent,
+				normalizedMentions,
 				projectId,
 				topicId,
 			)
@@ -132,11 +151,38 @@ export class MentionItemsProcessor {
 			return { mentionItems: processedItems, content }
 		}
 
-		const saveResults = await this.saveTempFilesToProject(validItems, projectId, topicId)
+		const screenshotItems = validItems.filter((item) => {
+			const data = item.attrs.data as UploadFileMentionData
+			return data.is_html_screenshot && Boolean(data.storage_id)
+		})
+		const regularItems = validItems.filter((item) => !screenshotItems.includes(item))
+		const [regularSaveResults, screenshotSaveEntries] = await Promise.all([
+			regularItems.length > 0
+				? this.saveTempFilesToProject(regularItems, projectId, topicId)
+				: Promise.resolve([]),
+			screenshotItems.length > 0
+				? htmlScreenshotUploadService.uploadStoredScreenshots(
+						screenshotItems.map((item) => {
+							const data = item.attrs.data as UploadFileMentionData
+							return {
+								storageId: data.storage_id as string,
+								fileName: data.file_name,
+							}
+						}),
+						{ projectId, topicId },
+					)
+				: Promise.resolve([]),
+		])
+		const screenshotSaveResults = screenshotSaveEntries.map(({ result }) => result)
+		const screenshotSaveByStorageId = Object.fromEntries(
+			screenshotSaveEntries.map(({ storageId, result }) => [storageId, result]),
+		)
+		const saveResults = [...regularSaveResults, ...screenshotSaveResults]
 		const transformedResult = transformMentionItemsToProjectFiles(
 			content,
 			processedItems,
 			saveResults,
+			screenshotSaveByStorageId,
 		)
 
 		return transformedResult
@@ -223,10 +269,15 @@ export class MentionItemsProcessor {
 		const groupMap = new Map<string, PendingProjectFileGroup>()
 
 		for (const item of pendingItems) {
+			if (!isPendingProjectReferenceMention(item.attrs)) continue
 			const data = item.attrs.data as ProjectFileMentionData | DirectoryMentionData
 			const sourceProjectId = data.source_project_id
 			const sourceFileId = getProjectReferenceSourceId(item.attrs)
-			if (!sourceProjectId || !sourceFileId) continue
+			if (
+				!isValidProjectReferenceId(sourceProjectId) ||
+				!isValidProjectReferenceId(sourceFileId)
+			)
+				continue
 
 			const group = groupMap.get(sourceProjectId) ?? {
 				sourceProjectId,

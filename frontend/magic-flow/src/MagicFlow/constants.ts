@@ -1,4 +1,4 @@
-import _ from "lodash"
+import { get } from "lodash-es"
 import { NodeSchema, NodeWidget, nodeManager } from "./register/node"
 import { getLatestNodeVersion } from "./utils"
 
@@ -43,7 +43,7 @@ export const getExecuteNodeList = () => {
             .filter((nodeType) => !nodeManager.notMaterialNodeTypes.includes(nodeType))
             .map(nodeType => {
                 const latestVersion = getLatestNodeVersion(nodeType)
-                return _.get(nodeManager.nodesMap, [nodeType, latestVersion], {} as NodeWidget)
+                return get(nodeManager.nodesMap, [nodeType, latestVersion], {} as NodeWidget)
             })
 }
 // 执行节点分组列表

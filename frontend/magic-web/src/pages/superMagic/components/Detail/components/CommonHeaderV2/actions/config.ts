@@ -20,6 +20,7 @@ export const DEFAULT_ACTION_KEYS_BY_TYPE: Record<string, ActionKey[]> = {
 	[DetailType.NotSupport]: ["download", "share", "fullscreen", "more"],
 	[DetailType.Browser]: ["openUrl", "fullscreen", "more"],
 	[DetailType.Terminal]: DEFAULT_ACTIONS,
+	[DetailType.ScriptExecution]: DEFAULT_ACTIONS,
 	[DetailType.Search]: DEFAULT_ACTIONS,
 	[DetailType.FileTree]: DEFAULT_ACTIONS,
 	default: DEFAULT_ACTIONS,

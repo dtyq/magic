@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genesis — Architectural & Product Design Suite</title>
+<style>
+  :root {
+    --canvas: #fafafa;
+    --surface: #ffffff;
+    --surface-alt: #f4f4f6;
+    --border: #e8e8ec;
+    --border-strong: #d2d2d8;
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --primary-glow: rgba(99, 102, 241, 0.25);
+    --secondary-brand: #20970b;
+    --ink-primary: #0a0a0a;
+    --ink-secondary: #6b6b6b;
+    --ink-muted: #9c9c9c;
+    --font-display: 'General Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background-color: var(--canvas);
+    color: var(--ink-primary);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .app-shell {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 16px 24px 40px;
+  }
+  /* Topbar Navigation */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    padding: 0 20px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.03em;
+  }
+  .brand-logo svg { color: var(--primary); }
+  .badge-coord {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-secondary);
+    background: var(--surface-alt);
+    padding: 3px 8px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+  }
+  .topbar-center {
+    display: flex;
+    align-items: center;
+    background: var(--surface-alt);
+    padding: 3px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  .mode-tab {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--ink-secondary);
+    transition: all 0.15s;
+  }
+  .mode-tab.active {
+    background: var(--surface);
+    color: var(--ink-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .btn-outline {
+    background: var(--surface);
+    color: var(--ink-primary);
+    border-color: var(--border);
+  }
+  .btn-outline:hover { background: var(--surface-alt); border-color: var(--border-strong); }
+  .btn-primary {
+    background: var(--primary);
+    color: #ffffff;
+  }
+  .btn-primary:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 4px 12px var(--primary-glow);
+    transform: translateY(-1px);
+  }
+
+  /* Main Workspace Layout */
+  .workspace-layout {
+    display: grid;
+    grid-template-columns: 310px 1fr 340px;
+    gap: 16px;
+  }
+
+  /* Left Panel: Parametric Controls */
+  .panel-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  }
+  .panel-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title-text {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-secondary);
+  }
+  .control-group { margin-bottom: 14px; }
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-primary);
+    margin-bottom: 6px;
+  }
+  .control-val {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .slider-bar {
+    width: 100%;
+    height: 5px;
+    background: var(--surface-alt);
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .slider-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+  }
+  .slider-thumb {
+    width: 13px;
+    height: 13px;
+    background: #ffffff;
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .geometry-meta-box {
+    margin-top: 14px;
+    padding: 10px;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-secondary);
+    line-height: 1.6;
+  }
+
+  /* Center Panel: 3D Wireframe Mesh Viewport */
+  .viewport-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .viewport-hud-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+  }
+  .cam-controls { display: flex; gap: 4px; }
+  .cam-btn {
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    color: var(--ink-secondary);
+  }
+  .cam-btn.active {
+    background: var(--ink-primary);
+    color: #ffffff;
+    border-color: var(--ink-primary);
+  }
+  .viewport-canvas {
+    flex: 1;
+    min-height: 480px;
+    background: radial-gradient(circle at 50% 50%, #ffffff 0%, #f7f7f9 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .viewport-canvas svg {
+    max-width: 100%;
+    height: auto;
+  }
+  .viewport-hud-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-secondary);
+  }
+
+  /* Right Panel: Architectural Material Palette */
+  .palette-panel { display: flex; flex-direction: column; gap: 14px; }
+  .swatch-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .swatch-card:hover {
+    border-color: var(--primary);
+    transform: translateX(2px);
+  }
+  .swatch-card.active {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+  .swatch-color-cube {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-xs);
+    border: 1px solid rgba(0,0,0,0.08);
+    flex-shrink: 0;
+    box-shadow: inset 0 0 4px rgba(0,0,0,0.05);
+  }
+  .swatch-info { flex: 1; min-width: 0; }
+  .swatch-name { font-size: 12px; font-weight: 600; color: var(--ink-primary); }
+  .swatch-detail { font-size: 10.5px; color: var(--ink-secondary); }
+  .swatch-tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    padding: 2px 6px;
+    background: var(--surface-alt);
+    border-radius: 3px;
+    color: var(--ink-secondary);
+  }
+
+  /* Solar Daylight Analysis Box */
+  .solar-analysis-box {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+  }
+  .solar-title {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  @media (max-width: 1080px) {
+    .workspace-layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polygon points="12 2 19 21 12 17 5 21 12 2"></polygon></svg>
+        <span>GENESIS</span>
+        <span style="font-size: 11px; color: var(--ink-muted); font-weight: 400;">// ARCHITECTURAL SUITE</span>
+      </div>
+      <div class="badge-coord">LAT 45.4642° N • LON 9.1900° E</div>
+    </div>
+    <div class="topbar-center">
+      <div class="mode-tab active">3D Parametric Mesh</div>
+      <div class="mode-tab">BIM Structural</div>
+      <div class="mode-tab">Kinetic Physics</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-outline">Export OBJ/GLTF</button>
+      <button class="btn btn-primary">Generate Structure</button>
+    </div>
+  </header>
+
+  <!-- Main 3-Column Studio Workspace -->
+  <div class="workspace-layout">
+    <!-- Left Column: Parametric Controls -->
+    <div class="panel-card">
+      <div class="panel-title-row">
+        <span class="panel-title-text">PARAMETRIC FORM GENERATOR</span>
+        <span style="font-size:10px; color:var(--primary); font-family:var(--font-mono);">PRESET: SHELL-04</span>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Gaussian Curvature (κ)</span>
+          <span class="control-val">-0.428</span>
+        </div>
+        <div class="slider-bar">
+          <div class="slider-fill" style="width: 68%;"></div>
+          <div class="slider-thumb" style="left: 68%;"></div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Hyperbolic Tessellation</span>
+          <span class="control-val">64 Div</span>
+        </div>
+        <div class="slider-bar">
+          <div class="slider-fill" style="width: 52%;"></div>
+          <div class="slider-thumb" style="left: 52%;"></div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Cantilever Span Ratio (φ)</span>
+          <span class="control-val">1.618</span>
+        </div>
+        <div class="slider-bar">
+          <div class="slider-fill" style="width: 82%;"></div>
+          <div class="slider-thumb" style="left: 82%;"></div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Rib Flange Thickness</span>
+          <span class="control-val">120 mm</span>
+        </div>
+        <div class="slider-bar">
+          <div class="slider-fill" style="width: 40%;"></div>
+          <div class="slider-thumb" style="left: 40%;"></div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">
+          <span>Voronoi Damping Factor</span>
+          <span class="control-val">0.782</span>
+        </div>
+        <div class="slider-bar">
+          <div class="slider-fill" style="width: 78%;"></div>
+          <div class="slider-thumb" style="left: 78%;"></div>
+        </div>
+      </div>
+
+      <!-- Geometry Metadata -->
+      <div class="geometry-meta-box">
+        <div><strong>TESSELLATION MESH STATS</strong></div>
+        <div>• Vertices: 18,492 points</div>
+        <div>• Triangular Facets: 36,840</div>
+        <div>• Surface Area: 1,428.5 m²</div>
+        <div>• Structural Deflection: 2.1 mm (Pass)</div>
+      </div>
+    </div>
+
+    <!-- Center Column: 3D Wireframe Mesh Viewport -->
+    <div class="viewport-panel">
+      <div class="viewport-hud-top">
+        <div class="cam-controls">
+          <button class="cam-btn active">Perspective</button>
+          <button class="cam-btn">Top View</button>
+          <button class="cam-btn">Section Cut AA'</button>
+          <button class="cam-btn">Stress Heatmap</button>
+        </div>
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--ink-secondary);">
+          FOV: 45° • ORTHO: OFF
+        </div>
+      </div>
+
+      <div class="viewport-canvas">
+        <!-- Pure Sculptural Wireframe Mesh SVG -->
+        <svg width="560" height="420" viewBox="0 0 560 420" fill="none">
+          <!-- Floor Isometric Grid -->
+          <path d="M40 340 L280 220 L520 340 L280 410 Z" stroke="#e8e8ec" stroke-width="1" fill="#fcfcfd"/>
+          <line x1="100" y1="310" x2="340" y2="390" stroke="#f0f0f4" stroke-width="1"/>
+          <line x1="160" y1="280" x2="400" y2="360" stroke="#f0f0f4" stroke-width="1"/>
+          <line x1="220" y1="250" x2="460" y2="330" stroke="#f0f0f4" stroke-width="1"/>
+
+          <!-- 3D Parametric Hyperbolic Paraboloid Mesh Structure -->
+          <!-- Ribs Layer 1 (Back Structure) -->
+          <path d="M120 280 Q280 120 440 280" stroke="#d2d2d8" stroke-width="1.2" stroke-dasharray="3,3"/>
+          <path d="M140 250 Q280 90 420 250" stroke="#c0c0ca" stroke-width="1.2"/>
+          <path d="M160 220 Q280 60 400 220" stroke="#a0a0b2" stroke-width="1.2"/>
+
+          <!-- Transverse Parametric Curves -->
+          <path d="M180 80 Q280 200 380 320" stroke="#6366f1" stroke-width="1.6" opacity="0.85"/>
+          <path d="M220 60 Q280 180 340 340" stroke="#6366f1" stroke-width="1.6" opacity="0.85"/>
+          <path d="M260 50 Q280 170 300 350" stroke="#6366f1" stroke-width="2"/>
+          <path d="M300 60 Q280 180 260 340" stroke="#6366f1" stroke-width="1.6" opacity="0.85"/>
+          <path d="M340 80 Q280 200 220 320" stroke="#6366f1" stroke-width="1.6" opacity="0.85"/>
+
+          <!-- Faceted Wireframe Tessellation Polygons -->
+          <polygon points="280,50 240,110 280,140 320,110" fill="rgba(99, 102, 241, 0.06)" stroke="#4f46e5" stroke-width="1.2"/>
+          <polygon points="240,110 200,180 240,210 280,140" fill="rgba(99, 102, 241, 0.08)" stroke="#6366f1" stroke-width="1.2"/>
+          <polygon points="320,110 280,140 320,210 360,180" fill="rgba(99, 102, 241, 0.05)" stroke="#6366f1" stroke-width="1.2"/>
+          <polygon points="200,180 160,250 200,280 240,210" fill="rgba(99, 102, 241, 0.04)" stroke="#818cf8" stroke-width="1"/>
+          <polygon points="360,180 320,210 360,280 400,250" fill="rgba(99, 102, 241, 0.04)" stroke="#818cf8" stroke-width="1"/>
+
+          <!-- Dimensional Callout Lines -->
+          <line x1="280" y1="50" x2="480" y2="50" stroke="#9c9c9c" stroke-width="1" stroke-dasharray="2,2"/>
+          <line x1="480" y1="50" x2="480" y2="350" stroke="#9c9c9c" stroke-width="1"/>
+          <circle cx="480" cy="50" r="3" fill="#6366f1"/>
+          <circle cx="480" cy="350" r="3" fill="#6366f1"/>
+          <text x="490" y="205" font-family="'JetBrains Mono', monospace" font-size="11" fill="#0a0a0a" font-weight="600">H = 9.42 m</text>
+
+          <!-- Node Coordinates Reticle -->
+          <circle cx="280" cy="140" r="4" fill="#6366f1"/>
+          <circle cx="280" cy="140" r="9" stroke="#6366f1" stroke-width="1" stroke-dasharray="2,2"/>
+          <text x="295" y="144" font-family="'JetBrains Mono', monospace" font-size="9.5" fill="#6366f1" font-weight="600">V_04 [X:0.00 Y:+3.12 Z:+5.80]</text>
+        </svg>
+      </div>
+
+      <div class="viewport-hud-bottom">
+        <span>CURSOR: [X: +14.28m, Y: -6.40m, Z: +8.10m]</span>
+        <span>RENDER: REAL-TIME PBR WIREFRAME</span>
+        <span style="color:var(--secondary-brand); font-weight:600;">STATUS: BREADBOARD VALIDATED</span>
+      </div>
+    </div>
+
+    <!-- Right Column: Architectural Material Palette -->
+    <div class="palette-panel">
+      <div class="panel-card" style="padding: 14px;">
+        <div class="panel-title-row">
+          <span class="panel-title-text">MATERIAL PALETTE</span>
+          <span style="font-size:10px; color:var(--ink-secondary); font-family:var(--font-mono);">5 SWATCHES</span>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <!-- Swatch 1 -->
+          <div class="swatch-card active">
+            <div class="swatch-color-cube" style="background: #e5e3df;"></div>
+            <div class="swatch-info">
+              <div class="swatch-name">Pre-cast Concrete</div>
+              <div class="swatch-detail">Smooth matte • 65 MPa</div>
+            </div>
+            <span class="swatch-tag">MAT-01</span>
+          </div>
+
+          <!-- Swatch 2 -->
+          <div class="swatch-card">
+            <div class="swatch-color-cube" style="background: linear-gradient(135deg, #c7c4be 0%, #8c8983 100%);"></div>
+            <div class="swatch-info">
+              <div class="swatch-name">Anodized Titanium</div>
+              <div class="swatch-detail">Brushed metallic • 0.82 refl</div>
+            </div>
+            <span class="swatch-tag">MAT-02</span>
+          </div>
+
+          <!-- Swatch 3 -->
+          <div class="swatch-card">
+            <div class="swatch-color-cube" style="background: radial-gradient(circle, #fbfaf8 20%, #ebe7df 100%);"></div>
+            <div class="swatch-info">
+              <div class="swatch-name">Fluted Calacatta</div>
+              <div class="swatch-detail">Honed marble • Linear veins</div>
+            </div>
+            <span class="swatch-tag">MAT-03</span>
+          </div>
+
+          <!-- Swatch 4 -->
+          <div class="swatch-card">
+            <div class="swatch-color-cube" style="background: #18222a;"></div>
+            <div class="swatch-info">
+              <div class="swatch-name">Low-E Obsidian Glass</div>
+              <div class="swatch-detail">85% tinted • U: 0.80 W/m²K</div>
+            </div>
+            <span class="swatch-tag">MAT-04</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Solar & Daylight Analysis -->
+      <div class="solar-analysis-box">
+        <div class="solar-title">
+          <span>DAYLIGHT &amp; SOLAR GAIN</span>
+          <span style="font-family:var(--font-mono); color:var(--primary);">AZIMUTH 42°</span>
+        </div>
+        <div style="height: 48px; display:flex; align-items:center; justify-content:center;">
+          <svg width="100%" height="40" viewBox="0 0 240 40">
+            <path d="M10 35 Q120 5 230 35" stroke="#6366f1" stroke-width="2" fill="none"/>
+            <circle cx="120" cy="12" r="5" fill="#f59e0b"/>
+            <line x1="120" y1="12" x2="120" y2="35" stroke="#f59e0b" stroke-width="1" stroke-dasharray="2,2"/>
+          </svg>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--ink-secondary); font-family:var(--font-mono);">
+          <span>DIRECT: 640 W/m²</span>
+          <span>SHADOW LOSS: 12%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

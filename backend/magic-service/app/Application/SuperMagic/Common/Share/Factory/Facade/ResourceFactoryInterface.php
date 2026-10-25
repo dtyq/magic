@@ -33,6 +33,11 @@ interface ResourceFactoryInterface
     public function getResourceContent(string $resourceId, string $userId, string $organizationCode, int $page, int $pageSize): array;
 
     /**
+     * Get resource content using cursor pagination where supported.
+     */
+    public function getResourceContentByCursor(string $resourceId, string $userId, string $organizationCode, ?int $afterId, int $limit): array;
+
+    /**
      * 根据资源ID创建一个可共享资源对象
      *
      * @param string $resourceId 资源ID

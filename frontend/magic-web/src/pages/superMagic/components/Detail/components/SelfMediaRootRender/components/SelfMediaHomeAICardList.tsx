@@ -7,7 +7,7 @@ import type {
 	SelfMediaHomeOpeningPost,
 	SelfMediaHomeTranslate,
 } from "./SelfMediaHomeTypes"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface SelfMediaHomeAICardListProps {
 	aiCardFolders: AICardFolderItem[]

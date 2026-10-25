@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flip 7 - Tactile Tabletop Card Game</title>
+  <style>
+    :root {
+      --primary-teal: #2BA8A2;
+      --primary-light: #3CC4BD;
+      --primary-dark: #1E8C86;
+      --primary-bg: #E8F6F5;
+      --accent-gold: #FFD23F;
+      --accent-light: #FFE47A;
+      --accent-dark: #E6B800;
+      --coral: #EF6C4A;
+      --coral-light: #FF8A6A;
+      --coral-dark: #D45233;
+      --cream: #FFF8E7;
+      --sky-blue: #5DADE2;
+      --surface-base: #EFF8F7;
+      --surface-card: #FFFFFF;
+      --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at 50% 35%, #1d726d 0%, #124b47 55%, #0a2d2a 100%);
+      font-family: var(--font-stack);
+      color: #1e3332;
+      min-height: 100vh;
+      padding: 16px 10px 30px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .tabletop-container {
+      width: 100%;
+      max-width: 880px;
+      background: #195e59;
+      border: 8px solid #3d2b1f;
+      border-radius: 36px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6), inset 0 0 50px rgba(0,0,0,0.4);
+      padding: 20px 16px;
+      position: relative;
+    }
+    /* Logo Header with Fanned Cards and Ribbon */
+    .header-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .card-fan-wrap {
+      position: relative;
+      width: 280px;
+      height: 110px;
+      margin-bottom: -32px;
+      z-index: 1;
+    }
+    .fan-card {
+      width: 58px;
+      height: 84px;
+      border-radius: 8px;
+      position: absolute;
+      bottom: 0;
+      left: 111px;
+      transform-origin: 50% 120%;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+      border: 2px solid #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 4px;
+      font-weight: 900;
+      font-size: 15px;
+    }
+    .fan-card-1 { background: #e74c3c; color: #fff; transform: rotate(-24deg); }
+    .fan-card-2 { background: #3498db; color: #fff; transform: rotate(-12deg); }
+    .fan-card-3 { background: #2ecc71; color: #fff; transform: rotate(0deg); }
+    .fan-card-4 { background: #f39c12; color: #fff; transform: rotate(12deg); }
+    .fan-card-5 { background: #9b59b6; color: #fff; transform: rotate(24deg); }
+    /* FLIP 7 Badge */
+    .flip7-logo-lockup {
+      background: var(--cream);
+      border: 3px solid #143533;
+      border-radius: 12px;
+      padding: 4px 22px;
+      transform: rotate(-2.5deg) skewX(-4deg);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+      z-index: 2;
+    }
+    .text-flip {
+      font-size: 34px;
+      font-weight: 900;
+      color: var(--primary-dark);
+      letter-spacing: -1px;
+      text-shadow: 1px 2px 0 rgba(255,255,255,0.8);
+    }
+    .text-seven {
+      font-size: 58px;
+      font-weight: 900;
+      color: var(--accent-gold);
+      transform: rotate(5deg);
+      line-height: 1;
+      text-shadow: 3px 3px 0 #143533, -1px -1px 0 #143533, 1px -1px 0 #143533, -1px 1px 0 #143533;
+    }
+    /* Folded Ribbon Banner */
+    .ribbon-banner {
+      position: relative;
+      background: var(--cream);
+      border: 2px solid #143533;
+      padding: 4px 20px;
+      margin-top: -6px;
+      z-index: 3;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    }
+    .ribbon-banner span {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--primary-dark);
+      text-transform: uppercase;
+    }
+    /* Tabletop Felt Surface Grid */
+    .game-arena-grid {
+      display: grid;
+      grid-template-columns: 1fr 310px;
+      gap: 16px;
+    }
+    /* Active Round Center Table */
+    .table-center-felt {
+      background: rgba(14, 53, 50, 0.65);
+      border: 2px dashed #3ea69f;
+      border-radius: 24px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+    }
+    .round-status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+    }
+    .round-chip {
+      background: var(--primary-dark);
+      color: var(--accent-gold);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid var(--accent-gold);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    /* Multiplier Streak Tracker */
+    .multiplier-meter {
+      background: #0d2e2c;
+      border-radius: 16px;
+      padding: 10px 14px;
+      border: 1px solid #2da39d;
+    }
+    .multiplier-title {
+      display: flex;
+      justify-content: space-between;
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+    .multiplier-steps {
+      display: flex;
+      gap: 8px;
+    }
+    .mult-step {
+      flex: 1;
+      height: 28px;
+      border-radius: 8px;
+      background: #1b4d49;
+      color: #92b8b5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid #236560;
+    }
+    .mult-step.active {
+      background: linear-gradient(180deg, #ffe277 0%, var(--accent-gold) 100%);
+      color: #143533;
+      border-color: #fff;
+      box-shadow: 0 0 14px rgba(255, 210, 63, 0.7);
+      transform: scale(1.06);
+    }
+    .mult-step.jackpot {
+      background: linear-gradient(180deg, #74c9ff 0%, var(--sky-blue) 100%);
+      color: #fff;
+      border-color: #fff;
+      box-shadow: 0 0 14px rgba(93, 173, 226, 0.7);
+    }
+    /* Table Hand Card Fan Display */
+    .table-cards-tray {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 0;
+      flex-wrap: wrap;
+    }
+    .tactile-card {
+      width: 72px;
+      height: 104px;
+      background: var(--cream);
+      border-radius: 12px;
+      border: 3px solid #143533;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.35);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 6px;
+      position: relative;
+      transform: translateY(0);
+      transition: transform 0.2s;
+    }
+    .tactile-card:hover { transform: translateY(-4px); }
+    .card-num-corner {
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .card-num-center {
+      align-self: center;
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .card-color-teal { color: var(--primary-teal); }
+    .card-color-coral { color: var(--coral); }
+    .card-color-gold { color: var(--accent-dark); }
+    .card-color-blue { color: var(--sky-blue); }
+    /* Table Action Buttons */
+    .action-controls-row {
+      display: flex;
+      gap: 12px;
+    }
+    .btn-tactile {
+      flex: 1;
+      height: 46px;
+      border-radius: 999px;
+      border: none;
+      font-family: var(--font-stack);
+      font-size: 14px;
+      font-weight: 900;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      position: relative;
+    }
+    .btn-hit-gold {
+      background: linear-gradient(180deg, #ffe47a 0%, var(--accent-gold) 100%);
+      color: #1a3c39;
+      border: 2px solid #fff;
+      box-shadow: 0 4px 18px rgba(255, 210, 63, 0.45);
+    }
+    .btn-stay-teal {
+      background: linear-gradient(180deg, #3cc4bd 0%, var(--primary-teal) 100%);
+      color: #fff;
+      border: 2px solid #8fe7e3;
+      box-shadow: 0 4px 18px rgba(43, 168, 162, 0.4);
+    }
+    /* Right Rail: Leaderboard & Victory Podium */
+    .leaderboard-panel {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .panel-headline {
+      font-size: 15px;
+      font-weight: 900;
+      color: var(--primary-dark);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px dashed #cadfdc;
+      padding-bottom: 6px;
+    }
+    /* Player Score Cards */
+    .player-card {
+      border-radius: 12px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface-base);
+      border-left: 6px solid var(--primary-light);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .player-card.rank-1 {
+      background: #fffcee;
+      border-left: 6px solid var(--accent-gold);
+      box-shadow: 0 3px 10px rgba(255, 210, 63, 0.25);
+    }
+    .player-card.rank-boom {
+      background: #fff2ef;
+      border-left: 6px solid var(--coral);
+    }
+    .player-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .player-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary-teal);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 12px;
+      border: 2px solid #fff;
+    }
+    .avatar-gold { background: var(--accent-gold); color: #143533; }
+    .avatar-coral { background: var(--coral); }
+    .player-name {
+      font-size: 12px;
+      font-weight: 800;
+      color: #1e3332;
+    }
+    .player-status-tag {
+      font-size: 9.5px;
+      font-weight: bold;
+      color: #7a9492;
+    }
+    .player-score {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+    .score-coral { color: var(--coral); font-size: 14px; }
+    /* Animated Round Victory Mini-Summary */
+    .round-victory-box {
+      background: linear-gradient(135deg, #e8f6f5 0%, #fff8e7 100%);
+      border: 2px solid var(--accent-gold);
+      border-radius: 14px;
+      padding: 10px;
+      text-align: center;
+      position: relative;
+    }
+    .round-victory-box h4 {
+      font-size: 13px;
+      font-weight: 900;
+      color: var(--primary-dark);
+      margin-bottom: 4px;
+    }
+    .round-stat-pill {
+      display: inline-block;
+      background: var(--primary-dark);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-top: 4px;
+    }
+    @media (max-width: 680px) {
+      .game-arena-grid { grid-template-columns: 1fr; }
+      .tabletop-container { border-width: 4px; border-radius: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="tabletop-container">
+    
+    <!-- Game Logo Header with Fan Deck & Ribbon -->
+    <header class="header-center">
+      <!-- 5-Card Background Fan -->
+      <div class="card-fan-wrap">
+        <div class="fan-card fan-card-1">
+          <span>1</span>
+          <span style="align-self:center; font-size:22px;">1</span>
+          <span style="align-self:flex-end;">1</span>
+        </div>
+        <div class="fan-card fan-card-2">
+          <span>3</span>
+          <span style="align-self:center; font-size:22px;">3</span>
+          <span style="align-self:flex-end;">3</span>
+        </div>
+        <div class="fan-card fan-card-3">
+          <span>5</span>
+          <span style="align-self:center; font-size:22px;">5</span>
+          <span style="align-self:flex-end;">5</span>
+        </div>
+        <div class="fan-card fan-card-4">
+          <span>7</span>
+          <span style="align-self:center; font-size:22px;">7</span>
+          <span style="align-self:flex-end;">7</span>
+        </div>
+        <div class="fan-card fan-card-5">
+          <span>9</span>
+          <span style="align-self:center; font-size:22px;">9</span>
+          <span style="align-self:flex-end;">9</span>
+        </div>
+      </div>
+
+      <!-- FLIP 7 Logo Lockup -->
+      <div class="flip7-logo-lockup">
+        <span class="text-flip">FLIP</span>
+        <span class="text-seven">7</span>
+      </div>
+
+      <!-- Folded Ribbon Banner -->
+      <div class="ribbon-banner">
+        <span>TABLETOP CARD SCORER &bull; MINI PROGRAM</span>
+      </div>
+    </header>
+
+    <!-- Main Game Arena Grid -->
+    <div class="game-arena-grid">
+      
+      <!-- Center Table Felt Area -->
+      <main class="table-center-felt">
+        <div class="round-status-header">
+          <div>
+            <span style="font-weight: 900; font-size: 14px; text-transform: uppercase;">ROUND 4 / 7</span>
+            <div style="font-size: 11px; color: #a4c9c6;">Player 1's Turn &bull; Target: 200 PTS</div>
+          </div>
+          <span class="round-chip">&#9812; POT: 42 PTS</span>
+        </div>
+
+        <!-- Flip Multiplier Score Tracker -->
+        <div class="multiplier-meter">
+          <div class="multiplier-title">
+            <span>FLIP MULTIPLIER TRACKER</span>
+            <span style="color: var(--accent-gold); font-weight: 900;">STREAK: 4 CARDS</span>
+          </div>
+          <div class="multiplier-steps">
+            <div class="mult-step">1x</div>
+            <div class="mult-step">2x</div>
+            <div class="mult-step">3x</div>
+            <div class="mult-step active">4x ACTIVE</div>
+            <div class="mult-step jackpot">&#9733; 7x FLIP7</div>
+          </div>
+        </div>
+
+        <!-- Active Played Cards Hand On Felt -->
+        <div class="table-cards-tray">
+          <!-- Card 1 -->
+          <div class="tactile-card">
+            <span class="card-num-corner card-color-teal">2</span>
+            <span class="card-num-center card-color-teal">2</span>
+            <span class="card-num-corner card-color-teal" style="align-self:flex-end;">2</span>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="tactile-card">
+            <span class="card-num-corner card-color-gold">5</span>
+            <span class="card-num-center card-color-gold">5</span>
+            <span class="card-num-corner card-color-gold" style="align-self:flex-end;">5</span>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="tactile-card">
+            <span class="card-num-corner card-color-blue">6</span>
+            <span class="card-num-center card-color-blue">6</span>
+            <span class="card-num-corner card-color-blue" style="align-self:flex-end;">6</span>
+          </div>
+
+          <!-- Card 4 (Signature Lucky 7 Card) -->
+          <div class="tactile-card" style="border-color: var(--accent-gold); box-shadow: 0 0 16px rgba(255,210,63,0.5);">
+            <span class="card-num-corner card-color-gold">7</span>
+            <span class="card-num-center card-color-gold" style="font-size:38px;">7</span>
+            <span class="card-num-corner card-color-gold" style="align-self:flex-end;">7</span>
+          </div>
+
+          <!-- Card 5 (Face Down Deck Top) -->
+          <div class="tactile-card" style="background: repeating-linear-gradient(45deg, #1e8c86, #1e8c86 6px, #2ba8a2 6px, #2ba8a2 12px); border-color: #fff;">
+            <div style="margin: auto; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-gold); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; color: #143533;">?</div>
+          </div>
+        </div>
+
+        <!-- Tactile Pill Action Buttons -->
+        <div class="action-controls-row">
+          <button class="btn-tactile btn-hit-gold">
+            <span>&#127183; FLIP CARD (HIT)</span>
+          </button>
+
+          <button class="btn-tactile btn-stay-teal">
+            <span>&#128176; BANK POINTS (STAY)</span>
+          </button>
+        </div>
+      </main>
+
+      <!-- Right Column: Live Table Leaderboard -->
+      <aside class="leaderboard-panel">
+        <div class="panel-headline">
+          <span>LIVE SCOREBOARD</span>
+          <span style="font-size: 11px; color: #555;">ROUND 4</span>
+        </div>
+
+        <!-- 1st Place (Gold Highlight) -->
+        <div class="player-card rank-1">
+          <div class="player-left">
+            <div class="player-avatar avatar-gold">&#9812;</div>
+            <div>
+              <div class="player-name">Player 1 (You)</div>
+              <div class="player-status-tag">4 Cards Safe &bull; 4x Mult</div>
+            </div>
+          </div>
+          <div class="player-score">148</div>
+        </div>
+
+        <!-- 2nd Place -->
+        <div class="player-card">
+          <div class="player-left">
+            <div class="player-avatar">2</div>
+            <div>
+              <div class="player-name">Alex M.</div>
+              <div class="player-status-tag">Banked (+35 pts)</div>
+            </div>
+          </div>
+          <div class="player-score">122</div>
+        </div>
+
+        <!-- 3rd Place -->
+        <div class="player-card">
+          <div class="player-left">
+            <div class="player-avatar">3</div>
+            <div>
+              <div class="player-name">Jordan K.</div>
+              <div class="player-status-tag">Banked (+18 pts)</div>
+            </div>
+          </div>
+          <div class="player-score">95</div>
+        </div>
+
+        <!-- 4th Place (BOOM / BUSTED) -->
+        <div class="player-card rank-boom">
+          <div class="player-left">
+            <div class="player-avatar avatar-coral">&#128165;</div>
+            <div>
+              <div class="player-name">Taylor S.</div>
+              <div class="player-status-tag" style="color:var(--coral);">BOOM! Duplicate 5</div>
+            </div>
+          </div>
+          <div class="player-score score-coral">0 PTS</div>
+        </div>
+
+        <!-- Animated Round Summary Box -->
+        <div class="round-victory-box">
+          <h4>FLIP 7 JACKPOT ALERT</h4>
+          <p style="font-size: 11px; color: #445;">Draw a distinct 7th number to trigger the <b>x7 Global Bonus Multiplier</b>!</p>
+          <span class="round-stat-pill">&#9733; 3 DISTINCT CARDS REMAINING</span>
+        </div>
+      </aside>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

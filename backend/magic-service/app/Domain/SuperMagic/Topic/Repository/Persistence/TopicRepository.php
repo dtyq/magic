@@ -11,6 +11,7 @@ use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Chat\Repository\Persistence\Model\MagicChatSequenceModel;
 use App\Domain\Chat\Repository\Persistence\Model\MagicChatTopicMessageModel;
 use App\Domain\Chat\Repository\Persistence\Model\MagicMessageModel;
+use App\Domain\SuperMagic\Common\Entity\ValueObject\CreationSource;
 use App\Domain\SuperMagic\Message\Repository\Model\TaskMessageModel;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskStatus;
 use App\Domain\SuperMagic\Topic\Entity\TopicEntity;
@@ -19,12 +20,15 @@ use App\Domain\SuperMagic\Topic\Repository\Model\TopicModel;
 use App\Domain\SuperMagic\Workspace\Repository\Model\WorkspaceModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Exception;
+use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
 class TopicRepository implements TopicRepositoryInterface
 {
+    private const SEQUENCE_UPDATE_BATCH_SIZE = 500;
+
     private LoggerInterface $logger;
 
     public function __construct(
@@ -69,6 +73,9 @@ class TopicRepository implements TopicRepositoryInterface
         }
 
         // 如果都没找到，记录详细的调试日志
+        // Temporary observation log: the chat_topic_id fallback is planned for removal.
+        // The trace identifies which callers still reach the fallback when it misses,
+        // complementing the error log above that fires on a fallback hit.
         $this->logger->warning('TopicRepository getTopicById 未找到话题', [
             'search_id' => $id,
             'search_id_type' => gettype($id),
@@ -76,6 +83,7 @@ class TopicRepository implements TopicRepositoryInterface
                 'query_by_id' => "SELECT * FROM magic_super_agent_topics WHERE deleted_at IS NULL AND id = {$id}",
                 'query_by_chat_topic_id' => "SELECT * FROM magic_super_agent_topics WHERE deleted_at IS NULL AND chat_topic_id = '{$id}'",
             ],
+            'trace' => (new Exception())->getTraceAsString(),
         ]);
 
         return null;
@@ -117,6 +125,15 @@ class TopicRepository implements TopicRepositoryInterface
 
         $data = $this->convertModelToEntityData($model->toArray());
         return new TopicEntity($data);
+    }
+
+    public function getTopicByIdForUpdate(int $id): ?TopicEntity
+    {
+        $model = $this->model::query()->where('id', $id)->lockForUpdate()->first();
+        if (! $model) {
+            return null;
+        }
+        return new TopicEntity($this->convertModelToEntityData($model->toArray()));
     }
 
     public function getTopicBySandboxId(string $sandboxId): ?TopicEntity
@@ -197,6 +214,34 @@ class TopicRepository implements TopicRepositoryInterface
         ];
     }
 
+    /**
+     * 根据条件获取话题ID列表（仅取 id，不构造实体）.
+     *
+     * @param array $conditions 查询条件，如 ['project_id' => 1, 'workspace_id' => 2]
+     * @param bool $withTrashed 是否包含已软删的话题
+     * @return int[] 话题ID列表
+     */
+    public function getTopicIdsByCondition(array $conditions, bool $withTrashed = false): array
+    {
+        $query = $this->model::query();
+        if ($withTrashed) {
+            /* @phpstan-ignore-next-line - TopicModel uses SoftDeletes trait which provides withTrashed() */
+            $query->withTrashed();
+        } else {
+            $query->whereNull('deleted_at');
+        }
+
+        foreach ($conditions as $field => $value) {
+            if (is_array($value)) {
+                $query->whereIn($field, $value);
+            } else {
+                $query->where($field, $value);
+            }
+        }
+
+        return array_map('intval', $query->pluck('id')->toArray());
+    }
+
     public function createTopic(TopicEntity $topicEntity): TopicEntity
     {
         $date = date('Y-m-d H:i:s');
@@ -220,6 +265,9 @@ class TopicRepository implements TopicRepositoryInterface
     {
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $topicEntity->toArray();
+        if (isset($entityArray['sandbox_images'])) {
+            $entityArray['sandbox_images'] = Json::encode($entityArray['sandbox_images']);
+        }
 
         return $this->model::query()
             ->where('id', $topicEntity->getId())
@@ -231,6 +279,9 @@ class TopicRepository implements TopicRepositoryInterface
     {
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
         $entityArray = $topicEntity->toArray();
+        if (isset($entityArray['sandbox_images'])) {
+            $entityArray['sandbox_images'] = Json::encode($entityArray['sandbox_images']);
+        }
         return $this->model::query()
             ->where('id', $topicEntity->getId())
             ->where('updated_at', $updatedAt)
@@ -239,6 +290,9 @@ class TopicRepository implements TopicRepositoryInterface
 
     public function updateTopicByCondition(array $condition, array $data, bool $touchUpdatedAt = true): bool
     {
+        if (isset($data['sandbox_images']) && is_array($data['sandbox_images'])) {
+            $data['sandbox_images'] = Json::encode($data['sandbox_images']);
+        }
         $query = $this->model::query()->where($condition);
 
         if (! $touchUpdatedAt) {
@@ -476,7 +530,8 @@ class TopicRepository implements TopicRepositoryInterface
         string $keyword = '',
         int $page = 1,
         int $pageSize = 20,
-        int $maxTotal = 999
+        int $maxTotal = 999,
+        array $topicTypes = []
     ): array {
         $query = $this->model::query()
             ->where('project_id', $projectId)
@@ -486,6 +541,18 @@ class TopicRepository implements TopicRepositoryInterface
 
         if ($keyword !== '') {
             $query->where('topic_name', 'like', '%' . $keyword . '%');
+        }
+
+        // Apply the same source predicate before counting and paging. Other sources
+        // (including legacy NULL values) remain visible under the ordinary topic type.
+        if (count($topicTypes) === 1) {
+            if ($topicTypes[0] === 2) {
+                $query->where('source', CreationSource::SCHEDULED_TASK->value);
+            } else {
+                $query->where(function ($query) {
+                    $query->where('source', '!=', CreationSource::SCHEDULED_TASK->value)->orWhereNull('source');
+                });
+            }
         }
 
         $realTotal = (clone $query)->count();
@@ -560,6 +627,24 @@ class TopicRepository implements TopicRepositoryInterface
 
         $data = $this->convertModelToEntityData($model->toArray());
         return new TopicEntity($data);
+    }
+
+    public function findHiddenTopicByProjectUserAndMode(int $projectId, string $userId, string $topicMode): ?TopicEntity
+    {
+        $model = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('user_id', $userId)
+            ->where('is_hidden', true)
+            ->where('topic_mode', $topicMode)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TopicEntity($this->convertModelToEntityData($model->toArray()));
     }
 
     public function findHiddenTopicByProjectUserAndType(int $projectId, string $userId, int $hiddenType): ?TopicEntity
@@ -821,9 +906,22 @@ class TopicRepository implements TopicRepositoryInterface
             return true;
         }
 
-        return (bool) $this->magicChatSequenceModel::query()
-            ->whereIn('id', $seqIds)
-            ->update(['status' => $status->value]);
+        // Keep the caller's transaction: a failed batch must roll back all batches.
+        $seqIds = array_values(array_unique($seqIds, SORT_STRING));
+        usort($seqIds, static function (int|string $left, int|string $right): int {
+            $left = (string) $left;
+            $right = (string) $right;
+            return strlen($left) <=> strlen($right) ?: strcmp($left, $right);
+        });
+        $updatedAt = $this->magicChatSequenceModel->freshTimestampString();
+        $affectedRows = 0;
+        foreach (array_chunk($seqIds, self::SEQUENCE_UPDATE_BATCH_SIZE) as $batch) {
+            $affectedRows += $this->magicChatSequenceModel::query()
+                ->whereIn('id', $batch)
+                ->update(['status' => $status->value, 'updated_at' => $updatedAt]);
+        }
+
+        return $affectedRows > 0;
     }
 
     /**

@@ -1,3 +1,5 @@
+import MobileTopicTypeFilter from "@/pages/superMagicMobile/components/TopicTypeFilter"
+import { useTopicTypeFilter } from "@/pages/superMagic/hooks/useTopicTypeFilter"
 import { observer } from "mobx-react-lite"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -19,7 +21,7 @@ import TopicFilesButton, {
 	type TopicFilesButtonRef,
 } from "@/pages/superMagic/components/TopicFilesButton"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useFileOpen } from "@/pages/superMagic/components/TopicFilesButton/hooks/useFileOpen"
 import { useCreateTopicListener } from "@/pages/superMagic/components/TopicMode/useCreateTopicListener"
 import { PORTAL_IDS } from "@/constants"
@@ -33,8 +35,26 @@ import ProjectPageMain from "./ProjectPageMain"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 import useCollaboratorUpdatePanel from "@/pages/superMagic/components/WithCollaborators/hooks/useCollaboratorUpdatePanel"
 import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
+import MobileScheduledTasksPanel from "./components/MobileScheduledTasksPanel"
+import MobileAiCanvasPanel from "./components/MobileAiCanvasPanel"
+import { AI_CANVAS_HIDDEN_ACTION_KEYS } from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
+import { isAiCanvasProject } from "@/pages/superMagic/utils/isAiCanvasProject"
+import { useAiCanvasDocument } from "@/pages/superMagic/pages/TopicPage/hooks/useAiCanvasDocument"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import {
+	getProjectDetailTabs,
+	shouldKeepScheduledTasksPanelMounted,
+	type ProjectDetailTab,
+} from "./tab-config"
 
-type ProjectDetailTab = "topics" | "topicFiles"
+const noopOpenCanvas = () => undefined
+
+/** AI canvas composers always talk to the design employee: the mode cannot be switched. */
+const AI_CANVAS_TOPIC_MODE_LOGIC = {
+	topicMode: TopicMode.Design,
+	setTopicMode: () => undefined,
+	recoverTopicMode: () => undefined,
+}
 
 function ProjectPage() {
 	return <ObservedLegacyProjectPage />
@@ -45,39 +65,58 @@ function ProjectPage() {
  */
 function LegacyProjectPage() {
 	const { t } = useTranslation("super")
+	// AI canvas composers share the AI canvas home's prompt hint.
+	const { t: tAiCanvas } = useTranslation("aiCanvas")
 	const { createTopicForProjectSend, handleSendComplete, handleSendSuccess } =
 		useProjectPageComposerContext()
 
-	// 首页只保留“话题 / 文件”两个 tab，先完成项目详情 UI 收敛。
+	// 首页使用“话题 / 文件 / 定时任务”三个 tab，统一承载项目级内容入口。
 	const [activeSiderTab, setActiveSiderTab] = useState<ProjectDetailTab>("topics")
-
-	/** 项目详情 tab 配置：复用 SmoothTabs 的滑块测量能力，并保留稳定测试选择器。 */
-	const projectDetailTabs = useMemo<Tab<ProjectDetailTab>[]>(
-		() => [
-			{
-				value: "topics",
-				label: t("projectDetail.tabTopics"),
-				testId: "project-detail-topics-tab",
-			},
-			{
-				value: "topicFiles",
-				label: t("projectDetail.tabFiles"),
-				testId: "project-detail-files-tab",
-			},
-		],
-		[t],
-	)
+	const [hasOpenedScheduledTasks, setHasOpenedScheduledTasks] = useState(false)
 
 	// Get state from stores
 	const selectedProject = projectStore.selectedProject
+	const [topicType, setTopicType] = useTopicTypeFilter(selectedProject?.id)
 	const selectedWorkspace = workspaceStore.selectedWorkspace
 	const selectedTopic = topicStore.selectedTopic
+	const isReadonly = isReadOnlyProject(selectedProject?.user_role)
+	// AI canvas projects keep this page's structure with only "Topics" and "Canvas" tabs.
+	const isAiCanvas = isAiCanvasProject(selectedProject)
+
+	/** 项目详情 tab 配置：复用 SmoothTabs 的滑块测量能力，并保留稳定测试选择器。 */
+	const projectDetailTabs = useMemo<Tab<ProjectDetailTab>[]>(
+		() => getProjectDetailTabs(t, isReadonly, isAiCanvas),
+		[isAiCanvas, isReadonly, t],
+	)
+
+	/** Falls back to topics when the current tab does not exist for this project. */
+	useEffect(() => {
+		if (!projectDetailTabs.some((tab) => tab.value === activeSiderTab)) {
+			setActiveSiderTab("topics")
+		}
+	}, [activeSiderTab, projectDetailTabs])
+
+	/** Returns users to the topics tab when the current project no longer permits task access. */
+	useEffect(() => {
+		if (isReadonly && activeSiderTab === "scheduledTasks") {
+			setActiveSiderTab("topics")
+		}
+	}, [activeSiderTab, isReadonly])
+
+	/** Remembers the first visit so later tab switches can hide the panel instead of unmounting it. */
+	useEffect(() => {
+		if (activeSiderTab === "scheduledTasks") {
+			setHasOpenedScheduledTasks(true)
+		}
+	}, [activeSiderTab])
+
+	const keepScheduledTasksMounted =
+		!isReadonly && shouldKeepScheduledTasksPanelMounted(activeSiderTab, hasOpenedScheduledTasks)
 
 	const previewDetailPopupRef = useRef<PreviewDetailPopupRef>(null)
 	const linkPreviewPopupRef = useRef<PreviewDetailPopupRef>(null)
 	const topicFilesButtonRef = useRef<TopicFilesButtonRef>(null)
 
-	const isReadonly = isReadOnlyProject(selectedProject?.user_role)
 	const { canManageCollaborators } = useCollaboratorUpdatePanel({ selectedProject })
 	const projectDetailHeaderActions = useMemo(
 		() => resolveProjectDetailHeaderActions(selectedProject, { canManageCollaborators }),
@@ -128,6 +167,21 @@ function LegacyProjectPage() {
 	const attachmentTree = projectFilesStore.workspaceFileTree
 	const attachmentFlatList = projectFilesStore.workspaceFilesList
 
+	// Same canvas binding as the desktop page: finds the project's canvas, creates it when missing
+	// and keeps its name in step with the project. The canvas tab opens it itself when shown.
+	const aiCanvasDocument = useAiCanvasDocument({
+		enabled: isAiCanvas,
+		projectId: selectedProject?.id,
+		projectName: selectedProject?.project_name,
+		isReadOnly: isReadonly,
+		attachments: attachmentTree,
+		attachmentLoadState: projectFilesStore.attachmentLoadState,
+		projectFilesStore,
+		openCanvas: noopOpenCanvas,
+	})
+	// Read at send time so a new topic's first message binds the canvas, as on desktop.
+	const getAiCanvasMentionItems = useMemoizedFn(() => aiCanvasDocument.canvasMentionItems)
+
 	const [projectShareSheetOpen, setProjectShareSheetOpen] = useState(false)
 
 	useEffect(() => {
@@ -161,6 +215,9 @@ function LegacyProjectPage() {
 	} = useProjectListActions({
 		actionContext: "project-detail",
 		visibleActionKeys: projectDetailHeaderActions.visibleActionKeys,
+		// AI canvas: the same items as the web canvas project card (pin too, no move).
+		hiddenActionKeys: isAiCanvas ? AI_CANVAS_HIDDEN_ACTION_KEYS : undefined,
+		showPinInProjectDetail: isAiCanvas,
 	})
 
 	// Sending is handled by MessagePanel service now.
@@ -284,20 +341,50 @@ function LegacyProjectPage() {
 			{/* 与 MobileShell 面板、ProjectDetailHeader 及原型一致：整页使用主题 background，避免头部与内容区硬编码暖色分层 */}
 			<div className={cn("relative flex h-full min-h-0 flex-auto flex-col overflow-hidden")}>
 				{/* 与原型一致：tab 条单独 shrink-0 + px-3 pt-4，主内容区 flex-1 再各自 px-3，避免整块同一列 padding 与原型分层不一致 */}
-				<div className="relative z-40 flex shrink-0 justify-start px-3 pt-4">
+				<div className="relative z-40 flex shrink-0 items-center justify-between gap-2 px-3 pt-4">
 					<SmoothTabs
 						tabs={projectDetailTabs}
 						value={activeSiderTab}
 						onChange={setActiveSiderTab}
 						variant="background"
 						showTooltip={false}
-						className="h-9 w-max max-w-full rounded-full bg-muted p-[3px]"
+						className="h-9 w-max min-w-0 max-w-full rounded-full bg-muted p-[3px]"
 						buttonClassName="h-[30px] flex-none rounded-full px-4 text-[14px] leading-5 data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=inactive]:font-normal data-[state=inactive]:text-muted-foreground"
 						indicatorClassName="inset-y-[3px] rounded-full border-0 bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
 						data-testid="project-detail-hero"
 					/>
+					{activeSiderTab === "topics" && (
+						<MobileTopicTypeFilter
+							key={selectedProject?.id}
+							value={topicType}
+							onChange={setTopicType}
+						/>
+					)}
 				</div>
 				<div className="relative min-h-0 flex-1 overflow-hidden">
+					{activeSiderTab === "canvas" ? (
+						// Full width canvas below the tabs, with the same bottom gap as the other panels.
+						// Swipe guard: dragging the canvas pans it and must not open the shell sidebar.
+						<div
+							className="flex h-full min-h-0 flex-col overflow-hidden px-3 pb-2 pt-3"
+							data-testid="project-detail-canvas-panel"
+							data-mobile-shell-swipe-guard="true"
+						>
+							<div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border">
+								<MobileAiCanvasPanel
+									canvasFolder={aiCanvasDocument.canvasFolder}
+									isCreating={aiCanvasDocument.isCreating}
+									creationError={aiCanvasDocument.creationError}
+									onRetry={aiCanvasDocument.retry}
+									attachmentTree={attachmentTree}
+									attachmentList={attachmentFlatList}
+									selectedProject={selectedProject}
+									selectedTopic={selectedTopic}
+									setUserSelectDetail={setUserSelectDetail}
+								/>
+							</div>
+						</div>
+					) : null}
 					{activeSiderTab === "topicFiles" ? (
 						<div
 							className="flex h-full min-h-0 flex-col overflow-hidden px-3 pb-2"
@@ -326,12 +413,34 @@ function LegacyProjectPage() {
 								showMobileActions
 							/>
 						</div>
-					) : (
+					) : null}
+					{keepScheduledTasksMounted ? (
+						<div
+							className={cn(
+								"flex h-full min-h-0 flex-col overflow-hidden pb-2",
+								activeSiderTab !== "scheduledTasks" && "hidden",
+							)}
+							aria-hidden={activeSiderTab !== "scheduledTasks"}
+							data-testid="project-detail-scheduled-tasks-panel"
+						>
+							<MobileScheduledTasksPanel
+								key={selectedProject?.id}
+								className="h-full"
+								selectWorkspaceId={
+									selectedWorkspace?.id ?? selectedProject?.workspace_id
+								}
+								selectProjectId={selectedProject?.id}
+								selectTopicId={selectedTopic?.id}
+							/>
+						</div>
+					) : null}
+					{activeSiderTab === "topics" ? (
 						<div
 							className="flex h-full min-h-0 flex-1 flex-col overflow-hidden pb-2"
 							data-testid="project-detail-topics-panel"
 						>
 							<ProjectPageMain
+								topicType={topicType}
 								className="h-full min-h-0 flex-1"
 								onTopicMore={(topic) => openActionsPopup(topic, selectedProject)}
 								onTopicPin={(topic) => {
@@ -340,7 +449,7 @@ function LegacyProjectPage() {
 								onTopicDelete={(topic) => deleteTopicDirect(topic, selectedProject)}
 							/>
 						</div>
-					)}
+					) : null}
 				</div>
 				<div
 					className={cn(
@@ -359,6 +468,13 @@ function LegacyProjectPage() {
 						selectedWorkspace={selectedWorkspace}
 						attachments={attachmentTree}
 						isEmptyStatus
+						getImplicitMentionItems={isAiCanvas ? getAiCanvasMentionItems : undefined}
+						// Same locked design mode as the desktop canvas page and the topic page.
+						topicModeLogic={isAiCanvas ? AI_CANVAS_TOPIC_MODE_LOGIC : undefined}
+						agentCode={isAiCanvas ? null : undefined}
+						showModeToggle={isAiCanvas ? false : undefined}
+						showModelSelector={isAiCanvas ? true : undefined}
+						placeholder={isAiCanvas ? tAiCanvas("home.placeholder") : undefined}
 						createTopic={createTopicForProjectSend}
 						onSendComplete={handleSendComplete}
 						onSendSuccess={handleSendSuccess}
@@ -366,6 +482,8 @@ function LegacyProjectPage() {
 				</div>
 			</div>
 			<TopicsPopup
+				topicType={topicType}
+				onTopicTypeChange={setTopicType}
 				open={topicsPopupOpen}
 				onOpenChange={setTopicsPopupOpen}
 				onCreateTopic={handleCreateTopic}

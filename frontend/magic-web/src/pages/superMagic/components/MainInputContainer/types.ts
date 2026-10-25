@@ -27,4 +27,5 @@ export interface ToolIcon {
 export interface ScenePanelComponentBaseProps {
 	editorContext?: SceneEditorContext
 	editorNodes?: SceneEditorNodes
+	inputContainerId?: string
 }

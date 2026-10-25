@@ -1,150 +1,253 @@
 import { ElementTypeEnum, type LayerElement } from "./types"
+import { getElementContentFields } from "./elementContent"
 
-/**
- * 验证元素数据结构是否有效
- * @param data - 待验证的数据
- * @returns 是否为有效的元素数据
- */
-export function isValidElementData(data: unknown): data is LayerElement {
-	if (!data || typeof data !== "object") {
+function isObject(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value)
+}
+
+function isOptionalString(value: unknown): boolean {
+	return value === undefined || typeof value === "string"
+}
+
+const MEDIA_COMPLIANCE_STATUSES = new Set(["UNVERIFIED", "PROCESSING", "PASS", "FAILED"])
+
+function isValidMediaCompliance(content: Record<string, unknown>): boolean {
+	if (
+		content.complianceStatus !== undefined &&
+		(typeof content.complianceStatus !== "string" ||
+			!MEDIA_COMPLIANCE_STATUSES.has(content.complianceStatus))
+	) {
 		return false
 	}
-
-	const element = data as Record<string, unknown>
-
-	// 验证必需字段
-	if (typeof element.id !== "string" || !element.id) {
+	if (
+		content.complianceFailedReason !== undefined &&
+		content.complianceFailedReason !== null &&
+		typeof content.complianceFailedReason !== "string"
+	) {
 		return false
 	}
-
-	if (typeof element.type !== "string" || !element.type) {
+	if (
+		content.complianceCheckId !== undefined &&
+		(typeof content.complianceCheckId !== "string" ||
+			content.complianceCheckId.trim().length === 0)
+	) {
 		return false
 	}
+	return true
+}
 
-	// 验证类型是否在支持的类型中
-	const validTypes = Object.values(ElementTypeEnum) as string[]
-	if (!validTypes.includes(element.type as string)) {
-		return false
+function isValidCropConfig(value: unknown): boolean {
+	if (!isObject(value)) return false
+	return ["width", "height", "x", "y"].every((field) => isFiniteNumber(value[field]))
+}
+
+function isValidGenerationTiming(value: unknown): boolean {
+	if (!isObject(value)) return false
+	if (!isFiniteNumber(value.startedAt) || !isOptionalString(value.imageId)) return false
+	return value.source === "submitted" || value.source === "server" || value.source === "observed"
+}
+
+function isValidContentContainer(element: Record<string, unknown>): boolean {
+	if (!Array.isArray(element.contents)) return false
+	const contentIds = new Set<string>()
+	for (const content of element.contents) {
+		if (!isObject(content) || typeof content.contentId !== "string" || !content.contentId) {
+			return false
+		}
+		if (Object.prototype.hasOwnProperty.call(content, "id") || "type" in content) return false
+		if (contentIds.has(content.contentId)) return false
+		contentIds.add(content.contentId)
 	}
 
-	// 验证可选的数值字段
-	const numericFields = ["x", "y", "width", "height", "scaleX", "scaleY", "zIndex", "opacity"]
-	for (const field of numericFields) {
-		if (element[field] !== undefined && typeof element[field] !== "number") {
+	const activeContentId = element.activeContentId
+	const mainContentId = element.mainContentId
+	if (element.contents.length === 0) {
+		return activeContentId === null && mainContentId === null
+	}
+	if (typeof activeContentId !== "string" || !contentIds.has(activeContentId)) return false
+	if (typeof mainContentId !== "string" || !contentIds.has(mainContentId)) {
+		return false
+	}
+	return true
+}
+
+export const V3_ELEMENT_SHELL_FIELDS = new Set([
+	"id",
+	"name",
+	"type",
+	"visible",
+	"locked",
+	"opacity",
+	"x",
+	"y",
+	"width",
+	"height",
+	"scaleX",
+	"scaleY",
+	"zIndex",
+	"interactionConfig",
+	"contents",
+	"activeContentId",
+	"mainContentId",
+])
+
+function hasOnlyAllowedFields(record: Record<string, unknown>, fields: Set<string>): boolean {
+	return Object.keys(record).every((field) => fields.has(field))
+}
+
+function isValidTextContent(content: Record<string, unknown>): boolean {
+	if (content.content !== undefined && !Array.isArray(content.content)) return false
+	return content.defaultStyle === undefined || isObject(content.defaultStyle)
+}
+
+function isValidShapeContent(content: Record<string, unknown>, type: string): boolean {
+	for (const field of ["fill", "stroke"]) {
+		if (!isOptionalString(content[field])) return false
+	}
+	if (content.strokeWidth !== undefined && !isFiniteNumber(content.strokeWidth)) return false
+	if (content.cornerRadius !== undefined && !isFiniteNumber(content.cornerRadius)) return false
+	if (type === ElementTypeEnum.Star) {
+		if (content.sides !== undefined && !isFiniteNumber(content.sides)) return false
+		if (content.innerRadiusRatio !== undefined && !isFiniteNumber(content.innerRadiusRatio)) {
 			return false
 		}
 	}
+	return true
+}
 
-	// 验证可选的布尔字段
-	const booleanFields = ["visible", "locked"]
-	for (const field of booleanFields) {
-		if (element[field] !== undefined && typeof element[field] !== "boolean") {
+function isValidStoryboardContent(content: Record<string, unknown>): boolean {
+	if (content.generationConfig !== undefined && !isObject(content.generationConfig)) return false
+	if (content.shots === undefined) return true
+	if (!Array.isArray(content.shots)) return false
+	const ids = new Set<string>()
+	const outputElementIds = new Set<string>()
+	for (const shot of content.shots) {
+		if (!isObject(shot) || typeof shot.id !== "string" || ids.has(shot.id)) return false
+		if (!hasOnlyAllowedFields(shot, new Set(["id", "description", "outputImageElementId"]))) {
 			return false
 		}
-	}
-
-	// 验证可选的字符串字段
-	const stringFields = ["name"]
-	for (const field of stringFields) {
-		if (element[field] !== undefined && typeof element[field] !== "string") {
-			return false
-		}
-	}
-
-	// 验证特定类型的额外字段
-	switch (element.type) {
-		case ElementTypeEnum.Frame:
-		case ElementTypeEnum.Group:
-			// 验证 children 字段（如果存在）
-			if (element.children !== undefined) {
-				if (!Array.isArray(element.children)) {
-					return false
-				}
-				// 递归验证子元素
-				for (const child of element.children) {
-					if (!isValidElementData(child)) {
-						return false
-					}
-				}
+		if (typeof shot.description !== "string") return false
+		if (shot.outputImageElementId !== undefined) {
+			if (
+				typeof shot.outputImageElementId !== "string" ||
+				outputElementIds.has(shot.outputImageElementId)
+			) {
+				return false
 			}
-			break
+			outputElementIds.add(shot.outputImageElementId)
+		}
+		ids.add(shot.id)
+	}
+	return true
+}
 
+function isValidVideoEditContent(content: Record<string, unknown>): boolean {
+	if (content.videoSequence !== undefined) {
+		if (
+			!Array.isArray(content.videoSequence) ||
+			content.videoSequence.some(
+				(elementId) => typeof elementId !== "string" || elementId.length === 0,
+			)
+		) {
+			return false
+		}
+	}
+	if (content.audioSequence !== undefined) {
+		if (
+			!Array.isArray(content.audioSequence) ||
+			content.audioSequence.some(
+				(elementId) => typeof elementId !== "string" || elementId.length === 0,
+			)
+		) {
+			return false
+		}
+	}
+	return true
+}
+
+function isValidElementContent(content: Record<string, unknown>, type: string): boolean {
+	const allowedFields = new Set(["contentId", ...getElementContentFields(type)])
+	if (!hasOnlyAllowedFields(content, allowedFields)) return false
+	if (!isOptionalString(content.src)) return false
+	if (
+		content.assetId !== undefined &&
+		(typeof content.assetId !== "string" || content.assetId.trim().length === 0)
+	) {
+		return false
+	}
+	if (!isValidMediaCompliance(content)) return false
+	if (content.discarded !== undefined && typeof content.discarded !== "boolean") return false
+	if (!isOptionalString(content.status)) return false
+	if (!isOptionalString(content.errorMessage)) return false
+	if (content.crop !== undefined && !isValidCropConfig(content.crop)) return false
+	if (
+		content.generationTiming !== undefined &&
+		!isValidGenerationTiming(content.generationTiming)
+	)
+		return false
+
+	switch (type) {
+		case ElementTypeEnum.Text:
+			return isValidTextContent(content)
 		case ElementTypeEnum.Rectangle:
 		case ElementTypeEnum.Ellipse:
 		case ElementTypeEnum.Triangle:
-			// 验证形状特有的字段
-			if (element.fill !== undefined && typeof element.fill !== "string") {
-				return false
-			}
-			if (element.stroke !== undefined && typeof element.stroke !== "string") {
-				return false
-			}
-			if (element.strokeWidth !== undefined && typeof element.strokeWidth !== "number") {
-				return false
-			}
-			if (
-				element.type === ElementTypeEnum.Rectangle &&
-				element.cornerRadius !== undefined &&
-				typeof element.cornerRadius !== "number"
-			) {
-				return false
-			}
-			break
-
 		case ElementTypeEnum.Star:
-			// 验证星形特有的字段
-			if (element.fill !== undefined && typeof element.fill !== "string") {
-				return false
-			}
-			if (element.stroke !== undefined && typeof element.stroke !== "string") {
-				return false
-			}
-			if (element.strokeWidth !== undefined && typeof element.strokeWidth !== "number") {
-				return false
-			}
-			if (element.cornerRadius !== undefined && typeof element.cornerRadius !== "number") {
-				return false
-			}
-			if (element.sides !== undefined && typeof element.sides !== "number") {
-				return false
-			}
-			if (
-				element.innerRadiusRatio !== undefined &&
-				typeof element.innerRadiusRatio !== "number"
-			) {
-				return false
-			}
-			break
+			return isValidShapeContent(content, type)
+		case ElementTypeEnum.Storyboard:
+			return isValidStoryboardContent(content)
+		case ElementTypeEnum.VideoEdit:
+			return isValidVideoEditContent(content)
+		default:
+			return true
+	}
+}
 
-		case ElementTypeEnum.Text:
-			// 验证文本特有的字段
-			if (element.content !== undefined) {
-				if (!Array.isArray(element.content)) {
-					return false
-				}
-				// 简单验证段落结构
-				for (const paragraph of element.content) {
-					if (!paragraph || typeof paragraph !== "object") {
-						return false
-					}
-				}
-			}
-			break
+/** 验证是否为标准 v3 Element。 */
+export function isValidElementData(data: unknown): data is LayerElement {
+	if (!isObject(data)) return false
+	if (typeof data.id !== "string" || !data.id) return false
+	if (typeof data.type !== "string") return false
+	if (!(Object.values(ElementTypeEnum) as string[]).includes(data.type)) return false
 
-		case ElementTypeEnum.Image:
-		case ElementTypeEnum.Video:
-			// 验证图片特有的字段
-			if (element.src !== undefined && typeof element.src !== "string") {
-				return false
-			}
-			if (element.status !== undefined && typeof element.status !== "string") {
-				return false
-			}
-			if (element.errorMessage !== undefined && typeof element.errorMessage !== "string") {
-				return false
-			}
-			break
+	for (const field of ["x", "y", "width", "height", "scaleX", "scaleY", "zIndex", "opacity"]) {
+		if (data[field] !== undefined && !isFiniteNumber(data[field])) return false
+	}
+	for (const field of ["visible", "locked"]) {
+		if (data[field] !== undefined && typeof data[field] !== "boolean") return false
+	}
+	if (!isOptionalString(data.name)) return false
+	if (data.interactionConfig !== undefined && !isObject(data.interactionConfig)) return false
+	const allowedElementFields = new Set(V3_ELEMENT_SHELL_FIELDS)
+	if (data.type === ElementTypeEnum.Frame || data.type === ElementTypeEnum.Group) {
+		allowedElementFields.add("children")
+	}
+	if (!hasOnlyAllowedFields(data, allowedElementFields)) return false
+	for (const field of getElementContentFields(data.type)) {
+		if (Object.prototype.hasOwnProperty.call(data, field)) return false
+	}
+	if (!isValidContentContainer(data)) return false
+	for (const content of data.contents as Record<string, unknown>[]) {
+		if (!isValidElementContent(content, data.type)) return false
 	}
 
+	if (data.type === ElementTypeEnum.Frame || data.type === ElementTypeEnum.Group) {
+		if (data.children !== undefined && !Array.isArray(data.children)) return false
+		if (
+			Array.isArray(data.children) &&
+			data.children.some((child) => !isValidElementData(child))
+		) {
+			return false
+		}
+	}
 	return true
+}
+
+export function validateElementData(data: unknown): asserts data is LayerElement {
+	if (!isValidElementData(data))
+		throw new Error(`Invalid v3 element data ${JSON.stringify(data)}`)
 }

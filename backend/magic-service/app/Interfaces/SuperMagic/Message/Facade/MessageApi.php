@@ -16,9 +16,12 @@ use App\Interfaces\SuperMagic\Common\Support\Facade\AbstractApi;
 use App\Interfaces\SuperMagic\Message\DTO\Request\ConsumeMessageQueueRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\CreateMessageQueueRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\CreateMessageScheduleRequestDTO;
+use App\Interfaces\SuperMagic\Message\DTO\Request\DeleteMessageQueueRequestDTO;
+use App\Interfaces\SuperMagic\Message\DTO\Request\MoveMessageQueueRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\QueryMessageQueueRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\QueryMessageScheduleLogsRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\QueryMessageScheduleRequestDTO;
+use App\Interfaces\SuperMagic\Message\DTO\Request\RestoreMessageQueueRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\UpdateMessageQueueRequestDTO;
 use App\Interfaces\SuperMagic\Message\DTO\Request\UpdateMessageScheduleRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -59,6 +62,18 @@ class MessageApi extends AbstractApi
         return $this->messageQueueAppService->createMessage($requestContext, $requestDTO);
     }
 
+    public function restoreMessageQueue(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        return $this->messageQueueAppService->restoreMessage($requestContext, (int) $id, RestoreMessageQueueRequestDTO::fromRequest($this->request));
+    }
+
+    public function moveMessageQueue(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        return $this->messageQueueAppService->moveMessage($requestContext, (int) $id, MoveMessageQueueRequestDTO::fromRequest($this->request));
+    }
+
     /**
      * Update message queue.
      *
@@ -95,7 +110,7 @@ class MessageApi extends AbstractApi
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         // Call application service to handle business logic
-        return $this->messageQueueAppService->deleteMessage($requestContext, (int) $id);
+        return $this->messageQueueAppService->deleteMessage($requestContext, (int) $id, DeleteMessageQueueRequestDTO::fromRequest($this->request)->expectedSyncId);
     }
 
     /**
@@ -133,7 +148,7 @@ class MessageApi extends AbstractApi
         $requestContext->setUserAuthorization($this->getAuthorization());
 
         // 2. Create DTO from request (for future extensions)
-        ConsumeMessageQueueRequestDTO::fromRequest($this->request);
+        $requestDTO = ConsumeMessageQueueRequestDTO::fromRequest($this->request);
 
         // 3. Get and validate message (permission check)
         $messageId = (int) $id;
@@ -141,7 +156,7 @@ class MessageApi extends AbstractApi
 
         $messageEntity = $this->messageQueueAppService->getMessageQueueEntity($messageId, $userId);
 
-        if (! $messageEntity) {
+        if (! $messageEntity || $messageEntity->getOrganizationCode() !== $requestContext->getUserAuthorization()->getOrganizationCode()) {
             throw new BusinessException(
                 $this->translator->trans('message_queue.message_not_found')
             );
@@ -155,7 +170,7 @@ class MessageApi extends AbstractApi
         }
 
         // 5. Call MessageQueueProcessAppService to send message
-        $sendResult = $this->messageQueueProcessAppService->processSingleMessage($messageId);
+        $sendResult = $this->messageQueueProcessAppService->processSingleMessage($messageId, $requestDTO->isForce());
 
         // 6. Return result
         return [

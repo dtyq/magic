@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
+import { NodeViewWrapper, type NodeViewProps } from "@/infrastructure/editors/tiptap/react"
 import { useTranslation } from "react-i18next"
 import {
 	parseEditableMarkdownFrontmatter,

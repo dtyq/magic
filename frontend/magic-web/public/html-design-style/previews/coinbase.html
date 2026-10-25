@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coinbase — Buy, Sell & Manage Cryptocurrency</title>
+  <style>
+    :root {
+      --primary: #0052ff;
+      --primary-active: #003ecc;
+      --primary-disabled: #a8b8cc;
+      --ink: #0a0b0d;
+      --body: #5b616e;
+      --body-strong: #0a0b0d;
+      --muted: #7c828a;
+      --muted-soft: #a8acb3;
+      --hairline: #dee1e6;
+      --hairline-soft: #eef0f3;
+      --canvas: #ffffff;
+      --surface-soft: #f7f7f7;
+      --surface-strong: #eef0f3;
+      --surface-dark: #0a0b0d;
+      --surface-dark-elevated: #16181c;
+      --semantic-up: #05b169;
+      --semantic-down: #cf202f;
+      --font-display: "Coinbase Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-sans: "Coinbase Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Coinbase Mono", "SF Mono", Menlo, monospace;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-xl: 24px;
+      --radius-pill: 100px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .shell { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+    /* Top Navigation */
+    .top-nav {
+      height: 64px;
+      background: var(--canvas);
+      border-bottom: 1px solid var(--hairline-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-start, .nav-end { display: flex; align-items: center; }
+    .nav-start { gap: 28px; }
+    .brand-mark { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    .brand-c { width: 28px; height: 28px; background: var(--primary); border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 17px; }
+    .brand-word { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: var(--primary); }
+    .nav-menu { display: flex; align-items: center; gap: 22px; list-style: none; }
+    .nav-item { font-size: 14px; font-weight: 500; color: var(--body); cursor: pointer; transition: color 0.15s; }
+    .nav-item:hover { color: var(--ink); }
+    .nav-search {
+      background: var(--surface-strong);
+      border-radius: var(--radius-pill);
+      height: 38px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-right: 16px;
+    }
+    .nav-end { gap: 10px; }
+    .btn-signin { background: transparent; border: none; font-size: 14px; font-weight: 600; color: var(--ink); padding: 8px 16px; border-radius: var(--radius-pill); cursor: pointer; }
+    .btn-signup { background: var(--primary); color: #fff; border: none; font-size: 14px; font-weight: 600; padding: 10px 20px; border-radius: var(--radius-pill); cursor: pointer; transition: background 0.15s; }
+    .btn-signup:hover { background: var(--primary-active); }
+
+    /* Hero & Balance Module */
+    .dashboard-hero { padding: 32px 0 20px; }
+    .hero-split { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 32px; align-items: start; }
+    
+    .balance-card {
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    }
+    .bal-eyebrow { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .bal-amount {
+      font-family: var(--font-display);
+      font-size: 46px;
+      font-weight: 400;
+      letter-spacing: -1.2px;
+      line-height: 1.1;
+      margin: 8px 0 6px;
+      color: var(--ink);
+    }
+    .bal-change-row { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 24px; }
+    .bal-delta { font-family: var(--font-mono); font-weight: 600; color: var(--semantic-up); }
+    .time-badge { font-size: 12px; color: var(--muted); background: var(--surface-soft); padding: 2px 8px; border-radius: var(--radius-pill); }
+
+    /* Performance Curve Chart */
+    .chart-container { width: 100%; height: 180px; position: relative; margin-bottom: 20px; }
+    .tf-pills { display: flex; gap: 6px; margin-bottom: 28px; }
+    .tf-pill {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      transition: all 0.15s;
+    }
+    .tf-pill.active { background: var(--surface-strong); color: var(--primary); }
+
+    /* Quick Action Pills */
+    .action-pills-row { display: flex; gap: 12px; }
+    .pill-btn {
+      flex: 1;
+      height: 48px;
+      border-radius: var(--radius-pill);
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+    .pill-primary { background: var(--primary); color: #fff; }
+    .pill-primary:hover { background: var(--primary-active); }
+    .pill-secondary { background: var(--surface-strong); color: var(--ink); }
+    .pill-secondary:hover { background: #e2e6eb; }
+
+    /* Side Earn & Security Cards */
+    .side-stack { display: flex; flex-direction: column; gap: 20px; }
+    .side-card {
+      background: var(--surface-soft);
+      border: 1px solid var(--hairline-soft);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+    }
+    .side-card-title { font-size: 17px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+    .side-card-desc { font-size: 13px; color: var(--body); line-height: 1.5; margin-bottom: 16px; }
+    .earn-yield-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(5, 177, 105, 0.12);
+      color: var(--semantic-up);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+    }
+
+    /* Top Movers Table Section */
+    .movers-section { padding: 32px 0 48px; }
+    .section-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; }
+    .section-title { font-family: var(--font-display); font-size: 26px; font-weight: 400; letter-spacing: -0.6px; color: var(--ink); }
+    .movers-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .mover-card {
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      padding: 20px;
+      transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer;
+    }
+    .mover-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.05); }
+    .mover-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .coin-plate { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 13px; }
+    .coin-btc { background: #f7931a; }
+    .coin-eth { background: #627eea; }
+    .coin-sol { background: #14f195; color: #000; }
+    .coin-avax { background: #e84142; }
+    .mover-badge { font-family: var(--font-mono); font-size: 13px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); }
+    .badge-up { background: rgba(5,177,105,0.12); color: var(--semantic-up); }
+    .badge-down { background: rgba(207,32,47,0.12); color: var(--semantic-down); }
+    .mover-name { font-weight: 600; font-size: 15px; color: var(--ink); margin-bottom: 2px; }
+    .mover-ticker { font-size: 12px; color: var(--muted); text-transform: uppercase; }
+    .mover-price { font-family: var(--font-mono); font-size: 19px; font-weight: 600; color: var(--ink); margin-top: 10px; }
+
+    /* Footer Strip */
+    .closing-strip {
+      border-top: 1px solid var(--hairline-soft);
+      padding: 24px 0 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="top-nav">
+    <div class="shell" style="display: flex; justify-content: space-between; width: 100%;">
+      <div class="nav-start">
+        <a href="#" class="brand-mark">
+          <div class="brand-c">C</div>
+          <span class="brand-word">coinbase</span>
+        </a>
+        <ul class="nav-menu">
+          <li class="nav-item">Explore</li>
+          <li class="nav-item">Individuals</li>
+          <li class="nav-item">Businesses</li>
+          <li class="nav-item">Developers</li>
+          <li class="nav-item">Company</li>
+        </ul>
+      </div>
+      <div class="nav-end">
+        <div class="nav-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span>Search crypto</span>
+        </div>
+        <button class="btn-signin">Sign in</button>
+        <button class="btn-signup">Get started</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- Balance & Portfolio Curve Hero -->
+    <section class="dashboard-hero">
+      <div class="hero-split">
+
+        <!-- Balance Card -->
+        <div class="balance-card">
+          <div class="bal-eyebrow">Total Balance</div>
+          <div class="bal-amount">$48,924.80</div>
+          <div class="bal-change-row">
+            <span class="bal-delta">+$2,418.12 (+5.19%)</span>
+            <span class="time-badge">Past 24 Hours</span>
+          </div>
+
+          <!-- Interactive 1D/1W/1M Portfolio Performance Curve SVG -->
+          <div class="chart-container">
+            <svg width="100%" height="100%" viewBox="0 0 540 180" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#0052ff" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#0052ff" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <!-- Filled Area -->
+              <path d="M 0 145 C 70 140, 110 160, 160 120 C 220 75, 270 110, 330 65 C 380 30, 440 50, 490 20 L 490 180 L 0 180 Z" fill="url(#curveGradient)"/>
+              <!-- Line -->
+              <path d="M 0 145 C 70 140, 110 160, 160 120 C 220 75, 270 110, 330 65 C 380 30, 440 50, 490 20" fill="none" stroke="#0052ff" stroke-width="2.5"/>
+              <!-- High Point Dot Pulse -->
+              <circle cx="490" cy="20" r="8" fill="#0052ff" fill-opacity="0.2"/>
+              <circle cx="490" cy="20" r="4.5" fill="#0052ff"/>
+              <!-- Price Tooltip Tag -->
+              <rect x="420" y="32" width="100" height="24" rx="12" fill="#0a0b0d"/>
+              <text x="470" y="48" fill="#ffffff" font-family="var(--font-mono)" font-size="11.5" font-weight="600" text-anchor="middle">$48,924.80</text>
+            </svg>
+          </div>
+
+          <!-- Timeframe Selector Pills -->
+          <div class="tf-pills">
+            <button class="tf-pill active">1D</button>
+            <button class="tf-pill">1W</button>
+            <button class="tf-pill">1M</button>
+            <button class="tf-pill">1Y</button>
+            <button class="tf-pill">ALL</button>
+          </div>
+
+          <!-- Quick Action Pills -->
+          <div class="action-pills-row">
+            <button class="pill-btn pill-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Buy
+            </button>
+            <button class="pill-btn pill-secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              Sell
+            </button>
+            <button class="pill-btn pill-secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Send
+            </button>
+            <button class="pill-btn pill-secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Receive
+            </button>
+          </div>
+        </div>
+
+        <!-- Side Cards: Staking Rewards & Recurring Buy -->
+        <div class="side-stack">
+          <div class="side-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+              <span class="earn-yield-pill">5.10% APY</span>
+              <span style="font-size: 12px; color: var(--muted);">USDC Rewards</span>
+            </div>
+            <div class="side-card-title">Earn while holding</div>
+            <p class="side-card-desc">Put your assets to work automatically with institutional-grade staking and dollar-backed yield.</p>
+            <button style="width: 100%; height: 42px; background: var(--surface-strong); border: none; border-radius: var(--radius-pill); font-weight: 600; font-size: 13px; color: var(--ink); cursor: pointer;">Start earning</button>
+          </div>
+
+          <div class="side-card" style="background: #ffffff; border: 1px solid var(--hairline);">
+            <div class="side-card-title">Automated Recurring Buys</div>
+            <p class="side-card-desc">Invest in crypto automatically over time to reduce price volatility through dollar cost averaging.</p>
+            <div style="display: flex; gap: 8px;">
+              <span style="font-size: 12px; padding: 4px 10px; background: var(--surface-soft); border-radius: var(--radius-pill); color: var(--body);">Daily</span>
+              <span style="font-size: 12px; padding: 4px 10px; background: var(--surface-strong); border-radius: var(--radius-pill); color: var(--primary); font-weight: 600;">Weekly</span>
+              <span style="font-size: 12px; padding: 4px 10px; background: var(--surface-soft); border-radius: var(--radius-pill); color: var(--body);">Monthly</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Top Crypto Movers Section -->
+    <section class="movers-section">
+      <div class="section-head">
+        <div>
+          <h2 class="section-title">Top Movers</h2>
+          <p style="font-size: 14px; color: var(--body);">Assets with the highest 24-hour price change</p>
+        </div>
+        <a href="#" style="font-size: 14px; font-weight: 600; color: var(--primary); text-decoration: none;">See all assets →</a>
+      </div>
+
+      <div class="movers-grid">
+        <!-- 1. Bitcoin -->
+        <div class="mover-card">
+          <div class="mover-top">
+            <div class="coin-plate coin-btc">₿</div>
+            <span class="mover-badge badge-up">+3.42%</span>
+          </div>
+          <div class="mover-name">Bitcoin</div>
+          <div class="mover-ticker">BTC</div>
+          <div class="mover-price">$64,820.50</div>
+        </div>
+
+        <!-- 2. Ethereum -->
+        <div class="mover-card">
+          <div class="mover-top">
+            <div class="coin-plate coin-eth">Ξ</div>
+            <span class="mover-badge badge-up">+4.81%</span>
+          </div>
+          <div class="mover-name">Ethereum</div>
+          <div class="mover-ticker">ETH</div>
+          <div class="mover-price">$3,485.20</div>
+        </div>
+
+        <!-- 3. Solana -->
+        <div class="mover-card">
+          <div class="mover-top">
+            <div class="coin-plate coin-sol">◎</div>
+            <span class="mover-badge badge-up">+8.24%</span>
+          </div>
+          <div class="mover-name">Solana</div>
+          <div class="mover-ticker">SOL</div>
+          <div class="mover-price">$148.90</div>
+        </div>
+
+        <!-- 4. Avalanche -->
+        <div class="mover-card">
+          <div class="mover-top">
+            <div class="coin-plate coin-avax">▲</div>
+            <span class="mover-badge badge-down">-1.18%</span>
+          </div>
+          <div class="mover-name">Avalanche</div>
+          <div class="mover-ticker">AVAX</div>
+          <div class="mover-price">$28.40</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="closing-strip">
+      <span>© 2026 Coinbase, Inc. All rights reserved.</span>
+      <div style="display: flex; gap: 20px;">
+        <span>USD Balance insured up to $250,000 by FDIC</span>
+        <span>SOC 1 & SOC 2 Type II Certified</span>
+      </div>
+    </footer>
+  </main>
+
+</body>
+</html>

@@ -1,7 +1,7 @@
 import { memo } from "react"
 import { Image, Loader2 } from "lucide-react"
 import type { SlideItem, SlideScreenshot } from "./types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export interface DragPreviewProps {
 	item: SlideItem

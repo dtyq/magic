@@ -1,9 +1,8 @@
 import { lazy, memo, Suspense, useEffect, useMemo, useState } from "react"
 import Markdown from "markdown-to-jsx"
 import { useTranslation } from "react-i18next"
-import { MagicImagePreview, MagicPdfRender, MagicSpin } from "@/components/base"
-import MemoizedMagicDocxRender from "@/components/base/MagicDocxRender"
-import { cn } from "@/lib/utils"
+import { MagicImagePreview, MagicSpin } from "@/components/base"
+import { cn } from "@/utils/cn"
 import { downloadFileContent } from "@/pages/superMagic/utils/api"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { DetailType } from "../../../types"
@@ -11,6 +10,9 @@ import { resolveSafePreviewUrl } from "./previewUrl"
 
 const UniverComponent = lazy(() => import("@/components/UniverComponent"))
 const OnlyOfficeViewer = lazy(() => import("../../../contents/OnlyOffice"))
+// 来源类型确定后才加载对应文档引擎；HTML、图片和文本来源不承担 PDF／DOCX 的初始化。
+const MagicPdfRender = lazy(() => import("@/components/base/MagicPdfRender"))
+const MemoizedMagicDocxRender = lazy(() => import("@/components/base/MagicDocxRender"))
 
 export interface KnowledgeSourcePreviewData {
 	url: string
@@ -194,13 +196,15 @@ function DocxPreview({ source }: { source: KnowledgeSourcePreviewData }) {
 				})
 
 				return (
-					<MemoizedMagicDocxRender
-						file={file}
-						height="100%"
-						showDownload={false}
-						showFullscreen={false}
-						showReload={false}
-					/>
+					<Suspense fallback={<MagicSpin spinning />}>
+						<MemoizedMagicDocxRender
+							file={file}
+							height="100%"
+							showDownload={false}
+							showFullscreen={false}
+							showReload={false}
+						/>
+					</Suspense>
 				)
 			}}
 		</RemoteFileLoader>
@@ -322,7 +326,11 @@ function KnowledgeSourcePreview({ source, knowledgeBaseName, title }: KnowledgeS
 		}
 
 		if (detailType === DetailType.Pdf) {
-			return <MagicPdfRender file={source.url} height="100%" />
+			return (
+				<Suspense fallback={<MagicSpin spinning />}>
+					<MagicPdfRender file={source.url} height="100%" />
+				</Suspense>
+			)
 		}
 
 		if (detailType === DetailType.Image) {

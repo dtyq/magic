@@ -17,6 +17,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Hyperf\DbConnection\Db;
 use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
+use Psr\SimpleCache\CacheInterface;
 use RuntimeException;
 use ZipArchive;
 
@@ -339,8 +340,12 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('id', $item);
             $this->assertIsString($item['id']);
             $this->assertArrayHasKey('code', $item);
-            $this->assertArrayHasKey('name_i18n', $item);
-            $this->assertArrayHasKey('description_i18n', $item);
+            $this->assertArrayHasKey('name', $item);
+            $this->assertArrayHasKey('description', $item);
+            $this->assertArrayHasKey('source', $item);
+            $this->assertArrayNotHasKey('name_i18n', $item);
+            $this->assertArrayNotHasKey('description_i18n', $item);
+            $this->assertArrayNotHasKey('source_i18n', $item);
             $this->assertArrayHasKey('logo', $item);
             $this->assertArrayHasKey('source_type', $item);
             $this->assertArrayHasKey('is_enabled', $item);
@@ -377,8 +382,8 @@ class UserSkillApiTest extends AbstractApiTest
         // 验证搜索结果中包含关键词
         $found = false;
         foreach ($keywordResponse['data']['list'] as $item) {
-            $nameZh = $item['name_i18n']['zh_CN'] ?? '';
-            $descZh = $item['description_i18n']['zh_CN'] ?? '';
+            $nameZh = $item['name'] ?? '';
+            $descZh = $item['description'] ?? '';
             if (str_contains($nameZh, '测试') || str_contains($descZh, '测试')) {
                 $found = true;
                 break;
@@ -403,8 +408,8 @@ class UserSkillApiTest extends AbstractApiTest
         if ($keywordEnResponse['data']['total'] > 0) {
             $foundEn = false;
             foreach ($keywordEnResponse['data']['list'] as $item) {
-                $nameEn = $item['name_i18n']['en_US'] ?? '';
-                $descEn = $item['description_i18n']['en_US'] ?? '';
+                $nameEn = $item['name'] ?? '';
+                $descEn = $item['description'] ?? '';
                 if (stripos($nameEn, 'Test') !== false || stripos($descEn, 'Test') !== false) {
                     $foundEn = true;
                     break;
@@ -511,7 +516,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertEquals(2, $page2Response['data']['page']);
             $this->assertEquals(1, $page2Response['data']['page_size']);
             // 验证不同页的数据不同（如果有数据）
-            if (count($pageResponse['data']['list']) > 0 && count($page2Response['data']['list']) > 0) {
+            if (count($page2Response['data']['list']) > 0) {
                 $this->assertNotEquals(
                     $pageResponse['data']['list'][0]['id'],
                     $page2Response['data']['list'][0]['id'],
@@ -629,10 +634,12 @@ class UserSkillApiTest extends AbstractApiTest
         }
 
         $this->assertNotNull($targetSkill, 'Installed skill should be returned in the visible skill list');
-        $this->assertEquals('已发布技能名称', $targetSkill['name_i18n']['zh_CN'] ?? null);
-        $this->assertEquals('Published Skill Name', $targetSkill['name_i18n']['en_US'] ?? null);
-        $this->assertEquals('已发布技能描述', $targetSkill['description_i18n']['zh_CN'] ?? null);
-        $this->assertEquals('Published Skill Description', $targetSkill['description_i18n']['en_US'] ?? null);
+        $this->assertArrayHasKey('name', $targetSkill);
+        $this->assertArrayHasKey('description', $targetSkill);
+        $this->assertArrayHasKey('source', $targetSkill);
+        $this->assertArrayNotHasKey('name_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('description_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('source_i18n', $targetSkill);
         $this->assertEquals('MARKET', $targetSkill['source_type'] ?? null);
     }
 
@@ -662,6 +669,12 @@ class UserSkillApiTest extends AbstractApiTest
         }
 
         $this->assertNotNull($targetSkill, '我创建的技能应该出现在 queries/created 列表中');
+        $this->assertArrayHasKey('name', $targetSkill);
+        $this->assertArrayHasKey('description', $targetSkill);
+        $this->assertArrayHasKey('source', $targetSkill);
+        $this->assertArrayNotHasKey('name_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('description_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('source_i18n', $targetSkill);
         $this->assertSame('LOCAL_UPLOAD', $targetSkill['source_type'] ?? null);
         $this->assertArrayHasKey('creator_info', $targetSkill);
         $this->assertSame('', $targetSkill['latest_version'] ?? null);
@@ -750,13 +763,155 @@ class UserSkillApiTest extends AbstractApiTest
 
         $this->assertNotNull($targetSkill, '团队共享技能应该出现在 queries/team-shared 列表中');
         $this->assertNotSame('MARKET', $targetSkill['source_type'] ?? null);
-        $this->assertSame('团队共享已发布名称', $targetSkill['name_i18n']['zh_CN'] ?? null);
-        $this->assertSame('Team Shared Published Name', $targetSkill['name_i18n']['en_US'] ?? null);
-        $this->assertSame('团队共享已发布描述', $targetSkill['description_i18n']['zh_CN'] ?? null);
-        $this->assertSame('Team Shared Published Description', $targetSkill['description_i18n']['en_US'] ?? null);
+        $this->assertArrayHasKey('name', $targetSkill);
+        $this->assertArrayHasKey('description', $targetSkill);
+        $this->assertArrayHasKey('source', $targetSkill);
+        $this->assertArrayNotHasKey('name_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('description_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('source_i18n', $targetSkill);
         $this->assertSame('1.0.0', $targetSkill['latest_version'] ?? null);
         $this->assertArrayHasKey('creator_info', $targetSkill);
         $this->assertNotEmpty($targetSkill['creator_info']['id'] ?? null);
+    }
+
+    public function testQueriesCollaboratedScope(): void
+    {
+        $collaboratorUserId = $this->switchUserTest1();
+
+        $this->switchUserTest2();
+        $ownerHeaders = $this->getCommonHeaders();
+        $collaboratedSkillCode = $this->createTestSkill();
+        $publishedInfoResponse = $this->put(
+            self::BASE_URI . '/' . $collaboratedSkillCode . '/info',
+            [
+                'name_i18n' => [
+                    'zh_CN' => '协作已发布名称',
+                    'en_US' => 'Collaborated Published Name',
+                ],
+                'description_i18n' => [
+                    'zh_CN' => '协作已发布描述',
+                    'en_US' => 'Collaborated Published Description',
+                ],
+            ],
+            $ownerHeaders
+        );
+        $this->assertEquals(1000, $publishedInfoResponse['code'], $publishedInfoResponse['message'] ?? '');
+        $publishCollaboratedResponse = $this->publishSkillVersion($collaboratedSkillCode, '1.0.0', 'ORGANIZATION');
+        $this->assertEquals(1000, $publishCollaboratedResponse['code'], $publishCollaboratedResponse['message'] ?? '');
+        $draftInfoResponse = $this->put(
+            self::BASE_URI . '/' . $collaboratedSkillCode . '/info',
+            [
+                'name_i18n' => [
+                    'zh_CN' => '协作草稿名称',
+                    'en_US' => 'Collaborated Draft Name',
+                ],
+                'description_i18n' => [
+                    'zh_CN' => '协作草稿描述',
+                    'en_US' => 'Collaborated Draft Description',
+                ],
+            ],
+            $ownerHeaders
+        );
+        $this->assertEquals(1000, $draftInfoResponse['code'], $draftInfoResponse['message'] ?? '');
+        $visibilityOnlySkillCode = $this->createTestSkill();
+
+        $addCollaboratorResponse = $this->post(
+            self::BASE_URI . '/' . $collaboratedSkillCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $collaboratorUserId,
+                        'role' => 'viewer',
+                    ],
+                ],
+            ],
+            $ownerHeaders
+        );
+        $this->assertEquals(1000, $addCollaboratorResponse['code'], $addCollaboratorResponse['message'] ?? '');
+
+        $publishResponse = $this->publishSkillVersion($visibilityOnlySkillCode, '1.0.0', 'ORGANIZATION');
+        $this->assertEquals(1000, $publishResponse['code'], $publishResponse['message'] ?? '');
+
+        $this->switchUserTest1();
+        $collaboratorHeaders = $this->getCommonHeaders();
+        $createdSkillCode = $this->createTestSkill();
+
+        $response = $this->post(
+            self::BASE_URI . '/queries',
+            [
+                'scope' => 'collaborated',
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $collaboratorHeaders
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $skillCodes = array_column($response['data']['list'], 'code');
+        $this->assertContains($collaboratedSkillCode, $skillCodes, '协作者技能应出现在 collaborated 列表中');
+        $this->assertNotContains($visibilityOnlySkillCode, $skillCodes, '仅可见技能不应出现在 collaborated 列表中');
+        $this->assertNotContains($createdSkillCode, $skillCodes, '本人创建技能不应出现在 collaborated 列表中');
+
+        $collaboratedSkill = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? null) === $collaboratedSkillCode) {
+                $collaboratedSkill = $item;
+                break;
+            }
+        }
+        $this->assertNotNull($collaboratedSkill);
+        $this->assertSame('viewer', $collaboratedSkill['user_role'] ?? null);
+        $this->assertSame('协作草稿名称', $collaboratedSkill['name'] ?? null);
+        $this->assertSame('协作草稿描述', $collaboratedSkill['description'] ?? null);
+        $this->assertSame('1.0.0', $collaboratedSkill['latest_version'] ?? null);
+
+        $teamSharedResponse = $this->post(
+            self::BASE_URI . '/queries',
+            [
+                'scope' => 'team_shared',
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $collaboratorHeaders
+        );
+        $this->assertEquals(1000, $teamSharedResponse['code'], $teamSharedResponse['message'] ?? '');
+        $this->assertContains(
+            $visibilityOnlySkillCode,
+            array_column($teamSharedResponse['data']['list'], 'code'),
+            '仅可见技能应出现在 team_shared 列表中'
+        );
+        $this->assertNotContains(
+            $collaboratedSkillCode,
+            array_column($teamSharedResponse['data']['list'], 'code'),
+            '仅协作授权技能不应出现在 team_shared 列表中'
+        );
+
+        $removeCollaboratorResponse = $this->delete(
+            self::BASE_URI . '/' . $collaboratedSkillCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $collaboratorUserId,
+                    ],
+                ],
+            ],
+            $ownerHeaders
+        );
+        $this->assertEquals(1000, $removeCollaboratorResponse['code'], $removeCollaboratorResponse['message'] ?? '');
+
+        $response = $this->post(
+            self::BASE_URI . '/queries',
+            [
+                'scope' => 'collaborated',
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $collaboratorHeaders
+        );
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertNotContains($collaboratedSkillCode, array_column($response['data']['list'], 'code'));
     }
 
     public function testQueriesMarketInstalled(): void
@@ -813,11 +968,38 @@ class UserSkillApiTest extends AbstractApiTest
 
         $this->assertNotNull($targetSkill, '从市场安装的技能应该出现在 queries/market-installed 列表中');
         $this->assertSame('MARKET', $targetSkill['source_type'] ?? null);
-        $this->assertSame('测试技能', $targetSkill['name_i18n']['zh_CN'] ?? null);
-        $this->assertSame('Test Skill', $targetSkill['name_i18n']['en_US'] ?? null);
+        $this->assertArrayHasKey('name', $targetSkill);
+        $this->assertArrayHasKey('description', $targetSkill);
+        $this->assertArrayHasKey('source', $targetSkill);
+        $this->assertArrayNotHasKey('name_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('description_i18n', $targetSkill);
+        $this->assertArrayNotHasKey('source_i18n', $targetSkill);
         $this->assertSame('1.0.0', $targetSkill['latest_version'] ?? null);
         $this->assertArrayHasKey('creator_info', $targetSkill);
         $this->assertNotEmpty($targetSkill['creator_info']['id'] ?? null);
+
+        $unifiedResponse = $this->post(
+            self::BASE_URI . '/queries',
+            [
+                'scope' => 'market_installed',
+                'page' => 1,
+                'page_size' => 20,
+            ],
+            $this->getCommonHeaders()
+        );
+
+        $this->assertEquals(1000, $unifiedResponse['code'], $unifiedResponse['message'] ?? '');
+        $this->assertArrayHasKey('list', $unifiedResponse['data']);
+        $this->assertSame(1, $unifiedResponse['data']['page']);
+        $this->assertSame(20, $unifiedResponse['data']['page_size']);
+        $this->assertGreaterThanOrEqual(1, $unifiedResponse['data']['total']);
+        $this->assertArrayNotHasKey('code', $unifiedResponse['data']);
+        $this->assertArrayNotHasKey('message', $unifiedResponse['data']);
+        $this->assertContains(
+            $storeSkillData['skill_code'],
+            array_column($unifiedResponse['data']['list'], 'code'),
+            '统一技能查询接口的 market_installed scope 应该返回市场安装技能'
+        );
     }
 
     /**
@@ -1539,10 +1721,8 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertArrayHasKey('data', $response);
         $this->assertArrayHasKey('list', $response['data']);
-        $this->assertArrayHasKey('total', $response['data']);
         $this->assertArrayHasKey('page', $response['data']);
         $this->assertArrayHasKey('page_size', $response['data']);
-        $this->assertIsInt($response['data']['total']);
         $this->assertIsArray($response['data']['list']);
         $this->assertIsInt($response['data']['page']);
         $this->assertIsInt($response['data']['page_size']);
@@ -1552,8 +1732,12 @@ class UserSkillApiTest extends AbstractApiTest
             $item = $response['data']['list'][0];
             $this->assertArrayHasKey('id', $item);
             $this->assertArrayHasKey('skill_code', $item);
-            $this->assertArrayHasKey('name_i18n', $item);
-            $this->assertArrayHasKey('description_i18n', $item);
+            $this->assertArrayHasKey('name', $item);
+            $this->assertArrayHasKey('description', $item);
+            $this->assertArrayHasKey('source', $item);
+            $this->assertArrayNotHasKey('name_i18n', $item);
+            $this->assertArrayNotHasKey('description_i18n', $item);
+            $this->assertArrayNotHasKey('source_i18n', $item);
             $this->assertArrayHasKey('logo', $item);
             $this->assertArrayHasKey('publisher_type', $item);
             $this->assertArrayHasKey('publisher', $item);
@@ -1568,8 +1752,9 @@ class UserSkillApiTest extends AbstractApiTest
             // 验证字段类型
             $this->assertIsString($item['id']);
             $this->assertIsString($item['skill_code']);
-            $this->assertIsArray($item['name_i18n']);
-            $this->assertIsArray($item['description_i18n']);
+            $this->assertIsString($item['name']);
+            $this->assertIsString($item['description']);
+            $this->assertIsString($item['source']);
             $this->assertIsString($item['publisher_type']);
             $this->assertIsArray($item['publisher']);
             $this->assertIsString($item['publish_status']);
@@ -1599,13 +1784,12 @@ class UserSkillApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $keywordResponse['code']);
-        $this->assertIsInt($keywordResponse['data']['total']);
         // 如果找到结果，验证结果中包含关键词
-        if ($keywordResponse['data']['total'] > 0) {
+        if ($keywordResponse['data']['list'] !== []) {
             $found = false;
             foreach ($keywordResponse['data']['list'] as $item) {
-                $nameZh = $item['name_i18n']['zh_CN'] ?? '';
-                $descZh = $item['description_i18n']['zh_CN'] ?? '';
+                $nameZh = $item['name'] ?? '';
+                $descZh = $item['description'] ?? '';
                 if (str_contains($nameZh, '搜索') || str_contains($descZh, '搜索')) {
                     $found = true;
                     break;
@@ -1625,13 +1809,12 @@ class UserSkillApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $keywordEnResponse['code']);
-        $this->assertIsInt($keywordEnResponse['data']['total']);
         // 如果找到结果，验证结果中包含关键词
-        if ($keywordEnResponse['data']['total'] > 0) {
+        if ($keywordEnResponse['data']['list'] !== []) {
             $foundEn = false;
             foreach ($keywordEnResponse['data']['list'] as $item) {
-                $nameEn = $item['name_i18n']['en_US'] ?? '';
-                $descEn = $item['description_i18n']['en_US'] ?? '';
+                $nameEn = $item['name'] ?? '';
+                $descEn = $item['description'] ?? '';
                 if (stripos($nameEn, 'Search') !== false || stripos($descEn, 'Search') !== false) {
                     $foundEn = true;
                     break;
@@ -1651,7 +1834,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $notFoundKeywordResponse['code']);
-        $this->assertIsInt($notFoundKeywordResponse['data']['total']);
+        $this->assertSame([], $notFoundKeywordResponse['data']['list']);
 
         // 测试发布者类型筛选 - OFFICIAL
         $publisherTypeResponse = $this->post(
@@ -1664,7 +1847,6 @@ class UserSkillApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $publisherTypeResponse['code']);
-        $this->assertIsInt($publisherTypeResponse['data']['total']);
         // 验证筛选结果中的 publisher_type 都是 OFFICIAL
         foreach ($publisherTypeResponse['data']['list'] as $item) {
             $this->assertEquals('OFFICIAL', $item['publisher_type']);
@@ -1681,7 +1863,6 @@ class UserSkillApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $userPublisherResponse['code']);
-        $this->assertIsInt($userPublisherResponse['data']['total']);
         // 验证筛选结果中的 publisher_type 都是 USER（如果有结果）
         foreach ($userPublisherResponse['data']['list'] as $item) {
             $this->assertEquals('USER', $item['publisher_type']);
@@ -1699,7 +1880,6 @@ class UserSkillApiTest extends AbstractApiTest
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $combinedResponse['code']);
-        $this->assertIsInt($combinedResponse['data']['total']);
         // 验证结果同时满足关键词和发布者类型条件
         foreach ($combinedResponse['data']['list'] as $item) {
             $this->assertEquals('OFFICIAL', $item['publisher_type']);
@@ -1720,7 +1900,7 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertEquals(1, $pageResponse['data']['page_size']);
 
         // 测试分页 - 第二页
-        if ($pageResponse['data']['total'] > 1) {
+        if (count($pageResponse['data']['list']) === 1) {
             $page2Response = $this->post(
                 '/api/v1/skill-market/queries',
                 [
@@ -1763,9 +1943,20 @@ class UserSkillApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $defaultResponse['code']);
         $this->assertArrayHasKey('list', $defaultResponse['data']);
-        $this->assertArrayHasKey('total', $defaultResponse['data']);
         $this->assertArrayHasKey('page', $defaultResponse['data']);
         $this->assertArrayHasKey('page_size', $defaultResponse['data']);
+
+        // 测试字符串分类 ID 筛选
+        $stringCategoryResponse = $this->post(
+            '/api/v1/skill-market/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'category_ids' => ['1', '2'],
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $stringCategoryResponse['code']);
 
         // 测试排序：已添加的技能应该排在最前面
         $sortedResponse = $this->post(
@@ -1886,7 +2077,6 @@ class UserSkillApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $publicQueryResponse['code'], $publicQueryResponse['message'] ?? '');
-        $this->assertSame(0, $publicQueryResponse['data']['total']);
         $this->assertSame([], $publicQueryResponse['data']['list']);
     }
 
@@ -1941,12 +2131,71 @@ class UserSkillApiTest extends AbstractApiTest
         );
 
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
-        $this->assertSame(1, $response['data']['total']);
         $this->assertCount(1, $response['data']['list']);
 
         $item = $response['data']['list'][0];
         $this->assertSame($storeSkill['skill_code'], $item['skill_code'] ?? null);
         $this->assertSame('1.0.0', $item['latest_version'] ?? null);
+    }
+
+    public function testOfficialBuiltinSkillDetailDoesNotRequireMagicSkillsRecord(): void
+    {
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $organizationCode = $headers['organization-code'];
+        $skillCode = 'builtin-' . strtolower(IdGenerator::getUniqueId32());
+        $versionId = IdGenerator::getSnowId();
+        $marketId = IdGenerator::getSnowId();
+        $publishedAt = date('Y-m-d H:i:s');
+
+        SkillVersionModel::query()->create([
+            'id' => $versionId,
+            'code' => $skillCode,
+            'organization_code' => $organizationCode,
+            'creator_id' => 'official-builtin-user',
+            'package_name' => 'builtin-package',
+            'package_description' => 'Official builtin package',
+            'version' => '1.0.0',
+            'name_i18n' => ['zh_CN' => '内置技能', 'en_US' => 'Builtin Skill'],
+            'description_i18n' => ['zh_CN' => '内置技能描述', 'en_US' => 'Builtin skill description'],
+            'source_i18n' => [],
+            'file_key' => 'skills/builtin.zip',
+            'skill_file_key' => 'skills/builtin/SKILL.md',
+            'publish_status' => 'PUBLISHED',
+            'review_status' => 'APPROVED',
+            'publish_target_type' => 'MARKET',
+            'publisher_user_id' => 'official-builtin-user',
+            'published_at' => $publishedAt,
+            'is_current_version' => true,
+            'source_type' => 'LOCAL_UPLOAD',
+            'created_at' => $publishedAt,
+            'updated_at' => $publishedAt,
+        ]);
+
+        SkillMarketModel::query()->create([
+            'id' => $marketId,
+            'organization_code' => $organizationCode,
+            'skill_code' => $skillCode,
+            'skill_version_id' => $versionId,
+            'name_i18n' => ['zh_CN' => '内置技能', 'en_US' => 'Builtin Skill'],
+            'description_i18n' => ['zh_CN' => '内置技能描述', 'en_US' => 'Builtin skill description'],
+            'publisher_id' => 'official-builtin-user',
+            'publisher_type' => 'OFFICIAL_BUILTIN',
+            'publish_status' => 'PUBLISHED',
+            'is_featured' => false,
+            'is_hidden' => false,
+            'created_at' => $publishedAt,
+            'updated_at' => $publishedAt,
+        ]);
+
+        di(CacheInterface::class)->delete('super_magic:skill_market:official_builtin:entities:v2');
+
+        $response = $this->get(self::BASE_URI . '/' . $skillCode, $headers);
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertSame($skillCode, $response['data']['code'] ?? null);
+        $this->assertSame('builtin-package', $response['data']['package_name'] ?? null);
+        $this->assertSame('1.0.0', $response['data']['version_code'] ?? null);
     }
 
     /**

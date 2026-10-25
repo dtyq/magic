@@ -10,13 +10,13 @@ namespace Dtyq\CloudFile\Kernel\Struct;
 /**
  * 远程资源下载后的本地文件信息。
  */
-readonly class DownloadedRemoteFile
+class DownloadedRemoteFile
 {
     public function __construct(
-        private string $realPath,
-        private string $name,
-        private string $mimeType,
-        private int $size,
+        private readonly string $realPath,
+        private readonly string $name,
+        private readonly string $mimeType,
+        private readonly int $size,
     ) {
     }
 

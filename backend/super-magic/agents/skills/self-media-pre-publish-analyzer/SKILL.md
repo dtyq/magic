@@ -2,9 +2,6 @@
 name: self-media-pre-publish-analyzer
 description: >
   Pre-publish diagnosis skill for self-media works. Use when the user asks for 发布前诊断, 发布前分析, content scoring, pre-publish review, or optimization diagnosis for Xiaohongshu/Rednote image-card posts or WeChat Official Account articles. Reads the mentioned post folder, searches comparable content online, scores the work, and outputs prioritized revision instructions.
-name-cn: 自媒体发布前诊断
-description-cn: >
-  用于小红书图文和微信公众号文章发布前质量评估。读取被 @ 的 post 文件夹，联网搜索同类内容做对比，按平台和目标输出总分、分项分、最大问题、对标差异、优先修改清单和可交给创作助手的改稿指令。
 ---
 
 # Self-Media Pre-Publish Analyzer

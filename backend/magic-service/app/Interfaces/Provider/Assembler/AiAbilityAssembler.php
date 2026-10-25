@@ -28,8 +28,8 @@ class AiAbilityAssembler
         return new AiAbilityListDTO(
             id: (string) ($entity->getId()),
             code: $entity->getCode()->value,
-            name: $entity->getLocalizedName($locale),
-            description: $entity->getLocalizedDescription($locale),
+            name: $entity->getCode()->getName($locale),
+            description: $entity->getCode()->getDescription($locale),
             status: $entity->getStatus()->value,
         );
     }
@@ -42,8 +42,8 @@ class AiAbilityAssembler
         return new AiAbilityDetailDTO(
             id: $entity->getId() ?? 0,
             code: $entity->getCode()->value,
-            name: $entity->getLocalizedName($locale),
-            description: $entity->getLocalizedDescription($locale),
+            name: $entity->getCode()->getName($locale),
+            description: $entity->getCode()->getDescription($locale),
             icon: $entity->getIcon(),
             sortOrder: $entity->getSortOrder(),
             status: $entity->getStatus()->value,

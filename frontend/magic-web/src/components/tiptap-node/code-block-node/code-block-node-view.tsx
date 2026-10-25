@@ -1,18 +1,25 @@
 "use client"
 
-import { NodeViewWrapper, NodeViewContent } from "@tiptap/react"
-import type { NodeViewProps } from "@tiptap/react"
-import { Suspense, lazy, useEffect, useState } from "react"
+import { NodeViewWrapper, NodeViewContent } from "@/infrastructure/editors/tiptap/react"
+import type { NodeViewProps } from "@/infrastructure/editors/tiptap/react"
+import { Suspense, lazy, useEffect, useMemo, useState } from "react"
+import type { CSSProperties } from "react"
+import {
+	DiffSyntaxHighlighter,
+	loadDiffSyntaxHighlighter,
+} from "@/infrastructure/vendors/react-syntax-highlighter/diff"
+import type { CodeBlockNodeOptions } from "./code-block-node-extension"
+import { cn } from "@/utils/cn"
+import type { CodeSearchHighlight } from "@/components/base/MagicCode/search-highlights"
 
 const MagicCode = lazy(() => import("@/components/base/MagicCode"))
 const MagicMermaid = lazy(() => import("@/components/base/MagicMermaid"))
 
-const DiffHighlighter = lazy(async () => {
-	const module = await import("react-syntax-highlighter")
-	const diffLanguage = await import("react-syntax-highlighter/dist/esm/languages/hljs/diff")
-	module.Light.registerLanguage("diff", diffLanguage.default)
-	return { default: module.Light }
-})
+interface CodeBlockNodeViewProps extends NodeViewProps {
+	extension: NodeViewProps["extension"] & {
+		options: CodeBlockNodeOptions
+	}
+}
 
 /**
  * React component for rendering CodeBlock nodes
@@ -20,15 +27,29 @@ const DiffHighlighter = lazy(async () => {
  * - Editable: uses NodeViewContent for direct editing
  * - Read-only: uses MagicCode for enhanced display with syntax highlighting
  */
-export function CodeBlockNodeView(props: NodeViewProps) {
-	const { node, editor } = props
+export function CodeBlockNodeView(props: CodeBlockNodeViewProps) {
+	const { node, editor, extension, innerDecorations } = props
+	// Read-only node views render outside contentDOM, so project the search decorations
+	// into the syntax renderer using their already node-relative offsets.
+	const searchHighlights = useMemo(() => {
+		const highlights: CodeSearchHighlight[] = []
+		innerDecorations.forEachSet((set) => {
+			for (const decoration of set.find()) {
+				const className = decoration.spec.searchResultClass
+				if (typeof className === "string") {
+					highlights.push({ from: decoration.from, to: decoration.to, className })
+				}
+			}
+		})
+		return highlights.sort((a, b) => a.from - b.from)
+	}, [innerDecorations])
 	const language = node.attrs.language || "text"
-	const [diffStyle, setDiffStyle] = useState<Record<string, unknown> | null>(null)
+	const { enableWrapToggle } = extension.options
+	const diffWrapClassName = enableWrapToggle ? "diff-code-wrapped" : "diff-code-unwrapped"
+	const [diffStyle, setDiffStyle] = useState<Record<string, CSSProperties> | null>(null)
 	useEffect(() => {
 		if (language !== "diff" || diffStyle) return
-		import("react-syntax-highlighter/dist/esm/styles/hljs").then((styleModule) => {
-			setDiffStyle(styleModule.github)
-		})
+		loadDiffSyntaxHighlighter().then(({ style }) => setDiffStyle(style))
 	}, [language, diffStyle])
 
 	// Track editable state manually since shouldRerenderOnTransaction is false
@@ -53,13 +74,12 @@ export function CodeBlockNodeView(props: NodeViewProps) {
 		}
 	}, [editor, isEditable])
 
-	// Editable mode: use default rendering to allow editing
+	// NodeViewContent hosts the renderer's actual <code> contentDOM. Keep it directly
+	// inside <pre>; another editable <code> wrapper can accept input outside the document.
 	if (isEditable) {
 		return (
-			<NodeViewWrapper as="pre">
-				<code>
-					<NodeViewContent as="div" />
-				</code>
+			<NodeViewWrapper as="div">
+				<NodeViewContent as="pre" />
 			</NodeViewWrapper>
 		)
 	}
@@ -77,19 +97,22 @@ export function CodeBlockNodeView(props: NodeViewProps) {
 		)
 	}
 	// Support diff format - use Light version to avoid conflict with code mode
-	if (language === "diff") {
+	if (language === "diff" && !searchHighlights.length) {
 		if (!diffStyle) {
 			return null
 		}
 
 		return (
-			<NodeViewWrapper as="div" className="diff-code-block-node-view">
+			<NodeViewWrapper
+				as="div"
+				className={cn("diff-code-block-node-view", diffWrapClassName)}
+			>
 				<Suspense fallback={null}>
-					<DiffHighlighter
+					<DiffSyntaxHighlighter
 						language="diff"
 						style={diffStyle}
 						showLineNumbers={false}
-						wrapLines={true}
+						wrapLongLines={enableWrapToggle}
 						customStyle={{
 							fontSize: "14px",
 							textShadow: "none !important",
@@ -97,7 +120,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
 						className="diff-code"
 					>
 						{codeContent}
-					</DiffHighlighter>
+					</DiffSyntaxHighlighter>
 				</Suspense>
 			</NodeViewWrapper>
 		)
@@ -110,6 +133,8 @@ export function CodeBlockNodeView(props: NodeViewProps) {
 					language={language || "text"}
 					data={codeContent}
 					className="code-block-node-view"
+					enableWrapToggle={enableWrapToggle}
+					searchHighlights={searchHighlights}
 				/>
 			</Suspense>
 		</NodeViewWrapper>

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import RecordingShareManagementDialog from "../RecordingShareManagementDialog"
 import { SharedTopicFilterStatus } from "@/pages/superMagic/components/ShareManagement/types"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 
 const corePropsMock = vi.hoisted(() => ({
 	props: [] as Array<{
@@ -127,6 +128,29 @@ describe("RecordingShareManagementDialog", () => {
 			fileShareUiConfig: {
 				hideManageShareLinks: true,
 			},
+		})
+	})
+
+	it("passes recording dependency context to edit shares", () => {
+		const dependencyAttachments: AttachmentItem[] = [
+			{ file_id: "file-demo-001", file_name: "notes.md" },
+		]
+
+		render(
+			<RecordingShareManagementDialog
+				open
+				projectId="project-demo-001"
+				dependencyAttachments={dependencyAttachments}
+				dependencyBundleRootPath="recording-demo"
+				onClose={vi.fn()}
+			/>,
+		)
+
+		expect(corePropsMock.props.at(-1)?.fileShareUiConfig).toMatchObject({
+			dependencyAttachments,
+			dependencyBundleRootPath: "recording-demo",
+			analyzeSelectedDocuments: true,
+			autoIncludeDocumentDependencies: true,
 		})
 	})
 

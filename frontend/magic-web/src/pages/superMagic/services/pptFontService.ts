@@ -4,6 +4,7 @@ import type {
 	FontResolver,
 	UsedFont,
 } from "../../../../packages/html2pptx/src"
+import { mediaSourceDescriptorFromBytes } from "../../../../packages/html2pptx/src"
 import { loadFontSlots, handleFontIssue } from "./pptFont/loader"
 import { findFontEntry } from "./pptFont/matcher"
 import { loadPptFontManifest } from "./pptFont/manifest"
@@ -63,7 +64,12 @@ async function resolveFontFamily(
 
 	const input: EmbedFontInput = { typeface: usedFont.typeface }
 	for (const loadedSlot of loadedSlots) {
-		input[loadedSlot.slot] = loadedSlot.buffer
+		input[loadedSlot.slot] = mediaSourceDescriptorFromBytes({
+			data: loadedSlot.buffer,
+			contentType: "font/ttf",
+			extn: "ttf",
+			key: `font:${usedFont.typeface}:${loadedSlot.slot}`,
+		})
 	}
 	return input
 }

@@ -2,7 +2,7 @@
  * 管理当前表单组件自身数据源
  */
 
-import _ from 'lodash';
+import { cloneDeep } from 'lodash-es'
 import { useCallback, useEffect, useState } from 'react';
 import { Common } from '../types/Common';
 import Schema from '../types/Schema';
@@ -34,7 +34,7 @@ export default function useExpressionSource({
       const gen = (root: Record<string, Schema>, parentKeys: string[]) => {
         Object.entries(root).forEach(([key, _schema]) => {
           const currentKey = [...parentKeys, key].join('.');
-          result[currentKey] = _.cloneDeep(beforeFieldsSource);
+          result[currentKey] = cloneDeep(beforeFieldsSource);
 
           beforeFieldsSource.push({
             label: _schema.title || key,

@@ -2,7 +2,7 @@ import { memo } from "react"
 import { Popup } from "antd-mobile"
 import { IconX } from "@tabler/icons-react"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export interface ActionItem {
 	key: string

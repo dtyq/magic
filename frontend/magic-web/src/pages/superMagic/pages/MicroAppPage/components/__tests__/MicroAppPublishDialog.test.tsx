@@ -7,6 +7,7 @@ import {
 	getPublishDialogMocks,
 	renderDialog,
 	resetPublishDialogMocks,
+	setOrganizationSubscription,
 } from "./MicroAppPublishDialog.testUtils"
 
 const mocks = getPublishDialogMocks()
@@ -43,6 +44,8 @@ describe("MicroAppPublishDialog", () => {
 		const publishedSection = screen.getByTestId("micro-app-published-section")
 		const basicSettings = screen.getByTestId("micro-app-publish-basic-settings")
 		expect(publishedSection).toHaveClass("border-emerald-200", "bg-emerald-50/60")
+		expect(publishedSection).not.toHaveClass("col-span-2")
+		expect(publishedSection.parentElement).toHaveClass("grid-cols-1")
 		expect(publishedSection.nextElementSibling).toBe(basicSettings)
 	})
 
@@ -129,10 +132,14 @@ describe("MicroAppPublishDialog", () => {
 	it("limits the content height and scrolls overflowing settings", async () => {
 		renderDialog()
 
-		const scrollArea = await screen.findByTestId("micro-app-publish-scroll-area")
-		expect(scrollArea).toHaveAttribute("data-slot", "scroll-area")
-		expect(scrollArea).toHaveClass("min-h-0")
-		expect(scrollArea.querySelector("[data-slot='scroll-area-viewport']")).not.toBeNull()
+		const basicScrollArea = await screen.findByTestId("micro-app-publish-scroll-area")
+		const shareScrollArea = screen.getByTestId("micro-app-publish-share-panel")
+		expect(basicScrollArea).toHaveAttribute("data-slot", "scroll-area")
+		expect(shareScrollArea).toHaveAttribute("data-slot", "scroll-area")
+		expect(basicScrollArea).toHaveClass("h-full", "min-h-0", "min-w-0")
+		expect(shareScrollArea).toHaveClass("h-full", "min-h-0", "min-w-0")
+		expect(basicScrollArea.querySelector("[data-slot='scroll-area-viewport']")).not.toBeNull()
+		expect(shareScrollArea.querySelector("[data-slot='scroll-area-viewport']")).not.toBeNull()
 		expect(screen.getByTestId("micro-app-publish-basic-settings").parentElement).toHaveClass(
 			"p-5",
 		)
@@ -180,9 +187,19 @@ describe("MicroAppPublishDialog", () => {
 
 		const scrollArea = await screen.findByTestId("micro-app-publish-scroll-area")
 		expect(scrollArea).toHaveClass("min-h-0", "flex-1")
+		expect(scrollArea.parentElement).toHaveClass("flex", "flex-1", "flex-col")
 		expect(scrollArea.querySelector("[data-slot='scroll-area-viewport']")).toHaveClass(
 			"touch-pan-y",
 		)
+		const popupActions = screen.getByTestId("micro-app-publish-actions")
+		expect(popupActions).toHaveClass("shrink-0", "flex-col")
+		expect(popupActions.closest("[data-slot='scroll-area-viewport']")).toBeNull()
+		expect(popup).toHaveAttribute("data-header-variant", "actionHeader")
+		expect(popup).toHaveAttribute(
+			"data-body-class-name",
+			"flex min-h-0 flex-1 flex-col overflow-hidden p-0",
+		)
+		expect(screen.getByTestId("micro-app-publish-close")).toBeInTheDocument()
 	})
 
 	it("groups the app name and cover in one settings section", async () => {
@@ -191,6 +208,23 @@ describe("MicroAppPublishDialog", () => {
 		const settings = await screen.findByTestId("micro-app-publish-basic-settings")
 		expect(settings).toContainElement(screen.getByTestId("micro-app-publish-project-name"))
 		expect(settings).toContainElement(screen.getByTestId("micro-app-cover-upload"))
+	})
+
+	it("uses a searchable combobox for the default entry", async () => {
+		renderDialog({
+			attachmentList: [
+				{
+					file_id: "entry-1",
+					file_name: "index.html",
+					relative_file_path: "index.html",
+				},
+			],
+		})
+
+		const trigger = await screen.findByTestId("micro-app-default-open-file")
+		expect(trigger).toHaveAttribute("data-slot", "popover-trigger")
+		expect(trigger).toHaveAttribute("role", "combobox")
+		expect(trigger).toHaveTextContent("microAppPage.publish.defaultOpenFileAuto")
 	})
 
 	it("disables publishing and prompts for a missing app name", async () => {
@@ -472,5 +506,151 @@ describe("MicroAppPublishDialog", () => {
 
 		expect(pasteEvent.defaultPrevented).toBe(false)
 		expect(mocks.uploadAndGetFileUrl).not.toHaveBeenCalled()
+	})
+
+	it("只展示管理员允许的微应用分享方式，并自动选中首个可用项", async () => {
+		mocks.functionPermissions = {
+			"micro_app.share_password": false,
+			"micro_app.share_public": true,
+			"micro_app.share_team": false,
+		}
+
+		renderDialog()
+
+		await waitFor(() => {
+			expect(screen.getByTestId("share-type-field")).toHaveAttribute(
+				"data-value",
+				String(ShareType.Public),
+			)
+		})
+		expect(screen.getByTestId("share-type-public")).toBeInTheDocument()
+		expect(screen.queryByTestId("share-type-organization")).not.toBeInTheDocument()
+	})
+
+	it("管理员未开放任何微应用分享方式时禁用发布", async () => {
+		mocks.functionPermissions = {
+			"micro_app.share_password": false,
+			"micro_app.share_public": false,
+			"micro_app.share_team": false,
+		}
+
+		renderDialog()
+
+		expect(await screen.findByText("share.noAvailableShareMethods")).toBeInTheDocument()
+		expect(screen.getByTestId("micro-app-publish-save")).toBeDisabled()
+		// 只有「分享方式」与提示保留，分享设置里的其它项不再渲染。
+		expect(screen.getByTestId("share-type-field")).toBeInTheDocument()
+		expect(screen.queryByTestId("share-expiry-field")).not.toBeInTheDocument()
+	})
+
+	it("管理员未开放任何分享方式时已发布的密码项也一并收起", async () => {
+		mocks.functionPermissions = {
+			"micro_app.share_password": false,
+			"micro_app.share_public": false,
+			"micro_app.share_team": false,
+		}
+		mocks.getMicroAppProject.mockResolvedValue(createPasswordProtectedDetail())
+
+		renderDialog()
+
+		expect(await screen.findByText("share.noAvailableShareMethods")).toBeInTheDocument()
+		// 已发布的方式本身仍展示，但它对应的设置项不再展示。
+		expect(screen.getByTestId("share-type-field")).toBeInTheDocument()
+		expect(screen.queryByTestId("micro-app-publish-password")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("share-expiry-field")).not.toBeInTheDocument()
+		// 左侧发布表单不受分享管控影响。
+		expect(screen.getByTestId("micro-app-publish-project-name")).toBeInTheDocument()
+		expect(screen.getByTestId("micro-app-cover-upload")).toBeInTheDocument()
+	})
+
+	it("移动端管理员未开放任何分享方式时同样收起分享设置里的其它项", async () => {
+		mocks.functionPermissions = {
+			"micro_app.share_password": false,
+			"micro_app.share_public": false,
+			"micro_app.share_team": false,
+		}
+		mocks.getMicroAppProject.mockResolvedValue(createPasswordProtectedDetail())
+
+		renderDialog({ mobile: true })
+
+		expect(await screen.findByText("share.noAvailableShareMethods")).toBeInTheDocument()
+		expect(screen.getByTestId("share-type-field")).toBeInTheDocument()
+		expect(screen.queryByTestId("micro-app-publish-password")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("share-expiry-field")).not.toBeInTheDocument()
+		expect(screen.getByTestId("micro-app-publish-project-name")).toBeInTheDocument()
+	})
+
+	// P0-3: `ShareTypeField` hides team sharing for a free plan, so defaulting to it left the dialog
+	// with nothing selected while the publish payload still carried Organization.
+	it("免费计划默认落回公开访问，而不是被隐藏的团队分享", async () => {
+		setOrganizationSubscription(false)
+
+		renderDialog()
+
+		await waitFor(() => {
+			expect(screen.getByTestId("share-type-field")).toHaveAttribute(
+				"data-value",
+				String(ShareType.Public),
+			)
+		})
+	})
+
+	it("免费计划下发布微应用时提交公开访问", async () => {
+		setOrganizationSubscription(false)
+
+		renderDialog()
+
+		fireEvent.click(await screen.findByTestId("micro-app-publish-save"))
+
+		await waitFor(() => {
+			expect(mocks.publishMicroAppProject).toHaveBeenCalledWith(
+				"app-1",
+				expect.objectContaining({ share_type: ShareType.Public }),
+			)
+		})
+	})
+
+	// Backstop: even if a caller sets the state directly, the plan gate must never reach the request.
+	it("免费计划下直接改状态也选不中团队分享", async () => {
+		setOrganizationSubscription(false)
+
+		renderDialog()
+		await screen.findByTestId("share-type-field")
+
+		fireEvent.click(screen.getByTestId("force-share-type-organization"))
+
+		expect(screen.getByTestId("share-type-field")).toHaveAttribute(
+			"data-value",
+			String(ShareType.Public),
+		)
+	})
+
+	// A live share keeps its own method: opening the dialog must not rewrite it just because the
+	// organization is on a free plan.
+	it("免费计划下已发布的团队分享保持不变", async () => {
+		setOrganizationSubscription(false)
+		mocks.getMicroAppProject.mockResolvedValue({
+			app_id: "app-1",
+			project_id: "project-1",
+			project: { id: "project-1", project_name: "Demo App" },
+			publish: {
+				app_id: "app-1",
+				app_name: "Demo App",
+				resource_id: "resource-1",
+				share_code: "share-code-1",
+				share_type: ShareType.Organization,
+				publish_status: "published",
+				access_url: "https://example.com/micro-app/app-1",
+			},
+		})
+
+		renderDialog()
+
+		await waitFor(() => {
+			expect(screen.getByTestId("share-type-field")).toHaveAttribute(
+				"data-value",
+				String(ShareType.Organization),
+			)
+		})
 	})
 })

@@ -19,6 +19,8 @@ final class MicroAppShareConfig
         }
 
         $extra = $existingExtra ?? [];
+        // 持久化层内部字段不能回灌给客户端请求 DTO。
+        unset($extra['_authorization_version']);
         $requestedExtra = $requestDTO->getExtra();
         if (array_key_exists(CreateShareRequestDTO::EXTRA_FIELD_PURE_MODE, $requestedExtra)) {
             $extra[CreateShareRequestDTO::EXTRA_FIELD_PURE_MODE] = filter_var(

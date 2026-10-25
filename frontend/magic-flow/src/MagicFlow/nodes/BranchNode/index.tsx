@@ -4,7 +4,7 @@ import { Flex, Popover, Tooltip } from "antd"
 import { IconPencilMinus, IconTransfer } from "@tabler/icons-react"
 import clsx from "clsx"
 import i18next from "i18next"
-import _ from "lodash"
+import { get } from "lodash-es"
 import React, { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Handle, NodeProps, NodeToolbar, Position, useStore } from "reactflow"
@@ -36,7 +36,7 @@ function BranchNode({ data, isConnectable, id, position }: NodeProps) {
 
     const { isSelected } = useNodeSelected(id)
 
-	const HeaderRight = _.get(nodeManager.nodesMap, [type, "schema", "headerRight"], null)
+	const HeaderRight = get(nodeManager.nodesMap, [type, "schema", "headerRight"], null)
 
 	const currentNode = useMemo(() => {
 		return nodeConfig[id]

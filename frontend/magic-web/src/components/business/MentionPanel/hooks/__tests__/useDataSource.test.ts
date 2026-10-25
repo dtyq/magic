@@ -516,6 +516,140 @@ describe("useDataSource", () => {
 		})
 	})
 
+	describe("request supersession", () => {
+		/**
+		 * Creates a pending promise the test can settle on demand, which models a host-owned
+		 * search that is still in flight when the next query starts.
+		 */
+		function createDeferred<T>() {
+			let resolve!: (value: T) => void
+			let reject!: (reason?: unknown) => void
+			const promise = new Promise<T>((res, rej) => {
+				resolve = res
+				reject = rej
+			})
+			return { promise, resolve, reject }
+		}
+
+		const firstItems: MentionItem[] = [
+			{
+				id: "stale-result",
+				type: MentionItemType.PROJECT_FILE,
+				name: "Stale Result",
+				icon: "file",
+			},
+		]
+		const latestItems: MentionItem[] = [
+			{
+				id: "latest-result",
+				type: MentionItemType.PROJECT_FILE,
+				name: "Latest Result",
+				icon: "file",
+			},
+		]
+
+		it("ignores the abort error of a superseded search and keeps the newest results", async () => {
+			const first = createDeferred<MentionItem[]>()
+			const second = createDeferred<MentionItem[]>()
+			mockDataService.searchItems.mockImplementation((query: string) =>
+				query === "first" ? first.promise : second.promise,
+			)
+
+			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
+
+			act(() => {
+				void result.current.searchItems("first")
+			})
+			act(() => {
+				void result.current.searchItems("second")
+			})
+
+			await act(async () => {
+				second.resolve(latestItems)
+				await second.promise
+			})
+
+			// The cancelled request settles after its replacement, which is the real widget ordering.
+			await act(async () => {
+				first.reject(new DOMException("Custom Mention search was aborted", "AbortError"))
+				await first.promise.catch(() => undefined)
+			})
+
+			await waitFor(() => expect(result.current.loading).toBe(false))
+			expect(result.current.items).toEqual(latestItems)
+			expect(result.current.error).toBeUndefined()
+		})
+
+		it("does not let a superseded success overwrite newer results", async () => {
+			const first = createDeferred<MentionItem[]>()
+			const second = createDeferred<MentionItem[]>()
+			mockDataService.searchItems.mockImplementation((query: string) =>
+				query === "first" ? first.promise : second.promise,
+			)
+
+			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
+
+			act(() => {
+				void result.current.searchItems("first")
+			})
+			act(() => {
+				void result.current.searchItems("second")
+			})
+
+			await act(async () => {
+				second.resolve(latestItems)
+				await second.promise
+			})
+			await act(async () => {
+				first.resolve(firstItems)
+				await first.promise
+			})
+
+			await waitFor(() => expect(result.current.loading).toBe(false))
+			expect(result.current.items).toEqual(latestItems)
+		})
+
+		it("keeps the visible rows when the active search is cancelled", async () => {
+			mockDataService.searchItems.mockResolvedValueOnce(latestItems)
+			const pending = createDeferred<MentionItem[]>()
+			mockDataService.searchItems.mockImplementationOnce(() => pending.promise)
+
+			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
+
+			await act(async () => {
+				await result.current.searchItems("loaded")
+			})
+			expect(result.current.items).toEqual(latestItems)
+
+			// A panel-owned cancellation (config snapshot replaced) has no successor request.
+			await act(async () => {
+				const searchPromise = result.current.searchItems("cancelled")
+				pending.reject(new DOMException("Custom Mention search was aborted", "AbortError"))
+				await searchPromise
+			})
+
+			await waitFor(() => expect(result.current.loading).toBe(false))
+			expect(result.current.error).toBeUndefined()
+			expect(result.current.items).toEqual(latestItems)
+		})
+
+		it("still reports non-abort failures from the active request", async () => {
+			// Any error carrying a different `name` must stay user-visible.
+			const timeoutError = new Error("Search timed out")
+			timeoutError.name = "TimeoutError"
+			mockDataService.searchItems.mockRejectedValue(timeoutError)
+
+			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
+
+			await act(async () => {
+				await result.current.searchItems("failing")
+			})
+
+			expect(result.current.error).toBe("Search timed out")
+			expect(result.current.loading).toBe(false)
+		})
+	})
+
 	describe("loadStateItems", () => {
 		it("should load folder items for folder state", async () => {
 			const mockItems: MentionItem[] = [

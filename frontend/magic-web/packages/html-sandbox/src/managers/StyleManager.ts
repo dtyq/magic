@@ -19,6 +19,14 @@ import type { TextStyleManager } from "./TextStyleManager"
 import { EditorLogger } from "../utils/EditorLogger"
 import { findElement } from "../utils/ElementSelector"
 import { camelToKebab } from "../utils/css"
+import { normalizeSafeHref } from "../utils/safeUrl"
+import { getEditableTextContent, setElementTextContent } from "../utils/textContent"
+import {
+	assignEditorNodeIds,
+	assignUniqueIdsToClone,
+	resetEditorNodeIds,
+	type DuplicatedIdMapping,
+} from "../features/domTree"
 
 /**
  * Special element state data for Canvas, Video, Audio elements
@@ -51,10 +59,66 @@ type ContainerWithCanvasData = {
 }
 
 type SpecialElementData =
-	| CanvasElementData
-	| VideoElementData
-	| AudioElementData
-	| ContainerWithCanvasData
+	CanvasElementData | VideoElementData | AudioElementData | ContainerWithCanvasData
+
+function splitPriority(value: string): { value: string; priority: "important" | "" } {
+	const match = value.match(/^(.*?)(?:\s*!important\s*)$/i)
+	return match ? { value: match[1].trim(), priority: "important" } : { value, priority: "" }
+}
+
+function getInlineStyleValue(element: HTMLElement, property: string): string {
+	const kebabProperty = camelToKebab(property)
+	const value = element.style.getPropertyValue(kebabProperty)
+	if (!value) return ""
+	const priority = element.style.getPropertyPriority(kebabProperty)
+	return priority ? `${value.trim()} !${priority}` : value.trim()
+}
+
+function setInlineStyle(element: HTMLElement, property: string, rawValue: string): void {
+	const kebabProperty = camelToKebab(property)
+	if (!rawValue.trim()) {
+		element.style.removeProperty(kebabProperty)
+		return
+	}
+	const { value, priority } = splitPriority(rawValue)
+	element.style.setProperty(kebabProperty, value, priority)
+}
+
+const COMMON_ATTRIBUTE_NAMES: Record<string, string> = {
+	href: "href",
+	dataMagicHref: "data-magic-href",
+	target: "target",
+	rel: "rel",
+	download: "download",
+	title: "title",
+	ariaLabel: "aria-label",
+}
+
+function setCommonAttribute(element: HTMLElement, name: string, value: string | null): void {
+	const attributeName = COMMON_ATTRIBUTE_NAMES[name]
+	if (!attributeName) return
+	if (name === "href" || name === "dataMagicHref") value = normalizeSafeHref(value)
+	if (value === null || value.trim() === "") {
+		element.removeAttribute(attributeName)
+		return
+	}
+	element.setAttribute(attributeName, value)
+}
+
+function readCommonAttributes(element: HTMLElement): Record<string, string | null> {
+	return Object.fromEntries(
+		Object.entries(COMMON_ATTRIBUTE_NAMES).map(([key, attributeName]) => {
+			const value = element.getAttribute(attributeName)
+			if ((key !== "href" && key !== "dataMagicHref") || value === null) return [key, value]
+			try {
+				return [key, normalizeSafeHref(value)]
+			} catch {
+				// Do not allow undo to restore an unsafe href already present in the DOM.
+				return [key, null]
+			}
+		}),
+	)
+}
 
 /**
  * Extension point for undo/redo of non-style commands. Register via
@@ -351,14 +415,12 @@ export class StyleManager {
 
 		// Save previous values
 		for (const property of Object.keys(styles)) {
-			const kebabProperty = camelToKebab(property)
-			previousState[property] = element.style.getPropertyValue(kebabProperty) || ""
+			previousState[property] = getInlineStyleValue(element, property)
 		}
 
 		// Apply styles
 		for (const [property, value] of Object.entries(styles)) {
-			const kebabProperty = camelToKebab(property)
-			element.style.setProperty(kebabProperty, value)
+			setInlineStyle(element, property, value)
 		}
 
 		// Record command (only if not in batch mode)
@@ -410,16 +472,14 @@ export class StyleManager {
 
 				// Save previous values
 				for (const property of Object.keys(styles)) {
-					const kebabProperty = camelToKebab(property)
-					previousState[property] = element.style.getPropertyValue(kebabProperty) || ""
+					previousState[property] = getInlineStyleValue(element, property)
 				}
 
 				previousStates.push({ selector, styles: previousState })
 
 				// Apply styles
 				for (const [property, value] of Object.entries(styles)) {
-					const kebabProperty = camelToKebab(property)
-					element.style.setProperty(kebabProperty, value)
+					setInlineStyle(element, property, value)
 				}
 			} catch (error) {
 				EditorLogger.error(`Failed to apply styles to element: ${selector}`, error)
@@ -447,7 +507,7 @@ export class StyleManager {
 	/**
 	 * Apply styles without recording to history (for temporary updates during drag)
 	 */
-	applyStylesTemporary(selector: string, styles: Record<string, string>): void {
+	applyStylesTemporary(selector: string, styles: Record<string, string>) {
 		const element = findElement(selector) as HTMLElement
 
 		// Apply styles without recording
@@ -470,6 +530,8 @@ export class StyleManager {
 				actualInlineLeft: element.style.left,
 			})
 		}
+
+		return this.elementSelector?.getLayoutSnapshot(element)
 	}
 
 	/**
@@ -604,8 +666,7 @@ export class StyleManager {
 
 		// Save current values as initial state
 		for (const property of Object.keys(styles)) {
-			const kebabProperty = camelToKebab(property)
-			previousState[property] = element.style.getPropertyValue(kebabProperty) || ""
+			previousState[property] = getInlineStyleValue(element, property)
 		}
 
 		// Begin batch mode with initial command
@@ -640,10 +701,23 @@ export class StyleManager {
 	}
 
 	/**
-	 * Cancel batch operation without recording
+	 * Cancel batch operation without recording and restore the start snapshot.
 	 */
 	cancelBatchOperation(): void {
+		const start = this.commandHistory.peekBatchStart()
 		this.commandHistory.cancelBatch()
+		const selector = start?.previousState?.selector
+		if (!selector || typeof selector !== "string") return
+
+		try {
+			const element = findElement(selector)
+			for (const [property, value] of Object.entries(start.previousState)) {
+				if (property === "selector" || typeof value !== "string") continue
+				setInlineStyle(element, property, value)
+			}
+		} catch {
+			// The element may have been removed while the drag was active.
+		}
 	}
 
 	/**
@@ -651,10 +725,10 @@ export class StyleManager {
 	 */
 	async setTextContent(selector: string, textContent: string): Promise<void> {
 		const element = findElement(selector)
-		const previousValue = element.textContent || ""
+		const previousValue = getEditableTextContent(element)
 
-		// Apply text content
-		element.textContent = textContent
+		// Apply text content without wiping non-text children
+		setElementTextContent(element, textContent)
 
 		// Record command
 		this.commandHistory.push({
@@ -674,7 +748,7 @@ export class StyleManager {
 	 */
 	getTextContent(selector: string): { textContent: string; hasText: boolean } {
 		const element = findElement(selector)
-		const textContent = element.textContent || ""
+		const textContent = getEditableTextContent(element)
 		const hasText = textContent.trim().length > 0
 
 		return { textContent, hasText }
@@ -816,10 +890,10 @@ export class StyleManager {
 	 */
 	async updateTextContent(selector: string, content: string): Promise<void> {
 		const element = findElement(selector)
-		const previousValue = element.textContent || ""
+		const previousValue = getEditableTextContent(element)
 
-		// Apply text content
-		element.textContent = content
+		// Apply text content without wiping non-text children
+		setElementTextContent(element, content)
 
 		// Record command
 		this.commandHistory.push({
@@ -830,6 +904,51 @@ export class StyleManager {
 			metadata: {
 				canUndo: true,
 				description: "Update text content",
+			},
+		})
+	}
+
+	/** Update common HTML attributes and record one undoable command. */
+	async updateElementAttributes(
+		selector: string,
+		attributes: Record<string, string | null>,
+	): Promise<void> {
+		const element = findElement(selector)
+		const previousAttributes = readCommonAttributes(element)
+		const normalizedAttributes = Object.fromEntries(
+			Object.entries(attributes).map(([name, value]) => [
+				name,
+				name === "href" || name === "dataMagicHref"
+					? normalizeSafeHref(value)
+					: value?.trim() || null,
+			]),
+		) as Record<string, string | null>
+
+		const nextTarget =
+			"target" in normalizedAttributes
+				? normalizedAttributes.target
+				: previousAttributes.target
+		if (nextTarget === "_blank") {
+			const currentRel =
+				"rel" in normalizedAttributes ? normalizedAttributes.rel : previousAttributes.rel
+			const relTokens = new Set((currentRel ?? "").split(/\s+/).filter(Boolean))
+			relTokens.add("noopener")
+			relTokens.add("noreferrer")
+			normalizedAttributes.rel = Array.from(relTokens).join(" ")
+		}
+
+		for (const [name, value] of Object.entries(normalizedAttributes)) {
+			setCommonAttribute(element, name, value)
+		}
+
+		this.commandHistory.push({
+			commandType: "UPDATE_ELEMENT_ATTRIBUTES",
+			payload: { selector, attributes: normalizedAttributes },
+			previousState: { selector, attributes: previousAttributes },
+			timestamp: Date.now(),
+			metadata: {
+				canUndo: true,
+				description: "Update element attributes",
 			},
 		})
 	}
@@ -1001,6 +1120,9 @@ export class StyleManager {
 
 			// Clone the element (deep clone to include all children)
 			const clonedElement = element.cloneNode(true) as HTMLElement
+			const duplicatedIdMappings = assignUniqueIdsToClone(clonedElement)
+			resetEditorNodeIds(clonedElement)
+			assignEditorNodeIds(clonedElement)
 
 			// Handle special elements: copy their runtime state
 			const specialElementData = this.captureSpecialElementState(element)
@@ -1027,12 +1149,13 @@ export class StyleManager {
 			const previousState = {
 				selector,
 				duplicatedSelector,
+				duplicatedIdMappings,
 			}
 
 			// Record command
 			this.commandHistory.push({
 				commandType: "DUPLICATE_ELEMENT",
-				payload: { selector, duplicatedSelector },
+				payload: { selector, duplicatedSelector, duplicatedIdMappings },
 				previousState,
 				timestamp: Date.now(),
 				metadata: {
@@ -1401,12 +1524,7 @@ export class StyleManager {
 						const elem = findElement(elemSelector)
 						// Restore previous style values
 						for (const [property, value] of Object.entries(prevStyles)) {
-							const kebabProperty = camelToKebab(property)
-							if (value) {
-								elem.style.setProperty(kebabProperty, value)
-							} else {
-								elem.style.removeProperty(kebabProperty)
-							}
+							setInlineStyle(elem, property, value)
 						}
 					} catch (error) {
 						EditorLogger.error(
@@ -1633,6 +1751,18 @@ export class StyleManager {
 
 			const element = findElement(selector)
 
+			// Restore common HTML attributes as one atomic command.
+			if (command.commandType === "UPDATE_ELEMENT_ATTRIBUTES") {
+				const previousAttributes = (previousState.attributes ?? {}) as Record<
+					string,
+					string | null
+				>
+				for (const [name, value] of Object.entries(previousAttributes)) {
+					setCommonAttribute(element, name, value)
+				}
+				return
+			}
+
 			// Handle APPLY_TEXT_STYLE command
 			if (command.commandType === "APPLY_TEXT_STYLE") {
 				const previousState = command.previousState as any
@@ -1710,18 +1840,13 @@ export class StyleManager {
 
 			// Handle text content restoration
 			if (textContent !== undefined) {
-				element.textContent = textContent
+				setElementTextContent(element, textContent)
 				return
 			}
 
 			// Handle style restoration
 			for (const [property, value] of Object.entries(previousState)) {
-				const kebabProperty = camelToKebab(property)
-				if (value) {
-					element.style.setProperty(kebabProperty, value as string)
-				} else {
-					element.style.removeProperty(kebabProperty)
-				}
+				setInlineStyle(element, property, value as string)
 			}
 		} catch (error) {
 			EditorLogger.error("Failed to restore state", error)
@@ -1751,8 +1876,7 @@ export class StyleManager {
 						const elem = findElement(elemSelector)
 						// Apply styles
 						for (const [property, value] of Object.entries(styles)) {
-							const kebabProperty = camelToKebab(property)
-							elem.style.setProperty(kebabProperty, value)
+							setInlineStyle(elem, property, value)
 						}
 					} catch (error) {
 						EditorLogger.error(
@@ -1818,6 +1942,7 @@ export class StyleManager {
 				top,
 				left,
 				position,
+				attributes,
 			} = command.payload
 
 			// Handle duplicate element (redo)
@@ -1830,8 +1955,22 @@ export class StyleManager {
 					return
 				}
 
-				// Clone the element
+				// Clone the element and restore the IDs generated by the original
+				// duplication. This keeps undo/redo selectors stable while ensuring
+				// every cloned ID remains unique in the document.
 				const clonedElement = element.cloneNode(true) as HTMLElement
+				const duplicatedIdMappings = (command.payload as any).duplicatedIdMappings as
+					DuplicatedIdMapping[] | undefined
+				const appliedIdMappings = assignUniqueIdsToClone(
+					clonedElement,
+					duplicatedIdMappings,
+				)
+				resetEditorNodeIds(clonedElement)
+				assignEditorNodeIds(clonedElement)
+				if (duplicatedIdMappings) {
+					;(command.payload as any).duplicatedIdMappings = appliedIdMappings
+					;(command.previousState as any).duplicatedIdMappings = appliedIdMappings
+				}
 
 				// Capture and restore special element state
 				const specialElementData = this.captureSpecialElementState(element)
@@ -1848,6 +1987,10 @@ export class StyleManager {
 				if (specialElementData) {
 					await this.restoreSpecialElementState(clonedElement, specialElementData)
 				}
+
+				const appliedDuplicatedSelector = this.generateSelectorForElement(clonedElement)
+				;(command.payload as any).duplicatedSelector = appliedDuplicatedSelector
+				;(command.previousState as any).duplicatedSelector = appliedDuplicatedSelector
 
 				EditorLogger.info("[StyleManager] Element duplicated during redo")
 
@@ -1879,6 +2022,13 @@ export class StyleManager {
 			const element = findElement(selector) as HTMLElement
 
 			switch (command.commandType) {
+				case "UPDATE_ELEMENT_ATTRIBUTES":
+					for (const [name, value] of Object.entries(
+						(attributes ?? {}) as Record<string, string | null>,
+					)) {
+						setCommonAttribute(element, name, value)
+					}
+					break
 				case "SET_BACKGROUND_COLOR":
 					element.style.backgroundColor = color
 					break
@@ -1891,8 +2041,7 @@ export class StyleManager {
 					break
 				case "BATCH_STYLES":
 					for (const [property, value] of Object.entries(styles)) {
-						const kebabProperty = camelToKebab(property)
-						element.style.setProperty(kebabProperty, value as string)
+						setInlineStyle(element, property, value as string)
 					}
 					break
 				case "ADJUST_FONT_SIZE_RECURSIVE": {
@@ -1902,11 +2051,11 @@ export class StyleManager {
 					break
 				}
 				case "SET_TEXT_CONTENT": {
-					element.textContent = textContent
+					setElementTextContent(element, textContent)
 					break
 				}
 				case "UPDATE_TEXT_CONTENT": {
-					element.textContent = content
+					setElementTextContent(element, content)
 					break
 				}
 				case "SET_ELEMENT_POSITION": {

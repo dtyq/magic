@@ -1,8 +1,82 @@
+import { getMagicProjectType } from "@/constants/magicProjectTypes"
+
 /** magic.project.js 应始终以代码模式打开，图标使用 file_extension，不参与内容类型渲染 */
 const MAGIC_PROJECT_JS = "magic.project.js"
 
 export function isMagicProjectConfigFile(fileName?: string): boolean {
 	return fileName === MAGIC_PROJECT_JS
+}
+
+export interface MagicProjectAttachmentFile {
+	file_id?: string | number
+	file_name?: string
+	filename?: string
+	display_filename?: string
+	name?: string
+	parent_id?: string | number | null
+	is_directory?: boolean
+	relative_file_path?: string
+	file_extension?: string
+	display_config?: Record<string, unknown> | null
+	children?: MagicProjectAttachmentFile[]
+}
+
+export interface MagicProjectAttachmentResolution {
+	matchedFile?: MagicProjectAttachmentFile
+	projectDirectory?: MagicProjectAttachmentFile
+	displayConfig?: Record<string, unknown> | null
+	projectName?: string
+	iconType?: string
+}
+
+function findMagicProjectFileById(
+	items: MagicProjectAttachmentFile[] | undefined,
+	fileId: string,
+): MagicProjectAttachmentFile | undefined {
+	for (const item of items || []) {
+		if (String(item.file_id ?? "") === fileId) return item
+		const matchedChild = findMagicProjectFileById(item.children, fileId)
+		if (matchedChild) return matchedChild
+	}
+	return undefined
+}
+
+export function resolveMagicProjectAttachment(
+	item: MagicProjectAttachmentFile,
+	workspaceFilesList: MagicProjectAttachmentFile[] = [],
+	workspaceFileTree: MagicProjectAttachmentFile[] = [],
+): MagicProjectAttachmentResolution {
+	const fileId = item.file_id === undefined || item.file_id === null ? "" : String(item.file_id)
+	const matchedFile = fileId
+		? workspaceFilesList.find((file) => String(file.file_id ?? "") === fileId) ||
+			findMagicProjectFileById(workspaceFileTree, fileId)
+		: undefined
+	const parentId = matchedFile?.parent_id ?? item.parent_id
+	const parentFile = parentId
+		? workspaceFilesList.find((file) => String(file.file_id ?? "") === String(parentId)) ||
+			findMagicProjectFileById(workspaceFileTree, String(parentId))
+		: undefined
+	const displayConfig =
+		parentFile?.display_config || matchedFile?.display_config || item.display_config
+	const projectName =
+		(typeof displayConfig?.name === "string" ? displayConfig.name : undefined) ||
+		parentFile?.name ||
+		parentFile?.file_name ||
+		parentFile?.display_filename
+	const iconType = parentFile
+		? getAttachmentType({
+				...parentFile,
+				display_config: displayConfig,
+			}) || parentFile.file_extension
+		: undefined
+
+	return {
+		matchedFile,
+		projectDirectory: parentFile,
+		displayConfig,
+		projectName,
+		iconType,
+	}
 }
 
 export interface MagicProjectIconContext {
@@ -11,7 +85,7 @@ export interface MagicProjectIconContext {
 	filename?: string
 	name?: string
 	file_extension?: string
-	display_config?: any
+	display_config?: { type?: unknown } | Record<string, unknown> | null
 }
 
 function resolveMagicProjectIconType(item?: MagicProjectIconContext): string | undefined {
@@ -24,54 +98,36 @@ function resolveMagicProjectIconType(item?: MagicProjectIconContext): string | u
 	return "js"
 }
 
-export const getAttachmentType = (item?: MagicProjectIconContext): any => {
+export const getAttachmentType = (item?: MagicProjectIconContext): string | undefined => {
 	const magicProjectIconType = resolveMagicProjectIconType(item)
 	if (magicProjectIconType) return magicProjectIconType
 
 	const { type } = item?.display_config || {}
-	if (type === "slide") {
-		return "ppt"
-	}
-	return item?.display_config?.type
+	return (
+		getMagicProjectType(type)?.attachmentType ?? (typeof type === "string" ? type : undefined)
+	)
 }
 
-export const getAttachmentExtension = (item?: MagicProjectIconContext): any => {
+export const getAttachmentExtension = (item?: MagicProjectIconContext): string | undefined => {
 	const magicProjectIconType = resolveMagicProjectIconType(item)
 	if (magicProjectIconType) return magicProjectIconType
 
 	const { type } = item?.display_config || {}
-	if (type === "slide") {
-		return "pptx"
-	}
-	return item?.display_config?.type
+	return getMagicProjectType(type)?.extensionType ?? (typeof type === "string" ? type : undefined)
 }
 
 /**
  * 获取文件项的图标类型（用于 MagicFileIcon）
  * magic.project.js 始终使用 file_extension
  */
-export function getFileIconType(item: {
-	file_name?: string
-	display_filename?: string
-	filename?: string
-	name?: string
-	file_extension?: string
-	display_config?: any
-}): string {
+export function getFileIconType(item: MagicProjectIconContext): string {
 	return getAttachmentType(item) || item?.file_extension || ""
 }
 
 /**
  * 获取文件项的扩展名类型（用于 Tab 等场景）
  */
-export function getFileExtensionType(item: {
-	file_name?: string
-	display_filename?: string
-	filename?: string
-	name?: string
-	file_extension?: string
-	display_config?: any
-}): string {
+export function getFileExtensionType(item: MagicProjectIconContext): string {
 	return getAttachmentExtension(item) || item?.file_extension || ""
 }
 
@@ -138,11 +194,15 @@ export function getCustomIndexPath(displayConfig: any): string | undefined {
 }
 
 /**
- * custom / micro-app 文件夹图标配置字符串（display_config.icon，兼容旧字段 display_config.icon_path）。
+ * custom / micro-app / html-app 文件夹图标配置字符串（display_config.icon，兼容旧字段 display_config.icon_path）。
  * 可为：相对文件夹根的路径；或以 http(s) / data: 开头的可直接作为 img src 的地址。
  */
-export function getCustomIcon(displayConfig: any): string | undefined {
-	if (!displayConfig || !["custom", "micro-app"].includes(displayConfig.type)) return undefined
+export function getCustomIcon(displayConfig?: Record<string, unknown> | null): string | undefined {
+	if (
+		!displayConfig ||
+		getMagicProjectType(displayConfig.type)?.customIconPolicy !== "configured"
+	)
+		return undefined
 	const p = displayConfig.icon ?? displayConfig.icon_path
 	if (typeof p === "string" && p.trim()) return p.trim()
 	return undefined
@@ -163,14 +223,14 @@ export function resolveCustomIconPathToDirectSrc(iconPath: string): string | und
 }
 
 /**
- * 树/列表里「文件」行：合并了 custom/micro-app display_config 时仍可按扩展名作为 MagicFileIcon 回退（无 icon 或远程失败时）
+ * 树/列表里「文件」行：合并了 custom/micro-app/html-app display_config 时仍可按扩展名作为 MagicFileIcon 回退（无 icon 或远程失败时）
  */
 export function getFileTreeIconType(item?: MagicProjectIconContext): string | undefined {
 	const magicProjectIconType = resolveMagicProjectIconType(item)
 	if (magicProjectIconType) return magicProjectIconType
 
 	if (
-		(item?.display_config?.type === "custom" || item?.display_config?.type === "micro-app") &&
+		getMagicProjectType(item?.display_config?.type)?.customIconPolicy === "configured" &&
 		typeof item?.file_extension === "string" &&
 		item.file_extension.trim()
 	) {

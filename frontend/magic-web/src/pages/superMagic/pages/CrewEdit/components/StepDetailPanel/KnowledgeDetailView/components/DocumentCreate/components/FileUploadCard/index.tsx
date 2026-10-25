@@ -2,7 +2,7 @@ import { Check, AlertCircle, Trash2, FileText, Folder, BookMarked } from "lucide
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { Progress } from "@/components/shadcn-ui/progress"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
 import { UPLOAD_STATUS } from "../../constants"
 import type { FileUploadCardProps } from "./types"

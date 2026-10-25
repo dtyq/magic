@@ -10,12 +10,16 @@ namespace Test\Cases\Application\Audit;
 use App\Domain\Audit\ResourceAccess\Entity\ResourceAccessLogEntity;
 use App\Domain\Audit\ResourceAccess\Repository\Facade\ResourceAccessLogRepositoryInterface;
 use App\Domain\Audit\ResourceAccess\Service\ResourceAccessLogDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateEntity;
 use App\Domain\SlidesTemplate\Event\SlidesTemplateUsedEvent;
-use App\Infrastructure\Audit\Listener\SlidesTemplateUsageLogListener;
+use App\Infrastructure\Audit\Listener\ResourceAccessLogListener;
 use App\Infrastructure\Audit\Repository\Model\ResourceAccessLogModel;
+use App\Infrastructure\Core\ValueObject\Page;
+use Hyperf\Logger\LoggerFactory;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Psr\Log\NullLogger;
 use ReflectionClass;
 use RuntimeException;
 
@@ -28,7 +32,9 @@ class SlidesTemplateUsageLogListenerTest extends TestCase
     {
         $repository = new RecordingResourceAccessLogRepository();
         $domainService = new ResourceAccessLogDomainService($repository);
-        $listener = new SlidesTemplateUsageLogListener(new SlidesTemplateUsageLogListenerTestContainer($domainService));
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->method('get')->willReturn(new NullLogger());
+        $listener = new ResourceAccessLogListener(new SlidesTemplateUsageLogListenerTestContainer($domainService, $loggerFactory));
 
         $template = new SlidesTemplateEntity();
         $template->setCode('PPT-business-minimal')
@@ -37,7 +43,7 @@ class SlidesTemplateUsageLogListenerTest extends TestCase
 
         $listener->process(new SlidesTemplateUsedEvent(
             organizationCode: 'DT001',
-            sourceId: 'slides_template_use',
+            sourceId: SourceId::SLIDES_TEMPLATE_USE,
             callTime: 1234567890000,
             userId: 'user-1',
             userName: '张三',
@@ -93,13 +99,15 @@ class SlidesTemplateUsageLogListenerTest extends TestCase
 final readonly class SlidesTemplateUsageLogListenerTestContainer implements ContainerInterface
 {
     public function __construct(
-        private ResourceAccessLogDomainService $domainService
+        private ResourceAccessLogDomainService $domainService,
+        private LoggerFactory $loggerFactory,
     ) {
     }
 
     public function get(string $id)
     {
         return match ($id) {
+            LoggerFactory::class => $this->loggerFactory,
             ResourceAccessLogDomainService::class => $this->domainService,
             default => throw new RuntimeException('Unexpected container dependency: ' . $id),
         };
@@ -120,6 +128,17 @@ final class RecordingResourceAccessLogRepository implements ResourceAccessLogRep
         $this->entity = $entity;
         return $entity;
     }
+
+    public function queriesRecentlyUsedResources(
+        string $organizationCode,
+        string $userId,
+        string $resourceType,
+        string $operation,
+        Page $page,
+        bool $withTotal = false
+    ): array {
+        return ['list' => []];
+    }
 }
 
 final class FailingResourceAccessLogRepository implements ResourceAccessLogRepositoryInterface
@@ -127,5 +146,16 @@ final class FailingResourceAccessLogRepository implements ResourceAccessLogRepos
     public function save(ResourceAccessLogEntity $entity): ResourceAccessLogEntity
     {
         throw new RuntimeException('save failed');
+    }
+
+    public function queriesRecentlyUsedResources(
+        string $organizationCode,
+        string $userId,
+        string $resourceType,
+        string $operation,
+        Page $page,
+        bool $withTotal = false
+    ): array {
+        return ['list' => []];
     }
 }

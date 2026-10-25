@@ -6,6 +6,7 @@ import { LRUCache, createLRUCache } from "../../../../utils/LRUCache"
 import {
 	MentionItemType,
 	type MentionData,
+	type MicroAppMentionData,
 	type MentionItem,
 	type ProjectFileMentionData,
 } from "../../../../types"
@@ -27,6 +28,13 @@ function getProjectFileId(data?: MentionData): string | undefined {
 	if (!data) return undefined
 	if (!("file_id" in data)) return undefined
 	return typeof data.file_id === "string" ? data.file_id : undefined
+}
+
+function getMicroAppId(data?: MentionData): string | undefined {
+	if (!data || !("app_id" in data)) return undefined
+	return typeof (data as MicroAppMentionData).app_id === "string"
+		? (data as MicroAppMentionData).app_id
+		: undefined
 }
 
 export class MentionPanelHistoryStore {
@@ -55,7 +63,20 @@ export class MentionPanelHistoryStore {
 				id: item.value.id,
 				name: item.value.name,
 			})
-			if (key !== item.key) invalidKeys.push(item.key)
+			if (key === item.key) return
+
+			if (item.value.type === MentionItemType.MICRO_APP && getMicroAppId(item.value.data)) {
+				const existing = cache.get(key)
+				cache.put(key, {
+					...item.value,
+					id: key,
+					usage: (existing?.usage ?? 0) + item.value.usage,
+				})
+				invalidKeys.push(item.key)
+				return
+			}
+
+			invalidKeys.push(item.key)
 		})
 		invalidKeys.forEach((key) => {
 			cache.delete(key)
@@ -89,6 +110,8 @@ export class MentionPanelHistoryStore {
 		switch (item.type) {
 			case MentionItemType.PROJECT_FILE:
 				return `${item.type}_${(item.data as ProjectFileMentionData).file_path}`
+			case MentionItemType.MICRO_APP:
+				return `${item.type}_${getMicroAppId(item.data) || item.id || item.name}`
 			default:
 				return `${item.type}_${item.id || item.name}`
 		}

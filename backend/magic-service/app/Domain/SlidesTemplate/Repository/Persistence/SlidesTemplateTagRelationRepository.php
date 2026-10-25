@@ -59,8 +59,12 @@ class SlidesTemplateTagRelationRepository extends AbstractRepository implements 
         $builder->delete();
     }
 
-    public function findTagsByTemplateIds(SlidesTemplateDataIsolation $dataIsolation, array $templateIds, ?int $tagStatus = null): array
-    {
+    public function findTagsByTemplateIds(
+        SlidesTemplateDataIsolation $dataIsolation,
+        array $templateIds,
+        ?int $tagStatus = null,
+        array $tagCodes = [],
+    ): array {
         $templateIds = array_values(array_unique(array_map('intval', $templateIds)));
         $templateIds = array_values(array_filter($templateIds, static fn (int $templateId): bool => $templateId > 0));
         if ($templateIds === []) {
@@ -77,6 +81,9 @@ class SlidesTemplateTagRelationRepository extends AbstractRepository implements 
 
         if ($tagStatus !== null) {
             $builder->where('magic_slides_template_tags.status', $tagStatus);
+        }
+        if ($tagCodes !== []) {
+            $builder->whereIn('magic_slides_template_tags.code', $tagCodes);
         }
 
         $result = [];

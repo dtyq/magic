@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
-import { NodeSelection, TextSelection } from "@tiptap/pm/state"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import { NodeSelection, TextSelection } from "@/infrastructure/editors/tiptap/pm-state"
 import { useTranslation } from "react-i18next"
 
 // --- Hooks ---
@@ -17,7 +17,7 @@ import {
 	isNodeInSchema,
 	isNodeTypeSelected,
 	isValidPosition,
-} from "@/lib/tiptap-utils"
+} from "@/infrastructure/editors/tiptap/utils"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
 export const BLOCKQUOTE_SHORTCUT_KEY = "mod+shift+b"
@@ -46,36 +46,40 @@ export interface UseBlockquoteConfig {
  */
 export function canToggleBlockquote(editor: Editor | null, turnInto: boolean = true): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (
-				!isNodeInSchema("blockquote", activeEditor) ||
-				isNodeTypeSelected(activeEditor, ["image"])
-			)
-				return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (
+					!isNodeInSchema("blockquote", activeEditor) ||
+					isNodeTypeSelected(activeEditor, ["image"])
+				)
+					return false
 
-			if (!turnInto) {
-				return activeEditor.can().toggleWrap("blockquote")
-			}
-
-			try {
-				const view = activeEditor.view
-				const state = view.state
-				const selection = state.selection
-
-				if (selection.empty || selection instanceof TextSelection) {
-					const pos = findNodePosition({
-						editor: activeEditor,
-						node: state.selection.$anchor.node(1),
-					})?.pos
-					if (!isValidPosition(pos)) return false
+				if (!turnInto) {
+					return activeEditor.can().toggleWrap("blockquote")
 				}
 
-				return true
-			} catch {
-				return false
-			}
-		}, false) ?? false
+				try {
+					const view = activeEditor.view
+					const state = view.state
+					const selection = state.selection
+
+					if (selection.empty || selection instanceof TextSelection) {
+						const pos = findNodePosition({
+							editor: activeEditor,
+							node: state.selection.$anchor.node(1),
+						})?.pos
+						if (!isValidPosition(pos)) return false
+					}
+
+					return true
+				} catch {
+					return false
+				}
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -84,57 +88,63 @@ export function canToggleBlockquote(editor: Editor | null, turnInto: boolean = t
  */
 export function toggleBlockquote(editor: Editor | null): boolean {
 	return (
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!canToggleBlockquote(activeEditor)) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!canToggleBlockquote(activeEditor)) return false
 
-			try {
-				const view = activeEditor.view
-				let state = view.state
-				let tr = state.tr
+				try {
+					const view = activeEditor.view
+					let state = view.state
+					let tr = state.tr
 
-				// No selection, find the the cursor position
-				if (state.selection.empty || state.selection instanceof TextSelection) {
-					const pos = findNodePosition({
-						editor: activeEditor,
-						node: state.selection.$anchor.node(1),
-					})?.pos
-					if (!isValidPosition(pos)) return false
+					// No selection, find the the cursor position
+					if (state.selection.empty || state.selection instanceof TextSelection) {
+						const pos = findNodePosition({
+							editor: activeEditor,
+							node: state.selection.$anchor.node(1),
+						})?.pos
+						if (!isValidPosition(pos)) return false
 
-					tr = tr.setSelection(NodeSelection.create(state.doc, pos))
-					view.dispatch(tr)
-					state = view.state
+						tr = tr.setSelection(NodeSelection.create(state.doc, pos))
+						view.dispatch(tr)
+						state = view.state
+					}
+
+					const selection = state.selection
+
+					let chain = activeEditor.chain().focus()
+
+					// Handle NodeSelection
+					if (selection instanceof NodeSelection) {
+						const firstChild = selection.node.firstChild?.firstChild
+						const lastChild = selection.node.lastChild?.lastChild
+
+						const from = firstChild
+							? selection.from + firstChild.nodeSize
+							: selection.from + 1
+
+						const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
+
+						chain = chain.setTextSelection({ from, to }).clearNodes()
+					}
+
+					const toggle = activeEditor.isActive("blockquote")
+						? chain.lift("blockquote")
+						: chain.wrapIn("blockquote")
+
+					toggle.run()
+
+					activeEditor.chain().focus().selectTextblockEnd().run()
+
+					return true
+				} catch {
+					return false
 				}
-
-				const selection = state.selection
-
-				let chain = activeEditor.chain().focus()
-
-				// Handle NodeSelection
-				if (selection instanceof NodeSelection) {
-					const firstChild = selection.node.firstChild?.firstChild
-					const lastChild = selection.node.lastChild?.lastChild
-
-					const from = firstChild ? selection.from + firstChild.nodeSize : selection.from + 1
-
-					const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
-
-					chain = chain.setTextSelection({ from, to }).clearNodes()
-				}
-
-				const toggle = activeEditor.isActive("blockquote")
-					? chain.lift("blockquote")
-					: chain.wrapIn("blockquote")
-
-				toggle.run()
-
-				activeEditor.chain().focus().selectTextblockEnd().run()
-
-				return true
-			} catch {
-				return false
-			}
-		}, false) ?? false
+			},
+			false,
+		) ?? false
 	)
 }
 
@@ -148,16 +158,20 @@ export function shouldShowButton(props: {
 	const { editor, hideWhenUnavailable } = props
 
 	const isVisible =
-		runActiveEditor(editor, (activeEditor) => {
-			if (!activeEditor.isEditable) return false
-			if (!isNodeInSchema("blockquote", activeEditor)) return false
+		runActiveEditor(
+			editor,
+			(activeEditor) => {
+				if (!activeEditor.isEditable) return false
+				if (!isNodeInSchema("blockquote", activeEditor)) return false
 
-			if (hideWhenUnavailable && !activeEditor.isActive("code")) {
-				return canToggleBlockquote(activeEditor)
-			}
+				if (hideWhenUnavailable && !activeEditor.isActive("code")) {
+					return canToggleBlockquote(activeEditor)
+				}
 
-			return true
-		}, false) ?? false
+				return true
+			},
+			false,
+		) ?? false
 
 	return isVisible
 }

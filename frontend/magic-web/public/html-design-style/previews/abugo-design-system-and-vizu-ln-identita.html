@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ABUGO — Central European Design System &amp; Vizuální Identita</title>
+  <style>
+    :root {
+      --main: #2c0842;
+      --heading: #0b0011;
+      --accent: #7b3aa3;
+      --text: #504756;
+      --action: #ff9292;
+      --action-hover: #eb7777;
+      --terracotta: #c85a32;
+      --ochre: #d97736;
+      --soft: #f9f1ff;
+      --white: #ffffff;
+      --divider: #dfe0e3;
+      --neutral-200: #f7f9fc;
+      --neutral-400: #dce2eb;
+      --neutral-500: #a0adbd;
+      --font-display: "Termina", "Syne", sans-serif;
+      --font-ui: "Sofia Sans", system-ui, sans-serif;
+      --font-body: "Manrope", system-ui, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0; }
+    body {
+      background: var(--neutral-200);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 13.5px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .brand-header {
+      background: var(--main);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--white);
+      padding: 12px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-logo-text {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: var(--white);
+    }
+    .brand-logo-text span { color: var(--action); }
+    .brand-system-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--soft);
+      padding: 3px 8px;
+      margin-left: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 700;
+      list-style: none;
+    }
+    .nav-links a { color: var(--white); text-decoration: none; }
+    .nav-links a.active { color: var(--action); border-bottom: 2px solid var(--action); }
+    .bilingual-switch {
+      display: flex;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .lang-item { padding: 3px 8px; color: var(--white); text-decoration: none; }
+    .lang-item.active { background: var(--action); color: var(--main); }
+    .hero-editorial {
+      background: var(--main);
+      color: var(--white);
+      padding: 30px 32px 36px;
+      border-bottom: 3px solid var(--action);
+      position: relative;
+    }
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--action);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .hero-eyebrow::before { content: ""; width: 20px; height: 2px; background: var(--action); }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 30px;
+      align-items: center;
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: 34px;
+      line-height: 1.15;
+      font-weight: 300;
+      margin-bottom: 12px;
+    }
+    .hero-title strong { font-weight: 800; border-bottom: 2px solid var(--terracotta); }
+    .hero-lead {
+      font-family: var(--font-ui);
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 18px;
+    }
+    .hero-actions { display: flex; gap: 14px; }
+    .btn-primary {
+      background: var(--action);
+      color: var(--main);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 800;
+      padding: 10px 24px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--white);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 10px 20px;
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }
+    .hero-spec-box {
+      background: rgba(11, 0, 17, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 16px;
+    }
+    .spec-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--soft);
+    }
+    .spec-metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .spec-metric-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px;
+    }
+    .metric-val {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--action);
+    }
+    .metric-label {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: var(--neutral-400);
+      margin-top: 2px;
+      text-transform: uppercase;
+    }
+    .bilingual-tokens-row {
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+    }
+    .token-line { display: flex; justify-content: space-between; color: rgba(255, 255, 255, 0.7); }
+    .token-line strong { color: var(--white); }
+    .showcase-layout {
+      max-width: 1240px;
+      margin: 24px auto;
+      padding: 0 28px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .section-title-bar {
+      border-bottom: 2px solid var(--heading);
+      padding-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .section-heading {
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--heading);
+      text-transform: uppercase;
+    }
+    .section-sub { font-family: var(--font-mono); font-size: 11px; }
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .swatch-card { background: var(--white); border: 1px solid var(--divider); }
+    .swatch-block { height: 60px; position: relative; }
+    .swatch-tag {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 2px 4px;
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+    }
+    .swatch-info { padding: 8px 10px; }
+    .swatch-name { font-family: var(--font-ui); font-size: 12px; font-weight: 700; color: var(--heading); }
+    .swatch-hex { font-family: var(--font-mono); font-size: 10.5px; color: var(--text); }
+    .swatch-role { font-size: 10px; color: var(--neutral-500); margin-top: 2px; }
+    .content-split {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 20px;
+    }
+    .card-panel { background: var(--white); border: 1px solid var(--divider); padding: 20px; }
+    .panel-header {
+      border-bottom: 1px solid var(--divider);
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .panel-header h3 {
+      font-family: var(--font-display);
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--heading);
+      text-transform: uppercase;
+    }
+    .saas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .saas-item {
+      border: 1px solid var(--divider);
+      padding: 12px;
+      background: var(--neutral-200);
+    }
+    .saas-item.featured { background: var(--soft); border-color: var(--accent); }
+    .saas-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      background: var(--main);
+      color: var(--white);
+      padding: 2px 5px;
+      margin-bottom: 6px;
+    }
+    .saas-title { font-family: var(--font-ui); font-size: 14px; font-weight: 700; color: var(--heading); }
+    .saas-desc { font-size: 11.5px; color: var(--text); margin-bottom: 8px; }
+    .saas-stats {
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      padding-top: 6px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .type-spec-list { display: flex; flex-direction: column; gap: 10px; }
+    .type-spec-row {
+      padding: 8px 10px;
+      background: var(--neutral-200);
+      border-left: 3px solid var(--accent);
+    }
+    .type-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .type-sample { color: var(--heading); font-size: 13px; }
+    .brand-footer {
+      background: var(--main);
+      color: var(--white);
+      padding: 20px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--divider);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <header class="brand-header">
+    <div style="display:flex;align-items:center;">
+      <div class="brand-logo-text">AB<span>Ū</span>GO</div>
+      <span class="brand-system-badge">Group SE · Vizuální Identita</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#identity" class="active">Architektura</a></li>
+      <li><a href="#tokens">Barevné Tokeny</a></li>
+      <li><a href="#portfolio">Portfolio SaaS</a></li>
+      <li><a href="#typografie">Typografie</a></li>
+    </ul>
+    <div class="bilingual-switch">
+      <span class="lang-item active">CZ</span>
+      <span class="lang-item">EN</span>
+    </div>
+  </header>
+
+  <section class="hero-editorial" id="identity">
+    <div class="hero-eyebrow">Centrální Evropský Design Systém · Verze 2.4</div>
+    <div class="hero-grid">
+      <div>
+        <h1 class="hero-title">Budujeme software, který <strong>zjednodušuje obchod</strong>.</h1>
+        <p class="hero-lead">
+          Disciplína nulového border-radius, hluboká fialová s teplými terakotovo-okrovými akcenty a bilingvální designové tokeny pro středoevropský e-commerce trh.
+        </p>
+        <div class="hero-actions">
+          <a href="#tokens" class="btn-primary">
+            <span>Prozkoumat Tokeny</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+          </a>
+          <a href="#portfolio" class="btn-secondary"><span>Portfolio SaaS</span></a>
+        </div>
+      </div>
+
+      <div class="hero-spec-box">
+        <div class="spec-header">
+          <span>ABŪGO Identity Core</span>
+          <span>CZ-PRG / GLOBAL</span>
+        </div>
+        <div class="spec-metric-row">
+          <div class="spec-metric-card">
+            <div class="metric-val">#2C0842</div>
+            <div class="metric-label">Brand Fialová</div>
+          </div>
+          <div class="spec-metric-card">
+            <div class="metric-val">#FF9292</div>
+            <div class="metric-label">Korálová Akce</div>
+          </div>
+          <div class="spec-metric-card">
+            <div class="metric-val">#C85A32</div>
+            <div class="metric-label">Terakota Tón</div>
+          </div>
+        </div>
+        <div class="bilingual-tokens-row">
+          <div class="token-line"><span>Display Font</span><strong>Termina (300 / 700)</strong></div>
+          <div class="token-line"><span>UI Elements</span><strong>Sofia Sans (700 Bold)</strong></div>
+          <div class="token-line"><span>Body Copy</span><strong>Manrope (400 Regular)</strong></div>
+          <div class="token-line"><span>Geometry</span><strong>Radius: 0 · Shadows: None</strong></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="showcase-layout" id="tokens">
+    <div>
+      <div class="section-title-bar">
+        <h2 class="section-heading">01. Barevný Systém &amp; Sémantické Role</h2>
+        <span class="section-sub">Extract z živého CSS audit standardu</span>
+      </div>
+      <div class="swatch-grid">
+        <div class="swatch-card">
+          <div class="swatch-block" style="background: #2c0842;"><span class="swatch-tag">BRAND</span></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Brand Fialová</div>
+            <div class="swatch-hex">#2C0842</div>
+            <div class="swatch-role">Hero kotva, tmavé sekce</div>
+          </div>
+        </div>
+        <div class="swatch-card">
+          <div class="swatch-block" style="background: #ff9292;"><span class="swatch-tag" style="color:#2c0842;background:#fff;">ACTION</span></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Korálová Akce</div>
+            <div class="swatch-hex">#FF9292</div>
+            <div class="swatch-role">Interaktivní CTA, akcent Ū</div>
+          </div>
+        </div>
+        <div class="swatch-card">
+          <div class="swatch-block" style="background: #c85a32;"><span class="swatch-tag">TERRACOTTA</span></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Teplá Terakota</div>
+            <div class="swatch-hex">#C85A32</div>
+            <div class="swatch-role">CEE vizuální akcent</div>
+          </div>
+        </div>
+        <div class="swatch-card">
+          <div class="swatch-block" style="background: #d97736;"><span class="swatch-tag">OCHRE</span></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Okrový Zlatý</div>
+            <div class="swatch-hex">#D97736</div>
+            <div class="swatch-role">Metriky a hodnocení</div>
+          </div>
+        </div>
+        <div class="swatch-card">
+          <div class="swatch-block" style="background: #f9f1ff; border-bottom: 1px solid var(--divider);"><span class="swatch-tag" style="color:#2c0842;background:#eee;">SURFACE</span></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Měkká Levandule</div>
+            <div class="swatch-hex">#F9F1FF</div>
+            <div class="swatch-role">Pozadí světlých karet</div>
+          </div>
+        </div>
+        <div class="swatch-card">
+          <div class="swatch-block" style="background: #dfe0e3;"><span class="swatch-tag" style="color:#000;background:#fff;">DIVIDER</span></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Dělící Linka</div>
+            <div class="swatch-hex">#DFE0E3</div>
+            <div class="swatch-role">1px strukturní separace</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-split" id="portfolio">
+      <div class="card-panel">
+        <div class="panel-header">
+          <h3>02. Portfolio SaaS Produktů</h3>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--terracotta); font-weight:700;">Více produktů · Jedna mise</span>
+        </div>
+        <div class="saas-grid">
+          <div class="saas-item featured">
+            <span class="saas-badge">COMMERCE SYNC</span>
+            <h4 class="saas-title">Abugo CartSync™</h4>
+            <p class="saas-desc">Synchronizace košíků a skladových zásob pro 240+ středoevropských e-shopů.</p>
+            <div class="saas-stats"><span>ODEZVA</span><span style="color:var(--terracotta);">14ms SLA</span></div>
+          </div>
+          <div class="saas-item">
+            <span class="saas-badge" style="background:var(--terracotta);">DYNAMIC PRICING</span>
+            <h4 class="saas-title">Abugo PriceFlow™</h4>
+            <p class="saas-desc">Algoritmické přeceňování pro multi-měnové trhy (CZK, EUR, PLN, HUF).</p>
+            <div class="saas-stats"><span>ÚSPORA</span><span>+18.4% MARŽE</span></div>
+          </div>
+          <div class="saas-item">
+            <span class="saas-badge" style="background:var(--accent);">LOGISTICS AI</span>
+            <h4 class="saas-title">Abugo ParcelFleet</h4>
+            <p class="saas-desc">Konsolidace zásilek a směrování výdejních boxů pro dopravce Zásilkovna, DPD, GLS.</p>
+            <div class="saas-stats"><span>EXPEDICE</span><span style="color:var(--accent);">99.8% ON-TIME</span></div>
+          </div>
+          <div class="saas-item">
+            <span class="saas-badge" style="background:var(--ochre);">REVIEWS</span>
+            <h4 class="saas-title">Abugo TrustPulse</h4>
+            <p class="saas-desc">Ověřené zákaznické recenze a certifikace spolehlivého obchodu v CEE.</p>
+            <div class="saas-stats"><span>HODNOCENÍ</span><span style="color:var(--ochre);">★ 4.96 / 5.0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-panel" id="typografie">
+        <div class="panel-header">
+          <h3>03. Typografický Řád</h3>
+          <span style="font-family: var(--font-mono); font-size: 11px;">Swiss Ratio</span>
+        </div>
+        <div class="type-spec-list">
+          <div class="type-spec-row">
+            <div class="type-meta"><span>DISPLAY H1 · TERMINA 300/700</span><span>72px / 80px</span></div>
+            <div class="type-sample" style="font-family:var(--font-display);font-size:17px;font-weight:300;">Software, který <strong>zjednodušuje</strong></div>
+          </div>
+          <div class="type-spec-row" style="border-left-color:var(--terracotta);">
+            <div class="type-meta"><span>HEADLINE H2 · TERMINA 500</span><span>40px / 56px</span></div>
+            <div class="type-sample" style="font-family:var(--font-display);font-size:14px;font-weight:500;color:var(--terracotta);">Globálně od prvního dne</div>
+          </div>
+          <div class="type-spec-row" style="border-left-color:var(--action);">
+            <div class="type-meta"><span>UI / CTA · SOFIA SANS 700</span><span>18px / 32px</span></div>
+            <div class="type-sample" style="font-family:var(--font-ui);font-size:13.5px;font-weight:700;color:var(--main);">KONTAKTOVAT SALES TÝM ↗</div>
+          </div>
+          <div class="type-spec-row">
+            <div class="type-meta"><span>BODY · MANROPE 400</span><span>18px / 32px</span></div>
+            <div class="type-sample" style="font-family:var(--font-body);font-size:12px;color:var(--text);">Stavět se záměrem, škálovat s rozvahou a tvořit nástroje s reálným dopadem.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="brand-footer">
+    <div style="display:flex;gap:16px;">
+      <strong style="letter-spacing:0.08em;">ABŪGO GROUP SE</strong>
+      <span style="color:rgba(255,255,255,0.6);">© 2026 Všechna práva vyhrazena. Založeno v Praze.</span>
+    </div>
+    <div style="color:var(--action);display:flex;align-items:center;gap:6px;">
+      <span style="width:7px;height:7px;background:var(--action);display:inline-block;"></span>
+      <span>SYSTEM SPECIFICATION: ACTIVE (v2.4)</span>
+    </div>
+  </footer>
+</body>
+</html>

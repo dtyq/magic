@@ -1,13 +1,13 @@
 import { useTranslation } from "react-i18next"
-import { DatePicker, Flex, Form, Input, Radio, Space } from "antd"
+import { DatePicker, Form, Input, Radio, Space } from "antd"
 import MagicSpin from "@/components/base/MagicSpin"
 import EmptyIcon from "@/assets/logos/empty.svg"
 import type { GlobalSearch } from "@/types/search"
-import dayjs from "@/lib/dayjs"
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import dayjs from "@/infrastructure/vendors/dayjs"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useMemoizedFn } from "ahooks"
 import type { PanelsProps } from "./Applications"
-import { useStyles } from "./styles"
+import { panelClassNames as styles } from "./classNames"
 import SearchItem from "../SearchItem"
 import { useApprovalFormStore } from "../../hooks/useApprovalFormStore"
 import { useApprovalOptions } from "../../hooks/useApprovalOptions"
@@ -17,7 +17,6 @@ import { useRequest } from "../request"
 
 function Approval(props: PanelsProps) {
 	const { maxHeight } = props
-	const { styles } = useStyles()
 	const { t } = useTranslation("search")
 
 	const { statusOptions, timeOptions } = useApprovalOptions()
@@ -30,8 +29,8 @@ function Approval(props: PanelsProps) {
 		useRequest<GlobalSearch.ApprovalItem>(searchWord, 7)
 
 	// 滚动加载更多
-	const onScroll = useMemoizedFn((event) => {
-		const { scrollHeight, clientHeight, scrollTop } = event.target
+	const onScroll = useMemoizedFn((event: React.UIEvent<HTMLDivElement>) => {
+		const { scrollHeight, clientHeight, scrollTop } = event.currentTarget
 		// 当距离底部不到100px时触发加载
 		if (scrollHeight - (scrollTop + clientHeight) <= 100 && !loading && data?.length > 0) {
 			if (hasMorePage) {
@@ -50,25 +49,17 @@ function Approval(props: PanelsProps) {
 				<div className={styles.header}>{t("quickSearch.tabs.approve")}</div>
 				{loading && data.length === 0 ? (
 					<div className={styles.empty}>
-						<Flex
-							flex={1}
-							vertical
-							align="center"
-							justify="center"
-							style={{ width: "100%", height: "100%" }}
-						>
+						<div className="flex size-full flex-1 flex-col items-center justify-center">
 							<MagicSpin spinning />
 							<span>{t("quickSearch.settings.loading")}</span>
-						</Flex>
+						</div>
 					</div>
 				) : (
-					<MagicScrollBar
+					<ScrollArea
 						className={styles.wrapper}
-						style={{ maxHeight }}
-						autoHide={false}
-						scrollableNodeProps={{
-							onScroll,
-						}}
+						viewportClassName="h-auto p-1"
+						viewportStyle={{ maxHeight }}
+						viewportProps={{ onScroll }}
 					>
 						{!data || data.length === 0 ? (
 							<div className={styles.empty}>
@@ -81,18 +72,18 @@ function Approval(props: PanelsProps) {
 									<SearchItem.Approval key={item.id} item={item} />
 								))}
 								{loading && (
-									<Flex justify="center" style={{ padding: "10px 0" }}>
+									<div className="flex justify-center py-2.5">
 										<MagicSpin spinning />
-									</Flex>
+									</div>
 								)}
 							</>
 						)}
-					</MagicScrollBar>
+					</ScrollArea>
 				)}
 			</div>
-			<div className={styles.section} style={{ flex: "0 0 220px" }}>
+			<div className={styles.section}>
 				<div className={styles.title}>{t("quickSearch.settings.filter")}</div>
-				<div className={styles.sectionBody} style={{ maxHeight }}>
+				<ScrollArea className={styles.sectionBody} viewportStyle={{ maxHeight }}>
 					<Form layout="vertical">
 						<Form.Item label={t("quickSearch.settings.initiator")}>
 							<Input placeholder={t("quickSearch.settings.clickToSelect")} />
@@ -127,7 +118,7 @@ function Approval(props: PanelsProps) {
 						</Form.Item>
 						<Form.Item noStyle>
 							<DatePicker
-								style={{ width: "100%", marginBottom: 8 }}
+								className="mb-2 w-full"
 								maxDate={
 									formData?.end_time
 										? dayjs(Number(formData?.end_time) * 1000)
@@ -142,7 +133,7 @@ function Approval(props: PanelsProps) {
 						</Form.Item>
 						<Form.Item noStyle>
 							<DatePicker
-								style={{ width: "100%" }}
+								className="w-full"
 								minDate={
 									formData?.start_time
 										? dayjs(Number(formData?.start_time) * 1000)
@@ -154,7 +145,7 @@ function Approval(props: PanelsProps) {
 							/>
 						</Form.Item>
 					</Form>
-				</div>
+				</ScrollArea>
 			</div>
 		</div>
 	)

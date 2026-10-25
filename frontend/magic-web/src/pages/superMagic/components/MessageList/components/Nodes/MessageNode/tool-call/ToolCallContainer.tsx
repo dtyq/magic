@@ -3,11 +3,17 @@ import { observer } from "mobx-react-lite"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { MessageViewStateScopeProvider } from "@/pages/superMagic/components/MessageList/view-state/MessageViewStateContext"
 import { handleToolCallInteraction } from "./interactions"
+import { getToolCardInteractionTarget } from "../../toolDetailSelection"
 import { useToolRemarkPreview } from "./preview/useToolRemarkPreview"
 import { ToolCallRenderer } from "./ToolCallRenderer"
-import type { ToolCallContainerProps, ToolCallViewModel, ToolDetail } from "./types"
-
-const TERMINAL_TOOL_STATUSES = new Set(["finished", "error", "suspended", "response_missing"])
+import { useMessageListProjectFilesStore } from "@/pages/superMagic/components/MessageList/context"
+import { getPendingCanvasOperationResultDetail } from "@/pages/superMagic/utils/toolDetailDisplay"
+import {
+	isToolCallLoading,
+	type ToolCallContainerProps,
+	type ToolCallViewModel,
+	type ToolDetail,
+} from "./types"
 
 export const ToolCallContainer = observer(function ToolCallContainer(
 	props: ToolCallContainerProps,
@@ -24,6 +30,7 @@ export const ToolCallContainer = observer(function ToolCallContainer(
 		selectedTopic,
 		isShare,
 	} = props
+	const filesStore = useMessageListProjectFilesStore()
 	const toolResponse = ownerSuperMessageId
 		? (superMagicStore.getToolResponseForRendering?.(topicId, ownerSuperMessageId, toolCall) ??
 			superMagicStore.toolResponseMap.get(topicId)?.get(toolCall.id))
@@ -38,7 +45,7 @@ export const ToolCallContainer = observer(function ToolCallContainer(
 	)
 	const effectiveStatus = useMemo(() => resolveToolStatus(effectiveResponse), [effectiveResponse])
 	// Store normalization owns protocol status; nested detail.status is domain data.
-	const isToolLoading = !effectiveStatus || !TERMINAL_TOOL_STATUSES.has(effectiveStatus)
+	const isToolLoading = isToolCallLoading({ tool: effectiveResponse })
 	const responseRemark =
 		typeof effectiveResponse?.remark === "string"
 			? effectiveResponse.remark
@@ -55,6 +62,14 @@ export const ToolCallContainer = observer(function ToolCallContainer(
 		typeof streamToolCall?.function?.arguments === "string"
 			? streamToolCall.function.arguments
 			: toolCall.function.arguments || ""
+	const pendingDetail = useMemo(
+		() =>
+			isToolLoading && !effectiveDetail
+				? getPendingCanvasOperationResultDetail(toolCall.function.name, previewArguments)
+				: undefined,
+		[effectiveDetail, isToolLoading, previewArguments, toolCall.function.name],
+	)
+	const renderDetail = effectiveDetail || pendingDetail
 	const previewRemark = useToolRemarkPreview({
 		enabled: !responseRemark,
 		identity: `${topicId}:${ownerSuperMessageId || correlationId}:${toolCall.id}`,
@@ -73,30 +88,42 @@ export const ToolCallContainer = observer(function ToolCallContainer(
 
 		return {
 			id: toolCall.id,
-			name: toolCall.function.name,
+			downloadProgress: toolResponse?.downloadProgress,
+			name:
+				typeof effectiveResponse?.name === "string" &&
+				[
+					"download_from_urls",
+					"audio_understanding",
+					"audio_understanding_progress",
+					"video_generation_progress",
+				].includes(effectiveResponse.name)
+					? effectiveResponse.name
+					: toolCall.function.name,
 			action,
 			// Preview strategies only fill an empty UI remark; canonical response remains authoritative.
 			remark: responseRemark || previewRemark,
 			status: effectiveStatus,
 			attachments,
-			rawArguments: toolCall.function.arguments,
-			detail: effectiveDetail,
+			interactionTarget: getToolCardInteractionTarget(toolCall.function.name, renderDetail),
+			rawArguments: previewArguments,
+			detail: renderDetail,
 		}
 	}, [
 		toolCall.id,
 		toolCall.function.name,
 		toolCall.function.label,
-		toolCall.function.arguments,
 		responseRemark,
 		previewRemark,
 		effectiveResponse,
-		effectiveDetail,
+		toolResponse?.downloadProgress,
 		effectiveStatus,
+		previewArguments,
+		renderDetail,
 	])
 
 	const onClick = useCallback(() => {
-		handleToolCallInteraction({ toolData, onSelectDetail })
-	}, [onSelectDetail, toolData])
+		handleToolCallInteraction({ toolData, onSelectDetail, filesStore })
+	}, [filesStore, onSelectDetail, toolData])
 
 	return (
 		<MessageViewStateScopeProvider messageKey={toolCall.id}>

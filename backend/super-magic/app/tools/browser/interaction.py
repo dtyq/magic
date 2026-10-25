@@ -9,7 +9,7 @@ from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import ToolDetail
 from app.service.browser import BrowserService
 from app.service.browser.browser_tool_result_builder import BrowserToolResultBuilder
-from app.tools.browser.base import BrowserToolBase
+from app.tools.browser.base import BrowserToolBase, BrowserToolParams
 from app.tools.browser.presentation.interaction import (
     check_detail,
     click_detail,
@@ -20,14 +20,14 @@ from app.tools.browser.presentation.interaction import (
     select_detail,
     upload_detail,
 )
-from app.tools.core import BaseToolParams, tool
+from app.tools.core import tool
 from magic_use import ActionKind, ActionRequest
+from magic_use.models import BrowserPage
 
 
-class BrowserRefParams(BaseToolParams):
-    page_id: str = Field(..., description="Opaque page ID returned by a Browser tool.")
+class BrowserRefParams(BrowserToolParams):
     ref: str = Field(..., description="Exact ref from the latest relevant snapshot.")
-    session_id: str | None = Field(None, description="Browser session ID. Omit to use the default session.")
+    tab_id: str | None = Field(None, description="Tab ID returned by a Browser tool. Omit to use the default tab.")
 
 
 class BrowserFillParams(BrowserRefParams):
@@ -38,19 +38,17 @@ class BrowserFillParams(BrowserRefParams):
     )
 
 
-class BrowserPressParams(BaseToolParams):
-    page_id: str = Field(..., description="Opaque page ID returned by a Browser tool.")
+class BrowserPressParams(BrowserToolParams):
     ref: str | None = Field(None, description="Optional ref to focus before pressing. Omit to use the current page focus.")
     key: str = Field(..., description="Playwright-compatible key or key chord, such as Enter or Control+Enter.")
-    session_id: str | None = Field(None, description="Browser session ID. Omit to use the default session.")
+    tab_id: str | None = Field(None, description="Tab ID returned by a Browser tool. Omit to use the default tab.")
 
 
-class BrowserScrollParams(BaseToolParams):
-    page_id: str = Field(..., description="Opaque page ID returned by a Browser tool.")
+class BrowserScrollParams(BrowserToolParams):
     ref: str | None = Field(None, description="Optional ref to scroll into view or use as scroll context.")
     delta_x: float = Field(0, description="Horizontal distance: positive scrolls right, negative scrolls left.")
     delta_y: float = Field(0, description="Vertical distance: positive scrolls down, negative scrolls up.")
-    session_id: str | None = Field(None, description="Browser session ID. Omit to use the default session.")
+    tab_id: str | None = Field(None, description="Tab ID returned by a Browser tool. Omit to use the default tab.")
 
     @model_validator(mode="after")
     def validate_scroll_target(self) -> "BrowserScrollParams":
@@ -75,16 +73,6 @@ class BrowserUploadFileParams(BrowserRefParams):
     )
 
 
-async def _dispatch_action(
-    tool_context: ToolContext,
-    page_id: str,
-    request: ActionRequest,
-    session_id: str | None,
-) -> ToolResult:
-    result = await BrowserService(tool_context).dispatch_action(page_id, request, session_id)
-    return BrowserToolResultBuilder.action(result)
-
-
 # Agent-facing usage is documented in agents/skills/browser/.
 @tool(name="browser_click", code_mode_only=True)
 class BrowserClick(BrowserToolBase[BrowserRefParams]):
@@ -98,17 +86,15 @@ class BrowserClick(BrowserToolBase[BrowserRefParams]):
         return self.create_browser_tool_detail(result, click_detail(result))
 
     async def execute(self, tool_context: ToolContext, params: BrowserRefParams) -> ToolResult:
-        return await self.execute_state_change(
-            tool_context,
-            _dispatch_action(
-                tool_context,
-                params.page_id,
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
+            result = await service.dispatch_action(
+                current_page.id,
                 ActionRequest(action=self.action_kind, ref=params.ref),
-                params.session_id,
-            ),
-            page_id=params.page_id,
-            session_id=params.session_id,
-        )
+                current_page.session_id,
+            )
+            return BrowserToolResultBuilder.action(result)
+
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)
 
 
 # Agent-facing usage is documented in agents/skills/browser/.
@@ -123,15 +109,15 @@ class BrowserFill(BrowserToolBase[BrowserFillParams]):
         return self.create_browser_tool_detail(result, fill_detail(result, arguments or {}))
 
     async def execute(self, tool_context: ToolContext, params: BrowserFillParams) -> ToolResult:
-        async def operation() -> ToolResult:
-            result = await BrowserService(tool_context).dispatch_action(
-                params.page_id,
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
+            result = await service.dispatch_action(
+                current_page.id,
                 ActionRequest(action=ActionKind.FILL, ref=params.ref, text=params.value),
-                params.session_id,
+                current_page.session_id,
             )
             return BrowserToolResultBuilder.action(result)
 
-        return await self.execute_state_change(tool_context, operation(), page_id=params.page_id, session_id=params.session_id)
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)
 
 
 # Agent-facing usage is documented in agents/skills/browser/.
@@ -146,15 +132,15 @@ class BrowserPress(BrowserToolBase[BrowserPressParams]):
         return self.create_browser_tool_detail(result, press_detail(result, arguments or {}))
 
     async def execute(self, tool_context: ToolContext, params: BrowserPressParams) -> ToolResult:
-        async def operation() -> ToolResult:
-            result = await BrowserService(tool_context).dispatch_action(
-                params.page_id,
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
+            result = await service.dispatch_action(
+                current_page.id,
                 ActionRequest(action=ActionKind.PRESS, ref=params.ref, key=params.key),
-                params.session_id,
+                current_page.session_id,
             )
             return BrowserToolResultBuilder.action(result)
 
-        return await self.execute_state_change(tool_context, operation(), page_id=params.page_id, session_id=params.session_id)
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)
 
 
 # Agent-facing usage is documented in agents/skills/browser/.
@@ -170,17 +156,15 @@ class BrowserHover(BrowserToolBase[BrowserRefParams]):
         return self.create_browser_tool_detail(result, hover_detail(result))
 
     async def execute(self, tool_context: ToolContext, params: BrowserRefParams) -> ToolResult:
-        return await self.execute_state_change(
-            tool_context,
-            _dispatch_action(
-                tool_context,
-                params.page_id,
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
+            result = await service.dispatch_action(
+                current_page.id,
                 ActionRequest(action=self.action_kind, ref=params.ref),
-                params.session_id,
-            ),
-            page_id=params.page_id,
-            session_id=params.session_id,
-        )
+                current_page.session_id,
+            )
+            return BrowserToolResultBuilder.action(result)
+
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)
 
 
 # Agent-facing usage is documented in agents/skills/browser/.
@@ -195,20 +179,20 @@ class BrowserScroll(BrowserToolBase[BrowserScrollParams]):
         return self.create_browser_tool_detail(result, scroll_detail(result, arguments or {}))
 
     async def execute(self, tool_context: ToolContext, params: BrowserScrollParams) -> ToolResult:
-        async def operation() -> ToolResult:
-            result = await BrowserService(tool_context).dispatch_action(
-                params.page_id,
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
+            result = await service.dispatch_action(
+                current_page.id,
                 ActionRequest(
                     action=ActionKind.SCROLL,
                     ref=params.ref,
                     delta_x=params.delta_x,
                     delta_y=params.delta_y,
                 ),
-                params.session_id,
+                current_page.session_id,
             )
             return BrowserToolResultBuilder.action(result)
 
-        return await self.execute_state_change(tool_context, operation(), page_id=params.page_id, session_id=params.session_id)
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)
 
 
 # Agent-facing usage is documented in agents/skills/browser/.
@@ -223,15 +207,15 @@ class BrowserSelect(BrowserToolBase[BrowserSelectParams]):
         return self.create_browser_tool_detail(result, select_detail(result, arguments or {}))
 
     async def execute(self, tool_context: ToolContext, params: BrowserSelectParams) -> ToolResult:
-        async def operation() -> ToolResult:
-            result = await BrowserService(tool_context).dispatch_action(
-                params.page_id,
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
+            result = await service.dispatch_action(
+                current_page.id,
                 ActionRequest(action=ActionKind.SELECT, ref=params.ref, value=params.value),
-                params.session_id,
+                current_page.session_id,
             )
             return BrowserToolResultBuilder.action(result)
 
-        return await self.execute_state_change(tool_context, operation(), page_id=params.page_id, session_id=params.session_id)
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)
 
 
 # Agent-facing usage is documented in agents/skills/browser/.
@@ -246,15 +230,15 @@ class BrowserCheck(BrowserToolBase[BrowserCheckParams]):
         return self.create_browser_tool_detail(result, check_detail(result, arguments or {}))
 
     async def execute(self, tool_context: ToolContext, params: BrowserCheckParams) -> ToolResult:
-        async def operation() -> ToolResult:
-            result = await BrowserService(tool_context).dispatch_action(
-                params.page_id,
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
+            result = await service.dispatch_action(
+                current_page.id,
                 ActionRequest(action=ActionKind.CHECK, ref=params.ref, checked=params.checked),
-                params.session_id,
+                current_page.session_id,
             )
             return BrowserToolResultBuilder.action(result)
 
-        return await self.execute_state_change(tool_context, operation(), page_id=params.page_id, session_id=params.session_id)
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)
 
 
 # Agent-facing usage is documented in agents/skills/browser/.
@@ -269,14 +253,13 @@ class BrowserUploadFile(BrowserToolBase[BrowserUploadFileParams]):
         return self.create_browser_tool_detail(result, upload_detail(result, arguments or {}))
 
     async def execute(self, tool_context: ToolContext, params: BrowserUploadFileParams) -> ToolResult:
-        async def operation() -> ToolResult:
-            service = BrowserService(tool_context)
+        async def operation(service: BrowserService, current_page: BrowserPage) -> ToolResult:
             file_paths = await service.resolve_upload_paths(tuple(params.file_paths))
             result = await service.dispatch_action(
-                params.page_id,
+                current_page.id,
                 ActionRequest(action=ActionKind.UPLOAD, ref=params.ref, file_paths=file_paths),
-                params.session_id,
+                current_page.session_id,
             )
             return BrowserToolResultBuilder.action(result)
 
-        return await self.execute_state_change(tool_context, operation(), page_id=params.page_id, session_id=params.session_id)
+        return await self.execute_current_page(tool_context, operation, tab_id=params.tab_id, screenshot=True)

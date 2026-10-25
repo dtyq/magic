@@ -5,6 +5,9 @@ export type CanvasResourceTaskKind =
 	| "image:persistent-low-write"
 	| "video:preview"
 	| "video:playback-acquire"
+	| "audio:preload"
+	| "audio:playback-acquire"
+	| "audio:waveform-decode"
 
 export type CanvasResourceTaskPriority = "critical" | "visible" | "near" | "background"
 
@@ -57,6 +60,9 @@ const TASK_KIND_LIMITS: Record<CanvasResourceTaskKind, number> = {
 	"image:persistent-low-write": 1,
 	"video:preview": 2,
 	"video:playback-acquire": 2,
+	"audio:preload": 2,
+	"audio:playback-acquire": 2,
+	"audio:waveform-decode": 1,
 }
 
 const TOTAL_RESOURCE_TASK_LIMIT = 8
@@ -80,6 +86,9 @@ function createKindCountRecord(): Record<CanvasResourceTaskKind, number> {
 		"image:persistent-low-write": 0,
 		"video:preview": 0,
 		"video:playback-acquire": 0,
+		"audio:preload": 0,
+		"audio:playback-acquire": 0,
+		"audio:waveform-decode": 0,
 	}
 }
 

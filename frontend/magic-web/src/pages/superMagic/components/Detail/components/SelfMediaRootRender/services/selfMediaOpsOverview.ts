@@ -196,10 +196,23 @@ export function buildSelfMediaOpsOverview({
 	}
 }
 
-export function formatSelfMediaCompactNumber(value: number) {
-	if (value >= 10000) return `${trimNumber(value / 10000)}万`
+export function formatSelfMediaCompactNumber(value: number, locale?: string) {
+	if (!Number.isFinite(value)) return "0"
+	const useChineseWan = isChineseLocale(locale)
+	if (useChineseWan && value >= 10000) return `${trimNumber(value / 10000)}万`
+	if (value >= 1_000_000) return `${trimNumber(value / 1_000_000)}M`
 	if (value >= 1000) return `${trimNumber(value / 1000)}k`
 	return String(Math.round(value))
+}
+
+export function formatSelfMediaMetricDisplay(
+	value: SelfMediaPostOpsMetricsPayload["metrics"][string],
+	locale?: string,
+) {
+	const parsed = parseMetricNumber(value)
+	if (parsed !== null) return formatSelfMediaCompactNumber(parsed, locale)
+	if (typeof value === "string") return value.trim()
+	return ""
 }
 
 export function formatSelfMediaPercent(value: number | null) {
@@ -369,6 +382,10 @@ function getPostTitle(item: SelfMediaPlatformPostItem) {
 		item.entry.name ||
 		`文章 ${item.index + 1}`
 	)
+}
+
+function isChineseLocale(locale?: string) {
+	return (locale || "zh-CN").toLowerCase().startsWith("zh")
 }
 
 function trimNumber(value: number) {

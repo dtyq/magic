@@ -28,26 +28,28 @@ class FileSortUtil
      * @param null|int $parentId 父目录ID
      * @param int $preFileId 前置文件ID，0表示插入第一位，-1表示插入末尾
      * @param int $projectId 项目ID（用于数据隔离）
+     * @param null|string $spaceType 空间类型过滤，null 不过滤（保持原行为）
      * @return int 计算出的排序值
      */
     public static function calculateSortValue(
         TaskFileRepositoryInterface $repository,
         ?int $parentId,
         int $preFileId,
-        int $projectId
+        int $projectId,
+        ?string $spaceType = null
     ): int {
         if ($preFileId === 0) {
             // 插入到第一位
-            return self::calculateFirstPositionSort($repository, $parentId, $projectId);
+            return self::calculateFirstPositionSort($repository, $parentId, $projectId, $spaceType);
         }
 
         if ($preFileId === -1) {
             // 插入到末尾（默认行为）
-            return self::calculateLastPositionSort($repository, $parentId, $projectId);
+            return self::calculateLastPositionSort($repository, $parentId, $projectId, $spaceType);
         }
 
         // 插入到指定文件之后
-        return self::calculateAfterPositionSort($repository, $parentId, $preFileId, $projectId);
+        return self::calculateAfterPositionSort($repository, $parentId, $preFileId, $projectId, $spaceType);
     }
 
     /**
@@ -56,14 +58,16 @@ class FileSortUtil
      * @param TaskFileRepositoryInterface $repository 仓储接口
      * @param null|int $parentId 父目录ID
      * @param int $projectId 项目ID
+     * @param null|string $spaceType 空间类型过滤，null 不过滤（保持原行为）
      * @return array 需要更新的排序数据
      */
     public static function reorderSiblings(
         TaskFileRepositoryInterface $repository,
         ?int $parentId,
-        int $projectId
+        int $projectId,
+        ?string $spaceType = null
     ): array {
-        $siblings = $repository->getSiblingsByParentId($parentId, $projectId, 'sort', 'ASC');
+        $siblings = $repository->getSiblingsByParentId($parentId, $projectId, 'sort', 'ASC', $spaceType);
 
         $updates = [];
         foreach ($siblings as $index => $sibling) {
@@ -81,13 +85,16 @@ class FileSortUtil
 
     /**
      * 获取默认排序值（用于未指定位置的新文件）.
+     *
+     * @param null|string $spaceType 空间类型过滤，null 不过滤（保持原行为）
      */
     public static function getDefaultSortValue(
         TaskFileRepositoryInterface $repository,
         ?int $parentId,
-        int $projectId
+        int $projectId,
+        ?string $spaceType = null
     ): int {
-        return self::calculateLastPositionSort($repository, $parentId, $projectId);
+        return self::calculateLastPositionSort($repository, $parentId, $projectId, $spaceType);
     }
 
     /**
@@ -110,9 +117,10 @@ class FileSortUtil
     private static function calculateFirstPositionSort(
         TaskFileRepositoryInterface $repository,
         ?int $parentId,
-        int $projectId
+        int $projectId,
+        ?string $spaceType
     ): int {
-        $minSort = $repository->getMinSortByParentId($parentId, $projectId);
+        $minSort = $repository->getMinSortByParentId($parentId, $projectId, $spaceType);
 
         if ($minSort === null) {
             // 没有文件，使用默认值
@@ -141,9 +149,10 @@ class FileSortUtil
     private static function calculateLastPositionSort(
         TaskFileRepositoryInterface $repository,
         ?int $parentId,
-        int $projectId
+        int $projectId,
+        ?string $spaceType
     ): int {
-        $maxSort = $repository->getMaxSortByParentId($parentId, $projectId);
+        $maxSort = $repository->getMaxSortByParentId($parentId, $projectId, $spaceType);
 
         if ($maxSort === null) {
             return self::DEFAULT_SORT_STEP;
@@ -159,15 +168,16 @@ class FileSortUtil
         TaskFileRepositoryInterface $repository,
         ?int $parentId,
         int $preFileId,
-        int $projectId
+        int $projectId,
+        ?string $spaceType
     ): int {
         $preSort = $repository->getSortByFileId($preFileId);
         if ($preSort === null) {
             // 前置文件不存在，插入到末尾
-            return self::calculateLastPositionSort($repository, $parentId, $projectId);
+            return self::calculateLastPositionSort($repository, $parentId, $projectId, $spaceType);
         }
 
-        $nextSort = $repository->getNextSortAfter($parentId, $preSort, $projectId);
+        $nextSort = $repository->getNextSortAfter($parentId, $preSort, $projectId, $spaceType);
 
         if ($nextSort === null) {
             // 插入到末尾
@@ -180,13 +190,13 @@ class FileSortUtil
         }
 
         // 空隙不够，触发重排然后重新计算
-        $updates = self::reorderSiblings($repository, $parentId, $projectId);
+        $updates = self::reorderSiblings($repository, $parentId, $projectId, $spaceType);
         if (! empty($updates)) {
             $repository->batchUpdateSort($updates);
 
             // 重排后重新获取位置信息
             $preSort = $repository->getSortByFileId($preFileId);
-            $nextSort = $repository->getNextSortAfter($parentId, $preSort, $projectId);
+            $nextSort = $repository->getNextSortAfter($parentId, $preSort, $projectId, $spaceType);
 
             if ($nextSort === null) {
                 return $preSort + self::DEFAULT_SORT_STEP;
@@ -197,6 +207,6 @@ class FileSortUtil
         }
 
         // 如果重排失败，回退到末尾插入
-        return self::calculateLastPositionSort($repository, $parentId, $projectId);
+        return self::calculateLastPositionSort($repository, $parentId, $projectId, $spaceType);
     }
 }

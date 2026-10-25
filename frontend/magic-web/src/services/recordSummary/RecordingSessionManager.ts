@@ -1,10 +1,15 @@
-import type { RecordingSession, SessionRestoreOptions } from "@/types/recordSummary"
+import type {
+	RecordingSession,
+	ServerTerminationSource,
+	SessionRestoreOptions,
+} from "@/types/recordSummary"
 import type { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { userStore } from "@/models/user"
 import { recordingLogger } from "./utils/RecordingLogger"
 import { RecordingSessionHistoryDB } from "./RecordingSessionHistoryDB"
+import type { RecordingEncodingSnapshot } from "./MediaRecorderService/types/RecorderTypes"
 
 const logger = recordingLogger.namespace("Session")
 
@@ -113,7 +118,7 @@ export class RecordingSessionManager {
 			currentChunkIndex: 0,
 			metadata: {
 				userAgent: navigator.userAgent,
-				audioFormat: "webm",
+				audioFormat: "ogg-opus",
 				deviceInfo: this.getDeviceInfo(),
 			},
 			userId: userId,
@@ -284,11 +289,25 @@ export class RecordingSessionManager {
 		this.persistHistoryDebounced()
 	}
 
+	/** Persist the complete encoder snapshot once for the whole recording session. */
+	updateSessionEncodingSnapshot(snapshot: RecordingEncodingSnapshot): void {
+		if (!this.currentSession) return
+
+		this.currentSession.metadata.audioFormat = snapshot.format
+		this.currentSession.metadata.recordingEncoding = { ...snapshot }
+		this.currentSession.lastActivityTime = Date.now()
+		this.persistHistoryImmediate()
+	}
+
 	/**
 	 * Restore session from saved data
 	 * 从保存的数据恢复会话
 	 */
 	restoreSession(session: RecordingSession): boolean {
+		if (session.status === "server_cancelled") {
+			logger.warn("服务端结束的会话仅可导出，无法恢复")
+			return false
+		}
 		if (!this.validateSession(session)) {
 			logger.warn("会话验证失败，无法恢复")
 			return false
@@ -358,6 +377,37 @@ export class RecordingSessionManager {
 		const cancelledSession = { ...this.currentSession }
 
 		logger.report("取消录音会话", {
+			duration: cancelledSession.totalDuration,
+			chunkCount: cancelledSession.currentChunkIndex,
+		})
+
+		this.persistHistoryImmediate()
+		this.currentSession = null
+
+		return cancelledSession
+	}
+
+	/**
+	 * Mark a session as ended by the server while retaining its local data.
+	 * 服务端结束任务时保留会话和本地分片，供后续导出。
+	 */
+	markServerCancelledSession(
+		code?: number,
+		source: ServerTerminationSource = "server_task_ended",
+	): RecordingSession | null {
+		if (!this.currentSession) return null
+
+		this.currentSession.status = "server_cancelled"
+		this.currentSession.termination = {
+			source,
+			code,
+			at: Date.now(),
+		}
+		this.currentSession.lastActivityTime = Date.now()
+
+		const cancelledSession = { ...this.currentSession }
+		logger.report("服务端结束录音会话，保留本地数据", {
+			code,
 			duration: cancelledSession.totalDuration,
 			chunkCount: cancelledSession.currentChunkIndex,
 		})
@@ -508,7 +558,9 @@ export class RecordingSessionManager {
 			typeof obj.lastActivityTime === "number" &&
 			typeof obj.totalDuration === "number" &&
 			typeof obj.status === "string" &&
-			["recording", "paused", "completed", "cancelled"].includes(obj.status as string)
+			["recording", "paused", "server_cancelled", "completed", "cancelled"].includes(
+				obj.status as string,
+			)
 		)
 	}
 }

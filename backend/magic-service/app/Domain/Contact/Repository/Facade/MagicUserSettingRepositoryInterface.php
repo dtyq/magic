@@ -34,6 +34,16 @@ interface MagicUserSettingRepositoryInterface
     public function saveGlobal(MagicUserSettingEntity $magicUserSettingEntity): MagicUserSettingEntity;
 
     /**
+     * 获取组织级配置（user_id/magic_id 均为 NULL）。
+     */
+    public function getByOrganizationCode(string $organizationCode, string $key): ?MagicUserSettingEntity;
+
+    /**
+     * 保存组织级配置。
+     */
+    public function saveByOrganizationCode(string $organizationCode, MagicUserSettingEntity $magicUserSettingEntity): MagicUserSettingEntity;
+
+    /**
      * @return array{total: int, list: array<MagicUserSettingEntity>}
      */
     public function queries(DataIsolation $dataIsolation, MagicUserSettingQuery $query, Page $page): array;

@@ -1,12 +1,12 @@
-import { logger } from "@/utils/log"
-import type { ExternalLogger } from "@magic/html2pptx"
+import { logger } from "@/infrastructure/logger"
+import { getPptxExportDiagnostic, type ExportIssue, type ExternalLogger } from "@magic/html2pptx"
 
 const pptLogger = logger.createLogger("html2pptx")
 
 /**
  * 将项目 Logger 适配为 html2pptx ExternalLogger 接口。
  *
- * 传入 exportPPTX 后，包内部所有日志会经过此适配器：
+ * 传入 destination-first streaming 导出后，包内部所有日志会经过此适配器：
  * - warn / error 进入项目日志管道 → APM 上报
  * - info 进入日志管道（INFO 级别，不触发 APM error 上报）
  * - debug 仅在开发环境打到 console
@@ -47,6 +47,11 @@ export const pptxExternalLogger: ExternalLogger = {
  * 统一提取 error 的 message 和 stack，附带业务上下文。
  */
 export function reportPptxExportError(error: unknown, context?: Record<string, unknown>) {
+	const diagnostic = getPptxExportDiagnostic(error)
+	const strategyDecision =
+		error && typeof error === "object" && "decision" in error
+			? (error as { decision?: unknown }).decision
+			: undefined
 	if (import.meta.env.DEV) {
 		console.error("[html2pptx] Export editable PPT failed:", error, context)
 	}
@@ -55,7 +60,51 @@ export function reportPptxExportError(error: unknown, context?: Record<string, u
 		errorKind: "render",
 		error,
 		message: "Export editable PPT failed",
-		context: { tag: "html2pptx", ...context },
+		context: {
+			tag: "html2pptx",
+			failurePhase: diagnostic?.phase,
+			errorCode: diagnostic?.code,
+			cancelled: diagnostic?.cancelled,
+			pageIndex: diagnostic?.pageIndex,
+			pageCount: diagnostic?.pageCount,
+			// BigInt is used internally so ZIP64 counters stay exact; logs cross a JSON boundary.
+			bytesWritten: diagnostic?.bytesWritten?.toString(),
+			outputPolicy: diagnostic?.outputPolicy,
+			mediaPolicyMode: diagnostic?.mediaPolicyMode,
+			zipMode: diagnostic?.zipMode,
+			strategyDecision,
+			...context,
+		},
+	})
+}
+
+/**
+ * Report a page-level issue even when the PPTX was successfully produced.
+ * Page failures are intentionally recoverable, so they never reach the outer
+ * export catch where the legacy failure event was emitted.
+ */
+export function reportPptxExportIssue(issue: ExportIssue, context?: Record<string, unknown>): void {
+	const details = issue.details ?? {}
+	pptLogger.error({
+		eventKey: "editable_ppt_export_issue",
+		errorKind: issue.code,
+		error: {
+			name: "PptxExportIssue",
+			message: issue.message,
+			...(typeof details.stack === "string" ? { stack: details.stack.slice(0, 4000) } : {}),
+		},
+		message: "Exported PPT contains a recoverable page issue",
+		context: {
+			tag: "html2pptx",
+			severity: issue.severity,
+			pageIndex: issue.pageIndex,
+			pageKey: issue.pageKey,
+			pageName: issue.pageName,
+			pagePath: issue.pagePath,
+			pageFileId: issue.pageFileId,
+			issueDetails: details,
+			...context,
+		},
 	})
 }
 
@@ -275,7 +324,7 @@ class PptxDebugger {
 			msg.includes("[html2pptx") ||
 			msg.includes("[pptFont") ||
 			msg.includes("font") ||
-			msg.includes("exportPPTX")
+			msg.includes("exportPPTXStreaming")
 		)
 	}
 

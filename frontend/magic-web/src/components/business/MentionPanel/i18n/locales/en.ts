@@ -22,7 +22,7 @@ export const en: I18nTexts = {
 	unnamedProject: "Unnamed Project",
 
 	// Hints
-	mcpHint: "@extension only take effect once",
+	mcpHint: "@connector only takes effect once",
 	skillHint: "@skill only takes effect once",
 	skillSources: {
 		system: "System Skill",
@@ -35,7 +35,7 @@ export const en: I18nTexts = {
 		default: "",
 		search: "Search project files",
 		folder: "Folder",
-		mcp: "MCP Extensions",
+		mcp: "Connectors",
 		agent: "Agents",
 		skills: "Skills",
 	},
@@ -46,8 +46,11 @@ export const en: I18nTexts = {
 		enterpriseDrive: "Enterprise Drive",
 		projectFiles: "Current Project Files",
 		otherProjectFiles: "Other Projects/Files",
-		mcpExtensions: "Plugins",
+		mcpExtensions: "Connectors",
+		digitalEmployees: "Digital Employees",
+		flows: "Flows",
 		agents: "Agents",
+		microApps: "Micro apps",
 		skills: "Skills",
 		tools: "Tools",
 		canvasElements: "Canvas Elements",
@@ -63,6 +66,12 @@ export const en: I18nTexts = {
 	},
 	mobileSelectedItemsLabel: "Selected",
 	mobileSelectedItemsTitle: "Selected",
+	selectionSummary: {
+		selected: "Selected",
+		image: "Images",
+		video: "Videos",
+		audio: "Audio",
+	},
 
 	// Error messages
 	errorMessages: {

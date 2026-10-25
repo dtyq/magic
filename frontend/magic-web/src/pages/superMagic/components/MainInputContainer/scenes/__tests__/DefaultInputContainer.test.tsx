@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import { ConversationInputLayoutProvider } from "@/pages/superMagic/components/ConversationInputResize/context"
 import { SLIDES_TEMPLATE_RANDOM_DRAG_TYPE } from "../../constants"
 import { ScenePanelVariant } from "../../components/LazyScenePanel/types"
 
@@ -32,6 +33,7 @@ vi.mock("../../hooks", () => ({
 
 vi.mock("../../stores", () => ({
 	useOptionalScenePanelVariant: () => ScenePanelVariant.TopicPage,
+	useOptionalSceneStateStore: () => null,
 }))
 
 vi.mock("../../components/editors/DefaultMessageEditorContainer", () => ({
@@ -57,15 +59,28 @@ vi.mock("../../components/ScenePanelContainer", () => ({
 	),
 }))
 
+vi.mock("../../components/VideoProductionConfigPanel", () => ({
+	default: () => null,
+}))
+
 vi.mock("../Slides/SlidesTemplateHomeSelectionPreview", () => ({
 	default: ({
+		className,
+		template,
 		templatePickerOpen,
 		onTemplatePickerOpenChange,
 	}: {
+		className?: string
+		template?: { value: string } | null
 		templatePickerOpen?: boolean
 		onTemplatePickerOpenChange?: (open: boolean) => void
 	}) => (
-		<div data-testid="slides-template-preview" data-template-picker-open={templatePickerOpen}>
+		<div
+			className={className}
+			data-testid="slides-template-preview"
+			data-selected-template={template ? String(template.value) : ""}
+			data-template-picker-open={templatePickerOpen}
+		>
 			<button type="button" onClick={() => onTemplatePickerOpenChange?.(true)}>
 				更换模板
 			</button>
@@ -111,6 +126,39 @@ describe("DefaultInputContainer", () => {
 		expect(mockPublish).not.toHaveBeenCalled()
 	})
 
+	it("clears the selected PPT template when switching topics", () => {
+		const { rerender } = render(
+			<DefaultInputContainer
+				editorContext={{
+					topicMode: TopicMode.PPT,
+					editorRef: { current: null },
+					selectedTopic: { id: "topic-a" },
+				}}
+			/>,
+		)
+
+		fireEvent.click(screen.getByRole("button", { name: "选择模板" }))
+		expect(screen.getByTestId("slides-template-preview")).toHaveAttribute(
+			"data-selected-template",
+			"template-a",
+		)
+
+		rerender(
+			<DefaultInputContainer
+				editorContext={{
+					topicMode: TopicMode.PPT,
+					editorRef: { current: null },
+					selectedTopic: { id: "topic-b" },
+				}}
+			/>,
+		)
+
+		expect(screen.getByTestId("slides-template-preview")).toHaveAttribute(
+			"data-selected-template",
+			"",
+		)
+	})
+
 	it("阻止 PPT 预览图拖入输入框", () => {
 		render(
 			<DefaultInputContainer
@@ -133,5 +181,27 @@ describe("DefaultInputContainer", () => {
 		expect(dataTransfer.dropEffect).toBe("none")
 		expect(fireEvent.drop(editor, { dataTransfer })).toBe(false)
 		expect(mockEditorDrop).not.toHaveBeenCalled()
+	})
+
+	it("固定会话高度会传递到 PPT 编辑器，并为模板面板保留固定空间", () => {
+		render(
+			<ConversationInputLayoutProvider value={{ fillHeight: true }}>
+				<DefaultInputContainer
+					editorContext={{
+						topicMode: TopicMode.PPT,
+						editorRef: { current: null },
+					}}
+				/>
+			</ConversationInputLayoutProvider>,
+		)
+
+		const editorRegion = screen.getByTestId("default-message-editor").parentElement
+		const sceneLayout = editorRegion?.parentElement
+		const motionLayout = sceneLayout?.parentElement
+
+		expect(editorRegion).toHaveClass("min-h-0", "flex-1", "[&>div]:h-full")
+		expect(sceneLayout).toHaveClass("h-full", "min-h-0")
+		expect(motionLayout).toHaveClass("h-full", "min-h-0")
+		expect(screen.getByTestId("slides-template-preview")).toHaveClass("shrink-0")
 	})
 })

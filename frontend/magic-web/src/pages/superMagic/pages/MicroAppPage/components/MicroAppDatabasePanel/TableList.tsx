@@ -9,7 +9,8 @@ import { Input } from "@/components/shadcn-ui/input"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
 import SmartTooltip from "@/components/other/SmartTooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import { getMagicBaseTableDisplayName, getMagicBaseTableName } from "./utils"
 
 interface TableListProps {
 	tables: MagicBaseTable[]
@@ -208,6 +209,8 @@ export default function TableList({
 
 					{filteredTables.map((table) => {
 						const active = table.id === selectedTableId
+						const displayName = getMagicBaseTableDisplayName(table)
+						const tableName = getMagicBaseTableName(table)
 						return (
 							<button
 								key={table.id}
@@ -229,14 +232,18 @@ export default function TableList({
 								</span>
 								<span className="block min-w-0 flex-1 overflow-hidden">
 									<span className="flex min-w-0 items-center gap-2">
-										<span
+										<SmartTooltip
+											elementType="span"
+											placement="right"
+											sideOffset={8}
+											content={displayName}
 											className={cn(
-												"truncate text-sm font-medium text-foreground",
+												"block min-w-0 truncate text-sm font-medium text-foreground",
 												active && "font-semibold",
 											)}
 										>
-											{table.table_name || table.table_key}
-										</span>
+											{displayName}
+										</SmartTooltip>
 										{table.status && table.status !== "enabled" ? (
 											<Badge
 												variant="outline"
@@ -246,15 +253,15 @@ export default function TableList({
 											</Badge>
 										) : null}
 									</span>
-									{table.description ? (
+									{tableName && tableName !== displayName ? (
 										<SmartTooltip
 											elementType="span"
 											placement="right"
 											sideOffset={8}
-											content={table.description}
+											content={tableName}
 											className="mt-0.5 block truncate text-xs leading-4 text-muted-foreground"
 										>
-											{table.description}
+											{tableName}
 										</SmartTooltip>
 									) : null}
 								</span>

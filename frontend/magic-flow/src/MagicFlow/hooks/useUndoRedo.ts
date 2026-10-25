@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { cloneDeep } from 'lodash-es'
 import { useMemo, useRef, useState } from 'react';
 import {  Edge } from 'reactflow';
 import { MagicFlow } from '../types/flow';
@@ -32,9 +32,9 @@ const useUndoRedo = (debuggerMode: boolean) => {
   const takeSnapshot = useMemo(() => 
       (nodes: MagicFlow.Node[], edges: Edge[], nodeConfig: Record<string, any>) => {
         // const snapshot: Snapshot = {
-        //   nodes: _.cloneDeep(nodes),
-        //   edges: _.cloneDeep(edges),
-        //   nodeConfig: _.cloneDeep(nodeConfig),
+        //   nodes: cloneDeep(nodes),
+        //   edges: cloneDeep(edges),
+        //   nodeConfig: cloneDeep(nodeConfig),
         // };
         // hasUndo.current = false;
         // setUndoStack((prev) => {

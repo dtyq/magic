@@ -1,10 +1,10 @@
-import type { ImageOptions } from "@tiptap/extension-image"
+import type { ImageOptions } from "@/infrastructure/editors/tiptap/extension-image"
 import { clipboard } from "@/utils/clipboard-helpers"
-import { Image as TiptapImage } from "@tiptap/extension-image"
-import type { Editor } from "@tiptap/react"
-import { ReactNodeViewRenderer } from "@tiptap/react"
-import { ReplaceStep } from "@tiptap/pm/transform"
-import type { Attrs } from "@tiptap/pm/model"
+import { Image as TiptapImage } from "@/infrastructure/editors/tiptap/extension-image"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import { ReactNodeViewRenderer } from "@/infrastructure/editors/tiptap/react"
+import { ReplaceStep } from "@/infrastructure/editors/tiptap/pm-transform"
+import type { Attrs } from "@/infrastructure/editors/tiptap/pm-model"
 import { ImageViewBlock } from "./components/ImageViewBlock"
 import { filterFiles, type FileError, type FileValidationOptions } from "../../utils"
 
@@ -22,9 +22,9 @@ interface ImageActionProps extends DownloadImageCommandProps {
 export type UploadReturnType =
 	| string
 	| {
-		id: string | number
-		src: string
-	}
+			id: string | number
+			src: string
+	  }
 	| { file_id: string }
 
 interface CustomImageOptions extends ImageOptions, Omit<FileValidationOptions, "allowBase64"> {
@@ -39,7 +39,7 @@ interface CustomImageOptions extends ImageOptions, Omit<FileValidationOptions, "
 	onToggle?: (editor: Editor, files: File[], pos: number) => void
 }
 
-declare module "@tiptap/react" {
+declare module "@/infrastructure/editors/tiptap/react" {
 	interface Commands<ReturnType> {
 		setImages: {
 			setImages: (attrs: { src: string | File; alt?: string; title?: string }[]) => ReturnType
@@ -194,48 +194,48 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
 		return {
 			setImages:
 				(attrs) =>
-					({ commands }) => {
-						const [validImages, errors] = filterFiles(attrs, {
-							allowedMimeTypes: this.options.allowedMimeTypes,
-							maxFileSize: this.options.maxFileSize,
-							allowBase64: this.options.allowBase64,
-						})
+				({ commands }) => {
+					const [validImages, errors] = filterFiles(attrs, {
+						allowedMimeTypes: this.options.allowedMimeTypes,
+						maxFileSize: this.options.maxFileSize,
+						allowBase64: this.options.allowBase64,
+					})
 
-						if (errors.length > 0 && this.options.onValidationError) {
-							this.options.onValidationError(errors)
-						}
+					if (errors.length > 0 && this.options.onValidationError) {
+						this.options.onValidationError(errors)
+					}
 
-						if (validImages.length > 0) {
-							return commands.insertContent(
-								validImages.map((image) => {
-									if (image.src instanceof File) {
-										const blobUrl = URL.createObjectURL(image.src)
+					if (validImages.length > 0) {
+						return commands.insertContent(
+							validImages.map((image) => {
+								if (image.src instanceof File) {
+									const blobUrl = URL.createObjectURL(image.src)
 
-										return {
-											type: this.type.name,
-											attrs: {
-												src: blobUrl,
-												alt: image.alt,
-												title: image.title,
-												fileName: image.src.name,
-											},
-										}
-									}
 									return {
 										type: this.type.name,
 										attrs: {
-											src: image.src,
+											src: blobUrl,
 											alt: image.alt,
 											title: image.title,
-											fileName: null,
+											fileName: image.src.name,
 										},
 									}
-								}),
-							)
-						}
+								}
+								return {
+									type: this.type.name,
+									attrs: {
+										src: image.src,
+										alt: image.alt,
+										title: image.title,
+										fileName: null,
+									},
+								}
+							}),
+						)
+					}
 
-						return false
-					},
+					return false
+				},
 
 			downloadImage: (attrs) => () => {
 				const downloadFunc = this.options.downloadImage || downloadImage
@@ -257,35 +257,35 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
 
 			toggleImage:
 				() =>
-					({ editor }) => {
-						const input = document.createElement("input")
-						input.type = "file"
-						input.accept = this.options.allowedMimeTypes.join(",")
-						input.onchange = () => {
-							const { files } = input
-							if (!files) return
+				({ editor }) => {
+					const input = document.createElement("input")
+					input.type = "file"
+					input.accept = this.options.allowedMimeTypes.join(",")
+					input.onchange = () => {
+						const { files } = input
+						if (!files) return
 
-							const [validImages, errors] = filterFiles(Array.from(files), {
-								allowedMimeTypes: this.options.allowedMimeTypes,
-								maxFileSize: this.options.maxFileSize,
-								allowBase64: this.options.allowBase64,
-							})
+						const [validImages, errors] = filterFiles(Array.from(files), {
+							allowedMimeTypes: this.options.allowedMimeTypes,
+							maxFileSize: this.options.maxFileSize,
+							allowBase64: this.options.allowBase64,
+						})
 
-							if (errors.length > 0 && this.options.onValidationError) {
-								this.options.onValidationError(errors)
-								return
-							}
-
-							if (validImages.length === 0) return
-
-							if (this.options.onToggle) {
-								this.options.onToggle(editor, validImages, editor.state.selection.from)
-							}
+						if (errors.length > 0 && this.options.onValidationError) {
+							this.options.onValidationError(errors)
+							return
 						}
 
-						input.click()
-						return true
-					},
+						if (validImages.length === 0) return
+
+						if (this.options.onToggle) {
+							this.options.onToggle(editor, validImages, editor.state.selection.from)
+						}
+					}
+
+					input.click()
+					return true
+				},
 		}
 	},
 

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import type { ParsedQuestion } from "../parse"
 import { AskUserForm, type AskUserAnswers } from "../AskUserForm"
 import { ASK_USER_OTHER_SENTINEL, getAskUserRenderableOptions } from "../otherOption"
 
@@ -22,7 +23,7 @@ describe("AskUserForm", () => {
 	})
 
 	it("submits custom text for select questions through the frontend other option", () => {
-		const onSubmit = vi.fn<(answers: AskUserAnswers) => void>()
+		const onSubmit = vi.fn<(answers: AskUserAnswers, remark: string) => void>()
 
 		render(
 			<AskUserForm
@@ -46,13 +47,16 @@ describe("AskUserForm", () => {
 		fireEvent.change(otherInput, { target: { value: "自定义答案" } })
 		fireEvent.click(screen.getByTestId("ask-user-v2-card-submit-button"))
 
-		expect(onSubmit).toHaveBeenCalledWith({
-			"q-1": "自定义答案",
-		})
+		expect(onSubmit).toHaveBeenCalledWith(
+			{
+				"q-1": "自定义答案",
+			},
+			"",
+		)
 	})
 
 	it("submits custom text for multi-select questions through the frontend other option", () => {
-		const onSubmit = vi.fn<(answers: AskUserAnswers) => void>()
+		const onSubmit = vi.fn<(answers: AskUserAnswers, remark: string) => void>()
 
 		render(
 			<AskUserForm
@@ -79,9 +83,12 @@ describe("AskUserForm", () => {
 		fireEvent.change(otherInput, { target: { value: "补充项" } })
 		fireEvent.click(screen.getByTestId("ask-user-v2-card-submit-button"))
 
-		expect(onSubmit).toHaveBeenCalledWith({
-			"q-2": ["A", "补充项"],
-		})
+		expect(onSubmit).toHaveBeenCalledWith(
+			{
+				"q-2": ["A", "补充项"],
+			},
+			"",
+		)
 	})
 
 	it("maps submitted custom select answers back to the frontend other input", () => {
@@ -106,5 +113,71 @@ describe("AskUserForm", () => {
 		expect(screen.getByTestId("ask-user-v2-card-select-other-input-q-3")).toHaveValue(
 			"已回填答案",
 		)
+	})
+	it("keeps entity-equivalent preview input and submits it after the cache key arrives", () => {
+		const onSubmit = vi.fn()
+		const input: ParsedQuestion = {
+			id: "q-0",
+			type: "input",
+			label: "A &amp; B",
+			options: [],
+			isComplete: true,
+			placeholder: "Mock value",
+		}
+		const { rerender } = render(
+			<AskUserForm locale="en_US" questions={[input]} onSubmit={onSubmit} />,
+		)
+		const element = screen.getByPlaceholderText("Mock value")
+		fireEvent.change(element, { target: { value: "Draft text" } })
+		rerender(
+			<AskUserForm
+				locale="en_US"
+				questions={[{ ...input, label: "A & B" }]}
+				draftCacheKey="mock-entity-key"
+				onSubmit={onSubmit}
+			/>,
+		)
+		expect(screen.getByPlaceholderText("Mock value")).toBe(element)
+		expect(element).toHaveValue("Draft text")
+		fireEvent.click(screen.getByTestId("ask-user-v2-card-submit-button"))
+		expect(onSubmit).toHaveBeenCalledWith({ "q-0": "Draft text" }, "")
+	})
+
+	it("clears a draft when the authoritative question changes", () => {
+		const input: ParsedQuestion = {
+			id: "q-0",
+			type: "input",
+			label: "Preview label",
+			options: [],
+			isComplete: true,
+			placeholder: "Mock new value",
+		}
+		const { rerender } = render(<AskUserForm locale="en_US" questions={[input]} />)
+		fireEvent.change(screen.getByPlaceholderText("Mock new value"), {
+			target: { value: "Old answer" },
+		})
+		rerender(
+			<AskUserForm locale="en_US" questions={[{ ...input, label: "Different question" }]} />,
+		)
+		expect(screen.getByPlaceholderText("Mock new value")).toHaveValue("")
+	})
+
+	it("clears a removed choice without treating it as custom input", () => {
+		const choice: ParsedQuestion = {
+			id: "q-0",
+			type: "select",
+			label: "Mock choice",
+			options: ["A", "B"],
+			isComplete: true,
+		}
+		const { rerender } = render(<AskUserForm locale="en_US" questions={[choice]} />)
+		fireEvent.click(screen.getByText("B"))
+		rerender(<AskUserForm locale="en_US" questions={[{ ...choice, options: ["A"] }]} />)
+		expect(screen.getByTestId("ask-user-v2-card-select-other-input-q-0")).toHaveValue("")
+		expect(
+			screen
+				.getAllByRole("radio")
+				.every((radio) => radio.getAttribute("data-state") === "unchecked"),
+		).toBe(true)
 	})
 })

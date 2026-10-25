@@ -23,10 +23,13 @@ final class FileScopeHandlerResolver
     /**
      * 初始化文件作用域与处理器的映射关系。
      */
-    public function __construct(MemoryFileScopeHandler $memoryFileScopeHandler)
-    {
+    public function __construct(
+        MemoryFileScopeHandler $memoryFileScopeHandler,
+        UserFileScopeHandler $userFileScopeHandler,
+    ) {
         $this->handlerMap = [
             MemoryFileScopeHandler::SCOPE => $memoryFileScopeHandler,
+            UserFileScopeHandler::SCOPE => $userFileScopeHandler,
         ];
     }
 

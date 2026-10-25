@@ -31,7 +31,11 @@ New task instruction content. Pass plain text or a Tiptap JSONContent object."""
 New schedule type. Must be passed together with time when updating time_config.""",
     )
     time: Optional[str] = Field(None, description="""<!--zh: 新执行时间，格式 HH:MM。-->New execution time in HH:MM format.""")
-    day: Optional[str] = Field(None, description="""<!--zh: 新日期/星期/日号。-->New date, weekday, or day-of-month.""")
+    day: Optional[str | int] = Field(
+        None,
+        description="""<!--zh: 新日期/星期/日号。请传字符串，如 "2"（传整数也会被自动转为字符串）。weekly_repeat 的星期映射：0=周一，1=周二，2=周三，3=周四，4=周五，5=周六，6=周日。-->
+New date, weekday, or day-of-month. Pass it as a quoted string such as "2" (integers are coerced to string). weekly_repeat weekday mapping: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday.""",
+    )
     deadline: Optional[str] = Field(
         None,
         description="""<!--zh: 新截止时间，格式 YYYY-MM-DD HH:MM:SS；仅日期会补为 00:00:00。-->

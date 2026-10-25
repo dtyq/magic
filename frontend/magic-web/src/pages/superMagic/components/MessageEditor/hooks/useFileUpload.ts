@@ -6,7 +6,7 @@ import { FileData, UploadSource } from "../types"
 import { SaveUploadFileToProjectResponse } from "../../../utils/api"
 import { superMagicUploadTokenService } from "../services/UploadTokenService"
 import projectFilesStore from "@/stores/projectFiles"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { generateUniqueFileName } from "../utils/generateUniqueFileName"
 import {
 	AttachmentSource,

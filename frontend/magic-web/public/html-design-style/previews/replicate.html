@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Replicate — Run AI with an API</title>
+  <style>
+    :root {
+      --primary: #ea2804;
+      --primary-deep: #c01f00;
+      --hero-glow: #ff6a3d;
+      --hero-pink: #f4a8a0;
+      --ink: #202020;
+      --body: #3a3a3a;
+      --charcoal: #575757;
+      --ash: #8d8d8d;
+      --canvas: #f9f7f3;
+      --surface-bone: #f3f0e8;
+      --surface-card: #ffffff;
+      --surface-dark: #202020;
+      --surface-deep: #000000;
+      --hairline: rgba(32, 32, 32, 0.12);
+      --badge-success: #2b9a66;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --font-display: "rb-freigeist-neue", "Bricolage Grotesque", sans-serif;
+      --font-sans: "basier-square", Inter, sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+      --shell: 1060px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans); background: var(--canvas);
+      color: var(--ink); line-height: 1.5;
+    }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(var(--shell), calc(100% - 32px)); margin: 0 auto; }
+
+    /* Top Nav */
+    .top-nav {
+      position: sticky; top: 0; z-index: 50; height: 58px;
+      background: rgba(249, 247, 243, 0.95); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--hairline); display: flex; align-items: center;
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .brand-wrap { display: flex; align-items: center; gap: 24px; }
+    .brand-logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; }
+    
+    /* Replicate Stepped Pixel Monogram */
+    .rep-mark {
+      width: 18px; height: 18px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .rep-bar { height: 4px; background: var(--ink); border-radius: 1px; }
+
+    .nav-links { display: flex; align-items: center; gap: 18px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); }
+    .nav-search {
+      background: var(--surface-card); border: 1px solid var(--hairline);
+      border-radius: var(--radius-pill); padding: 6px 14px; font-size: 12.5px; color: var(--ash);
+      width: 200px;
+    }
+    .nav-right { display: flex; align-items: center; gap: 10px; }
+
+    /* Pill Buttons */
+    .pill-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: 13.5px; font-weight: 600; padding: 7px 18px; border-radius: var(--radius-pill);
+      cursor: pointer; transition: all 0.15s ease; border: 1px solid transparent;
+    }
+    .pill-btn.primary { background: var(--primary); color: #ffffff; }
+    .pill-btn.primary:hover { background: var(--primary-deep); }
+    .pill-btn.outline { background: var(--surface-card); color: var(--ink); border-color: var(--hairline); }
+
+    /* Hero Band */
+    .hero-mesh {
+      padding: 36px 0 24px; text-align: center;
+      background: radial-gradient(ellipse 70% 50% at 50% -10%, rgba(234, 40, 4, 0.18), transparent 75%);
+    }
+    .hero-kicker {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface-bone); border: 1px solid var(--hairline);
+      padding: 3px 12px; border-radius: var(--radius-pill);
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px;
+    }
+    .hero-h1 {
+      font-family: var(--font-display); font-size: clamp(38px, 5.2vw, 64px);
+      font-weight: 700; line-height: 1.0; letter-spacing: -2px; color: var(--ink); margin-bottom: 12px;
+    }
+    .hero-sub {
+      font-size: 16px; color: var(--charcoal); max-width: 580px; margin: 0 auto 24px; line-height: 1.5;
+    }
+
+    /* Workbench Studio Card */
+    .workbench-card {
+      max-width: 960px; margin: 0 auto;
+      background: var(--surface-card); border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg); box-shadow: 0 16px 48px rgba(32, 32, 32, 0.06);
+      overflow: hidden; text-align: left;
+    }
+    .workbench-topbar {
+      background: var(--surface-bone); padding: 10px 18px; border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .model-selector-chip {
+      display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--ink);
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--badge-success); }
+    .hardware-tag { font-family: var(--font-mono); font-size: 11px; color: var(--charcoal); }
+
+    .workbench-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 20px; padding: 20px; }
+
+    /* Left: Prompt & Form Controls */
+    .form-pane { display: flex; flex-direction: column; gap: 14px; }
+    .input-group label {
+      display: block; font-size: 11.5px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--charcoal); margin-bottom: 5px;
+    }
+    .prompt-textarea {
+      width: 100%; height: 90px; background: var(--canvas); border: 1px solid var(--hairline);
+      border-radius: var(--radius-md); padding: 10px 12px; font-family: var(--font-sans);
+      font-size: 13px; color: var(--ink); resize: none; line-height: 1.45;
+    }
+    .params-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .param-box {
+      background: var(--canvas); border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); padding: 8px; font-size: 11.5px;
+    }
+    .param-box .p-lbl { font-size: 9.5px; color: var(--ash); text-transform: uppercase; }
+    .param-box .p-val { font-family: var(--font-mono); font-weight: 600; color: var(--ink); margin-top: 2px; }
+
+    .run-btn-row { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+    .run-action-btn {
+      background: var(--primary); color: #fff; font-weight: 600; font-size: 13.5px;
+      padding: 9px 20px; border-radius: var(--radius-pill); border: none; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .run-action-btn:hover { background: var(--primary-deep); }
+    .cost-estimate { font-family: var(--font-mono); font-size: 11px; color: var(--charcoal); }
+
+    /* Right: Canvas Output Stage */
+    .canvas-pane { display: flex; flex-direction: column; gap: 10px; }
+    .canvas-head { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; }
+    .output-stage {
+      background: #111215; border-radius: var(--radius-md); overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      border: 1px solid #23252b; min-height: 200px; padding: 12px;
+    }
+    .output-svg { width: 100%; max-width: 440px; height: auto; display: block; }
+    .stage-footer { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--ash); }
+
+    /* Open Source Model Catalog Strip */
+    .catalog-section { padding: 36px 0 28px; }
+    .catalog-head { text-align: center; margin-bottom: 20px; }
+    .catalog-title { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .model-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    
+    .rep-model-card {
+      background: var(--surface-card); border: 1px solid var(--hairline);
+      border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .m-owner { font-size: 11.5px; color: var(--charcoal); font-family: var(--font-mono); }
+    .m-name { font-size: 15.5px; font-weight: 600; color: var(--ink); margin: 2px 0 6px; }
+    .m-desc { font-size: 12px; color: var(--charcoal); line-height: 1.4; margin-bottom: 12px; }
+    .m-foot { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--ash); border-top: 1px solid var(--hairline); padding-top: 8px; }
+
+    /* Dark Code Block Band */
+    .code-story-band {
+      background: var(--surface-dark); color: #fff; border-radius: var(--radius-lg);
+      padding: 24px; margin: 12px 0 40px; display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: center;
+    }
+    .story-copy h3 { font-family: var(--font-display); font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+    .story-copy p { font-size: 13px; color: #a0a0a0; line-height: 1.45; }
+    .code-box {
+      background: var(--surface-deep); border-radius: var(--radius-sm); padding: 14px;
+      font-family: var(--font-mono); font-size: 11.5px; line-height: 1.55;
+    }
+    .c-kw { color: #ea2804; } .c-fn { color: #ff6a3d; } .c-str { color: #2b9a66; } .c-comm { color: #666; }
+
+    /* Footer */
+    .footer { background: var(--surface-deep); color: #a0a0a0; padding: 32px 0 24px; font-size: 12px; }
+    .footer-inner { display: flex; justify-content: space-between; align-items: center; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a:hover { color: #fff; }
+
+    @media (max-width: 820px) {
+      .workbench-grid { grid-template-columns: 1fr; }
+      .model-cards-grid { grid-template-columns: 1fr; }
+      .code-story-band { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; gap: 14px; text-align: center; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="top-nav">
+    <div class="shell nav-inner">
+      <div class="brand-wrap">
+        <a href="#" class="brand-logo">
+          <!-- Replicate Stepped Bar Icon -->
+          <div class="rep-mark">
+            <span class="rep-bar" style="width: 18px;"></span>
+            <span class="rep-bar" style="width: 12px;"></span>
+            <span class="rep-bar" style="width: 6px;"></span>
+          </div>
+          <span>Replicate</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#models">Explore</a>
+          <a href="#workbench">Studio</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#docs">Docs</a>
+        </nav>
+      </div>
+
+      <div class="nav-search">Search 25,000+ open models...</div>
+
+      <div class="nav-right">
+        <button class="pill-btn outline">Sign in</button>
+        <button class="pill-btn primary">Get started</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-mesh" id="workbench">
+    <div class="shell">
+      <div class="hero-kicker">Cloud Machine Learning Workbench</div>
+      <h1 class="hero-h1">Run AI with an API.</h1>
+      <p class="hero-sub">
+        Run open-source models with a single line of code. Scale from local prototyping to thousands of production predictions on managed GPUs.
+      </p>
+
+      <!-- Workbench Studio Frame -->
+      <div class="workbench-card">
+        <div class="workbench-topbar">
+          <div class="model-selector-chip">
+            <span class="status-dot"></span>
+            <span>black-forest-labs/flux-schnell</span>
+            <span style="font-size: 11px; font-weight: 400; color: var(--charcoal);">• 12B DiT Architecture</span>
+          </div>
+          <span class="hardware-tag">⚡ 1x NVIDIA H100 SXM5 (80GB) • 0.84s Cold Start</span>
+        </div>
+
+        <div class="workbench-grid">
+          <!-- Form Pane -->
+          <div class="form-pane">
+            <div class="input-group">
+              <label>Prediction Prompt</label>
+              <textarea class="prompt-textarea">A retro-futuristic AI research workbench with glowing vector cathode displays, warm amber lighting, intricate copper circuits, cinematic octane render, 8k.</textarea>
+            </div>
+
+            <div class="params-row">
+              <div class="param-box">
+                <div class="p-lbl">Aspect Ratio</div>
+                <div class="p-val">16:9 Landscape</div>
+              </div>
+              <div class="param-box">
+                <div class="p-lbl">Inference Steps</div>
+                <div class="p-val">4 Schnell Steps</div>
+              </div>
+              <div class="param-box">
+                <div class="p-lbl">Guidance Scale</div>
+                <div class="p-val">3.5 Balanced</div>
+              </div>
+            </div>
+
+            <div class="run-btn-row">
+              <button class="run-action-btn">
+                <span>▶ Run Prediction</span>
+              </button>
+              <span class="cost-estimate">$0.003 / execution • 0.76s</span>
+            </div>
+          </div>
+
+          <!-- Image Output Canvas Stage -->
+          <div class="canvas-pane">
+            <div class="canvas-head">
+              <span style="font-weight: 600; color: var(--ink);">OUTPUT CANVAS</span>
+              <span style="font-family: var(--font-mono); color: var(--badge-success);">● STATUS: COMPLETED (0.76s)</span>
+            </div>
+
+            <div class="output-stage">
+              <!-- High-Fidelity Generative Art SVG Canvas -->
+              <svg class="output-svg" viewBox="0 0 420 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="warmAmber" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#ea2804"/>
+                    <stop offset="50%" stop-color="#ff6a3d"/>
+                    <stop offset="100%" stop-color="#f4a8a0"/>
+                  </linearGradient>
+                  <radialGradient id="screenGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#ff6a3d" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+                  </radialGradient>
+                </defs>
+
+                <!-- Workbench Background Grid -->
+                <rect width="420" height="220" rx="8" fill="#0d0e12"/>
+                <line x1="0" y1="160" x2="420" y2="160" stroke="#1d2029" stroke-width="1.5"/>
+
+                <!-- Cyber CRT Terminal Frame -->
+                <rect x="50" y="30" width="180" height="115" rx="6" fill="#141720" stroke="#ff6a3d" stroke-width="1.5"/>
+                <rect x="58" y="38" width="164" height="99" rx="4" fill="#07080b"/>
+                <circle cx="140" cy="87" r="45" fill="url(#screenGlow)"/>
+
+                <!-- Waveform / Circuit Vectors on CRT -->
+                <path d="M66,88 Q95,45 130,88 T195,88" fill="none" stroke="#ea2804" stroke-width="2"/>
+                <path d="M66,96 Q100,120 145,96 T210,96" fill="none" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="3 2"/>
+
+                <!-- Oscilloscope Reticle -->
+                <circle cx="140" cy="87" r="30" stroke="#333847" stroke-width="1"/>
+                <circle cx="140" cy="87" r="3" fill="#ea2804"/>
+                <text x="70" y="52" font-family="monospace" font-size="8" fill="#ff6a3d">FLUX // 1024x576</text>
+
+                <!-- Right Side: Synthesizer Modules & LED meters -->
+                <rect x="250" y="30" width="120" height="115" rx="6" fill="#141720" stroke="#252a38" stroke-width="1.5"/>
+                <text x="262" y="48" font-family="monospace" font-size="8" fill="#a0a0a0">TELEMETRY DECK</text>
+                
+                <!-- LED Levels -->
+                <g transform="translate(262, 58)">
+                  <rect x="0" y="0" width="96" height="6" rx="3" fill="#202430"/>
+                  <rect x="0" y="0" width="78" height="6" rx="3" fill="url(#warmAmber)"/>
+
+                  <rect x="0" y="14" width="96" height="6" rx="3" fill="#202430"/>
+                  <rect x="0" y="14" width="58" height="6" rx="3" fill="url(#warmAmber)"/>
+
+                  <rect x="0" y="28" width="96" height="6" rx="3" fill="#202430"/>
+                  <rect x="0" y="28" width="88" height="6" rx="3" fill="url(#warmAmber)"/>
+                </g>
+
+                <!-- Copper Circuit Trace Overlay on Desktop -->
+                <path d="M70,160 L100,195 L220,195 L240,175 L360,175" fill="none" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="4 3"/>
+                <circle cx="100" cy="195" r="3" fill="#ea2804"/>
+                <circle cx="220" cy="195" r="3" fill="#ea2804"/>
+              </svg>
+            </div>
+
+            <div class="stage-footer">
+              <span>Seed: 48920194 • Resolution: 1024x576</span>
+              <span style="color: var(--primary); cursor: pointer;">⬇ Download PNG</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Model Catalog Section -->
+  <section class="catalog-section" id="models">
+    <div class="shell">
+      <div class="catalog-head">
+        <h2 class="catalog-title">Explore Open Source Models</h2>
+        <p style="font-size:14.5px; color:var(--charcoal); margin-top:4px;">Deploy state-of-the-art weights in production with low latency APIs.</p>
+      </div>
+
+      <div class="model-cards-grid">
+        <!-- Card 1: Flux -->
+        <div class="rep-model-card">
+          <div>
+            <div class="m-owner">black-forest-labs</div>
+            <div class="m-name">flux-schnell</div>
+            <div class="m-desc">Fast 12B rectified flow transformer model generating photorealistic images in 4 steps.</div>
+          </div>
+          <div class="m-foot">
+            <span>84.2M runs</span>
+            <span style="color:var(--badge-success);">● Public API</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Whisper -->
+        <div class="rep-model-card">
+          <div>
+            <div class="m-owner">openai</div>
+            <div class="m-name">whisper-large-v3</div>
+            <div class="m-desc">Robust speech recognition and audio translation across 98 spoken languages with word timestamps.</div>
+          </div>
+          <div class="m-foot">
+            <span>120.4M runs</span>
+            <span style="color:var(--badge-success);">● Public API</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Llama 3.1 -->
+        <div class="rep-model-card">
+          <div>
+            <div class="m-owner">meta</div>
+            <div class="m-name">llama-3.1-405b-instruct</div>
+            <div class="m-desc">Frontier open-weight LLM rivaling leading proprietary models for synthetic data generation and STEM.</div>
+          </div>
+          <div class="m-foot">
+            <span>34.1M runs</span>
+            <span style="color:var(--badge-success);">● Public API</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dark Code Block Walkthrough Band -->
+      <div class="code-story-band">
+        <div class="story-copy">
+          <h3>Integrate in one line of code</h3>
+          <p>Deploy models to your applications using Python, JavaScript, or any language with HTTP cURL requests.</p>
+        </div>
+        <div class="code-box">
+          <div><span class="c-kw">import</span> replicate</div>
+          <div>output = replicate.<span class="c-fn">run</span>(</div>
+          <div>&nbsp;&nbsp;<span class="c-str">"black-forest-labs/flux-schnell"</span>,</div>
+          <div>&nbsp;&nbsp;input={<span class="c-str">"prompt"</span>: <span class="c-str">"A retro-futuristic AI laboratory"</span>}</div>
+          <div>)</div>
+          <div><span class="c-comm"># Returns URI link to synthesized vector output</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Black Footer -->
+  <footer class="footer">
+    <div class="shell footer-inner">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-weight:700; color:#fff;">Replicate, Inc.</span>
+        <span>© 2026 Run and train machine learning models in the cloud.</span>
+      </div>
+      <div class="footer-links">
+        <a href="#">GitHub</a>
+        <a href="#">Pricing</a>
+        <a href="#">Documentation</a>
+        <a href="#">Terms</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

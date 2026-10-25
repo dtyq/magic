@@ -3,9 +3,7 @@ import type { FileItem } from "@/pages/superMagic/components/Detail/components/F
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import {
 	clearAllFileInfoCache,
-	clearFileInfoCache,
 	cleanupFileInfoCache,
-	flushFileInfoCachePersistenceForTests,
 	getFileInfoById,
 	getFileInfoByPath,
 	getFileResourceMetaByPath,
@@ -42,17 +40,15 @@ function deferred<T>(): {
 }
 
 describe("getFileResourceMetaByPath", () => {
-	beforeEach(async () => {
+	beforeEach(() => {
 		vi.clearAllMocks()
 		vi.useRealTimers()
 		clearAllFileInfoCache()
-		await flushFileInfoCachePersistenceForTests()
 	})
 
-	afterEach(async () => {
+	afterEach(() => {
 		vi.useRealTimers()
 		clearAllFileInfoCache()
-		await flushFileInfoCachePersistenceForTests()
 	})
 
 	it("returns metadata-only resource version without fetching a signed url", async () => {
@@ -110,7 +106,7 @@ describe("getFileResourceMetaByPath", () => {
 			}),
 		]
 		setFileInfoCache(
-			"images/uploaded.png",
+			"/images/uploaded.png",
 			{
 				src: "https://example.test/uploaded.png?signature=1",
 				fileName: "uploaded.png",
@@ -126,7 +122,7 @@ describe("getFileResourceMetaByPath", () => {
 		)
 
 		await expect(
-			getFileResourceMetaByPath("images/uploaded.png", oldFiles, {
+			getFileResourceMetaByPath("/images/uploaded.png", oldFiles, {
 				designProjectId: "project-1",
 				hasAttachmentSnapshot: true,
 			}),
@@ -159,6 +155,91 @@ describe("getFileResourceMetaByPath", () => {
 		).resolves.toEqual({ status: "unknown" })
 	})
 
+	it("does not read an explicit-path cache while a legacy bare path awaits attachment evidence", async () => {
+		setFileInfoCache(
+			"/images/a.png",
+			{
+				src: "https://example.test/root-a.png",
+				fileName: "a.png",
+			},
+			[],
+			"画布A",
+			"project-1",
+			undefined,
+			{ allowMissingAttachment: true },
+		)
+
+		await expect(
+			getFileInfoByPath("images/a.png", [], {
+				designProjectBasePath: "画布A",
+				designProjectId: "project-1",
+				hasAttachmentSnapshot: false,
+			}),
+		).resolves.toBeNull()
+		expect(getTemporaryDownloadUrl).not.toHaveBeenCalled()
+	})
+
+	it("respects explicit pending readiness even when an incremental attachment batch is non-empty", async () => {
+		const partialFiles = [
+			fileItem({
+				file_id: "unrelated-file",
+				relative_file_path: "画布A/images/unrelated.png",
+				file_name: "unrelated.png",
+			}),
+		]
+
+		await expect(
+			getFileResourceMetaByPath("./images/missing.png", partialFiles, {
+				designProjectBasePath: "画布A",
+				hasAttachmentSnapshot: false,
+			}),
+		).resolves.toEqual({ status: "unknown" })
+	})
+
+	it("does not prime either resource cache from an ambiguous historical bare path", async () => {
+		const files = [
+			fileItem({
+				file_id: "canvas-file",
+				relative_file_path: "画布A/images/a.png",
+				file_name: "a.png",
+			}),
+			fileItem({
+				file_id: "workspace-file",
+				relative_file_path: "images/a.png",
+				file_name: "a.png",
+			}),
+		]
+		vi.mocked(getTemporaryDownloadUrl).mockResolvedValueOnce([
+			{
+				file_id: "canvas-file",
+				url: "https://example.test/canvas-a.png",
+			},
+		])
+
+		setFileInfoCache(
+			"images/a.png",
+			{
+				src: "https://example.test/ambiguous.png",
+				fileName: "a.png",
+			},
+			files,
+			"画布A",
+			"project-1",
+			undefined,
+			{ hasAttachmentSnapshot: true },
+		)
+
+		await expect(
+			getFileInfoByPath("./images/a.png", files, {
+				designProjectBasePath: "画布A",
+				designProjectId: "project-1",
+				hasAttachmentSnapshot: true,
+				priority: "critical",
+			}),
+		).resolves.toMatchObject({ src: "https://example.test/canvas-a.png" })
+		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
+	})
+
 	it("preserves raw get-file-url version but uses metadata-visible version for comparison", async () => {
 		vi.mocked(getTemporaryDownloadUrl).mockResolvedValueOnce([
 			{
@@ -181,6 +262,49 @@ describe("getFileResourceMetaByPath", () => {
 			updated_at: "2026-06-05 10:00:00",
 			content_length: 2048,
 		})
+	})
+
+	it("refreshes a cached URL inside the expiry safety window", async () => {
+		vi.useFakeTimers()
+		vi.setSystemTime(new Date("2026-09-14T10:00:00Z"))
+		const files = [
+			fileItem({
+				file_id: "expiring-file",
+				relative_file_path: "images/expiring.png",
+				file_name: "expiring.png",
+				file_size: 1024,
+			}),
+		]
+		vi.mocked(getTemporaryDownloadUrl)
+			.mockResolvedValueOnce([
+				{
+					file_id: "expiring-file",
+					url: "https://example.test/expiring.png?signature=old",
+					expires_at: "2026-09-14T10:00:20Z",
+				},
+			])
+			.mockResolvedValueOnce([
+				{
+					file_id: "expiring-file",
+					url: "https://example.test/expiring.png?signature=fresh",
+					expires_at: "2026-09-14T10:05:00Z",
+				},
+			])
+
+		const first = getFileInfoByPath("images/expiring.png", files, { priority: "critical" })
+		await vi.advanceTimersByTimeAsync(0)
+		await expect(first).resolves.toMatchObject({
+			src: "https://example.test/expiring.png?signature=old",
+		})
+
+		const refreshed = getFileInfoByPath("images/expiring.png", files, {
+			priority: "critical",
+		})
+		await vi.advanceTimersByTimeAsync(0)
+		await expect(refreshed).resolves.toMatchObject({
+			src: "https://example.test/expiring.png?signature=fresh",
+		})
+		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(2)
 	})
 
 	it("does not expose host file id in path-based file info", async () => {
@@ -217,7 +341,7 @@ describe("getFileResourceMetaByPath", () => {
 		expect(fileInfo).not.toHaveProperty("file_id")
 	})
 
-	it("hydrates persisted path cache after a module reload", async () => {
+	it("re-signs URL after a module reload without durable path metadata", async () => {
 		const files = [
 			fileItem({
 				file_id: "file-4",
@@ -228,6 +352,7 @@ describe("getFileResourceMetaByPath", () => {
 			}),
 		]
 		const cachedSrc = "https://example.test/c.png?signature=cached"
+		const freshSrc = "https://example.test/c.png?signature=fresh"
 
 		setFileInfoCache(
 			"images/c.png",
@@ -244,20 +369,30 @@ describe("getFileResourceMetaByPath", () => {
 			"project-1",
 		)
 
-		await flushFileInfoCachePersistenceForTests()
 		vi.resetModules()
 		const apiModule = await import("@/pages/superMagic/utils/api")
-		vi.mocked(apiModule.getTemporaryDownloadUrl).mockClear()
+		vi.mocked(apiModule.getTemporaryDownloadUrl).mockResolvedValue([
+			{
+				file_id: "file-4",
+				url: freshSrc,
+				expires_at: "2099-01-01T00:00:00Z",
+			},
+		])
 		const cacheModule = await import("../designFileInfoCache")
 
 		const fileInfo = await cacheModule.getFileInfoByPath("images/c.png", files, {
 			designProjectId: "project-1",
 		})
 
-		expect(fileInfo?.src).toBe(cachedSrc)
-		expect(apiModule.getTemporaryDownloadUrl).not.toHaveBeenCalled()
+		expect(fileInfo).toMatchObject({
+			src: freshSrc,
+			fileName: "c.png",
+			resource_version: "file-4:2026-06-05 12:00:00:4096",
+			updated_at: "2026-06-05 12:00:00",
+			content_length: 4096,
+		})
+		expect(apiModule.getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
 		cacheModule.clearAllFileInfoCache()
-		await cacheModule.flushFileInfoCachePersistenceForTests()
 	})
 
 	it("does not delete restored path cache before attachments are ready", async () => {
@@ -321,7 +456,7 @@ describe("getFileResourceMetaByPath", () => {
 		const cachedSrc = "https://example.test/new.png?signature=uploaded"
 
 		setFileInfoCache(
-			"images/new.png",
+			"/images/new.png",
 			{
 				src: cachedSrc,
 				fileName: "new.png",
@@ -334,7 +469,7 @@ describe("getFileResourceMetaByPath", () => {
 			{ allowMissingAttachment: true },
 		)
 
-		const cachedInfo = await getFileInfoByPath("images/new.png", oldFiles, {
+		const cachedInfo = await getFileInfoByPath("/images/new.png", oldFiles, {
 			designProjectId: "project-1",
 			hasAttachmentSnapshot: true,
 		})
@@ -350,7 +485,7 @@ describe("getFileResourceMetaByPath", () => {
 			}),
 		]
 		await expect(
-			getFileInfoByPath("images/new.png", nextFiles, {
+			getFileInfoByPath("/images/new.png", nextFiles, {
 				designProjectId: "project-1",
 				hasAttachmentSnapshot: true,
 			}),
@@ -468,7 +603,7 @@ describe("getFileResourceMetaByPath", () => {
 		try {
 			nowSpy.mockReturnValue(startTime)
 			setFileInfoCache(
-				"images/new.png",
+				"/images/new.png",
 				{
 					src: cachedSrc,
 					fileName: "new.png",
@@ -482,7 +617,7 @@ describe("getFileResourceMetaByPath", () => {
 			)
 			cleanupFileInfoCache(oldFiles, "project-1", { hasAttachmentSnapshot: true })
 			await expect(
-				getFileInfoByPath("images/new.png", oldFiles, {
+				getFileInfoByPath("/images/new.png", oldFiles, {
 					designProjectId: "project-1",
 					hasAttachmentSnapshot: true,
 				}),
@@ -490,14 +625,14 @@ describe("getFileResourceMetaByPath", () => {
 
 			nowSpy.mockReturnValue(startTime + 15_001)
 			await expect(
-				getFileResourceMetaByPath("images/new.png", oldFiles, {
+				getFileResourceMetaByPath("/images/new.png", oldFiles, {
 					designProjectId: "project-1",
 					hasAttachmentSnapshot: true,
 				}),
 			).resolves.toEqual({ status: "deleted" })
 			cleanupFileInfoCache(oldFiles, "project-1", { hasAttachmentSnapshot: true })
 			await expect(
-				getFileInfoByPath("images/new.png", oldFiles, {
+				getFileInfoByPath("/images/new.png", oldFiles, {
 					designProjectId: "project-1",
 					hasAttachmentSnapshot: true,
 				}),
@@ -570,7 +705,12 @@ describe("getFileResourceMetaByPath", () => {
 		expect(calls).toHaveLength(3)
 		expect(calls.map(([request]) => request.file_ids.length)).toEqual([100, 100, 50])
 		calls.forEach(([request]) => {
-			expect(request.options).toBeDefined()
+			expect(request.options).toEqual({
+				xMagicImageProcess: {
+					autoOrient: 1,
+					format: "webp",
+				},
+			})
 		})
 	})
 
@@ -1098,7 +1238,7 @@ describe("getFileResourceMetaByPath", () => {
 		})
 		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
 
-		clearFileInfoCache("images/primed-race.png", undefined, "project-1")
+		clearAllFileInfoCache()
 		vi.mocked(getTemporaryDownloadUrl).mockResolvedValueOnce([
 			{
 				file_id: "primed-race-file",
@@ -1139,6 +1279,42 @@ describe("getFileResourceMetaByPath", () => {
 			src: "https://example.test/versioned-file.png?request=2",
 		})
 
+		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(2)
+	})
+
+	it("does not batch the same file id across different resource versions", async () => {
+		vi.useRealTimers()
+		vi.mocked(getTemporaryDownloadUrl).mockImplementation(async ({ file_ids }) =>
+			file_ids.map((fileId) => ({
+				file_id: fileId,
+				url: `https://example.test/${fileId}.png?request=${vi.mocked(getTemporaryDownloadUrl).mock.calls.length}`,
+			})),
+		)
+		const firstFiles = [
+			fileItem({
+				file_id: "same-file-different-version",
+				file_name: "versioned.png",
+				resource_version: "resource-v1",
+			}),
+		]
+		const secondFiles = [
+			fileItem({
+				file_id: "same-file-different-version",
+				file_name: "versioned.png",
+				resource_version: "resource-v2",
+			}),
+		]
+
+		const [firstResult, secondResult] = await Promise.all([
+			getFileInfoById("same-file-different-version", "versioned.png", undefined, {
+				filesList: firstFiles,
+			}),
+			getFileInfoById("same-file-different-version", "versioned.png", undefined, {
+				filesList: secondFiles,
+			}),
+		])
+
+		expect(firstResult.src).not.toBe(secondResult.src)
 		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(2)
 	})
 

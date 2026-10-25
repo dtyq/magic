@@ -7,7 +7,7 @@ import ImageExtend from "./tips/ImageExtend/index"
 import ImageEraser from "./tips/ImageEraser/index"
 
 export default function CanvasTips() {
-	const { subElementTooltip } = useCanvasSelectionUI()
+	const { activeToolSession } = useCanvasSelectionUI()
 	const { croppingElementId, extendingElementId, erasingElementId } = useCanvasModeUI()
 
 	// 裁剪模式下显示裁剪提示
@@ -36,10 +36,10 @@ export default function CanvasTips() {
 		)
 	}
 
-	if (!subElementTooltip) return null
+	if (!activeToolSession) return null
 
-	// 根据 subElementTooltip 类型渲染对应提示
-	if (subElementTooltip === ElementToolTypeEnum.ImageConvertHight) {
+	// 根据当前工具会话渲染对应提示
+	if (activeToolSession.toolId === ElementToolTypeEnum.ContentEnhance) {
 		return (
 			<div className={styles.canvasTips}>
 				<ImageConvertHight />

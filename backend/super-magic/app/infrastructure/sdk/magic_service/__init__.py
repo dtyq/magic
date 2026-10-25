@@ -19,6 +19,7 @@ from .api.agent_api import AgentApi
 from .api.magicbase_api import MagicBaseApi
 from .api.message_schedule_api import MessageScheduleApi
 from .api.oauth2_callback_relay_api import OAuth2CallbackRelayApi
+from .api.mcp_authorization_credential_api import MCPAuthorizationCredentialApi
 from .api.share_api import ShareApi
 
 # Parameter classes
@@ -35,6 +36,7 @@ from .parameter.message_schedule_parameter import (
     DeleteMessageScheduleParameter,
 )
 from .parameter.oauth2_callback_relay_parameter import OAuth2CallbackRelayParameter
+from .parameter.mcp_authorization_credential_parameter import MCPAuthorizationCredentialParameter
 from .parameter.share_resource_id_parameter import ShareResourceIdParameter
 from .parameter.create_share_parameter import CreateShareParameter, ShareExtraParameter, TargetId
 from .parameter.find_similar_share_parameter import FindSimilarShareParameter
@@ -65,6 +67,7 @@ from .result.message_schedule_result import (
     DeleteMessageScheduleResult,
 )
 from .result.oauth2_callback_relay_result import OAuth2CallbackRelayResult
+from .result.mcp_authorization_credential_result import MCPAuthorizationCredentialResult
 from .result.share_result import (
     ShareResourceIdResult,
     ShareResult,
@@ -104,6 +107,7 @@ __all__ = [  # noqa: RUF022 - 分组顺序属于此聚合模块的既有结构
     'MagicBaseApi',
     'MessageScheduleApi',
     'OAuth2CallbackRelayApi',
+    'MCPAuthorizationCredentialApi',
     'ShareApi',
 
     # Parameter classes
@@ -118,6 +122,7 @@ __all__ = [  # noqa: RUF022 - 分组顺序属于此聚合模块的既有结构
     'UpdateMessageScheduleParameter',
     'DeleteMessageScheduleParameter',
     'OAuth2CallbackRelayParameter',
+    'MCPAuthorizationCredentialParameter',
     'ShareResourceIdParameter',
     'CreateShareParameter',
     'ShareExtraParameter',
@@ -147,6 +152,7 @@ __all__ = [  # noqa: RUF022 - 分组顺序属于此聚合模块的既有结构
     'MessageScheduleListResult',
     'DeleteMessageScheduleResult',
     'OAuth2CallbackRelayResult',
+    'MCPAuthorizationCredentialResult',
     'ShareResourceIdResult',
     'ShareResult',
     'CancelShareResult',

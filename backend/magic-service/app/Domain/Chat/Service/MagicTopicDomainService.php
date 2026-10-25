@@ -10,7 +10,6 @@ namespace App\Domain\Chat\Service;
 use App\Domain\Chat\DTO\Message\ControlMessage\TopicCreateMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\TopicDeleteMessage;
 use App\Domain\Chat\DTO\Message\ControlMessage\TopicUpdateMessage;
-use App\Domain\Chat\Entity\Items\ConversationExtra;
 use App\Domain\Chat\Entity\MagicConversationEntity;
 use App\Domain\Chat\Entity\MagicMessageEntity;
 use App\Domain\Chat\Entity\MagicSeqEntity;
@@ -20,11 +19,11 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ControlMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
-use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 use Throwable;
 
@@ -244,39 +243,117 @@ class MagicTopicDomainService extends AbstractDomainService
      */
     public function agentSendMessageGetTopicId(MagicConversationEntity $senderConversationEntity, int $getType): string
     {
-        $receiverConversationEntity = $this->magicConversationRepository->getReceiveConversationBySenderConversationId($senderConversationEntity->getId());
-        // 为收件方创建会话，但是不再触发 ConversationCreatedEvent 事件，避免事件循环
-        if (($receiverConversationEntity === null) && in_array($senderConversationEntity->getReceiveType(), [ConversationType::User, ConversationType::Ai], true)) {
-            $conversationDTO = new MagicConversationEntity();
-            $conversationDTO->setUserId($senderConversationEntity->getReceiveId());
-            $conversationDTO->setReceiveId($senderConversationEntity->getUserId());
-            # 创建会话窗口
-            $conversationDTO = $this->parsePrivateChatConversationReceiveType($conversationDTO);
-            # 准备生成一个会话窗口
-            $receiverConversationEntity = $this->magicConversationRepository->addConversation($conversationDTO);
+        Db::beginTransaction();
+        try {
+            if (in_array($senderConversationEntity->getReceiveType(), [ConversationType::User, ConversationType::Ai], true)) {
+                $receiverIdentity = new MagicConversationEntity();
+                $receiverIdentity->setUserId($senderConversationEntity->getReceiveId());
+                $receiverIdentity->setReceiveId($senderConversationEntity->getUserId());
+                $receiverIdentity = $this->parsePrivateChatConversationReceiveType($receiverIdentity);
+                $receiver = $this->magicConversationRepository->getConversationByIdentity($receiverIdentity);
+                // The receiver side continues to suppress ConversationCreatedEvent.
+                $receiver ??= $this->magicConversationRepository->addConversation($receiverIdentity);
+            } else {
+                $receiver = $this->magicConversationRepository->getReceiveConversationBySenderConversationId($senderConversationEntity->getId());
+                if ($receiver === null) {
+                    ExceptionBuilder::throw(ChatErrorCode::CONVERSATION_NOT_FOUND);
+                }
+            }
+            $conversations = $this->lockConversationPair($senderConversationEntity->getId(), $receiver->getId());
+            $defaultTopicId = null;
+            if ($getType !== 3) {
+                foreach ($conversations as $conversation) {
+                    // Empty objects may not initialize ConversationExtra.defaultTopicId.
+                    $topicId = $conversation->getExtra()?->toArray()['default_topic_id'] ?? '';
+                    $topic = $topicId === '' ? null : $this->magicChatTopicRepository->getTopicForConversationForUpdate($conversation->getId(), $topicId);
+                    if ($topic === null || ($defaultTopicId !== null && $defaultTopicId !== $topicId)) {
+                        $defaultTopicId = null;
+                        break;
+                    }
+                    $defaultTopicId = $topicId;
+                }
+            }
+            if ($defaultTopicId === null) {
+                $defaultTopicId = $this->insertConversationTopicPair($conversations);
+                foreach ($conversations as $conversation) {
+                    $this->magicConversationRepository->updateDefaultTopicId($conversation->getId(), $defaultTopicId);
+                }
+            }
+            Db::commit();
+            return $defaultTopicId;
+        } catch (Throwable $exception) {
+            Db::rollBack();
+            throw $exception;
         }
-        $senderTopicId = $this->checkDefaultTopicExist($senderConversationEntity);
-        $receiverTopicId = $this->checkDefaultTopicExist($receiverConversationEntity);
-        $defaultTopicId = $senderTopicId;
-        // 如果 $getType 为新增话题，则默认创建话题，而不是默认话题
-        if ($getType === 3) {
-            $senderTopicId = '';
-        }
-        // 收发双方只要有一个的默认话题不存在,或者不在同一个默认话题，就需要创建
-        if (empty($senderTopicId) || empty($receiverTopicId) || $senderTopicId !== $receiverTopicId) {
-            Db::beginTransaction();
-            try {
-                // 为收发双方同时创建一个默认话题
-                $defaultTopicId = (string) IdGenerator::getSnowId();
-                $this->createAndUpdateDefaultTopic($senderConversationEntity, $defaultTopicId);
-                $this->createAndUpdateDefaultTopic($receiverConversationEntity, $defaultTopicId);
-                Db::commit();
-            } catch (Throwable $e) {
-                Db::rollBack();
-                throw $e;
+    }
+
+    /** Insert the two IM rows without locking or changing conversation defaults. */
+    public function createConversationTopicPair(string $senderConversationId, string $receiverConversationId): string
+    {
+        $this->requireTopicTransaction();
+        $sender = $this->magicConversationRepository->getConversationById($senderConversationId);
+        $receiver = $this->magicConversationRepository->getConversationById($receiverConversationId);
+        $this->validateConversationPair($sender, $receiver);
+        return $this->insertConversationTopicPair([$sender, $receiver]);
+    }
+
+    /** Caller must commit immediately after this method. */
+    public function setConversationDefaultTopicPair(string $senderConversationId, string $receiverConversationId, string $topicId): void
+    {
+        $conversations = $this->lockConversationPair($senderConversationId, $receiverConversationId);
+        foreach ($conversations as $conversation) {
+            $topic = $this->magicChatTopicRepository->getTopicForConversationForUpdate($conversation->getId(), $topicId);
+            if ($topic === null || $topic->getOrganizationCode() !== $conversation->getUserOrganizationCode()) {
+                ExceptionBuilder::throw(ChatErrorCode::TOPIC_NOT_FOUND);
             }
         }
-        return $defaultTopicId;
+        foreach ($conversations as $conversation) {
+            $this->magicConversationRepository->updateDefaultTopicId($conversation->getId(), $topicId);
+        }
+    }
+
+    /** @return array<string, MagicConversationEntity> */
+    private function lockConversationPair(string $senderConversationId, string $receiverConversationId): array
+    {
+        $this->requireTopicTransaction();
+        $conversations = $this->magicConversationRepository->getConversationsByIdsForUpdate([$senderConversationId, $receiverConversationId]);
+        $this->validateConversationPair($conversations[$senderConversationId] ?? null, $conversations[$receiverConversationId] ?? null);
+        return $conversations;
+    }
+
+    private function validateConversationPair(?MagicConversationEntity $sender, ?MagicConversationEntity $receiver): void
+    {
+        if ($sender === null || $receiver === null || $sender->getId() === $receiver->getId()
+            || $sender->getUserId() !== $receiver->getReceiveId() || $sender->getReceiveId() !== $receiver->getUserId()
+            || $sender->getUserOrganizationCode() !== $receiver->getReceiveOrganizationCode()
+            || $sender->getReceiveOrganizationCode() !== $receiver->getUserOrganizationCode()
+            || ! in_array($sender->getReceiveType(), [ConversationType::User, ConversationType::Ai], true)
+            || ! in_array($receiver->getReceiveType(), [ConversationType::User, ConversationType::Ai], true)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '会话对不存在或身份不匹配');
+        }
+    }
+
+    /** @param MagicConversationEntity[] $conversations */
+    private function insertConversationTopicPair(array $conversations): string
+    {
+        $topicId = (string) IdGenerator::getSnowId();
+        foreach ($conversations as $conversation) {
+            $topic = new MagicTopicEntity();
+            $topic->setConversationId($conversation->getId());
+            $topic->setTopicId($topicId);
+            $topic->setOrganizationCode($conversation->getUserOrganizationCode());
+            $topic->setName(__('chat.topic.system_default_topic'));
+            $topic->setDescription('');
+            $this->magicChatTopicRepository->createTopic($topic);
+        }
+        return $topicId;
+    }
+
+    private function requireTopicTransaction(): void
+    {
+        if (Db::connection()->transactionLevel() < 1) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, '话题创建及默认话题更新必须在事务内执行');
+        }
     }
 
     private function checkTopicBelong(MagicTopicEntity $topicDTO, DataIsolation $dataIsolation): void
@@ -287,43 +364,5 @@ class MagicTopicDomainService extends AbstractDomainService
             ExceptionBuilder::throw(ChatErrorCode::TOPIC_NOT_FOUND);
         }
         $this->checkAndGetSelfConversation($topicEntity->getConversationId(), $dataIsolation);
-    }
-
-    /**
-     * 检查默认话题是否存在.
-     */
-    private function checkDefaultTopicExist(MagicConversationEntity $conversationEntity): ?string
-    {
-        // 判断有没有默认话题的标签
-        $topicId = $conversationEntity->getExtra()?->getDefaultTopicId();
-        if (empty($topicId)) {
-            return null;
-        }
-        // 判断默认话题被删了没有
-        $topicEntities = $this->magicChatTopicRepository->getTopicsByConversationId($conversationEntity->getId(), [$topicId]);
-        return ($topicEntities[0] ?? null)?->getTopicId();
-    }
-
-    /**
-     * 创建并更新默认话题.
-     */
-    private function createAndUpdateDefaultTopic(MagicConversationEntity $conversationEntity, string $defaultTopicId): void
-    {
-        $topicDTO = new MagicTopicEntity();
-        $topicDTO->setConversationId($conversationEntity->getId());
-        $topicDTO->setTopicId($defaultTopicId);
-        $topicDTO->setOrganizationCode($conversationEntity->getUserOrganizationCode());
-        $topicDTO->setName(__('chat.topic.system_default_topic'));
-        $topicDTO->setDescription('');
-        $this->magicChatTopicRepository->createTopic($topicDTO);
-        // 将默认话题id回写进会话窗口
-        $senderConversationExtra = $conversationEntity->getExtra();
-        if ($senderConversationExtra === null) {
-            $senderConversationExtra = new ConversationExtra();
-        }
-        $senderConversationExtra->setDefaultTopicId($defaultTopicId);
-        $this->magicConversationRepository->updateConversationById($conversationEntity->getId(), [
-            'extra' => Json::encode($senderConversationExtra->toArray()),
-        ]);
     }
 }

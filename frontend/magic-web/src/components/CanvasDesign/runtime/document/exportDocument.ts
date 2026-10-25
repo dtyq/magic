@@ -2,23 +2,14 @@ import {
 	ElementTypeEnum,
 	type CanvasDocument,
 	type CropConfig,
-	type EllipseElement,
-	type FrameElement,
-	type GroupElement,
-	type ImageElement,
 	type InteractionConfig,
 	type LayerElement,
-	type RectangleElement,
-	type RichTextParagraph,
-	type RichTextNode,
-	type StarElement,
-	type TextElement,
+	type StoryboardShot,
 	type TextStyle,
-	type TriangleElement,
-	type VideoElement,
 } from "./types"
 import { compactTextDefaultStyle } from "../text/richText"
-import { getImageGenerationTaskMeta } from "../resources/image/imageGenerationTaskMeta"
+import { getContents } from "./elementContent"
+import { normalizeStoryboardShot } from "./storyboardMigration"
 
 const BASE_EXPORT_DEFAULTS = {
 	visible: true,
@@ -102,47 +93,10 @@ function exportTextStyle(style?: TextStyle): TextStyle | undefined {
 	return result
 }
 
-function exportRichTextNode(node: RichTextNode): RichTextNode {
-	const result: RichTextNode = {
-		type: "text",
-		text: node.text,
-	}
-
-	if (node.style !== undefined) {
-		result.style = exportTextStyle(node.style)
-	}
-
-	return result
-}
-
-function exportRichTextParagraph(paragraph: RichTextParagraph): RichTextParagraph {
-	const result: RichTextParagraph = {}
-
-	if (paragraph.children !== undefined) {
-		result.children = paragraph.children.map(exportRichTextNode)
-	}
-
-	if (paragraph.style !== undefined) {
-		result.style = {}
-
-		if (paragraph.style.textAlign !== undefined) {
-			result.style.textAlign = paragraph.style.textAlign
-		}
-		if (paragraph.style.lineHeight !== undefined) {
-			result.style.lineHeight = paragraph.style.lineHeight
-		}
-		if (paragraph.style.paragraphSpacing !== undefined) {
-			result.style.paragraphSpacing = paragraph.style.paragraphSpacing
-		}
-		if (paragraph.style.listType !== undefined) {
-			result.style.listType = paragraph.style.listType
-		}
-	}
-
-	return result
-}
-
-function assignBaseElementProps<T extends LayerElement>(result: T, element: T): T {
+function assignBaseElementProps(
+	result: Record<string, unknown>,
+	element: LayerElement,
+): Record<string, unknown> {
 	if (element.name !== undefined) result.name = element.name
 	if (element.visible !== undefined && element.visible !== BASE_EXPORT_DEFAULTS.visible) {
 		result.visible = element.visible
@@ -172,127 +126,40 @@ function assignBaseElementProps<T extends LayerElement>(result: T, element: T): 
 }
 
 export function exportLayerElement(element: LayerElement): LayerElement {
-	switch (element.type) {
-		case ElementTypeEnum.Frame: {
-			const result = assignBaseElementProps<FrameElement>(
-				{ id: element.id, type: element.type },
-				element,
-			)
-			if (element.children !== undefined) {
-				result.children = element.children.map(exportLayerElement)
-			}
-			return result
+	const result = exportLayerElementInternal(element)
+	const contents = getContents(element).map((content) => {
+		const serialized = cloneSerializable(content) as unknown as Record<string, unknown>
+		if (element.type === ElementTypeEnum.Image && serialized.discarded !== true) {
+			delete serialized.discarded
 		}
-
-		case ElementTypeEnum.Group: {
-			const result = assignBaseElementProps<GroupElement>(
-				{ id: element.id, type: element.type },
-				element,
-			)
-			if (element.children !== undefined) {
-				result.children = element.children.map(exportLayerElement)
-			}
-			return result
+		if (element.type === ElementTypeEnum.Image && serialized.crop) {
+			serialized.crop = exportCropConfig(serialized.crop as CropConfig)
 		}
-
-		case ElementTypeEnum.Rectangle: {
-			const result = assignBaseElementProps<RectangleElement>(
-				{ id: element.id, type: element.type },
-				element,
+		if (element.type === ElementTypeEnum.Text && serialized.defaultStyle) {
+			serialized.defaultStyle = exportTextStyle(
+				compactTextDefaultStyle(serialized.defaultStyle as TextStyle),
 			)
-			if (element.fill !== undefined) result.fill = element.fill
-			if (element.stroke !== undefined) result.stroke = element.stroke
-			if (element.strokeWidth !== undefined) result.strokeWidth = element.strokeWidth
-			if (element.cornerRadius !== undefined) result.cornerRadius = element.cornerRadius
-			return result
 		}
-
-		case ElementTypeEnum.Star: {
-			const result = assignBaseElementProps<StarElement>(
-				{ id: element.id, type: element.type },
-				element,
+		if (element.type === ElementTypeEnum.Storyboard && Array.isArray(serialized.shots)) {
+			serialized.shots = (serialized.shots as Array<Record<string, unknown>>).map((shot) =>
+				normalizeStoryboardShot(shot as unknown as StoryboardShot),
 			)
-			if (element.fill !== undefined) result.fill = element.fill
-			if (element.stroke !== undefined) result.stroke = element.stroke
-			if (element.strokeWidth !== undefined) result.strokeWidth = element.strokeWidth
-			if (element.cornerRadius !== undefined) result.cornerRadius = element.cornerRadius
-			if (element.sides !== undefined) result.sides = element.sides
-			if (element.innerRadiusRatio !== undefined) {
-				result.innerRadiusRatio = element.innerRadiusRatio
-			}
-			return result
 		}
+		return serialized
+	})
+	result.contents = contents
+	result.activeContentId = element.activeContentId ?? null
+	result.mainContentId = element.mainContentId ?? null
+	return result as unknown as LayerElement
+}
 
-		case ElementTypeEnum.Ellipse:
-		case ElementTypeEnum.Triangle: {
-			const result = assignBaseElementProps<EllipseElement | TriangleElement>(
-				{ id: element.id, type: element.type },
-				element,
-			)
-			if (element.fill !== undefined) result.fill = element.fill
-			if (element.stroke !== undefined) result.stroke = element.stroke
-			if (element.strokeWidth !== undefined) result.strokeWidth = element.strokeWidth
-			return result
-		}
-
-		case ElementTypeEnum.Text: {
-			const result = assignBaseElementProps<TextElement>(
-				{ id: element.id, type: element.type },
-				element,
-			)
-			if (element.content !== undefined) {
-				result.content = element.content.map(exportRichTextParagraph)
-			}
-			const defaultStyle = compactTextDefaultStyle(element.defaultStyle)
-			if (defaultStyle !== undefined) {
-				result.defaultStyle = exportTextStyle(defaultStyle)
-			}
-			return result
-		}
-
-		case ElementTypeEnum.Image: {
-			const result = assignBaseElementProps<ImageElement>(
-				{ id: element.id, type: element.type },
-				element,
-			)
-			if (element.src !== undefined) result.src = element.src
-			if (element.status !== undefined) result.status = element.status
-			if (element.errorMessage !== undefined) result.errorMessage = element.errorMessage
-			if (element.generateImageRequest !== undefined) {
-				result.generateImageRequest = cloneSerializable(element.generateImageRequest)
-			}
-			const imageGenerationTaskMeta = getImageGenerationTaskMeta(element)
-			if (imageGenerationTaskMeta !== undefined) {
-				result.imageGenerationTaskMeta = cloneSerializable(imageGenerationTaskMeta)
-			}
-			if (element.crop !== undefined) {
-				result.crop = exportCropConfig(element.crop)
-			}
-			return result
-		}
-
-		case ElementTypeEnum.Video: {
-			const result = assignBaseElementProps<VideoElement>(
-				{ id: element.id, type: element.type },
-				element,
-			)
-			if (element.src !== undefined) result.src = element.src
-			if (element.status !== undefined) result.status = element.status
-			if (element.errorMessage !== undefined) result.errorMessage = element.errorMessage
-			if (element.generateVideoRequest !== undefined) {
-				result.generateVideoRequest = cloneSerializable(element.generateVideoRequest)
-			}
-			if (element.videoGenerationResultMeta !== undefined) {
-				result.videoGenerationResultMeta = cloneSerializable(
-					element.videoGenerationResultMeta,
-				)
-			}
-			return result
-		}
-
-		default:
-			return element
+function exportLayerElementInternal(element: LayerElement): Record<string, unknown> {
+	const result = assignBaseElementProps({ id: element.id, type: element.type }, element)
+	// Frame/Group 的 children 属于 Element 外壳，其余业务字段统一由 contents 导出。
+	if ("children" in element && element.children !== undefined) {
+		result.children = element.children.map(exportLayerElement)
 	}
+	return result
 }
 
 export function exportCanvasDocument(elements: LayerElement[]): CanvasDocument {

@@ -10,6 +10,7 @@ interface UseDropHandlerOptions {
 		draggedFileId: string,
 		targetParentId: string,
 		preFileId?: string,
+		keepBothFileIds?: string[],
 	) => Promise<boolean>
 }
 

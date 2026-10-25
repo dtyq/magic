@@ -12,11 +12,8 @@ import {
 	useUnmount,
 } from "ahooks"
 import type { RecordSummaryConversationMessage } from "@/types/chat/conversation_message"
-import {
-	ConversationMessageType,
-	RecordSummaryStatus,
-} from "@/types/chat/conversation_message"
-import dayjs from "@/lib/dayjs"
+import { ConversationMessageType, RecordSummaryStatus } from "@/types/chat/conversation_message"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import pako from "pako"
 import MessageService from "@/services/chat/message/MessageService"
 import RecordSummaryManager from "@/services/chat/recordSummary/RecordSummaryManager"

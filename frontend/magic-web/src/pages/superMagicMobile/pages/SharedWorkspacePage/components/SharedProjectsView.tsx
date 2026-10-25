@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getAvatarUrl } from "@/utils/avatar"
 import { formatRelativeTime } from "@/utils/string"
 

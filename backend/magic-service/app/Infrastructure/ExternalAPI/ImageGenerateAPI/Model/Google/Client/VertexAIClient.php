@@ -7,12 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\Client;
 
+use App\Infrastructure\ExternalAPI\Google\Auth\GoogleServiceAccountTokenProvider;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use Exception;
-use Google\Auth\Credentials\ServiceAccountCredentials;
 use Hyperf\Codec\Json;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Redis\Redis;
 use InvalidArgumentException;
 
 use function Hyperf\Translation\__;
@@ -28,17 +26,13 @@ class VertexAIClient extends AbstractGoogleGeminiClient
     protected const DEFAULT_AI_PLATFORM_HOST = 'https://aiplatform.googleapis.com';
 
     // ========== OAuth2 认证配置 ==========
-    /** @var string OAuth2 认证范围 */
-    protected const OAUTH_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
+    private GoogleServiceAccountTokenProvider $tokenProvider;
 
-    /** @var string OAuth2 认证 URI */
-    protected const OAUTH_AUTH_URI = 'https://accounts.google.com/o/oauth2/auth';
-
-    /** @var string OAuth2 Token URI */
-    protected const OAUTH_TOKEN_URI = 'https://oauth2.googleapis.com/token';
-
-    /** @var string OAuth2 证书 URL */
-    protected const OAUTH_CERTS_URL = 'https://www.googleapis.com/oauth2/v1/certs';
+    public function __construct(array $config, string $modelId = 'gemini-2.5-flash-image', ?string $proxyUrl = null)
+    {
+        parent::__construct($config, $modelId, $proxyUrl);
+        $this->tokenProvider = new GoogleServiceAccountTokenProvider($config, $proxyUrl);
+    }
 
     public function uploadFile(string $filePath, string $mimeType): string
     {
@@ -133,97 +127,13 @@ class VertexAIClient extends AbstractGoogleGeminiClient
 
     protected function getAuthHeaders(): array
     {
-        return ['Authorization' => 'Bearer ' . $this->getServiceAccountToken()];
-    }
-
-    protected function getServiceAccountToken(): string
-    {
-        $cacheKey = $this->getCacheKey();
-
-        $cachedToken = $this->redis->get($cacheKey);
-        if ($cachedToken) {
-            return $cachedToken;
-        }
-
-        $tokenData = $this->fetchServiceAccountTokenFromApi();
-
-        if (isset($tokenData['access_token'])) {
-            $expiresIn = $tokenData['expires_in'] ?? 3500;
-            // 提前 60 秒过期，避免临界点问题
-            $this->redis->set($cacheKey, $tokenData['access_token'], max(1, $expiresIn - 60));
-        }
-
-        return $tokenData['access_token'];
-    }
-
-    protected function getCacheKey(): string
-    {
-        // 缓存 Key 生成策略：
-        // 1. project_id + client_email: 区分不同的服务账号
-        // 2. private_key + private_key_id: 确保密钥轮换时缓存自动失效，使用新密钥生成 Token
-        // 3. OAUTH_SCOPE: 确保权限范围变更时缓存隔离
-        $keySource = ($this->config['project_id'] ?? '')
-            . ($this->config['client_email'] ?? '')
-            . ($this->config['private_key'] ?? '')
-            . ($this->config['private_key_id'] ?? '')
-            . ($this->config['client_id'] ?? '')
-            . self::OAUTH_SCOPE;
-
-        return 'google_sa_token_' . md5($keySource);
+        return ['Authorization' => 'Bearer ' . $this->tokenProvider->getAccessToken()];
     }
 
     protected function refreshAuth(): bool
     {
-        $cacheKey = $this->getCacheKey();
-        $container = ApplicationContext::getContainer();
-        $redis = $container->has(Redis::class) ? $container->get(Redis::class) : null;
-
-        if ($redis) {
-            $redis->del($cacheKey);
-            return true;
-        }
-
-        return false;
-    }
-
-    protected function fetchServiceAccountTokenFromApi(): array
-    {
-        try {
-            $scopes = [self::OAUTH_SCOPE];
-
-            $jsonKey = [
-                'type' => 'service_account',
-                'project_id' => $this->config['project_id'] ?? '',
-                'private_key_id' => $this->config['private_key_id'] ?? '',
-                'private_key' => $this->config['private_key'] ?? '',
-                'client_email' => $this->config['client_email'] ?? '',
-                'client_id' => $this->config['client_id'] ?? '',
-                'auth_uri' => $this->config['auth_uri'] ?? self::OAUTH_AUTH_URI,
-                'token_uri' => $this->config['token_uri'] ?? self::OAUTH_TOKEN_URI,
-                'auth_provider_x509_cert_url' => $this->config['auth_provider_x509_cert_url'] ?? self::OAUTH_CERTS_URL,
-                'client_x509_cert_url' => $this->config['client_x509_cert_url'] ?? '',
-            ];
-
-            $credentials = new ServiceAccountCredentials($scopes, $jsonKey);
-
-            $httpHandler = null;
-            if (! empty($this->proxyUrl)) {
-                $client = GuzzleClientFactory::createProxyClient(['timeout' => self::REQUEST_TIMEOUT], $this->proxyUrl);
-                $httpHandler = function ($request, $options = []) use ($client) {
-                    return $client->send($request, $options);
-                };
-            }
-
-            $token = $credentials->fetchAuthToken($httpHandler);
-            if (isset($token['access_token'])) {
-                return $token;
-            }
-
-            throw new Exception('Failed to fetch access token');
-        } catch (Exception $e) {
-            $this->logger->error('Google Service Account 鉴权失败', ['error' => $e->getMessage()]);
-            throw $e;
-        }
+        $this->tokenProvider->invalidate();
+        return true;
     }
 
     private function resolveAiPlatformHost(): string

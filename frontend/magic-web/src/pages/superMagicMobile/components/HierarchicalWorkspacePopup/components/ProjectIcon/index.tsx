@@ -1,6 +1,6 @@
 import { Folder } from "lucide-react"
 import { memo } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface ProjectIconProps {
 	className?: string

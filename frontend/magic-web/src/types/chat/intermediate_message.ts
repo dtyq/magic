@@ -142,6 +142,8 @@ export interface SuperMagicFileChangeItem {
 
 export interface SuperMagicFileChangeMessage extends Partial<SeqMessageBase> {
 	type: IntermediateMessageType.SuperMagicFileChange
+	/** The file namespace that owns this change event. Legacy events omit it and are project-scoped. */
+	space_type?: "project" | "user" | (string & {})
 	project_id: string
 	workspace_id: string
 	topic_id: string

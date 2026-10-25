@@ -11,42 +11,43 @@ import type {
 import type { MarkerClickScene } from "../../hooks/useMarkerClickHandler"
 import { useMemoizedFn, useDebounceFn, useMount, useUnmount, useUpdateEffect } from "ahooks"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/utils"
-import type { JSONContent } from "@tiptap/core"
+import { cn } from "@/utils/cn"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { useTranslation } from "react-i18next"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
-// 间距
+// Space between mention chips.
 const GAP = 4
 const MOBILE_POPUP_ICON_SIZE = 24
 
-// 最大行数
+// Maximum number of visible rows.
 const MAX_ROWS = 2
 
 interface MentionListProps {
-	/** mention 项列表 */
+	/** Selected mention items. */
 	mentionItems: MentionListItem[]
-	/** 图标大小 */
+	/** Icon size. */
 	iconSize?: number
-	/** 移除 mention 项的回调 */
+	/** Called when a mention is removed. */
 	onRemoveItems?: (mentionAttrs: TiptapMentionAttributes) => void
-	/** 预览元素 */
+	/** Optional leading element. */
 	prevEl?: React.ReactElement | null
 	onFileClick?: (fileItem: TiptapMentionAttributes["data"]) => void
-	/** 重试上传文件的回调 */
+	/** Retries a failed file upload. */
 	onRetry?: (id: string) => Promise<void>
-	/** Marker 点击场景（用于决定点击行为） */
+	/** Marker click context used to choose its action. */
 	markerClickScene?: MarkerClickScene
-	/** 消息的 content（用于消息列表中查找完整 marker 数据） */
+	/** Message content used to resolve complete marker data. */
 	messageContent?: JSONContent | string | Record<string, unknown>
-	/** 消息列表作用域内的附件 store；未传时保持全局 store 行为 */
+	/** Message-scoped file store; defaults to the global store. */
 	projectFilesStore?: ProjectFilesStore
 }
 
 /**
- * MentionList - mention 列表组件
- * 显示 @ 按钮和已选择的 mention 项
- * 使用 CSS Grid 自动布局，最多显示两行，超出部分显示在 Popover 中
+ * MentionList renders selected mentions.
+ * Show the leading control and selected mention chips.
+ * Measure wrapped chips to show at most two rows, with overflow in a popover.
  */
 const MentionList = ({
 	mentionItems,
@@ -59,7 +60,7 @@ const MentionList = ({
 	messageContent,
 	projectFilesStore,
 }: MentionListProps) => {
-	// 使用 markerClickScene，默认为 messageEditorMentionList
+	// Default marker clicks to the message editor context.
 	const scene = markerClickScene
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
@@ -77,7 +78,7 @@ const MentionList = ({
 	const shouldShowMore = hiddenItems.length > 0
 
 	const calculateMaxVisible = useMemoizedFn(() => {
-		// 防止重复计算
+		// Avoid reentrant measurements.
 		if (isCalculatingRef.current) {
 			return
 		}
@@ -96,14 +97,14 @@ const MentionList = ({
 			const container = containerRef.current
 			const containerWidth = container.clientWidth
 
-			// 暂时断开 MutationObserver，避免修改 display 时触发循环
+			// Disconnect while changing display to avoid an observer feedback loop.
 			if (mutationObserver) {
 				mutationObserver.disconnect()
 			}
 
-			// 获取所有 item wrapper 元素（跳过 prevEl 和 moreButton）
+			// Inspect mention wrappers, excluding the leading element and more button.
 			const allChildren = Array.from(container.children) as HTMLElement[]
-			// 通过 data-mention-item 属性筛选出 wrapper 元素
+			// Only measure wrappers carrying data-mention-item.
 			itemWrappers = allChildren.filter(
 				(el) => el.getAttribute("data-mention-item") !== null,
 			) as HTMLElement[]
@@ -112,20 +113,20 @@ const MentionList = ({
 				return
 			}
 
-			// 临时显示所有 items 以便测量（保存原始 display 值）
+			// Temporarily reveal items for measurement, preserving their display values.
 			const originalDisplays: string[] = []
 			itemWrappers.forEach((wrapper) => {
 				originalDisplays.push(wrapper.style.display || "")
 				wrapper.style.display = ""
 			})
 
-			// 获取实际的 item 元素（wrapper 内的 AtItem）
+			// Measure the AtItem inside each wrapper.
 			const itemElements = itemWrappers
 				.map((wrapper) => wrapper.firstElementChild as HTMLElement)
 				.filter(Boolean)
 
 			if (itemElements.length === 0) {
-				// 恢复原始 display 值
+				// Restore the original display values.
 				itemWrappers.forEach((wrapper, index) => {
 					wrapper.style.display = originalDisplays[index] || ""
 				})
@@ -133,42 +134,42 @@ const MentionList = ({
 				return
 			}
 
-			// 计算每个项目的宽度和位置信息
+			// Collect chip widths and row positions.
 			const itemInfo: Array<{ width: number; top: number }> = []
 			itemElements.forEach((el) => {
 				const rect = el.getBoundingClientRect()
 				itemInfo.push({
-					width: rect.width, // 不包含 gap，gap 是项目之间的间距
+					width: rect.width, // Width excludes the gap between chips.
 					top: rect.top,
 				})
 			})
 
-			// 预留 "+N" 按钮的空间（估算最小宽度 28px + gap）
+			// Reserve the estimated 28px more button width plus its gap.
 			const moreButtonWidth = 28 + GAP
 
-			// 通过实际测量的 top 位置来判断行数
+			// Identify rows from measured top positions.
 			let visibleCount = 0
-			const rows: number[] = [] // 记录每行的起始索引
+			const rows: number[] = [] // First item index in each row.
 
 			for (let i = 0; i < itemInfo.length; i++) {
 				const currentItem = itemInfo[i]
 				const isLastItem = i === itemInfo.length - 1
 
-				// 判断当前 item 属于哪一行（通过 top 位置）
+				// Find the row containing this chip.
 				let currentRowIndex = -1
 				for (let j = 0; j < rows.length; j++) {
 					const rowStartIndex = rows[j]
 					const rowStartTop = itemInfo[rowStartIndex].top
-					// 如果 top 位置相近（允许 1px 误差），认为是同一行
+					// Treat nearby top positions as the same row, allowing rounding differences.
 					if (Math.abs(currentItem.top - rowStartTop) < 2) {
 						currentRowIndex = j
 						break
 					}
 				}
 
-				// 如果是新行
+				// Start a new row if necessary.
 				if (currentRowIndex === -1) {
-					// 如果超过最大行数，停止计算
+					// Stop once the visible row limit is reached.
 					if (rows.length >= MAX_ROWS) {
 						break
 					}
@@ -176,46 +177,46 @@ const MentionList = ({
 					rows.push(i)
 				}
 
-				// 计算当前行的总宽度（包括项目宽度和项目之间的 gap）
+				// Include chip widths and gaps in the current row width.
 				let currentRowWidth = 0
 				const itemsInCurrentRow = i - rows[currentRowIndex]
 				if (itemsInCurrentRow > 0) {
-					// 如果当前行已有项目，需要加上 gap
+					// Include a gap when the row already contains chips.
 					for (let j = rows[currentRowIndex]; j < i; j++) {
 						currentRowWidth += itemInfo[j].width
 					}
-					// 项目之间的 gap 数量 = 项目数 - 1
+					// Include the gaps between existing chips.
 					currentRowWidth += itemsInCurrentRow * GAP
 				}
 
-				// 检查当前行是否能放下这个项目
-				// 如果当前行已有项目，需要加上 gap；如果是第一个项目，不需要 gap
+				// Check whether this chip fits in the current row.
+				// The first chip does not need a preceding gap.
 				const gapBeforeCurrentItem = currentRowWidth > 0 ? GAP : 0
 				const canFitInCurrentRow =
 					currentRowWidth + gapBeforeCurrentItem + currentItem.width <= containerWidth
 
 				if (!canFitInCurrentRow) {
-					// 如果当前行已经有项目，需要换行
+					// Wrap when the current row already contains chips.
 					if (currentRowWidth > 0) {
-						// 如果超过最大行数，停止计算
+						// Stop once the visible row limit is reached.
 						if (rows.length >= MAX_ROWS) {
 							break
 						}
-						// 创建新行
+						// Start the next row.
 						rows.push(i)
 						currentRowWidth = 0
 					}
 
-					// 如果单独一行也放不下，就不显示这个项目
+					// Hide a chip that cannot fit even on its own row.
 					if (currentItem.width > containerWidth) {
 						break
 					}
 				}
 
-				// 如果不是最后一个项目，需要检查是否需要为 "+N" 按钮预留空间
+				// Reserve room for the more button unless this is the last chip.
 				if (!isLastItem && rows.length === MAX_ROWS) {
-					// 检查加上当前项目和 "+N" 按钮是否会超出宽度
-					// 当前行宽度 + gap + 当前项目宽度 + gap + "+N"按钮宽度
+					// Check the chip and more button together against the row width.
+					// Include the row, chip and more button with their gaps.
 					const totalWidthWithMoreButton =
 						currentRowWidth +
 						gapBeforeCurrentItem +
@@ -223,7 +224,7 @@ const MentionList = ({
 						GAP +
 						moreButtonWidth
 					if (totalWidthWithMoreButton > containerWidth) {
-						// 如果当前行已经有项目，需要换行
+						// Wrap when the current row already contains chips.
 						if (currentRowWidth > 0) {
 							if (rows.length >= MAX_ROWS) {
 								break
@@ -231,8 +232,8 @@ const MentionList = ({
 							rows.push(i)
 							currentRowWidth = 0
 						}
-						// 如果单独一行也放不下，就不显示这个项目
-						// 单独一行：当前项目宽度 + gap + "+N"按钮宽度
+						// Hide a chip that cannot fit even on its own row.
+						// A standalone chip must still leave room for the more button.
 						if (currentItem.width + GAP + moreButtonWidth > containerWidth) {
 							break
 						}
@@ -241,7 +242,7 @@ const MentionList = ({
 
 				visibleCount++
 
-				// 更新当前行宽度（加上当前项目）
+				// Update the row width after adding this chip.
 				if (currentRowWidth > 0) {
 					currentRowWidth += GAP + currentItem.width
 				} else {
@@ -249,7 +250,7 @@ const MentionList = ({
 				}
 			}
 
-			// 恢复原始的 display 值，然后根据计算结果设置
+			// Apply visibility based on the measured limit.
 			itemWrappers.forEach((wrapper, index) => {
 				const shouldBeVisible = index < visibleCount
 				wrapper.style.display = shouldBeVisible ? "" : "none"
@@ -257,7 +258,7 @@ const MentionList = ({
 
 			setMaxVisible(visibleCount)
 		} finally {
-			// 确保重新连接 MutationObserver
+			// Reconnect the observer even if measurement exits early.
 			if (mutationObserver && containerRef.current) {
 				mutationObserver.observe(containerRef.current, {
 					childList: true,
@@ -266,17 +267,17 @@ const MentionList = ({
 					attributeFilter: ["style", "class", "data-mention-item"],
 				})
 			}
-			// 确保重置标志位
+			// Always release the measurement guard.
 			isCalculatingRef.current = false
 		}
 	})
 
-	// 防抖的计算函数
+	// Debounce layout measurements.
 	const debouncedCalculateMaxVisible = useDebounceFn(calculateMaxVisible, {
 		wait: 100,
 	})
 
-	// 使用 ref 保存 Observer 实例，以便在清理时使用
+	// Retain observers for cleanup.
 	const observersRef = useRef<{
 		containerObserver: ResizeObserver | null
 		mutationObserver: MutationObserver | null
@@ -285,7 +286,7 @@ const MentionList = ({
 		mutationObserver: null,
 	})
 
-	// 设置 Observer
+	// Observe layout and item changes.
 	useMount(() => {
 		const container = containerRef.current
 
@@ -293,17 +294,17 @@ const MentionList = ({
 			return
 		}
 
-		// 创建 ResizeObserver 监听容器尺寸变化
+		// Recalculate when the container resizes.
 		const containerObserver = new ResizeObserver(() => {
 			debouncedCalculateMaxVisible.run()
 		})
 
-		// 创建 MutationObserver 监听容器子元素变化
+		// Recalculate when chips or their styles change.
 		const mutationObserver = new MutationObserver(() => {
 			debouncedCalculateMaxVisible.run()
 		})
 
-		// 开始观察
+		// Start observing.
 		containerObserver.observe(container)
 		mutationObserver.observe(container, {
 			childList: true,
@@ -312,22 +313,22 @@ const MentionList = ({
 			attributeFilter: ["style", "class", "data-mention-item"],
 		})
 
-		// 保存 Observer 实例
+		// Retain the active observers.
 		observersRef.current = {
 			containerObserver,
 			mutationObserver,
 		}
 
-		// 初始计算
+		// Measure the initial layout.
 		debouncedCalculateMaxVisible.run()
 	})
 
-	// 当 mentionItems 变化时重新计算
+	// Recalculate when the selected mentions change.
 	useUpdateEffect(() => {
 		debouncedCalculateMaxVisible.run()
 	}, [mentionItems])
 
-	// 清理 Observer
+	// Disconnect observers on unmount.
 	useUnmount(() => {
 		const { containerObserver, mutationObserver } = observersRef.current
 		containerObserver?.disconnect()
@@ -347,7 +348,10 @@ const MentionList = ({
 		if (hiddenItems.length === 0) return null
 
 		return (
-			<div className="flex max-h-[240px] w-[180px] flex-col gap-1 overflow-y-auto">
+			<ScrollArea
+				className="w-[180px]"
+				viewportClassName="max-h-[240px] [&>div]:!flex [&>div]:flex-col [&>div]:gap-1"
+			>
 				{hiddenItems.map((at, index) => (
 					<AtItem
 						key={`${getMentionUniqueId(at.attrs)}-${index}`}
@@ -372,7 +376,7 @@ const MentionList = ({
 						}}
 					/>
 				))}
-			</div>
+			</ScrollArea>
 		)
 	}, [
 		hiddenItems,

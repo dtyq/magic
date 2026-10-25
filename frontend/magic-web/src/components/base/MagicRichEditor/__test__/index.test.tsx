@@ -10,8 +10,8 @@ mockSetup()
 
 // 在vi.mock之前声明模拟函数
 // 模拟 TipTap 的依赖
-vi.mock("@tiptap/react", async () => {
-	const actual = await vi.importActual("@tiptap/react")
+vi.mock("@/infrastructure/editors/tiptap/react", async () => {
+	const actual = await vi.importActual("@/infrastructure/editors/tiptap/react")
 
 	// 创建一个编辑器模拟对象
 	const mockEditor = {
@@ -83,7 +83,7 @@ vi.mock("../extensions/mention/suggestion", () => ({
 	default: vi.fn().mockReturnValue({}),
 }))
 
-vi.mock("@tiptap/starter-kit", () => ({
+vi.mock("@/infrastructure/editors/tiptap/starter-kit", () => ({
 	default: {
 		configure: vi.fn().mockImplementation(() => {
 			const extensionObj = {
@@ -103,15 +103,15 @@ vi.mock("@tiptap/starter-kit", () => ({
 	},
 }))
 
-vi.mock("@tiptap/extension-highlight", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-highlight", () => ({
 	default: {},
 }))
 
-vi.mock("@tiptap/extension-text-align", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-text-align", () => ({
 	default: {},
 }))
 
-vi.mock("@tiptap/extension-text-style", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-text-style", () => ({
 	default: {},
 }))
 
@@ -155,7 +155,7 @@ vi.mock("../extensions/magicEmoji", () => ({
 }))
 
 // 模拟硬换行扩展
-vi.mock("@tiptap/extension-hard-break", () => ({
+vi.mock("@/infrastructure/editors/tiptap/extension-hard-break", () => ({
 	default: {
 		extend: vi.fn().mockReturnValue({
 			addPasteRules: vi.fn().mockReturnValue([]),

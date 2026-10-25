@@ -16,6 +16,8 @@ import asyncio
 import os
 import pkgutil
 import time
+from collections.abc import Iterable
+from types import ModuleType
 from typing import Dict, List, Type, TypeVar, Optional, get_origin, get_args
 from dataclasses import dataclass
 
@@ -27,6 +29,7 @@ from app.tools.core import BaseTool
 from app.tools.core.tool_decorator import AutoMount
 from app.tools.core.tool_definition import tool_definition_manager, ToolDefinition
 from app.tools.remote.remote_tool_manager import remote_tool_manager
+from app.utils.context_usage import estimate_tool_schema, ToolSchemaEstimate
 
 logger = get_logger(__name__)
 
@@ -51,6 +54,8 @@ class ToolInfo:
     definition: Optional['ToolDefinition'] = None
     # 是否为延迟加载模式
     lazy_load: bool = False
+    # 与预构建定义一起更新；仅用于请求级文本构成展示。
+    parameter_token_estimate: int = 0
     # 是否仅允许 Code Mode 调用
     code_mode_only: bool = False
     # 运行时自动挂载条件；None 表示仅按 Agent 显式配置挂载
@@ -322,6 +327,7 @@ class ToolFactory:
 
                     # 保存额外的元数据用于按需加载
                     tool_info.definition = definition  # 保存完整定义
+                    tool_info.parameter_token_estimate = estimate_tool_schema(definition.parameters_schema or {})
                     tool_info.lazy_load = True  # 标记为延迟加载
 
                     self._tools[tool_name] = tool_info
@@ -530,6 +536,13 @@ class ToolFactory:
         logger.debug(f"从预构建定义获取工具参数: {tool_name}")
         return tool_param
 
+    def get_context_usage_schema_estimate(self, tool_name: str) -> ToolSchemaEstimate | None:
+        """数值与当前加载的定义一同替换；只用于实际挂载的 schema。"""
+        info = self._tools.get(tool_name)
+        if info is None or info.definition is None or not info.definition.parameters_schema:
+            return None
+        return ToolSchemaEstimate(info.definition.parameters_schema, info.parameter_token_estimate)
+
     def get_llm_direct_tool_param_from_definition(self, tool_name: str) -> Optional[Dict]:
         """获取 LLM 直接挂载 Schema，并对 Code Mode Only 工具执行致命校验。"""
         if self.is_code_mode_only_tool(tool_name):
@@ -650,6 +663,7 @@ class ToolFactory:
             for tool_name, definition in definitions.items():
                 if tool_name in self._tools:
                     self._tools[tool_name].definition = definition
+                    self._tools[tool_name].parameter_token_estimate = estimate_tool_schema(definition.parameters_schema or {})
 
             logger.debug(f"重新加载了 {len(definitions)} 个工具定义")
         except Exception as e:
@@ -733,9 +747,16 @@ class ToolFactory:
             logger.info(f"发现工具包: {entry_point.value}")
         try:
             # 定义一个递归扫描函数
-            def scan_package(pkg_name: str, pkg_path: str) -> None:
+            def scan_package(pkg_name: str, package: ModuleType) -> None:
+                # 命名空间包可能没有 __file__，应沿用 __path__ 的全部搜索位置。
+                # 路径缺失时不能传 None，否则 iter_modules 会扫描整个 sys.path。
+                package_paths: Optional[Iterable[str]] = getattr(package, '__path__', None)
+                if package_paths is None:
+                    logger.error(f"工具包 {pkg_name} 没有 __path__ 搜索路径，跳过扫描")
+                    return
+
                 # 扫描该包下的所有模块
-                for _, module_name, is_pkg in pkgutil.iter_modules([pkg_path]):
+                for _, module_name, is_pkg in pkgutil.iter_modules(list(package_paths)):
                     # 只在 app.tools 包中跳过 core 包
                     if is_pkg and module_name == 'core' and pkg_name == 'app.tools':
                         continue
@@ -743,18 +764,11 @@ class ToolFactory:
                     # 如果是子包，递归扫描
                     if is_pkg:
                         subpackage_name = f"{pkg_name}.{module_name}"
-                        logger.info(f"发现子包: {subpackage_name}")
+                        logger.debug(f"发现子包: {subpackage_name}")
                         try:
                             subpackage = importlib.import_module(subpackage_name)
-                            # 检查 subpackage.__file__ 是否存在
-                            if not hasattr(subpackage, '__file__') or subpackage.__file__ is None:
-                                logger.warning(f"子包 {subpackage_name} 没有 __file__ 属性或为 None，跳过扫描")
-                                continue
-
-                            subpackage_path = os.path.dirname(subpackage.__file__)
-
                             # 递归扫描子包
-                            scan_package(subpackage_name, subpackage_path)
+                            scan_package(subpackage_name, subpackage)
                         except Exception as e:
                             logger.error(f"扫描子包 {subpackage_name} 失败: {e!s}")
                         continue
@@ -782,16 +796,15 @@ class ToolFactory:
 
                         # 只记录有工具的模块导入信息
                         if tools_found > 0:
-                            logger.info(f"导入模块: {module_fullname} 耗时 {module_import_time:.3f}s")
+                            logger.debug(f"导入模块: {module_fullname} 耗时 {module_import_time:.3f}s")
                     except Exception as e:
                         logger.error(f"加载模块 {module_fullname} 失败: {e!s}")
 
             for package_name in package_names:
                 try:
                     package = importlib.import_module(package_name)
-                    package_path = os.path.dirname(package.__file__)
                     # 开始扫描
-                    scan_package(package_name, package_path)
+                    scan_package(package_name, package)
                 except ImportError:
                     logger.error(f"未找到工具包: {package_name}")
                     continue  # 跳过不存在的包

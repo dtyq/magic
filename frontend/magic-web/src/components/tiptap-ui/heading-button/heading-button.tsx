@@ -1,7 +1,7 @@
 import * as React from "react"
 
 // --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils"
+import { parseShortcutKeys } from "@/infrastructure/editors/tiptap/utils"
 
 // --- Tiptap UI ---
 import type { Level, UseHeadingConfig } from "@/components/tiptap-ui/heading-button"

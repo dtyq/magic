@@ -266,6 +266,30 @@ export class StreamRecoveryCoordinator {
 		this.scheduleRecovery(scheduled, 0)
 	}
 
+	/**
+	 * A foreground tail may cover a recovery request that was queued while the
+	 * document was hidden. Resolve that request before resuming the queue so the
+	 * visibility handler cannot launch a second serial HTTP recovery.
+	 */
+	acknowledgeTopicSync(topicId: string, latestSeqId?: string) {
+		const scheduled = this.scheduledRecoveries.get(topicId)
+		if (!scheduled) return
+		const resolvedPayload = this.store.resolveStreamRecoveryRequest
+			? this.store.resolveStreamRecoveryRequest(scheduled.payload)
+			: scheduled.payload
+		if (!resolvedPayload) {
+			this.clearScheduledRecovery(topicId)
+			return
+		}
+		if (resolvedPayload.reason === "checkpoint_rollback") return
+		if (
+			resolvedPayload.requiredSeqId &&
+			(!latestSeqId || compareRecoverySeqId(latestSeqId, resolvedPayload.requiredSeqId) < 0)
+		)
+			return
+		this.clearScheduledRecovery(topicId)
+	}
+
 	private selectCurrentOwner(topicId: string): RegisteredRecoveryOwner | undefined {
 		let selectedOwner: RegisteredRecoveryOwner | undefined
 		this.owners.forEach((owner) => {
@@ -453,4 +477,8 @@ export function getTopicRecoveryStatus(topicId: string) {
 
 export function resumeTopicRecovery(topicId: string) {
 	streamRecoveryCoordinator.resumeTopicRecovery(topicId)
+}
+
+export function acknowledgeTopicSync(topicId: string, latestSeqId?: string) {
+	streamRecoveryCoordinator.acknowledgeTopicSync(topicId, latestSeqId)
 }

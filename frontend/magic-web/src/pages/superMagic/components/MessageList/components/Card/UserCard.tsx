@@ -1,4 +1,6 @@
-import { useMemo, useRef, useState, memo, ComponentType } from "react"
+import { restoreWechatChatContent } from "@/pages/superMagic/components/MessageEditor/extensions/wechat-chat-history/transform"
+import { WechatChatHistoryExtension } from "@/pages/superMagic/components/MessageEditor/extensions/wechat-chat-history/extension"
+import { useEffect, useMemo, useRef, useState, memo, ComponentType } from "react"
 import { useTranslation } from "react-i18next"
 import { getSuperIdState } from "@/pages/superMagic/utils/query"
 import { projectStore } from "@/pages/superMagic/stores/core"
@@ -11,16 +13,23 @@ import { useDebounceFn, useMemoizedFn } from "ahooks"
 import { ScheduledTask } from "@/types/scheduledTask"
 import { ScheduledTaskApi, SuperMagicApi } from "@/apis"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { Editor } from "@tiptap/core"
-import { Document } from "@tiptap/extension-document"
-import { Paragraph } from "@tiptap/extension-paragraph"
-import { Text as TiptapText } from "@tiptap/extension-text"
-import { HardBlock } from "@/pages/superMagic/components/MessageEditor/extensions"
+import { Editor } from "@/infrastructure/editors/tiptap/core"
+import { Document } from "@/infrastructure/editors/tiptap/extension-document"
+import { Paragraph } from "@/infrastructure/editors/tiptap/extension-paragraph"
+import { Text as TiptapText } from "@/infrastructure/editors/tiptap/extension-text"
+import {
+	HardBlock,
+	SuperPlaceholderExtension,
+} from "@/pages/superMagic/components/MessageEditor/extensions"
+import {
+	InspectorDetailExtension,
+	transformInspectorContent,
+} from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail"
 import { copyWithMetadata } from "@/utils/clipboard-helpers"
 import { MessageStatus, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { observer } from "mobx-react-lite"
 import MentionExtension from "@/components/business/MentionPanel/tiptap-plugin"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { isEmpty } from "lodash-es"
 import { MagicDropdown, MagicModal } from "@/components/base"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -33,9 +42,13 @@ import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-
 import AttachmentHoverButton from "./components/AttachmentHoverButton"
 import OptimisticStatusIndicator from "./OptimisticStatusIndicator"
 import { getCurrentConversationRound } from "./round-log"
-import { logger as Logger } from "@/utils/log"
-
-const logger = Logger.createLogger("UserCard")
+import { createLogger } from "@/infrastructure/logger"
+import {
+	getClipboardHtml,
+	getClipboardPlainText,
+	prependPortableMentions,
+} from "@/pages/superMagic/components/MessageList/utils/mentionClipboard"
+import { resolveClipboardFilePaths } from "@/pages/superMagic/components/MessageList/utils/resolveClipboardFilePaths"
 
 const enum MenuKey {
 	/** Create a scheduled task. */
@@ -45,7 +58,7 @@ const enum MenuKey {
 	/** Export the conversation. */
 	ExportConversation = "3",
 	/** Report the conversation round. */
-	ReportConversationRound = "4"
+	ReportConversationRound = "4",
 }
 
 /** Base styles for undo/menu buttons (Antd Button overrides) */
@@ -53,6 +66,7 @@ const undoButtonBase =
 	"!flex h-6 flex-none cursor-pointer items-center gap-1.5 rounded-md border border-border px-2 text-xs font-normal leading-4 !bg-white shadow-sm !text-foreground dark:!bg-card hover:!bg-fill"
 
 const UNDO_BUTTON_DEBOUNCE_MS = 300
+const logger = createLogger("UserCard")
 
 export function withUserNode<
 	T extends {
@@ -75,21 +89,34 @@ export function withUserNode<
 			exportModeActive,
 			onExportRequest,
 			onRetryOptimisticMessage,
+			projectFilesStore,
 		} = useMessageListContext()
+		const workspaceFiles = projectFilesStore?.workspaceFilesList ?? []
 		const { openCreateModal, content } = useScheduledTasksModifyModal()
 
 		const [isCheckUndoLoading, setIsCheckUndoLoading] = useState(false)
 		const undoClickLockRef = useRef(false)
+		const reportBusy = useRef(false)
+		const reportTimer = useRef<ReturnType<typeof setTimeout>>()
+		const mounted = useRef(true)
+		useEffect(() => {
+			mounted.current = true
+			return () => {
+				mounted.current = false
+				clearTimeout(reportTimer.current)
+			}
+		}, [])
 
 		const reportConversationRound = useMemoizedFn(async () => {
 			const topicId = selectedTopic?.chat_topic_id
 			const currentMessageId = node?.app_message_id
-			if (!topicId || !currentMessageId) return
+			if (!topicId || !currentMessageId || reportBusy.current) return
 
 			const topicMessages = superMagicStore.messages.get(topicId) || []
 			const roundMessages = getCurrentConversationRound(topicMessages, currentMessageId)
 			if (roundMessages.length === 0) return
 
+			reportBusy.current = true
 			try {
 				await superMagicStore.flushMessagePersistenceForReport(topicId)
 				// IndexedDB/report codec stays outside the MessageList bundle until the user reports.
@@ -105,14 +132,27 @@ export function withUserNode<
 					preferredWriterId: getConversationRoundReportWriterId(),
 				})
 
+				if (!mounted.current) return
 				logger.report("messages", {
 					topic_id: selectedTopic?.id,
 					chat_topic_id: topicId,
 					message_id: currentMessageId,
 					messages,
 				})
+				// Product feedback uses a fixed delay; it does not wait for a delivery receipt.
+				reportTimer.current = setTimeout(() => {
+					reportBusy.current = false
+					magicToast.success(t("ui.reportConversationRoundSuccess"))
+				}, 1000)
 			} catch (error) {
-				logger.error("Failed to prepare conversation round report", error)
+				reportBusy.current = false
+				if (!mounted.current) return
+				logger.error({
+					eventKey: "conversation_diagnostic_prepare_failed",
+					errorKind: "unknown",
+					error,
+				})
+				magicToast.error(t("ui.reportConversationRoundFailed"))
 			}
 		})
 
@@ -158,7 +198,7 @@ export function withUserNode<
 					),
 					"data-testid": "assistant-round-log-report-menu-item",
 					visible: true,
-				}
+				},
 			].filter((o) => o.visible)
 		}, [t, allowScheduleTaskCreate, allowUserMessageCopy, allowExport, onExportRequest])
 
@@ -177,24 +217,28 @@ export function withUserNode<
 			},
 		)
 
-		const onMenuClick = useMemoizedFn(({ key }: { key: string }) => {
+		const onMenuClick = useMemoizedFn(async ({ key }: { key: string }) => {
 			switch (key) {
-				case MenuKey.CopyMessage:
+				case MenuKey.CopyMessage: {
+					let editor: Editor | undefined
 					try {
-						let contentText = ""
 						const richTextContent =
 							messageNode?.content || messageNode?.rich_text?.content
-						const editor = new Editor({
-							content: JSON.parse(richTextContent),
+						editor = new Editor({
+							content: restoreWechatChatContent(
+								transformInspectorContent(JSON.parse(richTextContent)),
+							),
 							extensions: [
 								Document,
 								Paragraph,
 								TiptapText,
 								HardBlock,
 								MentionExtension,
+								InspectorDetailExtension,
+								WechatChatHistoryExtension,
+								SuperPlaceholderExtension,
 							],
 						})
-						contentText = editor.getText()
 
 						// Extract complete marker data from the content.
 						const fullMarkers = extractAllMarkersFromContent(richTextContent)
@@ -208,32 +252,77 @@ export function withUserNode<
 							}),
 						)
 
-						// Get mentions of other types, excluding markers.
+						// Old messages keep attachment mentions outside rich_text; add them to the copied document.
 						const originalMentions = messageNode?.extra?.super_agent?.mentions || []
+						const currentProjectId =
+							superIdState?.projectId ?? projectStore.selectedProject?.id
 						const otherMentionItems: MentionListItem[] = originalMentions.filter(
 							(mention: MentionListItem) =>
 								mention.attrs?.type !== MentionItemType.DESIGN_MARKER,
 						)
+						const portableMentionAttrs = otherMentionItems.map(
+							(mention) => mention.attrs,
+						)
+						const clipboardEditor = editor
+						const preparedContent = resolveClipboardFilePaths(
+							editor.getJSON(),
+							portableMentionAttrs,
+							workspaceFiles,
+							currentProjectId,
+						).then(({ content: resolvedContent, mentions: resolvedMentions }) => {
+							const clipboardContent = prependPortableMentions(
+								resolvedContent,
+								resolvedMentions,
+								workspaceFiles,
+								currentProjectId,
+							)
+							clipboardEditor.commands.setContent(clipboardContent, {
+								emitUpdate: false,
+							})
+							const contentText = getClipboardPlainText(
+								clipboardContent,
+								workspaceFiles,
+								currentProjectId,
+							)
+							const htmlContent = getClipboardHtml(
+								clipboardEditor.getHTML(),
+								workspaceFiles,
+								currentProjectId,
+							)
 
-						// Merge all mentions, prioritizing complete markers extracted from the content.
-						const allMentions = [...markerMentionItems, ...otherMentionItems]
+							// Merge all mentions, prioritizing complete markers extracted from the content.
+							const allMentions = [
+								...markerMentionItems,
+								...resolvedMentions.map((attrs, index) => ({
+									...otherMentionItems[index],
+									attrs,
+								})),
+							]
 
-						// Use a mobile-compatible copy method.
-						copyWithMetadata(contentText, {
-							richText: richTextContent,
-							mentions: allMentions,
-							type: messageNode?.type,
-							messageId: messageNode?.id,
-							sourceProjectId:
-								superIdState?.projectId ?? projectStore.selectedProject?.id,
+							return {
+								plainText: contentText,
+								metadata: {
+									richText: JSON.stringify(clipboardContent),
+									mentions: allMentions,
+									type: messageNode?.type,
+									messageId: messageNode?.id,
+									sourceProjectId: currentProjectId,
+								},
+								htmlContent,
+							}
 						})
+						// Use a mobile-compatible copy method.
+						await copyWithMetadata(preparedContent)
 
 						magicToast.success(t("common.copySuccess"))
 					} catch (error) {
 						console.error("❌ Copy message error:", error)
 						magicToast.error(t("common.copyFailed"))
+					} finally {
+						editor?.destroy()
 					}
 					break
+				}
 				case MenuKey.CreateTask:
 					openCreateModal(onSaveTask, {
 						workspace_id:

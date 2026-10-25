@@ -1,7 +1,7 @@
-import { useState, useEffect, type ImgHTMLAttributes } from "react"
+import { useState, useEffect, useRef, type ImgHTMLAttributes } from "react"
 import ImageWrapper from "@/components/base/MagicImagePreview/components/ImageWrapper"
 import { ImagePrefix } from "./constants"
-import { KnowledgeFileService } from "@/services/file/KnowledgeFile"
+import { KnowledgeFileService, type KnowledgeFileCacheData } from "@/services/file/KnowledgeFile"
 import { useMemoizedFn } from "ahooks"
 
 interface ImgProps extends ImgHTMLAttributes<HTMLImageElement> {
@@ -17,6 +17,7 @@ function Img(props: ImgProps) {
 	const [realSrc, setRealSrc] = useState<string>(src || "")
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState(false)
+	const refreshAttemptRef = useRef(false)
 
 	const loadImage = useMemoizedFn((src?: string) => {
 		if (!src || typeof src !== "string") return
@@ -58,8 +59,35 @@ function Img(props: ImgProps) {
 	})
 
 	useEffect(() => {
+		refreshAttemptRef.current = false
 		loadImage(src)
 	}, [src, loadImage])
+
+	const handleImageError = useMemoizedFn(async () => {
+		if (!src?.startsWith(ImagePrefix.MAGIC_KNOWLEDGE_BASE_FILE)) {
+			setError(true)
+			return
+		}
+		if (refreshAttemptRef.current) {
+			setError(true)
+			return
+		}
+		refreshAttemptRef.current = true
+		const fileKey = src.replace(ImagePrefix.MAGIC_KNOWLEDGE_BASE_FILE, "")
+		let fileInfo: KnowledgeFileCacheData | null
+		try {
+			fileInfo = await KnowledgeFileService.fetchFileUrl(fileKey, { forceRefresh: true })
+		} catch {
+			setError(true)
+			return
+		}
+		if (fileInfo?.url) {
+			setRealSrc(fileInfo.url)
+			setError(false)
+		} else {
+			setError(true)
+		}
+	})
 
 	return (
 		<ImageWrapper
@@ -69,6 +97,7 @@ function Img(props: ImgProps) {
 			src={realSrc}
 			alt={alt || "图片"}
 			standalone={true}
+			onError={handleImageError}
 		/>
 	)
 }

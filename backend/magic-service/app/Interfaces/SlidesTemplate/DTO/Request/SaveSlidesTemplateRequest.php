@@ -153,6 +153,11 @@ class SaveSlidesTemplateRequest extends FormRequest
         return (int) $this->input('status', 1);
     }
 
+    public function hasStatus(): bool
+    {
+        return array_key_exists('status', $this->all());
+    }
+
     public function getSort(): int
     {
         return (int) $this->input('sort', 0);

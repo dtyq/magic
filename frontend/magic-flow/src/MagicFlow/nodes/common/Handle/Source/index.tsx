@@ -87,9 +87,9 @@ export default function CustomHandle({
 		return type === "source"
 			? {
 					borderWidth: "3px",
-					height: "20px",
-					width: "20px",
-					right: "-11px",
+						height: "16px",
+						width: "16px",
+						right: "-9px",
 			  }
 			: {
 					height: "12px",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import i18n from "i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 
 export interface DataItem {
@@ -106,7 +107,7 @@ export default ({ searchKeywords }: UseDataProps) => {
 				setLoading(false)
 			}, 500)
 		} catch (error) {
-			magicToast.error("获取标记文件列表失败")
+			magicToast.error(i18n.t("markedFiles.fetchFailed", { ns: "super" }))
 			console.error("Failed to fetch starred files:", error)
 			setLoading(false)
 		}

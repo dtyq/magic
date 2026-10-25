@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 import { clusterLoginAdapter } from "../cluster-login-adapter"
-import openAccountModal from "@/opensource/pages/login/AccountModal"
+import openAccountModal from "@/pages/login/AccountModal"
 
-vi.mock("@/opensource/pages/login/AccountModal", () => {
+vi.mock("@/pages/login/AccountModal", () => {
 	return {
 		default: vi.fn(() => ({
 			close: vi.fn(),

@@ -34,10 +34,11 @@ export function useDraggable(options: UseDraggableOptions = {}) {
 		const leftOffset = 10 // 距离左边的距离
 		const bottomOffset = 10 // 距离底部的距离
 		const componentHeight = 40 // 折叠状态下组件预估高度
+		const renderedHeight = elementRef.current?.offsetHeight || componentHeight
 
 		return {
 			x: leftOffset,
-			y: Math.max(0, window.innerHeight - componentHeight - bottomOffset),
+			y: Math.max(0, window.innerHeight - renderedHeight - bottomOffset),
 		}
 	}, [defaultPosition])
 
@@ -158,22 +159,25 @@ export function useDraggable(options: UseDraggableOptions = {}) {
 
 	// 调整位置确保不超出边界的方法
 	const adjustPositionToBounds = useCallback(() => {
-		if (!elementRef.current) return
+		if (!elementRef.current || isDragging) return
 
 		const maxX = window.innerWidth - elementRef.current.offsetWidth
 		const maxY = window.innerHeight - elementRef.current.offsetHeight
 
-		const adjustedPosition = {
-			x: Math.max(0, Math.min(position.x, maxX)),
-			y: Math.max(0, Math.min(position.y, maxY)),
-		}
+		// 未拖拽时随实际高度贴近底部；拖拽后只约束边界，不改变用户选择的位置。
+		const adjustedPosition = hasBeenDragged
+			? {
+					x: Math.max(0, Math.min(position.x, maxX)),
+					y: Math.max(0, Math.min(position.y, maxY)),
+				}
+			: getBottomLeftPosition()
 
 		// 只有当位置需要调整时才更新
 		if (adjustedPosition.x !== position.x || adjustedPosition.y !== position.y) {
 			setPosition(adjustedPosition)
 			// 不再保存位置
 		}
-	}, [position])
+	}, [position, hasBeenDragged, isDragging, getBottomLeftPosition])
 
 	// 重置位置到左下角的方法
 	const resetToBottomLeft = useCallback(() => {

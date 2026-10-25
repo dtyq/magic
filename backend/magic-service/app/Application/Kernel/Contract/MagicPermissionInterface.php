@@ -46,6 +46,13 @@ interface MagicPermissionInterface
     public function getPermissionTree(bool $isPlatformOrganization = false): array;
 
     /**
+     * 获取 v1 版本的权限树结构。
+     *
+     * @param bool $isPlatformOrganization 是否平台组织
+     */
+    public function getPermissionTreeV1(bool $isPlatformOrganization = false): array;
+
+    /**
      * 检查权限键是否有效.
      */
     public function isValidPermission(string $permissionKey): bool;
@@ -54,6 +61,11 @@ interface MagicPermissionInterface
      * 获取资源标签.
      */
     public function getResourceLabel(string $resource): string;
+
+    /**
+     * 获取资源的完整标签路径。
+     */
+    public function getResourceLabelPath(string $resource): string;
 
     /**
      * 获取操作标签.

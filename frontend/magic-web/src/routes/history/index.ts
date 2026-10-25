@@ -7,7 +7,7 @@ import { defaultClusterCode } from "@/routes/helpers"
 import { matchPath } from "react-router"
 import { baseHistory } from "./baseHistory"
 import { isString } from "lodash-es"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import { whiteListRoutes } from "../const/whiteRoutes"
 import { getHistoryStackTracker } from "./historyStackTracker"
 

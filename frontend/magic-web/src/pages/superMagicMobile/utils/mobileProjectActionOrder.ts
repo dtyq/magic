@@ -10,6 +10,9 @@ export const MOBILE_PROJECT_ACTION_ORDER: ProjectActionKey[] = [
 	"delete",
 ]
 
+/** AI canvas projects live in the AI canvas workspace only, so they cannot be moved out of it. */
+export const AI_CANVAS_HIDDEN_ACTION_KEYS: ProjectActionKey[] = ["move", "enterWorkspace"]
+
 /** Sidebar recent chat items: rename / save as project / delete (no pin). */
 export const SHELL_RECENT_CHAT_ACTION_KEYS: ProjectActionKey[] = [
 	"rename",

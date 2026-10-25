@@ -1,9 +1,9 @@
-import { useEditor, JSONContent } from "@tiptap/react"
-import { Document } from "@tiptap/extension-document"
-import { Paragraph } from "@tiptap/extension-paragraph"
-import { Text } from "@tiptap/extension-text"
+import { useEditor, JSONContent } from "@/infrastructure/editors/tiptap/react"
+import { Document } from "@/infrastructure/editors/tiptap/extension-document"
+import { Paragraph } from "@/infrastructure/editors/tiptap/extension-paragraph"
+import { Text } from "@/infrastructure/editors/tiptap/extension-text"
 import { useRef, useEffect } from "react"
-import { NodeSelection } from "@tiptap/pm/state"
+import { NodeSelection } from "@/infrastructure/editors/tiptap/pm-state"
 import {
 	HardBlock,
 	CodeAwarePasteExtension,
@@ -11,6 +11,7 @@ import {
 	PlaceholderExtension,
 	CopyMessageExtension,
 	InspectorDetailExtension,
+	WechatChatHistoryExtension,
 } from "../extensions"
 import MentionExtension, {
 	Language,
@@ -25,21 +26,39 @@ import { Topic } from "../../../pages/Workspace/types"
 import { type TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { ChatApi } from "@/apis"
 import { isEmptyJSONContent } from "../utils"
-import { UndoRedo } from "@tiptap/extensions"
+import { UndoRedo } from "@/infrastructure/editors/tiptap/extensions"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { isAllowedMention as defaultIsAllowedMention } from "../utils/mention"
+import {
+	isAllowedMention as defaultIsAllowedMention,
+	prepareCopiedMentionAttrs,
+} from "../utils/mention"
 import GlobalMentionPanelStore, {
 	MentionPanelStore,
 } from "@/components/business/MentionPanel/builtin-store"
 import { SUPER_PLACEHOLDER_TYPE } from "../extensions/super-placeholder/const"
-import { MentionItemType } from "@/components/business/MentionPanel/types"
+import {
+	MentionItemType,
+	type DirectoryMentionData,
+	type ProjectFileMentionData,
+	type UploadFileMentionData,
+} from "@/components/business/MentionPanel/types"
 import MarkerMentionNodeView from "../components/MentionNodes/marker/MarkerMentionNodeView"
-import UploadFileMentionNodeView from "../components/MentionNodes/upload-file/UploadFileMentionNodeView"
+import FileMentionNodeView from "../components/MentionNodes/file/FileMentionNodeView"
+import FolderMentionNodeView from "../components/MentionNodes/folder/FolderMentionNodeView"
+import {
+	needsFileReferenceNormalization,
+	normalizeFileReferenceMention,
+} from "@/components/business/MentionPanel/utils/fileReferenceMention"
+import { getFileReferenceIdentityKey } from "@/pages/superMagic/services/userFileReferenceResolver"
 import { runActiveEditor } from "../utils/editorLifecycle"
 import {
 	tryAcceptPromptCarouselShortcut,
 	tryNavigatePromptCarouselShortcut,
 } from "../utils/promptCarousel"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
+import { getClipboardPlainText } from "@/pages/superMagic/components/MessageList/utils/mentionClipboard"
+import magicToast from "@/components/base/MagicToaster/utils"
+import { useWechatChatImport } from "./useWechatChatImport"
 
 interface UseMessageEditorProps {
 	value?: JSONContent
@@ -69,6 +88,10 @@ interface UseMessageEditorProps {
 	mentionPanelStore?: MentionPanelStore
 	/** 恢复内容期间返回 true 时，appendTransaction 跳过 onInsertItems，避免与 restoreMentionItems 冲突 */
 	shouldSkipInsertSync?: () => boolean
+	/** Allows trusted programmatic content restoration to keep existing Mention nodes intact. */
+	shouldSkipMentionValidation?: () => boolean
+	/** Allows previously trusted Mention nodes to survive follow-up editor transactions. */
+	isTrustedMention?: (attrs: TiptapMentionAttributes) => boolean
 	/** 程序化清空期间跳过删除同步，避免误判为用户删除 */
 	shouldSkipRemoveSync?: () => boolean
 	/** 删除后需要先恢复的 mention，用于等待确认弹窗 */
@@ -77,6 +100,9 @@ interface UseMessageEditorProps {
 		stillExists: boolean,
 		context?: { deletionInput: MentionDeletionInput },
 	) => boolean
+	getWorkspaceFilesList?: () => AttachmentItem[]
+	getCurrentProjectId?: () => string | undefined
+	wechatChatEnabled?: boolean
 }
 
 type MentionEditorCommands = {
@@ -146,8 +172,13 @@ export const useMessageEditor = ({
 	topicMode,
 	mentionPanelStore = GlobalMentionPanelStore,
 	shouldSkipInsertSync,
+	shouldSkipMentionValidation,
+	isTrustedMention,
 	shouldSkipRemoveSync,
 	shouldRestoreRemovedMention,
+	getWorkspaceFilesList,
+	getCurrentProjectId,
+	wechatChatEnabled = false,
 }: UseMessageEditorProps) => {
 	const domRef = useRef<HTMLDivElement>(null)
 	const { i18n } = useTranslation()
@@ -157,6 +188,79 @@ export const useMessageEditor = ({
 	const lastContentSnapshotRef = useRef<string>(JSON.stringify(value ?? null))
 	// Track whether focus is on SuperPlaceholder to control AI completion
 	const isFocusOnPlaceholderRef = useRef<boolean>(false)
+
+	const prepareCopiedMention = useMemoizedFn(
+		(
+			rawAttrs: Record<string, unknown>,
+		): TiptapMentionAttributes | null | Promise<TiptapMentionAttributes | null> => {
+			if (
+				!shouldEnableMention ||
+				isOAuthInProgress ||
+				rawAttrs.pending ||
+				typeof rawAttrs.type !== "string" ||
+				!rawAttrs.data ||
+				typeof rawAttrs.data !== "object" ||
+				Array.isArray(rawAttrs.data)
+			)
+				return null
+
+			const attrs = rawAttrs as unknown as TiptapMentionAttributes
+			if (needsFileReferenceNormalization(attrs)) {
+				const identity = getFileReferenceIdentityKey()
+				const project = getCurrentProjectId?.()
+				return normalizeFileReferenceMention(attrs)
+					.then((normalized) => {
+						if (
+							identity !== getFileReferenceIdentityKey() ||
+							project !== getCurrentProjectId?.()
+						)
+							return null
+						if (!normalized)
+							magicToast.error(i18n.t("super:common.fileNotFoundOrLoadFailed"))
+						return normalized
+					})
+					.catch(() => {
+						if (
+							identity === getFileReferenceIdentityKey() &&
+							project === getCurrentProjectId?.()
+						)
+							magicToast.error(i18n.t("super:common.fileNotFoundOrLoadFailed"))
+						return null
+					})
+			}
+			let sourceProjectId: string | undefined
+			if (
+				attrs.type === MentionItemType.PROJECT_FILE ||
+				attrs.type === MentionItemType.FOLDER
+			) {
+				const data = attrs.data as ProjectFileMentionData | DirectoryMentionData
+				const sourceId =
+					attrs.type === MentionItemType.PROJECT_FILE
+						? (data as ProjectFileMentionData).file_id
+						: (data as DirectoryMentionData).directory_id
+				if (!sourceId) return null
+				sourceProjectId = data.source_project_id || data.project_id
+			} else if (attrs.type === MentionItemType.UPLOAD_FILE) {
+				const data = attrs.data as UploadFileMentionData
+				// 只恢复已完成的远端附件；未完成上传和本地元素截图不属于可复制文件。
+				if (
+					data.upload_status !== "done" ||
+					!data.file_id ||
+					!data.file_name ||
+					!data.file_path ||
+					data.is_html_screenshot ||
+					data.storage_id
+				)
+					return null
+			}
+
+			const prepared = prepareCopiedMentionAttrs(attrs, sourceProjectId, mentionPanelStore)
+			if (!prepared) return null
+			return (isAllowedMention ?? defaultIsAllowedMention)(prepared, mentionPanelStore)
+				? prepared
+				: null
+		},
+	)
 
 	const scrollToBottom = () => {
 		setTimeout(() => {
@@ -168,6 +272,7 @@ export const useMessageEditor = ({
 	}
 
 	const fetchSuggestion = useMemoizedFn(async (text: string) => {
+		if (wechatChat.isOpen() || wechatChat.menu) return ""
 		try {
 			// if (!selectedTopic || !selectedTopic.chat_conversation_id || !selectedTopic.id)
 			// 	return ""
@@ -199,7 +304,7 @@ export const useMessageEditor = ({
 	const updateAiCompletionState = useMemoizedFn((editor: ReturnType<typeof useEditor>) => {
 		if (!editor) return
 
-		const isFocusOnPlaceholder = isFocusOnSuperPlaceholder(editor)
+		const isFocusOnPlaceholder = isFocusOnSuperPlaceholder(editor) || wechatChat.isOpen()
 		if (isFocusOnPlaceholder !== isFocusOnPlaceholderRef.current) {
 			isFocusOnPlaceholderRef.current = isFocusOnPlaceholder
 			if (isFocusOnPlaceholder) {
@@ -232,6 +337,12 @@ export const useMessageEditor = ({
 			attributes: ariaLabel ? { "aria-label": ariaLabel } : {},
 			handleKeyDown: (_, event) => {
 				event.stopPropagation()
+				if (event.isComposing) return false
+				// 动作菜单先消费 Enter；导入窗口内回车用于编辑，不发送 AI 请求。
+				if (wechatChat.handleKeyDown(event)) {
+					event.preventDefault()
+					return true
+				}
 
 				if (tryNavigatePromptCarouselShortcut(event, onPromptCarouselNavigate)) {
 					return true
@@ -277,7 +388,7 @@ export const useMessageEditor = ({
 					}
 
 					// Keep newline behavior when Enter-to-send is disabled for this editor.
-					if (!shouldSendWhenEnter) {
+					if (!shouldSendWhenEnter || wechatChat.isOpen()) {
 						return false
 					}
 
@@ -302,11 +413,19 @@ export const useMessageEditor = ({
 			Paragraph,
 			Text,
 			HardBlock,
+			CopyMessageExtension.configure({
+				onMentionsInsert: onMentionInsertItems,
+				onContentChange: onChange,
+				dataService: mentionPanelStore,
+				getWorkspaceFilesList,
+				getCurrentProjectId,
+			}),
 			CodeAwarePasteExtension,
 			SuperPlaceholderExtension.configure({
 				size: size || "default",
 			}),
-			InspectorDetailExtension,
+			InspectorDetailExtension.configure({ prepareCopiedMention }),
+			WechatChatHistoryExtension,
 			PlaceholderExtension.configure({
 				placeholder,
 			}),
@@ -314,15 +433,20 @@ export const useMessageEditor = ({
 				depth: 100,
 				newGroupDelay: 250,
 			}),
-			CopyMessageExtension.configure({
-				onMentionsInsert: onMentionInsertItems,
-				onContentChange: onChange,
-				dataService: mentionPanelStore,
-			}),
 			...(shouldEnableMention
 				? [
 						MentionExtension.configure({
 							language: i18n.language as Language,
+							// 原生文本序列化也使用文件链接，避免绕过自定义 copy 时退回 @文件名。
+							renderText: ({ node }) =>
+								getClipboardPlainText(
+									{
+										type: "mention",
+										attrs: node.attrs as TiptapMentionAttributes,
+									},
+									getWorkspaceFilesList?.(),
+									getCurrentProjectId?.(),
+								).trim(),
 							getParentContainer: () => document.body,
 							disableKeyboardShortcuts: isOAuthInProgress,
 							onInsert: (item) => {
@@ -346,9 +470,20 @@ export const useMessageEditor = ({
 							dataService: mentionPanelStore,
 							nodeViewRenderers: {
 								[MentionItemType.DESIGN_MARKER]: MarkerMentionNodeView,
-								[MentionItemType.UPLOAD_FILE]: UploadFileMentionNodeView,
+								[MentionItemType.PROJECT_FILE]: FileMentionNodeView,
+								[MentionItemType.USER_FILE]: FileMentionNodeView,
+								[MentionItemType.USER_DIRECTORY]: FolderMentionNodeView,
+								[MentionItemType.UPLOAD_FILE]: FileMentionNodeView,
+								[MentionItemType.FOLDER]: (props) => (
+									<FolderMentionNodeView
+										{...props}
+										getWorkspaceFilesList={getWorkspaceFilesList}
+									/>
+								),
 							},
 							shouldSkipInsertSync,
+							shouldSkipMentionValidation,
+							isTrustedMention,
 							shouldSkipRemoveSync,
 							shouldRestoreRemovedMention,
 						}),
@@ -369,6 +504,11 @@ export const useMessageEditor = ({
 		},
 	})
 
+	const wechatChat = useWechatChatImport(
+		tiptapEditor,
+		wechatChatEnabled,
+		`${selectedTopic?.id ?? ""}:${getCurrentProjectId?.() ?? ""}`,
+	)
 	AiCompletionService.setInstance({ editor: tiptapEditor })
 
 	// Handle AI completion based on mobile, aiCompletionEnabled, and focus position
@@ -380,7 +520,12 @@ export const useMessageEditor = ({
 		const isFocusOnPlaceholder = isFocusOnSuperPlaceholder(tiptapEditor)
 		isFocusOnPlaceholderRef.current = isFocusOnPlaceholder
 		const wasEnabled = previousAiCompletionEnabledRef.current
-		const shouldEnable = !isMobile && aiCompletionEnabled && !isFocusOnPlaceholder
+		const shouldEnable =
+			!isMobile &&
+			aiCompletionEnabled &&
+			!isFocusOnPlaceholder &&
+			!wechatChat.activeId &&
+			!wechatChat.menu
 		previousAiCompletionEnabledRef.current = shouldEnable
 
 		if (!shouldEnable) {
@@ -395,7 +540,7 @@ export const useMessageEditor = ({
 		return () => {
 			AiCompletionService.enable()
 		}
-	}, [isMobile, aiCompletionEnabled, tiptapEditor])
+	}, [isMobile, aiCompletionEnabled, tiptapEditor, wechatChat.activeId, wechatChat.menu])
 
 	// Handle dynamic placeholder updates
 	useUpdateEffect(() => {
@@ -476,5 +621,6 @@ export const useMessageEditor = ({
 		tiptapEditor,
 		domRef,
 		scrollToBottom,
+		wechatChat,
 	}
 }

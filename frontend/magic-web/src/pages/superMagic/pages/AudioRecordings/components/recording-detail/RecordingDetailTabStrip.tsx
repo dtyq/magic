@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { cn } from "@/lib/utils"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { cn } from "@/utils/cn"
 import {
 	centerHorizontalItemInContainer,
 	useHorizontalScrollWithFade,
@@ -16,6 +16,8 @@ interface RecordingDetailTabStripProps {
 	tabs: RecordingDetailTabItem[]
 	activeKey: string
 	onChange: (key: string) => void
+	/** Fixed action pinned to the left edge, before the horizontal tab scroll (e.g. expand transcript). */
+	leading?: ReactNode
 }
 
 const PILL_SHADOW = "0px 4px 12px 0px rgba(0,0,0,0.15)"
@@ -27,6 +29,7 @@ export function RecordingDetailTabStrip({
 	tabs,
 	activeKey,
 	onChange,
+	leading,
 }: RecordingDetailTabStripProps) {
 	const tabRefs = useRef<Partial<Record<string, HTMLButtonElement>>>({})
 	const innerRef = useRef<HTMLDivElement>(null)
@@ -56,15 +59,26 @@ export function RecordingDetailTabStrip({
 			return () => window.removeEventListener("resize", measurePill)
 		}
 
-		const observer = new ResizeObserver(measurePill)
+		/** Measures tab pill only when not in an active high-frequency panel drag. */
+		const handleMeasure = () => {
+			if (
+				typeof document !== "undefined" &&
+				document.documentElement.getAttribute("data-recording-resizing") === "true"
+			) {
+				return
+			}
+			measurePill()
+		}
+
+		const observer = new ResizeObserver(handleMeasure)
 		observer.observe(bar)
 		if (inner) observer.observe(inner)
-		bar.addEventListener("scroll", measurePill, { passive: true })
-		window.addEventListener("resize", measurePill)
+		bar.addEventListener("scroll", handleMeasure, { passive: true })
+		window.addEventListener("resize", handleMeasure)
 		return () => {
 			observer.disconnect()
-			bar.removeEventListener("scroll", measurePill)
-			window.removeEventListener("resize", measurePill)
+			bar.removeEventListener("scroll", handleMeasure)
+			window.removeEventListener("resize", handleMeasure)
 		}
 	}, [measurePill, scrollRef, tabs])
 
@@ -86,11 +100,21 @@ export function RecordingDetailTabStrip({
 			className="relative flex min-h-[57px] min-w-0 shrink-0 overflow-hidden rounded-t-[22px] border-b border-border px-4"
 			data-testid="recording-detail-tab-strip"
 		>
+			{/* Fixed leading action (e.g. expand transcript) sits before the tab scroll, mirroring the file viewer. */}
+			{leading ? (
+				<div className="relative z-30 flex shrink-0 items-center pr-2">{leading}</div>
+			) : null}
+
 			{/*
-			 * -mx-4 extends the scroll viewport to the card edges while outer px-4 keeps content aligned.
-			 * Fades must live on this same wrapper so they cover the full bleed width.
+			 * The scroll viewport bleeds to the card edges so its fades cover the rounded corners.
+			 * With a leading action the left edge is already occupied, so only the right side bleeds.
 			 */}
-			<div className="relative -mx-4 min-w-0 flex-1 overflow-hidden">
+			<div
+				className={cn(
+					"relative min-w-0 flex-1 overflow-hidden",
+					leading ? "-mr-4" : "-mx-4",
+				)}
+			>
 				<div
 					ref={scrollRef}
 					className="no-scrollbar overflow-x-auto px-4 py-3"

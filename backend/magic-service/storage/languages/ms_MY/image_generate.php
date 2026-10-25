@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 return [
     'general_error' => 'Perkhidmatan penjanaan imej mengalami pengecualian',
+    'image_operation_failed' => 'Pemprosesan imej gagal. Sila cuba lagi kemudian.',
     'response_format_error' => 'Format respons penjanaan imej ralat',
     'missing_image_data' => 'Data imej yang dijana mengalami pengecualian',
     'no_valid_image_generated' => 'Tiada imej sah dijana',

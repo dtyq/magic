@@ -1,9 +1,12 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useCallback, useMemo, useState } from "react"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import type { AttachmentFile } from "@/pages/superMagic/utils/image-url-resolver"
 import { useRecordingAudioPlayer } from "../../hooks/useRecordingAudioPlayer"
 import { useRecordingColorSegments } from "../../hooks/useRecordingColorSegments"
-import { useRecordingPlayerCurrentSec } from "../../hooks/useRecordingPlayerCurrentSec"
 import { useShareRecordingDetailData } from "../../hooks/useShareRecordingDetailData"
+import { useRecordingDetailTranscriptPanelState } from "../../hooks/useRecordingDetailTranscriptPanelState"
 import type { RecordingTranscriptSegment } from "../../types/recording-detail"
 import { buildShareRecordingCapabilities } from "../../utils/share-recording-detail"
 import { collectExportableFileIds } from "../../utils/download-recording-batch"
@@ -11,7 +14,10 @@ import { downloadRecordingAudioFile } from "../../utils/download-recording-audio
 import { downloadRecordingAttachmentFile } from "../../utils/download-recording-attachment"
 import { collectSpeakerIdsFromText } from "../../utils/markdownTimeLinks"
 import { normalizeSpeakerSelection } from "../../utils/speaker-filter"
-import { getAttachmentFileName } from "../../utils/recording-detail-files"
+import {
+	getAttachmentFileName,
+	hasRecordingDetailTabStrip,
+} from "../../utils/recording-detail-files"
 import { playTranscriptFromSegment } from "../../utils/transcript-playback"
 import { RecordingDetailProvider } from "./RecordingDetailProvider"
 import { RecordingDetailHeader } from "./RecordingDetailHeader"
@@ -38,24 +44,50 @@ export function RecordingDetailShareDesktop({
 	allowDownloadProjectFile,
 	attachments,
 }: RecordingDetailShareDesktopProps) {
-	const { loading, error, projectItem, fileMap, texts, audioUrl, title, attachmentList } =
-		useShareRecordingDetailData({
-			projectId,
-			resourceName,
-			attachments,
-		})
+	const { permissions: access } = useFileAccess()
+	const fileApi = useFileApi()
+	const {
+		loading,
+		error,
+		projectItem,
+		fileMap,
+		texts,
+		audioUrl,
+		title,
+		attachmentTree,
+		attachmentList,
+	} = useShareRecordingDetailData({
+		projectId,
+		resourceName,
+		attachments,
+	})
 	const capabilities = useMemo(
 		() => buildShareRecordingCapabilities(allowDownloadProjectFile),
 		[allowDownloadProjectFile],
 	)
 	const player = useRecordingAudioPlayer(audioUrl)
 	const [playerExpanded, setPlayerExpanded] = useState(false)
-	const playerCurrentSec = useRecordingPlayerCurrentSec(
-		player.audioRef,
-		player.playing,
-		player.currentTime,
-	)
 	const summaryReady = Boolean(fileMap?.summaryFiles.length)
+	// Share views only render a tab strip when summary/notes content is present, so collapse follows that.
+	const canCollapseTranscript =
+		summaryReady && hasRecordingDetailTabStrip(fileMap, Boolean(fileMap?.notes?.file_id))
+	const {
+		isTranscriptPanelCollapsed,
+		transcriptPanelWidth,
+		workbenchGridRef,
+		expandTranscriptPanel,
+		collapseTranscriptPanel,
+		setTranscriptPanelWidth,
+	} = useRecordingDetailTranscriptPanelState()
+
+	/** Routes a finished transcript drag to the matching persisted transition. */
+	const handleTranscriptDragCommit = useCallback(
+		(result: { collapsed: boolean; width: number }) => {
+			if (result.collapsed) collapseTranscriptPanel()
+			else setTranscriptPanelWidth(result.width)
+		},
+		[collapseTranscriptPanel, setTranscriptPanelWidth],
+	)
 	const [selectedSpeakerIds, setSelectedSpeakerIds] = useState<string[]>([])
 	const summaryContent = useMemo(
 		() =>
@@ -105,45 +137,53 @@ export function RecordingDetailShareDesktop({
 
 	/** Downloads the original audio file when the share permission allows export. */
 	const handleDownloadAudio = useCallback(async () => {
+		if (!access.download) return
 		await downloadRecordingAudioFile({
 			fileId: fileMap?.audio?.file_id,
 			audioFile: fileMap?.audio,
 			fallbackName: `${title || "recording"}_audio`,
+			fileApi,
 		})
-	}, [fileMap?.audio, title])
+	}, [access.download, fileApi, fileMap?.audio, title])
 
 	/** Downloads the transcript markdown directly from the shared attachment file id. */
 	const handleDownloadTranscript = useCallback(async () => {
+		if (!access.download) return
 		if (!fileMap?.transcript?.file_id) return
 		await downloadRecordingAttachmentFile({
 			fileId: fileMap.transcript.file_id,
 			fileName:
 				getAttachmentFileName(fileMap.transcript) ||
 				`${title || "recording"}_transcript.md`,
+			fileApi,
 		})
-	}, [fileMap?.transcript, title])
+	}, [access.download, fileApi, fileMap?.transcript, title])
 
 	/** Downloads the notes markdown directly from the shared attachment file id. */
 	const handleDownloadNotes = useCallback(async () => {
+		if (!access.download) return
 		if (!fileMap?.notes?.file_id) return
 		await downloadRecordingAttachmentFile({
 			fileId: fileMap.notes.file_id,
 			fileName: getAttachmentFileName(fileMap.notes) || `${title || "recording"}_notes.md`,
+			fileApi,
 		})
-	}, [fileMap?.notes, title])
+	}, [access.download, fileApi, fileMap?.notes, title])
 
 	/** Downloads one summary artifact at a time because share detail never exposes owner batch operations. */
 	const handleDownloadSummaryType = useCallback(
 		async (type: string) => {
+			if (!access.download) return
 			const fileRef = fileMap?.summaryFiles.find((item) => item.type === type)
 			if (!fileRef?.file?.file_id) return
 			await downloadRecordingAttachmentFile({
 				fileId: fileRef.file.file_id,
 				fileName:
 					getAttachmentFileName(fileRef.file) || `${title || "recording"}_${type}.md`,
+				fileApi,
 			})
 		},
-		[fileMap?.summaryFiles, title],
+		[access.download, fileApi, fileMap?.summaryFiles, title],
 	)
 
 	const exportAvailability = useMemo(
@@ -199,13 +239,18 @@ export function RecordingDetailShareDesktop({
 
 				{!loading && !error ? (
 					<RecordingDetailWorkbench
+						transcriptCollapsed={isTranscriptPanelCollapsed}
+						transcriptWidth={transcriptPanelWidth}
+						canCollapseTranscript={canCollapseTranscript}
+						onTranscriptDragCommit={handleTranscriptDragCommit}
+						gridRef={workbenchGridRef}
 						left={
 							<RecordingDetailLeftColumn
 								searchScopeKey={projectId}
 								audioRef={player.audioRef}
 								audioUrl={audioUrl}
 								transcriptMarkdown={texts.transcript?.content}
-								currentSec={playerCurrentSec}
+								currentSec={player.currentTime}
 								currentTime={player.currentTime}
 								duration={player.duration}
 								playing={player.playing}
@@ -229,13 +274,20 @@ export function RecordingDetailShareDesktop({
 								fileMap={fileMap}
 								summaryContent={summaryContent}
 								notesContent={texts.notes?.content}
+								attachmentTree={attachmentTree as unknown as AttachmentFile[]}
+								notesFilePath={
+									fileMap?.notes?.relative_file_path ?? fileMap?.notes?.path
+								}
 								attachmentList={attachmentList}
 								summaryReady={summaryReady}
 								summarizing={false}
 								summaryFailed={false}
+								showNotesTab={Boolean(fileMap?.notes?.file_id)}
 								speakerNameMap={speakerNameMap}
 								onOpenSpeakerSettings={() => undefined}
 								onTimeClick={handleSummaryTimeClick}
+								transcriptCollapsed={isTranscriptPanelCollapsed}
+								onExpandTranscript={expandTranscriptPanel}
 							/>
 						}
 					/>

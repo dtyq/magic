@@ -54,6 +54,9 @@ return [
         'not_create_account' => '用户尚未创建账号',
         'sync_failed' => '用户同步失败',
     ],
+    'account' => [
+        'disabled' => '该账号已被禁用，无法登录。',
+    ],
     'data' => [
         'write_failed' => '数据写入失败',
     ],
@@ -84,6 +87,7 @@ return [
         'transfer_owner_before_leave' => '请先转让群主再退出群聊',
         'only_owner_can_disband' => '只有群主才能解散群聊',
         'only_owner_can_transfer' => '只有群主才能转让群组',
+        'group_cannot_kick_owner' => '请求处理失败',
     ],
     'department' => [
         'not_found' => '部门不存在',

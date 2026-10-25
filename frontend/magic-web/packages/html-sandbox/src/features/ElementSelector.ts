@@ -5,9 +5,115 @@
 
 import type { EditorBridge } from "../core/EditorBridge"
 import { getElementSelector, isInjectedElement } from "../utils/dom"
+import { isSourceNode } from "../utils/sourceNodes"
 import { normalizeColor, normalizeTextAlign } from "../utils/css"
+import { getEditableTextContent } from "../utils/textContent"
 
 const TEXT_EDITING_STYLE_ID = "magic-editor-text-editing-style"
+
+function isPxLineHeight(value: string): boolean {
+	return /^-?(?:\d+\.?\d*|\.\d+)px$/i.test(value.trim())
+}
+
+/** Prefer the specified line-height over used pixels from getComputedStyle. */
+function readAuthoredLineHeight(element: HTMLElement): string {
+	const inline = element.style.getPropertyValue("line-height").trim()
+	if (inline) return inline
+
+	const typed = readTypedLineHeight(element)
+	if (typed) return typed
+
+	let authored = ""
+	const visitRules = (rules: CSSRuleList) => {
+		for (const rule of Array.from(rules)) {
+			if (rule.type === CSSRule.MEDIA_RULE) {
+				if (!isMatchingMediaRule(element, rule as CSSMediaRule)) continue
+				try {
+					visitRules((rule as CSSGroupingRule).cssRules)
+				} catch {
+					// Ignore unreadable grouped rules.
+				}
+				continue
+			}
+			if (rule.type === CSSRule.SUPPORTS_RULE) {
+				if (!isMatchingSupportsRule(rule as CSSSupportsRule)) continue
+				try {
+					visitRules((rule as CSSGroupingRule).cssRules)
+				} catch {
+					// Ignore unreadable grouped rules.
+				}
+				continue
+			}
+			if (!(rule instanceof CSSStyleRule)) continue
+			try {
+				if (!element.matches(rule.selectorText)) continue
+			} catch {
+				continue
+			}
+			const value = rule.style.getPropertyValue("line-height").trim()
+			if (value) authored = value
+		}
+	}
+
+	for (const sheet of Array.from(element.ownerDocument.styleSheets)) {
+		if (sheet.disabled || !isMatchingStyleSheetMedia(element, sheet)) continue
+		try {
+			visitRules(sheet.cssRules)
+		} catch {
+			// Cross-origin stylesheets cannot be read.
+		}
+	}
+	return authored
+}
+
+function readTypedLineHeight(element: HTMLElement): string {
+	if (typeof element.computedStyleMap !== "function") return ""
+
+	try {
+		const mapped = element.computedStyleMap().get("line-height")
+		if (!mapped) return ""
+		if (typeof CSSKeywordValue !== "undefined" && mapped instanceof CSSKeywordValue) {
+			return mapped.value
+		}
+		if (typeof CSSUnitValue !== "undefined" && mapped instanceof CSSUnitValue) {
+			if (mapped.unit === "number") return String(mapped.value)
+			if (mapped.unit === "percent") return `${mapped.value}%`
+			return `${mapped.value}${mapped.unit}`
+		}
+		return mapped.toString()
+	} catch {
+		return ""
+	}
+}
+
+function isMatchingMediaRule(element: HTMLElement, rule: CSSMediaRule): boolean {
+	return matchesMediaQuery(element, rule.media?.mediaText ?? "")
+}
+
+function isMatchingSupportsRule(rule: CSSSupportsRule): boolean {
+	if (typeof CSS === "undefined" || typeof CSS.supports !== "function") return true
+	try {
+		return CSS.supports(rule.conditionText)
+	} catch {
+		return true
+	}
+}
+
+function isMatchingStyleSheetMedia(element: HTMLElement, sheet: CSSStyleSheet): boolean {
+	return matchesMediaQuery(element, sheet.media?.mediaText ?? "")
+}
+
+function matchesMediaQuery(element: HTMLElement, mediaText: string): boolean {
+	const query = mediaText.trim()
+	if (!query || query === "all") return true
+	const view = element.ownerDocument.defaultView
+	if (!view?.matchMedia) return true
+	try {
+		return view.matchMedia(query).matches
+	} catch {
+		return true
+	}
+}
 
 interface ElementInfo {
 	selector: string
@@ -25,7 +131,19 @@ interface ElementInfo {
 	}
 	rotation?: number
 	isTextElement?: boolean
+	/** Whether the element itself contains non-whitespace text nodes. */
+	hasDirectTextContent?: boolean
 	textContent?: string
+	inlineStyles?: Record<string, string>
+	attributes?: {
+		href?: string
+		dataMagicHref?: string
+		target?: string
+		rel?: string
+		download?: string
+		title?: string
+		ariaLabel?: string
+	}
 }
 
 export class ElementSelector {
@@ -88,20 +206,26 @@ export class ElementSelector {
 		this.selectedElements.forEach((element) => {
 			const selector = getElementSelector(element)
 			const styles = this.getElementStyles(element)
+			const inlineStyles = this.getInlineStyles(element)
 			const { rect, rotation } = this.getElementRectWithRotation(element)
 			const isText = this.isTextElement(element)
-			const textContent = element.textContent?.trim() || ""
+			const hasDirectTextContent = this.hasDirectTextContent(element)
+			const textContent = getEditableTextContent(element).trim()
 			const imageMetadata = this.getImageMetadata(element)
+			const attributes = this.getCommonAttributes(element)
 
 			infos.push({
 				selector,
 				tagName: element.tagName.toLowerCase(),
 				...imageMetadata,
 				computedStyles: styles,
+				inlineStyles,
 				rect,
 				rotation,
 				isTextElement: isText,
+				hasDirectTextContent,
 				textContent: isText ? textContent : undefined,
+				attributes,
 			})
 		})
 		return infos
@@ -193,6 +317,7 @@ export class ElementSelector {
 			"flexDirection",
 			"justifyContent",
 			"alignItems",
+			"alignContent",
 			"flexWrap",
 			"flexGrow",
 			"flexShrink",
@@ -201,9 +326,19 @@ export class ElementSelector {
 			"minHeight",
 			"alignSelf",
 			"gap",
+			"rowGap",
+			"columnGap",
 			"gridTemplateColumns",
 			"gridTemplateRows",
+			"gridAutoFlow",
+			"gridAutoColumns",
+			"gridAutoRows",
+			"gridColumn",
+			"gridRow",
 			"justifyItems",
+			"justifySelf",
+			"objectFit",
+			"objectPosition",
 		]
 
 		importantProps.forEach((prop) => {
@@ -225,27 +360,38 @@ export class ElementSelector {
 				styles[prop] = value
 			}
 		})
+		if (styles.display === "flex" && styles.justifyContent === "normal") {
+			styles.justifyContent = "flex-start"
+		}
+
+		const authoredLineHeight = readAuthoredLineHeight(element)
+		if (authoredLineHeight && !isPxLineHeight(authoredLineHeight)) {
+			styles.lineHeight = authoredLineHeight
+		}
 
 		const parent = element.parentElement
 		if (parent) {
 			const parentComputed = window.getComputedStyle(parent)
+			styles.parentSelector = getElementSelector(parent)
 			styles.parentDisplay = parentComputed.display
 			styles.parentFlexDirection = parentComputed.flexDirection
+			styles.parentJustifyContent =
+				parentComputed.display === "flex" && parentComputed.justifyContent === "normal"
+					? "flex-start"
+					: parentComputed.justifyContent
 			styles.parentAlignItems = parentComputed.alignItems
 		}
 
-		// For positioning properties (top, left, right, bottom), prefer inline styles
-		// because they reflect the actual values we set, not the computed values
-		const positionProps = ["top", "left", "right", "bottom"]
+		// Inline offsets first. Abs/fixed still need used computed values.
+		const positionProps = ["top", "left", "right", "bottom"] as const
+		const usesOffsetPosition = styles.position === "absolute" || styles.position === "fixed"
 		positionProps.forEach((prop) => {
 			const inlineValue = element.style.getPropertyValue(prop)
 			if (inlineValue) {
-				// Use inline style if it exists
 				styles[prop] = inlineValue
-			} else {
-				// Fall back to computed style
-				styles[prop] = computed[prop as keyof CSSStyleDeclaration] as string
+				return
 			}
+			if (usesOffsetPosition) styles[prop] = computed[prop]
 		})
 
 		// Debug: Log position values
@@ -262,6 +408,32 @@ export class ElementSelector {
 		}
 
 		return styles
+	}
+
+	private getInlineStyles(element: HTMLElement): Record<string, string> {
+		const styles: Record<string, string> = {}
+		for (let index = 0; index < element.style.length; index += 1) {
+			const property = element.style.item(index)
+			if (!property) continue
+			const value = element.style.getPropertyValue(property).trim()
+			if (!value) continue
+			const priority = element.style.getPropertyPriority(property)
+			styles[property] = priority ? `${value} !${priority}` : value
+		}
+		return styles
+	}
+
+	private getCommonAttributes(element: HTMLElement): ElementInfo["attributes"] {
+		const read = (name: string) => element.getAttribute(name) || undefined
+		return {
+			href: read("href"),
+			dataMagicHref: read("data-magic-href"),
+			target: read("target"),
+			rel: read("rel"),
+			download: read("download"),
+			title: read("title"),
+			ariaLabel: read("aria-label"),
+		}
 	}
 
 	/**
@@ -289,6 +461,10 @@ export class ElementSelector {
 			intrinsicHeight,
 			intrinsicAspectRatio,
 		}
+	}
+
+	private isDocumentRoot(element: EventTarget | HTMLElement | null): boolean {
+		return element === document.body || element === document.documentElement
 	}
 
 	/**
@@ -469,6 +645,17 @@ export class ElementSelector {
 	}
 
 	/**
+	 * Check only the element's own text nodes, excluding text rendered by descendants.
+	 * This distinction is used by the host toolbar to avoid showing font-size controls
+	 * for containers whose content is entirely provided by child elements.
+	 */
+	private hasDirectTextContent(element: HTMLElement): boolean {
+		return Array.from(element.childNodes).some(
+			(node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+		)
+	}
+
+	/**
 	 * Extract rotation angle from transform matrix
 	 */
 	private extractRotation(element: HTMLElement): number {
@@ -573,13 +760,60 @@ export class ElementSelector {
 		}
 	}
 
+	private getAncestorInfos(element: HTMLElement) {
+		const ancestors: Array<{
+			selector: string
+			tagName: string
+			textContent?: string
+			rect: { top: number; left: number; width: number; height: number }
+		}> = []
+		let current = element.parentElement
+		while (current && !this.isDocumentRoot(current) && ancestors.length < 8) {
+			if (!isInjectedElement(current)) {
+				const { rect } = this.getElementRectWithRotation(current)
+				const textContent = getEditableTextContent(current).trim()
+				ancestors.push({
+					selector: getElementSelector(current),
+					tagName: current.tagName.toLowerCase(),
+					textContent: textContent || undefined,
+					rect,
+				})
+			}
+			current = current.parentElement
+		}
+		return ancestors
+	}
+
+	private getInFlowChildRects(element: HTMLElement) {
+		return Array.from(element.children)
+			.filter((node): node is HTMLElement => node instanceof HTMLElement)
+			.map((child) => {
+				const style = window.getComputedStyle(child)
+				const { rect } = this.getElementRectWithRotation(child)
+				return {
+					...rect,
+					position: style.position,
+					display: style.display,
+				}
+			})
+	}
+
+	/** Live container + child boxes after a temporary style write. */
+	getLayoutSnapshot(element: HTMLElement) {
+		const { rect } = this.getElementRectWithRotation(element)
+		return {
+			rect,
+			childRects: this.getInFlowChildRects(element),
+		}
+	}
+
 	selectElement(element: HTMLElement, multiSelect = false) {
-		if (!element || element === document.documentElement || element === document.body) {
+		if (!element || this.isDocumentRoot(element)) {
 			return
 		}
 
 		// Ignore injected elements
-		if (isInjectedElement(element)) {
+		if (isInjectedElement(element) || !isSourceNode(element)) {
 			return
 		}
 
@@ -588,22 +822,22 @@ export class ElementSelector {
 
 		// In single select mode, check if we need to clear previous selections
 		if (!multiSelect) {
-			// If the same element is already selected and is in text editing mode,
-			// don't clear selection to avoid interrupting text editing
-			const isTextEditing = element.getAttribute("data-text-editing") === "true"
-
-			if (isAlreadySelected && isTextEditing) {
-				// Just refresh the selection info without clearing
+			// Refresh an existing selection in place. Clearing first emits a
+			// deselection event and can race with the refreshed selection event.
+			// This is especially visible after moving an image in the DOM tree.
+			if (isAlreadySelected && this.selectedElements.size === 1) {
 				this.notifySelectionChanged()
 				console.log(
-					"[ElementSelector] Element already selected and editing, refreshing:",
+					"[ElementSelector] Element already selected, refreshing:",
 					getElementSelector(element),
 				)
 				return
 			}
 
-			// Clear previous selections for different element or non-editing state
-			this.clearSelection()
+			// Clear the previous selection without notifying the host. The new
+			// selection is emitted immediately below, so sending an intermediate
+			// deselection would make the canvas and inspector flash.
+			this.clearSelectedElementsState()
 		}
 
 		// Add element to selection
@@ -611,7 +845,7 @@ export class ElementSelector {
 
 		// Preserve the existing first-selection editing state while CSS provides visual feedback.
 		const isText = this.isTextElement(element)
-		if (!multiSelect && isText && !element.isContentEditable) {
+		if (!this.selectionOnly && !multiSelect && isText && !element.isContentEditable) {
 			element.contentEditable = "true"
 			element.setAttribute("data-text-editing", "true")
 		}
@@ -629,6 +863,35 @@ export class ElementSelector {
 		)
 	}
 
+	/**
+	 * Show a hover highlight requested by the host UI without changing selection.
+	 */
+	hoverElement(element: HTMLElement): void {
+		if (!element || this.isDocumentRoot(element)) return
+		if (isInjectedElement(element) || !isSourceNode(element)) return
+
+		this.hoveredElement = element
+		if (this.isSelected(element)) return
+
+		const rect = element.getBoundingClientRect()
+		this.bridge.sendEvent("ELEMENT_HOVERED", {
+			rect: {
+				top: rect.top,
+				left: rect.left,
+				width: rect.width,
+				height: rect.height,
+			},
+		})
+	}
+
+	/**
+	 * Clear a host-requested hover highlight without changing selection.
+	 */
+	clearHoveredElement(): void {
+		this.hoveredElement = null
+		this.bridge.sendEvent("ELEMENT_HOVER_END", {})
+	}
+
 	deselectElement() {
 		this.clearSelection()
 	}
@@ -637,6 +900,14 @@ export class ElementSelector {
 	 * Clear all selections
 	 */
 	clearSelection() {
+		this.clearSelectedElementsState()
+
+		// Notify parent window to clear selection highlight
+		this.bridge.sendEvent("ELEMENTS_DESELECTED", {})
+	}
+
+	/** Clear selected elements and editor-owned state without emitting an event. */
+	private clearSelectedElementsState() {
 		// Remove editor-owned DOM state without changing author inline styles.
 		this.selectedElements.forEach((element) => {
 			if (element.getAttribute("data-text-editing") === "true") {
@@ -646,9 +917,6 @@ export class ElementSelector {
 		})
 
 		this.selectedElements.clear()
-
-		// Notify parent window to clear selection highlight
-		this.bridge.sendEvent("ELEMENTS_DESELECTED", {})
 	}
 
 	/**
@@ -665,20 +933,28 @@ export class ElementSelector {
 			const element = Array.from(this.selectedElements)[0]
 			const selector = getElementSelector(element)
 			const styles = this.getElementStyles(element)
+			const inlineStyles = this.getInlineStyles(element)
 			const { rect, rotation } = this.getElementRectWithRotation(element)
 			const isText = this.isTextElement(element)
-			const textContent = element.textContent?.trim() || ""
+			const hasDirectTextContent = this.hasDirectTextContent(element)
+			const textContent = getEditableTextContent(element).trim()
 			const imageMetadata = this.getImageMetadata(element)
+			const attributes = this.getCommonAttributes(element)
 
 			this.bridge.sendEvent("ELEMENT_SELECTED", {
 				selector,
 				tagName: element.tagName.toLowerCase(),
 				...imageMetadata,
 				computedStyles: styles,
+				inlineStyles,
 				rect,
+				childRects: this.getInFlowChildRects(element),
+				ancestors: this.getAncestorInfos(element),
 				rotation,
 				isTextElement: isText,
+				hasDirectTextContent,
 				textContent: isText ? textContent : undefined,
+				attributes,
 			})
 		} else {
 			// Multiple selection - send ELEMENTS_SELECTED
@@ -696,12 +972,12 @@ export class ElementSelector {
 			if (!this.enabled) return
 
 			const target = e.target as HTMLElement
-			if (!target || target === document.body || target === document.documentElement) {
+			if (!target || this.isDocumentRoot(target)) {
 				return
 			}
 
 			// Ignore injected elements
-			if (isInjectedElement(target)) return
+			if (isInjectedElement(target) || !isSourceNode(target)) return
 
 			// Find the actual selectable element (might be a container like ECharts)
 			const selectableElement = this.findSelectableElement(target)
@@ -736,6 +1012,20 @@ export class ElementSelector {
 			}
 		})
 
+		// Shift + click adds to the selection. Without this the browser also extends a text
+		// range from the previous click, which then makes the click handler skip the element.
+		document.addEventListener(
+			"mousedown",
+			(e) => {
+				if (!this.enabled || !e.shiftKey) return
+				const target = e.target as HTMLElement
+				if (!target || target.isContentEditable || isInjectedElement(target)) return
+				e.preventDefault()
+				window.getSelection()?.removeAllRanges()
+			},
+			true,
+		)
+
 		// Click
 		document.addEventListener(
 			"click",
@@ -746,6 +1036,13 @@ export class ElementSelector {
 
 				// Ignore injected elements
 				if (isInjectedElement(target)) return
+				if (!isSourceNode(target)) {
+					e.preventDefault()
+					e.stopPropagation()
+					this.clearSelection()
+					this.bridge.sendEvent("DYNAMIC_ELEMENT_CLICKED", {})
+					return
+				}
 
 				// Check if there's a text selection - if so, don't trigger element selection
 				// This prevents accidentally selecting other elements when releasing mouse after text selection
@@ -753,7 +1050,7 @@ export class ElementSelector {
 				const hasTextSelection =
 					selection && !selection.isCollapsed && selection.toString().trim().length > 0
 
-				if (hasTextSelection) {
+				if (hasTextSelection && !e.shiftKey) {
 					// User is selecting text, don't trigger element selection
 					console.log(
 						"[ElementSelector] Text selection detected, skipping element selection",
@@ -766,6 +1063,15 @@ export class ElementSelector {
 
 				// Find the actual selectable element (might be a container like ECharts)
 				const selectableElement = this.findSelectableElement(target)
+
+				// Clicks on the page gutters hit html/body. Those are not
+				// selectable, so treat them as a request to clear selection.
+				if (this.isDocumentRoot(target) || this.isDocumentRoot(selectableElement)) {
+					if (this.selectedElements.size > 0) {
+						this.deselectElement()
+					}
+					return
+				}
 
 				if (e.shiftKey) {
 					// Shift + Click: Multi-select mode
@@ -801,9 +1107,11 @@ export class ElementSelector {
 								selector,
 							)
 						}
+						// Selection info is refreshed above; the dedicated context-panel event
+						// carries the explicit open intent.
 					} else {
 						// First click or different element - select element (clear others)
-						this.selectElement(selectableElement, false)
+						this.selectElement(selectableElement)
 					}
 				}
 			},
@@ -816,10 +1124,23 @@ export class ElementSelector {
 
 			// Escape - deselect all
 			if (e.key === "Escape") {
+				// The parent editor's keyboard bridge handles Escape first. When it
+				// has already consumed the event for a local panel, keep the current
+				// element selection intact.
+				if (e.defaultPrevented) return
 				e.preventDefault()
 				this.deselectElement()
 			}
 		})
+	}
+
+	private selectionOnly = false
+
+	setSelectionOnly(value: boolean) {
+		if (value === this.selectionOnly) return
+		// Clear any contenteditable state left by an earlier full editing session.
+		this.disable()
+		this.selectionOnly = value
 	}
 
 	enable() {

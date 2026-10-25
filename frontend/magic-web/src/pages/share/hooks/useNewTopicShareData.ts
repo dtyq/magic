@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { SuperMagicApi } from "@/apis"
-import { AttachmentDataProcessor } from "../../superMagic/utils/attachmentDataProcessor"
+import { createShareFileAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import { loadProjectAttachments } from "@/pages/superMagic/services"
+import { loadShareFilesV2 } from "../services/shareFilesLoader"
 
 interface UseNewTopicShareDataReturn {
 	attachments: any
@@ -9,13 +10,17 @@ interface UseNewTopicShareDataReturn {
 	error: Error | null
 	isProjectShare: boolean
 	getShareData: (params: { resource_id: string; password?: string }) => Promise<any>
-	getShareResourceFiles: (params: { resource_id: string; password?: string }) => Promise<any>
 	updateAttachments: (params: {
 		projectId?: string
 		resource_id?: string
 		password?: string
+		temporaryToken?: string
 	}) => void
 	setIsProjectShare: (value: boolean) => void
+}
+
+function isAbortError(error: unknown) {
+	return (error as { name?: string } | null | undefined)?.name === "AbortError"
 }
 
 /**
@@ -24,7 +29,7 @@ interface UseNewTopicShareDataReturn {
  * - Gets share data using resourceId
  * - Gets project_id from share data
  * - Gets attachments using project_id
- * - Gets shared files list using getShareResourceFiles
+ * - Gets the complete shared file tree through V2 cursor pagination
  */
 export default function useNewTopicShareData(): UseNewTopicShareDataReturn {
 	const [attachments, setAttachments] = useState<any>({})
@@ -32,6 +37,11 @@ export default function useNewTopicShareData(): UseNewTopicShareDataReturn {
 	const [error, setError] = useState<Error | null>(null)
 	const [isProjectShare, setIsProjectShare] = useState(false)
 	const fetchPageCountRef = useRef(0)
+	const attachmentsAbortControllerRef = useRef<AbortController | null>(null)
+
+	useEffect(() => {
+		return () => attachmentsAbortControllerRef.current?.abort()
+	}, [])
 
 	const getShareData = useCallback(
 		({ resource_id, password }: { resource_id: string; password?: string }) => {
@@ -104,40 +114,78 @@ export default function useNewTopicShareData(): UseNewTopicShareDataReturn {
 		[],
 	)
 
-	const getShareResourceFiles = useCallback(
-		({ resource_id, password }: { resource_id: string; password?: string }) => {
-			return SuperMagicApi.getShareResourceFiles({
-				resource_id,
-				password,
-			})
-		},
-		[],
-	)
-
 	const updateAttachments = useCallback(
-		(params: { projectId?: string; resource_id?: string; password?: string }) => {
-			const { projectId, resource_id, password } = params
+		(params: {
+			projectId?: string
+			resource_id?: string
+			password?: string
+			temporaryToken?: string
+		}) => {
+			const { projectId, resource_id, password, temporaryToken } = params
+			attachmentsAbortControllerRef.current?.abort()
+			const abortController = new AbortController()
+			attachmentsAbortControllerRef.current = abortController
+			setLoading(true)
+			setError(null)
 
-			// 优先使用 resource_id（新格式文件分享）
+			const commitAttachments = (nextAttachments: any) => {
+				if (attachmentsAbortControllerRef.current !== abortController) return
+				setAttachments(nextAttachments)
+			}
+
+			const handleFailure = (reason: unknown) => {
+				if (
+					isAbortError(reason) ||
+					attachmentsAbortControllerRef.current !== abortController
+				) {
+					return
+				}
+				setError(reason instanceof Error ? reason : new Error(String(reason)))
+			}
+
+			const finishLoading = () => {
+				if (attachmentsAbortControllerRef.current !== abortController) return
+				setLoading(false)
+			}
+
+			// New resource shares use the share-code cursor protocol for every resource type.
 			if (resource_id) {
-				getShareResourceFiles({ resource_id, password }).then((res: any) => {
-					// getShareResourceFiles returns a project-attachment-compatible shape.
-					// 统一处理 metadata，包括 index.html 文件的特殊逻辑
-					const processedData = AttachmentDataProcessor.processAttachmentData(res)
-					setAttachments(processedData)
+				// Reuse TopicPage's first/middle/final batch commits so paginated loads do not
+				// setState on every cursor page.
+				let didCommitFinalSnapshot = false
+				loadShareFilesV2({
+					resourceId: resource_id,
+					password,
+					signal: abortController.signal,
+					onBatchSnapshot: ({ tree, list, isFinal }) => {
+						if (attachmentsAbortControllerRef.current !== abortController) return
+						commitAttachments({ tree, list })
+						if (isFinal) didCommitFinalSnapshot = true
+					},
 				})
+					.then((result) => {
+						if (didCommitFinalSnapshot) return
+						commitAttachments(result)
+					})
+					.catch(handleFailure)
+					.finally(finishLoading)
 			} else if (projectId) {
 				// 使用 projectId（旧格式或话题分享）
 				loadProjectAttachments({
 					projectId,
-					// @ts-ignore 使用window添加临时的token
-					temporaryToken: window?.temporary_token || "",
-				}).then((res) => {
-					setAttachments(res)
+					signal: abortController.signal,
+					access: temporaryToken
+						? createShareFileAccess({ token: temporaryToken, projectId })
+						: undefined,
 				})
+					.then(commitAttachments)
+					.catch(handleFailure)
+					.finally(finishLoading)
+			} else {
+				finishLoading()
 			}
 		},
-		[getShareResourceFiles],
+		[],
 	)
 
 	return {
@@ -146,7 +194,6 @@ export default function useNewTopicShareData(): UseNewTopicShareDataReturn {
 		error,
 		isProjectShare,
 		getShareData,
-		getShareResourceFiles,
 		updateAttachments,
 		setIsProjectShare,
 	}

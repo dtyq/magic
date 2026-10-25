@@ -13,6 +13,11 @@ class PlatformSettings
 
     private const string DEFAULT_FILING_LINK = 'https://beian.miit.gov.cn/';
 
+    private const array WATERMARK_DEPTHS = ['light', 'standard', 'strong'];
+
+    /** 展示配置与实际计费配置相互独立。 */
+    private array $modelBillingMultiplier = [];
+
     private string $defaultLanguage = 'zh_CN';
 
     private string $faviconUrl = '';
@@ -42,6 +47,9 @@ class PlatformSettings
     /** @var array<string,string> */
     private array $agentRoleDescriptionI18n = [];
 
+    /** 全局系统提示词。 */
+    private string $globalSystemPrompt = '';
+
     /**
      * [运营规则]
      * 允许配置自定义服务商的组织白名单。
@@ -67,6 +75,21 @@ class PlatformSettings
             'link' => self::DEFAULT_FILING_LINK,
         ],
     ];
+
+    /**
+     * @var array{enabled: bool, fields: string[], depth: string}
+     */
+    private array $watermark = [
+        'enabled' => false,
+        'fields' => ['real_name'],
+        'depth' => 'light',
+    ];
+
+    /** 获取参考倍率配置，历史缺失数据统一在后端补齐。 */
+    public function getModelBillingMultiplier(): ModelBillingMultiplierSettings
+    {
+        return ModelBillingMultiplierSettings::fromArray($this->modelBillingMultiplier);
+    }
 
     public function getDefaultLanguage(): string
     {
@@ -210,6 +233,18 @@ class PlatformSettings
         $this->agentRoleDescriptionI18n = $agentRoleDescriptionI18n;
     }
 
+    /** 获取全局系统提示词。 */
+    public function getGlobalSystemPrompt(): string
+    {
+        return $this->globalSystemPrompt;
+    }
+
+    /** 设置全局系统提示词。 */
+    public function setGlobalSystemPrompt(string $globalSystemPrompt): void
+    {
+        $this->globalSystemPrompt = $globalSystemPrompt;
+    }
+
     /**
      * @return string[]
      */
@@ -266,8 +301,11 @@ class PlatformSettings
             'description_i18n' => $this->descriptionI18n,
             'agent_role_name_i18n' => $this->agentRoleNameI18n,
             'agent_role_description_i18n' => $this->agentRoleDescriptionI18n,
+            'global_system_prompt' => $this->globalSystemPrompt,
             'custom_service_provider_whitelist' => $this->customServiceProviderWhitelist,
             'footer' => $this->getFooter(),
+            'watermark' => $this->watermark,
+            'model_billing_multiplier' => $this->getModelBillingMultiplier()->toArray(),
         ];
     }
 
@@ -284,12 +322,15 @@ class PlatformSettings
         $i->setDescriptionI18n((array) ($data['description_i18n'] ?? []));
         $i->setAgentRoleNameI18n((array) ($data['agent_role_name_i18n'] ?? []));
         $i->setAgentRoleDescriptionI18n((array) ($data['agent_role_description_i18n'] ?? []));
+        $i->setGlobalSystemPrompt((string) ($data['global_system_prompt'] ?? ''));
         $i->setCustomServiceProviderWhitelist((array) (
             $data['custom_service_provider_whitelist']
             ?? $data['foreign_provider_org_whitelist']
             ?? []
         ));
         $i->setFooter((array) ($data['footer'] ?? []));
+        $i->watermark = self::normalizeWatermark((array) ($data['watermark'] ?? []));
+        $i->modelBillingMultiplier = ModelBillingMultiplierSettings::fromArray((array) ($data['model_billing_multiplier'] ?? []))->toArray();
         return $i;
     }
 
@@ -329,6 +370,34 @@ class PlatformSettings
                 'number' => trim((string) ($filing['number'] ?? '')),
                 'link' => $link,
             ],
+        ];
+    }
+
+    /**
+     * @return array{enabled: bool, fields: string[], depth: string}
+     */
+    private static function normalizeWatermark(array $watermark): array
+    {
+        $fields = [];
+        foreach ((array) ($watermark['fields'] ?? ['real_name']) as $field) {
+            if (! is_scalar($field) && $field !== null) {
+                continue;
+            }
+            $value = trim((string) $field);
+            if ($value !== '') {
+                $fields[] = $value;
+            }
+        }
+
+        $depth = (string) ($watermark['depth'] ?? 'light');
+        if (! in_array($depth, self::WATERMARK_DEPTHS, true)) {
+            $depth = 'light';
+        }
+
+        return [
+            'enabled' => (bool) ($watermark['enabled'] ?? false),
+            'fields' => $fields,
+            'depth' => $depth,
         ];
     }
 }

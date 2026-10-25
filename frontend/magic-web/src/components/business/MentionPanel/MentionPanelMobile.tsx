@@ -20,16 +20,12 @@ import { MentionItemType } from "./types"
 // Components
 import MagicPopup from "../../base-mobile/MagicPopup"
 import MobileMenuItem from "./components/MobileMenuItem"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
-	canTogglePendingItem,
 	canTogglePendingLeafItem,
 	getMentionItemSelectionKey,
-	getPendingSourceRootId,
-	getSubmittablePendingEntries,
 	inferRootEntryIdFromItem,
 	isRootDefaultCategoryScreen,
-	type PendingMentionEntry,
 } from "./utils/multiSelect"
 import { prepareMentionItemForPending } from "./utils/multiSelectValidation"
 
@@ -38,6 +34,7 @@ import { getMobileItemIconStyle, useMobileStyles } from "./mobileStyles"
 
 // Hooks
 import { useMentionPanel } from "./hooks/useMentionPanel"
+import { useMentionSelectionSession } from "./hooks/useMentionSelectionSession"
 import { useI18nStatic } from "./hooks/useI18n"
 import type { I18nTexts } from "./i18n/types"
 import { MentionPanelRootProviders, useMentionItemRenderer } from "./renderers/context"
@@ -117,6 +114,9 @@ const MentionPanelMobile = observer(
 			buildStoreRequest,
 			canToggleMultiSelectItem,
 			enableMultiSelect = true,
+			multiSelectNavigationPolicy = "clear",
+			selectionScopeId,
+			selectionSummary,
 			...restProps
 		} = props
 
@@ -124,6 +124,7 @@ const MentionPanelMobile = observer(
 		void triggerRef
 		void style
 		void lastHistoryIndex
+		void selectionSummary
 
 		const t = useI18nStatic(language)
 		const resolvedRuntime = resolveMentionPanelRuntime({
@@ -152,9 +153,6 @@ const MentionPanelMobile = observer(
 
 		const [internalSearchQuery, setInternalSearchQuery] = useState("")
 		const [mobileSheetView, setMobileSheetView] = useState<MobileSheetView>("browse")
-		const [pendingByKey, setPendingByKey] = useState<Map<string, PendingMentionEntry>>(
-			() => new Map(),
-		)
 		const isRootMobileMenu = isRootDefaultCategoryScreen(state)
 		const displayItems = useMemo(() => {
 			if (!isRootMobileMenu) return state.items
@@ -206,6 +204,42 @@ const MentionPanelMobile = observer(
 			return nextItems
 		}, [isRootMobileMenu, state.items, t.defaultItems.otherProjectFiles])
 
+		const canTogglePendingItemForItem = useCallback(
+			(item: MentionItem) => {
+				if (!enableMultiSelect) return false
+				if (!canTogglePendingLeafItem(item)) return false
+				return canToggleMultiSelectItem ? canToggleMultiSelectItem(item) : true
+			},
+			[canToggleMultiSelectItem, enableMultiSelect],
+		)
+		const navigationSignature = useMemo(
+			() =>
+				[
+					state.currentState,
+					...state.navigationStack.map(
+						(item) => `${item.state}:${item.catalogId ?? ""}:${item.id}`,
+					),
+				].join("|"),
+			[state.currentState, state.navigationStack],
+		)
+		const {
+			pendingByKey,
+			submittablePendingEntries,
+			togglePendingForItem,
+			removePendingKey,
+			clearPendingItems,
+			clearForNavigation,
+			reset: resetSelectionSession,
+		} = useMentionSelectionSession({
+			enabled: visible && enableMultiSelect,
+			canToggleItem: canTogglePendingItemForItem,
+			navigationStack: state.navigationStack,
+			navigationKey: navigationSignature,
+			navigationPolicy: multiSelectNavigationPolicy,
+			scopeId: selectionScopeId,
+			prepareItem: prepareMentionItemForPending,
+		})
+
 		const totalPending = pendingByKey.size
 
 		const rootPendingCounts = useMemo(() => {
@@ -220,17 +254,8 @@ const MentionPanelMobile = observer(
 
 		const resetLocalSelectionState = useMemoizedFn(() => {
 			setMobileSheetView("browse")
-			setPendingByKey(new Map())
+			resetSelectionSession()
 		})
-
-		const canTogglePendingItemForItem = useCallback(
-			(item: MentionItem) => {
-				if (!enableMultiSelect) return false
-				if (!canTogglePendingLeafItem(item)) return false
-				return canToggleMultiSelectItem ? canToggleMultiSelectItem(item) : true
-			},
-			[canToggleMultiSelectItem, enableMultiSelect],
-		)
 
 		useEffect(() => {
 			if (!visible) {
@@ -266,55 +291,16 @@ const MentionPanelMobile = observer(
 			[visible, state.currentState, actions, onClose, resetLocalSelectionState],
 		)
 
-		const togglePendingForItem = useMemoizedFn(
-			(item: MentionItem, options?: { mcpValidated?: boolean }) => {
-				if (!canTogglePendingItemForItem(item)) return
-				const key = getMentionItemSelectionKey(item)
-				const sourceRootId = getPendingSourceRootId(state.navigationStack, item)
-				setPendingByKey((prev) => {
-					const next = new Map(prev)
-					if (next.has(key)) next.delete(key)
-					else
-						next.set(key, {
-							item,
-							sourceRootId,
-							mcpValidated: options?.mcpValidated,
-						})
-					return next
-				})
+		// Keep root navigation and leaf selection separate; the session hook owns
+		// validation, duplicate suppression, and cross-directory pending state.
+		const requestPendingToggleForItem = useCallback(
+			async (item: MentionItem) => {
+				// Root entries only drill into their catalog; selectable rows update the pending map in place.
+				if (isRootDefaultCategoryScreen(state) || !canTogglePendingItemForItem(item)) return
+				await togglePendingForItem(item)
 			},
+			[canTogglePendingItemForItem, state, togglePendingForItem],
 		)
-
-		const removePendingKey = useMemoizedFn((key: string) => {
-			setPendingByKey((prev) => {
-				const next = new Map(prev)
-				next.delete(key)
-				return next
-			})
-		})
-
-		const ensureMcpItemReadyForPending = useMemoizedFn((item: MentionItem) =>
-			prepareMentionItemForPending(item, resolvedRuntime.dataService),
-		)
-
-		// Keep MCP validation and duplicate removal in one path for row and checkbox toggles.
-		const requestPendingToggleForItem = useMemoizedFn(async (item: MentionItem) => {
-			// Root entries only drill into their catalog; selectable rows update the pending map in place.
-			if (isRootDefaultCategoryScreen(state) || !canTogglePendingItemForItem(item)) return
-
-			const key = getMentionItemSelectionKey(item)
-			if (pendingByKey.has(key)) {
-				togglePendingForItem(item)
-				return
-			}
-
-			const pendingPreparation = await ensureMcpItemReadyForPending(item)
-			if (!pendingPreparation.canSelect) return
-
-			togglePendingForItem(item, {
-				mcpValidated: pendingPreparation.mcpValidated,
-			})
-		})
 
 		// Checkbox taps select the current row visually, then only toggle pending selection.
 		const handleItemCheckboxClick = useCallback(
@@ -426,8 +412,6 @@ const MentionPanelMobile = observer(
 				onSelect,
 				requestPendingToggleForItem,
 				enableMultiSelect,
-				ensureMcpItemReadyForPending,
-				pendingByKey,
 				resolvedRuntime.catalogBehavior,
 				state,
 			],
@@ -435,9 +419,10 @@ const MentionPanelMobile = observer(
 
 		const handleBackClick = useCallback(() => {
 			if (computed.canNavigateBack) {
+				clearForNavigation({ exitMode: false })
 				actions.navigateBack()
 			}
-		}, [actions, computed.canNavigateBack])
+		}, [actions, clearForNavigation, computed.canNavigateBack])
 
 		const handleClose = useMemoizedFn(() => {
 			resetLocalSelectionState()
@@ -445,7 +430,7 @@ const MentionPanelMobile = observer(
 		})
 
 		const handleConfirmApply = useMemoizedFn(async () => {
-			const entries = getSubmittablePendingEntries(pendingByKey)
+			const entries = submittablePendingEntries
 			const items = entries.map((e) => e.item)
 			if (items.length === 0) {
 				handleClose()
@@ -462,10 +447,18 @@ const MentionPanelMobile = observer(
 						index: i,
 						total: items.length,
 					},
-					...(isLast ? { reset: actions.reset } : undefined),
+					...(isLast
+						? {
+								reset: () => {
+									resetLocalSelectionState()
+									actions.reset()
+								},
+							}
+						: undefined),
 				})
 				await Promise.resolve(result)
 			}
+			resetLocalSelectionState()
 		})
 
 		const handleLeftButton = useMemoizedFn(() => {
@@ -482,7 +475,7 @@ const MentionPanelMobile = observer(
 
 		const handleRightButton = useMemoizedFn(() => {
 			if (mobileSheetView === "selected") {
-				setPendingByKey(new Map())
+				clearPendingItems()
 				return
 			}
 			void handleConfirmApply()
@@ -564,7 +557,6 @@ const MentionPanelMobile = observer(
 				handleDeleteHistoryItem,
 				handleItemCheckboxClick,
 				handleItemClick,
-				canTogglePendingItemForItem,
 				pendingByKey,
 				rootPendingCounts,
 				totalPending,

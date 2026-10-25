@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	fragmentapp "magic/internal/application/knowledge/fragment/service"
 	knowledgebaseapp "magic/internal/application/knowledge/knowledgebase/service"
 	revectorizeapp "magic/internal/application/knowledge/revectorize/service"
+	sharedaccess "magic/internal/application/knowledge/shared/access"
 	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
 	autoloadcfg "magic/internal/config/autoload"
@@ -48,7 +50,11 @@ import (
 	"magic/internal/pkg/tokenizer"
 )
 
-const defaultDocumentResyncTaskTimeout = 30 * time.Minute
+const (
+	defaultDocumentResyncTaskTimeout = 30 * time.Minute
+	preReleaseAppEnv                 = "saas-pre"
+	preReleaseDocumentResyncQueue    = "knowledge.document.resync.saas-pre"
+)
 
 // ProvideEmbeddingCacheCleanupService 提供缓存清理服务
 // 使用默认配置自动启动定时清理任务
@@ -114,10 +120,11 @@ type BaseDocumentFlowDeps struct {
 
 // BasePortDeps 表示知识库应用服务依赖的外部只读端口。
 type BasePortDeps struct {
-	KnowledgeBasePermissionPort *ipcclient.PHPKnowledgeBasePermissionRPCClient
-	SuperMagicAgentPort         *ipcclient.PHPSuperMagicAgentRPCClient
-	ProjectFilePort             *ipcclient.PHPProjectFileRPCClient
-	ThirdPlatformPort           *ipcclient.PHPThirdPlatformDocumentRPCClient
+	KnowledgeBasePermissionPort   *ipcclient.PHPKnowledgeBasePermissionRPCClient
+	KnowledgeBasePermissionReader kbaccess.PermissionReader
+	SuperMagicAgentPort           *ipcclient.PHPSuperMagicAgentRPCClient
+	ProjectFilePort               *ipcclient.PHPProjectFileRPCClient
+	ThirdPlatformPort             *ipcclient.PHPThirdPlatformDocumentRPCClient
 }
 
 // BaseBindingDeps 表示知识库产品线绑定相关依赖。
@@ -157,16 +164,31 @@ func ProvideKnowledgeBaseCoordinatorDeps(
 // ProvideKnowledgeBasePortDeps 提供知识库应用服务依赖的外部端口。
 func ProvideKnowledgeBasePortDeps(
 	knowledgeBasePermissionPort *ipcclient.PHPKnowledgeBasePermissionRPCClient,
+	knowledgeBasePermissionReader kbaccess.PermissionReader,
 	superMagicAgentPort *ipcclient.PHPSuperMagicAgentRPCClient,
 	projectFilePort *ipcclient.PHPProjectFileRPCClient,
 	thirdPlatformPort *ipcclient.PHPThirdPlatformDocumentRPCClient,
 ) BasePortDeps {
 	return BasePortDeps{
-		KnowledgeBasePermissionPort: knowledgeBasePermissionPort,
-		SuperMagicAgentPort:         superMagicAgentPort,
-		ProjectFilePort:             projectFilePort,
-		ThirdPlatformPort:           thirdPlatformPort,
+		KnowledgeBasePermissionPort:   knowledgeBasePermissionPort,
+		KnowledgeBasePermissionReader: knowledgeBasePermissionReader,
+		SuperMagicAgentPort:           superMagicAgentPort,
+		ProjectFilePort:               projectFilePort,
+		ThirdPlatformPort:             thirdPlatformPort,
 	}
+}
+
+// ProvideKnowledgeBasePermissionReader 统一组装 PHP 权限与数字员工关系权限读取器。
+func ProvideKnowledgeBasePermissionReader(
+	knowledgeBasePermissionPort *ipcclient.PHPKnowledgeBasePermissionRPCClient,
+	domainSvc *knowledgebasedomain.DomainService,
+	knowledgeBaseBindingRepo *mysqlknowledgebasebinding.Repository,
+	superMagicAgentPort *ipcclient.PHPSuperMagicAgentRPCClient,
+) kbaccess.PermissionReader {
+	return sharedaccess.NewPermissionReader(
+		knowledgeBasePermissionPort,
+		sharedaccess.NewDigitalEmployeeRelationshipReader(domainSvc, knowledgeBaseBindingRepo, superMagicAgentPort),
+	)
 }
 
 // ProvideKnowledgeBaseDomainDeps 提供知识库应用依赖的领域服务集合。
@@ -251,7 +273,7 @@ func ProvideKnowledgeBaseAppService(
 	appSvc.SetKnowledgeBaseBindingRepository(deps.KnowledgeBaseBindingRepo)
 	appSvc.SetDestroyCoordinator(deps.DestroyCoordinator)
 	appSvc.SetWriteCoordinator(deps.WriteCoordinator)
-	appSvc.SetKnowledgeBasePermissionReader(deps.PortDeps.KnowledgeBasePermissionPort)
+	appSvc.SetKnowledgeBasePermissionReader(deps.PortDeps.KnowledgeBasePermissionReader)
 	appSvc.SetKnowledgeBasePermissionWriter(newKnowledgeBasePermissionWriter(deps.PortDeps.KnowledgeBasePermissionPort))
 	appSvc.SetOfficialOrganizationMemberChecker(deps.PortDeps.KnowledgeBasePermissionPort)
 	appSvc.SetProjectFileResolver(deps.PortDeps.ProjectFilePort)
@@ -340,9 +362,9 @@ func ProvideFragmentAppDeps(
 		ThirdPlatformDocumentPort: portDeps.ThirdPlatformPort,
 		ThirdPlatformProviders:    thirdPlatformProviders,
 		KnowledgeBaseBindingRepo:  bindingDeps.KnowledgeBaseBindingRepo,
-		PermissionReader:          portDeps.KnowledgeBasePermissionPort,
-		ThirdPlatformAccess:       portDeps.ThirdPlatformPort,
+		PermissionReader:          portDeps.KnowledgeBasePermissionReader,
 		SuperMagicAgentAccess:     portDeps.SuperMagicAgentPort,
+		ThirdPlatformAccess:       portDeps.ThirdPlatformPort,
 		ManualFragmentCoordinator: runtimeDeps.ManualFragmentCoordinator,
 		PreviewSplitter:           documentsplitter.NewPreviewSplitter(),
 		Tokenizer:                 runtimeDeps.TokenizerService,
@@ -480,7 +502,7 @@ func newDocumentResyncRabbitMQSchedulerConfig(
 	defaults documentsync.RabbitMQSchedulerConfig,
 ) documentsync.RabbitMQSchedulerConfig {
 	return documentsync.RabbitMQSchedulerConfig{
-		QueueName: strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
+		QueueName: resolveDocumentResyncQueueName(cfg),
 		ConsumerPrefetch: intOrDefault(
 			cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
 			defaults.ConsumerPrefetch,
@@ -497,7 +519,25 @@ func newDocumentResyncRabbitMQSchedulerConfig(
 			cfg.RabbitMQ.DocumentResync.MaxRequeueAttempts,
 			defaults.MaxRequeueAttempts,
 		),
+		UnexpectedEOFBackoffBase: millisDurationOrDefault(
+			cfg.RabbitMQ.DocumentResync.UnexpectedEOFBackoffBaseMillis,
+			defaults.UnexpectedEOFBackoffBase,
+		),
+		UnexpectedEOFBackoffMax: millisDurationOrDefault(
+			cfg.RabbitMQ.DocumentResync.UnexpectedEOFBackoffMaxMillis,
+			defaults.UnexpectedEOFBackoffMax,
+		),
 	}
+}
+
+func resolveDocumentResyncQueueName(cfg *autoloadcfg.Config) string {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), preReleaseAppEnv) {
+		return preReleaseDocumentResyncQueue
+	}
+	if cfg == nil {
+		return ""
+	}
+	return strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync)
 }
 
 func documentSyncResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomain.ResourceLimits {
@@ -530,6 +570,7 @@ func ProvideDocumentAppDeps(
 	tokenizerService *tokenizer.Service,
 	userService *userdomain.DomainService,
 	client *mysqlclient.SQLCClient,
+	logger *logging.SugaredLogger,
 ) documentapp.AppDeps {
 	deps := documentapp.AppDeps{
 		ParseService:              parseService,
@@ -537,7 +578,7 @@ func ProvideDocumentAppDeps(
 		ProjectFilePort:           portDeps.ProjectFilePort,
 		ProjectFileContentPort:    portDeps.ProjectFilePort,
 		ThirdPlatformProviders:    thirdPlatformProviders,
-		PermissionReader:          portDeps.KnowledgeBasePermissionPort,
+		PermissionReader:          portDeps.KnowledgeBasePermissionReader,
 		ThirdPlatformAccess:       portDeps.ThirdPlatformPort,
 		Tokenizer:                 tokenizerService,
 		UserService:               userService,
@@ -545,7 +586,7 @@ func ProvideDocumentAppDeps(
 	if client != nil {
 		deps.SourceBindingRepo = mysqlsourcebindingrepo.NewRepository(client)
 		deps.KnowledgeBaseBindingRepo = mysqlknowledgebasebinding.NewRepository(client)
-		deps.ProjectFileMetadataReader = mysqlprojectfilemeta.NewRepository(client)
+		deps.ProjectFileMetadataReader = mysqlprojectfilemeta.NewRepository(client, logger.Named("mysql.ProjectFileMetadataRepository"))
 	}
 	return deps
 }
@@ -564,7 +605,7 @@ func ProvideKnowledgeSourceFileLinkService(
 		documentapp.KnowledgeSourceFileLinkDeps{
 			DocumentReader:            documentDomainSvc,
 			KnowledgeBaseReader:       knowledgeBaseDomainSvc,
-			PermissionReader:          portDeps.KnowledgeBasePermissionPort,
+			PermissionReader:          portDeps.KnowledgeBasePermissionReader,
 			ThirdPlatformAccess:       portDeps.ThirdPlatformPort,
 			FileLinkProvider:          fileLinkProvider,
 			ProjectFileContentPort:    portDeps.ProjectFilePort,

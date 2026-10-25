@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iBox 3.0 — 智能快递柜自助终端系统 (Smart Parcel Locker Kiosk)</title>
+  <style>
+    :root {
+      --brand-red: #DF3136;
+      --brand-red-dark: #C2262B;
+      --brand-red-soft: rgba(223, 49, 54, 0.08);
+      --brand-blue: #356DC3;
+      --bg-page: #F5F6F7;
+      --bg-card: #FFFFFF;
+      --bg-subtle: #F0F2F5;
+      --text-primary: #1E1E1E;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --border-default: #E2E4E9;
+      --border-subtle: #EEEEEE;
+      --function-success: #15A05A;
+      --function-warning: #F59E0B;
+      --function-danger: #FA3C3C;
+      --neutral-black: #000000;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+      --radius-card: 8px;
+      --radius-pill: 999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1F2327;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      padding: 16px;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .kiosk-shell { width: 100%; max-width: 1120px; background: var(--bg-page); border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 0 6px #14171A; overflow: hidden; display: flex; flex-direction: column; }
+    .terminal-header { background: var(--bg-card); border-bottom: 1px solid var(--border-default); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; }
+    .brand-group { display: flex; align-items: center; gap: 12px; }
+    .ibox-logo { background: var(--brand-red); color: #FFF; font-weight: 900; font-size: 17px; letter-spacing: -0.04em; padding: 5px 12px; border-radius: 6px; display: flex; align-items: center; gap: 6px; }
+    .terminal-location { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+    .terminal-id { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+    .status-group { display: flex; align-items: center; gap: 14px; font-size: 11.5px; }
+    .hardware-pill { background: var(--bg-subtle); border: 1px solid var(--border-default); padding: 3px 8px; border-radius: var(--radius-pill); color: var(--text-secondary); font-weight: 600; display: flex; align-items: center; gap: 5px; }
+    .dot-online { width: 6px; height: 6px; border-radius: 50%; background: var(--function-success); }
+    .btn-lang { border: 1px solid var(--border-default); background: #FFF; padding: 4px 10px; border-radius: var(--radius-pill); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+    .kiosk-grid { padding: 16px; display: grid; grid-template-columns: 1fr 420px; gap: 16px; }
+    .pickup-flow-col { display: flex; flex-direction: column; gap: 14px; }
+    .pickup-banner { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; }
+    .pickup-prompt-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+    .pickup-prompt-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .mode-switch-tabs { display: flex; background: var(--bg-subtle); padding: 3px; border-radius: var(--radius-pill); }
+    .mode-tab { padding: 5px 12px; border-radius: var(--radius-pill); font-size: 11.5px; font-weight: 600; border: none; cursor: pointer; background: transparent; color: var(--text-secondary); }
+    .mode-tab.active { background: var(--neutral-black); color: #FFF; }
+    .pin-input-card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .pin-boxes { display: flex; gap: 10px; }
+    .pin-digit { width: 48px; height: 54px; border: 2px solid var(--border-default); border-radius: 6px; background: var(--bg-subtle); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 24px; font-weight: 700; color: var(--text-primary); }
+    .pin-digit.filled { border-color: var(--neutral-black); background: #FFF; color: var(--brand-red); }
+    .pin-digit.active-cursor { border-color: var(--brand-red); background: var(--brand-red-soft); }
+    .keypad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 360px; }
+    .key-btn { min-height: 50px; background: #FFFFFF; border: 1px solid var(--border-default); border-radius: 6px; font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .key-btn:hover { background: var(--bg-subtle); }
+    .key-btn.action-clear { background: var(--bg-subtle); font-size: 13px; font-family: var(--font-sans); font-weight: 700; color: var(--text-secondary); }
+    .key-btn.action-confirm { background: var(--brand-red); color: #FFF; font-size: 15px; font-family: var(--font-sans); font-weight: 700; border-color: var(--brand-red); }
+    .qr-scanner-card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .scanner-info { display: flex; align-items: center; gap: 12px; }
+    .scanner-viewfinder { width: 64px; height: 64px; border: 2px solid var(--neutral-black); border-radius: 6px; position: relative; background: #1A1D20; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .scanner-laser { position: absolute; width: 100%; height: 2px; background: var(--brand-red); animation: qr-beam 1.8s infinite alternate ease-in-out; }
+    @keyframes qr-beam { 0% { top: 10%; } 100% { top: 85%; } }
+    .scanner-text h4 { font-size: 13px; font-weight: 700; }
+    .scanner-text p { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+    .locker-vis-col { display: flex; flex-direction: column; gap: 14px; }
+    .matrix-card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .matrix-header { display: flex; justify-content: space-between; align-items: center; }
+    .matrix-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .matrix-legend { display: flex; gap: 8px; font-size: 10.5px; color: var(--text-secondary); }
+    .legend-item { display: flex; align-items: center; gap: 3px; }
+    .dot-legend { width: 6px; height: 6px; border-radius: 2px; }
+    .locker-matrix-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; background: var(--bg-subtle); padding: 8px; border-radius: 6px; border: 1px solid var(--border-subtle); }
+    .locker-door { height: 42px; border-radius: 4px; background: #FFFFFF; border: 1px solid var(--border-default); display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--text-secondary); }
+    .locker-door.occupied { background: #F0F2F5; color: var(--text-muted); }
+    .locker-door.unlocked-now { background: var(--brand-red); color: #FFFFFF; border-color: var(--brand-red); box-shadow: 0 0 12px rgba(223,49,54,0.6); animation: door-unlock-glow 1.5s infinite alternate; }
+    @keyframes door-unlock-glow { from { transform: scale(1); } to { transform: scale(1.04); } }
+    .locker-door.unlocked-now::after { content: 'OPEN'; font-size: 7.5px; font-weight: 800; color: #FFF; background: rgba(0,0,0,0.3); padding: 0 2px; border-radius: 2px; }
+    .active-parcel-card { background: #FFFDF9; border: 1.5px solid #F3DFC6; border-radius: var(--radius-card); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .parcel-status-row { display: flex; justify-content: space-between; align-items: center; }
+    .tag-unlocked { background: rgba(223, 49, 54, 0.12); color: var(--brand-red); font-weight: 700; font-size: 11px; padding: 2px 7px; border-radius: 4px; display: flex; align-items: center; gap: 4px; }
+    .parcel-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 11.5px; background: #FFF; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px 10px; }
+    .detail-item span { color: var(--text-secondary); display: block; font-size: 10.5px; }
+    .detail-item strong { color: var(--text-primary); font-family: var(--font-mono); font-size: 11.5px; }
+    .btn-door-reopen { min-height: 40px; background: var(--neutral-black); color: #FFF; border: none; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .terminal-footer { background: #EAEBED; border-top: 1px solid var(--border-default); padding: 8px 20px; display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+
+  <!-- Smart Parcel Locker Kiosk Shell -->
+  <div class="kiosk-shell">
+
+    <!-- Top Terminal Status Bar -->
+    <header class="terminal-header">
+      <div class="brand-group">
+        <div class="ibox-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+            <path d="m3.3 7 8.7 5 8.7-5"></path>
+            <path d="M12 22V12"></path>
+          </svg>
+          iBox 3.0
+        </div>
+        <div>
+          <div class="terminal-location">智能快递柜自提终端 &bull; 地铁金融中心站出口A</div>
+          <div class="terminal-id">TERMINAL: IB-755-BJ08 &bull; 4G LTE 双路冗余连接</div>
+        </div>
+      </div>
+
+      <div class="status-group">
+        <div class="hardware-pill">
+          <div class="dot-online"></div>
+          柜锁电磁传感器: 正常
+        </div>
+        <button class="btn-lang">English</button>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <div class="kiosk-grid">
+
+      <!-- Left Column: Touch PIN Keypad & QR Scanner -->
+      <section class="pickup-flow-col">
+        <!-- Pickup Banner Header -->
+        <div class="pickup-banner">
+          <div>
+            <h2 class="pickup-prompt-title">请输入取件码或扫描提货条码</h2>
+            <p class="pickup-prompt-sub">短信取件码 / iBox App动态验证码均可开箱</p>
+          </div>
+          <div class="mode-switch-tabs">
+            <button class="mode-tab active">PIN取件</button>
+            <button class="mode-tab">手机号查询</button>
+            <button class="mode-tab">寄件服务</button>
+          </div>
+        </div>
+
+        <!-- 6-Digit PIN Display & Touch Keypad -->
+        <div class="pin-input-card">
+          <!-- 6 Digits Box -->
+          <div class="pin-boxes">
+            <div class="pin-digit filled">8</div>
+            <div class="pin-digit filled">4</div>
+            <div class="pin-digit filled">9</div>
+            <div class="pin-digit filled">2</div>
+            <div class="pin-digit active-cursor">1</div>
+            <div class="pin-digit">_</div>
+          </div>
+
+          <!-- Touch Keypad 3x4 Grid -->
+          <div class="keypad-grid">
+            <button class="key-btn">1</button>
+            <button class="key-btn">2</button>
+            <button class="key-btn">3</button>
+            <button class="key-btn">4</button>
+            <button class="key-btn">5</button>
+            <button class="key-btn">6</button>
+            <button class="key-btn">7</button>
+            <button class="key-btn">8</button>
+            <button class="key-btn">9</button>
+            <button class="key-btn action-clear">清空 (C)</button>
+            <button class="key-btn">0</button>
+            <button class="key-btn action-confirm">开箱 &gt;</button>
+          </div>
+        </div>
+
+        <!-- QR Code Scanner Optical Bay -->
+        <div class="qr-scanner-card">
+          <div class="scanner-info">
+            <div class="scanner-viewfinder">
+              <div class="scanner-laser"></div>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+                <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                <line x1="17" y1="7" x2="17.01" y2="7"></line>
+                <line x1="17" y1="17" x2="17.01" y2="17"></line>
+                <line x1="7" y1="17" x2="7.01" y2="17"></line>
+              </svg>
+            </div>
+            <div class="scanner-text">
+              <h4>扫描器感应就绪 (红外光学扫描仪)</h4>
+              <p>请将手机短信提货二维码对准下方扫描窗口 10-15cm</p>
+            </div>
+          </div>
+          <span style="font-size: 11.5px; font-weight: 700; color: var(--brand-red);">自动触发开锁</span>
+        </div>
+      </section>
+
+      <!-- Right Column: Locker Matrix Visualizer & Parcel Details -->
+      <aside class="locker-vis-col">
+
+        <!-- Visual Matrix Grid of All Lockers -->
+        <div class="matrix-card">
+          <div class="matrix-header">
+            <div class="matrix-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--brand-red)" stroke-width="2.2">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="3" y1="15" x2="21" y2="15"></line>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+                <line x1="15" y1="3" x2="15" y2="21"></line>
+              </svg>
+              格口状态实时图 (总容量: 24格)
+            </div>
+            <div class="matrix-legend">
+              <div class="legend-item"><div class="dot-legend" style="background:#FFF; border:1px solid #CCC"></div>空闲</div>
+              <div class="legend-item"><div class="dot-legend" style="background:#E2E4E9"></div>占用</div>
+              <div class="legend-item"><div class="dot-legend" style="background:var(--brand-red)"></div>已开启</div>
+            </div>
+          </div>
+
+          <!-- 24 Lockers Grid with Door #14 Highlight -->
+          <div class="locker-matrix-grid">
+            <div class="locker-door occupied">01</div>
+            <div class="locker-door occupied">02</div>
+            <div class="locker-door">03</div>
+            <div class="locker-door occupied">04</div>
+            <div class="locker-door occupied">05</div>
+            <div class="locker-door">06</div>
+            <div class="locker-door occupied">07</div>
+            <div class="locker-door occupied">08</div>
+            <div class="locker-door occupied">09</div>
+            <div class="locker-door">10</div>
+            <div class="locker-door occupied">11</div>
+            <div class="locker-door occupied">12</div>
+            <div class="locker-door">13</div>
+            <!-- Door #14 Unlocked & Open -->
+            <div class="locker-door unlocked-now">#14</div>
+            <div class="locker-door occupied">15</div>
+            <div class="locker-door">16</div>
+            <div class="locker-door occupied">17</div>
+            <div class="locker-door occupied">18</div>
+            <div class="locker-door">19</div>
+            <div class="locker-door occupied">20</div>
+            <div class="locker-door occupied">21</div>
+            <div class="locker-door">22</div>
+            <div class="locker-door occupied">23</div>
+            <div class="locker-door">24</div>
+          </div>
+        </div>
+
+        <!-- Unlocked Parcel Information Card -->
+        <div class="active-parcel-card">
+          <div class="parcel-status-row">
+            <div class="tag-unlocked">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+              </svg>
+              #14号柜门 已弹开
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--function-success);">
+              锁扣释放确认
+            </span>
+          </div>
+
+          <div class="parcel-detail-grid">
+            <div class="detail-item">
+              <span>承运快递</span>
+              <strong>顺丰速运 (SF-Express)</strong>
+            </div>
+            <div class="detail-item">
+              <span>运单编号</span>
+              <strong>SF1492049281</strong>
+            </div>
+            <div class="detail-item">
+              <span>格口规格</span>
+              <strong>中格 (M) &bull; 2层14号</strong>
+            </div>
+            <div class="detail-item">
+              <span>已暂存时长</span>
+              <strong>4小时18分 (免费期内)</strong>
+            </div>
+          </div>
+
+          <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+            请及时取出您的包裹并<strong>顺手关好柜门</strong>。如未弹开可点击下方按钮重新触发锁舌。
+          </div>
+
+          <button class="btn-door-reopen">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            再次弹开 14号柜门
+          </button>
+        </div>
+
+      </aside>
+    </div>
+
+    <!-- Kiosk Footer Info -->
+    <footer class="terminal-footer">
+      <div>服务热线: 95088 &bull; 视频客服联动 &bull; 自动清洁紫外线消毒已在 03:00 完成</div>
+      <div>倒计时: <strong>55秒</strong> 无操作自动返回首页</div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

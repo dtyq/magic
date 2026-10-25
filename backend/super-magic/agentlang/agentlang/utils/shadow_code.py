@@ -8,7 +8,10 @@ The implementation processes strings byte by byte in UTF-8 encoding to ensure
 complete compatibility with the PHP version.
 """
 
-from typing import Optional
+import base64
+import json
+import re
+
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
@@ -31,6 +34,7 @@ class ShadowCode:
 
     # Prefix added to obfuscated strings
     PREFIX = 'SHADOWED_'
+    PREFIX_V2 = 'SHADOWED2_'
 
     # Character mapping table for obfuscation (ASCII value mapping)
     SHUFFLE_MAP = [
@@ -57,10 +61,26 @@ class ShadowCode:
     ]
 
     @classmethod
+    def shadow_json(cls, input_string: str) -> str:
+        """安全混淆已序列化的有效 JSON，供旧接收端解混淆后按 JSON 解析。
+
+        字节映射不保证非 ASCII 内容仍是合法 UTF-8，因此先将实际 Unicode
+        字符转为 JSON 转义；四字节字符由标准编码器生成代理对。只替换非 ASCII
+        片段，保留数字字面量、空白和已有转义，避免重新解析整个业务载荷。
+        本方法不适用于任意纯文本，也不承担上游 JSON 格式校验。
+        """
+        ascii_json = re.sub(
+            r"[^\x00-\x7f]+",
+            lambda match: json.dumps(match.group(), ensure_ascii=True)[1:-1],
+            input_string,
+        )
+        return cls.shadow(ascii_json)
+
+    @classmethod
     def shadow(cls, input_string: str) -> str:
         """
         Obfuscate a string using byte-level character mapping.
-        
+
         This method processes the input string byte by byte (like PHP version),
         not character by character, to ensure compatibility with PHP implementation.
 
@@ -76,7 +96,7 @@ class ShadowCode:
         try:
             # Convert string to UTF-8 bytes (like PHP processes strings)
             input_bytes = input_string.encode('utf-8')
-            
+
             # Process each byte using the shuffle map
             result_bytes = bytearray()
             for byte_val in input_bytes:
@@ -104,7 +124,7 @@ class ShadowCode:
     def unshadow(cls, input_string: str) -> str:
         """
         Deobfuscate a string that was previously obfuscated.
-        
+
         This method processes the input string byte by byte (like PHP version),
         not character by character, to ensure compatibility with PHP implementation.
 
@@ -117,6 +137,11 @@ class ShadowCode:
         if not input_string:
             return input_string
 
+        if input_string.startswith(cls.PREFIX_V2):
+            return cls._unshadow_v2(input_string[len(cls.PREFIX_V2):])
+        if re.match(r"^SHADOWED[0-9]+_", input_string):
+            raise ValueError("Unsupported shadow version")
+
         # Check if the string has the expected prefix
         if not input_string.startswith(cls.PREFIX):
             return input_string
@@ -124,7 +149,7 @@ class ShadowCode:
         try:
             # Remove the prefix
             obfuscated_part = input_string[len(cls.PREFIX):]
-            
+
             # Convert string to UTF-8 bytes (like PHP processes strings)
             input_bytes = obfuscated_part.encode('utf-8')
 
@@ -151,14 +176,17 @@ class ShadowCode:
             raise ValueError(f"Failed to deobfuscate string: {e}")
 
     @classmethod
+    def _unshadow_v2(cls, payload: str) -> str:
+        """严格还原 V2 字节，拒绝非规范 Base64 和无效 UTF-8。"""
+        try:
+            mapped = base64.b64decode(payload, validate=True)
+            if base64.b64encode(mapped).decode("ascii") != payload:
+                raise ValueError("Invalid shadow payload")
+            return mapped.translate(bytes(cls.UNSHUFFLE_MAP)).decode("utf-8")
+        except (ValueError, UnicodeError):
+            raise ValueError("Invalid shadow payload") from None
+
+    @classmethod
     def is_shadowed(cls, input_string: str) -> bool:
-        """
-        Check if a string has been obfuscated (has the shadow prefix).
-
-        Args:
-            input_string: The string to check
-
-        Returns:
-            bool: True if the string appears to be obfuscated, False otherwise
-        """
-        return bool(input_string and input_string.startswith(cls.PREFIX))
+        """识别已编码载荷及保留版本标记，交由解码器验证内容。"""
+        return bool(input_string and re.match(r"^SHADOWED(?:[0-9]+)?_", input_string))

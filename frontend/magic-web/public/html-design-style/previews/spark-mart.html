@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPARK MART — Next-Day Electronics & High-Performance Hardware</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@700&display=swap');
+
+    :root {
+      --blue: #0071CE;
+      --blue-hover: #005BA1;
+      --blue-dark: #041E42;
+      --orange: #FF5A00;
+      --spark-yellow: #FFC220;
+      --green-save: #2E7D32;
+      --text-main: #041E42;
+      --text-muted: #64748B;
+      --bg: #F4F6F9;
+      --surface: #FFFFFF;
+      --border: #D8DFE7;
+      --font-main: 'Nunito Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Flash Deal Countdown Banner */
+    .flash-banner {
+      background: linear-gradient(90deg, #041E42 0%, #0071CE 50%, #FF5A00 100%);
+      color: #FFF; padding: 7px 20px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em; display: flex;
+      justify-content: space-between; align-items: center;
+    }
+    .deal-clock { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); }
+    .clock-tag { background: #FF5A00; color: #FFF; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+    header.spark-nav {
+      position: sticky; top: 0; z-index: 90; background: var(--blue); color: #FFF;
+      padding: 0 24px; height: 58px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,113,206,0.25);
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 900; letter-spacing: -0.02em; }
+    .spark-icon { fill: var(--spark-yellow); width: 22px; height: 22px; }
+
+    .nav-search-bar { flex: 0.55; max-width: 500px; position: relative; }
+    .search-field {
+      width: 100%; height: 38px; border-radius: 9999px; border: none; padding: 0 44px 0 16px;
+      font-size: 13px; font-family: var(--font-main); color: #041E42; outline: none;
+    }
+    .search-btn {
+      position: absolute; right: 3px; top: 3px; width: 32px; height: 32px;
+      background: var(--spark-yellow); border: none; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; cursor: pointer;
+    }
+    .search-btn svg { width: 14px; height: 14px; stroke: #041E42; }
+
+    .nav-actions { display: flex; align-items: center; gap: 16px; font-size: 12px; font-weight: 700; }
+    .cart-pill {
+      background: var(--spark-yellow); color: #041E42; border-radius: 9999px;
+      padding: 7px 16px; display: flex; align-items: center; gap: 6px; cursor: pointer;
+      text-decoration: none; font-weight: 800; font-size: 12px;
+    }
+
+    /* Container */
+    .viewport {
+      max-width: 1260px; margin: 0 auto; padding: 22px 20px 44px;
+    }
+
+    /* Hero Electronics Section (Top 500px High-Impact Area) */
+    .hero-hardware {
+      display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 26px;
+      background: #FFFFFF; border: 1.5px solid var(--border); border-radius: 12px;
+      padding: 24px 28px; box-shadow: 0 4px 16px rgba(4, 30, 66, 0.06);
+      margin-bottom: 28px;
+    }
+
+    /* Left Hardware Visualizer */
+    .hardware-display {
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+
+    .delivery-status-pill {
+      background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px;
+      padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; margin-bottom: 12px;
+    }
+    .next-day-text { color: var(--blue); font-weight: 800; display: flex; align-items: center; gap: 6px; }
+    .zip-tag { font-family: var(--font-mono); font-weight: 600; color: #475569; font-size: 10px; }
+
+    .gpu-canvas-box {
+      background: radial-gradient(circle at 50% 50%, #152238 0%, #08101E 100%);
+      border-radius: 10px; height: 290px; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 0 30px rgba(0, 113, 206, 0.25);
+    }
+
+    .rgb-glow-bar {
+      position: absolute; top: 12px; left: 12px;
+      background: linear-gradient(90deg, #0071CE 0%, #FF5A00 100%);
+      color: #FFFFFF; font-family: var(--font-mono); font-size: 9px;
+      font-weight: 700; padding: 3px 8px; border-radius: 4px;
+      box-shadow: 0 0 10px rgba(255, 90, 0, 0.5);
+    }
+
+    /* Right Details & Specs Matrix */
+    .details-box {
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+
+    .brand-series {
+      font-size: 11px; font-weight: 800; color: var(--blue); text-transform: uppercase;
+      letter-spacing: 0.05em; margin-bottom: 2px;
+    }
+    .product-heading {
+      font-size: 24px; font-weight: 800; color: #041E42; line-height: 1.2; margin-bottom: 6px;
+    }
+
+    /* Star Ratings Row */
+    .rating-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    }
+    .stars-amber { color: #F59E0B; font-size: 14px; letter-spacing: 2px; }
+    .rating-val { font-size: 12px; font-weight: 700; color: #041E42; }
+    .review-count { font-size: 11px; color: var(--text-muted); text-decoration: underline; cursor: pointer; }
+
+    /* Technical Specification Matrix */
+    .specs-matrix-card {
+      background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 8px;
+      padding: 12px; margin-bottom: 14px;
+    }
+    .matrix-title {
+      font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      color: #0071CE; margin-bottom: 8px; display: flex; justify-content: space-between;
+    }
+    .spec-grid-cells {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    }
+    .spec-cell {
+      background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px; padding: 5px 8px;
+    }
+    .spec-name { font-size: 9px; font-weight: 700; color: #64748B; text-transform: uppercase; display: block; }
+    .spec-data { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: #041E42; }
+
+    /* Price Lockup & Add Button */
+    .price-action-bar { display: flex; align-items: center; gap: 14px; }
+    .price-area { display: flex; flex-direction: column; }
+    .current-price { font-size: 28px; font-weight: 900; color: #041E42; line-height: 1; }
+    .price-savings { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-top: 2px; }
+    .was-price { color: #94A3B8; text-decoration: line-through; }
+    .save-badge { color: var(--green-save); font-weight: 800; background: #DCFCE7; padding: 1px 5px; border-radius: 3px; }
+
+    .btn-add-spark {
+      flex: 1; height: 46px; background: var(--blue); color: #FFFFFF; border: none;
+      border-radius: 9999px; font-size: 13px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.04em; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(0, 113, 206, 0.35);
+      transition: all 0.2s;
+    }
+    .btn-add-spark:hover { background: var(--blue-hover); transform: translateY(-1px); }
+
+    /* Electronics Category Grid */
+    .sub-section-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin: 24px 0 12px; border-bottom: 1.5px solid var(--border); padding-bottom: 6px;
+    }
+    .sub-section-head h3 { font-size: 16px; font-weight: 800; }
+    .sub-section-head span { font-size: 10px; font-weight: 700; color: var(--blue); text-transform: uppercase; }
+
+    .tech-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .tech-card {
+      background: #FFFFFF; border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px; transition: all 0.2s;
+    }
+    .tech-card:hover { border-color: var(--blue); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
+    .tech-thumb {
+      height: 110px; background: #F1F5F9; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
+    }
+    .tech-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 2px; color: #041E42; }
+    .tech-sub { font-size: 10px; color: #64748B; margin-bottom: 6px; }
+    .tech-foot { display: flex; justify-content: space-between; align-items: center; }
+    .tech-price { font-size: 14px; font-weight: 800; color: #041E42; }
+    .tech-btn {
+      background: #EFF6FF; color: var(--blue); border: 1px solid #BFDBFE;
+      border-radius: 9999px; padding: 4px 10px; font-size: 10px; font-weight: 700; cursor: pointer;
+    }
+    .tech-btn:hover { background: var(--blue); color: #FFF; }
+
+    footer.spark-footer {
+      border-top: 1px solid var(--border); padding: 20px 18px;
+      display: flex; justify-content: space-between; font-size: 10px;
+      color: var(--text-muted); margin-top: 32px;
+    }
+
+    @media (max-width: 860px) {
+      .hero-hardware { grid-template-columns: 1fr; }
+      .tech-grid { grid-template-columns: 1fr; }
+      .nav-search-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Flash Deal Countdown Banner -->
+  <div class="flash-banner">
+    <div class="deal-clock">
+      <span class="clock-tag">⚡ FLASH DEAL</span>
+      <span>NEXT-GEN GPU DROP // EXCLUSIVE MEMBER PRICING</span>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 11px;">
+      ENDS IN: <strong>07H : 42M : 19S</strong> • FREE NEXT-DAY ARRIVAL
+    </div>
+  </div>
+
+  <!-- Primary Navigation -->
+  <header class="spark-nav">
+    <div class="brand-wrap">
+      <svg class="spark-icon" viewBox="0 0 24 24">
+        <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+      </svg>
+      <span>SPARK<span style="color: var(--spark-yellow);">MART</span></span>
+    </div>
+
+    <div class="nav-search-bar">
+      <input type="text" class="search-field" placeholder="Search RTX graphics, OLED monitors, gaming processors..." />
+      <button class="search-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="nav-actions">
+      <span>Track Orders</span>
+      <a href="#" class="cart-pill">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        <span>Cart (2)</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="viewport">
+
+    <!-- Hero Hardware Product Section -->
+    <section class="hero-hardware">
+      
+      <!-- GPU Hardware Visualizer -->
+      <div class="hardware-display">
+        <div class="delivery-status-pill">
+          <div class="next-day-text">
+            <span>🚚 NEXT-DAY EXPEDITE: Tomorrow by 10:30 AM</span>
+          </div>
+          <span class="zip-tag">SHIPS FROM FULFILLMENT CENTER #04</span>
+        </div>
+
+        <div class="gpu-canvas-box">
+          <span class="rgb-glow-bar">RGB SYNCHRONIZED // 450W TDP</span>
+          
+          <!-- Detailed GPU Hardware Vector -->
+          <svg viewBox="0 0 380 230" width="100%" height="100%">
+            <defs>
+              <linearGradient id="shroudDark" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#283447" />
+                <stop offset="50%" stop-color="#141D2B" />
+                <stop offset="100%" stop-color="#0A1019" />
+              </linearGradient>
+              <linearGradient id="finStack" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#64748B" />
+                <stop offset="50%" stop-color="#334155" />
+                <stop offset="100%" stop-color="#1E293B" />
+              </linearGradient>
+              <linearGradient id="rgbBar" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#0071CE" />
+                <stop offset="50%" stop-color="#06B6D4" />
+                <stop offset="100%" stop-color="#FF5A00" />
+              </linearGradient>
+            </defs>
+
+            <!-- Card PCB Backplate & Shroud -->
+            <rect x="25" y="45" width="330" height="140" rx="8" fill="url(#shroudDark)" stroke="#3B82F6" stroke-width="1.5" />
+
+            <!-- Aluminum Heatsink Fin Array Lines -->
+            <g stroke="#334155" stroke-width="1">
+              <line x1="45" y1="55" x2="45" y2="175" />
+              <line x1="52" y1="55" x2="52" y2="175" />
+              <line x1="59" y1="55" x2="59" y2="175" />
+              <line x1="66" y1="55" x2="66" y2="175" />
+              <line x1="315" y1="55" x2="315" y2="175" />
+              <line x1="322" y1="55" x2="322" y2="175" />
+              <line x1="329" y1="55" x2="329" y2="175" />
+              <line x1="336" y1="55" x2="336" y2="175" />
+            </g>
+
+            <!-- Triple Axial Cooling Fans -->
+            <!-- Fan 1 (Left) -->
+            <circle cx="100" cy="115" r="42" fill="#0D131D" stroke="#0071CE" stroke-width="1.5" />
+            <circle cx="100" cy="115" r="14" fill="#1E293B" stroke="#0071CE" />
+            <path d="M100 115 L90 80 M100 115 L125 90 M100 115 L130 130 M100 115 L105 145 M100 115 L75 135 M100 115 L75 95" stroke="#475569" stroke-width="3" stroke-linecap="round" />
+
+            <!-- Fan 2 (Center) -->
+            <circle cx="190" cy="115" r="42" fill="#0D131D" stroke="#FF5A00" stroke-width="1.5" />
+            <circle cx="190" cy="115" r="14" fill="#1E293B" stroke="#FF5A00" />
+            <path d="M190 115 L180 80 M190 115 L215 90 M190 115 L220 130 M190 115 L195 145 M190 115 L165 135 M190 115 L165 95" stroke="#475569" stroke-width="3" stroke-linecap="round" />
+
+            <!-- Fan 3 (Right) -->
+            <circle cx="280" cy="115" r="42" fill="#0D131D" stroke="#0071CE" stroke-width="1.5" />
+            <circle cx="280" cy="115" r="14" fill="#1E293B" stroke="#0071CE" />
+            <path d="M280 115 L270 80 M280 115 L305 90 M280 115 L310 130 M280 115 L285 145 M280 115 L255 135 M280 115 L255 95" stroke="#475569" stroke-width="3" stroke-linecap="round" />
+
+            <!-- RGB Edge Strip & Logo -->
+            <rect x="35" y="48" width="310" height="4" rx="2" fill="url(#rgbBar)" />
+            <text x="190" y="70" fill="#FFFFFF" font-family="'JetBrains Mono', monospace" font-size="7" font-weight="700" letter-spacing="2" text-anchor="middle">SPARK TITAN RTX // OC EDITION</text>
+
+            <!-- PCIe Connector Gold Fingers Bottom -->
+            <rect x="75" y="185" width="130" height="7" fill="#EAB308" stroke="#A16207" stroke-width="0.5" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right Details & Specs Matrix -->
+      <div class="details-box">
+        <div>
+          <div class="brand-series">GEFORCE RTX 50-SERIES • FLAGSHIP OC</div>
+          <h1 class="product-heading">GeForce RTX 5090 Ultra Gaming 32GB</h1>
+
+          <!-- Ratings Row -->
+          <div class="rating-row">
+            <span class="stars-amber">★★★★★</span>
+            <span class="rating-val">4.9 / 5.0</span>
+            <span class="review-count">(1,482 verified buyers)</span>
+          </div>
+
+          <!-- Technical Specification Matrix [GPU, VRAM, TDP] -->
+          <div class="specs-matrix-card">
+            <div class="matrix-title">
+              <span>Hardware Specification Matrix</span>
+              <span style="font-family: var(--font-mono); font-size: 9px; color: #16A34A;">PCIe 5.0 x16 Ready</span>
+            </div>
+            <div class="spec-grid-cells">
+              <div class="spec-cell">
+                <span class="spec-name">GPU Architecture</span>
+                <span class="spec-data">Blackwell 4nm Extreme</span>
+              </div>
+              <div class="spec-cell">
+                <span class="spec-name">Video Memory (VRAM)</span>
+                <span class="spec-data">32 GB GDDR7 (512-bit)</span>
+              </div>
+              <div class="spec-cell">
+                <span class="spec-name">Boost Engine Clock</span>
+                <span class="spec-data">2,880 MHz (Factory OC)</span>
+              </div>
+              <div class="spec-cell">
+                <span class="spec-name">Thermal TDP / Power</span>
+                <span class="spec-data">450W (16-Pin 12V-2x6)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pricing and Next-Day Checkout -->
+        <div class="price-action-bar">
+          <div class="price-area">
+            <span class="current-price">$1,499.00</span>
+            <div class="price-savings">
+              <span class="was-price">$1,749.00</span>
+              <span class="save-badge">Save $250 (14% OFF)</span>
+            </div>
+          </div>
+          <button class="btn-add-spark">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="9" cy="21" r="1"></circle>
+              <circle cx="20" cy="21" r="1"></circle>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+            <span>Add to Cart — Arrives Tomorrow</span>
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Companion Electronics Grid -->
+    <div class="sub-section-head">
+      <h3>Recommended Gaming Peripherals &amp; Components</h3>
+      <span>Same-Day Fulfillment</span>
+    </div>
+
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-thumb">
+          <svg width="70" height="60" viewBox="0 0 100 90">
+            <rect x="15" y="20" width="70" height="45" rx="3" fill="#041E42" stroke="#0071CE" stroke-width="1.5" />
+            <polygon points="45,65 55,65 58,78 42,78" fill="#334155" />
+          </svg>
+        </div>
+        <h4>34" Curved OLED 240Hz Monitor</h4>
+        <div class="tech-sub">0.03ms Response • 1750R</div>
+        <div class="tech-foot"><span class="tech-price">$799.00</span><button class="tech-btn">+ Add</button></div>
+      </div>
+
+      <div class="tech-card">
+        <div class="tech-thumb">
+          <svg width="70" height="60" viewBox="0 0 100 90">
+            <rect x="15" y="32" width="70" height="28" rx="4" fill="#041E42" stroke="#FF5A00" stroke-width="1.5" />
+            <line x1="22" y1="44" x2="78" y2="44" stroke="#334155" stroke-dasharray="3 2" />
+          </svg>
+        </div>
+        <h4>Hall-Effect Wireless Keyboard</h4>
+        <div class="tech-sub">Magnetic Rapid Trigger</div>
+        <div class="tech-foot"><span class="tech-price">$149.99</span><button class="tech-btn">+ Add</button></div>
+      </div>
+
+      <div class="tech-card">
+        <div class="tech-thumb">
+          <svg width="70" height="60" viewBox="0 0 100 90">
+            <path d="M28 45 C28 22 72 22 72 45" fill="none" stroke="#0071CE" stroke-width="3" />
+            <rect x="20" y="42" width="14" height="26" rx="4" fill="#041E42" stroke="#FFC220" />
+            <rect x="66" y="42" width="14" height="26" rx="4" fill="#041E42" stroke="#FFC220" />
+          </svg>
+        </div>
+        <h4>Spatial Pro Gaming Headset</h4>
+        <div class="tech-sub">Dual 2.4GHz + BT Wireless</div>
+        <div class="tech-foot"><span class="tech-price">$189.00</span><button class="tech-btn">+ Add</button></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="spark-footer">
+    <div>© 2026 SPARK MART INC. • 30-DAY HASSLE-FREE RETURNS</div>
+    <div>AUTHORIZED PLATINUM RETAILER • 24/7 TECH SUPPORT</div>
+  </footer>
+
+</body>
+</html>

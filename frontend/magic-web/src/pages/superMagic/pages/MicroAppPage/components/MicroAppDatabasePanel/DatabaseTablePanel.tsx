@@ -15,13 +15,17 @@ import { Button } from "@/components/shadcn-ui/button"
 import { ConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
 import { Switch } from "@/components/shadcn-ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import DataFilterBar from "./DataFilterBar"
 import DataFilterSummary from "./DataFilterSummary"
 import DataGrid, { type MagicBaseCellSelection } from "./DataGrid"
 import DatabaseSettingsSidePanel, { type DatabaseSidePanel } from "./DatabaseSettingsSidePanel"
-import type { MagicBaseGridColumn } from "./utils"
+import {
+	getMagicBaseTableDisplayName,
+	getMagicBaseTableName,
+	type MagicBaseGridColumn,
+} from "./utils"
 import * as layout from "../../layoutConstants"
 
 export type { DatabaseSidePanel } from "./DatabaseSettingsSidePanel"
@@ -243,6 +247,8 @@ export default function DatabaseTablePanel({
 		layout.DATABASE_SETTINGS_PANEL_MAX_PX,
 		availableSettingsWidth,
 	)
+	const tableDisplayName = getMagicBaseTableDisplayName(selectedTable)
+	const tableName = getMagicBaseTableName(selectedTable)
 
 	if (!selectedTableId) return null
 
@@ -257,14 +263,24 @@ export default function DatabaseTablePanel({
 			>
 				<div className="flex min-w-0 items-center justify-between gap-4">
 					<div className="flex min-w-0 items-center gap-2">
-						<div className="flex min-w-0 items-center gap-2.5">
-							<h3
-								className="truncate text-sm font-semibold text-foreground"
-								title={selectedTable?.description}
-							>
-								{selectedTable?.table_name ||
-									t("microAppPage.databasePanel.loadingTable")}
-							</h3>
+						<div className="flex min-w-0 items-start gap-2.5">
+							<div className="min-w-0">
+								<h3
+									className="truncate text-sm font-semibold text-foreground"
+									title={tableDisplayName}
+								>
+									{tableDisplayName ||
+										t("microAppPage.databasePanel.loadingTable")}
+								</h3>
+								{tableName && tableName !== tableDisplayName ? (
+									<p
+										className="truncate text-xs text-muted-foreground"
+										title={tableName}
+									>
+										{tableName}
+									</p>
+								) : null}
+							</div>
 							<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
 								{totalKnown
 									? t("microAppPage.databasePanel.totalRows", { total })

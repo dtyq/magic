@@ -89,6 +89,47 @@ async def test_connect_uses_resolved_config_and_keeps_template(isolated_env_path
 
 
 @pytest.mark.asyncio
+async def test_connect_fetches_mcp_authorization_before_transport(monkeypatch):
+    captured = {}
+
+    class FakeCredentialProvider:
+        async def get_access_token(self, mcp_server_code):
+            assert mcp_server_code == "mock-oauth"
+            return "mock-access-token"
+
+    class FakeClient:
+        def __init__(self, config, max_retries=1, retry_delay=1.0):
+            captured["config"] = config
+            self.config = config
+            self.last_error = None
+
+        async def connect(self):
+            return True
+
+        async def list_tools(self):
+            return []
+
+        async def disconnect(self):
+            pass
+
+    monkeypatch.setattr(server_manager_module, "MCPClient", FakeClient)
+    manager = MCPServerManager(credential_provider=FakeCredentialProvider())
+    manager.server_configs["mock-oauth"] = MCPServerConfig(
+        name="mock-oauth",
+        type="http",
+        url="https://mcp.example.test/mcp",
+        auth_type=2,
+        mcp_server_code="mock-oauth",
+    )
+
+    result = await manager.ensure_server_connected("mock-oauth")
+
+    assert result.status == "success"
+    assert captured["config"].headers == {"Authorization": "Bearer mock-access-token"}
+    assert manager.server_configs["mock-oauth"].headers is None
+
+
+@pytest.mark.asyncio
 async def test_connect_keeps_code_mode_tools_with_non_openai_json_schema(isolated_env_paths, monkeypatch):
     class FakeClient:
         def __init__(self, config, max_retries=1, retry_delay=1.0):

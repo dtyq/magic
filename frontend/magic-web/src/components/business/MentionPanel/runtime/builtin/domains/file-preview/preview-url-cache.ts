@@ -1,105 +1,86 @@
+import type { GetTemporaryDownloadUrlItem } from "@/pages/superMagic/utils/api"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import {
-	getTemporaryDownloadUrl,
-	type GetTemporaryDownloadUrlItem,
-} from "@/pages/superMagic/utils/api"
-import {
-	isOssExpired,
-	parseExpiresAt,
-} from "@/components/CanvasDesign/runtime/resources/offline-cache/ossExpiryUtils"
+	getCachedSharedMediaUrls,
+	seedSharedMediaUrls,
+} from "@/pages/superMagic/services/sharedMediaUrlCache"
+import { SHARED_MEDIA_THUMBNAIL_IMAGE_PROCESS } from "@/pages/superMagic/services/sharedMediaImageProcess"
 
-interface MentionPreviewUrlCacheItem {
-	url: string
-	expiresAt: string
-	updatedAt?: string
-}
+const MENTION_PREVIEW_IMAGE_PROCESS = SHARED_MEDIA_THUMBNAIL_IMAGE_PROCESS
 
-const mentionPreviewUrlCache = new Map<string, MentionPreviewUrlCacheItem>()
-const mentionPreviewUrlRequestCache = new Map<string, Promise<GetTemporaryDownloadUrlItem[]>>()
-
-function buildMentionPreviewRequestKey(fileIds: string[]): string {
-	return Array.from(new Set(fileIds)).sort().join(",")
-}
-
-function isMentionPreviewUrlCacheValid(params: {
-	cachedItem?: MentionPreviewUrlCacheItem
-	currentUpdatedAt?: string
-}) {
-	const { cachedItem, currentUpdatedAt } = params
-	if (!cachedItem?.url || !cachedItem.expiresAt) return false
-
-	const expiresAtTs = parseExpiresAt(cachedItem.expiresAt)
-	if (isOssExpired(expiresAtTs)) return false
-
-	if (!currentUpdatedAt) return true
-	return cachedItem.updatedAt === currentUpdatedAt
+function buildMentionPreviewOptions(
+	fileUpdatedAtMap?: ReadonlyMap<string, string>,
+	fileResourceVersionMap?: ReadonlyMap<string, string>,
+	fileVersions?: ReadonlyMap<string, number>,
+	identityKey?: string,
+) {
+	return {
+		imageProcess: MENTION_PREVIEW_IMAGE_PROCESS,
+		allowAttachmentListUrl: true,
+		fileUpdatedAtMap,
+		fileResourceVersionMap,
+		fileVersions,
+		// Identity is part of the cache/batch key so host and share previews of the
+		// same file never share a cached URL.
+		identityKey,
+	}
 }
 
 export function getCachedMentionPreviewUrls(params: {
 	fileIds: string[]
 	fileUpdatedAtMap?: ReadonlyMap<string, string>
-}) {
-	const { fileIds, fileUpdatedAtMap } = params
-	const cached: GetTemporaryDownloadUrlItem[] = []
-	const missing: string[] = []
-
-	for (const fileId of fileIds) {
-		const cachedItem = mentionPreviewUrlCache.get(fileId)
-		const currentUpdatedAt = fileUpdatedAtMap?.get(fileId)
-		if (
-			isMentionPreviewUrlCacheValid({
-				cachedItem,
-				currentUpdatedAt,
-			})
-		) {
-			cached.push({
-				file_id: fileId,
-				url: cachedItem?.url ?? "",
-				expires_at: cachedItem?.expiresAt ?? "",
-			})
-			continue
-		}
-
-		if (cachedItem) mentionPreviewUrlCache.delete(fileId)
-		missing.push(fileId)
-	}
-
-	return { cached, missing }
+	fileResourceVersionMap?: ReadonlyMap<string, string>
+	fileVersions?: ReadonlyMap<string, number>
+	fileApi: Pick<FileApi, "identityKey">
+}): {
+	cached: GetTemporaryDownloadUrlItem[]
+	missing: string[]
+} {
+	return getCachedSharedMediaUrls({
+		fileIds: params.fileIds,
+		options: buildMentionPreviewOptions(
+			params.fileUpdatedAtMap,
+			params.fileResourceVersionMap,
+			params.fileVersions,
+			params.fileApi.identityKey,
+		),
+	})
 }
 
 export function updateMentionPreviewUrlCache(params: {
 	urlData: GetTemporaryDownloadUrlItem[]
 	fileUpdatedAtMap?: ReadonlyMap<string, string>
-}) {
-	const { urlData, fileUpdatedAtMap } = params
-
-	for (const item of urlData) {
-		if (!item.file_id || !item.url || !item.expires_at) continue
-		mentionPreviewUrlCache.set(item.file_id, {
-			url: item.url,
-			expiresAt: item.expires_at,
-			updatedAt: fileUpdatedAtMap?.get(item.file_id),
-		})
-	}
+	fileResourceVersionMap?: ReadonlyMap<string, string>
+	fileVersions?: ReadonlyMap<string, number>
+	fileApi: Pick<FileApi, "identityKey">
+}): void {
+	seedSharedMediaUrls({
+		items: params.urlData,
+		options: buildMentionPreviewOptions(
+			params.fileUpdatedAtMap,
+			params.fileResourceVersionMap,
+			params.fileVersions,
+			params.fileApi.identityKey,
+		),
+	})
 }
 
 export function requestMentionPreviewUrls(
 	fileIds: string[],
+	params: {
+		fileUpdatedAtMap?: ReadonlyMap<string, string>
+		fileResourceVersionMap?: ReadonlyMap<string, string>
+		fileVersions?: ReadonlyMap<string, number>
+		fileApi: Pick<FileApi, "identityKey" | "requestSharedMediaUrls">
+	},
 ): Promise<GetTemporaryDownloadUrlItem[]> {
-	if (fileIds.length === 0) return Promise.resolve([])
-
-	const requestKey = buildMentionPreviewRequestKey(fileIds)
-	const cachedRequest = mentionPreviewUrlRequestCache.get(requestKey)
-	if (cachedRequest) return cachedRequest
-
-	const request = getTemporaryDownloadUrl({
-		file_ids: Array.from(new Set(fileIds)),
-		options: {
-			xMagicImageProcess: { quality: 10, format: "webp" },
-		},
-	}).finally(() => {
-		mentionPreviewUrlRequestCache.delete(requestKey)
-	})
-
-	mentionPreviewUrlRequestCache.set(requestKey, request)
-	return request
+	return params.fileApi.requestSharedMediaUrls(
+		fileIds,
+		buildMentionPreviewOptions(
+			params.fileUpdatedAtMap,
+			params.fileResourceVersionMap,
+			params.fileVersions,
+			params.fileApi.identityKey,
+		),
+	)
 }

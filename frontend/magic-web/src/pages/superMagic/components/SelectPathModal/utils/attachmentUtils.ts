@@ -1,4 +1,5 @@
 import { isEmpty } from "lodash-es"
+import { resolveAttachmentId } from "../../TopicFilesButton/utils/attachmentIndex"
 import type { AttachmentItem } from "../../TopicFilesButton/hooks"
 import { CollaboratorPermissionEnum } from "@/pages/superMagic/types/collaboration"
 
@@ -13,7 +14,7 @@ export function getItemName(item: AttachmentItem): string {
  * 工具函数：获取项目的ID
  */
 export function getItemId(item: AttachmentItem): string {
-	return item.file_id || ""
+	return resolveAttachmentId(item) || ""
 }
 
 /**

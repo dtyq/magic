@@ -6,6 +6,7 @@
         "today": "Today",
         "tomorrow": "Tomorrow",
         "yesterday": "Yesterday",
+        "triggerTime": "Trigger time",
         "searchNone": "No search results",
         "searchOrQuery": "Search or query",
         "constants": "Constants",

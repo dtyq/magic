@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="test/bootstrap.unit.php" colors="true" cacheDirectory=".phpunit.stream-disconnect.cache">
+    <testsuites>
+        <testsuite name="模型流断连用量采集">
+            <file>test/Cases/Interfaces/ModelGateway/Assembler/LLMAssemblerStreamTest.php</file>
+            <file>test/Cases/Infrastructure/ModelGateway/ModelGatewayEventStreamTest.php</file>
+            <file>test/Cases/Interfaces/ModelGateway/Assembler/LLMAssemblerClientDisconnectTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

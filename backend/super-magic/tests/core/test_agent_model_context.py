@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from agentlang.chat_history.chat_history_models import CompactionConfig, resolve_user_facing_max_context_tokens
+from agentlang.config.models.model_config_manager import model_config_manager
 from agentlang.llms.factory import LLMClientConfig
 from app.core.models.agent_model_context import AgentModelContext
 from app.core.models.media_model import ImageModelSpec, VideoModelSpec
@@ -104,6 +105,33 @@ def test_agent_model_context_defers_config_lookup_until_runtime_resolve(monkeypa
     assert state.display_model_id == "mock-resolved-text"
     assert context.resolve_text_model() is state
     assert calls == ["mock-runtime-text"]
+
+
+def test_agent_model_context_disables_current_model_config_in_memory(monkeypatch):
+    disabled_model_ids: list[str] = []
+    monkeypatch.setattr(
+        "app.core.models.agent_model_context.LLMFactory.get_model_config",
+        lambda model_id, *args, **kwargs: LLMClientConfig(
+            model_id=model_id,
+            api_key="mock-key",
+            name="Mock Vision Model",
+            provider="mock-provider",
+            supports_multimodal=True,
+        ),
+    )
+    monkeypatch.setattr(model_config_manager, "disable_multimodal", disabled_model_ids.append)
+
+    context = AgentModelContext()
+    context.apply_selection(ModelSelectionPolicy.resolve(ModelSelectionInput(
+        configured_text_model_id="mock-default-text",
+        request_text_model_id="mock-vision-text",
+    )))
+    state = context.resolve_text_model()
+
+    context.disable_multimodal_for_model(state.model_id)
+
+    assert disabled_model_ids == ["mock-vision-text"]
+    assert state.config.supports_multimodal is False
 
 
 def test_agent_model_context_delegates_missing_model_fallback_to_llm_factory(monkeypatch):

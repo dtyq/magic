@@ -11,7 +11,11 @@ const mockState = vi.hoisted(() => ({
 	goMock: vi.fn(),
 	routesMatchMock: vi.fn(),
 	routesPathMatchMock: vi.fn(),
-	selectedProject: null as { id: string; workspace_id: string } | null,
+	selectedProject: null as {
+		id: string
+		workspace_id: string
+		project_mode?: string
+	} | null,
 	selectedTopic: null as { id: string } | null,
 }))
 
@@ -95,6 +99,8 @@ vi.mock("../../stores/core", () => ({
 		get selectedProject() {
 			return mockState.selectedProject
 		},
+		projects: [],
+		projectsByWorkspace: new Map(),
 	},
 	workspaceStore: {
 		selectedWorkspace: { id: "workspace-1" },
@@ -137,6 +143,32 @@ describe("routeManageService.navigateToHome", () => {
 
 		expect(replaceMock).toHaveBeenCalledWith(
 			expect.objectContaining({ name: RouteName.MobileHome }),
+		)
+	})
+})
+
+describe("routeManageService.navigateToWorkspace", () => {
+	beforeEach(() => {
+		mockState.pathname = "/global/super"
+		mockState.search = ""
+		mockState.isMobile = false
+		navigateMock.mockReset()
+		routesMatchMock.mockReset()
+		routeManageService.setNavigate(navigateMock)
+	})
+
+	it("keeps pending deep-link query on the desktop workspace route", () => {
+		routeManageService.navigateToWorkspace("workspace-1", true, {
+			agentCode: "SMA-test-agent",
+		})
+
+		expect(navigateMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: RouteName.SuperWorkspaceState,
+				params: { workspaceId: "workspace-1" },
+				query: { agentCode: "SMA-test-agent" },
+				replace: true,
+			}),
 		)
 	})
 })
@@ -212,6 +244,24 @@ describe("routeManageService.fixRouteParams", () => {
 		expect(replaceMock).not.toHaveBeenCalled()
 		expect(pushMock).not.toHaveBeenCalled()
 	})
+
+	it("preserves a desktop agentCode deep link until the homepage resolves it", () => {
+		mockState.pathname = "/global/super/workspace/workspace-1"
+		mockState.search = "?agentCode=SMA-test-agent"
+		mockState.isMobile = false
+		routesMatchMock.mockReturnValue({
+			params: { clusterCode: "global", workspaceId: "workspace-1" },
+			pathname: "/global/super/workspace/workspace-1",
+			pathnameBase: "/global/super/workspace/workspace-1",
+			route: { name: RouteName.SuperWorkspaceState },
+		})
+
+		routeManageService.fixRouteParams()
+
+		expect(navigateMock).not.toHaveBeenCalled()
+		expect(replaceMock).not.toHaveBeenCalled()
+		expect(pushMock).not.toHaveBeenCalled()
+	})
 })
 
 describe("routeManageService.shouldPreserveChatRoute", () => {
@@ -276,6 +326,7 @@ describe("routeManageService.shouldPreserveChatRoute", () => {
 describe("routeManageService.fixRouteParams desktop chat exit", () => {
 	beforeEach(() => {
 		mockState.isMobile = false
+		mockState.search = ""
 		mockState.selectedProject = null
 		mockState.selectedTopic = null
 		navigateMock.mockReset()
@@ -485,6 +536,89 @@ describe("routeManageService.navigateToProjectTopicOnMobile", () => {
 				},
 				replace: false,
 			}),
+		)
+	})
+})
+
+describe("routeManageService AI canvas project route", () => {
+	const canvasProject = {
+		id: "canvas-1",
+		workspace_id: "ai-canvas-workspace",
+		project_mode: "ai-canvas",
+	}
+
+	beforeEach(() => {
+		mockState.isMobile = false
+		mockState.selectedProject = canvasProject
+		navigateMock.mockReset()
+		routesMatchMock.mockReset()
+		routeManageService.setNavigate(navigateMock)
+	})
+
+	it("opens a canvas topic at the canvas address without the topic", () => {
+		routesMatchMock.mockReturnValue({
+			params: { clusterCode: "global" },
+			route: { name: RouteName.AiCanvas },
+		})
+
+		routeManageService.navigateToTopic({
+			workspaceId: "ai-canvas-workspace",
+			projectId: "canvas-1",
+			topicId: "topic-1",
+		})
+
+		expect(navigateMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: RouteName.AiCanvasProjectState,
+				params: { projectId: "canvas-1" },
+			}),
+		)
+	})
+
+	it("keeps the URL when switching topics inside the open canvas", () => {
+		routesMatchMock.mockReturnValue({
+			params: { clusterCode: "global", projectId: "canvas-1" },
+			route: { name: RouteName.AiCanvasProjectState },
+		})
+
+		routeManageService.navigateToTopic({
+			workspaceId: "ai-canvas-workspace",
+			projectId: "canvas-1",
+			topicId: "topic-2",
+		})
+
+		expect(navigateMock).not.toHaveBeenCalled()
+	})
+
+	it("keeps generic project routes on mobile", () => {
+		mockState.isMobile = true
+		routesMatchMock.mockReturnValue({
+			params: { clusterCode: "global" },
+			route: { name: RouteName.AiCanvas },
+		})
+
+		routeManageService.navigateToProject(canvasProject as never)
+
+		expect(navigateMock).toHaveBeenCalledWith(
+			expect.objectContaining({ name: RouteName.SuperWorkspaceProjectState }),
+		)
+	})
+
+	it("keeps generic routes for other projects", () => {
+		mockState.selectedProject = { id: "project-1", workspace_id: "workspace-1" }
+		routesMatchMock.mockReturnValue({
+			params: { clusterCode: "global" },
+			route: { name: RouteName.Super },
+		})
+
+		routeManageService.navigateToTopic({
+			workspaceId: "workspace-1",
+			projectId: "project-1",
+			topicId: "topic-1",
+		})
+
+		expect(navigateMock).toHaveBeenCalledWith(
+			expect.objectContaining({ name: RouteName.SuperWorkspaceProjectTopicState }),
 		)
 	})
 })

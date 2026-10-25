@@ -30,7 +30,7 @@ readonly class MagicUserSettingDomainService
     }
 
     /**
-     * 获取全局配置.
+     * Get a global setting.
      */
     public function getGlobal(string $key): ?MagicUserSettingEntity
     {
@@ -38,7 +38,7 @@ readonly class MagicUserSettingDomainService
     }
 
     /**
-     * 保存全局配置.
+     * Save a global setting.
      */
     public function saveGlobal(MagicUserSettingEntity $savingEntity): MagicUserSettingEntity
     {
@@ -84,11 +84,11 @@ readonly class MagicUserSettingDomainService
     }
 
     /**
-     * 通过 magicId 保存用户设置（跨组织）.
+     * Save a user setting by magicId (cross organization).
      */
     public function saveByMagicId(string $magicId, MagicUserSettingEntity $magicUserSettingEntity): MagicUserSettingEntity
     {
-        // 获取现有记录以保持实体完整性
+        // Fetch the existing record to keep the entity complete
         $existingEntity = $this->magicUserSettingRepository->getByMagicId($magicId, $magicUserSettingEntity->getKey());
 
         if ($existingEntity) {
@@ -101,7 +101,41 @@ readonly class MagicUserSettingDomainService
     }
 
     /**
-     * 通过 magicId 获取用户设置（跨组织）.
+     * Get an organization-level setting by key (user_id and magic_id are NULL).
+     */
+    public function getByOrganizationCode(string $organizationCode, string $key): ?MagicUserSettingEntity
+    {
+        return $this->magicUserSettingRepository->getByOrganizationCode($organizationCode, $key);
+    }
+
+    /**
+     * Save an organization-level setting (user_id and magic_id are NULL).
+     *
+     * The caller owns the transaction boundary: take the mutex lock before
+     * reading the current value if a read-modify-write cycle is required.
+     */
+    public function saveByOrganizationCode(string $organizationCode, MagicUserSettingEntity $savingEntity): MagicUserSettingEntity
+    {
+        $existingEntity = $this->magicUserSettingRepository->getByOrganizationCode(
+            $organizationCode,
+            $savingEntity->getKey()
+        );
+
+        // Keep the modifier supplied by the application layer. The entity's
+        // generic modification helper preserves the original creator.
+        $modifier = $savingEntity->getModifier();
+        if ($existingEntity) {
+            $savingEntity->prepareForModification($existingEntity);
+            $savingEntity->setModifier($modifier);
+        } else {
+            $savingEntity->prepareForCreation();
+        }
+
+        return $this->magicUserSettingRepository->saveByOrganizationCode($organizationCode, $savingEntity);
+    }
+
+    /**
+     * Get user settings by magicId (cross organization).
      */
     public function getByMagicId(string $magicId, string $key): ?MagicUserSettingEntity
     {

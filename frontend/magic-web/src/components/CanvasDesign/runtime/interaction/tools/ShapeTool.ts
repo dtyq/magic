@@ -8,6 +8,7 @@ import type {
 	ElementType,
 } from "../../document/types"
 import { ElementFactory } from "../../elements/core/ElementFactory"
+import { getActiveContent } from "../../document/elementContent"
 
 /**
  * ShapeTool 配置接口
@@ -125,6 +126,7 @@ export class ShapeTool extends BaseDrawingTool {
 	private createPreviewNode(
 		element: RectangleElement | EllipseElement | TriangleElement | StarElement,
 	): Konva.Shape | null {
+		const content = getActiveContent(element)
 		switch (element.type) {
 			case "rectangle":
 				return new Konva.Rect({
@@ -132,10 +134,10 @@ export class ShapeTool extends BaseDrawingTool {
 					y: element.y,
 					width: element.width,
 					height: element.height,
-					fill: element.fill,
-					stroke: element.stroke,
-					strokeWidth: element.strokeWidth,
-					cornerRadius: element.cornerRadius,
+					fill: content?.fill,
+					stroke: content?.stroke,
+					strokeWidth: content?.strokeWidth,
+					cornerRadius: content?.cornerRadius,
 				})
 
 			case "ellipse":
@@ -147,9 +149,9 @@ export class ShapeTool extends BaseDrawingTool {
 					radiusY: element.height / 2,
 					offsetX: -element.width / 2,
 					offsetY: -element.height / 2,
-					fill: element.fill,
-					stroke: element.stroke,
-					strokeWidth: element.strokeWidth,
+					fill: content?.fill,
+					stroke: content?.stroke,
+					strokeWidth: content?.strokeWidth,
 				})
 
 			case "triangle":
@@ -166,32 +168,33 @@ export class ShapeTool extends BaseDrawingTool {
 						element.height,
 					],
 					closed: true,
-					fill: element.fill,
-					stroke: element.stroke,
-					strokeWidth: element.strokeWidth,
+					fill: content?.fill,
+					stroke: content?.stroke,
+					strokeWidth: content?.strokeWidth,
 				})
 
 			case "star": {
 				const starElement = element as StarElement
+				const starContent = getActiveContent(starElement)
 				if (
 					!starElement.width ||
 					!starElement.height ||
-					!starElement.sides ||
-					!starElement.innerRadiusRatio
+					!starContent?.sides ||
+					!starContent.innerRadiusRatio
 				)
 					return null
 				const radius = Math.min(starElement.width, starElement.height) / 2
 				return new Konva.Star({
 					x: starElement.x,
 					y: starElement.y,
-					numPoints: starElement.sides,
-					innerRadius: radius * starElement.innerRadiusRatio,
+					numPoints: starContent.sides,
+					innerRadius: radius * starContent.innerRadiusRatio,
 					outerRadius: radius,
 					offsetX: -starElement.width / 2,
 					offsetY: -starElement.height / 2,
-					fill: starElement.fill,
-					stroke: starElement.stroke,
-					strokeWidth: starElement.strokeWidth,
+					fill: starContent.fill,
+					stroke: starContent.stroke,
+					strokeWidth: starContent.strokeWidth,
 				})
 			}
 
@@ -231,11 +234,12 @@ export class ShapeTool extends BaseDrawingTool {
 			const radius = Math.min(width, height) / 2
 			// 从临时元素获取 sides 和 innerRadiusRatio
 			const tempElement = this.createTempElement(x, y, width, height) as StarElement
+			const tempContent = getActiveContent(tempElement)
 			node.setAttrs({
 				x,
 				y,
-				numPoints: tempElement.sides ?? 5,
-				innerRadius: radius * (tempElement.innerRadiusRatio ?? 0.4),
+				numPoints: tempContent?.sides ?? 5,
+				innerRadius: radius * (tempContent?.innerRadiusRatio ?? 0.4),
 				outerRadius: radius,
 				offsetX: -width / 2,
 				offsetY: -height / 2,

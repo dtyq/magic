@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mistral AI — Frontier AI in Your Hands</title>
+  <style>
+    :root {
+      --primary: #fa520f; --primary-deep: #cc3a05;
+      --sunshine-700: #ffa110; --cream: #fff8e0; --cream-light: #fffaeb; --beige-deep: #e6d5a8;
+      --ink: #1f1f1f; --charcoal: #2c2c2c; --slate: #4a4a4a; --steel: #6a6a6a;
+      --hairline: #e5e5e5; --hairline-soft: #ededed; --hairline-strong: #c7c7c7;
+      --canvas: #ffffff; --surface-code: #1c1c1e;
+      --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 9999px;
+      --font-serif: "PP Editorial Old", "Cormorant Garamond", Georgia, serif;
+      --font-sans: "Inter", -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+      --shell: 1060px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font-sans); background: var(--canvas); color: var(--ink); line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(var(--shell), calc(100% - 32px)); margin: 0 auto; }
+    .nav { position: sticky; top: 0; z-index: 50; height: 58px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--hairline-soft); display: flex; align-items: center; }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .brand-wrap { display: flex; align-items: center; gap: 20px; }
+    
+    /* Mistral 8-bit Stepped M Mark */
+    .mistral-logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+    .logo-m-pixel { display: flex; align-items: flex-end; gap: 2px; height: 18px; }
+    .pixel-bar { width: 4px; border-radius: 1px; }
+    
+    .brand-text { font-family: var(--font-mono); font-weight: 600; font-size: 15px; letter-spacing: 0.5px; }
+    .nav-links { display: flex; align-items: center; gap: 20px; font-size: 13.5px; font-weight: 500; color: var(--slate); }
+    .nav-links a:hover { color: var(--primary); }
+    
+    /* Buttons: Sober 8px rounded (Strictly not pills!) */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: 13.5px; font-weight: 500; padding: 8px 18px; border-radius: var(--radius-md);
+      cursor: pointer; transition: all 0.15s ease; border: 1px solid transparent;
+    }
+    .btn-primary { background: var(--primary); color: #ffffff; border-color: var(--primary); }
+    .btn-primary:hover { background: var(--primary-deep); }
+    .btn-dark { background: var(--ink); color: #ffffff; }
+    .btn-dark:hover { background: #000; }
+
+    /* Hero Section with Retro-Futuristic Sunset Atmosphere */
+    .hero {
+      position: relative; padding: 36px 0 28px;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255, 161, 16, 0.18), transparent 75%);
+      text-align: center;
+    }
+    .pixel-kicker {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--cream); color: var(--charcoal);
+      border: 1px solid var(--beige-deep); padding: 4px 12px; border-radius: var(--radius-pill);
+      font-size: 11.5px; font-weight: 600; margin-bottom: 14px;
+    }
+    .pixel-tag {
+      background: var(--primary); color: #fff; font-size: 9.5px;
+      font-family: var(--font-mono); padding: 1px 5px; border-radius: 3px;
+    }
+    .hero-h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(38px, 5vw, 64px);
+      font-weight: 400; line-height: 1.05; letter-spacing: -1.5px; color: var(--ink); margin-bottom: 12px;
+    }
+    .hero-sub {
+      font-size: 16px; color: var(--steel); max-width: 580px; margin: 0 auto 26px; line-height: 1.5;
+    }
+
+    /* Le Studio Workbench & Parameter Deck */
+    .studio-frame {
+      max-width: 980px; margin: 0 auto;
+      background: #ffffff; border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg); box-shadow: 0 16px 40px rgba(250, 82, 15, 0.07);
+      overflow: hidden; text-align: left;
+    }
+    .studio-topbar {
+      background: var(--cream); padding: 12px 18px; border-bottom: 1px solid var(--beige-deep);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .model-nav-tabs { display: flex; align-items: center; gap: 8px; }
+    .tab-item {
+      font-size: 12.5px; font-weight: 500; padding: 5px 12px; border-radius: var(--radius-md);
+      cursor: pointer; background: transparent; border: 1px solid transparent; color: var(--steel);
+    }
+    .tab-item.active {
+      background: #ffffff; color: var(--ink); border-color: var(--beige-deep); font-weight: 600;
+    }
+    .top-telemetry { font-family: var(--font-mono); font-size: 11px; color: var(--steel); }
+
+    .studio-body { padding: 22px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; }
+
+    /* Left: Model Parameter Card & Gauge */
+    .card-pane { display: flex; flex-direction: column; gap: 16px; }
+    
+    .param-card {
+      background: var(--cream-light); border: 1px solid var(--beige-deep);
+      border-radius: var(--radius-md); padding: 18px;
+    }
+    .param-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .param-title { font-family: var(--font-serif); font-size: 22px; font-weight: 400; color: var(--ink); }
+    .badge-orange {
+      background: var(--primary); color: #fff; font-size: 10px; font-weight: 600;
+      font-family: var(--font-mono); padding: 2px 7px; border-radius: var(--radius-pill);
+    }
+    .param-desc { font-size: 12.5px; color: var(--slate); line-height: 1.45; margin-bottom: 14px; }
+    
+    /* 128k Context Window Gauge Widget */
+    .gauge-card {
+      background: #ffffff; border: 1px solid var(--hairline-strong);
+      border-radius: var(--radius-md); padding: 14px;
+    }
+    .gauge-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .gauge-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; color: var(--steel); }
+    .gauge-val { font-family: var(--font-serif); font-size: 18px; color: var(--primary); }
+    .gauge-meter-bar { height: 12px; background: #f0f0f0; border-radius: 4px; overflow: hidden; display: flex; margin-bottom: 5px; }
+    .gauge-fill-active { width: 78%; background: linear-gradient(90deg, var(--sunshine-700), var(--primary)); }
+    .gauge-fill-headroom { width: 22%; background: #e0e0e0; }
+    .gauge-subtext { display: flex; justify-content: space-between; font-size: 10px; color: var(--steel); font-family: var(--font-mono); }
+
+    /* Right: Pricing Tokens Counter & Code Well */
+    .code-pane { display: flex; flex-direction: column; gap: 16px; }
+
+    /* Pricing Tokens Calculator */
+    .tokens-counter-card { background: var(--cream); border: 1px solid var(--beige-deep); border-radius: var(--radius-md); padding: 14px; }
+    .calc-title { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--charcoal); margin-bottom: 8px; font-weight: 600; }
+    .token-rate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .rate-box { background: #ffffff; border: 1px solid var(--beige-deep); border-radius: 6px; padding: 8px; }
+    .rate-kind { font-size: 10px; color: var(--steel); margin-bottom: 1px; }
+    .rate-price { font-family: var(--font-serif); font-size: 17px; color: var(--primary); }
+    .counter-slider-row { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: var(--charcoal); font-family: var(--font-mono); background: #ffffff; border: 1px solid var(--beige-deep); padding: 5px 8px; border-radius: 6px; }
+
+    /* Python SDK Code Block */
+    .code-block {
+      background: var(--surface-code); border-radius: var(--radius-md);
+      padding: 14px; font-family: var(--font-mono); font-size: 11.5px; color: #ffffff;
+      flex: 1; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .code-head {
+      display: flex; justify-content: space-between; color: #8a8a8a;
+      font-size: 10.5px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 8px;
+    }
+    .c-kw { color: #fa520f; } .c-fn { color: #ffb83e; } .c-str { color: #ffd06a; } .c-comm { color: #6a6a6a; }
+
+    /* Model Cards Grid: Mistral Large 2 vs Codestral */
+    .models-section { padding: 48px 0 32px; }
+    .section-eyebrow {
+      font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--primary); text-align: center; margin-bottom: 6px;
+    }
+    .section-headline {
+      font-family: var(--font-serif); font-size: 32px; font-weight: 400;
+      letter-spacing: -0.5px; text-align: center; margin-bottom: 30px;
+    }
+    .models-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .model-spec-card {
+      background: #ffffff; border: 1px solid var(--hairline-soft);
+      border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; justify-content: space-between;
+      transition: all 0.2s;
+    }
+    .model-spec-card.featured {
+      background: var(--cream); border-color: var(--primary);
+      box-shadow: 0 8px 24px rgba(250, 82, 15, 0.08);
+    }
+    .spec-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .spec-title { font-family: var(--font-serif); font-size: 24px; font-weight: 400; margin-bottom: 6px; }
+    .spec-desc { font-size: 13.5px; color: var(--slate); line-height: 1.45; margin-bottom: 18px; }
+    .spec-metrics-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      border-top: 1px solid var(--hairline); padding-top: 14px; font-size: 11.5px;
+    }
+    .metric-cell span { display: block; color: var(--steel); font-size: 10.5px; margin-bottom: 2px; }
+    .metric-cell strong { font-family: var(--font-mono); font-size: 13.5px; color: var(--ink); }
+
+    /* SIGNATURE SUNSET STRIPE: The brand's defining continuity element */
+    .sunset-stripe-wrap { width: 100%; margin-top: 48px; }
+    .sunset-stripe {
+      height: 14px; width: 100%;
+      background: linear-gradient(90deg, 
+        #fa520f 0%, 
+        #ff8105 25%, 
+        #ffa110 50%, 
+        #ffd900 75%, 
+        #fff8e0 100%
+      );
+    }
+
+    /* Footer on Cream Tone */
+    .footer {
+      background: var(--cream); padding: 36px 0 28px;
+      border-top: 1px solid var(--beige-deep); font-size: 12.5px; color: var(--charcoal);
+    }
+    .footer-inner { display: flex; justify-content: space-between; align-items: center; }
+    .footer-brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+    .footer-links { display: flex; gap: 24px; font-size: 13px; }
+    .footer-links a:hover { color: var(--primary); }
+
+    @media (max-width: 820px) {
+      .studio-body { grid-template-columns: 1fr; }
+      .models-grid { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="nav">
+    <div class="shell nav-inner">
+      <div class="brand-wrap">
+        <a href="#" class="mistral-logo">
+          <!-- 8-Bit Pixel Stepped M Motif -->
+          <div class="logo-m-pixel">
+            <span class="pixel-bar" style="height:16px; background:#fa520f;"></span>
+            <span class="pixel-bar" style="height:10px; background:#ffa110;"></span>
+            <span class="pixel-bar" style="height:16px; background:#ffd900;"></span>
+            <span class="pixel-bar" style="height:10px; background:#ffa110;"></span>
+            <span class="pixel-bar" style="height:16px; background:#fa520f;"></span>
+          </div>
+          <span class="brand-text">MISTRAL AI_</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#models">Models</a>
+          <a href="#studio">Le Studio</a>
+          <a href="#solutions">Solutions</a>
+          <a href="#pricing">Pricing</a>
+        </nav>
+      </div>
+      <div>
+        <button class="btn btn-dark">Try Le Chat</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero" id="studio">
+    <div class="shell">
+      <div class="pixel-kicker">
+        <span class="pixel-tag">MISTRAL LARGE 2</span>
+        <span>128k Context • Reasoning SOTA</span>
+      </div>
+      <h1 class="hero-h1">Frontier AI. In your hands.</h1>
+      <p class="hero-sub">
+        Pioneering open-weight frontier intelligence with unmatched parameter efficiency.
+      </p>
+
+      <!-- Le Studio Interactive Workbench -->
+      <div class="studio-frame">
+        <div class="studio-topbar">
+          <div class="model-nav-tabs">
+            <button class="tab-item active">Mistral Large 2 (123B)</button>
+            <button class="tab-item">Codestral (22B)</button>
+            <button class="tab-item">Pixtral 12B</button>
+          </div>
+          <span class="top-telemetry">SDK: mistralai-1.4.0 • vLLM Engine</span>
+        </div>
+
+        <div class="studio-body">
+          <!-- Left: Parameter Cards & 128k Gauge -->
+          <div class="card-pane">
+            <div class="param-card">
+              <div class="param-header">
+                <span class="param-title">Mistral Large 2</span>
+                <span class="badge-orange">123B Dense Params</span>
+              </div>
+              <p class="param-desc">
+                Multilingual reasoning, advanced code synthesis, and native function calling with 128k context window.
+              </p>
+              
+              <!-- 128k Context Window Gauge -->
+              <div class="gauge-card">
+                <div class="gauge-top">
+                  <span class="gauge-label">Context Window Buffer Gauge</span>
+                  <span class="gauge-val">99,840 / 128,000 <span style="font-size:11px; color:var(--steel);">Tokens</span></span>
+                </div>
+                <div class="gauge-meter-bar">
+                  <div class="gauge-fill-active"></div>
+                  <div class="gauge-fill-headroom"></div>
+                </div>
+                <div class="gauge-subtext">
+                  <span>Active Document Span (78%)</span>
+                  <span>28,160 Headroom Remaining</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Pricing Tokens Counter & Python Code Dock -->
+          <div class="code-pane">
+            <!-- Tokens Pricing Counter -->
+            <div class="tokens-counter-card">
+              <div class="calc-title">⚡ Token Throughput &amp; Pricing Meter</div>
+              <div class="token-rate-grid">
+                <div class="rate-box">
+                  <div class="rate-kind">Input Tokens</div>
+                  <div class="rate-price">$2.00 <span style="font-size:10px; color:var(--steel);">/ 1M</span></div>
+                </div>
+                <div class="rate-box">
+                  <div class="rate-kind">Output Tokens</div>
+                  <div class="rate-price">$6.00 <span style="font-size:10px; color:var(--steel);">/ 1M</span></div>
+                </div>
+              </div>
+              <div class="counter-slider-row">
+                <span>ESTIMATED PAYLOAD</span>
+                <span style="color:var(--primary); font-weight:bold;">1.25M Tokens = $3.75</span>
+              </div>
+            </div>
+
+            <!-- Python SDK Code Block -->
+            <div class="code-block">
+              <div class="code-head">
+                <span>inference_orchestrator.py</span>
+                <span>Python 3.11</span>
+              </div>
+              <div style="line-height: 1.55;">
+                <div><span class="c-kw">from</span> mistralai <span class="c-kw">import</span> Mistral</div>
+                <div>client = <span class="c-fn">Mistral</span>(api_key=<span class="c-str">"mistral_sk_live"</span>)</div>
+                <div style="margin-top:4px;"><span class="c-comm"># Stream inference with 128k context span</span></div>
+                <div>res = client.chat.<span class="c-fn">complete</span>(</div>
+                <div>&nbsp;&nbsp;model=<span class="c-str">"mistral-large-latest"</span>,</div>
+                <div>&nbsp;&nbsp;messages=[{<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: prompt}]</div>
+                <div>)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Parameter Specs: Mistral Large 2 vs Codestral -->
+  <section class="models-section" id="models">
+    <div class="shell">
+      <div class="section-eyebrow">Frontier Intelligence Architecture</div>
+      <h2 class="section-headline">Engineered for speed, autonomy, and code synthesis</h2>
+
+      <div class="models-grid">
+        <!-- Mistral Large 2 -->
+        <div class="model-spec-card featured">
+          <div>
+            <div class="spec-header">
+              <span class="badge-orange">Flagship Reasoning</span>
+              <span style="font-family:var(--font-mono); font-size:11px; color:var(--steel);">Weights Available</span>
+            </div>
+            <h3 class="spec-title">Mistral Large 2</h3>
+            <p class="spec-desc">
+              State-of-the-art multilingual model for complex math, system architecture, reasoning, and autonomous agents.
+            </p>
+          </div>
+          <div class="spec-metrics-row">
+            <div class="metric-cell"><span>PARAMETERS</span><strong>123B Dense</strong></div>
+            <div class="metric-cell"><span>CONTEXT</span><strong>128,000</strong></div>
+            <div class="metric-cell"><span>MMLU SCORE</span><strong>84.0%</strong></div>
+          </div>
+        </div>
+
+        <!-- Codestral -->
+        <div class="model-spec-card">
+          <div>
+            <div class="spec-header">
+              <span class="badge-orange" style="background:var(--ink);">Code Specialist</span>
+              <span style="font-family:var(--font-mono); font-size:11px; color:var(--steel);">Fill-in-the-Middle</span>
+            </div>
+            <h3 class="spec-title">Codestral 22B</h3>
+            <p class="spec-desc">
+              Open-weight code specialist mastering 80+ programming languages including Python, C++, Java, and SQL with low latency.
+            </p>
+          </div>
+          <div class="spec-metrics-row">
+            <div class="metric-cell"><span>PARAMETERS</span><strong>22.2B FIM</strong></div>
+            <div class="metric-cell"><span>CONTEXT</span><strong>32,000</strong></div>
+            <div class="metric-cell"><span>HUMANEVAL</span><strong>81.1%</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SIGNATURE HORIZONTAL SUNSET STRIPE BAND (Edge to edge signature) -->
+  <div class="sunset-stripe-wrap">
+    <div class="sunset-stripe"></div>
+  </div>
+
+  <!-- Warm Cream Footer -->
+  <footer class="footer">
+    <div class="shell footer-inner">
+      <div class="footer-brand">
+        <div class="logo-m-pixel" style="height:12px;">
+          <span class="pixel-bar" style="height:12px; width:3px; background:#fa520f;"></span>
+          <span class="pixel-bar" style="height:8px; width:3px; background:#ffa110;"></span>
+          <span class="pixel-bar" style="height:12px; width:3px; background:#ffd900;"></span>
+        </div>
+        <span>MISTRAL AI_</span>
+        <span style="font-size:11px; color:var(--steel); margin-left:8px;">© 2026 Frontier AI in your hands.</span>
+      </div>
+      <div class="footer-links">
+        <a href="#">Platform</a>
+        <a href="#">Docs</a>
+        <a href="#">Research</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

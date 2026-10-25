@@ -31,6 +31,9 @@ function multiCloudAdapter(string $endpointUrl): string
 }
 
 $endpointUrl = multiCloudAdapter(env('ZIPKIN_ENDPOINT_URL', ''));
+$httpPort = (int) env('HTTP_PORT', 9501);
+$serviceName = env('TRACER_SERVICE_NAME', sprintf('%s-%s', env('APP_NAME'), env('APP_ENV')));
+$syncServiceName = env('TRACER_SYNC_SERVICE_NAME', sprintf('%s-%s-sync', env('APP_NAME'), env('APP_ENV')));
 
 return [
     'default' => env('TRACER_DRIVER', 'zipkin'),
@@ -49,15 +52,15 @@ return [
         'zipkin' => [
             'driver' => ZipkinTracerFactory::class,
             'app' => [
-                'name' => sprintf('%s-%s', env('APP_NAME'), env('APP_ENV')),
+                'name' => $serviceName,
                 // Hyperf will detect the system info automatically as the value if ipv4, ipv6, port is null
                 'ipv4' => '0.0.0.0',
                 'ipv6' => null,
-                'port' => 9501,
+                'port' => $httpPort,
             ],
             'options' => [
                 'endpoint_url' => $endpointUrl,
-                'timeout' => env('ZIPKIN_TIMEOUT', 1),
+                'timeout' => (float) env('ZIPKIN_TIMEOUT', 1),
             ],
             'sampler' => BinarySampler::createAsAlwaysSample(),
         ],
@@ -65,15 +68,15 @@ return [
         'zipkin-sync' => [
             'driver' => ZipkinTracerFactory::class,
             'app' => [
-                'name' => sprintf('%s-%s-sync', env('APP_NAME'), env('APP_ENV')),
+                'name' => $syncServiceName,
                 // Hyperf will detect the system info automatically as the value if ipv4, ipv6, port is null
                 'ipv4' => '0.0.0.0',
                 'ipv6' => null,
-                'port' => 9501,
+                'port' => $httpPort,
             ],
             'options' => [
                 'endpoint_url' => $endpointUrl,
-                'timeout' => env('ZIPKIN_TIMEOUT', 1),
+                'timeout' => (float) env('ZIPKIN_TIMEOUT', 1),
             ],
             'sampler' => BinarySampler::createAsAlwaysSample(),
         ],

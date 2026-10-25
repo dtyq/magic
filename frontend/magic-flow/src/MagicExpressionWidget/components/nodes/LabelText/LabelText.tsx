@@ -1,5 +1,5 @@
 import { EXPRESSION_ITEM } from "@/MagicExpressionWidget/types"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import React, { useMemo } from "react"
 import { useGlobalContext } from "../../../context/GlobalContext/useGlobalContext"
 
@@ -17,7 +17,7 @@ export function LabelTextBlock({ config }: LabelTextProps) {
 
 	// 通过 escapeHtml 转义 HTML 标签
 	const escapedValue = useMemo(() => {
-		let result = _.cloneDeep(config.value)
+		let result = cloneDeep(config.value)
 		if (!showMultipleLine) {
 			result = result.replace(/\n/g, "")
 		}

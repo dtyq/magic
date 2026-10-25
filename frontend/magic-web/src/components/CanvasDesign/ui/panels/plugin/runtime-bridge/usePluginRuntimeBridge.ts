@@ -275,6 +275,7 @@ export function usePluginRuntimeBridge({
 							const filesWithSources = hydratePluginFileAssetSources(
 								sourceElementByAssetKeyRef.current,
 								files,
+								canvas.magicConfigManager.config?.methods?.resolveResourceReference,
 							)
 							postPluginMessage({
 								type: PLUGIN_RUNTIME_RESULT_MESSAGE_TYPE.ResolveFileAssets,
@@ -298,10 +299,12 @@ export function usePluginRuntimeBridge({
 							registerPluginClipboardSourceElements(
 								sourceElementByAssetKeyRef.current,
 								result.payload,
+								canvas.magicConfigManager.config?.methods?.resolveResourceReference,
 							)
 							registerPluginFileAssetSources(
 								sourceElementByAssetKeyRef.current,
 								result.uploadedAssets,
+								canvas.magicConfigManager.config?.methods?.resolveResourceReference,
 							)
 							postPluginMessage({
 								type: PLUGIN_RUNTIME_RESULT_MESSAGE_TYPE.ReadCanvasClipboard,

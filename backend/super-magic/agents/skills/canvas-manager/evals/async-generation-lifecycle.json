@@ -1,0 +1,6 @@
+{
+  "id": "async-generation-lifecycle",
+  "prompt": "Start an asynchronous video generation, wait for it, and continue waiting with the same task ID after a timeout.",
+  "expected_tools": ["add_canvas_contents", "wait_canvas_generation", "query_canvas_element_details"],
+  "constraints": ["Do not submit a duplicate generation while the original task is pending.", "Timeout is not failure."]
+}

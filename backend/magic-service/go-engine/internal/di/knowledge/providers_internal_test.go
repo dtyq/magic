@@ -72,20 +72,50 @@ func TestDocumentResyncRabbitMQSchedulerConfigMaxRequeueAttempts(t *testing.T) {
 	t.Parallel()
 
 	defaults := documentsync.DefaultRabbitMQSchedulerConfig()
-	if defaults.MaxRequeueAttempts != 20 {
-		t.Fatalf("expected default max requeue attempts 20, got %d", defaults.MaxRequeueAttempts)
+	if defaults.MaxRequeueAttempts != 3 {
+		t.Fatalf("expected default max requeue attempts 3, got %d", defaults.MaxRequeueAttempts)
 	}
 
 	cfg := &autoloadcfg.Config{}
 	got := newDocumentResyncRabbitMQSchedulerConfig(cfg, defaults)
-	if got.MaxRequeueAttempts != 20 {
-		t.Fatalf("expected empty config to use default 20, got %d", got.MaxRequeueAttempts)
+	if got.MaxRequeueAttempts != 3 {
+		t.Fatalf("expected empty config to use default 3, got %d", got.MaxRequeueAttempts)
 	}
 
 	cfg.RabbitMQ.DocumentResync.MaxRequeueAttempts = 7
 	got = newDocumentResyncRabbitMQSchedulerConfig(cfg, defaults)
 	if got.MaxRequeueAttempts != 7 {
 		t.Fatalf("expected configured max requeue attempts 7, got %d", got.MaxRequeueAttempts)
+	}
+}
+
+func TestResolveDocumentResyncQueueNameUsesPreReleaseQueue(t *testing.T) {
+	t.Setenv("APP_ENV", "saas-pre")
+
+	cfg := &autoloadcfg.Config{}
+	cfg.RabbitMQ.Queues.DocumentResync = "knowledge.document.resync"
+
+	if got := resolveDocumentResyncQueueName(cfg); got != "knowledge.document.resync.saas-pre" {
+		t.Fatalf("expected pre-release document resync queue, got %q", got)
+	}
+}
+
+func TestResolveDocumentResyncQueueNameKeepsConfiguredQueueOutsidePreRelease(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+
+	cfg := &autoloadcfg.Config{}
+	cfg.RabbitMQ.Queues.DocumentResync = "knowledge.document.resync.custom"
+
+	if got := resolveDocumentResyncQueueName(cfg); got != "knowledge.document.resync.custom" {
+		t.Fatalf("expected configured document resync queue, got %q", got)
+	}
+}
+
+func TestResolveDocumentResyncQueueNameHandlesPreReleaseCaseAndWhitespace(t *testing.T) {
+	t.Setenv("APP_ENV", " SaaS-Pre ")
+
+	if got := resolveDocumentResyncQueueName(&autoloadcfg.Config{}); got != "knowledge.document.resync.saas-pre" {
+		t.Fatalf("expected normalized pre-release document resync queue, got %q", got)
 	}
 }
 

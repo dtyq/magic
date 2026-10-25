@@ -13,7 +13,8 @@
 ```json
 {
   "type": "file",
-  "file_path": "/src/main.py",
+  "file_path": "src/main.py",
+	"file_name": "main.py",
   "file_url": "http://example.com/main.py"
 }
 ```
@@ -21,7 +22,7 @@
 ### 输出示例
 
 ```
-1. [@file_path:src/main.py]
+1. [main.py](./src/main.py)
    - 访问地址: http://example.com/main.py
 ```
 
@@ -49,7 +50,7 @@
 ### 输出示例
 
 ```
-1. [@mcp:search_tool]
+1. [search_tool](mcp://search_tool)
 ```
 
 ### 生成的 Tip
@@ -66,26 +67,28 @@
 
 ### 输入示例
 
-**方式一：使用 `name` 字段**
+**方式一：使用 `name` 和 `agent_id` 字段**
 ```json
 {
   "type": "agent",
-  "name": "code_reviewer"
+  "name": "code_reviewer",
+  "agent_id": "agent-code-reviewer"
 }
 ```
 
-**方式二：使用 `agent_name` 字段**
+**方式二：使用 `agent_name` 和 `agent_id` 字段**
 ```json
 {
   "type": "agent",
-  "agent_name": "test_runner"
+  "agent_name": "test_runner",
+  "agent_id": "agent-test-runner"
 }
 ```
 
 ### 输出示例
 
 ```
-1. [@agent:code_reviewer]
+1. [code_reviewer](agent://agent-code-reviewer)
 ```
 
 ### 生成的 Tip
@@ -346,7 +349,8 @@ window.magicProjectConfig = {
 [
   {
     "type": "file",
-    "file_path": "/src/main.py"
+    "file_path": "src/main.py",
+    "file_name": "main.py"
   },
   {
     "type": "mcp",
@@ -354,7 +358,8 @@ window.magicProjectConfig = {
   },
   {
     "type": "agent",
-    "name": "code_reviewer"
+    "name": "code_reviewer",
+    "agent_id": "agent-code-reviewer"
   },
   {
     "type": "design_marker",
@@ -374,10 +379,10 @@ window.magicProjectConfig = {
 
 ```
 <mentions>
-以下路径均相对于工作空间根目录：
-1. [@file_path:src/main.py]
-2. [@mcp:search_tool]
-3. [@agent:code_reviewer]
+Referenced files and resources:
+1. [main.py](./src/main.py)
+2. [search_tool](mcp://search_tool)
+3. [code_reviewer](agent://agent-code-reviewer)
 4. [@design_marker:调整logo]
    - 图片位置: canvas/logo.png
    - 标记类型: object
@@ -396,7 +401,7 @@ window.magicProjectConfig = {
 
 ## 注意事项
 
-1. **路径标准化**：所有文件路径和目录路径都会自动去除开头的 `/`，转换为相对路径
+1. **路径标准化**：只有安全的工作区相对路径，或位于工作区根目录内的绝对路径，才会生成 `./...` Markdown 链接
 2. **Tip 去重**：相同的 tip 文本只会出现一次
 3. **Tip 顺序**：tip 按照 mention 出现的顺序收集，去重后保留首次出现的顺序
 4. **异步处理**：所有 handler 的 `handle()` 和 `get_tip()` 方法都是异步的

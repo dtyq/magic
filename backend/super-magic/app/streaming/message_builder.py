@@ -1,13 +1,13 @@
 # app/streaming/message_builder.py
 import json
 import logging
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Coroutine
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 from agentlang.streaming.message_builder import MessageBuilderInterface
 from agentlang.streaming.models import ChunkData
 from agentlang.utils import ShadowCode
+
 from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class LLMStreamingMessageBuilder(MessageBuilderInterface):
         json_data = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
         return {
             "obfuscated": True,
-            "shadow": ShadowCode.shadow(json_data)
+            "shadow": ShadowCode.shadow_json(json_data)
         }
 
     async def _load_auth_info(self) -> bool:

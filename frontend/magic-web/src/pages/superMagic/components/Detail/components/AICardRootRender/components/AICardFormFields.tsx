@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Input } from "@/components/shadcn-ui/input"
 import { MagicSelect } from "@/components/base"
 import { MagicSwitch } from "@/components/base/MagicSwitch"
@@ -9,7 +9,7 @@ import type { ScheduledTask } from "@/types/scheduledTask"
 import ModelIcon from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelIcon"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { MagicPromptEditor } from "@/components/base/MagicPromptEditor"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import { CARD_TEMPLATES } from "../hooks/useAICardConfig"
 import type { CardTemplateType } from "../hooks/useAICardConfig"
 import AICardNotificationFields from "./AICardNotificationFields"
@@ -139,7 +139,10 @@ function AICardFormFields({
 		<>
 			{/* Card Name */}
 			<div className="space-y-2">
-				<label className="text-sm font-medium text-foreground" data-testid="ai-card-form-fields-label">
+				<label
+					className="text-sm font-medium text-foreground"
+					data-testid="ai-card-form-fields-label"
+				>
 					{t("detail.aiCard.form.cardName")} <span className="text-destructive">*</span>
 				</label>
 				<Input
@@ -154,7 +157,10 @@ function AICardFormFields({
 			{/* Template */}
 			{!hideTemplate && (
 				<div className="space-y-2">
-					<label className="text-sm font-medium text-foreground" data-testid="ai-card-form-fields-label-2">
+					<label
+						className="text-sm font-medium text-foreground"
+						data-testid="ai-card-form-fields-label-2"
+					>
 						{t("detail.aiCard.form.template")}
 					</label>
 					<MagicSelect
@@ -192,7 +198,10 @@ function AICardFormFields({
 
 			{/* Prompt */}
 			<div className="space-y-2">
-				<label className="text-sm font-medium text-foreground" data-testid="ai-card-form-fields-label-3">
+				<label
+					className="text-sm font-medium text-foreground"
+					data-testid="ai-card-form-fields-label-3"
+				>
 					{t("detail.aiCard.form.prompt")} <span className="text-destructive">*</span>
 				</label>
 				<MagicPromptEditor
@@ -213,7 +222,10 @@ function AICardFormFields({
 
 			{/* Schedule */}
 			<div className="space-y-2">
-				<label className="text-sm font-medium text-foreground" data-testid="ai-card-form-fields-label-4">
+				<label
+					className="text-sm font-medium text-foreground"
+					data-testid="ai-card-form-fields-label-4"
+				>
 					{t("detail.aiCard.config.schedule")}
 				</label>
 				<ScheduledItem
@@ -239,7 +251,10 @@ function AICardFormFields({
 						{/* Language model */}
 						{modelList && modelList.length > 0 && (
 							<div className="min-w-0 space-y-1.5">
-								<label className="text-xs text-muted-foreground" data-testid="ai-card-form-fields-label-5">
+								<label
+									className="text-xs text-muted-foreground"
+									data-testid="ai-card-form-fields-label-5"
+								>
 									{t("detail.aiCard.config.languageModel")}
 								</label>
 								<MagicSelect
@@ -262,7 +277,10 @@ function AICardFormFields({
 						{/* Image model */}
 						{imageModelList && imageModelList.length > 0 && (
 							<div className="min-w-0 space-y-1.5">
-								<label className="text-xs text-muted-foreground" data-testid="ai-card-form-fields-label-6">
+								<label
+									className="text-xs text-muted-foreground"
+									data-testid="ai-card-form-fields-label-6"
+								>
 									{t("detail.aiCard.config.imageModel")}
 								</label>
 								<MagicSelect
@@ -285,7 +303,10 @@ function AICardFormFields({
 						{/* Video model */}
 						{videoModelList && videoModelList.length > 0 && (
 							<div className="min-w-0 space-y-1.5">
-								<label className="text-xs text-muted-foreground" data-testid="ai-card-form-fields-label-7">
+								<label
+									className="text-xs text-muted-foreground"
+									data-testid="ai-card-form-fields-label-7"
+								>
 									{t("detail.aiCard.config.videoModel")}
 								</label>
 								<MagicSelect

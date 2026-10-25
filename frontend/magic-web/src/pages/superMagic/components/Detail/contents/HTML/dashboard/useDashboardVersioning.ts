@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import {
+	getFileAccessContentKey,
+	isShareFileAccess,
+} from "@/pages/superMagic/fileAccess/fileAccessContext"
 import { useFileData } from "@/pages/superMagic/hooks/useFileData"
 import { findMatchingFile, flattenAttachments } from "../utils"
-import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { downloadFileContent } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { measureManualPerfOperation } from "@/utils/manualPerfLogger"
 
 interface DashboardVersioningState {
@@ -24,6 +30,7 @@ interface UseDashboardVersioningParams {
 	displayConfig?: any
 	isFromNode?: boolean
 	isPlaybackMode?: boolean
+	isSharePreview?: boolean
 	htmlVersioning: DashboardVersioningState
 }
 
@@ -52,8 +59,13 @@ export function useDashboardVersioning({
 	displayConfig,
 	isFromNode,
 	isPlaybackMode,
+	isSharePreview = false,
 	htmlVersioning,
 }: UseDashboardVersioningParams) {
+	const fileAccess = useFileAccess()
+	const fileApi = useFileApi()
+	// Omit share token so token refresh does not remount the dashboard preview.
+	const fileAccessContentKey = getFileAccessContentKey(fileAccess)
 	const flattenedAttachmentList = useMemo(
 		() =>
 			measureManualPerfOperation(
@@ -120,6 +132,7 @@ export function useDashboardVersioning({
 		isFromNode,
 		content: "",
 		disabledUrlCache: isPlaybackMode,
+		isSharePreview,
 	})
 
 	const isDashboardHistoryDriven = Boolean(isDataAnalysis && dashboardDataJsFile?.file_id)
@@ -130,6 +143,9 @@ export function useDashboardVersioning({
 	const [isDashboardContentLoading, setIsDashboardContentLoading] = useState(false)
 	const [previewRevision, setPreviewRevision] = useState(0)
 	const requestIdRef = useRef(0)
+	const hasLoadedDashboardContentRef = useRef(false)
+	const dashboardContentRef = useRef<string | undefined>(undefined)
+	dashboardContentRef.current = dashboardDataJsContent
 
 	useEffect(() => {
 		setSelectedDashboardVersion(undefined)
@@ -137,40 +153,57 @@ export function useDashboardVersioning({
 		setIsDashboardContentLoading(false)
 		setPreviewRevision(0)
 		requestIdRef.current = 0
+		hasLoadedDashboardContentRef.current = false
 	}, [dashboardDataJsFile?.file_id])
 
 	useEffect(() => {
 		if (!isDashboardHistoryDriven || !dashboardDataJsFile?.file_id) return
+		if (isSharePreview && !isShareFileAccess(fileAccess)) return
 
 		const currentRequestId = requestIdRef.current + 1
 		requestIdRef.current = currentRequestId
-		setIsDashboardContentLoading(true)
+		// Soft refresh on share-token rotation: keep the preview mounted.
+		const keepExistingPreview = hasLoadedDashboardContentRef.current
+		if (!keepExistingPreview) {
+			setIsDashboardContentLoading(true)
+		}
 
-		getTemporaryDownloadUrl({
-			file_ids: [dashboardDataJsFile.file_id],
-			file_versions: selectedDashboardVersion
-				? { [dashboardDataJsFile.file_id]: selectedDashboardVersion }
-				: undefined,
-		})
+		fileApi
+			.getTemporaryDownloadUrl({
+				file_ids: [dashboardDataJsFile.file_id],
+				file_versions: selectedDashboardVersion
+					? { [dashboardDataJsFile.file_id]: selectedDashboardVersion }
+					: undefined,
+			})
 			.then(async (response) => {
 				if (requestIdRef.current !== currentRequestId) return
 
 				const url = response?.[0]?.url
 				if (!url) {
 					setDashboardDataJsContent(undefined)
+					hasLoadedDashboardContentRef.current = false
 					return
 				}
 
 				const content = await downloadFileContent(url)
 				if (requestIdRef.current !== currentRequestId) return
 
-				setDashboardDataJsContent(typeof content === "string" ? content : undefined)
-				setPreviewRevision((prev) => prev + 1)
+				const nextContent = typeof content === "string" ? content : undefined
+				const contentChanged = dashboardContentRef.current !== nextContent
+				setDashboardDataJsContent(nextContent)
+				if (typeof nextContent === "string") {
+					hasLoadedDashboardContentRef.current = true
+				}
+				// Remount only when data.js content actually changes.
+				if (!keepExistingPreview || contentChanged) {
+					setPreviewRevision((prev) => prev + 1)
+				}
 			})
 			.catch((error) => {
 				if (requestIdRef.current !== currentRequestId) return
 				console.error("Failed to load dashboard data.js version:", error)
 				setDashboardDataJsContent(undefined)
+				hasLoadedDashboardContentRef.current = false
 			})
 			.finally(() => {
 				if (requestIdRef.current !== currentRequestId) return
@@ -179,7 +212,10 @@ export function useDashboardVersioning({
 	}, [
 		dashboardDataJsFile?.file_id,
 		dashboardDataJsFile?.updated_at,
+		fileApi,
+		fileAccessContentKey,
 		isDashboardHistoryDriven,
+		isSharePreview,
 		selectedDashboardVersion,
 	])
 

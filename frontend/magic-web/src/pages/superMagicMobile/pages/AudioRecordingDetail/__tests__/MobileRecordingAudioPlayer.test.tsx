@@ -23,7 +23,12 @@ describe("MobileRecordingAudioPlayer", () => {
 
 	it("renders fixed mobile shell with shared audio bar", () => {
 		render(<MobileRecordingAudioPlayer {...defaultProps} />)
-		expect(screen.getByTestId("mobile-recording-audio-player")).toBeInTheDocument()
+		const shell = screen.getByTestId("mobile-recording-audio-player")
+		expect(shell).toBeInTheDocument()
+		expect(shell).toHaveStyle({
+			bottom: "max(24px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))",
+		})
+		expect(shell).toHaveClass("bottom-6")
 		expect(screen.getByTestId("recording-detail-audio-bar")).toBeInTheDocument()
 	})
 

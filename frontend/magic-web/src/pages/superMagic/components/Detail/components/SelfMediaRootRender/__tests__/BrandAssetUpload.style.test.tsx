@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { BrandAssetUpload } from "../components/SelfMediaInitPanel/steps/StepBrandInfo/components/BrandAssetUpload"
 
@@ -26,6 +26,52 @@ vi.mock("../components/SelfMediaInitPanel/lib/useDropZone", () => ({
 }))
 
 describe("BrandAssetUpload style", () => {
+	it("renders the default project picker and existing brand image without crashing", () => {
+		const file = new File(["brand"], "brand.png", { type: "image/png" })
+
+		render(
+			<BrandAssetUpload
+				brandImages={[
+					{
+						id: "brand",
+						file,
+						isImage: true,
+						previewUrl: "blob:brand",
+						description: "Logo",
+					},
+				]}
+				brandImageUploadProgress={{}}
+				hydratingImageIds={new Set()}
+				isFetching={false}
+				onFilesSelect={vi.fn()}
+				onRemoveBrandImage={vi.fn()}
+				onBrandImageDescChange={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByRole("button", { name: "项目文件" })).toBeInTheDocument()
+		expect(screen.getByRole("img", { name: "Logo" })).toHaveAttribute("src", "blob:brand")
+	})
+
+	it("keeps local file selection working after the upload surface renders", () => {
+		const onFilesSelect = vi.fn()
+		render(
+			<BrandAssetUpload
+				brandImages={[]}
+				brandImageUploadProgress={{}}
+				hydratingImageIds={new Set()}
+				isFetching={false}
+				onFilesSelect={onFilesSelect}
+				onRemoveBrandImage={vi.fn()}
+				onBrandImageDescChange={vi.fn()}
+			/>,
+		)
+		const file = new File(["brand"], "brand.png", { type: "image/png" })
+		fireEvent.change(screen.getByTestId("handle-input-change"), { target: { files: [file] } })
+
+		expect(onFilesSelect).toHaveBeenCalledExactlyOnceWith([file])
+	})
+
 	it("uses the current black-yellow accent surface without a default border", () => {
 		render(
 			<BrandAssetUpload

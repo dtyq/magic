@@ -1,7 +1,7 @@
 import { getIncomers, internalsSymbol, getOutgoers, Node, Edge, Position, Connection, ViewportHelperFunctions, getNodesBounds } from "reactflow"
 import dagre from "dagre"
 import { UpdateStepType } from "../hooks/useBaseFlow"
-import _ from "lodash"
+import { get, set, uniqBy } from "lodash-es"
 import { MagicFlow } from "../types/flow"
 import { nodeManager } from "../register/node"
 import { GROUP_MIN_DISTANCE, GROUP_TOP_GAP } from "../constants"
@@ -344,7 +344,7 @@ export const checkHasNodeOutOfFlow = (nodes: MagicFlow.Node[], edges: Edge[]) =>
 	if (!nodes || nodes.length === 0) return false
 	const triggerNode = nodes[0]
 	const postNodes = getAllPostNodes(triggerNode, nodes, edges)
-	const uniqPostNodes = _.uniqBy(postNodes, "nodeId")
+	const uniqPostNodes = uniqBy(postNodes, "nodeId")
 	return uniqPostNodes.length !== nodes.length - 1
 }
 
@@ -416,7 +416,7 @@ export const generatePasteNodesAndEdges = (nodeConfig: Record<string, MagicFlow.
         // 处理分支节点的branches
         if (nodeManager.branchNodeIds.includes(`${paste.pasteNode.node_type}`)) {
             // 获取params字段中的branches
-            const branches = _.get(paste.pasteNode, [paramsName.params, 'branches'])
+            const branches = get(paste.pasteNode, [paramsName.params, 'branches'])
             
             if (branches && Array.isArray(branches)) {
                 // 对每个分支进行处理，只保留指向选中范围内节点的next_nodes
@@ -427,7 +427,7 @@ export const generatePasteNodesAndEdges = (nodeConfig: Record<string, MagicFlow.
                 })
                 
                 // 更新节点的branches
-                _.set(paste.pasteNode, [paramsName.params, 'branches'], branches)
+                set(paste.pasteNode, [paramsName.params, 'branches'], branches)
             }
         }
 
@@ -445,7 +445,7 @@ export const generatePasteNodesAndEdges = (nodeConfig: Record<string, MagicFlow.
         
         // 更新分支节点的branches中的next_nodes
         if (nodeManager.branchNodeIds.includes(`${pasteNode.node_type}`)) {
-            const branches = _.get(pasteNode, [paramsName.params, 'branches']);
+            const branches = get(pasteNode, [paramsName.params, 'branches']);
             if (branches && Array.isArray(branches)) {
                 branches.forEach(branch => {
                     if (branch && typeof branch === 'object' && Array.isArray(branch.next_nodes)) {
@@ -454,7 +454,7 @@ export const generatePasteNodesAndEdges = (nodeConfig: Record<string, MagicFlow.
                         );
                     }
                 });
-                _.set(pasteNode, [paramsName.params, 'branches'], branches);
+                set(pasteNode, [paramsName.params, 'branches'], branches);
             }
         }
     });
@@ -492,7 +492,7 @@ export const generatePasteNodesAndEdges = (nodeConfig: Record<string, MagicFlow.
         
         // 更新节点的对应属性
         Object.keys(stringifiedProps).forEach(propName => {
-            _.set(pasteNode, [propName], JSON.parse(stringifiedProps[propName]))
+            set(pasteNode, [propName], JSON.parse(stringifiedProps[propName]))
         })
     })
 

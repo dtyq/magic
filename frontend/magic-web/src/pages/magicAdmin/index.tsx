@@ -1,18 +1,31 @@
 import { AdminProvider, AppEnv, AdminProviderProps } from "@dtyq/magic-admin/provider"
 import { AdminComponentsProvider, LanguageType, ThemeType } from "@dtyq/magic-admin/components"
 import { Navigate } from "react-router"
-import { useTranslation } from "react-i18next"
 import { useMemo, PropsWithChildren } from "react"
 import { useAreaCodes, useGlobalLanguage, useTheme } from "@/models/config/hooks"
 import { observer } from "mobx-react-lite"
-import magicClient from "@/apis/clients/magic"
-import { i18nStore } from "@/models/config/stores/i18n.store"
+import { defaultMagicClient as magicClient } from "@/infrastructure/network/http/runtime"
+import { useMainTranslation } from "@/hooks/i18n/useMainTranslation"
 import { useClusterCode } from "@/providers/ClusterProvider"
 import { userStore } from "@/models/user"
 import { isPrivateDeployment, env } from "@/utils/env"
 import { useOrganization, useAccount, useCurrentMagicOrganization } from "@/models/user/hooks"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { useSafeArea } from "@/providers/AppearanceProvider/hooks/useSafeArea"
+import { DEFAULT_LOCALE, SupportLocales, SUPPORT_LOCALES } from "@/constants/locale"
+
+/**
+ * The admin console ships zh_CN / en_US translations only. Map the global
+ * language onto that pair so an unsupported stored preference falls back to the
+ * app default instead of reaching the admin provider as an unknown value.
+ */
+function resolveAdminLanguage(language?: string): LanguageType {
+	if (SUPPORT_LOCALES.includes(language as SupportLocales)) {
+		return language as LanguageType
+	}
+	if (language?.startsWith("zh")) return LanguageType.zh_CN
+	return DEFAULT_LOCALE.startsWith("zh") ? LanguageType.zh_CN : LanguageType.en_US
+}
 
 const MagicAdminProvider = observer(({ children }: PropsWithChildren) => {
 	const { prefersColorScheme } = useTheme()
@@ -23,9 +36,7 @@ const MagicAdminProvider = observer(({ children }: PropsWithChildren) => {
 	const { clusterCode } = useClusterCode()
 	const { organizationCode } = useOrganization()
 	const navigate = useNavigate()
-	const { t: tMainCommon } = useTranslation("common", {
-		i18n: i18nStore.i18n.instance,
-	})
+	const { t: tMainCommon } = useMainTranslation("common")
 
 	const { userInfo, isPersonalOrganization, authorization } = userStore.user
 
@@ -37,11 +48,12 @@ const MagicAdminProvider = observer(({ children }: PropsWithChildren) => {
 	}, [accounts, userInfo])
 
 	const lang = useGlobalLanguage(false)
+	const adminLanguage = useMemo(() => resolveAdminLanguage(lang), [lang])
 	const platformName = tMainCommon("platform.name")
 
 	const config: AdminProviderProps = useMemo(
 		() => ({
-			language: lang as LanguageType,
+			language: adminLanguage,
 			theme: prefersColorScheme,
 			platformName,
 			apiClients: {
@@ -77,7 +89,7 @@ const MagicAdminProvider = observer(({ children }: PropsWithChildren) => {
 			},
 		}),
 		[
-			lang,
+			adminLanguage,
 			prefersColorScheme,
 			clusterCode,
 			isPersonalOrganization,
@@ -97,7 +109,7 @@ const MagicAdminProvider = observer(({ children }: PropsWithChildren) => {
 	return (
 		<AdminProvider {...config}>
 			<AdminComponentsProvider
-				language={lang as LanguageType}
+				language={adminLanguage}
 				theme={prefersColorScheme as ThemeType}
 			>
 				{children}

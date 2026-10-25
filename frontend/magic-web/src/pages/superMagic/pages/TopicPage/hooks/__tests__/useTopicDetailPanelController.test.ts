@@ -42,16 +42,65 @@ describe("useTopicDetailPanelController", () => {
 		)
 
 		expect(result.current.shouldShowDetailPanel).toBe(false)
+		expect(result.current.hasActiveDetailTab).toBe(false)
+		expect(result.current.activeDetailTabType).toBeNull()
 
 		act(() => {
 			result.current.handleActiveDetailTabChange("playback")
 		})
 		expect(result.current.shouldShowDetailPanel).toBe(true)
+		expect(result.current.hasActiveDetailTab).toBe(true)
+		expect(result.current.activeDetailTabType).toBe("playback")
 
 		act(() => {
 			result.current.clearActiveDetailTabType()
 		})
 		expect(result.current.shouldShowDetailPanel).toBe(false)
+		expect(result.current.activeDetailTabType).toBeNull()
+	})
+
+	it("keeps a published micro-app preview open when preserving it across topic changes", () => {
+		const { result } = renderHook(() =>
+			useTopicDetailPanelController({
+				detailRef: { current: { openFileTab: vi.fn(), openPlaybackTab: vi.fn() } },
+				isReadOnly: false,
+				activeFileId: null,
+				setActiveFileId: vi.fn(),
+				handleFileClick: vi.fn(),
+				topicFilesProps: {},
+			}),
+		)
+
+		act(() => {
+			result.current.handleActiveDetailTabChange("micro_app")
+		})
+		act(() => {
+			result.current.clearActiveDetailTabType({ preservePublishedMicroApp: true })
+		})
+
+		expect(result.current.shouldShowDetailPanel).toBe(true)
+	})
+
+	it("restores file tab intent from an active file after topic state is cleared", () => {
+		const { result } = renderHook(() =>
+			useTopicDetailPanelController({
+				detailRef: { current: { openFileTab: vi.fn(), openPlaybackTab: vi.fn() } },
+				isReadOnly: false,
+				activeFileId: "canvas-project",
+				setActiveFileId: vi.fn(),
+				handleFileClick: vi.fn(),
+				topicFilesProps: {},
+			}),
+		)
+
+		expect(result.current.activeDetailTabType).toBe("file")
+
+		act(() => {
+			result.current.clearActiveDetailTabType({ preservePublishedMicroApp: true })
+		})
+
+		expect(result.current.activeDetailTabType).toBe("file")
+		expect(result.current.shouldShowDetailPanel).toBe(true)
 	})
 
 	it("keeps the detail panel visible for non-file preview tab types", () => {
@@ -219,5 +268,109 @@ describe("useTopicDetailPanelController", () => {
 			vi.advanceTimersByTime(101)
 		})
 		expect(openPlaybackTab).toHaveBeenCalledWith({ toolData, forceActivate: true })
+	})
+
+	it("opens a published micro-app tab from the shared mention event", () => {
+		const openMicroAppTab = vi.fn()
+		const detailRef = {
+			current: {
+				openFileTab: vi.fn(),
+				openPlaybackTab: vi.fn(),
+				openMicroAppTab,
+			},
+		}
+
+		const { result } = renderHook(() =>
+			useTopicDetailPanelController({
+				detailRef,
+				isReadOnly: false,
+				activeFileId: null,
+				setActiveFileId: vi.fn(),
+				handleFileClick: vi.fn(),
+				topicFilesProps: {},
+			}),
+		)
+
+		act(() => {
+			pubsub.publish(PubSubEvents.Open_Micro_App_Tab, {
+				appId: "app-1",
+				appName: "内购",
+			})
+			vi.advanceTimersByTime(101)
+		})
+
+		expect(result.current.shouldShowDetailPanel).toBe(true)
+		expect(openMicroAppTab).toHaveBeenCalledWith({
+			appId: "app-1",
+			appName: "内购",
+		})
+	})
+
+	it("skips embedded micro-app tab events when mobile popup owns the preview", () => {
+		const openMicroAppTab = vi.fn()
+		const detailRef = {
+			current: {
+				openFileTab: vi.fn(),
+				openPlaybackTab: vi.fn(),
+				openMicroAppTab,
+			},
+		}
+
+		const { result } = renderHook(() =>
+			useTopicDetailPanelController({
+				detailRef,
+				isReadOnly: false,
+				activeFileId: null,
+				setActiveFileId: vi.fn(),
+				handleFileClick: vi.fn(),
+				topicFilesProps: {},
+				subscribeMicroAppTab: false,
+			}),
+		)
+
+		act(() => {
+			pubsub.publish(PubSubEvents.Open_Micro_App_Tab, {
+				appId: "app-1",
+				appName: "内购",
+			})
+			vi.advanceTimersByTime(101)
+		})
+
+		expect(result.current.shouldShowDetailPanel).toBe(false)
+		expect(openMicroAppTab).not.toHaveBeenCalled()
+	})
+
+	it("keeps the detail panel when Open_File_Tab fails after file tab desync", () => {
+		// Parent activeFileId stays null after closing playback, while UI is back on a file tab.
+		const detailRef = {
+			current: {
+				openFileTab: vi.fn(),
+				openPlaybackTab: vi.fn(),
+			},
+		}
+
+		const { result } = renderHook(() =>
+			useTopicDetailPanelController({
+				detailRef,
+				isReadOnly: false,
+				activeFileId: null,
+				setActiveFileId: vi.fn(),
+				handleFileClick: vi.fn(),
+				topicFilesProps: {},
+			}),
+		)
+
+		act(() => {
+			result.current.handleActiveDetailTabChange("file")
+		})
+		expect(result.current.shouldShowDetailPanel).toBe(true)
+
+		act(() => {
+			pubsub.publish(PubSubEvents.Open_File_Tab, { fileId: "missing-screenshot" })
+			vi.advanceTimersByTime(301)
+		})
+
+		// Failed open restores "file", not null, so the detail panel stays visible.
+		expect(result.current.shouldShowDetailPanel).toBe(true)
 	})
 })

@@ -11,4 +11,8 @@ export interface ViewModeSwitcherProps {
 	enableMobileMode?: boolean
 	/** Test id for the root element */
 	"data-testid"?: string
+	/** Optional scope for the clickable mode trigger test ids. */
+	testIdPrefix?: string
+	/** Whether this cached preview should expose test ids. */
+	testIdsEnabled?: boolean
 }

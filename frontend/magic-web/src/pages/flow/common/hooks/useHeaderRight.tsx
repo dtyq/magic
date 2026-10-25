@@ -350,19 +350,10 @@ export default function useHeaderRight({ rules, extraComponent }: UseHeaderRight
 						)}
 
 						{debuggerMode && (
-							<Form.Item name="debug_data" label="调试">
+							<Form.Item name="debug_data" label={t("common.debug", { ns: "flow" })}>
 								<Input.TextArea
 									className={styles.debug}
-									placeholder="假设你引用了开始节点.username，AI聊天节点.text,且开始节点id为xxx，AI聊天节点id为yyy，则请输入：
-{
-	xxx: {
-		username: '自定义内容'
-	},
-	yyy: {
-		text: '自定义内容2'
-	}
-}
-									"
+									placeholder={t("common.debugPlaceholder", { ns: "flow" })}
 								/>
 							</Form.Item>
 						)}

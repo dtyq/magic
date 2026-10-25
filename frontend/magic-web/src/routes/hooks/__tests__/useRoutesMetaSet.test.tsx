@@ -26,8 +26,8 @@ vi.mock("react-router", async (importOriginal) => {
 	}
 })
 
-vi.mock("react-i18next", () => ({
-	useTranslation: () => ({
+vi.mock("@/hooks/i18n/useMainTranslation", () => ({
+	useMainTranslation: () => ({
 		t: (key: string) => {
 			const labels: Record<string, string> = {
 				"routes.super": "超级麦吉",
@@ -41,6 +41,17 @@ vi.mock("react-i18next", () => ({
 	}),
 }))
 
+vi.mock("react-i18next", () => ({
+	useTranslation: () => ({
+		t: (key: string, options?: { defaultValue?: string }) => {
+			const labels: Record<string, string> = {
+				"nav.capabilitySubMenu.oaApprovalManagement": "所有审批",
+				"nav.capabilitySubMenu.oaApprovalDesign": "审批模板设计",
+			}
+			return labels[key] ?? options?.defaultValue ?? key
+		},
+	}),
+}))
 import useMetaSet from "@/routes/hooks/useRoutesMetaSet"
 
 describe("useMetaSet", () => {
@@ -74,6 +85,38 @@ describe("useMetaSet", () => {
 		renderHook(() => useMetaSet())
 
 		expect(document.title).toBe("工作空间 - 超级麦吉 - 首个开源企业级 AI Agent 平台")
+	})
+
+	it("uses the sidebar title when route meta title is absent", () => {
+		pathnameState.current = "/admin/enterprise/oa-approval/approval-manage"
+		matchRoutesMock.mockReturnValue([
+			{ route: { title: "nav.capabilitySubMenu.oaApprovalManagement" } },
+		])
+
+		renderHook(() => useMetaSet())
+
+		expect(document.title).toBe("所有审批 - 超级麦吉 - 首个开源企业级 AI Agent 平台")
+	})
+
+	it("uses the admin navigation translation for an admin route title", () => {
+		pathnameState.current = "/admin/enterprise/oa-approval/design"
+		matchRoutesMock.mockReturnValue([
+			{ route: { title: "nav.capabilitySubMenu.oaApprovalDesign" } },
+		])
+
+		renderHook(() => useMetaSet())
+
+		expect(document.title).toBe("审批模板设计 - 超级麦吉 - 首个开源企业级 AI Agent 平台")
+	})
+
+	it("does not use a route title fallback outside the admin", () => {
+		pathnameState.current = "/cluster/super/chats"
+		document.title = "动态页面标题"
+		matchRoutesMock.mockReturnValue([{ route: { title: "routes.chat" } }])
+
+		renderHook(() => useMetaSet())
+
+		expect(document.title).toBe("动态页面标题")
 	})
 
 	it("does not reset document.title when route has no meta", () => {

@@ -1,6 +1,6 @@
 import { RecordingSummaryStatus } from "@/apis/modules/superMagic/recordSummary"
 import { SuperMagicApi } from "@/apis"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import recordSummaryStore from "@/stores/recordingSummary"
 
 const logger = Logger.createLogger("RecordingStatusReporter", {
@@ -13,6 +13,7 @@ interface StatusReportParams {
 	task_key: string
 	status: RecordingSummaryStatus
 	model_id: string
+	file_shard_count?: number
 	note?: {
 		content: string
 		file_extension: string
@@ -21,7 +22,9 @@ interface StatusReportParams {
 }
 
 interface RecordingStatusReporterConfig {
-	onReportError?: (error: Error) => void
+	onReportError?: (error: Error, sessionId: string) => void | Promise<void>
+	/** Resolves the latest generated audio shard count for periodic reports. */
+	getFileShardCount?: () => number | undefined
 }
 
 /**
@@ -32,11 +35,13 @@ class RecordingStatusReporter {
 	private periodicReportTimer: NodeJS.Timeout | null = null
 	private lastReportedStatus: string | null = null
 	private currentSessionId: string | null = null
-	private onReportError?: (error: Error) => void
+	private onReportError?: (error: Error, sessionId: string) => void | Promise<void>
+	private getFileShardCount?: () => number | undefined
 	private isReporting = false
 
 	constructor(config?: RecordingStatusReporterConfig) {
 		this.onReportError = config?.onReportError
+		this.getFileShardCount = config?.getFileShardCount
 	}
 
 	/**
@@ -67,6 +72,7 @@ class RecordingStatusReporter {
 				model_id: params.model_id,
 				note: params.note,
 				asr_stream_content: params.asr_stream_content,
+				file_shard_count: params.file_shard_count,
 			})
 
 			logger.log(`Status reported successfully: ${params.status}`)
@@ -77,7 +83,7 @@ class RecordingStatusReporter {
 				error: error,
 				message: `Failed to report status: ${params.status}`,
 			})
-			this.onReportError?.(error as Error)
+			await this.onReportError?.(error as Error, params.task_key)
 		} finally {
 			this.isReporting = false
 		}
@@ -125,7 +131,8 @@ class RecordingStatusReporter {
 	 * Perform periodic status report
 	 */
 	private async performPeriodicReport(): Promise<void> {
-		if (!this.currentSessionId) {
+		const sessionId = this.currentSessionId
+		if (!sessionId) {
 			logger.warn("No active session for periodic report")
 			return
 		}
@@ -155,7 +162,7 @@ class RecordingStatusReporter {
 				error: error,
 				message: "Periodic report failed",
 			})
-			this.onReportError?.(error as Error)
+			await this.onReportError?.(error as Error, sessionId)
 		}
 	}
 
@@ -181,6 +188,7 @@ class RecordingStatusReporter {
 		return {
 			task_key: this.currentSessionId,
 			model_id: businessData.model.model_id,
+			file_shard_count: this.getFileShardCount?.(),
 			note: note,
 			asr_stream_content: asrStreamContent,
 		}

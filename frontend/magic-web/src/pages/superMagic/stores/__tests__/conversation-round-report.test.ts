@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { db } from "@/pages/superMagic/stores/storage"
+import { compareStreamRecordsForDisplay, db } from "@/pages/superMagic/stores/storage"
 import {
 	compressConversationRoundLogs,
 	queryConversationRoundLogs,
@@ -463,5 +463,35 @@ describe("conversation round WebSocket report codec", () => {
 		const records = await queryConversationRoundLogs(TOPIC_ID)
 
 		expect(records.map((record) => record.storageId)).toEqual(["earlier", "later"])
+	})
+
+	it("orders same-millisecond records by writer sequence before storage ID", () => {
+		const records = [
+			{
+				id: "z-record",
+				value: createChunk({
+					writerId: "tab-a",
+					writerSequence: 2,
+					receivedAt: 1_000,
+					i: 1,
+					content: "B",
+				}),
+			},
+			{
+				id: "a-record",
+				value: createChunk({
+					writerId: "tab-a",
+					writerSequence: 1,
+					receivedAt: 1_000,
+					i: 0,
+					content: "A",
+				}),
+			},
+		]
+
+		expect(records.sort(compareStreamRecordsForDisplay).map((record) => record.id)).toEqual([
+			"a-record",
+			"z-record",
+		])
 	})
 })

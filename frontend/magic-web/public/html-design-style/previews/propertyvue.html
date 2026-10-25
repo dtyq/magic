@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PropertyVue — Commercial Real Estate & Asset Intelligence</title>
+<style>
+:root {
+--primary-blue: #2563EB;
+--forest-dark: #0F392B;
+--forest-green: #14532D;
+--forest-accent: #16A34A;
+--forest-light: #DCFCE7;
+--slate-dark: #1E293B;
+--slate-mid: #475569;
+--slate-light: #64748B;
+--slate-border: #E2E8F0;
+--bg: #F8FAFC;
+--surface: #FFFFFF;
+--warning-amber: #D97706;
+--font-head: 'Red Hat Display', -apple-system, sans-serif;
+--font-body: 'DM Sans', -apple-system, sans-serif;
+--font-mono: 'Fira Code', monospace;
+--radius-sm: 4px;
+--radius-md: 8px;
+--radius-lg: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background-color: var(--bg);
+color: var(--slate-dark);
+font-family: var(--font-body);
+font-size: 13px;
+line-height: 1.45;
+-webkit-font-smoothing: antialiased;
+}
+.top-nav {
+height: 52px;
+background: #FFFFFF;
+border-bottom: 1px solid var(--slate-border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 0 24px;
+}
+.brand-group {
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.brand-icon {
+width: 28px;
+height: 28px;
+background: var(--forest-dark);
+border-radius: var(--radius-sm);
+display: flex;
+align-items: center;
+justify-content: center;
+color: #fff;
+font-weight: 800;
+font-family: var(--font-head);
+font-size: 14px;
+}
+.brand-name {
+font-family: var(--font-head);
+font-size: 16px;
+font-weight: 800;
+color: var(--slate-dark);
+}
+.brand-name span { color: var(--forest-accent); }
+.asset-crumb {
+font-size: 12px;
+color: var(--slate-light);
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.asset-tag {
+background: #F1F5F9;
+color: var(--slate-mid);
+padding: 3px 8px;
+border-radius: var(--radius-sm);
+font-weight: 600;
+font-size: 11px;
+}
+.dashboard-container {
+max-width: 1400px;
+margin: 0 auto;
+padding: 16px 20px;
+display: flex;
+flex-direction: column;
+gap: 16px;
+}
+/* Asset Summary Banner */
+.asset-header-bar {
+background: #FFFFFF;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+padding: 14px 18px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+}
+.asset-title-wrap h1 {
+font-family: var(--font-head);
+font-size: 20px;
+font-weight: 800;
+color: var(--slate-dark);
+margin-bottom: 2px;
+}
+.asset-meta-row {
+display: flex;
+align-items: center;
+gap: 14px;
+font-size: 12px;
+color: var(--slate-light);
+}
+.asset-kpi-group {
+display: flex;
+gap: 20px;
+}
+.asset-kpi {
+text-align: right;
+}
+.asset-kpi .label {
+font-size: 10px;
+font-weight: 600;
+text-transform: uppercase;
+color: var(--slate-light);
+letter-spacing: 0.5px;
+}
+.asset-kpi .val {
+font-family: var(--font-mono);
+font-size: 18px;
+font-weight: 700;
+color: var(--slate-dark);
+}
+/* First 500px Focal Grid: Floorplan Schematic & Financial Yield */
+.top-analytics-grid {
+display: grid;
+grid-template-columns: 1.3fr 1fr;
+gap: 16px;
+align-items: stretch;
+}
+.card {
+background: var(--surface);
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+display: flex;
+flex-direction: column;
+box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.card-header {
+padding: 10px 14px;
+border-bottom: 1px solid var(--slate-border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+background: #FAFBFD;
+}
+.card-title {
+font-family: var(--font-head);
+font-size: 13px;
+font-weight: 700;
+color: var(--slate-dark);
+display: flex;
+align-items: center;
+gap: 6px;
+}
+.card-body {
+padding: 14px;
+flex: 1;
+}
+/* Floorplan Schematic SVG */
+.floorplan-wrapper {
+background: #F8FAFC;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+padding: 10px;
+display: flex;
+flex-direction: column;
+align-items: center;
+}
+.floorplan-legend {
+width: 100%;
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 8px;
+font-size: 11px;
+}
+.legend-chips {
+display: flex;
+gap: 10px;
+}
+.legend-chip {
+display: flex;
+align-items: center;
+gap: 5px;
+font-size: 10px;
+color: var(--slate-mid);
+}
+.legend-color {
+width: 10px;
+height: 10px;
+border-radius: 2px;
+}
+.floorplan-svg {
+width: 100%;
+height: 250px;
+}
+/* Occupancy & NOI Section */
+.metrics-dual-card {
+display: flex;
+flex-direction: column;
+gap: 12px;
+}
+/* Occupancy Rate Bar & Stat */
+.occupancy-box {
+background: linear-gradient(135deg, var(--forest-dark) 0%, #164E35 100%);
+color: #fff;
+padding: 14px;
+border-radius: var(--radius-md);
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.occ-left .title {
+font-size: 11px;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.8px;
+color: #A7F3D0;
+}
+.occ-big-val {
+font-family: var(--font-mono);
+font-size: 34px;
+font-weight: 800;
+line-height: 1.1;
+margin-top: 2px;
+}
+.occ-sub {
+font-size: 11px;
+color: #D1FAE5;
+margin-top: 4px;
+}
+.occ-badge-pill {
+background: rgba(255, 255, 255, 0.15);
+padding: 4px 10px;
+border-radius: 9999px;
+font-size: 11px;
+font-weight: 600;
+border: 1px solid rgba(255, 255, 255, 0.25);
+}
+/* NOI Financial Yield Chart */
+.noi-box {
+background: #FFFFFF;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+padding: 12px;
+}
+.noi-header {
+display: flex;
+justify-content: space-between;
+align-items: baseline;
+margin-bottom: 6px;
+}
+.noi-title {
+font-family: var(--font-head);
+font-size: 12px;
+font-weight: 700;
+color: var(--slate-dark);
+}
+.noi-amount {
+font-family: var(--font-mono);
+font-size: 16px;
+font-weight: 700;
+color: var(--forest-green);
+}
+.noi-chart-svg {
+width: 100%;
+height: 120px;
+}
+/* Rent Roll Table */
+.rentroll-section {
+background: #FFFFFF;
+border: 1px solid var(--slate-border);
+border-radius: var(--radius-md);
+overflow: hidden;
+}
+.table-head-bar {
+padding: 10px 14px;
+background: #FAFBFD;
+border-bottom: 1px solid var(--slate-border);
+display: flex;
+align-items: center;
+justify-content: space-between;
+}
+.data-table {
+width: 100%;
+border-collapse: collapse;
+font-size: 12px;
+}
+.data-table th {
+background: #F8FAFC;
+color: var(--slate-mid);
+font-size: 10px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+text-align: left;
+padding: 8px 12px;
+border-bottom: 1px solid var(--slate-border);
+}
+.data-table td {
+padding: 8px 12px;
+border-bottom: 1px solid var(--slate-border);
+color: var(--slate-dark);
+}
+.data-table tr:hover td {
+background: #F8FAFC;
+}
+.badge-status {
+display: inline-flex;
+align-items: center;
+padding: 2px 8px;
+border-radius: 9999px;
+font-size: 10px;
+font-weight: 600;
+}
+.badge-leased { background: var(--forest-light); color: var(--forest-green); }
+.badge-vacant { background: #FEF3C7; color: var(--warning-amber); }
+</style>
+</head>
+<body>
+<!-- Navigation -->
+<header class="top-nav">
+<div class="brand-group">
+<div class="brand-icon">PV</div>
+<div class="brand-name">PROPERTY<span>VUE</span></div>
+<div class="asset-crumb">
+<span>/</span>
+<span class="asset-tag">COMMERCIAL ASSET MANAGEMENT</span>
+<span>/</span>
+<span style="font-weight: 600; color: var(--slate-dark);">100 Montgomery Tower</span>
+</div>
+</div>
+<div style="display: flex; gap: 12px; align-items: center;">
+<span style="font-size: 11px; color: var(--slate-light); font-family: var(--font-mono);">VALUATION: $284.5M</span>
+<span style="background: var(--forest-light); color: var(--forest-green); font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px;">CAP RATE 6.42%</span>
+</div>
+</header>
+<main class="dashboard-container">
+<!-- Asset Profile Banner -->
+<div class="asset-header-bar">
+<div class="asset-title-wrap">
+<h1>100 Montgomery Tower — Class A Trophy Asset</h1>
+<div class="asset-meta-row">
+<span>San Francisco CBD · Financial District</span>
+<span>&bull;</span>
+<span>428,500 RSF Total</span>
+<span>&bull;</span>
+<span>36 Stories · Built 2018</span>
+<span>&bull;</span>
+<span style="color: var(--forest-accent); font-weight: 600;">LEED Platinum</span>
+</div>
+</div>
+<div class="asset-kpi-group">
+<div class="asset-kpi">
+<div class="label">TENANT OCCUPANCY</div>
+<div class="val" style="color: var(--forest-accent);">94.2%</div>
+</div>
+<div class="asset-kpi">
+<div class="label">NET OPERATING INCOME</div>
+<div class="val">$18.24M</div>
+</div>
+<div class="asset-kpi">
+<div class="label">WALT (EXPIRY)</div>
+<div class="val">6.8 YRS</div>
+</div>
+</div>
+</div>
+<!-- First 500px Focal Grid: Architectural Floorplan & Occupancy/NOI Analytics -->
+<div class="top-analytics-grid">
+<!-- Left Card: Architectural Floorplan Schematic -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+<line x1="3" y1="9" x2="21" y2="9"></line>
+<line x1="9" y1="21" x2="9" y2="9"></line>
+</svg>
+ARCHITECTURAL FLOORPLAN SCHEMATIC — LEVEL 14
+</div>
+<span style="font-family: var(--font-mono); font-size: 11px; color: var(--slate-mid);">43,900 RSF PLATE</span>
+</div>
+<div class="card-body">
+<div class="floorplan-wrapper">
+<div class="floorplan-legend">
+<span style="font-weight: 700; color: var(--slate-dark);">FLOORPLAN ZONING &amp; SUITE ALLOCATION</span>
+<div class="legend-chips">
+<div class="legend-chip"><span class="legend-color" style="background: #14532D;"></span>Leased (94.2%)</div>
+<div class="legend-chip"><span class="legend-color" style="background: #D97706;"></span>Available Spec Suite (5.8%)</div>
+<div class="legend-chip"><span class="legend-color" style="background: #94A3B8;"></span>Building Core / Elevators</div>
+</div>
+</div>
+<!-- Architectural Floorplan SVG -->
+<svg class="floorplan-svg" viewBox="0 0 600 250">
+<!-- Outer Floorplate Outline -->
+<rect x="15" y="15" width="570" height="220" rx="4" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2" />
+<line x1="15" y1="15" x2="585" y2="15" stroke="#94A3B8" stroke-width="3" />
+<line x1="585" y1="15" x2="585" y2="235" stroke="#94A3B8" stroke-width="3" />
+<!-- Suite 1400: Acme Financial Partners (West Wing) -->
+<rect x="25" y="25" width="220" height="135" rx="3" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5" />
+<text x="35" y="50" font-family="sans-serif" font-size="11" font-weight="bold" fill="#14532D">SUITE 1400 — ACME FINANCIAL</text>
+<text x="35" y="66" font-family="monospace" font-size="10" fill="#15803D">18,200 RSF · $84/SF · Exp 2032</text>
+<rect x="35" y="80" width="30" height="20" fill="#BBF7D0" rx="2" />
+<rect x="75" y="80" width="30" height="20" fill="#BBF7D0" rx="2" />
+<rect x="115" y="80" width="40" height="20" fill="#BBF7D0" rx="2" />
+<text x="120" y="94" font-family="sans-serif" font-size="8" fill="#14532D">BOARD</text>
+<!-- Central Core (Elevators, Restrooms, Shafts) -->
+<rect x="260" y="55" width="130" height="140" rx="2" fill="#E2E8F0" stroke="#94A3B8" stroke-width="1.5" />
+<text x="275" y="75" font-family="sans-serif" font-size="9" font-weight="bold" fill="#475569">BUILDING CORE</text>
+<!-- Elevator banks -->
+<rect x="270" y="85" width="22" height="24" fill="#CBD5E1" stroke="#64748B" rx="1" />
+<rect x="296" y="85" width="22" height="24" fill="#CBD5E1" stroke="#64748B" rx="1" />
+<rect x="330" y="85" width="22" height="24" fill="#CBD5E1" stroke="#64748B" rx="1" />
+<rect x="356" y="85" width="22" height="24" fill="#CBD5E1" stroke="#64748B" rx="1" />
+<text x="282" y="125" font-family="monospace" font-size="8" fill="#64748B">PASSENGER CARS</text>
+<rect x="275" y="145" width="100" height="35" fill="#F1F5F9" stroke="#CBD5E1" />
+<text x="295" y="166" font-family="sans-serif" font-size="8" fill="#64748B">RESTROOMS / MEP</text>
+<!-- Suite 1420: Apex Global Legal (North-East Wing) -->
+<rect x="405" y="25" width="170" height="105" rx="3" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5" />
+<text x="415" y="48" font-family="sans-serif" font-size="10" font-weight="bold" fill="#14532D">SUITE 1420 — APEX LEGAL</text>
+<text x="415" y="64" font-family="monospace" font-size="9" fill="#15803D">12,400 RSF · $78/SF · Exp 2030</text>
+<!-- Suite 1450: Available Spec Suite (South-East Wing) -->
+<rect x="405" y="140" width="170" height="85" rx="3" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5" stroke-dasharray="4 2" />
+<text x="415" y="165" font-family="sans-serif" font-size="10" font-weight="bold" fill="#92400E">SUITE 1450 — SPEC VACANCY</text>
+<text x="415" y="180" font-family="monospace" font-size="9" fill="#B45309">4,800 RSF · Asking $76/SF NNN</text>
+<rect x="415" y="192" width="85" height="18" fill="#FDE68A" rx="2" />
+<text x="420" y="205" font-family="sans-serif" font-size="8" font-weight="bold" fill="#78350F">READY FOR MOVE-IN</text>
+<!-- Suite 1480: Nova Digital Health (South-West Wing) -->
+<rect x="25" y="170" width="220" height="55" rx="3" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5" />
+<text x="35" y="192" font-family="sans-serif" font-size="10" font-weight="bold" fill="#14532D">SUITE 1480 — NOVA DIGITAL HEALTH</text>
+<text x="35" y="208" font-family="monospace" font-size="9" fill="#15803D">8,500 RSF · $82/SF · Exp 2029</text>
+</svg>
+</div>
+</div>
+</div>
+<!-- Right Card: Tenant Occupancy Rate & NOI Financial Yield Chart -->
+<div class="card">
+<div class="card-header">
+<div class="card-title">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<line x1="18" y1="20" x2="18" y2="10"></line>
+<line x1="12" y1="20" x2="12" y2="4"></line>
+<line x1="6" y1="20" x2="6" y2="14"></line>
+</svg>
+YIELD &amp; OCCUPANCY PERFORMANCE
+</div>
+<span style="font-size: 11px; color: var(--forest-accent); font-weight: 700;">PRO FORMA EXCEEDED</span>
+</div>
+<div class="card-body metrics-dual-card">
+<!-- Tenant Occupancy Rate Box -->
+<div class="occupancy-box">
+<div class="occ-left">
+<div class="title">TENANT OCCUPANCY RATE</div>
+<div class="occ-big-val">94.2%</div>
+<div class="occ-sub">Leased: 403,647 RSF · Vacant: 24,853 RSF</div>
+</div>
+<div style="text-align: right;">
+<div class="occ-badge-pill">+2.2% YoY OUTPERFORM</div>
+<div style="font-size: 10px; color: #A7F3D0; margin-top: 8px;">RETENTION PROBABILITY: 96%</div>
+</div>
+</div>
+<!-- NOI Financial Yield Chart -->
+<div class="noi-box">
+<div class="noi-header">
+<div>
+<div class="noi-title">NOI FINANCIAL YIELD (NET OPERATING INCOME)</div>
+<div style="font-size: 10px; color: var(--slate-light);">Trailing 12-Month Net Yield vs OpEx</div>
+</div>
+<div class="noi-amount">$18,240,000 / YR</div>
+</div>
+<!-- NOI SVG Yield Chart -->
+<svg class="noi-chart-svg" viewBox="0 0 420 110">
+<!-- Grid lines -->
+<line x1="30" y1="20" x2="410" y2="20" stroke="#F1F5F9" stroke-width="1" />
+<line x1="30" y1="50" x2="410" y2="50" stroke="#F1F5F9" stroke-width="1" />
+<line x1="30" y1="80" x2="410" y2="80" stroke="#F1F5F9" stroke-width="1" />
+<!-- Y-axis labels -->
+<text x="5" y="23" font-size="8" fill="#94A3B8" font-family="monospace">$6M</text>
+<text x="5" y="53" font-size="8" fill="#94A3B8" font-family="monospace">$4M</text>
+<text x="5" y="83" font-size="8" fill="#94A3B8" font-family="monospace">$2M</text>
+<!-- Q1 -->
+<rect x="50" y="32" width="24" height="58" rx="2" fill="#E2E8F0" />
+<rect x="76" y="22" width="24" height="68" rx="2" fill="#14532D" />
+<text x="65" y="100" font-size="9" fill="#475569" font-family="sans-serif">Q1 2026</text>
+<!-- Q2 -->
+<rect x="140" y="30" width="24" height="60" rx="2" fill="#E2E8F0" />
+<rect x="166" y="20" width="24" height="70" rx="2" fill="#14532D" />
+<text x="155" y="100" font-size="9" fill="#475569" font-family="sans-serif">Q2 2026</text>
+<!-- Q3 -->
+<rect x="230" y="28" width="24" height="62" rx="2" fill="#E2E8F0" />
+<rect x="256" y="18" width="24" height="72" rx="2" fill="#14532D" />
+<text x="245" y="100" font-size="9" fill="#475569" font-family="sans-serif">Q3 2026</text>
+<!-- Q4 (Projected) -->
+<rect x="320" y="26" width="24" height="64" rx="2" fill="#E2E8F0" />
+<rect x="346" y="14" width="24" height="76" rx="2" fill="#16A34A" />
+<text x="335" y="100" font-size="9" fill="#16A34A" font-weight="bold" font-family="sans-serif">Q4 (PROJ)</text>
+<!-- Trendline for Net Yield -->
+<polyline points="88,22 178,20 268,18 358,14" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" />
+<circle cx="88" cy="22" r="3" fill="#2563EB" />
+<circle cx="178" cy="20" r="3" fill="#2563EB" />
+<circle cx="268" cy="18" r="3" fill="#2563EB" />
+<circle cx="358" cy="14" r="3" fill="#2563EB" />
+</svg>
+</div>
+</div>
+</div>
+</div>
+<!-- Tenant Rent Roll Section -->
+<div class="rentroll-section">
+<div class="table-head-bar">
+<strong style="font-family: var(--font-head); font-size: 13px; color: var(--slate-dark);">TENANT RENT ROLL &amp; LEASE COMMITMENTS</strong>
+<span style="font-size: 11px; color: var(--slate-light);">Average In-Place Rent: $81.40/RSF Full Service Gross</span>
+</div>
+<table class="data-table">
+<thead>
+<tr>
+<th>TENANT NAME</th>
+<th>SUITE</th>
+<th>LEASABLE AREA</th>
+<th>IN-PLACE RENT</th>
+<th>LEASE EXPIRY</th>
+<th>WALT STATUS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Acme Financial Partners LLC</strong></td>
+<td>Suite 1400</td>
+<td style="font-family: var(--font-mono);">18,200 RSF</td>
+<td style="font-family: var(--font-mono);">$84.00 / RSF</td>
+<td>Oct 2032</td>
+<td><span class="badge-status badge-leased">6.5 Yrs Remaining</span></td>
+</tr>
+<tr>
+<td><strong>Apex Global Legal LLP</strong></td>
+<td>Suite 1420</td>
+<td style="font-family: var(--font-mono);">12,400 RSF</td>
+<td style="font-family: var(--font-mono);">$78.00 / RSF</td>
+<td>May 2030</td>
+<td><span class="badge-status badge-leased">4.2 Yrs Remaining</span></td>
+</tr>
+<tr>
+<td><strong>Spec Suite 1450</strong></td>
+<td>Suite 1450</td>
+<td style="font-family: var(--font-mono);">4,800 RSF</td>
+<td style="font-family: var(--font-mono);">$76.00 Asking</td>
+<td>Available Now</td>
+<td><span class="badge-status badge-vacant">Spec Marketing</span></td>
+</tr>
+<tr>
+<td><strong>Nova Digital Health Inc.</strong></td>
+<td>Suite 1480</td>
+<td style="font-family: var(--font-mono);">8,500 RSF</td>
+<td style="font-family: var(--font-mono);">$82.00 / RSF</td>
+<td>Dec 2029</td>
+<td><span class="badge-status badge-leased">3.8 Yrs Remaining</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+</body>
+</html>

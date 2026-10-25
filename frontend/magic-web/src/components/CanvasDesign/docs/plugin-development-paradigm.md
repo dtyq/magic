@@ -230,7 +230,7 @@ module.dispose(ctx, instance, reason)
 
 `ctx` 是插件和宿主之间的能力边界。它包含两类内容：
 
-1. 状态属性，例如 `ctx.plugin`、`ctx.host.locale`、`ctx.host.readonly`。
+1. 状态属性，例如 `ctx.plugin`、`ctx.host.locale`、`ctx.host.accessMode`。
 2. 能力方法，例如 `ctx.i18n.t`、`ctx.ui.toast`、`ctx.assets.pickFiles`、`ctx.ai.generateAndPlace`、`ctx.ai.completeImagePrompt`。
 
 `ctx` 在一个插件实例生命周期内应保持引用稳定。宿主状态变化时，runtime 更新 `ctx.host` 的可读状态，并通过 `view.onHostStateChange(event)` 通知 view。
@@ -392,7 +392,7 @@ registerMagicCanvasPlugin({
 			generateButton.textContent = ctx.i18n.t("button.generate")
 		}
 		const renderDisabledState = () => {
-			generateButton.disabled = ctx.host.readonly || instance.state.loading
+			generateButton.disabled = ctx.host.accessMode !== "edit" || instance.state.loading
 		}
 		const renderGarmentGrid = () => {
 			garmentGrid.replaceChildren(
@@ -442,7 +442,7 @@ registerMagicCanvasPlugin({
 				if (event.type === "locale-change") {
 					renderTexts()
 				}
-				if (event.type === "readonly-change") {
+				if (event.type === "access-mode-change") {
 					renderDisabledState()
 				}
 			},
@@ -680,8 +680,8 @@ ctx.state.patch(instance.state, {
 
 ```js
 onHostStateChange(event) {
-	if (event.type === "readonly-change") {
-		button.disabled = event.readonly || instance.state.loading
+	if (event.type === "access-mode-change") {
+		button.disabled = event.accessMode !== "edit" || instance.state.loading
 	}
 }
 ```
@@ -694,7 +694,7 @@ onHostStateChange(event) {
 | ------------------------- | -------------------- |
 | `locale-change`           | 宿主语言变化          |
 | `theme-change`            | 主题变化              |
-| `readonly-change`         | 只读状态变化          |
+| `access-mode-change`     | 访问模式变化          |
 | `selection-change`        | 选区变化              |
 | `resource-change`         | 项目资源变化          |
 | `panel-visibility-change` | 面板显示或隐藏        |
@@ -877,7 +877,7 @@ render(ctx, instance, root) {
 ctx.plugin        当前插件静态信息，来自 manifest
 ctx.host.locale   当前语言
 ctx.host.theme    当前主题
-ctx.host.readonly 是否只读
+ctx.host.accessMode 当前访问模式（edit / readonly / share / history）
 ctx.host.panel    当前面板状态，例如 visible、width、height
 ```
 
@@ -885,8 +885,8 @@ ctx.host.panel    当前面板状态，例如 visible、width、height
 
 ```js
 onHostStateChange({
-	type: "readonly-change",
-	readonly: true,
+	type: "access-mode-change",
+	accessMode: "readonly",
 })
 ```
 
@@ -932,7 +932,7 @@ ctx.ai
 
 能力方法不建议通过 `onHostStateChange` 做增删。如果只读态、权限或业务状态导致某个能力暂不可用，推荐：
 
-1. 状态属性表达限制，例如 `ctx.host.readonly = true`。
+1. 状态属性表达当前访问模式，例如 `ctx.host.accessMode = "readonly"`。
 2. UI 根据状态禁用入口。
 3. 方法被调用时返回结构化错误，例如 `READONLY`、`CAPABILITY_UNAVAILABLE`。
 

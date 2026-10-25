@@ -6,6 +6,7 @@
         "today": "今天",
         "tomorrow": "明天",
         "yesterday": "昨天",
+        "triggerTime": "触发时间",
         "searchNone": "暂无搜索结果",
         "searchOrQuery": "搜索或查询",
         "constants": "常量",

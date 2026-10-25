@@ -5,6 +5,7 @@ import { SuperMagicApi } from "@/apis"
 import { validateFilename } from "@/utils/filename-validator"
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { analyticsService } from "@/services/analytics"
 
 interface UseCreateProjectOptions {
 	workspaceId: string
@@ -66,6 +67,7 @@ export function useCreateProject(options: UseCreateProjectOptions) {
 		setLoading(true)
 
 		try {
+			analyticsService.report("project_create_attempted", { workspaceId })
 			const response = await SuperMagicApi.createProject({
 				workspace_id: workspaceId,
 				project_name: normalizedName,

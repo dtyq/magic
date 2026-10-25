@@ -97,7 +97,9 @@ export const useStyles = createStyles(({ token, css, responsive }) => {
 					margin: 0;
 					padding: 0;
 					white-space: pre-wrap;
-					word-break: break-all;
+					/* Break only where a word would not fit; break-all split English words mid-letter. */
+					word-break: normal;
+					overflow-wrap: anywhere;
 				}
 
 				/* 占位符样式 */

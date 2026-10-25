@@ -64,7 +64,8 @@ class AsrSummarySubscriber extends ConsumerMessage
             CoContext::setRequestId($msg->requestId);
         }
 
-        $lockName = sprintf(AsrRedisKeys::SUMMARY_MQ_RETRY_LOCK, md5($msg->userId . ':' . $msg->taskKey));
+        $retryIdentity = md5($msg->userId . ':' . $msg->taskKey . ':' . $msg->mode);
+        $lockName = sprintf(AsrRedisKeys::SUMMARY_MQ_RETRY_LOCK, $retryIdentity);
         $lockOwner = sprintf('%s:%s:%s', $msg->userId, $msg->taskKey, microtime(true));
         $locked = $this->locker->mutexLock($lockName, $lockOwner, AsrConfig::SUMMARY_MQ_RETRY_LOCK_TTL);
         if (! $locked) {
@@ -73,8 +74,8 @@ class AsrSummarySubscriber extends ConsumerMessage
             return Result::ACK;
         }
 
-        // 重试次数控制：按 user_id + task_key 维度
-        $retryKey = sprintf(AsrRedisKeys::SUMMARY_MQ_RETRY, md5($msg->userId . ':' . $msg->taskKey));
+        // 重试次数按 user_id + task_key + mode 隔离，避免 recording/title_only 互相污染。
+        $retryKey = sprintf(AsrRedisKeys::SUMMARY_MQ_RETRY, $retryIdentity);
         try {
             $retryCount = (int) $this->redis->incr($retryKey);
             if ($retryCount === 1) {
@@ -105,6 +106,7 @@ class AsrSummarySubscriber extends ConsumerMessage
                     ]);
                 }
 
+                $this->redis->del($retryKey);
                 return Result::ACK;
             }
 
@@ -119,8 +121,18 @@ class AsrSummarySubscriber extends ConsumerMessage
                 $msg->generatedTitle
             );
 
-            // 关键：真正的总结逻辑仍复用应用服务（内部含分布式锁+幂等）
-            $this->asrFileAppService->handleAsrSummary($summaryRequest, $msg->userId, $msg->organizationCode);
+            if ($msg->mode === AsrSummaryMessage::MODE_TITLE_ONLY) {
+                $this->asrFileAppService->handleAsyncTitleOnly(
+                    $msg->taskKey,
+                    $msg->userId,
+                    $msg->organizationCode,
+                    $msg->generatedTitle,
+                    $msg->fileId
+                );
+            } else {
+                // 关键：真正的总结逻辑仍复用应用服务（内部含分布式锁+幂等）
+                $this->asrFileAppService->handleAsrSummary($summaryRequest, $msg->userId, $msg->organizationCode);
+            }
 
             // 成功则清理重试计数，避免后续重复任务被误判
             $this->redis->del($retryKey);

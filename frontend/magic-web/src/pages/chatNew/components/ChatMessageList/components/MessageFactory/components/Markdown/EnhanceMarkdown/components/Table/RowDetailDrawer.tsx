@@ -1,5 +1,6 @@
 import type React from "react"
 import { Drawer, Form } from "antd"
+import { useTranslation } from "react-i18next"
 import { useTableStyles } from "./styles"
 
 interface RowData {
@@ -19,12 +20,13 @@ const RowDetailDrawer: React.FC<RowDetailDrawerProps> = ({
 	onClose,
 	rowData,
 	headers,
-	title = "详细信息",
+	title,
 }) => {
+	const { t } = useTranslation("chat")
 	const { styles } = useTableStyles()
 	return (
 		<Drawer
-			title={title}
+			title={title ?? t("detail.details")}
 			placement="right"
 			onClose={onClose}
 			open={visible}

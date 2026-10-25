@@ -1,9 +1,8 @@
 import { observer } from "mobx-react-lite"
-import { Flex } from "antd"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 
-import MagicScrollBar from "@/components/base/MagicScrollBar"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import AccountCard from "@/components/business/AccountCard"
 import { useAccount } from "@/models/user/hooks"
 import { useClusterConfig } from "@/models/config/hooks"
@@ -13,7 +12,7 @@ import { getPlatformName } from "@/utils/getPlatformName"
 import type { OrganizationSwitchProps } from "./types"
 import type { User } from "@/types/user"
 
-import { useOrganizationSwitchStyles } from "./styles"
+import { cn } from "@/utils/cn"
 
 /**
  * OrganizationSwitch - Mobile organization switching component
@@ -24,7 +23,6 @@ import { useOrganizationSwitchStyles } from "./styles"
 function OrganizationSwitchComponent(props: OrganizationSwitchProps) {
 	const { className, style, onClose, onSwitchBefore } = props
 
-	const { styles, cx } = useOrganizationSwitchStyles()
 	const { accounts } = useAccount()
 	const { clustersConfig } = useClusterConfig()
 	const { t } = useTranslation("interface")
@@ -47,9 +45,16 @@ function OrganizationSwitchComponent(props: OrganizationSwitchProps) {
 	}
 
 	return (
-		<div className={cx(styles.container, className)} style={style}>
-			<MagicScrollBar className={styles.scrollContainer} autoHide>
-				<Flex vertical gap={10}>
+		<div
+			className={cn("h-full min-h-0 w-full overflow-hidden bg-neutral-50", className)}
+			style={style}
+		>
+			<ScrollArea
+				className="h-full"
+				// Account cards must fit the viewport rather than Radix's intrinsic table width.
+				viewportClassName="p-2.5 [&>div]:!block"
+			>
+				<div className="flex flex-col gap-2.5">
 					{accounts.map((account, accountIndex) => {
 						const platformName = getPlatformName(
 							account,
@@ -69,8 +74,8 @@ function OrganizationSwitchComponent(props: OrganizationSwitchProps) {
 							/>
 						)
 					})}
-				</Flex>
-			</MagicScrollBar>
+				</div>
+			</ScrollArea>
 		</div>
 	)
 }

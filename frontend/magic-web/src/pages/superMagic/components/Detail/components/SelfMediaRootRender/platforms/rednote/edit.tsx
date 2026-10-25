@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import IsolatedHTMLRenderer, {
 	type IsolatedHTMLRendererRef,
 } from "../../../../contents/HTML/IsolatedHTMLRenderer"
@@ -31,6 +31,7 @@ import { RednoteEditThumbnailSidebar } from "./RednoteEditThumbnailSidebar"
 import FileEditButtons from "@/pages/superMagic/components/Detail/components/EditToolbar/FileEditButtons"
 import { resolveSelfMediaCardScaleContentDimensions } from "../../utils/selfMediaCardDimensions"
 import { selfMediaOverlayStyles } from "../../components/selfMediaOverlayStyles"
+import { usePendingActionGuard } from "../../../../utils/usePendingActionGuard"
 
 interface RednoteEditViewProps {
 	attachmentList?: PlatformComponentProps["attachmentList"]
@@ -72,6 +73,7 @@ const RednoteEditView = observer(function RednoteEditView({
 	onAddCardToCurrentChat,
 }: RednoteEditViewProps) {
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 	const store = useSelfMediaStore()
 	const { activePost, activeCardIndex } = store
 	const cards = activePost?.cards ?? []
@@ -125,8 +127,7 @@ const RednoteEditView = observer(function RednoteEditView({
 	const [showUnsavedNavDialog, setShowUnsavedNavDialog] = useState(false)
 	const [showRefreshConfirmDialog, setShowRefreshConfirmDialog] = useState(false)
 	const [showVersionHistoryGuardDialog, setShowVersionHistoryGuardDialog] = useState(false)
-	const pendingActionRef = useRef<(() => void) | null>(null)
-	const versionHistoryGateResolveRef = useRef<((allowed: boolean) => void) | null>(null)
+	const saveRetryTargetRef = useRef<"navigation" | "refresh" | null>(null)
 
 	// ===== File path mapping =====
 	const [htmlToolbarEndHost, setHtmlToolbarEndHost] = useState<HTMLDivElement | null>(null)
@@ -143,6 +144,43 @@ const RednoteEditView = observer(function RednoteEditView({
 		isDirtyRef.current = nextDirty
 		setHasUnsavedChanges((prev) => (prev === nextDirty ? prev : nextDirty))
 	}, [])
+	const shouldBlockPendingAction = useCallback(
+		() => isEditMode && isDirtyRef.current,
+		[isEditMode],
+	)
+	const handleNavigationBlocked = useCallback(() => {
+		setShowUnsavedNavDialog(true)
+	}, [])
+	const handleRefreshBlocked = useCallback(() => {
+		setShowRefreshConfirmDialog(true)
+	}, [])
+	const handleVersionHistoryBlocked = useCallback(() => {
+		setShowVersionHistoryGuardDialog(true)
+	}, [])
+
+	const navigationGuard = usePendingActionGuard({
+		shouldBlock: shouldBlockPendingAction,
+		onBlocked: handleNavigationBlocked,
+	})
+	const refreshGuard = usePendingActionGuard({
+		shouldBlock: shouldBlockPendingAction,
+		onBlocked: handleRefreshBlocked,
+	})
+	const versionHistoryGuard = usePendingActionGuard({
+		shouldBlock: shouldBlockPendingAction,
+		onBlocked: handleVersionHistoryBlocked,
+	})
+	const {
+		run: runNavigation,
+		resolve: resolveNavigation,
+		cancel: cancelNavigation,
+	} = navigationGuard
+	const { run: runRefresh, resolve: resolveRefresh, cancel: cancelRefresh } = refreshGuard
+	const {
+		run: runVersionHistory,
+		resolve: resolveVersionHistory,
+		cancel: cancelVersionHistory,
+	} = versionHistoryGuard
 
 	const flattenedFiles = useMemo(
 		() =>
@@ -182,7 +220,7 @@ const RednoteEditView = observer(function RednoteEditView({
 		setCardContent(null)
 		;(async () => {
 			try {
-				const urls = await getTemporaryDownloadUrl({ file_ids: [fileId] })
+				const urls = await fileApi.getTemporaryDownloadUrl({ file_ids: [fileId] })
 				const url = urls?.[0]?.url
 				if (!url) throw new Error("noCardUrl")
 				if (cancelled) return
@@ -203,6 +241,7 @@ const RednoteEditView = observer(function RednoteEditView({
 						fileName: currentFile?.file_name,
 						html_relative_path: relativeFolderPath,
 						xMagicImageProcess: CARD_IMAGE_PROCESS,
+						fileApi,
 					})
 					processedContent = result.processedContent || html
 					mapping = result.filePathMapping || new Map()
@@ -233,6 +272,7 @@ const RednoteEditView = observer(function RednoteEditView({
 		contentReloadVersion,
 		currentFile?.file_name,
 		relativeFolderPath,
+		fileApi,
 	])
 
 	// ===== Auto-enter edit mode when content is loaded =====
@@ -252,29 +292,17 @@ const RednoteEditView = observer(function RednoteEditView({
 		setTriggerSaveRef(() => triggerSave)
 	}, [])
 
-	const runPendingAction = useCallback(() => {
-		pendingActionRef.current?.()
-		pendingActionRef.current = null
-	}, [])
-
-	const clearPendingAction = useCallback(() => {
-		pendingActionRef.current = null
-	}, [])
-
-	const runNavigationAfterSave = useMemoizedFn(async (action: () => void) => {
+	const runNavigationAfterSave = useMemoizedFn((action: () => void) => {
 		if (!isEditMode || !isDirtyRef.current) {
 			action()
-			return
+			return Promise.resolve(true)
 		}
 
-		pendingActionRef.current = () => {
+		return runNavigation(() => {
 			setDirtyState(false)
 			setIsEditMode(false)
 			action()
-		}
-
-		// Show confirm dialog instead of auto-saving
-		setShowUnsavedNavDialog(true)
+		}, undefined)
 	})
 
 	// ===== Execute save =====
@@ -325,15 +353,9 @@ const RednoteEditView = observer(function RednoteEditView({
 		reloadActiveCardContent()
 	})
 
-	const runRefreshAfterGuard = useMemoizedFn((action: () => void) => {
-		if (!isEditMode || !isDirtyRef.current) {
-			action()
-			return
-		}
-
-		pendingActionRef.current = action
-		setShowRefreshConfirmDialog(true)
-	})
+	const runRefreshAfterGuard = useMemoizedFn((action: () => void) =>
+		runRefresh(action, undefined),
+	)
 
 	// ===== Auto-save with throttle =====
 	// (removed — manual save only via FileEditButtons)
@@ -434,60 +456,68 @@ const RednoteEditView = observer(function RednoteEditView({
 		const saved = await executeSave()
 		if (saved) {
 			setShowSaveRetryDialog(false)
-			runPendingAction()
+			const target = saveRetryTargetRef.current
+			saveRetryTargetRef.current = null
+			if (target === "navigation") await resolveNavigation(true)
+			if (target === "refresh") await resolveRefresh(true)
 		}
-	}, [executeSave, runPendingAction])
+	}, [executeSave, resolveNavigation, resolveRefresh])
 
 	const handleDiscardAfterFailedSave = useCallback(() => {
 		setShowSaveRetryDialog(false)
 		setDirtyState(false)
-		runPendingAction()
-	}, [runPendingAction, setDirtyState])
+		const target = saveRetryTargetRef.current
+		saveRetryTargetRef.current = null
+		if (target === "navigation") void resolveNavigation(true)
+		if (target === "refresh") void resolveRefresh(true)
+	}, [resolveNavigation, resolveRefresh, setDirtyState])
 
 	// ===== Unsaved nav dialog handlers =====
 	const handleSaveBeforeNav = useCallback(async () => {
 		setShowUnsavedNavDialog(false)
 		const saved = await executeSave()
 		if (saved) {
-			runPendingAction()
+			await resolveNavigation(true)
 			return
 		}
+		saveRetryTargetRef.current = "navigation"
 		setShowSaveRetryDialog(true)
-	}, [executeSave, runPendingAction])
+	}, [executeSave, resolveNavigation])
 
 	const handleDiscardBeforeNav = useCallback(() => {
 		setShowUnsavedNavDialog(false)
 		setDirtyState(false)
-		runPendingAction()
-	}, [runPendingAction, setDirtyState])
+		void resolveNavigation(true)
+	}, [resolveNavigation, setDirtyState])
 
 	const handleCancelNav = useCallback(() => {
 		setShowUnsavedNavDialog(false)
-		clearPendingAction()
-	}, [clearPendingAction])
+		cancelNavigation()
+	}, [cancelNavigation])
 
 	const handleSaveBeforeRefresh = useCallback(async () => {
 		const saved = await executeSave()
 		if (saved) {
 			setShowRefreshConfirmDialog(false)
-			runPendingAction()
+			await resolveRefresh(true)
 			return
 		}
 
 		setShowRefreshConfirmDialog(false)
+		saveRetryTargetRef.current = "refresh"
 		setShowSaveRetryDialog(true)
-	}, [executeSave, runPendingAction])
+	}, [executeSave, resolveRefresh])
 
 	const handleDiscardBeforeRefresh = useCallback(() => {
 		setShowRefreshConfirmDialog(false)
 		setDirtyState(false)
-		runPendingAction()
-	}, [runPendingAction, setDirtyState])
+		void resolveRefresh(true)
+	}, [resolveRefresh, setDirtyState])
 
 	const handleCancelRefreshConfirm = useCallback(() => {
 		setShowRefreshConfirmDialog(false)
-		clearPendingAction()
-	}, [clearPendingAction])
+		cancelRefresh()
+	}, [cancelRefresh])
 
 	const handleCancelEdit = useCallback(() => {
 		setDirtyState(false)
@@ -496,33 +526,26 @@ const RednoteEditView = observer(function RednoteEditView({
 
 	// ===== Version history guard (ask save before opening history dropdown) =====
 	const handleBeforeVersionHistoryOpen = useMemoizedFn((): Promise<boolean> => {
-		if (!isDirtyRef.current) return Promise.resolve(true)
-		return new Promise<boolean>((resolve) => {
-			versionHistoryGateResolveRef.current = resolve
-			setShowVersionHistoryGuardDialog(true)
-		})
+		return runVersionHistory(async () => undefined, undefined)
 	})
 
 	const handleVersionHistoryGuardSave = useCallback(async () => {
 		setShowVersionHistoryGuardDialog(false)
 		const saved = await executeSave()
-		versionHistoryGateResolveRef.current?.(saved)
-		versionHistoryGateResolveRef.current = null
-	}, [executeSave])
+		await resolveVersionHistory(saved)
+	}, [executeSave, resolveVersionHistory])
 
 	const handleVersionHistoryGuardDiscard = useCallback(() => {
 		setShowVersionHistoryGuardDialog(false)
 		setDirtyState(false)
 		reloadActiveCardContent()
-		versionHistoryGateResolveRef.current?.(true)
-		versionHistoryGateResolveRef.current = null
-	}, [setDirtyState, reloadActiveCardContent])
+		void resolveVersionHistory(true)
+	}, [reloadActiveCardContent, resolveVersionHistory, setDirtyState])
 
 	const handleVersionHistoryGuardCancel = useCallback(() => {
 		setShowVersionHistoryGuardDialog(false)
-		versionHistoryGateResolveRef.current?.(false)
-		versionHistoryGateResolveRef.current = null
-	}, [])
+		cancelVersionHistory()
+	}, [cancelVersionHistory])
 
 	// ===== No-op openNewTab for IsolatedHTMLRenderer =====
 	const openNewTab = useCallback(() => {
@@ -597,7 +620,7 @@ const RednoteEditView = observer(function RednoteEditView({
 							attachmentList={attachmentList}
 							isVisible
 							toolbarEndRef={onHtmlToolbarEndRef}
-							toolbarClassName={`absolute left-1/2 top-2 z-[10] w-[98%] -translate-x-1/2 p-2 ${selfMediaOverlayStyles.floatingPanel}`}
+							toolbarClassName={`absolute left-2 top-2 z-[10] p-2 ${selfMediaOverlayStyles.floatingPanel}`}
 							className="h-full w-full"
 						/>
 						{htmlToolbarEndHost && hasUnsavedChanges && cardContent

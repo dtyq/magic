@@ -89,10 +89,35 @@ export function stripTopLevelFolderFromFiles(files: File[]): File[] {
 	})
 }
 
-export function extractUploadFileRelativePath(file: File): string {
-	const relativePath = getFileRelativePath(file)
-	const firstSlashIndex = relativePath.indexOf("/")
-	return firstSlashIndex === -1 ? file.name : relativePath.slice(firstSlashIndex + 1)
+export function extractTargetUploadRelativePath(file: File): string {
+	// Target-folder uploads already have their root folder removed.
+	return getFileRelativePath(file)
+}
+
+/**
+ * Renames target-upload files while preserving their relative directory paths.
+ *
+ * Example:
+ * Input:  `分类4/新建文件.md` + `{ "分类4/新建文件.md" => "新建文件(1).md" }`
+ * Output: `分类4/新建文件(1).md`
+ */
+export function renameFilesForTargetUpload(files: File[], renameMap: Map<string, string>): File[] {
+	return files.map((file) => {
+		const relativePath = extractTargetUploadRelativePath(file)
+		const nextName = renameMap.get(relativePath)
+		if (!nextName || nextName === file.name) return file
+
+		const lastSlashIndex = relativePath.lastIndexOf("/")
+		const nextRelativePath =
+			lastSlashIndex === -1
+				? nextName
+				: `${relativePath.slice(0, lastSlashIndex + 1)}${nextName}`
+		const renamedFile = new File([file], nextName, {
+			type: file.type,
+			lastModified: file.lastModified,
+		})
+		return defineWebkitRelativePath(renamedFile, nextRelativePath)
+	})
 }
 
 function getResolvedAttachmentIndex(
@@ -216,7 +241,7 @@ export function detectDuplicateFilesInTarget(
 	const duplicates = new Map<string, File>()
 
 	files.forEach((file) => {
-		const relativePath = extractUploadFileRelativePath(file)
+		const relativePath = extractTargetUploadRelativePath(file)
 		if (existingPaths.has(relativePath)) {
 			duplicates.set(relativePath, file)
 		}

@@ -4,7 +4,9 @@ export const useStyles = createStyles(({ token }) => ({
 	container: {
 		width: 600,
 		boxShadow: token.boxShadowSecondary,
-		borderRadius: 8,
+		borderRadius: 12,
+		border: `1px solid ${token.colorBorderSecondary}`,
+		maxWidth: "calc(100vw - 24px)",
 		overflow: "hidden",
 		background: token.colorBgContainer,
 
@@ -27,14 +29,14 @@ export const useStyles = createStyles(({ token }) => ({
 		transition: "all 0.2s ease",
 		gap: 8,
 		cursor: "grab",
-		height: 52,
+		height: 44,
 	},
 
 	headerTitle: {
 		display: "flex",
 		alignItems: "center",
 		gap: 10,
-		fontSize: 16,
+		fontSize: 13,
 		color: token.magicColorUsages.text[1],
 		lineHeight: "22px",
 	},
@@ -54,9 +56,9 @@ export const useStyles = createStyles(({ token }) => ({
 
 	tasksContainer: {
 		background: token.colorBgContainer,
-		borderRadius: "0 0 8px 8px",
+		borderRadius: "0 0 12px 12px",
 		maxHeight: 400,
-		overflowY: "auto",
+
 		border: `1px solid ${token.colorBorderSecondary}`,
 		borderTop: "none",
 	},
@@ -87,7 +89,7 @@ export const useStyles = createStyles(({ token }) => ({
 
 	progressCount: {
 		color: token.magicColorUsages.text[1],
-		fontSize: 16,
+		fontSize: 13,
 		fontWeight: 400,
 		lineHeight: "22px",
 	},

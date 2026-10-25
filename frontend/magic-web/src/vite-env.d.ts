@@ -11,3 +11,8 @@ declare module "virtual:magic-api" {
 	const preludeScript: string
 	export default preludeScript
 }
+
+declare module "virtual:magic-iframe-runtime" {
+	const scripts: Readonly<Record<string, string>>
+	export default scripts
+}

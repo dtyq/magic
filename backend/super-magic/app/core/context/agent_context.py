@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 from app.core.context.pending_reply_state import PendingReplyState
 
 if TYPE_CHECKING:
+    from app.infrastructure.sdk.magic_service.kernel.magic_service_parameter import MagicServiceAuthConfig
     from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
     from app.core.entity.message.client_message import SuperMagicProductContext
     from app.core.horizon.agent_horizon import AgentHorizon
@@ -24,6 +25,7 @@ from app.core.config.communication_config import STSTokenRefreshConfig
 from app.core.entity.agent_profile import AgentProfile, DEFAULT_AGENT_PROFILE
 from app.core.entity.attachment import Attachment
 from app.core.entity.message.client_message import AgentMode, ChatClientMessage, InitClientMessage, Metadata, User
+from app.core.entity.message.personal_preferences import PersonalPreferences
 from app.core.entity.project_archive import ProjectArchiveInfo
 from agentlang.event.event import Event, EventType, StoppableEvent
 from agentlang.event.common import BaseEventData
@@ -126,6 +128,11 @@ class AgentContext(BaseAgentContext):
         # 普通路径与隔离路径都走同一初始化逻辑；共享实例由 is_initialized 保护避免重复注册。
         self._init_shared_fields()
         self.model_context = AgentModelContext()
+        # 仅当前主会话运行使用，未指定时恢复模型默认，不参与 fork 或 session 持久化。
+        self.reasoning_effort: object = None
+        self._user_context_host: str = ""
+        self._user_context_auth: MagicServiceAuthConfig | None = None
+        self._user_context_config_loaded = False
 
         # 初始化中断事件通知
         self._interruption_event = asyncio.Event()
@@ -135,6 +142,7 @@ class AgentContext(BaseAgentContext):
         self._subagent_depth = 0
         self._subagent_parent_agent_name: Optional[str] = None
         self._subagent_parent_agent_id: Optional[str] = None
+        self._subagent_forked = False
 
         # 运行时身份 / 上下文标识
         # context_id 用于 Skill Code Mode 路由；
@@ -145,6 +153,8 @@ class AgentContext(BaseAgentContext):
         self._horizon_agent_id: Optional[str] = None
         # Runtime 完成定义准备后写入的确定运行目标。
         self._agent_target: Optional[AgentTarget] = None
+        self._user_facing_agent_target: AgentTarget | None = None
+        self._user_facing_agent_name: str = ""
 
         # 设置工作空间目录
         try:
@@ -163,6 +173,11 @@ class AgentContext(BaseAgentContext):
             chat_history_dir = os.path.join(os.getcwd(), ".chat_history")
             self.set_chat_history_dir(chat_history_dir)
 
+        # 迁移兼容状态：由启动阶段的 topic 持久化状态机设置，默认保守地关闭。
+        # 待旧归档迁移和持久卷灰度验证完成后，可移除该状态及其上传门控兼容逻辑。
+        self._chat_history_persisted = False
+        self._topic_persistence_healthy = False
+
         # 设置默认代理名称
         self.set_agent_name("magic")
 
@@ -174,9 +189,25 @@ class AgentContext(BaseAgentContext):
         self._run_cleanup_registry: RunCleanupRegistry = RunCleanupRegistry()
         self._run_cancellation_handle: RunCancellationHandle = RunCancellationHandle()
         self._stop_run_task: Optional[asyncio.Task] = None
+        self._resumption_id: Optional[str] = None
+        self._resumption_run_id: Optional[str] = None
 
         # AgentHorizon 懒初始化，per-agent 上下文工程基础设施
         self._horizon: Optional["AgentHorizon"] = None
+
+    def set_reasoning_effort(self, effort: object) -> None:
+        """原样保存本轮强度，合法性由 Odin 判断；空值清除上轮覆盖。"""
+        self.reasoning_effort = effort
+
+    def get_reasoning_extra_body(self) -> Optional[dict[str, object]]:
+        """仅主会话推理覆盖强度，压缩和子 Agent 使用各自模型配置。"""
+        if (
+            self.is_main_agent
+            and not self.model_context.has_active_compact_text_model()
+            and self.reasoning_effort is not None
+        ):
+            return {"reasoning_effort": self.reasoning_effort}
+        return None
 
     @property
     def context_id(self) -> str:
@@ -214,6 +245,30 @@ class AgentContext(BaseAgentContext):
     def get_subagent_parent_agent_id(self) -> Optional[str]:
         """获取父 Agent ID；主 Agent 返回 None。"""
         return self._subagent_parent_agent_id
+
+    def set_subagent_forked(self, forked: bool) -> None:
+        """记录本次子 Agent 会话是否由 fork 创建。
+
+        这是本次派发的意图，不随 resume 延续：resume 一条 fork 会话时为 False。
+        身份块已在 fork 首轮写进历史，resume 时不需要再强调「继承的历史只是背景」。
+        """
+        self._subagent_forked = forked
+
+    def is_subagent_forked(self) -> bool:
+        """当前子 Agent 会话是否带着父 Agent 的完整历史启动。"""
+        return self._subagent_forked
+
+    def mark_chat_history_persisted(self) -> None:
+        self._chat_history_persisted = True
+
+    def is_chat_history_persisted(self) -> bool:
+        return self._chat_history_persisted
+
+    def set_topic_persistence_healthy(self, healthy: bool) -> None:
+        self._topic_persistence_healthy = bool(healthy)
+
+    def is_topic_persistence_healthy(self) -> bool:
+        return self._topic_persistence_healthy
 
     def set_agent_id(self, agent_id: str) -> None:
         """设置运行时 agent_id，并同步更新依赖该 ID 的上下文设施。"""
@@ -304,7 +359,11 @@ class AgentContext(BaseAgentContext):
             "streams": ({}, Dict[str, Stream]),
             "attachments": ({}, Dict[str, Attachment]),
             "chat_client_message": (None, Optional[ChatClientMessage]),
+            # None 表示旧消息未提供结构化开关，不用默认开启覆盖旧 prompt 的约束。
+            "web_search_enabled": (None, Optional[bool]),
             "super_magic_product_context": (None, Optional[SuperMagicProductContext]),
+            # None 表示任务尚未建立平台提示词快照；空字符串表示已建立快照但平台未配置内容。
+            "global_system_prompt": (None, Optional[str]),
             "task_id": (None, Optional[str]),
             "interrupt_queue": (None, Optional[asyncio.Queue]),
             "sandbox_id": ("", str),
@@ -312,6 +371,8 @@ class AgentContext(BaseAgentContext):
             "organization_code": (None, Optional[str]),
             "token_usage_report_manager": (None, Optional[TokenUsageReport]),
             "final_token_usage_report": (None, Optional[TokenUsageCollection]),
+            # 当前 run 已解析的自动整理阈值；0 表示尚未解析或自动整理未启用。
+            "compaction_threshold_tokens": (0, int),
             "final_response": (None, Optional[str]),
             "final_task_state": (None, Optional[FinalTaskState]),
             "finish_task_files": (None, Optional[List[str]]),
@@ -453,6 +514,23 @@ class AgentContext(BaseAgentContext):
             return source
         return SuperMagicExecutionSource.from_raw(source)
 
+    def set_resumption_context(
+        self,
+        resumption_id: Optional[str],
+        run_id: Optional[str],
+    ) -> None:
+        """绑定当前主 Agent run 正在处理的 resumption。"""
+        self._resumption_id = resumption_id
+        self._resumption_run_id = run_id
+
+    def get_resumption_id(self) -> Optional[str]:
+        """返回当前主 Agent run 的 resumption ID。"""
+        return self._resumption_id
+
+    def get_resumption_run_id(self) -> Optional[str]:
+        """返回当前主 Agent run 的内部 run ID。"""
+        return self._resumption_run_id
+
     def is_magiclaw(self) -> bool:
         """当前会话是否为 magiclaw 模式（龙虾 claw agent）。"""
         target = self.get_agent_target()
@@ -464,6 +542,18 @@ class AgentContext(BaseAgentContext):
         if isinstance(msg.agent_mode, AgentMode):
             return msg.agent_mode == AgentMode.MAGICLAW
         return str(msg.agent_mode or "").strip() == AgentMode.MAGICLAW.value
+
+    def get_personal_preferences(self) -> PersonalPreferences:
+        """获取当前 CHAT 的个人偏好，缺失或异常时返回默认配置。"""
+        try:
+            chat_message = self.get_chat_client_message()
+        except Exception as error:
+            logger.debug(f"读取当前 CHAT 个人偏好失败，使用默认配置: {error}")
+            return PersonalPreferences()
+
+        if chat_message is None or chat_message.metadata is None:
+            return PersonalPreferences()
+        return chat_message.metadata.personal_preferences
 
     def set_sandbox_id(self, sandbox_id: str) -> None:
         """设置沙盒ID
@@ -497,6 +587,13 @@ class AgentContext(BaseAgentContext):
             Optional[str]: 组织编码
         """
         return self.shared_context.get_field("organization_code")
+
+    def set_user_facing_agent_name(self, target: AgentTarget, name: str) -> None:
+        self._user_facing_agent_target = target
+        self._user_facing_agent_name = name.strip()
+
+    def get_user_facing_agent_name(self, target: AgentTarget) -> str:
+        return self._user_facing_agent_name if target == self._user_facing_agent_target else ""
 
     def set_agent_profile(self, profile: AgentProfile) -> None:
         """设置 Agent Profile
@@ -571,6 +668,21 @@ class AgentContext(BaseAgentContext):
         excluded = self.shared_context.get_field("excluded_skills")
         return excluded if excluded is not None else []
 
+    def set_user_context_request_config(self, host: str, auth: "MagicServiceAuthConfig | None") -> None:
+        """只保存在当前运行内存，避免全局 init 文件把不同会话的主体混用。"""
+        self._user_context_host = host
+        self._user_context_auth = auth
+        self._user_context_config_loaded = True
+
+    def get_user_context_host(self) -> str:
+        return self._user_context_host
+
+    def get_user_context_auth(self) -> "MagicServiceAuthConfig | None":
+        return self._user_context_auth
+
+    def is_user_context_config_loaded(self) -> bool:
+        return self._user_context_config_loaded
+
     def get_init_client_message(self) -> Optional[InitClientMessage]:
         """获取初始化客户端消息
 
@@ -643,15 +755,19 @@ class AgentContext(BaseAgentContext):
         return None
 
     def set_chat_client_message(self, chat_client_message: ChatClientMessage) -> None:
-        """设置聊天客户端消息，并从 dynamic_config 中提取 message_version。
+        """设置聊天消息，刷新本次搜索偏好，并提取 message_version。
 
         仅当 dynamic_config 中明确提供了 message_version 时才更新，
         否则保持 shared_context 中已有的值（如从 session.json 回落设置的值）。
+        搜索偏好缺失则清空，不让旧客户端的新消息沿用上一条请求的开关。
 
         Args:
             chat_client_message: 聊天客户端消息
         """
         self.shared_context.update_field("chat_client_message", chat_client_message)
+        self.set_web_search_enabled(chat_client_message.web_search_enabled)
+        from app.service.user_context_service import UserContextService
+        UserContextService.apply_chat_config(self, chat_client_message.metadata)
 
         dynamic_config = getattr(chat_client_message, "dynamic_config", None) or {}
         version = dynamic_config.get("message_version") if isinstance(dynamic_config, dict) else None
@@ -669,6 +785,13 @@ class AgentContext(BaseAgentContext):
             Optional[ChatClientMessage]: 聊天客户端消息
         """
         return self.shared_context.get_field("chat_client_message")
+
+    def set_web_search_enabled(self, enabled: Optional[bool]) -> None:
+        """记录本次运行的搜索偏好；这是模型行为提示，不是网络或工具权限。"""
+        self.shared_context.update_field("web_search_enabled", enabled)
+
+    def get_web_search_enabled(self) -> Optional[bool]:
+        return self.shared_context.get_field("web_search_enabled")
 
     def get_project_id(self) -> Optional[str]:
         """优先从当前聊天消息获取项目 ID，缺失时回退到初始化消息。"""
@@ -697,6 +820,21 @@ class AgentContext(BaseAgentContext):
     def get_super_magic_product_context(self) -> Optional["SuperMagicProductContext"]:
         """获取本轮最新的 Super Magic 产品上下文。"""
         return self.shared_context.get_field("super_magic_product_context")
+
+    def initialize_global_system_prompt(self, prompt: str) -> bool:
+        """首次加载时固定平台级全局系统提示词，后续配置刷新不覆盖任务快照。"""
+        if self.is_global_system_prompt_initialized():
+            return False
+        self.shared_context.update_field("global_system_prompt", prompt if isinstance(prompt, str) else "")
+        return True
+
+    def is_global_system_prompt_initialized(self) -> bool:
+        """判断当前任务是否已经建立平台级全局系统提示词快照。"""
+        return self.shared_context.get_field("global_system_prompt") is not None
+
+    def get_global_system_prompt(self) -> str:
+        """获取平台级全局系统提示词。"""
+        return self.shared_context.get_field("global_system_prompt") or ""
 
     def has_stream(self, stream: Stream) -> bool:
         """检查是否存在指定的通信流
@@ -825,8 +963,10 @@ class AgentContext(BaseAgentContext):
         Returns:
             bool: 如果超时则返回True，否则返回False
         """
-        # 等待前端工具调用完成期间，不触发空闲超时
-        if self.has_user_tool_call_pending():
+        from app.service.user_tool_call_service import UserToolCallService
+        # AskUser 只等待真人，状态可恢复后允许释放环境；其它前端工具沿用保护。
+        if not UserToolCallService.get_instance().can_release_idle_context(self):
+            # 等待前端工具调用完成期间，不触发空闲超时
             return False
         return self.shared_context.is_idle_timeout()
 
@@ -1348,7 +1488,17 @@ class AgentContext(BaseAgentContext):
         # cancellation handle 不重置，由 register_worker_cancel 在新 worker 创建时覆盖
         self.shared_context.update_field("interruption_requested", False)
         self.shared_context.update_field("interruption_reason", None)
+        self.set_compaction_threshold_tokens(0)
         self._interruption_event.clear()
+        self.set_resumption_context(None, None)
+
+    def set_compaction_threshold_tokens(self, threshold: int) -> None:
+        """保存业务模型实际采用的整理阈值，供消息工厂透传，不重新计算。"""
+        self.shared_context.update_field("compaction_threshold_tokens", threshold)
+
+    def get_compaction_threshold_tokens(self) -> int:
+        """读取当前 run 的整理阈值；新 run 清零，避免沿用上一轮模型的阈值。"""
+        return self.shared_context.get_field("compaction_threshold_tokens")
 
     # ====== 思考状态管理方法 ======
 
@@ -1408,8 +1558,18 @@ class AgentContext(BaseAgentContext):
             pass
 
     def get_streaming_sinks(self) -> list:
-        """返回当前所有额外流式推送目标列表。"""
-        return self.shared_context.get_field("streaming_sinks") or []
+        """返回当前所有额外流式推送目标列表。
+
+        本地 /subscribe 是进程级单例：子 Agent 不继承 streaming_sinks，
+        但只要调试面板连着，主 / 子请求都要把 chunk 抄过去。
+        """
+        sinks = list(self.shared_context.get_field("streaming_sinks") or [])
+        from app.streaming.local_subscribe_driver import get_local_subscribe_driver
+
+        local_driver = get_local_subscribe_driver()
+        if local_driver.has_subscribers() and local_driver not in sinks:
+            sinks.append(local_driver)
+        return sinks
 
     # ====== 消息版本协商 ======
 

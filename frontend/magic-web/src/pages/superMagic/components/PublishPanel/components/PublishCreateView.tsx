@@ -85,7 +85,10 @@ export default observer(function PublishCreateView({ onClose }: PublishCreateVie
 					</div>
 
 					<div className="flex flex-col gap-1.5">
-						<label className="text-base font-medium text-foreground" data-testid="publish-create-view-label-2">
+						<label
+							className="text-base font-medium text-foreground"
+							data-testid="publish-create-view-label-2"
+						>
 							{t("skillEditPage.publishPanel.create.fields.details.label")}
 						</label>
 						<LocaleTextInput
@@ -130,7 +133,11 @@ export default observer(function PublishCreateView({ onClose }: PublishCreateVie
 					{store.isSubmitting ? (
 						<span className="inline-flex items-center gap-2">
 							<Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
-							{t("skillEditPage.publishPanel.actions.publish")}
+							{store.publishProgress !== null
+								? t("skillEditPage.publishPanel.actions.publishingWithProgress", {
+										progress: store.publishProgress,
+									})
+								: t("skillEditPage.publishPanel.actions.publishing")}
 						</span>
 					) : (
 						t("skillEditPage.publishPanel.actions.publish")

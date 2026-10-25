@@ -4,6 +4,12 @@ import { useTranslation } from "react-i18next"
 
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { Input } from "@/components/shadcn-ui/input"
+import {
+	MAX_WORKSPACE_NAME_LENGTH,
+	clampProjectName,
+	isProjectNameAtLimit,
+	isProjectNameOverLimit,
+} from "@/pages/superMagicMobile/utils/mobileProjectNameLimit"
 
 interface CreateWorkspaceSheetProps {
 	isOpen: boolean
@@ -14,6 +20,9 @@ interface CreateWorkspaceSheetProps {
 export function CreateWorkspaceSheet({ isOpen, onClose, onCreate }: CreateWorkspaceSheetProps) {
 	const { t } = useTranslation("super")
 	const [value, setValue] = useState("")
+
+	const isOverLimit = isProjectNameOverLimit(value, MAX_WORKSPACE_NAME_LENGTH)
+	const isAtLimit = isProjectNameAtLimit(value, MAX_WORKSPACE_NAME_LENGTH)
 
 	const handleOpenChange = useCallback(
 		(open: boolean) => {
@@ -26,7 +35,7 @@ export function CreateWorkspaceSheet({ isOpen, onClose, onCreate }: CreateWorksp
 	)
 
 	const handleConfirm = useCallback(async () => {
-		const name = value.trim()
+		const name = clampProjectName(value, MAX_WORKSPACE_NAME_LENGTH)
 		if (!name) return
 		await onCreate(name)
 		setValue("")
@@ -58,7 +67,7 @@ export function CreateWorkspaceSheet({ isOpen, onClose, onCreate }: CreateWorksp
 				onClick: () => {
 					void handleConfirm()
 				},
-				disabled: !value.trim(),
+				disabled: !value.trim() || isOverLimit,
 				tone: "primary",
 				testId: "workspace-create-sheet-confirm",
 			}}
@@ -75,6 +84,7 @@ export function CreateWorkspaceSheet({ isOpen, onClose, onCreate }: CreateWorksp
 					<Input
 						type="text"
 						value={value}
+						maxLength={MAX_WORKSPACE_NAME_LENGTH}
 						onChange={(e) => setValue(e.target.value)}
 						placeholder={t("workspace.createWorkspaceTip")}
 						autoFocus
@@ -89,6 +99,30 @@ export function CreateWorkspaceSheet({ isOpen, onClose, onCreate }: CreateWorksp
 							}
 						}}
 					/>
+				</div>
+				{/* Character counter and limit reminder */}
+				<div className="flex items-center justify-between px-[14px] text-xs text-muted-foreground">
+					{isOverLimit ? (
+						<span className="text-destructive">
+							{t("chat.nameMaxLengthTip", {
+								maxLength: MAX_WORKSPACE_NAME_LENGTH,
+							})}
+						</span>
+					) : isAtLimit ? (
+						<span>
+							{t("chat.nameMaxLengthTip", {
+								maxLength: MAX_WORKSPACE_NAME_LENGTH,
+							})}
+						</span>
+					) : (
+						<span />
+					)}
+					<span
+						className={isOverLimit ? "text-destructive" : ""}
+						data-testid="workspace-create-sheet-char-count"
+					>
+						{value.length}/{MAX_WORKSPACE_NAME_LENGTH}
+					</span>
 				</div>
 			</div>
 		</MagicPopup>

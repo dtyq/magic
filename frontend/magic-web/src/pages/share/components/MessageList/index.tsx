@@ -1,6 +1,6 @@
 import { Node } from "@/pages/superMagic/components/MessageList/components/Nodes"
 import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
-import { memo, type RefObject, useCallback, useMemo } from "react"
+import { memo, type MutableRefObject, type RefObject, useCallback, useMemo } from "react"
 import { useStyles } from "./style"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
@@ -10,11 +10,13 @@ import {
 	createCheckIsLastMessage,
 } from "@/pages/superMagic/components/MessageList/helpers"
 import { MessageListProvider } from "@/pages/superMagic/components/MessageList/context"
-import { useIsMobile } from "@/hooks/useIsMobile"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
 import { buildVirtualMessageProjection } from "@/pages/superMagic/components/MessageList/virtual-message-items"
 import { VirtualMessageList } from "@/pages/superMagic/components/MessageList/components/VirtualMessageList"
 import { MessageViewStateProvider } from "@/pages/superMagic/components/MessageList/view-state/MessageViewStateContext"
+import type { MessageListScrollAdapter } from "@/pages/superMagic/components/MessageList/message-list-scroll-adapter"
+
+import { useFileBundleDownload } from "@/pages/superMagic/hooks/useFileBundleDownload"
 
 function MessageList({
 	topicId,
@@ -23,7 +25,10 @@ function MessageList({
 	currentTopicStatus,
 	stickyMessageClassName,
 	projectFilesStore,
+	allowDownload = false,
 	scrollContainerRef,
+	virtualizerRef,
+	onVirtualizerChange,
 }: {
 	topicId: string
 	messageList: any[]
@@ -35,13 +40,27 @@ function MessageList({
 	 *  [--sticky-message-mask-fade-from:rgb(var(--background-rgb))]`
 	 */
 	stickyMessageClassName?: string
-	projectFilesStore?: ProjectFilesStore
+	projectFilesStore: ProjectFilesStore
+	allowDownload?: boolean
 	/** Scroll owner supplied by the share shell; virtualization does not create a nested viewport. */
 	scrollContainerRef: RefObject<HTMLDivElement | null>
+	/**
+	 * Handed to the shell so its own scroll writes can address rows instead of guessing at
+	 * `scrollHeight`, which stays an estimate until virtua has measured every row it projects.
+	 */
+	virtualizerRef?: MutableRefObject<MessageListScrollAdapter | null>
+	/**
+	 * Fires once the virtualizer is addressable and again on every canvas resize. The shell
+	 * commits its scroll element after this subtree, so the list mounts a render later than the
+	 * shell's own effects run: a scroll asked for in that window reaches nothing and needs
+	 * re-issuing here.
+	 */
+	onVirtualizerChange?: (virtualizer: MessageListScrollAdapter) => void
 }) {
 	const { styles } = useStyles()
 	const { t } = useTranslation("super")
-	const isMobile = useIsMobile()
+
+	const fileBundleDownload = useFileBundleDownload(topicId, projectFilesStore, allowDownload)
 
 	const messages = messageList
 
@@ -61,21 +80,27 @@ function MessageList({
 		return {
 			allowRevoke: false,
 			projectFilesStore,
+			fileBundleDownload,
 		}
-	}, [projectFilesStore])
+	}, [projectFilesStore, fileBundleDownload])
 	const getScrollElement = useCallback(() => scrollContainerRef.current, [scrollContainerRef])
+	// Stable identity so the memoized list is not rebuilt on every shell render.
+	const handleVirtualizerChange = useMemoizedFn((virtualizer: MessageListScrollAdapter) =>
+		onVirtualizerChange?.(virtualizer),
+	)
 
 	return (
 		<MessageListProvider value={value}>
 			<MessageViewStateProvider topicKey={topicId}>
+				{fileBundleDownload.agreementModal}
 				<div className="relative flex flex-col gap-2">
-					{/* Topic shares keep mobile positioning while reusing the desktop sticky mask. */}
 					<VirtualMessageList
 						items={virtualProjection.items}
 						userIndices={virtualProjection.userIndices}
-						isMobile={isMobile}
-						useMobileStickyOverlay={false}
 						getScrollElement={getScrollElement}
+						virtualizerRef={virtualizerRef}
+						onVirtualizerChange={handleVirtualizerChange}
+						allowResizeStickySync={false}
 						stickyMessageClassName={stickyMessageClassName}
 						renderNode={({ item }) => {
 							const index = item.sourceIndex

@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { Ellipsis, Pin, Trash2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import IconWorkspaceProjectFolder from "@/enhance/tabler/icons-react/icons/IconWorkspaceProjectFolder"
 import { useTranslation } from "react-i18next"

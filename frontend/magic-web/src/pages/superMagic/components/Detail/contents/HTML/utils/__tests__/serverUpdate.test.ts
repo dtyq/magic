@@ -117,6 +117,26 @@ describe("server-update", () => {
 			expect(performSave).toHaveBeenCalledTimes(1)
 			expect(exitEditMode).toHaveBeenCalledTimes(1)
 		})
+
+		it("should keep edit mode when persistence explicitly fails", async () => {
+			const performSave = vi.fn(async () => false)
+			const exitEditMode = vi.fn()
+
+			const result = await attemptHtmlSaveFlow({
+				shouldExitAfterSave: true,
+				refreshServerUpdateState: async () => false,
+				showConflictDialog: vi.fn(),
+				checkServerUpdateBeforeSave: () => true,
+				performSave,
+				exitEditMode,
+			})
+
+			expect(result).toEqual({
+				didSave: false,
+				isAwaitingConflictConfirmation: false,
+			})
+			expect(exitEditMode).not.toHaveBeenCalled()
+		})
 	})
 
 	describe("confirmHtmlConflictSave", () => {

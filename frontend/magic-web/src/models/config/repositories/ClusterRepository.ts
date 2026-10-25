@@ -13,9 +13,16 @@ export class ClusterRepository extends GlobalBaseRepository<Common.PrivateConfig
 	}
 
 	public async setClustersConfig(clustersConfig: Array<Common.PrivateConfig>): Promise<void> {
+		// Cache every definition before any database wait; persistence still reports failures below.
+		for (const config of clustersConfig) this.cacheClusterConfig(config)
+
 		try {
-			clustersConfig.map((config) =>
-				this.put({ ...config, deployCode: config?.deployCode ?? "" }),
+			// Await every write so a failed put reaches the catch below instead of
+			// escaping as an unhandled rejection.
+			await Promise.all(
+				clustersConfig.map((config) =>
+					this.put({ ...config, deployCode: config?.deployCode ?? "" }),
+				),
 			)
 		} catch (error) {
 			logger.error({
@@ -25,17 +32,11 @@ export class ClusterRepository extends GlobalBaseRepository<Common.PrivateConfig
 				message: "setClustersConfigError",
 				context: { tableName: ClusterRepository.tableName },
 			})
-		} finally {
-			clustersConfig.map((config) =>
-				Storage.set(`${ClusterRepository.tableName}:${config?.deployCode ?? ""}`, {
-					...config,
-					deployCode: config?.deployCode ?? "",
-				}),
-			)
 		}
 	}
 
 	public async setClusterConfig(clustersConfig: Common.PrivateConfig) {
+		this.cacheClusterConfig(clustersConfig)
 		try {
 			return await this.put(clustersConfig)
 		} catch (error) {
@@ -46,10 +47,6 @@ export class ClusterRepository extends GlobalBaseRepository<Common.PrivateConfig
 				message: "setClusterConfigError",
 				context: { tableName: ClusterRepository.tableName },
 			})
-			return Storage.set(
-				`${ClusterRepository.tableName}:${clustersConfig?.deployCode ?? ""}`,
-				clustersConfig,
-			)
 		}
 	}
 
@@ -66,5 +63,9 @@ export class ClusterRepository extends GlobalBaseRepository<Common.PrivateConfig
 			})
 			return Storage.getAll<Common.PrivateConfig>(`${ClusterRepository.tableName}:`)
 		}
+	}
+	private cacheClusterConfig(config: Common.PrivateConfig): void {
+		const deployCode = config?.deployCode ?? ""
+		Storage.set(`${ClusterRepository.tableName}:${deployCode}`, { ...config, deployCode })
 	}
 }

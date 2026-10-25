@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useImperativeHandle, useState } from "react"
+import { useTranslation } from "react-i18next"
+import magicToast from "@/components/base/MagicToaster/utils"
 import { MessageBridge } from "../iframe-bridge/bridge/MessageBridge"
 import { useStylePanelStore } from "../iframe-bridge/contexts/StylePanelContext"
 import {
@@ -9,7 +11,8 @@ import {
 	IframeZoomRequestPayload,
 	ImageActionPayload,
 } from "../iframe-bridge/types/messages"
-import type { HTMLEditorV2Ref } from "../iframe-bridge/types/props"
+import type { DomTreeNode, DomTreeResponse } from "../iframe-bridge/types/messages"
+import type { HTMLEditorV2Ref, PPTBuildEntry, PPTBuildUpdate } from "../iframe-bridge/types/props"
 import { filterInjectedTags } from "../utils"
 
 interface UseHTMLEditorV2Options {
@@ -17,6 +20,8 @@ interface UseHTMLEditorV2Options {
 	iframeRef: React.RefObject<HTMLIFrameElement>
 	/** 是否处于编辑模式 */
 	isEditMode?: boolean
+	/** Select elements for animation metadata without enabling visual editing. */
+	isPPTBuildMode?: boolean
 	/** 沙箱类型 */
 	sandboxType?: "iframe" | "shadow-dom"
 	/** iframe 是否已加载 */
@@ -34,7 +39,9 @@ interface UseHTMLEditorV2Options {
 		enable_shadow?: boolean,
 		fetchFileVersions?: (fileId: string) => void,
 		isPPTEditMode?: boolean,
-	) => Promise<void>
+	) => Promise<boolean | void>
+	/** 清理编辑器标记后、提交保存前，合并宿主维护的最新元数据 */
+	prepareSaveContent?: (content: string) => string
 	/** 文件 ID */
 	fileId?: string
 	/** 文件路径映射 */
@@ -45,6 +52,8 @@ interface UseHTMLEditorV2Options {
 	isPptRender?: boolean
 	/** zoom request callback from iframe */
 	onZoomRequest?: (delta: number) => void
+	/** iframe 内容发生变化时通知宿主刷新依赖内容结构的视图 */
+	onContentChanged?: () => void
 }
 
 /**
@@ -52,26 +61,34 @@ interface UseHTMLEditorV2Options {
  * 管理 V2 编辑脚本的注入、MessageBridge 的初始化和编辑器 ref 的创建
  */
 export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
+	const { t } = useTranslation("super")
 	const {
 		iframeRef,
-		isEditMode,
+		isEditMode: fullEditMode,
+		isPPTBuildMode = false,
 		sandboxType = "iframe",
 		iframeLoaded,
 		contentInjected,
 		targetOrigin,
 		scaleRatio,
 		saveEditContent,
+		prepareSaveContent,
 		fileId,
 		filePathMapping,
 		editorRef,
 		isPptRender,
 		onZoomRequest,
+		onContentChanged,
 	} = options
+	const isEditMode = Boolean(fullEditMode || isPPTBuildMode)
+	const fullEditModeRef = useRef(Boolean(fullEditMode))
+	fullEditModeRef.current = Boolean(fullEditMode)
 
 	const stylePanelStore = useStylePanelStore()
 	const messageBridgeRef = useRef<MessageBridge | null>(null)
 	const [isRuntimeReady, setIsRuntimeReady] = useState(false)
-	const hasInjectedScriptRef = useRef(false)
+	const [isEditorReady, setIsEditorReady] = useState(false)
+	const activationRetryTimerRef = useRef<number | null>(null)
 	const prevContentInjectedRef = useRef(false)
 	const contentInjectedRef = useRef(contentInjected)
 	// 记录早于 contentInjected 恢复到达的 EDITOR_READY
@@ -80,11 +97,22 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 	const desiredEditModeRef = useRef(Boolean(isEditMode))
 	const stylePanelStoreRef = useRef(stylePanelStore)
 	const onZoomRequestRef = useRef(onZoomRequest)
+	const onContentChangedRef = useRef(onContentChanged)
+	const prepareSaveContentRef = useRef(prepareSaveContent)
 	const editTransitionIdRef = useRef(0)
 	const editLifecycleRef = useRef<"idle" | "activating" | "active" | "deactivating">("idle")
 
+	const clearActivationRetry = useCallback(() => {
+		if (activationRetryTimerRef.current !== null) {
+			window.clearTimeout(activationRetryTimerRef.current)
+			activationRetryTimerRef.current = null
+		}
+	}, [])
+
 	stylePanelStoreRef.current = stylePanelStore
 	onZoomRequestRef.current = onZoomRequest
+	onContentChangedRef.current = onContentChanged
+	prepareSaveContentRef.current = prepareSaveContent
 	desiredEditModeRef.current = Boolean(isEditMode)
 	contentInjectedRef.current = contentInjected
 
@@ -100,10 +128,13 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 	const runExitEditFlow = useCallback(
 		async (transitionId: number) => {
 			if (!isCurrentTransition(transitionId)) return
+			setIsEditorReady(false)
 
 			try {
 				const bridge = getActiveBridge()
 				if (bridge) {
+					if (!isCurrentTransition(transitionId)) return
+					await bridge.request(EditorMessageType.SET_PPT_BUILD_MODE, { enabled: false })
 					if (!isCurrentTransition(transitionId)) return
 					await bridge.request(EditorMessageType.EXIT_EDIT_MODE)
 
@@ -132,20 +163,38 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 				const bridge = getActiveBridge()
 				if (!bridge) return
 
-				await bridge.request(EditorMessageType.ENTER_EDIT_MODE)
+				const fullEditing = fullEditModeRef.current
+				await bridge.request(EditorMessageType.SET_PPT_BUILD_MODE, { enabled: false })
+				if (!isCurrentTransition(transitionId) || !desiredEditModeRef.current) return
+				await bridge.request(
+					fullEditing
+						? EditorMessageType.ENTER_EDIT_MODE
+						: EditorMessageType.EXIT_EDIT_MODE,
+				)
+				if (!isCurrentTransition(transitionId) || !desiredEditModeRef.current) return
+				if (!fullEditing)
+					await bridge.request(EditorMessageType.SET_PPT_BUILD_MODE, { enabled: true })
 
 				if (!isCurrentTransition(transitionId) || !desiredEditModeRef.current) return
 
 				const latestBridge = getActiveBridge()
-				if (!latestBridge) return
+				if (!latestBridge || latestBridge !== bridge) return
 
 				await latestBridge.request(EditorMessageType.ENTER_SELECTION_MODE)
 
-				if (isCurrentTransition(transitionId) && desiredEditModeRef.current) {
+				if (
+					isCurrentTransition(transitionId) &&
+					desiredEditModeRef.current &&
+					getActiveBridge() === bridge
+				) {
 					editLifecycleRef.current = "active"
+					setIsEditorReady(true)
 				}
 			} catch (error) {
-				if (isCurrentTransition(transitionId)) editLifecycleRef.current = "idle"
+				if (isCurrentTransition(transitionId)) {
+					editLifecycleRef.current = "idle"
+					setIsEditorReady(false)
+				}
 				console.error("[useHTMLEditorV2] Failed to enter edit flow:", error)
 			}
 		},
@@ -156,6 +205,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 	useEffect(() => {
 		if (!iframeLoaded || !iframeRef.current || sandboxType !== "iframe") {
 			setIsRuntimeReady(false)
+			setIsEditorReady(false)
 			if (messageBridgeRef.current?.isActive()) {
 				messageBridgeRef.current.destroy()
 			}
@@ -170,8 +220,9 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		// 监听 EDITOR_READY 事件
 		bridge.on("EDITOR_READY", () => {
 			console.log("[useHTMLEditorV2] iframe-runtime 已准备就绪")
+			clearActivationRetry()
 			// 跨域刷新时，ready 可能早于宿主状态恢复
-			if (!contentInjected || !contentInjectedRef.current) {
+			if (!contentInjectedRef.current) {
 				hasPendingRuntimeReadyRef.current = true
 			}
 			setIsRuntimeReady(true)
@@ -190,8 +241,16 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 				intrinsicHeight: payload.intrinsicHeight,
 				intrinsicAspectRatio: payload.intrinsicAspectRatio,
 				isTextElement: payload.isTextElement,
+				hasDirectTextContent: payload.hasDirectTextContent,
+				textContent: payload.textContent,
+				ancestors: payload.ancestors,
+				inlineStyles: payload.inlineStyles,
+				attributes: payload.attributes,
 				computedStyles: payload.computedStyles,
 			})
+		})
+		bridge.on(EditorMessageType.DYNAMIC_ELEMENT_CLICKED, () => {
+			magicToast.info(t("htmlEditor.dynamicElementNotEditable"))
 		})
 
 		// 监听 ELEMENTS_DESELECTED 事件
@@ -199,9 +258,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			const store = stylePanelStoreRef.current
 			// Only clear selected elements, but keep selection mode active
 			// This is important during operations like zooming where selection should persist
-			store.selectedElement = null
-			store.selectedElements = []
-			store.textSelection = null
+			store.clearSelectedElements()
 			// Do NOT set isSelectionMode = false here!
 		})
 
@@ -222,6 +279,10 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			})
 		})
 
+		bridge.on(EditorMessageType.CONTENT_CHANGED, () => {
+			onContentChangedRef.current?.()
+		})
+
 		// Listen to zoom requests from iframe (trackpad pinch-to-zoom)
 		bridge.on(EditorMessageType.IFRAME_ZOOM_REQUEST, (message) => {
 			if (onZoomRequestRef.current && message.payload) {
@@ -231,6 +292,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		})
 
 		return () => {
+			clearActivationRetry()
 			if (bridge.isActive()) {
 				console.log("[useHTMLEditorV2] Cleaning up MessageBridge")
 				bridge.destroy()
@@ -241,15 +303,52 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			}
 
 			setIsRuntimeReady(false)
+			setIsEditorReady(false)
 			editLifecycleRef.current = "idle"
 		}
-	}, [sandboxType, iframeLoaded, iframeRef, targetOrigin])
+	}, [clearActivationRetry, sandboxType, iframeLoaded, iframeRef, targetOrigin])
 
 	// 创建编辑器 ref 接口（实现 HTMLEditorV2Ref）
 	useImperativeHandle(
 		editorRef,
 		() => ({
 			getIframeElement: () => iframeRef.current,
+			getPPTBuilds: async () => {
+				const bridge = getActiveBridge()
+				if (!bridge) throw new Error("PPT_BUILD_EDITOR_NOT_READY")
+				return bridge.request<PPTBuildEntry[]>(EditorMessageType.GET_PPT_BUILDS)
+			},
+			updatePPTBuilds: async (updates: PPTBuildUpdate[]) => {
+				const bridge = getActiveBridge()
+				if (!bridge || !desiredEditModeRef.current || editLifecycleRef.current !== "active")
+					throw new Error("PPT_BUILD_EDITOR_NOT_READY")
+				await bridge.sendCommand(
+					EditorMessageType.UPDATE_PPT_BUILDS,
+					{ updates },
+					{ description: "Update presentation builds", canUndo: true },
+				)
+			},
+			setPPTBuildMarkers: async (visible: boolean) => {
+				const bridge = getActiveBridge()
+				if (!bridge) {
+					if (!visible) return
+					throw new Error("PPT_BUILD_EDITOR_NOT_READY")
+				}
+				if (
+					visible &&
+					(!desiredEditModeRef.current || editLifecycleRef.current !== "active")
+				)
+					throw new Error("PPT_BUILD_EDITOR_NOT_READY")
+				await bridge.request(EditorMessageType.SET_PPT_BUILD_MARKERS, { visible })
+			},
+			previewPPTBuild: async (steps: number | null, animate = false) => {
+				const bridge = getActiveBridge()
+				if (!bridge) {
+					if (steps === null) return
+					throw new Error("PPT_BUILD_EDITOR_NOT_READY")
+				}
+				await bridge.request(EditorMessageType.PREVIEW_PPT_BUILD, { steps, animate })
+			},
 			save: async () => {
 				console.log("[useHTMLEditorV2] save content", fileId)
 
@@ -299,14 +398,19 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 						return defaultResult
 					}
 
-					const cleanContent = filterInjectedTags(htmlForClean, filePathMapping)
-					await saveEditContent(
+					const filteredContent = filterInjectedTags(htmlForClean, filePathMapping)
+					// Read the latest metadata after GET_CONTENT finishes, then use this exact
+					// snapshot for both persistence and the caller's saved-content baseline.
+					const cleanContent =
+						prepareSaveContentRef.current?.(filteredContent) ?? filteredContent
+					const saved = await saveEditContent(
 						cleanContent,
 						String(fileId),
 						true,
 						undefined,
 						isPptRender,
 					)
+					if (saved === false) return defaultResult
 
 					return {
 						cleanContent,
@@ -412,32 +516,36 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 				)
 			},
 			beginBatchOperation: async (selector: string, styles: Record<string, string>) => {
-				if (!messageBridgeRef.current) return
-				await messageBridgeRef.current.sendCommand(
+				const bridge = messageBridgeRef.current
+				if (!bridge?.isActive()) throw new Error("HTML editor bridge is unavailable")
+				await bridge.sendCommand(
 					EditorMessageType.BEGIN_BATCH_OPERATION,
 					{ selector, styles },
 					{ description: "开始批量操作", canUndo: false },
 				)
 			},
 			endBatchOperation: async (selector: string, styles: Record<string, string>) => {
-				if (!messageBridgeRef.current) return
-				await messageBridgeRef.current.sendCommand(
+				const bridge = messageBridgeRef.current
+				if (!bridge?.isActive()) throw new Error("HTML editor bridge is unavailable")
+				await bridge.sendCommand(
 					EditorMessageType.END_BATCH_OPERATION,
 					{ selector, styles },
 					{ description: "结束批量操作", canUndo: true },
 				)
 			},
 			cancelBatchOperation: async () => {
-				if (!messageBridgeRef.current) return
-				await messageBridgeRef.current.sendCommand(
+				const bridge = messageBridgeRef.current
+				if (!bridge?.isActive()) throw new Error("HTML editor bridge is unavailable")
+				await bridge.sendCommand(
 					EditorMessageType.CANCEL_BATCH_OPERATION,
 					{},
 					{ description: "取消批量操作", canUndo: false },
 				)
 			},
 			applyStylesTemporary: async (selector: string, styles: Record<string, string>) => {
-				if (!messageBridgeRef.current) return
-				await messageBridgeRef.current.sendCommand(
+				const bridge = messageBridgeRef.current
+				if (!bridge?.isActive()) throw new Error("HTML editor bridge is unavailable")
+				return bridge.sendCommand(
 					EditorMessageType.APPLY_STYLES_TEMPORARY,
 					{ selector, styles },
 					{ description: "临时应用样式", canUndo: false },
@@ -473,23 +581,142 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 							console.debug("清除选中元素:", error.message || error)
 						})
 				}
-				// Clear only the selected element in StylePanelStore (keep selection mode active)
-				// Note: Don't use clearSelection() as it also sets isSelectionMode to false
-				stylePanelStore.selectedElement = null
+				// Clear all selected items in StylePanelStore while keeping selection mode active.
+				// Note: Don't use clearSelection() as it also sets isSelectionMode to false.
+				stylePanelStore.clearSelectedElements()
 			},
 			selectElement: async (selector: string) => {
 				if (!messageBridgeRef.current) return
-				const response = await messageBridgeRef.current.request(
-					EditorMessageType.GET_COMPUTED_STYLES,
-					{ selector },
+				await messageBridgeRef.current.request(EditorMessageType.SELECT_ELEMENT, {
+					selector,
+				})
+			},
+			getDomTree: async () => {
+				// DOM structure handlers are registered by EditorRuntime. Returning null
+				// before EDITOR_READY lets the panel retry instead of waiting for a bridge
+				// timeout while the iframe is still activating.
+				if (!messageBridgeRef.current || !isRuntimeReady || !contentInjected) return null
+				return await messageBridgeRef.current.request(EditorMessageType.GET_DOM_TREE)
+			},
+			selectDomNode: async (nodeId: string) => {
+				if (!messageBridgeRef.current || !isRuntimeReady || !contentInjected) return
+				await messageBridgeRef.current.request(EditorMessageType.SELECT_ELEMENT, { nodeId })
+			},
+			hoverDomNode: async (nodeId: string) => {
+				if (!messageBridgeRef.current || !isRuntimeReady || !contentInjected) return
+				await messageBridgeRef.current.request(EditorMessageType.HOVER_ELEMENT, { nodeId })
+			},
+			clearHoveredDomNode: async () => {
+				if (!messageBridgeRef.current || !isRuntimeReady || !contentInjected) return
+				await messageBridgeRef.current.request(EditorMessageType.CLEAR_HOVER_ELEMENT)
+			},
+			scrollToDomNode: async (nodeId: string) => {
+				if (!messageBridgeRef.current || !isRuntimeReady || !contentInjected) return
+				await messageBridgeRef.current.request(EditorMessageType.SCROLL_TO_ELEMENT, {
+					nodeId,
+				})
+			},
+			moveDomNode: async (nodeId: string, targetParentId: string, targetIndex: number) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.MOVE_DOM_NODE,
+					{ nodeId, targetParentId, targetIndex },
+					{ description: "调整 DOM 层级", canUndo: true },
 				)
-				if (response?.styles) {
-					stylePanelStore.selectElement({
-						selector,
-						tagName: "",
-						computedStyles: response.styles,
-					})
+			},
+			beginDomMovePreview: async (nodeId: string) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.BEGIN_DOM_MOVE_PREVIEW,
+					{ nodeId },
+					{ description: "开始预览 DOM 调整", canUndo: false },
+				)
+			},
+			previewDomMove: async (
+				nodeId: string,
+				targetNodeId: string,
+				position: "before" | "inside" | "after",
+			): Promise<boolean> => {
+				if (!messageBridgeRef.current) return false
+				const result = await messageBridgeRef.current.sendCommand<{ applied?: boolean }>(
+					EditorMessageType.PREVIEW_DOM_MOVE,
+					{ nodeId, targetNodeId, position },
+					{ description: "预览 DOM 调整", canUndo: false },
+				)
+				return result?.applied !== false
+			},
+			commitDomMovePreview: async () => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.COMMIT_DOM_MOVE_PREVIEW,
+					{},
+					{ description: "调整 DOM 层级", canUndo: true },
+				)
+			},
+			cancelDomMovePreview: async () => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.CANCEL_DOM_MOVE_PREVIEW,
+					{},
+					{ description: "取消 DOM 调整预览", canUndo: false },
+				)
+			},
+			insertTextNode: async (parentNodeId: string, textContent: string, index?: number) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.INSERT_TEXT_NODE,
+					{ parentNodeId, textContent, index },
+					{ description: "新增文字", canUndo: true },
+				)
+			},
+			insertImageNode: async (parentNodeId: string, index?: number) => {
+				if (!messageBridgeRef.current) return
+				const tree = await messageBridgeRef.current.request<DomTreeResponse>(
+					EditorMessageType.GET_DOM_TREE,
+				)
+				const findNode = (node?: DomTreeNode): DomTreeNode | null => {
+					if (node?.nodeId === parentNodeId) return node
+					for (const child of node?.children || []) {
+						const result = findNode(child)
+						if (result) return result
+					}
+					return null
 				}
+				const parent = findNode(tree?.root)
+				if (!parent?.selector) throw new Error("未找到图片插入目标")
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.RUN_IMAGE_ACTION,
+					{ action: "insert-image-node", parentSelector: parent.selector, index },
+					{ description: "新增图片", canUndo: true },
+				)
+			},
+			copyDomNode: async (nodeId: string) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.request(EditorMessageType.COPY_DOM_NODE, { nodeId })
+			},
+			duplicateDomNode: async (nodeId: string) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.DUPLICATE_DOM_NODE,
+					{ nodeId },
+					{ description: "复制 DOM 节点", canUndo: true },
+				)
+			},
+			cutDomNode: async (nodeId: string) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.CUT_DOM_NODE,
+					{ nodeId },
+					{ description: "剪切 DOM 节点", canUndo: true },
+				)
+			},
+			pasteDomNode: async (targetParentId: string, targetIndex?: number) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.PASTE_DOM_NODE,
+					{ targetParentId, targetIndex },
+					{ description: "粘贴 DOM 节点", canUndo: true },
+				)
 			},
 			getElementComputedStyles: async (selector: string) => {
 				if (!messageBridgeRef.current) return {}
@@ -517,6 +744,17 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 					EditorMessageType.UPDATE_TEXT_CONTENT,
 					{ selector, content },
 					{ description: `更新文本内容`, canUndo: true },
+				)
+			},
+			updateElementAttributes: async (
+				selector: string,
+				attributes: Record<string, string | null>,
+			) => {
+				if (!messageBridgeRef.current) return
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.UPDATE_ELEMENT_ATTRIBUTES,
+					{ selector, attributes },
+					{ description: "更新链接属性", canUndo: true },
 				)
 			},
 			getTextContent: async (selector: string) => {
@@ -588,6 +826,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 					"set-element-background-image": "设置背景图",
 					"remove-element-background-image": "移除背景图",
 					"insert-floating-image": "新增图片",
+					"insert-image-node": "新增图片",
 				}
 
 				await messageBridgeRef.current.sendCommand(
@@ -632,11 +871,22 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 				return response?.styles || {}
 			},
 		}),
-		[iframeRef, fileId, saveEditContent, filePathMapping, isPptRender, stylePanelStore],
+		[
+			getActiveBridge,
+			iframeRef,
+			fileId,
+			saveEditContent,
+			filePathMapping,
+			isPptRender,
+			stylePanelStore,
+			isRuntimeReady,
+			contentInjected,
+		],
 	)
 
-	// 处理编辑模式变化，动态注入编辑脚本
-	// 确保内容已注入后再启用编辑模式，避免编辑脚本找不到 DOM 元素
+	// 处理编辑模式变化，动态激活编辑 runtime。
+	// setContent 会重建 iframe 文档并重新绑定 shell 监听器，首次 postMessage
+	// 可能落在监听器重建窗口内，因此在 runtime 回报 EDITOR_READY 前做有限次数重试。
 	useEffect(() => {
 		const wasEditMode = prevIsEditModeRef.current
 		const nextIsEditMode = Boolean(isEditMode)
@@ -645,8 +895,13 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		// 当 contentInjected 从 false 变为 true 时，重置激活标记和 runtime 状态。
 		// setContent 会替换 iframe 文档，shell 内联 runtime 会重新安装，需要再次发送激活消息。
 		if (contentInjected && !prevContentInjectedRef.current) {
-			hasInjectedScriptRef.current = false
-			setIsRuntimeReady(false)
+			clearActivationRetry()
+			if (hasPendingRuntimeReadyRef.current) {
+				hasPendingRuntimeReadyRef.current = false
+				setIsRuntimeReady(true)
+			} else {
+				setIsRuntimeReady(false)
+			}
 		}
 		// 更新 prevContentInjectedRef
 		prevContentInjectedRef.current = contentInjected
@@ -669,9 +924,24 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			iframeLoaded &&
 			contentInjected
 		) {
-			try {
-				// The shell already contains the runtime; activate it once per content document.
-				if (!hasInjectedScriptRef.current) {
+			clearActivationRetry()
+			let attempts = 0
+			const maxAttempts = 8
+
+			const activateRuntime = () => {
+				if (
+					isRuntimeReady ||
+					!iframeRef.current?.contentWindow ||
+					!contentInjected ||
+					!desiredEditModeRef.current ||
+					attempts >= maxAttempts
+				) {
+					clearActivationRetry()
+					return
+				}
+
+				attempts += 1
+				try {
 					// iframe-runtime.js 已经通过 shell 内联在 HTML 中，
 					// 这里只需发送激活消息触发 Phase 2 编辑器运行时。
 					iframeRef.current.contentWindow.postMessage(
@@ -681,19 +951,30 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 						},
 						targetOrigin,
 					)
-					hasInjectedScriptRef.current = true
-					console.log("[useHTMLEditorV2] 已发送编辑器激活消息")
+					if (attempts === 1) {
+						console.log("[useHTMLEditorV2] 已发送编辑器激活消息")
+					}
+				} catch (error) {
+					console.error("处理编辑模式变化时出错:", error)
 				}
-			} catch (error) {
-				console.error("处理编辑模式变化时出错:", error)
+
+				if (!isRuntimeReady && attempts < maxAttempts) {
+					activationRetryTimerRef.current = window.setTimeout(activateRuntime, 350)
+				}
 			}
+
+			activateRuntime()
 		}
+
+		return clearActivationRetry
 	}, [
+		clearActivationRetry,
 		isEditMode,
 		sandboxType,
 		iframeLoaded,
 		contentInjected,
 		iframeRef,
+		isRuntimeReady,
 		scaleRatio,
 		runExitEditFlow,
 		targetOrigin,
@@ -701,6 +982,15 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 
 	// 当 runtime 就绪且内容已注入后，再启用编辑模式和选择模式，避免「选择元素」在 iframe 未加载完时执行
 	useEffect(() => {
+		if (!contentInjected || !isEditMode || !isRuntimeReady) {
+			setIsEditorReady(false)
+			// Exit owns its transition until EXIT_SELECTION_MODE completes. Only invalidate
+			// activation here when its document/runtime disappears while editing.
+			if (isEditMode) {
+				++editTransitionIdRef.current
+				editLifecycleRef.current = "idle"
+			}
+		}
 		if (
 			!isEditMode ||
 			!contentInjected ||
@@ -711,6 +1001,11 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 
 		const transitionId = ++editTransitionIdRef.current
 		editLifecycleRef.current = "activating"
+		setIsEditorReady(false)
 		void runEnterEditFlow(transitionId)
-	}, [isEditMode, contentInjected, isRuntimeReady, runEnterEditFlow])
+	}, [isEditMode, fullEditMode, contentInjected, isRuntimeReady, runEnterEditFlow])
+
+	return {
+		isEditorReady: Boolean(isEditMode && contentInjected && isRuntimeReady && isEditorReady),
+	}
 }

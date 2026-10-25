@@ -35,14 +35,17 @@ interface EditSkillDialogProps {
 const INITIAL_IDENTITY: SkillIdentityData = createInitialSkillIdentityData()
 
 function mapDetailToIdentity(detail: SkillDetailResponse): SkillIdentityData {
+	// Detail responses expose locale-resolved display fields. The optional
+	// i18n maps are retained only to keep the edit form's submission shape
+	// compatible while older responses are being phased out.
 	return {
 		iconUrl: detail.logo || undefined,
-		name: normalizeSkillI18nText(detail.name_i18n, detail.package_name),
+		name: normalizeSkillI18nText(detail.name_i18n, detail.name?.trim() || detail.package_name),
 		description: normalizeSkillI18nText(
 			detail.description_i18n,
-			detail.package_description ?? "",
+			(detail.description?.trim() || detail.package_description) ?? "",
 		),
-		source: normalizeSkillI18nText(detail.source_i18n),
+		source: normalizeSkillI18nText(detail.source_i18n, detail.source?.trim() || ""),
 	}
 }
 
@@ -61,7 +64,10 @@ function EditSkillDialog({
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [showDefaultNameError, setShowDefaultNameError] = useState(false)
 
-	const { upload: uploadPublic } = useUpload({ storageType: "public" })
+	const { upload: uploadPublic } = useUpload({
+		storageType: "public",
+		businessCode: "skill",
+	})
 
 	// Fetch skill detail when dialog opens
 	useEffect(() => {

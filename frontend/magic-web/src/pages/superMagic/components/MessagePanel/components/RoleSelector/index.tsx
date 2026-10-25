@@ -5,7 +5,7 @@ import { type CrewItem } from "@/pages/superMagic/pages/Workspace/types"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { IconType } from "@/pages/superMagic/components/AgentSelector/types"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 import {
 	DropdownMenu,

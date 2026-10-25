@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import { FolderInput, PenLine, Pin, PinOff, Share2, Trash2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 type ChatConversationActionIconVariant = "default" | "destructive"
 

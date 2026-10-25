@@ -5,6 +5,7 @@ import { SuperMagicApi } from "@/apis"
 import type { AttachmentItem } from "../../../components/TopicFilesButton/hooks"
 import { applyProjectAttachmentsChangesToTree } from "../changeReducer"
 import {
+	applyMergedParentRefresh,
 	applyRefreshParentChildrenSubtree,
 	applyRefreshParentFileItems,
 	collectFileChangeParentRefreshIds,
@@ -12,6 +13,7 @@ import {
 	loadRefreshParentFileItemsFromV2,
 	normalizeRefreshParentIds,
 	resolveProjectAttachmentsChangeEvent,
+	shouldSkipParentChildrenReconcileAfterWsApply,
 } from "../changeRealtimeUtils"
 import { flattenAttachmentTree } from "../treeUtils"
 
@@ -189,6 +191,91 @@ describe("refresh_parent_ids realtime helpers", () => {
 		])
 	})
 
+	it("skips children reconcile when ws changes carry explicit file payloads", () => {
+		expect(
+			shouldSkipParentChildrenReconcileAfterWsApply([
+				change({
+					operation: "update",
+					file_id: "magic",
+					file: attachment({
+						file_id: "magic",
+						parent_id: "folder-b",
+						file_name: "magic.project.js",
+					}) as SuperMagicFileChangeItem["file"],
+				}),
+			]),
+		).toBe(true)
+		expect(
+			shouldSkipParentChildrenReconcileAfterWsApply([
+				change({ operation: "delete", file_id: "magic" }),
+			]),
+		).toBe(false)
+	})
+
+	it("skips merged parent refresh when only parent updated_at differs", () => {
+		const store = createStoreWithParentFolder()
+		store.applyFileChanges([
+			change({
+				file_id: "magic",
+				file: attachment({
+					file_id: "magic",
+					parent_id: "folder",
+					file_name: "magic.project.js",
+					updated_at: "magic-2",
+				}) as SuperMagicFileChangeItem["file"],
+			}),
+		])
+
+		const result = applyMergedParentRefresh({
+			projectId: "project-1",
+			parentItemIds: ["folder"],
+			parentFileItems: [
+				attachment({
+					file_id: "folder",
+					parent_id: "0",
+					file_name: "Project",
+					is_directory: true,
+					type: "directory",
+					updated_at: "parent-2",
+				}),
+			],
+			childrenParentIds: [],
+			serverItems: [],
+			store: asProjectFilesStore(store),
+		})
+
+		expect(result).toBeNull()
+		expect(store.workspaceFilesList.find((item) => item.file_id === "folder")?.updated_at).toBe(
+			"parent-1",
+		)
+	})
+
+	it("applies merged parent refresh when parent display config changes", () => {
+		const store = createStoreWithParentFolder()
+		const result = applyMergedParentRefresh({
+			projectId: "project-1",
+			parentItemIds: ["folder"],
+			parentFileItems: [
+				attachment({
+					file_id: "folder",
+					parent_id: "0",
+					file_name: "Project",
+					is_directory: true,
+					type: "directory",
+					updated_at: "parent-1",
+					display_config: { icon: "folder-open" },
+				}),
+			],
+			childrenParentIds: [],
+			serverItems: [],
+			store: asProjectFilesStore(store),
+		})
+
+		expect(result?.list.find((item) => item.file_id === "folder")?.display_config).toEqual({
+			icon: "folder-open",
+		})
+	})
+
 	it("collects parent IDs only from file changes", () => {
 		const beforeList = [
 			attachment({
@@ -298,11 +385,7 @@ describe("refresh_parent_ids realtime helpers", () => {
 			}),
 			expect.any(Object),
 		)
-		expect(items.map((item) => item.file_id)).toEqual([
-			"folder",
-			"child-folder",
-			"nested-file",
-		])
+		expect(items.map((item) => item.file_id)).toEqual(["folder", "child-folder", "nested-file"])
 	})
 
 	it("accepts refresh-only realtime events", () => {
@@ -332,6 +415,33 @@ describe("refresh_parent_ids realtime helpers", () => {
 		)
 	})
 
+	it("skips merged parent refresh when server parent items match local signatures", () => {
+		const store = createStoreWithParentFolder()
+		const folder = store.workspaceFilesList.find((item) => item.file_id === "folder")!
+
+		const result = applyMergedParentRefresh({
+			projectId: "project-1",
+			parentItemIds: ["folder"],
+			parentFileItems: [
+				attachment({
+					file_id: "folder",
+					parent_id: "0",
+					file_name: "Project",
+					is_directory: true,
+					type: "directory",
+					updated_at: folder.updated_at,
+					display_config: folder.display_config,
+					metadata: folder.metadata,
+				}),
+			],
+			childrenParentIds: [],
+			serverItems: [],
+			store: asProjectFilesStore(store),
+		})
+
+		expect(result).toBeNull()
+	})
+
 	it("applies refreshed parent fileItems without dropping existing children", () => {
 		const store = createStoreWithParentFolder()
 		store.applyFileChanges([
@@ -357,15 +467,16 @@ describe("refresh_parent_ids realtime helpers", () => {
 					is_directory: true,
 					type: "directory",
 					updated_at: "parent-2",
+					display_config: { icon: "folder-open" },
 				}),
 			],
 			store: asProjectFilesStore(store),
 		})
 
 		expect(result?.fallbackRequired).toBe(false)
-		expect(store.workspaceFilesList.find((item) => item.file_id === "folder")?.updated_at).toBe(
-			"parent-2",
-		)
+		expect(
+			store.workspaceFilesList.find((item) => item.file_id === "folder")?.display_config,
+		).toEqual({ icon: "folder-open" })
 		expect(store.workspaceFilesList.find((item) => item.file_id === "magic")?.updated_at).toBe(
 			"magic-2",
 		)
@@ -413,13 +524,14 @@ describe("refresh_parent_ids realtime helpers", () => {
 		expect(store.workspaceFilesList.find((item) => item.file_id === "folder")?.updated_at).toBe(
 			"parent-2",
 		)
-		expect(store.workspaceFilesList.find((item) => item.file_id === "file-existing")?.updated_at).toBe(
-			"file-2",
-		)
+		expect(
+			store.workspaceFilesList.find((item) => item.file_id === "file-existing")?.updated_at,
+		).toBe("file-2")
 		expect(store.workspaceFilesList.some((item) => item.file_id === "file-added")).toBe(true)
 		expect(store.workspaceFilesList.some((item) => item.file_id === "file-deleted")).toBe(false)
 		expect(
-			store.workspaceFilesList.find((item) => item.file_id === "file-added")?.relative_file_path,
+			store.workspaceFilesList.find((item) => item.file_id === "file-added")
+				?.relative_file_path,
 		).toBe("Project/added.txt")
 	})
 })

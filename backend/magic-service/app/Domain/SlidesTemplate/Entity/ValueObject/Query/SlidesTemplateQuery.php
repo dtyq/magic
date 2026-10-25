@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace App\Domain\SlidesTemplate\Entity\ValueObject\Query;
 
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateOwnerType;
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateQueryScope;
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateSearchType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateTagMatch;
 
 class SlidesTemplateQuery
@@ -19,9 +22,33 @@ class SlidesTemplateQuery
 
     private ?int $status = null;
 
+    private SlidesTemplateQueryScope $scope = SlidesTemplateQueryScope::Official;
+
+    private ?SlidesTemplateOwnerType $ownerType = null;
+
+    private ?string $ownerId = null;
+
     private array $tagCodes = [];
 
     private SlidesTemplateTagMatch $tagMatch = SlidesTemplateTagMatch::Any;
+
+    private SlidesTemplateSearchType $searchType = SlidesTemplateSearchType::Database;
+
+    public function getSearchType(): SlidesTemplateSearchType
+    {
+        return $this->searchType;
+    }
+
+    public function setSearchType(null|SlidesTemplateSearchType|string $searchType): void
+    {
+        if ($searchType instanceof SlidesTemplateSearchType) {
+            $this->searchType = $searchType;
+            return;
+        }
+
+        $this->searchType = SlidesTemplateSearchType::tryFrom((string) $searchType)
+            ?? SlidesTemplateSearchType::Database;
+    }
 
     public function getKeyword(): ?string
     {
@@ -64,6 +91,49 @@ class SlidesTemplateQuery
     public function setStatus(null|int|string $status): void
     {
         $this->status = $status === null || $status === '' ? null : (int) $status;
+    }
+
+    public function getScope(): SlidesTemplateQueryScope
+    {
+        return $this->scope;
+    }
+
+    public function setScope(null|SlidesTemplateQueryScope|string $scope): void
+    {
+        if ($scope instanceof SlidesTemplateQueryScope) {
+            $this->scope = $scope;
+            return;
+        }
+
+        $this->scope = SlidesTemplateQueryScope::tryFrom((string) $scope) ?? SlidesTemplateQueryScope::Official;
+    }
+
+    public function getOwnerType(): ?SlidesTemplateOwnerType
+    {
+        return $this->ownerType;
+    }
+
+    public function setOwnerType(null|SlidesTemplateOwnerType|string $ownerType): void
+    {
+        if ($ownerType instanceof SlidesTemplateOwnerType) {
+            $this->ownerType = $ownerType;
+            return;
+        }
+
+        $this->ownerType = $ownerType === null || $ownerType === ''
+            ? null
+            : SlidesTemplateOwnerType::from($ownerType);
+    }
+
+    public function getOwnerId(): ?string
+    {
+        return $this->ownerId;
+    }
+
+    public function setOwnerId(?string $ownerId): void
+    {
+        $ownerId = trim((string) $ownerId);
+        $this->ownerId = $ownerId === '' ? null : $ownerId;
     }
 
     public function getTagCodes(): array

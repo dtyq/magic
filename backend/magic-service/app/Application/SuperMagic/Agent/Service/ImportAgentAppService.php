@@ -132,6 +132,16 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
                 $savedEntity->getCreator()
             );
 
+            // Imported YAML is not proof of access. Reuse binding authorization per skill.
+            $agentAppService = $this->container->get(SuperMagicAgentAppService::class);
+            foreach ($parsedData->marketSkills as $reference) {
+                try {
+                    $agentAppService->addAgentSkills($authorization, $agentCode, [$reference['code']]);
+                } catch (Throwable $e) {
+                    $this->logger->warning('Could not restore imported skill binding', ['agent_code' => $agentCode, 'skill_code' => $reference['code'], 'error' => $e->getMessage()]);
+                }
+            }
+
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
             // Inherit publish_target_type and publish_target_value from the latest version;
             // fall back to ORGANIZATION (with no target value) when no prior version exists.

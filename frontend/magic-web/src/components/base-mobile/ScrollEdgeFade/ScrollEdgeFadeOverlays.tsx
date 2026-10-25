@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import {
 	getScrollEdgeFadeRgb,
@@ -7,6 +7,8 @@ import {
 } from "./scrollEdgeFadeColors"
 
 interface ScrollEdgeFadeOverlaysProps {
+	/** Use a host CSS surface for both the gradients and the clipping seam. */
+	surfaceColor?: string
 	fadeColor: ScrollEdgeFadeColor
 	showTopMask: boolean
 	showBottomMask: boolean
@@ -19,13 +21,14 @@ interface ScrollEdgeFadeOverlaysProps {
  */
 export function ScrollEdgeFadeOverlays({
 	fadeColor,
+	surfaceColor,
 	showTopMask,
 	showBottomMask,
 	topClassName,
 	bottomClassName,
 }: ScrollEdgeFadeOverlaysProps) {
 	const fromClass = scrollEdgeFadeFromClass[fadeColor]
-	const solidColor = getScrollEdgeFadeRgb(fadeColor)
+	const solidColor = surfaceColor ?? getScrollEdgeFadeRgb(fadeColor)
 
 	return (
 		<>
@@ -40,6 +43,13 @@ export function ScrollEdgeFadeOverlays({
 			>
 				<div
 					className={cn("absolute inset-0 bg-gradient-to-b to-transparent", fromClass)}
+					style={
+						surfaceColor
+							? {
+									backgroundImage: `linear-gradient(to bottom, ${surfaceColor}, transparent)`,
+								}
+							: undefined
+					}
 				/>
 				{/* Paint the clipping seam on a separate layer so transformed rows cannot leak a device pixel. */}
 				<div
@@ -54,6 +64,13 @@ export function ScrollEdgeFadeOverlays({
 					showBottomMask ? "opacity-100" : "opacity-0",
 					bottomClassName,
 				)}
+				style={
+					surfaceColor
+						? {
+								backgroundImage: `linear-gradient(to top, ${surfaceColor}, transparent)`,
+							}
+						: undefined
+				}
 				aria-hidden
 			/>
 		</>

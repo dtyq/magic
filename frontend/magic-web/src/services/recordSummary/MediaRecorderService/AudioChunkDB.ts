@@ -25,7 +25,6 @@ export interface StoredAudioChunk {
  */
 export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 	static tableName = "audioChunks"
-	private chunkCounter = 0 // Counter for sampling logs every 10 chunks
 
 	constructor() {
 		super(AudioChunkDB.tableName)
@@ -36,6 +35,7 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 	 * 保存音频分片到数据库
 	 */
 	async saveChunk(chunk: StoredAudioChunk): Promise<void> {
+		const startedAt = Date.now()
 		const chunkWithTimestamp = {
 			...chunk,
 			createdAt: chunk.createdAt || Date.now(),
@@ -43,16 +43,23 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 			// Set default upload status if not provided
 			uploadStatus: chunk.uploadStatus || ("pending" as UploadStatus),
 		}
-		await this.put(chunkWithTimestamp)
-
-		// Sampling: log every 10 chunks to avoid performance impact
-		this.chunkCounter++
-		if (this.chunkCounter % 10 === 0) {
-			logger.log("保存音频分片", {
-				chunkIndex: chunk.index,
-				chunkSize: Math.round(chunk.size / 1024) + "KB",
-				totalSaved: this.chunkCounter,
+		try {
+			await this.put(chunkWithTimestamp)
+		} catch (error) {
+			logger.error({
+				eventKey: "audio_chunk_indexed_db_write_failed",
+				errorKind: "storage",
+				error,
+				message: "Failed to persist audio chunk in IndexedDB",
+				context: {
+					sessionId: chunk.sessionId,
+					chunkId: chunk.id,
+					chunkIndex: chunk.index,
+					size: chunk.size,
+					persistenceDurationMs: Date.now() - startedAt,
+				},
 			})
+			throw error
 		}
 	}
 
@@ -179,7 +186,35 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 			updatedAt: Date.now(),
 		}
 
-		await this.put(updatedChunk)
+		const previousStatus = chunk.uploadStatus
+		const startedAt = Date.now()
+		try {
+			await this.put(updatedChunk)
+			logger.log("Audio chunk upload status persisted", {
+				sessionId: chunk.sessionId,
+				chunkId,
+				chunkIndex: chunk.index,
+				previousStatus,
+				uploadStatus: status,
+				persistenceDurationMs: Date.now() - startedAt,
+			})
+		} catch (error) {
+			logger.error({
+				eventKey: "audio_chunk_status_write_failed",
+				errorKind: "storage",
+				error,
+				message: "Failed to persist audio chunk upload status",
+				context: {
+					sessionId: chunk.sessionId,
+					chunkId,
+					chunkIndex: chunk.index,
+					previousStatus,
+					uploadStatus: status,
+					persistenceDurationMs: Date.now() - startedAt,
+				},
+			})
+			throw error
+		}
 	}
 
 	/**

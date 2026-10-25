@@ -1,6 +1,6 @@
 import { useMemoizedFn } from "ahooks"
-import type { Editor, EditorEvents } from "@tiptap/react"
-import type { Slice } from "@tiptap/pm/model"
+import type { Editor, EditorEvents } from "@/infrastructure/editors/tiptap/react"
+import type { Slice } from "@/infrastructure/editors/tiptap/pm-model"
 import { useRef, useEffect } from "react"
 
 interface UsePasteCursorPositionOptions {

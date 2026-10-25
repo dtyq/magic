@@ -134,7 +134,10 @@ export function registerMicroAppDesktopWorkspaceCases({
 		expect(screen.queryByTestId("micro-app-file-sidebar")).not.toBeInTheDocument()
 		expect(screen.getByTestId("desktop-entry-preview")).toBeInTheDocument()
 		expect(screen.queryByTestId("desktop-files-viewer")).not.toBeInTheDocument()
-		expect(screen.getByTestId("micro-app-preview-address")).toHaveTextContent("/")
+		expect(screen.getByRole("tab", { name: "/index.html" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		)
 		expect(previewMocks.render).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				viewMode: "desktop",
@@ -178,7 +181,10 @@ export function registerMicroAppDesktopWorkspaceCases({
 			})
 		})
 		expect(screen.getByTestId("micro-app-nav-preview")).toHaveAttribute("aria-current", "page")
-		expect(screen.getByTestId("micro-app-preview-address")).toHaveTextContent("/admin.html")
+		expect(screen.getByRole("tab", { name: "/admin.html" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		)
 		expect(screen.queryByTestId("desktop-files-viewer")).not.toBeInTheDocument()
 		expect(previewMocks.render).toHaveBeenLastCalledWith(
 			expect.objectContaining({
@@ -186,10 +192,14 @@ export function registerMicroAppDesktopWorkspaceCases({
 			}),
 		)
 
-		fireEvent.change(screen.getByTestId("micro-app-preview-address"), {
-			target: { value: "entry-1" },
+		act(() => {
+			const props = previewMocks.render.mock.lastCall?.[0] as PreviewRenderProps | undefined
+			props?.onOpenFile?.({ file_id: "entry-1", file_name: "index.html" })
 		})
-		expect(screen.getByTestId("micro-app-preview-address")).toHaveTextContent("/")
+		expect(screen.getByRole("tab", { name: "/index.html" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		)
 		expect(previewMocks.render).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				entryFile: expect.objectContaining({ file_id: "entry-1" }),
@@ -198,7 +208,7 @@ export function registerMicroAppDesktopWorkspaceCases({
 
 		fireEvent.click(screen.getByTestId("micro-app-preview-refresh"))
 		expect(previewMocks.render).toHaveBeenLastCalledWith(
-			expect.objectContaining({ refreshKey: 1 }),
+			expect.objectContaining({ refreshKey: 3 }),
 		)
 		fireEvent.focus(screen.getByTestId("micro-app-preview-refresh"))
 		expect(await screen.findByRole("tooltip")).toHaveTextContent(
@@ -224,6 +234,7 @@ export function registerMicroAppDesktopWorkspaceCases({
 		expect(previewWorkspace).toHaveClass("absolute")
 
 		fireEvent.click(screen.getByTestId("micro-app-nav-files"))
+		expect(screen.getByTestId("desktop-entry-preview")).toBeInTheDocument()
 		expect(screen.getByTestId("micro-app-file-sidebar")).toBeInTheDocument()
 		expect(screen.getByTestId("desktop-file-list")).toBeInTheDocument()
 		expect(screen.getByTestId("desktop-files-viewer")).toBeInTheDocument()
@@ -356,13 +367,21 @@ export function registerMicroAppDesktopWorkspaceCases({
 		})
 	})
 
-	it("opens file tools in the files workspace without a preview modal", async () => {
+	it("does not open file tools in a modal over the entry preview", async () => {
 		render(renderPage())
 		await screen.findByTestId("desktop-entry-preview")
 		fireEvent.click(screen.getByTestId("write-file"))
 
-		expect(screen.getByTestId("micro-app-nav-files")).toHaveAttribute("aria-current", "page")
-		expect(await screen.findByTestId("desktop-files-viewer")).toBeInTheDocument()
 		expect(previewPopupMocks.open).not.toHaveBeenCalled()
+	})
+
+	it("opens file tools in the files workspace instead of a modal", async () => {
+		render(renderPage())
+		await screen.findByTestId("desktop-entry-preview")
+		fireEvent.click(screen.getByTestId("micro-app-nav-files"))
+		fireEvent.click(screen.getByTestId("write-file"))
+
+		expect(previewPopupMocks.open).not.toHaveBeenCalled()
+		expect(screen.getByTestId("desktop-files-viewer")).toBeInTheDocument()
 	})
 }

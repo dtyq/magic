@@ -1,8 +1,8 @@
-import { Suspense, lazy, memo, type ClipboardEvent } from "react"
+import { Suspense, memo, type ClipboardEvent } from "react"
 import { observer } from "mobx-react-lite"
 import type { NodeProps } from "../../../types"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ChevronUp, ChevronRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
@@ -10,13 +10,10 @@ import { defaultOpen } from "../../config"
 import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
 import { customTheme, syntaxCustomStyle, syntaxLineNumberStyle } from "./syntaxConfig"
-
-const loadSyntaxHighlighter = () =>
-	import("react-syntax-highlighter").then((module) => ({
-		default: module.Prism,
-	}))
-
-const SyntaxHighlighter = lazy(loadSyntaxHighlighter)
+import {
+	McpSyntaxHighlighter as SyntaxHighlighter,
+	preloadMcpSyntaxHighlighter,
+} from "@/infrastructure/vendors/react-syntax-highlighter/mcp"
 
 interface MCPToolResult {
 	name: string
@@ -80,7 +77,7 @@ function MCPToolCallNode(props: NodeProps) {
 	const [open, toggle] = useToggleWithScrollPreserve(defaultOpen)
 
 	const preloadSyntax = useMemoizedFn(() => {
-		void loadSyntaxHighlighter()
+		preloadMcpSyntaxHighlighter()
 	})
 
 	// Filter line numbers from copied text

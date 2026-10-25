@@ -182,7 +182,7 @@ export function VersionMenu(props: VersionMenuProps) {
 												key: "loadMoreHint",
 												label: (
 													<div className={styles.loadMoreHint}>
-														{t("common.versionsLimitHint")}
+														{t("common.contentsLimitHint")}
 													</div>
 												),
 											},

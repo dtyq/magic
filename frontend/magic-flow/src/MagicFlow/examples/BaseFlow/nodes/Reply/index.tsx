@@ -7,7 +7,7 @@ import { Form } from "antd"
 import { DefaultOptionType } from "antd/lib/select"
 import { IconPhoto, IconTextSize } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { set } from "lodash-es"
 import React, { ReactNode, useMemo } from "react"
 import MagicExpression from "../../common/Expression"
 import usePrevious from "../../common/hooks/usePrevious"
@@ -59,7 +59,7 @@ export default function Reply() {
 		const currentNodeConfig = nodeConfig[currentNode?.node_id]
 
 		Object.entries(changeValues).forEach(([changeKey, changeValue]) => {
-			_.set(currentNodeConfig, ["params", changeKey], changeValue)
+			set(currentNodeConfig, ["params", changeKey], changeValue)
 		})
 
 		updateNodeConfig({

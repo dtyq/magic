@@ -18,11 +18,14 @@ export function getSlidesTemplateTagDisplayName(
 	fallback: { zh_CN: string; en_US: string },
 ) {
 	const name = tag?.name_i18n
+	const directName = tag?.name
 	const isEnglish = locale?.toLowerCase().startsWith("en")
 
 	if (isEnglish) {
-		return name?.en_US || name?.zh_CN || name?.default || tag?.code || fallback.en_US
+		return (
+			directName || name?.en_US || name?.zh_CN || name?.default || tag?.code || fallback.en_US
+		)
 	}
 
-	return name?.zh_CN || name?.en_US || name?.default || tag?.code || fallback.zh_CN
+	return directName || name?.zh_CN || name?.en_US || name?.default || tag?.code || fallback.zh_CN
 }

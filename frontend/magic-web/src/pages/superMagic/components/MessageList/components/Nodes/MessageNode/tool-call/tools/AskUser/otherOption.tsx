@@ -9,7 +9,7 @@ const ASK_USER_OTHER_INPUT_MAX_HEIGHT = 200
 const askUserOtherInputScrollAreaClass =
 	"[scrollbar-width:thin] [scrollbar-color:rgb(var(--muted-foreground-rgb)_/_0.22)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20"
 
-export const askUserOtherInputClass = `h-auto !min-h-7 max-h-[200px] min-w-0 flex-1 resize-none overflow-hidden rounded-md !border-0 bg-background px-2.5 py-1 text-left text-sm font-normal leading-5 text-foreground !shadow-none outline-none placeholder:text-sm placeholder:text-muted-foreground focus-visible:!border-transparent focus-visible:!ring-0 md:text-sm ${askUserOtherInputScrollAreaClass}`
+export const askUserOtherInputClass = `h-auto !min-h-7 max-h-[200px] min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-border bg-background px-2.5 py-1 text-left text-sm font-normal leading-5 text-foreground shadow-none outline-none placeholder:text-sm placeholder:text-muted-foreground focus-visible:border-border focus-visible:!ring-0 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${askUserOtherInputScrollAreaClass}`
 
 export function getAskUserRenderableOptions(options: readonly string[]) {
 	return [...options, ASK_USER_OTHER_SENTINEL]
@@ -130,6 +130,16 @@ export function getAskUserSkipActionText(locale: AskUserLocale) {
 
 export function getAskUserSubmitActionText(locale: AskUserLocale) {
 	return locale === "zh_CN" ? zhCNSuper.askUser.actions.submit : enUSSuper.askUser.actions.submit
+}
+
+export function getAskUserRemarkLabel(locale: AskUserLocale) {
+	return locale === "zh_CN" ? zhCNSuper.askUser.remarkLabel : enUSSuper.askUser.remarkLabel
+}
+
+export function getAskUserRemarkPlaceholder(locale: AskUserLocale) {
+	return locale === "zh_CN"
+		? zhCNSuper.askUser.remarkPlaceholder
+		: enUSSuper.askUser.remarkPlaceholder
 }
 
 export function getAskUserInputPlaceholder(locale: AskUserLocale) {

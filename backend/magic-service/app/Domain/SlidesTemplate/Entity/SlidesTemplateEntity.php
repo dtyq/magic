@@ -7,15 +7,27 @@ declare(strict_types=1);
 
 namespace App\Domain\SlidesTemplate\Entity;
 
+use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateOwnerType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateSourceType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateStatus;
+use App\Domain\SuperMagic\Common\Entity\ResolvesI18nText;
 use App\Infrastructure\Core\AbstractEntity;
 
 class SlidesTemplateEntity extends AbstractEntity
 {
+    use ResolvesI18nText;
+
     protected ?int $id = null;
 
     protected string $organizationCode = '';
+
+    protected SlidesTemplateOwnerType $ownerType = SlidesTemplateOwnerType::Official;
+
+    protected ?string $ownerId = null;
+
+    protected ?int $projectId = null;
+
+    protected ?int $projectDirectoryId = null;
 
     protected string $code = '';
 
@@ -89,6 +101,10 @@ class SlidesTemplateEntity extends AbstractEntity
         $result = [
             'id' => $this->id,
             'organization_code' => $this->organizationCode,
+            'owner_type' => $this->ownerType->value,
+            'owner_id' => $this->ownerId,
+            'project_id' => $this->projectId,
+            'project_directory_id' => $this->projectDirectoryId,
             'code' => $this->code,
             'source_type' => $this->sourceType->value,
             'category_code' => $this->categoryCode,
@@ -138,6 +154,66 @@ class SlidesTemplateEntity extends AbstractEntity
         return $this;
     }
 
+    public function getOwnerType(): SlidesTemplateOwnerType
+    {
+        return $this->ownerType;
+    }
+
+    public function setOwnerType(null|SlidesTemplateOwnerType|string $ownerType): self
+    {
+        if ($ownerType === null || $ownerType === '') {
+            $this->ownerType = SlidesTemplateOwnerType::Official;
+            return $this;
+        }
+
+        $this->ownerType = $ownerType instanceof SlidesTemplateOwnerType
+            ? $ownerType
+            : SlidesTemplateOwnerType::from($ownerType);
+        return $this;
+    }
+
+    public function getOwnerId(): ?string
+    {
+        return $this->ownerId;
+    }
+
+    public function setOwnerId(?string $ownerId): self
+    {
+        $ownerId = trim((string) $ownerId);
+        $this->ownerId = $ownerId === '' ? null : $ownerId;
+        return $this;
+    }
+
+    public function getProjectId(): ?int
+    {
+        return $this->projectId;
+    }
+
+    public function setProjectId(null|int|string $projectId): self
+    {
+        if ($projectId === null || $projectId === '') {
+            $this->projectId = null;
+            return $this;
+        }
+        $this->projectId = (int) $projectId;
+        return $this;
+    }
+
+    public function getProjectDirectoryId(): ?int
+    {
+        return $this->projectDirectoryId;
+    }
+
+    public function setProjectDirectoryId(null|int|string $projectDirectoryId): self
+    {
+        if ($projectDirectoryId === null || $projectDirectoryId === '') {
+            $this->projectDirectoryId = null;
+            return $this;
+        }
+        $this->projectDirectoryId = (int) $projectDirectoryId;
+        return $this;
+    }
+
     public function getCode(): string
     {
         return $this->code;
@@ -182,6 +258,11 @@ class SlidesTemplateEntity extends AbstractEntity
         return $this->label;
     }
 
+    public function getI18nLabel(string $language): string
+    {
+        return $this->resolveI18nText($this->label, $language);
+    }
+
     public function setLabel(array $label): self
     {
         $this->label = $label;
@@ -191,6 +272,11 @@ class SlidesTemplateEntity extends AbstractEntity
     public function getDescription(): array
     {
         return $this->description;
+    }
+
+    public function getI18nDescription(string $language): string
+    {
+        return $this->resolveI18nText($this->description, $language);
     }
 
     public function setDescription(array $description): self

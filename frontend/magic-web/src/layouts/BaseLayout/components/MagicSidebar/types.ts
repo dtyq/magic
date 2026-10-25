@@ -16,8 +16,11 @@ export interface SidebarHeaderProps {
 
 export interface SidebarContentProps {
 	collapsed: boolean
+	onBusyChange?: (busy: boolean) => void
+	onSelect?: () => void
 }
 
 export interface SidebarFooterProps {
 	collapsed: boolean
+	onBusyChange?: (busy: boolean) => void
 }

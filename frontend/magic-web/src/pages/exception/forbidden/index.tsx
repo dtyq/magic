@@ -1,13 +1,13 @@
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
-import { useTranslation } from "react-i18next"
+import { cn } from "@/utils/cn"
+import { useMainTranslation } from "@/hooks/i18n/useMainTranslation"
 import zero from "@/assets/text/403-zero.svg"
 import zeroDark from "@/assets/text/403-zero-dark.svg"
 import { getHomeURL } from "@/utils/redirect"
 import { history } from "@/routes/history"
 
 export default function ForbiddenPage({ className }: { className?: string }) {
-	const { t } = useTranslation("interface")
+	const { t } = useMainTranslation("interface")
 
 	return (
 		<div

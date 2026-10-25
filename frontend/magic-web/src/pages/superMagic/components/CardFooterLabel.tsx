@@ -1,5 +1,5 @@
 import SmartTooltip from "@/components/other/SmartTooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface CardFooterLabelProps {
 	label: string

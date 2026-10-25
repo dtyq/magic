@@ -10,6 +10,7 @@ namespace App\Domain\SuperMagic\Message\Repository\Persistence;
 use App\Domain\SuperMagic\Message\Entity\MessageScheduleEntity;
 use App\Domain\SuperMagic\Message\Repository\Facade\MessageScheduleRepositoryInterface;
 use App\Domain\SuperMagic\Message\Repository\Model\MessageScheduleModel;
+use App\Domain\SuperMagic\Project\Repository\Model\ProjectModel;
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Hyperf\DbConnection\Db;
@@ -36,6 +37,63 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
             return null;
         }
         return $this->modelToEntity($model);
+    }
+
+    /** @return MessageScheduleEntity[] */
+    public function getCleanupCandidates(int $afterId, int $limit, ?string $organizationCode = null, array $projectIds = []): array
+    {
+        // Include soft-deleted schedules whose scheduler plans may still exist.
+        $query = $this->messageScheduleModel::withTrashed()
+            ->select(['id', 'project_id', 'organization_code', 'deleted_at'])
+            ->where('id', '>', $afterId)
+            ->where('project_id', '>', 0)
+            ->whereDoesntHave('project');
+
+        if ($organizationCode !== null) {
+            $query->where('organization_code', $organizationCode);
+        }
+        if ($projectIds !== []) {
+            $query->whereIn('project_id', $projectIds);
+        }
+
+        return $query->orderBy('id')->limit($limit)->get()
+            ->map(fn (MessageScheduleModel $model) => $this->modelToEntity($model))->all();
+    }
+
+    public function findByIdForCleanup(int $id): ?MessageScheduleEntity
+    {
+        $model = $this->messageScheduleModel::withTrashed()
+            ->select(['id', 'project_id', 'organization_code', 'deleted_at'])
+            ->lockForUpdate()->find($id);
+        return $model ? $this->modelToEntity($model) : null;
+    }
+
+    public function isProjectAvailableForCleanup(int $projectId): bool
+    {
+        // Serialize cleanup with project restoration, including soft-deleted rows.
+        $project = ProjectModel::withTrashed()->lockForUpdate()->find($projectId);
+        return $project !== null && $project->deleted_at === null;
+    }
+
+    public function markDeletedForCleanup(int $id, string $updatedUid): void
+    {
+        $now = date('Y-m-d H:i:s');
+        $this->messageScheduleModel::query()->where('id', $id)->toBase()->update([
+            'enabled' => 0,
+            'deleted_at' => $now,
+            'updated_at' => $now,
+            'updated_uid' => $updatedUid,
+        ]);
+    }
+
+    public function findByIdForUpdate(int $id): ?MessageScheduleEntity
+    {
+        if (Db::transactionLevel() === 0) {
+            throw new RuntimeException('Schedule locking read requires a transaction');
+        }
+        /** @var null|MessageScheduleModel $model */
+        $model = $this->messageScheduleModel::query()->where('id', $id)->lockForUpdate()->first();
+        return $model ? $this->modelToEntity($model) : null;
     }
 
     /**
@@ -110,6 +168,11 @@ class MessageScheduleRepository extends AbstractRepository implements MessageSch
 
         // Default filter for non-deleted data
         $query->whereNull('deleted_at');
+
+        // Apply before count and pagination so list and total share the same scope.
+        $query->where(static function ($query): void {
+            $query->where('project_id', 0)->orWhereHas('project');
+        });
 
         // Apply query conditions
         foreach ($conditions as $field => $value) {

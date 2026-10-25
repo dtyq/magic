@@ -25,6 +25,14 @@ export interface RecordSummaryEditorPanelProps {
 	messageQueueNode?: ReactNode
 	className?: string
 	containerClassName?: string
+	/** Fill the negotiated conversation height while the editor is in the idle state. */
+	fillHeight?: boolean
+	/** Returning false stops a homepage start before a project is created. */
+	beforeRecordingStart?: () => Promise<boolean>
+	/** Topic mode used when recording must create the project first. */
+	recordingNewProjectTopicMode?: TopicMode
+	/** When false, hide the control that records into an existing project. */
+	allowSelectRecordingProject?: boolean
 }
 
 export interface RecordSummaryEditorPanelRef {

@@ -137,11 +137,11 @@ type fragmentAppParseService interface {
 }
 
 type fragmentAppKnowledgeBaseBindingReader interface {
-	ListBindIDsByKnowledgeBase(
+	ListBindIDsByKnowledgeBases(
 		ctx context.Context,
-		knowledgeBaseCode string,
+		knowledgeBaseCodes []string,
 		bindType kbentity.BindingType,
-	) ([]string, error)
+	) (map[string][]string, error)
 	ListBindIDsByKnowledgeBaseInOrg(
 		ctx context.Context,
 		organizationCode string,
@@ -169,6 +169,15 @@ type fragmentAppSuperMagicAgentAccessChecker interface {
 		userID string,
 		codes []string,
 	) (map[string]struct{}, error)
+}
+
+type fragmentAppSuperMagicAgentContextReader interface {
+	ListAccessibleContexts(
+		ctx context.Context,
+		organizationCode string,
+		userID string,
+		codes []string,
+	) (map[string]string, error)
 }
 
 type fragmentAppTeamshareTempCodeMapper interface {

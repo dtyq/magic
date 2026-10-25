@@ -1,3 +1,4 @@
+import { canDeleteRecordingProjects } from "@/services/recordSummary/projectDeletionRecordingNotice"
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { runInAction } from "mobx"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -8,6 +9,7 @@ import {
 	type Workspace,
 } from "@/pages/superMagic/pages/Workspace/types"
 import { projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
+import SuperMagicService from "@/pages/superMagic/services"
 import { useWorkspacePage } from "../useWorkspacePage"
 
 vi.hoisted(() => {
@@ -123,7 +125,7 @@ vi.mock("@/apis", () => ({
 vi.mock("@/pages/superMagic/services", () => ({
 	default: {
 		workspace: {
-			getWorkspaceDetail: vi.fn(),
+			getWorkspaceDetail: vi.fn().mockResolvedValue(null),
 			renameWorkspaceWithRefresh: vi.fn(),
 			deleteWorkspace: vi.fn(),
 		},
@@ -165,6 +167,10 @@ describe("useWorkspacePage", () => {
 			])
 		})
 
+		workspaceStore.setWorkspaces([
+			createWorkspace({ id: "workspace-a", name: "Workspace A" }),
+			createWorkspace({ id: "workspace-b", name: "Workspace B" }),
+		])
 		workspaceStore.setSelectedWorkspace(
 			createWorkspace({ id: "workspace-a", name: "Workspace A" }),
 		)
@@ -214,8 +220,7 @@ describe("useWorkspacePage", () => {
 
 	it("clears stale global projects when switching workspace before fetch resolves", async () => {
 		let resolveWorkspaceB:
-			| ((value: { list: ProjectListItem[]; total: number }) => void)
-			| undefined
+			((value: { list: ProjectListItem[]; total: number }) => void) | undefined
 
 		getProjectsMock.mockImplementation(({ workspace_id }: { workspace_id: string }) => {
 			if (workspace_id === "workspace-a") {
@@ -277,8 +282,7 @@ describe("useWorkspacePage", () => {
 
 	it("discards stale fetch results when workspace changes before response returns", async () => {
 		let resolveWorkspaceA:
-			| ((value: { list: ProjectListItem[]; total: number }) => void)
-			| undefined
+			((value: { list: ProjectListItem[]; total: number }) => void) | undefined
 
 		getProjectsMock.mockImplementation(({ workspace_id }: { workspace_id: string }) => {
 			if (workspace_id === "workspace-a") {
@@ -331,6 +335,23 @@ describe("useWorkspacePage", () => {
 		expect(result.current.projects[0]?.project_name).toBe("Project B1")
 	})
 
+	it("does not optimistically remove a project when its recording blocks deletion", async () => {
+		const project = createProject({
+			id: "project-1",
+			project_name: "Recording",
+			workspace_id: "workspace-a",
+		})
+		getProjectsMock.mockResolvedValueOnce({ list: [project], total: 1 })
+		const { result } = renderHook(() => useWorkspacePage())
+		await waitFor(() => expect(result.current.projects).toHaveLength(1))
+		vi.mocked(canDeleteRecordingProjects).mockReturnValueOnce(false)
+		await act(async () => {
+			await projectActionsMockState.options?.onDeleteProjectConfirmed?.(project)
+		})
+		expect(deleteProjectMock).not.toHaveBeenCalled()
+		expect(result.current.projects[0]?.id).toBe("project-1")
+	})
+
 	it("keeps pagination disabled while project delete refresh is replacing the first page", async () => {
 		const firstPageProjects = Array.from({ length: 100 }, (_, index) =>
 			createProject({
@@ -340,8 +361,7 @@ describe("useWorkspacePage", () => {
 			}),
 		)
 		let resolveRefresh:
-			| ((value: { list: ProjectListItem[]; total: number }) => void)
-			| undefined
+			((value: { list: ProjectListItem[]; total: number }) => void) | undefined
 
 		getProjectsMock
 			.mockResolvedValueOnce({
@@ -398,4 +418,48 @@ describe("useWorkspacePage", () => {
 		})
 		expect(result.current.hasMore).toBe(false)
 	})
+
+	it("creates a project in the route workspace after selectedWorkspace was switched by a move", async () => {
+		getProjectsMock.mockResolvedValue({ list: [], total: 0 })
+		vi.mocked(SuperMagicService.handleCreateProject).mockResolvedValue({
+			project: createProject({
+				id: "project-new",
+				project_name: "New Project",
+				workspace_id: "workspace-a",
+			}),
+			topic: { id: "topic-new" },
+		} as never)
+
+		const { result } = renderHook(() => useWorkspacePage())
+
+		await waitFor(() => {
+			expect(result.current.isLoading).toBe(false)
+		})
+
+		// Simulate moveProject following the last project into the destination workspace.
+		workspaceStore.setSelectedWorkspace(
+			createWorkspace({ id: "workspace-b", name: "Workspace B" }),
+		)
+
+		await act(async () => {
+			await result.current.handleCreateProject("New Project")
+		})
+
+		expect(SuperMagicService.handleCreateProject).toHaveBeenCalledWith({
+			projectMode: TopicMode.Empty,
+			isAutoSelect: false,
+			projectName: "New Project",
+			workspaceId: "workspace-a",
+		})
+		expect(getProjectsMock).toHaveBeenLastCalledWith({
+			workspace_id: "workspace-a",
+			page: 1,
+			page_size: 100,
+		})
+	})
 })
+
+vi.mock("@/services/recordSummary/projectDeletionRecordingNotice", () => ({
+	canDeleteRecordingProjects: vi.fn(() => true),
+	handleRecordingProjectDeletionError: vi.fn(() => false),
+}))

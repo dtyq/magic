@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react"
-import type { SuggestionKeyDownProps } from "@tiptap/suggestion"
+import type { SuggestionKeyDownProps } from "@/infrastructure/editors/tiptap/suggestion"
 import type { SuggestionItem } from "../types"
 
 /**

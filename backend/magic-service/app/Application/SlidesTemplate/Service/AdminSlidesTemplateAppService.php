@@ -13,10 +13,18 @@ use App\Domain\SlidesTemplate\Entity\SlidesTemplateEntity;
 use App\Domain\SlidesTemplate\Entity\ValueObject\Query\SlidesTemplateQuery;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateSourceType;
 use App\Domain\SlidesTemplate\Entity\ValueObject\SlidesTemplateStatus;
+use App\Domain\SlidesTemplate\Event\SlidesTemplateBatchReindexRequestedEvent;
+use App\Domain\SlidesTemplate\Event\SlidesTemplateCreatedEvent;
+use App\Domain\SlidesTemplate\Event\SlidesTemplateDeletedEvent;
+use App\Domain\SlidesTemplate\Event\SlidesTemplateStatusUpdatedEvent;
+use App\Domain\SlidesTemplate\Event\SlidesTemplateUpdatedEvent;
 use App\Domain\SlidesTemplate\Service\SlidesTemplateCategoryDomainService;
 use App\Domain\SlidesTemplate\Service\SlidesTemplateColorExtractor;
 use App\Domain\SlidesTemplate\Service\SlidesTemplateDomainService;
+use App\Domain\SlidesTemplate\Service\SlidesTemplateFavoriteDomainService;
+use App\Domain\SlidesTemplate\Service\SlidesTemplateSearchTextBuilder;
 use App\Domain\SlidesTemplate\Service\SlidesTemplateTagDomainService;
+use App\Domain\SlidesTemplate\Service\SlidesTemplateVectorIndexDomainService;
 use App\ErrorCode\SlidesTemplateErrorCode;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -24,21 +32,34 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\SlidesTemplate\DTO\Request\AdminQuerySlidesTemplateRequest;
 use App\Interfaces\SlidesTemplate\DTO\Request\SaveSlidesTemplateRequest;
 use App\Interfaces\SlidesTemplate\DTO\Request\UpdateSlidesTemplateTagsRequest;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
+use Hyperf\DbConnection\Db;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Qbhy\HyperfAuth\Authenticatable;
 use Throwable;
 
 class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
 {
+    private const VECTOR_REINDEX_EVENT_BATCH_SIZE = 100;
+
     private const ARCHIVE_EXTENSIONS = ['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz'];
+
+    private LoggerInterface $logger;
 
     public function __construct(
         SlidesTemplateDomainService $slidesTemplateDomainService,
         private readonly SlidesTemplateCategoryDomainService $slidesTemplateCategoryDomainService,
         private readonly SlidesTemplateTagDomainService $slidesTemplateTagDomainService,
         private readonly SlidesTemplateColorExtractor $slidesTemplateColorExtractor,
+        private readonly SlidesTemplateFavoriteDomainService $slidesTemplateFavoriteDomainService,
+        private readonly SlidesTemplateVectorIndexDomainService $slidesTemplateVectorIndexDomainService,
+        ?LoggerFactory $loggerFactory = null,
     ) {
         parent::__construct($slidesTemplateDomainService);
+        $this->logger = $loggerFactory?->get('slides-template-vector-sync') ?? new NullLogger();
     }
 
     /**
@@ -73,7 +94,7 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $this->assertOfficialOrganization($dataIsolation);
 
         $template = $this->slidesTemplateDomainService->findByIdOrFail($dataIsolation, $id);
-        $this->resolveAssetUrls([$template], includeTemplateFileUrl: true);
+        $this->resolveAssetUrls([$template], includeTemplateFileUrl: false);
         $this->slidesTemplateTagDomainService->fillTemplateTags($dataIsolation, [$template]);
 
         return $template;
@@ -84,11 +105,11 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $dataIsolation = $this->createSlidesTemplateDataIsolation($authorization);
         $this->assertOfficialOrganization($dataIsolation);
 
-        $this->assertCategoryExists($dataIsolation, $request->getCategoryCode());
+        $category = $this->findCategory($dataIsolation, $request->getCategoryCode());
         $this->assertTemplateFileIsArchive($request->getTemplateFileKey());
         $this->assertTemplateFileKeyHasPrivateUrl($dataIsolation->getCurrentOrganizationCode(), $request->getTemplateFileKey());
         $this->assertThumbnailFileKeyHasPublicUrl($dataIsolation->getCurrentOrganizationCode(), $request->getThumbnailFileKey());
-        $this->slidesTemplateTagDomainService->findEnabledByCodesOrFail($dataIsolation, $request->getTagCodes());
+        $tags = $this->slidesTemplateTagDomainService->findEnabledByCodes($dataIsolation, $request->getTagCodes());
         $template = $this->buildEntityFromRequest($request);
         $template->setCode($request->getCode() ?? SlidesTemplateEntity::generateNewCode());
         $template->setSourceType(SlidesTemplateSourceType::Custom);
@@ -97,16 +118,24 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $template->setCreatedUid($dataIsolation->getCurrentUserId());
         $template->setUpdatedUid($dataIsolation->getCurrentUserId());
 
-        $template = $this->slidesTemplateDomainService->create($dataIsolation, $template);
-        if ($request->hasTagCodes()) {
-            $this->slidesTemplateTagDomainService->syncTemplateTagsByCodes(
-                $dataIsolation,
-                (int) $template->getId(),
-                $request->getTagCodes(),
-                $dataIsolation->getCurrentUserId()
-            );
-        }
-        $this->resolveAssetUrls([$template], includeTemplateFileUrl: true);
+        $template = Db::transaction(function () use ($dataIsolation, $request, $template, $category, $tags): SlidesTemplateEntity {
+            $saved = $this->slidesTemplateDomainService->create($dataIsolation, $template, $category, $tags);
+            if ($request->hasTagCodes()) {
+                $this->slidesTemplateTagDomainService->syncTemplateTagsByCodes(
+                    $dataIsolation,
+                    (int) $saved->getId(),
+                    $request->getTagCodes(),
+                    $dataIsolation->getCurrentUserId()
+                );
+            }
+            return $saved;
+        });
+        AsyncEventUtil::dispatch(new SlidesTemplateCreatedEvent(
+            (string) $template->getId(),
+            $template->getOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+        ));
+        $this->resolveAssetUrls([$template], includeTemplateFileUrl: false);
         $this->slidesTemplateTagDomainService->fillTemplateTags($dataIsolation, [$template]);
 
         return $template;
@@ -117,10 +146,10 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $dataIsolation = $this->createSlidesTemplateDataIsolation($authorization);
         $this->assertOfficialOrganization($dataIsolation);
 
-        $this->assertCategoryExists($dataIsolation, $request->getCategoryCode());
+        $category = $this->findCategory($dataIsolation, $request->getCategoryCode());
         $this->assertTemplateFileIsArchive($request->getTemplateFileKey());
         if ($request->hasTagCodes()) {
-            $this->slidesTemplateTagDomainService->findEnabledByCodesOrFail($dataIsolation, $request->getTagCodes());
+            $tags = $this->slidesTemplateTagDomainService->findEnabledByCodes($dataIsolation, $request->getTagCodes());
         }
         $existing = $this->slidesTemplateDomainService->findByIdOrFail($dataIsolation, $id);
         $this->assertTemplateFileKeyHasPrivateUrl($existing->getOrganizationCode(), $request->getTemplateFileKey());
@@ -136,16 +165,28 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $template->setCreatedUid($existing->getCreatedUid());
         $template->setUpdatedUid($dataIsolation->getCurrentUserId());
 
-        $template = $this->slidesTemplateDomainService->update($dataIsolation, $template);
-        if ($request->hasTagCodes()) {
-            $this->slidesTemplateTagDomainService->syncTemplateTagsByCodes(
-                $dataIsolation,
-                (int) $template->getId(),
-                $request->getTagCodes(),
-                $dataIsolation->getCurrentUserId()
-            );
+        if (! $request->hasTagCodes()) {
+            $this->slidesTemplateTagDomainService->fillTemplateTags($dataIsolation, [$existing]);
+            $tags = $existing->getTags();
         }
-        $this->resolveAssetUrls([$template], includeTemplateFileUrl: true);
+        $template = Db::transaction(function () use ($dataIsolation, $request, $template, $category, $tags): SlidesTemplateEntity {
+            $saved = $this->slidesTemplateDomainService->update($dataIsolation, $template, $category, $tags);
+            if ($request->hasTagCodes()) {
+                $this->slidesTemplateTagDomainService->syncTemplateTagsByCodes(
+                    $dataIsolation,
+                    (int) $saved->getId(),
+                    $request->getTagCodes(),
+                    $dataIsolation->getCurrentUserId()
+                );
+            }
+            return $saved;
+        });
+        AsyncEventUtil::dispatch(new SlidesTemplateUpdatedEvent(
+            (string) $template->getId(),
+            $template->getOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+        ));
+        $this->resolveAssetUrls([$template], includeTemplateFileUrl: false);
         $this->slidesTemplateTagDomainService->fillTemplateTags($dataIsolation, [$template]);
 
         return $template;
@@ -159,15 +200,28 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $dataIsolation = $this->createSlidesTemplateDataIsolation($authorization);
         $this->assertOfficialOrganization($dataIsolation);
 
-        $template = $this->slidesTemplateDomainService->findByIdOrFail($dataIsolation, $id);
-        $this->slidesTemplateTagDomainService->syncTemplateTagsByCodes(
-            $dataIsolation,
-            (int) $template->getId(),
-            $request->getTagCodes(),
-            $dataIsolation->getCurrentUserId()
-        );
-        $this->resolveAssetUrls([$template], includeTemplateFileUrl: true);
-        $this->slidesTemplateTagDomainService->fillTemplateTags($dataIsolation, [$template]);
+        $template = Db::transaction(function () use ($dataIsolation, $id, $request): SlidesTemplateEntity {
+            $template = $this->slidesTemplateDomainService->findByIdOrFail($dataIsolation, $id);
+            $this->slidesTemplateTagDomainService->syncTemplateTagsByCodes(
+                $dataIsolation,
+                (int) $template->getId(),
+                $request->getTagCodes(),
+                $dataIsolation->getCurrentUserId()
+            );
+            $this->slidesTemplateTagDomainService->fillTemplateTags($dataIsolation, [$template]);
+            $category = $template->getCategoryCode() === null
+                ? null
+                : $this->slidesTemplateCategoryDomainService->findByCodeOrFail($dataIsolation, $template->getCategoryCode());
+            // Tag relation changes affect exact search, so persist the refreshed search text.
+            $template->setSearchText(SlidesTemplateSearchTextBuilder::build($template, $category, $template->getTags()));
+            return $this->slidesTemplateDomainService->saveSearchText($dataIsolation, $template);
+        });
+        AsyncEventUtil::dispatch(new SlidesTemplateUpdatedEvent(
+            (string) $template->getId(),
+            $template->getOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+        ));
+        $this->resolveAssetUrls([$template], includeTemplateFileUrl: false);
 
         return $template;
     }
@@ -177,12 +231,21 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $dataIsolation = $this->createSlidesTemplateDataIsolation($authorization);
         $this->assertOfficialOrganization($dataIsolation);
 
+        $template = $this->slidesTemplateDomainService->findByIdOrFail($dataIsolation, $id);
+        $newStatus = SlidesTemplateStatus::from($status);
+
         $this->slidesTemplateDomainService->updateStatus(
             $dataIsolation,
             $id,
-            SlidesTemplateStatus::from($status),
+            $newStatus,
             $dataIsolation->getCurrentUserId()
         );
+        AsyncEventUtil::dispatch(new SlidesTemplateStatusUpdatedEvent(
+            (string) $template->getId(),
+            $template->getOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+            $newStatus->value,
+        ));
     }
 
     public function updateSort(Authenticatable|BaseDataIsolation $authorization, int|string $id, int $sort): void
@@ -199,8 +262,191 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         $this->assertOfficialOrganization($dataIsolation);
 
         $template = $this->slidesTemplateDomainService->findByIdOrFail($dataIsolation, $id);
-        $this->slidesTemplateTagDomainService->deleteTemplateTags($dataIsolation, (int) $template->getId());
-        $this->slidesTemplateDomainService->delete($dataIsolation, $id);
+        Db::transaction(function () use ($dataIsolation, $id): void {
+            $template = $this->slidesTemplateDomainService->findByIdOrFail($dataIsolation, $id);
+            $this->slidesTemplateTagDomainService->deleteTemplateTags($dataIsolation, (int) $template->getId());
+            $this->slidesTemplateFavoriteDomainService->deleteBySlideTemplateCode($template->getCode());
+            $this->slidesTemplateDomainService->delete($dataIsolation, $id);
+        });
+        AsyncEventUtil::dispatch(new SlidesTemplateDeletedEvent(
+            (string) $template->getId(),
+            $template->getOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+        ));
+    }
+
+    /** Run the complete vector-index reconciliation for the official templates. */
+    public function reindexVectorIndex(
+        Authenticatable|BaseDataIsolation $authorization,
+        bool $forceReEmbedding = false,
+    ): array {
+        $dataIsolation = $this->createSlidesTemplateDataIsolation($authorization);
+        $this->assertOfficialOrganization($dataIsolation);
+
+        return $this->reconcileVectorIndex($dataIsolation, $forceReEmbedding);
+    }
+
+    /** Clean orphan points and queue every official template for reconciliation. */
+    public function reconcileVectorIndex(
+        SlidesTemplateDataIsolation $dataIsolation,
+        bool $forceReEmbedding = false,
+    ): array {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $reconcileSucceeded = true;
+        $removed = 0;
+        try {
+            $removed = $this->slidesTemplateVectorIndexDomainService->removeOrphanPoints($dataIsolation, $organizationCode);
+        } catch (Throwable $throwable) {
+            $reconcileSucceeded = false;
+            $this->logger->error('Slides template orphan vector cleanup failed', [
+                'organization_code' => $organizationCode,
+                'exception' => $throwable::class,
+                'message' => $throwable->getMessage(),
+            ]);
+        }
+
+        $queued = 0;
+        try {
+            $result = $this->queueOfficialVectorReindex($dataIsolation, forceReEmbedding: $forceReEmbedding);
+            $queued = $result['queued'] ?? 0;
+        } catch (Throwable $throwable) {
+            $reconcileSucceeded = false;
+            $this->logger->error('Slides template vector reconciliation failed', [
+                'organization_code' => $organizationCode,
+                'exception' => $throwable::class,
+                'message' => $throwable->getMessage(),
+            ]);
+        }
+
+        $this->logger->info('Slides template vector reconciliation finished', [
+            'organization_code' => $organizationCode,
+            'removed_orphans' => $removed,
+            'queued' => $queued,
+        ]);
+
+        if ($reconcileSucceeded && $this->slidesTemplateVectorIndexDomainService->isVectorSearchEnabled()) {
+            $this->slidesTemplateVectorIndexDomainService->markVectorIndexInitialized();
+        }
+
+        return ['removed_orphans' => $removed, 'queued' => $queued];
+    }
+
+    /** Queue a full official-template vector rebuild for an internal system event. */
+    public function reindexOfficialVectorIndex(
+        SlidesTemplateDataIsolation $dataIsolation,
+        bool $forceReEmbedding = true,
+    ): array {
+        return $this->queueOfficialVectorReindex($dataIsolation, $forceReEmbedding);
+    }
+
+    private function queueOfficialVectorReindex(
+        SlidesTemplateDataIsolation $dataIsolation,
+        bool $forceReEmbedding,
+    ): array {
+        return $this->queueVectorReindex(
+            $dataIsolation,
+            $dataIsolation->getCurrentOrganizationCode(),
+            [],
+            null,
+            [],
+            'any',
+            '0',
+            self::VECTOR_REINDEX_EVENT_BATCH_SIZE,
+            $forceReEmbedding,
+        );
+    }
+
+    /** Queue vector rebuild batches for both HTTP requests and internal events. */
+    private function queueVectorReindex(
+        SlidesTemplateDataIsolation $dataIsolation,
+        string $organizationCode,
+        array $templateIds,
+        ?string $categoryCode,
+        array $tagCodes,
+        string $tagMatch,
+        string $afterId,
+        int $batchSize,
+        bool $force,
+    ): array {
+        if (! $this->slidesTemplateVectorIndexDomainService->isVectorSearchEnabled()) {
+            $this->logger->info('Slides template full vector sync skipped because vector search is disabled', [
+                'organization_code' => $organizationCode,
+                'after_id' => $afterId,
+                'force' => $force,
+            ]);
+            return ['task_id' => bin2hex(random_bytes(12)), 'queued' => 0, 'after_id' => $afterId];
+        }
+
+        $afterId = $force ? '0' : $afterId;
+        $context = [
+            'organization_code' => $organizationCode,
+            'after_id' => $afterId,
+            'force' => $force,
+            'batch_size' => $batchSize,
+            'template_ids_count' => count($templateIds),
+            'category_code' => $categoryCode,
+            'tag_codes' => $tagCodes,
+            'tag_match' => $tagMatch,
+        ];
+        $this->logger->info('Slides template full vector sync started', $context);
+
+        $queued = 0;
+        $nextAfterId = $afterId;
+        try {
+            for ($page = 1;; ++$page) {
+                $ids = $this->slidesTemplateDomainService->findIdsForSync(
+                    $dataIsolation,
+                    $organizationCode,
+                    $templateIds,
+                    $categoryCode,
+                    $tagCodes,
+                    $tagMatch,
+                    $nextAfterId,
+                    $batchSize,
+                );
+                $count = count($ids);
+                if ($count === 0) {
+                    break;
+                }
+
+                foreach (array_chunk($ids, self::VECTOR_REINDEX_EVENT_BATCH_SIZE) as $batchIds) {
+                    AsyncEventUtil::dispatch(new SlidesTemplateBatchReindexRequestedEvent(
+                        $batchIds,
+                        $organizationCode,
+                        $dataIsolation->getCurrentUserId(),
+                        $force,
+                    ));
+                }
+
+                $queued += $count;
+                $nextAfterId = $ids[array_key_last($ids)];
+                $this->logger->info('Slides template full vector sync page queued', $context + [
+                    'page' => $page,
+                    'page_queued' => $count,
+                    'queued' => $queued,
+                    'next_after_id' => $nextAfterId,
+                ]);
+
+                if ($count < $batchSize) {
+                    break;
+                }
+            }
+        } catch (Throwable $throwable) {
+            $this->logger->error('Slides template full vector sync failed', $context + [
+                'queued' => $queued,
+                'next_after_id' => $nextAfterId,
+                'exception' => $throwable::class,
+                'message' => $throwable->getMessage(),
+            ]);
+            throw $throwable;
+        }
+
+        $this->logger->info('Slides template full vector sync queued', $context + [
+            'queued' => $queued,
+            'next_after_id' => $nextAfterId,
+        ]);
+
+        return ['task_id' => bin2hex(random_bytes(12)), 'queued' => $queued, 'after_id' => $nextAfterId];
     }
 
     private function assertOfficialOrganization(SlidesTemplateDataIsolation $dataIsolation): void
@@ -236,13 +482,15 @@ class AdminSlidesTemplateAppService extends AbstractSlidesTemplateAppService
         return $template;
     }
 
-    private function assertCategoryExists(SlidesTemplateDataIsolation $dataIsolation, ?string $categoryCode): void
-    {
+    private function findCategory(
+        SlidesTemplateDataIsolation $dataIsolation,
+        ?string $categoryCode
+    ): ?SlidesTemplateCategoryEntity {
         if ($categoryCode === null) {
-            return;
+            return null;
         }
 
-        $this->slidesTemplateCategoryDomainService->findByCodeOrFail($dataIsolation, $categoryCode);
+        return $this->slidesTemplateCategoryDomainService->findByCodeOrFail($dataIsolation, $categoryCode);
     }
 
     private function assertTemplateFileIsArchive(string $templateFileKey): void

@@ -73,6 +73,56 @@ class OSSCredentialTest extends CloudFileBaseTest
     }
 
     /**
+     * 使用真实 OSS 配置验证批量预签名 URL 请求。
+     */
+    public function testGetPreSignedUrlsByCredentialWithRealOssRequest(): void
+    {
+        $filesystem = $this->getFilesystem();
+        $credentialPolicy = $this->createTestCredentialPolicy();
+
+        $urls = $filesystem->getPreSignedUrlsByCredential(
+            $credentialPolicy,
+            [
+                [
+                    'object_key' => 'easy-file/easy.jpeg',
+                    'options' => [
+                        'filename' => 'batch-image.jpeg',
+                    ],
+                ],
+                [
+                    'object_key' => 'easy-file/test.txt',
+                    'options' => [
+                        'filename' => 'batch-test.txt',
+                        'download' => false,
+                    ],
+                ],
+            ],
+            [
+                'cache' => false,
+                'expires' => 600,
+            ]
+        );
+
+        $this->assertCount(2, $urls);
+        $this->assertArrayHasKey('easy-file/easy.jpeg', $urls);
+        $this->assertArrayHasKey('easy-file/test.txt', $urls);
+
+        foreach ($urls as $url) {
+            $parsedUrl = parse_url($url);
+            $this->assertIsArray($parsedUrl);
+            $this->assertSame('https', $parsedUrl['scheme'] ?? null);
+            $this->assertNotEmpty($parsedUrl['host'] ?? null);
+
+            $query = [];
+            parse_str((string) ($parsedUrl['query'] ?? ''), $query);
+            $this->assertArrayHasKey('x-oss-signature', $query);
+        }
+
+        $this->assertContentDisposition($urls['easy-file/easy.jpeg'], 'attachment; filename="batch-image.jpeg"; filename*=UTF-8\'\'batch-image.jpeg');
+        $this->assertContentDisposition($urls['easy-file/test.txt'], 'inline; filename="batch-test.txt"; filename*=UTF-8\'\'batch-test.txt');
+    }
+
+    /**
      * Test getting object metadata by credential.
      *
      * @depends testCreateObjectByCredential

@@ -1,10 +1,8 @@
-import asyncio
 import json
 import os
 from pathlib import Path
 from typing import Any, Dict, NamedTuple, Optional
 
-import aiofiles
 import json_repair
 from pydantic import Field
 
@@ -12,12 +10,15 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.syntax_checker import SyntaxChecker
-from app.core.entity.message.server_message import FileContent, ToolDetail
+from app.core.entity.message.server_message import ToolDetail
 from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists
+from app.utils.async_file_utils import async_exists, async_mkdir, async_write_text
+from app.tools.utils.file_change_stats import (
+    FileChangeMetrics, FileContentMetrics, format_file_change_metrics, measure_text, read_file_metrics,
+)
 from app.service.html_app_memory_service import is_html_app_memory_path
 
 logger = get_logger(__name__)
@@ -35,29 +36,6 @@ File path to write: relative paths resolve to .workspace (e.g., `report.md`); us
     )
 
 
-    @classmethod
-    def get_custom_error_message(cls, field_name: str, error_type: str) -> Optional[str]:
-        """Get custom parameter error message"""
-        if field_name == "content":
-            error_message = """Missing required parameter 'content'. Content too long exceeds token limit causing parameter loss.
-
-SOLUTION - Step-by-step strategy:
-1. Use write_file to create file skeleton
-2. Use edit_file to add content blocks incrementally
-
-SIZE LIMITS:
-- Small (<100 lines): Direct write_file
-- Medium (100-500 lines): Skeleton + 2-3 edit_file calls
-- Large (>500 lines): Skeleton + multiple edit_file calls
-
-EXAMPLES:
-HTML: Write <html><head></head><body></body></html> skeleton first
-Python: Write imports and function/class definition skeleton first
-"""
-            return error_message
-        return None
-
-
 class WriteResult(NamedTuple):
     """写入结果详情"""
     content: str  # 写入的内容
@@ -73,27 +51,13 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
     """<!--zh
     将文件写入本地文件系统。
     - 如果提供的路径中存在现有文件，此工具将覆盖该文件。
-    - 如果这是一个现有文件，您必须先使用读取工具来读取文件内容。如果您没有先读取文件，此工具将失败。
+    - 此工具不要求预先读取，但会替换整份内容；需要保留旧内容时应先读取，局部修改优先使用编辑工具。
     - 总是优先编辑代码库中的现有文件。
-    重要提醒：注意单次内容长度限制！
-    - 内容过长会导致"缺少必要参数'content'"错误
-    - 解决方案：使用写入文件 + 编辑文件组合策略
-    - 小文件（<100行）：直接写入文件
-    - 中等文件（100-500行）：先写框架 + 2-3次编辑文件添加内容
-    - 大文件（>500行）：先写框架 + 多次编辑文件逐步添加内容
-    策略建议：先创建文件框架，然后逐步增量添加详细内容。
     -->
     Write file to local filesystem.
     - If an existing file exists at the provided path, this tool will overwrite it.
-    - If this is an existing file, you must use read tool to read file content first. If you don't read file first, this tool will fail.
+    - No prior read is required, but this replaces the entire content. Read first when existing content must be preserved; prefer edit tools for partial changes.
     - Always prioritize editing existing files in the codebase.
-    Important reminder: Pay attention to single content length limit!
-    - Overly long content causes "Missing required parameter 'content'" error
-    - Solution: Use write_file + edit_file combination strategy
-    - Small files (<100 lines): Direct write_file
-    - Medium files (100-500 lines): Write skeleton + 2-3 edit_file calls to add content
-    - Large files (>500 lines): Write skeleton + multiple edit_file calls to add content incrementally
-    Strategy suggestion: Create file skeleton first, then add detailed content incrementally.
     """
 
     async def execute(self, tool_context: ToolContext, params: WriteFileParams) -> ToolResult:
@@ -114,6 +78,11 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
                 return ToolResult.error("MICRO-APP.md is managed by update_html_app_memory. Use that tool instead of write_file so MagicBase data model records are not overwritten.")
 
             initial_file_exists = await async_exists(file_path)
+            """
+            覆盖前读取旧用量只用于反馈，不增加写入权限或版本校验条件。
+            新建文件从 0 开始；旧文件不可读取时保留 unavailable，不能伪装成空文件。
+            """
+            before_metrics = await read_file_metrics(file_path) if initial_file_exists else FileContentMetrics(0, 0)
 
             content_to_write, auto_repaired_json, original_syntax_errors = await self._prepare_content_for_write(
                 file_path=file_path,
@@ -126,8 +95,12 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
 
             # 所有写入工具通过同一 Horizon 文件记录更新写入后的变化基线。
             async with self._file_versioning_context(tool_context, file_path) as file_exists:
-                # 写入文件内容
-                await self._write_file(file_path, content_to_write)
+                """
+                写入文件内容
+                统计要使用真正写入的版本：JSON 可能已修复，末尾也可能按原规则添加换行。
+                例：输入 abc，实际保存 abc 加换行，反馈不能仍按 3 字节计算。
+                """
+                content_to_write = await self._write_file(file_path, content_to_write)
 
             # 执行语法检查
             syntax_result = await SyntaxChecker.check_syntax(str(file_path), content_to_write)
@@ -146,6 +119,12 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
                 f"{write_result.total_lines} lines | "
                 f"Size: {write_result.file_size} bytes"
             )
+            if file_exists != initial_file_exists:
+                # 初次观察到的存在状态已经变化，旧统计不能再冒充此次覆盖的可靠起点。
+                before_metrics = FileContentMetrics(None, None)
+            output += "\n" + format_file_change_metrics(
+                FileChangeMetrics(before_metrics, measure_text(content_to_write, write_result.file_size)),
+            )
 
             if auto_repaired_json:
                 output += (
@@ -163,6 +142,7 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
             return ToolResult(
                 content=output,
                 extra_info={
+                    "file_path": str(file_path),
                     "file_existed": file_exists,
                     "auto_repaired_json": auto_repaired_json,
                     "original_syntax_errors": original_syntax_errors,
@@ -171,13 +151,7 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
 
         except Exception as e:
             logger.exception(f"写入文件失败: {e!s}")
-            return ToolResult.error("Failed to write file.\n\n"
-                "If the error is content length related, the content is too long and exceeds token limits.\n\n"
-                "SOLUTION:\n"
-                "1. Use write_file to create basic framework\n"
-                "2. Use edit_file to add content blocks incrementally\n"
-                "3. Keep each operation within reasonable scope (<200 lines)\n\n"
-                "WORKFLOW: write_file(framework) → edit_file(content1) → edit_file(content2)...")
+            return ToolResult.error(f"Failed to write file: {e!s}")
 
     async def _prepare_content_for_write(
         self,
@@ -214,19 +188,19 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
         directory = file_path.parent
 
         if not await async_exists(directory):
-            await asyncio.to_thread(os.makedirs, directory, exist_ok=True)
+            await async_mkdir(directory, parents=True, exist_ok=True)
             logger.info(f"创建目录: {directory}")
 
-    async def _write_file(self, file_path: Path, content: str) -> None:
+    async def _write_file(self, file_path: Path, content: str) -> str:
         """写入文件内容"""
         # 处理内容末尾可能的空行
         if not content.endswith("\n"):
             content += "\n"
 
-        async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
-            await f.write(content)
+        await async_write_text(file_path, content)
 
         logger.info(f"文件写入完成: {file_path}")
+        return content
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
         """
@@ -256,7 +230,8 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
 
         return ToolDetail(
             type=display_type,
-            data=FileContent(
+            data=await self._build_file_content(
+                file_path=(result.extra_info or {}).get("file_path", ""),
                 file_name=file_name,
                 content=content
             )

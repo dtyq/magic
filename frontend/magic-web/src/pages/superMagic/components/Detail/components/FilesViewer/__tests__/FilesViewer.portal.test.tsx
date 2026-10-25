@@ -17,6 +17,7 @@ interface MockTab {
 	title: string
 	active: boolean
 	closeable: boolean
+	refreshKey?: string
 	fileData: MockFileData
 }
 
@@ -36,6 +37,13 @@ const mockState = vi.hoisted(() => ({
 	scrollTo: vi.fn(),
 	pptMount: vi.fn(),
 	pptUnmount: vi.fn(),
+	previewMount: vi.fn(),
+	previewUnmount: vi.fn(),
+	quickOpenRender: vi.fn(),
+	renderPropsType: "html" as "html" | "md" | "image",
+	isShareRoute: false,
+	isMagicShareRoute: false,
+	tabCacheOptions: undefined as { enableCache?: boolean } | undefined,
 }))
 let restoreBoundingClientRect: (() => void) | undefined
 
@@ -49,6 +57,14 @@ vi.mock("@/hooks/useFullscreenMode", () => ({
 
 vi.mock("@/pages/superMagic/hooks/useShareRoute", () => ({
 	default: () => ({ isShareRoute: false }),
+}))
+
+vi.mock("@/stores/userFiles", () => ({
+	default: { editingFileIds: new Set<string>() },
+}))
+
+vi.mock("@/pages/superMagic/components/TopicFilesButton/components/FileInfoPanel", () => ({
+	default: () => null,
 }))
 
 vi.mock("react-i18next", () => ({
@@ -102,40 +118,44 @@ vi.mock("../hooks/useFilesViewer", () => ({
 		closeTabsToRight: mockState.noop,
 		getRenderProps: (tab?: { fileData?: MockFileData }) => ({
 			isFullscreen: false,
-			type: tab?.fileData?.display_config?.type === "slide" ? "html" : "md",
+			type: mockState.renderPropsType,
 			data: tab?.fileData,
 			attachmentList: tab?.fileData ? [tab.fileData] : [],
 		}),
 		fullscreenFileId: undefined,
 		handleRefresh: mockState.noop,
-		handleTabDragStart: mockState.noop,
-		handleTabDragEnd: mockState.noop,
-		handleTabDragOver: mockState.noop,
-		handleTabDrop: mockState.noop,
-		draggedTab: null,
-		dragOverIndex: null,
-		dragDirection: null,
+		reorderTabs: mockState.noop,
 		openPlaybackTab: mockState.noop,
 		closePlaybackTab: mockState.noop,
 		isPlaybackTab: () => false,
 		openKnowledgeBaseTab: mockState.noop,
 		closeKnowledgeBaseTab: mockState.noop,
 		isKnowledgeBaseTab: () => false,
+		openMicroAppTab: mockState.noop,
+		closeMicroAppTab: mockState.noop,
+		isPublishedMicroAppTab: () => false,
+		isShareRoute: mockState.isShareRoute,
+		isMagicShareRoute: mockState.isMagicShareRoute,
 		handleFileFullscreen: mockState.noop,
 		handleExitFullscreen: mockState.noop,
+		enterPreviewFullscreen: mockState.noop,
+		exitPreviewFullscreen: mockState.noop,
 		getCheckBeforeClose: () => undefined,
 	}),
 }))
 
 vi.mock("../hooks/useTabCache", () => ({
-	useTabCache: () => ({
-		addToCache: mockState.noop,
-		getFromCache: () => undefined,
-		removeFromCache: mockState.noop,
-		clearCache: mockState.noop,
-		getCacheStats: () => ({ size: 0, maxSize: 10, keys: [] }),
-		cachedTabIds: [],
-	}),
+	useTabCache: (options: { enableCache?: boolean }) => {
+		mockState.tabCacheOptions = options
+		return {
+			addToCache: mockState.noop,
+			getFromCache: () => undefined,
+			removeFromCache: mockState.noop,
+			clearCache: mockState.noop,
+			getCacheStats: () => ({ size: 0, maxSize: 10, keys: [] }),
+			cachedTabIds: [],
+		}
+	},
 }))
 
 vi.mock("../hooks/useTabContextMenu", () => ({
@@ -159,12 +179,25 @@ vi.mock("../components/TabCache", async () => {
 		return <div data-testid="ppt-content" />
 	}
 
+	function MockPreviewContent() {
+		useEffect(() => {
+			mockState.previewMount()
+			return () => mockState.previewUnmount()
+		}, [])
+
+		return <div data-testid="files-viewer-content" />
+	}
+
 	return {
-		default: ({ tab }: { tab: { fileData?: MockFileData } }) =>
+		default: ({
+			tab,
+		}: {
+			tab: { id: string; refreshKey?: string; fileData?: MockFileData }
+		}) =>
 			tab.fileData?.display_config?.type === "slide" ? (
 				<MockPPTContent />
 			) : (
-				<div data-testid="files-viewer-content" />
+				<MockPreviewContent key={tab.refreshKey || tab.id} />
 			),
 	}
 })
@@ -182,7 +215,10 @@ vi.mock("../components/FileTabMagicIcon", () => ({
 }))
 
 vi.mock("../components/WebsitePresetMenu", () => ({
-	default: () => null,
+	default: () => {
+		mockState.quickOpenRender()
+		return <div data-testid="quick-open" />
+	},
 }))
 
 vi.mock("../components/CommonWebsitePresetDialog", () => ({
@@ -218,13 +254,20 @@ beforeEach(() => {
 			file_extension: "md",
 			updated_at: "2026-07-28T00:00:00Z",
 		},
+		refreshKey: "refresh-1",
 	})
+	mockState.renderPropsType = "html"
 	Object.defineProperty(HTMLElement.prototype, "scrollTo", {
 		configurable: true,
 		value: mockState.scrollTo,
 	})
 	mockState.pptMount.mockReset()
 	mockState.pptUnmount.mockReset()
+	mockState.previewMount.mockReset()
+	mockState.previewUnmount.mockReset()
+	mockState.quickOpenRender.mockReset()
+	mockState.isShareRoute = false
+	mockState.isMagicShareRoute = false
 })
 
 afterEach(() => {
@@ -232,27 +275,112 @@ afterEach(() => {
 	restoreBoundingClientRect?.()
 	restoreBoundingClientRect = undefined
 	mockState.scrollTo.mockReset()
+	mockState.tabCacheOptions = undefined
+})
+
+it("renders quick open in a regular project", () => {
+	render(<FilesViewer />)
+
+	expect(screen.getByTestId("quick-open")).toBeInTheDocument()
+	expect(mockState.quickOpenRender).toHaveBeenCalled()
+})
+
+it("does not render quick open when the caller marks a file share", () => {
+	render(<FilesViewer isFileShare />)
+
+	expect(screen.queryByTestId("quick-open")).not.toBeInTheDocument()
+	expect(mockState.quickOpenRender).not.toHaveBeenCalled()
+})
+
+it("does not render quick open on a Magic Share route", () => {
+	mockState.isMagicShareRoute = true
+
+	render(<FilesViewer />)
+
+	expect(screen.queryByTestId("quick-open")).not.toBeInTheDocument()
+	expect(mockState.quickOpenRender).not.toHaveBeenCalled()
+})
+
+it("does not render quick open on a share route", () => {
+	mockState.isShareRoute = true
+
+	render(<FilesViewer />)
+
+	expect(screen.queryByTestId("quick-open")).not.toBeInTheDocument()
+	expect(mockState.quickOpenRender).not.toHaveBeenCalled()
 })
 
 describe("FilesViewer fullscreen portal", () => {
+	it("keeps in-session tab caching enabled", () => {
+		render(<FilesViewer />)
+
+		expect(mockState.tabCacheOptions?.enableCache).toBe(true)
+	})
+
 	it("keeps document-flow fullscreen content in the share document tree", () => {
 		const { container } = render(<FilesViewer forceFullscreenMode documentFlowFullscreen />)
 
 		expect(container.querySelector('[data-testid="files-viewer-content"]')).toBeTruthy()
 	})
 
-	it("keeps non-PPT content on the existing viewer portal path", () => {
-		const { container, rerender } = render(<FilesViewer />)
-		const inlineContent = container.querySelector('[data-testid="files-viewer-content"]')
+	it.each(["html", "md"] as const)(
+		"keeps %s content mounted while entering and exiting viewer fullscreen",
+		(renderPropsType) => {
+			mockState.renderPropsType = renderPropsType
+			const { rerender } = render(<FilesViewer />)
+			const initialContent = screen.getByTestId("files-viewer-content")
 
-		expect(inlineContent).toBeTruthy()
+			rerender(<FilesViewer forceFullscreenMode />)
+
+			expect(screen.getByTestId("files-viewer-content")).toBe(initialContent)
+			expect(
+				document.querySelector<HTMLElement>("[data-files-viewer-preview-portal]")?.style
+					.zIndex,
+			).toBe("calc(var(--z-index-detail-fullscreen) + 1)")
+
+			rerender(<FilesViewer forceFullscreenMode={false} />)
+
+			expect(screen.getByTestId("files-viewer-content")).toBe(initialContent)
+			expect(
+				document.querySelector<HTMLElement>("[data-files-viewer-preview-portal]")?.style
+					.zIndex,
+			).toBe("10")
+		},
+	)
+
+	it("rounds the bottom of a non-fullscreen HTML preview portal", () => {
+		mockState.renderPropsType = "html"
+
+		const { rerender } = render(<FilesViewer />)
+		const portal = document.querySelector<HTMLElement>("[data-files-viewer-preview-portal]")
+
+		expect(portal?.style.borderRadius).toBe("0px 0px 0.5rem 0.5rem")
 
 		rerender(<FilesViewer forceFullscreenMode />)
 
-		expect(container.querySelector('[data-testid="files-viewer-content"]')).toBeNull()
-		const fullscreenContent = screen.getByTestId("files-viewer-content")
-		expect(fullscreenContent).toBeInTheDocument()
-		expect(fullscreenContent).not.toBe(inlineContent)
+		expect(portal?.style.borderRadius).toBe("0px")
+	})
+
+	it("renders image content exactly once in the stable preview surface", () => {
+		mockState.renderPropsType = "image"
+
+		const { rerender } = render(<FilesViewer />)
+		const initialPortal = document.querySelector("[data-files-viewer-preview-portal]")
+
+		expect(screen.getByTestId("files-viewer-content")).toBeInTheDocument()
+		expect(document.querySelectorAll('[data-testid="files-viewer-content"]')).toHaveLength(1)
+		expect(mockState.previewMount).toHaveBeenCalledOnce()
+		expect(initialPortal).toBeInTheDocument()
+
+		// A type change during attachment refresh must keep one Render instance per refresh key.
+		mockState.renderPropsType = "html"
+		mockState.tab.refreshKey = "refresh-2"
+		rerender(<FilesViewer activeFileId="refresh-2" />)
+
+		expect(document.querySelector("[data-files-viewer-preview-portal]")).toBe(initialPortal)
+		expect(document.querySelectorAll('[data-testid="files-viewer-content"]')).toHaveLength(1)
+		expect(mockState.previewMount).toHaveBeenCalledTimes(2)
+		expect(mockState.previewUnmount).toHaveBeenCalledOnce()
 	})
 
 	it("does not remount PPT content when entering or exiting viewer fullscreen", () => {
@@ -415,6 +543,6 @@ describe("FilesViewer fullscreen portal", () => {
 			'pending-attachment-path:个人使用画像/个人AI协作画像.md]\n\n10. 部分 [unknown"'
 
 		expect(() => render(<FilesViewer />)).not.toThrow()
-		expect(mockState.scrollTo).toHaveBeenCalledOnce()
+		expect(mockState.scrollTo).toHaveBeenCalled()
 	})
 })

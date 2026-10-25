@@ -20,6 +20,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $created_at
  * @property string $updated_at
  * @property null|string $deleted_at
+ * @property int $scope_version
  */
 class FileCollectionModel extends AbstractModel
 {
@@ -46,6 +47,7 @@ class FileCollectionModel extends AbstractModel
         'created_at',
         'updated_at',
         'deleted_at',
+        'scope_version',
     ];
 
     /**
@@ -56,5 +58,6 @@ class FileCollectionModel extends AbstractModel
         'created_at' => 'string',
         'updated_at' => 'string',
         'deleted_at' => 'string',
+        'scope_version' => 'integer',
     ];
 }

@@ -1,6 +1,6 @@
 import { useReducedMotion } from "framer-motion"
 import { useId } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface SlidesTemplateGlowBorderProps {
 	className?: string

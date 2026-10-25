@@ -1,7 +1,7 @@
 import SuperMagicIcon from "@/enhance/tabler/icons-react/icons/IconSuperMagic"
 import { IconType } from "../AgentSelector/types"
 import { useTheme } from "antd-style"
-import { useTablerIcon } from "@/utils/tablerIconLoader"
+import { useTablerIcon } from "@dtyq/magic-admin/utils/tablerIconLoader"
 
 interface IconComponentProps {
 	selectedIcon?: string

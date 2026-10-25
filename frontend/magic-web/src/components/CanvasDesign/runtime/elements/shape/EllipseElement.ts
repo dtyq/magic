@@ -1,5 +1,8 @@
 import Konva from "konva"
-import type { EllipseElement as EllipseElementData } from "../../document/types"
+import type {
+	EllipseElement as EllipseElementData,
+	ShapeElementContent,
+} from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
 import { BaseElement } from "../core/BaseElement"
 import { HoverManager } from "../../interaction/hover/HoverManager"
@@ -49,12 +52,15 @@ export class EllipseElement extends BaseElement<EllipseElementData> {
 			width,
 			height,
 			zIndex,
-			fill: defaultConfig.fill,
+			activeContentId: `${id}-content-1`,
+			mainContentId: `${id}-content-1`,
+			contents: [{ contentId: `${id}-content-1`, fill: defaultConfig.fill }],
 		}
 	}
 
 	render(): Konva.Ellipse | null {
 		if (!this.data.width || !this.data.height) return null
+		const content = this.getActiveContent<ShapeElementContent>()
 
 		const width = this.data.width
 		const height = this.data.height
@@ -64,9 +70,9 @@ export class EllipseElement extends BaseElement<EllipseElementData> {
 			radiusY: height / 2,
 			offsetX: -width / 2,
 			offsetY: -height / 2,
-			fill: this.data.fill,
-			stroke: this.data.stroke,
-			strokeWidth: this.data.strokeWidth,
+			fill: content?.fill,
+			stroke: content?.stroke,
+			strokeWidth: content?.strokeWidth,
 		})
 
 		this.finalizeNode(ellipse)
@@ -74,6 +80,7 @@ export class EllipseElement extends BaseElement<EllipseElementData> {
 	}
 
 	update(newData: EllipseElementData): boolean {
+		const content = this.getActiveContent<ShapeElementContent>(newData)
 		this.data = newData
 
 		// 椭圆元素不需要重新渲染，所有属性都可以通过 setAttrs 更新
@@ -90,9 +97,9 @@ export class EllipseElement extends BaseElement<EllipseElementData> {
 				radiusY: height / 2,
 				offsetX: -width / 2,
 				offsetY: -height / 2,
-				fill: newData.fill,
-				stroke: newData.stroke,
-				strokeWidth: newData.strokeWidth,
+				fill: content?.fill,
+				stroke: content?.stroke,
+				strokeWidth: content?.strokeWidth,
 			})
 		}
 

@@ -10,6 +10,7 @@ function getChildIds(element: LayerElement): string[] {
 
 export class CanvasDocumentIndex {
 	private dirty = true
+	private topologyRevision = 0
 	private parentIdByElementId: Map<string, string> = new Map()
 	private childIdsByElementId: Map<string, string[]> = new Map()
 	private rootElementIds: string[] = []
@@ -18,7 +19,22 @@ export class CanvasDocumentIndex {
 		this.dirty = true
 	}
 
+	/**
+	 * Marks a parent/child structure change separately from ordinary index invalidation.
+	 * Consumers can use the revision to avoid rebuilding a full render workset for geometry-only
+	 * updates while still reconciling newly added, removed, or reparented nodes promptly.
+	 */
+	public markTopologyDirty(): void {
+		this.topologyRevision += 1
+		this.dirty = true
+	}
+
+	public getTopologyRevision(): number {
+		return this.topologyRevision
+	}
+
 	public clear(): void {
+		this.topologyRevision += 1
 		this.dirty = false
 		this.parentIdByElementId.clear()
 		this.childIdsByElementId.clear()

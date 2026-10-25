@@ -17,6 +17,9 @@ export interface StoredHtmlPermissionGrant {
 	scope: HtmlPermissionScope
 	grantedAt: number
 	expiresAt: number | null
+	/** Optional: grants written before code-change tracking have none. */
+	codeFingerprint?: string
+	reuseAcrossCodeChanges?: boolean
 	epoch: number
 }
 
@@ -56,6 +59,8 @@ export function toHtmlPermissionGrant(
 		scope: record.scope,
 		grantedAt: record.grantedAt,
 		expiresAt: record.expiresAt,
+		...(record.codeFingerprint ? { codeFingerprint: record.codeFingerprint } : {}),
+		...(record.reuseAcrossCodeChanges === true ? { reuseAcrossCodeChanges: true } : {}),
 	}
 }
 
@@ -88,6 +93,9 @@ export function isValidStoredGrant(value: unknown): value is StoredHtmlPermissio
 		Number.isFinite(grant.grantedAt) &&
 		(grant.expiresAt === null ||
 			(typeof grant.expiresAt === "number" && Number.isFinite(grant.expiresAt))) &&
+		(grant.codeFingerprint === undefined || typeof grant.codeFingerprint === "string") &&
+		(grant.reuseAcrossCodeChanges === undefined ||
+			typeof grant.reuseAcrossCodeChanges === "boolean") &&
 		typeof grant.epoch === "number" &&
 		Number.isInteger(grant.epoch) &&
 		grant.epoch >= 0

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCode.ai — Terminal-Native Collaborative Code Editor</title>
+  <style>
+    :root {
+      --canvas: #fdfcfc;
+      --surface-soft: #f8f7f7;
+      --surface-card: #f1eeee;
+      --surface-dark: #201d1d;
+      --surface-dark-elevated: #302c2c;
+      --surface-dark-code: #181515;
+      --ink: #201d1d;
+      --ink-deep: #0f0000;
+      --charcoal: #302c2c;
+      --body: #424245;
+      --mute: #646262;
+      --ash: #9a9898;
+      --hairline: rgba(15,0,0,0.12);
+      --hairline-strong: #646262;
+      --accent: #007aff;
+      --danger: #ff3b30;
+      --warning: #ff9f0a;
+      --success: #30d158;
+      --diff-add-bg: rgba(48,209,88,0.14);
+      --diff-add-text: #22a044;
+      --diff-del-bg: rgba(255,59,48,0.14);
+      --diff-del-text: #d70015;
+      --font-mono: "Berkeley Mono", "JetBrains Mono", "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-mono); -webkit-font-smoothing: antialiased; }
+    body { background: var(--canvas); color: var(--ink); font-size: 13px; line-height: 1.5; overflow-x: hidden; }
+    .top-nav { height: 50px; background: var(--canvas); border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top: 0; z-index: 40; }
+    .brand-cluster { display: flex; align-items: center; gap: 14px; }
+    .ascii-logo { font-weight: 700; font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+    .ascii-logo .pill { font-size: 10px; background: var(--surface-dark); color: var(--canvas); padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+    .nav-links { display: flex; align-items: center; gap: 18px; font-size: 12px; color: var(--mute); }
+    .nav-links a { color: var(--mute); text-decoration: none; }
+    .nav-links a.active { color: var(--ink); font-weight: 600; }
+    .nav-actions { display: flex; align-items: center; gap: 8px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; border-radius: 4px; cursor: pointer; text-decoration: none; border: none; }
+    .btn-primary { background: var(--ink); color: var(--canvas); }
+    .btn-secondary { background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline-strong); }
+    .workspace-banner { background: var(--surface-soft); border-bottom: 1px solid var(--hairline); padding: 8px 20px; display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; }
+    .session-info { display: flex; align-items: center; gap: 12px; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; box-shadow: 0 0 0 2px rgba(48,209,88,0.25); }
+    .tui-toolbar { display: flex; align-items: center; gap: 8px; }
+    .badge-ascii { background: var(--surface-card); border: 1px solid var(--hairline); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: var(--charcoal); }
+    .editor-layout { max-width: 1320px; margin: 12px auto; padding: 0 16px; display: grid; grid-template-columns: 220px 1fr; gap: 10px; }
+    .sidebar { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
+    .sidebar-head { background: var(--surface-soft); padding: 7px 10px; font-weight: 700; font-size: 11px; border-bottom: 1px solid var(--hairline); display: flex; justify-content: space-between; }
+    .file-tree { padding: 6px 0; list-style: none; font-size: 11.5px; flex: 1; }
+    .file-tree li { padding: 4px 10px; display: flex; align-items: center; gap: 6px; color: var(--body); }
+    .file-tree li.active { background: var(--surface-card); color: var(--ink); font-weight: 600; border-left: 2px solid var(--ink); }
+    .file-tree li .mod-badge { margin-left: auto; font-size: 10px; font-weight: 700; }
+    .mod-badge.add { color: var(--success); }
+    .mod-badge.del { color: var(--danger); }
+    .mod-badge.mod { color: var(--warning); }
+    .collab-box { border-top: 1px solid var(--hairline); padding: 8px 10px; background: var(--surface-soft); font-size: 11px; }
+    .collab-title { font-weight: 700; color: var(--mute); margin-bottom: 4px; }
+    .collab-user { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--charcoal); }
+    .user-pill { font-size: 9px; padding: 1px 4px; border-radius: 3px; color: #fff; }
+    .editor-pane { display: flex; flex-direction: column; border: 1px solid var(--hairline); border-radius: 4px; background: #fff; overflow: hidden; }
+    .diff-header-bar { background: var(--surface-card); padding: 7px 12px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; font-size: 11px; }
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--hairline); font-size: 11.5px; line-height: 1.42; }
+    .diff-col-header { background: var(--surface-soft); padding: 5px 10px; font-size: 10.5px; font-weight: 700; color: var(--mute); border-bottom: 1px solid var(--hairline); display: flex; justify-content: space-between; }
+    .diff-col-header:first-child { border-right: 1px solid var(--hairline); }
+    .diff-pane-left { border-right: 1px solid var(--hairline); background: #faf9f9; }
+    .code-line { display: flex; min-height: 19px; }
+    .line-num { width: 38px; padding: 0 6px; text-align: right; color: var(--ash); user-select: none; background: rgba(0,0,0,0.02); border-right: 1px solid var(--hairline); flex-shrink: 0; }
+    .line-content { padding: 0 8px; white-space: pre; overflow-x: auto; flex: 1; }
+    .line-deleted { background: var(--diff-del-bg); color: var(--diff-del-text); }
+    .line-deleted .line-num { background: rgba(255,59,48,0.12); color: var(--danger); font-weight: 600; }
+    .line-added { background: var(--diff-add-bg); color: var(--diff-add-text); }
+    .line-added .line-num { background: rgba(48,209,88,0.12); color: var(--diff-add-text); font-weight: 600; }
+    .token-keyword { color: #d70015; font-weight: 600; }
+    .token-fn { color: #0056b3; font-weight: 600; }
+    .token-type { color: #78350f; }
+    .token-comment { color: var(--mute); }
+    .ai-prompt-container { background: var(--surface-dark); color: var(--canvas); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--charcoal); }
+    .ai-prompt-header { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: var(--ash); }
+    .ai-badge { background: var(--accent); color: #fff; padding: 1px 5px; border-radius: 3px; font-weight: 700; font-size: 9.5px; }
+    .ai-input-row { background: var(--surface-dark-elevated); border: 1px solid #484343; border-radius: 4px; padding: 6px 10px; display: flex; align-items: center; gap: 8px; }
+    .prompt-cursor { color: var(--accent); font-weight: 700; }
+    .prompt-text { flex: 1; color: #fff; font-size: 11.5px; background: transparent; border: none; outline: none; }
+    .key-hint { background: #201d1d; border: 1px solid #5a5454; padding: 2px 4px; font-size: 9.5px; border-radius: 3px; color: #ccc; }
+    .terminal-drawer { background: var(--surface-dark-code); color: #eae7e7; padding: 10px 14px; font-size: 11px; line-height: 1.45; border-top: 1px solid #332f2f; }
+    .term-title-bar { display: flex; justify-content: space-between; color: var(--ash); font-size: 10px; padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px solid #2d2929; }
+    .term-pass { color: var(--success); font-weight: 700; }
+    .term-dim { color: var(--ash); }
+    .term-cmd { color: #58a6ff; }
+    .proof-footer { max-width: 1320px; margin: 12px auto 24px; padding: 0 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .proof-tile { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 4px; padding: 10px 12px; }
+    .proof-head { font-size: 10.5px; color: var(--mute); margin-bottom: 2px; }
+    .proof-stat { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 1px; }
+    .proof-sub { font-size: 10.5px; color: var(--body); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="top-nav">
+    <div class="brand-cluster">
+      <div class="ascii-logo">
+        <span>[+] OPENCODE</span>
+        <span class="pill">v1.8.4</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#editor" class="active">[1] collaborative_editor</a>
+        <a href="#diff">[2] split_diff</a>
+        <a href="#tui">[3] terminal_tests</a>
+        <a href="#zen">[4] zen_mode</a>
+      </nav>
+    </div>
+
+    <div class="nav-actions">
+      <span class="badge-ascii">[⌘K Commands]</span>
+      <span class="badge-ascii">[Branch: master*]</span>
+      <button class="btn btn-secondary">[+] Clone</button>
+      <button class="btn btn-primary">Run Build &amp; Test</button>
+    </div>
+  </header>
+
+  <!-- Workspace Session Bar -->
+  <div class="workspace-banner">
+    <div class="session-info">
+      <span class="status-dot"></span>
+      <span><strong>Session:</strong> cluster-eu-central-2</span>
+      <span style="color: var(--mute)">Peers: <strong style="color:var(--ink)">3 devs</strong> + <strong style="color:var(--ink)">agent-daemon</strong></span>
+    </div>
+    <div class="tui-toolbar">
+      <span class="badge-ascii">LSP: rust-analyzer [2.4ms]</span>
+      <span class="badge-ascii">Sync: WebRTC P2P</span>
+      <span class="badge-ascii" style="color: var(--diff-add-text)">+142</span>
+      <span class="badge-ascii" style="color: var(--diff-del-text)">-38</span>
+    </div>
+  </div>
+
+  <!-- Main Split Editor Layout -->
+  <div class="editor-layout">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <span>[+] WORKSPACE</span>
+        <span>14 MODS</span>
+      </div>
+      <ul class="file-tree">
+        <li><span>▾ src/core/</span></li>
+        <li class="active">
+          <span>&nbsp;&nbsp;📄 engine.rs</span>
+          <span class="mod-badge mod">[M]</span>
+        </li>
+        <li>
+          <span>&nbsp;&nbsp;📄 scheduler.rs</span>
+          <span class="mod-badge add">[+28]</span>
+        </li>
+        <li>
+          <span>&nbsp;&nbsp;📄 memory_pool.rs</span>
+          <span class="mod-badge del">[-14]</span>
+        </li>
+        <li><span>▸ src/agent/</span></li>
+        <li><span>▸ src/protocol/</span></li>
+        <li><span>▸ tests/e2e/</span></li>
+        <li><span>&nbsp;&nbsp;⚙ Cargo.toml</span></li>
+      </ul>
+
+      <div class="collab-box">
+        <div class="collab-title">[COLLABORATORS]</div>
+        <div class="collab-user">
+          <span class="user-pill" style="background:#007aff">YOU</span>
+          <span>demo.person05@example.com (L48)</span>
+        </div>
+        <div class="collab-user">
+          <span class="user-pill" style="background:#ff9f0a">DEV</span>
+          <span>sara.k (L62)</span>
+        </div>
+        <div class="collab-user">
+          <span class="user-pill" style="background:#30d158">BOT</span>
+          <span>opencode-ai [copilot]</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Editor Pane with Split Diff -->
+    <main class="editor-pane">
+      
+      <!-- Diff Tabs Bar -->
+      <div class="diff-header-bar">
+        <div style="font-weight:600; color:var(--ink)">
+          <span>src/core/engine.rs — Split Diff View</span>
+        </div>
+        <div style="font-weight:700">
+          <span style="color: var(--diff-add-text)">+ 18 lines added</span>
+          <span style="color:var(--mute)">&nbsp;|&nbsp;</span>
+          <span style="color: var(--diff-del-text)">- 6 lines deleted</span>
+        </div>
+      </div>
+
+      <!-- Split Diff Code Grid -->
+      <div class="diff-grid">
+        <!-- Left: Base / Deletions -->
+        <div class="diff-pane-left">
+          <div class="diff-col-header">
+            <span>HEAD (ORIGIN/MAIN)</span>
+            <span>BEFORE REF</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">44</span>
+            <span class="line-content"><span class="token-keyword">pub fn</span> <span class="token-fn">dispatch_job</span>(&amp;<span class="token-keyword">mut self</span>, id: <span class="token-type">JobId</span>) -&gt; <span class="token-type">Result</span>&lt;(), <span class="token-type">Error</span>&gt; {</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">45</span>
+            <span class="line-content">    <span class="token-keyword">let</span> mut lock = <span class="token-keyword">self</span>.mutex.<span class="token-fn">lock</span>()?;</span>
+          </div>
+          <div class="code-line line-deleted">
+            <span class="line-num">46</span>
+            <span class="line-content">-   <span class="token-keyword">let</span> node = lock.queue.<span class="token-fn">pop_front</span>().<span class="token-fn">ok_or</span>(<span class="token-type">Error</span>::QueueEmpty)?;</span>
+          </div>
+          <div class="code-line line-deleted">
+            <span class="line-num">47</span>
+            <span class="line-content">-   <span class="token-keyword">let</span> res = <span class="token-keyword">self</span>.worker.<span class="token-fn">execute_sync</span>(node)?;</span>
+          </div>
+          <div class="code-line line-deleted">
+            <span class="line-num">48</span>
+            <span class="line-content">-   lock.history.<span class="token-fn">push</span>(res);</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">49</span>
+            <span class="line-content">    <span class="token-type">Ok</span>(())</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">50</span>
+            <span class="line-content">}</span>
+          </div>
+        </div>
+
+        <!-- Right: Modified / Additions -->
+        <div class="diff-pane-right">
+          <div class="diff-col-header">
+            <span>WORKING DIRECTORY (PATCH)</span>
+            <span>AI MERGED</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">44</span>
+            <span class="line-content"><span class="token-keyword">pub fn</span> <span class="token-fn">dispatch_job</span>(&amp;<span class="token-keyword">mut self</span>, id: <span class="token-type">JobId</span>) -&gt; <span class="token-type">Result</span>&lt;(), <span class="token-type">Error</span>&gt; {</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">45</span>
+            <span class="line-content">    <span class="token-keyword">let</span> mut lock = <span class="token-keyword">self</span>.mutex.<span class="token-fn">lock</span>()?;</span>
+          </div>
+          <div class="code-line line-added">
+            <span class="line-num">46</span>
+            <span class="line-content">+   <span class="token-comment">// Fast-path zero-copy batch extraction</span></span>
+          </div>
+          <div class="code-line line-added">
+            <span class="line-num">47</span>
+            <span class="line-content">+   <span class="token-keyword">let</span> batch = lock.queue.<span class="token-fn">drain_available_tokens</span>(<span class="token-type">BATCH_SIZE</span>);</span>
+          </div>
+          <div class="code-line line-added">
+            <span class="line-num">48</span>
+            <span class="line-content">+   <span class="token-keyword">let</span> handle = <span class="token-keyword">self</span>.pool.<span class="token-fn">spawn_pinned_task</span>(<span class="token-keyword">async move</span> {</span>
+          </div>
+          <div class="code-line line-added">
+            <span class="line-num">49</span>
+            <span class="line-content">+       <span class="token-keyword">let</span> results = batch.<span class="token-fn">execute_parallel</span>().<span class="token-keyword">await</span>;</span>
+          </div>
+          <div class="code-line line-added">
+            <span class="line-num">50</span>
+            <span class="line-content">+       <span class="token-type">Ok</span>(results)</span>
+          </div>
+          <div class="code-line line-added">
+            <span class="line-num">51</span>
+            <span class="line-content">+   })?;</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">52</span>
+            <span class="line-content">    <span class="token-type">Ok</span>(())</span>
+          </div>
+          <div class="code-line">
+            <span class="line-num">53</span>
+            <span class="line-content">}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Prompt Completion Bar -->
+      <div class="ai-prompt-container">
+        <div class="ai-prompt-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="ai-badge">AI AGENT</span>
+            <span>Claude 3.5 Sonnet &bull; OpenCode Inline Autonomous Assistant</span>
+          </div>
+          <span>Context: 14 AST files (4,812 tokens)</span>
+        </div>
+
+        <div class="ai-input-row">
+          <span class="prompt-cursor">❯</span>
+          <input type="text" class="prompt-text" readonly value="refactor: vectorize task queue with ring-buffer &amp; add atomic backpressure fallback">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="key-hint">[Tab] Apply Diff</span>
+            <span class="key-hint">[⌃K] Next</span>
+            <span class="key-hint">[Esc] Discard</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminal Test Output -->
+      <div class="terminal-drawer">
+        <div class="term-title-bar">
+          <span>TERMINAL — cargo test --workspace --no-fail-fast</span>
+          <span>EXIT: 0 [SUCCESS]</span>
+        </div>
+        <div><span class="term-cmd">$ cargo test --package opencode-core --lib</span></div>
+        <div class="term-dim">   Compiling opencode-core v1.8.4 &bull; Finished in 0.84s</div>
+        <br>
+        <div>running 5 tests</div>
+        <div>test engine::test_job_dispatch_parallel ... <span class="term-pass">ok</span> [0.12ms]</div>
+        <div>test queue::test_ring_buffer_backpressure ... <span class="term-pass">ok</span> [0.08ms]</div>
+        <div>test diff::test_three_way_ast_merge ... <span class="term-pass">ok</span> [1.44ms]</div>
+        <div>test agent::test_speculative_token_patch ... <span class="term-pass">ok</span> [0.92ms]</div>
+        <div>test webrtc::test_peer_cursor_sync ... <span class="term-pass">ok</span> [0.45ms]</div>
+        <br>
+        <div style="font-weight:700; color:#fff">test result: <span class="term-pass">ok. 5 passed</span>; 0 failed; finished in 0.03s</div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Bottom ASCII Stat Grid -->
+  <div class="proof-footer">
+    <div class="proof-tile">
+      <div class="proof-head">Fig 1. Monospaced Identity</div>
+      <div class="proof-stat">100% Berkeley Mono</div>
+      <div class="proof-sub">Every header, badge, and manpage block rendered in pure monospace.</div>
+    </div>
+    <div class="proof-tile">
+      <div class="proof-head">Fig 2. Latency</div>
+      <div class="proof-stat">&lt; 12ms P2P Diff Sync</div>
+      <div class="proof-sub">CRDT conflict-free delta replication between developers &amp; agents.</div>
+    </div>
+    <div class="proof-tile">
+      <div class="proof-head">Fig 3. Community Adoption</div>
+      <div class="proof-stat">152,400+ Stars</div>
+      <div class="proof-sub">Fully open source terminal engine with zero vendor lock-in.</div>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -281,6 +281,7 @@ type MagicSuperAgentProjectMember struct {
 
 type MagicSuperAgentTaskFile struct {
 	FileID                uint64         `json:"file_id"`
+	SourceFileID          sql.NullInt64  `json:"source_file_id"`
 	UserID                string         `json:"user_id"`
 	OrganizationCode      string         `json:"organization_code"`
 	ProjectID             uint64         `json:"project_id"`

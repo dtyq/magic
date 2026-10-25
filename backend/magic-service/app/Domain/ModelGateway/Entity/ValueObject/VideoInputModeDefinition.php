@@ -122,6 +122,20 @@ final readonly class VideoInputModeDefinition
     }
 
     /**
+     * 样片成片模式：输入只有样片任务引用，时长/比例/尺寸全部继承样片。
+     */
+    public static function draftTask(
+        string $description,
+        string $task = VideoTaskType::Generate->value,
+    ): self {
+        return new self(
+            description: $description,
+            supportedFields: ['draft_task'],
+            task: $task,
+        );
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

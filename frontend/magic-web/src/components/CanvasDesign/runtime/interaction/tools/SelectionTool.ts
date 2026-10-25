@@ -2,12 +2,14 @@ import Konva from "konva"
 import type { ToolOptions } from "./BaseTool"
 import { BaseTool } from "./BaseTool"
 import { ElementTypeEnum, type LayerElement } from "../../document/types"
+import { getActiveImageContent } from "../../document/elementContent"
 import { CropRenderer } from "../crop/CropRenderer"
 import { ExtendRenderer } from "../extend/ExtendRenderer"
 import {
 	pickSelectedElementIdAtStagePointer,
 	resolveManagedElementIdFromKonvaNode,
 } from "../transform/elementNodeUtils"
+import { getNameLabelElementIdFromNode } from "../labels/nameLabelNodeUtils"
 import type {
 	CanvasNativePointerEvent,
 	CanvasPointerInput,
@@ -226,6 +228,10 @@ export class SelectionTool extends BaseTool {
 		const clickedNode = input.target
 
 		if (isConnectionNode(clickedNode)) {
+			return
+		}
+
+		if (getNameLabelElementIdFromNode(clickedNode)) {
 			return
 		}
 
@@ -519,6 +525,10 @@ export class SelectionTool extends BaseTool {
 			return
 		}
 
+		if (getNameLabelElementIdFromNode(clickedNode)) {
+			return
+		}
+
 		// 检查是否点击了装饰性元素（包括按钮本身或其父节点）
 		let decoratorNodeName: string | undefined
 		let currentNode: Konva.Node | null = clickedNode
@@ -757,12 +767,19 @@ export class SelectionTool extends BaseTool {
 		originElementId: string,
 		options?: { cancelBubble?: () => void },
 	): boolean {
-		if (!event.altKey || event.button !== 0 || this.canvas.readonly) {
+		if (
+			!event.altKey ||
+			event.button !== 0 ||
+			!this.canvas.permissionManager.can("sideEffect.copy")
+		) {
 			return false
 		}
 
 		const originElement = this.canvas.elementManager.getElementData(originElementId)
-		if (originElement?.type !== ElementTypeEnum.Image || !originElement.src) {
+		if (
+			originElement?.type !== ElementTypeEnum.Image ||
+			!this.getEffectiveImageContent(originElement).src
+		) {
 			return false
 		}
 
@@ -805,11 +822,25 @@ export class SelectionTool extends BaseTool {
 		for (const elementId of candidateIds) {
 			if (seen.has(elementId)) continue
 			const element = this.canvas.elementManager.getElementData(elementId)
-			if (element?.type !== ElementTypeEnum.Image || !element.src) continue
+			if (
+				element?.type !== ElementTypeEnum.Image ||
+				!this.getEffectiveImageContent(element).src
+			)
+				continue
 			seen.add(elementId)
 			imageElementIds.push(elementId)
 		}
 		return imageElementIds
+	}
+
+	private getEffectiveImageContent(
+		element: LayerElement & { type: typeof ElementTypeEnum.Image },
+	) {
+		return (
+			(this.canvas.getEffectiveContent?.(element.id) as
+				ReturnType<typeof getActiveImageContent> | undefined) ??
+			getActiveImageContent(element)
+		)
 	}
 
 	/**

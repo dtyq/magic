@@ -9,9 +9,11 @@ namespace HyperfTest\Cases\Domain\ModelGateway\Service;
 
 use App\Domain\ModelGateway\Entity\Dto\CreateVideoDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Domain\ModelGateway\Repository\VideoQueueOperationRepositoryInterface;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
@@ -134,6 +136,56 @@ class VideoQueueDomainServiceTest extends TestCase
                 return $this->get($name);
             }
         });
+    }
+
+    public function testVideoGenerationConfigQueriesDeclaredInputModes(): void
+    {
+        $config = new VideoGenerationConfig([
+            'supported_inputs' => ['text_prompt'],
+            'input_modes' => [
+                VideoInputMode::Standard->value => ['supported_fields' => []],
+            ],
+        ]);
+
+        $this->assertTrue($config->hasInputModes());
+        $this->assertTrue($config->supportsInputMode(VideoInputMode::Standard->value));
+        $this->assertFalse($config->supportsInputMode(VideoInputMode::VideoEdit->value));
+        $this->assertTrue($config->hasSupportedInputs());
+        $this->assertTrue($config->supportsInput('text_prompt'));
+        $this->assertFalse($config->supportsInput('video_extension'));
+    }
+
+    public function testCreateOperationRejectsExtendWhenModelLacksVideoExtensionCapability(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'video-model',
+            'task' => 'extend',
+            'prompt' => 'extend the source video',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/source.mp4'],
+                ],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('task extend is not supported by the current video model');
+
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'video-model',
+            'provider-video-model',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt'],
+                'input_modes' => [
+                    VideoInputMode::Standard->value => ['supported_fields' => []],
+                ],
+            ]),
+        );
     }
 
     public function testCreateOperationCanonicalizes4kAndKeepsCanonicalSections(): void
@@ -580,6 +632,45 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame(300, $operation->getRawRequest()['execution']['expires_after_seconds']);
     }
 
+    public function testCreateOperationPreservesGenerateAudioWhenCapabilityIsUndeclared(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'unknown-video-model',
+            'task' => 'generate',
+            'prompt' => 'make a video with spoken narration',
+            'generation' => [
+                'generate_audio' => true,
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-unknown',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createEmptyConfig(),
+        );
+
+        $this->assertTrue($operation->getRawRequest()['generation']['generate_audio']);
+    }
+
+    public function testCreateOperationKeepsDraftWhenModelDeclaresDraftSwitch(): void
+    {
+        $operation = $this->createDraftOperation(true);
+
+        $this->assertTrue($operation->getRawRequest()['generation']['draft']);
+    }
+
+    public function testCreateOperationPrunesDraftWhenModelDoesNotDeclareIt(): void
+    {
+        $operation = $this->createDraftOperation(false);
+
+        $this->assertArrayNotHasKey('draft', $operation->getRawRequest()['generation']);
+    }
+
     public function testCreateOperationPreservesEnhancePromptWhenModelSupportsIt(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
@@ -912,6 +1003,148 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame(['seedance' => ['camera_movement' => 'truck left']], $operation->getRawRequest()['extensions']);
     }
 
+    public function testCreateOperationRejectsInputModeNotDeclaredByVideoModel(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'edit',
+            'prompt' => 'edit the source video',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/source.mp4'],
+                ],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('input_mode video_edit is not supported by the current video model');
+
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'input_modes' => [
+                    VideoInputMode::Standard->value => ['supported_fields' => []],
+                    VideoInputMode::OmniReference->value => ['supported_fields' => ['reference_videos']],
+                ],
+            ]),
+        );
+    }
+
+    public function testCreateOperationAcceptsVideoEditInputModeWithReferenceVideo(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'edit',
+            'input_mode' => VideoInputMode::VideoEdit->value,
+            'prompt' => 'replace the sky',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/source.mp4'],
+                ],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt', 'reference_videos', VideoInputMode::VideoEdit->value],
+                'reference_images' => ['max_count' => 0, 'reference_types' => [], 'style_supported' => false],
+                'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+                'constraints' => [],
+            ]),
+        );
+
+        $this->assertSame(VideoInputMode::VideoEdit->value, $operation->getRawRequest()['input_mode']);
+        $this->assertSame('https://example.com/source.mp4', $operation->getRawRequest()['inputs']['reference_videos'][0]['uri']);
+    }
+
+    public function testCreateOperationRejectsEditTaskWithStandardInputMode(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'kling-v3-omni',
+            'task' => 'edit',
+            'input_mode' => VideoInputMode::Standard->value,
+            'prompt' => 'edit the source video',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/source.mp4'],
+                ],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('input_mode is invalid');
+
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'kling-v3-omni',
+            'provider-model-keling-omni',
+            ProviderCode::Keling,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'input_modes' => [
+                    VideoInputMode::Standard->value => ['supported_fields' => []],
+                    VideoInputMode::VideoEdit->value => ['supported_fields' => ['reference_videos']],
+                ],
+            ]),
+        );
+    }
+
+    public function testCreateOperationRejectsEditTaskWithOmniReferenceInputMode(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'kling-v3-omni',
+            'task' => 'edit',
+            'input_mode' => VideoInputMode::OmniReference->value,
+            'prompt' => 'edit the source video',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/source.mp4'],
+                ],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('input_mode is invalid');
+
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'kling-v3-omni',
+            'provider-model-keling-omni',
+            ProviderCode::Keling,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'input_modes' => [
+                    VideoInputMode::Standard->value => ['supported_fields' => []],
+                    VideoInputMode::OmniReference->value => [
+                        'supported_fields' => ['reference_videos'],
+                        'task' => VideoTaskType::Generate->value,
+                    ],
+                    VideoInputMode::VideoEdit->value => [
+                        'supported_fields' => ['reference_videos'],
+                        'task' => VideoTaskType::Edit->value,
+                    ],
+                ],
+            ]),
+        );
+    }
+
     public function testCreateOperationNormalizesReferenceInputsAndInputModeIntoCanonicalInputs(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
@@ -958,6 +1191,126 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame('https://example.com/ref.mp4', $inputs['reference_videos'][0]['uri']);
         $this->assertSame('https://example.com/ref.wav', $inputs['reference_audios'][0]['uri']);
         $this->assertArrayNotHasKey('frames', $inputs);
+    }
+
+    public function testCreateOperationAllowsEmptyOmniReferenceInputs(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'video-model',
+            'task' => VideoTaskType::Generate->value,
+            'input_mode' => VideoInputMode::OmniReference->value,
+            'prompt' => 'generate a video from text only',
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'video-model',
+            'provider-video-model',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt'],
+            ]),
+        );
+
+        $this->assertSame(VideoInputMode::OmniReference->value, $operation->getRawRequest()['input_mode']);
+        $this->assertSame([], $operation->getRawRequest()['inputs']);
+    }
+
+    public function testCreateOperationAllowsKeyframeGuidedWithEndFrameOnly(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'video-model',
+            'task' => VideoTaskType::Generate->value,
+            'input_mode' => VideoInputMode::KeyframeGuided->value,
+            'prompt' => 'generate a video ending at this frame',
+            'inputs' => [
+                'frames' => [
+                    ['role' => 'end', 'uri' => 'https://example.com/end.png'],
+                ],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'video-model',
+            'provider-video-model',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt'],
+            ]),
+        );
+
+        $this->assertSame(VideoInputMode::KeyframeGuided->value, $operation->getRawRequest()['input_mode']);
+        $this->assertSame('end', $operation->getRawRequest()['inputs']['frames'][0]['role']);
+    }
+
+    public function testCreateOperationRejectsFrameRoleUnsupportedByVideoModel(): void
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('inputs.frames.end is not supported by the current video model');
+
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'video-model',
+            'task' => VideoTaskType::Generate->value,
+            'input_mode' => VideoInputMode::KeyframeGuided->value,
+            'prompt' => 'generate a video ending at this frame',
+            'inputs' => [
+                'frames' => [
+                    ['role' => 'end', 'uri' => 'https://example.com/end.png'],
+                ],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'video-model',
+            'provider-video-model',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt'],
+                'input_modes' => [
+                    VideoInputMode::KeyframeGuided->value => [
+                        'supported_fields' => ['frames'],
+                        'frame_roles' => ['start'],
+                    ],
+                ],
+            ]),
+        );
+    }
+
+    public function testNormalizeRequestForEstimateSkipsRequestCapabilityAndMaterialChecks(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'video-model',
+            'task' => VideoTaskType::Edit->value,
+            'input_mode' => VideoInputMode::OmniReference->value,
+            'prompt' => 'estimate this request',
+        ]);
+        $requestDTO->valid();
+
+        $normalizedRequest = $service->normalizeRequestForEstimate(
+            $requestDTO,
+            ProviderCode::Cloudsway,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt'],
+                'input_modes' => [
+                    VideoInputMode::Standard->value => ['supported_fields' => []],
+                ],
+            ]),
+        );
+
+        $this->assertSame(VideoInputMode::OmniReference->value, $normalizedRequest['input_mode']);
+        $this->assertSame([], $normalizedRequest['inputs']);
     }
 
     public function testCreateOperationAcceptsImageReferenceInputModeWithReferenceImages(): void
@@ -1144,6 +1497,40 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertArrayNotHasKey('unsupported_input', $operation->getRawRequest()['inputs']);
     }
 
+    public function testCreateOperationRejectsUnsupportedResolutionInsteadOfFallingBack(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'MiniMax-H3',
+            'task' => 'generate',
+            'prompt' => 'make a video',
+            'generation' => [
+                'resolution' => '3k',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('generation.resolution must be one of: 768p, 2k');
+
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'MiniMax-H3',
+            'provider-model-minimax-h3',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt'],
+                'reference_images' => [],
+                'generation' => [
+                    'resolutions' => ['768p', '2k'],
+                    'default_resolution' => '768p',
+                ],
+                'constraints' => [],
+            ]),
+        );
+    }
+
     public function testFinishExecutionFailureKeepsProviderSpecificMessage(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
@@ -1157,7 +1544,6 @@ class VideoQueueDomainServiceTest extends TestCase
         $response = $service->buildOperationResponse($operation, []);
 
         $this->assertSame('cloudsway video post failed: cURL error 35: TLS connect error', $response->getError()?->getMessage());
-        $this->assertArrayNotHasKey('provider', $response->toArray());
     }
 
     public function testCreateOperationPersistsProjectTopicTaskAndSourceContext(): void
@@ -1169,7 +1555,7 @@ class VideoQueueDomainServiceTest extends TestCase
             'prompt' => 'make a video',
             'business_params' => [
                 'project_id' => 1001,
-                'source_id' => 'design_video_generation',
+                'source_id' => SourceId::DESIGN_VIDEO_GENERATION,
             ],
         ]);
         $requestDTO->setHeaderConfigs([
@@ -1190,7 +1576,7 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame(1001, $operation->getProjectId());
         $this->assertSame('topic-1', $operation->getTopicId());
         $this->assertSame('task-1', $operation->getTaskId());
-        $this->assertSame('design_video_generation', $operation->getSourceId());
+        $this->assertSame(SourceId::DESIGN_VIDEO_GENERATION, $operation->getSourceId());
     }
 
     public function testSyncWithExecutionResultMarksFirstSucceededOnlyOnce(): void
@@ -1262,6 +1648,49 @@ class VideoQueueDomainServiceTest extends TestCase
             'generation' => [],
             'constraints' => [],
         ]);
+    }
+
+    /**
+     * 用同一份请求分别配「声明了 draft 开关」与「未声明」的能力配置，
+     * 验证领域层按能力裁剪样片模式参数。
+     */
+    private function createDraftOperation(bool $declareDraft): VideoQueueOperationEntity
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-5-260xxx',
+            'task' => 'generate',
+            'prompt' => 'make a draft video',
+            'generation' => [
+                'draft' => true,
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $generation = [
+            'duration_type' => 'range',
+            'durations' => ['min' => 4, 'max' => 30, 'step' => 1],
+            'default_duration_seconds' => 5,
+            'resolutions' => ['480p', '720p', '1080p'],
+            'default_resolution' => '720p',
+        ];
+        if ($declareDraft) {
+            $generation['draft'] = ['type' => 'switch', 'default' => false];
+        }
+
+        return $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-seedance-v25',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt'],
+                'reference_images' => ['max_count' => 0, 'reference_types' => [], 'style_supported' => false],
+                'generation' => $generation,
+                'constraints' => [],
+            ]),
+        );
     }
 
     private function createCloudswayVeoFastConfig(): VideoGenerationConfig

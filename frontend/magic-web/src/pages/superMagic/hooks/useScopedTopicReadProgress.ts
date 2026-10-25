@@ -14,7 +14,7 @@ import {
 } from "@/pages/superMagic/services/topicStatusSyncService"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
-import dayjs from "@/lib/dayjs"
+import dayjs from "@/infrastructure/vendors/dayjs"
 
 interface TopicMessagesChangePayload {
 	lastMessageNode?: {

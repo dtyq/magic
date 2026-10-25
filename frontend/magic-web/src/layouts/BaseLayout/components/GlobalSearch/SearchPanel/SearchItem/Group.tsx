@@ -1,6 +1,7 @@
 import type { GlobalSearch } from "@/types/search"
 import { useTranslation } from "react-i18next"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 import HighlightText from "../HighlightText"
 
 interface SearchItemGroupProps {
@@ -11,7 +12,6 @@ function Group(props: SearchItemGroupProps) {
 	const { item } = props
 
 	const { t } = useTranslation("search")
-	const { styles, cx } = useSearchItemCommonStyles()
 
 	return (
 		<div className={styles.item}>

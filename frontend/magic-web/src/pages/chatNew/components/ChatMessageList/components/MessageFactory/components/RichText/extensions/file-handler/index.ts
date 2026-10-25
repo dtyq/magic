@@ -1,5 +1,5 @@
-import { type Editor, Extension } from "@tiptap/react"
-import { Plugin, PluginKey } from "@tiptap/pm/state"
+import { type Editor, Extension } from "@/infrastructure/editors/tiptap/react"
+import { Plugin, PluginKey } from "@/infrastructure/editors/tiptap/pm-state"
 import type { FileError, FileValidationOptions } from "../../utils"
 import { filterFiles } from "../../utils"
 

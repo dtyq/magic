@@ -10,6 +10,8 @@ namespace App\Infrastructure\Audit\Repository;
 use App\Domain\Audit\ResourceAccess\Entity\ResourceAccessLogEntity;
 use App\Domain\Audit\ResourceAccess\Repository\Facade\ResourceAccessLogRepositoryInterface;
 use App\Infrastructure\Audit\Repository\Model\ResourceAccessLogModel;
+use App\Infrastructure\Core\ValueObject\Page;
+use Hyperf\DbConnection\Db;
 
 use function Hyperf\Support\now;
 
@@ -35,5 +37,47 @@ class ResourceAccessLogRepository implements ResourceAccessLogRepositoryInterfac
 
         $entity->setId($model->id);
         return $entity;
+    }
+
+    /** @return array{list: array<int, array{resource_code: string, latest_used_at: null|string}>, total?: int} */
+    public function queriesRecentlyUsedResources(
+        string $organizationCode,
+        string $userId,
+        string $resourceType,
+        string $operation,
+        Page $page,
+        bool $withTotal = false
+    ): array {
+        $builder = ResourceAccessLogModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('user_id', $userId)
+            ->where('resource_type', $resourceType)
+            ->where('operation', $operation)
+            ->select('resource_code')
+            ->selectRaw('MAX(created_at) AS latest_used_at')
+            ->groupBy('resource_code')
+            ->orderByDesc('latest_used_at')
+            ->orderByDesc('resource_code');
+
+        $total = $withTotal
+            ? Db::table('magic_resource_access_logs')->fromSub($builder->getQuery(), 'recent_usage')->count()
+            : null;
+
+        if ($page->isEnabled()) {
+            $builder->forPage($page->getPage(), $page->getPageNum());
+        }
+
+        $result = [
+            'list' => array_map(static fn ($row): array => [
+                'resource_code' => (string) $row->resource_code,
+                'latest_used_at' => $row->latest_used_at === null ? null : (string) $row->latest_used_at,
+            ], $builder->get()->all()),
+        ];
+
+        if ($total !== null) {
+            $result['total'] = $total;
+        }
+
+        return $result;
     }
 }

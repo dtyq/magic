@@ -2,8 +2,8 @@ import { ChevronRight, Sparkles } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 
-import dayjs from "@/lib/dayjs"
-import { cn } from "@/lib/utils"
+import dayjs from "@/infrastructure/vendors/dayjs"
+import { cn } from "@/utils/cn"
 import { userStore } from "@/models/user"
 
 import {

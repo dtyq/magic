@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable, Coroutine
 from datetime import datetime, timedelta, timezone
 from typing import TypeVar
 from uuid import uuid4
+from weakref import WeakKeyDictionary
 
 from playwright.async_api import (
     Browser,
@@ -19,7 +20,7 @@ from playwright.async_api import (
 )
 
 from magic_use.config import BrowserRuntimeConfig
-from magic_use.errors import BrowserConnectionError, BrowserPageError
+from magic_use.errors import BrowserConnectionError, BrowserErrorCode, BrowserPageError, BrowserSDKError
 from magic_use.models.common import BrowserEventType, BrowserName, JsonValue, PageReadiness, PageState
 from magic_use.models.diagnostics import ConsoleEntry, DiagnosticBatch, NetworkEntry
 from magic_use.models.events import BrowserEvent
@@ -49,6 +50,7 @@ class PlaywrightRuntime:
         self.background_tasks: set[asyncio.Task[object]] = set()
         self.page_registration_tasks: set[asyncio.Task[object]] = set()
         self._page_registration_lock = asyncio.Lock()
+        self._page_registration_errors: WeakKeyDictionary[Page, BrowserSDKError] = WeakKeyDictionary()
         self.document_ready_handler: Callable[[Page], Awaitable[None]] | None = None
         self.disconnect_handler: Callable[[], None] | None = None
         self.context_idle_handler: Callable[[], Awaitable[None]] | None = None
@@ -89,11 +91,37 @@ class PlaywrightRuntime:
 
     async def open_page(self, url: str = "about:blank") -> PlaywrightPageHandle:
         context = self._require_context()
-        page = await context.new_page()
-        handle = await self._register_page(page, opener_page_id=None)
-        if url != "about:blank":
-            await page.goto(url, wait_until="domcontentloaded", timeout=self.config.timeouts.navigation_ms)
-        return handle
+        self._require_lease().ensure_page_capacity()
+        # new_page 被取消不代表远端没有创建；保留本次 Task，取得确切 Page 后定向清理。
+        creation_task = asyncio.create_task(context.new_page())
+        page: Page | None = None
+        try:
+            page = await asyncio.shield(creation_task)
+            handle = await self._register_page(page, opener_page_id=None)
+            if url != "about:blank":
+                await page.goto(url, wait_until="domcontentloaded", timeout=self.config.timeouts.navigation_ms)
+            return handle
+        except BaseException:
+            if page is None:
+                try:
+                    page = await creation_task
+                except (asyncio.CancelledError, Exception):
+                    logger.warning("Failed to obtain a newly created Playwright page during cleanup", exc_info=True)
+            if page is not None:
+                await self.discard_new_page(page)
+            raise
+
+    async def discard_new_page(self, page: Page) -> None:
+        """只回收本次失败创建的页；关闭失败仍保留已登记句柄供原有 TTL 处理。"""
+        try:
+            if not page.is_closed():
+                await page.close()
+        except Exception:
+            logger.exception("Failed to close a newly created Playwright page")
+            return
+        handle = next((item for item in self.pages.values() if item.page == page), None)
+        if handle is not None:
+            await self._unregister_page(handle.page_id)
 
     async def close_page(self, page_id: str) -> None:
         handle = self.require_page(page_id)
@@ -173,7 +201,7 @@ class PlaywrightRuntime:
     async def list_pages(self) -> tuple[BrowserPage, ...]:
         result = []
         for handle in tuple(self.pages.values()):
-            if not handle.page.is_closed():
+            if not handle.page.is_closed() and handle.page not in self._page_registration_errors:
                 result.append(await self.describe_page(handle))
         return tuple(result)
 
@@ -231,25 +259,26 @@ class PlaywrightRuntime:
 
     async def _register_page(self, page: Page, opener_page_id: str | None) -> PlaywrightPageHandle:
         async with self._page_registration_lock:
+            registration_error = self._page_registration_errors.get(page)
+            if registration_error is not None:
+                raise BrowserSDKError(registration_error.code, str(registration_error))
+            if page.is_closed():
+                raise BrowserPageError("Cannot register a closed Browser page", closed=True)
             existing = next((item for item in self.pages.values() if item.page == page), None)
             if existing is not None:
                 return existing
             page_id = f"page_{uuid4().hex}"
-            resource_warning = self._require_lease().reserve_page()
-            cdp = None
+            lease = self._require_lease()
+            reserved = False
+            handle: PlaywrightPageHandle | None = None
             try:
-                if self.config.browser_name is BrowserName.CHROMIUM:
-                    cdp = await self._require_context().new_cdp_session(page)
-                    override = self._require_lease().user_agent_override
-                    if override is not None:
-                        await cdp.send(
-                            "Emulation.setUserAgentOverride",
-                            override.to_cdp_params(self.config.context.locale),
-                        )
+                # 创建前预检查不代替最终预占：并发新页和网站 popup 都必须经过这里。
+                resource_warning = lease.reserve_page()
+                reserved = True
                 handle = PlaywrightPageHandle(
                     page_id=page_id,
                     page=page,
-                    cdp=cdp,
+                    cdp=None,
                     document_generation=0,
                     opener_page_id=opener_page_id,
                     expires_at=datetime.now(timezone.utc)
@@ -258,45 +287,83 @@ class PlaywrightRuntime:
                     readiness=PageReadiness.STABLE if page.url == "about:blank" else PageReadiness.LOADING,
                     url_history=[page.url] if page.url else [],
                 )
-            except BaseException:
-                self._require_lease().release_page()
+                # 在第一个 await 前登记所有权；初始化失败且 close 也失败时，TTL 仍能找到此页。
+                self.pages[page_id] = handle
+                self.active_requests[page_id] = set()
+                self._empty_since = None
+                page.on("close", lambda: self._schedule(self._unregister_page(page_id)))
+                if self.config.browser_name is BrowserName.CHROMIUM:
+                    handle.cdp = await self._require_context().new_cdp_session(page)
+                    override = lease.user_agent_override
+                    if override is not None:
+                        await handle.cdp.send(
+                            "Emulation.setUserAgentOverride",
+                            override.to_cdp_params(self.config.context.locale),
+                        )
+                page.on("frameattached", lambda frame: self._on_frame_attached(handle, frame))
+                page.on("framedetached", lambda frame: self._on_frame_detached(handle, frame))
+                page.on("framenavigated", lambda frame: self._on_frame_navigated(handle, frame))
+                page.on("load", lambda: self._on_document_ready(handle))
+                page.on("console", lambda message: self._on_console(page_id, message.type, message.text))
+                page.on("request", lambda request: self._on_request(handle, request))
+                page.on("response", lambda response: self._on_response(page_id, response.request.method, response.url, response.status))
+                page.on("requestfinished", lambda request: self._on_request_finished(page_id, request))
+                page.on("requestfailed", lambda request: self._on_request_failed(page_id, request))
+                page.on(
+                    "dialog",
+                    lambda dialog: self._emit(
+                        BrowserEventType.DIALOG_OPENED,
+                        page_id,
+                        {"type": dialog.type, "message": dialog.message},
+                    ),
+                )
+                page.on("download", lambda download: self._schedule(self._track_download(page_id, download)))
+                if self.document_ready_handler is not None:
+                    await self.document_ready_handler(page)
+                if page.is_closed():
+                    raise BrowserPageError("Browser page closed during registration", closed=True)
+                self.active_page_id = page_id
+                self._emit(BrowserEventType.PAGE_OPENED, page_id, {"url": page.url})
+                return handle
+            except BaseException as error:
+                # context 的 page 事件可能先登记失败；主动 open 随后必须收到同一失败，
+                # 不能把容量拒绝改报为「页面关闭」，或接受 close 失败后仅为清理保留的句柄。
+                # 只保存不带 traceback 的错误副本，弱引用不会延长 Page 的生命周期。
+                code = error.code if isinstance(error, BrowserSDKError) else BrowserErrorCode.ACTION_FAILED
+                self._page_registration_errors[page] = BrowserSDKError(code, str(error) or "Page registration was cancelled.")
+                await self.discard_new_page(page)
+                if handle is None and reserved:
+                    lease.release_page()
+                elif handle is not None and page_id not in self.pages and handle.cdp is not None:
+                    # close 事件可能先于 CDP 创建返回完成注销，补全该次尚未取得的 CDP 清理。
+                    try:
+                        await handle.cdp.detach()
+                    except Exception:
+                        logger.debug("Failed page CDP session was already detached", exc_info=True)
                 raise
-            self.pages[page_id] = handle
-            self.active_requests[page_id] = set()
-            self._empty_since = None
-            self.active_page_id = page_id
-            page.on("close", lambda: self._schedule(self._unregister_page(page_id)))
-            page.on("frameattached", lambda frame: self._on_frame_attached(handle, frame))
-            page.on("framedetached", lambda frame: self._on_frame_detached(handle, frame))
-            page.on("framenavigated", lambda frame: self._on_frame_navigated(handle, frame))
-            page.on("load", lambda: self._on_document_ready(handle))
-            page.on("console", lambda message: self._on_console(page_id, message.type, message.text))
-            page.on("request", lambda request: self._on_request(handle, request))
-            page.on("response", lambda response: self._on_response(page_id, response.request.method, response.url, response.status))
-            page.on("requestfinished", lambda request: self._on_request_finished(page_id, request))
-            page.on("requestfailed", lambda request: self._on_request_failed(page_id, request))
-            page.on(
-                "dialog",
-                lambda dialog: self._emit(
-                    BrowserEventType.DIALOG_OPENED,
-                    page_id,
-                    {"type": dialog.type, "message": dialog.message},
-                ),
-            )
-            page.on("download", lambda download: self._schedule(self._track_download(page_id, download)))
-            self._emit(BrowserEventType.PAGE_OPENED, page_id, {"url": page.url})
-            if self.document_ready_handler is not None:
-                await self.document_ready_handler(page)
-            return handle
 
     async def _unregister_page(self, page_id: str, *, reason: str = "closed") -> None:
         handle = self.pages.pop(page_id, None)
         if handle is None:
             return
+        # pop 和名额释放之间不能 await，close 回调与取消清理可同时到达这里。
+        self.active_requests.pop(page_id, None)
+        if self.active_page_id == page_id:
+            self.active_page_id = next(iter(self.pages), None)
+        if self.context_lease is not None:
+            self.context_lease.release_page()
+        if not self.pages:
+            self._empty_since = asyncio.get_running_loop().time()
         try:
             title = await handle.page.title() if not handle.page.is_closed() else ""
         except Exception:
             title = ""
+        finally:
+            if handle.cdp is not None:
+                try:
+                    await handle.cdp.detach()
+                except Exception:
+                    logger.debug("Playwright page CDP detach failed", exc_info=True)
         self.closed_pages[page_id] = ClosedPageRecord(
             page_id=page_id,
             url=handle.page.url,
@@ -306,23 +373,11 @@ class PlaywrightRuntime:
         )
         if len(self.closed_pages) > 100:
             self.closed_pages.pop(next(iter(self.closed_pages)))
-        if handle.cdp is not None:
-            try:
-                await handle.cdp.detach()
-            except Exception:
-                pass
-        self.active_requests.pop(page_id, None)
-        if self.active_page_id == page_id:
-            self.active_page_id = next(iter(self.pages), None)
-        if self.context_lease is not None:
-            self.context_lease.release_page()
         self._emit(
             BrowserEventType.PAGE_EXPIRED if reason == "idle_timeout" else BrowserEventType.PAGE_CLOSED,
             page_id,
             {"reason": reason},
         )
-        if not self.pages:
-            self._empty_since = asyncio.get_running_loop().time()
 
     def _on_context_page(self, page: Page) -> None:
         task = self._schedule(self._register_context_page(page))
@@ -330,12 +385,16 @@ class PlaywrightRuntime:
         task.add_done_callback(self.page_registration_tasks.discard)
 
     async def _register_context_page(self, page: Page) -> PlaywrightPageHandle:
-        opener = await page.opener()
-        opener_page_id = next(
-            (handle.page_id for handle in self.pages.values() if handle.page == opener),
-            None,
-        )
-        return await self._register_page(page, opener_page_id=opener_page_id)
+        try:
+            opener = await page.opener()
+            opener_page_id = next(
+                (handle.page_id for handle in self.pages.values() if handle.page == opener),
+                None,
+            )
+            return await self._register_page(page, opener_page_id=opener_page_id)
+        except BaseException:
+            await self.discard_new_page(page)
+            raise
 
     def _on_frame_navigated(self, handle: PlaywrightPageHandle, frame: Frame) -> None:
         main_frame = frame == handle.page.main_frame

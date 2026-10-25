@@ -1,8 +1,9 @@
+import type { CSSProperties } from "react"
 import { cx } from "antd-style"
 import RichText from "@/pages/superMagic/components/MessageList/components/Text/components/RichText"
+import SmartTooltip from "@/components/other/SmartTooltip"
 import { useStyles } from "./styles"
-import type { JSONContent } from "@tiptap/core"
-import SuperTooltip from "@/pages/superMagic/components/SuperTooltip"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 
 export interface CollapsibleTextProps {
 	content: JSONContent | string
@@ -20,18 +21,18 @@ function CollapsibleText({ content, maxLines = 2, className, onFileClick }: Coll
 	)
 
 	return (
-		<SuperTooltip title={tooltipTitle}>
+		<SmartTooltip content={tooltipTitle} maxLines={0} className="w-full">
 			<div
 				className={cx(styles.container, styles.textContainer, styles.collapsed, className)}
-				style={{
-					WebkitLineClamp: maxLines,
-					maxHeight: `${maxLines * 16}px`,
-				}}
+				// 折叠行数下发到样式：折叠高度由浏览器按真实行盒裁剪得出，
+				// 组件不再持有像素行高，含高内联节点的行也不会被裁掉边框。
+				style={{ "--collapsible-lines": String(maxLines) } as CSSProperties}
 				data-testid="collapsible-text"
+				data-collapsed-lines={maxLines}
 			>
 				<RichText content={content} onFileClick={onFileClick} />
 			</div>
-		</SuperTooltip>
+		</SmartTooltip>
 	)
 }
 

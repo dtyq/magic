@@ -1,4 +1,4 @@
-import { QuestionCircleOutlined } from '@ant-design/icons';
+import { IconHelpCircle } from '@tabler/icons-react';
 import { Col, InputNumber, Row, Switch, Tooltip } from 'antd';
 import React, { ReactElement, useContext } from 'react';
 import Schema from '../../../types/Schema';
@@ -43,7 +43,7 @@ const SchemaArray = (props: SchemaArrayProp): ReactElement => {
           <span>
             uniqueItems&nbsp;
             <Tooltip title="unique_items">
-              <QuestionCircleOutlined />
+                  <IconHelpCircle size={16} />
             </Tooltip>
             &nbsp;：
           </span>

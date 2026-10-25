@@ -8,7 +8,7 @@ import type {
 } from "@/apis/modules/magicBase"
 import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea, ScrollBar } from "@/components/shadcn-ui/scroll-area"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import useResizablePanel from "@/pages/superMagic/hooks/useResizablePanel"
 import TopicResizeHandle from "@/pages/superMagic/pages/TopicPage/components/TopicResizeHandle"
 

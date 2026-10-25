@@ -652,7 +652,9 @@ class CreateShareRequestDTO extends AbstractDTO
         $extraKeys = array_keys($this->extra);
         $invalidFields = array_diff($extraKeys, $allowedExtraFields);
         if (! empty($invalidFields)) {
-            ExceptionBuilder::throw(ShareErrorCode::INVALID_EXTRA_FIELD, 'share.invalid_extra_field', [implode(', ', $invalidFields)]);
+            ExceptionBuilder::throw(ShareErrorCode::INVALID_EXTRA_FIELD, 'share.invalid_extra_field', [
+                'field' => implode(', ', $invalidFields),
+            ]);
         }
     }
 }

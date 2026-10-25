@@ -1,3 +1,4 @@
+import { ProjectDeletionBlockedByRecordingError } from "@/services/recordSummary/projectDeletionRecordingGuard"
 import { makeAutoObservable, runInAction } from "mobx"
 import type { RecordTaskProgress } from "@/apis/modules/superMagic/recordSummary"
 import { ALL_RECORDING_GROUP_ID } from "@/services/audioRecordings/RecordingGroupsConstants"
@@ -36,12 +37,10 @@ import type { AudioRecordingsFilterSessionSnapshot } from "../utils/audio-record
 const DEFAULT_PAGE_SIZE = 20
 
 export type SubmitSummaryResult =
-	| { ok: true }
-	| { ok: false; reason: "busy" | "missingParams" | "missingModel" | "api" }
+	{ ok: true } | { ok: false; reason: "busy" | "missingParams" | "missingModel" | "api" }
 
 export type RetryMergeResult =
-	| { ok: true }
-	| { ok: false; reason: "busy" | "missingParams" | "api" }
+	{ ok: true } | { ok: false; reason: "busy" | "missingParams" | "api" }
 
 /** Uses progress duration only after backend reports a real value, preserving known local metadata */
 function resolvePatchedDuration(progressDuration: number | undefined, currentDuration: number) {
@@ -628,7 +627,8 @@ export class AudioRecordingsStore {
 				}
 			})
 			return true
-		} catch {
+		} catch (error) {
+			if (error instanceof ProjectDeletionBlockedByRecordingError) throw error
 			return false
 		} finally {
 			runInAction(() => {

@@ -433,7 +433,7 @@ func (q *Queries) DeleteFragmentsByKnowledgeBase(ctx context.Context, knowledgeC
 }
 
 const findFragmentByID = `-- name: FindFragmentByID :one
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE id = ?
   AND deleted_at IS NULL
@@ -467,7 +467,7 @@ func (q *Queries) FindFragmentByID(ctx context.Context, id int64) (MagicFlowKnow
 }
 
 const findFragmentsByIDs = `-- name: FindFragmentsByIDs :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND id IN (/*SLICE:ids*/?)
@@ -528,7 +528,7 @@ func (q *Queries) FindFragmentsByIDs(ctx context.Context, ids []int64) ([]MagicF
 }
 
 const findFragmentsByPointIDs = `-- name: FindFragmentsByPointIDs :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND point_id IN (/*SLICE:point_ids*/?)
@@ -635,7 +635,7 @@ func (q *Queries) InsertFragment(ctx context.Context, arg InsertFragmentParams) 
 }
 
 const listFragmentsByKnowledge = `-- name: ListFragmentsByKnowledge :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -711,7 +711,7 @@ func (q *Queries) ListFragmentsByKnowledge(ctx context.Context, arg ListFragment
 }
 
 const listFragmentsByKnowledgeAndBusinessID = `-- name: ListFragmentsByKnowledgeAndBusinessID :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -790,7 +790,7 @@ func (q *Queries) ListFragmentsByKnowledgeAndBusinessID(ctx context.Context, arg
 }
 
 const listFragmentsByKnowledgeAndDocument = `-- name: ListFragmentsByKnowledgeAndDocument :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -858,7 +858,7 @@ func (q *Queries) ListFragmentsByKnowledgeAndDocument(ctx context.Context, arg L
 }
 
 const listFragmentsByKnowledgeAndDocumentAfterID = `-- name: ListFragmentsByKnowledgeAndDocumentAfterID :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -924,7 +924,7 @@ func (q *Queries) ListFragmentsByKnowledgeAndDocumentAfterID(ctx context.Context
 }
 
 const listFragmentsByKnowledgeAndDocumentFiltered = `-- name: ListFragmentsByKnowledgeAndDocumentFiltered :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -1006,7 +1006,7 @@ func (q *Queries) ListFragmentsByKnowledgeAndDocumentFiltered(ctx context.Contex
 }
 
 const listFragmentsMissingDocumentCodeByKnowledge = `-- name: ListFragmentsMissingDocumentCodeByKnowledge :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND (document_code = '' OR document_code IS NULL)
@@ -1066,7 +1066,7 @@ func (q *Queries) ListFragmentsMissingDocumentCodeByKnowledge(ctx context.Contex
 }
 
 const listFragmentsMissingDocumentCodeByKnowledgeCodes = `-- name: ListFragmentsMissingDocumentCodeByKnowledgeCodes :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND (document_code = '' OR document_code IS NULL)
@@ -1138,7 +1138,7 @@ func (q *Queries) ListFragmentsMissingDocumentCodeByKnowledgeCodes(ctx context.C
 }
 
 const listPendingFragments = `-- name: ListPendingFragments :many
-SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, ` + "`" + `vector` + "`" + `, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE knowledge_code = ?
   AND sync_status IN (?, ?)

@@ -128,16 +128,9 @@ this.pathMappingService.setPathFileIdMapping(newSlideData.path, newSlideData.fil
 this.pathMappingService.setPathUrlMapping(newSlideData.path, newSlideData.url)
 ```
 
-### 📦 备份说明
+### 📦 版本恢复说明
 
-原始的 PPTStore 已备份为 `PPTStore.old.ts`
-
-如需回滚：
-```bash
-cd stores/
-rm PPTStore.ts
-mv PPTStore.old.ts PPTStore.ts
-```
+旧实现备份已从工作树移除。需要回顾或恢复历史实现时，请使用 Git 历史或迁移前 tag。
 
 ### 🚀 后续优化建议
 

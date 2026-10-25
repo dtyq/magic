@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Renault — Scenic E-Tech 100% Electric | French Automotive Revolution</title>
+<style>
+:root {
+--primary: #ffed00; --primary-deep: #e6d200; --on-primary: #000000;
+--ink: #000000; --body: #222222; --charcoal: #333333; --mute: #666666;
+--ash: #8a8a8a; --stone: #c4c4c4; --on-dark: #ffffff; --on-dark-mute: rgba(255,255,255,0.72);
+--canvas: #ffffff; --surface-soft: #f7f7f7; --surface-card: #ffffff;
+--surface-dark: #000000; --surface-deep: #111111; --hairline: #e6e6e6;
+--font-renault: 'NouvelR', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--canvas); color: var(--body); font-family: var(--font-renault); font-size: 14.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+/* Nav Bar */
+.renault-nav {
+height: 60px; background: var(--canvas); border-bottom: 1px solid var(--hairline);
+display: flex; align-items: center; justify-content: space-between; padding: 0 36px;
+position: sticky; top: 0; z-index: 100;
+}
+.nav-left { display: flex; align-items: center; gap: 32px; }
+.renault-diamond-logo { width: 34px; height: 42px; display: block; }
+.nav-links { display: flex; gap: 24px; list-style: none; font-size: 13.5px; font-weight: 700; letter-spacing: 0.2px; text-transform: uppercase; }
+.nav-link.active { border-bottom: 3px solid var(--ink); padding-bottom: 16px; margin-bottom: -19px; }
+.nav-actions { display: flex; align-items: center; gap: 12px; }
+/* Buttons */
+.btn-renault-primary {
+background: var(--primary); color: var(--on-primary); font-size: 13px; font-weight: 700;
+letter-spacing: 0.4px; text-transform: uppercase; padding: 12px 22px; border: none;
+border-radius: 2px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+transition: background 0.15s;
+}
+.btn-renault-primary:hover { background: var(--primary-deep); }
+.btn-renault-outline {
+background: transparent; color: var(--on-dark); font-size: 13px; font-weight: 700;
+letter-spacing: 0.4px; text-transform: uppercase; padding: 11px 20px; border: 1px solid var(--on-dark);
+border-radius: 2px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-renault-dark {
+background: var(--surface-dark); color: var(--on-dark); font-size: 13px; font-weight: 700;
+letter-spacing: 0.4px; text-transform: uppercase; padding: 12px 22px; border: none;
+border-radius: 2px; cursor: pointer;
+}
+/* Hero Section - First 500px Impact */
+.hero-strip {
+background: var(--surface-dark); color: var(--on-dark);
+padding: 32px 36px 36px; border-bottom: 3px solid var(--primary);
+}
+.hero-grid {
+max-width: 1320px; margin: 0 auto; display: grid; grid-template-columns: 1.15fr 1.35fr;
+gap: 32px; align-items: center;
+}
+.badge-electric {
+display: inline-flex; align-items: center; gap: 8px; background: var(--surface-deep);
+border: 1px solid rgba(255,237,0,0.4); padding: 4px 10px; border-radius: 2px;
+font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--primary);
+margin-bottom: 12px;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+.hero-title {
+font-size: clamp(32px, 4vw, 48px); font-weight: 700; line-height: 0.95;
+letter-spacing: -0.5px; text-transform: uppercase; margin-bottom: 12px;
+}
+.hero-title span { color: var(--primary); }
+.hero-desc {
+font-size: 14.5px; color: var(--on-dark-mute); line-height: 1.5; margin-bottom: 20px; max-width: 520px;
+}
+.hero-kpis {
+display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+padding: 14px 0; border-top: 1px solid rgba(255,255,255,0.15); border-bottom: 1px solid rgba(255,255,255,0.15);
+margin-bottom: 22px;
+}
+.kpi-block .val { font-size: 24px; font-weight: 700; color: #fff; line-height: 1; }
+.kpi-block .val em { font-size: 13px; font-style: normal; color: var(--primary); margin-left: 2px; }
+.kpi-block .lbl { font-size: 11px; color: var(--ash); text-transform: uppercase; margin-top: 4px; }
+/* Hero Cockpit & Exterior Visual Card */
+.cockpit-hero-card {
+background: var(--surface-deep); border: 1px solid rgba(255,255,255,0.12);
+border-radius: 2px; padding: 18px; position: relative; overflow: hidden;
+}
+.cockpit-header {
+display: flex; justify-content: space-between; align-items: center;
+font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+color: var(--primary); padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);
+margin-bottom: 12px;
+}
+/* OpenR Link Display Vector Visualization */
+.openr-render {
+background: #080a0d; border-radius: 2px; padding: 12px; border: 1px solid rgba(255,255,255,0.08);
+margin-bottom: 12px;
+}
+.openr-badge {
+font-size: 9.5px; font-weight: 700; color: #8a8a8a; letter-spacing: 0.5px; text-transform: uppercase;
+margin-bottom: 6px; display: flex; justify-content: space-between;
+}
+/* Range Estimator Interactive Section */
+.range-section { max-width: 1320px; margin: 36px auto; padding: 0 36px; }
+.section-header-block { margin-bottom: 24px; }
+.section-tag { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--mute); margin-bottom: 4px; }
+.section-title { font-size: 28px; font-weight: 700; line-height: 1.0; text-transform: uppercase; color: var(--ink); }
+.range-estimator-box {
+background: var(--surface-soft); border: 1px solid var(--hairline);
+display: grid; grid-template-columns: 1fr 1.2fr; border-radius: 2px;
+}
+.estimator-controls { padding: 28px; border-right: 1px solid var(--hairline); }
+.estimator-output { padding: 28px; background: var(--surface-card); display: flex; flex-direction: column; justify-content: center; }
+.control-group { margin-bottom: 20px; }
+.control-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--ink); margin-bottom: 8px; display: flex; justify-content: space-between; }
+.mode-pills { display: flex; gap: 8px; }
+.mode-pill {
+flex: 1; padding: 10px; background: #fff; border: 1px solid var(--hairline);
+text-align: center; font-size: 12px; font-weight: 700; text-transform: uppercase;
+cursor: pointer; border-radius: 2px;
+}
+.mode-pill.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.range-display-hero { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.range-number { font-size: 64px; font-weight: 700; line-height: 0.9; color: var(--ink); }
+.range-unit { font-size: 20px; font-weight: 700; color: var(--mute); text-transform: uppercase; }
+.charge-spec-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+.charge-item .tit { font-size: 11px; color: var(--mute); text-transform: uppercase; }
+.charge-item .num { font-size: 16px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+/* Trim Showcase 3-Up */
+.trims-grid {
+display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; margin-bottom: 40px;
+}
+.trim-card {
+background: var(--surface-card); border: 1px solid var(--hairline); padding: 24px;
+display: flex; flex-direction: column; position: relative;
+}
+.trim-card.featured { border: 2px solid var(--ink); }
+.trim-badge {
+position: absolute; top: -10px; right: 16px; background: var(--primary);
+color: var(--on-primary); font-size: 10px; font-weight: 700; padding: 3px 8px;
+text-transform: uppercase; letter-spacing: 0.5px; border-radius: 2px;
+}
+.trim-name { font-size: 20px; font-weight: 700; text-transform: uppercase; color: var(--ink); margin-bottom: 4px; }
+.trim-price { font-size: 16px; font-weight: 700; color: var(--mute); margin-bottom: 16px; }
+.trim-features { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--charcoal); margin-bottom: 22px; }
+.trim-features li { display: flex; align-items: center; gap: 8px; }
+.trim-features li::before { content: '■'; color: var(--ink); font-size: 8px; }
+/* Footer */
+.renault-footer { background: var(--surface-dark); color: var(--on-dark); padding: 40px 36px 30px; border-top: 1px solid rgba(255,255,255,0.1); }
+.footer-inner { max-width: 1320px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+@media (max-width: 960px) {
+.hero-grid, .range-estimator-box, .trims-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<!-- Top Nav -->
+<header class="renault-nav">
+<div class="nav-left">
+<!-- Authentic 2021 Renault Geometric Flat Diamond Logo SVG -->
+<svg class="renault-diamond-logo" viewBox="0 0 70 90" fill="none">
+<!-- Outer Rhombus Stroke Lines -->
+<path d="M35 4 L66 45 L35 86 L4 45 Z" stroke="#000000" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="4"/>
+<!-- Inner Interlocking Parallel Rhombus -->
+<path d="M35 22 L52 45 L35 68 L18 45 Z" stroke="#000000" stroke-width="5" stroke-linejoin="miter" stroke-miterlimit="4"/>
+</svg>
+<ul class="nav-links">
+<li><a href="#electric" class="nav-link active">Scenic E-Tech 100% Electric</a></li>
+<li><a href="#openr" class="nav-link">OpenR Link Cockpit</a></li>
+<li><a href="#range" class="nav-link">WLTP Range [625 km]</a></li>
+<li><a href="#config" class="nav-link">Configurator</a></li>
+</ul>
+</div>
+<div class="nav-actions">
+<button class="btn-renault-outline" style="color: var(--ink); border-color: var(--ink);">Test Drive</button>
+<button class="btn-renault-primary">Order Now</button>
+</div>
+</header>
+<!-- Hero Section: French Automotive Electric Revolution -->
+<section class="hero-strip">
+<div class="hero-grid">
+<div class="hero-content">
+<div class="badge-electric">
+<span class="badge-dot"></span>
+Nouvelle Vague · 100% Electric
+</div>
+<h1 class="hero-title">
+Renault Scenic<br><span>E-Tech 100% Electric</span>
+</h1>
+<p class="hero-desc">
+Winner of Car of the Year 2024. Engineered with an 87 kWh slimline battery, delivering up to 625 km WLTP autonomy and the revolutionary OpenR Link cockpit with Google built-in.
+</p>
+<div class="hero-kpis">
+<div class="kpi-block">
+<div class="val">625<em>km</em></div>
+<div class="lbl">WLTP Range</div>
+</div>
+<div class="kpi-block">
+<div class="val">220<em>hp</em></div>
+<div class="lbl">E-Motor Power</div>
+</div>
+<div class="kpi-block">
+<div class="val">30<em>min</em></div>
+<div class="lbl">15-80% DC Charge</div>
+</div>
+</div>
+<div style="display: flex; gap: 12px;">
+<button class="btn-renault-primary">
+Configure Your Scenic
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>
+</button>
+<button class="btn-renault-outline">Discover OpenR Link</button>
+</div>
+</div>
+<!-- Right Cockpit & OpenR Link Preview -->
+<div class="cockpit-hero-card">
+<div class="cockpit-header">
+<span>OpenR Link Dual Display System · 774 cm²</span>
+<span style="color: #fff; font-size: 10px;">Google Built-In</span>
+</div>
+<!-- OpenR Dual Screen Schematic -->
+<div class="openr-render">
+<div class="openr-badge">
+<span>12.3" Instrument Cluster</span>
+<span>12" Portrait Multimedia</span>
+</div>
+<svg viewBox="0 0 460 170" width="100%" height="160">
+<!-- Screen 1: Horizontal Driver Cluster 12.3" -->
+<rect x="10" y="25" width="240" height="120" rx="3" fill="#0c1117" stroke="#333" stroke-width="1.5"/>
+<!-- Cluster Gauge Visual -->
+<circle cx="70" cy="85" r="40" fill="none" stroke="#222" stroke-width="6"/>
+<path d="M 40 110 A 40 40 0 1 1 100 110" fill="none" stroke="#ffed00" stroke-width="6" stroke-linecap="round"/>
+<text x="70" y="80" text-anchor="middle" fill="#fff" font-size="20" font-weight="bold" font-family="sans-serif">94</text>
+<text x="70" y="95" text-anchor="middle" fill="#8a8a8a" font-size="9" font-family="sans-serif">KM/H</text>
+<!-- Energy Consumption Bar -->
+<text x="140" y="55" fill="#fff" font-size="10" font-weight="bold">BATTERY LEVEL: 84%</text>
+<rect x="140" y="62" width="95" height="7" rx="2" fill="#222"/>
+<rect x="140" y="62" width="80" height="7" rx="2" fill="#ffed00"/>
+<text x="140" y="84" fill="#ffed00" font-size="11" font-weight="bold">525 km Remaining</text>
+<text x="140" y="100" fill="#8a8a8a" font-size="9">ECO DRIVE MODE · REGEN LVL 3</text>
+<text x="140" y="115" fill="#8a8a8a" font-size="8.5">Heat Pump: Active (21.5°C)</text>
+<!-- Screen 2: Vertical Portrait Screen 12" (L-shape arrangement) -->
+<rect x="270" y="8" width="175" height="152" rx="3" fill="#0c1117" stroke="#333" stroke-width="1.5"/>
+<!-- Map preview -->
+<rect x="278" y="16" width="159" height="75" rx="2" fill="#13202e"/>
+<!-- Route line -->
+<path d="M 290 75 Q 330 35, 360 55 T 420 30" fill="none" stroke="#00c853" stroke-width="3"/>
+<circle cx="420" cy="30" r="4" fill="#ffed00"/>
+<text x="285" y="32" fill="#fff" font-size="8.5" font-weight="bold">Google Maps · Fast Charger</text>
+<text x="285" y="44" fill="#a0c0e0" font-size="7.5">Ionity A6 Paris · 150 kW DC Available</text>
+<!-- Media / Apps Row -->
+<rect x="278" y="98" width="159" height="30" rx="2" fill="#1a222d"/>
+<rect x="284" y="103" width="20" height="20" rx="2" fill="#ffed00"/>
+<text x="312" y="113" fill="#fff" font-size="8.5" font-weight="bold">Spotify · French Touch Wave</text>
+<text x="312" y="123" fill="#8a8a8a" font-size="7.5">Harman Kardon 9-Speaker Audio</text>
+<!-- Climate Controls bottom bar -->
+<rect x="278" y="134" width="159" height="20" fill="#080a0d"/>
+<text x="300" y="148" fill="#fff" font-size="8.5">SYNC 21.0°C</text>
+<text x="380" y="148" fill="#ffed00" font-size="8.5">AUTO AC</text>
+</svg>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa;">
+<span>Renault Multi-Sense 4 Driving Modes</span>
+<span style="color: var(--primary);">Solarbay® Opacifying Glass Roof</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Interactive Range Estimator Section -->
+<main class="range-section">
+<div class="section-header-block">
+<div class="section-tag">Autonomy & Energy Efficiency</div>
+<h2 class="section-title">Range Estimator · 625 KM WLTP Certified</h2>
+</div>
+<div class="range-estimator-box">
+<!-- Controls -->
+<div class="estimator-controls">
+<div class="control-group">
+<div class="control-label">
+<span>Driving Environment</span>
+<span style="color: var(--mute);">Selected: Mixed Road</span>
+</div>
+<div class="mode-pills">
+<div class="mode-pill">City (50 km/h)</div>
+<div class="mode-pill active">Mixed (80 km/h)</div>
+<div class="mode-pill">Motorway (110 km/h)</div>
+</div>
+</div>
+<div class="control-group">
+<div class="control-label">
+<span>Outside Temperature</span>
+<span style="font-weight: 700;">20°C Mild Spring</span>
+</div>
+<div class="mode-pills">
+<div class="mode-pill">0°C Winter</div>
+<div class="mode-pill active">20°C Optimal</div>
+<div class="mode-pill">35°C Summer AC</div>
+</div>
+</div>
+<div class="control-group" style="margin-bottom: 0;">
+<div class="control-label">
+<span>Wheel Specification</span>
+<span>20" Oracle Diamond-Cut</span>
+</div>
+<div class="mode-pills">
+<div class="mode-pill active">19" Streamline</div>
+<div class="mode-pill">20" Esprit Alpine</div>
+</div>
+</div>
+</div>
+<!-- Live Output -->
+<div class="estimator-output">
+<div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--mute); margin-bottom: 6px;">
+Estimated Real-World Range
+</div>
+<div class="range-display-hero">
+<span class="range-number">625</span>
+<span class="range-unit">KM Autonomy</span>
+</div>
+<p style="font-size: 13px; color: var(--charcoal); margin-bottom: 12px;">
+Calculated for Scenic E-Tech EV87 with 87 kWh usable capacity and integrated thermodynamic heat pump.
+</p>
+<div class="charge-spec-row">
+<div class="charge-item">
+<div class="tit">DC Fast Charging (150 kW)</div>
+<div class="num">30 min (15% to 80%)</div>
+</div>
+<div class="charge-item">
+<div class="tit">AC Home Wallbox (22 kW)</div>
+<div class="num">3 hr 15 min (Full 100%)</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Trim Levels -->
+<div style="margin-top: 40px;" class="section-header-block">
+<div class="section-tag">Model Versions</div>
+<h2 class="section-title">Choose Your Scenic E-Tech Lineup</h2>
+</div>
+<div class="trims-grid">
+<!-- Trim 1 -->
+<div class="trim-card">
+<div class="trim-name">Techno</div>
+<div class="trim-price">From €39,990 or €320/month</div>
+<ul class="trim-features">
+<li>60 kWh battery (430 km WLTP)</li>
+<li>170 hp electric motor</li>
+<li>OpenR Link 12" screen with Google</li>
+<li>19" Streamline aerodynamic alloys</li>
+</ul>
+<button class="btn-renault-dark" style="margin-top: auto;">Select Techno</button>
+</div>
+<!-- Trim 2 (Featured) -->
+<div class="trim-card featured">
+<div class="trim-badge">Most Popular</div>
+<div class="trim-name">Esprit Alpine</div>
+<div class="trim-price">From €46,990 or €390/month</div>
+<ul class="trim-features">
+<li><strong>87 kWh Long Range (625 km WLTP)</strong></li>
+<li><strong>220 hp performance electric motor</strong></li>
+<li>Alpine sport styling & matte blue details</li>
+<li>20" Speedway diamond-cut alloys</li>
+</ul>
+<button class="btn-renault-primary" style="margin-top: auto;">Select Esprit Alpine</button>
+</div>
+<!-- Trim 3 -->
+<div class="trim-card">
+<div class="trim-name">Iconic</div>
+<div class="trim-price">From €49,490 or €430/month</div>
+<ul class="trim-features">
+<li>87 kWh Long Range (625 km WLTP)</li>
+<li>Solarbay® opacifying panoramic glass roof</li>
+<li>Harman Kardon® 9-speaker premium audio</li>
+<li>Electric front massage seats in light grey</li>
+</ul>
+<button class="btn-renault-dark" style="margin-top: auto;">Select Iconic</button>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="renault-footer">
+<div class="footer-inner">
+<div style="display: flex; align-items: center; gap: 20px;">
+<svg class="renault-diamond-logo" viewBox="0 0 70 90" fill="none" style="width: 28px; height: 36px;">
+<path d="M35 4 L66 45 L35 86 L4 45 Z" stroke="#ffffff" stroke-width="7" stroke-linejoin="miter"/>
+<path d="M35 22 L52 45 L35 68 L18 45 Z" stroke="#ffffff" stroke-width="5" stroke-linejoin="miter"/>
+</svg>
+<div>
+<div style="font-size: 14px; font-weight: 700; text-transform: uppercase;">Renault Group · Nouvelle Vague</div>
+<div style="font-size: 11px; color: var(--ash);">Scenic E-Tech 100% Electric · Homologation WLTP 2024</div>
+</div>
+</div>
+<div style="display: flex; gap: 12px;">
+<button class="btn-renault-outline">Book Video Consultation</button>
+<button class="btn-renault-primary">Find a Dealer</button>
+</div>
+</div>
+</footer>
+</body>
+</html>

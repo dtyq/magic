@@ -1,6 +1,10 @@
 import type { Canvas } from "../../core/Canvas"
 import { isOssExpired } from "../offline-cache/ossExpiryUtils"
-import { toCanonicalCanvasResourcePath } from "../../shared/path/canvasResourcePath"
+import { getCanvasHostResourceReferenceIdentity } from "../../shared/path/canvasResourcePath"
+import {
+	buildFullscreenVideoPlaybackConsumerId,
+	buildInlineVideoPlaybackConsumerId,
+} from "./videoPlaybackConsumerIds"
 
 /** 播放会话归属（由 consumerId 前缀推断） */
 export type VideoPlaybackOwnerKind = "inline" | "fullscreen" | "unknown"
@@ -47,6 +51,7 @@ interface AcquirePlaybackOptions {
 }
 
 interface PathPlaybackGroup {
+	identity: string
 	path: string
 	consumers: Map<string, VideoPlaybackSession>
 	activeConsumerIds: Set<string>
@@ -55,6 +60,7 @@ interface PathPlaybackGroup {
 }
 
 interface InternalVideoPlaybackSession extends VideoPlaybackSession {
+	resourceIdentity: string
 	disposeBindings?: () => void
 	resolvedOssSrc: string
 	expiresAt: number | null
@@ -76,10 +82,6 @@ export class VideoPlaybackManager {
 
 	constructor(options: { canvas: Canvas }) {
 		this.canvas = options.canvas
-	}
-
-	private getResolveAbsolutePath(): ((path: string) => string) | undefined {
-		return this.canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
 	}
 
 	public getSession(consumerId: string): VideoPlaybackSession | undefined {
@@ -121,19 +123,19 @@ export class VideoPlaybackManager {
 	}
 
 	public getGroup(path: string): PathPlaybackGroupSnapshot | undefined {
-		const key = toCanonicalCanvasResourcePath(path, this.getResolveAbsolutePath())
+		const key = getCanvasHostResourceReferenceIdentity(this.canvas, path)
 		const group = this.groupsByPath.get(key)
 		return group ? this.buildGroupSnapshot(group) : undefined
 	}
 
 	public getConsumersByPath(path: string): VideoPlaybackSession[] {
-		const key = toCanonicalCanvasResourcePath(path, this.getResolveAbsolutePath())
+		const key = getCanvasHostResourceReferenceIdentity(this.canvas, path)
 		const group = this.groupsByPath.get(key)
 		return group ? Array.from(group.consumers.values()) : []
 	}
 
 	public getActiveConsumerCount(path: string): number {
-		const key = toCanonicalCanvasResourcePath(path, this.getResolveAbsolutePath())
+		const key = getCanvasHostResourceReferenceIdentity(this.canvas, path)
 		return this.groupsByPath.get(key)?.activeConsumerIds.size ?? 0
 	}
 
@@ -145,9 +147,12 @@ export class VideoPlaybackManager {
 		if (this.destroyed) {
 			return null
 		}
-		const normalizedPath = toCanonicalCanvasResourcePath(path, this.getResolveAbsolutePath())
+		if (options?.autoPlay && !this.canPlayback()) {
+			return null
+		}
+		const resourceIdentity = getCanvasHostResourceReferenceIdentity(this.canvas, path)
 		const existing = this.sessionsByConsumer.get(consumerId)
-		if (existing && existing.path === normalizedPath) {
+		if (existing && existing.resourceIdentity === resourceIdentity) {
 			existing.ownerKind = this.inferOwnerKind(consumerId)
 			existing.lastActiveAt = Date.now()
 			if (existing.refreshPromise) {
@@ -157,7 +162,7 @@ export class VideoPlaybackManager {
 			}
 			this.applyPlaybackOptions(existing.video, options)
 			this.syncSessionActiveState(existing, !existing.video.paused && !existing.video.ended)
-			if (options?.autoPlay) {
+			if (options?.autoPlay && this.canPlayback()) {
 				await existing.video.play().catch(() => undefined)
 			}
 			return existing
@@ -214,11 +219,11 @@ export class VideoPlaybackManager {
 						return null
 					}
 
-					const group = this.getOrCreateGroup(normalizedPath)
+					const group = this.getOrCreateGroup(resourceIdentity, path)
 					group.lastResolvedOssSrc = currentOssInfo.ossSrc
 					group.lastWarmupAt = Date.now()
 					await this.cachePlaybackResource(
-						normalizedPath,
+						path,
 						currentOssInfo.ossSrc,
 						currentOssInfo.expiresAt,
 					)
@@ -226,7 +231,8 @@ export class VideoPlaybackManager {
 					const now = Date.now()
 					const session: InternalVideoPlaybackSession = {
 						consumerId,
-						path: normalizedPath,
+						path,
+						resourceIdentity,
 						video,
 						createdAt: now,
 						lastActiveAt: now,
@@ -244,7 +250,7 @@ export class VideoPlaybackManager {
 					this.syncSessionActiveState(session, session.isActive)
 					this.scheduleSessionRefresh(session)
 
-					if (options?.autoPlay) {
+					if (options?.autoPlay && this.canPlayback()) {
 						await video.play().catch(() => undefined)
 					}
 
@@ -254,7 +260,7 @@ export class VideoPlaybackManager {
 					source: "video-playback:acquire",
 					canvasId: this.canvas.id,
 					ownerId: consumerId,
-					path: normalizedPath,
+					path,
 					url: ossInfo.ossSrc,
 					priority: options?.autoPlay ? "critical" : "visible",
 					signal: acquireController.signal,
@@ -287,7 +293,7 @@ export class VideoPlaybackManager {
 		}
 
 		this.release(toConsumerId)
-		const group = this.groupsByPath.get(session.path)
+		const group = this.groupsByPath.get(session.resourceIdentity)
 		this.sessionsByConsumer.delete(fromConsumerId)
 		this.sessionsByConsumer.set(toConsumerId, session)
 		session.consumerId = toConsumerId
@@ -317,12 +323,12 @@ export class VideoPlaybackManager {
 		}
 
 		this.sessionsByConsumer.delete(consumerId)
-		const group = this.groupsByPath.get(session.path)
+		const group = this.groupsByPath.get(session.resourceIdentity)
 		if (group) {
 			group.consumers.delete(consumerId)
 			group.activeConsumerIds.delete(consumerId)
 			if (group.consumers.size === 0) {
-				this.groupsByPath.delete(session.path)
+				this.groupsByPath.delete(session.resourceIdentity)
 			}
 		}
 		session.disposeBindings?.()
@@ -330,6 +336,16 @@ export class VideoPlaybackManager {
 		this.clearScheduledSessionRefresh(session)
 		this.disposeVideo(session.video)
 		this.emitConsumerState(consumerId)
+	}
+
+	/** 暂停所有播放会话；资源和静态预览仍保留，便于能力恢复后继续复用。 */
+	public pauseAll(exceptElementId?: string): void {
+		this.sessionsByConsumer.forEach((session) => {
+			if (exceptElementId && this.isOwnedByElement(session.consumerId, exceptElementId)) {
+				return
+			}
+			session.video.pause()
+		})
 	}
 
 	public destroy(): void {
@@ -441,17 +457,18 @@ export class VideoPlaybackManager {
 		})
 	}
 
-	private getOrCreateGroup(path: string): PathPlaybackGroup {
-		let group = this.groupsByPath.get(path)
+	private getOrCreateGroup(identity: string, path: string): PathPlaybackGroup {
+		let group = this.groupsByPath.get(identity)
 		if (!group) {
 			group = {
+				identity,
 				path,
 				consumers: new Map(),
 				activeConsumerIds: new Set(),
 				lastResolvedOssSrc: null,
 				lastWarmupAt: null,
 			}
-			this.groupsByPath.set(path, group)
+			this.groupsByPath.set(identity, group)
 		}
 		return group
 	}
@@ -545,7 +562,7 @@ export class VideoPlaybackManager {
 
 	private syncSessionActiveState(session: InternalVideoPlaybackSession, isActive: boolean): void {
 		session.isActive = isActive
-		const group = this.groupsByPath.get(session.path)
+		const group = this.groupsByPath.get(session.resourceIdentity)
 		if (!group) {
 			return
 		}
@@ -620,6 +637,17 @@ export class VideoPlaybackManager {
 		return this.sessionsByConsumer.get(session.consumerId) === session
 	}
 
+	private canPlayback(): boolean {
+		return this.canvas.permissionManager?.can?.("interaction.playback") ?? true
+	}
+
+	private isOwnedByElement(consumerId: string, elementId: string): boolean {
+		return (
+			consumerId === buildInlineVideoPlaybackConsumerId(elementId) ||
+			consumerId === buildFullscreenVideoPlaybackConsumerId(elementId)
+		)
+	}
+
 	private async refreshSessionPlayback(
 		session: InternalVideoPlaybackSession,
 		reason: VideoPlaybackIssueReason,
@@ -667,7 +695,7 @@ export class VideoPlaybackManager {
 
 			session.resolvedOssSrc = ossInfo.ossSrc
 			session.expiresAt = ossInfo.expiresAt
-			const group = this.groupsByPath.get(session.path)
+			const group = this.groupsByPath.get(session.resourceIdentity)
 			if (group) {
 				group.lastResolvedOssSrc = ossInfo.ossSrc
 				group.lastWarmupAt = Date.now()
@@ -686,7 +714,7 @@ export class VideoPlaybackManager {
 			}
 
 			this.applyPlaybackOptions(video, playbackOptions)
-			if (shouldResume) {
+			if (shouldResume && this.canPlayback()) {
 				await video.play().catch(() => undefined)
 			}
 			return true

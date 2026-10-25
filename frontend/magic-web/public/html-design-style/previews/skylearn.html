@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skylearn — Interactive Neural Networks Coding Sandbox &amp; Stepper</title>
+  <style>
+    :root {
+      --sky-primary: #3B82F6;
+      --sky-bright: #60A5FA;
+      --sky-deep: #1D4ED8;
+      --sky-glow: rgba(59, 130, 246, 0.28);
+      --leaf-green: #22C55E;
+      --leaf-soft: rgba(34, 197, 94, 0.15);
+      --sun-yellow: #FBBF24;
+      --sun-soft: rgba(251, 191, 36, 0.15);
+      --canvas-dark: #0B0F19;
+      --surface-1: #111827;
+      --surface-2: #1E293B;
+      --border-dark: #2A3649;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-code: 'JetBrains Mono', Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--canvas-dark); color: var(--text-main);
+      font-family: var(--font-ui); line-height: 1.4; -webkit-font-smoothing: antialiased;
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    .top-nav {
+      height: 48px; background: rgba(17, 24, 39, 0.9); backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-dark); display: flex;
+      align-items: center; justify-content: space-between; padding: 0 16px;
+    }
+    .nav-left, .nav-right { display: flex; align-items: center; gap: 10px; }
+    .brand-logo { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 15px; }
+    .brand-icon {
+      width: 24px; height: 24px; border-radius: 6px;
+      background: linear-gradient(135deg, var(--sky-primary), var(--sky-deep));
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px;
+    }
+    .course-crumb { font-size: 11px; color: var(--text-muted); border-left: 1px solid var(--border-dark); padding-left: 10px; }
+    .streak-pill, .xp-pill {
+      display: flex; align-items: center; gap: 4px; background: var(--surface-2);
+      border: 1px solid var(--border-dark); padding: 2px 8px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700;
+    }
+    .streak-pill { color: var(--sun-yellow); }
+    .xp-pill { color: var(--sky-bright); }
+    .user-avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: linear-gradient(135deg, #A855F7, #EC4899);
+      display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800;
+    }
+    .stepper-bar { background: var(--surface-1); border-bottom: 1px solid var(--border-dark); padding: 6px 16px; }
+    .stepper-wrap { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; gap: 8px; }
+    .step-item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--text-dim); flex: 1; }
+    .step-badge {
+      width: 18px; height: 18px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; font-size: 9px; font-weight: 800;
+      flex-shrink: 0; background: var(--surface-2); border: 1px solid var(--border-dark);
+    }
+    .step-item.completed { color: var(--leaf-green); }
+    .step-item.completed .step-badge { background: var(--leaf-green); color: #000; border-color: var(--leaf-green); }
+    .step-item.active { color: var(--sky-bright); font-weight: 700; }
+    .step-item.active .step-badge { background: var(--sky-primary); color: #fff; border-color: var(--sky-bright); }
+    .step-line { flex: 1; height: 2px; background: var(--border-dark); margin: 0 3px; }
+    .step-line.filled { background: var(--leaf-green); }
+    .step-pill { font-size: 8.5px; background: var(--sky-glow); color: var(--sky-bright); padding: 1px 4px; border-radius: 3px; }
+    .workspace-grid {
+      flex: 1; display: grid; grid-template-columns: 290px 1fr 260px;
+      max-width: 1360px; width: 100%; margin: 0 auto; padding: 10px 14px; gap: 10px;
+    }
+    .lesson-panel, .telemetry-panel {
+      background: var(--surface-1); border: 1px solid var(--border-dark);
+      border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .lesson-kicker { font-size: 9.5px; font-weight: 700; color: var(--sky-bright); text-transform: uppercase; }
+    .diff-tag { font-size: 8.5px; font-weight: 700; padding: 1px 5px; border-radius: 999px; background: var(--sun-soft); color: var(--sun-yellow); }
+    .lesson-title { font-size: 14px; font-weight: 800; color: var(--text-main); }
+    .lesson-intro { font-size: 10.5px; color: var(--text-muted); line-height: 1.35; }
+    .visualizer-box { background: var(--canvas-dark); border: 1px solid var(--border-dark); border-radius: 5px; padding: 6px; }
+    .viz-svg { width: 100%; height: 68px; }
+    .tasks-card { background: var(--surface-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 8px; }
+    .task-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-muted); margin-bottom: 3px; }
+    .task-check {
+      width: 11px; height: 11px; border-radius: 2px; background: var(--leaf-green);
+      color: #000; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 900;
+    }
+    .task-check.pending { background: transparent; border: 1px solid var(--sky-primary); }
+    .hint-alert {
+      background: var(--sky-glow); border: 1px solid rgba(59, 130, 246, 0.35);
+      border-radius: 4px; padding: 5px 6px; font-size: 9.5px; color: #93C5FD;
+      display: flex; gap: 4px; margin-top: auto;
+    }
+    .editor-terminal-col { display: flex; flex-direction: column; gap: 8px; }
+    .editor-box {
+      background: var(--surface-1); border: 1px solid var(--border-dark);
+      border-radius: 8px; overflow: hidden; flex: 1.3; display: flex; flex-direction: column;
+    }
+    .tab-bar {
+      height: 30px; background: #0D1322; border-bottom: 1px solid var(--border-dark);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 8px;
+    }
+    .tab-item {
+      display: flex; align-items: center; gap: 4px; background: var(--surface-1);
+      padding: 3px 10px; border-radius: 4px 4px 0 0; font-family: var(--font-code);
+      font-size: 10.5px; color: var(--text-main); border: 1px solid var(--border-dark); border-bottom: none;
+    }
+    .btn-run {
+      background: var(--leaf-green); color: #064E3B; border: none; padding: 3px 9px;
+      border-radius: 4px; font-size: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 3px;
+    }
+    .code-content {
+      padding: 8px 10px; font-family: var(--font-code); font-size: 10.5px;
+      line-height: 1.45; overflow-x: auto; flex: 1;
+    }
+    .code-line { display: flex; }
+    .line-no { width: 20px; color: var(--text-dim); text-align: right; padding-right: 6px; font-size: 9.5px; user-select: none; }
+    .code-txt { flex: 1; white-space: pre; }
+    .c-kw { color: #F472B6; font-weight: 600; }
+    .c-cls { color: #60A5FA; }
+    .c-fn { color: #34D399; }
+    .c-num { color: #FBBF24; }
+    .c-str { color: #A7F3D0; }
+    .c-comm { color: #64748B; font-style: italic; }
+    .terminal-box {
+      background: #080C14; border: 1px solid var(--border-dark);
+      border-radius: 8px; overflow: hidden; flex: 1; display: flex; flex-direction: column;
+    }
+    .terminal-header {
+      height: 24px; background: #0E1422; border-bottom: 1px solid var(--border-dark);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 8px;
+      font-size: 9px; color: var(--text-muted); font-family: var(--font-code);
+    }
+    .term-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--leaf-green); display: inline-block; margin-right: 4px; }
+    .terminal-body {
+      padding: 6px 8px; font-family: var(--font-code); font-size: 9.5px;
+      line-height: 1.4; color: #D1D5DB; flex: 1;
+    }
+    .term-ok { color: var(--leaf-green); font-weight: 700; }
+    .term-info { color: var(--sky-bright); }
+    .stat-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+    .stat-box { background: var(--surface-2); border: 1px solid var(--border-dark); border-radius: 4px; padding: 4px 6px; }
+    .stat-label { font-size: 8px; color: var(--text-dim); text-transform: uppercase; }
+    .stat-val { font-size: 12px; font-weight: 800; color: var(--text-main); font-family: var(--font-code); }
+    .matrix-box { background: var(--canvas-dark); border: 1px solid var(--border-dark); border-radius: 4px; padding: 6px; }
+    .matrix-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 3px; }
+    .matrix-cell {
+      background: #172554; border: 1px solid rgba(59, 130, 246, 0.3); padding: 2px;
+      border-radius: 2px; text-align: center; font-family: var(--font-code); font-size: 8.5px; color: #93C5FD;
+    }
+    .matrix-cell.hot { background: #701A75; border-color: #C026D3; color: #F5D0FE; }
+    .xp-banner {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(59, 130, 246, 0.15));
+      border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 4px; padding: 5px 7px;
+      display: flex; align-items: center; gap: 6px; margin-top: auto;
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="nav-left">
+      <div class="brand-logo">
+        <div class="brand-icon">⚡</div>
+        <div>Sky<span style="color:var(--sky-bright)">learn</span></div>
+      </div>
+      <div class="course-crumb">Course: <strong>Deep Learning from Scratch</strong></div>
+    </div>
+    <div class="nav-right">
+      <div class="streak-pill"><span>🔥</span><span>14d Streak</span></div>
+      <div class="xp-pill"><span>⚡</span><span>2,450 XP</span></div>
+      <div class="user-avatar">AL</div>
+    </div>
+  </header>
+
+  <div class="stepper-bar">
+    <div class="stepper-wrap">
+      <div class="step-item completed">
+        <span class="step-badge">✓</span>
+        <span>1. Python</span>
+        <div class="step-line filled"></div>
+      </div>
+      <div class="step-item completed">
+        <span class="step-badge">✓</span>
+        <span>2. Tensors</span>
+        <div class="step-line filled"></div>
+      </div>
+      <div class="step-item completed">
+        <span class="step-badge">✓</span>
+        <span>3. Perceptrons</span>
+        <div class="step-line filled"></div>
+      </div>
+      <div class="step-item active">
+        <span class="step-badge">4</span>
+        <span>Chapter 4: Neural Networks</span>
+        <span class="step-pill">78% Done</span>
+        <div class="step-line"></div>
+      </div>
+      <div class="step-item">
+        <span class="step-badge">5</span>
+        <span>5. Backprop</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="workspace-grid">
+    <section class="lesson-panel">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="lesson-kicker">Lesson 4.2 • Forward Pass</span>
+        <span class="diff-tag">Intermediate</span>
+      </div>
+      <h2 class="lesson-title">Dense Layer Forward Propagation</h2>
+      <p class="lesson-intro">Implement linear matrix dot product and non-linear ReLU activation for multi-dimensional neuron tensors.</p>
+
+      <div class="visualizer-box">
+        <div style="font-size:8.5px; font-weight:700; color:var(--text-dim); text-transform:uppercase; margin-bottom:2px; display:flex; justify-content:space-between;">
+          <span>Topology</span><span style="color:var(--sky-bright)">4 In → 3 Hidden</span>
+        </div>
+        <svg class="viz-svg" viewBox="0 0 260 68" fill="none">
+          <g stroke="#334155" stroke-width="1">
+            <line x1="25" y1="10" x2="130" y2="16" stroke="#3B82F6" stroke-width="1.2" />
+            <line x1="25" y1="10" x2="130" y2="34" />
+            <line x1="25" y1="26" x2="130" y2="16" />
+            <line x1="25" y1="26" x2="130" y2="34" stroke="#3B82F6" stroke-width="1.2" />
+            <line x1="25" y1="42" x2="130" y2="34" />
+            <line x1="25" y1="42" x2="130" y2="52" stroke="#A855F7" stroke-width="1.2" />
+            <line x1="25" y1="58" x2="130" y2="52" stroke="#22C55E" stroke-width="1.2" />
+            <line x1="130" y1="16" x2="235" y2="34" stroke="#22C55E" stroke-width="1.4" />
+            <line x1="130" y1="34" x2="235" y2="34" stroke="#22C55E" stroke-width="1.4" />
+            <line x1="130" y1="52" x2="235" y2="34" stroke="#22C55E" stroke-width="1.4" />
+          </g>
+          <circle cx="25" cy="10" r="5" fill="#1E293B" stroke="#60A5FA" stroke-width="1.2" />
+          <circle cx="25" cy="26" r="5" fill="#1E293B" stroke="#60A5FA" stroke-width="1.2" />
+          <circle cx="25" cy="42" r="5" fill="#1E293B" stroke="#60A5FA" stroke-width="1.2" />
+          <circle cx="25" cy="58" r="5" fill="#1E293B" stroke="#60A5FA" stroke-width="1.2" />
+          <circle cx="130" cy="16" r="8" fill="#1E3A8A" stroke="#3B82F6" stroke-width="1.4" />
+          <text x="130" y="19" font-size="7.5" font-weight="700" fill="#93C5FD" text-anchor="middle">h₁</text>
+          <circle cx="130" cy="34" r="8" fill="#1E3A8A" stroke="#3B82F6" stroke-width="1.4" />
+          <text x="130" y="37" font-size="7.5" font-weight="700" fill="#93C5FD" text-anchor="middle">h₂</text>
+          <circle cx="130" cy="52" r="8" fill="#1E3A8A" stroke="#3B82F6" stroke-width="1.4" />
+          <text x="130" y="55" font-size="7.5" font-weight="700" fill="#93C5FD" text-anchor="middle">h₃</text>
+          <circle cx="235" cy="34" r="9" fill="#064E3B" stroke="#22C55E" stroke-width="1.8" />
+          <text x="235" y="37" font-size="8" font-weight="800" fill="#A7F3D0" text-anchor="middle">ŷ</text>
+        </svg>
+      </div>
+
+      <div class="tasks-card">
+        <div style="font-size:9.5px; font-weight:700; color:var(--text-main); margin-bottom:4px;">Checklist</div>
+        <div class="task-item"><span class="task-check">✓</span><span>Instantiate DenseLayer(4, 3)</span></div>
+        <div class="task-item"><span class="task-check">✓</span><span>Matrix multiply: W · x + b</span></div>
+        <div class="task-item"><span class="task-check pending"></span><span>Apply ReLU: np.maximum(0, z)</span></div>
+      </div>
+
+      <div class="hint-alert">
+        <span>💡</span><span>ReLU zeroes out negative values while keeping positive activations.</span>
+      </div>
+    </section>
+
+    <section class="editor-terminal-col">
+      <div class="editor-box">
+        <div class="tab-bar">
+          <div class="tab-item"><span style="color:var(--sun-yellow)">py</span><span>neural_sandbox.py</span></div>
+          <button class="btn-run">▶ Run Code</button>
+        </div>
+        <div class="code-content">
+          <div class="code-line"><span class="line-no">1</span><span class="code-txt"><span class="c-kw">import</span> numpy <span class="c-kw">as</span> np</span></div>
+          <div class="code-line"><span class="line-no">2</span><span class="code-txt"></span></div>
+          <div class="code-line"><span class="line-no">3</span><span class="code-txt"><span class="c-kw">class</span> <span class="c-cls">DenseLayer</span>:</span></div>
+          <div class="code-line"><span class="line-no">4</span><span class="code-txt">    <span class="c-kw">def</span> <span class="c-fn">__init__</span>(self, n_inputs, n_neurons):</span></div>
+          <div class="code-line"><span class="line-no">5</span><span class="code-txt">        self.weights = <span class="c-num">0.01</span> * np.random.randn(n_inputs, n_neurons)</span></div>
+          <div class="code-line"><span class="line-no">6</span><span class="code-txt">        self.biases = np.zeros((<span class="c-num">1</span>, n_neurons))</span></div>
+          <div class="code-line"><span class="line-no">7</span><span class="code-txt"></span></div>
+          <div class="code-line"><span class="line-no">8</span><span class="code-txt">    <span class="c-kw">def</span> <span class="c-fn">forward</span>(self, inputs):</span></div>
+          <div class="code-line"><span class="line-no">9</span><span class="code-txt">        linear_sum = np.dot(inputs, self.weights) + self.biases</span></div>
+          <div class="code-line"><span class="line-no">10</span><span class="code-txt">        self.output = np.maximum(<span class="c-num">0</span>, linear_sum)</span></div>
+          <div class="code-line"><span class="line-no">11</span><span class="code-txt">        <span class="c-kw">return</span> self.output</span></div>
+          <div class="code-line"><span class="line-no">12</span><span class="code-txt"></span></div>
+          <div class="code-line"><span class="line-no">13</span><span class="code-txt">layer = <span class="c-cls">DenseLayer</span>(<span class="c-num">4</span>, <span class="c-num">3</span>)</span></div>
+          <div class="code-line"><span class="line-no">14</span><span class="code-txt">res = layer.forward([[<span class="c-num">0.5</span>, <span class="c-num">1.2</span>, -<span class="c-num">0.4</span>, <span class="c-num">2.1</span>]])</span></div>
+          <div class="code-line"><span class="line-no">15</span><span class="code-txt"><span class="c-fn">print</span>(<span class="c-str">"Activation Matrix:"</span>, np.round(res, <span class="c-num">4</span>))</span></div>
+        </div>
+      </div>
+
+      <div class="terminal-box">
+        <div class="terminal-header">
+          <div><span class="term-dot"></span><span>Python 3.11.4 Sandbox Terminal</span></div>
+          <span>21ms execution</span>
+        </div>
+        <div class="terminal-body">
+          <div><span class="term-info">&gt; python3 neural_sandbox.py</span></div>
+          <div>[INFO] Initializing DenseLayer(inputs=4, neurons=3)...</div>
+          <div>[TRAIN] Epoch 5/5 - Loss: 0.0418 | Accuracy: 98.7%</div>
+          <div>Activation Matrix: [[0.0000, 0.4812, 1.0924]]</div>
+          <div class="term-ok">✓ [PASSED] Test Cases Validated successfully!</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="telemetry-panel">
+      <div style="font-size:10px; font-weight:700; display:flex; justify-content:space-between;">
+        <span>METRICS</span><span style="color:var(--leaf-green)">● LIVE</span>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-label">Accuracy</div><div class="stat-val" style="color:var(--leaf-green)">98.7%</div></div>
+        <div class="stat-box"><div class="stat-label">Loss</div><div class="stat-val" style="color:var(--sky-bright)">0.0418</div></div>
+        <div class="stat-box"><div class="stat-label">Latency</div><div class="stat-val">1.4ms</div></div>
+        <div class="stat-box"><div class="stat-label">Params</div><div class="stat-val">15</div></div>
+      </div>
+
+      <div class="matrix-box">
+        <div style="font-size:9.5px; font-weight:700; color:var(--text-muted);">Weights Matrix (4x3)</div>
+        <div class="matrix-grid">
+          <div class="matrix-cell">+0.14</div><div class="matrix-cell hot">+0.89</div><div class="matrix-cell">-0.05</div>
+          <div class="matrix-cell hot">+0.71</div><div class="matrix-cell">+0.22</div><div class="matrix-cell">+0.38</div>
+          <div class="matrix-cell">-0.41</div><div class="matrix-cell">+0.09</div><div class="matrix-cell hot">+0.64</div>
+          <div class="matrix-cell">+0.50</div><div class="matrix-cell hot">+0.81</div><div class="matrix-cell">-0.12</div>
+        </div>
+      </div>
+
+      <div class="xp-banner">
+        <span style="font-size:16px;">⭐</span>
+        <div>
+          <div style="font-size:10px; font-weight:800; color:var(--sun-yellow)">+50 XP Earned!</div>
+          <div style="font-size:9px; color:var(--text-muted)">Tensor Constructor badge unlocked</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

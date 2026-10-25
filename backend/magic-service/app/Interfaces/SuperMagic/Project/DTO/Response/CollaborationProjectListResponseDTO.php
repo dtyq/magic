@@ -40,11 +40,11 @@ class CollaborationProjectListResponseDTO
             $projectIdMapEntities[$project->getId()] = $project;
         }
 
-        $list = array_map(function ($collaborationProject) use ($creatorInfoMap, $collaboratorsInfoMap, $workspaceNameMap, $projectIdMapEntities, $userRolesMap, $topicCountMap) {
+        $list = array_values(array_filter(array_map(function ($collaborationProject) use ($creatorInfoMap, $collaboratorsInfoMap, $workspaceNameMap, $projectIdMapEntities, $userRolesMap, $topicCountMap) {
             $projectId = $collaborationProject['project_id'];
             $projectEntity = $projectIdMapEntities[$projectId] ?? null;
             if (! $projectEntity) {
-                return [];
+                return null;
             }
 
             $workspaceName = $workspaceNameMap[$projectEntity->getWorkspaceId()] ?? null;
@@ -71,7 +71,7 @@ class CollaborationProjectListResponseDTO
                 $userRole,
                 $topicCount
             )->toArray();
-        }, $collaborationProjects);
+        }, $collaborationProjects), static fn ($item) => $item !== null));
 
         return new self(
             list: $list,

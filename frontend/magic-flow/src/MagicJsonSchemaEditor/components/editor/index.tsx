@@ -6,7 +6,7 @@ import { IconFileExport, IconPlus, IconSelect } from "@tabler/icons-react"
 import { useMemoizedFn } from "ahooks"
 import { Button, Checkbox, Col, Flex, Input, Modal, Row, Tabs, Tooltip, message } from "antd"
 import i18next from "i18next"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import { observer } from "mobx-react"
 import { ReactElement, createContext, useContext, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -356,7 +356,7 @@ const Editor = observer(
 		})
 
 		const handleCopy = useMemoizedFn(() => {
-			const cloneSchema = _.cloneDeep(exportFields.schema)
+			const cloneSchema = cloneDeep(exportFields.schema)
 			unFocusSchemaValue(cloneSchema)
 			console.log("schema", JSON.parse(JSON.stringify(cloneSchema)))
 			copyToClipboard(JSON.stringify(cloneSchema))

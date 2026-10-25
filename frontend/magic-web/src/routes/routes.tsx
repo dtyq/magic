@@ -1,5 +1,6 @@
 import type { RouteObject } from "react-router"
 import { lazy } from "react"
+import { createRouteObjects, RuntimeMode } from "@dtyq/magic-admin-v2"
 import { RoutePath, RoutePathMobile } from "@/constants/routes"
 import magicAdminRoutes from "@/routes/modules/admin/routes"
 import magiClawRoutes from "@/routes/modules/magi-claw/routes"
@@ -11,10 +12,12 @@ import {
 	withFlowNamespaces,
 } from "@/routes/helpers"
 import { superMagicCrewRoutes } from "@/routes/modules/superMagicCrewRoutes"
+import { superMagicPersonaResearchRoutes } from "@/routes/modules/superMagicPersonaResearchRoutes"
 import {
 	microAppPublicRoutes,
 	superMagicMicroAppRoutes,
 } from "@/routes/modules/superMagicMicroAppRoutes"
+import { superMagicAiCanvasRoutes } from "@/routes/modules/superMagicAiCanvasRoutes"
 import { superMagicSlidesTemplateRoutes } from "@/routes/modules/superMagicSlidesTemplateRoutes"
 import ProjectOrganizationAccessGuard from "@/pages/superMagic/components/ProjectOrganizationAccessGuard"
 
@@ -161,6 +164,7 @@ const BaseLayout = lazy(() => import("@/layouts/BaseLayout"))
 /** 平台布局（用于分发不同平台入口） */
 const MagicPlatformLayout = lazy(() => import("@/layouts/PlatformLayout/MagicPlatformLayout"))
 const AdminPlatformLayout = lazy(() => import("@/layouts/PlatformLayout/AdminPlatformLayout"))
+const MagicAdminEmbeddedLayout = lazy(() => import("@/pages/magicAdminV2"))
 
 interface RouteConfig {
 	isPersonalOrganization?: boolean
@@ -477,6 +481,13 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 						element: <WorkspacePage />,
 					},
 					...superMagicMicroAppRoutes,
+					...superMagicAiCanvasRoutes,
+					...superMagicPersonaResearchRoutes,
+					{
+						name: RouteName.SuperChatHome,
+						path: `/:clusterCode${RoutePath.SuperChatHome}`,
+						element: <WorkspacePage />,
+					},
 					{
 						name: RouteName.SuperChatProjectState,
 						path: `/:clusterCode${RoutePath.SuperChatProjectState}`,
@@ -607,6 +618,16 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 			path: "/admin",
 			element: <AdminPlatformLayout />,
 			children: magicAdminRoutes,
+		},
+		{
+			path: "/admin-v2",
+			element: <AdminPlatformLayout />,
+			children: [
+				{
+					element: <MagicAdminEmbeddedLayout />,
+					children: createRouteObjects(RuntimeMode.Embedded),
+				},
+			],
 		},
 		{
 			name: RouteName.MagicPlatform,

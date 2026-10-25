@@ -31,6 +31,7 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\CreateShareRequestDTO;
 use App\Interfaces\SuperMagic\Common\Support\Facade\AbstractApi;
+use App\Interfaces\SuperMagic\Task\Assembler\OpenTaskMessageAssembler;
 use App\Interfaces\SuperMagic\Task\DTO\Request\CreateAgentTaskRequestDTO;
 use App\Interfaces\SuperMagic\Task\DTO\Request\CreateOpenTaskRequestDTO;
 use App\Interfaces\SuperMagic\Task\DTO\Request\CreateScriptTaskRequestDTO;
@@ -55,6 +56,7 @@ class OpenTaskApi extends AbstractApi
         protected HandleTaskMessageAppService $handleTaskMessageAppService,
         protected AgentAppService $agentAppService,
         protected ResourceShareAppService $shareAppService,
+        private readonly OpenTaskMessageAssembler $openTaskMessageAssembler,
     ) {
         parent::__construct($request);
     }
@@ -271,7 +273,8 @@ class OpenTaskApi extends AbstractApi
 
         $requestDTO = CreateOpenTaskRequestDTO::fromRequest($this->request);
 
-        return $this->topicTaskAppService->createTaskFromOpenApi($requestContext, $requestDTO);
+        $messageDTO = $this->openTaskMessageAssembler->prepare($userAuthorization, $requestDTO);
+        return $this->topicTaskAppService->createTaskFromOpenApi($requestContext, $requestDTO, $messageDTO);
     }
 
     /**

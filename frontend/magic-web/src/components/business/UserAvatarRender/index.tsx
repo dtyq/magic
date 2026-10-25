@@ -4,7 +4,7 @@ import DEFAULT_USER_ICON from "@/assets/logos/user-avatar.svg"
 import { User } from "@/types/user"
 import { getAvatarUrl } from "@/utils/avatar"
 import { useMemo, type CSSProperties } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import AvatarService from "@/services/chat/avatar"
 
 interface UserAvatarRenderProps {

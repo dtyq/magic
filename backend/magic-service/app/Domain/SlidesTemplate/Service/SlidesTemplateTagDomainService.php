@@ -19,14 +19,26 @@ use App\ErrorCode\SlidesTemplateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Database\Exception\QueryException;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
+use Psr\SimpleCache\CacheInterface;
 use Throwable;
 
 class SlidesTemplateTagDomainService
 {
+    private const VISIBLE_GROUPS_CACHE_PREFIX = 'slides_template:visible_tag_groups:v1:';
+
+    private const VISIBLE_GROUPS_CACHE_TTL = 60;
+
+    private LoggerInterface $logger;
+
     public function __construct(
         private readonly SlidesTemplateTagRepositoryInterface $slidesTemplateTagRepository,
         private readonly SlidesTemplateTagRelationRepositoryInterface $slidesTemplateTagRelationRepository,
+        LoggerFactory $loggerFactory,
+        private readonly CacheInterface $cache,
     ) {
+        $this->logger = $loggerFactory->get('slides-template');
     }
 
     public function findByIdOrFail(SlidesTemplateDataIsolation $dataIsolation, int|string $id): SlidesTemplateTagEntity
@@ -52,6 +64,25 @@ class SlidesTemplateTagDomainService
     public function queriesVisibleGroupsWithTagsByCategory(SlidesTemplateDataIsolation $dataIsolation, ?string $categoryCode): array
     {
         return $this->slidesTemplateTagRepository->queriesVisibleGroupsWithTagsByCategory($dataIsolation, $categoryCode);
+    }
+
+    /**
+     * @return SlidesTemplateTagEntity[]
+     */
+    public function queriesCachedVisibleGroupsWithTagsByCategory(SlidesTemplateDataIsolation $dataIsolation, ?string $categoryCode): array
+    {
+        $cacheKey = $this->getVisibleGroupsCacheKey($dataIsolation, $categoryCode);
+        $cachedGroups = $this->cache->get($cacheKey);
+        if (is_array($cachedGroups) && $this->isValidCachedGroups($cachedGroups)) {
+            return $cachedGroups;
+        }
+
+        $groups = $this->queriesVisibleGroupsWithTagsByCategory($dataIsolation, $categoryCode);
+        if ($groups !== []) {
+            $this->cache->set($cacheKey, $groups, self::VISIBLE_GROUPS_CACHE_TTL);
+        }
+
+        return $groups;
     }
 
     /**
@@ -125,7 +156,7 @@ class SlidesTemplateTagDomainService
      * @param string[] $codes
      * @return SlidesTemplateTagEntity[]
      */
-    public function findEnabledByCodesOrFail(SlidesTemplateDataIsolation $dataIsolation, array $codes): array
+    public function findEnabledByCodes(SlidesTemplateDataIsolation $dataIsolation, array $codes): array
     {
         $codes = $this->normalizeCodes($codes);
         if ($codes === []) {
@@ -134,7 +165,17 @@ class SlidesTemplateTagDomainService
 
         $tags = $this->slidesTemplateTagRepository->findByCodes($dataIsolation, $codes, SlidesTemplateTagStatus::Enabled->value);
         if (count($tags) !== count($codes)) {
-            ExceptionBuilder::throw(SlidesTemplateErrorCode::TAG_NOT_FOUND);
+            $foundCodes = array_map(
+                static fn (SlidesTemplateTagEntity $tag): string => $tag->getCode(),
+                $tags
+            );
+            $this->logger->warning('Slides template unavailable tags ignored', [
+                'requested_codes' => $codes,
+                'found_codes' => $foundCodes,
+                'missing_codes' => array_values(array_diff($codes, $foundCodes)),
+                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                'official_organization_codes' => $dataIsolation->getOfficialOrganizationCodes(),
+            ]);
         }
 
         return $tags;
@@ -145,7 +186,7 @@ class SlidesTemplateTagDomainService
      */
     public function syncTemplateTagsByCodes(SlidesTemplateDataIsolation $dataIsolation, int $templateId, array $tagCodes, string $createdUid): void
     {
-        $tags = $this->findEnabledByCodesOrFail($dataIsolation, $tagCodes);
+        $tags = $this->findEnabledByCodes($dataIsolation, $tagCodes);
         foreach ($tags as $tag) {
             if (! $tag->isTag()) {
                 ExceptionBuilder::throw(SlidesTemplateErrorCode::TAG_GROUP_CANNOT_BIND);
@@ -162,9 +203,14 @@ class SlidesTemplateTagDomainService
 
     /**
      * @param SlidesTemplateEntity[] $templates
+     * @param string[] $tagCodes
      */
-    public function fillTemplateTags(SlidesTemplateDataIsolation $dataIsolation, array $templates, ?SlidesTemplateTagStatus $tagStatus = null): void
-    {
+    public function fillTemplateTags(
+        SlidesTemplateDataIsolation $dataIsolation,
+        array $templates,
+        ?SlidesTemplateTagStatus $tagStatus = null,
+        array $tagCodes = [],
+    ): void {
         $templateIds = [];
         foreach ($templates as $template) {
             $id = $template->getId();
@@ -176,12 +222,43 @@ class SlidesTemplateTagDomainService
         $tagMap = $this->slidesTemplateTagRelationRepository->findTagsByTemplateIds(
             $dataIsolation,
             $templateIds,
-            $tagStatus?->value
+            $tagStatus?->value,
+            $tagCodes,
         );
 
         foreach ($templates as $template) {
             $template->setTags($tagMap[(int) $template->getId()] ?? []);
         }
+    }
+
+    private function getVisibleGroupsCacheKey(SlidesTemplateDataIsolation $dataIsolation, ?string $categoryCode): string
+    {
+        $organizationCodes = array_values(array_unique(array_filter($dataIsolation->getOrganizationCodes())));
+        sort($organizationCodes);
+
+        $officialOrganizationCodes = array_values(array_unique(array_filter($dataIsolation->getOfficialOrganizationCodes())));
+        sort($officialOrganizationCodes);
+
+        $payload = json_encode([
+            'organization_codes' => $organizationCodes,
+            'official_organization_codes' => $officialOrganizationCodes,
+            'isolation_enabled' => $dataIsolation->isEnable(),
+            'only_official_organization' => $dataIsolation->isOnlyOfficialOrganization(),
+            'category_code' => $categoryCode ?? '',
+        ], JSON_THROW_ON_ERROR);
+
+        return self::VISIBLE_GROUPS_CACHE_PREFIX . hash('sha256', $payload);
+    }
+
+    private function isValidCachedGroups(array $cachedGroups): bool
+    {
+        foreach ($cachedGroups as $group) {
+            if (! $group instanceof SlidesTemplateTagEntity) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function prepareRestoreDeletedTag(SlidesTemplateDataIsolation $dataIsolation, SlidesTemplateTagEntity $entity): void

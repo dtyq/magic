@@ -4,34 +4,15 @@ import { userStore } from "@/models/user"
 import { service } from "@/services"
 import type { LoginService } from "@/services/user/LoginService"
 import { useMount, useDebounceFn } from "ahooks"
-import { createStyles } from "antd-style"
 import MagicSpin from "@/components/base/MagicSpin"
 import { useClusterCode } from "@/providers/ClusterProvider"
 import { useTranslation } from "react-i18next"
 
-const useStyles = createStyles(({ css, prefixCls }) => {
-	return {
-		spin: css`
-			.${prefixCls}-spin-blur {
-				opacity: 1;
-			}
-
-			& > div > .${prefixCls}-spin {
-				--${prefixCls}-spin-content-height: unset;
-				max-height: unset;
-			}
-		`,
-	}
-})
-
 /**
- * @description 集群配置同步
- * @constructor
+ * Synchronizes cluster configuration before rendering its children.
  */
 export function ClusterConfigSyncProvider(props: PropsWithChildren) {
 	const { children } = props
-
-	const { styles } = useStyles()
 
 	const [loading, setLoading] = useState(true)
 
@@ -39,8 +20,8 @@ export function ClusterConfigSyncProvider(props: PropsWithChildren) {
 	const { setClusterCode } = useClusterCode()
 
 	/**
-	 * @description 同步环境配置
-	 * @param {string|null} authorization 用户token
+	 * Synchronizes environment configuration for an authenticated user.
+	 * @param access_token The user's authorization token.
 	 */
 	const { run: onUserLoginChange } = useDebounceFn(
 		async (access_token: string | null) => {
@@ -55,13 +36,13 @@ export function ClusterConfigSyncProvider(props: PropsWithChildren) {
 				console.error(error)
 			} finally {
 				setLoading(false)
-				// 这里的重定向要移除
+				// Keep redirects out of configuration synchronization.
 			}
 		},
 		{ wait: 3000, leading: true, trailing: false },
 	)
 
-	// 登录成功时同步所有状态（用户信息、组织信息、环境配置、授权码等）
+	// Synchronize user, organization, environment, and authorization state after login.
 	useMount(() => {
 		const { authorization } = userStore.user
 		if (authorization) {
@@ -72,8 +53,8 @@ export function ClusterConfigSyncProvider(props: PropsWithChildren) {
 	})
 
 	return loading ? (
-		<MagicSpin spinning wrapperClassName={styles.spin} tip={t("spin.loadingCluster")}>
-			<div style={{ height: "100vh" }} />
+		<MagicSpin spinning tip={t("spin.loadingCluster")}>
+			<div className="h-screen" />
 		</MagicSpin>
 	) : (
 		children

@@ -1,11 +1,12 @@
 import { observer } from "mobx-react-lite"
-import { useMemo, useRef, useEffect } from "react"
+import { useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { Input } from "@/components/shadcn-ui/input"
 import { Label } from "@/components/shadcn-ui/label"
 import { FileText } from "lucide-react"
-import { SimpleEditor, SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor"
+import { LazySimpleEditor } from "@/components/tiptap-templates/simple/lazy-simple-editor"
+import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/types"
 import { StepNavigation } from "../../../components"
 import type { CustomContentStore } from "../../../store"
 
@@ -30,15 +31,12 @@ export const TextInputStep = observer(function TextInputStep({
 	const simpleEditorRef = useRef<SimpleEditorRef>(null)
 
 	/**
-	 * 初始化编辑器内容
+	 * LazySimpleEditor reports readiness after its imperative handle exists;
+	 * initialize persisted content there instead of racing the dynamic import.
 	 */
-	useEffect(() => {
-		if (simpleEditorRef.current && store.documentContent) {
-			simpleEditorRef.current.setContent(store.documentContent)
-		}
-		// 只在组件挂载时执行一次
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [])
+	const handleEditorReady = useMemoizedFn((editor: SimpleEditorRef) => {
+		if (store.documentContent) editor.setContent(store.documentContent)
+	})
 
 	/**
 	 * 处理文档名称变更
@@ -64,7 +62,11 @@ export const TextInputStep = observer(function TextInputStep({
 	}
 
 	return (
-		<div className="flex h-full flex-col" onKeyDown={handleKeyDown} data-testid="handle-key-down">
+		<div
+			className="flex h-full flex-col"
+			onKeyDown={handleKeyDown}
+			data-testid="handle-key-down"
+		>
 			{/* 固定区域：标题和文档名称输入 */}
 			<div className="shrink-0 space-y-4 px-8 pb-4 pt-0">
 				{/* 文档名称输入 */}
@@ -99,8 +101,9 @@ export const TextInputStep = observer(function TextInputStep({
 					{/* 富文本编辑器 */}
 					<div className="rounded-lg border border-border text-base">
 						<div className="document-create-editor-wrapper rounded-lg">
-							<SimpleEditor
+							<LazySimpleEditor
 								ref={simpleEditorRef}
+								onReady={handleEditorReady}
 								content=""
 								onUpdate={({ editor: _editor }) => {
 									const markdown =

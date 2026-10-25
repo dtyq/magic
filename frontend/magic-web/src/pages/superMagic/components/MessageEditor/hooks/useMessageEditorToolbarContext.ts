@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import type { RefObject } from "react"
-import type { Editor, JSONContent } from "@tiptap/react"
+import type { Editor, JSONContent } from "@/infrastructure/editors/tiptap/react"
 import type { VoiceInputRef } from "@/components/business/VoiceInput"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import type { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
@@ -31,9 +31,11 @@ interface UseMessageEditorToolbarContextParams {
 	isEditingQueueItem: boolean
 	isUploadingFiles: boolean
 	voiceInputEnabled: boolean
+	commandMenu?: ButtonRendererContext["commandMenu"]
 	selectedTopic?: Topic | null
 	selectedProject?: ProjectListItem | null
 	topicMode?: TopicMode
+	agentCode?: string | null
 	mentionPanelStore: MentionPanelStore
 	mcpButtonConfig: ButtonRendererContext["mcpButtonConfig"]
 	handleSelectMentionItem: (item: TiptapMentionAttributes) => Promise<void>
@@ -68,9 +70,11 @@ function useMessageEditorToolbarContext({
 	isEditingQueueItem,
 	isUploadingFiles,
 	voiceInputEnabled,
+	commandMenu,
 	selectedTopic,
 	selectedProject,
 	topicMode,
+	agentCode,
 	mentionPanelStore,
 	mcpButtonConfig,
 	handleSelectMentionItem,
@@ -103,11 +107,13 @@ function useMessageEditorToolbarContext({
 			isTaskRunning,
 			isUploadingFiles,
 			voiceInputEnabled,
+			commandMenu,
 			stopEventLoading,
 			isEditingQueueItem,
 			selectedTopic,
 			selectedProject,
 			topicMode,
+			agentCode,
 			mentionPanelStore,
 			mcpButtonConfig,
 			handleSelectMentionItem,
@@ -139,11 +145,13 @@ function useMessageEditorToolbarContext({
 			isTaskRunning,
 			isUploadingFiles,
 			voiceInputEnabled,
+			commandMenu,
 			stopEventLoading,
 			isEditingQueueItem,
 			selectedTopic,
 			selectedProject,
 			topicMode,
+			agentCode,
 			mentionPanelStore,
 			mcpButtonConfig,
 			handleSelectMentionItem,

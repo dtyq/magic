@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { describe, expect, it, vi } from "vitest"
 import SelfMediaComposerConfigPanel from "../SelfMediaComposerConfigPanel"
 
@@ -68,8 +68,7 @@ function getLastPresetSuffixText() {
 
 function getLastPresetSuffixContent() {
 	return storeMock.setPresetSuffixContentForSource.mock.calls.at(-1)?.[1] as
-		| JSONContent
-		| undefined
+		JSONContent | undefined
 }
 
 function getAllPresetSuffixTexts() {
@@ -110,9 +109,7 @@ describe("SelfMediaComposerConfigPanel", () => {
 		renderPanel()
 
 		expect(getLastPresetSuffixContent()).toBeUndefined()
-		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent(
-			"模板配置",
-		)
+		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent("模板配置")
 		expect(screen.getByText("模板配置")).toHaveClass("text-muted-foreground")
 		expect(screen.getByTestId("self-media-composer-config-panel")).not.toHaveTextContent(
 			"自媒体配置",
@@ -167,9 +164,7 @@ describe("SelfMediaComposerConfigPanel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "clear-self-media-composer-config" }))
 
 		expect(getLastPresetSuffixContent()).toBeUndefined()
-		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent(
-			"模板配置",
-		)
+		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent("模板配置")
 	})
 
 	it("toggles a selected option off when the user clicks it again", () => {
@@ -181,9 +176,7 @@ describe("SelfMediaComposerConfigPanel", () => {
 		expect(getLastPresetSuffixText()).toBe("平台: rednote.")
 		fireEvent.click(platformButton)
 		expect(getLastPresetSuffixContent()).toBeUndefined()
-		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent(
-			"模板配置",
-		)
+		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent("模板配置")
 
 		const presetButton = screen.getByRole("button", {
 			name: /select-visual-preset-personal-insight/,
@@ -199,9 +192,7 @@ describe("SelfMediaComposerConfigPanel", () => {
 		expect(getLastPresetSuffixText()).toBe("卡片数量: 6.")
 		fireEvent.click(cardCountButton)
 		expect(getLastPresetSuffixContent()).toBeUndefined()
-		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent(
-			"模板配置",
-		)
+		expect(screen.getByTestId("self-media-composer-config-panel")).toHaveTextContent("模板配置")
 	})
 
 	it("clears the config after send", async () => {

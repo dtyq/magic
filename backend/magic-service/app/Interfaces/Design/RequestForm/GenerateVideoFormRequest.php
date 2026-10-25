@@ -8,7 +8,10 @@ declare(strict_types=1);
 namespace App\Interfaces\Design\RequestForm;
 
 use App\Domain\Design\Entity\Dto\DesignVideoCreateDTO;
+use App\Domain\Design\Entity\ValueObject\DesignGenerationType;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use Hyperf\Validation\Request\FormRequest;
+use Hyperf\Validation\Rule;
 
 class GenerateVideoFormRequest extends FormRequest
 {
@@ -58,13 +61,23 @@ class GenerateVideoFormRequest extends FormRequest
         return [
             'project_id' => 'required|integer|min:' . self::MAX_PROJECT_ID,
             'video_id' => 'required|string|max:' . self::MAX_VIDEO_ID_LENGTH,
-            'model_id' => 'required|string|max:' . self::MAX_MODEL_ID_LENGTH,
+            'generation_type' => 'nullable|string|in:' . implode(',', array_map(
+                static fn (DesignGenerationType $type): string => $type->value,
+                DesignGenerationType::cases()
+            )),
+            'model_id' => 'required_unless:generation_type,' . DesignGenerationType::CANVAS_COMPOSITION->value . '|string|max:' . self::MAX_MODEL_ID_LENGTH,
             'topic_id' => 'nullable|string|max:' . self::MAX_CONTEXT_ID_LENGTH,
             'task_id' => 'nullable|string|max:' . self::MAX_CONTEXT_ID_LENGTH,
             'task' => 'nullable|string|in:' . $taskValues . '|max:' . self::MAX_SHORT_TEXT_LENGTH,
             'input_mode' => 'nullable|string|in:' . $inputModes . '|max:' . self::MAX_OPTION_TEXT_LENGTH,
-            'prompt' => 'required|string|max:' . self::MAX_PROMPT_LENGTH,
-            'file_dir' => 'required|string|max:' . self::MAX_FILE_DIR_LENGTH,
+            // 画布合成与样片成片都不需要提示词：前者由合成参数驱动，后者从样片任务继承。
+            'prompt' => [
+                'string',
+                'max:' . self::MAX_PROMPT_LENGTH,
+                Rule::requiredIf(fn (): bool => $this->input('generation_type') !== DesignGenerationType::CANVAS_COMPOSITION->value
+                    && $this->input('input_mode') !== VideoInputMode::DraftTask->value),
+            ],
+            'file_dir' => 'required_unless:generation_type,' . DesignGenerationType::CANVAS_COMPOSITION->value . '|string|max:' . self::MAX_FILE_DIR_LENGTH,
             'file_name' => 'nullable|string|max:' . self::MAX_FILE_NAME_LENGTH,
             'inputs' => 'nullable|array',
             'inputs.frames' => 'nullable|array|max:' . self::MAX_FRAME_COUNT,
@@ -89,6 +102,17 @@ class GenerateVideoFormRequest extends FormRequest
             'inputs.reference_audios.*.uri' => 'required|string|max:' . self::MAX_URI_LENGTH,
             'inputs.mask' => 'nullable|array',
             'inputs.mask.uri' => 'required_with:inputs.mask|string|max:' . self::MAX_URI_LENGTH,
+            // 样片成片引用：uri 为工作区相对路径，video_id 为样片业务 ID，二者必须其一（在 DTO 里校验）。
+            'inputs.draft_task' => 'nullable|array',
+            'inputs.draft_task.uri' => 'nullable|string|max:' . self::MAX_URI_LENGTH,
+            'inputs.draft_task.video_id' => 'nullable|string|max:' . self::MAX_VIDEO_ID_LENGTH,
+            'composition' => 'nullable|array',
+            'composition.videos' => 'nullable|array|max:' . self::MAX_VIDEO_COUNT,
+            'composition.videos.*' => 'required|array',
+            'composition.videos.*.path' => 'required|string|max:' . self::MAX_URI_LENGTH,
+            'composition.audios' => 'nullable|array|max:1',
+            'composition.audios.*' => 'required|array',
+            'composition.audios.*.path' => 'required|string|max:' . self::MAX_URI_LENGTH,
             'generation' => 'nullable|array',
             'generation.size' => 'nullable|string|max:' . self::MAX_OPTION_TEXT_LENGTH,
             'generation.mode' => 'nullable|string|max:' . self::MAX_SHORT_TEXT_LENGTH,
@@ -101,6 +125,8 @@ class GenerateVideoFormRequest extends FormRequest
             'generation.watermark' => 'nullable|boolean',
             'generation.negative_prompt' => 'nullable|string|max:' . self::MAX_PROMPT_LENGTH,
             'generation.generate_audio' => 'nullable|boolean',
+            'generation.web_search' => 'nullable|boolean',
+            'generation.draft' => 'nullable|boolean',
             'generation.person_generation' => 'nullable|string|max:' . self::MAX_OPTION_TEXT_LENGTH,
             'generation.enhance_prompt' => 'nullable|boolean',
             'generation.compression_quality' => 'nullable|string|max:' . self::MAX_OPTION_TEXT_LENGTH,
@@ -113,6 +139,10 @@ class GenerateVideoFormRequest extends FormRequest
             'execution.service_tier' => 'nullable|string|in:' . $serviceTiers . '|max:' . self::MAX_SHORT_TEXT_LENGTH,
             'execution.expires_after_seconds' => 'nullable|integer|min:1',
             'extensions' => 'nullable|array',
+            'extensions.capability' => 'nullable|string|max:' . self::MAX_SHORT_TEXT_LENGTH,
+            'extensions.project_path' => 'nullable|string|max:1000',
+            'extensions.video_edit_element_id' => 'nullable|string|max:128',
+            'extensions.output_file_name' => 'nullable|string|max:255',
         ];
     }
 }

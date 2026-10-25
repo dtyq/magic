@@ -40,7 +40,7 @@ const MultiLangSetting = memo(
 		style,
 		type,
 		required,
-		supportLangs = [LangType.en_US, LangType.ms_MY, LangType.vi_VN, LangType.th_TH],
+		supportLangs = [LangType.en_US, LangType.zh_CN],
 		supportType = "input",
 		danger,
 		popoverProps,

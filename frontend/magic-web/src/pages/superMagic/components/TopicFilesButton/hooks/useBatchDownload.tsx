@@ -1,6 +1,9 @@
-import { useState, useMemo } from "react"
-import type { AttachmentItem } from "./types"
-import { MenuProps } from "antd"
+import { useFileAccess as useFilePermissions } from "@/pages/superMagic/providers/FileAccessProvider"
+import { filterFileAccessMenuItems } from "../utils/file-access-menu"
+import { createElement, useState, useMemo, useRef } from "react"
+import type { AttachmentItem, ConfirmFileOperation } from "./types"
+import { Button } from "antd"
+import type { MenuProps } from "antd"
 import { collectFileIds } from "../utils/collectFileIds"
 import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
 import {
@@ -25,21 +28,40 @@ import { MagicSystemFolderIcon } from "../components/MagicSystemFolderIcon"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { SuperMagicApi } from "@/apis"
+import { getShareAccessToken } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import useShareRoute from "../../../hooks/useShareRoute"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
-import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 import { isCachedChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
 import { normalizeMenuItems } from "../utils/menu-items"
 import { useMobileDeleteConfirmSheet } from "./useMobileDeleteConfirmSheet"
 import { downloadBlobFile } from "@/utils/file"
+import type { ExportIssue } from "@magic/html2pptx"
+import { publishPptxExportIssues } from "@/pages/superMagic/utils/pptxExportIssues"
 import {
 	collectClientBatchExportTargets,
 	getClientBatchItemType,
 	runClientBatchDocumentExport,
 } from "../modules/client-batch-export"
+import {
+	detectCanvasProjectOperationRisk,
+	getCanvasProjectOperationImpact,
+} from "../utils/canvasProjectOperationRisk"
+import { collectSelectedFiles } from "./useSelectedFilesManager"
+import type { FileScope } from "@/apis/modules/fileScope"
+
+// BatchDeleteFilesRequestDTO 的 file_ids 上限；后代先于父目录，失败后停止后续批次。
+const DELETE_BATCH_SIZE = 500
 
 interface UseBatchDownloadOptions {
+	confirmOperation?: ConfirmFileOperation
+	fileScope?: FileScope
+	onDownloadSelected?: (items: AttachmentItem[]) => Promise<void>
+	resolveDeleteItems?: (items: AttachmentItem[]) => Promise<AttachmentItem[]>
+	beforeDelete?: (ids: string[]) => Promise<boolean>
+	isCurrent?: () => boolean
 	projectId?: string
 	getItemId: (item: AttachmentItem) => string
 	selectedItems: Set<string>
@@ -59,10 +81,12 @@ interface UseBatchDownloadOptions {
 	}
 	// 新增：操作完成回调（用于刷新列表）
 	onUpdateAttachments?: () => void
-	removeFile: (fileId: string) => void
+	removeFile?: (fileId: string) => void
+	onFilesDeleted?: (fileIds: string[]) => void
 	getParentPathByFileId?: (fileId: string) => AttachmentItem[]
 	isMoving?: boolean
 	allowEdit?: boolean
+	allowCopyTo?: boolean
 	allowDownload?: boolean
 	/** 是否允许批量移动。 */
 	allowMove?: boolean
@@ -98,6 +122,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		getParentPathByFileId,
 		isMoving = false,
 		allowEdit,
+		allowCopyTo = false,
 		allowDownload,
 		allowMove = true,
 		allowCopy = true,
@@ -107,12 +132,18 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		downloadProgress,
 	} = options
 	const [batchLoading, setBatchLoading] = useState(false)
+	const deletingRef = useRef(false)
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
 	const isChatProject = isCachedChatWorkspaceProject(selectedProject)
 	const { deleteConfirmNode, openDeleteConfirm } = useMobileDeleteConfirmSheet()
 	const { isShareRoute, isFileShare } = useShareRoute()
-	const { hideCopyTo, hideMoveTo, hideShareFile } = useFileActionVisibility()
+	const fileAccess = useFileAccess()
+	const fileApi = useFileApi()
+	const {
+		permissions: access,
+		options: { copyTo, moveTo },
+	} = useFilePermissions()
 	const canDownload = allowDownload !== false
 
 	// 退出多选模式的辅助函数
@@ -167,6 +198,10 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 	// PC端批量删除（使用 Modal 确认）
 	const handlePCBatchDeleteWithConfirm = async () => {
+		if (options.confirmOperation) {
+			await deleteWithConfirm(collectSelectedFiles(selectedItems, filteredFiles, getItemId))
+			return
+		}
 		const containsFolders = hasSelectedFolders()
 		const touchesMagicFolder = hasMagicSystemFolderInDeletionSelection(
 			filteredFiles,
@@ -192,47 +227,195 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		})
 	}
 
-	// 批量删除（不带确认弹窗，由调用方使用 Popconfirm 处理）
-	const handleBatchDelete = async () => {
-		if (selectedItems.size === 0) return
+	const deleteItems = async (
+		items: AttachmentItem[],
+		keys?: Set<string>,
+		confirmedIds?: string[],
+	) => {
+		if (deletingRef.current) return
+		const isCurrent = options.isCurrent ?? (() => true)
+		if (!isCurrent()) return
+		const ids =
+			confirmedIds ??
+			[
+				...new Set(
+					collectFileIds({
+						items,
+						selectedItems: keys,
+						getItemId,
+						includeFolderIds: true,
+					}),
+				),
+			].reverse()
+		if (!ids.length) return
+		deletingRef.current = true
 		setBatchLoading(true)
+		const confirmed = new Set<string>()
 		try {
-			const selectedFileIds = collectFileIds({
-				items: filteredFiles,
-				selectedItems,
-				getItemId,
-				includeFolderIds: true, // 删除时需要包含文件夹ID
-			})
-
-			if (selectedFileIds.length > 0) {
-				await SuperMagicApi.deleteFiles({
-					file_ids: selectedFileIds,
-					project_id: projectId,
-				}).catch(() => null)
-				selectedFileIds.forEach((fileId) => {
-					removeFile(fileId)
-				})
+			for (let offset = 0; offset < ids.length; offset += DELETE_BATCH_SIZE) {
+				if (!isCurrent()) return
+				const batch = ids.slice(offset, offset + DELETE_BATCH_SIZE)
+				let unresolved = batch.length
+				try {
+					const result = await SuperMagicApi.deleteFiles({
+						file_ids: batch,
+						project_id: options.fileScope === "user" ? "0" : projectId,
+					})
+					if (!isCurrent()) return
+					const returnedIds = new Set(result.file_ids.map(String))
+					const deleted = batch.filter((id) => returnedIds.has(id))
+					for (const id of batch) {
+						if (returnedIds.has(id)) {
+							confirmed.add(id)
+							unresolved -= 1
+						}
+					}
+					if (options.onFilesDeleted) options.onFilesDeleted(deleted)
+					else deleted.forEach((id) => removeFile?.(id))
+					if (unresolved) throw new Error("Incomplete file deletion result")
+				} catch {
+					if (!isCurrent()) return
+					// 写请求失败可能已在服务器执行；不重放，也不继续提交父目录。
+					magicToast.error(
+						t("topicFiles.deleteIncomplete", {
+							success: confirmed.size,
+							unknown: unresolved,
+							pending: ids.length - offset - batch.length,
+						}),
+					)
+					onUpdateAttachments?.()
+					return
+				}
 			}
-			pubsub.publish(PubSubEvents.Cancel_File_Selection)
+			if (!isCurrent()) return
+			if (options.fileScope !== "user") pubsub.publish(PubSubEvents.Cancel_File_Selection)
 			onUpdateAttachments?.()
 			magicToast.success(t("topicFiles.contextMenu.deleteFileSuccess"))
 			exitSelectMode()
-		} catch (error) {
-			console.error("Batch delete failed:", error)
-			magicToast.error(t("topicFiles.error.deleteFileFailed"))
 		} finally {
-			setBatchLoading(false)
+			deletingRef.current = false
+			if (isCurrent()) setBatchLoading(false)
+		}
+	}
+
+	// 批量删除（不带确认弹窗，由调用方使用 Popconfirm 处理）
+	const handleBatchDelete = async () => {
+		if (!selectedItems.size) return
+		if (!options.resolveDeleteItems) return deleteItems(filteredFiles, selectedItems)
+		const selected = collectSelectedFiles(selectedItems, filteredFiles, getItemId)
+		const items = await options.resolveDeleteItems(selected)
+		if (
+			options.beforeDelete &&
+			!(await options.beforeDelete(collectFileIds({ items, includeFolderIds: true })))
+		)
+			return
+		await deleteItems(items)
+	}
+
+	const preparingDelete = useRef(false)
+	const deleteWithConfirm = async (selected: AttachmentItem[]) => {
+		if (!selected.length || deletingRef.current || preparingDelete.current) return
+		preparingDelete.current = true
+		if (options.confirmOperation) setBatchLoading(true)
+		const isCurrent = options.isCurrent ?? (() => true)
+		try {
+			const items = options.resolveDeleteItems
+				? await options.resolveDeleteItems(selected)
+				: selected
+			if (!isCurrent()) return
+			const ids = collectFileIds({ items, includeFolderIds: true })
+			if (options.beforeDelete && !(await options.beforeDelete(ids))) return
+			if (!isCurrent()) return
+			const keys = new Set(items.map(getItemId))
+			const contentKey = resolveBatchDeleteConfirmContentKey({
+				containsFolders: items.some((item) => item.is_directory),
+				touchesMagicFolder: hasMagicSystemFolderInDeletionSelection(items, keys, getItemId),
+			})
+			const risk =
+				options.fileScope === "user"
+					? undefined
+					: await detectCanvasProjectOperationRisk({
+							attachments,
+							items,
+							operation: "delete",
+						})
+			if (!isCurrent()) return
+			const impact = risk && getCanvasProjectOperationImpact(risk)
+			if (options.confirmOperation) {
+				// 确认看到的 ID 就是执行集合；目录在等待期间变化不能扩大这次删除范围。
+				const confirmedIds = [...new Set(ids)].reverse()
+				const warning = [
+					t(contentKey, { count: selected.length }),
+					risk?.shouldWarn
+						? t(
+								impact === "open-failure"
+									? "topicFiles.contextMenu.deleteCanvasOpenFailureRiskContent"
+									: impact === "content-loss"
+										? "topicFiles.contextMenu.deleteCanvasContentLossRiskContent"
+										: "topicFiles.contextMenu.deleteCanvasMixedRiskContent",
+							)
+						: "",
+					t("fileManager.confirmation.deleteWarning"),
+				]
+					.filter(Boolean)
+					.join(" ")
+				if (
+					await options.confirmOperation({
+						operation: "delete",
+						fileIds: confirmedIds,
+						sourceAttachments: items,
+						selectedIds: selected.flatMap((item) =>
+							item.file_id ? [item.file_id] : [],
+						),
+						warning,
+					})
+				) {
+					if (isCurrent()) await deleteItems(items, undefined, confirmedIds)
+				}
+				return
+			}
+			MagicModal.confirm({
+				title: t("topicFiles.contextMenu.deleteTip"),
+				content: risk?.shouldWarn
+					? t(
+							impact === "open-failure"
+								? "topicFiles.contextMenu.deleteCanvasOpenFailureRiskContent"
+								: impact === "content-loss"
+									? "topicFiles.contextMenu.deleteCanvasContentLossRiskContent"
+									: "topicFiles.contextMenu.deleteCanvasMixedRiskContent",
+						)
+					: t(contentKey, { count: selected.length }),
+				variant: "destructive",
+				okText: t("topicFiles.contextMenu.delete"),
+				cancelText: t("topicFiles.contextMenu.cancel"),
+				onOk: () => (isCurrent() ? deleteItems(items) : undefined),
+			})
+		} catch (error) {
+			if (error instanceof DOMException && error.name === "AbortError") return
+			if (isCurrent()) magicToast.error(t("topicFiles.error.deleteFileFailed"))
+		} finally {
+			preparingDelete.current = false
+			if (options.confirmOperation) setBatchLoading(false)
 		}
 	}
 
 	// 批量下载选中文件
 	const handleBatchDownload = async () => {
-		if (!canDownload || selectedItems.size === 0 || !projectId) return
+		if (!access.download) return
+		if (!canDownload || selectedItems.size === 0 || (!projectId && !options.onDownloadSelected))
+			return
 		setBatchLoading(true)
 		let keepLoadingForPolling = false
 		try {
 			// 收集选中的文件ID（只收集直接选中的项目，不递归展开文件夹）
 			const selectedFileIds = collectSelectedItemIds(filteredFiles, selectedItems, getItemId)
+			if (options.onDownloadSelected) {
+				const files = collectSelectedFiles(selectedItems, filteredFiles, getItemId)
+				await options.onDownloadSelected(files)
+				if (!options.isCurrent || options.isCurrent()) exitSelectMode()
+				return
+			}
+			if (!projectId) return
 
 			if (selectedFileIds.length === 0) {
 				setBatchLoading(false)
@@ -242,7 +425,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 			const token =
 				isShareRoute || isFileShare
-					? ((window as unknown as { temporary_token?: string }).temporary_token ?? "")
+					? getShareAccessToken(fileAccess) || undefined
 					: undefined
 
 			if (downloadProgress) {
@@ -304,6 +487,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 					try {
 						const checkData = await SuperMagicApi.checkBatchDownloadStatus(
 							data.batch_key,
+							token,
 						)
 						if (checkData.status === "ready" && checkData.download_url) {
 							downloadFileWithAnchor(checkData.download_url)
@@ -358,10 +542,9 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		}
 	}
 
-	const handleExportPdfOrPpt = async (convert_type = "pdf") => {
+	const handleExportDocument = async (format: "pdf" | "pptx" = "pdf") => {
+		if (!access.export) return
 		if (!canDownload || selectedItems.size === 0) return
-		const convertType = convert_type as "pdf" | "ppt"
-		const format = convertType === "pdf" ? "pdf" : "pptx"
 		// Always resolve against the complete attachment tree. The filtered tree can omit
 		// folder resources while a search is active, which would produce incomplete exports.
 		const sourceItems = attachments.length > 0 ? attachments : filteredFiles
@@ -400,22 +583,58 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 		setBatchLoading(true)
 		const toastId = createRandomUuidV4()
+		const exportController = format === "pptx" ? new AbortController() : null
+		const exportText =
+			format === "pdf" ? t("topicFiles.batchExportingPdf") : t("topicFiles.batchExportingPpt")
+		const getExportToastContent = (progressText: string) =>
+			exportController
+				? createElement(
+						"div",
+						{ style: { display: "flex", alignItems: "center", gap: 8 } },
+						createElement("span", null, progressText),
+						createElement(
+							Button,
+							{
+								type: "default",
+								size: "small",
+								danger: true,
+								onClick: () => exportController.abort(),
+							},
+							t("topicFiles.exportCancel"),
+						),
+					)
+				: progressText
 		magicToast.loading({
 			key: toastId,
-			content:
-				convertType === "pdf"
-					? t("topicFiles.batchExportingPdf")
-					: t("topicFiles.batchExportingPpt"),
+			content: getExportToastContent(exportText),
 			duration: 0,
 		})
 
 		try {
+			const exportIssues: ExportIssue[] = []
 			const result = await runClientBatchDocumentExport({
 				format,
 				targets,
 				attachments: sourceItems,
 				projectName: selectedProject?.project_name,
+				access: fileAccess ?? undefined,
+				fileApi,
+				signal: exportController?.signal,
+				onProgress: (progress) => {
+					magicToast.loading({
+						key: toastId,
+						content: getExportToastContent(`${exportText} (${Math.round(progress)}%)`),
+						duration: 0,
+					})
+				},
+				onExportIssue: (issue) => exportIssues.push(issue),
 			})
+
+			if (format === "pptx") {
+				publishPptxExportIssues(exportIssues, {
+					fileName: selectedProject?.project_name,
+				})
+			}
 
 			if (result.cancelled) {
 				magicToast.destroy(toastId)
@@ -429,7 +648,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				})
 				return
 			}
-			if (!result.artifact || result.successCount === 0) {
+			if ((!result.artifact && !result.streamedToDisk) || result.successCount === 0) {
 				magicToast.error({
 					key: toastId,
 					content: t("topicFiles.contextMenu.fileExport.exportFailed"),
@@ -438,15 +657,17 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				return
 			}
 
-			// Use the direct Blob downloader so a successful export does not open the
-			// manual retry/copy download modal used by source-file downloads.
-			const downloadResult = await downloadBlobFile(
-				result.artifact.blob,
-				result.artifact.fileName,
-				format,
-			)
-			if (!downloadResult.success) {
-				throw new Error(downloadResult.message || "Batch export download failed")
+			if (result.artifact) {
+				// PDF paths return one in-memory artifact. Streaming PPTX paths have already
+				// committed their files to the selected destination.
+				const downloadResult = await downloadBlobFile(
+					result.artifact.blob,
+					result.artifact.fileName,
+					format,
+				)
+				if (!downloadResult.success) {
+					throw new Error(downloadResult.message || "Batch export download failed")
+				}
 			}
 
 			if (result.failureCount > 0) {
@@ -477,6 +698,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 	// 批量分享选中文件
 	const handleBatchShare = () => {
+		if (!access.share) return
 		if (selectedItems.size === 0 || !onBatchShareClick) return
 
 		// PC multi-select stores the folder row ID itself, so share must preserve direct selections.
@@ -496,7 +718,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		const firstFileId = fileIds[0]
 		const parentPath = firstFileId ? getInitialParentPath(firstFileId) : []
 
-		if (crossProjectOperation && !isMobile && !isChatProject) {
+		if (crossProjectOperation && options.fileScope !== "user" && !isMobile && !isChatProject) {
 			crossProjectOperation.openMoveModal(fileIds, parentPath)
 		} else if (moveFileHook) {
 			// Mobile and chat projects keep the directory selector.
@@ -517,9 +739,9 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	}
 
 	// 创建下拉菜单项配置
-	const batchMenuItems = normalizeMenuItems([
+	const rawBatchMenuItems = [
 		// 分享文件（仅在项目内显示）
-		...(isInProject && allowEdit && allowShare && onBatchShareClick && !hideShareFile
+		...(isInProject && allowEdit && allowShare && onBatchShareClick && access.share
 			? [
 					{
 						key: "share",
@@ -570,7 +792,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 										<span>{t("topicFiles.exportPdf")}</span>
 									</div>
 								),
-								onClick: () => handleExportPdfOrPpt("pdf"),
+								onClick: () => handleExportDocument("pdf"),
 								disabled: batchLoading,
 							},
 							{
@@ -578,10 +800,10 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 								label: (
 									<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 										<IconFileTypePpt size={16} stroke={1.5} />
-										<span>{t("topicFiles.exportPpt")}</span>
+										<span>{t("topicFiles.exportPptx")}</span>
 									</div>
 								),
-								onClick: () => handleExportPdfOrPpt("ppt"),
+								onClick: () => handleExportDocument("pptx"),
 								disabled: batchLoading,
 							},
 						],
@@ -613,7 +835,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 									<span>{t("topicFiles.exportPdf")}</span>
 								</div>
 							),
-							onClick: () => handleExportPdfOrPpt("pdf"),
+							onClick: () => handleExportDocument("pdf"),
 							disabled: batchLoading,
 						},
 						{
@@ -621,16 +843,16 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 							label: (
 								<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 									<IconFileTypePpt size={16} stroke={1.5} />
-									<span>{t("topicFiles.exportPpt")}</span>
+									<span>{t("topicFiles.exportPptx")}</span>
 								</div>
 							),
-							onClick: () => handleExportPdfOrPpt("ppt"),
+							onClick: () => handleExportDocument("pptx"),
 							disabled: batchLoading,
 						},
 					]
 				: []),
 		// 批量移动（仅在允许编辑时显示）
-		...(isInProject && allowEdit && allowMove && !hideMoveTo
+		...((isInProject || options.fileScope === "user") && allowEdit && allowMove && moveTo
 			? [
 					{
 						key: "move",
@@ -645,8 +867,8 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 					},
 				]
 			: []),
-		// 批量复制（仅在允许编辑且当前空间开放复制能力时显示）
-		...(isInProject && allowEdit && allowCopy && !hideCopyTo
+		// 批量复制（仅在允许编辑时显示）
+		...(((isInProject && allowEdit) || allowCopyTo) && allowCopy && copyTo
 			? [
 					{
 						key: "copy",
@@ -662,7 +884,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				]
 			: []),
 		// 分隔线
-		...(isInProject && allowEdit
+		...((isInProject || options.fileScope === "user") && allowEdit
 			? [
 					{
 						type: "divider" as const,
@@ -671,7 +893,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				]
 			: []),
 		// 批量删除（仅在允许编辑时显示）
-		...(isInProject && allowEdit
+		...((isInProject || options.fileScope === "user") && allowEdit
 			? [
 					{
 						key: "delete",
@@ -695,7 +917,15 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 					},
 				]
 			: []),
-	]) as MenuProps["items"]
+	]
+	const batchMenuItems = normalizeMenuItems(
+		filterFileAccessMenuItems(rawBatchMenuItems, access),
+	).filter(
+		(item) =>
+			options.fileScope !== "user" ||
+			!item ||
+			!["export-pdf", "export-ppt"].includes(String(item.key)),
+	) as MenuProps["items"]
 	const canShowBatchOperations = showBatchDownload && Boolean(batchMenuItems?.length)
 
 	return {
@@ -705,8 +935,9 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 		// 处理函数
 		handleBatchDownload,
-		handleExportPdfOrPpt,
+		handleExportDocument,
 		handleBatchDelete,
+		deleteWithConfirm,
 		handleMobileBatchDelete,
 		handleBatchShare,
 		hasSelectedFolders,

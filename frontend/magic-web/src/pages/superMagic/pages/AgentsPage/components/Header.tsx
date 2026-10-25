@@ -1,8 +1,7 @@
 import { Flex, theme } from "antd"
 import { observer } from "mobx-react-lite"
-import GlobalServiceStatus from "@/layouts/BaseLayout/components/Header/components/GlobalServiceStatus"
 import GlobalVersionStatus from "@/layouts/BaseLayout/components/Header/components/GlobalVersionStatus"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import HeaderExtraSlot from "./HeaderExtraSlot"
 import WorkspaceSwitcher from "./WorkspaceSwitcher"
 
@@ -26,7 +25,6 @@ const Header = observer(function Header({ className }: { className?: string }) {
 		>
 			<Flex className="mr-auto w-auto items-center" gap={10} align="center">
 				<WorkspaceSwitcher />
-				<GlobalServiceStatus />
 				<GlobalVersionStatus />
 			</Flex>
 			<Flex align="center" gap={10} className="ml-auto w-auto">

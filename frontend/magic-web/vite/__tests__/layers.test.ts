@@ -4,6 +4,7 @@ import path from "node:path"
 import type { Plugin, UserConfig } from "vite"
 import { afterEach, describe, expect, it } from "vitest"
 import { buildOverlayFromLayers, type ResolvedLayerConfig } from "../layers"
+import { resolveExtensionlessHtmlEntry } from "../../plugins/vite-plugin-overlay/html"
 
 function getHtmlOverlayPlugin(config: { plugins?: unknown }): Plugin | undefined {
 	return (config.plugins as Plugin[] | undefined)?.find(
@@ -58,6 +59,19 @@ afterEach(() => {
 })
 
 describe("buildOverlayFromLayers html entries", () => {
+	it("resolves an extensionless request only when it matches a declared HTML entry", () => {
+		const htmlEntryNames = new Set(["login-popup-callback.html", "shared.html"])
+
+		expect(resolveExtensionlessHtmlEntry("/login-popup-callback", htmlEntryNames)).toBe(
+			"login-popup-callback.html",
+		)
+		expect(resolveExtensionlessHtmlEntry("/shared", htmlEntryNames)).toBe("shared.html")
+		expect(resolveExtensionlessHtmlEntry("/workspace/123", htmlEntryNames)).toBeNull()
+		expect(
+			resolveExtensionlessHtmlEntry("/login-popup-callback.html", htmlEntryNames),
+		).toBeNull()
+	})
+
 	it("lets a higher-priority layer override a same-named baseline HTML file", () => {
 		const baseRoot = createTempDir()
 		const enterpriseRoot = createTempDir()

@@ -21,6 +21,7 @@ import BackToLatestButton from "../BackToLatestButton"
 import { useStyles } from "./styles"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { copyFileContent } from "@/pages/superMagic/utils/share"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 interface ScrollDetailContainerProps {
 	attachments?: any[]
@@ -76,6 +77,7 @@ const ScrollDetailContainer = forwardRef<ScrollDetailContainerRef, ScrollDetailC
 		const [fullscreenFileId, setFullscreenFileId] = useState<string | null>(null)
 		const [favoriteFiles, setFavoriteFiles] = useState<Set<string>>(new Set())
 		const { t } = useTranslation("super")
+		const fileApi = useFileApi()
 
 		// Collect all files (non-directory) and flatten, while filtering out image files
 		const collectFiles = useCallback((items: any[]): any[] => {
@@ -159,9 +161,9 @@ const ScrollDetailContainer = forwardRef<ScrollDetailContainerRef, ScrollDetailC
 		// Handle copy functionality for files
 		const handleCopy = useCallback(
 			async (fileId: string, fileContent?: string) => {
-				copyFileContent(fileList, t, fileId, fileContent)
+				copyFileContent(fileList, t, fileId, fileContent, undefined, fileApi)
 			},
-			[fileList, t],
+			[fileApi, fileList, t],
 		)
 
 		// Handle favorite/unfavorite functionality
@@ -218,6 +220,13 @@ const ScrollDetailContainer = forwardRef<ScrollDetailContainerRef, ScrollDetailC
 							file_name: fileName,
 							file_id: file.file_id,
 							file_extension: file.file_extension,
+							file_size: file.file_size,
+							is_directory: file.is_directory,
+							project_id: file.project_id,
+							updated_at: file.updated_at,
+							resource_version: file.resource_version,
+							version: file.version,
+							display_config: file.display_config,
 							content: null, // Lazy load content
 						},
 						currentFileId: file.file_id,
@@ -241,8 +250,8 @@ const ScrollDetailContainer = forwardRef<ScrollDetailContainerRef, ScrollDetailC
 								attachments={attachments}
 								setUserSelectDetail={setUserSelectDetail}
 								currentIndex={index}
-								onPrevious={() => { }}
-								onNext={() => { }}
+								onPrevious={() => {}}
+								onNext={() => {}}
 								onFullscreen={() => handleFileFullscreen(file.file_id)}
 								onDownload={() => onDownload?.(file.file_id)}
 								totalFiles={fileList.length}
@@ -286,8 +295,8 @@ const ScrollDetailContainer = forwardRef<ScrollDetailContainerRef, ScrollDetailC
 									attachments={attachments}
 									setUserSelectDetail={setUserSelectDetail}
 									currentIndex={index}
-									onPrevious={() => { }}
-									onNext={() => { }}
+									onPrevious={() => {}}
+									onNext={() => {}}
 									onFullscreen={() => handleFileFullscreen(file.file_id)}
 									onDownload={() => onDownload?.(file.file_id)}
 									totalFiles={fileList.length}

@@ -10,6 +10,7 @@ import chatTopicService from "@/services/chat/topic"
 import { observer } from "mobx-react-lite"
 import { useStyles } from "./styles"
 import TaskItem from "../TaskItem"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 interface TaskListProps {
 	openEdit: () => void
@@ -70,11 +71,12 @@ const TaskList = observer(({ openEdit, updateTask }: TaskListProps) => {
 	return (
 		<Flex vertical gap={10} className={styles.taskList}>
 			<div className={styles.title}>{t("chat.timedTask.title")}</div>
-			<Flex vertical gap={4} className={styles.content}>
+			{/* Keep the title and add action outside the task viewport. */}
+			<ScrollArea className={styles.content} viewportClassName={styles.viewport}>
 				{currentTaskList.map((task) => (
 					<TaskItem key={task.id} data={task} menuItems={menuItems} />
 				))}
-			</Flex>
+			</ScrollArea>
 			<MagicButton type="text" block className={styles.button} onClick={openEdit}>
 				{t("chat.timedTask.addTask")}
 			</MagicButton>

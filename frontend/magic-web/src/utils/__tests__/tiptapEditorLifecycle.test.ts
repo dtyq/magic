@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { isEditorActive, runActiveEditor } from "../tiptapEditorLifecycle"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 
 function createEditorLike(overrides: Partial<Editor> & { isDestroyed: boolean }) {
 	return overrides as Editor

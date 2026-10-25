@@ -1,6 +1,6 @@
-import { Link as TiptapLink } from "@tiptap/extension-link"
-import { mergeAttributes } from "@tiptap/core"
-import { Plugin, TextSelection } from "@tiptap/pm/state"
+import { Link as TiptapLink } from "@/infrastructure/editors/tiptap/extension-link"
+import { mergeAttributes } from "@/infrastructure/editors/tiptap/core"
+import { Plugin, TextSelection } from "@/infrastructure/editors/tiptap/pm-state"
 import { parseAnchorLink, scrollToAnchor } from "@/utils/slug"
 
 export interface LinkNodeOptions {
@@ -183,22 +183,22 @@ export const LinkNode = TiptapLink.extend<LinkNodeOptions>({
 			...this.parent?.(),
 			setLink:
 				(attributes) =>
-					({ chain }) => {
-						return chain().extendMarkRange("link").setMark(this.name, attributes).run()
-					},
+				({ chain }) => {
+					return chain().extendMarkRange("link").setMark(this.name, attributes).run()
+				},
 			toggleLink:
 				(attributes) =>
-					({ chain }) => {
-						return chain()
-							.extendMarkRange("link")
-							.toggleMark(this.name, attributes, { extendEmptyMarkRange: true })
-							.run()
-					},
+				({ chain }) => {
+					return chain()
+						.extendMarkRange("link")
+						.toggleMark(this.name, attributes, { extendEmptyMarkRange: true })
+						.run()
+				},
 			unsetLink:
 				() =>
-					({ chain }) => {
-						return chain().extendMarkRange("link").unsetMark(this.name).run()
-					},
+				({ chain }) => {
+					return chain().extendMarkRange("link").unsetMark(this.name).run()
+				},
 		}
 	},
 })

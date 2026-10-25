@@ -30,6 +30,7 @@ export function mapListItemToItemData(item: RecycleBin.ListItem, t: TFunction): 
 	const resourceType = item.resource_type as ResourceType
 	const type = getMobileItemType(resourceType, item.extra_data?.is_directory)
 	const parentInfo = {
+		space_type: item.extra_data?.space_type,
 		...item.extra_data?.parent_info,
 		workspace_name:
 			item.extra_data?.parent_info?.workspace_name ?? item.extra_data?.workspace_name,

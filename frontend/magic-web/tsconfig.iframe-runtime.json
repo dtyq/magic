@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2018",
+		"types": []
+	},
+	"include": [
+		"src/pages/superMagic/components/Detail/contents/HTML/iframe-runtime/*.ts",
+		"src/vite-env.d.ts"
+	]
+}

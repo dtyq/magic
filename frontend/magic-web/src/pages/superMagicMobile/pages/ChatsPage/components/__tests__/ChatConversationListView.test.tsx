@@ -38,7 +38,7 @@ describe("ChatConversationListView", () => {
 		render(
 			<ChatConversationListView
 				items={[]}
-				isLoading={false}
+				isInitialChatListLoading={false}
 				searchValue=""
 				isEmpty={true}
 				isSearchEmpty={false}
@@ -67,7 +67,7 @@ describe("ChatConversationListView", () => {
 		render(
 			<ChatConversationListView
 				items={[]}
-				isLoading={false}
+				isInitialChatListLoading={false}
 				searchValue=""
 				isEmpty
 				isSearchEmpty={false}
@@ -96,7 +96,7 @@ describe("ChatConversationListView", () => {
 		render(
 			<ChatConversationListView
 				items={[]}
-				isLoading
+				isInitialChatListLoading
 				searchValue=""
 				isEmpty={false}
 				isSearchEmpty={false}
@@ -124,7 +124,7 @@ describe("ChatConversationListView", () => {
 		render(
 			<ChatConversationListView
 				items={[]}
-				isLoading={false}
+				isInitialChatListLoading={false}
 				searchValue=""
 				isEmpty={true}
 				isSearchEmpty={false}

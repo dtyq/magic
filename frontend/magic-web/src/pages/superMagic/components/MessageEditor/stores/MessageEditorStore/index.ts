@@ -1,11 +1,12 @@
 import { makeAutoObservable } from "mobx"
-import type { JSONContent } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/react"
 import type { DataService } from "@/components/business/MentionPanel/types"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
 import { EditorStore } from "../EditorStore"
 import { DraftStore } from "../DraftStore"
 import { FileUploadStore } from "../FileUploadStore"
 import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
+import type { UploadTokenService } from "../../services/UploadTokenService"
 
 /**
  * MessageEditorStore - Root store for MessageEditor
@@ -39,9 +40,13 @@ export class MessageEditorStore {
 	constructor(options: MessageEditorStoreOptions = {}) {
 		// Initialize sub-stores
 		this.editorStore = new EditorStore()
-		this.draftStore = new DraftStore(this.editorStore)
+		this.draftStore = new DraftStore(
+			this.editorStore,
+			() => this.fileUploadStore.isAllFilesUploaded,
+		)
 		this.fileUploadStore = new FileUploadStore({
 			projectFilesStore: options.projectFilesStore,
+			uploadTokenService: options.uploadTokenService,
 		})
 		this.topicModelStore = options.topicModelStore ?? createSuperMagicTopicModelStore()
 		// Note: config parameter will be added in Phase 2 for fileUploadStore
@@ -122,6 +127,7 @@ interface SetValueOptions {
 }
 
 interface MessageEditorStoreOptions {
+	uploadTokenService?: UploadTokenService
 	mentionPanelStore?: DataService
 	projectFilesStore?: ProjectFilesStore
 	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>

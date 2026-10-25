@@ -10,7 +10,7 @@ import {
 } from "./color-picker"
 import { Popover, PopoverContent, PopoverTrigger } from "../../shadcn/popover"
 import transparentIcon from "../../../../assets/svg/transparent.svg"
-import classNames from "classnames"
+import { cn } from "../../../../runtime/shared/lib/utils"
 import { type ReactNode, useCallback, useState } from "react"
 import styles from "./index.module.css"
 
@@ -117,7 +117,7 @@ export default function ColorPickerPopover({
 				onPointerDownCapture={handleContentPointerDownCapture}
 			>
 				<ShadcnColorPicker
-					className={classNames(styles.colorPicker, styles.colorPickerGap)}
+					className={cn(styles.colorPicker, styles.colorPickerGap)}
 					value={value || defaultColor}
 					onChange={onChange as NonNullable<ShadcnColorPickerProps["onChange"]>}
 					mode={mode}
@@ -128,10 +128,10 @@ export default function ColorPickerPopover({
 					<div className={styles.colorPickerSelection}>
 						<ColorPickerSelection />
 					</div>
-					<div className={classNames("flex items-center", styles.colorPickerGap)}>
+					<div className={cn("flex items-center", styles.colorPickerGap)}>
 						{showTransparentToggle && (
 							<div
-								className={classNames(
+								className={cn(
 									styles.transparentButton,
 									isTransparent && styles.transparentButtonActive,
 								)}
@@ -146,7 +146,7 @@ export default function ColorPickerPopover({
 							<ColorPickerAlpha />
 						</div>
 					</div>
-					<div className={classNames("flex items-center", styles.colorPickerGap)}>
+					<div className={cn("flex items-center", styles.colorPickerGap)}>
 						<ColorPickerOutput />
 						<ColorPickerFormat />
 					</div>

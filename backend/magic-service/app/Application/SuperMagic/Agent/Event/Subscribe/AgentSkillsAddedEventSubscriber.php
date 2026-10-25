@@ -8,25 +8,13 @@ declare(strict_types=1);
 namespace App\Application\SuperMagic\Agent\Event\Subscribe;
 
 use App\Application\SuperMagic\Agent\Service\SkillsMdSyncService;
-use App\Domain\Chat\Entity\ValueObject\SocketEventType;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
-use App\Domain\File\Service\FileDomainService;
 use App\Domain\SuperMagic\Agent\Event\AgentSkillsAddedEvent;
 use App\Domain\SuperMagic\Agent\Service\SuperMagicAgentDomainService;
-use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
 use App\Domain\SuperMagic\File\Entity\ValueObject\TaskFileSource;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
-use App\Domain\SuperMagic\Skill\Entity\ValueObject\SkillDataIsolation;
-use App\Domain\SuperMagic\Skill\Repository\Facade\SkillRepositoryInterface;
-use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
-use App\Infrastructure\Util\SkillUtil;
-use App\Infrastructure\Util\SocketIO\SocketIOUtil;
-use App\Infrastructure\Util\ZipUtil;
-use App\Interfaces\SuperMagic\File\DTO\Response\TaskFileItemDTO;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -41,17 +29,12 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
     private const LOCK_TIMEOUT = 120;
 
-    private const TEMP_DIR_BASE = BASE_PATH . '/runtime/agent_skills/';
-
     private LoggerInterface $logger;
 
     public function __construct(
         private readonly SuperMagicAgentDomainService $superMagicAgentDomainService,
         private readonly ProjectDomainService $projectDomainService,
-        private readonly SkillRepositoryInterface $skillRepository,
-        private readonly FileDomainService $fileDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
-        private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
         private readonly SkillsMdSyncService $skillsMdSyncService,
         LoggerFactory $loggerFactory
@@ -106,7 +89,6 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
     {
         $dataIsolation = $event->getDataIsolation();
         $agentCode = $event->getAgentCode();
-        $skillCodes = $event->getSkillCodes();
         $organizationCode = $event->getOrganizationCode();
 
         $agentEntity = $this->superMagicAgentDomainService->getByCode($dataIsolation, $agentCode);
@@ -145,7 +127,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             TaskFileSource::SKILL
         );
 
-        $magicDirId = $this->taskFileDomainService->createDirectory(
+        $this->taskFileDomainService->createDirectory(
             $projectId,
             $rootDirId,
             '.magic',
@@ -155,325 +137,18 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             TaskFileSource::SKILL
         );
 
-        $skillsDirId = $this->taskFileDomainService->createDirectory(
-            $projectId,
-            $magicDirId,
-            'skills',
-            $userId,
-            $organizationCode,
-            $projectOrgCode,
-            TaskFileSource::SKILL
-        );
-
-        $skillDataIsolation = SkillDataIsolation::create($organizationCode, $userId);
-        $skillDataIsolation->disabled();
-
-        $allCreatedFiles = [];
-        $addedPackageNames = [];
-        $addedSystemPackageNames = [];
-
-        foreach ($skillCodes as $skillCode) {
-            try {
-                [$createdFiles, $packageName, $isSystem] = $this->syncSingleSkill(
-                    $skillDataIsolation,
-                    $skillCode,
-                    $projectId,
-                    $skillsDirId,
-                    $userId,
-                    $organizationCode,
-                    $projectOrgCode,
-                    $projectEntity
-                );
-                $allCreatedFiles = array_merge($allCreatedFiles, $createdFiles);
-                if ($packageName !== null) {
-                    if ($isSystem) {
-                        $addedSystemPackageNames[] = $packageName;
-                    } else {
-                        $addedPackageNames[] = $packageName;
-                    }
-                }
-            } catch (Throwable $e) {
-                $this->logger->error('Failed to sync skill file', [
-                    'skill_code' => $skillCode,
-                    'agent_code' => $event->getAgentCode(),
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        if (! empty($allCreatedFiles)) {
-            $this->pushFileChangeNotification(
-                $userId,
-                'add',
-                $allCreatedFiles,
-                (string) $projectId,
-                $workDir,
-                $organizationCode
-            );
-        }
-
+        // Rebuild from current bindings: delayed add events must not restore removed references.
+        $bound = $this->skillsMdSyncService->getBoundSkills($dataIsolation, $agentCode, strict: false);
         $this->skillsMdSyncService->syncSkillsMd(
             $projectId,
             $projectEntity,
             $organizationCode,
             $projectOrgCode,
-            $addedPackageNames,
-            SkillsMdSyncService::OPERATION_ADD,
-            $addedSystemPackageNames
+            [],
+            SkillsMdSyncService::OPERATION_SYNC,
+            $bound['system_skills'],
+            $bound['market_skills'],
+            false
         );
-
-        $this->logger->info('Agent skill file sync completed', [
-            'agent_code' => $agentCode,
-            'skill_count' => count($skillCodes),
-            'project_id' => $projectId,
-            'files_created' => count($allCreatedFiles),
-            'added_package_count' => count($addedPackageNames),
-            'added_system_package_count' => count($addedSystemPackageNames),
-        ]);
-    }
-
-    /**
-     * @return array{0: TaskFileEntity[], 1: null|string, 2: bool}
-     */
-    private function syncSingleSkill(
-        SkillDataIsolation $skillDataIsolation,
-        string $skillCode,
-        int $projectId,
-        int $skillsDirId,
-        string $userId,
-        string $organizationCode,
-        string $projectOrgCode,
-        mixed $projectEntity
-    ): array {
-        $skillEntity = $this->skillRepository->findByCode($skillDataIsolation, $skillCode);
-        if ($skillEntity === null) {
-            $this->logger->warning('Skill not found', ['skill_code' => $skillCode]);
-            return [[], null, false];
-        }
-
-        $packageName = $skillEntity->getPackageName();
-        if (empty($packageName)) {
-            $this->logger->warning('Skill packageName is empty', ['skill_code' => $skillCode]);
-            return [[], null, false];
-        }
-
-        // System builtin skills have no zip package; only update SKILLS.md via packageName.
-        if ($skillEntity->getSourceType()->isSystem()) {
-            $this->logger->info('System builtin skill, skip file extraction', ['skill_code' => $skillCode]);
-            return [[], $packageName, true];
-        }
-
-        $fileKey = $skillEntity->getFileKey();
-        if (empty($fileKey)) {
-            $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
-            return [[], null, false];
-        }
-
-        $skillOrganizationCode = $skillEntity->getOrganizationCode();
-
-        $tempDir = self::TEMP_DIR_BASE . 'sync_' . IdGenerator::getUniqueId32();
-        if (! is_dir($tempDir)) {
-            mkdir($tempDir, 0755, true);
-        }
-
-        try {
-            $localZipPath = $tempDir . '/' . basename($fileKey);
-            $this->fileDomainService->downloadByChunks(
-                $skillOrganizationCode,
-                $fileKey,
-                $localZipPath,
-                StorageBucketType::Private
-            );
-
-            if (! file_exists($localZipPath)) {
-                $this->logger->error('Skill file download failed', ['skill_code' => $skillCode, 'file_key' => $fileKey]);
-                return [[], null, false];
-            }
-
-            $extractDir = $tempDir . '/extracted';
-            ZipUtil::extract($localZipPath, $extractDir);
-
-            // Strip wrapper directories in zip (e.g. SKILL-{code}/skill-name/)
-            // to find the actual content directory containing SKILL.md
-            $actualContentDir = SkillUtil::findSkillMdDirectory($extractDir) ?? $extractDir;
-
-            $packageDirId = $this->taskFileDomainService->createDirectory(
-                $projectId,
-                $skillsDirId,
-                $packageName,
-                $userId,
-                $organizationCode,
-                $projectOrgCode,
-                TaskFileSource::SKILL
-            );
-
-            $dataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
-
-            $createdFiles = [];
-            $this->uploadExtractedFiles(
-                $dataIsolation,
-                $projectEntity,
-                $actualContentDir,
-                $packageDirId,
-                $projectId,
-                $userId,
-                $organizationCode,
-                $projectOrgCode,
-                $createdFiles
-            );
-
-            return [$createdFiles, $packageName, false];
-        } finally {
-            ZipUtil::removeDirectory($tempDir);
-        }
-    }
-
-    /**
-     * Recursively upload extracted files and directories to the project.
-     *
-     * @param TaskFileEntity[] $createdFiles Collects created file entities for notification
-     */
-    private function uploadExtractedFiles(
-        DataIsolation $dataIsolation,
-        mixed $projectEntity,
-        string $localDir,
-        int $parentDirId,
-        int $projectId,
-        string $userId,
-        string $organizationCode,
-        string $projectOrgCode,
-        array &$createdFiles
-    ): void {
-        $items = array_diff(scandir($localDir), ['.', '..']);
-
-        foreach ($items as $item) {
-            $localPath = $localDir . '/' . $item;
-
-            if (is_dir($localPath)) {
-                $subDirId = $this->taskFileDomainService->createDirectory(
-                    $projectId,
-                    $parentDirId,
-                    $item,
-                    $userId,
-                    $organizationCode,
-                    $projectOrgCode,
-                    TaskFileSource::SKILL
-                );
-
-                $this->uploadExtractedFiles(
-                    $dataIsolation,
-                    $projectEntity,
-                    $localPath,
-                    $subDirId,
-                    $projectId,
-                    $userId,
-                    $organizationCode,
-                    $projectOrgCode,
-                    $createdFiles
-                );
-            } else {
-                $content = file_get_contents($localPath);
-                if ($content === false) {
-                    $this->logger->warning('Failed to read file', ['path' => $localPath]);
-                    continue;
-                }
-
-                $fileEntity = $this->taskFileDomainService->createProjectFileWithContent(
-                    $dataIsolation,
-                    $projectEntity,
-                    $parentDirId,
-                    $item,
-                    $content,
-                    TaskFileSource::SKILL
-                );
-
-                $createdFiles[] = $fileEntity;
-            }
-        }
-    }
-
-    /**
-     * Push file change notification to the user via WebSocket.
-     *
-     * @param TaskFileEntity[] $fileEntities
-     */
-    private function pushFileChangeNotification(
-        string $userId,
-        string $operation,
-        array $fileEntities,
-        string $projectId,
-        string $workDir,
-        string $organizationCode
-    ): void {
-        try {
-            $magicId = $this->getMagicIdByUserId($userId);
-            if (empty($magicId)) {
-                return;
-            }
-
-            $changes = [];
-            foreach ($fileEntities as $fileEntity) {
-                $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $workDir);
-                $changes[] = [
-                    'operation' => $operation,
-                    'file_id' => (string) $fileEntity->getFileId(),
-                    'file' => $fileDto->toArray(),
-                ];
-            }
-
-            $pushData = [
-                'type' => 'seq',
-                'seq' => [
-                    'magic_id' => '',
-                    'seq_id' => '',
-                    'message_id' => '',
-                    'refer_message_id' => '',
-                    'sender_message_id' => '',
-                    'conversation_id' => '',
-                    'organization_code' => $organizationCode,
-                    'message' => [
-                        'type' => 'super_magic_file_change',
-                        'project_id' => $projectId,
-                        'workspace_id' => $workDir,
-                        'topic_id' => '',
-                        'changes' => $changes,
-                        'timestamp' => date('c'),
-                    ],
-                ],
-            ];
-
-            SocketIOUtil::sendIntermediate(
-                SocketEventType::Intermediate,
-                $magicId,
-                $pushData
-            );
-
-            $this->logger->info('Pushed skill file add notification', [
-                'magic_id' => $magicId,
-                'project_id' => $projectId,
-                'changes_count' => count($changes),
-            ]);
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to push skill file notification', [
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    private function getMagicIdByUserId(string $userId): string
-    {
-        try {
-            $userEntity = $this->magicUserRepository->getUserById($userId);
-            if ($userEntity) {
-                return (string) $userEntity->getMagicId();
-            }
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to get magicId', [
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-        return '';
     }
 }

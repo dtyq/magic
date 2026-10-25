@@ -28,7 +28,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 type PermissionScope = "public" | "private_user" | "private_department" | "private_org" | "disabled"
 
@@ -49,12 +49,10 @@ const PERMISSION_SCOPES: PermissionScope[] = [
 	"disabled",
 ]
 
-const DEFAULT_SCOPE: PermissionScope = "public"
-
-function normalizeScope(value?: string): PermissionScope {
+function normalizeScope(value?: string, fallback: PermissionScope = "public"): PermissionScope {
 	return PERMISSION_SCOPES.includes(value as PermissionScope)
 		? (value as PermissionScope)
-		: DEFAULT_SCOPE
+		: fallback
 }
 
 function buildDraft(
@@ -65,12 +63,18 @@ function buildDraft(
 	return {
 		table: {
 			read_scope: normalizeScope(table.dynamic_permissions?.table?.read_scope),
-			insert_scope: normalizeScope(table.dynamic_permissions?.table?.insert_scope),
+			insert_scope: normalizeScope(
+				table.dynamic_permissions?.table?.insert_scope,
+				"disabled",
+			),
 		},
 		row: {
 			read_scope: normalizeScope(table.dynamic_permissions?.row?.read_scope),
-			edit_scope: normalizeScope(table.dynamic_permissions?.row?.edit_scope),
-			delete_scope: normalizeScope(table.dynamic_permissions?.row?.delete_scope),
+			edit_scope: normalizeScope(table.dynamic_permissions?.row?.edit_scope, "private_user"),
+			delete_scope: normalizeScope(
+				table.dynamic_permissions?.row?.delete_scope,
+				"private_user",
+			),
 		},
 		columns: Object.fromEntries(
 			columns
@@ -85,6 +89,7 @@ function buildDraft(
 						edit_scope: normalizeScope(
 							tableColumns[column.column_key]?.edit_scope ||
 								column.dynamic_permission?.edit_scope,
+							"private_user",
 						),
 					},
 				]),

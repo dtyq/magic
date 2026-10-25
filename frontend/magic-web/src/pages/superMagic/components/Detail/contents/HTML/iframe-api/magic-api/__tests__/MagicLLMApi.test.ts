@@ -12,6 +12,7 @@ describe("MagicLLMApi", () => {
 			new MessageEvent("message", {
 				data,
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 	}
@@ -38,6 +39,35 @@ describe("MagicLLMApi", () => {
 	})
 
 	// ─── install() ─────────────────────────────────────────────────────────────
+	it.each(["getModels", "chat", "stream"] as const)(
+		"%s disposes listeners and timers when sending throws",
+		async (method) => {
+			vi.useFakeTimers()
+			const add = vi.spyOn(window, "addEventListener")
+			const remove = vi.spyOn(window, "removeEventListener")
+			const error = new DOMException("Cannot clone", "DataCloneError")
+			postMessageSpy.mockImplementation(() => {
+				throw error
+			})
+			const llm = window.Magic?.llm
+			if (!llm) throw new Error("LLM API was not installed")
+			if (method === "stream") {
+				expect(() => llm.stream(userMessages, vi.fn())).toThrow(
+					expect.objectContaining({ name: "DataCloneError" }),
+				)
+			} else {
+				await expect(
+					method === "chat" ? llm.chat(userMessages) : llm.getModels(),
+				).rejects.toBe(error)
+			}
+			const handler = add.mock.calls.find(([type]) => type === "message")?.[1]
+			expect(handler).toBeDefined()
+			expect(remove).toHaveBeenCalledWith("message", handler)
+			expect(vi.getTimerCount()).toBe(0)
+			add.mockRestore()
+			remove.mockRestore()
+		},
+	)
 
 	it("install() 在 window.Magic 上注册 llm 对象", () => {
 		expect((window as any).Magic?.llm).toBeDefined()

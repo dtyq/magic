@@ -55,9 +55,10 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 	 * @description 保存主题配置
 	 */
 	public async setThemeConfig(theme: ThemeMode): Promise<void> {
+		this.cacheConfig(ConfigType.Theme, theme)
 		try {
 			const themeConfig = await this.get(ConfigType.Theme)
-			this.put({
+			await this.put({
 				...themeConfig,
 				key: ConfigType.Theme,
 				value: theme,
@@ -69,13 +70,6 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 				error: error,
 				message: "setThemeConfigError",
 				context: { tableName: ConfigRepository.tableName },
-			})
-		} finally {
-			const value = Storage.get(`${ConfigRepository.tableName}:${ConfigType.Theme}`)
-			Storage.set(`${ConfigRepository.tableName}:${ConfigType.Theme}`, {
-				...value,
-				key: ConfigType.Theme,
-				value: theme,
 			})
 		}
 	}
@@ -125,9 +119,10 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 	 * @description 保存国际化语言标识配置
 	 */
 	public async setLocaleConfig(locale: string): Promise<void> {
+		this.cacheConfig(ConfigType.I18n, locale)
 		try {
 			const localeConfig = await this.get(ConfigType.I18n)
-			this.put({
+			await this.put({
 				...localeConfig,
 				key: ConfigType.I18n,
 				value: locale,
@@ -139,13 +134,6 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 				error: error,
 				message: "setLocaleConfigError",
 				context: { tableName: ConfigRepository.tableName },
-			})
-		} finally {
-			const value = Storage.get(`${ConfigRepository.tableName}:${ConfigType.I18n}`)
-			Storage.set(`${ConfigRepository.tableName}:${ConfigType.I18n}`, {
-				...value,
-				key: ConfigType.I18n,
-				value: locale,
 			})
 		}
 	}
@@ -173,9 +161,10 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 	 * @description 保存集群配置
 	 */
 	public async setClusterConfig(cluster: string): Promise<void> {
+		this.cacheConfig(ConfigType.Cluster, cluster)
 		try {
 			const clusterConfig = await this.get(ConfigType.Cluster)
-			this.put({
+			await this.put({
 				...clusterConfig,
 				key: ConfigType.Cluster,
 				value: cluster,
@@ -187,13 +176,6 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 				error: error,
 				message: "setClusterConfigError",
 				context: { tableName: ConfigRepository.tableName },
-			})
-		} finally {
-			const value = Storage.get(`${ConfigRepository.tableName}:${ConfigType.Cluster}`)
-			Storage.set(`${ConfigRepository.tableName}:${ConfigType.Cluster}`, {
-				...value,
-				key: ConfigType.Cluster,
-				value: cluster,
 			})
 		}
 	}
@@ -222,9 +204,10 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 	 * @description 保存集群配置缓存
 	 */
 	public async setClusterCacheConfig(cluster: string): Promise<void> {
+		this.cacheConfig(ConfigType.clusterCodeCache, cluster)
 		try {
 			const clusterConfig = await this.get(ConfigType.clusterCodeCache)
-			this.put({
+			await this.put({
 				...clusterConfig,
 				key: ConfigType.clusterCodeCache,
 				value: cluster,
@@ -236,15 +219,6 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 				error: error,
 				message: "setClusterCacheConfigError",
 				context: { tableName: ConfigRepository.tableName },
-			})
-		} finally {
-			const value = Storage.get(
-				`${ConfigRepository.tableName}:${ConfigType.clusterCodeCache}`,
-			)
-			Storage.set(`${ConfigRepository.tableName}:${ConfigType.clusterCodeCache}`, {
-				...value,
-				key: ConfigType.clusterCodeCache,
-				value: cluster,
 			})
 		}
 	}
@@ -273,9 +247,10 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 	 * @description 保存字体缩放配置
 	 */
 	public async setFontScaleConfig(scale: number): Promise<void> {
+		this.cacheConfig(ConfigType.FontScale, scale.toString())
 		try {
 			const fontScaleConfig = await this.get(ConfigType.FontScale)
-			this.put({
+			await this.put({
 				...fontScaleConfig,
 				key: ConfigType.FontScale,
 				value: scale.toString(),
@@ -288,13 +263,12 @@ export class ConfigRepository extends GlobalBaseRepository<ConfigSchema> {
 				message: "setFontScaleConfigError",
 				context: { tableName: ConfigRepository.tableName },
 			})
-		} finally {
-			const value = Storage.get(`${ConfigRepository.tableName}:${ConfigType.FontScale}`)
-			Storage.set(`${ConfigRepository.tableName}:${ConfigType.FontScale}`, {
-				...value,
-				key: ConfigType.FontScale,
-				value: scale.toString(),
-			})
 		}
+	}
+
+	/** Cache immediately; a slow IndexedDB write must not postpone reload recovery. */
+	private cacheConfig(key: ConfigType, value: string): void {
+		const storageKey = `${ConfigRepository.tableName}:${key}`
+		Storage.set(storageKey, { ...Storage.get(storageKey), key, value })
 	}
 }

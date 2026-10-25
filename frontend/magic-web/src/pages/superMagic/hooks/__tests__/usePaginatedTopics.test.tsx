@@ -240,3 +240,133 @@ describe("usePaginatedTopics", () => {
 		expect(topicService.getSidebarTopicsByProjectId).toHaveBeenCalledTimes(2)
 	})
 })
+
+describe("server topic type filtering", () => {
+	beforeEach(() => window.sessionStorage.clear())
+
+	it("does not inject a selected topic or unfiltered store into an empty filtered result", async () => {
+		const storeTopics = [createTopic("ordinary", "Same name")]
+		const service = {
+			getSidebarTopicsByProjectId: vi.fn().mockResolvedValue({ list: [], total: 0 }),
+			getTopicDetail: vi.fn(),
+		}
+		const { result } = renderHook(() =>
+			usePaginatedTopics({
+				projectId: "project-1",
+				storeTopics,
+				selectedTopicId: "ordinary",
+				topicType: "scheduled_task",
+				topicService: service as never,
+			}),
+		)
+		await waitFor(() => expect(result.current.isLoading).toBe(false))
+		expect(result.current.displayTopics).toEqual([])
+		expect(result.current.total).toBe(0)
+		expect(service.getTopicDetail).not.toHaveBeenCalled()
+		expect(service.getSidebarTopicsByProjectId).toHaveBeenCalledWith(
+			expect.objectContaining({ topicType: "scheduled_task" }),
+		)
+	})
+
+	it("ignores a late previous-filter response and sends the current type when paging", async () => {
+		let resolveOld!: (value: { list: Topic[]; total: number }) => void
+		const storeTopics: Topic[] = []
+		const service = {
+			getSidebarTopicsByProjectId: vi.fn().mockImplementation(({ topicType, page }) => {
+				if (topicType === "topic")
+					return new Promise((resolve) => {
+						resolveOld = resolve
+					})
+				return Promise.resolve({
+					list: [createTopic(`scheduled-${page}`, "Same name")],
+					total: 2,
+				})
+			}),
+			getTopicDetail: vi.fn(),
+		}
+		const { result, rerender } = renderHook(
+			({ type }: { type: "topic" | "scheduled_task" }) =>
+				usePaginatedTopics({
+					projectId: "project-1",
+					storeTopics,
+					topicType: type,
+					pageSize: 1,
+					topicService: service as never,
+				}),
+			{ initialProps: { type: "topic" } },
+		)
+		rerender({ type: "scheduled_task" })
+		await waitFor(() => expect(result.current.displayTopics[0]?.id).toBe("scheduled-1"))
+		await act(async () =>
+			resolveOld({ list: [createTopic("ordinary", "Same name")], total: 1 }),
+		)
+		expect(result.current.displayTopics[0].id).toBe("scheduled-1")
+		await act(async () => result.current.loadMore())
+		expect(service.getSidebarTopicsByProjectId).toHaveBeenLastCalledWith(
+			expect.objectContaining({ page: 2, topicType: "scheduled_task" }),
+		)
+		expect(result.current.displayTopics.map((topic) => topic.id)).toEqual([
+			"scheduled-1",
+			"scheduled-2",
+		])
+	})
+
+	it("isolates type caches and exposes failure instead of falling back to all topics", async () => {
+		const storeTopics = [createTopic("ordinary", "Ordinary")]
+		window.sessionStorage.setItem(
+			"super-magic-topic-history-session-cache",
+			JSON.stringify({ "project-1": { topics: storeTopics, total: 1 } }),
+		)
+		const service = {
+			getSidebarTopicsByProjectId: vi.fn().mockRejectedValue(new Error("offline")),
+			getTopicDetail: vi.fn(),
+		}
+		const { result } = renderHook(() =>
+			usePaginatedTopics({
+				projectId: "project-1",
+				storeTopics,
+				topicType: "scheduled_task",
+				topicService: service as never,
+			}),
+		)
+		await waitFor(() => expect(result.current.error?.message).toBe("offline"))
+		expect(result.current.displayTopics).toEqual([])
+		expect(result.current.isLoading).toBe(false)
+	})
+
+	it("keeps loaded topics and retries the same page when loading more fails", async () => {
+		const service = {
+			getSidebarTopicsByProjectId: vi
+				.fn()
+				.mockResolvedValueOnce({ list: [createTopic("page-1", "One")], total: 2 })
+				.mockRejectedValueOnce(new Error("offline"))
+				.mockResolvedValueOnce({ list: [createTopic("page-2", "Two")], total: 2 }),
+			getTopicDetail: vi.fn(),
+		}
+		// Stable reference: storeTopics is an effect dependency of the hook.
+		const storeTopics: Topic[] = []
+		const { result } = renderHook(() =>
+			usePaginatedTopics({
+				projectId: "project-1",
+				storeTopics,
+				topicType: "topic",
+				pageSize: 1,
+				topicService: service as never,
+			}),
+		)
+		await waitFor(() => expect(result.current.displayTopics).toHaveLength(1))
+
+		await act(async () => result.current.loadMore())
+		expect(result.current.loadMoreError?.message).toBe("offline")
+		expect(result.current.error).toBeNull()
+		expect(result.current.hasMore).toBe(true)
+		expect(result.current.displayTopics.map((topic) => topic.id)).toEqual(["page-1"])
+
+		await act(async () => result.current.loadMore())
+		expect(service.getSidebarTopicsByProjectId).toHaveBeenLastCalledWith(
+			expect.objectContaining({ page: 2 }),
+		)
+		expect(result.current.loadMoreError).toBeNull()
+		expect(result.current.displayTopics.map((topic) => topic.id)).toEqual(["page-1", "page-2"])
+	})
+})

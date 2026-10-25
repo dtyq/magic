@@ -11,6 +11,9 @@
  * - AI_OPTIMIZATION_ACTION, DashboardCardsChange
  */
 
+import { KEYBOARD_MESSAGE_TYPES } from "@dtyq/html-sandbox"
+import type { FileAccessContext } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { env } from "@/utils/env"
 import { rewriteHtmlCdnWithHost } from "./index"
@@ -25,17 +28,15 @@ export const FETCH_MESSAGE_TYPES = {
 export const injectedIsRelativePathFunctionSource = `
 			function isRelativePath(url) {
 				if (!url) return false;
+				// 仅动态资源拦截脚本会定义该函数；同源沙箱页的绝对 URL 也按工作区相对路径处理
+				if (typeof isSandboxAbsoluteResourceUrl === "function" && isSandboxAbsoluteResourceUrl(url)) return true;
 				return !/^(https?:\\/\\/|\\/\\/|data:|blob:|mailto:|tel:|javascript:|about:)/i.test(url);
 			}
 `
 
-// 键盘快捷键消息类型常量，使用 MAGIC_KEYBOARD_ 前缀
-export const KEYBOARD_MESSAGE_TYPES = {
-	SAVE: "MAGIC_KEYBOARD_SAVE",
-	SAVE_AND_EXIT: "MAGIC_KEYBOARD_SAVE_AND_EXIT",
-	CANCEL: "MAGIC_KEYBOARD_CANCEL",
-	SOURCE: "magic-html-iframe",
-} as const
+// 键盘快捷键消息类型常量（MAGIC_KEYBOARD_ 前缀）。定义在 html-sandbox，iframe 运行时发送、
+// 这里的宿主处理器识别，两端共用同一份，避免字面量各写一份而漂移。
+export { KEYBOARD_MESSAGE_TYPES }
 
 export const POST_MESSAGE_TARGET_STRATEGIES = {
 	SAME_ORIGIN_ANCESTOR: "same-origin-ancestor",
@@ -171,6 +172,30 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 	const urlCache = new Map();
 	// 正在进行的请求缓存，避免同时发起多个相同的请求
 	const pendingRequests = new Map();
+
+	function isCachedUrlFresh(entry) {
+		if (!entry || !entry.url || entry.url === '__NOT_FOUND__') return false;
+		if (!entry.expiresAt) return false;
+		const expireTime = Date.parse(String(entry.expiresAt).replace(/-/g, '/'));
+		return !isNaN(expireTime) && expireTime - Date.now() > 5 * 60 * 1000;
+	}
+
+	function takeFreshCacheEntry(key) {
+		const entry = urlCache.get(key);
+		if (!entry) return null;
+		if (entry.url === '__NOT_FOUND__') return entry;
+		if (isCachedUrlFresh(entry)) return entry;
+		urlCache.delete(key);
+		return null;
+	}
+
+	function cacheResolvedUrl(relativePath, url, expiresAt) {
+		if (!url || !expiresAt) {
+			urlCache.delete(relativePath);
+			return;
+		}
+		urlCache.set(relativePath, { url: url, expiresAt: expiresAt });
+	}
 	
 	${injectedIsRelativePathFunctionSource}
 	
@@ -225,8 +250,8 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 					window.removeEventListener('message', messageHandler);
 					
 					if (event.data.success) {
-						// 缓存结果到urlCache
-						urlCache.set(relativePath, event.data.url);
+						// Skip cache when expires_at is missing; parent also refuses it.
+						cacheResolvedUrl(relativePath, event.data.url, event.data.expires_at);
 						// 清理pending状态
 						pendingRequests.delete(relativePath);
 						resolve(event.data.url);
@@ -255,6 +280,19 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 		// 原生 fetch 支持 string、URL 和 Request。未改写 URL 时必须透传原始 input，
 		// 否则 Request 中的 method、headers、body 等配置会在退化为 URL 字符串后丢失。
 		const isRequestInput = typeof Request !== 'undefined' && input instanceof Request;
+		const signal = init && init.signal !== undefined ? init.signal : isRequestInput ? input.signal : undefined;
+		if (signal && signal.aborted) throw signal.reason;
+		// Each caller owns its cancellation; the shared URL lookup remains usable by other callers.
+		const waitForUrl = (promise) => {
+			if (!signal) return promise;
+			return new Promise((resolve, reject) => {
+				const onAbort = () => { cleanup(); reject(signal.reason); };
+				const cleanup = () => signal.removeEventListener('abort', onAbort);
+				signal.addEventListener('abort', onAbort, { once: true });
+				if (signal.aborted) onAbort();
+				promise.then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
+			});
+		};
 		let url = typeof input === 'string' ? input : isRequestInput ? input.url : String(input);
 		const originalUrl = url;
 		const executeOriginalFetch = (resolvedUrl) => {
@@ -272,24 +310,24 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 			
 			// 1. 检查已完成的缓存
 			if (urlCache.has(url)) {
-				const cachedUrl = urlCache.get(url);
-				// 如果缓存的是错误标记，返回404响应
-				if (cachedUrl === '__NOT_FOUND__') {
+				const cachedUrl = takeFreshCacheEntry(url);
+				if (cachedUrl && cachedUrl.url === '__NOT_FOUND__') {
 					return Promise.resolve(new Response(null, {
 						status: 404,
 						statusText: 'Not Found',
 						headers: { 'Content-Type': 'text/plain' }
 					}));
 				}
-				url = cachedUrl;
+				if (cachedUrl) url = cachedUrl.url;
 			}
 			// 2. 检查是否有正在进行的请求
-			else if (pendingRequests.has(url)) {
+			if (isRelativePath(url) && pendingRequests.has(url)) {
 				try {
 					// 等待正在进行的请求完成
-					const resolvedUrl = await pendingRequests.get(url);
+					const resolvedUrl = await waitForUrl(pendingRequests.get(url));
 					url = resolvedUrl;
 				} catch (error) {
+					if (signal && signal.aborted) throw signal.reason;
 					// 如果pending请求失败，返回404响应
 					return Promise.resolve(new Response(null, {
 						status: 404,
@@ -299,17 +337,19 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 				}
 			}
 			// 3. 发起新的请求
-			else {
+			else if (isRelativePath(url)) {
 				try {
 					// 创建Promise并缓存到pending中
 					const requestPromise = requestUrlFromParent(url);
 					pendingRequests.set(url, requestPromise);
 					
-					const resolvedUrl = await requestPromise;
+					const resolvedUrl = await waitForUrl(requestPromise);
+					if (pendingRequests.get(url) === requestPromise) pendingRequests.delete(url);
 					url = resolvedUrl;
 				} catch (error) {
+					if (signal && signal.aborted) throw signal.reason;
 					// 请求失败，缓存错误标记并返回404响应
-					urlCache.set(url, '__NOT_FOUND__');
+					urlCache.set(url, { url: '__NOT_FOUND__' });
 					return Promise.resolve(new Response(null, {
 						status: 404,
 						statusText: 'Not Found',
@@ -340,6 +380,7 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 					// 非成功响应，直接返回
 					return response;
 				} catch (error) {
+					if (signal && signal.aborted) throw signal.reason;
 					console.error('处理 HTML 内容失败:', error);
 					// 失败时调用原始 fetch
 					return executeOriginalFetch(url);
@@ -361,8 +402,47 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 	// 拦截 XMLHttpRequest (AJAX)
 	const OriginalXHR = window.XMLHttpRequest;
 	const originalOpen = OriginalXHR.prototype.open;
+	const originalSetRequestHeader = OriginalXHR.prototype.setRequestHeader;
+	const originalAbort = OriginalXHR.prototype.abort;
+	const xhrRequests = new WeakMap();
+	const nativeDispatchEvent = EventTarget.prototype.dispatchEvent;
+	OriginalXHR.prototype.setRequestHeader = function(name, value) {
+		const request = xhrRequests.get(this);
+		if (request && request.sending) throw new DOMException('The object is in an invalid state.', 'InvalidStateError');
+		const result = originalSetRequestHeader.call(this, name, value);
+		if (request) request.headers.push([String(name), String(value)]);
+		return result;
+	};
+	OriginalXHR.prototype.abort = function() {
+		// Invalidating before native abort also covers the interval before native send starts.
+		const request = xhrRequests.get(this);
+		const wasResolving = request && request.resolving;
+		clearSyntheticResponse(this, request);
+		xhrRequests.delete(this);
+		const result = originalAbort.call(this);
+		// Before native send starts, native abort has no in-flight operation to notify.
+		if (wasResolving) {
+			nativeDispatchEvent.call(this, new ProgressEvent('abort'));
+			nativeDispatchEvent.call(this, new ProgressEvent('loadend'));
+		}
+		return result;
+	};
 	
+	function clearSyntheticResponse(xhr, request) {
+		if (!request || !request.syntheticProperties) return;
+		request.syntheticProperties.forEach(entry => {
+			const current = Object.getOwnPropertyDescriptor(xhr, entry.name);
+			// Do not remove an application override installed after our synthetic response.
+			if (!current || current.get !== entry.get) return;
+			if (entry.previous) Object.defineProperty(xhr, entry.name, entry.previous);
+			else delete xhr[entry.name];
+		});
+	}
 	OriginalXHR.prototype.open = function(method, url, async, user, password) {
+		clearSyntheticResponse(this, xhrRequests.get(this));
+		// Install metadata before open fires synchronous readystatechange callbacks.
+		xhrRequests.set(this, { headers: [], method: method, async: async !== false, user: user, password: password });
+		this._needsInterception = false;
 		// 保存原始URL
 		this._originalUrl = url;
 		
@@ -382,106 +462,79 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 	
 	const originalSend = OriginalXHR.prototype.send;
 	
-	OriginalXHR.prototype.send = async function(body) {
-		// 如果不需要拦截，直接发送
-		if (!this._needsInterception) {
-			return originalSend.call(this, body);
+	OriginalXHR.prototype.send = function(body) {
+		if (!this._needsInterception) return originalSend.call(this, body);
+		const request = xhrRequests.get(this);
+		if (this.readyState !== 1 || !request || request.sending) {
+			throw new DOMException('The object is in an invalid state.', 'InvalidStateError');
 		}
-		
 		const interceptedUrl = this._interceptedUrl;
-		
-		try {
-			// 1. 检查缓存
-			if (urlCache.has(interceptedUrl)) {
-				const cachedUrl = urlCache.get(interceptedUrl);
-				
-				// 如果缓存的是错误标记，返回404
-				if (cachedUrl === '__NOT_FOUND__') {
-					try {
-						Object.defineProperty(this, 'status', { value: 404, writable: false });
-						Object.defineProperty(this, 'statusText', { value: 'Not Found', writable: false });
-						Object.defineProperty(this, 'responseText', { value: '', writable: false });
-						Object.defineProperty(this, 'response', { value: '', writable: false });
-						Object.defineProperty(this, 'readyState', { value: 4, writable: false });
-					} catch (e) {}
-					// 触发事件
-					setTimeout(() => {
-						if (this.onreadystatechange) this.onreadystatechange();
-						if (this.onload) this.onload();
-					}, 0);
-					return;
-				}
-				
-				// 使用缓存的URL重新open
-				const method = this._method || 'GET';
-				const async = this._async !== false;
-				originalOpen.call(this, method, cachedUrl, async);
-				return originalSend.call(this, body);
-			}
-			
-			// 2. 检查pending请求
-			if (pendingRequests.has(interceptedUrl)) {
-				try {
-					const resolvedUrl = await pendingRequests.get(interceptedUrl);
-					const method = this._method || 'GET';
-					const async = this._async !== false;
-					originalOpen.call(this, method, resolvedUrl, async);
-					return originalSend.call(this, body);
-				} catch (error) {
-					try {
-						Object.defineProperty(this, 'status', { value: 404, writable: false });
-						Object.defineProperty(this, 'statusText', { value: 'Not Found', writable: false });
-						Object.defineProperty(this, 'responseText', { value: '', writable: false });
-						Object.defineProperty(this, 'response', { value: '', writable: false });
-						Object.defineProperty(this, 'readyState', { value: 4, writable: false });
-					} catch (e) {}
-					setTimeout(() => {
-						if (this.onreadystatechange) this.onreadystatechange();
-						if (this.onload) this.onload();
-					}, 0);
-					return;
-				}
-			}
-			
-			// 3. 发起新的请求
-			try {
-				const requestPromise = requestUrlFromParent(interceptedUrl);
-				pendingRequests.set(interceptedUrl, requestPromise);
-				
-				const resolvedUrl = await requestPromise;
-				const method = this._method || 'GET';
-				const async = this._async !== false;
-				originalOpen.call(this, method, resolvedUrl, async);
-				return originalSend.call(this, body);
-			} catch (error) {
-				urlCache.set(interceptedUrl, '__NOT_FOUND__');
-				try {
-					Object.defineProperty(this, 'status', { value: 404, writable: false });
-					Object.defineProperty(this, 'statusText', { value: 'Not Found', writable: false });
-					Object.defineProperty(this, 'responseText', { value: '', writable: false });
-					Object.defineProperty(this, 'response', { value: '', writable: false });
-					Object.defineProperty(this, 'readyState', { value: 4, writable: false });
-				} catch (e) {}
-				setTimeout(() => {
-					if (this.onreadystatechange) this.onreadystatechange();
-					if (this.onload) this.onload();
-				}, 0);
-				return;
-			}
-		} catch (error) {
-			// 发生错误，使用原始URL发送
+		const isCurrent = () => xhrRequests.get(this) === request;
+		const sendResolved = (resolvedUrl) => {
+			if (!isCurrent()) return;
+			request.resolving = false;
+			originalOpen.call(this, request.method, resolvedUrl, request.async, request.user, request.password);
+			if (!isCurrent()) return;
+			// open() clears native author headers; replay successful calls in their original order.
+			request.headers.forEach(header => originalSetRequestHeader.apply(this, header));
 			return originalSend.call(this, body);
+		};
+		const failLookup = () => {
+			if (!isCurrent()) return;
+			request.resolving = false;
+			request.sending = false;
+			request.syntheticProperties = [];
+			const response = { status: 404, statusText: 'Not Found', responseText: '', response: '', readyState: 4 };
+			Object.keys(response).forEach(name => {
+				const previous = Object.getOwnPropertyDescriptor(this, name);
+				const get = () => response[name];
+				try {
+					Object.defineProperty(this, name, { get, configurable: true });
+					request.syntheticProperties.push({ name, get, previous });
+				} catch (e) {}
+			});
+			setTimeout(() => {
+				if (!isCurrent()) return;
+				nativeDispatchEvent.call(this, new Event('readystatechange'));
+				if (!isCurrent()) return;
+				nativeDispatchEvent.call(this, new ProgressEvent('load'));
+				if (!isCurrent()) return;
+				nativeDispatchEvent.call(this, new ProgressEvent('loadend'));
+			}, 0);
+		};
+
+		request.sending = true;
+		const cachedUrl = takeFreshCacheEntry(interceptedUrl);
+		if (cachedUrl) {
+			if (cachedUrl.url === '__NOT_FOUND__') return failLookup();
+			try {
+				return sendResolved(cachedUrl.url);
+			} catch (error) {
+				request.sending = false;
+				throw error;
+			}
 		}
+
+		request.resolving = true;
+		let requestPromise = pendingRequests.get(interceptedUrl);
+		if (!requestPromise) {
+			requestPromise = requestUrlFromParent(interceptedUrl);
+			pendingRequests.set(interceptedUrl, requestPromise);
+		}
+		// Keep asynchronous URL resolution internal: XMLHttpRequest.send returns undefined.
+		void requestPromise.then(sendResolved, () => {
+			if (!isCurrent()) return;
+			urlCache.set(interceptedUrl, { url: '__NOT_FOUND__' });
+			failLookup();
+		}).catch(() => {
+			if (!isCurrent()) return;
+			request.resolving = false;
+			request.sending = false;
+			nativeDispatchEvent.call(this, new ProgressEvent('error'));
+			nativeDispatchEvent.call(this, new ProgressEvent('loadend'));
+		});
 	};
-	
-	// 保存method和async参数供send使用
-	const originalOpenWithParams = OriginalXHR.prototype.open;
-	OriginalXHR.prototype.open = function(method, url, async, user, password) {
-		this._method = method;
-		this._async = async;
-		return originalOpenWithParams.call(this, method, url, async, user, password);
-	};
-	
+
 })();
 `
 }
@@ -515,6 +568,8 @@ export type OnFetchIntercepted = (
  * @param htmlRelativeFolderPath HTML文件的相对文件夹路径
  * @param fileId 文件ID，用于验证请求来源
  * @param onFetchIntercepted 拦截记录回调函数，用于记录拦截的相对路径和文件信息
+ * @param access legacy share/session override; prefer `fileApi` when available
+ * @param fileApi bound file client closed over at the React/iframe boundary
  * @returns 消息处理函数
  */
 export function createParentMessageHandler(
@@ -522,6 +577,8 @@ export function createParentMessageHandler(
 	htmlRelativeFolderPath: string,
 	fileId: string,
 	onFetchIntercepted?: OnFetchIntercepted,
+	access?: FileAccessContext | null,
+	fileApi?: Pick<FileApi, "getTemporaryDownloadUrl">,
 ) {
 	return async (event: MessageEvent) => {
 		// 验证消息来源和类型
@@ -546,7 +603,11 @@ export function createParentMessageHandler(
 
 			if (matchedFile) {
 				// 使用 getTemporaryDownloadUrl 获取OSS URL
-				const response = await getTemporaryDownloadUrl({ file_ids: [matchedFile.file_id] })
+				const fetchUrls = fileApi?.getTemporaryDownloadUrl ?? getTemporaryDownloadUrl
+				const response = await fetchUrls({
+					file_ids: [matchedFile.file_id],
+					access: access ?? undefined,
+				})
 
 				if (response && response.length > 0 && response[0].url) {
 					const ossUrl = response[0].url
@@ -786,82 +847,14 @@ export function injectFetchInterceptorScript(
 }
 
 /**
- * 生成键盘快捷键拦截脚本
- * 在 iframe 内部监听键盘事件，并通过 postMessage 发送到父窗口
- */
-function generateKeyboardInterceptorScript(): string {
-	return `
-(function() {
-	const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-	
-	document.addEventListener('keydown', function(e) {
-		const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
-		
-		// Cmd/Ctrl + S (保存) 或 Shift + Cmd/Ctrl + S (保存并退出)
-		if (isCmdOrCtrl && e.key === 's') {
-			e.preventDefault();
-			e.stopPropagation();
-			
-			window.parent.postMessage({
-				type: e.shiftKey ? '${KEYBOARD_MESSAGE_TYPES.SAVE_AND_EXIT}' : '${KEYBOARD_MESSAGE_TYPES.SAVE}',
-				source: '${KEYBOARD_MESSAGE_TYPES.SOURCE}'
-			}, '*');
-		}
-		
-		// Escape (退出编辑模式)
-		if (e.key === 'Escape') {
-			e.preventDefault();
-			e.stopPropagation();
-			
-			window.parent.postMessage({
-				type: '${KEYBOARD_MESSAGE_TYPES.CANCEL}',
-				source: '${KEYBOARD_MESSAGE_TYPES.SOURCE}'
-			}, '*');
-		}
-	}, true);
-})();
-`
-}
-
-/**
- * 为HTML内容注入键盘快捷键拦截器脚本
- * @param htmlContent 原始HTML内容
- * @returns 注入脚本后的HTML内容
- */
-export function injectKeyboardInterceptorScript(htmlContent: string): string {
-	const keyboardInterceptorScript = generateKeyboardInterceptorScript()
-
-	let finalContent = htmlContent
-
-	// 在head标签中注入键盘拦截器脚本
-	const headEndIndex = finalContent.indexOf("</head>")
-	if (headEndIndex !== -1) {
-		const scriptTag = `<script data-injected="keyboard-interceptor">${keyboardInterceptorScript}</script>`
-		finalContent =
-			finalContent.slice(0, headEndIndex) + scriptTag + finalContent.slice(headEndIndex)
-	} else {
-		// 如果没有head标签，在html开始处注入
-		const htmlStartIndex = finalContent.indexOf("<html")
-		if (htmlStartIndex !== -1) {
-			const htmlTagEndIndex = finalContent.indexOf(">", htmlStartIndex) + 1
-			const scriptTag = `<script data-injected="keyboard-interceptor">${keyboardInterceptorScript}</script>`
-			finalContent =
-				finalContent.slice(0, htmlTagEndIndex) +
-				scriptTag +
-				finalContent.slice(htmlTagEndIndex)
-		}
-	}
-
-	return finalContent
-}
-
-/**
  * 键盘快捷键处理函数类型
  */
 export interface KeyboardHandlers {
 	onSave: () => void | Promise<void>
 	onSaveAndExit: () => void | Promise<void>
 	onCancel: () => void | Promise<void>
+	/** Return true when Escape was consumed by a local editor surface. */
+	onEscape?: () => boolean
 }
 
 /**
@@ -882,6 +875,7 @@ export function createKeyboardMessageHandler(handlers: KeyboardHandlers) {
 				void handlers.onSaveAndExit()
 				break
 			case KEYBOARD_MESSAGE_TYPES.CANCEL:
+				if (handlers.onEscape?.()) break
 				void handlers.onCancel()
 				break
 		}

@@ -1,5 +1,5 @@
-import type { NodeViewProps } from "@tiptap/core"
-import { NodeViewWrapper } from "@tiptap/react"
+import type { NodeViewProps } from "@/infrastructure/editors/tiptap/core"
+import { NodeViewWrapper } from "@/infrastructure/editors/tiptap/react"
 import type { MouseEvent } from "react"
 import { memo, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"

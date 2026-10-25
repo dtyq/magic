@@ -72,6 +72,26 @@ function cleanSEOString(str) {
 }
 
 /**
+ * 获取 HTML 模板中的 title 文本，用于没有 SEO 标题时的兜底。
+ * @param {string} html
+ * @returns {string}
+ */
+function getHtmlTitle(html) {
+	if (typeof html !== "string") return ""
+
+	const match = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)
+	if (!match) return ""
+
+	return match[1]
+		.trim()
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+}
+
+/**
  * 获取 favicon 的 MIME 类型
  * @param {string} faviconUrl
  * @returns {string}
@@ -169,17 +189,29 @@ function buildPreloadLink(minimalLogo) {
  * @returns {string}
  */
 function processHtmlContent(htmlTemplate, options) {
-	const { favicon, title, keywords, description, ogUrl, minimal_logo } = options
+	const {
+		favicon,
+		title,
+		keywords,
+		description,
+		ogUrl,
+		minimal_logo,
+		manifestUrl,
+		appleTouchIconUrl,
+	} = options
 
 	let html = htmlTemplate
+	const resolvedTitle = title || getHtmlTitle(htmlTemplate)
 
 	// 1. 替换 favicon（如果有）
 	if (favicon) {
 		const mimeType = getFaviconMimeType(favicon)
 		const safeFavicon = escapeUrl(favicon)
+		const installMarker =
+			manifestUrl || appleTouchIconUrl ? " data-micro-app-install=\"favicon\"" : ""
 		html = html.replace(
 			/<link\s+rel="icon"[^>]*>/i,
-			`<link rel="icon" type="${mimeType}" href="${safeFavicon}" />`,
+			`<link rel="icon" type="${mimeType}" href="${safeFavicon}"${installMarker} />`,
 		)
 	}
 
@@ -195,12 +227,28 @@ function processHtmlContent(htmlTemplate, options) {
 		})
 	}
 
+	const installLinks = [
+		manifestUrl
+			? `<link rel="manifest" href="${escapeUrl(manifestUrl)}" data-micro-app-install="manifest" />`
+			: "",
+		appleTouchIconUrl
+			? `<link rel="apple-touch-icon" href="${escapeUrl(appleTouchIconUrl)}" data-micro-app-install="apple-touch-icon" />`
+			: "",
+	]
+		.filter(Boolean)
+		.join("\n\t\t")
+	if (installLinks) {
+		html = html.replace(/(<meta\s+name="viewport"[\s\S]*?\/>)/i, (match) => {
+			return `${match}\n\t\t${installLinks}`
+		})
+	}
+
 	// 3. 构建 meta 标签（内部已经进行了转义）
-	const metaTags = buildMetaTags({ title, keywords, description, ogUrl })
+	const metaTags = buildMetaTags({ title: resolvedTitle, keywords, description, ogUrl })
 
 	// 4. 一次性替换所有内容（性能优化）
 	// ⚠️ title 需要转义，因为它会插入到 <title> 标签中
-	const safeTitle = escapeHtml(title)
+	const safeTitle = escapeHtml(resolvedTitle)
 	html = html
 		.replace(/<title>.*?<\/title>/i, `<title>${safeTitle}</title>`)
 		.replace("<!-- Meta -->", metaTags)
@@ -214,6 +262,7 @@ module.exports = {
 	escapeHtml,
 	escapeUrl,
 	cleanSEOString,
+	getHtmlTitle,
 	getFaviconMimeType,
 	getImageMimeType,
 	buildPreloadLink,

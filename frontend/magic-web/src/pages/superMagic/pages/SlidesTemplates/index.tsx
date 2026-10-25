@@ -1,21 +1,34 @@
-import { MousePointerClick, Palette, Search, X } from "lucide-react"
 import { useSize } from "ahooks"
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import i18next from "i18next"
 import { observer } from "mobx-react-lite"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { Button } from "@/components/shadcn-ui/button"
-import { Input } from "@/components/shadcn-ui/input"
-import { cn } from "@/lib/utils"
-import TemplateGroupSelector from "@/pages/superMagic/components/MainInputContainer/panels/TemplateGroupSelector"
+import magicToast from "@/components/base/MagicToaster/utils"
 import type { OptionItem } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import { useLocaleText } from "@/pages/superMagic/components/MainInputContainer/panels/hooks/useLocaleText"
+import { getFeaturedSlidesTemplateTag } from "@/pages/superMagic/components/MainInputContainer/panels/slides-preset/templateMeta"
 import { useSlidesTemplateCatalogState } from "@/pages/superMagic/components/MainInputContainer/scenes/Slides/useSlidesTemplateCatalogState"
-import { ALL_SLIDES_TEMPLATE_GROUP_KEY } from "@/pages/superMagic/components/MainInputContainer/scenes/Slides/slidesTemplateState"
+import {
+	ALL_SLIDES_TEMPLATE_GROUP_KEY,
+	toTemplateOption,
+} from "@/pages/superMagic/components/MainInputContainer/scenes/Slides/slidesTemplateState"
+import { useSlidesTemplateFavorite } from "@/pages/superMagic/components/MainInputContainer/scenes/Slides/useSlidesTemplateFavorite"
+import GuideTourWrapper from "@/pages/superMagic/components/LazyGuideTour"
+import {
+	HOME_ONBOARDING_AI_PPT_SELECTION_STEP_INDEX,
+	HOME_ONBOARDING_AI_PPT_TEMPLATE_STEP_INDEXES,
+	HOME_ONBOARDING_REQUEST_EVENT,
+	HOME_ONBOARDING_STEP_EVENT,
+	announceHomeOnboardingStepPrepared,
+	getHomeOnboardingEntryTask,
+	getHomeOnboardingStepIndex,
+} from "@/pages/superMagic/components/LazyGuideTour/GuideTourManager"
+import {
+	mySlidesTemplateAdapter,
+	type MySlidesTemplateAdapter,
+} from "@/pages/superMagic/services/mySlidesTemplateAdapter"
+import SuperMagicService from "@/pages/superMagic/services"
 import SlidesTemplateCanvas, { type SlidesTemplateCanvasHandle } from "./SlidesTemplateCanvas"
-import SlidesTemplateColorPalette from "./SlidesTemplateColorPalette"
-import SlidesTemplateGlowBorder from "./SlidesTemplateGlowBorder"
-import SlidesTemplatePromptDock from "./SlidesTemplatePromptDock"
+import SlidesTemplatesBottomTools from "./SlidesTemplatesBottomTools"
 import { getTemplateCoverUrl, getTemplateKey } from "./canvasInteraction"
 import {
 	getAvailableTemplateColors,
@@ -30,6 +43,8 @@ import {
 	subscribeTemplateColorExtractionSettled,
 } from "./templateColorExtractionStore"
 import { useTemplateColorExtractionVersion } from "./useResolvedTemplateColors"
+import MySlidesTemplatesEmptyState from "./MySlidesTemplatesEmptyState"
+import { MY_SLIDES_TEMPLATES_GROUP_KEY, useMySlidesTemplates } from "./useMySlidesTemplates"
 
 const BOTTOM_TOOLS_OFFSET = 24
 // 接口单页上限是 200。固定使用较大的页大小，保证后续 page 分页的 offset 连续，
@@ -39,34 +54,58 @@ const CANVAS_INITIAL_TEMPLATE_TARGET_COUNT = CANVAS_TEMPLATE_PAGE_SIZE * 2
 const CANVAS_EDGE_GAP = 40
 const SIMILAR_COLOR_TARGET_COUNT = 200
 const SIMILAR_COLOR_LOAD_MORE_INTERVAL_MS = 600
-const GROUP_SCROLL_CONTROL_CLASS_NAME =
-	"[&_button]:border-white/20 [&_button]:bg-zinc-800/[0.86] [&_button]:text-white [&_button]:shadow-[0_4px_14px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] [&_button]:backdrop-blur-lg [&_button:hover]:bg-zinc-700/[0.92]"
 
-function SlidesTemplatesPage() {
-	const { t } = useTranslation("crew/create")
+export interface SlidesTemplatesPageProps {
+	myTemplatesAdapter?: MySlidesTemplateAdapter
+}
+
+export function SlidesTemplatesPage({ myTemplatesAdapter }: SlidesTemplatesPageProps) {
 	const lt = useLocaleText()
 	const slidesState = useSlidesTemplateCatalogState({ pageSize: CANVAS_TEMPLATE_PAGE_SIZE })
 	const { loadMore: loadMoreTemplates } = slidesState
-	const [searchValue, setSearchValue] = useState(slidesState.keyword)
+	const setCatalogTemplateFavorite = slidesState.setTemplateFavorite
+	const [publicSearchValue, setPublicSearchValue] = useState(slidesState.keyword)
+	const personalTemplatesAdapter = myTemplatesAdapter ?? mySlidesTemplateAdapter
+	const { pendingCodes: favoritePendingCodes, toggleFavorite } =
+		useSlidesTemplateFavorite(personalTemplatesAdapter)
+	const mySlidesTemplates = useMySlidesTemplates({
+		adapter: personalTemplatesAdapter,
+		groups: slidesState.groups,
+	})
+	const loadMoreMyTemplates = mySlidesTemplates.loadMore
+	const retryLoadMoreMyTemplates = mySlidesTemplates.retryLoadMore
+	const setMyTemplateFavorite = mySlidesTemplates.setTemplateFavorite
 	const [selectedTemplate, setSelectedTemplate] = useState<OptionItem | null>(null)
 	const [similarColorSource, setSimilarColorSource] = useState<OptionItem | null>(null)
 	const [isInlinePreviewOpen, setIsInlinePreviewOpen] = useState(false)
 	const isComposingRef = useRef(false)
 	const canvasRef = useRef<SlidesTemplateCanvasHandle>(null)
+	/**
+	 * The template the onboarding run's canvas steps settled on. It is what the run's last step
+	 * selects, so the pair of steps reads as one: the card that was just centred is the one that
+	 * ends up selected.
+	 */
+	const guideTemplateRef = useRef<OptionItem | null>(null)
+	/** Which step of the run has been answered, so re-running the effect below answers nothing twice. */
+	const answeredStepRef = useRef<number | null>(null)
 	const bottomToolsRef = useRef<HTMLDivElement | null>(null)
 	const templateDetailRequestSeqRef = useRef(0)
 	const lastSimilarColorLoadMoreAtRef = useRef(0)
 	const visibleTemplateOptionsRef = useRef(slidesState.templateOptions)
 	const similarColorSourceKeyRef = useRef("")
 	const bottomToolsSize = useSize(bottomToolsRef)
-	const reduceMotion = useReducedMotion()
-	const hasGroups = slidesState.groups.length > 1
+	const searchValue = mySlidesTemplates.isSelected
+		? mySlidesTemplates.searchValue
+		: publicSearchValue
+	const toolbarGroups = mySlidesTemplates.groups
+	const hasGroups = toolbarGroups.length > 1
 	const isSimilarColorFilterActive = Boolean(similarColorSource)
 	const colorExtractionVersion = useTemplateColorExtractionVersion(isSimilarColorFilterActive)
 	const isUnfilteredAllTemplatesView =
+		!mySlidesTemplates.isSelected &&
 		slidesState.selectedGroupKey === ALL_SLIDES_TEMPLATE_GROUP_KEY &&
 		slidesState.selectedChildTagCodes.length === 0 &&
-		!searchValue.trim() &&
+		!publicSearchValue.trim() &&
 		!slidesState.debouncedKeyword &&
 		!similarColorSource
 	const isInitialPrefetchPending =
@@ -75,6 +114,14 @@ function SlidesTemplatesPage() {
 		slidesState.loadedTemplateCount < CANVAS_INITIAL_TEMPLATE_TARGET_COUNT &&
 		slidesState.hasMore &&
 		!slidesState.isLoadMoreFailed
+	/**
+	 * Whether the library has answered at all. An onboarding step that found no card to centre has
+	 * found nothing because there was nothing to look at yet, which is not the same as a library that
+	 * holds no featured card — and only the second one is worth walking past. Kept out here rather than
+	 * inside the run's effect so that effect re-runs the moment the answer arrives, which is what lets
+	 * a step the page could not prepare be declared answered instead of left waiting.
+	 */
+	const isCatalogSettled = !isInitialPrefetchPending && !slidesState.isLoading
 	const enableInfiniteLoop =
 		!searchValue.trim() && !isSimilarColorFilterActive && !isInitialPrefetchPending
 	const visibleTemplateOptions = useMemo(() => {
@@ -128,15 +175,20 @@ function SlidesTemplatesPage() {
 	const handleTemplateDetailLoad = useCallback(
 		(template: OptionItem) => {
 			const code = typeof template.value === "string" ? template.value : ""
+			if (mySlidesTemplates.isSelected) {
+				return code
+					? personalTemplatesAdapter.loadDetail(code).then(toTemplateOption)
+					: Promise.resolve(template)
+			}
 			return code ? loadTemplateDetail(code) : Promise.resolve(template)
 		},
-		[loadTemplateDetail],
+		[loadTemplateDetail, mySlidesTemplates.isSelected, personalTemplatesAdapter],
 	)
 
 	useEffect(() => {
-		if (isComposingRef.current) return
-		setSearchValue(slidesState.keyword)
-	}, [slidesState.keyword])
+		if (mySlidesTemplates.isSelected || isComposingRef.current) return
+		setPublicSearchValue(slidesState.keyword)
+	}, [mySlidesTemplates.isSelected, slidesState.keyword])
 
 	useEffect(() => {
 		if (
@@ -157,7 +209,7 @@ function SlidesTemplatesPage() {
 	}, [
 		isUnfilteredAllTemplatesView,
 		loadMoreTemplates,
-		searchValue,
+		publicSearchValue,
 		similarColorSource,
 		slidesState.debouncedKeyword,
 		slidesState.hasMore,
@@ -226,19 +278,66 @@ function SlidesTemplatesPage() {
 	])
 
 	const handleLoadMoreTemplates = useCallback(() => {
+		if (mySlidesTemplates.isSelected) {
+			if (mySlidesTemplates.isLoadMoreFailed) {
+				retryLoadMoreMyTemplates()
+				return
+			}
+			loadMoreMyTemplates()
+			return
+		}
 		if (isSimilarColorFilterActive) return
 		loadMoreTemplates()
-	}, [isSimilarColorFilterActive, loadMoreTemplates])
+	}, [
+		isSimilarColorFilterActive,
+		loadMoreTemplates,
+		loadMoreMyTemplates,
+		mySlidesTemplates.isLoadMoreFailed,
+		mySlidesTemplates.isSelected,
+		retryLoadMoreMyTemplates,
+	])
 
-	// 服务端筛选只有在新结果真正替换后才递增 templateViewRevision。
-	// 画布复位必须与这次替换同一帧发生，不能在分类按钮或防抖关键词变化时提前复位旧模板。
-	const resetKey = `${slidesState.templateViewRevision}:${
-		similarColorSource ? getTemplateKey(similarColorSource) : "all-colors"
-	}`
+	const canvasTemplateOptions = useMemo(
+		() =>
+			mySlidesTemplates.isSelected
+				? mySlidesTemplates.templates
+				: isInitialPrefetchPending
+					? []
+					: visibleTemplateOptions,
+		[
+			isInitialPrefetchPending,
+			mySlidesTemplates.isSelected,
+			mySlidesTemplates.templates,
+			visibleTemplateOptions,
+		],
+	)
+	/**
+	 * What the run's last step selects when the canvas never centred a card for it — the library's
+	 * templates all carry no featured tag, say, so the two steps before it were stepped over. The
+	 * editor that step highlights only opens once something is selected, so a run that reached it
+	 * with nothing would highlight an empty row.
+	 */
+	const guideTemplateFallback = useMemo(
+		() =>
+			canvasTemplateOptions.find((template) => getFeaturedSlidesTemplateTag(template)) ??
+			canvasTemplateOptions[0] ??
+			null,
+		[canvasTemplateOptions],
+	)
+
+	const resetKey = mySlidesTemplates.isSelected
+		? mySlidesTemplates.resetKey
+		: `${slidesState.templateViewRevision}:${
+				similarColorSource ? getTemplateKey(similarColorSource) : "all-colors"
+			}`
 
 	function handleSearchChange(value: string) {
 		setSimilarColorSource(null)
-		setSearchValue(value)
+		if (mySlidesTemplates.isSelected) {
+			mySlidesTemplates.setSearchValue(value)
+			return
+		}
+		setPublicSearchValue(value)
 		if (isComposingRef.current) return
 
 		slidesState.setKeyword(value)
@@ -251,13 +350,21 @@ function SlidesTemplatesPage() {
 	function handleCompositionEnd(value: string) {
 		setSimilarColorSource(null)
 		isComposingRef.current = false
-		setSearchValue(value)
+		if (mySlidesTemplates.isSelected) {
+			mySlidesTemplates.setSearchValue(value)
+			return
+		}
+		setPublicSearchValue(value)
 		slidesState.setKeyword(value)
 	}
 
 	function handleClearSearch() {
 		setSimilarColorSource(null)
-		setSearchValue("")
+		if (mySlidesTemplates.isSelected) {
+			mySlidesTemplates.setSearchValue("")
+			return
+		}
+		setPublicSearchValue("")
 		slidesState.setKeyword("")
 	}
 
@@ -266,21 +373,120 @@ function SlidesTemplatesPage() {
 		setSelectedTemplate(null)
 	}
 
-	function handleTemplateSelect(template: OptionItem) {
-		const requestSeq = templateDetailRequestSeqRef.current + 1
-		templateDetailRequestSeqRef.current = requestSeq
-		setSelectedTemplate(template)
-		// 列表接口只携带缩略图，选择模板后再读取详情，避免首屏加载全部预览大图。
-		void handleTemplateDetailLoad(template)
-			.then((detail) => {
-				if (detail && requestSeq === templateDetailRequestSeqRef.current) {
-					setSelectedTemplate(detail)
+	const handleTemplateSelect = useCallback(
+		(template: OptionItem) => {
+			const requestSeq = templateDetailRequestSeqRef.current + 1
+			templateDetailRequestSeqRef.current = requestSeq
+			setSelectedTemplate(template)
+			// 列表接口只携带缩略图，选择模板后再读取详情，避免首屏加载全部预览大图。
+			void handleTemplateDetailLoad(template)
+				.then((detail) => {
+					if (detail && requestSeq === templateDetailRequestSeqRef.current) {
+						setSelectedTemplate(detail)
+					}
+				})
+				.catch((error) => {
+					console.error("Failed to fetch slides template detail", error)
+				})
+		},
+		[handleTemplateDetailLoad],
+	)
+
+	/**
+	 * The "了解如何使用 AI PPT" run cannot simply point at this page: two of its steps highlight a
+	 * template card, and the page is a wall of them that slides on its own — so which card a step
+	 * refers to is settled at run time. The tour announces the step it moves to, and this is what
+	 * answers it. The two template steps ask the canvas to centre a featured card and hold it there;
+	 * the last step selects the card the run settled on, which is what opens the request editor
+	 * underneath it. The run is a demonstration, so nothing is ever submitted.
+	 *
+	 * The page also has to say when it is done. A card cannot be framed before the canvas has one to
+	 * centre, and that waits on a library that takes as long as it takes — the initial prefetch alone
+	 * loads several hundred templates before the canvas is given any. The tour has no way to tell
+	 * that apart from a library with no featured card in it, so it is told: every step is announced
+	 * as prepared once the page has either centred a card or established that there is none to
+	 * centre. That is what keeps a step from being walked past merely because the network was slow.
+	 *
+	 * A run of another task announces nothing this page acts on — the entry it was opened for is the
+	 * filter — and an ordinary visit never reaches this effect at all.
+	 */
+	useEffect(() => {
+		if (getHomeOnboardingEntryTask() !== "create-ai-ppt") return
+
+		const isGuideRun = () => getHomeOnboardingEntryTask() === "create-ai-ppt"
+
+		const applyStep = (index: number) => {
+			/*
+			 * Answering a step is not free — centring a card starts a move, and selecting one opens
+			 * the editor — so a step is answered once and the answer is remembered by its index. The
+			 * effect below re-runs whenever the catalog does, and without this the same step would be
+			 * answered again: the card would fly back to the middle and the selection would be made
+			 * a second time, each time the library finished loading something.
+			 */
+			if (answeredStepRef.current === index) return
+
+			if (HOME_ONBOARDING_AI_PPT_TEMPLATE_STEP_INDEXES.includes(index)) {
+				const focusedTemplate = canvasRef.current?.focusGuideFeaturedTemplate() ?? null
+				// The canvas can only centre a card once it has been given a library. Leaving the
+				// step unanswered keeps this effect trying as the catalog arrives — it re-runs on
+				// every change of `guideTemplateFallback` — instead of the step being declared
+				// answerable while the page was still empty.
+				if (!focusedTemplate) {
+					if (isCatalogSettled) announceHomeOnboardingStepPrepared(index)
+					return
 				}
-			})
-			.catch((error) => {
-				console.error("Failed to fetch slides template detail", error)
-			})
-	}
+
+				answeredStepRef.current = index
+				guideTemplateRef.current = focusedTemplate
+				announceHomeOnboardingStepPrepared(index)
+				return
+			}
+			if (index !== HOME_ONBOARDING_AI_PPT_SELECTION_STEP_INDEX) {
+				answeredStepRef.current = index
+				return
+			}
+
+			const template = guideTemplateRef.current ?? guideTemplateFallback
+			// Same as above: an unanswered step is retried once the library has something to offer.
+			if (!template) {
+				if (isCatalogSettled) announceHomeOnboardingStepPrepared(index)
+				return
+			}
+
+			answeredStepRef.current = index
+			handleTemplateSelect(template)
+			// The selection is what opens the row this step highlights, so the step is prepared by
+			// the same call that answers it.
+			announceHomeOnboardingStepPrepared(index)
+		}
+		const handleStepChange = (event: Event) => {
+			const { detail } = event as CustomEvent<number>
+			if (typeof detail === "number") applyStep(detail)
+		}
+		/**
+		 * A re-watch can start while this page is already mounted — the benefits card navigates to a
+		 * route the user is already on, so nothing re-mounts. The run it opens begins at its first
+		 * step, so what an earlier one answered is forgotten and the new one is answered from the
+		 * start; without this the first step would look already answered and no card would ever be
+		 * centred again.
+		 */
+		const handleRunStart = () => {
+			if (!isGuideRun()) return
+			answeredStepRef.current = null
+			guideTemplateRef.current = null
+			applyStep(getHomeOnboardingStepIndex())
+		}
+
+		// The page can mount with the run already on a step — an entry navigates here and the tour
+		// mounts alongside — so the position is read once as well as followed from then on.
+		applyStep(getHomeOnboardingStepIndex())
+		window.addEventListener(HOME_ONBOARDING_REQUEST_EVENT, handleRunStart)
+		window.addEventListener(HOME_ONBOARDING_STEP_EVENT, handleStepChange)
+		return () => {
+			window.removeEventListener(HOME_ONBOARDING_REQUEST_EVENT, handleRunStart)
+			window.removeEventListener(HOME_ONBOARDING_STEP_EVENT, handleStepChange)
+		}
+	}, [guideTemplateFallback, handleTemplateSelect, isCatalogSettled])
 
 	function handlePreviewSelectedTemplate() {
 		if (!selectedTemplate) return
@@ -297,10 +503,60 @@ function SlidesTemplatesPage() {
 		setSimilarColorSource({ ...template, colors })
 	}, [])
 
+	const handleOpenProject = useCallback((template: OptionItem) => {
+		const project = template.project
+		if (!project?.id || !project.directory_id) return
+
+		void SuperMagicService.switchProjectById(project.id, undefined, undefined, {
+			slidesTemplateProjectId: project.id,
+			slidesTemplateDirectoryId: project.directory_id,
+		}).catch((error) => {
+			console.error("Failed to open slides template source project", error)
+			magicToast.error(i18next.t("mySlidesTemplates.openProjectFailed", { ns: "super" }))
+		})
+	}, [])
+
+	const handleFavoriteToggle = useCallback(
+		(template: OptionItem) => {
+			const section = mySlidesTemplates.activeSection
+			void toggleFavorite(template, (code, isFavorite, fallbackTemplate) => {
+				setCatalogTemplateFavorite(code, isFavorite)
+				setMyTemplateFavorite(section, code, isFavorite, fallbackTemplate)
+			})
+				.then((isFavorite) => {
+					if (isFavorite === undefined) return
+					magicToast.success(
+						i18next.t(
+							isFavorite
+								? "mySlidesTemplates.favoriteSuccess"
+								: "mySlidesTemplates.unfavoriteSuccess",
+							{ ns: "super" },
+						),
+					)
+				})
+				.catch(() => {
+					magicToast.error(i18next.t("mySlidesTemplates.favoriteFailed", { ns: "super" }))
+				})
+		},
+		[
+			mySlidesTemplates.activeSection,
+			setMyTemplateFavorite,
+			setCatalogTemplateFavorite,
+			toggleFavorite,
+		],
+	)
+
 	function handleGroupChange(groupKey: string) {
+		if (groupKey === MY_SLIDES_TEMPLATES_GROUP_KEY && mySlidesTemplates.isSelected) return
+
 		templateDetailRequestSeqRef.current += 1
 		setSelectedTemplate(null)
 		setSimilarColorSource(null)
+		if (groupKey === MY_SLIDES_TEMPLATES_GROUP_KEY) {
+			mySlidesTemplates.select()
+			return
+		}
+		mySlidesTemplates.leave()
 		slidesState.setSelectedGroupKey(groupKey)
 	}
 
@@ -309,206 +565,107 @@ function SlidesTemplatesPage() {
 			className="relative size-full overflow-hidden rounded-lg bg-[#101114]"
 			data-testid="slides-templates-page"
 		>
-			<SlidesTemplateCanvas
-				ref={canvasRef}
-				enableInfiniteLoop={enableInfiniteLoop}
-				initialAlignment={isSimilarColorFilterActive ? "top" : "center"}
-				templates={isInitialPrefetchPending ? [] : visibleTemplateOptions}
+			{mySlidesTemplates.emptyStatus ? (
+				<MySlidesTemplatesEmptyState
+					status={mySlidesTemplates.emptyStatus}
+					onRetry={() => void mySlidesTemplates.retry()}
+					bottomInset={(bottomToolsSize?.height ?? 0) + BOTTOM_TOOLS_OFFSET}
+					section={mySlidesTemplates.activeSection}
+				/>
+			) : (
+				<SlidesTemplateCanvas
+					ref={canvasRef}
+					enableInfiniteLoop={enableInfiniteLoop}
+					initialAlignment={isSimilarColorFilterActive ? "top" : "center"}
+					templates={canvasTemplateOptions}
+					favoritePendingCodes={favoritePendingCodes}
+					selectedTemplate={selectedTemplate}
+					onTemplateSelect={handleTemplateSelect}
+					hasMore={
+						mySlidesTemplates.isSelected
+							? mySlidesTemplates.hasMore
+							: isSimilarColorFilterActive
+								? false
+								: slidesState.hasMore
+					}
+					isLoading={
+						mySlidesTemplates.isSelected
+							? false
+							: slidesState.isLoading || isInitialPrefetchPending
+					}
+					isLoadingMore={
+						mySlidesTemplates.isSelected
+							? mySlidesTemplates.isLoadingMore
+							: slidesState.isLoadingMore
+					}
+					isRefreshFailed={
+						mySlidesTemplates.isSelected
+							? mySlidesTemplates.isLoadMoreFailed
+							: slidesState.isRefreshFailed
+					}
+					isRefreshing={mySlidesTemplates.isSelected ? false : slidesState.isRefreshing}
+					onLoadMore={handleLoadMoreTemplates}
+					loadMoreSignal={
+						mySlidesTemplates.isSelected
+							? mySlidesTemplates.loadMoreSignal
+							: slidesState.loadedTemplateCount
+					}
+					onFindSimilarColors={
+						mySlidesTemplates.isSelected ? undefined : handleFindSimilarColors
+					}
+					onFavoriteToggle={handleFavoriteToggle}
+					onOpenProject={handleOpenProject}
+					onPreviewOpenChange={setIsInlinePreviewOpen}
+					onRetryRefresh={
+						mySlidesTemplates.isSelected
+							? mySlidesTemplates.retryLoadMore
+							: slidesState.retryRefresh
+					}
+					onTemplateDetailLoad={handleTemplateDetailLoad}
+					resetKey={resetKey}
+					viewportInsets={canvasViewportInsets}
+				/>
+			)}
+
+			<SlidesTemplatesBottomTools
+				bottomOffset={BOTTOM_TOOLS_OFFSET}
+				containerRef={bottomToolsRef}
+				isInlinePreviewOpen={isInlinePreviewOpen}
 				selectedTemplate={selectedTemplate}
-				onTemplateSelect={handleTemplateSelect}
-				hasMore={isSimilarColorFilterActive ? false : slidesState.hasMore}
-				isLoading={slidesState.isLoading || isInitialPrefetchPending}
-				isLoadingMore={slidesState.isLoadingMore}
-				isRefreshFailed={slidesState.isRefreshFailed}
-				isRefreshing={slidesState.isRefreshing}
-				onLoadMore={handleLoadMoreTemplates}
-				loadMoreSignal={slidesState.loadedTemplateCount}
-				onFindSimilarColors={handleFindSimilarColors}
-				onPreviewOpenChange={setIsInlinePreviewOpen}
-				onRetryRefresh={slidesState.retryRefresh}
-				onTemplateDetailLoad={handleTemplateDetailLoad}
-				resetKey={resetKey}
-				viewportInsets={canvasViewportInsets}
+				onClearSelectedTemplate={handleClearSelectedTemplate}
+				onFindSimilarColors={
+					mySlidesTemplates.isSelected ? undefined : handleFindSimilarColors
+				}
+				onPreviewSelectedTemplate={handlePreviewSelectedTemplate}
+				toolbarProps={{
+					activeMyTemplatesSection: mySlidesTemplates.activeSection,
+					groups: toolbarGroups,
+					onClearSearch: handleClearSearch,
+					onClearSimilarColors: () => setSimilarColorSource(null),
+					onCompositionEnd: handleCompositionEnd,
+					onCompositionStart: handleCompositionStart,
+					onFocusRandomTemplate: handleFocusRandomTemplate,
+					onGroupChange: handleGroupChange,
+					onMyTemplatesSectionChange: mySlidesTemplates.setActiveSection,
+					onSearchChange: handleSearchChange,
+					randomDisabled: canvasTemplateOptions.length === 0,
+					searchValue,
+					selectedGroupKey: mySlidesTemplates.isSelected
+						? MY_SLIDES_TEMPLATES_GROUP_KEY
+						: slidesState.selectedGroupKey,
+					similarColorAmbient,
+					similarColorSourceColors,
+					similarColorSourceName,
+					showGroups: hasGroups,
+					showSimilarColors: Boolean(similarColorSource),
+				}}
 			/>
 
-			<AnimatePresence initial={false}>
-				{isInlinePreviewOpen ? null : (
-					<motion.div
-						ref={bottomToolsRef}
-						key="bottom-tools-shell"
-						initial={reduceMotion ? false : { opacity: 0, y: 42, scale: 0.98 }}
-						animate={{ opacity: 1, y: 0, scale: 1 }}
-						exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 42, scale: 0.98 }}
-						transition={
-							reduceMotion
-								? { duration: 0 }
-								: { type: "spring", stiffness: 420, damping: 38, mass: 0.7 }
-						}
-						className="pointer-events-none absolute inset-x-0 z-30 flex justify-center px-6"
-						style={{ bottom: BOTTOM_TOOLS_OFFSET }}
-					>
-						<motion.div
-							className={cn(
-								"pointer-events-auto flex w-full max-w-3xl flex-col rounded-2xl bg-zinc-950/[0.42] p-2 shadow-[0_12px_36px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-2xl",
-							)}
-							data-testid="slides-templates-page-bottom-tools"
-						>
-							<div
-								className={cn(
-									"relative grid",
-									selectedTemplate
-										? "grid-rows-[1fr]"
-										: "grid-rows-[0fr] transition-none",
-								)}
-								data-testid="slides-templates-page-prompt-region"
-							>
-								<div className="min-h-0 overflow-hidden">
-									{/* 提前挂载编辑器，首次选择模板时只切换可见性，避免初始化导致整页闪动。 */}
-									<motion.div
-										initial={false}
-										animate={{
-											opacity: selectedTemplate ? 1 : 0,
-											y: selectedTemplate ? 0 : 6,
-										}}
-										transition={
-											reduceMotion
-												? { duration: 0 }
-												: {
-														duration: 0.14,
-														ease: [0.22, 1, 0.36, 1],
-													}
-										}
-										className={cn(
-											"flex flex-col",
-											!selectedTemplate && "pointer-events-none invisible",
-										)}
-										aria-hidden={!selectedTemplate}
-										data-testid="slides-templates-page-prompt-panel"
-									>
-										<SlidesTemplatePromptDock
-											selectedTemplate={selectedTemplate}
-											onFindSimilarColors={handleFindSimilarColors}
-											onPreviewSelectedTemplate={
-												handlePreviewSelectedTemplate
-											}
-											onClearSelectedTemplate={handleClearSelectedTemplate}
-										/>
-									</motion.div>
-								</div>
-							</div>
-
-							<div
-								className={cn(
-									"flex min-w-0 items-center gap-3",
-									selectedTemplate && "mt-2.5",
-								)}
-							>
-								<div className="relative min-w-[220px] flex-1">
-									<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/[0.45]" />
-									<Input
-										value={searchValue}
-										onChange={(event) => handleSearchChange(event.target.value)}
-										onCompositionStart={handleCompositionStart}
-										onCompositionEnd={(event) =>
-											handleCompositionEnd(event.currentTarget.value)
-										}
-										placeholder={t(
-											"playbook.edit.presets.form.searchPlaceholder",
-										)}
-										className="h-10 rounded-2xl border-0 bg-white/[0.09] pl-9 pr-9 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.11)] placeholder:text-white/[0.45] focus-visible:ring-white/20"
-										data-testid="slides-templates-page-search-input"
-									/>
-									{searchValue ? (
-										<Button
-											type="button"
-											size="icon"
-											variant="ghost"
-											className="absolute right-1 top-1/2 size-8 -translate-y-1/2 rounded-full text-white/[0.65] hover:bg-white/10 hover:text-white"
-											aria-label={t("playbook.edit.presets.close")}
-											onClick={handleClearSearch}
-											data-testid="slides-templates-page-search-clear"
-										>
-											<X className="size-4" />
-										</Button>
-									) : null}
-								</div>
-								<Button
-									type="button"
-									variant="ghost"
-									className="group relative isolate h-10 shrink-0 overflow-hidden rounded-2xl border-0 bg-white/[0.075] px-3 text-sm text-white/[0.88] shadow-[0_8px_22px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-white/[0.11] hover:text-white hover:shadow-[0_10px_28px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.16)]"
-									aria-label={t("playbook.edit.presets.form.randomTemplate")}
-									disabled={slidesState.templateOptions.length === 0}
-									onClick={handleFocusRandomTemplate}
-									data-testid="slides-templates-page-random-template"
-								>
-									<SlidesTemplateGlowBorder
-										className="opacity-90 group-hover:opacity-100"
-										radius={15}
-									/>
-									<MousePointerClick className="relative z-40 mr-1.5 size-4" />
-									<span className="relative z-40">
-										{t("playbook.edit.presets.form.randomTemplate")}
-									</span>
-								</Button>
-							</div>
-
-							{similarColorSource ? (
-								<div
-									className="mt-2.5 flex min-w-0 items-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.07] px-2.5 py-2 text-white/[0.84] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-									style={
-										similarColorAmbient
-											? {
-													backgroundImage: `radial-gradient(circle at 8% 50%, ${similarColorAmbient}, transparent 34%)`,
-												}
-											: undefined
-									}
-									data-testid="slides-templates-page-similar-colors-filter"
-								>
-									<Palette className="size-4 shrink-0 text-white/[0.72]" />
-									<SlidesTemplateColorPalette
-										colors={similarColorSourceColors}
-										compact
-									/>
-									<span className="min-w-0 flex-1 truncate text-xs font-medium">
-										{t("playbook.edit.presets.form.similarColorsFor", {
-											name: similarColorSourceName,
-										})}
-									</span>
-									<Button
-										type="button"
-										size="icon-sm"
-										variant="ghost"
-										className="size-7 shrink-0 rounded-full text-white/[0.58] hover:bg-white/10 hover:text-white"
-										aria-label={t(
-											"playbook.edit.presets.form.clearSimilarColors",
-										)}
-										onClick={() => {
-											setSimilarColorSource(null)
-										}}
-										data-testid="slides-templates-page-clear-similar-colors"
-									>
-										<X className="size-3.5" />
-									</Button>
-								</div>
-							) : null}
-
-							{hasGroups ? (
-								<TemplateGroupSelector
-									groups={slidesState.groups}
-									selectedGroupKey={slidesState.selectedGroupKey}
-									onGroupChange={handleGroupChange}
-									showEmptyGroups
-									className="mt-2.5 [&_button:hover]:border-white/[0.18] [&_button:hover]:bg-white/[0.16] [&_button:hover]:text-white [&_button[aria-pressed=true]]:border-white/[0.32] [&_button[aria-pressed=true]]:bg-white/[0.22] [&_button[aria-pressed=true]]:text-white [&_button[aria-pressed=true]]:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_8px_22px_rgba(0,0,0,0.14)] [&_button]:border-white/[0.10] [&_button]:bg-white/[0.10] [&_button]:text-white/[0.82] [&_button]:shadow-none"
-									controlBackground="transparent"
-									leftControlClassName={GROUP_SCROLL_CONTROL_CLASS_NAME}
-									rightControlClassName={GROUP_SCROLL_CONTROL_CLASS_NAME}
-									data-testid="slides-templates-page-group-selector"
-								/>
-							) : null}
-						</motion.div>
-					</motion.div>
-				)}
-			</AnimatePresence>
+			{/*
+			 * The "了解如何使用 AI PPT" steps are highlighted on this page, and it is a standalone route
+			 * outside the home layout — so the tour has to be mounted here to serve that task.
+			 */}
+			<GuideTourWrapper isMobile={false} page="slides-templates" />
 		</div>
 	)
 }

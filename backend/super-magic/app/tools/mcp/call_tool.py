@@ -40,7 +40,8 @@ class McpCallToolParams(BaseToolParams):
         default="",
         description=(
             "Optional absolute JSON output path. Successful results are returned inline by default; "
-            "when omitted, results larger than 8 KiB are stored in the capacity-managed .runtime "
+            "when omitted, results larger than the configured "
+            "runtime_cleanup.mcp_outputs.result_size_threshold are stored in the capacity-managed .runtime "
             "directory and may disappear after later eviction or a sandbox restart. To keep a result "
             "across restarts or deliver it to the user, provide an absolute path inside the current "
             ".workspace directory."
@@ -97,8 +98,8 @@ class McpCallTool(BaseMcpTool[McpCallToolParams]):
         target_tool = args.get("tool_name", "") or "-"
         tool_params_raw = args.get("tool_params", "") or ""
 
-        status_icon = "✅" if result.ok else "❌"
-        header = f"**{server_name}** · `{target_tool}` {status_icon}"
+        status_label = "Success" if result.ok else "Error"
+        header = f"**{server_name}** · `{target_tool}` · {status_label}"
 
         meta_parts: list[str] = []
         execution_time = getattr(result, "execution_time", None)

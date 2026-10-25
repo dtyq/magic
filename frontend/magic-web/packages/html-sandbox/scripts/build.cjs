@@ -42,6 +42,15 @@ function parseArgs(argv) {
 			result.outFile = arg.slice("--out-file=".length)
 			continue
 		}
+		if (arg === "--runtime-out-file") {
+			result.runtimeOutFile = argv[i + 1]
+			i += 1
+			continue
+		}
+		if (arg.startsWith("--runtime-out-file=")) {
+			result.runtimeOutFile = arg.slice("--runtime-out-file=".length)
+			continue
+		}
 		if (arg === "--watch") {
 			result.watch = true
 		}
@@ -93,19 +102,6 @@ function normalizePath(filePath) {
 	return filePath.replace(/\\/g, "/")
 }
 
-function resolveHtmlSandboxSource(subpath) {
-	const normalizedSubpath = subpath.replace(/^\/+/, "")
-	const basePath = path.join(pkgRoot, "src", normalizedSubpath)
-	const candidates = [
-		path.join(basePath, "index.ts"),
-		path.join(basePath, "index.tsx"),
-		`${basePath}.ts`,
-		`${basePath}.tsx`,
-		basePath,
-	]
-	return candidates.find((candidate) => fs.existsSync(candidate)) || null
-}
-
 function createHtmlSandboxAliasPlugin() {
 	return {
 		name: "html-sandbox-workspace-alias",
@@ -114,16 +110,6 @@ function createHtmlSandboxAliasPlugin() {
 				path: path.resolve(projectRoot, "src", args.path.slice(2)),
 			}))
 
-			buildContext.onResolve({ filter: /^@dtyq\/html-sandbox$/ }, () => ({
-				path: path.join(pkgRoot, "src", "index.ts"),
-			}))
-
-			buildContext.onResolve({ filter: /^@dtyq\/html-sandbox\/(.+)$/ }, (args) => {
-				const subpath = args.path.replace(/^@dtyq\/html-sandbox\/?/, "")
-				const resolved = resolveHtmlSandboxSource(subpath)
-				if (!resolved) return null
-				return { path: resolved }
-			})
 		},
 	}
 }
@@ -215,6 +201,7 @@ async function bundleRuntimeSource(runtimeEntry) {
 		minify: true,
 		sourcemap: false,
 		metafile: true,
+		conditions: ["magic-web-source"],
 		legalComments: "none",
 		plugins: [createHtmlSandboxAliasPlugin()],
 		banner: {
@@ -255,23 +242,30 @@ function getFileMtimeMs(filePath) {
 	}
 }
 
-async function buildHtml({ runtimeEntry, outFile }) {
+async function buildHtml({ runtimeEntry, outFile, runtimeOutFile }) {
 	fs.mkdirSync(path.dirname(outFile), { recursive: true })
 
 	const runtimeBundle = await bundleRuntimeSource(runtimeEntry)
 	const builtIndexHtml = buildIndexHtml(runtimeBundle.source)
 
 	fs.writeFileSync(outFile, builtIndexHtml)
+	if (runtimeOutFile) {
+		fs.mkdirSync(path.dirname(runtimeOutFile), { recursive: true })
+		fs.writeFileSync(runtimeOutFile, runtimeBundle.source)
+	}
 
 	console.log("[html-sandbox build] index.html created successfully.", {
 		runtimeEntry: normalizePath(path.relative(projectRoot, runtimeEntry)),
 		outFile: normalizePath(path.relative(projectRoot, outFile)),
+		...(runtimeOutFile
+			? { runtimeOutFile: normalizePath(path.relative(projectRoot, runtimeOutFile)) }
+			: {}),
 	})
 
 	return runtimeBundle.inputPaths
 }
 
-async function watchHtml({ runtimeEntry, outFile }) {
+async function watchHtml({ runtimeEntry, outFile, runtimeOutFile }) {
 	let rebuildTimer = null
 	let pollTimer = null
 	let isBuilding = false
@@ -322,7 +316,7 @@ async function watchHtml({ runtimeEntry, outFile }) {
 
 		isBuilding = true
 		try {
-			const inputPaths = await buildHtml({ runtimeEntry, outFile })
+			const inputPaths = await buildHtml({ runtimeEntry, outFile, runtimeOutFile })
 			const nextWatchPaths = Array.from(new Set([indexHtmlSrc, ...inputPaths]))
 
 			refreshWatchedPaths(nextWatchPaths)
@@ -364,13 +358,14 @@ async function main() {
 	const args = parseArgs(process.argv.slice(2))
 	const runtimeEntry = resolveRuntimeEntry(args.runtimeEntry)
 	const outFile = resolveOutputFile(args.outFile)
+	const runtimeOutFile = args.runtimeOutFile ? resolveOutputFile(args.runtimeOutFile) : undefined
 
 	if (args.watch) {
-		await watchHtml({ runtimeEntry, outFile })
+		await watchHtml({ runtimeEntry, outFile, runtimeOutFile })
 		return
 	}
 
-	await buildHtml({ runtimeEntry, outFile })
+	await buildHtml({ runtimeEntry, outFile, runtimeOutFile })
 }
 
 main().catch((error) => {

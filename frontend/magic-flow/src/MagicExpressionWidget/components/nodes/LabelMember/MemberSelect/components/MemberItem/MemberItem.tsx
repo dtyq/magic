@@ -1,4 +1,4 @@
-import { CheckOutlined } from "@ant-design/icons"
+import { IconCheck } from "@tabler/icons-react"
 import { Tooltip } from "antd"
 import React from "react"
 import { Member } from "../../../types"
@@ -33,7 +33,7 @@ export default function MemberItem({
 			>
 				<MemberBlock item={item} size={size} onDelete={onDelete} />
 				{showCheck && !!value?.find?.((v) => v.id === item.id) && (
-					<CheckOutlined style={{ color: "#3B81F7" }} className="icon" />
+					<IconCheck style={{ color: "#3B81F7" }} className="icon" />
 				)}
 			</div>
 		</Tooltip>

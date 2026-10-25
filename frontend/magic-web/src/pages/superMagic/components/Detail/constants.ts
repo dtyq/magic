@@ -9,7 +9,6 @@ export const DisabledDetailToolTypes = [
 	"text_to_image",
 	"todo_create",
 	"todo_update",
-	"download_from_urls",
-	"audio_understanding",
 	"audio_understanding_progress",
+	"wait_for_subagents",
 ]

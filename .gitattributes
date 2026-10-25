@@ -1,2 +1,5 @@
 backend/magic-service/go-engine/assets/gse/data/dict/zh/s_1.txt filter=lfs diff=lfs merge=lfs -text
 backend/magic-service/go-engine/assets/gse/data/dict/zh/t_1.txt filter=lfs diff=lfs merge=lfs -text
+frontend/magic-web/src/assets/resources/wechat-chat-history/*.webp filter=lfs diff=lfs merge=lfs -text
+frontend/magic-web/src/pages/superMagic/pages/AiCanvasPage/showcase/images/*.webp filter=lfs diff=lfs merge=lfs -text
+frontend/magic-web/src/assets/resources/persona-research/*.webp filter=lfs diff=lfs merge=lfs -text

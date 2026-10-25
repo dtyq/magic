@@ -2,7 +2,12 @@ import pytest
 
 from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
+from app.tools import UpdateHtmlAppMemory as ExportedUpdateHtmlAppMemory
 from app.tools.update_html_app_memory import UpdateHtmlAppMemory
+
+
+def test_update_html_app_memory_is_exported_for_packaging():
+    assert ExportedUpdateHtmlAppMemory is UpdateHtmlAppMemory
 
 
 @pytest.mark.asyncio

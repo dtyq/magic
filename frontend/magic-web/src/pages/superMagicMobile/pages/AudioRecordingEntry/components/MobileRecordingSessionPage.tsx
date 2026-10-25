@@ -48,6 +48,7 @@ interface MobileRecordingSessionPageProps {
 	folderPath?: string
 	urlResolver?: ProjectImageUrlResolver
 	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
+	requireImagesFolderParentId?: boolean
 	onImageUploadSuccess?: (relativePath: string) => void
 	onImageUploadError?: (error: Error) => void
 	onEnableTranscription: () => void
@@ -114,6 +115,7 @@ export function MobileRecordingSessionPage({
 	folderPath,
 	urlResolver,
 	resolveImagesFolderParentId,
+	requireImagesFolderParentId,
 	onImageUploadSuccess,
 	onImageUploadError,
 	onEnableTranscription,
@@ -447,6 +449,7 @@ export function MobileRecordingSessionPage({
 										onImageUploadError?.(error)
 									}}
 									resolveImagesFolderParentId={resolveImagesFolderParentId}
+									requireImagesFolderParentId={requireImagesFolderParentId}
 									editorRef={editorRef}
 									placeholder={t("mobile.recordingEntry.active.notesPlaceholder")}
 									className="min-h-0 flex-1 overflow-y-auto bg-mobile-background text-[15px] leading-6 text-foreground [&_.simple-editor-content]:!bg-mobile-background [&_.simple-editor-wrapper]:!bg-mobile-background [&_.simple-editor]:!bg-mobile-background [&_.tiptap-toolbar]:!bg-mobile-background"

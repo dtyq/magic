@@ -1,3 +1,4 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useEffect, useMemo, useState } from "react"
 import {
 	AlertTriangle,
@@ -153,6 +154,7 @@ export function RecordingDetailHeader({
 	onCopyToProject,
 	onDelete,
 }: RecordingDetailHeaderProps) {
+	const { permissions: access } = useFileAccess()
 	const { t } = useTranslation("audioRecordings")
 	const capabilities = useRecordingDetailCapabilities()
 	const [editingTitle, setEditingTitle] = useState(false)
@@ -297,7 +299,7 @@ export function RecordingDetailHeader({
 						</Button>
 					) : null}
 
-					{capabilities.canExport ? (
+					{capabilities.canExport && access.download ? (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<button
@@ -364,7 +366,7 @@ export function RecordingDetailHeader({
 							</DropdownMenuContent>
 						</DropdownMenu>
 					) : null}
-					{capabilities.canManageShare ? (
+					{capabilities.canManageShare && access.share ? (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<button

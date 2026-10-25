@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import i18n from "i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 
 export interface DataItem {
@@ -254,7 +255,7 @@ export default function useData({ searchKeywords }: UseDataProps) {
 				setLoading(false)
 			}, 500)
 		} catch (error) {
-			magicToast.error("获取部署网站列表失败")
+			magicToast.error(i18n.t("deployedWebsites.fetchFailed", { ns: "super" }))
 			console.error("Failed to fetch deployed websites:", error)
 			setLoading(false)
 		}

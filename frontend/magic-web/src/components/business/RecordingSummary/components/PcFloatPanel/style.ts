@@ -169,8 +169,39 @@ export const useStyles = createStyles(({ token, css, prefixCls }) => {
 			padding: 10px 20px;
 			display: flex;
 			flex-direction: column;
-			gap: 20px;
+			gap: 0;
 			position: relative;
+		`,
+
+		transcriptionToolbar: css`
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			min-height: 32px;
+			padding: 0 8px 0 12px;
+			box-sizing: border-box;
+			flex-shrink: 0;
+			margin-bottom: 2px;
+			border: 1px solid ${token.colorBorder};
+			border-radius: 10px;
+			margin: 8px;
+		`,
+
+		transcriptionToolbarLabel: css`
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			color: ${token.magicColorUsages.text[2]};
+			font-size: 13px;
+			font-weight: 400;
+			line-height: 18px;
+		`,
+
+		transcriptionContent: css`
+			position: relative;
+			min-height: 0;
+			flex: 1;
+			overflow: hidden;
 		`,
 
 		divider: css`
@@ -429,6 +460,36 @@ export const useStyles = createStyles(({ token, css, prefixCls }) => {
 			white-space: nowrap;
 		`,
 
+		compatibilityModeIcon: css`
+			display: inline-flex;
+			align-items: center;
+			color: ${token.colorWarning};
+		`,
+
+		compatibilityModeNotice: css`
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			padding: 6px 8px;
+			border-bottom: 1px solid ${token.colorBorder};
+			background: ${token.colorWarningBg};
+			color: ${token.colorWarningText};
+			font-size: 12px;
+			line-height: 18px;
+		`,
+
+		compatibilityModeTitle: css`
+			font-weight: 600;
+			margin-bottom: 2px;
+		`,
+
+		compatibilityModeDescription: css`
+			color: ${token.magicColorUsages.text[2]};
+			font-size: 12px;
+			font-weight: 400;
+			line-height: 18px;
+		`,
+
 		controlsArea: css`
 			display: flex;
 			align-items: center;
@@ -627,33 +688,6 @@ export const useStyles = createStyles(({ token, css, prefixCls }) => {
 			font-size: 13px;
 			font-weight: 400;
 			line-height: 18px;
-		`,
-
-		transcriptionEnableButton: css`
-			margin-top: 6px;
-			min-width: 96px;
-			height: 32px;
-			border: none;
-			border-radius: 8px;
-			padding: 0 14px;
-			cursor: pointer;
-			background: #315cec;
-			color: #fff;
-			font-size: 13px;
-			font-weight: 500;
-			line-height: 18px;
-			transition:
-				background 0.2s ease,
-				opacity 0.2s ease;
-
-			&:hover:not(:disabled) {
-				background: #2547c8;
-			}
-
-			&:disabled {
-				cursor: not-allowed;
-				opacity: 0.6;
-			}
 		`,
 
 		// 底部区域 - 可动画的

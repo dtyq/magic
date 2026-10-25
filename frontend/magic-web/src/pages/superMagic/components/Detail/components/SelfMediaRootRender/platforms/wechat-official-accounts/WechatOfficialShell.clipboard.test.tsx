@@ -193,7 +193,8 @@ describe("WechatOfficialShell clipboard export", () => {
 
 	it("starts the clipboard write before async source conversion finishes", async () => {
 		let resolveArticleHtml:
-			((value: { content: string; filePathMapping: Map<never, never> }) => void) | null = null
+			| ((value: { content: string; filePathMapping: Map<never, never> }) => void)
+			| null = null
 		loadWechatArticleHtmlMock.mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {

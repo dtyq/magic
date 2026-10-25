@@ -38,6 +38,56 @@ func TestServiceBatchOperationsMergesExternalAccess(t *testing.T) {
 	}
 }
 
+func TestServiceBatchOperationsMergesRelationshipAccess(t *testing.T) {
+	t.Parallel()
+
+	svc := access.NewService(
+		permissionReaderStub{operations: map[string]string{"kb-local": "read"}},
+		nil,
+		access.NewCompositeAccessReader(
+			externalAccessReaderStub{operations: map[string]access.Operation{
+				"kb-local": access.OperationEdit,
+			}},
+			externalAccessReaderStub{operations: map[string]access.Operation{
+				"kb-local": access.OperationAdmin,
+			}},
+		),
+		nil,
+	)
+
+	operations, err := svc.BatchOperations(context.Background(), access.Actor{
+		OrganizationCode: "org",
+		UserID:           "user",
+	}, []string{"kb-local"})
+	if err != nil {
+		t.Fatalf("BatchOperations() error = %v", err)
+	}
+	if operations["kb-local"] != access.OperationAdmin {
+		t.Fatalf("expected strongest supplemental operation admin, got %q", operations["kb-local"])
+	}
+}
+
+func TestServiceBatchOperationsReturnsRelationshipAccessError(t *testing.T) {
+	t.Parallel()
+
+	svc := access.NewService(
+		permissionReaderStub{operations: map[string]string{"kb-local": "read"}},
+		nil,
+		access.NewCompositeAccessReader(
+			externalAccessReaderStub{err: errPermissionWriterBoom},
+		),
+		nil,
+	)
+
+	_, err := svc.BatchOperations(context.Background(), access.Actor{
+		OrganizationCode: "org",
+		UserID:           "user",
+	}, []string{"kb-local"})
+	if err == nil {
+		t.Fatal("expected relationship access error, got nil")
+	}
+}
+
 func TestServiceInitializeCleanupAndRebuildDelegateWriter(t *testing.T) {
 	t.Parallel()
 

@@ -22,8 +22,6 @@ use Exception;
 use Hyperf\Retry\Annotation\Retry;
 use Throwable;
 
-use function Hyperf\Translation\__;
-
 class GoogleGeminiModel extends AbstractImageGenerate
 {
     /** Google Gemini 生图接口客户端。 */
@@ -90,27 +88,10 @@ class GoogleGeminiModel extends AbstractImageGenerate
             return $response;
         }
 
-        $this->warnIfMultipleImagesRequested($imageGenerateRequest);
         $originalReferImages = $imageGenerateRequest->getReferImages();
 
-        try {
-            try {
-                $result = $this->requestImageGenerationWithFallback($imageGenerateRequest, $originalReferImages);
-                $this->addImageDataToResponseGemini($response, $result, $imageGenerateRequest);
-            } catch (Exception $e) {
-                if (! $response->hasError()) {
-                    $response->setProviderErrorCode($e->getCode());
-                    $response->setProviderErrorMessage($e->getMessage());
-                }
-
-                $this->logger->error('GoogleGemini OpenAI格式生图：请求失败', [
-                    'error_code' => $e->getCode(),
-                    'error_message' => $e->getMessage(),
-                ]);
-            }
-        } finally {
-            $imageGenerateRequest->setReferImages($originalReferImages);
-        }
+        $result = $this->requestImageGenerationWithFallback($imageGenerateRequest, $originalReferImages);
+        $this->addImageDataToResponseGemini($response, $result, $imageGenerateRequest);
 
         $this->logger->info('GoogleGemini OpenAI格式生图：处理完成', [
             '总请求数' => 1,
@@ -183,7 +164,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
             return $this->api->generateContent($prompt, [], $config);
         } catch (Exception $e) {
             $this->logger->warning('Google Gemini图片生成：调用图片生成接口失败', ['error' => $e->getMessage(), 'TraceAsString' => $e->getTraceAsString()]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $e->getMessage());
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, throwable: $e);
         }
     }
 
@@ -305,35 +286,26 @@ class GoogleGeminiModel extends AbstractImageGenerate
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
         }
 
-        $this->warnIfMultipleImagesRequested($imageGenerateRequest);
-
         $originalReferImages = $imageGenerateRequest->getReferImages();
         try {
             $result = $this->requestImageGenerationWithFallback($imageGenerateRequest, $originalReferImages);
             return [['imageData' => $this->extractImageDataFromResponse($result)]];
         } catch (Exception $e) {
             $this->logger->error('Google Gemini文生图：图片生成失败', ['error' => $e->getMessage()]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::NO_VALID_IMAGE, $e->getMessage());
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, throwable: $e);
         } finally {
             $imageGenerateRequest->setReferImages($originalReferImages);
         }
     }
 
-    /** Google 当前只生成一张图片，忽略大于 1 的生成数量。 */
-    private function warnIfMultipleImagesRequested(GoogleGeminiRequest $request): void
-    {
-        if ($request->getGenerateNum() > 1) {
-            $this->logger->warning('Google Gemini生图：不支持一次生成多张图片，将只生成一张');
-        }
-    }
-
     private function extractImageDataFromResponse(array $result): string
     {
-        if (! isset($result['candidates']) || ! is_array($result['candidates'])) {
-            throw new Exception(__('image_generate.response_missing_candidates'));
+        $candidates = $result['candidates'] ?? [];
+        if (! is_array($candidates)) {
+            $candidates = [];
         }
 
-        foreach ($result['candidates'] as $candidateIndex => $candidate) {
+        foreach ($candidates as $candidateIndex => $candidate) {
             if (! isset($candidate['content']['parts'])) {
                 continue;
             }
@@ -349,10 +321,26 @@ class GoogleGeminiModel extends AbstractImageGenerate
             }
         }
 
-        $this->logger->error('Google Gemini生图错误', [
-            'result' => $result,
-        ]);
-        throw new Exception(__('image_generate.response_missing_image_data'));
+        $finishReason = null;
+        foreach ($candidates as $candidate) {
+            if (is_array($candidate) && isset($candidate['finishReason'])) {
+                $finishReason = $candidate['finishReason'];
+                break;
+            }
+        }
+
+        $errorCode = match ($finishReason) {
+            'IMAGE_SAFETY', 'IMAGE_PROHIBITED_CONTENT' => ImageGenerateErrorCode::OUTPUT_IMAGE_AUDIT_FAILED,
+            default => ImageGenerateErrorCode::GENERAL_ERROR,
+        };
+
+        ExceptionBuilder::throw(
+            $errorCode,
+            throwable: new Exception(
+                json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR)
+                    ?: 'Invalid Google Gemini response.'
+            )
+        );
     }
 
     private function logSkippedThoughtImagePart(int|string $candidateIndex, int|string $partIndex, string $stage): void
@@ -396,6 +384,18 @@ class GoogleGeminiModel extends AbstractImageGenerate
         array $geminiResult,
         ImageGenerateRequest $imageGenerateRequest
     ): void {
+        $usage = $response->getUsage() ?? new ImageUsage();
+        if (! empty($geminiResult['usageMetadata']) && is_array($geminiResult['usageMetadata'])) {
+            $tokenUsage = $this->extractTokenUsage($geminiResult['usageMetadata']);
+            $usage->addTokenUsage(
+                $tokenUsage['prompt_tokens'],
+                $tokenUsage['completion_tokens'],
+                $tokenUsage['thoughts_tokens'],
+                $tokenUsage['total_tokens']
+            );
+        }
+        $response->setUsage($usage);
+
         $imageBase64 = $this->extractImageDataFromResponse($geminiResult);
 
         // 水印处理会将 Base64 图片转为 URL。
@@ -412,18 +412,7 @@ class GoogleGeminiModel extends AbstractImageGenerate
         $data[] = ['url' => $processedUrl];
         $response->setData($data);
 
-        $usage = $response->getUsage() ?? new ImageUsage();
         $usage->addGeneratedImages(1);
-        if (! empty($geminiResult['usageMetadata']) && is_array($geminiResult['usageMetadata'])) {
-            $tokenUsage = $this->extractTokenUsage($geminiResult['usageMetadata']);
-            $usage->addTokenUsage(
-                $tokenUsage['prompt_tokens'],
-                $tokenUsage['completion_tokens'],
-                $tokenUsage['thoughts_tokens'],
-                $tokenUsage['total_tokens']
-            );
-        }
-        $response->setUsage($usage);
     }
 
     /**
@@ -431,9 +420,23 @@ class GoogleGeminiModel extends AbstractImageGenerate
      */
     private function extractTokenUsage(array $usageMetadata): array
     {
+        $candidateDetails = $usageMetadata['candidatesTokensDetails'] ?? [];
+        $completionTokens = (int) ($usageMetadata['candidatesTokenCount'] ?? 0);
+        if (is_array($candidateDetails) && $candidateDetails !== []) {
+            $completionTokens = 0;
+            foreach ($candidateDetails as $detail) {
+                if (is_array($detail) && ($detail['modality'] ?? '') === 'IMAGE') {
+                    $completionTokens += max(0, (int) ($detail['tokenCount'] ?? 0));
+                }
+            }
+        }
+        if ($completionTokens <= 0) {
+            $completionTokens = (int) ($usageMetadata['candidatesTokenCount'] ?? 0);
+        }
+
         return [
             'prompt_tokens' => (int) ($usageMetadata['promptTokenCount'] ?? 0),
-            'completion_tokens' => (int) ($usageMetadata['candidatesTokenCount'] ?? 0),
+            'completion_tokens' => $completionTokens,
             'thoughts_tokens' => (int) ($usageMetadata['thoughtsTokenCount'] ?? 0),
             'total_tokens' => (int) ($usageMetadata['totalTokenCount'] ?? 0),
         ];

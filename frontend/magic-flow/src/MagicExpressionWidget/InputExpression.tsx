@@ -2,7 +2,7 @@
 import { useControllableValue, useMemoizedFn, useUpdateEffect } from "ahooks"
 import { Cascader, ConfigProvider, Modal } from "antd"
 // import { FIELDS_NAME, VALUE_TYPE } from "cai-json-edit/dist/JsonSchemaEditor/constants"
-import _, { cloneDeep, isEqual } from "lodash"
+import { castArray, cloneDeep, isEqual } from "lodash-es"
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import ContentEditable from "./components/ContentEditable"
 import { ExpressionMode, defaultExpressionValue } from "./constant"
@@ -16,9 +16,10 @@ import CascaderDropdown from "@/common/BaseUI/DropdownRenderer/Reference"
 import { multipleTypes } from "@/common/BaseUI/DropdownRenderer/Reference/hooks/useRender"
 import ErrorContent from "@/common/BaseUI/ErrorComponent/ErrorComponent"
 import MagicSelect from "@/common/BaseUI/Select"
+import TablerIconGlobalStyle from "@/common/BaseUI/TablerIconGlobalStyle"
 import { useNodeMap } from "@/common/context/NodeMap/useResize"
 import { generateSnowFlake } from "@/common/utils/snowflake"
-import { IconChevronDown } from "@douyinfe/semi-icons"
+import { IconChevronDown } from "@tabler/icons-react"
 import i18next from "i18next"
 import { ErrorBoundary } from "react-error-boundary"
 import { useTranslation } from "react-i18next"
@@ -83,7 +84,7 @@ const CustomInputExpression = (props: InputExpressionProps) => {
 	// 过滤初始空值
 	const filterValue = useMemo(() => {
 		if (!propVal) return null
-		const cloneValue = _.cloneDeep(propVal) as InputExpressionValue
+		const cloneValue = cloneDeep(propVal) as InputExpressionValue
 		cloneValue.const_value = filterEmptyValues(cloneValue.const_value)
 		cloneValue.expression_value = filterEmptyValues(cloneValue.expression_value)
 
@@ -222,7 +223,7 @@ const CustomInputExpression = (props: InputExpressionProps) => {
 
 				// 处理选择引用值的情况
 				if (val.type === LabelTypeMap.LabelFunc || val.type === LabelTypeMap.LabelNode) {
-					newValue = _.castArray(val)
+					newValue = castArray(val)
 				}
 
 				return [
@@ -482,6 +483,7 @@ const CustomInputExpression = (props: InputExpressionProps) => {
 				return <ErrorContent />
 			}}
 		>
+			<TablerIconGlobalStyle />
 			<ConfigProvider prefixCls={CLASSNAME_PREFIX}>
 				<ArgsModalProvider
 					isOpenArgsModal={isOpenArgsModal}
@@ -548,7 +550,7 @@ const CustomInputExpression = (props: InputExpressionProps) => {
 												},
 											]}
 											className="type-select"
-											suffixIcon={<IconChevronDown />}
+									suffixIcon={<IconChevronDown size={16} />}
 											onChange={handleValueTypeChange}
 											disabled={disabled}
 											value={valueType}

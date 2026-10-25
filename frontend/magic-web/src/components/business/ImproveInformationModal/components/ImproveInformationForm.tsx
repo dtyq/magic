@@ -182,7 +182,7 @@ function ImproveInformationForm({ form }: ImproveInformationFormProps) {
 							maxLength={30}
 							placeholder={t("completeInformationModal.userNameInputPlaceholder")}
 							value={userName}
-							onChange={(e) => setUserName(e.target.value)}
+							onChange={(e) => setUserName(e.target.value.trim())}
 							className="h-9 placeholder:text-sm"
 							aria-label={t("completeInformationModal.userName")}
 							data-testid="improve-information-username-input"

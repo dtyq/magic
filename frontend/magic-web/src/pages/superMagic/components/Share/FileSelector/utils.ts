@@ -2,6 +2,9 @@
  * 工具函数：文件选择器相关的工具函数
  */
 
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import { isSlidesTemplateFolder } from "@/pages/superMagic/components/TopicFilesButton/utils/slides-template-folder"
+
 /**
  * 递归查找文件树中的文件
  */
@@ -29,9 +32,9 @@ export function findFileInTree(
  * @returns 是否可以设置为默认打开
  */
 export function canSetAsDefault(item: Record<string, any>): boolean {
-	// 普通文件夹不支持
+	// 普通文件夹不支持；带 display_config 或标准模板根目录可设
 	if (item.is_directory && !item?.display_config?.type) {
-		return false
+		return isSlidesTemplateFolder(item as AttachmentItem)
 	}
 	// 携带 metadata 的文件夹和普通文件都支持
 	return true
@@ -74,7 +77,16 @@ function isIndexHtmlFile(file: Record<string, unknown>): boolean {
 }
 
 function isOpenableFile(file: Record<string, unknown>): boolean {
-	return Boolean(!file.is_directory || file.display_config)
+	return Boolean(!file.is_directory || file.display_config || isContentFolder(file))
+}
+
+/** PPT / template / other content folders should open as themselves. */
+function isContentFolder(file: Record<string, unknown>): boolean {
+	if (!file.is_directory) return false
+	if (typeof (file.display_config as { type?: string } | undefined)?.type === "string") {
+		return true
+	}
+	return isSlidesTemplateFolder(file as AttachmentItem)
 }
 
 function findFirstByLevel(
@@ -96,6 +108,7 @@ function findFirstByLevel(
 
 function findDefaultOpenFileByPriority(files: Record<string, unknown>[]): string | null {
 	return (
+		findFirstByLevel(files, isContentFolder) ||
 		findFirstByLevel(files, isIndexHtmlFile) ||
 		findFirstByLevel(files, isHtmlFile) ||
 		findFirstByLevel(files, isOpenableFile)
@@ -104,14 +117,14 @@ function findDefaultOpenFileByPriority(files: Record<string, unknown>[]): string
 
 /**
  * 查找文件夹中第一个可以设置为默认打开的文件
- * 对于普通文件夹：逐层查找 index.html > 逐层查找 html 文件 > 第一个可打开文件
- * 对于携带display_config的文件夹：返回文件夹本身
+ * 对于普通文件夹：内容文件夹 > index.html > html > 第一个可打开文件
+ * 对于携带display_config或标准模板根目录：返回文件夹本身
  * @param folder 文件夹项
  * @returns 第一个可设置为默认打开的文件ID，如果没有找到则返回 null
  */
 export function findFirstDefaultOpenFileInFolder(folder: Record<string, unknown>): string | null {
-	// 如果文件夹本身携带display_config，优先返回文件夹ID
-	if (folder.is_directory && folder.display_config) {
+	// Content folders (PPT / template / display_config) open as themselves.
+	if (isContentFolder(folder)) {
 		return getFileId(folder)
 	}
 

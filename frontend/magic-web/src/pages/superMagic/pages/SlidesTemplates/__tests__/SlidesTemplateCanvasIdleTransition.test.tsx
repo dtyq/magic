@@ -76,6 +76,7 @@ describe("SlidesTemplateCanvas idle transition", () => {
 				contentRef={contentRef}
 				enableIdleLoops={enableIdleLoops}
 				focusedAnchorTileId=""
+				guideAnchor={null}
 				isCanvasFocusSettling={false}
 				isCanvasMoving={false}
 				isIdleAnimationActive

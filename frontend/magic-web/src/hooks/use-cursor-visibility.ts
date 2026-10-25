@@ -1,5 +1,5 @@
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useWindowSize } from "@/hooks/use-window-size"
 import { useBodyRect } from "./use-element-rect"
 

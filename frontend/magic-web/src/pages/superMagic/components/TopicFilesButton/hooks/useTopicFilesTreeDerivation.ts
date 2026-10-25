@@ -32,9 +32,14 @@ export function useTopicFilesTreeDerivation({
 			? projectFilesStore.workspaceFilesList.length
 			: Math.max(attachments.length, mergedFiles.length)
 	const isLargeTree = attachmentTotalCount > LARGE_TREE_DERIVATION_THRESHOLD
+	const canReuseSessionAttachmentIndex =
+		projectFilesStore.workspaceFileTree === attachments && mergedFiles === attachments
 	const { attachmentIndex: treeIndex } = useAttachmentIndex({
 		mergedFiles,
 		cacheIdentity: String(selectedProjectId || ""),
+		flatListSource: canReuseSessionAttachmentIndex
+			? projectFilesStore.workspaceFilesList
+			: undefined,
 	})
 
 	const { expandedKeySet, visibleRows, visibleNodes, visibleNodeIndexByKey } = useVisibleTreeRows(

@@ -89,6 +89,10 @@ class TosSimpleUpload extends SimpleUpload
 
     public function appendUploadObject(array $credential, AppendUploadFile $appendUploadFile): void
     {
+        if (isset($credential['temporary_credential'])) {
+            $credential = $credential['temporary_credential'];
+        }
+
         $object = $credential['dir'] . $appendUploadFile->getKeyPath();
 
         $credentials = $credential['credentials'];

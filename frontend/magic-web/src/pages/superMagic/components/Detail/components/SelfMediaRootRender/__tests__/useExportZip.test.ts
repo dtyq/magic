@@ -8,7 +8,7 @@ vi.mock("file-saver", () => {
 vi.mock("html-to-image", () => ({
 	toBlob: vi.fn(async () => new Blob(["fallback"], { type: "image/png" })),
 }))
-vi.mock("@/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			error: vi.fn(),

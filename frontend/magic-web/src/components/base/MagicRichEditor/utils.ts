@@ -1,6 +1,6 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { MAX_RECURSION_DEPTH } from "@/constants/other"
 import { isArray, isObject } from "lodash-es"
 import { richTextNode } from "@/pages/chatNew/components/ChatMessageList/components/MessageFactory/components/RichText/schemaConfig"

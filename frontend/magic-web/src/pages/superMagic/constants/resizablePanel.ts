@@ -27,7 +27,7 @@ export const DEFAULT_MIN_WIDTH = {
  */
 export const DEFAULT_MAX_WIDTH = {
 	PROJECT_SIDER: 600,
-	MESSAGE_PANEL: 600,
+	MESSAGE_PANEL: 768,
 }
 
 /**
@@ -66,3 +66,9 @@ export const FIXED_TOPIC_HISTORY_REQUIRED_WIDTH =
 	DEFAULT_MIN_WIDTH.MESSAGE_PANEL +
 	TOPIC_HISTORY_PANEL_WIDTH +
 	RESIZABLE_PANEL_HANDLE_WIDTH
+
+export const SIDEBAR_TRANSITION_MS = 220
+export const PROJECT_SIDER_PANEL_STORAGE_KEY = "supermagic-project-sider-panel"
+/** 对话页文件栏的收起偏好，与项目页分开保存，避免互相覆盖。 */
+export const CHAT_PROJECT_SIDER_PANEL_STORAGE_KEY = "supermagic-chat-sider-panel"
+export const TOPIC_HISTORY_RESIZE = { min: 240, default: 256, max: 480 } as const

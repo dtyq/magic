@@ -1,7 +1,7 @@
 import { useExtraNodeConfig } from "@/MagicFlow/context/ExtraNodeConfigContext/useExtraNodeConfig"
 import { nodeManager } from "@/MagicFlow/register/node"
 import { getNodeVersion } from "@/MagicFlow/utils"
-import _ from "lodash"
+import { get } from "lodash-es"
 import React, { useMemo, memo, useCallback } from "react"
 import { NodeProps, useStore } from "reactflow"
 import { useNodeConfig } from "../../context/FlowContext/useFlow"
@@ -56,7 +56,7 @@ function BaseNodeComponent({ data, isConnectable, id, position }: NodeProps) {
 
 	const ParamsComp = useMemo(
 		() =>
-			_.get(
+			get(
 				nodeManager.nodesMap,
 				[type, getNodeVersion(currentNode), "component"],
 				() => null,
@@ -64,7 +64,7 @@ function BaseNodeComponent({ data, isConnectable, id, position }: NodeProps) {
 		[type, currentNode, nodeManager.nodesMap],
 	)
 
-	const HeaderRight = _.get(
+	const HeaderRight = get(
 		nodeManager.nodesMap,
 		[type, getNodeVersion(currentNode), "schema", "headerRight"],
 		null,

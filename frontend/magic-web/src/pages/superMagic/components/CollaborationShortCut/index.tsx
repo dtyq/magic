@@ -1,6 +1,6 @@
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconLayersLinked } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 interface CollaborationShortCutProps {
 	className?: string

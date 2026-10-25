@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { MentionItemType, CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
-import { JSONContent } from "@tiptap/core"
+import { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import {
 	findMarkerByMarkNumber,

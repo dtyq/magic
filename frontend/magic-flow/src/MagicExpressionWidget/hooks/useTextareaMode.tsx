@@ -6,7 +6,7 @@ import { DataSourceOption } from "@/common/BaseUI/DropdownRenderer/Reference"
 import { Splitor } from "@/common/BaseUI/DropdownRenderer/Reference/constants"
 import { Input, InputRef, Popover } from "antd"
 import { useMemoizedFn, useResetState, useUpdateEffect } from "ahooks"
-import _ from "lodash"
+import { set } from "lodash-es"
 import React, { MutableRefObject, useEffect, useMemo, useRef, useState } from "react"
 import {
 	ExpressionMode,
@@ -124,13 +124,13 @@ export default function useTextareaMode({
 		/** 将之前的关闭 */
 		// eslint-disable-next-line no-restricted-syntax
 		for (const uniqueId in popVisibleMap) {
-			if (popVisibleMap[uniqueId]) _.set(popVisibleMap, uniqueId, false)
+			if (popVisibleMap[uniqueId]) set(popVisibleMap, uniqueId, false)
 		}
 		/** 打开双击的节点的编辑面板 */
-		_.set(popVisibleMap, config.uniqueId, true)
+		set(popVisibleMap, config.uniqueId, true)
 		// 第一次打开，缓存inputRef
 		if (!inputRefMap[config.uniqueId]) {
-			_.set(inputRefMap, config.uniqueId, React.createRef())
+			set(inputRefMap, config.uniqueId, React.createRef())
 		}
 		setInputValue(config.value)
 		setCurrentNode(config)
@@ -190,7 +190,7 @@ export default function useTextareaMode({
 					if (result) {
 						// eslint-disable-next-line no-restricted-syntax
 						for (const key in result.value) {
-							_.set(found, key, result.value[key])
+							set(found, key, result.value[key])
 						}
 					} else {
 						/** 没有命中，以key作为value */

@@ -11,6 +11,7 @@ import type {
 	MentionPanelCatalogBehavior,
 	MentionPanelLoadStateOptions,
 	MentionStoreRequestBuildOptions,
+	MentionSelectContext,
 	StateTransition,
 } from "../types"
 import type { I18nTexts } from "../i18n/types"
@@ -21,7 +22,7 @@ interface UseMentionPanelProps<TCatalogId extends string = string> {
 	initialState?: PanelState
 	initialLoadOptions?: MentionPanelLoadStateOptions<TCatalogId>
 	initialNavigationStack?: NavigationItem<TCatalogId>[]
-	onSelect?: (item: MentionItem, context?: { reset?: () => void }) => void
+	onSelect?: (item: MentionItem, context?: MentionSelectContext) => void
 	onClose?: () => void
 	dataService?: DataService
 	enabled?: boolean
@@ -609,6 +610,11 @@ export function useMentionPanel<TCatalogId extends string = string>(
 		async ({ enterFolder = false }: { enterFolder?: boolean } = {}) => {
 			const selectedItem = panelState.items[panelState.selectedIndex]
 			if (!selectedItem || panelState.loading || transitionLockRef.current) return
+			const selectItemDirectly = () =>
+				onSelect?.(selectedItem, {
+					reset,
+					...(selectedItem.type === MentionItemType.MCP ? { mcpValidated: true } : {}),
+				})
 
 			// Check if this is a history item - if so, select directly
 			if (selectedItem.tags?.includes("history")) {
@@ -710,7 +716,7 @@ export function useMentionPanel<TCatalogId extends string = string>(
 				})
 			} else {
 				// No transition available, select the item directly
-				onSelect?.(selectedItem, { reset })
+				selectItemDirectly()
 			}
 		},
 	)

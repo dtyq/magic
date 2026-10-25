@@ -10,7 +10,7 @@ import {
 } from "@/pages/superMagic/constants"
 import { IconDots } from "@tabler/icons-react"
 import { memo } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ProjectListItemProps } from "./types"
 import ProjectIcon from "../ProjectIcon"
 

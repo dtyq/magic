@@ -1,4 +1,5 @@
 import type { RectangleElement } from "../../../runtime/document/types"
+import { getActiveContent } from "../../../runtime/document/elementContent"
 
 interface RectanglePreviewProps {
 	element: RectangleElement
@@ -9,10 +10,11 @@ const PADDING = 2
 const CONTENT_SIZE = SIZE - PADDING * 2
 
 export function RectanglePreview({ element }: RectanglePreviewProps) {
-	const fill = element.fill || "#969696"
-	const stroke = element.stroke || "transparent"
-	const strokeWidth = element.strokeWidth || 0
-	const cornerRadius = element.cornerRadius || 0
+	const content = getActiveContent(element)
+	const fill = content?.fill || "#969696"
+	const stroke = content?.stroke || "transparent"
+	const strokeWidth = content?.strokeWidth || 0
+	const cornerRadius = content?.cornerRadius || 0
 	const opacity = element.opacity !== undefined ? element.opacity : 1
 
 	// 根据实际宽高计算比例，保持宽高比

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { HttpClient } from "../../core/HttpClient"
+import type { ServiceHttpClient } from "@/infrastructure/network/http/clients"
 import { generateCommonApi } from "../common"
 
 describe("generateCommonApi", () => {
@@ -7,7 +7,7 @@ describe("generateCommonApi", () => {
 		const post = vi.fn().mockResolvedValue({})
 		const commonApi = generateCommonApi({
 			post,
-		} as unknown as HttpClient)
+		} as unknown as ServiceHttpClient)
 
 		await commonApi.getPrivateLoginConfig(
 			{

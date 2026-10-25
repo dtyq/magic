@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import CardFrame from "../../components/CardFrame"
 import { CardActionStrip } from "../../components/CardActionStrip"
 import { CARD_THUMBNAIL_IMAGE_PROCESS } from "../../constants/imageProcess"
 import type { SelfMediaAttachmentNode, SelfMediaCard, SelfMediaPost } from "../../types"
 import { handleSelfMediaCardDragStart } from "@/pages/superMagic/components/MessageEditor/utils/drag"
+import type { BeforeAction } from "../../../../utils/actionGuard"
 
 interface RednoteEditThumbnailSidebarProps {
 	post: SelfMediaPost
@@ -15,7 +16,7 @@ interface RednoteEditThumbnailSidebarProps {
 	onSelectCard: (index: number) => void
 	onRefreshCard: (index: number) => void
 	onAddCardToCurrentChat?: (index: number) => void
-	onBeforeOpenVersionHistory?: () => Promise<boolean>
+	onBeforeOpenVersionHistory?: BeforeAction
 }
 
 export function RednoteEditThumbnailSidebar({

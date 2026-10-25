@@ -77,23 +77,48 @@ function MobileRecordSummaryRouteComponent({
 		<MobileScenePanels editorContext={routeEditorContext} compact />
 	) : null
 
+	// The composer's topic model store is driven by the header selector, so the row must stay
+	// mounted in every record-summary branch; otherwise no model is ever loaded and sending
+	// fails with the "select a model" validation error.
+	// messagesLength mirrors what MobileComposer passes for the regular layout: the selector keeps
+	// a non-empty topic on its own crew once messages exist (same rule as the desktop ModeToggle),
+	// so the route must forward it or a summary topic can be handed to an unrelated crew.
+	const headerNode = (
+		<MobileComposerHeader
+			scenes={effectiveScenes}
+			selectedTopic={selectedTopic}
+			selectedProject={selectedProject}
+			topicMode={effectiveTopicMode}
+			agentCode={editorContext.agentCode ?? selectedTopic?.agent_code}
+			messagesLength={editorContext.messagesLength}
+			sceneControlNode={headerScenePanelsNode}
+			onModeChange={editorContext.setTopicMode}
+		/>
+	)
+
+	// Keep the recording chrome when persisted mode is Recording so the crew header stays.
+	// allowRecordingMode=false is enforced inside RecordSummaryEditorContainer, not here.
 	if (editorMode === RecordingSummaryEditorMode.Editing) {
 		return (
-			<div
-				className="flex w-full flex-col gap-2 px-2 pb-3 pt-2"
-				data-testid="mobile-record-summary-route-editing"
-			>
+			<MessageEditorStoreProvider store={store}>
 				<div
-					className="overflow-hidden rounded-3xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
-					data-testid="mobile-record-summary-editing-card"
+					className="flex w-full flex-col gap-2 px-2 pb-3 pt-2"
+					data-testid="mobile-record-summary-route-editing"
 				>
-					<MobileComposer
-						editorContext={routeEditorContext}
-						editorNodes={editorNodes}
-						scenes={effectiveScenes}
-					/>
+					{headerNode}
+
+					<div
+						className="overflow-hidden rounded-3xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
+						data-testid="mobile-record-summary-editing-card"
+					>
+						<MobileComposer
+							editorContext={routeEditorContext}
+							editorNodes={editorNodes}
+							scenes={effectiveScenes}
+						/>
+					</div>
 				</div>
-			</div>
+			</MessageEditorStoreProvider>
 		)
 	}
 
@@ -103,15 +128,7 @@ function MobileRecordSummaryRouteComponent({
 				className="flex w-full flex-col gap-2 px-2 pb-3 pt-2"
 				data-testid="mobile-record-summary-route"
 			>
-				<MobileComposerHeader
-					scenes={effectiveScenes}
-					selectedTopic={selectedTopic}
-					selectedProject={selectedProject}
-					topicMode={effectiveTopicMode}
-					agentCode={editorContext.agentCode ?? selectedTopic?.agent_code}
-					sceneControlNode={headerScenePanelsNode}
-					onModeChange={editorContext.setTopicMode}
-				/>
+				{headerNode}
 
 				<div
 					className="overflow-hidden rounded-3xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"

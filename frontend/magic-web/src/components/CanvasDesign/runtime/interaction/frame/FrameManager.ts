@@ -4,6 +4,7 @@ import type { LayerElement, FrameElement } from "../../document/types"
 import { ElementTypeEnum } from "../../document/types"
 import { generateElementId, calculateElementsRect } from "../../shared/ids"
 import { FrameElement as FrameElementClass } from "../../elements/frame/FrameElement"
+import { createContentFrameData, resolveFrameContentLayout } from "./frameCreation"
 
 /**
  * 画框管理器
@@ -35,8 +36,8 @@ export class FrameManager {
 			this.canvas.eventEmitter.on("elements:transform:dragend", () => {
 				this.handleFrameDropDragEnd()
 			}),
-			this.canvas.eventEmitter.on("canvas:readonly", () => {
-				if (this.canvas.readonly) this.cancelFrameDropDrag()
+			this.canvas.eventEmitter.on("permission:changed", () => {
+				if (!this.canvas.permissionManager.can("document.write")) this.cancelFrameDropDrag()
 			}),
 		)
 	}
@@ -138,6 +139,20 @@ export class FrameManager {
 	private handleFrameDropDragEnd(): void {
 		const session = this.dragSession
 		if (!session) return
+
+		// 根级元素只是拖拽期间临时提升到 content layer，文档父级并未变化。
+		// 跳过无效的批量 reparent，避免为每个选中元素重复更新数据并派发事件。
+		// 画框子元素即使目标父级仍是原画框，也必须走 reparentElements 恢复局部节点层级。
+		if (session.sourceParentId === null && session.targetParentId === null) {
+			this.canvas.elementManager.reorderTopLevelElementsPublic()
+			this.canvas.runtimeScheduler.requestLayerDraw("content", {
+				source: "FrameManager",
+				reason: "restore-top-level-drag-order",
+				priority: "input",
+			})
+			this.clearFrameDropState()
+			return
+		}
 
 		const elements = this.getSessionElementsInContent(session.elementIds)
 		if (elements.length === session.elementIds.length) {
@@ -373,58 +388,75 @@ export class FrameManager {
 	/**
 	 * 创建画框
 	 * 将选中的元素组合成一个画框
-	 * @param padding - 画框内边距
+	 * @param boundsExpansion - 显式覆盖默认边距；省略时边距为内容短边的 8%
 	 * @returns 创建的画框 ID，如果创建失败返回 null
 	 */
-	public createFrame(padding: number = 0): string | null {
+	public createFrame(boundsExpansion?: number): string | null {
 		const selectedIds = this.canvas.selectionManager.getSelectedIds()
 		if (selectedIds.length === 0) {
 			return null
 		}
 
-		// 获取选中的元素数据，过滤掉锁定的元素
+		// 容器不能参与新 Frame 创建；先在权限过滤前检查原始选区，避免把一个
+		// 锁定的 Frame/Group 过滤掉后，误把剩余普通节点单独包进新容器。
 		const selectedElements = selectedIds
 			.map((id) => this.canvas.elementManager.getElementData(id))
-			.filter((el): el is LayerElement => {
-				// 使用 PermissionManager 统一判断元素是否可以被添加到画框
-				return el !== undefined && this.canvas.permissionManager.canAddToFrame(el)
-			})
+			.filter((el): el is LayerElement => Boolean(el))
 
-		if (selectedElements.length === 0) {
+		if (
+			selectedElements.some(
+				(el) => el.type === ElementTypeEnum.Frame || el.type === ElementTypeEnum.Group,
+			)
+		) {
 			return null
 		}
 
-		// 校验：选中的元素中不能包含 frame 元素
-		const hasFrameElement = selectedElements.some((el) => el.type === ElementTypeEnum.Frame)
-		if (hasFrameElement) {
+		// Keep the no-nesting invariant at the manager boundary as well as in the
+		// action catalog. A direct API caller must not be able to move an existing
+		// Frame/Group child into a newly created Frame and leave the old parent stale.
+		const findParentId = this.canvas.elementManager.findParentIdForElement
+		if (
+			typeof findParentId === "function" &&
+			selectedElements.some((element) =>
+				findParentId.call(this.canvas.elementManager, element.id),
+			)
+		) {
+			return null
+		}
+
+		// 获取选中的元素数据，过滤掉锁定或无写权限的元素。
+		const permittedElements = selectedElements.filter((element) =>
+			this.canvas.permissionManager.canAddToFrame(element),
+		)
+
+		if (permittedElements.length === 0) {
 			return null
 		}
 
 		// 计算选中元素的总体边界
-		const rect = calculateElementsRect(selectedElements)
+		const rect = calculateElementsRect(permittedElements)
 		if (!rect) {
 			return null
 		}
 
-		// 计算画框的位置和尺寸，宽高向上取整
-		const frameX = rect.x - padding
-		const frameY = rect.y - padding
-		const frameWidth = Math.ceil(rect.width + padding * 2)
-		const frameHeight = Math.ceil(rect.height + padding * 2)
+		const layout = resolveFrameContentLayout(rect, { padding: boundsExpansion })
+		const frameX = rect.x - layout.padding
+		const frameY = rect.y - layout.padding
 
 		// 获取选中元素的最大 zIndex，Frame 将使用这个位置
-		const maxSelectedZIndex = Math.max(...selectedElements.map((el) => el.zIndex ?? 0))
+		const maxSelectedZIndex = Math.max(...permittedElements.map((el) => el.zIndex ?? 0))
 
 		// 创建新的 Frame 元素数据
 		const frameId = generateElementId()
-		const frameData: FrameElement = FrameElementClass.createElementData(
-			frameId,
-			frameX,
-			frameY,
-			frameWidth,
-			frameHeight,
-			maxSelectedZIndex, // Frame 使用选中元素的最大 zIndex
-		)
+		const { frameData } = createContentFrameData({
+			id: frameId,
+			x: frameX,
+			y: frameY,
+			width: rect.width,
+			height: rect.height,
+			zIndex: maxSelectedZIndex,
+			padding: layout.padding,
+		})
 
 		// 禁用历史记录，避免子元素更新时记录多次
 		const historyManager = this.canvas.historyManager
@@ -450,7 +482,7 @@ export class FrameManager {
 			}
 
 			// 按原有 zIndex 从大到小排序，然后从大到小分配画框内 zIndex，保持相对顺序
-			const sortedElements = [...selectedElements].sort(
+			const sortedElements = [...permittedElements].sort(
 				(a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0),
 			)
 
@@ -568,6 +600,7 @@ export class FrameManager {
 
 		// 收集所有需要释放的子元素
 		const elementsToRelease: Array<{ element: FrameElement; children: LayerElement[] }> = []
+		const emptyFrameElements: FrameElement[] = []
 
 		frameElements.forEach((frameElement) => {
 			if (frameElement.children && frameElement.children.length > 0) {
@@ -575,10 +608,12 @@ export class FrameManager {
 					element: frameElement,
 					children: frameElement.children,
 				})
+			} else {
+				emptyFrameElements.push(frameElement)
 			}
 		})
 
-		if (elementsToRelease.length === 0) {
+		if (elementsToRelease.length === 0 && emptyFrameElements.length === 0) {
 			return []
 		}
 
@@ -595,6 +630,14 @@ export class FrameManager {
 		}> = []
 
 		try {
+			emptyFrameElements.forEach((frameElement) => {
+				this.canvas.elementManager.delete(frameElement.id)
+				this.canvas.eventEmitter.emit({
+					type: "frame:removed",
+					data: { frameId: frameElement.id },
+				})
+			})
+
 			elementsToRelease.forEach(({ element: frameElement, children }) => {
 				const frameX = frameElement.x ?? 0
 				const frameY = frameElement.y ?? 0

@@ -1,5 +1,7 @@
 """Skill mention handler"""
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from urllib.parse import quote
+
 from app.service.mention.base import BaseMentionHandler, logger
 
 if TYPE_CHECKING:
@@ -57,8 +59,8 @@ class SkillHandler(BaseMentionHandler):
         """
         from app.core.skill_manager import find_skill
 
-        name = mention.get("name", "")
-        package_name = mention.get("package_name", "") or name
+        name = str(mention.get("name") or "").strip()
+        package_name = str(mention.get("package_name") or "").strip() or name
         code = _get_code(mention)
         raw_source = mention.get("mention_source", "")
         is_mine = _has_source(raw_source, _SOURCE_MINE)
@@ -101,12 +103,12 @@ class SkillHandler(BaseMentionHandler):
         return tip
 
     async def handle(self, mention: Dict[str, Any], index: int, agent_context: Optional["AgentContext"] = None) -> List[str]:
-        name = mention.get("name")
+        name = str(mention.get("name") or "").strip()
         if not name:
             return []
 
         code = _get_code(mention)
-        package_name = mention.get("package_name", "")
+        package_name = str(mention.get("package_name") or "").strip()
         description = mention.get("description", "")
         raw_source = mention.get("mention_source", "")
         source_key = _parse_mention_source(raw_source)
@@ -116,8 +118,14 @@ class SkillHandler(BaseMentionHandler):
 
         logger.info(f"用户 prompt 添加技能引用: {name} (package={skill_key}, code={code}), 来源: {source_key}")
 
-        lines = [f"{index}. [@skill:{name}]"]
-        lines.append(f"   - package_name: {skill_key}")
+        if package_name:
+            target = quote(package_name, safe="-._~")
+            label = str(name).replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+            lines = [f"{index}. [{label}](skill://{target})"]
+            lines.append(f"   - package_name: {package_name}")
+        else:
+            lines = [f"{index}. Skill reference: {name} (package_name is missing)"]
+            lines.append(f"   - fallback load key: {skill_key}")
         if code:
             lines.append(f"   - code: {code}")
         if description:

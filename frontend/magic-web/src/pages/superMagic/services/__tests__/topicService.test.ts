@@ -29,6 +29,11 @@ vi.mock("@/apis", () => ({
 	},
 }))
 
+const trackMock = vi.hoisted(() => vi.fn())
+vi.mock("@/services/analytics", () => ({
+	analyticsService: { report: trackMock },
+}))
+
 vi.mock("@/models/user", () => ({
 	userStore: {
 		user: {
@@ -588,6 +593,35 @@ describe("TopicService frontend mode patch", () => {
 		})
 	})
 
+	it("restores a queued custom employee when mode and employee code are separate", async () => {
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
+		const mergeTopic = vi.fn()
+		const service = new TopicService({
+			store: {
+				setTopics: vi.fn(),
+				setSelectedTopic: vi.fn(),
+				mergeTopic,
+			} as never,
+		})
+		vi.mocked(SuperMagicApi.getTopicDetail).mockResolvedValue(newTopic)
+
+		service.syncTopicFrontendModePatch({
+			topic: newTopic,
+			mode: TopicMode.CustomAgent,
+			agentCode: "custom-agent-code",
+		})
+
+		await expect(service.getTopicDetail("topic-2")).resolves.toEqual({
+			...newTopic,
+			topic_mode: TopicMode.CustomAgent,
+			agent_code: "custom-agent-code",
+		})
+		expect(mergeTopic).toHaveBeenCalledWith("topic-2", {
+			topic_mode: TopicMode.CustomAgent,
+			agent_code: "custom-agent-code",
+		})
+	})
+
 	it("clears the frontend employee patch agent code when the user manually switches to a built-in mode", async () => {
 		const newTopic = createTopic({ id: "topic-2", topic_name: "New Topic" })
 		const mergeTopic = vi.fn()
@@ -745,5 +779,180 @@ describe("TopicService frontend mode patch", () => {
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
 		})
+	})
+})
+
+describe("TopicService scene topic-created analytics", () => {
+	let topicService: TopicService
+	let topicStore: TopicStore
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.useRealTimers()
+		window.sessionStorage.clear()
+		topicStore = new TopicStore()
+		topicService = new TopicService({ store: topicStore })
+		interfaceStore.isMobile = false
+	})
+
+	it("reports the created topic with this request's project and workspace ids", async () => {
+		vi.mocked(SuperMagicApi.createTopic).mockResolvedValue(
+			createTopic({
+				id: "topic-new",
+				project_id: "project-1",
+				workspace_id: "workspace-1",
+			}),
+		)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockResolvedValue({
+			list: [
+				createTopic({
+					id: "topic-new",
+					project_id: "project-1",
+					workspace_id: "workspace-1",
+				}),
+			],
+			total: 1,
+		})
+
+		await topicService.createTopic({
+			projectId: "project-1",
+			topicName: "New",
+			workspaceId: "workspace-1",
+			mode: TopicMode.General,
+		})
+
+		expect(trackMock).toHaveBeenCalledTimes(1)
+		expect(trackMock).toHaveBeenCalledWith("topic_create_attempted", {
+			projectId: "project-1",
+			workspaceId: "workspace-1",
+			mode: TopicMode.General,
+		})
+	})
+
+	it("still reports once when list refresh fails after a successful create", async () => {
+		vi.mocked(SuperMagicApi.createTopic).mockResolvedValue(
+			createTopic({
+				id: "topic-new",
+				project_id: "project-1",
+				workspace_id: "workspace-1",
+			}),
+		)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockRejectedValue(new Error("list-failed"))
+
+		await expect(
+			topicService.createTopic({ projectId: "project-1", topicName: "New" }),
+		).resolves.toBeNull()
+
+		expect(trackMock).toHaveBeenCalledTimes(1)
+		expect(trackMock).toHaveBeenCalledWith("topic_create_attempted", {
+			projectId: "project-1",
+			workspaceId: undefined,
+			mode: undefined,
+		})
+	})
+
+	it("uses the list payload when create response omitted workspace_id", async () => {
+		vi.mocked(SuperMagicApi.createTopic).mockResolvedValue(
+			createTopic({
+				id: "topic-new",
+				project_id: "project-1",
+				workspace_id: "",
+			}),
+		)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockResolvedValue({
+			list: [
+				createTopic({
+					id: "topic-new",
+					project_id: "project-1",
+					workspace_id: "workspace-from-list",
+				}),
+			],
+			total: 1,
+		})
+
+		await topicService.createTopic({ projectId: "project-1", topicName: "New" })
+
+		expect(trackMock).toHaveBeenCalledTimes(1)
+		expect(trackMock).toHaveBeenCalledWith("topic_create_attempted", {
+			projectId: "project-1",
+			workspaceId: undefined,
+			mode: undefined,
+		})
+	})
+
+	it("does not report when workspace_id is missing from both create and list payloads", async () => {
+		vi.mocked(SuperMagicApi.createTopic).mockResolvedValue(
+			createTopic({
+				id: "topic-new",
+				project_id: "project-1",
+				workspace_id: "",
+			}),
+		)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockResolvedValue({
+			list: [
+				createTopic({
+					id: "topic-new",
+					project_id: "project-1",
+					workspace_id: "",
+				}),
+			],
+			total: 1,
+		})
+
+		await topicService.createTopic({ projectId: "project-1", topicName: "New" })
+
+		expect(trackMock).toHaveBeenCalledTimes(1)
+	})
+
+	it("does not report when the created topic id is blank", async () => {
+		vi.mocked(SuperMagicApi.createTopic).mockResolvedValue(
+			createTopic({
+				id: "   ",
+				project_id: "project-1",
+				workspace_id: "workspace-1",
+			}),
+		)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockResolvedValue({
+			list: [],
+			total: 0,
+		})
+
+		await topicService.createTopic({ projectId: "project-1", topicName: "New" })
+
+		expect(trackMock).toHaveBeenCalledTimes(1)
+	})
+
+	it("does not report when createTopic fails", async () => {
+		vi.mocked(SuperMagicApi.createTopic).mockRejectedValue(new Error("create-failed"))
+
+		await expect(
+			topicService.createTopic({ projectId: "project-1", topicName: "New" }),
+		).resolves.toBeNull()
+
+		expect(trackMock).toHaveBeenCalledTimes(1)
+	})
+})
+
+describe("topic type requests", () => {
+	it("deduplicates only the same type and forwards filters without writing the store", async () => {
+		const store = new TopicStore()
+		const service = new TopicService({ store })
+		const request = vi.mocked(SuperMagicApi.getSidebarTopicsByProjectId)
+		request.mockClear()
+		request.mockImplementation(
+			() =>
+				new Promise(() => {
+					/* Keep requests pending to verify request deduplication. */
+				}),
+		)
+		const params = { projectId: "project-1", page: 1, pageSize: 100 }
+		void service.getSidebarTopicsByProjectId({ ...params, topicType: "topic" })
+		void service.getSidebarTopicsByProjectId({ ...params, topicType: "topic" })
+		void service.getSidebarTopicsByProjectId({ ...params, topicType: "scheduled_task" })
+		expect(request).toHaveBeenCalledTimes(2)
+		expect(request).toHaveBeenLastCalledWith(
+			expect.objectContaining({ topicType: "scheduled_task" }),
+		)
+		expect(store.topics).toEqual([])
 	})
 })

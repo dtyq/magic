@@ -1,22 +1,22 @@
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useMemoizedFn } from "ahooks"
-import { useMessageListContext } from "@/pages/superMagic/components/MessageList/context"
-import { findAttachmentByPath } from "@/pages/superMagic/components/MessageList/components/Text/components/Markdown/parser/helper"
+import { useMessageListProjectFilesStore } from "@/pages/superMagic/components/MessageList/context"
 import {
 	downloadFileByPath as publishDownloadFileByPath,
+	findFilePathAttachment,
 	type FilePathAttachment,
 } from "@/pages/superMagic/components/MessageList/utils/attachmentByFilePath"
 import { useMessageAttachmentDownload } from "./useMessageAttachmentDownload"
 
 /** Resolves path attachments before downloading related resources. */
 export function useFilePathAttachmentDownload() {
-	const { projectFilesStore } = useMessageListContext()
+	const projectFilesStore = useMessageListProjectFilesStore()
 	const downloadFile = useMessageAttachmentDownload()
+	const { permissions: access } = useFileAccess()
 
 	return useMemoizedFn((attachment: FilePathAttachment) => {
-		const file = findAttachmentByPath(
-			projectFilesStore?.workspaceFilesList || [],
-			attachment.filePath,
-		)
+		if (!access.download) return
+		const file = findFilePathAttachment(projectFilesStore?.workspaceFilesList || [], attachment)
 
 		if (file?.file_id) {
 			return downloadFile(file.file_id)

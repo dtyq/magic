@@ -1,0 +1,1 @@
+export const TEXT_FILTER_DEBOUNCE_MS = 500;

@@ -9,12 +9,17 @@ namespace App\Application\Provider\Service;
 
 use App\Application\Kernel\EnvManager;
 use App\Application\Kernel\SmartFileLinks;
+use App\Application\ModelGateway\Service\ConnectivityTest\LLMConnectivityTestExecutor;
+use App\Application\ModelGateway\Service\ConnectivityTest\LLMConnectivityTestMessageBuilder;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Application\Provider\Policy\ProviderControlPolicyInterface;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Contract\VideoGenerationConnectivityTestableInterface;
+use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterFactoryInterface;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
@@ -27,7 +32,9 @@ use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderConfigSearchField;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\ProviderVirtualIdentity;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Event\ProviderConfigCreatedEvent;
@@ -43,6 +50,8 @@ use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
+use App\Infrastructure\Core\ValueObject\Page;
+use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
 use App\Infrastructure\Util\FuzzMatchUtil;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -52,9 +61,9 @@ use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
 use Exception;
 use Hyperf\DbConnection\Db;
-use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use JsonException;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Throwable;
 
 use function Hyperf\Translation\__;
 
@@ -95,6 +104,39 @@ readonly class AdminProviderAppService
         $this->processProviderAndModelsIcons($providerModels);
 
         return $providerModels;
+    }
+
+    /**
+     * 按指定字段搜索服务商配置。
+     *
+     * @return array{total: int, list: array<int, array<string, mixed>>}
+     */
+    public function searchProviderConfigs(
+        MagicUserAuthorization $authorization,
+        Page $page,
+        ProviderConfigSearchField $searchField,
+        string $keyword
+    ): array {
+        $dataIsolation = ProviderDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+        );
+
+        if (ProviderVirtualIdentity::matchesPlatformOfficialSearch($searchField, $keyword)) {
+            return [
+                'total' => 1,
+                'list' => $page->getPage() === 1
+                    ? [ProviderVirtualIdentity::platformOfficialSelectorItem()]
+                    : [],
+            ];
+        }
+
+        return $this->providerConfigDomainService->searchProviderConfigs(
+            $dataIsolation,
+            $page,
+            $searchField,
+            $keyword
+        );
     }
 
     /**
@@ -351,10 +393,11 @@ readonly class AdminProviderAppService
             $modelPrimaryId
         );
         // 根据服务商类型和模型类型进行连通性测试
-        return match ($this->getConnectivityTestType($providerModelEntity->getCategory()->value, $providerModelEntity->getModelType()->value)) {
+        return match (NaturalLanguageProcessing::fromCategory($providerModelEntity->getCategory(), $providerModelEntity->getModelType()->value)) {
             NaturalLanguageProcessing::EMBEDDING => $this->embeddingConnectivityTest($modelPrimaryId, $authorization),
-            NaturalLanguageProcessing::LLM => $this->llmConnectivityTest($modelPrimaryId, $authorization),
+            NaturalLanguageProcessing::LLM => $this->llmConnectivityTest($providerModelEntity, $authorization),
             NaturalLanguageProcessing::VLM => $this->adminProviderDomainService->vlmConnectivityTest($modelPrimaryId, $authorization),
+            NaturalLanguageProcessing::VIDEO => $this->videoConnectivityTest($providerModelEntity, $authorization),
             default => throw new BusinessException(__('service_provider.connectivity_not_supported')),
         };
     }
@@ -381,7 +424,7 @@ readonly class AdminProviderAppService
 
         // 前台场景仅返回火山与通义千问模板
         if ($isFrontend && $category === Category::VLM) {
-            $frontendVlmWhitelist = [ProviderCode::Volcengine, ProviderCode::Qwen];
+            $frontendVlmWhitelist = [ProviderCode::OpenAI, ProviderCode::Google, ProviderCode::Volcengine, ProviderCode::Qwen, ProviderCode::OpenRouter];
             $serviceProviders = array_values(array_filter(
                 $serviceProviders,
                 static fn (ProviderConfigModelsDTO $serviceProvider): bool => in_array($serviceProvider->getProviderCode(), $frontendVlmWhitelist, true)
@@ -825,17 +868,56 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * 获取联通测试类型.
+     * 视频模型连通性测试：根据服务商配置创建 adapter 并执行探测。
+     *
+     * 失败原因统一写入 ConnectResponse，与现有 LLM/VLM 连通性测试保持一致。
      */
-    private function getConnectivityTestType(string $category, int $modelType): NaturalLanguageProcessing
-    {
-        if (Category::from($category) === Category::LLM) {
-            return $modelType === ModelType::EMBEDDING->value ? NaturalLanguageProcessing::EMBEDDING : NaturalLanguageProcessing::LLM;
+    private function videoConnectivityTest(
+        ProviderModelEntity $providerModelEntity,
+        MagicUserAuthorization $authorization,
+    ): ConnectResponse {
+        $connectResponse = new ConnectResponse();
+
+        try {
+            $providerConfig = $this->providerConfigDomainService->getProviderConfig(
+                ProviderDataIsolation::create($authorization->getOrganizationCode()),
+                (string) $providerModelEntity->getServiceProviderConfigId(),
+            );
+            if ($providerConfig === null || $providerConfig->getProviderCode() === null) {
+                throw new BusinessException(__('service_provider.connectivity_not_supported'));
+            }
+
+            // 视频服务商按 provider code 获取 adapter，未实现连通性测试能力的不支持。
+            $adapter = di(VideoGenerationProviderAdapterFactoryInterface::class)->createByProviderCode(
+                $providerConfig->getProviderCode(),
+                $providerModelEntity->getModelVersion(),
+            );
+            if (! $adapter instanceof VideoGenerationConnectivityTestableInterface) {
+                throw new BusinessException(__('service_provider.connectivity_not_supported'));
+            }
+
+            // 各 provider 自实现连通性探测，失败异常在下方统一转成 ConnectResponse 返回给前端。
+            $config = $providerConfig->getConfig()?->toArray() ?? [];
+            if (! empty($config['use_proxy'])) {
+                $proxyUrl = di(ProxyConfigResolverInterface::class)->resolve($config);
+                if ($proxyUrl !== null && $proxyUrl !== '') {
+                    $config['proxy_url'] = $proxyUrl;
+                }
+            }
+            $connectResponse->setStatus($adapter->testConnection(
+                QueueExecutorConfig::fromProviderConfig($config),
+                $providerModelEntity->getModelVersion(),
+            ));
+            if (! $connectResponse->isStatus()) {
+                $connectResponse->setMessage('video connectivity test failed');
+            }
+        } catch (Throwable $exception) {
+            // 与 LLM/VLM 连通性测试一致，把 provider 错误信息作为失败原因返回。
+            $connectResponse->setStatus(false);
+            $connectResponse->setMessage($exception->getMessage());
         }
-        if (Category::from($category)->isVlm()) {
-            return NaturalLanguageProcessing::VLM;
-        }
-        return NaturalLanguageProcessing::DEFAULT;
+
+        return $connectResponse;
     }
 
     private function embeddingConnectivityTest(string $modelPrimaryId, MagicUserAuthorization $authorization): ConnectResponse
@@ -865,33 +947,65 @@ readonly class AdminProviderAppService
         return $connectResponse;
     }
 
-    private function llmConnectivityTest(string $modelPrimaryId, MagicUserAuthorization $authorization): ConnectResponse
-    {
-        $connectResponse = new ConnectResponse();
+    private function llmConnectivityTest(
+        ProviderModelEntity $providerModelEntity,
+        MagicUserAuthorization $authorization
+    ): ConnectResponse {
         $llmAppService = di(LLMAppService::class);
+        $modelPrimaryId = (string) $providerModelEntity->getId();
+        $businessParams = [
+            'organization_id' => $authorization->getOrganizationCode(),
+            'user_id' => $authorization->getId(),
+            'source_id' => SourceId::CONNECTIVITY_TEST,
+        ];
+
+        $supportFunction = $providerModelEntity->getConfig()?->isSupportFunction() ?? false;
+
+        return LLMConnectivityTestExecutor::execute(
+            function () use ($llmAppService, $modelPrimaryId, $businessParams, $supportFunction): void {
+                $completionDTO = $this->buildSavedModelConnectivityCompletion(
+                    $modelPrimaryId,
+                    $businessParams,
+                    [['role' => 'user', 'content' => '你好']],
+                    -1,
+                    $supportFunction ? LLMConnectivityTestMessageBuilder::buildFunctionCallTools() : []
+                );
+                $llmAppService->chatCompletion($completionDTO);
+            },
+            $providerModelEntity->getConfig()?->isSupportMultiModal() ?? false,
+            function () use ($llmAppService, $modelPrimaryId, $businessParams): void {
+                $completionDTO = $this->buildSavedModelConnectivityCompletion(
+                    $modelPrimaryId,
+                    $businessParams,
+                    LLMConnectivityTestMessageBuilder::buildMultimodalMessages(),
+                    64
+                );
+                $llmAppService->chatCompletion($completionDTO);
+            }
+        );
+    }
+
+    /**
+     * 构建已保存模型的连通性测试请求。
+     */
+    private function buildSavedModelConnectivityCompletion(
+        string $modelPrimaryId,
+        array $businessParams,
+        array $messages,
+        int $maxTokens,
+        array $tools = []
+    ): CompletionDTO {
         $completionDTO = new CompletionDTO();
         if (defined('MAGIC_ACCESS_TOKEN')) {
             $completionDTO->setAccessToken(MAGIC_ACCESS_TOKEN);
         }
-        $completionDTO->setMessages([['role' => 'user', 'content' => '你好']]);
+        $completionDTO->setMessages($messages);
         $completionDTO->setModel($modelPrimaryId);
-        $completionDTO->setEnableHighAvailability(false); // 连通性测试时不启用高可用
-        $completionDTO->setBusinessParams([
-            'organization_id' => $authorization->getOrganizationCode(),
-            'user_id' => $authorization->getId(),
-            'source_id' => SourceId::CONNECTIVITY_TEST,
-        ]);
-        $completionDTO->setMaxTokens(-1);
-        /* @var ChatCompletionResponse $response */
-        try {
-            $llmAppService->chatCompletion($completionDTO);
-        } catch (Exception $exception) {
-            $connectResponse->setStatus(false);
-            $connectResponse->setMessage($exception->getMessage());
-            return $connectResponse;
-        }
-        $connectResponse->setStatus(true);
-        return $connectResponse;
+        $completionDTO->setEnableHighAvailability(false);
+        $completionDTO->setBusinessParams($businessParams);
+        $completionDTO->setMaxTokens($maxTokens);
+        $completionDTO->setTools($tools);
+        return $completionDTO;
     }
 
     /**

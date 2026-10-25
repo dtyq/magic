@@ -413,6 +413,20 @@ class PermissionCheckerTest extends TestCase
         $this->assertSame([], PermissionChecker::getUserOrganizationAdminList($magicId));
     }
 
+    public function testGetUserOrganizationAdminListExcludesDisabledAccount(): void
+    {
+        $magicId = 'magic_disabled_' . $this->runId;
+        $phone = $this->makePhone();
+        $organizationCode = 'org_disabled_' . $this->runId;
+        $userId = 'user_disabled_' . $this->runId;
+
+        $this->insertAccount($magicId, $phone, 0);
+        $this->insertUser($userId, $magicId, $organizationCode);
+        $this->insertOrganizationAdmin($userId, $organizationCode, $magicId);
+
+        $this->assertSame([], PermissionChecker::getUserOrganizationAdminList($magicId));
+    }
+
     public function testGetUserOrganizationAdminListSkipsNonAdminAndEmptyOrganization(): void
     {
         $magicId = 'magic_filter_' . $this->runId;
@@ -439,14 +453,14 @@ class PermissionCheckerTest extends TestCase
         );
     }
 
-    private function insertAccount(string $magicId, string $phone): void
+    private function insertAccount(string $magicId, string $phone, int $status = 1): void
     {
         $now = date('Y-m-d H:i:s');
         Db::table('magic_contact_accounts')->insert([
             'magic_id' => $magicId,
             'type' => 1,
             'ai_code' => '',
-            'status' => 0,
+            'status' => $status,
             'country_code' => '+86',
             'phone' => $phone,
             'email' => '',

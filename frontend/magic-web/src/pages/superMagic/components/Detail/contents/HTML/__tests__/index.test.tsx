@@ -1,3 +1,8 @@
+import { HtmlAppPermissionContext } from "../hooks/HtmlAppPermissionContext"
+import {
+	useHtmlAppPermissions,
+	type HtmlAppPermissionController,
+} from "../hooks/useHtmlAppPermissions"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ButtonHTMLAttributes, ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -9,6 +14,11 @@ import { HTML_PREVIEW_IMAGE_PROCESS } from "../previewImageProcess"
 import HTML from "../index"
 
 const mockIsolatedHTMLRendererProps = vi.hoisted(() => vi.fn())
+const mockResetContent = vi.hoisted(() => vi.fn())
+const fileLoadState = vi.hoisted(() => ({
+	status: undefined as undefined | "loading" | "ready" | "error",
+	revision: 0,
+}))
 
 const mockGetFileContentById = vi.fn()
 const mockProcessHtmlContent = vi.fn(async ({ content }: { content?: string }) => ({
@@ -113,6 +123,10 @@ vi.mock("../styles", () => ({
 vi.mock("@/pages/superMagic/hooks/useFileData", () => ({
 	useFileData: ({ file_id, content }: { file_id?: string; content?: string }) => ({
 		fileData: file_id ? "<html><body>base</body></html>" : content || "",
+		refreshFile: vi.fn(),
+		loadStatus: fileLoadState.status,
+		loadRevision: fileLoadState.revision,
+		loadError: fileLoadState.status === "error" ? "offline" : null,
 		fileVersion: 1,
 		changeFileVersion: vi.fn(),
 		loading: false,
@@ -159,8 +173,11 @@ vi.mock("../htmlProcessor", () => ({
 vi.mock("../utils/fetchInterceptor", () => ({
 	createParentMessageHandler: () => vi.fn(),
 	injectFetchInterceptorScript: (content: string) => content,
-	injectKeyboardInterceptorScript: (content: string) => content,
 	createKeyboardMessageHandler: () => vi.fn(),
+	KEYBOARD_MESSAGE_TYPES: {
+		CANCEL: "MAGIC_KEYBOARD_CANCEL",
+		SOURCE: "magic-html-iframe",
+	},
 	POST_MESSAGE_TARGET_STRATEGIES: {
 		CROSS_ORIGIN_PARENT: "cross-origin-parent",
 		SAME_ORIGIN_ANCESTOR: "same-origin-ancestor",
@@ -221,7 +238,18 @@ vi.mock("@/components/base/MagicSpin", () => ({
 }))
 
 vi.mock("../../../components/EditToolbar/AIEditButton", () => ({
-	default: () => <div data-testid="ai-edit-button" />,
+	default: (props: {
+		maxItems?: number
+		onPrimaryAction?: () => void
+		testIdPrefix?: string
+	}) => (
+		<div
+			data-testid="ai-edit-button"
+			data-max-items={props.maxItems}
+			data-has-primary-action={Boolean(props.onPrimaryAction)}
+			data-test-id-prefix={props.testIdPrefix}
+		/>
+	),
 }))
 
 vi.mock("../../../components/EditToolbar/FileEditButtons", () => ({
@@ -230,15 +258,19 @@ vi.mock("../../../components/EditToolbar/FileEditButtons", () => ({
 		onSave,
 		onSaveAndExit,
 		onCancel,
+		editLabel,
+		testIdPrefix,
 	}: {
 		onEdit?: () => void
 		onSave?: () => void
 		onSaveAndExit?: () => void
 		onCancel?: () => void
+		editLabel?: string
+		testIdPrefix?: string
 	}) => (
-		<div data-testid="file-edit-buttons">
+		<div data-testid="file-edit-buttons" data-test-id-prefix={testIdPrefix}>
 			<button type="button" data-testid="html-edit-button" onClick={onEdit}>
-				edit
+				{editLabel ?? "edit"}
 			</button>
 			<button type="button" data-testid="html-save-button" onClick={onSave}>
 				save
@@ -345,7 +377,8 @@ vi.mock("@/utils/shadow", () => ({
 	shadow: (value: string) => value,
 }))
 
-vi.mock("@/utils/slug", () => ({
+vi.mock("@/utils/slug", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/utils/slug")>()),
 	parseAnchorLink: (path: string) => ({
 		filePath: path,
 		anchor: "",
@@ -434,7 +467,7 @@ vi.mock("../IsolatedHTMLRenderer", async () => {
 			React.useImperativeHandle(ref, () => ({
 				getContent: async () => "<html><body>local-visual</body></html>",
 				updateContent: () => undefined,
-				resetContent: () => undefined,
+				resetContent: mockResetContent,
 				getFetchInterceptedCallback: () => () => undefined,
 			}))
 
@@ -503,7 +536,10 @@ vi.mock("../../../components/CommonHeaderV2", () => ({
 		}
 
 		return (
-			<div data-testid="common-header">
+			<div
+				data-testid="common-header"
+				data-show-refresh={String(Boolean(props.showRefreshButton))}
+			>
 				{props.actionConfig?.customActions
 					?.filter((action) => {
 						if (typeof action.visible === "function") return action.visible(context)
@@ -534,13 +570,331 @@ const baseProps = {
 
 describe("HTML", () => {
 	beforeEach(() => {
+		fileLoadState.status = undefined
+		fileLoadState.revision = 0
 		mockGetFileContentById.mockReset()
 		mockProcessHtmlContent.mockClear()
 		mockIsolatedHTMLRendererProps.mockClear()
+		mockResetContent.mockClear()
+	})
+
+	it("reuses MicroApp permissions while hiding the file toolbar manager", async () => {
+		let shared: HtmlAppPermissionController
+		const permissionFiles: [] = []
+		function SharedPermissions({ children }: { children: ReactNode }) {
+			const controller = useHtmlAppPermissions({
+				content: "",
+				projectId: "app-project",
+				relativeFilePath: "index.html",
+				fileList: permissionFiles,
+				enabled: false,
+			})
+			shared = { ...controller, hasHtmlPermissionDeclarations: true }
+			return (
+				<HtmlAppPermissionContext.Provider value={shared}>
+					{children}
+				</HtmlAppPermissionContext.Provider>
+			)
+		}
+		const onManagerChange = vi.fn()
+		render(
+			<SharedPermissions>
+				<HTML
+					{...baseProps}
+					viewMode="desktop"
+					isEditMode={false}
+					onHtmlPermissionManagerChange={onManagerChange}
+				/>
+			</SharedPermissions>,
+		)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].permissionController).toBe(
+				shared,
+			),
+		)
+		expect(screen.queryByText("htmlEditor.permissionManager.open")).not.toBeInTheDocument()
+		expect(onManagerChange).toHaveBeenCalledWith(
+			expect.objectContaining({ open: expect.any(Function) }),
+		)
+	})
+
+	it("checks unrelated attachments without showing loading or replacing the preview", async () => {
+		const props = { ...baseProps, viewMode: "desktop" as const, isEditMode: false }
+		const { rerender } = render(<HTML {...props} />)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("base"),
+		)
+		act(() => mockIsolatedHTMLRendererProps.mock.lastCall?.[0].onRenderReady())
+		const originalProcessor = mockProcessHtmlContent.getMockImplementation()
+		if (!originalProcessor) throw new Error("Missing HTML processor fixture")
+		let finish = () => {
+			throw new Error("Processing did not start")
+		}
+		mockProcessHtmlContent.mockImplementation(
+			(input) =>
+				new Promise((resolve) => {
+					finish = () => {
+						void originalProcessor(input).then(resolve)
+					}
+				}),
+		)
+		rerender(
+			<HTML
+				{...props}
+				attachmentList={[
+					{ file_id: "test-data", relative_file_path: "test.txt", updated_at: "new" },
+				]}
+			/>,
+		)
+		expect(screen.queryByRole("status")).toBeNull()
+		await act(async () => finish())
+		expect(screen.queryByRole("status")).toBeNull()
+		expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("base")
+		mockProcessHtmlContent.mockImplementation(originalProcessor)
+	})
+
+	it("keeps the last working preview on processing failure and retries explicitly", async () => {
+		const data = {
+			...baseProps.data,
+			content: "<html>working</html>",
+			display_config: { previewPolicy: { keepLocalContent: true } },
+		}
+		const { rerender } = render(
+			<HTML {...baseProps} data={data} viewMode="desktop" isEditMode={false} />,
+		)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("working"),
+		)
+		act(() => mockIsolatedHTMLRendererProps.mock.lastCall?.[0].onRenderReady())
+		const originalProcessor = mockProcessHtmlContent.getMockImplementation()
+		if (!originalProcessor) throw new Error("Missing HTML processor fixture")
+		mockProcessHtmlContent.mockRejectedValue(new Error("resource unavailable"))
+		rerender(
+			<HTML
+				{...baseProps}
+				data={{ ...data, content: "<html>newest</html>" }}
+				viewMode="desktop"
+				isEditMode={false}
+			/>,
+		)
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent("htmlEditor.previewRefreshFailed"),
+		)
+		expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("working")
+		mockProcessHtmlContent.mockImplementation(originalProcessor)
+		fireEvent.click(screen.getByRole("button", { name: "htmlEditor.previewRetry" }))
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("newest"),
+		)
+		act(() => mockIsolatedHTMLRendererProps.mock.lastCall?.[0].onRenderReady())
+		expect(screen.queryByRole("status")).toBeNull()
+	})
+
+	it("ignores slow processing from an older file update", async () => {
+		const originalProcessor = mockProcessHtmlContent.getMockImplementation()
+		if (!originalProcessor) throw new Error("Missing HTML processor fixture")
+		const finishSlow: Array<() => void> = []
+		mockProcessHtmlContent.mockImplementation((input) => {
+			if (input.content?.includes("slow"))
+				return new Promise((resolve) => {
+					finishSlow.push(() => {
+						void originalProcessor(input).then(resolve)
+					})
+				})
+			return originalProcessor(input)
+		})
+		const data = {
+			...baseProps.data,
+			content: "<html>slow</html>",
+			display_config: { previewPolicy: { keepLocalContent: true } },
+		}
+		const { rerender } = render(
+			<HTML {...baseProps} data={data} viewMode="desktop" isEditMode={false} />,
+		)
+		await waitFor(() => expect(finishSlow.length).toBeGreaterThan(0))
+		rerender(
+			<HTML
+				{...baseProps}
+				data={{ ...data, content: "<html>latest</html>" }}
+				viewMode="desktop"
+				isEditMode={false}
+			/>,
+		)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("latest"),
+		)
+		await act(async () => {
+			finishSlow.forEach((finish) => finish())
+		})
+		expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("latest")
+		mockProcessHtmlContent.mockImplementation(originalProcessor)
+	})
+
+	it("clears a previously rendered preview when the accepted file becomes empty", async () => {
+		const data = {
+			...baseProps.data,
+			content: "<html>previous</html>",
+			display_config: { previewPolicy: { keepLocalContent: true } },
+		}
+		const { rerender } = render(
+			<HTML {...baseProps} data={data} viewMode="desktop" isEditMode={false} />,
+		)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("previous"),
+		)
+		rerender(
+			<HTML
+				{...baseProps}
+				data={{ ...data, content: "" }}
+				viewMode="desktop"
+				isEditMode={false}
+			/>,
+		)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toBe(""),
+		)
+		expect(screen.queryByTestId("magic-spin")).toBeNull()
+		expect(screen.queryByRole("status")).toBeNull()
+	})
+
+	it("keeps the editing baseline when remote props change during editing", async () => {
+		const data = {
+			...baseProps.data,
+			content: "<html>editing baseline</html>",
+			display_config: { previewPolicy: { keepLocalContent: true } },
+		}
+		const { rerender } = render(
+			<HTML {...baseProps} data={data} viewMode="desktop" isEditMode />,
+		)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain(
+				"editing baseline",
+			),
+		)
+		rerender(
+			<HTML
+				{...baseProps}
+				data={{ ...data, content: "<html>remote update</html>" }}
+				viewMode="desktop"
+				isEditMode
+			/>,
+		)
+		await act(async () => {
+			await Promise.resolve()
+		})
+		expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain(
+			"editing baseline",
+		)
+	})
+
+	it("shows a remote load failure even if attachment metadata changed during the request", async () => {
+		const props = { ...baseProps, viewMode: "desktop" as const, isEditMode: false }
+		const { rerender } = render(<HTML {...props} />)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("base"),
+		)
+		act(() => mockIsolatedHTMLRendererProps.mock.lastCall?.[0].onRenderReady())
+		fileLoadState.status = "loading"
+		const attachments = [
+			{ file_id: "resource", relative_file_path: "data.json", updated_at: "new" },
+		]
+		rerender(<HTML {...props} attachmentList={attachments} updatedAt="new" />)
+		await act(async () => {
+			await Promise.resolve()
+		})
+		fileLoadState.status = "error"
+		rerender(<HTML {...props} attachmentList={attachments} updatedAt="new" />)
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent("htmlEditor.previewRefreshFailed"),
+		)
+		expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("base")
+	})
+
+	it("waits for the new file acknowledgement even when its content matches the previous file", async () => {
+		const props = { ...baseProps, viewMode: "desktop" as const, isEditMode: false }
+		const { rerender } = render(<HTML {...props} />)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].content).toContain("base"),
+		)
+		const previousReady = mockIsolatedHTMLRendererProps.mock.lastCall?.[0].onRenderReady
+		act(() => previousReady())
+		rerender(<HTML {...props} data={{ ...props.data, file_id: "different-file" }} />)
+		await waitFor(() =>
+			expect(mockIsolatedHTMLRendererProps.mock.lastCall?.[0].fileId).toBe("different-file"),
+		)
+		act(() => previousReady())
+		expect(screen.getByTestId("magic-spin")).toBeInTheDocument()
+		act(() => mockIsolatedHTMLRendererProps.mock.lastCall?.[0].onRenderReady())
+		expect(screen.queryByTestId("magic-spin")).toBeNull()
+	})
+
+	it("should use the HTML-specific edit label and show only three AI edit items", async () => {
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				setIsEditMode={vi.fn()}
+				allowEdit
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(screen.getByTestId("html-preview")).toHaveAttribute("data-edit-mode", "false")
+			expect(screen.getByTestId("html-preview-container")).toBeInTheDocument()
+			expect(screen.getByTestId("html-preview-content")).toBeInTheDocument()
+			expect(screen.getByTestId("html-design-style-button")).toBeInTheDocument()
+			expect(screen.getByTestId("file-edit-buttons")).toHaveAttribute(
+				"data-test-id-prefix",
+				"html-editor",
+			)
+			expect(screen.getByTestId("html-ai-pick-button")).toBeInTheDocument()
+			expect(screen.getByTestId("html-edit-button")).toHaveTextContent("common.edit")
+		})
+	})
+
+	it("should hide the AI pick button in code preview mode", async () => {
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="code"
+				isEditMode={false}
+				setIsEditMode={vi.fn()}
+				allowEdit
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(screen.queryByTestId("html-ai-pick-button")).not.toBeInTheDocument()
+		})
+	})
+
+	it("should expose fixed HTML test ids only for the active cached preview", async () => {
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				setIsEditMode={vi.fn()}
+				allowEdit
+				isTabActive={false}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(screen.queryByTestId("html-preview")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("html-editor-toolbar-actions")).not.toBeInTheDocument()
+			expect(mockIsolatedHTMLRendererProps).toHaveBeenLastCalledWith(
+				expect.objectContaining({ isVisible: false, isTabActive: false }),
+			)
+			expect(screen.getByTestId("file-edit-buttons")).not.toHaveAttribute(
+				"data-test-id-prefix",
+			)
+		})
 	})
 
 	it("should stop preview loading when the html file is empty", async () => {
-		render(
+		const { rerender } = render(
 			<HTML
 				{...baseProps}
 				data={{
@@ -647,6 +1001,404 @@ describe("HTML", () => {
 				htmlRelativeFolderPath: "magic-api-devtools/",
 			}),
 		)
+	})
+
+	it("opens UTF-8 encoded paths from a Chinese folder", async () => {
+		const openFileTab = vi.fn()
+		const currentFile = {
+			file_id: "file-1",
+			file_name: "index.html",
+			relative_file_path: "中文场景/index.html",
+		}
+		const targetFile = {
+			file_id: "file-2",
+			file_name: "目标页面.html",
+			relative_file_path: "中文场景/目标页面.html",
+		}
+		const nestedFile = {
+			file_id: "file-3",
+			file_name: "深层页面.html",
+			relative_file_path: "中文场景/子文件夹/深层页面.html",
+		}
+		const rootDetail = {
+			file_id: "file-4",
+			file_name: "detail.html",
+			relative_file_path: "detail.html",
+		}
+		const rootIndex = {
+			file_id: "file-5",
+			file_name: "index.html",
+			relative_file_path: "index.html",
+		}
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				attachmentList={[currentFile, targetFile, nestedFile, rootDetail, rootIndex]}
+				openFileTab={openFileTab}
+			/>,
+		)
+		await waitFor(() => expect(mockIsolatedHTMLRendererProps).toHaveBeenCalled())
+		const props = mockIsolatedHTMLRendererProps.mock.lastCall?.[0]
+		const encodedTarget =
+			"/%E4%B8%AD%E6%96%87%E5%9C%BA%E6%99%AF/%E7%9B%AE%E6%A0%87%E9%A1%B5%E9%9D%A2.html?keyword=%E6%B5%8B%E8%AF%95#section-a"
+
+		act(() => props.openNewTab("file-1", encodedTarget, false))
+		expect(openFileTab).toHaveBeenCalledWith(
+			{
+				...targetFile,
+				htmlNavigation: {
+					filePath:
+						"/%E4%B8%AD%E6%96%87%E5%9C%BA%E6%99%AF/%E7%9B%AE%E6%A0%87%E9%A1%B5%E9%9D%A2.html",
+					search: "?keyword=%E6%B5%8B%E8%AF%95",
+					hash: "#section-a",
+					anchor: "section-a",
+					target: "_self",
+					background: false,
+					history: "push",
+				},
+			},
+			false,
+		)
+
+		act(() =>
+			props.openNewTab(
+				"file-1",
+				"/%E4%B8%AD%E6%96%87%E5%9C%BA%E6%99%AF/%E5%AD%90%E6%96%87%E4%BB%B6%E5%A4%B9/%E6%B7%B1%E5%B1%82%E9%A1%B5%E9%9D%A2.html",
+				false,
+			),
+		)
+		expect(openFileTab).toHaveBeenLastCalledWith(
+			expect.objectContaining({ file_id: "file-3" }),
+			false,
+		)
+
+		act(() => props.openNewTab("file-1", "/detail.html", false))
+		expect(openFileTab).toHaveBeenLastCalledWith(
+			expect.objectContaining({ file_id: "file-4" }),
+			false,
+		)
+
+		act(() => props.openNewTab("file-3", "/index.html", false))
+		expect(openFileTab).toHaveBeenLastCalledWith(
+			expect.objectContaining({ file_id: "file-5" }),
+			false,
+		)
+
+		act(() =>
+			props.openNewTab(
+				"file-1",
+				"/%E4%B8%AD%E6%96%87%E5%9C%BA%E6%99%AF/index.html?from=chinese-folder",
+				false,
+			),
+		)
+		expect(openFileTab).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				file_id: "file-1",
+				htmlNavigation: expect.objectContaining({
+					search: "?from=chinese-folder",
+				}),
+			}),
+			false,
+		)
+	})
+
+	it("opens the resolved file through the host callback with query and hash intact", async () => {
+		const openFileTab = vi.fn()
+		const currentFile = {
+			file_id: "file-1",
+			file_name: "index.html",
+			relative_file_path: "pages/index.html",
+		}
+		const targetFile = {
+			file_id: "file-2",
+			file_name: "detail.html",
+			relative_file_path: "detail.html",
+		}
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				attachmentList={[currentFile, targetFile]}
+				openFileTab={openFileTab}
+			/>,
+		)
+		await waitFor(() => expect(mockIsolatedHTMLRendererProps).toHaveBeenCalled())
+		const props = mockIsolatedHTMLRendererProps.mock.lastCall?.[0]
+		act(() =>
+			props.openNewTab("file-1", "/detail.html?mode=preview#summary", false, {
+				target: "report",
+				background: true,
+				history: "replace",
+			}),
+		)
+		expect(openFileTab).toHaveBeenCalledExactlyOnceWith(
+			{
+				...targetFile,
+				htmlNavigation: {
+					filePath: "/detail.html",
+					search: "?mode=preview",
+					hash: "#summary",
+					anchor: "summary",
+					target: "report",
+					background: true,
+					history: "replace",
+				},
+			},
+			false,
+		)
+	})
+
+	it("does not scroll the opener when an anchored page opens in a new context", async () => {
+		const { scrollToAnchor } = await import("@/utils/slug")
+		const openFileTab = vi.fn()
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				attachmentList={[
+					{
+						file_id: "file-1",
+						file_name: "index.html",
+						relative_file_path: "index.html",
+					},
+					{
+						file_id: "file-2",
+						file_name: "detail.html",
+						relative_file_path: "detail.html",
+					},
+				]}
+				openFileTab={openFileTab}
+			/>,
+		)
+		await waitFor(() => expect(mockIsolatedHTMLRendererProps).toHaveBeenCalled())
+		vi.useFakeTimers()
+		try {
+			vi.mocked(scrollToAnchor).mockClear()
+			act(() =>
+				mockIsolatedHTMLRendererProps.mock.lastCall?.[0].openNewTab(
+					"file-1",
+					"/detail.html#summary",
+					false,
+					{ target: "report" },
+				),
+			)
+			act(() => vi.advanceTimersByTime(300))
+			expect(openFileTab).toHaveBeenCalledOnce()
+			expect(scrollToAnchor).not.toHaveBeenCalled()
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	it("does not fall back to nested index.html when root index.html is missing", async () => {
+		const openFileTab = vi.fn()
+		const currentFile = {
+			file_id: "file-1",
+			file_name: "detail.html",
+			relative_file_path: "detail.html",
+		}
+		const nestedFile = {
+			file_id: "nested-admin",
+			file_name: "index.html",
+			relative_file_path: "admin/index.html",
+		}
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				attachmentList={[currentFile, nestedFile]}
+				openFileTab={openFileTab}
+			/>,
+		)
+		await waitFor(() => expect(mockIsolatedHTMLRendererProps).toHaveBeenCalled())
+		const props = mockIsolatedHTMLRendererProps.mock.lastCall?.[0]
+		act(() => props.openNewTab("file-1", "/index.html", false))
+		expect(openFileTab).not.toHaveBeenCalled()
+
+		act(() => props.openNewTab("file-1", "/", false))
+		expect(openFileTab).not.toHaveBeenCalled()
+	})
+
+	it("resolves root index.html instead of earlier nested index.html when both exist", async () => {
+		const openFileTab = vi.fn()
+		const currentFile = {
+			file_id: "file-1",
+			file_name: "detail.html",
+			relative_file_path: "detail.html",
+		}
+		const nestedFile = {
+			file_id: "nested-admin",
+			file_name: "index.html",
+			relative_file_path: "admin/index.html",
+		}
+		const rootFile = {
+			file_id: "root-index",
+			file_name: "index.html",
+			relative_file_path: "index.html",
+		}
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				attachmentList={[currentFile, nestedFile, rootFile]}
+				openFileTab={openFileTab}
+			/>,
+		)
+		await waitFor(() => expect(mockIsolatedHTMLRendererProps).toHaveBeenCalled())
+		const props = mockIsolatedHTMLRendererProps.mock.lastCall?.[0]
+		act(() => props.openNewTab("file-1", "/index.html", false))
+		expect(openFileTab).toHaveBeenCalledWith(
+			expect.objectContaining({ file_id: "root-index" }),
+			false,
+		)
+	})
+
+	it("does not fall back to an index.html with an empty relative path", async () => {
+		const openFileTab = vi.fn()
+		const currentFile = {
+			file_id: "file-1",
+			file_name: "detail.html",
+			relative_file_path: "detail.html",
+		}
+		const nestedFile = {
+			file_id: "nested-admin",
+			file_name: "index.html",
+			relative_file_path: "admin/index.html",
+		}
+		const rootFileWithoutPath = {
+			file_id: "root-without-path",
+			file_name: "index.html",
+			relative_file_path: "",
+		}
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				attachmentList={[currentFile, nestedFile, rootFileWithoutPath]}
+				openFileTab={openFileTab}
+			/>,
+		)
+		await waitFor(() => expect(mockIsolatedHTMLRendererProps).toHaveBeenCalled())
+		const props = mockIsolatedHTMLRendererProps.mock.lastCall?.[0]
+		act(() => props.openNewTab("file-1", "/index.html", false))
+		expect(openFileTab).not.toHaveBeenCalled()
+	})
+
+	it("hides the HTML refresh action when showRefresh is false", async () => {
+		render(<HTML {...baseProps} viewMode="desktop" isEditMode={false} showRefresh={false} />)
+
+		await waitFor(() => {
+			expect(screen.getByTestId("common-header")).toHaveAttribute(
+				"data-show-refresh",
+				"false",
+			)
+		})
+	})
+
+	it("does not fall back to nested entry even with backslash paths", async () => {
+		const openFileTab = vi.fn()
+		const currentFile = {
+			file_id: "file-1",
+			file_name: "detail.html",
+			relative_file_path: "detail.html",
+		}
+		const nestedWinFile = {
+			file_id: "nested-win",
+			file_name: "index.html",
+			relative_file_path: "admin\\index.html",
+		}
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				attachmentList={[currentFile, nestedWinFile]}
+				openFileTab={openFileTab}
+			/>,
+		)
+		await waitFor(() => expect(mockIsolatedHTMLRendererProps).toHaveBeenCalled())
+		const props = mockIsolatedHTMLRendererProps.mock.lastCall?.[0]
+		act(() => props.openNewTab("file-1", "/", false))
+		expect(openFileTab).not.toHaveBeenCalled()
+	})
+
+	it("should pass HTML navigation state to the isolated renderer", async () => {
+		const htmlNavigation = {
+			filePath: "page1.html",
+			search: "?name=%E5%BC%A0%E4%B8%89&mode=preview",
+			hash: "#summary",
+			anchor: "summary",
+			target: "report",
+			background: true,
+			history: "replace",
+		}
+
+		render(
+			<HTML
+				{...baseProps}
+				data={{ ...baseProps.data, htmlNavigation }}
+				viewMode="desktop"
+				isEditMode={false}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(mockIsolatedHTMLRendererProps).toHaveBeenLastCalledWith(
+				expect.objectContaining({ htmlNavigation }),
+			)
+		})
+	})
+
+	it("should update the isolated renderer when only the query changes", async () => {
+		const oldNavigation = {
+			filePath: "page1.html",
+			search: "?mode=old",
+			hash: "",
+			anchor: "",
+		}
+		const newNavigation = {
+			filePath: "page1.html",
+			search: "?mode=new",
+			hash: "",
+			anchor: "",
+		}
+
+		const { rerender } = render(
+			<HTML
+				{...baseProps}
+				data={{ ...baseProps.data, htmlNavigation: oldNavigation }}
+				viewMode="desktop"
+				isEditMode={false}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(mockIsolatedHTMLRendererProps).toHaveBeenLastCalledWith(
+				expect.objectContaining({ htmlNavigation: oldNavigation }),
+			)
+		})
+
+		rerender(
+			<HTML
+				{...baseProps}
+				data={{ ...baseProps.data, htmlNavigation: newNavigation }}
+				viewMode="desktop"
+				isEditMode={false}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(mockIsolatedHTMLRendererProps).toHaveBeenLastCalledWith(
+				expect.objectContaining({ htmlNavigation: newNavigation }),
+			)
+		})
 	})
 
 	it("should require an exact relative path match for bundled template entry html", () => {
@@ -773,6 +1525,8 @@ describe("HTML", () => {
 		await waitFor(() => {
 			expect(screen.getByTestId("html-save-with-update-dialog")).toBeInTheDocument()
 		})
+		expect(screen.getByTestId("html-save-with-update-cancel-button")).toBeInTheDocument()
+		expect(screen.getByTestId("html-save-with-update-confirm-button")).toBeInTheDocument()
 		expect(mockSaveEditContent).not.toHaveBeenCalled()
 	})
 
@@ -803,7 +1557,7 @@ describe("HTML", () => {
 		})
 
 		await act(async () => {
-			fireEvent.click(screen.getByText("common.save"))
+			fireEvent.click(screen.getByTestId("html-save-with-update-confirm-button"))
 		})
 
 		await waitFor(() => {
@@ -812,6 +1566,9 @@ describe("HTML", () => {
 				"file-1",
 				true,
 				expect.any(Function),
+				undefined,
+				false,
+				{ silent: true },
 			)
 		})
 		expect(screen.queryByTestId("html-save-with-update-dialog")).not.toBeInTheDocument()
@@ -844,7 +1601,7 @@ describe("HTML", () => {
 		})
 
 		await act(async () => {
-			fireEvent.click(screen.getByText("common.cancel"))
+			fireEvent.click(screen.getByTestId("html-save-with-update-cancel-button"))
 		})
 
 		expect(screen.queryByTestId("html-save-with-update-dialog")).not.toBeInTheDocument()
@@ -903,6 +1660,9 @@ describe("HTML", () => {
 				"file-1",
 				true,
 				expect.any(Function),
+				undefined,
+				false,
+				{ silent: true },
 			)
 		})
 		expect(screen.queryByTestId("html-save-with-update-dialog")).not.toBeInTheDocument()
@@ -946,7 +1706,7 @@ describe("HTML", () => {
 		expect(screen.queryByTestId("html-save-with-update-dialog")).not.toBeInTheDocument()
 	})
 
-	it("should refresh file after save and exit succeeds", async () => {
+	it("should exit without remounting the tab after save and exit succeeds", async () => {
 		const mockSaveEditContent = vi.fn().mockResolvedValue(undefined)
 		const mockSetIsEditMode = vi.fn()
 		const mockOnRefreshFile = vi.fn()
@@ -979,10 +1739,36 @@ describe("HTML", () => {
 				"file-1",
 				true,
 				expect.any(Function),
+				undefined,
+				false,
+				{ silent: true },
 			)
 			expect(mockSetIsEditMode).toHaveBeenCalledWith(false)
-			expect(mockOnRefreshFile).toHaveBeenCalledTimes(1)
 		})
+		expect(mockOnRefreshFile).not.toHaveBeenCalled()
+	})
+
+	it("should reset the iframe content when canceling visual edit", async () => {
+		const mockSetIsEditMode = vi.fn()
+		const mockOnRefreshFile = vi.fn()
+
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				allowEdit
+				setIsEditMode={mockSetIsEditMode}
+				onRefreshFile={mockOnRefreshFile}
+			/>,
+		)
+
+		await act(async () => {
+			fireEvent.click(screen.getByTestId("html-cancel-button"))
+		})
+
+		expect(mockResetContent).toHaveBeenCalledOnce()
+		expect(mockSetIsEditMode).toHaveBeenCalledWith(false)
+		expect(mockOnRefreshFile).toHaveBeenCalledOnce()
 	})
 
 	it("should not refresh file after regular save succeeds", async () => {
@@ -1018,6 +1804,9 @@ describe("HTML", () => {
 				"file-1",
 				true,
 				expect.any(Function),
+				undefined,
+				false,
+				{ silent: true },
 			)
 		})
 
@@ -1025,7 +1814,7 @@ describe("HTML", () => {
 		expect(mockOnRefreshFile).not.toHaveBeenCalled()
 	})
 
-	it("should refresh file after confirming save and exit conflict flow", async () => {
+	it("should exit without remounting the tab after confirming save and exit conflict flow", async () => {
 		const mockSaveEditContent = vi.fn().mockResolvedValue(undefined)
 		const mockSetIsEditMode = vi.fn()
 		const mockOnRefreshFile = vi.fn()
@@ -1066,9 +1855,12 @@ describe("HTML", () => {
 				"file-1",
 				true,
 				expect.any(Function),
+				undefined,
+				false,
+				{ silent: true },
 			)
 			expect(mockSetIsEditMode).toHaveBeenCalledWith(false)
-			expect(mockOnRefreshFile).toHaveBeenCalledTimes(1)
 		})
+		expect(mockOnRefreshFile).not.toHaveBeenCalled()
 	})
 })

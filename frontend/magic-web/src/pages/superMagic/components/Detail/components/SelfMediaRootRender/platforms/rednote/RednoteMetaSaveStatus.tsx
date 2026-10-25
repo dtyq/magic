@@ -1,6 +1,6 @@
 import { AlertCircle, Check, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 type RednoteMetaSaveState = "saving" | "saved" | "error"
 

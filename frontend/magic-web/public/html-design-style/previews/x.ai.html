@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>xAI — Understand the Universe</title>
+  <style>
+    :root {
+      --primary: #ffffff;
+      --on-primary: #0a0a0a;
+      --ink: #ffffff;
+      --body: #dadbdf;
+      --mute: #7d8187;
+      --hairline: #212327;
+      --hairline-light: rgba(255, 255, 255, 0.22);
+      --canvas: #0a0a0a;
+      --canvas-soft: #1a1c20;
+      --canvas-card: #141416;
+      --canvas-card-elevated: #19191d;
+      --accent-sunset: #ff7a17;
+      --accent-dusk: #7c3aed;
+      --accent-twilight: #c4b5fd;
+      --accent-breeze: #a0c3ec;
+      --accent-green: #22c55e;
+      --radius-sm: 8px;
+      --radius-pill: 9999px;
+      --font-display: "Universal Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "GeistMono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --shell: 1080px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-display);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.5;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(var(--shell), calc(100% - 32px)); margin: 0 auto; }
+
+    /* Top Nav */
+    .nav {
+      position: sticky; top: 0; z-index: 50; height: 56px;
+      background: rgba(10, 10, 10, 0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--hairline); display: flex; align-items: center;
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .brand-cluster { display: flex; align-items: center; gap: 24px; }
+    .brand-logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 400; font-size: 17px; }
+    .xai-glyph { width: 20px; height: 20px; fill: var(--ink); }
+    .nav-links { display: flex; align-items: center; gap: 20px; font-size: 13.5px; color: var(--body); }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+
+    /* Buttons: Universal Pill Geometry */
+    .pill-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      font-family: var(--font-display); font-size: 13px; font-weight: 400;
+      padding: 6px 16px; border-radius: var(--radius-pill); cursor: pointer;
+      background: transparent; color: var(--ink); border: 1px solid var(--hairline-light);
+      transition: all 0.15s ease;
+    }
+    .pill-btn:hover { border-color: #ffffff; background: rgba(255,255,255,0.06); }
+    .pill-btn.fill-white { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 500; }
+    .pill-btn.fill-white:hover { background: #e5e5e5; }
+
+    /* Hero: High Contrast First 500px */
+    .hero { padding: 40px 0 24px; text-align: center; }
+    .eyebrow-mono {
+      font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1.4px; color: var(--mute); margin-bottom: 14px;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .eyebrow-mono .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-sunset); box-shadow: 0 0 8px var(--accent-sunset); }
+    .hero-h1 {
+      font-size: clamp(38px, 5.5vw, 68px); font-weight: 400;
+      line-height: 1.0; letter-spacing: -2px; color: var(--ink); margin-bottom: 16px;
+    }
+    .hero-sub {
+      font-size: 16px; color: var(--body); max-width: 580px; margin: 0 auto 28px; line-height: 1.5;
+    }
+
+    /* Grok Workbench Card */
+    .grok-workbench {
+      max-width: 960px; margin: 0 auto;
+      background: var(--canvas-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+      text-align: left;
+    }
+    .workbench-header {
+      background: #0f1013;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .grok-brand { display: flex; align-items: center; gap: 10px; }
+    .grok-badge {
+      font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1.2px; background: #202227; color: var(--body);
+      padding: 2px 8px; border-radius: var(--radius-pill); border: 1px solid var(--hairline);
+    }
+    
+    /* Fun Mode vs Normal Mode Switcher */
+    .mode-toggle-wrap {
+      display: flex; align-items: center; gap: 6px; background: #0a0a0a;
+      padding: 3px; border-radius: var(--radius-pill); border: 1px solid var(--hairline);
+    }
+    .mode-btn {
+      font-family: var(--font-display); font-size: 12px; font-weight: 400;
+      padding: 4px 12px; border-radius: var(--radius-pill); border: none;
+      background: transparent; color: var(--mute); cursor: pointer; transition: all 0.15s;
+    }
+    .mode-btn.active-fun {
+      background: linear-gradient(135deg, rgba(255,122,23,0.2) 0%, rgba(124,58,237,0.25) 100%);
+      color: #ffffff; border: 1px solid rgba(255,122,23,0.5); font-weight: 500;
+    }
+    .mode-btn.active-normal {
+      background: #25282e; color: #ffffff; border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .workbench-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Grok Query Bubble */
+    .query-box {
+      background: #17181c; border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); padding: 14px 16px; font-size: 14px;
+    }
+    .query-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--mute); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Grok Synthesis Bubble */
+    .response-box {
+      display: flex; flex-direction: column; gap: 12px;
+      border-left: 2px solid var(--accent-sunset); padding-left: 14px; margin-left: 4px;
+    }
+    .response-header { display: flex; align-items: center; justify-content: space-between; }
+    .response-title { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; }
+    .telemetry-chip {
+      font-family: var(--font-mono); font-size: 10.5px; color: var(--mute);
+      letter-spacing: 0.5px;
+    }
+
+    /* Live X Knowledge Stream: Real-Time Ingested Tweet Cards */
+    .stream-panel {
+      background: #0d0e11;
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+    }
+    .stream-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px; border-bottom: 1px solid var(--hairline); padding-bottom: 8px;
+    }
+    .stream-title {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-sunset);
+    }
+    .tweet-cards-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    }
+    .tweet-card {
+      background: #141519; border: 1px solid var(--hairline);
+      border-radius: 6px; padding: 10px 12px; font-size: 12px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .tweet-author { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+    .author-avatar {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #23262d; border: 1px solid var(--hairline); display: grid; place-items: center; font-size: 10px; font-weight: 600;
+    }
+    .author-handle { font-weight: 500; color: #fff; font-size: 11.5px; }
+    .verified-icon { color: #1d9bf0; font-size: 11px; }
+    .time-stamp { font-family: var(--font-mono); font-size: 10px; color: var(--mute); margin-left: auto; }
+    .tweet-text { color: var(--body); line-height: 1.4; margin-bottom: 8px; font-size: 11.5px; }
+    .tweet-footer { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 9.5px; color: var(--mute); border-top: 1px solid #1c1e24; padding-top: 6px; }
+    .citation-tag {
+      background: rgba(255, 122, 23, 0.12); color: var(--accent-sunset);
+      padding: 1px 5px; border-radius: 3px; font-size: 9.5px;
+    }
+
+    /* Grok Query Input Bar */
+    .grok-input-wrap {
+      margin: 4px 18px 18px;
+      background: #0f1013; border: 1px solid var(--hairline-light);
+      border-radius: var(--radius-pill); padding: 8px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .input-text { font-size: 13px; color: var(--mute); }
+    .input-tools { display: flex; align-items: center; gap: 8px; }
+    .tool-icon { color: var(--mute); font-size: 13px; cursor: pointer; }
+    .send-pill {
+      background: #ffffff; color: #0a0a0a; border: none; border-radius: var(--radius-pill);
+      padding: 4px 12px; font-size: 11.5px; font-weight: 500; cursor: pointer;
+    }
+
+    /* Colossus Supercluster Telemetry Section */
+    .cluster-section { padding: 48px 0 36px; border-top: 1px solid var(--hairline); }
+    .cluster-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+    .cluster-card {
+      background: var(--canvas-card); border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); padding: 18px;
+    }
+    .cluster-label {
+      font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--mute); margin-bottom: 6px;
+    }
+    .cluster-val {
+      font-size: 28px; font-weight: 400; letter-spacing: -1px; color: var(--ink); margin-bottom: 4px;
+    }
+    .cluster-desc { font-size: 12px; color: var(--mute); line-height: 1.4; }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--hairline); padding: 32px 0;
+      font-size: 12px; color: var(--mute);
+    }
+    .footer-inner { display: flex; justify-content: space-between; align-items: center; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a:hover { color: var(--ink); }
+
+    @media (max-width: 768px) {
+      .tweet-cards-grid { grid-template-columns: 1fr; }
+      .cluster-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .footer-inner { flex-direction: column; gap: 14px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="nav">
+    <div class="shell nav-inner">
+      <div class="brand-cluster">
+        <a href="#" class="brand-logo">
+          <!-- xAI Stylized Glyph -->
+          <svg class="xai-glyph" viewBox="0 0 24 24">
+            <path d="M4 4L10.5 12L4 20H6.8L12 13.5L17.2 20H20L13.5 12L20 4H17.2L12 10.5L6.8 4H4Z"/>
+          </svg>
+          <span style="letter-spacing: -0.5px; font-weight: 500;">xAI</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#grok">Grok</a>
+          <a href="#api">API</a>
+          <a href="#colossus">Colossus</a>
+          <a href="#company">Company</a>
+        </nav>
+      </div>
+      <div class="nav-right">
+        <button class="pill-btn">API Console</button>
+        <button class="pill-btn fill-white">Try Grok</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero" id="grok">
+    <div class="shell">
+      <div class="eyebrow-mono">
+        <span class="pulse-dot"></span>
+        GROK 2.5 • REAL-TIME X STREAM ACTIVE
+      </div>
+      <h1 class="hero-h1">Understand the Universe.</h1>
+      <p class="hero-sub">
+        A frontier multimodal model integrated directly into the global real-time knowledge stream of X, powered by the 100,000 GPU Colossus cluster.
+      </p>
+
+      <!-- Grok Real-Time Studio Workbench -->
+      <div class="grok-workbench">
+        <div class="workbench-header">
+          <div class="grok-brand">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#ffffff">
+              <path d="M4 4L10.5 12L4 20H6.8L12 13.5L17.2 20H20L13.5 12L20 4H17.2L12 10.5L6.8 4H4Z"/>
+            </svg>
+            <span style="font-size: 14px; font-weight: 500;">Grok-2</span>
+            <span class="grok-badge">Real-time Stream</span>
+          </div>
+
+          <!-- Mode Toggle: Fun Mode vs Normal Mode -->
+          <div class="mode-toggle-wrap">
+            <button class="mode-btn active-normal">Normal Mode</button>
+            <button class="mode-btn active-fun">🔥 Fun Mode</button>
+          </div>
+        </div>
+
+        <div class="workbench-body">
+          <!-- Query Box -->
+          <div class="query-box">
+            <div class="query-meta">PROMPT // T-MINUS 0.2s</div>
+            What is the latest telemetry and orbital milestone from Starship Flight 6, and how is the community reacting on X?
+          </div>
+
+          <!-- Assistant Response with Fun Mode Wit -->
+          <div class="response-box">
+            <div class="response-header">
+              <div class="response-title">
+                <span style="color: var(--accent-sunset);">✦</span>
+                <span>Grok Synthesizer</span>
+                <span style="font-size: 11px; color: var(--mute);">[Fun Mode: Spicy Wit ON]</span>
+              </div>
+              <span class="telemetry-chip">128 tok/s • 34 citations</span>
+            </div>
+
+            <p style="font-size: 13.5px; color: var(--body); line-height: 1.5;">
+              Starship Flight 6 nailed its mid-air Raptor engine relight in the vacuum of space, proving deorbit burn capability. Meanwhile, the Mechazilla catch chopsticks were safely called off to an offshore splashdown because flight computers decided not to risk denting the launch tower today!
+            </p>
+
+            <!-- Real-Time X Knowledge Stream Ingest -->
+            <div class="stream-panel">
+              <div class="stream-header">
+                <div class="stream-title">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                  Real-time X Stream Ingest (0.4s ago)
+                </div>
+                <span style="font-family: var(--font-mono); font-size: 10px; color: var(--mute);">LIVE INDEX: 4.8M TWEETS/SEC</span>
+              </div>
+
+              <div class="tweet-cards-grid">
+                <!-- Tweet Card 1 -->
+                <div class="tweet-card">
+                  <div>
+                    <div class="tweet-author">
+                      <div class="author-avatar" style="color:#ff7a17;">🚀</div>
+                      <span class="author-handle">SpaceX</span>
+                      <span class="verified-icon">✓</span>
+                      <span class="time-stamp">2m ago</span>
+                    </div>
+                    <div class="tweet-text">
+                      Starship successfully relit a Raptor vacuum engine while coasting in space. Visual confirmation from Starlink high-bandwidth terminal.
+                    </div>
+                  </div>
+                  <div class="tweet-footer">
+                    <span class="citation-tag">Citation #1</span>
+                    <span>1.4M views • 48k likes</span>
+                  </div>
+                </div>
+
+                <!-- Tweet Card 2 -->
+                <div class="tweet-card">
+                  <div>
+                    <div class="tweet-author">
+                      <div class="author-avatar" style="color:#a0c3ec;">🧠</div>
+                      <span class="author-handle">Andrej Karpathy</span>
+                      <span class="verified-icon">✓</span>
+                      <span class="time-stamp">8m ago</span>
+                    </div>
+                    <div class="tweet-text">
+                      The speed of LLM synthesis directly on live social telemetry is changing search forever. Zero latency from reality to token generation.
+                    </div>
+                  </div>
+                  <div class="tweet-footer">
+                    <span class="citation-tag">Citation #2</span>
+                    <span>892k views • 24k likes</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grok Query Input Bar -->
+        <div class="grok-input-wrap">
+          <span class="input-text">Ask Grok anything about live events, code, or mathematics...</span>
+          <div class="input-tools">
+            <span class="tool-icon" title="Web search">🌐</span>
+            <span class="tool-icon" title="Vision upload">📷</span>
+            <button class="send-pill">➔ Ask</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Colossus Supercluster Telemetry -->
+  <section class="cluster-section" id="colossus">
+    <div class="shell">
+      <div class="eyebrow-mono">INFRASTRUCTURE TELEMETRY // MEMPHIS DATA CENTER</div>
+      <h2 style="font-size: 28px; font-weight: 400; letter-spacing: -1px; margin-bottom: 8px;">
+        Colossus: The World's Most Powerful AI Training Cluster
+      </h2>
+      <p style="font-size: 14.5px; color: var(--mute); max-width: 620px;">
+        Built in 122 days in Memphis, Tennessee. Colossus runs 100,000 liquid-cooled NVIDIA H100 GPUs on a single unified RDMA ethernet fabric.
+      </p>
+
+      <div class="cluster-grid">
+        <div class="cluster-card">
+          <div class="cluster-label">Total Compute Fabric</div>
+          <div class="cluster-val">100,000</div>
+          <div class="cluster-desc">Liquid-cooled NVIDIA H100 GPUs operating at full TDP capacity.</div>
+        </div>
+        <div class="cluster-card">
+          <div class="cluster-label">Interconnect Latency</div>
+          <div class="cluster-val" style="color: var(--accent-sunset);">0.04 ms</div>
+          <div class="cluster-desc">Non-blocking RoCE v2 ultra-low-latency spine network.</div>
+        </div>
+        <div class="cluster-card">
+          <div class="cluster-label">Real-Time Ingestion</div>
+          <div class="cluster-val">500M+</div>
+          <div class="cluster-desc">Daily posts parsed and indexed from X with instant semantic embeddings.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Monochrome Cyber Footer -->
+  <footer class="footer">
+    <div class="shell footer-inner">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffffff">
+          <path d="M4 4L10.5 12L4 20H6.8L12 13.5L17.2 20H20L13.5 12L20 4H17.2L12 10.5L6.8 4H4Z"/>
+        </svg>
+        <span>xAI Corp. © 2026</span>
+      </div>
+      <div class="footer-links">
+        <a href="#">Careers</a>
+        <a href="#">API Documentation</a>
+        <a href="#">Security</a>
+        <a href="#">Privacy</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

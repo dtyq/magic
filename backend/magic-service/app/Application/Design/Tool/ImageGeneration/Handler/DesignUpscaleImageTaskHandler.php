@@ -46,7 +46,7 @@ final class DesignUpscaleImageTaskHandler extends AbstractDesignImageGenerationT
 
         $dto = new ImageConvertHighDTO();
         $this->applyMagicAccessToken($dto);
-        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation));
+        $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation, $entity->getProjectId()));
         $dto->setImages([$imageUrl]);
         $dto->setSize($entity->getSize());
 

@@ -53,7 +53,7 @@ return [
         // File Operations
         'list_dir' => 'Directory content viewing tool, supports recursive display of multi-level directory structure, shows file size, line count and token count, helps quickly understand project file organization and code scale',
         'read_files' => 'Batch file reading tool, reads multiple file contents at once, supports text, PDF, Word, Excel, CSV and other formats, greatly improves multi-file task processing efficiency',
-        'write_file' => 'File writing tool, writes content to local file system, supports creating new files or overwriting existing files, note single content length limit, large files are recommended to be written in steps',
+        'write_file' => 'File writing tool, writes content to local file system, supports creating new files or overwriting existing files',
         'edit_file' => 'File precise editing tool, performs string replacement operations on existing files, supports strict matching validation and replacement count control, ensures editing operation accuracy',
         'multi_edit_file' => 'Multiple file editing tool, performs multiple find-replace operations in a single file, all edits are applied in order, either all succeed or all fail, ensuring operation atomicity',
         'delete_files' => 'Delete multiple files tool, used to batch delete specified files or directories. Please confirm all file paths are correct before deletion, if any file does not exist an error will be returned, can only delete files in the working directory, supports deleting multiple files simultaneously, improving operation efficiency',

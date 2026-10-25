@@ -72,6 +72,28 @@ interface AgentMarketRepositoryInterface
     public function findById(int $id): ?AgentMarketEntity;
 
     /**
+     * 批量查询仍然可用于市场展示的记录，供向量结果做最终数据库校验。
+     *
+     * @param int[] $ids
+     * @return array<int, AgentMarketEntity>
+     */
+    public function findVisibleByIds(array $ids): array;
+
+    /**
+     * Batch query market records visible to the current search context.
+     *
+     * @param int[] $ids
+     * @return array<int, AgentMarketEntity>
+     */
+    public function findVisibleByIdsForSearch(array $ids, AgentMarketQuery $query): array;
+
+    /** @return int[] IDs are returned in ascending order for keyset pagination. */
+    public function findVectorIndexIds(string $afterId = '0', int $limit = 100): array;
+
+    /** Count all records eligible for the Agent Market vector index. */
+    public function countVectorIndexRecords(): int;
+
+    /**
      * 查询引用指定分类的有效市场 Agent 数量。
      */
     public function countByCategoryId(int $categoryId): int;
@@ -164,7 +186,6 @@ interface AgentMarketRepositoryInterface
      * 按传入字段部分更新市场员工信息.
      *
      * @param array{
-     *     category_id?: null|int,
      *     name_i18n?: null|array,
      *     description_i18n?: null|array,
      *     role_i18n?: null|array,

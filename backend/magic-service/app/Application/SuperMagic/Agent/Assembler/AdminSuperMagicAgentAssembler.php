@@ -352,8 +352,6 @@ class AdminSuperMagicAgentAssembler
             iconType: $entity->getIconType()->value,
             publisherId: $entity->getPublisherId(),
             publisherType: $entity->getPublisherType()->value,
-            categoryId: $entity->getCategoryId(),
-            category: $this->createCategoryInfo($entity->getCategoryId(), $categoryMap),
             categoryIds: $entity->getCategoryIds(),
             categories: $this->createCategoryInfos($entity->getCategoryIds(), $categoryMap),
             publishStatus: $entity->getPublishStatus()->value,
@@ -368,25 +366,6 @@ class AdminSuperMagicAgentAssembler
     }
 
     /**
-     * @param array<int, AgentCategoryEntity> $categoryMap
-     * @return null|array{id: string, name_i18n: array, logo: ?string, status: int}
-     */
-    private function createCategoryInfo(?int $categoryId, array $categoryMap): ?array
-    {
-        if ($categoryId === null || ! isset($categoryMap[$categoryId])) {
-            return null;
-        }
-
-        $category = $categoryMap[$categoryId];
-        return [
-            'id' => (string) ($category->getId() ?? ''),
-            'name_i18n' => $category->getNameI18n(),
-            'logo' => $category->getLogo(),
-            'status' => $category->getStatus(),
-        ];
-    }
-
-    /**
      * @param int[] $categoryIds
      * @param array<int, AgentCategoryEntity> $categoryMap
      * @return array<int, array{id: string, name_i18n: array, logo: ?string, status: int}>
@@ -395,10 +374,16 @@ class AdminSuperMagicAgentAssembler
     {
         $items = [];
         foreach ($categoryIds as $categoryId) {
-            $category = $this->createCategoryInfo($categoryId, $categoryMap);
-            if ($category !== null) {
-                $items[] = $category;
+            $entity = $categoryMap[$categoryId] ?? null;
+            if ($entity === null) {
+                continue;
             }
+            $items[] = [
+                'id' => (string) ($entity->getId() ?? ''),
+                'name_i18n' => $entity->getNameI18n(),
+                'logo' => $entity->getLogo(),
+                'status' => $entity->getStatus(),
+            ];
         }
 
         return $items;

@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace App\Application\Design\Service;
 
 use App\Application\Design\Event\Message\DesignVideoPollMessage;
+use App\Application\Design\Event\Message\DesignVideoSubmitMessage;
 use App\Application\Design\Event\Publish\DesignVideoPollDelayPublisher;
+use App\Application\Design\Event\Publish\DesignVideoSubmitPublisher;
 use App\Domain\Design\Entity\DesignDataIsolation;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
@@ -52,11 +54,7 @@ class DesignVideoFirstPollRecoveryAppService
                 );
 
                 try {
-                    $this->producer->produce(new DesignVideoPollDelayPublisher(new DesignVideoPollMessage(
-                        $task->getOrganizationCode(),
-                        $task->getProjectId(),
-                        $task->getGenerationId(),
-                    )));
+                    $this->producer->produce($this->buildRecoveryPublisher($task));
                     $this->domainService->markFirstPollSent($dataIsolation, $task);
                 } catch (Throwable $throwable) {
                     $this->domainService->markFirstPollDispatchFailed(
@@ -82,7 +80,11 @@ class DesignVideoFirstPollRecoveryAppService
 
     private function shouldRecoverFirstPoll(DesignGenerationTaskEntity $task): bool
     {
-        if ($task->getOperationId() === '' || $task->getLastPolledAt() !== null) {
+        if ($task->getLastPolledAt() !== null) {
+            return false;
+        }
+
+        if (! $task->isCanvasComposition() && $task->getOperationId() === '') {
             return false;
         }
 
@@ -106,6 +108,26 @@ class DesignVideoFirstPollRecoveryAppService
         }
 
         return $nextRetryTimestamp <= time();
+    }
+
+    /**
+     * 根据任务是否已经完成上游提交，选择恢复提交消息或轮询消息。
+     */
+    private function buildRecoveryPublisher(DesignGenerationTaskEntity $task): DesignVideoPollDelayPublisher|DesignVideoSubmitPublisher
+    {
+        if ($task->isCanvasComposition() && ! $task->hasOperationId()) {
+            return new DesignVideoSubmitPublisher(new DesignVideoSubmitMessage(
+                $task->getOrganizationCode(),
+                $task->getProjectId(),
+                $task->getGenerationId(),
+            ));
+        }
+
+        return new DesignVideoPollDelayPublisher(new DesignVideoPollMessage(
+            $task->getOrganizationCode(),
+            $task->getProjectId(),
+            $task->getGenerationId(),
+        ));
     }
 
     private function buildNextRetryAt(): string

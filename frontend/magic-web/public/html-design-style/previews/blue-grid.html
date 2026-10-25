@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BLUE GRID // CAD Architectural Blueprint & Engineering System</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+    :root {
+      --bp-bg: #0a2540; --bp-bg-dark: #071c31;
+      --bp-grid-minor: rgba(74, 180, 255, 0.08); --bp-grid-major: rgba(74, 180, 255, 0.2);
+      --bp-cyan: #4ab4ff; --bp-cyan-bright: #79cbff; --bp-white: #ffffff;
+      --bp-amber: #ffcc00; --bp-green: #39e58c; --bp-red: #ff5252;
+      --bp-border: rgba(74, 180, 255, 0.32); --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bp-bg);
+      background-image: 
+        linear-gradient(to right, var(--bp-grid-major) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--bp-grid-major) 1px, transparent 1px),
+        linear-gradient(to right, var(--bp-grid-minor) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--bp-grid-minor) 1px, transparent 1px);
+      background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+      color: var(--bp-white); font-family: var(--font-mono); line-height: 1.4;
+      padding: 14px; min-height: 100vh; -webkit-font-smoothing: antialiased;
+    }
+    .frame { border: 2px solid var(--bp-cyan); box-shadow: 0 0 0 4px var(--bp-bg), 0 0 0 6px var(--bp-border), 0 16px 40px rgba(0,0,0,0.6); background: rgba(10, 37, 64, 0.88); padding: 12px; }
+    .ruler-top { display: flex; justify-content: space-between; border-bottom: 1px solid var(--bp-border); padding: 3px 10px; font-size: 10px; color: var(--bp-cyan); letter-spacing: 0.08em; }
+    .cad-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--bp-border); padding: 8px 10px; background: var(--bp-bg-dark); margin-top: 4px; }
+    .cad-title-group { display: flex; align-items: center; gap: 10px; }
+    .cad-symbol { width: 24px; height: 24px; border: 1px solid var(--bp-cyan); display: flex; align-items: center; justify-content: center; color: var(--bp-cyan); font-weight: 700; font-size: 13px; }
+    .cad-title { font-size: 15px; font-weight: 700; letter-spacing: 0.1em; }
+    .cad-subtitle { font-size: 9px; color: var(--bp-cyan); letter-spacing: 0.06em; }
+    .cad-modes { display: flex; gap: 6px; font-size: 9px; }
+    .cad-pill { padding: 2px 7px; border: 1px solid var(--bp-border); background: rgba(74, 180, 255, 0.08); color: var(--bp-cyan); border-radius: 2px; }
+    .cad-pill.active { background: var(--bp-cyan); color: var(--bp-bg-dark); font-weight: 700; }
+    .main-grid { display: grid; grid-template-columns: 240px 1fr 280px; gap: 12px; margin-top: 10px; }
+    .cad-panel { background: rgba(7, 28, 49, 0.75); border: 1px solid var(--bp-border); padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--bp-border); padding-bottom: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--bp-cyan-bright); text-transform: uppercase; }
+    .layer-item { display: flex; align-items: center; justify-content: space-between; font-size: 10px; padding: 4px 6px; border: 1px solid transparent; }
+    .layer-item.active { background: rgba(74, 180, 255, 0.12); border-color: var(--bp-cyan); }
+    .layer-info { display: flex; align-items: center; gap: 6px; }
+    .layer-bullet { width: 7px; height: 7px; border-radius: 1px; }
+    .telemetry-row { display: flex; justify-content: space-between; font-size: 10px; color: rgba(255,255,255,0.7); padding: 1.5px 0; }
+    .telemetry-val { color: var(--bp-cyan); font-weight: 700; }
+    .drafting-canvas { background: radial-gradient(circle at center, rgba(14, 51, 87, 0.6) 0%, rgba(7, 28, 49, 0.95) 100%); border: 1px solid var(--bp-cyan); position: relative; min-height: 420px; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; overflow: hidden; }
+    .crosshairs { position: absolute; pointer-events: none; inset: 0; }
+    .ch-x { position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(74, 180, 255, 0.35) 20%, rgba(74, 180, 255, 0.35) 80%, transparent); }
+    .ch-y { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: linear-gradient(180deg, transparent, rgba(74, 180, 255, 0.35) 20%, rgba(74, 180, 255, 0.35) 80%, transparent); }
+    .compass-rose { position: absolute; top: 10px; right: 10px; width: 56px; height: 56px; border: 1px solid var(--bp-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(10,37,64,0.7); }
+    .cad-viewport-title { font-size: 11px; font-weight: 700; color: var(--bp-cyan-bright); letter-spacing: 0.08em; display: flex; align-items: center; gap: 8px; z-index: 2; }
+    .cad-vector-box { position: relative; width: 100%; height: 320px; display: flex; align-items: center; justify-content: center; }
+    .cad-vector-box svg { width: 100%; height: 100%; max-height: 320px; }
+    .gdt-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .gdt-table th, .gdt-table td { border: 1px solid var(--bp-border); padding: 3px 5px; text-align: left; }
+    .gdt-table th { background: rgba(74, 180, 255, 0.12); color: var(--bp-cyan-bright); }
+    .title-block { border: 2px solid var(--bp-cyan); background: var(--bp-bg-dark); margin-top: 6px; }
+    .tb-row { display: grid; border-bottom: 1px solid var(--bp-border); }
+    .tb-row:last-child { border-bottom: none; }
+    .tb-cell { padding: 3px 6px; border-right: 1px solid var(--bp-border); font-size: 8px; }
+    .tb-cell:last-child { border-right: none; }
+    .tb-label { color: var(--bp-cyan); font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .tb-val { font-weight: 700; color: var(--bp-white); margin-top: 1px; font-size: 10px; }
+    .cad-footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--bp-border); padding-top: 6px; font-size: 9.5px; color: var(--bp-cyan); }
+    .cmd-line { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.4); padding: 3px 8px; border: 1px solid var(--bp-border); width: 56%; }
+  </style>
+</head>
+<body>
+
+  <div class="frame">
+    <div class="ruler-top">
+      <span>|---|---|---| [0.00]</span>
+      <span>ISO 128-20 TECHNICAL CAD BLUEPRINT SPECIFICATION</span>
+      <span>SCALE 1:20 [METRIC MM] |---|---|---|</span>
+    </div>
+
+    <header class="cad-header">
+      <div class="cad-title-group">
+        <div class="cad-symbol">⌖</div>
+        <div>
+          <div class="cad-title">BLUE GRID // STRUCTURAL CAD v4.8</div>
+          <div class="cad-subtitle">PRECISION ARCHITECTURAL & MECHANICAL BLUEPRINT MATRIX</div>
+        </div>
+      </div>
+      <div class="cad-modes">
+        <span class="cad-pill active">ORTHO: ON</span>
+        <span class="cad-pill active">SNAP: 5.0mm</span>
+        <span class="cad-pill">POLAR: 30°</span>
+        <span class="cad-pill active">ISODRAFT: ISO-TOP</span>
+        <span class="cad-pill" style="color:var(--bp-amber);border-color:var(--bp-amber);">LAYER 03: ACTIVE</span>
+      </div>
+    </header>
+
+    <div class="main-grid">
+      <div class="cad-panel">
+        <div class="panel-header"><span>Active Layers</span><span style="color:var(--bp-amber);">[8/8]</span></div>
+        <div class="layer-item active"><div class="layer-info"><span class="layer-bullet" style="background:var(--bp-cyan-bright);"></span><span>01-ISO_GEOMETRY</span></div><span style="color:var(--bp-cyan);">VIS</span></div>
+        <div class="layer-item active"><div class="layer-info"><span class="layer-bullet" style="background:var(--bp-amber);"></span><span>02-DIMENSIONS</span></div><span style="color:var(--bp-amber);">LOCK</span></div>
+        <div class="layer-item active"><div class="layer-info"><span class="layer-bullet" style="background:var(--bp-white);"></span><span>03-HIDDEN_EDGES</span></div><span style="color:var(--bp-white);">DASH</span></div>
+        <div class="layer-item active"><div class="layer-info"><span class="layer-bullet" style="background:var(--bp-green);"></span><span>04-DATUM_PLANES</span></div><span style="color:var(--bp-green);">REF</span></div>
+
+        <div class="panel-header" style="margin-top:4px;"><span>Coordinate Telemetry</span><span>WCS</span></div>
+        <div>
+          <div class="telemetry-row"><span>CURSOR_X:</span><span class="telemetry-val">428.500 mm</span></div>
+          <div class="telemetry-row"><span>CURSOR_Y:</span><span class="telemetry-val">912.125 mm</span></div>
+          <div class="telemetry-row"><span>DATUM_Z:</span><span class="telemetry-val">+0.000 mm</span></div>
+          <div class="telemetry-row"><span>GRID PITCH:</span><span class="telemetry-val">10.00 mm</span></div>
+        </div>
+
+        <div class="panel-header" style="margin-top:4px;"><span>Material Specs</span></div>
+        <div style="font-size:9.5px; color:rgba(255,255,255,0.8); line-height:1.4;">
+          <div>ALLOY: Ti-6Al-4V Grade 5</div>
+          <div>HEAT: AMS 4928 Annealed</div>
+          <div>YIELD STR: 880 MPa Min</div>
+        </div>
+      </div>
+
+      <div class="drafting-canvas">
+        <div class="crosshairs"><div class="ch-x"></div><div class="ch-y"></div></div>
+        <div class="cad-viewport-title">
+          <span style="color:var(--bp-amber);">VIEW 01 //</span>
+          <span>ISOMETRIC ORTHOGRAPHIC PROJECTION [AXONOMETRIC 30°]</span>
+          <span style="margin-left:auto; font-size:9px; color:var(--bp-cyan); border:1px solid var(--bp-border); padding:1px 5px;">REF-ID: ISO-8842-B</span>
+        </div>
+
+        <div class="compass-rose">
+          <svg viewBox="0 0 60 60" width="40" height="40">
+            <circle cx="30" cy="30" r="24" fill="none" stroke="var(--bp-cyan)" stroke-width="1" stroke-dasharray="2,3" />
+            <line x1="30" y1="6" x2="30" y2="54" stroke="var(--bp-cyan)" stroke-width="1" />
+            <line x1="6" y1="30" x2="54" y2="30" stroke="var(--bp-cyan)" stroke-width="1" />
+            <polygon points="30,9 34,22 30,18 26,22" fill="var(--bp-amber)" />
+            <text x="30" y="16" fill="var(--bp-amber)" font-size="7" font-weight="bold" text-anchor="middle">N</text>
+            <text x="50" y="33" fill="var(--bp-cyan)" font-size="6" text-anchor="middle">E</text>
+          </svg>
+        </div>
+
+        <div class="cad-vector-box">
+          <svg viewBox="0 0 640 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="bpHatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(74, 180, 255, 0.4)" stroke-width="1" />
+              </pattern>
+              <marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#ffcc00" />
+              </marker>
+              <marker id="arrC" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#4ab4ff" />
+              </marker>
+            </defs>
+
+            <g opacity="0.85">
+              <line x1="120" y1="270" x2="210" y2="218" stroke="#4ab4ff" stroke-width="1.5" marker-end="url(#arrC)" />
+              <line x1="120" y1="270" x2="30" y2="218" stroke="#4ab4ff" stroke-width="1.5" marker-end="url(#arrC)" />
+              <line x1="120" y1="270" x2="120" y2="160" stroke="#4ab4ff" stroke-width="1.5" marker-end="url(#arrC)" />
+              <text x="215" y="218" fill="#4ab4ff" font-size="9" font-family="monospace">+X [30°]</text>
+              <text x="10" y="218" fill="#4ab4ff" font-size="9" font-family="monospace">+Y</text>
+              <text x="125" y="160" fill="#4ab4ff" font-size="9" font-family="monospace">+Z</text>
+            </g>
+            <polygon points="320,50 470,137 320,224 170,137" fill="url(#bpHatch)" stroke="#4ab4ff" stroke-width="1.5" />
+            <polygon points="170,137 320,224 320,294 170,207" fill="rgba(10,37,64,0.6)" stroke="#ffffff" stroke-width="2" />
+            <polygon points="320,224 470,137 470,207 320,294" fill="rgba(7,28,49,0.8)" stroke="#ffffff" stroke-width="2" />
+            <polygon points="320,95 400,141 320,187 240,141" fill="rgba(14,51,87,0.9)" stroke="#4ab4ff" stroke-width="1.5" />
+            <polygon points="240,141 320,187 320,230 240,184" fill="rgba(10,37,64,0.7)" stroke="#79cbff" stroke-width="1.2" />
+            <polygon points="320,187 400,141 400,184 320,230" fill="rgba(7,28,49,0.9)" stroke="#79cbff" stroke-width="1.2" />
+            <ellipse cx="320" cy="141" rx="32" ry="18" stroke="#39e58c" stroke-width="1.5" stroke-dasharray="8,3" />
+            <ellipse cx="320" cy="177" rx="32" ry="18" stroke="#39e58c" stroke-width="1.2" stroke-dasharray="4,4" />
+            <line x1="288" y1="141" x2="288" y2="177" stroke="#39e58c" stroke-width="1.2" /><line x1="352" y1="141" x2="352" y2="177" stroke="#39e58c" stroke-width="1.2" />
+            <line x1="170,207" y1="320,120" stroke="rgba(255,255,255,0.4)" stroke-width="1" stroke-dasharray="4,4" /><line x1="470,207" y1="320,120" stroke="rgba(255,255,255,0.4)" stroke-width="1" stroke-dasharray="4,4" />
+            <line x1="320" y1="20" x2="320" y2="305" stroke="#ff5252" stroke-width="1" stroke-dasharray="12,3,2,3" /><text x="325" y="32" fill="#ff5252" font-size="8" font-weight="bold">CL ℄</text>
+            <line x1="328" y1="42" x2="478" y2="129" stroke="#ffcc00" stroke-width="1.2" marker-start="url(#arr)" marker-end="url(#arr)" /><text x="415" y="78" fill="#ffcc00" font-size="10" font-weight="bold" transform="rotate(30 415 78)">450.00 mm ±0.05</text>
+            <line x1="158" y1="130" x2="308" y2="217" stroke="#ffcc00" stroke-width="1.2" marker-start="url(#arr)" marker-end="url(#arr)" /><text x="215" y="178" fill="#ffcc00" font-size="10" font-weight="bold" transform="rotate(30 215 178)">320.00 mm</text>
+            <line x1="145" y1="137" x2="145" y2="207" stroke="#ffcc00" stroke-width="1.2" marker-start="url(#arr)" marker-end="url(#arr)" /><text x="96" y="176" fill="#ffcc00" font-size="10" font-weight="bold">140.00</text>
+            <path d="M 430 175 L 490 175 L 515 155" stroke="#4ab4ff" stroke-width="1" fill="none" marker-start="url(#arrC)" />
+            <rect x="518" y="146" width="94" height="22" fill="rgba(7,28,49,0.9)" stroke="#4ab4ff" stroke-width="0.8" /><text x="522" y="157" fill="#4ab4ff" font-size="8.5" font-weight="bold">C3.0 CHAMFER</text><text x="522" y="165" fill="rgba(255,255,255,0.7)" font-size="6.5">DEBURR ALL EDGES</text>
+            <path d="M 335 135 L 370 110 L 420 110" stroke="#39e58c" stroke-width="1" fill="none" marker-start="url(#arr)" /><text x="425" y="108" fill="#39e58c" font-size="8.5" font-weight="bold">Ø 64.00 H7</text><text x="425" y="117" fill="rgba(255,255,255,0.7)" font-size="6.5">Ra 0.8 HONED</text>
+
+            <g transform="translate(170, 220)">
+              <line x1="0" y1="0" x2="0" y2="12" stroke="#ffffff" stroke-width="1.2" />
+              <polygon points="-5,12 5,12 0,18" fill="#ffffff" />
+              <rect x="-8" y="20" width="16" height="15" fill="var(--bp-bg-dark)" stroke="#ffffff" stroke-width="1.2" />
+              <text x="0" y="31" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">A</text>
+            </g>
+            <g transform="translate(470, 220)">
+              <line x1="0" y1="0" x2="0" y2="12" stroke="#ffffff" stroke-width="1.2" />
+              <polygon points="-5,12 5,12 0,18" fill="#ffffff" />
+              <rect x="-8" y="20" width="16" height="15" fill="var(--bp-bg-dark)" stroke="#ffffff" stroke-width="1.2" />
+              <text x="0" y="31" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">B</text>
+            </g>
+          </svg>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; font-size:8.5px; color:rgba(255,255,255,0.7); z-index:2;">
+          <span>NOTE 1: REMOVE ALL BURRS AND SHARP EDGES R0.4 MAX</span>
+          <span style="color:var(--bp-amber);">THIRD ANGLE PROJECTION ⌖</span>
+          <span>TOLERANCES: .X ±0.1  .XX ±0.02</span>
+        </div>
+      </div>
+
+      <div class="cad-panel">
+        <div class="panel-header"><span>GD&T Tolerances</span><span>ISO 1101</span></div>
+        <table class="gdt-table">
+          <thead><tr><th>SYM</th><th>TOL</th><th>DATUMS</th></tr></thead>
+          <tbody>
+            <tr><td style="color:var(--bp-cyan);">⌖</td><td>Ø 0.02 Ⓜ</td><td>A | B | C</td></tr>
+            <tr><td style="color:var(--bp-cyan);">⏥</td><td>0.015</td><td>A</td></tr>
+            <tr><td style="color:var(--bp-cyan);">⌯</td><td>0.030</td><td>A | B</td></tr>
+          </tbody>
+        </table>
+
+        <div class="panel-header" style="margin-top:4px;"><span>Orthographic Views</span></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div style="border:1px solid var(--bp-border); background:rgba(0,0,0,0.3); padding:4px; text-align:center;">
+            <svg viewBox="0 0 70 34" width="100%" height="26">
+              <rect x="8" y="6" width="54" height="20" fill="none" stroke="#4ab4ff" stroke-width="1" />
+              <rect x="22" y="6" width="26" height="12" fill="rgba(74,180,255,0.15)" stroke="#79cbff" stroke-width="0.8" stroke-dasharray="2,2" />
+            </svg>
+            <div style="font-size:7.5px; color:var(--bp-cyan);">FRONT ELEVATION</div>
+          </div>
+          <div style="border:1px solid var(--bp-border); background:rgba(0,0,0,0.3); padding:4px; text-align:center;">
+            <svg viewBox="0 0 70 34" width="100%" height="26">
+              <rect x="12" y="4" width="46" height="24" fill="none" stroke="#4ab4ff" stroke-width="1" />
+              <circle cx="35" cy="16" r="7" fill="none" stroke="#39e58c" stroke-width="0.8" stroke-dasharray="2,2" />
+            </svg>
+            <div style="font-size:7.5px; color:var(--bp-cyan);">TOP PLAN VIEW</div>
+          </div>
+        </div>
+
+        <div class="title-block">
+          <div class="tb-row" style="grid-template-columns:1fr;"><div class="tb-cell" style="background:rgba(74,180,255,0.15);"><div class="tb-label">PROJECT / SPECIFICATION</div><div class="tb-val" style="color:var(--bp-cyan-bright);font-size:11px;">ORBITAL AVIONICS HOUSING MK-IV</div></div></div>
+          <div class="tb-row" style="grid-template-columns:1fr 1fr;"><div class="tb-cell"><div class="tb-label">DRAWING NO.</div><div class="tb-val" style="color:var(--bp-amber);">CAD-2026-BG-01</div></div><div class="tb-cell"><div class="tb-label">REVISION</div><div class="tb-val">REV D.4 [REL]</div></div></div>
+          <div class="tb-row" style="grid-template-columns:1fr 1fr 1fr;"><div class="tb-cell"><div class="tb-label">SCALE</div><div class="tb-val">1:20</div></div><div class="tb-cell"><div class="tb-label">SHEET</div><div class="tb-val">01 OF 04</div></div><div class="tb-cell"><div class="tb-label">UNITS</div><div class="tb-val">MM</div></div></div>
+          <div class="tb-row" style="grid-template-columns:1.2fr 0.8fr;"><div class="tb-cell"><div class="tb-label">ORGANIZATION</div><div class="tb-val" style="font-size:8.5px;">BLUE GRID CAD LABS</div></div><div class="tb-cell"><div class="tb-label">APPROVED</div><div class="tb-val" style="font-size:8.5px;">E. VANCE PE</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="cad-footer">
+      <div class="cmd-line"><span style="color:var(--bp-amber);font-weight:700;">CMD:</span><span>_ISOMETRIC_RENDER -SECTION AA -TOL 0.005 --EXPORT-VECTOR-SVG</span></div>
+      <div>STATUS: GEOMETRY CONSTRAINED [0 CONFLICTS]</div>
+      <div style="color:var(--bp-green);">● CAD ENGINE SYNCHRONIZED</div>
+    </footer>
+  </div>
+
+</body>
+</html>

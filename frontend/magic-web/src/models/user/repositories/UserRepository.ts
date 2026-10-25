@@ -95,7 +95,7 @@ export class UserRepository extends GlobalBaseRepository<UserSchema> {
 
 	async setUserInfo(info: User.UserInfo | null): Promise<void> {
 		try {
-			this.put({
+			await this.put({
 				key: "userInfo",
 				value: info,
 			})
@@ -117,7 +117,7 @@ export class UserRepository extends GlobalBaseRepository<UserSchema> {
 
 	async setOrganization(org: OrganizationResponse | null): Promise<void> {
 		try {
-			this.put({
+			await this.put({
 				key: "organization",
 				value: org,
 			})
@@ -155,7 +155,7 @@ export class UserRepository extends GlobalBaseRepository<UserSchema> {
 
 	async setOrganizations(org: Record<string, User.MagicOrganization> | null): Promise<void> {
 		try {
-			this.put({
+			await this.put({
 				key: "organizations",
 				value: org,
 			})
@@ -193,7 +193,7 @@ export class UserRepository extends GlobalBaseRepository<UserSchema> {
 
 	async setTeamshareOrganizations(org: Array<User.UserOrganization> | null): Promise<void> {
 		try {
-			this.put({
+			await this.put({
 				key: "teamshareOrganizations",
 				value: org,
 			})
@@ -231,7 +231,7 @@ export class UserRepository extends GlobalBaseRepository<UserSchema> {
 
 	async setOrganizationCode(org: string | null): Promise<void> {
 		try {
-			this.put({
+			await this.put({
 				key: "organizationCode",
 				value: org,
 			})
@@ -269,7 +269,7 @@ export class UserRepository extends GlobalBaseRepository<UserSchema> {
 
 	async setTeamshareOrganizationCode(org: string | null): Promise<void> {
 		try {
-			this.put({
+			await this.put({
 				key: "teamshareOrganizationCode",
 				value: org,
 			})

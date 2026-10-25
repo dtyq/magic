@@ -18,6 +18,8 @@ class AgentListItemDTO extends AbstractDTO
 
     private string $code;
 
+    private ?string $projectId;
+
     private array $nameI18n;
 
     private ?array $roleI18n;
@@ -39,6 +41,8 @@ class AgentListItemDTO extends AbstractDTO
     private array $playbooks;
 
     private string $sourceType;
+
+    private string $source;
 
     private bool $enabled;
 
@@ -78,6 +82,7 @@ class AgentListItemDTO extends AbstractDTO
     public function __construct(
         int $id,
         string $code,
+        ?string $projectId,
         array $nameI18n,
         ?array $roleI18n,
         ?array $descriptionI18n,
@@ -85,6 +90,7 @@ class AgentListItemDTO extends AbstractDTO
         int $iconType,
         array $playbooks,
         string $sourceType,
+        string $source,
         bool $enabled,
         ?bool $isStoreOffline,
         ?string $latestVersionCode,
@@ -104,6 +110,7 @@ class AgentListItemDTO extends AbstractDTO
     ) {
         $this->id = $id;
         $this->code = $code;
+        $this->projectId = $projectId;
         $this->nameI18n = $nameI18n;
         $this->roleI18n = $roleI18n;
         $this->descriptionI18n = $descriptionI18n;
@@ -111,6 +118,7 @@ class AgentListItemDTO extends AbstractDTO
         $this->iconType = $iconType;
         $this->playbooks = $playbooks;
         $this->sourceType = $sourceType;
+        $this->source = $source;
         $this->enabled = $enabled;
         $this->isStoreOffline = $isStoreOffline;
         $this->latestVersionCode = $latestVersionCode;
@@ -137,6 +145,7 @@ class AgentListItemDTO extends AbstractDTO
         return [
             'id' => (string) $this->id,
             'code' => $this->code,
+            'project_id' => $this->projectId,
             'name_i18n' => $this->nameI18n,
             'role_i18n' => $this->roleI18n,
             'description_i18n' => $this->descriptionI18n,
@@ -144,6 +153,7 @@ class AgentListItemDTO extends AbstractDTO
             'icon_type' => $this->iconType,
             'playbooks' => $this->playbooks,
             'source_type' => $this->sourceType,
+            'source' => $this->source,
             'enabled' => $this->enabled,
             'is_store_offline' => $this->isStoreOffline,
             'latest_version_code' => $this->latestVersionCode,

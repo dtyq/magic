@@ -9,9 +9,11 @@ namespace App\Application\File\Service;
 
 use App\Domain\File\Constant\DefaultFileBusinessType;
 use App\Domain\File\Constant\DefaultFileType;
+use App\Domain\File\Constant\FileUploadBusinessCode;
 use App\Domain\File\Entity\DefaultFileEntity;
 use App\Domain\File\Service\DefaultFileDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\File\Service\FileTemporaryCredentialDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -32,17 +34,18 @@ class FileAppService extends AbstractAppService
         private readonly FileDomainService $fileDomainService,
         private readonly DefaultFileDomainService $defaultFileDomainService,
         private CacheInterface $cache,
+        private readonly FileTemporaryCredentialDomainService $temporaryCredentialDomainService,
     ) {
     }
 
     public function getSimpleUploadTemporaryCredential(Authenticatable $authorization, string $storage, ?string $contentType = null, bool $sts = false): array
     {
-        $dataIsolation = $this->createFlowDataIsolation($authorization);
+        $dataIsolation = $this->createFileDataIsolation($authorization);
         $data = $this->fileDomainService->getSimpleUploadTemporaryCredential(
-            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation,
             StorageBucketType::from($storage),
             $contentType,
-            $sts
+            $sts,
         );
         // 如果是本地驱动，那么增加一个临时 key
         if ($data['platform'] === AdapterName::LOCAL) {
@@ -51,6 +54,7 @@ class FileAppService extends AbstractAppService
                 $localCredential,
                 [
                     'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                    'dir' => $data['temporary_credential']['dir'] ?? '',
                 ],
                 (int) ($data['expires'] - time()),
             );
@@ -59,12 +63,36 @@ class FileAppService extends AbstractAppService
         return $data;
     }
 
+    public function getPublicUploadToken(Authenticatable $authorization, string $businessCode, int $expires = 3600): array
+    {
+        return $this->getStsTemporaryCredentialV2(
+            $this->getOrganizationCode($authorization),
+            StorageBucketType::Public->value,
+            FileUploadBusinessCode::from(strtolower($businessCode))->getDir(),
+            $expires,
+        );
+    }
+
+    public function getPrivateUploadToken(Authenticatable $authorization, string $businessCode, int $expires = 3600): array
+    {
+        return $this->getStsTemporaryCredentialV2(
+            $this->getOrganizationCode($authorization),
+            StorageBucketType::Private->value,
+            FileUploadBusinessCode::from(strtolower($businessCode))->getDir(),
+            $expires,
+        );
+    }
+
     public function fileUpload(UploadedFile $file, string $key, string $localCredential): array
     {
         if (! $cacheData = $this->cache->get($localCredential)) {
             ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'invalid_credential');
         }
         $organizationCode = $cacheData['organization_code'] ?? '';
+        $credentialDir = $cacheData['dir'] ?? '';
+        if ($credentialDir === '' || ! str_starts_with($key, $credentialDir)) {
+            ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'invalid_credential');
+        }
 
         $fileArray = $file->toArray();
         $uploadFile = new UploadFile($fileArray['tmp_file'], '', $key, false);
@@ -246,8 +274,7 @@ class FileAppService extends AbstractAppService
         bool $autoBucket = true,
         array $options = []
     ): array {
-        // 调用文件服务获取STS Token
-        $data = $this->fileDomainService->getStsTemporaryCredential(
+        return $this->temporaryCredentialDomainService->getStsTemporaryCredentialV2(
             $organizationCode,
             StorageBucketType::from($storage),
             $dir,
@@ -255,21 +282,6 @@ class FileAppService extends AbstractAppService
             $autoBucket,
             $options,
         );
-
-        // 如果是本地驱动，那么增加一个临时 key
-        if ($data['platform'] === AdapterName::LOCAL) {
-            $localCredential = 'local_credential:' . IdGenerator::getUniqueId32();
-            $data['temporary_credential']['dir'] = $organizationCode . '/' . $data['temporary_credential']['dir'];
-            $data['temporary_credential']['credential'] = $localCredential;
-            $data['temporary_credential']['read_host'] = env('FILE_LOCAL_DOCKER_READ_HOST', 'http://magic-caddy/files');
-            $data['temporary_credential']['host'] = env('FILE_LOCAL_DOCKER_WRITE_HOST', '');
-            $this->cache->set($localCredential, ['organization_code' => $organizationCode], (int) ($data['expires'] - time()));
-        }
-
-        // magic service 服务地址
-        $data['magic_service_host'] = config('super-magic.sandbox.callback_host', '');
-
-        return $data;
     }
 
     /**

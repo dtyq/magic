@@ -26,7 +26,7 @@ export const GAP_SIZE_MAP = {
 
 // Default layout configuration
 export const DEFAULT_LAYOUT_CONFIG: Required<MessageEditorLayoutConfig> = {
-	topBarLeft: [ToolbarButton.DRAFT_BOX, ToolbarButton.AT],
+	topBarLeft: [ToolbarButton.DRAFT_BOX, ToolbarButton.AT, ToolbarButton.SLASH_COMMAND],
 	topBarRight: [ToolbarButton.TOKEN_USAGE],
 	bottomLeft: [ToolbarButton.MODEL_SWITCH],
 	outsideTop: [],
@@ -44,7 +44,7 @@ export const DEFAULT_LAYOUT_CONFIG: Required<MessageEditorLayoutConfig> = {
 
 // Default mobile layout configuration
 export const DEFAULT_MOBILE_LAYOUT_CONFIG = {
-	topBarLeft: [ToolbarButton.DRAFT_BOX, ToolbarButton.AT],
+	topBarLeft: [ToolbarButton.DRAFT_BOX, ToolbarButton.AT, ToolbarButton.SLASH_COMMAND],
 	bottomLeft: [ToolbarButton.INTERNET_SEARCH, ToolbarButton.MCP, ToolbarButton.UPLOAD],
 	outsideBottom: [ToolbarButton.MODEL_SWITCH],
 	bottomRight: [

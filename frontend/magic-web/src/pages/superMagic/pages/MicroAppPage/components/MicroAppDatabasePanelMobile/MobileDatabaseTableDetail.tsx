@@ -11,7 +11,7 @@ import type {
 } from "@/apis/modules/magicBase"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import {
 	MAGIC_BASE_PAGE_SIZE,

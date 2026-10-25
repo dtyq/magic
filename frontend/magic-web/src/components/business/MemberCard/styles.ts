@@ -1,6 +1,6 @@
 import { createStyles } from "antd-style"
-import bg from "./bg.png"
-import bgDark from "./bg-dark.png"
+import bg from "./bg.webp"
+import bgDark from "./bg-dark.webp"
 
 const useStyles = createStyles(
 	(

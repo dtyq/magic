@@ -28,7 +28,13 @@ import {
 	scaleTextStyle,
 } from "../../text/scaleTypography"
 import { TextEditorSelectionSession } from "../../text/TextEditorSelectionSession"
-import type { RichTextParagraph, TextElement, TextStyle } from "../../document/types"
+import type {
+	RichTextParagraph,
+	TextElement,
+	TextElementContent,
+	TextStyle,
+} from "../../document/types"
+import { getActiveContent } from "../../document/elementContent"
 import { generateElementId } from "../../shared/ids"
 import { TextEditorOverlayHost } from "./TextEditorOverlayHost"
 import { TextEditingPreviewSync } from "./TextEditingPreviewSync"
@@ -214,6 +220,7 @@ export class TextEditingManager {
 		}
 
 		const textElement = elementData as TextElement
+		const textContent = getActiveContent<TextElementContent>(textElement)
 		const element = this.canvas.elementManager.getElementInstance(elementId)
 		if (!element) {
 			return
@@ -223,8 +230,8 @@ export class TextEditingManager {
 		const elementScaleX = node?.scaleX() ?? textElement.scaleX ?? 1
 		const elementScaleY = node?.scaleY() ?? textElement.scaleY ?? 1
 		const typographyScale = resolveTypographyScaleFactor(elementScaleX, elementScaleY)
-		const normalizedContent = scaleRichTextContent(textElement.content, typographyScale)
-		const resolvedDefaultBeforeEdit = getResolvedTextDefaultStyle(textElement.defaultStyle)
+		const normalizedContent = scaleRichTextContent(textContent?.content, typographyScale)
+		const resolvedDefaultBeforeEdit = getResolvedTextDefaultStyle(textContent?.defaultStyle)
 		const normalizedDefaultStyle =
 			scaleTextStyle(resolvedDefaultBeforeEdit, typographyScale) ?? resolvedDefaultBeforeEdit
 
@@ -394,8 +401,15 @@ export class TextEditingManager {
 			newZIndex,
 			"",
 		)
-		textElement.content = content
-		textElement.defaultStyle = compactTextDefaultStyle(defaultStyle)
+		textElement.contents = textElement.contents.map((item) =>
+			item.contentId === textElement.activeContentId
+				? {
+						...item,
+						content,
+						defaultStyle: compactTextDefaultStyle(defaultStyle),
+					}
+				: item,
+		)
 
 		this.canvas.elementManager.create(textElement)
 		if (shouldSelect) {
@@ -459,19 +473,16 @@ export class TextEditingManager {
 
 		const textElement = elementData as TextElement
 		const element = this.canvas.elementManager.getElementInstance(elementId)
-		if (element) {
-			const pos = element.getPosition()
-			textElement.x = pos.x
-			textElement.y = pos.y
-		}
-
-		textElement.content = content
-		textElement.defaultStyle = compactTextDefaultStyle(defaultStyle)
-		textElement.width = width
-		textElement.height = height
-		textElement.scaleX = 1
-		textElement.scaleY = 1
-		this.canvas.elementManager.update(textElement.id, textElement)
+		const position = element?.getPosition()
+		this.canvas.elementManager.update(textElement.id, {
+			...(position ? { x: position.x, y: position.y } : {}),
+			content,
+			defaultStyle: compactTextDefaultStyle(defaultStyle),
+			width,
+			height,
+			scaleX: 1,
+			scaleY: 1,
+		})
 
 		if (shouldSelect) {
 			this.canvas.selectionManager.selectMultiple([elementId])

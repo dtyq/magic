@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tavily — The Web Access Layer for AI Agents</title>
+  <style>
+    :root {
+      --color-background: #fefcf5;
+      --color-white: #fffcf6;
+      --color-white-tint: #eaeae2;
+      --color-light-gray: #f7f7f5;
+      --color-black: #3c3a39;
+      --color-black-rgb: 11, 9, 7;
+      --color-black-80: rgba(11, 9, 7, 0.8);
+      --color-black-60: rgba(11, 9, 7, 0.6);
+      --color-black-20: rgba(11, 9, 7, 0.2);
+      --color-black-10: rgba(11, 9, 7, 0.1);
+      --color-primary-red: #ff272d;
+      --color-orange: #ff7300;
+      --color-pink: #f49eff;
+      --color-lav: #817fff;
+      --color-primary-blue: #2677ff;
+      --color-turquoise: #79deeb;
+      --font-suisse: "Suisse Int'l", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Suisse Int'l Mono", "SF Mono", Consolas, monospace;
+      --radius-sm: 8px;
+      --radius-card: 14px;
+      --radius-pill: 40px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--color-background);
+      color: var(--color-black);
+      font-family: var(--font-suisse);
+      line-height: 1.35;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Sticky Warm White Navigation */
+    header.top-nav {
+      height: 64px;
+      background: var(--color-white);
+      border-bottom: 1px solid var(--color-black-10);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 32px; }
+    .brand-logo {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-black);
+      text-decoration: none;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-t-icon {
+      width: 22px;
+      height: 22px;
+      background: var(--color-black);
+      color: var(--color-background);
+      border-radius: 4px;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .nav-links { display: flex; gap: 24px; font-size: 14.5px; font-weight: 450; }
+    .nav-links a { color: var(--color-black); text-decoration: none; }
+    .nav-links a.mono-link { font-family: var(--font-mono); font-size: 13px; color: var(--color-black-60); }
+    .nav-links a:hover { color: var(--color-primary-red); }
+
+    .nav-actions { display: flex; align-items: center; gap: 14px; }
+    .btn-login {
+      background: transparent;
+      color: var(--color-black);
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 6px 12px;
+    }
+    .btn-pill-dark {
+      background: var(--color-black);
+      color: #fefefe;
+      font-size: 13.5px;
+      font-weight: 500;
+      padding: 9px 20px;
+      border-radius: var(--radius-pill);
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Hero Section */
+    .hero-container {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 44px 40px 32px;
+    }
+    .mono-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--color-black-60);
+      margin-bottom: 12px;
+      display: block;
+    }
+    .hero-title {
+      font-size: clamp(34px, 4.4vw, 62px);
+      font-weight: 500;
+      line-height: 1.02;
+      letter-spacing: -1.8px;
+      color: var(--color-black);
+      max-width: 960px;
+      margin-bottom: 16px;
+    }
+    .hero-sub {
+      font-size: 18px;
+      color: var(--color-black-80);
+      max-width: 720px;
+      line-height: 1.45;
+      margin-bottom: 28px;
+    }
+
+    /* Endpoints Pill Bar */
+    .endpoints-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .endpoint-chip {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      background: var(--color-white);
+      border: 1px solid var(--color-black-10);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .dot-accent { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* Playground Console Grid */
+    .playground-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 20px;
+      margin-bottom: 36px;
+    }
+
+    .card-shell {
+      background: var(--color-white);
+      border: 1px solid var(--color-black-10);
+      border-radius: var(--radius-card);
+      padding: 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--color-black-10);
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .latency-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #1a7f37;
+      background: #dafbe1;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+    }
+
+    .code-query-box {
+      background: #f7f6f0;
+      border: 1px solid rgba(11, 9, 7, 0.08);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: var(--color-black);
+      margin-bottom: 14px;
+      overflow-x: auto;
+    }
+    .c-method { color: var(--color-primary-red); font-weight: 700; }
+    .c-key { color: #0550ae; }
+    .c-val { color: #0a3069; }
+
+    /* Results Feed */
+    .crawl-result-item {
+      background: var(--color-background);
+      border: 1px solid var(--color-black-10);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .result-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .result-url { font-family: var(--font-mono); font-size: 11px; color: var(--color-primary-blue); text-decoration: none; }
+    .score-pills { display: flex; gap: 6px; }
+    .score-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #ffffff;
+      border: 1px solid var(--color-black-10);
+      color: var(--color-black-80);
+    }
+    .score-pill.high { background: #dafbe1; color: #1a7f37; border-color: #aceebb; }
+    .result-title { font-size: 14.5px; font-weight: 600; margin-bottom: 4px; color: var(--color-black); }
+    .result-snippet { font-size: 12.5px; color: var(--color-black-80); line-height: 1.45; }
+
+    /* Raw Markdown Extraction Preview */
+    .markdown-view {
+      background: #fcfbf6;
+      border: 1px solid var(--color-black-10);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.55;
+      color: #24292f;
+      height: 250px;
+      overflow-y: auto;
+    }
+
+    /* Benchmarks Strip */
+    .benchmarks-section {
+      background: var(--color-white);
+      border: 1px solid var(--color-black-10);
+      border-radius: var(--radius-card);
+      padding: 28px;
+      margin-bottom: 36px;
+    }
+    .bench-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 18px;
+    }
+    .bench-title { font-size: 22px; font-weight: 500; letter-spacing: -0.5px; }
+
+    .bench-bars {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .bar-group { margin-bottom: 12px; }
+    .bar-info { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11.5px; margin-bottom: 4px; }
+    .bar-line-wrap { height: 26px; background: #eaeae2; border-radius: 4px; overflow: hidden; }
+    .bar-line-tavily {
+      height: 100%;
+      width: 14%;
+      background: var(--color-primary-blue);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+    }
+    .bar-line-competitor {
+      height: 100%;
+      width: 90%;
+      background: var(--color-black-60);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+
+    /* Editorial Footer */
+    footer.page-footer {
+      border-top: 1px solid var(--color-black-10);
+      padding: 40px 40px 24px;
+      background: var(--color-white);
+    }
+    .footer-grid {
+      max-width: 1320px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr repeat(3, 1fr);
+      gap: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--color-black-10);
+    }
+    .footer-mono-label {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--color-black-60);
+      margin-bottom: 12px;
+    }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+    .footer-col a { color: var(--color-black); text-decoration: none; }
+    .footer-col a:hover { color: var(--color-primary-red); }
+    .footer-bottom-row {
+      max-width: 1320px;
+      margin: 16px auto 0;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-black-60);
+    }
+
+    @media (max-width: 960px) {
+      .playground-grid { grid-template-columns: 1fr; }
+      .bench-bars { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Warm White Navigation -->
+  <header class="top-nav">
+    <div class="brand-wrap">
+      <a href="#tavily" class="brand-logo">
+        <span class="brand-t-icon">T</span>
+        <span>tavily</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#search" class="mono-link">/search</a>
+        <a href="#extract" class="mono-link">/extract</a>
+        <a href="#crawl" class="mono-link">/crawl</a>
+        <a href="#benchmarks" class="mono-link">/benchmarks</a>
+        <a href="#docs">Documentation</a>
+      </nav>
+    </div>
+    <div class="nav-actions">
+      <button class="btn-login">Login</button>
+      <button class="btn-pill-dark">Get API Key →</button>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="hero-container">
+    <span class="mono-eyebrow">/the web access layer for ai agents</span>
+    <h1 class="hero-title">Search, scrape and crawl the web in milliseconds for LLMs.</h1>
+    <p class="hero-sub">
+      Tavily is the leading real-time search and web extraction API designed from the ground up for autonomous AI agents, LangChain, LlamaIndex, and AutoGen pipelines.
+    </p>
+
+    <!-- Color-Coded Endpoint Badges -->
+    <div class="endpoints-bar">
+      <div class="endpoint-chip">
+        <span class="dot-accent" style="background: var(--color-primary-red);"></span>
+        <span>POST /v1/search</span>
+      </div>
+      <div class="endpoint-chip">
+        <span class="dot-accent" style="background: var(--color-lav);"></span>
+        <span>POST /v1/extract</span>
+      </div>
+      <div class="endpoint-chip">
+        <span class="dot-accent" style="background: var(--color-turquoise);"></span>
+        <span>POST /v1/crawl</span>
+      </div>
+      <div class="endpoint-chip">
+        <span class="dot-accent" style="background: var(--color-pink);"></span>
+        <span>GET /v1/topic</span>
+      </div>
+    </div>
+
+    <!-- Playground Console Grid -->
+    <div class="playground-grid">
+      <!-- Left: Real-Time Search API Crawl Results -->
+      <div class="card-shell">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="dot-accent" style="background: var(--color-primary-red);"></span>
+            <span>Real-Time Crawl &amp; Search Feed</span>
+          </div>
+          <span class="latency-tag">⚡ 142ms total latency</span>
+        </div>
+
+        <div class="code-query-box">
+          <span class="c-method">POST</span> https://api.tavily.com/v1/search<br>
+          {<br>
+          &nbsp;&nbsp;<span class="c-key">"query"</span>: <span class="c-val">"Breakthroughs in humanoid robotics harmonic drives Q3 2026"</span>,<br>
+          &nbsp;&nbsp;<span class="c-key">"search_depth"</span>: <span class="c-val">"advanced"</span>, <span class="c-key">"include_raw_content"</span>: <span class="c-val">true</span><br>
+          }
+        </div>
+
+        <!-- Crawl Result 1 -->
+        <div class="crawl-result-item">
+          <div class="result-meta">
+            <a href="#ieee" class="result-url">ieee.org/spectrum/robotics-actuators-2026</a>
+            <div class="score-pills">
+              <span class="score-pill high">Authority: 98/100</span>
+              <span class="score-pill">Score: 0.96</span>
+            </div>
+          </div>
+          <div class="result-title">Next-Gen Harmonic Drive Efficiency in Humanoid Locomotion</div>
+          <div class="result-snippet">
+            Recent empirical benchmarks demonstrate a 32% increase in torque density using titanium-alloy strain wave gearboxes with sub-milliradian backlash under dynamic payloads.
+          </div>
+        </div>
+
+        <!-- Crawl Result 2 -->
+        <div class="crawl-result-item">
+          <div class="result-meta">
+            <a href="#nature" class="result-url">nature.com/articles/s41586-026-robotics-joints</a>
+            <div class="score-pills">
+              <span class="score-pill high">Authority: 99/100</span>
+              <span class="score-pill">Score: 0.94</span>
+            </div>
+          </div>
+          <div class="result-title">Quasi-Direct Drive Actuator Comparison Across Top Humanoids</div>
+          <div class="result-snippet">
+            Comparative thermal dissipation analysis during continuous 10km bipedal walking trials reveals lower thermal degradation compared to planetary gear designs.
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Raw Markdown Extraction Snippet -->
+      <div class="card-shell">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="dot-accent" style="background: var(--color-lav);"></span>
+            <span>Clean Markdown Extraction (Ready for LLM Context)</span>
+          </div>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--color-black-60);">Tokens: 384</span>
+        </div>
+
+        <div class="markdown-view">
+### Technical Analysis: Harmonic Drives vs QDD in 2026
+
+1. **Torque-to-Weight Ratio**:
+   - Strain Wave (Harmonic): ~65 Nm/kg
+   - Planetary Reduction: ~42 Nm/kg
+   - High backlash resistance under torque shock
+
+2. **Thermal Dissipation Limits**:
+   - Continuous current ceiling: 48A @ 48V
+   - Heat sink cooling delta: -14.2°C with graphite thermal pads
+
+```json
+{
+  "provenance": "Verified peer-reviewed citation",
+  "sanitized_for_context": true,
+  "zero_ad_clutter": true
+}
+```
+*Extracted via Tavily Advanced Web Parser in 34ms.*
+        </div>
+
+        <div style="margin-top:14px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-black-60);">
+            SDK: <code>pip install tavily-python</code>
+          </div>
+          <button class="btn-pill-dark" style="padding:6px 14px; font-size:12px;">Copy JSON Snippet</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Latency Benchmarks -->
+    <div class="benchmarks-section" id="benchmarks">
+      <div class="bench-header">
+        <div>
+          <span class="mono-eyebrow">/benchmarks</span>
+          <div class="bench-title">End-to-End Search &amp; Extract Latency for Agents</div>
+        </div>
+        <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-black-60);">LOWER IS BETTER</div>
+      </div>
+
+      <div class="bench-bars">
+        <div>
+          <div class="bar-group">
+            <div class="bar-info">
+              <span style="font-weight:600; color:var(--color-primary-blue);">TAVILY API (PARALLEL SEARCH + SCRAPE)</span>
+              <span style="font-weight:700;">180 ms</span>
+            </div>
+            <div class="bar-line-wrap">
+              <div class="bar-line-tavily">180ms</div>
+            </div>
+          </div>
+
+          <div class="bar-group">
+            <div class="bar-info">
+              <span>SERP API + PUPPETEER CRAWLER</span>
+              <span>2,850 ms (15.8× slower)</span>
+            </div>
+            <div class="bar-line-wrap">
+              <div class="bar-line-competitor">2,850ms</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:13px; color:var(--color-black-80); line-height:1.5;">
+          Traditional web scrapers download bloated JavaScript bundles, unblock recaptchas, and require fragile HTML DOM selectors. Tavily parses raw semantic markdown directly at the network edge with built-in anti-bot bypass.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Editorial Footer -->
+  <footer class="page-footer">
+    <div class="footer-grid">
+      <div>
+        <div style="font-weight:600; font-size:18px; margin-bottom:8px;">tavily</div>
+        <p style="font-size:13px; color:var(--color-black-80); max-width:320px; line-height:1.5;">
+          The web access layer built specifically for LLMs and autonomous AI agents. Real-time, hallucination-free search.
+        </p>
+      </div>
+      <div class="footer-col">
+        <div class="footer-mono-label">/endpoints</div>
+        <ul>
+          <li><a href="#search">Search API</a></li>
+          <li><a href="#extract">Extract API</a></li>
+          <li><a href="#crawl">Crawl API</a></li>
+          <li><a href="#topic">Topic Feeds</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <div class="footer-mono-label">/integrations</div>
+        <ul>
+          <li><a href="#langchain">LangChain &amp; LangGraph</a></li>
+          <li><a href="#llamaindex">LlamaIndex</a></li>
+          <li><a href="#autogen">Microsoft AutoGen</a></li>
+          <li><a href="#crewai">CrewAI</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <div class="footer-mono-label">/company</div>
+        <ul>
+          <li><a href="#research">Research &amp; Benchmarks</a></li>
+          <li><a href="#pricing">Pricing Plans</a></li>
+          <li><a href="#privacy">Privacy &amp; SOC2</a></li>
+          <li><a href="#contact">Contact Team</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom-row">
+      <span>© 2026 Tavily Inc. All rights reserved.</span>
+      <span>/the web access layer for agents</span>
+    </div>
+  </footer>
+
+</body>
+</html>

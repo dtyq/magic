@@ -23,7 +23,7 @@ export const getFileType = (file_extension: string) => {
 	}
 
 	// 音频文件
-	if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext)) {
+	if (["mp3", "wav", "ogg", "opus", "m4a", "aac", "flac"].includes(ext)) {
 		return "audio"
 	}
 
@@ -296,9 +296,13 @@ const triggerDownload = (href: string, filename?: string, target?: string) => {
 	document.body.removeChild(link)
 }
 
+const shouldUseHostWindowOpen = (url: string) =>
+	!url.startsWith("blob:") && (isInApp() || isDingTalk() || isWechat())
+
 const downloadFn = async (url: string, filename?: string, target?: string) => {
 	// APP 环境、钉钉环境、微信/企业微信环境直接打开新窗口
-	if (isInApp() || isDingTalk() || isWechat()) {
+	// hack: 钉钉无法通过 window.open Blob URL 进行下载
+	if (shouldUseHostWindowOpen(url)) {
 		window.open(url, "_blank")
 		return
 	}
@@ -324,17 +328,26 @@ export const downloadFileWithAnchor = async (
 ) => {
 	// 如果没有传递文件名,尝试从 URL 中提取
 	const finalFilename = filename || getFilenameFromUrl(url)
+	const useHostWindowOpen = shouldUseHostWindowOpen(url)
 
 	// 打开下载提示弹窗（使用轻量级 modal，避免双重渲染）
 	openLightModal(FileDownloadModal, {
 		open: true,
 		fileName: finalFilename || "file",
 		downloadUrl: url,
+		// Normal browsers use a native link in a fresh tab for the manual retry.
+		// Embedded hosts keep their existing window.open compatibility branch.
+		nativeDownload: !useHostWindowOpen,
+		downloadTarget: "_blank",
 		modalZIndex: options?.modalZIndex,
 		onAfterClose: options?.onModalClose,
-		onDownload: () => {
-			downloadFn(url, finalFilename, target)
-		},
+		...(useHostWindowOpen
+			? {
+					onDownload: () => {
+						downloadFn(url, finalFilename, target)
+					},
+				}
+			: {}),
 		onCopyLink: () => {
 			clipboard.writeText(url)
 		},

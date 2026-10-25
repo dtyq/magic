@@ -2,8 +2,6 @@
 name: using-oauth2
 description: Connect to a user-provided OAuth2 app, complete authorization, and use its access token in Code Mode HTTP requests.
 
-name-cn: OAuth2 应用接入技能
-description-cn: 接入用户提供的 OAuth2 应用，完成授权，并在 Code Mode HTTP 请求中使用 access token。
 ---
 
 # OAuth2 App Integration Skill

@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MiniMax — Hailuo AI Video Generation &amp; abab 6.5 LLM Studio</title>
+  <style>
+    :root {
+      --primary: #0a0a0a;
+      --on-primary: #ffffff;
+      --canvas: #ffffff;
+      --surface: #f7f8fa;
+      --surface-soft: #f2f3f5;
+      --hairline: #e5e7eb;
+      --hairline-soft: #eaecf0;
+      --ink: #0a0a0a;
+      --charcoal: #222222;
+      --slate: #45515e;
+      --steel: #5f5f5f;
+      --brand-coral: #ff5530;
+      --brand-magenta: #ea5ec1;
+      --brand-blue: #1456f0;
+      --brand-purple: #a855f7;
+      --radius-sm: 6px;
+      --radius-xl: 16px;
+      --radius-hero: 32px;
+      --radius-full: 9999px;
+      --font-sans: "DM Sans", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--canvas);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Sticky Promo Banner */
+    .promo-banner {
+      background: var(--primary);
+      color: var(--on-primary);
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 0 16px;
+    }
+    .promo-banner a {
+      color: var(--brand-coral);
+      margin-left: 8px;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    /* Top Navigation */
+    header.main-nav {
+      height: 64px;
+      border-bottom: 1px solid var(--hairline-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+    }
+    .brand-group { display: flex; align-items: center; gap: 32px; }
+    .logo-mark {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      color: var(--ink);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-coral); }
+    .nav-menu { display: flex; gap: 24px; font-size: 14.5px; font-weight: 500; }
+    .nav-menu a { color: var(--steel); text-decoration: none; transition: color 0.15s; }
+    .nav-menu a:hover { color: var(--ink); }
+
+    /* Pill Buttons (Strictly rounded-full) */
+    .btn-pill-primary {
+      background: var(--primary);
+      color: var(--on-primary);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      font-weight: 600;
+      padding: 9px 22px;
+      border-radius: var(--radius-full);
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-pill-outline {
+      background: transparent;
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      font-weight: 600;
+      padding: 8px 20px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--ink);
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    /* Hero Section */
+    .hero-container {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 44px 32px 36px;
+      text-align: center;
+    }
+    .hero-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      color: var(--slate);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 14px;
+      border-radius: var(--radius-full);
+      margin-bottom: 14px;
+    }
+    .hero-headline {
+      font-size: clamp(34px, 4.4vw, 64px);
+      font-weight: 600;
+      line-height: 1.08;
+      letter-spacing: -2px;
+      color: var(--ink);
+      max-width: 900px;
+      margin: 0 auto 16px;
+    }
+    .hero-subtitle {
+      font-size: 17px;
+      color: var(--steel);
+      max-width: 680px;
+      margin: 0 auto 24px;
+      line-height: 1.5;
+    }
+
+    /* Full-Stack Product Matrix (32px Hero Radius Vibrant Cards) */
+    .matrix-section {
+      max-width: 1320px;
+      margin: 0 auto 48px;
+      padding: 0 32px;
+    }
+    .matrix-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 20px;
+    }
+    .matrix-title {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.8px;
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .vibrant-card {
+      border-radius: var(--radius-hero);
+      padding: 24px 20px;
+      color: #ffffff;
+      min-height: 340px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+    .card-coral {
+      background: linear-gradient(145deg, #ff5530 0%, #d83010 100%);
+    }
+    .card-blue {
+      background: linear-gradient(145deg, #1456f0 0%, #0c36a4 100%);
+    }
+    .card-magenta {
+      background: linear-gradient(145deg, #ea5ec1 0%, #9e1f7a 100%);
+    }
+    .card-purple {
+      background: linear-gradient(145deg, #a855f7 0%, #6b21a8 100%);
+    }
+
+    .card-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      backdrop-filter: blur(4px);
+      align-self: flex-start;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 12.5px;
+      line-height: 1.4;
+      opacity: 0.9;
+    }
+
+    /* Embedded Visual Elements inside Vibrant Cards */
+    .mockup-preview-zone {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 12px;
+      padding: 10px;
+      margin-top: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    /* Hailuo AI Video Dynamic Frame Sequence */
+    .hailuo-frames {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .frame-pill {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 8px;
+      font-weight: 700;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .frame-pill.active {
+      background: rgba(255, 255, 255, 0.4);
+      border-color: #ffffff;
+    }
+
+    /* Audio Waveform SVG mockup */
+    .waveform-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 32px;
+      padding: 4px 0;
+    }
+    .wave-bar { width: 4px; background: #ffffff; border-radius: 2px; }
+
+    /* AI Product Matrix (White Cards 16px radius) */
+    .white-matrix-section {
+      max-width: 1320px;
+      margin: 0 auto 48px;
+      padding: 0 32px;
+    }
+    .white-matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .white-card {
+      background: #ffffff;
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      transition: border-color 0.15s;
+    }
+    .white-card:hover { border-color: var(--ink); }
+    .white-card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--surface);
+      display: grid;
+      place-items: center;
+      margin-bottom: 14px;
+    }
+    .white-card h4 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .white-card p { font-size: 13px; color: var(--steel); line-height: 1.5; }
+
+    /* Footer */
+    footer.main-footer {
+      background: var(--primary);
+      color: #ffffff;
+      padding: 48px 32px 32px;
+    }
+    .footer-content {
+      max-width: 1320px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr repeat(3, 1fr);
+      gap: 32px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid #222222;
+    }
+    .footer-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .footer-col h5 { font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 12px; color: #888; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .footer-col a { color: #aaa; text-decoration: none; }
+    .footer-col a:hover { color: #fff; }
+    .footer-sub-row {
+      max-width: 1320px;
+      margin: 20px auto 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #666;
+    }
+
+    @media (max-width: 1024px) {
+      .matrix-grid { grid-template-columns: repeat(2, 1fr); }
+      .white-matrix-grid { grid-template-columns: 1fr; }
+      .footer-content { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Promo Banner -->
+  <div class="promo-banner">
+    <span>Invite &amp; Earn — MiniMax M2.7 &amp; Hailuo 02 Multimodal Video Models Live!</span>
+    <a href="#token-plan">Explore Token Plan →</a>
+  </div>
+
+  <!-- Top Nav -->
+  <header class="main-nav">
+    <div class="brand-group">
+      <a href="#minimax" class="logo-mark">
+        <span class="logo-dot"></span>
+        <span>MiniMax</span>
+      </a>
+      <nav class="nav-menu">
+        <a href="#models">Models</a>
+        <a href="#hailuo">Hailuo AI Video</a>
+        <a href="#speech">Voice Studio</a>
+        <a href="#api">API Platform</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-pill-outline">Login</button>
+      <button class="btn-pill-primary">Get API Keys</button>
+    </div>
+  </header>
+
+  <!-- Hero Chapter -->
+  <section class="hero-container">
+    <div class="hero-kicker">
+      <span>✦ Frontier Asian AI Powerhouse • Full-Stack Foundation Models</span>
+    </div>
+    <h1 class="hero-headline">Next-Generation Multimodal Intelligence for the World.</h1>
+    <p class="hero-subtitle">
+      Empowering enterprises and creators with frontier MoE reasoning, cinematic 1080p video generation with Hailuo AI, and hyper-realistic cross-lingual voice synthesis.
+    </p>
+    <div style="display: flex; justify-content: center; gap: 12px;">
+      <button class="btn-pill-primary">Try Hailuo Video Gen</button>
+      <button class="btn-pill-outline">Read Technical Report</button>
+    </div>
+  </section>
+
+  <!-- Full-Stack Product Matrix (32px Rounded Vibrant Identity Cards) -->
+  <section class="matrix-section" id="models">
+    <div class="matrix-title-row">
+      <div class="matrix-title">Full-Stack Model Matrix</div>
+      <div style="font-size:13px; color:var(--steel);">4 Production-Grade Modalities</div>
+    </div>
+
+    <div class="matrix-grid">
+      <!-- 01: Coral Card - M2.7 / abab 6.5 LLM -->
+      <div class="vibrant-card card-coral">
+        <div>
+          <span class="card-badge">REASONING &amp; AGENT</span>
+          <div class="card-title">M2.7 MoE</div>
+          <p class="card-desc">Frontier Mixture-of-Experts with 400B total params, 1M context window, and state-of-the-art coding benchmark scores.</p>
+        </div>
+        <div class="mockup-preview-zone">
+          <div style="font-family:var(--font-mono); font-size:10px; opacity:0.9;">MoE ACTIVATION: 32/128 EXPERTS</div>
+          <div style="font-size:11px; font-weight:700; margin-top:4px;">Throughput: 94 tok/s • Context: 1,000,000</div>
+        </div>
+      </div>
+
+      <!-- 02: Blue Card - Hailuo AI Video Gen -->
+      <div class="vibrant-card card-blue" id="hailuo">
+        <div>
+          <span class="card-badge">CINEMATIC VIDEO</span>
+          <div class="card-title">Hailuo AI</div>
+          <p class="card-desc">High-motion cinematic video synthesis with physics-accurate fluid dynamics, photorealistic lighting, and 1080p rendering.</p>
+        </div>
+        <div class="mockup-preview-zone">
+          <div style="font-size:10px; opacity:0.9;">FRAME SEQUENCE PREVIEW:</div>
+          <div class="hailuo-frames">
+            <div class="frame-pill">F:01</div>
+            <div class="frame-pill active">F:24</div>
+            <div class="frame-pill">F:48</div>
+            <div class="frame-pill">F:72</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 03: Magenta Card - Music 2.6 Audio -->
+      <div class="vibrant-card card-magenta">
+        <div>
+          <span class="card-badge">AUDIO &amp; MUSIC</span>
+          <div class="card-title">Music 2.6</div>
+          <p class="card-desc">Full-length vocal song generation with instrumental accompaniment, lyric alignment, and studio-grade mastering.</p>
+        </div>
+        <div class="mockup-preview-zone">
+          <div style="font-size:10px; opacity:0.9;">VOCAL &amp; INSTRUMENTAL STEMS:</div>
+          <div class="waveform-bar-row">
+            <div class="wave-bar" style="height:12px;"></div>
+            <div class="wave-bar" style="height:24px;"></div>
+            <div class="wave-bar" style="height:18px;"></div>
+            <div class="wave-bar" style="height:30px;"></div>
+            <div class="wave-bar" style="height:26px;"></div>
+            <div class="wave-bar" style="height:14px;"></div>
+            <div class="wave-bar" style="height:22px;"></div>
+            <div class="wave-bar" style="height:28px;"></div>
+            <div class="wave-bar" style="height:16px;"></div>
+            <div class="wave-bar" style="height:20px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 04: Purple Card - Speech 2.8 Voice -->
+      <div class="vibrant-card card-purple" id="speech">
+        <div>
+          <span class="card-badge">HYPER-REALISTIC VOICE</span>
+          <div class="card-title">Speech 2.8</div>
+          <p class="card-desc">Sub-100ms ultra-low latency voice synthesis across 30+ languages with expressive emotion cloning and breathing realism.</p>
+        </div>
+        <div class="mockup-preview-zone">
+          <div style="font-size:10px; opacity:0.9;">PRESETS: Conversational • Gaming • Emotive</div>
+          <div style="font-size:11px; font-weight:700; margin-top:4px;">Latency: 84ms • Sample Rate: 48kHz HD</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI Product Matrix (White Cards 16px Radius) -->
+  <section class="white-matrix-section">
+    <div class="white-matrix-grid">
+      <div class="white-card">
+        <div class="white-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+        </div>
+        <h4>MiniMax Agent Studio</h4>
+        <p>Build autonomous enterprise agents with multi-turn tool use, function execution, and self-evaluation loops.</p>
+      </div>
+
+      <div class="white-card">
+        <div class="white-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <h4>Developer Token Plan</h4>
+        <p>Flexible token subscription plans tailored for high-volume API inference with dedicated enterprise rate limits.</p>
+      </div>
+
+      <div class="white-card">
+        <div class="white-card-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <h4>Zero-Cold-Start APIs</h4>
+        <p>Global edge distribution guarantees immediate first-token response times and high availability SLAs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer in Obsidian Black -->
+  <footer class="main-footer">
+    <div class="footer-content">
+      <div>
+        <div class="footer-title">MiniMax</div>
+        <p style="font-size:13px; color:#888; max-width:320px; line-height:1.5;">
+          Intelligence with everyone. Advancing multimodal artificial intelligence through frontier research and production tools.
+        </p>
+      </div>
+      <div class="footer-col">
+        <h5>Models</h5>
+        <ul>
+          <li><a href="#m27">MiniMax M2.7</a></li>
+          <li><a href="#hailuo">Hailuo AI Video</a></li>
+          <li><a href="#music">Music 2.6</a></li>
+          <li><a href="#speech">Speech 2.8</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Platform</h5>
+        <ul>
+          <li><a href="#docs">API Documentation</a></li>
+          <li><a href="#sdk">Python &amp; Node SDK</a></li>
+          <li><a href="#pricing">Token Pricing</a></li>
+          <li><a href="#status">System Status</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="#about">About Us</a></li>
+          <li><a href="#careers">Careers (Hiring)</a></li>
+          <li><a href="#news">Research Papers</a></li>
+          <li><a href="#contact">Contact Support</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-sub-row">
+      <span>© 2026 MiniMax, Inc. All rights reserved.</span>
+      <span>Privacy Policy | Terms of Service | Security</span>
+    </div>
+  </footer>
+
+</body>
+</html>

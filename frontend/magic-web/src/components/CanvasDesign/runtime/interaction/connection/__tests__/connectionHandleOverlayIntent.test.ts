@@ -36,6 +36,28 @@ describe("resolveConnectionHandleOverlayIntent", () => {
 		).toEqual({ visible: false, reason: "multiple-selection" })
 	})
 
+	it("uses the selection bounding rect when the shared creation menu is available", () => {
+		expect(
+			resolveConnectionHandleOverlayIntent({
+				...baseContext,
+				hasMultipleSelection: true,
+				canShowSelectionHandles: true,
+				selectionTarget: {
+					elementIds: ["video-1", "video-2"],
+					boundingRect: { x: 10, y: 20, width: 300, height: 160 },
+					selectionRevision: "video-1\u0000video-2",
+				},
+			}),
+		).toEqual({
+			visible: true,
+			kind: "selection",
+			elementIds: ["video-1", "video-2"],
+			boundingRect: { x: 10, y: 20, width: 300, height: 160 },
+			selectionRevision: "video-1\u0000video-2",
+			source: "selection",
+		})
+	})
+
 	it("uses menu pin before hover and pointer bridge", () => {
 		expect(
 			resolveConnectionHandleOverlayIntent({

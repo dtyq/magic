@@ -22,13 +22,10 @@
 		"adminPhonePlaceholder": "请输入手机号",
 		"agentDescription": "Agent 描述",
 		"agentDescriptionPlaceholder": "简要描述此 Agent 的功能和用途...",
-		"agentLogo": "Agent Logo",
 		"agentName": "Agent 名称",
 		"agentNamePlaceholder": "例如：智能客服助手",
 		"confirmPassword": "确认密码",
 		"confirmPasswordPlaceholder": "再次输入密码",
-		"logoUploadFormat": "支持 JPG、PNG 格式，建议尺寸 200x200",
-		"logoUploadHint": "点击上传或拖拽图片到此处",
 		"subtitle": "设置您的 Agent 信息和管理员账号",
 		"title": "初始化管理账号"
 	},
@@ -45,10 +42,6 @@
 		"deploymentNameHint": "模型的部署名称或者模型ID",
 		"deploymentNamePlaceholder": "例如：gpt-4-turbo、gpt-4o、claude-3-opus",
 		"deploymentNameRequired": "请填写部署名称",
-		"deploymentNameTooltip": "模型的部署名称",
-		"errors": {
-			"missingConfig": "请先填写 API URL 和 API Key"
-		},
 		"provider": "选择服务商",
 		"providers": {
 			"AWSBedrock": "Amazon Bedrock",
@@ -108,9 +101,6 @@
 		"step3": "数字员工"
 	},
 	"subtitle": "让我们花几分钟时间完成初始化设置",
-	"success": {
-		"initialized": "初始化成功！"
-	},
 	"title": "MagiCrew",
 	"welcomeTo": "欢迎使用"
 }

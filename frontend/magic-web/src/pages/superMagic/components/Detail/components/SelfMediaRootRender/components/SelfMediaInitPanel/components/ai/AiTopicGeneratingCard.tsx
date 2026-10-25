@@ -1,6 +1,6 @@
 import { Check, FileText, Layers3, PenLine, Sparkles, X } from "lucide-react"
 import { motion, useReducedMotion } from "framer-motion"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Button } from "@/components/shadcn-ui/button"
 
 interface AiTopicGeneratingCardProps {

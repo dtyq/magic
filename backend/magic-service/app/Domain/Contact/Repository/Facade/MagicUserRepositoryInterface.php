@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserIdType;
 use App\Domain\Contact\Entity\ValueObject\UserOption;
+use App\Domain\Contact\Entity\ValueObject\UserSearchField;
 use App\Infrastructure\Core\ValueObject\Page;
 
 interface MagicUserRepositoryInterface
@@ -43,6 +44,27 @@ interface MagicUserRepositoryInterface
      * @return array<string, MagicUserEntity>
      */
     public function getByUserIds(string $organizationCode, array $userIds): array;
+
+    /**
+     * 获取组织内当前可接收通知的用户。
+     *
+     * @return MagicUserEntity[]
+     */
+    public function getActiveUsersByOrganization(string $organizationCode): array;
+
+    /**
+     * Return active user IDs in cursor pages for bounded notification fan-out.
+     *
+     * @return list<string>
+     */
+    public function getActiveUserIdsByOrganization(string $organizationCode, ?string $afterUserId = null, int $limit = 500): array;
+
+    /**
+     * Return active users for the supplied IDs in one organization.
+     *
+     * @return array<string, MagicUserEntity>
+     */
+    public function getActiveUsersByIds(string $organizationCode, array $userIds): array;
 
     /**
      * 根据 userIdType,生成对应类型的值.
@@ -118,4 +140,16 @@ interface MagicUserRepositoryInterface
      * @return array{total: int, list: array<int, array<string, mixed>>}
      */
     public function queriesPlatformUsers(Page $page, ?array $filters = null): array;
+
+    /**
+     * 按指定字段搜索用户。
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: array<int, array<string, mixed>>}
+     */
+    public function searchUsers(
+        Page $page,
+        UserSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array;
 }

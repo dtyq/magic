@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Magic Widget SDK E2E Host</title>
+		<style>
+			body {
+				margin: 16px;
+				font:
+					14px system-ui,
+					sans-serif;
+			}
+			#widget-target {
+				width: 800px;
+				height: 920px;
+				border: 1px solid #cbd5e1;
+			}
+			#controls {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				margin-bottom: 12px;
+			}
+			button {
+				padding: 6px 10px;
+			}
+			#status {
+				display: block;
+				margin: 8px 0;
+				font-family: ui-monospace, monospace;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="controls">
+			<button data-testid="mount-inline">Mount inline</button>
+			<button data-testid="mount-floating">Mount floating</button>
+			<button data-testid="open-widget">Open</button>
+			<button data-testid="close-widget">Close</button>
+			<button data-testid="destroy-widget">Destroy</button>
+			<button data-testid="mount-hidden-header">Mount hidden Header</button>
+			<button data-testid="mount-selective-header">Mount selective Header</button>
+			<button data-testid="mount-minimal-capabilities">Mount minimal capabilities</button>
+			<button data-testid="close-callback-off">Close callback off</button>
+			<button data-testid="close-callback-success">Close callback success</button>
+			<button data-testid="close-callback-failure">Close callback failure</button>
+			<button data-testid="update-config">Update config</button>
+			<button data-testid="update-dynamic-content">Update dynamic content</button>
+			<button data-testid="update-overflow-custom-groups">
+				Filter overflow custom groups
+			</button>
+			<button data-testid="update-invalid-dynamic-content">Reject dynamic content</button>
+			<button data-testid="set-input">Set input</button>
+			<button data-testid="append-input">Append input</button>
+			<button data-testid="set-structured-input">Set structured input</button>
+			<button data-testid="append-structured-input">Append structured input</button>
+			<button data-testid="send-structured-input">Send structured input</button>
+			<button data-testid="get-input">Get input</button>
+			<button data-testid="clear-input">Clear input</button>
+			<button data-testid="mount-config-matrix">Mount config matrix</button>
+			<button data-testid="mount-header-labels">Mount Header labels</button>
+			<button data-testid="mount-mobile-config">Mount mobile config</button>
+			<button data-testid="emit-preview-fullscreen">Emit preview fullscreen</button>
+			<button data-testid="emit-preview-inline">Emit preview inline</button>
+		</div>
+		<output id="status" data-testid="status">idle</output>
+		<div id="callback-result" data-testid="callback-result"></div>
+		<output id="event-result" data-testid="event-result">events:idle</output>
+		<div id="widget-target"></div>
+		<script>
+			const params = new URLSearchParams(location.search)
+			const appUrl = params.get("appUrl")
+			const target = document.querySelector("#widget-target")
+			const status = document.querySelector("#status")
+			const callbackResult = document.querySelector("#callback-result")
+			const eventResult = document.querySelector("#event-result")
+			const initialConfig = {
+				layout: "desktop",
+				shell: { appSidebar: false },
+				conversation: { projectFiles: false, topicHistory: true },
+				header: {
+					visible: true,
+					title: "E2E Magic Assistant",
+					topicName: { mode: "current" },
+					actions: {
+						fullscreen: true,
+						pin: true,
+						newTopic: true,
+						history: true,
+						share: true,
+						more: true,
+						close: true,
+					},
+				},
+				panel: {
+					projectFiles: true,
+					uploadFiles: true,
+					otherProjectFiles: true,
+					digitalEmployees: true,
+					microApps: true,
+					workflows: true,
+					connectors: true,
+					skills: true,
+					canvasElements: true,
+					customGroups: [
+						{
+							id: "fixture-priority-actions",
+							label: "Priority actions",
+							placement: "start",
+							icon: "ts-api",
+							iconUrl: "https://example.com/icons/priority.png",
+							items: [
+								{
+									id: "fixture-priority-item",
+									type: "action",
+									title: "Priority Item",
+									text: "High priority item positioned at the start of mention panel",
+								},
+							],
+						},
+						{
+							id: "fixture-business-charts",
+							label: "Business charts",
+							icon: "ts-doc-file",
+							iconUrl: "https://example.com/icons/group.png",
+							items: [
+								{
+									id: "fixture-card",
+									type: "chart",
+									title: "Chart A",
+									description: "Fixture description",
+									text: "Business chart A; period: sample quarter; metric: mock revenue; trend: up 12%. Analyze the main changes.",
+									icon: "ts-api",
+									iconUrl: "https://example.com/icons/chart-a.png",
+									data: { source: "fixture" },
+								},
+								{
+									id: "fixture-unknown",
+									type: "unknown",
+									text: "Unknown business reference; context: fictional fallback item. Explain what additional information is needed.",
+									data: { source: "fixture" },
+								},
+							],
+						},
+						{
+							id: "fixture-business-reports",
+							label: "Business reports",
+							items: [
+								{
+									id: "fixture-report",
+									type: "report",
+									title: "Report A",
+									description: "Fixture report description",
+									text: "Business report A; period: sample month; metric: mock users.",
+									data: { source: "fixture" },
+								},
+							],
+						},
+					],
+				},
+				bottom: {
+					internetSearch: { enabled: true, buttonVisible: true },
+					plugin: { enabled: true, buttonVisible: true },
+					upload: { enabled: true, buttonVisible: true },
+					voice: { enabled: true, buttonVisible: true },
+				},
+				window: { closable: true },
+			}
+			let closeMode = "off"
+
+			/** Reports one callback invocation in a DOM assertion target. */
+			const recordAction = (action, context = {}) => {
+				// Expose only context presence so the fixture never renders environment-owned topic values.
+				callbackResult.textContent = JSON.stringify({
+					action,
+					hasTopicId: typeof context.topicId === "string" && context.topicId.length > 0,
+					hasTopicName:
+						typeof context.topicName === "string" && context.topicName.length > 0,
+				})
+			}
+
+			/** Builds public SDK options while keeping callbacks outside serializable config. */
+			const createOptions = (inline, config = initialConfig) => ({
+				page: { type: "crew", crewId: params.get("crewId") || "crew-e2e-fictional" },
+				auth: {
+					loginStrategy: "private_deployment",
+					deploymentCode: params.get("deploymentCode") || "deployment-fictional",
+					organizationCode: params.get("organizationCode") || "organization-fictional",
+				},
+				config,
+				...(inline ? { target } : {}),
+				customMentionSearch: async ({ query, scope, signal }) => {
+					const normalizedQuery = query.toLowerCase()
+					// "slow" keeps one request in flight long enough for a follow-up query to supersede it,
+					// while "dynamic" answers quickly so the newer result is observable.
+					const delayMs = normalizedQuery.startsWith("slow")
+						? 1500
+						: normalizedQuery.startsWith("dynamic")
+							? 30
+							: 0
+					await new Promise((resolve) => setTimeout(resolve, delayMs))
+					if (signal.aborted) throw new DOMException("Search aborted", "AbortError")
+					if (normalizedQuery.startsWith("slow")) {
+						return [
+							{
+								groupId: "fixture-business-reports",
+								items: [
+									{
+										id: "slow-report-result",
+										type: "report",
+										title: "Slow Report",
+										description: "Slow E2E result",
+										text: "Slow report result that must never replace a newer search",
+									},
+								],
+							},
+						]
+					}
+					if (normalizedQuery === "sample quarter") {
+						return [
+							{
+								groupId: "fixture-business-charts",
+								items: [
+									{
+										id: "fixture-card",
+										type: "chart",
+										title: "Chart A",
+										description: "Fixture description",
+										text: "Business chart A; period: sample quarter; metric: mock revenue; trend: up 12%. Analyze the main changes.",
+									},
+								],
+							},
+						]
+					}
+					if (normalizedQuery === "fixture description") {
+						return [
+							{
+								groupId: "fixture-business-charts",
+								items: [
+									{
+										id: "fixture-card",
+										type: "chart",
+										title: "Chart A",
+										description: "Fixture description",
+										text: "Business chart A; period: sample quarter; metric: mock revenue; trend: up 12%. Analyze the main changes.",
+									},
+								],
+							},
+						]
+					}
+					if (!normalizedQuery.startsWith("dynamic")) return []
+					const groupId =
+						scope.type === "group" ? scope.groupId : "fixture-business-reports"
+					return [
+						{
+							groupId,
+							items: [
+								{
+									id:
+										scope.type === "group"
+											? "dynamic-chart-result"
+											: "dynamic-report-result",
+									type: scope.type === "group" ? "chart" : "report",
+									title:
+										scope.type === "group" ? "Dynamic Chart" : "Dynamic Report",
+									text:
+										scope.type === "group"
+											? "Dynamic chart result"
+											: "Dynamic report result",
+									description: "Dynamic E2E result",
+									icon: "ts-api",
+									iconUrl: "https://example.com/icons/dynamic.png",
+									data: { source: "dynamic-fixture" },
+								},
+							],
+						},
+					]
+				},
+				headerActions: {
+					fullscreen: (context) => recordAction("fullscreen", context),
+					pin: (context) => recordAction("pin", context),
+					newTopic: (context) => recordAction("newTopic", context),
+					history: (context) => recordAction("history", context),
+					share: (context) => recordAction("share", context),
+					more: (context) => recordAction("more", context),
+					...(closeMode === "off"
+						? {}
+						: {
+								/** Records the close callback after the widget has already closed. */
+								close: async (context) => {
+									recordAction(`close:${closeMode}`, context)
+									if (closeMode === "failure")
+										throw new Error("fictional close callback failure")
+								},
+							}),
+				},
+			})
+
+			/** Mounts the requested presentation and exposes a stable status for assertions. */
+			const mount = (inline) => {
+				window.MagicWidget.mount(createOptions(inline))
+				callbackResult.textContent = ""
+				eventResult.textContent = "events:idle"
+				status.textContent = inline ? "mount-inline:success" : "mount-floating:success"
+			}
+
+			/** Mounts a configuration variant used to verify host-controlled visibility rules. */
+			const mountVariant = (config, label) => {
+				window.MagicWidget.mount(createOptions(true, config))
+				callbackResult.textContent = ""
+				eventResult.textContent = "events:idle"
+				status.textContent = `${label}:success`
+			}
+
+			const hiddenHeaderConfig = {
+				...initialConfig,
+				header: { visible: false },
+			}
+			const selectiveHeaderConfig = {
+				...initialConfig,
+				header: {
+					visible: true,
+					actions: {
+						fullscreen: false,
+						pin: false,
+						newTopic: true,
+						history: false,
+						share: false,
+						more: true,
+						close: false,
+					},
+				},
+			}
+			const minimalCapabilitiesConfig = {
+				...initialConfig,
+				panel: {
+					projectFiles: false,
+					uploadFiles: false,
+					otherProjectFiles: false,
+					digitalEmployees: false,
+					microApps: false,
+					workflows: false,
+					connectors: false,
+					skills: false,
+					canvasElements: false,
+				},
+				bottom: {
+					internetSearch: { enabled: false, buttonVisible: false },
+					plugin: { enabled: false, buttonVisible: false },
+					upload: { enabled: false, buttonVisible: false },
+					voice: { enabled: false, buttonVisible: false },
+				},
+			}
+			const configMatrix = {
+				...initialConfig,
+				shell: { appSidebar: true },
+				conversation: {
+					projectFiles: true,
+					topicHistory: false,
+					autoHire: true,
+					previewMode: "fullscreen",
+				},
+				responsive: { mobileDetection: "device-and-viewport" },
+				header: {
+					visible: true,
+					title: "Configured Mock Assistant",
+					topicName: { mode: "static", text: "Configured Mock Topic" },
+					actions: {
+						fullscreen: true,
+						pin: true,
+						newTopic: true,
+						history: true,
+						share: true,
+						more: true,
+					},
+				},
+				window: { closable: false },
+			}
+			const mobileConfig = {
+				...initialConfig,
+				layout: "mobile",
+				responsive: { mobileDetection: "device-and-viewport" },
+			}
+			const headerLabelsConfig = {
+				...initialConfig,
+				header: {
+					visible: true,
+					title: "Configured Mock Assistant",
+					topicName: { mode: "static", text: "Configured Mock Topic" },
+					actions: { history: false, close: false },
+				},
+				window: { closable: false },
+			}
+
+			const structuredInput = {
+				blocks: [
+					{ type: "text", text: "Interpret " },
+					{
+						type: "mention",
+						mention: {
+							type: "text",
+							data: {
+								id: "mention-mock-001",
+								label: "Mock Chart",
+								text: "chart id: mock-chart",
+							},
+						},
+					},
+				],
+			}
+			const appendedStructuredInput = {
+				blocks: [
+					{
+						type: "mention",
+						mention: {
+							type: "text",
+							data: {
+								id: "mention-mock-002",
+								label: "Mock Table",
+								text: "table id: mock-table",
+							},
+						},
+					},
+				],
+			}
+
+			const recordEvent = (label) => {
+				eventResult.textContent = `${eventResult.textContent}|${label}`
+			}
+
+			/** Emits one valid iframe UI-state snapshot without depending on Agent preview business data. */
+			const emitPreviewFullscreen = (previewFullscreen) => {
+				try {
+					const iframe = document
+						.querySelector("[data-magic-widget-root]")
+						?.shadowRoot?.querySelector("iframe")
+					if (!iframe?.contentWindow) throw new Error("Widget iframe is unavailable")
+					const iframeUrl = new URL(iframe.src)
+					const event = new MessageEvent("message", {
+						origin: new URL(appUrl).origin,
+						source: iframe.contentWindow,
+						data: {
+							protocol: "magic-widget",
+							version: 1,
+							instanceId: iframeUrl.searchParams.get("magicWidgetInstanceId"),
+							type: "ui_state",
+							state: { previewFullscreen },
+						},
+					})
+					// Preserve the iframe source identity in Chromium's synthetic event path.
+					Object.defineProperty(event, "source", {
+						configurable: true,
+						value: iframe.contentWindow,
+					})
+					window.dispatchEvent(event)
+				} catch (error) {
+					eventResult.textContent = `emit-error:${error.message}`
+				}
+			}
+
+			document.querySelector('[data-testid="mount-inline"]').onclick = () => mount(true)
+			document.querySelector('[data-testid="mount-floating"]').onclick = () => mount(false)
+			document.querySelector('[data-testid="open-widget"]').onclick = () =>
+				window.MagicWidget.open()
+			document.querySelector('[data-testid="close-widget"]').onclick = () =>
+				window.MagicWidget.close()
+			document.querySelector('[data-testid="destroy-widget"]').onclick = () =>
+				window.MagicWidget.destroy()
+			document.querySelector('[data-testid="mount-hidden-header"]').onclick = () =>
+				mountVariant(hiddenHeaderConfig, "mount-hidden-header")
+			document.querySelector('[data-testid="mount-selective-header"]').onclick = () =>
+				mountVariant(selectiveHeaderConfig, "mount-selective-header")
+			document.querySelector('[data-testid="mount-minimal-capabilities"]').onclick = () =>
+				mountVariant(minimalCapabilitiesConfig, "mount-minimal-capabilities")
+			document.querySelector('[data-testid="mount-config-matrix"]').onclick = () =>
+				mountVariant(configMatrix, "mount-config-matrix")
+			document.querySelector('[data-testid="mount-header-labels"]').onclick = () =>
+				mountVariant(headerLabelsConfig, "mount-header-labels")
+			document.querySelector('[data-testid="mount-mobile-config"]').onclick = () =>
+				mountVariant(mobileConfig, "mount-mobile-config")
+			document.querySelector('[data-testid="emit-preview-fullscreen"]').onclick = () =>
+				emitPreviewFullscreen(true)
+			document.querySelector('[data-testid="emit-preview-inline"]').onclick = () =>
+				emitPreviewFullscreen(false)
+			document.querySelector('[data-testid="close-callback-off"]').onclick = () => {
+				closeMode = "off"
+			}
+			document.querySelector('[data-testid="close-callback-success"]').onclick = () => {
+				closeMode = "success"
+			}
+			document.querySelector('[data-testid="close-callback-failure"]').onclick = () => {
+				closeMode = "failure"
+			}
+			document.querySelector('[data-testid="update-config"]').onclick = () => {
+				void window.MagicWidget.updateConfig({ header: { actions: { share: false } } })
+					.then(() => {
+						status.textContent = "update-config:success"
+					})
+					.catch((error) => {
+						status.textContent = `update-config:${error.code ?? "ERROR"}`
+					})
+			}
+			document.querySelector('[data-testid="update-dynamic-content"]').onclick = () => {
+				void window.MagicWidget.updateConfig({
+					panel: {
+						customGroups: [
+							{
+								id: "fixture-business-charts",
+								label: "Business charts",
+								items: [
+									{
+										id: "fixture-replacement",
+										type: "chart",
+										title: "Chart B",
+										text: "Business chart B; period: sample month; metric: mock active users; trend: down 8%. Analyze likely causes.",
+										data: { source: "fixture" },
+									},
+								],
+							},
+						],
+					},
+				})
+					.then(() => {
+						status.textContent = "update-dynamic-content:success"
+					})
+					.catch((error) => {
+						status.textContent = `update-dynamic-content:${error.code ?? "ERROR"}`
+					})
+			}
+			document.querySelector('[data-testid="update-overflow-custom-groups"]').onclick =
+				() => {
+					void window.MagicWidget.updateConfig({
+						panel: {
+							customGroups: [
+								{
+									id: "fixture-overflow-group",
+									label: "Overflow fixtures",
+									items: Array.from({ length: 1_001 }, (_, index) => ({
+										id: `fixture-overflow-${index}`,
+										type: "fixture",
+										text: `Overflow fixture ${index}`,
+									})),
+								},
+							],
+						},
+					})
+						.then(() => {
+							status.textContent = "update-overflow-custom-groups:success"
+						})
+						.catch((error) => {
+							status.textContent = `update-overflow-custom-groups:${error.code ?? "ERROR"}`
+						})
+				}
+			document.querySelector('[data-testid="update-invalid-dynamic-content"]').onclick =
+				() => {
+					void window.MagicWidget.updateConfig({
+						panel: {
+							customGroups: [
+								{
+									id: "fixture-business-charts",
+									label: "Business charts",
+									items: [
+										{ id: "duplicate", type: "card", text: "one" },
+										{ id: "duplicate", type: "card", text: "two" },
+									],
+								},
+							],
+						},
+					})
+						.then(() => {
+							status.textContent = "update-invalid-dynamic-content:unexpected-success"
+						})
+						.catch((error) => {
+							status.textContent = `update-invalid-dynamic-content:${error.code ?? "ERROR"}`
+						})
+				}
+			document.querySelector('[data-testid="set-input"]').onclick = async () => {
+				try {
+					await window.MagicWidget.setInput("Mock input from host")
+					status.textContent = "set-input:success"
+				} catch (error) {
+					status.textContent = `set-input:${error.code ?? "ERROR"}`
+				}
+			}
+			document.querySelector('[data-testid="append-input"]').onclick = async () => {
+				try {
+					await window.MagicWidget.appendInput(" + appended")
+					status.textContent = "append-input:success"
+				} catch (error) {
+					status.textContent = `append-input:${error.code ?? "ERROR"}`
+				}
+			}
+			document.querySelector('[data-testid="set-structured-input"]').onclick = async () => {
+				try {
+					await window.MagicWidget.setInput(structuredInput)
+					status.textContent = "set-structured-input:success"
+				} catch (error) {
+					status.textContent = `set-structured-input:${error.code ?? "ERROR"}`
+				}
+			}
+			document.querySelector('[data-testid="append-structured-input"]').onclick =
+				async () => {
+					try {
+						await window.MagicWidget.appendInput(appendedStructuredInput)
+						status.textContent = "append-structured-input:success"
+					} catch (error) {
+						status.textContent = `append-structured-input:${error.code ?? "ERROR"}`
+					}
+				}
+			document.querySelector('[data-testid="send-structured-input"]').onclick = async () => {
+				try {
+					await window.MagicWidget.sendMessage(structuredInput)
+					status.textContent = "send-structured-input:success"
+				} catch (error) {
+					status.textContent = `send-structured-input:${error.code ?? "ERROR"}`
+				}
+			}
+			document.querySelector('[data-testid="get-input"]').onclick = async () => {
+				try {
+					status.textContent = `get-input:${await window.MagicWidget.getInput()}`
+				} catch (error) {
+					status.textContent = `get-input:${error.code ?? "ERROR"}`
+				}
+			}
+			document.querySelector('[data-testid="clear-input"]').onclick = async () => {
+				try {
+					await window.MagicWidget.clearInput()
+					status.textContent = "clear-input:success"
+				} catch (error) {
+					status.textContent = `clear-input:${error.code ?? "ERROR"}`
+				}
+			}
+
+			if (!appUrl) status.textContent = "missing WIDGET_E2E_APP_URL"
+			else {
+				const script = document.createElement("script")
+				script.src = `${appUrl.replace(/\/$/, "")}/sdk/magic-widget.js`
+				script.onload = () => {
+					window.MagicWidget.on("agent_ready", () => recordEvent("agent-ready"))
+					window.MagicWidget.on("config.warning", (warning) =>
+						recordEvent(
+							`config-warning:${warning.code}:${warning.details.droppedItems}:${warning.details.reasons.join(",")}`,
+						),
+					)
+					window.MagicWidget.on("preview_fullscreen", (isFullscreen) =>
+						recordEvent(`preview-fullscreen:${isFullscreen}`),
+					)
+					mount(true)
+				}
+				script.onerror = () => {
+					status.textContent = "sdk-load-failed"
+				}
+				document.head.append(script)
+			}
+		</script>
+	</body>
+</html>

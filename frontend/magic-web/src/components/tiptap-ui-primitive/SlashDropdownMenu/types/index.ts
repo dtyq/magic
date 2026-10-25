@@ -1,4 +1,4 @@
-import { Editor, Range } from "@tiptap/react"
+import { Editor, Range } from "@/infrastructure/editors/tiptap/react"
 import { ReactNode } from "react"
 
 /**

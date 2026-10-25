@@ -2,6 +2,7 @@ import { cx } from "antd-style"
 import type { KeyboardEvent } from "react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import {
 	getKnowledgeSearchDetailData,
@@ -41,7 +42,7 @@ function KnowledgeSearch({ data }: KnowledgeSearchContentProps) {
 	}
 
 	return (
-		<div className="h-full overflow-auto bg-background px-6 py-5">
+		<ScrollArea className="h-full bg-background" viewportClassName="px-6 py-5">
 			<div className="mx-auto flex w-full max-w-[920px] flex-col gap-4">
 				<div className="rounded-lg border border-border bg-white p-4 shadow-sm dark:bg-card">
 					<div className="flex flex-wrap items-center justify-between gap-3">
@@ -114,7 +115,7 @@ function KnowledgeSearch({ data }: KnowledgeSearchContentProps) {
 					/>
 				))}
 			</div>
-		</div>
+		</ScrollArea>
 	)
 }
 

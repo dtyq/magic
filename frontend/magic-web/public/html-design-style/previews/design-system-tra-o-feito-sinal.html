@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traço/Feito — SINAL · Manual de Procedimentos Tipográficos</title>
+  <style>
+    :root {
+      --pedra: #faf9f7;
+      --tinta: #191210;
+      --cinza-texto: #7a6e60;
+      --cinza-regua: #e5e1dc;
+      --verde-botanico: #275e3f;
+      --verde-medio: #4a8a62;
+      --verde-claro: #d4e8dc;
+      --barra-gold: #c89b6e;
+      --card-white: #ffffff;
+      --font-display: "Cormorant Garamond", "Garamond", "Baskerville", Georgia, serif;
+      --font-body: "Work Sans", system-ui, -apple-system, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", monospace;
+      --r-xs: 2px;
+      --r-sm: 4px;
+      --r-md: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--pedra);
+      color: var(--tinta);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      background-image: radial-gradient(var(--cinza-regua) 0.6px, transparent 0.6px);
+      background-size: 18px 18px;
+    }
+    /* Artisanal Top Masthead with Gold Line Marker */
+    .masthead-sinal {
+      background: var(--pedra);
+      border-bottom: 1px solid var(--cinza-regua);
+      padding: 16px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--tinta);
+    }
+    .brand-bar-gold {
+      width: 32px;
+      height: 3px;
+      background: var(--barra-gold);
+    }
+    .brand-protocol {
+      font-family: var(--font-body);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--verde-botanico);
+    }
+    .header-tools {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 12px;
+    }
+    .specimen-tag {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      background: var(--verde-claro);
+      color: var(--verde-botanico);
+      padding: 4px 10px;
+      border-radius: var(--r-xs);
+    }
+    /* Hero Editorial Paper Proofing: High-Contrast First 500px */
+    .hero-sinal {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 36px 32px;
+      border-bottom: 1px solid var(--cinza-regua);
+    }
+    .eyebrow-botanico {
+      font-family: var(--font-body);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--verde-botanico);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .eyebrow-botanico::after {
+      content: "";
+      width: 48px;
+      height: 1px;
+      background: var(--verde-botanico);
+    }
+    .hero-layout {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 40px;
+      align-items: start;
+    }
+    .hero-heading {
+      font-family: var(--font-display);
+      font-size: 46px;
+      line-height: 1.08;
+      font-weight: 300;
+      letter-spacing: -0.015em;
+      color: var(--tinta);
+      margin-bottom: 18px;
+    }
+    .hero-heading em {
+      font-style: italic;
+      color: var(--verde-botanico);
+      font-weight: 400;
+    }
+    .hero-prose {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--cinza-texto);
+      max-width: 580px;
+      margin-bottom: 24px;
+    }
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .btn-botanico {
+      background: var(--verde-botanico);
+      color: var(--pedra);
+      border: none;
+      padding: 11px 26px;
+      border-radius: var(--r-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn-botanico:hover {
+      background: var(--verde-medio);
+    }
+    .btn-regua {
+      background: transparent;
+      color: var(--tinta);
+      border: 1px solid var(--cinza-regua);
+      padding: 11px 22px;
+      border-radius: var(--r-sm);
+      font-size: 13.5px;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    /* Letterpress Proof Specimen Card */
+    .proof-card {
+      background: var(--card-white);
+      border: 1px solid var(--cinza-regua);
+      border-radius: var(--r-md);
+      padding: 24px;
+      position: relative;
+    }
+    .proof-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--barra-gold);
+    }
+    .proof-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--cinza-regua);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      font-size: 11px;
+      color: var(--cinza-texto);
+    }
+    .quote-sinal {
+      font-family: var(--font-display);
+      font-size: 19px;
+      line-height: 1.45;
+      font-style: italic;
+      color: var(--tinta);
+      border-left: 2px solid var(--verde-botanico);
+      padding-left: 16px;
+      margin-bottom: 16px;
+    }
+    .proof-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      border-top: 1px solid var(--cinza-regua);
+      padding-top: 12px;
+      font-size: 11.5px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .meta-item span:first-child {
+      color: var(--cinza-texto);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .meta-item span:last-child {
+      font-weight: 600;
+      color: var(--tinta);
+    }
+    /* Catalog & Matrix Showcase */
+    .container-sinal {
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 0 36px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+    .section-label-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 1px solid var(--tinta);
+      padding-bottom: 8px;
+    }
+    .section-title-sinal {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--tinta);
+    }
+    .section-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--cinza-texto);
+    }
+    /* Color Swatches: Solitary Botanical Signal */
+    .swatches-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+    .swatch-box {
+      background: var(--card-white);
+      border: 1px solid var(--cinza-regua);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+    }
+    .swatch-fill {
+      height: 64px;
+      position: relative;
+    }
+    .swatch-details {
+      padding: 10px 12px;
+    }
+    .swatch-label {
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--tinta);
+    }
+    .swatch-code {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--cinza-texto);
+    }
+    /* Two Column Content: Signpost Markers & Procedural Catalog */
+    .grid-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .signpost-card {
+      background: var(--card-white);
+      border: 1px solid var(--cinza-regua);
+      border-radius: var(--r-md);
+      padding: 20px;
+    }
+    .signpost-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .signpost-title::before {
+      content: "§";
+      color: var(--barra-gold);
+      font-size: 16px;
+    }
+    .procedural-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .procedural-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--pedra);
+      border-radius: var(--r-xs);
+      border-left: 3px solid var(--cinza-regua);
+    }
+    .procedural-item.highlight {
+      border-left-color: var(--verde-botanico);
+      background: #f4f8f5;
+    }
+    .procedural-name {
+      font-weight: 500;
+      font-size: 12.5px;
+    }
+    .procedural-badge {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      padding: 2px 6px;
+      border-radius: var(--r-xs);
+      background: var(--cinza-regua);
+      color: var(--cinza-texto);
+    }
+    .procedural-item.highlight .procedural-badge {
+      background: var(--verde-claro);
+      color: var(--verde-botanico);
+      font-weight: 700;
+    }
+    /* Colophon / Footer */
+    .footer-colophon {
+      border-top: 1px solid var(--cinza-regua);
+      padding: 24px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: var(--cinza-texto);
+    }
+    .gold-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--barra-gold);
+      border-radius: 50%;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Masthead with Single Gold Marker -->
+  <header class="masthead-sinal">
+    <div class="brand-mark">
+      <div class="brand-title">Traço/Feito — SINAL</div>
+      <div class="brand-bar-gold"></div>
+      <span class="brand-protocol">Manual de Procedimentos Tipográficos</span>
+    </div>
+    <div class="header-tools">
+      <span class="specimen-tag">OFICINA Nº 04 · BR/PT</span>
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--cinza-texto);">ED. 2026</span>
+    </div>
+  </header>
+
+  <!-- Hero Proofing Section: High Density 16:10 Top 500px -->
+  <section class="hero-sinal">
+    <div class="eyebrow-botanico">Procedimento Editorial · O Sinal Único</div>
+    <div class="hero-layout">
+      <div>
+        <h1 class="hero-heading">
+          A forma obedece ao <em>traço gravado</em> sobre a pedra neutra.
+        </h1>
+        <p class="hero-prose">
+          Campo neutro de pedra branca quase vazio. Um único sinal de cor inesperado — verde botânico profundo (#275E3F).
+          A barra dourada opera como o único calor num sistema de disciplina artesanal e rigor editorial.
+        </p>
+        <div class="hero-actions">
+          <a href="#procedimentos" class="btn-botanico">
+            <span>Consultar Pranchas</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+          </a>
+          <a href="#especimes" class="btn-regua">Escala Tipográfica</a>
+        </div>
+      </div>
+
+      <!-- Letterpress Proof Card -->
+      <div class="proof-card">
+        <div class="proof-header">
+          <span>PROVA TIPOGRÁFICA Nº 18</span>
+          <span style="color:var(--verde-botanico);font-weight:600;">AUTORIZADO P/ IMPRESSÃO</span>
+        </div>
+        <div class="quote-sinal">
+          “Tudo que não é essencial foi removido. O que sobra tem peso absoluto.”
+        </div>
+        <div class="proof-meta-grid">
+          <div class="meta-item">
+            <span>Display Tipo</span>
+            <span>Cormorant Garamond Light</span>
+          </div>
+          <div class="meta-item">
+            <span>Texto Estrutural</span>
+            <span>Work Sans Regular</span>
+          </div>
+          <div class="meta-item">
+            <span>Suporte Físico</span>
+            <span>Papel Pedra 240g / Calandra</span>
+          </div>
+          <div class="meta-item">
+            <span>Sinal Cromático</span>
+            <span>Verde Botânico Mineral</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main System Showcase -->
+  <main class="container-sinal" id="procedimentos">
+
+    <!-- Swatches of the Solitary Signal -->
+    <div>
+      <div class="section-label-bar">
+        <h2 class="section-title-sinal">01. O Sinal Único &amp; O Campo Neutro</h2>
+        <span class="section-num">PALETA MATRIZ</span>
+      </div>
+      <div class="swatches-row" style="margin-top: 14px;">
+        <div class="swatch-box">
+          <div class="swatch-fill" style="background:#faf9f7;border-bottom:1px solid var(--cinza-regua);"></div>
+          <div class="swatch-details">
+            <div class="swatch-label">Pedra</div>
+            <div class="swatch-code">#FAF9F7</div>
+          </div>
+        </div>
+        <div class="swatch-box">
+          <div class="swatch-fill" style="background:#191210;"></div>
+          <div class="swatch-details">
+            <div class="swatch-label">Tinta Quente</div>
+            <div class="swatch-code">#191210</div>
+          </div>
+        </div>
+        <div class="swatch-box">
+          <div class="swatch-fill" style="background:#275e3f;"></div>
+          <div class="swatch-details">
+            <div class="swatch-label">Verde Botânico</div>
+            <div class="swatch-code">#275E3F</div>
+          </div>
+        </div>
+        <div class="swatch-box">
+          <div class="swatch-fill" style="background:#c89b6e;"></div>
+          <div class="swatch-details">
+            <div class="swatch-label">Barra Ouro</div>
+            <div class="swatch-code">#C89B6E</div>
+          </div>
+        </div>
+        <div class="swatch-box">
+          <div class="swatch-fill" style="background:#e5e1dc;"></div>
+          <div class="swatch-details">
+            <div class="swatch-label">Cinza Régua</div>
+            <div class="swatch-code">#E5E1DC</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signpost Markers & Protocol -->
+    <div class="grid-split" id="especimes">
+      <div class="signpost-card">
+        <h3 class="signpost-title">Regras de Inscrição Tipográfica</h3>
+        <p style="font-size:13px;color:var(--cinza-texto);margin-bottom:16px;">
+          O Cormorant Garamond só existe em tamanhos grandes (48px+). Work Sans assume toda a responsabilidade de leitura e metadados.
+        </p>
+        <ul class="procedural-list">
+          <li class="procedural-item highlight">
+            <span class="procedural-name">Eyebrow em Caixa Alta (Tracking 0.14em)</span>
+            <span class="procedural-badge">VERDE BOTÂNICO</span>
+          </li>
+          <li class="procedural-item">
+            <span class="procedural-name">Citação com Recuo e Fio Lateral 2px</span>
+            <span class="procedural-badge">ITÁLICO 22PX</span>
+          </li>
+          <li class="procedural-item">
+            <span class="procedural-name">Barra Dourada como Separador Singular</span>
+            <span class="procedural-badge">HOT STAMPING</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="signpost-card">
+        <h3 class="signpost-title">Inventário de Artefatos Oficinais</h3>
+        <p style="font-size:13px;color:var(--cinza-texto);margin-bottom:16px;">
+          Controle de tiragem e fichamento técnico da biblioteca de matrizes em chumbo e encadernação.
+        </p>
+        <ul class="procedural-list">
+          <li class="procedural-item">
+            <span class="procedural-name">Caderno de Tipos Móveis Bodoni &amp; Garamond</span>
+            <span class="procedural-badge">LOTE 092</span>
+          </li>
+          <li class="procedural-item highlight">
+            <span class="procedural-name">Matriz de Gravação em Zinco · Marca D’Água</span>
+            <span class="procedural-badge">CALIBRADO</span>
+          </li>
+          <li class="procedural-item">
+            <span class="procedural-name">Régua Tipográfica de Precisão (Pontos e Picas)</span>
+            <span class="procedural-badge">AÇO 30CM</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Colophon / Footer -->
+  <footer class="footer-colophon">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="gold-dot"></span>
+      <span>TRAÇO/FEITO — SINAL · MANUAL DE PROCEDIMENTOS EDITORIAIS</span>
+    </div>
+    <span style="font-family:var(--font-mono);font-size:11px;">OFICINA TIPOGRÁFICA · IMPRESSO COM DISCIPLINA</span>
+  </footer>
+
+</body>
+</html>

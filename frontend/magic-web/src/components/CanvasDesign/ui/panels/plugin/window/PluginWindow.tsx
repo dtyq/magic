@@ -102,7 +102,12 @@ export const PluginWindow = memo(function PluginWindow({
 	const [filePickerRequest, setFilePickerRequest] = useState<PluginFilePickerRequest | null>(null)
 	const filePickerRequestRef = useRef<PluginFilePickerRequest | null>(null)
 	const projectFileBatchItemsRef = useRef<Array<ReferenceResourcePanelItem | undefined>>([])
-	const pluginView = usePluginView(plugin, locale, channelToken, canvas.readonly)
+	const pluginView = usePluginView(
+		plugin,
+		locale,
+		channelToken,
+		canvas.permissionManager.getContext().mode,
+	)
 	// 单个插件窗口内维护 asset/path -> 画布元素 id 的临时映射，供后续 generate-and-place 贴近来源图。
 	const sourceElementByAssetKeyRef = useRef(new Map<string, string>())
 

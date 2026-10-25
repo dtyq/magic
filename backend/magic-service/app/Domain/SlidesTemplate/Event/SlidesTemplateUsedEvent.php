@@ -9,9 +9,12 @@ namespace App\Domain\SlidesTemplate\Event;
 
 use App\Domain\SlidesTemplate\Entity\SlidesTemplateEntity;
 use App\Infrastructure\Core\AbstractEvent;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 
 class SlidesTemplateUsedEvent extends AbstractEvent
 {
+    protected ?string $eventId = null;
+
     public function __construct(
         protected string $organizationCode,
         protected string $sourceId,
@@ -21,7 +24,14 @@ class SlidesTemplateUsedEvent extends AbstractEvent
         protected string $requestId,
         protected SlidesTemplateEntity $template,
         protected array $businessParams = [],
+        ?string $eventId = null,
     ) {
+        $this->eventId = $eventId ?: (string) ($businessParams['event_id'] ?? IdGenerator::getSnowId());
+    }
+
+    public function getEventId(): string
+    {
+        return $this->eventId ??= (string) ($this->businessParams['event_id'] ?? IdGenerator::getSnowId());
     }
 
     public function getOrganizationCode(): string
@@ -73,6 +83,7 @@ class SlidesTemplateUsedEvent extends AbstractEvent
             'user_id' => $this->userId,
             'user_name' => $this->userName,
             'request_id' => $this->requestId,
+            'event_id' => $this->eventId,
             'template_code' => $this->template->getCode(),
             'business_params' => $this->businessParams,
         ];

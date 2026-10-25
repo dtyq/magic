@@ -20,6 +20,7 @@ use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Mode\Service\ModeGroupDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfigCandidate;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
+use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
@@ -28,6 +29,8 @@ use App\Domain\Provider\Service\ModelFilter\OrganizationBasedModelFilterInterfac
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Domain\SuperMagic\Agent\Entity\SuperMagicAgentEntity;
+use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Util\File\EasyFileTools;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -41,11 +44,16 @@ use Dtyq\CloudFile\Kernel\Struct\FileLink;
  * - 获取当前组织可见的 provider 模型
  * - 整理视频 featured 求解所需的最小候选项
  *
- * 具体的视频能力定义与交集规则都应继续下沉到 domain service。
+ * 具体的视频能力定义与 provider 择一规则都应继续下沉到 domain service。
  */
 abstract class AbstractModeAppService extends AbstractKernelAppService
 {
     use HasLogger;
+
+    // 仅按需用于管理价格预览，既有详情与前台查询不启用截断。
+    private const int PREVIEW_MAX_MODELS = 1000;
+
+    private const int PREVIEW_MAX_DEPTH = 32;
 
     public function __construct(
         protected ModeDomainService $modeDomainService,
@@ -169,53 +177,38 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
      */
     protected function getDetailedModels(ModeAggregate $modeAggregate): array
     {
-        [$allModelIds, $allModels, $providerStatuses] = $this->loadModeModels($modeAggregate);
-        if ($allModelIds === []) {
-            return [];
-        }
-
-        $result = [];
-        foreach ($allModelIds as $modelId) {
-            $models = $allModels[$modelId] ?? [];
-            $bestModel = $this->selectBestModel($models, $providerStatuses);
-            $status = $this->determineStatus($models, $providerStatuses);
-
-            $result[$modelId] = [
-                'best' => $bestModel,
-                'all' => $models,
-                'status' => $status,
-            ];
-        }
-
-        return $result;
+        $snapshot = $this->loadModeModelSnapshot($modeAggregate);
+        return array_intersect_key($snapshot['details'], array_flip($snapshot['model_ids']));
     }
 
-    /**
-     * 批量获取服务商状态.
-     *
+    /** 批量读取服务商实体，状态判断和管理价格展示共享同一份查询结果。
+     * @param array<string, ProviderModelEntity[]> $allModels
+     * @return array<int, ProviderConfigEntity>
+     */
+    protected function getProviderConfigs(ProviderDataIsolation $providerDataIsolation, array $allModels): array
+    {
+        $ids = [];
+        foreach ($allModels as $models) {
+            foreach ($models as $model) {
+                $ids[] = $model->getServiceProviderConfigId();
+            }
+        }
+        $providers = [];
+        if ($ids !== []) {
+            foreach ($this->providerConfigDomainService->getByIds($providerDataIsolation, array_values(array_unique($ids))) as $provider) {
+                $providers[$provider->getId()] = $provider;
+            }
+        }
+        return $providers;
+    }
+
+    /** 复用服务商读取逻辑，保持原调用方的状态映射协议。
      * @param array<string, ProviderModelEntity[]> $allModels
      * @return array<int, Status>
      */
     protected function getProviderStatuses(ProviderDataIsolation $providerDataIsolation, array $allModels): array
     {
-        $providerConfigIds = [];
-        foreach ($allModels as $models) {
-            foreach ($models as $model) {
-                $providerConfigIds[] = $model->getServiceProviderConfigId();
-            }
-        }
-
-        if (empty($providerConfigIds)) {
-            return [];
-        }
-
-        $providerStatuses = [];
-        $providerConfigs = $this->providerConfigDomainService->getByIds($providerDataIsolation, array_unique($providerConfigIds));
-        foreach ($providerConfigs as $config) {
-            $providerStatuses[$config->getId()] = $config->getStatus();
-        }
-
-        return $providerStatuses;
+        return $this->providerStatuses($this->getProviderConfigs($providerDataIsolation, $allModels));
     }
 
     /**
@@ -258,7 +251,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         }
 
         // 这里返回的是“同一个逻辑 model_id 下，所有当前仍可用的 provider 模型”。
-        // 相比 selectBestModel 只选一条，这里保留整组数据，是为了后续做视频能力交集。
+        // 相比 selectBestModel 只选一条，这里保留整组数据，是为了后续按运行时优先级择一。
         $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
         $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, $allModelIds);
         $allModels = $this->expandModelGroupsForDynamicSubModels($providerDataIsolation, $allModels);
@@ -278,7 +271,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         }
 
         // app 层先完成“当前组织可见且可用 provider 模型”的整理，
-        // 再收缩成求交集所需的最小候选信息，交给 domain 做能力解析。
+        // 再收缩成 domain 解析能力所需的最小候选信息。
         $groupedModels = $this->getModelGroupsBatch(array_values(array_unique($modelIds)));
         if ($groupedModels === []) {
             return [];
@@ -287,6 +280,8 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         $providerCodesByConfigId = $this->getProviderCodesByConfigIds($groupedModels);
         $candidates = [];
         foreach ($groupedModels as $modelId => $providerModels) {
+            // 必须先按运行时优先级排序，domain 才会取到与真正执行时一致的 provider。
+            $providerModels = $this->providerModelDomainService->sortByRuntimePriority($providerModels);
             foreach ($providerModels as $providerModel) {
                 // ProviderModelEntity 持有的是 service_provider_config_id，
                 // 这里补齐成 domain 解析能力所需的 providerCode。
@@ -321,7 +316,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
 
         if ($providerStatuses === []) {
             // LLM / 图像等历史逻辑仍然只选一个最佳模型，
-            // 视频多 provider 交集场景则走 getModelGroupsBatch 保留整组数据。
+            // 视频 featured 需要按运行时优先级择一，因此走 getModelGroupsBatch 保留整组数据。
             return array_find($models, fn (ProviderModelEntity $model) => $this->isModelEnabled($model));
         }
 
@@ -334,7 +329,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
      */
     protected function getProviderCodesByConfigIds(array $groupedModels): array
     {
-        // featured 求交集只关心 providerCode，因此这里把 configId 映射成 providerCode。
+        // featured 择一后仍需要 providerCode 解析能力，因此这里把 configId 映射成 providerCode。
         $configIds = [];
         foreach ($groupedModels as $providerModels) {
             foreach ($providerModels as $providerModel) {
@@ -369,7 +364,8 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
     protected function filterAvailableModelGroups(array $allModels, array $providerStatuses): array
     {
         // 与 filterAvailableModels 的区别在于：
-        // 这里不做“最佳模型选择”，而是保留每个逻辑 model_id 的全部可用 provider。
+        // 这里不做“最佳模型选择”，而是保留每个逻辑 model_id 的全部可用 provider，
+        // 交由上层按运行时优先级择一（见 ProviderModelDomainService::sortByRuntimePriority）。
         $availableModelGroups = [];
         foreach ($allModels as $modelId => $providerModels) {
             $availableProviderModels = [];
@@ -400,7 +396,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
      */
     protected function isProviderModelAvailable(ProviderModelEntity $providerModel, array $providerStatuses): bool
     {
-        // 视频 featured 能力求交集的前提，是 provider 模型此刻真的可用。
+        // 视频 featured 能力择一的前提，是 provider 模型此刻真的可用。
         if (! $this->isModelEnabled($providerModel)) {
             return false;
         }
@@ -420,11 +416,14 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
      */
     protected function expandModelGroupsForDynamicSubModels(
         ProviderDataIsolation $providerDataIsolation,
-        array $allModels
+        array $allModels,
+        bool $bounded = false,
+        array &$notLoaded = [],
     ): array {
         $expandedModels = $allModels;
         $scannedModelIds = [];
         $pendingModelIds = array_keys($expandedModels);
+        $depth = 0;
 
         while ($pendingModelIds !== []) {
             $missingSubModelIds = [];
@@ -454,12 +453,34 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
                 }
             }
 
+            ++$depth;
+            if ($bounded) {
+                $remaining = max(0, self::PREVIEW_MAX_MODELS - count($expandedModels));
+                foreach ($missingSubModelIds as $id) {
+                    if (isset($notLoaded[$id])) {
+                        unset($missingSubModelIds[$id]);
+                        continue;
+                    }
+                    if ($depth >= self::PREVIEW_MAX_DEPTH || $remaining === 0) {
+                        $notLoaded[$id] = $depth >= self::PREVIEW_MAX_DEPTH ? 'depth_limit' : 'model_limit';
+                        unset($missingSubModelIds[$id]);
+                        continue;
+                    }
+                    --$remaining;
+                }
+            }
             if ($missingSubModelIds !== []) {
                 $fetchedModels = $this->providerModelDomainService->getModelsByModelIds(
                     $providerDataIsolation,
                     array_values($missingSubModelIds)
                 );
 
+                if ($bounded) {
+                    // 记住本次已经查询但缺失的节点，避免共享关系重复查询。
+                    foreach ($missingSubModelIds as $id) {
+                        $expandedModels[$id] = [];
+                    }
+                }
                 foreach ($fetchedModels as $subModelId => $providerModels) {
                     $expandedModels[$subModelId] = $providerModels;
                     $nextPendingModelIds[$subModelId] = $subModelId;
@@ -470,6 +491,52 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         }
 
         return $expandedModels;
+    }
+
+    /** 读取模式配置和模型绑定快照，后台详情与价格预览在 App 层共用。
+     * @return array{model_ids: list<string>, models: array<string, list<ProviderModelEntity>>, providers: array<int, ProviderConfigEntity>, statuses: array<int, Status>, details: array, not_loaded: array<string, string>}
+     */
+    protected function loadModeModelSnapshot(ModeAggregate $modeAggregate, bool $bounded = false): array
+    {
+        $modelIds = $this->getUniqueModelIds($modeAggregate);
+        $allModels = [];
+        $providers = [];
+        $notLoaded = [];
+        if ($modelIds !== []) {
+            $isolation = $this->createOfficialProviderDataIsolation($bounded);
+            $readIds = $bounded ? array_slice($modelIds, 0, self::PREVIEW_MAX_MODELS) : $modelIds;
+            foreach (array_diff($modelIds, $readIds) as $id) {
+                $notLoaded[$id] = 'model_limit';
+            }
+            $allModels = $this->providerModelDomainService->getModelsByModelIds($isolation, $readIds);
+            if ($bounded) {
+                $allModels += array_fill_keys($readIds, []);
+            }
+            $allModels = $this->expandModelGroupsForDynamicSubModels($isolation, $allModels, $bounded, $notLoaded);
+            $providers = $this->getProviderConfigs($isolation, $allModels);
+        }
+        $statuses = $this->providerStatuses($providers);
+        $details = [];
+        foreach (array_unique(array_merge($modelIds, array_keys($allModels))) as $id) {
+            $bindings = $allModels[$id] ?? [];
+            $details[$id] = [
+                'best' => $this->selectBestModel($bindings, $statuses),
+                'all' => $bindings,
+                'status' => $this->determineStatus($bindings, $statuses),
+            ];
+        }
+        return ['model_ids' => $modelIds, 'models' => $allModels, 'providers' => $providers,
+            'statuses' => $statuses, 'details' => $details, 'not_loaded' => $notLoaded];
+    }
+
+    /** 统一构造官方模型隔离；价格预览额外拒绝未配置官方组织的读取。 */
+    protected function createOfficialProviderDataIsolation(bool $requireConfigured = false): ProviderDataIsolation
+    {
+        $organization = OfficialOrganizationUtil::getOfficialOrganizationCode();
+        if ($requireConfigured && $organization === '') {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError);
+        }
+        return new ProviderDataIsolation($organization);
     }
 
     /**
@@ -640,21 +707,26 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         return array_values(array_unique($allModelIds));
     }
 
-    /**
+    /** 从同一批服务商实体构造状态映射，不额外查询。
+     * @param array<int, ProviderConfigEntity> $providers
+     * @return array<int, Status>
+     */
+    private function providerStatuses(array $providers): array
+    {
+        $statuses = [];
+        foreach ($providers as $provider) {
+            $statuses[$provider->getId()] = $provider->getStatus();
+        }
+        return $statuses;
+    }
+
+    /** 保持前台调用方既有的三元组返回协议。
      * @return array{0: list<string>, 1: array<string, ProviderModelEntity[]>, 2: array<int, Status>}
      */
     private function loadModeModels(ModeAggregate $modeAggregate): array
     {
-        $modelIds = $this->getUniqueModelIds($modeAggregate);
-        if ($modelIds === []) {
-            return [[], [], []];
-        }
-
-        $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
-        $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, $modelIds);
-        $allModels = $this->expandModelGroupsForDynamicSubModels($providerDataIsolation, $allModels);
-
-        return [$modelIds, $allModels, $this->getProviderStatuses($providerDataIsolation, $allModels)];
+        $snapshot = $this->loadModeModelSnapshot($modeAggregate);
+        return [$snapshot['model_ids'], $snapshot['models'], $snapshot['statuses']];
     }
 
     private function isModelEnabled(ProviderModelEntity $model): bool
@@ -704,6 +776,9 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
     {
         $aggregateConfig = $dynamicModel->getAggregateConfig() ?? [];
         $subModels = $aggregateConfig['models'] ?? [];
+        if (! is_array($subModels)) {
+            return [];
+        }
         $subModelIds = [];
 
         foreach ($subModels as $subModel) {
@@ -712,7 +787,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
                 continue;
             }
 
-            if (is_array($subModel) && ($subModel['model_id'] ?? '') !== '') {
+            if (is_array($subModel) && (is_string($subModel['model_id'] ?? null) || is_int($subModel['model_id'] ?? null)) && $subModel['model_id'] !== '') {
                 $subModelId = (string) $subModel['model_id'];
                 $subModelIds[$subModelId] = $subModelId;
             }

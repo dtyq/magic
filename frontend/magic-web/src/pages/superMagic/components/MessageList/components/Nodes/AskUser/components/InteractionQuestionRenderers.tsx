@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Input } from "@/components/shadcn-ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/shadcn-ui/radio-group"
 import { Textarea } from "@/components/shadcn-ui/textarea"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	ASK_USER_CONFIRM_VALUE,
 	ASK_USER_INTERACTION_TYPE,
@@ -16,7 +16,6 @@ import {
 	type AskUserQuestionData,
 	isAskUserOtherOption,
 } from "@/pages/superMagic/components/MessageList/utils/askUser"
-
 const askUserOptionControlBase =
 	"size-4 shrink-0 border border-input bg-background shadow-xs focus-visible:ring-1 focus-visible:ring-ring/50"
 

@@ -1,5 +1,9 @@
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { cn } from "@/lib/tiptap-utils"
+import { cn } from "@/utils/cn"
+import {
+	CONVERSATION_INPUT_HEIGHT_CONFIG,
+	DEFAULT_COMPOSER_MIN_INPUT_HEIGHT,
+} from "@/pages/superMagic/components/ConversationInputResize/constants"
 import { INPUT_CONTAINER_MIN_HEIGHT } from "@/pages/superMagic/components/MainInputContainer/constants"
 import MessageList, { MessageListProvider } from "@/pages/superMagic/components/MessageList"
 import type { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
@@ -16,9 +20,17 @@ import {
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react"
+import ConversationInputResizeHandle from "@/pages/superMagic/components/ConversationInputResize/ConversationInputResizeHandle"
+import { ConversationInputLayoutProvider } from "@/pages/superMagic/components/ConversationInputResize/context"
+import { useConversationInputHeight } from "@/pages/superMagic/components/ConversationInputResize/useConversationInputHeight"
+
+/** Reuse the project composer chrome with a slightly tighter toolbar rhythm for opt-in panels. */
+const DESKTOP_COMPOSER_SHELL_CLASSNAME =
+	"flex-none items-start gap-1.5 self-stretch rounded-2xl border border-border bg-sidebar p-2"
 
 interface ConversationPanelScaffoldProps {
 	scope: string
@@ -30,13 +42,19 @@ interface ConversationPanelScaffoldProps {
 	messages: Array<SuperMagicMessageItem>
 	selectedTopic: Topic | null
 	setSelectedDetail?: (detail: unknown) => void
+	onFileClick?: (fileItem: unknown) => void
 	isConversationPanelCollapsed?: boolean
 	detailPanelVisible?: boolean
 	showLoading?: boolean
 	currentTopicStatus?: TaskStatus
 	isMessagesLoading?: boolean
 	emptyHint?: ReactNode
-	handlePullMoreMessage?: (selectedTopic: Topic | null, callback?: () => void) => void
+	handlePullMoreMessage?: (
+		selectedTopic: Topic | null,
+		callback?: () => void,
+	) => void | Promise<unknown>
+	/** Distance from the top at which a fresh upward gesture may load one history page. */
+	historyLoadThresholdPx?: number
 	handleSendMsg?: (content: string, options?: SendMessageOptions) => void
 	rootTestId?: string
 	editorTestId?: string
@@ -57,6 +75,10 @@ interface ConversationPanelScaffoldProps {
 	revokedEditorContext?: RevokedMessageEditorContext
 	/** Task list + message queue above editor (e.g. Topic message queue) */
 	editorNodes?: SceneEditorNodes
+	/** Optional page-specific offset for the desktop input resize handle. */
+	resizeHandlePositionClassName?: string
+	/** Wrap this desktop composer with the same shell used by project topics. */
+	desktopComposerShell?: boolean
 }
 
 interface AnimatedEmptyStateProps {
@@ -91,6 +113,7 @@ function ConversationPanelScaffold({
 	messages,
 	selectedTopic,
 	setSelectedDetail,
+	onFileClick,
 	isConversationPanelCollapsed = false,
 	detailPanelVisible = true,
 	showLoading,
@@ -107,13 +130,19 @@ function ConversationPanelScaffold({
 	messageListBottomFade = false,
 	messageListBottomFadeClassName,
 	backToLatestButtonClassName,
+	historyLoadThresholdPx,
 	enableRevokedUserMessageReedit,
 	revokedEditorContext,
 	editorNodes,
+	resizeHandlePositionClassName,
+	desktopComposerShell = false,
 }: ConversationPanelScaffoldProps) {
 	/** 与全局移动端判定一致，用于在窄屏下去掉根容器多余底边距，避免与全屏输入区叠出双份留白 */
 	const isMobile = useIsMobile()
 	const [measuredBottomPanelHeightPx, setMeasuredBottomPanelHeightPx] = useState(0)
+	const [isInputResizing, setIsInputResizing] = useState(false)
+	const measuredBottomPanelHeightRef = useRef(0)
+	const bottomPanelMeasureFrameRef = useRef<number | null>(null)
 
 	const hasMessages = messages.length > 0
 	const shouldShowCenteredEmptyState = !detailPanelVisible && !isMessagesLoading && !hasMessages
@@ -140,6 +169,23 @@ function ConversationPanelScaffold({
 	const editorLayoutRef = useRef<HTMLDivElement>(null)
 	const isCenteredEmptyStateVisible =
 		shouldShowCenteredEmptyState || shouldPreserveCenteredEmptyState
+	const inputEnabled = !isMobile && !isConversationPanelCollapsed && !isCenteredEmptyStateVisible
+	const inputHeight = useConversationInputHeight({
+		scope,
+		enabled: inputEnabled,
+		containerRef: editorLayoutRef,
+		availableRef: bodyRef,
+		minHeight: DEFAULT_COMPOSER_MIN_INPUT_HEIGHT,
+		...CONVERSATION_INPUT_HEIGHT_CONFIG,
+	})
+	const effectiveInputMinHeight = inputHeight.minHeight ?? DEFAULT_COMPOSER_MIN_INPUT_HEIGHT
+	const inputLayoutContext = useMemo(
+		() => ({
+			fillHeight: inputHeight.fillHeight,
+			queueListMaxHeight: inputHeight.enabled ? inputHeight.queueListMaxHeight : undefined,
+		}),
+		[inputHeight.fillHeight, inputHeight.enabled, inputHeight.queueListMaxHeight],
+	)
 	const renderedEmptyHero = isValidElement(emptyHero)
 		? cloneElement(emptyHero as ReactElement<AnimatedEmptyStateProps>, {
 				iconAnimationDirection: isCenteredEmptyStateVisible ? "enter" : "exit",
@@ -190,15 +236,30 @@ function ConversationPanelScaffold({
 		function applyHeight() {
 			const node = editorLayoutRef.current
 			if (!node) return
-			setMeasuredBottomPanelHeightPx(node.getBoundingClientRect().height)
+			const nextHeight = node.getBoundingClientRect().height
+			if (Math.abs(measuredBottomPanelHeightRef.current - nextHeight) < 1) return
+			measuredBottomPanelHeightRef.current = nextHeight
+			setMeasuredBottomPanelHeightPx(nextHeight)
+		}
+
+		function scheduleHeightMeasurement() {
+			if (bottomPanelMeasureFrameRef.current !== null) return
+			bottomPanelMeasureFrameRef.current = window.requestAnimationFrame(() => {
+				bottomPanelMeasureFrameRef.current = null
+				applyHeight()
+			})
 		}
 
 		applyHeight()
-		const ro = new ResizeObserver(() => {
-			applyHeight()
-		})
+		const ro = new ResizeObserver(scheduleHeightMeasurement)
 		ro.observe(el)
-		return () => ro.disconnect()
+		return () => {
+			ro.disconnect()
+			if (bottomPanelMeasureFrameRef.current !== null) {
+				window.cancelAnimationFrame(bottomPanelMeasureFrameRef.current)
+				bottomPanelMeasureFrameRef.current = null
+			}
+		}
 	}, [isConversationPanelCollapsed, selectedTopic?.id])
 
 	useEffect(() => {
@@ -286,11 +347,23 @@ function ConversationPanelScaffold({
 
 	const effectiveMessageLayoutPaddingBottomPx =
 		measuredBottomPanelHeightPx > 0 ? measuredBottomPanelHeightPx : messageLayoutPaddingBottomPx
+	const editorLayoutStyle = isCenteredEmptyStateVisible
+		? shouldUseAnchoredEmptyLayout
+			? undefined
+			: { top: centeredEditorTop }
+		: inputHeight.fillHeight
+			? { height: inputHeight.effectiveHeight }
+			: undefined
+	const rootTransitionClass = isInputResizing ? "transition-none" : "transition-all duration-300"
+	const layoutTransitionClass = isInputResizing
+		? "transition-none"
+		: "transition-all duration-300 ease-out"
 
 	return (
 		<div
 			className={cn(
-				"relative z-10 flex h-full flex-col items-center overflow-hidden transition-all duration-300",
+				"relative z-10 flex h-full flex-col items-center overflow-hidden",
+				rootTransitionClass,
 				!isConversationPanelCollapsed ? "rounded-lg" : "px-0 pb-0",
 				className,
 			)}
@@ -308,7 +381,8 @@ function ConversationPanelScaffold({
 			>
 				<div
 					className={cn(
-						"absolute inset-0 transition-all duration-300 ease-out",
+						"absolute inset-0",
+						layoutTransitionClass,
 						isCenteredEmptyStateVisible
 							? "translate-y-0 opacity-100"
 							: "pointer-events-none -translate-y-4 opacity-0",
@@ -349,7 +423,8 @@ function ConversationPanelScaffold({
 
 				<div
 					className={cn(
-						"absolute inset-0 transition-all duration-300 ease-out",
+						"absolute inset-0",
+						layoutTransitionClass,
 						isCenteredEmptyStateVisible
 							? "pointer-events-none translate-y-4 opacity-0"
 							: "translate-y-0 opacity-100",
@@ -361,14 +436,24 @@ function ConversationPanelScaffold({
 				>
 					<MessageListProvider value={messageListProviderValue}>
 						<MessageList
+							// The scaffold owns responsive spacing and its panel surface.
+							className={
+								isMobile
+									? "[--message-list-sticky-fade-height:0px] [--message-list-surface:rgb(var(--mobile-background-rgb))]"
+									: "[--message-list-surface:rgb(var(--sidebar-rgb))]"
+							}
+							classNames={{ content: isMobile ? "px-4 pt-[10px]" : "pl-2 pt-[10px]" }}
+							scrollEdgeFade={isMobile}
 							data={messages}
 							selectedTopic={selectedTopic}
 							setSelectedDetail={setSelectedDetail}
+							onFileClick={onFileClick}
 							handlePullMoreMessage={handlePullMoreMessage}
 							showLoading={showLoading}
 							currentTopicStatus={currentTopicStatus}
 							handleSendMsg={handleSendMsg}
 							isMessagesLoading={isMessagesLoading}
+							historyLoadThresholdPx={historyLoadThresholdPx}
 							fallbackRender={
 								shouldRenderCompactFallback ? (
 									emptyCompact
@@ -386,20 +471,15 @@ function ConversationPanelScaffold({
 
 				<div
 					className={cn(
-						"absolute inset-x-0 z-[1] mx-auto w-full transition-all duration-300 ease-out [&>*]:w-full",
+						"absolute inset-x-0 z-[1] mx-auto w-full [&>*]:w-full",
+						layoutTransitionClass,
 						isCenteredEmptyStateVisible
 							? shouldUseAnchoredEmptyLayout
 								? "bottom-0 max-w-[768px] px-4 pb-4 sm:pb-6"
 								: "max-w-[768px] px-4"
 							: "bottom-0 max-w-3xl translate-y-0 px-0 pb-0",
 					)}
-					style={
-						isCenteredEmptyStateVisible && !shouldUseAnchoredEmptyLayout
-							? {
-									top: centeredEditorTop,
-								}
-							: undefined
-					}
+					style={editorLayoutStyle}
 					ref={editorLayoutRef}
 					data-testid={editorTestId || `${scope}-editor-layout`}
 				>
@@ -414,27 +494,66 @@ function ConversationPanelScaffold({
 							data-testid={`${scope}-editor-top-fade`}
 						/>
 					) : null}
-					<div className="relative z-[1] flex w-full flex-col items-center">
-						<div className="flex w-full flex-col gap-2 [&:empty]:hidden">
-							{editorNodes?.taskDataNode}
-							{editorNodes?.messageQueueNode}
-						</div>
-						<div className="w-full">{editor}</div>
-						{isCenteredEmptyStateVisible && emptyHint ? (
+					<ConversationInputLayoutProvider value={inputLayoutContext}>
+						<div
+							className={cn(
+								"relative z-[1] flex w-full flex-col items-center",
+								desktopComposerShell &&
+									!isMobile &&
+									DESKTOP_COMPOSER_SHELL_CLASSNAME,
+								inputHeight.fillHeight && "h-full min-h-0",
+							)}
+							data-testid={
+								desktopComposerShell && !isMobile
+									? `${scope}-composer-shell`
+									: undefined
+							}
+						>
 							<div
-								ref={emptyHintRef}
-								className={cn(
-									"flex justify-center px-4 text-center text-sm leading-6 text-foreground",
-									shouldUseAnchoredEmptyLayout
-										? "mt-6 w-full"
-										: "pointer-events-none absolute left-1/2 top-full mt-6 w-full max-w-[560px] -translate-x-1/2",
-								)}
-								data-testid={`${scope}-empty-hint`}
+								className="flex w-full shrink-0 flex-col gap-2 [&:empty]:hidden"
+								data-conversation-input-accessory
 							>
-								{emptyHint}
+								{/* Keep task and queue chrome measurable and non-shrinking in fixed-height mode. */}
+								{editorNodes?.taskDataNode}
+								{editorNodes?.messageQueueNode}
 							</div>
-						) : null}
-					</div>
+							<div
+								className={cn(
+									"relative w-full",
+									inputHeight.fillHeight && "min-h-0 flex-1",
+								)}
+							>
+								{inputHeight.enabled && (
+									<ConversationInputResizeHandle
+										value={inputHeight.effectiveHeight}
+										min={effectiveInputMinHeight}
+										max={inputHeight.maxHeight}
+										positionClassName={resizeHandlePositionClassName}
+										onResizeStart={inputHeight.startPointerResize}
+										onResize={inputHeight.resizeByPointerDelta}
+										onResizeEnd={inputHeight.finishPointerResize}
+										onDoubleClick={inputHeight.restoreAutoHeight}
+										onResizeStateChange={setIsInputResizing}
+									/>
+								)}
+								{editor}
+							</div>
+							{isCenteredEmptyStateVisible && emptyHint ? (
+								<div
+									ref={emptyHintRef}
+									className={cn(
+										"flex justify-center px-4 text-center text-sm leading-6 text-foreground",
+										shouldUseAnchoredEmptyLayout
+											? "mt-6 w-full"
+											: "pointer-events-none absolute left-1/2 top-full mt-6 w-full max-w-[560px] -translate-x-1/2",
+									)}
+									data-testid={`${scope}-empty-hint`}
+								>
+									{emptyHint}
+								</div>
+							) : null}
+						</div>
+					</ConversationInputLayoutProvider>
 				</div>
 			</div>
 		</div>

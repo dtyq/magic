@@ -38,6 +38,10 @@ class AIAbilityProvider(ABC):
         """返回自动刷新策略，None 表示不自动刷新。"""
         return None
 
+    def get_runtime_log_summary(self) -> str:
+        """返回刷新日志所需的运行时配置摘要。"""
+        return ""
+
     @abstractmethod
     async def load(self) -> List[AIAbilityConfig]:
         """从数据源加载 AI 能力配置列表。"""

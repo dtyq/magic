@@ -4,6 +4,7 @@ import { useProjectDetailFilesController } from "../useProjectDetailFilesControl
 import type { AttachmentItem } from "../types"
 import { toggleAttachmentSelection } from "../../utils/mobileAttachmentTreeSelection"
 import { SuperMagicApi } from "@/apis"
+import magicToast from "@/components/base/MagicToaster/utils"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
@@ -88,6 +89,29 @@ describe("useProjectDetailFilesController", () => {
 		},
 	]
 
+	it("refreshes attachments after creating a folder", async () => {
+		vi.mocked(SuperMagicApi.createFile).mockResolvedValue({ file_id: "created-folder-1" })
+		const onUpdateAttachments = vi.fn()
+
+		const { result } = renderHook(() =>
+			useProjectDetailFilesController({
+				projectId: "project-1",
+				attachments,
+				setIsSelectMode: vi.fn(),
+				onUpdateAttachments,
+			}),
+		)
+
+		await act(async () => {
+			await result.current.createFolder(undefined, "new-folder")
+		})
+
+		expect(onUpdateAttachments).toHaveBeenCalledOnce()
+		expect(magicToast.success).toHaveBeenCalledWith(
+			"topicFiles.contextMenu.createFolderSuccess",
+		)
+	})
+
 	it("batchCopy collapses a fully selected folder into folder id only", () => {
 		const selectedKeys = toggleAttachmentSelection(attachments[0], new Set())
 
@@ -128,14 +152,18 @@ describe("useProjectDetailFilesController", () => {
 
 	it("batchDelete collapses a fully selected folder into folder id only", async () => {
 		openDeleteConfirm.mockClear()
+		vi.mocked(magicToast.success).mockClear()
 		vi.mocked(SuperMagicApi.deleteFiles).mockResolvedValue(null)
 		const selectedKeys = toggleAttachmentSelection(attachments[0], new Set())
+		const onUpdateAttachments = vi.fn()
+		const setIsSelectMode = vi.fn()
 
 		const { result } = renderHook(() =>
 			useProjectDetailFilesController({
 				projectId: "project-1",
 				attachments,
-				setIsSelectMode: vi.fn(),
+				setIsSelectMode,
+				onUpdateAttachments,
 			}),
 		)
 
@@ -156,5 +184,44 @@ describe("useProjectDetailFilesController", () => {
 			file_ids: ["folder-1"],
 			project_id: "project-1",
 		})
+		expect(onUpdateAttachments).toHaveBeenCalledOnce()
+		expect(magicToast.success).toHaveBeenCalledOnce()
+		expect(setIsSelectMode).toHaveBeenCalledWith(false)
+	})
+
+	it("does not complete the delete flow when the API fails", async () => {
+		openDeleteConfirm.mockClear()
+		vi.mocked(magicToast.success).mockClear()
+		vi.mocked(magicToast.error).mockClear()
+		const deleteError = new Error("delete failed")
+		vi.mocked(SuperMagicApi.deleteFiles).mockRejectedValue(deleteError)
+		const selectedKeys = toggleAttachmentSelection(attachments[0], new Set())
+		const onUpdateAttachments = vi.fn()
+		const setIsSelectMode = vi.fn()
+
+		const { result } = renderHook(() =>
+			useProjectDetailFilesController({
+				projectId: "project-1",
+				attachments,
+				setIsSelectMode,
+				onUpdateAttachments,
+			}),
+		)
+
+		act(() => {
+			result.current.batchDelete(selectedKeys)
+		})
+
+		const confirmConfig = openDeleteConfirm.mock.calls[0]?.[0] as {
+			onConfirm: () => Promise<void>
+		}
+		await act(async () => {
+			await confirmConfig.onConfirm()
+		})
+
+		expect(onUpdateAttachments).not.toHaveBeenCalled()
+		expect(magicToast.success).not.toHaveBeenCalled()
+		expect(magicToast.error).toHaveBeenCalledOnce()
+		expect(setIsSelectMode).not.toHaveBeenCalled()
 	})
 })

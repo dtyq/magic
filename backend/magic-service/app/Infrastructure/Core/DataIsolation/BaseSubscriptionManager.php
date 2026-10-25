@@ -64,6 +64,11 @@ class BaseSubscriptionManager implements SubscriptionManagerInterface
         return null;
     }
 
+    public function getPersonalArkAssetIdLimit(): ?int
+    {
+        return null;
+    }
+
     public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool
     {
         $modelIds = $this->getAvailableModelIds($modelType);

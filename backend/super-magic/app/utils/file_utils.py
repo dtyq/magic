@@ -148,7 +148,13 @@ class WorkspaceEntry(TypedDict):
 
 @dataclass
 class WorkspaceSnapshot:
-    """工作区文件树快照，同时承载展示和 diff 两种用途。"""
+    """工作区文件树快照。
+
+    展示与条目集合来自同一次观测，两者必须一致：分开采集会让模型看到的树和别处用的
+    集合对不上。变更检测不使用它（变更只有一个来源：变更账本事件），条目集合供嵌套
+    规则文件的发现使用。
+    """
+
     display: str                        # 格式化树形字符串，注入 LLM 展示
     entries: list[WorkspaceEntry] = field(default_factory=list)  # [{"path": str, "size": int|None}]
 

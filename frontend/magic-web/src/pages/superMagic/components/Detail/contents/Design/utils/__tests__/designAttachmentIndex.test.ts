@@ -3,7 +3,6 @@ import type { FileItem } from "@/pages/superMagic/components/Detail/components/F
 import {
 	buildAttachmentsSnapshotKeyFromFlatFiles,
 	buildDesignAttachmentIndex,
-	findAttachmentByNormalizedWorkspacePath,
 } from "../designAttachmentIndex"
 
 function fileItem(partial: Partial<FileItem> & Pick<FileItem, "file_id">): FileItem {
@@ -26,7 +25,7 @@ describe("buildDesignAttachmentIndex", () => {
 		]
 		const idx = buildDesignAttachmentIndex(flat)
 		expect(idx.byFileId.get("a")).toBe(flat[0])
-		expect(findAttachmentByNormalizedWorkspacePath(idx, "proj/images/x.png")).toBe(flat[0])
+		expect(idx.byNormalizedPath.get("proj/images/x.png")).toEqual(flat)
 	})
 
 	it("produces stable snapshot key ordering", () => {

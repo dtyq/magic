@@ -25,7 +25,7 @@ vi.mock("@/components/base/MagicModal", () => ({
 		) : null,
 }))
 
-vi.mock("@/lib/monacoEditor", () => ({
+vi.mock("@/infrastructure/editors/monaco", () => ({
 	MonacoDiffEditor: ({
 		original,
 		modified,

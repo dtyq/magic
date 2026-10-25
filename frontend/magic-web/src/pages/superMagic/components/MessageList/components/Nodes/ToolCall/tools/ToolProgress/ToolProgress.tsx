@@ -1,8 +1,10 @@
+import DownloadProgress from "./DownloadProgress"
+import type { ToolCallViewModel } from "../../../MessageNode/tool-call/types"
 import { memo } from "react"
 import { observer } from "mobx-react-lite"
 import type { NodeProps } from "@/pages/superMagic/components/MessageList/components/Nodes/types"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useToolTooltip } from "../../hooks/useToolTooltip"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
 
@@ -26,16 +28,25 @@ function getProgressLabel({
 	return remark || ""
 }
 
-function ToolProgressNode(props: NodeProps) {
-	const { onMouseEnter, onMouseLeave, checkIsLastMessage } = props
-	const node = superMagicStore.getMessageNode(props?.node?.super_message_id)
-	const tool = node?.tool
+export function ToolProgressCard({
+	tool,
+	onClick,
+	isLastMessage = true,
+	onMouseEnter,
+	onMouseLeave,
+}: {
+	tool?: ToolCallViewModel
+	onClick?: () => void
+	isLastMessage?: boolean
+	onMouseEnter?: NodeProps["onMouseEnter"]
+	onMouseLeave?: NodeProps["onMouseLeave"]
+}) {
 	const detailData = tool?.detail?.data || {}
-	const progress = getProgressValue(detailData?.progress)
+	const progress = getProgressValue(detailData.progress)
 	const hasProgress = progress !== null
 	const progressLabel = getProgressLabel({
-		fileName: detailData?.file_name,
-		message: detailData?.message,
+		fileName: typeof detailData.file_name === "string" ? detailData.file_name : undefined,
+		message: typeof detailData.message === "string" ? detailData.message : undefined,
 		remark: tool?.remark,
 	})
 
@@ -45,14 +56,25 @@ function ToolProgressNode(props: NodeProps) {
 		checkOverflow: true,
 	})
 
-	const onClick = () => {
-		if (tool?.status !== "error") {
-			props?.onClick?.()
-		}
-	}
-
-	const isLastMessage = checkIsLastMessage?.(node?.message_id) ?? true
 	const showScanEffect = hasProgress && progress < 100 && isLastMessage
+	if (tool?.name === "download_from_urls")
+		return (
+			<DownloadProgress
+				data={detailData}
+				action={typeof tool.action === "string" ? tool.action : undefined}
+				progress={progress}
+				state={tool.downloadProgress}
+				rawArguments={tool.rawArguments}
+				showScan={
+					isLastMessage &&
+					tool.status !== "finished" &&
+					tool.status !== "error" &&
+					tool.status !== "suspended" &&
+					tool.status !== "response_missing" &&
+					detailData.status !== "cancelled"
+				}
+			/>
+		)
 
 	return (
 		<div
@@ -96,6 +118,31 @@ function ToolProgressNode(props: NodeProps) {
 			</div>
 			{renderTooltip()}
 		</div>
+	)
+}
+
+function ToolProgressNode(props: NodeProps) {
+	const node = superMagicStore.getMessageNode(props.node?.super_message_id)
+	const rawTool =
+		node?.tool && typeof node.tool === "object"
+			? (node.tool as Record<string, unknown>)
+			: undefined
+	const toolId = typeof rawTool?.id === "string" ? rawTool.id : undefined
+	const canonical =
+		props.selectedTopic?.id && toolId
+			? superMagicStore.toolResponseMap.get(props.selectedTopic.id)?.get(toolId)
+			: undefined
+	const tool = rawTool
+		? ({ ...rawTool, ...canonical, attachments: [] } as ToolCallViewModel)
+		: undefined
+	return (
+		<ToolProgressCard
+			tool={tool}
+			onClick={props.onClick}
+			isLastMessage={props.checkIsLastMessage?.(node?.message_id || "") ?? true}
+			onMouseEnter={props.onMouseEnter}
+			onMouseLeave={props.onMouseLeave}
+		/>
 	)
 }
 

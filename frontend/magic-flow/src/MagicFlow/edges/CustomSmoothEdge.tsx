@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useMemo } from "react"
 import { SmoothStepEdge, getSmoothStepPath } from "reactflow"
 import { useUpdateEffect } from "ahooks"
-import { IconPlus } from "@douyinfe/semi-icons"
+import { IconPlus } from "@tabler/icons-react"
 import { Popover } from "antd"
 import clsx from "clsx"
 import { prefix } from "../constants"
@@ -130,6 +130,8 @@ function CustomSmoothEdgeComponent({
 						open={popupOpen}
 					>
 						<IconPlus
+							size={16}
+							stroke={2}
 							className={clsx(styles.addIcon, `${prefix}add-icon`)}
 							style={{
 								background: style?.stroke,

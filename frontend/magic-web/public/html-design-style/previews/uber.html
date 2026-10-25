@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uber - Request a Ride &amp; Explore Mobility</title>
+<style>:root{--primary:#000000;--on-primary:#ffffff;--ink:#000000;--body:#5e5e5e;--mute:#afafaf;--hairline-mid:#4b4b4b;--canvas:#ffffff;--canvas-soft:#efefef;--canvas-softer:#f3f3f3;--surface-pressed:#e2e2e2;--font-display:"UberMove",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--font-text:"UberMoveText",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}*{box-sizing:border-box;margin:0;padding:0;}body{background:var(--canvas);color:var(--ink);font-family:var(--font-text);line-height:1.45;-webkit-font-smoothing:antialiased;}.nav-bar{background:var(--canvas);padding:16px 36px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100;border-bottom:1px solid #f0f0f0;}.nav-left{display:flex;align-items:center;gap:32px;}.uber-logo{font-family:var(--font-display);font-size:24px;font-weight:700;letter-spacing:-0.5px;color:var(--ink);text-decoration:none;}.nav-links{display:flex;gap:20px;list-style:none;}.nav-links a{color:var(--ink);text-decoration:none;font-size:14.5px;font-weight:500;}.nav-links a.active{font-weight:700;}.nav-right{display:flex;align-items:center;gap:14px;}.btn-pill-text{background:transparent;border:none;color:var(--ink);font-size:14.5px;font-weight:500;cursor:pointer;padding:8px 12px;}.btn-pill-black{background:var(--primary);color:var(--on-primary);border:none;border-radius:999px;padding:10px 20px;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;}.category-strip{max-width:1200px;margin:14px auto 0;padding:0 24px;display:flex;gap:12px;overflow-x:auto;}.cat-chip{background:var(--canvas-soft);color:var(--ink);border-radius:999px;padding:8px 18px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap;border:1px solid transparent;}.cat-chip.active{background:var(--primary);color:var(--on-primary);}.hero-section{max-width:1200px;margin:20px auto 40px;padding:0 24px;display:grid;grid-template-columns:460px 1fr;gap:36px;align-items:start;}.hero-left-flow{display:flex;flex-direction:column;gap:20px;}.hero-title{font-family:var(--font-display);font-size:clamp(34px,4.2vw,48px);font-weight:700;line-height:1.15;letter-spacing:-0.5px;color:var(--ink);}.request-card{background:var(--canvas);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,0.12);border:1px solid #eaeaea;padding:24px;display:flex;flex-direction:column;gap:16px;}.tab-toggle-bar{background:var(--canvas-soft);border-radius:36px;padding:4px;display:flex;gap:4px;}.tab-toggle-btn{flex:1;border-radius:32px;border:none;padding:8px 0;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--body);display:flex;align-items:center;justify-content:center;gap:6px;}.tab-toggle-btn.active{background:var(--canvas);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,0.1);}.inputs-stack{position:relative;display:flex;flex-direction:column;gap:8px;}.route-connector-line{position:absolute;left:20px;top:26px;bottom:26px;width:2px;background:#000000;z-index:1;}.input-row-pill{background:var(--canvas-soft);border-radius:8px;padding:12px 14px 12px 38px;display:flex;align-items:center;position:relative;gap:8px;}.pin-dot{position:absolute;left:17px;width:8px;height:8px;background:#000;border-radius:50%;z-index:2;}.pin-square{position:absolute;left:17px;width:8px;height:8px;background:#000;z-index:2;}.input-text-val{font-size:15px;font-weight:500;color:var(--ink);flex:1;}.input-placeholder{color:var(--mute);}.btn-locate{background:none;border:none;cursor:pointer;color:var(--body);}.schedule-pill{background:var(--canvas-soft);border-radius:8px;padding:10px 14px;font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:space-between;color:var(--ink);}.btn-submit-ride{background:var(--primary);color:var(--on-primary);border:none;border-radius:999px;padding:14px 0;font-size:16px;font-weight:600;width:100%;cursor:pointer;text-align:center;transition:background 0.2s;}.btn-submit-ride:hover{background:#222;}.map-and-tiers-wrap{display:flex;flex-direction:column;gap:20px;}.map-frame{background:#f4f4f4;border-radius:16px;height:280px;overflow:hidden;position:relative;border:1px solid #e2e2e2;}.map-vector{width:100%;height:100%;display:block;}.map-status-floating{position:absolute;bottom:14px;left:14px;background:var(--canvas);border-radius:999px;padding:8px 16px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 14px rgba(0,0,0,0.18);font-size:13px;font-weight:600;}.pulse-green{width:8px;height:8px;background:#00c853;border-radius:50%;box-shadow:0 0 6px #00c853;}.ride-tiers-container{background:var(--canvas);border:1px solid #eaeaea;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;}.tiers-header{font-size:15px;font-weight:700;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;}.tier-card{border:2px solid transparent;border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--canvas);transition:all 0.2s;}.tier-card:hover{background:var(--canvas-soft);}.tier-card.selected{border-color:#000000;background:var(--canvas);box-shadow:0 2px 10px rgba(0,0,0,0.06);}.tier-left{display:flex;align-items:center;gap:14px;}.tier-car-icon{width:44px;height:28px;display:flex;align-items:center;justify-content:center;}.tier-name{font-size:16px;font-weight:700;color:var(--ink);}.tier-eta{font-size:12.5px;color:var(--body);display:flex;align-items:center;gap:6px;margin-top:1px;}.tier-price{text-align:right;}.price-value{font-size:17px;font-weight:700;color:var(--ink);}.surge-badge{font-size:11px;color:var(--body);}.promo-band-black{background:var(--primary);color:var(--on-primary);padding:48px 24px;margin-top:40px;}.promo-content{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px;}.promo-headline{font-family:var(--font-display);font-size:32px;font-weight:700;line-height:1.2;}.btn-pill-white{background:var(--canvas);color:var(--ink);border:none;border-radius:999px;padding:12px 26px;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;}.footer-band{background:var(--primary);color:var(--on-primary);padding:48px 24px 32px;border-top:1px solid #222;}.footer-inner{max-width:1200px;margin:0 auto;}.footer-brand{font-family:var(--font-display);font-size:22px;font-weight:700;margin-bottom:24px;}.footer-columns{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;margin-bottom:40px;}.footer-col h5{font-size:14px;font-weight:600;margin-bottom:12px;color:#fff;}.footer-col ul{list-style:none;display:flex;flex-direction:column;gap:8px;}.footer-col a{color:var(--mute);text-decoration:none;font-size:13.5px;}.footer-col a:hover{color:#fff;}.footer-bottom-row{border-top:1px solid #2a2a2a;padding-top:20px;display:flex;justify-content:space-between;font-size:12.5px;color:var(--mute);}@media (max-width:820px){.hero-section{grid-template-columns:1fr;}.footer-columns{grid-template-columns:1fr 1fr;}.nav-links{display:none;}}</style>
+</head>
+<body>
+<!-- Top Navigation Bar -->
+<header class="nav-bar">
+<div class="nav-left">
+<a href="#" class="uber-logo">Uber</a>
+<ul class="nav-links">
+<li><a href="#ride" class="active">Ride</a></li>
+<li><a href="#drive">Drive</a></li>
+<li><a href="#eat">Eat</a></li>
+<li><a href="#business">Business</a></li>
+</ul>
+</div>
+<div class="nav-right">
+<button class="btn-pill-text">EN</button>
+<button class="btn-pill-text">Help</button>
+<button class="btn-pill-text">Log in</button>
+<a href="#signup" class="btn-pill-black">Sign up</a>
+</div>
+</header>
+<!-- Category Pills Strip -->
+<div class="category-strip">
+<div class="cat-chip active">
+<span>&#128663;</span>
+<span>Ride</span>
+</div>
+<div class="cat-chip">
+<span>&#127828;</span>
+<span>Eats</span>
+</div>
+<div class="cat-chip">
+<span>&#128197;</span>
+<span>Reserve</span>
+</div>
+<div class="cat-chip">
+<span>&#128230;</span>
+<span>Package</span>
+</div>
+<div class="cat-chip">
+<span>&#128760;</span>
+<span>Rentals</span>
+</div>
+</div>
+<!-- Hero Section with Mobility Inputs & Map Vector -->
+<section class="hero-section" id="ride">
+<!-- Left Column: Flow Inputs -->
+<div class="hero-left-flow">
+<h1 class="hero-title">Go anywhere with Uber</h1>
+<div class="request-card">
+<!-- Translucent Tab Toggle -->
+<div class="tab-toggle-bar">
+<button class="tab-toggle-btn active">
+<span>&#128663;</span> Ride
+</button>
+<button class="tab-toggle-btn">
+<span>&#128197;</span> Reserve
+</button>
+</div>
+<!-- Pickup / Destination Inputs -->
+<div class="inputs-stack">
+<div class="route-connector-line"></div>
+<div class="input-row-pill">
+<div class="pin-dot"></div>
+<div class="input-text-val">100 Piccadilly, Mayfair</div>
+<button class="btn-locate">&#9678;</button>
+</div>
+<div class="input-row-pill">
+<div class="pin-square"></div>
+<div class="input-text-val">Heathrow Airport Terminal 5</div>
+</div>
+</div>
+<div class="schedule-pill">
+<span>&#128339; Pickup now</span>
+<span style="color:var(--body); font-size:12px;">&#9662;</span>
+</div>
+<button class="btn-submit-ride">See prices</button>
+</div>
+</div>
+<!-- Right Column: Interactive Map Route Vector & Ride Tiers -->
+<div class="map-and-tiers-wrap">
+<!-- Minimalist Urban Map Vector Graphic -->
+<div class="map-frame">
+<svg class="map-vector" viewBox="0 0 600 280" preserveAspectRatio="xMidYMid slice">
+<!-- Background Ground -->
+<rect width="600" height="280" fill="#f0f1f3" />
+<!-- City Park Polygon -->
+<polygon points="40,20 180,25 210,130 50,120" fill="#dcedc8" opacity="0.7" />
+<text x="110" y="80" fill="#7cb342" font-size="11" font-weight="600" font-family="sans-serif">Hyde Park</text>
+<!-- Water River Feature -->
+<path d="M 0 240 Q 150 210 320 230 T 600 200 L 600 280 L 0 280 Z" fill="#b3e5fc" opacity="0.75" />
+<text x="440" y="246" fill="#0288d1" font-size="11" font-weight="600" font-family="sans-serif">River Thames</text>
+<!-- Secondary Grid Roads -->
+<line x1="0" y1="60" x2="600" y2="60" stroke="#ffffff" stroke-width="6" />
+<line x1="0" y1="150" x2="600" y2="150" stroke="#ffffff" stroke-width="8" />
+<line x1="0" y1="210" x2="600" y2="210" stroke="#ffffff" stroke-width="5" />
+<line x1="140" y1="0" x2="140" y2="280" stroke="#ffffff" stroke-width="6" />
+<line x1="280" y1="0" x2="280" y2="280" stroke="#ffffff" stroke-width="7" />
+<line x1="430" y1="0" x2="430" y2="280" stroke="#ffffff" stroke-width="6" />
+<!-- Active Travel Route Path (Solid Black Line) -->
+<path d="M 140 70 L 280 70 L 280 150 L 460 150 L 490 190" fill="none" stroke="#000000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M 140 70 L 280 70 L 280 150 L 460 150 L 490 190" fill="none" stroke="#276ef1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" />
+<!-- Pickup Origin Dot -->
+<circle cx="140" cy="70" r="7" fill="#000000" stroke="#ffffff" stroke-width="2.5" />
+<!-- Vehicle Position Pin (Uber Car Icon Top-Down) -->
+<g transform="translate(340, 150)">
+<circle cx="0" cy="0" r="14" fill="#000000" />
+<!-- White Car Silhouette Top-down -->
+<rect x="-5" y="-9" width="10" height="18" rx="3" fill="#ffffff" />
+<rect x="-4" y="-5" width="8" height="4" fill="#000000" />
+<rect x="-4" y="2" width="8" height="4" fill="#000000" />
+</g>
+<!-- Destination Pin -->
+<g transform="translate(490, 190)">
+<rect x="-6" y="-6" width="12" height="12" fill="#000000" stroke="#ffffff" stroke-width="2" />
+</g>
+</svg>
+<div class="map-status-floating">
+<div class="pulse-green"></div>
+<span>Driver is 3 min away</span>
+</div>
+</div>
+<!-- Ride Tiers Options (UberX, Comfort, Black) -->
+<div class="ride-tiers-container">
+<div class="tiers-header">
+<span>Choose a ride</span>
+<span style="font-size: 13px; color: var(--body); font-weight: normal;">Affordable to VIP</span>
+</div>
+<!-- Tier 1: UberX (Selected) -->
+<div class="tier-card selected">
+<div class="tier-left">
+<div class="tier-car-icon">
+<!-- Sedan Car Vector -->
+<svg width="40" height="24" viewBox="0 0 44 24">
+<path d="M4 14 L10 8 L28 8 L36 14 L42 15 C43 15 44 16 44 17 L44 19 L40 19 C40 21 38 23 36 23 C34 23 32 21 32 19 L16 19 C16 21 14 23 12 23 C10 23 8 21 8 19 L2 19 C1 19 0 18 0 17 L0 15 Z" fill="#000" />
+<circle cx="12" cy="19" r="2.5" fill="#fff" />
+<circle cx="36" cy="19" r="2.5" fill="#fff" />
+<rect x="12" y="10" width="8" height="4" fill="#fff" opacity="0.6" />
+<rect x="22" y="10" width="8" height="4" fill="#fff" opacity="0.6" />
+</svg>
+</div>
+<div>
+<div class="tier-name">UberX &bull; &#128100; 4</div>
+<div class="tier-eta">12:38pm &bull; 3 min away</div>
+</div>
+</div>
+<div class="tier-price">
+<div class="price-value">&pound;38.40</div>
+<div class="surge-badge">Fastest pickup</div>
+</div>
+</div>
+<!-- Tier 2: Uber Comfort -->
+<div class="tier-card">
+<div class="tier-left">
+<div class="tier-car-icon">
+<!-- Premium Sedan Vector -->
+<svg width="40" height="24" viewBox="0 0 44 24">
+<path d="M3 14 L11 7 L30 7 L38 14 L43 15 C44 15 44 16 44 17 L44 19 L40 19 C40 21 38 23 36 23 C34 23 32 21 32 19 L16 19 C16 21 14 23 12 23 C10 23 8 21 8 19 L1 19 C0.5 19 0 18.5 0 18 L0 15 Z" fill="#333" />
+<circle cx="12" cy="19" r="2.5" fill="#fff" />
+<circle cx="36" cy="19" r="2.5" fill="#fff" />
+</svg>
+</div>
+<div>
+<div class="tier-name">Comfort &bull; &#128100; 4</div>
+<div class="tier-eta">12:41pm &bull; Extra legroom</div>
+</div>
+</div>
+<div class="tier-price">
+<div class="price-value">&pound;46.90</div>
+<div class="surge-badge">Top rated drivers</div>
+</div>
+</div>
+<!-- Tier 3: Uber Black -->
+<div class="tier-card">
+<div class="tier-left">
+<div class="tier-car-icon">
+<!-- Luxury Executive Car Vector -->
+<svg width="40" height="24" viewBox="0 0 44 24">
+<path d="M2 13 L12 6 L32 6 L40 13 L44 14 C44 15 44 16 44 17 L44 19 L40 19 C40 21 38 23 36 23 C34 23 32 21 32 19 L16 19 C16 21 14 23 12 23 C10 23 8 21 8 19 L0 19 L0 14 Z" fill="#000" stroke="#888" stroke-width="0.5" />
+<circle cx="12" cy="19" r="2.5" fill="#fff" />
+<circle cx="36" cy="19" r="2.5" fill="#fff" />
+</svg>
+</div>
+<div>
+<div class="tier-name">Uber Black &bull; &#128100; 4</div>
+<div class="tier-eta">12:44pm &bull; Luxury vehicle</div>
+</div>
+</div>
+<div class="tier-price">
+<div class="price-value">&pound;62.50</div>
+<div class="surge-badge">Premium service</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Polarity-Flipped Black Promo Band -->
+<section class="promo-band-black">
+<div class="promo-content">
+<div>
+<h2 class="promo-headline">Drive when you want, make what you need</h2>
+<p style="color: #b0b0b0; font-size: 16px; margin-top: 8px;">
+Make money on your schedule with deliveries or rides. Flexible payouts anytime.
+</p>
+</div>
+<a href="#drive-signup" class="btn-pill-white">Get started as driver</a>
+</div>
+</section>
+<!-- Deep Black Footer Band -->
+<footer class="footer-band">
+<div class="footer-inner">
+<div class="footer-brand">Uber</div>
+<div class="footer-columns">
+<div class="footer-col">
+<h5>Company</h5>
+<ul>
+<li><a href="#">About us</a></li>
+<li><a href="#">Our offerings</a></li>
+<li><a href="#">Newsroom</a></li>
+<li><a href="#">Investors</a></li>
+</ul>
+</div>
+<div class="footer-col">
+<h5>Products</h5>
+<ul>
+<li><a href="#">Ride</a></li>
+<li><a href="#">Drive</a></li>
+<li><a href="#">Eat</a></li>
+<li><a href="#">Uber for Business</a></li>
+</ul>
+</div>
+<div class="footer-col">
+<h5>Global citizenship</h5>
+<ul>
+<li><a href="#">Safety</a></li>
+<li><a href="#">Diversity and Inclusion</a></li>
+<li><a href="#">Sustainability</a></li>
+</ul>
+</div>
+<div class="footer-col">
+<h5>Travel</h5>
+<ul>
+<li><a href="#">Airports</a></li>
+<li><a href="#">Cities</a></li>
+</ul>
+</div>
+</div>
+<div class="footer-bottom-row">
+<span>&copy; 2026 Uber Technologies Inc.</span>
+<span>Privacy &bull; Accessibility &bull; Terms</span>
+</div>
+</div>
+</footer>
+</body>
+</html>

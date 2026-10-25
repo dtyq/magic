@@ -19,7 +19,7 @@ interface MicroAppMobileHeaderProps {
 	onManageCollaborators?: () => void
 }
 
-/** 移动端详情头部只保留返回、项目名和三个主要动作，避免桌面 Tooltip 与文字按钮占满横向空间。 */
+/** 移动端详情头部保留返回、项目名和主要动作，模式切换放在独立的二级栏。 */
 export default function MicroAppMobileHeader({
 	selectedProject,
 	hasEntries,

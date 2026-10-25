@@ -83,11 +83,21 @@ function Text(props: TextProps) {
 							<span className={styles.timestamp}>
 								{formatTimestamp(data?.send_timestamp)}
 							</span>
-							<img src={userInfo?.avatar} alt="avatar" className={styles.avatar}  data-testid="text-image"/>
+							<img
+								src={userInfo?.avatar}
+								alt="avatar"
+								className={styles.avatar}
+								data-testid="text-image"
+							/>
 						</>
 					) : (
 						<>
-							<img src={Assistant} alt="avatar" className={styles.avatar}  data-testid="text-image-2"/>
+							<img
+								src={Assistant}
+								alt="avatar"
+								className={styles.avatar}
+								data-testid="text-image-2"
+							/>
 							<span className={styles.timestamp}>
 								{formatTimestamp(data?.send_timestamp)}
 							</span>
@@ -108,6 +118,7 @@ function Text(props: TextProps) {
 					</div>
 				) : (
 					<MarkdownComponent
+						enableNoSend={!isFinished}
 						content={
 							data?.content ||
 							data?.[data?.type]?.content ||

@@ -178,7 +178,7 @@ describe("useProjectAttachmentsChangeRealtime", () => {
 		vi.useRealTimers()
 	})
 
-	it("coalesces repeated refresh_parent_ids within the refresh window", async () => {
+	it("skips parent refresh api when ws carries explicit file payloads", async () => {
 		const store = createStoreWithParentFolder()
 		renderHook(() =>
 			useProjectAttachmentsChangeRealtime({
@@ -201,13 +201,43 @@ describe("useProjectAttachmentsChangeRealtime", () => {
 			handler(createSeq({ operation: "update", updatedAt: "magic-3", seqId: "seq-update" }))
 		})
 		await act(async () => {
-			await vi.advanceTimersByTimeAsync(109)
+			await vi.advanceTimersByTimeAsync(200)
 		})
 
 		expect(SuperMagicApi.getProjectAttachmentsV2Page).not.toHaveBeenCalled()
+	})
 
+	it("still refreshes parent folders for refresh-only ws batches", async () => {
+		const store = createStoreWithParentFolder()
+		renderHook(() =>
+			useProjectAttachmentsChangeRealtime({
+				projectId: "project-1",
+				store: asProjectFilesStore(store),
+				debounceMs: 10,
+				parentRefreshWindowMs: 100,
+			}),
+		)
+		const handler = pubsubMock.subscribe.mock.calls[0]?.[1] as (seq: never) => void
+
+		act(() => {
+			handler({
+				seq_id: "seq-refresh-only",
+				message: {
+					type: "super_magic_file_change",
+					project_id: "project-1",
+					workspace_id: "workspace-1",
+					topic_id: "0",
+					timestamp: "parent-2",
+					refresh_parent_ids: ["folder"],
+					changes: [],
+				},
+			} as never)
+		})
 		await act(async () => {
-			await vi.advanceTimersByTimeAsync(1)
+			await vi.advanceTimersByTimeAsync(10)
+		})
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(100)
 		})
 
 		expect(SuperMagicApi.getProjectAttachmentsV2Page).toHaveBeenCalledTimes(1)

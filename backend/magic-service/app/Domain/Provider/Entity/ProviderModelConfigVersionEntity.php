@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity;
 
+use App\Domain\Provider\DTO\Item\ModelConfigItem;
 use App\Domain\Provider\DTO\Item\TokenPricing\BillingTiers;
 use App\Infrastructure\Core\AbstractEntity;
 
@@ -43,6 +44,10 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
     protected bool $supportEmbedding = false;
 
     protected bool $supportDeepThink = false;
+
+    protected ?array $reasoningEffortLevels = null;
+
+    protected ?string $reasoningEffortDefault = null;
 
     protected ?float $cacheWritePricing = null;
 
@@ -84,6 +89,34 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
         parent::__construct($data);
 
         $this->setBillingTiers($billingTiers);
+    }
+
+    /** 读取版本默认值，历史空值表示跟随服务商。 */
+    public function getReasoningEffortDefault(): ?string
+    {
+        return $this->reasoningEffortDefault;
+    }
+
+    /** 复用模型配置的枚举校验，版本原始值保留到整份配置恢复时校验依赖。 */
+    public function setReasoningEffortDefault(?string $level): void
+    {
+        $config = new ModelConfigItem();
+        $config->setReasoningEffortDefault($level);
+        $this->reasoningEffortDefault = $config->getReasoningEffortDefault();
+    }
+
+    /** 读取版本中的原始档位，空值保留历史默认规则。 */
+    public function getReasoningEffortLevels(): ?array
+    {
+        return $this->reasoningEffortLevels;
+    }
+
+    /** 复用模型配置校验，保证版本恢复与编辑采用同一契约。 */
+    public function setReasoningEffortLevels(?array $levels): void
+    {
+        $config = new ModelConfigItem();
+        $config->setReasoningEffortLevels($levels);
+        $this->reasoningEffortLevels = $config->getReasoningEffortLevels();
     }
 
     public function getId(): ?int

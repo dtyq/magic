@@ -4,14 +4,13 @@ import html
 import os
 import random
 import re
-import xml.etree.ElementTree as ET
 import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.path_manager import PathManager
@@ -49,75 +48,57 @@ class FilteredImage:
     is_fallback: bool = False  # Mark if this image comes from fallback filtering
 
 
+class ImageSearchRequirement(BaseModel):
+    # 校验后转换为既有搜索流程的数据；类 docstring 会进入模型 Schema，不放内部说明。
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(
+        min_length=1,
+        description="""<!--zh: 需求名称，用于区分不同图片需求。-->
+Name identifying this image requirement in the results.""",
+    )
+    query: str = Field(
+        min_length=1,
+        description="""<!--zh: 搜索关键词，具体策略见工具搜索指南。-->
+Search keywords. Follow the tool's search strategy guidance.""",
+    )
+    visual_understanding_prompt: str = Field(
+        description="""<!--zh: 视觉分析要求，必须非空。只分析图片内容，不用于评价清晰度。-->
+Non-empty instructions for analyzing image content. Do not use visual analysis to assess image clarity.""",
+    )
+    requirement_explanation: str = Field(
+        min_length=1,
+        description="""<!--zh: 图片用途和需求原因；对于模型可能不熟悉的事物，提供具体视觉特征。-->
+Explain why the image is needed and how it will be used. Describe specific visual features for subjects unfamiliar to the model.""",
+    )
+    expected_aspect_ratio: str = Field(
+        min_length=1,
+        description="""<!--zh: 期望宽高比，如 16:9、4:3、1:1、9:16 或 3:4。系统据此选择合理的最小分辨率，例如 16:9 对应 1280x720。-->
+Expected aspect ratio, such as '16:9', '4:3', '1:1', '9:16', or '3:4'. The system derives a suitable minimum resolution, such as 1280x720 for 16:9.""",
+    )
+    count: int = Field(
+        default=20,
+        ge=1,
+        le=50,
+        description="""<!--zh: 请求的图片数量，默认 20，范围 1–50；筛选后可能不足此数量。-->
+Requested image count, from 1 to 50; defaults to 20. Filtering may return fewer images.""",
+    )
+
+
 class ImageSearchParams(BaseToolParams):
-    topic_id: str = Field(
-        ...,
-        description="""<!--zh: 搜索主题标识符，用于同一主题下的图片去重。对于同一搜索主题使用相同的topic_id（如'xiaomi-su7-research'），确保不同搜索词不会返回重复图片-->
-Search topic identifier for deduplication within the same topic. Use the same topic_id for the same search topic (e.g., 'xiaomi-su7-research') to ensure different search terms don't return duplicate images"""
-    )
-    requirements_xml: str = Field(
-        ...,
-        description="""<!--zh
-图片需求XML配置，示例如下：
-<requirements>
-    <requirement>
-        <name>张三李四的同框合影</name>
-        <query>张三 李四 同框 合影 2025</query>
-        <visual_understanding_prompt>分析是否适合作为封面和关系演变部分使用，能体现两人关系</visual_understanding_prompt>
-        <requirement_explanation>我们在制作张三与李四关系演变报告，需要张三和李四同框的图片作为封面和关系演变部分使用，要求清晰度高，画面专业，能体现两人关系</requirement_explanation>
-        <expected_aspect_ratio>16:9</expected_aspect_ratio>
-        <count>8</count>
-    </requirement>
-    <requirement>
-        <name>张三李四的社交媒体争执</name>
-        <query>张三 李四 争执 社交媒体 争论 2025</query>
-        <visual_understanding_prompt>寻找展示张三和李四社交媒体争执的截图或合成图</visual_understanding_prompt>
-        <requirement_explanation>我们在制作张三与李四关系演变报告，需要展示两人在社交媒体上的争执，可以是相关平台的截图组合或相关新闻报道图片</requirement_explanation>
-        <expected_aspect_ratio>9:16</expected_aspect_ratio>
-        <count>10</count>
-    </requirement>
-</requirements>
+    model_config = ConfigDict(extra="forbid")
 
-格式要求：
-- 每个 <requirement> 标签包含一个搜索需求
-- 所有文本字段需要进行适当的 XML 转义
-- name: 需求名称，用于在搜索结果中区分不同类型的图片，必填
-- query: 搜索关键词，具体策略请参考工具的搜索指南，必填
-- visual_understanding_prompt: 视觉分析提示词，指定对图片内容的特定分析要求。视觉分析无法正确评估图片的清晰度，只能分析内容，因此请勿使用此参数来评估图片的清晰度，必填
-- requirement_explanation: 需求解释，说明为什么需要搜索这个图片，特别是对于大模型可能不熟悉的事物，需要提供详细的视觉特征描述，必填
-- expected_aspect_ratio: 期望的图片长宽比，支持格式如 '16:9'（横版）、'4:3'（横版）、'1:1'（正方形）、'9:16'（竖版）、'3:4'（竖版）等。系统会自动根据宽高比选择合理的最小分辨率（如16:9选择1280x720），以确保图片清晰度，必填
-- count: 可选，默认10，最多20
--->
-Image requirements XML configuration, example:
-<requirements>
-    <requirement>
-        <name>Zhang San and Li Si photo together</name>
-        <query>Zhang San Li Si together photo 2025</query>
-        <visual_understanding_prompt>Analyze if suitable as cover and relationship evolution section, showing their relationship</visual_understanding_prompt>
-        <requirement_explanation>We are creating Zhang San and Li Si relationship evolution report, need their photos together for cover and relationship evolution section, requiring high clarity, professional composition, showing their relationship</requirement_explanation>
-        <expected_aspect_ratio>16:9</expected_aspect_ratio>
-        <count>8</count>
-    </requirement>
-    <requirement>
-        <name>Zhang San and Li Si social media dispute</name>
-        <query>Zhang San Li Si dispute social media argument 2025</query>
-        <visual_understanding_prompt>Find screenshots or composites showing Zhang San and Li Si social media dispute</visual_understanding_prompt>
-        <requirement_explanation>We are creating Zhang San and Li Si relationship evolution report, need to show their social media disputes, can be platform screenshot combinations or related news images</requirement_explanation>
-        <expected_aspect_ratio>9:16</expected_aspect_ratio>
-        <count>10</count>
-    </requirement>
-</requirements>
-
-Format requirements:
-- Each <requirement> tag contains one search requirement
-- All text fields need proper XML escaping
-- name: Requirement name to distinguish different image types in search results, required
-- query: Search keywords, refer to tool search guide for specific strategy, required
-- visual_understanding_prompt: Visual analysis prompt specifying content analysis requirements. Visual analysis cannot properly assess image clarity, only content, so don't use this parameter for clarity assessment, required
-- requirement_explanation: Requirement explanation describing why this image is needed. For entities unfamiliar to the model, provide detailed visual feature descriptions, required
-- expected_aspect_ratio: Expected image aspect ratio, supports formats like '16:9' (landscape), '4:3' (landscape), '1:1' (square), '9:16' (portrait), '3:4' (portrait), etc. System automatically selects reasonable minimum resolution based on aspect ratio (e.g., 1280x720 for 16:9) to ensure image clarity, required
-- count: Optional, default 10, max 20"""
+    search_group_name: str = Field(
+        ...,
+        description="""<!--zh: 自行为这组相关搜索起一个简短名称，如 product-report-images。同组后续搜索复用完全相同的名称；独立搜索使用新名称。组内图片共享去重记录。名称由你创建，不要查询或填写平台话题 ID。-->
+Choose a short name for this group of related searches, such as 'product-report-images'. Reuse the exact name for follow-up searches in the same group; choose a new name for a separate group. Images are deduplicated within each group. Create the name yourself; do not look up or use the platform conversation ID.""",
     )
+    requirements: list[ImageSearchRequirement] = Field(
+        min_length=1,
+        description="""<!--zh: 搜索需求列表，每项独立搜索，多个需求并发处理。直接传对象数组，不要序列化为字符串。-->
+Image search requirements; each item runs a search, and multiple items run concurrently. Pass an array of objects, not a serialized string.""",
+    )
+
 
 def _parse_aspect_ratio(ratio_str: str) -> Optional[float]:
     """Parse aspect ratio string to float value
@@ -241,99 +222,13 @@ def _estimate_reasonable_file_size(width: int, height: int) -> tuple[int, int]:
     return (min_size, max_size)
 
 
-def _parse_requirements_xml(xml_string: str, require_visual_understanding_prompt: bool = True) -> List[Dict[str, Any]]:
-    """解析需求XML字符串
-
-    Args:
-        xml_string: XML格式的需求字符串
-        require_visual_understanding_prompt: 是否要求 visual_understanding_prompt 必填，默认 True。
-            当 search_only=True 时，应设置为 False
-
-    Returns:
-        List of requirement dictionaries
-
-    Raises:
-        ValueError: XML格式错误或缺少必要字段
-    """
-    try:
-        # 解析XML
-        root = ET.fromstring(xml_string.strip())
-
-        if root.tag != 'requirements':
-            raise ValueError("XML根节点必须是 <requirements>")
-
-        requirements = []
-
-        for req_element in root.findall('requirement'):
-            # 提取必要字段
-            name = req_element.find('name')
-            query = req_element.find('query')
-            visual_understanding_prompt = req_element.find('visual_understanding_prompt')
-            requirement_explanation = req_element.find('requirement_explanation')
-            expected_aspect_ratio = req_element.find('expected_aspect_ratio')
-
-            # 检查必要字段（根据 require_visual_understanding_prompt 决定是否包含 visual_understanding_prompt）
-            required_fields = [
-                ('name', name),
-                ('query', query),
-                ('requirement_explanation', requirement_explanation),
-                ('expected_aspect_ratio', expected_aspect_ratio)
-            ]
-
-            # 只有在需要视觉理解时才要求 visual_understanding_prompt 必填
-            if require_visual_understanding_prompt:
-                required_fields.append(('visual_understanding_prompt', visual_understanding_prompt))
-
-            for field_name, element in required_fields:
-                if element is None or not element.text or not element.text.strip():
-                    raise ValueError(f"字段 '{field_name}' 不能为空")
-
-            # 提取可选字段
-            count_element = req_element.find('count')
-            count = 20  # 默认值
-            if count_element is not None and count_element.text:
-                try:
-                    count = int(count_element.text.strip())
-                    if count < 1 or count > 50:
-                        raise ValueError(f"count 必须在 1-50 之间，当前值: {count}")
-                except ValueError as e:
-                    if "invalid literal" in str(e):
-                        raise ValueError(f"count 必须是数字，当前值: {count_element.text}")
-                    raise
-
-            # 构造需求对象
-            # visual_understanding_prompt 如果不存在，使用空字符串
-            visual_prompt = ""
-            if visual_understanding_prompt is not None and visual_understanding_prompt.text:
-                visual_prompt = visual_understanding_prompt.text.strip()
-
-            requirement = {
-                'name': name.text.strip(),
-                'query': query.text.strip(),
-                'visual_understanding_prompt': visual_prompt,
-                'requirement_explanation': requirement_explanation.text.strip(),
-                'expected_aspect_ratio': expected_aspect_ratio.text.strip(),
-                'count': count
-            }
-
-            requirements.append(requirement)
-
-        if not requirements:
-            raise ValueError("至少需要一个 <requirement> 元素")
-
-        return requirements
-
-    except ET.ParseError as e:
-        raise ValueError(f"XML解析错误: {e}")
-
-
 @tool()
 class ImageSearch(BaseTool[ImageSearchParams]):
     """<!--zh: 图片搜索工具，根据关键词搜索并智能筛选符合要求的高质量图片，因此返回的图片数量可能少于期望数量。-->
 Image search tool that searches and intelligently filters high-quality images meeting requirements based on keywords. Returned image count may be less than expected."""
 
-    # Class-level storage for deduplication across different topic_ids
-    _topic_url_cache: Dict[str, Set[str]] = {}
+    # 以调用方自定义的搜索分组名称隔离 URL 去重记录，不使用平台话题 ID。
+    _search_group_url_cache: Dict[str, Set[str]] = {}
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -690,15 +585,16 @@ Keyword Diversification Principles:
                 当 search_only=True 时，只返回搜索结果 URL，不执行下载和视觉理解。
                 SearchImagesToCanvas 调用时应设置为 True，由 SearchImagesToCanvas 自己处理下载
         """
-        # 解析XML需求
-        # 当 search_only=True 时，visual_understanding_prompt 不是必填字段
-        try:
-            requirements_data = _parse_requirements_xml(
-                params.requirements_xml,
-                require_visual_understanding_prompt=not search_only
-            )
-        except ValueError as e:
-            return ToolResult.error(f"需求XML解析失败: {e}，请在修正XML数据后重新执行")
+        # 普通搜索需要视觉分析；Canvas 的 search_only 只取候选图，允许显式空提示词。
+        if not search_only:
+            for index, requirement in enumerate(params.requirements):
+                if not requirement.visual_understanding_prompt:
+                    return ToolResult.error(
+                        f"Parameter 'requirements.{index}.visual_understanding_prompt' "
+                        "must not be empty for image search."
+                    )
+
+        requirements_data = [requirement.model_dump(mode="json") for requirement in params.requirements]
 
         # Validate parameters for each requirement
         validated_requirements = []
@@ -716,10 +612,10 @@ Keyword Diversification Principles:
                 'expected_resolution': expected_resolution
             })
 
-        # Get or create URL set for this topic_id
-        if params.topic_id not in self._topic_url_cache:
-            self._topic_url_cache[params.topic_id] = set()
-        seen_urls = self._topic_url_cache[params.topic_id]
+        # 同组不同关键词共用已见 URL；另一组名称对应独立记录。
+        if params.search_group_name not in self._search_group_url_cache:
+            self._search_group_url_cache[params.search_group_name] = set()
+        seen_urls = self._search_group_url_cache[params.search_group_name]
 
         # Perform concurrent searches for all requirements
         logger.debug(f"开始并发搜索 {len(requirements_data)} 个需求")
@@ -763,8 +659,8 @@ Keyword Diversification Principles:
         if not requirement_results:
             requirement_names = [req_data['name'] for req_data in requirements_data]
             return ToolResult(
-                content=f"## Image Search Results\n\nTopic ID: {params.topic_id}\nRequirements: {', '.join(requirement_names)}\nNo images found that match the criteria.",
-                extra_info={"topic_id": params.topic_id, "requirements": requirement_names, "result_count": 0}
+                content=f"## Image Search Results\n\nSearch group: {params.search_group_name}\nRequirements: {', '.join(requirement_names)}\nNo images found that match the criteria.",
+                extra_info={"search_group_name": params.search_group_name, "requirements": requirement_names, "result_count": 0}
             )
 
         # 如果仅搜索模式，直接返回搜索结果（不下载、不视觉理解）
@@ -809,8 +705,8 @@ Keyword Diversification Principles:
         if not final_requirement_results:
             requirement_names = [req_data['name'] for req_data in requirements_data]
             return ToolResult(
-                content=f"## Image Search Results\n\nTopic ID: {params.topic_id}\nRequirements: {', '.join(requirement_names)}\nImages were found but failed to download.",
-                extra_info={"topic_id": params.topic_id, "requirements": requirement_names, "result_count": 0}
+                content=f"## Image Search Results\n\nSearch group: {params.search_group_name}\nRequirements: {', '.join(requirement_names)}\nImages were found but failed to download.",
+                extra_info={"search_group_name": params.search_group_name, "requirements": requirement_names, "result_count": 0}
             )
 
         # Build final result
@@ -836,7 +732,7 @@ Keyword Diversification Principles:
         # Build result markdown
         markdown_parts = [
             "## Image Search Results\n",
-            f"Topic ID: {params.topic_id}\n",
+            f"Search group: {params.search_group_name}\n",
             f"Requirements: {len(requirement_results)}\n",
             f"Total Images: {total_images}\n",
             "---\n",
@@ -911,12 +807,12 @@ Keyword Diversification Principles:
             content=sanitized_markdown,
             data={"images": all_images_list},
             extra_info={
-                "topic_id": params.topic_id,
+                "search_group_name": params.search_group_name,
                 "requirement_names": requirement_names,
                 "result_count": total_images,
                 "original_count": total_original,
                 "requirement_count": len(requirement_results),
-                "deduplicated": len(self._topic_url_cache.get(params.topic_id, set())),
+                "deduplicated": len(self._search_group_url_cache.get(params.search_group_name, set())),
                 # Add requirement_results for SearchImagesToCanvas to extract image info
                 "requirement_results": requirement_results
             }
@@ -1179,12 +1075,12 @@ Keyword Diversification Principles:
         """仅在 image_search 的 ToolResult 中脱敏 workspace 外本地路径"""
         return self._sanitize_content_by_images(content, [img])
 
-    def _build_tool_detail_markdown(self, topic_id: str, requirement_results: List[Dict]) -> str:
+    def _build_tool_detail_markdown(self, search_group_name: str, requirement_results: List[Dict]) -> str:
         """基于结构化 requirement_results 独立组装 tool detail markdown"""
         total_images = sum(len(rr.get("images", [])) for rr in requirement_results)
         markdown_parts = [
             "## Image Search Results\n",
-            f"Topic ID: {topic_id}\n",
+            f"Search group: {search_group_name}\n",
             f"Requirements: {len(requirement_results)}\n",
             f"Total Images: {total_images}\n",
             "---\n",
@@ -1281,38 +1177,27 @@ Keyword Diversification Principles:
         if not result.ok:
             return None
 
-        # Extract info from new format
-        if arguments:
-            requirements_xml = arguments.get("requirements_xml", "")
-            topic_id = arguments.get("topic_id", "")
-            # Try to parse requirements from XML for filename generation
-            try:
-                requirements_data = _parse_requirements_xml(requirements_xml) if requirements_xml else []
-                requirement_names = [req['name'] for req in requirements_data]
-            except:
-                requirement_names = ["Unknown"]
-        else:
-            requirement_names = result.extra_info.get("requirement_names", ["Unknown"])
-            topic_id = result.extra_info.get("topic_id", "")
+        requirement_names = self._get_requirement_names(result, arguments) or ["Unknown"]
+        search_group_name = (arguments or {}).get("search_group_name", result.extra_info.get("search_group_name", ""))
 
         try:
-            # Build safe filename from requirement names and topic_id
+            # 使用需求名称和搜索分组名称构造安全文件名。
             names_str = '_'.join(requirement_names[:3])
             safe_names = re.sub(r'[\\/*?:"<>|]', '_', names_str)  # Replace invalid filename chars
-            if topic_id:
-                safe_topic = re.sub(r'[\\/*?:"<>|]', '_', topic_id)
-                file_name = f"image_search_results_{safe_topic}_{safe_names[:20]}.md"
+            if search_group_name:
+                safe_group_name = re.sub(r'[\\/*?:"<>|]', '_', search_group_name)
+                file_name = f"image_search_results_{safe_group_name}_{safe_names[:20]}.md"
             else:
                 file_name = f"image_search_results_{safe_names[:30]}.md"
 
             requirement_results = result.extra_info.get("requirement_results", []) if result.extra_info else []
             if requirement_results:
-                detail_content = self._build_tool_detail_markdown(topic_id, requirement_results)
+                detail_content = self._build_tool_detail_markdown(search_group_name, requirement_results)
             else:
                 # 无结构化图片数据时，仍使用基础信息独立组装 detail，不复用 result.content
                 detail_content = (
                     "## Image Search Results\n\n"
-                    f"Topic ID: {topic_id}\n"
+                    f"Search group: {search_group_name}\n"
                     f"Requirements: {len(requirement_names)}\n"
                     "Total Images: 0\n"
                 )
@@ -1330,21 +1215,27 @@ Keyword Diversification Principles:
 
 
 
+    @staticmethod
+    def _get_requirement_names(result: ToolResult, arguments: dict[str, object] | None) -> list[str]:
+        """优先使用执行结果中的名称；参数校验失败时仍可展示输入中已有的需求名。"""
+        names = result.extra_info.get("requirement_names", [])
+        if isinstance(names, list) and names:
+            return [name for name in names if isinstance(name, str)]
+
+        requirements = (arguments or {}).get("requirements", [])
+        if not isinstance(requirements, list):
+            return []
+        return [
+            requirement["name"]
+            for requirement in requirements
+            if isinstance(requirement, dict)
+            and isinstance(requirement.get("name"), str)
+            and requirement["name"].strip()
+        ]
+
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
-        # Extract info from new format
-        if arguments:
-            requirements_xml = arguments.get("requirements_xml", "")
-            topic_id = arguments.get("topic_id", "")
-            # Try to parse requirements from XML for display generation
-            try:
-                requirements_data = _parse_requirements_xml(requirements_xml) if requirements_xml else []
-                requirement_names = [req['name'] for req in requirements_data]
-            except:
-                requirement_names = ["未知"]
-        else:
-            requirement_names = result.extra_info.get("requirement_names", [])
-            topic_id = result.extra_info.get("topic_id", "")
+        requirement_names = self._get_requirement_names(result, arguments)
 
         # Build display string for requirements
         requirement_names_display = requirement_names[:3]

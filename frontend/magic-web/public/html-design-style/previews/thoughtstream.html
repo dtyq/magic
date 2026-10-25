@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThoughtStream — Distraction-free Ideation &amp; Journaling</title>
+<style>
+  :root {
+    --primary: #78716C;
+    --primary-hover: #57534E;
+    --secondary: #A8A29E;
+    --text-primary: #1C1917;
+    --text-secondary: #57534E;
+    --text-muted: #A8A29E;
+    --canvas: #FAFAF9;
+    --surface: #F5F5F4;
+    --surface-raised: #EFEDEB;
+    --border: #E7E5E4;
+    --border-medium: #D6D3D1;
+    --font-display: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'Source Code Pro', Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--canvas); color: var(--text-primary);
+    font-family: var(--font-ui); overflow: hidden; -webkit-font-smoothing: antialiased; line-height: 1.6;
+  }
+  .app-shell { display: flex; flex-direction: column; height: 100vh; min-height: 520px; width: 100vw; }
+
+  /* Top Minimal Header */
+  .top-bar {
+    height: 48px; background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .breadcrumbs {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary);
+  }
+  .crumb-root { font-weight: 700; color: var(--text-primary); }
+  .crumb-sep { color: var(--text-muted); }
+
+  /* Word Count & Reading Time Ticker */
+  .reading-ticker {
+    display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 11.5px;
+    color: var(--text-secondary); background: var(--canvas); padding: 4px 12px; border: 1px solid var(--border);
+  }
+  .ticker-dot { width: 6px; height: 6px; border-radius: 50%; background: #65A30D; }
+
+  .bar-tools { display: flex; align-items: center; gap: 10px; }
+  .tool-btn {
+    background: transparent; border: 1px solid var(--border-medium); padding: 4px 10px;
+    font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.1s;
+  }
+  .tool-btn:hover { background: var(--surface-raised); color: var(--text-primary); }
+
+  /* Main Split Layout */
+  .workspace-split { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+  /* 1. Left Vault Outline (220px) */
+  .vault-sidebar {
+    width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; flex-shrink: 0; overflow-y: auto;
+  }
+  .vault-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  .tree-group { display: flex; flex-direction: column; gap: 2px; }
+  .tree-folder { font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 4px 6px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .tree-file {
+    font-size: 12.5px; color: var(--text-secondary); padding: 4px 8px 4px 20px; cursor: pointer;
+    border-left: 1px solid var(--border); margin-left: 8px; transition: all 0.1s;
+  }
+  .tree-file:hover { color: var(--text-primary); background: var(--surface-raised); }
+  .tree-file.active { color: var(--text-primary); font-weight: 700; background: var(--canvas); border-left-color: var(--primary); }
+
+  /* 2. Center Markdown Canvas */
+  .editor-canvas-wrap {
+    flex: 1; overflow-y: auto; padding: 32px 48px; background: var(--canvas); display: flex; justify-content: center;
+  }
+  .markdown-content { max-width: 680px; width: 100%; display: flex; flex-direction: column; gap: 18px; position: relative; }
+
+  /* YAML Frontmatter block */
+  .frontmatter-block {
+    background: var(--surface); border: 1px solid var(--border); padding: 8px 14px;
+    font-family: var(--font-mono); font-size: 11.5px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px;
+  }
+
+  .doc-meta-row {
+    display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-muted);
+    border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 4px;
+  }
+  .author-pill { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+  .author-avatar { width: 22px; height: 22px; border-radius: 50%; background: #78716C; color: #FFF; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+
+  /* Editorial Title */
+  .doc-headline {
+    font-family: var(--font-display); font-size: 34px; font-weight: 700; color: var(--text-primary);
+    line-height: 1.25; letter-spacing: -0.02em;
+  }
+
+  /* Lede Paragraph */
+  .doc-lede {
+    font-size: 18px; line-height: 1.75; color: var(--text-secondary);
+  }
+
+  /* Regular Prose */
+  .doc-body { font-size: 15.5px; line-height: 1.8; color: var(--text-primary); }
+
+  /* Interconnected Bi-directional Wiki Links */
+  .wiki-link {
+    font-family: var(--font-ui); font-weight: 600; color: var(--text-primary);
+    background: var(--surface-raised); padding: 1px 6px; border: 1px solid var(--border-medium);
+    cursor: pointer; text-decoration: none; transition: all 0.12s; display: inline-flex; align-items: center; gap: 3px; position: relative;
+  }
+  .wiki-link:hover {
+    background: var(--text-primary); color: var(--canvas); border-color: var(--text-primary);
+  }
+
+  /* Wiki Preview Hover Tooltip */
+  .wiki-preview-popover {
+    position: absolute; bottom: 125%; left: 0; width: 240px; background: #FFFFFF; border: 1px solid var(--border-medium);
+    padding: 10px 12px; font-size: 12px; color: var(--text-secondary); z-index: 30; box-shadow: none; pointer-events: none;
+  }
+  .wiki-popover-title { font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+
+  /* Pull Quote */
+  .pull-quote {
+    border-left: 4px solid var(--primary); padding: 12px 20px; background: var(--surface);
+    font-family: var(--font-display); font-size: 17.5px; font-style: italic; color: var(--text-primary); line-height: 1.6;
+  }
+
+  /* Checklist */
+  .checklist-block { display: flex; flex-direction: column; gap: 8px; background: var(--surface); padding: 14px 16px; border: 1px solid var(--border); }
+  .check-item { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-primary); }
+  .square-box {
+    width: 16px; height: 16px; border: 1.5px solid var(--border-medium); display: flex; align-items: center;
+    justify-content: center; font-size: 11px; background: #FFF; flex-shrink: 0;
+  }
+  .square-box.checked { background: var(--primary); border-color: var(--primary); color: #FFF; }
+
+  /* Code snippet block */
+  .code-snippet {
+    font-family: var(--font-mono); font-size: 12.5px; background: var(--surface); border: 1px solid var(--border);
+    padding: 10px 14px; color: var(--text-primary); line-height: 1.6; overflow-x: auto;
+  }
+
+  /* 3. Right Backlinks & Graph Panel (250px) */
+  .backlinks-sidebar {
+    width: 250px; background: var(--surface); border-left: 1px solid var(--border);
+    padding: 16px 14px; display: flex; flex-direction: column; gap: 16px; flex-shrink: 0; overflow-y: auto;
+  }
+  .side-heading { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+
+  /* Graph Miniature */
+  .graph-widget {
+    background: var(--canvas); border: 1px solid var(--border); padding: 10px; height: 130px; position: relative;
+  }
+
+  /* Backlink Cards */
+  .backlink-card {
+    background: var(--canvas); border: 1px solid var(--border); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: border-color 0.1s;
+  }
+  .backlink-card:hover { border-color: var(--primary); }
+  .backlink-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .backlink-snippet { font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; }
+
+  @media (max-width: 920px) { .backlinks-sidebar { display: none; } }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <!-- Top Minimal Header -->
+  <div class="top-bar">
+    <div class="breadcrumbs">
+      <span class="crumb-root">ThoughtStream</span>
+      <span class="crumb-sep">/</span>
+      <span>Architecture</span>
+      <span class="crumb-sep">/</span>
+      <span style="font-weight:600; color:var(--text-primary);">The Architecture of Unbroken Flow.md</span>
+    </div>
+
+    <!-- Word Count & Reading Time Ticker -->
+    <div class="reading-ticker">
+      <div class="ticker-dot"></div>
+      <span>1,420 words</span>
+      <span>•</span>
+      <span>5 min read</span>
+      <span>•</span>
+      <span>Synced 2m ago</span>
+      <span>•</span>
+      <span>4 backlinks</span>
+    </div>
+
+    <div class="bar-tools">
+      <button class="tool-btn">Graph View</button>
+      <button class="tool-btn">Focus Mode</button>
+      <button class="tool-btn">Export</button>
+    </div>
+  </div>
+
+  <!-- Main Split Layout -->
+  <div class="workspace-split">
+    <!-- 1. Left Vault Outline (220px) -->
+    <div class="vault-sidebar">
+      <div class="vault-title">Vault Index</div>
+
+      <div class="tree-group">
+        <div class="tree-folder">▾ Systems &amp; Design</div>
+        <div class="tree-file active">Unbroken Flow.md</div>
+        <div class="tree-file">Design Tokens v2.md</div>
+        <div class="tree-file">Local-First CRDTs.md</div>
+        <div class="tree-file">Memory Architecture.md</div>
+      </div>
+
+      <div class="tree-group">
+        <div class="tree-folder">▸ Philosophical Notes</div>
+      </div>
+
+      <div class="tree-group">
+        <div class="tree-folder">▸ Weekly Synthesis</div>
+      </div>
+
+      <div style="margin-top:auto; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">
+        24 notes • 186 bi-links • 0px radius
+      </div>
+    </div>
+
+    <!-- 2. Center Markdown Canvas (Serene Warm Beige) -->
+    <div class="editor-canvas-wrap">
+      <div class="markdown-content">
+        <!-- Frontmatter metadata -->
+        <div class="frontmatter-block">
+          <div>---</div>
+          <div>title: The Architecture of Unbroken Flow</div>
+          <div>tags: [systems, flow-state, local-first, design-tokens]</div>
+          <div>created: 2026-09-19 • status: permanent_note</div>
+          <div>---</div>
+        </div>
+
+        <div class="doc-meta-row">
+          <div class="author-pill">
+            <div class="author-avatar">JT</div>
+            <span>Julian Thorne</span>
+            <span>•</span>
+            <span>September 19, 2026</span>
+          </div>
+          <span style="font-family:var(--font-mono);">v1.4 • markdown</span>
+        </div>
+
+        <h1 class="doc-headline">The Architecture of Unbroken Flow</h1>
+
+        <p class="doc-lede">
+          When digital mediums eliminate artificial friction, thinking achieves spatial continuity. Ideas no longer scatter across transient chat streams; they synthesize into an evolving constellation of interconnected knowledge.
+        </p>
+
+        <p class="doc-body">
+          In building a contemplative workspace, every element must honor cognitive stamina. By grounding the canvas in warm stone neutrals and anchoring concepts with <span class="wiki-link">[[Design System Architecture]]</span>, we ensure that navigation is semantic rather than hierarchical. Links do not simply route to a destination—they establish reciprocal context with <span class="wiki-link">[[Cognitive Flow States]]</span>.
+        </p>
+
+        <!-- Pull Quote -->
+        <div class="pull-quote">
+          "A tool should never shout louder than the thought being formed within it. Restraint in ornamentation is respect for the mind."
+        </div>
+
+        <p class="doc-body">
+          The synchronization model relies on <span class="wiki-link">[[Local-First Software]]</span> primitives, allowing documents to live locally on disk with zero latency before syncing to remote peers.
+        </p>
+
+        <!-- Checklist -->
+        <div class="checklist-block">
+          <div class="check-item">
+            <div class="square-box checked">✓</div>
+            <span>Maintain hairline 1px border separation without drop shadows</span>
+          </div>
+          <div class="check-item">
+            <div class="square-box checked">✓</div>
+            <span>Bi-directional wiki backlink indexer</span>
+          </div>
+          <div class="check-item">
+            <div class="square-box checked">✓</div>
+            <span>Reading speed &amp; word ticker computation</span>
+          </div>
+          <div class="check-item">
+            <div class="square-box"></div>
+            <span>Zero-latency local markdown graph visualization</span>
+          </div>
+        </div>
+
+        <!-- Code Block -->
+        <div class="code-snippet">
+graph.connect("Unbroken Flow", ["Design System", "Cognitive Flow", "Local-First"]);
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Right Backlinks & Graph Panel (250px) -->
+    <div class="backlinks-sidebar">
+      <div class="side-heading">Knowledge Graph</div>
+      <!-- Miniature SVG Graph -->
+      <div class="graph-widget">
+        <svg width="100%" height="100%" viewBox="0 0 220 105" fill="none">
+          <!-- Connecting Lines -->
+          <line x1="110" y1="52" x2="40" y2="25" stroke="#D6D3D1" stroke-width="1.5"/>
+          <line x1="110" y1="52" x2="180" y2="30" stroke="#D6D3D1" stroke-width="1.5"/>
+          <line x1="110" y1="52" x2="50" y2="85" stroke="#D6D3D1" stroke-width="1.5"/>
+          <line x1="110" y1="52" x2="175" y2="80" stroke="#D6D3D1" stroke-width="1.5"/>
+          <!-- Center Active Node -->
+          <circle cx="110" cy="52" r="8" fill="#1C1917"/>
+          <!-- Satellite Nodes -->
+          <circle cx="40" cy="25" r="5" fill="#78716C"/>
+          <circle cx="180" cy="30" r="5" fill="#78716C"/>
+          <circle cx="50" cy="85" r="5" fill="#78716C"/>
+          <circle cx="175" cy="80" r="5" fill="#78716C"/>
+          <!-- Label -->
+          <text x="110" y="72" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#78716C" font-weight="600">Current Note</text>
+        </svg>
+      </div>
+
+      <div class="side-heading">4 Linked References</div>
+
+      <!-- Backlink 1 -->
+      <div class="backlink-card">
+        <span class="backlink-title">[[Weekly Synthesis #38]]</span>
+        <span class="backlink-snippet">"...grounded in the principles outlined in Unbroken Flow..."</span>
+      </div>
+
+      <!-- Backlink 2 -->
+      <div class="backlink-card">
+        <span class="backlink-title">[[Product Strategy 2027]]</span>
+        <span class="backlink-snippet">"...frictionless thought capture as the cornerstone feature..."</span>
+      </div>
+
+      <!-- Backlink 3 -->
+      <div class="backlink-card">
+        <span class="backlink-title">[[Cognitive Flow States]]</span>
+        <span class="backlink-snippet">"...reciprocal linking preserves deep attention spans..."</span>
+      </div>
+
+      <!-- Backlink 4 -->
+      <div class="backlink-card">
+        <span class="backlink-title">[[Design System Architecture]]</span>
+        <span class="backlink-snippet">"...warm stone neutrals and 0px geometric borders..."</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

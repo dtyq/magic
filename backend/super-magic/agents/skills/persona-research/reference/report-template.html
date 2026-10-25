@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<!--
+  Persona research report template ("Voices" style).
+  Structure and interaction spec only: replace every sample value with real study content.
+  - Keep section ids, the citation classes, data-source-* attributes, data-persona attributes, and all three <script> blocks.
+  - Every finding cites evidence: interview quotes link to #q<N>, web sources link to #s<N>.
+  - Content comes from study.json hypotheses and synthesis.json; every quote has passed the quote self-check.
+  - Whole-study sample accounting is not support for a claim. Follow methods.md for qualitative frequency wording.
+  - Verdict badge classes: verdict-supported, verdict-refuted, verdict-mixed, verdict-insufficient, verdict-pending.
+  - Each claim's .evidence-bar cites only its relevant evidence; only #summary's evidence bar shows whole-study totals.
+  - Say once, in #summary, that the interviewees are AI-simulated and not yet checked with real people. Do not repeat it on cards, quotes or evidence bars;
+    per-claim validation status appears only after real-person answers have been compared.
+  - Quote cards and the questionnaire mention carry no links to interviews/*.json or validation-questionnaire.*: downloads and shares do not include those files.
+  - Persona portraits and colours are drawn by the script from data-persona (the persona name, exactly as in the persona file);
+    data-gender is male / female / unknown, data-age is a number. Never draw faces or hard-code colours yourself.
+    .persona-portrait is always square (it keeps its aspect ratio at any size); never turn it into a wide or cropped banner.
+  - Show the panel once, in #personas. Do not add a second portrait gallery elsewhere.
+  - This is illustrative sample content, not a completed study or real interview evidence.
+  - Open with a short title and #summary before images, method facts or portraits.
+  - Margin notes (.margin-note) sit in the same row as the paragraph they support; put the strongest quote first.
+  - Image slots (figure[data-image-slot]): fill each with one image or delete the whole figure, following
+    report-templates.md "Images". A finished report never contains .image-placeholder.
+  - Write all visible text in the user's language and set <html lang> to it. The page chrome (top bar label, contents list, buttons, popover) fills itself:
+    the top bar uses the <title>, the contents list is built from the section titles, and the fixed button labels come from the LABELS map in the last script
+    (zh and en built in; add one entry there for another language). Never edit the chrome by hand.
+  - Remove a section only when it truly does not apply (for example no focus group was run).
+-->
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CUSTOMIZE: "<Study title> — Persona Research <Year>" -->
+    <title>Trial User Retention: A First Weekly Task — Persona Research 2026</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans SC', '-apple-system', 'BlinkMacSystemFont', 'PingFang SC', 'Segoe UI', 'sans-serif'],
+                        mono: ['IBM Plex Mono', 'ui-monospace', 'Menlo', 'monospace'],
+                    },
+                    colors: { ink: '#17140f', muted: '#5e5852', faint: '#8a837c', rule: '#ece9e5', sunken: '#faf9f7', link: '#2f4a7a' },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Theme tokens: a custom template may change these values but should keep the names. */
+        :root { --paper: #ffffff; --ink: #17140f; --muted: #5e5852; --faint: #8a837c; --rule: #ece9e5; --sunken: #faf9f7; --link: #2f4a7a;
+                --pos: #2e7a57; --pos-bg: #e7f2ec; --mid: #a8741a; --mid-bg: #f7efdf; --neg: #b24a44; --neg-bg: #f8e9e7; --neutral-bg: #f0eeeb; }
+        body { background: var(--paper); color: var(--ink); font-size: 16px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+        main { overflow-wrap: anywhere; }
+        h1, h2, h3 { text-wrap: balance; }
+        p, li { text-wrap: pretty; }
+        main > header h1 { max-width: 30ch; }
+        a:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 4px; }
+
+        /* Top bar with a thin reading-progress line. */
+        .top-bar { background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--rule); }
+        .progress { position: absolute; left: 0; bottom: -1px; height: 2px; width: 100%; background: var(--ink); transform-origin: 0 50%; transform: scaleX(0); }
+        .toc-mobile > summary { list-style: none; cursor: pointer; user-select: none; }
+        .toc-mobile > summary::-webkit-details-marker { display: none; }
+        .toc-mobile .toc-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(260px, 86vw); padding: 8px; background: #fff; border: 1px solid var(--rule); border-radius: 14px; box-shadow: 0 16px 40px -12px rgba(23,20,15,0.25); }
+        .toc-mobile .toc-panel a { display: block; padding: 8px 10px; border-radius: 8px; font-size: 14px; color: var(--muted); text-decoration: none; }
+        .toc-mobile .toc-panel a:hover { background: var(--sunken); color: var(--ink); }
+
+        /* Desktop contents: the section in view is marked. */
+        .toc a { display: block; padding: 4px 0 4px 12px; border-left: 1px solid #e2ded9; color: var(--faint); text-decoration: none; font-size: 13px; transition: color .15s; }
+        .toc a:hover, .toc a.is-active { color: var(--ink); border-left: 2px solid var(--ink); padding-left: 11px; font-weight: 500; }
+
+        /* The bottom line: the accent follows the decision (data-decision = go | conditional | nogo). */
+        .opening { --accent: var(--link); border-top: 3px solid var(--accent); padding-top: 20px; }
+        .opening[data-decision="go"] { --accent: var(--pos); }
+        .opening[data-decision="conditional"] { --accent: var(--mid); }
+        .opening[data-decision="nogo"] { --accent: var(--neg); }
+        .opening-answer { max-width: 34em; font-size: clamp(20px, 2.4vw, 26px); line-height: 1.55; font-weight: 700; }
+        .opening-reasons { max-width: 42em; }
+        .opening-reasons > li::marker { color: var(--accent); font-weight: 700; }
+        .opening-limit { max-width: 48em; color: var(--muted); font-size: 14px; line-height: 1.75; }
+        .validation-priorities { display: grid; gap: 12px; counter-reset: priority; }
+        .validation-priorities li { counter-increment: priority; padding: 12px 14px 12px 16px; border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 12px; background: var(--sunken); }
+        .validation-priorities p { margin-top: 3px; font-size: 14px; color: var(--muted); }
+        @media (min-width: 760px) { .validation-priorities { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+
+        .section-title { position: relative; font-size: 22px; font-weight: 900; letter-spacing: -0.02em; }
+        .heading-anchor { position: absolute; left: -1.1em; top: 0; width: 1em; text-align: center; color: var(--faint); text-decoration: none; font-weight: 400; opacity: 0; transition: opacity .15s; }
+        .section-title:hover .heading-anchor, .heading-anchor:focus-visible { opacity: 1; }
+        @media (max-width: 1023px) { .heading-anchor { display: none; } }
+
+        .fact b { display: block; font-size: 15px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+        .chip { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 10px; max-width: 100%; line-height: 1.5; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: normal; }
+        .chip::before { content: ""; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .verdict-supported { color: var(--pos); background: var(--pos-bg); }
+        .verdict-refuted { color: var(--neg); background: var(--neg-bg); }
+        .verdict-mixed { color: var(--mid); background: var(--mid-bg); }
+        .verdict-insufficient, .verdict-pending { color: #555; background: var(--neutral-bg); }
+        .decision-go { color: var(--pos); background: var(--pos-bg); }
+        .decision-conditional { color: var(--mid); background: var(--mid-bg); }
+        .decision-nogo { color: var(--neg); background: var(--neg-bg); }
+        .confidence-high { color: var(--pos); background: var(--pos-bg); }
+        .confidence-medium { color: var(--mid); background: var(--mid-bg); }
+        .confidence-low { color: var(--neg); background: var(--neg-bg); }
+        .confidence-to_validate { color: #555; background: var(--neutral-bg); }
+        .voices-agree { color: var(--pos); background: var(--pos-bg); }
+        .voices-differ { color: var(--neg); background: var(--neg-bg); }
+        .voices-silent { color: #555; background: var(--neutral-bg); }
+
+        /* A claim row: a quiet rail in the verdict colour, so a long list can be scanned. */
+        .claim { --rail: var(--rule); padding-left: 18px; border-left: 3px solid var(--rail); }
+        .claim:has(.verdict-supported) { --rail: var(--pos); }
+        .claim:has(.verdict-mixed) { --rail: var(--mid); }
+        .claim:has(.verdict-refuted) { --rail: var(--neg); }
+        .claim-body { font-size: 15px; line-height: 1.9; color: var(--muted); }
+        .criteria { font-size: 13px; color: var(--faint); }
+        .criteria > summary { cursor: pointer; user-select: none; width: fit-content; }
+        .criteria > summary:hover { color: var(--ink); }
+        .criteria[open] > p { margin-top: 6px; padding: 8px 12px; background: var(--sunken); border-radius: 8px; color: var(--muted); }
+
+        .citation-ref { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--link); vertical-align: super; line-height: 0; margin-left: 1px; text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; }
+        .citation-ref:hover { text-decoration-style: solid; }
+        .evidence-bar { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); padding-top: 10px; border-top: 1px dashed var(--rule); }
+        .evidence-bar span { display: inline-flex; align-items: center; gap: 5px; }
+        /* The summary's evidence bar shows whole-study totals as three labelled figures. */
+        #summary .evidence-bar { border-top: 0; padding: 12px 16px; background: var(--sunken); border-radius: 12px; gap: 8px 28px; }
+        #summary .evidence-bar span { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.5; }
+        #summary .evidence-bar b { font-size: 20px; line-height: 1.3; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+        #summary .evidence-bar em { font-style: normal; font-size: 12px; color: var(--faint); }
+
+        /* Opening mark hangs outside the text so every line starts on the same edge. */
+        .hang { position: relative; }
+        .hang::before { content: "\201C"; position: absolute; right: 100%; margin-right: 0.04em; }
+        .hang::after { content: "\201D"; }
+        .margin-note { border-left: 2px solid var(--persona-tone, var(--rule)); padding-left: 14px; }
+
+        /* Portraits are always square, whatever size the layout gives them. */
+        .persona-portrait { display: inline-block; flex-shrink: 0; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(23,20,15,0.08); }
+        .persona-portrait.square { border-radius: 28%; }
+        .persona-portrait svg { display: block; width: 100%; height: 100%; }
+        .persona-head { background: var(--persona-tint, var(--sunken)); }
+        .persona-card { transition: border-color .15s, box-shadow .15s; }
+        .persona-card:hover { border-color: var(--persona-tone, #d9d4ce); box-shadow: 0 8px 24px -14px rgba(23,20,15,0.3); }
+
+        /* Jumping to a quote or source flashes it once, so the reader sees where they landed. */
+        section[id], :target { scroll-margin-top: 72px; }
+        @keyframes target-flash { from { background-color: rgba(47,74,122,0.14); } to { background-color: transparent; } }
+        #voices [id^="q"]:target, #sources [id^="s"]:target { animation: target-flash 1.8s ease-out; }
+        @media (prefers-reduced-motion: reduce) { #voices [id^="q"]:target, #sources [id^="s"]:target { animation: none; background-color: rgba(47,74,122,0.1); } html { scroll-behavior: auto !important; } }
+
+        .citation-tooltip { position: fixed; z-index: 1000; background: #17140f; color: #fff; box-shadow: 0 12px 32px -8px rgba(23,20,15,0.35); padding: 12px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6; width: max-content; max-width: min(320px, calc(100vw - 16px)); opacity: 0; transform: translateY(4px); transition: opacity 0.15s ease, transform 0.15s ease; pointer-events: none; visibility: hidden; }
+        .citation-tooltip.visible { opacity: 1; transform: translateY(0); pointer-events: auto; visibility: visible; }
+        .citation-tooltip .source-name { color: rgba(255,255,255,0.6); font-size: 12px; margin-bottom: 4px; display: block; }
+        .citation-tooltip .source-title { color: #fff; font-weight: 500; display: block; margin-bottom: 8px; }
+        .citation-tooltip .source-actions { display: flex; align-items: center; gap: 14px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.15); }
+        .citation-tooltip .source-link { font-size: 12px; color: #fff; opacity: 0.85; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+        .citation-tooltip .source-link:hover { opacity: 1; text-decoration: underline; }
+
+        /* Floating helpers: return to the sentence after following a citation, and back to the top. */
+        .float-btn { position: fixed; z-index: 60; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--rule); background: #fff; color: var(--ink); font-size: 13px; box-shadow: 0 8px 24px -10px rgba(23,20,15,0.3); cursor: pointer; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+        .float-btn.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .float-btn:hover { border-color: var(--ink); }
+        #back-to-text { left: 16px; bottom: 16px; }
+        #back-to-top { right: 16px; bottom: 16px; width: 40px; height: 40px; padding: 0; justify-content: center; }
+
+        .report-figure img { display: block; width: 100%; object-fit: cover; border-radius: 16px; background: var(--sunken); }
+        .report-figure figcaption { margin-top: 8px; font-size: 12px; color: var(--faint); }
+        .report-figure figcaption a { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+        .image-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1px dashed #d9d4ce; border-radius: 16px; background: var(--sunken); color: var(--faint); font-size: 13px; text-align: center; padding: 16px; }
+        .image-placeholder i { font-size: 20px; }
+
+        /* Touch screens: small inline links get a larger hit area without changing the layout (vertical padding on an
+           inline element does not move the lines around it), and the folded criteria get a taller handle. */
+        @media (pointer: coarse) {
+            .citation-ref { padding: 12px 8px; margin: -12px -6px; }
+            main a.text-link, main a.underline { padding: 10px 2px; margin: -10px -2px; }
+            .criteria > summary { padding: 8px 0; }
+        }
+
+        @media print {
+            .top-bar, .toc, .float-btn, .citation-tooltip, .heading-anchor { display: none !important; }
+            article, .persona-card, figure { break-inside: avoid; }
+            a { color: inherit; text-decoration: none; }
+        }
+    </style>
+</head>
+<body class="font-sans">
+    <!-- Top bar: the label is the <title> text before " — " (set by the page script); on narrow screens the contents sit in a menu, built from the section titles. -->
+    <nav class="top-bar sticky top-0 z-50" aria-label="Report">
+        <div class="max-w-6xl mx-auto px-5 h-12 flex items-center gap-3 text-[13px]">
+            <span class="font-bold truncate" id="topbar-title"></span>
+            <details class="toc-mobile relative ml-auto lg:hidden">
+                <summary class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-rule text-muted hover:text-ink"><i class="fa-solid fa-list-ul text-[11px]"></i><span data-label="contents"></span></summary>
+                <div class="toc-panel" data-contents-list></div>
+            </details>
+        </div>
+        <div class="progress" id="reading-progress" aria-hidden="true"></div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto px-5 lg:grid lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-12 py-7 sm:py-10">
+        <!-- Contents: built by the page script from each section's title, so it always matches the sections that exist and their language. -->
+        <aside class="toc hidden lg:block sticky top-20 self-start space-y-0.5" data-contents-from-headings>
+            <p class="text-xs text-faint mb-2 tracking-wide" data-label="contents"></p>
+            <div data-contents-list></div>
+        </aside>
+
+        <main class="min-w-0 space-y-14">
+            <!-- Short title only; the decision immediately follows. No decorative cover before #summary. -->
+            <header class="space-y-2">
+                <p class="text-xs text-muted">Trial retention · Illustrative sample, not research results</p>
+                <h1 class="text-[28px] sm:text-[34px] leading-snug font-bold tracking-tight">Trial user retention: whether to add a first weekly task to onboarding</h1>
+            </header>
+
+            <!-- Bottom line first: the decision verdict, the one-sentence answer, the reasons, then what to validate.
+                 data-decision (go | conditional | nogo) sets the accent colour; the badge class must match:
+                 decision-go (worth doing), decision-conditional (only under the stated conditions),
+                 decision-nogo (not as currently framed). Badge text in the user's language. -->
+            <section id="summary" class="opening space-y-4" data-decision="conditional" aria-labelledby="summary-title">
+                <h2 id="summary-title" class="section-title">Bottom line</h2>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="chip decision-conditional">Test first</span>
+                    <span class="text-[13px] text-muted">Decision: whether to redesign the first-week onboarding.</span>
+                </div>
+                <!-- A recommendation, not an established cause: no source yet covers this study's core claim. -->
+                <p class="opening-answer">Before adding features, test whether helping trial users finish one weekly task brings them back. The AI interviews suggest this may matter, but they do not show why users leave.<a href="#q1" class="citation-ref">[Q1]</a></p>
+                <ol class="opening-reasons space-y-2 list-decimal pl-5">
+                    <li><b>Trial use did not become a habit.</b> Some AI interviewees said they tried the app and then forgot it.<a href="#q1" class="citation-ref">[Q1]</a></li>
+                    <li><b>The reason for leaving is still unknown.</b> External benchmarks describe trial retention in general; they do not explain why this app's users stopped.<a href="#s1" class="citation-ref">[S1]</a></li>
+                </ol>
+                <!-- Whole-study totals only, each as a figure plus a label; never counts per stance. Keep material warnings here, not only in limitations. -->
+                <div class="evidence-bar">
+                    <span><b>3</b><em>External sources reviewed</em></span>
+                    <span><b>7</b><em>AI interviews completed</em></span>
+                    <span><b>Not done</b><em>Real-person validation</em></span>
+                </div>
+                <p class="opening-limit">The interviewees are AI-simulated personas, not real users, and no real user has been asked yet. Treat their answers as leads to test; they cannot show how common a problem is. The rest of this report does not repeat this note.</p>
+                <p class="opening-limit"><b>Reconsider if:</b> real trial users say a missing feature or the price is why they stopped.</p>
+                <div class="space-y-3 pt-2">
+                    <h3 class="text-base font-bold">Validate these first</h3>
+                    <!-- Keep only the remaining tests that bear on the decision; this study has one priority, not a quota of three. -->
+                    <ol class="validation-priorities">
+                        <li><span class="text-xs text-muted">Hypothesis 1 · Weekly routine</span><br><b>Find where the weekly task stops</b><p>Ask real trial users to show their most recent weekly task and where they stopped. Questions 2–4 of the questionnaire tell a missing routine apart from a missing feature.</p></li>
+                    </ol>
+                </div>
+            </section>
+
+            <!-- Conclusions by hypothesis: one row per study.json hypothesis, in id order; the margin carries the lead quote -->
+            <section id="hypotheses" class="space-y-2">
+                <h2 class="section-title">Conclusions by hypothesis</h2>
+                <p class="text-[13px] text-faint">This study informs one decision: whether to redesign the first-week onboarding.</p>
+                <article class="claim grid lg:grid-cols-[minmax(0,1fr)_240px] gap-x-10 gap-y-4 py-6 border-b border-rule">
+                    <div class="space-y-2.5">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-faint">Hypothesis 1</span>
+                            <!-- Badge text in the user's language, a plain word for how far the evidence goes; AI-only evidence caps the verdict at "mixed" -->
+                            <span class="chip verdict-mixed">Partly supported</span>
+                        </div>
+                        <h3 class="text-[17px] font-bold leading-relaxed">Trial users do not form a weekly routine</h3>
+                        <p class="claim-body">Some completed AI interviews describe trying the app and then forgetting it, which fits a missing routine; why users leave is not yet confirmed. No external source yet covers behaviour in the second week.<a href="#q1" class="citation-ref">[Q1]</a><a href="#s1" class="citation-ref">[S1]</a></p>
+                        <!-- The judging criteria stay available but folded, so each hypothesis reads as verdict + reason -->
+                        <details class="criteria"><summary>Judging criteria</summary>
+                            <p>Supported if most interviewees describe no recurring use. Refuted if most name a missing feature as the reason they stopped.</p></details>
+                        <div class="evidence-bar">
+                            <span>Interviews <a href="#q1" class="citation-ref">[Q1]</a></span>
+                            <span>Background source <a href="#s1" class="citation-ref">[S1]</a></span>
+                        </div>
+                    </div>
+                    <!-- Margin: the strongest quote for this hypothesis, its speaker, then up to two sources -->
+                    <aside class="margin-note self-start space-y-2 text-[13px] leading-6" data-persona-tone="Zhang Wei">
+                        <p class="hang font-bold text-ink">I tried it twice in the first week, then forgot it existed.</p>
+                        <p class="flex items-center gap-2 text-xs text-faint"><span class="persona-portrait w-5 h-5" data-persona="Zhang Wei" data-gender="male" data-age="52"></span><span class="min-w-0">Zhang Wei · <a href="#q1" class="text-link">Q1</a></span></p>
+                        <p class="font-mono text-[11px] text-faint"><a href="#s1" class="text-link">[S1]</a> SaaS Trial Retention Benchmarks</p>
+                    </aside>
+                </article>
+            </section>
+
+            <!-- Decision-relevant recommendations, following methods.md. These two sample actions address onboarding;
+                 include positioning, pricing, channels or a timed launch plan only when the confirmed decision calls for them.
+                 Label each action by what the evidence allows: a test, a conditional action, or a supported action.
+                 With decision-nogo, use "If you still want to try" and give only stopping conditions or cheap tests. -->
+            <section id="business" class="space-y-5">
+                <h2 class="section-title">Recommended actions</h2>
+                <div class="divide-y divide-rule border-y border-rule">
+                    <div class="grid sm:grid-cols-[160px_minmax(0,1fr)] gap-x-6 gap-y-2 py-5">
+                        <p><span class="chip verdict-pending">Test first</span></p>
+                        <div class="space-y-2">
+                            <h3 class="font-bold">Observe the next weekly task</h3>
+                            <p>Ask real trial users to show where they stop, including any feature they find missing. The result shows whether a weak routine explains the lack of return visits.</p>
+                            <p class="text-sm text-muted">Based on hypothesis 1. Our inference from the interviews; questions 2–4 of the questionnaire check it.</p>
+                        </div>
+                        <div class="evidence-bar sm:col-span-2"><span>Inference from interviews <a href="#q1" class="citation-ref">[Q1]</a><a href="#q2" class="citation-ref">[Q2]</a></span></div>
+                    </div>
+                    <div class="grid sm:grid-cols-[160px_minmax(0,1fr)] gap-x-6 gap-y-2 py-5">
+                        <p><span class="chip verdict-mixed">Conditional action</span></p>
+                        <div class="space-y-2">
+                            <h3 class="font-bold">Test a small onboarding change once real users confirm the missing routine</h3>
+                            <p>If real users have trouble setting up a recurring task, test added help for that step and check whether they complete it and return. If they mainly need a missing feature, reconsider the onboarding change.</p>
+                            <p class="text-sm text-muted">Based on hypothesis 1. A proposed test, not a proven improvement in retention.</p>
+                        </div>
+                        <div class="evidence-bar sm:col-span-2"><span>Inference from interviews <a href="#q1" class="citation-ref">[Q1]</a><a href="#q2" class="citation-ref">[Q2]</a></span></div>
+                    </div>
+                </div>
+                <figure class="report-figure" data-image-slot="concept" data-image-source="generate" data-image-ratio="16:9"
+                        data-image-hint="The recommended positioning as a product-in-use scene, illustrative only">
+                    <div class="image-placeholder aspect-[16/9]"><i class="fa-regular fa-image"></i>Concept image: the recommended positioning in use</div>
+                    <figcaption>AI-generated illustration, not research evidence</figcaption>
+                </figure>
+            </section>
+
+            <!-- Scope and method -->
+            <section id="method" class="space-y-4">
+                <h2 class="section-title">Scope and method</h2>
+                <div class="fact grid grid-cols-2 sm:grid-cols-4 gap-4 py-4 border-y border-rule text-xs text-faint">
+                    <span><b>Jobs to be done</b>Framework</span>
+                    <span><b>7 of 8 planned</b>AI interviews completed</span>
+                    <span><b>3</b>External sources reviewed</span>
+                    <span><b>All checked</b>Quotes matched to transcripts</span>
+                </div>
+                <figure class="report-figure" data-image-slot="cover" data-image-source="search" data-image-ratio="21:9"
+                        data-image-hint="The target users in their real setting, for example a small-shop owner at the counter">
+                    <div class="image-placeholder aspect-[21/9]"><i class="fa-regular fa-image"></i>Cover image: the target users in their real setting</div>
+                    <figcaption>Photo: source site</figcaption>
+                </figure>
+                <dl class="grid sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                    <div><dt class="text-xs text-faint mb-1">Audience</dt><dd class="font-medium">Trial users of small-business productivity apps in tier 1–3 cities</dd></div>
+                    <div><dt class="text-xs text-faint mb-1">Methods</dt><dd class="font-medium">Desk research and 7 completed AI interviews (8 planned, up to 5 rounds each); no focus group</dd></div>
+                    <div><dt class="text-xs text-faint mb-1">Framework</dt><dd class="font-medium">Jobs to be done: trigger, job, workaround and switching anxiety</dd></div>
+                </dl>
+            </section>
+
+            <!-- Findings by theme: the up-to-6 themes that matter most for the decision, strongest first, one row each with a
+                 margin quote. Any further themes go in one short "Other themes" list (title + one line + citation) at the end. -->
+            <section id="findings" class="space-y-2">
+                <h2 class="section-title">Findings by theme</h2>
+                <!-- Saturation from synthesis.json -->
+                <p class="text-[13px] text-faint">Saturation: the last 2 interviews raised no new themes, so the main themes are saturated within this AI sample.</p>
+                <figure class="report-figure pt-4" data-image-slot="finding" data-image-source="any" data-image-ratio="3:1"
+                        data-image-hint="The situation behind the strongest theme, for example a phone left unopened beside a busy work desk">
+                    <div class="image-placeholder aspect-[3/1]"><i class="fa-regular fa-image"></i>Scene image: the situation behind the strongest theme</div>
+                    <figcaption>Photo or AI-generated illustration, with its source</figcaption>
+                </figure>
+                <!-- CHART SLOT (optional): when the data warrants it (report-charts.md), put the generated fragment here, e.g. the
+                     stance matrix, in a <figure class="pt-4"> with a one-line caption ending in the evidence bar. Delete this comment
+                     and the figure when no chart is warranted; never place charts in #summary. -->
+                <article class="claim grid lg:grid-cols-[minmax(0,1fr)_240px] gap-x-10 gap-y-4 py-6 border-b border-rule">
+                    <div class="space-y-2.5">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h3 class="text-[17px] font-bold">Trial use rarely turns into a recurring task</h3>
+                            <!-- Class confidence-<synthesis confidence>; badge text in the user's language -->
+                            <span class="chip confidence-to_validate">Interviews only</span>
+                        </div>
+                        <p class="claim-body">Two interviewees said they tried the app and forgot it, or could not find a weekly task for it. Our inference is that onboarding may need to link a task to a return visit. The interviews do not establish that cause.<a href="#q1" class="citation-ref">[Q1]</a><a href="#q2" class="citation-ref">[Q2]</a></p>
+                        <!-- These are individual signals, not established segment differences; group by segment only when the evidence supports it. -->
+                        <ul class="text-sm list-disc pl-5 space-y-1 text-muted">
+                            <li><span class="font-medium text-ink">Zhang Wei:</span> describes forgetting the app after trying it.<a href="#q1" class="citation-ref">[Q1]</a></li>
+                            <li><span class="font-medium text-ink">Li Na:</span> describes not finding a weekly task for it.<a href="#q2" class="citation-ref">[Q2]</a></li>
+                        </ul>
+                        <p class="text-xs text-faint">Remaining gap: neither interview explains why real users leave. A missing feature is another explanation to check with real users. (Hypothesis 1)</p>
+                        <div class="evidence-bar">
+                            <span>Interviews <a href="#q1" class="citation-ref">[Q1]</a><a href="#q2" class="citation-ref">[Q2]</a></span>
+                            <span>Inference: a routine may help return visits</span>
+                        </div>
+                    </div>
+                    <aside class="margin-note self-start space-y-2 text-[13px] leading-6" data-persona-tone="Zhang Wei">
+                        <p class="hang font-bold text-ink">I tried it twice in the first week, then forgot it existed.</p>
+                        <p class="flex items-center gap-2 text-xs text-faint"><span class="persona-portrait w-5 h-5" data-persona="Zhang Wei" data-gender="male" data-age="52"></span><span class="min-w-0">Zhang Wei · <a href="#q1" class="text-link">Q1</a></span></p>
+                    </aside>
+                </article>
+            </section>
+
+            <!-- Compare the same claim in comparable circumstances. Use voices-differ only for opposing claims;
+                 different questions and silence are evidence gaps, not contradictions. Keep compatible context brief. -->
+            <section id="real-voices" class="space-y-4">
+                <h2 class="section-title">Public posts and the interviews</h2>
+                <p class="text-sm text-muted">Public posts are outside context. They do not validate the views of this product's trial users.</p>
+                <p>Some posts also describe forgetting a trial.<a href="#s3" class="citation-ref">[S3]</a> This fits what the interviewees said but does not show why users of this app stopped.</p>
+                <p class="text-sm text-muted"><span class="chip voices-silent">Different questions · not a contradiction</span> A public post discusses price before purchase;<a href="#s2" class="citation-ref">[S2]</a> an AI interview discusses a friend prompting a trial.<a href="#q3" class="citation-ref">[Q3]</a> Both can be true. Together they show neither agreement nor conflict on hypothesis 1.</p>
+            </section>
+
+            <!-- Open questions and disagreements -->
+            <section id="tensions" class="space-y-4">
+                <h2 class="section-title">Open questions and disagreements</h2>
+                <div class="text-[15px] leading-8 text-muted space-y-2 max-w-3xl">
+                    <p><span class="font-bold text-ink">The cause is still open.</span> The AI interviews describe forgetting the app or not finding a weekly task.<a href="#q1" class="citation-ref">[Q1]</a><a href="#q2" class="citation-ref">[Q2]</a> They do not show whether real users leave for the same reason. Rule out a missing feature before changing onboarding.</p>
+                </div>
+            </section>
+
+            <!-- Persona panel: the only place portraits are shown as a group. One card per persona; the head takes the persona colour. -->
+            <section id="personas" class="space-y-4">
+                <h2 class="section-title">Persona panel</h2>
+                <p class="text-sm text-muted">Each card links to the quotes that persona contributed.</p>
+                <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <div class="persona-card rounded-2xl border border-rule overflow-hidden" data-persona-tone="Zhang Wei">
+                        <div class="persona-head flex items-center gap-3 px-4 py-4">
+                            <span class="persona-portrait square w-14 h-14" data-persona="Zhang Wei" data-gender="male" data-age="52"></span>
+                            <div class="min-w-0"><p class="font-bold">Zhang Wei</p><p class="text-xs text-muted">52 · building-materials wholesaler</p></div>
+                        </div>
+                        <div class="px-4 py-3 space-y-2">
+                            <p class="text-[13px] text-muted">Closes deals by phone; sceptical of AI tools.</p>
+                            <div class="flex flex-wrap gap-1 text-xs"><span class="px-2 py-0.5 rounded-md bg-sunken border border-rule">relationship-driven</span><span class="px-2 py-0.5 rounded-md bg-sunken border border-rule">built from public sources</span></div>
+                            <p class="text-xs text-faint">Interview completed, 5 rounds · <a href="#q1" class="text-link">Quote Q1</a></p>
+                        </div>
+                    </div>
+                    <div class="persona-card rounded-2xl border border-rule overflow-hidden" data-persona-tone="Li Na">
+                        <div class="persona-head flex items-center gap-3 px-4 py-4">
+                            <span class="persona-portrait square w-14 h-14" data-persona="Li Na" data-gender="female" data-age="34"></span>
+                            <div class="min-w-0"><p class="font-bold">Li Na</p><p class="text-xs text-muted">34 · owner of a small design studio</p></div>
+                        </div>
+                        <div class="px-4 py-3 space-y-2">
+                            <p class="text-[13px] text-muted">Tries new tools often; keeps few of them.</p>
+                            <div class="flex flex-wrap gap-1 text-xs"><span class="px-2 py-0.5 rounded-md bg-sunken border border-rule">early adopter</span><span class="px-2 py-0.5 rounded-md bg-sunken border border-rule">mostly inferred by the model</span></div>
+                            <p class="text-xs text-faint">Interview completed, 4 rounds · <a href="#q2" class="text-link">Quote Q2</a></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Persona quotes: every [Q#] target lives here -->
+            <section id="voices" class="space-y-4">
+                <h2 class="section-title">Interview quotes</h2>
+                <div class="divide-y divide-rule border-y border-rule">
+                    <!-- id="q<N>"; data-source-name = persona name; data-source-title = quote. No href: transcripts are not part of a downloaded or shared report. -->
+                    <div id="q1" class="block py-4 pl-6 pr-2 hover:bg-sunken" data-persona-tone="Zhang Wei">
+                        <p data-source-title class="hang text-[15px] font-bold leading-7">I tried it twice in the first week, then forgot it existed.</p>
+                        <p class="flex items-center gap-2 text-xs text-faint mt-2"><span class="persona-portrait w-5 h-5" data-persona="Zhang Wei" data-gender="male" data-age="52"></span><span class="min-w-0">[Q1] <span data-source-name>Zhang Wei</span> · interview, round 2 · theme: no routine</span></p>
+                    </div>
+                    <div id="q2" class="block py-4 pl-6 pr-2 hover:bg-sunken">
+                        <p data-source-title class="hang text-[15px] font-bold leading-7">I liked trying it, but I never found a weekly task for it.</p>
+                        <p class="text-xs text-muted mt-2">[Q2] <span data-source-name>Li Na</span> · interview, round 3 · theme: no weekly task</p>
+                    </div>
+                    <div id="q3" class="block py-4 pl-6 pr-2 hover:bg-sunken">
+                        <p data-source-title class="hang text-[15px] font-bold leading-7">Not before I see a friend using it.</p>
+                        <p class="text-xs text-muted mt-2">[Q3] <span data-source-name>Zhang Wei</span> · interview, round 4 · theme: waits for a friend</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Assumptions and limitations -->
+            <section id="limitations" class="space-y-4">
+                <h2 class="section-title">Assumptions and limitations</h2>
+                <ul class="text-[14px] leading-7 text-muted list-disc pl-5 space-y-1.5 max-w-3xl">
+                    <li>The interviewees are AI-simulated personas, not real users. Their answers reflect the persona profiles and the model's general knowledge.</li>
+                    <li>Effective sample: 7 of 8 planned interviews were completed; 1 failed because the persona profile was incomplete.</li>
+                    <li>Social media evidence was collected through search engines only, so it does not cover the platforms in full.</li>
+                    <li>Persona traits marked "(inferred)" in the transcripts are model assumptions, not sourced facts. One interview with a high share of inferred answers was given less weight.</li>
+                    <li>An AI sample cannot support statistical inference. "Most", "some" and "a few" describe the AI interviews only.</li>
+                    <li>Two quotes that could not be matched word for word to the transcripts were removed during the quote check.</li>
+                </ul>
+            </section>
+
+            <!-- Validation -->
+            <section id="validation" class="space-y-4">
+                <h2 class="section-title">Validate with real people</h2>
+                <p class="text-[14px] leading-7 text-muted max-w-3xl">Ask 8–15 real trial users the questionnaire saved with this study (validation-questionnaire.md; validation-questionnaire.csv imports into survey tools). Each question names the hypothesis it checks. Start with hypothesis 1.</p>
+                <!-- Include this table only after real-person answers are compared (from validation-results.json); mark disagreements in red.
+                Example only: insert and populate this table after validation_compared.
+                <div class="overflow-x-auto border-y border-rule">
+                    <table class="w-full text-sm">
+                        <thead class="text-xs text-faint text-left"><tr><th class="py-2 pr-4 font-normal">Hypothesis</th><th class="py-2 pr-4 font-normal">AI verdict</th><th class="py-2 pr-4 font-normal">Real people (12)</th><th class="py-2 font-normal">Agreement</th></tr></thead>
+                        <tbody>
+                            <tr class="border-t border-rule"><td class="py-2 pr-4 text-xs">Hypothesis 1</td><td class="py-2 pr-4"><span class="chip verdict-mixed">Mixed</span></td><td class="py-2 pr-4"><span class="chip verdict-supported">Supported</span></td><td class="py-2">Agree</td></tr>
+                            <tr class="border-t border-rule"><td class="py-2 pr-4 text-xs">Hypothesis 2</td><td class="py-2 pr-4"><span class="chip verdict-mixed">Mixed</span></td><td class="py-2 pr-4"><span class="chip verdict-refuted">Refuted</span></td><td class="py-2 font-semibold" style="color: var(--neg)">Disagree</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                -->
+            </section>
+
+            <!-- Sources: every [S#] target lives here -->
+            <section id="sources" class="space-y-3">
+                <h2 class="section-title">Web sources</h2>
+                <ol class="divide-y divide-rule border-y border-rule">
+                    <li><a href="https://example.com/trial-retention-benchmarks" target="_blank" rel="noopener" id="s1" class="flex gap-3 py-3 hover:bg-sunken group">
+                        <span class="font-mono text-xs text-faint w-9 shrink-0 pt-0.5">[S1]</span>
+                        <span class="min-w-0"><span data-source-title class="block text-sm font-medium text-link group-hover:underline">SaaS Trial Retention Benchmarks</span><span data-source-name class="block text-xs text-faint">Example Research</span></span>
+                    </a></li>
+                    <li><a href="https://example.com/sample-price-discussion" target="_blank" rel="noopener" id="s2" class="flex gap-3 py-3 hover:bg-sunken group">
+                        <span class="font-mono text-xs text-muted w-9 shrink-0 pt-0.5">[S2]</span>
+                        <span class="min-w-0"><span data-source-title class="block text-sm font-medium text-link group-hover:underline">Public Discussion: Trial Costs</span><span data-source-name class="block text-xs text-muted">Illustrative source</span></span>
+                    </a></li>
+                    <li><a href="https://example.com/sample-trial-discussion" target="_blank" rel="noopener" id="s3" class="flex gap-3 py-3 hover:bg-sunken group">
+                        <span class="font-mono text-xs text-muted w-9 shrink-0 pt-0.5">[S3]</span>
+                        <span class="min-w-0"><span data-source-title class="block text-sm font-medium text-link group-hover:underline">Public Discussion: Forgotten Trials</span><span data-source-name class="block text-xs text-muted">Illustrative source</span></span>
+                    </a></li>
+                </ol>
+            </section>
+        </main>
+    </div>
+
+    <!-- Floating helpers; their labels come from the LABELS map in the page script below. -->
+    <button type="button" id="back-to-text" class="float-btn"><i class="fa-solid fa-arrow-up-long text-[11px]"></i><span data-label="back-to-text"></span></button>
+    <button type="button" id="back-to-top" class="float-btn"><i class="fa-solid fa-chevron-up text-xs"></i></button>
+
+    <!-- Persona portraits and colours, drawn from data-persona; same templates as the research app — keep this block unchanged -->
+    <script>
+        (function () {
+            var BACKDROPS = ["#dfe8e1","#e3e7f1","#efe4d8","#e9e1ee","#e0ebee","#efe6e1","#e6ead9","#e4e2e9"];
+            var CLOTHES = ["#2f5d47","#2f4a7a","#7a4a2f","#5b3f78","#2e6e74","#8a3b45","#55642e","#3c3f4a"];
+            var SKINS = ["#f1d3bd","#e8c2a4","#dcae8c","#c99877"], HAIRS = ["#231d1b","#33251f","#45322a"];
+            var MALE = ["crop","sidePart","buzz"], FEMALE = ["bob","long","bun","ponytail"];
+            var BACK = { long: "M19 49C17.5 26 22.5 13.5 32 13.5S46.5 26 45 49C42 50.5 39.5 50 38 48.5L37.5 36H26.5L26 48.5C24.5 50 22 50.5 19 49Z", bob: "M20 38C18.5 23 23.5 13.5 32 13.5S45.5 23 44 38C42.5 39 41 39 40 38V30H24V38C23 39 21.5 39 20 38Z", ponytail: "M40 22C46 22 49 30 46.5 40C45 36 43 31 40 28Z" };
+            var FRONT = { crop: "M22.4 26.5C21.8 16.5 26.5 13.2 32 13.2S42.2 16.5 41.6 26.5C40 21.6 37 19.6 32 19.6S24 21.6 22.4 26.5Z", sidePart: "M22.4 27.5C21.3 15.5 27.5 12.8 33 13.2C39.2 13.6 42.8 18 41.6 27.5C40.6 22 39 20 35.2 19L30.2 21.2C26.2 21.6 23.6 23.8 22.4 27.5Z", buzz: "M23 24.5C23.4 16.2 27.8 14.4 32 14.4S40.6 16.2 41 24.5C39.2 20.4 36.2 18.8 32 18.8S24.8 20.4 23 24.5Z", bob: "M22.4 27.5C22 17.2 26.8 14 32 14S42 17.2 41.6 27.5C39.6 22.6 36.2 20.8 32 20.8S24.4 22.6 22.4 27.5Z", long: "M22.4 27.5C22 17.2 26.8 14 32 14S42 17.2 41.6 27.5C38.6 22 35.6 20.4 31 21.2C27.4 21.8 24.4 23.6 22.4 27.5Z", bun: "M22.4 26.5C22 17.2 26.8 14.4 32 14.4S42 17.2 41.6 26.5C40 21.8 36.8 20 32 20S24 21.8 22.4 26.5ZM32 7.6A4.8 4.8 0 1 1 31.99 7.6Z", ponytail: "M22.4 26.5C22 17.2 26.8 14.2 32 14.2S42 17.2 41.6 26.5C40 21.8 36.8 20 32 20S24 21.8 22.4 26.5Z" };
+            function hashOf(text) { var h = 2166136261; for (var ch of text) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+            function pick(list, h, shift) { return list[(h >>> shift) % list.length]; }
+            function spec(name, gender, age) {
+                var h = hashOf(name || "");
+                var styles = gender === "male" ? MALE : gender === "female" ? FEMALE : MALE.concat(FEMALE);
+                return { backdrop: pick(BACKDROPS, h, 0), clothes: pick(CLOTHES, h, 3), skin: pick(SKINS, h, 6), hair: age >= 55 ? "#a19b95" : pick(HAIRS, h, 9), style: pick(styles, h, 12), glasses: (h >>> 15) % 5 === 0 };
+            }
+            function svg(s) {
+                var back = BACK[s.style] ? '<path d="' + BACK[s.style] + '" fill="' + s.hair + '"/>' : "";
+                var glasses = s.glasses ? '<g fill="none" stroke="#2a2522" stroke-width="0.9" opacity="0.75"><circle cx="28.2" cy="28" r="2.9"/><circle cx="35.8" cy="28" r="2.9"/><path d="M31.1 28H32.9"/></g>' : "";
+                return '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" fill="' + s.backdrop + '"/><g transform="translate(-6.4 -5) scale(1.2)"><path d="M9 66C9 51 19 43.5 32 43.5S55 51 55 66Z" fill="' + s.clothes + '"/>' + back + '<path d="M27.5 43.6L32 49.5L36.5 43.6Z" fill="' + s.skin + '"/><rect x="28.6" y="35" width="6.8" height="9" rx="2" fill="' + s.skin + '"/><rect x="28.6" y="35" width="6.8" height="3.4" fill="#000" opacity="0.08"/><ellipse cx="22.6" cy="28.6" rx="1.7" ry="2.4" fill="' + s.skin + '"/><ellipse cx="41.4" cy="28.6" rx="1.7" ry="2.4" fill="' + s.skin + '"/><ellipse cx="32" cy="27" rx="9.4" ry="11" fill="' + s.skin + '"/><path d="' + FRONT[s.style] + '" fill="' + s.hair + '"/>' + glasses + '</g></svg>';
+            }
+            document.querySelectorAll("[data-persona]").forEach(function (el) {
+                el.innerHTML = svg(spec(el.dataset.persona, el.dataset.gender, Number(el.dataset.age)));
+            });
+            // Persona colour = clothing colour: margin rules, card heads and quote rows match the portrait.
+            document.querySelectorAll("[data-persona-tone]").forEach(function (el) {
+                var tone = pick(CLOTHES, hashOf(el.dataset.personaTone || ""), 3);
+                el.style.setProperty("--persona-tone", tone);
+                el.style.setProperty("--persona-tint", tone + "1f");
+            });
+        })();
+    </script>
+
+    <!-- Citation popover for [S#] sources and [Q#] quotes. Works with the mouse, the keyboard (focus) and touch; Escape closes it.
+         Keep the logic; its two labels come from window.reportLabels (defined in the page script below). -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var LABELS = window.reportLabels || { open: 'Open', jump: 'Jump to source' };
+            var tip = document.createElement('div');
+            tip.className = 'citation-tooltip';
+            tip.id = 'citation-tooltip';
+            tip.setAttribute('role', 'tooltip');
+            document.body.appendChild(tip);
+            var hideTimer = null;
+
+            function line(cls, text) {
+                var span = document.createElement('span');
+                span.className = cls;
+                span.textContent = text;
+                return span;
+            }
+            function action(href, icon, text, external) {
+                var a = document.createElement('a');
+                a.className = 'source-link';
+                a.href = href;
+                if (external) { a.target = '_blank'; a.rel = 'noopener'; }
+                var i = document.createElement('i');
+                i.className = 'fa-solid ' + icon;
+                a.appendChild(i);
+                a.appendChild(document.createTextNode(text));
+                return a;
+            }
+            function show(ref) {
+                clearTimeout(hideTimer);
+                var targetId = ref.getAttribute('href').replace('#', '');
+                var target = document.getElementById(targetId);
+                if (!target) return;
+                var name = (target.querySelector('[data-source-name]') || {}).textContent || '';
+                var title = (target.querySelector('[data-source-title]') || {}).textContent || '';
+                var url = target.getAttribute('href') || '';
+                tip.textContent = '';
+                tip.appendChild(line('source-name', name));
+                tip.appendChild(line('source-title', title));
+                var actions = document.createElement('div');
+                actions.className = 'source-actions';
+                if (url) actions.appendChild(action(url, 'fa-up-right-from-square', LABELS.open, true));
+                actions.appendChild(action('#' + targetId, 'fa-arrow-down', LABELS.jump, false));
+                tip.appendChild(actions);
+                ref.setAttribute('aria-describedby', tip.id);
+                // Fixed positioning uses viewport coordinates: below the reference, or above it when there is no room.
+                var rect = ref.getBoundingClientRect();
+                var width = Math.min(320, window.innerWidth - 16);
+                tip.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) + 'px';
+                tip.classList.add('visible');
+                var height = tip.offsetHeight;
+                var below = rect.bottom + 8;
+                tip.style.top = (below + height > window.innerHeight - 8 ? Math.max(8, rect.top - height - 8) : below) + 'px';
+            }
+            function hide(delay) {
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(function () {
+                    tip.classList.remove('visible');
+                    document.querySelectorAll('.citation-ref[aria-describedby]').forEach(function (r) { r.removeAttribute('aria-describedby'); });
+                }, delay);
+            }
+
+            tip.addEventListener('mouseenter', function () { clearTimeout(hideTimer); });
+            tip.addEventListener('mouseleave', function () { hide(300); });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(0); });
+            window.addEventListener('scroll', function () { hide(0); }, { passive: true });
+            document.querySelectorAll('.citation-ref').forEach(function (ref) {
+                ref.addEventListener('mouseenter', function () { show(ref); });
+                ref.addEventListener('mouseleave', function () { hide(300); });
+                ref.addEventListener('focus', function () { show(ref); });
+                ref.addEventListener('blur', function () { hide(300); });
+            });
+        });
+    </script>
+
+    <!-- Page behaviour: reading progress, the section in view, heading links, return-to-text after a citation jump,
+         back to top, the narrow-screen contents menu, and open details when printing. All chrome text comes from LABELS; add one entry for another language. -->
+    <script>
+        (function () {
+            // Fixed labels by <html lang> prefix; an unknown language falls back to English.
+            var ALL_LABELS = {
+                en: { contents: 'Contents', backToText: 'Back to the text', backToTop: 'Back to top', copyLink: 'Link to this section', open: 'Open', jump: 'Jump to source' },
+                zh: { contents: '目录', backToText: '返回正文', backToTop: '回到顶部', copyLink: '链接到本节', open: '打开', jump: '跳转到来源' }
+            };
+            var LABELS = ALL_LABELS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || ALL_LABELS.en;
+            window.reportLabels = LABELS; // read by the citation popover script
+
+            // Top bar label: the <title> text before " — ", so no separate label has to be written.
+            var topbar = document.getElementById('topbar-title');
+            if (topbar) topbar.textContent = document.title.split(' — ')[0].split(' - ')[0];
+
+            // Contents (desktop list and narrow-screen menu) from the section titles, before heading links are added.
+            var sections = Array.prototype.slice.call(document.querySelectorAll('main section[id]')).filter(function (sec) { return sec.querySelector('h2.section-title'); });
+            document.querySelectorAll('[data-contents-list]').forEach(function (box) {
+                sections.forEach(function (sec) {
+                    var a = document.createElement('a');
+                    a.href = '#' + sec.id;
+                    a.textContent = sec.querySelector('h2.section-title').textContent.trim();
+                    box.appendChild(a);
+                });
+            });
+            var progress = document.getElementById('reading-progress');
+            var toTop = document.getElementById('back-to-top');
+            var toText = document.getElementById('back-to-text');
+            var origin = null; // scroll position of the sentence the reader left to follow a citation
+
+            document.querySelectorAll('[data-label="contents"]').forEach(function (el) { el.textContent = LABELS.contents; });
+            document.querySelectorAll('[data-label="back-to-text"]').forEach(function (el) { el.textContent = LABELS.backToText; });
+            toTop.setAttribute('aria-label', LABELS.backToTop);
+            document.querySelectorAll('[data-label="back-to-top"]').forEach(function (el) { el.textContent = LABELS.backToTop; });
+
+            // Each section title gets a link that can be copied.
+            document.querySelectorAll('section[id] > h2.section-title').forEach(function (h) {
+                var a = document.createElement('a');
+                a.className = 'heading-anchor';
+                a.href = '#' + h.parentElement.id;
+                a.textContent = '#';
+                a.setAttribute('aria-label', LABELS.copyLink);
+                h.appendChild(a);
+            });
+
+            var ticking = false;
+            function update() {
+                ticking = false;
+                var doc = document.documentElement;
+                var max = doc.scrollHeight - window.innerHeight;
+                progress.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, window.scrollY / max) : 0) + ')';
+                toTop.classList.toggle('visible', window.scrollY > 900);
+                // The return button goes away once the reader is back near the sentence they left.
+                if (origin !== null && Math.abs(window.scrollY - origin) < 160) { origin = null; toText.classList.remove('visible'); }
+            }
+            window.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+            window.addEventListener('resize', update);
+            update();
+
+            toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+            toText.addEventListener('click', function () {
+                if (origin !== null) window.scrollTo({ top: origin, behavior: 'smooth' });
+            });
+            document.querySelectorAll('.citation-ref').forEach(function (ref) {
+                ref.addEventListener('click', function () {
+                    origin = window.scrollY;
+                    setTimeout(function () { if (origin !== null) toText.classList.add('visible'); }, 400);
+                });
+            });
+
+            // Highlight the contents link of the section in view.
+            var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+            if ('IntersectionObserver' in window && links.length) {
+                var observer = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        if (!entry.isIntersecting) return;
+                        links.forEach(function (a) { a.classList.toggle('is-active', a.getAttribute('href') === '#' + entry.target.id); });
+                    });
+                }, { rootMargin: '-20% 0px -70% 0px' });
+                links.forEach(function (a) { var t = document.querySelector(a.getAttribute('href')); if (t) observer.observe(t); });
+            }
+
+            // The narrow-screen contents menu closes after a choice or a tap elsewhere.
+            var menu = document.querySelector('.toc-mobile');
+            if (menu) {
+                menu.addEventListener('click', function (e) { if (e.target.closest('.toc-panel a')) menu.removeAttribute('open'); });
+                document.addEventListener('click', function (e) { if (!menu.contains(e.target)) menu.removeAttribute('open'); });
+            }
+
+            // A printed report shows the folded judging criteria.
+            var folded = [];
+            window.addEventListener('beforeprint', function () {
+                folded = Array.prototype.slice.call(document.querySelectorAll('details:not([open])'));
+                folded.forEach(function (d) { d.setAttribute('open', ''); });
+            });
+            window.addEventListener('afterprint', function () { folded.forEach(function (d) { d.removeAttribute('open'); }); });
+        })();
+    </script>
+</body>
+</html>

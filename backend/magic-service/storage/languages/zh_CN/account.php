@@ -9,4 +9,5 @@ return [
     'register_failed' => '账号注册失败',
     'request_too_frequent' => '请求太频繁',
     'login_env_not_support' => '不支持当前环境的登录',
+    'super_magic_already_created' => '资源已存在',
 ];

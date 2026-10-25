@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Al-Razi Hub — Genomic &amp; Precision Medicine Research System</title>
+  <style>
+    :root {
+      --bg: #f7f5f1;
+      --surface: #ffffff;
+      --surface-alt: #f1eee8;
+      --hover: #ebe7df;
+      --border: #e2ded4;
+      --border-strong: #c9c3b6;
+      --sand-gold: #e2d9cc;
+      --ink: #1c1a16;
+      --ink-muted: #55504a;
+      --ink-subtle: #7a736b;
+      --primary: #0e6f78;
+      --primary-hover: #0b5e66;
+      --primary-soft: #d9ecee;
+      --primary-ink: #083e44;
+      --accent: #a8620a;
+      --accent-soft: #fbefdb;
+      --accent-ink: #6b3d05;
+      --accent-border: #e5b472;
+      --danger: #b42318;
+      --danger-soft: #fdecea;
+      --danger-ink: #7a1510;
+      --success: #1f7a4c;
+      --success-soft: #e3f2ea;
+      --success-ink: #14532d;
+      --warning: #b54708;
+      --warning-soft: #fdf0e3;
+      --r-sm: 4px;
+      --r-md: 6px;
+      --r-lg: 10px;
+      --r-xl: 14px;
+      --r-pill: 999px;
+      --shadow-sm: 0 1px 2px rgba(28,26,22,0.05), 0 1px 3px rgba(28,26,22,0.06);
+      --shadow-md: 0 4px 8px -2px rgba(28,26,22,0.06);
+      --font-sans: 'IBM Plex Sans', -apple-system, system-ui, sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+      --font-arabic: 'IBM Plex Sans Arabic', 'Amiri', 'Traditional Arabic', 'IBM Plex Sans', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Dual-Script Header */
+    .hub-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .brand-dual {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .emblem-box {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, var(--primary) 0%, #08484e 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-family: var(--font-arabic);
+      font-size: 18px;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(14,111,120,0.25);
+    }
+    .brand-titles {
+      display: flex;
+      flex-direction: column;
+    }
+    .brand-ar {
+      font-family: var(--font-arabic);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary-ink);
+      letter-spacing: 0;
+      direction: rtl;
+    }
+    .brand-en {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      letter-spacing: 0.02em;
+    }
+    .nav-station {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .mine-filter-badge {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      color: var(--accent-ink);
+      padding: 4px 10px;
+      border-radius: var(--r-pill);
+      font-size: 11.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+    .avatar-ar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary-ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    /* Layout */
+    .hub-container {
+      max-width: 1240px;
+      margin: 18px auto;
+      padding: 0 24px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    /* First 500px High-Impact Area: Genomic Sequencing Project Card */
+    .genomic-hero-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-inline-start: 4px solid var(--accent);
+      border-radius: var(--r-lg);
+      padding: 22px 26px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+    }
+    .hero-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .project-titles {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .project-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .badge-code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      padding: 2px 7px;
+      border-radius: var(--r-sm);
+      color: var(--ink-muted);
+    }
+    .badge-mine {
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      border: 1px solid var(--accent-border);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--r-pill);
+    }
+    .badge-wgs {
+      background: var(--primary-soft);
+      color: var(--primary-ink);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--r-pill);
+    }
+    .project-name-ar {
+      font-family: var(--font-arabic);
+      font-size: 21px;
+      font-weight: 700;
+      color: var(--primary-ink);
+      letter-spacing: -0.01em;
+      margin-top: 2px;
+    }
+    .project-name-en {
+      font-size: 14px;
+      color: var(--ink-muted);
+      font-weight: 500;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-emerald {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--r-md);
+      padding: 9px 18px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 6px rgba(14,111,120,0.25);
+    }
+    .btn-emerald:hover { background: var(--primary-hover); }
+    .btn-sand-alt {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      border-radius: var(--r-md);
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    /* DNA Sequence Alignment Visualizer */
+    .alignment-card {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .align-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: var(--ink-muted);
+    }
+    .sequence-track {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      overflow-x: auto;
+      padding: 4px 0;
+    }
+    .base {
+      width: 26px;
+      height: 28px;
+      border-radius: var(--r-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .base-a { background: #e3f2ea; color: #14532d; border: 1px solid #a7f3d0; }
+    .base-t { background: #fdecea; color: #7a1510; border: 1px solid #fecaca; }
+    .base-c { background: #e3ecf8; color: #153e75; border: 1px solid #bfdbfe; }
+    .base-g { background: #fbefdb; color: #6b3d05; border: 1px solid #fde68a; }
+    .base-variant {
+      box-shadow: 0 0 0 2px var(--danger);
+      animation: pulse 2s infinite;
+      position: relative;
+    }
+    /* Identified Pathogenic Variants Grid */
+    .variant-matrix {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 4px;
+    }
+    .variant-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .var-info h4 {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .var-gene {
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-top: 2px;
+    }
+    .var-clinical {
+      font-size: 11px;
+      color: var(--danger-ink);
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .chip-danger {
+      background: var(--danger-soft);
+      color: var(--danger-ink);
+      border: 1px solid rgba(180,35,24,0.25);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: var(--r-pill);
+    }
+    .chip-warning-soft {
+      background: var(--warning-soft);
+      color: #7c2d12;
+      border: 1px solid rgba(181,71,8,0.25);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: var(--r-pill);
+    }
+    /* Cohort Analytics & Population Allele Frequency */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .stat-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-num {
+      font-family: var(--font-mono);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--primary-ink);
+      margin-top: 4px;
+    }
+    .stat-subtext {
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .footer-razi {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: var(--ink-subtle);
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="hub-header">
+    <div class="brand-dual">
+      <div class="emblem-box">رازي</div>
+      <div class="brand-titles">
+        <span class="brand-ar">معهد الرازي للبحوث الجينومية والطب الدقيق</span>
+        <span class="brand-en">Al-Razi Institute for Genomic &amp; Precision Medicine</span>
+      </div>
+    </div>
+    <div class="nav-station">
+      <div class="mine-filter-badge">
+        <span style="font-family: var(--font-arabic); font-size: 12px;">مشروعي &bull; Assigned to me</span>
+      </div>
+      <div class="user-chip">
+        <div class="avatar-ar">د.ع</div>
+        <span>Dr. Tariq Al-Mansoor, PhD</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="hub-container">
+    <!-- First 500px High-Impact Area: Genomic Sequencing Project Card -->
+    <section class="genomic-hero-card">
+      <div class="hero-top-row">
+        <div class="project-titles">
+          <div class="project-badge-row">
+            <span class="badge-code">PROJECT #ARZ-GEN-9024</span>
+            <span class="badge-mine">Principal Investigator &bull; باحث رئيسي</span>
+            <span class="badge-wgs">WGS 60x High-Fidelity Depth</span>
+          </div>
+          <h1 class="project-name-ar">مشروع الجينوم المرجعي للشرق الأوسط وشمال أفريقيا</h1>
+          <h2 class="project-name-en">Pan-Arab Reference Variome Consortium &bull; Cohort Gulf-Levant VII</h2>
+        </div>
+        <div class="hero-actions">
+          <button class="btn-emerald">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Review Variant Report
+          </button>
+          <button class="btn-sand-alt">FASTQ/BAM</button>
+        </div>
+      </div>
+
+      <!-- DNA Base-Pair Sequence Alignment Ribbon -->
+      <div class="alignment-card">
+        <div class="align-meta">
+          <span>Target Locus: <strong>Chr10:94,762,681 &ndash; CYP2C19 Exon 5</strong></span>
+          <span>Sample: <strong>#SA-QTR-8819-B</strong> &bull; Alignment Score: <strong>MAPQ 60</strong></span>
+        </div>
+        <div class="sequence-track">
+          <span style="font-size: 11px; color: var(--ink-subtle); margin-right: 6px;">5&prime;&ndash;</span>
+          <div class="base base-a">A</div>
+          <div class="base base-t">T</div>
+          <div class="base base-g">G</div>
+          <div class="base base-c">C</div>
+          <div class="base base-c">C</div>
+          <div class="base base-t">T</div>
+          <div class="base base-a">A</div>
+          <!-- Pathogenic Variant Target -->
+          <div class="base base-t base-variant" title="Variant Mutation: G > A Transition">&#9679; A</div>
+          <div class="base base-g">G</div>
+          <div class="base base-a">A</div>
+          <div class="base base-t">T</div>
+          <div class="base base-c">C</div>
+          <div class="base base-g">G</div>
+          <div class="base base-c">C</div>
+          <div class="base base-t">T</div>
+          <div class="base base-a">A</div>
+          <span style="font-size: 11px; color: var(--ink-subtle); margin-left: 6px;">&ndash;3&prime;</span>
+        </div>
+      </div>
+
+      <!-- Clinically Actionable Pathogenic Variants -->
+      <div class="variant-matrix">
+        <div class="variant-tile">
+          <div class="var-info">
+            <h4>CYP2C19*2 (c.681G&gt;A)</h4>
+            <div class="var-gene">Loss-of-Function Polymorphism &bull; Cytochrome P450</div>
+            <div class="var-clinical">Clinical Impact: Poor Clopidogrel (Plavix) Metabolizer</div>
+          </div>
+          <span class="chip-danger">Pathogenic</span>
+        </div>
+
+        <div class="variant-tile">
+          <div class="var-info">
+            <h4>HBB (c.20A&gt;T / Glu6Val)</h4>
+            <div class="var-gene">Hemoglobin Subunit Beta &bull; HbS Allele Trait</div>
+            <div class="var-clinical" style="color: #7c2d12;">Carrier State: Sickle Cell Trait / Resistance to P. falciparum</div>
+          </div>
+          <span class="chip-warning-soft">Carrier Trait</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Research Cohort Analytics -->
+    <section class="analytics-grid">
+      <article class="stat-card">
+        <div class="stat-eyebrow">Sequenced Arab Exomes</div>
+        <div class="stat-num">14,280</div>
+        <div class="stat-subtext">
+          <span style="color: var(--success); font-weight: 700;">&uarr; +1,420</span> this academic quarter
+        </div>
+      </article>
+
+      <article class="stat-card">
+        <div class="stat-eyebrow">Sequencing Quality (Q30+)</div>
+        <div class="stat-num">99.42%</div>
+        <div class="stat-subtext">Illumina NovaSeq X &bull; 0.08% error rate</div>
+      </article>
+
+      <article class="stat-card">
+        <div class="stat-eyebrow">Predominant Y-Haplogroups</div>
+        <div class="stat-num">J1-M267 &bull; 71.8%</div>
+        <div class="stat-subtext">Followed by E1b1b (14.2%) &amp; R1a (6.4%)</div>
+      </article>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer-razi">
+      <div>
+        <span>Al-Razi Hub &bull; مركز الرازي للأبحاث الجينومية والبيانات الحيوية</span>
+      </div>
+      <div style="font-family: var(--font-mono);">
+        GISAID / NCBI BioProject #PRJNA9024 &bull; GA4GH Beacon API Compliant
+      </div>
+    </footer>
+  </main>
+</body>
+</html>

@@ -4,6 +4,7 @@
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": ".",
 		"composite": true,
+		"customConditions": ["magic-web-source"],
 		"declaration": true,
 		"declarationDir": "dist/types",
 		"emitDecoratorMetadata": true,
@@ -19,7 +20,8 @@
 		"paths": {
 			"@/*": ["./src/*"],
 			"@customer/*": ["./customer/src/*"],
-			"@enterprise/*": ["./enterprise/src/*"]
+			"@enterprise/*": ["./enterprise/src/*"],
+			"@magic-admin-v2/*": ["./packages/magic-admin-v2/src/*"]
 		},
 		"resolveJsonModule": true,
 		"skipLibCheck": true,

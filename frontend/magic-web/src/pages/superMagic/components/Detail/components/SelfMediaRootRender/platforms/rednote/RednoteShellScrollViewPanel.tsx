@@ -1,6 +1,6 @@
 import type { MutableRefObject } from "react"
 import { observer } from "mobx-react-lite"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { CardFrameRef } from "../../components/CardFrame"
 import { useSelfMediaStore } from "../../stores"
 import { RednoteScrollView } from "./detail"

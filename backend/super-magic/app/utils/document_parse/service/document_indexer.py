@@ -12,6 +12,7 @@ from ..drivers import get_document_driver_registry
 from ..models import DocumentAsset, DocumentChunk, DocumentNode, DocumentStructure, ExtractionResult, stable_document_id
 from ..output.index_writer import IndexWriter
 from ..output.outline_writer import OutlineWriter
+from ..structure.range_parser import RangeParser
 
 
 class DocumentIndexer:
@@ -109,9 +110,16 @@ class DocumentIndexer:
         existing: DocumentStructure,
         current: DocumentStructure,
     ) -> DocumentStructure:
-        chunks = await self._merge_chunks(output_dir, existing.chunks, current.chunks)
+        chunks = await self._merge_chunks(
+            output_dir,
+            existing.chunks,
+            current.chunks,
+            unit_type=current.unit_type,
+            total_units=current.total_units,
+        )
         assets = self._merge_assets(existing.assets, current.assets)
         nodes = self._merge_nodes(existing.nodes, current.nodes)
+        self._filter_node_chunk_ids(nodes, {chunk.chunk_id for chunk in chunks})
         return DocumentStructure(
             document_id=current.document_id,
             source_path=current.source_path,
@@ -130,10 +138,33 @@ class DocumentIndexer:
         )
 
     @staticmethod
-    async def _merge_chunks(output_dir: Path, existing: list[DocumentChunk], current: list[DocumentChunk]) -> list[DocumentChunk]:
+    async def _merge_chunks(
+        output_dir: Path,
+        existing: list[DocumentChunk],
+        current: list[DocumentChunk],
+        unit_type: str = "page",
+        total_units: int = 0,
+    ) -> list[DocumentChunk]:
+        """按范围替换重提取内容，避免同一范围积累多套 chunk。"""
+
         chunks: list[DocumentChunk] = []
         seen: set[str] = set()
-        for chunk in [*existing, *current]:
+        retained = list(existing)
+        for new_chunk in current:
+            overlaps = [
+                old_chunk
+                for old_chunk in retained
+                if DocumentIndexer._ranges_overlap(
+                    old_chunk.source_range,
+                    new_chunk.source_range,
+                    total_units=total_units,
+                )
+            ]
+            if overlaps:
+                retained = [old_chunk for old_chunk in retained if old_chunk not in overlaps]
+            retained = [old_chunk for old_chunk in retained if old_chunk.chunk_id != new_chunk.chunk_id]
+            retained.append(new_chunk)
+        for chunk in retained:
             if chunk.chunk_id in seen:
                 continue
             if chunk.path:
@@ -146,6 +177,31 @@ class DocumentIndexer:
             chunk.previous_chunk_id = chunks[index - 1].chunk_id if index > 0 else None
             chunk.next_chunk_id = chunks[index + 1].chunk_id if index + 1 < len(chunks) else None
         return chunks
+
+    @staticmethod
+    def _ranges_overlap(left: str, right: str, total_units: int = 0) -> bool:
+        """判断两个页面、幻灯片或结构单元范围是否重叠。"""
+
+        if not left or not right:
+            return left == right
+        left_value = left.split(":", 1)[-1].strip()
+        right_value = right.split(":", 1)[-1].strip()
+        if left_value == "all" or right_value == "all":
+            return True
+        try:
+            left_units = set(RangeParser.parse_numeric(left_value, total_units or None))
+            right_units = set(RangeParser.parse_numeric(right_value, total_units or None))
+        except Exception:
+            return left == right
+        return bool(left_units & right_units)
+
+    @staticmethod
+    def _filter_node_chunk_ids(nodes: list[DocumentNode], valid_chunk_ids: set[str]) -> None:
+        """清理被范围替换淘汰的旧 chunk 引用。"""
+
+        for node in nodes:
+            node.chunk_ids = [chunk_id for chunk_id in node.chunk_ids if chunk_id in valid_chunk_ids]
+            DocumentIndexer._filter_node_chunk_ids(node.children, valid_chunk_ids)
 
     @staticmethod
     def _merge_assets(existing: list[DocumentAsset], current: list[DocumentAsset]) -> list[DocumentAsset]:

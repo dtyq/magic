@@ -1,69 +1,45 @@
 import { useRef, type TouchEvent } from "react"
 import { useLongPress, useMemoizedFn } from "ahooks"
 import { Ellipsis, Loader } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
+import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { isCollaborationProject, isWorkspaceShortcutProject } from "@/pages/superMagic/constants"
+import ProjectTypeTag, {
+	RECENT_PROJECT_LINE_MARK_CLASS_NAME,
+	RECENT_PROJECT_MARK_CLASS_NAME,
+	RECENT_PROJECT_MARK_SIZE,
+} from "@/pages/superMagic/components/ProjectTypeTag"
+import PinnedTag from "@/pages/superMagic/components/EmptyWorkspacePanel/components/ProjectItem/components/PinnedTag"
+import CollaborationProjectTag from "@/pages/superMagic/components/CollaborationProjectTag"
 import type { MobileShellMenuRecentItem } from "./MobileShellMenuContext"
 import { getRecentItemActionAnchor } from "./utils/recentItemActionAnchor"
 
-/** Linked workspace badge (12×12, two overlapping squares). */
-function LinkedBadgeIcon() {
+/**
+ * Same marks after the name as the web sidebar's recent rows (CollapsedWorkspaceProjectRow):
+ * project type (lobster, agent, micro-app, AI canvas…), pinned, then collaboration or shortcut,
+ * as plain 14px icons without chip backgrounds.
+ */
+function RecentProjectTags({ project }: { project: ProjectListItem }) {
+	const showCollaborationTag =
+		isWorkspaceShortcutProject(project) || isCollaborationProject(project)
 	return (
-		<svg
-			width="12"
-			height="12"
-			viewBox="0 0 12 12"
-			fill="none"
-			xmlns="http://www.w3.org/2000/svg"
-			aria-hidden
-			data-testid="mobile-shell-recent-item-row-svg"
-		>
-			<path
-				d="M9.5 4.134C9.65202 4.22177 9.77825 4.348 9.86602 4.50001C9.95379 4.65203 10 4.82447 10 5V9C10 9.26522 9.89464 9.51957 9.70711 9.70711C9.51957 9.89464 9.26522 10 9 10H5C4.73478 10 4.48043 9.89464 4.29289 9.70711C4.10536 9.51957 4 9.26522 4 9V5C4 4.73478 4.10536 4.48043 4.29289 4.29289C4.48043 4.10536 4.73478 4 5 4H6.5M2.5 7.867C2.34784 7.77915 2.22151 7.65276 2.13373 7.50055C2.04595 7.34835 1.99983 7.1757 2 7V3C2 2.73478 2.10536 2.48043 2.29289 2.29289C2.48043 2.10536 2.73478 2 3 2H7C7.26522 2 7.51957 2.10536 7.70711 2.29289C7.89464 2.48043 8 2.73478 8 3V7C8 7.26522 7.89464 7.51957 7.70711 7.70711C7.51957 7.89464 7.26522 8 7 8H5.5"
-				stroke="currentColor"
-				strokeLinecap="round"
-				strokeLinejoin="round"
+		<div className="flex shrink-0 items-center gap-1">
+			{/* No hover on touch: tooltips stay off. */}
+			<ProjectTypeTag
+				projectMode={project.project_mode}
+				tooltipDisabled
+				size={RECENT_PROJECT_MARK_SIZE}
+				uniformStroke
 			/>
-		</svg>
-	)
-}
-
-/** Collaboration shared badge (12×12, user share icon). */
-function SharedBadgeIcon() {
-	return (
-		<svg
-			width="12"
-			height="12"
-			viewBox="0 0 12 12"
-			fill="none"
-			xmlns="http://www.w3.org/2000/svg"
-			aria-hidden
-			data-testid="mobile-shell-recent-item-row-svg-2"
-		>
-			<path
-				d="M2.5 3.5C2.5 4.03043 2.71071 4.53914 3.08579 4.91421C3.46086 5.28929 3.96957 5.5 4.5 5.5C5.03043 5.5 5.53914 5.28929 5.91421 4.91421C6.28929 4.53914 6.5 4.03043 6.5 3.5C6.5 2.96957 6.28929 2.46086 5.91421 2.08579C5.53914 1.71071 5.03043 1.5 4.5 1.5C3.96957 1.5 3.46086 1.71071 3.08579 2.08579C2.71071 2.46086 2.5 2.96957 2.5 3.5Z"
-				stroke="currentColor"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			/>
-			<path
-				d="M1.5 10.5V9.5C1.5 8.96957 1.71071 8.46086 2.08579 8.08579C2.46086 7.71071 2.96957 7.5 3.5 7.5H5.5C6.03043 7.5 6.53914 7.71071 6.91421 8.08579C7.28929 8.46086 7.5 8.96957 7.5 9.5V10.5"
-				stroke="currentColor"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			/>
-			<path
-				d="M8 1.565C8.43021 1.67515 8.81152 1.92535 9.08382 2.27616C9.35612 2.62696 9.50392 3.05841 9.50392 3.5025C9.50392 3.94659 9.35612 4.37804 9.08382 4.72884C8.81152 5.07965 8.43021 5.32985 8 5.44"
-				stroke="currentColor"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			/>
-			<path
-				d="M10.5 10.5V9.5C10.4975 9.05858 10.349 8.6304 10.0776 8.2822C9.80631 7.934 9.42741 7.68535 9 7.575"
-				stroke="currentColor"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			/>
-		</svg>
+			{project.is_pinned ? <PinnedTag className={RECENT_PROJECT_MARK_CLASS_NAME} /> : null}
+			{showCollaborationTag ? (
+				<CollaborationProjectTag
+					project={project}
+					showText={false}
+					className={RECENT_PROJECT_LINE_MARK_CLASS_NAME}
+				/>
+			) : null}
+		</div>
 	)
 }
 
@@ -206,20 +182,7 @@ export function MobileShellRecentItemRow({
 				)}
 				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
 					<span className="min-w-0 truncate leading-5">{item.title}</span>
-					{(item.isLinked || item.isShared) && (
-						<div className="flex shrink-0 items-center gap-1">
-							{item.isLinked && (
-								<span className="flex items-center rounded-[6px] border border-border bg-muted p-[2px] text-muted-foreground">
-									<LinkedBadgeIcon />
-								</span>
-							)}
-							{item.isShared && (
-								<span className="flex items-center rounded-[6px] border border-info/30 bg-info/10 p-[2px] text-info">
-									<SharedBadgeIcon />
-								</span>
-							)}
-						</div>
-					)}
+					{item.project ? <RecentProjectTags project={item.project} /> : null}
 				</div>
 			</button>
 			<button

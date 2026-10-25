@@ -50,7 +50,7 @@ const Demo = () => {
 
 - [antd](https://ant.design/)
 - [ahooks](https://ahooks.js.org/)
-- [@feb/user-selector](https://github.com/feb-team/user-selector)
+- [@dtyq/user-selector](https://github.com/dtyq/magic/tree/master/frontend/user-selector)
 - [@tabler/icons-react](https://tabler.io/icons)
 - 组件库内部的 `MagicSelect`、`MagicAvatar`、`MemberDepartmentSelector`、`TsMemberDepartmentSelector`、`useAdmin` 等
 

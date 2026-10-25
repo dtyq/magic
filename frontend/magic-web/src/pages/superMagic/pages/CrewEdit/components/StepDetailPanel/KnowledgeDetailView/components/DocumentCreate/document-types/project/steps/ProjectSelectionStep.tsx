@@ -10,7 +10,7 @@ import { Switch } from "@/components/shadcn-ui/switch"
 import { StepNavigation } from "../../../components"
 import type { ProjectDocumentStore } from "../../../store"
 import { workspaceStore, projectStore } from "@/pages/superMagic/stores/core"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { SuperMagicApi } from "@/apis"
 import { loadProjectAttachments } from "@/pages/superMagic/services"
 import FileSelector from "@/pages/superMagic/components/Share/FileSelector/FileSelector"
@@ -362,8 +362,6 @@ export const ProjectSelectionStep = observer(function ProjectSelectionStep({
 		async (projectId: string) => {
 			const res = await loadProjectAttachments({
 				projectId,
-				temporaryToken:
-					(window as Window & { temporary_token?: string }).temporary_token || "",
 			})
 			return res?.tree || []
 		},

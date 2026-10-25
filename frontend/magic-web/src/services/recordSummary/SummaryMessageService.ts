@@ -1,5 +1,7 @@
+import { createElement } from "react"
 import i18n from "i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { UploadProgressToastContent } from "./UploadProgressToastContent"
 
 /**
  * Summary process stages with corresponding message keys
@@ -26,6 +28,11 @@ const SUMMARY_MESSAGE_KEY = "recording-summary-process"
 export class SummaryMessageService {
 	private currentStage: SummaryStage | null = null
 	private messageVisible = false
+	private uploadRetryHandler: (() => void) | null = null
+
+	setUploadRetryHandler(handler: (() => void) | null) {
+		this.uploadRetryHandler = handler
+	}
 
 	/**
 	 * Show message for a specific stage
@@ -33,14 +40,7 @@ export class SummaryMessageService {
 	showStageMessage(stage: SummaryStage) {
 		this.currentStage = stage
 		this.messageVisible = true
-
-		const content = this.getMessageContent(stage)
-
-		magicToast.loading({
-			key: SUMMARY_MESSAGE_KEY,
-			content,
-			duration: 0,
-		})
+		this.showPersistentLoadingToast(this.getMessageContent(stage))
 	}
 
 	/**
@@ -50,12 +50,23 @@ export class SummaryMessageService {
 		if (!this.messageVisible || !this.currentStage) return
 
 		const baseContent = this.getMessageContent(this.currentStage)
-		const content = progressInfo ? `${baseContent} (${progressInfo})` : baseContent
+		const content = progressInfo ? `${baseContent}\n${progressInfo}` : baseContent
+		this.showPersistentLoadingToast(content)
+	}
+
+	private showPersistentLoadingToast(content: string) {
+		const showRetry =
+			this.currentStage === SummaryStage.UploadingChunks && Boolean(this.uploadRetryHandler)
 
 		magicToast.loading({
 			key: SUMMARY_MESSAGE_KEY,
-			content,
+			content: createElement(UploadProgressToastContent, {
+				text: content,
+				showRetry,
+				onRetry: this.uploadRetryHandler ?? undefined,
+			}),
 			duration: 0,
+			dismissible: false,
 		})
 	}
 
@@ -85,7 +96,7 @@ export class SummaryMessageService {
 			typeof error === "string"
 				? error
 				: error?.message ||
-				i18n.t("recordingSummary.message.summaryFailed", { ns: "super" })
+					i18n.t("recordingSummary.message.summaryFailed", { ns: "super" })
 
 		magicToast.error({
 			key: SUMMARY_MESSAGE_KEY,

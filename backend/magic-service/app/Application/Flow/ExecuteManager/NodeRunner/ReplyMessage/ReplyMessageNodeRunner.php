@@ -472,6 +472,7 @@ class ReplyMessageNodeRunner extends NodeRunner
 
         return Db::table('magic_contact_department_users')
             ->whereIn('department_id', $list)
+            ->whereNull('deleted_at')
             ->pluck('user_id')->toArray();
     }
 }

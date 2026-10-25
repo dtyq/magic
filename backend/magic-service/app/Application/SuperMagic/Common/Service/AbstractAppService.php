@@ -20,13 +20,10 @@ use App\Domain\SuperMagic\Project\Service\ProjectMemberDomainService;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskContext;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 
 class AbstractAppService extends AbstractKernelAppService
 {
-    use DataIsolationTrait;
-
     /**
      * 获取用户可访问的项目实体（默认大于可读角色）.
      *

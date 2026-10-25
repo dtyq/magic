@@ -1,0 +1,20 @@
+{
+	"accountSwitchFailed": "账号切换失败，请稍后重试。",
+	"addAccount": "添加账号",
+	"applicationAdmin": "应用管理员",
+	"currentAccount": "当前账号",
+	"logoutAccount": "退出账号",
+	"organizationAdmin": "组织管理员",
+	"organizationUnavailable": "组织未配置",
+	"otherAccounts": "其他账号",
+	"personalOrganization": "个人版",
+	"phone": "手机号",
+	"profile": "账户资料",
+	"refreshProfile": "刷新资料",
+	"saasPlatform": "SaaS 平台",
+	"switchFailed": "组织切换失败，请稍后重试。",
+	"switchOrganization": "切换组织",
+	"switchSuccess": "组织已切换",
+	"userId": "用户 ID",
+	"userMenu": "用户菜单"
+}

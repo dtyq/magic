@@ -39,7 +39,7 @@ interface ResourceShareRepositoryInterface
      * @param string $resourceId 资源ID
      * @return null|ResourceShareEntity 资源分享实体
      */
-    public function getShareByResourceIdWithTrashed(string $resourceId): ?ResourceShareEntity;
+    public function getShareByResourceIdWithTrashed(string $resourceId, ?int $resourceType = null, ?string $organizationCode = null): ?ResourceShareEntity;
 
     /**
      * 保存分享实体.

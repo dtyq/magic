@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useAsyncEffect } from "ahooks"
 import { magic } from "@/enhance/magicElectron"
-import { compareVersions } from "@/lib/dingTalkAPI"
+import { compareVersions } from "@/infrastructure/external-sdk/ding-talk"
 
 export function useDesktopVersionCheck() {
 	const [version, setAppVisible] = useState("")

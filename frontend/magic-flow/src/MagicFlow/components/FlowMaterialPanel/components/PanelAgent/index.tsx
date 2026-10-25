@@ -25,7 +25,7 @@ export default function PanelAgent() {
 			<Select
 				options={options}
 				popupClassName={clsx(styles.select, `${prefix}panel-select`)}
-				suffixIcon={<IconCaretDownFilled />}
+				suffixIcon={<IconCaretDownFilled size={16} />}
 				value={agentType}
 				onChange={setAgentType}
 			/>

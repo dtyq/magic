@@ -1,3 +1,4 @@
+import { assertProjectDeletionAllowed } from "@/services/recordSummary/projectDeletionRecordingGuard"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SuperMagicApi } from "@/apis"
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
@@ -7,16 +8,25 @@ const { mockWorkspaces, mockProjectStore } = vi.hoisted(() => ({
 	mockProjectStore: {
 		projects: [] as ProjectListItem[],
 		removeProject: vi.fn(),
+		removeProjectFromCollections: vi.fn(),
+		selectedProject: null as ProjectListItem | null,
+		setSelectedProject: vi.fn(),
 		setProjects: vi.fn(),
+		setProjectsForWorkspace: vi.fn(),
 	},
 }))
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		moveProjectToNewWorkspace: vi.fn(),
+		deleteProject: vi.fn(),
 		getProjects: vi.fn(),
 		getProjectsWithCollaboration: vi.fn(),
 	},
+}))
+
+vi.mock("@/services/analytics", () => ({
+	analyticsService: { report: vi.fn() },
 }))
 
 vi.mock("@/pages/superMagic/stores/core/project", () => ({
@@ -26,6 +36,7 @@ vi.mock("@/pages/superMagic/stores/core/project", () => ({
 vi.mock("@/pages/superMagic/stores/core", () => ({
 	workspaceStore: {
 		workspaces: mockWorkspaces,
+		setSelectedWorkspace: vi.fn(),
 	},
 	topicStore: {},
 }))
@@ -55,7 +66,18 @@ vi.mock("@/pages/superMagic/utils/project", () => ({
 
 import ProjectService from "../projectService"
 
-describe("ProjectService.moveProject", () => {
+describe("ProjectService project operations", () => {
+	it("blocks recording deletion before optimistic removal and the server request", async () => {
+		const error = new Error("unfinished recording")
+		vi.mocked(assertProjectDeletionAllowed).mockImplementationOnce(() => {
+			throw error
+		})
+		await expect(projectService.deleteProject("project-1", "workspace-source")).rejects.toBe(
+			error,
+		)
+		expect(mockProjectStore.removeProject).not.toHaveBeenCalled()
+		expect(SuperMagicApi.deleteProject).not.toHaveBeenCalled()
+	})
 	let projectService: ProjectService
 
 	beforeEach(() => {
@@ -93,6 +115,8 @@ describe("ProjectService.moveProject", () => {
 			target_workspace_id: "workspace-target",
 			target_workspace_name: "Target Workspace",
 			target_project_name: "新项目名称",
+			pre_project_id: undefined,
+			next_project_id: undefined,
 		})
 	})
 
@@ -122,17 +146,56 @@ describe("ProjectService.moveProject", () => {
 			target_workspace_id: "workspace-target",
 			target_workspace_name: "Target Workspace",
 			target_project_name: undefined,
+			pre_project_id: undefined,
+			next_project_id: undefined,
 		})
 	})
 
 	it("optimistically removes project from store before API resolves", async () => {
-		mockProjectStore.removeProject.mockClear()
+		mockProjectStore.removeProjectFromCollections.mockClear()
 		await projectService.moveProject({
 			projectId: "project-1",
 			targetWorkspaceId: "workspace-target",
 			sourceWorkspaceId: "workspace-source",
 		})
 
-		expect(mockProjectStore.removeProject).toHaveBeenCalledWith("project-1")
+		expect(mockProjectStore.removeProjectFromCollections).toHaveBeenCalledWith("project-1")
+	})
+
+	it("does not switch selectedWorkspace when the moved project is not currently selected", async () => {
+		const { workspaceStore } = await import("@/pages/superMagic/stores/core")
+		mockProjectStore.selectedProject = null
+
+		await projectService.moveProject({
+			projectId: "project-1",
+			targetWorkspaceId: "workspace-target",
+			sourceWorkspaceId: "workspace-source",
+		})
+
+		expect(workspaceStore.setSelectedWorkspace).not.toHaveBeenCalled()
+	})
+
+	// Navigation/view code owns selectedWorkspace. A list-page move must not
+	// steal the current workspace just because the moved project is still selected.
+	it("does not switch selectedWorkspace even when the moved project is selected", async () => {
+		const { workspaceStore } = await import("@/pages/superMagic/stores/core")
+		mockProjectStore.selectedProject = {
+			id: "project-1",
+			project_name: "Source Project",
+			workspace_id: "workspace-source",
+			workspace_name: "Source Workspace",
+		} as ProjectListItem
+
+		await projectService.moveProject({
+			projectId: "project-1",
+			targetWorkspaceId: "workspace-target",
+			sourceWorkspaceId: "workspace-source",
+		})
+
+		expect(workspaceStore.setSelectedWorkspace).not.toHaveBeenCalled()
 	})
 })
+
+vi.mock("@/services/recordSummary/projectDeletionRecordingGuard", () => ({
+	assertProjectDeletionAllowed: vi.fn(),
+}))

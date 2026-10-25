@@ -1,6 +1,9 @@
 import { SuperMagicApi } from "@/apis"
-import { logger as Logger } from "@/utils/log"
-import superMagicTopicModelCacheService from "./SuperMagicTopicModelCacheService"
+import type { SuperMagicTopicModelResponse } from "@/apis/modules/superMagic"
+import { logger as Logger } from "@/infrastructure/logger"
+import superMagicTopicModelCacheService, {
+	type CachedModelData,
+} from "./SuperMagicTopicModelCacheService"
 import topicModelStore from "@/stores/superMagic/topicModelStore"
 import superMagicModeService, { resolveModeMapKey } from "../SuperMagicModeService"
 import { ModelItem, ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/types"
@@ -33,10 +36,13 @@ export interface SuperMagicTopicModelStoreLike {
 	currentTopicMode: TopicMode
 	/** Agent code when topic_mode is custom_agent */
 	currentAgentCode: string
+	/** Context key whose model data has completed loading */
+	loadedContextKey: string
 	setSelectedLanguageModel: (model: ModelItem | null) => void
 	setSelectedImageModel: (model: ModelItem | null) => void
 	setSelectedVideoModel: (model: ModelItem | null) => void
 	setLoading: (loading: boolean) => void
+	markCurrentContextLoaded: (contextKey: string) => void
 }
 
 /**
@@ -65,9 +71,73 @@ interface ModelContext {
 	agentCode?: string | null
 }
 
+interface CascadeBackfillModels {
+	languageModel: ModelItem | null
+	imageModel: ModelItem | null
+	videoModel: ModelItem | null
+}
+
+/** [topicId, projectId, topicMode, agentCode]; missing agent is "". */
+export function getTopicModelContextKey(context: {
+	topicId: string
+	projectId: string
+	topicMode: string
+	agentCode?: string | null
+}) {
+	return JSON.stringify([
+		context.topicId,
+		context.projectId,
+		context.topicMode,
+		context.agentCode ?? "",
+	])
+}
+
 interface ModelRequestGuard {
 	requestId: number
 	requestedContext: ModelContext
+	/** Only the first discard is reported, to keep one line per request. */
+	staleReported?: boolean
+}
+
+/** Reports events with the owning requestId attached. */
+type RequestReporter = (message: string, payload?: Record<string, unknown>) => void
+
+function toErrorLogFields(error: unknown): Record<string, unknown> {
+	if (error instanceof Error) {
+		return {
+			errorName: error.name,
+			errorMessage: error.message,
+		}
+	}
+
+	if (error && typeof error === "object") {
+		const record = error as Record<string, unknown>
+		return {
+			...(typeof record.code === "string" || typeof record.code === "number"
+				? { errorCode: record.code }
+				: {}),
+			errorMessage:
+				typeof record.message === "string" ? record.message : "Unknown backend error",
+		}
+	}
+
+	return {
+		errorMessage: typeof error === "string" ? error : "Unknown backend error",
+	}
+}
+
+function toResponseLogFields(response: SuperMagicTopicModelResponse): Record<string, unknown> {
+	return {
+		...(typeof response.success === "boolean" ? { success: response.success } : {}),
+		...(typeof response.code === "string" || typeof response.code === "number"
+			? { code: response.code }
+			: {}),
+		...(typeof response.message === "string" ? { message: response.message } : {}),
+	}
+}
+
+function isExplicitRejectedResponse(response: SuperMagicTopicModelResponse): boolean {
+	return response.success === false
 }
 
 /**
@@ -120,9 +190,97 @@ class SuperMagicTopicModelService {
 	}
 
 	private isCurrentRequest(store: SuperMagicTopicModelStoreLike, guard: ModelRequestGuard) {
-		if (this.requestIds.get(store) !== guard.requestId) return false
+		const latestRequestId = this.requestIds.get(store)
+		const isLatestRequest = latestRequestId === guard.requestId
+		if (isLatestRequest && this.isCurrentContext(store, guard.requestedContext)) return true
 
-		return this.isCurrentContext(store, guard.requestedContext)
+		if (!guard.staleReported) {
+			guard.staleReported = true
+			logger.report("[Request] Discarding stale request", {
+				requestId: guard.requestId,
+				latestRequestId,
+				reason: isLatestRequest ? "context changed" : "superseded by newer request",
+				requestedContextKey: getTopicModelContextKey(guard.requestedContext),
+				currentContextKey: getTopicModelContextKey({
+					topicId: store.currentTopicId,
+					projectId: store.currentProjectId,
+					topicMode: store.currentTopicMode,
+					agentCode: store.currentAgentCode,
+				}),
+			})
+		}
+
+		return false
+	}
+
+	private createRequestReporter(requestId: number): RequestReporter {
+		return (message, payload = {}) => logger.report(message, { requestId, ...payload })
+	}
+
+	private toCachedModelData(models: CascadeBackfillModels): CachedModelData {
+		return {
+			languageModelId: models.languageModel?.model_id,
+			imageModelId: models.imageModel?.model_id,
+			videoModelId: models.videoModel?.model_id,
+			timestamp: Date.now(),
+		}
+	}
+
+	/** Write local then remote as a pair once the request is still current. */
+	private async persistCascadeBackfill(
+		isCurrentRequest: () => boolean,
+		{
+			level,
+			cacheId,
+			models,
+			saveLocal,
+			report,
+			logContext = {},
+		}: {
+			level: "Topic" | "Project" | "ModeDefault"
+			cacheId: string
+			models: CascadeBackfillModels
+			saveLocal: (data: CachedModelData) => Promise<void>
+			report: RequestReporter
+			logContext?: Record<string, unknown>
+		},
+	) {
+		if (!isCurrentRequest()) return
+		const modelIds = {
+			languageModelId: models.languageModel?.model_id,
+			imageModelId: models.imageModel?.model_id,
+			videoModelId: models.videoModel?.model_id,
+		}
+		report(`[Fallback] Backfilling ${level} level`, { ...logContext, ...modelIds })
+		await saveLocal(this.toCachedModelData(models))
+		try {
+			const response = await SuperMagicApi.saveSuperMagicTopicModel({
+				cache_id: cacheId,
+				model_id: models.languageModel?.model_id,
+				image_model_id: models.imageModel?.model_id,
+				video_model_id: models.videoModel?.model_id,
+			})
+			if (isExplicitRejectedResponse(response)) {
+				report(`[Fallback] ${level} remote backfill rejected`, {
+					...logContext,
+					...modelIds,
+					cacheId,
+					...toResponseLogFields(response),
+				})
+			} else {
+				logger.log(`Backfilled ${level} level remotely`, {
+					...logContext,
+					...modelIds,
+				})
+			}
+		} catch (error) {
+			report(`[Fallback] ${level} remote backfill failed`, {
+				...logContext,
+				...modelIds,
+				cacheId,
+				...toErrorLogFields(error),
+			})
+		}
 	}
 
 	/**
@@ -177,8 +335,9 @@ class SuperMagicTopicModelService {
 					await this.flushAll(prev.topicId)
 				}
 
-				// 话题内，切换模式，重新校验模型
-				// 话题外，还是走默认的逻辑
+				// 同话题切 mode/Agent 仍走 fetch：目录和 ModeDefault 按 mode/Agent
+				// 隔离。内存校验会跳过新模式已存配置，未加载完时还可能把空模型
+				// 当成无效并写入 Auto。
 				if (
 					prev &&
 					prev.topicId &&
@@ -186,14 +345,12 @@ class SuperMagicTopicModelService {
 					prev.topicMode &&
 					(prev.topicMode !== topicMode || prev.agentCode !== agentCode)
 				) {
-					logger.report("[Context] Topic mode changed, validating models", {
+					logger.report("[Context] Topic mode changed, refetching", {
 						oldMode: prev.topicMode,
 						newMode: topicMode,
 						oldAgentCode: prev.agentCode,
 						newAgentCode: agentCode,
 					})
-					await this.validateModelsForMode(topicMode, store)
-					return
 				}
 
 				// Skip if both are empty (unstable phase), but NOT if topicId="default"
@@ -414,14 +571,26 @@ class SuperMagicTopicModelService {
 			agentCode,
 		}
 		if (!this.isCurrentContext(store, context)) return
+		const contextKey = getTopicModelContextKey(context)
+		// 当前上下文尚未加载完成时不校验，避免把空/旧模型当成无效并写入 Auto
+		if (store.loadedContextKey !== contextKey) {
+			logger.report("[Validate] Skip validation before models are loaded", {
+				topicMode,
+				agentCode,
+				contextKey,
+				loadedContextKey: store.loadedContextKey,
+			})
+			return
+		}
 		const requestGuard = this.createRequestGuard(store, context)
 		const isCurrentRequest = () => this.isCurrentRequest(store, requestGuard)
+		const report = this.createRequestReporter(requestGuard.requestId)
 		store.setLoading(true)
 
 		const previousLanguageModel = store.selectedLanguageModel
 		const previousImageModel = store.selectedImageModel
 		const previousVideoModel = store.selectedVideoModel
-		logger.report("[Validate] Mode validation started", {
+		report("[Validate] Mode validation started", {
 			topicMode,
 			agentCode,
 			currentLanguageModelId: previousLanguageModel?.model_id,
@@ -449,7 +618,7 @@ class SuperMagicTopicModelService {
 				})
 			if (!isCurrentRequest()) return
 			if (languageModel?.model_id !== previousLanguageModel?.model_id) {
-				logger.report("[Validate] Language model invalid for mode, switching", {
+				report("[Validate] Language model invalid for mode, switching", {
 					topicMode,
 					oldModelId: previousLanguageModel?.model_id,
 					newModelId: languageModel?.model_id,
@@ -458,7 +627,7 @@ class SuperMagicTopicModelService {
 			}
 
 			if (imageModel?.model_id !== previousImageModel?.model_id) {
-				logger.report("[Validate] Image model invalid for mode, switching", {
+				report("[Validate] Image model invalid for mode, switching", {
 					topicMode,
 					oldModelId: previousImageModel?.model_id,
 					newModelId: imageModel?.model_id,
@@ -467,7 +636,7 @@ class SuperMagicTopicModelService {
 			}
 
 			if (videoModel?.model_id !== previousVideoModel?.model_id) {
-				logger.report("[Validate] Video model invalid for mode, switching", {
+				report("[Validate] Video model invalid for mode, switching", {
 					topicMode,
 					oldModelId: previousVideoModel?.model_id,
 					newModelId: videoModel?.model_id,
@@ -481,7 +650,7 @@ class SuperMagicTopicModelService {
 				store.setSelectedImageModel(imageModel)
 				store.setSelectedVideoModel(videoModel)
 
-				logger.report("[Validate] Models updated, saving to backend", {
+				report("[Validate] Models updated, saving to backend", {
 					topicMode,
 					languageModelId: languageModel?.model_id,
 					imageModelId: imageModel?.model_id,
@@ -498,12 +667,15 @@ class SuperMagicTopicModelService {
 					store,
 				)
 			} else {
-				logger.report("[Validate] Models valid for current mode, no update needed", {
+				report("[Validate] Models valid for current mode, no update needed", {
 					topicMode,
 					languageModelId: languageModel?.model_id,
 					imageModelId: imageModel?.model_id,
 					videoModelId: videoModel?.model_id,
 				})
+			}
+			if (isCurrentRequest()) {
+				store.markCurrentContextLoaded(contextKey)
 			}
 		} finally {
 			if (isCurrentRequest()) store.setLoading(false)
@@ -524,7 +696,7 @@ class SuperMagicTopicModelService {
 	 * @param levelKey - Level identifier (topicId, projectKey, modeDefaultKey, or "default")
 	 * @param modelList - Available language models
 	 * @param imageModelList - Available image models
-	 * @param _store - Store instance (reserved for future use)
+	 * @param report - Reporter carrying the owning requestId
 	 * @param levelName - Level name for logging (Topic/Project/ModeDefault/Global)
 	 * @returns Level model result
 	 */
@@ -533,14 +705,14 @@ class SuperMagicTopicModelService {
 		topicMode: TopicMode,
 		imageModelList: ModelItem[],
 		videoModelList: ModelItem[],
-		_store: SuperMagicTopicModelStoreLike,
+		report: RequestReporter,
 		levelName: string,
 		agentCode?: string | null,
 	): Promise<LevelModelResult> {
 		let hasValidRemoteData = false
 		let usedLocalCache = false
 
-		logger.report(`[Fallback] ${levelName} level fetch started`, { levelKey })
+		report(`[Fallback] ${levelName} level fetch started`, { levelKey })
 
 		try {
 			// Step 1: 从本地缓存获取
@@ -592,7 +764,7 @@ class SuperMagicTopicModelService {
 					hasLocalCache = true
 				}
 
-				logger.report(`[Fallback] ${levelName} local cache result`, {
+				report(`[Fallback] ${levelName} local cache result`, {
 					levelKey,
 					hasLocalCache,
 					localLanguageModelId: localLanguageModel?.model_id,
@@ -603,7 +775,7 @@ class SuperMagicTopicModelService {
 					videoValid: vValid,
 				})
 			} else {
-				logger.report(`[Fallback] ${levelName} local cache miss`, { levelKey })
+				report(`[Fallback] ${levelName} local cache miss`, { levelKey })
 			}
 
 			// Step 2: 从远程 API 获取
@@ -659,7 +831,7 @@ class SuperMagicTopicModelService {
 					hasValidVideoRemoteData
 				)
 
-				logger.report(`[Fallback] ${levelName} remote API result`, {
+				report(`[Fallback] ${levelName} remote API result`, {
 					levelKey,
 					hasRemoteData,
 					hasValidRemoteData,
@@ -673,7 +845,10 @@ class SuperMagicTopicModelService {
 					supportsVideoModel,
 				})
 			} catch (e) {
-				logger.report(`[Fallback] ${levelName} remote API failed`, { levelKey, error: e })
+				report(`[Fallback] ${levelName} remote API failed`, {
+					levelKey,
+					...toErrorLogFields(e),
+				})
 			}
 
 			// Step 3: 校验和纠正逻辑
@@ -699,7 +874,7 @@ class SuperMagicTopicModelService {
 					(languageModelMismatch || imageModelMismatch || videoModelMismatch)
 				) {
 					needsCorrection = true
-					logger.report(`[Fallback] ${levelName} data mismatch detected`, {
+					report(`[Fallback] ${levelName} data mismatch detected`, {
 						levelKey,
 						localLanguageModelId: localLanguageModel?.model_id,
 						remoteLanguageModelId: remoteLanguageModel?.model_id,
@@ -718,7 +893,7 @@ class SuperMagicTopicModelService {
 				finalImageModel = localImageModel
 				finalVideoModel = localVideoModel
 				usedLocalCache = true
-				logger.report(`[Fallback] ${levelName} using local cache (no remote data)`, {
+				report(`[Fallback] ${levelName} using local cache (no remote data)`, {
 					levelKey,
 					localLanguageModelId: localLanguageModel?.model_id,
 					localImageModelId: localImageModel?.model_id,
@@ -757,7 +932,7 @@ class SuperMagicTopicModelService {
 					})
 				}
 
-				logger.log(`${levelName} level corrected`, {
+				report(`[Fallback] ${levelName} local cache corrected`, {
 					levelKey,
 					languageModelId: finalLanguageModel.model_id,
 					imageModelId: finalImageModel?.model_id,
@@ -774,7 +949,7 @@ class SuperMagicTopicModelService {
 				(!supportsVideoModel || finalVideoModel)
 			)
 
-			logger.report(`[Fallback] ${levelName} level completed`, {
+			report(`[Fallback] ${levelName} level completed`, {
 				levelKey,
 				success,
 				finalLanguageModelId: finalLanguageModel?.model_id,
@@ -795,7 +970,10 @@ class SuperMagicTopicModelService {
 				usedLocalCache,
 			}
 		} catch (error) {
-			logger.report(`[Fallback] ${levelName} level error`, { levelKey, error })
+			report(`[Fallback] ${levelName} level error`, {
+				levelKey,
+				...toErrorLogFields(error),
+			})
 			return {
 				success: false,
 				languageModel: null,
@@ -850,10 +1028,12 @@ class SuperMagicTopicModelService {
 		if (!this.isCurrentContext(store, context)) return
 		const requestGuard = this.createRequestGuard(store, context)
 		const isCurrentRequest = () => this.isCurrentRequest(store, requestGuard)
+		const report = this.createRequestReporter(requestGuard.requestId)
 
 		const completeLoading = () => {
 			if (hasCompletedLoading) return
 			if (!isCurrentRequest()) return
+			store.markCurrentContextLoaded(getTopicModelContextKey(context))
 			store.setLoading(false)
 			hasCompletedLoading = true
 		}
@@ -863,18 +1043,10 @@ class SuperMagicTopicModelService {
 		let modelList = superMagicModeService.getModelListByMode(topicMode, agentCode)
 		let imageModelList = superMagicModeService.getImageModelListByMode(topicMode, agentCode)
 		let videoModelList = superMagicModeService.getVideoModelListByMode(topicMode, agentCode)
+		let supportsImageModel = imageModelList.length > 0
+		let supportsVideoModel = videoModelList.length > 0
 
-		if (topicMode === TopicMode.Default && modelList.length === 0) {
-			await superMagicModeService.fetchDefaultModeModelList()
-			modelList = superMagicModeService.getModelListByMode(topicMode, agentCode)
-			imageModelList = superMagicModeService.getImageModelListByMode(topicMode, agentCode)
-			videoModelList = superMagicModeService.getVideoModelListByMode(topicMode, agentCode)
-		}
-
-		const supportsImageModel = imageModelList.length > 0
-		const supportsVideoModel = videoModelList.length > 0
-
-		logger.report("[Fallback] Four-level cascade started", {
+		report("[Fallback] Four-level cascade started", {
 			topicId,
 			projectId,
 			topicMode,
@@ -887,6 +1059,44 @@ class SuperMagicTopicModelService {
 		})
 
 		try {
+			// A mode owns its model list, so every level below "Topic" is only meaningful
+			// once the featured crew list has arrived. A cold start (nothing hydrated from
+			// storage yet) can reach this point first: settling with an empty list clears
+			// `isLoading` and leaves nothing to retry when the list lands, so the composer
+			// reports "no language model" forever and its send button stays disabled.
+			// `fetchModeList` joins the request the page already started, when there is one.
+			if (modelList.length === 0 && !superMagicModeService.isModeAvailabilityResolved) {
+				report("[Fallback] Waiting for featured mode list before cascading", {
+					topicMode,
+					agentCode,
+				})
+				try {
+					await superMagicModeService.fetchModeList()
+				} catch (error) {
+					// Keep going: the cascade still has its own remote/cache levels.
+					report("[Fallback] Featured mode list unavailable, continuing cascade", {
+						topicMode,
+						...toErrorLogFields(error),
+					})
+				}
+
+				if (!isCurrentRequest()) return
+
+				modelList = superMagicModeService.getModelListByMode(topicMode, agentCode)
+				imageModelList = superMagicModeService.getImageModelListByMode(topicMode, agentCode)
+				videoModelList = superMagicModeService.getVideoModelListByMode(topicMode, agentCode)
+				supportsImageModel = imageModelList.length > 0
+				supportsVideoModel = videoModelList.length > 0
+			}
+
+			if (topicMode === TopicMode.Default && modelList.length === 0) {
+				await superMagicModeService.fetchDefaultModeModelList()
+				modelList = superMagicModeService.getModelListByMode(topicMode, agentCode)
+				imageModelList = superMagicModeService.getImageModelListByMode(topicMode, agentCode)
+				videoModelList = superMagicModeService.getVideoModelListByMode(topicMode, agentCode)
+				supportsImageModel = imageModelList.length > 0
+				supportsVideoModel = videoModelList.length > 0
+			}
 			// 四层级联策略: Topic -> Project -> ModeDefault(default_{topicMode}) -> Global(default)
 			// 每层都执行: 取本地缓存 -> 取远程 -> 校验 -> 纠正
 
@@ -932,13 +1142,13 @@ class SuperMagicTopicModelService {
 			const shouldFetchTopic = topicId && topicId !== DEFAULT_TOPIC_ID
 
 			if (shouldFetchTopic) {
-				logger.report("[Fallback] Level 1: Fetching Topic level", { topicId })
+				report("[Fallback] Level 1: Fetching Topic level", { topicId })
 				topicResult = await this.fetchLevelModel(
 					topicId,
 					topicMode,
 					imageModelList,
 					videoModelList,
-					store,
+					report,
 					"Topic",
 					agentCode,
 				)
@@ -950,25 +1160,22 @@ class SuperMagicTopicModelService {
 				if (!finalVideoModel) finalVideoModel = topicResult.videoModel
 
 				if (topicResult.success) {
-					logger.report("[Fallback] Level 1: Topic level success, cascade stopped", {
+					report("[Fallback] Level 1: Topic level success, cascade stopped", {
 						topicId,
 						languageModelId: finalLanguageModel?.model_id,
 						imageModelId: finalImageModel?.model_id,
 						videoModelId: finalVideoModel?.model_id,
 					})
 				} else {
-					logger.report(
-						"[Fallback] Level 1: Topic level incomplete, continuing cascade",
-						{
-							topicId,
-							languageModelId: topicResult.languageModel?.model_id,
-							imageModelId: topicResult.imageModel?.model_id,
-							videoModelId: topicResult.videoModel?.model_id,
-						},
-					)
+					report("[Fallback] Level 1: Topic level incomplete, continuing cascade", {
+						topicId,
+						languageModelId: topicResult.languageModel?.model_id,
+						imageModelId: topicResult.imageModel?.model_id,
+						videoModelId: topicResult.videoModel?.model_id,
+					})
 				}
 			} else {
-				logger.report("[Fallback] Level 1: Topic level skipped", {
+				report("[Fallback] Level 1: Topic level skipped", {
 					topicId,
 					reason: topicId ? "is default topic" : "empty topicId",
 				})
@@ -984,14 +1191,14 @@ class SuperMagicTopicModelService {
 			)
 
 			if (shouldFetchProject && projectId) {
-				logger.report("[Fallback] Level 2: Fetching Project level", { projectId })
+				report("[Fallback] Level 2: Fetching Project level", { projectId })
 				const projectKey = this.genProjectKey(projectId)
 				projectResult = await this.fetchLevelModel(
 					projectKey,
 					topicMode,
 					imageModelList,
 					videoModelList,
-					store,
+					report,
 					"Project",
 					agentCode,
 				)
@@ -1005,7 +1212,7 @@ class SuperMagicTopicModelService {
 				if (!finalImageModel) finalImageModel = projectResult.imageModel
 				if (!finalVideoModel) finalVideoModel = projectResult.videoModel
 
-				logger.report("[Fallback] Level 2: Project level result", {
+				report("[Fallback] Level 2: Project level result", {
 					projectId,
 					projectKey,
 					beforeLanguageModelId: beforeLanguage,
@@ -1023,7 +1230,7 @@ class SuperMagicTopicModelService {
 					),
 				})
 			} else if (shouldFetchProject) {
-				logger.report("[Fallback] Level 2: Project level skipped", {
+				report("[Fallback] Level 2: Project level skipped", {
 					reason: "no projectId",
 				})
 			}
@@ -1040,7 +1247,7 @@ class SuperMagicTopicModelService {
 			if (shouldFetchModeDefault) {
 				if (!isCurrentRequest()) return
 				const modeDefaultKey = this.genModeDefaultKey(topicMode, agentCode)
-				logger.report("[Fallback] Level 3: Fetching ModeDefault level", {
+				report("[Fallback] Level 3: Fetching ModeDefault level", {
 					topicMode,
 					modeDefaultKey,
 				})
@@ -1049,7 +1256,7 @@ class SuperMagicTopicModelService {
 					topicMode,
 					imageModelList,
 					videoModelList,
-					store,
+					report,
 					"ModeDefault",
 					agentCode,
 				)
@@ -1063,7 +1270,7 @@ class SuperMagicTopicModelService {
 				if (!finalImageModel) finalImageModel = modeDefaultResult.imageModel
 				if (!finalVideoModel) finalVideoModel = modeDefaultResult.videoModel
 
-				logger.report("[Fallback] Level 3: ModeDefault level result", {
+				report("[Fallback] Level 3: ModeDefault level result", {
 					topicMode,
 					modeDefaultKey,
 					beforeLanguageModelId: beforeLanguage,
@@ -1094,13 +1301,13 @@ class SuperMagicTopicModelService {
 			if (shouldFetchGlobal) {
 				// 提前检查：如果 topicId 已经变了，直接返回，避免不必要的 Global 请求
 				if (!isCurrentRequest()) return
-				logger.report("[Fallback] Level 4: Fetching Global level", {})
+				report("[Fallback] Level 4: Fetching Global level", {})
 				globalResult = await this.fetchLevelModel(
 					DEFAULT_TOPIC_ID,
 					topicMode,
 					imageModelList,
 					videoModelList,
-					store,
+					report,
 					"Global",
 					agentCode,
 				)
@@ -1114,7 +1321,7 @@ class SuperMagicTopicModelService {
 				if (!finalImageModel) finalImageModel = globalResult.imageModel
 				if (!finalVideoModel) finalVideoModel = globalResult.videoModel
 
-				logger.report("[Fallback] Level 4: Global level result", {
+				report("[Fallback] Level 4: Global level result", {
 					beforeLanguageModelId: beforeLanguage,
 					afterLanguageModelId: finalLanguageModel?.model_id,
 					beforeImageModelId: beforeImage,
@@ -1138,21 +1345,21 @@ class SuperMagicTopicModelService {
 
 			if (needFirstUsableLanguage) {
 				finalLanguageModel = this.getFirstUsableModel(modelList)
-				logger.report("[Fallback] Level 5: Using first usable language model", {
+				report("[Fallback] Level 5: Using first usable language model", {
 					languageModelId: finalLanguageModel?.model_id,
 				})
 			}
 
 			if (needFirstUsableImage) {
 				finalImageModel = this.getFirstUsableModel(imageModelList)
-				logger.report("[Fallback] Level 5: Using first usable image model", {
+				report("[Fallback] Level 5: Using first usable image model", {
 					imageModelId: finalImageModel?.model_id,
 				})
 			}
 
 			if (needFirstUsableVideo) {
 				finalVideoModel = this.getFirstUsableModel(videoModelList)
-				logger.report("[Fallback] Level 5: Using first usable video model", {
+				report("[Fallback] Level 5: Using first usable video model", {
 					videoModelId: finalVideoModel?.model_id,
 				})
 			}
@@ -1195,7 +1402,7 @@ class SuperMagicTopicModelService {
 			store.setSelectedVideoModel(finalVideoModel)
 
 			if (sourceResult.usedLocalCache) {
-				logger.report("[Fallback] Local cache models revalidated before store update", {
+				report("[Fallback] Local cache models revalidated before store update", {
 					topicId,
 					projectId,
 					topicMode,
@@ -1205,188 +1412,120 @@ class SuperMagicTopicModelService {
 				})
 			}
 
-			completeLoading()
-
 			// 级联回填逻辑：从高级别获取的值回填到低级别
 			// 确定数据来源级别
-			logger.report("[Fallback] Data source level determined", {
+			report("[Fallback] Data source level determined", {
 				sourceLevel,
 				topicSuccess: topicResult.success,
 				projectSuccess: projectResult.success,
 				modeDefaultSuccess: modeDefaultResult.success,
 			})
 
-			// 回填规则：只有从更高级别获取的数据才应该回填到低级别
-			// Topic 成功 → 不回填任何级别
+			// 回填规则：从更高级别获取的数据回填到低级别；本地命中但远程缺失时重试同级远程写入
+			// Topic 远程成功 → 不回填任何级别
 			// Project 成功 → 只回填 Topic
 			// ModeDefault 成功 → 回填 Topic 和 Project
 			// Global 成功 → 回填 Topic, Project 和 ModeDefault
 
-			// 回填 Topic 级别（仅当数据来源是 Project, ModeDefault 或 Global 时，且 topicId 有效）
+			// 回填 Topic 级别，或重试仅命中本地缓存的 Topic 远程写入
 			// 修复：允许 languageModel 和 imageModel 独立回填（不要求两者都存在）
 			const needTopicBackfill =
 				shouldFetchTopic && // topicId 有效
-				sourceLevel !== "Topic" && // 数据不是来自 Topic 本身
+				(sourceLevel !== "Topic" || topicResult.usedLocalCache) &&
 				(!topicResult.success || !topicResult.hasValidRemoteData) &&
 				(finalLanguageModel || finalImageModel || finalVideoModel) // At least one model exists
 
-			if (needTopicBackfill) {
-				logger.report("[Fallback] Backfilling Topic level", {
-					topicId,
-					sourceLevel,
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
-				})
-				// 保存到 Topic 级别本地缓存
-				await superMagicTopicModelCacheService.saveTopicModel(topicId, {
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
-					timestamp: Date.now(),
-				})
-
-				// 更新 Topic 级别远程数据
-				try {
-					await SuperMagicApi.saveSuperMagicTopicModel({
-						cache_id: topicId,
-						model_id: finalLanguageModel?.model_id,
-						image_model_id: finalImageModel?.model_id,
-						video_model_id: finalVideoModel?.model_id,
-					})
-					logger.log("Backfilled Topic level (independent models)", {
-						topicId,
-						languageModelId: finalLanguageModel?.model_id,
-						imageModelId: finalImageModel?.model_id,
-						videoModelId: finalVideoModel?.model_id,
-					})
-				} catch (e) {
-					logger.log("Failed to backfill Topic remote data", { topicId, error: e })
-				}
-			} else if (shouldFetchTopic && topicResult.success && topicResult.hasValidRemoteData) {
-				// Topic 级别本身就成功了且远程数据也有效，只需更新本地缓存
-				await superMagicTopicModelCacheService.saveTopicModel(topicId, {
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
-					timestamp: Date.now(),
-				})
+			const models: CascadeBackfillModels = {
+				languageModel: finalLanguageModel,
+				imageModel: finalImageModel,
+				videoModel: finalVideoModel,
 			}
 
-			// 回填 Project 级别（仅当数据来源是 ModeDefault 或 Global 时）
+			if (needTopicBackfill) {
+				await this.persistCascadeBackfill(isCurrentRequest, {
+					level: "Topic",
+					cacheId: topicId,
+					models,
+					report,
+					logContext: { topicId, sourceLevel },
+					saveLocal: (data) =>
+						superMagicTopicModelCacheService.saveTopicModel(topicId, data),
+				})
+			} else if (
+				shouldFetchTopic &&
+				topicResult.success &&
+				topicResult.hasValidRemoteData &&
+				isCurrentRequest()
+			) {
+				await superMagicTopicModelCacheService.saveTopicModel(
+					topicId,
+					this.toCachedModelData(models),
+				)
+			}
+
+			// 回填 Project 级别，或重试仅命中本地缓存的 Project 远程写入
 			// 修复：允许 languageModel 和 imageModel 独立回填
 			const needProjectBackfill =
 				projectId &&
-				(sourceLevel === "ModeDefault" || sourceLevel === "Global") && // 数据来自 ModeDefault 或 Global 级别
+				(sourceLevel === "ModeDefault" ||
+					sourceLevel === "Global" ||
+					projectResult.usedLocalCache) &&
 				(!projectResult.success || !projectResult.hasValidRemoteData) &&
 				(finalLanguageModel || finalImageModel || finalVideoModel) // At least one model exists
 
 			if (needProjectBackfill) {
 				const projectKey = this.genProjectKey(projectId)
-				logger.report("[Fallback] Backfilling Project level", {
+				await this.persistCascadeBackfill(isCurrentRequest, {
+					level: "Project",
+					cacheId: projectKey,
+					models,
+					report,
+					logContext: { projectId, projectKey, sourceLevel },
+					saveLocal: (data) =>
+						superMagicTopicModelCacheService.saveProjectModel(projectId, data),
+				})
+			} else if (
+				projectId &&
+				projectResult.success &&
+				projectResult.hasValidRemoteData &&
+				isCurrentRequest()
+			) {
+				await superMagicTopicModelCacheService.saveProjectModel(
 					projectId,
-					projectKey,
-					sourceLevel,
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
-				})
-
-				// 保存到 Project 级别本地缓存
-				await superMagicTopicModelCacheService.saveProjectModel(projectId, {
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
-					timestamp: Date.now(),
-				})
-
-				// 更新 Project 级别远程数据
-				try {
-					await SuperMagicApi.saveSuperMagicTopicModel({
-						cache_id: projectKey,
-						model_id: finalLanguageModel?.model_id,
-						image_model_id: finalImageModel?.model_id,
-						video_model_id: finalVideoModel?.model_id,
-					})
-					logger.log("Backfilled Project level (independent models)", {
-						projectId,
-						languageModelId: finalLanguageModel?.model_id,
-						imageModelId: finalImageModel?.model_id,
-						videoModelId: finalVideoModel?.model_id,
-					})
-				} catch (e) {
-					logger.log("Failed to backfill Project remote data", { projectId, error: e })
-				}
-			} else if (projectId && projectResult.success && projectResult.hasValidRemoteData) {
-				// Project 级别本身就成功了且远程数据也有效，只需更新本地缓存
-				await superMagicTopicModelCacheService.saveProjectModel(projectId, {
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
-					timestamp: Date.now(),
-				})
+					this.toCachedModelData(models),
+				)
 			}
 
-			// 回填 ModeDefault 级别（仅当数据来源是 Global 时）
+			// 回填 ModeDefault 级别，或重试仅命中本地缓存的 ModeDefault 远程写入
 			// 修复：允许 languageModel 和 imageModel 独立回填
 			const needModeDefaultBackfill =
-				sourceLevel === "Global" && // 数据来自 Global 级别
+				(sourceLevel === "Global" || modeDefaultResult.usedLocalCache) &&
 				(!modeDefaultResult.success || !modeDefaultResult.hasValidRemoteData) &&
 				(finalLanguageModel || finalImageModel || finalVideoModel) // At least one model exists
 
 			if (needModeDefaultBackfill) {
 				const modeDefaultKey = this.genModeDefaultKey(topicMode, agentCode)
-				logger.report("[Fallback] Backfilling ModeDefault level", {
-					topicMode,
-					modeDefaultKey,
-					sourceLevel,
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
+				await this.persistCascadeBackfill(isCurrentRequest, {
+					level: "ModeDefault",
+					cacheId: modeDefaultKey,
+					models,
+					report,
+					logContext: { topicMode, modeDefaultKey, sourceLevel },
+					saveLocal: (data) =>
+						superMagicTopicModelCacheService.saveModeDefaultModel(modeDefaultKey, data),
 				})
-
-				// 保存到 ModeDefault 级别本地缓存
-				await superMagicTopicModelCacheService.saveModeDefaultModel(modeDefaultKey, {
-					languageModelId: finalLanguageModel?.model_id,
-					imageModelId: finalImageModel?.model_id,
-					videoModelId: finalVideoModel?.model_id,
-					timestamp: Date.now(),
-				})
-
-				// 更新 ModeDefault 级别远程数据
-				try {
-					await SuperMagicApi.saveSuperMagicTopicModel({
-						cache_id: modeDefaultKey,
-						model_id: finalLanguageModel?.model_id,
-						image_model_id: finalImageModel?.model_id,
-						video_model_id: finalVideoModel?.model_id,
-					})
-					logger.log("Backfilled ModeDefault level (independent models)", {
-						topicMode,
-						languageModelId: finalLanguageModel?.model_id,
-						imageModelId: finalImageModel?.model_id,
-						videoModelId: finalVideoModel?.model_id,
-					})
-				} catch (e) {
-					logger.log("Failed to backfill ModeDefault remote data", {
-						topicMode,
-						error: e,
-					})
-				}
-			} else if (modeDefaultResult.success && modeDefaultResult.hasValidRemoteData) {
-				// ModeDefault 级别本身就成功了且远程数据也有效，只需更新本地缓存
+			} else if (
+				modeDefaultResult.success &&
+				modeDefaultResult.hasValidRemoteData &&
+				isCurrentRequest()
+			) {
 				await superMagicTopicModelCacheService.saveModeDefaultModel(
 					this.genModeDefaultKey(topicMode, agentCode),
-					{
-						languageModelId: finalLanguageModel?.model_id,
-						imageModelId: finalImageModel?.model_id,
-						videoModelId: finalVideoModel?.model_id,
-						timestamp: Date.now(),
-					},
+					this.toCachedModelData(models),
 				)
 			}
 
-			logger.report("[Fallback] Four-level cascade completed", {
+			report("[Fallback] Four-level cascade completed", {
 				topicId,
 				projectId,
 				topicMode,
@@ -1403,7 +1542,10 @@ class SuperMagicTopicModelService {
 			})
 		} catch (error) {
 			if (!isCurrentRequest()) return
-			logger.report("Critical error in fetchTopicModel", { topicId, error })
+			report("Critical error in fetchTopicModel", {
+				topicId,
+				...toErrorLogFields(error),
+			})
 			this.setFirstUsableModels(modelList, imageModelList, videoModelList, store)
 		} finally {
 			completeLoading()
@@ -1578,6 +1720,8 @@ class SuperMagicTopicModelService {
 		if (videoModel !== undefined) {
 			pending.videoModel = videoModel
 		}
+		pending.topicId = topicId
+		pending.projectId = projectId
 		pending.timestamp = Date.now()
 		pending.cacheId = cacheId // Update cacheId
 
@@ -1618,6 +1762,8 @@ class SuperMagicTopicModelService {
 			if (videoModel !== undefined) {
 				projectPending.videoModel = videoModel
 			}
+			projectPending.topicId = topicId
+			projectPending.projectId = projectId
 			projectPending.timestamp = Date.now()
 
 			this.pendingSaves.set(projectKey, projectPending)
@@ -1657,14 +1803,24 @@ class SuperMagicTopicModelService {
 		})
 
 		try {
-			const res = await SuperMagicApi.saveSuperMagicTopicModel({
+			const response = await SuperMagicApi.saveSuperMagicTopicModel({
 				cache_id: cacheId || topicId, // Use cacheId if available, fallback to topicId
 				model_id: languageModel?.model_id,
 				image_model_id: imageModel?.model_id,
 				video_model_id: videoModel?.model_id,
 			})
 
-			if (res.success) {
+			if (isExplicitRejectedResponse(response)) {
+				logger.report("[Save] Backend save rejected", {
+					cacheId,
+					topicId,
+					projectId,
+					languageModelId: languageModel?.model_id,
+					imageModelId: imageModel?.model_id,
+					videoModelId: videoModel?.model_id,
+					...toResponseLogFields(response),
+				})
+			} else {
 				logger.report("[Save] Backend save successful", {
 					cacheId,
 					topicId,
@@ -1682,7 +1838,7 @@ class SuperMagicTopicModelService {
 				languageModelId: languageModel?.model_id,
 				imageModelId: imageModel?.model_id,
 				videoModelId: videoModel?.model_id,
-				error,
+				...toErrorLogFields(error),
 			})
 		} finally {
 			this.pendingSaves.delete(cacheKey)
@@ -1720,17 +1876,25 @@ class SuperMagicTopicModelService {
 		return `default_${resolveModeMapKey(topicMode, agentCode)}`
 	}
 
-	/**
-	 * Cleanup timers and buffers for specific topic
-	 * @param topicId - Topic ID
-	 */
+	/** 清理指定话题的 debounce；仅当 project 待保存仍由该话题拥有时一并清理 */
 	cleanup(topicId: string) {
-		const timer = this.debounceTimers.get(topicId)
+		const pending = this.pendingSaves.get(topicId)
+		this.clearPendingSave(topicId)
+		if (!pending?.projectId) return
+
+		const projectKey = this.genProjectKey(pending.projectId)
+		if (this.pendingSaves.get(projectKey)?.topicId === topicId) {
+			this.clearPendingSave(projectKey)
+		}
+	}
+
+	private clearPendingSave(cacheKey: string) {
+		const timer = this.debounceTimers.get(cacheKey)
 		if (timer) {
 			clearTimeout(timer)
-			this.debounceTimers.delete(topicId)
+			this.debounceTimers.delete(cacheKey)
 		}
-		this.pendingSaves.delete(topicId)
+		this.pendingSaves.delete(cacheKey)
 	}
 
 	/**

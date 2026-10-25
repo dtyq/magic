@@ -11,6 +11,7 @@ import {
 	MOBILE_CHAT_DETAIL_ACTION_KEYS,
 	MOBILE_CHAT_PIN_ENABLED,
 } from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
+import { isPrivateDeployment } from "@/utils/env"
 
 interface UseChatConversationActionsParams {
 	selectedProject: ProjectListItem | null
@@ -29,6 +30,7 @@ export function useChatConversationActions({
 }: UseChatConversationActionsParams) {
 	const { t } = useTranslation("super")
 	const navigate = useNavigate()
+	const isPrivateDeploymentEnv = isPrivateDeployment()
 	const [actionSheetVisible, { setTrue: showActionSheet, setFalse: hideActionSheet }] =
 		useBoolean(false)
 	const [filesDrawerOpen, setFilesDrawerOpen] = useState(false)
@@ -57,12 +59,10 @@ export function useChatConversationActions({
 	/**
 	 * 统一包装既有项目动作：先关闭聊天详情自己的 Action Sheet，再交给已有项目能力继续执行。
 	 */
-	const runProjectAction = useMemoizedFn(
-		(actionKey: "rename" | "saveAsProject" | "delete") => {
-			hideActionSheet()
-			projectActionMap.get(actionKey)?.onClick?.()
-		},
-	)
+	const runProjectAction = useMemoizedFn((actionKey: "rename" | "saveAsProject" | "delete") => {
+		hideActionSheet()
+		projectActionMap.get(actionKey)?.onClick?.()
+	})
 
 	/**
 	 * “查看文件”继续复用 TopicFilesPopup，只是把入口从头部直出按钮收回到统一操作面板。
@@ -153,16 +153,23 @@ export function useChatConversationActions({
 					},
 				],
 			},
-			{
-				actions: [
-					{
-						key: "feedback-conversation",
-						label: t("topic.feedbackConversation"),
-						onClick: openConversationFeedbackFromSheet,
-						disabled: !selectedTopic || !selectedProject || !onOpenConversationFeedback,
-					},
-				],
-			},
+			...(isPrivateDeploymentEnv
+				? []
+				: [
+						{
+							actions: [
+								{
+									key: "feedback-conversation",
+									label: t("topic.feedbackConversation"),
+									onClick: openConversationFeedbackFromSheet,
+									disabled:
+										!selectedTopic ||
+										!selectedProject ||
+										!onOpenConversationFeedback,
+								},
+							],
+						},
+					]),
 			{
 				actions: [
 					{
@@ -175,6 +182,7 @@ export function useChatConversationActions({
 			},
 		],
 		[
+			hideActionSheet,
 			onOpenConversationFeedback,
 			openChatListFromSheet,
 			openConversationFeedbackFromSheet,
@@ -185,6 +193,7 @@ export function useChatConversationActions({
 			selectedProject,
 			selectedTopic,
 			t,
+			isPrivateDeploymentEnv,
 		],
 	)
 

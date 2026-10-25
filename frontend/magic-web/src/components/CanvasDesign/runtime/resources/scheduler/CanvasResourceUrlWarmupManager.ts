@@ -1,10 +1,15 @@
 import type { Canvas } from "../../core/Canvas"
 import { type CanvasDocument, ElementTypeEnum, type LayerElement } from "../../document/types"
+import { getActiveContent, getActiveImageContent } from "../../document/elementContent"
 import { parseExpiresAt, isOssExpired } from "../offline-cache/ossExpiryUtils"
 import {
-	getCanvasResourcePathInfo,
+	getCanvasHostResourceReferenceIdentity,
+	isAssetResourcePath,
 	isRemoteOrSpecialPath,
+	parseAssetResourcePath,
+	type CanvasResourceReferenceResolverChangeOptions,
 } from "../../shared/path/canvasResourcePath"
+import { CanvasAssetResourceError } from "../asset/CanvasAssetResourceManager"
 import {
 	getFailureReasonFromGetFileInfoError,
 	type ResourceLoadFailureReason,
@@ -114,6 +119,7 @@ export class CanvasResourceUrlWarmupManager {
 	private readonly unsubscribers: Array<() => void> = []
 	private timerId: ReturnType<typeof setTimeout> | null = null
 	private warmupAbortController = new AbortController()
+	private resolverGeneration = 0
 	private destroyed = false
 	private statsSnapshot: CanvasResourceUrlWarmupSnapshot = {
 		destroyed: false,
@@ -182,8 +188,45 @@ export class CanvasResourceUrlWarmupManager {
 		return { ...this.statsSnapshot }
 	}
 
+	public handleResourceReferenceResolverChanged(
+		options?: CanvasResourceReferenceResolverChangeOptions,
+	): void {
+		if (this.destroyed) return
+		if (options?.changedResourceIdentities) {
+			let affected = false
+			this.entries.forEach((entry) => {
+				const identity = entry.key.split("\0").slice(1).join("\0")
+				if (!options.changedResourceIdentities?.has(identity)) return
+				affected = true
+				if (entry.status === "warming") return
+				this.queuedKeys.delete(entry.key)
+				entry.status = "idle"
+				entry.lastError = undefined
+				entry.failedAt = undefined
+				entry.retryAfterAt = undefined
+				this.enqueue(entry, "resource-reference-resolver-changed", entry.priority)
+			})
+			if (affected) this.refreshSnapshotCounts()
+			return
+		}
+		this.resolverGeneration += 1
+		this.warmupAbortController.abort()
+		this.warmupAbortController = new AbortController()
+		if (this.timerId !== null) {
+			clearTimeout(this.timerId)
+			this.timerId = null
+		}
+		this.queuedKeys.clear()
+		this.warmingKeys.clear()
+		this.elementPathKeys.clear()
+		this.pathRefCounts.clear()
+		this.entries.clear()
+		this.warmupCurrentDocument("resource-reference-resolver-changed")
+	}
+
 	public destroy(): void {
 		this.destroyed = true
+		this.resolverGeneration += 1
 		this.warmupAbortController.abort()
 		if (this.timerId !== null) {
 			clearTimeout(this.timerId)
@@ -296,17 +339,28 @@ export class CanvasResourceUrlWarmupManager {
 
 	private collectResourceRefs(element: LayerElement): WarmupResourceRef[] {
 		const refs: WarmupResourceRef[] = []
-		if (element.type === ElementTypeEnum.Image && element.src) {
+		const effectiveContent = this.canvas.getEffectiveContent(element.id) as
+			{ src?: string } | undefined
+		// warmupDocument runs before ElementManager has loaded the document, so the
+		// input snapshot is the only available source during initial registration.
+		const imageSrc =
+			effectiveContent?.src ??
+			(element.type === ElementTypeEnum.Image
+				? getActiveImageContent(element).src
+				: undefined)
+		if (element.type === ElementTypeEnum.Image && imageSrc) {
 			refs.push({
 				elementId: element.id,
-				path: element.src,
+				path: imageSrc,
 				mediaType: "image",
 			})
 		}
-		if (element.type === ElementTypeEnum.Video && element.src) {
+		if (element.type === ElementTypeEnum.Video) {
+			const videoSrc = effectiveContent?.src ?? getActiveContent(element)?.src
+			if (!videoSrc) return refs
 			refs.push({
 				elementId: element.id,
-				path: element.src,
+				path: videoSrc,
 				mediaType: "video",
 			})
 		}
@@ -315,15 +369,12 @@ export class CanvasResourceUrlWarmupManager {
 
 	private getOrCreateEntry(ref: WarmupResourceRef, reason: string): WarmupEntry | null {
 		const path = ref.path.trim()
-		if (!path || isRemoteOrSpecialPath(path)) {
+		if (!path || (isRemoteOrSpecialPath(path) && !isAssetResourcePath(path))) {
 			this.statsSnapshot.skippedCount += 1
 			return null
 		}
 
-		const resolveAbsolutePath =
-			this.canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
-		const pathInfo = getCanvasResourcePathInfo(path, resolveAbsolutePath)
-		const key = `${ref.mediaType}\0${pathInfo.canonicalPath}`
+		const key = `${ref.mediaType}\0${getCanvasHostResourceReferenceIdentity(this.canvas, path)}`
 		let entry = this.entries.get(key)
 		if (!entry) {
 			entry = {
@@ -384,6 +435,8 @@ export class CanvasResourceUrlWarmupManager {
 
 	private async dispatchNextBatch(): Promise<void> {
 		if (this.destroyed) return
+		const resolverGeneration = this.resolverGeneration
+		const signal = this.warmupAbortController.signal
 		const batchKeys = [...this.queuedKeys]
 			.sort((leftKey, rightKey) => {
 				const left = this.entries.get(leftKey)
@@ -423,10 +476,11 @@ export class CanvasResourceUrlWarmupManager {
 			batchKeys.map((key) => {
 				const entry = this.entries.get(key)
 				return entry
-					? this.warmupEntry(entry, this.warmupAbortController.signal)
+					? this.warmupEntry(entry, signal, resolverGeneration)
 					: Promise.resolve()
 			}),
 		)
+		if (resolverGeneration !== this.resolverGeneration) return
 
 		this.statsSnapshot.lastBatchDurationMs = now() - startedAt
 		this.refreshSnapshotCounts()
@@ -447,19 +501,51 @@ export class CanvasResourceUrlWarmupManager {
 		return highestPriority
 	}
 
-	private async warmupEntry(entry: WarmupEntry, signal: AbortSignal): Promise<void> {
+	private async warmupEntry(
+		entry: WarmupEntry,
+		signal: AbortSignal,
+		resolverGeneration: number,
+	): Promise<void> {
+		if (resolverGeneration !== this.resolverGeneration) return
 		if (signal.aborted || !this.pathRefCounts.has(entry.key)) {
 			this.warmingKeys.delete(entry.key)
 			if (!this.pathRefCounts.has(entry.key)) this.entries.delete(entry.key)
 			return
 		}
-		const getFileInfo = this.canvas.magicConfigManager.config?.methods?.getFileInfo
-		if (!getFileInfo) {
-			this.markFailed(entry, "getFileInfo unavailable", "load-error")
-			return
-		}
-
 		try {
+			const assetId = parseAssetResourcePath(entry.path)
+			if (assetId !== undefined) {
+				const assetInfo = await this.awaitWithAbortSignal(
+					this.canvas.assetResourceManager.getResource(assetId, {
+						priority: entry.priority,
+					}),
+					signal,
+				)
+				if (resolverGeneration !== this.resolverGeneration) return
+				if (this.destroyed || signal.aborted || !this.pathRefCounts.has(entry.key)) {
+					this.warmingKeys.delete(entry.key)
+					if (!this.pathRefCounts.has(entry.key)) this.entries.delete(entry.key)
+					return
+				}
+				this.warmingKeys.delete(entry.key)
+				if (!assetInfo.fileUrl) {
+					this.markFailed(entry, "asset file URL unavailable", "not-found")
+					return
+				}
+				if (assetInfo.mediaType !== entry.mediaType) {
+					this.markFailed(entry, "asset media type mismatch", "load-error")
+					return
+				}
+				this.markReady(entry)
+				return
+			}
+
+			const getFileInfo = this.canvas.magicConfigManager.config?.methods?.getFileInfo
+			if (!getFileInfo) {
+				this.markFailed(entry, "getFileInfo unavailable", "load-error")
+				return
+			}
+
 			const fileInfo = await this.awaitWithAbortSignal(
 				getFileInfo(entry.path, {
 					useImageProcess: entry.mediaType === "image",
@@ -468,6 +554,7 @@ export class CanvasResourceUrlWarmupManager {
 				}),
 				signal,
 			)
+			if (resolverGeneration !== this.resolverGeneration) return
 			if (this.destroyed || signal.aborted || !this.pathRefCounts.has(entry.key)) {
 				this.warmingKeys.delete(entry.key)
 				if (!this.pathRefCounts.has(entry.key)) this.entries.delete(entry.key)
@@ -478,15 +565,9 @@ export class CanvasResourceUrlWarmupManager {
 				this.markFailed(entry, "empty fileInfo src", "load-error")
 				return
 			}
-			entry.status = "ready"
-			entry.lastError = undefined
-			entry.failedAt = undefined
-			entry.retryAfterAt = undefined
-			entry.warmedAt = Date.now()
-			entry.expiresAt = fileInfo.expires_at
-			entry.resourceVersion = fileInfo.resource_version
-			this.statsSnapshot.successCount += 1
+			this.markReady(entry, fileInfo.expires_at, fileInfo.resource_version)
 		} catch (error) {
+			if (resolverGeneration !== this.resolverGeneration) return
 			if (isAbortError(error)) {
 				this.warmingKeys.delete(entry.key)
 				return
@@ -496,9 +577,22 @@ export class CanvasResourceUrlWarmupManager {
 			this.markFailed(
 				entry,
 				getErrorMessage(error),
-				getFailureReasonFromGetFileInfoError(error),
+				error instanceof CanvasAssetResourceError
+					? error.reason
+					: getFailureReasonFromGetFileInfoError(error),
 			)
 		}
+	}
+
+	private markReady(entry: WarmupEntry, expiresAt?: string, resourceVersion?: string): void {
+		entry.status = "ready"
+		entry.lastError = undefined
+		entry.failedAt = undefined
+		entry.retryAfterAt = undefined
+		entry.warmedAt = Date.now()
+		entry.expiresAt = expiresAt
+		entry.resourceVersion = resourceVersion
+		this.statsSnapshot.successCount += 1
 	}
 
 	private markFailed(

@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace App\Application\KnowledgeBase\Event\Subscribe;
 
 use App\Domain\SuperMagic\File\Entity\TaskFileEntity;
+use App\Domain\SuperMagic\File\Event\CheckpointRollbackFilesChangedEvent;
 use App\Domain\SuperMagic\File\Event\DirectoryDeletedEvent;
+use App\Domain\SuperMagic\File\Event\FileBatchMoveCompletedEvent;
 use App\Domain\SuperMagic\File\Event\FileContentSavedEvent;
 use App\Domain\SuperMagic\File\Event\FileDeletedEvent;
 use App\Domain\SuperMagic\File\Event\FileMovedEvent;
@@ -23,7 +25,7 @@ use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Throwable;
 
-#[AsyncListener]
+#[AsyncListener(driver: 'coroutine')]
 #[Listener]
 class ProjectFileChangeNotifySubscriber implements ListenerInterface
 {
@@ -44,11 +46,23 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
             FilesBatchDeletedEvent::class,
             FileRenamedEvent::class,
             FileMovedEvent::class,
+            FileBatchMoveCompletedEvent::class,
+            CheckpointRollbackFilesChangedEvent::class,
         ];
     }
 
     public function process(object $event): void
     {
+        if ($event instanceof FileBatchMoveCompletedEvent) {
+            $this->processBatchMoveCompleted($event);
+            return;
+        }
+
+        if ($event instanceof CheckpointRollbackFilesChangedEvent) {
+            $this->processCheckpointRollbackFilesChanged($event);
+            return;
+        }
+
         if ($event instanceof FilesBatchDeletedEvent) {
             $this->processBatchDeleted($event);
             return;
@@ -66,7 +80,7 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
 
         $fileEntity = $context['file_entity'];
         $projectFileId = $fileEntity->getFileId();
-        if ($projectFileId <= 0 || $fileEntity->getIsDirectory()) {
+        if (! $this->isProjectFile($fileEntity) || $fileEntity->getIsDirectory()) {
             return;
         }
 
@@ -85,12 +99,85 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
         );
     }
 
+    private function processBatchMoveCompleted(FileBatchMoveCompletedEvent $event): void
+    {
+        $changeSet = $event->getChangeSet();
+        foreach ($changeSet->getDeletedFileEntities() as $fileEntity) {
+            if (! $this->isProjectFile($fileEntity)) {
+                continue;
+            }
+            $this->notifyProjectFileChange(
+                $fileEntity->getFileId(),
+                $event->getOrganizationCode(),
+                $fileEntity->getProjectId(),
+                'deleted',
+                [
+                    'project_id' => $fileEntity->getProjectId(),
+                    'file_key' => $fileEntity->getFileKey(),
+                    'user_id' => $event->getUserId(),
+                    'organization_code' => $event->getOrganizationCode(),
+                    'event' => $event::class,
+                    'batch_key' => $event->getBatchKey(),
+                ],
+            );
+        }
+
+        $fileIds = array_unique(array_merge(
+            $changeSet->getAddedFileIds(),
+            $changeSet->getUpdatedFileIds(),
+        ));
+        foreach ($fileIds as $fileId) {
+            if ($fileId <= 0) {
+                continue;
+            }
+            $this->notifyProjectFileChange(
+                $fileId,
+                $event->getOrganizationCode(),
+                $event->getTargetProjectId(),
+                null,
+                [
+                    'project_id' => $event->getTargetProjectId(),
+                    'user_id' => $event->getUserId(),
+                    'organization_code' => $event->getOrganizationCode(),
+                    'event' => $event::class,
+                    'batch_key' => $event->getBatchKey(),
+                ],
+            );
+        }
+    }
+
+    private function processCheckpointRollbackFilesChanged(CheckpointRollbackFilesChangedEvent $event): void
+    {
+        $notifiedFileIds = [];
+        foreach (array_slice($event->getFileChanges(), 0, 500) as $fileChange) {
+            $fileId = (int) ($fileChange['file_id'] ?? 0);
+            if ($fileId <= 0 || isset($notifiedFileIds[$fileId])) {
+                continue;
+            }
+            $notifiedFileIds[$fileId] = true;
+            $status = ($fileChange['operation'] ?? '') === 'delete' ? 'deleted' : null;
+            $this->notifyProjectFileChange(
+                $fileId,
+                $event->getOrganizationCode(),
+                $event->getProjectId(),
+                $status,
+                [
+                    'project_id' => $event->getProjectId(),
+                    'file_path' => $fileChange['file_path'] ?? '',
+                    'user_id' => $event->getUserId(),
+                    'organization_code' => $event->getOrganizationCode(),
+                    'event' => $event::class,
+                ],
+            );
+        }
+    }
+
     private function processBatchDeleted(FilesBatchDeletedEvent $event): void
     {
         $authorization = $event->getUserAuthorization();
         foreach ($event->getFileEntities() as $fileEntity) {
             $projectFileId = (int) $fileEntity->getFileId();
-            if ($projectFileId <= 0) {
+            if (! $this->isProjectFile($fileEntity)) {
                 continue;
             }
 
@@ -113,7 +200,7 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
     {
         $directoryEntity = $event->getDirectoryEntity();
         $projectFileId = (int) $directoryEntity->getFileId();
-        if ($projectFileId <= 0) {
+        if (! $this->isProjectFile($directoryEntity)) {
             return;
         }
 
@@ -197,5 +284,12 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
                 'error' => $throwable->getMessage(),
             ]);
         }
+    }
+
+    private function isProjectFile(TaskFileEntity $fileEntity): bool
+    {
+        return $fileEntity->getFileId() > 0
+            && $fileEntity->getProjectId() > 0
+            && $fileEntity->getSpaceType() === 'project';
     }
 }

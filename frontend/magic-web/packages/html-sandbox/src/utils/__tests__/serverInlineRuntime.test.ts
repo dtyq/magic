@@ -1,4 +1,6 @@
 import { createRequire } from "node:module"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 const require = createRequire(import.meta.url)
@@ -7,6 +9,12 @@ const { buildIndexHtmlWithRuntime } = require("../../../server.cjs") as {
 }
 
 describe("html-sandbox dev server inline runtime", () => {
+	it("enables CORS for host runtime script loading", () => {
+		const indexHtml = readFileSync(resolve(__dirname, "../../../index.html"), "utf8")
+
+		expect(indexHtml).toContain('script.crossOrigin = "anonymous"')
+	})
+
 	it("encodes inline runtime content as base64 for the shell decoder", () => {
 		const runtimeSource =
 			"/* dev runtime */\nconsole.log('中文 runtime');\nwindow.__runtime = '</script>';"

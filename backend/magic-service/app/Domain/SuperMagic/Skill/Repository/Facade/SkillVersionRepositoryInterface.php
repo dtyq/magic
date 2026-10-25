@@ -24,6 +24,8 @@ interface SkillVersionRepositoryInterface
      */
     public function findById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity;
 
+    public function findByIdForUpdate(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity;
+
     /**
      * 保存 Skill 版本.
      */
@@ -33,6 +35,11 @@ interface SkillVersionRepositoryInterface
      * 根据 code 查找最新版本的 Skill 版本.
      */
     public function findLatestByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity;
+
+    /**
+     * 根据 code 查找最近一次发布到市场的版本.
+     */
+    public function findLatestMarketByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity;
 
     /**
      * 根据 code 查询当前版本或最新版本.
@@ -66,7 +73,12 @@ interface SkillVersionRepositoryInterface
     /**
      * 检查同一个 Skill 下版本号是否已存在.
      */
-    public function existsByCodeAndVersion(SkillDataIsolation $dataIsolation, string $code, string $version): bool;
+    public function existsByCodeAndVersion(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        string $version,
+        ?int $excludedId = null
+    ): bool;
 
     /**
      * 根据 code 查找最新已发布版本的 Skill 版本.
@@ -141,7 +153,8 @@ interface SkillVersionRepositoryInterface
         string $code,
         ?PublishTargetType $publishTargetType = null,
         ?ReviewStatus $reviewStatus = null,
-        Page $page = new Page()
+        Page $page = new Page(),
+        bool $includePublishing = false
     ): array;
 
     /**

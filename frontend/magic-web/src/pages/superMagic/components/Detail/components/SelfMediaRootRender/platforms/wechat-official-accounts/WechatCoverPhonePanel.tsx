@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { ChevronLeft, Search, User } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import PhoneShell from "../../components/PhoneShell"
 import { usePhoneScaling } from "../../hooks/usePhoneScaling"
 import type { PlatformComponentProps, SelfMediaPost } from "../../types"

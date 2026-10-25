@@ -1,28 +1,34 @@
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import { Suspense, lazy, memo } from "react"
 import { useStyles } from "./styles"
 import ToolDetailContainer from "../ToolDetailContainer"
 
 const EditorBody = lazy(
-	() =>
-		import("@/pages/superMagic/components/Detail/contents/Md/components/EditorBody"),
+	() => import("@/pages/superMagic/components/Detail/contents/Md/components/EditorBody"),
 )
 const IsolatedHTMLRenderer = lazy(
-	() =>
-		import("@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer"),
+	() => import("@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer"),
 )
 
 interface TextEditorProps {
+	file?: AttachmentItem
 	content: string
 	language?: string
 	extension?: string
 	fileName?: string
 }
 
-function TextEditor({ content, language = "markdown", extension, fileName }: TextEditorProps) {
+function TextEditor({
+	file,
+	content,
+	language = "markdown",
+	extension,
+	fileName,
+}: TextEditorProps) {
 	const { styles } = useStyles()
 
 	return (
-		<ToolDetailContainer extension={extension} title={fileName}>
+		<ToolDetailContainer file={file} extension={extension} title={fileName}>
 			<Suspense fallback={null}>
 				{extension === "html" ? (
 					<IsolatedHTMLRenderer
@@ -30,7 +36,7 @@ function TextEditor({ content, language = "markdown", extension, fileName }: Tex
 						sandboxType="iframe"
 						isPptRender={false}
 						filePathMapping={new Map()}
-						openNewTab={() => { }}
+						openNewTab={() => {}}
 					/>
 				) : (
 					<EditorBody

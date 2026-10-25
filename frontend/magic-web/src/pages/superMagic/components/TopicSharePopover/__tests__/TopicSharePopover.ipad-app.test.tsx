@@ -32,10 +32,37 @@ vi.mock("@/utils/devices", () => ({
 	isNoHoverCoarsePointer: () => deviceMocks.isNoHoverCoarsePointer,
 }))
 
+vi.mock("@/services/analytics", () => ({
+	analyticsService: { report: vi.fn() },
+}))
+
 vi.mock("@/apis", () => ({
+	FUNCTION_PERMISSION_CODE: {
+		MicroAppSharePassword: "micro_app.share_password",
+		MicroAppSharePublic: "micro_app.share_public",
+		MicroAppShareTeam: "micro_app.share_team",
+		ProjectSharePassword: "project.share_password",
+		ProjectSharePublic: "project.share_public",
+		ProjectShareTeam: "project.share_team",
+		TopicSharePassword: "topic.share_password",
+		TopicSharePublic: "topic.share_public",
+	},
 	SuperMagicApi: {
 		getShareInfoByCode: vi.fn().mockResolvedValue(null),
+		createShareTopic: vi.fn(),
+		createOrUpdateShareResource: vi.fn(),
+		cancelShareResource: vi.fn(),
 	},
+}))
+
+// Share methods are unrestricted here; this suite only covers popover dismissal behavior.
+vi.mock("@/hooks/useFunctionPermission", () => ({
+	useFunctionPermissions: () => ({
+		data: undefined,
+		error: undefined,
+		isLoading: true,
+		mutate: vi.fn(),
+	}),
 }))
 
 vi.mock("@/utils/clipboard-helpers", () => ({
@@ -160,6 +187,37 @@ describe("TopicSharePopover touch desktop behavior", () => {
 		popoverContentProps.onFocusOutside?.({ preventDefault })
 
 		expect(preventDefault).toHaveBeenCalledTimes(1)
+	})
+
+	it("prevents focus-only dismissal when rendered inside an SDK iframe", () => {
+		const parentWindow = window.parent
+		Object.defineProperty(window, "parent", {
+			configurable: true,
+			value: {},
+		})
+
+		try {
+			render(
+				<TopicSharePopover
+					open
+					onOpenChange={vi.fn()}
+					topicId="mock-topic-id"
+					topicTitle="Mock topic"
+				>
+					<button type="button">share</button>
+				</TopicSharePopover>,
+			)
+
+			const preventDefault = vi.fn()
+			popoverContentProps.onFocusOutside?.({ preventDefault })
+
+			expect(preventDefault).toHaveBeenCalledTimes(1)
+		} finally {
+			Object.defineProperty(window, "parent", {
+				configurable: true,
+				value: parentWindow,
+			})
+		}
 	})
 
 	it("allows focus-only dismissal for a regular desktop pointer", () => {

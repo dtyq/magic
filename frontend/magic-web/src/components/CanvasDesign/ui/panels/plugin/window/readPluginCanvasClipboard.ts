@@ -18,7 +18,8 @@ import type {
 /** 将画布剪贴板文件 metadata 转为可 postMessage 的 plain object。 */
 function serializeClipboardFileMetadata(
 	file: CanvasElementClipboardFileMetadata,
-): PluginCanvasClipboardFileMetadata {
+): PluginCanvasClipboardFileMetadata | null {
+	if (file.role === "generation-resource") return null
 	return {
 		id: file.id,
 		elementId: file.elementId,
@@ -66,7 +67,9 @@ export async function readPluginCanvasClipboard(
 		source: clipboardResult.payload.source,
 		version: clipboardResult.payload.version,
 		operation: clipboardResult.payload.operation,
-		files: clipboardResult.payload.files.map(serializeClipboardFileMetadata),
+		files: clipboardResult.payload.files
+			.map(serializeClipboardFileMetadata)
+			.filter((file): file is PluginCanvasClipboardFileMetadata => Boolean(file)),
 	}
 
 	let uploadedAssets: PluginFileAsset[] = []

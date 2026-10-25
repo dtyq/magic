@@ -1,6 +1,6 @@
 ---
 name: ui-data-testid
-description: Add stable `data-testid` attributes by default for new or refactored UI components. Use when implementing React/TSX views, shadcn/antd-style components, dropdown/menu configs, or interactive UI flows that need reliable selectors for unit/E2E tests.
+description: Add stable `data-testid` attributes when a new or refactored UI flow needs reliable unit or E2E selectors. Use for interactive React/TSX views, menus, or test-driven UI work; do not add selectors to static markup without a test or automation need.
 ---
 
 # UI Data-testid

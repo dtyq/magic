@@ -2,11 +2,26 @@
 路径相关的常量和工具函数，使用面向对象方式实现
 """
 
+import os
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar, Optional
 
 from agentlang.path_manager import PathManager as BasePathManager
+
+
+class RuntimeEnvironment(StrEnum):
+    """
+    Agent 所在运行环境，决定注入哪一份存储与网络提示词。
+
+    | 环境 | .workspace 实际位置 | 存储规则 |
+    | sandbox | 解析到 <AGFS 挂载点>/magicfs/ 下（MagicFS 网络盘） | 两层存储、小文件约 2 秒、重建后本地盘清空 |
+    | local | 本机普通目录（开发机等没有 AGFS 的环境） | 普通磁盘，沙盒规则不适用 |
+    """
+
+    SANDBOX = "sandbox"
+    LOCAL = "local"
 
 
 class PathManager(BasePathManager):
@@ -17,7 +32,11 @@ class PathManager(BasePathManager):
     - project_root/          ← 项目根目录
         .browser/            ← 浏览器数据（父类管理）
         .cache/              ← 缓存（父类管理）
-        .chat_history/       ← 聊天记录（父类管理）
+        .chat_history/       ← 活动聊天记录（父类管理）
+            subagents/       ← 子 Agent 会话
+        .topic/              ← 话题网络持久卷（父类管理）
+            chat_history/    ← 启动恢复和交接源，不作活动会话目录
+            archives/        ← 各能力有限保留的完整排查档案
         .credentials/        ← 凭证（应用层，预创建）
         .project_schemas/    ← 项目架构（应用层，预创建）
         .client_message/     ← 客户端消息（应用层，预创建）
@@ -29,7 +48,12 @@ class PathManager(BasePathManager):
             oauth2/         ← OAuth2 local callback
             verification/   ← 验证脚本产物
             background_compact/ ← 后台压缩临时上下文
-            llm_request/    ← LLM 调试日志
+            memory_after_run/ ← 运行后记忆整理临时上下文
+            llm_requests/   ← LLM 调试日志
+            slide-template-maker/ ← 幻灯片模板作者中间文件
+            micro-app/      ← 累积 @micro_app MagicBase 范围
+            follow_up_suggestions/ ← 追加问题本地查询副本
+        .box/                ← Agent 自由使用的本地工作目录（预创建，0700，沙盒重建清空，不做时间淘汰）
         app/i18n/            ← 语言翻译（源码只读目录）
         .checkpoints/        ← 检查点（getter 内按需创建）
         .workspace/          ← MagicFS 云端持久工作区（父类管理）
@@ -37,6 +61,7 @@ class PathManager(BasePathManager):
             .magic/          ← Magic 配置（按需创建）
                 config/      ← Magic 全局配置
                 skills/      ← skills 配置
+                startup/     ← 每次服务启动时执行的启动任务定义
                 .env         ← Magic 全局环境变量
             .tmp/            ← 临时文件（按需创建）
         ~/.magic/            ← 个人 Magic 目录（按需创建）
@@ -50,8 +75,16 @@ class PathManager(BasePathManager):
     - `get_*` 方法只返回路径，不隐式创建目录（`get_checkpoints_dir` / `get_checkpoint_dir` 除外，历史遗留）
 
     持久化边界：
-    - `.chat_history/` 是话题持久状态，进入归档和 checkpoint；`compacted/` 与 `subagents/` 也属于这里。
-    - `.runtime/` 只保存可重新生成的运行数据，不进入归档和 checkpoint。
+    - `.chat_history/` 是运行期聊天历史持久状态；沙箱内它是指向 localfs
+      空间挂载的 symlink（<AGFS FUSE 挂载根>/localfs/chat_history，gateway
+      在 bind 时创建），每次保存由 checkpoint hook 增量记账进 checkpoint；本地开
+      发环境（无 agfs 挂载）它是普通本地目录，只是没有帧记账。
+    - `.topic/chat_history/` 是启动恢复源；恢复到配置的 `.chat_history/` 后再运行。
+      活动会话不放在 `.topic/`，避免频繁读写话题网络卷；需要持久保留的内容
+      由 owner 在生成完成后归档。不同运行环境的目录映射见文件系统指南。
+    - `.topic/tool_detail/content/` 保存已持久化的工具详情长文本；按需创建，不参与 checkpoint 回滚。
+    - `.runtime/` 是本地运行数据，源目录不进入归档和 checkpoint；完整失败日志与记忆
+      整理会话结束后可另存有限副本，副本不改变活动文件的本地读写边界。
     - `.workspace/` 保存用户文件，由现有文件 checkpoint 机制单独管理。
     - `.checkpoints/` 保存 checkpoint 自身，不能作为聊天记录快照源。
     """
@@ -96,11 +129,23 @@ class PathManager(BasePathManager):
     _runtime_dir_name: ClassVar[str] = ".runtime"
     _runtime_dir: ClassVar[Optional[Path]] = None
     _background_compact_dir_name: ClassVar[str] = "background_compact"
-    _llm_request_dir_name: ClassVar[str] = "llm_request"
+    _memory_after_run_dir_name: ClassVar[str] = "memory_after_run"
+    _llm_requests_dir_name: ClassVar[str] = "llm_requests"
 
     # 后台 shell 任务日志目录：project_root/.runtime/bg_shell（按需创建）
     _bg_shell_dir_name: ClassVar[str] = "bg_shell"
     _bg_shell_dir: ClassVar[Optional[Path]] = None
+
+    # 通用沙箱任务状态目录：project_root/.runtime/sandbox_tasks（按需创建）
+    _runtime_sandbox_tasks_dir_name: ClassVar[str] = "sandbox_tasks"
+
+    # Agent 本地工作目录：project_root/.box（预创建）
+    # 与 .runtime 区别：.runtime 归应用、有淘汰规则；.box 归 Agent，放依赖缓存、构建中间产物等可重建数据。
+    _box_dir_name: ClassVar[str] = ".box"
+    _box_dir: ClassVar[Optional[Path]] = None
+
+    # 运行环境识别结果，每个进程只算一次；重新设置 project_root 时清空
+    _runtime_environment: ClassVar[Optional[RuntimeEnvironment]] = None
 
     # ── workspace（project_root/.workspace）下 ────────────────────────────────
 
@@ -124,6 +169,9 @@ class PathManager(BasePathManager):
     _tmp_dir_name: ClassVar[str] = ".tmp"
     _tmp_dir: ClassVar[Optional[Path]] = None
 
+    # 工具详情长文本：.topic/tool_detail/content（按需创建）
+    _tool_detail_dir_name: ClassVar[str] = "tool_detail"
+    _tool_detail_content_dir_name: ClassVar[str] = "content"
 
     @classmethod
     def _ensure_app_initialization(cls) -> None:
@@ -162,6 +210,8 @@ class PathManager(BasePathManager):
 
         cls._runtime_dir = cls._project_root / cls._runtime_dir_name
         cls._bg_shell_dir = cls._runtime_dir / cls._bg_shell_dir_name
+        cls._box_dir = cls._project_root / cls._box_dir_name
+        cls._runtime_environment = None
 
         cls._languages_dir = cls._project_root / cls._languages_dir_name
         cls._translations_dir = cls._languages_dir / "translations"
@@ -215,6 +265,10 @@ class PathManager(BasePathManager):
         ):
             if d is not None:
                 d.mkdir(exist_ok=True)
+
+        # .box 只给当前用户读写，子进程通过 MAGIC_BOX_DIR 使用，需启动即存在
+        if cls._box_dir is not None:
+            cls._box_dir.mkdir(mode=0o700, exist_ok=True)
 
         # workspace 下无预创建目录，均由各业务按需创建
 
@@ -427,7 +481,7 @@ class PathManager(BasePathManager):
 
     @classmethod
     def get_todos_file(cls) -> Path:
-        """获取全局 todo 文件路径（.chat_history/todos.json，由父类管理的 chat_history_dir 承载）"""
+        """获取全局 todo 文件路径（本地 .chat_history/todos.json）。"""
         cls._ensure_app_initialization()
         return cls.get_chat_history_dir() / "todos.json"
 
@@ -439,7 +493,7 @@ class PathManager(BasePathManager):
 
     @classmethod
     def get_subagents_chat_history_dir(cls) -> Path:
-        """获取子 Agent 聊天记录目录路径（.chat_history/subagents）"""
+        """获取子 Agent 聊天记录目录路径（本地 .chat_history/subagents）。"""
         cls._ensure_app_initialization()
         return cls.get_chat_history_dir() / "subagents"
 
@@ -454,6 +508,18 @@ class PathManager(BasePathManager):
         """获取指定子 Agent 会话的 .session.json 文件路径。"""
         cls._ensure_app_initialization()
         return cls.get_subagent_chat_history_dir(agent_name, agent_id) / f"{agent_name}<{agent_id}>.session.json"
+
+    @classmethod
+    def get_tool_detail_dir(cls) -> Path:
+        """获取工具详情持久化目录（.topic/tool_detail），按需创建。"""
+        cls._ensure_app_initialization()
+        return cls.get_topic_dir() / cls._tool_detail_dir_name
+
+    @classmethod
+    def get_tool_detail_content_dir(cls) -> Path:
+        """获取工具详情长文本目录（.topic/tool_detail/content），按需创建。"""
+        cls._ensure_app_initialization()
+        return cls.get_tool_detail_dir() / cls._tool_detail_content_dir_name
 
     @classmethod
     def get_asr_states_dir(cls) -> Path:
@@ -602,10 +668,73 @@ class PathManager(BasePathManager):
         return cls.get_runtime_dir() / cls._background_compact_dir_name
 
     @classmethod
-    def get_llm_request_dir(cls) -> Path:
+    def get_memory_after_run_dir(cls) -> Path:
+        """获取运行后记忆整理临时目录。"""
+        cls._ensure_app_initialization()
+        return cls.get_runtime_dir() / cls._memory_after_run_dir_name
+
+    @classmethod
+    def get_chat_history_archive_dir(cls) -> Path:
+        """获取聊天历史归档的本地 staging 和压缩包目录。"""
+        return cls.get_runtime_dir() / "chat_history_archive"
+
+    @classmethod
+    def get_topic_archives_dir(cls) -> Path:
+        """获取话题持久排查存档根目录，按能力分别保留和清理。"""
+        return cls.get_topic_dir() / "archives"
+
+    @classmethod
+    def get_llm_failed_logs_archive_dir(cls) -> Path:
+        """获取完整 LLM 失败日志的持久存档目录。"""
+        return cls.get_topic_archives_dir() / cls.get_llm_requests_dir_name()
+
+    @classmethod
+    def get_llm_requests_dir_name(cls) -> str:
+        """获取 LLM 调试日志临时目录名。"""
+        return cls._llm_requests_dir_name
+
+    @classmethod
+    def get_llm_requests_dir(cls) -> Path:
         """获取 LLM 调试日志临时目录。"""
         cls._ensure_app_initialization()
-        return cls.get_runtime_dir() / cls._llm_request_dir_name
+        return cls.get_runtime_dir() / cls._llm_requests_dir_name
+
+    @classmethod
+    def get_box_dir(cls) -> Path:
+        """获取 Agent 本地工作目录（project_root/.box，预创建）。"""
+        cls._ensure_app_initialization()
+        return cls._box_dir
+
+    @classmethod
+    def get_startup_task_dir(cls) -> Path:
+        """获取启动任务定义目录（.workspace/.magic/startup/，按需创建）。"""
+        cls._ensure_app_initialization()
+        return cls.get_magic_dir() / "startup"
+
+    @classmethod
+    def get_agfs_fuse_mount_path(cls) -> Path:
+        """获取 AGFS FUSE 挂载点（默认 /mnt/agfs），其下 magicfs/ 为网络存储空间。"""
+        return Path(os.getenv("AGFS_FUSE_MOUNT_PATH", "/mnt/agfs"))
+
+    @classmethod
+    def get_runtime_environment(cls) -> RuntimeEnvironment:
+        """
+        判断当前运行在云端沙盒还是本地机器。
+
+        判据是 .workspace 解析后的真实位置：沙盒中它是指向 <挂载点>/magicfs/project 的软链，
+        本地开发机上是普通目录。realpath 只读软链目标、不访问挂载内容，AGFS 尚未就绪也能判断。
+        不用 APP_ENV：它表示部署阶段（local/dev/prod），dev、test 也跑在容器里，与存储形态无关。
+        """
+        cls._ensure_app_initialization()
+        if cls._runtime_environment is None:
+            workspace_real_path = Path(os.path.realpath(cls.get_workspace_dir()))
+            magicfs_root = Path(os.path.realpath(cls.get_agfs_fuse_mount_path() / "magicfs"))
+            cls._runtime_environment = (
+                RuntimeEnvironment.SANDBOX
+                if workspace_real_path.is_relative_to(magicfs_root)
+                else RuntimeEnvironment.LOCAL
+            )
+        return cls._runtime_environment
 
     @classmethod
     def get_bg_shell_dir(cls) -> Path:
@@ -617,6 +746,19 @@ class PathManager(BasePathManager):
     def get_bg_shell_log_file(cls, task_id: str) -> Path:
         """获取指定后台任务的日志文件路径（project_root/.runtime/bg_shell/{task_id}.log）"""
         return cls.get_bg_shell_dir() / f"{task_id}.log"
+
+    @classmethod
+    def get_sandbox_tasks_dir(cls) -> Path:
+        """获取通用沙箱任务状态目录（project_root/.runtime/sandbox_tasks，按需创建）。"""
+        cls._ensure_app_initialization()
+        return cls.get_runtime_dir() / cls._runtime_sandbox_tasks_dir_name
+
+    @classmethod
+    def get_im_uploads_dir(cls, channel: str) -> Path:
+        """统一入站附件目录，渠道值来自内部注册标识。"""
+        if channel not in {"wechat", "wecom", "dingtalk", "lark"}:
+            raise ValueError(f"Unknown IM channel: {channel}")
+        return cls.get_workspace_dir() / "uploads" / "im-channels" / channel
 
     @classmethod
     def get_wechat_im_uploads_dir(cls) -> Path:

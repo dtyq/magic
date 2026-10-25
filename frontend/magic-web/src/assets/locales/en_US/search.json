@@ -14,14 +14,11 @@
 			"urgent": "Urgent",
 			"veryUrgent": "Very Urgent"
 		},
-		"search": "Search",
 		"searchPlaceholder": "Please enter the search content",
 		"settings": {
 			"approvalStatus": "Approval Status",
 			"approve": {
 				"all": "All",
-				"approved": "Approved",
-				"disallow": "Disallowed",
 				"rejected": "Rejected",
 				"revoked": "Revoked",
 				"underApproval": "Under Approval"
@@ -61,29 +58,10 @@
 			"contacts": "Contacts",
 			"department": "Department",
 			"groups": "Groups",
-			"integrate": "Integrate",
 			"knowledge": "Knowledge",
 			"schedule": "Schedule",
 			"tasks": "Tasks",
 			"todoList": "To-Do List"
 		}
-	},
-	"search": {
-		"aiSkills": "AI Skills",
-		"appOpen": "Open App",
-		"askAl": "AI Search",
-		"askAnswer": "Answer Questions",
-		"askMagic": "Ask Magic",
-		"askTranslate": "Translate",
-		"askWrite": "Help Me Write",
-		"comprehensiveSkills": "Comprehensive Skills",
-		"fileSearchLocal": "Search Local Files",
-		"inputVoice": "Voice Input",
-		"keyboardSpace": "Space",
-		"magicOpen": "Open Magic",
-		"magicOpenJourney": "Magic · Open the amazing search journey...",
-		"searchHistory": "Search History",
-		"searchMagic": "Search Magic",
-		"youMayWantToFind": "You May Want To Find"
 	}
 }

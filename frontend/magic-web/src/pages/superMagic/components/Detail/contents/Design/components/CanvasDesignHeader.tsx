@@ -1,3 +1,4 @@
+import { packAndDownloadFiles } from "@/pages/superMagic/services/fileBundleDownload"
 import { createStyles, cx } from "antd-style"
 import canvasIcon from "@/components/base/MagicFileIcon/assets/design.svg"
 import { DesignData } from "../types"
@@ -16,13 +17,13 @@ import { useTranslation } from "react-i18next"
 import {
 	getDesignDirectoryInfo,
 	collectFilesInDirectory,
-	packAndDownloadFiles,
 	getZipFileNameFromFiles,
 } from "../utils/utils"
 import ShareModal from "@/pages/superMagic/components/Share/Modal"
 import { ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import { SuperMagicApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 const useStyles = createStyles(({ token }) => ({
 	canvasDesignHeaderContainer: {
@@ -78,7 +79,7 @@ interface CanvasDesignHeaderProps {
 	onChangeFileVersion?: (version: number, isNewestVersion: boolean) => Promise<void>
 	onReturnLatest?: () => void
 	onVersionRollback?: (version?: number) => Promise<void>
-	isReadOnly?: boolean
+	canEdit?: boolean
 	isMobile?: boolean
 	allowEdit?: boolean
 	/** 文件列表更新 */
@@ -103,7 +104,7 @@ export default function CanvasDesignHeader(props: CanvasDesignHeaderProps) {
 		onChangeFileVersion,
 		onReturnLatest,
 		onVersionRollback,
-		isReadOnly = false,
+		canEdit = true,
 		isMobile = false,
 		allowEdit = true,
 		updateAttachments,
@@ -111,6 +112,8 @@ export default function CanvasDesignHeader(props: CanvasDesignHeaderProps) {
 	} = props
 	const { styles } = useStyles()
 	const { t } = useTranslation("super")
+	// Canvas header ZIP download must carry the ambient share identity.
+	const fileApi = useFileApi()
 
 	// 使用传入的 name 参数，如果没有则使用 designData.name
 	const displayName = name || designData.name
@@ -307,7 +310,13 @@ export default function CanvasDesignHeader(props: CanvasDesignHeaderProps) {
 		try {
 			// 使用共用函数获取 zip 文件名（与 useConversationAndDownload 保持一致）
 			const zipFileName = getZipFileNameFromFiles(imageFiles, attachments, currentFile)
-			const { successCount } = await packAndDownloadFiles(imageFiles, undefined, zipFileName)
+			const { successCount } = await packAndDownloadFiles(
+				imageFiles,
+				undefined,
+				zipFileName,
+				undefined,
+				fileApi,
+			)
 
 			magicToast.success({
 				content: t("design.messages.downloadSuccess", { count: successCount }),
@@ -321,7 +330,7 @@ export default function CanvasDesignHeader(props: CanvasDesignHeaderProps) {
 		} finally {
 			setIsDownloading(false)
 		}
-	}, [attachments, currentFile, t])
+	}, [attachments, currentFile, fileApi, t])
 
 	// 刷新函数：重新初始化页面（调用父组件的重新初始化逻辑）
 	const handleRefresh = useCallback(async () => {
@@ -404,11 +413,16 @@ export default function CanvasDesignHeader(props: CanvasDesignHeaderProps) {
 				<div className={styles.left}>
 					{!isMobile && (
 						<>
-							<img className={styles.canvasIcon} src={canvasIcon} alt="canvas icon"  data-testid="canvas-design-header-image"/>
+							<img
+								className={styles.canvasIcon}
+								src={canvasIcon}
+								alt="canvas icon"
+								data-testid="canvas-design-header-image"
+							/>
 							<DesignNameEditor
 								name={displayName}
 								onNameChange={handleNameChange}
-								isReadOnly={isReadOnly}
+								canEdit={canEdit}
 							/>
 						</>
 					)}

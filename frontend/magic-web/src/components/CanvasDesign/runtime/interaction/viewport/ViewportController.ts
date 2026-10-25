@@ -38,6 +38,18 @@ import type { ViewportChangePhase, ViewportChangeSource } from "../../core/Event
 
 type PanPending = { x: number; y: number }
 type ViewportBoundingRect = { x: number; y: number; width: number; height: number }
+type ViewportChangedOptions = {
+	source: ViewportChangeSource
+	phase?: ViewportChangePhase
+	emitScale?: boolean
+	emitPan?: boolean
+	scale?: number
+	position?: { x: number; y: number }
+}
+type ViewportCommitOptions = {
+	beforeViewportChanged?: () => void
+	requestDraw?: boolean
+}
 
 const DEFAULT_VIEWPORT_SCALE = 0.3
 
@@ -404,7 +416,9 @@ export class ViewportController {
 		},
 	): void {
 		const worldCenter = this.captureDefaultViewportWorldCenter()
-		updateLayout()
+		// Stage size mutations use Konva's auto draw by default. The caller already requests a
+		// scheduler-owned Stage draw, so do not leave an additional Konva RAF queued here.
+		this.runWithKonvaAutoDrawDisabled(updateLayout)
 
 		if (!worldCenter) {
 			return
@@ -441,15 +455,17 @@ export class ViewportController {
 			return
 		}
 
-		stage.position(nextPosition)
-		this.requestStageDraw(options?.reason ?? "viewport-layout-change")
-		this.emitViewportChanged({
-			source: options?.source ?? "resize",
-			phase: "end",
-			emitPan: true,
-			position: nextPosition,
-			scale: scaleX,
-		})
+		this.commitViewportUpdate(
+			options?.reason ?? "viewport-layout-change",
+			() => stage.position(nextPosition),
+			{
+				source: options?.source ?? "resize",
+				phase: "end",
+				emitPan: true,
+				position: nextPosition,
+				scale: scaleX,
+			},
+		)
 	}
 
 	private requestStageDraw(reason: string): void {
@@ -460,37 +476,61 @@ export class ViewportController {
 		})
 	}
 
-	private emitViewportChanged(options: {
-		source: ViewportChangeSource
-		phase?: ViewportChangePhase
-		emitScale?: boolean
-		emitPan?: boolean
-		scale?: number
-		position?: { x: number; y: number }
-	}): void {
+	private runWithKonvaAutoDrawDisabled(callback: () => void): void {
+		const previousAutoDrawEnabled = Konva.autoDrawEnabled
+		Konva.autoDrawEnabled = false
+		try {
+			callback()
+		} finally {
+			Konva.autoDrawEnabled = previousAutoDrawEnabled
+		}
+	}
+
+	/**
+	 * Stage mutations and their synchronous listeners share one owner draw. Keeping the whole
+	 * commit inside the auto-draw guard prevents Konva from queuing another RAF first.
+	 */
+	private commitViewportUpdate(
+		reason: string,
+		mutation: () => void,
+		event: ViewportChangedOptions,
+		options?: ViewportCommitOptions,
+	): void {
+		this.runWithKonvaAutoDrawDisabled(() => {
+			mutation()
+			if (options?.requestDraw !== false) this.requestStageDraw(reason)
+			options?.beforeViewportChanged?.()
+			this.emitViewportChanged(event)
+		})
+	}
+
+	private emitViewportChanged(options: ViewportChangedOptions): void {
 		const scale = this.roundScale(options.scale ?? this.scale)
 		const position = this.roundPosition(options.position ?? this.canvas.stage.position())
-
-		if (options.emitScale) {
+		// Viewport updates already own a Stage draw through CanvasRuntimeScheduler or Konva.Tween.
+		// Suppress per-attribute auto-draw requests while synchronous listeners update their nodes.
+		this.runWithKonvaAutoDrawDisabled(() => {
+			if (options.emitScale) {
+				this.canvas.eventEmitter.emit({
+					type: "viewport:scale",
+					data: { scale },
+				})
+			}
+			if (options.emitPan) {
+				this.canvas.eventEmitter.emit({
+					type: "viewport:pan",
+					data: position,
+				})
+			}
 			this.canvas.eventEmitter.emit({
-				type: "viewport:scale",
-				data: { scale },
+				type: "viewport:changed",
+				data: {
+					scale,
+					position,
+					source: options.source,
+					phase: options.phase ?? "move",
+				},
 			})
-		}
-		if (options.emitPan) {
-			this.canvas.eventEmitter.emit({
-				type: "viewport:pan",
-				data: position,
-			})
-		}
-		this.canvas.eventEmitter.emit({
-			type: "viewport:changed",
-			data: {
-				scale,
-				position,
-				source: options.source,
-				phase: options.phase ?? "move",
-			},
 		})
 	}
 
@@ -568,28 +608,28 @@ export class ViewportController {
 	 * 应用缩放更新（由节流器调用）
 	 */
 	private applyZoomUpdate(pending: ZoomPending): void {
-		this.scale = pending.scale
-		this.canvas.stage.scale({ x: pending.scale, y: pending.scale })
-		this.canvas.stage.position(pending.position)
-		this.requestStageDraw("zoom-update")
-
-		this.emitViewportChanged({
-			source: this.pendingZoomSource,
-			phase: "move",
-			emitScale: true,
-			emitPan: true,
-			position: pending.position,
-		})
+		this.commitViewportUpdate(
+			"zoom-update",
+			() => {
+				this.scale = pending.scale
+				this.canvas.stage.scale({ x: pending.scale, y: pending.scale })
+				this.canvas.stage.position(pending.position)
+			},
+			{
+				source: this.pendingZoomSource,
+				phase: "move",
+				emitScale: true,
+				emitPan: true,
+				position: pending.position,
+			},
+		)
 	}
 
 	/**
 	 * 应用平移更新（由节流器调用）
 	 */
 	private applyPanUpdate(pending: PanPending): void {
-		this.canvas.stage.position(pending)
-		this.requestStageDraw("pan-update")
-
-		this.emitViewportChanged({
+		this.commitViewportUpdate("pan-update", () => this.canvas.stage.position(pending), {
 			source: this.pendingPanSource,
 			phase: "move",
 			emitPan: true,
@@ -764,19 +804,23 @@ export class ViewportController {
 				},
 				onFinish: () => {
 					// 动画结束后确保精确值
-					this.scale = finalScale
-					this.canvas.stage.scale({ x: finalScale, y: finalScale })
-					this.canvas.stage.position({ x: newX, y: newY })
-					this.requestStageDraw("viewport-transform-finish")
-
-					// 发送最终事件
-					this.emitViewportChanged({
-						source: "programmatic",
-						phase: "end",
-						emitScale: true,
-						emitPan: true,
-						position: { x: newX, y: newY },
-					})
+					this.commitViewportUpdate(
+						"viewport-transform-finish",
+						() => {
+							this.scale = finalScale
+							this.canvas.stage.scale({ x: finalScale, y: finalScale })
+							this.canvas.stage.position({ x: newX, y: newY })
+						},
+						{
+							source: "programmatic",
+							phase: "end",
+							emitScale: true,
+							emitPan: true,
+							position: { x: newX, y: newY },
+						},
+						// Konva.Animation queues the Tween's final layer draw after this callback.
+						{ requestDraw: false },
+					)
 
 					// 执行完成回调
 					if (onComplete) {
@@ -791,19 +835,21 @@ export class ViewportController {
 			this.currentTween.play()
 		} else {
 			// 无动画，直接设置
-			this.scale = finalScale
-			this.canvas.stage.scale({ x: finalScale, y: finalScale })
-			this.canvas.stage.position({ x: newX, y: newY })
-			this.requestStageDraw("viewport-transform")
-
-			// 发送缩放变化事件（格式化精度）
-			this.emitViewportChanged({
-				source: "programmatic",
-				phase: "end",
-				emitScale: true,
-				emitPan: true,
-				position: { x: newX, y: newY },
-			})
+			this.commitViewportUpdate(
+				"viewport-transform",
+				() => {
+					this.scale = finalScale
+					this.canvas.stage.scale({ x: finalScale, y: finalScale })
+					this.canvas.stage.position({ x: newX, y: newY })
+				},
+				{
+					source: "programmatic",
+					phase: "end",
+					emitScale: true,
+					emitPan: true,
+					position: { x: newX, y: newY },
+				},
+			)
 
 			// 执行完成回调
 			if (onComplete) {
@@ -1287,14 +1333,24 @@ export class ViewportController {
 	 * 重置缩放到 100% 并居中
 	 */
 	public zoomToFit(): void {
-		this.setScale(1)
-		this.canvas.stage.position({ x: 0, y: 0 })
-		this.requestStageDraw("zoom-to-fit")
-		this.emitViewportChanged({
-			source: "programmatic",
-			phase: "end",
-			position: { x: 0, y: 0 },
-		})
+		this.zoomThrottle.cancel()
+		this.panThrottle.cancel()
+		const nextScale = Math.max(this.getActiveMinScale(), Math.min(this.maxScale, 1))
+		this.commitViewportUpdate(
+			"zoom-to-fit",
+			() => {
+				this.scale = nextScale
+				this.canvas.stage.scale({ x: nextScale, y: nextScale })
+				this.canvas.stage.position({ x: 0, y: 0 })
+			},
+			{
+				source: "programmatic",
+				phase: "end",
+				emitScale: true,
+				emitPan: true,
+				position: { x: 0, y: 0 },
+			},
+		)
 	}
 
 	/**
@@ -1328,18 +1384,20 @@ export class ViewportController {
 			clampedScale,
 		)
 
-		this.scale = clampedScale
-		this.canvas.stage.scale({ x: clampedScale, y: clampedScale })
-		this.canvas.stage.position(nextViewport.position)
-		this.requestStageDraw("set-scale")
-
-		// 发送缩放变化事件（格式化精度）
-		this.emitViewportChanged({
-			source: "programmatic",
-			phase: "end",
-			emitScale: true,
-			position: nextViewport.position,
-		})
+		this.commitViewportUpdate(
+			"set-scale",
+			() => {
+				this.scale = clampedScale
+				this.canvas.stage.scale({ x: clampedScale, y: clampedScale })
+				this.canvas.stage.position(nextViewport.position)
+			},
+			{
+				source: "programmatic",
+				phase: "end",
+				emitScale: true,
+				position: nextViewport.position,
+			},
+		)
 	}
 
 	/**
@@ -1350,9 +1408,7 @@ export class ViewportController {
 		// 清除待处理的平移，避免被 RAF 覆盖
 		this.panThrottle.cancel()
 
-		this.canvas.stage.position(position)
-		this.requestStageDraw("set-position")
-		this.emitViewportChanged({
+		this.commitViewportUpdate("set-position", () => this.canvas.stage.position(position), {
 			source: "programmatic",
 			phase: "end",
 			emitPan: true,
@@ -1377,21 +1433,25 @@ export class ViewportController {
 		this.zoomThrottle.cancel()
 		this.panThrottle.cancel()
 
-		this.scale = 1
-		this.canvas.stage.scale({ x: 1, y: 1 })
-		this.canvas.stage.position({ x: 0, y: 0 })
-		this.requestStageDraw("reset-view")
-
-		// 发送重置事件
-		this.canvas.eventEmitter.emit({ type: "viewport:reset", data: undefined })
-		// 发送缩放变化事件（格式化精度）
-		this.emitViewportChanged({
-			source: "restore",
-			phase: "end",
-			emitScale: true,
-			emitPan: true,
-			position: { x: 0, y: 0 },
-		})
+		this.commitViewportUpdate(
+			"reset-view",
+			() => {
+				this.scale = 1
+				this.canvas.stage.scale({ x: 1, y: 1 })
+				this.canvas.stage.position({ x: 0, y: 0 })
+			},
+			{
+				source: "restore",
+				phase: "end",
+				emitScale: true,
+				emitPan: true,
+				position: { x: 0, y: 0 },
+			},
+			{
+				beforeViewportChanged: () =>
+					this.canvas.eventEmitter.emit({ type: "viewport:reset", data: undefined }),
+			},
+		)
 	}
 
 	/**
@@ -1903,16 +1963,18 @@ export class ViewportController {
 				},
 				onFinish: () => {
 					// 确保精确值
-					this.canvas.stage.position(newPosition)
-					this.requestStageDraw("ensure-visible-finish")
-
-					// 发送最终事件
-					this.emitViewportChanged({
-						source: "programmatic",
-						phase: "end",
-						emitPan: true,
-						position: newPosition,
-					})
+					this.commitViewportUpdate(
+						"ensure-visible-finish",
+						() => this.canvas.stage.position(newPosition),
+						{
+							source: "programmatic",
+							phase: "end",
+							emitPan: true,
+							position: newPosition,
+						},
+						// Konva.Animation queues the Tween's final layer draw after this callback.
+						{ requestDraw: false },
+					)
 
 					// 清理动画引用
 					this.currentTween = null
@@ -1922,16 +1984,16 @@ export class ViewportController {
 			this.currentTween.play()
 		} else {
 			// 无动画，直接设置
-			this.canvas.stage.position(newPosition)
-			this.requestStageDraw("ensure-visible")
-
-			// 发送位置变化事件
-			this.emitViewportChanged({
-				source: "programmatic",
-				phase: "end",
-				emitPan: true,
-				position: newPosition,
-			})
+			this.commitViewportUpdate(
+				"ensure-visible",
+				() => this.canvas.stage.position(newPosition),
+				{
+					source: "programmatic",
+					phase: "end",
+					emitPan: true,
+					position: newPosition,
+				},
+			)
 		}
 	}
 }

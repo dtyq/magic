@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useState, type RefObject } from "react"
 
 /**
  * Tracks audio currentTime at RAF cadence while playing so waveform progress stays smooth.
@@ -10,46 +10,44 @@ export function useRecordingPlayerCurrentSec(
 	fallbackSec = 0,
 ) {
 	const [currentSec, setCurrentSec] = useState(fallbackSec)
-	const fallbackSecRef = useRef(fallbackSec)
-	fallbackSecRef.current = fallbackSec
 
-	/** Sync external position (e.g. audio URL reset) only while paused — never during RAF playback. */
+	/** Sync external position (e.g. seeking or audio URL reset) while paused. */
 	useEffect(() => {
 		if (playing) return
 		setCurrentSec(fallbackSec)
 	}, [fallbackSec, playing])
 
+	/** Run 60fps RAF loop to track currentTime smoothly during playback without parent re-renders. */
 	useEffect(() => {
-		const audio = audioRef.current
-		if (!playing) {
-			setCurrentSec(audio?.currentTime ?? fallbackSecRef.current)
-			return
-		}
+		if (!playing) return
 
 		let raf = 0
 		const loop = () => {
-			setCurrentSec(audioRef.current?.currentTime ?? 0)
+			const audio = audioRef.current
+			// Skip reading stale currentTime while the media decoder is actively seeking
+			if (audio && !audio.seeking) {
+				setCurrentSec(audio.currentTime)
+			}
 			raf = requestAnimationFrame(loop)
 		}
 		raf = requestAnimationFrame(loop)
 		return () => cancelAnimationFrame(raf)
-		// fallbackSec intentionally omitted: parent passes player.currentTime which updates on
-		// timeupdate (~4Hz). Including it would cancel/restart RAF every tick and jitter the waveform.
 	}, [audioRef, playing])
 
+	/** Sync waveform position after programmatic seeks on the audio element. */
 	useEffect(() => {
-		if (playing) return
 		const audio = audioRef.current
 		if (!audio) return
 
-		/** Sync waveform position after programmatic seeks while paused. */
 		function handleSeeked() {
-			setCurrentSec(audio?.currentTime ?? 0)
+			if (audio) {
+				setCurrentSec(audio.currentTime)
+			}
 		}
 
 		audio.addEventListener("seeked", handleSeeked)
 		return () => audio.removeEventListener("seeked", handleSeeked)
-	}, [audioRef, playing])
+	}, [audioRef])
 
 	return currentSec
 }

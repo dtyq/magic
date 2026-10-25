@@ -1,4 +1,4 @@
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import i18n from "i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 

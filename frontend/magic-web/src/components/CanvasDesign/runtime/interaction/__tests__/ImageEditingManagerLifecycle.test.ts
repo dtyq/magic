@@ -24,6 +24,7 @@ afterEach(() => {
 
 function createCanvasWithoutRenderedImage(options?: { withRenderedImage?: boolean }) {
 	const eventEmitter = new EventEmitter()
+	const permissionState = { write: true, generate: true }
 	const sourceNode = new Konva.Group({ width: 160, height: 100, visible: true })
 	const contentLayer = new Konva.Group()
 	const controlsLayer = new Konva.Group()
@@ -82,6 +83,14 @@ function createCanvasWithoutRenderedImage(options?: { withRenderedImage?: boolea
 		elementManager,
 		selectionManager,
 		imageEditingCoordinator,
+		permissionManager: {
+			can: (capability: string) =>
+				capability === "document.write"
+					? permissionState.write
+					: capability === "sideEffect.generate"
+						? permissionState.generate
+						: true,
+		},
 		markerManager: {
 			previewMarkersForCrop: vi.fn(),
 			clearCropPreview: vi.fn(),
@@ -99,10 +108,84 @@ function createCanvasWithoutRenderedImage(options?: { withRenderedImage?: boolea
 		sourceNode,
 		selectionManager,
 		imageEditingCoordinator,
+		permissionState,
 	}
 }
 
 describe("image editing manager lifecycle", () => {
+	it("keeps eraser undo and redo history isolated within the active session", () => {
+		const { canvas } = createCanvasWithoutRenderedImage()
+		const manager = new EraserManager({ canvas })
+		const internalManager = manager as unknown as { erasingElementId: string | null }
+		internalManager.erasingElementId = "image-1"
+
+		const firstStroke = { mode: "erase" as const, radius: 16, points: [{ x: 10, y: 10 }] }
+		const secondStroke = { mode: "restore" as const, radius: 20, points: [{ x: 20, y: 20 }] }
+		const replacementStroke = {
+			mode: "restore" as const,
+			radius: 24,
+			points: [{ x: 30, y: 30 }],
+		}
+
+		manager.pushStroke(firstStroke)
+		manager.pushStroke(secondStroke)
+		expect(manager.getMode()).toBe("erase")
+		expect(manager.getStrokes()).toEqual([firstStroke, secondStroke])
+		expect(manager.canUndo()).toBe(true)
+		expect(manager.canRedo()).toBe(false)
+
+		manager.undoLastStroke()
+		expect(manager.getStrokes()).toEqual([firstStroke])
+		expect(manager.canRedo()).toBe(true)
+
+		manager.redoLastStroke()
+		expect(manager.getStrokes()).toEqual([firstStroke, secondStroke])
+		expect(manager.canRedo()).toBe(false)
+
+		manager.undoLastStroke()
+		manager.pushStroke(replacementStroke)
+		expect(manager.getStrokes()).toEqual([firstStroke, replacementStroke])
+		expect(manager.canRedo()).toBe(false)
+
+		manager.exitEraserMode(true)
+		expect(manager.canUndo()).toBe(false)
+		expect(manager.canRedo()).toBe(false)
+		manager.destroy()
+	})
+
+	it("resets the active mode with the eraser session", () => {
+		const { canvas } = createCanvasWithoutRenderedImage()
+		const manager = new EraserManager({ canvas })
+		const internalManager = manager as unknown as { erasingElementId: string | null }
+		internalManager.erasingElementId = "image-1"
+
+		manager.setMode("restore")
+		expect(manager.getMode()).toBe("restore")
+		manager.exitEraserMode(true)
+		expect(manager.getMode()).toBe("erase")
+	})
+
+	it("locks the stroke mode when a stroke begins", () => {
+		const { canvas } = createCanvasWithoutRenderedImage()
+		const manager = new EraserManager({ canvas })
+		const internalManager = manager as unknown as { erasingElementId: string | null }
+		internalManager.erasingElementId = "image-1"
+		const renderer = new EraserRenderer({ canvas, elementId: "image-1", manager })
+		const internalRenderer = renderer as unknown as { overlayGroup: Konva.Group }
+		internalRenderer.overlayGroup = new Konva.Group()
+
+		manager.setMode("restore")
+		renderer.beginStroke({ x: 10, y: 10 })
+		manager.setMode("erase")
+		renderer.finishStroke()
+
+		expect(manager.getStrokes()).toEqual([
+			{ mode: "restore", radius: manager.getRadius(), points: [{ x: 10, y: 10 }] },
+		])
+		renderer.destroy()
+		manager.destroy()
+	})
+
 	it("rolls crop mode back once when the visible proxy cannot mount", () => {
 		const { canvas, sourceNode, selectionManager, imageEditingCoordinator } =
 			createCanvasWithoutRenderedImage()
@@ -215,5 +298,22 @@ describe("image editing manager lifecycle", () => {
 		expect(imageEditingCoordinator.deactivate).toHaveBeenCalledTimes(1)
 		expect(selectionManager.select).toHaveBeenCalledTimes(1)
 		manager.destroy()
+	})
+
+	it("does not enter extend or eraser mode when generation is disabled", () => {
+		const { canvas, permissionState } = createCanvasWithoutRenderedImage({
+			withRenderedImage: true,
+		})
+		permissionState.generate = false
+		const extendManager = new ExtendManager({ canvas })
+		const eraserManager = new EraserManager({ canvas })
+
+		extendManager.enterExtendMode("image-1")
+		eraserManager.enterEraserMode("image-1")
+
+		expect(extendManager.getExtendingElementId()).toBeNull()
+		expect(eraserManager.getErasingElementId()).toBeNull()
+		extendManager.destroy()
+		eraserManager.destroy()
 	})
 })

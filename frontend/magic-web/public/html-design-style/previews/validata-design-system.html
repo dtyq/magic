@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ValiData Design System — Form Validation &amp; Data Integrity UI</title>
+  <style>
+    :root {
+      --primary: #1B56FD;
+      --on-primary: #FEFEFE;
+      --primary-container: #E4E6F4;
+      --on-primary-container: #123BAF;
+      --surface: #F4F4F4;
+      --surface-container: #FEFEFE;
+      --on-surface: #2B2B2B;
+      --on-surface-variant: #5E5F6D;
+      --outline: #D0D0D0;
+      --success: #0AAC53;
+      --success-container: #DCF9E5;
+      --on-success-container: #13743F;
+      --error: #F02B2B;
+      --error-container: #FFF4F4;
+      --on-error-container: #6C1111;
+      --caution: #FFB009;
+      --caution-container: #FFF5E4;
+      --caution-on-surface: #9D833C;
+      --warning: #FA5F0C;
+      --warning-container: #FFEADE;
+      --on-warning-container: #AD4E1B;
+      --font-display: 'Space Grotesk', -apple-system, sans-serif;
+      --font-body: 'Manrope', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 999px;
+      --focus-ring: 0 0 0 3px rgba(27, 86, 253, 0.18);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--surface); color: var(--on-surface);
+      font-family: var(--font-body); font-size: 13px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased; padding-bottom: 20px;
+    }
+    .valisys-header {
+      background: var(--surface-container); border-bottom: 1px solid var(--outline);
+      height: 50px; padding: 0 20px; display: flex;
+      align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    }
+    .brand-mark-group { display: flex; align-items: center; gap: 8px; }
+    .brand-shield-icon {
+      width: 26px; height: 26px; background: var(--primary); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; color: #fff;
+    }
+    .brand-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+    .brand-mode-pill {
+      font-size: 10.5px; font-weight: 600; background: var(--primary-container);
+      color: var(--on-primary-container); padding: 2px 7px; border-radius: var(--radius-full);
+      font-family: var(--font-mono);
+    }
+    .header-telemetry { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--on-surface-variant); }
+    .integrity-status-pill {
+      display: flex; align-items: center; gap: 5px; background: var(--success-container);
+      color: var(--on-success-container); padding: 3px 9px; border-radius: var(--radius-full); font-weight: 600;
+    }
+    .viewport-root {
+      max-width: 1340px; margin: 14px auto 0; padding: 0 20px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .workbench-split-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+    .val-card {
+      background: var(--surface-container); border: 1px solid var(--outline);
+      border-radius: var(--radius-lg); padding: 18px; box-shadow: 0 1px 2px rgba(43, 43, 43, 0.05);
+    }
+    .card-header-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--outline);
+    }
+    .card-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+    .form-inputs-stack { display: flex; flex-direction: column; gap: 12px; }
+    .field-container { display: flex; flex-direction: column; gap: 3px; position: relative; }
+    .field-label-row { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 600; }
+    .input-control-box { position: relative; display: flex; align-items: center; }
+    .val-input {
+      width: 100%; height: 40px; background: var(--surface-container);
+      border: 1px solid var(--outline); border-radius: var(--radius-md);
+      padding: 0 36px 0 12px; font-family: var(--font-body); font-size: 13px;
+      color: var(--on-surface); outline: none; transition: all 0.15s ease;
+    }
+    .val-input:focus { border-color: var(--primary); box-shadow: var(--focus-ring); }
+    .val-input.is-valid { border-color: var(--success); background: #fafdfa; }
+    .val-input.is-warning { border-color: var(--caution); background: var(--caution-container); }
+    .field-icon-feedback { position: absolute; right: 10px; display: flex; align-items: center; pointer-events: none; }
+    .inline-msg-row { font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 1px; }
+    .msg-success { color: var(--on-success-container); font-weight: 500; }
+    .msg-caution { color: var(--caution-on-surface); font-weight: 600; }
+    .password-strength-container {
+      background: var(--surface); border: 1px solid var(--outline);
+      border-radius: var(--radius-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .meter-top-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+    .strength-status-text { font-weight: 700; color: var(--on-success-container); font-family: var(--font-mono); }
+    .strength-meter-segments { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; height: 5px; }
+    .meter-seg { background: var(--outline); border-radius: 3px; }
+    .meter-seg.active-success { background: var(--success); }
+    .checklist-rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10.5px; }
+    .rule-item { display: flex; align-items: center; gap: 4px; color: var(--on-surface-variant); }
+    .rule-item.passed { color: var(--on-success-container); font-weight: 600; }
+    .batch-review-panel {
+      background: var(--surface-container); border: 1px solid var(--outline);
+      border-radius: var(--radius-lg); padding: 18px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .critical-alert-banner {
+      background: var(--warning-container); border: 1px solid var(--warning);
+      border-radius: var(--radius-md); padding: 10px 12px; display: flex; gap: 8px; margin-bottom: 10px;
+    }
+    .alert-icon-circle {
+      width: 22px; height: 22px; background: var(--warning); color: #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0;
+    }
+    .alert-copy h4 { font-size: 12px; font-weight: 700; color: var(--on-warning-container); }
+    .alert-copy p { font-size: 10.5px; color: var(--on-warning-container); line-height: 1.35; }
+    .form-buttons-row { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-val-primary {
+      background: var(--primary); color: var(--on-primary); border: none;
+      height: 40px; padding: 0 16px; border-radius: var(--radius-md);
+      font-size: 12.5px; font-weight: 600; cursor: pointer; flex: 1;
+    }
+    .btn-val-secondary {
+      background: transparent; color: var(--on-surface); border: 1px solid var(--outline);
+      height: 40px; padding: 0 14px; border-radius: var(--radius-md); font-size: 12.5px; font-weight: 600; cursor: pointer;
+    }
+    .audit-table-card {
+      background: var(--surface-container); border: 1px solid var(--outline);
+      border-radius: var(--radius-lg); padding: 14px 18px;
+    }
+    .val-table { width: 100%; border-collapse: collapse; font-size: 11.5px; text-align: left; }
+    .val-table th {
+      padding: 6px 8px; background: var(--surface); font-weight: 600;
+      color: var(--on-surface-variant); border-bottom: 1px solid var(--outline); font-size: 10.5px;
+    }
+    .val-table td { padding: 8px 8px; border-bottom: 1px solid var(--outline); vertical-align: middle; }
+    .badge-pill { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: var(--radius-full); }
+    .badge-ok { background: var(--success-container); color: var(--on-success-container); }
+    .badge-warn { background: var(--caution-container); color: var(--caution-on-surface); }
+  </style>
+</head>
+<body>
+  <header class="valisys-header">
+    <div class="brand-mark-group">
+      <div class="brand-shield-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <span class="brand-title">VALISYS DATA INTEGRITY</span>
+      <span class="brand-mode-pill">PVPS 2.4</span>
+    </div>
+
+    <div class="header-telemetry">
+      <div class="integrity-status-pill">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>100% OK</span>
+      </div>
+      <span>PHARMACY STORE #402</span>
+    </div>
+  </header>
+
+  <main class="viewport-root">
+    <div class="workbench-split-grid">
+      <section class="val-card">
+        <div class="card-header-bar">
+          <div class="card-title">Real-Time Form Validation Engine</div>
+          <span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--primary);">FIELD_MATRIX</span>
+        </div>
+
+        <div class="form-inputs-stack">
+          <div class="field-container">
+            <div class="field-label-row">
+              <label>GTIN-14 Item Identifier</label>
+              <span style="color: var(--on-success-container); font-family: var(--font-mono); font-size: 10.5px;">CHECKSUM PASSED</span>
+            </div>
+            <div class="input-control-box">
+              <input type="text" class="val-input is-valid" value="07891011121314">
+              <div class="field-icon-feedback">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+            </div>
+            <div class="inline-msg-row msg-success">
+              <span>Valid GS1 standard product identifier found in registry.</span>
+            </div>
+          </div>
+
+          <div class="field-container">
+            <div class="field-label-row">
+              <label>Batch Expiry Date (MM/YYYY)</label>
+              <span style="color: var(--caution-on-surface); font-family: var(--font-mono); font-size: 10.5px;">THRESHOLD ALERT</span>
+            </div>
+            <div class="input-control-box">
+              <input type="text" class="val-input is-warning" value="10/2026">
+              <div class="field-icon-feedback">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--caution)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+            </div>
+            <div class="inline-msg-row msg-caution">
+              <span>Batch expires within 30 days. Triggers auto-discount policy.</span>
+            </div>
+          </div>
+
+          <div class="field-container">
+            <div class="field-label-row">
+              <label>Pharmacist E-Sign Password &amp; Encryption Key</label>
+            </div>
+            <div class="input-control-box">
+              <input type="password" class="val-input is-valid" value="SuperSecret2026!#" oninput="updateStrength(this.value)">
+              <div class="field-icon-feedback">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+            </div>
+
+            <div class="password-strength-container">
+              <div class="meter-top-row">
+                <span>Entropy &amp; Complexity Score</span>
+                <span class="strength-status-text" id="strengthLabel">VERY STRONG (94 BITS)</span>
+              </div>
+              <div class="strength-meter-segments">
+                <div class="meter-seg active-success"></div>
+                <div class="meter-seg active-success"></div>
+                <div class="meter-seg active-success"></div>
+                <div class="meter-seg active-success"></div>
+              </div>
+              <div class="checklist-rules-grid">
+                <div class="rule-item passed">&check; Min 10 Characters</div>
+                <div class="rule-item passed">&check; Uppercase Letters</div>
+                <div class="rule-item passed">&check; Numeric Digits</div>
+                <div class="rule-item passed">&check; Special Regex Symbols</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="batch-review-panel">
+        <div>
+          <div class="card-header-bar">
+            <div class="card-title">Operational Risk Decision</div>
+            <span class="badge-pill badge-warn">ATTENTION</span>
+          </div>
+
+          <div class="critical-alert-banner">
+            <div class="alert-icon-circle">!</div>
+            <div class="alert-copy">
+              <h4>Urgent Operational Action Band</h4>
+              <p>Lot #VK-8802 contains 42 units reaching expiry within 28 days. Inter-store transfer or discount must be confirmed.</p>
+            </div>
+          </div>
+
+          <div style="background: var(--surface); border: 1px solid var(--outline); border-radius: var(--radius-md); padding: 10px; font-size: 11.5px; display: flex; flex-direction: column; gap: 5px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--on-surface-variant);">Product:</span>
+              <strong>Amoxicillin Clavulanate 875mg</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--on-surface-variant);">Batch / Lot:</span>
+              <span style="font-family: var(--font-mono);">LOT-VK-8802-BR</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--on-surface-variant);">Stock on Floor:</span>
+              <span style="font-family: var(--font-mono); font-weight: 700;">42 Units</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-buttons-row">
+          <button class="btn-val-secondary">Override</button>
+          <button class="btn-val-primary">Confirm Action Band &rarr;</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="audit-table-card">
+      <div class="card-header-bar">
+        <div class="card-title">PVPS Data Integrity Audit Stream</div>
+        <span style="font-size: 10.5px; color: var(--on-surface-variant); font-family: var(--font-mono);">LIVE LOG</span>
+      </div>
+
+      <table class="val-table">
+        <thead>
+          <tr>
+            <th style="width: 120px;">TIMESTAMP</th>
+            <th style="width: 210px;">BATCH ID &amp; GTIN</th>
+            <th>OPERATIONAL STATUS</th>
+            <th style="width: 130px;">AUDIT SIGNATURE</th>
+            <th style="width: 80px; text-align: right;">STATE</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family: var(--font-mono); color: var(--on-surface-variant);">17:11:04</td>
+            <td><strong>LOT-VK-8802-BR</strong> &bull; 07891011121314</td>
+            <td>Approaching 30-day threshold; discounted 30%</td>
+            <td style="font-family: var(--font-mono);">OP-SRE-290</td>
+            <td style="text-align: right;"><span class="badge-pill badge-warn">Warning</span></td>
+          </tr>
+          <tr>
+            <td style="font-family: var(--font-mono); color: var(--on-surface-variant);">17:09:48</td>
+            <td><strong>LOT-NX-4401-AA</strong> &bull; 04512993810231</td>
+            <td>Batch integrity scanned and verified; zero errors</td>
+            <td style="font-family: var(--font-mono);">OP-PHARM-11</td>
+            <td style="text-align: right;"><span class="badge-pill badge-ok">Verified</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    function updateStrength(val) {
+      const segs = document.querySelectorAll('.meter-seg');
+      const label = document.getElementById('strengthLabel');
+      if (val.length > 8) {
+        segs.forEach(s => s.className = 'meter-seg active-success');
+        label.innerText = 'VERY STRONG (94 BITS)';
+        label.style.color = 'var(--on-success-container)';
+      } else if (val.length > 4) {
+        segs[0].className = 'meter-seg active-success';
+        segs[1].className = 'meter-seg active-success';
+        segs[2].className = 'meter-seg';
+        segs[3].className = 'meter-seg';
+        label.innerText = 'MODERATE (52 BITS)';
+        label.style.color = 'var(--caution-on-surface)';
+      } else {
+        segs[0].className = 'meter-seg active-success';
+        segs[1].className = 'meter-seg';
+        segs[2].className = 'meter-seg';
+        segs[3].className = 'meter-seg';
+        label.innerText = 'WEAK (24 BITS)';
+        label.style.color = 'var(--error)';
+      }
+    }
+  </script>
+</body>
+</html>

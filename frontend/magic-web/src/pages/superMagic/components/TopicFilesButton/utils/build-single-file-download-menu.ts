@@ -29,7 +29,6 @@ export function menuItemsIncludeNoWaterMarkDownload(items: MobileDownloadMenuIte
 export interface SingleFileDownloadHandlers {
 	handleDownloadOriginal: (item: AttachmentItem, mode?: DownloadImageMode) => void
 	handleDownloadPdf: (item: AttachmentItem, folderChildren?: AttachmentItem[]) => void
-	handleDownloadPpt: (item: AttachmentItem) => void
 	handleDownloadPptx: (item: AttachmentItem, folderChildren?: AttachmentItem[]) => void
 	handleDownloadImage?: (item: AttachmentItem, format: "png" | "jpeg") => void
 	handleDownloadNoWaterMark?: (item: AttachmentItem) => void
@@ -64,7 +63,6 @@ export function buildSingleFileDownloadMenu({
 	const {
 		handleDownloadOriginal,
 		handleDownloadPdf,
-		handleDownloadPpt,
 		handleDownloadPptx,
 		handleDownloadImage,
 		handleDownloadNoWaterMark,
@@ -84,21 +82,14 @@ export function buildSingleFileDownloadMenu({
 				onClick: () => handleDownloadPdf(item, item.children || []),
 			},
 			{
-				key: "downloadPpt",
-				label: t("topicFiles.contextMenu.downloadPpt"),
-				onClick: () => {
-					const appEntryFile = getAppEntryFile(item.children || [], item.display_config)
-					if (appEntryFile) handleDownloadPpt(appEntryFile)
-					else message.error(t("topicFiles.entryFileNotFound"))
-				},
-			},
-			{
 				key: "downloadPptx",
 				label: t("topicFiles.contextMenu.downloadPptx"),
 				onClick: () => {
 					const children = item.children || []
 					const appEntryFile = getAppEntryFile(children, item.display_config)
-					if (appEntryFile) handleDownloadPptx(appEntryFile, children)
+					// Keep the slide folder as the logical export item: its display_config owns the
+					// ordered slide list, while the entry HTML is resolved by the export handler.
+					if (appEntryFile) handleDownloadPptx(item, children)
 					else message.error(t("topicFiles.entryFileNotFound"))
 				},
 			},
@@ -179,18 +170,11 @@ export function buildSingleFileDownloadMenu({
 		}
 
 		if (canConvertToPPTX) {
-			items.push(
-				{
-					key: "downloadPpt",
-					label: t("topicFiles.contextMenu.downloadPpt"),
-					onClick: () => handleDownloadPpt(item),
-				},
-				{
-					key: "downloadPptx",
-					label: t("topicFiles.contextMenu.downloadPptx"),
-					onClick: () => handleDownloadPptx(item, item.children || []),
-				},
-			)
+			items.push({
+				key: "downloadPptx",
+				label: t("topicFiles.contextMenu.downloadPptx"),
+				onClick: () => handleDownloadPptx(item, item.children || []),
+			})
 		}
 
 		if (canConvertToImage && handleDownloadImage) {

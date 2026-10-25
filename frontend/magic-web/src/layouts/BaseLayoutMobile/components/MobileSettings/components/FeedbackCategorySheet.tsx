@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 import type { MobileSettingsFeedbackCategoryOption } from "./feedbackShared"

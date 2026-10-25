@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Search, Copy, Check, WrapText } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

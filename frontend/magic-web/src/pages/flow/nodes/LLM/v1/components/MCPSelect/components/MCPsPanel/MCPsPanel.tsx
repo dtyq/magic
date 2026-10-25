@@ -8,6 +8,7 @@ import useMCPsPanel from "./hooks/useMCPsPanel"
 import React, { Suspense } from "react"
 import { useStyles } from "./style"
 import { MCPPanelProvider } from "./context/MCPPanelProvider"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 // use React.lazy to dynamically import MCPList component
 const MCPList = React.lazy(() => import("./components/MCPList"))
@@ -42,26 +43,31 @@ export default function MCPsPanel({ open, onAddMCP, onClose, selectedMCPs }: MCP
 						onChange={(e) => setKeyword(e.target.value)}
 					/>
 				</Flex>
-				{filteredUseableMCPs.length > 0 && (
-					<Suspense
-						fallback={
-							<Flex justify="center" style={{ padding: "20px" }}>
-								<Spin />
-							</Flex>
-						}
-					>
-						<MCPList
-							filteredUseableMCPs={filteredUseableMCPs}
-							selectedMCPs={selectedMCPs}
-						/>
-					</Suspense>
-				)}
-				{filteredUseableMCPs.length === 0 && (
-					<Flex vertical gap={4} align="center" justify="center" flex={1}>
-						<Avatar src={MCPsEmptyImage} size={80} />
-						<div className={styles.emptyTips}>{t("common.noMCPs", { ns: "flow" })}</div>
-					</Flex>
-				)}
+				{/* Keep the search input accessible above the MCP results. */}
+				<ScrollArea className={styles.list} viewportClassName={styles.viewport}>
+					{filteredUseableMCPs.length > 0 && (
+						<Suspense
+							fallback={
+								<Flex justify="center" style={{ padding: "20px" }}>
+									<Spin />
+								</Flex>
+							}
+						>
+							<MCPList
+								filteredUseableMCPs={filteredUseableMCPs}
+								selectedMCPs={selectedMCPs}
+							/>
+						</Suspense>
+					)}
+					{filteredUseableMCPs.length === 0 && (
+						<Flex vertical gap={4} align="center" justify="center" flex={1}>
+							<Avatar src={MCPsEmptyImage} size={80} />
+							<div className={styles.emptyTips}>
+								{t("common.noMCPs", { ns: "flow" })}
+							</div>
+						</Flex>
+					)}
+				</ScrollArea>
 			</MCPPanelProvider>
 		</MagicModal>
 	)

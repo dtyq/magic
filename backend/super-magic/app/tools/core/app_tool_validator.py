@@ -8,23 +8,19 @@ from typing import Dict, List
 
 from agentlang.logger import get_logger
 from agentlang.tools.validator import ToolValidatorProtocol
+from app.core.tool_names import resolve_tool_names
 from app.tools.core.tool_factory import tool_factory
 from app.tools.remote.remote_tool_manager import remote_tool_manager
 
 logger = get_logger(__name__)
 
-# 已废弃工具的兼容映射：旧名称 -> 新名称
-# 当 .agent 文件中声明了旧名称时，自动替换为新名称并记录 warning
-_DEPRECATED_TOOL_ALIASES: Dict[str, str] = {
-    "generate_image": "generate_images",
-}
+# 这里只兼容历史 `.agent` 的工具挂载声明，不放宽 Agent 定义、身份模式或 Claw 编译错误。
 
 
 class AppToolValidator(ToolValidatorProtocol):
     """应用层工具验证器
 
-    检查工具是否存在且可用，若不存在或不可用则忽略并抛出 warning
-    用户自定义 Agent 可将非法工具声明降级为 warning，内置 Agent 保持严格校验
+    检查工具是否存在且可用；不能直接挂载的声明按配置严格拒绝或记录 warning 后忽略
     使用轻量级检查，避免在初始化时加载所有工具类
     """
 
@@ -51,16 +47,19 @@ class AppToolValidator(ToolValidatorProtocol):
         # 先做废弃工具的兼容性重映射，再走后续验证逻辑
         remapped: Dict[str, Dict] = {}
         for tool_name, tool_config in tools_definition.items():
-            if tool_name in _DEPRECATED_TOOL_ALIASES:
-                new_name = _DEPRECATED_TOOL_ALIASES[tool_name]
-                logger.info(
-                    f"工具 '{tool_name}' 已废弃，请在 .agent 文件中改为使用 '{new_name}'，本次自动替换"
-                )
-                # 若 .agent 已同时声明了新名称，跳过，避免重复
-                if new_name not in remapped and new_name not in tools_definition:
-                    remapped[new_name] = tool_config
-            else:
-                remapped[tool_name] = tool_config
+            current_names = (
+                (tool_name,)
+                if remote_tool_manager.is_remote_tool(tool_name)
+                else resolve_tool_names(tool_name)
+            )
+            for current_name in current_names:
+                # 显式当前配置优先；拆分或补出的工具用默认配置，不能继承旧工具参数。
+                if current_name != tool_name and current_name in tools_definition:
+                    continue
+                if current_name not in remapped:
+                    remapped[current_name] = (
+                        tool_config if current_name == tool_name or len(current_names) == 1 else {}
+                    )
 
         code_mode_only_tools: List[str] = []
         auto_mount_tools: List[str] = []
@@ -89,6 +88,11 @@ class AppToolValidator(ToolValidatorProtocol):
                 error_message=error_message,
                 ignored_tools=ignored_tools,
                 ignore_reason="仅支持通过 Code Mode 调用",
+                warning_message=(
+                    f".agent 工具配置中包含仅能通过 Code Mode 使用的工具：{invalid_tools}。"
+                    "这些工具不应列在 tools 中，应由对应 Skill 通过 run_sdk_snippet 调用。"
+                    "为了兼容已有配置，本次忽略这些声明，Agent 继续初始化。"
+                ),
             )
 
         if auto_mount_tools:
@@ -105,6 +109,11 @@ class AppToolValidator(ToolValidatorProtocol):
                 error_message=error_message,
                 ignored_tools=ignored_tools,
                 ignore_reason="由运行时自动挂载，不允许在 Agent 中显式声明",
+                warning_message=(
+                    f".agent 工具配置中包含由运行时自动提供的工具：{invalid_tools}。"
+                    "这些工具不需要列在 tools 中，运行时会自动挂载。"
+                    "为了兼容已有配置，本次忽略这些声明，Agent 继续初始化。"
+                ),
             )
 
         valid_tools = {}
@@ -148,9 +157,9 @@ class AppToolValidator(ToolValidatorProtocol):
                 continue
 
         if ignored_tools and self._ignore_invalid_declarations:
+            agent_label = self._agent_name or "<unknown>"
             logger.warning(
-                f"用户 Agent '{self._agent_name}' 包含无法使用的工具声明，"
-                f"已忽略这些工具并继续初始化: {ignored_tools}"
+                f"Agent '{agent_label}' 工具配置处理完成；已忽略条目：{ignored_tools}"
             )
 
         return valid_tools
@@ -163,9 +172,13 @@ class AppToolValidator(ToolValidatorProtocol):
         error_message: str,
         ignored_tools: Dict[str, str],
         ignore_reason: str,
+        warning_message: str,
     ) -> None:
         if not self._ignore_invalid_declarations:
             raise ValueError(error_message)
+
+        agent_label = self._agent_name or "<unknown>"
+        logger.warning(f"Agent '{agent_label}'：{warning_message}")
 
         for tool_name in tool_names:
             remapped.pop(tool_name, None)
@@ -184,5 +197,5 @@ class AppToolValidator(ToolValidatorProtocol):
         logger.warning(f"工具 '{tool_name}' 将在 Agent 定义中被忽略: {reason}")
 
 
-# 全局单例实例
-app_tool_validator = AppToolValidator()
+# 全局入口也必须遵守同一兼容策略，避免未覆盖的 Agent 构造路径重新变成 fatal。
+app_tool_validator = AppToolValidator(ignore_invalid_declarations=True)

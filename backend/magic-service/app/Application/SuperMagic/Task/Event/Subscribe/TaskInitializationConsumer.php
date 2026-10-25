@@ -98,10 +98,10 @@ class TaskInitializationConsumer extends ConsumerMessage
 
             // Reuse the unified core: task already created and user message already persisted,
             // so pass the task id to skip task creation / message persistence.
-            $this->handleUserMessageAppService->handleChatMessage(
+            $this->handleUserMessageAppService->handleMessage(
                 $dataIsolation,
                 $userMessageDTO,
-                $messageDTO->getTaskId()
+                existingTaskId: $messageDTO->getTaskId()
             );
 
             $this->logger->info('Task initialization completed', [
@@ -246,6 +246,7 @@ class TaskInitializationConsumer extends ConsumerMessage
                 chatConversationId: $agentConversationId,
                 remind: $exception->getMessage(),
                 remindEvent: TaskEventUtil::getRemindTaskEventByCode($exception->getCode()),
+                data: $exception->getData(),
             );
         } catch (Throwable $notificationError) {
             $this->logger->error('Failed to send reminder notification to client', [

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Interfaces\SuperMagic\Skill\Facade;
 
+use App\Application\SuperMagic\Skill\Service\AdminSkillCategoryAppService;
 use App\Application\SuperMagic\Skill\Service\SkillMarketAppService;
 use App\Domain\SuperMagic\Skill\Entity\ValueObject\Query\SkillQuery;
 use App\Infrastructure\Util\Context\RequestContext;
@@ -22,8 +23,15 @@ class SkillMarketApi extends AbstractApi
     public function __construct(
         protected RequestInterface $request,
         protected SkillMarketAppService $skillMarketAppService,
+        protected AdminSkillCategoryAppService $skillCategoryAppService,
     ) {
         parent::__construct($request);
+    }
+
+    public function getCategories(): array
+    {
+        $includeEmpty = filter_var($this->request->input('include_empty', false), FILTER_VALIDATE_BOOLEAN);
+        return ['list' => $this->skillCategoryAppService->getPublicTree($includeEmpty)];
     }
 
     /**
@@ -39,8 +47,11 @@ class SkillMarketApi extends AbstractApi
         $requestData = $request->validated();
         $query = new SkillQuery($requestData);
         $page = $this->createPage();
+        // 前台列表不返回 total，跳过总数统计
+        $page->setTotal(false);
 
-        $result = $this->skillMarketAppService->queries($requestContext, $query, $page);
+        // 市场技能列表不返回 file_url，避免批量加载文件链接
+        $result = $this->skillMarketAppService->queries($requestContext, $query, $page, false);
 
         return SkillAssembler::createMarketListResponseDTO(
             $result['list'],
@@ -49,7 +60,7 @@ class SkillMarketApi extends AbstractApi
             $this->getAuthorization()->getId(),
             $page->getPage(),
             $page->getPageNum(),
-            $result['total'],
+            $result['total'] ?? null,
             $result['skillVersionMap'] ?? []
         );
     }

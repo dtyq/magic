@@ -1,5 +1,5 @@
 import type { ComponentType } from "react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import i18next from "i18next"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -36,6 +36,8 @@ import type { VoiceResultUtterance } from "@/components/business/VoiceInput/serv
 import { buildOptimisticRecordingItem } from "../utils/build-optimistic-recording-item"
 import { resolveCardStatusFromListItem } from "../utils/normalize-audio-project-item"
 import { readAudioRecordingsFilterSession } from "../utils/audio-recordings-filter-session"
+import { runForceRecordingOverride } from "@/components/business/RecordingSummary/utils/force-recording-override"
+import { analyticsService } from "@/services/analytics"
 
 export type EntryPresentation = "list" | "recording"
 export type RecordingStartupState = "idle" | "starting" | "error"
@@ -186,6 +188,8 @@ interface AudioProjectContext {
 	workspace: Workspace | null
 	project: ProjectListItem
 	topic: Topic
+	/** The exact setting persisted when this audio project was created. */
+	transcriptionEnabled: boolean
 }
 
 export type TranscriptMessage = VoiceResultUtterance & { add_time: number; id: string }
@@ -200,6 +204,7 @@ export interface UseRecordingEntryFacadeResult {
 	startupState: RecordingStartupState
 	startupErrorMessage: string
 	startupErrorDetail: string
+	isPreparingRecordingStart: boolean
 	duration: string
 	recordingTitle: string
 	transcriptMessages: TranscriptMessage[]
@@ -257,7 +262,7 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 	// Resolve the web recording source so backend can distinguish H5 vs PC origins;
 	// consumed by createAudioProject and seeded onto optimistic cards for immediate icon/label.
 	const isMobile = useIsMobile()
-	const recordingSource: "h5" | "pc" = isMobile ? "h5" : "pc"
+	const recordingSource = isMobile ? "h5" : "pc"
 	const [presentation, setPresentation] = useState<EntryPresentation>(() => {
 		if (recordSummaryStore.status === "init") return "list"
 		// Desktop reuses the global FloatPanel; only mobile takes over with full-screen UI.
@@ -266,6 +271,8 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 	const [startupState, setStartupState] = useState<RecordingStartupState>("idle")
 	const [startupErrorMessage, setStartupErrorMessage] = useState("")
 	const [startupErrorDetail, setStartupErrorDetail] = useState("")
+	const [isPreparingRecordingStart, setIsPreparingRecordingStart] = useState(false)
+	const startRecordingInFlightRef = useRef(false)
 	const [transcriptionEnabled, setTranscriptionEnabled] = useState(
 		recordSummaryStore.businessData.transcriptionEnabled,
 	)
@@ -347,6 +354,11 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 					await getRecordingTopicModel().catch(() => null),
 				)
 
+			analyticsService.report("project_create_attempted", {
+				workspaceId: workspace?.id,
+				sceneOverride: "ai_recording",
+				mode: TopicMode.RecordSummary,
+			})
 			const createdProject = await SuperMagicApi.createAudioProject({
 				...(workspace?.id ? { workspace_id: workspace.id } : {}),
 				project_name: options.projectName ?? "",
@@ -364,11 +376,11 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 			})
 
 			if (!createdProject?.project || !createdProject?.topic) return null
-
 			return {
 				workspace,
 				project: createdProject.project,
 				topic: createdProject.topic,
+				transcriptionEnabled: nextTranscriptionEnabled,
 			}
 		},
 		[recordingSource],
@@ -430,21 +442,7 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 	 * Starts a recording with ensured workspace/project/topic context so the
 	 * entry reuses the same backend contract as the legacy expert flow.
 	 */
-	const startRecording = useCallback(async () => {
-		if (recordSummaryStore.isOtherTabRecording) {
-			toast.error(t("recordingSummary.superEditorPanel.warning.recordingInProgressOtherTab"))
-			return
-		}
-
-		if (isSessionActive) {
-			if (!isMobile) {
-				expandDesktopRecordingFloatPanel()
-				return
-			}
-			setPresentation("recording")
-			return
-		}
-
+	const startNewRecording = useCallback(async () => {
 		if (isMobile) {
 			setPresentation("recording")
 		}
@@ -475,6 +473,11 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 				getCachedRecordingSettings(),
 				settingsResponse,
 			)
+			analyticsService.report("ai_recording_start_attempted", {
+				isMobile,
+				audioSource: "recorded",
+				transcriptionEnabled: nextTranscriptionEnabled,
+			})
 
 			const audioProjectContext = await createAudioProjectContext({
 				projectName: "",
@@ -548,13 +551,61 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 		}
 	}, [
 		isMobile,
-		isSessionActive,
 		createAudioProjectContext,
+		recordingSource,
 		resolveRecordingModel,
 		runtime.actions,
 		runtime.state.isRecording,
 		t,
 	])
+
+	const startRecording = useCallback(async () => {
+		if (startRecordingInFlightRef.current) return
+		startRecordingInFlightRef.current = true
+		setIsPreparingRecordingStart(true)
+		try {
+			const overrideContext = await recordSummaryService.getRecordingOverrideContext()
+			if (overrideContext) {
+				const prepared = await runForceRecordingOverride(
+					overrideContext,
+					() => recordSummaryService.prepareRecordingOverride(overrideContext.sessionId),
+					() =>
+						recordSummaryService.releaseOverrideSessionForForceStart(
+							overrideContext.sessionId,
+						),
+				)
+				if (!prepared) return
+
+				await startNewRecording()
+				return
+			}
+
+			// Preserve the previous fallback when the shared store changes between
+			// conflict detection and startup, instead of creating a second session.
+			if (recordSummaryStore.isOtherTabRecording) {
+				toast.error(
+					t("recordingSummary.superEditorPanel.warning.recordingInProgressOtherTab"),
+				)
+				return
+			}
+
+			if (recordSummaryStore.status !== "init") {
+				if (!isMobile) {
+					expandDesktopRecordingFloatPanel()
+					return
+				}
+				setPresentation("recording")
+				return
+			}
+
+			await startNewRecording()
+		} catch {
+			toast.error(t("recordingSummary.recordErrorModal.title"))
+		} finally {
+			startRecordingInFlightRef.current = false
+			setIsPreparingRecordingStart(false)
+		}
+	}, [isMobile, recordSummaryService, startNewRecording, t])
 
 	/**
 	 * Pauses the shared recording session.
@@ -758,6 +809,15 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 				getCachedRecordingSettings(),
 				await getRecordingTopicModel().catch(() => null),
 			)
+			const nextTranscriptionEnabled = resolveTranscriptionEnabled(
+				getCachedRecordingSettings(),
+				await getRecordingTopicModel().catch(() => null),
+			)
+			analyticsService.report("ai_recording_start_attempted", {
+				isMobile,
+				audioSource: "imported",
+				transcriptionEnabled: nextTranscriptionEnabled,
+			})
 
 			const audioProjectContext = await createAudioProjectContext({
 				projectName: normalizedFiles[0]?.name,
@@ -765,6 +825,7 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 				audioSource: "imported",
 				modelId: model.model_id,
 				autoSummaryEnabled,
+				transcriptionEnabled: nextTranscriptionEnabled,
 			})
 			if (!audioProjectContext) {
 				toast.error(t("mobile.recordingEntry.startMissingWorkspace"))
@@ -798,7 +859,7 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 				autoSummaryEnabled,
 			})
 		},
-		[createAudioProjectContext, resolveRecordingModel, recordingSource, t],
+		[createAudioProjectContext, isMobile, resolveRecordingModel, recordingSource, t],
 	)
 
 	return {
@@ -811,6 +872,7 @@ export function useRecordingEntryFacade(): UseRecordingEntryFacadeResult {
 		startupState,
 		startupErrorMessage,
 		startupErrorDetail,
+		isPreparingRecordingStart,
 		duration: runtime.state.duration,
 		recordingTitle:
 			recordSummaryStore.businessData.project?.project_name ||

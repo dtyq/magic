@@ -1,6 +1,6 @@
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import { ChevronRight, Puzzle, X } from "lucide-react"
-import { Fragment, useMemo, useState, useSyncExternalStore } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import {
 	normalizePluginLocale,
 	resolvePluginIcon,
@@ -12,11 +12,12 @@ import { useCanvasDesignI18n } from "../../app/providers/I18nProvider"
 import { useHostUiLocale } from "../../app/providers/HostUiLocaleProvider"
 import IconButton from "../primitives/custom/IconButton/index"
 import { usePortalContainer } from "../primitives/custom/PortalContainerContext"
-import { Popover, PopoverContent, PopoverTrigger } from "../primitives/shadcn/popover"
+import { Popover, PopoverAnchor, PopoverContent } from "../primitives/shadcn/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../primitives/shadcn/tooltip"
 import styles from "./index.module.css"
 
 const noop = () => undefined
+const HOVER_CLOSE_DELAY_MS = 120
 const STATIC_PLUGIN_CATEGORIES = [
 	{
 		key: "model",
@@ -65,6 +66,8 @@ export default function PluginTool() {
 	const portalContainer = usePortalContainer()
 	const [open, setOpen] = useState(false)
 	const [activeCategoryKey, setActiveCategoryKey] = useState<string | null>(null)
+	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const triggerRef = useRef<HTMLDivElement>(null)
 	const pluginSnapshot = useSyncExternalStore(
 		(listener) => canvas?.pluginManager.subscribe(listener) ?? noop,
 		() => canvas?.pluginManager.getSnapshot(),
@@ -126,35 +129,76 @@ export default function PluginTool() {
 
 	const label = t("tools.plugins", "插件")
 	const emptyCategoryLabel = t("tools.pluginCategoryEmpty", "该分类下暂无插件")
+	const isPluginListPanelOpen = open
+
+	useEffect(() => {
+		return () => {
+			if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+		}
+	}, [])
+
+	const clearCloseTimer = () => {
+		if (!closeTimerRef.current) return
+		clearTimeout(closeTimerRef.current)
+		closeTimerRef.current = null
+	}
+
+	const handleHoverOpen = () => {
+		clearCloseTimer()
+		setOpen(true)
+	}
+
+	const handleHoverClose = () => {
+		clearCloseTimer()
+		closeTimerRef.current = setTimeout(() => {
+			setOpen(false)
+			closeTimerRef.current = null
+		}, HOVER_CLOSE_DELAY_MS)
+	}
+
+	const pluginTrigger = (
+		<PopoverAnchor asChild>
+			<div ref={triggerRef} onMouseEnter={handleHoverOpen} onMouseLeave={handleHoverClose}>
+				<IconButton className={styles.toolItem} selected={open}>
+					<Puzzle size={16} />
+				</IconButton>
+			</div>
+		</PopoverAnchor>
+	)
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<PopoverTrigger asChild>
-						<div>
-							<IconButton className={styles.toolItem} selected={open}>
-								<Puzzle size={16} />
-							</IconButton>
-						</div>
-					</PopoverTrigger>
-				</TooltipTrigger>
-				<TooltipPrimitive.Portal container={portalContainer || undefined}>
-					<TooltipContent side="right" sideOffset={8} className="border-black bg-black">
-						<div>
-							<span className={styles.tooltipLabel}>{label}</span>
-						</div>
-						<TooltipPrimitive.Arrow className="fill-black" />
-					</TooltipContent>
-				</TooltipPrimitive.Portal>
-			</Tooltip>
+			{isPluginListPanelOpen ? (
+				pluginTrigger
+			) : (
+				<Tooltip delayDuration={0}>
+					<TooltipTrigger asChild>{pluginTrigger}</TooltipTrigger>
+					<TooltipPrimitive.Portal container={portalContainer || undefined}>
+						<TooltipContent side="top" sideOffset={8} className="border-black bg-black">
+							<div>
+								<span className={styles.tooltipLabel}>{label}</span>
+							</div>
+							<TooltipPrimitive.Arrow className="fill-black" />
+						</TooltipContent>
+					</TooltipPrimitive.Portal>
+				</Tooltip>
+			)}
 
 			<PopoverContent
-				align="center"
-				side="right"
+				align="end"
+				side="top"
 				sideOffset={8}
-				className="border-base-border w-[30rem] bg-white p-0"
+				className="border-base-border w-[30rem] overflow-hidden bg-white p-0"
 				data-canvas-plugin-list-panel
+				onOpenAutoFocus={(event) => event.preventDefault()}
+				onCloseAutoFocus={(event) => event.preventDefault()}
+				onMouseEnter={handleHoverOpen}
+				onMouseLeave={handleHoverClose}
+				onPointerDownOutside={(event) => {
+					if (triggerRef.current?.contains(event.target as Node)) {
+						event.preventDefault()
+					}
+				}}
 			>
 				<div className={styles.pluginPanel}>
 					<div className={styles.pluginPanelHeader}>
@@ -241,7 +285,7 @@ export default function PluginTool() {
 										}
 
 										return (
-											<Tooltip key={plugin.name}>
+											<Tooltip delayDuration={200} key={plugin.name}>
 												<TooltipTrigger asChild>
 													{pluginButton}
 												</TooltipTrigger>

@@ -1,7 +1,7 @@
-import { Editor, Extension } from "@tiptap/core"
-import { Document } from "@tiptap/extension-document"
-import { Paragraph } from "@tiptap/extension-paragraph"
-import { Text } from "@tiptap/extension-text"
+import { Editor, Extension } from "@/infrastructure/editors/tiptap/core"
+import { Document } from "@/infrastructure/editors/tiptap/extension-document"
+import { Paragraph } from "@/infrastructure/editors/tiptap/extension-paragraph"
+import { Text } from "@/infrastructure/editors/tiptap/extension-text"
 import { afterEach, describe, expect, it } from "vitest"
 import { Placeholder } from "../placeholder"
 

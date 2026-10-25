@@ -16,10 +16,12 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletion
 
 from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError, STREAMING_PASSTHROUGH_EXCEPTIONS
 from agentlang.interface.context import AgentContextInterface
+from agentlang.llms.token_usage.models import ContextInputBreakdown
 from .processor_config import ProcessorConfig
 from .streaming_context import StreamProcessContext
 from .streaming_handler import StreamResponseHandler
 from agentlang.logger import get_logger
+from agentlang.streaming.driver_types import DriverType
 from agentlang.streaming.interface import StreamingInterface
 from agentlang.streaming.manager import create_driver
 
@@ -75,6 +77,7 @@ class StreamingCallProcessor:
         request_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
+        input_breakdown: ContextInputBreakdown | None = None,
     ) -> ChatCompletion:
         """使用流式调用LLM的方法
 
@@ -137,6 +140,7 @@ class StreamingCallProcessor:
                     model_id=model_id,
                     correlation_id=correlation_id,
                     processor_config=processor_config,
+                    input_breakdown=input_breakdown,
                     agent_context=agent_context,
                     http_request_start_time=http_request_start_time,
                     enable_llm_response_events=enable_llm_response_events,
@@ -196,33 +200,63 @@ class StreamingCallProcessor:
 
         streaming_push_mode = processor_config.streaming_push_mode
 
+        # Socket.IO 连不上时，本地 /subscribe 等额外 sink 仍要能单独工作。
+        primary = None
         try:
-            # 从 ProcessorConfig 获取流式配置
             driver_config = processor_config.get_effective_streaming_config()
-
-            # 使用模块级别的工厂函数创建driver
-            streaming_driver = create_driver(streaming_push_mode, driver_config)
-            if not streaming_driver:
-                return None
-
-            init_result = await streaming_driver.initialize()
-            if not init_result.success:
-                logger.warning(f"[{request_id}] Streaming driver {streaming_push_mode} initialization failed: {init_result.message}")
-                return None
-
-            logger.debug(f"[{request_id}] Streaming driver {streaming_push_mode} initialized successfully")
-
-            # 若 agent_context 注册了额外推送目标（如企微、飞书等渠道），广播到所有目标
-            sinks = agent_context.get_streaming_sinks() if hasattr(agent_context, "get_streaming_sinks") else []
-            if sinks:
-                for sink in sinks:
-                    await sink.initialize()
-                from agentlang.streaming.broadcast_driver import BroadcastStreamingDriver
-                logger.debug(f"[{request_id}] Broadcasting to {len(sinks)} extra sink(s)")
-                return BroadcastStreamingDriver([streaming_driver, *sinks])
-
-            return streaming_driver
-
+            streaming_driver = StreamingCallProcessor._create_primary_driver(
+                streaming_push_mode, driver_config
+            )
+            if streaming_driver:
+                init_result = await streaming_driver.initialize()
+                if init_result.success:
+                    primary = streaming_driver
+                    logger.debug(
+                        f"[{request_id}] Streaming driver {streaming_push_mode} initialized successfully"
+                    )
+                else:
+                    logger.warning(
+                        f"[{request_id}] Streaming driver {streaming_push_mode} initialization failed: "
+                        f"{init_result.message}"
+                    )
         except Exception as e:
-            logger.warning(f"[{request_id}] Failed to initialize streaming driver {streaming_push_mode}: {e}")
-            return None
+            logger.warning(
+                f"[{request_id}] Failed to initialize streaming driver {streaming_push_mode}: {e}"
+            )
+
+        extra = []
+        sinks = agent_context.get_streaming_sinks() if hasattr(agent_context, "get_streaming_sinks") else []
+        for sink in sinks or []:
+            try:
+                await sink.initialize()
+                extra.append(sink)
+            except Exception as e:
+                logger.warning(f"[{request_id}] Extra streaming sink initialize failed: {e}")
+
+        if primary and extra:
+            from agentlang.streaming.broadcast_driver import BroadcastStreamingDriver
+            logger.debug(f"[{request_id}] Broadcasting to {len(extra)} extra sink(s)")
+            return BroadcastStreamingDriver([primary, *extra])
+        if primary:
+            return primary
+        if extra:
+            from agentlang.streaming.broadcast_driver import BroadcastStreamingDriver
+            logger.info(
+                f"[{request_id}] Primary streaming driver unavailable, "
+                f"using {len(extra)} extra sink(s)"
+            )
+            return extra[0] if len(extra) == 1 else BroadcastStreamingDriver(extra)
+        return None
+
+    @staticmethod
+    def _create_primary_driver(streaming_push_mode, driver_config):
+        """Socket.IO 走进程级复用；其它类型仍按次新建。"""
+        if streaming_push_mode == DriverType.SOCKETIO:
+            from agentlang.streaming.drivers.socketio.config import SocketIODriverConfig
+            from agentlang.streaming.drivers.socketio.driver import get_shared_socketio_driver
+
+            config = SocketIODriverConfig.create_default()
+            if driver_config:
+                config.update_from_dict(driver_config)
+            return get_shared_socketio_driver(config)
+        return create_driver(streaming_push_mode, driver_config)

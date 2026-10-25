@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAWBLOCK — Neo-Brutalist Architecture & Raw Systems</title>
+  <style>
+    :root {
+      --black: #000000;
+      --white: #FFFFFF;
+      --blue: #0000FF;
+      --green: #008000;
+      --orange: #FFA500;
+      --red: #FF0000;
+      --gray-bg: #F4F4F4;
+      --gray-box: #EAEAEA;
+      --border-thick: 3px solid #000000;
+      --border-heavy: 5px solid #000000;
+      --shadow-hard: 4px 4px 0 #000000;
+      --shadow-heavy: 6px 6px 0 #000000;
+      --font-head: "Archivo Black", "Arial Black", Impact, sans-serif;
+      --font-body: "Work Sans", -apple-system, system-ui, sans-serif;
+      --font-mono: "Space Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; border-radius: 0 !important; }
+    body {
+      background-color: var(--white);
+      color: var(--black);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.5;
+      overflow-x: hidden;
+      border-left: 6px solid var(--black);
+      border-right: 6px solid var(--black);
+    }
+
+    /* Brutalist System Marquee Top */
+    .top-sys-strip {
+      background: var(--black);
+      color: var(--white);
+      padding: 8px 32px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: var(--border-thick);
+    }
+    .top-sys-strip .badge-raw {
+      background: var(--yellow, #FFE600);
+      color: var(--black);
+      padding: 1px 6px;
+    }
+
+    /* Main Header */
+    header {
+      background: var(--white);
+      border-bottom: var(--border-thick);
+      padding: 18px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--black);
+    }
+    .logo-box {
+      width: 32px;
+      height: 32px;
+      background: var(--black);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-head);
+      font-size: 18px;
+      box-shadow: var(--shadow-hard);
+    }
+    .logo-text {
+      font-family: var(--font-head);
+      font-size: 24px;
+      letter-spacing: -0.02em;
+    }
+    .nav-items { display: flex; gap: 20px; list-style: none; }
+    .nav-items a {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--black);
+      text-decoration: none;
+      padding: 6px 12px;
+      border: 2px solid transparent;
+      transition: 0.1s;
+    }
+    .nav-items a:hover {
+      background: var(--black);
+      color: var(--white);
+      border-color: var(--black);
+    }
+    .btn-brutal-cta {
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 10px 20px;
+      border: var(--border-thick);
+      box-shadow: var(--shadow-hard);
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .btn-brutal-cta:hover {
+      background: var(--white);
+      color: var(--black);
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    /* Hero Section (Dense First 500px Impact) */
+    .hero-container {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      border-bottom: var(--border-thick);
+      background: var(--gray-bg);
+    }
+    .hero-content-box {
+      padding: 44px 36px;
+      border-right: var(--border-thick);
+      background: var(--white);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hero-meta-flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .flag-status {
+      background: var(--green);
+      color: #FFF;
+      padding: 2px 8px;
+    }
+    .hero-h1 {
+      font-family: var(--font-head);
+      font-size: clamp(38px, 4.6vw, 62px);
+      line-height: 0.98;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+      margin-bottom: 22px;
+    }
+    .hero-h1 span {
+      background: var(--black);
+      color: var(--white);
+      padding: 0 8px;
+    }
+    .hero-desc {
+      font-size: 15px;
+      color: var(--black);
+      line-height: 1.6;
+      max-width: 520px;
+      margin-bottom: 28px;
+      border-left: 4px solid var(--black);
+      padding-left: 14px;
+    }
+    .hero-btn-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .btn-primary-raw {
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 13px 26px;
+      border: var(--border-thick);
+      box-shadow: var(--shadow-hard);
+      cursor: pointer;
+      text-decoration: none;
+      transition: 0.1s;
+    }
+    .btn-primary-raw:hover {
+      background: var(--white);
+      color: var(--black);
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 #000;
+    }
+    .btn-secondary-raw {
+      background: var(--white);
+      color: var(--black);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 13px 26px;
+      border: var(--border-thick);
+      box-shadow: var(--shadow-hard);
+      text-decoration: none;
+    }
+    .btn-secondary-raw:hover {
+      background: var(--black);
+      color: var(--white);
+    }
+
+    /* Hero Right Architectural Spec Board */
+    .hero-spec-board {
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: var(--gray-bg);
+    }
+    .spec-card-raw {
+      background: var(--white);
+      border: var(--border-thick);
+      box-shadow: var(--shadow-hard);
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+    .spec-card-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: var(--border-thick);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .spec-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .spec-rows div {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px dashed #CCC;
+    }
+    .spec-rows div strong { font-family: var(--font-head); font-size: 13px; }
+
+    /* Neo-Brutalist Architectural Grid */
+    .arch-section {
+      padding: 52px 36px;
+      border-bottom: var(--border-thick);
+    }
+    .section-head-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: var(--border-thick);
+      padding-bottom: 16px;
+      margin-bottom: 32px;
+    }
+    .section-head-bar h2 {
+      font-family: var(--font-head);
+      font-size: 32px;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+    }
+    .section-head-bar .label-mono {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      background: var(--black);
+      color: var(--white);
+      padding: 4px 10px;
+    }
+
+    /* 3-Column Raw Block Cards */
+    .raw-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .raw-card {
+      background: var(--white);
+      border: var(--border-thick);
+      box-shadow: var(--shadow-hard);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.15s, box-shadow 0.15s;
+      min-height: 310px;
+    }
+    .raw-card:hover {
+      transform: translate(-3px, -3px);
+      box-shadow: var(--shadow-heavy);
+    }
+    .card-label-top {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .card-art-box {
+      height: 120px;
+      border: var(--border-thick);
+      background: var(--gray-box);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .card-art-box svg { width: 100%; height: 100%; }
+    .raw-card h3 {
+      font-family: var(--font-head);
+      font-size: 20px;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+    .raw-card p {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #333;
+      margin-bottom: 18px;
+    }
+    .card-foot-pills {
+      display: flex;
+      gap: 6px;
+      border-top: var(--border-thick);
+      padding-top: 12px;
+    }
+    .mono-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 7px;
+      border: 2px solid var(--black);
+      background: var(--white);
+    }
+    .mono-pill.solid { background: var(--black); color: var(--white); }
+
+    /* Interactive Brutalist Inverted Section */
+    .inverted-strip {
+      background: var(--black);
+      color: var(--white);
+      padding: 48px 36px;
+      border-bottom: var(--border-thick);
+    }
+    .inverted-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 36px;
+      align-items: center;
+    }
+    .inverted-grid h2 {
+      font-family: var(--font-head);
+      font-size: 38px;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      line-height: 1.05;
+      margin-bottom: 14px;
+    }
+    .inverted-grid p {
+      font-size: 15px;
+      color: #CCC;
+      max-width: 540px;
+    }
+    .btn-invert-cta {
+      background: var(--white);
+      color: var(--black);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 16px 28px;
+      border: 3px solid var(--white);
+      box-shadow: 4px 4px 0 #333;
+      cursor: pointer;
+      text-align: center;
+      transition: 0.1s;
+    }
+    .btn-invert-cta:hover {
+      background: var(--blue);
+      color: var(--white);
+      border-color: var(--blue);
+    }
+
+    /* Footer */
+    footer {
+      background: var(--white);
+      padding: 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top System Header -->
+  <div class="top-sys-strip">
+    <div>SYS_LOG: RAW-BLOCK V1.0 · SYSTEM ARCHITECTURE SPECIFICATION</div>
+    <div><span class="badge-raw">ZERO SHADOW BLUR</span> · 3PX HARD BORDERS</div>
+    <div>LOC: ZURICH ETH ARCHIVE</div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <a href="#" class="logo-block">
+      <div class="logo-box">R</div>
+      <div class="logo-text">RAWBLOCK</div>
+    </a>
+    <ul class="nav-items">
+      <li><a href="#structures">Structures</a></li>
+      <li><a href="#specs">Specifications</a></li>
+      <li><a href="#manifesto">Manifesto</a></li>
+    </ul>
+    <a href="#contact" class="btn-brutal-cta">DOWNLOAD MANIFESTO</a>
+  </header>
+
+  <!-- Hero Section (Dense First 500px Impact) -->
+  <section class="hero-container">
+    <div class="hero-content-box">
+      <div>
+        <div class="hero-meta-flag">
+          <span class="flag-status">ACTIVE</span>
+          <span>ARCHITECTURAL MONOLITH // 2026</span>
+        </div>
+        <h1 class="hero-h1">
+          Unapologetic <span>raw block</span> interfaces for structural purists.
+        </h1>
+        <p class="hero-desc">
+          No rounded corners. No blurred gradient shadows. No decorative bloat. RawBlock enforces 3px thick borders, 4px hard offsets, and stark black-on-white high contrast.
+        </p>
+      </div>
+      <div class="hero-btn-row">
+        <a href="#structures" class="btn-primary-raw">Inspect Schematics (03)</a>
+        <a href="#specs" class="btn-secondary-raw">Borders &amp; Offsets</a>
+      </div>
+    </div>
+
+    <div class="hero-spec-board">
+      <div class="spec-card-raw">
+        <div class="spec-card-header">
+          <span>SPECIFICATION TOKENS</span>
+          <span>STRICT 0PX RADIUS</span>
+        </div>
+        <div class="spec-rows">
+          <div><span>BORDER WEIGHT</span> <strong>3PX SOLID #000</strong></div>
+          <div><span>DROP SHADOW</span> <strong>4PX 4px 0 #000</strong></div>
+          <div><span>HEADLINE TYPE</span> <strong>ARCHIVO BLACK</strong></div>
+          <div><span>MONO LABELS</span> <strong>SPACE MONO 12PX</strong></div>
+          <div><span>CORNER RADIUS</span> <strong>0PX STRICT</strong></div>
+        </div>
+      </div>
+      <div style="font-family:var(--font-mono); font-size:11px; color:#555;">
+        "Brutalism as an authentic software language. Form follows structure without intermediate illusion."
+      </div>
+    </div>
+  </section>
+
+  <!-- Neo-Brutalist Architectural Grid -->
+  <section class="arch-section" id="structures">
+    <div class="section-head-bar">
+      <h2>Architectural Modules</h2>
+      <div class="label-mono">GRID: 3-COLUMN RIGID</div>
+    </div>
+
+    <div class="raw-grid">
+      <!-- Block 1 -->
+      <div class="raw-card">
+        <div>
+          <div class="card-label-top">
+            <span>MOD_01 // CONCRETE</span>
+            <span style="color:var(--blue);">[REF-482]</span>
+          </div>
+          <div class="card-art-box">
+            <svg viewBox="0 0 240 120" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100%" height="100%" fill="#EAEAEA"/>
+              <rect x="30" y="20" width="180" height="80" fill="#000000"/>
+              <rect x="40" y="30" width="160" height="60" fill="#FFFFFF"/>
+              <line x1="30" y1="20" x2="210" y2="100" stroke="#000000" stroke-width="2"/>
+            </svg>
+          </div>
+          <h3>Monolith Framework</h3>
+          <p>Heavy reinforced foundation blocks engineered for maximum load distribution and structural persistence.</p>
+        </div>
+        <div class="card-foot-pills">
+          <span class="mono-pill solid">CONCRETE</span>
+          <span class="mono-pill">3PX BORDER</span>
+        </div>
+      </div>
+
+      <!-- Block 2 -->
+      <div class="raw-card">
+        <div>
+          <div class="card-label-top">
+            <span>MOD_02 // SYSTEM</span>
+            <span style="color:var(--orange);">[ACTIVE]</span>
+          </div>
+          <div class="card-art-box">
+            <svg viewBox="0 0 240 120" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100%" height="100%" fill="#FFFFFF"/>
+              <circle cx="120" cy="60" r="40" fill="#000000"/>
+              <rect x="95" y="35" width="50" height="50" fill="#FFA500"/>
+            </svg>
+          </div>
+          <h3>Geometric Rigor</h3>
+          <p>Uncompromising rectilinear layouts that preserve mathematical purity across all viewport dimensions.</p>
+        </div>
+        <div class="card-foot-pills">
+          <span class="mono-pill solid">RECTILINEAR</span>
+          <span class="mono-pill">4PX OFFSET</span>
+        </div>
+      </div>
+
+      <!-- Block 3 -->
+      <div class="raw-card">
+        <div>
+          <div class="card-label-top">
+            <span>MOD_03 // HYPERLINK</span>
+            <span style="color:var(--blue);">#0000FF</span>
+          </div>
+          <div class="card-art-box">
+            <svg viewBox="0 0 240 120" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100%" height="100%" fill="#000000"/>
+              <text x="50%" y="65%" text-anchor="middle" fill="#FFFFFF" font-family="'Archivo Black', sans-serif" font-size="28">RAW</text>
+            </svg>
+          </div>
+          <h3>Anti-Ornamentation</h3>
+          <p>Complete elimination of superficial styling. Interfaces assembled purely from browser primitives.</p>
+        </div>
+        <div class="card-foot-pills">
+          <span class="mono-pill solid">PRIMITIVE</span>
+          <span class="mono-pill">HIGH CONTRAST</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Inverted Section -->
+  <section class="inverted-strip" id="contact">
+    <div class="inverted-grid">
+      <div>
+        <h2>Build with raw architectural integrity.</h2>
+        <p>No frameworks required. Handcrafted HTML and CSS designed to last without maintenance deprecation.</p>
+      </div>
+      <div>
+        <div class="btn-invert-cta">DEPLOY RAWBLOCK ARCHIVE →</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div>© 2026 RAWBLOCK ARCHITECTURE SYSTEM.</div>
+    <div>3PX BLACK BORDERS · 4PX HARD DROP SHADOW · 0PX RADIUS</div>
+    <div>UNAPOLOGETIC NEO-BRUTALISM</div>
+  </footer>
+
+</body>
+</html>

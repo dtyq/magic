@@ -1,5 +1,5 @@
 import config from "@/common/const/color"
-import { cloneDeep, isString, isUndefined } from "lodash"
+import { cloneDeep, isString, isUndefined } from "lodash-es"
 
 type ColorStep = [string, string, string, string, string, string, string, string, string, string]
 export type ColorScaleItem<T = ColorStep> = T

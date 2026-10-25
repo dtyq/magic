@@ -63,6 +63,7 @@ class VideoInputModeDefinitionTest extends TestCase
     {
         $definition = VideoInputModeDefinition::videoEdit(
             description: VideoInputMode::VideoEdit->value,
+            supportedFields: ['reference_videos'],
             maxCount: 1,
         )->toArray();
 
@@ -114,6 +115,16 @@ class VideoInputModeDefinitionTest extends TestCase
         $this->assertSame('keyframe_guided', $definition['description']);
         $this->assertSame(['frames'], $definition['supported_fields']);
         $this->assertSame(['start', 'end'], $definition['frame_roles']);
+        $this->assertSame(VideoTaskType::Generate->value, $definition['task']);
+    }
+
+    public function testDraftTaskDefinitionUsesGenerateTask(): void
+    {
+        $definition = VideoInputModeDefinition::draftTask('draft_task')->toArray();
+
+        $this->assertSame('draft_task', $definition['description']);
+        $this->assertSame(['draft_task'], $definition['supported_fields']);
+        // 与共享模板一致：样片成片同样声明 task=generate，样片语义由 input_mode 表达。
         $this->assertSame(VideoTaskType::Generate->value, $definition['task']);
     }
 }

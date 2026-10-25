@@ -1,6 +1,6 @@
 import * as React from "react"
-import type { Editor } from "@tiptap/react"
-import type { Range } from "@tiptap/core"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
+import type { Range } from "@/infrastructure/editors/tiptap/core"
 import { useMemoizedFn } from "ahooks"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"
 
@@ -124,7 +124,10 @@ export function useSearchAndReplace({
 							const elRect = currentEl.getBoundingClientRect()
 
 							// Scroll only if the element is outside the visible area
-							if (elRect.top < containerRect.top || elRect.bottom > containerRect.bottom) {
+							if (
+								elRect.top < containerRect.top ||
+								elRect.bottom > containerRect.bottom
+							) {
 								scrollParent.scrollTop +=
 									elRect.top -
 									containerRect.top -

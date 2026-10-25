@@ -1,3 +1,4 @@
+import { packAndDownloadFiles } from "@/pages/superMagic/services/fileBundleDownload"
 import { useCallback, useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { BadgeCent, RefreshCw, Fullscreen } from "lucide-react"
@@ -17,10 +18,10 @@ import { AttachmentSource } from "@/pages/superMagic/components/TopicFilesButton
 import {
 	getDesignDirectoryInfo,
 	collectFilesInDirectory,
-	packAndDownloadFiles,
 	getZipFileNameFromFiles,
 } from "../../utils/utils"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import ActionButton from "@/pages/superMagic/components/Detail/components/CommonHeader/components/ActionButton"
 import { IconShare3 } from "@tabler/icons-react"
@@ -30,9 +31,7 @@ import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import {
 	getShouldSkipVideoPointsConfirm,
 	setShouldSkipVideoPointsConfirm,
-} from "@/components/CanvasDesign/ui/editors/video/points/video-points-confirm.storage"
-import { batchExportFile } from "@/pages/superMagic/components/TopicFilesButton/utils/exportSingleFile"
-import { isMagicApp } from "@/utils/devices"
+} from "@/components/CanvasDesign/ui/element-tools/editors/video/points/video-points-confirm.storage"
 
 interface UseDesignHeaderPropsOptions {
 	/** 定位到文件时使用的文件 ID，Design 场景下传 magic.project.js 的 fileId */
@@ -84,6 +83,8 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 	const { t } = useTranslation("super")
 	const { isShareRoute } = useShareRoute()
 	const { hasGlobalAgreement } = useAiWatermarkPreference()
+	// Canvas header ZIP download must carry the ambient share identity too.
+	const fileApi = useFileApi()
 
 	// 刷新状态
 	const [isRefreshing, setIsRefreshing] = useState(false)
@@ -158,25 +159,6 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 			duration: 0,
 		})
 
-		if (isMagicApp) {
-			// Blob URLs created by browser-side ZIP packing only exist inside the WebView.
-			// Use the server-generated HTTPS download URL so the native app can open it externally.
-			void batchExportFile({
-				projectId,
-				fileIds: imageFiles.map((file) => file.file_id),
-				onEnd: () => {
-					magicToast.destroy(loadingKey)
-				},
-				onError: () => {
-					magicToast.error({
-						content: t("design.errors.packDownloadFailed"),
-						key: loadingKey,
-					})
-				},
-			})
-			return
-		}
-
 		try {
 			// 使用共用函数获取 zip 文件名（与 useConversationAndDownload 保持一致）
 			const zipFileName = getZipFileNameFromFiles(imageFiles, attachments, currentFile)
@@ -185,6 +167,8 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 				imageFiles,
 				downloadMode,
 				zipFileName,
+				undefined,
+				fileApi,
 			)
 
 			magicToast.success({
@@ -202,8 +186,8 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 		canShowDesignDownload,
 		currentFile,
 		designDownloadDirectoryInfo,
+		fileApi,
 		hasGlobalAgreement,
-		projectId,
 		t,
 	])
 

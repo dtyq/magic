@@ -1,5 +1,5 @@
-import type { EditorState, Transaction } from "@tiptap/pm/state"
-import type { NodeType } from "@tiptap/pm/model"
+import type { EditorState, Transaction } from "@/infrastructure/editors/tiptap/pm-state"
+import type { NodeType } from "@/infrastructure/editors/tiptap/pm-model"
 import { parseStorageImageTitle } from "./storage-image-metadata"
 
 interface ConvertImagesOptions {

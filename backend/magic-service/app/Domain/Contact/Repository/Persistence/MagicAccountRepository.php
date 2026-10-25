@@ -8,6 +8,9 @@ declare(strict_types=1);
 namespace App\Domain\Contact\Repository\Persistence;
 
 use App\Domain\Contact\Entity\AccountEntity;
+use App\Domain\Contact\Entity\ValueObject\AccountStatus;
+use App\Domain\Contact\Exception\InvalidMagicAccountStatusException;
+use App\Domain\Contact\Exception\MagicAccountNotFoundException;
 use App\Domain\Contact\Repository\Facade\MagicAccountRepositoryInterface;
 use App\Domain\Contact\Repository\Persistence\Model\AccountModel;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
@@ -137,6 +140,33 @@ readonly class MagicAccountRepository implements MagicAccountRepositoryInterface
         $updateData['deleted_at'] = null;
         unset($updateData['created_at'], $updateData['id']);
         return $this->accountModel::query()->where('magic_id', $magicId)->update($updateData);
+    }
+
+    #[CacheEvict(prefix: 'accountMagicId', value: '_#{magicId}')]
+    public function updateStatus(string $magicId, AccountStatus $status): bool
+    {
+        $account = $this->accountModel::query()
+            ->where('magic_id', $magicId)
+            ->whereNull('deleted_at')
+            ->lockForUpdate()
+            ->first();
+
+        if ($account === null) {
+            throw new MagicAccountNotFoundException($magicId);
+        }
+
+        $currentStatus = (int) $account->status;
+        if (AccountStatus::tryFrom($currentStatus) === null) {
+            throw new InvalidMagicAccountStatusException($magicId, $currentStatus);
+        }
+        if ($currentStatus === $status->value) {
+            return false;
+        }
+
+        $account->status = $status->value;
+        $account->updated_at = date('Y-m-d H:i:s');
+        $account->save();
+        return true;
     }
 
     #[CacheEvict(prefix: 'accountMagicId', value: '_#{accountDTO.magicId}')]

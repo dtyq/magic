@@ -3,7 +3,7 @@ import Dexie from "dexie"
 import { DatabaseManager } from "../DatabaseManager"
 
 // Mock logger
-vi.mock("@/opensource/utils/log", () => ({
+vi.mock("@/infrastructure/logger", () => ({
 	logger: {
 		createLogger: () => ({
 			log: vi.fn(),
@@ -11,6 +11,7 @@ vi.mock("@/opensource/utils/log", () => ({
 			error: vi.fn(),
 			info: vi.fn(),
 		}),
+		report: vi.fn(),
 	},
 }))
 
@@ -227,6 +228,9 @@ describe("DatabaseManager", () => {
 			expect(db.name).toBe("magic-global")
 			// fake-indexeddb 不支持 isOpen()，所以检查表是否存在
 			expect(db.tables.length).toBeGreaterThan(0)
+			expect(db.tables.map((table) => table.name)).toContain("analytics-state")
+			expect(db.table("analytics-state").schema.primKey.name).toBe("id")
+			expect(db.table("analytics-state").schema.indexes).toHaveLength(0)
 		})
 
 		it("应该在重复调用时返回同一实例（Promise 缓存）", async () => {
@@ -263,7 +267,7 @@ describe("DatabaseManager", () => {
 			expect(tables).toContain("super-magic-mode-list")
 		})
 
-		it("应该使用版本 3 的数据库结构", async () => {
+		it("应该使用版本 8 的数据库结构", async () => {
 			// Arrange
 			testDatabases.push("magic-global")
 
@@ -271,7 +275,7 @@ describe("DatabaseManager", () => {
 			const db = await manager.getGlobalDatabase()
 
 			// Assert
-			expect(db.verno).toBe(3)
+			expect(db.verno).toBe(8)
 		})
 	})
 

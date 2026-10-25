@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { CanvasConnection } from "../../../document/types"
 import { ConnectionStore } from "../ConnectionStore"
 
 describe("ConnectionStore", () => {
@@ -68,5 +69,29 @@ describe("ConnectionStore", () => {
 		expect(store.hasConnection("source", "target")).toBe(false)
 		expect(store.getUpstreamConnections("target")).toEqual([])
 		expect(store.getDownstreamConnections("target")).toEqual([])
+	})
+
+	it("keeps only the connection DSL fields and removes the connection normally", () => {
+		const store = new ConnectionStore()
+		store.load([
+			{
+				id: "with-extra-field",
+				sourceElementId: "source",
+				targetElementId: "target",
+				unsupportedField: true,
+			} as CanvasConnection & { unsupportedField: true },
+			{ id: "normal", sourceElementId: "source", targetElementId: "other" },
+		])
+
+		expect(store.getConnections()[0]).toEqual({
+			id: "with-extra-field",
+			sourceElementId: "source",
+			targetElementId: "target",
+		})
+		expect(store.removeConnections(["with-extra-field", "normal"])).toEqual([
+			"with-extra-field",
+			"normal",
+		])
+		expect(store.getConnections()).toEqual([])
 	})
 })

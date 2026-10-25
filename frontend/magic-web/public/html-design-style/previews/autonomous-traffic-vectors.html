@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autonomous Traffic Vectors — Fleet Telemetry HUD</title>
+<style>
+:root {
+--primary: #F24E1E;
+--primary-glow: rgba(242, 78, 30, 0.35);
+--bg-dark: #0A0A0A;
+--surface-1: #121215;
+--surface-2: #18181D;
+--border: #2A2A32;
+--border-accent: rgba(242, 78, 30, 0.4);
+--text-main: #FFFFFF;
+--text-muted: #A1A1AA;
+--text-dim: #71717A;
+--accent-green: #10B981;
+--accent-cyan: #06B6D4;
+--font-display: 'Inter', -apple-system, sans-serif;
+--font-mono: 'JetBrains Mono', monospace;
+--radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+background-color: var(--bg-dark);
+color: var(--text-main);
+font-family: var(--font-mono);
+font-size: 12px;
+line-height: 1.45;
+-webkit-font-smoothing: antialiased;
+background-image: radial-gradient(circle at 50% 0%, rgba(242, 78, 30, 0.12) 0%, transparent 60%),
+linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+background-size: 100% 100%, 28px 28px, 28px 28px;
+}
+.hud-header {
+height: 50px; background: rgba(18, 18, 21, 0.92); backdrop-filter: blur(12px);
+border-bottom: 1px solid var(--border); display: flex; align-items: center;
+justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 50;
+}
+.hud-brand { display: flex; align-items: center; gap: 10px; }
+.hud-logo {
+width: 24px; height: 24px; background: var(--primary); border-radius: 4px;
+display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px var(--primary-glow);
+}
+.hud-brand-title {
+font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: 1px;
+text-transform: uppercase; color: #fff;
+}
+.hud-brand-title span { color: var(--primary); }
+.hud-status-strip { display: flex; align-items: center; gap: 16px; font-size: 11px; color: var(--text-muted); }
+.status-badge {
+display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35);
+border-radius: 9999px; color: var(--accent-green); font-weight: 600;
+}
+.pulse-dot { width: 6px; height: 6px; background: currentColor; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+.telemetry-container {
+max-width: 1380px; margin: 0 auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px;
+}
+.top-telemetry-row {
+display: grid; grid-template-columns: 300px 1fr 300px; gap: 14px; align-items: stretch;
+}
+.hud-card {
+background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+padding: 14px; position: relative; overflow: hidden; display: flex; flex-direction: column;
+box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+.hud-card.accent-active {
+border-color: var(--border-accent); box-shadow: 0 0 20px rgba(242, 78, 30, 0.15);
+}
+.hud-card.accent-active::before {
+content:''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+background: linear-gradient(90deg, transparent, var(--primary), transparent);
+}
+.card-header {
+display: flex; align-items: center; justify-content: space-between;
+margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 6px;
+}
+.card-title {
+font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+color: var(--text-muted); display: flex; align-items: center; gap: 6px;
+}
+.card-title .tag-code { color: var(--primary); }
+.card-chip {
+font-size: 10px; padding: 2px 6px; border-radius: 4px;
+background: rgba(255, 255, 255, 0.06); color: var(--text-dim);
+}
+.primary-metric-block { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.huge-number {
+font-family: var(--font-display); font-size: 46px; font-weight: 800; line-height: 1;
+color: #fff; letter-spacing: -1px; text-shadow: 0 0 20px rgba(255,255,255,0.2);
+}
+.huge-unit { font-size: 14px; font-weight: 700; color: var(--primary); }
+.metric-sub-bar {
+display: flex; justify-content: space-between; padding: 5px 8px; background: var(--surface-2);
+border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.04); margin-bottom: 6px; font-size: 11px;
+}
+.sensor-cluster { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 4px; }
+.sensor-item {
+background: var(--surface-2); border: 1px solid rgba(255, 255, 255, 0.04);
+border-radius: 4px; padding: 5px 8px;
+}
+.sensor-name { font-size: 9px; color: var(--text-dim); display: flex; justify-content: space-between; }
+.sensor-val { font-size: 12px; font-weight: 700; color: var(--accent-green); }
+.lidar-screen {
+position: relative; background: radial-gradient(circle at center, #15151b 0%, #0c0c0e 75%);
+border: 1px solid var(--border-accent); border-radius: var(--radius);
+padding: 10px; display: flex; flex-direction: column; align-items: center; min-height: 330px;
+}
+.lidar-hud-overlay {
+position: absolute; top: 10px; left: 12px; right: 12px; display: flex;
+justify-content: space-between; font-size: 10px; color: var(--primary); text-transform: uppercase;
+}
+.lidar-svg { width: 100%; height: 280px; }
+.lane-matrix-container { display: flex; flex-direction: column; gap: 5px; }
+.lane-strip {
+display: grid; grid-template-columns: 46px 1fr 50px; align-items: center; gap: 6px;
+background: var(--surface-2); border: 1px solid rgba(255, 255, 255, 0.04);
+border-radius: 4px; padding: 5px 8px; font-size: 10px;
+}
+.lane-strip.active-ego { border-color: rgba(242, 78, 30, 0.5); background: rgba(242, 78, 30, 0.08); }
+.lane-bars { display: flex; gap: 3px; height: 10px; align-items: center; }
+.segment { flex: 1; height: 5px; border-radius: 1px; background: rgba(255, 255, 255, 0.08); }
+.segment.free { background: rgba(16, 185, 129, 0.4); }
+.segment.occupied { background: var(--primary); box-shadow: 0 0 5px var(--primary); }
+.segment.ego { background: var(--accent-cyan); box-shadow: 0 0 6px var(--accent-cyan); height: 8px; }
+.wp-item {
+display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--surface-2);
+border-radius: 4px; border-left: 3px solid var(--border); font-size: 11px; margin-bottom: 5px;
+}
+.wp-item.active { border-left-color: var(--primary); background: rgba(242, 78, 30, 0.06); }
+.wp-idx { font-weight: 700; color: var(--primary); font-size: 10px; }
+.lower-section { display: grid; grid-template-columns: 1.8fr 1fr 1fr; gap: 14px; }
+.rule-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.rule-table th {
+text-align: left; color: var(--text-dim); font-size: 9px; text-transform: uppercase;
+padding: 5px 6px; border-bottom: 1px solid var(--border);
+}
+.rule-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-muted); }
+.btn-action {
+display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+padding: 8px 12px; background: var(--primary); color: #fff; font-family: var(--font-mono);
+font-size: 11px; font-weight: 600; text-transform: uppercase; border-radius: 4px;
+border: none; cursor: pointer; box-shadow: 0 0 12px var(--primary-glow);
+}
+</style>
+</head>
+<body>
+<header class="hud-header">
+<div class="hud-brand">
+<div class="hud-logo">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+</div>
+<div class="hud-brand-title">AUTONOMOUS <span>TRAFFIC VECTORS</span></div>
+<span class="card-chip">SYS: TELEMETRY v4.8</span>
+</div>
+<div class="hud-status-strip">
+<span>LOC: 37.7749° N, 122.4194° W</span>
+<span>NODE // ATLAS-09</span>
+<div class="status-badge"><span class="pulse-dot"></span> L4 AUTONOMOUS CRUISE</div>
+</div>
+</header>
+<main class="telemetry-container">
+<div class="top-telemetry-row">
+<!-- Left Panel: State Telemetry -->
+<div class="hud-card accent-active">
+<div class="card-header">
+<span class="card-title"><span class="tag-code">[01]</span> VEHICLE TELEMETRY</span>
+<span class="card-chip">RT-FEED</span>
+</div>
+<div class="primary-metric-block">
+<div class="huge-number">42</div>
+<div class="huge-unit">MPH</div>
+</div>
+<div class="metric-sub-bar">
+<span style="color:var(--text-muted);">TARGET VELOCITY</span>
+<span style="color:#fff; font-weight:600;">45.0 MPH (Δ -3.0)</span>
+</div>
+<div class="metric-sub-bar">
+<span style="color:var(--text-muted);">ACCELERATION</span>
+<span style="color:#fff; font-weight:600;">+0.42 m/s² (NOMINAL)</span>
+</div>
+<div class="card-header" style="margin-top: 8px;">
+<span class="card-title">SENSOR HEALTH METRICS</span>
+<span style="color: var(--accent-green); font-weight: 700;">99.8%</span>
+</div>
+<div class="sensor-cluster">
+<div class="sensor-item"><div class="sensor-name"><span>LIDAR 128-CH</span><span>OK</span></div><div class="sensor-val">99.9%</div></div>
+<div class="sensor-item"><div class="sensor-name"><span>CAMERAS 8X</span><span>OK</span></div><div class="sensor-val">100%</div></div>
+<div class="sensor-item"><div class="sensor-name"><span>4D RADAR F/R</span><span>OK</span></div><div class="sensor-val">99.7%</div></div>
+<div class="sensor-item"><div class="sensor-name"><span>RTK / IMU</span><span>OK</span></div><div class="sensor-val">99.8%</div></div>
+</div>
+<div style="margin-top: 10px; display: flex; justify-content: space-between;">
+<span style="font-size: 10px; color: var(--text-dim);">STEER: -1.2°</span>
+<span style="font-size: 10px; color: var(--accent-cyan);">TRAJECTORY LOCKED</span>
+</div>
+</div>
+<!-- Center Panel: Vector LIDAR Point Cloud Visualization -->
+<div class="lidar-screen">
+<div class="lidar-hud-overlay">
+<span>VECTOR RADAR // 360° LIDAR POINT CLOUD</span>
+<span>RANGE: 120M · SCAN: 20Hz</span>
+</div>
+<svg class="lidar-svg" viewBox="0 0 540 280">
+<defs>
+<radialGradient id="sweepGlow" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#F24E1E" stop-opacity="0.35" />
+<stop offset="70%" stop-color="#F24E1E" stop-opacity="0.05" />
+<stop offset="100%" stop-color="#F24E1E" stop-opacity="0" />
+</radialGradient>
+</defs>
+<circle cx="270" cy="140" r="120" fill="none" stroke="#2A2A32" stroke-width="1" stroke-dasharray="3 3" />
+<circle cx="270" cy="140" r="80" fill="none" stroke="#2A2A32" stroke-width="1" />
+<circle cx="270" cy="140" r="40" fill="none" stroke="#2A2A32" stroke-width="1" stroke-dasharray="4 4" />
+<circle cx="270" cy="140" r="16" fill="none" stroke="#F24E1E" stroke-opacity="0.3" stroke-width="1" />
+<line x1="270" y1="15" x2="270" y2="265" stroke="#222228" stroke-width="1" />
+<line x1="85" y1="140" x2="455" y2="140" stroke="#222228" stroke-width="1" />
+<text x="274" y="24" fill="#71717A" font-size="9">000° N</text>
+<text x="445" y="136" fill="#71717A" font-size="9">090° E</text>
+<text x="274" y="260" fill="#71717A" font-size="9">180° S</text>
+<text x="90" y="136" fill="#71717A" font-size="9">270° W</text>
+<path d="M 270 140 L 370 45 A 120 120 0 0 0 270 20 Z" fill="url(#sweepGlow)" />
+<line x1="270" y1="140" x2="370" y2="45" stroke="#F24E1E" stroke-width="1.5" />
+<path d="M 248 250 C 255 180, 260 120, 275 50" fill="none" stroke="#06B6D4" stroke-width="2" stroke-dasharray="6 3" />
+<path d="M 292 250 C 285 180, 280 120, 295 50" fill="none" stroke="#06B6D4" stroke-width="2" stroke-dasharray="6 3" />
+<g fill="#A1A1AA" opacity="0.6">
+<circle cx="215" cy="230" r="1.5" /><circle cx="220" cy="200" r="1.5" /><circle cx="225" cy="170" r="1.5" /><circle cx="235" cy="140" r="1.5" /><circle cx="245" cy="110" r="1.5" />
+<circle cx="325" cy="230" r="1.5" /><circle cx="320" cy="200" r="1.5" /><circle cx="315" cy="170" r="1.5" /><circle cx="305" cy="140" r="1.5" /><circle cx="295" cy="110" r="1.5" />
+</g>
+<g transform="translate(262, 65)">
+<rect width="16" height="24" rx="2" fill="none" stroke="#F24E1E" stroke-width="1.5" />
+<line x1="8" y1="0" x2="8" y2="-10" stroke="#F24E1E" stroke-width="1.5" />
+<text x="20" y="10" fill="#F24E1E" font-size="8">OBJ-01 [38m]</text><text x="20" y="20" fill="#A1A1AA" font-size="8">41.8 MPH</text>
+</g>
+<g transform="translate(192, 120)">
+<rect width="16" height="22" rx="2" fill="none" stroke="#10B981" stroke-width="1.2" />
+<text x="-42" y="14" fill="#10B981" font-size="8">OBJ-02</text>
+</g>
+<g transform="translate(322, 185)">
+<rect width="16" height="22" rx="2" fill="none" stroke="#F59E0B" stroke-width="1.2" />
+<text x="20" y="15" fill="#F59E0B" font-size="8">OBJ-03</text>
+</g>
+<g transform="translate(262, 127)">
+<rect width="16" height="26" rx="3" fill="#06B6D4" opacity="0.9" />
+<circle cx="8" cy="13" r="3" fill="#fff" />
+<line x1="8" y1="0" x2="8" y2="-14" stroke="#06B6D4" stroke-width="2" />
+<text x="-16" y="36" fill="#06B6D4" font-weight="700" font-size="8">EGO VEHICLE</text>
+</g>
+</svg>
+</div>
+<!-- Right Panel: Lane Matrix & Waypoints -->
+<div class="hud-card">
+<div class="card-header">
+<span class="card-title"><span class="tag-code">[02]</span> LANE OCCUPANCY</span>
+<span class="card-chip">4 LANES</span>
+</div>
+<div class="lane-matrix-container">
+<div class="lane-strip">
+<span style="font-weight:700; color:var(--text-muted);">L1 HOV</span>
+<div class="lane-bars"><span class="segment free"></span><span class="segment free"></span><span class="segment occupied"></span><span class="segment free"></span></div>
+<span style="color:var(--text-dim); text-align:right;">FLOW 52</span>
+</div>
+<div class="lane-strip">
+<span style="font-weight:700; color:var(--text-muted);">L2 FAST</span>
+<div class="lane-bars"><span class="segment free"></span><span class="segment occupied"></span><span class="segment occupied"></span><span class="segment free"></span></div>
+<span style="color:var(--text-dim); text-align:right;">FLOW 48</span>
+</div>
+<div class="lane-strip active-ego">
+<span style="color:var(--primary); font-weight:700;">L3 CRU*</span>
+<div class="lane-bars"><span class="segment free"></span><span class="segment ego"></span><span class="segment free"></span><span class="segment free"></span></div>
+<span style="color:var(--primary); font-weight:700; text-align:right;">EGO 42</span>
+</div>
+<div class="lane-strip">
+<span style="font-weight:700; color:var(--text-muted);">L4 EXIT</span>
+<div class="lane-bars"><span class="segment free"></span><span class="segment free"></span><span class="segment free"></span><span class="segment free"></span></div>
+<span style="color:var(--text-dim); text-align:right;">CLEAR</span>
+</div>
+</div>
+<div class="card-header" style="margin-top: 10px;">
+<span class="card-title">ROUTE WAYPOINTS</span>
+<span style="font-size: 10px; color: var(--text-dim);">ETA 18:42:15</span>
+</div>
+<div>
+<div class="wp-item active">
+<span class="wp-idx">WP-14</span>
+<span style="flex:1;">Mission St Connector Ramp</span>
+<span style="color:var(--text-muted); font-weight:600; font-size:10px;">420m</span>
+</div>
+<div class="wp-item">
+<span class="wp-idx">WP-15</span>
+<span style="flex:1;">Bay Bridge North Merge</span>
+<span style="color:var(--text-muted); font-weight:600; font-size:10px;">1.8km</span>
+</div>
+<div class="wp-item">
+<span class="wp-idx">WP-16</span>
+<span style="flex:1;">Terminal Port Bay 4</span>
+<span style="color:var(--text-muted); font-weight:600; font-size:10px;">6.2km</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Lower Operational Section -->
+<div class="lower-section">
+<div class="hud-card">
+<div class="card-header">
+<span class="card-title"><span class="tag-code">[03]</span> DETERMINISTIC RULE SEQUENCING</span>
+<span class="card-chip">SURGICAL ACCURACY</span>
+</div>
+<table class="rule-table">
+<thead>
+<tr><th>RULE ID</th><th>CLASSIFICATION</th><th>CONDITION MATRIX</th><th>LATENCY</th><th>ACTION</th></tr>
+</thead>
+<tbody>
+<tr><td style="color:#fff; font-weight:600;">RULE-0914</td><td>Proximity Quarantine</td><td>Lead distance &gt; 35m &amp;&amp; TTC &gt; 4.0s</td><td>1.2 ms</td><td><span style="color:var(--accent-green);">PASSED</span></td></tr>
+<tr><td style="color:#fff; font-weight:600;">RULE-0915</td><td>Dynamic Payload Balance</td><td>Axle Load Distribution &lt; 2% offset</td><td>0.8 ms</td><td><span style="color:var(--accent-green);">LOCKED</span></td></tr>
+<tr><td style="color:#fff; font-weight:600;">RULE-0916</td><td>Lane Deviation Guard</td><td>Lateral offset &lt; 0.04m from center</td><td>1.4 ms</td><td><span style="color:var(--primary); font-weight:700;">TRACKING</span></td></tr>
+<tr><td style="color:#fff; font-weight:600;">RULE-0917</td><td>Cross-Intersection Vector</td><td>Signal broadcast V2X phase green</td><td>2.1 ms</td><td><span style="color:var(--accent-cyan);">SYNCED</span></td></tr>
+</tbody>
+</table>
+</div>
+<div class="hud-card">
+<div class="card-header">
+<span class="card-title">EDGE COMPUTE // NPU</span>
+<span class="card-chip">68% LOAD</span>
+</div>
+<div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+<div>
+<div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:3px;"><span style="color:var(--text-muted);">TensorRT Model FPS</span><span style="color:#fff; font-weight:700;">120.4 FPS</span></div>
+<div style="height:4px; background:#222228; border-radius:2px; overflow:hidden;"><div style="width:82%; height:100%; background:var(--primary);"></div></div>
+</div>
+<div>
+<div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:3px;"><span style="color:var(--text-muted);">Memory Bandwidth</span><span style="color:#fff; font-weight:700;">412 GB/s</span></div>
+<div style="height:4px; background:#222228; border-radius:2px; overflow:hidden;"><div style="width:65%; height:100%; background:var(--accent-cyan);"></div></div>
+</div>
+<div>
+<div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:3px;"><span style="color:var(--text-muted);">Thermal Dissipation</span><span style="color:#fff; font-weight:700;">58°C (NOMINAL)</span></div>
+<div style="height:4px; background:#222228; border-radius:2px; overflow:hidden;"><div style="width:48%; height:100%; background:var(--accent-green);"></div></div>
+</div>
+</div>
+</div>
+<div class="hud-card" style="justify-content:space-between;">
+<div>
+<div class="card-header">
+<span class="card-title">OPERATOR OVERRIDE</span>
+<span class="card-chip" style="color:var(--accent-green);">STANDBY</span>
+</div>
+<p style="font-size:11px; color:var(--text-muted); line-height:1.4; margin-bottom:10px;">
+Dual-redundant teleoperation link active over 5G SA network. Latency jitter &lt; 4ms.
+</p>
+</div>
+<button class="btn-action">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+ENGAGE MANUAL INTERLOCK
+</button>
+</div>
+</div>
+</main>
+</body>
+</html>

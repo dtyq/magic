@@ -52,10 +52,13 @@ class TextEmbeddingNodeRunner extends NodeRunner
 
         $result = [
             'embeddings' => $embeddingGenerator->embedText($embeddingModel, $input, options: [
-                'organization_id' => $executionData->getDataIsolation()->getCurrentOrganizationCode(),
-                'user_id' => $executionData->getDataIsolation()->getCurrentUserId(),
-                'business_id' => $executionData->getFlowCode(),
-                'source_id' => 'text_embedding_node',
+                'business_params' => [
+                    'organization_id' => $executionData->getDataIsolation()->getCurrentOrganizationCode(),
+                    'user_id' => $executionData->getDataIsolation()->getCurrentUserId(),
+                    'business_id' => $executionData->getAgentId(),
+                    'source_id' => $executionData->getOperator()->getSourceId(),
+                    'flow_code' => $executionData->getFlowCode(),
+                ],
             ]),
         ];
         $vertexResult->setResult($result);

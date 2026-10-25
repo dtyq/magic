@@ -1,4 +1,5 @@
 {
+	"backToTop": "回到顶部",
 	"broadcastChannel": {
 		"account": {
 			"cancel": "保持当前",
@@ -80,6 +81,7 @@
 		"adminAIDrawing": "管理后台/智能绘图管理",
 		"adminAIModel": "管理后台/大模型管理",
 		"agentList": "AI助理管理",
+		"aiCanvas": "AI 画布",
 		"application": "应用",
 		"audioRecordingDetail": "录音详情",
 		"audioRecordings": "录音与纪要",
@@ -87,8 +89,11 @@
 		"calendar": "日程",
 		"chat": "即时通讯",
 		"chatSettings": "通讯设置",
+		"connectors": "连接器",
 		"contacts": "通讯录",
 		"contactsAiAssistant": "通讯录/AI助理",
+		"contactsAssistantAi": "通讯录/AI助理",
+		"contactsMy": "通讯录/我的群组",
 		"contactsMyFriends": "通讯录/我的朋友",
 		"contactsMyGroups": "通讯录/我的群组",
 		"contactsOrganization": "通讯录/组织架构",
@@ -110,6 +115,7 @@
 		"mcp": "MCP管理",
 		"myCrew": "我的员工",
 		"mySkills": "我的技能",
+		"personaResearch": "AI 研究",
 		"recycleBin": "回收站",
 		"settings": "设置",
 		"skillEdit": "编辑技能",

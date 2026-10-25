@@ -177,6 +177,7 @@ class ChatHistoryQueryService:
             descriptions.append(description)
 
         return {
+            "history_root": str(self._root.resolve()),
             "total": total,
             "returned": len(descriptions),
             "truncated": total > len(descriptions),
@@ -238,6 +239,7 @@ class ChatHistoryQueryService:
         records.sort(key=lambda item: (item.timestamp or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
         limited_records = records[: max(limit, 0)]
         return {
+            "history_root": str(self._root.resolve()),
             "history_range": time_range.describe() if time_range else "not limited",
             "candidate_files": len(files),
             "searched_files": read_files,
@@ -267,6 +269,7 @@ class ChatHistoryQueryService:
             and self._matches_message(message, message_types, time_range)
         ]
         return {
+            "history_root": str(self._root.resolve()),
             "history_file": history_file,
             "start": start,
             "end": end,

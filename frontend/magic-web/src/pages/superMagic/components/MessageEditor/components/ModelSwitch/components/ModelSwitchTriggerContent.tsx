@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Spinner } from "@/components/shadcn-ui/spinner"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ModelItem, ModelTabType } from "../types"
 import ModelIcon from "./ModelIcon"
 

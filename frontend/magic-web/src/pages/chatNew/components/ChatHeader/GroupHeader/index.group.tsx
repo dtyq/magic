@@ -12,7 +12,7 @@ import { useMemoizedFn } from "ahooks"
 import { ExtraSectionKey } from "@/pages/chatNew/types"
 import CurrentTopic from "../CurrentTopic"
 import { userStore } from "@/models/user"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	chatHeaderClassName,
 	chatHeaderExtraSectionButtonActiveClassName,

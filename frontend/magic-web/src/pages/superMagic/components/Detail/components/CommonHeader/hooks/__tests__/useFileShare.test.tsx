@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useFileShare } from "../useFileShare"
+import type { PropsWithChildren } from "react"
+import { FileAccessProvider } from "@/pages/superMagic/providers/FileAccessProvider"
 
 const mockFindSimilarShares = vi.hoisted(() => vi.fn())
 
@@ -15,6 +17,27 @@ vi.mock("react-i18next", () => ({
 }))
 
 describe("useFileShare", () => {
+	it("blocks sharing and closes an existing entry after the scope changes", async () => {
+		let share = true
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<FileAccessProvider permissions={{ share }}>{children}</FileAccessProvider>
+		)
+		const { result, rerender } = renderHook(
+			() =>
+				useFileShare({
+					currentFile: { id: "file-1", name: "one.md", type: "file" },
+					attachments: [],
+				}),
+			{ wrapper },
+		)
+		act(() => result.current.setShareModalVisible(true))
+		expect(result.current.shareModalVisible).toBe(true)
+		share = false
+		rerender()
+		await act(() => result.current.handleShare())
+		expect(mockFindSimilarShares).not.toHaveBeenCalled()
+		expect(result.current.shareModalVisible).toBe(false)
+	})
 	beforeEach(() => {
 		mockFindSimilarShares.mockReset()
 		mockFindSimilarShares.mockResolvedValue([])

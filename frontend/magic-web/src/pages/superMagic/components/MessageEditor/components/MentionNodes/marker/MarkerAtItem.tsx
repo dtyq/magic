@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { memo, useCallback, useMemo, type MouseEvent } from "react"
 import { getMentionDisplayName } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"

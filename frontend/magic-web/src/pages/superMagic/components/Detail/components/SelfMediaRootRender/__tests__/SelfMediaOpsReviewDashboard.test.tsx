@@ -57,12 +57,13 @@ vi.mock("@/components/tiptap-templates/simple/simple-editor", async () => {
 			})
 
 	return {
-		SimpleEditor: ({ content }: { content?: string }) =>
+		SimpleEditor: React.forwardRef(({ content }: { content?: string }, _ref) =>
 			React.createElement(
 				"div",
 				{ "data-testid": "simple-editor-markdown-preview" },
 				renderMarkdown(content ?? ""),
 			),
+		),
 	}
 })
 

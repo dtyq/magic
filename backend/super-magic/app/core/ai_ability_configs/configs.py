@@ -1,7 +1,9 @@
 """
 Super Magic 当前支持的 AI 能力运行时配置类。
 """
-from app.core.ai_ability_configs.base import ModelIdRequiredAIAbilityConfig
+from typing import Optional
+
+from app.core.ai_ability_configs.base import BaseAIAbilityConfig, ModelIdRequiredAIAbilityConfig
 
 
 class VisualUnderstandingAbilityConfig(ModelIdRequiredAIAbilityConfig):
@@ -74,3 +76,13 @@ class JsonRepairValidationAbilityConfig(ModelIdRequiredAIAbilityConfig):
     """JSON repair candidate validation ability runtime configuration."""
 
     ability_key_value = "json_repair_validation"
+
+
+class FollowUpQuestionsAbilityConfig(BaseAIAbilityConfig):
+    """追加问题模型能力。禁用状态也要进入运行时，避免被默认开启覆盖。"""
+
+    ability_key_value = "follow_up_questions"
+
+    def validate_for_merge(self) -> Optional[str]:
+        """允许空模型与明确禁用进入合并，由调用方决定是否请求模型。"""
+        return None

@@ -9,9 +9,9 @@ tools:
   - read_files
   - write_file
   - edit_file
-  - edit_file_range
+  - edit_file_ranges
+  - find_file_ranges
   - multi_edit_file
-  - multi_edit_file_range
   - delete_files
   - file_search
   - grep_search
@@ -26,6 +26,8 @@ skills:
     - name: user-info
     - name: develop-data-analysis-dashboard
     - name: document-converter
+    - name: vibe-coding
+    - name: startup-manager
   workspace_skills: "*"
   preload:
     - name: develop-data-analysis-dashboard

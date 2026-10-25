@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lovable — The AI App Builder</title>
+<style>
+  :root {
+    --canvas: #09090b; --surface: #18181f; --surface-elevated: #22222b; --surface-hover: #292936;
+    --border: rgba(255, 255, 255, 0.08); --border-light: rgba(255, 255, 255, 0.14);
+    --primary: #ff3366; --primary-glow: rgba(255, 51, 102, 0.35); --accent-purple: #9061f9;
+    --text-primary: #fcfbf9; --text-secondary: #a1a1aa; --text-muted: #71717a; --code-bg: #0d0e12;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-full: 9999px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background-color: var(--canvas); color: var(--text-primary); font-family: var(--font-sans);
+    line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  .ambient-glow {
+    position: absolute; top: -80px; left: 50%; transform: translateX(-50%); width: 800px; height: 380px;
+    background: radial-gradient(ellipse 60% 45% at 50% 25%, rgba(255, 51, 102, 0.2) 0%, rgba(144, 97, 249, 0.12) 45%, transparent 80%);
+    filter: blur(48px); pointer-events: none; z-index: 0;
+  }
+  .grid-overlay {
+    position: absolute; inset: 0; height: 460px;
+    background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 32px 32px; mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, black 20%, transparent 85%);
+    pointer-events: none; z-index: 0;
+  }
+  .app-shell { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 12px 20px 32px; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 14px;
+    background: rgba(24, 24, 31, 0.7); backdrop-filter: blur(16px); border: 1px solid var(--border);
+    border-radius: var(--radius-md); margin-bottom: 14px;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .logo-wrap { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+  .heart-badge {
+    width: 26px; height: 26px; background: linear-gradient(135deg, #ff3366, #ff6b8b); border-radius: 7px;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px var(--primary-glow);
+  }
+  .heart-badge svg { width: 14px; height: 14px; fill: white; }
+  .project-tag {
+    display: flex; align-items: center; gap: 6px; padding: 3px 8px; background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 11px; color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; }
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-sm);
+    font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1px solid transparent;
+  }
+  .btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--surface-hover); color: var(--text-primary); }
+  .btn-deploy {
+    background: linear-gradient(135deg, #ff3366, #e60050); color: white;
+    box-shadow: 0 0 16px rgba(255, 51, 102, 0.45), inset 0 0.5px 0 rgba(255, 255, 255, 0.35);
+  }
+  .btn-deploy:hover { transform: translateY(-1px); box-shadow: 0 0 20px rgba(255, 51, 102, 0.6); }
+
+  .hero-compact { text-align: center; margin-bottom: 14px; }
+  .announcement-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px;
+    background: rgba(255, 51, 102, 0.12); border: 1px solid rgba(255, 51, 102, 0.3); border-radius: var(--radius-full);
+    font-size: 11px; font-weight: 500; color: #ff94b1; margin-bottom: 6px;
+  }
+  .announcement-chip span { color: white; font-weight: 600; }
+  .hero-title { font-size: clamp(22px, 2.5vw, 30px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
+  .hero-title .gradient-text {
+    background: linear-gradient(135deg, #ffffff 40%, #ff80a0 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .prompt-container {
+    max-width: 820px; margin: 0 auto 16px; background: rgba(24, 24, 31, 0.9);
+    backdrop-filter: blur(20px); border: 1px solid var(--border-light); border-radius: var(--radius-lg);
+    padding: 10px 14px; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+  }
+  .prompt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 10.5px; color: var(--text-muted); }
+  .prompt-models { display: flex; align-items: center; gap: 6px; }
+  .badge-model { display: inline-flex; align-items: center; gap: 4px; background: rgba(255, 255, 255, 0.06); padding: 2px 6px; border-radius: 4px; color: #e4e4e7; font-weight: 500; }
+  .prompt-input-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .prompt-input-row svg { flex-shrink: 0; color: var(--primary); }
+  .prompt-text { flex: 1; font-size: 13.5px; font-weight: 500; color: var(--text-primary); outline: none; border: none; background: transparent; font-family: var(--font-sans); }
+  .btn-generate { background: var(--primary); color: white; padding: 5px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; border: none; cursor: pointer; }
+  .prompt-suggestions { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sugg-chip { padding: 2px 7px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: var(--radius-full); font-size: 10px; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+  .sugg-chip:hover { background: rgba(255, 51, 102, 0.12); border-color: rgba(255, 51, 102, 0.4); color: #ff99b3; }
+  .workspace-grid { display: grid; grid-template-columns: 390px 1fr; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7); }
+  .code-drawer { background: var(--code-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: #111217; border-bottom: 1px solid var(--border); }
+  .file-tabs { display: flex; gap: 4px; }
+  .file-tab { display: flex; align-items: center; gap: 4px; padding: 2px 6px; font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); border-radius: 4px; }
+  .file-tab.active { background: rgba(255, 255, 255, 0.08); color: #e4e4e7; }
+  .drawer-status { font-size: 9.5px; color: #10b981; font-family: var(--font-mono); display: flex; align-items: center; gap: 3px; }
+  .code-body { padding: 10px; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: #d4d4d8; overflow-y: auto; max-height: 420px; }
+  .line-add { background: rgba(16, 185, 129, 0.12); color: #34d399; border-left: 2px solid #10b981; margin: 0 -10px; padding: 1px 8px; display: block; }
+  .syn-kw { color: #f472b6; } .syn-fn { color: #60a5fa; } .syn-str { color: #fcd34d; } .syn-com { color: #71717a; font-style: italic; } .syn-type { color: #38bdf8; }
+  .cursor-blink { display: inline-block; width: 5px; height: 11px; background: var(--primary); vertical-align: middle; animation: blink 1s infinite; }
+  @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+  .preview-frame { display: flex; flex-direction: column; background: #0f1015; }
+  .preview-topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #14151c; border-bottom: 1px solid var(--border); }
+  .browser-dots { display: flex; gap: 4px; }
+  .b-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .b-dot-r { background: #ef4444; } .b-dot-y { background: #eab308; } .b-dot-g { background: #22c55e; }
+  .url-bar { display: flex; align-items: center; gap: 5px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 10px; color: var(--text-secondary); font-family: var(--font-mono); width: 280px; }
+  .preview-content { padding: 12px; overflow-y: auto; max-height: 420px; background: #0d0f14; }
+  .crm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .crm-title-group h4 { font-size: 13.5px; font-weight: 700; color: #fff; }
+  .crm-title-group p { font-size: 9.5px; color: var(--text-muted); }
+  .crm-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 10px; }
+  .crm-stat-card { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; }
+  .crm-stat-label { font-size: 9.5px; color: var(--text-muted); }
+  .crm-stat-value { font-size: 14px; font-weight: 700; color: #f4f4f5; }
+  .crm-stat-change { font-size: 9px; color: #10b981; font-weight: 600; }
+  .kanban-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kanban-col { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: var(--radius-sm); padding: 7px; }
+  .col-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; font-size: 9.5px; font-weight: 600; color: var(--text-secondary); }
+  .col-count { background: rgba(255, 255, 255, 0.08); padding: 1px 4px; border-radius: 6px; font-size: 8.5px; }
+  .deal-card { background: #181920; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 8px; margin-bottom: 5px; }
+  .deal-title { font-size: 10.5px; font-weight: 600; color: #f4f4f5; margin-bottom: 2px; }
+  .deal-company { font-size: 9.5px; color: var(--text-muted); margin-bottom: 4px; }
+  .deal-footer { display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 600; color: #ff4d79; }
+  .deal-avatar { width: 15px; height: 15px; border-radius: 50%; background: linear-gradient(135deg, #ff3366, #9061f9); display: inline-flex; align-items: center; justify-content: center; font-size: 7.5px; color: white; }
+  @media (max-width: 860px) { .workspace-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="ambient-glow"></div>
+<div class="grid-overlay"></div>
+
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-wrap">
+        <div class="heart-badge">
+          <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </div>
+        <span>Lovable</span>
+      </div>
+      <div class="project-tag"><span class="status-dot"></span><span>crm-supabase-auth</span></div>
+      <span style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono);">v2.4</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost">GitHub</button>
+      <button class="btn btn-deploy">⚡ Deploy App</button>
+    </div>
+  </header>
+
+  <section class="hero-compact">
+    <div class="announcement-chip">❤️ <span>Lovable 2.4</span> • Autonomous Full-Stack AI Engineer</div>
+    <h1 class="hero-title">Turn conversation into <span class="gradient-text">production web apps.</span></h1>
+  </section>
+
+  <div class="prompt-container">
+    <div class="prompt-header">
+      <div class="prompt-models">
+        <span class="badge-model">Claude 3.7 Sonnet</span>
+        <span class="badge-model">Supabase MCP</span>
+      </div>
+      <span>120 tokens/s • Streaming</span>
+    </div>
+    <div class="prompt-input-row">
+      <span style="color:var(--primary); font-size:16px;">❤️</span>
+      <input type="text" class="prompt-text" value="Build a CRM with Supabase auth, real-time lead pipeline, and Stripe billing" readonly>
+      <button class="btn-generate">Iterate <kbd style="font-size:9px; background:rgba(0,0,0,0.3); padding:1px 3px; border-radius:2px;">⌘↵</kbd></button>
+    </div>
+    <div class="prompt-suggestions">
+      <div class="sugg-chip">⚡️ Real-time Webhooks</div>
+      <div class="sugg-chip">🔒 Row Level Security (RLS)</div>
+      <div class="sugg-chip">📊 CSV Deal Export</div>
+      <div class="sugg-chip">💳 Stripe Subscriptions</div>
+    </div>
+  </div>
+
+  <div class="workspace-grid">
+    <div class="code-drawer">
+      <div class="drawer-header">
+        <div class="file-tabs">
+          <div class="file-tab active">src/pages/CRM.tsx</div>
+          <div class="file-tab">supabase/schema.sql</div>
+        </div>
+        <div class="drawer-status">Diff +184 -12</div>
+      </div>
+      <div class="code-body">
+        <div><span class="syn-kw">import</span> { useEffect, useState } <span class="syn-kw">from</span> <span class="syn-str">"react"</span>;</div>
+        <div><span class="syn-kw">import</span> { supabase } <span class="syn-kw">from</span> <span class="syn-str">"@/integrations/supabase"</span>;</div>
+        <br>
+        <div><span class="syn-kw">export default function</span> <span class="syn-fn">CRMPipeline</span>() {</div>
+        <div>&nbsp;&nbsp;<span class="syn-kw">const</span> [leads, setLeads] = <span class="syn-fn">useState</span>&lt;<span class="syn-type">Lead</span>[]&gt;([]);</div>
+        <br>
+        <div class="line-add">&nbsp;&nbsp;<span class="syn-com">// Real-time Supabase postgres channel</span></div>
+        <div class="line-add">&nbsp;&nbsp;<span class="syn-fn">useEffect</span>(() =&gt; {</div>
+        <div class="line-add">&nbsp;&nbsp;&nbsp;&nbsp;<span class="syn-kw">const</span> ch = supabase.<span class="syn-fn">channel</span>(<span class="syn-str">'deals'</span>)</div>
+        <div class="line-add">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.<span class="syn-fn">on</span>(<span class="syn-str">'postgres_changes'</span>, { event: <span class="syn-str">'*'</span> }, p =&gt; <span class="syn-fn">sync</span>(p))</div>
+        <div class="line-add">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.<span class="syn-fn">subscribe</span>();</div>
+        <div class="line-add">&nbsp;&nbsp;&nbsp;&nbsp;<span class="syn-kw">return</span> () =&gt; { supabase.<span class="syn-fn">removeChannel</span>(ch); };</div>
+        <div class="line-add">&nbsp;&nbsp;}, []);</div>
+        <br>
+        <div>&nbsp;&nbsp;<span class="syn-kw">return</span> &lt;<span class="syn-type">Kanban</span> items={leads} /&gt;;<span class="cursor-blink"></span></div>
+        <div>}</div>
+      </div>
+    </div>
+
+    <div class="preview-frame">
+      <div class="preview-topbar">
+        <div class="browser-dots">
+          <span class="b-dot b-dot-r"></span>
+          <span class="b-dot b-dot-y"></span>
+          <span class="b-dot b-dot-g"></span>
+        </div>
+        <div class="url-bar">https://lovable.app/preview/crm-enterprise</div>
+        <div style="font-size: 10px; color: #10b981;">● Live Sync</div>
+      </div>
+
+      <div class="preview-content">
+        <div class="crm-header">
+          <div class="crm-title-group">
+            <h4>Global Pipeline &amp; Deal Flow</h4>
+            <p>Supabase Auth Active • Real-time DB Subscribed</p>
+          </div>
+          <button class="btn btn-deploy" style="padding: 4px 8px; font-size: 10px;">+ New Deal</button>
+        </div>
+
+        <div class="crm-stats-row">
+          <div class="crm-stat-card">
+            <div class="crm-stat-label">Pipeline Value</div>
+            <div class="crm-stat-value">$482,500</div>
+            <div class="crm-stat-change">+18.4% vs last mo</div>
+          </div>
+          <div class="crm-stat-card">
+            <div class="crm-stat-label">Win Probability</div>
+            <div class="crm-stat-value">68.2%</div>
+            <div class="crm-stat-change">+4.1% high intent</div>
+          </div>
+          <div class="crm-stat-card">
+            <div class="crm-stat-label">Monthly ARR</div>
+            <div class="crm-stat-value">$34,800</div>
+            <div class="crm-stat-change">Stripe live test</div>
+          </div>
+        </div>
+
+        <div class="kanban-board">
+          <div class="kanban-col">
+            <div class="col-header">
+              <span>QUALIFIED (2)</span>
+              <span class="col-count">$124k</span>
+            </div>
+            <div class="deal-card">
+              <div class="deal-title">Supabase Enterprise Cloud</div>
+              <div class="deal-company">Aura Dynamics • 240 seats</div>
+              <div class="deal-footer">
+                <span>$48,000</span>
+                <span class="deal-avatar">AD</span>
+              </div>
+            </div>
+            <div class="deal-card">
+              <div class="deal-title">Multi-tenant SSO Module</div>
+              <div class="deal-company">HyperScale Cloud</div>
+              <div class="deal-footer">
+                <span>$76,000</span>
+                <span class="deal-avatar" style="background:#00f2fe; color:#000;">HS</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kanban-col">
+            <div class="col-header">
+              <span>PROPOSAL (2)</span>
+              <span class="col-count">$210k</span>
+            </div>
+            <div class="deal-card">
+              <div class="deal-title">Fintech Ledger &amp; KYC Hub</div>
+              <div class="deal-company">Vanguard Capital</div>
+              <div class="deal-footer">
+                <span>$135,000</span>
+                <span class="deal-avatar" style="background:#10b981;">VC</span>
+              </div>
+            </div>
+            <div class="deal-card">
+              <div class="deal-title">Stripe Connect Custom Flow</div>
+              <div class="deal-company">Nordic Market A/S</div>
+              <div class="deal-footer">
+                <span>$75,000</span>
+                <span class="deal-avatar">NM</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kanban-col">
+            <div class="col-header">
+              <span>WON (2)</span>
+              <span class="col-count">$148k</span>
+            </div>
+            <div class="deal-card" style="border-left: 2px solid #10b981;">
+              <div class="deal-title">Automated Billing Engine</div>
+              <div class="deal-company">Syntropy Labs Inc.</div>
+              <div class="deal-footer">
+                <span style="color:#10b981;">$98,000</span>
+                <span class="deal-avatar" style="background:#10b981;">SL</span>
+              </div>
+            </div>
+            <div class="deal-card" style="border-left: 2px solid #10b981;">
+              <div class="deal-title">Real-time Webhook Relay</div>
+              <div class="deal-company">PulseMetrics Co.</div>
+              <div class="deal-footer">
+                <span style="color:#10b981;">$50,000</span>
+                <span class="deal-avatar">PM</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

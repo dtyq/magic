@@ -13,7 +13,7 @@ from .constants import (
     OpenTelemetryAttributes,
 )
 from .telemetry import is_telemetry_enabled
-from .span_utils import set_observation_io
+from .span_utils import set_observation_io, enrich_span_with_user_context, enrich_span_with_trace_correlation
 
 # Try to import Langfuse SDK, but make it optional
 try:
@@ -140,6 +140,12 @@ def _request_hook(span, request):
     """
     if not span or not span.is_recording():
         return
+
+    # Enrich with user context (user.id/session.id/organization.code) and trace
+    # correlation (external.trace_id/request.correlation_id), matching the FastAPI
+    # root span so this child span can be correlated across systems in Langfuse.
+    enrich_span_with_user_context(span)
+    enrich_span_with_trace_correlation(span)
 
     try:
         # Extract model and method from request

@@ -14,12 +14,14 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/shadcn-ui/radio-group"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ASK_USER_CONFIRM_VALUE } from "@/pages/superMagic/components/MessageList/utils/askUserConstants"
+import { AskUserQuestionMarkdownTitle } from "@/pages/superMagic/components/MessageList/utils/AskUserMarkdownText"
 import type { AskUserLocale } from "@/pages/superMagic/components/MessageList/utils/askUser"
 import {
 	clearAskUserDraftAnswers,
 	readAskUserDraftAnswers,
+	readAskUserDraftRemark,
 	writeAskUserDraftAnswers,
 	type AskUserDraftAnswers,
 } from "@/pages/superMagic/components/MessageList/utils/askUserDraftCache"
@@ -32,6 +34,8 @@ import {
 	ASK_USER_OTHER_SENTINEL,
 	AskUserOtherInput,
 	getAskUserOtherPlaceholder,
+	getAskUserRemarkLabel,
+	getAskUserRemarkPlaceholder,
 	getAskUserRenderableOptions,
 	getAskUserSkipActionText,
 	getAskUserSubmitActionText,
@@ -56,10 +60,14 @@ interface AskUserFormProps {
 	expiresAt?: number
 	/** 已提交的答案（来自 toolResponseMap，用于回显） */
 	submittedAnswers?: Readonly<Record<string, AnswerValue>>
+	/** 已提交的整卡备注 */
+	submittedRemark?: string
 	status?: AskUserFormStatus
 	draftCacheKey?: string
-	onSubmit?: (answers: AskUserAnswers) => void
+	onSubmit?: (answers: AskUserAnswers, remark: string) => void
 	onSkip?: (answers: AskUserAnswers) => void
+	onLocalExpire?: () => void
+	onExpiredInteraction?: () => void
 	onProgressChange?: (count: number) => void
 	className?: string
 }
@@ -80,6 +88,9 @@ const ASK_USER_INPUT_MAX_HEIGHT = 200
 const askUserInputClass = `min-h-16 w-full max-h-[200px] min-w-0 resize-none overflow-hidden rounded-md border border-border bg-background px-2 py-1 text-left text-sm font-normal leading-5 text-foreground shadow-none outline-none placeholder:text-sm placeholder:text-muted-foreground focus-visible:border-border focus-visible:!ring-0 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${askUserScrollAreaClass}`
 const askUserOptionControlBase =
 	"mt-0.5 size-4 shrink-0 border border-input bg-background shadow-xs focus-visible:ring-1 focus-visible:ring-ring/50"
+// The "other" row holds a 28px-tall input, so its control drops to 6px (not 2px) to sit on the
+// input's vertical center; the textarea grows downward and the control stays on the first line.
+const askUserOtherControlClass = "mt-1.5"
 const askUserOptionRowClass = "flex min-h-6 cursor-pointer items-start gap-2 py-0.5"
 
 function formatAnswerForDisplay(value?: AnswerValue | null) {
@@ -96,12 +107,6 @@ function getSingleAnswerValue(value?: AnswerValue) {
 function shouldIgnoreOptionRowClick(event: MouseEvent<HTMLElement>) {
 	const target = event.target
 	return target instanceof HTMLElement && Boolean(target.closest("button,input,textarea"))
-}
-
-function formatQuestionTitle(question: ParsedQuestion, index: number, total: number) {
-	if (total <= 1) return question.label
-	if (/^\s*\d+[.\u3001)\uff09]\s*/.test(question.label)) return question.label
-	return `${index + 1}. ${question.label}`
 }
 
 function normalizeDefaultAnswer(question: ParsedQuestion): AnswerValue | null {
@@ -167,26 +172,38 @@ function useCountdown(expiresAt: number | undefined, onExpire?: () => void) {
 		return Math.max(0, Math.ceil(expiresAt - Date.now() / 1000))
 	})
 	const onExpireRef = useRef(onExpire)
+	const expiredRef = useRef(false)
 	onExpireRef.current = onExpire
 
 	useEffect(() => {
-		if (!expiresAt) {
+		if (!expiresAt || expiresAt <= 0) {
 			setRemaining(-1)
 			return
 		}
 		const calc = () => Math.max(0, Math.ceil(expiresAt - Date.now() / 1000))
-		setRemaining(calc())
+		const notifyIfExpired = (next: number) => {
+			if (next > 0 || expiredRef.current) return
+			expiredRef.current = true
+			onExpireRef.current?.()
+		}
+		const initial = calc()
+		setRemaining(initial)
+		notifyIfExpired(initial)
+		if (initial <= 0) return
 
 		const timer = setInterval(() => {
 			const next = calc()
 			setRemaining(next)
+			notifyIfExpired(next)
 			if (next <= 0) {
 				clearInterval(timer)
-				onExpireRef.current?.()
 			}
 		}, 1000)
 
-		return () => clearInterval(timer)
+		return () => {
+			expiredRef.current = false
+			clearInterval(timer)
+		}
 	}, [expiresAt])
 
 	return remaining
@@ -218,6 +235,13 @@ function useWriteAnswer() {
 	return ctx.writeAnswer
 }
 
+/** XML 实体解码后比较题干，避免正式解析的转义差异清空同次填写。 */
+function normalizeDraftLabel(label: string): string {
+	const element = document.createElement("textarea")
+	element.innerHTML = label.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+	return element.value.trim()
+}
+
 function AskUserFormImpl({
 	questions,
 	locale,
@@ -225,16 +249,23 @@ function AskUserFormImpl({
 	disabled,
 	expiresAt,
 	submittedAnswers,
+	submittedRemark = "",
 	status = "pending",
 	draftCacheKey,
 	onSubmit,
 	onSkip,
+	onLocalExpire,
+	onExpiredInteraction,
 	onProgressChange,
 	className,
 }: AskUserFormProps) {
 	// answersRef 是 submit 时的唯一真源；按键路径只写不读，避免触发父 render
 	const answersRef = useRef<Record<string, AnswerValue>>({})
+	const loadedCacheKey = useRef("")
+	const previousQuestions = useRef<readonly ParsedQuestion[]>([])
 	const [draftAnswers, setDraftAnswers] = useState<Readonly<Record<string, AnswerValue>>>()
+	const [remark, setRemark] = useState("")
+	const [isLocallyExpired, setIsLocallyExpired] = useState(false)
 
 	const hasPending = useMemo(() => questions.some((q) => !q.isComplete), [questions])
 	const isTimeout = status === "timeout"
@@ -244,11 +275,15 @@ function AskUserFormImpl({
 		(id: string, value: AnswerValue) => {
 			answersRef.current[id] = value
 			if (draftCacheKey && !submittedAnswers && !isTerminal) {
-				writeAskUserDraftAnswers(draftCacheKey, answersRef.current as AskUserDraftAnswers)
+				writeAskUserDraftAnswers(
+					draftCacheKey,
+					answersRef.current as AskUserDraftAnswers,
+					remark,
+				)
 			}
 			onProgressChange?.(getAnsweredQuestionCount(questions, answersRef.current))
 		},
-		[draftCacheKey, isTerminal, onProgressChange, questions, submittedAnswers],
+		[draftCacheKey, isTerminal, onProgressChange, questions, remark, submittedAnswers],
 	)
 
 	const ctxValue = useMemo<AnswersContextValue>(() => ({ writeAnswer }), [writeAnswer])
@@ -256,6 +291,7 @@ function AskUserFormImpl({
 	const actionsDisabled =
 		Boolean(streaming) ||
 		Boolean(disabled) ||
+		isLocallyExpired ||
 		hasPending ||
 		questions.length === 0 ||
 		isTerminal
@@ -265,6 +301,10 @@ function AskUserFormImpl({
 
 	const handleSubmit = useCallback(
 		(answers?: AskUserAnswers) => {
+			if (typeof expiresAt === "number" && expiresAt > 0 && Date.now() / 1000 >= expiresAt) {
+				onExpiredInteraction?.()
+				return
+			}
 			const sourceAnswers = answers || answersRef.current
 			const nextAnswers = Object.fromEntries(
 				questions.map((question) => [
@@ -272,31 +312,41 @@ function AskUserFormImpl({
 					sourceAnswers[question.id] ?? getEmptyAnswerValue(question),
 				]),
 			) as Record<string, AnswerValue>
-			onSubmit?.(nextAnswers as AskUserAnswers)
+			onSubmit?.(nextAnswers as AskUserAnswers, remark.trim())
 		},
-		[onSubmit, questions],
+		[expiresAt, onExpiredInteraction, onSubmit, questions, remark],
 	)
 
 	const handleSkip = useCallback(() => {
-		onSkip?.({ ...answersRef.current } as AskUserAnswers)
-	}, [onSkip])
-
-	const expiredRef = useRef(false)
-	const onCountdownExpire = useCallback(() => {
-		if (expiredRef.current) return
-		expiredRef.current = true
-		if (defaultAnswers.isComplete) {
-			handleSubmit(defaultAnswers.answers)
+		if (typeof expiresAt === "number" && expiresAt > 0 && Date.now() / 1000 >= expiresAt) {
+			onExpiredInteraction?.()
 			return
 		}
 		onSkip?.({ ...answersRef.current } as AskUserAnswers)
-	}, [defaultAnswers.answers, defaultAnswers.isComplete, handleSubmit, onSkip])
+	}, [expiresAt, onExpiredInteraction, onSkip])
+
+	const onCountdownExpire = useCallback(() => {
+		setIsLocallyExpired(true)
+		onLocalExpire?.()
+	}, [onLocalExpire])
+
+	useEffect(() => {
+		setIsLocallyExpired(false)
+	}, [expiresAt])
 
 	const remaining = useCountdown(
-		!disabled && !streaming && !isTerminal ? expiresAt : undefined,
+		!disabled && !streaming && !isTerminal && expiresAt && expiresAt > 0
+			? expiresAt
+			: undefined,
 		onCountdownExpire,
 	)
-	const showCountdown = typeof expiresAt === "number" && remaining > 0 && !disabled && !isTerminal
+	const showCountdown =
+		typeof expiresAt === "number" &&
+		expiresAt > 0 &&
+		remaining > 0 &&
+		!isLocallyExpired &&
+		!disabled &&
+		!isTerminal
 	const shouldShowActions = !submittedAnswers && !isTerminal
 
 	useEffect(() => {
@@ -306,23 +356,60 @@ function AskUserFormImpl({
 	}, [onProgressChange, questions, submittedAnswers])
 
 	useEffect(() => {
-		if (!draftCacheKey) {
-			setDraftAnswers(undefined)
-			return
-		}
 		if (submittedAnswers || isTerminal) {
-			clearAskUserDraftAnswers(draftCacheKey)
+			if (draftCacheKey) clearAskUserDraftAnswers(draftCacheKey)
 			setDraftAnswers(undefined)
 			return
 		}
-
-		const nextDraftAnswers = readAskUserDraftAnswers(draftCacheKey) as Readonly<
-			Record<string, AnswerValue>
-		> | null
-		answersRef.current = nextDraftAnswers ? { ...nextDraftAnswers } : {}
-		setDraftAnswers(nextDraftAnswers || undefined)
-		onProgressChange?.(getAnsweredQuestionCount(questions, answersRef.current))
+		// 首次正式题目到达前可能已有填写；同次输入优先，不能被空缓存覆盖。
+		if (draftCacheKey && loadedCacheKey.current !== draftCacheKey) {
+			const cached = readAskUserDraftAnswers(draftCacheKey) ?? {}
+			const isNewCard = Boolean(loadedCacheKey.current)
+			answersRef.current = isNewCard ? { ...cached } : { ...cached, ...answersRef.current }
+			setRemark((current) =>
+				isNewCard
+					? readAskUserDraftRemark(draftCacheKey)
+					: current || readAskUserDraftRemark(draftCacheKey),
+			)
+			loadedCacheKey.current = draftCacheKey
+			if (isNewCard) previousQuestions.current = []
+		}
+		const retained: Record<string, AnswerValue> = {}
+		for (const question of questions) {
+			const previous = previousQuestions.current.find((item) => item.id === question.id)
+			const answer = answersRef.current[question.id]
+			if (answer === undefined) continue
+			if (
+				previous &&
+				(previous.type !== question.type ||
+					normalizeDraftLabel(previous.label) !== normalizeDraftLabel(question.label))
+			)
+				continue
+			// 候选被移除时清掉对应答案，自由输入只在原本就是自由输入时保留。
+			const values = typeof answer === "string" ? [answer] : answer
+			if (
+				previous &&
+				values.some(
+					(value) =>
+						previous.options.includes(value) && !question.options.includes(value),
+				)
+			)
+				continue
+			retained[question.id] = answer
+		}
+		answersRef.current = retained
+		previousQuestions.current = questions
+		setDraftAnswers(retained)
+		onProgressChange?.(getAnsweredQuestionCount(questions, retained))
 	}, [draftCacheKey, isTerminal, onProgressChange, questions, submittedAnswers])
+
+	useEffect(() => {
+		if (!draftCacheKey || submittedAnswers || isTerminal) return
+		writeAskUserDraftAnswers(draftCacheKey, answersRef.current as AskUserDraftAnswers, remark)
+	}, [draftCacheKey, isTerminal, questions, remark, submittedAnswers])
+
+	const displayRemark = submittedRemark || (isTerminal ? "" : remark)
+	const showRemarkField = Boolean(displayRemark.trim()) || shouldShowActions
 
 	return (
 		<AnswersContext.Provider value={ctxValue}>
@@ -343,19 +430,40 @@ function AskUserFormImpl({
 					>
 						{questions.map((question, index) => (
 							<QuestionItem
-								key={question.id}
+								key={JSON.stringify([
+									question.id,
+									question.type,
+									normalizeDraftLabel(question.label),
+								])}
 								index={index}
 								locale={locale}
 								total={questions.length}
 								question={question}
 								disabled={
-									Boolean(disabled) || (!!streaming && !question.isComplete)
+									Boolean(disabled) ||
+									isLocallyExpired ||
+									(!!streaming && !question.isComplete)
 								}
 								submittedAnswer={displayAnswers?.[question.id]}
 								draftAnswer={draftAnswers?.[question.id]}
 								showDefaultHint={!displayAnswers && !disabled && !isTimeout}
 							/>
 						))}
+						{showRemarkField ? (
+							<RemarkField
+								label={getAskUserRemarkLabel(locale)}
+								placeholder={getAskUserRemarkPlaceholder(locale)}
+								value={displayRemark}
+								onChange={setRemark}
+								disabled={
+									Boolean(disabled) ||
+									isLocallyExpired ||
+									Boolean(submittedAnswers) ||
+									isTerminal
+								}
+								readOnly={Boolean(submittedAnswers) || isTerminal}
+							/>
+						) : null}
 					</div>
 				</div>
 				{shouldShowActions && (
@@ -436,27 +544,20 @@ const QuestionItem = memo(function QuestionItem({
 	showDefaultHint,
 	draftAnswer,
 }: QuestionItemProps) {
-	const hasMultipleQuestions = total > 1
-	const questionContentIndentClass =
-		hasMultipleQuestions && question.type === "input" ? "pl-4" : undefined
-
 	return (
 		<div
 			className={cn("space-y-1.5 transition-opacity", !question.isComplete && "opacity-70")}
 			data-testid={`ask-user-v2-card-question-item-${question.id}`}
 		>
-			<p
+			<AskUserQuestionMarkdownTitle
+				content={question.label}
+				index={index}
+				total={total}
 				className={cn(askUserQuestionTextClass, askUserBreakTextClass)}
-				data-testid={`ask-user-v2-card-question-text-${question.id}`}
-			>
-				{question.label ? (
-					formatQuestionTitle(question, index, total)
-				) : (
-					<span className="text-muted-foreground">...</span>
-				)}
-			</p>
+				testId={`ask-user-v2-card-question-text-${question.id}`}
+			/>
 
-			<div className={questionContentIndentClass}>
+			<div>
 				{question.type === "confirm" && (
 					<SelectField
 						questionId={question.id}
@@ -578,6 +679,60 @@ const InputField = memo(function InputField({
 	)
 })
 
+interface RemarkFieldProps {
+	label: string
+	placeholder: string
+	value: string
+	onChange: (value: string) => void
+	disabled: boolean
+	readOnly: boolean
+}
+
+const RemarkField = memo(function RemarkField({
+	label,
+	placeholder,
+	value,
+	onChange,
+	disabled,
+	readOnly,
+}: RemarkFieldProps) {
+	const textareaRef = useRef<HTMLTextAreaElement>(null)
+	const showReadOnly = readOnly || disabled
+
+	useLayoutEffect(() => {
+		const textarea = textareaRef.current
+		if (!textarea) return
+		textarea.style.height = "auto"
+		const nextHeight = Math.min(textarea.scrollHeight, ASK_USER_INPUT_MAX_HEIGHT)
+		textarea.style.height = `${nextHeight}px`
+		textarea.style.overflowY =
+			textarea.scrollHeight > ASK_USER_INPUT_MAX_HEIGHT ? "auto" : "hidden"
+	}, [value, placeholder])
+
+	if (showReadOnly && !value.trim()) return null
+
+	return (
+		<div className="space-y-1.5" data-testid="ask-user-v2-card-remark-field">
+			<AskUserQuestionMarkdownTitle
+				content={label}
+				className={cn(askUserQuestionTextClass, askUserBreakTextClass)}
+				testId="ask-user-v2-card-remark-label"
+			/>
+			<textarea
+				ref={textareaRef}
+				value={value}
+				disabled={showReadOnly}
+				readOnly={showReadOnly}
+				placeholder={placeholder}
+				onChange={(event) => onChange(event.target.value)}
+				rows={1}
+				data-testid="ask-user-v2-card-remark-input"
+				className={askUserInputClass}
+			/>
+		</div>
+	)
+})
+
 interface SelectFieldProps {
 	questionId: string
 	options: readonly string[]
@@ -662,6 +817,7 @@ const SelectField = memo(function SelectField({
 							className={cn(
 								askUserOptionControlBase,
 								"rounded-full text-foreground [&_svg]:fill-primary",
+								isOther && askUserOtherControlClass,
 							)}
 						/>
 						{isOther ? (
@@ -816,6 +972,7 @@ const MultiSelectField = memo(function MultiSelectField({
 								className={cn(
 									askUserOptionControlBase,
 									"rounded-[4px] data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+									isOther && askUserOtherControlClass,
 								)}
 							/>
 							{isOther ? (

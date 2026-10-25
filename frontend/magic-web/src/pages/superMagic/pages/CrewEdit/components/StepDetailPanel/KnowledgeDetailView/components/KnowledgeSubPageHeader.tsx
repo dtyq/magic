@@ -1,7 +1,7 @@
 import { ChevronLeft, X } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Separator } from "@/components/shadcn-ui/separator"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 /**
  * KnowledgeSubPageHeader组件Props

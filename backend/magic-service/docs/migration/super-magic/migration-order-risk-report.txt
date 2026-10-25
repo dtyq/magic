@@ -1,2 +1,0 @@
-migration	owner	table	created_later_by	creator_owner
-2025_03_21_000003_add_unique_index_to_token_usage_records	super-magic	magic_super_agent_token_usage_records	2025_05_27_000001_create_magic_super_agent_token_usage_records	super-magic

@@ -22,6 +22,25 @@ function createCanvas(resourceScheduler: CanvasResourceScheduler) {
 }
 
 describe("VideoPlaybackManager pending acquire lifecycle", () => {
+	it("rejects autoplay acquisition when playback capability is unavailable", async () => {
+		const scheduler = new CanvasResourceScheduler()
+		const canvas = createCanvas(scheduler)
+		canvas.permissionManager = {
+			can: vi.fn(() => false),
+		} as Canvas["permissionManager"]
+		const manager = new VideoPlaybackManager({ canvas })
+
+		try {
+			await expect(
+				manager.acquire("./videos/a.mp4", "video:inline:denied", { autoPlay: true }),
+			).resolves.toBeNull()
+			expect(canvas.videoResourceManager.ensureFreshOssInfo).not.toHaveBeenCalled()
+		} finally {
+			manager.destroy()
+			scheduler.destroy()
+		}
+	})
+
 	it("creates a tracked playback session after the video becomes ready", async () => {
 		const scheduler = new CanvasResourceScheduler()
 		const canvas = createCanvas(scheduler)

@@ -91,7 +91,8 @@ function expectMetricsToMatch(
 describe("ConnectionHandleRenderer", () => {
 	it("renders left and right interactive handles with runtime attrs", () => {
 		const renderer = new ConnectionHandleRenderer()
-		const group = renderer.createOverlay("element-1", TEST_RECT, 1)
+		const origin = { kind: "element" as const, elementId: "element-1" }
+		const group = renderer.createOverlay(origin, TEST_RECT, 1)
 
 		expect(group.name()).toBe(ConnectionHandleRenderer.OVERLAY_GROUP_NAME)
 		const leftHandle = getHandle(group, "left")
@@ -101,11 +102,11 @@ describe("ConnectionHandleRenderer", () => {
 
 		expect(leftHandle.id()).toBe("element-1")
 		expect(rightHandle.id()).toBe("element-1")
-		expect(leftHandle.getAttr("elementId")).toBe("element-1")
-		expect(rightHandle.getAttr("elementId")).toBe("element-1")
+		expect(leftHandle.getAttr(ConnectionHandleRenderer.HANDLE_ORIGIN_ATTR)).toEqual(origin)
+		expect(rightHandle.getAttr(ConnectionHandleRenderer.HANDLE_ORIGIN_ATTR)).toEqual(origin)
 		expect(leftCorridor.id()).toBe("element-1")
 		expect(rightCorridor.id()).toBe("element-1")
-		expect(leftCorridor.getAttr("elementId")).toBe("element-1")
+		expect(leftCorridor.getAttr(ConnectionHandleRenderer.HANDLE_ORIGIN_ATTR)).toEqual(origin)
 		expect(leftCorridor.getAttr("connectionHandleSide")).toBe("left")
 		expect(rightCorridor.getAttr("connectionHandleSide")).toBe("right")
 		expect(leftCorridor.y()).toBe(TEST_RECT.y)
@@ -134,9 +135,37 @@ describe("ConnectionHandleRenderer", () => {
 		expect(leftCircle.listening()).toBe(true)
 	})
 
+	it("keeps the real selection roots and revision on multi-selection handles", () => {
+		const renderer = new ConnectionHandleRenderer()
+		const group = renderer.createOverlay(
+			{
+				kind: "selection",
+				elementIds: ["frame-1", "video-2"],
+				selectionRevision: "frame-1\u0000video-2",
+			},
+			TEST_RECT,
+			1,
+		)
+
+		const rightHandle = getHandle(group, "right")
+		const leftCorridor = getCorridor(group, "left")
+		expect(rightHandle.getAttr(ConnectionHandleRenderer.HANDLE_ORIGIN_ATTR)).toEqual({
+			kind: "selection",
+			elementIds: ["frame-1", "video-2"],
+			selectionRevision: "frame-1\u0000video-2",
+		})
+		expect(leftCorridor.getAttr(ConnectionHandleRenderer.HANDLE_ORIGIN_ATTR)).toEqual({
+			kind: "selection",
+			elementIds: ["frame-1", "video-2"],
+			selectionRevision: "frame-1\u0000video-2",
+		})
+		expect(leftCorridor.id()).toBe("frame-1")
+	})
+
 	it("keeps handle distance and visual metrics stable when viewport scales", () => {
 		const renderer = new ConnectionHandleRenderer()
-		const group = renderer.createOverlay("element-1", TEST_RECT, 1)
+		const origin = { kind: "element" as const, elementId: "element-1" }
+		const group = renderer.createOverlay(origin, TEST_RECT, 1)
 
 		const baselineMetrics = readScreenSpaceMetrics(group, 1)
 		expect(baselineMetrics.leftOffset).toBeGreaterThan(0)
@@ -148,18 +177,22 @@ describe("ConnectionHandleRenderer", () => {
 		expect(baselineMetrics.plusWidth).toBeGreaterThan(0)
 		expect(baselineMetrics.plusWidth).toBeLessThan(baselineMetrics.radius * 2)
 
-		renderer.updateOverlay(group, "element-1", TEST_RECT, 2)
+		renderer.updateOverlay(group, origin, TEST_RECT, 2)
 
 		expectMetricsToMatch(readScreenSpaceMetrics(group, 2), baselineMetrics)
 
-		renderer.updateOverlay(group, "element-1", TEST_RECT, 0.5)
+		renderer.updateOverlay(group, origin, TEST_RECT, 0.5)
 
 		expectMetricsToMatch(readScreenSpaceMetrics(group, 0.5), baselineMetrics)
 	})
 
 	it("uses the same screen-space metrics for geometry hit regions", () => {
 		const renderer = new ConnectionHandleRenderer()
-		const group = renderer.createOverlay("element-1", TEST_RECT, 1)
+		const group = renderer.createOverlay(
+			{ kind: "element", elementId: "element-1" },
+			TEST_RECT,
+			1,
+		)
 		const leftCorridor = getCorridor(group, "left")
 		const rightCorridor = getCorridor(group, "right")
 		const leftRegion = renderer
@@ -228,7 +261,11 @@ describe("ConnectionHandleRenderer", () => {
 
 	it("applies hover and active styles without changing handle geometry", () => {
 		const renderer = new ConnectionHandleRenderer()
-		const group = renderer.createOverlay("element-1", TEST_RECT, 1)
+		const group = renderer.createOverlay(
+			{ kind: "element", elementId: "element-1" },
+			TEST_RECT,
+			1,
+		)
 		const leftHandle = getHandle(group, "left")
 		const circle = getCircle(leftHandle)
 		const horizontal = getHorizontalPlus(leftHandle)
@@ -280,5 +317,29 @@ describe("ConnectionHandleRenderer", () => {
 		expect(horizontal.stroke()).toBe(baseStyle.plusStroke)
 		expect(vertical.stroke()).toBe(baseStyle.plusStroke)
 		expect(circle.shadowOpacity()).toBe(0)
+	})
+
+	it("applies a non-interactive disabled style to configured handle sides", () => {
+		const renderer = new ConnectionHandleRenderer()
+		const group = renderer.createOverlay(
+			{ kind: "element", elementId: "video-edit-1" },
+			TEST_RECT,
+			1,
+			["right"],
+		)
+		const leftHandle = getHandle(group, "left")
+		const rightHandle = getHandle(group, "right")
+		const leftCircle = getCircle(leftHandle)
+		const rightCircle = getCircle(rightHandle)
+
+		expect(leftHandle.getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR)).toBe(false)
+		expect(leftHandle.listening()).toBe(true)
+		expect(leftCircle.opacity()).toBe(1)
+		expect(rightHandle.getAttr(ConnectionHandleRenderer.HANDLE_DISABLED_ATTR)).toBe(true)
+		expect(rightHandle.getAttr("connectionHandleInteractionState")).toBe("disabled")
+		expect(rightHandle.listening()).toBe(false)
+		expect(rightCircle.opacity()).toBeLessThan(leftCircle.opacity())
+		expect(getHorizontalPlus(rightHandle).opacity()).toBeLessThan(1)
+		expect(getVerticalPlus(rightHandle).opacity()).toBeLessThan(1)
 	})
 })

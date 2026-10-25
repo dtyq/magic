@@ -1,9 +1,9 @@
 import { PropsWithChildren } from "react"
 import { MagicSpin } from "@/components/base"
-import { useTranslation } from "react-i18next"
 import { createStyles } from "antd-style"
 import { interfaceStore } from "@/stores/interface"
 import { observer } from "mobx-react-lite"
+import { useMainTranslation } from "@/hooks/i18n/useMainTranslation"
 
 export const useStyles = createStyles(({ isDarkMode, css, prefixCls, token }) => ({
 	spin: css`
@@ -16,18 +16,17 @@ export const useStyles = createStyles(({ isDarkMode, css, prefixCls, token }) =>
 		}
 	`,
 	container: css`
-		background-color: ${isDarkMode
-			? token.magicColorUsages.black
-			: token.magicColorUsages.white};
+		background-color: ${
+			isDarkMode ? token.magicColorUsages.black : token.magicColorUsages.white
+		};
 		height: 100vh;
 		width: 100%;
 	`,
 }))
 
 const SwitchingOrganizationLoading = observer(({ children }: PropsWithChildren) => {
-	const { t } = useTranslation("interface")
+	const { t } = useMainTranslation("interface")
 	const { styles } = useStyles()
-
 	if (interfaceStore.isSwitchingOrganization) {
 		return (
 			<MagicSpin tip={t("spin.loadingUserInfo")} wrapperClassName={styles.spin}>

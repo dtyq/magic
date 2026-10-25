@@ -7,6 +7,9 @@ import type { ShortcutModifier } from "../../../runtime/interaction/shortcuts/ty
 export interface MenuOption {
 	id: string
 	label: string | ReactNode
+	description?: string
+	help?: string
+	variant?: "default" | "destructive"
 	icon: ComponentType<LucideProps> | ReactElement
 	shortcut?:
 		| ShortcutDisplay
@@ -36,4 +39,6 @@ export type MenuSource = "canvas" | "layers"
 // Context 值类型
 export interface ElementMenuContextValue {
 	openMenu: (event: React.MouseEvent, elementId: string, source?: MenuSource) => void
+	/** Open the element menu at screen coordinates (e.g. layers batch actions). */
+	openMenuAt: (elementId: string, x: number, y: number, source?: MenuSource) => void
 }

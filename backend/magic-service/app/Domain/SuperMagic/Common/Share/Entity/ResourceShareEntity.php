@@ -129,6 +129,8 @@ class ResourceShareEntity extends AbstractEntity
      */
     protected bool $shareProject = false;
 
+    protected int $scopeVersion = 1;
+
     /**
      * @var null|string 创建时间
      */
@@ -164,6 +166,17 @@ class ResourceShareEntity extends AbstractEntity
         $this->isPasswordEnabled = false; // 默认启用
 
         $this->initProperty($data);
+    }
+
+    public function getScopeVersion(): int
+    {
+        return $this->scopeVersion;
+    }
+
+    public function setScopeVersion(int $scopeVersion): self
+    {
+        $this->scopeVersion = max(1, $scopeVersion);
+        return $this;
     }
 
     /**

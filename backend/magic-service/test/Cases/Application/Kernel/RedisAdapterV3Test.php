@@ -25,6 +25,8 @@ use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swow\Psr7\Server\ServerConnection;
+use Swow\Socket;
 use Throwable;
 
 /**
@@ -421,8 +423,8 @@ class RedisAdapterV3Test extends TestCase
         $redisFactory->shouldReceive('get')->with('default')->andReturn($redis);
         $redisFactory->shouldReceive('get')->with('socketio_queue')->andReturn($queueRedis);
 
-        $sender = new RedisAdapterV3TestSender();
         $sidProvider = new RedisAdapterV3TestSidProvider();
+        $sender = new RedisAdapterV3TestSender($sidProvider);
         $adapter = new RedisAdapter($redisFactory, $sender, new RedisAdapterV3TestNamespace($this->namespace), $sidProvider);
         return [$adapter, $redis, $queueRedis, $sender, $sidProvider];
     }
@@ -709,14 +711,26 @@ final class RedisAdapterV3NativeRedisPipeline
         return $this;
     }
 
-    public function exec(): array
+    /** 清除同一原生连接上残留的错误，不将本地状态操作加入命令队列。 */
+    public function clearLastError(): bool
+    {
+        return $this->redis->clearLastError();
+    }
+
+    /** 返回本轮批量执行后的原生错误状态。 */
+    public function getLastError(): ?string
+    {
+        return $this->redis->getLastError();
+    }
+
+    /** 保留原生执行结果，避免将批量执行失败伪装为空结果。 */
+    public function exec(): array|false
     {
         if ($this->executed) {
             return [];
         }
         $this->executed = true;
-        $result = $this->redis->exec();
-        return is_array($result) ? $result : [];
+        return $this->redis->exec();
     }
 }
 
@@ -732,8 +746,13 @@ final class RedisAdapterV3TestSender extends Sender
      */
     public array $disconnects = [];
 
-    public function __construct()
+    private Socket $availableSocket;
+
+    /** 共享可用套接字替身，避免压力测试按连接累积 Mockery 对象。 */
+    public function __construct(private RedisAdapterV3TestSidProvider $sidProvider)
     {
+        $this->availableSocket = Mockery::mock(Socket::class);
+        $this->availableSocket->shouldReceive('isAvailable')->andReturn(true);
     }
 
     public function __call($name, $arguments)
@@ -745,10 +764,39 @@ final class RedisAdapterV3TestSender extends Sender
         throw new RuntimeException('unsupported sender method ' . $name);
     }
 
+    /** 按当前 SID 映射返回连接替身，模拟 Sender 保存在线连接的行为。 */
+    public function getResponse(int $fd): mixed
+    {
+        return $this->sidProvider->getSid($fd) === ''
+            ? null
+            : new RedisAdapterV3TestConnection($fd, $this->availableSocket);
+    }
+
     public function pushFrame(int $fd, FrameInterface $frame): bool
     {
         $this->pushes[] = [$fd, (string) $frame->getPayloadData()];
         return true;
+    }
+}
+
+/** 不建立网络连接的轻量连接替身，供重连压力测试查询连接状态。 */
+final class RedisAdapterV3TestConnection extends ServerConnection
+{
+    /** 仅保存模拟连接身份和套接字替身。 */
+    public function __construct(private int $connectionId, private Socket $mockSocket)
+    {
+    }
+
+    /** 返回稳定的模拟连接身份。 */
+    public function getId(): int
+    {
+        return $this->connectionId;
+    }
+
+    /** 提供模拟套接字的可用状态。 */
+    public function getSocket(): Socket
+    {
+        return $this->mockSocket;
     }
 }
 

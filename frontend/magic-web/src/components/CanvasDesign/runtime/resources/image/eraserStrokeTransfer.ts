@@ -1,8 +1,12 @@
 import type { EraserStroke } from "../../interaction/eraser/EraserRenderer"
-import type { FlattenedEraserStrokes } from "../upload/submitImageWorkerProtocol"
+import {
+	encodeEraserStrokeMode,
+	type FlattenedEraserStrokes,
+} from "../upload/submitImageWorkerProtocol"
 
 export function flattenEraserStrokes(strokes: EraserStroke[]): FlattenedEraserStrokes {
 	const meta = new Uint32Array(strokes.length * 3)
+	const modes = new Uint8Array(strokes.length)
 	let totalPoints = 0
 
 	strokes.forEach((stroke, index) => {
@@ -13,6 +17,7 @@ export function flattenEraserStrokes(strokes: EraserStroke[]): FlattenedEraserSt
 		meta[metaOffset] = pointOffset
 		meta[metaOffset + 1] = pointCount
 		meta[metaOffset + 2] = Math.max(0, Math.round(stroke.radius))
+		modes[index] = encodeEraserStrokeMode(stroke.mode)
 
 		totalPoints += pointCount
 	})
@@ -28,5 +33,5 @@ export function flattenEraserStrokes(strokes: EraserStroke[]): FlattenedEraserSt
 		})
 	})
 
-	return { meta, points }
+	return { meta, modes, points }
 }

@@ -1,16 +1,17 @@
 import { env } from "@/utils/env"
 import { UploadConfig } from "@dtyq/upload-sdk"
-import magicClient from "@/apis/clients/magic"
+import { defaultMagicClient as magicClient } from "@/infrastructure/network/http/runtime"
 import { UploadFileMentionData } from "@/components/business/MentionPanel/types"
 import { cloneDeep } from "lodash-es"
 import { UploadSource } from "../hooks/useFileUpload"
 import { SuperMagicApi } from "@/apis"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
 import type { FileScope } from "@/apis/modules/fileScope"
+import { getFileReferenceIdentityKey } from "../../../services/userFileReferenceResolver"
 
 const TEMP_UPLOAD_DIR_NAME = ".tmp"
 
-class UploadTokenService {
+export class UploadTokenService {
 	private readonly baseUrl = env("MAGIC_SERVICE_BASE_URL")
 	private readonly logger = Logger.createLogger("SuperMagicUploadTokenService")
 	private readonly tempUploadDirectoryIds = new Map<string, string>()
@@ -45,7 +46,7 @@ class UploadTokenService {
 
 	/** 生成包含文件空间的上传凭证缓存键。 */
 	private getUploadTokenCacheKey(projectId: string, fileScope?: FileScope): string {
-		return fileScope ? `${fileScope}:${projectId}` : projectId
+		return fileScope ? `${fileScope}:${getFileReferenceIdentityKey()}:${projectId}` : projectId
 	}
 
 	/**
@@ -55,6 +56,7 @@ class UploadTokenService {
 	 * @returns
 	 */
 	async fetchUploadToken(projectId: string, expires: number = 3600, fileScope?: FileScope) {
+		const cacheKey = this.getUploadTokenCacheKey(projectId, fileScope)
 		const queryParams = new URLSearchParams({
 			project_id: projectId,
 			expires: expires.toString(),
@@ -66,7 +68,10 @@ class UploadTokenService {
 		try {
 			const res = await magicClient.get<UploadConfig["customCredentials"]>(url)
 
-			this.uploadTokenMap.set(this.getUploadTokenCacheKey(projectId, fileScope), {
+			// 用户文件空间在不同身份下共用 project_id=0，凭证只能返回给发起请求的身份。
+			if (cacheKey !== this.getUploadTokenCacheKey(projectId, fileScope))
+				throw new DOMException("Upload identity changed", "AbortError")
+			this.uploadTokenMap.set(cacheKey, {
 				customCredentials: res,
 				expireTime: Date.now() + expires * 1000,
 			})

@@ -25,12 +25,15 @@ from app.utils.document_parse.pdf.pdf_metadata import PdfMetadata
 from app.utils.document_parse.pdf.pdf_page_snapshot_extractor import PdfPageSnapshotExtractor
 from app.utils.document_parse.pdf.pdf_render_backend import PdfRenderedPage
 from app.utils.document_parse.pdf.pdf_strategy import PdfExtractionStrategy
+from app.utils.document_parse.service.asset_strategy import AssetStrategy, AssetStrategyResolver
 from app.utils.document_parse.service.document_artifact_mode import DocumentArtifactModeSelector
+from app.utils.document_parse.service.document_batch_planner import DocumentBatchPlanner
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_format_converter import DocumentFormatConverter
 from app.utils.document_parse.service.document_image_understander import DocumentImageUnderstander
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.document_inspector import DocumentInspector
+from app.utils.document_parse.service.document_output_version import DocumentOutputVersionResolver
 from app.utils.document_parse.service.document_reading_planner import DocumentReadingPlanner
 from app.utils.document_parse.service.document_sampler import DocumentSampler
 from app.utils.document_parse.service.document_summarizer import DocumentSummarizer
@@ -39,6 +42,7 @@ from app.utils.document_parse.structure.chunk_store import ChunkStore
 from app.utils.document_parse.structure.image_feature_analyzer import ImageFeatureAnalyzer
 from app.utils.document_parse.structure.image_watermark_detector import ImageWatermarkDetector
 from app.utils.document_parse.structure.range_parser import RangeParser
+from app.utils.document_parse.structure.reusable_image_selector import ReusableImageSelector
 from app.utils.file_parse.driver.excel_driver import ExcelDriver as FileParseExcelDriver
 from app.utils.file_parse.driver.interfaces.file_parser_driver_interface import ParseMetadata, ParseResult
 from app.utils.file_parse.driver.powerpoint_driver import PowerPointDriver as FileParsePowerPointDriver
@@ -65,6 +69,257 @@ def test_range_parser_expands_all_when_total_is_known():
 
 def test_document_sampler_accepts_all_range_with_sampling_limit():
     assert DocumentSampler._select_sample_range(16, "all", max_units=3) == "1-3"
+
+
+def test_asset_strategy_resolver_recommends_page_visual_for_presentation_like_pdf():
+    profile = DocumentProfile(
+        source_path="/tmp/mock.pdf",
+        file_name="mock.pdf",
+        file_type="pdf",
+        file_extension=".pdf",
+        file_size=1024,
+        unit_type="page",
+        total_units=34,
+        metadata={"is_scanned_like": True, "text_density": "low"},
+    )
+
+    options = AssetStrategyResolver.resolve(
+        AssetStrategy.AUTO,
+        profile=profile,
+        sample_signal={"has_extractable_text": True, "image_dominant": False, "image_count": 18},
+    )
+
+    assert options.resolved_strategy == AssetStrategy.PAGE_VISUAL.value
+    assert options.extract_embedded_images is False
+    assert options.page_snapshot_policy == "always"
+    assert options.requires_user_confirmation is True
+    assert options.scores[AssetStrategy.PAGE_VISUAL.value] > options.scores[AssetStrategy.REUSABLE_ASSETS.value]
+    assert options.score_margin > 0
+    assert options.blocked_strategies[AssetStrategy.FULL_FIDELITY.value]
+
+
+def test_asset_strategy_resolver_keeps_explicit_full_fidelity():
+    options = AssetStrategyResolver.resolve("full_fidelity")
+
+    assert options.resolved_strategy == "full_fidelity"
+    assert options.extract_embedded_images is True
+    assert options.embedded_image_policy == "all"
+    assert options.scores["full_fidelity"] == 1.0
+
+
+def test_asset_strategy_resolver_goal_overrides_sample_scores():
+    profile = DocumentProfile(
+        source_path="/tmp/mock.pdf",
+        file_name="mock.pdf",
+        file_type="pdf",
+        file_extension=".pdf",
+        file_size=1024,
+        unit_type="page",
+        total_units=2,
+        metadata={"text_density": "high"},
+    )
+
+    options = AssetStrategyResolver.resolve(
+        "auto",
+        profile=profile,
+        sample_signal={"has_extractable_text": True, "image_count": 0},
+        goal="keep all original images",
+    )
+
+    assert options.resolved_strategy == "full_fidelity"
+    assert options.scores["full_fidelity"] == 1.0
+    assert options.requires_user_confirmation is False
+
+
+def test_document_batch_planner_splits_pdf_page_visual_at_twenty_pages():
+    profile = DocumentProfile(
+        source_path="/tmp/mock.pdf",
+        file_name="mock.pdf",
+        file_type="pdf",
+        file_extension=".pdf",
+        file_size=1024,
+        unit_type="page",
+        total_units=34,
+    )
+
+    batches = DocumentBatchPlanner.plan(profile, None, "page_visual")
+
+    assert [batch.ranges for batch in batches] == ["1-20", "21-34"]
+    assert [batch.unit_count for batch in batches] == [20, 14]
+
+
+@pytest.mark.asyncio
+async def test_document_output_version_resolver_keeps_previous_strategy(tmp_path: Path):
+    source = tmp_path / "mock.pdf"
+    source.write_bytes(b"mock")
+    output_dir = tmp_path / "mock_pdf"
+    output_dir.mkdir()
+    (output_dir / "document.index.json").write_text(
+        json.dumps(
+            {
+                "source_path": str(source),
+                "metadata": {"asset_strategy": {"resolved_strategy": "text_only"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = await DocumentOutputVersionResolver.resolve(
+        output_dir,
+        source,
+        "page_visual",
+        "page_visual",
+    )
+
+    assert resolved == tmp_path / "mock_pdf__page_visual"
+
+
+@pytest.mark.asyncio
+async def test_document_output_version_resolver_isolates_explicit_strategy_from_legacy_index(tmp_path: Path):
+    source = tmp_path / "legacy.pdf"
+    source.write_bytes(b"mock")
+    output_dir = tmp_path / "legacy_pdf"
+    output_dir.mkdir()
+    (output_dir / "document.index.json").write_text(
+        json.dumps(
+            {
+                "source_path": str(source),
+                "chunks": [{"chunk_id": "legacy_chunk", "path": "chunks/chunk_0001.md"}],
+                "assets": [{"asset_id": "legacy_asset", "path": "assets/legacy.png"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = await DocumentOutputVersionResolver.resolve(
+        output_dir,
+        source,
+        "text_only",
+        "text_only",
+    )
+
+    assert resolved == tmp_path / "legacy_pdf__text_only"
+
+
+@pytest.mark.asyncio
+async def test_document_extractor_batches_page_visual_requests(monkeypatch, tmp_path: Path):
+    calls: list[str | None] = []
+
+    class FakeDriver:
+        async def inspect(self, path: Path):
+            return DocumentProfile(
+                source_path=str(path),
+                file_name=path.name,
+                file_type="pdf",
+                file_extension=".pdf",
+                file_size=1,
+                unit_type="page",
+                total_units=34,
+            )
+
+        async def extract(self, path: Path, output_dir: Path, ranges=None, **kwargs):
+            calls.append(ranges)
+            return ExtractionResult(
+                document_id="doc_mock",
+                source_path=str(path),
+                output_dir=str(output_dir),
+                chunks=[
+                    DocumentChunk(
+                        chunk_id=f"chunk_{len(calls):04d}",
+                        title=f"Pages {ranges}",
+                        content=f"content {ranges}",
+                        source_range=f"pages:{ranges}",
+                    )
+                ],
+                pages_processed=len(RangeParser.parse_numeric(ranges)),
+                total_units=34,
+                metadata={"asset_strategy": {"resolved_strategy": "page_visual"}},
+            )
+
+    class FakeRegistry:
+        def get_driver(self, path: Path):
+            return FakeDriver()
+
+    monkeypatch.setattr(
+        "app.utils.document_parse.service.document_extractor.get_document_driver_registry",
+        lambda: FakeRegistry(),
+    )
+
+    result = await DocumentExtractor().extract(
+        tmp_path / "mock.pdf",
+        tmp_path / "output",
+        asset_strategy="page_visual",
+    )
+
+    assert calls == ["1-20", "21-34"]
+    assert result.metadata["execution_batches"] == [
+        {"ranges": "1-20", "unit_count": 20},
+        {"ranges": "21-34", "unit_count": 14},
+    ]
+    assert result.metadata["execution_limits"]["max_units_per_call"] == 20
+
+
+@pytest.mark.asyncio
+async def test_document_indexer_replaces_overlapping_chunk_ranges(tmp_path: Path):
+    output_dir = tmp_path / "output"
+    chunks_dir = output_dir / "chunks"
+    chunks_dir.mkdir(parents=True)
+    (chunks_dir / "chunk_0001.md").write_text("old", encoding="utf-8")
+    (chunks_dir / "chunk_0002.md").write_text("new", encoding="utf-8")
+
+    existing = DocumentChunk(
+        chunk_id="chunk_0001",
+        title="Pages 1-10",
+        content="old",
+        source_range="pages:1-10",
+        path="chunks/chunk_0001.md",
+    )
+    current = DocumentChunk(
+        chunk_id="chunk_0002",
+        title="Pages 1-5",
+        content="new",
+        source_range="pages:1-5",
+        path="chunks/chunk_0002.md",
+    )
+
+    merged = await DocumentIndexer._merge_chunks(
+        output_dir,
+        [existing],
+        [current],
+        unit_type="page",
+        total_units=10,
+    )
+
+    assert [chunk.chunk_id for chunk in merged] == ["chunk_0002"]
+    assert merged[0].content == "new"
+
+
+def test_reusable_image_selector_filters_low_value_layout_fragment():
+    images = [
+        {
+            "path": "/tmp/line.jpeg",
+            "original_name": "line.jpeg",
+            "name": "line.jpeg",
+            "width": 1515,
+            "height": 30,
+            "features": {"is_solid_or_blank": False},
+            "rects": [{"x0": 100, "y0": 10, "x1": 600, "y1": 20, "area_ratio": 0.004}],
+        },
+        {
+            "path": "/tmp/photo.jpeg",
+            "original_name": "photo.jpeg",
+            "name": "photo.jpeg",
+            "width": 600,
+            "height": 400,
+            "features": {"is_solid_or_blank": False},
+            "rects": [{"x0": 100, "y0": 100, "x1": 500, "y1": 350, "area_ratio": 0.18}],
+        },
+    ]
+
+    selected, skipped = ReusableImageSelector.select(images, selected_unit_count=1)
+
+    assert [item["original_name"] for item in selected] == ["photo.jpeg"]
+    assert skipped[0]["reason"] == "low-value layout fragment"
 
 
 def test_document_reading_planner_accepts_all_range_from_index():
@@ -657,7 +912,7 @@ async def test_image_document_parse_pipeline_uses_metadata_without_visual_model(
     assert profile.metadata["width"] == 32
     assert extraction.assets
     assert extraction.chunks[0].path == "chunks/chunk_0001.md"
-    assert "![sample.png](assets/sample.png)" in extraction.chunks[0].content
+    assert "![sample.png](../assets/sample.png)" in extraction.chunks[0].content
     assert structure.metadata["chunk_lookup"]["chunk_0001"]["source_range"] == "image:1"
     assert (output_dir / "assets" / "sample.png").exists()
 
@@ -677,6 +932,13 @@ async def test_image_document_driver_filters_solid_image_asset(tmp_path: Path):
     assert "![" not in extraction.chunks[0].content
     assert "Filtered solid/blank image" in extraction.chunks[0].content
     assert not (output_dir / "assets" / "solid.png").exists()
+
+    visual_output_dir = tmp_path / "solid-image-visual.document"
+    visual_extraction = await ImageDocumentDriver().extract(source, visual_output_dir, asset_strategy="page_visual")
+
+    assert len(visual_extraction.assets) == 1
+    assert visual_extraction.metadata["asset_strategy"]["resolved_strategy"] == "page_visual"
+    assert (visual_output_dir / "assets" / "solid.png").exists()
 
 
 @pytest.mark.asyncio
@@ -809,6 +1071,10 @@ async def test_sampler_recommends_image_understanding_for_scanned_pdf(tmp_path: 
 
     assert result["text_signal"]["image_dominant"] is True
     assert any("understand_document_images" in action for action in result["recommendations"])
+    assert result["strategy_context"]["recommended_strategy"] == "page_visual"
+    assert result["strategy_context"]["requires_user_confirmation"] is True
+    assert result["strategy_context"]["decision_mode"] == "ask_user"
+    assert "scores" in result["strategy_context"]
     assert (output_dir / "samples" / "sample_page_1_2.md").exists()
     assert (output_dir / "document.reading_state.json").exists()
 
@@ -830,7 +1096,10 @@ async def test_sampler_recommends_text_extraction_for_text_pdf(tmp_path: Path):
 
     assert result["text_signal"]["has_extractable_text"] is True
     assert any("extract_document_content" in action for action in result["recommendations"])
+    assert result["strategy_context"]["recommended_strategy"] == "text_only"
+    assert result["strategy_context"]["scores"]["text_only"] > result["strategy_context"]["scores"]["page_visual"]
     assert plan["recommended_action"] == "extract_document_content"
+    assert plan["recommended_asset_strategy"] == "text_only"
 
 
 @pytest.mark.asyncio
@@ -848,7 +1117,7 @@ async def test_document_image_understander_writes_visual_results_back_to_chunk(t
     assets_dir.mkdir(parents=True)
     Image.new("RGB", (32, 16), color="white").save(assets_dir / "page1.png")
     (chunks_dir / "chunk_0001.md").write_text(
-        "## Page 1\n\n![Page 1](assets/page1.png)\n",
+        "## Page 1\n\n![Page 1](../assets/page1.png)\n",
         encoding="utf-8",
     )
     await async_write_json(
@@ -863,7 +1132,7 @@ async def test_document_image_understander_writes_visual_results_back_to_chunk(t
                     "chunk_id": "chunk_0001",
                     "path": "chunks/chunk_0001.md",
                     "source_range": "pages:1",
-                    "content": "## Page 1\n\n![Page 1](assets/page1.png)\n",
+                    "content": "## Page 1\n\n![Page 1](../assets/page1.png)\n",
                 }
             ],
             "assets": [
@@ -1155,7 +1424,35 @@ async def test_pdf_visual_hint_persists_page_snapshot_asset(tmp_path: Path):
     assert extraction.assets[0].asset_type == DocumentAssetType.PAGE_SNAPSHOT.value
     assert (output_dir / extraction.assets[0].path).exists()
     assert "### Page Snapshot" in extraction.chunks[0].content
+    assert f"![{extraction.assets[0].title}](../{extraction.assets[0].path})" in extraction.chunks[0].content
     assert extraction.chunks[0].path == "chunks/chunk_0001.md"
+
+
+@pytest.mark.asyncio
+async def test_pdf_page_visual_strategy_suppresses_embedded_image_noise(tmp_path: Path):
+    import fitz
+
+    image_path = tmp_path / "embedded.png"
+    _save_mock_content_image(image_path, size=(80, 60), color="blue")
+    source = tmp_path / "page-visual.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=200)
+    page.insert_text((20, 30), "Presentation page text")
+    page.insert_image(fitz.Rect(20, 50, 100, 110), filename=str(image_path))
+    doc.save(str(source))
+    doc.close()
+
+    extraction = await PdfDocumentDriver().extract(
+        source,
+        tmp_path / "page-visual-output",
+        ranges="1",
+        asset_strategy="page_visual",
+    )
+
+    assert extraction.metadata["asset_strategy"]["resolved_strategy"] == "page_visual"
+    assert [asset.asset_type for asset in extraction.assets] == [DocumentAssetType.PAGE_SNAPSHOT.value]
+    assert "### Embedded Images" not in extraction.chunks[0].content
+    assert "### Page Snapshot" in extraction.chunks[0].content
 
 
 @pytest.mark.asyncio
@@ -1182,7 +1479,7 @@ async def test_pdf_local_text_extracts_image_assets_without_visual_understanding
     assert extraction.assets[0].path.startswith("assets/")
     assert (output_dir / extraction.assets[0].path).exists()
     assert structure.assets[0].metadata["page"] == 1
-    assert f"![PDF page 1 image 1]({extraction.assets[0].path})" in extraction.chunks[0].content
+    assert f"![PDF page 1 image 1](../{extraction.assets[0].path})" in extraction.chunks[0].content
 
 
 @pytest.mark.asyncio
@@ -1283,7 +1580,10 @@ async def test_export_small_scanned_pdf_simple_artifacts_keep_assets(tmp_path: P
     assert (output_dir / "document.md").exists()
     assert (output_dir / "document.index.json").exists()
     assert (output_dir / "assets").exists()
-    assert "![" in (output_dir / "document.md").read_text(encoding="utf-8")
+    document_text = (output_dir / "document.md").read_text(encoding="utf-8")
+    assert "![" in document_text
+    assert "](../assets/" not in document_text
+    assert "](assets/" in document_text
     assert not (output_dir / "chunks").exists()
 
 
@@ -1420,6 +1720,38 @@ async def test_export_large_document_reuses_existing_chunks_with_visual_writebac
     assert "<!-- document-converter-visual:assets/page_0001.png -->" in (output_dir / "document.md").read_text(encoding="utf-8")
 
 
+@pytest.mark.asyncio
+async def test_export_explicit_asset_strategy_does_not_reuse_legacy_chunks(tmp_path: Path):
+    source = tmp_path / "legacy.pdf"
+    source.write_bytes(b"%PDF placeholder")
+    output_dir = tmp_path / "legacy-output"
+    chunks_dir = output_dir / "chunks"
+    chunks_dir.mkdir(parents=True)
+    (chunks_dir / "chunk_0001.md").write_text("## Page 1\n\nLegacy content.\n", encoding="utf-8")
+    (output_dir / "document.index.json").write_text(
+        json.dumps(
+            {
+                "source_path": str(source),
+                "file_type": "pdf",
+                "unit_type": "page",
+                "total_units": 1,
+                "chunks": [
+                    {
+                        "chunk_id": "chunk_0001",
+                        "path": "chunks/chunk_0001.md",
+                        "source_range": "pages:1",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    tool = ExportDocumentMarkdown()
+    assert await tool._load_existing_chunks_for_export(source, output_dir, None, "auto")
+    assert await tool._load_existing_chunks_for_export(source, output_dir, None, "text_only") == []
+
+
 def test_artifact_mode_rejects_forced_simple_for_large_documents():
     profile = DocumentProfile(
         source_path="/tmp/large.pdf",
@@ -1516,6 +1848,57 @@ async def test_powerpoint_driver_preserves_slide_image_ranges(tmp_path: Path, mo
     assert len(selected) == 5
 
 
+@pytest.mark.asyncio
+async def test_powerpoint_page_visual_strategy_keeps_selected_assets(tmp_path: Path, monkeypatch):
+    source = tmp_path / "mock-page-visual.pptx"
+    source.write_bytes(b"mock pptx")
+    raw_images = tmp_path / "raw-page-visual-images"
+    raw_images.mkdir()
+    for slide, color in enumerate(("blue", "red"), start=1):
+        _save_mock_content_image(raw_images / f"slide_{slide:02d}_image.png", size=(32, 18), color=color)
+    output_dir = tmp_path / "mock-page-visual.document"
+    output_dir.mkdir()
+    parser_calls: list[dict] = []
+
+    class FakeParser:
+        """模拟支持图片抽取参数的底层文件解析器。"""
+
+        async def parse(self, path: Path, output_path: Path, **kwargs):
+            """记录解析参数并写入带幻灯片编号的 Markdown。"""
+
+            parser_calls.append(kwargs)
+            content = "\n\n".join(
+                [
+                    f"<!-- Slide number: {slide} -->\n\n![slide_{slide:02d}_image.png](./raw-page-visual-images/slide_{slide:02d}_image.png)"
+                    for slide in range(1, 3)
+                ]
+            )
+            output_path.write_text(content, encoding="utf-8")
+            return ParseResult(
+                metadata=ParseMetadata(additional_info={"slide_count": 2}),
+                success=True,
+                output_file_path=output_path,
+                output_images_dir=str(raw_images),
+            )
+
+    monkeypatch.setattr("app.utils.file_parse.get_file_parser", lambda: FakeParser())
+    monkeypatch.setattr(
+        "app.utils.document_parse.drivers.powerpoint_driver.PptxStructureReader.read_slide_titles",
+        lambda path: [],
+    )
+
+    extraction = await PowerPointDocumentDriver().extract(
+        source,
+        output_dir,
+        ranges="1-2",
+        asset_strategy="page_visual",
+    )
+
+    assert parser_calls[0]["extract_images"] is True
+    assert len(extraction.assets) == 2
+    assert extraction.metadata["asset_strategy"]["execution"] == "selected_embedded_assets"
+
+
 def test_generic_driver_appends_missing_image_links():
     driver = GenericMarkItDownDriver()
     assets = [
@@ -1567,6 +1950,24 @@ async def test_pdf_skips_watermark_images_and_keeps_one_repeated_logo(tmp_path: 
     assert len([item for item in extraction.metadata["skipped_images"] if "watermark" in item["reason"]]) == 3
     assert len([item for item in extraction.metadata["skipped_images"] if "duplicate repeated image" in item["reason"]]) == 2
     assert extraction.chunks[0].content.count("![") == 5
+
+    full_fidelity_output_dir = tmp_path / "with-watermark-full-fidelity.document"
+    full_fidelity_extraction = await PdfDocumentDriver().extract(
+        source,
+        full_fidelity_output_dir,
+        mode="local_text",
+        asset_strategy="full_fidelity",
+    )
+
+    embedded_full_fidelity = [
+        asset for asset in full_fidelity_extraction.assets if asset.asset_type == DocumentAssetType.EMBEDDED_IMAGE.value
+    ]
+    snapshot_full_fidelity = [
+        asset for asset in full_fidelity_extraction.assets if asset.asset_type == DocumentAssetType.PAGE_SNAPSHOT.value
+    ]
+    assert len(embedded_full_fidelity) == 7
+    assert len(snapshot_full_fidelity) == 3
+    assert full_fidelity_extraction.metadata["skipped_images"] == []
 
 
 @pytest.mark.asyncio

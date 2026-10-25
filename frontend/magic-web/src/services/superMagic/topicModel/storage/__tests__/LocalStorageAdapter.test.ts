@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest"
 import { LocalStorageAdapter } from "../LocalStorageAdapter"
+import { reportCaughtStorageFailure } from "@/app/services/storage/storageFailure"
+
+const { reportCaughtStorageFailure: reportCaughtStorageFailureMock } = vi.hoisted(() => ({
+	reportCaughtStorageFailure: vi.fn(),
+}))
+
+vi.mock("@/app/services/storage/storageFailure", () => ({
+	reportCaughtStorageFailure: reportCaughtStorageFailureMock,
+}))
 
 describe("LocalStorageAdapter", () => {
 	let adapter: LocalStorageAdapter
@@ -76,12 +85,18 @@ describe("LocalStorageAdapter", () => {
 			expect(mockLocalStorage["test-key"]).toBe("new-value")
 		})
 
-		it("should throw error on failure", async () => {
+		it("should report and swallow errors on failure", async () => {
 			vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
 				throw new Error("Storage full")
 			})
 
-			await expect(adapter.setItem("test-key", "test-value")).rejects.toThrow()
+			await expect(adapter.setItem("test-key", "test-value")).resolves.toBeUndefined()
+			expect(reportCaughtStorageFailure).toHaveBeenCalledWith({
+				eventKey: "set_item_local_storage_failed",
+				error: expect.any(Error),
+				message: "Failed to set item in localStorage",
+				key: "test-key",
+			})
 		})
 	})
 
@@ -99,12 +114,13 @@ describe("LocalStorageAdapter", () => {
 			await expect(adapter.removeItem("non-existent-key")).resolves.not.toThrow()
 		})
 
-		it("should throw error on failure", async () => {
+		it("should report and swallow errors on failure", async () => {
 			vi.spyOn(window.localStorage, "removeItem").mockImplementation(() => {
 				throw new Error("Remove error")
 			})
 
-			await expect(adapter.removeItem("test-key")).rejects.toThrow()
+			await expect(adapter.removeItem("test-key")).resolves.toBeUndefined()
+			expect(reportCaughtStorageFailure).toHaveBeenCalled()
 		})
 	})
 
@@ -119,12 +135,13 @@ describe("LocalStorageAdapter", () => {
 			expect(Object.keys(mockLocalStorage).length).toBe(0)
 		})
 
-		it("should throw error on failure", async () => {
+		it("should report and swallow errors on failure", async () => {
 			vi.spyOn(window.localStorage, "clear").mockImplementation(() => {
 				throw new Error("Clear error")
 			})
 
-			await expect(adapter.clear()).rejects.toThrow()
+			await expect(adapter.clear()).resolves.toBeUndefined()
+			expect(reportCaughtStorageFailure).toHaveBeenCalled()
 		})
 	})
 

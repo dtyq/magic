@@ -6,7 +6,8 @@ import { IconChevronRight } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import HighlightText from "../HighlightText"
 import useFileParser from "../hooks/useFileParser"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 import { useMagicSearchStore } from "../../store"
 import { history } from "@/routes"
 
@@ -16,7 +17,6 @@ interface SearchItemKnowledgeProps {
 
 function Knowledge(props: SearchItemKnowledgeProps) {
 	const { item } = props
-	const { styles, cx } = useSearchItemCommonStyles()
 
 	const { t } = useTranslation("search")
 	const closePanel = useMagicSearchStore((store) => store.closePanel)

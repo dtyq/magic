@@ -1,12 +1,10 @@
-import { TriangleAlert } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { useRef } from "react"
+import { cn } from "@/utils/cn"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
-import { Button } from "@/components/shadcn-ui/button"
-import { Separator } from "@/components/shadcn-ui/separator"
 import type { MessageEditorSize } from "../../types"
 import { observer } from "mobx-react-lite"
-import { formatTokenCount } from "./utils"
+import type { ContextInputBreakdown } from "@/pages/superMagic/stores/types"
+import ContextUsageDetails from "./ContextUsageDetails"
 
 /** Max token context window size */
 const MAX_TOKEN_COUNT = 200_000
@@ -96,9 +94,12 @@ function TokenUsageRing({ ratio, size, isHighUsage }: TokenUsageRingProps) {
 }
 
 interface TokenUsageButtonProps {
+	inputBreakdown?: ContextInputBreakdown
 	tokenUsed: number
 	/** Max context window token count; falls back to built-in default when not provided */
 	maxContextTokens?: number
+	/** 后端已解析的自动整理阈值；缺少时不在前端推导。 */
+	compactionThresholdTokens?: number
 	/** Ring diameter in px; overrides size-derived default when provided */
 	iconSize?: number
 	size?: MessageEditorSize
@@ -110,20 +111,26 @@ interface TokenUsageButtonProps {
 /** Token usage indicator button with popover detail panel */
 function TokenUsageButton({
 	tokenUsed,
+	inputBreakdown,
 	maxContextTokens,
+	compactionThresholdTokens,
 	iconSize,
 	size = "default",
 	className,
 	onCompressContext,
 }: TokenUsageButtonProps) {
-	const { t } = useTranslation("super")
+	const compressButtonRef = useRef<HTMLButtonElement>(null)
 
 	const effectiveMaxTokens = maxContextTokens ?? MAX_TOKEN_COUNT
-	const ratio = Math.min(tokenUsed / effectiveMaxTokens, 1)
+	const ratio = Math.min(Math.max(tokenUsed / effectiveMaxTokens, 0), 1)
 	const isHighUsage = ratio >= WARNING_THRESHOLD
 	const percentageLabel = formatPercentage(ratio)
-	const usedLabel = formatTokenCount(tokenUsed)
-	const maxLabel = formatTokenCount(effectiveMaxTokens)
+	const threshold =
+		compactionThresholdTokens !== undefined &&
+		Number.isFinite(compactionThresholdTokens) &&
+		compactionThresholdTokens > 0
+			? compactionThresholdTokens
+			: undefined
 
 	const triggerStyle = TRIGGER_STYLE_MAP[size]
 	const ringSize = iconSize ?? triggerStyle.ring
@@ -151,62 +158,27 @@ function TokenUsageButton({
 			</PopoverTrigger>
 
 			<PopoverContent
-				className="w-[300px] overflow-hidden p-0"
+				className="w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[20px] p-0"
 				align="end"
 				side="top"
 				sideOffset={8}
+				onOpenAutoFocus={(event) => {
+					// 保持原来聚焦手动操作的行为，避免新增问号在浮层打开时自动弹出简介遮挡正文。
+					event.preventDefault()
+					compressButtonRef.current?.focus()
+				}}
 			>
-				{/* Usage section */}
-				<div className="flex flex-col gap-1.5 p-2">
-					{/* Header row */}
-					<div className="flex items-center gap-1.5 text-xs leading-4 text-foreground">
-						<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal">
-							{t("ui.tokenUsage.contextUsage")}
-						</span>
-						<span className="shrink-0 font-semibold">{percentageLabel}</span>
-					</div>
-					<div className="text-xs leading-4 text-muted-foreground">
-						{t("ui.tokenUsage.contextUsageDescription")}
-					</div>
-
-					{/* Progress bar */}
-					<div className="relative h-2 w-full overflow-hidden rounded-full bg-fill-secondary">
-						<div
-							className={cn(
-								"absolute left-0 top-0 h-full rounded-full transition-all",
-								isHighUsage ? "bg-orange-500" : "bg-foreground",
-							)}
-							style={{ width: `${ratio * 100}%` }}
-						/>
-					</div>
-
-					{/* Token count label */}
-					<span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-xs leading-4 text-muted-foreground">
-						{t("ui.tokenUsage.tokenCount", {
-							used: usedLabel,
-							max: maxLabel,
-						})}
-					</span>
-				</div>
-				<Separator />
-				<div className="flex flex-col gap-1.5 p-2">
-					{/* Warning message */}
-					{isHighUsage && (
-						<div className="flex items-center gap-1 rounded-md bg-orange-500/10 p-1 dark:bg-orange-500/20">
-							<TriangleAlert
-								size={16}
-								className="mt-0.5 shrink-0 text-orange-500 dark:text-orange-400"
-							/>
-							<p className="flex-1 whitespace-pre-wrap text-xs leading-4 text-orange-500 dark:text-orange-400">
-								{t("ui.tokenUsage.highContextWarning")}
-							</p>
-						</div>
-					)}
-					{/* Compress context button */}
-					<Button size="sm" className="h-8 w-full text-xs" onClick={onCompressContext}>
-						{t("ui.tokenUsage.compressContext")}
-					</Button>
-				</div>
+				<ContextUsageDetails
+					tokenUsed={tokenUsed}
+					maxTokens={effectiveMaxTokens}
+					ratio={ratio}
+					percentage={percentageLabel}
+					threshold={threshold}
+					inputBreakdown={inputBreakdown}
+					isHighUsage={isHighUsage}
+					compressButtonRef={compressButtonRef}
+					onCompressContext={onCompressContext}
+				/>
 			</PopoverContent>
 		</Popover>
 	)

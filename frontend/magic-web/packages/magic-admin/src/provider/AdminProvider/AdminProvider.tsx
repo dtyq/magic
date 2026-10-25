@@ -8,6 +8,7 @@ import {
 	ThemeType,
 	MagicThemeProvider,
 	SearchComponentProvider,
+	AdminAuthContentLoading,
 } from "@admin-components"
 import locales from "../../../components/locales"
 import type { LocaleType } from "../../../components/locales"
@@ -83,7 +84,10 @@ function AdminProvider(props: PropsWithChildren<AdminProviderProps>) {
 
 	useEffect(() => {
 		let cancelled = false
-		setI18nReady(false)
+		const isSameLanguage = adminI18n.isInitialized && adminI18n.language === safeLanguage
+		if (!isSameLanguage) {
+			setI18nReady(false)
+		}
 		initAdminI18n(safeLanguage).then(() => {
 			if (cancelled) return
 			syncRuntimeCommonResources(safeLanguage, platformNameRef.current)
@@ -121,7 +125,7 @@ function AdminProvider(props: PropsWithChildren<AdminProviderProps>) {
 				<ConfigProvider locale={locale}>
 					<MagicThemeProvider>
 						<SearchComponentProvider>
-							{i18nReady ? children : null}
+							{i18nReady ? children : <AdminAuthContentLoading fullScreen />}
 						</SearchComponentProvider>
 					</MagicThemeProvider>
 				</ConfigProvider>

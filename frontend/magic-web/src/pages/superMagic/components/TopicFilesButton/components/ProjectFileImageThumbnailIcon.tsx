@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { AttachmentItem } from "../hooks/types"
 import {
 	resolveProjectFileImagePreviewSource,
 	useProjectFileImagePreviewContext,
 	useProjectFileImagePreviewState,
 } from "./ProjectFileImagePreviewProvider"
+import { isProjectFileImagePreviewDirectUrlUsable } from "./projectFileImagePreviewCoordinator"
 import { observeProjectFileImagePreviewVisibility } from "./projectFileImagePreviewRuntime"
 
 type ImageLoadPhase = "loading" | "loaded" | "error"
@@ -47,11 +48,11 @@ export function ProjectFileImageThumbnailIcon({
 			!element ||
 			!observedSource ||
 			!observedSource.fileId ||
-			observedSource.directThumbnailUrl
+			!setPreviewVisible ||
+			isProjectFileImagePreviewDirectUrlUsable(observedSource)
 		) {
 			return
 		}
-		if (!setPreviewVisible) return
 
 		let isVisible = false
 		return observeProjectFileImagePreviewVisibility(element, (nextVisible) => {
@@ -59,9 +60,15 @@ export function ProjectFileImageThumbnailIcon({
 			isVisible = nextVisible
 			setPreviewVisible(observedSource, nextVisible)
 		})
-	}, [setPreviewVisible, source?.cacheKey, source?.directThumbnailUrl, source?.fileId])
+	}, [
+		setPreviewVisible,
+		source?.cacheKey,
+		source?.directThumbnailExpiresAt,
+		source?.directThumbnailUrl,
+		source?.fileId,
+	])
 
-	if (!source || (!manager && !source.directThumbnailUrl)) {
+	if (!source || (!manager && !isProjectFileImagePreviewDirectUrlUsable(source))) {
 		return <>{fallback}</>
 	}
 

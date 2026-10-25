@@ -14,7 +14,7 @@ import RecallTest from "./components/RecallTest"
 import type { Knowledge } from "@/types/knowledge"
 import { KnowledgeApi } from "@/apis"
 import Document from "./components/Document"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getVectorKnowledgeListRoute } from "@/pages/vectorKnowledge/utils"
 
 interface VectorKnowledgeDetailProps {

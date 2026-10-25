@@ -1,4 +1,4 @@
-import type { RequestConfig } from "@/apis/core/HttpClient"
+import type { RequestConfig } from "@/infrastructure/network/http/clients"
 import type { Login } from "@/types/login"
 
 export interface ThirdPartyAccountIdentity {
@@ -31,10 +31,4 @@ export type RequestThirdPartyAccountConflictDecision = (
 ) => Promise<ThirdPartyAccountConflictDecision>
 
 export type ThirdPartyAccountReconcileResult =
-	| "same-user"
-	| "kept-current"
-	| "switched"
-	| "skipped"
-	| "unsupported"
-	| "stale"
-	| "failed"
+	"same-user" | "kept-current" | "switched" | "skipped" | "unsupported" | "stale" | "failed"

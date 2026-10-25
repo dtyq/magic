@@ -11,7 +11,7 @@ use App\Infrastructure\Core\Exception\Annotation\ErrorMessage;
 
 enum PermissionErrorCode: int
 {
-    #[ErrorMessage(message: 'permission.error')]
+    #[ErrorMessage(message: 'permission.generic_error')]
     case Error = 42000;
 
     #[ErrorMessage(message: 'permission.validate_failed')]
@@ -22,6 +22,9 @@ enum PermissionErrorCode: int
 
     #[ErrorMessage(message: 'permission.access_denied')]
     case AccessDenied = 42003;
+
+    #[ErrorMessage(message: 'permission.magic_claw_runtime_denied')]
+    case MAGIC_CLAW_RUNTIME_DENIED = 42004;
 
     // 组织相关错误码
     #[ErrorMessage(message: 'permission.organization_code_required')]

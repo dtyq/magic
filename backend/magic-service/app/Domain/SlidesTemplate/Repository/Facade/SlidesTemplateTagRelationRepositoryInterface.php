@@ -21,7 +21,13 @@ interface SlidesTemplateTagRelationRepositoryInterface
 
     /**
      * @param int[] $templateIds
+     * @param string[] $tagCodes
      * @return array<int, SlidesTemplateTagEntity[]>
      */
-    public function findTagsByTemplateIds(SlidesTemplateDataIsolation $dataIsolation, array $templateIds, ?int $tagStatus = null): array;
+    public function findTagsByTemplateIds(
+        SlidesTemplateDataIsolation $dataIsolation,
+        array $templateIds,
+        ?int $tagStatus = null,
+        array $tagCodes = [],
+    ): array;
 }

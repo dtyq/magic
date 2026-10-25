@@ -8,6 +8,7 @@ import type { ImageActionPayload } from "../core/imageTypes"
 import type { ImageManager } from "../managers/ImageManager"
 import type { StyleManager } from "../managers/StyleManager"
 import type { TextStyleManager } from "../managers/TextStyleManager"
+import type { DomStructureManager } from "../managers/DomStructureManager"
 import { EditorLogger } from "../utils/EditorLogger"
 
 interface CommandHandlersConfig {
@@ -15,10 +16,11 @@ interface CommandHandlersConfig {
 	styleManager: StyleManager
 	textStyleManager: TextStyleManager
 	imageManager: ImageManager
+	domStructureManager: DomStructureManager
 }
 
 export function registerCommandHandlers(config: CommandHandlersConfig): void {
-	const { bridge, styleManager, textStyleManager, imageManager } = config
+	const { bridge, styleManager, textStyleManager, imageManager, domStructureManager } = config
 
 	// Set background color
 	bridge.onCommand("SET_BACKGROUND_COLOR", async (payload: unknown) => {
@@ -100,9 +102,9 @@ export function registerCommandHandlers(config: CommandHandlersConfig): void {
 			selector: string
 			styles: Record<string, string>
 		}
-		styleManager.applyStylesTemporary(selector, styles)
+		const layout = styleManager.applyStylesTemporary(selector, styles)
 		EditorLogger.debug("Apply styles temporarily", { selector, styles })
-		return { success: true }
+		return { success: true, ...layout }
 	})
 
 	// Begin batch operation
@@ -156,6 +158,20 @@ export function registerCommandHandlers(config: CommandHandlersConfig): void {
 		return { success: true }
 	})
 
+	// Update common HTML attributes
+	bridge.onCommand("UPDATE_ELEMENT_ATTRIBUTES", async (payload: unknown) => {
+		const { selector, attributes } = payload as {
+			selector: string
+			attributes: Record<string, string | null>
+		}
+		await styleManager.updateElementAttributes(selector, attributes)
+		EditorLogger.info("Update element attributes", {
+			selector,
+			updatedKeys: Object.keys(attributes),
+		})
+		return { success: true }
+	})
+
 	// Set element position
 	bridge.onCommand("SET_ELEMENT_POSITION", async (payload: unknown) => {
 		const { selector, top, left } = payload as {
@@ -194,6 +210,83 @@ export function registerCommandHandlers(config: CommandHandlersConfig): void {
 			EditorLogger.error("Duplicate element failed", error)
 			throw error
 		}
+	})
+
+	bridge.onCommand("DUPLICATE_DOM_NODE", async (payload: unknown) => {
+		const { nodeId } = payload as { nodeId: string }
+		await domStructureManager.duplicateNode(nodeId)
+		return { success: true }
+	})
+
+	bridge.onCommand("MOVE_DOM_NODE", async (payload: unknown) => {
+		const { nodeId, targetParentId, targetIndex } = payload as {
+			nodeId: string
+			targetParentId: string
+			targetIndex: number
+		}
+		await domStructureManager.moveNode(nodeId, targetParentId, targetIndex)
+		return { success: true }
+	})
+
+	bridge.onCommand("BEGIN_DOM_MOVE_PREVIEW", async (payload: unknown) => {
+		const { nodeId } = payload as { nodeId: string }
+		domStructureManager.beginMovePreview(nodeId)
+		return { success: true }
+	})
+
+	bridge.onCommand("PREVIEW_DOM_MOVE", async (payload: unknown) => {
+		const { nodeId, targetNodeId, position } = payload as {
+			nodeId: string
+			targetNodeId: string
+			position: "before" | "inside" | "after"
+		}
+		const applied = domStructureManager.previewMove(nodeId, targetNodeId, position)
+		return { success: true, applied }
+	})
+
+	bridge.onCommand("COMMIT_DOM_MOVE_PREVIEW", async () => {
+		domStructureManager.commitMovePreview()
+		return { success: true }
+	})
+
+	bridge.onCommand("CANCEL_DOM_MOVE_PREVIEW", async () => {
+		domStructureManager.cancelMovePreview()
+		return { success: true }
+	})
+
+	bridge.onCommand("CUT_DOM_NODE", async (payload: unknown) => {
+		const { nodeId } = payload as { nodeId: string }
+		await domStructureManager.cutNode(nodeId)
+		return { success: true }
+	})
+
+	bridge.onCommand("PASTE_DOM_NODE", async (payload: unknown) => {
+		const { targetParentId, targetIndex } = payload as {
+			targetParentId: string
+			targetIndex?: number
+		}
+		await domStructureManager.pasteNode(targetParentId, targetIndex)
+		return { success: true }
+	})
+
+	bridge.onCommand("INSERT_TEXT_NODE", async (payload: unknown) => {
+		const { parentNodeId, index, textContent } = payload as {
+			parentNodeId: string
+			index?: number
+			textContent: string
+		}
+		await domStructureManager.insertTextNode(parentNodeId, textContent, index)
+		return { success: true }
+	})
+
+	bridge.onCommand("INSERT_IMAGE_NODE", async (payload: unknown) => {
+		const { parentSelector, index } = payload as { parentSelector: string; index?: number }
+		await imageManager.runImageAction({
+			action: "insert-image-node",
+			parentSelector,
+			index,
+		})
+		return { success: true }
 	})
 
 	bridge.onCommand("RUN_IMAGE_ACTION", async (payload: unknown) => {

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { MAGIC_CLAW_STATUS, type MagicClawStatus } from "@/apis/modules/magicClawStatus"
 import { Badge } from "@/components/shadcn-ui/badge"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { MAGI_CLAW_DISPLAY_STATUS, type MagiClawDisplayStatus } from "./magiClawDisplayStatus"
 
 interface MagicClawStatusBadgeProps {

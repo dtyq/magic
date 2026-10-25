@@ -225,7 +225,7 @@ export class RecordingPersistence {
 			typeof obj.id === "string" &&
 			typeof obj.startTime === "number" &&
 			typeof obj.status === "string" &&
-			["recording", "paused"].includes(obj.status as string)
+			["recording", "paused", "server_cancelled"].includes(obj.status as string)
 		)
 	}
 	/**

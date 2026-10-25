@@ -10,6 +10,9 @@ import {
 } from "../utils/attachmentIndex"
 
 interface UseFileShortcutsOptions {
+	containerRef: React.RefObject<HTMLElement>
+	activeFileId?: string | null
+	useProjectCache?: boolean
 	/** 是否启用文件加入对话快捷键。 */
 	enabled?: boolean
 	hoveredItemRef: MutableRefObject<string | null>
@@ -33,6 +36,9 @@ interface UseFileShortcutsOptions {
  */
 export function useFileShortcuts({
 	enabled = true,
+	containerRef,
+	activeFileId,
+	useProjectCache = true,
 	hoveredItemRef,
 	contextMenuItemId,
 	treeIndex,
@@ -58,6 +64,30 @@ export function useFileShortcuts({
 			const isShortcutPressed = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l"
 
 			if (!isShortcutPressed) return
+			const container = containerRef.current
+			if (
+				!container ||
+				!container.getClientRects().length ||
+				getComputedStyle(container).visibility === "hidden"
+			)
+				return
+			const hoveredTree = document.querySelector("[data-topic-files-shortcuts]:hover")
+			if (hoveredTree && hoveredTree !== container) return
+			if (
+				!hoveredTree &&
+				!contextMenuItemId &&
+				activeFileId &&
+				!treeIndex.getItemById(activeFileId)
+			)
+				return
+			if (
+				!useProjectCache &&
+				!contextMenuItemId &&
+				!hoveredItemRef.current &&
+				!activeFileId &&
+				!selectedItems?.size
+			)
+				return
 
 			// 立即阻止浏览器的默认行为（地址栏聚焦）
 			e.preventDefault()
@@ -74,17 +104,22 @@ export function useFileShortcuts({
 				return
 			}
 
-			const cachedState = await projectStateRepository.getProjectState(
-				organizationCode,
-				selectedProjectId || "",
-			)
+			const cachedState = useProjectCache
+				? await projectStateRepository.getProjectState(
+						organizationCode,
+						selectedProjectId || "",
+					)
+				: undefined
 
 			// 优先级 2: 右键菜单打开的文件
 			// 优先级 3: 悬浮的文件
 			// 优先级 4: 当前激活的标签页
 			const hoveredItem = hoveredItemRef.current
 			const targetFileId =
-				contextMenuItemId || hoveredItem || cachedState?.fileState?.activeTabId
+				contextMenuItemId ||
+				hoveredItem ||
+				activeFileId ||
+				cachedState?.fileState?.activeTabId
 
 			if (!targetFileId) {
 				console.log("⚠️ No target file: no context menu, hovered item or active tab")
@@ -179,6 +214,9 @@ export function useFileShortcuts({
 			document.removeEventListener("keydown", handleKeyDown, true)
 		}
 	}, [
+		containerRef,
+		activeFileId,
+		useProjectCache,
 		enabled,
 		hoveredItemRef,
 		contextMenuItemId,

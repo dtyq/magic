@@ -8,6 +8,7 @@ import {
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
 import { Input } from "@/components/shadcn-ui/input"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 interface RecordingDetailSpeakerDialogProps {
 	open: boolean
@@ -31,12 +32,23 @@ export function RecordingDetailSpeakerDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md" data-testid="recording-detail-speaker-dialog">
+			<DialogContent
+				className="sm:max-w-md"
+				data-testid="recording-detail-speaker-dialog"
+				onOpenAutoFocus={(event) => {
+					// Keep the desktop trigger focused while preserving Radix's normal focus restoration.
+					event.preventDefault()
+				}}
+			>
 				<DialogHeader>
 					<DialogTitle>{t("detail.speakerSettingsTitle")}</DialogTitle>
 				</DialogHeader>
 				<p className="text-sm text-muted-foreground">{t("detail.speakerSettingsHint")}</p>
-				<div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto py-2">
+				{/* Keep short lists content-sized and leave room around focused input rings. */}
+				<ScrollArea
+					className="-mx-1"
+					viewportClassName="h-auto max-h-[50vh] px-1 py-2 [&>div]:!flex [&>div]:flex-col [&>div]:gap-3"
+				>
 					{speakerIds.map((speakerId, index) => (
 						<div key={speakerId} className="space-y-1.5">
 							<label className="text-sm text-muted-foreground">
@@ -51,7 +63,7 @@ export function RecordingDetailSpeakerDialog({
 							/>
 						</div>
 					))}
-				</div>
+				</ScrollArea>
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
 						{t("detail.speakerSettingsCancel")}

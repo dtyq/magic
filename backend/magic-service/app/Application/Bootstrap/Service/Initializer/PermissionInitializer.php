@@ -42,18 +42,24 @@ class PermissionInitializer
         $isPersonalOrganization = $organization?->isPersonal() ?? false;
 
         $changed = $this->ensureOrganizationCreatorInfo($organizationCode, $userId);
+        // 创建人唯一以 magic_organizations.creator_id 为准；历史管理员标记只作为镜像。
+        $organization = $this->organizationDomainService->getByCode($organizationCode);
+        $isOrganizationCreator = $organization?->isOwnedBy($userId) ?? false;
         if (! $isPersonalOrganization) {
-            $changed = $this->ensureOrganizationAdminEnabled($organizationCode, $userId, $magicId) || $changed;
+            $changed = $this->ensureOrganizationAdminEnabled($organizationCode, $userId, $magicId, $isOrganizationCreator) || $changed;
         }
 
         $dataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
-        if (! $isPersonalOrganization && ! $this->organizationAdminDomainService->isOrganizationAdmin($dataIsolation, $userId)) {
+        // 创建人可能已经被组织表识别为管理员，但历史管理员镜像仍不存在；此处按记录
+        // 是否存在决定是否补建，不能只调用 isOrganizationAdmin()。
+        $organizationAdmin = $this->organizationAdminDomainService->getByUserId($dataIsolation, $userId);
+        if (! $isPersonalOrganization && $organizationAdmin === null) {
             $this->organizationAdminDomainService->grant(
                 dataIsolation: $dataIsolation,
                 userId: $userId,
                 grantorUserId: $userId,
                 remarks: 'bootstrap 初始化组织管理员',
-                isOrganizationCreator: true
+                isOrganizationCreator: $isOrganizationCreator
             );
             $changed = true;
         }
@@ -109,7 +115,7 @@ class PermissionInitializer
         return $changed;
     }
 
-    private function ensureOrganizationAdminEnabled(string $organizationCode, string $userId, string $magicId): bool
+    private function ensureOrganizationAdminEnabled(string $organizationCode, string $userId, string $magicId, bool $isOrganizationCreator): bool
     {
         /** @var null|array{id:int,status:int,deleted_at:null|string,magic_id:null|string,is_organization_creator:int,granted_at:null|string} $admin */
         $admin = Db::table('magic_organization_admins')
@@ -132,8 +138,9 @@ class PermissionInitializer
         if (empty((string) ($admin['magic_id'] ?? ''))) {
             $updateData['magic_id'] = $magicId;
         }
-        if ((int) ($admin['is_organization_creator'] ?? 0) !== 1) {
-            $updateData['is_organization_creator'] = 1;
+        $creatorFlag = $isOrganizationCreator ? 1 : 0;
+        if ((int) ($admin['is_organization_creator'] ?? 0) !== $creatorFlag) {
+            $updateData['is_organization_creator'] = $creatorFlag;
         }
         if (empty((string) ($admin['granted_at'] ?? ''))) {
             $updateData['granted_at'] = date('Y-m-d H:i:s');

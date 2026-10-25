@@ -1,7 +1,7 @@
 import { useMemoizedFn } from "ahooks"
 import { SuperMagicApi } from "@/apis"
 import { parseMagicProjectJs } from "@/pages/superMagic/components/Detail/contents/HTML/utils/magicProjectUpdater"
-import { unshadow } from "@/utils/shadow"
+import { isShadowed, unshadow } from "@/utils/shadow"
 
 interface AttachmentLike {
 	file_id?: string
@@ -34,7 +34,7 @@ function getAttachmentName(item: AttachmentLike | null | undefined): string {
 
 function parseMagicProjectConfigFromContent(content: unknown): Record<string, unknown> | null {
 	if (typeof content !== "string" || !content.trim()) return null
-	const rawContent = content.startsWith("SHADOWED_") ? unshadow(content) : content
+	const rawContent = isShadowed(content) ? unshadow(content) : content
 	const parsed = parseMagicProjectJs(rawContent)
 	if (!parsed?.config || typeof parsed.config !== "object") return null
 	return parsed.config as Record<string, unknown>

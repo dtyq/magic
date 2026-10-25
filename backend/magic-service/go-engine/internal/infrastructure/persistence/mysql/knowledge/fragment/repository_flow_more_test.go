@@ -31,7 +31,7 @@ func sqlContains(fragment string) string {
 	return regexp.QuoteMeta(strings.TrimSpace(fragment))
 }
 
-const fragmentListSelectColumnsForTest = `SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at`
+const fragmentListSelectColumnsForTest = "SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, `vector`, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at"
 
 const fragmentDocumentOrderByForTest = `ORDER BY
   CASE WHEN JSON_EXTRACT(metadata, '$.chunk_index') IS NULL THEN 1 ELSE 0 END ASC,

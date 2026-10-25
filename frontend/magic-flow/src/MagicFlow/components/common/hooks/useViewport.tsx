@@ -1,7 +1,7 @@
 import { useFlowUI, useNodeConfig } from "@/MagicFlow/context/FlowContext/useFlow"
 import { useResize } from "@/MagicFlow/context/ResizeContext/useResize"
 import { useMemoizedFn } from "ahooks"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import { useReactFlow } from "reactflow"
 import { controlDuration } from "../../FlowDesign/hooks/useFlowControls"
 import { MaterialPanelWidth } from "../../FlowMaterialPanel"
@@ -17,7 +17,7 @@ export default function useViewport() {
 	const updateViewPortToTargetNode = useMemoizedFn((currentNode) => {
 		const materialPanelWidth = showMaterialPanel ? MaterialPanelWidth : 0
 
-		const cloneCurrentNode = _.cloneDeep(currentNode)
+		const cloneCurrentNode = cloneDeep(currentNode)
 		// 处理在循环体内新增节点时，position=循环体内position+循环体的position
 		if (cloneCurrentNode?.meta?.parent_id) {
 			const parentLoopBodyNode = nodeConfig?.[cloneCurrentNode?.meta?.parent_id]

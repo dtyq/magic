@@ -11,6 +11,7 @@ describe("collectHtmlResourcePlan", () => {
 				.hero { background-image: url("assets/background.webp"); }
 			</style>
 			<div style="background-image: url('assets/icon.svg')"></div>
+			<img src="assets/animation.gif">
 			<script src="assets/app.js"></script>
 		`
 		const htmlDoc = new DOMParser().parseFromString(html, "text/html")
@@ -37,6 +38,11 @@ describe("collectHtmlResourcePlan", () => {
 				relative_file_path: "page/assets/icon.svg",
 			},
 			{
+				file_id: "animation",
+				file_name: "animation.gif",
+				relative_file_path: "page/assets/animation.gif",
+			},
+			{
 				file_id: "script",
 				file_name: "app.js",
 				relative_file_path: "page/assets/app.js",
@@ -45,7 +51,9 @@ describe("collectHtmlResourcePlan", () => {
 
 		const result = collectHtmlResourcePlan(htmlDoc, files, "page/")
 
-		expect(result.imageFileIds).toEqual(new Set(["hero", "background", "icon"]))
+		expect(result.imageFileIds).toEqual(new Set(["hero", "background", "icon", "animation"]))
+		expect(result.imageProcessingFileIds).toEqual(new Set(["hero", "background", "icon"]))
+		expect(result.imageProcessingFileIds.has("animation")).toBe(false)
 		expect(result.imageFileIds.has("font")).toBe(false)
 		expect(result.imageFileIds.has("script")).toBe(false)
 		expect(getContentTypeFromExtension("assets/hero.png?version=1")).toBe("image/png")

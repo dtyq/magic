@@ -59,6 +59,7 @@ describe("RecordingDetailEmptyState", () => {
 			minWidth: `${RECORDING_DETAIL_WORKBENCH_MIN_WIDTH}px`,
 			gridTemplateColumns: `minmax(${RECORDING_DETAIL_TRANSCRIPT_MIN_WIDTH}px, ${RECORDING_DETAIL_TRANSCRIPT_MAX_WIDTH}px) minmax(${RECORDING_DETAIL_SUMMARY_MIN_WIDTH}px, 1fr)`,
 		})
+		expect(skeleton).toHaveClass("pt-4")
 		expect(skeleton).toHaveClass("animate-in", "fade-in")
 		expect(skeleton).toHaveAttribute("aria-busy", "true")
 		expect(container.querySelector(".animate-pulse")).toBeNull()

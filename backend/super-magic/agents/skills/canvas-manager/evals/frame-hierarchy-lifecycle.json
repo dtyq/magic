@@ -1,0 +1,6 @@
+{
+  "id": "frame-hierarchy-lifecycle",
+  "prompt": "Inspect several root-level Canvas Elements, frame two exact sibling Elements, and verify the resulting hierarchy.",
+  "expected_tools": ["query_canvas_overview", "query_canvas_element_details", "frame_canvas_elements", "query_canvas_element_details"],
+  "constraints": ["Use exact Element IDs returned by the query.", "Do not send raw children or guessed coordinates.", "Use the returned frame_element_id for the final details query.", "Do not unframe or delete Elements during this framing-only task."]
+}

@@ -1,0 +1,20 @@
+{
+	"accountSwitchFailed": "Failed to switch account. Please try again.",
+	"addAccount": "Add account",
+	"applicationAdmin": "Application Admin",
+	"currentAccount": "Current account",
+	"logoutAccount": "Log out account",
+	"organizationAdmin": "Organization Admin",
+	"organizationUnavailable": "No organization",
+	"otherAccounts": "Other accounts",
+	"personalOrganization": "Personal",
+	"phone": "Phone",
+	"profile": "Profile",
+	"refreshProfile": "Refresh profile",
+	"saasPlatform": "SaaS",
+	"switchFailed": "Failed to switch organization. Please try again.",
+	"switchOrganization": "Switch organization",
+	"switchSuccess": "Organization switched",
+	"userId": "User ID",
+	"userMenu": "User menu"
+}

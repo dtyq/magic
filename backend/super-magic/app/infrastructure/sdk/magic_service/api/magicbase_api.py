@@ -15,7 +15,9 @@ from ..parameter.magicbase_row_parameter import (
     BatchDeleteMagicBaseRowsParameter,
     CreateMagicBaseRowParameter,
     DeleteMagicBaseRowParameter,
+    GetMagicBaseRowParameter,
     QueryMagicBaseRowsParameter,
+    UpdateMagicBaseRowParameter,
 )
 from ..parameter.query_magicbase_tables_parameter import QueryMagicBaseTablesParameter
 from ..parameter.update_magicbase_column_parameter import UpdateMagicBaseColumnParameter
@@ -96,6 +98,22 @@ class MagicBaseApi(MagicServiceAbstractApi):
     async def create_row_async(self, parameter: CreateMagicBaseRowParameter) -> MagicBaseRowResult:
         endpoint_path = f"/api/v1/magicbase/projects/{parameter.project_id}/tables/{parameter.table_id}/rows"
         data = await self.request_by_parameter_async(parameter, "POST", endpoint_path)
+        return MagicBaseRowResult(data)
+
+    async def get_row_async(self, parameter: GetMagicBaseRowParameter) -> MagicBaseRowResult:
+        endpoint_path = (
+            f"/api/v1/magicbase/projects/{parameter.project_id}/tables/{parameter.table_id}"
+            f"/rows/{parameter.record_id}"
+        )
+        data = await self.request_by_parameter_async(parameter, "GET", endpoint_path)
+        return MagicBaseRowResult(data)
+
+    async def update_row_async(self, parameter: UpdateMagicBaseRowParameter) -> MagicBaseRowResult:
+        endpoint_path = (
+            f"/api/v1/magicbase/projects/{parameter.project_id}/tables/{parameter.table_id}"
+            f"/rows/{parameter.record_id}"
+        )
+        data = await self.request_by_parameter_async(parameter, "PATCH", endpoint_path)
         return MagicBaseRowResult(data)
 
     async def batch_create_rows_async(

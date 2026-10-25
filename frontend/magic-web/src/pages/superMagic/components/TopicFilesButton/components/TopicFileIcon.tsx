@@ -1,15 +1,5 @@
-import fileAudioIcon from "../assets/file-audio.svg"
-import fileCodeIcon from "../assets/file-code.svg"
-import fileCssIcon from "../assets/file-css.svg"
-import fileExcelIcon from "../assets/file-excel.svg"
-import fileGoIcon from "../assets/file-go.svg"
-import fileHtmlIcon from "../assets/file-html.svg"
-import fileImageIcon from "../assets/file-image.svg"
-import fileJavaIcon from "../assets/file-java.svg"
-import fileJsIcon from "../assets/file-js.svg"
-import fileJsonIcon from "../assets/file-json.svg"
-import fileLinkIcon from "../assets/file-link.svg"
-import fileMarkdownIcon from "../assets/file-markdown.svg"
+import type { ReactNode } from "react"
+import MagicFileIcon from "@/components/base/MagicFileIcon"
 import fileAgentIcon from "../assets/file-md-agent.svg"
 import fileBootstrapIcon from "../assets/file-md-bootstrap.svg"
 import fileHeartbeatIcon from "../assets/file-md-heartbeat.svg"
@@ -19,19 +9,6 @@ import fileSkillsIcon from "../assets/file-md-skills.svg"
 import fileSoulIcon from "../assets/file-md-soul.svg"
 import fileToolsIcon from "../assets/file-md-tools.svg"
 import fileUserIcon from "../assets/file-md-user.svg"
-import fileOtherIcon from "../assets/file-other.svg"
-import filePdfIcon from "../assets/file-pdf.svg"
-import filePhpIcon from "../assets/file-php.svg"
-import filePptIcon from "../assets/file-ppt.svg"
-import fileProjectDesignIcon from "../assets/file-project-design.svg"
-import filePythonIcon from "../assets/file-python.svg"
-import fileShIcon from "../assets/file-sh.svg"
-import fileTxtIcon from "../assets/file-txt.svg"
-import fileVideoIcon from "../assets/file-video.svg"
-import fileWikiIcon from "../assets/file-wiki.svg"
-import fileWordIcon from "../assets/file-word.svg"
-import fileXmlIcon from "../assets/file-xml.svg"
-import fileZipIcon from "../assets/file-zip.svg"
 import folderCronIcon from "../assets/folder-cron-icon.svg"
 import folderIcon from "../assets/folder-icon.svg"
 import folderMagicIcon from "../assets/folder-magic-icon.svg"
@@ -63,57 +40,7 @@ interface TopicFileIconProps {
 	size?: number
 	className?: string
 	dataTestId?: string
-}
-
-const FILE_ICON_SRC_MAP: Record<string, string> = {
-	txt: fileTxtIcon,
-	md: fileMarkdownIcon,
-	markdown: fileMarkdownIcon,
-	html: fileHtmlIcon,
-	htm: fileHtmlIcon,
-	wiki: fileWikiIcon,
-	json: fileJsonIcon,
-	xml: fileXmlIcon,
-	pdf: filePdfIcon,
-	js: fileJsIcon,
-	jsx: fileJsIcon,
-	mjs: fileJsIcon,
-	cjs: fileJsIcon,
-	ts: fileJsIcon,
-	tsx: fileJsIcon,
-	css: fileCssIcon,
-	py: filePythonIcon,
-	java: fileJavaIcon,
-	go: fileGoIcon,
-	php: filePhpIcon,
-	sh: fileShIcon,
-	ppt: filePptIcon,
-	pptx: filePptIcon,
-	doc: fileWordIcon,
-	docx: fileWordIcon,
-	xls: fileExcelIcon,
-	xlsx: fileExcelIcon,
-	csv: fileExcelIcon,
-	zip: fileZipIcon,
-	rar: fileZipIcon,
-	"7z": fileZipIcon,
-	png: fileImageIcon,
-	jpg: fileImageIcon,
-	jpeg: fileImageIcon,
-	gif: fileImageIcon,
-	webp: fileImageIcon,
-	svg: fileImageIcon,
-	mp4: fileVideoIcon,
-	mov: fileVideoIcon,
-	webm: fileVideoIcon,
-	mp3: fileAudioIcon,
-	wav: fileAudioIcon,
-	m4a: fileAudioIcon,
-	link: fileLinkIcon,
-	url: fileLinkIcon,
-	custom: fileCodeIcon,
-	customfile: fileCodeIcon,
-	design: fileProjectDesignIcon,
+	fallbackIcon?: ReactNode
 }
 
 const MAGIC_ICON_SRC_MAP: Record<TopicFileMagicVariant, string> = {
@@ -130,23 +57,6 @@ const MAGIC_ICON_SRC_MAP: Record<TopicFileMagicVariant, string> = {
 	"magic-file-user": fileUserIcon,
 	"magic-file-bootstrap": fileBootstrapIcon,
 	"magic-file-memory": fileMemoryIcon,
-}
-
-/**
- * 统一标准化扩展名，避免 `.md`、`MD` 这类输入导致同一图标映射分叉。
- */
-function normalizeFileExtension(fileExtension?: string): string {
-	return fileExtension?.replace(/^\./, "").toLowerCase() || "other"
-}
-
-/**
- * 文件扩展名映射与移动端原型保持同一基线，避免真实附件在重构后大量退回为通用图标。
- * 未覆盖或后端新增的类型继续回退通用图标，保证列表渲染稳定。
- */
-function getFileIconSrc(fileExtension?: string): string {
-	const normalizedFileExtension = normalizeFileExtension(fileExtension)
-
-	return FILE_ICON_SRC_MAP[normalizedFileExtension] || fileOtherIcon
 }
 
 /**
@@ -170,6 +80,7 @@ export function TopicFileIcon({
 	size,
 	className,
 	dataTestId,
+	fallbackIcon,
 }: TopicFileIconProps) {
 	const resolvedMagicVariant = magicVariant || (isMagicFolder ? "magic-root" : undefined)
 	const resolvedClassName =
@@ -190,7 +101,18 @@ export function TopicFileIcon({
 		)
 	}
 
-	const iconSrc = isDirectory ? getFolderIconSrc(hasChildren) : getFileIconSrc(fileExtension)
+	if (!isDirectory)
+		return (
+			<span data-testid={dataTestId}>
+				<MagicFileIcon
+					type={fileExtension}
+					size={size ?? 24}
+					className={className}
+					fallbackIcon={fallbackIcon}
+				/>
+			</span>
+		)
+	const iconSrc = getFolderIconSrc(hasChildren)
 
 	return (
 		<img

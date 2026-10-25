@@ -18,6 +18,8 @@ class GetLatestPublishedSkillVersionsParameter(MagicServiceAbstractParameter):
         page_size: int = 20,
         codes: Optional[List[str]] = None,
         keyword: Optional[str] = None,
+        agent_code: Optional[str] = None,
+        agent_draft: bool = False,
     ):
         """
         Initialize parameter
@@ -33,6 +35,8 @@ class GetLatestPublishedSkillVersionsParameter(MagicServiceAbstractParameter):
         self.page_size = page_size
         self.codes = codes
         self.keyword = keyword
+        self.agent_code = agent_code
+        self.agent_draft = agent_draft
 
     def to_body(self) -> Dict[str, Any]:
         body: Dict[str, Any] = {
@@ -43,6 +47,11 @@ class GetLatestPublishedSkillVersionsParameter(MagicServiceAbstractParameter):
             body['codes'] = self.codes
         if self.keyword is not None:
             body['keyword'] = self.keyword
+        if self.agent_code:
+            # agent_draft 只在带 agent_code 时才有意义：技能绑定必须挂在已存在的员工上，
+            # 尚无 code 的新建员工不存在服务端绑定可查，其可下载范围由用户自身的技能可见集兜底
+            body["agent_code"] = self.agent_code
+            body["agent_draft"] = self.agent_draft
         return body
 
     def to_query_params(self) -> Dict[str, Any]:

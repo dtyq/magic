@@ -1,0 +1,54 @@
+.root {
+	display: inline-flex;
+	flex-shrink: 0;
+	gap: 2px;
+	align-items: center;
+}
+
+.iconButton,
+.actionButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 32px;
+	color: var(--base-foreground, #030712);
+	font: inherit;
+	background: transparent;
+	border: 0;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.iconButton {
+	width: 28px;
+}
+
+.actionButton {
+	gap: 6px;
+	padding: 0 6px;
+}
+
+.iconButton:hover:not(:disabled),
+.actionButton:hover:not(:disabled) {
+	background: var(--base-sidebar-accent, #f5f5f5);
+}
+
+.iconButton:focus-visible,
+.actionButton:focus-visible {
+	outline: 2px solid var(--base-ring, #2563eb);
+	outline-offset: 1px;
+}
+
+.iconButton:disabled,
+.actionButton:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.count {
+	min-width: 38px;
+	color: var(--base-muted-foreground, #737373);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}

@@ -3,7 +3,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import { Slider } from "@/components/shadcn-ui/slider"
 import { MagicTooltip } from "@/components/base"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 export interface ZoomControlsProps {
 	currentScale: number

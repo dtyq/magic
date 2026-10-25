@@ -45,17 +45,31 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\DashScopeVideoAdapterRouter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\Wan27VideoAdapter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Capability\Wan27GenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\Wan30VideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Capability\Wan30GenerationCapabilityProvider;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\DashScopeTransportInterface;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Gemini\Adapter\GeminiOmni1FlashVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Gemini\Adapter\GeminiVideoAdapterRouter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Gemini\Capability\GeminiOmniGenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Gemini\GeminiTransportInterface;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\MiniMax\Adapter\MiniMaxH3VideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\MiniMax\Capability\MiniMaxH3GenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\MiniMax\MiniMaxVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\MiniMax\Transport\ApiKeyMiniMaxTransport;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArk\Adapter\Seedance20MiniFastVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArk\Adapter\Seedance20VideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArk\Adapter\Seedance25VideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArk\Adapter\VolcengineArkVideoAdapterRouter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArk\Capability\Seedance20GenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArk\Capability\Seedance20MiniFastGenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArk\Capability\Seedance25GenerationCapabilityProvider;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -126,6 +140,35 @@ class ModeAppServiceTest extends TestCase
         $this->assertSame('veo-3.1-fast-generate-preview', $candidates[0]->getModelId());
         $this->assertSame('LCnVzCkkMnVulyrz', $candidates[0]->getModelVersion());
         $this->assertSame(ProviderCode::Cloudsway, $candidates[0]->getProviderCode());
+    }
+
+    public function testBuildVideoGenerationConfigCandidatesFollowsRuntimeProviderPriority(): void
+    {
+        $service = $this->createService(
+            [
+                11 => $this->createProviderConfigEntity(11, ProviderCode::Cloudsway),
+                12 => $this->createProviderConfigEntity(12, ProviderCode::Cloudsway),
+            ],
+            [
+                'veo-3.1-fast-generate-preview' => [
+                    $this->createProviderModel('veo-3.1-fast-generate-preview', Category::VGM, 'sort-low', 11, sort: 0, id: 1001),
+                    $this->createProviderModel('veo-3.1-fast-generate-preview', Category::VGM, 'sort-high-config-low', 11, sort: 9, id: 1002),
+                    $this->createProviderModel('veo-3.1-fast-generate-preview', Category::VGM, 'sort-high-config-high', 12, sort: 9, id: 1003),
+                ],
+            ]
+        );
+
+        /** @var list<VideoGenerationConfigCandidate> $candidates */
+        $candidates = $this->invokePrivateMethod($service, 'buildVideoGenerationConfigCandidates', [[
+            'veo-3.1-fast-generate-preview',
+        ]]);
+
+        // 必须与运行时一致：sort desc → service_provider_config_id desc → id asc，取首条
+        $this->assertCount(3, $candidates);
+        $this->assertSame(
+            ['sort-high-config-high', 'sort-high-config-low', 'sort-low'],
+            array_map(static fn (VideoGenerationConfigCandidate $candidate): string => $candidate->getModelVersion(), $candidates)
+        );
     }
 
     public function testBuildModeRuntimeDataIncludesVideoModelsForFeaturedResponse(): void
@@ -511,11 +554,39 @@ class ModeAppServiceTest extends TestCase
                     )
                 )
             ),
-            new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
-            new DashScopeVideoAdapterRouter(new Wan27VideoAdapter(
-                new Wan27GenerationCapabilityProvider(),
+            $this->createVolcengineArkRouter($this->createMock(ClientFactory::class)),
+            new DashScopeVideoAdapterRouter(new Wan30VideoAdapter(
+                new Wan30GenerationCapabilityProvider(),
                 $this->createMock(DashScopeTransportInterface::class),
             )),
+            new MiniMaxH3VideoAdapter(
+                new MiniMaxH3GenerationCapabilityProvider(),
+                new ApiKeyMiniMaxTransport(new MiniMaxVideoClient($this->createMock(ClientFactory::class))),
+            ),
+            new GeminiVideoAdapterRouter(
+                new GeminiOmni1FlashVideoAdapter(
+                    new GeminiOmniGenerationCapabilityProvider(),
+                    $this->createMock(GeminiTransportInterface::class),
+                ),
+            ),
+        );
+    }
+
+    private function createVolcengineArkRouter(ClientFactory $clientFactory): VolcengineArkVideoAdapterRouter
+    {
+        return new VolcengineArkVideoAdapterRouter(
+            new Seedance20MiniFastVideoAdapter(
+                new Seedance20MiniFastGenerationCapabilityProvider(),
+                new VolcengineArkVideoClient($clientFactory),
+            ),
+            new Seedance20VideoAdapter(
+                new Seedance20GenerationCapabilityProvider(),
+                new VolcengineArkVideoClient($clientFactory),
+            ),
+            new Seedance25VideoAdapter(
+                new Seedance25GenerationCapabilityProvider(),
+                new VolcengineArkVideoClient($clientFactory),
+            ),
         );
     }
 
@@ -562,16 +633,19 @@ class ModeAppServiceTest extends TestCase
         int $serviceProviderConfigId = 1,
         Status $status = Status::Enabled,
         ProviderModelType $providerModelType = ProviderModelType::ATOM,
-        ?array $aggregateConfig = null
+        ?array $aggregateConfig = null,
+        int $sort = 0,
+        ?int $id = null
     ): ProviderModelEntity {
         return new ProviderModelEntity([
-            'id' => random_int(1000, 9999),
+            'id' => $id ?? random_int(1000, 9999),
             'service_provider_config_id' => $serviceProviderConfigId,
             'name' => strtoupper($modelId),
             'model_id' => $modelId,
             'model_version' => $modelVersion ?? ($modelId . '-version'),
             'category' => $category->value,
             'status' => $status->value,
+            'sort' => $sort,
             'type' => $providerModelType->value,
             'aggregate_config' => $aggregateConfig,
             'organization_code' => 'TGosRaFhvb',

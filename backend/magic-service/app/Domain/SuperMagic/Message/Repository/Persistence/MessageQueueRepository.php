@@ -12,6 +12,7 @@ use App\Domain\SuperMagic\Message\Entity\ValueObject\MessageQueueStatus;
 use App\Domain\SuperMagic\Message\Repository\Facade\MessageQueueRepositoryInterface;
 use App\Domain\SuperMagic\Message\Repository\Model\MessageQueueModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Hyperf\Database\Model\Builder;
 use Hyperf\DbConnection\Db;
 
 class MessageQueueRepository implements MessageQueueRepositoryInterface
@@ -52,6 +53,7 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         return $this->model::query()
             ->where('id', $id)
             ->where('user_id', $userId)
+            ->where('status', MessageQueueStatus::PENDING->value)
             ->whereNull('deleted_at')
             ->update([
                 'deleted_at' => date('Y-m-d H:i:s'),
@@ -66,7 +68,7 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
             ->where('topic_id', $topicId)
             ->where('user_id', $userId)
             ->where('status', MessageQueueStatus::PENDING->value)
-            ->orderBy('created_at', 'asc')
+            ->orderBy('sort_order', 'asc')->orderBy('id', 'asc')
             ->get();
 
         $entities = [];
@@ -78,12 +80,13 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         return $entities;
     }
 
-    public function getById(int $id): ?MessageQueueEntity
+    public function getById(int $id, bool $includeDeleted = false): ?MessageQueueEntity
     {
-        $model = $this->model::query()
-            ->whereNull('deleted_at')
-            ->where('id', $id)
-            ->first();
+        $query = $this->model::query()->where('id', $id);
+        if (! $includeDeleted) {
+            $query->whereNull('deleted_at');
+        }
+        $model = $query->first();
 
         if (! $model) {
             return null;
@@ -93,13 +96,15 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         return new MessageQueueEntity($data);
     }
 
-    public function getByIdForUser(int $id, string $userId): ?MessageQueueEntity
+    public function getByIdForUser(int $id, string $userId, bool $includeDeleted = false): ?MessageQueueEntity
     {
-        $model = $this->model::query()
-            ->whereNull('deleted_at')
+        $query = $this->model::query()
             ->where('id', $id)
-            ->where('user_id', $userId)
-            ->first();
+            ->where('user_id', $userId);
+        if (! $includeDeleted) {
+            $query->whereNull('deleted_at');
+        }
+        $model = $query->first();
 
         if (! $model) {
             return null;
@@ -172,7 +177,8 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
         $total = $query->count();
 
         // Apply ordering and pagination
-        $query->orderBy($this->qualifyMessageQueueColumn($orderBy, $excludeDeletedTopics), $order);
+        $query->orderBy($this->qualifyMessageQueueColumn($orderBy, $excludeDeletedTopics), $order)
+            ->orderBy($this->qualifyMessageQueueColumn('id', $excludeDeletedTopics), $order);
 
         if ($needPagination) {
             $offset = ($page - 1) * $pageSize;
@@ -199,7 +205,7 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
             ->whereNull('deleted_at')
             ->where('user_id', $userId)
             ->where('status', MessageQueueStatus::PENDING->value)
-            ->orderBy('created_at', 'asc');
+            ->orderBy('sort_order', 'asc')->orderBy('id', 'asc');
 
         if ($topicId !== null) {
             $query->where('topic_id', $topicId);
@@ -327,16 +333,18 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
             ->where('topic_id', $topicId)
             ->where('status', MessageQueueStatus::PENDING->value);
 
-        // Apply time filter only if maxExecuteTime is provided
-        if ($maxExecuteTime !== null) {
-            $query->where('except_execute_time', '<=', $maxExecuteTime);
-        }
-
         $model = $query
             ->whereNull('deleted_at')
-            ->orderBy('except_execute_time', 'asc')
+            ->orderBy('sort_order', 'asc')
             ->orderBy('id', 'asc')
             ->first();
+
+        // Apply time filter only if maxExecuteTime is provided
+        // 先选队首再判断资格：A 未到期、B 已到期时仍等待 A，不越过当前顺序。
+        if ($model && $maxExecuteTime !== null
+            && ($model->except_execute_time === null || (string) $model->except_execute_time > $maxExecuteTime)) {
+            return null;
+        }
 
         return $model ? $this->convertToEntity($model) : null;
     }
@@ -370,6 +378,54 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
             ->first();
 
         return $model ? $this->convertToEntity($model) : null;
+    }
+
+    public function getByClientSyncId(string $userId, string $organizationCode, int $projectId, int $topicId, string $syncId): ?MessageQueueEntity
+    {
+        $model = $this->model::query()
+            ->where('user_id', $userId)
+            ->where('organization_code', $organizationCode)
+            ->where('project_id', $projectId)
+            ->where('topic_id', $topicId)
+            ->where(static function (Builder $query) use ($syncId): void {
+                $query->where('message_content->extra->super_agent->client_queue_sync_id', $syncId)
+                    ->orWhere('message_content->extra->super_agent->client_queue_create_sync_id', $syncId);
+            })
+            ->first();
+        return $model ? $this->convertToEntity($model) : null;
+    }
+
+    public function getNextSortOrder(int $topicId): int
+    {
+        return 1 + (int) $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('status', MessageQueueStatus::PENDING->value)
+            ->whereNull('deleted_at')
+            ->max('sort_order');
+    }
+
+    public function restore(MessageQueueEntity $message): bool
+    {
+        return $this->model::query()
+            ->where('id', $message->getId())
+            ->where('status', MessageQueueStatus::PENDING->value)
+            ->whereNotNull('deleted_at')
+            ->update([
+                'message_content' => $message->getMessageContent(),
+                'message_type' => $message->getMessageType(),
+                'deleted_at' => null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
+    /** @param int[] $messageIds 调用方持有话题锁，事务内保存完整活动顺序。 */
+    public function saveOrder(int $topicId, array $messageIds): void
+    {
+        foreach ($messageIds as $index => $id) {
+            $this->model::query()->where('id', $id)->where('topic_id', $topicId)
+                ->where('status', MessageQueueStatus::PENDING->value)->whereNull('deleted_at')
+                ->update(['sort_order' => $index + 1]);
+        }
     }
 
     private function qualifyMessageQueueColumn(string $column, bool $withAlias): string
@@ -429,6 +485,7 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
     {
         return [
             'id' => $entity->getId(),
+            'sort_order' => $entity->getSortOrder(),
             'user_id' => $entity->getUserId(),
             'organization_code' => $entity->getOrganizationCode(),
             'project_id' => $entity->getProjectId(),

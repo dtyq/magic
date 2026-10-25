@@ -20,8 +20,10 @@ use App\Interfaces\SuperMagic\Common\Share\DTO\Request\FindSimilarShareRequestDT
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetFilesByIdsRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareCopyLogsRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareDetailDTO;
+use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareDetailV2DTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetSharedProjectsTreeRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareFilesRequestDTO;
+use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareFilesV2RequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\GetShareStatisticsRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Request\ResourceListRequestDTO;
 use App\Interfaces\SuperMagic\Common\Share\DTO\Response\GenerateResourceIdResponseDTO;
@@ -156,6 +158,26 @@ class ShareApi extends AbstractApi
     }
 
     /**
+     * Get share detail with cursor-paginated topic messages.
+     */
+    #[RateLimit(create: 5, capacity: 10, key: 'share_detail')]
+    public function getShareDetailV2(RequestContext $requestContext, string $shareCode): array
+    {
+        try {
+            $requestContext->setUserAuthorization($this->getAuthorization());
+            $userAuthorization = $requestContext->getUserAuthorization();
+        } catch (Exception) {
+            $userAuthorization = null;
+        }
+
+        return $this->shareAppService->getShareDetail(
+            $userAuthorization,
+            $shareCode,
+            GetShareDetailV2DTO::fromRequest($this->request)
+        );
+    }
+
+    /**
      * 获取分享资源对应的文件列表.
      *
      * @param string $shareCode 分享code
@@ -174,6 +196,20 @@ class ShareApi extends AbstractApi
         $dto = GetShareFilesRequestDTO::fromRequest($this->request);
 
         return $this->shareAppService->getShareFiles($userAuthorization, $shareCode, $dto);
+    }
+
+    public function getShareFilesV2(string $shareCode): array
+    {
+        try {
+            $userAuthorization = $this->getAuthorization();
+        } catch (Exception) {
+            $userAuthorization = null;
+        }
+        return $this->shareAppService->getShareFilesV2(
+            $userAuthorization,
+            $shareCode,
+            GetShareFilesV2RequestDTO::fromRequest($this->request)
+        );
     }
 
     public function getShareList(RequestContext $requestContext): array

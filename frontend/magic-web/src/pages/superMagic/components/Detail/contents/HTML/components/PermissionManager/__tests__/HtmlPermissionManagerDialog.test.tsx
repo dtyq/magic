@@ -50,6 +50,9 @@ function createSnapshot(active = true): HtmlPermissionSnapshot {
 				supported: true,
 				declarationStatus: "declared",
 				grant: active ? activeGrant : undefined,
+				highRisk: true,
+				codeStatus: "same",
+				needsReconfirm: false,
 				ttlOptions: [
 					{ labelKey: "ttl.1h", ttlMs: 60 * 60 * 1000 },
 					{ labelKey: "ttl.1d", ttlMs: 24 * 60 * 60 * 1000 },
@@ -60,17 +63,25 @@ function createSnapshot(active = true): HtmlPermissionSnapshot {
 				scope: "project.message.write",
 				supported: true,
 				declarationStatus: "notDeclared",
+				highRisk: true,
+				codeStatus: "same",
+				needsReconfirm: false,
 				ttlOptions: [],
 			},
 			{
 				scope: "future.scope",
 				supported: false,
 				declarationStatus: "unsupported",
+				highRisk: false,
+				codeStatus: "same",
+				needsReconfirm: false,
 				ttlOptions: [],
 			},
 		],
 		diagnostics: [{ code: "scopeUnsupported", scope: "future.scope" }],
 		activeGrantCount: active ? 1 : 0,
+		codeChangedGrantCount: 0,
+		needsReconfirmCount: 0,
 	}
 }
 
@@ -164,6 +175,31 @@ describe("HtmlPermissionManagerDialog", () => {
 			await screen.findByText("htmlEditor.permissionAuthorizationConfirm.scopes.llmUse"),
 		).toBeInTheDocument()
 		expect(screen.queryByText("project.message.write")).not.toBeInTheDocument()
+	})
+
+	it("uses the application select layer inside the permission dialog", async () => {
+		render(
+			<HtmlPermissionManagerDialog
+				open
+				onOpenChange={vi.fn()}
+				permissionRevision={0}
+				getPermissionSnapshot={vi.fn().mockResolvedValue(createSnapshot())}
+				onAuthorize={vi.fn().mockResolvedValue(true)}
+				onRevoke={vi.fn().mockResolvedValue(createSnapshot(false))}
+				onUpdateTtl={vi.fn().mockResolvedValue(createSnapshot())}
+				onRevokeAll={vi.fn().mockResolvedValue(createSnapshot(false))}
+			/>,
+		)
+
+		fireEvent.click(
+			await screen.findByRole("combobox", {
+				name: "htmlEditor.permissionManager.durationSelect",
+			}),
+		)
+		const selectContent = document.querySelector('[data-slot="select-content"]')
+
+		expect(selectContent).toHaveClass("z-select")
+		expect(selectContent).not.toHaveClass("!z-[950]")
 	})
 
 	it("hides revoke-all action and keeps diagnostics in one content column without grants", async () => {
@@ -329,6 +365,90 @@ describe("HtmlPermissionManagerDialog", () => {
 
 		await waitFor(() =>
 			expect(onUpdateTtl).toHaveBeenCalledWith("user.profile.name", 24 * 60 * 60 * 1000),
+		)
+	})
+
+	function renderDialog(snapshot: HtmlPermissionSnapshot, overrides = {}) {
+		return render(
+			<HtmlPermissionManagerDialog
+				open
+				onOpenChange={vi.fn()}
+				permissionRevision={0}
+				getPermissionSnapshot={vi.fn().mockResolvedValue(snapshot)}
+				onAuthorize={vi.fn().mockResolvedValue(true)}
+				onRevoke={vi.fn().mockResolvedValue(snapshot)}
+				onUpdateTtl={vi.fn().mockResolvedValue(snapshot)}
+				onRevokeAll={vi.fn().mockResolvedValue(createSnapshot(false))}
+				onAcknowledgeCodeChanges={vi.fn().mockResolvedValue(createSnapshot())}
+				{...overrides}
+			/>,
+		)
+	}
+
+	it("shows no code-change reminder while the code matches the confirmed version", async () => {
+		renderDialog(createSnapshot())
+
+		expect(await screen.findByText("Demo App")).toBeInTheDocument()
+		expect(screen.queryByTestId("html-permission-code-banner")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("html-permission-reconfirm-badge")).not.toBeInTheDocument()
+	})
+
+	it("explains that a high-risk grant will ask again after the code changed", async () => {
+		const snapshot = createSnapshot()
+		snapshot.permissions[0] = {
+			...snapshot.permissions[0],
+			codeStatus: "changed",
+			needsReconfirm: true,
+		}
+		snapshot.codeChangedGrantCount = 1
+		snapshot.needsReconfirmCount = 1
+
+		renderDialog(snapshot)
+
+		const banner = await screen.findByTestId("html-permission-code-banner")
+		expect(banner).toHaveTextContent("htmlEditor.permissionManager.codeBanner.title")
+		expect(banner).toHaveTextContent(
+			"htmlEditor.permissionManager.codeBanner.descriptionWithReconfirm",
+		)
+		expect(screen.getByTestId("html-permission-reconfirm-badge")).toBeInTheDocument()
+	})
+
+	it("tells the user a read-only grant is still valid after the code changed", async () => {
+		const snapshot = createSnapshot()
+		snapshot.permissions[0] = {
+			...snapshot.permissions[0],
+			highRisk: false,
+			codeStatus: "changed",
+			needsReconfirm: false,
+		}
+		snapshot.codeChangedGrantCount = 1
+
+		renderDialog(snapshot)
+
+		const banner = await screen.findByTestId("html-permission-code-banner")
+		expect(banner).toHaveTextContent(
+			"htmlEditor.permissionManager.codeBanner.descriptionReadOnly",
+		)
+		expect(screen.getByTestId("html-permission-code-changed-badge")).toBeInTheDocument()
+		expect(screen.queryByTestId("html-permission-reconfirm-badge")).not.toBeInTheDocument()
+	})
+
+	it("acknowledges the current code from the banner and then hides it", async () => {
+		const changed = createSnapshot()
+		changed.codeChangedGrantCount = 1
+		const acknowledged = createSnapshot()
+		const onAcknowledgeCodeChanges = vi.fn().mockResolvedValue(acknowledged)
+
+		renderDialog(changed, { onAcknowledgeCodeChanges })
+		fireEvent.click(
+			await screen.findByRole("button", {
+				name: "htmlEditor.permissionManager.codeBanner.acknowledge",
+			}),
+		)
+
+		await waitFor(() => expect(onAcknowledgeCodeChanges).toHaveBeenCalledOnce())
+		await waitFor(() =>
+			expect(screen.queryByTestId("html-permission-code-banner")).not.toBeInTheDocument(),
 		)
 	})
 })

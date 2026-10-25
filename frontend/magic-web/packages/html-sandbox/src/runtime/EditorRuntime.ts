@@ -10,6 +10,10 @@ import { ImageManager } from "../managers/ImageManager"
 import { DragDropManager } from "../managers/DragDropManager"
 import { StyleManager } from "../managers/StyleManager"
 import { TextStyleManager } from "../managers/TextStyleManager"
+import { DomStructureManager } from "../managers/DomStructureManager"
+import { PPTBuildManager, type PPTBuildUpdate } from "../managers/PPTBuildManager"
+import { PPTBuildMarkers } from "../features/PPTBuildMarkers"
+import { PPTBuildPreview } from "../features/PPTBuildPreview"
 import { EditorLogger } from "../utils/EditorLogger"
 import { isFromTrustedParent, getParentOrigin } from "../utils/parentOrigin"
 import {
@@ -18,17 +22,24 @@ import {
 	registerSelectionHandlers,
 } from "../handlers"
 import { EventType } from "../core/types"
+import { KEYBOARD_MESSAGE_TYPES } from "../utils/hostKeyboardMessages"
 
 export class EditorRuntime {
 	private bridge: EditorBridge
 	private commandHistory: CommandHistory
 	private styleManager: StyleManager
 	private textStyleManager: TextStyleManager
+	private domStructureManager: DomStructureManager
 	private elementSelector: ElementSelector
 	private imageManager: ImageManager
 	private dragDropManager: DragDropManager
+	private pptBuildManager: PPTBuildManager
+	private pptBuildMarkers = new PPTBuildMarkers()
+	private pptBuildPreview = new PPTBuildPreview()
 	private isEditMode = false
+	private isPPTBuildMode = false
 	private keyboardShortcutHandler: ((event: KeyboardEvent) => Promise<void>) | null = null
+	private hostShortcutHandler: ((event: KeyboardEvent) => void) | null = null
 	private wheelEventHandler: ((event: WheelEvent) => void) | null = null
 	private imageUploadResultHandler: ((event: MessageEvent) => void) | null = null
 	private dragDropMessageHandler: ((event: MessageEvent) => void) | null = null
@@ -43,16 +54,43 @@ export class EditorRuntime {
 		this.commandHistory = new CommandHistory(50)
 		this.bridge = new EditorBridge()
 		this.styleManager = new StyleManager(this.commandHistory)
+		this.pptBuildManager = new PPTBuildManager(
+			this.commandHistory,
+			() => this.isEditMode || this.isPPTBuildMode,
+		)
 		this.textStyleManager = new TextStyleManager(this.commandHistory, this.bridge)
 		this.elementSelector = new ElementSelector(this.bridge)
+		this.domStructureManager = new DomStructureManager(
+			this.commandHistory,
+			this.elementSelector,
+		)
 		this.imageManager = new ImageManager(this.commandHistory, this.elementSelector)
 		this.dragDropManager = new DragDropManager(this.commandHistory, this.elementSelector)
+		this.styleManager.registerCommandHandler({
+			canHandleCommand: (type) => this.pptBuildManager.canHandleCommand(type),
+			restoreCommand: (command) => {
+				const restored = this.pptBuildManager.restoreCommand(command)
+				if (restored) this.elementSelector.refreshSelection()
+				return restored
+			},
+			applyCommand: (command) => {
+				const applied = this.pptBuildManager.applyCommand(command)
+				if (applied) this.elementSelector.refreshSelection()
+				return applied
+			},
+		})
 
 		// Connect styleManager with elementSelector for undo/redo refresh
 		this.styleManager.setElementSelector(this.elementSelector)
 
 		// Connect styleManager with textStyleManager for text selection state management
 		this.styleManager.setTextStyleManager(this.textStyleManager)
+		this.styleManager.registerCommandHandler({
+			canHandleCommand: (commandType) =>
+				this.domStructureManager.canHandleCommand(commandType),
+			restoreCommand: (command) => this.domStructureManager.restoreCommand(command),
+			applyCommand: (command) => this.domStructureManager.applyCommand(command),
+		})
 
 		this.styleManager.registerCommandHandler({
 			canHandleCommand: (commandType) => this.imageManager.canHandleCommand(commandType),
@@ -75,7 +113,7 @@ export class EditorRuntime {
 
 		// Set text editing callback for double-click activation
 		this.elementSelector.setTextEditingCallback((selector: string) => {
-			this.styleManager.enableTextEditing(selector)
+			if (this.isEditMode) this.styleManager.enableTextEditing(selector)
 		})
 
 		// Listen to history state changes
@@ -89,6 +127,9 @@ export class EditorRuntime {
 
 		// Setup keyboard shortcuts
 		this.setupKeyboardShortcuts()
+
+		// Forward save/exit shortcuts to the host without rewriting the user document
+		this.setupHostShortcutForwarding()
 
 		// Setup wheel handler for trackpad pinch-to-zoom
 		this.setupWheelHandler()
@@ -114,7 +155,59 @@ export class EditorRuntime {
 	/**
 	 * Register all handlers
 	 */
+	private clearPPTBuildPreview(): void {
+		this.pptBuildPreview.clear()
+		this.pptBuildMarkers.setSuspended(false)
+	}
+
 	private registerHandlers(): void {
+		// Animation configuration only selects source elements. It must never enable
+		// text editing, element manipulation shortcuts, or the full editor's tools.
+		this.bridge.onRequest("SET_PPT_BUILD_MODE", (payload) => {
+			const enabled = (payload as { enabled?: unknown })?.enabled
+			if (typeof enabled !== "boolean") throw new Error("PPT_BUILD_INVALID")
+			this.isPPTBuildMode = enabled
+			this.elementSelector.setSelectionOnly(enabled && !this.isEditMode)
+			if (enabled) this.elementSelector.enable()
+			else if (!this.isEditMode) this.elementSelector.disable()
+			if (!enabled) {
+				this.pptBuildMarkers.destroy()
+				this.clearPPTBuildPreview()
+			}
+			this.notifySelectionModeChanged(enabled || this.isEditMode)
+			return { success: true }
+		})
+		this.bridge.onRequest("GET_PPT_BUILDS", () => this.pptBuildManager.getBuilds())
+		this.bridge.onCommand("UPDATE_PPT_BUILDS", (payload) => {
+			this.pptBuildManager.updateBuilds((payload as { updates: PPTBuildUpdate[] })?.updates)
+			// A stale preview would show the old step layout.
+			this.clearPPTBuildPreview()
+			this.elementSelector.refreshSelection()
+			return { success: true }
+		})
+		this.bridge.onRequest("PREVIEW_PPT_BUILD", (payload) => {
+			const steps = (payload as { steps?: unknown })?.steps
+			if (steps === null) {
+				this.clearPPTBuildPreview()
+				return { success: true }
+			}
+			if (typeof steps !== "number" || !Number.isInteger(steps) || steps < 0)
+				throw new Error("PPT_BUILD_INVALID")
+			if (!this.isEditMode && !this.isPPTBuildMode)
+				throw new Error("PPT_BUILD_EDIT_MODE_REQUIRED")
+			this.pptBuildPreview.show(steps, (payload as { animate?: unknown })?.animate === true)
+			// A preview should look like the presentation, without the authoring overlay.
+			this.pptBuildMarkers.setSuspended(true)
+			return { success: true }
+		})
+		this.bridge.onRequest("SET_PPT_BUILD_MARKERS", (payload) => {
+			const visible = (payload as { visible?: unknown })?.visible
+			if (typeof visible !== "boolean") throw new Error("PPT_BUILD_INVALID")
+			if (visible && !this.isEditMode && !this.isPPTBuildMode)
+				throw new Error("PPT_BUILD_EDIT_MODE_REQUIRED")
+			this.pptBuildMarkers.setVisible(visible)
+			return { success: true }
+		})
 		// Register request handlers
 		registerRequestHandlers({
 			bridge: this.bridge,
@@ -122,14 +215,18 @@ export class EditorRuntime {
 			styleManager: this.styleManager,
 			textStyleManager: this.textStyleManager,
 			elementSelector: this.elementSelector,
+			domStructureManager: this.domStructureManager,
 			onEditModeChange: (isEditMode: boolean) => {
 				this.isEditMode = isEditMode
+				this.elementSelector.setSelectionOnly(this.isPPTBuildMode && !isEditMode)
 				this.notifyEditModeChanged()
 
 				// Start/stop text selection monitoring based on edit mode
 				if (isEditMode) {
 					this.textStyleManager.startMonitoring()
 				} else {
+					this.pptBuildMarkers.destroy()
+					this.clearPPTBuildPreview()
 					this.textStyleManager.stopMonitoring()
 				}
 			},
@@ -144,6 +241,7 @@ export class EditorRuntime {
 			styleManager: this.styleManager,
 			textStyleManager: this.textStyleManager,
 			imageManager: this.imageManager,
+			domStructureManager: this.domStructureManager,
 		})
 
 		// Register selection handlers
@@ -223,6 +321,60 @@ export class EditorRuntime {
 
 		window.addEventListener("keydown", this.keyboardShortcutHandler)
 		EditorLogger.info("Keyboard shortcuts registered for undo/redo/delete/duplicate")
+	}
+
+	/**
+	 * Forward Cmd/Ctrl+S, Shift+Cmd/Ctrl+S and Escape to the host editor.
+	 *
+	 * These used to be a <script> injected into the user's HTML when edit mode
+	 * started. That changed the document content, so the preview was rewritten in
+	 * place (document.open/write in the same Window) and page scripts with
+	 * top-level let/const/class failed to re-run, leaving scroll-reveal content
+	 * invisible. Installing the listener from the runtime keeps the document
+	 * untouched, so entering edit mode causes no reload and no flicker.
+	 *
+	 * Capture phase on document, so page handlers and text editing cannot swallow
+	 * the shortcut. The message shape matches the host's createKeyboardMessageHandler.
+	 */
+	private setupHostShortcutForwarding(): void {
+		this.hostShortcutHandler = (event: KeyboardEvent) => {
+			if (!this.isEditMode) return
+
+			const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+			const ctrlOrCmd = isMac ? event.metaKey : event.ctrlKey
+
+			// event.key is "S" while Shift is held (and with Caps Lock), so compare case-insensitively.
+			// Not event.code: it is the physical key and breaks Cmd+S on non-QWERTY layouts.
+			if (ctrlOrCmd && event.key.toLowerCase() === "s") {
+				event.preventDefault()
+				event.stopPropagation()
+				window.parent.postMessage(
+					{
+						type: event.shiftKey
+							? KEYBOARD_MESSAGE_TYPES.SAVE_AND_EXIT
+							: KEYBOARD_MESSAGE_TYPES.SAVE,
+						source: KEYBOARD_MESSAGE_TYPES.SOURCE,
+					},
+					getParentOrigin(),
+				)
+				return
+			}
+
+			if (event.key === "Escape") {
+				event.preventDefault()
+				// Keep the iframe selection active while the host closes its local panel.
+				event.stopImmediatePropagation()
+				window.parent.postMessage(
+					{
+						type: KEYBOARD_MESSAGE_TYPES.CANCEL,
+						source: KEYBOARD_MESSAGE_TYPES.SOURCE,
+					},
+					getParentOrigin(),
+				)
+			}
+		}
+
+		document.addEventListener("keydown", this.hostShortcutHandler, true)
 	}
 
 	/**
@@ -402,11 +554,18 @@ export class EditorRuntime {
 	 */
 	destroy(): void {
 		EditorLogger.info("Destroy editor runtime")
+		this.pptBuildMarkers.destroy()
+		this.clearPPTBuildPreview()
 
 		// Remove keyboard shortcut handler
 		if (this.keyboardShortcutHandler) {
 			window.removeEventListener("keydown", this.keyboardShortcutHandler)
 			this.keyboardShortcutHandler = null
+		}
+
+		if (this.hostShortcutHandler) {
+			document.removeEventListener("keydown", this.hostShortcutHandler, true)
+			this.hostShortcutHandler = null
 		}
 
 		// Remove wheel event handler

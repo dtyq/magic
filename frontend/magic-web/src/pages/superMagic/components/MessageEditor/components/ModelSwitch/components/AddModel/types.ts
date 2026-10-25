@@ -1,10 +1,12 @@
+import type { ServiceProviderCategory } from "@/apis/modules/org-ai-model-provider"
+
 /** Backend response from GET /service-providers */
 export interface ServiceProviderConfig {
 	id: string
 	name: string
 	icon?: string
 	provider_code: string
-	category: "llm" | "vlm"
+	category: ServiceProviderCategory
 	config: Record<string, unknown>
 	alias?: string
 	[key: string]: unknown
@@ -29,7 +31,7 @@ export interface ProviderTemplate {
 	name: string
 	icon?: string
 	provider_code: string
-	category: "llm" | "vlm"
+	category: ServiceProviderCategory
 	config_schema?: Record<string, { required?: boolean; type?: string }>
 	[key: string]: unknown
 }

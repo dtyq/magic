@@ -12,6 +12,8 @@
  *   Main iframe script: iframe.srcdoc = processedHtml
  */
 
+import type { FileAccessContext } from "@/pages/superMagic/fileAccess/fileAccessContext"
+import type { FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import { getFileContentById } from "@/pages/superMagic/utils/api"
 import { processHtmlContent } from "../htmlProcessor"
 import { getFullContent, decodeHTMLEntities } from "./full-content"
@@ -29,6 +31,7 @@ import {
 	type FileItem,
 	type PostMessageTargetStrategy,
 } from "./fetchInterceptor"
+import { parseHtmlNavigationRequest } from "./html-navigation"
 
 // --------------------------------------------------------------------------
 // Message type constants
@@ -42,9 +45,10 @@ export const NESTED_IFRAME_MESSAGE_TYPES = {
 interface NestedIframeContentHandlerOptions {
 	postMessageTargetStrategy?: PostMessageTargetStrategy
 	projectId?: string
-	topicId?: string
 	parentTargetOrigin?: string
 	onTelemetry?: (data: Record<string, unknown>) => void
+	access?: FileAccessContext | null
+	fileApi?: FileApi
 }
 
 // 规范化链路文件 ID：去重并补齐当前请求发起文件
@@ -385,7 +389,6 @@ export function createNestedIframeContentHandler(
 	const {
 		postMessageTargetStrategy = POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR,
 		projectId,
-		topicId,
 		parentTargetOrigin,
 	} = options
 
@@ -455,8 +458,18 @@ export function createNestedIframeContentHandler(
 				htmlRelativeFolderPath,
 			)
 
-			// 1. Locate the target file by its relative path
-			const matchedFile = findMatchingFile(allFiles, relativePath, requesterFolderPath)
+			const navigationTarget = parseHtmlNavigationRequest(relativePath)
+			if (!navigationTarget?.filePath) {
+				sendResponse(false, undefined, "Invalid iframe path: " + relativePath)
+				return
+			}
+
+			// 1. Locate the target file using only its path; query/hash belong to runtime state.
+			const matchedFile = findMatchingFile(
+				allFiles,
+				navigationTarget.filePath,
+				requesterFolderPath,
+			)
 
 			if (!matchedFile?.file_id) {
 				reportNestedIframeFailure("not_found", "File not found: " + relativePath, {
@@ -489,10 +502,15 @@ export function createNestedIframeContentHandler(
 				return
 			}
 
-			// 2. Fetch raw HTML content
-			const rawContent = await getFileContentById(matchedFile.file_id, {
-				responseType: "text",
-			})
+			// 2. Fetch raw HTML content. The handler already carries the boundary
+			// access; forward it so nested share previews are not blocked by the guard.
+			const rawContent = await (options.fileApi?.getFileContentById ?? getFileContentById)(
+				matchedFile.file_id,
+				{
+					responseType: "text",
+					access: options.access ?? undefined,
+				},
+			)
 
 			if (typeof rawContent !== "string") {
 				reportNestedIframeFailure("fetch_failed", "Failed to fetch file content", {
@@ -520,12 +538,13 @@ export function createNestedIframeContentHandler(
 				fileId: matchedFile.file_id,
 				fileName: matchedFile.file_name,
 				html_relative_path: nestedFileFolderPath,
+				access: options.access,
+				fileApi: options.fileApi,
 			})
 
 			const virtualStorageContext = await createVirtualStorageContext({
 				namespace: buildHtmlVirtualStorageNamespace({
 					projectId,
-					topicId,
 					fileId: matchedFile.file_id,
 				}),
 				origin: event.origin || undefined,
@@ -547,6 +566,9 @@ export function createNestedIframeContentHandler(
 					},
 					postMessageTargetStrategy,
 					virtualStorage: virtualStorageContext,
+					locationSearch: navigationTarget.search,
+					locationAnchor: navigationTarget.hash,
+					navigationBasePath: matchedFile.relative_file_path || relativePath,
 				},
 			)
 

@@ -52,15 +52,13 @@ export const useStyles = createStyles(({ css, token }) => {
 interface ApiConfigProps {
 	/* 服务商详情 */
 	data?: AiManage.ServiceProviderDetail
-	/* 是否是官方服务上 */
-	isOfficial?: boolean
 	/* 多语言配置 */
 	lang?: Lang
 	/* 多语言保存 */
 	onLangSave?: (value: Lang) => void
 }
 
-const ApiConfig = memo(({ data, lang, isOfficial, onLangSave }: ApiConfigProps) => {
+const ApiConfig = memo(({ data, lang, onLangSave }: ApiConfigProps) => {
 	const { name, provider_code: code, category } = data || {}
 	const { styles } = useStyles()
 	const { t } = useTranslation("admin/ai/model")
@@ -70,24 +68,22 @@ const ApiConfig = memo(({ data, lang, isOfficial, onLangSave }: ApiConfigProps) 
 	return (
 		<>
 			{/* 别名 */}
-			{!isOfficial && (
-				<Flex justify="space-between" gap={50} align="center">
-					<Flex gap={4} vertical className={styles.label}>
-						<div className={styles.labelText}>{t("form.alias")}</div>
-						<div className={styles.labelDesc}>{t("form.aliasPlaceholder")}</div>
-					</Flex>
-					<Flex gap={10} align="center" className={styles.formItem}>
-						<Form.Item name="alias" noStyle>
-							<Input placeholder={`${t("form.alias")} 1`} />
-						</Form.Item>
-						<MultiLangSetting
-							onSave={onLangSave}
-							info={lang}
-							supportLangs={[LanguageType.en_US]}
-						/>
-					</Flex>
+			<Flex justify="space-between" gap={50} align="center">
+				<Flex gap={4} vertical className={styles.label}>
+					<div className={styles.labelText}>{t("form.alias")}</div>
+					<div className={styles.labelDesc}>{t("form.aliasPlaceholder")}</div>
 				</Flex>
-			)}
+				<Flex gap={10} align="center" className={styles.formItem}>
+					<Form.Item name="alias" noStyle>
+						<Input placeholder={`${t("form.alias")} 1`} />
+					</Form.Item>
+					<MultiLangSetting
+						onSave={onLangSave}
+						info={lang}
+						supportLangs={[LanguageType.en_US]}
+					/>
+				</Flex>
+			</Flex>
 			{/* 服务商配置表单 */}
 			<ConfigForm category={category} code={code} name={name} />
 			{/* 展示优先级 */}

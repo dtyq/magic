@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from agentlang.streaming.message_builder import MessageBuilderInterface
 from agentlang.streaming.models import ChunkData
 from agentlang.utils import ShadowCode
+
 from app.core.context.agent_context import AgentContext
 from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
 
@@ -48,7 +49,7 @@ class LLMStreamingMessageBuilderV2(MessageBuilderInterface):
         json_data = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
         return {
             "obfuscated": True,
-            "shadow": ShadowCode.shadow(json_data),
+            "shadow": ShadowCode.shadow_json(json_data),
         }
 
     async def _load_auth_info(self) -> bool:

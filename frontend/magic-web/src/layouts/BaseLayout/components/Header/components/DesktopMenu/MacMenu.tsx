@@ -2,7 +2,7 @@ import { magic } from "@/enhance/magicElectron"
 import { useEffect, useState } from "react"
 import { IconMinus } from "@tabler/icons-react"
 import { IconClose, IconToggle } from "@/enhance/tabler/icons-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useDesktopVersionCheck } from "./useDesktopVersionCheck"
 
 const menuIconClassName =

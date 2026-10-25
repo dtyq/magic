@@ -20,7 +20,7 @@ const HOST_ORIGIN = "https://host.example.invalid"
 const INSTANCE_ID = "widget-mock-instance"
 
 /** Builds one protocol command with fictional identifiers and payload data. */
-function createCommand(requestId: string, command: string, content?: string) {
+function createCommand(requestId: string, command: string, content?: unknown) {
 	return {
 		protocol: "magic-widget",
 		version: 1,
@@ -29,6 +29,50 @@ function createCommand(requestId: string, command: string, content?: string) {
 		type: "command",
 		command,
 		...(content === undefined ? {} : { payload: { content } }),
+	}
+}
+
+/** Builds one host-owned header action response request with fictional identifiers. */
+function createHeaderActionResponse(requestId: string, handled = true) {
+	return {
+		protocol: "magic-widget",
+		version: 1,
+		instanceId: INSTANCE_ID,
+		requestId,
+		type: "response",
+		ok: true,
+		result: { headerActionHandled: handled },
+	}
+}
+
+/** Creates fictional structured input covering every SDK-supported mention kind. */
+function createStructuredContent() {
+	return {
+		blocks: [
+			{ type: "text", text: "Ask " },
+			{
+				type: "mention",
+				mention: {
+					type: "agent",
+					data: { agent_id: "agent-mock-001", agent_name: "Agent Mock" },
+				},
+			},
+			{
+				type: "mention",
+				mention: { type: "skill", data: { id: "skill-mock-001", name: "Skill Mock" } },
+			},
+			{
+				type: "mention",
+				mention: { type: "tool", data: { id: "tool-mock-001", name: "Tool Mock" } },
+			},
+			{
+				type: "mention",
+				mention: {
+					type: "mcp",
+					data: { id: "mcp-mock-001", name: "MCP Mock", icon: "mock-icon" },
+				},
+			},
+		],
 	}
 }
 
@@ -80,7 +124,18 @@ describe("useMagicWidgetBridge", () => {
 
 		await waitFor(() => expect(setInputListener).toHaveBeenCalledTimes(1))
 		expect(setInputListener).toHaveBeenCalledWith(
-			expect.objectContaining({ command: "setInput", content: "mock input" }),
+			expect.objectContaining({
+				command: "setInput",
+				content: {
+					type: "doc",
+					content: [
+						{
+							type: "paragraph",
+							content: [{ type: "text", text: "mock input" }],
+						},
+					],
+				},
+			}),
 		)
 		expect(postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -93,6 +148,99 @@ describe("useMagicWidgetBridge", () => {
 
 		pubsub.unsubscribe(PubSubEvents.Magic_Widget_Editor_Command, setInputListener)
 		unmount()
+	})
+
+	it("requests host-owned header actions and resolves whether the host handled them", async () => {
+		const { result, unmount } = renderHook(() =>
+			useMagicWidgetBridge({
+				context: { instanceId: INSTANCE_ID, hostOrigin: HOST_ORIGIN },
+				createNewConversation: vi.fn(),
+			}),
+		)
+
+		const actionPromise = result.current.requestHeaderAction("pin", {
+			topicId: "topic-mock-header",
+		})
+		const request = postMessage.mock.calls[0]?.[0] as { requestId: string }
+		expect(request).toEqual(
+			expect.objectContaining({
+				type: "header_action",
+				action: "pin",
+				context: { action: "pin", topicId: "topic-mock-header" },
+			}),
+		)
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					origin: HOST_ORIGIN,
+					source: parentWindow,
+					data: createHeaderActionResponse(request.requestId),
+				}),
+			)
+		})
+
+		await expect(actionPromise).resolves.toBe(true)
+		unmount()
+	})
+
+	it("rejects a header action when the host reports failure", async () => {
+		const { result, unmount } = renderHook(() =>
+			useMagicWidgetBridge({
+				context: { instanceId: INSTANCE_ID, hostOrigin: HOST_ORIGIN },
+				createNewConversation: vi.fn(),
+			}),
+		)
+
+		const actionPromise = result.current.requestHeaderAction("history")
+		const request = postMessage.mock.calls[0]?.[0] as { requestId: string }
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					origin: HOST_ORIGIN,
+					source: parentWindow,
+					data: {
+						protocol: "magic-widget",
+						version: 1,
+						instanceId: INSTANCE_ID,
+						requestId: request.requestId,
+						type: "response",
+						ok: false,
+						error: {
+							code: "HEADER_ACTION_FAILED",
+							message: "Mock header action failed",
+						},
+					},
+				}),
+			)
+		})
+
+		await expect(actionPromise).rejects.toThrow("Mock header action failed")
+		unmount()
+	})
+
+	it("rejects a header action that receives no host response", async () => {
+		vi.useFakeTimers()
+		try {
+			const { result, unmount } = renderHook(() =>
+				useMagicWidgetBridge({
+					context: { instanceId: INSTANCE_ID, hostOrigin: HOST_ORIGIN },
+					createNewConversation: vi.fn(),
+				}),
+			)
+			const actionPromise = result.current.requestHeaderAction("share")
+			const assertion = expect(actionPromise).rejects.toThrow(
+				"Magic widget header action timed out",
+			)
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000)
+			})
+			await assertion
+			unmount()
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 
 	it("does not gate setInput on agent_ready", async () => {
@@ -124,6 +272,154 @@ describe("useMagicWidgetBridge", () => {
 		)
 
 		pubsub.unsubscribe(PubSubEvents.Magic_Widget_Editor_Command, setInputListener)
+		unmount()
+	})
+
+	it("converts structured blocks into TipTap mention nodes for set and send", async () => {
+		const editorCommandListener = vi.fn((payload) => payload.respond())
+		const sendListener = vi.fn()
+		pubsub.subscribe(PubSubEvents.Magic_Widget_Editor_Command, editorCommandListener)
+		pubsub.subscribe(PubSubEvents.Send_Message_by_Content, sendListener)
+		const { unmount } = renderHook(() =>
+			useMagicWidgetBridge({
+				context: { instanceId: INSTANCE_ID, hostOrigin: HOST_ORIGIN },
+				createNewConversation: vi.fn(),
+			}),
+		)
+		const structuredContent = createStructuredContent()
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: HOST_ORIGIN,
+				source: parentWindow,
+				data: createCommand("request-structured-set", "setInput", structuredContent),
+			}),
+		)
+
+		await waitFor(() => expect(editorCommandListener).toHaveBeenCalledTimes(1))
+		expect(editorCommandListener).toHaveBeenCalledWith({
+			command: "setInput",
+			content: {
+				type: "doc",
+				content: [
+					{
+						type: "paragraph",
+						content: [
+							{ type: "text", text: "Ask " },
+							{
+								type: "mention",
+								attrs: {
+									type: "agent",
+									data: { agent_id: "agent-mock-001", agent_name: "Agent Mock" },
+								},
+							},
+							expect.objectContaining({
+								type: "mention",
+								attrs: { type: "skill", data: expect.any(Object) },
+							}),
+							expect.objectContaining({
+								type: "mention",
+								attrs: { type: "tool", data: expect.any(Object) },
+							}),
+							expect.objectContaining({
+								type: "mention",
+								attrs: { type: "mcp", data: expect.any(Object) },
+							}),
+						],
+					},
+				],
+			},
+			respond: expect.any(Function),
+		})
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: HOST_ORIGIN,
+				source: parentWindow,
+				data: createCommand("request-structured-send", "sendMessage", structuredContent),
+			}),
+		)
+
+		await waitFor(() => expect(sendListener).toHaveBeenCalledTimes(1))
+		expect(sendListener.mock.calls[0]?.[0].jsonContent.content[0].content).toHaveLength(5)
+
+		pubsub.unsubscribe(PubSubEvents.Magic_Widget_Editor_Command, editorCommandListener)
+		pubsub.unsubscribe(PubSubEvents.Send_Message_by_Content, sendListener)
+		unmount()
+	})
+
+	it("uses the normal editor command when sendMessage omits content", async () => {
+		const editorCommandListener = vi.fn((payload) => payload.respond())
+		pubsub.subscribe(PubSubEvents.Magic_Widget_Editor_Command, editorCommandListener)
+		const { unmount } = renderHook(() =>
+			useMagicWidgetBridge({
+				context: { instanceId: INSTANCE_ID, hostOrigin: HOST_ORIGIN },
+				createNewConversation: vi.fn(),
+			}),
+		)
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: HOST_ORIGIN,
+				source: parentWindow,
+				data: createCommand("request-current-send", "sendMessage"),
+			}),
+		)
+
+		await waitFor(() =>
+			expect(editorCommandListener).toHaveBeenCalledWith(
+				expect.objectContaining({ command: "sendMessage" }),
+			),
+		)
+		expect(postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "request-current-send", ok: true }),
+			HOST_ORIGIN,
+		)
+
+		pubsub.unsubscribe(PubSubEvents.Magic_Widget_Editor_Command, editorCommandListener)
+		unmount()
+	})
+
+	it("rejects incomplete text mention data without touching the editor", async () => {
+		const editorCommandListener = vi.fn((payload) => payload.respond())
+		pubsub.subscribe(PubSubEvents.Magic_Widget_Editor_Command, editorCommandListener)
+		const { unmount } = renderHook(() =>
+			useMagicWidgetBridge({
+				context: { instanceId: INSTANCE_ID, hostOrigin: HOST_ORIGIN },
+				createNewConversation: vi.fn(),
+			}),
+		)
+
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				origin: HOST_ORIGIN,
+				source: parentWindow,
+				data: createCommand("request-invalid-mention", "setInput", {
+					blocks: [
+						{
+							type: "mention",
+							mention: {
+								type: "text",
+								data: { label: "Chart Mock", text: "chart id: mock-chart" },
+							},
+						},
+					],
+				}),
+			}),
+		)
+
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					requestId: "request-invalid-mention",
+					ok: false,
+				}),
+				HOST_ORIGIN,
+			),
+		)
+		expect(editorCommandListener).not.toHaveBeenCalled()
+
+		pubsub.unsubscribe(PubSubEvents.Magic_Widget_Editor_Command, editorCommandListener)
 		unmount()
 	})
 

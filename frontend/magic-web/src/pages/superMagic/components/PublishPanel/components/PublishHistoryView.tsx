@@ -14,7 +14,7 @@ import {
 	TableRow,
 } from "@/components/shadcn-ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { usePublishPanelStore } from "../context"
 import { getInternalTargetUiKey, getPublishToCopyKeys } from "../publishCopy"
 import type { PublishHistoryRecord, PublishRecordStatus } from "../types"

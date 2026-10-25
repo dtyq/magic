@@ -1,4 +1,16 @@
 import type { CropConfig } from "../../document/types"
+import type { EraserStrokeMode } from "../../interaction/eraser/EraserRenderer"
+
+export const ERASER_STROKE_MODE_ERASE = 0
+export const ERASER_STROKE_MODE_RESTORE = 1
+
+export function encodeEraserStrokeMode(mode: EraserStrokeMode): number {
+	return mode === "restore" ? ERASER_STROKE_MODE_RESTORE : ERASER_STROKE_MODE_ERASE
+}
+
+export function decodeEraserStrokeMode(value: number): EraserStrokeMode {
+	return value === ERASER_STROKE_MODE_RESTORE ? "restore" : "erase"
+}
 
 export interface SubmitImageRect {
 	x: number
@@ -19,6 +31,7 @@ export interface SubmitImageSourceDimensions {
 
 export interface FlattenedEraserStrokes {
 	meta: Uint32Array
+	modes: Uint8Array
 	points: Float32Array
 }
 
@@ -43,8 +56,7 @@ export interface SubmitImageWorkerExtendRequest {
 }
 
 export type SubmitImageWorkerRequest =
-	| SubmitImageWorkerEraseRequest
-	| SubmitImageWorkerExtendRequest
+	SubmitImageWorkerEraseRequest | SubmitImageWorkerExtendRequest
 
 interface SubmitImageWorkerBaseResponse {
 	requestId: string
@@ -81,5 +93,9 @@ export function getSubmitImageWorkerTransferables(
 	if (request.type !== "erase") {
 		return []
 	}
-	return [request.strokes.meta.buffer, request.strokes.points.buffer]
+	return [
+		request.strokes.meta.buffer,
+		request.strokes.modes.buffer,
+		request.strokes.points.buffer,
+	]
 }

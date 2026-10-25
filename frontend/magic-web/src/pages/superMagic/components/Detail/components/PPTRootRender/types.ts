@@ -1,7 +1,10 @@
+import type { AttachmentLoadState } from "@/stores/projectFiles/types"
 import type { DetailHTMLData } from "../../types"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { PPTSlideStructureAdapter } from "../PPTRender/types"
 
 export interface PPTRootRenderProps {
+	attachmentLoadState?: AttachmentLoadState
 	data: DetailHTMLData
 	attachments?: any[]
 	type?: string
@@ -24,7 +27,7 @@ export interface PPTRootRenderProps {
 		enable_shadow?: boolean,
 		fetchFileVersions?: (fileId: string) => void,
 		isPPTEditMode?: boolean,
-	) => Promise<void>
+	) => Promise<boolean | void>
 	className?: string
 	updatedAt?: string
 	displayConfig?: any
@@ -35,11 +38,15 @@ export interface PPTRootRenderProps {
 	isPlaybackMode?: boolean
 	exportFile?: (fileId: string, fileVersion?: number) => void
 	exportPdf?: (fileId: string) => void
-	exportPpt?: (fileId: string) => void
+	exportPptx?: (fileId: string) => void
 	onActiveFileChange?: (fileId: string | null) => void
 	isTabActive?: boolean
 	allowDownload?: boolean
+	/** Controls whether PPT slide content exposes the manual refresh action. */
+	showRefresh?: boolean
 	projectId?: string
 	onRegisterCheckBeforeClose?: (fileId: string, callback: () => Promise<boolean>) => void
 	onUnregisterCheckBeforeClose?: (fileId: string) => void
+	slideStructureAdapter?: PPTSlideStructureAdapter
+	disableMagicProjectLookup?: boolean
 }

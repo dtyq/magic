@@ -152,8 +152,8 @@ class SignatureUtil:
         if aigc_params is None:
             aigc_params = AigcMetadataParams()
 
-        # 从环境变量获取 ContentProducter
-        content_producer = os.getenv("CONTENT_PRODUCER", "001191440300MA5HTEC8X100000")
+        # 内容生产者标识由部署环境提供，未配置时不代填具体主体。
+        content_producer = os.getenv("CONTENT_PRODUCER", "")
         created_at = str(int(time.time()))
 
         # 创建基础元数据

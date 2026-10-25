@@ -10,6 +10,7 @@ namespace Hyperf\SocketIOServer;
 use App\Infrastructure\Core\ClassMap\SocketIoServer\Contract\SidLifecycleProviderInterface;
 use App\Infrastructure\Core\ClassMap\SocketIoServer\Enum\SocketIOLifecycleEvent;
 use App\Infrastructure\Core\ClassMap\SocketIoServer\Enum\SocketIOSidGuardEvent;
+use App\Infrastructure\Core\ClassMap\SocketIoServer\SocketIOConnectionState;
 use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\OnCloseInterface;
@@ -31,7 +32,9 @@ use Hyperf\SocketIOServer\Room\EphemeralInterface;
 use Hyperf\SocketIOServer\SidProvider\DistributedSidProvider;
 use Hyperf\SocketIOServer\SidProvider\SidProviderInterface;
 use Hyperf\WebSocketServer\Constant\Opcode;
+use Hyperf\WebSocketServer\Context as WsContext;
 use Hyperf\WebSocketServer\Sender;
+use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 use Swow\Psr7\Server\ServerConnection;
 use Swow\SocketException;
@@ -114,8 +117,8 @@ class SocketIO implements OnMessageInterface, OnOpenInterface, OnCloseInterface
     /* @phpstan-ignore-next-line */
     public function onMessage($server, $frame): void
     {
-        // 链接不可用时，不再尝试推送消息
-        if (! $server->isAvailable()) {
+        // Swow 的连接对象通过组合持有 Socket，底层连接不可用时不再推送消息。
+        if (! $server->getSocket()->isAvailable()) {
             return;
         }
         try {
@@ -124,6 +127,18 @@ class SocketIO implements OnMessageInterface, OnOpenInterface, OnCloseInterface
             $data = (string) $frame->getPayloadData();
             if ($frame->getOpcode() == Opcode::PING) {
                 $response->push(new Frame(opcode: Opcode::PONG));
+                return;
+            }
+
+            if ($data === '') {
+                return;
+            }
+            $state = $this->getConnectionState($response->getFd());
+            if ($state?->closed) {
+                return;
+            }
+            if ($data[0] === Engine::PONG && $state?->protocol === SocketIOConnectionState::CURRENT_PROTOCOL) {
+                $state->acknowledgePong($this->timer);
                 return;
             }
 
@@ -142,8 +157,18 @@ class SocketIO implements OnMessageInterface, OnOpenInterface, OnCloseInterface
             }
 
             $packet = $this->decoder->decode($data);
+            if ($state?->protocol === SocketIOConnectionState::CURRENT_PROTOCOL
+                && in_array($packet->type, [Packet::EVENT, Packet::ACK], true)
+                && ! isset($state->namespaces[$packet->nsp])) {
+                $response->close();
+                return;
+            }
             switch ($packet->type) {
                 case Packet::OPEN: // client open
+                    if ($state?->protocol === SocketIOConnectionState::CURRENT_PROTOCOL) {
+                        $this->connectNamespace($response, $state, $packet->nsp);
+                        break;
+                    }
                     $responsePacket = Packet::create([
                         'type' => Packet::OPEN,
                         'nsp' => $packet->nsp,
@@ -151,6 +176,10 @@ class SocketIO implements OnMessageInterface, OnOpenInterface, OnCloseInterface
                     $response->push(new Frame(payloadData: Engine::MESSAGE . $this->encoder->encode($responsePacket)));
                     break;
                 case Packet::CLOSE: // client disconnect
+                    if ($state?->protocol === SocketIOConnectionState::CURRENT_PROTOCOL) {
+                        $this->disconnectNamespace($response->getFd(), $packet->nsp, $state);
+                        break;
+                    }
                     $response->close();
                     break;
                 case Packet::EVENT: // client message with ack
@@ -196,21 +225,34 @@ class SocketIO implements OnMessageInterface, OnOpenInterface, OnCloseInterface
         $fd = $response->getFd();
         $sidAssigned = false;
         try {
+            $handshake = WsContext::get(ServerRequestInterface::class, $request, $fd);
+            $query = $handshake instanceof ServerRequestInterface ? $handshake->getQueryParams() : [];
+            $protocol = $query['EIO'] ?? SocketIOConnectionState::LEGACY_PROTOCOL;
+            if (! in_array($protocol, [3, 4, '3', '4'], true)) {
+                throw new RuntimeException('Unsupported Engine.IO protocol version');
+            }
+            $state = new SocketIOConnectionState((int) $protocol);
+            WsContext::set(SocketIOConnectionState::class, $state);
             $sid = $this->assignSidForOpen($fd);
             $sidAssigned = true;
 
             $data = [
                 'sid' => $sid,
-                'upgrades' => ['websocket'],
+                'upgrades' => $state->protocol === SocketIOConnectionState::CURRENT_PROTOCOL ? [] : ['websocket'],
                 'pingInterval' => $this->config->getPingInterval(),
                 'pingTimeout' => $this->config->getPingTimeout(),
             ];
 
             $response->push(new Frame(payloadData: Engine::OPEN . json_encode($data))); // socket is open
-            $response->push(new Frame(payloadData: Engine::MESSAGE . Packet::OPEN)); // server open
-
-            $this->dispatchEventInAllNamespaces($fd, SocketIOLifecycleEvent::Connect->value);
+            if ($state->protocol === SocketIOConnectionState::CURRENT_PROTOCOL) {
+                // EIO=4 等客户端请求 namespace；额外发送默认 / 会使严格握手校验失败。
+                $this->startHeartbeat($server, $state);
+            } else {
+                $response->push(new Frame(payloadData: Engine::MESSAGE . Packet::OPEN)); // server open
+                $this->dispatchEventInAllNamespaces($fd, SocketIOLifecycleEvent::Connect->value);
+            }
         } catch (Throwable $exception) {
+            $this->closeConnectionState($fd);
             if ($sidAssigned) {
                 $this->rollbackSidAfterOpenFailure($fd);
             }
@@ -221,7 +263,7 @@ class SocketIO implements OnMessageInterface, OnOpenInterface, OnCloseInterface
     public function onClose($server, int $fd, int $reactorId): void
     {
         try {
-            $this->dispatchEventInAllNamespaces($fd, SocketIOLifecycleEvent::Disconnect->value);
+            $this->closeConnectionState($fd);
         } finally {
             $this->unregisterSidForClose($fd);
         }
@@ -428,8 +470,111 @@ class SocketIO implements OnMessageInterface, OnOpenInterface, OnCloseInterface
             return;
         }
         foreach (array_keys($all['forward']) as $nsp) {
+            $state = $this->getConnectionState($fd);
+            if ($event === SocketIOLifecycleEvent::Connect->value && $state !== null) {
+                $state->namespaces[$nsp] = true;
+            }
             $this->dispatch($fd, $nsp, $event, null);
         }
+    }
+
+    private function getConnectionState(int $fd): ?SocketIOConnectionState
+    {
+        $state = WsContext::get(SocketIOConnectionState::class, null, $fd);
+        return $state instanceof SocketIOConnectionState ? $state : null;
+    }
+
+    private function connectNamespace(Response $response, SocketIOConnectionState $state, string $namespace): void
+    {
+        if (! SocketIORouter::getClassName($namespace)) {
+            $response->close();
+            return;
+        }
+        $fd = $response->getFd();
+        $sid = $this->sidProvider->getSid($fd);
+        if (! isset($state->namespaces[$namespace])) {
+            $state->namespaces[$namespace] = true;
+            try {
+                $this->dispatch($fd, $namespace, SocketIOLifecycleEvent::Connect->value, null);
+            } catch (Throwable $exception) {
+                $this->disconnectNamespace($fd, $namespace, $state);
+                $response->close();
+                throw $exception;
+            }
+        }
+        // connect 回调可能等待 Redis；连接已关闭时，迟到的登记仍须清理。
+        if ($state->closed || $this->sidProvider->getSid($fd) !== $sid) {
+            $this->of($namespace)->getAdapter()->del($sid);
+            return;
+        }
+        $packet = Packet::create([
+            'type' => Packet::OPEN,
+            'nsp' => $namespace,
+            'data' => ['sid' => $sid],
+        ]);
+        $response->push(new Frame(payloadData: Engine::MESSAGE . $this->encoder->encode($packet)));
+    }
+
+    private function disconnectNamespace(int $fd, string $namespace, SocketIOConnectionState $state): void
+    {
+        if (! isset($state->namespaces[$namespace])) {
+            return;
+        }
+        unset($state->namespaces[$namespace]);
+        try {
+            $this->dispatch($fd, $namespace, SocketIOLifecycleEvent::Disconnect->value, null);
+        } catch (Throwable $exception) {
+            $this->stdoutLogger->warning(sprintf('socketioDisconnect fd=%d namespace=%s error=%s', $fd, $namespace, $exception->getMessage()));
+        } finally {
+            // 业务 disconnect 回调抛异常时，仍须执行基础房间清理。
+            $this->of($namespace)->getAdapter()->del($this->sidProvider->getSid($fd));
+        }
+    }
+
+    private function closeConnectionState(int $fd): void
+    {
+        $state = $this->getConnectionState($fd);
+        if ($state === null) {
+            if ($this->sidProvider->getSid($fd) !== '') {
+                $this->dispatchEventInAllNamespaces($fd, SocketIOLifecycleEvent::Disconnect->value);
+            }
+            return;
+        }
+        $state->close($this->timer);
+        foreach (array_keys($state->namespaces) as $namespace) {
+            try {
+                $this->disconnectNamespace($fd, $namespace, $state);
+            } catch (Throwable $exception) {
+                $this->stdoutLogger->warning(sprintf('socketioDisconnect fd=%d namespace=%s error=%s', $fd, $namespace, $exception->getMessage()));
+            }
+        }
+    }
+
+    private function startHeartbeat(ServerConnection $connection, SocketIOConnectionState $state): void
+    {
+        // EIO=4 的 PING 由服务端发起；原来的 WebSocket 控制帧 PONG 不能替代此心跳。
+        $state->heartbeatTimer = $this->timer->tick($this->config->getPingInterval() / 1000, function (bool $isClosing) use ($connection, $state): ?string {
+            if ($isClosing || $state->closed || ! $connection->getSocket()->isAvailable()) {
+                return Timer::STOP;
+            }
+            if ($state->pongTimer !== null) {
+                return null;
+            }
+            $state->pongTimer = $this->timer->after($this->config->getPingTimeout() / 1000, function () use ($connection, $state): void {
+                if (! $state->closed && $state->pongTimer !== null) {
+                    $state->close($this->timer);
+                    $connection->close();
+                }
+            });
+            try {
+                $connection->sendWebSocketFrame(new Frame(payloadData: Engine::PING));
+            } catch (Throwable) {
+                $state->acknowledgePong($this->timer);
+                $connection->close();
+                return Timer::STOP;
+            }
+            return null;
+        });
     }
 
     private function renewInAllNamespaces(int $fd)

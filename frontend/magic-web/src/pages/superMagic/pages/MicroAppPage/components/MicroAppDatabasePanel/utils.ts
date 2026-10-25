@@ -85,6 +85,15 @@ export interface MagicBaseGridColumn {
 	source?: "system" | "schema" | "row"
 }
 
+/** 表说明作为用户可读名称，表名作为次级标识展示。 */
+export function getMagicBaseTableDisplayName(table?: MagicBaseTable | null): string {
+	return table?.description || table?.table_name || table?.table_key || ""
+}
+
+export function getMagicBaseTableName(table?: MagicBaseTable | null): string {
+	return table?.table_name || table?.table_key || ""
+}
+
 export function createEmptyMagicBaseFilter(): MagicBaseFilterGroup {
 	return { logic: "and", items: [] }
 }

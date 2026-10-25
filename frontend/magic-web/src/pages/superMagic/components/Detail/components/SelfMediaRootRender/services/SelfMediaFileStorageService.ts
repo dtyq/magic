@@ -1,6 +1,6 @@
 import { SuperMagicApi } from "@/apis"
 import { superMagicUploadTokenService } from "@/pages/superMagic/components/MessageEditor/services/UploadTokenService"
-import { getFileContentById } from "@/pages/superMagic/utils/api"
+import { createFileApi, type FileApi } from "@/pages/superMagic/fileAccess/fileApi"
 import type { ScheduledTask } from "@/types/scheduledTask"
 import { Upload } from "@dtyq/upload-sdk"
 import type { SelfMediaPlatform } from "../../../types"
@@ -278,6 +278,7 @@ interface FileNode {
  * 将草稿和模板以文件形式存储在项目的 __drafts/ 目录中。
  */
 export class SelfMediaFileStorageService {
+	private readonly fileApi: FileApi
 	private projectId: string
 	private parentFileId: string | undefined
 	private folderRelativePath: string | undefined
@@ -292,8 +293,14 @@ export class SelfMediaFileStorageService {
 	private fileListInflight: Promise<FileNode[]> | null = null
 	private static FILE_LIST_CACHE_TTL = 3000 // 3s TTL
 
-	constructor(projectId: string, parentFileId?: string, folderRelativePath?: string) {
+	constructor(
+		projectId: string,
+		parentFileId?: string,
+		folderRelativePath?: string,
+		fileApi: FileApi = createFileApi(),
+	) {
 		this.projectId = projectId
+		this.fileApi = fileApi
 		this.parentFileId = parentFileId
 		this.folderRelativePath = folderRelativePath
 			? folderRelativePath.replace(/^\/+/, "").replace(/\/+$/, "")
@@ -335,7 +342,7 @@ export class SelfMediaFileStorageService {
 			const file = this.findBrandConfigFile(files)
 			if (!file?.file_id) return null
 
-			const content = (await getFileContentById(file.file_id, {
+			const content = (await this.fileApi.getFileContentById(file.file_id, {
 				responseType: "text",
 			})) as string
 			const payload: BrandConfigPayload = JSON.parse(content)
@@ -367,7 +374,7 @@ export class SelfMediaFileStorageService {
 			throw new Error("postManifestMissing")
 		}
 
-		const content = (await getFileContentById(file.file_id, {
+		const content = (await this.fileApi.getFileContentById(file.file_id, {
 			responseType: "text",
 		})) as string
 		await SuperMagicApi.saveFileContent([
@@ -395,8 +402,10 @@ export class SelfMediaFileStorageService {
 		}
 
 		const [postContent, magicProjectContent] = await Promise.all([
-			getFileContentById(postFile.file_id, { responseType: "text" }) as Promise<string>,
-			getFileContentById(magicProjectFile.file_id, {
+			this.fileApi.getFileContentById(postFile.file_id, {
+				responseType: "text",
+			}) as Promise<string>,
+			this.fileApi.getFileContentById(magicProjectFile.file_id, {
 				responseType: "text",
 			}) as Promise<string>,
 		])
@@ -434,8 +443,10 @@ export class SelfMediaFileStorageService {
 		}
 
 		const [postContent, magicProjectContent] = await Promise.all([
-			getFileContentById(postFile.file_id, { responseType: "text" }) as Promise<string>,
-			getFileContentById(magicProjectFile.file_id, {
+			this.fileApi.getFileContentById(postFile.file_id, {
+				responseType: "text",
+			}) as Promise<string>,
+			this.fileApi.getFileContentById(magicProjectFile.file_id, {
 				responseType: "text",
 			}) as Promise<string>,
 		])
@@ -477,7 +488,7 @@ export class SelfMediaFileStorageService {
 			throw new Error("postDirectoryMissing")
 		}
 
-		const content = (await getFileContentById(magicProjectFile.file_id, {
+		const content = (await this.fileApi.getFileContentById(magicProjectFile.file_id, {
 			responseType: "text",
 		})) as string
 		const updatedContent = removeSelfMediaPostFromIndex(content, target)
@@ -526,7 +537,7 @@ export class SelfMediaFileStorageService {
 			}
 			if (!file?.file_id) return null
 
-			const content = (await getFileContentById(file.file_id, {
+			const content = (await this.fileApi.getFileContentById(file.file_id, {
 				responseType: "text",
 			})) as string
 			return normalizePostOpsMetricsPayload(JSON.parse(content))
@@ -737,7 +748,7 @@ export class SelfMediaFileStorageService {
 				return null
 			}
 
-			const content = (await getFileContentById(draftFile.file_id, {
+			const content = (await this.fileApi.getFileContentById(draftFile.file_id, {
 				responseType: "text",
 			})) as string
 
@@ -849,7 +860,7 @@ export class SelfMediaFileStorageService {
 			const results: TemplateMeta[] = []
 			for (const file of jsonFiles) {
 				try {
-					const content = (await getFileContentById(file.file_id!, {
+					const content = (await this.fileApi.getFileContentById(file.file_id!, {
 						responseType: "text",
 					})) as string
 					const payload: TemplatePayload = JSON.parse(content)
@@ -884,7 +895,7 @@ export class SelfMediaFileStorageService {
 			const file = files.find((f) => !f.is_directory && f.relative_file_path === jsonPath)
 			if (!file?.file_id) return null
 
-			const content = (await getFileContentById(file.file_id, {
+			const content = (await this.fileApi.getFileContentById(file.file_id, {
 				responseType: "text",
 			})) as string
 			const payload: TemplatePayload = JSON.parse(content)
@@ -1183,7 +1194,7 @@ export class SelfMediaFileStorageService {
 		)
 		if (!file?.file_id) return null
 
-		return (await getFileContentById(file.file_id, {
+		return (await this.fileApi.getFileContentById(file.file_id, {
 			responseType: "text",
 		})) as string
 	}
@@ -1193,7 +1204,7 @@ export class SelfMediaFileStorageService {
 		const file = this.findFileByProjectRelativePath(files, `ops/${fileName}`)
 		if (!file?.file_id) return null
 
-		return (await getFileContentById(file.file_id, {
+		return (await this.fileApi.getFileContentById(file.file_id, {
 			responseType: "text",
 		})) as string
 	}
@@ -1596,7 +1607,7 @@ export class SelfMediaFileStorageService {
 				const files = await this.getProjectFileList()
 				const draftFile = this.findDraftFile(files)
 				if (draftFile?.file_id) {
-					const content = (await getFileContentById(draftFile.file_id, {
+					const content = (await this.fileApi.getFileContentById(draftFile.file_id, {
 						responseType: "text",
 					})) as string
 					const prev: DraftPayload = JSON.parse(content)
@@ -1625,7 +1636,7 @@ export class SelfMediaFileStorageService {
 			const files = await this.getProjectFileList()
 			const existingFile = this.findBrandConfigFile(files)
 			if (existingFile?.file_id) {
-				const content = (await getFileContentById(existingFile.file_id, {
+				const content = (await this.fileApi.getFileContentById(existingFile.file_id, {
 					responseType: "text",
 				})) as string
 				const prev: BrandConfigPayload = JSON.parse(content)
@@ -1798,8 +1809,7 @@ export class SelfMediaFileStorageService {
 				file_path: f.file_path,
 			})),
 			visualDescriptionJson: article.visualDescriptionJson as
-				| Record<string, unknown>
-				| undefined,
+				Record<string, unknown> | undefined,
 		}))
 	}
 

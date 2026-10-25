@@ -1,6 +1,6 @@
 import type { ConversationMessage } from "@/types/chat/conversation_message"
 import { ConversationMessageType } from "@/types/chat/conversation_message"
-import type { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
 import { memoize } from "lodash-es"
 import { MAX_RECURSION_DEPTH } from "@/constants/other"
 import type { ImagePreviewInfo } from "@/types/chat/preview"

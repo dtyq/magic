@@ -2,7 +2,7 @@ import { customNodeType, templateMap } from "@/MagicFlow/examples/BaseFlow/const
 import { useCurrentNode } from "@/MagicFlow/nodes/common/context/CurrentNode/useCurrentNode"
 import { FormInstance } from "antd"
 import { useMemoizedFn, useMount } from "ahooks"
-import _ from "lodash"
+import { cloneDeep } from "lodash-es"
 import { useMemo, useState } from "react"
 import { LLMParametersValue } from "../components/LLMParameters"
 import { LLMLabelTagType } from "../components/LLMSelect/LLMLabel"
@@ -71,7 +71,7 @@ export default function useLLM({ form }: UseLLM) {
 
 	const initialValues = useMemo(() => {
 		const nodeParams =
-			currentNode?.params || _.cloneDeep(templateMap[customNodeType.LLM].v0.params)
+			currentNode?.params || cloneDeep(templateMap[customNodeType.LLM].v0.params)
 		if (!nodeParams)
 			return {
 				temperature: LLMValue.temperature,

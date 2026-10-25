@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { cloneDeep, dropRight, get, set, uniq } from 'lodash-es'
 import Schema from '../types/Schema';
 
 // 默认都有的schema
@@ -54,7 +54,7 @@ export function getDefaultSchema(type: string, itemsType?: string): Schema {
 }
 
 export const handleSchema = (schema: Schema): Schema => {
-  const clonedSchema = _.cloneDeep(schema);
+  const clonedSchema = cloneDeep(schema);
   if (clonedSchema && !clonedSchema.type && !clonedSchema.properties) {
     clonedSchema.type = 'string';
   }
@@ -107,7 +107,7 @@ export const getParentKey = (keys: string[]): string[] => {
   if (!keys) {
     return [];
   }
-  return keys.length === 1 ? [] : _.dropRight(keys, 1);
+  return keys.length === 1 ? [] : dropRight(keys, 1);
 };
 
 export const addRequiredFields = (
@@ -116,12 +116,12 @@ export const addRequiredFields = (
   fieldName: string,
 ): Schema => {
   const parentKeys: string[] = getParentKey(keys); // parent
-  const parentData = parentKeys.length ? _.get(schema, parentKeys) : schema;
+  const parentData = parentKeys.length ? get(schema, parentKeys) : schema;
   const requiredData: string[] = [].concat(parentData.required || []);
   requiredData.push(fieldName);
   parentKeys.push('required');
   // @ts-ignore
-  return _.set(schema, parentKeys, _.uniq(requiredData));
+  return set(schema, parentKeys, uniq(requiredData));
 };
 
 export const removeRequireField = (
@@ -130,19 +130,19 @@ export const removeRequireField = (
   fieldName: string,
 ): Schema => {
   const parentKeys: string[] = getParentKey(keys); // parent
-  const parentData = parentKeys.length ? _.get(schema, parentKeys) : schema;
+  const parentData = parentKeys.length ? get(schema, parentKeys) : schema;
   const requiredData = [].concat(parentData.required || []);
   const filteredRequire = requiredData.filter((i) => i !== fieldName);
   parentKeys.push('required');
   // @ts-ignore
-  return _.set(schema, parentKeys, _.uniq(filteredRequire));
+  return set(schema, parentKeys, uniq(filteredRequire));
 };
 
 export const handleSchemaRequired = (
   schema: Schema,
   checked: boolean,
 ): Schema => {
-  const newSchema = _.cloneDeep(schema);
+  const newSchema = cloneDeep(schema);
   if (newSchema.type === 'object') {
     // @ts-ignore
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -166,7 +166,7 @@ export const handleSchemaRequired = (
 };
 
 function handleObject(properties: Record<string, Schema>, checked: boolean) {
-  const clonedProperties = _.cloneDeep(properties);
+  const clonedProperties = cloneDeep(properties);
   for (const key in clonedProperties) {
     if (
       clonedProperties[key].type === 'array' ||

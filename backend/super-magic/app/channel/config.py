@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Optional
 
 from agentlang.logger import get_logger
+from app.channel.im_channel_config_migration import (
+    CURRENT_IM_CHANNEL_CONFIG_VERSION,
+    apply_im_channel_config_migrations,
+)
 from app.path_manager import PathManager
 from app.utils.async_file_utils import async_read_json, async_write_json, async_exists
 
@@ -37,8 +41,8 @@ class WeComCredential:
     secret: str
     enabled: bool = True
     disabled_reason: str = ""
-    # 绑定的沙盒 ID，防止多沙盒同时抢占同一 WS 连接
-    sandbox_id: str = ""
+    # 绑定的话题 ID，避免不同话题抢占同一 WS 连接
+    topic_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
 
     def __post_init__(self) -> None:
@@ -52,7 +56,7 @@ class DingTalkCredential:
     client_secret: str
     enabled: bool = True
     disabled_reason: str = ""
-    sandbox_id: str = ""
+    topic_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
 
     def __post_init__(self) -> None:
@@ -66,7 +70,7 @@ class LarkCredential:
     app_secret: str
     enabled: bool = True
     disabled_reason: str = ""
-    sandbox_id: str = ""
+    topic_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
 
     def __post_init__(self) -> None:
@@ -84,7 +88,7 @@ class WechatCredential:
     ilink_user_id: str = ""
     enabled: bool = True
     disabled_reason: str = ""
-    sandbox_id: str = ""
+    topic_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
 
     def __post_init__(self) -> None:
@@ -101,27 +105,79 @@ class IMChannelsConfig:
 
 
 async def load_config() -> IMChannelsConfig:
-    """读取持久化配置，文件不存在时返回空配置。"""
+    """读取当前版本的 IM 渠道配置。"""
     path = _config_path()
     if not await async_exists(path):
         return IMChannelsConfig()
     try:
-        data = await async_read_json(path)
+        raw_data = await async_read_json(path)
+        if not isinstance(raw_data, dict):
+            raise TypeError("IM channel config must be an object")
+        version = raw_data.get("version")
+        if version != CURRENT_IM_CHANNEL_CONFIG_VERSION:
+            raise ValueError(
+                f"IM channel config migration has not completed: version={version}, "
+                f"expected={CURRENT_IM_CHANNEL_CONFIG_VERSION}"
+            )
+        data = raw_data
         return IMChannelsConfig(
-            wecom=WeComCredential(**data["wecom"]) if "wecom" in data else None,
-            dingtalk=DingTalkCredential(**data["dingtalk"]) if "dingtalk" in data else None,
-            lark=LarkCredential(**data["lark"]) if "lark" in data else None,
-            wechat=WechatCredential(**data["wechat"]) if "wechat" in data else None,
+            wecom=(
+                WeComCredential(**_get_credential_data(data, "wecom"))
+                if "wecom" in data
+                else None
+            ),
+            dingtalk=(
+                DingTalkCredential(**_get_credential_data(data, "dingtalk"))
+                if "dingtalk" in data
+                else None
+            ),
+            lark=(
+                LarkCredential(**_get_credential_data(data, "lark"))
+                if "lark" in data
+                else None
+            ),
+            wechat=(
+                WechatCredential(**_get_credential_data(data, "wechat"))
+                if "wechat" in data
+                else None
+            ),
         )
     except Exception as e:
         logger.warning(f"[IMConfig] 读取配置失败，忽略: {e}")
         return IMChannelsConfig()
 
 
+async def migrate_im_channel_config_for_topic(current_topic_id: str) -> None:
+    """启动期将旧配置迁移到当前版本，并把旧渠道绑定到当前话题。"""
+    normalized_topic_id = current_topic_id.strip()
+    if not normalized_topic_id:
+        raise ValueError("Current topic ID is required for IM channel config migration")
+
+    path = _config_path()
+    if not await async_exists(path):
+        return
+
+    raw_data = await async_read_json(path)
+    if not isinstance(raw_data, dict):
+        raise TypeError("IM channel config must be an object")
+
+    migrated_data = apply_im_channel_config_migrations(
+        raw_data,
+        current_topic_id=normalized_topic_id,
+    )
+    if migrated_data == raw_data:
+        return
+
+    await async_write_json(path, migrated_data, indent=2, ensure_ascii=False)
+    logger.info(
+        f"[IMConfigMigration] 已将配置迁移到 v{CURRENT_IM_CHANNEL_CONFIG_VERSION} 并写回 {path}"
+    )
+
+
 async def save_config(config: IMChannelsConfig) -> None:
     """写入持久化配置。"""
     path = _config_path()
-    data = {}
+    data = {"version": CURRENT_IM_CHANNEL_CONFIG_VERSION}
     if config.wecom:
         data["wecom"] = asdict(config.wecom)
     if config.dingtalk:
@@ -132,3 +188,11 @@ async def save_config(config: IMChannelsConfig) -> None:
         data["wechat"] = asdict(config.wechat)
     await async_write_json(path, data, indent=2, ensure_ascii=False)
     logger.info(f"[IMConfig] 已保存配置到 {path}")
+
+
+def _get_credential_data(data: dict[str, object], channel_key: str) -> dict[str, object]:
+    """校验迁移后的单渠道凭证结构，避免把非法 JSON 传入 dataclass。"""
+    raw_credential = data[channel_key]
+    if not isinstance(raw_credential, dict):
+        raise TypeError(f"IM channel credential must be an object: {channel_key}")
+    return raw_credential

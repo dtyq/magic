@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { ImageOff, Zap } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLocaleText } from "../hooks/useLocaleText"

@@ -1,6 +1,19 @@
 import { matchRoutes, type RouteObject } from "react-router-dom"
 
-export type PermissionSource = "magic" | "teamshare"
+export enum PermissionSource {
+	Magic = "magic",
+	Teamshare = "teamshare",
+}
+
+export interface OrganizationAccessContext {
+	isOfficialOrg: boolean
+	isPersonalOrganization: boolean
+}
+
+export interface EnvironmentAccessContext {
+	MAGIC_APP_ENV?: string
+	[key: string]: unknown
+}
 
 type RouteMeta = {
 	permissionSource?: PermissionSource
@@ -12,6 +25,8 @@ export type RouteWithMeta = RouteObject & {
 	title?: string
 	hiddenMenu?: boolean
 	children?: RouteWithMeta[]
+	validateOrganization?: (context: OrganizationAccessContext) => boolean
+	validateEnvironment?: (env: EnvironmentAccessContext) => boolean
 	meta?: RouteMeta
 }
 
@@ -20,7 +35,7 @@ export interface MatchedRouteEntry<T extends RouteObject = RouteWithMeta> {
 	pathname: string
 }
 
-const DEFAULT_PERMISSION_SOURCE: PermissionSource = "magic"
+const DEFAULT_PERMISSION_SOURCE = PermissionSource.Magic
 
 export function getMatchedRouteEntries<T extends RouteObject>(
 	routeList: T[],
@@ -47,6 +62,20 @@ export function getRoutePermissionSource(routeChain: RouteObject[]): PermissionS
 	}
 
 	return DEFAULT_PERMISSION_SOURCE
+}
+
+export function isRouteChainAccessible(
+	routeChain: RouteObject[],
+	context: OrganizationAccessContext,
+	env: EnvironmentAccessContext,
+): boolean {
+	return routeChain.every((route) => {
+		const currentRoute = route as RouteWithMeta
+		return (
+			(!currentRoute.validateOrganization || currentRoute.validateOrganization(context)) &&
+			(!currentRoute.validateEnvironment || currentRoute.validateEnvironment(env))
+		)
+	})
 }
 
 export function getPermissionSourceByPath<T extends RouteObject>(

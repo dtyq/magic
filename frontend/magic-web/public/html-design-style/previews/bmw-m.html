@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BMW M — The Ultimate Driving Machine | Born On The Track</title>
+  <style>
+    :root {
+      --canvas: #000000;
+      --surface-soft: #0d0d0d;
+      --surface-card: #1a1a1a;
+      --surface-elevated: #262626;
+      --carbon-gray: #2b2b2b;
+      --primary: #ffffff;
+      --on-dark: #ffffff;
+      --body: #bbbbbb;
+      --body-strong: #e6e6e6;
+      --muted: #7e7e7e;
+      --hairline: #3c3c3c;
+      --hairline-strong: #262626;
+      --m-blue-light: #0066b1;
+      --m-blue-dark: #1c69d4;
+      --m-red: #e22718;
+      --font-m: "BMWTypeNextLatin", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--canvas);
+      color: var(--body);
+      font-family: var(--font-m);
+      font-weight: 300;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* M Tricolor Stripe Divider (4px) */
+    .m-stripe-bar {
+      height: 4px; width: 100%; display: flex;
+    }
+    .m-stripe-bar .stripe-c1 { flex: 1; background: var(--m-blue-light); }
+    .m-stripe-bar .stripe-c2 { flex: 1; background: var(--m-blue-dark); }
+    .m-stripe-bar .stripe-c3 { flex: 1; background: var(--m-red); }
+
+    /* Top Nav */
+    .m-nav {
+      position: sticky; top: 0; z-index: 100;
+      height: 64px; background: rgba(0,0,0,0.92); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--hairline-strong);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 48px;
+    }
+    .m-nav-left { display: flex; align-items: center; gap: 32px; }
+    .m-logo-wrap { display: flex; align-items: center; gap: 8px; }
+    .m-ribbon-diagonal {
+      display: inline-flex; height: 22px; width: 26px; transform: skewX(-20deg);
+    }
+    .m-ribbon-diagonal span:nth-child(1) { width: 33.3%; background: var(--m-blue-light); }
+    .m-ribbon-diagonal span:nth-child(2) { width: 33.3%; background: var(--m-blue-dark); }
+    .m-ribbon-diagonal span:nth-child(3) { width: 33.3%; background: var(--m-red); }
+    .m-letter { font-size: 26px; font-weight: 700; color: #ffffff; line-height: 1; }
+
+    .m-nav-menu { display: flex; gap: 24px; list-style: none; }
+    .m-nav-link { font-size: 13px; font-weight: 400; color: var(--body); letter-spacing: 0.5px; text-transform: uppercase; }
+    .m-nav-link:hover, .m-nav-link.active { color: #ffffff; }
+    .m-nav-right { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+
+    /* Hero Section - First 500px Viewport */
+    .m-hero {
+      position: relative; padding: 40px 48px 48px;
+      border-bottom: 1px solid var(--hairline);
+      background: radial-gradient(circle at 75% 20%, #151a22 0%, #000000 65%);
+    }
+    .m-hero-inner {
+      max-width: 1320px; margin: 0 auto; display: grid;
+      grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center;
+    }
+    .m-hero-eyebrow {
+      font-size: 13px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--m-red); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .m-hero-title {
+      font-size: clamp(34px, 4.8vw, 60px); font-weight: 700;
+      line-height: 1.0; text-transform: uppercase; color: var(--on-dark); margin-bottom: 12px;
+    }
+    .m-hero-sub {
+      font-size: 15px; font-weight: 300; color: var(--body); line-height: 1.5; margin-bottom: 24px; max-width: 540px;
+    }
+    .m-cta-row { display: flex; gap: 16px; align-items: center; }
+
+    /* Strict 0px Rectangular Buttons */
+    .btn-m-primary {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 48px; padding: 0 32px; background: #ffffff; color: #000000;
+      font-size: 13px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      border-radius: 0; border: none; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-m-primary:hover { background: #e6e6e6; }
+    .btn-m-outline {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 48px; padding: 0 30px; background: transparent; color: #ffffff;
+      font-size: 13px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      border-radius: 0; border: 1px solid #ffffff; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-m-outline:hover { background: rgba(255,255,255,0.1); }
+
+    /* 7,200 RPM Tachometer Gauge SVG */
+    .tachometer-card {
+      background: var(--surface-card); border: 1px solid var(--hairline);
+      border-radius: 0; padding: 22px; position: relative;
+    }
+    .tacho-title-bar {
+      display: flex; justify-content: space-between; font-size: 11px;
+      font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 12px;
+    }
+    .tacho-svg { width: 100%; height: 220px; }
+
+    /* Telemetry & Carbon Fiber Cards Grid */
+    .m-tech-section {
+      max-width: 1320px; margin: 0 auto; padding: 60px 48px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .tech-card {
+      background: var(--surface-card); border: 1px solid var(--hairline);
+      border-radius: 0; padding: 28px; display: flex; flex-direction: column;
+    }
+    
+    /* Pure CSS Carbon Fiber Twill Weave Pattern */
+    .carbon-card-surface {
+      background:
+        linear-gradient(27deg, #151515 5px, transparent 5px) 0 5px,
+        linear-gradient(207deg, #151515 5px, transparent 5px) 10px 0px,
+        linear-gradient(27deg, #222222 5px, transparent 5px) 0px 10px,
+        linear-gradient(207deg, #222222 5px, transparent 5px) 10px 5px,
+        linear-gradient(90deg, #1b1b1b 10px, transparent 10px),
+        linear-gradient(#1e1e1e 25%, #181818 25%, #181818 50%, transparent 50%, transparent 75%, #242424 75%, #242424);
+      background-size: 20px 20px;
+      border: 1px solid var(--hairline);
+      border-radius: 0; padding: 28px;
+    }
+    .card-eyebrow {
+      font-size: 11px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 22px; font-weight: 700; text-transform: uppercase;
+      color: var(--on-dark); margin-bottom: 14px;
+    }
+    .card-body-text { font-size: 14px; font-weight: 300; color: var(--body); line-height: 1.6; margin-bottom: 20px; }
+
+    /* Nürburgring Lap Telemetry Display */
+    .lap-badge {
+      display: inline-flex; align-items: baseline; gap: 8px;
+      background: #000000; border: 1px solid var(--m-red);
+      padding: 8px 16px; margin-bottom: 16px;
+    }
+    .lap-time { font-size: 32px; font-weight: 700; color: #ffffff; letter-spacing: 1px; }
+    .lap-unit { font-size: 12px; font-weight: 700; color: var(--m-red); letter-spacing: 1px; text-transform: uppercase; }
+    .telemetry-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+      padding-top: 14px; border-top: 1px solid var(--hairline);
+    }
+    .tele-item-val { font-size: 16px; font-weight: 700; color: #ffffff; }
+    .tele-item-lbl { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+
+    /* S58 Engine Spec Strip */
+    .engine-specs-strip {
+      max-width: 1320px; margin: 0 auto; display: grid;
+      grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--hairline);
+    }
+    .eng-spec-cell {
+      padding: 30px 20px; text-align: center; border-right: 1px solid var(--hairline);
+      background: var(--surface-soft);
+    }
+    .eng-spec-cell:last-child { border-right: none; }
+    .eng-val { font-size: clamp(26px, 3vw, 38px); font-weight: 700; color: #ffffff; line-height: 1.1; margin-bottom: 4px; }
+    .eng-lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+
+    /* Footer */
+    .m-footer {
+      max-width: 1320px; margin: 0 auto; padding: 48px 48px 32px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+    }
+    .m-footer-links { display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+    .m-footer-link { font-size: 11.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+    .m-footer-link:hover { color: #ffffff; }
+    .m-legal { font-size: 12px; font-weight: 300; color: #555555; max-width: 620px; }
+
+    @media (max-width: 900px) {
+      .m-nav { padding: 0 20px; }
+      .m-hero-inner, .m-tech-section { grid-template-columns: 1fr; }
+      .engine-specs-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 4px M Tricolor Stripe Divider -->
+  <div class="m-stripe-bar">
+    <div class="stripe-c1"></div>
+    <div class="stripe-c2"></div>
+    <div class="stripe-c3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="m-nav">
+    <div class="m-nav-left">
+      <div class="m-logo-wrap">
+        <div class="m-ribbon-diagonal">
+          <span></span><span></span><span></span>
+        </div>
+        <span class="m-letter">M</span>
+      </div>
+      <ul class="m-nav-menu">
+        <li><a href="#" class="m-nav-link active">Models</a></li>
+        <li><a href="#" class="m-nav-link">Motorsport</a></li>
+        <li><a href="#" class="m-nav-link">M Magazine</a></li>
+      </ul>
+    </div>
+    <div class="m-nav-right">
+      <span style="color: var(--m-red);">M Power Portal ›</span>
+    </div>
+  </header>
+
+  <!-- Hero Section (First 500px Viewport) -->
+  <section class="m-hero">
+    <div class="m-hero-inner">
+      <div class="m-hero-copy">
+        <div class="m-hero-eyebrow">
+          <div class="m-ribbon-diagonal" style="height:14px; width:16px;">
+            <span></span><span></span><span></span>
+          </div>
+          <span>M Power · Track Born</span>
+        </div>
+        <h1 class="m-hero-title">BMW M4 CSL & M3 Touring</h1>
+        <p class="m-hero-sub">
+          Engineering without compromise: 550 horsepower S58 TwinPower Turbo, carbon fiber chassis diet, and blistering Nürburgring Nordschleife supremacy.
+        </p>
+        <div class="m-cta-row">
+          <button class="btn-m-primary">Configure M Model</button>
+          <button class="btn-m-outline">Book Track Day</button>
+        </div>
+      </div>
+
+      <!-- High-Revving 7,200 RPM Tachometer Gauge SVG -->
+      <div class="tachometer-card">
+        <div class="tacho-title-bar">
+          <span>M Cockpit Telemetry · Shift Lights Active</span>
+          <span style="color: var(--m-red);">MDM / SPORT PLUS</span>
+        </div>
+        <svg class="tacho-svg" viewBox="0 0 460 220" fill="none">
+          <defs>
+            <radialGradient id="tachoDial" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#181a20"/>
+              <stop offset="100%" stop-color="#0a0c10"/>
+            </radialGradient>
+          </defs>
+
+          <!-- Dial Arc Background -->
+          <path d="M70 180 A130 130 0 1 1 390 180" stroke="#22262e" stroke-width="14" fill="none"/>
+          
+          <!-- Progressive M Colored RPM Arc -->
+          <path d="M70 180 A130 130 0 0 1 230 50" stroke="#0066b1" stroke-width="14" fill="none"/>
+          <path d="M230 50 A130 130 0 0 1 330 85" stroke="#1c69d4" stroke-width="14" fill="none"/>
+          <!-- 7,200 - 8,000 RPM Redline Zone -->
+          <path d="M330 85 A130 130 0 0 1 390 180" stroke="#e22718" stroke-width="16" fill="none"/>
+
+          <!-- RPM Tick Marks -->
+          <line x1="85" y1="170" x2="105" y2="165" stroke="#ffffff" stroke-width="2"/>
+          <line x1="120" y1="120" x2="135" y2="130" stroke="#ffffff" stroke-width="2"/>
+          <line x1="175" y1="80" x2="185" y2="95" stroke="#ffffff" stroke-width="2"/>
+          <line x1="230" y1="65" x2="230" y2="85" stroke="#ffffff" stroke-width="2"/>
+          <line x1="285" y1="80" x2="275" y2="95" stroke="#ffffff" stroke-width="2"/>
+          <line x1="340" y1="120" x2="325" y2="130" stroke="#e22718" stroke-width="3"/>
+          <line x1="375" y1="170" x2="355" y2="165" stroke="#e22718" stroke-width="3"/>
+
+          <!-- LED Shift Indicator Bar (Green -> Amber -> Red Flashing) -->
+          <rect x="180" y="25" width="12" height="6" fill="#10b981"/>
+          <rect x="196" y="25" width="12" height="6" fill="#10b981"/>
+          <rect x="212" y="25" width="12" height="6" fill="#f59e0b"/>
+          <rect x="228" y="25" width="12" height="6" fill="#f59e0b"/>
+          <rect x="244" y="25" width="12" height="6" fill="#e22718"/>
+          <rect x="260" y="25" width="12" height="6" fill="#e22718"/>
+
+          <!-- Central Gear & Speed Readout -->
+          <circle cx="230" cy="150" r="48" fill="#121418" stroke="#2b313d" stroke-width="1.5"/>
+          <text x="230" y="145" font-family="'BMWTypeNextLatin', sans-serif" font-size="36" font-weight="700" fill="#ffffff" text-anchor="middle">S3</text>
+          <text x="230" y="166" font-family="'BMWTypeNextLatin', sans-serif" font-size="11" font-weight="700" fill="#e22718" text-anchor="middle">7,200 RPM</text>
+
+          <!-- Tachometer Needle pointing at 7,200 RPM Shift Point -->
+          <line x1="230" y1="150" x2="340" y2="100" stroke="#e22718" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="230" cy="150" r="7" fill="#e22718"/>
+
+          <text x="130" y="195" font-family="'BMWTypeNextLatin', sans-serif" font-size="12" font-weight="700" fill="#ffffff">BOOST: 2.1 BAR</text>
+          <text x="330" y="195" font-family="'BMWTypeNextLatin', sans-serif" font-size="12" font-weight="700" fill="#e22718" text-anchor="end">OIL: 105°C</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Technical Telemetry & Carbon Fiber Cards -->
+  <section class="m-tech-section">
+    <!-- Nürburgring Nordschleife Lap Telemetry -->
+    <div class="tech-card">
+      <div class="card-eyebrow">Green Hell Benchmark Telemetry</div>
+      <h2 class="card-title">Nürburgring Nordschleife</h2>
+      <div class="lap-badge">
+        <span class="lap-time">7:15.677</span>
+        <span class="lap-unit">MIN // OFFICIAL LAP</span>
+      </div>
+      <p class="card-body-text">
+        Certified record lap set by BMW M works driver Jörg Weidinger. Precision telemetry logged across 20.832 kilometers of brutal tarmac.
+      </p>
+      
+      <!-- Track Vector -->
+      <svg width="100%" height="80" viewBox="0 0 360 80" fill="none" style="margin-bottom: 16px;">
+        <path d="M20 50 Q60 20 120 40 T220 30 T280 60 T340 30" stroke="#3c3c3c" stroke-width="2" fill="none"/>
+        <path d="M120 40 T220 30" stroke="#e22718" stroke-width="3" fill="none"/>
+        <circle cx="120" cy="40" r="4" fill="#e22718"/>
+        <text x="120" y="30" font-family="'BMWTypeNextLatin', sans-serif" font-size="9" font-weight="700" fill="#e22718">Flugplatz</text>
+        <circle cx="220" cy="30" r="4" fill="#0066b1"/>
+        <text x="220" y="20" font-family="'BMWTypeNextLatin', sans-serif" font-size="9" font-weight="700" fill="#0066b1">Karussell</text>
+      </svg>
+
+      <div class="telemetry-grid">
+        <div>
+          <div class="tele-item-val">307 KM/H</div>
+          <div class="tele-item-lbl">V-Max Döttinger</div>
+        </div>
+        <div>
+          <div class="tele-item-val">1.45 G</div>
+          <div class="tele-item-lbl">Lateral Grip</div>
+        </div>
+        <div>
+          <div class="tele-item-val">-0.42 S</div>
+          <div class="tele-item-lbl">Sector Delta</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Carbon Fiber Construction Card -->
+    <div class="carbon-card-surface">
+      <div class="card-eyebrow">CFRP Lightweight Architecture</div>
+      <h2 class="card-title">Carbon Fiber Monocoque Diet</h2>
+      <p class="card-body-text">
+        108 kg shaved through rigorous carbon-fiber reinforced plastic usage: carbon bonnet, full CFRP double-bubble roof, carbon bucket seats, and M carbon ceramic brakes with 6-piston monobloc calipers.
+      </p>
+      <div style="background: rgba(0,0,0,0.7); border: 1px solid var(--hairline); padding: 16px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #ffffff; margin-bottom: 6px;">
+          <span>CFRP Weight Reduction</span>
+          <span style="color: var(--m-blue-light);">-108 KG</span>
+        </div>
+        <div style="height: 6px; width: 100%; background: #222; display: flex;">
+          <div style="width: 72%; background: var(--m-red);"></div>
+        </div>
+      </div>
+      <div class="telemetry-grid">
+        <div>
+          <div class="tele-item-val">1,625 KG</div>
+          <div class="tele-item-lbl">DIN Kerb Weight</div>
+        </div>
+        <div>
+          <div class="tele-item-val">2.95 KG/HP</div>
+          <div class="tele-item-lbl">Power-To-Weight</div>
+        </div>
+        <div>
+          <div class="tele-item-val">50 : 50</div>
+          <div class="tele-item-lbl">Axle Balance</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- S58 Engine Performance Strip -->
+  <section class="engine-specs-strip">
+    <div class="eng-spec-cell">
+      <div class="eng-val">550<span style="font-size:16px; color:var(--muted); margin-left:2px;">HP</span></div>
+      <div class="eng-lbl">S58 Bi-Turbo Output</div>
+    </div>
+    <div class="eng-spec-cell">
+      <div class="eng-val">650<span style="font-size:16px; color:var(--muted); margin-left:2px;">NM</span></div>
+      <div class="eng-lbl">Peak Torque @ 2,750 RPM</div>
+    </div>
+    <div class="eng-spec-cell">
+      <div class="eng-val">3.7<span style="font-size:16px; color:var(--muted); margin-left:2px;">S</span></div>
+      <div class="eng-lbl">0 – 100 KM/H Acceleration</div>
+    </div>
+    <div class="eng-spec-cell">
+      <div class="eng-val">307<span style="font-size:16px; color:var(--muted); margin-left:2px;">KM/H</span></div>
+      <div class="eng-lbl">M Driver's Package V-Max</div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="m-footer">
+    <div class="m-logo-wrap" style="margin-bottom: 20px;">
+      <div class="m-ribbon-diagonal"><span></span><span></span><span></span></div>
+      <span class="m-letter">M</span>
+    </div>
+    <div class="m-footer-links">
+      <a href="#" class="m-footer-link">M Models</a>
+      <a href="#" class="m-footer-link">Motorsport Experience</a>
+      <a href="#" class="m-footer-link">M Performance Parts</a>
+      <a href="#" class="m-footer-link">M Driving Academy</a>
+    </div>
+    <div class="m-legal">
+      © 2026 BMW M GmbH, Garching b. München. Fuel consumption: 10.1 – 10.4 l/100 km · CO2: 227 – 234 g/km.
+    </div>
+  </footer>
+
+  <div class="m-stripe-bar">
+    <div class="stripe-c1"></div>
+    <div class="stripe-c2"></div>
+    <div class="stripe-c3"></div>
+  </div>
+
+</body>
+</html>

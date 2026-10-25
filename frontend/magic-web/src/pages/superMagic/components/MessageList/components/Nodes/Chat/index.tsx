@@ -14,7 +14,7 @@ import {
 	getMentionUniqueId,
 	type MentionListItem,
 } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 import { useMessageListContext } from "@/pages/superMagic/components/MessageList/context"
 import { getMentionItemsMissingFromRichTextContent } from "../RichText/mentionVisibility"

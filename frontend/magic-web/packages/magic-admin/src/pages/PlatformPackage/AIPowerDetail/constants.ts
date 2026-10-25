@@ -30,6 +30,13 @@ export const DefaultWebSearchProviderList = [
 		enable: false,
 	},
 	{
+		provider: "deepseek",
+		name: "DeepSeek",
+		request_url: "https://api.deepseek.com/v1/tools/search",
+		api_key: "",
+		enable: false,
+	},
+	{
 		provider: "doubao",
 		name: "Doubao",
 		request_url: "",
@@ -58,6 +65,13 @@ export const DefaultWebScrapeProviderList = [
 		provider: "cloudsway",
 		name: "Cloudsway",
 		request_url: "",
+		api_key: "",
+		enable: false,
+	},
+	{
+		provider: "deepseek",
+		name: "DeepSeek",
+		request_url: "https://api.deepseek.com/v1/tools/fetch",
 		api_key: "",
 		enable: false,
 	},
@@ -191,6 +205,22 @@ export const DefaultWeatherForecastProviderList = [
 	},
 ]
 
+// 火山方舟素材服务 - 素材同步和合规校验使用的 provider 配置
+export const DefaultVolcengineArkAssetsProviderList = [
+	{
+		provider: "volcengine_ark_assets",
+		name: "火山方舟素材服务",
+		version: "2024-01-01",
+		region: "cn-beijing",
+		service: "ark",
+		endpoint: "https://open.volcengineapi.com",
+		access_key: "",
+		secret_key: "",
+		project_name: "default_2026-09-22",
+		enable: true,
+	},
+]
+
 // 默认服务商列表映射
 export const DefaultProviderListMap: Record<string, PlatformPackage.ProviderConfig[]> = {
 	[PlatformPackage.PowerCode.WEB_SEARCH]: DefaultWebSearchProviderList,
@@ -203,6 +233,7 @@ export const DefaultProviderListMap: Record<string, PlatformPackage.ProviderConf
 	[PlatformPackage.PowerCode.IMAGE_ERASER]: DefaultImageEditProviderList,
 	[PlatformPackage.PowerCode.IMAGE_EXPAND]: DefaultImageEditProviderList,
 	[PlatformPackage.PowerCode.WEATHER_FORECAST]: DefaultWeatherForecastProviderList,
+	[PlatformPackage.PowerCode.VOLCENGINE_ARK_ASSETS]: DefaultVolcengineArkAssetsProviderList,
 }
 
 // 已下线服务商列表。兼容后端暂未过滤的历史 provider，前端展示和保存时都会过滤掉。
@@ -223,6 +254,7 @@ export const ServiceConfigList = [
 	PlatformPackage.PowerCode.IMAGE_ERASER,
 	PlatformPackage.PowerCode.IMAGE_EXPAND,
 	PlatformPackage.PowerCode.WEATHER_FORECAST,
+	PlatformPackage.PowerCode.VOLCENGINE_ARK_ASSETS,
 ]
 
 // 支持联通性测试的工具类型

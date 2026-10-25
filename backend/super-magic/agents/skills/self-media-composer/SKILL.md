@@ -496,11 +496,11 @@ Only after the preset decision in 4.1 is done are images allowed to enter the pi
 Before generating any images, check if the user provided brand image / IP assets in the global settings:
 
 1. Look for `global.brandImages` in the draft data (or files in `__drafts/brand-images/`).
-2. If brand images exist, use `visual_understanding` to analyze each image — extract the IP character, color palette, art style, and key visual elements.
+2. If brand images exist, look at each one to understand the IP character, color palette, art style, and key visual elements; call `visual_understanding` only for images not already visible in your context.
 3. When generating illustrations, card decorations, or any post imagery:
    - Incorporate the brand IP character or elements where contextually appropriate (e.g., as mascot illustrations, corner decorations, section dividers).
    - Match the brand's color palette and art style to maintain visual consistency.
-   - Reference the brand image explicitly in `generate_image` prompts (e.g., "in the style of the brand mascot", include description of the character/element).
+   - When imagery should show the brand character or style, pass the brand image in `reference_images` and state its role in the prompt (e.g., "the mascot from Image 1, same character design", "in the art style of Image 1"). The generation model sees the brand image directly; your own description of it is a weaker copy that can drift from the real character. When a brand element must stand out, such as a signature color or the mascot's pose, name it as the thing to keep or emphasize.
    - For `wechat-official-accounts` cover images, make a case-by-case decision on whether to incorporate brand elements. Use them when they strengthen recognition, trust, or thematic fit; skip them when they would reduce clarity, editorial quality, or topic accuracy.
 4. If no brand images exist, proceed normally without this constraint.
 
@@ -512,9 +512,9 @@ When `articles[].outline[].materials` or `articles[].materials` includes screens
 
 For each image material:
 
-1. Use `visual_understanding` to identify what the image shows, what information matters, and which outline node or card it should support.
+1. Look at the image to identify what it shows, what information matters, and which outline node or card it should support; call `visual_understanding` only if it is not already visible in your context.
 2. If the image is useful for the final content, prefer a new generated asset instead of placing the raw screenshot directly into a card.
-3. Call `generate_images` with the source image in `reference_images`. The prompt should preserve the source image's important information while adapting it to the resolved preset/style.
+3. Call `generate_images` with the source image in `reference_images`. The prompt should name which information in Image 1 to keep and how to adapt it to the resolved preset/style.
 4. Add visual emphasis where it helps comprehension: highlighted key areas, zoom callouts, arrows, labels, comparison boxes, focus rings, cropped detail panels, or before/after framing.
 5. Save the generated result under `posts/<post_id>/assets/` and use that generated asset in the card or article HTML.
 6. Keep node scope: an image attached to one outline node should primarily influence that node/card. Expand it to other cards only when the image clearly supports the broader narrative.
@@ -552,7 +552,7 @@ For every image the cards need:
 2. Pick the tool that best preserves the style:
    - `generate_image` — preferred when the preset or user artifact implies a specific illustrative language. Pass the style cues explicitly in the prompt (color tokens, mood words, composition, negative prompts for styles to avoid).
    - `image_search` — acceptable for neutral, topic-driven photography or real-world references. Use batch mode (one call, multiple requirements). Before accepting any returned image, verify with `visual_understanding` that its colors, lighting, and composition do not fight the style; discard mismatches rather than force-fit.
-   - `visual_understanding` — also used to read the dimensions / content of any user-supplied reference image before placing it into a card.
+   - `visual_understanding` — also used to read the dimensions / content of a user-supplied reference image that is not already visible in your context before placing it into a card.
 3. Save the files:
    - Card-local → `posts/<post_id>/assets/<name>.<ext>`.
    - Cross-post → `shared/<name>.<ext>`.

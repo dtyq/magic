@@ -10,7 +10,7 @@
 
 子类可选覆盖：
   _prepare              - 在 BEFORE_TOOL_CALL 前预处理输入，结果存入 tool_context.arguments
-  user_tool_call_timeout - 等待超时秒数（默认 600）
+  user_tool_call_timeout - 等待超时秒数；None 表示一直等待用户回答
 """
 
 import time
@@ -28,7 +28,7 @@ T = TypeVar("T", bound=BaseToolParams)
 # agent 主循环检测此标记后退出，等待前端回传结果
 USER_TOOL_CALL_SYSTEM_MARKER = "USER_TOOL_CALL"
 
-ResultBuilder = Callable[[str, str], Tuple[str, Dict[str, Any]]]
+ResultBuilder = Callable[[str, str, str], Tuple[str, Dict[str, Any]]]
 TimeoutAnswerBuilder = Callable[[], str]
 
 
@@ -42,8 +42,8 @@ class BaseUserToolCallTool(BaseTool[T]):
     子类无需手动调用任何注册方法。
     """
 
-    # 等待超时时间（秒），子类可覆盖
-    user_tool_call_timeout: ClassVar[int] = 600
+    # 等待超时时间（秒），子类可覆盖；None 表示不设置用户回答期限。
+    user_tool_call_timeout: ClassVar[Optional[int]] = 600
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)  # BaseTool.__init_subclass__ 在此设置 cls.name
@@ -98,7 +98,11 @@ class BaseUserToolCallTool(BaseTool[T]):
 
     async def set_extra_arguments(self, tool_context: ToolContext) -> None:
         """设置 expires_at 并调用子类预处理 hook。"""
-        tool_context.arguments["expires_at"] = int(time.time()) + self.user_tool_call_timeout
+        tool_context.arguments["expires_at"] = (
+            0
+            if self.user_tool_call_timeout is None
+            else int(time.time()) + self.user_tool_call_timeout
+        )
         await self._prepare(tool_context)
 
     async def _prepare(self, tool_context: ToolContext) -> None:
@@ -116,9 +120,10 @@ class BaseUserToolCallTool(BaseTool[T]):
 
     @abstractmethod
     def build_result_builder(self, tool_data: dict) -> ResultBuilder:
-        """返回结果构建闭包：(response_status, answer_json) -> (content, extra_info)。
+        """返回结果构建闭包：(response_status, answer_json, remark) -> (content, extra_info)。
 
         content 会写入对话历史供模型推理；extra_info 会通过 AFTER_TOOL_CALL 事件推给前端。
+        remark 仅表示本次用户提交的附加备注，没有备注时为空字符串。
         """
 
     @abstractmethod
@@ -139,10 +144,15 @@ class BaseUserToolCallTool(BaseTool[T]):
 
         agent_context: AgentContext = tool_context.get_extension_typed("agent_context", AgentContext)
         tool_call_id: str = tool_context.tool_call_id
-        expires_at: int = (
-            tool_context.arguments.get("expires_at")
-            or (int(time.time()) + self.user_tool_call_timeout)
-        )
+        expires_at_value = tool_context.arguments.get("expires_at")
+        if expires_at_value is None:
+            expires_at = (
+                0
+                if self.user_tool_call_timeout is None
+                else int(time.time()) + self.user_tool_call_timeout
+            )
+        else:
+            expires_at = int(expires_at_value)
         tool_data: dict = self.build_tool_data(tool_context)
 
         chat_history = getattr(agent_context, "chat_history", None)

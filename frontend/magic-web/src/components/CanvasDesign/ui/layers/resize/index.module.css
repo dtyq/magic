@@ -9,11 +9,13 @@
 	width: 4px;
 	transform: translateX(50%);
 	opacity: 0;
+	pointer-events: none;
 	user-select: none;
 }
 
 .layers-resize-drag-handle-container.visible {
 	opacity: 1;
+	pointer-events: auto;
 	transition: all 0.15s ease-in-out;
 }
 

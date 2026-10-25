@@ -10,13 +10,14 @@ import ActionWrapper from "../ActionWrapper"
 import { useStyles } from "./styles"
 import InstructionExplanation from "../InstructionExplanation/Index"
 import { useNonResidencyConfigCleanup } from "../../hooks/useNonResidencyConfigCleanup"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 
 interface InstructionItemProps extends HTMLAttributes<HTMLDivElement> {
 	instruction: SelectorQuickInstruction
 }
 
 /**
- * 选择器指令
+ * Quick instruction option selector.
  */
 const SelectorAction = observer(({ instruction, ...rest }: InstructionItemProps) => {
 	const { styles } = useStyles()
@@ -33,11 +34,11 @@ const SelectorAction = observer(({ instruction, ...rest }: InstructionItemProps)
 		updateRemoteInstructionConfig,
 	} = ConversationBotDataService
 
-	// 需要检测一下常驻功能是否关闭了，是的话得清除历史配置值
+	// Clear the previous configuration when the instruction is no longer persistent.
 	useNonResidencyConfigCleanup(id, innerConfigValue, residency, updateRemoteInstructionConfig)
 
 	/**
-	 * 目标选项
+	 * Resolve the configured option.
 	 */
 	const targetValue = useMemo(() => {
 		if (!residency && instruction.instruction_type !== InstructionMode.Flow) return undefined
@@ -49,7 +50,7 @@ const SelectorAction = observer(({ instruction, ...rest }: InstructionItemProps)
 	}, [residency, instruction.instruction_type, instruction.values, configValue])
 
 	/**
-	 * 选项配置
+	 * Build option menu entries.
 	 */
 	const menuItems = useMemo(() => {
 		return (
@@ -65,7 +66,7 @@ const SelectorAction = observer(({ instruction, ...rest }: InstructionItemProps)
 	}, [instruction])
 
 	/**
-	 * 选中的选项
+	 * Derive the selected menu key.
 	 */
 	const selectedKeys = useMemo(() => {
 		if (!targetValue) return []
@@ -73,10 +74,10 @@ const SelectorAction = observer(({ instruction, ...rest }: InstructionItemProps)
 	}, [targetValue])
 
 	/**
-	 * 点击选项
+	 * Apply or clear the selected option.
 	 */
 	const handleClick = useMemoizedFn((v) => {
-		// 如果是常驻或者流程指令
+		// Clicking the active persistent or flow option clears its configuration.
 		if (
 			(instruction.residency || instruction.instruction_type === InstructionMode.Flow) &&
 			selectedKeys[0] === v.key
@@ -89,7 +90,7 @@ const SelectorAction = observer(({ instruction, ...rest }: InstructionItemProps)
 	})
 
 	/**
-	 * 只有一个选项时，可以直接点击选项
+	 * A single option can run directly without opening the menu.
 	 */
 	if (menuItems.length === 1) {
 		return (
@@ -108,12 +109,15 @@ const SelectorAction = observer(({ instruction, ...rest }: InstructionItemProps)
 			arrow={false}
 			onOpenChange={setOpen}
 			content={
-				<MagicMenu
-					items={menuItems}
-					className={styles.menu}
-					onClick={handleClick}
-					selectedKeys={selectedKeys}
-				/>
+				// Bound the actual viewport while retaining the menu's selection and keyboard behavior.
+				<ScrollArea viewportClassName={styles.viewport}>
+					<MagicMenu
+						items={menuItems}
+						className={styles.menu}
+						onClick={handleClick}
+						selectedKeys={selectedKeys}
+					/>
+				</ScrollArea>
 			}
 		>
 			<ActionWrapper active={open || !!targetValue?.name} {...rest}>

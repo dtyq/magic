@@ -15,8 +15,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
-import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
-import { cn } from "@/lib/utils"
+import type { FileHistoryVersion, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { cn } from "@/utils/cn"
 
 /** Placement for the shared history version dropdown */
 type HistoryVersionSelectorPlacement = "compare" | "fullscreen"
@@ -53,7 +53,7 @@ interface HistoryVersionCompareDialogProps {
 	/** 打开新标签页回调 */
 	openNewTab: (fileId: string, path: string) => void
 	/** 选中的项目 */
-	selectedProject?: Record<string, unknown> | null
+	selectedProject?: ProjectListItem | null
 	/** 附件列表 */
 	attachmentList?: Array<Record<string, unknown>>
 	isPptRender?: boolean
@@ -280,6 +280,7 @@ function HistoryVersionCompareDialog({
 					attachmentList={attachmentList}
 					isVisible={true}
 					hideVerticalScroll={isPptRender}
+					disableHtmlAppPermissions
 				/>
 				{isHistoryContentPending && (
 					<div
@@ -418,6 +419,7 @@ function HistoryVersionCompareDialog({
 									attachmentList={attachmentList}
 									isVisible={true}
 									hideVerticalScroll={isPptRender}
+									disableHtmlAppPermissions
 								/>
 							</div>
 						</div>

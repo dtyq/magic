@@ -25,6 +25,7 @@ describe("MagicFSApi", () => {
 			new MessageEvent("message", {
 				data,
 				source: window.parent,
+				origin: window.location.origin,
 			}),
 		)
 	}

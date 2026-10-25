@@ -1,11 +1,23 @@
-import { useState, useEffect } from "react"
+import { filterPptSlidePaths } from "@/pages/superMagic/utils/pptHiddenSlides"
+import { useState, useEffect, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { AlertTriangle, Crosshair, Maximize, Minimize, RefreshCw, Share2 } from "lucide-react"
+import {
+	AlertTriangle,
+	Crosshair,
+	DownloadIcon,
+	Maximize,
+	Minimize,
+	RefreshCw,
+	Share2,
+	MoreHorizontal,
+} from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import ViewModeSwitcher from "../ViewModeSwitcher"
-import AIEditButton from "./AIEditButton"
+import { useAIEditMenuItems } from "./useAIEditMenuItems"
+import MagicDropdown from "@/components/base/MagicDropdown"
+import ConditionalTooltip from "./ConditionalTooltip"
 import FileEditButtons from "./FileEditButtons"
 import ExportDropdown from "./ExportDropdown"
 import { VersionHistorySelector } from "../PPTRender/components/VersionHistorySelector"
@@ -20,10 +32,14 @@ import useFileExport from "../../hooks/useFileExport"
 import { projectStore } from "@/pages/superMagic/stores/core"
 import usePPTStoreOptional from "./usePPTStoreOptional"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { exportPPTX } from "@magic/html2pptx"
 import { exportHtmlToImage } from "@magic-web/html2image"
 import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
 import { createPptxResourceErrorCollector } from "@/pages/superMagic/utils/pptxResourceErrors"
+import {
+	publishPptxExportFailure,
+	publishPptxExportIssues,
+} from "@/pages/superMagic/utils/pptxExportIssues"
+import type { ExportIssue } from "@magic/html2pptx"
 import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 import {
 	createPptxSlideConfig,
@@ -33,8 +49,25 @@ import {
 	documentExportService,
 	type DocumentExport,
 } from "@/pages/superMagic/services/documentExport"
+import { runGuardedAction, guardMenuItems } from "../../utils/actionGuard"
+import { iteratePreparedHtmlPages } from "@/utils/htmlExportPrepare"
+import {
+	assertPptxExportAvailable,
+	formatPptxStreamingProgress,
+	openPptxDestination,
+	PptxExportUnavailableError,
+	supportsPptxExport,
+	startPptxStreamingExportFromFactory,
+} from "@/pages/superMagic/services/pptxStreamingExport"
+import type { BeforeAction } from "../../utils/actionGuard"
 
 export interface EditToolbarProps {
+	/** Controlled by the preview host when fullscreen is managed outside this toolbar. */
+	isFullscreen?: boolean
+	/** 将更多菜单挂载到当前预览容器，以支持全屏。 */
+	getPopupContainer?: () => HTMLElement | null
+	/** Only the active cached preview should expose fixed test ids. */
+	testIdsEnabled?: boolean
 	style?: React.CSSProperties
 	/** 禁用工具栏交互及其全局快捷键，但保持组件实例和内部状态常驻 */
 	interactionDisabled?: boolean
@@ -119,9 +152,17 @@ export interface EditToolbarProps {
 	onStartInspectorAppend?: () => void
 	/** AI 选取是否正在进行中 */
 	isAppendPicking?: boolean
+	/** 触发即时元素选取并写入输入框 */
+	onStartInspectorQuickSelect?: () => void
+	/** 即时元素选取是否正在进行中 */
+	isQuickSelecting?: boolean
+	/** Optional guard run before actions that leave the current selection flow. */
+	beforeAction?: BeforeAction
 }
 
 function EditToolbar({
+	isFullscreen: controlledFullscreen,
+	testIdsEnabled = true,
 	interactionDisabled = false,
 	showAIOptimization = false,
 	showFileEdit = false,
@@ -158,13 +199,17 @@ function EditToolbar({
 	showDownload = true,
 	style,
 	projectId,
-	onStartInspector,
 	onStartInspectorAppend,
 	isAppendPicking = false,
+	onStartInspectorQuickSelect,
+	isQuickSelecting = false,
+	beforeAction,
+	getPopupContainer,
 }: EditToolbarProps) {
 	const { t } = useTranslation("super")
 	const { emitFullscreenToggle } = usePPTEventBus()
-	const [isFullscreen, setIsFullscreen] = useState(false)
+	const [localFullscreen, setIsFullscreen] = useState(false)
+	const isFullscreen = controlledFullscreen ?? localFullscreen
 	const isFullscreenMode = useFullscreenMode()
 	const [isEditableExporting, setIsEditableExporting] = useState(false)
 
@@ -185,19 +230,15 @@ function EditToolbar({
 	// Try to get PPT store if available (only in PPT context)
 	const pptStore = usePPTStoreOptional()
 
-	// Get page info from PPT store if available
-	const currentPageIndex = pptStore?.activeIndex
-	const totalPages = pptStore?.slidePaths.length
-
 	// File export hook
-	const { isExporting, exportFile, exportPdf, exportPpt } = useFileExport({
+	const { isExporting, exportFile, exportPptx } = useFileExport({
 		attachments: attachmentList,
 		selectedProject: resolvedProjectId ? { id: resolvedProjectId } : undefined,
 		projectId: resolvedProjectId,
 		t,
 	})
 
-	function exportPdfByPaths(input: { slidePaths?: string[] }) {
+	function exportPdfByPaths(input: { slidePaths?: string[]; includeHiddenSlides?: boolean }) {
 		if (!pptStore) {
 			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
 			return
@@ -213,9 +254,14 @@ function EditToolbar({
 		const defaultName =
 			storeConfig?.displayConfig?.name || storeConfig?.mainFileName || "slides"
 
-		const targetSlides = slidePaths?.length
-			? pptStore.slides.filter((slide) => slidePaths.includes(slide.path))
-			: pptStore.slides
+		const exportPaths = new Set(
+			filterPptSlidePaths(
+				slidePaths ?? pptStore.slides.map((slide) => slide.path),
+				storeConfig?.displayConfig?.hidden_slides,
+				input.includeHiddenSlides,
+			),
+		)
+		const targetSlides = pptStore.slides.filter((slide) => exportPaths.has(slide.path))
 
 		if (!targetSlides.length) {
 			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
@@ -298,7 +344,11 @@ function EditToolbar({
 			})
 	}
 
-	function exportImageByPaths(input: { slidePaths?: string[]; imageFormat: "png" | "jpeg" }) {
+	function exportImageByPaths(input: {
+		slidePaths?: string[]
+		imageFormat: "png" | "jpeg"
+		includeHiddenSlides?: boolean
+	}) {
 		if (!pptStore) {
 			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
 			return
@@ -309,9 +359,14 @@ function EditToolbar({
 		const defaultName =
 			storeConfig?.displayConfig?.name || storeConfig?.mainFileName || "slides"
 
-		const targetSlides = slidePaths?.length
-			? pptStore.slides.filter((slide) => slidePaths.includes(slide.path))
-			: pptStore.slides
+		const exportPaths = new Set(
+			filterPptSlidePaths(
+				slidePaths ?? pptStore.slides.map((slide) => slide.path),
+				storeConfig?.displayConfig?.hidden_slides,
+				input.includeHiddenSlides,
+			),
+		)
+		const targetSlides = pptStore.slides.filter((slide) => exportPaths.has(slide.path))
 
 		if (!targetSlides.length) {
 			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
@@ -395,7 +450,10 @@ function EditToolbar({
 			})
 	}
 
-	function exportEditablePptByPaths(input: { slidePaths?: string[] }) {
+	async function exportEditablePptByPaths(input: {
+		slidePaths?: string[]
+		includeHiddenSlides?: boolean
+	}) {
 		if (!pptStore) {
 			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
 			return
@@ -406,22 +464,65 @@ function EditToolbar({
 		const defaultName =
 			storeConfig?.displayConfig?.name || storeConfig?.mainFileName || "slides"
 
-		const targetSlides = slidePaths?.length
-			? pptStore.slides.filter((slide) => slidePaths.includes(slide.path))
-			: pptStore.slides
+		const selectedPathSet = new Set(
+			filterPptSlidePaths(
+				slidePaths ?? pptStore.slides.map((slide) => slide.path),
+				storeConfig?.displayConfig?.hidden_slides,
+				input.includeHiddenSlides,
+			),
+		)
+		const selectedSlides = pptStore.slides.filter((slide) => selectedPathSet.has(slide.path))
+		const firstSlide = selectedSlides[0]
+		const pageCount = selectedSlides.length
 
-		if (!targetSlides.length) {
+		if (!firstSlide || pageCount === 0) {
 			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
 			return
 		}
 
-		const htmlSlides = targetSlides.map((slide) => slide.content ?? "")
-		const pptxConfig = createPptxSlideConfig(
-			resolvePptScaleContentDimensions(targetSlides[0]?.content, targetSlides[0]?.rawContent),
-		)
+		const ensureSlideContent = async (slide: (typeof pptStore.slides)[number]) => {
+			if (slide.loadingState === "loaded" && slide.content?.trim()) {
+				return slide.content
+			}
+
+			const slideIndex = pptStore.slides.indexOf(slide)
+			const fileId =
+				pptStore.getFileIdByPath(slide.path) || pptStore.tryExtractAndMapFileId(slide.path)
+			const content = fileId
+				? await pptStore.loadSlideContentByFileId(fileId, {
+						path: slide.path,
+						url: slide.url,
+						indexHint: slideIndex,
+					})
+				: await pptStore.loadSlideContent(slide.url || "", slideIndex)
+
+			if (!content?.trim()) {
+				throw new Error(`Slide content is unavailable for export: ${slide.path}`)
+			}
+			return content
+		}
+
 		const toastId = createRandomUuidV4()
-		let exportHandle: ReturnType<typeof exportPPTX> | null = null
+		let destinationLease: Awaited<ReturnType<typeof openPptxDestination>> = null
+		try {
+			assertPptxExportAvailable({ pageCount })
+			destinationLease = await openPptxDestination({ suggestedName: defaultName })
+		} catch (error) {
+			const isUnavailable = error instanceof PptxExportUnavailableError
+			magicToast.error(
+				isUnavailable ? error.message : t("topicFiles.contextMenu.fileExport.exportFailed"),
+			)
+			reportPptxExportError(error, {
+				fileName: defaultName,
+				slideCount: pageCount,
+				source: "EditToolbar.destination",
+			})
+			return
+		}
+		if (!destinationLease) return
+		let cancelExport: (() => void) | null = null
 		const resourceErrors = createPptxResourceErrorCollector(t)
+		const exportIssues: ExportIssue[] = []
 
 		function getExportToastContent(progressText: string) {
 			return (
@@ -432,7 +533,7 @@ function EditToolbar({
 						variant="secondary"
 						size="sm"
 						className="h-6 bg-destructive-custom px-2 text-xs text-destructive hover:opacity-90"
-						onClick={() => exportHandle?.cancel()}
+						onClick={() => cancelExport?.()}
 					>
 						{t("topicFiles.exportCancel")}
 					</Button>
@@ -442,58 +543,105 @@ function EditToolbar({
 
 		const pptFontResolver = documentExportService.get()?.getPptFontResolver?.()
 
-		exportHandle = exportPPTX(htmlSlides, {
-			fileName: defaultName,
-			skipFailedPages: true,
-			config: pptxConfig,
-			fontResolver: pptFontResolver,
-			logger: pptxExternalLogger,
-			logLevel: "warn",
-			onResourceLoadError: resourceErrors.onResourceLoadError,
-			onSlideProgress: ({ index, total }) => {
-				const progress = total > 1 ? ` (${index + 1}/${total})` : ""
-				magicToast.loading({
-					key: toastId,
-					content: getExportToastContent(`${t("topicFiles.exporting")}${progress}`),
-					duration: 0,
-				})
-			},
-		})
-
-		setIsEditableExporting(true)
-
-		exportHandle.promise
-			.then(() => {
-				magicToast.success({
-					key: toastId,
-					content: t("topicFiles.exportSuccess"),
-					duration: 1000,
-				})
+		{
+			const destination = destinationLease.destination
+			const streamingHandle = startPptxStreamingExportFromFactory(
+				(signal) =>
+					iteratePreparedHtmlPages({
+						pages: (async function* iterateSelectedSlides() {
+							for (const [index, slide] of selectedSlides.entries()) {
+								if (signal.aborted) return
+								const content = await ensureSlideContent(slide)
+								if (signal.aborted) return
+								const fileId =
+									pptStore.getFileIdByPath(slide.path) ||
+									pptStore.tryExtractAndMapFileId(slide.path)
+								yield {
+									index,
+									html: content,
+									key: slide.path,
+									pageName:
+										slide.path.split("/").pop() || slide.title || slide.path,
+									pagePath: slide.path,
+									pageFileId: fileId,
+								}
+							}
+						})(),
+						signal,
+					}),
+				(firstPage) => ({
+					fileName: defaultName,
+					destination,
+					outputPolicy: "file-stream",
+					pageCount,
+					config: createPptxSlideConfig(
+						resolvePptScaleContentDimensions(firstPage.html, firstSlide.rawContent),
+					),
+					// A malformed page script (for example, ECharts targeting a missing container)
+					// is reported through onExportIssue but must not prevent the remaining slides
+					// from being written to the selected PPTX destination.
+					skipFailedPages: true,
+					fontResolver: pptFontResolver,
+					logger: pptxExternalLogger,
+					logLevel: "warn",
+					onResourceLoadError: resourceErrors.onResourceLoadError,
+					onExportIssue: (issue) => exportIssues.push(issue),
+					onProgress: (progress) => {
+						magicToast.loading({
+							key: toastId,
+							content: getExportToastContent(
+								formatPptxStreamingProgress(t("topicFiles.exporting"), progress),
+							),
+							duration: 0,
+						})
+					},
+				}),
+			)
+			cancelExport = streamingHandle.cancel
+			magicToast.loading({
+				key: toastId,
+				content: getExportToastContent(t("topicFiles.exporting")),
+				duration: 0,
 			})
-			.catch((error: unknown) => {
-				const isAbort = (error as { name?: string } | null)?.name === "AbortError"
-				if (isAbort) {
-					magicToast.info({
+
+			setIsEditableExporting(true)
+			streamingHandle.promise
+				.then(() => {
+					publishPptxExportIssues(exportIssues, { fileName: defaultName })
+					magicToast.success({
 						key: toastId,
-						content: t("topicFiles.exportCancel"),
+						content: t("topicFiles.exportSuccess"),
 						duration: 1000,
 					})
-				} else {
-					magicToast.error({
-						key: toastId,
-						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
-						duration: 1000,
-					})
-					reportPptxExportError(error, {
-						fileName: defaultName,
-						slideCount: htmlSlides?.length,
-						source: "EditToolbar",
-					})
-				}
-			})
-			.finally(() => {
-				setIsEditableExporting(false)
-			})
+				})
+				.catch(async (error: unknown) => {
+					await destinationLease.abort(error).catch(() => undefined)
+					const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+					if (isAbort) {
+						magicToast.info({
+							key: toastId,
+							content: t("topicFiles.exportCancel"),
+							duration: 1000,
+						})
+					} else {
+						publishPptxExportFailure(exportIssues, error, { fileName: defaultName })
+						magicToast.error({
+							key: toastId,
+							content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+							duration: 1000,
+						})
+						reportPptxExportError(error, {
+							fileName: defaultName,
+							slideCount: pageCount,
+							source: "EditToolbar.streaming",
+						})
+					}
+				})
+				.finally(() => {
+					setIsEditableExporting(false)
+				})
+			return
+		}
 	}
 
 	// File sharing hook
@@ -520,17 +668,46 @@ function EditToolbar({
 		attachments,
 	})
 
+	const isCodeViewMode = viewMode === "code"
 	const showViewModeSwitcher = !isEditMode && onViewModeChange
 	const showServerUpdateButton = isEditMode && hasServerUpdate
 	const showAIOptimizationButton = showAIOptimization && !isEditMode
+	const aiEditMenuItems = useAIEditMenuItems({
+		attachmentList,
+		fileId,
+		enabled: showAIOptimizationButton && !interactionDisabled && testIdsEnabled,
+		maxItems: 3,
+		onPrimaryAction: isCodeViewMode ? undefined : onStartInspectorAppend,
+		isPrimaryActive: isAppendPicking,
+	})
 	const showFileEditButtons = showFileEdit
+	const quickSelectionLabel = t(
+		isQuickSelecting ? "topicFiles.exitSelectElement" : "topicFiles.selectElement",
+	)
 	const showVersionHistorySelector =
 		showVersionHistory && !isEditMode && fileId && onVersionChange && fetchFileVersions
 	const showRefreshButton = showRefresh && !isEditMode && onRefresh
 	const showShareButton = showShare && !isEditMode && isNewestVersion && allowShare && currentFile
+	const runToolbarAction = useCallback(
+		(action: () => void | Promise<void>) => {
+			void runGuardedAction(beforeAction, action)
+		},
+		[beforeAction],
+	)
+	const handleDownloadSource = (): void => {
+		if (!fileId || interactionDisabled) return
+		// 源码下载当前页的已保存版本，不使用主文稿 ID，也不导出预览加工后的 HTML。
+		runToolbarAction(() =>
+			exportFile([fileId], fileVersion !== undefined ? { [fileId]: fileVersion } : undefined),
+		)
+	}
 
 	return (
-		<div className={cn("h-12 w-full border-b border-border", className)} style={style}>
+		<div
+			className={cn("h-12 w-full border-b border-border", className)}
+			style={style}
+			data-testid={testIdsEnabled ? "ppt-edit-toolbar-actions" : undefined}
+		>
 			<div className="scrollbar-x-thin h-full w-full overflow-x-auto">
 				<div className="flex h-full w-max min-w-full flex-nowrap items-center justify-end gap-1 px-2">
 					{showVersionHistorySelector && (
@@ -541,6 +718,7 @@ function EditToolbar({
 								fileVersionsList={fileVersionsList}
 								isNewestVersion={isNewestVersion}
 								onVersionChange={onVersionChange}
+								beforeAction={beforeAction}
 								showButtonText={shouldShowButtonText}
 								onRollback={
 									onVersionRollback ||
@@ -562,8 +740,19 @@ function EditToolbar({
 					{showViewModeSwitcher && (
 						<>
 							<ViewModeSwitcher
+								data-testid={
+									testIdsEnabled
+										? "ppt-edit-toolbar-view-mode-switcher"
+										: undefined
+								}
+								testIdsEnabled={testIdsEnabled}
+								testIdPrefix={
+									testIdsEnabled ? "ppt-edit-toolbar-view-mode" : undefined
+								}
 								viewMode={viewMode}
-								onViewModeChange={onViewModeChange}
+								onViewModeChange={(mode) =>
+									runToolbarAction(() => onViewModeChange?.(mode))
+								}
 								isMobile={false}
 								enableMobileMode={false}
 							/>
@@ -579,9 +768,12 @@ function EditToolbar({
 					{/* 服务端更新提示按钮 */}
 					{showServerUpdateButton && (
 						<Button
+							data-testid={
+								testIdsEnabled ? "ppt-edit-toolbar-server-update-button" : undefined
+							}
 							variant="secondary"
 							size="sm"
-							onClick={onViewServerUpdate}
+							onClick={() => runToolbarAction(() => onViewServerUpdate?.())}
 							className="h-6 gap-1.5 rounded-md px-3 text-xs font-normal shadow-xs"
 						>
 							<AlertTriangle size={16} className="text-amber-600" />
@@ -589,63 +781,71 @@ function EditToolbar({
 						</Button>
 					)}
 
-					{/* AI 编辑按钮 */}
-					{showAIOptimizationButton && fileId && (
-						<AIEditButton
-							showButtonText={shouldShowButtonText}
-							attachmentList={attachmentList}
-							fileId={fileId}
-							onStartInspector={onStartInspector}
-						/>
-					)}
+					{/* AI 选取按钮 */}
+					{showFileEditButtons &&
+						!isEditMode &&
+						!isCodeViewMode &&
+						(onStartInspectorQuickSelect || onStartInspectorAppend) && (
+							<ConditionalTooltip
+								showText={shouldShowButtonText}
+								title={quickSelectionLabel}
+							>
+								<Button
+									data-testid={
+										testIdsEnabled
+											? "ppt-edit-toolbar-quick-select-button"
+											: undefined
+									}
+									variant="outline"
+									size="sm"
+									onClick={onStartInspectorQuickSelect || onStartInspectorAppend}
+									aria-pressed={isQuickSelecting}
+									className={cn(
+										"h-6 gap-1.5 rounded-[8px] px-3 py-0 text-xs font-normal text-foreground shadow-xs",
+										isQuickSelecting && "text-primary",
+									)}
+								>
+									<Crosshair
+										size={16}
+										className={cn(isQuickSelecting && "animate-pulse")}
+									/>
+									{shouldShowButtonText && <span>{quickSelectionLabel}</span>}
+								</Button>
+							</ConditionalTooltip>
+						)}
 
-					{/* 在线编辑按钮 */}
+					{/* 编辑按钮 */}
 					{showFileEditButtons && (
 						<FileEditButtons
+							testIdPrefix={testIdsEnabled ? "ppt-edit-toolbar" : undefined}
+							fileId={fileId}
 							interactionDisabled={interactionDisabled}
 							isEditMode={isEditMode}
 							isSaving={isSaving}
 							showButtonText={shouldShowButtonText}
-							onEdit={onEdit}
+							editLabel={t("common.edit")}
+							onEdit={() => runToolbarAction(() => onEdit?.())}
 							onSave={onSave}
 							onSaveAndExit={onSaveAndExit}
 							onCancel={onCancel}
 						/>
 					)}
 
-					{/* AI 选取按钮 */}
-					{showFileEditButtons && !isEditMode && onStartInspectorAppend && (
-						<ActionButton
-							icon={
-								<Crosshair
-									size={16}
-									className={cn(isAppendPicking && "animate-pulse")}
-								/>
-							}
-							onClick={onStartInspectorAppend}
-							title={t(
-								"topicFiles.aiPickTooltip",
-								"点击后选取页面元素，让 AI 对其进行修改",
-							)}
-							text={t("topicFiles.aiPick", "AI 选取")}
-							showText={shouldShowButtonText}
-							className={cn(
-								isAppendPicking &&
-									"bg-primary/10 text-primary ring-1 ring-primary/30",
-							)}
-						/>
-					)}
+					<div className="mx-1 h-4 w-px bg-border" />
 
 					{/* 刷新按钮 */}
 					{showRefreshButton && (
 						<ActionButton
+							data-testid={
+								testIdsEnabled ? "ppt-edit-toolbar-refresh-button" : undefined
+							}
 							icon={
 								<RefreshCw
 									size={16}
 									className={cn(isRefreshing && "animate-spin")}
 								/>
 							}
-							onClick={onRefresh}
+							onClick={() => runToolbarAction(() => onRefresh?.())}
 							title={t("ppt.refreshCurrentSlide")}
 							text={t("ppt.refreshCurrentSlide")}
 							showText={shouldShowButtonText}
@@ -653,16 +853,20 @@ function EditToolbar({
 						/>
 					)}
 
-					<div className="mx-1 h-4 w-px bg-border" />
-
 					{/* 全屏按钮 */}
 
 					{!isFullscreenMode && (
 						<ActionButton
+							data-testid={
+								testIdsEnabled ? "ppt-edit-toolbar-fullscreen-button" : undefined
+							}
 							icon={isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
 							onClick={() => {
-								emitFullscreenToggle()
-								setIsFullscreen(!isFullscreen)
+								void runGuardedAction(beforeAction, () => {
+									emitFullscreenToggle()
+									if (controlledFullscreen === undefined)
+										setIsFullscreen(!isFullscreen)
+								})
 							}}
 							title={
 								isFullscreen
@@ -678,118 +882,70 @@ function EditToolbar({
 						/>
 					)}
 
-					{showDownload && (
+					{showDownload && isCodeViewMode && (
+						<ActionButton
+							data-testid={
+								testIdsEnabled
+									? "ppt-edit-toolbar-download-source-button"
+									: undefined
+							}
+							icon={<DownloadIcon size={16} />}
+							title={t("ppt.download")}
+							text={t("ppt.download")}
+							showText={shouldShowButtonText}
+							disabled={!fileId || interactionDisabled}
+							onClick={handleDownloadSource}
+						/>
+					)}
+					{showDownload && !isCodeViewMode && (
 						<ExportDropdown
 							showText={shouldShowButtonText}
 							isExporting={isExporting || isEditableExporting}
-							supportPPT={true}
-							supportCurrentPage={!!pptStore}
+							supportPptx={supportsPptxExport()}
+							beforeAction={beforeAction}
 							supportSpecificPages={!!pptStore}
 							slides={pptStore?.slides}
-							currentPageIndex={currentPageIndex}
-							totalPages={totalPages}
-							onExportSource={() => {
-								if (!mainFileId) return
-
-								const currentFile = attachmentList?.find(
-									(item: AttachmentItem) => item.file_id === mainFileId,
-								)
-
-								// 如果当前文件是文件夹，直接下载文件夹
-								if (currentFile?.is_directory) {
-									exportFile([mainFileId])
-									return
-								}
-
-								// 检查是否有父文件夹
-								const parentFileId = currentFile?.parent_id
-								if (parentFileId) {
-									const parentFile = attachmentList?.find(
-										(item: AttachmentItem) => item.file_id === parentFileId,
-									)
-									// 如果父文件是文件夹，下载整个文件夹
-									if (parentFile?.is_directory) {
-										exportFile([parentFileId])
-										return
-									}
-								}
-
-								// 默认下载当前文件
-								exportFile([mainFileId])
-							}}
-							onExportPDF={() => {
-								if (pptStore) {
-									exportPdfByPaths({})
-								} else {
-									exportPdf([mainFileId || ""])
-								}
-							}}
-							onExportPPT={() => exportPpt([mainFileId || ""])}
-							onExportEditablePPT={() => exportEditablePptByPaths({})}
-							onExportCurrentSource={() => {
-								if (fileId)
-									exportFile(
-										[fileId],
-										fileVersion ? { [fileId]: fileVersion } : undefined,
-									)
-							}}
-							onExportCurrentPDF={() => {
-								const currentSlide = pptStore?.slides[currentPageIndex || 0]
-								if (currentSlide?.path) {
-									exportPdfByPaths({ slidePaths: [currentSlide.path] })
-								} else if (fileId) {
-									exportPdf([fileId])
-								}
-							}}
-							onExportCurrentPPT={() => {
-								if (fileId) exportPpt([fileId])
-							}}
-							onExportCurrentEditablePPT={() => {
-								const currentSlide = pptStore?.slides[currentPageIndex || 0]
-								if (!currentSlide?.path) return
-								exportEditablePptByPaths({
-									slidePaths: [currentSlide.path],
-								})
+							hiddenSlides={
+								pptStore?.getConfigForExport()?.displayConfig?.hidden_slides
+							}
+							onExportPptx={() => {
+								if (pptStore) exportEditablePptByPaths({})
+								else void exportPptx([mainFileId || ""])
 							}}
 							onExportSpecificPages={(
 								filePaths: string[],
-								format:
-									"source" | "pdf" | "ppt" | "pptx" | "image_png" | "image_jpeg",
+								format: "source" | "pdf" | "pptx" | "image_png" | "image_jpeg",
+								includeHiddenSlides?: boolean,
 							) => {
 								if (!filePaths.length) return
 
 								// PDF 和 PPTX 使用纯前端多页导出（直接拿 slide content）
 								if (format === "pdf") {
-									exportPdfByPaths({ slidePaths: filePaths })
+									exportPdfByPaths({ slidePaths: filePaths, includeHiddenSlides })
 									return
 								}
 								if (format === "pptx") {
-									exportEditablePptByPaths({ slidePaths: filePaths })
+									exportEditablePptByPaths({
+										slidePaths: filePaths,
+										includeHiddenSlides,
+									})
 									return
 								}
 								if (format === "image_png" || format === "image_jpeg") {
 									exportImageByPaths({
 										slidePaths: filePaths,
+										includeHiddenSlides,
 										imageFormat: format === "image_png" ? "png" : "jpeg",
 									})
 									return
 								}
 
-								const fileIds =
-									filePaths
+								if (format === "source") {
+									const fileIds = filePaths
 										.map((filePath) => pptStore?.getFileIdByPath(filePath))
-										.filter(
-											(fileId): fileId is string => fileId !== undefined,
-										) ?? []
-
-								if (!fileIds.length) return
-
-								const exportHandlers = {
-									source: () => exportFile(fileIds),
-									ppt: () => exportPpt(fileIds),
+										.filter((fileId): fileId is string => fileId !== undefined)
+									if (fileIds.length) exportFile(fileIds)
 								}
-
-								exportHandlers[format]?.()
 							}}
 							onGenerateScreenshot={
 								pptStore
@@ -806,13 +962,39 @@ function EditToolbar({
 						<ActionButton
 							data-testid="detail-header-action-item-share"
 							icon={<Share2 size={16} />}
-							onClick={() => void handleShare()}
+							onClick={() => runToolbarAction(() => handleShare())}
 							title={t("ppt.share")}
 							text={t("ppt.share")}
 							showText={shouldShowButtonText}
 							loading={isCheckingShare}
 							disabled={isCheckingShare}
 						/>
+					)}
+
+					{showAIOptimizationButton && fileId && (
+						<MagicDropdown
+							menu={{ items: guardMenuItems(aiEditMenuItems, beforeAction) }}
+							trigger={["click"]}
+							placement="bottomRight"
+							disabled={interactionDisabled}
+							getPopupContainer={() => getPopupContainer?.() ?? document.body}
+						>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								aria-label={t("fileViewer.more")}
+								title={t("fileViewer.more")}
+								className="h-6 gap-1.5 rounded-lg px-1.5 text-xs font-normal"
+								data-testid={
+									testIdsEnabled ? "ppt-edit-toolbar-more-button" : undefined
+								}
+								disabled={interactionDisabled}
+							>
+								<MoreHorizontal size={16} />
+								{shouldShowButtonText && <span>{t("fileViewer.more")}</span>}
+							</Button>
+						</MagicDropdown>
 					)}
 
 					{/* File sharing modals */}

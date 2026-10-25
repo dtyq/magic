@@ -1,3 +1,4 @@
+import { positionAnchoredMessages } from "@/pages/superMagic/stores/message-transforms"
 import { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 import { MessageStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { toJS } from "mobx"
@@ -6,6 +7,7 @@ import {
 	type AskUserCardData,
 	getAskUserCorrelationId,
 	isAskUserMessage,
+	ASK_USER_RECOVERY_FAILED_EVENT,
 } from "./utils/askUser"
 
 interface ProjectionCacheEntry {
@@ -47,6 +49,8 @@ export class MessageProjectionCache {
 			item.app_message_id,
 			item.super_message_id,
 			item.seq_id,
+			item.is_stream_placeholder,
+			item.display_after_message_id,
 			item.correlation_id,
 			item.parent_correlation_id,
 			item.role,
@@ -59,6 +63,9 @@ export class MessageProjectionCache {
 			item.content,
 			item.reasoning_content,
 			item.tool_calls,
+			// Tool row visibility is decided by attachments alone, so an attachment array that
+			// arrives after the message must invalidate the cached snapshot and reproject.
+			item.attachments,
 		]
 	}
 
@@ -162,9 +169,11 @@ export class MessageProjectionCache {
 					)
 					if (canMerge) {
 						const deltaResult = convertMessages(delta, isRevoked, this)
-						const result = isAppend
-							? [...previous.result, ...deltaResult]
-							: [...deltaResult, ...previous.result]
+						const result = positionAnchoredMessages(
+							isAppend
+								? [...previous.result, ...deltaResult]
+								: [...deltaResult, ...previous.result],
+						)
 						this.state = {
 							sources: list,
 							result,
@@ -205,7 +214,8 @@ function convertMessages(
 		// 快速跳过：已撤回消息 或 before_llm_request 事件
 		if (
 			(isRevoked && (item.imStatus ?? item.status) === MessageStatus.REVOKED) ||
-			item.event === "before_llm_request"
+			item.event === "before_llm_request" ||
+			item.event === ASK_USER_RECOVERY_FAILED_EVENT
 		) {
 			continue
 		}
@@ -269,14 +279,16 @@ function convertMessages(
 		__sourceIndex: group.firstIndex,
 	}))
 
-	return [...items, ...askUserItems]
-		.slice()
-		.sort((prev, next) => prev.__sourceIndex - next.__sourceIndex)
-		.map((item) => {
-			const { __sourceIndex, ...restItem } = item
-			void __sourceIndex
-			return restItem
-		})
+	return positionAnchoredMessages(
+		[...items, ...askUserItems]
+			.slice()
+			.sort((prev, next) => prev.__sourceIndex - next.__sourceIndex)
+			.map((item) => {
+				const { __sourceIndex, ...restItem } = item
+				void __sourceIndex
+				return restItem
+			}),
+	)
 }
 
 export function messagesConverter(

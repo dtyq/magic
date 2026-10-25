@@ -48,6 +48,8 @@ export class PublishPanelStore {
 	availablePublishTo: PublishTo[] = []
 	availableInternalTargets: PublishInternalTarget[] = []
 	isSubmitting = false
+	/** Async publish ZIP progress 0–100; null when not publishing. */
+	publishProgress: number | null = null
 
 	private initialDraft: PublishDraft = {
 		version: "",
@@ -228,6 +230,28 @@ export class PublishPanelStore {
 		this.draft = this.normalizeDraft(this.initialDraft)
 	}
 
+	setPublishProgress(progress: number | null) {
+		if (progress === null) {
+			this.publishProgress = null
+			return
+		}
+		this.publishProgress = Math.max(0, Math.min(100, Math.round(progress)))
+	}
+
+	/**
+	 * Mark the panel as publishing (e.g. resume a pending async task).
+	 * Locks the form until clearPublishingState / submitDraft finishes.
+	 */
+	beginPublishing(progress = 0) {
+		this.isSubmitting = true
+		this.setPublishProgress(progress)
+	}
+
+	clearPublishingState() {
+		this.isSubmitting = false
+		this.publishProgress = null
+	}
+
 	viewRecord(record: PublishHistoryRecord) {
 		this.openDetailView(record)
 		this.onViewRecord?.(record)
@@ -237,6 +261,7 @@ export class PublishPanelStore {
 		if (!this.canSubmit || this.isSubmitting) return
 
 		this.isSubmitting = true
+		this.publishProgress = 0
 		const submissionDraft = sanitizeDraftForSubmission(this.draft)
 
 		try {
@@ -293,8 +318,19 @@ export class PublishPanelStore {
 
 			this.resetDraft()
 			this.openHistoryView()
+		} catch (error) {
+			// Aborted resume/unmount must not flip to history as if publish succeeded
+			if (
+				error &&
+				typeof error === "object" &&
+				"reason" in error &&
+				(error as { reason?: string }).reason === "aborted"
+			) {
+				return
+			}
+			throw error
 		} finally {
-			this.isSubmitting = false
+			this.clearPublishingState()
 		}
 	}
 

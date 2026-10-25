@@ -1,5 +1,5 @@
 import React from "react"
-import { Flex, Progress } from "antd"
+import { Progress } from "antd"
 import {
 	IconAlertTriangle,
 	IconExternalLink,
@@ -19,6 +19,7 @@ import MagicFileIcon from "../../base/MagicFileIcon"
 
 interface TaskItemProps {
 	task: FolderUploadTask
+	actions?: React.ReactNode
 	isCompleted?: boolean
 	onCancel?: () => void
 	onRetry?: () => void
@@ -27,6 +28,7 @@ interface TaskItemProps {
 
 export const TaskItem: React.FC<TaskItemProps> = ({
 	task,
+	actions,
 	isCompleted: _isCompleted = false, // eslint-disable-line @typescript-eslint/no-unused-vars
 	onCancel: _onCancel,
 	onRetry,
@@ -147,42 +149,44 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
 				return (
 					<div className={styles.statusSection}>
-						<Flex align="center" gap={5}>
+						<div className={styles.statusGrid}>
 							<Progress
+								className={styles.statusProgress}
 								type="circle"
 								percent={directoryPercent}
 								size={18}
 								strokeColor="#315CEC"
 								trailColor="rgba(46, 47, 56, 0.13)"
-								strokeWidth={20}
+								strokeWidth={100 / 11}
 								showInfo={false}
 							/>
 							<span className={styles.progressPercentText}>
 								{t("folderUpload.status.creating_folders")}
 							</span>
-						</Flex>
+						</div>
 					</div>
 				)
 			}
 
 			return (
 				<div className={styles.statusSection}>
-					<Flex align="center" gap={5}>
+					<div className={styles.statusGrid}>
 						{/* antd圆形进度条 */}
 						<Progress
+							className={styles.statusProgress}
 							type="circle"
 							percent={Math.round(state.progress)}
 							size={18}
 							strokeColor="#315CEC"
 							trailColor="rgba(46, 47, 56, 0.13)"
-							strokeWidth={20}
+							strokeWidth={100 / 11}
 							showInfo={false}
 						/>
 						{/* 进度百分比 */}
 						<span className={styles.progressPercentText}>
 							{Math.round(state.progress)}%
 						</span>
-					</Flex>
+					</div>
 				</div>
 			)
 		}
@@ -191,14 +195,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 		if (state.isCompleted && !state.isError && state.errorFiles === 0) {
 			return (
 				<div className={styles.statusSection}>
-					<Flex align="center" gap={5}>
+					<div className={styles.statusGrid}>
 						{/* 成功图标 */}
 						<IconCircleCheck className={styles.successIcon} color="#32C436" size={18} />
 						{/* 成功文字 */}
 						<span className={styles.successText}>
 							{t("folderUpload.status.completed")}
 						</span>
-					</Flex>
+					</div>
 				</div>
 			)
 		}
@@ -213,7 +217,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 				const errorMessage = t("folderUpload.messages.retryPrompt")
 
 				return (
-					<div className={styles.statusSection}>
+					<div className={cx(styles.statusSection, styles.statusGrid)}>
+						<IconAlertTriangle className={styles.warningIcon} />
 						{/* 错误信息文本 */}
 						<span className={styles.errorText} onClick={handleRetryClick}>
 							{errorMessage}
@@ -221,7 +226,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 						{/* 重试按钮 */}
 						{!isMobile && (
 							<button className={styles.retryButton} onClick={handleRetryClick}>
-								<IconAlertTriangle className={styles.warningIcon} color="#FF7D00" />
 								<span className={styles.retryButtonText}>
 									{t("folderUpload.actions.retry")}
 								</span>
@@ -241,7 +245,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 					: t("folderUpload.messages.retryPrompt")
 
 			return (
-				<div className={styles.statusSection}>
+				<div className={cx(styles.statusSection, styles.statusGrid)}>
+					<IconAlertTriangle className={styles.warningIcon} />
 					{/* 错误信息文本 */}
 					<span className={styles.errorText} onClick={handleRetryClick}>
 						{errorMessage}
@@ -249,7 +254,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 					{/* 重试按钮 */}
 					{!isMobile && (
 						<button className={styles.retryButton} onClick={handleRetryClick}>
-							<IconAlertTriangle className={styles.warningIcon} color="#FF7D00" />
 							<span className={styles.retryButtonText}>
 								{t("folderUpload.actions.retry")}
 							</span>
@@ -338,7 +342,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 			</div>
 
 			{/* 右侧状态区域 */}
-			{renderStatusSection()}
+			<div className={styles.rightSection}>
+				{renderStatusSection()}
+				{actions && <div className={styles.fileActions}>{actions}</div>}
+			</div>
 
 			{/* 取消按钮 - 只在非完成状态显示 */}
 			{/* {!isCompleted && onCancel && (

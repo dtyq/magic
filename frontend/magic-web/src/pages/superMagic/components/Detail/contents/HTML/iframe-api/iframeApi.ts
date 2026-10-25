@@ -5,9 +5,15 @@
  * 确保 iframe 场景下的请求错误被抛出而非导致主站跳转登录页。
  */
 
-import iframeClient from "@/apis/clients/iframeClient"
+import { defaultIframeClient as iframeClient } from "@/infrastructure/network/http/runtime"
 import type { SaveFileContentResponse } from "@/apis/modules/superMagic"
 import { userStore } from "@/models/user"
+import {
+	getAccessProjectId,
+	getAccessTopicId,
+	getShareAccessToken,
+	type FileAccessContext,
+} from "@/pages/superMagic/fileAccess/fileAccessContext"
 import { WorkspaceStateCache } from "@/pages/superMagic/utils/superMagicCache"
 import { getSuperIdState } from "@/pages/superMagic/utils/query"
 
@@ -23,18 +29,22 @@ export interface IframeDownloadUrlItem {
  * 获取文件临时下载 URL（iframe 专用）。
  * 仅保留 iframe FS 场景必要的参数，不处理水印/高清/magic-share 等逻辑。
  */
-export async function getIframeDownloadUrl(fileIds: string[]): Promise<IframeDownloadUrlItem[]> {
+export async function getIframeDownloadUrl(
+	fileIds: string[],
+	access?: FileAccessContext | null,
+): Promise<IframeDownloadUrlItem[]> {
 	const workspaceState = WorkspaceStateCache.get(userStore.user.userInfo)
 	const superIdState = getSuperIdState()
 
 	return iframeClient.post<IframeDownloadUrlItem[]>("/api/v1/super-agent/tasks/get-file-url", {
 		file_ids: fileIds,
-		// @ts-ignore
-		token: window.temporary_token || "",
-		// @ts-ignore
-		topic_id: window?.topic_id || workspaceState?.topicId || superIdState?.topicId || "",
-		// @ts-ignore
-		project_id: window.project_id || workspaceState?.projectId || superIdState?.projectId || "",
+		token: getShareAccessToken(access),
+		topic_id: getAccessTopicId(access, workspaceState?.topicId || superIdState?.topicId || ""),
+		project_id: getAccessProjectId(
+			access,
+			workspaceState?.projectId || superIdState?.projectId || "",
+		),
+		download_mode: "download",
 	})
 }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 隔离上下文的纯单元测试，显式执行该配置，不启动应用。 -->
+<phpunit bootstrap="test/bootstrap.unit.php" colors="true" cacheDirectory=".phpunit.data-isolation.cache">
+    <testsuites>
+        <testsuite name="DataIsolation">
+            <directory>test/Cases/Unit/DataIsolation</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

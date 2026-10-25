@@ -1,6 +1,7 @@
-import { loadJSZip } from "@/lib/jszip"
+import { loadJSZip } from "@/infrastructure/vendors/jszip"
 import type { StoredSessionHistory } from "../RecordingSessionHistoryDB"
 import { AudioChunkDB, type StoredAudioChunk } from "../MediaRecorderService/AudioChunkDB"
+import { mergeOggOpusChunks } from "./OggOpusChainMerger"
 
 const DEFAULT_TRANSCRIPT_HEADER = "# Transcript"
 const DEFAULT_NOTE_HEADER = "# Note"
@@ -172,7 +173,8 @@ const MIME_EXT_MAP: Record<string, string> = {
 	"audio/webm": "webm",
 	"audio/mp4": "mp4",
 	"audio/mpeg": "mp3",
-	"audio/ogg": "ogg",
+	"audio/ogg": "opus",
+	"audio/opus": "opus",
 	"audio/pcm": "pcm",
 }
 
@@ -218,9 +220,13 @@ async function mergeAudioChunks(
 	switch (mimeType) {
 		case "audio/wav":
 			return mergeWavChunks(chunks)
+		case "audio/ogg":
+		case "audio/opus":
+			// Each chunk is decoded independently before one continuous Ogg Opus
+			// stream is encoded, avoiding timestamp resets between logical streams.
+			return mergeOggOpusChunks(chunks.map((chunk) => chunk.chunk))
 		case "audio/webm":
 		case "audio/mp4":
-		case "audio/ogg":
 			// Container formats: simple concatenation works for
 			// MediaRecorder-produced chunks (first chunk has init segment)
 			return mergeBlobChunks(chunks, mimeType)

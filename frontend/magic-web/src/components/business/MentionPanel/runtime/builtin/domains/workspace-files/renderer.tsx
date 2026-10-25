@@ -6,6 +6,7 @@ import {
 import type { MentionItemRenderer } from "../../../../renderers/types"
 import { renderMentionFileIcon, renderMentionFolderIcon } from "../shared/render-utils"
 import { isCanvasElementItem } from "../canvas-elements/item-utils"
+import { getSceneCatalogName, isSceneCatalogItem } from "../scene-catalog/store"
 
 function getFolderRelativePath(path?: string) {
 	if (!path) return path
@@ -96,6 +97,7 @@ export const workspaceFilesRendererEntries: Array<[string, MentionItemRenderer]>
 			renderIcon: renderMentionFileIcon,
 			renderDescription: ({ item, platform, t }) => {
 				if (platform !== "mobile" || !item.description) return null
+				if (isSceneCatalogItem(item)) return item.description
 				const relativePath = getFileRelativePath(item.description)
 
 				return (
@@ -108,6 +110,11 @@ export const workspaceFilesRendererEntries: Array<[string, MentionItemRenderer]>
 			getTypeDescription: ({ item, isSearch, t }) => {
 				if (isSearch && isCanvasElementItem(item))
 					return t.defaultItems?.canvasElements || "Canvas Elements"
+				// Scene items show their own subtitle (e.g. a persona's tagline), never a path;
+				// in search the catalog name tells them apart from same-named project files.
+				if (isSceneCatalogItem(item)) {
+					return item.description || (isSearch ? getSceneCatalogName(item) : null) || null
+				}
 				if (isSearch && item.description) return item.description
 				const rootLabel = t.selectPathItemDescription.rootDirectory
 				const filePath = (item.data as ProjectFileMentionData | undefined)?.file_path || ""

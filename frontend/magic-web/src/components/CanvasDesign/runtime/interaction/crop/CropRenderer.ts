@@ -16,6 +16,7 @@ import {
 	createFrameGridLines,
 	isManagedOverlayNode,
 	localBoxToAbsoluteBox,
+	updateFrameGridLineStrokeWidth,
 	updateFrameGridLines,
 } from "../frame/FrameEditorShared"
 import { syncNodeTransformRelativeTo } from "../../shared/geometry/nodeTransform"
@@ -274,6 +275,7 @@ export class CropRenderer {
 			...gridLines,
 			cropAreaHitProxy,
 		)
+		this.updateGridLineStrokeWidth()
 		this.canvas.controlsLayer.add(this.overlayGroup)
 
 		// 4. Transformer（只显示4个角点anchor，但上下左右边缘也支持编辑）
@@ -325,7 +327,7 @@ export class CropRenderer {
 					)
 				}
 
-				resultBox = this.applySnapForTransform(oldBox, resultBox, activeAnchor ?? null)
+				resultBox = this.applySnapForTransform(resultBox, activeAnchor ?? null)
 				return resultBox
 			},
 		})
@@ -470,7 +472,8 @@ export class CropRenderer {
 		if (!this.overlayGroup || !this.elementBounds) return
 
 		const group = this.overlayGroup.findOne(`.${CROP_OVERFLOW_OVERLAY_NAME}`) as
-			Konva.Group | undefined
+			| Konva.Group
+			| undefined
 		if (!group) return
 
 		this.updateSegmentOverlay(
@@ -520,6 +523,18 @@ export class CropRenderer {
 		)
 	}
 
+	private updateGridLineStrokeWidth(): void {
+		updateFrameGridLineStrokeWidth(
+			this.overlayGroup,
+			CROP_GRID_LINE_NAME,
+			this.canvas.stage.scaleX(),
+		)
+	}
+
+	public syncViewportScale(): void {
+		this.updateGridLineStrokeWidth()
+	}
+
 	/**
 	 * 处理面板更新
 	 */
@@ -533,7 +548,8 @@ export class CropRenderer {
 		const cropBox = this.overlayGroup.findOne(`.${CROP_BOX_NAME}`) as Konva.Rect
 		const cropArea = this.overlayGroup.findOne(`.${CROP_AREA_NAME}`) as Konva.Rect
 		const cropAreaHitProxy = this.overlayGroup.findOne(`.${CROP_AREA_HIT_PROXY_NAME}`) as
-			Konva.Rect | undefined
+			| Konva.Rect
+			| undefined
 
 		if (cropBox && cropArea) {
 			cropBox.position({ x: data.tempCrop.x, y: data.tempCrop.y })
@@ -637,7 +653,7 @@ export class CropRenderer {
 	/**
 	 * 计算变换时的吸附 Box
 	 */
-	private applySnapForTransform(oldBox: Box, newBox: Box, activeAnchor: string | null): Box {
+	private applySnapForTransform(newBox: Box, activeAnchor: string | null): Box {
 		if (!this.elementBounds) return newBox
 
 		// boundBoxFunc 的 box 为 stage 坐标，需转为元素本地空间再与 elementBounds 比较

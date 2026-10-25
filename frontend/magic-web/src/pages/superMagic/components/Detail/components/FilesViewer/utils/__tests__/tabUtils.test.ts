@@ -5,7 +5,7 @@ import {
 	convertFileToTabItem,
 	dedupeTabsById,
 	handleDuplicateTabNames,
-	normalizeSlideProjectTabItem,
+	normalizeProjectTabItem,
 } from "../tabUtils"
 import type { TabItem } from "../../types"
 
@@ -294,6 +294,95 @@ describe("handleDuplicateTabNames", () => {
 })
 
 describe("convertFileToTabItem", () => {
+	it("uses the audio folder as the tab id when opening its index.html", () => {
+		const indexFile = {
+			file_id: "mock-audio-index",
+			file_name: "index.html",
+			relative_file_path: "mock-recording/index.html",
+			parent_id: "mock-audio-folder",
+			display_config: { type: "audio" },
+		}
+		const folder = {
+			file_id: "mock-audio-folder",
+			file_name: "mock-recording",
+			is_directory: true,
+			relative_file_path: "mock-recording",
+			display_config: { type: "audio", name: "Mock recording" },
+			children: [indexFile],
+		}
+
+		const folderTab = convertFileToTabItem(folder, [folder])
+		const indexTab = convertFileToTabItem(indexFile, [folder])
+
+		expect(folderTab?.id).toBe("mock-audio-folder")
+		expect(indexTab?.id).toBe("mock-audio-folder")
+		expect(indexTab?.fileData.file_id).toBe("mock-audio-folder")
+		expect(indexTab?.fileData.is_directory).toBe(true)
+		expect(indexTab?.display_config?.type).toBe("audio")
+	})
+
+	it("normalizes cached audio entry tabs and dedupes them with the folder tab", () => {
+		const indexFile = {
+			file_id: "mock-audio-index",
+			file_name: "index.html",
+			relative_file_path: "mock-recording/index.html",
+			parent_id: "mock-audio-folder",
+			display_config: { type: "audio" },
+		}
+		const folder = {
+			file_id: "mock-audio-folder",
+			file_name: "mock-recording",
+			is_directory: true,
+			relative_file_path: "mock-recording",
+			display_config: { type: "audio", name: "Mock recording" },
+			children: [indexFile],
+		}
+		const entryTab = normalizeProjectTabItem(
+			{
+				id: "mock-audio-index",
+				title: "index.html",
+				active: false,
+				closeable: true,
+				fileData: indexFile,
+				filePath: "mock-recording/index.html",
+			},
+			[folder],
+		)
+		const folderTab = convertFileToTabItem(folder, [folder])!
+
+		expect(dedupeTabsById([entryTab, folderTab])).toHaveLength(1)
+		expect(dedupeTabsById([entryTab, folderTab])[0].id).toBe("mock-audio-folder")
+	})
+
+	it("keeps an unrelated index.html as a regular file tab", () => {
+		const indexFile = {
+			file_id: "mock-plain-index",
+			file_name: "index.html",
+			relative_file_path: "mock-site/index.html",
+			parent_id: "mock-site-folder",
+			display_config: { type: "html" },
+		}
+
+		const tab = convertFileToTabItem(indexFile, [indexFile])
+
+		expect(tab?.id).toBe("mock-plain-index")
+		expect(tab?.fileData.is_directory).toBeUndefined()
+	})
+
+	it("uses parent_id as a temporary audio folder id before attachments load", () => {
+		const tab = convertFileToTabItem({
+			file_id: "mock-audio-index",
+			file_name: "index.html",
+			relative_file_path: "mock-recording/index.html",
+			parent_id: "mock-audio-folder",
+			display_config: { type: "audio", name: "Mock recording" },
+		})
+
+		expect(tab?.id).toBe("mock-audio-folder")
+		expect(tab?.fileData.is_directory).toBe(true)
+		expect(tab?.fileData.relative_file_path).toBe("mock-recording")
+	})
+
 	it("uses the PPT folder as the tab id when opening its index.html", () => {
 		const indexFile = {
 			file_id: "index-file",
@@ -337,7 +426,7 @@ describe("convertFileToTabItem", () => {
 			children: [indexFile],
 		}
 		const normalizedTabs = [
-			normalizeSlideProjectTabItem(
+			normalizeProjectTabItem(
 				{
 					id: "index-file",
 					title: "index.html",
@@ -374,7 +463,7 @@ describe("convertFileToTabItem", () => {
 			children: [indexFile],
 		}
 
-		const normalizedTab = normalizeSlideProjectTabItem(
+		const normalizedTab = normalizeProjectTabItem(
 			{
 				id: "deck-folder",
 				title: "index.html",
@@ -392,7 +481,7 @@ describe("convertFileToTabItem", () => {
 	})
 
 	it("normalizes cached PPT index tab by parent_id before attachments are ready", () => {
-		const normalizedTab = normalizeSlideProjectTabItem({
+		const normalizedTab = normalizeProjectTabItem({
 			id: "932751570625261569",
 			title: "青少年时间管理与高效学习法",
 			active: true,
@@ -425,7 +514,7 @@ describe("convertFileToTabItem", () => {
 	})
 
 	it("does not normalize root index.html without a PPT folder path", () => {
-		const normalizedTab = normalizeSlideProjectTabItem({
+		const normalizedTab = normalizeProjectTabItem({
 			id: "index-file",
 			title: "index.html",
 			active: true,
@@ -447,5 +536,83 @@ describe("convertFileToTabItem", () => {
 		expect(normalizedTab.id).toBe("index-file")
 		expect(normalizedTab.fileData.file_id).toBe("index-file")
 		expect(normalizedTab.fileData.is_directory).toBeUndefined()
+	})
+
+	it("uses the template root as the tab when opening template.json", () => {
+		const templateJson = {
+			file_id: "template-json",
+			file_name: "template.json",
+			relative_file_path: "产品发布模板/template.json",
+			parent_id: "template-root",
+		}
+		const slideHtml = {
+			file_id: "slide-1",
+			file_name: "cover.html",
+			relative_file_path: "产品发布模板/slides/cover.html",
+			parent_id: "slides-folder",
+		}
+		const slidesFolder = {
+			file_id: "slides-folder",
+			file_name: "slides",
+			is_directory: true,
+			relative_file_path: "产品发布模板/slides",
+			parent_id: "template-root",
+			children: [slideHtml],
+		}
+		const templateRoot = {
+			file_id: "template-root",
+			file_name: "产品发布模板",
+			is_directory: true,
+			relative_file_path: "产品发布模板",
+			children: [
+				templateJson,
+				{ file_id: "spec", file_name: "visual-spec.md", is_directory: false },
+				{ file_id: "theme", file_name: "theme.css", is_directory: false },
+				slidesFolder,
+			],
+		}
+
+		const rootTab = convertFileToTabItem(templateRoot, [templateRoot])
+		const jsonTab = convertFileToTabItem(templateJson, [templateRoot])
+		const slideTab = convertFileToTabItem(slideHtml, [templateRoot])
+
+		expect(rootTab?.id).toBe("template-root")
+		expect(rootTab?.display_config?.type).toBe("slide-template")
+		expect(jsonTab?.id).toBe("template-root")
+		expect(jsonTab?.fileData.file_id).toBe("template-root")
+		expect(jsonTab?.display_config?.type).toBe("slide-template")
+		expect(slideTab?.id).toBe("slide-1")
+		expect(slideTab?.display_config?.type).not.toBe("slide-template")
+	})
+
+	it("injects slide-template display_config when normalizing a template root tab", () => {
+		const templateRoot = {
+			file_id: "template-root",
+			file_name: "产品发布模板",
+			is_directory: true,
+			relative_file_path: "产品发布模板",
+			children: [
+				{ file_id: "template-json", file_name: "template.json", is_directory: false },
+				{ file_id: "spec", file_name: "visual-spec.md", is_directory: false },
+				{ file_id: "theme", file_name: "theme.css", is_directory: false },
+				{ file_id: "slides", file_name: "slides", is_directory: true, children: [] },
+			],
+		}
+
+		const normalizedTab = normalizeProjectTabItem(
+			{
+				id: "template-root",
+				title: "产品发布模板",
+				active: true,
+				closeable: true,
+				fileData: templateRoot,
+				filePath: "产品发布模板",
+			},
+			[templateRoot],
+		)
+
+		expect(normalizedTab.id).toBe("template-root")
+		expect(normalizedTab.display_config?.type).toBe("slide-template")
+		expect(normalizedTab.fileData.display_config?.type).toBe("slide-template")
 	})
 })

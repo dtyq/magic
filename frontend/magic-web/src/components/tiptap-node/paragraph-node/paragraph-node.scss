@@ -192,6 +192,29 @@
     code {
       color: inherit;
     }
+
+    // 文档媒体引用沿用普通链接颜色，长名称换行时不产生多行标签底色。
+    &:has(> [data-file-reference-preview-ui]) {
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: none;
+
+        > span:not([data-file-reference-preview-ui]) {
+          text-decoration: underline;
+        }
+      }
+
+      // 继承实际父元素的装饰，既移除链接 span 下划线，也保留显式 u／s 标记。
+      span {
+        text-decoration: inherit;
+      }
+
+      &:focus-visible {
+        outline: 1px solid rgb(var(--primary-rgb));
+        outline-offset: 2px;
+      }
+    }
   }
 }
 

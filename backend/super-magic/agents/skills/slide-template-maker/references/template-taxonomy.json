@@ -1,0 +1,3137 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "categories_file": "slides-template-categories.json",
+    "categories_sha256": "77471524cf2c49eb99c4013f99a27501f56ea99a3a68aa7ba3cfd959170faeef",
+    "tags_file": "slides-template-tags.json",
+    "tags_sha256": "d5dd82e0cd5184100f1f2aae622eeafe698c6dd2dc39e53a9822c61573570edb"
+  },
+  "categories": [
+    {
+      "code": "PPT-CATE-business-report",
+      "name_i18n": {
+        "zh_CN": "商业汇报",
+        "en_US": "Business Report"
+      },
+      "status": 1,
+      "sort": 1000
+    },
+    {
+      "code": "PPT-CATE-finance-investment",
+      "name_i18n": {
+        "zh_CN": "财务金融",
+        "en_US": "Finance & Investment"
+      },
+      "status": 1,
+      "sort": 950
+    },
+    {
+      "code": "PPT-CATE-startup-pitch",
+      "name_i18n": {
+        "zh_CN": "创业融资",
+        "en_US": "Startup Pitch"
+      },
+      "status": 1,
+      "sort": 900
+    },
+    {
+      "code": "PPT-CATE-consulting-proposal",
+      "name_i18n": {
+        "zh_CN": "咨询方案",
+        "en_US": "Consulting & Proposal"
+      },
+      "status": 1,
+      "sort": 850
+    },
+    {
+      "code": "PPT-CATE-product-growth",
+      "name_i18n": {
+        "zh_CN": "产品和增长",
+        "en_US": "Product & Growth"
+      },
+      "status": 1,
+      "sort": 800
+    },
+    {
+      "code": "PPT-CATE-operations-management",
+      "name_i18n": {
+        "zh_CN": "运营管理",
+        "en_US": "Operations & Management"
+      },
+      "status": 1,
+      "sort": 750
+    },
+    {
+      "code": "PPT-CATE-sales-marketing",
+      "name_i18n": {
+        "zh_CN": "销售和市场",
+        "en_US": "Sales & Marketing"
+      },
+      "status": 1,
+      "sort": 700
+    },
+    {
+      "code": "PPT-CATE-hr-admin",
+      "name_i18n": {
+        "zh_CN": "人力行政",
+        "en_US": "HR & Administration"
+      },
+      "status": 1,
+      "sort": 650
+    },
+    {
+      "code": "PPT-CATE-education-training",
+      "name_i18n": {
+        "zh_CN": "教育培训",
+        "en_US": "Education & Training"
+      },
+      "status": 1,
+      "sort": 600
+    },
+    {
+      "code": "PPT-CATE-data-analytics",
+      "name_i18n": {
+        "zh_CN": "数据分析",
+        "en_US": "Data & Analytics"
+      },
+      "status": 1,
+      "sort": 550
+    },
+    {
+      "code": "PPT-CATE-academic-research",
+      "name_i18n": {
+        "zh_CN": "学术科研",
+        "en_US": "Academic Research"
+      },
+      "status": 1,
+      "sort": 500
+    },
+    {
+      "code": "PPT-CATE-ai-digital",
+      "name_i18n": {
+        "zh_CN": "AI 与数字化",
+        "en_US": "AI & Digital Transformation"
+      },
+      "status": 1,
+      "sort": 450
+    },
+    {
+      "code": "PPT-CATE-technology-engineering",
+      "name_i18n": {
+        "zh_CN": "技术工程",
+        "en_US": "Technology & Engineering"
+      },
+      "status": 1,
+      "sort": 400
+    },
+    {
+      "code": "PPT-CATE-government-organization",
+      "name_i18n": {
+        "zh_CN": "政企和组织",
+        "en_US": "Government & Organization"
+      },
+      "status": 1,
+      "sort": 300
+    },
+    {
+      "code": "PPT-CATE-legal-compliance",
+      "name_i18n": {
+        "zh_CN": "法务合规",
+        "en_US": "Legal & Compliance"
+      },
+      "status": 1,
+      "sort": 250
+    },
+    {
+      "code": "PPT-CATE-real-estate-construction",
+      "name_i18n": {
+        "zh_CN": "地产建筑",
+        "en_US": "Real Estate & Construction"
+      },
+      "status": 1,
+      "sort": 240
+    },
+    {
+      "code": "PPT-CATE-consumer-retail",
+      "name_i18n": {
+        "zh_CN": "消费零售",
+        "en_US": "Consumer & Retail"
+      },
+      "status": 1,
+      "sort": 230
+    },
+    {
+      "code": "PPT-CATE-healthcare",
+      "name_i18n": {
+        "zh_CN": "医疗健康",
+        "en_US": "Healthcare"
+      },
+      "status": 1,
+      "sort": 200
+    },
+    {
+      "code": "PPT-CATE-events-webinar",
+      "name_i18n": {
+        "zh_CN": "活动会议",
+        "en_US": "Events & Webinar"
+      },
+      "status": 1,
+      "sort": 150
+    },
+    {
+      "code": "PPT-CATE-culture-creative",
+      "name_i18n": {
+        "zh_CN": "文化创意",
+        "en_US": "Culture & Creative"
+      },
+      "status": 1,
+      "sort": 100
+    }
+  ],
+  "groups": [
+    {
+      "code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "用途",
+        "en_US": "Purpose"
+      },
+      "sort": 9000
+    },
+    {
+      "code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "行业",
+        "en_US": "Industry and Domain"
+      },
+      "sort": 8900
+    },
+    {
+      "code": "style_group",
+      "name_i18n": {
+        "zh_CN": "风格",
+        "en_US": "Visual Style"
+      },
+      "sort": 8800
+    },
+    {
+      "code": "color_group",
+      "name_i18n": {
+        "zh_CN": "配色",
+        "en_US": "Color and Palette"
+      },
+      "sort": 8700
+    },
+    {
+      "code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "版式",
+        "en_US": "Layout and Content Structure"
+      },
+      "sort": 8600
+    },
+    {
+      "code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "氛围",
+        "en_US": "Mood and Expression"
+      },
+      "sort": 8500
+    },
+    {
+      "code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "场景",
+        "en_US": "Audience and Scene"
+      },
+      "sort": 8400
+    },
+    {
+      "code": "topic_group",
+      "name_i18n": {
+        "zh_CN": "主题",
+        "en_US": "Topic and Content"
+      },
+      "sort": 8300
+    },
+    {
+      "code": "language_group",
+      "name_i18n": {
+        "zh_CN": "语言",
+        "en_US": "Language"
+      },
+      "sort": 8200
+    },
+    {
+      "code": "operational_group",
+      "name_i18n": {
+        "zh_CN": "类型",
+        "en_US": "Type"
+      },
+      "sort": 1000
+    }
+  ],
+  "tags": [
+    {
+      "code": "purpose-annual-report",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "年度报告",
+        "en_US": "Annual Report"
+      },
+      "sort": 100000
+    },
+    {
+      "code": "purpose-work-summary",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "工作总结",
+        "en_US": "Work Summary"
+      },
+      "sort": 99999
+    },
+    {
+      "code": "purpose-quarterly-review",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "季度复盘",
+        "en_US": "Quarterly Review"
+      },
+      "sort": 99998
+    },
+    {
+      "code": "purpose-monthly-report",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "月度汇报",
+        "en_US": "Monthly Report"
+      },
+      "sort": 99997
+    },
+    {
+      "code": "purpose-weekly-report",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "周报",
+        "en_US": "Weekly Report"
+      },
+      "sort": 99996
+    },
+    {
+      "code": "purpose-project-report",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "项目汇报",
+        "en_US": "Project Report"
+      },
+      "sort": 99995
+    },
+    {
+      "code": "purpose-project-plan",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "项目计划",
+        "en_US": "Project Plan"
+      },
+      "sort": 99994
+    },
+    {
+      "code": "purpose-project-proposal",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "项目提案",
+        "en_US": "Project Proposal"
+      },
+      "sort": 99993
+    },
+    {
+      "code": "purpose-business-plan",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "商业计划",
+        "en_US": "Business Plan"
+      },
+      "sort": 99992
+    },
+    {
+      "code": "purpose-strategic-plan",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "战略规划",
+        "en_US": "Strategic Plan"
+      },
+      "sort": 99991
+    },
+    {
+      "code": "purpose-operation-plan",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "运营方案",
+        "en_US": "Operation Plan"
+      },
+      "sort": 99990
+    },
+    {
+      "code": "purpose-marketing-plan",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "营销策划",
+        "en_US": "Marketing Plan"
+      },
+      "sort": 99989
+    },
+    {
+      "code": "purpose-campaign-proposal",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "活动策划",
+        "en_US": "Campaign Proposal"
+      },
+      "sort": 99988
+    },
+    {
+      "code": "purpose-brand-plan",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "品牌策划",
+        "en_US": "Brand Plan"
+      },
+      "sort": 99987
+    },
+    {
+      "code": "purpose-product-launch",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "产品发布",
+        "en_US": "Product Launch"
+      },
+      "sort": 99986
+    },
+    {
+      "code": "purpose-product-introduction",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "产品介绍",
+        "en_US": "Product Introduction"
+      },
+      "sort": 99985
+    },
+    {
+      "code": "purpose-company-profile",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "公司介绍",
+        "en_US": "Company Profile"
+      },
+      "sort": 99984
+    },
+    {
+      "code": "purpose-brand-profile",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "品牌介绍",
+        "en_US": "Brand Profile"
+      },
+      "sort": 99983
+    },
+    {
+      "code": "purpose-investment-pitch",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "融资路演",
+        "en_US": "Investment Pitch"
+      },
+      "sort": 99982
+    },
+    {
+      "code": "purpose-sales-proposal",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "销售提案",
+        "en_US": "Sales Proposal"
+      },
+      "sort": 99981
+    },
+    {
+      "code": "purpose-bidding-proposal",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "投标方案",
+        "en_US": "Bidding Proposal"
+      },
+      "sort": 99980
+    },
+    {
+      "code": "purpose-consulting-proposal",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "咨询方案",
+        "en_US": "Consulting Proposal"
+      },
+      "sort": 99979
+    },
+    {
+      "code": "purpose-solution-proposal",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "解决方案",
+        "en_US": "Solution Proposal"
+      },
+      "sort": 99978
+    },
+    {
+      "code": "purpose-data-report",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "数据报告",
+        "en_US": "Data Report"
+      },
+      "sort": 99977
+    },
+    {
+      "code": "purpose-market-analysis",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "市场分析",
+        "en_US": "Market Analysis"
+      },
+      "sort": 99976
+    },
+    {
+      "code": "purpose-industry-analysis",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "行业分析",
+        "en_US": "Industry Analysis"
+      },
+      "sort": 99975
+    },
+    {
+      "code": "purpose-competitor-analysis",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "竞品分析",
+        "en_US": "Competitor Analysis"
+      },
+      "sort": 99974
+    },
+    {
+      "code": "purpose-research-report",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "调研报告",
+        "en_US": "Research Report"
+      },
+      "sort": 99973
+    },
+    {
+      "code": "purpose-feasibility-study",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "可行性分析",
+        "en_US": "Feasibility Study"
+      },
+      "sort": 99972
+    },
+    {
+      "code": "purpose-academic-defense",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "学术答辩",
+        "en_US": "Academic Defense"
+      },
+      "sort": 99971
+    },
+    {
+      "code": "purpose-thesis-defense",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "论文答辩",
+        "en_US": "Thesis Defense"
+      },
+      "sort": 99970
+    },
+    {
+      "code": "purpose-teaching-course",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "教学课件",
+        "en_US": "Teaching Course"
+      },
+      "sort": 99969
+    },
+    {
+      "code": "purpose-training-course",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "培训课件",
+        "en_US": "Training Course"
+      },
+      "sort": 99968
+    },
+    {
+      "code": "purpose-workshop-course",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "工作坊",
+        "en_US": "Workshop"
+      },
+      "sort": 99967
+    },
+    {
+      "code": "purpose-knowledge-sharing",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "知识分享",
+        "en_US": "Knowledge Sharing"
+      },
+      "sort": 99966
+    },
+    {
+      "code": "purpose-policy-briefing",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "政策解读",
+        "en_US": "Policy Briefing"
+      },
+      "sort": 99965
+    },
+    {
+      "code": "purpose-party-building-course",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "党建学习",
+        "en_US": "Party Building Course"
+      },
+      "sort": 99964
+    },
+    {
+      "code": "purpose-meeting-presentation",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "会议演示",
+        "en_US": "Meeting Presentation"
+      },
+      "sort": 99963
+    },
+    {
+      "code": "purpose-keynote-speech",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "主题演讲",
+        "en_US": "Keynote Speech"
+      },
+      "sort": 99962
+    },
+    {
+      "code": "purpose-event-opening",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "活动开场",
+        "en_US": "Event Opening"
+      },
+      "sort": 99961
+    },
+    {
+      "code": "purpose-event-recap",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "活动回顾",
+        "en_US": "Event Recap"
+      },
+      "sort": 99960
+    },
+    {
+      "code": "purpose-ceremony-presentation",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "典礼演示",
+        "en_US": "Ceremony Presentation"
+      },
+      "sort": 99959
+    },
+    {
+      "code": "purpose-award-ceremony",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "颁奖典礼",
+        "en_US": "Award Ceremony"
+      },
+      "sort": 99958
+    },
+    {
+      "code": "purpose-portfolio",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "作品集",
+        "en_US": "Portfolio"
+      },
+      "sort": 99957
+    },
+    {
+      "code": "purpose-personal-resume",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "个人简历",
+        "en_US": "Personal Resume"
+      },
+      "sort": 99956
+    },
+    {
+      "code": "purpose-team-introduction",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "团队介绍",
+        "en_US": "Team Introduction"
+      },
+      "sort": 99955
+    },
+    {
+      "code": "purpose-case-study",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "案例展示",
+        "en_US": "Case Study Presentation"
+      },
+      "sort": 99954
+    },
+    {
+      "code": "purpose-customer-story",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "客户案例",
+        "en_US": "Customer Story"
+      },
+      "sort": 99953
+    },
+    {
+      "code": "purpose-product-manual",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "产品手册",
+        "en_US": "Product Manual"
+      },
+      "sort": 99952
+    },
+    {
+      "code": "purpose-brand-manual",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "品牌手册",
+        "en_US": "Brand Manual"
+      },
+      "sort": 99951
+    },
+    {
+      "code": "purpose-onboarding-guide",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "入职培训",
+        "en_US": "Onboarding Guide"
+      },
+      "sort": 99950
+    },
+    {
+      "code": "purpose-recruitment-presentation",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "招聘宣讲",
+        "en_US": "Recruitment Presentation"
+      },
+      "sort": 99949
+    },
+    {
+      "code": "purpose-campus-presentation",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "校园宣讲",
+        "en_US": "Campus Presentation"
+      },
+      "sort": 99948
+    },
+    {
+      "code": "purpose-lesson-plan",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "教案",
+        "en_US": "Lesson Plan"
+      },
+      "sort": 99947
+    },
+    {
+      "code": "purpose-holiday-greeting",
+      "group_code": "purpose_group",
+      "name_i18n": {
+        "zh_CN": "节日祝福",
+        "en_US": "Holiday Greeting"
+      },
+      "sort": 99946
+    },
+    {
+      "code": "industry-education-training",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "教育培训",
+        "en_US": "Education and Training"
+      },
+      "sort": 99945
+    },
+    {
+      "code": "industry-kindergarten-preschool",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "学前教育",
+        "en_US": "Kindergarten and Preschool"
+      },
+      "sort": 99944
+    },
+    {
+      "code": "industry-primary-education",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "小学教育",
+        "en_US": "Primary Education"
+      },
+      "sort": 99943
+    },
+    {
+      "code": "industry-secondary-education",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "中学教育",
+        "en_US": "Secondary Education"
+      },
+      "sort": 99942
+    },
+    {
+      "code": "industry-higher-education",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "高等教育",
+        "en_US": "Higher Education"
+      },
+      "sort": 99941
+    },
+    {
+      "code": "industry-vocational-education",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "职业教育",
+        "en_US": "Vocational Education"
+      },
+      "sort": 99940
+    },
+    {
+      "code": "industry-academic-research",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "学术研究",
+        "en_US": "Academic Research"
+      },
+      "sort": 99939
+    },
+    {
+      "code": "industry-healthcare",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "医疗健康",
+        "en_US": "Healthcare"
+      },
+      "sort": 99938
+    },
+    {
+      "code": "industry-medical-service",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "医疗服务",
+        "en_US": "Medical Service"
+      },
+      "sort": 99937
+    },
+    {
+      "code": "industry-pharmaceuticals",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "医药",
+        "en_US": "Pharmaceuticals"
+      },
+      "sort": 99936
+    },
+    {
+      "code": "industry-biotechnology",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "生物科技",
+        "en_US": "Biotechnology"
+      },
+      "sort": 99935
+    },
+    {
+      "code": "industry-mental-health",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "心理健康",
+        "en_US": "Mental Health"
+      },
+      "sort": 99934
+    },
+    {
+      "code": "industry-wellness-fitness",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "健康与健身",
+        "en_US": "Wellness and Fitness"
+      },
+      "sort": 99933
+    },
+    {
+      "code": "industry-finance",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "金融",
+        "en_US": "Finance"
+      },
+      "sort": 99932
+    },
+    {
+      "code": "industry-banking",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "银行",
+        "en_US": "Banking"
+      },
+      "sort": 99931
+    },
+    {
+      "code": "industry-insurance",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "保险",
+        "en_US": "Insurance"
+      },
+      "sort": 99930
+    },
+    {
+      "code": "industry-securities-investment",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "证券投资",
+        "en_US": "Securities and Investment"
+      },
+      "sort": 99929
+    },
+    {
+      "code": "industry-accounting-audit",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "财税审计",
+        "en_US": "Accounting and Audit"
+      },
+      "sort": 99928
+    },
+    {
+      "code": "industry-fintech",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "金融科技",
+        "en_US": "Fintech"
+      },
+      "sort": 99927
+    },
+    {
+      "code": "industry-internet",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "互联网",
+        "en_US": "Internet"
+      },
+      "sort": 99926
+    },
+    {
+      "code": "industry-software-service",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "软件服务",
+        "en_US": "Software Service"
+      },
+      "sort": 99925
+    },
+    {
+      "code": "industry-artificial-intelligence",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "人工智能",
+        "en_US": "Artificial Intelligence"
+      },
+      "sort": 99924
+    },
+    {
+      "code": "industry-big-data",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "大数据",
+        "en_US": "Big Data"
+      },
+      "sort": 99923
+    },
+    {
+      "code": "industry-cloud-computing",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "云计算",
+        "en_US": "Cloud Computing"
+      },
+      "sort": 99922
+    },
+    {
+      "code": "industry-cybersecurity",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "网络安全",
+        "en_US": "Cybersecurity"
+      },
+      "sort": 99921
+    },
+    {
+      "code": "industry-ecommerce",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "电商",
+        "en_US": "E-commerce"
+      },
+      "sort": 99920
+    },
+    {
+      "code": "industry-social-media",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "社交媒体",
+        "en_US": "Social Media"
+      },
+      "sort": 99919
+    },
+    {
+      "code": "industry-gaming-esports",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "游戏与电竞",
+        "en_US": "Gaming and Esports"
+      },
+      "sort": 99918
+    },
+    {
+      "code": "industry-telecommunications",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "通信",
+        "en_US": "Telecommunications"
+      },
+      "sort": 99917
+    },
+    {
+      "code": "industry-electronics-semiconductor",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "电子与半导体",
+        "en_US": "Electronics and Semiconductor"
+      },
+      "sort": 99916
+    },
+    {
+      "code": "industry-manufacturing",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "制造业",
+        "en_US": "Manufacturing"
+      },
+      "sort": 99915
+    },
+    {
+      "code": "industry-industrial-automation",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "工业自动化",
+        "en_US": "Industrial Automation"
+      },
+      "sort": 99914
+    },
+    {
+      "code": "industry-machinery-equipment",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "机械设备",
+        "en_US": "Machinery and Equipment"
+      },
+      "sort": 99913
+    },
+    {
+      "code": "industry-automotive",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "汽车",
+        "en_US": "Automotive"
+      },
+      "sort": 99912
+    },
+    {
+      "code": "industry-new-energy-vehicle",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "新能源汽车",
+        "en_US": "New Energy Vehicle"
+      },
+      "sort": 99911
+    },
+    {
+      "code": "industry-energy-power",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "能源电力",
+        "en_US": "Energy and Power"
+      },
+      "sort": 99910
+    },
+    {
+      "code": "industry-solar-energy",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "光伏能源",
+        "en_US": "Solar Energy"
+      },
+      "sort": 99909
+    },
+    {
+      "code": "industry-wind-energy",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "风能",
+        "en_US": "Wind Energy"
+      },
+      "sort": 99908
+    },
+    {
+      "code": "industry-oil-gas",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "石油与天然气",
+        "en_US": "Oil and Gas"
+      },
+      "sort": 99907
+    },
+    {
+      "code": "industry-chemical-industry",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "化工",
+        "en_US": "Chemical Industry"
+      },
+      "sort": 99906
+    },
+    {
+      "code": "industry-environmental-protection",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "环保",
+        "en_US": "Environmental Protection"
+      },
+      "sort": 99905
+    },
+    {
+      "code": "industry-agriculture",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "农业",
+        "en_US": "Agriculture"
+      },
+      "sort": 99904
+    },
+    {
+      "code": "industry-food-beverage",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "食品饮料",
+        "en_US": "Food and Beverage"
+      },
+      "sort": 99903
+    },
+    {
+      "code": "industry-restaurant-catering",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "餐饮",
+        "en_US": "Restaurant and Catering"
+      },
+      "sort": 99902
+    },
+    {
+      "code": "industry-retail",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "零售",
+        "en_US": "Retail"
+      },
+      "sort": 99901
+    },
+    {
+      "code": "industry-consumer-goods",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "消费品",
+        "en_US": "Consumer Goods"
+      },
+      "sort": 99900
+    },
+    {
+      "code": "industry-beauty-fashion",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "美妆时尚",
+        "en_US": "Beauty and Fashion"
+      },
+      "sort": 99899
+    },
+    {
+      "code": "industry-luxury-goods",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "奢侈品",
+        "en_US": "Luxury Goods"
+      },
+      "sort": 99898
+    },
+    {
+      "code": "industry-real-estate",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "房地产",
+        "en_US": "Real Estate"
+      },
+      "sort": 99897
+    },
+    {
+      "code": "industry-architecture",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "建筑设计",
+        "en_US": "Architecture"
+      },
+      "sort": 99896
+    },
+    {
+      "code": "industry-interior-design",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "室内设计",
+        "en_US": "Interior Design"
+      },
+      "sort": 99895
+    },
+    {
+      "code": "industry-construction-engineering",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "建筑工程",
+        "en_US": "Construction Engineering"
+      },
+      "sort": 99894
+    },
+    {
+      "code": "industry-transportation-logistics",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "交通物流",
+        "en_US": "Transportation and Logistics"
+      },
+      "sort": 99893
+    },
+    {
+      "code": "industry-aviation-aerospace",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "航空航天",
+        "en_US": "Aviation and Aerospace"
+      },
+      "sort": 99892
+    },
+    {
+      "code": "industry-tourism-travel",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "旅游出行",
+        "en_US": "Tourism and Travel"
+      },
+      "sort": 99891
+    },
+    {
+      "code": "industry-hotel-hospitality",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "酒店与服务业",
+        "en_US": "Hotel and Hospitality"
+      },
+      "sort": 99890
+    },
+    {
+      "code": "industry-culture-creative",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "文化创意",
+        "en_US": "Culture and Creative"
+      },
+      "sort": 99889
+    },
+    {
+      "code": "industry-media-publishing",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "媒体出版",
+        "en_US": "Media and Publishing"
+      },
+      "sort": 99888
+    },
+    {
+      "code": "industry-film-television",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "影视",
+        "en_US": "Film and Television"
+      },
+      "sort": 99887
+    },
+    {
+      "code": "industry-music-performing-arts",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "音乐与表演艺术",
+        "en_US": "Music and Performing Arts"
+      },
+      "sort": 99886
+    },
+    {
+      "code": "industry-sports",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "体育",
+        "en_US": "Sports"
+      },
+      "sort": 99885
+    },
+    {
+      "code": "industry-government-public-service",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "政府与公共服务",
+        "en_US": "Government and Public Service"
+      },
+      "sort": 99884
+    },
+    {
+      "code": "industry-public-welfare",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "公益慈善",
+        "en_US": "Public Welfare"
+      },
+      "sort": 99883
+    },
+    {
+      "code": "industry-legal-service",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "法律服务",
+        "en_US": "Legal Service"
+      },
+      "sort": 99882
+    },
+    {
+      "code": "industry-human-resources",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "人力资源",
+        "en_US": "Human Resources"
+      },
+      "sort": 99881
+    },
+    {
+      "code": "industry-consulting",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "咨询",
+        "en_US": "Consulting"
+      },
+      "sort": 99880
+    },
+    {
+      "code": "industry-advertising-marketing",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "广告营销",
+        "en_US": "Advertising and Marketing"
+      },
+      "sort": 99879
+    },
+    {
+      "code": "industry-startup-entrepreneurship",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "创业与创新",
+        "en_US": "Startup and Entrepreneurship"
+      },
+      "sort": 99878
+    },
+    {
+      "code": "industry-cross-border-trade",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "跨境贸易",
+        "en_US": "Cross-border Trade"
+      },
+      "sort": 99877
+    },
+    {
+      "code": "industry-enterprise-service",
+      "group_code": "industry_group",
+      "name_i18n": {
+        "zh_CN": "企业服务",
+        "en_US": "Enterprise Service"
+      },
+      "sort": 99876
+    },
+    {
+      "code": "style-minimal",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "简约",
+        "en_US": "Minimal"
+      },
+      "sort": 99875
+    },
+    {
+      "code": "style-business",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "商务",
+        "en_US": "Business"
+      },
+      "sort": 99874
+    },
+    {
+      "code": "style-modern",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "现代",
+        "en_US": "Modern"
+      },
+      "sort": 99873
+    },
+    {
+      "code": "style-technology",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "科技感",
+        "en_US": "Technology"
+      },
+      "sort": 99872
+    },
+    {
+      "code": "style-futuristic",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "未来感",
+        "en_US": "Futuristic"
+      },
+      "sort": 99871
+    },
+    {
+      "code": "style-editorial",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "编辑设计",
+        "en_US": "Editorial"
+      },
+      "sort": 99870
+    },
+    {
+      "code": "style-magazine",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "杂志风",
+        "en_US": "Magazine"
+      },
+      "sort": 99869
+    },
+    {
+      "code": "style-swiss",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "瑞士风格",
+        "en_US": "Swiss Style"
+      },
+      "sort": 99868
+    },
+    {
+      "code": "style-bauhaus",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "包豪斯",
+        "en_US": "Bauhaus"
+      },
+      "sort": 99867
+    },
+    {
+      "code": "style-brutalist",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "粗野主义",
+        "en_US": "Brutalist"
+      },
+      "sort": 99866
+    },
+    {
+      "code": "style-geometric",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "几何",
+        "en_US": "Geometric"
+      },
+      "sort": 99865
+    },
+    {
+      "code": "style-flat",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "扁平",
+        "en_US": "Flat"
+      },
+      "sort": 99864
+    },
+    {
+      "code": "style-isometric",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "等距插画",
+        "en_US": "Isometric"
+      },
+      "sort": 99863
+    },
+    {
+      "code": "style-3d",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "3D",
+        "en_US": "3D"
+      },
+      "sort": 99862
+    },
+    {
+      "code": "style-photographic",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "摄影",
+        "en_US": "Photographic"
+      },
+      "sort": 99861
+    },
+    {
+      "code": "style-cinematic",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "电影感",
+        "en_US": "Cinematic"
+      },
+      "sort": 99860
+    },
+    {
+      "code": "style-luxury",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "高端",
+        "en_US": "Luxury"
+      },
+      "sort": 99859
+    },
+    {
+      "code": "style-elegant",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "优雅",
+        "en_US": "Elegant"
+      },
+      "sort": 99858
+    },
+    {
+      "code": "style-fashion",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "时尚",
+        "en_US": "Fashion"
+      },
+      "sort": 99857
+    },
+    {
+      "code": "style-artistic",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "艺术感",
+        "en_US": "Artistic"
+      },
+      "sort": 99856
+    },
+    {
+      "code": "style-painterly",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "绘画感",
+        "en_US": "Painterly"
+      },
+      "sort": 99855
+    },
+    {
+      "code": "style-watercolor",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "水彩",
+        "en_US": "Watercolor"
+      },
+      "sort": 99854
+    },
+    {
+      "code": "style-oil-painting",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "油画",
+        "en_US": "Oil Painting"
+      },
+      "sort": 99853
+    },
+    {
+      "code": "style-ink-wash",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "水墨",
+        "en_US": "Ink Wash"
+      },
+      "sort": 99852
+    },
+    {
+      "code": "style-chinese-style",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "中式",
+        "en_US": "Chinese Style"
+      },
+      "sort": 99851
+    },
+    {
+      "code": "style-new-chinese",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "新中式",
+        "en_US": "New Chinese"
+      },
+      "sort": 99850
+    },
+    {
+      "code": "style-guochao",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "国潮",
+        "en_US": "Guochao"
+      },
+      "sort": 99849
+    },
+    {
+      "code": "style-traditional",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "传统",
+        "en_US": "Traditional"
+      },
+      "sort": 99848
+    },
+    {
+      "code": "style-heritage",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "非遗",
+        "en_US": "Heritage"
+      },
+      "sort": 99847
+    },
+    {
+      "code": "style-classical",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "古典",
+        "en_US": "Classical"
+      },
+      "sort": 99846
+    },
+    {
+      "code": "style-vintage",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "复古",
+        "en_US": "Vintage"
+      },
+      "sort": 99845
+    },
+    {
+      "code": "style-retro",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "怀旧复古",
+        "en_US": "Retro Nostalgia"
+      },
+      "sort": 99844
+    },
+    {
+      "code": "style-y2k",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "千禧风",
+        "en_US": "Y2K"
+      },
+      "sort": 99843
+    },
+    {
+      "code": "style-cyberpunk",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "赛博朋克",
+        "en_US": "Cyberpunk"
+      },
+      "sort": 99842
+    },
+    {
+      "code": "style-vaporwave",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "蒸汽波",
+        "en_US": "Vaporwave"
+      },
+      "sort": 99841
+    },
+    {
+      "code": "style-neon",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "霓虹",
+        "en_US": "Neon"
+      },
+      "sort": 99840
+    },
+    {
+      "code": "style-industrial",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "工业风",
+        "en_US": "Industrial"
+      },
+      "sort": 99839
+    },
+    {
+      "code": "style-architectural",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "建筑感",
+        "en_US": "Architectural"
+      },
+      "sort": 99838
+    },
+    {
+      "code": "style-hand-drawn",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "手绘",
+        "en_US": "Hand Drawn"
+      },
+      "sort": 99837
+    },
+    {
+      "code": "style-sketch",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "素描",
+        "en_US": "Sketch"
+      },
+      "sort": 99836
+    },
+    {
+      "code": "style-doodle",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "涂鸦",
+        "en_US": "Doodle"
+      },
+      "sort": 99835
+    },
+    {
+      "code": "style-collage",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "拼贴",
+        "en_US": "Collage"
+      },
+      "sort": 99834
+    },
+    {
+      "code": "style-paper-cut",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "剪纸",
+        "en_US": "Paper Cut"
+      },
+      "sort": 99833
+    },
+    {
+      "code": "style-paper-texture",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "纸张质感",
+        "en_US": "Paper Texture"
+      },
+      "sort": 99832
+    },
+    {
+      "code": "style-grainy",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "颗粒质感",
+        "en_US": "Grainy"
+      },
+      "sort": 99831
+    },
+    {
+      "code": "style-cartoon",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "卡通",
+        "en_US": "Cartoon"
+      },
+      "sort": 99830
+    },
+    {
+      "code": "style-comic",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "漫画",
+        "en_US": "Comic"
+      },
+      "sort": 99829
+    },
+    {
+      "code": "style-children-illustration",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "儿童插画",
+        "en_US": "Children Illustration"
+      },
+      "sort": 99828
+    },
+    {
+      "code": "style-cute",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "可爱",
+        "en_US": "Cute"
+      },
+      "sort": 99827
+    },
+    {
+      "code": "style-playful",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "活泼",
+        "en_US": "Playful Style"
+      },
+      "sort": 99826
+    },
+    {
+      "code": "style-fresh",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "清新",
+        "en_US": "Fresh Style"
+      },
+      "sort": 99825
+    },
+    {
+      "code": "style-natural",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "自然",
+        "en_US": "Natural Style"
+      },
+      "sort": 99824
+    },
+    {
+      "code": "style-organic",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "有机形态",
+        "en_US": "Organic"
+      },
+      "sort": 99823
+    },
+    {
+      "code": "style-dark",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "深色风格",
+        "en_US": "Dark Style"
+      },
+      "sort": 99822
+    },
+    {
+      "code": "style-light",
+      "group_code": "style_group",
+      "name_i18n": {
+        "zh_CN": "浅色风格",
+        "en_US": "Light Style"
+      },
+      "sort": 99821
+    },
+    {
+      "code": "color-red",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "红色",
+        "en_US": "Red"
+      },
+      "sort": 99820
+    },
+    {
+      "code": "color-orange",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "橙色",
+        "en_US": "Orange"
+      },
+      "sort": 99819
+    },
+    {
+      "code": "color-yellow",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "黄色",
+        "en_US": "Yellow"
+      },
+      "sort": 99818
+    },
+    {
+      "code": "color-green",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "绿色",
+        "en_US": "Green"
+      },
+      "sort": 99817
+    },
+    {
+      "code": "color-mint",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "薄荷绿",
+        "en_US": "Mint"
+      },
+      "sort": 99816
+    },
+    {
+      "code": "color-teal",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "青绿色",
+        "en_US": "Teal"
+      },
+      "sort": 99815
+    },
+    {
+      "code": "color-cyan",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "青色",
+        "en_US": "Cyan"
+      },
+      "sort": 99814
+    },
+    {
+      "code": "color-blue",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "蓝色",
+        "en_US": "Blue"
+      },
+      "sort": 99813
+    },
+    {
+      "code": "color-navy",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "深蓝",
+        "en_US": "Navy"
+      },
+      "sort": 99812
+    },
+    {
+      "code": "color-klein-blue",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "克莱因蓝",
+        "en_US": "Klein Blue"
+      },
+      "sort": 99811
+    },
+    {
+      "code": "color-purple",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "紫色",
+        "en_US": "Purple"
+      },
+      "sort": 99810
+    },
+    {
+      "code": "color-pink",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "粉色",
+        "en_US": "Pink"
+      },
+      "sort": 99809
+    },
+    {
+      "code": "color-magenta",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "玫红",
+        "en_US": "Magenta"
+      },
+      "sort": 99808
+    },
+    {
+      "code": "color-black",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "黑色",
+        "en_US": "Black"
+      },
+      "sort": 99807
+    },
+    {
+      "code": "color-white",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "白色",
+        "en_US": "White"
+      },
+      "sort": 99806
+    },
+    {
+      "code": "color-gray",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "灰色",
+        "en_US": "Gray"
+      },
+      "sort": 99805
+    },
+    {
+      "code": "color-beige",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "米色",
+        "en_US": "Beige"
+      },
+      "sort": 99804
+    },
+    {
+      "code": "color-gold",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "金色",
+        "en_US": "Gold"
+      },
+      "sort": 99803
+    },
+    {
+      "code": "color-silver",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "银色",
+        "en_US": "Silver"
+      },
+      "sort": 99802
+    },
+    {
+      "code": "color-black-gold",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "黑金",
+        "en_US": "Black and Gold"
+      },
+      "sort": 99801
+    },
+    {
+      "code": "color-blue-white",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "蓝白",
+        "en_US": "Blue and White"
+      },
+      "sort": 99800
+    },
+    {
+      "code": "color-red-gold",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "红金",
+        "en_US": "Red and Gold"
+      },
+      "sort": 99799
+    },
+    {
+      "code": "color-green-white",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "绿白",
+        "en_US": "Green and White"
+      },
+      "sort": 99798
+    },
+    {
+      "code": "color-purple-blue",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "紫蓝",
+        "en_US": "Purple and Blue"
+      },
+      "sort": 99797
+    },
+    {
+      "code": "color-morandi",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "莫兰迪",
+        "en_US": "Morandi"
+      },
+      "sort": 99796
+    },
+    {
+      "code": "color-pastel",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "马卡龙",
+        "en_US": "Pastel"
+      },
+      "sort": 99795
+    },
+    {
+      "code": "color-low-saturation",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "低饱和",
+        "en_US": "Low Saturation"
+      },
+      "sort": 99794
+    },
+    {
+      "code": "color-high-contrast",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "高对比",
+        "en_US": "High Contrast"
+      },
+      "sort": 99793
+    },
+    {
+      "code": "color-monochrome",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "单色",
+        "en_US": "Monochrome"
+      },
+      "sort": 99792
+    },
+    {
+      "code": "color-colorful",
+      "group_code": "color_group",
+      "name_i18n": {
+        "zh_CN": "多彩",
+        "en_US": "Colorful"
+      },
+      "sort": 99791
+    },
+    {
+      "code": "layout-data-rich",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "数据丰富",
+        "en_US": "Data Rich"
+      },
+      "sort": 99790
+    },
+    {
+      "code": "layout-chart-focused",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "图表多",
+        "en_US": "Chart Focused"
+      },
+      "sort": 99789
+    },
+    {
+      "code": "layout-image-rich",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "图片多",
+        "en_US": "Image Rich"
+      },
+      "sort": 99788
+    },
+    {
+      "code": "layout-text-focused",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "文字多",
+        "en_US": "Text Focused"
+      },
+      "sort": 99787
+    },
+    {
+      "code": "layout-balanced",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "图文均衡",
+        "en_US": "Balanced"
+      },
+      "sort": 99786
+    },
+    {
+      "code": "layout-dashboard",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "数据看板",
+        "en_US": "Dashboard"
+      },
+      "sort": 99785
+    },
+    {
+      "code": "layout-timeline",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "时间线",
+        "en_US": "Timeline"
+      },
+      "sort": 99784
+    },
+    {
+      "code": "layout-process",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "流程图",
+        "en_US": "Process"
+      },
+      "sort": 99783
+    },
+    {
+      "code": "layout-comparison",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "对比分析",
+        "en_US": "Comparison"
+      },
+      "sort": 99782
+    },
+    {
+      "code": "layout-matrix",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "矩阵分析",
+        "en_US": "Matrix"
+      },
+      "sort": 99781
+    },
+    {
+      "code": "layout-framework",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "框架模型",
+        "en_US": "Framework"
+      },
+      "sort": 99780
+    },
+    {
+      "code": "layout-pyramid",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "金字塔",
+        "en_US": "Pyramid"
+      },
+      "sort": 99779
+    },
+    {
+      "code": "layout-roadmap",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "路线图",
+        "en_US": "Roadmap"
+      },
+      "sort": 99778
+    },
+    {
+      "code": "layout-calendar",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "日历",
+        "en_US": "Calendar"
+      },
+      "sort": 99777
+    },
+    {
+      "code": "layout-schedule",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "日程安排",
+        "en_US": "Schedule"
+      },
+      "sort": 99776
+    },
+    {
+      "code": "layout-gantt",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "甘特图",
+        "en_US": "Gantt Chart"
+      },
+      "sort": 99775
+    },
+    {
+      "code": "layout-map",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "地图",
+        "en_US": "Map"
+      },
+      "sort": 99774
+    },
+    {
+      "code": "layout-table",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "表格",
+        "en_US": "Table"
+      },
+      "sort": 99773
+    },
+    {
+      "code": "layout-list",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "列表",
+        "en_US": "List"
+      },
+      "sort": 99772
+    },
+    {
+      "code": "layout-card-grid",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "卡片网格",
+        "en_US": "Card Grid"
+      },
+      "sort": 99771
+    },
+    {
+      "code": "layout-modular",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "模块化",
+        "en_US": "Modular"
+      },
+      "sort": 99770
+    },
+    {
+      "code": "layout-split-screen",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "分栏",
+        "en_US": "Split Screen"
+      },
+      "sort": 99769
+    },
+    {
+      "code": "layout-full-bleed",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "全屏大图",
+        "en_US": "Full Bleed"
+      },
+      "sort": 99768
+    },
+    {
+      "code": "layout-large-title",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "大标题",
+        "en_US": "Large Title"
+      },
+      "sort": 99767
+    },
+    {
+      "code": "layout-big-number",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "大数字",
+        "en_US": "Big Number"
+      },
+      "sort": 99766
+    },
+    {
+      "code": "layout-quote",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "引语页",
+        "en_US": "Quote"
+      },
+      "sort": 99765
+    },
+    {
+      "code": "layout-gallery",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "画廊",
+        "en_US": "Gallery"
+      },
+      "sort": 99764
+    },
+    {
+      "code": "layout-portfolio-grid",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "作品网格",
+        "en_US": "Portfolio Grid"
+      },
+      "sort": 99763
+    },
+    {
+      "code": "layout-product-showcase",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "产品展示",
+        "en_US": "Product Showcase"
+      },
+      "sort": 99762
+    },
+    {
+      "code": "layout-before-after",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "前后对比",
+        "en_US": "Before and After"
+      },
+      "sort": 99761
+    },
+    {
+      "code": "layout-step-by-step",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "分步说明",
+        "en_US": "Step by Step"
+      },
+      "sort": 99760
+    },
+    {
+      "code": "layout-agenda",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "目录议程",
+        "en_US": "Agenda"
+      },
+      "sort": 99759
+    },
+    {
+      "code": "layout-chapter-divider",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "章节过渡",
+        "en_US": "Chapter Divider"
+      },
+      "sort": 99758
+    },
+    {
+      "code": "layout-story-driven",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "叙事型",
+        "en_US": "Story Driven"
+      },
+      "sort": 99757
+    },
+    {
+      "code": "layout-case-study",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "案例型",
+        "en_US": "Case Study Layout"
+      },
+      "sort": 99756
+    },
+    {
+      "code": "layout-infographic",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "信息图",
+        "en_US": "Infographic"
+      },
+      "sort": 99755
+    },
+    {
+      "code": "layout-radial",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "环形结构",
+        "en_US": "Radial"
+      },
+      "sort": 99754
+    },
+    {
+      "code": "layout-hierarchy",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "层级结构",
+        "en_US": "Hierarchy"
+      },
+      "sort": 99753
+    },
+    {
+      "code": "layout-mind-map",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "思维导图",
+        "en_US": "Mind Map"
+      },
+      "sort": 99752
+    },
+    {
+      "code": "layout-q-and-a",
+      "group_code": "layout_group",
+      "name_i18n": {
+        "zh_CN": "问答结构",
+        "en_US": "Q and A"
+      },
+      "sort": 99751
+    },
+    {
+      "code": "mood-professional",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "专业",
+        "en_US": "Professional"
+      },
+      "sort": 99750
+    },
+    {
+      "code": "mood-formal",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "正式",
+        "en_US": "Formal"
+      },
+      "sort": 99749
+    },
+    {
+      "code": "mood-authoritative",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "权威",
+        "en_US": "Authoritative"
+      },
+      "sort": 99748
+    },
+    {
+      "code": "mood-credible",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "可信",
+        "en_US": "Credible"
+      },
+      "sort": 99747
+    },
+    {
+      "code": "mood-serious",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "严肃",
+        "en_US": "Serious"
+      },
+      "sort": 99746
+    },
+    {
+      "code": "mood-calm",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "沉稳",
+        "en_US": "Calm"
+      },
+      "sort": 99745
+    },
+    {
+      "code": "mood-restrained",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "克制",
+        "en_US": "Restrained"
+      },
+      "sort": 99744
+    },
+    {
+      "code": "mood-energetic",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "活力",
+        "en_US": "Energetic"
+      },
+      "sort": 99743
+    },
+    {
+      "code": "mood-youthful",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "年轻",
+        "en_US": "Youthful"
+      },
+      "sort": 99742
+    },
+    {
+      "code": "mood-friendly",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "亲和",
+        "en_US": "Friendly"
+      },
+      "sort": 99741
+    },
+    {
+      "code": "mood-warm",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "温暖",
+        "en_US": "Warm"
+      },
+      "sort": 99740
+    },
+    {
+      "code": "mood-healing",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "治愈",
+        "en_US": "Healing"
+      },
+      "sort": 99739
+    },
+    {
+      "code": "mood-romantic",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "浪漫",
+        "en_US": "Romantic"
+      },
+      "sort": 99738
+    },
+    {
+      "code": "mood-festive",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "喜庆",
+        "en_US": "Festive"
+      },
+      "sort": 99737
+    },
+    {
+      "code": "mood-inspiring",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "启发",
+        "en_US": "Inspiring"
+      },
+      "sort": 99736
+    },
+    {
+      "code": "mood-motivational",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "励志",
+        "en_US": "Motivational"
+      },
+      "sort": 99735
+    },
+    {
+      "code": "mood-premium",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "品质感",
+        "en_US": "Premium"
+      },
+      "sort": 99734
+    },
+    {
+      "code": "mood-bold",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "强烈",
+        "en_US": "Bold"
+      },
+      "sort": 99733
+    },
+    {
+      "code": "mood-creative",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "创意",
+        "en_US": "Creative"
+      },
+      "sort": 99732
+    },
+    {
+      "code": "mood-playful",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "趣味",
+        "en_US": "Playful Mood"
+      },
+      "sort": 99731
+    },
+    {
+      "code": "mood-fresh",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "清爽",
+        "en_US": "Fresh Mood"
+      },
+      "sort": 99730
+    },
+    {
+      "code": "mood-natural",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "自然舒适",
+        "en_US": "Natural Mood"
+      },
+      "sort": 99729
+    },
+    {
+      "code": "mood-nostalgic",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "怀旧",
+        "en_US": "Nostalgic"
+      },
+      "sort": 99728
+    },
+    {
+      "code": "mood-mysterious",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "神秘",
+        "en_US": "Mysterious"
+      },
+      "sort": 99727
+    },
+    {
+      "code": "mood-urgent",
+      "group_code": "mood_group",
+      "name_i18n": {
+        "zh_CN": "紧迫",
+        "en_US": "Urgent"
+      },
+      "sort": 99726
+    },
+    {
+      "code": "audience-executives",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "高管",
+        "en_US": "Executives"
+      },
+      "sort": 99725
+    },
+    {
+      "code": "audience-managers",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "管理者",
+        "en_US": "Managers"
+      },
+      "sort": 99724
+    },
+    {
+      "code": "audience-investors",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "投资人",
+        "en_US": "Investors"
+      },
+      "sort": 99723
+    },
+    {
+      "code": "audience-clients",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "客户",
+        "en_US": "Clients"
+      },
+      "sort": 99722
+    },
+    {
+      "code": "audience-partners",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "合作伙伴",
+        "en_US": "Partners"
+      },
+      "sort": 99721
+    },
+    {
+      "code": "audience-employees",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "员工",
+        "en_US": "Employees"
+      },
+      "sort": 99720
+    },
+    {
+      "code": "audience-new-hires",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "新员工",
+        "en_US": "New Hires"
+      },
+      "sort": 99719
+    },
+    {
+      "code": "audience-sales-team",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "销售团队",
+        "en_US": "Sales Team"
+      },
+      "sort": 99718
+    },
+    {
+      "code": "audience-marketers",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "营销人员",
+        "en_US": "Marketers"
+      },
+      "sort": 99717
+    },
+    {
+      "code": "audience-teachers",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "教师",
+        "en_US": "Teachers"
+      },
+      "sort": 99716
+    },
+    {
+      "code": "audience-students",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "学生",
+        "en_US": "Students"
+      },
+      "sort": 99715
+    },
+    {
+      "code": "audience-parents",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "家长",
+        "en_US": "Parents"
+      },
+      "sort": 99714
+    },
+    {
+      "code": "audience-researchers",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "研究人员",
+        "en_US": "Researchers"
+      },
+      "sort": 99713
+    },
+    {
+      "code": "audience-medical-staff",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "医护人员",
+        "en_US": "Medical Staff"
+      },
+      "sort": 99712
+    },
+    {
+      "code": "audience-government-staff",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "政务人员",
+        "en_US": "Government Staff"
+      },
+      "sort": 99711
+    },
+    {
+      "code": "audience-public-audience",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "社会公众",
+        "en_US": "Public Audience"
+      },
+      "sort": 99710
+    },
+    {
+      "code": "audience-entrepreneurs",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "创业者",
+        "en_US": "Entrepreneurs"
+      },
+      "sort": 99709
+    },
+    {
+      "code": "audience-designers",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "设计师",
+        "en_US": "Designers"
+      },
+      "sort": 99708
+    },
+    {
+      "code": "audience-children",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "儿童",
+        "en_US": "Children"
+      },
+      "sort": 99707
+    },
+    {
+      "code": "scene-classroom",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "课堂",
+        "en_US": "Classroom"
+      },
+      "sort": 99706
+    },
+    {
+      "code": "scene-business-meeting",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "商务会议",
+        "en_US": "Business Meeting"
+      },
+      "sort": 99705
+    },
+    {
+      "code": "scene-conference",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "大会论坛",
+        "en_US": "Conference"
+      },
+      "sort": 99704
+    },
+    {
+      "code": "scene-roadshow",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "路演现场",
+        "en_US": "Roadshow"
+      },
+      "sort": 99703
+    },
+    {
+      "code": "scene-product-event",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "产品活动",
+        "en_US": "Product Event"
+      },
+      "sort": 99702
+    },
+    {
+      "code": "scene-social-media",
+      "group_code": "audience_scene_group",
+      "name_i18n": {
+        "zh_CN": "社媒发布",
+        "en_US": "Social Media Publishing"
+      },
+      "sort": 99701
+    },
+    {
+      "code": "language-chinese",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "中文",
+        "en_US": "Chinese"
+      },
+      "sort": 99817
+    },
+    {
+      "code": "language-english",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "英语",
+        "en_US": "English"
+      },
+      "sort": 99816
+    },
+    {
+      "code": "language-japanese",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "日语",
+        "en_US": "Japanese"
+      },
+      "sort": 99815
+    },
+    {
+      "code": "language-korean",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "韩语",
+        "en_US": "Korean"
+      },
+      "sort": 99814
+    },
+    {
+      "code": "language-french",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "法语",
+        "en_US": "French"
+      },
+      "sort": 99813
+    },
+    {
+      "code": "language-german",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "德语",
+        "en_US": "German"
+      },
+      "sort": 99812
+    },
+    {
+      "code": "language-spanish",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "西班牙语",
+        "en_US": "Spanish"
+      },
+      "sort": 99811
+    },
+    {
+      "code": "language-portuguese",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "葡萄牙语",
+        "en_US": "Portuguese"
+      },
+      "sort": 99810
+    },
+    {
+      "code": "language-russian",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "俄语",
+        "en_US": "Russian"
+      },
+      "sort": 99809
+    },
+    {
+      "code": "language-italian",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "意大利语",
+        "en_US": "Italian"
+      },
+      "sort": 99808
+    },
+    {
+      "code": "language-dutch",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "荷兰语",
+        "en_US": "Dutch"
+      },
+      "sort": 99807
+    },
+    {
+      "code": "language-arabic",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "阿拉伯语",
+        "en_US": "Arabic"
+      },
+      "sort": 99806
+    },
+    {
+      "code": "language-hindi",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "印地语",
+        "en_US": "Hindi"
+      },
+      "sort": 99805
+    },
+    {
+      "code": "language-thai",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "泰语",
+        "en_US": "Thai"
+      },
+      "sort": 99804
+    },
+    {
+      "code": "language-vietnamese",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "越南语",
+        "en_US": "Vietnamese"
+      },
+      "sort": 99803
+    },
+    {
+      "code": "language-indonesian",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "印度尼西亚语",
+        "en_US": "Indonesian"
+      },
+      "sort": 99802
+    },
+    {
+      "code": "language-turkish",
+      "group_code": "language_group",
+      "name_i18n": {
+        "zh_CN": "土耳其语",
+        "en_US": "Turkish"
+      },
+      "sort": 99801
+    },
+    {
+      "code": "featured",
+      "group_code": "operational_group",
+      "name_i18n": {
+        "zh_CN": "精选",
+        "en_US": "Featured"
+      },
+      "sort": 99200
+    }
+  ]
+}

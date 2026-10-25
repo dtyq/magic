@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PureForm — Extreme Reduction Design System</title>
+<style>
+:root {
+  --canvas: #fafafa;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f4f4f5;
+  --ink: #0a0a0a;
+  --ink-secondary: #4b5563;
+  --ink-tertiary: #6b7280;
+  --ink-muted: #9ca3af;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-subtle: #eff6ff;
+  --success: #16a34a;
+  --warning: #ca8a04;
+  --error: #dc2626;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Monaco, Consolas, monospace;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --max-w: 1180px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+/* HEADER */
+.pure-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.header-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-mark {
+  width: 20px;
+  height: 20px;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brand-mark-inner {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+}
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.pure-nav {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-secondary);
+}
+.pure-nav a:hover { color: var(--ink); }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.btn-ghost {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.btn-ghost:hover {
+  border-color: var(--border-strong);
+}
+.btn-primary {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #ffffff;
+  border: 1px solid var(--accent);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+/* HERO SECTION */
+.pure-hero {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 56px 24px 40px;
+}
+.badge-mono {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 24px;
+}
+.hero-title {
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: -1.8px;
+  line-height: 1.1;
+  color: var(--ink);
+  max-width: 800px;
+  margin-bottom: 18px;
+}
+.hero-lead {
+  font-size: 18px;
+  color: var(--ink-secondary);
+  max-width: 660px;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+/* WORKBENCH SPECIMEN (FIRST 500PX BENCHMARK QUALITY) */
+.specimen-stage {
+  max-width: var(--max-w);
+  margin: 0 auto 56px;
+  padding: 0 24px;
+}
+.specimen-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.stage-bar {
+  padding: 12px 20px;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+.stage-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 340px;
+  min-height: 340px;
+}
+
+/* COL 1: SYSTEM CONTROLS */
+.stage-sidebar {
+  border-right: 1px solid var(--border);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: var(--surface);
+}
+.sidebar-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--ink-tertiary);
+  margin-bottom: 8px;
+}
+.input-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: block;
+}
+.pure-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+}
+.pure-input:focus {
+  border-color: var(--accent);
+}
+.pure-toggle-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.toggle-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  background: var(--surface);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  text-align: center;
+}
+.toggle-btn.active {
+  background: var(--ink);
+  color: #ffffff;
+}
+
+/* COL 2: MAIN METRICS WORKBENCH */
+.stage-center {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid var(--border);
+}
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.metric-tile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: var(--surface-sunken);
+}
+.metric-val {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  font-family: var(--font-mono);
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.metric-lbl {
+  font-size: 12px;
+  color: var(--ink-tertiary);
+}
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--success);
+  margin-top: 6px;
+}
+.status-indicator .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--success);
+  border-radius: 50%;
+}
+
+/* COMPONENT PREVIEW CANVAS */
+.component-canvas {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  background: #ffffff;
+}
+.canvas-header {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.table-preview {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.table-preview th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-tertiary);
+  font-weight: 500;
+}
+.table-preview td {
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* COL 3: ATOMIC CODE & SPEC */
+.stage-spec {
+  padding: 24px;
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.spec-box {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ink-secondary);
+}
+.spec-key {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 3-COLUMN FEATURE PRINCIPLES */
+.principles-grid {
+  max-width: var(--max-w);
+  margin: 0 auto 64px;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.principle-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 28px;
+}
+.principle-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  margin-bottom: 16px;
+  font-weight: 700;
+}
+.principle-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin-bottom: 8px;
+}
+.principle-desc {
+  font-size: 14px;
+  color: var(--ink-secondary);
+  line-height: 1.6;
+}
+
+/* FOOTER */
+.pure-footer {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding: 32px 24px;
+  font-size: 13px;
+  color: var(--ink-tertiary);
+}
+.footer-wrap {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="pure-header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <div class="brand-mark-inner"></div>
+      </div>
+      <span class="brand-name">PureForm</span>
+    </div>
+    <nav class="pure-nav">
+      <a href="#">Architecture</a>
+      <a href="#">Tokens</a>
+      <a href="#">Primitives</a>
+      <a href="#">Patterns</a>
+      <a href="#">Guidelines</a>
+    </nav>
+    <div class="header-actions">
+      <button class="btn-ghost">Documentation</button>
+      <button class="btn-primary">Get PureForm</button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO SECTION -->
+<section class="pure-hero">
+  <div class="badge-mono">
+    <span>SYSTEM v2.4</span> • <span>ZERO SHADOWS</span> • <span>RADICAL WHITESPACE</span>
+  </div>
+  <h1 class="hero-title">
+    Disciplined reduction.<br>
+    Essential design without noise.
+  </h1>
+  <p class="hero-lead">
+    A rigorous modernist design system engineered for single-purpose utilities and focus-driven software. Built on mathematical spacing, exact typography, and an uncompromising single-accent palette.
+  </p>
+</section>
+
+<!-- WORKBENCH SPECIMEN (HIGH DENSITY TOP 500PX FOCUSED) -->
+<section class="specimen-stage">
+  <div class="specimen-card">
+    <div class="stage-bar">
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span style="font-weight: 700; color: var(--ink);">SPECIMEN 01:</span>
+        <span>Runtime Diagnostic Controller</span>
+      </div>
+      <div>BASE UNIT: 16px • CORNER: 8px • SHADOW: NONE</div>
+    </div>
+
+    <div class="stage-grid">
+      <!-- Col 1: System Controls -->
+      <div class="stage-sidebar">
+        <div>
+          <div class="sidebar-section-title">Telemetry Parameter</div>
+          <label class="input-label">Node Identifier</label>
+          <input type="text" class="pure-input" value="core-compute-eu-central" readonly>
+        </div>
+
+        <div>
+          <label class="input-label">Frequency Band</label>
+          <div class="pure-toggle-group">
+            <button class="toggle-btn active">100 Hz</button>
+            <button class="toggle-btn">500 Hz</button>
+            <button class="toggle-btn">1 kHz</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="input-label">Threshold Limit</label>
+          <input type="text" class="pure-input" value="99.995% SLA">
+        </div>
+
+        <button class="btn-primary" style="width: 100%; margin-top: auto;">
+          Deploy Parameter Change
+        </button>
+      </div>
+
+      <!-- Col 2: Metrics Workbench -->
+      <div class="stage-center">
+        <div>
+          <div class="metrics-row">
+            <div class="metric-tile">
+              <div class="metric-val">0.42ms</div>
+              <div class="metric-lbl">Frame Latency</div>
+              <div class="status-indicator">
+                <span class="dot"></span>
+                <span>Optimal</span>
+              </div>
+            </div>
+
+            <div class="metric-tile">
+              <div class="metric-val">100%</div>
+              <div class="metric-lbl">Memory Safety</div>
+              <div class="status-indicator">
+                <span class="dot"></span>
+                <span>Verified</span>
+              </div>
+            </div>
+
+            <div class="metric-tile">
+              <div class="metric-val">14.8KB</div>
+              <div class="metric-lbl">Total Bundle</div>
+              <div class="status-indicator">
+                <span class="dot"></span>
+                <span>Zero Deps</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Component Canvas -->
+          <div class="component-canvas">
+            <div class="canvas-header">
+              <span>Active Worker Pool Threads</span>
+              <span style="font-family: var(--font-mono); color: var(--accent);">8 of 8 active</span>
+            </div>
+            <table class="table-preview">
+              <thead>
+                <tr>
+                  <th>THREAD</th>
+                  <th>TASK</th>
+                  <th>CPU</th>
+                  <th>STATE</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>worker_01</td>
+                  <td>render_matrix</td>
+                  <td>1.2%</td>
+                  <td style="color: var(--success);">READY</td>
+                </tr>
+                <tr>
+                  <td>worker_02</td>
+                  <td>svg_rasterize</td>
+                  <td>4.8%</td>
+                  <td style="color: var(--success);">ACTIVE</td>
+                </tr>
+                <tr>
+                  <td>worker_03</td>
+                  <td>layout_solver</td>
+                  <td>0.8%</td>
+                  <td style="color: var(--success);">READY</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-tertiary); display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 14px;">
+          <span>STATUS: ALL SUBSYSTEMS NOMINAL</span>
+          <span>BUILD: 2026.04-REDUCTION</span>
+        </div>
+      </div>
+
+      <!-- Col 3: Atomic Specs -->
+      <div class="stage-spec">
+        <div>
+          <div class="sidebar-section-title" style="margin-bottom: 12px;">Token Specifications</div>
+          <div class="spec-box">
+            <div><span class="spec-key">--canvas:</span> #fafafa;</div>
+            <div><span class="spec-key">--surface:</span> #ffffff;</div>
+            <div><span class="spec-key">--border:</span> #e5e7eb;</div>
+            <div><span class="spec-key">--accent:</span> #2563eb;</div>
+            <div><span class="spec-key">--ink:</span> #0a0a0a;</div>
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);">
+              <div><span class="spec-key">shadow:</span> none !important;</div>
+              <div><span class="spec-key">contrast:</span> WCAG AAA (14.2:1);</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px;">
+          <div style="font-weight: 700; font-size: 12px; margin-bottom: 4px;">Zero Decorative Fluff</div>
+          <div style="font-size: 12px; color: var(--ink-secondary); line-height: 1.5;">
+            Every pixel represents structural utility. No fake glows, no skewed layers.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRINCIPLES GRID -->
+<section class="principles-grid">
+  <div class="principle-card">
+    <div class="principle-num">01 / DISCIPLINE</div>
+    <h3 class="principle-title">Mathematical Whitespace</h3>
+    <p class="principle-desc">
+      Layouts are locked to a strict 16px spatial rhythm. Every padding, margin, and gap derives from calculated multiplies of the base grid unit.
+    </p>
+  </div>
+
+  <div class="principle-card">
+    <div class="principle-num">02 / FOCUS</div>
+    <h3 class="principle-title">Monochrome Ground</h3>
+    <p class="principle-desc">
+      A single cobalt blue accent creates unambiguous interactive affordance. The user never wonders where focus or action resides.
+    </p>
+  </div>
+
+  <div class="principle-card">
+    <div class="principle-num">03 / FUNCTION</div>
+    <h3 class="principle-title">Completely Flat</h3>
+    <p class="principle-desc">
+      Elevation is communicated through borders and value shifts rather than blurry drop shadows, preserving clarity on high-DPI displays.
+    </p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="pure-footer">
+  <div class="footer-wrap">
+    <div>
+      PureForm © 2026 • Modernist Functional Design Language
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 11px;">
+      SYSTEM SPEC: 100% ACCESSIBLE • WCAG 2.2 AAA
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

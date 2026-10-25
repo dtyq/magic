@@ -1,3 +1,4 @@
+import Konva from "konva"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ViewportController } from "../viewport/ViewportController"
 import type { Canvas } from "../../core/Canvas"
@@ -45,6 +46,7 @@ function createController(options: {
 	height?: number
 	scale?: number
 	position?: { x: number; y: number }
+	onStageMutation?: () => void
 }) {
 	const listeners = new Map<string, Set<Listener>>()
 	const canvasEventHandlers = new Map<string, Set<CanvasEventHandler>>()
@@ -72,6 +74,7 @@ function createController(options: {
 		id: () => "",
 		scale: vi.fn((next?: { x: number; y: number }) => {
 			if (next) {
+				options.onStageMutation?.()
 				stageScale = next.x
 				return undefined
 			}
@@ -81,6 +84,7 @@ function createController(options: {
 		scaleY: vi.fn(() => stageScale),
 		position: vi.fn((next?: { x: number; y: number }) => {
 			if (next) {
+				options.onStageMutation?.()
 				stagePosition = next
 				return undefined
 			}
@@ -435,6 +439,175 @@ describe("ViewportController external wheel input", () => {
 				source: "minimap",
 				phase: "move",
 			}),
+		})
+	})
+
+	it("suppresses Konva auto draws while updating the Stage and viewport listeners", () => {
+		const stageMutationAutoDrawStates: boolean[] = []
+		const { canvas, controller } = createController({
+			touch: false,
+			scale: 1,
+			position: { x: 0, y: 0 },
+			onStageMutation: () => stageMutationAutoDrawStates.push(Konva.autoDrawEnabled),
+		})
+		const emit = canvas.eventEmitter.emit as unknown as ReturnType<typeof vi.fn>
+		const autoDrawStates: boolean[] = []
+		emit.mockImplementation(() => {
+			autoDrawStates.push(Konva.autoDrawEnabled)
+		})
+		const previousAutoDrawEnabled = Konva.autoDrawEnabled
+		Konva.autoDrawEnabled = true
+		stageMutationAutoDrawStates.length = 0
+
+		try {
+			controller.zoomByWheelDeltaAtViewportCenter(-120, "minimap")
+
+			expect(stageMutationAutoDrawStates).toEqual([false, false])
+			expect(autoDrawStates).toHaveLength(3)
+			expect(autoDrawStates.every((enabled) => !enabled)).toBe(true)
+			expect(Konva.autoDrawEnabled).toBe(true)
+			expect(canvas.runtimeScheduler.requestLayerDraw).toHaveBeenCalledWith("stage", {
+				source: "ViewportController",
+				reason: "zoom-update",
+				priority: "input",
+			})
+		} finally {
+			Konva.autoDrawEnabled = previousAutoDrawEnabled
+		}
+	})
+
+	it.each([
+		["setScale", "set-scale", (controller: ViewportController) => controller.setScale(1.5)],
+		[
+			"setPosition",
+			"set-position",
+			(controller: ViewportController) => controller.setPosition({ x: 40, y: 60 }),
+		],
+		["resetView", "reset-view", (controller: ViewportController) => controller.resetView()],
+		["zoomToFit", "zoom-to-fit", (controller: ViewportController) => controller.zoomToFit()],
+		[
+			"a non-animated viewport transform",
+			"viewport-transform",
+			(controller: ViewportController) =>
+				(
+					controller as unknown as {
+						applyViewportTransform: (
+							bounds: { x: number; y: number; width: number; height: number },
+							options: { animated: boolean },
+						) => void
+					}
+				).applyViewportTransform(
+					{ x: 100, y: 120, width: 240, height: 180 },
+					{ animated: false },
+				),
+		],
+	] as const)(
+		"keeps %s Stage mutations and listeners in one scheduler-owned draw",
+		(_label, expectedReason, updateViewport) => {
+			const stageMutationAutoDrawStates: boolean[] = []
+			const { canvas, controller } = createController({
+				touch: false,
+				scale: 1,
+				position: { x: 0, y: 0 },
+				onStageMutation: () => stageMutationAutoDrawStates.push(Konva.autoDrawEnabled),
+			})
+			const emit = canvas.eventEmitter.emit as unknown as ReturnType<typeof vi.fn>
+			const requestLayerDraw = canvas.runtimeScheduler
+				.requestLayerDraw as unknown as ReturnType<typeof vi.fn>
+			const listenerAutoDrawStates: boolean[] = []
+			emit.mockImplementation(() => {
+				listenerAutoDrawStates.push(Konva.autoDrawEnabled)
+			})
+			requestLayerDraw.mockClear()
+			stageMutationAutoDrawStates.length = 0
+			const previousAutoDrawEnabled = Konva.autoDrawEnabled
+			Konva.autoDrawEnabled = true
+
+			try {
+				updateViewport(controller)
+
+				expect(stageMutationAutoDrawStates.length).toBeGreaterThan(0)
+				expect(stageMutationAutoDrawStates.every((enabled) => !enabled)).toBe(true)
+				expect(listenerAutoDrawStates.length).toBeGreaterThan(0)
+				expect(listenerAutoDrawStates.every((enabled) => !enabled)).toBe(true)
+				expect(requestLayerDraw).toHaveBeenCalledTimes(1)
+				expect(requestLayerDraw).toHaveBeenCalledWith("stage", {
+					source: "ViewportController",
+					reason: expectedReason,
+					priority: "input",
+				})
+				expect(Konva.autoDrawEnabled).toBe(true)
+			} finally {
+				Konva.autoDrawEnabled = previousAutoDrawEnabled
+			}
+		},
+	)
+
+	it("suppresses Konva auto draw while applying a Stage layout change", () => {
+		const { canvas, controller } = createController({
+			touch: false,
+			width: 1000,
+			height: 800,
+			scale: 1,
+			position: { x: 0, y: 0 },
+		})
+		const autoDrawStates: boolean[] = []
+		const previousAutoDrawEnabled = Konva.autoDrawEnabled
+		Konva.autoDrawEnabled = true
+
+		try {
+			controller.preserveViewportCenterDuringLayoutChange(
+				() => {
+					autoDrawStates.push(Konva.autoDrawEnabled)
+					canvas.stage.width(900)
+				},
+				{ reason: "test-layout" },
+			)
+
+			expect(autoDrawStates).toEqual([false])
+			expect(canvas.runtimeScheduler.requestLayerDraw).toHaveBeenCalledWith("stage", {
+				source: "ViewportController",
+				reason: "test-layout",
+				priority: "input",
+			})
+			expect(Konva.autoDrawEnabled).toBe(true)
+		} finally {
+			Konva.autoDrawEnabled = previousAutoDrawEnabled
+		}
+	})
+
+	it("leaves an animated completion draw to the owning Konva Tween", () => {
+		let finishTween: (() => void) | undefined
+		const play = vi.fn()
+		vi.spyOn(Konva, "Tween").mockImplementation(function MockTween(
+			config: ConstructorParameters<typeof Konva.Tween>[0],
+		) {
+			finishTween = () => config.onFinish?.()
+			return { destroy: vi.fn(), play } as unknown as Konva.Tween
+		})
+		const { canvas, controller } = createController({
+			touch: false,
+			scale: 1,
+			position: { x: 0, y: 0 },
+		})
+		const applyViewportTransform = (
+			controller as unknown as {
+				applyViewportTransform: (
+					bounds: { x: number; y: number; width: number; height: number },
+					options: { animated: boolean },
+				) => void
+			}
+		).applyViewportTransform.bind(controller)
+
+		applyViewportTransform({ x: 100, y: 120, width: 240, height: 180 }, { animated: true })
+		expect(play).toHaveBeenCalledTimes(1)
+
+		finishTween?.()
+
+		expect(canvas.runtimeScheduler.requestLayerDraw).not.toHaveBeenCalled()
+		expect(canvas.eventEmitter.emit).toHaveBeenCalledWith({
+			type: "viewport:changed",
+			data: expect.objectContaining({ phase: "end", source: "programmatic" }),
 		})
 	})
 

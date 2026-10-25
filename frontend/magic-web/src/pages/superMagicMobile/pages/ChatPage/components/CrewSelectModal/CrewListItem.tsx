@@ -1,5 +1,5 @@
 import { Check } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { CrewItem } from "@/pages/superMagic/pages/Workspace/types"
 import type { SceneItem } from "@/pages/superMagic/types/skill"
 import { LucideLazyIcon } from "@/utils/lucideIconLoader"

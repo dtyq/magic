@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react"
-import { NodeViewWrapper, ReactNodeViewProps } from "@tiptap/react"
+import { NodeViewWrapper, ReactNodeViewProps } from "@/infrastructure/editors/tiptap/react"
 import { useStyles } from "./styles"
 import type { SuperPlaceholderAttrs } from "./types"
 import { runActiveEditor } from "@/utils/tiptapEditorLifecycle"

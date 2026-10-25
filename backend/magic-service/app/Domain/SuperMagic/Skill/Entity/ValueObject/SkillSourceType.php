@@ -50,6 +50,11 @@ enum SkillSourceType: string
     case SYSTEM = 'SYSTEM';
 
     /**
+     * 官方后台导入.
+     */
+    case OFFICIAL = 'OFFICIAL';
+
+    /**
      * 获取来源类型描述.
      */
     public function getDescription(): string
@@ -63,6 +68,7 @@ enum SkillSourceType: string
             self::DIALOGUE_CREATION => '对话创建',
             self::CREW_IMPORT => '员工入口导入',
             self::SYSTEM => '系统内置',
+            self::OFFICIAL => '官方导入',
         };
     }
 
@@ -117,6 +123,11 @@ enum SkillSourceType: string
     public function isSystem(): bool
     {
         return $this === self::SYSTEM;
+    }
+
+    public function isOfficial(): bool
+    {
+        return $this === self::OFFICIAL;
     }
 
     /**

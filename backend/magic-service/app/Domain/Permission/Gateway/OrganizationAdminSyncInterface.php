@@ -1,0 +1,13 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Domain\Permission\Gateway;
+
+interface OrganizationAdminSyncInterface
+{
+    public function sync(string $organizationCode, string $userId, string $operation): void;
+}

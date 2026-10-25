@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace App\Interfaces\SuperMagic\Topic\DTO\Request;
 
+use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
 class GetSidebarTopicsRequestDTO extends AbstractDTO
@@ -20,6 +22,9 @@ class GetSidebarTopicsRequestDTO extends AbstractDTO
 
     protected int $pageSize = 20;
 
+    /** @var int[] 1 = ordinary topics, 2 = scheduled topics; empty means all. */
+    protected array $topicTypes = [];
+
     public static function fromRequest(RequestInterface $request): self
     {
         $dto = new self();
@@ -27,7 +32,22 @@ class GetSidebarTopicsRequestDTO extends AbstractDTO
         $dto->setQ(trim((string) $request->input('q', '')));
         $dto->setPage(max(1, (int) $request->input('page', 1)));
         $dto->setPageSize(max(1, (int) $request->input('page_size', 20)));
+        $rawTypes = $request->input('topic_types', '');
+        if (! is_string($rawTypes) && ! is_int($rawTypes)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'topic_types');
+        }
+        $rawTypes = (string) $rawTypes;
+        $types = $rawTypes === '' ? [] : array_values(array_unique(explode(',', $rawTypes)));
+        if (array_filter($types, static fn (string $type) => ! in_array($type, ['1', '2'], true)) !== []) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'topic_types');
+        }
+        $dto->topicTypes = array_map('intval', $types);
         return $dto;
+    }
+
+    public function getTopicTypes(): array
+    {
+        return $this->topicTypes;
     }
 
     public function getProjectId(): int

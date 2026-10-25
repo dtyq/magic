@@ -12,6 +12,10 @@ function createCanvas(selectedIds: string[]) {
 
 	return {
 		canvas: {
+			can: vi.fn((capability: string) => capability !== "document.write"),
+			permissionManager: {
+				can: vi.fn((capability: string) => capability !== "document.write"),
+			},
 			selectionManager: { getSelectedIds: () => selectedIds },
 			elementManager: { getElementData: (id: string) => elements.get(id) },
 			userActionRegistry: {
@@ -38,7 +42,6 @@ describe("getMenuItems", () => {
 			canvas,
 			selectedIds: ["image-1", "image-2"],
 			currentElementId: "image-1",
-			readonly: true,
 			downloadMenuContext: {
 				useAiImageSubmenu: false,
 				selectionKind: "image-only",
@@ -57,10 +60,43 @@ describe("getMenuItems", () => {
 			canvas,
 			selectedIds: ["image-1"],
 			currentElementId: "image-1",
-			readonly: true,
 			permissions: { elementMenuConversationActions: false },
 		})
 
 		expect(getMenuOption(items, "locate-project-file").visible?.()).toBe(true)
+	})
+
+	it("opens the save-to-assets dialog only for an eligible single image", () => {
+		const { canvas } = createCanvas(["image-1"])
+		const onSaveAsset = vi.fn()
+		const items = getMenuItems({
+			canvas,
+			selectedIds: ["image-1"],
+			currentElementId: "image-1",
+			permissions: { elementMenuConversationActions: false },
+			saveAssetMenuConfig: {
+				canSaveAsset: (elementId) => elementId === "image-1",
+				onSaveAsset,
+			},
+		})
+
+		const saveItem = getMenuOption(items, "save-to-assets")
+		expect(saveItem.visible?.()).toBe(true)
+		saveItem.onClick?.()
+		expect(onSaveAsset).toHaveBeenCalledWith("image-1")
+	})
+
+	it("hides save-to-assets for multi-selection", () => {
+		const { canvas } = createCanvas(["image-1", "image-2"])
+		const items = getMenuItems({
+			canvas,
+			selectedIds: ["image-1", "image-2"],
+			currentElementId: "image-1",
+			saveAssetMenuConfig: {
+				canSaveAsset: () => true,
+			},
+		})
+
+		expect(getMenuOption(items, "save-to-assets").visible?.()).toBe(false)
 	})
 })

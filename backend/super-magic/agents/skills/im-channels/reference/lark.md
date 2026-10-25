@@ -11,7 +11,13 @@ Create an enterprise self-built app on the Lark Open Platform and obtain:
 Complete the following configuration on the Lark Open Platform:
 1. Event Subscription → Long Connection (WebSocket) → Enable long connection for receiving events
 2. Event Subscription → Add Event → Search and add "Receive Messages v2.0 (im.message.receive_v1)"
-3. App Permissions → Request and enable: `im:message`, `cardkit:card`
+3. App Permissions → Request and enable the message event permission, `im:message:readonly` (for reading merged forwards and downloading incoming attachments), and `cardkit:card` (for streaming replies)
+
+## Receiving messages
+
+Images, files, audio, video, rich text posts with multiple images or attachments, and merged forwards are supported. Enable `im:message:readonly`, publish the updated app version, and ensure the permission is effective. Missing message-read permission does not disable ordinary text messaging, but attachments and merged-forward details cannot be retrieved. Interactive card messages are not expanded; ask the user to resend that content as text or a supported attachment.
+
+When Lark emits a merged-forward message and its forwarding note as adjacent callbacks, they are combined into one inbound message. The note is kept as plain text and forwarded attachments remain available to the agent.
 
 ## Credential Collection
 

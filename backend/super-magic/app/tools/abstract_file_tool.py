@@ -7,7 +7,9 @@ from app.core.context.agent_context import AgentContext
 from agentlang.context.tool_context import ToolContext
 from app.core.entity.event.file_event import FileEventData
 from agentlang.event.event import EventType
-from app.core.entity.message.server_message import DisplayType
+from app.core.entity.message.server_message import DisplayType, FileContent
+from app.path_manager import PathManager
+from app.utils.async_file_utils import get_file_id_from_xattr
 from agentlang.logger import get_logger
 from app.tools.core.base_tool import BaseTool
 from app.tools.core.base_tool_params import BaseToolParams
@@ -24,6 +26,23 @@ class AbstractFileTool(BaseTool[T], Generic[T]):
 
     为文件操作工具提供通用的文件事件分发功能
     """
+
+    async def _build_file_content(self, file_path: str, file_name: str, content: str) -> FileContent:
+        """回放保留本次正文或 diff，实际目标供卡片打开当前文件。"""
+        detail = FileContent(file_name=file_name, content=content)
+        if not file_path:
+            return detail
+
+        # 使用执行阶段确认的路径，保留用户 HOME 符号链接，不能重新模糊匹配另一个文件。
+        target = Path(os.path.abspath(file_path))
+        workspace = Path(os.path.abspath(PathManager.get_workspace_dir()))
+        detail.target_file_path = (
+            "./" + target.relative_to(workspace).as_posix()
+            if target.is_relative_to(workspace)
+            else target.as_posix()
+        )
+        detail.target_file_id = await get_file_id_from_xattr(target)
+        return detail
 
     async def _dispatch_file_event(self, tool_context: ToolContext, filepath: str, event_type: EventType, is_screenshot: bool = False, source: int = 3) -> None:
         """

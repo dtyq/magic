@@ -127,7 +127,13 @@ export interface StorageSnapshot {
 // ─── Dependency Entry (external resource URL mapping) ────────────────────
 
 export type DependencyType =
-	"script" | "stylesheet" | "image" | "font" | "media" | "iframe" | "other"
+	| "script"
+	| "stylesheet"
+	| "image"
+	| "font"
+	| "media"
+	| "iframe"
+	| "other"
 export type DependencySource = "static" | "dynamic"
 
 export interface DependencyEntry {
@@ -151,7 +157,13 @@ export interface DependencyEntry {
 // ─── DevConsole state ────────────────────────────────────────────────────
 
 export type DevConsoleTab =
-	"console" | "network" | "api" | "messages" | "storage" | "sources" | "dependencies"
+	| "console"
+	| "network"
+	| "api"
+	| "messages"
+	| "storage"
+	| "sources"
+	| "dependencies"
 
 export type DevConsoleMode = "basic" | "advanced"
 export type DevConsoleLayout = "bottom" | "right"

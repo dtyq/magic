@@ -23,11 +23,13 @@ const easingFunctions = {
 interface UseSidebarAnimationParams {
 	sidebarPanelRef: RefObject<ImperativePanelHandle>
 	getExpandedSidebarSizePercent: (viewWidth: number) => number
+	isUserResizingRef: RefObject<boolean>
 }
 
 function useSidebarAnimation({
 	sidebarPanelRef,
 	getExpandedSidebarSizePercent,
+	isUserResizingRef,
 }: UseSidebarAnimationParams) {
 	const cancelAnimationRef = useRef<() => void>(() => undefined)
 
@@ -128,6 +130,8 @@ function useSidebarAnimation({
 				collapsedSizePercent: sidebarStore.collapsedSizePercent,
 			}),
 			({ collapsed, collapsedSizePercent }, previousState) => {
+				// 拖开只切换展示和约束，边缘仍跟随原生拖动；按钮展开继续播放原动画。
+				if (isUserResizingRef.current) return
 				// Updating the collapsed pixel width on window resize should only
 				// animate while collapsed. Expanded viewport sync is handled by
 				// useSidebarResponsive.
@@ -149,7 +153,7 @@ function useSidebarAnimation({
 			cancelPendingAnimation()
 			cancelAnimationRef.current = () => undefined
 		}
-	}, [getExpandedSidebarSizePercent, sidebarPanelRef])
+	}, [getExpandedSidebarSizePercent, isUserResizingRef, sidebarPanelRef])
 
 	return useCallback(() => cancelAnimationRef.current(), [])
 }

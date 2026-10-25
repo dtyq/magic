@@ -8,9 +8,11 @@ declare(strict_types=1);
 namespace App\Domain\SuperMagic\Common\RecycleBin\Repository\Persistence;
 
 use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinEntity;
+use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinFileQuery;
 use App\Domain\SuperMagic\Common\RecycleBin\Enum\RecycleBinResourceType;
 use App\Domain\SuperMagic\Common\RecycleBin\Repository\Facade\RecycleBinRepositoryInterface;
 use App\Domain\SuperMagic\Common\RecycleBin\Repository\Model\RecycleBinModel;
+use App\Domain\SuperMagic\File\Repository\Model\TaskFileModel;
 use App\Infrastructure\Core\AbstractRepository;
 use Hyperf\Database\Model\Builder;
 use Hyperf\Database\Query\Builder as QueryBuilder;
@@ -123,8 +125,12 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
         ?string $keyword = null,
         string $order = 'desc',
         int $page = 1,
-        int $pageSize = 20
+        int $pageSize = 20,
+        ?RecycleBinFileQuery $fileQuery = null
     ): array {
+        if ($fileQuery !== null) {
+            return $this->getProjectFileList($userId, $fileQuery, $pageSize);
+        }
         $table = $this->model->getTable();
         $ownerQuery = $this->buildOwnerVisibleQuery($userId, $resourceType, $keyword);
         $total = (clone $ownerQuery)->count($table . '.id');
@@ -188,8 +194,13 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
      *
      * @return array<int, int>
      */
-    public function getCountsByTypeVisibleToUser(string $userId, ?string $keyword = null): array
+    public function getCountsByTypeVisibleToUser(string $userId, ?string $keyword = null, ?int $projectId = null): array
     {
+        if ($projectId !== null) {
+            return [RecycleBinResourceType::File->value => $this->buildOwnerVisibleQuery($userId, RecycleBinResourceType::File->value, null, $projectId)->count()
+                + $this->buildCollaborativeFileQuery($userId, null, $projectId)->count(),
+            ];
+        }
         $counts = [];
 
         foreach (RecycleBinResourceType::cases() as $type) {
@@ -429,6 +440,7 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
     protected function applyVisibleToUserScope(Builder $query, string $userId): Builder
     {
         $table = $this->model->getTable();
+        $this->applyUserVisibleFileScope($query, $table);
         $query->leftJoin('magic_super_agent_project_members as pm', function ($join) use ($table, $userId): void {
             $join->on($table . '.parent_id', '=', 'pm.project_id')
                 ->where('pm.target_type', '=', 'User')
@@ -474,7 +486,7 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
         return $entity;
     }
 
-    private function buildOwnerVisibleQuery(string $userId, ?int $resourceType, ?string $keyword): QueryBuilder
+    private function buildOwnerVisibleQuery(string $userId, ?int $resourceType, ?string $keyword, ?int $projectId = null): QueryBuilder
     {
         $table = $this->model->getTable();
         $query = $this->model::query()
@@ -485,13 +497,18 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
         if ($resourceType !== null) {
             $query->where($table . '.resource_type', $resourceType);
         }
+        if ($projectId !== null) {
+            $query->where($table . '.parent_id', $projectId);
+        }
 
         $this->applyKeywordFilter($query, $table . '.resource_name', $keyword);
+
+        $this->applyUserVisibleFileScope($query, $table);
 
         return $query;
     }
 
-    private function buildCollaborativeFileQuery(string $userId, ?string $keyword): QueryBuilder
+    private function buildCollaborativeFileQuery(string $userId, ?string $keyword, ?int $projectId = null): QueryBuilder
     {
         $table = $this->model->getTable();
         $query = $this->model::query()
@@ -507,7 +524,12 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
             ->whereNull('rb.removed_at')
             ->where('rb.owner_id', '<>', $userId);
 
+        if ($projectId !== null) {
+            $query->where('rb.parent_id', $projectId);
+        }
         $this->applyKeywordFilter($query, 'rb.resource_name', $keyword);
+
+        $this->applyUserVisibleFileScope($query, 'rb');
 
         return $query;
     }
@@ -520,6 +542,8 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
             ->where('owner_id', $userId);
 
         $this->applyKeywordFilter($query, 'resource_name', $keyword);
+
+        $this->applyUserVisibleFileScope($query, $this->model->getTable());
 
         return (int) $query->count('id');
     }
@@ -541,7 +565,30 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
 
         $this->applyKeywordFilter($query, 'rb.resource_name', $keyword);
 
+        $this->applyUserVisibleFileScope($query, 'rb');
+
         return (int) $query->count('rb.id');
+    }
+
+    /**
+     * 列表、数量和用户按 ID 操作共用文件范围；系统到期清理不调用此条件。
+     * 例：topic 日志不显示也不计数，普通项目 report.log 仍可恢复。
+     */
+    private function applyUserVisibleFileScope(Builder|QueryBuilder $query, string $prefix): void
+    {
+        $fileModel = new TaskFileModel();
+        // 回收站文件已软删除，必须保留其元数据参与分类；父目录是否存在另由恢复流程处理。
+        $files = TaskFileModel::query()->withTrashed()->visibleProjectFiles()
+            ->selectRaw('1')
+            ->whereColumn($fileModel->qualifyColumn('file_id'), $prefix . '.resource_id')
+            ->whereColumn($fileModel->qualifyColumn('project_id'), $prefix . '.parent_id')
+            ->toBase();
+
+        $baseQuery = $query instanceof Builder ? $query->getQuery() : $query;
+        $baseQuery->where(static function (QueryBuilder $visible) use ($prefix, $files): void {
+            $visible->where($prefix . '.resource_type', '<>', RecycleBinResourceType::File->value)
+                ->addWhereExistsQuery($files, 'or');
+        });
     }
 
     private function applyKeywordFilter(Builder|QueryBuilder $query, string $column, ?string $keyword): void
@@ -551,5 +598,75 @@ class RecycleBinRepository extends AbstractRepository implements RecycleBinRepos
         }
 
         $query->where($column, 'like', '%' . $keyword . '%');
+    }
+
+    /**
+     * 项目列表和有限搜索共用游标；原位置分类只在前端完整取得有限结果后进行。
+     * 每次仍检查两路可见性，游标不授予权限；每路最多取一页再合并，避免深 offset。
+     */
+    private function getProjectFileList(string $userId, RecycleBinFileQuery $fileQuery, int $pageSize): array
+    {
+        $table = $this->model->getTable();
+        $cursor = $fileQuery->readCursor($userId);
+        $snapshotTime = $cursor['snapshot_time'] ?? date('Y-m-d H:i:s');
+        $owner = $this->buildOwnerVisibleQuery($userId, RecycleBinResourceType::File->value, $fileQuery->keyword, $fileQuery->projectId);
+        $collaborative = $this->buildCollaborativeFileQuery($userId, $fileQuery->keyword, $fileQuery->projectId);
+        foreach ([$table => $owner, 'rb' => $collaborative] as $prefix => $query) {
+            $query->where($prefix . '.deleted_at', '<=', $snapshotTime);
+            if ($fileQuery->deletedFrom !== null) {
+                $query->where($prefix . '.deleted_at', '>=', $fileQuery->deletedFrom)
+                    ->where($prefix . '.deleted_at', '<', $fileQuery->deletedTo);
+            }
+        }
+
+        // 只在首批固定已有记录的 ID 上界。后续新增记录即使时间相同也不混入本次查询。
+        $snapshotId = $cursor['snapshot_id'] ?? max(
+            (int) (clone $owner)->max($table . '.id'),
+            (int) (clone $collaborative)->max('rb.id')
+        );
+
+        $total = null;
+        if ($fileQuery->includeTotal) {
+            $total = (clone $owner)->where($table . '.id', '<=', $snapshotId)->count()
+                + (clone $collaborative)->where('rb.id', '<=', $snapshotId)->count();
+        }
+        foreach ([$table => $owner, 'rb' => $collaborative] as $prefix => $query) {
+            $query->where($prefix . '.id', '<=', $snapshotId);
+            if ($cursor !== null) {
+                $query->where(static function (QueryBuilder $query) use ($prefix, $cursor): void {
+                    $query->where($prefix . '.deleted_at', '<', $cursor['deleted_at'])
+                        ->orWhere(static function (QueryBuilder $query) use ($prefix, $cursor): void {
+                            $query->where($prefix . '.deleted_at', $cursor['deleted_at'])
+                                ->where($prefix . '.id', '<', $cursor['id']);
+                        });
+                });
+            }
+            $query->select($prefix . '.*')
+                ->orderByDesc($prefix . '.deleted_at')
+                ->orderByDesc($prefix . '.id')
+                ->limit($pageSize + 1);
+        }
+        $rows = $this->model::query()->toBase()->fromSub($owner->unionAll($collaborative), 'visible')
+            ->orderByDesc('visible.deleted_at')->orderByDesc('visible.id')->limit($pageSize + 1)->get();
+        $hasMore = $rows->count() > $pageSize;
+        $models = $this->model::query()->hydrate($rows->take($pageSize)->map(static fn ($row) => (array) $row)->all());
+        $entities = [];
+        /** @var null|RecycleBinModel $model */
+        foreach ($models as $model) {
+            $entities[] = $this->modelToEntity($model);
+        }
+        $result = [
+            'list' => $entities,
+            'has_more' => $hasMore,
+            'next_cursor' => $hasMore ? $fileQuery->nextCursor($userId, $entities[count($entities) - 1], $snapshotId, $snapshotTime) : null,
+            'search_limits' => [
+                'max_hours' => RecycleBinFileQuery::MAX_SEARCH_HOURS,
+                'max_results' => RecycleBinFileQuery::MAX_SEARCH_RESULTS,
+            ],
+        ];
+        if ($total !== null) {
+            $result['total'] = $total;
+        }
+        return $result;
     }
 }

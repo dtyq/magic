@@ -22,7 +22,11 @@ function createVisibleAttachmentNode(
 	renamingItemId?: string | null,
 ): TreeNodeData {
 	const key = resolveAttachmentKey(item, fallbackKey)
-	const hasChildren = Boolean(item.is_directory && item.children?.length)
+	const hasChildren = Boolean(
+		item.is_directory &&
+		(item.children?.length ||
+			(item.directoryLoadState && item.directoryLoadState !== "loaded")),
+	)
 
 	return {
 		key,

@@ -12,10 +12,13 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
 from app.core.entity.attachment import AttachmentStorageType
+from app.core.entity.factory.tool_detail_factory import ToolDetailFactory
+from app.core.entity.message.server_message import OperationResultStatus
 from app.core.entity.message.server_message import (DisplayType, FileContent,
                                                     ToolDetail)
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
+from app.tools.core.base_tool import ToolResultContentMode
 from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_is_dir, async_read_text
@@ -62,6 +65,20 @@ def _get_context_remaining(tool_context: Optional["ToolContext"]) -> int:
         return agent_context.horizon.get_context_usage().remaining
     except Exception:
         return 0
+
+
+def _truncate_to_token_budget(content: str, max_tokens: int) -> str:
+    """按同一估算器选择字符前缀，供源正文额度和展示额度分别使用。"""
+    left, right = 0, len(content)
+    best_end = 0
+    while left <= right:
+        mid = (left + right) // 2
+        if num_tokens_from_string(content[:mid]) <= max_tokens:
+            best_end = mid
+            left = mid + 1
+        else:
+            right = mid - 1
+    return content[:best_end]
 
 
 @dataclass
@@ -251,9 +268,21 @@ def _build_truncation_message(info: TruncationInfo, file_path: str) -> str:
 
 @dataclass
 class TextReadResult:
-    """文本读取结果，包含带行号和不带行号的两个版本"""
+    r"""
+    文本读取结果，包含带行号和不带行号的两个版本
+
+    with_line_numbers 给模型定位；without_line_numbers 给详情展示；source_content 给内部版本比对。
+    例：文件最后有换行，展示可以按行重组，但内部不能因此把同一源文本误判成另一版本。
+    完整读取磁盘文本 "alpha\nbeta"（最后没有换行）时，三个字段实际为：
+      with_line_numbers    = "1\talpha\n2\tbeta\n"
+      without_line_numbers = "alpha\nbeta\n"
+      source_content       = "alpha\nbeta"
+    展示按行补齐换行，source_content 保留本次读到的文本；范围读取时它为 None，
+    结果被截断时 extra_info 也将它置为 None，避免将局部内容当作完整文件快照。
+    """
     with_line_numbers: str  # 带行号的内容版本（用于AI展示）
     without_line_numbers: str  # 不带行号的原始内容版本（用于工具详情）
+    source_content: str | None = None  # 全文读取时的真实源文本，保留末尾换行供内部 diff 使用
 
 
 class ReadFileParams(BaseToolParams):
@@ -265,7 +294,8 @@ Starting line number to read (0-indexed), supports negative numbers to count fro
 Number of lines or pages to read, default 200 lines, set to -1 to read entire file""")
 
 
-@tool()
+# 文件正文已有动态预算与原文件续读协议，避免被全局默认额度再次文件化。
+@tool(result_content_mode=ToolResultContentMode.SELF_MANAGED)
 class ReadFile(AbstractFileTool[ReadFileParams], WorkspaceTool[ReadFileParams]):
     """<!--zh
     读取文件内容
@@ -316,9 +346,15 @@ Suggestions:
 
     async def execute(
         self,
-        tool_context: ToolContext,
+        tool_context: ToolContext | None,
         params: ReadFileParams,
-        raw_mode: bool = False
+        raw_mode: bool = False,
+        max_tokens: int | None = None,
+        *,
+        allow_fuzzy_match: bool = True,
+        use_context_budget: bool = True,
+        record_read: bool = True,
+        source_max_tokens: int | None = None,
     ) -> ToolResult:
         """
         执行文件读取操作
@@ -333,13 +369,25 @@ Suggestions:
         Returns:
             ToolResult: 包含文件内容或错误信息
         """
-        return await self.execute_purely(params, tool_context, raw_mode)
+        return await self.execute_purely(
+            params, tool_context, raw_mode,
+            max_tokens=max_tokens, allow_fuzzy_match=allow_fuzzy_match,
+            use_context_budget=use_context_budget,
+            record_read=record_read,
+            source_max_tokens=source_max_tokens,
+        )
 
     async def execute_purely(
         self,
         params: ReadFileParams,
         tool_context: Optional[ToolContext] = None,
-        raw_mode: bool = False
+        raw_mode: bool = False,
+        max_tokens: int | None = None,
+        *,
+        allow_fuzzy_match: bool = True,
+        use_context_budget: bool = True,
+        record_read: bool = True,
+        source_max_tokens: int | None = None,
     ) -> ToolResult:
         """
         执行文件读取操作，专注于读取可读文件
@@ -356,9 +404,13 @@ Suggestions:
         """
         try:
             # 使用父类方法获取安全的文件路径（包含模糊匹配）
-            resolved = self.resolve_path_fuzzy(params.file_path)
-            file_path = resolved.path
-            fuzzy_warning = resolved.warning
+            if allow_fuzzy_match:
+                resolved = self.resolve_path_fuzzy(params.file_path)
+                file_path = resolved.path
+                fuzzy_warning = resolved.warning
+            else:
+                file_path = self.resolve_path(params.file_path)
+                fuzzy_warning = None
             # 检查文件是否存在
             if not await async_exists(file_path):
                 if tool_context:
@@ -414,8 +466,19 @@ Suggestions:
             content = text_result.with_line_numbers
             # --- 内容读取逻辑结束 ---
 
-            # 根据当前上下文剩余量动态决定本次读取上限
-            max_tokens = _compute_max_tokens(tool_context)
+            """
+            根据当前上下文剩余量动态决定本次读取上限
+            运行时自动读取可指定更小的正文额度；普通工具调用继续使用原动态上限。
+            这是内部参数，不扩展模型 schema，也不改变行范围、版本校验或截断算法。
+            """
+            if max_tokens is not None and max_tokens <= 0:
+                raise ValueError("max_tokens must be positive")
+            if source_max_tokens is not None and source_max_tokens <= 0:
+                raise ValueError("source_max_tokens must be positive")
+            # Skill 按独立预算读取原文；自动规则文件和普通读取仍受上下文动态预算约束。
+            dynamic_max_tokens = _compute_max_tokens(tool_context) if use_context_budget or max_tokens is None else max_tokens
+            # 外部只可收紧这次读取额度，不能突破 ReadFile 依据上下文算出的原有上限。
+            max_tokens = min(dynamic_max_tokens, max_tokens) if max_tokens is not None else dynamic_max_tokens
             context_remaining = _get_context_remaining(tool_context)
 
             # 计算token数量并处理截断
@@ -425,30 +488,34 @@ Suggestions:
             total_chars = len(content)
             content_truncated = False
 
+            if source_max_tokens is not None:
+                source_text = text_result.source_content
+                if source_text is None:
+                    raise ValueError("source_max_tokens requires a full source-text read")
+                # 主文件容量按磁盘原文计算，不能让行号开销把合规主文件误判为超限。
+                # 例：源文 15,993、带行号 16,115、源额度 16K 时保留全文；展示仍受动态额度保护。
+                if num_tokens_from_string(source_text) > source_max_tokens:
+                    source_prefix = _truncate_to_token_budget(source_text, source_max_tokens)
+                    source_lines = source_prefix.splitlines()
+                    content = "".join(
+                        f"{line_number}\t{line}\n"
+                        for line_number, line in enumerate(source_lines, start=1)
+                    )
+                    # 源文的最后一行只交付了一部分时，不能因格式化补换行而宣称该行完整。
+                    if content and source_prefix.splitlines(keepends=True)[-1] == source_lines[-1]:
+                        content = content[:-1]
+                    content_tokens = num_tokens_from_string(content)
+                    content_truncated = True
+
             if content_tokens > max_tokens:
                 logger.info(f"文件 {read_path.name} (原始: {original_file_name}) 内容token数 ({content_tokens}) 超出限制 ({max_tokens})，进行截断")
                 content_truncated = True
 
-                # 使用二分查找确定最佳截断点
-                left, right = 0, len(content)
-                best_content = ""
-                best_tokens = 0
+                content = _truncate_to_token_budget(content, max_tokens)
+                content_tokens = num_tokens_from_string(content)
 
-                while left <= right:
-                    mid = (left + right) // 2
-                    truncated = content[:mid]
-                    tokens = num_tokens_from_string(truncated)
-
-                    if tokens <= max_tokens:
-                        best_content = truncated
-                        best_tokens = tokens
-                        left = mid + 1
-                    else:
-                        right = mid - 1
-
-                truncated_content = best_content
-                content_tokens = best_tokens
-
+            if content_truncated:
+                truncated_content = content
                 truncation_info = _parse_truncation_info(
                     original_content=original_content,
                     truncated_content=truncated_content,
@@ -457,6 +524,8 @@ Suggestions:
                     max_tokens=max_tokens,
                     context_remaining=context_remaining,
                 )
+                # 展示额度很小时可能连首行行号都不完整；续读位置仍从第 0 行开始。
+                truncation_info.next_offset = max(0, truncation_info.next_offset)
 
                 if not truncation_info.is_last_line_complete:
                     truncated_content += "..."
@@ -469,13 +538,13 @@ Suggestions:
 
             # 添加文件元信息 - 使用 original_file_name 作为用户看到的文件名，read_path 用于内部信息
             shown_chars = len(content)
-            truncation_status = "（已截断）" if content_truncated else ""
+            truncation_status = " (truncated)" if content_truncated else ""
 
             # 构建元信息
-            meta_info = f"# 文件: {original_file_name}\n\n"
+            meta_info = f"# File: {original_file_name}\n\n"
 
             # 元信息中不再显示Token数，避免大模型混淆（Token数对大模型无意义）
-            meta_info += f"**文件信息**: 总字符数: {total_chars}，本次读取字符数: {shown_chars}{truncation_status}\n\n---\n\n"
+            meta_info += f"File information: {total_chars} total characters, {shown_chars} characters read{truncation_status}\n\n---\n\n"
             raw_content = content # 存储未加 meta_info 的原始内容
 
             # 准备不带行号的版本
@@ -486,8 +555,10 @@ Suggestions:
                 raw_content_without_line_numbers = text_result.without_line_numbers
 
             extra_info = {
+                # source_content 仅供 Python 内部确认全文版本；范围读取或截断时不声称拿到了全文。
                 "raw_content": raw_content,
                 "raw_content_without_line_numbers": raw_content_without_line_numbers,
+                "source_content": text_result.source_content if not content_truncated else None,
                 "original_file_path": str(file_path),
                 "read_path": str(read_path),
                 "read_method": read_method,  # 标识读取方式：统一为 text(纯文本)
@@ -505,40 +576,19 @@ Suggestions:
             # 如果是完整读取（没有截断，且从头读取整个文件），添加完整性提示
             is_complete_read = not content_truncated and params.offset == 0 and (params.limit is None or params.limit <= 0)
             if is_complete_read:
-                content_with_meta += "\n\n---\n\n**[文件已完整读取]**"
+                content_with_meta += "\n\n---\n\n[File fully read]"
 
             # 如果有模糊匹配警告，添加到内容最后面
             if fuzzy_warning:
                 content_with_meta = f"{content_with_meta}\n\n---\n\n{fuzzy_warning}"
 
-            # Horizon 自主决定是否保存整文件快照，调用方只传元信息
-            if tool_context:
-                try:
-                    from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
-
-                    _stat = await get_fresh_file_stat(str(file_path))
-                    _file_hash = await calculate_file_hash(str(file_path))
-
-                    _offset = params.offset if params.offset else 0
-                    _limit = params.limit if params.limit and params.limit > 0 else -1
-                    _end = _offset + _limit if _limit > 0 else -1
-
-                    await self.get_horizon(tool_context).record_file_read(
-                        path=file_path,
-                        file_hash=_file_hash,
-                        mtime_ms=_stat.mtime * 1000,
-                        size=_stat.size,
-                        truncated=extra_info.get("was_truncated", False),
-                        tool_name="read_file",
-                        ranges=[(_offset, _end)],
-                    )
-                except Exception as _horizon_err:
-                    logger.warning(f"[read_file] record_file_read 失败: {_horizon_err}")
-
-            return ToolResult(
+            result = ToolResult(
                 content=content_with_meta,
                 extra_info=extra_info
             )
+            if tool_context and record_read:
+                await self.record_read_result(tool_context, params, result)
+            return result
 
         except Exception as e:
             logger.exception(f"读取文件失败 (原始请求: {params.file_path}): {e!s}")
@@ -546,6 +596,47 @@ Suggestions:
                 tool_context.set_metadata("error_type", "read_file.error_unexpected")
                 tool_context.set_metadata("error_file_path", params.file_path)
             return ToolResult.error("The read_file tool encountered an unexpected error. Try using shell commands (e.g., cat, head, tail) or write a Python script to read this file instead.")
+
+    async def record_read_result(
+        self,
+        tool_context: ToolContext,
+        params: ReadFileParams,
+        result: ToolResult,
+        *,
+        truncated: bool = False,
+    ) -> None:
+        """在最终交付范围确定后登记；批量截断和 AutoRead 追加失败不能提前获得完整凭据。"""
+        if not result.ok:
+            return
+        info = result.extra_info or {}
+        file_path = info.get("original_file_path")
+        if not isinstance(file_path, str):
+            return
+        try:
+            from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
+
+            stat = await get_fresh_file_stat(file_path)
+            file_hash = await calculate_file_hash(file_path)
+            offset = params.offset if params.offset else 0
+            limit = params.limit if params.limit and params.limit > 0 else -1
+            end = offset + limit if limit > 0 else -1
+            was_truncated = truncated or bool(info.get("was_truncated"))
+            source_content = info.get("source_content")
+            complete = not was_truncated and offset == 0 and limit == -1
+
+            # Horizon 自主决定是否保存整文件快照，调用方只传元信息
+            await self.get_horizon(tool_context).record_file_read(
+                path=file_path,
+                file_hash=file_hash,
+                mtime_ms=stat.mtime * 1000,
+                size=stat.size,
+                truncated=was_truncated,
+                tool_name="read_file",
+                ranges=[(offset, end)],
+                source_content=source_content if complete and isinstance(source_content, str) else None,
+            )
+        except Exception as error:
+            logger.warning(f"[read_file] record_file_read 失败: {error}")
 
     async def _read_text_file(self, file_path: Path) -> TextReadResult:
         """读取整个文本文件内容，返回带行号和不带行号的两个版本
@@ -564,7 +655,8 @@ Suggestions:
 
         return TextReadResult(
             with_line_numbers="".join(lines_with_numbers),
-            without_line_numbers="".join(lines_without_numbers)
+            without_line_numbers="".join(lines_without_numbers),
+            source_content=content,
         )
 
     async def _read_text_file_with_range(self, file_path: Path, offset: int, limit: int) -> TextReadResult:
@@ -740,7 +832,7 @@ Suggestions:
             # Absolute paths outside the workspace have no workspace attachment identity.
             pass
 
-        return ToolDetail(
+        report = ToolDetail(
             type=display_type,
             data=FileContent(
                 file_name=original_file_name,
@@ -748,6 +840,13 @@ Suggestions:
                 relative_file_path=relative_file_path,
                 storage_type=storage_type,
             )
+        )
+
+        return ToolDetailFactory.create_operation_result_detail(
+            [ToolDetailFactory.create_file_result_item(
+                original_file_path_str, self.base_dir, OperationResultStatus.SUCCESS,
+                message=self._get_read_range_remark(result, arguments),
+            )], report=report, stage="read",
         )
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:

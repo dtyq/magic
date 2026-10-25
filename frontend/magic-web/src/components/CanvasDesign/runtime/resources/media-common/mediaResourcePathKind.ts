@@ -1,3 +1,6 @@
+import type { CanvasAssetMediaType } from "../../../public/magic-types"
+import { parseAssetResourcePath } from "../../shared/path/canvasResourcePath"
+
 export const MEDIA_RESOURCE_IMAGE_EXTENSIONS = [
 	".png",
 	".jpg",
@@ -21,8 +24,18 @@ export const MEDIA_RESOURCE_AUDIO_EXTENSIONS = [
 
 export type MediaResourcePathKind = "image" | "video" | "audio" | "other"
 
-export function getMediaResourcePathKind(path: string): MediaResourcePathKind {
-	const lowerPath = path.toLowerCase()
+export interface MediaResourcePathKindOptions {
+	/** Asset paths have no type-bearing suffix; callers must provide metadata explicitly. */
+	mediaType?: CanvasAssetMediaType | null
+}
+
+export function getMediaResourcePathKind(
+	path: string,
+	options?: MediaResourcePathKindOptions,
+): MediaResourcePathKind {
+	if (parseAssetResourcePath(path) !== undefined) return options?.mediaType ?? "other"
+
+	const lowerPath = path.trim().toLowerCase()
 	if (MEDIA_RESOURCE_IMAGE_EXTENSIONS.some((extension) => lowerPath.endsWith(extension))) {
 		return "image"
 	}

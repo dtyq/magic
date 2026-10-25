@@ -20,6 +20,11 @@ class MsgLogEntity extends AbstractEntity
 
     protected string $model;
 
+    /**
+     * 实际发送给服务商的模型部署版本。
+     */
+    protected string $modelVersion = '';
+
     protected string $userId;
 
     protected string $appCode;
@@ -96,6 +101,22 @@ class MsgLogEntity extends AbstractEntity
     public function setModel(string $model): void
     {
         $this->model = $model;
+    }
+
+    /**
+     * 获取实际发送给服务商的模型部署版本。
+     */
+    public function getModelVersion(): string
+    {
+        return $this->modelVersion;
+    }
+
+    /**
+     * 设置实际发送给服务商的模型部署版本。
+     */
+    public function setModelVersion(string $modelVersion): void
+    {
+        $this->modelVersion = $modelVersion;
     }
 
     public function getUserId(): string

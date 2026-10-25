@@ -1,13 +1,11 @@
 import MagicDropdown from "@/components/base/MagicDropdown"
 import { useTranslation } from "react-i18next"
 import MenuItem from "./components/MenuItem"
-import { useStyles } from "./styles"
 import { useGlobalMenuNavigate } from "./hooks"
 import { useState } from "react"
 import useMenuItems from "./hooks/useMenuItems"
 
 function GlobalMenus({ children }: { children: React.ReactNode }) {
-	const { styles } = useStyles()
 	const { t } = useTranslation("interface")
 
 	const [open, setOpen] = useState(false)
@@ -16,8 +14,8 @@ function GlobalMenus({ children }: { children: React.ReactNode }) {
 	const { handleMenuItemClick } = useGlobalMenuNavigate(() => setOpen(false))
 
 	const renderPopup = () => (
-		<div className={styles.popupContainer}>
-			<div className={styles.menuGrid}>
+		<div className="w-[348px] rounded-xl bg-white shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] dark:bg-neutral-800">
+			<div className="m-0 grid grid-cols-3 gap-1.5 border-b border-border p-[18px] last:border-b-0">
 				{menuItems.map((item) => (
 					<MenuItem
 						key={item.key}

@@ -1,6 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useCreation, useDebounceEffect, useMemoizedFn, useRequest } from "ahooks"
-import { useImmer } from "use-immer"
 import type { IMCPItem } from "../../../types"
 import {
 	MCPManagerService,
@@ -82,7 +81,7 @@ export function useMCPPanelController(props: UseMCPPanelControllerProps): MCPPan
 	})
 	const hasInitializedSearch = useRef(false)
 	const latestSearchTextRef = useRef("")
-	const [usableCache, setUsableCache] = useImmer<Set<string>>(new Set())
+	const [selectedItems, setSelectedItems] = useState<IMCPItem[]>([])
 
 	useEffect(() => {
 		latestSearchTextRef.current = searchText
@@ -102,13 +101,13 @@ export function useMCPPanelController(props: UseMCPPanelControllerProps): MCPPan
 	const selectedMCPIds = mcpAccess.mcpList.map((item) => item.id).join(",")
 
 	useEffect(() => {
-		setUsableCache((draft) => {
-			draft.clear()
-			mcpAccess.mcpList.forEach((item) => {
-				draft.add(item.id)
-			})
-		})
-	}, [mcpAccess, selectedMCPIds, setUsableCache])
+		setSelectedItems(mcpAccess.mcpList)
+	}, [selectedMCPIds])
+
+	const usableCache = useMemo(
+		() => new Set(selectedItems.map((item) => item.id)),
+		[selectedItems],
+	)
 
 	useDebounceEffect(
 		() => {
@@ -122,32 +121,34 @@ export function useMCPPanelController(props: UseMCPPanelControllerProps): MCPPan
 		{ wait: 1000, leading: false },
 	)
 
-	const submit = useMemoizedFn(async (selectedIds: Set<string>) => {
+	const submit = useMemoizedFn(async (items: IMCPItem[]) => {
 		await mcpAccess.save({
-			selectedIds,
-			items: data || [],
+			selectedIds: new Set(items.map((item) => item.id)),
+			items,
 		})
 
 		onSuccessCallback?.()
 	})
 
-	const onOAuthCallback = useMemoizedFn(async (id: string) => {
-		setUsableCache((draft) => {
-			if (draft.has(id)) draft.delete(id)
-			else draft.add(id)
+	const toggleMCP = useMemoizedFn((id: string) => {
+		const item = data?.find((candidate) => candidate.id === id)
+		const nextSelection = selectedItems.some((candidate) => candidate.id === id)
+			? selectedItems.filter((candidate) => candidate.id !== id)
+			: item
+				? [...selectedItems, item]
+				: selectedItems
 
-			submit(draft).catch(console.error)
-		})
+		setSelectedItems(nextSelection)
+		if (nextSelection !== selectedItems) submit(nextSelection).catch(console.error)
+	})
+
+	const onOAuthCallback = useMemoizedFn(async (id: string) => {
+		toggleMCP(id)
 	})
 
 	const onStatusChange = useMemoizedFn(async (item: IMCPItem) => {
 		if (usableCache.has(item.id)) {
-			setUsableCache((draft) => {
-				if (draft.has(item.id)) draft.delete(item.id)
-				else draft.add(item.id)
-
-				submit(draft).catch(console.error)
-			})
+			toggleMCP(item.id)
 			return
 		}
 
@@ -158,12 +159,7 @@ export function useMCPPanelController(props: UseMCPPanelControllerProps): MCPPan
 		}
 
 		if (authType === MCPOAuthType.noVerificationRequired) {
-			setUsableCache((draft) => {
-				if (draft.has(item.id)) draft.delete(item.id)
-				else draft.add(item.id)
-
-				submit(draft).catch(console.error)
-			})
+			toggleMCP(item.id)
 		}
 	})
 

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WIRED — Ideas, Technology & Culture</title>
+  <style>
+    :root {
+      --ink: #000000;
+      --ink-soft: #1a1a1a;
+      --canvas: #ffffff;
+      --canvas-soft: #f8f8f8;
+      --hairline: #e0e0e0;
+      --hairline-dark: #000000;
+      --body-gray: #555555;
+      --neon-lime: #cbff00;
+      --link-blue: #057dbc;
+      
+      --font-display: "Playfair Display", "Didot", "Bodoni MT", Georgia, "Times New Roman", serif;
+      --font-body: "Lora", "Source Serif Pro", Georgia, "Times New Roman", serif;
+      --font-mono: "SF Mono", "Courier New", "Consolas", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
+    body { background: var(--canvas); color: var(--ink); font-family: var(--font-body); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    a:hover { color: var(--link-blue); }
+
+    /* Top Monospace Dossier Utility Bar */
+    .utility-strip {
+      background: var(--ink); color: #ffffff; font-family: var(--font-mono); font-size: 11px;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; padding: 8px 32px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .edition-tag { color: var(--neon-lime); font-weight: 800; }
+
+    /* Iconic Masthead Band */
+    .masthead-wrap {
+      border-bottom: 2px solid var(--ink); padding: 18px 32px; display: flex;
+      justify-content: space-between; align-items: center; background: var(--canvas);
+    }
+    .brand-mark {
+      font-family: var(--font-sans); font-size: clamp(40px, 5.5vw, 68px); font-weight: 900;
+      letter-spacing: -2px; text-transform: uppercase; line-height: 0.85; color: var(--ink);
+    }
+    .brand-mark span { background: var(--ink); color: #fff; padding: 0 4px; margin-left: 2px; }
+    
+    .nav-mono-links { display: flex; gap: 24px; list-style: none; }
+    .nav-mono-links a {
+      font-family: var(--font-mono); font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.8px; color: var(--ink); position: relative; padding: 4px 0;
+    }
+    .nav-mono-links a:hover { color: var(--ink); box-shadow: 0 3px 0 0 var(--neon-lime); }
+    .nav-mono-links a.active { box-shadow: 0 3px 0 0 var(--ink); }
+
+    .btn-neon-subscribe {
+      background: var(--neon-lime); color: var(--ink); font-family: var(--font-mono); font-size: 12px;
+      font-weight: 800; text-transform: uppercase; letter-spacing: 1.8px; padding: 10px 22px;
+      border: 2px solid var(--ink); cursor: pointer; transition: background 0.15s, transform 0.15s;
+    }
+    .btn-neon-subscribe:hover { background: var(--ink); color: var(--neon-lime); }
+
+    /* Main Container */
+    .shell { max-width: 1380px; margin: 0 auto; padding: 24px 32px 64px; }
+
+    /* 16:10 Editorial Grid Stage */
+    .editorial-grid {
+      display: grid; grid-template-columns: 2.2fr 1fr; gap: 36px;
+      border-bottom: 1px solid var(--hairline); padding-bottom: 36px;
+    }
+
+    /* Long-Form Investigation Hero Column */
+    .longform-hero { display: flex; flex-direction: column; gap: 18px; }
+    
+    .kicker-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--hairline); padding-bottom: 8px;
+    }
+    .kicker-tag {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--ink); display: flex; align-items: center; gap: 8px;
+    }
+    .kicker-tag::before { content: ""; width: 8px; height: 8px; background: var(--neon-lime); display: inline-block; border: 1px solid #000; }
+    .read-time-pill {
+      font-family: var(--font-mono); font-size: 11px; color: var(--body-gray); letter-spacing: 1px;
+    }
+
+    .hero-headline {
+      font-family: var(--font-display); font-size: clamp(38px, 4.4vw, 58px); font-weight: 400;
+      line-height: 1.02; letter-spacing: -0.6px; color: var(--ink);
+    }
+    .hero-deck {
+      font-family: var(--font-sans); font-size: 19px; font-weight: 400; line-height: 1.45;
+      color: var(--ink-soft); max-width: 90%;
+    }
+
+    /* Byline Strip */
+    .byline-row {
+      display: flex; align-items: center; gap: 14px; border-top: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline); padding: 10px 0; font-family: var(--font-mono);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--body-gray);
+    }
+    .byline-row strong { color: var(--ink); }
+    .byline-avatar {
+      width: 32px; height: 32px; border-radius: 9999px !important; background: #000;
+      display: grid; place-items: center; color: var(--neon-lime); font-size: 12px; font-weight: 800;
+    }
+
+    /* Schematic Visual Box */
+    .schematic-box {
+      width: 100%; height: 260px; background: #000000; border: 2px solid #000000;
+      position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    }
+    .schematic-svg { width: 100%; height: 100%; position: absolute; }
+    .schematic-caption {
+      position: absolute; bottom: 12px; left: 14px; background: rgba(0,0,0,0.85);
+      border-left: 3px solid var(--neon-lime); padding: 6px 12px; font-family: var(--font-mono);
+      font-size: 10px; color: #ffffff; letter-spacing: 1px; text-transform: uppercase;
+    }
+
+    /* Narrative Body with Drop Cap and Pull Quote */
+    .narrative-columns {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 8px;
+    }
+    .narrative-col p {
+      font-size: 16px; line-height: 1.68; color: var(--ink); margin-bottom: 16px;
+    }
+    .drop-cap::first-letter {
+      float: left; font-family: var(--font-display); font-size: 64px; line-height: 0.8;
+      padding: 6px 10px 4px 6px; margin-right: 10px; background: var(--neon-lime);
+      color: var(--ink); font-weight: 900; border: 1px solid var(--ink);
+    }
+
+    .editorial-pullquote {
+      grid-column: 1 / -1; border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+      padding: 20px 16px; margin: 10px 0; text-align: center;
+    }
+    .quote-text {
+      font-family: var(--font-display); font-size: clamp(22px, 2.3vw, 30px); font-style: italic;
+      font-weight: 400; line-height: 1.25; color: var(--ink); margin-bottom: 8px;
+    }
+    .quote-source {
+      font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1.8px; color: var(--body-gray);
+    }
+
+    /* Sidebar Grid Column */
+    .sidebar-dossier { display: flex; flex-direction: column; gap: 20px; }
+    
+    .sidebar-header {
+      background: var(--ink); color: #ffffff; padding: 8px 14px; font-family: var(--font-mono);
+      font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .sidebar-header span { color: var(--neon-lime); }
+
+    .dossier-list { list-style: none; display: flex; flex-direction: column; }
+    .dossier-item {
+      padding: 16px 0; border-bottom: 1px solid var(--hairline); display: flex;
+      flex-direction: column; gap: 6px; transition: background 0.15s;
+    }
+    .dossier-item:hover { background: var(--canvas-soft); padding-left: 6px; }
+    .dossier-num {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--ink);
+      letter-spacing: 1px; display: flex; gap: 6px; align-items: center;
+    }
+    .dossier-num .dot { width: 6px; height: 6px; background: var(--neon-lime); border: 1px solid #000; }
+    .dossier-headline {
+      font-family: var(--font-sans); font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--ink);
+    }
+    .dossier-meta {
+      font-family: var(--font-mono); font-size: 10px; color: var(--body-gray); text-transform: uppercase; letter-spacing: 0.8px;
+    }
+
+    /* Black Inverted Dossier Card */
+    .inverted-memo-card {
+      background: var(--ink); color: #ffffff; padding: 22px; border: 2px solid var(--ink);
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .memo-tag {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 800; color: var(--neon-lime);
+      text-transform: uppercase; letter-spacing: 2px;
+    }
+    .memo-title {
+      font-family: var(--font-sans); font-size: 17px; font-weight: 700; line-height: 1.3;
+    }
+    .memo-input-wrap { display: flex; margin-top: 4px; }
+    .memo-input {
+      background: #ffffff; border: 1px solid var(--hairline); padding: 8px 12px;
+      font-family: var(--font-mono); font-size: 11px; flex: 1; outline: none;
+    }
+    .btn-memo-submit {
+      background: var(--neon-lime); border: 1px solid var(--neon-lime); color: var(--ink);
+      font-family: var(--font-mono); font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 1px; padding: 8px 14px; cursor: pointer;
+    }
+
+    /* Multi-Column Feature Row */
+    .sub-feature-trio {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 36px;
+    }
+    .sub-feature-card { display: flex; flex-direction: column; gap: 10px; border-top: 2px solid var(--ink); padding-top: 14px; }
+    .sub-kicker { font-family: var(--font-mono); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: var(--ink); }
+    .sub-title { font-family: var(--font-display); font-size: 22px; font-weight: 400; line-height: 1.15; }
+    .sub-snippet { font-size: 14px; color: var(--body-gray); line-height: 1.5; }
+
+    @media (max-width: 960px) {
+      .editorial-grid { grid-template-columns: 1fr; }
+      .narrative-columns { grid-template-columns: 1fr; }
+      .sub-feature-trio { grid-template-columns: 1fr; }
+      .nav-mono-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Monospace Bar -->
+  <aside class="utility-strip">
+    <div>VOL. 34.09 // SAN FRANCISCO DESK // PUBLISHED 09.19.26</div>
+    <div>EDITION: <span class="edition-tag">NORTH AMERICA / DIGITAL ISSUE</span></div>
+  </aside>
+
+  <!-- Masthead Band -->
+  <header class="masthead-wrap">
+    <a href="#" class="brand-mark">W<span>I</span>RED</a>
+    
+    <nav>
+      <ul class="nav-mono-links">
+        <li><a href="#" class="active">// BUSINESS</a></li>
+        <li><a href="#">// CULTURE</a></li>
+        <li><a href="#">// GEAR</a></li>
+        <li><a href="#">// IDEAS</a></li>
+        <li><a href="#">// SCIENCE</a></li>
+        <li><a href="#">// SECURITY</a></li>
+      </ul>
+    </nav>
+
+    <button class="btn-neon-subscribe">SUBSCRIBE $1.50/MO</button>
+  </header>
+
+  <!-- Shell Container -->
+  <main class="shell">
+
+    <!-- 16:10 Primary Editorial Grid -->
+    <div class="editorial-grid">
+
+      <!-- Left: Long-Form Feature Story -->
+      <article class="longform-hero">
+        <div class="kicker-bar">
+          <span class="kicker-tag">// LONG-FORM INVESTIGATION</span>
+          <span class="read-time-pill">18 MIN READ · ISSUE 34.09</span>
+        </div>
+
+        <a href="#">
+          <h1 class="hero-headline">The Ghost in the Quantum Lattice</h1>
+        </a>
+
+        <p class="hero-deck">
+          Deep within the cryogenic dilution refrigerators of an abandoned Cold War bunker outside Geneva, physicists detected self-organizing mathematical structures that should not theoretically exist.
+        </p>
+
+        <!-- Byline Row -->
+        <div class="byline-row">
+          <div class="byline-avatar">G</div>
+          <div>STORY BY <strong>GIDEON LEWIS-KRAUS</strong></div>
+          <div>·</div>
+          <div>PHOTOGRAPHY BY <strong>SPENCER LOWELL</strong></div>
+          <div>·</div>
+          <div>SEP 19, 2026</div>
+        </div>
+
+        <!-- Inline High-Fidelity SVG Quantum Grid -->
+        <div class="schematic-box">
+          <svg class="schematic-svg" viewBox="0 0 760 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="dotGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <circle cx="2" cy="2" r="1" fill="#333333"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="#0a0a0a"/>
+            <rect width="100%" height="100%" fill="url(#dotGrid)"/>
+
+            <!-- Quantum Wave Lattice -->
+            <g stroke="#ffffff" stroke-width="0.8" opacity="0.4">
+              <line x1="60" y1="130" x2="700" y2="130"/>
+              <line x1="380" y1="20" x2="380" y2="240"/>
+            </g>
+
+            <!-- Topological Resonance Rings -->
+            <circle cx="380" cy="130" r="90" stroke="#cbff00" stroke-width="1.5" stroke-dasharray="4 2"/>
+            <circle cx="380" cy="130" r="60" stroke="#ffffff" stroke-width="1.2"/>
+            <circle cx="380" cy="130" r="30" fill="#cbff00" fill-opacity="0.15" stroke="#cbff00" stroke-width="2"/>
+
+            <!-- Vector Nodes -->
+            <rect x="230" y="80" width="8" height="8" fill="#cbff00"/>
+            <rect x="520" y="80" width="8" height="8" fill="#cbff00"/>
+            <rect x="230" y="170" width="8" height="8" fill="#ffffff"/>
+            <rect x="520" y="170" width="8" height="8" fill="#ffffff"/>
+
+            <path d="M 234 84 L 380 130 L 524 84" stroke="#cbff00" stroke-width="1.5"/>
+            <path d="M 234 174 L 380 130 L 524 174" stroke="#ffffff" stroke-width="1.5"/>
+
+            <!-- Telemetry Data Overlay -->
+            <text x="70" y="45" fill="#cbff00" font-family="'SF Mono', monospace" font-size="10" letter-spacing="1">CRYOGENIC CHAMBER 04: 12.4 MILLIKELVIN</text>
+            <text x="70" y="62" fill="#757575" font-family="'SF Mono', monospace" font-size="9" letter-spacing="1">Q-ERROR RATE: 1.04e-9 // PARITY PRESERVED</text>
+            <text x="560" y="235" fill="#cbff00" font-family="'SF Mono', monospace" font-size="10" letter-spacing="1">PHASE ANGLE: +0.724π</text>
+          </svg>
+
+          <div class="schematic-caption">
+            FIG. 01: COHERENT TOPOLOGICAL MANIFOLD AT MILLIKELVIN EQUILIBRIUM
+          </div>
+        </div>
+
+        <!-- Long-Form Narrative Body -->
+        <div class="narrative-columns">
+          <div class="narrative-col">
+            <p class="drop-cap">
+              The noise on the oscilloscope was not thermal jitter. In the small hours of a freezing Tuesday morning, Dr. Hélène Vasseur traced the recurring Fourier harmonics back to their origin inside the gilded dilution chandelier. What she encountered was not an error in the superconducting Josephson junctions, but an undeniable symmetry.
+            </p>
+            <p>
+              Traditional quantum computing has always rested on fragile probabilities. Yet here, across 4,096 entangled transmon qubits, an autonomous error-correcting topological knot was weaving itself without instruction.
+            </p>
+          </div>
+          <div class="narrative-col">
+            <p>
+              "When you build an instrument capable of measuring reality at the Planck scale," Vasseur told WIRED, "you cannot be surprised when reality begins to answer back in a dialect you never taught it."
+            </p>
+            <p>
+              By dawn, the telemetry had been mirrored across four air-gapped cryptographic vaults. Over the next forty-eight hours, representatives from three national defense ministries arrived without notice.
+            </p>
+          </div>
+
+          <!-- Pull Quote -->
+          <div class="editorial-pullquote">
+            <div class="quote-text">
+              “We didn’t build an intelligence. We built an echo chamber that learned how to dream in mathematics.”
+            </div>
+            <div class="quote-source">
+              — DR. HÉLÈNE VASSEUR, DIRECTOR OF QUANTUM TOPOLOGY, CERN-EPSILON
+            </div>
+          </div>
+        </div>
+
+      </article>
+
+      <!-- Right: Monospace Dossier & Most Popular -->
+      <aside class="sidebar-dossier">
+        <div class="sidebar-header">
+          <span>// DISPATCHES</span>
+          <span>MOST READ</span>
+        </div>
+
+        <ol class="dossier-list">
+          <li class="dossier-item">
+            <div class="dossier-num"><span class="dot"></span>01 // SECURITY INTEL</div>
+            <a href="#" class="dossier-headline">The Secret BGP Hijack That Rerouted Transatlantic Fiber Traffic for 42 Seconds</a>
+            <div class="dossier-meta">ANDY GREENBERG · 8 MIN READ</div>
+          </li>
+
+          <li class="dossier-item">
+            <div class="dossier-num"><span class="dot"></span>02 // ARTIFICIAL MINDS</div>
+            <a href="#" class="dossier-headline">Silicon Valley’s Quest to Replace Classical Operating Systems with Autonomous Agent Swarms</a>
+            <div class="dossier-meta">STEVEN LEVY · 12 MIN READ</div>
+          </li>
+
+          <li class="dossier-item">
+            <div class="dossier-num"><span class="dot"></span>03 // BIOTECH FRONTIER</div>
+            <a href="#" class="dossier-headline">The CRISPR Epigenetic Clock Reversing Cellular Age in Primates</a>
+            <div class="dossier-meta">EMILY MULLIN · 15 MIN READ</div>
+          </li>
+
+          <li class="dossier-item">
+            <div class="dossier-num"><span class="dot"></span>04 // CLIMATE INFRASTRUCTURE</div>
+            <a href="#" class="dossier-headline">Deep Geothermal Drilling Reaches Supercritical Steam Under Iceland</a>
+            <div class="dossier-meta">MATT SIMON · 7 MIN READ</div>
+          </li>
+        </ol>
+
+        <!-- Black Inverted Memo Card -->
+        <div class="inverted-memo-card">
+          <span class="memo-tag">// WIRED INTELLIGENCE BRIEF</span>
+          <h3 class="memo-title">Direct briefings on frontier technology, delivered daily before the markets open.</h3>
+          <div class="memo-input-wrap">
+            <input type="email" placeholder="ENTER YOUR EMAIL..." class="memo-input" />
+            <button class="btn-memo-submit">JOIN</button>
+          </div>
+        </div>
+
+      </aside>
+
+    </div>
+
+    <!-- Sub Feature Trio -->
+    <section class="sub-feature-trio">
+      <article class="sub-feature-card">
+        <span class="sub-kicker">// GEAR REVIEW</span>
+        <h2 class="sub-title">The Framework Modular Laptop Finally Proves the Repairability Argument</h2>
+        <p class="sub-snippet">Five years after launch, the swappable mainboard concept outlasts every scheduled obsolescence cycle.</p>
+      </article>
+
+      <article class="sub-feature-card">
+        <span class="sub-kicker">// SCIENTIFIC INQUIRY</span>
+        <h2 class="sub-title">James Webb Space Telescope Captures Galaxies That Defy the Standard Cosmological Model</h2>
+        <p class="sub-snippet">Astronomers are forced to reconsider the timeline of the early universe as giant disks appear too soon.</p>
+      </article>
+
+      <article class="sub-feature-card">
+        <span class="sub-kicker">// CULTURE &amp; CODE</span>
+        <h2 class="sub-title">The Forgotten Underground BBS Networks Keeping Anonymous Journalism Alive in 2026</h2>
+        <p class="sub-snippet">Dial-up acoustic modems and packet radio have become the ultimate sanctuary against dragnet surveillance.</p>
+      </article>
+    </section>
+
+  </main>
+
+</body>
+</html>

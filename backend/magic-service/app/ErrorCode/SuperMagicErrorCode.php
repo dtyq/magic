@@ -43,4 +43,13 @@ enum SuperMagicErrorCode: int
 
     #[ErrorMessage(message: 'super_magic.agent.agent_version_not_found')]
     case AgentVersionNotFound = 60011;
+
+    #[ErrorMessage(message: 'super_magic.task.sandbox_init_failed')]
+    case SandboxInitFailed = 60012;
+
+    #[ErrorMessage(message: 'super_magic.task.chat_task_start_failed')]
+    case ChatTaskStartFailed = 60013;
+
+    #[ErrorMessage(message: 'super_magic.task.auto_hire_agent_failed')]
+    case AutoHireAgentFailed = 60014;
 }

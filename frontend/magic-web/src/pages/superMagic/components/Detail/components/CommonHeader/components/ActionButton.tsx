@@ -3,20 +3,20 @@ import { isValidElement, memo } from "react"
 import type { ForwardRefExoticComponent, RefAttributes } from "react"
 import type { Icon, IconProps } from "@tabler/icons-react"
 import MagicIcon from "@/components/base/MagicIcon"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import ConditionalTooltip from "../../EditToolbar/ConditionalTooltip"
 
 interface ActionButtonProps {
 	id?: string
 	"data-testid"?: string
 	icon?:
-	| ForwardRefExoticComponent<Omit<IconProps, "ref"> & RefAttributes<Icon>>
-	| React.ReactNode
-	| null
+		| ForwardRefExoticComponent<Omit<IconProps, "ref"> & RefAttributes<Icon>>
+		| React.ReactNode
+		| null
 	rightIcon?:
-	| ForwardRefExoticComponent<Omit<IconProps, "ref"> & RefAttributes<Icon>>
-	| React.ReactNode
-	| null
+		| ForwardRefExoticComponent<Omit<IconProps, "ref"> & RefAttributes<Icon>>
+		| React.ReactNode
+		| null
 	icon_url?: string
 	element?: React.ReactNode
 	title?: string
@@ -59,6 +59,7 @@ export default memo(function ActionButton({
 	getPopupContainer,
 }: ActionButtonProps) {
 	const isDisabled = disabled || loading
+	// 尺寸变量只由业务标题栏按需提供；没有设置时保持已有按钮的字号、间距与高度。
 	const iconCommonClasses = cn(
 		"cursor-pointer rounded-[10px] stroke-muted-foreground",
 		isDisabled && "cursor-not-allowed opacity-50",
@@ -74,13 +75,13 @@ export default memo(function ActionButton({
 			<Flex
 				id={id}
 				data-testid={dataTestId}
-				gap={showText ? gap : 0}
+				gap={showText ? `var(--detail-action-gap, ${gap}px)` : 0}
 				align="center"
 				style={style}
 				onClick={isDisabled ? undefined : onClick}
 				title={title}
 				className={cn(
-					"h-6 select-none rounded-lg px-1.5 text-foreground transition-colors",
+					"h-[var(--detail-action-height,1.5rem)] min-w-[var(--detail-action-height,auto)] select-none rounded-lg px-1.5 text-foreground transition-colors",
 					isDisabled
 						? "cursor-not-allowed"
 						: "cursor-pointer hover:bg-accent active:bg-accent/80",
@@ -117,7 +118,7 @@ export default memo(function ActionButton({
 				{text && !loading && (
 					<span
 						className={cn(
-							"inline-block overflow-hidden text-xs leading-3",
+							"inline-block overflow-hidden text-[length:var(--detail-action-font-size,0.75rem)] leading-[var(--detail-action-line-height,0.75rem)]",
 							"whitespace-nowrap transition-[max-width,opacity,transform] duration-150",
 							"text-foreground ease-in-out will-change-[max-width,opacity,transform]",
 							showText

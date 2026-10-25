@@ -21,10 +21,12 @@ use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Domain\SuperMagic\Common\Entity\ValueObject\CreationSource;
+use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Message\Entity\TaskMessageEntity;
 use App\Domain\SuperMagic\Message\Entity\ValueObject\ChatInstruction;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
 use App\Domain\SuperMagic\Task\Entity\TaskEntity;
+use App\Domain\SuperMagic\Task\Entity\ValueObject\SandboxRootFileIds;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskContext;
 use App\Domain\SuperMagic\Task\Entity\ValueObject\TaskStatus;
 use App\Domain\SuperMagic\Task\Event\RunTaskBeforeEvent;
@@ -63,6 +65,7 @@ class HandleApiMessageAppService extends AbstractAppService
         private readonly MagicUserDomainService $userDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly ProjectDomainService $projectDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -74,6 +77,7 @@ class HandleApiMessageAppService extends AbstractAppService
 
     public function handleApiMessage(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO)
     {
+        $dataIsolation->initDataIsolationEnv();
         $topicId = 0;
         $taskId = '';
         try {
@@ -188,6 +192,7 @@ class HandleApiMessageAppService extends AbstractAppService
 
     public function handleAgentTask(DataIsolation $dataIsolation, UserMessageDTO $userMessageDTO): array
     {
+        $dataIsolation->initDataIsolationEnv();
         $topicId = 0;
         $taskId = '';
         try {
@@ -373,8 +378,11 @@ class HandleApiMessageAppService extends AbstractAppService
         $updateSandboxIds = array_diff($sandboxIds, $runningSandboxIds);
         // Update topic status
         $this->topicDomainService->updateTopicStatusBySandboxIds($updateSandboxIds, TaskStatus::Suspended);
-        // Update task status
-        $this->taskDomainService->updateTaskStatusBySandboxIds($updateSandboxIds, TaskStatus::Suspended, 'Synchronize sandbox status');
+        // Update task status (via topic_id: task table is indexed by topic_id, not sandbox_id)
+        $updateTopicIds = array_values(array_intersect_key($sandboxIdToTopicId, array_flip($updateSandboxIds)));
+        if ($updateTopicIds !== []) {
+            $this->taskDomainService->updateTaskStatusByTopicIds($updateTopicIds, TaskStatus::Suspended, 'Synchronize sandbox status');
+        }
 
         // Collect running topic IDs
         $runningTopicIds = [];
@@ -411,7 +419,15 @@ class HandleApiMessageAppService extends AbstractAppService
             memories: $memories
         );
 
-        $sandboxId = $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
+        $sandboxId = $this->agentDomainService->ensureSandboxInitialized(
+            $dataIsolation,
+            $agentContext,
+            new SandboxRootFileIds(
+                (string) $this->taskFileDomainService->getProjectRootFileId($projectEntity->getId()),
+                (string) $this->taskFileDomainService->findOrCreateUserRootDirectory($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode()),
+                (string) $this->taskFileDomainService->findOrCreateTopicRootDirectory($projectEntity->getId(), $topicEntity->getId(), $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode(), $projectEntity->getUserOrganizationCode())
+            )
+        );
 
         $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);

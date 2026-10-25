@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": ".",
+		"esModuleInterop": true,
+		"lib": ["ES2022", "DOM"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"paths": {
+			"@html2pptx-benchmark-target": ["../src/index.ts"]
+		},
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ES2022",
+		"types": ["node"]
+	},
+	"include": ["./**/*.ts", "../src/**/*.ts"]
+}

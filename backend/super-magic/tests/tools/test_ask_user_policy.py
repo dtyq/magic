@@ -2,7 +2,9 @@ import pytest
 
 import app.tools.ask_user as ask_user_module
 from agentlang.context.tool_context import ToolContext
+from agentlang.tools.tool_result import ToolResult
 from app.core.context.execution_source import SuperMagicExecutionSource
+from app.core.entity.message.server_message import AskUserResultContent
 from app.tools.ask_user import (
     ASK_USER_POLICY_SKIP_SECONDS,
     ASK_USER_TIMEOUT_DEFAULT_SECONDS,
@@ -82,3 +84,86 @@ def test_ask_user_policy_block_result_guides_model():
     assert "do not wait for a user answer" in content
     assert extra_info["policy_blocked"] is True
     assert extra_info["policy_source"] == SuperMagicExecutionSource.MESSAGE_SCHEDULE.value
+
+
+def test_ask_user_result_builder_appends_escaped_remark():
+    result_builder = build_ask_user_result_builder(
+        [{"sub_id": "q-0", "interaction_type": "input"}],
+    )
+
+    content, extra_info = result_builder(
+        "answered",
+        '{"q-0":"4"}',
+        ' 补充 <内容> & "说明"\n第二行 ',
+    )
+
+    assert content == (
+        '<ask_user_result status="answered">\n'
+        '<answer>4</answer>\n'
+        '<remark>补充 &lt;内容&gt; &amp; "说明"\n第二行</remark>\n'
+        "</ask_user_result>"
+    )
+    assert extra_info["remark"] == '补充 <内容> & "说明"\n第二行'
+
+
+def test_ask_user_result_builder_omits_empty_remark_and_keeps_two_arg_compatibility():
+    result_builder = build_ask_user_result_builder(
+        [{"sub_id": "q-0", "interaction_type": "input"}],
+    )
+
+    content, extra_info = result_builder("answered", '{"q-0":"4"}')
+
+    assert "<remark>" not in content
+    assert "remark" not in extra_info
+
+
+def test_ask_user_result_builder_adds_remark_for_timeout():
+    result_builder = build_ask_user_result_builder(
+        [{"sub_id": "q-0", "interaction_type": "input", "default_value": "默认"}],
+    )
+
+    content, _ = result_builder("timeout", "{}", "补充说明")
+
+    assert content == (
+        '<ask_user_result status="timeout">\n'
+        "<answer>默认</answer>\n"
+        "<remark>补充说明</remark>\n"
+        "</ask_user_result>"
+    )
+
+
+def test_ask_user_result_detail_serializes_remark_without_changing_old_shape():
+    with_remark = AskUserResultContent(
+        question_id="call_mock",
+        status="answered",
+        answers={"q-0": "4"},
+        remark="补充说明",
+    ).model_dump(exclude_none=True)
+    without_remark = AskUserResultContent(
+        question_id="call_mock",
+        status="answered",
+        answers={"q-0": "4"},
+    ).model_dump(exclude_none=True)
+
+    assert with_remark["remark"] == "补充说明"
+    assert "remark" not in without_remark
+
+
+@pytest.mark.asyncio
+async def test_ask_user_after_detail_keeps_remark():
+    tool = AskUserTool()
+    detail = await tool.get_tool_detail(
+        _tool_context(ASK_USER_TIMEOUT_DEFAULT_SECONDS),
+        ToolResult(
+            content="ok",
+            extra_info={
+                "status": "answered",
+                "answers": {"q-0": "4"},
+                "questions": [],
+                "remark": "补充说明",
+            },
+        ),
+    )
+
+    assert detail is not None
+    assert detail.data.model_dump(exclude_none=True)["remark"] == "补充说明"

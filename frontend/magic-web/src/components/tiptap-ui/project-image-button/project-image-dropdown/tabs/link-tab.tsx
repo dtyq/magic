@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react"
 import { Input, Button } from "antd"
 import { IconLink } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { isValidImageUrl } from "../utils/url-validator"
 import { useStyles } from "../styles"
 import FlexBox from "@/components/base/FlexBox"
@@ -25,10 +25,14 @@ export function LinkTab({ editor, onSuccess }: LinkTabProps) {
 		if (!editor || !isValid) return
 
 		// Insert image using the editor command
-		const inserted = runActiveEditor(editor, (activeEditor) => {
-			activeEditor.commands.setImage({ src: url.trim() })
-			return true
-		}, false)
+		const inserted = runActiveEditor(
+			editor,
+			(activeEditor) => {
+				activeEditor.commands.setImage({ src: url.trim() })
+				return true
+			},
+			false,
+		)
 		if (!inserted) return
 
 		// Clear input

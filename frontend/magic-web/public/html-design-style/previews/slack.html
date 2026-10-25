@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+ <title>Slack — Team Communication & Workspace</title>
+ <style>
+ :root { --primary: #4a154b; --primary-deep: #3f0e40; --on-primary: #ffffff; --on-aubergine-mute: #d9bdde; --on-aubergine-dim: #bc93c4; --aubergine-hover: rgba(255, 255, 255, 0.08); --aubergine-active: #1164a3; --canvas: #ffffff; --canvas-cream: #f4ede4; --surface-soft: #f8f8f8; --ink: #1d1d1d; --ink-mute: #696969; --ink-faint: #868686; --hairline: #e6e6e6; --hairline-dark: rgba(255, 255, 255, 0.12); --link-blue: #1264a3; --semantic-success: #007a5a; --semantic-amber: #ecb22e; --font-display: "Larsseit", -apple-system, sans-serif; --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; --font-mono: "Slack-Lato", "JetBrains Mono", ui-monospace, Menlo, monospace; --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 9999px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-ui); background: var(--canvas-cream); color: var(--ink); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; border: none; background: none; cursor: pointer; }
+.slack-window { max-width: 1240px; margin: 20px auto; background: var(--canvas); border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.18); border: 1px solid #d1d5db; display: flex; flex-direction: column; min-height: 720px; }
+.slack-titlebar { height: 44px; background: var(--primary-deep); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: var(--on-aubergine-mute); border-bottom: 1px solid var(--hairline-dark); }
+.window-controls { display: flex; gap: 6px; align-items: center; width: 140px; }
+.w-dot { width: 11px; height: 11px; border-radius: 50%; }
+.w-red { background: #ff5f56; }
+.w-yellow { background: #ffbd2e; }
+.w-green { background: #27c93f; }
+.global-search { flex: 1; max-width: 580px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.15); border-radius: var(--radius-sm); height: 28px; padding: 0 12px; gap: 8px; color: #fff; font-size: 13px; cursor: pointer; }
+.global-search:hover { background: rgba(255, 255, 255, 0.22); }
+.global-search kbd { background: rgba(0, 0, 0, 0.25); padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+.user-status-pill { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #fff; width: 140px; justify-content: flex-end; }
+.avatar-mini { width: 26px; height: 26px; border-radius: 4px; background: #ecb22e; color: #111; display: grid; place-items: center; font-size: 12px; font-weight: 700; position: relative; }
+.presence-online { position: absolute; bottom: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--semantic-success); border: 2px solid var(--primary-deep); }
+.slack-layout { display: grid; grid-template-columns: 64px 230px 1fr; flex: 1; min-height: 676px; }
+.icon-rail { background: #350d36; display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 16px; border-right: 1px solid var(--hairline-dark); }
+.workspace-icon { width: 38px; height: 38px; border-radius: 8px; background: #ffffff; color: var(--primary); font-weight: 800; font-size: 18px; display: grid; place-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid #fff; }
+.rail-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--on-aubergine-dim); font-size: 10px; font-weight: 600; cursor: pointer; }
+.rail-item:hover, .rail-item.active { color: #ffffff; }
+.rail-icon-box { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; font-size: 16px; transition: background 0.15s; }
+.rail-item.active .rail-icon-box { background: rgba(255, 255, 255, 0.2); }
+.channel-sidebar { background: var(--primary); color: var(--on-aubergine-mute); display: flex; flex-direction: column; border-right: 1px solid rgba(0,0,0,0.1); }
+.sidebar-header { height: 52px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--hairline-dark); }
+.workspace-name { font-weight: 700; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 6px; }
+.compose-btn { width: 30px; height: 30px; border-radius: 50%; background: #ffffff; color: var(--primary); display: grid; place-items: center; font-size: 14px; font-weight: 700; }
+.sidebar-scroll { flex: 1; overflow-y: auto; padding: 12px 0; }
+.sidebar-section-title { padding: 8px 16px 4px; font-size: 12px; font-weight: 700; color: var(--on-aubergine-dim); display: flex; align-items: center; justify-content: space-between; }
+.channel-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px; font-size: 14px; color: var(--on-aubergine-mute); cursor: pointer; transition: background 0.1s; }
+.channel-item:hover { background: var(--aubergine-hover); color: #fff; }
+.channel-item.active { background: var(--aubergine-active); color: #ffffff; font-weight: 600; }
+.channel-item.unread { color: #ffffff; font-weight: 700; }
+.channel-name { display: flex; align-items: center; gap: 8px; }
+.hash { opacity: 0.7; font-weight: 400; }
+.unread-badge { background: var(--link-blue); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+.dm-item { display: flex; align-items: center; gap: 8px; padding: 6px 16px; font-size: 14px; color: var(--on-aubergine-mute); cursor: pointer; }
+.dm-item:hover { background: var(--aubergine-hover); color: #fff; }
+.presence-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.p-green { background: var(--semantic-success); }
+.p-amber { border: 2px solid var(--semantic-amber); width: 8px; height: 8px; }
+.bot-pill { background: rgba(255,255,255,0.18); font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; color: #fff; text-transform: uppercase; }
+.huddle-strip { background: #39113a; padding: 10px 14px; border-top: 1px solid var(--hairline-dark); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #fff; }
+.huddle-info { display: flex; align-items: center; gap: 8px; }
+.huddle-toggle { width: 28px; height: 18px; border-radius: 10px; background: var(--semantic-success); position: relative; cursor: pointer; }
+.huddle-toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+.main-chat-pane { background: #ffffff; display: flex; flex-direction: column; justify-content: space-between; }
+.channel-topbar { height: 52px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--hairline); }
+.channel-header-left { display: flex; align-items: center; gap: 10px; }
+.channel-title-lg { font-size: 17px; font-weight: 800; color: var(--ink); }
+.channel-star { color: #888; font-size: 14px; cursor: pointer; }
+.channel-member-count { font-size: 13px; color: var(--ink-mute); }
+.channel-actions { display: flex; align-items: center; gap: 10px; }
+.canvas-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--hairline); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--ink); }
+.messages-stream { flex: 1; padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.date-divider { display: flex; align-items: center; text-align: center; margin: 4px 0 10px; }
+.date-divider::before, .date-divider::after { content: ""; flex: 1; border-bottom: 1px solid var(--hairline); }
+.date-divider span { padding: 3px 12px; font-size: 12px; font-weight: 700; color: var(--ink-faint); border: 1px solid var(--hairline); border-radius: 12px; background: #ffffff; margin: 0 10px; }
+.message-row { display: flex; gap: 12px; align-items: flex-start; }
+.sender-avatar { width: 36px; height: 36px; border-radius: 4px; overflow: hidden; flex-shrink: 0; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff; }
+.msg-body { flex: 1; }
+.msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.sender-name { font-size: 14px; font-weight: 800; color: var(--ink); }
+.msg-time { font-size: 12px; color: var(--ink-faint); }
+.msg-text { font-size: 14px; color: var(--ink); line-height: 1.45; }
+.msg-text a { color: var(--link-blue); text-decoration: underline; }
+.code-snippet-box { margin-top: 8px; background: #f8f8f8; border: 1px solid var(--hairline); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); padding: 8px 12px; font-family: var(--font-mono); font-size: 12px; color: #2d3748; }
+.reaction-pill-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.reaction-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--hairline); border-radius: 12px; background: #f8f8f8; font-size: 12px; font-weight: 600; color: #4a154b; cursor: pointer; transition: 0.1s; }
+.reaction-pill:hover { border-color: #888; background: #f0f0f0; }
+.reaction-pill.reacted { background: #eaf5fc; border-color: #1264a3; color: #1264a3; }
+.add-reaction-btn { width: 24px; height: 24px; border: 1px solid var(--hairline); border-radius: 12px; display: grid; place-items: center; font-size: 12px; color: var(--ink-mute); }
+.thread-replies-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--link-blue); cursor: pointer; }
+.thread-avatars { display: flex; }
+.t-avatar { width: 18px; height: 18px; border-radius: 3px; border: 1px solid #fff; margin-left: -4px; }
+.t-avatar:first-child { margin-left: 0; }
+.composer-container { padding: 0 20px 20px; }
+.rich-composer-box { border: 1px solid #868686; border-radius: var(--radius-md); background: #ffffff; overflow: hidden; transition: box-shadow 0.15s; }
+.rich-composer-box:focus-within { box-shadow: 0 0 0 1px #1264a3, 0 0 0 3px rgba(18,100,163,0.15); border-color: #1264a3; }
+.composer-formatting-toolbar { display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-bottom: 1px solid var(--hairline); background: #fdfdfd; }
+.fmt-btn { width: 28px; height: 26px; border-radius: var(--radius-sm); display: grid; place-items: center; font-size: 13px; color: var(--ink-mute); }
+.fmt-btn:hover { background: #eee; color: var(--ink); }
+.fmt-btn.strong { font-weight: 800; }
+.fmt-btn.italic { font-style: italic; }
+.fmt-divider { width: 1px; height: 16px; background: var(--hairline); margin: 0 4px; }
+.composer-input-area { padding: 10px 12px; min-height: 48px; font-size: 14px; color: var(--ink); outline: none; }
+.composer-input-placeholder { color: var(--ink-faint); }
+.composer-bottom-actions { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fafafa; border-top: 1px solid var(--hairline); }
+.composer-tools-left { display: flex; align-items: center; gap: 4px; }
+.tool-icon-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); display: grid; place-items: center; font-size: 14px; color: var(--ink-mute); }
+.tool-icon-btn:hover { background: #eaeaea; color: var(--ink); }
+.send-msg-btn { width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--semantic-success); color: #ffffff; display: grid; place-items: center; font-size: 14px; }
+.send-msg-btn:hover { background: #006046; }
+.slack-spec-strip { max-width: 1240px; margin: 12px auto 32px; padding: 12px 18px; background: #ffffff; border-radius: var(--radius-md); border: 1px solid #d1d5db; display: flex; align-items: center; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 12px; }
+.spec-tokens-list { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.token-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); }
+.color-box { width: 12px; height: 12px; border-radius: 3px; }
+@media (max-width: 900px) { .icon-rail { display: none; }
+.slack-layout { grid-template-columns: 200px 1fr; }
+ }
+</style>
+</head>
+<body>
+ <!-- Slack Application Window Mockup -->
+ <div class="slack-window">
+ <!-- Titlebar & Search -->
+ <header class="slack-titlebar">
+ <div class="window-controls">
+ <span class="w-dot w-red"></span>
+ <span class="w-dot w-yellow"></span>
+ <span class="w-dot w-green"></span>
+ </div>
+ <div class="global-search">
+ <span>🔍</span>
+ <span>Search Acme Global HQ</span>
+ <kbd>⌘K</kbd>
+ </div>
+ <div class="user-status-pill">
+ <span>Alex Chen</span>
+ <div class="avatar-mini">
+ <span>AC</span>
+ <span class="presence-online"></span>
+ </div>
+ </div>
+ </header>
+ <!-- Workspace Body Layout -->
+ <div class="slack-layout">
+ <!-- 1. Leftmost Icon Rail -->
+ <nav class="icon-rail">
+ <div class="workspace-icon">A</div>
+ <div class="rail-item active">
+ <div class="rail-icon-box">🏠</div>
+ <span>Home</span>
+ </div>
+ <div class="rail-item">
+ <div class="rail-icon-box">💬</div>
+ <span>DMs</span>
+ </div>
+ <div class="rail-item">
+ <div class="rail-icon-box">🔔</div>
+ <span>Activity</span>
+ </div>
+ <div class="rail-item">
+ <div class="rail-icon-box">📑</div>
+ <span>Canvases</span>
+ </div>
+ <div class="rail-item" style="margin-top:auto; ">
+ <div class="rail-icon-box">➕</div>
+ </div>
+ </nav>
+ <!-- 2. Signature Aubergine Channel Sidebar -->
+ <aside class="channel-sidebar">
+ <div class="sidebar-header">
+ <div class="workspace-name">
+ <span>Acme Global HQ</span>
+ <span>▾</span>
+ </div>
+ <button class="compose-btn" title="New Message">✏️</button>
+ </div>
+ <div class="sidebar-scroll">
+ <div class="sidebar-section-title">
+ <span>CHANNELS</span>
+ <span>＋</span>
+ </div>
+ <div class="channel-item unread">
+ <div class="channel-name">
+ <span class="hash">#</span>
+ <span>announcements</span>
+ </div>
+ <span class="unread-badge">3</span>
+ </div>
+ <div class="channel-item active">
+ <div class="channel-name">
+ <span class="hash">#</span>
+ <span>general</span>
+ </div>
+ </div>
+ <div class="channel-item">
+ <div class="channel-name">
+ <span class="hash">#</span>
+ <span>engineering</span>
+ </div>
+ </div>
+ <div class="channel-item">
+ <div class="channel-name">
+ <span class="hash">#</span>
+ <span>design-system</span>
+ </div>
+ </div>
+ <div class="channel-item">
+ <div class="channel-name">
+ <span class="hash">🔒</span>
+ <span>leadership-sync</span>
+ </div>
+ </div>
+ <div class="sidebar-section-title" style="margin-top: 14px; ">
+ <span>DIRECT MESSAGES</span>
+ <span>＋</span>
+ </div>
+ <div class="dm-item">
+ <span class="presence-dot p-green"></span>
+ <span>Sarah Lin</span>
+ </div>
+ <div class="dm-item">
+ <span class="presence-dot p-green"></span>
+ <span>David Miller</span>
+ </div>
+ <div class="dm-item">
+ <span class="presence-dot p-amber"></span>
+ <span>Maya Patel</span>
+ </div>
+ <div class="dm-item">
+ <span class="presence-dot p-green"></span>
+ <span>Fin Assistant</span>
+ <span class="bot-pill">APP</span>
+ </div>
+ </div>
+ <!-- Huddle Active Footer -->
+ <div class="huddle-strip">
+ <div class="huddle-info">
+ <span>🎧</span>
+ <span>Design Huddle (3)</span>
+ </div>
+ <div class="huddle-toggle"></div>
+ </div>
+ </aside>
+ <!-- 3. Main Message Pane -->
+ <main class="main-chat-pane">
+ <!-- Channel Header -->
+ <div class="channel-topbar">
+ <div class="channel-header-left">
+ <span class="channel-title-lg">#general</span>
+ <span class="channel-star">★</span>
+ <span class="channel-member-count">| 1,248 members</span>
+ </div>
+ <div class="channel-actions">
+ <button class="canvas-btn">📑 Canvas</button>
+ <button class="canvas-btn" style="background:#f4ede4; border-color:#e0d6cb; ">🎧 Start Huddle</button>
+ </div>
+ </div>
+ <!-- Messages Stream -->
+ <div class="messages-stream">
+ <div class="date-divider">
+ <span>Today, September 19</span>
+ </div>
+ <!-- Message 1 -->
+ <article class="message-row">
+ <div class="sender-avatar" style="background: linear-gradient(135deg, #1264a3, #4a154b); ">SL</div>
+ <div class="msg-body">
+ <div class="msg-meta">
+ <span class="sender-name">Sarah Lin</span>
+ <span class="msg-time">10:14 AM</span>
+ </div>
+ <p class="msg-text">
+ 🚀 Team! The new real-time canvas sync is officially live on staging. Please test the latency under 120Hz display refresh rates and report any anomalies in <a href="#">#engineering</a>.
+ </p>
+ <div class="code-snippet-box">
+ staging-v4.2.acme.internal/release-verification — SHA: 8f492ac
+ </div>
+ <div class="reaction-pill-row">
+ <button class="reaction-pill reacted">🚀 14</button>
+ <button class="reaction-pill">🙌 8</button>
+ <button class="reaction-pill">🔥 5</button>
+ <button class="add-reaction-btn">＋</button>
+ </div>
+ <div class="thread-replies-link">
+ <div class="thread-avatars">
+ <span class="t-avatar" style="background:#007a5a; "></span>
+ <span class="t-avatar" style="background:#ecb22e; "></span>
+ </div>
+ <span>12 replies · Last reply 2 mins ago</span>
+ </div>
+ </div>
+ </article>
+ <!-- Message 2 -->
+ <article class="message-row">
+ <div class="sender-avatar" style="background: linear-gradient(135deg, #007a5a, #1264a3); ">DM</div>
+ <div class="msg-body">
+ <div class="msg-meta">
+ <span class="sender-name">David Miller</span>
+ <span class="msg-time">10:16 AM</span>
+ </div>
+ <p class="msg-text">
+ Benchmarked the WebSocket pipeline: roundtrip latency is down to 18ms. Zero dropped frames so far across multi-window stress test.
+ </p>
+ <div class="reaction-pill-row">
+ <button class="reaction-pill reacted">⚡ 9</button>
+ <button class="reaction-pill">🎯 6</button>
+ <button class="add-reaction-btn">＋</button>
+ </div>
+ </div>
+ </article>
+ </div>
+ <!-- Rich Composer -->
+ <div class="composer-container">
+ <div class="rich-composer-box">
+ <div class="composer-formatting-toolbar">
+ <button class="fmt-btn strong">B</button>
+ <button class="fmt-btn italic">I</button>
+ <button class="fmt-btn" style="text-decoration:line-through; ">S</button>
+ <div class="fmt-divider"></div>
+ <button class="fmt-btn">🔗</button>
+ <button class="fmt-btn">&lt; /&gt; </button>
+ <button class="fmt-btn">≡</button>
+ <button class="fmt-btn">❝</button>
+ </div>
+ <div class="composer-input-area" contenteditable="true">
+ <span class="composer-input-placeholder">Message #general...</span>
+ </div>
+ <div class="composer-bottom-actions">
+ <div class="composer-tools-left">
+ <button class="tool-icon-btn">⚡</button>
+ <button class="tool-icon-btn">😊</button>
+ <button class="tool-icon-btn">＠</button>
+ <button class="tool-icon-btn">📹</button>
+ <button class="tool-icon-btn">🎙️</button>
+ </div>
+ <button class="send-msg-btn" title="Send message">➤</button>
+ </div>
+ </div>
+ </div>
+ </main>
+ </div>
+ </div>
+ <!-- Design Spec Bar -->
+ <div class="slack-spec-strip">
+ <div class="spec-tokens-list">
+ <strong>SLACK DESIGN TOKENS:</strong>
+ <div class="token-item"><span class="color-box" style="background:#4a154b; "></span><span>#4a154b aubergine</span></div>
+ <div class="token-item"><span class="color-box" style="background:#f4ede4; "></span><span>#f4ede4 cream</span></div>
+ <div class="token-item"><span class="color-box" style="background:#007a5a; "></span><span>#007a5a success</span></div>
+ <div class="token-item"><span class="color-box" style="background:#1264a3; "></span><span>#1264a3 blue</span></div>
+ </div>
+ <div>
+ <span>LARSSEIT + AVANT-GARDE · PILL BUTTONS (90PX)</span>
+ </div>
+ </div>
+</body>
+</html>

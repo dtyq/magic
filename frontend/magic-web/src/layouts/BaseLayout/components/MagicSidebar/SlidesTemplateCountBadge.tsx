@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import slidesTemplateFireIcon from "@/assets/resources/icons/fire.webp"
 import slidesTemplateSparklesIcon from "@/assets/resources/icons/sparkles.webp"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { AnimatedNumberText } from "@/pages/superMagic/components/AnimatedNumberText"
 import { formatNumber } from "@/utils/format"
 

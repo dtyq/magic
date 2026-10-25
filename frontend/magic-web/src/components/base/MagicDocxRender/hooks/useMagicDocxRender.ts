@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useMemoizedFn } from "ahooks"
 import { renderAsync } from "docx-preview"
-import { logger as Logger } from "@/utils/log"
+import { logger as Logger } from "@/infrastructure/logger"
+import { sanitizeDocxPreviewLinks } from "@/utils/sanitizeDocxPreview"
 
 // Types
 import type { MagicDocxRenderProps, DocxRenderState, SectionInfo } from "../types"
@@ -250,9 +251,13 @@ export function useMagicDocxRender(props: MagicDocxRenderProps) {
 				renderFootnotes: true,
 				renderEndnotes: true,
 				...renderOptions,
+				// DOCX files are untrusted input. docx-preview renders altChunk HTML
+				// in an unsandboxed same-origin iframe, so never enable it here.
+				renderAltChunks: false,
 			}
 
 			await renderAsync(arrayBuffer, contentRef.current, undefined, defaultOptions)
+			sanitizeDocxPreviewLinks(contentRef.current)
 
 			// Check if operation was aborted
 			if (abortControllerRef.current.signal.aborted) {

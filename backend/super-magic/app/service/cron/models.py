@@ -7,8 +7,16 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Mapping, Optional, cast
 
+from agentlang.logger import get_logger
 from app.core.models.agent_session import AgentSessionRef
 from app.core.models.media_model import JsonObject
+from app.service.cron.schema import (
+    CURRENT_PAYLOAD_VERSION,
+    LEGACY_BASELINE_VERSION,
+    PAYLOAD_VERSION_FIELD,
+)
+
+logger = get_logger(__name__)
 
 
 class ScheduleKind(StrEnum):
@@ -85,8 +93,19 @@ class CronPayload:
     context_source: Optional[AgentSessionRef] = None
     timeout_seconds: Optional[int] = None
     notify_user: bool = True
+    # 仅用于 payload 结构迁移，不改变旧字段的位置参数顺序。
+    version: int = CURRENT_PAYLOAD_VERSION
 
     def __post_init__(self) -> None:
+        if (
+            isinstance(self.version, bool)
+            or not isinstance(self.version, int)
+            or self.version < LEGACY_BASELINE_VERSION
+        ):
+            raise ValueError(
+                f"cron payload.{PAYLOAD_VERSION_FIELD} must be >= "
+                f"{LEGACY_BASELINE_VERSION}, got {self.version}"
+            )
         if self.agent_id is not None:
             self.agent_id = self.agent_id.strip() or None
         if self.fork and self.context_source is None:
@@ -97,6 +116,18 @@ class CronPayload:
     @classmethod
     def from_payload(cls, payload: Mapping[str, object]) -> "CronPayload":
         """从 cron Markdown 的 payload 块恢复结构化执行配置。"""
+        raw_version = payload.get(PAYLOAD_VERSION_FIELD, LEGACY_BASELINE_VERSION)
+        if (
+            isinstance(raw_version, bool)
+            or not isinstance(raw_version, int)
+            or raw_version < LEGACY_BASELINE_VERSION
+        ):
+            logger.warning(
+                f"cron payload.{PAYLOAD_VERSION_FIELD} is invalid; "
+                f"treating it as legacy v{LEGACY_BASELINE_VERSION}: {raw_version!r}"
+            )
+            raw_version = LEGACY_BASELINE_VERSION
+
         raw_kind = payload.get("kind", PayloadKind.AGENT_TURN.value)
         try:
             kind = PayloadKind(str(raw_kind))
@@ -123,6 +154,7 @@ class CronPayload:
 
         return cls(
             kind=kind,
+            version=raw_version,
             agent_mode=agent_mode,
             agent_name=_optional_non_empty_string(payload.get("agent_name")),
             model_id=cast(Optional[str], payload.get("model_id")),
@@ -138,7 +170,10 @@ class CronPayload:
 
     def to_payload(self) -> dict[str, object]:
         """转换为 cron Markdown 的 payload 块。"""
-        payload: dict[str, object] = {"kind": self.kind.value}
+        payload: dict[str, object] = {
+            "kind": self.kind.value,
+            PAYLOAD_VERSION_FIELD: self.version,
+        }
         if self.agent_mode:
             payload["agent_mode"] = self.agent_mode
         if self.agent_name:

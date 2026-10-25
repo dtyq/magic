@@ -2,7 +2,7 @@ import { useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Cookie, Database, HardDrive, RefreshCw, ChevronRight, ChevronDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { StorageSnapshot } from "./types"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

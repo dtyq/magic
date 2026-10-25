@@ -96,4 +96,56 @@ class WorkspaceExporterService extends AbstractSandboxOS implements WorkspaceExp
             ]);
         }
     }
+
+    public function createAsync(DataIsolation $dataIsolation, string $sandboxId, ExportWorkspaceRequest $request, string $taskKey): ExportWorkspaceResponse
+    {
+        try {
+            $payload = $request->toArray();
+            $payload['task_key'] = $taskKey;
+            $response = ExportWorkspaceResponse::fromGatewayResult($this->gateway->proxySandboxRequest(
+                $dataIsolation,
+                $sandboxId,
+                'POST',
+                SandboxEndpoints::WORKSPACE_EXPORT_CREATE,
+                $payload
+            ));
+            // Sandbox may report "task already exists" after a client timeout.
+            // Query the existing task instead of treating the duplicate create as failure.
+            if ($response->getCode() === 4000) {
+                return ExportWorkspaceResponse::fromGatewayResult($this->gateway->proxySandboxRequest(
+                    $dataIsolation,
+                    $sandboxId,
+                    'GET',
+                    SandboxEndpoints::WORKSPACE_EXPORT_CHECK,
+                    ['task_key' => $taskKey]
+                ));
+            }
+            return $response;
+        } catch (Exception $e) {
+            return ExportWorkspaceResponse::fromApiResponse([
+                'code' => -1,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => ['task_key' => $taskKey],
+            ]);
+        }
+    }
+
+    public function checkAsync(DataIsolation $dataIsolation, string $sandboxId, string $taskKey): ExportWorkspaceResponse
+    {
+        try {
+            return ExportWorkspaceResponse::fromGatewayResult($this->gateway->proxySandboxRequest(
+                $dataIsolation,
+                $sandboxId,
+                'GET',
+                SandboxEndpoints::WORKSPACE_EXPORT_CHECK,
+                ['task_key' => $taskKey]
+            ));
+        } catch (Exception $e) {
+            return ExportWorkspaceResponse::fromApiResponse([
+                'code' => -1,
+                'message' => 'Unexpected error: ' . $e->getMessage(),
+                'data' => ['task_key' => $taskKey],
+            ]);
+        }
+    }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
-import type { Editor } from "@tiptap/react"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { Image } from "../extensions/image"
 import { FileHandler } from "../extensions/file-handler"
 import { fileToBase64 } from "../utils"

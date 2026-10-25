@@ -43,22 +43,17 @@ export function useMobileProjectFilesDownload({
 	})
 	const duplicateFileHandler = externalDuplicateHandler || internalDuplicateHandler
 
-	const {
-		handleDownloadOriginal,
-		handleDownloadPdf,
-		handleDownloadPpt,
-		handleDownloadPptx,
-		handleDownloadImage,
-	} = useFileOperations({
-		onFileClick,
-		attachments,
-		selectedTopic,
-		projectId,
-		getItemId: getMobileAttachmentKey,
-		selectedProject,
-		duplicateFileHandler,
-		onUpdateAttachments: refreshAttachments,
-	})
+	const { handleDownloadOriginal, handleDownloadPdf, handleDownloadPptx, handleDownloadImage } =
+		useFileOperations({
+			onFileClick,
+			attachments,
+			selectedTopic,
+			projectId,
+			getItemId: getMobileAttachmentKey,
+			selectedProject,
+			duplicateFileHandler,
+			onUpdateAttachments: refreshAttachments,
+		})
 
 	const {
 		agreementModal,
@@ -74,7 +69,6 @@ export function useMobileProjectFilesDownload({
 		() => ({
 			handleDownloadOriginal,
 			handleDownloadPdf,
-			handleDownloadPpt,
 			handleDownloadPptx,
 			handleDownloadImage,
 			handleDownloadNoWaterMark,
@@ -83,7 +77,6 @@ export function useMobileProjectFilesDownload({
 		[
 			handleDownloadOriginal,
 			handleDownloadPdf,
-			handleDownloadPpt,
 			handleDownloadPptx,
 			handleDownloadImage,
 			handleDownloadNoWaterMark,

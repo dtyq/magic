@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useMemoizedFn } from "ahooks"
+import { TOPIC_HISTORY_RESIZE } from "../../../constants/resizablePanel"
 
 /** 各页面独立的历史话题面板开关偏好（localStorage） */
 export const TOPIC_HISTORY_PANEL_OPEN_STORAGE_KEYS = {
@@ -18,13 +19,15 @@ interface UseTopicHistoryLayoutStateOptions {
 }
 
 interface UseTopicHistoryLayoutStateResult {
+	topicHistoryWidth: number
+	commitTopicHistoryWidth: (width: number) => void
 	isTopicHistoryPanelOpen: boolean
 	openTopicHistoryPanel: () => void
 	closeTopicHistoryPanel: () => void
 	toggleTopicHistoryPanel: () => void
 }
 
-function readOpenFromStorage(key: string): boolean {
+export function readOpenFromStorage(key: string): boolean {
 	if (typeof window === "undefined") return false
 	try {
 		return window.localStorage.getItem(key) === "true"
@@ -42,11 +45,42 @@ function writeOpenToStorage(key: string, open: boolean) {
 	}
 }
 
+export function readTopicHistoryWidth(storageKey: string): number {
+	try {
+		const width = Number(localStorage.getItem(`${storageKey}.width`))
+		return Number.isFinite(width) &&
+			width >= TOPIC_HISTORY_RESIZE.min &&
+			width <= TOPIC_HISTORY_RESIZE.max
+			? width
+			: TOPIC_HISTORY_RESIZE.default
+	} catch {
+		return TOPIC_HISTORY_RESIZE.default
+	}
+}
+
 export function useTopicHistoryLayoutState({
 	storageKey,
 	isEnabled = true,
 	persistOpenState = true,
 }: UseTopicHistoryLayoutStateOptions): UseTopicHistoryLayoutStateResult {
+	const [topicHistoryWidth, setTopicHistoryWidth] = useState(() =>
+		readTopicHistoryWidth(storageKey),
+	)
+	const commitTopicHistoryWidth = useMemoizedFn((width: number) => {
+		if (!Number.isFinite(width) || !isEnabled) return
+		const next = Math.max(TOPIC_HISTORY_RESIZE.min, Math.min(TOPIC_HISTORY_RESIZE.max, width))
+		setTopicHistoryWidth(next)
+		if (persistOpenState) {
+			try {
+				localStorage.setItem(`${storageKey}.width`, String(next))
+			} catch {
+				/* Storage can be unavailable. */
+			}
+		}
+	})
+	useEffect(() => {
+		setTopicHistoryWidth(readTopicHistoryWidth(storageKey))
+	}, [storageKey])
 	const [isTopicHistoryPanelOpen, setIsTopicHistoryPanelOpen] = useState(() =>
 		isEnabled && persistOpenState ? readOpenFromStorage(storageKey) : false,
 	)
@@ -83,6 +117,8 @@ export function useTopicHistoryLayoutState({
 	})
 
 	return {
+		topicHistoryWidth,
+		commitTopicHistoryWidth,
 		isTopicHistoryPanelOpen,
 		openTopicHistoryPanel,
 		closeTopicHistoryPanel,

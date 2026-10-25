@@ -3,7 +3,7 @@ import { Expression } from "@/MagicConditionEdit/types/expression"
 import { useFlow } from "@/MagicFlow/context/FlowContext/useFlow"
 import { useCurrentNode } from "@/MagicFlow/nodes/common/context/CurrentNode/useCurrentNode"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
-import _ from "lodash"
+import { cloneDeep, set } from "lodash-es"
 import { nanoid } from "nanoid"
 import React, { useMemo, useState } from "react"
 import usePrevious from "../../../common/hooks/usePrevious"
@@ -38,9 +38,9 @@ export default function Branch() {
 	const updateBranch = useMemoizedFn(
 		(structureValue: Expression.Condition | undefined, branchIndex: number) => {
 			if (!currentNode) return
-			const cloneBranchList = _.cloneDeep(branchList)
-			_.set(cloneBranchList, [branchIndex, "parameters", "structure"], structureValue)
-			_.set(nodeConfig, [currentNode.node_id, "params", "branches"], cloneBranchList)
+			const cloneBranchList = cloneDeep(branchList)
+			set(cloneBranchList, [branchIndex, "parameters", "structure"], structureValue)
+			set(nodeConfig, [currentNode.node_id, "params", "branches"], cloneBranchList)
 			notifyNodeChange?.()
 		},
 	)
@@ -86,10 +86,10 @@ export default function Branch() {
 
 		conditionRefsMap.forEach(({ ref }, index) => {
 			const branchValue = ref.current?.getValue()
-			_.set(branchList, [index, "parameters", "structure"], branchValue)
+			set(branchList, [index, "parameters", "structure"], branchValue)
 		})
 
-		_.set(node, ["params", "branches"], branchList)
+		set(node, ["params", "branches"], branchList)
 
 		// updateNodeConfig({
 		// 	...node,

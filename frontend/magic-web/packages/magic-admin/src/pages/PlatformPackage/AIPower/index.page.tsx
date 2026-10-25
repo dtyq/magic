@@ -34,6 +34,7 @@ import videoUnderstanding from "@admin/assets/logos/video-understanding.svg"
 import followUpQuestions from "@admin/assets/logos/follow-up-questions.svg"
 import knowledgeBaseEmbeddingModel from "@admin/assets/logos/knowledge-base-embedding-model.svg"
 import knowledgeBaseVisualUnderstanding from "@admin/assets/logos/knowledge-base-visual-understanding.svg"
+import volcengineIcon from "@admin/assets/services/Volcengine.png"
 import PageLoading from "../components/PageLoading"
 import { useStyles } from "../components/ServiceProviderList/styles"
 import CommonList from "../components/CommonList"
@@ -53,6 +54,7 @@ export const AiPowerLogoMap = {
 	[PlatformPackage.PowerCode.SMART_RENAME]: smartRename,
 	[PlatformPackage.PowerCode.AI_OPTIMIZATION]: aiOptimization,
 	[PlatformPackage.PowerCode.IMAGE_CONVERT_HIGH]: imageConvertHigh,
+	[PlatformPackage.PowerCode.VOLCENGINE_ARK_ASSETS]: volcengineIcon,
 	[PlatformPackage.PowerCode.IMAGE_REMOVE_BACKGROUND]: imageRemoveBackground,
 	[PlatformPackage.PowerCode.IMAGE_ERASER]: imageEraser,
 	[PlatformPackage.PowerCode.IMAGE_EXPAND]: imageExpand,

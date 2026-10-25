@@ -1,4 +1,4 @@
-import dayjs from "dayjs"
+import dayjs from "@admin/infrastructure/vendors/dayjs"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
 	CommonAbsolutePresetKey,

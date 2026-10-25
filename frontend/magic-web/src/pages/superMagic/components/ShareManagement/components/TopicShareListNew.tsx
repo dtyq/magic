@@ -2,13 +2,13 @@ import { memo, useState, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { IconDots, IconLock } from "@tabler/icons-react"
 import { Dropdown } from "antd"
-import { format } from "date-fns"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import ModeTag from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/components/ModeTag"
 import { Button } from "@/components/shadcn-ui/button"
 import type { TopicShareItem } from "../types"
 import ProjectNameBadge from "./ProjectNameBadge"
 import TopicSharePopover from "../../TopicSharePopover"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { getFallbackTopicModeIdentifier } from "@/services/superMagic/DefaultAgentSelectionService"
 import { convertTopicShareItemToShareItem } from "../utils/shareTypeHelpers"
 import { useShareItemActions } from "../hooks/useShareItemActions"
@@ -36,11 +36,8 @@ function TopicShareListNew({ data, loading, onCancelShare, onRefresh }: TopicSha
 
 	// 格式化日期
 	const formatDate = useCallback((dateString: string) => {
-		try {
-			return format(new Date(dateString), "yyyy/MM/dd HH:mm:ss")
-		} catch {
-			return dateString
-		}
+		const date = dayjs(dateString)
+		return date.isValid() ? date.format("YYYY/MM/DD HH:mm:ss") : dateString
 	}, [])
 
 	// 使用通用的hook

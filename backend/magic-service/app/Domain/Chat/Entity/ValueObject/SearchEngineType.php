@@ -32,4 +32,7 @@ enum SearchEngineType: string
 
     // baidu
     case Baidu = 'baidu';
+
+    // deepseek
+    case DeepSeek = 'deepseek';
 }

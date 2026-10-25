@@ -8,6 +8,8 @@ import ProjectResourceSelectorModal from "."
 const apiMocks = vi.hoisted(() => ({
 	getCollaborationProjects: vi.fn().mockResolvedValue({ list: [] }),
 	getWorkspaces: vi.fn().mockResolvedValue({ list: [] }),
+	getMicroApps: vi.fn().mockResolvedValue({ list: [], total: 0 }),
+	getMicroAppWorkspace: vi.fn().mockResolvedValue({ id: "actual-micro-app-workspace" }),
 }))
 
 vi.mock("react-i18next", async (importOriginal) => ({
@@ -27,6 +29,8 @@ vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		getCollaborationProjects: apiMocks.getCollaborationProjects,
 		getWorkspaces: apiMocks.getWorkspaces,
+		getMicroApps: apiMocks.getMicroApps,
+		getMicroAppWorkspace: apiMocks.getMicroAppWorkspace,
 	},
 	MagicClawApi: {},
 }))
@@ -161,5 +165,36 @@ describe("ProjectResourceSelectorModal shared workspace creation", () => {
 		expect(
 			screen.queryByTestId("cross-project-file-modal-empty-create-folder"),
 		).not.toBeInTheDocument()
+	})
+})
+
+describe("ProjectResourceSelectorModal micro apps", () => {
+	it("shows created and collaborated micro apps from their own scopes", async () => {
+		apiMocks.getMicroApps.mockImplementation(({ scope }) => ({
+			list: [
+				{
+					app_id: scope,
+					project_id: `${scope}-project`,
+					app_name: `${scope} app`,
+					user_role: "editor",
+				},
+			],
+			total: 1,
+		}))
+		renderModal()
+		fireEvent.click(screen.getByText("selectPathModal.microApps"))
+		await waitFor(() => expect(screen.getByText("created app")).toBeInTheDocument())
+		expect(
+			screen
+				.getByText("created app")
+				.closest('[data-testid="handle-project-click"]')
+				?.querySelector('svg[viewBox="0 0 16 16"]'),
+		).toBeInTheDocument()
+		fireEvent.click(screen.getByText("selectPathModal.collaboratedMicroApps"))
+		await waitFor(() => expect(screen.getByText("collaborated app")).toBeInTheDocument())
+		expect(screen.queryByText("created app")).not.toBeInTheDocument()
+		expect(apiMocks.getMicroApps).toHaveBeenCalledWith(
+			expect.objectContaining({ scope: "collaborated" }),
+		)
 	})
 })

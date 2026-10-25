@@ -4,6 +4,10 @@ import {
 } from "./constants"
 
 const HTML_PREVIEW_CANVAS_STYLE_WIDTH_PATTERN = /(?:min-|max-)?width\s*:\s*(\d{3,4})px\b/gi
+// `max-width` is only an upper bound. Treating it as an intrinsic canvas width
+// makes a streaming phone preview widen as soon as a late CSS chunk arrives.
+const HTML_PREVIEW_INTRINSIC_STYLE_WIDTH_PATTERN =
+	/(?:^|[^-\w])(?:min-)?width\s*:\s*(\d{3,4})px\b/gi
 const HTML_PREVIEW_CANVAS_ATTRIBUTE_WIDTH_PATTERN = /\bwidth\s*=\s*["']?(\d{3,4})["']?/gi
 const HTML_PREVIEW_WIDTH_HINT_PATTERN = /width/i
 
@@ -50,7 +54,7 @@ export function resolveHtmlPreviewIntrinsicWidthHint(code: string): number | nul
 	}
 
 	const matchedWidths = [
-		...collectMatchedWidths(code, HTML_PREVIEW_CANVAS_STYLE_WIDTH_PATTERN),
+		...collectMatchedWidths(code, HTML_PREVIEW_INTRINSIC_STYLE_WIDTH_PATTERN),
 		...collectMatchedWidths(code, HTML_PREVIEW_CANVAS_ATTRIBUTE_WIDTH_PATTERN),
 	]
 

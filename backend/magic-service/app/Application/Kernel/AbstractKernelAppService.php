@@ -15,6 +15,7 @@ use App\Domain\Authentication\Entity\ValueObject\AuthenticationDataIsolation;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\File\Entity\ValueObject\FileDataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
@@ -33,6 +34,7 @@ use App\Infrastructure\Core\Collector\BuiltInToolSet\BuiltInToolSetCollector;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\DataIsolation\HandleDataIsolationInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\File\EasyFileTools;
@@ -42,6 +44,10 @@ use Qbhy\HyperfAuth\Authenticatable;
 
 abstract class AbstractKernelAppService
 {
+    use DataIsolationTrait {
+        createDataIsolation as private createUnpreparedDataIsolation;
+    }
+
     /**
      * @return array<string,MagicUserEntity>
      */
@@ -149,14 +155,67 @@ abstract class AbstractKernelAppService
         return $operator;
     }
 
+    /**
+     * 按认证身份准备环境能力，不从其他上下文继承组织或用户。
+     *
+     * @param MagicUserAuthorization $authorization
+     */
+    protected function createDataIsolation(Authenticatable $authorization): ContactDataIsolation
+    {
+        $context = $this->createUnpreparedDataIsolation($authorization);
+        $context->initDataIsolationEnv();
+        return $context;
+    }
+
+    /**
+     * 根据认证信息创建 Contact 数据隔离对象。
+     *
+     * 从已有基础隔离对象转换后，按当前身份准备环境能力和实例级延迟回调。
+     */
+    protected function createContactDataIsolation(Authenticatable|BaseDataIsolation $authorization): ContactDataIsolation
+    {
+        $dataIsolation = new ContactDataIsolation();
+        if ($authorization instanceof BaseDataIsolation) {
+            $dataIsolation->extends($authorization);
+            $dataIsolation->initDataIsolationEnv();
+            return $dataIsolation;
+        }
+        $this->handleByAuthorization($authorization, $dataIsolation);
+        return $dataIsolation;
+    }
+
     protected function createContactDataIsolationByBase(BaseDataIsolation $dataIsolation): ContactDataIsolation
     {
-        return ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+        return $this->createContactDataIsolation($dataIsolation);
+    }
+
+    /**
+     * 按显式用户创建并初始化 Contact 数据隔离对象。
+     */
+    protected function createContactDataIsolationByUser(string $organizationCode, string $userId = ''): ContactDataIsolation
+    {
+        $contactDataIsolation = ContactDataIsolation::create($organizationCode, $userId);
+        $contactDataIsolation->initDataIsolationEnv();
+        return $contactDataIsolation;
     }
 
     protected function createAuthenticationDataIsolation(Authenticatable|BaseDataIsolation $authorization): AuthenticationDataIsolation
     {
         $dataIsolation = new AuthenticationDataIsolation();
+        if ($authorization instanceof BaseDataIsolation) {
+            $dataIsolation->extends($authorization);
+            return $dataIsolation;
+        }
+        $this->handleByAuthorization($authorization, $dataIsolation);
+        return $dataIsolation;
+    }
+
+    /**
+     * 根据认证信息创建文件领域数据隔离对象。
+     */
+    protected function createFileDataIsolation(Authenticatable|BaseDataIsolation $authorization): FileDataIsolation
+    {
+        $dataIsolation = new FileDataIsolation();
         if ($authorization instanceof BaseDataIsolation) {
             $dataIsolation->extends($authorization);
             return $dataIsolation;

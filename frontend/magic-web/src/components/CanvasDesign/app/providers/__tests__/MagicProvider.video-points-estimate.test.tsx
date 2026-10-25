@@ -31,7 +31,6 @@ function TestProvider(props: {
 }) {
 	return (
 		<MagicProvider
-			readonly
 			methods={{ estimateVideoPoints: props.estimateVideoPoints } as CanvasDesignMethods}
 			videoPointsEstimateCacheScope={props.scope}
 		>

@@ -21,7 +21,12 @@ final class McpMention extends AbstractMention
         }
 
         $name = $data->getName() ?? '';
-        return sprintf('[@mcp:%s]', $name);
+        if ($name === '') {
+            return '';
+        }
+
+        $label = str_replace(['\\', '[', ']'], ['\\\\', '\[', '\]'], $name);
+        return sprintf('[%s](mcp://%s)', $label, rawurlencode($name));
     }
 
     public function getMentionJsonStruct(): array

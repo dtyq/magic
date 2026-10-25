@@ -1,6 +1,6 @@
 import EllipsisTooltip from "@/pages/vectorKnowledge/components/Create/components/EllipsisTooltip"
 import { getBrowserInfo } from "@/providers/BrowserProvider/browser"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { isMaxModel } from "../utils"
 import { ModelItem } from "../types"
 

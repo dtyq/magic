@@ -10,6 +10,7 @@ namespace App\Domain\OrganizationEnvironment\Service;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\OrganizationEnvironment\Entity\OrganizationEntity;
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\OrganizationSearchField;
 use App\Domain\OrganizationEnvironment\Repository\Facade\OrganizationRepositoryInterface;
 use App\Domain\Permission\Service\OrganizationAdminDomainService;
 use App\ErrorCode\PermissionErrorCode;
@@ -82,14 +83,34 @@ readonly class OrganizationDomainService
             ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_NOT_EXISTS);
         }
 
+        $existingOrganization = $this->organizationRepository->getByCode($organizationEntity->getMagicOrganizationCode());
+
         // 检查编码是否已存在（排除当前组织）
         if ($this->organizationRepository->existsByCode($organizationEntity->getMagicOrganizationCode(), $organizationEntity->getId())) {
             ExceptionBuilder::throw(PermissionErrorCode::ORGANIZATION_CODE_EXISTS);
         }
 
+        $previousCreatorId = $existingOrganization?->getCreatorId();
+        $creatorChanged = $previousCreatorId !== $organizationEntity->getCreatorId();
+        if ($creatorChanged && $organizationEntity->getCreatorId() !== null) {
+            $this->assertCreatorBelongsToOrganization(
+                $organizationEntity->getMagicOrganizationCode(),
+                $organizationEntity->getCreatorId()
+            );
+        }
+
         $organizationEntity->prepareForModification();
 
-        return $this->organizationRepository->save($organizationEntity);
+        $savedOrganization = $this->organizationRepository->save($organizationEntity);
+        if ($creatorChanged) {
+            $this->organizationAdminDomainService->synchronizeOrganizationCreator(
+                DataIsolation::simpleMake($savedOrganization->getMagicOrganizationCode(), $savedOrganization->getCreatorId() ?? ''),
+                $previousCreatorId,
+                $savedOrganization->getCreatorId()
+            );
+        }
+
+        return $savedOrganization;
     }
 
     /**
@@ -143,6 +164,21 @@ readonly class OrganizationDomainService
     public function queries(Page $page, ?array $filters = null): array
     {
         return $this->organizationRepository->queries($page, $filters);
+    }
+
+    /**
+     * 按指定字段搜索组织。
+     *
+     * @param null|string $organizationCodeFilter 组织编码过滤条件；null 表示不限制组织
+     * @return array{total: int, list: OrganizationEntity[]}
+     */
+    public function searchOrganizations(
+        Page $page,
+        OrganizationSearchField $searchField,
+        string $keyword,
+        ?string $organizationCodeFilter = null
+    ): array {
+        return $this->organizationRepository->searchOrganizations($page, $searchField, $keyword, $organizationCodeFilter);
     }
 
     /**
@@ -202,5 +238,19 @@ readonly class OrganizationDomainService
     {
         $organizationEntity = $this->organizationRepository->getByCode($code);
         return $organizationEntity?->isPersonal() ?? false;
+    }
+
+    /**
+     * 校验创建人是当前组织成员，避免把其他组织的用户写入 creator_id。
+     */
+    private function assertCreatorBelongsToOrganization(string $organizationCode, string $creatorId): void
+    {
+        $users = $this->userDomainService->getUserByIds(
+            [$creatorId],
+            DataIsolation::simpleMake($organizationCode)
+        );
+        if ($users === []) {
+            ExceptionBuilder::throw(UserErrorCode::USER_NOT_EXIST, 'user.not_exist', ['userId' => $creatorId]);
+        }
     }
 }

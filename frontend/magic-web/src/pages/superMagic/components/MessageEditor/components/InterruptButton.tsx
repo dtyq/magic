@@ -1,7 +1,7 @@
 import { Tooltip } from "antd"
 import { useTranslation } from "react-i18next"
 import InterruptSvg from "../../../assets/svg/interrupt.svg"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 
 interface InterruptButtonProps {

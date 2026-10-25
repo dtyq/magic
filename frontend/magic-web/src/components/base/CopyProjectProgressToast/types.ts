@@ -21,6 +21,10 @@ export interface CopyProjectProgressToastProps extends Omit<
 	projectId: string
 	/** 是否显示进度条 */
 	visible: boolean
+	/** 是否直接展示完成状态（文件复制等已有独立轮询的场景使用） */
+	completed?: boolean
+	/** 自定义完成提示文案 */
+	completedText?: string
 	/** 复制的项目信息（从初始复制API返回） */
 	projectInfo?: CopiedProjectResponse
 	/** 复制完成时的回调 */
@@ -31,6 +35,6 @@ export interface CopyProjectProgressToastProps extends Omit<
 	pollInterval?: number
 	/** 最大重试次数，默认60次（2分钟） */
 	maxRetries?: number
-	onProgress: (progress: number) => void
-	setCopyProjectIsRunning: (isRunning: boolean) => void
+	onProgress?: (progress: number) => void
+	setCopyProjectIsRunning?: (isRunning: boolean) => void
 }

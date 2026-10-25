@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ollama — Get up and running with large language models</title>
+  <style>
+    :root {
+      --primary: #000000;
+      --on-primary: #ffffff;
+      --ink: #000000;
+      --ink-deep: #090909;
+      --charcoal: #525252;
+      --body: #737373;
+      --mute: #a3a3a3;
+      --canvas: #ffffff;
+      --surface-soft: #fafafa;
+      --surface-card: #ffffff;
+      --surface-dark: #171717;
+      --hairline: #e5e5e5;
+      --hairline-strong: #d4d4d4;
+      --terminal-red: #ff5f56;
+      --terminal-yellow: #ffbd2e;
+      --terminal-green: #27c93f;
+      --radius-sm: 6px;
+      --radius-lg: 12px;
+      --radius-full: 9999px;
+      --font-rounded: "SF Pro Rounded", "Nunito", system-ui, -apple-system, sans-serif;
+      --font-sans: ui-sans-serif, Inter, system-ui, -apple-system, sans-serif;
+      --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      --shell: 960px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans); background: var(--canvas);
+      color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(var(--shell), calc(100% - 32px)); margin: 0 auto; }
+
+    /* Primary Nav */
+    .nav {
+      position: sticky; top: 0; z-index: 50; height: 56px;
+      background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--hairline); display: flex; align-items: center;
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .brand-wrap { display: flex; align-items: center; gap: 20px; }
+    .llama-logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; }
+    .nav-links { display: flex; align-items: center; gap: 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); }
+    .nav-links a:hover { color: var(--ink); }
+    
+    .nav-search {
+      background: var(--surface-soft); border: 1px solid var(--hairline);
+      border-radius: var(--radius-full); padding: 6px 14px;
+      display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--mute);
+      width: 220px;
+    }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+
+    /* Pure Black Pill CTA */
+    .pill-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      font-family: var(--font-sans); font-size: 13.5px; font-weight: 500;
+      padding: 7px 18px; border-radius: var(--radius-full); cursor: pointer;
+      background: var(--primary); color: var(--on-primary); border: 1px solid var(--primary);
+      transition: background 0.15s ease;
+    }
+    .pill-btn:hover { background: #222222; }
+    .pill-btn.secondary { background: var(--canvas); color: var(--ink); border-color: var(--hairline-strong); }
+    .pill-btn.secondary:hover { background: var(--surface-soft); }
+
+    /* Minimalist Center-Aligned Hero */
+    .hero { padding: 44px 0 24px; text-align: center; }
+    .llama-mascot { width: 56px; height: 56px; margin: 0 auto 16px; display: block; }
+    .hero-h1 {
+      font-family: var(--font-rounded); font-size: clamp(32px, 4.5vw, 48px);
+      font-weight: 500; line-height: 1.15; letter-spacing: -0.5px; color: var(--ink); margin-bottom: 12px;
+    }
+    .hero-sub {
+      font-size: 16px; color: var(--body); max-width: 540px; margin: 0 auto 24px;
+    }
+
+    /* Signature curl install snippet pill */
+    .install-pill {
+      display: inline-flex; align-items: center; gap: 12px;
+      background: var(--surface-soft); border: 1px solid var(--hairline);
+      border-radius: var(--radius-full); padding: 10px 20px;
+      font-family: var(--font-mono); font-size: 13.5px; color: var(--ink);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02); margin-bottom: 36px;
+    }
+    .copy-btn {
+      background: transparent; border: none; cursor: pointer; color: var(--mute);
+      display: flex; align-items: center; font-size: 14px;
+    }
+    .copy-btn:hover { color: var(--ink); }
+
+    /* Minimalist Local LLM Terminal Window */
+    .terminal-card {
+      max-width: 860px; margin: 0 auto 48px;
+      background: var(--surface-dark); border: 1px solid #2a2a2a;
+      border-radius: var(--radius-lg); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      overflow: hidden; text-align: left;
+    }
+    .terminal-header {
+      background: #111111; padding: 10px 16px; border-bottom: 1px solid #222222;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .traffic-lights { display: flex; align-items: center; gap: 7px; }
+    .traffic-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .traffic-red { background: var(--terminal-red); }
+    .traffic-yellow { background: var(--terminal-yellow); }
+    .traffic-green { background: var(--terminal-green); }
+    .term-title { font-family: var(--font-mono); font-size: 11.5px; color: var(--mute); }
+
+    .terminal-body {
+      padding: 18px 20px; font-family: var(--font-mono); font-size: 13px; color: #f5f5f5;
+      display: flex; flex-direction: column; gap: 12px; line-height: 1.55;
+    }
+    .term-line { display: flex; gap: 10px; }
+    .term-prompt { color: #888888; user-select: none; }
+    .term-cmd { color: #ffffff; font-weight: 600; }
+    .term-stream-output { color: #d0d0d0; }
+    .blinking-cursor {
+      display: inline-block; width: 8px; height: 15px; background: #27c93f;
+      vertical-align: middle; animation: blink 1s step-start infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* VRAM / RAM Allocation Meter */
+    .vram-meter-box {
+      background: #0d0d0d; border: 1px solid #242424;
+      border-radius: 8px; padding: 12px 14px; margin-top: 6px;
+    }
+    .vram-stats-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11.5px; color: #a0a0a0; margin-bottom: 6px;
+    }
+    .vram-meter-track {
+      height: 8px; background: #222222; border-radius: 4px; overflow: hidden;
+      display: flex; margin-bottom: 6px;
+    }
+    .vram-fill {
+      width: 58%; background: linear-gradient(90deg, #27c93f 0%, #ffbd2e 80%, #ff5f56 100%);
+    }
+    .vram-meta-grid {
+      display: flex; justify-content: space-between; font-size: 10.5px; color: #777777;
+    }
+
+    /* Model Library Pull Bar Section */
+    .pullbar-section { padding: 12px 0 48px; }
+    .section-head { text-align: center; margin-bottom: 24px; }
+    .section-title {
+      font-family: var(--font-rounded); font-size: 26px; font-weight: 500; margin-bottom: 6px;
+    }
+    .section-sub { font-size: 14.5px; color: var(--body); }
+
+    .models-list {
+      max-width: 860px; margin: 0 auto;
+      border: 1px solid var(--hairline); border-radius: var(--radius-lg);
+      background: #ffffff; overflow: hidden;
+    }
+    .model-row {
+      padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .model-row:last-child { border-bottom: none; }
+    .model-info-left { display: flex; align-items: center; gap: 12px; }
+    .model-slug { font-weight: 600; font-size: 14.5px; color: var(--ink); }
+    .model-tag-pill {
+      background: var(--surface-soft); color: var(--charcoal);
+      font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: var(--radius-full);
+      border: 1px solid var(--hairline);
+    }
+    .pull-cmd-chip {
+      background: var(--surface-soft); border: 1px solid var(--hairline);
+      border-radius: var(--radius-full); padding: 4px 10px;
+      font-family: var(--font-mono); font-size: 11.5px; color: var(--charcoal);
+    }
+    .pull-count { font-family: var(--font-mono); font-size: 12px; color: var(--mute); }
+
+    /* Footer: Markdown-README simplicity */
+    .footer {
+      border-top: 1px solid var(--hairline); padding: 36px 0 28px;
+      font-size: 12.5px; color: var(--body); text-align: center;
+    }
+    .footer-links {
+      display: flex; justify-content: center; gap: 20px; margin-bottom: 12px; font-weight: 500; color: var(--charcoal);
+    }
+    .footer-links a:hover { color: var(--ink); }
+
+    @media (max-width: 768px) {
+      .model-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .nav-search { display: none; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="nav">
+    <div class="shell nav-inner">
+      <div class="brand-wrap">
+        <a href="#" class="llama-logo">
+          <!-- Handcrafted SVG Llama Mascot Mark -->
+          <svg width="22" height="22" viewBox="0 0 48 48" fill="none" stroke="#000000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 42V26C16 26 12 26 10 28V42" />
+            <path d="M28 42V26C28 26 32 26 34 28V42" />
+            <path d="M10 28C10 22 14 18 22 18H28C34 18 36 22 36 28" />
+            <path d="M28 18V8C28 6 26 5 24 5C22 5 20 6 20 8V18" />
+            <circle cx="22" cy="9" r="1.5" fill="#000" />
+            <path d="M20 12C21 13 23 13 24 12" />
+          </svg>
+          <span style="font-family: var(--font-rounded); font-size: 18px; letter-spacing: -0.3px;">Ollama</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#models">Models</a>
+          <a href="#docs">Docs</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#blog">Blog</a>
+        </nav>
+      </div>
+
+      <div class="nav-search">
+        <span>🔍</span>
+        <span>Search models...</span>
+      </div>
+
+      <div class="nav-right">
+        <a href="#signin" style="font-size: 13.5px; font-weight: 500;">Sign in</a>
+        <button class="pill-btn">Download</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="shell">
+      <!-- Handcrafted Line-art Llama Icon -->
+      <svg class="llama-mascot" viewBox="0 0 64 64" fill="none" stroke="#000000" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 54V34C20 34 15 34 12 37V54" />
+        <path d="M38 54V34C38 34 43 34 46 37V54" />
+        <path d="M12 37C12 28 18 24 28 24H38C46 24 48 28 48 37" />
+        <path d="M38 24V11C38 8 35 7 32 7C29 7 26 8 26 11V24" />
+        <circle cx="29" cy="12" r="1.8" fill="#000" />
+        <path d="M27 16C28 17 31 17 32 16" />
+      </svg>
+
+      <h1 class="hero-h1">Get up and running with large language models.</h1>
+      <p class="hero-sub">
+        Run Llama 3.1, DeepSeek, Mistral, and custom GGUF architectures locally on macOS, Linux, and Windows with hardware acceleration.
+      </p>
+
+      <!-- Signature Install Command Pill -->
+      <div class="install-pill">
+        <span>curl -fsSL https://ollama.com/install.sh | sh</span>
+        <button class="copy-btn" title="Copy to clipboard">📋</button>
+      </div>
+
+      <!-- Minimalist Local LLM Terminal Window -->
+      <div class="terminal-card">
+        <div class="terminal-header">
+          <div class="traffic-lights">
+            <span class="traffic-dot traffic-red"></span>
+            <span class="traffic-dot traffic-yellow"></span>
+            <span class="traffic-dot traffic-green"></span>
+          </div>
+          <span class="term-title">terminal — ollama run llama3.1:70b-instruct-q4_K_M</span>
+          <span style="font-family: var(--font-mono); font-size: 10.5px; color: #666;">Metal (Apple M3 Max)</span>
+        </div>
+
+        <div class="terminal-body">
+          <!-- Command line invocation -->
+          <div class="term-line">
+            <span class="term-prompt">$</span>
+            <span class="term-cmd">ollama run llama3.1:70b</span>
+          </div>
+          <div style="color: #888888; font-size: 12px;">
+            pulling manifest • 100% ▰▰▰▰▰▰▰▰▰▰▰▰ 39.2 GB / 39.2 GB [DONE]
+          </div>
+
+          <div class="term-line" style="margin-top: 4px;">
+            <span class="term-prompt" style="color: #27c93f;">&gt;&gt;&gt;</span>
+            <span class="term-cmd">Explain how unified memory speeds up KV-cache allocation.</span>
+          </div>
+
+          <!-- Streaming tokens output -->
+          <div class="term-stream-output">
+            Unified memory allows the CPU and GPU to address the same physical LPDDR5X RAM pool without PCIe transfer overhead. During LLM generation, KV-cache vectors reside in zero-copy shared memory, enabling instantaneous flash-attention lookups at up to 400 GB/s bandwidth.
+            <span class="blinking-cursor"></span>
+          </div>
+
+          <!-- VRAM/RAM Allocation Meter -->
+          <div class="vram-meter-box">
+            <div class="vram-stats-row">
+              <span style="font-weight: 600; color: #fff;">ALLOCATION TELEMETRY</span>
+              <span style="color: #27c93f;">39.2 GB / 64.0 GB (Unified Memory)</span>
+            </div>
+            <div class="vram-meter-track">
+              <div class="vram-fill"></div>
+            </div>
+            <div class="vram-meta-grid">
+              <span>MODEL: Llama-3.1-70B (4-bit Q4_K_M)</span>
+              <span>THROUGHPUT: 48.6 tok/sec</span>
+              <span>BACKEND: Apple Metal compute</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Model Library Pull Bar Section -->
+  <section class="pullbar-section" id="models">
+    <div class="shell">
+      <div class="section-head">
+        <h2 class="section-title">Open Model Library</h2>
+        <p class="section-sub">Download and run frontier models with a single CLI pull command.</p>
+      </div>
+
+      <div class="models-list">
+        <!-- Model Row 1 -->
+        <div class="model-row">
+          <div class="model-info-left">
+            <span class="model-slug">llama3.1</span>
+            <span class="model-tag-pill">8B • 70B • 405B</span>
+            <span style="font-size: 13px; color: var(--body);">Meta's flagship general purpose intelligence</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <span class="pull-cmd-chip">ollama run llama3.1</span>
+            <span class="pull-count">48.2M pulls</span>
+          </div>
+        </div>
+
+        <!-- Model Row 2 -->
+        <div class="model-row">
+          <div class="model-info-left">
+            <span class="model-slug">deepseek-coder-v2</span>
+            <span class="model-tag-pill">16B • 236B MoE</span>
+            <span style="font-size: 13px; color: var(--body);">Frontier code synthesis &amp; algorithmic reasoning</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <span class="pull-cmd-chip">ollama run deepseek-coder-v2</span>
+            <span class="pull-count">19.4M pulls</span>
+          </div>
+        </div>
+
+        <!-- Model Row 3 -->
+        <div class="model-row">
+          <div class="model-info-left">
+            <span class="model-slug">mistral-nemo</span>
+            <span class="model-tag-pill">12B Dense</span>
+            <span style="font-size: 13px; color: var(--body);">Trained with NVIDIA, 128k context multilingual</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <span class="pull-cmd-chip">ollama run mistral-nemo</span>
+            <span class="pull-count">12.1M pulls</span>
+          </div>
+        </div>
+
+        <!-- Model Row 4 -->
+        <div class="model-row">
+          <div class="model-info-left">
+            <span class="model-slug">qwen2.5</span>
+            <span class="model-tag-pill">7B • 32B • 72B</span>
+            <span style="font-size: 13px; color: var(--body);">Alibaba's benchmark leader in math and STEM</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <span class="pull-cmd-chip">ollama run qwen2.5</span>
+            <span class="pull-count">14.8M pulls</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Markdown-README Style Footer -->
+  <footer class="footer">
+    <div class="shell">
+      <div class="footer-links">
+        <a href="#">Download</a>
+        <a href="#">Blog</a>
+        <a href="#">Docs</a>
+        <a href="#">GitHub</a>
+        <a href="#">Discord</a>
+        <a href="#">Community</a>
+        <a href="#">Privacy</a>
+      </div>
+      <p style="color: var(--mute); font-size: 12px;">© 2026 Ollama • Your data stays yours.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

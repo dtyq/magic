@@ -34,8 +34,6 @@ export function useAttachments({
 		try {
 			const attachmentResponse = await loadProjectAttachments({
 				projectId: id,
-				// @ts-ignore
-				temporaryToken: window.temporary_token || "",
 			})
 
 			setAttachments(attachmentResponse?.tree || [])

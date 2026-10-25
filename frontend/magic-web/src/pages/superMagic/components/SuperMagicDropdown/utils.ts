@@ -555,10 +555,7 @@ export function createSmartEventHandler<T = unknown>(
 		handleElementClick: (
 			event: React.MouseEvent<HTMLElement>,
 			_preferredPlacement:
-				| "bottom-left"
-				| "bottom-right"
-				| "top-left"
-				| "top-right" = "bottom-left",
+				"bottom-left" | "bottom-right" | "top-left" | "top-right" = "bottom-left",
 			itemData: T,
 		) => {
 			event.stopPropagation()

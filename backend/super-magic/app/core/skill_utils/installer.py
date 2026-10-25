@@ -6,19 +6,22 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import random
 import string
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
 from agentlang.logger import get_logger
 from app.core.skill_utils.constants import dynamic_skill_install_lock, get_skillhub_install_dir
-from app.utils.async_file_utils import async_copytree, async_mkdir, async_rmtree
-from app.core.skill_utils.manifest import SkillManifest, invalidate_cache, write_manifest, read_manifest
-from app.core.skill_utils.providers.base import SkillProviderId
+from app.utils.async_file_utils import (
+    async_copytree, async_mkdir, async_rmtree, async_exists, async_is_symlink,
+    async_iterdir, async_is_dir, async_stat, async_rename, async_replace,
+    async_read_text, async_write_text, async_write_json, async_read_json,
+)
+from app.core.skill_utils.manifest import SkillManifest, invalidate_cache, MANIFEST_FILENAME
+from app.core.skill_utils.providers.base import SkillProviderId, SkillProvider
 from app.core.skill_utils.version import version_eq
 
 logger = get_logger(__name__)
@@ -72,42 +75,35 @@ def _rand_suffix(n: int = 8) -> str:
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
 
 
-def _validate_fetched_skill(local_path: Path) -> None:
-    """结构安全检查：必含 SKILL.md，禁止越权路径，体积/数量在限"""
-    skill_md = local_path / "SKILL.md"
-    if not skill_md.exists():
-        raise ValueError(f"缺少 SKILL.md（目录: {local_path}）")
-
-    total_size = 0
-    total_files = 0
-    for entry in local_path.rglob("*"):
-        # 拒绝绝对路径或 .. 穿越
-        try:
-            entry.relative_to(local_path)
-        except ValueError:
-            raise ValueError(f"安全检查失败：越权路径 {entry}")
-        if entry.is_file():
+async def _validate_fetched_skill(local_path: Path) -> None:
+    if not await async_exists(local_path / "SKILL.md"):
+        raise ValueError("Skill package is missing SKILL.md.")
+    total_size = total_files = 0
+    pending = [local_path]
+    while pending:
+        for entry in await async_iterdir(pending.pop()):
+            if await async_is_symlink(entry):
+                raise ValueError("Skill package contains a symbolic link.")
             total_files += 1
-            total_size += entry.stat().st_size
-
-    if total_size > MAX_SIZE_BYTES:
-        raise ValueError(
-            f"skill 体积 {total_size / 1024 / 1024:.1f}MB 超过限制 {MAX_SIZE_BYTES // 1024 // 1024}MB"
-        )
-    if total_files > MAX_FILES:
-        raise ValueError(f"skill 文件数 {total_files} 超过限制 {MAX_FILES}")
+            if await async_is_dir(entry):
+                pending.append(entry)
+            else:
+                total_size += (await async_stat(entry)).st_size
+            if total_size > MAX_SIZE_BYTES or total_files > MAX_FILES:
+                raise ValueError("Skill package exceeds size or entry limits.")
 
 
 class InstallService:
     """Skill 安装服务（进程级无状态，可直接实例化使用）"""
 
-    def __init__(self, target_dir: Path | None = None) -> None:
+    def __init__(self, target_dir: Path | None = None, *, installed_by: str = "install_skills") -> None:
+        self._installed_by = installed_by
         self._target_dir = target_dir  # None 表示使用默认 .workspace/.magic/skills/
 
     def _get_target_dir(self) -> Path:
         return self._target_dir or get_skillhub_install_dir()
 
-    async def install(self, ref: SkillRef) -> list[InstallResult]:
+    async def install(self, ref: SkillRef, *, provider: SkillProvider | None = None) -> list[InstallResult]:
         """安装或升级单个 ref，返回结果列表（多 skill 仓库时含多条）。"""
         from app.core.skill_utils.providers.registry import get_registry
 
@@ -117,8 +113,9 @@ class InstallService:
 
         # 1. 获取 provider
         try:
-            registry = get_registry()
-            provider = registry.get(SkillProviderId(provider_id_str))
+            if provider is None:
+                registry = get_registry()
+                provider = registry.get(SkillProviderId(provider_id_str))
         except (KeyError, ValueError):
             return [InstallResult(
                 ok=False, name="", provider=provider_id_str, skill_id=skill_id, mode=mode,
@@ -145,8 +142,13 @@ class InstallService:
         target_dir = self._get_target_dir()
         guessed_name = skill_id.rstrip("/").split("/")[-1]
         existing_dir = target_dir / guessed_name
-        if existing_dir.exists() and mode == "install":
-            existing_manifest = read_manifest(existing_dir)
+        if await async_exists(existing_dir) and mode == "install":
+            existing_manifest = None
+            if await async_exists(existing_dir / MANIFEST_FILENAME):
+                try:
+                    existing_manifest = SkillManifest(**await async_read_json(existing_dir / MANIFEST_FILENAME))
+                except (ValueError, TypeError, OSError):
+                    pass
             if (
                 existing_manifest
                 and target_version
@@ -161,8 +163,8 @@ class InstallService:
                 )]
 
         # 4. 确认性检查（已有目录 + install 模式）——多 skill 仓库时 guessed_name 可能不准，
-        #    但对于单 skill 情况仍有效；多 skill 情况由 _do_install_one 的原子替换逻辑处理
-        if existing_dir.exists() and mode == "install":
+        #    此处的快速返回只覆盖单 skill 情况；多 skill 情况由 _do_install_one 逐条拒绝覆盖
+        if await async_exists(existing_dir) and mode == "install":
             return [InstallResult(
                 ok=False, name=guessed_name, provider=provider_id_str, skill_id=skill_id,
                 mode=mode, message=(
@@ -197,13 +199,17 @@ class InstallService:
                 message=f"fetch 失败: {e}", status="failed",
             )]
 
-        results: list[InstallResult] = []
-        for fetched in fetched_list:
-            result = await self._do_install_one(
-                provider_id_str, skill_id, target_version, mode, target_dir, fetched
-            )
-            results.append(result)
-        return results
+        try:
+            results: list[InstallResult] = []
+            for fetched in fetched_list:
+                result = await self._do_install_one(
+                    provider_id_str, skill_id, target_version, mode, target_dir, fetched
+                )
+                results.append(result)
+            return results
+        finally:
+            for fetched in fetched_list:
+                await _cleanup_temp_parent(fetched.local_path)
 
     async def _do_install_one(
         self,
@@ -215,98 +221,77 @@ class InstallService:
         fetched,
     ) -> InstallResult:
         """将单个 FetchedSkill 落盘安装（staging → 原子替换）。"""
+        from app.core.skill_utils.safe_download import validate_package_name
+
         local_path = fetched.local_path
-        actual_version = fetched.version
-
+        skill_name = fetched.install_name or await _read_skill_name(local_path) or local_path.name
         try:
-            _validate_fetched_skill(local_path)
+            validate_package_name(skill_name)
+            await _validate_fetched_skill(local_path)
         except ValueError as e:
-            return InstallResult(
-                ok=False, name="", provider=provider_id_str, skill_id=skill_id, mode=mode,
-                message=f"安全校验失败: {e}", status="failed",
-            )
-
-        # 优先使用 provider 传入的 install_name（如 package_name），其次读 SKILL.md，最后用目录名
-        skill_name = fetched.install_name or _read_skill_name(local_path) or local_path.name
+            return InstallResult(ok=False, name=skill_name, provider=provider_id_str, skill_id=skill_id,
+                                 mode=mode, message=str(e), status="failed")
         install_dir = target_dir / skill_name
-
-        # 确保安装目标父目录存在（os.replace 要求目标父目录存在）
         await async_mkdir(target_dir, parents=True, exist_ok=True)
-
-        # 原子替换：先 staging，再 rename 旧目录为 .bak，再 rename staging 到正式名
-        # staging 放在 target_dir 下（与安装目标同一文件系统），避免跨设备 rename 失败
         staging_dir = target_dir / f".staging-{skill_name}-{_rand_suffix()}"
-
+        bak_dir = target_dir / f".{skill_name}.bak-{_rand_suffix()}"
+        backed_up = False
+        installed = False
         try:
+            # install 模式绝不覆盖已存在目录（test_existing_directory_is_not_overwritten 锁定）：
+            # 引用懒下载场景 name 与 code 可能不一致，覆盖会误伤目录里已有的其他 skill；
+            # install_skills 侧如需重装/更新，按报错提示先删除目录或改用 mode="upgrade"
+            if mode == "install" and await async_exists(install_dir):
+                return InstallResult(ok=False, name=skill_name, provider=provider_id_str, skill_id=skill_id,
+                                     mode=mode, message="Skill directory already exists.", status="failed")
             await async_copytree(local_path, staging_dir)
-            # 若 SKILL.md 里的 name 与目标目录名不一致，同步修正
             await _fix_skill_name_in_md(staging_dir, skill_name)
-        except Exception as e:
-            try:
-                await async_rmtree(staging_dir)
-            except Exception:
-                pass
-            return InstallResult(
-                ok=False, name=skill_name, provider=provider_id_str, skill_id=skill_id, mode=mode,
-                message=f"复制到 staging 失败: {e}", status="failed",
+            manifest = SkillManifest(
+                name=skill_name, provider=provider_id_str, source_id=skill_id,
+                version=fetched.version or target_version or "unknown",
+                installed_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                source_url=fetched.source_url, installed_by=self._installed_by,
             )
-
-        # 备份旧目录
-        bak_dir = target_dir / f".{skill_name}.bak"
-        if install_dir.exists():
-            if bak_dir.exists():
+            # staging 在网络文件系统上时写 manifest 可能失败；缺失只影响版本更新检查，不影响安装
+            try:
+                await async_write_json(staging_dir / MANIFEST_FILENAME, asdict(manifest))
+            except Exception as e:
+                logger.warning(f"写 manifest 到 staging 失败（不影响安装）: {e}")
+            if await async_exists(install_dir):
+                backup_task = asyncio.create_task(async_rename(install_dir, bak_dir))
+                try:
+                    await asyncio.shield(backup_task)
+                except asyncio.CancelledError:
+                    await backup_task
+                    backed_up = True
+                    raise
+                backed_up = True
+            commit_task = asyncio.create_task(async_replace(staging_dir, install_dir))
+            try:
+                await asyncio.shield(commit_task)
+            except asyncio.CancelledError:
+                await commit_task
+                installed = True
+                invalidate_cache(install_dir)
+                raise
+            installed = True
+            invalidate_cache(install_dir)
+            return InstallResult(
+                ok=True, name=skill_name, provider=provider_id_str, skill_id=skill_id,
+                mode=mode, version=manifest.version, path=str(install_dir),
+                message=f"Installed skill: {skill_name} ({manifest.version})",
+                status="upgraded" if mode == "upgrade" else "installed",
+            )
+        except Exception as e:
+            return InstallResult(ok=False, name=skill_name, provider=provider_id_str, skill_id=skill_id,
+                                 mode=mode, message=str(e), status="failed")
+        finally:
+            if backed_up and not installed:
+                await async_rename(bak_dir, install_dir)
+            if await async_exists(staging_dir):
+                await async_rmtree(staging_dir)
+            if installed and backed_up:
                 await async_rmtree(bak_dir)
-            install_dir.rename(bak_dir)
-
-        # 在 staging 阶段预写 manifest，避免 os.replace 后在网络文件系统上立即写文件触发 I/O 错误
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        manifest = SkillManifest(
-            name=skill_name,
-            provider=provider_id_str,
-            source_id=skill_id,
-            version=actual_version or target_version or "unknown",
-            installed_at=now,
-            source_url=fetched.source_url,
-            installed_by="install_skills",
-        )
-        try:
-            write_manifest(staging_dir, manifest)
-        except Exception as e:
-            logger.warning(f"写 manifest 到 staging 失败（不影响安装）: {e}")
-
-        try:
-            os.replace(staging_dir, install_dir)
-        except Exception as e:
-            # 回滚
-            if bak_dir and bak_dir.exists():
-                bak_dir.rename(install_dir)
-            try:
-                await async_rmtree(staging_dir)
-            except Exception:
-                pass
-            return InstallResult(
-                ok=False, name=skill_name, provider=provider_id_str, skill_id=skill_id, mode=mode,
-                message=f"目录替换失败: {e}", status="failed",
-            )
-
-        # os.replace 后失效缓存，让后续读取从新目录加载
-        invalidate_cache(install_dir)
-
-        # 清理 bak 和临时目录
-        if bak_dir.exists():
-            await async_rmtree(bak_dir)
-        # 清理 fetch 产生的临时根目录
-        await _cleanup_temp_parent(local_path)
-
-        status = "upgraded" if mode == "upgrade" else "installed"
-        action_label = "升级成功" if mode == "upgrade" else "安装成功"
-        return InstallResult(
-            ok=True, name=skill_name, provider=provider_id_str, skill_id=skill_id,
-            mode=mode, version=manifest.version,
-            path=str(install_dir),
-            message=f"{action_label}: {skill_name} ({manifest.version})",
-            status=status,
-        )
 
     async def install_many(
         self,
@@ -342,38 +327,28 @@ class InstallService:
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 
 
-def _read_skill_name(skill_dir: Path) -> str | None:
-    """从 SKILL.md frontmatter 中读取 name 字段"""
-    skill_md = skill_dir / "SKILL.md"
-    if not skill_md.exists():
+async def _read_skill_name(skill_dir: Path) -> str | None:
+    from app.utils.async_file_utils import async_try_read_markdown
+    markdown = await async_try_read_markdown(skill_dir / "SKILL.md")
+    if markdown is None:
         return None
-    try:
-        content = skill_md.read_text(encoding="utf-8")
-        if content.startswith("---"):
-            end = content.find("\n---", 3)
-            if end > 0:
-                for line in content[3:end].splitlines():
-                    if line.startswith("name:"):
-                        return line.split(":", 1)[1].strip().strip("\"'") or None
-    except Exception:
-        pass
-    return None
+    # frontmatter 是合法 YAML 但不是 mapping（如手滑写成列表）时 meta 不是 dict，按无 name 处理
+    meta = markdown.meta if isinstance(markdown.meta, dict) else {}
+    name = meta.get("name")
+    return name if isinstance(name, str) and name else None
 
 
 async def _fix_skill_name_in_md(skill_dir: Path, expected_name: str) -> None:
-    """若 SKILL.md frontmatter 中的 name 字段与 expected_name 不一致，则原地修正。"""
-    import aiofiles
+    """若 SKILL.md frontmatter 中的 name 与安装目录名不一致，则原地修正。
 
+    只做 name 行的最小改写（不重排 frontmatter、不丢注释）；
+    第三方 skill 的 frontmatter 写法千奇百怪，解析/写回失败仅告警，不影响安装。
+    """
     skill_md = skill_dir / "SKILL.md"
-    if not await asyncio.to_thread(skill_md.exists):
-        return
     try:
-        async with aiofiles.open(skill_md, encoding="utf-8") as f:
-            content = await f.read()
-
+        content = await async_read_text(skill_md)
         if not content.startswith("---"):
             return
-
         end = content.find("\n---", 3)
         if end <= 0:
             return
@@ -387,17 +362,13 @@ async def _fix_skill_name_in_md(skill_dir: Path, expected_name: str) -> None:
                 if current != expected_name:
                     new_lines.append(f"name: {expected_name}")
                     changed = True
-                else:
-                    new_lines.append(line)
-            else:
-                new_lines.append(line)
+                    continue
+            new_lines.append(line)
 
         if not changed:
             return
 
-        new_content = "---" + "\n".join(new_lines) + content[end:]
-        async with aiofiles.open(skill_md, "w", encoding="utf-8") as f:
-            await f.write(new_content)
+        await async_write_text(skill_md, "---" + "\n".join(new_lines) + content[end:])
         logger.info(f"已将 SKILL.md name 字段修正为: {expected_name}（路径: {skill_md}）")
     except Exception as e:
         logger.warning(f"修正 SKILL.md name 字段失败（不影响安装）: {e}")

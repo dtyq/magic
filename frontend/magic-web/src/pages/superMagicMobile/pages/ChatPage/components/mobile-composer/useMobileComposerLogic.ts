@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react"
-import type { JSONContent } from "@tiptap/core"
-import type { Editor } from "@tiptap/react"
+import type { JSONContent } from "@/infrastructure/editors/tiptap/core"
+import type { Editor } from "@/infrastructure/editors/tiptap/react"
 import { useAsyncEffect, useCreation, useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import type {
@@ -22,6 +22,12 @@ import { useOptionalSceneStateStore } from "@/pages/superMagic/components/MainIn
 import useChooseUploadDirModal from "@/pages/superMagic/components/MessageEditor/hooks/useChooseUploadDirModal"
 import useMessageEditorPubSub from "@/pages/superMagic/components/MessageEditor/hooks/useMessageEditorPubSub"
 import { useMessageEditor } from "@/pages/superMagic/components/MessageEditor/hooks/useMessageEditor"
+import { useMixedClipboardPaste } from "@/pages/superMagic/components/MessageEditor/hooks/useMixedClipboardPaste"
+import type { WechatChatImportController } from "@/pages/superMagic/components/MessageEditor/hooks/useWechatChatImport"
+import { isWechatChatText } from "@/pages/superMagic/components/MessageEditor/extensions/wechat-chat-history/parser"
+import { hasMagicClipboardData } from "@/pages/superMagic/components/MessageEditor/utils/pastedTextAttachment"
+import { CanvasDesignClipboard } from "@/components/CanvasDesign/public/clipboard"
+import { isInternationalEnv, isPrivateDeployment } from "@/utils/env"
 import useMessageSendHandler from "@/pages/superMagic/components/MessageEditor/hooks/useMessageSendHandler"
 import useResolvedEditorStore from "@/pages/superMagic/components/MessageEditor/hooks/useResolvedEditorStore"
 import useSharedDataFromApp from "@/pages/superMagic/components/MessageEditor/hooks/useSharedDataFromApp"
@@ -51,9 +57,13 @@ import {
 	checkMCPOAuth,
 	MCPOAuthType,
 } from "@/components/Agent/MCP/AgentSettings/AgentPanel/MCPPanel/helpers"
-import { getMCPAccess } from "@/components/Agent/MCP/store/mcp-access"
+import {
+	getMCPAccess,
+	loadMCPWithInstalledConnectorReconciliation,
+} from "@/components/Agent/MCP/store/mcp-access"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
+import { buildQueueMessageInput } from "@/pages/superMagic/components/MainInputContainer/components/editors/messageParams"
 import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { resetDocumentScrollPosition } from "@/utils/scroll"
@@ -108,6 +118,7 @@ export interface MobileComposerLogic {
 	handleCompositionStart: () => void
 	handleCompositionEnd: () => void
 	handleBlurComposer: () => void
+	wechatChat: WechatChatImportController
 }
 
 function appendPresetSuffixContent(
@@ -142,6 +153,7 @@ export default function useMobileComposerLogic({
 	const { config: providerConfig } = useMessageEditorProvider()
 	const [isSending, setIsSending] = useState(false)
 	const [isPreparingSend, setIsPreparingSend] = useState(false)
+	const [isPreparingPaste, setIsPreparingPaste] = useState(false)
 	const [isComposerFocused, setIsComposerFocused] = useState(false)
 	const mentionPanelStore =
 		(editorContext.mentionPanelStore as typeof GlobalMentionPanelStore | undefined) ??
@@ -153,19 +165,49 @@ export default function useMobileComposerLogic({
 		topicModelStore: editorContext.topicModelStore,
 	})
 
-	const selectedProject = editorContext.selectedProject ?? projectStore.selectedProject
-	const selectedTopic = editorContext.selectedTopic ?? topicStore.selectedTopic
+	// Explicit null denotes a blank home composer, not the last visited global conversation.
+	const selectedProject =
+		editorContext.selectedProject !== undefined
+			? editorContext.selectedProject
+			: projectStore.selectedProject
+	const selectedTopic =
+		editorContext.selectedTopic !== undefined
+			? editorContext.selectedTopic
+			: topicStore.selectedTopic
 	const draftKey = editorContext.draftKey
-	const onReady = editorContext.onReady
+	const appliedDraftModeRef = useRef<string>()
+	const recoverTopicMode = editorContext.recoverTopicMode
+	const setTopicMode = editorContext.setTopicMode
+	useEffect(() => {
+		const metadata = editorContext.queueContext?.queueDraft?.queueDraft
+		if (!metadata) {
+			appliedDraftModeRef.current = undefined
+			return
+		}
+		if (appliedDraftModeRef.current === metadata.clientSyncId) return
+		appliedDraftModeRef.current = metadata.clientSyncId
+		if (metadata.topicMode) {
+			if (recoverTopicMode) {
+				recoverTopicMode(metadata.topicMode, metadata.agentCode)
+			} else {
+				setTopicMode?.(metadata.topicMode)
+			}
+		}
+	}, [editorContext.queueContext?.queueDraft, recoverTopicMode, setTopicMode])
+
+	const onReady = useMemoizedFn(() => {
+		editorContext.queueContext?.onEditorReady()
+		editorContext.onReady?.()
+	})
 	const skipInitialDraftRestore = editorContext.skipInitialDraftRestore
 	const effectiveTopicMode = editorContext.topicMode ?? roleStore.currentRole
 	const currentAgentCode = editorContext.agentCode ?? selectedTopic?.agent_code
 	const effectiveSetSelectedWorkspace =
 		editorContext.setSelectedWorkspace ?? workspaceStore.setSelectedWorkspace
 	const selectedWorkspace =
-		editorContext.selectedWorkspace ??
-		workspaceStore.selectedWorkspace ??
-		workspaceStore.firstWorkspace
+		editorContext.selectedWorkspace !== undefined
+			? editorContext.selectedWorkspace
+			: (workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace)
 	const modePlaceholder =
 		lt(editorContext.placeholder) ??
 		superMagicModeService.getModePlaceholderWithLegacy(
@@ -215,6 +257,8 @@ export default function useMobileComposerLogic({
 			}),
 		[mcpStorageKey, mcpUseTempStorage],
 	)
+	const addedMCPAccess = useCreation(() => getMCPAccess({ storageKey: "__added__" }), [])
+	const activeMCPStorageKey = mcpStorageKey || "__template_project_id__"
 	const selectedPluginCount = mcpAccess.mcpList.length
 
 	const voiceInputRef = useRef<VoiceInputRef>(null)
@@ -283,7 +327,11 @@ export default function useMobileComposerLogic({
 		})
 	})
 
-	const { addFilesWithDir, UploadModal } = useChooseUploadDirModal({
+	const {
+		addFilesWithDir,
+		UploadModal,
+		onModalClose: cancelPendingUpload,
+	} = useChooseUploadDirModal({
 		addFiles: addFilesRaw,
 		selectedProject,
 		attachments: editorContext.attachments,
@@ -334,6 +382,7 @@ export default function useMobileComposerLogic({
 		if (!sendEnabled) return false
 		if (hasLoadingMarker) return false
 		if (isPreparingSend) return false
+		if (isPreparingPaste) return false
 		if (editorContext.queueContext?.editingQueueItem) return isAllFilesUploaded && !isSending
 
 		return !store.editorStore.isEmpty && isAllFilesUploaded && !isSending
@@ -342,6 +391,7 @@ export default function useMobileComposerLogic({
 		hasLoadingMarker,
 		isAllFilesUploaded,
 		isPreparingSend,
+		isPreparingPaste,
 		isSending,
 		sendEnabled,
 		store.editorStore.isEmpty,
@@ -381,53 +431,25 @@ export default function useMobileComposerLogic({
 		if (isSending || isPreparingSendRef.current) return
 
 		const queueContext = editorContext.queueContext
-		if (queueContext?.editingQueueItem) {
-			if (!params.queueId || params.queueId === queueContext.editingQueueItem.id) {
-				isPreparingSendRef.current = true
-				setIsPreparingSend(true)
-
-				try {
-					queueContext.finishEditQueueItem(nextValue, params.mentionItems)
-					clearContentAfterSend()
-					setIsComposerFocused(false)
-				} finally {
-					isPreparingSendRef.current = false
-					setIsPreparingSend(false)
-				}
-				return
-			}
-		}
 
 		if (!params.value) return
 
 		isPreparingSendRef.current = true
 		setIsPreparingSend(true)
+		let completion: Parameters<NonNullable<SceneEditorContext["onSendComplete"]>>[0] = {
+			success: false,
+			currentProject: null,
+			currentTopic: null,
+		}
 
 		try {
+			editorContext.onSendStart?.({
+				content: params.value,
+				mentionItems: params.mentionItems ?? [],
+			})
+			if (editorContext.beforeSend && !(await editorContext.beforeSend())) return
 			const isWaitingForUser = selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
 			const showLoading = editorContext.showLoading ?? false
-			if (showLoading && !isWaitingForUser && !params.isFromQueue && queueContext) {
-				queueContext.addToQueue({
-					content: nextValue ?? params.value,
-					mentionItems: params.mentionItems,
-					selectedModel: params.selectedModel,
-					selectedImageModel: params.selectedImageModel,
-					selectedVideoModel: params.selectedVideoModel,
-					topicMode: params.topicMode,
-				})
-				clearContentAfterSend()
-				setIsComposerFocused(false)
-				return
-			}
-
-			if (
-				!editorContext.selectedWorkspace &&
-				!workspaceStore.selectedWorkspace &&
-				selectedWorkspace
-			) {
-				effectiveSetSelectedWorkspace(selectedWorkspace)
-			}
-
 			const defaultParams: HandleSendParams = {
 				...params,
 				value: nextValue ?? params.value,
@@ -445,10 +467,40 @@ export default function useMobileComposerLogic({
 			const finalParams = customParamsPatch
 				? { ...defaultParams, ...customParamsPatch }
 				: defaultParams
+			if (queueContext && store.draftStore.getQueueDraft()) {
+				const shouldClear = await queueContext.finishEditQueueItem(
+					buildQueueMessageInput(finalParams, params.value),
+				)
+				if (shouldClear) {
+					clearContentAfterSend()
+					setIsComposerFocused(false)
+				}
+				return
+			}
+			const isTaskRunning = (editorContext.isTaskRunning ?? false) || showLoading
+			if (isTaskRunning && !isWaitingForUser && !params.isFromQueue && queueContext) {
+				const queueId = await queueContext.addToQueue(
+					buildQueueMessageInput(finalParams, params.value),
+				)
+				if (!queueId) return
+				sceneStateStore?.incrementSendCount()
+				clearContentAfterSend()
+				setIsComposerFocused(false)
+				return
+			}
+
+			if (
+				editorContext.selectedWorkspace === undefined &&
+				!workspaceStore.selectedWorkspace &&
+				selectedWorkspace
+			) {
+				effectiveSetSelectedWorkspace(selectedWorkspace)
+			}
 
 			const preparedSend = await preparePanelSend({
 				params: finalParams,
 				context: {
+					getTemporaryWorkdir: store.fileUploadStore.getTemporaryWorkdir,
 					selectedProject,
 					selectedTopic,
 					selectedWorkspace,
@@ -458,6 +510,9 @@ export default function useMobileComposerLogic({
 					topicStore: editorContext.topicStore ?? topicStore,
 					createTopic: editorContext.createTopic,
 					createProject: editorContext.createProject,
+					refreshProjectAfterTopicRename: editorContext.refreshProjectAfterTopicRename,
+					// Mentions sent without being typed, e.g. the AI canvas a send draws on.
+					getImplicitMentionItems: editorContext.getImplicitMentionItems,
 				},
 				tabPattern: effectiveTopicMode,
 				editorRef: tiptapEditorRef.current,
@@ -482,35 +537,52 @@ export default function useMobileComposerLogic({
 				messagesLength: editorContext.messagesLength ?? 0,
 			})
 
-			editorContext.onSendSuccess?.({
-				currentProject: sendResult?.currentProject ?? null,
-				currentTopic: sendResult?.currentTopic ?? null,
-			})
-			editorContext.onSendComplete?.({
+			if (sendResult) {
+				sceneStateStore?.incrementSendCount()
+				editorContext.onSendSuccess?.({
+					currentProject: sendResult.currentProject,
+					currentTopic: sendResult.currentTopic,
+				})
+			}
+			completion = {
 				success: Boolean(sendResult),
 				currentProject: sendResult?.currentProject ?? null,
 				currentTopic: sendResult?.currentTopic ?? null,
-			})
+			}
+			return Boolean(sendResult)
 		} finally {
+			// Release home controls even when preparation or destination validation fails.
+			editorContext.onSendComplete?.(completion)
 			isPreparingSendRef.current = false
 			setIsPreparingSend(false)
 		}
 	})
 
 	const handleSend = useMessageSendHandler({
+		isSendSuspended: () => wechatChat.isOpen(),
 		voiceInputRef,
 		canSendMessage,
 		hasLoadingMarker,
 		isAllFilesUploaded,
+		isEditingQueueItem: Boolean(editorContext.queueContext?.editingQueueItem),
 		store,
 		t,
 		onSend: handleSendToServer,
+		awaitSendSuccess: editorContext.deferProjectCreationUntilSend,
 		topicMode: effectiveTopicMode,
 		collectMentionItemsFromEditor,
 		isMountedRef,
 	})
 
-	const { tiptapEditor, domRef } = useMessageEditor({
+	const getWorkspaceFilesList = useMemoizedFn(
+		() => editorContext.projectFilesStore?.workspaceFilesList ?? [],
+	)
+	const getCurrentProjectId = useMemoizedFn(
+		() => selectedTopic?.project_id ?? selectedProject?.id ?? draftKey?.projectId,
+	)
+
+	const { tiptapEditor, domRef, wechatChat } = useMessageEditor({
+		wechatChatEnabled: uploadEnabled && shouldEnableMention,
 		value: store.editorStore.value,
 		onSend: handleSend,
 		placeholder,
@@ -535,6 +607,8 @@ export default function useMobileComposerLogic({
 		isAllowedMention: editorContext.isAllowedMention,
 		shouldSkipRemoveSync: () => shouldSkipMentionRemoveSyncRef.current,
 		shouldRestoreRemovedMention,
+		getWorkspaceFilesList,
+		getCurrentProjectId,
 	})
 
 	const updateContent = useMemoizedFn((content: JSONContent | undefined) => {
@@ -552,29 +626,6 @@ export default function useMobileComposerLogic({
 			if (isMobile) editor.commands.scrollIntoView()
 		})
 	})
-
-	const prevEditingQueueItemRef = useRef(editorContext.queueContext?.editingQueueItem ?? null)
-
-	useEffect(() => {
-		const currentEditingItem = editorContext.queueContext?.editingQueueItem ?? null
-		const prevEditingItem = prevEditingQueueItemRef.current
-		const currentEditingId = currentEditingItem?.id
-		const prevEditingId = prevEditingItem?.id
-
-		if (currentEditingItem) {
-			if (!prevEditingId || currentEditingId !== prevEditingId) {
-				window.setTimeout(() => {
-					updateContent(currentEditingItem.content)
-					focusEditor()
-				}, 100)
-			}
-		} else if (!currentEditingItem && prevEditingItem) {
-			clearContent()
-			setIsComposerFocused(false)
-		}
-
-		prevEditingQueueItemRef.current = currentEditingItem
-	}, [clearContent, editorContext.queueContext?.editingQueueItem, focusEditor, updateContent])
 
 	useEffect(() => {
 		tiptapCoreRef.current = tiptapEditor
@@ -615,6 +666,15 @@ export default function useMobileComposerLogic({
 
 	useEffect(() => {
 		tiptapEditorRef.current = {
+			getDraftKey: store.draftStore.getDraftKey,
+			beginDraftSwitch: store.draftStore.beginDraftSwitch,
+			endDraftSwitch: store.draftStore.endDraftSwitch,
+			prepareQueueDraft: store.draftStore.prepareQueueDraft,
+			restoreQueueDraft: store.draftStore.restoreQueueDraft,
+			getQueueDraft: store.draftStore.getQueueDraft,
+			subscribeQueueDraft: store.draftStore.subscribeQueueDraft,
+			keepQueueDraft: store.draftStore.keepQueueDraft,
+			completeQueueDraft: store.draftStore.completeQueueDraft,
 			editor: tiptapCoreRef.current,
 			canSendMessage,
 			getFiles: () => files,
@@ -655,6 +715,11 @@ export default function useMobileComposerLogic({
 				)
 			},
 		}
+		if (editorContext.queueContext?.editorRef) {
+			;(
+				editorContext.queueContext.editorRef as MutableRefObject<MessageEditorRef | null>
+			).current = tiptapEditorRef.current
+		}
 		// 同步到外部 ref，使父级的 useRecordSummaryAudioFile 能访问到编辑器方法
 		if (editorContext.editorRef) {
 			;(editorContext.editorRef as MutableRefObject<MessageEditorRef | null>).current =
@@ -667,6 +732,7 @@ export default function useMobileComposerLogic({
 		clearContentAfterSend,
 		clearFiles,
 		editorContext.editorRef,
+		editorContext.queueContext?.editorRef,
 		files,
 		focusEditor,
 		selectedProject?.id,
@@ -790,18 +856,44 @@ export default function useMobileComposerLogic({
 		[addFiles],
 	)
 
+	const getPasteSessionId = useMemoizedFn(
+		() =>
+			`${selectedTopic?.id ?? ""}:${selectedProject?.id ?? draftKey?.projectId ?? ""}:${draftKey?.workspaceId ?? ""}`,
+	)
+	const pasteFilesWithText = useMixedClipboardPaste({
+		getEditor,
+		getSessionId: getPasteSessionId,
+		getFiles: () => store.fileUploadStore.files,
+		addFiles: addFilesWithDir,
+		cancelPendingUpload,
+		isProjectContext: Boolean(selectedProject?.id),
+		onPreparingChange: setIsPreparingPaste,
+		wechatChatEnabled:
+			uploadEnabled && shouldEnableMention && !isInternationalEnv() && !isPrivateDeployment(),
+		onWechatImported: wechatChat.onImported,
+	})
 	const handlePaste = useCallback(
 		(event: React.ClipboardEvent) => {
 			const clipboardData = event.clipboardData
 			if (!clipboardData) return
 
-			const inputFiles = Array.from(clipboardData.files)
+			const inputFiles = CanvasDesignClipboard.readAllEventFilesSnapshot(event.nativeEvent)
 			if (uploadEnabled && inputFiles.length > 0) {
 				event.preventDefault()
-				void addFiles(inputFiles)
+				event.stopPropagation()
+				if (shouldEnableMention) pasteFilesWithText(clipboardData, inputFiles)
+				else void addFiles(inputFiles)
+			} else if (
+				wechatChat.available &&
+				!hasMagicClipboardData(clipboardData) &&
+				isWechatChatText(clipboardData.getData("text/plain"))
+			) {
+				event.preventDefault()
+				event.stopPropagation()
+				pasteFilesWithText(clipboardData, [])
 			}
 		},
-		[addFiles, uploadEnabled],
+		[addFiles, uploadEnabled, shouldEnableMention, pasteFilesWithText, wechatChat.available],
 	)
 
 	const handleSelectMentionItem = useMemoizedFn(
@@ -895,11 +987,21 @@ export default function useMobileComposerLogic({
 	})
 
 	useEffect(() => {
-		void mcpAccess.load().catch(console.error)
-	}, [mcpAccess])
+		if (mcpUseTempStorage) {
+			void mcpAccess.load().catch(console.error)
+			return
+		}
+
+		void loadMCPWithInstalledConnectorReconciliation({
+			installedAccess: addedMCPAccess,
+			activeAccess: mcpAccess,
+			activeStorageKey: activeMCPStorageKey,
+		}).catch(console.error)
+	}, [activeMCPStorageKey, addedMCPAccess, mcpAccess, mcpUseTempStorage])
 
 	return {
 		parentStore,
+		wechatChat,
 		store,
 		domRef,
 		tiptapEditor,

@@ -42,12 +42,55 @@ export const useStyles = createStyles(({ css, token, isDarkMode }) => {
 		terminalContainer: css`
 			overflow: hidden;
 			height: 100%;
+			min-height: 0;
+			min-width: 0;
 			display: flex;
 			flex-direction: column;
-			font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace;
-			box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-			background-color: ${isDarkMode ? macDarkColors.background : macColors.background};
-			color: ${isDarkMode ? macDarkColors.text : macColors.text};
+			box-sizing: border-box;
+			background-color: ${token.colorBgContainer};
+			color: ${token.colorText};
+		`,
+
+		toolbar: css`
+			/* 仅终端采用常规操作尺寸；共享标题栏的其它消费者保留原默认值。 */
+			--detail-action-font-size: 14px;
+			--detail-action-line-height: 20px;
+			--detail-action-height: 32px;
+			--detail-action-gap: 6px;
+			display: flex;
+			align-items: center;
+			flex-shrink: 0;
+			min-height: 52px;
+			padding: 10px 16px;
+			border-bottom: 1px solid ${token.colorBorderSecondary};
+			background-color: ${token.colorBgContainer};
+			user-select: none;
+			font-weight: 400;
+			-webkit-user-select: none;
+
+			@media (pointer: coarse) {
+				--detail-action-height: 44px;
+			}
+		`,
+
+		title: css`
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 16px;
+			line-height: 24px;
+			font-weight: 500;
+			cursor: default;
+		`,
+
+		readOnly: css`
+			font-size: 12px;
+			font-weight: 400;
+			color: ${token.colorTextSecondary};
+
+			@media (max-width: 440px) {
+				display: none;
+			}
 		`,
 
 		terminalContent: css`
@@ -100,21 +143,25 @@ export const useStyles = createStyles(({ css, token, isDarkMode }) => {
 		`,
 
 		closeButton: css`
-			background-color: ${isDarkMode
-				? macDarkColors.titleBarButtons.close
-				: macColors.titleBarButtons.close};
+			background-color: ${
+				isDarkMode ? macDarkColors.titleBarButtons.close : macColors.titleBarButtons.close
+			};
 		`,
 
 		minimizeButton: css`
-			background-color: ${isDarkMode
-				? macDarkColors.titleBarButtons.minimize
-				: macColors.titleBarButtons.minimize};
+			background-color: ${
+				isDarkMode
+					? macDarkColors.titleBarButtons.minimize
+					: macColors.titleBarButtons.minimize
+			};
 		`,
 
 		maximizeButton: css`
-			background-color: ${isDarkMode
-				? macDarkColors.titleBarButtons.maximize
-				: macColors.titleBarButtons.maximize};
+			background-color: ${
+				isDarkMode
+					? macDarkColors.titleBarButtons.maximize
+					: macColors.titleBarButtons.maximize
+			};
 		`,
 
 		titleText: css`

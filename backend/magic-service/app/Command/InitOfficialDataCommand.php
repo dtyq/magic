@@ -9,7 +9,7 @@ namespace App\Command;
 
 use App\Application\Mode\Official\ModeInitializer;
 use App\Application\ModelGateway\Official\OfficialAccessTokenInitializer;
-use App\Application\Provider\Official\ServiceProviderInitializer;
+use App\Application\Provider\Initializer\ServiceProviderInitializer;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Contract\StdoutLoggerInterface;

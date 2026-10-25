@@ -9,7 +9,7 @@ import {
 	SelectItem,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
-import { MessageSquareText, Image } from "lucide-react"
+import { Clapperboard, Image, MessageSquareText } from "lucide-react"
 import { useAddModelStore } from "./context"
 import ProviderSelectField from "./ProviderSelectField"
 import ModelDeploymentField from "./ModelDeploymentField"
@@ -18,6 +18,7 @@ import type { AddModelType } from "./store"
 const MODEL_TYPE_ICONS: Record<AddModelType, React.ReactNode> = {
 	text: <MessageSquareText size={16} />,
 	image: <Image size={16} />,
+	video: <Clapperboard size={16} />,
 }
 
 export interface ModelFormBodyProps {
@@ -38,6 +39,11 @@ function ModelFormBody({ submitted, onModelTypeChange }: ModelFormBodyProps) {
 	const { t } = useTranslation("super")
 	const store = useAddModelStore()
 	const [providerTouched, setProviderTouched] = useState(false)
+	const modelTypeLabels: Record<AddModelType, string> = {
+		text: t("messageEditor.addModel.typeText"),
+		image: t("messageEditor.addModel.typeImage"),
+		video: t("messageEditor.addModel.typeVideo"),
+	}
 
 	const showProviderError = (submitted || providerTouched) && !store.selectedProviderId
 
@@ -60,13 +66,7 @@ function ModelFormBody({ submitted, onModelTypeChange }: ModelFormBodyProps) {
 					<SelectValue>
 						<div className="flex items-center gap-2">
 							{MODEL_TYPE_ICONS[store.addModelType]}
-							<span>
-								{t(
-									`messageEditor.addModel.type${store.addModelType.charAt(0).toUpperCase() +
-									store.addModelType.slice(1)
-									}`,
-								)}
-							</span>
+							<span>{modelTypeLabels[store.addModelType]}</span>
 						</div>
 					</SelectValue>
 				</SelectTrigger>
@@ -81,6 +81,12 @@ function ModelFormBody({ submitted, onModelTypeChange }: ModelFormBodyProps) {
 						<div className="flex items-center gap-2">
 							<Image size={16} />
 							<span>{t("messageEditor.addModel.typeImage")}</span>
+						</div>
+					</SelectItem>
+					<SelectItem value="video" data-testid="add-model-type-video">
+						<div className="flex items-center gap-2">
+							<Clapperboard size={16} />
+							<span>{t("messageEditor.addModel.typeVideo")}</span>
 						</div>
 					</SelectItem>
 				</SelectContent>

@@ -3,20 +3,24 @@ import { ImagePlus, Loader2, RefreshCw, Settings2, Trash2, X } from "lucide-reac
 import { useTranslation } from "react-i18next"
 
 import type { PublishedMicroAppProjectItem } from "@/apis/modules/superMagic"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Label } from "@/components/shadcn-ui/label"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Separator } from "@/components/shadcn-ui/separator"
 import { Switch } from "@/components/shadcn-ui/switch"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import {
 	ShareRangeField,
+	ShareExpiryField,
 	ShareTypeField,
 	type ShareRange,
 	type ShareTarget,
 } from "@/pages/superMagic/components/Share/ShareFields"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
+import MicroAppEntryFileSelect from "./MicroAppEntryFileSelect"
+import MicroAppMobileExpiryField from "./MicroAppMobileExpiryField"
 
 import type {
 	MicroAppPublishFormState,
@@ -34,6 +38,9 @@ interface MicroAppPublishDialogContentProps {
 	accessUrl: string
 	hasPublished: boolean
 	hasUnsavedPublishedChanges: boolean
+	permittedShareTypes?: ShareType[]
+	isSelectedShareTypePermitted: boolean
+	shareTypePermissionLoading: boolean
 	loading: boolean
 	saving: boolean
 	unpublishing: boolean
@@ -50,6 +57,9 @@ interface MicroAppPublishDialogContentProps {
 	onShareTypeChange: (shareType: ShareType) => void
 	onShareRangeChange: (shareRange: ShareRange) => void
 	onTargetsChange: (targets: ShareTarget[]) => void
+	onShareExpiryChange: (value: number | null) => void
+	attachmentList: AttachmentItem[]
+	onDefaultOpenFileChange: (value: string | null) => void
 	onPasswordChange: ChangeEventHandler<HTMLInputElement>
 	onPasswordReset: () => void
 	onCopyAccessUrl: () => void
@@ -79,6 +89,9 @@ export default function MicroAppPublishDialogContent({
 	accessUrl,
 	hasPublished,
 	hasUnsavedPublishedChanges,
+	permittedShareTypes,
+	isSelectedShareTypePermitted,
+	shareTypePermissionLoading,
 	loading,
 	saving,
 	unpublishing,
@@ -95,6 +108,9 @@ export default function MicroAppPublishDialogContent({
 	onShareTypeChange,
 	onShareRangeChange,
 	onTargetsChange,
+	onShareExpiryChange,
+	attachmentList,
+	onDefaultOpenFileChange,
 	onPasswordChange,
 	onPasswordReset,
 	onCopyAccessUrl,
@@ -105,6 +121,8 @@ export default function MicroAppPublishDialogContent({
 }: MicroAppPublishDialogContentProps) {
 	const { t } = useTranslation("super")
 	const isBusy = saving || unpublishing || coverUploading
+	// 全部分享方式被管理员管控关闭时，分享设置里只有方式与提示有意义，其余项不再渲染。
+	const hasNoPermittedShareType = permittedShareTypes?.length === 0
 	const handleCoverPaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
 		if (loading || isBusy) return
 		const target = event.target
@@ -134,21 +152,31 @@ export default function MicroAppPublishDialogContent({
 			className={cn(
 				mobile
 					? "flex min-h-0 flex-1 flex-col overflow-hidden"
-					: "grid max-h-[80dvh] min-h-0 grid-rows-[minmax(0,1fr)_auto_auto]",
+					: "grid max-h-[80dvh] min-h-0 grid-rows-[minmax(0,1fr)_auto_auto] overflow-hidden",
+				!mobile && (loading || hasPublished) && "h-[80dvh]",
 			)}
 			data-testid="micro-app-publish-dialog"
 			data-mobile={mobile ? "true" : undefined}
 			onPaste={handleCoverPaste}
 		>
-			<ScrollArea
-				className={cn("min-h-0", mobile ? "flex-1 px-4" : "")}
-				viewportClassName="touch-pan-y [&>div]:!block"
-				data-testid="micro-app-publish-scroll-area"
-			>
-				<div className={cn("flex flex-col gap-4", mobile ? "pb-5 pt-1" : "p-5")}>
-					{!loading && hasPublished ? (
+			{/* 顶部发布状态和下方设置共用单列轨道，避免跨列元素生成隐式空白列。 */}
+			{!mobile ? (
+				<div
+					className={cn(
+						"grid min-h-0 min-w-0 grid-cols-1 gap-4 p-5",
+						loading || hasPublished
+							? "grid-rows-[auto_minmax(0,1fr)]"
+							: "grid-rows-[minmax(0,1fr)]",
+					)}
+				>
+					{loading ? (
+						<div
+							className="h-[156px] rounded-lg border border-emerald-200/70 bg-emerald-50/40"
+							aria-hidden="true"
+						/>
+					) : hasPublished ? (
 						<MicroAppPublishedSection
-							mobile={mobile}
+							mobile={false}
 							publishedAtText={publishedAtText}
 							accessUrl={accessUrl}
 							hasUnsavedPublishedChanges={hasUnsavedPublishedChanges}
@@ -156,193 +184,490 @@ export default function MicroAppPublishDialogContent({
 							onCopyShareText={onCopyShareText}
 						/>
 					) : null}
-
 					<div
-						className="rounded-lg border border-border bg-muted/30 p-3"
+						className="grid min-h-0 min-w-0 grid-cols-2 items-start gap-4"
 						data-testid="micro-app-publish-basic-settings"
 					>
-						<div>
-							<Label htmlFor="micro-app-publish-project-name">
-								{t("microAppPage.publish.projectName")}
-							</Label>
-							<Input
-								id="micro-app-publish-project-name"
-								value={formState.appName}
-								onChange={onAppNameChange}
-								maxLength={100}
-								className={cn("mt-2 bg-background", mobile ? "h-11" : "h-9")}
-								data-testid="micro-app-publish-project-name"
-							/>
-							<p className="mt-1 text-xs text-muted-foreground">
-								{t("microAppPage.publish.description")}
-							</p>
-						</div>
-
-						<div className="mt-4">
-							<div className="flex items-center justify-between gap-3">
+						{/* 两个面板共享受限轨道高度，内容只在各自 ScrollArea 内滚动，避免遮挡底部操作区。 */}
+						<ScrollArea
+							className="h-full min-h-0 min-w-0 self-stretch rounded-lg bg-muted/60"
+							data-testid="micro-app-publish-scroll-area"
+						>
+							<div className="min-w-0 space-y-4 p-3">
 								<div>
-									<Label>{t("microAppPage.publish.cover")}</Label>
+									<Label htmlFor="micro-app-publish-project-name">
+										{t("microAppPage.publish.projectName")}
+									</Label>
+									<Input
+										id="micro-app-publish-project-name"
+										value={formState.appName}
+										onChange={onAppNameChange}
+										maxLength={100}
+										className="mt-2 h-9 bg-background"
+										data-testid="micro-app-publish-project-name"
+									/>
 									<p className="mt-1 text-xs text-muted-foreground">
-										{t("microAppPage.publish.coverDescription")}
+										{t("microAppPage.publish.description")}
+									</p>
+									<div className="mt-4">
+										<div className="flex items-center justify-between gap-3">
+											<div>
+												<Label>{t("microAppPage.publish.cover")}</Label>
+												<p className="mt-1 text-xs text-muted-foreground">
+													{t("microAppPage.publish.coverDescription")}
+												</p>
+											</div>
+											<input
+												ref={coverInputRef}
+												type="file"
+												accept="image/*"
+												className="hidden"
+												onChange={onCoverChange}
+												data-testid="micro-app-cover-input"
+											/>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => coverInputRef.current?.click()}
+												disabled={coverUploading || saving}
+												data-testid="micro-app-cover-upload"
+											>
+												<ImagePlus className="mr-1.5 size-3.5" />
+												{t("microAppPage.publish.coverUpload")}
+											</Button>
+											{formState.coverFileKey !== undefined ||
+											formState.coverUrl ? (
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon"
+													className="size-8"
+													onClick={onClearCover}
+													data-testid="micro-app-cover-clear"
+													aria-label={t(
+														"microAppPage.publish.coverClear",
+													)}
+												>
+													<X className="size-4" />
+												</Button>
+											) : null}
+										</div>
+										<div className="mt-3 overflow-hidden rounded-md border border-border bg-background">
+											{formState.coverUrl ? (
+												<img
+													src={formState.coverUrl}
+													alt=""
+													className="h-28 w-full object-cover"
+													data-testid="micro-app-cover-preview"
+												/>
+											) : (
+												<div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+													{formState.coverFileKey
+														? t("microAppPage.publish.coverSet")
+														: t("microAppPage.publish.coverEmpty")}
+												</div>
+											)}
+										</div>
+									</div>
+								</div>
+								<div className="border-t border-border/60 pt-4">
+									<Label htmlFor="micro-app-default-open-file">
+										{t("microAppPage.publish.defaultOpenFile")}
+									</Label>
+									<MicroAppEntryFileSelect
+										attachmentList={attachmentList}
+										value={formState.defaultOpenFileId}
+										onChange={onDefaultOpenFileChange}
+										disabled={isBusy || loading}
+										mobile={mobile}
+									/>
+									<p className="mt-1 text-xs text-muted-foreground">
+										{t("microAppPage.publish.defaultOpenFileDescription")}
 									</p>
 								</div>
-								<div className="flex shrink-0 items-center gap-2">
-									<input
-										ref={coverInputRef}
-										type="file"
-										accept="image/*"
-										className="hidden"
-										onChange={onCoverChange}
-										data-testid="micro-app-cover-input"
-									/>
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={() => coverInputRef.current?.click()}
-										disabled={coverUploading || loading || saving}
-										data-testid="micro-app-cover-upload"
-									>
-										{coverUploading ? (
-											<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-										) : (
-											<ImagePlus className="mr-1.5 size-3.5" />
-										)}
-										{t("microAppPage.publish.coverUpload")}
-									</Button>
-									{formState.coverFileKey !== undefined || formState.coverUrl ? (
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon"
-											className="size-8 text-muted-foreground"
-											onClick={onClearCover}
-											aria-label={t("microAppPage.publish.coverClear")}
-											data-testid="micro-app-cover-clear"
-										>
-											<X className="size-4" />
-										</Button>
-									) : null}
+								<div
+									className="border-t border-border/60 pt-4"
+									data-testid="micro-app-publish-display-settings"
+								>
+									<div className="flex items-center gap-2 text-sm font-medium">
+										<Settings2 className="size-4 text-muted-foreground" />
+										{t("microAppPage.publish.displaySettings")}
+									</div>
+									<div className="mt-3 flex items-start gap-3">
+										<Switch
+											id="micro-app-publish-full-screen"
+											data-testid="micro-app-publish-full-screen"
+											checked={formState.fullScreen}
+											onCheckedChange={onFullScreenChange}
+											disabled={isBusy}
+										/>
+										<div>
+											<Label htmlFor="micro-app-publish-full-screen">
+												{t("microAppPage.publish.fullScreen")}
+											</Label>
+											<p className="mt-1 text-xs text-muted-foreground">
+												{t("microAppPage.publish.fullScreenDescription")}
+											</p>
+										</div>
+									</div>
 								</div>
 							</div>
-							<div className="mt-3 overflow-hidden rounded-md border border-border bg-background">
-								{formState.coverUrl ? (
-									<img
-										src={formState.coverUrl}
-										alt=""
-										className={cn(
-											"w-full object-cover",
-											mobile ? "h-32" : "h-28",
-										)}
-										data-testid="micro-app-cover-preview"
-									/>
-								) : (
-									<div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
-										{formState.coverFileKey
-											? t("microAppPage.publish.coverSet")
-											: t("microAppPage.publish.coverEmpty")}
-									</div>
-								)}
-							</div>
-						</div>
-					</div>
-
-					{loading ? (
-						<div
-							className="flex min-h-48 items-center justify-center text-muted-foreground"
-							data-testid="micro-app-publish-loading"
+						</ScrollArea>
+						<ScrollArea
+							className="h-full min-h-0 min-w-0 self-stretch rounded-lg bg-muted/20"
+							data-testid="micro-app-publish-share-panel"
 						>
-							<Loader2 className="size-6 animate-spin" />
-						</div>
-					) : (
-						<>
-							<ShareTypeField
-								value={formState.shareType as ShareType}
-								onChange={onShareTypeChange}
-								availableTypes={
-									isPersonalOrganization
-										? PERSONAL_MICRO_APP_PUBLISH_TYPES
-										: MICRO_APP_PUBLISH_TYPES
-								}
-							/>
-
-							{!isPersonalOrganization &&
-							formState.shareType === ShareType.Organization ? (
-								<ShareRangeField
-									value={formState.shareRange}
-									onChange={onShareRangeChange}
-									targets={formState.targets}
-									onTargetsChange={onTargetsChange}
-									resourceId={publishedItem?.resource_id}
+							<div className="min-w-0 space-y-5 p-3">
+								<div>
+									<ShareTypeField
+										value={formState.shareType as ShareType}
+										onChange={onShareTypeChange}
+										availableTypes={
+											isPersonalOrganization
+												? PERSONAL_MICRO_APP_PUBLISH_TYPES
+												: MICRO_APP_PUBLISH_TYPES
+										}
+										permittedTypes={permittedShareTypes}
+										preserveCurrentType={hasPublished}
+									/>
+									{hasNoPermittedShareType ? (
+										<p className="text-sm text-destructive" role="alert">
+											{t("share.noAvailableShareMethods")}
+										</p>
+									) : !isSelectedShareTypePermitted ? (
+										<p className="text-sm text-destructive" role="alert">
+											{t("share.currentShareMethodUnavailable")}
+										</p>
+									) : null}
+									{!hasNoPermittedShareType && (
+										<>
+											{!isPersonalOrganization &&
+											formState.shareType === ShareType.Organization ? (
+												<ShareRangeField
+													value={formState.shareRange}
+													onChange={onShareRangeChange}
+													targets={formState.targets}
+													onTargetsChange={onTargetsChange}
+													resourceId={publishedItem?.resource_id}
+												/>
+											) : null}
+											<div className="mt-4">
+												<ShareExpiryField
+													value={formState.shareExpiry}
+													onChange={onShareExpiryChange}
+												/>
+											</div>
+										</>
+									)}
+								</div>
+								{!hasNoPermittedShareType &&
+								formState.shareType === ShareType.PasswordProtected ? (
+									<div>
+										<Label htmlFor="micro-app-publish-password">
+											{t("microAppPage.publish.password")}
+										</Label>
+										<div className="mt-2 flex gap-2">
+											<Input
+												id="micro-app-publish-password"
+												data-testid="micro-app-publish-password"
+												value={formState.password}
+												onChange={onPasswordChange}
+												maxLength={32}
+												className="h-9"
+											/>
+											<Button
+												type="button"
+												variant="outline"
+												size="icon"
+												className="size-9"
+												onClick={onPasswordReset}
+											>
+												<RefreshCw className="size-4" />
+											</Button>
+										</div>
+										<p className="mt-1 text-xs text-muted-foreground">
+											{t("microAppPage.publish.passwordHint")}
+										</p>
+									</div>
+								) : null}
+							</div>
+						</ScrollArea>
+					</div>
+				</div>
+			) : null}
+			{mobile ? (
+				<div className="flex min-h-0 flex-1 flex-col">
+					{/* 移动端弹窗把滚动区和底部操作区拆成独立轨道，避免表单内容撑开 popup。 */}
+					<ScrollArea
+						className="min-h-0 flex-1 px-4"
+						viewportClassName="touch-pan-y [&>div]:!block"
+						data-testid="micro-app-publish-scroll-area"
+					>
+						<div className="flex flex-col gap-4 pb-5 pt-1">
+							{!loading && hasPublished ? (
+								<MicroAppPublishedSection
+									className="w-full"
+									mobile={mobile}
+									publishedAtText={publishedAtText}
+									accessUrl={accessUrl}
+									hasUnsavedPublishedChanges={hasUnsavedPublishedChanges}
+									onCopyAccessUrl={onCopyAccessUrl}
+									onCopyShareText={onCopyShareText}
 								/>
 							) : null}
 
-							{formState.shareType === ShareType.PasswordProtected ? (
-								<div className="flex flex-col gap-2">
-									<Label htmlFor="micro-app-publish-password">
-										{t("microAppPage.publish.password")}
+							<div
+								className="rounded-t-lg bg-muted/60 p-3"
+								data-testid="micro-app-publish-basic-settings"
+							>
+								<div>
+									<Label htmlFor="micro-app-publish-project-name">
+										{t("microAppPage.publish.projectName")}
 									</Label>
-									<div className="flex items-center gap-2">
-										<Input
-											id="micro-app-publish-password"
-											value={formState.password}
-											onChange={onPasswordChange}
-											maxLength={32}
-											className={mobile ? "h-11" : "h-9"}
-											data-testid="micro-app-publish-password"
-										/>
-										<Button
-											type="button"
-											variant="outline"
-											size="icon"
-											className={
-												mobile ? "size-11 shrink-0" : "size-9 shrink-0"
-											}
-											onClick={onPasswordReset}
-											aria-label={t("microAppPage.publish.resetPassword")}
-										>
-											<RefreshCw className="size-4" />
-										</Button>
-									</div>
-									<p className="text-xs text-muted-foreground">
-										{t("microAppPage.publish.passwordHint")}
+									<Input
+										id="micro-app-publish-project-name"
+										value={formState.appName}
+										onChange={onAppNameChange}
+										maxLength={100}
+										className={cn(
+											"mt-2 bg-background",
+											mobile ? "h-11" : "h-9",
+										)}
+										data-testid="micro-app-publish-project-name"
+									/>
+									<p className="mt-1 text-xs text-muted-foreground">
+										{t("microAppPage.publish.description")}
 									</p>
 								</div>
-							) : null}
 
-							<div
-								className="rounded-lg bg-muted/60 px-3 py-3"
-								data-testid="micro-app-publish-display-settings"
-							>
-								<div className="flex items-center gap-2 text-sm font-medium text-foreground">
-									<Settings2 className="size-4 text-muted-foreground" />
-									{t("microAppPage.publish.displaySettings")}
-								</div>
-								<div className="mt-3 flex items-start gap-3">
-									<Switch
-										id="micro-app-publish-full-screen"
-										checked={formState.fullScreen}
-										onCheckedChange={onFullScreenChange}
-										disabled={isBusy}
-										data-testid="micro-app-publish-full-screen"
-									/>
-									<div className="min-w-0">
-										<Label
-											htmlFor="micro-app-publish-full-screen"
-											className="cursor-pointer text-sm font-medium"
-										>
-											{t("microAppPage.publish.fullScreen")}
-										</Label>
-										<p className="mt-1 text-xs leading-5 text-muted-foreground">
-											{t("microAppPage.publish.fullScreenDescription")}
-										</p>
+								<div className="mt-4">
+									<div className="flex items-center justify-between gap-3">
+										<div>
+											<Label>{t("microAppPage.publish.cover")}</Label>
+											<p className="mt-1 text-xs text-muted-foreground">
+												{t("microAppPage.publish.coverDescription")}
+											</p>
+										</div>
+										<div className="flex shrink-0 items-center gap-2">
+											<input
+												ref={coverInputRef}
+												type="file"
+												accept="image/*"
+												className="hidden"
+												onChange={onCoverChange}
+												data-testid="micro-app-cover-input"
+											/>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => coverInputRef.current?.click()}
+												disabled={coverUploading || loading || saving}
+												data-testid="micro-app-cover-upload"
+											>
+												{coverUploading ? (
+													<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+												) : (
+													<ImagePlus className="mr-1.5 size-3.5" />
+												)}
+												{t("microAppPage.publish.coverUpload")}
+											</Button>
+											{formState.coverFileKey !== undefined ||
+											formState.coverUrl ? (
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon"
+													className="size-8 text-muted-foreground"
+													onClick={onClearCover}
+													aria-label={t(
+														"microAppPage.publish.coverClear",
+													)}
+													data-testid="micro-app-cover-clear"
+												>
+													<X className="size-4" />
+												</Button>
+											) : null}
+										</div>
+									</div>
+									<div className="mt-3 overflow-hidden rounded-md border border-border bg-background">
+										{formState.coverUrl ? (
+											<img
+												src={formState.coverUrl}
+												alt=""
+												className={cn(
+													"w-full object-cover",
+													mobile ? "h-32" : "h-28",
+												)}
+												data-testid="micro-app-cover-preview"
+											/>
+										) : (
+											<div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+												{formState.coverFileKey
+													? t("microAppPage.publish.coverSet")
+													: t("microAppPage.publish.coverEmpty")}
+											</div>
+										)}
 									</div>
 								</div>
 							</div>
-						</>
-					)}
+
+							{loading ? (
+								<div
+									className="flex min-h-48 items-center justify-center text-muted-foreground"
+									data-testid="micro-app-publish-loading"
+								>
+									<Loader2 className="size-6 animate-spin" />
+								</div>
+							) : (
+								<>
+									<div
+										id="micro-app-publish-share-settings"
+										className="space-y-4"
+									>
+										<ShareTypeField
+											value={formState.shareType as ShareType}
+											onChange={onShareTypeChange}
+											availableTypes={
+												isPersonalOrganization
+													? PERSONAL_MICRO_APP_PUBLISH_TYPES
+													: MICRO_APP_PUBLISH_TYPES
+											}
+											permittedTypes={permittedShareTypes}
+											preserveCurrentType={hasPublished}
+										/>
+										{hasNoPermittedShareType ? (
+											<p className="text-sm text-destructive" role="alert">
+												{t("share.noAvailableShareMethods")}
+											</p>
+										) : !isSelectedShareTypePermitted ? (
+											<p className="text-sm text-destructive" role="alert">
+												{t("share.currentShareMethodUnavailable")}
+											</p>
+										) : null}
+
+										{!hasNoPermittedShareType ? (
+											<>
+												{!isPersonalOrganization &&
+												formState.shareType === ShareType.Organization ? (
+													<ShareRangeField
+														value={formState.shareRange}
+														onChange={onShareRangeChange}
+														targets={formState.targets}
+														onTargetsChange={onTargetsChange}
+														resourceId={publishedItem?.resource_id}
+													/>
+												) : null}
+
+												<MicroAppMobileExpiryField
+													value={formState.shareExpiry}
+													onChange={onShareExpiryChange}
+												/>
+											</>
+										) : null}
+									</div>
+
+									{!hasNoPermittedShareType &&
+									formState.shareType === ShareType.PasswordProtected ? (
+										<div
+											className={cn(
+												"flex flex-col gap-2",
+												!mobile && "col-start-2 row-start-3",
+											)}
+										>
+											<Label htmlFor="micro-app-publish-password">
+												{t("microAppPage.publish.password")}
+											</Label>
+											<div className="flex items-center gap-2">
+												<Input
+													id="micro-app-publish-password"
+													value={formState.password}
+													onChange={onPasswordChange}
+													maxLength={32}
+													className={mobile ? "h-11" : "h-9"}
+													data-testid="micro-app-publish-password"
+												/>
+												<Button
+													type="button"
+													variant="outline"
+													size="icon"
+													className={
+														mobile
+															? "size-11 shrink-0"
+															: "size-9 shrink-0"
+													}
+													onClick={onPasswordReset}
+													aria-label={t(
+														"microAppPage.publish.resetPassword",
+													)}
+												>
+													<RefreshCw className="size-4" />
+												</Button>
+											</div>
+											<p className="text-xs text-muted-foreground">
+												{t("microAppPage.publish.passwordHint")}
+											</p>
+										</div>
+									) : null}
+
+									<div className="-mt-4 rounded-b-lg bg-muted/60 p-3">
+										<div className="flex flex-col gap-2">
+											<Label htmlFor="micro-app-default-open-file">
+												{t("microAppPage.publish.defaultOpenFile")}
+											</Label>
+											<MicroAppEntryFileSelect
+												attachmentList={attachmentList}
+												value={formState.defaultOpenFileId}
+												onChange={onDefaultOpenFileChange}
+												disabled={isBusy || loading}
+												mobile={mobile}
+											/>
+											<p className="mt-1 text-xs text-muted-foreground">
+												{t(
+													"microAppPage.publish.defaultOpenFileDescription",
+												)}
+											</p>
+										</div>
+
+										<div
+											className="mt-3 border-t border-border/60 px-0 pt-3"
+											data-testid="micro-app-publish-display-settings"
+										>
+											<div className="flex items-center gap-2 text-sm font-medium text-foreground">
+												<Settings2 className="size-4 text-muted-foreground" />
+												{t("microAppPage.publish.displaySettings")}
+											</div>
+											<div className="mt-3 flex items-start gap-3">
+												<Switch
+													id="micro-app-publish-full-screen"
+													checked={formState.fullScreen}
+													onCheckedChange={onFullScreenChange}
+													disabled={isBusy}
+													data-testid="micro-app-publish-full-screen"
+												/>
+												<div className="min-w-0">
+													<Label
+														htmlFor="micro-app-publish-full-screen"
+														className="cursor-pointer text-sm font-medium"
+													>
+														{t("microAppPage.publish.fullScreen")}
+													</Label>
+													<p className="mt-1 text-xs leading-5 text-muted-foreground">
+														{t(
+															"microAppPage.publish.fullScreenDescription",
+														)}
+													</p>
+												</div>
+											</div>
+										</div>
+									</div>
+								</>
+							)}
+						</div>
+					</ScrollArea>
 				</div>
-			</ScrollArea>
+			) : null}
 
 			<Separator />
 
@@ -353,6 +678,7 @@ export default function MicroAppPublishDialogContent({
 						? "shrink-0 flex-col items-stretch pt-3"
 						: "items-center justify-between",
 				)}
+				data-testid="micro-app-publish-actions"
 			>
 				{hasPublished ? (
 					<Button
@@ -412,6 +738,8 @@ export default function MicroAppPublishDialogContent({
 								!appId ||
 								loading ||
 								isBusy ||
+								shareTypePermissionLoading ||
+								!isSelectedShareTypePermitted ||
 								coverUploadError ||
 								Boolean(validationError) ||
 								// 如果已发布且没有未保存的变更，则禁用保存按钮

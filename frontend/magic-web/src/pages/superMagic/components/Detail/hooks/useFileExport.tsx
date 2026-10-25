@@ -1,20 +1,46 @@
+import { useFileAccess as useFilePermissions } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useState, useRef } from "react"
 import { TFunction } from "i18next"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
-import { exportSingleFileToPpt } from "@/pages/superMagic/components/TopicFilesButton/utils/exportSingleFile"
-import { exportHtmlToImage, type ImageExportFormat } from "@magic-web/html2image"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
+import { useFileAccess } from "@/pages/superMagic/fileAccess/FileAccessProvider"
+import type { ImageExportFormat } from "@magic-web/html2image"
 import { isFileInPPTMode } from "@/pages/superMagic/components/Detail/utils/file"
 import { isMarkdownFileName } from "@/utils/pdfFileType"
-import { prepareSingleSlideExport } from "@/pages/superMagic/services/pptService"
+import {
+	iterateExportSlides,
+	iterateSingleExportSlide,
+	prepareFileExportSlides,
+	resolvePptExportSlides,
+} from "@/pages/superMagic/services/pptService"
 import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import { DownloadImageMode } from "../../../pages/Workspace/types"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { toast } from "sonner"
+import { Button } from "@/components/shadcn-ui/button"
 import {
 	documentExportService,
 	type DocumentExport,
 } from "@/pages/superMagic/services/documentExport"
 import { useDownloadProgress } from "@/pages/superMagic/hooks/useDownloadProgress"
+import {
+	assertPptxExportAvailable,
+	iteratePreparedPptxPages,
+	openPptxDestination,
+	PptxExportUnavailableError,
+	startPptxStreamingExportFromFactory,
+} from "@/pages/superMagic/services/pptxStreamingExport"
+import { createPptxResourceErrorCollector } from "@/pages/superMagic/utils/pptxResourceErrors"
+import {
+	publishPptxExportFailure,
+	publishPptxExportIssues,
+} from "@/pages/superMagic/utils/pptxExportIssues"
+import type { ExportIssue } from "@magic/html2pptx"
+import { ensureFileSavesSynced } from "../services/fileSaveQueue"
+import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
+import {
+	createPptxSlideConfig,
+	resolvePptScaleContentDimensions,
+} from "@/pages/superMagic/components/Detail/contents/HTML/utils/slide-dimensions"
 
 interface Attachment {
 	file_id?: string
@@ -45,8 +71,8 @@ interface UseFileExportReturn {
 	) => Promise<void>
 	/** 导出为 PDF */
 	exportPdf: (fileIds: string[]) => Promise<void>
-	/** 导出为 PPT */
-	exportPpt: (fileIds: string[]) => Promise<void>
+	/** 导出为可编辑 PPTX */
+	exportPptx: (fileIds: string[]) => Promise<void>
 	/** 导出为图片（仅 HTML） */
 	exportImage: (fileIds: string[], format?: ImageExportFormat) => Promise<void>
 }
@@ -54,7 +80,17 @@ interface UseFileExportReturn {
 /**
  * 进度条组件
  */
-function ExportProgressToast({ progress, label }: { progress: number; label: string }) {
+function ExportProgressToast({
+	progress,
+	label,
+	onCancel,
+	cancelLabel,
+}: {
+	progress: number
+	label: string
+	onCancel?: () => void
+	cancelLabel?: string
+}) {
 	return (
 		<div className="flex min-w-[280px] items-center gap-3">
 			<div className="flex-1">
@@ -69,6 +105,11 @@ function ExportProgressToast({ progress, label }: { progress: number; label: str
 			<div className="min-w-[42px] text-right text-sm font-medium text-gray-600">
 				{progress}%
 			</div>
+			{onCancel && (
+				<Button type="button" variant="secondary" size="sm" onClick={onCancel}>
+					{cancelLabel}
+				</Button>
+			)}
 		</div>
 	)
 }
@@ -86,11 +127,18 @@ function useFileExport({
 	const [isExporting, setIsExporting] = useState(false)
 	const [exportProgress, setExportProgress] = useState(0)
 	const toastIdRef = useRef<string | number | null>(null)
+	const fileAccess = useFileAccess()
+	const { permissions: access } = useFilePermissions()
+	// Bind the ambient share/session identity for the direct download-url call; the
+	// export services below still receive the legacy `access` override.
+	const fileApi = useFileApi()
+	const cancelExportRef = useRef<(() => void) | null>(null)
 	const downloadProgress = useDownloadProgress()
 
 	const startExport = () => {
 		setIsExporting(true)
 		setExportProgress(0)
+		cancelExportRef.current = null
 
 		// 显示进度条 Toast
 		const exportingLabel = t("topicFiles.exporting")
@@ -108,7 +156,12 @@ function useFileExport({
 		if (toastIdRef.current) {
 			const exportingLabel = t("topicFiles.exporting")
 			toast.loading(
-				<ExportProgressToast progress={roundedProgress} label={exportingLabel} />,
+				<ExportProgressToast
+					progress={roundedProgress}
+					label={exportingLabel}
+					onCancel={cancelExportRef.current ?? undefined}
+					cancelLabel={t("topicFiles.exportCancel")}
+				/>,
 				{
 					id: toastIdRef.current,
 				},
@@ -135,6 +188,7 @@ function useFileExport({
 			}
 			setIsExporting(false)
 			setExportProgress(0)
+			cancelExportRef.current = null
 			magicToast.success(t("topicFiles.exportSuccess"))
 		}, 500)
 	}
@@ -148,11 +202,25 @@ function useFileExport({
 
 		setIsExporting(false)
 		setExportProgress(0)
+		cancelExportRef.current = null
 		magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
 	}
 
+	const onCanceled = () => {
+		if (toastIdRef.current) {
+			magicToast.destroy(toastIdRef.current)
+			toastIdRef.current = null
+		}
+		cancelExportRef.current = null
+		setIsExporting(false)
+		setExportProgress(0)
+		magicToast.info(t("topicFiles.exportCancel"))
+	}
+
 	const exportFile = async (fileIds: string[], fileVersion?: { [key: string]: number }) => {
+		if (!access.download) return
 		if (!fileIds || fileIds.length === 0) return
+		if (!(await ensureFileSavesSynced(fileIds))) return
 
 		// 检查是否为文件夹
 		const fileId = fileIds[0]
@@ -178,19 +246,23 @@ function useFileExport({
 			})
 		} else {
 			// 单文件直接下载
-			getTemporaryDownloadUrl({
-				file_ids: fileIds,
-				file_versions: fileVersion,
-				download_mode: DownloadImageMode.Download,
-				is_download: true,
-			}).then((res: Array<{ url: string }>) => {
-				downloadFileWithAnchor(res[0]?.url)
-			})
+			fileApi
+				.getTemporaryDownloadUrl({
+					file_ids: fileIds,
+					file_versions: fileVersion,
+					download_mode: DownloadImageMode.Download,
+					is_download: true,
+				})
+				.then((res: Array<{ url: string }>) => {
+					downloadFileWithAnchor(res[0]?.url)
+				})
 		}
 	}
 
 	const exportPdf = async (fileIds: string[]) => {
+		if (!access.export) return
 		if (!fileIds || fileIds.length === 0) return
+		if (!(await ensureFileSavesSynced(fileIds))) return
 
 		const documentExporter = documentExportService.get()
 		if (!documentExporter) {
@@ -220,10 +292,12 @@ function useFileExport({
 					},
 				}).promise
 			} else {
-				const result = await prepareSingleSlideExport({
+				const result = await prepareFileExportSlides({
 					fileId,
 					fileName,
 					attachmentList: (attachments ?? []) as any[],
+					access: fileAccess ?? undefined,
+					fileApi,
 				})
 
 				if (!result.htmlSlides.some(Boolean)) {
@@ -255,24 +329,132 @@ function useFileExport({
 		}
 	}
 
-	const exportPpt = async (fileIds: string[]) => {
+	const exportPptx = async (fileIds: string[]) => {
+		if (!access.export) return
 		if (!fileIds || fileIds.length === 0) return
+		if (!(await ensureFileSavesSynced(fileIds))) return
 
-		if (fileIds?.length > 0) {
-			exportSingleFileToPpt({
-				fileId: fileIds,
-				projectId: selectedProject?.id || projectId,
-				t,
-				onStart: startExport,
-				onEnd: endExport,
-				onProgress,
-				onError,
+		const fileId = fileIds[0]
+		const file = attachments?.find((item) => item.file_id === fileId)
+		const fileName = String(
+			(file as any)?.file_name || (file as any)?.display_filename || "export",
+		).replace(/\.html?$/i, "")
+		const displayConfig = ((file as any)?.display_config || (file as any)?.metadata) as
+			{ type?: string; slides?: string[]; name?: string } | undefined
+		let slidePaths = Array.isArray(displayConfig?.slides) ? displayConfig.slides : []
+		const isDeck = slidePaths.length > 0
+		let pageCount = slidePaths.length || 1
+		let destinationLease: Awaited<ReturnType<typeof openPptxDestination>> = null
+		const resourceErrors = createPptxResourceErrorCollector(t)
+		const exportIssues: ExportIssue[] = []
+
+		try {
+			assertPptxExportAvailable({ pageCount })
+			destinationLease = await openPptxDestination({
+				suggestedName: displayConfig?.name || fileName,
 			})
+			if (!destinationLease) return
+
+			if (isDeck) {
+				const resolved = await resolvePptExportSlides({
+					slidePaths,
+					displayConfig,
+					attachmentList: (attachments ?? []) as any,
+					mainFileId: fileId,
+					fileApi,
+					access: fileAccess ?? undefined,
+				})
+				slidePaths = resolved.slidePaths
+				pageCount = slidePaths.length
+				if (!pageCount) throw new Error("No visible slides to export")
+			}
+			startExport()
+			const destination = destinationLease.destination
+			const fontResolver = documentExportService.get()?.getPptFontResolver?.()
+			const handle = startPptxStreamingExportFromFactory(
+				(signal) => {
+					const source = slidePaths.length
+						? iterateExportSlides({
+								slidePaths,
+								configResolved: true,
+								attachmentList: (attachments ?? []) as any,
+								mainFileId: fileId,
+								mainFileName: fileName,
+								displayConfig,
+								access: fileAccess ?? undefined,
+								fileApi,
+								signal,
+							})
+						: iterateSingleExportSlide({
+								fileId,
+								fileName,
+								attachmentList: (attachments ?? []) as any,
+								access: fileAccess ?? undefined,
+								fileApi,
+								signal,
+							})
+					return iteratePreparedPptxPages(source, {
+						attachments: (attachments ?? []) as any,
+						fileId,
+						fileName,
+						attachmentList: (attachments ?? []) as any,
+						displayConfig,
+						signal,
+					})
+				},
+				(firstPage) => ({
+					fileName,
+					destination,
+					outputPolicy: "file-stream",
+					pageCount,
+					autoSize: !isFileInPPTMode(fileId, (attachments ?? []) as any[]),
+					config: createPptxSlideConfig(resolvePptScaleContentDimensions(firstPage.html)),
+					skipFailedPages: true,
+					fontResolver,
+					logger: pptxExternalLogger,
+					logLevel: "warn",
+					onResourceLoadError: resourceErrors.onResourceLoadError,
+					onExportIssue: (issue) => exportIssues.push(issue),
+					onProgress: (progress) => {
+						if (progress.pageIndex === undefined || progress.pageCount === undefined)
+							return
+						onProgress(
+							Math.round(((progress.pageIndex + 1) / progress.pageCount) * 100),
+						)
+					},
+				}),
+			)
+			cancelExportRef.current = handle.cancel
+			onProgress(0)
+			await handle.promise
+			publishPptxExportIssues(exportIssues, { fileId, fileName })
+			endExport()
+		} catch (error: unknown) {
+			await destinationLease?.abort(error).catch(() => undefined)
+			const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+			if (isAbort) {
+				onCanceled()
+				return
+			}
+			publishPptxExportFailure(exportIssues, error, { fileId, fileName })
+			const isUnavailable = error instanceof PptxExportUnavailableError
+			console.error("[filePptxExport] export failed:", error)
+			reportPptxExportError(error, { fileId, fileName, source: "useFileExport" })
+			if (isUnavailable) {
+				setIsExporting(false)
+				setExportProgress(0)
+				cancelExportRef.current = null
+				magicToast.error(error.message)
+				return
+			}
+			onError()
 		}
 	}
 
 	const exportImage = async (fileIds: string[], format: ImageExportFormat = "png") => {
+		if (!access.export) return
 		if (!fileIds || fileIds.length === 0) return
+		if (!(await ensureFileSavesSynced(fileIds))) return
 
 		const fileId = fileIds[0]
 		const file = attachments?.find((item) => item.file_id === fileId)
@@ -280,16 +462,20 @@ function useFileExport({
 
 		startExport()
 		try {
-			const result = await prepareSingleSlideExport({
+			const result = await prepareFileExportSlides({
 				fileId,
 				fileName,
 				attachmentList: (attachments ?? []) as any[],
+				access: fileAccess ?? undefined,
+				fileApi,
 			})
 
 			if (!result.htmlSlides.some(Boolean)) {
 				throw new Error("Failed to fetch HTML file content")
 			}
 
+			// 不把图片导出引擎加入文件列表启动依赖；导入失败也必须结束现有导出状态。
+			const { exportHtmlToImage } = await import("@magic-web/html2image")
 			await exportHtmlToImage({
 				pages: result.htmlSlides,
 				format,
@@ -312,7 +498,7 @@ function useFileExport({
 		exportProgress,
 		exportFile,
 		exportPdf,
-		exportPpt,
+		exportPptx,
 		exportImage,
 	}
 }

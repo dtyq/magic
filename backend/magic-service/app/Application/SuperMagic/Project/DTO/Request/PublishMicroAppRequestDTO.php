@@ -23,11 +23,19 @@ class PublishMicroAppRequestDTO extends AbstractRequestDTO
 
     public ?string $coverFileKey = null;
 
+    public ?int $expireDays = null;
+
+    public ?string $defaultOpenFileId = null;
+
     public ?array $extra = null;
 
     private bool $coverFileKeyProvided = false;
 
     private bool $extraProvided = false;
+
+    private bool $expireDaysProvided = false;
+
+    private bool $defaultOpenFileIdProvided = false;
 
     public function getProjectName(): string
     {
@@ -112,6 +120,39 @@ class PublishMicroAppRequestDTO extends AbstractRequestDTO
         return $this->extraProvided;
     }
 
+    public function getExpireDays(): ?int
+    {
+        return $this->expireDays;
+    }
+
+    public function setExpireDays(null|int|string $expireDays): void
+    {
+        $this->expireDaysProvided = true;
+        $this->expireDays = $expireDays === null || $expireDays === '' ? null : (int) $expireDays;
+    }
+
+    public function hasExpireDays(): bool
+    {
+        return $this->expireDaysProvided;
+    }
+
+    public function getDefaultOpenFileId(): ?string
+    {
+        return $this->defaultOpenFileId;
+    }
+
+    public function setDefaultOpenFileId(null|int|string $defaultOpenFileId): void
+    {
+        $this->defaultOpenFileIdProvided = true;
+        $value = trim((string) ($defaultOpenFileId ?? ''));
+        $this->defaultOpenFileId = $value === '' ? null : $value;
+    }
+
+    public function hasDefaultOpenFileId(): bool
+    {
+        return $this->defaultOpenFileIdProvided;
+    }
+
     protected static function getHyperfValidationRules(): array
     {
         return [
@@ -123,6 +164,8 @@ class PublishMicroAppRequestDTO extends AbstractRequestDTO
             'target_ids.*.target_id' => 'required_with:target_ids|string|max:64',
             'password' => 'required_if:share_type,5|nullable|string|min:4|max:32',
             'cover_file_key' => 'nullable|string|max:512',
+            'expire_days' => 'nullable|integer|min:0|max:365',
+            'default_open_file_id' => 'nullable|string|max:64',
             'extra' => 'nullable|array',
             'extra.pure_mode' => 'nullable|boolean',
         ];
@@ -141,6 +184,10 @@ class PublishMicroAppRequestDTO extends AbstractRequestDTO
             'password.min' => 'Password must be at least 4 characters',
             'password.max' => 'Password cannot exceed 32 characters',
             'cover_file_key.max' => 'Cover file key cannot exceed 512 characters',
+            'expire_days.integer' => 'Expiry days must be an integer',
+            'expire_days.min' => 'Expiry days cannot be negative',
+            'expire_days.max' => 'Expiry days cannot exceed 365 days',
+            'default_open_file_id.max' => 'Default open file ID cannot exceed 64 characters',
         ];
     }
 }

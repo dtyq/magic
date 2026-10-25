@@ -1,4 +1,5 @@
 const Prefix = "SHADOWED_"
+const PrefixV2 = "SHADOWED2_"
 
 const shuffleMap = [
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
@@ -31,21 +32,63 @@ const unshuffleMap = [
 	251, 250, 253, 252, 255, 254,
 ]
 
+/** 默认写入 ASCII 安全的 V2，避免 UTF-8 替换造成正文丢失。 */
 export function shadow(input: string): string {
-	const u8Arr = new TextEncoder().encode(input)
-	for (let i = 0; i < u8Arr.length; i += 1) {
-		u8Arr[i] = shuffleMap[u8Arr[i]]
-	}
-	return `${Prefix}${new TextDecoder().decode(u8Arr)}`
+	return shadowV2(input)
 }
 
+/** 识别旧格式、新格式及需要明确报错的未知版本。 */
+export function isShadowed(input: string): boolean {
+	return /^SHADOWED(?:[0-9]+)?_/.test(input)
+}
+
+/** 将任意有效 Unicode 文本编码为只包含 ASCII 的 V2 载荷。 */
+export function shadowV2(input: string): string {
+	// TextEncoder 会替换孤立代理项，先校验避免把非法输入静默改成其他字符。
+	assertValidUnicode(input)
+	const bytes = new TextEncoder().encode(input)
+	for (let i = 0; i < bytes.length; i += 1) bytes[i] = shuffleMap[bytes[i]]
+	let binary = ""
+	for (let i = 0; i < bytes.length; i += 0x8000) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+	}
+	return PrefixV2 + btoa(binary)
+}
+
+/** 校验 UTF-16 字符串，合法代理对保留，孤立代理项拒绝。 */
+function assertValidUnicode(input: string): void {
+	for (let i = 0; i < input.length; i += 1) {
+		const code = input.charCodeAt(i)
+		if (code >= 0xd800 && code <= 0xdbff) {
+			const next = input.charCodeAt(i + 1)
+			if (!(next >= 0xdc00 && next <= 0xdfff)) throw new Error("Invalid shadow payload")
+			i += 1
+		} else if (code >= 0xdc00 && code <= 0xdfff) {
+			throw new Error("Invalid shadow payload")
+		}
+	}
+}
+
+/** 兼容读取 V1/V2；无标记文本保持原样，错误的新载荷不降级。 */
 export function unshadow(input: string): string {
-	if (input.startsWith(Prefix)) {
-		input = input.split(Prefix)?.[1]
+	if (input.startsWith(PrefixV2)) {
+		try {
+			const payload = input.slice(PrefixV2.length)
+			const binary = atob(payload)
+			if (btoa(binary) !== payload) throw new Error("Invalid shadow payload")
+			const bytes = new Uint8Array(binary.length)
+			for (let i = 0; i < binary.length; i += 1) {
+				bytes[i] = unshuffleMap[binary.charCodeAt(i)]
+			}
+			// 忽略 BOM 的特殊处理，确保正文开头的 U+FEFF 也能原样还原。
+			return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes)
+		} catch {
+			throw new Error("Invalid shadow payload")
+		}
 	}
-	const u8Arr = new TextEncoder().encode(input)
-	for (let i = 0; i < u8Arr.length; i += 1) {
-		u8Arr[i] = unshuffleMap[u8Arr[i]]
-	}
-	return new TextDecoder().decode(u8Arr)
+	if (/^SHADOWED[0-9]+_/.test(input)) throw new Error("Unsupported shadow version")
+	if (!input.startsWith(Prefix)) return input
+	const u8Arr = new TextEncoder().encode(input.slice(Prefix.length))
+	for (let i = 0; i < u8Arr.length; i += 1) u8Arr[i] = unshuffleMap[u8Arr[i]]
+	return new TextDecoder("utf-8", { ignoreBOM: true }).decode(u8Arr)
 }

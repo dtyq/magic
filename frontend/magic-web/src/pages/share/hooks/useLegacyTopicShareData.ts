@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react"
 import { SuperMagicApi } from "@/apis"
+import { createShareFileAccess } from "@/pages/superMagic/fileAccess/fileAccessContext"
 import { loadProjectAttachments } from "@/pages/superMagic/services"
 
 interface UseLegacyTopicShareDataReturn {
@@ -12,6 +13,7 @@ interface UseLegacyTopicShareDataReturn {
 		projectId?: string
 		resource_id?: string
 		password?: string
+		temporaryToken?: string
 	}) => void
 	setIsProjectShare: (value: boolean) => void
 }
@@ -96,15 +98,21 @@ export default function useLegacyTopicShareData(): UseLegacyTopicShareDataReturn
 	)
 
 	const updateAttachments = useCallback(
-		(params: { projectId?: string; resource_id?: string; password?: string }) => {
-			const { projectId } = params
+		(params: {
+			projectId?: string
+			resource_id?: string
+			password?: string
+			temporaryToken?: string
+		}) => {
+			const { projectId, temporaryToken } = params
 
 			// Legacy hooks 只支持 projectId
 			if (projectId) {
 				loadProjectAttachments({
 					projectId,
-					// @ts-ignore 使用window添加临时的token
-					temporaryToken: window?.temporary_token || "",
+					access: temporaryToken
+						? createShareFileAccess({ token: temporaryToken, projectId })
+						: undefined,
 				}).then((res) => {
 					setAttachments(res)
 				})

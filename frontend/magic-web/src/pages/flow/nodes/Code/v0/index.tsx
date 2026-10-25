@@ -2,7 +2,7 @@ import DropdownCard from "@dtyq/magic-flow/dist/common/BaseUI/DropdownCard"
 import { ShowColumns } from "@dtyq/magic-flow/dist/MagicJsonSchemaEditor/constants"
 import { useMemo, useRef, useState } from "react"
 import { useCurrentNode } from "@dtyq/magic-flow/dist/MagicFlow/nodes/common/context/CurrentNode/useCurrentNode"
-import { MonacoEditor } from "@/lib/monacoEditor"
+import { MonacoEditor } from "@/infrastructure/editors/monaco"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
 import { cloneDeep, set } from "lodash-es"
 import { Form, Modal } from "antd"
@@ -138,41 +138,41 @@ export default function Code() {
 					<LanguageSelect />
 					{(!currentNode?.params?.mode ||
 						currentNode?.params?.mode === CodeMode.Normal) && (
-							<>
-								{/* 透明覆盖层，未聚焦时拦截事件 */}
-								{!isEditorFocused && (
-									<div
-										style={{
-											position: "absolute",
-											top: 0,
-											left: 0,
-											right: 0,
-											bottom: 0,
-											zIndex: 10,
-											cursor: "grab",
-										}}
-										onClick={handleOverlayClick}
-										onMouseDown={(e) => e.stopPropagation()} // 防止节点拖动
-									/>
-								)}
-								<Form.Item name="code">
-									<MonacoEditor
-										theme="vs-dark"
-										language="php"
-										value={codeString}
-										height="400px"
-										onChange={(value) => setCodeString(value!)}
-										className="nodrag"
-										onMount={handleEditorMount}
-										options={{
-											// 根据焦点状态调整编辑器交互
-											readOnly: !isEditorFocused,
-											contextmenu: isEditorFocused,
-										}}
-									/>
-								</Form.Item>
-							</>
-						)}
+						<>
+							{/* 透明覆盖层，未聚焦时拦截事件 */}
+							{!isEditorFocused && (
+								<div
+									style={{
+										position: "absolute",
+										top: 0,
+										left: 0,
+										right: 0,
+										bottom: 0,
+										zIndex: 10,
+										cursor: "grab",
+									}}
+									onClick={handleOverlayClick}
+									onMouseDown={(e) => e.stopPropagation()} // 防止节点拖动
+								/>
+							)}
+							<Form.Item name="code">
+								<MonacoEditor
+									theme="vs-dark"
+									language="php"
+									value={codeString}
+									height="400px"
+									onChange={(value) => setCodeString(value!)}
+									className="nodrag"
+									onMount={handleEditorMount}
+									options={{
+										// 根据焦点状态调整编辑器交互
+										readOnly: !isEditorFocused,
+										contextmenu: isEditorFocused,
+									}}
+								/>
+							</Form.Item>
+						</>
+					)}
 					{currentNode?.params?.mode === CodeMode.Expression && (
 						<Form.Item name={["import_code"]}>
 							<MagicExpressionWrap

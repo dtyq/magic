@@ -17,6 +17,7 @@ import InlineVoiceButton from "../components/ui/InlineVoiceButton"
 import { ConfirmBrandSummary, StepConfirmArticleList, StepConfirmHeader } from "./StepConfirmBlocks"
 import StepConfirmModelSettings from "./StepConfirmModelSettings"
 import StepConfirmProgressScreen, { type GenerationPhase } from "./StepConfirmProgressScreen"
+import { useFileApi } from "@/pages/superMagic/fileAccess/fileApi"
 
 export interface StepConfirmFooterAction {
 	label: string
@@ -66,6 +67,7 @@ export default function StepConfirm({
 	const [selectedVideoModelId, setSelectedVideoModelId] = useState<string>("")
 	const completeSummaryRef = useRef<HTMLDivElement>(null)
 	const { t } = useTranslation("super")
+	const fileApi = useFileApi()
 
 	const projectId = selectedProject?.id || ""
 	const isProjectReady = Boolean(projectId)
@@ -120,6 +122,7 @@ export default function StepConfirm({
 				attachmentList,
 				folderFileId,
 				postTargets,
+				fileApi,
 			})
 			setGenerationPhase("creating-topic")
 			const created = await sendArticleBatch({
@@ -163,6 +166,7 @@ export default function StepConfirm({
 			setGenerationPhase("idle")
 		}
 	}, [
+		fileApi,
 		attachmentList,
 		data.articles,
 		data.global,

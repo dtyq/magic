@@ -1,21 +1,26 @@
-import dayjs from "dayjs"
-import i18n from "i18next"
+import dayjs from "@/infrastructure/vendors/dayjs"
 import { SkillsApi } from "@/apis"
+import { SupportLocales } from "@/constants/locale"
 import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
-import { resolveLocalizedText } from "@/utils/locale"
 import type {
 	CreateSkillResponse,
+	GetSkillMarketCategoriesParams,
 	GetSkillVersionsParams,
 	GetSkillLastVersionsParams,
 	GetSkillsParams,
 	GetStoreSkillsParams,
+	ImportOfficialSkillParams,
+	ImportOfficialSkillResponse,
 	ImportSkillParams,
 	ImportSkillResponse,
+	ParseOfficialSkillResponse,
 	ParseSkillResponse,
+	AsyncPublishTaskResponse,
 	PublishSkillParams,
 	PublishSkillPrefillResponse,
 	PublishSkillResponse,
 	SkillDetailResponse,
+	SkillMarketCategoryItem,
 	SkillMarketDetailResponse,
 	SkillI18nText,
 	SkillItem,
@@ -26,6 +31,7 @@ import type {
 	StoreSkillItem,
 	UpdateSkillInfoParams,
 } from "@/apis/modules/skills"
+import { analyticsService } from "@/services/analytics"
 
 export type { SkillDetailResponse }
 
@@ -36,6 +42,21 @@ export interface PagedSkills<T> {
 	total: number
 }
 
+/** Paginated response for the public Skill market list. */
+export interface StoreSkillsPage<T> {
+	list: T[]
+	page: number
+	pageSize: number
+}
+
+export interface SkillMarketCategoryView {
+	id: string
+	name: string
+	logo?: string
+	sortOrder: number
+	skillCount: number
+}
+
 export interface StoreSkillView {
 	id: string
 	storeSkillId: string
@@ -44,8 +65,10 @@ export interface StoreSkillView {
 	packageName?: string
 	name: string
 	description: string
+	source?: string
 	thumbnail?: string
 	isFeatured: boolean
+	installCount?: number
 	latestVersion?: string
 	status: "added" | "not-added"
 	authorName?: string
@@ -57,11 +80,13 @@ export interface StoreSkillView {
 export interface UserSkillView {
 	id: string
 	userSkillId: string
+	projectId?: string | null
 	userRole?: CollaboratorPermission
 	skillCode: string
 	packageName?: string
 	name: string
 	description: string
+	source?: string
 	thumbnail?: string
 	/** Raw i18n fields for update/import operations */
 	nameI18n: SkillI18nText
@@ -92,20 +117,37 @@ export interface SkillDetailView {
 	publisherName?: string | null
 	skillFileUrl?: string | null
 	isFeatured: boolean
+	categoryIds?: string[]
 	isAdded?: boolean
 	isCreator?: boolean
 }
 
-export type UserSkillsListScope = "created" | "team-shared" | "market-installed"
+export type UserSkillsListScope = "created" | "team-shared" | "collaborated" | "market-installed"
 
 export class SkillsService {
-	async getStoreSkills(params: GetStoreSkillsParams = {}): Promise<PagedSkills<StoreSkillView>> {
+	/** The marketplace install API returns no identity, so retain the code from the loaded row. */
+	private storeSkillCodes = new Map<string, string>()
+
+	async getSkillMarketCategories(
+		params: GetSkillMarketCategoriesParams = {},
+	): Promise<SkillMarketCategoryView[]> {
+		const data = await SkillsApi.getSkillMarketCategories(params)
+		return data.list.map((item) => this.mapSkillMarketCategory(item))
+	}
+
+	async getStoreSkills(
+		params: GetStoreSkillsParams = {},
+	): Promise<StoreSkillsPage<StoreSkillView>> {
 		const data = await SkillsApi.getStoreSkills(params)
+		const list = data.list.map((item) => {
+			const skillCode = item.code?.trim() || item.skill_code?.trim()
+			if (skillCode) this.storeSkillCodes.set(String(item.id), skillCode)
+			return this.mapStoreSkill(item)
+		})
 		return {
-			list: data.list.map((item) => this.mapStoreSkill(item)),
+			list,
 			page: data.page,
 			pageSize: data.page_size,
-			total: data.total,
 		}
 	}
 
@@ -115,6 +157,10 @@ export class SkillsService {
 
 	async getTeamSharedSkills(params: GetSkillsParams = {}): Promise<PagedSkills<UserSkillView>> {
 		return this.getUserSkillsByScope("team-shared", params)
+	}
+
+	async getCollaboratedSkills(params: GetSkillsParams = {}): Promise<PagedSkills<UserSkillView>> {
+		return this.getUserSkillsByScope("collaborated", params)
 	}
 
 	async getMarketInstalledSkills(
@@ -136,6 +182,9 @@ export class SkillsService {
 	}
 
 	async createEmptySkill(): Promise<{ id?: string; code: string }> {
+		analyticsService.report("skill_create_attempted", { source_type: "empty" })
+		// An empty Skill also provisions its project and default topic asynchronously.
+		analyticsService.report("project_create_attempted", { sceneOverride: "skill" })
 		const data = await SkillsApi.createSkill()
 		const code = this.resolveCreatedSkillCode(data)
 		if (!code) throw new Error("create-skill-missing-code")
@@ -145,8 +194,15 @@ export class SkillsService {
 		}
 	}
 
-	addSkillFromStore(storeSkillId: string) {
-		return SkillsApi.addSkillFromStore({ store_skill_id: storeSkillId })
+	async addSkillFromStore(storeSkillId: string, knownSkillCode?: string) {
+		analyticsService.report("skill_create_attempted", { source_type: "store" })
+		const result = await SkillsApi.addSkillFromStore({ store_skill_id: storeSkillId })
+		const skillCode =
+			this.resolveSkillCodeFromUnknown(result) ??
+			this.storeSkillCodes.get(String(storeSkillId)) ??
+			knownSkillCode?.trim()
+		void skillCode
+		return result
 	}
 
 	deleteSkill(code: string) {
@@ -161,8 +217,18 @@ export class SkillsService {
 		return SkillsApi.parseSkillFile({ file_key })
 	}
 
-	importSkill(params: ImportSkillParams): Promise<ImportSkillResponse> {
-		return SkillsApi.importSkill(params)
+	parseOfficialSkillFile(file_key: string): Promise<ParseOfficialSkillResponse> {
+		return SkillsApi.parseOfficialSkillFile({ file_key })
+	}
+
+	async importSkill(params: ImportSkillParams): Promise<ImportSkillResponse> {
+		analyticsService.report("skill_create_attempted", { source_type: "import" })
+		const result = await SkillsApi.importSkill(params)
+		return result
+	}
+
+	importOfficialSkill(params: ImportOfficialSkillParams): Promise<ImportOfficialSkillResponse> {
+		return SkillsApi.importOfficialSkill(params)
 	}
 
 	getSkillDetail(code: string): Promise<SkillDetailResponse> {
@@ -199,6 +265,14 @@ export class SkillsService {
 		return SkillsApi.publishSkill({ code, ...params })
 	}
 
+	publishSkillAsync(code: string, params: PublishSkillParams): Promise<AsyncPublishTaskResponse> {
+		return SkillsApi.publishSkillAsync({ code, ...params })
+	}
+
+	checkSkillPublish(code: string, publishTaskId: string): Promise<AsyncPublishTaskResponse> {
+		return SkillsApi.checkSkillPublish({ code, publish_task_id: publishTaskId })
+	}
+
 	getSkillPublishPrefill(code: string): Promise<PublishSkillPrefillResponse> {
 		return SkillsApi.getSkillPublishPrefill({ code })
 	}
@@ -208,16 +282,22 @@ export class SkillsService {
 	}
 
 	private mapStoreSkill(item: StoreSkillItem): StoreSkillView {
+		const name =
+			item.name?.trim() || item.package_name?.trim() || item.code || item.skill_code || ""
+		const description = item.description?.trim() || ""
+
 		return {
 			id: String(item.id),
 			storeSkillId: item.id,
-			skillCode: item.skill_code,
+			skillCode: item.code || item.skill_code || item.package_name || String(item.id),
 			packageName: item.package_name?.trim() || undefined,
 			userSkillCode: item.user_skill_code,
-			name: this.mapI18nText(item.name_i18n),
-			description: this.mapI18nText(item.description_i18n),
+			name,
+			description,
+			source: item.source?.trim() || undefined,
 			thumbnail: item.logo || undefined,
 			isFeatured: Boolean(item.is_featured),
+			installCount: typeof item.install_count === "number" ? item.install_count : undefined,
 			latestVersion: item.latest_version || undefined,
 			status: item.is_added ? "added" : "not-added",
 			authorName: item.publisher?.name,
@@ -227,18 +307,36 @@ export class SkillsService {
 		}
 	}
 
+	private mapSkillMarketCategory(item: SkillMarketCategoryItem): SkillMarketCategoryView {
+		return {
+			id: String(item.id),
+			name: item.name,
+			logo: item.logo || undefined,
+			sortOrder: item.sort_order,
+			skillCount: item.skill_count,
+		}
+	}
+
 	private mapUserSkill(item: SkillItem): UserSkillView {
+		const name = item.name?.trim() || item.package_name?.trim() || item.code
+		const description = item.description?.trim() || ""
+
 		return {
 			id: String(item.id),
 			userSkillId: item.id,
+			projectId: item.project_id,
 			userRole: item.user_role,
 			skillCode: item.code,
 			packageName: item.package_name?.trim() || undefined,
-			name: item.name || this.mapI18nText(item.name_i18n),
-			description: item.description || this.mapI18nText(item.description_i18n),
+			name,
+			description,
+			source: item.source?.trim() || undefined,
 			thumbnail: item.logo || undefined,
-			nameI18n: item.name_i18n,
-			descriptionI18n: item.description_i18n,
+			// Keep edit/import flows supplied with a stable i18n shape while list cards
+			// render the locale-resolved fields above. The API may remove these raw
+			// fields after the migration, so the resolved value seeds missing entries.
+			nameI18n: this.ensureSkillI18nText(undefined, name),
+			descriptionI18n: this.ensureSkillI18nText(undefined, description),
 			logo: item.logo,
 			sourceType: item.source_type,
 			creatorName: item.creator_info?.name,
@@ -254,16 +352,22 @@ export class SkillsService {
 	}
 
 	private mapLatestPublishedSkill(item: SkillLastVersionItem): UserSkillView {
+		const name = item.name?.trim() || item.package_name?.trim() || item.code
+		const description = item.description?.trim() || ""
+
 		return {
 			id: item.code,
 			userSkillId: item.code,
 			skillCode: item.code,
 			packageName: item.package_name?.trim() || undefined,
-			name: item.name || this.mapI18nText(item.name_i18n),
-			description: item.description || this.mapI18nText(item.description_i18n),
+			name,
+			description,
+			source: item.source?.trim() || undefined,
 			thumbnail: item.logo || undefined,
-			nameI18n: item.name_i18n,
-			descriptionI18n: item.description_i18n,
+			// Preserve the edit payload contract without using raw i18n values for
+			// display; direct fields are the source of truth for this response.
+			nameI18n: this.ensureSkillI18nText(item.name_i18n, name),
+			descriptionI18n: this.ensureSkillI18nText(item.description_i18n, description),
 			logo: item.logo,
 			sourceType: item.source_type,
 			latestVersion: item.version || undefined,
@@ -277,14 +381,13 @@ export class SkillsService {
 	private mapUserSkillDetail(detail: SkillDetailResponse): SkillDetailView {
 		return {
 			code: detail.code,
-			name: this.mapI18nText(detail.name_i18n) || detail.package_name || detail.code,
-			description:
-				this.mapI18nText(detail.description_i18n) || detail.package_description || "",
+			name: detail.name?.trim() || detail.package_name || detail.code,
+			description: detail.description?.trim() || detail.package_description || "",
 			logo: detail.logo,
 			packageName: detail.package_name?.trim() || undefined,
 			versionCode: detail.version_code?.trim() || undefined,
 			updatedAt: detail.updated_at,
-			sourceLabel: this.mapI18nText(detail.source_i18n) || undefined,
+			sourceLabel: detail.source?.trim() || undefined,
 			skillFileUrl: detail.skill_file_url?.trim() || undefined,
 			isFeatured: Boolean(detail.is_featured),
 		}
@@ -295,21 +398,18 @@ export class SkillsService {
 
 		return {
 			code: detail.code,
-			name:
-				detail.name ||
-				this.mapI18nText(detail.name_i18n) ||
-				detail.package_name ||
-				detail.code,
-			description: detail.description || this.mapI18nText(detail.description_i18n) || "",
+			name: detail.name?.trim() || detail.package_name || detail.code,
+			description: detail.description?.trim() || "",
 			logo: detail.logo,
 			packageName: detail.package_name?.trim() || undefined,
 			versionCode: detail.version_code?.trim() || undefined,
 			updatedAt: detail.version_created_at,
-			sourceLabel: detail.source || this.mapI18nText(detail.source_i18n) || undefined,
+			sourceLabel: detail.source?.trim() || undefined,
 			publisherType: detail.publisher_type,
 			publisherName: publisherName || undefined,
 			skillFileUrl: detail.skill_file_url?.trim() || undefined,
 			isFeatured: Boolean(detail.is_featured),
+			categoryIds: detail.category_ids ?? [],
 			isAdded: detail.is_added,
 			isCreator: detail.is_creator,
 		}
@@ -331,16 +431,29 @@ export class SkillsService {
 	private fetchUserSkillsByScope(scope: UserSkillsListScope, params: GetSkillsParams = {}) {
 		switch (scope) {
 			case "created":
-				return SkillsApi.getCreatedSkills(params)
+				return SkillsApi.getUserSkills({ ...params, scope: "created" })
 			case "team-shared":
-				return SkillsApi.getTeamSharedSkills(params)
+				return SkillsApi.getUserSkills({ ...params, scope: "team_shared" })
+			case "collaborated":
+				return SkillsApi.getUserSkills({ ...params, scope: "collaborated" })
 			case "market-installed":
-				return SkillsApi.getMarketInstalledSkills(params)
+				return SkillsApi.getUserSkills({ ...params, scope: "market_installed" })
 		}
 	}
 
-	private mapI18nText(text: SkillI18nText | Record<string, string> | null | undefined) {
-		return resolveLocalizedText(text as Record<string, string>, i18n.language)
+	/**
+	 * Retains the legacy edit payload shape after display fields become locale-resolved strings.
+	 * Raw i18n values are compatibility data only and must not drive list/detail presentation.
+	 */
+	private ensureSkillI18nText(
+		text: SkillI18nText | Record<string, string> | null | undefined,
+		fallback: string,
+	): SkillI18nText {
+		return {
+			[SupportLocales.fallback]: text?.[SupportLocales.fallback] || fallback,
+			[SupportLocales.enUS]: text?.[SupportLocales.enUS] || fallback,
+			[SupportLocales.zhCN]: text?.[SupportLocales.zhCN] || fallback,
+		}
 	}
 
 	private formatDateTime(value: string) {
@@ -351,7 +464,20 @@ export class SkillsService {
 
 	private resolveCreatedSkillCode(data: CreateSkillResponse | null | undefined) {
 		if (!data) return ""
-		return data.code || data.skill_code || ""
+		return data.code?.trim() || data.skill_code?.trim() || ""
+	}
+
+	/** Market install may return an object or a one-item list; never treat store id as skill_code. */
+	private resolveSkillCodeFromUnknown(result: unknown): string | undefined {
+		if (!result) return undefined
+		if (Array.isArray(result)) {
+			return this.resolveSkillCodeFromUnknown(result[0])
+		}
+		if (typeof result === "object") {
+			const value = result as { skill_code?: string; code?: string }
+			return value.skill_code?.trim() || value.code?.trim() || undefined
+		}
+		return undefined
 	}
 }
 

@@ -1,28 +1,9 @@
 import { MentionItemType, type MentionItem, type ProjectFileMentionData } from "../../../types"
 import type { MentionPanelPluginHost } from "../registry-types"
 import { mentionPanelSearchPlugins } from "../registry"
+import { fuzzyMatch, includesSearchQuery, matchesQuery, normalizeSearchText } from "./matching"
 
-export function fuzzyMatch(target: string, query: string): boolean {
-	const targetLower = target.toLowerCase()
-	const queryLower = query.toLowerCase()
-
-	let queryIndex = 0
-
-	for (let i = 0; i < targetLower.length && queryIndex < queryLower.length; i++) {
-		if (targetLower[i] === queryLower[queryIndex]) queryIndex++
-	}
-
-	return queryIndex === queryLower.length
-}
-
-export function matchesQuery(target: string, query: string): boolean {
-	const targetLower = target.toLowerCase()
-	const queryLower = query.toLowerCase()
-
-	if (targetLower.includes(queryLower)) return true
-
-	return fuzzyMatch(target, query)
-}
+export { fuzzyMatch, includesSearchQuery, matchesQuery, normalizeSearchText } from "./matching"
 
 export async function searchBuiltinMentionItems(params: {
 	query: string
@@ -31,23 +12,40 @@ export async function searchBuiltinMentionItems(params: {
 	const { query, pluginHost } = params
 	if (!query || query.trim() === "") return []
 
-	const normalizedQuery = query.toLowerCase().trim()
+	const pluginQuery = query.trim()
+	const normalizedQuery = pluginQuery.toLowerCase()
 	const results = (
 		await Promise.all(
 			mentionPanelSearchPlugins.map((plugin) =>
 				plugin.search({
 					store: pluginHost,
-					query,
+					query: pluginQuery,
 					normalizedQuery,
 				}),
 			),
 		)
 	).flat()
 
-	return sortSearchResults(results, normalizedQuery)
+	return sortSearchResults(dedupeSearchResults(results), normalizedQuery)
+}
+
+/**
+ * Keeps the first result per type + id. A scene catalog lists files the project search also
+ * finds, e.g. this study's report.html; the scene's copy (with its label) comes first and wins.
+ */
+function dedupeSearchResults(results: MentionItem[]): MentionItem[] {
+	const seen = new Set<string>()
+	return results.filter((item) => {
+		const key = `${item.type}:${item.id}`
+		if (seen.has(key)) return false
+		seen.add(key)
+		return true
+	})
 }
 
 export function sortSearchResults(results: MentionItem[], normalizedQuery: string): MentionItem[] {
+	const searchQuery = normalizeSearchText(normalizedQuery)
+
 	return results.sort((a, b) => {
 		const aName = a.name.toLowerCase()
 		const bName = b.name.toLowerCase()
@@ -65,23 +63,26 @@ export function sortSearchResults(results: MentionItem[], normalizedQuery: strin
 		if (aIsHtml && !bIsHtml) return -1
 		if (!aIsHtml && bIsHtml) return 1
 
-		const aExact = aName === normalizedQuery
-		const bExact = bName === normalizedQuery
-		if (aExact && !bExact) return -1
-		if (!aExact && bExact) return 1
-
-		const aStarts = aName.startsWith(normalizedQuery)
-		const bStarts = bName.startsWith(normalizedQuery)
-		if (aStarts && !bStarts) return -1
-		if (!aStarts && bStarts) return 1
-
-		const aIncludes = aName.includes(normalizedQuery)
-		const bIncludes = bName.includes(normalizedQuery)
-		if (aIncludes && !bIncludes) return -1
-		if (!aIncludes && bIncludes) return 1
+		const aMatchPriority = getSearchMatchPriority(a, searchQuery)
+		const bMatchPriority = getSearchMatchPriority(b, searchQuery)
+		if (aMatchPriority !== bMatchPriority) return aMatchPriority - bMatchPriority
 
 		return aName.localeCompare(bName)
 	})
+}
+
+function getSearchMatchPriority(item: MentionItem, normalizedQuery: string): number {
+	const candidates: string[] = [item.name, item.package_name].filter(
+		(value): value is string => typeof value === "string" && value.length > 0,
+	)
+	const normalizedCandidates = candidates.map(normalizeSearchText)
+
+	if (normalizedCandidates.some((candidate) => candidate === normalizedQuery)) return 0
+	if (normalizedCandidates.some((candidate) => candidate.startsWith(normalizedQuery))) return 1
+	if (normalizedCandidates.some((candidate) => candidate.includes(normalizedQuery))) return 2
+	if (normalizedCandidates.some((candidate) => fuzzyMatch(candidate, normalizedQuery))) return 3
+
+	return item.description && includesSearchQuery(item.description, normalizedQuery) ? 4 : 5
 }
 
 function getTypePriority(type: string): number {

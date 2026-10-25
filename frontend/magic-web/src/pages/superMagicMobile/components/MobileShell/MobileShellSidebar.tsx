@@ -1,13 +1,14 @@
-import { memo, useMemo, useState } from "react"
+import { memo, useMemo, useState, lazy, Suspense } from "react"
 import { observer } from "mobx-react-lite"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
 import { RefreshCw } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn-ui/avatar"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { userStore } from "@/models/user"
 import { getAvatarColor } from "@/utils/avatar-color"
+import { getAvatarUrl } from "@/utils/avatar"
 import { MobileBrandLogo } from "@/pages/superMagicMobile/components/MobileBrandLogo"
 import { useMobileSettingsController } from "@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
@@ -22,6 +23,11 @@ import { SHELL_RECENT_CHAT_ACTION_KEYS } from "@/pages/superMagicMobile/utils/mo
 import { useMobileShellVisibleActionKeys } from "./hooks/useMobileShellVisibleActionKeys"
 import { MobileShellRecentFloatingMenu } from "./MobileShellRecentFloatingMenu"
 import { MobileShellRecentItemRow } from "./MobileShellRecentItemRow"
+import NotificationCenterMobileSidebarEntry from "@/components/business/NotificationCenter/NotificationCenterMobileSidebarEntry"
+
+const NotificationCenterMobilePanel = lazy(
+	() => import("@/components/business/NotificationCenter/NotificationCenterMobilePanel"),
+)
 
 export interface MobileShellSidebarProps {
 	/** 复用壳层前缀，保证不同页面的 `data-testid` 不冲突。 */
@@ -218,7 +224,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 
 					<div className="flex flex-col gap-1">
 						{secondaryNavItems.map(({ key, icon: Icon, label }) => {
-							return (
+							const row = (
 								<button
 									key={key}
 									type="button"
@@ -230,7 +236,25 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 									<span className="leading-6">{label}</span>
 								</button>
 							)
+
+							if (key !== "trash") return row
+
+							return (
+								<div key="inbox-before-trash" className="contents">
+									<NotificationCenterMobileSidebarEntry
+										testIdPrefix={MOBILE_SHELL_SHARED_TEST_ID_PREFIX}
+										rowClassName={navRowClass()}
+									/>
+									{row}
+								</div>
+							)
 						})}
+						{secondaryNavItems.every((item) => item.key !== "trash") ? (
+							<NotificationCenterMobileSidebarEntry
+								testIdPrefix={MOBILE_SHELL_SHARED_TEST_ID_PREFIX}
+								rowClassName={navRowClass()}
+							/>
+						) : null}
 					</div>
 
 					{recentItems.length > 0 && (
@@ -300,7 +324,11 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 						{/* Prefer real avatar; colored initial fallback matches prototype when image is missing. */}
 						<Avatar className="size-6">
 							{avatarUrl ? (
-								<AvatarImage src={avatarUrl} alt="" referrerPolicy="no-referrer" />
+								<AvatarImage
+									src={getAvatarUrl(avatarUrl, 24)}
+									alt=""
+									referrerPolicy="no-referrer"
+								/>
 							) : null}
 							<AvatarFallback
 								className="text-[12px] font-semibold"
@@ -343,6 +371,9 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 			)}
 			{projectActionComponents}
 			{chatProjectActionComponents}
+			<Suspense fallback={null}>
+				<NotificationCenterMobilePanel />
+			</Suspense>
 		</div>
 	)
 })

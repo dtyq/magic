@@ -18,9 +18,6 @@ const useStyles = createStyles(({ css }) => ({
 		inset: 0;
 		z-index: 100;
 		pointer-events: auto;
-		transition:
-			background-color 0.2s ease,
-			border-color 0.2s ease;
 	`,
 	inactive: css`
 		background-color: transparent;
@@ -64,12 +61,17 @@ export function DropOverlay({
 
 	return (
 		<div
-			className={cx(styles.overlay, visible ? styles.active : styles.inactive)}
+			className={cx(
+				styles.overlay,
+				visible ? styles.active : styles.inactive,
+				"transition-[background-color,border-color] duration-150 ease-out motion-reduce:transition-none",
+			)}
 			onDragEnter={onDragEnter}
 			onDragOver={onDragOver}
 			onDragLeave={onDragLeave}
 			onDrop={onDrop}
 			data-testid="on-drag-enter"
+			data-html-drop-overlay="true"
 		>
 			{visible && <span className={styles.hint}>{t("htmlEditor.dropOverlay.hint")}</span>}
 		</div>

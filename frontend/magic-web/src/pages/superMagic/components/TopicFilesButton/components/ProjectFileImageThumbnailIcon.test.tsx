@@ -5,14 +5,13 @@ import type { AttachmentItem } from "../hooks/types"
 import { ProjectFileImageThumbnailIcon } from "./ProjectFileImageThumbnailIcon"
 import {
 	ProjectFileImagePreviewProvider,
-	ProjectFileImagePreviewTooltipContent,
 	resolveProjectFileImagePreviewSource,
 	useProjectFileImagePreviewManager,
 } from "./ProjectFileImagePreviewProvider"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import {
 	__resetProjectFileImagePreviewCoordinatorForTests,
-	setProjectFileImagePreviewCacheItem,
+	seedProjectFileImagePreviewCacheItem,
 } from "./projectFileImagePreviewCoordinator"
 import { __resetProjectFileImagePreviewRuntimeForTests } from "./projectFileImagePreviewRuntime"
 
@@ -33,30 +32,16 @@ function PreviewHarness({
 }) {
 	onRender?.()
 	const manager = useProjectFileImagePreviewManager({ attachments })
+	const { setMountedItems } = manager
 
 	useEffect(() => {
-		manager.setMountedItems(mountAll ? attachments : [])
-	}, [attachments, manager.setMountedItems, mountAll])
+		setMountedItems(mountAll ? attachments : [])
+	}, [attachments, mountAll, setMountedItems])
 
 	return (
 		<ProjectFileImagePreviewProvider manager={manager}>
 			{children}
 		</ProjectFileImagePreviewProvider>
-	)
-}
-
-function ImageTooltipContentHarness({ item }: { item: AttachmentItem }) {
-	const source = resolveProjectFileImagePreviewSource(item)
-	if (!source) return null
-
-	return (
-		<>
-			<ProjectFileImageThumbnailIcon
-				item={item}
-				fallback={<div data-testid="fallback-icon" />}
-			/>
-			<ProjectFileImagePreviewTooltipContent source={source} />
-		</>
 	)
 }
 
@@ -192,73 +177,6 @@ describe("ProjectFileImageThumbnailIcon", () => {
 		expect(onRender).toHaveBeenCalledTimes(parentRenderCount)
 	})
 
-	it("reuses the list preview url in the image tooltip content", async () => {
-		vi.useFakeTimers()
-		vi.mocked(getTemporaryDownloadUrl).mockResolvedValueOnce([
-			{
-				file_id: "file-hover",
-				url: "https://cdn.example.com/hover-preview.webp",
-				expires_at: "2099-01-01 00:00:00",
-			},
-		])
-
-		const item: AttachmentItem = {
-			file_id: "file-hover",
-			file_name: "hover.png",
-			file_extension: "png",
-		}
-
-		render(
-			<PreviewHarness attachments={[item]}>
-				<ImageTooltipContentHarness item={item} />
-			</PreviewHarness>,
-		)
-
-		await act(async () => {
-			vi.advanceTimersByTime(80)
-			await Promise.resolve()
-			await Promise.resolve()
-		})
-
-		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
-		expect(vi.mocked(getTemporaryDownloadUrl)).toHaveBeenCalledWith({
-			file_ids: ["file-hover"],
-			options: {
-				xMagicImageProcess: {
-					resize: { w: 320, h: 320, m: "lfit" },
-					quality: 45,
-					format: "webp",
-					autoOrient: 1,
-				},
-			},
-			enableErrorMessagePrompt: false,
-		})
-
-		expect(getTemporaryDownloadUrl).toHaveBeenCalledTimes(1)
-
-		expect(screen.getByTestId("project-file-image-preview-tooltip")).toBeInTheDocument()
-		expect(screen.getByTestId("project-file-image-preview-tooltip-title")).toHaveTextContent(
-			"hover.png",
-		)
-		const tooltipImage = screen.getByTestId("project-file-image-preview-tooltip-image")
-		Object.defineProperty(tooltipImage, "naturalWidth", {
-			value: 320,
-			configurable: true,
-		})
-		Object.defineProperty(tooltipImage, "naturalHeight", {
-			value: 180,
-			configurable: true,
-		})
-		await act(async () => {
-			fireEvent.load(tooltipImage)
-		})
-		expect(tooltipImage).toHaveStyle({
-			width: "320px",
-			height: "180px",
-		})
-		expect(tooltipImage).toHaveAttribute("src", "https://cdn.example.com/hover-preview.webp")
-	})
-
 	it("does not reuse another file url when a batch response misses one item", async () => {
 		vi.mocked(getTemporaryDownloadUrl).mockResolvedValueOnce([
 			{
@@ -359,7 +277,7 @@ describe("ProjectFileImageThumbnailIcon", () => {
 		for (const item of attachments.slice(0, 3)) {
 			const source = resolveProjectFileImagePreviewSource(item)
 			if (!source) throw new Error("Expected an image preview source")
-			setProjectFileImagePreviewCacheItem(source.cacheKey, {
+			seedProjectFileImagePreviewCacheItem(source, {
 				url: `https://cdn.example.com/${item.file_id}.webp?from=memory`,
 				expiresAt: "2099-01-01 00:00:00",
 			})

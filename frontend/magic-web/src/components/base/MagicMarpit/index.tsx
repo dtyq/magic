@@ -6,6 +6,7 @@ import Reveal from "reveal.js"
 import "reveal.js/dist/reveal.css"
 import "reveal.js/dist/theme/black.css"
 import { IconArrowLeft, IconArrowRight, IconHome } from "@tabler/icons-react"
+import { useTranslation } from "react-i18next"
 
 interface MagicMarpitProps extends HTMLAttributes<HTMLDivElement> {
 	content: string
@@ -65,6 +66,7 @@ const useStyles = createStyles(({ css }) => ({
 }))
 
 const MagicMarpit = ({ content, className }: MagicMarpitProps) => {
+	const { t } = useTranslation("component")
 	const deckDivRef = useRef<HTMLDivElement>(null) // reference to deck container div
 	const deckRef = useRef<Reveal.Api | null>(null) // reference to deck reveal instance
 
@@ -147,8 +149,8 @@ const MagicMarpit = ({ content, className }: MagicMarpitProps) => {
 				<button
 					className={styles.controlButton}
 					onClick={goToFirstSlide}
-					aria-label="Go to first slide"
-					title="回到第一页"
+					aria-label={t("magicMarpit.firstPage")}
+					title={t("magicMarpit.firstPage")}
 				>
 					<IconHome size={16} />
 				</button>
@@ -157,8 +159,8 @@ const MagicMarpit = ({ content, className }: MagicMarpitProps) => {
 				<button
 					className={styles.controlButton}
 					onClick={goToPrevSlide}
-					aria-label="Previous slide"
-					title="上一页"
+					aria-label={t("magicMarpit.prevPage")}
+					title={t("magicMarpit.prevPage")}
 				>
 					<IconArrowLeft size={16} />
 				</button>
@@ -167,8 +169,8 @@ const MagicMarpit = ({ content, className }: MagicMarpitProps) => {
 				<button
 					className={styles.controlButton}
 					onClick={goToNextSlide}
-					aria-label="Next slide"
-					title="下一页"
+					aria-label={t("magicMarpit.nextPage")}
+					title={t("magicMarpit.nextPage")}
 				>
 					<IconArrowRight size={16} />
 				</button>

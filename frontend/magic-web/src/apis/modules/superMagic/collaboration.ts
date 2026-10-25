@@ -1,5 +1,4 @@
-import type { HttpClient, RequestConfig } from "@/apis/core/HttpClient"
-import { genRequestUrl } from "@/utils/http"
+import type { ServiceHttpClient, RequestConfig } from "@/infrastructure/network/http/clients"
 import { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
 import {
 	Collaborator,
@@ -60,7 +59,7 @@ export interface InvitationInfo {
 	has_joined: boolean
 }
 
-export const generateCollaborationApi = (fetch: HttpClient) => ({
+export const generateCollaborationApi = (fetch: ServiceHttpClient) => ({
 	/**
 	 * 获取项目协作信息
 	 * @param projectId 项目ID
@@ -245,8 +244,32 @@ export const generateCollaborationApi = (fetch: HttpClient) => ({
 	 * @param projectId 项目ID
 	 * @param data 数据
 	 */
-	updateCollaborationProjectPinStatus(projectId: string, data: { is_pin: boolean }) {
-		return fetch.put(`/api/v1/super-agent/collaboration-projects/${projectId}/pin`, data)
+	updateCollaborationProjectPinStatus(
+		projectId: string,
+		data: {
+			is_pin: boolean
+			target_workspace_id?: string
+			pre_project_id?: string | null
+			next_project_id?: string | null
+		},
+		options?: Omit<RequestConfig, "url">,
+	) {
+		return fetch.put(
+			`/api/v1/super-agent/collaboration-projects/${projectId}/pin`,
+			{
+				is_pin: data.is_pin,
+				...(data.target_workspace_id === undefined
+					? {}
+					: { target_workspace_id: data.target_workspace_id }),
+				...(data.pre_project_id === undefined
+					? {}
+					: { pre_project_id: data.pre_project_id }),
+				...(data.next_project_id === undefined
+					? {}
+					: { next_project_id: data.next_project_id }),
+			},
+			options,
+		)
 	},
 
 	/**
@@ -254,7 +277,7 @@ export const generateCollaborationApi = (fetch: HttpClient) => ({
 	 */
 	getCollaborationProjectCreators() {
 		return fetch.get<CollaborationProjectCreator[]>(
-			genRequestUrl("/api/v1/super-agent/collaboration-projects/creators"),
+			"/api/v1/super-agent/collaboration-projects/creators",
 		)
 	},
 
@@ -294,8 +317,8 @@ export const generateCollaborationApi = (fetch: HttpClient) => ({
 		options?: Omit<RequestConfig, "url">,
 	) {
 		return fetch.get<WithPage<CollaborationProjectListItem>>(
-			genRequestUrl("/api/v1/super-agent/collaboration-projects", {}, params),
-			options,
+			"/api/v1/super-agent/collaboration-projects",
+			{ ...options, params: { ...params, ...options?.params } },
 		)
 	},
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { RecordingSummaryContent } from "../RecordingSummaryContent"
 import {
 	RECORDING_DESKTOP_CONTENT_INSET_CLASS,
@@ -7,7 +7,12 @@ import {
 } from "../recording-detail-layout"
 import type { RecordingDetailFileRef } from "../../../types/recording-detail"
 
+vi.mock("@/models/user", () => ({
+	userStore: {},
+}))
+
 const magicMarkmapPropsMock = vi.hoisted(() => vi.fn())
+const processHtmlContentMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/components/base/MagicMarkmap", () => ({
 	default: (props: Record<string, unknown>) => {
@@ -17,11 +22,19 @@ vi.mock("@/components/base/MagicMarkmap", () => ({
 }))
 
 vi.mock("@/pages/superMagic/components/Detail/contents/HTML/IsolatedHTMLRenderer", () => ({
-	default: () => <div data-testid="isolated-html-renderer-mock" />,
+	default: (props: { onRenderReady?: () => void }) => (
+		<div data-testid="isolated-html-renderer-mock">
+			<button
+				type="button"
+				data-testid="recording-metrics-render-ready"
+				onClick={props.onRenderReady}
+			/>
+		</div>
+	),
 }))
 
 vi.mock("@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor", () => ({
-	processHtmlContent: vi.fn(),
+	processHtmlContent: processHtmlContentMock,
 }))
 
 vi.mock("../RecordingMarkdownContent", () => ({
@@ -71,6 +84,15 @@ const topicsFile: RecordingDetailFileRef = {
 	file: {
 		file_id: "file-mock-004",
 		relative_file_path: "summary/topics.md",
+	} as RecordingDetailFileRef["file"],
+}
+
+const metricsFile: RecordingDetailFileRef = {
+	type: "metrics",
+	fileName: "metrics.html",
+	file: {
+		file_id: "file-mock-005",
+		relative_file_path: "summary/metrics.html",
 	} as RecordingDetailFileRef["file"],
 }
 
@@ -359,6 +381,24 @@ describe("RecordingSummaryContent empty state", () => {
 		).toHaveClass("min-h-full", "items-center", "justify-center")
 		expect(container.querySelector(".lucide-sparkles")).toBeTruthy()
 	})
+
+	it("uses the generating copy only while summary generation is active", () => {
+		render(
+			<RecordingSummaryContent
+				file={summaryFile}
+				content=""
+				isGenerating
+				attachmentList={[]}
+				speakerNameMap={{}}
+				onOpenSpeakerSettings={() => undefined}
+				onTimeClick={() => undefined}
+				layout="desktop"
+			/>,
+		)
+
+		expect(screen.getByText("detail.summarizingHint")).toBeInTheDocument()
+		expect(screen.queryByText("detail.emptySummary")).toBeNull()
+	})
 })
 
 describe("RecordingSummaryContent mindmap desktop layout", () => {
@@ -485,5 +525,68 @@ describe("RecordingSummaryContent mindmap desktop layout", () => {
 		expect(scrollArea).toBeTruthy()
 		expect(switchRoot).toBeTruthy()
 		expect(scrollArea?.contains(switchRoot ?? null)).toBe(false)
+	})
+})
+
+describe("RecordingSummaryContent metrics html", () => {
+	it("does not mount the metrics iframe until HTML processing finishes", async () => {
+		let resolveProcess: (value: {
+			processedContent: string
+			filePathMapping: Map<string, string>
+		}) => void = () => undefined
+		processHtmlContentMock.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolveProcess = resolve
+				}),
+		)
+
+		render(
+			<RecordingSummaryContent
+				file={metricsFile}
+				content="<html><body>Raw metrics</body></html>"
+				attachmentList={[]}
+				speakerNameMap={{}}
+				onOpenSpeakerSettings={() => undefined}
+				onTimeClick={() => undefined}
+				layout="desktop"
+			/>,
+		)
+
+		await screen.findByTestId("recording-detail-metrics-loading")
+		expect(screen.queryByTestId("isolated-html-renderer-mock")).toBeNull()
+
+		resolveProcess({
+			processedContent: "<html><body>Processed metrics</body></html>",
+			filePathMapping: new Map(),
+		})
+
+		await screen.findByTestId("isolated-html-renderer-mock")
+	})
+
+	it("keeps the metrics loading mask until HTML processing and iframe rendering finish", async () => {
+		processHtmlContentMock.mockResolvedValue({
+			processedContent: "<html><body>Processed metrics</body></html>",
+			filePathMapping: new Map(),
+		})
+
+		render(
+			<RecordingSummaryContent
+				file={metricsFile}
+				content="<html><body>Raw metrics</body></html>"
+				attachmentList={[]}
+				speakerNameMap={{}}
+				onOpenSpeakerSettings={() => undefined}
+				onTimeClick={() => undefined}
+				layout="desktop"
+			/>,
+		)
+
+		await screen.findByTestId("recording-detail-metrics-loading")
+		fireEvent.click(await screen.findByTestId("recording-metrics-render-ready"))
+
+		await waitFor(() => {
+			expect(screen.queryByTestId("recording-detail-metrics-loading")).toBeNull()
+		})
 	})
 })

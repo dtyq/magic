@@ -1,5 +1,5 @@
 import { memo, useCallback } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { ActionItemProps } from "./types"
 
 /**
@@ -33,9 +33,9 @@ function ActionItemComponent(props: ActionItemProps) {
 			className={cn(
 				"flex h-10 w-full items-center gap-2 bg-transparent px-2 transition-colors",
 				"text-sm text-foreground",
-				"cursor-not-allowed disabled:opacity-50",
+				"disabled:cursor-not-allowed disabled:opacity-50",
 				"border-b border-border last:border-b-0",
-				!disabled && "hover:bg-accent",
+				!disabled && "cursor-pointer hover:bg-accent",
 				isDestructive && "text-destructive",
 				className,
 			)}

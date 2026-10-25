@@ -41,9 +41,6 @@ class TerminalToolDetailGenerator:
         stdout = result.extra_info.get('stdout', '') if hasattr(result, 'extra_info') else ''
         stderr = result.extra_info.get('stderr', '') if hasattr(result, 'extra_info') else ''
 
-        # 检查是否是 Python 代码执行，如果是则显示代码内容
-        python_code = arguments.get("python_code", "") if arguments else ""
-
         # 根据成功/失败状态构建输出内容
         if result.ok:
             # 成功情况：优先显示stdout，如果有stderr也显示
@@ -65,17 +62,6 @@ class TerminalToolDetailGenerator:
                 output = stdout
             else:
                 output = result.content or "Execution failed, no output"
-
-        # 如果有 Python 代码，伪装成命令行执行的形式
-        if python_code:
-            # 将多行代码格式化为命令行友好的形式
-            if '\n' in python_code.strip():
-                # 多行代码使用 heredoc 风格
-                formatted_code = f"$ python -c \"\n{python_code}\n\"\n\n{output}"
-            else:
-                # 单行代码直接显示
-                formatted_code = f"$ python -c \"{python_code}\"\n\n{output}"
-            output = formatted_code
 
         # 创建终端内容对象
         terminal_content = TerminalContent(

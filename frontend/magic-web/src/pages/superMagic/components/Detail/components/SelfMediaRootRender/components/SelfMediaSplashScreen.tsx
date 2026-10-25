@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react"
 import type { CSSProperties } from "react"
 import { motion } from "framer-motion"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 
 const galleryImageModules = import.meta.glob<string>("./splash-gallery/open-art-*.jpg", {
 	eager: true,

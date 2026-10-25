@@ -26,4 +26,10 @@ interface WorkspaceExporterInterface
      * @return ExportWorkspaceResponse Response containing file_key and metadata
      */
     public function export(DataIsolation $dataIsolation, string $sandboxId, ExportWorkspaceRequest $request): ExportWorkspaceResponse;
+
+    /** 创建异步工作区导出任务。 */
+    public function createAsync(DataIsolation $dataIsolation, string $sandboxId, ExportWorkspaceRequest $request, string $taskKey): ExportWorkspaceResponse;
+
+    /** 查询异步工作区导出任务。 */
+    public function checkAsync(DataIsolation $dataIsolation, string $sandboxId, string $taskKey): ExportWorkspaceResponse;
 }

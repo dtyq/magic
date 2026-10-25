@@ -15,7 +15,6 @@ use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use DateTime;
@@ -24,8 +23,6 @@ use Qbhy\HyperfAuth\Authenticatable;
 
 class MagicUserSettingAppService extends AbstractContactAppService
 {
-    use DataIsolationTrait;
-
     #[Inject]
     protected MagicUserRepositoryInterface $magicUserRepository;
 

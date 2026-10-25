@@ -11,12 +11,14 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\SuperMagic\Message\Entity\MessageQueueEntity;
 use App\Domain\SuperMagic\Message\Entity\ValueObject\MessageQueueStatus;
+use App\Domain\SuperMagic\Message\Entity\ValueObject\MessageQueueWriteResult;
 use App\Domain\SuperMagic\Message\Repository\Facade\MessageQueueRepositoryInterface;
 use App\ErrorCode\SuperAgentErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Exception;
+use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
@@ -48,10 +50,25 @@ class MessageQueueDomainService
         int $topicId,
         array $messageContent,
         ChatMessageType $messageType
-    ): MessageQueueEntity {
+    ): MessageQueueWriteResult {
         $lockKey = $this->getTopicLockKey($topicId);
 
         return $this->executeWithLock($lockKey, function () use ($dataIsolation, $projectId, $topicId, $messageContent, $messageType) {
+            // 首次创建标识由服务端在恢复时保留，不能由新建请求指定其他消息的来源。
+            unset($messageContent['extra']['super_agent']['client_queue_create_sync_id']);
+            $syncId = $messageContent['extra']['super_agent']['client_queue_sync_id'] ?? '';
+            if (is_string($syncId) && $syncId !== '') {
+                $existing = $this->messageQueueRepository->getByClientSyncId(
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $projectId,
+                    $topicId,
+                    $syncId
+                );
+                if ($existing) {
+                    return new MessageQueueWriteResult($existing, false);
+                }
+            }
             // Convert array message content to JSON string with Chinese support
             $messageContentJson = json_encode($messageContent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
@@ -61,6 +78,7 @@ class MessageQueueDomainService
             // Create message entity
             $entity = new MessageQueueEntity();
             $entity->setId(IdGenerator::getSnowId())
+                ->setSortOrder($this->messageQueueRepository->getNextSortOrder($topicId))
                 ->setUserId($dataIsolation->getCurrentUserId())
                 ->setOrganizationCode($dataIsolation->getCurrentOrganizationCode())
                 ->setProjectId($projectId)
@@ -72,7 +90,7 @@ class MessageQueueDomainService
                 ->setCreatedAt(date('Y-m-d H:i:s'))
                 ->setUpdatedAt(date('Y-m-d H:i:s'));
 
-            return $this->messageQueueRepository->create($entity);
+            return new MessageQueueWriteResult($this->messageQueueRepository->create($entity), true);
         });
     }
 
@@ -92,6 +110,11 @@ class MessageQueueDomainService
         return $this->executeWithLock($lockKey, function () use ($dataIsolation, $messageId, $projectId, $topicId, $messageContent, $messageType) {
             // Get existing message
             $entity = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId());
+
+            $this->assertMessageScope($entity, $dataIsolation);
+            if ($entity->getTopicId() !== $topicId || $entity->getProjectId() !== $projectId) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+            }
 
             // Check if message can be modified
             if (! $entity->canBeModified()) {
@@ -125,24 +148,127 @@ class MessageQueueDomainService
     /**
      * Delete message queue.
      */
-    public function deleteMessage(DataIsolation $dataIsolation, int $messageId): bool
+    public function deleteMessage(DataIsolation $dataIsolation, int $messageId, ?string $expectedSyncId = null): bool
     {
         // Verify access permission
-        $entity = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId());
-
-        // Check if message can be deleted (same rule as modification)
-        if (! $entity->canBeModified()) {
-            ExceptionBuilder::throw(
-                SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE,
-                trans('message_queue.status_not_modifiable')
-            );
-        }
-
+        $entity = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId(), true);
         $lockKey = $this->getTopicLockKey($entity->getTopicId());
 
-        return $this->executeWithLock($lockKey, function () use ($messageId, $dataIsolation) {
-            return $this->messageQueueRepository->delete($messageId, $dataIsolation->getCurrentUserId());
+        return $this->executeWithLock($lockKey, function () use ($messageId, $dataIsolation, $expectedSyncId) {
+            // Check if message can be deleted (same rule as modification)
+            $current = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId(), true);
+            $this->assertMessageScope($current, $dataIsolation);
+            // 恢复沿用原 ID；旧删除请求不能撤下后来重新入队的版本。
+            $syncId = $current->getMessageContentAsArray()['extra']['super_agent']['client_queue_sync_id'] ?? '';
+            if ($current->getStatus() !== MessageQueueStatus::PENDING
+                || ($expectedSyncId !== null && $expectedSyncId !== $syncId)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE, trans('message_queue.status_not_modifiable'));
+            }
+            if ($current->getDeletedAt() !== null) {
+                return false;
+            }
+            if (! $this->messageQueueRepository->delete($messageId, $dataIsolation->getCurrentUserId())) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE, trans('message_queue.status_not_modifiable'));
+            }
+            return true;
         });
+    }
+
+    public function restoreMessage(
+        DataIsolation $dataIsolation,
+        int $messageId,
+        int $projectId,
+        int $topicId,
+        array $messageContent,
+        ChatMessageType $messageType,
+        ?int $beforeId,
+        ?int $afterId,
+        int $originalIndex,
+        string $expectedSyncId
+    ): ?MessageQueueWriteResult {
+        return $this->executeWithLock($this->getTopicLockKey($topicId), function () use (
+            $dataIsolation,
+            $messageId,
+            $projectId,
+            $topicId,
+            $messageContent,
+            $messageType,
+            $beforeId,
+            $afterId,
+            $originalIndex,
+            $expectedSyncId
+        ) {
+            return Db::transaction(function () use (
+                $dataIsolation,
+                $messageId,
+                $projectId,
+                $topicId,
+                $messageContent,
+                $messageType,
+                $beforeId,
+                $afterId,
+                $originalIndex,
+                $expectedSyncId
+            ) {
+                $message = $this->messageQueueRepository->getById($messageId, true);
+                if (! $message) {
+                    return null;
+                }
+                $this->assertMessageScope($message, $dataIsolation);
+                if ($message->getProjectId() !== $projectId || $message->getTopicId() !== $topicId) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+                }
+                $syncId = $messageContent['extra']['super_agent']['client_queue_sync_id'] ?? '';
+                $currentExtra = $message->getMessageContentAsArray()['extra']['super_agent'] ?? [];
+                $currentSyncId = $currentExtra['client_queue_sync_id'] ?? '';
+                // 同一提交即使已经消费也只返回受理结果，不再次恢复或覆盖内容。
+                if ($syncId !== '' && $syncId === $currentSyncId) {
+                    return new MessageQueueWriteResult($message, false);
+                }
+                if ($message->getDeletedAt() === null || $message->getStatus() !== MessageQueueStatus::PENDING
+                    || $expectedSyncId !== $currentSyncId) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE, trans('message_queue.status_not_modifiable'));
+                }
+                $ids = $this->positionMessage($message, $beforeId, $afterId, $originalIndex);
+                // 创建请求 A → 编辑恢复 B → A 的迟到重试：仍须找到同一条记录。
+                // 当前标识用于本次恢复和旧删除校验；首次创建标识只保留一次，不积累历史列表。
+                $messageContent['extra']['super_agent']['client_queue_create_sync_id']
+                    = $currentExtra['client_queue_create_sync_id'] ?? $currentSyncId;
+                $message->setMessageContent(json_encode($messageContent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR))
+                    ->setMessageType($messageType->value);
+                if (! $this->messageQueueRepository->restore($message)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE, trans('message_queue.status_not_modifiable'));
+                }
+                $this->messageQueueRepository->saveOrder($topicId, $ids);
+                return new MessageQueueWriteResult($this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId()), true);
+            });
+        });
+    }
+
+    public function moveMessage(DataIsolation $dataIsolation, int $messageId, ?int $beforeId, ?int $afterId): MessageQueueEntity
+    {
+        $message = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId());
+        return $this->executeWithLock($this->getTopicLockKey($message->getTopicId()), function () use ($dataIsolation, $messageId, $beforeId, $afterId) {
+            return Db::transaction(function () use ($dataIsolation, $messageId, $beforeId, $afterId) {
+                $message = $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId());
+                $this->assertMessageScope($message, $dataIsolation);
+                if ($message->getStatus() !== MessageQueueStatus::PENDING) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::MESSAGE_STATUS_NOT_MODIFIABLE, trans('message_queue.status_not_modifiable'));
+                }
+                $ids = $this->positionMessage($message, $beforeId, $afterId, null);
+                $this->messageQueueRepository->saveOrder($message->getTopicId(), $ids);
+                return $this->getMessageForUser($messageId, $dataIsolation->getCurrentUserId());
+            });
+        });
+    }
+
+    public function tryStartProcessing(int $messageId): bool
+    {
+        return $this->messageQueueRepository->updateWithConditions(
+            $messageId,
+            ['status' => MessageQueueStatus::IN_PROGRESS->value, 'execute_time' => date('Y-m-d H:i:s')],
+            ['status' => MessageQueueStatus::PENDING->value]
+        );
     }
 
     /**
@@ -156,6 +282,7 @@ class MessageQueueDomainService
     ): array {
         // Add user filter to conditions
         $conditions['user_id'] = $dataIsolation->getCurrentUserId();
+        $conditions['organization_code'] = $dataIsolation->getCurrentOrganizationCode();
 
         // Default to filter out completed messages
         if (! isset($conditions['status'])) {
@@ -172,7 +299,7 @@ class MessageQueueDomainService
             true,
             $pageSize,
             $page,
-            'id',
+            'sort_order',
             'asc',
             true
         );
@@ -269,9 +396,9 @@ class MessageQueueDomainService
     /**
      * Get message for specific user with permission check.
      */
-    public function getMessageForUser(int $messageId, string $userId): MessageQueueEntity
+    public function getMessageForUser(int $messageId, string $userId, bool $includeDeleted = false): MessageQueueEntity
     {
-        $entity = $this->messageQueueRepository->getByIdForUser($messageId, $userId);
+        $entity = $this->messageQueueRepository->getByIdForUser($messageId, $userId, $includeDeleted);
 
         if (! $entity) {
             ExceptionBuilder::throw(
@@ -387,6 +514,53 @@ class MessageQueueDomainService
             $status,
             $this->normalizeErrorMessage($errorMessage)
         );
+    }
+
+    /** @return int[] 只移动当前项，其他消息以锁内的真实顺序为准。 */
+    private function positionMessage(MessageQueueEntity $message, ?int $beforeId, ?int $afterId, ?int $originalIndex): array
+    {
+        foreach ([$beforeId, $afterId] as $anchorId) {
+            if ($anchorId === null) {
+                continue;
+            }
+            $anchor = $this->messageQueueRepository->getById($anchorId, true);
+            if ($anchorId === $message->getId() || ($anchor && (
+                $anchor->getTopicId() !== $message->getTopicId()
+                || $anchor->getUserId() !== $message->getUserId()
+                || $anchor->getOrganizationCode() !== $message->getOrganizationCode()
+            ))) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED, trans('message_queue.queue_changed'));
+            }
+        }
+        $pending = $this->messageQueueRepository->getPendingMessagesByTopic($message->getTopicId(), $message->getUserId());
+        $ids = array_values(array_filter(
+            array_map(static fn (MessageQueueEntity $item): int => $item->getId(), $pending),
+            static fn (int $id): bool => $id !== $message->getId()
+        ));
+        $beforeIndex = array_search($beforeId, $ids, true);
+        $afterIndex = array_search($afterId, $ids, true);
+        // 原后邻项优先；编辑期间邻项被消费后，才按原序号尽量恢复。
+        if ($beforeIndex !== false) {
+            $index = $beforeIndex;
+        } elseif ($afterIndex !== false) {
+            $index = $afterIndex + 1;
+        } elseif ($originalIndex !== null) {
+            $index = min($originalIndex, count($ids));
+        } elseif ($ids === [] && $beforeId === null && $afterId === null) {
+            $index = 0;
+        } else {
+            ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED, trans('message_queue.queue_changed'));
+        }
+        array_splice($ids, $index, 0, [$message->getId()]);
+        return $ids;
+    }
+
+    private function assertMessageScope(MessageQueueEntity $message, DataIsolation $dataIsolation): void
+    {
+        if ($message->getUserId() !== $dataIsolation->getCurrentUserId()
+            || $message->getOrganizationCode() !== $dataIsolation->getCurrentOrganizationCode()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
     }
 
     /**

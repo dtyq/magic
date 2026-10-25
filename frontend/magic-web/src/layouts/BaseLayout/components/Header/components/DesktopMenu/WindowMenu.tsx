@@ -1,7 +1,7 @@
 import { magic } from "@/enhance/magicElectron"
 import { useEffect, useState } from "react"
 import { IconX, IconMinus, IconSquares } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import { useDesktopVersionCheck } from "./useDesktopVersionCheck"
 
 const menuIconClassName = cn(

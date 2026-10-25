@@ -58,7 +58,9 @@ const ServiceConfig = ({
 	// 渲染表单字段
 	const renderField = (field: FieldConfig) => {
 		const labelText = field.label ? t(field.label) : ""
-		const placeholder = field.placeholder ? t(field.placeholder) : field.placeholder
+		const placeholder = field.placeholder
+			? t(field.placeholder, field.placeholderParams)
+			: field.placeholder
 		const description = field.description ? t(field.description) : field.description
 
 		// 构建字段路径

@@ -14,7 +14,7 @@ import {
 	IconTargetArrow,
 } from "@tabler/icons-react"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
-import _ from "lodash"
+import { get, set } from "lodash-es"
 import React, { useMemo, useState } from "react"
 import LLMSelect, { LLMOption } from "../LLMSelect"
 import TagsSelect from "./TagsSelect"
@@ -42,7 +42,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 
 	// 处理单个项变更事件
 	const onParamChanged = useMemoizedFn((key: string | string[], newValue: any) => {
-		_.set(LLMValue, key, newValue)
+		set(LLMValue, key, newValue)
 		onChange({
 			...LLMValue,
 		})
@@ -100,7 +100,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 	const [adjustValue, setAdjustValue] = useState(LLMAdjust.default)
 
 	useUpdateEffect(() => {
-		const adjustParameters = _.get(LLMAdjustMap, [adjustValue], null)
+		const adjustParameters = get(LLMAdjustMap, [adjustValue], null)
 		if (!adjustParameters) return
 		onChange({
 			...LLMValue,
@@ -150,7 +150,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 									<Switch
 										className={styles.switch}
 										size="small"
-										checked={_.get(
+										checked={get(
 											LLMValue,
 											[parameter.key, "open"],
 											parameter.open,
@@ -165,7 +165,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 										min={parameter.extra.min}
 										max={parameter.extra.max}
 										step={parameter.extra.step}
-										value={_.get(
+										value={get(
 											LLMValue,
 											[parameter.key, "value"],
 											parameter.defaultValue,
@@ -176,7 +176,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 										className={styles.slider}
 									/>
 									<MagicInput
-										value={_.get(
+										value={get(
 											LLMValue,
 											[parameter.key, "value"],
 											parameter.defaultValue,
@@ -204,7 +204,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 							<Switch
 								className={styles.switch}
 								size="small"
-								checked={_.get(LLMValue, ["ask_type", "open"], false)}
+								checked={get(LLMValue, ["ask_type", "open"], false)}
 								onChange={(value) => onParamChanged(["ask_type", "open"], value)}
 							/>
 						</div>
@@ -220,7 +220,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 										value: "text",
 									},
 								]}
-								value={_.get(LLMValue, ["ask_type", "value"], null)}
+								value={get(LLMValue, ["ask_type", "value"], null)}
 								onChange={(value: string) =>
 									onParamChanged(["ask_type", "value"], value)
 								}
@@ -242,7 +242,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 							<Switch
 								className={styles.switch}
 								size="small"
-								checked={_.get(LLMValue, ["stop_sequence", "open"], false)}
+								checked={get(LLMValue, ["stop_sequence", "open"], false)}
 								onChange={(value) =>
 									onParamChanged(["stop_sequence", "open"], value)
 								}
@@ -250,7 +250,7 @@ export default function LLMParameters({ LLMValue, onChange, options }: LLMParame
 						</div>
 						<div className={styles.right}>
 							<TagsSelect
-								value={_.get(LLMValue, ["stop_sequence", "value"], [])}
+								value={get(LLMValue, ["stop_sequence", "value"], [])}
 								onChange={(value) =>
 									onParamChanged(["stop_sequence", "value"], value)
 								}

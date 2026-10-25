@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThreadWeave — AI Narrative Engine & Branching Dialogue</title>
+<style>
+  :root {
+    --canvas: #220c22;
+    --canvas-deep: #19081a;
+    --surface: #2d122e;
+    --surface-elevated: #3b173c;
+    --surface-hover: #481d4a;
+    --surface-ivory: #faf5ed;
+    --border: #4d224f;
+    --border-ivory: #e6dcce;
+    --primary-mulberry: #702459;
+    --mulberry-glow: rgba(112, 36, 89, 0.45);
+    --ivory-text: #fcf9f2;
+    --ivory-muted: #d9ccb8;
+    --amber-gold: #d97706;
+    --amber-glow: rgba(217, 119, 6, 0.35);
+    --indigo-royal: #4338ca;
+    --teal-branch: #0f766e;
+    --crimson: #dc2626;
+    --font-serif: 'Crimson Text', 'Playfair Display', Georgia, serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background-color: var(--canvas);
+    color: var(--ivory-text);
+    font-family: var(--font-sans);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .app-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 14px 20px 36px;
+  }
+  /* Topbar Navigation */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    padding: 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .logo-emblem {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #702459, #d97706);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 12px var(--amber-glow);
+  }
+  .logo-emblem svg { width: 16px; height: 16px; fill: #fff; }
+  .brand-title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ivory-text);
+  }
+  .episode-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    background: rgba(217, 119, 6, 0.12);
+    border: 1px solid rgba(217, 119, 6, 0.3);
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    color: #fcd34d;
+    font-family: var(--font-mono);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ivory-muted);
+    border-color: var(--border);
+  }
+  .btn-ghost:hover { background: var(--surface-hover); color: var(--ivory-text); }
+  .btn-amber {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    color: #ffffff;
+    box-shadow: 0 0 14px var(--amber-glow);
+  }
+  .btn-amber:hover { transform: translateY(-1px); box-shadow: 0 0 20px rgba(217, 119, 6, 0.6); }
+
+  /* First 500px: Narrative Node Graph & Overview */
+  .story-graph-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+  .graph-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .graph-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-serif);
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .graph-svg-wrapper {
+    width: 100%;
+    height: 210px;
+    background: var(--canvas-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Dual Panel: Archetype Cards + Sentiment Meter */
+  .dual-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .panel-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+  }
+  .panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-serif);
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Character Archetype Cards */
+  .archetype-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .char-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  .char-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .char-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 11px;
+    color: #fff;
+  }
+  .char-name { font-size: 12.5px; font-weight: 700; color: var(--ivory-text); }
+  .char-archetype { font-size: 10.5px; color: var(--amber-gold); font-family: var(--font-serif); }
+  .trait-bar-group { margin-bottom: 5px; }
+  .trait-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--ivory-muted); margin-bottom: 2px; }
+  .trait-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+  .trait-fill { height: 100%; border-radius: 2px; }
+
+  /* Sentiment Analysis Meter */
+  .sentiment-chart-wrap {
+    height: 100px;
+    background: var(--canvas-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sentiment-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    text-align: center;
+  }
+  .sent-stat-card {
+    background: var(--surface-elevated);
+    padding: 6px 8px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+  }
+  .sent-label { font-size: 10px; color: var(--ivory-muted); }
+  .sent-val { font-size: 14px; font-weight: 700; font-family: var(--font-mono); }
+
+  @media (max-width: 900px) {
+    .dual-panel-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-emblem">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
+      </div>
+      <div>
+        <div class="brand-title">ThreadWeave</div>
+      </div>
+      <div class="episode-tag">
+        <span>⚡ ACT III: THE OBSIDIAN ARCHIVE</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost">Simulate Playthrough</button>
+      <button class="btn btn-amber">Compile Story Graph</button>
+    </div>
+  </header>
+
+  <!-- Branching Story Tree Node Graph SVG (First 500px View) -->
+  <div class="story-graph-card">
+    <div class="graph-header">
+      <div class="graph-header-left">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="12" r="3"></circle><line x1="8.5" y1="7.5" x2="15.5" y2="10.5"></line><line x1="8.5" y1="16.5" x2="15.5" y2="13.5"></line></svg>
+        <span>DYNAMIC NARRATIVE BRANCHING ENGINE</span>
+      </div>
+      <div style="font-family:var(--font-mono); font-size:11px; color:var(--amber-gold);">
+        3 DIVERGENT ARCS • 8 LEAF NODES • CONVERGENCE: 94.2%
+      </div>
+    </div>
+
+    <!-- Branching Story Tree SVG -->
+    <div class="graph-svg-wrapper">
+      <svg width="100%" height="100%" viewBox="0 0 920 210">
+        <!-- Connecting Branch Bezier Curves -->
+        <!-- Root to Branch A (Deception) -->
+        <path d="M 180 105 C 260 105, 280 45, 360 45" stroke="#d97706" stroke-width="2" fill="none"/>
+        <!-- Root to Branch B (Loyalty) -->
+        <path d="M 180 105 L 360 105" stroke="#702459" stroke-width="2.5" fill="none"/>
+        <!-- Root to Branch C (Chaos) -->
+        <path d="M 180 105 C 260 105, 280 165, 360 165" stroke="#dc2626" stroke-width="2" stroke-dasharray="4,4" fill="none"/>
+
+        <!-- Branch A to Sub-branches -->
+        <path d="M 520 45 C 580 45, 600 25, 660 25" stroke="#d97706" stroke-width="1.8" fill="none"/>
+        <path d="M 520 45 C 580 45, 600 65, 660 65" stroke="#0f766e" stroke-width="1.8" fill="none"/>
+
+        <!-- Branch B to Sub-branches -->
+        <path d="M 520 105 L 660 105" stroke="#702459" stroke-width="2" fill="none"/>
+
+        <!-- Root Node: The Cryptic Courier -->
+        <g transform="translate(40, 75)">
+          <rect width="140" height="60" rx="8" fill="#3b173c" stroke="#d97706" stroke-width="1.8"/>
+          <text x="70" y="24" fill="#fcf9f2" font-family="'Crimson Text', serif" font-size="12" font-weight="700" text-anchor="middle">I. The Courier</text>
+          <text x="70" y="42" fill="#d9ccb8" font-size="9.5" text-anchor="middle">Cipher Intercepted</text>
+        </g>
+
+        <!-- Node A: Subterfuge & Infiltration -->
+        <g transform="translate(360, 18)">
+          <rect width="160" height="54" rx="8" fill="#3b173c" stroke="#d97706" stroke-width="1.5"/>
+          <text x="80" y="22" fill="#fcd34d" font-family="'Crimson Text', serif" font-size="12" font-weight="700" text-anchor="middle">II-A. The False Embassy</text>
+          <text x="80" y="38" fill="#d9ccb8" font-size="9" text-anchor="middle">Choice: Bluff the Chancellor (42%)</text>
+        </g>
+
+        <!-- Node B: The King's Sanction (Canon Path) -->
+        <g transform="translate(360, 78)">
+          <rect width="160" height="54" rx="8" fill="#4a1846" stroke="#f472b6" stroke-width="2"/>
+          <text x="80" y="22" fill="#ffffff" font-family="'Crimson Text', serif" font-size="12" font-weight="700" text-anchor="middle">II-B. Royal Sanction</text>
+          <text x="80" y="38" fill="#fbcfe8" font-size="9" text-anchor="middle">Choice: Pledge Fealty (38%)</text>
+        </g>
+
+        <!-- Node C: Open Defiance (Chaos) -->
+        <g transform="translate(360, 138)">
+          <rect width="160" height="54" rx="8" fill="#3b173c" stroke="#dc2626" stroke-width="1.5"/>
+          <text x="80" y="22" fill="#fca5a5" font-family="'Crimson Text', serif" font-size="12" font-weight="700" text-anchor="middle">II-C. Iron Ambush</text>
+          <text x="80" y="38" fill="#d9ccb8" font-size="9" text-anchor="middle">Choice: Draw Steel (20%)</text>
+        </g>
+
+        <!-- Sub-nodes Tier III -->
+        <g transform="translate(660, 5)">
+          <rect width="180" height="40" rx="6" fill="#2d122e" stroke="#d97706" stroke-width="1"/>
+          <text x="90" y="18" fill="#fcf9f2" font-size="10" font-weight="600" text-anchor="middle">III-A1. Infiltrate Treasury</text>
+          <text x="90" y="31" fill="#fcd34d" font-size="8.5" text-anchor="middle">Reward: Arcane Relic</text>
+        </g>
+
+        <g transform="translate(660, 50)">
+          <rect width="180" height="40" rx="6" fill="#2d122e" stroke="#0f766e" stroke-width="1"/>
+          <text x="90" y="18" fill="#fcf9f2" font-size="10" font-weight="600" text-anchor="middle">III-A2. Bribe Guard Captain</text>
+          <text x="90" y="31" fill="#5eead4" font-size="8.5" text-anchor="middle">Trust +12 • Cost: 80 Sovereigns</text>
+        </g>
+
+        <g transform="translate(660, 95)">
+          <rect width="180" height="40" rx="6" fill="#2d122e" stroke="#702459" stroke-width="1"/>
+          <text x="90" y="18" fill="#fcf9f2" font-size="10" font-weight="600" text-anchor="middle">III-B1. Council of Lords</text>
+          <text x="90" y="31" fill="#e879f9" font-size="8.5" text-anchor="middle">Unlocks Political Intrigue Tree</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Dual Panels: Character Archetypes & Sentiment Analysis -->
+  <div class="dual-panel-grid">
+    <!-- Character Archetype Cards -->
+    <div class="panel-box">
+      <div class="panel-heading">
+        <span>DRAMATIS PERSONAE (ACTIVE ARCHETYPES)</span>
+        <span style="font-size:10px; color:var(--amber-gold); font-family:var(--font-mono);">AFFINITY TRACKER</span>
+      </div>
+
+      <div class="archetype-row">
+        <!-- Archetype 1 -->
+        <div class="char-card">
+          <div class="char-head">
+            <div class="char-avatar" style="background: linear-gradient(135deg, #702459, #d97706);">AV</div>
+            <div>
+              <div class="char-name">Aurelia Vance</div>
+              <div class="char-archetype">The Pragmatic Alchemist</div>
+            </div>
+          </div>
+          <div class="trait-bar-group">
+            <div class="trait-label"><span>Arcane Lore</span><span>95%</span></div>
+            <div class="trait-track"><div class="trait-fill" style="width:95%; background:#d97706;"></div></div>
+          </div>
+          <div class="trait-bar-group">
+            <div class="trait-label"><span>Subterfuge</span><span>62%</span></div>
+            <div class="trait-track"><div class="trait-fill" style="width:62%; background:#702459;"></div></div>
+          </div>
+          <div style="font-size:10px; color:#34d399; margin-top:4px;">Affinity: Allied (+18 Trust)</div>
+        </div>
+
+        <!-- Archetype 2 -->
+        <div class="char-card">
+          <div class="char-head">
+            <div class="char-avatar" style="background: linear-gradient(135deg, #4338ca, #dc2626);">CT</div>
+            <div>
+              <div class="char-name">Corvus Thorne</div>
+              <div class="char-archetype">The Exiled Inquisitor</div>
+            </div>
+          </div>
+          <div class="trait-bar-group">
+            <div class="trait-label"><span>Ruthlessness</span><span>88%</span></div>
+            <div class="trait-track"><div class="trait-fill" style="width:88%; background:#dc2626;"></div></div>
+          </div>
+          <div class="trait-bar-group">
+            <div class="trait-label"><span>Skepticism</span><span>92%</span></div>
+            <div class="trait-track"><div class="trait-fill" style="width:92%; background:#4338ca;"></div></div>
+          </div>
+          <div style="font-size:10px; color:#f87171; margin-top:4px;">Affinity: Wary (-8 Trust)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sentiment Analysis & Tension Arc -->
+    <div class="panel-box">
+      <div class="panel-heading">
+        <span>DYNAMIC SENTIMENT &amp; TENSION METER</span>
+        <span style="font-size:10px; color:#fcd34d; font-family:var(--font-mono);">REAL-TIME NEURAL MODEL</span>
+      </div>
+
+      <div class="sentiment-chart-wrap">
+        <!-- SVG Sentiment Curves -->
+        <svg width="100%" height="80" viewBox="0 0 440 80">
+          <!-- Baseline -->
+          <line x1="10" y1="40" x2="430" y2="40" stroke="#4d224f" stroke-width="1" stroke-dasharray="3,3"/>
+          <!-- Dramatic Tension Curve (Amber) -->
+          <path d="M 20 60 Q 90 20, 160 50 T 280 25 T 380 15 T 420 30" fill="none" stroke="#d97706" stroke-width="2.5"/>
+          <!-- Melancholy Curve (Purple) -->
+          <path d="M 20 45 Q 100 55, 180 35 T 290 60 T 420 50" fill="none" stroke="#702459" stroke-width="1.8"/>
+          <!-- Highlight Marker -->
+          <circle cx="380" cy="15" r="4" fill="#d97706"/>
+          <text x="340" y="10" fill="#fcd34d" font-size="9" font-family="'JetBrains Mono'">Tension Climax: 0.94</text>
+        </svg>
+      </div>
+
+      <div class="sentiment-stats">
+        <div class="sent-stat-card">
+          <div class="sent-label">DRAMATIC TENSION</div>
+          <div class="sent-val" style="color:#d97706;">0.88</div>
+        </div>
+        <div class="sent-stat-card">
+          <div class="sent-label">MELANCHOLY</div>
+          <div class="sent-val" style="color:#e879f9;">0.64</div>
+        </div>
+        <div class="sent-stat-card">
+          <div class="sent-label">HOPE &amp; MORALE</div>
+          <div class="sent-val" style="color:#34d399;">0.41</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useDebounceFn } from "ahooks"
-import { Input } from "@/components/shadcn-ui/input"
+import { useTranslation } from "react-i18next"
+import { NumericDragInput } from "./NumericDragInput"
 import { Label } from "@/components/shadcn-ui/label"
 import { Button } from "@/components/shadcn-ui/button"
 import { Link2, Unlink } from "lucide-react"
@@ -62,6 +63,7 @@ function formatSpacing(values: string[], unit = "px"): string {
  * Spacing input for margin/padding with 4 directions
  */
 export function SpacingInput({ label, value, onChange, id }: SpacingInputProps) {
+	const { t } = useTranslation("super")
 	const [linked, setLinked] = useState(true)
 	const [values, setValues] = useState<string[]>(parseSpacing(value))
 
@@ -106,10 +108,10 @@ export function SpacingInput({ label, value, onChange, id }: SpacingInputProps) 
 	)
 
 	const directions = [
-		{ label: "上", placeholder: "上" },
-		{ label: "右", placeholder: "右" },
-		{ label: "下", placeholder: "下" },
-		{ label: "左", placeholder: "左" },
+		{ key: "top", label: t("stylePanel.boxModelSide.top") },
+		{ key: "right", label: t("stylePanel.boxModelSide.right") },
+		{ key: "bottom", label: t("stylePanel.boxModelSide.bottom") },
+		{ key: "left", label: t("stylePanel.boxModelSide.left") },
 	]
 
 	return (
@@ -121,7 +123,8 @@ export function SpacingInput({ label, value, onChange, id }: SpacingInputProps) 
 					size="sm"
 					className="h-6 w-6 p-0"
 					onClick={() => setLinked(!linked)}
-					title={linked ? "解除关联" : "关联所有边"}
+					aria-label={linked ? t("stylePanel.unlinkAll") : t("stylePanel.linkAll")}
+					title={linked ? t("stylePanel.unlinkAll") : t("stylePanel.linkAll")}
 				>
 					{linked ? <Link2 size={14} /> : <Unlink size={14} />}
 				</Button>
@@ -131,11 +134,11 @@ export function SpacingInput({ label, value, onChange, id }: SpacingInputProps) 
 				{directions.map((dir, index) => (
 					<div key={index} className="flex items-center gap-2">
 						<span className="w-6 text-xs text-muted-foreground">{dir.label}</span>
-						<Input
-							type="text"
+						<NumericDragInput
+							id={id ? `${id}-${dir.key}` : undefined}
 							value={values[index]}
-							onChange={(e) => handleChange(index, e.target.value)}
-							placeholder={dir.placeholder}
+							onChange={(newValue) => handleChange(index, newValue)}
+							placeholder={dir.label}
 							className="flex-1 font-mono text-xs"
 						/>
 					</div>

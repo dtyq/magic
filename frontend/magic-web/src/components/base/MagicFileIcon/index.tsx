@@ -1,7 +1,9 @@
+import { getMagicProjectType } from "@/constants/magicProjectTypes"
 import { createStyles, cx } from "antd-style"
 import type React from "react"
 import { memo, useEffect, useState } from "react"
 import FileTypeIcon from "../FileTypeIcon"
+import otherIcon from "./assets/other.svg"
 
 const iconModules = import.meta.glob<string>("./assets/*.svg", { import: "default" })
 const iconCache: Record<string, string> = {}
@@ -18,6 +20,7 @@ const iconNameMap: Record<string, string> = {
 	ico: "image",
 	pdf: "pdf",
 	md: "markdown",
+	markdown: "markdown",
 	doc: "word",
 	docx: "word",
 	docm: "word",
@@ -30,10 +33,12 @@ const iconNameMap: Record<string, string> = {
 	mp3: "audio",
 	wav: "audio",
 	ogg: "audio",
+	opus: "audio",
+	m4a: "audio",
 	flac: "audio",
 	aac: "audio",
-	audio: "audio-project",
 	mp4: "video",
+	webm: "video",
 	avi: "video",
 	mov: "video",
 	wmv: "video",
@@ -54,9 +59,11 @@ const iconNameMap: Record<string, string> = {
 	mindmap: "mindmap",
 	olddoc: "olddoc",
 	link: "link",
+	url: "link",
 	xml: "file-xml",
 	json: "file-json",
 	html: "file-html",
+	htm: "file-html",
 	css: "file-css",
 	java: "file-java",
 	php: "file-php",
@@ -66,6 +73,8 @@ const iconNameMap: Record<string, string> = {
 	bash: "file-sh",
 	go: "file-go",
 	js: "file-js",
+	mjs: "file-js",
+	cjs: "file-js",
 	javascript: "file-js",
 	ts: "code",
 	typescript: "code",
@@ -83,16 +92,10 @@ const iconNameMap: Record<string, string> = {
 	kotlin: "code",
 	dart: "code",
 	rust: "code",
-	dashboard: "dashboard",
 	mysql: "mysql",
-	design: "design",
 	replay: "replay",
 	playback: "replay",
-	custom: "custom",
-	customFile: "custom",
-	"self-media": "self-media",
-	"ai-card": "ai-sparkle",
-	"micro-app": "micro-app",
+	customfile: "custom",
 }
 
 function normalizeExtension(fileExtension?: string): string | null {
@@ -102,7 +105,7 @@ function normalizeExtension(fileExtension?: string): string | null {
 
 function getIconName(caseType?: string | null): string {
 	if (!caseType) return "other"
-	return iconNameMap[caseType] ?? "other"
+	return getMagicProjectType(caseType)?.iconName ?? iconNameMap[caseType] ?? "other"
 }
 
 /**
@@ -158,6 +161,8 @@ interface MagicFileIconProps {
 	style?: React.CSSProperties
 	/** 例如 custom 文件夹 icon 解析后的临时 URL；加载失败时回退内置类型图标 */
 	remoteIconUrl?: string
+	/** 仅未知扩展名使用；文件内容分类由业务调用方提供，不在基础图标中读取文件。 */
+	fallbackIcon?: React.ReactNode
 }
 
 const useStyles = createStyles(() => ({
@@ -180,6 +185,7 @@ export default memo(function MagicFileIcon({
 	className,
 	style,
 	remoteIconUrl,
+	fallbackIcon,
 }: MagicFileIconProps) {
 	const { styles } = useStyles()
 
@@ -220,6 +226,19 @@ export default memo(function MagicFileIcon({
 					className={styles.image}
 					onError={() => setRemoteFailed(true)}
 				/>
+			</div>
+		)
+	}
+
+	if (getIconName(normalizeExtension(type)) === "other") {
+		return fallbackIcon ? (
+			<>{fallbackIcon}</>
+		) : (
+			<div
+				className={cx(styles.fileIcon, className)}
+				style={{ width: size, height: size, ...style }}
+			>
+				<img src={otherIcon} draggable={false} alt={type} className={styles.image} />
 			</div>
 		)
 	}

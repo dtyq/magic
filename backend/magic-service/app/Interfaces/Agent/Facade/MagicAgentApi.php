@@ -339,9 +339,9 @@ class MagicAgentApi extends AbstractApi
     // 根据 userId 获取发布版本的助理详情
     public function getDetailByUserId(RequestInterface $request, ?string $userId = null)
     {
-        $this->getAuthorization();
+        $authorization = $this->getAuthorization();
         $userId = $userId ?? $request->input('user_id');
-        $magicAgentVersionEntity = $this->magicAgentAppService->getDetailByUserId($userId);
+        $magicAgentVersionEntity = $this->magicAgentAppService->getDetailByUserId($userId, $authorization);
         if (! $magicAgentVersionEntity) {
             return [];
         }

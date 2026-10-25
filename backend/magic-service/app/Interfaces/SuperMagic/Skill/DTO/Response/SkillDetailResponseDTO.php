@@ -29,6 +29,12 @@ class SkillDetailResponseDTO implements JsonSerializable
 
     private ?string $pinnedAt;
 
+    private string $name;
+
+    private string $description;
+
+    private string $source;
+
     private array $nameI18n;
 
     private array $descriptionI18n;
@@ -77,6 +83,9 @@ class SkillDetailResponseDTO implements JsonSerializable
         string $sourceType,
         int $isEnabled,
         ?string $pinnedAt,
+        string $name,
+        string $description,
+        string $source,
         array $nameI18n,
         array $descriptionI18n,
         array $sourceI18n,
@@ -105,6 +114,9 @@ class SkillDetailResponseDTO implements JsonSerializable
         $this->sourceType = $sourceType;
         $this->isEnabled = $isEnabled;
         $this->pinnedAt = $pinnedAt;
+        $this->name = $name;
+        $this->description = $description;
+        $this->source = $source;
         $this->nameI18n = $nameI18n;
         $this->descriptionI18n = $descriptionI18n;
         $this->sourceI18n = $sourceI18n;
@@ -157,6 +169,9 @@ class SkillDetailResponseDTO implements JsonSerializable
             'source_type' => $this->sourceType,
             'is_enabled' => $this->isEnabled,
             'pinned_at' => $this->pinnedAt,
+            'name' => $this->name,
+            'description' => $this->description,
+            'source' => $this->source,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
             'source_i18n' => $this->sourceI18n,

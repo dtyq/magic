@@ -5,7 +5,9 @@ import { ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/typ
 import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 import superMagicModeService from "../../SuperMagicModeService"
 import superMagicTopicModelCacheService from "../SuperMagicTopicModelCacheService"
-import superMagicTopicModelService from "../SuperMagicTopicModelService"
+import superMagicTopicModelService, {
+	getTopicModelContextKey,
+} from "../SuperMagicTopicModelService"
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
@@ -34,7 +36,11 @@ vi.mock("../../SuperMagicModeService", () => ({
 		resolveLanguageModelByMode: vi.fn(),
 		resolveImageModelByMode: vi.fn(async () => null),
 		resolveVideoModelByMode: vi.fn(async () => null),
+		// The cascade only waits for the crew list while its availability is unknown.
+		isModeAvailabilityResolved: true,
 	},
+	resolveModeMapKey: (topicMode: string, agentCode?: string | null) =>
+		topicMode === "custom_agent" && agentCode ? agentCode : topicMode,
 }))
 
 function createModel(modelId: string): ModelItem {
@@ -231,10 +237,133 @@ describe("SuperMagicTopicModelService context isolation", () => {
 		expect(store.isLoading).toBe(false)
 	})
 
+	it("refetches the new mode when the previous context is still loading", async () => {
+		const autoModel = createModel("auto-model")
+		const deepseekModel = createModel("deepseek-v4-flash")
+		const initialResponse = createDeferred<{ model: { model_id: string } }>()
+		const generalResponse = createDeferred<{ model: { model_id: string } }>()
+		const responses = [initialResponse.promise, generalResponse.promise]
+
+		vi.mocked(superMagicModeService.getModelListByMode).mockImplementation((mode) =>
+			mode === "general" ? [autoModel, deepseekModel] : [dataAnalysisModel],
+		)
+		vi.mocked(SuperMagicApi.getSuperMagicTopicModel).mockImplementation(({ topic_id }) => {
+			if (topic_id === "topic-1") return responses.shift() as never
+			return Promise.resolve({}) as never
+		})
+
+		const store = createSuperMagicTopicModelStore()
+		superMagicTopicModelService.initForStore(store)
+		store.setCurrentContext("topic-1", "project-1", "ip-manager")
+
+		await vi.waitFor(() => {
+			expect(
+				vi
+					.mocked(SuperMagicApi.getSuperMagicTopicModel)
+					.mock.calls.filter(([params]) => params.topic_id === "topic-1"),
+			).toHaveLength(1)
+		})
+
+		store.setCurrentContext("topic-1", "project-1", "general")
+
+		await vi.waitFor(() => {
+			expect(
+				vi
+					.mocked(SuperMagicApi.getSuperMagicTopicModel)
+					.mock.calls.filter(([params]) => params.topic_id === "topic-1"),
+			).toHaveLength(2)
+		})
+
+		generalResponse.resolve({ model: { model_id: deepseekModel.model_id } })
+		await vi.waitFor(() => {
+			expect(store.selectedLanguageModel?.model_id).toBe(deepseekModel.model_id)
+			expect(store.isLoading).toBe(false)
+		})
+		expect(store.selectedLanguageModel?.model_id).not.toBe(autoModel.model_id)
+		expect(SuperMagicApi.saveSuperMagicTopicModel).not.toHaveBeenCalled()
+		expect(superMagicTopicModelCacheService.saveProjectModel).not.toHaveBeenCalled()
+
+		initialResponse.resolve({ model: { model_id: dataAnalysisModel.model_id } })
+	})
+
+	it("does not persist Auto when validating before models are loaded", async () => {
+		const autoModel = createModel("auto-model")
+		const deepseekModel = createModel("deepseek-v4-flash")
+		vi.mocked(superMagicModeService.getModelListByMode).mockReturnValue([
+			autoModel,
+			deepseekModel,
+		])
+
+		const store = createSuperMagicTopicModelStore()
+		store.setCurrentContext("topic-1", "project-1", "general")
+
+		await superMagicTopicModelService.validateSelectedModels(store)
+
+		expect(store.selectedLanguageModel).toBeNull()
+		expect(SuperMagicApi.saveSuperMagicTopicModel).not.toHaveBeenCalled()
+		expect(superMagicTopicModelCacheService.saveTopicModel).not.toHaveBeenCalled()
+		expect(superMagicTopicModelCacheService.saveProjectModel).not.toHaveBeenCalled()
+	})
+
+	it("does not persist Auto when validating with a stale model after context change", async () => {
+		const autoModel = createModel("auto-model")
+		vi.mocked(superMagicModeService.getModelListByMode).mockReturnValue([autoModel])
+		vi.mocked(superMagicModeService.resolveLanguageModelByMode).mockResolvedValue(null)
+
+		const store = createSuperMagicTopicModelStore()
+		store.setCurrentContext("topic-1", "project-1", "general")
+		store.setSelectedLanguageModel(dataAnalysisModel)
+		store.markCurrentContextLoaded(
+			getTopicModelContextKey({
+				topicId: "topic-1",
+				projectId: "project-1",
+				topicMode: "general",
+			}),
+		)
+		store.setCurrentContext("topic-2", "project-1", "general")
+
+		await superMagicTopicModelService.validateSelectedModels(store)
+
+		expect(store.selectedLanguageModel?.model_id).toBe(dataAnalysisModel.model_id)
+		expect(SuperMagicApi.saveSuperMagicTopicModel).not.toHaveBeenCalled()
+		expect(superMagicTopicModelCacheService.saveTopicModel).not.toHaveBeenCalled()
+		expect(superMagicTopicModelCacheService.saveProjectModel).not.toHaveBeenCalled()
+	})
+
+	it("resets isLoading when validation throws", async () => {
+		vi.mocked(superMagicModeService.resolveLanguageModelByMode).mockRejectedValue(
+			new Error("validation failed"),
+		)
+
+		const store = createSuperMagicTopicModelStore()
+		store.setCurrentContext("topic-1", "project-1", "general")
+		store.setSelectedLanguageModel(dataAnalysisModel)
+		store.markCurrentContextLoaded(
+			getTopicModelContextKey({
+				topicId: "topic-1",
+				projectId: "project-1",
+				topicMode: "general",
+			}),
+		)
+
+		await expect(superMagicTopicModelService.validateSelectedModels(store)).rejects.toThrow(
+			"validation failed",
+		)
+
+		expect(store.isLoading).toBe(false)
+	})
+
 	it("restores readiness after validating a same-topic mode change", async () => {
 		const store = createSuperMagicTopicModelStore()
 		store.setCurrentContext("topic-1", "project-1", "summary")
 		store.setSelectedLanguageModel(dataAnalysisModel)
+		store.markCurrentContextLoaded(
+			getTopicModelContextKey({
+				topicId: "topic-1",
+				projectId: "project-1",
+				topicMode: "summary",
+			}),
+		)
 		vi.mocked(superMagicModeService.resolveLanguageModelByMode).mockResolvedValue(null)
 
 		await superMagicTopicModelService.validateSelectedModels(store)
@@ -266,18 +395,39 @@ describe("SuperMagicTopicModelService context isolation", () => {
 		const store = createSuperMagicTopicModelStore()
 		store.setCurrentContext("topic-1", "project-1", "data_analysis")
 		store.setSelectedLanguageModel(oldDataAnalysisModel)
+		store.markCurrentContextLoaded(
+			getTopicModelContextKey({
+				topicId: "topic-1",
+				projectId: "project-1",
+				topicMode: "data_analysis",
+			}),
+		)
 		const oldDataAnalysisValidation = superMagicTopicModelService.validateSelectedModels(store)
 		await vi.waitFor(() => {
 			expect(superMagicModeService.resolveLanguageModelByMode).toHaveBeenCalledTimes(1)
 		})
 
 		store.setCurrentContext("topic-1", "project-1", "summary")
+		store.markCurrentContextLoaded(
+			getTopicModelContextKey({
+				topicId: "topic-1",
+				projectId: "project-1",
+				topicMode: "summary",
+			}),
+		)
 		const summaryValidation = superMagicTopicModelService.validateSelectedModels(store)
 		await vi.waitFor(() => {
 			expect(superMagicModeService.resolveLanguageModelByMode).toHaveBeenCalledTimes(2)
 		})
 
 		store.setCurrentContext("topic-1", "project-1", "data_analysis")
+		store.markCurrentContextLoaded(
+			getTopicModelContextKey({
+				topicId: "topic-1",
+				projectId: "project-1",
+				topicMode: "data_analysis",
+			}),
+		)
 		const newDataAnalysisValidation = superMagicTopicModelService.validateSelectedModels(store)
 		await vi.waitFor(() => {
 			expect(superMagicModeService.resolveLanguageModelByMode).toHaveBeenCalledTimes(3)
@@ -293,5 +443,45 @@ describe("SuperMagicTopicModelService context isolation", () => {
 		expect(store.currentTopicMode).toBe("data_analysis")
 		expect(store.selectedLanguageModel?.model_id).toBe(newDataAnalysisModel.model_id)
 		expect(store.isLoading).toBe(false)
+	})
+
+	it("still saves remote topic backfill after local write if context switches", async () => {
+		const topicSave = createDeferred<void>()
+		vi.mocked(superMagicTopicModelCacheService.saveTopicModel).mockImplementation(
+			() => topicSave.promise,
+		)
+		vi.mocked(SuperMagicApi.getSuperMagicTopicModel).mockImplementation(({ topic_id }) => {
+			if (topic_id === "project_id_project-1") {
+				return Promise.resolve({ model: { model_id: dataAnalysisModel.model_id } }) as never
+			}
+			return Promise.resolve({}) as never
+		})
+
+		const store = createSuperMagicTopicModelStore()
+		store.setCurrentContext("topic-1", "project-1", "general")
+		const fetchPromise = superMagicTopicModelService.fetchTopicModel(
+			"topic-1",
+			"project-1",
+			"general",
+			store,
+		)
+
+		await vi.waitFor(() => {
+			expect(superMagicTopicModelCacheService.saveTopicModel).toHaveBeenCalledWith(
+				"topic-1",
+				expect.objectContaining({ languageModelId: dataAnalysisModel.model_id }),
+			)
+		})
+
+		store.setCurrentContext("topic-2", "project-1", "general")
+		topicSave.resolve()
+		await fetchPromise
+
+		expect(SuperMagicApi.saveSuperMagicTopicModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				cache_id: "topic-1",
+				model_id: dataAnalysisModel.model_id,
+			}),
+		)
 	})
 })

@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
 	FIXED_TOPIC_HISTORY_REQUIRED_WIDTH,
+	DEFAULT_MIN_WIDTH,
+	TOPIC_HISTORY_RESIZE,
 	MIN_DETAIL_PANEL_WIDTH_FOR_FIXED_TOPIC_HISTORY,
 	RESIZABLE_PANEL_HANDLE_WIDTH,
 	TOPIC_HISTORY_PANEL_WIDTH,
@@ -8,6 +10,9 @@ import {
 
 interface UseTopicDesktopPanelMotionOptions {
 	isReadOnly: boolean
+	historyResize?: { width: number; lockedMode?: "full-right" | "fixed" | "drawer" }
+	isDraggingHistoryPanel?: boolean
+	sidebarMotion?: { key: string; transition: string; duration: number }
 	isTopicHistoryPanelOpen?: boolean
 	showProjectResizeHandle?: boolean
 	shouldShowDetailPanel: boolean
@@ -22,6 +27,7 @@ interface UseTopicDesktopPanelMotionOptions {
 }
 
 interface UseTopicDesktopPanelMotionReturn {
+	historyMaxWidth: number
 	panelResizeTransition: string
 	messageTransform: string
 	messageMotionTransition: string
@@ -82,6 +88,9 @@ function getReservedTopicHistoryPanelWidth(topicHistoryMode: TopicHistoryMode) {
 
 export function useTopicDesktopPanelMotion({
 	isReadOnly,
+	historyResize,
+	isDraggingHistoryPanel = false,
+	sidebarMotion,
 	isTopicHistoryPanelOpen = false,
 	showProjectResizeHandle = !isReadOnly,
 	shouldShowDetailPanel,
@@ -94,6 +103,18 @@ export function useTopicDesktopPanelMotion({
 	isDraggingMessagePanel,
 	ensureExpandedWhenDetailVisible,
 }: UseTopicDesktopPanelMotionOptions): UseTopicDesktopPanelMotionReturn {
+	const [isSidebarAnimating, setIsSidebarAnimating] = useState(false)
+	const sidebarMotionKeyRef = useRef(sidebarMotion?.key)
+	useLayoutEffect(() => {
+		if (sidebarMotionKeyRef.current === sidebarMotion?.key) return
+		sidebarMotionKeyRef.current = sidebarMotion?.key
+		setIsSidebarAnimating(true)
+		const timer = window.setTimeout(
+			() => setIsSidebarAnimating(false),
+			sidebarMotion?.duration ?? 0,
+		)
+		return () => window.clearTimeout(timer)
+	}, [sidebarMotion?.key, sidebarMotion?.duration])
 	const prevShouldShowDetailPanelRef = useRef(shouldShowDetailPanel)
 	const [layoutMotionPhase, setLayoutMotionPhase] = useState<"idle" | "opening" | "closing">(
 		"idle",
@@ -121,7 +142,12 @@ export function useTopicDesktopPanelMotion({
 	}, [ensureExpandedWhenDetailVisible, isReadOnly, shouldShowDetailPanel])
 
 	useEffect(() => {
-		if (layoutMotionPhase === "idle" || isDraggingProjectSider || isDraggingMessagePanel) {
+		if (
+			layoutMotionPhase === "idle" ||
+			isDraggingProjectSider ||
+			isDraggingMessagePanel ||
+			isDraggingHistoryPanel
+		) {
 			return
 		}
 		const timeout = window.setTimeout(
@@ -133,15 +159,24 @@ export function useTopicDesktopPanelMotion({
 		return () => {
 			window.clearTimeout(timeout)
 		}
-	}, [isDraggingMessagePanel, isDraggingProjectSider, layoutMotionPhase])
+	}, [isDraggingMessagePanel, isDraggingProjectSider, isDraggingHistoryPanel, layoutMotionPhase])
 
 	const panelResizeTransition = useMemo(() => {
-		const isDragging = isDraggingProjectSider || isDraggingMessagePanel
+		const isDragging =
+			isDraggingProjectSider || isDraggingMessagePanel || isDraggingHistoryPanel
 		if (isDragging) return "none"
+		if (isSidebarAnimating && sidebarMotion) return sidebarMotion.transition
 		return layoutMotionPhase === "opening"
 			? `width ${OPENING_DURATION_MS}ms cubic-bezier(0.16, 1, 0.3, 1), min-width ${OPENING_DURATION_MS}ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms ease`
 			: `width ${CLOSING_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${CLOSING_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity 220ms ease`
-	}, [isDraggingMessagePanel, isDraggingProjectSider, layoutMotionPhase])
+	}, [
+		isDraggingMessagePanel,
+		isDraggingProjectSider,
+		isDraggingHistoryPanel,
+		layoutMotionPhase,
+		isSidebarAnimating,
+		sidebarMotion,
+	])
 
 	const messageTransform = useMemo(() => {
 		if (!shouldShowDetailPanel) return "none"
@@ -151,12 +186,12 @@ export function useTopicDesktopPanelMotion({
 
 	const messageMotionTransition = useMemo(
 		() =>
-			isDraggingProjectSider || isDraggingMessagePanel
+			isDraggingProjectSider || isDraggingMessagePanel || isDraggingHistoryPanel
 				? "none"
 				: layoutMotionPhase === "opening"
 					? "transform 420ms cubic-bezier(0.22, 1.35, 0.3, 1), opacity 280ms ease"
 					: "transform 220ms cubic-bezier(0.4, 0, 0.2, 1), opacity 220ms ease",
-		[isDraggingMessagePanel, isDraggingProjectSider, layoutMotionPhase],
+		[isDraggingMessagePanel, isDraggingProjectSider, isDraggingHistoryPanel, layoutMotionPhase],
 	)
 
 	const messagePanelTransition = useMemo(() => {
@@ -172,12 +207,12 @@ export function useTopicDesktopPanelMotion({
 
 	const detailContentTransition = useMemo(
 		() =>
-			isDraggingProjectSider || isDraggingMessagePanel
+			isDraggingProjectSider || isDraggingMessagePanel || isDraggingHistoryPanel
 				? "none"
 				: layoutMotionPhase === "opening"
 					? "transform 420ms cubic-bezier(0.22, 1.35, 0.3, 1), opacity 300ms ease, box-shadow 280ms ease"
 					: "transform 220ms cubic-bezier(0.4, 0, 0.2, 1), opacity 220ms ease, box-shadow 220ms ease",
-		[isDraggingMessagePanel, isDraggingProjectSider, layoutMotionPhase],
+		[isDraggingMessagePanel, isDraggingProjectSider, isDraggingHistoryPanel, layoutMotionPhase],
 	)
 
 	const middleContainerWidth = useMemo(() => {
@@ -188,32 +223,52 @@ export function useTopicDesktopPanelMotion({
 		})
 	}, [containerWidthPx, projectSiderWidthPx, showProjectResizeHandle])
 
-	const canShowFixedTopicHistory = useMemo(() => {
-		if (isReadOnly || !isTopicHistoryPanelOpen) return false
-		if (!shouldShowDetailPanel) return true
-		return middleContainerWidth >= FIXED_TOPIC_HISTORY_REQUIRED_WIDTH
-	}, [isReadOnly, isTopicHistoryPanelOpen, middleContainerWidth, shouldShowDetailPanel])
-
-	const topicHistoryMode = useMemo(
-		() =>
-			getTopicHistoryMode({
-				isReadOnly,
-				isTopicHistoryPanelOpen,
-				shouldShowDetailPanel,
-				canShowFixedTopicHistory,
-			}),
-		[canShowFixedTopicHistory, isReadOnly, isTopicHistoryPanelOpen, shouldShowDetailPanel],
+	// 固定列按实际宽度保留详情 688、对话 360 和分隔线；窗口适配不写入用户偏好。
+	const historyFixedMaxWidth =
+		middleContainerWidth -
+		DEFAULT_MIN_WIDTH.MESSAGE_PANEL -
+		(shouldShowDetailPanel
+			? MIN_DETAIL_PANEL_WIDTH_FOR_FIXED_TOPIC_HISTORY + RESIZABLE_PANEL_HANDLE_WIDTH
+			: 0)
+	const canShowFixedTopicHistory =
+		!isReadOnly &&
+		isTopicHistoryPanelOpen &&
+		(!shouldShowDetailPanel || middleContainerWidth >= FIXED_TOPIC_HISTORY_REQUIRED_WIDTH)
+	// 调宽只改变列宽，不改变原显示模式：无预览时始终独立成列，有预览时沿用原断点。
+	const topicHistoryMode: TopicHistoryMode =
+		(!isReadOnly && isTopicHistoryPanelOpen && historyResize?.lockedMode) ||
+		getTopicHistoryMode({
+			isReadOnly,
+			isTopicHistoryPanelOpen,
+			shouldShowDetailPanel,
+			canShowFixedTopicHistory,
+		})
+	const historyMaxWidth = Math.max(
+		0,
+		Math.min(
+			TOPIC_HISTORY_RESIZE.max,
+			middleContainerWidth,
+			topicHistoryMode === "drawer"
+				? middleContainerWidth
+				: topicHistoryMode === "full-right"
+					? Math.max(TOPIC_HISTORY_PANEL_WIDTH, historyFixedMaxWidth)
+					: historyFixedMaxWidth,
+		),
 	)
-
-	const topicHistoryPanelWidth = useMemo(() => {
-		if (topicHistoryMode === "hidden") return 0
-		return TOPIC_HISTORY_PANEL_WIDTH
-	}, [topicHistoryMode])
-
-	const reservedTopicHistoryPanelWidth = useMemo(
-		() => getReservedTopicHistoryPanelWidth(topicHistoryMode),
-		[topicHistoryMode],
-	)
+	const topicHistoryPanelWidth =
+		topicHistoryMode === "hidden"
+			? 0
+			: historyResize
+				? Math.min(historyResize.width, historyMaxWidth)
+				: TOPIC_HISTORY_PANEL_WIDTH
+	const reservedTopicHistoryPanelWidth =
+		historyResize && !isReadOnly
+			? !isTopicHistoryPanelOpen
+				? 0
+				: topicHistoryMode === "drawer"
+					? 0
+					: topicHistoryPanelWidth
+			: getReservedTopicHistoryPanelWidth(topicHistoryMode)
 
 	const availablePanelWidth = useMemo(
 		() => Math.max(0, middleContainerWidth - reservedTopicHistoryPanelWidth),
@@ -263,6 +318,7 @@ export function useTopicDesktopPanelMotion({
 	])
 
 	return {
+		historyMaxWidth,
 		panelResizeTransition,
 		messageTransform,
 		messageMotionTransition,

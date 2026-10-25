@@ -117,16 +117,18 @@ describe("NetworkInterceptor", () => {
 		expect(entries[0].error).toBe("Network failure")
 	})
 
-	it("should enforce ring buffer limit", () => {
+	it("should enforce ring buffer limit", async () => {
+		window.fetch = vi.fn(async () => new Response("ok"))
 		interceptor.enable()
-		// Directly push entries via internal state
 		for (let i = 0; i < 210; i++) {
-			interceptor.getEntries() // just to verify
+			await window.fetch(`https://api.example.com/${i}`)
 		}
-		// We can't easily push 210 entries without actual fetch calls,
-		// so verify clear works instead
-		interceptor.clear()
-		expect(interceptor.getEntries()).toHaveLength(0)
+		const entries = interceptor.getEntries()
+		expect(entries).toHaveLength(200)
+		expect(entries[0].url).toBe("https://api.example.com/10")
+		expect(entries.at(-1)?.url).toBe("https://api.example.com/209")
+		entries.pop()
+		expect(interceptor.getEntries()).toHaveLength(200)
 	})
 
 	it("should clear entries", async () => {

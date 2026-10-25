@@ -3,7 +3,7 @@
  *
  * 三条路径：
  * - pickPluginFiles：本地文件 → upload → PluginFileAsset
- * - resolvePluginFileAssets -> resolvePluginFileByPath ：已有项目 path → getFileInfo，不上传
+ * - resolvePluginFileAssets -> resolvePluginFileByPath：已有资源 path → 按 asset/workspace 类型解析，不上传
  * - resolveProjectPluginFile：资源面板选中项 → 同上（path 来自 panel item）
  *
  * PluginFileAsset 同时含 path（稳定标识）与 url/src（当前可访问签名 URL）。
@@ -14,6 +14,12 @@ import type { ReferenceResourcePanelItem } from "../../../../public/props"
 import type { ReferenceResourceTypeFilter } from "../../../editors/message/reference-assets/reference-resource.types"
 import type { PluginPickFilesOptions } from "../runtime-protocol/v1/index"
 import type { PluginFileAsset, PluginFilePickerType } from "../window/types"
+import {
+	buildAssetResourcePath,
+	getCanvasResourceFileName,
+	isAssetResourceScheme,
+	parseAssetResourcePath,
+} from "../../../../runtime/shared/path/canvasResourcePath"
 
 export const IMAGE_FILE_EXTENSIONS = new Set([
 	"avif",
@@ -27,6 +33,64 @@ export const IMAGE_FILE_EXTENSIONS = new Set([
 	"webp",
 ])
 
+interface ResolvedPluginFileResource {
+	path: string
+	type: PluginFilePickerType
+	fileInfo: { src: string; fileName?: string }
+}
+
+async function resolvePluginFileResource(
+	canvas: Canvas,
+	path: string,
+	options?: {
+		requestedType?: PluginFilePickerType
+		declaredMediaType?: "image" | "video" | "audio" | null
+	},
+): Promise<ResolvedPluginFileResource> {
+	const assetId = parseAssetResourcePath(path)
+	if (assetId !== undefined) {
+		const asset = await canvas.assetResourceManager.getResource(assetId)
+		if (!asset.fileUrl || !asset.mediaType) {
+			throw new Error("Asset detail does not contain a supported media resource.")
+		}
+		if (options?.declaredMediaType && options.declaredMediaType !== asset.mediaType) {
+			throw new Error("Asset media type does not match the selected resource metadata.")
+		}
+		if (
+			options?.requestedType &&
+			options.requestedType !== "file" &&
+			options.requestedType !== asset.mediaType
+		) {
+			throw new Error("Asset media type does not match the plugin picker type.")
+		}
+
+		const canonicalPath = buildAssetResourcePath(assetId)
+		return {
+			path: canonicalPath,
+			type: options?.requestedType === "file" ? "file" : asset.mediaType,
+			fileInfo: {
+				src: asset.fileUrl,
+				fileName:
+					asset.fileName ||
+					getCanvasResourceFileName(canonicalPath) ||
+					`asset-${assetId}`,
+			},
+		}
+	}
+	if (isAssetResourceScheme(path)) {
+		throw new Error("Invalid asset resource path.")
+	}
+
+	const getFileInfo = canvas.magicConfigManager.config?.methods?.getFileInfo
+	if (!getFileInfo) {
+		throw new Error("getFileInfo method not available.")
+	}
+	const type =
+		options?.requestedType ?? options?.declaredMediaType ?? inferPluginFileTypeFromPath(path)
+	const fileInfo = await getFileInfo(path, { useImageProcess: type === "image" })
+	return { path, type, fileInfo }
+}
+
 /** 上传本地文件并返回插件文件资产
  * params:
  * - canvas: 画布
@@ -39,8 +103,8 @@ export async function pickPluginFiles(
 	files: File[],
 	options?: PluginPickFilesOptions,
 ): Promise<PluginFileAsset[]> {
-	if (canvas.readonly) {
-		throw new Error("Canvas is readonly.")
+	if (!canvas.permissionManager.can("document.write")) {
+		throw new Error("Canvas does not allow document changes.")
 	}
 
 	const maxCount = Math.max(1, options?.maxCount ?? (options?.multiple ? files.length : 1))
@@ -89,13 +153,10 @@ export async function resolvePluginFileByPath(
 	path: string,
 	options?: PluginPickFilesOptions & { fileName?: string; skipImageDimensions?: boolean },
 ): Promise<PluginFileAsset> {
-	const getFileInfo = canvas.magicConfigManager.config?.methods?.getFileInfo
-	if (!getFileInfo) {
-		throw new Error("getFileInfo method not available.")
-	}
-
-	const type = options?.type ?? inferPluginFileTypeFromPath(path)
-	const fileInfo = await getFileInfo(path, { useImageProcess: type === "image" })
+	const resolved = await resolvePluginFileResource(canvas, path, {
+		requestedType: options?.type,
+	})
+	const { fileInfo, type } = resolved
 	const dimensions =
 		type === "image" && !options?.skipImageDimensions
 			? await getImageDimensionsFromUrl(fileInfo.src).catch(
@@ -104,12 +165,15 @@ export async function resolvePluginFileByPath(
 			: undefined
 
 	return {
-		id: path,
-		path,
+		id: resolved.path,
+		path: resolved.path,
 		url: fileInfo.src,
 		src: fileInfo.src,
 		fileName:
-			options?.fileName || fileInfo.fileName || path.split("/").filter(Boolean).pop() || path,
+			options?.fileName ||
+			fileInfo.fileName ||
+			getCanvasResourceFileName(resolved.path) ||
+			resolved.path,
 		type,
 		width: dimensions?.width,
 		height: dimensions?.height,
@@ -129,8 +193,8 @@ export async function resolvePluginFileAssets(
 	files: Array<{ path: string; fileName?: string }>,
 	options?: PluginPickFilesOptions,
 ): Promise<PluginFileAsset[]> {
-	if (canvas.readonly) {
-		throw new Error("Canvas is readonly.")
+	if (!canvas.permissionManager.can("document.write")) {
+		throw new Error("Canvas does not allow document changes.")
 	}
 
 	const resolved = await Promise.all(
@@ -166,13 +230,12 @@ export async function resolveProjectPluginFile(
 	item: ReferenceResourcePanelItem,
 	options?: PluginPickFilesOptions,
 ): Promise<PluginFileAsset> {
-	const getFileInfo = canvas.magicConfigManager.config?.methods?.getFileInfo
-	if (!getFileInfo) {
-		throw new Error("getFileInfo method not available.")
-	}
 	const path = item.data.file_path
-	const type = options?.type ?? inferPluginFileTypeFromPath(path)
-	const fileInfo = await getFileInfo(path, { useImageProcess: type === "image" })
+	const resolved = await resolvePluginFileResource(canvas, path, {
+		requestedType: options?.type,
+		declaredMediaType: item.data.media_type,
+	})
+	const { fileInfo, type } = resolved
 	const dimensions =
 		type === "image"
 			? await getImageDimensionsFromUrl(fileInfo.src).catch(
@@ -181,8 +244,8 @@ export async function resolveProjectPluginFile(
 			: undefined
 
 	return {
-		id: path,
-		path,
+		id: resolved.path,
+		path: resolved.path,
 		url: fileInfo.src,
 		src: fileInfo.src,
 		fileName: fileInfo.fileName || item.data.file_name,

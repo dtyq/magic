@@ -4,6 +4,7 @@ export const useStyles = createStyles(({ cx, css, token }) => {
 	const moreActionButton = cx(css`
 		display: none;
 		flex: none;
+		align-items: center;
 
 		@media (max-width: 768px) {
 			display: inline-flex;
@@ -37,7 +38,7 @@ export const useStyles = createStyles(({ cx, css, token }) => {
 			height: 36px;
 			gap: 4px;
 			border-radius: 8px;
-			padding: 8px 8px 8px 4px;
+			padding: 8px;
 			cursor: pointer;
 			&:hover {
 				background-color: #2e2f380d;
@@ -45,6 +46,12 @@ export const useStyles = createStyles(({ cx, css, token }) => {
 					display: inline-flex;
 				}
 			}
+		`,
+		switchWrapper: css`
+			/* Avoid inline baseline spacing shifting the switch below the title. */
+			display: inline-flex;
+			align-items: center;
+			flex: none;
 		`,
 		moreActionButton,
 		arrowIcon: {

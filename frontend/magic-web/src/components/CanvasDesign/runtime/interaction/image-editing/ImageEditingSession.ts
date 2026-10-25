@@ -1,5 +1,6 @@
 import Konva from "konva"
 import type { Canvas } from "../../core/Canvas"
+import type { CanvasEvent } from "../../core/EventEmitter"
 import { ElementTypeEnum } from "../../document/types"
 import {
 	getLocalRectRelativeTo,
@@ -24,6 +25,8 @@ export class ImageEditingSession {
 	private mounted = false
 	private destroyed = false
 	private elementRerenderedHandler?: (event: { data: { elementId: string } }) => void
+	private resourceWillCloseHandler?: (event: CanvasEvent<"resource:image:will-close">) => void
+	private readonly closedImages = new WeakSet<object>()
 
 	constructor(options: { canvas: Canvas; elementId: string }) {
 		this.canvas = options.canvas
@@ -57,6 +60,18 @@ export class ImageEditingSession {
 		this.canvas.controlsLayer.add(this.proxyGroup)
 		this.syncFromSource()
 
+		this.resourceWillCloseHandler = ({ data }) => {
+			this.closedImages.add(data.image)
+			if (this.proxyImage?.image() !== data.image) return
+			this.proxyImage.image(undefined)
+			this.canvas.controlsLayer.batchDraw()
+			queueMicrotask(() => {
+				if (this.destroyed) return
+				this.syncFromSource()
+			})
+		}
+		this.canvas.eventEmitter.on("resource:image:will-close", this.resourceWillCloseHandler)
+
 		this.elementRerenderedHandler = ({ data }) => {
 			if (data.elementId !== this.elementId || this.destroyed) return
 			this.rebindAfterRerender()
@@ -85,9 +100,10 @@ export class ImageEditingSession {
 		syncNodeTransformRelativeTo(this.sourceNode, this.proxyGroup, this.canvas.controlsLayer)
 
 		const renderedImageNode = this.findRenderedImageNode(this.sourceNode)
-		if (renderedImageNode?.image() && this.proxyImage) {
+		const renderedImage = renderedImageNode?.image()
+		if (renderedImage && !this.closedImages.has(renderedImage) && this.proxyImage) {
 			this.proxyImage.setAttrs({
-				image: renderedImageNode.image(),
+				image: renderedImage,
 				x: renderedImageNode.x(),
 				y: renderedImageNode.y(),
 				width: renderedImageNode.width(),
@@ -124,6 +140,10 @@ export class ImageEditingSession {
 			this.canvas.eventEmitter.off("element:rerendered", this.elementRerenderedHandler)
 			this.elementRerenderedHandler = undefined
 		}
+		if (this.resourceWillCloseHandler) {
+			this.canvas.eventEmitter.off("resource:image:will-close", this.resourceWillCloseHandler)
+			this.resourceWillCloseHandler = undefined
+		}
 
 		const sourceNode = this.resolveSourceNode() ?? this.sourceNode
 		if (sourceNode) {
@@ -157,7 +177,8 @@ export class ImageEditingSession {
 
 	private findRenderedImageNode(sourceNode: Konva.Group): Konva.Image | null {
 		const imageNode = sourceNode.findOne((node: Konva.Node) => {
-			return node instanceof Konva.Image && !!node.image()
+			const image = node instanceof Konva.Image ? node.image() : undefined
+			return node instanceof Konva.Image && !!image && !this.closedImages.has(image as object)
 		})
 		return imageNode instanceof Konva.Image ? imageNode : null
 	}

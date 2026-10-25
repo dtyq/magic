@@ -58,23 +58,8 @@ function BrowserNotificationItem({ mobile = false }: BrowserNotificationItemProp
 	})
 
 	useEffect(() => {
-		const preferenceEnabled = browserNotificationPreference.getEnabled()
-		if (!preferenceEnabled) {
-			setEnabled(false)
-			return
-		}
-
-		const permissionEnabled =
-			browserNotificationService.isSupported() &&
-			browserNotificationService.getPermission() === "granted"
-
-		if (permissionEnabled) {
-			setEnabled(true)
-			return
-		}
-
-		disableNotification()
-	}, [disableNotification])
+		setEnabled(browserNotificationPreference.getEnabled())
+	}, [])
 
 	if (mobile) {
 		return (

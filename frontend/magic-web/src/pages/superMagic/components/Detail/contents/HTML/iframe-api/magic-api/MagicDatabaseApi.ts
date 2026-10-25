@@ -8,7 +8,7 @@
  * 仅暴露数据操作接口，不暴露表结构变更、权限管理等管理接口。
  */
 
-import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox/runtime"
+import { BaseRuntimeBridgeApiPlugin } from "@dtyq/html-sandbox"
 
 export class MagicDatabaseApi extends BaseRuntimeBridgeApiPlugin {
 	constructor() {

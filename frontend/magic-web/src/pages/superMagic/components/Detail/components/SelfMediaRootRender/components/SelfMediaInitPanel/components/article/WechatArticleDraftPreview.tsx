@@ -1,6 +1,6 @@
 import { ChevronLeft, MoreHorizontal } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import PhoneShell from "../../../PhoneShell"
 import type { ArticleDetail, OutlineNode } from "../../types"
 

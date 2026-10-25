@@ -2,34 +2,49 @@ import type { Canvas } from "../../../runtime/core/Canvas"
 import {
 	type CropConfig,
 	ElementTypeEnum,
-	type FrameElement,
-	type ImageElement,
-	type LayerElement,
-	type TextElement,
-	type VideoElement,
+	type TextElementContent,
 } from "../../../runtime/document/types"
-import { sortCanvasElementsByZIndexStable } from "../../../runtime/document/elementIndex"
 import {
 	extractPlainTextFromRichText,
 	extractPromptTextFromRichText,
 } from "../../../runtime/text/richText"
+import type { ResolveCanvasResourceReference } from "../../../public/resource-reference"
+import { getDownstreamContent } from "../../../runtime/document/elementContent"
 import {
-	getCanvasResourceFileName,
-	getCanvasResourceIdentity,
-} from "../../../runtime/shared/path/canvasResourcePath"
+	getLinkedMediaReferenceIdentity,
+	mergeLinkedMediaReferences,
+	type LinkedMediaKind,
+	type LinkedMediaReference,
+} from "../../../runtime/shared/linkedMedia"
 import { getLinkedTextPromptText, type LinkedTextConnection } from "./linkedTextPrompt"
+import {
+	collectConnectedSourceElements,
+	type ConnectedInputSourceElement,
+	type ConnectedSourceCollectionConfig,
+} from "../../../runtime/interaction/connection/connectedInputSources"
+import { resolveConnectedMediaCandidatesFromSources } from "../../../runtime/interaction/connection/connectedMediaInputs"
+
+export {
+	getLinkedMediaReferenceIdentity,
+	mergeLinkedMediaPathsWithResolver,
+	mergeLinkedMediaReferences,
+} from "../../../runtime/shared/linkedMedia"
+
+export {
+	collectConnectedFrameSourceElements as collectLinkedFrameSourceElements,
+	collectConnectedSourceElements as collectLinkedEditorSourceElements,
+	collectConnectedUpstreamSourceElements as collectLinkedEditorUpstreamSourceElements,
+	createConnectedFrameSourceId as createLinkedFrameSourceId,
+	createConnectedUpstreamSourceId as createLinkedUpstreamSourceId,
+} from "../../../runtime/interaction/connection/connectedInputSources"
 
 export type LinkedEditorTargetKind = "image" | "video"
-export type LinkedEditorMediaKind = "image" | "video" | "audio"
+export type LinkedEditorMediaKind = LinkedMediaKind
 export type LinkedEditorMediaStatus = "active" | "inactive"
 export type LinkedEditorMediaInactiveReason =
 	"unsupported-type" | "unsupported-mode" | "over-limit" | "missing-resource" | "duplicate"
 
-export interface LinkedEditorMediaReference {
-	kind: LinkedEditorMediaKind
-	path: string
-	sourceCrop?: CropConfig
-}
+export type LinkedEditorMediaReference = LinkedMediaReference
 
 export interface LinkedEditorMediaPolicy {
 	supportedKinds: LinkedEditorMediaKind[]
@@ -39,25 +54,6 @@ export interface LinkedEditorMediaPolicy {
 	validateActiveReferences?: (
 		references: LinkedEditorMediaReference[],
 	) => LinkedEditorMediaInactiveReason | null
-}
-
-/** 用于合并连线媒体、手动参考媒体和 @mention 的稳定资源身份。 */
-export function getLinkedMediaReferenceIdentity(path?: string): string {
-	return getCanvasResourceIdentity(path)
-}
-
-export function mergeLinkedMediaPaths(...pathGroups: string[][]): string[] {
-	const merged: string[] = []
-	const seen = new Set<string>()
-	for (const paths of pathGroups) {
-		for (const path of paths) {
-			const identity = getLinkedMediaReferenceIdentity(path)
-			if (!identity || seen.has(identity)) continue
-			seen.add(identity)
-			merged.push(path)
-		}
-	}
-	return merged
 }
 
 export interface LinkedEditorMediaCandidate {
@@ -71,6 +67,13 @@ export interface LinkedEditorMediaCandidate {
 	path?: string
 	fileName?: string
 	sourceCrop?: CropConfig
+	/** 本次关联解析命中的图片 Content；仅为运行时快照，不改变连接 DSL。 */
+	sourceContentId?: string
+	/** 直接连接根节点，用于将 Frame 子媒体归并到同一组。 */
+	rootConnectionId?: string
+	rootSourceElementId?: string
+	origin?: ConnectedInputSourceElement["origin"]
+	depth?: number
 }
 
 export interface LinkedEditorMediaItem extends LinkedEditorMediaCandidate {
@@ -83,11 +86,14 @@ export interface LinkedEditorMediaItem extends LinkedEditorMediaCandidate {
 }
 
 /** 按资源身份折叠连线媒体；同一路径存在多个连接时优先保留已选择项。 */
-export function dedupeLinkedMediaItemsByPath<T extends LinkedEditorMediaItem>(items: T[]): T[] {
+export function dedupeLinkedMediaItemsByPath<T extends LinkedEditorMediaItem>(
+	items: T[],
+	resolveResourceReference?: ResolveCanvasResourceReference,
+): T[] {
 	const deduped: T[] = []
 	const indexByIdentity = new Map<string, number>()
 	for (const item of items) {
-		const identity = getLinkedMediaReferenceIdentity(item.path)
+		const identity = getLinkedMediaReferenceIdentity(item.path, resolveResourceReference)
 		if (!identity) continue
 		const existingIndex = indexByIdentity.get(identity)
 		if (existingIndex === undefined) {
@@ -107,23 +113,37 @@ export interface LinkedMediaDisplayResolution<TManual, TLinked extends LinkedEdi
 	linkedItems: Array<TLinked & { path: string }>
 }
 
-/** 同一路径存在画布连接时，由关联卡片统一承载展示，避免退化为纯手动资源卡片。 */
+/**
+ * 同一路径存在受支持的画布连接时，由关联卡片统一承载展示。
+ * 类型或当前模式不支持的候选保留在关联解析中，但不进入 SourceList。
+ */
 export function resolveLinkedMediaDisplay<TManual, TLinked extends LinkedEditorMediaItem>(
 	manualItems: TManual[],
 	getManualPath: (item: TManual) => string,
 	linkedItems: TLinked[],
+	resolveResourceReference?: ResolveCanvasResourceReference,
 ): LinkedMediaDisplayResolution<TManual, TLinked> {
 	const visibleLinkedItems = dedupeLinkedMediaItemsByPath(
-		linkedItems.filter((item): item is TLinked & { path: string } => Boolean(item.path)),
+		linkedItems.filter(
+			(item): item is TLinked & { path: string } =>
+				Boolean(item.path) &&
+				item.reason !== "unsupported-type" &&
+				item.reason !== "unsupported-mode",
+		),
+		resolveResourceReference,
 	)
 	const linkedPathIdentities = new Set(
-		visibleLinkedItems.map((item) => getLinkedMediaReferenceIdentity(item.path)),
+		visibleLinkedItems.map((item) =>
+			getLinkedMediaReferenceIdentity(item.path, resolveResourceReference),
+		),
 	)
 
 	return {
 		manualItems: manualItems.filter(
 			(item) =>
-				!linkedPathIdentities.has(getLinkedMediaReferenceIdentity(getManualPath(item))),
+				!linkedPathIdentities.has(
+					getLinkedMediaReferenceIdentity(getManualPath(item), resolveResourceReference),
+				),
 		),
 		linkedItems: visibleLinkedItems,
 	}
@@ -141,6 +161,7 @@ export function resolveLinkedMediaSelectionDisplay(
 }
 
 export interface LinkedEditorInputsResolution {
+	connectedSourceElementIds: string[]
 	textConnections: LinkedTextConnection[]
 	textPrompt: string
 	mediaItems: LinkedEditorMediaItem[]
@@ -155,264 +176,8 @@ interface ResolveLinkedEditorInputsOptions {
 	mediaPolicy?: LinkedEditorMediaPolicy
 }
 
-export interface LinkedEditorSourceElement {
-	connectionId: string
-	sourceElementId: string
-	element: LayerElement
-}
-
-const LINKED_FRAME_SOURCE_ID_PREFIX = "frame-source"
-const LINKED_UPSTREAM_SOURCE_ID_PREFIX = "upstream-source"
-
-export interface LinkedEditorSourceCollectionConfig {
-	/** direct 保持现有一级上游行为；upstream 按 maxDepth 向上遍历。 */
-	mode: "direct" | "upstream"
-	/** 从当前编辑元素开始计算的最大连接边深度，仅 upstream 模式生效。 */
-	maxDepth: number
-}
-
-/**
- * 关联输入上游收集行为的静态开关。
- * 切回现有行为时将 mode 改为 direct；多级模式通过 maxDepth 控制向上收集层数。
- */
-const LINKED_EDITOR_SOURCE_COLLECTION_CONFIG: LinkedEditorSourceCollectionConfig = {
-	mode: "upstream",
-	maxDepth: Number.POSITIVE_INFINITY,
-}
-
-export function createLinkedFrameSourceId(connectionId: string, sourceElementId: string): string {
-	return `${LINKED_FRAME_SOURCE_ID_PREFIX}:${connectionId}:${sourceElementId}`
-}
-
-export function createLinkedUpstreamSourceId(
-	targetElementId: string,
-	sourceElementId: string,
-): string {
-	return `${LINKED_UPSTREAM_SOURCE_ID_PREFIX}:${targetElementId}:${sourceElementId}`
-}
-
-function isLinkedEditorConsumableElement(element: LayerElement): boolean {
-	return (
-		element.type === ElementTypeEnum.Text ||
-		element.type === ElementTypeEnum.Image ||
-		element.type === ElementTypeEnum.Video
-	)
-}
-
-/**
- * 按画框内视觉层级从后到前递归收集可作为编辑器输入的元素。
- * 隐藏容器/元素不属于画框的可见内容；Frame 与 Group 仅承载层级，不生成候选项。
- */
-export function collectLinkedFrameSourceElements(
-	connectionId: string,
-	frame: FrameElement,
-	options?: { excludedElementIds?: Iterable<string> },
-): LinkedEditorSourceElement[] {
-	const result: LinkedEditorSourceElement[] = []
-	const visitedElementIds = new Set<string>()
-	const excludedElementIds = new Set(options?.excludedElementIds)
-
-	const collect = (elements: LayerElement[] | undefined): void => {
-		for (const element of sortCanvasElementsByZIndexStable(elements ?? [])) {
-			if (
-				visitedElementIds.has(element.id) ||
-				excludedElementIds.has(element.id) ||
-				element.visible === false
-			) {
-				continue
-			}
-			visitedElementIds.add(element.id)
-
-			if (element.type === ElementTypeEnum.Frame || element.type === ElementTypeEnum.Group) {
-				collect(element.children)
-				continue
-			}
-
-			if (!isLinkedEditorConsumableElement(element)) continue
-			result.push({
-				connectionId: createLinkedFrameSourceId(connectionId, element.id),
-				sourceElementId: element.id,
-				element,
-			})
-		}
-	}
-
-	collect(frame.children)
-	return result
-}
-
-function collectDirectLinkedEditorSourceElements(
-	canvas: Canvas,
-	targetElementId: string,
-): LinkedEditorSourceElement[] {
-	const upstreamConnections = canvas.connectionManager.getUpstreamConnections(targetElementId)
-	const result: LinkedEditorSourceElement[] = []
-	const collectedSourceElementIds = new Set<string>()
-	const directSourceElementIds = new Set(
-		upstreamConnections.flatMap((connection) => {
-			const sourceElement = canvas.elementManager.getElementData(connection.sourceElementId)
-			return sourceElement && isLinkedEditorConsumableElement(sourceElement)
-				? [sourceElement.id]
-				: []
-		}),
-	)
-
-	for (const connection of upstreamConnections) {
-		const sourceElement = canvas.elementManager.getElementData(connection.sourceElementId)
-		if (!sourceElement) continue
-
-		if (isLinkedEditorConsumableElement(sourceElement)) {
-			if (collectedSourceElementIds.has(sourceElement.id)) continue
-			collectedSourceElementIds.add(sourceElement.id)
-			result.push({
-				connectionId: connection.id,
-				sourceElementId: sourceElement.id,
-				element: sourceElement,
-			})
-			continue
-		}
-
-		if (sourceElement.type !== ElementTypeEnum.Frame) continue
-
-		for (const frameSource of collectLinkedFrameSourceElements(connection.id, sourceElement, {
-			excludedElementIds: [targetElementId],
-		})) {
-			// 同一元素既单独连接、又属于已连接画框时，保留更明确的直接连线身份。
-			if (
-				directSourceElementIds.has(frameSource.sourceElementId) ||
-				collectedSourceElementIds.has(frameSource.sourceElementId)
-			) {
-				continue
-			}
-			collectedSourceElementIds.add(frameSource.sourceElementId)
-			result.push(frameSource)
-		}
-	}
-
-	return result
-}
-
-interface CollectedLinkedEditorSourceElement {
-	item: LinkedEditorSourceElement
-	depth: number
-	origin: "connected-element" | "frame-descendant"
-	order: number
-}
-
-function shouldReplaceCollectedSource(
-	current: CollectedLinkedEditorSourceElement,
-	next: CollectedLinkedEditorSourceElement,
-): boolean {
-	if (next.depth !== current.depth) return next.depth < current.depth
-	if (next.origin !== current.origin) return next.origin === "connected-element"
-	return false
-}
-
-/**
- * 按连接方向从目标元素向上进行广度优先遍历，并收集最大深度内可消费的元素。
- * Frame 仍只在到达该图节点时展开内容，不会把 Frame 子元素当作新的连接图节点继续遍历。
- */
-export function collectLinkedEditorUpstreamSourceElements(
-	canvas: Canvas,
-	targetElementId: string,
-	maxDepth: number,
-): LinkedEditorSourceElement[] {
-	const normalizedMaxDepth =
-		maxDepth === Number.POSITIVE_INFINITY
-			? Number.POSITIVE_INFINITY
-			: Number.isFinite(maxDepth)
-				? Math.max(1, Math.floor(maxDepth))
-				: 1
-	const queue: Array<{ elementId: string; depth: number }> = [
-		{ elementId: targetElementId, depth: 0 },
-	]
-	const visitedGraphElementIds = new Set<string>([targetElementId])
-	const collectedBySourceElementId = new Map<string, CollectedLinkedEditorSourceElement>()
-	let queueIndex = 0
-	let encounterOrder = 0
-
-	const collectCandidate = (
-		item: LinkedEditorSourceElement,
-		depth: number,
-		origin: CollectedLinkedEditorSourceElement["origin"],
-	): void => {
-		const next: CollectedLinkedEditorSourceElement = {
-			item,
-			depth,
-			origin,
-			order: encounterOrder,
-		}
-		encounterOrder += 1
-		const current = collectedBySourceElementId.get(item.sourceElementId)
-		if (!current || shouldReplaceCollectedSource(current, next)) {
-			collectedBySourceElementId.set(item.sourceElementId, next)
-		}
-	}
-
-	while (queueIndex < queue.length) {
-		const current = queue[queueIndex]
-		queueIndex += 1
-		if (!current || current.depth >= normalizedMaxDepth) continue
-
-		const upstreamConnections = canvas.connectionManager.getUpstreamConnections(
-			current.elementId,
-		)
-		for (const connection of upstreamConnections) {
-			const sourceElement = canvas.elementManager.getElementData(connection.sourceElementId)
-			if (!sourceElement || visitedGraphElementIds.has(sourceElement.id)) continue
-
-			const sourceDepth = current.depth + 1
-			visitedGraphElementIds.add(sourceElement.id)
-			const sourceCandidateId =
-				sourceDepth === 1
-					? connection.id
-					: createLinkedUpstreamSourceId(targetElementId, sourceElement.id)
-
-			if (isLinkedEditorConsumableElement(sourceElement)) {
-				collectCandidate(
-					{
-						connectionId: sourceCandidateId,
-						sourceElementId: sourceElement.id,
-						element: sourceElement,
-					},
-					sourceDepth,
-					"connected-element",
-				)
-			} else if (sourceElement.type === ElementTypeEnum.Frame) {
-				for (const frameSource of collectLinkedFrameSourceElements(
-					sourceCandidateId,
-					sourceElement,
-					{ excludedElementIds: [targetElementId] },
-				)) {
-					collectCandidate(frameSource, sourceDepth, "frame-descendant")
-				}
-			}
-
-			if (sourceDepth < normalizedMaxDepth) {
-				queue.push({ elementId: sourceElement.id, depth: sourceDepth })
-			}
-		}
-	}
-
-	return Array.from(collectedBySourceElementId.values())
-		.sort((left, right) => left.depth - right.depth || left.order - right.order)
-		.map(({ item }) => item)
-}
-
-export function collectLinkedEditorSourceElements(
-	canvas: Canvas,
-	targetElementId: string,
-	config: LinkedEditorSourceCollectionConfig = LINKED_EDITOR_SOURCE_COLLECTION_CONFIG,
-): LinkedEditorSourceElement[] {
-	if (config.mode === "direct") {
-		return collectDirectLinkedEditorSourceElements(canvas, targetElementId)
-	}
-	return collectLinkedEditorUpstreamSourceElements(canvas, targetElementId, config.maxDepth)
-}
-
-function getFileName(path: string): string {
-	return getCanvasResourceFileName(path) || path
-}
+export type LinkedEditorSourceElement = ConnectedInputSourceElement
+export type LinkedEditorSourceCollectionConfig = ConnectedSourceCollectionConfig
 
 function getMediaSourceTypeUnsupportedReason(
 	targetKind: LinkedEditorTargetKind,
@@ -431,9 +196,10 @@ export function resolveLinkedMediaItems(
 	options: {
 		targetKind: LinkedEditorTargetKind
 		mediaPolicy?: LinkedEditorMediaPolicy
+		resolveResourceReference?: ResolveCanvasResourceReference
 	},
 ): LinkedEditorMediaItem[] {
-	const { targetKind, mediaPolicy } = options
+	const { targetKind, mediaPolicy, resolveResourceReference } = options
 	const supportedKindSet = new Set(mediaPolicy?.supportedKinds ?? [])
 	const activePathSet = new Set<string>()
 	const manualReferences = mediaPolicy?.manualReferences ?? []
@@ -446,7 +212,7 @@ export function resolveLinkedMediaItems(
 		audio: 0,
 	}
 	manualReferences.forEach((reference) => {
-		const identity = getLinkedMediaReferenceIdentity(reference.path)
+		const identity = getLinkedMediaReferenceIdentity(reference.path, resolveResourceReference)
 		if (!identity || activePathSet.has(identity)) return
 		activePathSet.add(identity)
 		activeReferences.push(reference)
@@ -468,7 +234,11 @@ export function resolveLinkedMediaItems(
 		if (!supportedKindSet.has(candidate.kind)) {
 			return { ...candidate, status: "inactive", reason: "unsupported-mode" }
 		}
-		if (activePathSet.has(getLinkedMediaReferenceIdentity(candidate.path))) {
+		if (
+			activePathSet.has(
+				getLinkedMediaReferenceIdentity(candidate.path, resolveResourceReference),
+			)
+		) {
 			return { ...candidate, status: "inactive", reason: "duplicate" }
 		}
 		if (activePathSet.size >= totalLimit) {
@@ -484,6 +254,7 @@ export function resolveLinkedMediaItems(
 			kind: candidate.kind,
 			path: candidate.path,
 			sourceCrop: candidate.sourceCrop,
+			sourceContentId: candidate.sourceContentId,
 		}
 		const validationReason = mediaPolicy?.validateActiveReferences?.([
 			...activeReferences,
@@ -493,7 +264,7 @@ export function resolveLinkedMediaItems(
 			return { ...candidate, status: "inactive", reason: validationReason }
 		}
 
-		activePathSet.add(getLinkedMediaReferenceIdentity(candidate.path))
+		activePathSet.add(getLinkedMediaReferenceIdentity(candidate.path, resolveResourceReference))
 		activeReferences.push(nextReference)
 		activeCountByKind[candidate.kind] += 1
 		return { ...candidate, status: "active" }
@@ -516,6 +287,7 @@ export interface ResolveLinkedMediaAssociationOptions {
 	manualReferences?: LinkedEditorMediaReference[]
 	targetKind: LinkedEditorTargetKind
 	mediaPolicy?: LinkedEditorMediaPolicy
+	resolveResourceReference?: ResolveCanvasResourceReference
 }
 
 /**
@@ -531,17 +303,22 @@ export function resolveLinkedMediaAssociation(
 		manualReferences = options.mediaPolicy?.manualReferences ?? [],
 		targetKind,
 		mediaPolicy,
+		resolveResourceReference,
 	} = options
 	const effectiveMediaPolicy = mediaPolicy
 		? { ...mediaPolicy, manualReferences }
 		: manualReferences.length > 0
 			? { supportedKinds: [], manualReferences }
 			: undefined
-	const selectionOptions = { targetKind, mediaPolicy: effectiveMediaPolicy }
+	const selectionOptions = {
+		targetKind,
+		mediaPolicy: effectiveMediaPolicy,
+		resolveResourceReference,
+	}
 	const stableCandidates: LinkedEditorMediaCandidate[] = []
 	const candidateIdentities = new Set<string>()
 	for (const candidate of candidates) {
-		const identity = getLinkedMediaReferenceIdentity(candidate.path)
+		const identity = getLinkedMediaReferenceIdentity(candidate.path, resolveResourceReference)
 		if (identity) {
 			if (candidateIdentities.has(identity)) continue
 			candidateIdentities.add(identity)
@@ -551,14 +328,14 @@ export function resolveLinkedMediaAssociation(
 	const mentionedPaths: string[] = []
 	const mentionedIdentities = new Set<string>()
 	mentionedReferencePaths.forEach((path) => {
-		const identity = getLinkedMediaReferenceIdentity(path)
+		const identity = getLinkedMediaReferenceIdentity(path, resolveResourceReference)
 		if (!identity || mentionedIdentities.has(identity)) return
 		mentionedIdentities.add(identity)
 		mentionedPaths.push(path)
 	})
 
 	const associatedConnectionIds = stableCandidates.flatMap((candidate) => {
-		const identity = getLinkedMediaReferenceIdentity(candidate.path)
+		const identity = getLinkedMediaReferenceIdentity(candidate.path, resolveResourceReference)
 		return identity && mentionedIdentities.has(identity) ? [candidate.connectionId] : []
 	})
 	const associatedConnectionIdSet = new Set(associatedConnectionIds)
@@ -574,11 +351,15 @@ export function resolveLinkedMediaAssociation(
 			: item,
 	)
 	const unmatchedManualReferences = manualReferences.filter(
-		(reference) => !candidateIdentities.has(getLinkedMediaReferenceIdentity(reference.path)),
+		(reference) =>
+			!candidateIdentities.has(
+				getLinkedMediaReferenceIdentity(reference.path, resolveResourceReference),
+			),
 	)
 	const activeMediaReferences = mergeLinkedMediaReferences(
 		manualReferences,
 		selectionResolution.activeMediaReferences,
+		resolveResourceReference,
 	)
 
 	return {
@@ -599,8 +380,10 @@ export function resolveLinkedMediaPolicySelection(
 	options: {
 		targetKind: LinkedEditorTargetKind
 		mediaPolicy?: LinkedEditorMediaPolicy
+		resolveResourceReference?: ResolveCanvasResourceReference
 	},
 ): LinkedEditorMediaSelectionResolution {
+	const { resolveResourceReference } = options
 	const normalizedCandidates = candidates.map((candidate): LinkedEditorMediaCandidate => ({
 		connectionId: candidate.connectionId,
 		sourceElementId: candidate.sourceElementId,
@@ -608,13 +391,20 @@ export function resolveLinkedMediaPolicySelection(
 		path: candidate.path,
 		fileName: candidate.fileName,
 		sourceCrop: candidate.sourceCrop,
+		sourceContentId: candidate.sourceContentId,
+		rootConnectionId: candidate.rootConnectionId,
+		rootSourceElementId: candidate.rootSourceElementId,
+		origin: candidate.origin,
+		depth: candidate.depth,
 	}))
 	const selectedConnectionIdSet = new Set(mentionedConnectionIds)
 	const selectedCandidates = normalizedCandidates.filter((candidate) =>
 		selectedConnectionIdSet.has(candidate.connectionId),
 	)
 	const selectedPathIdentities = new Set(
-		selectedCandidates.map((candidate) => getLinkedMediaReferenceIdentity(candidate.path)),
+		selectedCandidates.map((candidate) =>
+			getLinkedMediaReferenceIdentity(candidate.path, resolveResourceReference),
+		),
 	)
 	const selectedMediaPolicy = options.mediaPolicy
 		? {
@@ -622,7 +412,10 @@ export function resolveLinkedMediaPolicySelection(
 				manualReferences: options.mediaPolicy.manualReferences?.filter(
 					(reference) =>
 						!selectedPathIdentities.has(
-							getLinkedMediaReferenceIdentity(reference.path),
+							getLinkedMediaReferenceIdentity(
+								reference.path,
+								resolveResourceReference,
+							),
 						),
 				),
 			}
@@ -630,6 +423,7 @@ export function resolveLinkedMediaPolicySelection(
 	const selectedResolutionOptions = {
 		targetKind: options.targetKind,
 		mediaPolicy: selectedMediaPolicy,
+		resolveResourceReference,
 	}
 	const selectedItems = resolveLinkedMediaItems(selectedCandidates, selectedResolutionOptions)
 	const selectedItemById = new Map(selectedItems.map((item) => [item.connectionId, item]))
@@ -644,16 +438,22 @@ export function resolveLinkedMediaPolicySelection(
 		}
 
 		const standaloneItem = resolveLinkedMediaItems([candidate], options)[0]
-		const candidateIdentity = getLinkedMediaReferenceIdentity(candidate.path)
+		const candidateIdentity = getLinkedMediaReferenceIdentity(
+			candidate.path,
+			resolveResourceReference,
+		)
 		const candidateSelectionOptions = {
 			targetKind: options.targetKind,
+			resolveResourceReference,
 			mediaPolicy: options.mediaPolicy
 				? {
 						...options.mediaPolicy,
 						manualReferences: options.mediaPolicy.manualReferences?.filter(
 							(reference) =>
-								getLinkedMediaReferenceIdentity(reference.path) !==
-								candidateIdentity,
+								getLinkedMediaReferenceIdentity(
+									reference.path,
+									resolveResourceReference,
+								) !== candidateIdentity,
 						),
 					}
 				: undefined,
@@ -691,84 +491,32 @@ export function resolveLinkedMediaPolicySelection(
 			kind: item.kind,
 			path: item.path,
 			sourceCrop: item.sourceCrop,
+			sourceContentId: item.sourceContentId,
 		}))
 
 	return { items, activeMediaReferences }
-}
-
-export function mergeLinkedMediaReferences(
-	manualReferences: LinkedEditorMediaReference[],
-	linkedReferences: LinkedEditorMediaReference[],
-): LinkedEditorMediaReference[] {
-	const merged: LinkedEditorMediaReference[] = []
-	const linkedByIdentity = new Map<string, LinkedEditorMediaReference>()
-	for (const reference of linkedReferences) {
-		const identity = getLinkedMediaReferenceIdentity(reference.path)
-		if (!identity || linkedByIdentity.has(identity)) continue
-		linkedByIdentity.set(identity, reference)
-	}
-	const seenPathSet = new Set<string>()
-
-	for (const reference of manualReferences) {
-		const identity = getLinkedMediaReferenceIdentity(reference.path)
-		if (!identity || seenPathSet.has(identity)) continue
-		seenPathSet.add(identity)
-		merged.push(linkedByIdentity.get(identity) ?? reference)
-	}
-
-	for (const reference of linkedReferences) {
-		const identity = getLinkedMediaReferenceIdentity(reference.path)
-		if (!identity || seenPathSet.has(identity)) continue
-		seenPathSet.add(identity)
-		merged.push(reference)
-	}
-
-	return merged
 }
 
 export function resolveLinkedEditorInputs(
 	options: ResolveLinkedEditorInputsOptions,
 ): LinkedEditorInputsResolution {
 	const { canvas, targetElementId, targetKind, enabled = true, mediaPolicy } = options
+	const connectedSourceElementIds: string[] = []
 	const textConnections: LinkedTextConnection[] = []
 	const mediaCandidates: LinkedEditorMediaCandidate[] = []
 
 	if (canvas && enabled) {
-		const sourceElements = collectLinkedEditorSourceElements(canvas, targetElementId)
+		const sourceElements = collectConnectedSourceElements(canvas, targetElementId)
+		connectedSourceElementIds.push(...sourceElements.map((source) => source.sourceElementId))
+		mediaCandidates.push(...resolveConnectedMediaCandidatesFromSources(sourceElements))
 		sourceElements.forEach(({ connectionId, sourceElementId, element: sourceElement }) => {
 			if (sourceElement.type === ElementTypeEnum.Text) {
-				const content = (sourceElement as TextElement).content
+				const content = getDownstreamContent<TextElementContent>(sourceElement)?.content
 				if (!extractPlainTextFromRichText(content).trim()) return
 				textConnections.push({
 					connectionId,
 					sourceElementId,
 					text: extractPromptTextFromRichText(content),
-				})
-				return
-			}
-
-			if (sourceElement.type === ElementTypeEnum.Image) {
-				const imageElement = sourceElement as ImageElement
-				const path = imageElement.src
-				mediaCandidates.push({
-					connectionId,
-					sourceElementId,
-					kind: "image",
-					path,
-					fileName: path ? getFileName(path) : undefined,
-					sourceCrop: imageElement.crop,
-				})
-				return
-			}
-
-			if (sourceElement.type === ElementTypeEnum.Video) {
-				const path = (sourceElement as VideoElement).src
-				mediaCandidates.push({
-					connectionId,
-					sourceElementId,
-					kind: "video",
-					path,
-					fileName: path ? getFileName(path) : undefined,
 				})
 			}
 		})
@@ -777,9 +525,11 @@ export function resolveLinkedEditorInputs(
 	const mediaSelection = resolveLinkedMediaPolicySelection(mediaCandidates, [], {
 		targetKind,
 		mediaPolicy,
+		resolveResourceReference:
+			canvas?.magicConfigManager?.config?.methods?.resolveResourceReference,
 	})
-
 	return {
+		connectedSourceElementIds,
 		textConnections,
 		textPrompt: getLinkedTextPromptText(textConnections),
 		mediaItems: mediaSelection.items,

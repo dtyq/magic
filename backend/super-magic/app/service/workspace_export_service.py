@@ -8,16 +8,19 @@ metadata 供上游写入数据库，由前端用于展示和检索。
 """
 
 import os
+import asyncio
+import hashlib
 import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 import yaml
 from loguru import logger
 
 from app.path_manager import PathManager
+from app.service.slides_template_export_service import export_slides_template
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +109,7 @@ def _count_descendants(source_dir: Path) -> int:
     return sum(1 for _ in source_dir.rglob("*"))
 
 
-def _zip_directory(source_dir: Path, output_path: str, arcdir: str = "") -> None:
+def _zip_directory(source_dir: Path, output_path: str, arcdir: str = "", exclude_paths: list[str] | None = None, skills_md_hash: str | None = None) -> None:
     """Create a ZIP archive of all files inside source_dir.
 
     Args:
@@ -124,13 +127,36 @@ def _zip_directory(source_dir: Path, output_path: str, arcdir: str = "") -> None
         #   SMA-abc123/TOOLS.md
         #   ...
     """
+    exclusions = set()
+    for value in exclude_paths or []:
+        path = Path(value)
+        if not value or path.is_absolute() or ".." in path.parts or path == Path("."):
+            raise ValueError("exclude_paths must contain safe relative paths.")
+        exclusions.add(path.as_posix().rstrip("/"))
+    skills_content = None
+    if skills_md_hash:
+        skills_content = (source_dir / "SKILLS.md").read_bytes()
+        if hashlib.sha256(skills_content).hexdigest() != skills_md_hash:
+            raise ValueError("SKILLS.md has not synchronized or changed during publication; retry publishing.")
+        # Check and write the same bytes so a later mounted-file change cannot remove dependencies.
+        if "SKILLS.md" in exclusions:
+            raise ValueError("SKILLS.md cannot be excluded from a reference export.")
+    def excluded(relative: str) -> bool:
+        return any(relative == path or relative.startswith(path + "/") for path in exclusions)
+
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, _dirs, files in os.walk(source_dir):
+            _dirs[:] = [d for d in _dirs if not excluded((Path(root) / d).relative_to(source_dir).as_posix())]
             for file in files:
                 file_path = os.path.join(root, file)
                 rel_path = os.path.relpath(file_path, source_dir)
+                if excluded(rel_path):
+                    continue
                 arcname = os.path.join(arcdir, rel_path) if arcdir else rel_path
-                zf.write(file_path, arcname)
+                if rel_path == "SKILLS.md" and skills_content is not None:
+                    zf.writestr(arcname, skills_content)
+                else:
+                    zf.write(file_path, arcname)
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +207,13 @@ def extract_agent_metadata(workspace_dir: Path) -> Dict[str, Any]:
     if skills_fm is not None:
         skills: Any = skills_fm.get("skills", [])
         if isinstance(skills, list):
-            metadata["skills"] = [_str(s) for s in skills if s is not None]
+            metadata["skills"] = [s for s in skills if isinstance(s, str)]
+        references = skills_fm.get("market_skills", [])
+        if isinstance(references, list):
+            metadata["skills"] = list(dict.fromkeys(metadata.get("skills", []) + [
+                entry["name"] for entry in references if isinstance(entry, dict)
+                and isinstance(entry.get("name"), str) and entry["name"]
+            ]))
 
     return metadata
 
@@ -226,6 +258,9 @@ async def _package_and_upload(
     file_key: str,
     upload_config: Dict[str, Any],
     arcdir: str = "",
+    exclude_paths: list[str] | None = None,
+    skills_md_hash: str | None = None,
+    on_package_completed: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
     """Zip workspace_dir contents and upload the archive to object storage.
 
@@ -263,7 +298,9 @@ async def _package_and_upload(
 
     try:
         logger.info(f"Creating workspace ZIP from {workspace_dir} → {tmp_path} (arcdir={arcdir!r})")
-        _zip_directory(workspace_dir, tmp_path, arcdir=arcdir)
+        await asyncio.to_thread(_zip_directory, workspace_dir, tmp_path, arcdir=arcdir, exclude_paths=exclude_paths, skills_md_hash=skills_md_hash)
+        if on_package_completed is not None:
+            await on_package_completed()
 
         if platform == PlatformType.tos:
             credentials = VolcEngineCredentials(**upload_config)
@@ -299,14 +336,18 @@ async def export_workspace(
     export_type: str,
     code: str,
     upload_config: Dict[str, Any],
+    public_upload_config: Optional[Dict[str, Any]] = None,
     source_path: str = "",
     archive_root: str = "",
     file_name: str = "",
+    exclude_paths: list[str] | None = None,
+    skills_md_hash: str | None = None,
+    progress_callback: Callable[[], Awaitable[None]] | None = None,
 ) -> Dict[str, Any]:
     """Package the workspace, upload it, and return the file key with extracted metadata.
 
     Args:
-        export_type: "agent_creator" or "skill_creator".
+        export_type: "agent_creator", "skill_creator", or "slides_template_creator".
         code: agent/skill identifier used in the archive filename (e.g. "SMA_XXXXXX").
         upload_config: upload_config block from the API request body.
         source_path: relative path within the workspace root to export.
@@ -351,6 +392,18 @@ async def export_workspace(
     else:
         workspace_dir = workspace_root
 
+    if normalized_export_type == "slides_template_creator":
+        if not public_upload_config:
+            raise ValueError("public_upload_config is required for slides_template_creator.")
+        return await export_slides_template(
+            workspace_dir=workspace_dir,
+            code=code,
+            private_upload_config=upload_config,
+            public_upload_config=public_upload_config,
+            archive_root=archive_root or code,
+            file_name=file_name or f"{code}.zip",
+        )
+
     # Build the object key.
     # ZIP filename : {code}_{timestamp}.zip  (e.g. SMA-abc_20260319205908.zip)
     # Folder inside ZIP: {code}              (e.g. SMA-abc/)
@@ -381,12 +434,20 @@ async def export_workspace(
         metadata["files_count"] = _count_descendants(workspace_dir)
     else:
         raise ValueError(
-            f"Unknown export type: {export_type!r}. Expected 'agent_creator' or 'skill_creator'."
+            f"Unknown export type: {export_type!r}. Expected 'agent_creator', 'skill_creator', or 'slides_template_creator'."
         )
 
     # Package and upload.
     # arcdir=code means the ZIP extracts to a folder named after code (without timestamp).
-    await _package_and_upload(workspace_dir, file_key, upload_config, arcdir=archive_root or code)
+    await _package_and_upload(
+        workspace_dir,
+        file_key,
+        upload_config,
+        arcdir=archive_root or code,
+        on_package_completed=progress_callback,
+        exclude_paths=exclude_paths,
+        skills_md_hash=skills_md_hash,
+    )
 
     return {
         "file_key": file_key,

@@ -1,42 +1,38 @@
 import { lazy, Suspense } from "react"
 import { Loader2 } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
 
 import type { MicroAppWorkspaceView } from "./MicroAppWorkspaceNav"
 
 const MicroAppDatabasePanel = lazy(() => import("./MicroAppDatabasePanel"))
+const MicroAppSkillsWorkspace = lazy(() => import("./MicroAppSkillsWorkspace"))
 const MicroAppScheduledTasksPanel = lazy(
 	() => import("./MicroAppScheduledTasksPanel/MicroAppScheduledTasksPanel"),
 )
 const ShareManagementPanel = lazy(
 	() => import("@/pages/superMagic/components/ShareManagement/ShareManagementPanel"),
 )
-const LongTremMemorySider = lazy(() =>
-	import("@/pages/superMagic/components/LongTremMemory/components/MemorySider").then(
-		(module) => ({ default: module.LongTremMemorySider }),
-	),
-)
+const UserSpacePanel = lazy(() => import("@/pages/superMagic/components/UserSpace/UserSpacePanel"))
 
 interface MicroAppProjectPanelsProps {
+	placement?: "workspace" | "sidebar"
 	activeView: MicroAppWorkspaceView
+	attachmentList?: AttachmentItem[]
+	canEdit?: boolean
 	projectId?: string
 	projectRole?: CollaboratorPermission
 	workspaceId?: string
 	workspaceName?: string
 	projectName?: string
 	topicId?: string
-	activeLongMemoryFileId?: string | null
-	onLongMemoryFileClick?: (fileItem: AttachmentItem) => void
+	activeUserFileId?: string | null
+	onUserFileClick?: (fileItem: AttachmentItem) => void
 }
 
-const PROJECT_PANEL_VIEWS: MicroAppWorkspaceView[] = [
-	"scheduledTasks",
-	"shareManagement",
-	"longMemory",
-]
+const PROJECT_PANEL_VIEWS: MicroAppWorkspaceView[] = ["skills", "scheduledTasks", "shareManagement"]
 
 const PROJECT_PANEL_CLASS_NAME = cn(
 	"h-full gap-0",
@@ -77,16 +73,31 @@ function PanelLoading() {
 
 export default function MicroAppProjectPanels({
 	activeView,
+	attachmentList = [],
+	canEdit = false,
+	placement = "workspace",
 	projectId,
 	projectRole,
 	workspaceId,
 	workspaceName,
 	projectName,
 	topicId,
-	activeLongMemoryFileId,
-	onLongMemoryFileClick,
+	activeUserFileId,
+	onUserFileClick,
 }: MicroAppProjectPanelsProps) {
 	const isProjectPanelActive = PROJECT_PANEL_VIEWS.includes(activeView)
+	if (placement === "sidebar")
+		return activeView === "userSpace" ? (
+			<Suspense fallback={<PanelLoading />}>
+				<UserSpacePanel
+					projectId={projectId}
+					projectName={projectName}
+					topicId={topicId}
+					activeFileId={activeUserFileId}
+					onFileClick={onUserFileClick}
+				/>
+			</Suspense>
+		) : null
 
 	return (
 		<>
@@ -113,6 +124,12 @@ export default function MicroAppProjectPanels({
 					data-testid="micro-app-project-panel-workspace"
 				>
 					<Suspense fallback={<PanelLoading />}>
+						{activeView === "skills" ? (
+							<MicroAppSkillsWorkspace
+								attachmentList={attachmentList}
+								canEdit={canEdit}
+							/>
+						) : null}
 						{activeView === "scheduledTasks" ? (
 							<MicroAppScheduledTasksPanel
 								className={PROJECT_PANEL_CLASS_NAME}
@@ -127,14 +144,6 @@ export default function MicroAppProjectPanels({
 							<ShareManagementPanel
 								className={PROJECT_PANEL_CLASS_NAME}
 								projectId={projectId}
-							/>
-						) : null}
-						{activeView === "longMemory" ? (
-							<LongTremMemorySider
-								className={PROJECT_PANEL_CLASS_NAME}
-								projectId={projectId}
-								activeFileId={activeLongMemoryFileId}
-								onFileClick={onLongMemoryFileClick}
 							/>
 						) : null}
 					</Suspense>

@@ -106,6 +106,21 @@ describe("DefaultAgentSelectionService", () => {
 		})
 	})
 
+	it("keeps the employee code in crew creator mode", () => {
+		expect(resolveAgentSelection(TopicMode.CrewCreator, "crew-123")).toEqual({
+			modeIdentifier: TopicMode.CrewCreator,
+			topicPattern: TopicMode.CrewCreator,
+			agentCode: "crew-123",
+		})
+	})
+
+	it("ignores a blank employee code in crew creator mode", () => {
+		expect(resolveAgentSelection(TopicMode.CrewCreator, "  ")).toEqual({
+			modeIdentifier: TopicMode.CrewCreator,
+			topicPattern: TopicMode.CrewCreator,
+		})
+	})
+
 	it("keeps an explicit non-SMA agent when the UI uses its identifier", () => {
 		expect(resolveAgentSelection("historical-agent", "historical-agent")).toEqual({
 			modeIdentifier: "historical-agent",

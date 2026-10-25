@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\SuperMagic\File\Command;
 
 use App\Domain\SuperMagic\Common\Entity\ValueObject\StorageType;
+use App\Domain\SuperMagic\File\Repository\Facade\TaskFileRepositoryInterface;
 use App\Domain\SuperMagic\File\Repository\Model\TaskFileModel;
 use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
 use App\Domain\SuperMagic\Project\Entity\ProjectEntity;
@@ -33,6 +34,7 @@ class BackfillFileParentIdCommand extends HyperfCommand
         protected ProjectRepositoryInterface $projectRepository,
         protected TopicRepositoryInterface $topicRepository,
         protected TaskFileDomainService $taskFileDomainService,
+        protected TaskFileRepositoryInterface $taskFileRepository,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('backfill-file-parent-id');
@@ -310,6 +312,10 @@ class BackfillFileParentIdCommand extends HyperfCommand
 
         // 核心优化：维护目录路径与 parent_id 的缓存映射
         $directoryPathCache = [];
+        // Flush heterogeneous file_key/parent_id changes in bounded
+        // repository transactions. Direct Model::save() would bypass the
+        // file-tree journal and leave resident lazy mounts stale.
+        $pendingBackfillUpdates = [];
 
         $md5Key = md5(StorageBucketType::Private->value);
         $prefix = $this->taskFileDomainService->getFullPrefix($updatedProject->getUserOrganizationCode());
@@ -325,7 +331,7 @@ class BackfillFileParentIdCommand extends HyperfCommand
                 $query->where('file_key', 'like', $oldPrefix . '/%')
                     ->orWhereNull('parent_id');
             })
-            ->chunkById(100, function ($files) use ($updatedProject, $prefix, $oldPrefix, &$processedCount, &$errorCount, &$cacheHitCount, &$directoryPathCache) {
+            ->chunkById(100, function ($files) use ($updatedProject, $prefix, $oldPrefix, &$processedCount, &$errorCount, &$cacheHitCount, &$directoryPathCache, &$pendingBackfillUpdates) {
                 foreach ($files as $file) {
                     try {
                         // 根据类型处理路径，将旧格式转换为新格式
@@ -350,8 +356,15 @@ class BackfillFileParentIdCommand extends HyperfCommand
                             }
                         }
 
-                        $file->updated_at = date('Y-m-d H:i:s');
-                        $file->save();
+                        $update = [
+                            'file_id' => (int) $file->file_id,
+                            'file_key' => (string) $file->file_key,
+                            'updated_at' => date('Y-m-d H:i:s'),
+                        ];
+                        if ($parentId > 0) {
+                            $update['parent_id'] = $parentId;
+                        }
+                        $pendingBackfillUpdates[] = $update;
 
                         $this->logger->info(sprintf('Updated file ID: %d with parent_id: %d', $file->file_id, $parentId));
 
@@ -370,6 +383,11 @@ class BackfillFileParentIdCommand extends HyperfCommand
                             'exception' => $e,
                         ]);
                     }
+                }
+
+                if ($pendingBackfillUpdates !== []) {
+                    $this->taskFileRepository->applyMagicFSBackfillUpdates($pendingBackfillUpdates);
+                    $pendingBackfillUpdates = [];
                 }
             });
 
@@ -614,12 +632,16 @@ class BackfillFileParentIdCommand extends HyperfCommand
                 );
 
                 // 3. 更新任务表的 work_dir
-                TaskModel::query()
-                    ->where('project_id', $project->getId())
-                    ->update([
-                        'work_dir' => $convertedWorkDir,
-                        'updated_at' => date('Y-m-d H:i:s'),
-                    ]);
+                // 路线 C：task 表无 project_id 索引，先经 topics 表（含已软删话题）取 topic_id，再按批更新 task
+                $topicIds = $this->topicRepository->getTopicIdsByCondition(['project_id' => $project->getId()], true);
+                foreach (array_chunk($topicIds, 500) as $topicIdChunk) {
+                    TaskModel::query()
+                        ->whereIn('topic_id', $topicIdChunk)
+                        ->update([
+                            'work_dir' => $convertedWorkDir,
+                            'updated_at' => date('Y-m-d H:i:s'),
+                        ]);
+                }
 
                 $this->line(sprintf('  ✅ Updated work_dir in project, topics, and tasks tables'));
                 $this->logger->info(sprintf('Updated work_dir for project %d and its topics and tasks', $project->getId()));

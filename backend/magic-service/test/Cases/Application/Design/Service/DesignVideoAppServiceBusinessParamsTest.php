@@ -9,6 +9,7 @@ namespace HyperfTest\Cases\Application\Design\Service;
 
 use App\Application\Design\Service\DesignVideoAppService;
 use App\Domain\Design\Entity\DesignDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
@@ -46,7 +47,7 @@ class DesignVideoAppServiceBusinessParamsTest extends TestCase
         $this->assertSame('user-id', $businessParams['user_id']);
         $this->assertSame(123, $businessParams['project_id']);
         $this->assertSame('video-001', $businessParams['video_id']);
-        $this->assertSame('design_video_generation', $businessParams['source_id']);
+        $this->assertSame(SourceId::DESIGN_VIDEO_GENERATION, $businessParams['source_id']);
         $this->assertSame('topic-001', $businessParams['magic_topic_id']);
         $this->assertSame('task-001', $businessParams['magic_task_id']);
     }

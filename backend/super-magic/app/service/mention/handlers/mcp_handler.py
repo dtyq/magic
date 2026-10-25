@@ -12,6 +12,7 @@ handler 职责：
      使用 using-mcp skill / mcp.* 工具调用该 server 提供的能力。
 """
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from urllib.parse import quote
 
 from app.service.mention.base import BaseMentionHandler, logger
 
@@ -34,6 +35,8 @@ _FIELD_MAPPING: Dict[str, str] = {
     "allowedTools": "allowed_tools",  # camelCase → snake_case
     "allowed_tools": "allowed_tools",
     "server_options": "server_options",
+    "auth_type": "auth_type",
+    "mcp_server_code": "mcp_server_code",
 }
 
 
@@ -58,6 +61,10 @@ def _build_mcp_server_config(
 
     # 至少要有 url 或 command；ingest_from_message._parse_mcp_config 也会再做一次校验
     if not cfg.get("url") and not cfg.get("command"):
+        return None
+
+    # 标准 MCP Authorization 必须保留服务端凭据引用，不能静默降级为无认证配置
+    if cfg.get("auth_type") in (2, "2") and not str(cfg.get("mcp_server_code") or "").strip():
         return None
 
     return cfg
@@ -156,12 +163,17 @@ class MCPHandler(BaseMentionHandler):
         index: int,
         agent_context: Optional["AgentContext"] = None,
     ) -> List[str]:
-        mention_name = str(mention.get("name") or "unknown-mcp").strip()
+        mention_name = str(mention.get("name") or "").strip()
         description = str(mention.get("description") or "").strip()
 
         logger.info(f"用户 prompt 添加 MCP 引用: {mention_name}")
 
-        lines = [f"{index}. [@mcp:{mention_name}]"]
+        if mention_name:
+            target = quote(mention_name, safe="-._~")
+            label = mention_name.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+            lines = [f"{index}. [{label}](mcp://{target})"]
+        else:
+            lines = [f"{index}. MCP reference is missing its canonical name."]
         if description:
             lines.append(f"   - description: {description}")
 

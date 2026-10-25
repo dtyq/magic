@@ -1,3 +1,4 @@
+import modelCache from "@/services/superMagic/topicModel/SuperMagicTopicModelCacheService"
 import { when } from "mobx"
 import type { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 import type { ModelItem } from "../types"
@@ -60,7 +61,7 @@ export async function resolveMessageSendModels({
 	if (!languageModel?.model_id) return null
 
 	return {
-		selectedModel: languageModel,
+		selectedModel: modelCache.snapshotLanguageModel(languageModel),
 		selectedImageModel: selectedImageModel ?? topicModelStore.selectedImageModel,
 		selectedVideoModel: selectedVideoModel ?? topicModelStore.selectedVideoModel,
 	}

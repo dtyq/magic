@@ -27,6 +27,16 @@ interface DesignGenerationTaskRepositoryInterface
     ): ?DesignGenerationTaskEntity;
 
     /**
+     * 按产物的工作区相对路径反查任务，用于只拿得到路径、拿不到 video_id 的调用方。
+     */
+    public function findByProjectAndOutputFilePath(
+        DesignDataIsolation $dataIsolation,
+        int $projectId,
+        DesignGenerationAssetType $assetType,
+        string $relativeFilePath
+    ): ?DesignGenerationTaskEntity;
+
+    /**
      * @return DesignGenerationTaskEntity[]
      */
     public function findProcessingTasksAfterId(int $cursorId, int $limit): array;

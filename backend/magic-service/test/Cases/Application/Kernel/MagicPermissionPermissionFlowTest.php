@@ -326,6 +326,9 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $platformTree = $this->permission->getPermissionTree(true);
         $workspaceTree = $this->permission->getPermissionTree(false);
 
+        $this->assertFalse($this->containsPermissionKey($platformTree, 'menu.ai_management.custom_model'));
+        $this->assertTrue($this->containsPermissionKey($workspaceTree, 'menu.ai_management.custom_model'));
+
         $this->assertFalse($this->containsPermissionKey(
             $platformTree,
             $this->permission->buildPermission(MagicResourceEnum::PLATFORM_AI_MODEL->value, MagicOperationEnum::QUERY->value)
@@ -391,9 +394,34 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $platformTree = $this->permission->getPermissionTree(true);
 
         $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management'));
-        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.platform_tenant'));
-        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.platform_tenant.platform_user'));
+        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.tenant_management'));
+        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.tenant_management.platform_user'));
         $this->assertTrue($this->containsPermissionKey($platformTree, $platformUserPermission));
+    }
+
+    public function testGetPermissionTreeContainsProviderAliasesUnderPlatformModelManagement(): void
+    {
+        $platformTree = $this->permission->getPermissionTree(true);
+        $workspaceTree = $this->permission->getPermissionTree(false);
+
+        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.model_management'));
+        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.model_management.text_provider'));
+        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.model_management.image_provider'));
+        $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.model_management.video_provider'));
+        $this->assertFalse($this->containsPermissionKey($workspaceTree, 'menu.platform_management.model_management.text_provider'));
+        $this->assertFalse($this->containsPermissionKey($workspaceTree, 'menu.platform_management.model_management.image_provider'));
+        $this->assertFalse($this->containsPermissionKey($workspaceTree, 'menu.platform_management.model_management.video_provider'));
+
+        foreach ([
+            MagicResourceEnum::PLATFORM_MODEL_TEXT,
+            MagicResourceEnum::PLATFORM_MODEL_IMAGE,
+            MagicResourceEnum::PLATFORM_MODEL_VIDEO,
+        ] as $resource) {
+            $this->assertTrue($this->containsPermissionKey(
+                $platformTree,
+                $this->permission->buildPermission($resource->value, MagicOperationEnum::QUERY->value)
+            ));
+        }
     }
 
     public function testGetPermissionTreeContainsModelAccessRolePermissionWhenMapped(): void
@@ -406,8 +434,8 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $tree = $this->permission->getPermissionTree(false);
 
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.custom_model'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.custom_model.model_access_role'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.governance_policies'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.governance_policies.model_access_role'));
         $this->assertTrue($this->containsPermissionKey($tree, $modelAccessRolePermission));
     }
 
@@ -426,10 +454,46 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
 
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management'));
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill.agent'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill.skill'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill.internal_publish_review.agent'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill.internal_publish_review.skill'));
         $this->assertTrue($this->containsPermissionKey($tree, $agentReviewPermission));
         $this->assertTrue($this->containsPermissionKey($tree, $skillReviewPermission));
+    }
+
+    public function testGetPermissionTreeContainsWorkspaceModelAuditDirectoriesWhenMapped(): void
+    {
+        $tree = $this->permission->getPermissionTree(false);
+
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.data_security'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.data_security.logs_analytics'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.data_security.logs_analytics.model_monitoring'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.data_security.logs_analytics.model_audit'));
+        $this->assertTrue($this->containsPermissionKey(
+            $tree,
+            $this->permission->buildPermission(
+                MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_STATISTICS->value,
+                MagicOperationEnum::QUERY->value
+            )
+        ));
+        $this->assertTrue($this->containsPermissionKey(
+            $tree,
+            $this->permission->buildPermission(
+                MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_LOG->value,
+                MagicOperationEnum::QUERY->value
+            )
+        ));
+    }
+
+    public function testWorkspaceModelAuditResourcesUseLogsAnalyticsPermissionTag(): void
+    {
+        $this->assertSame(
+            '日志及分析',
+            $this->permission->getResourceModule(MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_LOG->value)
+        );
+        $this->assertSame(
+            '日志及分析',
+            $this->permission->getResourceModule(MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_STATISTICS->value)
+        );
     }
 
     public function testGetResourceModuleKeepsLegacyModelTagForRolePermissionTagBackfill(): void

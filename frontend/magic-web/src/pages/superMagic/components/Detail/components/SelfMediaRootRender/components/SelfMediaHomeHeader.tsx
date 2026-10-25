@@ -1,6 +1,6 @@
 import { Plus, RefreshCw, Settings, Sparkles } from "lucide-react"
 import MagicTooltip from "@/components/base/MagicTooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/utils/cn"
 import type { AICardCreateInitialValues } from "./AICardCreateDialog"
 import type { SelfMediaHomeTranslate } from "./SelfMediaHomeTypes"
 

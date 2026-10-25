@@ -1,5 +1,5 @@
-import { ReactRenderer } from "@tiptap/react"
-import type { SuggestionOptions, SuggestionProps } from "@tiptap/suggestion"
+import { ReactRenderer } from "@/infrastructure/editors/tiptap/react"
+import type { SuggestionOptions, SuggestionProps } from "@/infrastructure/editors/tiptap/suggestion"
 import type { MentionSelectItem } from "@/components/business/MentionSelect"
 import MentionList from "./MentionList"
 

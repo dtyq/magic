@@ -10,15 +10,23 @@ vi.mock("@/components/base-mobile/MagicPopup", () => ({
 		headerLeadingAction,
 		headerTrailingAction,
 		headerTitle,
+		className,
+		bodyClassName,
 	}: {
 		visible?: boolean
 		children?: React.ReactNode
 		headerTitle?: string
 		headerLeadingAction?: { onClick: () => void; testId?: string }
 		headerTrailingAction?: { onClick: () => void; testId?: string; disabled?: boolean }
+		className?: string
+		bodyClassName?: string
 	}) =>
 		visible ? (
-			<div data-testid="magic-popup">
+			<div
+				data-testid="magic-popup"
+				data-content-class={className}
+				data-body-class={bodyClassName}
+			>
 				<h2>{headerTitle}</h2>
 				<button
 					type="button"
@@ -99,5 +107,27 @@ describe("MobileDeleteConfirmPopup", () => {
 
 		fireEvent.click(screen.getByTestId("mobile-project-delete-confirm-confirm"))
 		expect(onConfirm).toHaveBeenCalledTimes(1)
+	})
+
+	it("keeps the short confirmation sheet content-sized with a bounded fallback", () => {
+		render(
+			<MobileDeleteConfirmPopup
+				visible
+				onClose={vi.fn()}
+				title="删除对话"
+				entityName="示例对话"
+				descriptionSuffix="将移入回收站。"
+				onConfirm={vi.fn()}
+				cancelAriaLabel="取消"
+				confirmAriaLabel="确认"
+			/>,
+		)
+
+		const popup = screen.getByTestId("magic-popup")
+		expect(popup).toHaveAttribute("data-content-class", "!h-fit !max-h-[320px]")
+		expect(popup).toHaveAttribute(
+			"data-body-class",
+			"!h-auto !max-h-[220px] overflow-y-auto p-0",
+		)
 	})
 })

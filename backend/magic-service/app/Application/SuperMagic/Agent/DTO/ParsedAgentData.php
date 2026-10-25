@@ -58,6 +58,9 @@ class ParsedAgentData
      */
     public array $skills = [];
 
+    /** @var array<int, array{name: string, code: string, description: string}> */
+    public array $marketSkills = [];
+
     /**
      * Directory name of the agent package (last segment of agentDir path).
      */

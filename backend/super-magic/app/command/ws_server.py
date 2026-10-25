@@ -5,10 +5,11 @@ import asyncio
 import importlib
 import importlib.metadata
 import os
-import signal
 import socket
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
+from types import FrameType
 from typing import Optional
 
 import uvicorn
@@ -16,29 +17,34 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from uvicorn.config import Config
-from pathlib import Path
 
+from agentlang.environment import Environment
+from agentlang.logger import get_logger
+from agentlang.utils.process_manager import ProcessManager
 from app.api.middleware import (
     RequestLoggingMiddleware,
     UserAuthorizationMiddleware,
     WebSocketAuthorizationMiddleware,
 )
 from app.api.routes import api_router
-from app.service.agent_dispatcher import AgentDispatcher
-from agentlang.logger import get_logger
-from app.service.cron.service import CronService
-from app.service.idle_monitor_service import IdleMonitorService
-from agentlang.utils.process_manager import ProcessManager
 from app.infrastructure.observability import (
-    setup_telemetry,
-    instrument_fastapi,
+    install_error_tracking,
     instrument_aiohttp,
-    instrument_requests,
+    instrument_fastapi,
     instrument_httpx,
     instrument_openai,
+    instrument_requests,
+    setup_telemetry,
     shutdown_telemetry,
-    install_error_tracking,
 )
+from app.service.agent_dispatcher import AgentDispatcher
+from app.service.cron.service import CronService
+from app.service.idle_monitor_service import IdleMonitorService
+from app.service.service_shutdown_coordinator import (
+    ServiceShutdownCoordinator,
+    ShutdownTrigger,
+)
+from app.service.service_shutdown_diagnostics import ShutdownDiagnosticsCollector
 
 # 获取日志记录器
 logger = get_logger(__name__)
@@ -96,9 +102,9 @@ async def maybe_auto_connect_im_channels_for_local_dev() -> None:
             )
             return
 
-        from app.channel.startup import auto_connect_channels_for_current_sandbox
+        from app.channel.startup import auto_connect_channels_for_current_topic
 
-        await auto_connect_channels_for_current_sandbox()
+        await auto_connect_channels_for_current_topic()
         logger.info(f"{_LOCAL_IM_AUTO_CONNECT_ENV}=true，已触发本地 IM 渠道自动连接")
     except Exception as e:
         logger.warning(f"本地 IM 渠道自动连接失败，不影响 ws-server 启动: {e}")
@@ -116,16 +122,32 @@ async def cleanup_stale_files_on_startup():
 
     try:
         from app.path_manager import PathManager
-        from app.utils.async_file_utils import async_exists, async_rmtree, async_scandir
+        from app.utils.runtime_storage import (
+            RuntimeEvictionPolicy,
+            evict_runtime_directories,
+            get_runtime_config_int,
+        )
 
-        background_dir = PathManager.get_background_compact_dir()
-        if await async_exists(background_dir):
-            for entry in await async_scandir(background_dir):
-                if entry.is_dir(follow_symlinks=False):
-                    await async_rmtree(Path(entry.path))
-            logger.info("后台压缩临时目录残留检查完成")
+        for runtime_dir, config_key in (
+            (
+                PathManager.get_background_compact_dir(),
+                "runtime_cleanup.background_compact.max_age_days",
+            ),
+            (
+                PathManager.get_memory_after_run_dir(),
+                "runtime_cleanup.memory_after_run.max_age_days",
+            ),
+        ):
+            policy = RuntimeEvictionPolicy(
+                max_age_seconds=get_runtime_config_int(config_key, minimum=1)
+                * 24
+                * 60
+                * 60,
+            )
+            await evict_runtime_directories(runtime_dir, policy=policy)
+        logger.info("runtime 临时会话目录残留检查完成")
     except Exception as e:
-        logger.error(f"后台压缩临时目录残留清理失败: {e}")
+        logger.error(f"runtime 临时会话目录残留清理失败: {e}")
 
     try:
         from app.service.chat_history_cleanup_service import ChatHistoryCleanupService
@@ -185,6 +207,15 @@ async def lifespan(app: FastAPI):
     # 执行启动时残留文件清理检查
     await cleanup_stale_files_on_startup()
 
+    # 恢复通用沙箱任务，避免服务重启后丢失页面提交的合成任务。
+    try:
+        from app.service.sandbox_task.capability_runner import run_capability
+        from app.service.sandbox_task.task_manager import SandboxTaskManager
+        recovered = await SandboxTaskManager.instance().recover(run_capability)
+        logger.info("通用沙箱任务恢复完成: {}", recovered)
+    except Exception as e:
+        logger.error("通用沙箱任务恢复失败: {}", e)
+
     logger.info(f"HTTP API服务将监听端口：{get_api_port()}")
     try:
         yield
@@ -192,10 +223,44 @@ async def lifespan(app: FastAPI):
         # 关闭时
         logger.info("服务正在关闭...")
         from app.service.agent_runtime import AgentRuntime
+        shutdown_coordinator = getattr(
+            app.state,
+            "service_shutdown_coordinator",
+            None,
+        )
+        if isinstance(shutdown_coordinator, ServiceShutdownCoordinator):
+            await shutdown_coordinator.prepare_shutdown()
+            await shutdown_coordinator.mark_closing_app()
         try:
-            await AgentRuntime.get_instance().close_all(reason="service_shutdown")
+            await AgentRuntime.get_instance().close_all(
+                reason="service_shutdown"
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            if isinstance(
+                shutdown_coordinator,
+                ServiceShutdownCoordinator,
+            ):
+                shutdown_coordinator.record_cleanup_error(
+                    "agent_runtime",
+                    error,
+                )
+            raise
         finally:
-            shutdown_telemetry()
+            try:
+                shutdown_telemetry()
+            except Exception as error:
+                if isinstance(
+                    shutdown_coordinator,
+                    ServiceShutdownCoordinator,
+                ):
+                    shutdown_coordinator.record_cleanup_error(
+                        "telemetry",
+                        error,
+                    )
+                raise
+
 
 def create_app() -> FastAPI:
     """创建并配置FastAPI应用实例"""
@@ -335,16 +400,46 @@ def get_app() -> FastAPI:
 class CustomServer(uvicorn.Server):
     """自定义 uvicorn Server 类，用于正确处理信号"""
 
-    def install_signal_handlers(self) -> None:
-        """不安装信号处理器，使用我们自己的处理方式"""
-        pass
+    def __init__(
+        self,
+        config: Config,
+        shutdown_coordinator: ServiceShutdownCoordinator,
+    ) -> None:
+        super().__init__(config)
+        self._shutdown_coordinator = shutdown_coordinator
 
-    async def shutdown(self, sockets=None):
+    def handle_exit(self, sig: int, frame: Optional[FrameType]) -> None:
+        """把 Uvicorn 捕获的信号桥接到统一退出协调器。"""
+        self._shutdown_coordinator.request_shutdown(
+            ShutdownTrigger.SIGNAL,
+            signal_number=sig,
+        )
+        super().handle_exit(sig, frame)
+
+    async def shutdown(self, sockets: Optional[list[socket.socket]] = None) -> None:
         """尝试优雅地关闭服务器"""
+        if self._shutdown_coordinator.request is None:
+            self._shutdown_coordinator.request_shutdown(ShutdownTrigger.UVICORN_EXIT)
+        await self._shutdown_coordinator.mark_draining_uvicorn()
+        self._shutdown_coordinator.start_prepare_shutdown()
         logger.info("正在关闭 uvicorn 服务器...")
-        await super().shutdown(sockets=sockets)
+        try:
+            await super().shutdown(sockets=sockets)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            self._shutdown_coordinator.record_cleanup_error(
+                "uvicorn_shutdown",
+                error,
+            )
+            raise
+        finally:
+            await self._shutdown_coordinator.prepare_shutdown()
+        # capture_signals() 随后可能重新抛出信号；先记录进入事件循环收尾，
+        # 此时不能宣称进程已退出，watchdog 仍继续计时。
+        await self._shutdown_coordinator.mark_closing_event_loop()
 
-def start_ws_server():
+def start_ws_server() -> None:
     """启动WebSocket服务器"""
     # ====================================================================
     # 🔧 IMPORTANT: Initialize telemetry BEFORE any other initialization
@@ -363,9 +458,11 @@ def start_ws_server():
 
     # 获取FastAPI应用实例
     app = get_app()
+    shutdown_coordinator: Optional[ServiceShutdownCoordinator] = None
 
     # 创建一个仅启动WS服务器的异步函数
-    async def run_ws_only():
+    async def run_ws_only() -> None:
+        nonlocal shutdown_coordinator
         process_manager = ProcessManager.get_instance()
         # 获取并处理entry_points
         try:
@@ -403,104 +500,139 @@ def start_ws_server():
             # 清理环境变量
             del os.environ["STARTUP_START_TIME"]
 
-        IdleMonitorService.get_instance().start()
-
         # 启动 cron 调度服务
         cron_service = CronService()
-        cron_service.start()
-
-        # 使用与原main()函数相似的代码，但只启动WebSocket服务
-        # 创建并配置WebSocket socket
-        ws_port = get_api_port()
-        ws_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ws_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        ws_socket.bind(("0.0.0.0", ws_port))
-
-        logger.info(f"WebSocket服务将监听端口：{ws_port}")
-
-        # 创建uvicorn配置
-        uvicorn_config = Config(
-            app,
-            host="0.0.0.0",
-            port=0,
-            log_level="warning",  # 设置为warning级别，避免显示框架启动的INFO日志
-            ws_ping_interval=None,
-            access_log=False,  # 禁用访问日志
+        idle_monitor = IdleMonitorService.get_instance()
+        loop = asyncio.get_running_loop()
+        force_shutdown_timeout_seconds = (
+            Environment.get_sandbox_force_shutdown_timeout_seconds()
         )
+        graceful_shutdown_timeout_seconds = (
+            Environment.get_sandbox_graceful_shutdown_timeout_seconds()
+        )
+        diagnostics = ShutdownDiagnosticsCollector(
+            process_manager=process_manager,
+        )
+        coordinator = ServiceShutdownCoordinator(
+            loop=loop,
+            force_shutdown_timeout_seconds=force_shutdown_timeout_seconds,
+            graceful_shutdown_timeout_seconds=graceful_shutdown_timeout_seconds,
+            idle_monitor=idle_monitor,
+            cron_service=cron_service,
+            process_manager=process_manager,
+            diagnostics=diagnostics,
+        )
+        shutdown_coordinator = coordinator
 
-        # 启动服务器
-        global ws_server
-        ws_server = CustomServer(uvicorn_config)
-
-        # 同样需要处理信号
-        shutdown_event = asyncio.Event()
-
-        # 设置信号处理器
-        def handle_signal(sig, frame):
-            logger.info(f"收到信号 {sig}，准备关闭服务...")
-            shutdown_event.set()
-
-            # 启动强制终止定时器，10秒后强制杀死进程
-            def force_kill():
-                time.sleep(10)
-                logger.warning("优雅关闭超时，使用SIGKILL强制终止进程")
-                try:
-                    os.kill(os.getpid(), signal.SIGKILL)
-                except Exception as e:
-                    logger.error(f"SIGKILL失败: {e}")
-
-            import threading
-            threading.Thread(target=force_kill, daemon=True).start()
-
-        # 注册信号处理器
-        original_sigint_handler = signal.getsignal(signal.SIGINT)
-        original_sigterm_handler = signal.getsignal(signal.SIGTERM)
-        signal.signal(signal.SIGINT, handle_signal)
-        signal.signal(signal.SIGTERM, handle_signal)
-
+        ws_socket: Optional[socket.socket] = None
+        server: Optional[CustomServer] = None
+        ws_task: Optional[asyncio.Task[None]] = None
+        shutdown_wait_task: Optional[asyncio.Task[None]] = None
         try:
+            # 使用与原main()函数相似的代码，但只启动WebSocket服务
+            ws_port = get_api_port()
+            ws_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            ws_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            ws_socket.bind(("0.0.0.0", ws_port))
+            logger.info(f"WebSocket服务将监听端口：{ws_port}")
+
+            uvicorn_config = Config(
+                app,
+                host="0.0.0.0",
+                port=0,
+                log_level="warning",  # 设置为warning级别，避免显示框架启动的INFO日志
+                ws_ping_interval=None,
+                access_log=False,  # 禁用访问日志
+                timeout_graceful_shutdown=graceful_shutdown_timeout_seconds,
+            )
+
+            global ws_server
+            active_server = CustomServer(uvicorn_config, coordinator)
+            server = active_server
+            ws_server = active_server
+            diagnostics.bind_server(active_server)
+            app.state.service_shutdown_coordinator = coordinator
+
+            def request_idle_shutdown() -> None:
+                coordinator.request_shutdown(ShutdownTrigger.IDLE_TIMEOUT)
+
+            cron_service.start()
+            idle_monitor.start(request_idle_shutdown)
+
             # 启动主HTTP API服务
-            ws_task = asyncio.create_task(ws_server.serve(sockets=[ws_socket]))
+            ws_task = asyncio.create_task(
+                active_server.serve(sockets=[ws_socket]),
+                name="uvicorn-main-server",
+            )
+
+            async def request_server_shutdown() -> None:
+                await coordinator.wait_requested()
+                active_server.should_exit = True
+
+            shutdown_wait_task = asyncio.create_task(
+                request_server_shutdown(),
+                name="service-shutdown-wait",
+            )
 
             logger.info(f"✅ 主API服务已启动 (0.0.0.0:{ws_port})，静态文件服务将按需启动")
             await maybe_auto_connect_im_channels_for_local_dev()
 
-            # 等待关闭事件
-            await shutdown_event.wait()
-            logger.info("正在停止所有服务...")
-        except Exception as e:
-            logger.error(f"服务运行过程中出现错误: {e}")
+            done, _ = await asyncio.wait(
+                {ws_task, shutdown_wait_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if ws_task in done:
+                if ws_task.cancelled():
+                    coordinator.request_shutdown(
+                        ShutdownTrigger.SERVER_TASK_EXIT
+                    )
+                    await ws_task
+                server_error = ws_task.exception()
+                if server_error is not None:
+                    coordinator.request_shutdown(
+                        ShutdownTrigger.SERVER_EXCEPTION
+                    )
+                    raise server_error
+                if coordinator.request is None:
+                    coordinator.request_shutdown(ShutdownTrigger.UVICORN_EXIT)
+            else:
+                await ws_task
+        except asyncio.CancelledError:
+            coordinator.request_shutdown(ShutdownTrigger.SERVER_EXCEPTION)
+            raise
+        except Exception as error:
+            coordinator.request_shutdown(ShutdownTrigger.SERVER_EXCEPTION)
+            await coordinator.wait_requested()
+            coordinator.record_cleanup_error("server_runtime", error)
+            logger.error(
+                f"服务运行过程中出现错误: {type(error).__qualname__}"
+            )
+            raise
         finally:
-            # 优雅关闭服务器
-            if ws_server:
-                ws_server.should_exit = True
+            if server is not None:
+                server.should_exit = True
 
-            # 取消服务任务
-            ws_task.cancel()
+            if coordinator.request is None:
+                coordinator.request_shutdown(ShutdownTrigger.UVICORN_EXIT)
 
-            # 停止所有服务
-            await process_manager.stop_all()
-            await cron_service.stop()
-            IdleMonitorService.get_instance().stop()
+            if shutdown_wait_task is not None and not shutdown_wait_task.done():
+                shutdown_wait_task.cancel()
+                await asyncio.gather(shutdown_wait_task, return_exceptions=True)
 
-            try:
-                # 等待任务完成，设置5秒超时
-                await asyncio.wait_for(
-                    asyncio.gather(ws_task, return_exceptions=True),
-                    timeout=5.0
+            if ws_task is not None and not ws_task.done():
+                await asyncio.shield(
+                    asyncio.gather(ws_task, return_exceptions=True)
                 )
-                logger.info("✅ 主服务已优雅关闭")
-            except (asyncio.TimeoutError, Exception) as e:
-                logger.warning(f"优雅关闭失败: {e}，使用SIGKILL强制终止进程")
-                os.kill(os.getpid(), signal.SIGKILL)
 
-            # 恢复原始信号处理器
-            signal.signal(signal.SIGINT, original_sigint_handler)
-            signal.signal(signal.SIGTERM, original_sigterm_handler)
-
-            # 关闭socket
-            ws_socket.close()
-            logger.info("WebSocket服务已完全关闭")
+            await coordinator.prepare_shutdown()
+            if ws_socket is not None:
+                ws_socket.close()
+            await coordinator.mark_closing_event_loop()
+            logger.info("应用关闭流程已返回，正在结束事件循环")
 
     # 运行异步函数
-    asyncio.run(run_ws_only())
+    try:
+        asyncio.run(run_ws_only())
+    finally:
+        if shutdown_coordinator is not None:
+            shutdown_coordinator.finish_event_loop_shutdown()

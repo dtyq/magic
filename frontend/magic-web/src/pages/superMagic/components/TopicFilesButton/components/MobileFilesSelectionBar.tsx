@@ -1,5 +1,6 @@
 import { Copy, Download, FolderSymlink, Share2, Trash2 } from "lucide-react"
 import { memo } from "react"
+import { useFileAccess } from "@/pages/superMagic/providers/FileAccessProvider"
 import { useTranslation } from "react-i18next"
 import MobileFileSelectionCheckbox from "./MobileFileSelectionCheckbox"
 import type { AttachmentNodeSelectionState } from "../utils/mobileAttachmentTreeSelection"
@@ -66,6 +67,7 @@ function MobileFilesSelectionBar({
 	onMove,
 	onDelete,
 }: MobileFilesSelectionBarProps) {
+	const { permissions: access } = useFileAccess()
 	const { t } = useTranslation("super")
 	const selectAllState = getSelectAllState(isAllSelected, isPartiallySelected)
 
@@ -99,20 +101,28 @@ function MobileFilesSelectionBar({
 					className="flex h-full flex-1 items-center overflow-hidden rounded-full bg-card"
 					style={{ boxShadow: SELECTION_BAR_SHADOW }}
 				>
-					<ActionIconButton
-						icon={Download}
-						label={t("topicFiles.contextMenu.download")}
-						onClick={onDownload}
-						dataTestId="mobile-files-download-button"
-					/>
-					<div className="h-5 w-px shrink-0 bg-border" />
-					<ActionIconButton
-						icon={Share2}
-						label={t("topicFiles.contextMenu.shareFile")}
-						onClick={onShare}
-						dataTestId="mobile-files-share-button"
-					/>
-					<div className="h-5 w-px shrink-0 bg-border" />
+					{(access.download || access.export) && (
+						<>
+							<ActionIconButton
+								icon={Download}
+								label={t("topicFiles.contextMenu.download")}
+								onClick={onDownload}
+								dataTestId="mobile-files-download-button"
+							/>
+							<div className="h-5 w-px shrink-0 bg-border" />
+						</>
+					)}
+					{access.share && (
+						<>
+							<ActionIconButton
+								icon={Share2}
+								label={t("topicFiles.contextMenu.shareFile")}
+								onClick={onShare}
+								dataTestId="mobile-files-share-button"
+							/>
+							<div className="h-5 w-px shrink-0 bg-border" />
+						</>
+					)}
 					<ActionIconButton
 						icon={Copy}
 						label={t("topicFiles.contextMenu.copyTo")}

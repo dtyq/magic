@@ -15,6 +15,7 @@ use App\Application\SuperMagic\Common\RecycleBin\DTO\MoveTopicInRecycleBinReques
 use App\Application\SuperMagic\Common\RecycleBin\DTO\PermanentDeleteRequestDTO;
 use App\Application\SuperMagic\Common\RecycleBin\DTO\RecycleBinCountsRequestDTO;
 use App\Application\SuperMagic\Common\RecycleBin\DTO\RecycleBinCountsResponseDTO;
+use App\Application\SuperMagic\Common\RecycleBin\DTO\RecycleBinFilePreviewResponseDTO;
 use App\Application\SuperMagic\Common\RecycleBin\DTO\RecycleBinListRequestDTO;
 use App\Application\SuperMagic\Common\RecycleBin\DTO\RecycleBinListResponseDTO;
 use App\Application\SuperMagic\Common\RecycleBin\DTO\RestoreConflictDTO;
@@ -25,17 +26,24 @@ use App\Application\SuperMagic\Common\RecycleBin\DTO\RestoreResponseDTO;
 use App\Application\SuperMagic\Common\RecycleBin\DTO\RestoreResultItemDTO;
 use App\Application\SuperMagic\Common\Service\AbstractAppService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\SuperMagic\Common\Entity\ValueObject\StorageType;
 use App\Domain\SuperMagic\Common\RecycleBin\Entity\RecycleBinEntity;
 use App\Domain\SuperMagic\Common\RecycleBin\Enum\RecycleBinResourceType;
 use App\Domain\SuperMagic\Common\RecycleBin\Enum\RestoreConflictType;
 use App\Domain\SuperMagic\Common\RecycleBin\Service\RecycleBinDomainService;
 use App\Domain\SuperMagic\Common\RecycleBin\Service\RecycleBinRestoreDomainService;
 use App\Domain\SuperMagic\Common\RecycleBin\Service\TopicRecycleDomainService;
+use App\Domain\SuperMagic\File\Service\TaskFileDomainService;
+use App\Domain\SuperMagic\Project\Event\ProjectUpdatedEvent;
+use App\Domain\SuperMagic\Project\Repository\Facade\ProjectRepositoryInterface;
 use App\Domain\SuperMagic\Project\Service\ProjectDomainService;
 use App\Domain\SuperMagic\Workspace\Service\WorkspaceDomainService;
+use App\ErrorCode\SuperAgentErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
@@ -53,9 +61,55 @@ class RecycleBinAppService extends AbstractAppService
         private readonly MagicUserDomainService $magicUserDomainService,
         private readonly WorkspaceDomainService $workspaceDomainService,
         private readonly ProjectDomainService $projectDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ProjectRepositoryInterface $projectRepository,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
+    }
+
+    public function previewFile(RequestContext $requestContext, int $id, ?int $projectId): RecycleBinFilePreviewResponseDTO
+    {
+        $authorization = $requestContext->getUserAuthorization();
+        $records = $this->recycleBinDomainService->findByIdsAndTypeVisibleToUser(
+            [$id],
+            RecycleBinResourceType::File->value,
+            $authorization->getId()
+        );
+        $record = $records[0] ?? null;
+        if ($record === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('recycle_bin.preview.unavailable'));
+        }
+        $deletedAt = strtotime($record->getDeletedAt());
+        if ($deletedAt === false || $deletedAt + $record->getRetainDays() * 86400 <= time()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('recycle_bin.preview.expired'));
+        }
+        $file = $this->taskFileDomainService->getByIdWithTrash($record->getResourceId());
+        if ($file === null || $file->getDeletedAt() === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('recycle_bin.preview.unavailable'));
+        }
+        // 回收站授权允许查看保留内容；父项目已删除不要求先恢复，也不放宽普通文件接口。
+        if ($file->getSpaceType() === 'project') {
+            $project = $this->projectRepository->findByIdWithTrashed($file->getProjectId());
+            $organizationCode = $project?->getUserOrganizationCode() ?? '';
+            $allowed = $project !== null
+                && $record->getParentId() === $file->getProjectId()
+                && ! $file->getIsHidden()
+                && $file->getStorageType() === StorageType::WORKSPACE;
+        } else {
+            $organizationCode = $file->getOrganizationCode();
+            $allowed = $file->getSpaceType() === 'user' && $this->hasTaskFileOwnerPermission($file, $authorization);
+        }
+        if (! $allowed || $organizationCode !== $authorization->getOrganizationCode()
+            || ($projectId !== null && ($file->getSpaceType() !== 'project' || $file->getProjectId() !== $projectId))) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('recycle_bin.preview.unavailable'));
+        }
+        if ($file->getIsDirectory()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('recycle_bin.preview.directory'));
+        }
+        $url = $this->taskFileDomainService->getFilePreSignedUrl($organizationCode, $file, ['expires' => TaskFileDomainService::URL_EXPIRES]);
+        return new RecycleBinFilePreviewResponseDTO($record, $file, $url);
     }
 
     /**
@@ -74,7 +128,8 @@ class RecycleBinAppService extends AbstractAppService
             keyword: $requestDTO->getKeyword(),
             order: $requestDTO->getOrder(),
             page: $requestDTO->getPage(),
-            pageSize: $requestDTO->getPageSize()
+            pageSize: $requestDTO->getPageSize(),
+            fileQuery: $requestDTO->getFileQuery()
         );
 
         $deletedByIds = array_unique(array_map(
@@ -95,7 +150,7 @@ class RecycleBinAppService extends AbstractAppService
             'user_id' => $userId,
             'resource_type' => $requestDTO->getResourceType(),
             'keyword' => $requestDTO->getKeyword(),
-            'total' => $result['total'],
+            'total' => $result['total'] ?? null,
         ]);
 
         return RecycleBinListResponseDTO::fromResult($result);
@@ -113,7 +168,8 @@ class RecycleBinAppService extends AbstractAppService
 
         $countsByType = $this->recycleBinDomainService->getCountsByType(
             $userId,
-            $requestDTO->getKeyword()
+            $requestDTO->getKeyword(),
+            $requestDTO->getProjectId()
         );
 
         $this->logger->info('查询回收站类型数量', [
@@ -237,6 +293,15 @@ class RecycleBinAppService extends AbstractAppService
             $userId,
             $requestDTO->getConflictResolutions()
         );
+
+        if ($result['succeeded'] !== [] && $resourceType === RecycleBinResourceType::Project) {
+            foreach ($result['succeeded'] as $entity) {
+                $project = $this->projectDomainService->getProjectNotUserId((int) $entity->getResourceId());
+                if ($project !== null) {
+                    $this->eventDispatcher->dispatch(new ProjectUpdatedEvent($project, $userAuthorization));
+                }
+            }
+        }
 
         $resultDTOs = [];
 

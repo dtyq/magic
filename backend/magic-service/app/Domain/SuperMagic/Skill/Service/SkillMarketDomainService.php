@@ -30,6 +30,40 @@ class SkillMarketDomainService
     }
 
     /**
+     * 获取已发布的官方内置 Skill code。
+     *
+     * @return array<string>
+     */
+    public function getOfficialBuiltinSkillCodes(): array
+    {
+        return array_values(array_map(
+            static fn (SkillMarketEntity $entity): string => $entity->getSkillCode(),
+            $this->getOfficialBuiltinSkillEntities()
+        ));
+    }
+
+    /**
+     * 获取市场在架（已发布且未隐藏）的 Skill code.
+     *
+     * @param array<string> $skillCodes
+     * @return array<string>
+     */
+    public function getPublishedSkillCodes(array $skillCodes): array
+    {
+        return $this->skillMarketRepository->findPublishedSkillCodes($skillCodes);
+    }
+
+    /**
+     * 获取已发布的官方内置 Skill 实体。
+     *
+     * @return array<int, SkillMarketEntity>
+     */
+    public function getOfficialBuiltinSkillEntities(): array
+    {
+        return $this->skillMarketRepository->getOfficialBuiltinSkillEntities();
+    }
+
+    /**
      * 批量查询商店技能的最新版本信息（用于判断 need_upgrade）.
      *
      * @param array $skillCodes Skill code 列表（对应 magic_skills.version_code）
@@ -60,6 +94,16 @@ class SkillMarketDomainService
         return $this->skillMarketRepository->findBySkillCode($skillCode);
     }
 
+    public function findOfficialSkillBySkillCode(string $organizationCode, string $skillCode): ?SkillMarketEntity
+    {
+        return $this->skillMarketRepository->findOfficialBySkillCode($organizationCode, $skillCode);
+    }
+
+    public function findOfficialSkillByPackageName(string $packageName): ?SkillMarketEntity
+    {
+        return $this->skillMarketRepository->findOfficialByPackageName($packageName);
+    }
+
     /**
      * Find the latest published market skill by skill code.
      */
@@ -81,12 +125,15 @@ class SkillMarketDomainService
      *
      * @param SkillQuery $query 查询对象
      * @param Page $page 分页对象
-     * @return array{total: int, list: SkillMarketEntity[]} 总数和市场技能实体数组
+     * @return array{total: ?int, list: SkillMarketEntity[]} 总数（未请求时为 null）和市场技能实体数组
      */
     public function queries(
         SkillQuery $query,
         Page $page
     ): array {
+        if ($query->getCategoryIds() !== null && $query->getCategoryIds() !== []) {
+            $query->setCategoryIds($this->skillCategoryRepository->findSelfAndDescendantIds($query->getCategoryIds()));
+        }
         return $this->skillMarketRepository->queries($query, $page);
     }
 
@@ -104,9 +151,13 @@ class SkillMarketDomainService
         ?string $packageName,
         ?string $startTime,
         ?string $endTime,
+        array $categoryIds,
         string $orderBy,
         Page $page
     ): array {
+        if ($categoryIds !== []) {
+            $categoryIds = $this->skillCategoryRepository->findSelfAndDescendantIds($categoryIds);
+        }
         return $this->skillMarketRepository->queryAdminMarkets(
             $publishStatus,
             $organizationCode,
@@ -116,6 +167,7 @@ class SkillMarketDomainService
             $packageName,
             $startTime,
             $endTime,
+            $categoryIds,
             $orderBy,
             $page
         );
@@ -162,6 +214,37 @@ class SkillMarketDomainService
         return $this->skillMarketRepository->findByIds($ids);
     }
 
+    /** @param array<int, int|string> $ids @return array<int, SkillMarketEntity> */
+    public function findVisibleByIds(array $ids): array
+    {
+        return $this->skillMarketRepository->findVisibleByIds($ids);
+    }
+
+    /** Query published market skills missing SKILL.md by an ID cursor. */
+    public function findPublishedWithoutSkillFileByIdCursor(int $afterId = 0, int $limit = 100): array
+    {
+        return $this->skillMarketRepository->findPublishedWithoutSkillFileByIdCursor($afterId, $limit);
+    }
+
+    /**
+     * @param array<int, int|string> $categoryIds
+     * @param array<int, string> $codes
+     * @return array<int, int>
+     */
+    public function findVectorIndexIds(
+        array $categoryIds = [],
+        array $codes = [],
+        ?string $publisherType = null,
+        string $afterId = '0',
+        int $limit = 100,
+    ): array {
+        if ($categoryIds !== []) {
+            $categoryIds = $this->skillCategoryRepository->findSelfAndDescendantIds($categoryIds);
+        }
+
+        return $this->skillMarketRepository->findVectorIndexIds($categoryIds, $codes, $publisherType, $afterId, $limit);
+    }
+
     /**
      * 增加商店技能的安装次数.
      *
@@ -184,7 +267,7 @@ class SkillMarketDomainService
     /**
      * 按传入字段部分更新市场 Skill 信息.
      *
-     * @param array{sort_order?: null|int, is_featured?: bool, is_hidden?: bool, category_id?: null|int} $payload
+     * @param array{sort_order?: null|int, is_featured?: bool, is_hidden?: bool} $payload
      */
     public function updateInfoById(int $id, array $payload): bool
     {

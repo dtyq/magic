@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react"
-import Player from "xgplayer"
+import Player from "@/infrastructure/vendors/xgplayer"
 import { defaultLanguage, getLocalizedText } from "../utils/i18n"
+import type { GetTemporaryDownloadUrlItem } from "@/pages/superMagic/utils/api"
+import { parseExpiresAt } from "@/components/CanvasDesign/runtime/resources/offline-cache/ossExpiryUtils"
+import { SHARED_MEDIA_URL_EXPIRY_SAFETY_WINDOW_MS } from "@/pages/superMagic/services/sharedMediaUrlCache"
 
 export interface UseXgPlayerProps {
+	fileId?: string
 	fileUrl?: string
+	fileResource?: GetTemporaryDownloadUrlItem | null
+	refreshFileUrl?: () => Promise<GetTemporaryDownloadUrlItem | null>
 	containerRef: React.RefObject<HTMLDivElement>
 }
 
@@ -13,10 +19,57 @@ export interface UseXgPlayerResult {
 	playerReady: boolean
 }
 
-export const useXgPlayer = ({ fileUrl, containerRef }: UseXgPlayerProps): UseXgPlayerResult => {
+export const useXgPlayer = ({
+	fileId,
+	fileUrl,
+	fileResource,
+	refreshFileUrl,
+	containerRef,
+}: UseXgPlayerProps): UseXgPlayerResult => {
 	const playerRef = useRef<Player | null>(null)
+	const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const refreshAttemptedRef = useRef(false)
+	const refreshPendingRef = useRef(false)
+	const destroyingRef = useRef(false)
+	const playbackStateRef = useRef({
+		currentTime: 0,
+		volume: 1,
+		muted: false,
+		playbackRate: 1,
+		shouldResume: false,
+	})
 	const [isLoading, setIsLoading] = useState(true)
 	const [playerReady, setPlayerReady] = useState(false)
+
+	const clearRefreshTimer = () => {
+		if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+		refreshTimerRef.current = null
+	}
+
+	const refreshWhenPlaying = () => {
+		clearRefreshTimer()
+		const expiresAt = parseExpiresAt(fileResource?.expires_at)
+		if (!expiresAt || !playbackStateRef.current.shouldResume || !refreshFileUrl) return
+		const delay = Math.max(0, expiresAt - Date.now() - SHARED_MEDIA_URL_EXPIRY_SAFETY_WINDOW_MS)
+		refreshTimerRef.current = setTimeout(() => {
+			if (refreshPendingRef.current || !playbackStateRef.current.shouldResume) return
+			refreshPendingRef.current = true
+			void refreshFileUrl().finally(() => {
+				refreshPendingRef.current = false
+			})
+		}, delay)
+	}
+
+	useEffect(() => {
+		refreshAttemptedRef.current = false
+		playbackStateRef.current = {
+			currentTime: 0,
+			volume: 1,
+			muted: false,
+			playbackRate: 1,
+			shouldResume: false,
+		}
+	}, [fileId])
 
 	// Initialize xgplayer when fileUrl is available
 	useEffect(() => {
@@ -81,6 +134,9 @@ export const useXgPlayer = ({ fileUrl, containerRef }: UseXgPlayerProps): UseXgP
 				})
 
 				playerRef.current = player
+				player.volume = playbackStateRef.current.volume
+				player.muted = playbackStateRef.current.muted
+				player.playbackRate = playbackStateRef.current.playbackRate
 
 				// Event listeners for loading states
 				player.on("loadstart", () => {
@@ -89,6 +145,12 @@ export const useXgPlayer = ({ fileUrl, containerRef }: UseXgPlayerProps): UseXgP
 
 				// Handle metadata loading - important for WebM files with duration issues
 				player.on("loadedmetadata", () => {
+					if (playbackStateRef.current.currentTime > 0) {
+						player.currentTime = playbackStateRef.current.currentTime
+					}
+					if (playbackStateRef.current.shouldResume) {
+						void Promise.resolve(player.play()).catch(() => undefined)
+					}
 					console.log("Metadata loaded, duration:", player.duration)
 
 					// For WebM files with Infinity/NaN duration, allow playback immediately
@@ -138,6 +200,26 @@ export const useXgPlayer = ({ fileUrl, containerRef }: UseXgPlayerProps): UseXgP
 					setPlayerReady(true)
 				})
 
+				player.on("timeupdate", () => {
+					playbackStateRef.current.currentTime = player.currentTime || 0
+				})
+				player.on("volumechange", () => {
+					playbackStateRef.current.volume = player.volume
+					playbackStateRef.current.muted = player.muted
+				})
+				player.on("ratechange", () => {
+					playbackStateRef.current.playbackRate = player.playbackRate
+				})
+				player.on("play", () => {
+					playbackStateRef.current.shouldResume = true
+					refreshWhenPlaying()
+				})
+				player.on("pause", () => {
+					if (destroyingRef.current) return
+					playbackStateRef.current.shouldResume = false
+					clearRefreshTimer()
+				})
+
 				player.on("loadeddata", () => {
 					setIsLoading(false)
 					setPlayerReady(true)
@@ -147,6 +229,14 @@ export const useXgPlayer = ({ fileUrl, containerRef }: UseXgPlayerProps): UseXgP
 					console.error(getLocalizedText("playerError"), error)
 					setIsLoading(false)
 					setPlayerReady(false)
+					if (!refreshAttemptedRef.current && refreshFileUrl) {
+						refreshAttemptedRef.current = true
+						clearRefreshTimer()
+						refreshPendingRef.current = true
+						void refreshFileUrl().finally(() => {
+							refreshPendingRef.current = false
+						})
+					}
 				})
 
 				// Fullscreen event listeners
@@ -185,6 +275,9 @@ export const useXgPlayer = ({ fileUrl, containerRef }: UseXgPlayerProps): UseXgP
 
 		return () => {
 			clearTimeout(timer)
+			clearRefreshTimer()
+			refreshPendingRef.current = false
+			destroyingRef.current = true
 
 			// Remove fullscreen event listener
 			const player = playerRef.current as any
@@ -200,9 +293,10 @@ export const useXgPlayer = ({ fileUrl, containerRef }: UseXgPlayerProps): UseXgP
 				}
 				playerRef.current = null
 			}
+			destroyingRef.current = false
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [fileUrl])
+	}, [fileUrl, fileResource, refreshFileUrl])
 
 	return {
 		playerRef,

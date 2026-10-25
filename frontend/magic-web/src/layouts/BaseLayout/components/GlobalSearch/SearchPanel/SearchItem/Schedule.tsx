@@ -1,6 +1,7 @@
 import { IconSchedule } from "@/enhance/tabler/icons-react"
 import type { GlobalSearch } from "@/types/search"
-import { useSearchItemCommonStyles } from "./styles"
+import { searchItemClassNames as styles } from "./classNames"
+import { cn as cx } from "@/utils/cn"
 import HighlightText from "../HighlightText"
 
 interface SearchItemScheduleProps {
@@ -9,7 +10,6 @@ interface SearchItemScheduleProps {
 
 function Schedule(props: SearchItemScheduleProps) {
 	const { item } = props
-	const { styles, cx } = useSearchItemCommonStyles()
 
 	return (
 		<div className={styles.item}>

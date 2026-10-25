@@ -1,4 +1,5 @@
 import { RoutePath } from "@/constants/routes"
+import { matchPath } from "react-router"
 
 // Keep alive 路由配置类型
 export type KeepAliveRouteConfig = {
@@ -23,8 +24,9 @@ export const keepAliveRoutes: KeepAliveRoute[] = [RoutePath.Chat, RoutePath.Supe
 export function isKeepAliveRoute(pathname: string, route: KeepAliveRoute): boolean {
 	// 字符串或 RoutePath 类型
 	if (typeof route === "string") {
-		// 兼容带集群参数前缀的路由匹配
-		return pathname === route || pathname.endsWith(route)
+		// Only the optional cluster prefix may precede a cached route. Suffix matching
+		// mistakes /global/super/chat for /chat and keeps a second home editor mounted.
+		return Boolean(matchPath(route, pathname) || matchPath(`/:clusterCode${route}`, pathname))
 	}
 
 	// 正则表达式类型

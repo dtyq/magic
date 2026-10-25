@@ -4,7 +4,12 @@
 管理与环境相关的参数设置
 """
 import os
-from typing import Optional, Any, Type, TypeVar, Union, cast
+from typing import Any, ClassVar, Optional, Type, TypeVar, Union, cast
+
+from agentlang.logger import get_logger
+
+
+logger = get_logger(__name__)
 
 T = TypeVar('T')
 
@@ -14,6 +19,9 @@ class Environment:
     DEFAULT_AGENT_IDLE_TIMEOUT = 3600  # 默认超时时间：1小时
     DEFAULT_IDLE_MONITOR_INTERVAL = 60  # 默认监控间隔：60秒
     DEFAULT_AGENT_IDLE_MONITOR_ENABLED = True
+    DEFAULT_SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS = 25
+    DEFAULT_SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 10
+    _reported_invalid_shutdown_configs: ClassVar[set[str]] = set()
     
     @staticmethod
     def get_env(key: str, default: Optional[Any] = None, value_type: Optional[Type[T]] = None) -> Union[Optional[str], T]:
@@ -146,6 +154,98 @@ class Environment:
             pass
             
         return Environment.DEFAULT_IDLE_MONITOR_INTERVAL
+
+    @staticmethod
+    def _parse_positive_int(value: object) -> Optional[int]:
+        """把配置边界值规范化为正整数。"""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            parsed = value
+        elif isinstance(value, str):
+            try:
+                parsed = int(value.strip())
+            except ValueError:
+                return None
+        else:
+            return None
+        return parsed if parsed > 0 else None
+
+    @classmethod
+    def _report_invalid_shutdown_config_once(cls, reason: str) -> None:
+        if reason in cls._reported_invalid_shutdown_configs:
+            return
+        cls._reported_invalid_shutdown_configs.add(reason)
+        logger.warning(
+            "沙箱关闭超时配置无效，回退到默认值: "
+            f"force_shutdown_timeout={cls.DEFAULT_SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS}s, "
+            f"graceful_shutdown_timeout={cls.DEFAULT_SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS}s, "
+            f"reason={reason}"
+        )
+
+    @classmethod
+    def _resolve_sandbox_shutdown_timeouts(cls) -> tuple[int, int]:
+        """读取并联合校验进程强制退出超时和服务优雅退出超时。"""
+        try:
+            from agentlang.config.config import config
+
+            configured_force: object = config.get(
+                "sandbox.shutdown.force_shutdown_timeout_seconds",
+                cls.DEFAULT_SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+            configured_graceful: object = config.get(
+                "sandbox.shutdown.graceful_shutdown_timeout_seconds",
+                cls.DEFAULT_SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+        except (ImportError, AttributeError):
+            configured_force = cls.DEFAULT_SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS
+            configured_graceful = cls.DEFAULT_SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS
+
+        force_source: object = os.getenv(
+            "SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS",
+            str(configured_force),
+        )
+        graceful_source: object = os.getenv(
+            "SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS",
+            str(configured_graceful),
+        )
+        force_seconds = cls._parse_positive_int(force_source)
+        graceful_seconds = cls._parse_positive_int(graceful_source)
+
+        if force_seconds is None or graceful_seconds is None:
+            cls._report_invalid_shutdown_config_once(
+                f"force_shutdown_timeout={force_source!r}, "
+                f"graceful_shutdown_timeout={graceful_source!r}: values must be positive integers"
+            )
+            return (
+                cls.DEFAULT_SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS,
+                cls.DEFAULT_SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+
+        if graceful_seconds >= force_seconds:
+            cls._report_invalid_shutdown_config_once(
+                f"force_shutdown_timeout={force_seconds}, "
+                f"graceful_shutdown_timeout={graceful_seconds}: "
+                "graceful shutdown timeout must be shorter than force shutdown timeout"
+            )
+            return (
+                cls.DEFAULT_SANDBOX_FORCE_SHUTDOWN_TIMEOUT_SECONDS,
+                cls.DEFAULT_SANDBOX_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+
+        return force_seconds, graceful_seconds
+
+    @classmethod
+    def get_sandbox_force_shutdown_timeout_seconds(cls) -> int:
+        """获取从首次退出请求到强制结束进程的超时时间。"""
+        force_seconds, _ = cls._resolve_sandbox_shutdown_timeouts()
+        return force_seconds
+
+    @classmethod
+    def get_sandbox_graceful_shutdown_timeout_seconds(cls) -> int:
+        """获取服务等待已有连接和请求正常结束的超时时间。"""
+        _, graceful_seconds = cls._resolve_sandbox_shutdown_timeouts()
+        return graceful_seconds
     
     @staticmethod
     def is_local() -> bool:

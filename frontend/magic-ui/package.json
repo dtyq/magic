@@ -76,7 +76,6 @@
 		"ahooks": "^3.7.11",
 		"antd": "^5.24.4",
 		"antd-style": "^3.6.2",
-		"lodash-es": "^4.17.21",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1"
 	},
@@ -100,6 +99,7 @@
 		"glob": "^11.0.3",
 		"husky": "^9.0.11",
 		"jsdom": "^26.0.0",
+		"lodash-es": "^4.17.21",
 		"lint-staged": "^15.2.2",
 		"prettier": "^2.7.1",
 		"sort-package-json": "^2.10.0",
@@ -115,6 +115,7 @@
 		"ahooks": "^3.7.11",
 		"antd": "^5.24.4",
 		"antd-style": "^3.6.2",
+		"lodash-es": "^4.17.21",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1"
 	},

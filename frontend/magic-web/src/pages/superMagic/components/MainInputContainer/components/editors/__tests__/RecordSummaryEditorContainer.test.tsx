@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { RecordingSummaryEditorMode } from "@/pages/superMagic/components/MessagePanel/const/recordSummary"
 import type { SceneEditorContext } from "../types"
+import type { RecordSummaryEditorPanelProps } from "@/components/business/RecordingSummary/EditorPanel"
 
 const testState = vi.hoisted(() => ({
 	setEditorMode: vi.fn(),
 	audioFileHook: vi.fn(),
 	defaultEditorContext: null as SceneEditorContext | null,
+	recordingPanelProps: null as RecordSummaryEditorPanelProps | null,
 }))
 
 vi.mock("@/hooks/useIsMobile", () => ({
@@ -41,12 +43,19 @@ vi.mock("@/pages/superMagic/components/MessagePanel/hooks/useRecordSummaryAudioF
 	default: (params: unknown) => testState.audioFileHook(params),
 }))
 
+vi.mock("@/pages/superMagic/components/ConversationInputResize/context", () => ({
+	useConversationInputLayout: () => ({ fillHeight: true }),
+}))
+
 vi.mock("@/components/business/RecordingSummary/components/EditorModeSwitch", () => ({
 	default: () => <div data-testid="recording-mode-switch" />,
 }))
 
 vi.mock("@/components/business/RecordingSummary/EditorPanel", () => ({
-	default: () => <div data-testid="recording-editor-panel" />,
+	default: (props: RecordSummaryEditorPanelProps) => {
+		testState.recordingPanelProps = props
+		return <div data-testid="recording-editor-panel" />
+	},
 }))
 
 vi.mock("../DefaultMessageEditorContainer", () => ({
@@ -80,6 +89,7 @@ describe("RecordSummaryEditorContainer", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		testState.defaultEditorContext = null
+		testState.recordingPanelProps = null
 	})
 
 	it("forces detail conversations into editing mode and hides the recording switch", () => {
@@ -104,6 +114,14 @@ describe("RecordSummaryEditorContainer", () => {
 		expect(screen.queryByTestId("default-message-editor")).not.toBeInTheDocument()
 		expect(testState.audioFileHook).toHaveBeenCalledWith(
 			expect.objectContaining({ editorMode: RecordingSummaryEditorMode.Recording }),
+		)
+		expect(testState.recordingPanelProps?.fillHeight).toBe(true)
+		expect(screen.getByTestId("recording-editor-panel").parentElement).toHaveClass(
+			"flex",
+			"h-full",
+			"min-h-0",
+			"w-full",
+			"flex-col",
 		)
 	})
 })

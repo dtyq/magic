@@ -1,9 +1,5 @@
 import type { CanvasConnection, CanvasDocument, LayerElement } from "./types"
-import {
-	buildCanvasDocumentElementIndex,
-	cloneCanvasJson,
-	toSortedCanvasElementIdArray,
-} from "./elementIndex"
+import { buildCanvasDocumentElementIndex, toSortedCanvasElementIdArray } from "./elementIndex"
 
 export interface CanvasDocumentConnectionRecord {
 	id: string
@@ -24,7 +20,11 @@ export interface CanvasDocumentConnectionDiff {
 }
 
 export function cloneCanvasConnection(connection: CanvasConnection): CanvasConnection {
-	return cloneCanvasJson(connection)
+	return {
+		id: connection.id,
+		sourceElementId: connection.sourceElementId,
+		targetElementId: connection.targetElementId,
+	}
 }
 
 export function cloneCanvasConnections(

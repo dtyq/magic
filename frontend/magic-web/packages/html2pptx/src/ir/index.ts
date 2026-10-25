@@ -41,11 +41,6 @@ export type {
 	SerializablePPTBorderLineNode,
 	SerializablePPTMediaNode,
 	SerializablePPTNode,
-	PackagePresentationInput,
-	PackagePresentationWorkerRequest,
-	PackagePresentationWorkerSuccess,
-	PackagePresentationWorkerError,
-	PackagePresentationWorkerResponse,
 } from "./serialize"
 
 export { serializePptNodes } from "./serialize"
